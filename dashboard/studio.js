@@ -363,7 +363,29 @@
     .sk2-act button.danger:hover{color:#ff9a9a;border-color:rgba(255,120,120,.5)}
     .sysb{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.02em;color:#8fd0ff;background:rgba(90,170,255,.12);border:1px solid rgba(90,170,255,.35);vertical-align:2px}
     .sk-usage{font-size:11px;color:var(--muted,#888);margin-left:8px}
-    .sk-stale{opacity:.75;font-style:italic;cursor:help}`;
+    .sk-stale{opacity:.75;font-style:italic;cursor:help}
+    /* ===== Mobile (<=860px) ===== xep DOC: nhom thanh dai chip cuon ngang o tren, danh sach
+       skill full-width ben duoi (truoc day cot nhom 210px bop cot skill con ~150px -> chu vo
+       tung tu). Nut thao tac luon hien (truoc day opacity:0 + chi hien khi :hover -> tren dien
+       thoai khong co hover nen Sua/Xuat/Xoa khong bao gio bam duoc). */
+    @media (max-width:860px){
+      .sk2{flex-direction:column;gap:12px}
+      .sk2-side{width:auto;max-height:none;display:flex;flex-direction:row;gap:6px;padding:6px;
+        overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+      .sk2-side::-webkit-scrollbar{height:0}
+      .sk2-side .sec{display:none}
+      .sk2-side .cat{flex:none;padding:8px 13px;border:1px solid rgba(255,255,255,.1);
+        border-radius:999px;white-space:nowrap}
+      .sk2-side .cat .n{padding:1px 6px;border-radius:9px;background:rgba(255,255,255,.07)}
+      .sk2-side .cat.sel{border-color:rgba(120,180,255,.4)}
+      .sk2-bar input{max-width:none;font-size:16px}   /* 16px: chan iOS tu zoom khi focus */
+      .sk2-tog{width:20px;height:20px;margin-top:2px}  /* vung cham lon hon */
+      .sk2-card{flex-wrap:wrap;padding:12px 13px}
+      .sk2-info .nm{font-size:16px}
+      .sk2-act{flex:1 1 100%;opacity:1;margin-top:11px;padding-top:11px;gap:8px;
+        border-top:1px solid rgba(255,255,255,.06);justify-content:flex-end}
+      .sk2-act button{padding:7px 14px;font-size:14px}
+    }`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
 
