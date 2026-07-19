@@ -4,10 +4,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [1.0.0] - 2026-07-19
-Javis OS bước lên phiên bản 1.0.0. Từ nay đánh số gọn theo major.minor.patch (rời chuỗi 0.9.x đã lên tới patch 103). Bản này tối ưu phần Skills trong Studio trên điện thoại: trước đây dưới 860px khung Skills vẫn giữ 2 cột như máy tính (cột nhóm 210px + cột skill), khiến cột skill chỉ còn khoảng 150px và mô tả bị xuống dòng mỗi chữ một dòng; các nút Sửa/Xuất/Xoá lại chỉ hiện khi rê chuột nên trên điện thoại không bao giờ bấm được. Chỉ đổi bản điện thoại.
+## [0.9.103] - 2026-07-19
+Phần Skills trong Studio trên điện thoại giờ dễ đọc, dễ bấm. Trước đây dưới 860px khung Skills vẫn giữ 2 cột như máy tính (cột nhóm 210px + cột skill), khiến cột skill chỉ còn khoảng 150px và mô tả bị xuống dòng mỗi chữ một dòng; các nút Sửa/Xuất/Xoá lại chỉ hiện khi rê chuột nên trên điện thoại không bao giờ bấm được. Chỉ đổi bản điện thoại.
 ### Cải thiện
-- **Đổi cách đánh số phiên bản**: chuyển từ 0.9.103 sang 1.0.0, mốc 1.x.x cho bản ổn định, mỗi số nhỏ gọn thay vì patch ba chữ số. Cơ chế so sánh phiên bản là số học nên máy đang chạy 0.9.x vẫn nhận đúng 1.0.0 là bản mới hơn và báo cập nhật.
 - **Skills trên điện thoại xếp dọc**: dưới 860px, khung Skills chuyển từ 2 cột sang xếp dọc. Danh sách nhóm thành dải chip cuộn ngang gọn ở trên (bấm để lọc), danh sách skill chiếm trọn bề ngang nên mô tả đọc bình thường thay vì vỡ từng từ.
 - **Nút thao tác skill luôn hiện trên điện thoại**: Sửa/Xuất/Xoá tách xuống một hàng riêng dưới mỗi thẻ và luôn hiển thị (bỏ kiểu chỉ hiện khi hover), vùng chạm to hơn, ô chọn bật/tắt cũng lớn hơn. Ô tìm skill dùng cỡ chữ 16px để iOS không tự phóng to khi focus.
 
