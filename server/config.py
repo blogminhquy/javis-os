@@ -87,7 +87,11 @@ _DEFAULT = {
     # kết nối của Javis (--strict-mcp-config), bỏ qua config MCP sẵn có của máy.
     # hub=True (mặc định): mọi engine đấu qua MCP HUB (1 entry "javis" - đa tài khoản, quyền,
     # audit tại hub). Đặt false để về chế độ cũ (per-server) nếu gặp sự cố.
-    "mcp": {"strict": False, "hub": True},
+    # lazy_tools: chống phình context khi đấu nhiều connector. "auto" = tự bật khi số tool
+    # MCP vượt lazy_threshold (mặc định); True/False = ép bật/tắt. Khi bật, hub chỉ phơi
+    # 2 meta-tool javis_search_tools/javis_run_tool thay cho hàng trăm schema -> model tự
+    # tìm tool theo NGỮ CẢNH rồi mới nạp. lazy_top_k = số tool search trả về mỗi lần.
+    "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40, "lazy_top_k": 8},
 }
 
 

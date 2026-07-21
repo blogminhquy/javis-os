@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.146] - 2026-07-21
+Thêm chế độ "tool gọn" cho MCP: khi đấu nhiều nguồn, Javis không còn nạp sẵn hàng trăm công cụ vào mỗi câu nữa mà chỉ mở đúng công cụ khi ngữ cảnh cần, tiết kiệm token đáng kể.
+### Thêm mới
+- **Chế độ tool gọn (lazy tools) cho MCP**: trước đây mỗi câu hỏi, kể cả câu chẳng liên quan bán hàng hay quảng cáo, đều phải gánh toàn bộ mô tả công cụ của MỌI nguồn đang đấu (POS, Meta Ads, Systeme.io, Webcake...), tốn rất nhiều token dù không dùng tới. Nay khi tổng số công cụ vượt ngưỡng, Javis chỉ đưa cho model một thực đơn gọn liệt kê đang có những nguồn nào, kèm hai công cụ máy móc: một để TÌM công cụ theo nhu cầu, một để GỌI công cụ tìm được. Model tự quyết mỗi câu là có cần đụng nguồn nào không rồi mới mở đúng nhóm công cụ đó. Câu tán gẫu, dịch, viết bài gần như không tốn token công cụ; câu cần số liệu thì tự mở đúng nguồn. Không phải bật tắt tay gì cả.
+### Cải thiện
+- Chế độ này tự bật khi đông công cụ (mặc định trên 40) và tự tắt khi ít; chỉnh được ở settings `mcp.lazy_tools` (auto/bật/tắt), `mcp.lazy_threshold` (ngưỡng số công cụ), `mcp.lazy_top_k` (số công cụ trả về mỗi lần tìm). Các công cụ nội bộ nhỏ và hay dùng (đọc ghi file, tạo ảnh, nhắc hẹn, gửi Zalo...) vẫn hiện thẳng như cũ, chỉ nhóm công cụ nguồn ngoài đông đúc mới được gom sau thực đơn.
+- Lớp phân quyền, ghi nhật ký và giới hạn tần suất giữ nguyên vì mọi lời gọi công cụ vẫn đi qua đúng đường cũ. Thêm kiểm thử cho xếp hạng tìm công cụ, việc giấu/hiện đúng nhóm, và các nhánh lỗi khi gọi.
+
 ## [0.9.145] - 2026-07-21
 Sửa lỗi tick chọn cuộc chat theo dõi trên Zalo cứ mất sau khi tải lại trang hoặc khởi động lại server.
 ### Sửa lỗi

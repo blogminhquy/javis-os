@@ -21,6 +21,7 @@ from pathlib import Path
 
 from fastapi.responses import JSONResponse, Response
 
+import config
 import mcp_catalog
 import mcp_client
 import mcp_store
@@ -281,6 +282,163 @@ async def _async_const(v):
 
 
 # ============================================================
+# LAZY TOOLS - chống phình context khi đấu nhiều connector.
+# Thay vì phơi hết hàng trăm schema tool MCP MỖI lượt (câu nào cũng gánh), hub chỉ phơi
+# builtins + plugin + 2 meta-tool: javis_search_tools (tìm tool theo nhu cầu) và
+# javis_run_tool (gọi tool tìm được). Model tự tìm theo NGỮ CẢNH rồi mới nạp schema →
+# câu không cần MCP tốn gần 0 token tool. Kế thừa NGUYÊN lớp quyền/audit/rate-limit vì
+# run đi qua đúng call_route của route ĐẦY ĐỦ (đã _guard). Model chỉ THẤY meta-tool nên
+# không thể gọi thẳng tool pool → buộc qua run (protocol tự ép).
+# Kế hoạch gốc: docs/dev/2026-07-ke-hoach-ket-noi-hub.md mục 3.3 ("lazy tools", để sau).
+# ============================================================
+_LAZY_SEARCH = "javis_search_tools"
+_LAZY_RUN = "javis_run_tool"
+_WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)   # từ khoá ≥2 ký tự (giữ Unicode/tiếng Việt)
+
+
+def _lazy_config():
+    """(mode, threshold, top_k) từ settings mcp.*. mode: 'auto' | True | False.
+    Đọc lỗi → mặc định an toàn ('auto', 40, 8)."""
+    try:
+        m = config.read_settings().get("mcp") or {}
+    except Exception:
+        m = {}
+
+    def _int(v, d):
+        try:
+            return max(1, int(v))
+        except (TypeError, ValueError):
+            return d
+
+    return m.get("lazy_tools", "auto"), _int(m.get("lazy_threshold"), 40), min(50, _int(m.get("lazy_top_k"), 8))
+
+
+def _lazy_on(pool_n):
+    """Có bật chế độ lazy cho lần discover này không (theo config + số tool pool MCP)."""
+    mode, thr, _ = _lazy_config()
+    s = str(mode).strip().lower()
+    if mode is True or s in ("true", "on", "1", "always"):
+        return True
+    if mode is False or s in ("false", "off", "0", "never"):
+        return False
+    return pool_n > thr   # 'auto': chỉ bật khi thật sự đông tool
+
+
+def _connector_menu(pool):
+    """Thực đơn MỎNG các nguồn đang đấu (namespace + tên + số tool + mô tả 1 dòng) để model
+    biết CÓ GÌ mà với tới. Đây là phần LUÔN bật (rẻ, vài trăm token) thay cho cả rừng schema."""
+    seen = {}
+    for t in pool:
+        ns = t.get("namespace") or t.get("server") or "?"
+        if ns not in seen:
+            con = mcp_catalog.get(t.get("connector_id")) or {}
+            seen[ns] = {"label": t.get("label") or con.get("name") or ns,
+                        "desc": (con.get("description") or con.get("name") or "").strip(), "n": 0}
+        seen[ns]["n"] += 1
+    parts = []
+    for ns, v in seen.items():
+        d = (": " + v["desc"][:70]) if v["desc"] else ""
+        parts.append(f"{ns} ({v['label']}, {v['n']} tool){d}")
+    return "; ".join(parts)
+
+
+def _rank_tools(pool, query, top_k):
+    """Xếp hạng pool theo độ khớp query: khớp cả cụm (+5), đếm từ khoá (+1/từ), boost khi
+    query nhắc thẳng namespace (+3). Trả top_k tool điểm > 0; query rỗng → [] (handler trả menu)."""
+    q = (query or "").strip().lower()
+    if not q:
+        return []
+    terms = set(_WORD_RE.findall(q))
+    scored = []
+    for t in pool:
+        hay = " ".join([str(t.get("fn") or ""), str(t.get("name") or ""), str(t.get("description") or ""),
+                        str(t.get("namespace") or ""), str(t.get("label") or "")]).lower()
+        score = 5 if q in hay else 0
+        score += sum(1 for w in terms if w in hay)
+        ns = str(t.get("namespace") or "").lower()
+        if ns and ns in q:
+            score += 3
+        if score > 0:
+            scored.append((score, t))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [t for _s, t in scored[:top_k]]
+
+
+def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k):
+    """Dựng (tools_spec, route) chế độ lazy: builtins/plugin hiện trực tiếp + 2 meta-tool.
+    _search đóng gói `pool` (full tools_spec để xếp hạng); _run đóng gói `full_route` (dispatch
+    qua call_route → giữ nguyên _guard quyền/audit/rate-limit)."""
+    menu = _connector_menu(pool)
+
+    async def _search(args):
+        hits = _rank_tools(pool, (args or {}).get("query") or "", top_k)
+        if not hits:
+            return ("Không thấy tool khớp. Nguồn đang đấu: " + (menu or "(chưa có nguồn nào)")
+                    + f". Nêu rõ nguồn hoặc việc cần làm rồi gọi lại {_LAZY_SEARCH}.")
+        out = [{"name": t.get("fn"), "description": (t.get("description") or "")[:400],
+                "schema": t.get("schema") or {"type": "object", "properties": {}}} for t in hits]
+        return json.dumps({"tools": out,
+                           "goi_the_nao": f"Gọi tool bằng {_LAZY_RUN}(name=<name>, args={{...}})."},
+                          ensure_ascii=False)
+
+    async def _run(args):
+        name = str((args or {}).get("name") or "").strip()
+        targs = (args or {}).get("args")
+        if isinstance(targs, str):          # vài model gói args thành chuỗi JSON
+            try:
+                targs = json.loads(targs)
+            except (ValueError, TypeError):
+                targs = {}
+        if not isinstance(targs, dict):
+            targs = {}
+        if not name:
+            return f"ERROR: thiếu 'name'. Dùng {_LAZY_SEARCH} để tìm tên tool trước."
+        if name in (_LAZY_SEARCH, _LAZY_RUN):
+            return f"ERROR: '{name}' là meta-tool, không gọi qua {_LAZY_RUN}."
+        if name not in full_route:
+            return (f"ERROR: không có tool '{name}'. Dùng {_LAZY_SEARCH} để lấy đúng tên "
+                    "(phải khớp y hệt kết quả tìm).")
+        return await mcp_client.call_route(full_route, name, targs)
+
+    tools = list(visible_tools)
+    route = dict(visible_route)
+    tools.append({"fn": _LAZY_SEARCH, "server": "javis", "name": _LAZY_SEARCH,
+                  "description": ("TÌM tool MCP theo NHU CẦU rồi mới nạp (tiết kiệm token: tool chỉ vào "
+                                  "ngữ cảnh khi cần). query = mô tả việc cần làm hoặc tên nguồn. Nguồn "
+                                  "đang đấu: " + (menu or "(chưa có nguồn nào)") + f". Kết quả trả tên + "
+                                  f"tham số tool để gọi tiếp qua {_LAZY_RUN}."),
+                  "schema": {"type": "object", "properties": {
+                      "query": {"type": "string",
+                                "description": "Việc cần làm / nguồn / từ khoá, vd 'doanh thu POS hôm nay'"}},
+                      "required": ["query"]}})
+    tools.append({"fn": _LAZY_RUN, "server": "javis", "name": _LAZY_RUN,
+                  "description": (f"GỌI một tool MCP đã tìm được qua {_LAZY_SEARCH}. name = tên tool (đúng "
+                                  "y hệt kết quả tìm), args = tham số (object). Quyền/audit/giới hạn tần "
+                                  "suất áp y như gọi trực tiếp."),
+                  "schema": {"type": "object", "properties": {
+                      "name": {"type": "string", "description": f"Tên tool lấy từ {_LAZY_SEARCH}"},
+                      "args": {"type": "object", "description": "Tham số tool (object)"}},
+                      "required": ["name"]}})
+    route[_LAZY_SEARCH] = {"call": _search}
+    route[_LAZY_RUN] = {"call": _run}
+    return tools, route
+
+
+def _apply_lazy(tools_spec, route):
+    """Nếu bật lazy: giấu tool MCP (pool) sau meta-tool search/run; không bật → trả nguyên.
+    Pool = tool có route entry mang 'conn' (đến từ connection MCP). Builtins + plugin (entry
+    'call' không 'conn') LUÔN hiện trực tiếp - chúng ít và luôn hữu dụng."""
+    pool = [t for t in tools_spec if (route.get(t["fn"]) or {}).get("conn")]
+    if not _lazy_on(len(pool)):
+        return tools_spec, route
+    pool_fns = {t["fn"] for t in pool}
+    visible_tools = [t for t in tools_spec if t["fn"] not in pool_fns]
+    visible_route = {fn: ent for fn, ent in route.items() if fn not in pool_fns}
+    _, _, top_k = _lazy_config()
+    return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k)
+
+
+# ============================================================
 # Discover (cache) - gộp MCP connections + builtin
 # ============================================================
 def _store_mtime():
@@ -353,6 +511,10 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True):
     except Exception as e:
         print(f"[hub] plugin host lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
+    # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
+    # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
+    # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
+    tools_spec, route = _apply_lazy(tools_spec, route)
     _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt}
     return tools_spec, route
 

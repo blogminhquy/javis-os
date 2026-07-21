@@ -106,7 +106,7 @@ Lợi ích của việc dồn về 1 điểm:
 - Endpoint `POST /hub/mcp` (Streamable HTTP) ngay trên FastAPI đang chạy, bind localhost.
 - `.mcp_config.json` của Claude Code và profile toml của Codex chỉ còn MỘT entry trỏ về hub (kèm token nội bộ chống tiến trình lạ trên máy gọi vào).
 - Đặt tên tool: connector có 1 connection thì giữ tên gọn `pos__pos_order`; nhiều connection thì `pos_kim-khi-ha-loc__pos_order`. Kèm meta-tool `javis_connections` (liệt kê connector + tài khoản + quyền) để model tự biết đang có nguồn nào.
-- Tuỳ chọn chống phình context khi user đấu nhiều connector: chế độ "lazy tools" (chỉ expose meta-tool `search_tools` + `run_tool`, kiểu Composio). Để sau, bật theo ngưỡng số tool.
+- Tuỳ chọn chống phình context khi user đấu nhiều connector: chế độ "lazy tools" (chỉ expose meta-tool `search_tools` + `run_tool`, kiểu Composio). ĐÃ LÀM (v0.9.146): `mcp_hub._apply_lazy` giấu tool pool (tool MCP có route entry `conn`) sau `javis_search_tools`/`javis_run_tool`, builtins + plugin vẫn hiện; tự bật khi số tool MCP vượt `settings.mcp.lazy_threshold` (mặc định 40), ép bật/tắt bằng `settings.mcp.lazy_tools`. Áp trong `discover_all` nên mọi engine (Claude Code, Codex, API) hưởng chung; quyền/audit giữ nguyên vì `run` đi qua `call_route` route đầy đủ.
 
 ### 3.4 Quyền tập trung tại hub
 
