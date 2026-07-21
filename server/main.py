@@ -4561,7 +4561,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Nạp bộ nhớ của vault đang chọn vào system prompt (Javis luôn nhớ)
             # + block kênh (port gateway hermes): engine biết đang trả lời qua dashboard web
             sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
-                "dashboard", telegram_running=bool(_TG_BOT), port=_javis_port())
+                "dashboard", telegram_running=bool(_TG_BOT), port=_javis_port(), brain_root=_brain_root(brain))
 
             final_text = ""
             if prov == "openai-oauth":
@@ -4884,7 +4884,7 @@ async def _tg_answer(text, meta=None, progress=None):
     # Block kênh (port gateway hermes-agent): engine biết đang trả lời qua Telegram,
     # ai đang nhắn, và cách gửi file trả về (auto-attach + endpoint send-file).
     sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
-        "telegram", meta, telegram_running=True, port=_javis_port())
+        "telegram", meta, telegram_running=True, port=_javis_port(), brain_root=_brain_root(brain))
     if (kind == "api" and api_key) or kind == "oauth":
         label = _api_label(prov)
         if sess["or"] is None:

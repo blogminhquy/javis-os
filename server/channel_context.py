@@ -25,15 +25,23 @@ _EXCLUDE_PARTS = {".git", "__pycache__", "node_modules", ".obsidian", ".trash", 
 
 
 def build_channel_block(source: str, meta: dict = None, telegram_running: bool = False,
-                        port: int = 7777) -> str:
+                        port: int = 7777, brain_root: str = None) -> str:
     """Block 'KÊNH HỘI THOẠI HIỆN TẠI' để nối vào cuối system prompt.
 
     source: "telegram" | "dashboard". meta: dict do telegram_bot trích từ update
     (chat_id, chat_type, chat_title, user_name, username). Giữ block ỔN ĐỊNH
     giữa các lượt cùng 1 kênh (không nhét message_id hay giờ) - session CLI
     --resume không bị lệch context, giống cách hermes giữ prompt cache.
+
+    brain_root: đường dẫn brain của PHIÊN này. NHÉT vào recipe curl POST /reminders để nhắc hẹn
+    rơi ĐÚNG brain. Thiếu nó thì endpoint âm thầm dùng Brain Default (reminders.py) - đây chính là
+    bug "chat bằng brain khác nhưng nhắc hẹn vẫn vào default": curl từ Bash không mang session/cookie
+    nên brain CHỈ đi được qua body, mà recipe cũ lại bỏ trống field brain.
     """
     meta = meta or {}
+    # Cặp key-value brain để chèn vào JSON body của curl (rỗng nếu không rõ brain → giữ hành vi cũ).
+    # json.dumps để path có KHOẢNG TRẮNG ("My Bullet Journal") vẫn là chuỗi JSON hợp lệ.
+    brain_kv = f'"brain":{json.dumps(brain_root)},' if brain_root else ""
     platforms = ["local (file trên máy chạy Javis)", "dashboard web"]
     if telegram_running or source == "telegram":
         platforms.append("Telegram bot")
@@ -73,10 +81,13 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "",
             "## Đặt nhắc hẹn (Javis TỰ thức dậy gửi sau - dùng khi user muốn được nhắc)",
             "Khi user muốn được NHẮC vào lúc nào đó (\"30 phút nữa nhắc anh...\", \"8h30 sáng mai nhắc...\", "
-            "\"mỗi sáng 7h nhắc uống thuốc\", \"tối 9h báo doanh thu hôm nay\"): dùng tool Bash gọi "
+            "\"mỗi sáng 7h nhắc uống thuốc\", \"tối 9h báo doanh thu hôm nay\").",
+            "- CÁCH NÊN DÙNG: gọi tool `javis_schedule` (op=create) - nó TỰ gắn đúng brain phiên này, "
+            "khỏi lo nhắc rơi nhầm brain. Chỉ dùng curl bên dưới nếu vì lý do gì không gọi được tool.",
+            "- Cách curl (nếu cần): dùng tool Bash gọi "
             f"`curl -s -X POST http://127.0.0.1:{port}/reminders "
             "-H \"Content-Type: application/json\" "
-            "-d '{\"text\":\"<nội dung nhắc, ngắn gọn>\",\"delay_min\":30,"
+            f"-d '{{\"text\":\"<nội dung nhắc, ngắn gọn>\",{brain_kv}\"delay_min\":30,"
             f"\"chat_id\":\"{chat_id}\",\"mode\":\"notify\"}}'`",
             "- THỜI ĐIỂM (chọn 1): \"delay_min\": số phút nữa (vd 30, 120); HOẶC \"at\":\"HH:MM\" giờ trong "
             "ngày (đã qua thì tự sang mai); HOẶC \"at\":\"YYYY-MM-DD HH:MM\" cho ngày cụ thể. Server TỰ tính "
@@ -91,9 +102,12 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "- \"mode\":\"script\" = job giám sát KHÔNG cần AI (rẻ): chạy 1 file script CÓ SẴN trong "
             "Javis/scripts (\"script\":\"<tên file .py/.sh/.ps1>\"), đẩy stdout về đây; stdout rỗng thì im lặng, "
             "exit khác 0 thì báo lỗi. Chỉ chạy file user đã tự bỏ vào folder đó - KHÔNG bịa lệnh tuỳ ý.",
-            f"- LUÔN giữ \"chat_id\":\"{chat_id}\" để nhắc về ĐÚNG người đang nói. Gọi curl xong, đọc JSON "
-            "trả về: ok=true kèm due_human là đã đặt - xác nhận lại NGẮN bằng lời (vd \"Ok, 8h30 sáng mai "
-            "em nhắc anh nhé\"). KHÔNG nói đã đặt nếu curl chưa trả ok=true.",
+            f"- LUÔN giữ \"chat_id\":\"{chat_id}\" để nhắc về ĐÚNG người đang nói.",
+            ("- LUÔN giữ NGUYÊN field \"brain\" có sẵn trong lệnh trên (nó trỏ brain đang chat) để nhắc "
+             "hẹn thuộc ĐÚNG brain; bỏ đi thì nhắc rơi nhầm vào Brain Default." if brain_root else
+             "- (Không xác định được brain phiên → nhắc sẽ vào Brain Default.)"),
+            "- Gọi curl xong, đọc JSON trả về: ok=true kèm due_human là đã đặt - xác nhận lại NGẮN bằng lời "
+            "(vd \"Ok, 8h30 sáng mai em nhắc anh nhé\"). KHÔNG nói đã đặt nếu curl chưa trả ok=true.",
             "",
             "## Tạo Loop / Việc (Kanban) cho user qua chat - báo kết quả về ĐÚNG người",
             "Loop chạy nền (mỗi vòng) và việc Kanban (khi chạy xong) TỰ báo kết quả về Telegram của "
@@ -114,11 +128,12 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
                 f"`curl -s -X POST http://127.0.0.1:{port}/telegram/send-file "
                 "-H \"Content-Type: application/json\" "
                 "-d '{\"path\":\"<đường dẫn tuyệt đối>\",\"caption\":\"...\"}'`",
-                "- Nếu user muốn được NHẮC sau (\"30 phút nữa nhắc...\", \"8h sáng mai...\"): dùng tool Bash gọi "
+                "- Nếu user muốn được NHẮC sau (\"30 phút nữa nhắc...\", \"8h sáng mai...\"): nên gọi tool "
+                "`javis_schedule` (op=create) để nhắc vào ĐÚNG brain đang chọn; hoặc dùng tool Bash gọi "
                 f"`curl -s -X POST http://127.0.0.1:{port}/reminders -H \"Content-Type: application/json\" "
-                "-d '{\"text\":\"<nội dung>\",\"delay_min\":30}'` (hoặc \"at\":\"HH:MM\" / "
-                "\"at\":\"YYYY-MM-DD HH:MM\", thêm \"repeat_min\" để lặp). Server tính giờ VN; tới giờ Javis "
-                "tự gửi nhắc qua Telegram cho chủ bot.",
+                f"-d '{{\"text\":\"<nội dung>\",{brain_kv}\"delay_min\":30}}'` (hoặc \"at\":\"HH:MM\" / "
+                "\"at\":\"YYYY-MM-DD HH:MM\", thêm \"repeat_min\" để lặp). Giữ nguyên field \"brain\" để nhắc "
+                "thuộc đúng brain. Server tính giờ VN; tới giờ Javis tự gửi nhắc qua Telegram cho chủ bot.",
             ]
     return "\n".join(lines) + "\n"
 

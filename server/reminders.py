@@ -512,6 +512,13 @@ class RemindersFeature:
             ["chat_id","mode"(notify|task|script),"script","repeat_min","label","brain"]}."""
             p = payload or {}
             brain = str(p.get("brain") or "brain")
+            # Body thiếu 'brain' → rơi Brain Default. Sau khi recipe curl (channel_context) và tool
+            # javis_schedule đều gắn brain, thiếu brain là BẤT THƯỜNG (model quên) → log để soi chứ
+            # KHÔNG chặn (giữ tương thích caller cũ/thủ công cố ý dùng default). Đây từng là bug câm
+            # "chat brain khác nhưng nhắc hẹn vẫn vào default".
+            if not str(p.get("brain") or "").strip():
+                print(f"[reminders] POST thiếu 'brain' → Brain Default (created_by="
+                      f"{p.get('created_by') or 'user'}, text={str(p.get('text'))[:40]!r})", file=sys.stderr)
             try:
                 async with self._io:
                     rem = self._create(
