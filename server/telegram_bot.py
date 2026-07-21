@@ -42,6 +42,7 @@ BOT_COMMANDS = [
     {"command": "help", "description": "Trợ giúp"},
     {"command": "status", "description": "Engine, model, vault, trạng thái"},
     {"command": "skills", "description": "Liệt kê skill có sẵn"},
+    {"command": "notes", "description": "Lưu tin nhắn (kèm ảnh) vào Sources của brain"},
     {"command": "agents", "description": "Liệt kê agent + việc đang chạy"},
     {"command": "workflows", "description": "Liệt kê workflow"},
     {"command": "model", "description": "Xem hoặc đổi model"},
@@ -57,6 +58,21 @@ IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 MAX_DOC_MB = 50     # trần sendDocument của bot API
 MAX_PHOTO_MB = 10   # trần sendPhoto
 MAX_DOWNLOAD_MB = 20  # bot API chỉ cho TẢI VỀ file ≤ 20MB
+
+
+def _caption_command_text(ingested, caption):
+    """Text cuối cho tin CHỈ có đính kèm (ảnh/file). Nếu caption là LỆNH ('/...', vd '/notes ...')
+    thì đưa LỆNH lên ĐẦU + dòng marker '[... đã tải về: path]' để _dispatch nhận đúng lệnh mà
+    skill vẫn thấy đường dẫn file; caption thường hoặc rỗng thì giữ NGUYÊN ingested (hành vi cũ).
+    Cần vì gửi ảnh + caption '/notes' trước đây bị chôn lệnh giữa text ingest nên không route
+    được như lệnh - đúng ca dùng chính của /notes (chộp ảnh lưu vào Sources).
+    _ingest_attachment ghép caption vào CUỐI marker, nên ở nhánh lệnh ta lấy lại dòng marker
+    (dòng đầu, marker luôn 1 dòng) rồi đặt SAU lệnh."""
+    cap = (caption or "").strip()
+    ing = ingested or ""
+    if cap.startswith("/") and ing:
+        return cap + "\n" + ing.split("\n", 1)[0]
+    return ing
 
 
 # ---- Markdown thường → Telegram MarkdownV2 (port rút gọn từ hermes-agent
@@ -398,8 +414,11 @@ class TelegramBot:
                             continue
                         text = (msg.get("text") or "").strip()
                         if not text:
-                            # tin không có chữ → có thể là file/ảnh đính kèm
-                            text = await self._ingest_attachment(client, msg) or ""
+                            # tin không có chữ → ảnh/file đính kèm. Caption có thể là LỆNH
+                            # (vd "/notes ..."): đưa lệnh lên đầu để _dispatch nhận đúng, kèm
+                            # dòng "[đã tải về: path]" cho skill dùng file.
+                            ingested = await self._ingest_attachment(client, msg) or ""
+                            text = _caption_command_text(ingested, msg.get("caption"))
                         if not text:
                             continue
                         await self._dispatch(client, chat, text, self._build_meta(msg))
