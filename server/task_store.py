@@ -712,6 +712,57 @@ class TaskStore:
                 self._db.rollback()
                 raise
 
+    def recover_codex_global_flag_blocks(self, brain_root: str) -> int:
+        """Retry tasks blocked by the v0.9.173 Codex argv ordering regression once.
+
+        The match is intentionally narrow so operator/input blocks and unrelated
+        Codex failures remain untouched.
+        """
+        key = "recovery:codex-global-flags-v1:" + str(brain_root)
+        with self._lock:
+            self._tx()
+            try:
+                seen = self._db.execute(
+                    "SELECT 1 FROM task_migrations WHERE migration_key=?", (key,)
+                ).fetchone()
+                if seen:
+                    self._db.rollback()
+                    return 0
+                rows = self._db.execute(
+                    """SELECT id FROM tasks
+                       WHERE brain_root=? AND status='blocked'
+                         AND block_reason LIKE '%unexpected argument%'
+                         AND block_reason LIKE '%--ask-for-approval%'""",
+                    (brain_root,),
+                ).fetchall()
+                ts = now()
+                for row in rows:
+                    task_id = str(row["id"])
+                    self._db.execute(
+                        """UPDATE tasks
+                           SET status='ready',
+                               attempts=CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,
+                               block_kind='', block_reason='', claimed_by='',
+                               claim_expires_at=0, current_run_id='', updated_at=?
+                           WHERE id=? AND status='blocked'""",
+                        (ts, task_id),
+                    )
+                    self._event(
+                        task_id,
+                        "system_recovered",
+                        "retry after Codex global flag ordering fix",
+                    )
+                self._db.execute(
+                    """INSERT INTO task_migrations(migration_key, migrated_at)
+                       VALUES (?, ?)""",
+                    (key, ts),
+                )
+                self._db.commit()
+                return len(rows)
+            except Exception:
+                self._db.rollback()
+                raise
+
     def cancel_running(self, task_id: str, reason: str = "operator cancel") -> bool:
         ts = now()
         with self._lock:

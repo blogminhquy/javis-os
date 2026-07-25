@@ -111,6 +111,9 @@ check("sandbox co vao dong lenh",
       "--sandbox" in sandbox_args and sandbox_args[sandbox_args.index("--sandbox") + 1] == "read-only")
 check("sandbox bat thi khong con co bypass",
       "--dangerously-bypass-approvals-and-sandbox" not in sandbox_args)
+check("Codex global flags dung TRUOC exec (tuong thich CLI VPS)",
+      sandbox_args.index("--sandbox") < sandbox_args.index("exec")
+      and sandbox_args.index("--ask-for-approval") < sandbox_args.index("exec"))
 
 
 # ---- apply(): deps cũ không có aux_swap ----

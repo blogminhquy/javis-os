@@ -531,10 +531,11 @@
     .kn-pill{flex:none;border-radius:99px;padding:2px 7px;font-size:10px;border:1px solid rgba(255,255,255,.1);color:#96a6c2}
     .kn-task-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:5px;color:#6f7d97;font-size:11px}
     .kn-task-result{margin-top:6px;color:#91a1bb;font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .kn-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.kn-actions button{padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.025);color:#aab8d0;font-size:11px;cursor:pointer}.kn-actions button:hover{border-color:#7fb0ff;color:#fff}
+    .kn-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.kn-actions button{padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.025);color:#aab8d0;font-size:11px;cursor:pointer}.kn-actions button:hover{border-color:#7fb0ff;color:#fff}.kn-actions button.danger{color:#e99a8a}.kn-actions button.danger:hover{border-color:#e27b68;color:#ffc0b4}
     .kn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.kn-dot.live{background:#3fdc86;box-shadow:0 0 0 4px rgba(63,220,134,.12)}.kn-dot.off{background:#66728a}
-    .kn-drawer{position:fixed;z-index:9998;top:0;right:0;width:min(520px,94vw);height:100vh;background:#090e1a;border-left:1px solid rgba(127,176,255,.25);box-shadow:-20px 0 60px rgba(0,0,0,.45);transform:translateX(105%);transition:.2s;display:flex;flex-direction:column}
-    .kn-drawer.open{transform:translateX(0)}.kn-drawer-head{padding:15px 17px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:10px}.kn-drawer-head b{flex:1;color:#edf3ff}.kn-drawer-head button{background:none;border:0;color:#9aa9c3;font-size:20px;cursor:pointer}
+    .kn-drawer-backdrop{position:fixed;z-index:10000;inset:0;background:rgba(3,7,16,.58);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .2s}.kn-drawer-backdrop.open{opacity:1;pointer-events:auto}
+    .kn-drawer{position:fixed;z-index:10001;top:0;right:0;width:min(520px,94vw);height:100vh;height:100dvh;background:#090e1a;border-left:1px solid rgba(127,176,255,.25);box-shadow:-20px 0 60px rgba(0,0,0,.45);transform:translateX(105%);transition:transform .2s;display:flex;flex-direction:column}
+    .kn-drawer.open{transform:translateX(0)}.kn-drawer-head{position:sticky;top:0;z-index:2;padding:12px 12px 12px 17px;border-bottom:1px solid rgba(255,255,255,.08);background:#090e1a;display:flex;align-items:center;gap:10px}.kn-drawer-head b{flex:1;color:#edf3ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kn-drawer-head button{width:36px;height:36px;display:grid;place-items:center;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.11);border-radius:8px;color:#b8c5dc;font-size:22px;line-height:1;cursor:pointer}.kn-drawer-head button:hover{border-color:#7fb0ff;color:#fff}
     .kn-drawer-body{padding:16px 17px;overflow:auto;color:#aebbd2;font-size:13px;line-height:1.5}.kn-detail-block{margin-top:16px}.kn-detail-block h4{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#71809a;margin:0 0 7px}.kn-event{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
     @media(max-width:850px){.kn-health{grid-template-columns:repeat(2,1fr)}.kn-layout{grid-template-columns:1fr}.kn-list{max-height:none}}`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
@@ -1491,6 +1492,7 @@
   };
   async function renderKanban(el) {
     _injectExtraCss();
+    if (window._javisKanbanDrawerCleanup) window._javisKanbanDrawerCleanup();
     el.innerHTML = `<div class="cview-section"><div class="empty">Đang tải...</div></div>`;
     let wfs = [];
     try { wfs = (await (await fetch(`/workflows?brain=${encodeURIComponent(fbrain())}`)).json()).workflows || []; } catch (e) {}
@@ -1537,8 +1539,50 @@
           <section class="kn-panel"><div class="kn-panel-head"><b>Lịch sử gần đây</b><span>24 giờ và mới nhất</span></div><div class="kn-list" id="knHistory"></div></section>
         </div>
       </div>
-      <aside class="kn-drawer" id="knDrawer"><div class="kn-drawer-head"><b id="knDrawerTitle">Chi tiết task</b><button id="knDrawerClose">×</button></div><div class="kn-drawer-body" id="knDrawerBody">Đang tải...</div></aside>
     </div>`;
+
+    // Portal lên document.body để drawer không bị cắt bởi vùng content có
+    // transform/overflow. Đây cũng bảo đảm nút đóng luôn nằm trong viewport.
+    const drawerPortal = document.createElement("div");
+    drawerPortal.id = "knDrawerPortal";
+    drawerPortal.innerHTML = `
+      <div class="kn-drawer-backdrop" id="knDrawerBackdrop"></div>
+      <aside class="kn-drawer" id="knDrawer" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="knDrawerTitle">
+        <div class="kn-drawer-head">
+          <b id="knDrawerTitle">Chi tiết task</b>
+          <button id="knDrawerClose" type="button" aria-label="Đóng chi tiết" title="Đóng (Esc)">×</button>
+        </div>
+        <div class="kn-drawer-body" id="knDrawerBody">Đang tải...</div>
+      </aside>`;
+    document.body.appendChild(drawerPortal);
+    const drawer = drawerPortal.querySelector("#knDrawer");
+    const drawerBackdrop = drawerPortal.querySelector("#knDrawerBackdrop");
+    const drawerBody = drawerPortal.querySelector("#knDrawerBody");
+    const drawerTitle = drawerPortal.querySelector("#knDrawerTitle");
+    const closeDrawer = () => {
+      drawer.classList.remove("open");
+      drawerBackdrop.classList.remove("open");
+      drawer.setAttribute("aria-hidden", "true");
+    };
+    const openDrawer = () => {
+      drawer.classList.add("open");
+      drawerBackdrop.classList.add("open");
+      drawer.setAttribute("aria-hidden", "false");
+    };
+    const onDrawerKeydown = (event) => {
+      if (event.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
+    };
+    document.addEventListener("keydown", onDrawerKeydown);
+    drawerPortal.querySelector("#knDrawerClose").onclick = closeDrawer;
+    drawerBackdrop.onclick = closeDrawer;
+    const cleanupDrawer = () => {
+      document.removeEventListener("keydown", onDrawerKeydown);
+      drawerPortal.remove();
+      if (window._javisKanbanDrawerCleanup === cleanupDrawer) {
+        delete window._javisKanbanDrawerCleanup;
+      }
+    };
+    window._javisKanbanDrawerCleanup = cleanupDrawer;
 
     const bf = () => { const f = new FormData(); f.append("brain", fbrain()); return f; };
     const post = async (url, extra) => { const f = bf(); for (const k in (extra || {})) f.append(k, extra[k]); return (await fetch(url, { method: "POST", body: f })).json(); };
@@ -1548,7 +1592,6 @@
     el.querySelector("#knRefresh").onclick = () => load();
     el.querySelector("#knStop").onclick = async () => { await post("/kanban/stop"); load(); };
     el.querySelector("#knNudge").onclick = async () => { const b = el.querySelector("#knNudge"); b.disabled = true; await post("/kanban/nudge"); b.disabled = false; load(); };
-    el.querySelector("#knDrawerClose").onclick = () => el.querySelector("#knDrawer").classList.remove("open");
     el.querySelector("#knSave").onclick = async () => {
       const title = el.querySelector("#knTitle").value.trim();
       if (!title) { alert("Nhập tiêu đề"); return; }
@@ -1569,12 +1612,17 @@
       return `${Math.floor(sec / 86400)} ngày`;
     }
 
-    function taskHtml(t, area) {
+    function taskActions(t) {
       const acts = [];
       if (t.status === "review") acts.push(`<button data-act="done" data-id="${esc(t.id)}">✓ Duyệt ngoại lệ</button>`);
       if (t.status === "blocked" || t.status === "review") acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ Thử lại</button>`);
       if (t.status === "running") acts.push(`<button data-act="cancel" data-id="${esc(t.id)}">Dừng task</button>`);
-      if (["done", "cancelled"].includes(t.status)) acts.push(`<button data-act="archive" data-id="${esc(t.id)}">Lưu trữ</button>`);
+      if (t.status !== "running") acts.push(`<button class="danger" data-act="archive" data-id="${esc(t.id)}">Xóa khỏi bảng</button>`);
+      return acts;
+    }
+
+    function taskHtml(t, area) {
+      const acts = taskActions(t);
       const reason = t.block_reason ? `<div class="kn-task-result" style="color:#dc927c">${esc(t.block_reason)}</div>` : "";
       const result = !reason && t.result ? `<div class="kn-task-result">${esc(t.result.slice(0, 240))}</div>` : "";
       return `<div class="kn-task" data-task="${esc(t.id)}">
@@ -1589,34 +1637,53 @@
       node.innerHTML = items.length ? items.map(t => taskHtml(t, area)).join("") : `<div class="kn-empty">${area === "attention" ? "Không có ngoại lệ. AI đang tự vận hành bình thường." : "Chưa có task."}</div>`;
     }
 
-    function bindActions() {
-      el.querySelectorAll(".kn-task[data-task]").forEach(row => row.onclick = () => showTask(row.dataset.task));
-      el.querySelectorAll(".kn-actions button[data-act]").forEach(b => b.onclick = async ev => {
+    async function doTaskAction(id, act) {
+      if (act === "archive" && !confirm("Xóa task này khỏi bảng? Task sẽ được lưu trữ để không mất lịch sử.")) return false;
+      let result;
+      if (act === "retry") result = await post("/kanban/task/retry", { id });
+      else if (act === "cancel") result = await post("/kanban/task/cancel", { id });
+      else if (act === "archive") result = await post("/kanban/task/delete", { id });
+      else result = await post("/kanban/task/move", { id, status: act });
+      if (!result || !result.ok) {
+        alert((result && result.error) || "Không thể cập nhật task");
+        return false;
+      }
+      closeDrawer();
+      await load();
+      return true;
+    }
+
+    function bindActionButtons(scope) {
+      scope.querySelectorAll(".kn-actions button[data-act]").forEach(b => b.onclick = async ev => {
         ev.stopPropagation();
         b.disabled = true;
-        const id = b.dataset.id, act = b.dataset.act;
-        if (act === "retry") await post("/kanban/task/retry", { id });
-        else if (act === "cancel") await post("/kanban/task/cancel", { id });
-        else if (act === "archive") await post("/kanban/task/delete", { id });
-        else await post("/kanban/task/move", { id, status: act });
-        load();
+        await doTaskAction(b.dataset.id, b.dataset.act);
+        b.disabled = false;
       });
     }
 
+    function bindActions() {
+      el.querySelectorAll(".kn-task[data-task]").forEach(row => row.onclick = () => showTask(row.dataset.task));
+      bindActionButtons(el);
+    }
+
     async function showTask(id) {
-      const drawer = el.querySelector("#knDrawer"), body = el.querySelector("#knDrawerBody");
-      drawer.classList.add("open"); body.innerHTML = "Đang tải...";
+      openDrawer();
+      drawerBody.innerHTML = "Đang tải...";
       let d = {}; try { d = await (await fetch(`/kanban/task/show?brain=${encodeURIComponent(fbrain())}&id=${encodeURIComponent(id)}`)).json(); } catch (e) {}
-      if (!d.ok) { body.innerHTML = `<span style="color:#e08070">${esc(d.error || "Không tải được task")}</span>`; return; }
+      if (!d.ok) { drawerBody.innerHTML = `<span style="color:#e08070">${esc(d.error || "Không tải được task")}</span>`; return; }
       const t = d.task || {}, events = d.events || [], runs = d.runs || [];
-      el.querySelector("#knDrawerTitle").textContent = t.title || "Chi tiết task";
-      body.innerHTML = `
+      const acts = taskActions(t);
+      drawerTitle.textContent = t.title || "Chi tiết task";
+      drawerBody.innerHTML = `
         <div style="color:#dfe8fa;white-space:pre-wrap">${esc(t.intent || "")}</div>
         <div class="kn-task-meta" style="margin-top:10px"><span>${esc(_KSTATUS[t.status] || t.status)}</span><span>${esc(t.capability || "auto")}</span><span>mode ${esc(t.execution_mode || "auto")}</span><span>ưu tiên ${Number(t.priority || 2)}</span></div>
+        ${acts.length ? `<div class="kn-actions" style="margin-top:14px">${acts.join("")}</div>` : ""}
         ${t.block_reason ? `<div class="kn-detail-block"><h4>Lý do bị chặn</h4><div style="color:#df927c">${esc(t.block_reason)}</div></div>` : ""}
         ${t.result ? `<div class="kn-detail-block"><h4>Kết quả</h4><div style="white-space:pre-wrap">${esc(t.result)}</div></div>` : ""}
         <div class="kn-detail-block"><h4>Lần chạy (${runs.length})</h4>${runs.length ? runs.map(r => `<div class="kn-event"><b>${esc(r.status)}</b> · ${new Date(Number(r.started_at || 0) * 1000).toLocaleString()}${r.error ? `<div style="color:#d98b77">${esc(r.error)}</div>` : ""}</div>`).join("") : `<div class="dim">Chưa chạy</div>`}</div>
         <div class="kn-detail-block"><h4>Nhật ký lifecycle</h4>${events.length ? events.map(v => `<div class="kn-event"><b>${esc(v.event_type)}</b> · ${new Date(Number(v.created_at || 0) * 1000).toLocaleString()}<div>${esc(v.message || "")}</div></div>`).join("") : `<div class="dim">Chưa có sự kiện</div>`}</div>`;
+      bindActionButtons(drawerBody);
     }
 
     async function load() {
@@ -1646,7 +1713,10 @@
     }
     load();
     const poll = setInterval(() => {
-      if (!el.isConnected || !el.querySelector("#knOps")) clearInterval(poll);
+      if (!el.isConnected || !el.querySelector("#knOps")) {
+        clearInterval(poll);
+        cleanupDrawer();
+      }
       else load();
     }, 3000);
   }

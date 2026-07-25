@@ -185,6 +185,9 @@ class TasksFeature:
     def start(self) -> None:
         if self._dispatcher_task and not self._dispatcher_task.done():
             return
+        for root in self._brain_roots():
+            if self.store.recover_codex_global_flag_blocks(root):
+                self._snapshot(root)
         self._closing = False
         self._dispatcher_task = asyncio.create_task(
             self._dispatcher_loop(), name="javis-kanban-dispatcher"

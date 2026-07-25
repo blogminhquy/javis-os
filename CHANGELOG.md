@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.174] - 2026-07-25
+Bản vá cho hàng đợi AI: Codex chạy lại bình thường, task lỗi được phục hồi có kiểm soát và màn chi tiết Kanban thao tác được đầy đủ.
+### Sửa lỗi
+- **Codex CLI không còn chặn hàng loạt task**: các cờ toàn cục `--sandbox`, `--ask-for-approval`, model, profile và config được đặt trước subcommand `exec`, tương thích cú pháp Codex đang cài trên VPS (`server/claude_cli.py`).
+- **Tự phục hồi đúng nhóm task bị lỗi tham số**: khi khởi động sau nâng cấp, Javis đưa về hàng đợi đúng một lần các task bị chặn bởi lỗi `unexpected argument '--ask-for-approval'`; các ngoại lệ khác vẫn giữ nguyên để không chạy nhầm (`server/task_store.py`, `server/tasks.py`).
+- **Drawer chi tiết luôn đóng được**: chuyển drawer lên `document.body` để không bị vùng nội dung cắt mất thanh đầu; có nút đóng cố định, phím `Esc` và bấm vùng nền (`dashboard/console.js`).
+- **Task có thể xóa khỏi bảng**: mọi task không chạy đều có nút **Xóa khỏi bảng** ở card và trong drawer; dữ liệu được archive thay vì xóa cứng để còn lịch sử. Task đang chạy phải dừng trước.
+### Kiểm thử
+- Bổ sung hồi quy thứ tự tham số Codex và phục hồi có chọn lọc; kiểm tra thao tác drawer/xóa task trên giao diện.
+
 ## [0.9.173] - 2026-07-25
 Kanban trở thành hàng đợi vận hành dành cho AI, thay vì một bảng Trello cần người bấm chạy từng thẻ.
 ### Thêm mới

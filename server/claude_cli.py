@@ -645,8 +645,14 @@ class CodexCLI:
         return self.cli_path is not None
 
     def _build_args(self) -> list[str]:
-        """Dựng argv cho lượt mới/resume. Các option `exec` là global nên đặt trước subcommand."""
-        args = [self.cli_path, "exec", "--json", "--skip-git-repo-check"]
+        """Dựng argv cho lượt mới/resume.
+
+        Cờ sandbox/approval/model/profile/config là GLOBAL của Codex CLI. Một số bản CLI
+        chấp nhận chúng sau ``exec``, nhưng bản trên VPS không nhận
+        ``exec --ask-for-approval`` và thoát exit 2. Đặt tất cả global flag trước
+        subcommand để tương thích cả bản cũ lẫn mới.
+        """
+        args = [self.cli_path]
         if self.sandbox:
             args += ["--sandbox", self.sandbox, "--ask-for-approval", "never"]
         else:
@@ -657,6 +663,7 @@ class CodexCLI:
             args += ["-p", self.profile]
         for c in (self.extra_config or []):
             args += ["-c", c]
+        args += ["exec", "--json", "--skip-git-repo-check"]
         if self.session_id:
             args += ["resume", self.session_id]
         args.append("-")

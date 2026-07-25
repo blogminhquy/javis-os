@@ -119,6 +119,40 @@ def test_dependency_waits_and_promotes_after_parent_done(tmp_path):
     store.close()
 
 
+def test_recovers_only_codex_global_flag_blocks_once(tmp_path):
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    root = str(tmp_path / "brain")
+    Path(root).mkdir()
+    affected = store.enqueue(
+        root, "Affected", "run", capability="code", status="ready"
+    )
+    other = store.enqueue(
+        root, "Needs input", "wait", capability="external-write", status="ready"
+    )
+    assert store.claim(affected, "worker-a")
+    store.block(
+        affected,
+        "worker-a",
+        "engine",
+        "Codex lỗi (exit 2): error: unexpected argument '--ask-for-approval' found",
+    )
+    assert store.claim(other, "worker-b")
+    store.block(other, "worker-b", "needs_input", "Cần người dùng chọn tài khoản")
+
+    assert store.recover_codex_global_flag_blocks(root) == 1
+    recovered = store.get_task(affected)
+    assert recovered["status"] == "ready"
+    assert recovered["attempts"] == 0
+    assert recovered["block_reason"] == ""
+    assert store.get_task(other)["status"] == "blocked"
+    assert store.recover_codex_global_flag_blocks(root) == 0
+    assert any(
+        event["event_type"] == "system_recovered"
+        for event in store.list_events(affected)
+    )
+    store.close()
+
+
 def test_dispatcher_scans_all_brains_and_workers_finish_independently(tmp_path):
     async def scenario():
         brain_a = tmp_path / "Brain A"
