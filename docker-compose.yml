@@ -30,6 +30,7 @@ services:
       BRAINS_DIR: /brains          # thư mục CHA chứa MỌI second brain (mỗi folder con = 1 brain)
       OBSIDIAN_VAULT_PATH: /data/vault
       CLAUDE_CWD: /app
+      JAVIS_DEPLOY_TARGET: vps       # UI tên miền dùng Caddy/Watchtower, không hiển thị hướng dẫn Hostinger
       WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}   # để nút "Cập nhật" gọi được Watchtower
     ports:
       - "7777:7777"                 # Hostinger proxy / VPS map vào cổng này → cấp URL công khai

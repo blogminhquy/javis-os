@@ -1,6 +1,6 @@
 # Thương hiệu & tên miền riêng
 
-Trang này hướng dẫn hai việc: đổi logo/avatar của Javis thành ảnh của bạn, và trỏ một tên miền riêng (ví dụ `javis.tencuaban.com`) vào Javis để chạy qua HTTPS. Tất cả thao tác đều nằm trong khối **CÀI ĐẶT NHANH**, không cần biết kỹ thuật.
+Trang này hướng dẫn hai việc: đổi logo/avatar của Javis thành ảnh của bạn, và trỏ một tên miền riêng (ví dụ `javis.tencuaban.com`) vào Javis để chạy qua HTTPS. Các thao tác nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**.
 
 ## Tính năng này là gì
 
@@ -11,16 +11,16 @@ Lưu ý quan trọng ngay từ đầu: phần **Tên miền riêng** chỉ hoạ
 
 ## Mở ở đâu trong Javis
 
-Cả hai tính năng nằm trong khối **⚙ CÀI ĐẶT NHANH** ở thanh bên. Nếu khối này đang thu gọn, bấm vào dòng tiêu đề **⚙ CÀI ĐẶT NHANH** để mở ra. Bên trong có hai ô liên quan:
+Cả hai tính năng nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**. Nếu nhóm đang thu gọn, bấm tiêu đề để mở. Bên trong có hai card:
 
 - Ô **ẢNH ĐẠI DIỆN**: có ảnh xem trước, nút **Tải ảnh lên** và nút **Khôi phục mặc định**.
-- Ô **TÊN MIỀN RIÊNG (HTTPS)**: có một ô nhập, nút **Lưu** và nút **Kiểm tra kết nối**.
+- Ô **TÊN MIỀN & SSL**: có ô nhập, nút **Lưu & kiểm tra**, trạng thái DNS/SSL và wizard ba bước theo đúng môi trường VPS/Hostinger.
 
-Bạn cũng có thể vào qua nút bánh răng **⚙ Cài đặt** ở thanh trên cùng; các ô này hiển thị cùng chỗ. Mỗi lần mở, Javis tự nạp lại giá trị đang dùng (tên miền hiện tại, đang dùng ảnh mặc định hay ảnh tùy chỉnh).
+Mỗi lần mở Cài đặt, Javis tự nạp lại giá trị đang dùng, kiểm tra DNS/HTTPS và đưa ra đúng bước tiếp theo.
 
 ## Đổi logo/avatar (từng bước)
 
-1. Mở khối **⚙ CÀI ĐẶT NHANH**, tìm ô **ẢNH ĐẠI DIỆN**.
+1. Mở **Cài đặt → Giọng nói, thương hiệu & truy cập**, tìm ô **ẢNH ĐẠI DIỆN**.
 2. Bấm nút **Tải ảnh lên**. Cửa sổ chọn tệp của máy hiện ra.
 3. Chọn một tệp ảnh. Định dạng nhận: PNG, JPG, WEBP, GIF. Dung lượng tối đa 5MB.
 4. Sau khi chọn, Javis hiện dòng trạng thái **Đang tải lên…** rồi **Đã cập nhật ảnh ✓** khi xong. Ảnh mới thay ngay ở tất cả vị trí (góc trên, thanh bên, màn đăng nhập, ô xem trước) mà không cần tải lại trang.
@@ -47,16 +47,16 @@ Phần này giả định bạn đã deploy Javis bằng Docker trên VPS, đã 
 
 ### Bước A: nhập và lưu tên miền
 
-1. Mở khối **⚙ CÀI ĐẶT NHANH**, tìm ô **TÊN MIỀN RIÊNG (HTTPS)**.
+1. Mở **Cài đặt → Giọng nói, thương hiệu & truy cập**, tìm ô **TÊN MIỀN & SSL**.
 2. Nhập tên miền (hoặc tên miền con) bạn muốn dùng vào ô, ví dụ `javis.tencuaban.com`. Không cần gõ `https://`; nếu có gõ, Javis tự bỏ.
-3. Bấm nút **Lưu**. Javis hiện **Đang lưu…**, rồi tự chạy kiểm tra và hiện hướng dẫn trỏ DNS.
+3. Bấm nút **Lưu & kiểm tra**. Javis lưu, kiểm tra DNS/HTTPS và hiện wizard ba bước ngay trên UI.
 4. Nếu tên miền sai định dạng, Javis báo: **Tên miền không hợp lệ (vd: javis.tencuaban.com)**. Sửa lại rồi lưu tiếp.
 
-Muốn **xóa** tên miền: xóa trống ô nhập rồi bấm **Lưu**. Javis báo **Đã xoá tên miền.** và ẩn phần hướng dẫn.
+Muốn **xóa** tên miền: xóa trống ô nhập rồi bấm **Lưu & kiểm tra**. Javis báo **Đã xoá tên miền.** và ẩn phần hướng dẫn.
 
 ### Bước B: tạo bản ghi DNS theo hướng dẫn
 
-Sau khi lưu (hoặc khi bấm **Kiểm tra kết nối**), Javis hiện hướng dẫn ngay trong ô, gồm 2 bước:
+Sau khi lưu (hoặc khi bấm **Kiểm tra lại**), Javis hiện bản ghi DNS cần tạo, có nút **Sao chép bản ghi**:
 
 1. **Bước 1 trong hướng dẫn:** vào trang quản lý tên miền của nhà cung cấp (nơi bạn mua domain) và tạo một bản ghi:
 
@@ -66,11 +66,11 @@ Sau khi lưu (hoặc khi bấm **Kiểm tra kết nối**), Javis hiện hướn
    | Tên (Name/Host) | tên miền bạn vừa nhập, ví dụ `javis.tencuaban.com` |
    | Trỏ tới (Value/Points to) | địa chỉ IP máy chủ VPS của bạn (Javis điền sẵn IP này trong hướng dẫn) |
 
-2. **Bước 2 trong hướng dẫn:** đợi DNS lan (vài phút đến vài giờ), rồi mở `https://<tên miền của bạn>`. Chứng chỉ HTTPS được tự cấp ở lần mở đầu tiên.
+2. Đợi DNS lan (vài phút đến vài giờ), bấm **Kiểm tra lại**. Khi DNS đúng, wizard chuyển bước này sang dấu ✓.
 
 ### Bước C: kiểm tra trạng thái kết nối
 
-1. Bấm nút **Kiểm tra kết nối** bất cứ lúc nào. Javis hiện **Đang kiểm tra…** rồi trả về một trong các kết quả dưới đây.
+1. Bấm nút **Kiểm tra lại** bất cứ lúc nào. Javis hiện **Đang kiểm tra…** rồi trả về một trong các kết quả dưới đây.
 2. Dựa vào kết quả để biết cần chờ, cần sửa bản ghi DNS, hay đã xong.
 
 | Thông báo trạng thái | Ý nghĩa | Việc cần làm |
@@ -86,19 +86,19 @@ Sau khi lưu (hoặc khi bấm **Kiểm tra kết nối**), Javis hiện hướn
 
 - Javis dùng Caddy để tự xin và tự gia hạn chứng chỉ HTTPS (Let's Encrypt) theo cơ chế On-Demand TLS. Bạn không phải tự cài chứng chỉ.
 - Để chống lạm dụng, trước khi cấp chứng chỉ Caddy hỏi Javis (qua cổng gác nội bộ `/tls-check`) và chỉ cấp cho đúng tên miền bạn đã nhập trong app. Người lạ trỏ DNS bừa vào IP máy chủ sẽ không ép được server xin chứng chỉ lung tung.
-- Khi đổi hoặc xóa tên miền, bạn chỉ cần sửa lại trong ô **TÊN MIỀN RIÊNG (HTTPS)** rồi bấm **Lưu**. Không phải chạy lại lệnh Docker.
+- Khi đổi hoặc xóa tên miền trên VPS dùng Caddy, bạn chỉ cần sửa trong ô **TÊN MIỀN & SSL** rồi bấm **Lưu & kiểm tra**. Hostinger cần Redeploy khi đổi route Traefik.
 - Việc bật Caddy (chạy lệnh `docker compose ... up -d` với file cấu hình HTTPS) và mở cổng 80/443 là bước deploy hạ tầng, nằm ngoài giao diện này. Xem hướng dẫn deploy chi tiết trong `DEPLOY.md` của dự án.
 
 ## Nếu bạn deploy trên Hostinger (khác cách trên)
 
-Hostinger VPS đã cài sẵn reverse proxy Traefik lo SSL, và cổng 80/443 đã bị Traefik chiếm, nên **Caddy và luồng bật SSL trong app KHÔNG dùng trên Hostinger**. Thay vào đó:
+Hostinger VPS đã cài sẵn reverse proxy Traefik lo SSL, và cổng 80/443 đã bị Traefik chiếm. Javis vẫn cho nhập tên miền, kiểm tra DNS và tạo sẵn biến cần dùng ngay trên UI, nhưng container không có quyền sửa route Traefik của hPanel. Wizard sẽ hướng dẫn bước cuối:
 
 1. Trỏ DNS: bản ghi `A  <tên miền của bạn> → <IP VPS Hostinger>`.
 2. Deploy bằng file compose có nhãn Traefik của Hostinger: `docker-compose.hostinger.yml` (Docker Manager → Compose → URL).
-3. Đặt biến môi trường `DOMAIN_NAME=<tên miền của bạn>` trong Docker Manager.
+3. Bấm **Sao chép biến** trong wizard, đặt `DOMAIN_NAME=<tên miền của bạn>` trong Docker Manager.
 4. Mở `https://<tên miền>`; Traefik tự xin chứng chỉ ở lần đầu. Không còn phải vào bằng `:7777`.
 
-Chi tiết và xử lý sự cố xem mục "Tên miền + HTTPS trên Hostinger" trong `DEPLOY.md`.
+Sau khi Redeploy, trở lại Cài đặt và bấm **Kiểm tra lại**. Chi tiết và xử lý sự cố xem mục "Tên miền + HTTPS trên Hostinger" trong `DEPLOY.md`; hai link tài liệu cũng nằm ngay dưới card tên miền.
 
 ## Mẹo
 
@@ -110,7 +110,7 @@ Chi tiết và xử lý sự cố xem mục "Tên miền + HTTPS trên Hostinger
 ## Sự cố thường gặp
 
 - **Bấm Lưu báo "Tên miền không hợp lệ":** kiểm tra lại chính tả, không có khoảng trắng, không kèm đường dẫn phía sau. Định dạng đúng là dạng `tên.tencuaban.com`.
-- **Đã tạo bản ghi A nhưng vẫn báo "Chưa thấy DNS":** DNS cần thời gian lan. Đợi thêm vài phút đến vài giờ rồi bấm **Kiểm tra kết nối** lại.
+- **Đã tạo bản ghi A nhưng vẫn báo "Chưa thấy DNS":** DNS cần thời gian lan. Đợi thêm vài phút đến vài giờ rồi bấm **Kiểm tra lại**.
 - **Báo "chưa khớp máy chủ":** IP trong bản ghi A khác IP máy chủ Javis. Copy đúng IP mà Javis hiển thị trong hướng dẫn Bước 1 và cập nhật lại bản ghi A.
 - **DNS đã đúng nhưng mở tên miền chưa có khóa HTTPS:** mở `https://<tên miền>` (gõ rõ `https://`) một lần để Caddy cấp chứng chỉ ở lần truy cập đầu. Nếu vẫn không lên, kiểm tra cổng 80/443 đã mở và Caddy đã bật theo `DEPLOY.md`.
 - **Tải ảnh báo lỗi định dạng hoặc quá lớn:** chỉ dùng PNG, JPG, WEBP hoặc GIF, dung lượng dưới 5MB.

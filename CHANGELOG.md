@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.184] - 2026-07-26
+Tên giọng đọc thân thiện hơn và cài đặt tên miền trở thành wizard rõ ràng ngay trên UI.
+### Cải thiện
+- **Đổi tên hiển thị giọng Edge**: HoaiMy thành **Ngọc Thu**, NamMinh thành **Nam Minh**; giữ nguyên mã giọng Microsoft phía sau nên lựa chọn đã lưu và chất giọng không thay đổi.
+- **Wizard tên miền ba bước**: lưu tên miền, kiểm tra/trỏ DNS và bật HTTPS được trình bày theo trạng thái, có nút sao chép bản ghi và link mở tên miền khi hoàn tất.
+- **Hướng dẫn đúng môi trường**: VPS thường dùng nút Bật SSL/Caddy ngay trên UI; Hostinger hiện biến `DOMAIN_NAME` để sao chép và yêu cầu Redeploy, không còn đưa nút SSL không thể thực thi.
+- **Tài liệu ngay trong card**: thêm link trực tiếp tới hướng dẫn tên miền và tài liệu deploy/SSL; đồng bộ các trang hướng dẫn liên quan.
+### Kiểm thử
+- Bổ sung hợp đồng hồi quy cho tên giọng, wizard, nút sao chép, link tài liệu, metadata môi trường và compose Hostinger/VPS.
+
 ## [0.9.183] - 2026-07-26
 Đồng bộ toàn bộ hướng dẫn sử dụng với cấu trúc điều hướng mới sau khi bỏ trang Tổng quan.
 ### Cải thiện

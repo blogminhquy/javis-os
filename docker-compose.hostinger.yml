@@ -38,6 +38,8 @@ services:
       BRAINS_DIR: /brains
       OBSIDIAN_VAULT_PATH: /data/vault
       CLAUDE_CWD: /app
+      JAVIS_DEPLOY_TARGET: hostinger
+      DOMAIN_NAME: ${DOMAIN_NAME:-localhost}  # để UI biết route Traefik hiện tại và hướng dẫn Redeploy chính xác
     ports:
       - "7777:7777"                 # đường vào dự phòng (nút Open / http://<ip>:7777)
     labels:

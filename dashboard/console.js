@@ -3640,7 +3640,7 @@
         const p = provSel.value;
         document.getElementById("vpOpenai").style.display = p === "openai" ? "block" : "none";
         document.getElementById("vpEleven").style.display = p === "elevenlabs" ? "block" : "none";
-        // Giọng HoaiMy/NamMinh chỉ áp dụng cho Edge. Provider khác chọn giọng ngay trong khối trên
+        // Giọng Ngọc Thu/Nam Minh chỉ áp dụng cho Edge. Provider khác chọn giọng ngay trong khối trên
         // (vpOaVoice / vpElVoice) nên ẩn khối này cho gọn. Radio vẫn nằm trong DOM + giữ 'checked'
         // để app.js đọc input[name=voice] không lỗi; server dùng provider đã lưu nên giá trị này vô hại.
         const edgeVoice = document.getElementById("edgeVoiceSection");

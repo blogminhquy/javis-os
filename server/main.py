@@ -4579,6 +4579,25 @@ def _norm_domain(d):
     return d
 
 
+def _domain_deploy_target(request: Request = None):
+    """Phân biệt Hostinger (Traefik do hPanel quản lý) với VPS Docker/Caddy.
+
+    Hostinger không cho container sửa label Traefik đang chạy, vì vậy UI chỉ có thể lưu
+    tên miền + kiểm tra DNS rồi hướng dẫn đúng bước Environment/Redeploy. Compose mới đặt
+    JAVIS_DEPLOY_TARGET rõ ràng; nhận diện hostname .hstgr.cloud giữ tương thích bản cũ.
+    """
+    explicit = (os.getenv("JAVIS_DEPLOY_TARGET", "") or "").strip().lower()
+    if explicit in ("hostinger", "vps", "native", "windows"):
+        return explicit
+    host = ""
+    if request is not None:
+        host = (request.headers.get("host", "") or "").split(":")[0].strip().lower()
+    if host.endswith(".hstgr.cloud"):
+        return "hostinger"
+    mode = _deploy_mode()
+    return "vps" if mode == "docker" else mode
+
+
 def _detect_public_ip():
     import time as _t
     now = _t.time()
@@ -4677,14 +4696,19 @@ async def domain_status(request: Request):
             ssl_active, ssl_reason = True, "Bạn đang mở qua HTTPS"
         else:
             ssl_active, ssl_reason = await _probe_https(custom)
+    target = _domain_deploy_target(request)
+    route_domain = _norm_domain(os.getenv("DOMAIN_NAME", ""))
     return {"domain": custom, "server_ip": server_ip, "dns_ip": dns_ip,
             "dns_ok": dns_ok, "on_domain": on_domain, "secure_now": secure_now,
             "deploy_mode": _deploy_mode(), "ssl_enabled": ssl_enabled,
-            "ssl_active": ssl_active, "ssl_reason": ssl_reason}
+            "ssl_active": ssl_active, "ssl_reason": ssl_reason,
+            "deployment_target": target, "route_domain": route_domain,
+            "ui_can_enable_ssl": target != "hostinger",
+            "requires_redeploy": target == "hostinger" and bool(custom) and custom != route_domain}
 
 
 @app.post("/domain/ssl")
-async def domain_ssl(enabled: str = Form("1")):
+async def domain_ssl(request: Request, enabled: str = Form("1")):
     """Bật/tắt SSL cho tên miền. Bật → lưu ý định + chủ động probe HTTPS (buộc Caddy cấp chứng chỉ),
     trả trạng thái thật + gợi ý lệnh nếu chưa bật được (bản Docker cần compose HTTPS)."""
     on = str(enabled).strip().lower() in ("1", "true", "yes", "on")
@@ -4693,6 +4717,14 @@ async def domain_ssl(enabled: str = Form("1")):
     custom = _norm_domain(cfg["domain"].get("custom", ""))
     if on and not custom:
         return JSONResponse({"ok": False, "error": "Hãy nhập và lưu tên miền trước khi bật SSL."}, status_code=400)
+    if on and _domain_deploy_target(request) == "hostinger":
+        return JSONResponse({
+            "ok": False,
+            "error": "Hostinger quản lý HTTPS bằng Traefik. Hãy đặt DOMAIN_NAME trong Docker Manager rồi Redeploy; Javis không thể sửa route của hPanel từ bên trong container.",
+            "hostinger": True,
+            "domain": custom,
+            "docs": "https://github.com/blogminhquy/javis-os/blob/main/docs/15-thuong-hieu-ten-mien.md",
+        }, status_code=409)
     cfg["domain"]["ssl_enabled"] = on
     cfgmod.write_settings(cfg)
     if not on:

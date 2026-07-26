@@ -65,7 +65,7 @@ Chi tiết quan trọng về `JAVIS_HOST`: Javis dùng cơ chế "an toàn mặc
 
 Về MÃ THIẾT LẬP: khi chạy public mà chưa có tài khoản admin, lần đầu mở app sẽ yêu cầu nhập một mã thiết lập. Mã này chỉ in ra log server lúc khởi động, nên chỉ người xem được log/terminal mới tạo được tài khoản, kẻ chỉ có URL không làm gì được. Nếu bạn đặt sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` thì khỏi cần mã này, cứ đăng nhập bằng tài khoản đã đặt. Xem thêm ở [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 
-Về tên miền riêng và HTTPS: **không** đặt tên miền trong `.env`. Bạn bật Caddy (qua `docker-compose.https.yml`) rồi nhập tên miền trong app ở phần ⚙ Cài đặt, mục Tên miền riêng. Khi truy cập đúng tên miền qua HTTPS, server tự bật cookie Secure nên bạn cũng không cần đặt `JAVIS_SECURE_COOKIE` thủ công. Chi tiết ở [Thương hiệu & tên miền](15-thuong-hieu-ten-mien.md).
+Về tên miền riêng và HTTPS: VPS dùng Caddy nhập tên miền ngay trong **Cài đặt → Giọng nói, thương hiệu & truy cập → Tên miền & SSL**. Riêng Hostinger, wizard tạo sẵn biến `DOMAIN_NAME` để sao chép sang Docker Manager rồi Redeploy. Khi truy cập đúng tên miền qua HTTPS, server tự bật cookie Secure nên không cần đặt `JAVIS_SECURE_COOKIE` thủ công. Chi tiết ở [Thương hiệu & tên miền](15-thuong-hieu-ten-mien.md).
 
 ### Nhóm 4: Đường dẫn dữ liệu (Second Brain và state)
 

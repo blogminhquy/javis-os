@@ -103,8 +103,8 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
 Không cần đặt `DOMAIN` lúc chạy nữa - bật Caddy một lần rồi khai báo tên miền trong giao diện.
 1. Bật Caddy (On-Demand TLS): `docker compose -f docker-compose.yml -f docker-compose.https.yml up -d`
    *(cần Docker Compose v2.23.1+ - kiểm tra `docker compose version`)*
-2. Mở `http://<ip-vps>:7777` → **⚙ Cài đặt → Tên miền riêng** → nhập `javis.tencuaban.com` → **Lưu**.
-3. Bấm **Kiểm tra kết nối** → app hiện đúng bản ghi DNS cần tạo (A: `javis.tencuaban.com → <ip-vps>`).
+2. Mở `http://<ip-vps>:7777` → **Cài đặt → Giọng nói, thương hiệu & truy cập → Tên miền & SSL** → nhập `javis.tencuaban.com` → **Lưu & kiểm tra**.
+3. Wizard hiện đúng bản ghi DNS cần tạo (A: `javis.tencuaban.com → <ip-vps>`) và có nút sao chép.
    Trỏ DNS xong, đợi lan.
 4. Mở `https://javis.tencuaban.com` → Caddy **tự xin + gia hạn** chứng chỉ ở lần mở đầu, cookie
    Secure tự bật. Xong.

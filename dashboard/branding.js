@@ -25,8 +25,19 @@
       ".dom-badge.warn{background:rgba(210,160,60,.14);border-color:rgba(210,160,60,.5);color:#f0cd94}" +
       ".dom-badge.bad{background:rgba(210,70,70,.14);border-color:rgba(210,70,70,.5);color:#ffb0b0}" +
       ".dom-ssl{display:flex;gap:6px;margin-top:9px}.dom-ssl .s-btn{flex:1}" +
-      ".dom-guide{margin-top:9px;font-size:13px;line-height:1.55;color:#cdd8ee;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:9px 11px}" +
-      ".dom-guide code{background:rgba(120,180,255,.13);padding:1px 6px;border-radius:5px;font-size:12.5px}";
+      ".dom-guide{margin-top:10px;font-size:13px;line-height:1.55;color:#cdd8ee;display:flex;flex-direction:column;gap:8px}" +
+      ".dom-step{display:grid;grid-template-columns:25px minmax(0,1fr);gap:8px;padding:9px 10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:9px}" +
+      ".dom-step.done{border-color:rgba(44,122,75,.5);background:rgba(44,122,75,.09)}" +
+      ".dom-step.warn{border-color:rgba(210,160,60,.45);background:rgba(210,160,60,.07)}" +
+      ".dom-step-num{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.08);font-weight:700}" +
+      ".dom-step.done .dom-step-num{background:rgba(63,220,134,.2);color:#8fe3ad}" +
+      ".dom-step p{margin:3px 0 0;color:#9caac3}.dom-step code{display:inline-block;margin-top:5px;background:rgba(120,180,255,.13);padding:3px 7px;border-radius:5px;font-size:12px;overflow-wrap:anywhere}" +
+      ".dom-copy{margin:7px 0 0;padding:5px 9px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:rgba(255,255,255,.04);color:#cdd8ee;cursor:pointer}" +
+      ".dom-copy:hover{border-color:rgba(120,180,255,.55);color:#fff}" +
+      ".dom-open{display:inline-block;margin-top:6px;color:#8fe3ad;text-decoration:none}.dom-open:hover{text-decoration:underline}" +
+      ".dom-docs{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07)}" +
+      ".dom-docs a{font-size:12.5px;color:#a9c5ff;text-decoration:none}.dom-docs a:hover{text-decoration:underline}" +
+      "@media(max-width:600px){.dom-field,.dom-ssl{flex-direction:column}.dom-field .s-btn,.dom-ssl .s-btn,.dom-ssl .s-btn-ghost{width:100%}}";
     document.head.appendChild(s);
   }
 
@@ -84,35 +95,50 @@
     }
     if (row) row.style.display = "flex";
     if (sslRow) sslRow.style.display = "flex";
+    var hostinger = j.deployment_target === "hostinger";
     if (j.dns_ok) _badge("dnsBadge", "DNS: đã trỏ đúng", "ok");
     else if (j.dns_ip) _badge("dnsBadge", "DNS: sai IP (" + j.dns_ip + ")", "bad");
     else _badge("dnsBadge", "DNS: chưa trỏ", "warn");
     if (j.ssl_active) _badge("sslBadge", "SSL: đang bật", "ok");
+    else if (hostinger) _badge("sslBadge", "SSL: qua Hostinger", "warn");
     else if (j.ssl_enabled) _badge("sslBadge", "SSL: đang chờ", "warn");
     else _badge("sslBadge", "SSL: tắt", "");
     var tog = $("sslToggle");
-    if (tog) tog.textContent = j.ssl_active ? "Kích hoạt lại" : "Bật SSL";
+    if (tog) {
+      tog.style.display = hostinger ? "none" : "";
+      tog.textContent = j.ssl_active ? "Kích hoạt lại" : "Bật SSL";
+    }
+    var check = $("checkDomain");
+    if (check) check.textContent = "Kiểm tra lại";
     var ip = j.server_ip || "(IP máy chủ VPS)";
-    var steps = "", n = 1;
-    if (!j.dns_ok) {
-      steps += '<div><b>Bước ' + (n++) + '.</b> Tạo bản ghi DNS tại nhà cung cấp tên miền:<br>' +
-        '<code>A &nbsp;·&nbsp; ' + esc(j.domain) + ' &nbsp;·&nbsp; ' + esc(ip) + '</code></div>';
+    var dnsRecord = "A · " + j.domain + " · " + ip;
+    var steps = '<div class="dom-step done"><span class="dom-step-num">✓</span><div><b>1. Lưu tên miền</b><p>Javis đã ghi nhận <code>' + esc(j.domain) + '</code>.</p></div></div>';
+    steps += '<div class="dom-step ' + (j.dns_ok ? "done" : "warn") + '"><span class="dom-step-num">' + (j.dns_ok ? "✓" : "2") + '</span><div><b>2. Trỏ DNS về VPS</b>' +
+      '<p>' + (j.dns_ok ? "Bản ghi A đã trỏ đúng IP máy chủ." : "Tạo hoặc sửa bản ghi này tại nơi quản lý tên miền:") + '</p>' +
+      '<code>' + esc(dnsRecord) + '</code><br><button class="dom-copy" type="button" data-copy="' + esc(dnsRecord) + '">Sao chép bản ghi</button></div></div>';
+    if (hostinger) {
+      var envLine = "DOMAIN_NAME=" + j.domain;
+      var route = j.route_domain && j.route_domain !== "localhost" ? j.route_domain : "chưa đặt";
+      steps += '<div class="dom-step ' + (j.ssl_active && !j.requires_redeploy ? "done" : "warn") + '"><span class="dom-step-num">' + (j.ssl_active && !j.requires_redeploy ? "✓" : "3") + '</span><div><b>3. Kích hoạt route HTTPS trên Hostinger</b>' +
+        '<p>Trong hPanel → VPS → Docker Manager, đặt Environment bên dưới rồi bấm <b>Redeploy</b>. Route hiện tại: <b>' + esc(route) + '</b>. Bước này do Traefik của Hostinger quản lý nên app không thể tự sửa label từ trong container.</p>' +
+        '<code>' + esc(envLine) + '</code><br><button class="dom-copy" type="button" data-copy="' + esc(envLine) + '">Sao chép biến</button></div></div>';
+    } else {
+      steps += '<div class="dom-step ' + (j.ssl_active ? "done" : (j.dns_ok ? "warn" : "")) + '"><span class="dom-step-num">' + (j.ssl_active ? "✓" : "3") + '</span><div><b>3. Bật HTTPS</b>' +
+        '<p>' + (j.ssl_active ? "Chứng chỉ HTTPS đang hoạt động." : "Khi DNS đã đúng, bấm Bật SSL để Javis xin chứng chỉ.") + '</p>' +
+        (j.deploy_mode === "docker" && !j.ssl_active ? '<code>docker compose -f docker-compose.yml -f docker-compose.https.yml up -d</code>' : "") + '</div></div>';
     }
-    steps += '<div style="margin-top:6px"><b>Bước ' + (n++) + '.</b> Bấm <b>Bật SSL</b>, đợi vài giây cấp chứng chỉ, rồi mở <code>https://' + esc(j.domain) + '</code>.</div>';
-    if (j.deploy_mode === "docker" && !j.ssl_active) {
-      steps += '<div style="margin-top:7px;opacity:.85">Nếu SSL vẫn không bật: bản Docker cần chạy kèm Caddy - ' +
-        '<code>docker compose -f docker-compose.yml -f docker-compose.https.yml up -d</code>. ' +
-        '(Hostinger đã có SSL riêng, bỏ qua bước này.)</div>';
-    }
+    if (j.ssl_active) steps += '<a class="dom-open" href="https://' + esc(j.domain) + '" target="_blank" rel="noopener">Mở https://' + esc(j.domain) + ' ↗</a>';
     if (guide) { guide.innerHTML = steps; guide.style.display = "block"; }
     if (j.ssl_active) setStatus("domainStatus", "HTTPS đang chạy cho " + j.domain + ".", false);
+    else if (hostinger && j.requires_redeploy) setStatus("domainStatus", "Đã lưu trong Javis; còn bước đặt DOMAIN_NAME và Redeploy trên Hostinger.", false);
     else setStatus("domainStatus", j.ssl_reason || "", !!(j.dns_ip && !j.dns_ok));
   }
 
   async function saveDomain() {
     var input = $("setDomain");
     var d = ((input && input.value) || "").trim();
-    setStatus("domainStatus", "Đang lưu…", false);
+    var btn = $("saveDomain"); if (btn) btn.disabled = true;
+    setStatus("domainStatus", "Đang lưu và kiểm tra…", false);
     try {
       var fd = new FormData(); fd.append("domain", d);
       var r = await fetch("/domain", { method: "POST", body: fd });
@@ -121,6 +147,7 @@
       if (j.domain) { setStatus("domainStatus", "Đã lưu. Đang kiểm tra DNS/SSL…", false); checkDomain(); }
       else { renderDomainStatus({ domain: "" }); setStatus("domainStatus", "Đã xoá tên miền.", false); }
     } catch (e) { setStatus("domainStatus", "Lỗi mạng khi lưu", true); }
+    finally { if (btn) btn.disabled = false; }
   }
 
   async function checkDomain() {
@@ -182,10 +209,26 @@
 
     var sd = $("saveDomain");
     if (sd) sd.addEventListener("click", saveDomain);
+    var di = $("setDomain");
+    if (di) di.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); saveDomain(); }
+    });
     var cd = $("checkDomain");
     if (cd) cd.addEventListener("click", checkDomain);
     var stg = $("sslToggle");
     if (stg) stg.addEventListener("click", toggleSsl);
+    var dg = $("domainGuide");
+    if (dg) dg.addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-copy]"); if (!btn) return;
+      var text = btn.getAttribute("data-copy") || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        var old = btn.textContent; btn.textContent = "Đã sao chép ✓";
+        setTimeout(function () { btn.textContent = old; }, 1300);
+      } catch (err) {
+        setStatus("domainStatus", "Không sao chép tự động được; hãy chọn và copy dòng phía trên.", true);
+      }
+    });
 
     // Controls giờ nằm trong sidebar (luôn hiển thị) → nạp giá trị hiện tại ngay khi tải trang.
     loadExtras();

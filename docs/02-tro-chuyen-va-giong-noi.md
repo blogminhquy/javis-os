@@ -69,25 +69,25 @@ Mặc định Javis **đọc thành tiếng** mọi câu trả lời bằng gi�
 Bật/tắt đọc bằng giọng, có 2 chỗ làm cùng một việc:
 
 - Nút hình **loa** ở góc trên phải (tên gợi ý khi rê chuột: "Bật/tắt giọng Javis"). Loa gạch chéo = đang tắt tiếng.
-- Ở cột phải, mục CÀI ĐẶT NHANH, gạt công tắc **"Đọc trả lời bằng giọng"**.
+- Vào **Cài đặt → Giọng nói, thương hiệu & truy cập**, gạt công tắc **"Đọc trả lời bằng giọng"**.
 
 Hai chỗ này đồng bộ với nhau và ghi nhớ lựa chọn sau khi tải lại trang, nên bạn chỉ cần đặt một lần.
 
 ### Chọn giọng đọc và tốc độ
 
-Trong mục CÀI ĐẶT NHANH ở cột phải có bảng chọn giọng:
+Trong **Cài đặt → Giọng nói, thương hiệu & truy cập** có bảng chọn giọng:
 
 | Tuỳ chọn | Giá trị | Ghi chú |
 |---|---|---|
-| Giọng đọc | **HoaiMy** | Nữ, tự nhiên nhất (mặc định) |
-| Giọng đọc | **NamMinh** | Nam, trầm |
+| Giọng đọc | **Ngọc Thu** | Nữ, tự nhiên và ấm áp (mặc định; mã Edge: `vi-VN-HoaiMyNeural`) |
+| Giọng đọc | **Nam Minh** | Nam, trầm (mã Edge: `vi-VN-NamMinhNeural`) |
 | Tốc độ | Thanh trượt 0.70× đến 1.80× | Mặc định 1.10× |
 | Ngôn ngữ nghe | **Tiếng Việt** (vi-VN) | Mặc định |
 | Ngôn ngữ nghe | **Tiếng Anh** (en-US) | Dùng khi bạn nói toàn tiếng Anh |
 
 Các bước:
 
-1. Chọn HoaiMy hoặc NamMinh.
+1. Chọn Ngọc Thu hoặc Nam Minh.
 2. Kéo thanh **TỐC ĐỘ** để chỉnh nhanh/chậm; số bên cạnh hiện tốc độ hiện tại (ví dụ 1.10×).
 3. Bấm **▶ Nghe thử** để nghe một câu chào mẫu bằng giọng vừa chọn.
 4. "Ngôn ngữ nghe" là ngôn ngữ Javis dùng để nhận diện lời bạn nói, khác với giọng đọc trả lời. Để mặc định Tiếng Việt trừ khi bạn quen nói tiếng Anh.

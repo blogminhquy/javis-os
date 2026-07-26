@@ -146,7 +146,7 @@ Sau khi có mã, dán vào ô **Mã thiết lập** trong wizard rồi bấm **B
 
 - Nếu chỉ chạy máy cá nhân và không sợ người lạ, cứ để trống mật khẩu ở wizard để vào nhanh. Bạn có thể đặt mật khẩu sau ở trang **Tài khoản**.
 - Sau khi vào app, nếu thấy Claude báo "chưa đăng nhập", quay lại **Models** bấm **Đăng nhập Claude** một lần là xong.
-- Đổi giao diện (avatar, tên miền, giọng nói, tốc độ) nằm ở mục **CÀI ĐẶT NHANH** ở thanh bên phải, không phải trong wizard.
+- Đổi avatar, tên miền, giọng nói và tốc độ nằm ở **Cài đặt → Giọng nói, thương hiệu & truy cập**, không phải trong wizard lần đầu.
 - Sau khi cập nhật phiên bản, nếu giao diện không đổi, nhấn Ctrl+Shift+R để tải lại trang sạch.
 
 ## Sự cố thường gặp

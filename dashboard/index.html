@@ -72,7 +72,7 @@
               <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
             </svg>
           </button>
-          <!-- Voice/tốc độ đã dời xuống sidebar phải (mục CÀI ĐẶT NHANH). -->
+          <!-- Voice/tốc độ dùng lại cùng node trong trang Cài đặt để giữ nguyên handler. -->
           <button class="hud-icon-btn" id="ttsToggle" title="Bật/tắt giọng Javis">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 5L6 9H2v6h4l5 4V5z"/>
@@ -219,7 +219,7 @@
         <!-- HỆ THỐNG + MCP ĐANG DÙNG đã DỜI xuống thanh model-bar (ngang hàng ô chọn model). -->
 
 
-        <!-- ===== CÀI ĐẶT NHANH: avatar + tên miền + giọng nói + tốc độ (gộp về sidebar) ===== -->
+        <!-- ===== CÀI ĐẶT: avatar + tên miền + giọng nói + tốc độ (console.js nhúng vào trang Cài đặt) ===== -->
         <details class="quick-set" id="quickSet" open>
           <summary class="panel-label" style="cursor:pointer;list-style:none;user-select:none">
             ⚙ CÀI ĐẶT NHANH <span class="qs-caret">▸</span>
@@ -256,11 +256,11 @@
                   <div class="voice-options">
                     <label class="voice-opt">
                       <input type="radio" name="voice" value="vi-VN-HoaiMyNeural" checked>
-                      <div><strong>HoaiMy</strong><div class="opt-sub">Nữ · tự nhiên nhất</div></div>
+                      <div><strong>Ngọc Thu</strong><div class="opt-sub">Nữ · tự nhiên, ấm áp</div></div>
                     </label>
                     <label class="voice-opt">
                       <input type="radio" name="voice" value="vi-VN-NamMinhNeural">
-                      <div><strong>NamMinh</strong><div class="opt-sub">Nam · trầm</div></div>
+                      <div><strong>Nam Minh</strong><div class="opt-sub">Nam · trầm</div></div>
                     </label>
                   </div>
                 </div>
@@ -291,10 +291,10 @@
 
             <div class="qs-block">
               <div class="popover-label">TÊN MIỀN & SSL</div>
-              <div class="opt-sub" style="margin:4px 0 8px">Trỏ tên miền riêng để chạy HTTPS. VPS thường (DigitalOcean/Vultr): bật SSL ngay đây. Hostinger: đặt tên miền qua docker-compose.hostinger.yml (xem DEPLOY.md).</div>
+              <div class="opt-sub dom-intro">Nhập tên miền để Javis kiểm tra DNS và hướng dẫn bật HTTPS theo đúng môi trường đang chạy.</div>
               <div class="dom-field">
                 <input id="setDomain" placeholder="vd: javis.tencuaban.com" autocomplete="off" spellcheck="false">
-                <button class="s-btn" id="saveDomain">Lưu</button>
+                <button class="s-btn" id="saveDomain">Lưu &amp; kiểm tra</button>
               </div>
               <div class="dom-status" id="domStatusRow" style="display:none">
                 <span class="dom-badge" id="dnsBadge">DNS: đang kiểm tra</span>
@@ -306,6 +306,10 @@
               </div>
               <div id="domainGuide" class="dom-guide" style="display:none"></div>
               <div class="opt-sub" id="domainStatus"></div>
+              <div class="dom-docs">
+                <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/15-thuong-hieu-ten-mien.md" target="_blank" rel="noopener">Hướng dẫn cài tên miền ↗</a>
+                <a href="https://github.com/blogminhquy/javis-os/blob/main/DEPLOY.md" target="_blank" rel="noopener">Hướng dẫn deploy/SSL ↗</a>
+              </div>
             </div>
 
           </div>
@@ -615,7 +619,7 @@
           </div>
           <div class="set-note">Đặt mật khẩu để chặn người lạ khi đưa Javis lên VPS. Lưu ý: trên VPS nên chạy sau HTTPS (reverse proxy).</div>
         </div>
-        <div class="set-note" style="opacity:.7">Ảnh đại diện, tên miền, giọng nói &amp; tốc độ giờ nằm ở mục <b>CÀI ĐẶT NHANH</b> (thanh bên phải).</div>
+        <div class="set-note" style="opacity:.7">Ảnh đại diện, tên miền, giọng nói &amp; tốc độ nằm trong trang <b>Cài đặt</b>.</div>
       </div>
     </div>
   </div>
