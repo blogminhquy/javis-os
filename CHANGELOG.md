@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.177] - 2026-07-26
+Trang Tệp tin có khung tìm kiếm đồng bộ với Vault Explorer của Javis, giúp tìm và mở file mà không cần nhớ nó nằm trong thư mục nào.
+### Thêm mới
+- **Tìm theo tên file trên toàn brain**: ô tìm dùng cùng giao diện kính lúp, nút xoá và chip chế độ như màn Javis; so khớp không phân biệt hoa thường và hỗ trợ gõ tiếng Việt không dấu.
+- **Tìm trong nội dung**: chế độ Nội dung quét file text dưới 1 MB, trả đoạn trích và số dòng khớp; chế độ Tên không đọc thân file nên phản hồi nhanh hơn.
+- **Mở ngay hoặc tìm tới vị trí**: mỗi kết quả cho phép xem/sửa file trực tiếp hoặc chuyển File Manager tới đúng thư mục và tô sáng file đó.
+- **Responsive**: khung tìm tự xuống dòng trên mobile, kết quả giữ đường dẫn/đoạn trích gọn và các nút thao tác luôn hiện trên màn cảm ứng.
+### Kiểm thử
+- Mở rộng `server/test_files_root.py` để phủ tìm tên không dấu, tìm nội dung, tách hai chế độ, hợp đồng UI và khả năng tương thích của endpoint cũ.
+
 ## [0.9.176] - 2026-07-26
 Tối ưu cockpit Javis trên điện thoại để neuron vẫn nhận diện được nhưng không đẩy khung chat và ô nhập ra ngoài màn hình.
 ### Cải thiện

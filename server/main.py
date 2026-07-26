@@ -2636,15 +2636,20 @@ def _fold_accents(s: str) -> str:
 
 
 @app.get("/files/search")
-async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: int = Query(50)):
+async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: int = Query(50),
+                       mode: str = Query("all")):
     """Tìm note trong GỐC BRAIN (KHÔNG phải trần duyệt - tránh quét cả ổ đĩa trên localhost).
-    Khớp TÊN file (mọi loại, không phân biệt dấu tiếng Việt) + NỘI DUNG file text; bỏ file >1MB
+    `mode=name` khớp TÊN file (mọi loại, không phân biệt dấu tiếng Việt), `mode=content` tìm
+    trong NỘI DUNG file text, còn `mode=all` giữ hành vi cũ là tìm cả hai; bỏ file >1MB
     và thư mục ẩn/nặng. Path trả về tính theo TRẦN (giống /files/list) để mở bằng cùng quy ước.
     Walk chạy trong threadpool để không chặn event loop FastAPI."""
     from starlette.concurrency import run_in_threadpool
     q = (q or "").strip()
     if not q:
         return {"items": [], "q": q}
+    mode = (mode or "all").strip().lower()
+    if mode not in ("name", "content", "all"):
+        mode = "all"
     root = _files_root(brain)                        # trần (để tính path trả về, khớp /files/list)
     broot = Path(_brain_root(brain)).resolve()       # phạm vi quét = gốc brain
     ql = q.lower()
@@ -2664,10 +2669,10 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
                     return out
                 p = Path(dirpath) / fn
                 ext = p.suffix.lower()
-                name_hit = ql in fn.lower() or qf in _fold_accents(fn)
+                name_hit = mode in ("name", "all") and (ql in fn.lower() or qf in _fold_accents(fn))
                 content_hit = False
                 snippet, line_no = "", 0
-                if ext in _TEXT_EXTS:
+                if mode in ("content", "all") and ext in _TEXT_EXTS:
                     try:
                         if p.stat().st_size <= 1_000_000:
                             txt = p.read_text(encoding="utf-8", errors="ignore")
@@ -2685,11 +2690,12 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
                     except ValueError:
                         continue
                     out.append({"path": rel, "name": fn, "ext": ext, "snippet": snippet,
-                                "line": line_no, "match": "content" if content_hit else "name"})
+                                "line": line_no,
+                                "match": "content" if (mode == "content" or (mode == "all" and content_hit)) else "name"})
         return out
 
     items = await run_in_threadpool(_walk)
-    return {"items": items, "q": q}
+    return {"items": items, "q": q, "mode": mode}
 
 
 @app.get("/files/read")

@@ -487,6 +487,19 @@
     .fm-crumb{flex:1;min-width:160px;font-size:15px;color:#9fb0cf}
     .fm-crumb a{color:#bcd2ff;cursor:pointer;text-decoration:none} .fm-crumb a:hover{text-decoration:underline}
     .fm-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .fm-search-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .fm-search{flex:1 1 360px;max-width:700px;margin:0;padding:8px 11px;border-radius:10px}
+    .fm-search input{font-size:14px}
+    .fm-search-modes{margin:0;flex:none}
+    .fm-search-meta{min-width:130px;color:#7d8aa6;font-size:12px}
+    .fm-search-row{cursor:pointer}
+    .fm-search-main{flex:1;min-width:0}
+    .fm-search-name{display:flex;align-items:center;gap:8px;color:#e7eefc;font-size:15px}
+    .fm-search-path,.fm-search-snip{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fm-search-path{margin-top:2px;color:#71809b;font-size:12px}
+    .fm-search-snip{margin-top:3px;color:#9aa9c2;font-size:12px}
+    .fm-search-kind{flex:none;color:#7d8aa6;font-size:11px;border:1px solid rgba(255,255,255,.1);border-radius:99px;padding:2px 7px}
+    .fm-search-row .fm-row-act{opacity:1}
     .fm-uplabel{cursor:pointer}
     .fm-list{display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden}
     .fm-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:default}
@@ -537,7 +550,7 @@
     .kn-drawer{position:fixed;z-index:10001;top:0;right:0;width:min(520px,94vw);height:100vh;height:100dvh;background:#090e1a;border-left:1px solid rgba(127,176,255,.25);box-shadow:-20px 0 60px rgba(0,0,0,.45);transform:translateX(105%);transition:transform .2s;display:flex;flex-direction:column}
     .kn-drawer.open{transform:translateX(0)}.kn-drawer-head{position:sticky;top:0;z-index:2;padding:12px 12px 12px 17px;border-bottom:1px solid rgba(255,255,255,.08);background:#090e1a;display:flex;align-items:center;gap:10px}.kn-drawer-head b{flex:1;color:#edf3ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kn-drawer-head button{width:36px;height:36px;display:grid;place-items:center;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.11);border-radius:8px;color:#b8c5dc;font-size:22px;line-height:1;cursor:pointer}.kn-drawer-head button:hover{border-color:#7fb0ff;color:#fff}
     .kn-drawer-body{padding:16px 17px;overflow:auto;color:#aebbd2;font-size:13px;line-height:1.5}.kn-detail-block{margin-top:16px}.kn-detail-block h4{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#71809a;margin:0 0 7px}.kn-event{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
-    @media(max-width:850px){.kn-health{grid-template-columns:repeat(2,1fr)}.kn-layout{grid-template-columns:1fr}.kn-list{max-height:none}}`;
+    @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-layout{grid-template-columns:1fr}.kn-list{max-height:none}}`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
 
@@ -545,6 +558,18 @@
     _injectExtraCss();
     let cur = "";
     el.innerHTML = `<div class="cview-section">
+      <div class="fm-search-tools">
+        <div class="vault-search fm-search">
+          <span class="vs-ico">🔍</span>
+          <input id="fmSearch" type="search" placeholder="Tìm file trong toàn brain..." spellcheck="false" autocomplete="off">
+          <button class="vs-clear" id="fmSearchClear" title="Xoá tìm kiếm" hidden>✕</button>
+        </div>
+        <div class="vault-modes fm-search-modes" aria-label="Phạm vi tìm kiếm">
+          <button class="vs-chip active" id="fmSearchName" data-mode="name" title="Tìm theo tên file">Tên</button>
+          <button class="vs-chip" id="fmSearchContent" data-mode="content" title="Tìm trong nội dung file text">Nội dung</button>
+        </div>
+        <div class="fm-search-meta" id="fmSearchMeta">Tìm trong toàn brain</div>
+      </div>
       <div class="fm-bar">
         <div class="fm-crumb" id="fmCrumb"></div>
         <div class="fm-actions">
@@ -560,6 +585,8 @@
     </div>
     <div id="fmModal" class="fm-modal"><div class="fm-modal-card" id="fmModalCard"></div></div>`;
     const listEl = el.querySelector("#fmList"), crumbEl = el.querySelector("#fmCrumb");
+    const searchInput = el.querySelector("#fmSearch"), searchClear = el.querySelector("#fmSearchClear");
+    const searchMeta = el.querySelector("#fmSearchMeta");
     const modal = el.querySelector("#fmModal"), card = el.querySelector("#fmModalCard");
     const closeModal = () => modal.classList.remove("open");
     modal.onclick = (e) => { if (e.target === modal) closeModal(); };
@@ -567,11 +594,21 @@
     const IMG_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico"];   // .svg = sửa text
     // URL tĩnh phục vụ file inline (ảnh hiện, pdf mở tab). dl=1 → ép tải về.
     const rawUrl = (rel, dl) => `/files/raw?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}${dl ? "&dl=1" : ""}`;
+    let searchMode = "name", searchTimer = null, searchSeq = 0;
+
+    function resetSearchUi() {
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = null; searchSeq++;
+      searchInput.value = "";
+      searchClear.hidden = true;
+      searchMeta.textContent = searchMode === "content" ? "Quét nội dung file text" : "Tìm trong toàn brain";
+    }
 
     // upTarget: đường dẫn nút "Lên" sẽ tới (null = đã ở trần → ẩn nút). Do server tính (parent).
     let upTarget = null;
     async function load(path) {
       // path === undefined → điểm vào mặc định (brain); "" = trần (ổ đĩa); chuỗi = tương đối trần
+      resetSearchUi();
       listEl.innerHTML = "Đang tải...";
       const qp = (path === undefined || path === null) ? "" : `&path=${encodeURIComponent(path)}`;
       let resp, d;
@@ -597,6 +634,90 @@
       parts.forEach(p => { acc = acc ? acc + "/" + p : p; html += ` / <a data-p="${esc(acc)}">${esc(p)}</a>`; });
       crumbEl.innerHTML = html;
       crumbEl.querySelectorAll("a").forEach(a => a.onclick = () => load(a.dataset.p));
+    }
+    function setSearchMode(mode) {
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = null;
+      searchMode = mode === "content" ? "content" : "name";
+      el.querySelector("#fmSearchName").classList.toggle("active", searchMode === "name");
+      el.querySelector("#fmSearchContent").classList.toggle("active", searchMode === "content");
+      searchInput.placeholder = searchMode === "content"
+        ? "Tìm trong nội dung file text..."
+        : "Tìm theo tên file trong toàn brain...";
+      if (searchInput.value.trim()) runSearch();
+      else searchMeta.textContent = searchMode === "content" ? "Quét nội dung file text" : "Tìm trong toàn brain";
+      searchInput.focus();
+    }
+    async function runSearch() {
+      searchTimer = null;
+      const q = searchInput.value.trim();
+      searchClear.hidden = !q;
+      if (!q) { await load(cur); return; }
+      if (searchMode === "content" && q.length < 2) {
+        searchSeq++;
+        listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:#6b7894">Nhập ít nhất 2 ký tự để tìm trong nội dung.</div>`;
+        searchMeta.textContent = "Cần ít nhất 2 ký tự";
+        return;
+      }
+      const seq = ++searchSeq;
+      listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:#6b7894">Đang tìm trong toàn brain...</div>`;
+      searchMeta.textContent = searchMode === "content" ? "Đang quét nội dung..." : "Đang tìm theo tên...";
+      let resp, d;
+      try {
+        resp = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}&q=${encodeURIComponent(q)}&mode=${searchMode}&limit=100`);
+        d = await resp.json().catch(() => ({}));
+      } catch (e) {
+        if (seq !== searchSeq) return;
+        listEl.innerHTML = `<div class="empty" style="padding:20px;color:#d98">Lỗi tìm kiếm: ${esc(e.message)}</div>`;
+        searchMeta.textContent = "Tìm kiếm thất bại";
+        return;
+      }
+      if (seq !== searchSeq) return;
+      if (!resp.ok || d.error) {
+        listEl.innerHTML = `<div class="empty" style="padding:20px;color:#d98">⚠ ${esc(d.error || "Không tìm kiếm được.")}</div>`;
+        searchMeta.textContent = "Tìm kiếm thất bại";
+        return;
+      }
+      const items = d.items || [];
+      searchMeta.textContent = `${items.length} kết quả · ${searchMode === "content" ? "nội dung" : "tên file"}`;
+      if (!items.length) {
+        listEl.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:#6b7894">Không tìm thấy file phù hợp với “${esc(q)}”.</div>`;
+        return;
+      }
+      listEl.innerHTML = "";
+      items.forEach(it => listEl.appendChild(searchRow(it)));
+    }
+    function searchRow(it) {
+      const div = document.createElement("div"); div.className = "fm-row fm-search-row";
+      const target = { name: it.name, ext: it.ext || "", type: "file", size: 0 };
+      const editable = TEXT_EDIT_EXTS.includes(target.ext);
+      const viewable = IMG_EXTS.includes(target.ext) || target.ext === ".pdf";
+      const match = it.match === "content"
+        ? `Trong nội dung${it.line ? " · dòng " + it.line : ""}`
+        : "Tên file";
+      div.innerHTML = `<span class="fm-ico">${_fileIcon(target.ext)}</span>
+        <span class="fm-search-main">
+          <span class="fm-search-name">${esc(it.name)}</span>
+          <span class="fm-search-path">${esc(it.path || "")}</span>
+          ${it.snippet ? `<span class="fm-search-snip">${esc(it.snippet)}</span>` : ""}
+        </span>
+        <span class="fm-search-kind">${esc(match)}</span>
+        <span class="fm-row-act"><button data-act="open">Mở</button><button data-act="loc">Vị trí</button></span>`;
+      const openHit = () => {
+        if (editable || viewable) openFile(it.path, target);
+        else window.open(rawUrl(it.path), "_blank");
+      };
+      div.querySelector(".fm-search-main").onclick = openHit;
+      div.querySelector(".fm-ico").onclick = openHit;
+      div.querySelector('[data-act="open"]').onclick = (e) => { e.stopPropagation(); openHit(); };
+      div.querySelector('[data-act="loc"]').onclick = async (e) => {
+        e.stopPropagation();
+        const parts = String(it.path || "").split("/");
+        const name = parts.pop() || it.name;
+        await load(parts.join("/"));
+        revealFile(name);
+      };
+      return div;
     }
     function row(it) {
       const div = document.createElement("div"); div.className = "fm-row" + (it.type === "dir" ? " is-dir" : "");
@@ -677,6 +798,18 @@
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
       await fetch("/files/delete", { method: "POST", body: fd }); load(cur);
     }
+    searchInput.oninput = () => {
+      searchClear.hidden = !searchInput.value;
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(runSearch, 260);
+    };
+    searchInput.onkeydown = (e) => {
+      if (e.key === "Enter") { e.preventDefault(); if (searchTimer) clearTimeout(searchTimer); runSearch(); }
+      else if (e.key === "Escape" && searchInput.value) { e.stopPropagation(); load(cur); }
+    };
+    searchClear.onclick = () => load(cur);
+    el.querySelector("#fmSearchName").onclick = () => setSearchMode("name");
+    el.querySelector("#fmSearchContent").onclick = () => setSearchMode("content");
     el.querySelector("#fmUp").onclick = () => { if (upTarget !== null && upTarget !== undefined) load(upTarget); };
     el.querySelector("#fmHome").onclick = () => load(undefined);   // undefined = về brain (điểm vào mặc định)
     el.querySelector("#fmRefresh").onclick = () => load(cur);

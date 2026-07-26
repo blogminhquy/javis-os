@@ -32,6 +32,10 @@ _TMP = Path(tempfile.mkdtemp(prefix="javis-brainroot-")).resolve()
 BRAIN = _TMP / "brains" / "My Vault"
 (BRAIN / "01 - Daily").mkdir(parents=True)
 (BRAIN / "note.md").write_text("hi", encoding="utf-8")
+(BRAIN / "Kế Hoạch Quý.md").write_text(
+    "Mở đầu\nDoanh thu mục tiêu 500 triệu trong quý này.\nKết thúc",
+    encoding="utf-8",
+)
 (_TMP / "ngoai-vault.txt").write_text("data ngoài brain", encoding="utf-8")  # data user cần đọc
 _ANCHOR = Path(BRAIN.anchor)
 
@@ -95,7 +99,36 @@ try:
     d_ceil = asyncio.run(_list(""))   # "" = trần (ổ đĩa)
     check("list(''): ở trần → parent=None (ẩn nút Lên)", d_ceil["parent"] is None)
 
-    # ---- 5. Xoá: chặn xoá brain root lẫn trần ----
+    # ---- 5. Tìm file: tách rõ chế độ tên / nội dung, vẫn hỗ trợ tiếng Việt không dấu ----
+    async def _search(q, mode):
+        return await main.files_search(brain="brain", q=q, limit=50, mode=mode)
+
+    by_name = asyncio.run(_search("ke hoach quy", "name"))
+    check("search name: gõ không dấu vẫn tìm đúng tên có dấu",
+          len(by_name["items"]) == 1 and by_name["items"][0]["name"] == "Kế Hoạch Quý.md"
+          and by_name["items"][0]["match"] == "name")
+
+    by_content = asyncio.run(_search("500 triệu", "content"))
+    check("search content: tìm đúng nội dung + số dòng",
+          len(by_content["items"]) == 1 and by_content["items"][0]["match"] == "content"
+          and by_content["items"][0]["line"] == 2 and "500 triệu" in by_content["items"][0]["snippet"])
+
+    content_does_not_match_name = asyncio.run(_search("ke hoach quy", "content"))
+    check("search content: không lấy kết quả chỉ khớp tên", content_does_not_match_name["items"] == [])
+
+    name_does_not_match_content = asyncio.run(_search("500 triệu", "name"))
+    check("search name: không quét nội dung", name_does_not_match_content["items"] == [])
+
+    # Hợp đồng UI: trang Tệp tin có cùng search box/chip như Vault Explorer và gửi đúng mode.
+    console_js = (Path(__file__).resolve().parents[1] / "dashboard" / "console.js").read_text(encoding="utf-8")
+    check("UI Tệp tin có ô tìm + nút xoá + hai chế độ",
+          'id="fmSearch"' in console_js and 'id="fmSearchClear"' in console_js
+          and 'id="fmSearchName"' in console_js and 'id="fmSearchContent"' in console_js)
+    check("UI gửi mode thật xuống /files/search",
+          "/files/search?brain=${encodeURIComponent(fbrain())}" in console_js
+          and "&mode=${searchMode}" in console_js)
+
+    # ---- 6. Xoá: chặn xoá brain root lẫn trần ----
     async def _del(path_arg):
         return await main.files_delete(brain="brain", path=path_arg)
 
