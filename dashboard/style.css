@@ -981,6 +981,14 @@ body {
 .quick-set .qs-caret { display: inline-block; transition: transform 0.2s; }
 .quick-set[open] .qs-caret { transform: rotate(90deg); }
 .quick-set-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 4px; }
+.settings-page .quick-set-body {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+  padding: 16px 0 0;
+}
+.settings-page .quick-set-body > .qs-row { grid-column: 1 / -1; }
+.settings-page .quick-set-body > #ttsProviderHost,
+.settings-page .quick-set-body > .voice-picker-wrap { min-width: 0; }
+.settings-page .quick-set-body > .qs-block { min-width: 0; }
 .qs-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
 .qs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--text2);
   background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
@@ -989,6 +997,11 @@ body {
 .quick-set .voice-popover { position: static; display: block; width: auto; padding: 0; border: none; background: transparent; box-shadow: none; }
 .quick-set-body .s-btn, .quick-set-body .s-btn-ghost, .quick-set-body .test-btn { width: 100%; }
 .quick-set .set-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+@media (max-width: 700px) {
+  .settings-page .quick-set-body { grid-template-columns: 1fr; }
+  .settings-page .quick-set-body > .qs-row { grid-column: auto; }
+}
 
 /* ===== CHAT WORKSPACE (phóng to) - gần full màn hình, 2 cột: lịch sử trái + chat ===== */
 .chat-stage {

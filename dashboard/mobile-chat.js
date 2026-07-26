@@ -1,6 +1,6 @@
 // Wiring giao diện chat trên điện thoại (mobile-only, <=860px):
 //  - dời chip model (#mbOpen + #mbPop) và nút + (#newChatBtn) lên header khi mobile, trả về khi desktop
-//  - dời nhóm Hệ thống (chọn brain, cài đặt, đổi tông, loa, dải HỆ THỐNG) vào đáy ngăn kéo
+//  - dời nhóm Hệ thống (chọn brain, đổi tông, loa, dải HỆ THỐNG) vào đáy ngăn kéo
 //  - nút + = hội thoại mới (reset) + focus ô nhập
 //  - ngăn kéo điều hướng: ☰ mở/đóng, backdrop / Esc / chọn mục thì đóng
 //  - rút gọn placeholder ô nhập cho vừa bề ngang điện thoại
@@ -77,7 +77,6 @@
       if (mq.matches) {
         if (!moved.length) {
           moveEl(document.querySelector(".navbar-brain"), false);
-          moveEl(document.getElementById("settingsBtn"), true);
           moveEl(document.getElementById("themeToggle"), true);
           moveEl(document.getElementById("ttsToggle"), true);
           moveEl(document.getElementById("sysBar"), false);

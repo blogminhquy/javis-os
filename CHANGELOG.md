@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.182] - 2026-07-26
+Gom lại khu vực quản trị hệ thống: bỏ trang Tổng quan trung gian, đưa cập nhật về đúng Nhật ký cập nhật và làm Cài đặt gọn, dễ quét hơn.
+### Cải thiện
+- **Bỏ tab Tổng quan**: trạng thái hệ thống cần thiết chuyển vào Cài đặt; mobile/lite-mode đi thẳng tới Trò chuyện thay vì dừng ở một trang ít giá trị.
+- **Cập nhật đúng một nơi**: kiểm tra phiên bản, xem tóm tắt bản mới, tự cập nhật, tiến trình và hướng dẫn Redeploy/rollback nằm ngay đầu trang Nhật ký cập nhật.
+- **Cài đặt có chiều rộng đọc tối ưu**: nội dung được căn giữa với giới hạn 960px, chia thành các nhóm có thể gập/mở thay vì kéo dài kín từ trái sang phải.
+- **Gom theo nhiệm vụ**: Hệ thống, Giao diện & Brain, Giọng nói/Thương hiệu/Truy cập và Khởi động Windows được phân nhóm; Models, Kênh, Tài khoản và Cập nhật dùng lối tắt tới trang chuyên sâu thay vì lặp lại form.
+- **Mobile sạch hơn**: bỏ nút mở cửa sổ cài đặt cũ khỏi ngăn kéo; các card và quick settings tự chuyển về một cột trên màn hình hẹp.
+### Kiểm thử
+- Thêm hợp đồng hồi quy cho menu, router, lite-mode, vị trí update, cấu trúc gập/mở, chiều rộng Cài đặt và việc loại đường vào cài đặt cũ trên mobile.
+
 ## [0.9.181] - 2026-07-26
 Hộp thư Thông báo gọn hơn trên cả desktop và mobile, không còn để một bản cập nhật dài chiếm gần trọn màn hình.
 ### Cải thiện

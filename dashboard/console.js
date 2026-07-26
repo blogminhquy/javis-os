@@ -16,7 +16,6 @@
   const ICON = {
     home:        _svg('<path d="M12 2l8.66 5v10L12 22 3.34 17V7L12 2z"/>'),
     chat:        _svg('<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 1 1 21 11.5z"/>'),
-    overview:    _svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
     workflows:   _svg('<path d="M13 2L4.5 13.5H11l-1 8.5L19.5 10H13l0-8z"/>'),
     agents:      _svg('<rect x="5" y="7" width="14" height="13" rx="2"/><path d="M12 7V3M8 3h8"/><circle cx="9.2" cy="13" r="1.1"/><circle cx="14.8" cy="13" r="1.1"/>'),
     skills:      _svg('<path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4L12 3z"/>'),
@@ -49,7 +48,6 @@
   const RAIL_ITEMS = [
     { id: "home",        icon: ICON.home,        label: "Javis" },
     { id: "chat",        icon: ICON.chat,        label: "Trò chuyện" },
-    { id: "overview",    icon: ICON.overview,    label: "Tổng quan" },
     { id: "settings",    icon: ICON.settings,    label: "Cài đặt" },
     { id: "workflows",   icon: ICON.workflows,   label: "Workflows" },
     { id: "agents",      icon: ICON.agents,      label: "Agents" },
@@ -71,7 +69,7 @@
   // Nhóm cuối (foot:true) được ghim xuống ĐÁY rail; các nhóm còn lại cuộn ở giữa.
   // Thứ tự & thành viên đổi ở đây; RAIL_ITEMS vẫn là nguồn icon/label + tra cứu cho go().
   const RAIL_GROUPS = [
-    { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat", "overview"] },
+    { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
     { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
     { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
@@ -102,8 +100,7 @@
   const VIEW_META = {
     home:        { icon: "⬡", label: "Javis OS", sub: "" },
     chat:        { icon: "💬", label: "Trò chuyện", sub: "Khung chat rộng · lịch sử hội thoại" },
-    overview:    { icon: "◎", label: "Tổng quan", sub: "Trạng thái hệ thống" },
-    settings:    { icon: "⚙", label: "Cài đặt", sub: "Giọng nói · avatar · tên miền" },
+    settings:    { icon: "⚙", label: "Cài đặt", sub: "Hệ thống · giao diện · giọng nói · truy cập" },
     workflows:   { icon: "⚡", label: "Workflows", sub: "Chuỗi agent tự động" },
     agents:      { icon: "🤖", label: "Agents", sub: "Trợ lý chuyên biệt" },
     skills:      { icon: "🧩", label: "Skills", sub: "Kỹ năng khả dụng" },
@@ -222,7 +219,6 @@
     _renderGen++;   // đổi trang → vô hiệu mọi render async đang dở (guard bổ sung cho renderer đã có)
     if (id === "chat")     return renderChat(el);
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
-    if (id === "overview") return renderOverview(el);
     if (id === "settings") return renderSettings(el);
     if (id === "models")   return renderModels(el);
     if (id === "mcp")      return renderConnect(el);
@@ -345,7 +341,14 @@
   function _injectChangelogCss() {
     if (_clCss) return; _clCss = true;
     const css = `
-    .cl-wrap{max-width:760px}
+    .cl-wrap{max-width:820px;margin:0 auto}
+    .upd-card{margin-bottom:24px;padding:18px;border:1px solid rgba(255,107,43,.28);border-radius:16px;background:linear-gradient(135deg,rgba(255,107,43,.08),rgba(124,58,237,.05))}
+    .upd-card .gcard-btn{width:auto}
+    .upd-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .upd-name{font-family:var(--font);font-size:17px;font-weight:700;color:#e7eefc}
+    .upd-changes{display:none;margin:10px 0;padding:10px 12px;border-left:3px solid var(--accent,#f97316);background:rgba(120,140,160,.08);border-radius:7px;font-size:13px;line-height:1.55}
+    .upd-progress{display:none;margin-top:10px}
+    .upd-rollback{display:none;margin-top:10px;padding:10px;border:1px solid #c55;border-radius:8px;background:rgba(200,80,80,.08);font-size:13px;line-height:1.6}
     .cl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
     .cl-cur{font-size:15px;color:#cdd8ee}
     .cl-badge{padding:3px 11px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.14)}
@@ -414,7 +417,7 @@
       ? `<span class="cl-badge up">Có bản mới: v${esc(d.latest)}</span>`
       : `<span class="cl-badge ok">Đang ở bản mới nhất</span>`;
     const upNote = d.update_available
-      ? `<div class="cl-note">Cập nhật ở mục <b>Tổng quan</b>: bản có Watchtower bấm "Cập nhật ngay"; bản Docker khác thì <b>Redeploy</b> (Hostinger) hoặc <code>docker compose up -d --pull always</code>; bản VPS chạy <code>./update.sh</code>.</div>`
+      ? `<div class="cl-note">Có thể cập nhật ngay ở khung phía trên; nếu bản Docker không hỗ trợ tự cập nhật, hãy <b>Redeploy</b> trên Hostinger hoặc chạy <code>docker compose up -d --pull always</code>.</div>`
       : "";
     const rels = d.releases || [];
     const total = rels.length;
@@ -449,19 +452,142 @@
   async function renderLogs(el) {
     _injectChangelogCss();
     const myGen = _renderGen;
-    el.innerHTML = `<div class="cl-wrap"><div class="cl-note">Đang tải nhật ký cập nhật...</div></div>`;
+    el.innerHTML = `<div class="cl-wrap">
+      <section class="upd-card" aria-label="Cập nhật Javis OS">
+        <div class="upd-title"><span class="upd-name">Javis OS</span><span class="gcard-tag" id="updVerTag">…</span></div>
+        <div class="gcard-meta" id="updVerMeta">Đang kiểm tra bản mới…</div>
+        <div class="upd-changes" id="updVerChangelog"></div>
+        <div class="js-actions">
+          <button class="gcard-btn ghost" id="updVerCheck">Kiểm tra lại</button>
+          <button class="gcard-btn" id="updVerUpdate" style="display:none">⬆ Cập nhật ngay</button>
+        </div>
+        <div class="upd-progress" id="updVerProgress"></div>
+        <div class="gcard-meta" id="updVerStatus"></div>
+        <div class="upd-rollback" id="updVerRollback"></div>
+      </section>
+      <div id="clTimeline"><div class="cl-note">Đang tải nhật ký cập nhật...</div></div>
+    </div>`;
+    wireUpdateManager(el);
     let d;
     try {
       const r = await fetch("/changelog");
       d = await r.json();
     } catch (e) {
       if (myGen !== _renderGen) return;
-      el.innerHTML = `<div class="cl-wrap"><div class="cl-empty">Không tải được nhật ký cập nhật. Hãy tải lại trang.</div></div>`;
+      const timeline = el.querySelector("#clTimeline");
+      if (timeline) timeline.innerHTML = `<div class="cl-empty">Không tải được nhật ký cập nhật. Hãy tải lại trang.</div>`;
       return;
     }
     if (myGen !== _renderGen) return;   // đã đổi trang trong lúc chờ
     _clData = d;
-    _clRenderPage(el, 0);
+    const timeline = el.querySelector("#clTimeline");
+    if (timeline) _clRenderPage(timeline, 0);
+  }
+
+  const UPDATE_STEPS = [
+    ["preparing", "Chuẩn bị"], ["pulling", "Tải code"], ["installing", "Cài thư viện"],
+    ["restarting", "Khởi động lại"], ["health_check", "Kiểm tra sức khoẻ"], ["done", "Xong"],
+  ];
+  const UPDATE_MODE_LABEL = { docker: "Docker / VPS", native: "Linux (systemd)", windows: "Windows" };
+
+  function wireUpdateManager(root) {
+    const q = (id) => root.querySelector("#" + id);
+    const progress = (phase, extra) => {
+      const box = q("updVerProgress"); if (!box) return;
+      box.style.display = "";
+      const normalized = phase === "rolling_back" ? "health_check" : phase;
+      let at = UPDATE_STEPS.findIndex(x => x[0] === normalized); if (at < 0) at = 0;
+      box.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px">${
+        UPDATE_STEPS.map((s, i) => `<span style="${i === at ? "font-weight:600" : "opacity:.7"}">${i < at ? "✅" : (i === at ? "⏳" : "○")} ${esc(s[1])}</span>`).join('<span style="opacity:.4"> → </span>')
+      }</div>${phase === "rolling_back" ? '<div style="margin-top:6px;color:#c55">↩ Bản mới lỗi, đang tự quay về bản cũ…</div>' : ""}${extra ? `<div style="margin-top:6px;opacity:.85">${esc(extra)}</div>` : ""}`;
+    };
+    const loadChanges = async () => {
+      const box = q("updVerChangelog"); if (!box) return;
+      let d = {}; try { d = await (await fetch("/changelog", { cache: "no-store" })).json(); } catch (e) { return; }
+      const fresh = (d.releases || []).filter(r => !r.installed).slice(0, 2);
+      if (!fresh.length) { box.style.display = "none"; return; }
+      box.style.display = "";
+      box.innerHTML = "<b>Bản mới có gì:</b>" + fresh.map(r => {
+        const items = (r.sections || []).flatMap(s => s.items || []).slice(0, 3);
+        return `<div style="margin-top:5px">v${esc(r.version)}${r.date ? " · " + esc(r.date) : ""}</div><ul style="margin:2px 0 0 16px;padding:0">${items.map(it => `<li>${esc(it)}</li>`).join("")}</ul>`;
+      }).join("");
+    };
+    const loadVersion = async () => {
+      const tag = q("updVerTag"), meta = q("updVerMeta"), update = q("updVerUpdate"), changes = q("updVerChangelog");
+      if (!tag || !meta || !update) return;
+      meta.textContent = "Đang kiểm tra bản mới…";
+      let j = {}; try { j = await (await fetch("/version", { cache: "no-store" })).json(); }
+      catch (e) { meta.textContent = "⚠ Không kiểm tra được phiên bản."; return; }
+      tag.textContent = "v" + (j.current || "?");
+      root.dataset.currentVersion = j.current || "";
+      root.dataset.previousVersion = j.previous_version || "";
+      root.dataset.updateMode = j.mode || "";
+      if (changes) { changes.style.display = "none"; changes.innerHTML = ""; }
+      const mode = UPDATE_MODE_LABEL[j.mode] || j.mode || "";
+      if (j.update_available) {
+        const base = `🆕 Có bản mới <b>v${esc(j.latest)}</b> (đang chạy v${esc(j.current)}) · ${esc(mode)}`;
+        if (j.can_self_update) { meta.innerHTML = base; update.style.display = ""; }
+        else {
+          meta.innerHTML = base + '<div style="margin-top:8px;line-height:1.55">↻ Cập nhật bằng <b>Redeploy</b>: Hostinger dùng Docker Manager; VPS chạy <code>docker compose up -d --pull always</code>.</div>';
+          update.style.display = "none";
+        }
+        loadChanges();
+      } else {
+        meta.innerHTML = j.latest ? `✅ Đang dùng bản mới nhất (v${esc(j.current)}) · ${esc(mode)}` : `v${esc(j.current)} · ${esc(mode)}${j.error ? " · chưa so được với GitHub" : ""}`;
+        update.style.display = "none";
+      }
+    };
+    const check = q("updVerCheck"); if (check) check.onclick = loadVersion;
+    const update = q("updVerUpdate");
+    if (update) update.onclick = async () => {
+      if (!confirm("Cập nhật Javis lên bản mới nhất?\nApp sẽ tự khởi động lại; nếu lỗi hệ thống sẽ thử quay về bản cũ.")) return;
+      const status = q("updVerStatus"), rollback = q("updVerRollback");
+      const oldCur = root.dataset.currentVersion || "";
+      update.disabled = true; if (rollback) { rollback.style.display = "none"; rollback.innerHTML = ""; }
+      progress("preparing", "Đang chuẩn bị cập nhật…"); status.textContent = "";
+      let resp; try { resp = await (await fetch("/update", { method: "POST" })).json(); }
+      catch (e) { resp = { ok: true }; }
+      if (resp && resp.ok === false) {
+        update.disabled = false; q("updVerProgress").style.display = "none";
+        status.innerHTML = "⚠ " + esc(resp.error || "Không cập nhật được.") + (resp.manual ? " Chạy: <code>" + esc(resp.manual) + "</code>" : "");
+        return;
+      }
+      status.textContent = "⏳ Đang cập nhật… đừng tắt trang.";
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries++;
+        let state = null; try { state = await (await fetch("/update/status", { cache: "no-store" })).json(); } catch (e) {}
+        if (state && state.state && state.state.phase) {
+          const phase = state.state.phase, result = state.state.result;
+          const stash = state.state.stashed ? "📦 Sửa đổi cục bộ đã được cất vào git stash." : "";
+          progress(phase, stash);
+          if (result === "success") { clearInterval(poll); status.textContent = "✅ Đã cập nhật xong. Đang tải lại trang…"; setTimeout(() => location.reload(), 1500); return; }
+          if (result === "rolled_back") { clearInterval(poll); status.innerHTML = "↩ Bản mới lỗi, đã <b>tự quay về bản cũ</b>."; update.disabled = false; return; }
+          if (["pull_failed", "rollback_failed", "error"].includes(result)) {
+            clearInterval(poll); q("updVerProgress").style.display = "none";
+            status.innerHTML = "⚠ " + esc(state.state.error || "Cập nhật lỗi.") + " Xem <code>update.log</code>."; update.disabled = false; return;
+          }
+        }
+        try {
+          const v = await (await fetch("/version", { cache: "no-store" })).json();
+          const docker = root.dataset.updateMode === "docker";
+          if ((docker || !(state && state.state && state.state.phase)) && v.update_available === false && v.current && v.current !== oldCur) {
+            clearInterval(poll); status.textContent = "✅ Đã cập nhật xong. Đang tải lại trang…"; setTimeout(() => location.reload(), 1500); return;
+          }
+          if (docker && tries >= 12 && v.current === oldCur) {
+            clearInterval(poll); status.textContent = "⚠ Bản mới chưa lên sau một lúc - có thể lỗi.";
+            if (rollback) {
+              const prev = root.dataset.previousVersion || v.previous_version || "";
+              rollback.style.display = "";
+              rollback.innerHTML = "<b>Cách lùi bản Docker:</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>Hoặc pin image <code>ghcr.io/blogminhquy/javis-os:${esc(prev)}</code> rồi Redeploy.` : "");
+            }
+            update.disabled = false; return;
+          }
+        } catch (e) {}
+        if (tries > 60) { clearInterval(poll); status.textContent = "Server chưa lên lại sau khoảng 3 phút - thử tải lại trang."; update.disabled = false; }
+      }, 3000);
+    };
+    loadVersion();
   }
 
   const fbrain = () => (window.currentBrainPath ? currentBrainPath() : "brain");
@@ -3409,6 +3535,15 @@
     const prov = v.tts_provider || "edge";
     const oaSet = !!(s.model && s.model.openai_api_key_set);
     const elSet = !!v.elevenlabs_key_set;
+    const model = s.model || {};
+    const telegram = s.telegram || {};
+    const dashboard = s.dashboard || {};
+    const graphOn = dashboard.graph_enabled !== false;
+    const graphMode = (((typeof localStorage !== "undefined" && localStorage.getItem("javis.graphMode")) || dashboard.graph_mode || "2d") === "3d") ? "3d" : "2d";
+    const mainProviderId = model.main?.provider || (model.engine === "openrouter" ? "openrouter" : "anthropic-cli");
+    const mainProvider = (model.providers || []).find(p => p.id === mainProviderId);
+    const engine = mainProvider?.label || ({ "openrouter": "OpenRouter", "openai": "OpenAI API", "openai-oauth": "ChatGPT OAuth", "anthropic-cli": "Claude CLI" }[mainProviderId] || mainProviderId);
+    const currentModel = model.main?.model || (mainProviderId === "openrouter" ? model.openrouter_model : model.claude_model) || "Mặc định";
     const opt = (val, label, cur) => `<option value="${esc(val)}"${val === cur ? " selected" : ""}>${esc(label)}</option>`;
     const oaVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
     // Nhà cung cấp giọng đọc - gộp NGAY trong nhóm giọng nói (render vào #ttsProviderHost), không tách section riêng.
@@ -3435,11 +3570,63 @@
         <div class="js-actions"><button class="gcard-btn" id="vpSave">Lưu nhà cung cấp</button></div>
         <div class="gcard-meta" id="vpStatus">Đang dùng: <b>${esc(prov)}</b>. Provider trả phí lỗi sẽ tự về Edge. Bấm ▶ Nghe thử ở dưới để nghe.</div>
       </div>`;
-    el.innerHTML = `
-      <div class="cview-section">
-        <h3>Giọng nói, ảnh đại diện &amp; tên miền</h3>
-        <div class="cs-host"></div>
-      </div>`;
+    el.innerHTML = `<div class="settings-page">
+      <details class="settings-group" open>
+        <summary><span><b>Hệ thống</b><small>Trạng thái hiện tại và lối tắt tới các nhóm chuyên sâu</small></span><span class="settings-caret">⌄</span></summary>
+        <div class="settings-group-body">
+          <div class="settings-status-grid">
+            <div><span>Engine</span><b>${esc(engine)}</b></div>
+            <div><span>Model</span><b>${esc(currentModel)}</b></div>
+            <div><span>Workspace</span><b>${esc(s.workspace_name || "Javis OS")}</b></div>
+            <div><span>Telegram</span><b>${telegram.enabled ? "Đang bật" : "Đang tắt"}</b></div>
+          </div>
+          <div class="settings-links">
+            <button data-settings-go="models"><span>◈</span><b>Models</b><small>Model và nhà cung cấp</small></button>
+            <button data-settings-go="channels"><span>✉</span><b>Kênh</b><small>Telegram và kết nối chat</small></button>
+            <button data-settings-go="account"><span>♙</span><b>Tài khoản</b><small>Đăng nhập và workspace</small></button>
+            <button data-settings-go="logs"><span>🗒</span><b>Cập nhật</b><small>Phiên bản và nhật ký mới</small></button>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group" open>
+        <summary><span><b>Giao diện &amp; Brain</b><small>Hiệu năng đồ thị và cấu trúc dữ liệu</small></span><span class="settings-caret">⌄</span></summary>
+        <div class="settings-group-body settings-two-col">
+          <div class="settings-card">
+            <div class="settings-card-head"><b>Đồ thị não</b><span class="gcard-tag">${graphOn ? graphMode.toUpperCase() : "Tắt"}</span></div>
+            <p>2D nhẹ hơn; 3D đẹp hơn nhưng dùng thêm GPU trên thiết bị. Mobile luôn ưu tiên chế độ nhẹ.</p>
+            <div class="js-actions">
+              <button class="gcard-btn ${graphOn && graphMode === "2d" ? "" : "ghost"}" id="setGraph2d">2D</button>
+              <button class="gcard-btn ${graphOn && graphMode === "3d" ? "" : "ghost"}" id="setGraph3d">3D</button>
+              <button class="gcard-btn ghost" id="setGraphToggle">${graphOn ? "Tắt đồ thị" : "Bật đồ thị"}</button>
+            </div>
+          </div>
+          <div class="settings-card">
+            <div class="settings-card-head"><b>Chuẩn hóa brain</b></div>
+            <p>Gom agents, workflows, memory và skills về cấu trúc phẳng đồng nhất. Chỉ di chuyển khi đích chưa tồn tại.</p>
+            <button class="gcard-btn ghost" id="setBrainMigrate">Chuẩn hóa brain đang chọn</button>
+            <div class="gcard-meta" id="setBrainMigrateResult"></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="settings-group" open>
+        <summary><span><b>Giọng nói, thương hiệu &amp; truy cập</b><small>TTS, avatar và tên miền riêng</small></span><span class="settings-caret">⌄</span></summary>
+        <div class="settings-group-body cs-host"></div>
+      </details>
+
+      <details class="settings-group" id="setAutostartSec" style="display:none">
+        <summary><span><b>Khởi động cùng Windows</b><small>Tự chạy Javis ở nền khi đăng nhập</small></span><span class="settings-caret">⌄</span></summary>
+        <div class="settings-group-body">
+          <div class="settings-card compact">
+            <div class="settings-card-head"><b>Tự bật Javis</b><span class="gcard-tag" id="setAutoTag">…</span></div>
+            <p id="setAutoMeta">Đang kiểm tra…</p>
+            <button class="gcard-btn ghost" id="setAutoToggle" style="display:none"></button>
+            <div class="gcard-meta" id="setAutoStatus"></div>
+          </div>
+        </div>
+      </details>
+    </div>`;
     const host = el.querySelector(".cs-host");
     const qs = document.getElementById("quickSet");
     if (qs && host) host.appendChild(qs);         // nhúng bộ điều khiển cũ vào trang (giữ handler)
@@ -3480,6 +3667,65 @@
           : "⚠ Lỗi lưu.";
       };
     }
+
+    el.querySelectorAll("[data-settings-go]").forEach(btn => {
+      btn.onclick = () => navigateTo(btn.dataset.settingsGo);
+    });
+    const refreshSettings = () => { _settings = null; renderSettings(el); };
+    const graphToggle = document.getElementById("setGraphToggle");
+    if (graphToggle) graphToggle.onclick = async () => {
+      graphToggle.disabled = true;
+      const next = !graphOn;
+      await saveSetting("dashboard", { graph_enabled: next });
+      graphEnabled = next; recomputeGraph(); refreshSettings();
+    };
+    const setGraphMode = async (mode) => {
+      try { localStorage.setItem("javis.graphMode", mode); } catch (e) {}
+      graphEnabled = true;
+      await saveSetting("dashboard", { graph_mode: mode, graph_enabled: true });
+      if (window.reinitGraph) { try { await window.reinitGraph(mode); } catch (e) {} }
+      recomputeGraph(); refreshSettings();
+    };
+    const graph2d = document.getElementById("setGraph2d");
+    const graph3d = document.getElementById("setGraph3d");
+    if (graph2d) graph2d.onclick = () => setGraphMode("2d");
+    if (graph3d) graph3d.onclick = () => setGraphMode("3d");
+
+    const migrate = document.getElementById("setBrainMigrate");
+    if (migrate) migrate.onclick = async () => {
+      if (!confirm("Chuẩn hóa cấu trúc brain đang chọn?\n(Có git backup và không ghi đè thư mục đích đã tồn tại.)")) return;
+      migrate.disabled = true; migrate.textContent = "Đang chuẩn hóa…";
+      const fd = new FormData(); fd.append("brain", fbrain());
+      let r = {}; try { r = await (await fetch("/brain/migrate", { method: "POST", body: fd })).json(); }
+      catch (e) { r = { ok: false, error: e.message }; }
+      const result = document.getElementById("setBrainMigrateResult");
+      if (result) result.innerHTML = r.ok
+        ? `✅ ${(r.moved || []).length ? "Đã di chuyển: " + (r.moved || []).map(esc).join(", ") : "Brain đã đúng cấu trúc."}${(r.skipped || []).length ? `<br><span class="dim">Bỏ qua: ${(r.skipped || []).map(esc).join("; ")}</span>` : ""}`
+        : "⚠ " + esc(r.error || "Không chuẩn hóa được.");
+      migrate.disabled = false; migrate.textContent = "Chuẩn hóa brain đang chọn";
+    };
+
+    const loadAutostart = async () => {
+      const section = document.getElementById("setAutostartSec"); if (!section) return;
+      let j = {}; try { j = await (await fetch("/autostart", { cache: "no-store" })).json(); } catch (e) { return; }
+      if (!j.supported) return;
+      section.style.display = ""; section.open = true;
+      const on = !!j.enabled;
+      document.getElementById("setAutoTag").textContent = on ? "Bật" : "Tắt";
+      document.getElementById("setAutoMeta").innerHTML = on
+        ? "Javis tự chạy nền khi anh đăng nhập Windows; mở <code>localhost:7777</code> để dùng."
+        : "Bật để Javis tự khởi động ở nền mỗi khi mở máy.";
+      const button = document.getElementById("setAutoToggle");
+      button.style.display = ""; button.disabled = false; button.textContent = on ? "Tắt tự khởi động" : "Bật tự khởi động";
+      button.onclick = async () => {
+        button.disabled = true; document.getElementById("setAutoStatus").textContent = "Đang lưu…";
+        const fd = new FormData(); fd.append("enabled", on ? "0" : "1");
+        let r = {}; try { r = await (await fetch("/autostart", { method: "POST", body: fd })).json(); } catch (e) { r = { ok: false, error: e.message }; }
+        if (r.ok) { document.getElementById("setAutoStatus").textContent = ""; loadAutostart(); }
+        else { document.getElementById("setAutoStatus").textContent = "⚠ " + esc(r.error || "Lỗi"); button.disabled = false; }
+      };
+    };
+    loadAutostart();
   }
 
   // ============================================
@@ -4149,7 +4395,7 @@
     if (st) new MutationObserver(recomputeGraph).observe(st, { attributes: true, attributeFilter: ["class"] });
     // Màn hình co/giãn qua ngưỡng mobile → tính lại
     window.matchMedia("(max-width: 860px)").addEventListener("change", () => {
-      if (liteMode() && Alpine.store("nav").active === "home") navigateTo("overview");
+      if (liteMode() && Alpine.store("nav").active === "home") navigateTo("chat");
       recomputeGraph();
     });
     // Đổi brain (Select Brain) → nạp lại trang quản lý đang xem theo brain mới (không cần F5)
@@ -4167,8 +4413,8 @@
 
     freshSettings().then(s => {
       graphEnabled = !(s.dashboard && s.dashboard.graph_enabled === false);
-      // Lite-mode (cờ tắt hoặc màn hẹp) → vào thẳng Tổng quan, không hiện graph
-      if (liteMode()) navigateTo("overview");
+      // Lite-mode (cờ tắt hoặc màn hẹp) → vào thẳng chat, không ép người dùng qua một trang trung gian.
+      if (liteMode()) navigateTo("chat");
       recomputeGraph();
       // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault> → mở thẳng Tệp tin đúng vị trí
       try {

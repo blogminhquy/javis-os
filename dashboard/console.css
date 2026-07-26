@@ -306,6 +306,47 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-family: var(--font); font-size: 14px; letter-spacing: 1px; text-transform: uppercase;
   color: var(--text2); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
 }
+
+/* Cài đặt: một cột đọc tập trung, nhóm ít dùng có thể gập lại thay vì trải kín màn hình. */
+.settings-page { width: min(100%, 960px); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.settings-group {
+  border: 1px solid var(--glass-brd); border-radius: 16px; overflow: hidden;
+  background: var(--glass); box-shadow: 0 10px 28px rgba(0,0,0,.12);
+}
+.settings-group > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 18px; cursor: pointer; list-style: none; user-select: none;
+}
+.settings-group > summary::-webkit-details-marker { display: none; }
+.settings-group > summary span:first-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.settings-group > summary b { font-family: var(--font); font-size: 15px; color: var(--text); }
+.settings-group > summary small { font-size: 12.5px; color: var(--text3); font-weight: 400; }
+.settings-caret { color: var(--text3); font-size: 18px; transition: transform .18s ease; }
+.settings-group:not([open]) .settings-caret { transform: rotate(-90deg); }
+.settings-group-body { padding: 0 18px 18px; border-top: 1px solid rgba(255,255,255,.055); }
+.settings-status-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 1px;
+  margin: 0 -18px 16px; background: rgba(255,255,255,.06);
+}
+.settings-status-grid > div { min-width: 0; padding: 13px 16px; background: var(--bg2); }
+.settings-status-grid span { display: block; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
+.settings-status-grid b { display: block; margin-top: 5px; color: var(--text); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-links { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.settings-links button {
+  display: grid; grid-template-columns: 24px 1fr; grid-template-rows: auto auto; column-gap: 7px;
+  padding: 11px; text-align: left; color: var(--text); background: rgba(255,255,255,.025);
+  border: 1px solid var(--glass-brd); border-radius: 10px; cursor: pointer;
+}
+.settings-links button:hover { border-color: rgba(255,107,43,.5); background: rgba(255,107,43,.07); }
+.settings-links button > span { grid-row: 1 / 3; align-self: center; color: var(--accent); }
+.settings-links button b { font-size: 13px; }
+.settings-links button small { color: var(--text3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-two-col { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding-top: 16px; }
+.settings-card { min-width: 0; padding: 14px; border: 1px solid var(--glass-brd); border-radius: 12px; background: rgba(255,255,255,.025); }
+.settings-card.compact { max-width: 520px; margin-top: 16px; }
+.settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.settings-card p { margin: 8px 0 0; color: var(--text2); font-size: 13px; line-height: 1.5; }
+.settings-card .gcard-btn { width: auto; }
 .cview-placeholder {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 100%; gap: 10px; color: var(--text3); text-align: center;
@@ -323,7 +364,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .run-drawer { z-index: 430; }
 
 /* Dọn header cockpit: bỏ logo lặp (đã có ở rail) + nút Studio/Cài đặt (đã có ở rail).
-   Giữ #settingsBtn trong DOM (chỉ ẩn) để mục "Cài đặt" trên rail còn .click() mở được. */
+   #settingsBtn cũ chỉ còn là fallback tương thích; mọi lối vào hiển thị dùng trang Cài đặt trên rail. */
 .hud-top .brand,
 .hud-top .studio-open-btn,
 .hud-top #settingsBtn { display: none; }
@@ -394,7 +435,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .rail-item .rail-lbl { font-size: 13px; }
   .rail-item.active::before { left: 0; right: auto; top: 15%; bottom: 15%; width: 3px; height: auto; }
 
-  /* Mục "Hệ thống" ở đáy ngăn kéo: chọn brain, cài đặt, đổi tông, Studio, loa, trạng thái HỆ THỐNG */
+  /* Mục "Hệ thống" ở đáy ngăn kéo: chọn brain, đổi tông, loa và trạng thái; Cài đặt dùng mục rail duy nhất. */
   .rail-sys { margin-top: 8px; padding: 10px 6px 4px; border-top: 1px solid var(--glass-brd);
     display: flex; flex-direction: column; gap: 10px; }
   .rail-sys-lbl { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); }
@@ -418,6 +459,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .cview { left: 0; bottom: 0; }
   .cview-body { padding: 16px 14px; }
   .cgrid { grid-template-columns: 1fr; }
+  .settings-page { width: 100%; gap: 10px; }
+  .settings-group > summary { padding: 14px; }
+  .settings-group-body { padding: 0 14px 14px; }
+  .settings-status-grid { grid-template-columns: repeat(2,minmax(0,1fr)); margin: 0 -14px 14px; }
+  .settings-links { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .settings-two-col { grid-template-columns: 1fr; padding-top: 14px; }
 
   /* Mobile: KHÔNG cho cả trang trôi lên xuống - cả màn là 1 khung cố định; mỗi khung tự cuộn bên trong. */
   html, body { width: 100%; height: 100%; overflow: hidden; }
