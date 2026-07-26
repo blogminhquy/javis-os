@@ -337,7 +337,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .nav-toggle-btn, .new-chat-btn { display: none; }
 
 @media (max-width: 860px) {
-  :root { --rail-w: 0px; --topbar-h: 46px; }   /* header thấp hơn trên mobile */
+  :root {
+    --rail-w: 0px;
+    --topbar-h: calc(46px + env(safe-area-inset-top, 0px));
+  }   /* header thấp hơn trên mobile nhưng vẫn chừa tai thỏ khi chạy full-screen */
 
   /* Header mobile: chỉ ☰ · chip model · ＋. Ẩn phần rườm rà. */
   .nav-toggle-btn, .new-chat-btn { display: inline-flex; }
@@ -351,7 +354,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .hud-top #settingsBtn, .hud-top #ttsToggle, .hud-top #resetBtn { display: none; }
   .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày; chip model làm giữa header */
   .hud-top #mbOpen { display: inline-flex; margin-left: auto; margin-right: auto; }  /* chip model căn giữa, đẩy ＋ sang phải */
-  .hud-top #mbPop { position: fixed; top: 50px; bottom: auto; left: 50%; transform: translateX(-50%);
+  .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
     width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
   .model-bar { display: none; }                       /* hàng model gốc ẩn; chip + sysBar bên trong dời đi (JS) */
   #jv-sess-btn { display: none; }                     /* nút Lịch sử: ẩn ở mobile để header cockpit khỏi chồng/lệch */
@@ -359,7 +362,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   /* Rail: từ thanh đáy → ngăn kéo trượt từ trái */
   .rail {
     top: 0; left: 0; bottom: 0; right: auto; width: min(280px, 82vw); height: 100vh;
-    flex-direction: column; padding: 10px 8px; gap: 4px;
+    height: 100dvh;
+    flex-direction: column;
+    padding: max(10px, env(safe-area-inset-top, 0px)) 8px max(10px, env(safe-area-inset-bottom, 0px));
+    gap: 4px;
     border-top: 0; border-right: 1px solid var(--glass-brd);
     transform: translateX(-100%); transition: transform .22s ease; z-index: 60; overflow-y: auto;
   }
@@ -389,21 +395,90 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   body.nav-open .nav-backdrop { display: block; }
 
   /* Không còn chừa 56px đáy cho rail; chat chiếm hết */
-  body.has-rail .hud { margin-left: 0; width: 100%; height: 100vh; }
+  body.has-rail .hud {
+    margin-left: 0; width: 100%;
+    height: 100vh; height: 100dvh;
+  }
   .cview { left: 0; bottom: 0; }
   .cview-body { padding: 16px 14px; }
   .cgrid { grid-template-columns: 1fr; }
 
   /* Mobile: KHÔNG cho cả trang trôi lên xuống - cả màn là 1 khung cố định; mỗi khung tự cuộn bên trong. */
-  body { overflow: hidden; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
   body.in-console .hud-body { visibility: hidden; }   /* trang quản lý: giấu quả cầu cockpit phía sau */
-  .hud { grid-template-rows: 1fr auto; padding-top: 46px; }  /* header ra khỏi lưới (fixed) → chừa 46px + hàng body/voice */
+  .hud {
+    height: 100vh; height: 100dvh;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    padding-top: calc(46px + env(safe-area-inset-top, 0px));
+  }  /* header fixed; ba hàng còn lại = body + đính kèm + ô nhập */
+  .hud-top {
+    height: calc(46px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
   .hud-body { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }  /* cockpit: quả cầu trên, chat dưới, không trôi */
   .hud-left { display: none; }              /* số liệu KD ẩn trên mobile (xem ở Console) */
-  .hud-center { flex: 0 0 auto; height: 34vh; min-height: 0; }   /* quả cầu nhỏ gọn ở trên, cố định */
-  .hud-right { flex: 1 1 auto; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border); }  /* chat cuộn được để đọc kết quả */
+  .hud-center {
+    flex: 0 0 auto;
+    height: 30vh;
+    height: clamp(190px, 27dvh, 260px);
+    min-height: 0;
+  }
+  .hud-right {
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+    padding: 8px 10px 4px;
+    border-top: 1px solid var(--border);
+  }
+  .hud-right .panel-label {
+    flex: 0 0 auto;
+    min-height: 22px;
+    margin-bottom: 4px;
+    font-size: 10px;
+    letter-spacing: 1.2px;
+  }
+  .hud-right .transcript {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    padding-right: 2px;
+  }
+
+  /* Neuron chỉ là bối cảnh trên mobile: nhãn và lớp trạng thái nhỏ hơn để chat là nội dung chính. */
+  .concept-label .cl-name { font-size: 10px; letter-spacing: 1.2px; }
+  .concept-label .cl-meta { font-size: 8px; letter-spacing: .5px; margin-top: 0; }
+  .orb-overlay { bottom: 48px; }
+  .orb-state { font-size: 11px; letter-spacing: 2px; }
+  .orb-interim {
+    max-width: calc(100vw - 28px);
+    margin-top: 3px;
+    min-height: 14px;
+    font-size: 13px;
+  }
+
+  /* Agents / Skills / Workflows thành một thanh mỏng thay vì một card lớn che neuron. */
+  .brain-stats {
+    bottom: 6px;
+    width: min(420px, calc(100% - 20px));
+    padding: 2px;
+    border-radius: 10px;
+  }
+  .bstat { flex: 1 1 0; padding: 4px 5px; border-radius: 8px; }
+  .bstat-num { font-size: 17px; }
+  .bstat-lbl { margin-top: 3px; font-size: 8px; letter-spacing: 1px; }
+  .bstat-sep { margin: 4px 0; }
+
+  /* Ô nhập luôn nằm trong visual viewport của Safari/Chrome iOS và chừa safe area. */
+  .hud-voice {
+    min-width: 0;
+    margin: 5px 8px max(7px, env(safe-area-inset-bottom, 0px));
+  }
+  .hud-voice .voice-input { min-width: 0; }
   .cview-head { padding: 14px 16px; }
   .cview-title { font-size: 16px; }
+}
+
+@media (max-width: 860px) and (max-height: 620px) {
+  .hud-center { height: clamp(150px, 25dvh, 190px); }
+  .concept-label .cl-meta { display: none; }
 }
 
 /* ==== Trang Kết nối (kho connector + đa tài khoản) ==== */

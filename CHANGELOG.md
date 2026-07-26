@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.176] - 2026-07-26
+Tối ưu cockpit Javis trên điện thoại để neuron vẫn nhận diện được nhưng không đẩy khung chat và ô nhập ra ngoài màn hình.
+### Cải thiện
+- **Khung chat luôn nằm trong màn hình iPhone**: thay chiều cao `100vh` bằng dynamic viewport (`100dvh` có fallback), hỗ trợ safe area và bỏ `min-height` desktop khỏi transcript mobile; thanh địa chỉ/bàn phím Safari hoặc Chrome không còn che ô nhập.
+- **Neuron gọn hơn trên mobile**: vùng graph giảm từ 34% xuống khoảng 27% chiều cao khả dụng, có trần/sàn cho màn hình ngắn; nhãn concept, trạng thái và lời thoại tạm thu nhỏ riêng ở breakpoint mobile.
+- **Agents / Skills / Workflows thành thanh mỏng**: giảm padding, cỡ số, nhãn và khoảng cách; ba mục tự chia đều chiều ngang và vẫn bấm mở Studio như trước.
+- **Desktop giữ nguyên**: toàn bộ thay đổi nằm trong breakpoint tối đa 860px; bố cục ba cột và kích thước graph desktop không đổi.
+
 ## [0.9.175] - 2026-07-26
 Xoá cron/nhắc hẹn trực tiếp từ chat hoạt động nhất quán với ChatGPT/Codex và mọi model OpenRouter, không còn đẩy người dùng sang UI tự xoá.
 ### Sửa lỗi
