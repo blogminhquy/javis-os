@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "announcements": [
+    {
+      "id": "community-notification-inbox-launch",
+      "kind": "community",
+      "title": "Hộp thư Thông báo đã sẵn sàng",
+      "summary": "Từ nay bản cập nhật mới và tin dành cho cộng đồng Javis OS sẽ xuất hiện ngay trên thanh điều hướng.",
+      "body": "Bấm biểu tượng chuông để xem, đánh dấu đã đọc hoặc mở nhật ký phiên bản. Các thông báo quan trọng sẽ có huy hiệu nổi bật để bạn không bỏ lỡ.",
+      "published_at": "2026-07-26",
+      "priority": "high",
+      "cta": {
+        "label": "Xem nhật ký cập nhật →",
+        "action": "changelog"
+      }
+    }
+  ]
+}

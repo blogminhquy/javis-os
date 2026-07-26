@@ -354,6 +354,21 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .hud-top #settingsBtn, .hud-top #ttsToggle, .hud-top #resetBtn { display: none; }
   .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày; chip model làm giữa header */
   .hud-top #mbOpen { display: inline-flex; margin-left: auto; margin-right: auto; }  /* chip model căn giữa, đẩy ＋ sang phải */
+  .hud-top .notification-trigger {
+    flex: 0 0 34px; width: 34px; min-width: 34px; height: 34px; padding: 0;
+  }
+  .hud-top .notification-trigger-label { display: none; }
+  .hud-top .notification-badge {
+    position: absolute; top: -4px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px;
+  }
+  .notification-panel {
+    top: calc(52px + env(safe-area-inset-top, 0px)); right: 8px;
+    width: calc(100vw - 16px); max-height: calc(100dvh - 62px - env(safe-area-inset-bottom, 0px));
+    border-radius: 14px;
+  }
+  .notification-shade { background: rgba(0,0,0,.38); backdrop-filter: blur(2px); }
+  .noti-head { padding: 14px 13px 12px; }
+  .noti-list { padding: 7px; }
   .hud-top #mbPop { position: fixed; top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; transform: translateX(-50%);
     width: min(340px, 92vw); z-index: 200; max-height: 70vh; }
   .model-bar { display: none; }                       /* hàng model gốc ẩn; chip + sysBar bên trong dời đi (JS) */

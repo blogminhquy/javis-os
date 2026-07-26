@@ -17,9 +17,17 @@
     var headerCenter = document.querySelector(".hud-center-title");
     var newChatBtn = document.getElementById("newChatBtn");
     var origNewChatParent = newChatBtn ? newChatBtn.parentElement : null;
+    var notificationTrigger = document.getElementById("notificationTrigger");
+    var origNotificationParent = notificationTrigger ? notificationTrigger.parentElement : null;
+    var origNotificationNext = notificationTrigger ? notificationTrigger.nextSibling : null;
     function placeHeader() {
       if (!headerRoot) return;
       if (mq.matches) {
+        if (notificationTrigger && notificationTrigger.parentElement !== headerRoot) {
+          var navToggle = document.getElementById("navToggle");
+          if (navToggle && navToggle.parentElement === headerRoot) headerRoot.insertBefore(notificationTrigger, navToggle.nextSibling);
+          else headerRoot.insertBefore(notificationTrigger, headerRoot.firstChild);
+        }
         if (mbOpen && mbOpen.parentElement !== headerRoot) {
           if (headerCenter && headerCenter.parentElement === headerRoot) headerRoot.insertBefore(mbOpen, headerCenter.nextSibling);
           else headerRoot.appendChild(mbOpen);
@@ -32,6 +40,13 @@
           if (mbPop) modelBar.insertBefore(mbPop, mbOpen.nextSibling);
         }
         if (newChatBtn && origNewChatParent && newChatBtn.parentElement !== origNewChatParent) origNewChatParent.appendChild(newChatBtn);
+        if (notificationTrigger && origNotificationParent && notificationTrigger.parentElement !== origNotificationParent) {
+          if (origNotificationNext && origNotificationNext.parentElement === origNotificationParent) {
+            origNotificationParent.insertBefore(notificationTrigger, origNotificationNext);
+          } else {
+            origNotificationParent.appendChild(notificationTrigger);
+          }
+        }
       }
     }
 

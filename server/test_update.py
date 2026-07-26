@@ -1,6 +1,6 @@
 """Test tầng cập nhật: update_state (thuần) + endpoint /update/status + updater dry-run.
 Chạy:  cd server && .venv\\Scripts\\python.exe test_update.py    (KHÔNG mạng)."""
-import os, sys, tempfile
+import os, sys, tempfile, json
 os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-update-test-")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -162,6 +162,57 @@ check("KHÔNG còn khoá cache gõ tay ?v=72 (đã thay bằng phiên bản)",
 import re as _re2  # noqa: E402
 _stale = [m for m in _re2.findall(r'/static/\S+?\.(?:js|css)\?v=([\w.]+)', _html) if m != _ver]
 check("mọi file .js/.css đều mang đúng phiên bản, không sót cái nào", not _stale)
+
+# --- Hộp thư thông báo: dữ liệu cộng đồng + release hợp nhất ---
+_ann_raw = json.dumps({
+    "announcements": [
+        {
+            "id": "tin-hop-le",
+            "kind": "marketing",
+            "title": "Tin hợp lệ",
+            "summary": "Nội dung",
+            "published_at": "2099-01-01",
+            "priority": "high",
+            "cta": {"label": "Xem", "url": "https://javisos.com"},
+        },
+        {
+            "id": "tin-het-han",
+            "kind": "community",
+            "title": "Tin hết hạn",
+            "expires_at": "2000-01-01",
+        },
+        {
+            "id": "tin-url-xau",
+            "kind": "marketing",
+            "title": "Không chạy javascript URL",
+            "cta": {"label": "Xấu", "url": "javascript:alert(1)"},
+        },
+    ]
+}, ensure_ascii=False)
+_anns = main._parse_announcements(_ann_raw)
+check("announcement hợp lệ được parse", any(x["id"] == "tin-hop-le" for x in _anns))
+check("announcement hết hạn bị lọc", not any(x["id"] == "tin-het-han" for x in _anns))
+_bad_url = next((x for x in _anns if x["id"] == "tin-url-xau"), {})
+check("announcement chặn javascript URL", not (_bad_url.get("cta") or {}).get("url"))
+
+main._NOTIFICATION_CACHE.update({"at": 0.0, "data": None})
+_notifications = _aio.run(main.notifications_info())
+check("/notifications hợp nhất dữ liệu", _notifications.get("unified") is True)
+check("/notifications có tin cộng đồng local", any(
+    x.get("id") == "community-notification-inbox-launch"
+    for x in _notifications.get("items", [])
+))
+check("/notifications có release tự động", any(
+    x.get("kind") == "update" and x.get("id", "").startswith("release:")
+    for x in _notifications.get("items", [])
+))
+_index_text = (main.DASHBOARD_PATH / "index.html").read_text(encoding="utf-8")
+_noti_js = (main.DASHBOARD_PATH / "notifications.js").read_text(encoding="utf-8")
+_mobile_js = (main.DASHBOARD_PATH / "mobile-chat.js").read_text(encoding="utf-8")
+check("navbar có nút chuông và panel thông báo",
+      'id="notificationTrigger"' in _index_text and 'id="notificationPanel"' in _index_text)
+check("frontend ghi nhớ đã đọc", "javis.notifications.read" in _noti_js)
+check("nút chuông được dời lên header mobile", "origNotificationParent" in _mobile_js)
 
 print()
 if _fails:

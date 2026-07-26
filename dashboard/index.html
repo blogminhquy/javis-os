@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/static/style.css?v=49">
-  <link rel="stylesheet" href="/static/console.css?v=29">
+  <link rel="stylesheet" href="/static/style.css?v=50">
+  <link rel="stylesheet" href="/static/console.css?v=30">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối-đậm rồi mới đổi sang tối-nhạt -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='dim')document.documentElement.setAttribute('data-theme','dim');}catch(e){}})();</script>
 </head>
@@ -44,6 +44,15 @@
       <div class="hud-center-title">
         <span class="ws-name" id="workspaceName">Javis OS</span>
         <span class="ws-date" id="currentDate"></span>
+        <button class="notification-trigger" id="notificationTrigger" type="button"
+                aria-haspopup="dialog" aria-expanded="false" title="Mở hộp thư Thông báo">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+            <path d="M10 21h4"></path>
+          </svg>
+          <span class="notification-trigger-label">Thông báo</span>
+          <span class="notification-badge" id="notificationBadge" hidden>0</span>
+        </button>
       </div>
       <!-- NHÓM PHẢI: nút đổi tông (LUÔN hiện) + cụm nút cockpit (ẩn ở trang quản lý) -->
       <div class="hud-top-right">
@@ -84,6 +93,29 @@
         </div>
       </div>
     </header>
+
+    <!-- Hộp thư chung: bản cập nhật + thông báo cộng đồng/marketing -->
+    <div class="notification-shade" id="notificationShade" hidden></div>
+    <aside class="notification-panel" id="notificationPanel" role="dialog"
+           aria-modal="false" aria-label="Hộp thư Thông báo" aria-hidden="true" hidden>
+      <div class="noti-head">
+        <div>
+          <div class="noti-title">Thông báo</div>
+          <div class="noti-sub" id="notificationSummary">Cập nhật mới và tin từ Javis OS</div>
+        </div>
+        <div class="noti-head-actions">
+          <button class="noti-text-btn" id="notificationReadAll" type="button">Đọc tất cả</button>
+          <button class="noti-close" id="notificationClose" type="button" aria-label="Đóng">×</button>
+        </div>
+      </div>
+      <div class="noti-list" id="notificationList">
+        <div class="noti-loading">Đang tải thông báo…</div>
+      </div>
+      <div class="noti-foot">
+        <button class="noti-text-btn" id="notificationRefresh" type="button">↻ Làm mới</button>
+        <button class="noti-text-btn primary" id="notificationOpenUpdates" type="button">Xem nhật ký cập nhật →</button>
+      </div>
+    </aside>
 
     <!-- ===== BODY: 3 columns ===== -->
     <div class="hud-body">
@@ -613,6 +645,7 @@
   <script src="/static/console.js?v=74"></script>
   <script src="/static/mobile-chat.js?v=4"></script>
   <script src="/static/brain-view.js?v=1"></script>
+  <script src="/static/notifications.js?v=1"></script>
   <!-- Nút đổi tông tối đậm / tối nhạt: lật data-theme trên <html>, nhớ qua localStorage -->
   <script>(function(){var b=document.getElementById('themeToggle');if(!b)return;b.addEventListener('click',function(){var dim=document.documentElement.getAttribute('data-theme')==='dim';if(dim)document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme','dim');try{localStorage.setItem('javis.theme',dim?'dark':'dim');}catch(e){}});})();</script>
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>

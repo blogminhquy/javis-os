@@ -4281,6 +4281,97 @@ def _parse_changelog(md: str):
     return releases
 
 
+def _parse_announcements(raw: str):
+    """Đọc ANNOUNCEMENTS.json an toàn.
+
+    Nội dung từ GitHub là dữ liệu không tin cậy: chỉ giữ text thuần, URL http(s) và
+    một tập kind/action nhỏ. Frontend tiếp tục escape trước khi render.
+    """
+    try:
+        payload = json.loads(raw or "{}")
+    except Exception:
+        return []
+    rows = payload.get("announcements", []) if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        return []
+
+    def text(value, limit):
+        return str(value or "").strip()[:limit]
+
+    today = time.strftime("%Y-%m-%d")
+    out = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        item_id = text(row.get("id"), 120)
+        title = text(row.get("title"), 180)
+        if not item_id or not title or not re.fullmatch(r"[\w.:-]+", item_id, flags=re.UNICODE):
+            continue
+        expires = text(row.get("expires_at"), 32)
+        if expires and expires[:10] < today:
+            continue
+        kind = text(row.get("kind"), 24).lower()
+        if kind not in ("community", "marketing"):
+            kind = "community"
+        priority = text(row.get("priority"), 16).lower()
+        if priority not in ("high", "normal", "low"):
+            priority = "normal"
+        cta_in = row.get("cta") if isinstance(row.get("cta"), dict) else {}
+        cta = {}
+        label = text(cta_in.get("label"), 80)
+        action = text(cta_in.get("action"), 32).lower()
+        url = text(cta_in.get("url"), 500)
+        if label:
+            cta["label"] = label
+        if action == "changelog":
+            cta["action"] = action
+        if re.match(r"^https?://", url, flags=re.I):
+            cta["url"] = url
+        out.append({
+            "id": item_id,
+            "kind": kind,
+            "title": title,
+            "summary": text(row.get("summary"), 500),
+            "body": text(row.get("body"), 3000),
+            "published_at": text(row.get("published_at"), 32),
+            "expires_at": expires,
+            "priority": priority,
+            "cta": cta,
+        })
+    return out
+
+
+def _release_plain(value: str) -> str:
+    """Thu gọn một bullet Markdown thành text cho thẻ thông báo."""
+    s = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", str(value or ""))
+    return re.sub(r"[*_`#]", "", s).strip()
+
+
+async def _load_community_announcements():
+    """Local làm fallback; bản trên GitHub main ghi đè cùng id để phát tin không cần release."""
+    by_id, err = {}, None
+    local_path = PROJECT_ROOT / "ANNOUNCEMENTS.json"
+    try:
+        if local_path.exists():
+            for item in _parse_announcements(local_path.read_text(encoding="utf-8")):
+                by_id[item["id"]] = item
+    except Exception:
+        pass
+    try:
+        import httpx
+        url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/ANNOUNCEMENTS.json"
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(url)
+            if response.status_code == 200:
+                for item in _parse_announcements(response.text):
+                    by_id[item["id"]] = item
+            else:
+                err = f"HTTP {response.status_code}"
+    except Exception as e:
+        err = type(e).__name__
+    return list(by_id.values()), err
+
+
 @app.get("/changelog")
 async def changelog_info():
     """Nhật ký cập nhật: đọc CHANGELOG.md trong bản đang cài + đối chiếu bản trên GitHub để
@@ -4315,6 +4406,73 @@ async def changelog_info():
     return {"current": cur, "latest": latest,
             "update_available": bool(_ver_newer(latest, cur)),
             "releases": merged, "error": err}
+
+
+_NOTIFICATION_CACHE = {"at": 0.0, "data": None}
+
+
+@app.get("/notifications")
+async def notifications_info():
+    """Hộp thư thống nhất: release tự động + tin cộng đồng/marketing từ GitHub main."""
+    now = time.monotonic()
+    cached = _NOTIFICATION_CACHE.get("data")
+    if cached is not None and now - float(_NOTIFICATION_CACHE.get("at") or 0) < 120:
+        return cached
+
+    changelog_task = asyncio.create_task(changelog_info())
+    announcements_task = asyncio.create_task(_load_community_announcements())
+    changelog, (announcements, announcement_error) = await asyncio.gather(
+        changelog_task, announcements_task
+    )
+
+    releases = []
+    for rel in (changelog.get("releases") or [])[:30]:
+        bullets = [
+            _release_plain(item)
+            for section in (rel.get("sections") or [])
+            for item in (section.get("items") or [])
+            if _release_plain(item)
+        ]
+        is_new = not bool(rel.get("installed"))
+        is_current = bool(rel.get("is_current"))
+        is_latest = str(rel.get("version") or "") == str(changelog.get("latest") or "")
+        releases.append({
+            "id": f"release:{rel.get('version')}",
+            "kind": "update",
+            "title": f"Javis OS v{rel.get('version')}",
+            "summary": bullets[0] if bullets else "Bản cập nhật Javis OS mới.",
+            "body": "\n".join(f"• {item}" for item in bullets[1:5]),
+            "published_at": rel.get("date") or "",
+            "priority": "high" if (is_current or (is_new and is_latest)) else "normal",
+            "installed": bool(rel.get("installed")),
+            "is_current": is_current,
+            "update_available": is_new,
+            "action": "changelog",
+            "cta": {"label": "Xem chi tiết bản cập nhật →", "action": "changelog"},
+        })
+
+    priority_rank = {"high": 2, "normal": 1, "low": 0}
+    items = announcements + releases
+    items.sort(
+        key=lambda item: (
+            str(item.get("published_at") or ""),
+            priority_rank.get(item.get("priority"), 1),
+            str(item.get("id") or ""),
+        ),
+        reverse=True,
+    )
+    data = {
+        "current": changelog.get("current"),
+        "latest": changelog.get("latest"),
+        "unified": True,
+        "items": items[:60],
+        "errors": {
+            "changelog": changelog.get("error"),
+            "announcements": announcement_error,
+        },
+    }
+    _NOTIFICATION_CACHE.update({"at": now, "data": data})
+    return data
 
 
 # ============================================

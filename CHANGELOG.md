@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.179] - 2026-07-26
+Navbar có hộp thư Thông báo nổi bật, hợp nhất nhật ký phiên bản với các tin cộng đồng và marketing có thể phát hành tập trung.
+### Thêm mới
+- **Chuông Thông báo trên navbar**: có huy hiệu số chưa đọc, hiệu ứng nhấn vừa đủ nổi bật và panel dạng hộp thư; hỗ trợ đọc từng tin, đọc tất cả, làm mới và đi thẳng tới Nhật ký cập nhật.
+- **Hai nguồn trong một luồng**: mọi release trong `CHANGELOG.md` tự trở thành thông báo cập nhật; tin cộng đồng/marketing lấy từ `ANNOUNCEMENTS.json` trên GitHub `main`.
+- **Phát tin không cần release ứng dụng**: thông báo trung tâm trên GitHub ghi đè bản local cùng ID, được Javis làm mới định kỳ và cache phía server trong hai phút để giảm tải.
+- **Ghi nhớ đã đọc trên từng trình duyệt**: lần đầu không biến toàn bộ lịch sử release thành tin chưa đọc; các thông báo mới về sau tự xuất hiện trong badge.
+- **Responsive**: desktop hiển thị nút có nhãn `Thông báo`; mobile dùng chuông gọn cạnh menu và panel gần toàn màn hình.
+### Bảo mật
+- **Dữ liệu marketing được giới hạn**: backend chỉ nhận text thuần, ID hợp lệ, loại tin cho phép và URL `http/https`; frontend escape toàn bộ nội dung trước khi render.
+### Kiểm thử
+- Mở rộng `test_update.py` để phủ parser, tin hết hạn, URL nguy hiểm, endpoint hợp nhất, hợp đồng navbar, trạng thái đã đọc và vị trí chuông mobile.
+
 ## [0.9.178] - 2026-07-26
 Brain trên điện thoại tự canh camera sau khi mô phỏng neuron ổn định và có chế độ xem toàn cảnh không bị lớp thông tin che.
 ### Thêm mới
