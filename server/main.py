@@ -703,7 +703,7 @@ def _hub_enabled():
 async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None):
     """Model API/OAuth dùng MCP của Javis qua HUB: đa tài khoản + quyền + audit + builtin tools
     (file vault, use_skill) → engine API cũng là agent thực thụ. anthropic-api giờ CÓ tool loop.
-    ChatGPT OAuth (backend Codex responses) không nhận function tool → vẫn chat thuần."""
+    ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
     tools, route = [], {}
     if prov in ("openrouter", "openai", "anthropic-api", "gemini"):
         try:
@@ -726,6 +726,42 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         if prov == "gemini":
             return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
     return _api_stream(prov, key, model, messages, reasoning)
+
+
+async def _schedule_cancel_action(message: str, brain):
+    """Provider-independent delete bridge for cron/reminders.
+
+    The gateway resolves and executes only an unambiguous target. This keeps
+    ChatGPT/Codex and OpenRouter models without function calling equally capable
+    of deleting schedules, while preserving the no-guess safety rule.
+    """
+    messages = [{"role": "user", "content": message or ""}]
+    if not engine._schedule_cancel_request(messages):
+        return None
+    try:
+        vault_root = _brain_root(brain)
+        tools, route = await mcp_hub.discover_all("full", vault_root=vault_root)
+        return await engine.schedule_cancel_gateway(messages, tools, route)
+    except Exception as exc:
+        return {
+            "handled": False,
+            "error": f"Không truy cập được kho lịch: {type(exc).__name__}: {exc}",
+            "calls": [],
+        }
+
+
+def _schedule_cancel_reply(action: dict) -> str:
+    if action.get("handled"):
+        return str(action.get("result") or "Đã huỷ lịch.")
+    if action.get("not_found"):
+        return str(action.get("list_result") or "Không có lịch đang chạy để xoá.")
+    if action.get("needs_choice"):
+        return (
+            "Em đã đọc danh sách lịch thật nhưng có nhiều mục gần giống nhau nên chưa xoá để tránh nhầm. "
+            "Anh nói đúng tên hoặc ID cần xoá:\n\n" + str(action.get("list_result") or "")
+        )
+    return "⚠ " + str(action.get("error") or "Không thể thao tác lịch.")
+
 
 def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
@@ -4676,7 +4712,20 @@ async def websocket_endpoint(ws: WebSocket):
                 "dashboard", telegram_running=bool(_TG_BOT), port=_javis_port(), brain_root=_brain_root(brain))
 
             final_text = ""
-            if prov == "openai-oauth":
+            _schedule_action = await _schedule_cancel_action(user_message, brain)
+            if _schedule_action:
+                for _call in _schedule_action.get("calls") or []:
+                    await ws.send_text(json.dumps({
+                        "type": "tool_call", "tool": "javis_schedule",
+                        "content": f"⚙ Lịch: {_call.split(':')[-1]}",
+                    }))
+                final_text = _schedule_cancel_reply(_schedule_action)
+                await ws.send_text(json.dumps({
+                    "type": "response", "content": final_text,
+                    "engine": "javis_schedule", "model": "gateway",
+                    "session_id": conv_sid,
+                }))
+            elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
                 if api_model and actual_model != api_model:
@@ -4960,7 +5009,10 @@ def _tg_session(chat_id):
     key = str(chat_id or "default")
     s = _TG_SESS.get(key)
     if s is None:
-        s = {"cli": None, "or": None, "last": None, "sent": set(), "brain": None}
+        s = {
+            "cli": None, "codex": None, "or": None,
+            "last": None, "sent": set(), "brain": None,
+        }
         _TG_SESS[key] = s
     return s
 
@@ -4996,6 +5048,7 @@ def _tg_set_brain(chat_id, brain_path):
         pass
     if sess.get("cli"):
         sess["cli"].reset_session()
+    sess["codex"] = None
     sess["or"] = None
     sess["last"] = None
 
@@ -5038,6 +5091,57 @@ async def _tg_answer(text, meta=None, progress=None):
     # ai đang nhắn, và cách gửi file trả về (auto-attach + endpoint send-file).
     sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
         "telegram", meta, telegram_running=True, port=_javis_port(), brain_root=_brain_root(brain))
+    schedule_action = await _schedule_cancel_action(text, brain)
+    if schedule_action:
+        for call in schedule_action.get("calls") or []:
+            await _p(f"⚙ Lịch: {call.split(':')[-1]}")
+        return channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action))
+    if prov == "openai-oauth":
+        # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth
+        # rơi vào Responses chat-thuần nên model nói đúng là phiên không có tool.
+        actual_model = _codex_safe_model(api_model)
+        openai_oauth.write_codex_auth()
+        ccli = sess.get("codex")
+        if ccli is None:
+            ccli = CodexCLI(
+                cwd=_brain_root(brain),
+                model=actual_model,
+                tag=f"telegram:{chat_id}",
+                instructions=sysprompt,
+            )
+            sess["codex"] = ccli
+        else:
+            ccli.cwd = _brain_root(brain)
+            ccli.model = actual_model
+            ccli.instructions = sysprompt
+        _apply_codex_hub(ccli, _brain_root(brain))
+        if not ccli.is_available():
+            return "⚠ Chưa cài Codex CLI trong container nên ChatGPT chưa dùng được tool."
+        t0 = time.time()
+        out = ""
+        async for ev in ccli.query(_cli_think(reasoning, text)):
+            et = ev.get("type")
+            if et == "tool_call":
+                await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
+            elif et == "text":
+                out += ev.get("content") or ""
+                await _p("✍ Đang soạn câu trả lời…")
+            elif et == "final":
+                out = ev.get("content") or out
+                usage_store.record(
+                    "codex", actual_model,
+                    ev.get("tokens_in", 0), ev.get("tokens_out", 0),
+                )
+            elif et == "error":
+                return "⚠ " + str(ev.get("content") or "Codex lỗi")
+        files = channel_context.collect_turn_files(
+            out, [], t0, cwd=_brain_root(brain), exclude=sess["sent"],
+            vault_root=_brain_root(brain),
+        )
+        return {
+            "text": channel_context.strip_control_blocks(out),
+            "files": files,
+        }
     if (kind == "api" and api_key) or kind == "oauth":
         label = _api_label(prov)
         if sess["or"] is None:
@@ -5115,10 +5219,11 @@ async def _tg_help_text(brain):
         "/model - xem/đổi model (opus|sonnet|haiku|fable|<claude-id> hoặc <provider/id> cho OpenRouter)\n"
         "/brain - xem/đổi brain (vault) cho riêng phiên của bạn (vd /brain hoặc /brain <tên>)\n"
         "/cli - engine Claude (có MCP/skill)\n"
-        "/or - engine OpenRouter (chat thuần)\n"
+        "/or - engine OpenRouter (chat + MCP đa-model)\n"
         "/retry - gửi lại câu gần nhất\n"
         "/reset - hội thoại mới · /stop - dừng\n\n"
-        "Gửi tin thường để hỏi Javis. Gõ /tên-skill để gọi skill (cần engine Claude CLI).\n"
+        "Gửi tin thường để hỏi Javis. ChatGPT/Codex và OpenRouter đều dùng được MCP của Javis.\n"
+        "Gõ /tên-skill để gọi skill (cần engine Claude CLI).\n"
         "Gửi file/ảnh vào đây để Javis đọc. File Javis tạo ra sẽ tự gửi lại cho bạn ở đây."
     )
 
@@ -5350,6 +5455,7 @@ async def _tg_command(cmd, arg, chat=None):
         if sess:
             if sess.get("cli"):
                 sess["cli"].reset_session()
+            sess["codex"] = None
             sess["or"] = None
             sess["last"] = None
         return {"reply": "🔄 Đã reset hội thoại (chỉ phiên của bạn)."}
@@ -5363,7 +5469,7 @@ async def _tg_command(cmd, arg, chat=None):
         if not s["model"].get("openrouter_key"):
             return {"reply": "⚠ Chưa có OpenRouter key - đặt trong Models trên dashboard trước."}
         _set_main_model(s, "openrouter", s["model"].get("openrouter_model")); cfgmod.write_settings(s)
-        return {"reply": f"✅ Provider: OpenRouter ({s['model'].get('openrouter_model')}) - chat thuần, không MCP."}
+        return {"reply": f"✅ Provider: OpenRouter ({s['model'].get('openrouter_model')}) - chat + MCP đa-model."}
     if cmd in ("help", "menu", "start"):
         return {"reply": await _tg_help_text(brain)}
     if cmd == "skills":

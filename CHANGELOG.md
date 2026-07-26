@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.175] - 2026-07-26
+Xoá cron/nhắc hẹn trực tiếp từ chat hoạt động nhất quán với ChatGPT/Codex và mọi model OpenRouter, không còn đẩy người dùng sang UI tự xoá.
+### Sửa lỗi
+- **Nhận đúng từ “xoá”**: intent router trước đây chỉ có `huỷ/tắt` nên câu “xoá cron…” không bị ép gọi `javis_schedule`; bổ sung đầy đủ biến thể xoá/huỷ/dừng và chặn nhầm sang đường chỉ đọc (`server/engine.py`).
+- **Gateway xoá lịch không phụ thuộc function-calling của model**: Javis tự gọi `op=list`, chỉ khớp và `op=cancel` khi có đúng một mục chắc chắn. Nhiều mục gần giống thì trả danh sách thật để hỏi lại; kho trống báo đúng là trống, tuyệt đối không đoán hoặc xác nhận xoá giả.
+- **ChatGPT trên Telegram có MCP như dashboard**: nhánh OpenAI OAuth được chuyển từ Responses chat-thuần sang Codex CLI có MCP native, đúng brain và giữ session riêng theo chat (`server/main.py`).
+- **OpenRouter không còn tự nhận là “không MCP”**: thao tác xoá lịch đi qua gateway chung nên cả model không hỗ trợ function-calling vẫn xoá được mục khớp chắc chắn; các thao tác tool khác tiếp tục dùng vòng MCP đa-model hiện có.
+- **Luật kênh rõ cho mọi provider**: tạo/sửa/xoá/huỷ/tắt lịch bắt buộc dùng `javis_schedule`; xoá chưa có ID phải list trước, không hướng dẫn người dùng tự vào trang Việc định kỳ (`server/channel_context.py`).
+### Kiểm thử
+- Bổ sung hồi quy intent “xoá cron”, khớp tên duy nhất, không xoá nhầm khi mơ hồ, kho trống, tuyến ChatGPT Telegram và nhãn OpenRouter. Chạy tích hợp với hai cron thật trong brain test: gateway xoá đúng cron brainstorm, giữ nguyên cron thuốc còn lại và lưu mục đã xoá ở trạng thái `cancelled`.
+
 ## [0.9.174] - 2026-07-25
 Bản vá cho hàng đợi AI: Codex chạy lại bình thường, task lỗi được phục hồi có kiểm soát và màn chi tiết Kanban thao tác được đầy đủ.
 ### Sửa lỗi

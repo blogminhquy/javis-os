@@ -634,10 +634,11 @@ def _tool_requirement(messages, mcp_tools):
     q = _plain_vn(last)
     action = any(x in q for x in (
         "kiem tra", "check", "xem", "doc", "liet ke", "tim", "lay", "dang chay",
-        "hien co", "hom nay", "con ", "tao", "dat", "them", "huy", "tat", "bat", "sua", "doi",
+        "hien co", "hom nay", "con ", "tao", "dat", "them", "huy", "xoa", "go ",
+        "tat", "dung", "bat", "sua", "doi",
     ))
     schedule = any(x in q for x in (
-        "cron", "nhac hen", "nhac thuoc", "lich thuoc", "lich nhac", "uong thuoc",
+        "cron", "nhac", "nhac hen", "nhac thuoc", "lich thuoc", "lich nhac", "uong thuoc",
         "viec dinh ky", "morning briefing", "reminder",
     ))
     if action and schedule and "javis_schedule" in names:
@@ -661,9 +662,126 @@ def _schedule_read_request(messages):
         "kiem tra", "check", "xem", "doc", "liet ke", "dang chay", "hien co", "hom nay", "con ",
     ))
     mutate = any(x in q for x in (
-        "tao", "dat", "them", "huy", "tat", "bat", "sua", "doi",
+        "tao", "dat", "them", "huy", "xoa", "go ", "tat", "dung", "bat", "sua", "doi",
     ))
     return read and not mutate
+
+
+def _schedule_cancel_request(messages):
+    """Nhận diện yêu cầu huỷ/xoá lịch, không nhầm với câu chỉ hỏi hoặc tạo lịch."""
+    last = next((m.get("content") or "" for m in reversed(messages or [])
+                 if m.get("role") == "user"), "")
+    q = _plain_vn(last)
+    cancel = any(x in q for x in ("huy", "xoa", "go ", "tat", "dung", "bo lich", "bo nhac"))
+    schedule = any(x in q for x in (
+        "cron", "nhac", "lich thuoc", "lich nhac", "viec dinh ky",
+        "morning briefing", "reminder", "vua bao",
+    )) or bool(re.search(r"\bhen\b", q))
+    return cancel and schedule
+
+
+def _schedule_candidates(result):
+    """Đọc các dòng ``- [id] tên - ...`` do javis_schedule(op=list) trả về."""
+    out = []
+    for line in str(result or "").splitlines():
+        match = re.match(r"^\s*-\s*\[([^\]]+)\]\s*(.+?)\s*$", line)
+        if not match:
+            continue
+        item_id = match.group(1).strip()
+        label = match.group(2).split(" - ", 1)[0].strip()
+        if item_id and label:
+            out.append((item_id, label))
+    return out
+
+
+def _resolve_schedule_cancel_id(messages, list_result):
+    """Chọn id chỉ khi khớp chắc chắn; mơ hồ thì trả None để hỏi lại."""
+    last = next((m.get("content") or "" for m in reversed(messages or [])
+                 if m.get("role") == "user"), "")
+    q = _plain_vn(last)
+    candidates = _schedule_candidates(list_result)
+    if not candidates:
+        return None
+
+    # ID được nói thẳng là bằng chứng mạnh nhất.
+    for item_id, _label in candidates:
+        if re.search(rf"(?<![\w-]){re.escape(_plain_vn(item_id))}(?![\w-])", q):
+            return item_id
+
+    # Chỉ có đúng một lịch đang chạy thì "xoá cron/nhắc này" không thể nhầm.
+    if len(candidates) == 1:
+        return candidates[0][0]
+
+    stop = {
+        "anh", "em", "giup", "cho", "cai", "nay", "do", "vua", "bao", "di", "voi",
+        "huy", "xoa", "go", "tat", "dung", "bo", "cron", "lich", "nhac", "hen",
+        "viec", "dinh", "ky", "reminder", "morning", "briefing",
+    }
+    query_tokens = {t for t in re.findall(r"\w+", q) if len(t) > 1 and t not in stop}
+    if not query_tokens:
+        return None
+
+    scored = []
+    for item_id, label in candidates:
+        label_norm = _plain_vn(label)
+        label_tokens = set(re.findall(r"\w+", label_norm))
+        overlap = len(query_tokens & label_tokens)
+        exact_phrase = bool(label_norm and label_norm in q)
+        scored.append((100 if exact_phrase else overlap, item_id))
+    scored.sort(reverse=True)
+    best_score, best_id = scored[0]
+    second_score = scored[1][0] if len(scored) > 1 else -1
+    if best_score >= 100 or (best_score >= 2 and best_score > second_score):
+        return best_id
+    return None
+
+
+async def schedule_cancel_gateway(messages, mcp_tools, mcp_route):
+    """Huỷ lịch ở tầng gateway để không phụ thuộc model có function-calling hay không.
+
+    Chỉ tự huỷ khi ID khớp chắc chắn. Nếu có nhiều ứng viên mơ hồ, trả danh sách thật
+    để kênh chat hỏi lại thay vì đoán hoặc bảo người dùng tự vào UI.
+    """
+    if not _schedule_cancel_request(messages):
+        return None
+    names = {t.get("fn") for t in (mcp_tools or [])}
+    if "javis_schedule" not in names:
+        return {
+            "handled": False,
+            "error": "javis_schedule không có trong MCP của phiên",
+            "calls": [],
+        }
+    import mcp_client
+    listed = await mcp_client.call_route(mcp_route, "javis_schedule", {"op": "list"})
+    listed = _clip_tool_result(listed)
+    if listed.startswith("ERROR:"):
+        return {"handled": False, "error": listed, "calls": ["javis_schedule:list"]}
+    if not _schedule_candidates(listed):
+        return {
+            "handled": False,
+            "not_found": True,
+            "list_result": listed,
+            "calls": ["javis_schedule:list"],
+        }
+    item_id = _resolve_schedule_cancel_id(messages, listed)
+    if not item_id:
+        return {
+            "handled": False,
+            "needs_choice": True,
+            "list_result": listed,
+            "calls": ["javis_schedule:list"],
+        }
+    cancelled = await mcp_client.call_route(
+        mcp_route, "javis_schedule", {"op": "cancel", "id": item_id}
+    )
+    cancelled = _clip_tool_result(cancelled)
+    return {
+        "handled": not cancelled.startswith("ERROR:"),
+        "error": cancelled if cancelled.startswith("ERROR:") else "",
+        "result": cancelled,
+        "id": item_id,
+        "calls": ["javis_schedule:list", "javis_schedule:cancel"],
+    }
 
 
 async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, reasoning_extra, label,
@@ -678,6 +796,42 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     requirement = _tool_requirement(messages, mcp_tools)
     requirement_pending = bool(requirement)
     ignored_required = 0
+    cancel_gate = await schedule_cancel_gateway(messages, mcp_tools, mcp_route)
+    if cancel_gate:
+        for call in cancel_gate.get("calls") or []:
+            yield {"type": "tool_call", "name": call}
+        if cancel_gate.get("error"):
+            yield {"type": "error", "content": cancel_gate["error"]}
+            return
+        if cancel_gate.get("handled"):
+            msgs.append({
+                "role": "system",
+                "content": (
+                    "Javis gateway đã thao tác lịch bằng dữ liệu thật. Xác nhận ngắn gọn kết quả sau, "
+                    "không nói rằng thiếu tool:\n\n" + cancel_gate.get("result", "")
+                ),
+            })
+            requirement_pending = False
+        elif cancel_gate.get("not_found"):
+            msgs.append({
+                "role": "system",
+                "content": (
+                    "Javis đã đọc kho lịch thật và không có lịch đang chạy để xoá. "
+                    "Báo đúng kết quả này, không nói thiếu tool:\n\n"
+                    + cancel_gate.get("list_result", "")
+                ),
+            })
+            requirement_pending = False
+        elif cancel_gate.get("needs_choice"):
+            msgs.append({
+                "role": "system",
+                "content": (
+                    "Javis đã đọc danh sách lịch thật nhưng có nhiều mục và chưa đủ chắc chắn để xoá. "
+                    "Hãy hỏi user chọn đúng tên hoặc ID trong danh sách dưới đây; KHÔNG nói thiếu tool "
+                    "và KHÔNG xác nhận đã xoá:\n\n" + cancel_gate.get("list_result", "")
+                ),
+            })
+            requirement_pending = False
     # Đây là đường quan trọng nhất của cron/lịch thuốc: op=list là read-only và args xác định hoàn
     # toàn, nên server tự dispatch trước. OpenRouter/free dù route tới model không có function calling
     # vẫn nhận dữ liệu thật để tóm tắt, thay vì rơi về memory hoặc nói "không có tool".
