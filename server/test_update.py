@@ -212,6 +212,10 @@ _mobile_js = (main.DASHBOARD_PATH / "mobile-chat.js").read_text(encoding="utf-8"
 check("navbar có nút chuông và panel thông báo",
       'id="notificationTrigger"' in _index_text and 'id="notificationPanel"' in _index_text)
 check("frontend ghi nhớ đã đọc", "javis.notifications.read" in _noti_js)
+check("hộp thư giới hạn 5 tin và có tải thêm",
+      "PAGE_SIZE = 5" in _noti_js and "notificationLoadMore" in _noti_js)
+check("release không render toàn bộ body trong card",
+      'kind !== "update" && item.body' in _noti_js)
 check("nút chuông được dời lên header mobile", "origNotificationParent" in _mobile_js)
 
 print()

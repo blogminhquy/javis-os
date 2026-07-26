@@ -363,7 +363,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   }
   .notification-panel {
     top: calc(52px + env(safe-area-inset-top, 0px)); right: 8px;
-    width: calc(100vw - 16px); max-height: calc(100dvh - 62px - env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 16px);
+    max-height: min(72dvh, calc(100dvh - 76px - env(safe-area-inset-bottom, 0px)));
     border-radius: 14px;
   }
   .notification-shade { background: rgba(0,0,0,.38); backdrop-filter: blur(2px); }

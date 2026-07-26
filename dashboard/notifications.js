@@ -3,7 +3,8 @@
   var READ_KEY = "javis.notifications.read";
   var INIT_KEY = "javis.notifications.initialized";
   var MAX_ITEMS = 30;
-  var state = { items: [], read: new Set(), loadedAt: 0, loading: false };
+  var PAGE_SIZE = 5;
+  var state = { items: [], read: new Set(), loadedAt: 0, loading: false, visibleCount: PAGE_SIZE };
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -90,19 +91,31 @@
       list.innerHTML = '<div class="noti-empty">Chưa có thông báo.<br>Các bản cập nhật và tin từ Javis OS sẽ xuất hiện tại đây.</div>';
       return;
     }
-    list.innerHTML = state.items.slice(0, MAX_ITEMS).map(function (item) {
+    var limited = state.items.slice(0, MAX_ITEMS);
+    var visible = limited.slice(0, state.visibleCount);
+    var cards = visible.map(function (item) {
       var id = String(item.id);
       var unreadClass = state.read.has(id) ? "" : " unread";
       var kind = item.kind || "update";
-      var body = item.body ? '<p class="noti-card-body">' + esc(item.body) + "</p>" : "";
+      // Release chỉ cần tóm tắt; toàn bộ bullet đã có ở trang Nhật ký cập nhật.
+      // Tin cộng đồng/marketing được giữ body nhưng clamp bằng CSS để card vẫn gọn.
+      var body = kind !== "update" && item.body
+        ? '<p class="noti-card-body">' + esc(item.body) + "</p>"
+        : "";
       var ctaLabel = (item.cta && item.cta.label) || (kind === "update" ? "Xem chi tiết bản cập nhật →" : "");
       var cta = ctaLabel ? '<span class="noti-cta">' + esc(ctaLabel) + "</span>" : "";
       return '<article class="noti-card' + unreadClass + '" tabindex="0" role="button" data-noti-id="' + esc(id) + '">' +
         '<div class="noti-card-top"><span class="noti-kind ' + esc(kind) + '">' + esc(kindLabel(kind)) + '</span>' +
         '<span class="noti-time">' + esc(item.published_at || "") + "</span></div>" +
         "<h4>" + esc(item.title || "Thông báo") + "</h4>" +
-        "<p>" + esc(item.summary || "") + "</p>" + body + cta + "</article>";
+        '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + "</article>";
     }).join("");
+    var remaining = limited.length - visible.length;
+    var loadMore = remaining > 0
+      ? '<button class="noti-load-more" id="notificationLoadMore" type="button">Tải thêm ' +
+        Math.min(PAGE_SIZE, remaining) + " thông báo ↓</button>"
+      : "";
+    list.innerHTML = cards + loadMore;
     list.querySelectorAll("[data-noti-id]").forEach(function (card) {
       function activate() {
         var item = state.items.find(function (x) { return String(x.id) === card.dataset.notiId; });
@@ -112,6 +125,11 @@
       card.addEventListener("keydown", function (event) {
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); }
       });
+    });
+    var moreButton = byId("notificationLoadMore");
+    if (moreButton) moreButton.addEventListener("click", function () {
+      state.visibleCount = Math.min(state.visibleCount + PAGE_SIZE, MAX_ITEMS);
+      render();
     });
   }
   async function load(force) {
@@ -124,6 +142,7 @@
       if (!response.ok) throw new Error("HTTP " + response.status);
       var data = await response.json();
       state.items = Array.isArray(data.items) ? data.items : [];
+      state.visibleCount = PAGE_SIZE;
       state.loadedAt = Date.now();
       firstRun(state.items);
       render();

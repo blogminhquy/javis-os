@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.181] - 2026-07-26
+Hộp thư Thông báo gọn hơn trên cả desktop và mobile, không còn để một bản cập nhật dài chiếm gần trọn màn hình.
+### Cải thiện
+- **Card cập nhật chỉ hiện tóm tắt**: nội dung release được giới hạn hai dòng; các bullet đầy đủ tiếp tục nằm ở trang Nhật ký cập nhật khi người dùng bấm xem chi tiết.
+- **Tin cộng đồng/marketing có giới hạn**: phần mô tả tối đa hai dòng và nội dung bổ sung tối đa ba dòng, giữ đủ ý nhưng không làm card cao quá mức.
+- **Tải thêm theo nhóm**: lần đầu chỉ render 5 thông báo; nút `Tải thêm` nạp tiếp từng nhóm tối đa 5 tin và tự biến mất khi đã hết.
+- **Panel mobile thấp hơn**: chiều cao tối đa khoảng 72% dynamic viewport, danh sách cuộn độc lập bên trong để không che toàn bộ giao diện phía sau.
+### Kiểm thử
+- Bổ sung hợp đồng hồi quy cho kích thước trang 5 tin, nút tải thêm và quy tắc không render toàn bộ body của release trong card.
+
 ## [0.9.180] - 2026-07-26
 Ảnh do ChatGPT/Codex hoặc model OpenRouter tạo trong Telegram được gửi thành ảnh thật thay vì hiện nguyên đường dẫn Markdown.
 ### Sửa lỗi

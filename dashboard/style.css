@@ -114,7 +114,7 @@ body {
 .notification-shade[hidden], .notification-panel[hidden] { display: none; }
 .notification-panel {
   position: fixed; top: 60px; right: 18px; z-index: 170;
-  width: min(410px, calc(100vw - 28px)); max-height: min(680px, calc(100dvh - 76px));
+  width: min(410px, calc(100vw - 28px)); max-height: min(620px, calc(100dvh - 90px));
   display: flex; flex-direction: column; overflow: hidden;
   color: var(--text); background: rgba(16,14,27,.97);
   border: 1px solid rgba(255,130,67,.28); border-radius: 16px;
@@ -166,9 +166,27 @@ body {
 .noti-time { color: var(--text3); font-size: 10.5px; }
 .noti-card h4 { margin: 8px 0 4px; color: #f2edf8; font-size: 14px; line-height: 1.35; }
 .noti-card p { margin: 0; color: var(--text2); font-size: 12px; line-height: 1.5; }
-.noti-card-body { margin-top: 7px !important; white-space: pre-line; color: var(--text3) !important; }
+.noti-card-summary,
+.noti-card-body {
+  display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;
+}
+.noti-card-summary { -webkit-line-clamp: 2; line-clamp: 2; }
+.noti-card-body {
+  margin-top: 7px !important; white-space: pre-line; color: var(--text3) !important;
+  -webkit-line-clamp: 3; line-clamp: 3;
+}
 .noti-cta { display: inline-block; margin-top: 9px; color: #ffad85; font-size: 11.5px; font-weight: 600; }
 .noti-loading, .noti-empty { padding: 30px 18px; color: var(--text3); text-align: center; font-size: 13px; line-height: 1.6; }
+.noti-load-more {
+  display: block; width: calc(100% - 8px); margin: 10px 4px 4px; padding: 10px 12px;
+  border: 1px dashed rgba(255,126,66,.32); border-radius: 10px;
+  color: #ffb18a; background: rgba(255,105,45,.055);
+  font: 600 12px var(--font); cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.noti-load-more:hover {
+  color: #fff; border-color: rgba(255,126,66,.68); background: rgba(255,105,45,.11);
+}
 .noti-foot {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; border-top: 1px solid rgba(255,255,255,.08);
