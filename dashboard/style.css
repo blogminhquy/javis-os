@@ -139,6 +139,36 @@ body {
   font-size: 11px; letter-spacing: 1px; color: #8a7ab8; margin-top: 2px;
 }
 .concept-label .cl-fire { color: #ff9d6b; }
+.brain-overlay-toggle {
+  position: absolute; top: 14px; right: 14px; z-index: 6;
+  width: 36px; height: 36px; padding: 8px;
+  display: grid; place-items: center;
+  border: 1px solid rgba(185,140,255,.36); border-radius: 10px;
+  color: #cfc4eb; background: rgba(12,10,24,.58);
+  box-shadow: 0 5px 18px rgba(0,0,0,.32);
+  backdrop-filter: blur(8px);
+  cursor: pointer; transition: color .2s, border-color .2s, background .2s, transform .2s;
+}
+.brain-overlay-toggle:hover {
+  color: #fff; border-color: var(--accent); background: rgba(50,30,78,.72);
+}
+.brain-overlay-toggle:active { transform: scale(.94); }
+.brain-overlay-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.brain-overlay-toggle svg {
+  width: 19px; height: 19px; fill: none; stroke: currentColor;
+  stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
+}
+.brain-eye-off { display: none; }
+.hud-center .concept-labels,
+.hud-center .brain-stats {
+  transition: opacity .24s ease, visibility .24s ease, transform .24s ease;
+}
+.hud-center.brain-overlays-hidden .concept-labels,
+.hud-center.brain-overlays-hidden .brain-stats {
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.hud-center.brain-overlays-hidden .brain-eye-on { display: none; }
+.hud-center.brain-overlays-hidden .brain-eye-off { display: block; }
 .orb-overlay {
   position: absolute; bottom: 92px; left: 0; right: 0;
   text-align: center; pointer-events: none; z-index: 5;

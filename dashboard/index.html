@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/static/style.css?v=48">
-  <link rel="stylesheet" href="/static/console.css?v=28">
+  <link rel="stylesheet" href="/static/style.css?v=49">
+  <link rel="stylesheet" href="/static/console.css?v=29">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối-đậm rồi mới đổi sang tối-nhạt -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='dim')document.documentElement.setAttribute('data-theme','dim');}catch(e){}})();</script>
 </head>
@@ -122,6 +122,17 @@
           <div class="orb-interim" id="voiceInterim"></div>
         </div>
         <div class="graph-tooltip" id="graphTooltip"></div>
+        <button class="brain-overlay-toggle" id="brainOverlayToggle" type="button"
+                aria-pressed="false" aria-label="Ẩn nhãn và số liệu brain"
+                title="Ẩn nhãn thư mục và số liệu Agents / Skills / Workflows">
+          <svg class="brain-eye-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+            <circle cx="12" cy="12" r="2.75"></circle>
+          </svg>
+          <svg class="brain-eye-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 3l18 18M10.6 6.15A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a15 15 0 0 1-2.05 2.65M6.3 6.35C3.85 8.05 2.5 12 2.5 12s3.5 6 9.5 6a9.5 9.5 0 0 0 3.1-.52M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>
+          </svg>
+        </button>
 
         <!-- Lớp Agentic: số agent / skill / workflow - bấm mở Studio -->
         <div class="brain-stats" id="brainStats">
@@ -583,7 +594,7 @@
   <script src="/static/voice.js?v=14"></script>
   <!-- three.js + 3d-force-graph KHÔNG nạp tĩnh nữa: app.js tự lazy-load qua CDN CHỈ khi chọn đồ thị 3D. -->
   <script src="/static/graph.js?v=14"></script>
-  <script src="/static/graph3d.js?v=16"></script>
+  <script src="/static/graph3d.js?v=17"></script>
   <script src="/static/chat-render.js?v=4"></script>
   <script src="/static/file-editor.js?v=3"></script>
   <script src="/static/chat-ask.js?v=1"></script>
@@ -601,6 +612,7 @@
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <script src="/static/console.js?v=74"></script>
   <script src="/static/mobile-chat.js?v=4"></script>
+  <script src="/static/brain-view.js?v=1"></script>
   <!-- Nút đổi tông tối đậm / tối nhạt: lật data-theme trên <html>, nhớ qua localStorage -->
   <script>(function(){var b=document.getElementById('themeToggle');if(!b)return;b.addEventListener('click',function(){var dim=document.documentElement.getAttribute('data-theme')==='dim';if(dim)document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme','dim');try{localStorage.setItem('javis.theme',dim?'dark':'dim');}catch(e){}});})();</script>
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>

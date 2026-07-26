@@ -453,6 +453,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     min-height: 14px;
     font-size: 13px;
   }
+  .brain-overlay-toggle {
+    top: 7px; right: 7px;
+    width: 32px; height: 32px; padding: 7px; border-radius: 9px;
+  }
+  .brain-overlay-toggle svg { width: 17px; height: 17px; }
 
   /* Agents / Skills / Workflows thành một thanh mỏng thay vì một card lớn che neuron. */
   .brain-stats {

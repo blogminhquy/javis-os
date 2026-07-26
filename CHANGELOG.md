@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.178] - 2026-07-26
+Brain trên điện thoại tự canh camera sau khi mô phỏng neuron ổn định và có chế độ xem toàn cảnh không bị lớp thông tin che.
+### Thêm mới
+- **Nút mắt trong góc brain**: ẩn/hiện đồng thời nhãn thư mục, tỷ lệ `% Vault` và thanh Agents / Skills / Workflows; neuron cùng trạng thái `Sẵn sàng` luôn được giữ lại.
+- **Ghi nhớ lựa chọn**: trạng thái ẩn/hiện được lưu trên trình duyệt và đồng bộ giữa các tab.
+### Sửa lỗi
+- **Neuron 3D mobile tự co đúng lúc**: bổ sung bước `zoomToFit` sau khi physics dừng và fit lại khi visual viewport đổi kích thước, khắc phục camera mobile mắc ở trạng thái phóng lớn ban đầu.
+- **Không ảnh hưởng desktop**: auto-fit mới chỉ chạy ở viewport tối đa 860px; trải nghiệm co tự nhiên hiện tại trên máy tính được giữ nguyên.
+
 ## [0.9.177] - 2026-07-26
 Trang Tệp tin có khung tìm kiếm đồng bộ với Vault Explorer của Javis, giúp tìm và mở file mà không cần nhớ nó nằm trong thư mục nào.
 ### Thêm mới

@@ -75,6 +75,7 @@ class JavisGraph3D {
     this._firingNodes = new Map();
     this._births = new Map();   // sprite -> frames còn lại của hiệu ứng "nảy sinh"
     this._paused = false;
+    this._fitTimer = null;
     // Expose để Console (console.js) gọi pause()/wake() khi chuyển trang - không cần sửa app.js.
     window.__javisGraph = this;
     window.dispatchEvent(new Event("javis-graph-created"));
@@ -94,7 +95,13 @@ class JavisGraph3D {
       this.graph = ForceGraph3D()(this.container)
         .backgroundColor("rgba(0,0,0,0)")
         .showNavInfo(false)
-        .onEngineStop(() => { this._settled = true; })
+        .onEngineStop(() => {
+          this._settled = true;
+          // 3D ForceGraph giữ camera khởi tạo khá gần. Trên desktop khối node tự co
+          // nên nhìn như đã fit, nhưng viewport mobile thấp vẫn giữ trạng thái phóng to.
+          // Chỉ canh lại camera mobile sau khi physics đã lắng để không thay đổi desktop.
+          this._scheduleMobileFit(60);
+        })
         .nodeThreeObject(n => {
           const mat = new THREE.SpriteMaterial({
             map: glowTexture(THREE, n.color || "#b98cff"),
@@ -147,6 +154,7 @@ class JavisGraph3D {
     }
 
     this._settled = false;
+    if (this._fitTimer) clearTimeout(this._fitTimer);
     this._slowFrame = 0;
     this.graph.graphData({ nodes: data.nodes, links });
     // Gom sprite refs + dựng adjacency (để lan truyền firing theo synapse)
@@ -395,7 +403,27 @@ class JavisGraph3D {
     if (this.graph) {
       this.graph.width(this.container.clientWidth);
       this.graph.height(this.container.clientHeight);
+      // Safari/Chrome mobile có thể đổi chiều cao visual viewport sau khi thanh địa chỉ
+      // co lại. Fit lại trên kích thước cuối, nhưng chỉ khi layout node đã ổn định.
+      if (this._settled) this._scheduleMobileFit(140);
     }
+  }
+
+  _isMobileViewport() {
+    return !!(window.matchMedia && window.matchMedia("(max-width: 860px)").matches);
+  }
+
+  _scheduleMobileFit(delay) {
+    if (!this.graph || !this._isMobileViewport()) return;
+    if (this._fitTimer) clearTimeout(this._fitTimer);
+    this._fitTimer = setTimeout(() => {
+      this._fitTimer = null;
+      if (!this.graph || !this._settled || !this._isMobileViewport()) return;
+      try {
+        // Padding nhỏ vì người dùng có thể ẩn toàn bộ HUD để ngắm brain trọn khung.
+        this.graph.zoomToFit(650, 24);
+      } catch (e) {}
+    }, delay == null ? 0 : delay);
   }
 
   stop() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = null; }
