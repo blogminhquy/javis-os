@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.185] - 2026-07-26
+Dọn sạch form Environment khi cài Docker, chỉ để lại những trường người dùng thực sự cần.
+### Cải thiện
+- **Hostinger chỉ còn 3 trường**: `DOMAIN_NAME`, `JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`; bỏ khỏi form các biến kỹ thuật về cổng, state, brain và thư mục làm việc.
+- **Không mất cấu hình nội bộ**: các mặc định kỹ thuật tiếp tục lấy từ Docker image; target Hostinger được gắn trong lệnh chạy thay vì lộ thành một ô Environment.
+- **Compose VPS/build gọn hơn**: xoá các khai báo lặp với Dockerfile, production VPS chỉ giữ token cần chia sẻ với Watchtower.
+- **Tài liệu cài đặt rõ ràng**: README, DEPLOY và hướng dẫn `.env` nói đúng ba trường cần điền trên Hostinger.
+### Kiểm thử
+- Thêm hợp đồng hồi quy đọc YAML để chặn biến kỹ thuật quay lại form Environment ở các bản sau.
+
 ## [0.9.184] - 2026-07-26
 Tên giọng đọc thân thiện hơn và cài đặt tên miền trở thành wizard rõ ràng ngay trên UI.
 ### Cải thiện

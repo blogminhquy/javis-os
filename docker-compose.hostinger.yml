@@ -8,7 +8,9 @@
 # CÁCH DÙNG:
 #   1) Docker Manager > Compose > URL > dán:
 #      https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
-#   2) Ô Environment (Biến môi trường) đặt DOMAIN_NAME (để có HTTPS):
+#   2) Ô Environment chỉ còn 3 trường hữu ích:
+#        DOMAIN_NAME, JAVIS_ADMIN_USER, JAVIS_ADMIN_PASSWORD.
+#      Đặt DOMAIN_NAME để có HTTPS:
 #        - Link miễn phí (KHÔNG cần mua tên miền):  DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud
 #          (hostname xem ở hPanel > VPS, vd: DOMAIN_NAME=javis.srv1782015.hstgr.cloud)
 #        - Hoặc tên miền riêng:  DOMAIN_NAME=tenmien.com  (trỏ DNS A về IP VPS trước).
@@ -29,17 +31,15 @@ services:
     container_name: javis
     restart: unless-stopped
     pull_policy: always
+    # Gắn target Hostinger bên trong lệnh chạy để KHÔNG biến nó thành một trường rác
+    # trong ô Environment của Docker Manager.
+    command: ["sh", "-c", "JAVIS_DEPLOY_TARGET=hostinger exec python -m uvicorn main:app --app-dir server --host 0.0.0.0 --port 7777"]
     environment:
-      JAVIS_HOST: 0.0.0.0
-      JAVIS_PORT: "7777"
-      JAVIS_REQUIRE_LOGIN: "1"     # ÉP đăng nhập/đăng ký khi mở app (public)
-      JAVIS_STATE_DIR: /data/state
-      BRAIN_PATH: /data/brain
-      BRAINS_DIR: /brains
-      OBSIDIAN_VAULT_PATH: /data/vault
-      CLAUDE_CWD: /app
-      JAVIS_DEPLOY_TARGET: hostinger
-      DOMAIN_NAME: ${DOMAIN_NAME:-localhost}  # để UI biết route Traefik hiện tại và hướng dẫn Redeploy chính xác
+      # Chỉ giữ các trường người cài thực sự cần. Cổng/đường dẫn/state/brain đã có
+      # mặc định đúng trong Docker image, không cần hiện thành một loạt ô kỹ thuật.
+      DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
+      JAVIS_ADMIN_USER: ${JAVIS_ADMIN_USER:-admin}
+      JAVIS_ADMIN_PASSWORD: ${JAVIS_ADMIN_PASSWORD:-}
     ports:
       - "7777:7777"                 # đường vào dự phòng (nút Open / http://<ip>:7777)
     labels:
@@ -48,13 +48,13 @@ services:
       - org.opencontainers.image.source=https://github.com/blogminhquy/javis-os
       - com.hostinger.documentation=https://github.com/blogminhquy/javis-os/blob/main/docs/README.md
       - com.hostinger.quickstart=https://github.com/blogminhquy/javis-os/blob/main/QUICKSTART.md
-      # Tên router/service = ${COMPOSE_PROJECT_NAME} → chạy nhiều bản trên cùng VPS không đụng nhau.
+      # Router/service dùng tên cố định vì container này cũng cố định là "javis".
       # Host = ${DOMAIN_NAME}; chưa đặt thì mặc định "localhost" (deploy vẫn chạy, chỉ chưa có domain/HTTPS).
       - traefik.enable=true
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-javis}.rule=Host(`${DOMAIN_NAME:-localhost}`)
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-javis}.entrypoints=websecure
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-javis}.tls.certresolver=letsencrypt
-      - traefik.http.services.${COMPOSE_PROJECT_NAME:-javis}.loadbalancer.server.port=7777
+      - traefik.http.routers.javis.rule=Host(`${DOMAIN_NAME:-localhost}`)
+      - traefik.http.routers.javis.entrypoints=websecure
+      - traefik.http.routers.javis.tls.certresolver=letsencrypt
+      - traefik.http.services.javis.loadbalancer.server.port=7777
     volumes:
       - javis-data:/data
       - javis-brains:/brains

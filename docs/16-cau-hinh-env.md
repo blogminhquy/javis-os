@@ -4,6 +4,11 @@ Trang này liệt kê đầy đủ mọi biến môi trường mà Javis OS đ�
 
 Điểm quan trọng nhất cần nhớ: **mọi dòng để trống vẫn chạy được**. Trên máy cá nhân, bạn gần như không cần đụng tới file `.env`. Việc chỉnh `.env` chủ yếu dành cho khi bạn đưa Javis lên VPS/server public hoặc muốn đổi giọng đọc, cổng, đường dẫn dữ liệu.
 
+Riêng khi cài bằng **Hostinger Docker Manager**, không cần nhìn thấy toàn bộ danh
+sách nâng cao bên dưới. Compose Hostinger chỉ đưa 3 trường người dùng lên ô
+Environment: `DOMAIN_NAME`, `JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`. Các biến
+nội bộ về cổng, state, brain và thư mục làm việc nằm sẵn trong Docker image.
+
 ## Tính năng này là gì
 
 `.env` là một file văn bản đặt ở thư mục gốc dự án (`D:/Project/Javis-OS/.env`). Mỗi dòng là một biến dạng `TÊN_BIẾN=giá trị`. Khi Javis khởi động, nó đọc các biến này để biết: nghe ở cổng nào, có bắt buộc đăng nhập không, dữ liệu Second Brain nằm ở đâu, giọng đọc mặc định là gì.

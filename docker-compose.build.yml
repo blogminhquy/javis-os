@@ -15,15 +15,6 @@ services:
     env_file:
       - path: .env
         required: false
-    environment:
-      JAVIS_HOST: 0.0.0.0
-      JAVIS_PORT: "7777"
-      JAVIS_REQUIRE_LOGIN: "1"
-      JAVIS_STATE_DIR: /data/state
-      BRAIN_PATH: /data/brain
-      BRAINS_DIR: /brains
-      OBSIDIAN_VAULT_PATH: /data/vault
-      CLAUDE_CWD: /app
     ports:
       - "7777:7777"
     volumes:

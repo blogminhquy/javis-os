@@ -22,15 +22,8 @@ services:
     restart: unless-stopped
     pull_policy: always
     environment:
-      JAVIS_HOST: 0.0.0.0
-      JAVIS_PORT: "7777"
-      JAVIS_REQUIRE_LOGIN: "1"     # ÉP đăng nhập/đăng ký khi mở app (public)
-      JAVIS_STATE_DIR: /data/state
-      BRAIN_PATH: /data/brain
-      BRAINS_DIR: /brains          # thư mục CHA chứa MỌI second brain (mỗi folder con = 1 brain)
-      OBSIDIAN_VAULT_PATH: /data/vault
-      CLAUDE_CWD: /app
-      JAVIS_DEPLOY_TARGET: vps       # UI tên miền dùng Caddy/Watchtower, không hiển thị hướng dẫn Hostinger
+      # Các mặc định cổng/state/brain đã nằm trong Docker image; compose chỉ giữ
+      # token thật sự cần chia sẻ giữa app và Watchtower.
       WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}   # để nút "Cập nhật" gọi được Watchtower
     ports:
       - "7777:7777"                 # Hostinger proxy / VPS map vào cổng này → cấp URL công khai

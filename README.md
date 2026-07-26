@@ -60,7 +60,11 @@ VPS Hostinger → **Docker Manager → Compose → URL** → dán **file Hosting
 ```
 https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
 ```
-Ô **Environment** đặt biến `DOMAIN_NAME` (BẮT BUỘC, để Traefik của Hostinger cấp HTTPS):
+Ô **Environment** của mẫu mới chỉ còn 3 trường cần thiết: `DOMAIN_NAME`,
+`JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`. Các biến kỹ thuật về cổng, state,
+brain và thư mục chạy đã được ẩn vì Docker image tự đặt đúng.
+
+Đặt `DOMAIN_NAME` để Traefik của Hostinger cấp HTTPS:
 - **Link miễn phí** (không cần mua tên miền): `DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud`
   (hostname xem ở hPanel → VPS, vd `javis.srv1562015.hstgr.cloud`).
 - **Tên miền riêng:** `DOMAIN_NAME=tenmien.com` + trỏ DNS A về IP VPS.
@@ -72,7 +76,7 @@ Deploy → đợi 1-3 phút Traefik cấp SSL → mở `https://<DOMAIN_NAME>`. 
 **3 việc làm 1 lần:**
 1. **Để image GHCR ở chế độ Public:** GitHub → repo → **Packages** → `javis-os` → *Package settings* → Visibility = **Public**.
 2. **Tạo tài khoản admin** (chọn 1):
-   - *Khuyến nghị:* thêm env `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` ở ô Environment → mở app **đăng nhập luôn**.
+   - *Khuyến nghị:* điền sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` đang có trong ô Environment → mở app **đăng nhập luôn**.
    - *Hoặc:* mở app sẽ hỏi **MÃ THIẾT LẬP** - trong **App terminal** (vào bên trong container) chạy: `cat /data/state/.setup_token`.
 3. **Đăng nhập Claude (bộ não):** App terminal → `claude auth login --claudeai` → mở link, dán code.
 

@@ -27,8 +27,9 @@ màn **tạo tài khoản admin**.
    → *Package settings* → Visibility = **Public** (để Hostinger pull không cần đăng nhập registry).
    Image do CI tự build mỗi lần push lên `main` (xem mục Cập nhật).
 2. **Tạo tài khoản admin an toàn** (Claude chạy full quyền nên không để ai cũng tạo được):
-   - **Cách A (khuyến nghị):** trong compose của Hostinger, thêm env `JAVIS_ADMIN_USER` +
-     `JAVIS_ADMIN_PASSWORD` → admin tạo sẵn lúc khởi động, mở app ra **đăng nhập luôn**.
+   - **Cách A (khuyến nghị):** trong compose Hostinger, điền hai trường có sẵn
+     `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` → admin tạo sẵn lúc khởi động,
+     mở app ra **đăng nhập luôn**.
    - **Cách B:** bỏ trống → mở app sẽ hỏi **MÃ THIẾT LẬP**. Lấy mã trong **App terminal** (nó vào
      BÊN TRONG container nên KHÔNG có lệnh `docker`): chạy `cat /data/state/.setup_token` → copy chuỗi
      → dán vào màn tạo tài khoản. (Chỉ người xem được file/log mới tạo được admin → kẻ chỉ có URL bó tay.)
@@ -87,8 +88,14 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
    ```
    https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
    ```
-3. Ô **Environment** (Biến môi trường) đặt **`DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud`**
-   (vd `DOMAIN_NAME=javis.srv1782015.hstgr.cloud`). Muốn tên miền RIÊNG (vd `javisos.com`) thì đặt tên miền đó + trỏ DNS A về IP VPS.
+3. Ô **Environment** của mẫu mới chỉ còn 3 trường có ý nghĩa:
+   - `DOMAIN_NAME`: đặt `javis.<hostname-vps>.hstgr.cloud`
+     (vd `javis.srv1782015.hstgr.cloud`), hoặc tên miền riêng đã trỏ DNS A về IP VPS.
+   - `JAVIS_ADMIN_USER`: tên đăng nhập, mặc định `admin`.
+   - `JAVIS_ADMIN_PASSWORD`: mật khẩu mạnh anh tự đặt; để trống thì lần đầu dùng MÃ THIẾT LẬP.
+
+   Các trường kỹ thuật cũ như `JAVIS_HOST`, `JAVIS_PORT`, đường dẫn state/brain và
+   `CLAUDE_CWD` đã được dọn khỏi form; Docker image vẫn tự dùng đúng giá trị mặc định.
 4. **Deploy** → đợi 1-3 phút Traefik cấp SSL → mở `https://<DOMAIN_NAME>`.
 
 > Thiếu `DOMAIN_NAME` thì vẫn deploy được (chạy tạm ở `:7777`, chưa có HTTPS). Không thấy ô Environment?

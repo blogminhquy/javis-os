@@ -39,8 +39,8 @@ check("backend trả metadata môi trường cho UI", all(x in MAIN for x in (
       '"deployment_target"', '"route_domain"', '"ui_can_enable_ssl"', '"requires_redeploy"')))
 check("backend không giả vờ sửa được Traefik Hostinger", "Hostinger quản lý HTTPS bằng Traefik" in MAIN)
 check("compose Hostinger khai báo target và route hiện tại",
-      "JAVIS_DEPLOY_TARGET: hostinger" in HOSTINGER and "DOMAIN_NAME: ${DOMAIN_NAME:-localhost}" in HOSTINGER)
-check("compose VPS khai báo target Caddy riêng", "JAVIS_DEPLOY_TARGET: vps" in VPS)
+      "JAVIS_DEPLOY_TARGET=hostinger" in HOSTINGER and "DOMAIN_NAME: ${DOMAIN_NAME:-localhost}" in HOSTINGER)
+check("compose VPS mặc định được backend nhận là Caddy", "WATCHTOWER_TOKEN" in VPS and "JAVIS_DEPLOY_TARGET: vps" not in VPS)
 check("tài liệu mô tả wizard mới", "Lưu & kiểm tra" in DOC and "Sao chép biến" in DOC)
 
 if fails:
