@@ -7,7 +7,7 @@ Hướng dẫn sử dụng chi tiết từng chức năng của Javis OS. Mỗi 
 ## Mục lục
 
 ### Bắt đầu
-- [01 - Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md) - tạo admin, đăng nhập Claude, chọn engine/model, trang Tổng quan.
+- [01 - Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md) - tạo admin, đăng nhập Claude, chọn engine/model, trang Cài đặt.
 
 ### Dùng hằng ngày
 - [02 - Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md) - chat, nói rảnh tay, panel số liệu, gửi file, phóng to chat.

@@ -100,11 +100,11 @@ Có vài nơi xem "nhật ký" tùy loại thông tin:
 
 ### Dữ liệu có mất khi cập nhật không?
 
-Không, nếu chạy bằng Docker. Mọi ghi chú, vault, settings và cả token đăng nhập Claude nằm trong **Docker volume** (`javis-data`, `claude-auth`), tách khỏi image. Khi bạn cập nhật (bấm **⬆ Cập nhật ngay** trong **Tổng quan**, hoặc chạy `./update.sh` trên VPS), image được thay mới nhưng volume giữ nguyên nên dữ liệu **không mất**. Với bản cài native, dữ liệu nằm trong thư mục brain/vault của repo, cũng không bị `git pull` xoá.
+Không, nếu chạy bằng Docker. Mọi ghi chú, vault, settings và cả token đăng nhập Claude nằm trong **Docker volume** (`javis-data`, `claude-auth`), tách khỏi image. Khi bạn cập nhật (bấm **⬆ Cập nhật ngay** trong **Cập nhật**, Redeploy trên Hostinger, hoặc chạy `./update.sh` trên VPS), image được thay mới nhưng volume giữ nguyên nên dữ liệu **không mất**. Với bản cài native, dữ liệu nằm trong thư mục brain/vault của repo, cũng không bị `git pull` xoá.
 
 ### Cập nhật trong app hoạt động thế nào?
 
-Mở **Tổng quan**, mục **Phiên bản** hiện phiên bản đang chạy và tự kiểm tra bản mới trên GitHub. Nếu có bản mới, dòng trạng thái hiện **🆕 Có bản mới** và nút **⬆ Cập nhật ngay** xuất hiện. Bấm nút, xác nhận, app sẽ tự tải bản mới và khởi động lại (khoảng 20 đến 40 giây), sau đó tự tải lại trang. Nếu đang dùng bản mới nhất, dòng trạng thái hiện **✅ Đang dùng bản mới nhất**. Với Docker/VPS, tính năng cập nhật một chạm cần service **watchtower** (đã có sẵn trong `docker-compose.yml`).
+Mở **Cập nhật**; khung **Javis OS** hiện phiên bản đang chạy và tự kiểm tra bản mới trên GitHub. Nếu có bản mới, dòng trạng thái hiện **🆕 Có bản mới** và nút **⬆ Cập nhật ngay** xuất hiện khi môi trường hỗ trợ. Bấm nút, xác nhận, app sẽ tự tải bản mới và khởi động lại (khoảng 20 đến 40 giây), sau đó tự tải lại trang. Hostinger không hỗ trợ Watchtower nên khung sẽ hướng dẫn **Redeploy**; VPS Docker cần bật profile `update` để dùng cập nhật một chạm.
 
 ### Chạy nhiều brain (second brain) được không?
 

@@ -124,7 +124,7 @@ Có 2 cách:
 1. Trên dashboard: vào **Kênh**, đọc dòng trạng thái dưới thẻ Telegram (mô tả ở Bước 2). Đây là cách nhanh nhất và dễ đọc nhất.
 2. Trong Telegram: gõ `/status`. Bot trả về provider, model, vault đang dùng, và cho biết đang bận trả lời hay đang rảnh.
 
-Ngoài ra thẻ **Tổng quan** cũng hiện nhanh Telegram đang Bật hay Tắt kèm Chat ID.
+Nhóm **Hệ thống** trong **Cài đặt** cũng hiện nhanh Telegram đang Bật hay Tắt; cấu hình chi tiết vẫn nằm ở **Kênh**.
 
 ## Mẹo
 

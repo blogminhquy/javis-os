@@ -14,7 +14,7 @@ Javis xử lý việc này theo 3 lớp:
 
 ## Mở ở đâu trong Javis
 
-Mọi thao tác tài khoản nằm ở mục **Tài khoản** trên thanh nav bên trái (biểu tượng bánh răng, phụ đề "Đăng nhập & workspace"), nằm cuối danh sách: Javis (3D) · Tổng quan · Cài đặt · Workflows · Agents · Skills · Tệp tin · Tự cải thiện · Lịch · Models · Kênh · MCP · Logs · **Tài khoản**.
+Mọi thao tác tài khoản nằm ở mục **Tài khoản** trong nhóm **Hệ thống** trên thanh nav bên trái (phụ đề "Đăng nhập & workspace"). Từ trang **Cài đặt** cũng có lối tắt tới đây; không có form tài khoản trùng lặp ở nơi khác.
 
 Trang **Tài khoản** có 2 khối:
 

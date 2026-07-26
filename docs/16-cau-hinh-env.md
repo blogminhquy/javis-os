@@ -93,7 +93,7 @@ Lưu ý: hai biến TTS này áp cho giọng Edge TTS miễn phí mặc định.
 
 | Biến | Ý nghĩa | Mặc định | Khi nào đổi |
 |---|---|---|---|
-| `WATCHTOWER_TOKEN` | Token cho nút "Cập nhật ngay" (trang Tổng quan) gọi Watchtower khi chạy Docker | `javis-update` | Muốn chặt hơn: đổi thành chuỗi ngẫu nhiên, đặt cùng giá trị cho cả app lẫn service watchtower. |
+| `WATCHTOWER_TOKEN` | Token cho nút "Cập nhật ngay" (trang Cập nhật) gọi Watchtower khi chạy Docker | `javis-update` | Muốn chặt hơn: đổi thành chuỗi ngẫu nhiên, đặt cùng giá trị cho cả app lẫn service watchtower. |
 | `METRICS_TTL` | Thời gian cache số liệu kinh doanh, tính bằng giây | `180` | Muốn số liệu MCP làm mới nhanh hơn hoặc chậm hơn. Xem [MCP & số liệu](09-mcp-va-so-lieu.md). |
 | `JAVIS_CLAUDE_IDLE_TIMEOUT` | Thời gian chờ tối đa khi Claude/Codex IM LẶNG mà KHÔNG có tool nào đang chạy, tính bằng giây | `180` | Hiếm khi cần đổi - đây là lưới bắt phiên treo thật. |
 | `JAVIS_CLAUDE_TOOL_TIMEOUT` | Trần chờ khi một TOOL đang chạy dở (render video, tách nền, build...), tính bằng giây | `3600` | Tác vụ tool chạy quá 1 tiếng (encode video dài, train model...) thì tăng lên. |

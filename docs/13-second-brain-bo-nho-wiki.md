@@ -32,7 +32,7 @@ Second Brain không nằm gọn trong một trang riêng mà rải ở vài ch�
 2. **Cột trái màn hình chat**: mục **BỘ NHỚ DÀI HẠN** có nút **Học ngay từ hội thoại** và bộ đếm số ký ức.
 3. **Ô nhập chat**: nơi thả file để INGEST và ra lệnh "nhớ điều này".
 4. **Trang Tự cải thiện** (nav trái): có nút **LINT Wiki** để soát lỗi Wiki, và loại nhiệm vụ **Bộ não (Wiki)** cho vòng chạy nền.
-5. **Trang Tổng quan** (nav trái): mục **Cấu trúc brain** để chuẩn hoá thư mục.
+5. **Trang Cài đặt** (nav trái): nhóm **Giao diện & Brain** để chuẩn hoá thư mục.
 
 ## Đa-brain: nhiều bộ não trong một Javis
 
@@ -85,8 +85,8 @@ Không thể xoá **Brain Default**. Cũng không xoá được folder ngoài (n
 
 Nếu một brain có cấu trúc cũ (ví dụ ghi chú nằm trong `Javis/agents`, `Memory` viết hoa), anh có thể gom về dạng phẳng đồng nhất:
 
-1. Vào **Tổng quan** ở nav trái.
-2. Tìm mục **Cấu trúc brain**.
+1. Vào **Cài đặt** ở nav trái.
+2. Mở nhóm **Giao diện & Brain**.
 3. Bấm **Chuẩn hóa brain đang chọn**, rồi xác nhận.
 
 Thao tác này an toàn: chỉ di chuyển khi thư mục đích chưa tồn tại, không ghi đè. Nó gộp `Javis/agents` về `agents/`, `Javis/workflows` về `workflows/`, `Memory` về `memory/`.
@@ -186,5 +186,5 @@ LINT tìm 8 loại vấn đề: mâu thuẫn giữa các trang, thông tin cũ c
 - **Số ký ức vẫn là 0 dù đã chat nhiều.** Ký ức chỉ được ghi khi có thông tin bền vững đáng nhớ, hoặc khi anh nói "nhớ điều này", hoặc sau khi chạy Học từ hội thoại. Chat phiếm không sinh ký ức.
 - **Thả file mà không thấy vào Sources.** Đúng như thiết kế: mặc định chỉ đọc. Phải gõ kèm "lưu vào source" / "ingest" trong tin nhắn thì Javis mới tạo file `.md` trong `sources/`.
 - **Xoá nhầm brain.** Không khôi phục được. Vì thế hộp thoại bắt gõ đúng tên brain. Nếu chỉ muốn tạm ngừng dùng một kho ghi chú, hãy trỏ folder ngoài bằng nút 📁 thay vì xoá.
-- **Brain báo cấu trúc chưa chuẩn.** Vào Tổng quan, mục Cấu trúc brain, bấm **Chuẩn hóa brain đang chọn** để Javis gom lại các thư mục.
+- **Brain báo cấu trúc chưa chuẩn.** Vào Cài đặt, nhóm Giao diện & Brain, bấm **Chuẩn hóa brain đang chọn** để Javis gom lại các thư mục.
 - **Ký ức không theo sang máy mới.** Kiểm tra anh đã trỏ đúng thư mục brain chứa `memory/`. Bộ nhớ nằm trong thư mục, không nằm trong tài khoản.

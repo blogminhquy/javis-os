@@ -31,7 +31,7 @@ Ngoài ra, đồ thị luôn tự xoay nhẹ liên tục để lúc nào cũng "
 
 1. Mở dashboard (mặc định tại `http://<địa-chỉ-máy>:7777`). Nếu chưa cài, xem [Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md).
 2. Ở thanh điều hướng bên trái, chọn mục **Javis (3D)**. Đây là trang trung tâm, và đồ thị chiếm cả vùng giữa màn hình.
-3. Khi bạn chuyển sang các trang quản lý khác (Tổng quan, Workflows, Agents, Skills, ...), đồ thị **tự động tạm dừng** để tiết kiệm CPU/GPU. Quay lại trang **Javis (3D)** thì nó chạy lại ngay.
+3. Khi bạn chuyển sang các trang quản lý khác (Cài đặt, Workflows, Agents, Skills, ...), đồ thị **tự động tạm dừng** để tiết kiệm CPU/GPU. Quay lại trang **Javis (3D)** thì nó chạy lại ngay.
 
 Lưu ý: trên màn hình hẹp (điện thoại), đồ thị cũng tự tạm dừng để đỡ tốn pin.
 

@@ -1,6 +1,6 @@
 # Bắt đầu & thiết lập lần đầu
 
-Trang này hướng dẫn bạn từ lúc mở Javis lần đầu tiên cho tới khi Javis sẵn sàng trò chuyện: tạo tài khoản admin, đăng nhập Claude làm "bộ não", chọn model, và kiểm tra trạng thái hệ thống ở trang Tổng quan.
+Trang này hướng dẫn bạn từ lúc mở Javis lần đầu tiên cho tới khi Javis sẵn sàng trò chuyện: tạo tài khoản admin, đăng nhập Claude làm "bộ não", chọn model, và kiểm tra trạng thái hệ thống ở trang Cài đặt.
 
 ## Tính năng này là gì
 
@@ -19,7 +19,8 @@ Lần đầu mở app, một bộ cài đặt (wizard) sẽ hiện ra và dẫn 
 
 Sau khi thiết lập xong, các mục liên quan nằm trên thanh điều hướng bên trái:
 
-- **Tổng quan**: trạng thái hệ thống, engine, model, công tắc đồ thị 3D, chuẩn hóa brain.
+- **Cài đặt**: trạng thái hệ thống, lối tắt cấu hình, công tắc đồ thị, chuẩn hóa brain, giọng nói và tên miền.
+- **Cập nhật**: phiên bản hiện tại, cập nhật/Redeploy, tiến trình và nhật ký phiên bản.
 - **Models**: đổi model chính, đăng nhập/ngắt các nhà cung cấp (xem [Models & engine](10-models-va-engine.md)).
 - **Tài khoản**: đổi mật khẩu, đăng xuất, tắt đăng nhập (xem [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md)).
 
@@ -85,16 +86,16 @@ Sau khi đã đăng nhập, kiểm tra và chọn model chính ở trang **Model
 
 Chi tiết đầy đủ về từng nhà cung cấp và model xem [Models & engine](10-models-va-engine.md).
 
-## Trang Tổng quan: kiểm tra hệ thống
+## Trang Cài đặt: kiểm tra hệ thống
 
-Sau khi thiết lập, mở mục **Tổng quan** để xem nhanh mọi thứ đang ở trạng thái nào. Trang này gồm các khối:
+Sau khi thiết lập, mở mục **Cài đặt** để xem nhanh trạng thái và các nhóm cấu hình. Nội dung được chia thành nhóm có thể gập/mở:
 
-### Phiên bản
+### Phiên bản và cập nhật
 
-Hiển thị phiên bản Javis đang chạy (dạng `v0.4.0`) và cho biết có bản mới trên GitHub hay không.
+Phần này nằm riêng ở mục **Cập nhật**. Khung Javis OS hiển thị phiên bản đang chạy và cho biết có bản mới trên GitHub hay không.
 
 - Bấm **Kiểm tra lại** để so lại với bản mới nhất.
-- Nếu có bản mới, nút **⬆ Cập nhật ngay** hiện ra. Bấm để tải bản mới và khởi động lại (app tự tải lại trang sau khoảng 20 đến 40 giây). Dữ liệu của bạn không mất khi cập nhật. Lưu ý: bản Docker cần bật thêm dịch vụ Watchtower mới tự cập nhật được từ nút này, nếu không Javis sẽ báo chạy `./update.sh` thủ công.
+- Nếu có bản mới, nút **⬆ Cập nhật ngay** hiện ra. Bấm để tải bản mới và khởi động lại (app tự tải lại trang sau khoảng 20 đến 40 giây). Dữ liệu của bạn không mất khi cập nhật. Bản Hostinger không chạy Watchtower nên khung này hướng dẫn **Redeploy**; VPS Docker có Watchtower mới cập nhật một chạm.
 
 ### Hệ thống
 
@@ -109,9 +110,9 @@ Bốn thẻ tóm tắt cấu hình hiện tại:
 
 ### Hiệu năng: công tắc đồ thị 3D
 
-Thẻ **Graph 3D** cho biết đồ thị tri thức 3D đang bật hay tắt.
+Thẻ **Đồ thị não** cho biết đồ thị tri thức đang bật/tắt và đang dùng chế độ 2D hay 3D.
 
-- Bấm **Tắt graph 3D** để cho máy/VPS nhẹ hơn, hoặc **Bật graph 3D** để bật lại.
+- Chọn **2D** để nhẹ hơn, **3D** để có chiều sâu, hoặc **Tắt đồ thị** để giảm tải tối đa.
 - Nếu màn hình hẹp (điện thoại), Javis tự ép chế độ nhẹ (lite-mode) dù công tắc đang bật.
 
 Chi tiết về đồ thị xem [Đồ thị tri thức 3D](03-do-thi-tri-thuc-3d.md).

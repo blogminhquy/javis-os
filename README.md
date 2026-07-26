@@ -130,7 +130,8 @@ Dashboard có thanh điều hướng bên trái:
 | Mục | Làm gì | Chi tiết |
 |---|---|---|
 | **Javis** (3D) | Màn chính: trò chuyện (gõ hoặc nói), đồ thị tri thức 3D, panel số liệu trái. | [Trò chuyện & giọng nói](docs/02-tro-chuyen-va-giong-noi.md) · [Đồ thị 3D](docs/03-do-thi-tri-thuc-3d.md) |
-| **Tổng quan** | Trạng thái hệ thống, engine, model, công tắc đồ thị, chuẩn hoá brain. | [Bắt đầu & thiết lập](docs/01-bat-dau-thiet-lap.md) |
+| **Cài đặt** | Trạng thái hệ thống, lối tắt cấu hình, công tắc đồ thị, chuẩn hoá brain, giọng nói và tên miền. | [Bắt đầu & thiết lập](docs/01-bat-dau-thiet-lap.md) |
+| **Cập nhật** | Phiên bản hiện tại, cập nhật/Redeploy, tiến trình và nhật ký tính năng mới. | [Khắc phục sự cố](docs/17-khac-phuc-su-co.md) |
 | **Workflows** | Tạo/chạy chuỗi tự động (agent → agent), có bước kiểm chứng. | [Agents & Workflows](docs/07-agents-va-workflows.md) |
 | **Agents** | Tạo trợ lý chuyên biệt (vai trò + skill + bộ nhớ riêng). | [Agents & Workflows](docs/07-agents-va-workflows.md) |
 | **Skills** | Gom nhóm + tìm kiếm + **bật/tắt** + thêm/sửa/xoá skill. | [Skills](docs/06-skills.md) |

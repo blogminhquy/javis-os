@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.183] - 2026-07-26
+Đồng bộ toàn bộ hướng dẫn sử dụng với cấu trúc điều hướng mới sau khi bỏ trang Tổng quan.
+### Cải thiện
+- **Không còn hướng dẫn tới trang đã bỏ**: README, triển khai, thiết lập, Telegram, Second Brain, bảo mật, biến môi trường và khắc phục sự cố đều trỏ đúng tới Cài đặt hoặc Cập nhật.
+- **Phân biệt Hostinger và VPS Docker**: tài liệu cập nhật nói rõ Hostinger cần Redeploy, còn cập nhật một chạm trên VPS cần Watchtower/profile `update`.
+
 ## [0.9.182] - 2026-07-26
 Gom lại khu vực quản trị hệ thống: bỏ trang Tổng quan trung gian, đưa cập nhật về đúng Nhật ký cập nhật và làm Cài đặt gọn, dễ quét hơn.
 ### Cải thiện
