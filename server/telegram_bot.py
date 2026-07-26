@@ -354,7 +354,10 @@ class TelegramBot:
             files = reply.get("files") or []
             reply = reply.get("text") or ""
         await self._del_msg(client, chat, status_mid)   # bỏ tin trạng thái, thay bằng câu trả lời
-        await self._send(client, chat, reply)
+        # Nếu câu trả lời chỉ là ![](local-path) và file đã được tách để gửi riêng, không gửi
+        # thêm tin "(không có nội dung)" trước ảnh.
+        if str(reply or "").strip() or not files:
+            await self._send(client, chat, reply)
         # Gửi file SAU câu trả lời để thứ tự đọc tự nhiên (text trước, đính kèm sau)
         for f in files:
             fpath, fcap = (f.get("path"), f.get("caption", "")) if isinstance(f, dict) else (f, "")

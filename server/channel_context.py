@@ -169,38 +169,83 @@ def extract_paths(text: str) -> list:
     return out
 
 
-# Media/liên kết NHÚNG trong markdown: ![alt](path) hoặc [text](path) (cho phép tiêu đề "..").
-# Dùng để bắt đường dẫn TƯƠNG ĐỐI trong vault - vd ảnh Javis tạo: ![](attachments/x.png).
-_MD_LINK_RE = re.compile(r"!?\[[^\]\n]*\]\(\s*<?([^)>\s]+)>?\s*(?:\"[^\"]*\")?\)")
+# Media/liên kết NHÚNG trong markdown: ![alt](path) hoặc [text](path).
+# Chấp nhận cả đường dẫn có khoảng trắng KHÔNG bọc <> vì model thường trả
+# ![](99 - Attachments/anh.png), dù CommonMark chuẩn yêu cầu <...>.
+_MD_LINK_RE = re.compile(r"(!?)\[([^\]\n]*)\]\(\s*(?:<([^>\n]+)>|([^\n)]*?))\s*\)")
+_MD_TITLE_RE = re.compile(r"""\s+(?:"[^"\n]*"|'[^'\n]*')\s*$""")
+
+
+def _md_link_target(match) -> str:
+    raw = (match.group(3) if match.group(3) is not None else match.group(4)) or ""
+    raw = _MD_TITLE_RE.sub("", raw.strip())
+    return raw.strip().strip("'\"")
+
+
+def _vault_markdown_candidate(raw: str, vault_root: str):
+    """Resolve một target Markdown về file bên trong vault; URL/anchor/path thoát vault → None."""
+    if not raw or not vault_root:
+        return None
+    if "://" in raw or raw.startswith(("#", "mailto:", "data:", "tel:")):
+        return None
+    try:
+        vroot = os.path.normpath(os.path.abspath(vault_root))
+        if os.path.isabs(raw) or re.match(r"^[A-Za-z]:[\\/]", raw):
+            cand = os.path.normpath(os.path.abspath(raw))
+        else:
+            cand = os.path.normpath(os.path.abspath(os.path.join(vroot, raw)))
+        vroot_nc = os.path.normcase(vroot)
+        cand_nc = os.path.normcase(cand)
+        if cand_nc == vroot_nc or cand_nc.startswith(vroot_nc + os.sep):
+            return cand
+    except Exception:
+        pass
+    return None
 
 
 def resolve_vault_relative(text: str, vault_root: str) -> list:
-    """Đường dẫn TƯƠNG ĐỐI nhúng trong câu trả lời (markdown ![]()/[]()) → path tuyệt đối NẰM
-    TRONG vault. Bỏ URL (http/data/mailto/#) và path tuyệt đối (đã do extract_paths lo). Chặn
-    '../' thoát vault. Đây là cách để ảnh Javis tạo (lưu attachments/ dạng tương đối) tự đính kèm
-    về ĐÚNG phiên chat, khỏi phải nhờ engine curl - vốn dễ rơi về ID Telegram đầu tiên."""
+    """Đường dẫn nhúng Markdown → path tuyệt đối NẰM TRONG vault.
+
+    Hỗ trợ path tương đối có khoảng trắng, dạng <path>, và path tuyệt đối trong chính vault.
+    URL hoặc '../' thoát vault luôn bị bỏ.
+    """
     out = []
     if not vault_root:
         return out
-    try:
-        vroot = os.path.normpath(os.path.abspath(vault_root))
-    except Exception:
-        return out
-    vroot_nc = os.path.normcase(vroot)
     for m in _MD_LINK_RE.finditer(text or ""):
-        raw = (m.group(1) or "").strip().strip("'\"")
-        if not raw or "://" in raw or raw.startswith(("#", "mailto:", "data:", "tel:")):
-            continue
-        if raw.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:[\\/]", raw):
-            continue   # tuyệt đối → extract_paths đã lo, khỏi trùng
-        try:
-            cand = os.path.normpath(os.path.abspath(os.path.join(vault_root, raw)))
-        except Exception:
-            continue
-        cand_nc = os.path.normcase(cand)
-        if cand_nc == vroot_nc or cand_nc.startswith(vroot_nc + os.sep):
+        cand = _vault_markdown_candidate(_md_link_target(m), vault_root)
+        if cand:
             out.append(cand)
     return out
+
+
+def strip_attached_media(text: str, attached_paths: list, vault_root: str) -> str:
+    """Bỏ ![alt](local-path) khỏi text nếu đúng file đó đã được xếp hàng gửi riêng.
+
+    Không đụng link thường, URL web hoặc ảnh chưa attach được. Nhờ vậy Telegram không hiện
+    nguyên `![...](99 - Attachments/...)` bên cạnh ảnh thật.
+    """
+    attached = set()
+    for path in attached_paths or []:
+        try:
+            attached.add(os.path.normcase(os.path.normpath(os.path.abspath(str(path)))))
+        except Exception:
+            pass
+    if not attached:
+        return text or ""
+
+    def repl(match):
+        if match.group(1) != "!":
+            return match.group(0)
+        cand = _vault_markdown_candidate(_md_link_target(match), vault_root)
+        if cand and os.path.normcase(os.path.normpath(cand)) in attached:
+            return ""
+        return match.group(0)
+
+    cleaned = _MD_LINK_RE.sub(repl, text or "")
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def collect_turn_files(reply_text: str, written_paths: list, t0: float,

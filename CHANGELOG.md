@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.180] - 2026-07-26
+Ảnh do ChatGPT/Codex hoặc model OpenRouter tạo trong Telegram được gửi thành ảnh thật thay vì hiện nguyên đường dẫn Markdown.
+### Sửa lỗi
+- **Nhận đường dẫn có khoảng trắng**: bộ thu file trước đây chỉ khớp `attachments/x.png`, nên bỏ sót đường dẫn thực tế như `99 - Attachments/claude-workforce-vietnamese-4x5.png`; parser mới hỗ trợ cả path có khoảng trắng, dạng `<path>` và path tuyệt đối nằm trong brain.
+- **ChatGPT Telegram gửi media thật**: nhánh Codex OAuth resolve ảnh Markdown về đúng file trong brain, xếp hàng `sendPhoto` và loại dòng `![...](...)` khỏi phần chữ sau khi file đã được nhận.
+- **OpenRouter/API có cùng chức năng**: gateway giờ thu file do MCP tạo cho mọi provider API, không còn giả định engine API chỉ có thể trả text.
+- **Không gửi tin rỗng trước ảnh**: nếu câu trả lời chỉ chứa ảnh nhúng, Telegram bỏ tin `(không có nội dung)` và gửi thẳng ảnh.
+### Bảo mật
+- **Không mở rộng ra ngoài brain**: URL web, `data:`, liên kết thường và đường dẫn `../` thoát vault không được coi là file local; chỉ Markdown ảnh khớp đúng file đã xếp hàng mới bị ẩn khỏi text.
+### Kiểm thử
+- Bổ sung hồi quy đúng trường hợp `99 - Attachments` trong ảnh lỗi, path bọc `<>`, giữ URL/link thường, chống thoát brain và xác nhận reply chỉ có file vẫn gửi đúng chat Telegram.
+
 ## [0.9.179] - 2026-07-26
 Navbar có hộp thư Thông báo nổi bật, hợp nhất nhật ký phiên bản với các tin cộng đồng và marketing có thể phát hành tập trung.
 ### Thêm mới

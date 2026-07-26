@@ -5302,8 +5302,11 @@ async def _tg_answer(text, meta=None, progress=None):
             out, [], t0, cwd=_brain_root(brain), exclude=sess["sent"],
             vault_root=_brain_root(brain),
         )
+        clean_out = channel_context.strip_attached_media(
+            channel_context.strip_control_blocks(out), files, _brain_root(brain)
+        )
         return {
-            "text": channel_context.strip_control_blocks(out),
+            "text": clean_out,
             "files": files,
         }
     if (kind == "api" and api_key) or kind == "oauth":
@@ -5313,6 +5316,7 @@ async def _tg_answer(text, meta=None, progress=None):
                      f"Hỏi model nào thì khai đúng tên này, KHÔNG nhận là model khác.]")
             sess["or"] = [{"role": "system", "content": sysprompt + ident}]
         sess["or"].append({"role": "user", "content": text})
+        t0 = time.time()
         out = ""
         _pinged = False
         async for ev in (await _api_stream_mcp(prov, api_key, api_model, sess["or"], reasoning, brain=brain)):
@@ -5329,9 +5333,16 @@ async def _tg_answer(text, meta=None, progress=None):
         # nên dùng compact_mem - bản in-memory của cơ chế nén dashboard: phần cũ vào tóm tắt
         # thay vì bị trim cứng bỏ mất, hết mất trí nhớ khi phiên dài / đổi từ Claude sang API.
         sess["or"] = await compaction.compact_mem(sess["or"], prov, api_key, api_model, _api_stream)
-        # Telegram là kênh chữ thuần: hạ khối điều khiển xuống chữ, đừng để lọt cụm thô.
-        # Lọc lúc TRẢ, không lọc trước khi append vào sess["or"]: lịch sử của model giữ nguyên bản gốc.
-        return channel_context.strip_control_blocks(out)   # engine API không có tool ghi file → không có gì để đính kèm
+        # MCP đa-model có thể tạo ảnh/file dù engine không có tool Write native. Thu đường dẫn
+        # Markdown giống nhánh Codex/Claude để OpenRouter cũng gửi media thật qua Telegram.
+        files = channel_context.collect_turn_files(
+            out, [], t0, cwd=_brain_root(brain), exclude=sess["sent"],
+            vault_root=_brain_root(brain),
+        )
+        clean_out = channel_context.strip_attached_media(
+            channel_context.strip_control_blocks(out), files, _brain_root(brain)
+        )
+        return {"text": clean_out, "files": files}
     else:
         if sess["cli"] is None:
             # tag riêng theo chat → /stop chỉ giết đúng subprocess của chat này, không đụng người khác
@@ -5369,7 +5380,10 @@ async def _tg_answer(text, meta=None, progress=None):
                                                    cwd=CLAUDE_CWD, exclude=sess["sent"],
                                                    vault_root=_brain_root(brain))
         # Lọc SAU collect_turn_files: hàm đó dò đường dẫn file trong text gốc, lọc trước là mất dấu.
-        return {"text": channel_context.strip_control_blocks(out), "files": files}
+        clean_out = channel_context.strip_attached_media(
+            channel_context.strip_control_blocks(out), files, _brain_root(brain)
+        )
+        return {"text": clean_out, "files": files}
 
 
 async def _tg_help_text(brain):

@@ -10,12 +10,14 @@ import os
 import sys
 import tempfile
 import time
+import asyncio
 from pathlib import Path
 
 os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-turnfiles-"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import channel_context  # noqa: E402
+from telegram_bot import TelegramBot  # noqa: E402
 
 _fails = []
 
@@ -69,6 +71,69 @@ os.utime(old_img, (t0 - 100, t0 - 100))
 reply_old = f"ảnh cũ ![cu](attachments/{old_img.name})"
 out6 = channel_context.collect_turn_files(reply_old, [], t0, cwd=os.getcwd(), vault_root=str(vault))
 check("file cũ không auto-gửi lại", os.path.normpath(str(old_img)) not in [os.path.normpath(p) for p in out6])
+
+# ---- 7. Hồi quy thật: folder "99 - Attachments" có khoảng trắng (ChatGPT/Codex Telegram) ----
+numbered = vault / "99 - Attachments"
+numbered.mkdir(parents=True, exist_ok=True)
+social = numbered / "claude-workforce-vietnamese-4x5.png"
+social.write_bytes(b"\x89PNG\r\n\x1a\n" + b"1" * 64)
+reply_spaces = "![claude workforce tiếng việt](99 - Attachments/claude-workforce-vietnamese-4x5.png)"
+out7 = channel_context.collect_turn_files(reply_spaces, [], t0, cwd=os.getcwd(), vault_root=str(vault))
+social_abs = os.path.normpath(str(social))
+check("markdown path có khoảng trắng được bắt", social_abs in [os.path.normpath(p) for p in out7])
+
+# ---- 8. Khi file đã attach, bỏ Markdown local khỏi text để Telegram chỉ hiện ảnh thật ----
+clean = channel_context.strip_attached_media(reply_spaces, out7, str(vault))
+check("đã attach thì bỏ markdown ảnh local", clean == "")
+mixed = "Đã tạo ảnh cho anh:\n" + reply_spaces
+clean_mixed = channel_context.strip_attached_media(mixed, out7, str(vault))
+check("giữ phần lời, chỉ bỏ markdown ảnh", clean_mixed == "Đã tạo ảnh cho anh:")
+
+# ---- 9. Path bọc <> cũng hoạt động; ảnh URL/link thường không bị xoá ----
+reply_angle = "![ảnh](<99 - Attachments/claude-workforce-vietnamese-4x5.png>)"
+out8 = channel_context.collect_turn_files(reply_angle, [], t0, cwd=os.getcwd(), vault_root=str(vault))
+check("markdown path có khoảng trắng bọc <> được bắt", social_abs in [os.path.normpath(p) for p in out8])
+keep_url = channel_context.strip_attached_media(
+    "![ảnh web](https://example.com/a.png)", out7, str(vault)
+)
+check("ảnh URL không bị xoá", keep_url == "![ảnh web](https://example.com/a.png)")
+keep_link = channel_context.strip_attached_media(
+    "[mở file](99 - Attachments/claude-workforce-vietnamese-4x5.png)", out7, str(vault)
+)
+check("link thường không bị xoá", keep_link.startswith("[mở file]"))
+
+# ---- 10. Reply chỉ còn file: Telegram không gửi tin "(không có nội dung)" trước ảnh ----
+sent_text, sent_files = [], []
+
+
+async def _answer_file_only(text, meta, progress):
+    return {"text": "", "files": [str(social)]}
+
+
+bot = TelegramBot("fake-token", "123", _answer_file_only)
+
+
+async def _noop(*args, **kwargs):
+    return None
+
+
+async def _capture_text(client, chat, text, reply_markup=None):
+    sent_text.append(text)
+
+
+async def _capture_file(path, caption="", chat=None):
+    sent_files.append((path, chat))
+    return True, ""
+
+
+bot._typing = _noop
+bot._send_status = _noop
+bot._del_msg = _noop
+bot._send = _capture_text
+bot.send_file = _capture_file
+asyncio.run(bot._handle_turn(object(), "123", "tạo ảnh", {"chat_id": "123"}))
+check("reply chỉ có file: không gửi text rỗng", sent_text == [])
+check("reply chỉ có file: vẫn gửi ảnh đúng chat", sent_files == [(str(social), "123")])
 
 if _fails:
     print(f"\nFAIL - {len(_fails)} test: {_fails}")
