@@ -117,6 +117,24 @@ Chi tiết cách gõ `/model`:
 - Cho thêm người dùng chung 1 bot: thêm Chat ID của họ vào ô, cách nhau dấu phẩy, rồi **Lưu & bật**. Nút **Gửi test** sẽ gửi tin thử tới TẤT CẢ ID và báo rõ ID nào lỗi (thường do người đó chưa bấm Start bot). Thông báo nền (vd loop tự tạm dừng) cũng gửi tới tất cả ID.
 - Mỗi người có **mạch hội thoại riêng**: ngữ cảnh của từng Chat ID tách biệt, không lẫn sang người khác, và hai người có thể nhắn cùng lúc mà không phải chờ nhau. `/reset` và `/stop` chỉ tác động phiên của chính người gõ. Tuy vậy tất cả vẫn **chung một vault và cùng quyền** (ai cũng đọc/ghi được dữ liệu, số liệu, brain của bạn) - chỉ thêm ID người bạn tin tưởng. Cần tách bạch hoàn toàn cả dữ liệu thì dựng Javis + bot riêng cho mỗi người.
 
+## Hội thoại Telegram nằm chung với lịch sử trên dashboard
+
+Mọi lượt hỏi đáp qua Telegram đều được lưu giống hệt khi bạn chat trên dashboard: vào lịch sử hội thoại, vào nhật ký bộ nhớ của brain, và vào vòng tự học. Trong sidebar 🕘 Lịch sử, cuộc đến từ bot mang nhãn **TG** để bạn không lẫn với cuộc tự mở trên web. Xem thêm ở [Phiên hội thoại](04-phien-hoi-thoai.md).
+
+Hội thoại được gắn theo **brain đang chọn cho phiên Telegram của bạn** (đổi bằng `/brain`), nên nó chỉ hiện khi dashboard đang xem đúng brain đó.
+
+### Vì sao cuộc trò chuyện Telegram bị cắt thành nhiều khúc
+
+Trên dashboard bạn tự bấm "＋ Hội thoại mới" nên một cuộc không bao giờ dài mãi. Trên Telegram thì gần như không ai gõ `/reset`, nên nếu để nguyên thì một Chat ID sẽ dính vào một cuộc dài vô tận, mở ra đọc rất nặng. Javis tự **sang cuộc mới** khi:
+
+- bạn nghỉ không nhắn quá **12 tiếng**, hoặc
+- cuộc hiện tại đã đủ dài (khoảng **100 lượt** hỏi đáp), hoặc
+- bạn gõ `/reset`, đổi brain bằng `/brain`, hoặc máy chủ khởi động lại.
+
+Điều quan trọng: việc cắt khúc này chỉ áp dụng cho **bản lưu để đọc lại**, hoàn toàn **không đụng tới trí nhớ của Javis trong lúc trò chuyện**. Bạn nhắn tiếp bình thường và Javis vẫn nhớ mạch như cũ; chỉ có bên dashboard là thấy lịch sử được chia thành từng khúc dễ đọc thay vì một cục dài.
+
+Các khúc Telegram cũ hơn **30 ngày** được tự cất vào kho lưu để danh sách không bị ngập. Cất chứ không xoá: nội dung vẫn tìm được bằng ô tìm kiếm.
+
 ## Kiểm tra trạng thái bot
 
 Có 2 cách:

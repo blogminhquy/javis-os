@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.246] - 2026-07-29
+Nối Telegram vào kho phiên ở 0.9.244 để lộ vấn đề ngược lại: phiên Telegram không có gì chặn nó dài vô tận.
+### Cải thiện
+- **Phiên Telegram tự XOAY.** Trên dashboard người dùng tự bấm "＋ Hội thoại mới" nên phiên không bao giờ dài mãi; trên Telegram thì gần như KHÔNG AI gõ `/reset`, nên một Chat ID dính vào một phiên là phiên đó dài vô tận chừng nào server chưa restart. Mở ra đọc là kéo về cả nghìn tin, vì `openStoredSession` vẽ TOÀN BỘ `sess.messages` không phân trang - nút "Xem thêm" ở thanh bên chỉ phân trang DANH SÁCH hội thoại chứ không phân trang tin trong một cuộc. Nay `_tg_conv_sid` sang phiên mới khi nghỉ quá 12 tiếng hoặc chạm 200 tin (`/reset`, đổi brain và restart vốn đã mở phiên mới từ 0.9.244).
+- **Xoay chỉ xoay BẢN GHI, không đụng ngữ cảnh engine.** `sess['cli']`, thread Codex và `sess['or']` (vốn đã có `compact_mem` lo cửa sổ) đều giữ nguyên, nên người dùng Telegram không hề thấy Javis quên gì; chỉ dashboard là thấy hội thoại chia thành khúc đọc được. Đây là lý do cách này chấp nhận được, và có test riêng chốt lại ràng buộc đó.
+- **Không phải sửa gì ở phần đọc.** Xoay biến một phiên vô hạn thành nhiều phiên hữu hạn, nên cái tăng lên là SỐ hội thoại - đúng thứ nút "Xem thêm" của thanh bên đã lo sẵn. Không đụng `app.js`.
+### Thêm mới
+- **Cột `channel` trong bảng `sessions`** (`web` mặc định, tự migrate cho DB cũ qua vòng ALTER sẵn có) + nhãn **TG** trong danh sách hội thoại, để phân biệt cuộc đến từ bot với cuộc tự mở trên dashboard. Không có nó thì xoay phiên chỉ làm thanh bên đầy những cuộc không rõ từ đâu ra.
+- **`SessionStore.archive_stale(channel, before_ts)`**: phiên Telegram nguội quá 30 ngày tự cất vào kho lưu để thanh bên không ngập dần. Chạy theo nhịp xoay (cỡ vài ngày một lần) chứ không mỗi lượt. Cất chứ không xoá - vẫn tra được qua `search` và `include_archived`.
+### Kiểm thử
+- **`test_telegram_sessions.py`**: 38 khẳng định. Cột `channel` gồm cả migrate DB cũ; `archive_stale` đúng kênh, đúng độ nguội, cất rồi vẫn search được; luật xoay THẬT trong `_tg_conv_sid` chứ không mô phỏng lại (giữ phiên khi còn nóng, xoay khi nghỉ lâu / chạm trần tin / phiên bị xoá trên dashboard, hai chat không lẫn phiên); và ràng buộc xoay-không-đụng-engine.
+- Phần LƯU một lượt vẫn do `test_luu_luot_chat.py` (0.9.244) phủ; test này không giẫm lên.
+
 ## [0.9.245] - 2026-07-29
 Đóng nốt bảy chỗ còn lại mà hai bản dispatch engine trôi lệch nhau. Danh sách phụ lục spec giờ hết mục.
 ### Sửa lỗi

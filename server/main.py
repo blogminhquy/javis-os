@@ -5600,6 +5600,60 @@ def _tg_compact_bg(sess, prov, api_key, api_model):
         print(f"[compact_mem nền] {_e}", file=__import__('sys').stderr)
 
 
+# ---- XOAY phiên Telegram: nghỉ lâu hoặc đủ dài thì sang phiên mới ----
+# Trên dashboard người dùng tự bấm "+ Hội thoại mới" nên phiên không bao giờ dài mãi. Trên
+# Telegram thì gần như KHÔNG AI gõ /reset, nên một Chat ID gắn với một phiên là phiên đó dài
+# vô tận chừng nào server chưa restart. Mở nó ra đọc là kéo về cả nghìn tin: openStoredSession
+# (dashboard/app.js) vẽ TOÀN BỘ sess.messages, không phân trang - nút "Xem thêm" ở thanh bên
+# chỉ phân trang DANH SÁCH hội thoại chứ không phân trang tin trong một cuộc.
+#
+# Xoay phiên biến một phiên vô hạn thành nhiều phiên hữu hạn, nên phần đọc không phải sửa gì:
+# cái tăng lên là SỐ hội thoại, đúng thứ nút "Xem thêm" đã lo sẵn.
+#
+# QUAN TRỌNG: xoay chỉ xoay BẢN GHI. Ngữ cảnh engine (sess['cli'] của Claude CLI, thread Codex,
+# sess['or'] của nhánh API vốn đã có compact_mem lo cửa sổ) KHÔNG bị đụng tới, nên người dùng
+# Telegram không hề thấy Javis quên gì - chỉ dashboard là thấy hội thoại chia thành khúc đọc được.
+_TG_CONV_IDLE_S = 12 * 3600      # nghỉ quá ngần này → lượt kế mở phiên mới
+_TG_CONV_MAX_MSGS = 200          # ~100 lượt hỏi-đáp/phiên → mở phiên mới dù đang chat liên tục
+_TG_CONV_ARCHIVE_DAYS = 30       # phiên Telegram nguội quá ngần này → tự cất vào kho lưu
+
+
+def _tg_conv_sid(store, sess, brain, engine_label, model):
+    """Phiên kho cho lượt Telegram này, tự xoay theo hai ngưỡng trên.
+
+    sess['sid'] sống theo RAM giống sess['cli']/['or']/['codex'] - restart server là mạch ngữ
+    cảnh đã mất rồi, nên mở phiên mới mới đúng, chứ không nối tiếp phiên cụt. Đổi brain và
+    /reset đã tự đặt sess['sid'] = None ở chỗ khác nên ở đây không phải xét lại.
+    """
+    sid = sess.get("sid")
+    if sid:
+        row = store.get_session(sid)
+        if not row:
+            sid = None      # user đã xoá hội thoại đó trên dashboard → đừng hồi sinh id cũ
+        else:
+            # Chỉ xoay khi có BẰNG CHỨNG phiên đã cũ/đã dài. Thiếu số liệu thì giữ nguyên,
+            # kẻo một cột rỗng bất ngờ làm mỗi lượt đẻ một phiên.
+            nghi = time.time() - float(row.get("updated_at") or time.time())
+            if nghi >= _TG_CONV_IDLE_S or int(row.get("msg_count") or 0) >= _TG_CONV_MAX_MSGS:
+                sid = None      # nghỉ lâu / đã dài → sang khúc mới
+    if sid:
+        # Còn dùng tiếp: đồng bộ engine/model vì người dùng có thể vừa đổi bằng /model.
+        sess["sid"] = store.get_or_create(sid, brain=brain, engine=engine_label, model=model)
+        return sess["sid"]
+    sess["sid"] = store.create_session(brain=brain, engine=engine_label, model=model,
+                                       channel="telegram")
+    # Dọn theo nhịp XOAY (hiếm, cỡ vài ngày một lần) chứ không mỗi lượt - đủ để thanh bên
+    # không ngập dần vì các khúc cũ.
+    try:
+        n = store.archive_stale("telegram", time.time() - _TG_CONV_ARCHIVE_DAYS * 86400)
+        if n:
+            print(f"[telegram] cất {n} phiên nguội quá {_TG_CONV_ARCHIVE_DAYS} ngày vào kho lưu",
+                  file=__import__('sys').stderr)
+    except Exception as e:
+        print(f"[telegram archive] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    return sess["sid"]
+
+
 async def _tg_answer(text, meta=None, progress=None):
     """Vỏ ngoài một lượt Telegram: khớp phiên trong kho -> chạy engine -> LƯU lượt.
 
@@ -5635,11 +5689,8 @@ async def _tg_answer(text, meta=None, progress=None):
     store = get_store()
     conv_sid = ""
     try:
-        # sess['sid'] sống theo RAM giống sess['cli']/['or']/['codex'] - restart server là mạch
-        # ngữ cảnh đã mất rồi, nên mở phiên mới mới đúng, chứ không nối tiếp phiên cụt.
-        conv_sid = store.get_or_create(sess.get("sid"), brain=brain, engine=engine_label,
-                                       model=(api_model or mcfg.get("claude_model")))
-        sess["sid"] = conv_sid
+        conv_sid = _tg_conv_sid(store, sess, brain, engine_label,
+                                api_model or mcfg.get("claude_model"))
         store.append_message(conv_sid, "user", text)
     except Exception as e:
         print(f"[telegram session] {e}", file=__import__('sys').stderr)

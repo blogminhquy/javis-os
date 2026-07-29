@@ -29,7 +29,13 @@ Toàn bộ lịch sử nằm trong một tệp duy nhất tên `conversations.db
 
 Nếu bạn muốn dời tệp lịch sử sang chỗ khác (ví dụ ổ dữ liệu riêng), đặt biến `JAVIS_SESSIONS_DB` trong tệp cấu hình. Chi tiết cách chỉnh biến môi trường xem [Cấu hình .env](16-cau-hinh-env.md).
 
-Mỗi cuộc trò chuyện lưu kèm: tên (title), bộ não, engine đang dùng, model, số tin nhắn, thời gian tạo và thời gian cập nhật gần nhất. Từng lượt hỏi và đáp lưu riêng để có thể tìm kiếm và mở lại chính xác.
+Mỗi cuộc trò chuyện lưu kèm: tên (title), bộ não, engine đang dùng, model, kênh sinh ra nó, số tin nhắn, thời gian tạo và thời gian cập nhật gần nhất. Từng lượt hỏi và đáp lưu riêng để có thể tìm kiếm và mở lại chính xác.
+
+## Cuộc trò chuyện đến từ Telegram
+
+Danh sách này không chỉ có các cuộc bạn mở trên web. Những gì bạn nhắn với Javis qua **Telegram** cũng được lưu vào đây và mang nhãn **TG** trong danh sách, nên ngồi máy tính bạn vẫn đọc lại và tìm kiếm được cuộc đã nói lúc đang đi đường.
+
+Vì trên Telegram gần như không ai bấm bắt đầu cuộc mới, Javis tự cắt sang cuộc mới khi bạn nghỉ quá 12 tiếng hoặc khi cuộc hiện tại đã dài khoảng 100 lượt. Việc cắt này chỉ để bản lưu dễ đọc, không làm Javis quên mạch trong lúc bạn đang trò chuyện trên Telegram. Các cuộc Telegram cũ hơn 30 ngày được tự cất vào kho lưu nên không hiện ở danh sách mặc định, nhưng vẫn tìm được bằng ô tìm kiếm. Chi tiết ở [Telegram](11-telegram.md).
 
 ## Mở ở đâu trong Javis
 

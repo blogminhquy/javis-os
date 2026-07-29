@@ -133,10 +133,15 @@
         lastGroup = g;
       }
       var eng = (s.engine || "").toString().slice(0, 10);
+      // Kênh sinh ra hội thoại: web là mặc định nên khỏi ghi, Telegram thì gắn nhãn để
+      // khỏi lẫn với cuộc tự mở trên dashboard.
+      var ch = (s.channel || "").toString();
+      var chLabel = ch === "telegram" ? "TG" : (ch && ch !== "web" ? ch.slice(0, 8) : "");
       var isRun = !!(window.JavisRunning && window.JavisRunning.has(s.id));
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + '">' +
         '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="Đang trả lời">⏳</span> ' : '') + esc(s.title || s.preview || "(chưa đặt tên)") + '</div>' +
         '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
+        (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
         (eng ? '<span class="ci-badge">' + esc(eng) + '</span>' : '') +
         '<span>' + (s.msg_count || 0) + ' tin</span>' +
         '<span class="act"><span class="ren" title="Đổi tên">✎</span><span class="del" title="Xoá">🗑</span></span>' +

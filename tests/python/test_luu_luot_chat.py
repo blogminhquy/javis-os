@@ -21,6 +21,7 @@ import asyncio
 import os
 import sys
 import tempfile
+import time
 
 os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-luuluot-"))
 
@@ -56,8 +57,21 @@ class KhoGia:
 
     def get_or_create(self, session_id, *, brain, engine, model):
         sid = session_id or f"sid-{len(self.sessions) + 1}"
-        self.sessions[sid] = {"id": sid, "brain": brain, "engine": engine, "model": model}
+        row = self.sessions.setdefault(sid, {"id": sid, "msg_count": 0})
+        row.update({"brain": brain, "engine": engine, "model": model,
+                    "updated_at": time.time()})
         return sid
+
+    def create_session(self, *, brain=None, engine=None, model=None, channel="web", **kw):
+        # Từ 0.9.246 vỏ Telegram XOAY phiên (nghỉ lâu / đủ dài thì sang phiên mới), nên phiên
+        # mới được mở qua đường này chứ không còn qua get_or_create(None, ...).
+        sid = f"sid-{len(self.sessions) + 1}"
+        self.sessions[sid] = {"id": sid, "brain": brain, "engine": engine, "model": model,
+                              "channel": channel, "updated_at": time.time(), "msg_count": 0}
+        return sid
+
+    def archive_stale(self, channel, before_ts):
+        return 0
 
     def get_session(self, sid):
         return self.sessions.get(sid)
@@ -67,6 +81,9 @@ class KhoGia:
 
     def append_message(self, sid, role, content, tool_calls=None):
         self.messages.append((sid, role, content))
+        row = self.sessions.setdefault(sid, {"id": sid, "msg_count": 0})
+        row["msg_count"] = row.get("msg_count", 0) + 1
+        row["updated_at"] = time.time()
         return len(self.messages)
 
     def auto_title(self, sid, first_user_message):

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     brain          TEXT NOT NULL DEFAULT 'brain',
     engine         TEXT,
     model          TEXT,
+    channel        TEXT NOT NULL DEFAULT 'web',
     cli_session_id TEXT,
     codex_thread_id TEXT,
     created_at     REAL NOT NULL,
@@ -134,7 +135,8 @@ class SessionStore:
             cols = {r[1] for r in self._conn.execute("PRAGMA table_info(sessions)").fetchall()}
             for name, ddl in (("codex_thread_id", "TEXT"),
                               ("compact_summary", "TEXT"),
-                              ("compact_count", "INTEGER NOT NULL DEFAULT 0")):
+                              ("compact_count", "INTEGER NOT NULL DEFAULT 0"),
+                              ("channel", "TEXT NOT NULL DEFAULT 'web'")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             if self._probe_fts5():
@@ -181,18 +183,20 @@ class SessionStore:
                         model: Optional[str] = None, title: Optional[str] = None,
                         session_id: Optional[str] = None,
                         cli_session_id: Optional[str] = None,
-                        codex_thread_id: Optional[str] = None) -> str:
+                        codex_thread_id: Optional[str] = None,
+                        channel: str = "web") -> str:
         sid = session_id or uuid.uuid4().hex
         now = time.time()
 
         def _do(conn):
             conn.execute(
                 """INSERT INTO sessions
-                   (id, title, brain, engine, model, cli_session_id, codex_thread_id,
+                   (id, title, brain, engine, model, channel, cli_session_id, codex_thread_id,
                     created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO NOTHING""",
-                (sid, title, brain, engine, model, cli_session_id, codex_thread_id, now, now),
+                (sid, title, brain, engine, model, channel or "web", cli_session_id,
+                 codex_thread_id, now, now),
             )
         self._write(_do)
         return sid
@@ -266,7 +270,7 @@ class SessionStore:
         params.append(limit)
         rows = self._read(
             f"""
-            SELECT s.id, s.title, s.brain, s.engine, s.model, s.cli_session_id,
+            SELECT s.id, s.title, s.brain, s.engine, s.model, s.channel, s.cli_session_id,
                    s.created_at, s.updated_at, s.msg_count,
                    (SELECT substr(content, 1, 80) FROM messages
                     WHERE session_id = s.id AND role = 'user'
@@ -295,6 +299,22 @@ class SessionStore:
             "UPDATE sessions SET archived = ?, updated_at = ? WHERE id = ?",
             (1 if archived else 0, time.time(), session_id),
         ))
+
+    def archive_stale(self, channel: str, before_ts: float) -> int:
+        """Tự cất các phiên NGUỘI của 1 kênh vào kho lưu (archived=1). Trả số phiên đã cất.
+
+        Kênh nhắn tin (Telegram) xoay phiên liên tục nên danh sách hội thoại phình theo
+        thời gian dù mỗi phiên đều nhỏ. Cất phiên cũ đi cho thanh bên còn đọc được; dữ
+        liệu KHÔNG mất - vẫn tra được qua search và qua list_sessions(include_archived=True).
+        """
+        def _do(conn):
+            cur = conn.execute(
+                "UPDATE sessions SET archived = 1 "
+                "WHERE channel = ? AND archived = 0 AND updated_at < ?",
+                (channel, float(before_ts)),
+            )
+            return cur.rowcount or 0
+        return self._write(_do)
 
     def set_compact(self, session_id: str, summary: str, count: int) -> None:
         """Lưu tóm tắt nén hội thoại: summary phủ `count` message user/assistant đầu phiên."""
