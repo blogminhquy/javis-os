@@ -342,11 +342,19 @@ class ClaudeSDK:
         # (render video, tách nền, build... có thể cả tiếng) - không phải Claude treo.
         # Trước đây dùng chung IDLE 180s nên tác vụ dài bị chém oan giữa chừng.
         TOOL_IDLE = float(os.getenv("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600"))
+        # Trần RIÊNG cho SỰ KIỆN ĐẦU TIÊN. Cùng một họ lỗi với TOOL_IDLE ở trên: im lặng
+        # trước khi có chữ đầu tiên KHÔNG đồng nghĩa với treo. Hội thoại càng dài thì lượt
+        # đầu càng lâu (nạp lại ngữ cảnh lớn, model suy nghĩ trước khi phát chữ, đôi khi SDK
+        # còn tự nén lịch sử) - báo lỗi thật của người dùng: "chat dài là dính".
+        # Khi đã có chữ rồi thì im 180s mới thật sự đáng ngờ, nên giữ nguyên IDLE cho các
+        # khoảng lặng SAU đó.
+        FIRST_IDLE = float(os.getenv("JAVIS_CLAUDE_FIRST_TIMEOUT", "600"))
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
         loop = asyncio.get_running_loop()
         client = ClaudeSDKClient(options=self._options())
         started = time.time()
         tools_running = 0   # số tool đã gọi mà CHƯA thấy kết quả về
+        da_co_chu = False   # đã nhận được sự kiện đầu tiên chưa (quyết định dùng trần nào)
         try:
             await client.connect()
             with _LOCK:
@@ -357,7 +365,7 @@ class ClaudeSDK:
                 # Watchdog parity với CLI: idle-timeout + trần wall-clock cho fork nền.
                 # Đang chờ tool → trần dài (TOOL_IDLE); Claude "suy nghĩ" im lặng → trần ngắn (IDLE).
                 waiting_tool = tools_running > 0
-                timeout = TOOL_IDLE if waiting_tool else IDLE
+                timeout = TOOL_IDLE if waiting_tool else (IDLE if da_co_chu else FIRST_IDLE)
                 if self.max_wall_s:
                     timeout = min(timeout, max(1.0, self.max_wall_s - (time.time() - started)))
                 try:
@@ -370,8 +378,13 @@ class ClaudeSDK:
                     elif waiting_tool:
                         err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo server. "
                                f"(tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn)")
+                    elif not da_co_chu:
+                        err = (f"Claude chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
+                               f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn bộ "
+                               f"ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
+                               f"(tăng JAVIS_CLAUDE_FIRST_TIMEOUT nếu muốn chờ lâu hơn)")
                     else:
-                        err = (f"Claude không phản hồi {int(IDLE)}s - đã dừng để tránh treo server. "
+                        err = (f"Claude đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
                                f"(tăng JAVIS_CLAUDE_IDLE_TIMEOUT nếu tác vụ thật sự dài)")
                     try:
                         await client.interrupt()
@@ -379,6 +392,7 @@ class ClaudeSDK:
                         pass
                     yield {"type": "error", "content": err}
                     break
+                da_co_chu = True   # có sự kiện đầu tiên → từ đây dùng trần ngắn IDLE
                 events, sid = map_message(msg)
                 if sid:
                     if sid != self.session_id and self.javis_vault:

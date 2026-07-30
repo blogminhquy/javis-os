@@ -190,9 +190,12 @@ try:
 finally:
     plugins_host.plugin_tools, plugins_host.has_tool_hooks = _orig_pt, _orig_hooks
 
-# ---- 5. Watchdog: đang chờ TOOL chạy ≠ Claude treo (v0.9.41) ----
-# IDLE rất ngắn + TOOL_IDLE đủ dài: tool "chạy" lâu hơn IDLE phải SỐNG (trước đây bị chém oan);
-# còn im lặng không tool vẫn bị ngắt đúng như cũ.
+# ---- 5. Watchdog ba trần: chờ TOOL ≠ treo, và chờ CHỮ ĐẦU cũng ≠ treo ----
+# v0.9.41: tool chạy lâu hơn IDLE phải sống (trước đây bị chém oan).
+# v0.9.277: thêm trần thứ ba cho khoảng im TRƯỚC chữ đầu tiên. Hội thoại dài thì lượt đầu
+# phải nạp lại toàn bộ ngữ cảnh nên lâu, im lúc đó không phải treo - người dùng thật báo
+# "chat dài là dính 'Claude không phản hồi 180s'". Im lặng SAU khi đã có chữ thì vẫn ngắt
+# ở IDLE như cũ, nếu không thì mất luôn tác dụng chống treo.
 import claude_agent_sdk  # noqa: E402
 
 
@@ -224,13 +227,30 @@ async def _gen_slow_tool():
     yield _rm()
 
 
-async def _gen_hung():
-    await asyncio.sleep(0.8)   # im lặng KHÔNG tool nào chạy → phải bị ngắt ở IDLE
-    yield _rm(sid="s-treo")
+async def _gen_treo_giua():
+    # ĐÃ có chữ rồi mới im: đây mới là treo thật → phải ngắt ở IDLE.
+    yield AssistantMessage(content=[TextBlock(text="đang nghĩ...")], model="m")
+    await asyncio.sleep(0.8)
+    yield _rm(sid="s-treo-giua")
+
+
+async def _gen_dau_lau_nhung_song():
+    # Im LÂU HƠN IDLE trước chữ đầu (hội thoại dài nạp ngữ cảnh) nhưng dưới FIRST_IDLE
+    # → phải SỐNG, về đích bình thường. Đây là ca người dùng thật bị chém oan.
+    await asyncio.sleep(0.8)
+    yield AssistantMessage(content=[TextBlock(text="xin lỗi để lâu")], model="m")
+    yield _rm(sid="s-dau-lau")
+
+
+async def _gen_treo_ngay_tu_dau():
+    # Im quá cả FIRST_IDLE → vẫn phải ngắt, không được để treo vô hạn.
+    await asyncio.sleep(3)
+    yield _rm(sid="s-treo-dau")
 
 
 os.environ["JAVIS_CLAUDE_IDLE_TIMEOUT"] = "0.3"
 os.environ["JAVIS_CLAUDE_TOOL_TIMEOUT"] = "10"
+os.environ["JAVIS_CLAUDE_FIRST_TIMEOUT"] = "1.5"
 _orig_client_cls = claude_agent_sdk.ClaudeSDKClient
 _orig_avail = ClaudeSDK.is_available
 ClaudeSDK.is_available = lambda self: True
@@ -241,16 +261,31 @@ try:
     check("watchdog: tool chạy lâu hơn IDLE → KHÔNG bị chém oan, về đích final",
           "error" not in types and "final" in types and "tool_result" in types)
 
-    claude_agent_sdk.ClaudeSDKClient = _fake_client(_gen_hung)
+    claude_agent_sdk.ClaudeSDKClient = _fake_client(_gen_treo_giua)
     evs = asyncio.run(_run_query())
     errs = [e for e in evs if e["type"] == "error"]
-    check("watchdog: im lặng không tool → vẫn ngắt ở IDLE như cũ",
-          len(errs) == 1 and "không phản hồi" in errs[0]["content"])
+    check("watchdog: ĐÃ có chữ rồi mới im → vẫn ngắt ở IDLE (giữ nguyên tác dụng chống treo)",
+          len(errs) == 1 and "rồi im" in errs[0]["content"])
+
+    claude_agent_sdk.ClaudeSDKClient = _fake_client(_gen_dau_lau_nhung_song)
+    evs = asyncio.run(_run_query())
+    types = [e["type"] for e in evs]
+    check("watchdog: chờ chữ đầu lâu hơn IDLE nhưng dưới FIRST → KHÔNG chém oan (vụ chat dài)",
+          "error" not in types and "final" in types)
+
+    claude_agent_sdk.ClaudeSDKClient = _fake_client(_gen_treo_ngay_tu_dau)
+    evs = asyncio.run(_run_query())
+    errs = [e for e in evs if e["type"] == "error"]
+    check("watchdog: im quá cả FIRST → vẫn ngắt, không để treo vô hạn",
+          len(errs) == 1 and "chưa trả lời gì" in errs[0]["content"])
+    check("watchdog: thông báo chờ-chữ-đầu mách người dùng mở hội thoại mới",
+          errs and "Mở hội thoại mới" in errs[0]["content"])
 finally:
     claude_agent_sdk.ClaudeSDKClient = _orig_client_cls
     ClaudeSDK.is_available = _orig_avail
     os.environ.pop("JAVIS_CLAUDE_IDLE_TIMEOUT", None)
     os.environ.pop("JAVIS_CLAUDE_TOOL_TIMEOUT", None)
+    os.environ.pop("JAVIS_CLAUDE_FIRST_TIMEOUT", None)
 
 # ---- 6. System prompt DÀI đẩy qua FILE, không nhét vào argv (lỗi CLINotFound trên Windows) ----
 # Gốc lỗi: SDK để --append-system-prompt <prompt> trên dòng lệnh; > 32767 ký tự thì Windows

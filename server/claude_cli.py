@@ -697,7 +697,12 @@ class CodexCLI:
             # Trần RIÊNG khi codex đang chạy TOOL/lệnh (im lặng lúc đó là bình thường -
             # render video, build... có thể rất lâu). Cùng logic với engine Claude SDK.
             TOOL_IDLE = float(os.getenv("JAVIS_CLAUDE_TOOL_TIMEOUT", "3600"))
+            # Trần RIÊNG cho DÒNG ĐẦU TIÊN: hội thoại dài thì lượt đầu phải nạp lại ngữ cảnh
+            # lớn nên lâu, im lặng lúc đó không phải treo. Giữ IDLE ngắn cho các khoảng lặng
+            # SAU khi đã có chữ. Parity với engine Claude SDK.
+            FIRST_IDLE = float(os.getenv("JAVIS_CLAUDE_FIRST_TIMEOUT", "600"))
             busy = {"n": 0}   # số item tool/lệnh đã started mà chưa completed
+            seen = {"dong_dau": False}   # đã có dòng đầu tiên chưa (quyết định dùng trần nào)
             _TOOL_ITEMS = ("command_execution", "mcp_tool_call", "function_call",
                            "tool_call", "local_shell_call", "web_search_call")
             try:
@@ -720,14 +725,26 @@ class CodexCLI:
 
                 def _watchdog(p):
                     while p.poll() is None:
-                        limit = TOOL_IDLE if busy["n"] > 0 else IDLE
+                        if busy["n"] > 0:
+                            limit = TOOL_IDLE
+                        elif seen["dong_dau"]:
+                            limit = IDLE
+                        else:
+                            limit = FIRST_IDLE
                         if time.time() - last["t"] > limit:
                             tinfo["timed_out"] = True
                             _kill_tree(p)
-                            err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo server. "
-                                   f"(tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn)"
-                                   if busy["n"] > 0 else
-                                   f"Codex không phản hồi {int(IDLE)}s - đã dừng để tránh treo server.")
+                            if busy["n"] > 0:
+                                err = (f"Tool chạy quá {int(TOOL_IDLE)}s chưa xong - đã dừng để tránh treo "
+                                       f"server. (tăng JAVIS_CLAUDE_TOOL_TIMEOUT nếu tác vụ thật sự dài hơn)")
+                            elif not seen["dong_dau"]:
+                                err = (f"Codex chưa trả lời gì sau {int(FIRST_IDLE)}s - đã dừng để tránh treo "
+                                       f"server. Hay gặp khi hội thoại đã rất dài: lượt đầu phải nạp lại toàn "
+                                       f"bộ ngữ cảnh nên lâu. Mở hội thoại mới thường hết ngay. "
+                                       f"(tăng JAVIS_CLAUDE_FIRST_TIMEOUT nếu muốn chờ lâu hơn)")
+                            else:
+                                err = (f"Codex đang trả lời rồi im {int(IDLE)}s - đã dừng để tránh treo server. "
+                                       f"(tăng JAVIS_CLAUDE_IDLE_TIMEOUT nếu tác vụ thật sự dài)")
                             asyncio.run_coroutine_threadsafe(queue.put({"__error__": err}), loop)
                             return
                         time.sleep(5)
@@ -744,6 +761,7 @@ class CodexCLI:
                 st.start()
                 for line in proc.stdout:
                     last["t"] = time.time()
+                    seen["dong_dau"] = True   # có chữ rồi → từ đây dùng trần ngắn IDLE
                     line = line.strip()
                     if line:
                         # Theo dõi tool/lệnh đang chạy dở để watchdog nới trần đúng lúc

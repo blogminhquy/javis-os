@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.277] - 2026-07-30
+Chat dài hay bị chém ngang bởi "Claude không phản hồi 180s": im lặng lúc nạp ngữ cảnh không phải là treo.
+### Sửa lỗi
+- **Hội thoại càng dài càng dễ dính "Claude không phản hồi 180s - đã dừng để tránh treo server" (báo từ người dùng thật).** Watchdog chống treo vốn có hai trần: 180 giây cho lúc model im lặng, và 3600 giây cho lúc đang chờ tool chạy (vì render/build im cả tiếng là bình thường). Nó bỏ sót đúng trường hợp thứ ba: khoảng im **trước khi có chữ đầu tiên**. Hội thoại dài thì lượt đầu phải nạp lại toàn bộ ngữ cảnh, model suy nghĩ trước khi phát chữ, có lúc còn tự nén lịch sử - im lúc đó là bình thường, nhưng bị tính là treo và chém ngang. Nay tách trần thứ ba `JAVIS_CLAUDE_FIRST_TIMEOUT` (mặc định 600 giây) chỉ áp cho khoảng chờ chữ đầu; im lặng SAU khi đã có chữ vẫn ngắt ở 180 giây như cũ, nên tác dụng chống treo giữ nguyên. Áp cho CẢ HAI bộ não Claude và ChatGPT/Codex.
+- **Thông báo lỗi nay chỉ được lối thoát người thường làm được.** Câu cũ chỉ bảo đi tăng biến môi trường, thứ đa số người dùng không biết đặt ở đâu. Câu mới nói rõ hay gặp khi hội thoại đã rất dài và **mở hội thoại mới thường hết ngay**, biến môi trường vẫn nêu cho ai muốn chỉnh. Ba tình huống ngắt giờ có ba câu khác nhau, đọc là biết đang gặp bệnh nào.
+### Cải thiện
+- Thêm `test_watchdog_treo.py` khoá quan hệ ba trần ở cả hai engine (chờ chữ đầu > im giữa chừng, chờ tool là dài nhất), cờ đánh dấu phải thật sự được lật, và nội dung ba thông báo.
+- `test_sdk_engine.py` thay ca kiểm chứng cũ bằng bốn ca chạy thật qua engine giả: tool chạy lâu thì sống, đã có chữ rồi mới im thì ngắt ở IDLE, chờ chữ đầu lâu hơn IDLE nhưng dưới FIRST thì sống, im quá cả FIRST thì vẫn ngắt. Ca cuối quan trọng nhất: nới trần mà quên chặn là đổi lỗi này lấy lỗi treo vô hạn.
+
 ## [0.9.276] - 2026-07-30
 Lỗi của dịch vụ trả về giữa lúc gọi tool nay được Javis chẩn đoán tại chỗ, thay vì để model tự đoán rồi đoán sai.
 ### Sửa lỗi
