@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.269] - 2026-07-30
+Khung nhập ở tab Trò chuyện lòi dải xám đen, và nút phụ ở trang Model mất chữ khi rê chuột.
+### Sửa lỗi
+- **Khung nhập ở tab Trò chuyện không cùng màu với khung nhập ở màn Javis.** CSS của tab gõ cứng `background: rgba(24,24,34,.6)` thay vì lấy token nền, nên tông sáng lòi ra một dải xám đen giữa nền giấy trắng, còn tông tối thì lệch nhẹ so với bản gốc. Giờ dùng `var(--bg2)` và bo góc 18px đúng như thanh nhập ở màn Javis. Lớp phóng to chat cũng chỉnh theo, nên cả ba chỗ đặt chat (cockpit, tab Trò chuyện, lớp phóng to) trông như một. Nhân tiện đổi nốt hai chỗ gõ cứng còn lại trong cùng khối: nền cột lịch sử dùng `var(--surface-1)`, bóng ngăn kéo mobile dùng `var(--shadow-veil)`.
+- **Nút phụ ở trang Model mất chữ khi rê chuột, cả tông tối lẫn tông sáng.** Năm nút (Qua trình duyệt, Ngắt x3, Kiểm tra lại) viết `style="background:transparent"` thẳng trên thẻ. Style inline thắng mọi rule `:hover`, nên khi rê chuột chỉ nửa hiệu ứng chạy: nền vẫn trong suốt còn chữ đã đổi sang `var(--on-accent)` - vốn là màu dành cho chữ ĐẶT TRÊN nền cam đặc. Tông tối thì `--on-accent` gần đen nằm trên nền tối, tông sáng thì nó trắng nằm trên nền trắng: hai bên đều tàng hình. Chuyển cả năm sang class `.gcard-btn.ghost` sẵn có, hover ra nền mờ + chữ đậm lên.
+### Cải thiện
+- Nút `disabled` không còn tô cam khi rê chuột (tô cam xong chữ đổi màu trong khi độ mờ hạ xuống là đọc không ra) - giữ nguyên bộ mặt thường.
+- Thêm `test_theme_tokens.py` canh hai luật này: không gõ cứng màu trong CSS tiêm động của tab Trò chuyện, và không dùng `style="background:transparent"` trên nút có `:hover`. Đây là loại lỗi chỉ lộ ra khi lật tông hoặc khi rê chuột, mắt thường lướt qua code không thấy.
+
 ## [0.9.268] - 2026-07-30
 Tải lại trang hoặc mở thêm tab giờ vào lại đúng hội thoại đang dở.
 ### Cải thiện

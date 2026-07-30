@@ -1382,7 +1382,9 @@ body.chat-zoomed .chat-stage { display: flex; }
 .chat-stage-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .chat-stage-body > * { width: 100%; max-width: 980px; margin-left: auto; margin-right: auto; }
 .chat-stage-body .transcript { flex: 1 1 auto; min-height: 0; max-height: none; background: transparent; }
-.chat-stage-body .hud-voice { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; margin: 0 auto; }
+/* Cùng bộ mặt với thanh nhập ở màn Javis (--bg2 + bo 18px) để 3 chỗ đặt chat
+   (cockpit · tab Trò chuyện · lớp phóng to) trông như một. */
+.chat-stage-body .hud-voice { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; margin: 0 auto; }
 .chat-stage-body .attach-bar { flex: none; }
 /* xoá dải composer trống ở đáy cockpit khi đang phóng to (composer đã dời vào lớp nổi) */
 body.chat-zoomed .hud { grid-template-rows: 52px 1fr 0; }

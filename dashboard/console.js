@@ -2522,9 +2522,9 @@
           ${provHead(p, on, "Device code", st)}
           <div class="prov-action" style="flex-wrap:wrap">
             ${on
-              ? `<button class="gcard-btn" data-oauth-disc="1" style="background:transparent;opacity:.75">Ngắt</button>`
+              ? `<button class="gcard-btn ghost" data-oauth-disc="1">Ngắt</button>`
               : `<button class="gcard-btn" data-oauth-login="1">Đăng nhập ChatGPT</button>
-                 <button class="gcard-btn" data-oauth-browser="1" style="background:transparent;opacity:.85">Qua trình duyệt</button>`}
+                 <button class="gcard-btn ghost" data-oauth-browser="1">Qua trình duyệt</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
         </div>`;
@@ -2546,7 +2546,7 @@
       return `<div class="prov-card ${p.is_main ? "main" : ""}">
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "chat", (on ? "● Đã kết nối" : "○ Chưa kết nối") + " · " + p.models.length + " model")}
         ${p.needs_key
-          ? `<div class="prov-action"><input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? "Đổi key (•••" + esc(masked) + ")" : "Dán API key để kết nối"}"><button class="gcard-btn" data-pk="${p.id}">${on ? "Đổi key" : "Kết nối"}</button>${on ? `<button class="gcard-btn" data-disc="${p.id}" style="background:transparent;opacity:.75">Ngắt</button>` : ""}</div>`
+          ? `<div class="prov-action"><input class="js-input" id="pk-${p.id}" type="password" placeholder="${on ? "Đổi key (•••" + esc(masked) + ")" : "Dán API key để kết nối"}"><button class="gcard-btn" data-pk="${p.id}">${on ? "Đổi key" : "Kết nối"}</button>${on ? `<button class="gcard-btn ghost" data-disc="${p.id}">Ngắt</button>` : ""}</div>`
           : `<div class="prov-note">Dùng đăng nhập Claude Code - không cần key</div>`}
       </div>`;
     };
@@ -2647,7 +2647,7 @@
     if (d.connected) {
       st.className = "prov-status on";
       st.textContent = "● Đã kết nối" + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "");
-      act.innerHTML = `<button class="gcard-btn" id="cliLogout" style="background:transparent;opacity:.75">Ngắt</button>`;
+      act.innerHTML = `<button class="gcard-btn ghost" id="cliLogout">Ngắt</button>`;
       el.querySelector("#cliLogout").onclick = async () => {
         const b = el.querySelector("#cliLogout"); b.disabled = true; b.textContent = "Đang ngắt…";
         try { await fetch("/claude/logout", { method: "POST" }); } catch (e) {}
@@ -2658,7 +2658,7 @@
       st.textContent = d.error ? "○ " + esc(d.error) : "○ Chưa đăng nhập";
       act.innerHTML = `
         <button class="gcard-btn" id="cliLogin">Đăng nhập Claude</button>
-        <button class="gcard-btn" id="cliRecheck" style="background:transparent;opacity:.75">↻ Kiểm tra lại</button>
+        <button class="gcard-btn ghost" id="cliRecheck">↻ Kiểm tra lại</button>
         <span id="cliMsg" class="gcard-meta" style="margin-left:10px;flex:1"></span>
         <div class="prov-note" style="margin-top:8px;line-height:1.6">
           Bấm <b>Đăng nhập Claude</b> → hiện link → mở link đăng nhập claude.ai → dán code (nếu trang yêu cầu) vào ô.
@@ -3973,7 +3973,7 @@
     body.on-chat .hud-body{ visibility:hidden; }
     .chatpage{ display:flex; height:100%; min-height:0; position:relative; }
     .chatpage-side{ width:280px; flex:none; display:flex; flex-direction:column; gap:10px;
-      min-height:0; padding:14px 12px; border-right:1px solid var(--glass-brd); background:rgba(255,255,255,.015); }
+      min-height:0; padding:14px 12px; border-right:1px solid var(--glass-brd); background:var(--surface-1); }
     .chatpage-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 20px 16px; }
     .chatpage-bar{ display:flex; align-items:center; gap:10px; padding:0 4px 10px; flex:none; }
     .cp-title{ font-family:var(--font); font-weight:700; letter-spacing:.5px; color:var(--text); }
@@ -3985,12 +3985,14 @@
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
     .chatpage-slot > *{ width:100%; max-width:900px; margin-left:auto; margin-right:auto; }
     .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; background:transparent; }
-    .chatpage-slot .hud-voice{ background:rgba(24,24,34,.6); border:1px solid var(--border); border-radius:12px; }
+    /* Khung nhập giữ NGUYÊN bộ mặt của thanh nhập ở màn Javis (--bg2 + bo 18px). Trước đây
+       gõ cứng rgba(24,24,34,.6) nên tông sáng lòi ra một dải xám đen giữa nền giấy. */
+    .chatpage-slot .hud-voice{ background:var(--bg2); border:1px solid var(--border); border-radius:18px; }
     .chatpage-slot .attach-bar{ flex:none; }
     @media (max-width:860px){
       .cp-side-toggle{ display:inline-block; }
       .chatpage-side{ position:absolute; left:0; top:0; bottom:0; z-index:6; width:min(84vw,300px);
-        transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px rgba(0,0,0,.5); background:var(--bg); }
+        transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px var(--shadow-veil); background:var(--bg); }
       .chatpage.side-open .chatpage-side{ transform:none; }
       .chatpage-main{ padding:10px 12px 12px; }
     }`;

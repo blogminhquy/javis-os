@@ -119,7 +119,11 @@ body.in-console .hud-actions { display: none; }
 .js-input:focus { outline: none; border-color: var(--accent); }
 .js-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: 15px; }
 .js-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.gcard-btn.ghost { background: transparent; border-color: var(--glass-brd); }
+/* Nút phụ (Ngắt / Kiểm tra lại / Qua trình duyệt...). Dùng class này thay vì gõ
+   style="background:transparent" ngay trên thẻ: style inline thắng cả rule :hover,
+   nên nền giữ nguyên trong suốt còn chữ đổi sang var(--on-accent) - chữ tàng hình ở
+   cả tông tối lẫn tông sáng. */
+.gcard-btn.ghost { background: transparent; border-color: var(--glass-brd); color: var(--text2); }
 .gcard-btn.ghost:hover { background: var(--surface-2); color: var(--text); border-color: var(--text2); }
 .gcard-btn { width: auto; padding: 9px 16px; }
 .gcard .gcard-btn { width: 100%; }   /* nút trong card model vẫn full-width */
@@ -308,6 +312,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-family: var(--font); font-size: 14px; transition: all 0.18s;
 }
 .gcard-btn:hover { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); }
+/* Nút đang bận/khoá: giữ nguyên bộ mặt thường, không tô cam khi rê chuột (tô cam
+   xong chữ đổi sang var(--on-accent) trong khi opacity hạ xuống là đọc không ra). */
+.gcard-btn:disabled { cursor: not-allowed; }
+.gcard-btn:disabled:hover { background: var(--surface-2); border-color: var(--glass-brd); color: var(--text); }
+.gcard-btn.ghost:disabled:hover { background: transparent; color: var(--text2); }
 .gcard.current .gcard-btn { background: var(--accent-wash-2); border-color: var(--accent); color: var(--accent); }
 
 .cview-section { margin-bottom: 28px; }
