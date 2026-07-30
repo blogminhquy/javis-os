@@ -102,6 +102,9 @@ body.in-console .hud-actions { display: none; }
 /* Select Brain - dời lên navbar (header trái), dùng dropdown sẵn có (.orb-graph-ctl) */
 .hud-top .navbar-brain { position: static; z-index: auto; gap: 8px; }
 .hud-top .navbar-brain .graph-select { max-width: 200px; }
+/* Icon bộ não đứng trước dropdown chọn brain - đi theo khối .navbar-brain kể cả
+   khi mobile-chat.js dời cả khối vào rail, nên không cần rule riêng cho mobile. */
+.navbar-brain .brain-select-ico { color: var(--accent); font-size: 17px; }
 @media (max-width: 860px) {
   .hud-top .navbar-brain .graph-stats { display: none; }   /* mobile: ẩn stats cho gọn */
 }

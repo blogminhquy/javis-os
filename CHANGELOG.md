@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.264] - 2026-07-30
+Thêm icon bộ não trước dropdown chọn brain trên thanh trên cùng.
+### Cải thiện
+- **Cụm chọn bộ não trên navbar giờ có icon brain** đứng trước dropdown, màu cam theo accent, kèm chú thích cho trình đọc màn hình. Icon nằm trong khối `.navbar-brain` nên mobile dời cụm này vào rail thì icon cũng đi theo, không cần xử lý riêng.
+
 ## [0.9.263] - 2026-07-30
 Lối lọt thứ tư của đợt đổi emoji sang icon Lucide: tiêu đề trang in nguyên tên icon.
 ### Sửa lỗi
