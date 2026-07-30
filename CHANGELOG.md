@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.271] - 2026-07-30
+Lịch Google báo "thiếu quyền" mãi không hết dù xoá đi cài lại: chính danh sách quyền Javis xin mới là chỗ sai.
+### Sửa lỗi
+- **Google Calendar trả `ACCESS_TOKEN_SCOPE_INSUFFICIENT` ở bước tìm giờ trống, cài lại bao nhiêu lần cũng dính (báo từ người dùng thật).** Javis chỉ xin đúng một phạm vi gộp `auth/calendar`, nhưng server MCP chính chủ của Google đòi các phạm vi HẠT NHỎ: `calendar.calendarlist.readonly`, `calendar.events.readonly` và nhất là `calendar.events.freebusy` cho `suggest_time`. Thiếu freebusy thì đăng nhập vẫn xanh, `list_calendars` vẫn chạy, chỉ đúng lúc kiểm tra rảnh bận mới chết - nên xoá kết nối tạo lại chẳng đổi được gì, lần nào cũng xin lại đúng bộ quyền thiếu đó. Connector Lịch nay xin đủ 5 phạm vi (giữ cả `calendar` + `calendar.events` cho nhóm tool ghi); Gmail xin thêm `gmail.readonly`, `gmail.compose`, `gmail.labels` cho cùng lý do (ba cái này nằm trong `gmail.modify` nên không nới quyền). **Ai đang đấu Lịch/Gmail phải bấm Đăng nhập lại một lần** - token cũ chỉ mang những quyền xin ở bản trước.
+- **Nút Test báo xanh trong khi kết nối thiếu quyền.** Tool validate của Lịch là `list_calendars`, chỉ cần phạm vi danh sách lịch, nên nó chạy ngon lành và cả trang Kết nối lẫn vòng check sức khoẻ đều báo ổn. Giờ Javis LƯU danh sách phạm vi thật được cấp (đọc từ token response, cả lúc đăng nhập lẫn lúc refresh) và đối chiếu với phạm vi catalog đang xin: thiếu là báo đỏ ngay, gọi đích danh quyền còn thiếu, kèm nút Kết nối lại. Token lưu từ bản cũ chưa có thông tin này thì coi là "chưa biết" và im lặng, không bắt ai đăng nhập lại vô cớ.
+- **Lỗi thiếu quyền lúc gọi tool nay nói thẳng thiếu quyền nào** và nói rõ xoá kết nối tạo lại không chữa được, phải Đăng nhập lại sau khi cập nhật - thay vì câu chung chung "tick chọn đầy đủ các quyền" khiến người dùng đi soát lại màn hình đồng ý mà không thấy gì sai.
+- **Tool bị mức quyền ẩn giờ được KỂ RA thay vì biến mất im lặng.** Kết nối Lịch mặc định mức Chỉ đọc nên `create_event` không có trong danh sách tool, model đi tìm không thấy rồi kết luận sai là kết nối hỏng (đúng vệt hỏi "tạo lịch sáng mai 9h" của người dùng). `javis_connections` nay trả thêm `tool_bi_an_do_quyen` + cách mở, và `javis_search_tools` kèm lưu ý khi nguồn vừa tìm thấy còn tool đang bị che - để Javis nói đúng câu "kết nối đang ở mức Chỉ đọc, anh nâng lên Ghi nháp thì em tạo được", chứ không tự nâng quyền.
+### Cải thiện
+- Hướng dẫn đấu Lịch/Gmail bổ sung hai bước hay bị bỏ sót: bật **People API** (server MCP dùng khi tìm giờ trống có người tham dự) và khai đủ phạm vi ở trang **Quyền dữ liệu** của Google Auth Platform, kèm nút mở thẳng hai trang đó. Guide cũng nói hẳn vì sao phải đủ 5 phạm vi và nhắc TICK HẾT các ô ở màn hình đồng ý.
+- Thêm `test_scope_google.py`: 33 phép thử khoá danh sách scope trong catalog, phép so scope được cấp (kể cả bẫy Google trả `email` dưới dạng URL `userinfo.email`), canary "chưa biết thì không đoán bừa là thiếu", nội dung ba đường báo lỗi, và soát cho chắc validate/health thật sự có đi qua bộ kiểm scope.
+
 ## [0.9.270] - 2026-07-30
 Javis hết thiên về Claude: bộ não nào cũng đủ năng lực như nhau, và banner đỏ đòi đăng nhập Claude không còn làm phiền máy chạy OpenRouter.
 ### Sửa lỗi

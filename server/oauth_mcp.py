@@ -43,6 +43,59 @@ def _conn(conn_id):
     return next((c for c in mcp_store.resolved(enabled_only=False) if c["id"] == conn_id), None)
 
 
+# ─────────────────────── Scope đã được cấp (chống "xanh mà thiếu quyền") ───────────────────────
+# Vì sao tồn tại: Google cấp token theo TỪNG scope, và mỗi tool của server MCP chỉ nhận một
+# danh sách scope nhất định. Token thiếu một scope vẫn đăng nhập xanh, tools/list vẫn chạy,
+# validate cũng có thể xanh (list_calendars chỉ cần scope danh sách lịch) - nhưng đúng tool cần
+# scope đó thì Google trả ACCESS_TOKEN_SCOPE_INSUFFICIENT. Trước đây Javis không lưu scope thật
+# nên không phân biệt nổi "chưa đăng nhập" với "đăng nhập rồi mà thiếu quyền", và người dùng xoá
+# đi cài lại mãi vẫn dính vì bản thân danh sách scope Javis xin mới là chỗ sai.
+_SCOPE_ALIAS = {   # xin bằng tên ngắn, Google trả về dạng URL đầy đủ
+    "email": "https://www.googleapis.com/auth/userinfo.email",
+    "profile": "https://www.googleapis.com/auth/userinfo.profile",
+}
+_IDENTITY_SCOPES = {"openid", "https://www.googleapis.com/auth/userinfo.email",
+                    "https://www.googleapis.com/auth/userinfo.profile"}
+
+
+def _norm_scope(s):
+    s = (s or "").strip()
+    return _SCOPE_ALIAS.get(s, s)
+
+
+def required_scopes(conn_id):
+    """Scope catalog đang xin cho connection này (đã chuẩn hoá tên)."""
+    conn = _conn(conn_id) or {}
+    auth = (conn.get("connector") or {}).get("auth") or {}
+    return [_norm_scope(s) for s in (auth.get("scopes") or []) if str(s).strip()]
+
+
+def granted_scopes(conn_id):
+    """Scope nhà cung cấp THẬT SỰ cấp, đọc từ token response. [] nghĩa là CHƯA BIẾT
+    (token lưu trước bản này, hoặc nhà cung cấp không trả trường scope - vd Meta)."""
+    ent = _load().get(conn_id) or {}
+    return [_norm_scope(s) for s in str(ent.get("scopes") or "").split() if s.strip()]
+
+
+def scope_report(conn_id):
+    """{known, granted, required, missing}. missing = scope catalog xin mà token không có.
+    known=False → missing RỖNG: không biết thì không đoán bừa là thiếu (thà bỏ sót còn hơn
+    bắt user đăng nhập lại vô cớ). Scope định danh (openid/email) không tính vào missing vì
+    chúng chỉ để lấy tên tài khoản, không tool nào chết vì thiếu chúng."""
+    granted = granted_scopes(conn_id)
+    required = required_scopes(conn_id)
+    if not granted:
+        return {"known": False, "granted": [], "required": required, "missing": []}
+    have = set(granted)
+    return {"known": True, "granted": granted, "required": required,
+            "missing": [s for s in required if s not in have and s not in _IDENTITY_SCOPES]}
+
+
+def short_scopes(scopes):
+    """Rút gọn scope cho thông báo người đọc: bỏ tiền tố googleapis dài ngoằng."""
+    return [str(s).replace("https://www.googleapis.com/auth/", "") for s in (scopes or [])]
+
+
 # ─────────────────────── Facebook / Meta (BYO app → Graph API) ───────────────────────
 # Meta KHÁC OAuth chuẩn: (1) đổi code→token bằng GET (không grant_type), client_secret BẮT BUỘC,
 # KHÔNG PKCE ở luồng classic; (2) KHÔNG cấp refresh_token - token dài hạn ~60 ngày lấy bằng
@@ -302,6 +355,10 @@ async def handle_callback(state, code):
     ent.update(access_token=secrets_store.encrypt(tk["access_token"]),
                refresh_token=secrets_store.encrypt(tk.get("refresh_token", "")),
                provider=p.get("provider", ""),
+               # scope THẬT được cấp (không phải scope đã xin): dùng để phát hiện "đăng nhập
+               # xanh nhưng thiếu quyền" mà không phải chờ một tool cụ thể chết. Không phải bí
+               # mật (chỉ là danh sách phạm vi) nên lưu thẳng, khỏi mã hoá.
+               scopes=str(tk.get("scope") or ""),
                expires_at=time.time() + float(tk.get("expires_in") or (5184000 if is_meta else 3600)))
     store[p["conn_id"]] = ent
     _save(store)
@@ -342,6 +399,8 @@ async def _refresh(conn_id, ent):
         return None
     ent.update(access_token=secrets_store.encrypt(tk["access_token"]),
                expires_at=time.time() + float(tk.get("expires_in") or 3600))
+    if tk.get("scope"):   # Google trả lại scope mỗi lần refresh - giữ bản mới nhất
+        ent["scopes"] = str(tk["scope"])
     if tk.get("refresh_token"):
         ent["refresh_token"] = secrets_store.encrypt(tk["refresh_token"])
     store = _load()
@@ -390,7 +449,9 @@ def credentials_file(conn_id, fmt):
 
 def status(conn_id):
     ent = _load().get(conn_id) or {}
-    return {"connected": bool(ent.get("access_token")), "expires_at": float(ent.get("expires_at") or 0)}
+    rep = scope_report(conn_id)
+    return {"connected": bool(ent.get("access_token")), "expires_at": float(ent.get("expires_at") or 0),
+            "scopes_known": rep["known"], "scopes_missing": short_scopes(rep["missing"])}
 
 
 def forget(conn_id):

@@ -249,14 +249,25 @@ def _safe_path(vault_root, p):
     return target
 
 
-def _connections_json(include_ambient=False):
+def _connections_json(include_ambient=False, hidden=None):
+    hidden = hidden or {}
     out = []
     for c in mcp_store.list_connections():
         con = mcp_catalog.get(c.get("connector_id")) or {}
-        out.append({"connector": con.get("name") or c.get("connector_id"), "label": c.get("label"),
-                    "namespace": c.get("slug"), "perm": c.get("perm"), "enabled": c.get("enabled"),
-                    "is_default": c.get("is_default"), "transport": c.get("transport"),
-                    "source": "javis_hub"})
+        rec = {"connector": con.get("name") or c.get("connector_id"), "label": c.get("label"),
+               "namespace": c.get("slug"), "perm": c.get("perm"), "enabled": c.get("enabled"),
+               "is_default": c.get("is_default"), "transport": c.get("transport"),
+               "source": "javis_hub"}
+        # Tool bị mức quyền GIẤU khỏi danh sách. Không kể ra thì model tưởng nguồn này không
+        # làm được việc đó và đi đường vòng (vụ Lịch mức Chỉ đọc: create_event biến mất, model
+        # loay hoay tìm tool tạo sự kiện rồi kết luận sai là kết nối hỏng).
+        h = hidden.get(c.get("id")) or {}
+        if h.get("tools"):
+            rec["tool_bi_an_do_quyen"] = sorted(h["tools"])[:15]
+            rec["cach_mo"] = (f"Các tool này CÓ THẬT nhưng bị ẩn vì kết nối đang ở mức "
+                              f"'{h.get('perm')}'. Muốn dùng thì bảo user tự nâng mức ở trang "
+                              "Kết nối - Javis KHÔNG tự nâng quyền.")
+        out.append(rec)
     # Connector đấu vào TÀI KHOẢN Claude (Drive/Gmail/lịch...): engine Claude đã có sẵn dưới dạng
     # tool native mcp__<server>__* → chỉ model gọi THẲNG, KHÔNG bọc qua javis_run_tool/hub.
     if include_ambient:
@@ -277,11 +288,13 @@ def _list_skills(vault_root):
     return skill_router.enabled_slugs(vault_root)
 
 
-def _builtin_tools(mode, vault_root, include_ambient=False):
+def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
-    Claude (Drive/Gmail...) để model biết chúng tồn tại (gọi qua tool native mcp__*, không qua hub)."""
+    Claude (Drive/Gmail...) để model biết chúng tồn tại (gọi qua tool native mcp__*, không qua hub).
+    hidden: {conn_id: {perm, tools}} tool bị mức quyền lọc khỏi danh sách - kể ra trong
+    javis_connections để model biết mà nói đúng lý do thay vì tưởng nguồn thiếu năng lực."""
     tools, route = [], {}
 
     def add(name, description, props, required, call):
@@ -290,10 +303,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False):
         route[name] = {"call": call}
 
     add("javis_connections", "Liệt kê các nguồn dữ liệu (connector/tài khoản MCP) đang đấu vào Javis, "
-        "kèm mức quyền. Gồm cả connector đấu vào TÀI KHOẢN Claude (Drive/Gmail/lịch...) - loại "
-        "source='claude_account' gọi THẲNG qua tool native mcp__<tên>__*, KHÔNG qua javis_run_tool. "
-        "Dùng khi cần biết đang có nguồn nào / tài khoản nào là mặc định.",
-        {}, [], lambda args: _async_const(_connections_json(include_ambient)))
+        "kèm mức quyền và các tool đang bị mức quyền ẩn (tool_bi_an_do_quyen). Gồm cả connector đấu "
+        "vào TÀI KHOẢN Claude (Drive/Gmail/lịch...) - loại source='claude_account' gọi THẲNG qua "
+        "tool native mcp__<tên>__*, KHÔNG qua javis_run_tool. Dùng khi cần biết đang có nguồn nào / "
+        "tài khoản nào là mặc định, hoặc khi không tìm thấy tool tưởng phải có.",
+        {}, [], lambda args: _async_const(_connections_json(include_ambient, hidden)))
 
     if not vault_root:
         return tools, route
@@ -455,7 +469,29 @@ def _rank_tools(pool, query, top_k):
     return [t for _s, t in scored[:top_k]]
 
 
-def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k, ambient=None):
+def _hidden_hint(hidden, only_ns=None):
+    """Câu nhắc về tool bị mức quyền ẩn. "" khi không có gì bị ẩn.
+    only_ns: chỉ kể các nguồn trong tập namespace này (dùng khi search ĐÃ trúng nguồn nào đó -
+    lọc theo từ khoá tiếng Việt vô nghĩa vì tên tool là tiếng Anh); None = kể hết.
+    Đây là mảnh thông tin cứu model khỏi kết luận sai "nguồn này không tạo được": tool có thật,
+    chỉ là mức quyền của kết nối đang che nó."""
+    if not hidden:
+        return ""
+    parts = []
+    for h in hidden.values():
+        names = sorted(h.get("tools") or [])
+        if not names or (only_ns is not None and h.get("ns") not in only_ns):
+            continue
+        parts.append(f"{h.get('ns') or '?'} (mức {h.get('perm')}): " + ", ".join(names[:8]))
+    if not parts:
+        return ""
+    return ("Đang bị mức quyền của kết nối ẩn khỏi danh sách - " + "; ".join(parts)
+            + ". Các tool này CÓ THẬT: bảo user nâng mức quyền ở trang Kết nối rồi làm lại, "
+              "ĐỪNG kết luận là nguồn không làm được hay kết nối hỏng.")
+
+
+def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k, ambient=None,
+                          hidden=None):
     """Dựng (tools_spec, route) chế độ lazy: builtins/plugin hiện trực tiếp + 2 meta-tool.
     _search đóng gói `pool` (full tools_spec để xếp hạng); _run đóng gói `full_route` (dispatch
     qua call_route → giữ nguyên _guard quyền/audit/rate-limit).
@@ -469,9 +505,14 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
         hits = _rank_tools(pool, q, top_k)
         amb = _match_ambient(ambient, q)
         if not hits and not amb:
+            hint = _hidden_hint(hidden)
             return ("Không thấy tool khớp. Nguồn đang đấu: " + (menu or "(chưa có nguồn nào)")
-                    + f". Nêu rõ nguồn hoặc việc cần làm rồi gọi lại {_LAZY_SEARCH}.")
+                    + f". Nêu rõ nguồn hoặc việc cần làm rồi gọi lại {_LAZY_SEARCH}."
+                    + (" " + hint if hint else ""))
         payload = {}
+        hint = _hidden_hint(hidden, {t.get("namespace") for t in hits})
+        if hint:
+            payload["luu_y_quyen"] = hint
         if hits:
             payload["tools"] = [{"name": t.get("fn"), "description": (t.get("description") or "")[:400],
                                  "schema": t.get("schema") or {"type": "object", "properties": {}}}
@@ -531,7 +572,7 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     return tools, route
 
 
-def _apply_lazy(tools_spec, route, include_ambient=False):
+def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None):
     """Nếu bật lazy: giấu tool MCP (pool) sau meta-tool search/run; không bật → trả nguyên.
     Pool = tool có route entry mang 'conn' (đến từ connection MCP). Builtins + plugin (entry
     'call' không 'conn') LUÔN hiện trực tiếp - chúng ít và luôn hữu dụng.
@@ -545,7 +586,7 @@ def _apply_lazy(tools_spec, route, include_ambient=False):
     visible_route = {fn: ent for fn, ent in route.items() if fn not in pool_fns}
     _, _, top_k = _lazy_config()
     ambient = _ambient_servers() if include_ambient else []
-    return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k, ambient)
+    return _lazy_tools_and_route(visible_tools, visible_route, pool, route, top_k, ambient, hidden)
 
 
 # ============================================================
@@ -577,6 +618,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     raw_tools, raw_route = await mcp_client.discover_resolved(conns)
 
     tools_spec, route = [], {}
+    hidden = {}          # conn_id -> {"perm", "ns", "tools"} - tool CÓ THẬT nhưng bị quyền lọc
     for t in raw_tools:
         raw = raw_route.get(t["fn"])
         if not raw:
@@ -592,14 +634,14 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
         multiplexed = bool(rules.get("param") and rules["param"] in props)
         cls = "read" if multiplexed else mcp_catalog.classify(connector, raw["tool"], None)
         # Lọc lúc LIST: readonly ẩn tool ghi/nguy hiểm tĩnh; safe ẩn tool nguy hiểm tĩnh.
-        if eff == "readonly" and cls in ("write", "danger"):
-            continue
-        if eff == "safe" and cls == "danger":
+        if (eff == "readonly" and cls in ("write", "danger")) or (eff == "safe" and cls == "danger"):
+            h = hidden.setdefault(conn["id"], {"perm": eff, "ns": conn.get("namespace"), "tools": []})
+            h["tools"].append(raw["tool"])
             continue
         tools_spec.append(t)
         route[t["fn"]] = {"call": _guard(raw, t["fn"], mode), "conn": conn, "tool": raw["tool"]}
 
-    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient)
+    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden)
     tools_spec += b_tools
     route.update(b_route)
 
@@ -628,7 +670,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
-    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient)
+    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden)
     _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt}
     return tools_spec, route
 
@@ -846,9 +888,24 @@ def _extract_label(text, paths):
     return m.group(1) if m else ""
 
 
-def _friendly_tool_error(err):
+def _missing_scope_note(conn_id):
+    """Câu nói thẳng THIẾU ĐÚNG QUYỀN NÀO cho 1 connection oauth, hoặc "" nếu không biết."""
+    if not conn_id:
+        return ""
+    try:
+        import oauth_mcp
+        rep = oauth_mcp.scope_report(conn_id)
+        if rep.get("missing"):
+            return " Token hiện tại thiếu: " + ", ".join(oauth_mcp.short_scopes(rep["missing"])) + "."
+    except Exception as e:
+        print(f"[hub scope] {e}", file=sys.stderr)
+    return ""
+
+
+def _friendly_tool_error(err, conn_id=""):
     """Dịch lỗi validate tool thành lời khuyên ĐÚNG BỆNH cho các lỗi Google/OAuth hay gặp.
     Nhận chuỗi lỗi (đã bỏ tiền tố 'ERROR:'), trả thông báo cho UI. Lỗi lạ giữ hành vi cũ.
+    conn_id (tuỳ chọn): có thì nhánh thiếu scope nói luôn THIẾU CÁI GÌ, không bắt người dùng đoán.
 
     Vì sao: server MCP hosted của Google (calendarmcp/gmailmcp.googleapis.com) là API RIÊNG
     phải bật thêm + phải ghi danh Workspace Developer Preview. Người dùng thiếu bước đó bị 403
@@ -867,8 +924,14 @@ def _friendly_tool_error(err):
                        " https://developers.google.com/workspace/preview")
         return "API này chưa được bật trong project Google Cloud của bạn." + link + extra
     if "insufficient authentication scopes" in low or "access_token_scope_insufficient" in low:
-        return ("Tài khoản đã kết nối nhưng chưa cấp đủ quyền cho Javis (có thể lúc đồng ý đã"
-                " bỏ bớt ô tick). Bấm Đăng nhập lại và tick chọn đầy đủ các quyền.")
+        # Đây KHÔNG phải lỗi hỏng key: token đúng nhưng thiếu đúng một phạm vi quyền. Xoá đi cài
+        # lại không chữa được nếu bản Javis đang chạy xin thiếu scope (vụ suggest_time cần
+        # calendar.events.freebusy) - nên phải nói rõ là đăng nhập LẠI sau khi cập nhật.
+        return ("Tài khoản đã kết nối nhưng token chưa đủ phạm vi quyền cho tool này."
+                + _missing_scope_note(conn_id) +
+                " Bấm Đăng nhập lại và tick chọn đầy đủ các quyền. Nếu vừa cập nhật Javis thì"
+                " BẮT BUỘC đăng nhập lại: token cũ chỉ mang những quyền xin ở bản trước, xoá"
+                " kết nối rồi tạo lại cũng không thêm được quyền mới.")
     if ("missing required authentication credential" in low or "unauthenticated" in low
             or "invalid_grant" in low or "invalid_token" in low):
         return "Phiên đăng nhập hỏng hoặc hết hạn. Bấm Đăng nhập lại để lấy token mới."
@@ -887,6 +950,20 @@ async def validate_connection(conn_id):
         tm = (conn.get("connector") or {}).get("tool_meta") or {}
         n = len((tm.get("read") or []) + (tm.get("write") or []) + (tm.get("danger") or []))
         return {"ok": True, "label": "", "tools": n, "error": ""}
+    # Soát scope TRƯỚC khi dial: tool validate chỉ chạm một góc nhỏ của dịch vụ (Lịch dùng
+    # list_calendars, chỉ cần scope danh sách lịch) nên token thiếu quyền vẫn cho Test màu xanh,
+    # rồi user mới vỡ ra lúc nhờ tìm giờ trống. Kiểm tại đây thì báo đúng bệnh ngay từ trang Kết nối.
+    if conn.get("auth") == "oauth":
+        try:
+            import oauth_mcp
+            rep = oauth_mcp.scope_report(conn_id)
+            if rep.get("missing"):
+                return {"ok": False, "label": "", "tools": 0,
+                        "error": "Đăng nhập rồi nhưng token thiếu quyền: "
+                                 + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
+                                 + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền."}
+        except Exception as e:
+            print(f"[hub scope] {e}", file=sys.stderr)
     spec = mcp_client._conn_spec(conn)
     try:
         spec["headers"].update(await mcp_client._oauth_headers(conn))
@@ -904,6 +981,6 @@ async def validate_connection(conn_id):
         res = await mcp_client.pool.call_tool(spec, val["tool"], val.get("args") or {})
         if str(res).startswith("ERROR:"):
             return {"ok": False, "label": "", "tools": len(tools),
-                    "error": _friendly_tool_error(str(res)[7:])}
+                    "error": _friendly_tool_error(str(res)[7:], conn_id)}
         label = _extract_label(str(res), val.get("label_paths"))
     return {"ok": True, "label": label, "tools": len(tools), "error": ""}

@@ -66,6 +66,16 @@ async def check_one(conn, pool=None) -> dict:
                            message="Chưa hoàn tất đăng nhập - bấm Kết nối lại để đăng nhập.")
                 _state[conn["id"]] = rec
                 return rec
+            # Đăng nhập rồi nhưng token THIẾU PHẠM VI QUYỀN: tools/list của Google không cần
+            # token nên ping bên dưới vẫn xanh, chỉ tool thật mới chết. Không soi ở đây thì
+            # trang Kết nối nói dối là mọi thứ ổn (vụ Lịch thiếu calendar.events.freebusy).
+            missing = oauth_mcp.scope_report(conn["id"]).get("missing") or []
+            if missing:
+                rec.update(kind="auth",
+                           message="Thiếu quyền: " + ", ".join(oauth_mcp.short_scopes(missing))
+                                   + " - bấm Kết nối lại và tick đủ mọi ô quyền.")
+                _state[conn["id"]] = rec
+                return rec
         except Exception:
             pass
     # Connector ẢO (không URL, không command): tool do plugin phục vụ (vd Meta Ads Graph),

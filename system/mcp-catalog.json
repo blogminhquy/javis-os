@@ -695,25 +695,37 @@
         "provider": "google",
         "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
         "token_url": "https://oauth2.googleapis.com/token",
-        "scopes": ["openid", "email", "https://www.googleapis.com/auth/calendar"],
+        "_scopes_doc": "Server MCP Lịch của Google KHÔNG nhận mỗi scope gộp 'auth/calendar'. Tài liệu chính chủ (Configure the Calendar MCP server) đòi các scope HẠT NHỎ: calendar.calendarlist.readonly, calendar.events.readonly và calendar.events.freebusy. Thiếu freebusy là suggest_time (tìm giờ trống) trả ACCESS_TOKEN_SCOPE_INSUFFICIENT dù đăng nhập thành công và list_calendars chạy bình thường. Giữ cả 'calendar' + 'calendar.events' cho nhóm tool ghi (create_event nhận một trong hai).",
+        "scopes": [
+          "openid",
+          "email",
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/calendar.events",
+          "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+          "https://www.googleapis.com/auth/calendar.events.readonly",
+          "https://www.googleapis.com/auth/calendar.events.freebusy"
+        ],
         "authorize_params": { "access_type": "offline", "prompt": "consent", "include_granted_scopes": "true" },
         "fields": [
           { "key": "client_id", "label": "OAuth Client ID", "placeholder": "Ví dụ: xxxx.apps.googleusercontent.com" },
           { "key": "client_secret", "label": "OAuth Client Secret", "placeholder": "Ví dụ: GOCSPX-..." }
         ],
-        "guide": "Server MCP Lịch của Google đang ở giai đoạn Developer Preview: phải ghi danh chương trình (miễn phí) và bật thêm API MCP riêng, thiếu là bị chặn 403 dù đăng nhập thành công.\nLàm 1 lần, khoảng 10 phút:\n1. Ghi danh Google Workspace Developer Preview Program bằng đúng tài khoản Google sẽ đăng nhập (nút bên dưới).\n2. Vào console.cloud.google.com, tạo project, bật CẢ HAI API: Google Calendar API và Google Calendar MCP API (tìm 'Calendar MCP' trong thư viện API, có nút bên dưới).\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Copy Client ID + Client Secret dán vào đây rồi bấm Kết nối.\n\nTrình duyệt sẽ mở để bạn đăng nhập Google và bấm đồng ý. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nĐăng nhập xong mà Test vẫn báo thiếu quyền thì soát lại bước 1 và bước 2, hai bước hay bị bỏ sót nhất.",
+        "guide": "Server MCP Lịch của Google đang ở giai đoạn Developer Preview: phải ghi danh chương trình (miễn phí) và bật thêm API MCP riêng, thiếu là bị chặn 403 dù đăng nhập thành công.\nLàm 1 lần, khoảng 10 phút:\n1. Ghi danh Google Workspace Developer Preview Program bằng đúng tài khoản Google sẽ đăng nhập (nút bên dưới).\n2. Vào console.cloud.google.com, tạo project, bật CẢ BA API: Google Calendar API, Google Calendar MCP API\n(tìm 'Calendar MCP' trong thư viện API, có nút bên dưới) và People API - dùng khi tìm giờ trống có người tham dự.\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Quyền dữ liệu (Data Access) > Thêm hoặc bớt phạm vi: dán đủ 5 phạm vi Lịch dưới đây rồi Cập nhật và Lưu.\nhttps://www.googleapis.com/auth/calendar\nhttps://www.googleapis.com/auth/calendar.events\nhttps://www.googleapis.com/auth/calendar.calendarlist.readonly\nhttps://www.googleapis.com/auth/calendar.events.readonly\nhttps://www.googleapis.com/auth/calendar.events.freebusy\n5. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n6. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n7. Copy Client ID + Client Secret dán vào đây rồi bấm Kết nối.\n\nTrình duyệt sẽ mở để bạn đăng nhập Google và bấm đồng ý. Gặp cảnh báo 'ứng dụng chưa được xác minh'\nthì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\nMàn hình đồng ý có ô tick cho từng nhóm quyền: TICK HẾT, bỏ ô nào là tool tương ứng chết ngay.\n\nVÌ SAO PHẢI ĐỦ 5 PHẠM VI: server MCP của Google không nhận mỗi phạm vi gộp 'calendar'.\nRiêng việc tìm giờ trống (suggest_time) đòi đúng 'calendar.events.freebusy'. Thiếu nó thì đăng nhập\nvẫn xanh, list_calendars vẫn chạy, nhưng hễ kiểm tra rảnh bận là Google trả\nACCESS_TOKEN_SCOPE_INSUFFICIENT - xoá đi cài lại bao nhiêu lần cũng vậy.\n\nĐăng nhập xong mà Test vẫn báo thiếu quyền thì soát lại bước 1, 2 và 4, ba bước hay bị bỏ sót nhất.",
         "guide_url": "https://console.cloud.google.com/apis/credentials",
         "steps": [
           { "text": "Ghi danh Google Workspace Developer Preview (miễn phí) bằng ĐÚNG tài khoản Google sẽ đăng nhập. Bỏ bước này là bị chặn 403 dù đăng nhập thành công.", "link": "https://developers.google.com/workspace/preview", "link_label": "Mở trang ghi danh" },
-          { "text": "Vào Google Cloud tạo project, rồi bật CẢ HAI API: Google Calendar API và Google Calendar MCP API.", "link": "https://console.cloud.google.com/apis/library/calendarmcp.googleapis.com", "link_label": "Bật Calendar MCP API" },
+          { "text": "Vào Google Cloud tạo project, rồi bật CẢ BA API: Google Calendar API, Google Calendar MCP API và People API (dùng khi tìm giờ trống có người tham dự).", "link": "https://console.cloud.google.com/apis/library/calendarmcp.googleapis.com", "link_label": "Bật Calendar MCP API" },
           { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
+          { "text": "Quyền dữ liệu > Thêm hoặc bớt phạm vi: dán đủ 5 phạm vi Lịch (calendar, calendar.events, calendar.calendarlist.readonly, calendar.events.readonly, calendar.events.freebusy). Thiếu freebusy là tìm giờ trống báo thiếu quyền dù đăng nhập thành công.", "link": "https://console.cloud.google.com/auth/scopes", "link_label": "Mở trang Quyền dữ liệu" },
           { "text": "Tạo OAuth client loại 'Ứng dụng web', thêm địa chỉ dưới đây vào ô 'URI chuyển hướng được ủy quyền'.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client", "copy": "redirect" },
           { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục." }
         ],
         "setup": {
           "links": [
             { "label": "Ghi danh Developer Preview", "url": "https://developers.google.com/workspace/preview" },
-            { "label": "Bật Google Calendar MCP API", "url": "https://console.cloud.google.com/apis/library/calendarmcp.googleapis.com" }
+            { "label": "Bật Google Calendar MCP API", "url": "https://console.cloud.google.com/apis/library/calendarmcp.googleapis.com" },
+            { "label": "Bật People API", "url": "https://console.cloud.google.com/apis/library/people.googleapis.com" },
+            { "label": "Khai phạm vi quyền (Data Access)", "url": "https://console.cloud.google.com/auth/scopes" }
           ]
         }
       },
@@ -746,19 +758,28 @@
         "provider": "google",
         "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
         "token_url": "https://oauth2.googleapis.com/token",
-        "scopes": ["openid", "email", "https://www.googleapis.com/auth/gmail.modify"],
+        "_scopes_doc": "Cùng bệnh với Lịch: server MCP Gmail của Google khai scope hạt nhỏ (gmail.readonly, gmail.compose, gmail.labels) trong tài liệu chính chủ, không phải mỗi gmail.modify. Ba scope nhỏ đều NẰM TRONG gmail.modify nên không nới thêm quyền, chỉ để khớp danh sách scope mà từng tool của Google chấp nhận.",
+        "scopes": [
+          "openid",
+          "email",
+          "https://www.googleapis.com/auth/gmail.modify",
+          "https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/gmail.compose",
+          "https://www.googleapis.com/auth/gmail.labels"
+        ],
         "authorize_params": { "access_type": "offline", "prompt": "consent", "include_granted_scopes": "true" },
         "fields": [
           { "key": "client_id", "label": "OAuth Client ID", "placeholder": "Ví dụ: xxxx.apps.googleusercontent.com" },
           { "key": "client_secret", "label": "OAuth Client Secret", "placeholder": "Ví dụ: GOCSPX-..." }
         ],
-        "guide": "Server MCP Gmail của Google đang ở giai đoạn Developer Preview: phải ghi danh chương trình (miễn phí) và bật thêm API MCP riêng, thiếu là bị chặn 403 dù đăng nhập thành công.\nLàm 1 lần, khoảng 10 phút:\n1. Ghi danh Google Workspace Developer Preview Program bằng đúng tài khoản Google sẽ đăng nhập (nút bên dưới).\n2. Vào console.cloud.google.com, tạo project, bật CẢ HAI API: Gmail API và Gmail MCP API (tìm 'Gmail MCP' trong thư viện API, có nút bên dưới).\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Copy Client ID + Client Secret dán vào đây rồi bấm Kết nối.\n\nTrình duyệt sẽ mở để bạn đăng nhập Google và bấm đồng ý. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nCó thể dùng CHUNG một OAuth client với Google Calendar, chỉ cần bật thêm Gmail API + Gmail MCP API.\nĐăng nhập xong mà Test vẫn báo thiếu quyền thì soát lại bước 1 và bước 2, hai bước hay bị bỏ sót nhất.",
+        "guide": "Server MCP Gmail của Google đang ở giai đoạn Developer Preview: phải ghi danh chương trình (miễn phí) và bật thêm API MCP riêng, thiếu là bị chặn 403 dù đăng nhập thành công.\nLàm 1 lần, khoảng 10 phút:\n1. Ghi danh Google Workspace Developer Preview Program bằng đúng tài khoản Google sẽ đăng nhập (nút bên dưới).\n2. Vào console.cloud.google.com, tạo project, bật CẢ HAI API: Gmail API và Gmail MCP API (tìm 'Gmail MCP' trong thư viện API, có nút bên dưới).\n3. Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.\n4. Thông tin xác thực > Tạo OAuth client ID loại 'Ứng dụng web'.\n5. Ở phần 'URI chuyển hướng được ủy quyền', thêm đúng địa chỉ này:\nhttp://localhost:7777/connect/oauth/callback\nNếu chạy trên VPS thì thêm cả https://<tên-miền>/connect/oauth/callback\n6. Copy Client ID + Client Secret dán vào đây rồi bấm Kết nối.\n\nTrình duyệt sẽ mở để bạn đăng nhập Google và bấm đồng ý. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao > Tiếp tục, vì đây là app của chính bạn.\n\nCó thể dùng CHUNG một OAuth client với Google Calendar, chỉ cần bật thêm Gmail API + Gmail MCP API và khai thêm phạm vi Gmail ở trang Quyền dữ liệu.\nMàn hình đồng ý có ô tick cho từng nhóm quyền: TICK HẾT, bỏ ô nào là tool tương ứng chết ngay.\nĐăng nhập xong mà Test vẫn báo thiếu quyền thì soát lại bước ghi danh, bước bật API và bước khai phạm vi - ba bước hay bị bỏ sót nhất.",
         "guide_url": "https://console.cloud.google.com/apis/credentials",
         "steps": [
           { "text": "Đã đấu Google Calendar rồi thì DÙNG LẠI key của nó (nút bên dưới ô nhập), chỉ cần làm thêm bước 2 cho Gmail.", "link": "", "link_label": "" },
           { "text": "Ghi danh Google Workspace Developer Preview (miễn phí) bằng ĐÚNG tài khoản Google sẽ đăng nhập. Bỏ bước này là bị chặn 403 dù đăng nhập thành công.", "link": "https://developers.google.com/workspace/preview", "link_label": "Mở trang ghi danh" },
           { "text": "Vào Google Cloud tạo project (hoặc dùng project sẵn có), bật CẢ HAI API: Gmail API và Gmail MCP API.", "link": "https://console.cloud.google.com/apis/library/gmailmcp.googleapis.com", "link_label": "Bật Gmail MCP API" },
           { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
+          { "text": "Quyền dữ liệu > Thêm hoặc bớt phạm vi: dán đủ 4 phạm vi Gmail (gmail.modify, gmail.readonly, gmail.compose, gmail.labels). Ba cái sau nằm trong gmail.modify nên không nới quyền, chỉ để khớp danh sách từng tool của Google chấp nhận.", "link": "https://console.cloud.google.com/auth/scopes", "link_label": "Mở trang Quyền dữ liệu" },
           { "text": "Tạo OAuth client loại 'Ứng dụng web', thêm địa chỉ dưới đây vào ô 'URI chuyển hướng được ủy quyền'.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client", "copy": "redirect" },
           { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục." }
         ],
