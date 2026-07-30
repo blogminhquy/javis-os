@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.274] - 2026-07-30
+Đây mới là chỗ hỏng thật của vụ "Lịch báo thiếu quyền, xoá đi cài lại chục lần vẫn vậy": kết nối Google Workspace giữ token ở ngoài Javis, xoá kết nối không dọn được gì.
+### Sửa lỗi
+- **Kết nối Google Workspace (và Google Tasks) xoá đi cài lại KHÔNG hề đăng nhập lại.** Hai thẻ này chạy `workspace-mcp`, một server TỰ lo luồng OAuth của nó và cache token ra `~/.google_workspace_mcp/credentials` - nằm ngoài tầm với của Javis. Xoá kết nối trong Javis chỉ xoá bản ghi của Javis; thêm lại là tiến trình con đọc đúng file token cũ, không mở lại màn đăng nhập Google. Token cấp thiếu quyền thì thiếu vĩnh viễn, và người dùng có cài lại bao nhiêu lần cũng vô ích. Đây chính là vòng lặp mà bản 0.9.271 KHÔNG chạm tới: bản đó sửa danh sách phạm vi quyền của hai thẻ **Google Calendar** và **Gmail** rời (loại OAuth do Javis tự giữ token), không phải thẻ Workspace gộp. Ai đang đi qua thẻ Workspace thì phải chờ đúng bản này.
+- **Mỗi tài khoản một kho token riêng.** Trước đây mọi connection của hai thẻ đó dùng chung một thư mục mặc định, nên hai tài khoản Google giẫm lên nhau. Nay Javis trỏ từng connection vào `connector-cred/<connector>-<slug>` riêng qua biến `WORKSPACE_MCP_CREDENTIALS_DIR`, và **xoá kết nối là xoá token theo** - từ bản này, "xoá đi cài lại" làm đúng cái người dùng tưởng nó làm.
+### Thêm mới
+- **Nút "Đăng nhập lại Google (xoá quyền cũ)"** trong menu của từng tài khoản, chỉ hiện với nguồn tự giữ token kiểu này. Nó vứt token mà GIỮ nguyên kết nối, quyền, tên và danh sách tool chặn; lần gọi tool kế tiếp server tự mở trình duyệt xin lại quyền theo đúng bộ hiện hành. Trước đây nút "Kết nối lại" chỉ lưu lại Client ID/Secret nên không bao giờ đụng được tới token, và người dùng bấm mãi mà Google không hiện lại ô tick quyền nào.
+### Cải thiện
+- Thêm `test_cred_dir_rieng.py`: 27 phép thử khoá cả chuỗi - catalog khai kho token, hai tài khoản ra hai thư mục khác nhau, xoá thật sự xoá, `delete_connection` có dọn theo, endpoint đăng nhập lại không lỡ tay xoá connection, nút chỉ mọc đúng nguồn có kho riêng, và canary cho nguồn không khai thì không đẻ thư mục thừa.
+- **Sau khi cập nhật, ai đang dùng Google Workspace hoặc Google Tasks phải đăng nhập Google lại một lần** (kho token đổi chỗ). Lần gọi tool đầu tiên trình duyệt sẽ tự mở trên máy chạy Javis.
+
 ## [0.9.273] - 2026-07-30
 Đăng nhập lại Google mà không thấy ô tick quyền nào: nói cho người dùng biết đó là bình thường và cách bắt Google hỏi lại.
 ### Cải thiện

@@ -1223,6 +1223,29 @@ async def connect_delete(request: Request):
     return {"ok": ok}
 
 
+@app.post("/connect/relogin")
+async def connect_relogin(request: Request):
+    """Vứt token mà connector tự cache ngoài Javis (workspace-mcp) mà GIỮ nguyên kết nối.
+
+    Vì sao cần một nút riêng: với connector loại này, nút Kết nối lại chỉ lưu lại Client ID/Secret
+    chứ không đụng được token - server con đã có credential trên đĩa nên không bao giờ mở lại màn
+    đăng nhập Google. Token cấp thiếu quyền thì thiếu mãi. Dọn kho token xong, lần gọi tool kế
+    tiếp server tự mở trình duyệt xin lại quyền theo đúng bộ hiện hành."""
+    data = await request.json()
+    cid = (data.get("id") or "").strip()
+    if not cid:
+        return JSONResponse({"ok": False, "error": "Thiếu id kết nối"}, status_code=400)
+    done = mcp_store.forget_cred_dir_by_id(cid)
+    mcp_client.pool.invalidate(cid)   # giết tiến trình con đang giữ token cũ trong RAM
+    mcp_hub.invalidate_cache()
+    connect_health.forget(cid)
+    return {"ok": True, "cleared": done,
+            "message": ("Đã xoá đăng nhập Google cũ. Nhờ Javis làm một việc bất kỳ với nguồn này, "
+                        "trình duyệt trên máy chạy Javis sẽ mở để bạn cấp lại quyền."
+                        if done else
+                        "Kết nối này không tự giữ token riêng, hoặc chưa từng đăng nhập.")}
+
+
 @app.post("/connect/default")
 async def connect_default(request: Request):
     data = await request.json()

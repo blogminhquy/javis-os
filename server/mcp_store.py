@@ -274,6 +274,45 @@ def update_connection(cid, patch):
     return True
 
 
+def _cred_dir(conn, con=None):
+    """{env, path} thư mục token RIÊNG của 1 connection, hoặc None nếu connector không khai.
+
+    Vì sao tồn tại: có connector tự chạy luồng OAuth của nó và cache token ra đĩa NGOÀI tầm với
+    của Javis (workspace-mcp). Không tách thư mục thì (1) nhiều tài khoản giẫm lên nhau và
+    (2) Javis không có cách nào bắt nó đăng nhập lại."""
+    con = con or mcp_catalog.get(conn.get("connector_id"))
+    cd = (con or {}).get("cred_dir") or {}
+    if not cd.get("env"):
+        return None
+    slug = conn.get("slug") or conn.get("id") or ""
+    return {"env": cd["env"],
+            "path": STATE_DIR / "connector-cred" / f"{conn.get('connector_id')}-{slug}"}
+
+
+def forget_cred_dir(conn):
+    """Xoá kho token riêng của 1 connection → lần gọi tool sau connector phải đăng nhập lại.
+    Nhận dict connection (hoặc None). Nuốt lỗi: dọn không được cũng không được chặn việc xoá."""
+    if not conn:
+        return False
+    cred = _cred_dir(conn)
+    if not cred:
+        return False
+    try:
+        import shutil
+        if cred["path"].is_dir():
+            shutil.rmtree(cred["path"])
+            return True
+    except OSError as e:
+        print(f"[mcp_store] dọn cred dir: {e}", file=sys.stderr)
+    return False
+
+
+@_locked
+def forget_cred_dir_by_id(cid):
+    """Bản gọi theo id cho endpoint 'đăng nhập lại' - giữ nguyên connection, chỉ vứt token."""
+    return forget_cred_dir(_find(_load(), cid))
+
+
 @_locked
 def delete_connection(cid):
     try:
@@ -284,6 +323,7 @@ def delete_connection(cid):
     d = _load()
     before = len(d["connections"])
     victim = _find(d, cid)
+    forget_cred_dir(victim)   # token OAuth connector tự giữ ngoài Javis - xoá kết nối là xoá theo
     d["connections"] = [c for c in d["connections"] if c.get("id") != cid]
     if victim and victim.get("is_default"):   # chuyển default cho tài khoản còn lại cùng connector
         for c in d["connections"]:
@@ -355,6 +395,20 @@ def resolved(enabled_only=True):
         if con:
             for k, v in mcp_catalog.build_env(con, secrets).items():
                 env.setdefault(k, v)
+        # Connector tự giữ token OAuth RIÊNG bên ngoài Javis (vd workspace-mcp cache ở
+        # ~/.google_workspace_mcp/credentials). Để mặc định thì mọi tài khoản dùng chung một
+        # kho, và Javis KHÔNG có đường nào dọn - xoá kết nối rồi thêm lại vẫn xài đúng token cũ,
+        # nên token thiếu quyền là thiếu mãi mãi (đúng vụ Lịch báo thiếu quyền của người dùng
+        # thật: cài lại chục lần vô ích vì lần nào cũng đọc lại credential cũ trên đĩa).
+        # Trỏ mỗi connection vào một thư mục riêng thì xoá kết nối là token đi theo, lần gọi
+        # tool kế tiếp server tự mở lại màn đăng nhập Google với đúng bộ quyền hiện hành.
+        cred = _cred_dir(c, con)
+        if cred:
+            try:
+                cred["path"].mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                print(f"[mcp_store] cred dir {cred['path']}: {e}", file=sys.stderr)
+            env.setdefault(cred["env"], str(cred["path"]))
         if (con or {}).get("isolate_home"):
             # Connector kiểu zalo-agent-cli: account active là TOÀN CỤC theo home dir
             # → mỗi connection 1 home riêng để nhiều tài khoản chạy song song không giẫm nhau.

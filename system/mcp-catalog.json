@@ -315,6 +315,8 @@
       "args": ["workspace-mcp", "--tool-tier", "core"],
       "_env_doc": "workspace-mcp nhận Client ID + Secret nên chạy luồng OAuth 'confidential', mà chỗ nó hứng kết quả đăng nhập là http://localhost:8000/oauth2callback - HTTP trần. Thư viện oauthlib mặc định NÉM InsecureTransportError với http, nên thiếu biến này là bấm đồng ý xong quay về vẫn lỗi, không tài nào đăng nhập xong - đúng kiểu bế tắc mà hướng dẫn không nói ra được. README upstream khai biến này 'required'; đây là hằng số kỹ thuật của package, không phải thứ bắt user gõ. An toàn vì callback chỉ chạy trên loopback của chính máy đó.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
+      "_cred_dir_doc": "workspace-mcp tự chạy luồng OAuth của nó và cache token ra đĩa, mặc định ~/.google_workspace_mcp/credentials - NGOÀI tầm với của Javis. Để mặc định thì mọi tài khoản dùng chung một kho và xoá kết nối trong Javis không dọn được gì: token thiếu quyền là thiếu vĩnh viễn, cài lại chục lần cũng đọc lại đúng file cũ. Trỏ mỗi connection vào một thư mục riêng để xoá kết nối là token đi theo, lần gọi tool sau server tự mở lại màn đăng nhập Google với đúng bộ quyền hiện hành.",
+      "cred_dir": { "env": "WORKSPACE_MCP_CREDENTIALS_DIR" },
       "auth": {
         "type": "apikey",
         "fields": [
@@ -373,6 +375,8 @@
       "args": ["workspace-mcp", "--tools", "tasks", "--tool-tier", "complete"],
       "_env_doc": "Cùng server workspace-mcp với connector google-workspace nên dính y hệt: thiếu biến này là oauthlib chặn callback http://localhost, bấm đồng ý xong vẫn không đăng nhập được. Xem _env_doc của google-workspace.",
       "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
+      "_cred_dir_doc": "workspace-mcp tự chạy luồng OAuth của nó và cache token ra đĩa, mặc định ~/.google_workspace_mcp/credentials - NGOÀI tầm với của Javis. Để mặc định thì mọi tài khoản dùng chung một kho và xoá kết nối trong Javis không dọn được gì: token thiếu quyền là thiếu vĩnh viễn, cài lại chục lần cũng đọc lại đúng file cũ. Trỏ mỗi connection vào một thư mục riêng để xoá kết nối là token đi theo, lần gọi tool sau server tự mở lại màn đăng nhập Google với đúng bộ quyền hiện hành.",
+      "cred_dir": { "env": "WORKSPACE_MCP_CREDENTIALS_DIR" },
       "auth": {
         "type": "apikey",
         "fields": [

@@ -78,6 +78,9 @@ def public_catalog():
                        "link_label": s.get("link_label", ""), "copy": s.get("copy", "")}
                       for s in (auth.get("steps") or [])],
             "risk": c.get("risk", ""), "default_perm": c.get("default_perm", "readonly"),
+            # Có kho token riêng ngoài Javis → UI hiện nút "Đăng nhập lại Google (xoá quyền cũ)".
+            # Chỉ trả CÓ hay KHÔNG (bool), không lộ tên biến môi trường ra frontend.
+            "cred_dir": bool(c.get("cred_dir")),
         })
     return out
 
