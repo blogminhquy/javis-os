@@ -281,6 +281,9 @@ function persistSession() {
     localStorage.setItem(SESSION_KEY, JSON.stringify({
       convo: convo.slice(-200),
       sessionId: savedSessionId,
+      // Brain của phiên đang mở. Ảnh trong tin nhắn là đường dẫn TƯƠNG ĐỐI nên phải biết
+      // gốc là brain nào; thiếu nó thì F5 xong đổi brain là ảnh cũ tro sai chỗ rồi 404.
+      brain: (typeof currentBrainPath === "function" ? currentBrainPath() : ""),
       savedAt: Date.now(),
     }));
   } catch (e) {}
@@ -300,7 +303,9 @@ function restoreSession() {
   convo.forEach((t, i) => {
     // t.ts vắng mặt ở tin lưu từ trước bản này -> truyền 0 để ẩn giờ thay vì hiện giờ F5.
     if (t.role === "user") { appendUserMessage(t.text, t.atts || [], t.ts || 0); return; }
-    const el = appendJavisMessage(t.text, t.ts || 0);
+    // t.brain vắng ở tin lưu từ trước bản này -> rơi về brain của cả phiên, rồi mới tới
+    // brain đang chọn. Không có thì hành vi y như cũ, không hỏng thêm gì.
+    const el = appendJavisMessage(t.text, t.ts || 0, t.brain || s.brain);
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
   });
@@ -322,7 +327,10 @@ async function openStoredSession(id) {
     (sess.messages || []).forEach(m => {
       const ts = m.ts ? Math.round(m.ts * 1000) : 0;   // server lưu epoch giây (sessions.py)
       if (m.role === "user") { appendUserMessage(m.content || "", [], ts); convo.push({ role: "user", text: m.content || "", atts: [], ts }); }
-      else if (m.role === "assistant") { appendJavisMessage(m.content || "", ts); convo.push({ role: "javis", text: m.content || "", atts: [], ts }); }
+      // sess.brain: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
+      // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
+      // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
+      else if (m.role === "assistant") { appendJavisMessage(m.content || "", ts, sess.brain); convo.push({ role: "javis", text: m.content || "", atts: [], ts, brain: sess.brain }); }
     });
     savedSessionId = id;          // lượt gửi tiếp theo → server resume đúng phiên này
     // Phiên này đang generate NỀN → gắn bong bóng SỐNG (kèm phần đã stream) để xem tiếp trực tiếp.
@@ -397,10 +405,13 @@ function appendUserMessage(text, attachments, ts) {
     actsHtml("user", ts === undefined ? Date.now() : ts, !!(text || "").trim());
   chatAppend(div); scrollBottom(true);
 }
-function appendJavisMessage(text, ts) {
+// brain (tuỳ chọn): brain của HỘI THOẠI chứa tin này. Bỏ trống = brain đang chọn (tin mới).
+// Truyền vào khi dựng lại tin CŨ, để ảnh trong tin phân giải theo đúng brain của nó thay vì
+// brain đang chọn - nếu không thì mở hội thoại cũ ở brain khác là ảnh 404 rồi biến thành ô xám.
+function appendJavisMessage(text, ts, brain) {
   const div = document.createElement("div");
   div.className = "msg msg-javis";
-  div.innerHTML = `<div class="bubble">${markdownToHtml(text)}</div>` +
+  div.innerHTML = `<div class="bubble">${markdownToHtml(text, brain)}</div>` +
     actsHtml("javis", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
   chatAppend(div); scrollBottom();
   return div;
@@ -424,9 +435,9 @@ function createStreamingBubble() {
   chatAppend(div); scrollBottom();
   return div;
 }
-function markdownToHtml(text) {
+function markdownToHtml(text, brain) {
   // Render đầy đủ (markdown + tô màu code + artifact) nằm ở chat-render.js.
-  if (typeof window.mdToHtml === "function") return window.mdToHtml(text);
+  if (typeof window.mdToHtml === "function") return window.mdToHtml(text, brain);
   // Fallback nếu chat-render.js chưa nạp: bộ render gọn cũ (không có artifact).
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const safeHref = (x) => /^(https?:\/\/|mailto:|\/)/i.test((x || "").trim()) ? x : "";
@@ -452,7 +463,7 @@ function markdownToHtml(text) {
   );
 
   // 2b) Ảnh + link: giữ qua placeholder (NUL) để URL không bị escape. Đường dẫn vault -> /files/raw.
-  const _fileUrl = (p) => `/files/raw?brain=${encodeURIComponent(currentBrainPath())}&path=${encodeURIComponent((p || "").replace(/^\.?\//, ""))}`;
+  const _fileUrl = (p) => `/files/raw?brain=${encodeURIComponent(brain || currentBrainPath())}&path=${encodeURIComponent((p || "").replace(/^\.?\//, ""))}`;
   const _resolveSrc = (s) => { s = (s || "").trim(); return /^(https?:|data:|blob:|\/)/i.test(s) ? s : _fileUrl(s); };
   const _imgHtml = (u, alt) => { const _h = safeHref(u); const _img = `<img class="chat-img" style="max-width:min(100%,440px);border-radius:8px;display:block;margin:6px 0;cursor:zoom-in" src="${esc(u)}" alt="${esc(alt || "")}" loading="lazy">`; return _h ? `<a href="${esc(_h)}" target="_blank" rel="noopener">${_img}</a>` : _img; };
   text = text.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, (_m, name) => ` B${blocks.push(_imgHtml(_resolveSrc(name.trim()), name.trim())) - 1} `);

@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.278] - 2026-07-30
+Ảnh trong khung chat quay đi quay lại là mất: không phải Javis xoá, mà là ghép sai brain rồi bị thay bằng ô xám.
+### Sửa lỗi
+- **Ảnh và tài liệu trong chat biến mất khi mở lại hội thoại (báo từ người dùng thật).** Đường dẫn ảnh trong tin nhắn là đường dẫn TƯƠNG ĐỐI (`attachments/x.png`), không mang thông tin brain. Mỗi lần vẽ lại, bộ render ghép nó với **brain đang chọn trên thanh công cụ** chứ không phải brain của chính hội thoại đó. Mở một hội thoại cũ trong khi đang đứng ở brain khác là URL trỏ sai chỗ, `/files/raw` trả 404, thẻ `img` chạy `onerror` và **bị thay bằng ô xám** - nhìn hệt như Javis vừa gửi ảnh xong tự xoá đi. File vẫn nguyên trong vault. Nay mỗi tin nhắn mang theo brain của hội thoại chứa nó: `mdToHtml` nhận thêm tham số brain, đường khôi phục từ Lịch sử lấy `sess.brain` mà server **vốn đã lưu sẵn** (cột `brain` bảng `sessions`) nhưng trước giờ vứt đi, đường khôi phục từ localStorage lấy brain lưu kèm phiên. Tin lưu từ trước bản này không có trường đó thì rơi về hành vi cũ, không hỏng thêm gì.
+- **Ô xám đổ oan cho "hết hạn".** Nó ghi "Ảnh đã hết hạn" cho MỌI lỗi tải, kể cả khi ảnh còn nguyên và chỉ là ghép sai đường, nên người dùng đi tìm nhầm hướng. Nay ghi trung tính kèm tên file, chú thích rõ hai khả năng: file bị xoá thật, hoặc hội thoại thuộc brain khác với brain đang chọn.
+### Cải thiện
+- Thêm `tests/js/test_chat_anh_theo_brain.js`: 11 phép thử khoá cả ba cú pháp đường dẫn trong vault (ảnh markdown, ảnh `![[...]]`, link tài liệu) đều theo brain của hội thoại, URL ngoài không bị đụng, và hai canary chống rò rỉ - brain của lượt render trước không được dính sang lượt sau, kể cả khi lượt giữa ném lỗi.
+### Chưa sửa
+- File **do người dùng tự đính kèm** vẫn mất khi mở lại hội thoại từ Lịch sử: đường khôi phục đó gán cứng danh sách đính kèm rỗng vì CSDL phiên chưa có chỗ lưu đính kèm theo từng tin. Sửa được nhưng phải thêm cấu trúc lưu trữ, để chủ repo quyết trước.
+
 ## [0.9.277] - 2026-07-30
 Chat dài hay bị chém ngang bởi "Claude không phản hồi 180s": im lặng lúc nạp ngữ cảnh không phải là treo.
 ### Sửa lỗi

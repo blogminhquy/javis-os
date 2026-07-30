@@ -36,7 +36,14 @@
     x = String(x == null ? "" : x).trim();
     return /^(https?:\/\/|mailto:|\/)/i.test(x) ? x : "";
   }
+  // Brain GAN CHO LUOT RENDER hien tai. null = lay brain dang chon tren thanh cong cu.
+  // Vi sao can: duong dan anh trong tin nhan la tuong doi ("attachments/x.png"), khong mang
+  // brain. Truoc day moi lan ve lai deu ghep voi brain DANG chon, nen mo mot hoi thoai cu
+  // trong khi dang o brain khac la anh tro sai cho, 404, roi bi thay bang o xam - nguoi dung
+  // tuong Javis tu xoa anh di. Gan brain cua chinh hoi thoai do vao luot render thi het.
+  var _brainForRender = null;
   function brainPath() {
+    if (_brainForRender != null) return _brainForRender;
     try { return (typeof currentBrainPath === "function") ? currentBrainPath() : ""; }
     catch (e) { return ""; }
   }
@@ -243,10 +250,20 @@
   // Anh khong tai duoc (404 vi da het han trong vung cache, bi xoa tay, hay doi ten) -> thay
   // bang o xam co chu, thay vi de icon vo tro. Phai xuat ra window (xem cuoi file) vi chuoi
   // onerror noi tuyen chay o pham vi toan cuc, khong thay bien trong IIFE nay.
+  // Anh khong tai duoc thi CHUA chac la het han: rat hay gap la ghep sai brain (mo hoi thoai
+  // cu trong khi dang chon brain khac). Cau cu do het cho "het han" nen nguoi dung tuong file
+  // da bi xoa va di tim nham cho. Noi trung tinh + kem ten file de con lan ra.
   function imgGone(el) {
     var box = document.createElement("span");
     box.className = "chat-img-gone";
-    box.textContent = "Ảnh đã hết hạn";
+    var ten = "";
+    try {
+      var src = String(el.getAttribute("src") || "");
+      var m = src.match(/[?&]path=([^&]*)/);
+      ten = m ? decodeQueryPart(m[1]).split("/").pop() : src.split("/").pop();
+    } catch (e) { ten = ""; }
+    box.textContent = ten ? "Không mở được ảnh: " + ten : "Không mở được ảnh";
+    box.title = "File có thể đã bị xoá, hoặc hội thoại này thuộc brain khác với brain đang chọn.";
     el.replaceWith(box);
   }
   function imgHtml(u, alt, rawpath) {
@@ -354,7 +371,16 @@
   }
 
   // ---------------------------------------------------------------- entry: markdown -> html
-  function mdToHtml(raw) {
+  // brain (tuy chon): brain cua HOI THOAI chua tin nhan nay. Bo trong = brain dang chon.
+  // Dat quanh phan than de moi duong dan tuong doi trong tin nhan (anh, link file, wikilink)
+  // deu phan giai theo dung brain do. mdToHtml chay dong bo nen bien module nay khong dan xen.
+  function mdToHtml(raw, brain) {
+    var truoc = _brainForRender;
+    _brainForRender = (brain == null || brain === "") ? null : String(brain);
+    try { return _mdToHtmlThan(raw); }
+    finally { _brainForRender = truoc; }
+  }
+  function _mdToHtmlThan(raw) {
     raw = String(raw == null ? "" : raw);
     // Bo HTML comment (khoi dieu khien JAVIS_* luon vo hinh), ke ca comment chua dong luc stream
     raw = raw.replace(/<!--[\s\S]*?-->/g, "").replace(/<!--[\s\S]*$/, "");
