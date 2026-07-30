@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.272] - 2026-07-30
+Hướng dẫn đấu Google Workspace viết lại cho làm theo được, và vá biến môi trường thiếu khiến đăng nhập không bao giờ xong.
+### Sửa lỗi
+- **Thiếu `OAUTHLIB_INSECURE_TRANSPORT=1` nên đấu Google Workspace/Google Tasks bấm đồng ý xong vẫn không đăng nhập được.** Hai connector này chạy `workspace-mcp`, nhận Client ID + Secret nên đi luồng OAuth confidential, mà chỗ nó hứng kết quả là `http://localhost:8000/oauth2callback` - HTTP trần. Thư viện oauthlib mặc định ném `InsecureTransportError` với http, và README upstream khai biến này là bắt buộc. Javis chưa từng đặt nó, hướng dẫn cũng không có chữ nào cứu được. Nay khai vào khối `env` tĩnh của cả hai connector, user không phải biết tới nó. An toàn vì callback chỉ chạy trên loopback của chính máy đó.
+- **Hướng dẫn bảo bật đúng 4 API trong khi thẻ hứa nhiều hơn thế.** Tier `core` của workspace-mcp phục vụ cả Sheets, Slides, Forms, Tasks, Danh bạ - mô tả thẻ ghi rõ những thứ đó nhưng làm đúng theo hướng dẫn thì chúng chết lặng, không ai hiểu vì sao. Bước bật API nay chia hai nhóm: bốn cái cơ bản và những cái bật thêm nếu cần, kèm câu nói rõ quên cái nào thì chỉ nhóm công cụ đó lỗi chứ không hỏng cả kết nối.
+- **Cảnh báo "phải có máy màn hình" nằm ở bước CUỐI.** Người cài trên VPS đọc tới đó là đã bỏ 10 phút tạo project, bật API, tạo OAuth client rồi mới biết đường này không đi được. Nay là bước ĐẦU TIÊN, và chỉ thẳng sang hai thẻ Google Calendar/Gmail vốn đăng nhập gọn trong dashboard.
+### Cải thiện
+- **Viết lại toàn bộ 8 bước của thẻ Google Workspace** (và thẻ Google Tasks theo cùng khuôn): nói rõ client loại "Ứng dụng dành cho máy tính" KHÔNG phải khai URI chuyển hướng - khác hẳn thẻ Lịch/Gmail nên ai làm thẻ kia trước đều đi tìm ô đó; tách bước dán key với bước bấm Kết nối; thêm bước dặn qua màn cảnh báo "ứng dụng chưa được xác minh" bằng Nâng cao > Tiếp tục và tick hết ô quyền - chỗ người dùng hay đứng hình rồi bỏ cuộc.
+- **Ô email Google đổi nhãn từ "tuỳ chọn" thành "nên điền"**, kèm lý do: bỏ trống thì mỗi lần gọi tool server lại hỏi ngược xem dùng tài khoản nào. Vẫn không bắt buộc, chỉ là nói thật hậu quả.
+- Trang tài liệu MCP cập nhật theo, thêm cả nhắc nhở khai đủ phạm vi quyền cho thẻ Lịch/Gmail.
+- Thêm `test_google_workspace_setup.py`: 33 phép thử khoá biến môi trường (soát cả `build_env` thật sự đẩy được xuống tiến trình con), thứ tự bước cảnh báo phải đứng trước bước bắt tay vào làm, đủ danh sách API, nhãn ô email, và luật "mọi connector chạy workspace-mcp đều phải có đủ hai thứ đó" để lần sau không vá nửa con bug.
+
 ## [0.9.271] - 2026-07-30
 Lịch Google báo "thiếu quyền" mãi không hết dù xoá đi cài lại: chính danh sách quyền Javis xin mới là chỗ sai.
 ### Sửa lỗi

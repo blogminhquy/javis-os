@@ -306,13 +306,15 @@
       "name": "Google Workspace (Gmail, Lịch, Drive, Docs)",
       "icon": "mail",
       "group": "google",
-      "group_line": "Gói gộp Gmail, Lịch, Drive, Docs trong MỘT kết nối chạy trên máy. Cần máy có màn hình lần đầu.",
+      "group_line": "Gói gộp Gmail, Lịch, Drive, Docs, Sheets trong MỘT kết nối, chạy ngay trên máy cài Javis. Lần đầu phải bấm đồng ý trên máy có màn hình; cài trên VPS thì dùng hai thẻ Lịch và Gmail riêng.",
       "category": "Văn phòng",
-      "description": "Gmail, Calendar, Drive, Docs, Forms, Tasks... trong MỘT kết nối. Đăng nhập Google 1 lần bằng OAuth client tự tạo (~10 phút, có hướng dẫn).",
+      "description": "Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Tasks... trong MỘT kết nối. Tạo OAuth client 1 lần, khoảng 10 phút, có hướng dẫn từng bước. Lần đầu gọi tool Google, trình duyệt TRÊN MÁY CHẠY JAVIS mở ra để bấm đồng ý, nên máy phải có màn hình.",
       "status": "beta",
       "transport": "stdio",
       "command": "uvx",
       "args": ["workspace-mcp", "--tool-tier", "core"],
+      "_env_doc": "workspace-mcp nhận Client ID + Secret nên chạy luồng OAuth 'confidential', mà chỗ nó hứng kết quả đăng nhập là http://localhost:8000/oauth2callback - HTTP trần. Thư viện oauthlib mặc định NÉM InsecureTransportError với http, nên thiếu biến này là bấm đồng ý xong quay về vẫn lỗi, không tài nào đăng nhập xong - đúng kiểu bế tắc mà hướng dẫn không nói ra được. README upstream khai biến này 'required'; đây là hằng số kỹ thuật của package, không phải thứ bắt user gõ. An toàn vì callback chỉ chạy trên loopback của chính máy đó.",
+      "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
       "auth": {
         "type": "apikey",
         "fields": [
@@ -330,21 +332,23 @@
           },
           {
             "key": "user_email",
-            "label": "Email Google của bạn (tuỳ chọn)",
+            "label": "Email Google của bạn (nên điền - bỏ trống thì mỗi lần gọi tool lại phải khai email)",
             "placeholder": "Ví dụ: ten@gmail.com",
             "env": "USER_GOOGLE_EMAIL",
             "optional": true
           }
         ],
-        "guide": "Làm 1 lần, khoảng 10 phút:\n1. Vào console.cloud.google.com, tạo project.\n2. Bật Gmail API, Calendar API, Drive API, Docs API.\n3. OAuth consent screen: chọn External, thêm email mình vào Test users.\n4. Credentials > Create OAuth client ID, loại Desktop app.\n5. Copy Client ID + Secret vào đây.\n\nLẦN ĐẦU Javis gọi tool Google, trình duyệt trên máy chạy Javis sẽ mở để bạn bấm đồng ý quyền. Nhớ làm trên máy có màn hình.",
+        "guide": "Kết nối này chạy TRÊN MÁY CÀI JAVIS: lần đầu gọi tool Google, trình duyệt của chính máy đó\nmở ra để bạn bấm đồng ý. Máy không có màn hình (VPS) thì dùng hai thẻ Lịch và Gmail riêng,\nhai thẻ đó đăng nhập gọn trong dashboard.\n\nLàm 1 lần, khoảng 10 phút:\n1. Vào console.cloud.google.com tạo project mới, hoặc dùng lại project đã tạo cho thẻ Lịch/Gmail.\n2. Bật API cho từng dịch vụ muốn dùng. Bốn cái cơ bản: Gmail API, Google Calendar API,\nGoogle Drive API, Google Docs API.\nMuốn Javis đụng tới Sheets, Slides, Forms, Danh bạ, Việc cần làm thì bật thêm Google Sheets API,\nGoogle Slides API, Google Forms API, People API, Google Tasks API.\nQuên bật cái nào thì đúng nhóm tool đó báo lỗi, phần còn lại vẫn chạy bình thường.\n3. Màn hình đồng ý OAuth: chọn External rồi thêm email Google của bạn vào Test users.\nBỏ bước này là Google chặn ngay lúc đăng nhập.\n4. Tạo OAuth client, chọn loại 'Ứng dụng dành cho máy tính' (Desktop app).\nLoại này KHÔNG phải khai URI chuyển hướng nào cả - khác thẻ Lịch/Gmail, thấy trống là đúng.\n5. Tải file JSON của client rồi kéo thả vào ô bên dưới (tự điền Client ID + Secret),\nhoặc copy tay hai giá trị đó.\n6. Điền luôn ô email Google rồi bấm Kết nối.\n\nLần đầu Javis gọi tool Google, trình duyệt trên máy chạy Javis mở ra. Gặp cảnh báo 'ứng dụng chưa\nđược xác minh' thì bấm Nâng cao rồi Tiếp tục, vì đây là app của chính bạn. Nhớ TICK HẾT các ô\nquyền: bỏ ô nào là đúng nhóm tool đó chết.",
         "guide_url": "https://github.com/taylorwilsdon/google_workspace_mcp",
         "steps": [
-          { "text": "Vào Google Cloud tạo một project mới (hoặc dùng project sẵn có).", "link": "https://console.cloud.google.com/projectcreate", "link_label": "Tạo project" },
-          { "text": "Bật 4 API cho project: Gmail API, Google Calendar API, Google Drive API, Google Docs API.", "link": "https://console.cloud.google.com/apis/library", "link_label": "Mở thư viện API" },
-          { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
-          { "text": "Tạo OAuth client loại 'Ứng dụng Desktop' (Desktop app).", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client" },
-          { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối." },
-          { "text": "LẦN ĐẦU Javis gọi tool Google, trình duyệt trên MÁY CHẠY JAVIS sẽ mở để bạn bấm đồng ý quyền - nhớ làm trên máy có màn hình." }
+          { "text": "TRƯỚC KHI LÀM, đọc dòng này: kết nối này chạy trên chính máy cài Javis, và lần đầu gọi tool nó mở trình duyệt CỦA MÁY ĐÓ để bạn bấm đồng ý. Javis chạy trên VPS không màn hình thì bỏ thẻ này, dùng hai thẻ Google Calendar và Gmail riêng - hai thẻ đó đăng nhập gọn ngay trong dashboard." },
+          { "text": "Vào Google Cloud tạo một project mới, hoặc dùng lại project bạn đã tạo cho thẻ Lịch/Gmail.", "link": "https://console.cloud.google.com/projectcreate", "link_label": "Tạo project" },
+          { "text": "Bật API cho từng dịch vụ bạn muốn dùng. Bốn cái cơ bản: Gmail API, Google Calendar API, Google Drive API, Google Docs API. Muốn Javis đụng tới Sheets, Slides, Forms, Danh bạ hay Việc cần làm thì bật thêm Google Sheets API, Google Slides API, Google Forms API, People API, Google Tasks API. Quên bật cái nào thì đúng nhóm tool đó báo lỗi, phần còn lại vẫn chạy.", "link": "https://console.cloud.google.com/apis/library", "link_label": "Mở thư viện API" },
+          { "text": "Màn hình đồng ý OAuth: chọn External rồi thêm email Google của bạn vào Test users. Bỏ bước này là Google chặn ngay lúc đăng nhập.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
+          { "text": "Tạo OAuth client, chọn loại 'Ứng dụng dành cho máy tính' (Desktop app). Loại này KHÔNG phải khai URI chuyển hướng nào cả - khác thẻ Lịch/Gmail, nên thấy phần đó trống là đúng, đừng đi tìm.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client" },
+          { "text": "Tải file JSON của client rồi kéo thả vào ô bên dưới, Javis tự điền Client ID + Secret. Hoặc copy tay hai giá trị đó vào hai ô." },
+          { "text": "Điền luôn ô email Google rồi bấm Kết nối. Bỏ trống ô email thì mỗi lần gọi tool, server lại hỏi ngược xem dùng tài khoản nào." },
+          { "text": "Lần đầu Javis gọi tool Google, trình duyệt trên máy chạy Javis mở ra. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục, vì đây là app của chính bạn. Nhớ TICK HẾT các ô quyền, bỏ ô nào là đúng nhóm tool đó chết." }
         ]
       },
       "tool_meta": {
@@ -367,6 +371,8 @@
       "command": "uvx",
       "_args_doc": "Chạy chung server workspace-mcp với connector google-workspace nhưng chỉ nạp service tasks. Tier complete vì list_task_lists nằm ở tier complete - thiếu nó thì không biết ID danh sách để đọc việc.",
       "args": ["workspace-mcp", "--tools", "tasks", "--tool-tier", "complete"],
+      "_env_doc": "Cùng server workspace-mcp với connector google-workspace nên dính y hệt: thiếu biến này là oauthlib chặn callback http://localhost, bấm đồng ý xong vẫn không đăng nhập được. Xem _env_doc của google-workspace.",
+      "env": { "OAUTHLIB_INSECURE_TRANSPORT": "1" },
       "auth": {
         "type": "apikey",
         "fields": [
@@ -384,21 +390,23 @@
           },
           {
             "key": "user_email",
-            "label": "Email Google của bạn (tuỳ chọn)",
+            "label": "Email Google của bạn (nên điền - bỏ trống thì mỗi lần gọi tool lại phải khai email)",
             "placeholder": "Ví dụ: ten@gmail.com",
             "env": "USER_GOOGLE_EMAIL",
             "optional": true
           }
         ],
-        "guide": "Làm 1 lần, khoảng 10 phút. Đã đấu Google Workspace rồi thì dùng lại đúng Client ID + Secret cũ, chỉ cần làm thêm bước 2:\n1. Vào console.cloud.google.com, tạo project.\n2. Bật Google Tasks API cho project.\n3. OAuth consent screen: chọn External, thêm email mình vào Test users.\n4. Credentials > Create OAuth client ID, loại Desktop app.\n5. Copy Client ID + Secret vào đây.\n\nLẦN ĐẦU Javis gọi tool Google Tasks, trình duyệt trên máy chạy Javis sẽ mở để bạn bấm đồng ý quyền. Nhớ làm trên máy có màn hình.",
+        "guide": "Kết nối này chạy TRÊN MÁY CÀI JAVIS: lần đầu gọi tool Google Tasks, trình duyệt của chính\nmáy đó mở ra để bạn bấm đồng ý. Máy không có màn hình (VPS) thì đường này không đi được.\n\nLàm 1 lần, khoảng 10 phút. Đã đấu Google Workspace rồi thì dùng lại đúng Client ID + Secret cũ,\nchỉ cần làm thêm bước 2:\n1. Vào console.cloud.google.com tạo project, hoặc dùng project sẵn có.\n2. Bật Google Tasks API cho project đó.\n3. Màn hình đồng ý OAuth: chọn External rồi thêm email Google của bạn vào Test users.\nBỏ bước này là Google chặn ngay lúc đăng nhập.\n4. Tạo OAuth client, chọn loại 'Ứng dụng dành cho máy tính' (Desktop app).\nLoại này KHÔNG phải khai URI chuyển hướng nào cả, thấy phần đó trống là đúng.\n5. Tải file JSON của client rồi kéo thả vào ô bên dưới, hoặc copy tay Client ID + Secret.\n6. Điền luôn ô email Google rồi bấm Kết nối.\n\nLần đầu gọi tool, gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục,\nvì đây là app của chính bạn. Nhớ TICK HẾT các ô quyền.",
         "guide_url": "https://github.com/taylorwilsdon/google_workspace_mcp",
         "steps": [
+          { "text": "TRƯỚC KHI LÀM, đọc dòng này: kết nối này chạy trên chính máy cài Javis, và lần đầu gọi tool nó mở trình duyệt CỦA MÁY ĐÓ để bạn bấm đồng ý. Javis chạy trên VPS không màn hình thì đường này không đi được." },
           { "text": "Đã đấu Google Workspace hoặc dịch vụ Google khác rồi thì DÙNG LẠI key của nó (nút bên dưới ô nhập), chỉ cần làm thêm bước bật API." },
           { "text": "Vào Google Cloud tạo project (hoặc dùng project sẵn có), bật Google Tasks API.", "link": "https://console.cloud.google.com/apis/library/tasks.googleapis.com", "link_label": "Bật Tasks API" },
-          { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
-          { "text": "Tạo OAuth client loại 'Ứng dụng Desktop' (Desktop app).", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client" },
-          { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối." },
-          { "text": "LẦN ĐẦU Javis gọi tool Google Tasks, trình duyệt trên MÁY CHẠY JAVIS sẽ mở để bạn bấm đồng ý quyền - nhớ làm trên máy có màn hình." }
+          { "text": "Màn hình đồng ý OAuth: chọn External rồi thêm email Google của bạn vào Test users. Bỏ bước này là Google chặn ngay lúc đăng nhập.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
+          { "text": "Tạo OAuth client, chọn loại 'Ứng dụng dành cho máy tính' (Desktop app). Loại này KHÔNG phải khai URI chuyển hướng nào cả, thấy phần đó trống là đúng.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client" },
+          { "text": "Tải file JSON của client rồi kéo thả vào ô bên dưới, Javis tự điền Client ID + Secret. Hoặc copy tay hai giá trị đó vào hai ô." },
+          { "text": "Điền luôn ô email Google rồi bấm Kết nối. Bỏ trống ô email thì mỗi lần gọi tool, server lại hỏi ngược xem dùng tài khoản nào." },
+          { "text": "Lần đầu Javis gọi tool Google Tasks, trình duyệt trên máy chạy Javis mở ra. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục, vì đây là app của chính bạn. Nhớ TICK HẾT các ô quyền." }
         ]
       },
       "tool_meta": {
