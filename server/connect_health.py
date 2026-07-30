@@ -73,7 +73,9 @@ async def check_one(conn, pool=None) -> dict:
             if missing:
                 rec.update(kind="auth",
                            message="Thiếu quyền: " + ", ".join(oauth_mcp.short_scopes(missing))
-                                   + " - bấm Kết nối lại và tick đủ mọi ô quyền.")
+                                   + " - bấm Kết nối lại và tick đủ mọi ô quyền. Google không"
+                                   " hiện ô tick nào (quyền cũ đã cấp) thì gỡ Javis tại"
+                                   " myaccount.google.com/permissions rồi kết nối lại.")
                 _state[conn["id"]] = rec
                 return rec
         except Exception:

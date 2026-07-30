@@ -105,6 +105,24 @@ msg_khong_conn = mcp_hub._friendly_tool_error(loi_scope)
 check("không truyền conn_id vẫn chạy (chữ ký cũ còn dùng được)", "Đăng nhập lại" in msg_khong_conn)
 check("không biết conn -> không bịa tên quyền", "freebusy" not in msg_khong_conn)
 
+# Google chỉ hiện màn TICK TỪNG QUYỀN cho quyền CHƯA từng cấp, nên "đăng nhập lại mà không
+# thấy ô tick nào" là đúng cơ chế chứ không phải hỏng - user thật đã tưởng là hỏng. Thông báo
+# phải nói ra điều đó kèm đường thoát duy nhất (gỡ app ở trang quyền của tài khoản Google).
+check("báo lỗi thiếu quyền có chỉ đường gỡ quyền cũ ở Google",
+      "myaccount.google.com/permissions" in msg)
+check("và nói rõ không hiện ô tick là bình thường", "bình thường" in msg)
+health_src = (SERVER / "connect_health.py").read_text(encoding="utf-8")
+check("vòng check sức khoẻ cũng chỉ đường gỡ quyền cũ",
+      "myaccount.google.com/permissions" in health_src)
+cat_raw = (ROOT / "system" / "mcp-catalog.json").read_text(encoding="utf-8")
+for cid in ("google-calendar", "gmail"):
+    con = by_id[cid]
+    steps_txt = " ".join(s.get("text", "") for s in ((con.get("auth") or {}).get("steps") or []))
+    links = [s.get("link", "") for s in ((con.get("auth") or {}).get("steps") or [])]
+    check(f"{cid}: có bước gỡ quyền cũ khi Google không hiện ô tick",
+          "KHÔNG HIỆN LẠI CÁC Ô TICK QUYỀN" in steps_txt
+          and "https://myaccount.google.com/permissions" in links)
+
 # ---- 4. Không có em dash trong mọi chuỗi UI (quy tắc cứng của dự án) ----
 for m_ in (msg, msg_khong_conn,
            mcp_hub._hidden_hint({"c": {"perm": "readonly", "ns": "google-calendar",

@@ -726,7 +726,8 @@
           { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
           { "text": "Quyền dữ liệu > Thêm hoặc bớt phạm vi: dán đủ 5 phạm vi Lịch (calendar, calendar.events, calendar.calendarlist.readonly, calendar.events.readonly, calendar.events.freebusy). Thiếu freebusy là tìm giờ trống báo thiếu quyền dù đăng nhập thành công.", "link": "https://console.cloud.google.com/auth/scopes", "link_label": "Mở trang Quyền dữ liệu" },
           { "text": "Tạo OAuth client loại 'Ứng dụng web', thêm địa chỉ dưới đây vào ô 'URI chuyển hướng được ủy quyền'.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client", "copy": "redirect" },
-          { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục." }
+          { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục." },
+          { "text": "ĐĂNG NHẬP LẠI MÀ GOOGLE KHÔNG HIỆN LẠI CÁC Ô TICK QUYỀN? Đó là cách Google hoạt động: quyền nào đã cấp rồi thì lần sau nó cho qua thẳng, không hỏi lại. Muốn thấy lại đầy đủ ô tick thì vào trang quyền của tài khoản Google, gỡ Javis ra khỏi danh sách ứng dụng, rồi quay lại bấm Kết nối - lần đó Google hỏi lại từ đầu.", "link": "https://myaccount.google.com/permissions", "link_label": "Gỡ quyền cũ ở Google" }
         ],
         "setup": {
           "links": [
@@ -789,7 +790,8 @@
           { "text": "Màn hình đồng ý OAuth: chọn External, thêm email của bạn vào Test users.", "link": "https://console.cloud.google.com/auth/audience", "link_label": "Mở màn hình đồng ý" },
           { "text": "Quyền dữ liệu > Thêm hoặc bớt phạm vi: dán đủ 4 phạm vi Gmail (gmail.modify, gmail.readonly, gmail.compose, gmail.labels). Ba cái sau nằm trong gmail.modify nên không nới quyền, chỉ để khớp danh sách từng tool của Google chấp nhận.", "link": "https://console.cloud.google.com/auth/scopes", "link_label": "Mở trang Quyền dữ liệu" },
           { "text": "Tạo OAuth client loại 'Ứng dụng web', thêm địa chỉ dưới đây vào ô 'URI chuyển hướng được ủy quyền'.", "link": "https://console.cloud.google.com/apis/credentials/oauthclient", "link_label": "Tạo OAuth client", "copy": "redirect" },
-          { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục." }
+          { "text": "Tải file JSON của client (hoặc copy Client ID + Secret), kéo thả file vào ô bên dưới rồi bấm Kết nối. Gặp cảnh báo 'ứng dụng chưa được xác minh' thì bấm Nâng cao rồi Tiếp tục." },
+          { "text": "ĐĂNG NHẬP LẠI MÀ GOOGLE KHÔNG HIỆN LẠI CÁC Ô TICK QUYỀN? Đó là cách Google hoạt động: quyền nào đã cấp rồi thì lần sau nó cho qua thẳng, không hỏi lại. Muốn thấy lại đầy đủ ô tick thì vào trang quyền của tài khoản Google, gỡ Javis ra khỏi danh sách ứng dụng, rồi quay lại bấm Kết nối - lần đó Google hỏi lại từ đầu.", "link": "https://myaccount.google.com/permissions", "link_label": "Gỡ quyền cũ ở Google" }
         ],
         "setup": {
           "links": [

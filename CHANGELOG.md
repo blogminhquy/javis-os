@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.273] - 2026-07-30
+Đăng nhập lại Google mà không thấy ô tick quyền nào: nói cho người dùng biết đó là bình thường và cách bắt Google hỏi lại.
+### Cải thiện
+- **"Re-auth mà nó không hiện ra checkbox các quyền" (báo từ người dùng thật) không phải lỗi, mà là cơ chế của Google.** Màn hình tick từng quyền chỉ bật cho quyền CHƯA từng cấp, và chỉ khi ứng dụng xin từ hai quyền trở lên; quyền đã cấp rồi thì Google cho qua thẳng. Bản trước 0.9.271 lại chỉ xin đúng một phạm vi `auth/calendar`, tức là chưa bao giờ có ô tick nào để mà hiện. Sau bản này Javis xin 5 phạm vi Lịch, 4 cái trong đó chưa từng được cấp nên màn tick sẽ hiện ra.
+- **Chỉ luôn đường thoát khi vẫn không thấy ô tick**: gỡ Javis khỏi trang quyền của tài khoản Google rồi bấm Kết nối lại, khi đó Google hỏi lại từ đầu. Câu này gắn vào cả ba chỗ người dùng sẽ đọc: bước cuối trong hướng dẫn của thẻ Lịch và Gmail (kèm nút mở thẳng trang gỡ quyền), thông báo lỗi thiếu quyền lúc gọi tool, và dòng trạng thái ở vòng check sức khoẻ.
+- `test_scope_google.py` thêm 6 phép thử canh cả ba đường đó, để câu hướng dẫn này không rơi rụng ở lần sửa sau.
+
 ## [0.9.272] - 2026-07-30
 Hướng dẫn đấu Google Workspace viết lại cho làm theo được, và vá biến môi trường thiếu khiến đăng nhập không bao giờ xong.
 ### Sửa lỗi

@@ -888,6 +888,15 @@ def _extract_label(text, paths):
     return m.group(1) if m else ""
 
 
+# Google KHÔNG hỏi lại quyền đã cấp: prompt=consent chỉ hiện lại màn đồng ý, còn màn TICK
+# TỪNG QUYỀN thì chỉ bật cho quyền CHƯA từng cấp (và chỉ khi app xin từ 2 quyền trở lên).
+# Nên "đăng nhập lại mà không thấy ô tick nào" là đúng cơ chế, không phải hỏng - đường duy
+# nhất để tick lại từ đầu là gỡ ứng dụng ở trang quyền của tài khoản Google.
+REVOKE_HINT = (" Đăng nhập lại mà Google không hiện ô tick quyền nào là bình thường: quyền đã"
+               " cấp thì nó cho qua thẳng. Muốn tick lại từ đầu thì gỡ Javis tại"
+               " https://myaccount.google.com/permissions rồi Kết nối lại.")
+
+
 def _missing_scope_note(conn_id):
     """Câu nói thẳng THIẾU ĐÚNG QUYỀN NÀO cho 1 connection oauth, hoặc "" nếu không biết."""
     if not conn_id:
@@ -931,7 +940,7 @@ def _friendly_tool_error(err, conn_id=""):
                 + _missing_scope_note(conn_id) +
                 " Bấm Đăng nhập lại và tick chọn đầy đủ các quyền. Nếu vừa cập nhật Javis thì"
                 " BẮT BUỘC đăng nhập lại: token cũ chỉ mang những quyền xin ở bản trước, xoá"
-                " kết nối rồi tạo lại cũng không thêm được quyền mới.")
+                " kết nối rồi tạo lại cũng không thêm được quyền mới." + REVOKE_HINT)
     if ("missing required authentication credential" in low or "unauthenticated" in low
             or "invalid_grant" in low or "invalid_token" in low):
         return "Phiên đăng nhập hỏng hoặc hết hạn. Bấm Đăng nhập lại để lấy token mới."
@@ -961,7 +970,7 @@ async def validate_connection(conn_id):
                 return {"ok": False, "label": "", "tools": 0,
                         "error": "Đăng nhập rồi nhưng token thiếu quyền: "
                                  + ", ".join(oauth_mcp.short_scopes(rep["missing"]))
-                                 + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền."}
+                                 + ". Bấm Đăng nhập lại và tick đủ mọi ô quyền." + REVOKE_HINT}
         except Exception as e:
             print(f"[hub scope] {e}", file=sys.stderr)
     spec = mcp_client._conn_spec(conn)
