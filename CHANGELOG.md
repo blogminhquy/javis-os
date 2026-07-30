@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.279] - 2026-07-31
+Chat mở rộng thôi làm popup: nó choán đúng khung nội dung, dán tệt vào bố cục.
+### Cải thiện
+- **Khung chat phóng to giờ là một phần của giao diện, không phải hộp thoại nổi.** Trước đây nó bo góc 16px, có bóng đổ, canh giữa màn hình và chỉ rộng `96vw` nên hai bên vẫn hở ra thấy graph phía sau - đọc ra như một lớp đè lên app. Nay nó bám đúng vùng nội dung: mép trên là đáy thanh top, mép trái là cạnh rail, hai mép còn lại trùng cửa sổ. Bỏ bo góc, bỏ bóng đổ, bỏ nền kính mờ (chính cái blur là thứ khiến nó trông như đang trôi), nền chuyển sang màu đặc theo tông đang dùng.
+- Toạ độ **đo từ bố cục thật** chứ không ghi số cứng: `chat-zoom.js` đọc kích thước `.hud` và đáy `.hud-top` rồi bơm vào bốn biến CSS. Đo `.hud` thay vì cộng tay `var(--rail-w)` là có chủ đích - khi trang không có rail thì biến đó vẫn là 160px, cộng tay sẽ lệch nguyên một dải.
+- Khung **bám theo khi bố cục đổi**: nghe cả `resize` cửa sổ lẫn `ResizeObserver` trên `.hud`. Cần cả hai vì thu/mở rail làm đổi bề ngang `.hud` mà **không** bắn `resize` - chỉ nghe `resize` là khung đứng ì, hở đúng phần rail vừa co.
+- Đã đo tận nơi bằng Chromium ở 6 tình huống (rail 160px, rail thu 60px, trang không rail, đổi cỡ cửa sổ, và đổi cỡ lẫn thu rail **trong lúc** đang mở rộng): mép khung trùng khít bố cục, sai số dưới 0.6px ở cả bốn cạnh.
+- Thêm `tests/js/test_chat_zoom_khung.js`: 24 phép thử khoá hợp đồng này cho CI (vốn chỉ có `node`, không có trình duyệt) - hết dấu vết popup, toạ độ lấy từ biến đo, và hai canary giữ `ResizeObserver` cùng thứ tự đo sau khi gắn `.chat-zoomed`.
+
 ## [0.9.278] - 2026-07-30
 Ảnh trong khung chat quay đi quay lại là mất: không phải Javis xoá, mà là ghép sai brain rồi bị thay bằng ô xám.
 ### Sửa lỗi

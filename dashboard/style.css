@@ -1317,15 +1317,25 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   .settings-page .quick-set-body > .qs-row { grid-column: auto; }
 }
 
-/* ===== CHAT WORKSPACE (phóng to) - gần full màn hình, 2 cột: lịch sử trái + chat ===== */
+/* ===== CHAT WORKSPACE (phóng to) - CHOÁN ĐÚNG khung nội dung, 2 cột: lịch sử trái + chat =====
+   Trước đây đây là POPUP: khung bo tròn 16px, có bóng đổ, nổi giữa màn hình và chừa mép hai
+   bên cho graph lộ ra sau lưng - nhìn như hộp thoại đè lên app chứ không phải một phần app.
+   Nay nó dán TỆT vào đúng vùng nội dung: từ dưới thanh top xuống đáy, từ mép phải rail sang
+   mép phải cửa sổ. Toạ độ KHÔNG hardcode - chat-zoom.js đo khung thật rồi bơm vào 4 biến dưới,
+   nên rail thu/mở, cửa sổ đổi cỡ hay màn mobile (rail rộng 0) đều bám đúng.
+   Bốn giá trị dự phòng chỉ để hở một nhịp trước khi JS đo xong. */
 .chat-stage {
-  position: fixed; left: 50%; top: 16px; transform: translateX(-50%);
-  width: min(1440px, 96vw); height: calc(100vh - 32px);
+  position: fixed; transform: none;
+  top: var(--cs-top, 52px); left: var(--cs-left, 0px);
+  width: var(--cs-w, 100vw); height: var(--cs-h, calc(100vh - 52px));
   z-index: 360; display: none; flex-direction: column; gap: 10px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  border: 1px solid var(--border); border-radius: 16px;
-  box-shadow: var(--shadow-3); padding: 12px 14px 14px;
+  /* Nền ĐẶC + bỏ blur: đã choán trọn khung thì không việc gì phải nhìn xuyên xuống graph,
+     mà kính mờ lại chính là thứ khiến nó đọc ra "lớp nổi". */
+  background: var(--bg);
+  /* Chỉ giữ một vạch trên để phân với thanh top; ba cạnh kia trùng mép cửa sổ nên bỏ hết
+     viền, bo góc và bóng đổ - còn lại là còn thấy đường nét của một cái hộp. */
+  border: 0; border-top: 1px solid var(--border); border-radius: 0;
+  box-shadow: none; padding: 12px 14px 14px;
 }
 body.chat-zoomed .chat-stage { display: flex; }
 .chat-stage-head { display: flex; align-items: center; justify-content: space-between;
@@ -1397,7 +1407,8 @@ body.chat-zoomed .hud { grid-template-rows: 52px 1fr 0; }
 #jv-sess-btn:hover { border-color: var(--info-line); color: var(--text-hi); }
 body.chat-zoomed #jv-sess-btn { display: none; }
 @media (max-width: 900px) {
-  .chat-stage { width: 96vw; top: 10px; height: calc(100vh - 20px); padding: 10px; }
+  /* Toạ độ vẫn do JS đo (rail rộng 0 ở cỡ này nên nó tự trải hết bề ngang) - chỉ bóp padding. */
+  .chat-stage { padding: 10px; }
   /* sidebar thành drawer nổi trên cột chat */
   .chat-stage.side-on .chat-side { position: absolute; left: 0; top: 0; bottom: 0; z-index: 6;
     width: min(300px, 86%); background: var(--panel-solid);

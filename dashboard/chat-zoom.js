@@ -54,6 +54,35 @@
     return stage;
   }
 
+  // Đo ĐÚNG khung nội dung rồi bơm vào 4 biến CSS. Không hardcode vì khung này co giãn theo
+  // ba thứ: rail trái (thu còn 60px, hoặc 0 ở mobile), chiều cao thanh top, và cỡ cửa sổ.
+  // Đo .hud thay vì cộng trừ var(--rail-w): .hud đã mang sẵn margin/width do rail đẩy, và khi
+  // trang KHÔNG có rail (body thiếu .has-rail) thì --rail-w vẫn là 160px - cộng tay là lệch.
+  function fitToFrame() {
+    if (!stage) return;
+    var hud = document.querySelector(".hud");
+    if (!hud) return;
+    var r = hud.getBoundingClientRect();
+    var top = document.querySelector(".hud-top");
+    var duoiTop = top ? top.getBoundingClientRect().bottom : r.top;
+    stage.style.setProperty("--cs-top", duoiTop + "px");
+    stage.style.setProperty("--cs-left", r.left + "px");
+    stage.style.setProperty("--cs-w", r.width + "px");
+    stage.style.setProperty("--cs-h", Math.max(0, r.bottom - duoiTop) + "px");
+  }
+
+  // Rail thu/mở đổi bề ngang .hud mà KHÔNG bắn sự kiện resize của window, nên chỉ nghe resize
+  // là khung sẽ lệch mất một dải đúng bằng phần rail vừa co. ResizeObserver bám thẳng .hud nên
+  // bắt được cả hai, kể cả trong lúc rail đang chạy hoạt ảnh 0.28s.
+  function theoDoiKhung() {
+    window.addEventListener("resize", function () { if (expanded) fitToFrame(); });
+    if (typeof ResizeObserver !== "function") return;
+    var hud = document.querySelector(".hud");
+    if (!hud) return;
+    try { new ResizeObserver(function () { if (expanded) fitToFrame(); }).observe(hud); }
+    catch (e) {}
+  }
+
   function moveInto(node, container) {
     if (!node) return;
     slots.push({ node: node, parent: node.parentNode, next: node.nextSibling });
@@ -79,6 +108,9 @@
     moveInto(document.getElementById("hudVoice"), body);
     document.body.classList.add("chat-zoomed");
     expanded = true;
+    // Đo SAU khi gắn .chat-zoomed: class đó đổi lưới .hud (hàng chat co về 0), đo trước là
+    // lấy nhầm số đo của bố cục cũ.
+    fitToFrame();
     setSide(sideDefaultOn());
     var ca = document.getElementById("chatArea");
     if (ca) ca.scrollTop = ca.scrollHeight;
@@ -105,6 +137,7 @@
   function bind() {
     var btn = document.getElementById("chatZoomBtn");
     if (btn) btn.addEventListener("click", toggle);
+    theoDoiKhung();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
   else bind();
