@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.270] - 2026-07-30
+Javis hết thiên về Claude: bộ não nào cũng đủ năng lực như nhau, và banner đỏ đòi đăng nhập Claude không còn làm phiền máy chạy OpenRouter.
+### Sửa lỗi
+- **Banner đỏ "Bộ não claude mất đăng nhập" treo trên máy chưa từng cài Claude.** Đèn báo não giữ trạng thái trong RAM và không ai dọn, nên đèn thắp hồi Claude còn là Main Model treo vĩnh viễn sau khi người dùng đổi sang OpenRouter - đúng lỗi khách gặp. Giờ đèn chỉ tính bộ não người dùng THẬT SỰ chọn (Main Model, cộng model việc nền khi đặt rõ provider), tự dọn ở vòng quét và lọc ngay lúc trả `/connect/health` nên đổi provider là banner tắt liền, không phải chờ 10 phút. Provider API (OpenRouter, OpenAI, Gemini, Anthropic API) không có đèn vì chúng chạy bằng API key, không có phiên đăng nhập nào để mất.
+- **Trang Kết nối báo nhầm "Google Gemini chưa hỗ trợ gọi công cụ".** Gemini bị sót khỏi danh sách `MCP_PROVIDERS` trên giao diện dù `_api_stream_mcp` ở server đã phục vụ nó từ lâu. Giờ cả năm provider hiện thẻ xanh; dòng vàng chỉ còn để chặn provider lạ.
+### Cải thiện
+- **Javis tự mô tả đúng năng lực của mình.** System prompt trước đây ghi "ngoài ra hỗ trợ chat thuần qua OpenRouter / OpenAI / Anthropic API", nên khi khách hỏi thì Javis trả lời "không có Claude Code thì chỉ chat chơi thôi, không điều phối, không làm task được" - sai. Viết lại mục Bản chất: Javis là AI agentic ĐỔI ĐƯỢC BỘ NÃO, sáu nhà cung cấp dùng chung một bộ đồ nghề qua MCP Hub (kho Kết nối, tool file brain, skill, việc Kanban, agent/workflow/loop/nhắc hẹn), khác biệt duy nhất là hai engine CLI chạy thêm được lệnh máy. Kèm lệnh cấm tự nhận "chỉ chat được" / "phải cài Claude Code mới làm được".
+- **Nhãn trên giao diện nói đúng sự thật.** Nhãn kiểu của bốn provider API đổi từ **chat** sang **MCP Javis**. Dòng Main Model đổi từ "Gọi API thẳng - chat thuần (không MCP)" sang "Gọi API thẳng - MCP Javis + skill + loop (không chạy lệnh máy)", và có thêm dòng riêng cho Codex. Thẻ OpenRouter trong wizard, mục Engine ở trang Tổng quan, mô tả lệnh `/cli` `/or` của Telegram cũng sửa theo. Mục Engine ở Tổng quan trước đây đọc trường `model.engine` cũ nên máy chạy Gemini/OpenAI vẫn bị ghi là "Claude CLI" - giờ đọc `model.main` như trang Models.
+- **Tài liệu giới thiệu đổi trục.** README, `docs/README.md`, `docs/01-bat-dau-thiet-lap.md` và `docs/10-models-va-engine.md` viết lại theo hướng "AI agentic đổi được bộ não" thay vì "xây trên CLI của Claude": bảng so sánh engine tách riêng cột chạy lệnh máy, bỏ các ghi chú kiểu "dòng này đã cũ, đừng tin nhãn trên màn hình" vì nhãn đã đúng.
+- Thêm `test_engine_ngang_quyen.py` canh cả hai vế: logic đèn báo não theo bộ não đang dùng, và luật không chỗ nào (system prompt, giao diện, tài liệu) được nói provider API "chỉ chat, không MCP". Danh sách provider có MCP trên giao diện được đối chiếu thẳng với danh sách thật trong `main.py` để lần sau thêm provider mà quên UI là test đỏ ngay.
+
 ## [0.9.269] - 2026-07-30
 Khung nhập ở tab Trò chuyện lòi dải xám đen, và nút phụ ở trang Model mất chữ khi rê chuột.
 ### Sửa lỗi

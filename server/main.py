@@ -589,7 +589,12 @@ async def auth_disable():
 
 
 # ============================================================
-# Providers - nhà cung cấp model. kind=cli (qua Claude Code, đủ MCP) | api (gọi thẳng, chat thuần)
+# Providers - nhà cung cấp model. MỌI kind đều được cấp MCP Javis + tool file brain + skill;
+# khác nhau ở ĐƯỜNG đi và ở việc chạy được lệnh máy hay không:
+#   kind=cli   (Claude Code)      - MCP native + Bash, chạy lệnh máy
+#   kind=oauth (ChatGPT qua Codex) - MCP native + kho MCP gốc Codex, chạy lệnh máy
+#   kind=api   (OpenRouter/OpenAI/Anthropic/Gemini) - MCP qua hub trong vòng gọi tool
+#              (_api_stream_mcp), đọc/ghi brain bằng tool vault, KHÔNG chạy lệnh máy
 # ============================================================
 PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "anthropic-cli", "label": "Anthropic OAuth (Claude Code)", "kind": "cli", "key_field": None,          "catalog_key": "claude",
@@ -5462,7 +5467,9 @@ async def websocket_endpoint(ws: WebSocket):
                         await _consume_codex(_fallback)
                     await ws.send_text(json.dumps({"type": "response", "content": final_text, "engine": "codex", "model": actual_model, "session_id": conv_sid}))
             elif (kind == "api" and api_key) or kind == "oauth":
-                # ===== PROVIDER API/OAuth (openrouter | openai | anthropic-api) - chat thuần (MCP đa-model cho openrouter/openai) =====
+                # ===== PROVIDER API/OAuth (openrouter | openai | anthropic-api | gemini) =====
+                # Đi qua _api_stream_mcp: vòng gọi tool với MCP Javis + tool file brain + skill.
+                # Chỉ rơi về chat trần khi hub không trả tool nào. KHÔNG phải "chat thuần".
                 label = _api_label(prov)
                 actual_model = api_model or "?"
                 _ident = (

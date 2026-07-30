@@ -29,7 +29,7 @@ Thanh điều hướng của dashboard gom **17 trang** thành **6 nhóm**: Tr�
 
 ### Kết nối & kênh (nhóm Kết nối)
 - [09 - Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - kho dịch vụ ngoài đa tài khoản, phân quyền, báo cáo số thật.
-- [10 - Models & engine](10-models-va-engine.md) - Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic; mức suy nghĩ, model việc nền.
+- [10 - Models & engine](10-models-va-engine.md) - đổi bộ não giữa Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic mà không mất chức năng; mức suy nghĩ, model việc nền.
 - [11 - Kênh Telegram](11-telegram.md) - hỏi Javis qua điện thoại, gửi và nhận file.
 - [12 - Zalo Agent MCP](12-zalo.md) - đăng nhập QR, đọc/tìm lịch sử và gửi tin qua MCP chuẩn.
 

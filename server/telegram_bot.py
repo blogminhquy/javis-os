@@ -50,8 +50,8 @@ BOT_COMMANDS = [
     {"command": "retry", "description": "Gửi lại câu hỏi gần nhất"},
     {"command": "stop", "description": "Dừng câu đang trả lời"},
     {"command": "reset", "description": "Bắt đầu hội thoại mới"},
-    {"command": "cli", "description": "Engine Claude (có MCP/skill)"},
-    {"command": "or", "description": "Engine OpenRouter (chat thuần)"},
+    {"command": "cli", "description": "Engine Claude Code (MCP Javis + lệnh máy)"},
+    {"command": "or", "description": "Engine OpenRouter (MCP Javis, không lệnh máy)"},
 ]
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}

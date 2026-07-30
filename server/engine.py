@@ -1,6 +1,12 @@
 """
-Lớp engine cho CHAT. Mặc định dùng Claude Code CLI (đầy đủ MCP/skill - ở claude_cli.py).
-Đây là backend phụ: OpenRouter - chat THUẦN (không MCP/skill), khi user chọn engine=openrouter.
+Lớp engine cho CHAT qua API nhà cung cấp: OpenRouter, OpenAI, Anthropic API, Google Gemini.
+(Hai engine CLI - Claude Code và Codex - nằm ở claude_cli.py.)
+
+Mỗi provider có HAI đường vào:
+- `*_chat`            : chat trần, không tool. Chỉ dùng khi hub không tìm được tool nào.
+- `*_chat_with_mcp`   : vòng gọi tool đầy đủ với MCP Javis + tool file brain + skill. Đây là
+                        đường MẶC ĐỊNH mà main.py::_api_stream_mcp chọn, nên "engine API =
+                        chat thuần" KHÔNG còn đúng từ 0.9.
 Stream token-by-token; trả các event {"type":"text"|"error","content":...} giống ClaudeCLI.query.
 """
 import asyncio
@@ -335,7 +341,8 @@ async def gemini_stream(api_key, model, messages, reasoning="off"):
 
 
 async def anthropic_stream(api_key, model, messages, reasoning="off"):
-    """Anthropic Messages API (provider 'anthropic-api') - chat THUẦN, không MCP/skill.
+    """Anthropic Messages API (provider 'anthropic-api') - nhánh KHÔNG tool (dự phòng khi hub
+    không có tool nào; đường thường là anthropic_chat_with_mcp).
     Tách system ra field riêng (Anthropic không nhận role=system trong messages)."""
     sys_parts = [m.get("content", "") for m in messages if m.get("role") == "system"]
     conv = [{"role": m["role"], "content": m.get("content", "")}

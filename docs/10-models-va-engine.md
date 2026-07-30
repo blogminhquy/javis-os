@@ -11,17 +11,18 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 - **Model việc nền**: model rẻ hơn cho những việc Javis tự chạy khi bạn không ngồi đó - loop, việc Kanban, nhắc hẹn, tự học, tiêu hoá nguồn.
 - **Suy nghĩ (reasoning)**: mức độ model động não trước khi trả lời.
 
-Điểm quan trọng nhất cần hiểu: **có 2 cách Javis gọi model**, và chúng khác nhau về khả năng.
+Điểm quan trọng nhất cần hiểu: **đổi model KHÔNG làm Javis mất chức năng.** Mọi provider đều được cấp cùng một bộ đồ nghề qua trung tâm kết nối (MCP Hub) của Javis: gọi kho Kết nối đã đấu, đọc/ghi file trong brain, chạy skill, giao việc Kanban, tạo agent/workflow/loop/nhắc hẹn. Khác biệt **duy nhất** là chạy được lệnh máy hay không.
 
-| Cách gọi | Provider | Có dùng được MCP / skill / công cụ? |
-|---|---|---|
-| Qua **Claude Code** | Anthropic OAuth (Claude Code) | Có, đầy đủ: tool file native + Bash + MCP + skill native |
-| Qua **Codex** | OpenAI OAuth (ChatGPT) | Có MCP qua hub (cả kết nối local như Zalo/Webcake) + kho MCP GỐC của Codex (server bạn tự `codex mcp add`) + skill qua router (`javis_use_skill` / đọc file `skills/`) |
-| **Gọi API thẳng** | OpenRouter, OpenAI (API) | Có MCP qua hub + tool file trong vault + kích hoạt skill |
-| **Gọi API thẳng** | Anthropic (API) | Có MCP qua hub + tool file + skill (từ 0.9, hết "chat thuần") |
-| **Gọi API thẳng** | Google Gemini (API) | Bên dưới đã có MCP qua hub, nhưng trang Kết nối chưa cập nhật nên vẫn hiện cảnh báo vàng - xem mục Sự cố |
+| Cách gọi | Provider | MCP Javis · tool file brain · skill | Chạy lệnh máy (Bash) |
+|---|---|---|---|
+| Qua **Claude Code** | Anthropic OAuth (Claude Code) | Có - MCP native + skill native | **Có** |
+| Qua **Codex** | OpenAI OAuth (ChatGPT) | Có - MCP qua hub (cả kết nối local như Zalo/Webcake) + kho MCP GỐC của Codex (server bạn tự `codex mcp add`) + skill qua router (`javis_use_skill` / đọc file `skills/`) | **Có** |
+| **Gọi API thẳng** | OpenRouter | Có - MCP qua hub + tool file vault + skill qua router | Không |
+| **Gọi API thẳng** | OpenAI (API) | Có - như trên | Không |
+| **Gọi API thẳng** | Anthropic (API) | Có - như trên | Không |
+| **Gọi API thẳng** | Google Gemini (API) | Có - như trên (từ 0.9.270 trang Kết nối cũng hết báo nhầm) | Không |
 
-Nói ngắn gọn: Javis xây trên **CLI dạng agent của nhà cung cấp** - **Claude Code** (gói Claude) và **Codex** (gói ChatGPT). Hai đường đó cho Javis nhiều công cụ nhất và tận dụng chính gói subscription bạn đang trả. Các provider API thẳng vẫn gọi được kho Kết nối và đọc/ghi file trong brain, chỉ thiếu tool chạy lệnh máy. Agent trong Workflow cũng chọn được model Claude hoặc ChatGPT/Codex - xem [Agents & Workflows](07-agents-va-workflows.md).
+Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai engine CLI (**Claude Code** với gói Claude, **Codex** với gói ChatGPT) tận dụng chính gói subscription bạn đang trả và chạy thêm được lệnh máy; bốn provider API chỉ cần một API key và làm được mọi thứ còn lại - kể cả điều phối việc, tạo loop, chạy skill. Agent trong Workflow cũng chọn được model theo nhà cung cấp - xem [Agents & Workflows](07-agents-va-workflows.md).
 
 ## Mở ở đâu trong Javis
 
@@ -40,15 +41,17 @@ Khối **Providers** liệt kê 6 nhà cung cấp theo đúng thứ tự này:
 | **OpenRouter** | Dán API key | Nhiều model 1 chỗ, MCP + tool file + skill qua hub |
 | **Anthropic (API)** | Dán API key | MCP + tool file + skill qua hub (từ 0.9) |
 | **OpenAI (ChatGPT API)** | Dán API key | MCP + tool file + skill qua hub |
-| **Google Gemini (API)** | Dán API key | MCP qua hub ở phần chạy bên dưới; trang Kết nối vẫn cảnh báo (xem Sự cố) |
+| **Google Gemini (API)** | Dán API key | MCP + tool file + skill qua hub |
 
-Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc **○ Chưa kết nối**, kèm số model khả dụng, và một nhãn kiểu bên cạnh tên: **MCP/skill** (Claude Code), **Device code** (ChatGPT), **chat** (các provider API). Card nào đang là Main Model sẽ có nhãn **MAIN**.
+Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc **○ Chưa kết nối**, kèm số model khả dụng, và một nhãn kiểu bên cạnh tên: **MCP/skill** (Claude Code), **Device code** (ChatGPT), **MCP Javis** (các provider API). Card nào đang là Main Model sẽ có nhãn **MAIN**.
+
+> Nhãn của bốn provider API trước 0.9.270 ghi là **chat**, khiến nhiều người tưởng chúng chỉ chat suông. Sai: chúng gọi kho Kết nối, đọc/ghi brain và chạy skill y như hai engine CLI. Nhãn giờ là **MCP Javis** cho đúng.
 
 ## Cách dùng (từng bước)
 
-### A. Kết nối Claude Code (khuyến nghị, mặc định)
+### A. Kết nối Claude Code (mặc định)
 
-Đây là engine mạnh nhất vì dùng được toàn bộ công cụ, skill và bộ nhớ.
+Đây là engine mặc định. Nó dùng được toàn bộ công cụ, skill và bộ nhớ, cộng thêm chạy lệnh máy. Không bắt buộc: nếu bạn không có gói Claude thì bỏ qua mục này và đi thẳng xuống mục B (ChatGPT) hoặc C (API key) - Javis chạy đủ chức năng như nhau, chỉ thiếu phần lệnh máy khi đi bằng API key.
 
 1. Vào **Models**, tìm card **Anthropic OAuth (Claude Code)**.
 2. Nếu chưa đăng nhập, card báo **○ Chưa đăng nhập** và có hai nút: **Đăng nhập Claude** và **↻ Kiểm tra lại**.
@@ -118,7 +121,7 @@ Lấy key ở đâu:
 
 Danh sách model được nạp động từ chính provider (có nhãn **· live**). Nếu không lấy được từ mạng, Javis dùng danh sách dự phòng (nhãn **· catalog**); đang tải thì hiện **· đang tải…**. Model bạn chọn được lưu và áp dụng cho phiên chat mới.
 
-Khối Main Model cũng ghi một dòng về engine đang dùng: "Qua Claude Code - đầy đủ MCP/skill/loop" khi Main là Claude Code, và "Gọi API thẳng - chat thuần (không MCP)" khi Main là một provider API. **Dòng thứ hai đã cũ**: từ bản 0.9 các provider API vẫn gọi được kho Kết nối qua hub. Cứ tin mục "Claude Code và gọi API thẳng khác nhau ra sao" bên dưới, đừng tin dòng nhãn đó.
+Khối Main Model cũng ghi một dòng về engine đang dùng, nói rõ đường đi và giới hạn thật: "Qua Claude Code - MCP Javis + skill + loop + chạy lệnh máy", "Qua Codex - MCP Javis + skill + loop + chạy lệnh máy", hoặc "Gọi API thẳng - MCP Javis + skill + loop (không chạy lệnh máy)". Trước 0.9.270 dòng cuối ghi "chat thuần (không MCP)" - sai và đã bỏ.
 
 ### E. Chọn model việc nền
 
@@ -205,7 +208,9 @@ Bạn không cần rời trang Models để đổi model: bấm **Đổi model �
 - **Đăng nhập ChatGPT báo "Hết hạn, thử lại."**: Javis chờ khoảng 16 phút rồi bỏ cuộc. Bấm **Đăng nhập ChatGPT** lại để lấy mã mới.
 - **Chọn được provider nhưng cột model trống**: provider đó chưa kết nối, hoặc chưa có model. Kết nối lại ở khối Providers, hoặc thêm model vào `settings.json` (mục `model.catalog`). Xem [Cấu hình .env](16-cau-hinh-env.md).
 - **Model trả về rỗng**: thử lại hoặc đổi sang model khác trong bảng SET MAIN MODEL. Với Anthropic API, thông báo còn kèm lý do (ví dụ hết max_tokens: nhắn "tiếp tục" để model viết tiếp).
-- **Trang Kết nối hiện dòng vàng "⚠ Main Model đang là ... - chưa hỗ trợ gọi công cụ. Đổi ở trang Models."**: hiện tại chỉ còn **Google Gemini (API)** làm nổ dòng này, và nó **đã lỗi thời** - phần chạy bên dưới đã cho Gemini gọi công cụ qua hub. Bốn provider Claude Code, OpenRouter, OpenAI và Anthropic API không bao giờ hiện cảnh báo này; riêng ChatGPT OAuth hiện một thẻ XANH nói rõ nó chạy qua Codex CLI và vẫn dùng được đầy đủ.
+- **Trang Kết nối hiện dòng vàng "⚠ Main Model đang là ... - chưa hỗ trợ gọi công cụ. Đổi ở trang Models."**: từ 0.9.270 **không provider có sẵn nào** làm nổ dòng này nữa. Trước đó Google Gemini bị sót khỏi danh sách nên báo nhầm dù bên dưới đã chạy MCP qua hub bình thường. Dòng vàng giờ chỉ còn để chặn provider lạ. Năm provider Claude Code, OpenRouter, OpenAI, Anthropic API và Gemini hiện thẻ XANH; riêng ChatGPT OAuth có thẻ xanh riêng nói rõ nó chạy qua Codex CLI.
+
+- **Banner đỏ "⚠ Bộ não claude mất đăng nhập" trên máy chưa từng cài Claude**: sửa ở 0.9.270. Đèn báo não giữ trạng thái trong RAM và không ai dọn, nên đèn đỏ thắp hồi Claude còn là Main Model treo mãi sau khi bạn đổi sang OpenRouter. Giờ đèn chỉ tính những bộ não bạn THẬT SỰ chọn (Main Model + model việc nền khi đặt rõ provider), và tự tắt ngay khi bạn đổi sang nhà cung cấp khác - không phải chờ vòng quét 10 phút.
 - **Bấm Ngắt provider đang là Main**: Javis tự chuyển Main về Claude Code để chat không gãy. Đây là hành vi cố ý, không phải lỗi.
 - **ChatGPT OAuth báo chưa cài Codex CLI**: kênh này cần Codex CLI trên máy. Nếu chưa có, dùng Claude Code hoặc OpenRouter cho ổn định.
 

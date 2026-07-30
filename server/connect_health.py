@@ -239,26 +239,61 @@ def probe_claude_credentials(path=None) -> tuple[bool, str]:
     return False, "Phiên đăng nhập Claude Code đã hết hạn và không tự làm mới được."
 
 
-def probe_engines() -> None:
-    """Probe định kỳ (gọi trong sweep). Chỉ soi engine đang là Main Model để khỏi báo
-    đỏ oan máy không dùng Claude. Đèn do lượt chạy bật (source=run) không bị probe đè
-    sang xanh - lỗi lúc chạy là bằng chứng mạnh hơn suy đoán từ file token."""
+# Provider nào có "phiên đăng nhập CLI" để mà mất. Các provider API (openrouter, openai,
+# anthropic-api, gemini) chạy bằng API key: key sai thì lượt chạy báo lỗi ngay tại chỗ,
+# không có phiên nào hết hạn ngầm, nên chúng KHÔNG có đèn báo não.
+_PROVIDER_ENGINE = {"anthropic-cli": "claude", "openai-oauth": "codex"}
+
+
+def engines_in_use() -> set:
+    """Tên đèn của những bộ não người dùng THẬT SỰ chọn: Main Model + model việc nền.
+
+    Model việc nền chỉ tính khi người dùng đặt provider RÕ RÀNG. Bỏ trống thì aux_engine
+    rơi về Claude, nhưng đó là mặc định của code chứ không phải lựa chọn của người dùng -
+    và việc nền đã có _FallbackChain đỡ (Claude chết thì sang OpenRouter free). Tính cái
+    mặc định ngầm đó vào đây là máy chưa từng cài Claude vẫn bị nagging suốt ngày
+    'bộ não claude mất đăng nhập' dù đang chạy OpenRouter ngon lành."""
     try:
         import config as _cfg
-        provider = (((_cfg.read_settings().get("model") or {}).get("main") or {})
-                    .get("provider") or "anthropic-cli")
+        m = (_cfg.read_settings().get("model") or {})
     except Exception:
-        provider = "anthropic-cli"
-    if provider == "anthropic-cli":
-        ok, msg = probe_claude_credentials()
-        cur = _engines.get("claude") or {}
-        if ok and cur.get("source") == "run" and not cur.get("ok"):
-            return   # đèn đỏ do lượt chạy thật - chờ engine_run_ok tắt, probe không đè
-        _set_engine("claude", ok, msg, "probe")
+        return {"claude"}
+    provs = [(m.get("main") or {}).get("provider") or "anthropic-cli"]
+    aux = (m.get("auxiliary") or {}).get("provider")
+    if aux:
+        provs.append(aux)
+    return {_PROVIDER_ENGINE[p] for p in provs if p in _PROVIDER_ENGINE}
+
+
+def probe_engines() -> None:
+    """Probe định kỳ (gọi trong sweep). Chỉ soi bộ não người dùng đang giao việc, và
+    XOÁ đèn của bộ não không còn được giao việc nữa.
+
+    Xoá là phần quan trọng: _engines nằm trong RAM và không ai dọn, nên đèn đỏ thắp hồi
+    Claude còn là Main Model sẽ treo vĩnh viễn sau khi người dùng đổi sang OpenRouter -
+    đúng lỗi khách gặp (banner đỏ 'bộ não claude mất đăng nhập' trên máy chưa từng cài
+    Claude). Đèn do lượt chạy bật (source=run) không bị probe đè sang xanh - lỗi lúc
+    chạy là bằng chứng mạnh hơn suy đoán từ file token."""
+    live = engines_in_use()
+    for name in [n for n in _engines if n not in live]:
+        _engines.pop(name, None)
+    if "claude" not in live:
+        return
+    ok, msg = probe_claude_credentials()
+    cur = _engines.get("claude") or {}
+    if ok and cur.get("source") == "run" and not cur.get("ok"):
+        return   # đèn đỏ do lượt chạy thật - chờ engine_run_ok tắt, probe không đè
+    _set_engine("claude", ok, msg, "probe")
 
 
 def engines_snapshot() -> dict:
-    return {n: dict(r) for n, r in _engines.items()}
+    """Lọc lại theo bộ não ĐANG dùng ngay lúc hỏi, không chờ vòng quét kế tiếp.
+
+    probe_engines() cũng dọn, nhưng nó chạy mỗi HEALTH_INTERVAL (10 phút): đổi Main Model
+    xong mà banner đỏ còn treo thêm 10 phút thì người dùng tưởng đổi không ăn. read_settings
+    có cache theo mtime nên lọc ở đây gần như không tốn gì."""
+    live = engines_in_use()
+    return {n: dict(r) for n, r in _engines.items() if n in live}
 
 
 async def _loop():

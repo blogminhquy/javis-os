@@ -56,11 +56,11 @@ Trên máy cá nhân, nếu bạn để trống mật khẩu thì Javis không �
 
 | Lựa chọn | Chữ trên thẻ | Cần gì để dùng |
 |---|---|---|
-| **🧠 Claude Code** (khuyên dùng, chọn sẵn) | "Đăng nhập subscription Claude → đủ MCP, skill, đọc/ghi file, vòng lặp tự cải thiện. Mạnh & đầy đủ nhất." | Đăng nhập subscription Claude 1 lần (không cần API key) |
+| **🧠 Claude Code** (chọn sẵn) | "Đăng nhập subscription Claude → đủ MCP, skill, đọc/ghi file, vòng lặp tự cải thiện. Mạnh & đầy đủ nhất." | Đăng nhập subscription Claude 1 lần (không cần API key) |
 | **💬 ChatGPT (gói subscription)** | "Đăng nhập ChatGPT Plus/Pro (qua Codex) → vẫn dùng được MCP của Javis." | Đăng nhập ChatGPT ở trang Models |
-| **🌐 OpenRouter** | "Nhiều model giá rẻ (chat thuần, không MCP). Chỉ cần API key - không cần đăng nhập." | Dán API key OpenRouter (dán ngay hoặc để sau ở Models) |
+| **🌐 OpenRouter** | "Nhiều model giá rẻ một chỗ, vẫn đủ MCP Javis + skill + đọc/ghi file brain. Chỉ cần API key - không cần đăng nhập." | Dán API key OpenRouter (dán ngay hoặc để sau ở Models) |
 
-Lưu ý: dòng "chat thuần, không MCP" trên thẻ OpenRouter là **chữ cũ còn sót trên giao diện**. Thực tế Javis có MCP Hub, và mọi engine gọi API (OpenRouter, OpenAI, Anthropic API, Google Gemini) đều được cấp đầy đủ công cụ/MCP của Javis, kèm công cụ đọc/ghi file trong brain và gọi skill. Chọn OpenRouter không làm bạn mất MCP.
+Chọn cái nào cũng ra một Javis đủ chức năng: cả ba đều gọi được kho Kết nối (MCP), đọc/ghi file trong brain, chạy skill, giao việc và tạo loop. Khác biệt duy nhất là **chạy lệnh máy**, thứ chỉ hai engine CLI (Claude Code, Codex) làm được. Wizard chỉ hiện 3 thẻ cho gọn; vào trang **Models** còn OpenAI API, Google Gemini và Anthropic API, đổi lúc nào cũng được.
 
 Nếu chọn **OpenRouter**, một ô nhập **OpenRouter API key** sẽ hiện ra, bạn có thể dán key ngay hoặc để trống rồi dán sau ở trang Models. Dưới danh sách còn một dòng gợi ý thay đổi theo thẻ bạn chọn, ví dụ chọn ChatGPT thì gợi ý "Sau khi vào: mục **Models** → đăng nhập ChatGPT".
 

@@ -2,9 +2,9 @@
 
 # 🧠 Javis OS
 
-**Trợ lý AI cá nhân + Second Brain - xây trên CLI của các nhà cung cấp AI (Claude Code, ChatGPT/Codex), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
+**AI agentic đổi được bộ não + Second Brain - chạy trên model nào bạn muốn (Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API), có giọng nói, đồ thị tri thức, và tự thông minh dần lên.**
 
-*A personal AI operating layer built on provider agent CLIs (Claude Code, ChatGPT/Codex) - voice, a knowledge graph, MCP-driven business reporting, and a self-improvement loop.*
+*A model-agnostic agentic AI layer - swap the brain (Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic API) without losing tools: voice, a knowledge graph, MCP-driven business reporting, and a self-improvement loop.*
 
 </div>
 
@@ -12,9 +12,11 @@
 
 ## Javis là gì?
 
-Javis OS **không phải** một chatbot. Nó là một **lớp điều hành AI** chạy trên máy/VPS của bạn, lấy **CLI dạng agent của nhà cung cấp AI làm "bộ não"** - **Claude Code** (gói Claude) hoặc **Codex** (gói ChatGPT). Tận dụng chính **gói subscription bạn đang trả** thay vì phải mua thêm API riêng: bộ não đó có đầy đủ khả năng đọc/ghi file, gọi công cụ (MCP), chạy lệnh, dùng skill - rồi Javis gói tất cả vào một **dashboard đẹp, điều khiển bằng giọng nói**, kèm một **Second Brain** (bộ nhớ + wiki) tích luỹ tri thức theo thời gian.
+Javis OS **không phải** một chatbot. Nó là một **AI agentic tự host** chạy trên máy/VPS của bạn: đọc/ghi file, gọi công cụ (MCP), chạy skill, giao việc chạy nền, tự đặt lịch - rồi gói tất cả vào một **dashboard đẹp, điều khiển bằng giọng nói**, kèm một **Second Brain** (bộ nhớ + wiki) tích luỹ tri thức theo thời gian.
 
-> Triết lý: nhà cung cấp nào có **CLI dạng agent + gói subscription** (Claude Code, Codex, và các CLI ra sau) thì Javis dùng được làm bộ não. Ngoài ra vẫn chat được qua OpenRouter / OpenAI / Google Gemini / Anthropic API - và **mọi engine đều gọi được công cụ MCP** của Javis qua trung tâm kết nối (hub) chung.
+**Bộ não thì bạn chọn, và đổi lúc nào cũng được.** Sáu đường dùng được ngay: **Claude Code** và **ChatGPT/Codex** (dùng chính gói subscription bạn đang trả, không cần mua API riêng), **OpenRouter · OpenAI API · Google Gemini · Anthropic API** (chỉ cần API key).
+
+> Triết lý: **năng lực nằm ở Javis, không nằm ở model.** Mọi bộ não đều được cấp cùng bộ đồ nghề qua trung tâm kết nối (MCP Hub) chung - MCP đã đấu, tool đọc/ghi brain, skill, việc Kanban, agent/workflow/loop/nhắc hẹn. Khác biệt duy nhất: hai engine CLI chạy thêm được **lệnh máy**. Đổi từ Claude sang Gemini không làm Javis mất chức năng nào ngoài chuyện đó.
 
 Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quảng cáo, lịch, email, Zalo, ghi chú…) → Javis tự phát hiện và **báo cáo kinh doanh + cuộc sống** bằng số liệu thật, nói chuyện như người.
 
@@ -22,7 +24,7 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 
 | | Chatbot thường | **Javis OS** |
 |---|---|---|
-| Bộ não | API gọi rời từng câu | **Claude Agent SDK / Codex** - đủ tool, MCP, skill, session, chạy lệnh thật |
+| Bộ não | Khoá cứng 1 model, API gọi rời từng câu | **Đổi được**: 6 nhà cung cấp, cái nào cũng đủ tool, MCP, skill, session |
 | Trí nhớ | Quên sau mỗi phiên | **Second Brain sống** - nhớ bạn, dày lên qua từng hội thoại |
 | Dữ liệu | Bịa hoặc không có | **Số liệu thật** từ kết nối bạn đấu vào (POS, Ads, Lịch, Zalo…) |
 | Tự cải thiện | Không | **Vòng lặp tự chạy nền** + hàng đợi việc do AI tự vận hành |
@@ -50,7 +52,7 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 - 🎨 **Tạo ảnh** bằng chính gói ChatGPT đã đăng nhập, không cần API key riêng.
 - 📊 **Mức dùng** - Javis tự đo token vào/ra và chi phí theo ngày, theo nhà cung cấp, tách rõ phần bạn gõ tay với phần Javis tự chạy nền.
 - ⇅ **Sao lưu brain lên GitHub** - đồng bộ 2 chiều mọi brain lên một repo riêng tư, dùng chung giữa máy nhà và VPS.
-- 🔄 **Đa engine** - Claude Code, ChatGPT (Codex), OpenRouter, OpenAI API, Google Gemini, Anthropic API - đổi trong **Models**.
+- 🔄 **Đa engine, đổi không mất chức năng** - Claude Code, ChatGPT (Codex), OpenRouter, OpenAI API, Google Gemini, Anthropic API. Đổi trong **Models** một cú bấm; bộ não nào cũng gọi được MCP Javis, tool file brain và skill.
 - 🔐 **An toàn khi lên VPS** - tự bắt buộc đăng nhập khi chạy public, chống chiếm tài khoản, rate-limit, chặn CSRF, mã hoá khoá bí mật trong cấu hình.
 
 ---
@@ -124,8 +126,8 @@ Script tự cài Python + Node + Claude CLI, tạo venv, đăng ký dịch vụ 
 Mở Javis → bộ cài đặt sẽ dẫn bạn qua:
 
 1. **Tài khoản admin** - đặt mật khẩu (bắt buộc khi chạy public, để chặn người lạ).
-2. **Đăng nhập bộ não** - 1 lần, không cần API key. Claude Code lưu token trong `~/.claude` (Docker: volume riêng → không mất khi update); ChatGPT/Codex đăng nhập ngay trong trang **Models**.
-3. **Chọn engine + model** - mặc định chọn sẵn Claude Code. Đổi sang ChatGPT / OpenRouter / OpenAI / Gemini / Anthropic API trong **Models**.
+2. **Chọn bộ não** - đi bằng gói subscription thì đăng nhập 1 lần, không cần API key: Claude Code lưu token trong `~/.claude` (Docker: volume riêng → không mất khi update), ChatGPT/Codex đăng nhập ngay trong trang **Models**. Đi bằng API key thì chỉ dán key OpenRouter / OpenAI / Gemini / Anthropic là xong.
+3. **Chọn model** - mặc định chọn sẵn Claude Code, nhưng đổi sang nhà cung cấp nào trong **Models** cũng được và **không mất chức năng nào** (trừ chạy lệnh máy, vốn chỉ có ở hai engine CLI).
 4. **Đấu kết nối** (tuỳ chọn) - vào **Kết nối**, chọn dịch vụ trong Kho rồi dán key hoặc quét QR. Javis sẽ báo cáo số liệu thật từ đó.
 
 ---
@@ -235,7 +237,7 @@ Zalo Agent MCP ──────────────┤          │       
                               └──────────┴→ Second Brain (vault markdown: Memory + Wiki + Sources)
 ```
 - **Backend:** Python FastAPI trong `server/`.
-  - Bộ não & engine: `claude_sdk_engine.py` (engine Claude duy nhất, chạy qua Claude Agent SDK), `claude_cli.py` (factory + auth), `aux_engine.py` (engine cho việc nền), `engine.py` (backend phụ OpenRouter).
+  - Bộ não & engine: `claude_sdk_engine.py` (engine Claude, qua Claude Agent SDK), `claude_cli.py` (factory + auth cho Claude/Codex), `engine.py` (bốn engine API kèm vòng gọi tool MCP), `aux_engine.py` (chọn engine cho việc nền + chuỗi dự phòng khi engine chết).
   - Công cụ: `mcp_hub.py`, `mcp_store.py`, `mcp_client.py`, `mcp_catalog.py`, `plugins_host.py`, `oauth_mcp.py`.
   - Việc nền: `self_improve.py` (việc định kỳ), `reminders.py` (nhắc hẹn), `tasks.py` + `task_store.py` (Kanban), `learn.py` (tự học).
   - Dữ liệu: `sessions.py`, `compaction.py`, `git_brain.py`, `media_gc.py`, `usage_index.py` + `usage_store.py`.
@@ -288,7 +290,7 @@ javis-os/
 
 ## 🙏 Cảm hứng & ghi nhận
 
-- **Bộ não:** [Claude Code](https://claude.com/claude-code) và [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic), [Codex CLI](https://developers.openai.com/codex/cli) (OpenAI).
+- **Bộ não:** [Claude Code](https://claude.com/claude-code) và [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) (Anthropic), [Codex CLI](https://developers.openai.com/codex/cli) (OpenAI), cùng API của [OpenRouter](https://openrouter.ai), OpenAI, [Google Gemini](https://ai.google.dev) và Anthropic.
 - **Chuẩn công cụ:** [Model Context Protocol](https://modelcontextprotocol.io) - toàn bộ kho Kết nối của Javis chạy trên chuẩn này.
 - Pattern Second Brain + Bullet Journal số hoá.
 
