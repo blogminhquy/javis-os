@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.263] - 2026-07-30
+Lối lọt thứ tư của đợt đổi emoji sang icon Lucide: tiêu đề trang in nguyên tên icon.
+### Sửa lỗi
+- **Tiêu đề các trang sidebar hiện chữ "brain Tự học", "bot Agents", "puzzle Skills"** thay vì vẽ icon. Ba lần trước icon lọt qua đường `.textContent` trong JS; lần này đi đường HTML: tiêu đề trang bind icon bằng `x-text` của Alpine (vốn đúng thời còn emoji), trong khi `VIEW_META.icon` từ 0.9.257 đã đổi thành TÊN icon Lucide, nên tên bị in thẳng lên màn hình bằng màu cam của icon. Đổi sang `x-html` và bọc qua `ic()` để tên icon thành thẻ svg thật. Thanh rail bên trái không dính vì nó dùng chuỗi svg dựng sẵn từ đầu.
+### Cải thiện
+- Bộ quét icon canh thêm lối thứ tư: **bind giá trị icon bằng `x-text`** (quét cả index.html lẫn template Alpine dựng trong .js). Đã thử rule mới trên bản trước khi sửa: bắt đúng dòng lỗi.
+
 ## [0.9.262] - 2026-07-30
 Nốt chỗ thứ ba của cùng một lỗi: chip hoạt động trong khung chat cũng in nguyên thẻ svg.
 ### Sửa lỗi

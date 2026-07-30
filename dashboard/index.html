@@ -444,7 +444,9 @@
   <section class="cview" id="cview" x-data x-cloak x-show="$store.nav.active !== 'home'" x-transition.opacity.duration.200ms>
     <div class="cview-head">
       <div>
-        <div class="cview-title"><span class="ico" x-text="$store.nav.meta.icon"></span> <span x-text="$store.nav.meta.label"></span></div>
+        <!-- meta.icon là TÊN icon Lucide (VIEW_ICON trong console.js) nên phải render
+             qua ic() bằng x-html; x-text sẽ in nguyên tên ("brain", "bot"...) ra màn hình. -->
+        <div class="cview-title"><span class="ico" x-html="ic($store.nav.meta.icon || 'sparkles')"></span> <span x-text="$store.nav.meta.label"></span></div>
         <div class="cview-sub" x-text="$store.nav.meta.sub"></div>
       </div>
     </div>

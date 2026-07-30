@@ -14,6 +14,12 @@ Hai lỗi test này canh, đều là loại KHÔNG thấy bằng mắt khi revie
    còn icon là thẻ <svg> nên user đọc nguyên mã nguồn trên màn hình. Đây là cái
    bẫy riêng của đợt di trú: đổi nội dung sang icon mà quên đổi textContent
    thành innerHTML. Mắt người review rất khó thấy, nên quét bằng test.
+
+4. Bind giá trị icon bằng x-text của Alpine. Cùng bẫy với (3) nhưng đi đường
+   HTML: x-text đổ vào textContent nên icon (dù là chuỗi <svg> hay TÊN icon như
+   "brain") đều hiện thành chữ trên tiêu đề. Đây là lối lọt thứ tư của đợt di
+   trú - tiêu đề trang in "brain Tự học", "bot Agents" thay vì vẽ icon. Icon
+   trong template Alpine phải bind bằng x-html (tên icon thì bọc qua ic()).
 """
 import bisect
 import json
@@ -295,6 +301,23 @@ def scan_text_content():
     return hits
 
 
+def scan_x_text_icon():
+    """Tìm binding x-text mà biểu thức đụng tới giá trị icon (phải là x-html).
+
+    x-text đổ vào textContent, nên bind meta.icon / it.icon / collapseIcon...
+    là icon hiện thành CHỮ: chuỗi <svg> in nguyên mã nguồn, còn tên icon kiểu
+    "brain" thì in nguyên tên lên tiêu đề trang - đúng lỗi đã lọt ở cview-title.
+    Quét cả index.html lẫn các file .js (template Alpine dựng bằng chuỗi).
+    """
+    hits = []
+    for path in SCAN:
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for m in re.finditer(r'x-text="([^"]*)"', line):
+                if re.search(r"icon", m.group(1), re.I):
+                    hits.append((path.name, lineno, line.strip()[:90]))
+    return hits
+
+
 def scan_emoji():
     hits = []
     for path in SCAN:
@@ -401,6 +424,12 @@ tc_hits = scan_text_content()
 check(f"không nhét thẻ <svg> icon vào .textContent (thấy {len(tc_hits)})", not tc_hits)
 for fname, lineno, snippet in tc_hits:
     print(f"      {fname}:{lineno} - phải đổi sang .innerHTML | {snippet}")
+
+# --- 8. Không bind giá trị icon bằng x-text (Alpine) --------------------------
+xt_hits = scan_x_text_icon()
+check(f"không bind icon bằng x-text - phải là x-html (thấy {len(xt_hits)})", not xt_hits)
+for fname, lineno, snippet in xt_hits:
+    print(f"      {fname}:{lineno} - đổi sang x-html (tên icon thì bọc ic()) | {snippet}")
 
 if fails:
     raise SystemExit(f"\nFAIL - test_icons: {len(fails)} lỗi")
