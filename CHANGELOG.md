@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.276] - 2026-07-30
+Lỗi của dịch vụ trả về giữa lúc gọi tool nay được Javis chẩn đoán tại chỗ, thay vì để model tự đoán rồi đoán sai.
+### Sửa lỗi
+- **Bộ chẩn đoán lỗi Google chỉ cắm vào nút Test, không cắm vào chỗ gọi tool thật.** Đây là chỗ 99% người dùng gặp lỗi, mà ở đó `_guard` trả về nguyên văn tiếng Anh của Google. Hậu quả có thật: Google trả `The caller does not have permission` khi gọi `list_calendars` và `create_event`, Javis đọc xong kết luận là **hub của Javis đang chặn quyền** và đòi đi sửa tầng permission. Sai hoàn toàn: kết nối đang ở mức Toàn quyền nên `allowed()` cho qua ngay từ dòng đầu, và khi Javis thật sự chặn thì nó báo bằng tiếng Việt kèm chữ "bị chặn", không bao giờ là một câu tiếng Anh. Nay mọi lỗi tool đi qua hub đều được soi, nhận ra họ lỗi quen mặt thì **gắn thêm** một dòng `[Javis chẩn đoán]` ngay dưới nguyên văn lỗi. Gắn thêm chứ không thay thế, để nguyên văn còn đó mà lần manh mối.
+- **Thêm nhận diện 403 PERMISSION_DENIED không kèm chữ scope.** Với server MCP của Google, họ lỗi này gần như luôn là chưa ghi danh Developer Preview cho đúng tài khoản đang đăng nhập, hoặc project chưa bật API MCP riêng. Thông báo nói rõ ba điều người dùng cần biết: đây không phải Javis chặn, ghi danh tính theo TỪNG tài khoản Google nên vừa đổi tài khoản là phải ghi danh lại, và email theo tên miền riêng còn cần quản trị viên của miền cho phép. Lỗi thiếu scope cũng mang status `PERMISSION_DENIED` nên nhánh mới đặt SAU nhánh scope, có test canh đúng thứ tự đó.
+### Cải thiện
+- Tách `chan_doan_loi()` khỏi `_friendly_tool_error()`: hàm nhận diện trả rỗng khi không nhận ra, chỗ gọi tự quyết định nói gì. Nút Test giữ nguyên hành vi cũ (không nhận ra thì vẫn câu "Key chưa đúng hoặc chưa đủ quyền" kèm nguyên văn), còn đường gọi tool thì im lặng khi không chắc chứ không bịa chẩn đoán.
+- `test_loi_ket_noi_google.py` thêm 10 phép thử: nội dung thông báo mới, thứ tự nhánh scope so với nhánh permission, canary "lỗi lạ thì phải im", và soát cho chắc `_guard` thật sự có gắn chẩn đoán mà vẫn giữ nguyên văn.
+
 ## [0.9.275] - 2026-07-30
 Đổi tài khoản Google mà Javis vẫn chạy bằng tài khoản cũ: đổi ô đăng nhập giờ vứt luôn token cũ.
 ### Sửa lỗi

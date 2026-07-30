@@ -73,6 +73,40 @@ check("CANARY: lỗi lạ vẫn rơi về câu cũ kèm nguyên văn",
       msg6.startswith("Key chưa đúng hoặc chưa đủ quyền:") and "HTTP 500" in msg6)
 check("CANARY: lỗi lạ không bị gán nhầm thành 'API chưa bật'", "chưa được bật" not in msg6)
 
+# ---- 4b. 403 PERMISSION_DENIED không kèm chữ scope: chưa ghi danh Developer Preview ----
+# Vụ 2026-07-30: Google trả "The caller does not have permission" khi gọi create_event/
+# list_calendars. Javis đọc xong kết luận NHẦM là "hub của Javis chặn quyền" rồi đòi sửa tầng
+# permission, trong khi hub không hề chặn: kết nối đang mức full nên allowed() cho qua ngay,
+# và thông báo chặn của Javis là TIẾNG VIỆT kèm chữ "bị chặn" chứ không phải tiếng Anh.
+msg_perm = mcp_hub.chan_doan_loi("The caller does not have permission")
+check("403 caller-no-permission -> nhận ra, không trả rỗng", bool(msg_perm))
+check("nói thẳng ĐÂY KHÔNG PHẢI Javis chặn (chống chẩn nhầm sang tầng quyền)",
+      "KHÔNG phải Javis chặn" in msg_perm or "không phải Javis chặn" in msg_perm.lower())
+check("chỉ đúng thuốc: ghi danh Developer Preview", "workspace/preview" in msg_perm)
+check("nhắc ghi danh tính theo TỪNG tài khoản (đổi tài khoản là phải ghi danh lại)",
+      "TỪNG tài khoản" in msg_perm)
+check("nhắc tài khoản tên miền riêng cần quản trị viên", "quản trị viên" in msg_perm)
+
+# Thiếu scope cũng mang status PERMISSION_DENIED -> phải ra nhánh scope, KHÔNG rơi nhánh này.
+msg_scope_pd = mcp_hub.chan_doan_loi(
+    '{"code":403,"message":"Request had insufficient authentication scopes.","status":"PERMISSION_DENIED"}')
+check("thiếu scope vẫn ra nhánh scope dù status cũng là PERMISSION_DENIED",
+      "workspace/preview" not in msg_scope_pd and "Đăng nhập lại" in msg_scope_pd)
+
+# CANARY: lỗi lạ thì bộ nhận diện phải IM (trả rỗng), không bịa chẩn đoán.
+check("CANARY: lỗi lạ -> chan_doan_loi trả rỗng, không bịa",
+      mcp_hub.chan_doan_loi("something exploded: HTTP 500") == "")
+
+# ---- 4c. Chẩn đoán phải tới được chỗ GỌI TOOL THẬT, không chỉ nút Test ----
+# Đây mới là chỗ người dùng và model gặp lỗi. Trước đây _guard trả nguyên văn lỗi tiếng Anh
+# nên model tự suy diễn và suy sai.
+src = Path(mcp_hub.__file__).read_text(encoding="utf-8")
+than_guard = src.split("def _guard(")[1].split("\n# =====")[0]
+check("_guard có gắn chẩn đoán vào kết quả lỗi của tool", "chan_doan_loi" in than_guard)
+check("_guard GIỮ nguyên văn lỗi gốc (chỉ gắn thêm, không thay thế)",
+      "[Javis chẩn đoán]" in than_guard and "{result}" in than_guard)
+check("chỉ gắn khi thật sự là lỗi", 'startswith("ERROR:")' in than_guard)
+
 # ---- 5. validate_connection phải THẬT SỰ đi qua bộ dịch này ----
 src = Path(mcp_hub.__file__).read_text(encoding="utf-8")
 m = re.search(r"async def validate_connection.*?(?=\nasync def |\ndef |\Z)", src, re.S)

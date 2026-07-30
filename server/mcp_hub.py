@@ -160,6 +160,14 @@ def _guard(ent, fn, mode):
                        "ok": not str(result).startswith("ERROR:"), "ms": int((time.time() - t0) * 1000),
                        "err": str(result)[:200] if str(result).startswith("ERROR:") else "",
                        "args_keys": sorted((args or {}).keys())})
+        # Lỗi từ dịch vụ trả về NGUYÊN VĂN tiếng Anh thì model phải tự đoán, và nó đoán sai:
+        # vụ 2026-07-30 Google trả "The caller does not have permission", model kết luận là hub
+        # của Javis chặn quyền rồi đi sửa nhầm tầng. GẮN THÊM chẩn đoán (không thay thế - giữ
+        # nguyên văn để còn lần ra manh mối) khi nhận ra họ lỗi quen mặt.
+        if str(result).startswith("ERROR:"):
+            chan_doan = chan_doan_loi(str(result).split("ERROR:", 1)[1].strip(), conn["id"])
+            if chan_doan:
+                return f"{result}\n\n[Javis chẩn đoán] {chan_doan}"
         return result
 
     return _call
@@ -911,14 +919,18 @@ def _missing_scope_note(conn_id):
     return ""
 
 
-def _friendly_tool_error(err, conn_id=""):
-    """Dịch lỗi validate tool thành lời khuyên ĐÚNG BỆNH cho các lỗi Google/OAuth hay gặp.
-    Nhận chuỗi lỗi (đã bỏ tiền tố 'ERROR:'), trả thông báo cho UI. Lỗi lạ giữ hành vi cũ.
-    conn_id (tuỳ chọn): có thì nhánh thiếu scope nói luôn THIẾU CÁI GÌ, không bắt người dùng đoán.
+def chan_doan_loi(err, conn_id=""):
+    """Nhận diện các HỌ LỖI quen mặt của Google/OAuth → lời khuyên đúng bệnh.
+    Trả "" khi KHÔNG nhận ra - để chỗ gọi tự quyết định nói gì, không bịa chẩn đoán.
 
-    Vì sao: server MCP hosted của Google (calendarmcp/gmailmcp.googleapis.com) là API RIÊNG
-    phải bật thêm + phải ghi danh Workspace Developer Preview. Người dùng thiếu bước đó bị 403
-    nhưng Javis từng chỉ báo "Key chưa đúng hoặc chưa đủ quyền" - đổ oan sang key/não."""
+    Vì sao tách riêng khỏi _friendly_tool_error: bộ dịch này trước đây chỉ cắm vào nút Test,
+    trong khi 99% lần người dùng gặp lỗi là lúc GỌI TOOL THẬT - và ở đó model chỉ nhận được
+    nguyên văn tiếng Anh của Google rồi tự suy diễn. Vụ 2026-07-30: Google trả "The caller does
+    not have permission", Javis đọc xong kết luận nhầm là "hub chặn quyền" và đi sửa tầng
+    permission, trong khi hub không hề chặn (mức full thì allowed() cho qua ngay, và thông báo
+    chặn của Javis là tiếng Việt chứ không phải tiếng Anh).
+
+    conn_id (tuỳ chọn): có thì nhánh thiếu scope nói luôn THIẾU CÁI GÌ, không bắt người dùng đoán."""
     e = (err or "").strip()
     low = e.lower()
     if "has not been used in project" in low or "service_disabled" in low:
@@ -944,7 +956,27 @@ def _friendly_tool_error(err, conn_id=""):
     if ("missing required authentication credential" in low or "unauthenticated" in low
             or "invalid_grant" in low or "invalid_token" in low):
         return "Phiên đăng nhập hỏng hoặc hết hạn. Bấm Đăng nhập lại để lấy token mới."
-    return "Key chưa đúng hoặc chưa đủ quyền: " + e[:200]
+    # 403 PERMISSION_DENIED KHÔNG kèm chữ scope. Đặt SAU nhánh scope vì lỗi thiếu scope của
+    # Google cũng mang status PERMISSION_DENIED. Với server MCP của Google, họ lỗi này gần như
+    # luôn là chưa ghi danh Developer Preview cho ĐÚNG tài khoản đang đăng nhập, hoặc project
+    # chưa bật API MCP riêng. Ghi danh tính theo TỪNG TÀI KHOẢN nên đổi sang tài khoản khác là
+    # phải ghi danh lại - đúng bẫy của người dùng khi chuyển từ gmail cá nhân sang mail tên miền.
+    if "caller does not have permission" in low or "permission_denied" in low:
+        return ("Google từ chối chính TÀI KHOẢN đang đăng nhập (403 PERMISSION_DENIED). Đây KHÔNG"
+                " phải Javis chặn: mức quyền của kết nối chặn thì Javis báo bằng tiếng Việt kèm chữ"
+                " 'bị chặn'. Với server MCP của Google, lỗi này thường do 1 trong 2: tài khoản đó"
+                " chưa ghi danh Google Workspace Developer Preview Program, hoặc project chưa bật"
+                " API MCP riêng. Ghi danh tính theo TỪNG tài khoản Google, nên vừa đổi sang tài"
+                " khoản khác là phải ghi danh lại cho tài khoản mới. Nếu là email theo tên miền"
+                " riêng (Workspace) thì quản trị viên của miền phải cho phép nữa."
+                " Ghi danh: https://developers.google.com/workspace/preview")
+    return ""
+
+
+def _friendly_tool_error(err, conn_id=""):
+    """Bản cho nút Test: nhận ra thì nói đúng bệnh, không nhận ra thì giữ nguyên câu cũ kèm
+    nguyên văn lỗi (hành vi lịch sử, có canary trong test canh)."""
+    return chan_doan_loi(err, conn_id) or ("Key chưa đúng hoặc chưa đủ quyền: " + (err or "").strip()[:200])
 
 
 async def validate_connection(conn_id):
