@@ -3217,13 +3217,20 @@
     return '<div class="wiz-copy"><input class="js-input" readonly value="' + esc(uri) + '">'
       + '<button type="button" class="mp-btn wiz-copy-btn">Sao chép</button></div>';
   }
+  // Ô sao chép TÊN MIỀN trần (không https, không /) - cho ô "Miền ứng dụng"
+  // (App Domains) của Facebook. Cũng động theo địa chỉ đang mở như redirect.
+  function domainCopyBox() {
+    const host = location.hostname === "127.0.0.1" ? "localhost" : location.hostname;
+    return '<div class="wiz-copy"><input class="js-input" readonly value="' + esc(host) + '">'
+      + '<button type="button" class="mp-btn wiz-copy-btn">Sao chép</button></div>';
+  }
   function stepsHtml(con) {
     const st = con.steps || [];
     if (!st.length) return "";
     return '<ol class="conn-steps">' + st.map(s =>
       '<li>' + esc(s.text)
       + (s.link ? ' <button type="button" class="mp-btn wiz-open step-link" data-url="' + esc(s.link) + '">' + esc(s.link_label || "Mở trang") + ' ↗</button>' : "")
-      + (s.copy === "redirect" ? redirectCopyBox() : "")
+      + (s.copy === "redirect" ? redirectCopyBox() : s.copy === "domain" ? domainCopyBox() : "")
       + '</li>').join("") + '</ol>';
   }
   function wireWizCommon(m) {

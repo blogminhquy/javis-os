@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.265] - 2026-07-30
+Khách cài VPS đấu Facebook bị "URL bị chặn" vì hướng dẫn không có chỗ copy địa chỉ callback.
+### Sửa lỗi
+- **Hướng dẫn đấu Meta Ads / Facebook Trang không hiện ô copy Redirect URI.** Text bước 4 bảo "dán địa chỉ https ở nút 'Sao chép' bên dưới" nhưng bước đó quên khai `"copy": "redirect"`, mà connector có steps thì khối setup cũ (vốn có ô này) lại bị steps thay hẳn - thành ra không đâu có ô để copy. Khách trên VPS tự đoán đường dẫn callback (sai, vì đường thật là `/connect/oauth/callback`) rồi bị Facebook chặn "URL bị chặn". Giờ cả hai connector hiện ô copy sinh ĐÚNG địa chỉ theo tên miền của từng bản cài.
+- **Thiếu luôn bước "Miền ứng dụng" (App Domains).** Khách qua được cửa redirect lại vướng tiếp "Không thể tải URL - Miền của URL này không được đưa vào miền của ứng dụng". Thêm bước mới cho bản cài VPS: dán tên miền trần (không https, không dấu /) vào 'Cài đặt ứng dụng > Thông tin cơ bản > Miền ứng dụng' - kèm ô copy mới loại `copy: "domain"` sinh sẵn tên miền của khách. Cập nhật cả guide tường chữ lẫn trang docs, thêm hai lỗi này vào mục Sự cố thường gặp.
+### Cải thiện
+- Rào test mới trong lint catalog: step nào hứa nút 'Sao chép' hay bảo dán địa chỉ/tên miền "bên dưới" mà không khai `copy` là đỏ ngay - đã thử trên catalog cũ, bắt đúng hai bước lỗi. Giá trị `copy` lạ (dashboard không hiểu) cũng bị bắt.
+
 ## [0.9.264] - 2026-07-30
 Thêm icon bộ não trước dropdown chọn brain trên thanh trên cùng.
 ### Cải thiện

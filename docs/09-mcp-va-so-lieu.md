@@ -101,7 +101,8 @@ Hai bản làm giống nhau ở mọi bước, chỉ khác đúng chỗ mở ph�
 3. Ô **URI chuyển hướng OAuth hợp lệ** (Valid OAuth Redirect URIs) - **làm khác nhau tuỳ nơi bạn cài Javis**:
    - **Cài trên máy cá nhân** (địa chỉ `localhost`): **bỏ qua ô này, không cần điền.** Khi app ở Chế độ phát triển, Meta **tự động cho phép** chuyển hướng về localhost, nên ô này cố tình không nhận localhost. Meta có chú thích ngay tại đó: "Khi ở chế độ phát triển, hệ thống sẽ tự động cho phép http://localhost chuyển hướng và bạn không cần phải thêm vào đây." Không điền được là **đúng**, không phải lỗi, cứ đi tiếp. Chỉ nhớ Javis phải chạy ở địa chỉ **localhost** chứ không phải 127.0.0.1.
    - **Cài trên VPS / tên miền riêng**: **bắt buộc phải điền**, dán đúng địa chỉ https của bạn rồi Lưu, vd `https://javis.tenmiencuaban.com/connect/oauth/callback`. Ngoài localhost thì Meta không tự cho phép và cũng bắt buộc **https**, thiếu bước này là đăng nhập bị từ chối.
-   - Lấy nhanh: trong hộp thoại Kết nối của Javis có nút **Sao chép** sinh sẵn đúng địa chỉ cho máy bạn.
+   - **Đừng tự gõ tay**: hộp thoại Kết nối của Javis có ô địa chỉ kèm nút **Sao chép** sinh sẵn ĐÚNG địa chỉ theo tên miền máy bạn - bấm Sao chép rồi dán nguyên văn. Facebook bắt khớp **từng ký tự** (kể cả dấu `/` cuối), lệch một chữ là báo **"URL bị chặn"**.
+   - **Cũng cho VPS / tên miền riêng**: vào **Cài đặt ứng dụng > Thông tin cơ bản**, ô **Miền ứng dụng** (App Domains) điền tên miền trần, vd `javis.tenmiencuaban.com` (KHÔNG có `https://`, KHÔNG có dấu `/`), kéo xuống cuối trang bấm **Lưu thay đổi**. Hộp thoại Kết nối của Javis cũng có ô Sao chép sẵn tên miền này. Thiếu bước này Facebook báo **"Không thể tải URL - Miền của URL này không được đưa vào miền của ứng dụng"**.
    - Đừng vào "Cài đặt ứng dụng > Nâng cao", đó là chỗ khác không liên quan.
 4. Giữ app ở chế độ **Development** (công tắc góc trên cùng để ở "In development"). Đảm bảo bạn là **Admin** của app và của tài khoản quảng cáo muốn đọc - khi đó quyền `ads_read` tự cấp được, không cần App Review.
 5. **Bỏ qua "Xác minh doanh nghiệp" và "Xét duyệt ứng dụng"** dù bảng "Việc cần làm" của app có gợi ý. Hai bước đó chỉ cần khi app của bạn phục vụ doanh nghiệp KHÁC truy cập dữ liệu của họ; bạn tự dùng cho tài khoản của chính mình thì không cần, làm chỉ mất thêm nhiều ngày chờ duyệt.
@@ -170,6 +171,8 @@ Không đổi so với trước: hỏi trực tiếp trong chat ("hôm nay bán 
 
 ## Sự cố thường gặp
 
+- **Facebook báo "URL bị chặn" lúc đăng nhập**: redirect URI trong app Facebook chưa khớp. Mở hộp thoại Kết nối của Javis, bấm **Sao chép** ở ô địa chỉ chuyển hướng rồi dán NGUYÊN VĂN vào ô "URI chuyển hướng OAuth hợp lệ" (Đăng nhập bằng Facebook > Cài đặt), Lưu. Đừng gõ tay - Facebook bắt khớp từng ký tự.
+- **Facebook báo "Không thể tải URL - Miền của URL này không được đưa vào miền của ứng dụng"**: thiếu Miền ứng dụng. Vào Cài đặt ứng dụng > Thông tin cơ bản > ô "Miền ứng dụng", dán tên miền trần (không https, không dấu /) - có sẵn ô Sao chép trong hộp thoại Kết nối - rồi bấm "Lưu thay đổi" ở cuối trang.
 - **Dán key báo "Key chưa đúng hoặc chưa đủ quyền"**: tạo lại API key trong dịch vụ, dán lại. Với Pancake kiểm tra key thuộc đúng cửa hàng.
 - **Zalo báo "Cần cài Node.js 20+"**: cài Node.js từ nodejs.org rồi thử lại.
 - **Google Ads / TikTok Ads báo không kết nối được**: kiểm tra máy đã cài `uv` chưa (`winget install astral-sh.uv`). Riêng **Google Ads phải có cả Git** vì `uvx` kéo server từ GitHub - máy thiếu Git thì có `uv` cũng chết. Lần kết nối đầu phải tải gói nên có thể chậm - bấm Test lại sau 1-2 phút.

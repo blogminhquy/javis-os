@@ -71,7 +71,8 @@ def public_catalog():
             "setup": auth.get("setup") or {},
             # Nhóm hiển thị (vd mọi dịch vụ Google gom về MỘT card) + wizard từng bước
             # thay guide tường chữ. steps: [{text, link?, link_label?, copy?}] -
-            # copy="redirect" nghĩa là chèn ô sao chép Redirect URI ngay tại bước đó.
+            # copy="redirect" chèn ô sao chép Redirect URI ngay tại bước đó;
+            # copy="domain" chèn ô sao chép tên miền trần (cho App Domains của Facebook).
             "group": c.get("group", ""), "group_line": c.get("group_line", ""),
             "steps": [{"text": s.get("text", ""), "link": s.get("link", ""),
                        "link_label": s.get("link_label", ""), "copy": s.get("copy", "")}

@@ -80,6 +80,29 @@ check("bước đánh số luôn mở đầu một dòng: " + (", ".join(buoc_kh
       not buoc_khong_dau_dong)
 check("mọi connector đều có guide: " + (", ".join(guide_rong) or "đạt"), not guide_rong)
 
+# ---- Step hứa ô địa chỉ/tên miền bên dưới thì PHẢI khai copy để dashboard render ô đó ----
+# Lỗi thật đã xảy ra (0.9.265): step Facebook viết "dán địa chỉ https bên dưới vào ô này"
+# nhưng quên "copy": "redirect", nên khách trên VPS không có gì để copy, tự đoán path
+# callback rồi bị Facebook chặn "URL bị chặn". Text hứa hộp copy mà không khai copy là bug.
+# Trigger: nhắc nút 'Sao chép', hoặc bảo dán/thêm MỘT ĐỊA CHỈ/TÊN MIỀN (thứ chỉ UI sinh ra
+# được). "dán vào hai ô bên dưới" (form App ID/Secret) không dính vì không phải địa chỉ.
+# Giá trị copy hợp lệ khớp với stepsHtml() trong console.js: redirect | domain.
+COPY_HOP_LE = {"redirect", "domain"}
+HUA_O_COPY = re.compile(r"Sao chép|(?:dán|thêm)\s+(?:địa chỉ|tên miền)")
+hua_ma_khong_co = []
+copy_la = []
+for c in connectors:
+    for i, s in enumerate((c.get("auth") or {}).get("steps") or []):
+        cp = s.get("copy", "")
+        if HUA_O_COPY.search(s.get("text", "")) and not cp:
+            hua_ma_khong_co.append(f"{c['id']}[bước {i}]")
+        if cp and cp not in COPY_HOP_LE:
+            copy_la.append(f"{c['id']}[bước {i}]={cp!r}")
+check("step hứa ô địa chỉ/tên miền đều khai copy: " + (", ".join(hua_ma_khong_co) or "đạt"),
+      not hua_ma_khong_co)
+check("giá trị copy nằm trong bộ dashboard hiểu: " + (", ".join(copy_la) or "đạt"),
+      not copy_la)
+
 # ---- CSS phải thật sự tôn trọng xuống dòng, nếu không guide nhiều dòng là vô nghĩa ----
 css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
 khoi = ""
