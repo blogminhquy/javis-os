@@ -75,6 +75,55 @@ than_delete = src.split("def delete_connection")[1].split("\ndef ")[0]
 check("delete_connection có dọn kho token riêng", "forget_cred_dir" in than_delete)
 check("resolved() có bơm env kho token xuống tiến trình con", "_cred_dir(c, con)" in src)
 
+# ---- 4b. Đổi ô đăng nhập (email/Client ID) cũng phải vứt token của tài khoản cũ ----
+# Vụ thật: user xoá đi đăng nhập lại bằng hi@minhquy.vn mà mọi tool vẫn trả về
+# blogminhquy@gmail.com. Vì token cũ nằm nguyên trên đĩa, và USER_GOOGLE_EMAIL chỉ chọn
+# credential nào để DÙNG chứ không ép đăng nhập lại. Đổi ô đăng nhập mà giữ token cũ là
+# bảo đảm chạy nhầm tài khoản.
+than_update = src.split("def update_connection")[1].split("\ndef ")[0]
+check("update_connection có dọn token khi ô đăng nhập đổi", "forget_cred_dir" in than_update)
+check("chỉ dọn khi giá trị THẬT SỰ khác (nhập lại y hệt thì không bắt đăng nhập lại)",
+      "doi_dang_nhap" in than_update and "!=" in than_update)
+check("giá trị để trống vẫn giữ key cũ như trước, không kích hoạt dọn nhầm",
+      "giá trị rỗng = giữ cũ" in than_update)
+
+# Chạy THẬT update_connection trên một store giả, không chỉ soi chuỗi trong mã nguồn.
+import secrets_store  # noqa: E402
+
+_kho = {"connections": [{"id": "cid-ws", "connector_id": "google-workspace", "slug": "ws-test",
+                         "label": "ws", "enabled": True, "perm": "safe",
+                         "secrets": {"user_email": secrets_store.encrypt("blogminhquy@gmail.com")}}]}
+_that_load, _that_save = mcp_store._load, mcp_store._save
+mcp_store._load = lambda: _kho
+mcp_store._save = lambda d: None
+try:
+    conn_ws = _kho["connections"][0]
+    kho_token = mcp_store._cred_dir(conn_ws)["path"]
+
+    def _dung_lai_token():
+        kho_token.mkdir(parents=True, exist_ok=True)
+        (kho_token / "blogminhquy@gmail.com.json").write_text("{}", encoding="utf-8")
+
+    _dung_lai_token()
+    mcp_store.update_connection("cid-ws", {"fields": {"user_email": "blogminhquy@gmail.com"}})
+    check("nhập LẠI Y HỆT email cũ -> giữ token, không bắt đăng nhập lại vô cớ", kho_token.is_dir())
+
+    mcp_store.update_connection("cid-ws", {"label": "tên mới"})
+    check("chỉ đổi tên -> giữ token", kho_token.is_dir())
+
+    mcp_store.update_connection("cid-ws", {"fields": {"user_email": "hi@minhquy.vn"}})
+    check("ĐỔI email sang tài khoản khác -> token cũ bị vứt (hết cảnh vẫn ra tài khoản cũ)",
+          not kho_token.exists())
+
+    _dung_lai_token()
+    mcp_store.update_connection("cid-ws", {"fields": {"client_id": "moi.apps.googleusercontent.com"}})
+    check("đổi Client ID -> cũng vứt token (token cũ cấp cho app cũ)", not kho_token.exists())
+finally:
+    mcp_store._load, mcp_store._save = _that_load, _that_save
+    if kho_token.exists():
+        import shutil as _sh
+        _sh.rmtree(kho_token, ignore_errors=True)
+
 # ---- 5. Có đường "đăng nhập lại" mà KHÔNG phải xoá kết nối ----
 main_src = (SERVER / "main.py").read_text(encoding="utf-8")
 check("có endpoint /connect/relogin", '"/connect/relogin"' in main_src)

@@ -262,14 +262,23 @@ def update_connection(cid, patch):
         c["config"] = patch["config"]
     if "enabled" in patch and patch["enabled"] is not None:
         c["enabled"] = bool(patch["enabled"])
+    doi_dang_nhap = False
     for k, src in (("secrets", "fields"), ("headers", "headers"), ("env", "env")):
         newvals = patch.get(src)
         if newvals:
             merged = dict(c.get(k) or {})
             for kk, vv in newvals.items():
                 if vv:   # giá trị rỗng = giữ cũ
+                    if k == "secrets" and secrets_store.decrypt(merged.get(kk, "")) != vv:
+                        doi_dang_nhap = True
                     merged[kk] = secrets_store.encrypt(vv)
             c[k] = merged
+    # Đổi ô đăng nhập (email Google, Client ID/Secret) trên connector TỰ giữ token thì token
+    # đang cache thuộc về tài khoản/app CŨ - giữ lại là mọi tool vẫn chạy bằng tài khoản cũ.
+    # Vụ thật: user xoá đi đăng nhập lại bằng hi@minhquy.vn mà tool vẫn trả về
+    # blogminhquy@gmail.com, vì credential cũ nằm nguyên trên đĩa và không ai dọn.
+    if doi_dang_nhap:
+        forget_cred_dir(c)
     _save(d)
     return True
 
