@@ -218,3 +218,9 @@ updated: YYYY-MM-DD
 ---
 <nội dung ký ức; với decision/preference ghi thêm **Vì sao:** và **Áp dụng:**>
 ```
+
+## Quy ước dev (phiên Claude Code làm việc trên repo này)
+
+- Sau khi hoàn thành thay đổi và CI xanh: **merge luôn vào `main`** (rebase/squash, giữ lịch sử thẳng - repo không dùng merge commit). Chủ repo đã cho phép (2026-07-30) để test live ngay trên VPS qua bản cập nhật; không cần hỏi lại từng lần.
+- CI đỏ thì KHÔNG merge - sửa cho xanh trước rồi mới merge.
+- Vẫn phát triển trên nhánh riêng + mở PR như thường lệ; chỉ khác là bước merge không chờ duyệt tay.
