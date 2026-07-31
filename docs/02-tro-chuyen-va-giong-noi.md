@@ -153,6 +153,12 @@ Quan trọng về cách Javis xử lý file:
 - **Mặc định: chỉ đọc.** Javis đọc nội dung file (ảnh thì xem và mô tả) rồi trả lời, **không** tự lưu vào đâu. Nhãn trên lớp phủ kéo thả ghi "Thả file vào đây → lưu vào Sources" là chữ cũ, hành vi thật là chỉ đọc.
 - **Chỉ lưu khi bạn yêu cầu rõ.** Muốn Javis cất file vào bộ nhớ (Second Brain), hãy nói rõ trong tin nhắn, ví dụ "lưu vào source", "ingest cái này", hoặc "ghi vào second brain". Khi đó Javis mới chuyển file thành ghi chú và lưu vào thư mục Sources của vault. Xem thêm [Second Brain: bộ nhớ, Wiki, INGEST](13-second-brain-bo-nho-wiki.md) và [Quản lý tệp tin](05-quan-ly-tep-tin.md).
 
+## Thẻ "đang mở": file bạn đang sửa tự thành đầu vào của cuộc trò chuyện
+
+Ngoài file đính kèm, còn một loại thẻ nữa: khi bạn mở một file văn bản trong trình sửa (xem [Quản lý tệp tin](05-quan-ly-tep-tin.md)), Javis tự ghim file đó vào khung chat thành một thẻ màu cam ghi "đang mở - Javis làm việc trên file này".
+
+Khác thẻ đính kèm ở chỗ: chỉ có **một** thẻ ghim (mở file khác thì đổi theo), và nó **không mất sau khi gửi** - file đó là đầu vào của cả cuộc trò chuyện chứ không phải dữ liệu kèm một lần. Nhờ vậy bạn nói "dọn lại phần quá hạn" hay "viết thêm phần kết" mà không cần nhắc tên file, Javis vẫn biết đang nói về file nào và ghi thẳng vào đó. Bấm **✕** trên thẻ để bỏ ghim.
+
 ## Javis hiện ảnh, file và artifact trong câu trả lời
 
 Chiều ngược lại cũng có: Javis đưa được ảnh và file trong brain vào thẳng câu trả lời.

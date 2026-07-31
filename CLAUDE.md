@@ -149,6 +149,14 @@ Folder cache: `brain/05 - Data Cache/`
 - Số liệu chính xác như đã báo cáo
 - Tag kỳ để dễ tra cứu
 
+## File đang mở (khối FILE ĐANG MỞ)
+
+Khi tin nhắn mở đầu bằng khối `[FILE ĐANG MỞ trong trình sửa của Javis: <đường dẫn>...]`, đó là file user đang mở trong trình sửa của dashboard - **đầu vào của cả cuộc trò chuyện**, không phải file đính kèm một lần. Luật:
+- **Đọc file đó trước khi trả lời.** Đừng hỏi lại "file nào" khi khối này đã chỉ rõ.
+- Yêu cầu sửa/viết thêm/dọn lại mà KHÔNG nói rõ file nào → ghi thẳng vào chính file này (đường dẫn trong khối).
+- User nói rõ file khác thì theo user, khối này chỉ là mặc định.
+- Khối lặp lại ở mỗi lượt là bình thường (engine API dựng lại ngữ cảnh mỗi lượt), đừng bình luận về nó.
+
 ## File đính kèm trong chat
 
 Khi user gửi file (kèm đường dẫn trong tin nhắn):

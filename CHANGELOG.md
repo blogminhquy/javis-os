@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.287] - 2026-07-31
+Mở file nào trong trình sửa thì Javis làm việc trên file đó - khỏi dán đường dẫn hay tả lại.
+### Tính năng mới
+- **File đang mở tự ghim vào khung chat.** Mở một file văn bản trong trình sửa là Javis ghim ngay file đó thành thẻ màu cam phía trên thanh nhập ("đang mở - Javis làm việc trên file này"). Từ đó bảo "dọn lại phần quá hạn" hay "viết thêm mục kết luận" mà không nhắc tên file thì Javis vẫn ghi thẳng vào đúng file đó. Mở file khác thì thẻ đổi theo, không cộng dồn.
+- Thẻ ghim khác thẻ đính kèm ở chỗ **không mất sau khi gửi**: đính kèm là dữ liệu một lượt, còn file đang mở là đầu vào của cả cuộc trò chuyện. Ghim sống qua F5 (cùng lý do với khôi phục hội thoại ở 0.9.268), tự bỏ khi đổi brain hoặc xoá chính file đó, và bấm nút đóng trên thẻ để bỏ tay. Đóng cửa sổ sửa KHÔNG bỏ ghim - đóng ra để quay sang chat về chính file đó là luồng thường gặp nhất.
+- `/files/read` trả thêm khoá `abs` (đường dẫn thật của file). Cần nó vì đường dẫn tương đối trên giao diện tính theo trần duyệt, còn engine cần đường dẫn hệ thống - hai cái lệch nhau khi trần duyệt nằm cao hơn gốc brain, client tự ghép là ghép sai.
+- System prompt học cách đọc khối `[FILE ĐANG MỞ ...]`: đọc file trước khi trả lời, và mặc định ghi vào chính file đó khi user không nói rõ file nào.
+
 ## [0.9.286] - 2026-07-31
 Trang Models gọn lại, thang độ sâu suy nghĩ thêm hai nấc.
 ### Tính năng mới

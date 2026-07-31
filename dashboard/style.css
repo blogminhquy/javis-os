@@ -1069,6 +1069,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 }
 .attach-chip .chip-x:hover { color: var(--red); }
 .attach-chip.uploading { opacity: 0.6; }
+/* Chip FILE ĐANG MỞ (ghim): phải nhìn ra ngay là khác đính kèm một lần - nó sống qua nhiều
+   lượt chat nên người dùng cần thấy "à, Javis vẫn đang làm việc trên file này". */
+.attach-chip.pinned {
+  background: var(--accent-wash-2); border-color: var(--accent-line); max-width: 300px;
+}
+.attach-chip.pinned .chip-ico { background: var(--bg2); color: var(--accent); }
+.attach-chip.pinned .chip-name { font-weight: 600; }
+.attach-chip.pinned .chip-meta { color: var(--accent-ink); }
 
 /* Vault structure banner */
 .vault-banner {

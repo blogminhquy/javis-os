@@ -4438,6 +4438,11 @@
     if (!confirm(`Xoá "${name}"? Không hoàn tác được.`)) return;
     const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
     try { await fetch("/files/delete", { method: "POST", body: fd }); } catch (e) {}
+    // Ghim trỏ tới file vừa xoá thì bỏ, đừng để Javis đi mở một đường dẫn không còn tồn tại.
+    try {
+      const p = window.JavisPin && window.JavisPin.get();
+      if (p && p.rel === rel) window.JavisPin.clear();
+    } catch (e) {}
     closeNote();
     await _vtRebuildReExpand(null);
   }
@@ -4569,6 +4574,10 @@
       try { resp = await fetch(`/files/read?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}`); d = await resp.json().catch(() => ({})); }
       catch (e) { _neRenderDownload(body, actions, rel, it); return; }
       if (!resp.ok || d.error || d.content == null) { _neRenderDownload(body, actions, rel, it); return; }
+      // Mở file để sửa = GHIM nó vào khung chat làm file đầu vào. Mở file khác thì thay chỗ,
+      // nên chỉ cần gọi set() ở đây, không phải dọn ghim cũ. Đóng trình sửa KHÔNG bỏ ghim:
+      // đóng ra để quay sang chat về chính file đó là luồng thường gặp nhất.
+      try { if (window.JavisPin && d.abs) window.JavisPin.set({ name: d.name || it.name || rel, rel, abs: d.abs }); } catch (e) {}
       const isMd = ext === ".md";
       if (isMd) { try { await _ensureTurndown(); } catch (e) {} }   // để lưu bản render (WYSIWYG) → markdown
       const wysOk = isMd && !!window.TurndownService;
@@ -4698,6 +4707,8 @@
       if (active !== "home") renderPage(active);
       // Cây vault ở cột trái sống ngoài hệ cview → tự làm mới theo brain mới
       _vtCache.clear(); _vtIndex = null; _vtActivePath = null; renderVaultTree();
+      // Ghim của brain cũ trỏ ra ngoài brain mới → bỏ, kẻo Javis sửa nhầm file brain khác.
+      try { if (window.JavisPin) window.JavisPin.clear(); } catch (e) {}
     });
 
     // Cột trái = Vault explorer (luôn có trong DOM ở màn home) → nạp cây ngay khi khởi động

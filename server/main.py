@@ -2806,7 +2806,10 @@ async def files_read(brain: str = Query("brain"), path: str = Query(...)):
         text = f.read_text(encoding="utf-8")
     except Exception:
         return JSONResponse({"error": "File nhị phân - không xem được dạng văn bản"}, status_code=415)
-    return {"path": path, "name": f.name, "content": text,
+    # `abs` để trình sửa ghim được file đang mở vào khung chat: engine cần ĐƯỜNG DẪN THẬT
+    # mới mở được file, mà đường dẫn tương đối ở đây tính theo TRẦN DUYỆT chứ không theo gốc
+    # brain (hai cái khác nhau khi trần cao hơn brain) nên client tự ghép là ghép sai.
+    return {"path": path, "name": f.name, "content": text, "abs": str(f),
             "editable": f.suffix.lower() in _TEXT_EXTS, "ext": f.suffix.lower()}
 
 

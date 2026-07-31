@@ -118,6 +118,14 @@ Vài điều nên biết về tìm kiếm:
 3. Sửa xong bấm **💾 Lưu**. Khi lưu thành công, nút đổi thành **✓ Đã lưu** rồi trở lại như cũ.
 4. Bấm **✕** ở góc trên cửa sổ để đóng. Bạn cũng có thể bấm ra vùng tối bên ngoài cửa sổ để đóng.
 
+**Mở file nào thì Javis làm việc trên file đó.** Ngay khi mở một file văn bản để sửa, Javis tự **ghim** file đó vào khung chat: một thẻ màu cam hiện phía trên thanh nhập, ghi tên file kèm dòng "đang mở - Javis làm việc trên file này". Từ lúc đó bạn hỏi gì thì Javis cũng đã có sẵn file đó làm đầu vào, khỏi phải dán đường dẫn hay mô tả lại. Bảo "dọn lại phần quá hạn giúp anh" hay "viết thêm mục kết luận" mà không nói file nào thì Javis ghi thẳng vào chính file đang mở.
+
+Thẻ ghim khác thẻ file đính kèm ở hai chỗ:
+- **Chỉ có một.** Mở file khác là thẻ đổi theo file mới, không cộng dồn.
+- **Không mất sau khi gửi.** File đính kèm gửi xong là biến mất; thẻ ghim ở lại suốt cuộc trò chuyện vì nó là file bạn đang làm việc trên đó. Đóng cửa sổ sửa cũng không bỏ ghim - đóng ra để quay sang chat về chính file đó là chuyện thường.
+
+Bỏ ghim bằng cách bấm **✕** trên thẻ. Ghim cũng tự bỏ khi bạn đổi sang brain khác hoặc xoá chính file đang ghim, và nó sống qua F5 nên tải lại trang không mất mạch làm việc.
+
 Lưu ý:
 - Nút **Sửa** chỉ xuất hiện với các loại file văn bản nêu trên.
 - File lớn hơn 2MB sẽ không mở để xem trong trình duyệt. Javis báo bạn tải về thay vì mở.

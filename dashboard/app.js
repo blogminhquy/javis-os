@@ -260,6 +260,15 @@ function sendMessage(text) {
         : `${ctx}\n\nHãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính.`;
     }
   }
+  // File đang ghim đi TRƯỚC mọi thứ: nó là ngữ cảnh nền của cả lượt, không phải dữ liệu
+  // đính kèm một lần. Gửi lại mỗi lượt vì engine API dựng lại payload từ SQLite mỗi lần,
+  // không giữ trạng thái "đang mở file nào" giữa các lượt.
+  if (pinnedNote) {
+    outMsg = `[FILE ĐANG MỞ trong trình sửa của Javis: ${pinnedNote.abs}\n`
+      + `Đây là file người dùng ĐANG LÀM VIỆC TRÊN ĐÓ - coi như đầu vào của cuộc trò chuyện này. `
+      + `Đọc nó trước khi trả lời. Khi được yêu cầu sửa/viết thêm/dọn lại mà không nói rõ file nào `
+      + `thì ghi thẳng vào chính file này.]\n\n${outMsg}`;
+  }
 
   chatInput.value = ""; chatInput.style.height = "auto";
   clearAttachments();
@@ -1368,9 +1377,41 @@ const attachBar = document.getElementById("attachBar");
 const fileInput = document.getElementById("fileInput");
 const dropOverlay = document.getElementById("dropOverlay");
 
+// ---- File đang mở trong trình sửa, GHIM vào khung chat ----
+// Khác đính kèm ở hai điểm: (1) không mất sau khi gửi - nó là "file đầu vào" của cả cuộc
+// trò chuyện, mở file nào thì làm việc trên file đó; (2) không upload gì cả, chỉ trỏ tới
+// file có sẵn trong brain. Mở file khác thì thay chỗ, bấm nút đóng trên chip thì bỏ ghim.
+let pinnedNote = null;      // {name, rel, abs, brain}
+const PIN_KEY = "javis.pinnedNote";
+
+function _pinSave() {
+  try {
+    if (pinnedNote) localStorage.setItem(PIN_KEY, JSON.stringify(pinnedNote));
+    else localStorage.removeItem(PIN_KEY);
+  } catch (e) {}
+}
+function _pinRestore() {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    const p = raw ? JSON.parse(raw) : null;
+    // Ghim của brain khác là ghim lạc - file không nằm trong brain đang mở nữa.
+    if (p && p.abs && p.brain === currentBrainPath()) pinnedNote = p;
+  } catch (e) {}
+}
+
 function renderChips() {
-  attachBar.classList.toggle("has-items", pendingAttachments.length > 0);
+  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote);
   attachBar.innerHTML = "";
+  if (pinnedNote) {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip pinned";
+    chip.title = pinnedNote.abs;
+    chip.innerHTML = `<div class="chip-ico">${ic("file-text")}</div>`
+      + `<div class="chip-info"><span class="chip-name">${escapeHtml(pinnedNote.name)}</span>`
+      + `<span class="chip-meta">đang mở - Javis làm việc trên file này</span></div>`
+      + `<button class="chip-x" data-unpin="1" title="Bỏ ghim file">${ic("x")}</button>`;
+    attachBar.appendChild(chip);
+  }
   pendingAttachments.forEach((a, i) => {
     const chip = document.createElement("div");
     chip.className = "attach-chip" + (a.uploading ? " uploading" : "");
@@ -1384,8 +1425,24 @@ function renderChips() {
     attachBar.appendChild(chip);
   });
   attachBar.querySelectorAll(".chip-x").forEach(b =>
-    b.addEventListener("click", () => removeAttachment(+b.dataset.i)));
+    b.addEventListener("click", () => {
+      if (b.dataset.unpin) JavisPin.clear();
+      else removeAttachment(+b.dataset.i);
+    }));
 }
+
+// API cho console.js (trình sửa note) gọi khi mở/đóng file.
+const JavisPin = {
+  get() { return pinnedNote; },
+  set(note) {
+    if (!note || !note.abs) return;
+    pinnedNote = { name: note.name || note.rel || "", rel: note.rel || "",
+                   abs: note.abs, brain: currentBrainPath() };
+    _pinSave(); renderChips();
+  },
+  clear() { pinnedNote = null; _pinSave(); renderChips(); },
+};
+window.JavisPin = JavisPin;
 function fmtSize(b) {
   if (b < 1024) return b + " B";
   if (b < 1048576) return (b / 1024).toFixed(0) + " KB";
@@ -1945,3 +2002,7 @@ checkVault();
 // đáp án - thứ mà tải lại từ server (/sessions) không có. savedSessionId sống lại theo, nên
 // lượt đang chạy nền của phiên này vẫn stream tiếp vào đúng khung sau khi tải lại.
 restoreSession();
+// File ghim sống qua F5 luôn - tải lại trang mà mất file đang làm việc thì đúng cái phiền
+// mà khôi phục hội thoại ở trên sinh ra để tránh.
+_pinRestore();
+renderChips();
