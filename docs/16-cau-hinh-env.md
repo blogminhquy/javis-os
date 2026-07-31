@@ -154,7 +154,7 @@ Sửa xong phải khởi động lại Javis. Ảnh đã bị dọn mà vẫn c�
 
 ## Điểm cần nhớ về ANTHROPIC_API_KEY
 
-Javis dùng chính **gói subscription** bạn đang trả làm bộ não (Claude Code cho gói Claude, Codex cho gói ChatGPT), nên **không cần** biến `ANTHROPIC_API_KEY` trong `.env`. Các MCP bạn cài vào Claude Code, Javis tự kế thừa. Nếu muốn dùng model qua nhà cung cấp API (OpenRouter, OpenAI API, Anthropic API, Google Gemini API), bạn nhập khoá trong app ở trang **Models**, không đặt trong `.env`. Khoá nhập ở đó được mã hoá trước khi lưu xuống `settings.json`. Xem [Models & engine](10-models-va-engine.md).
+Javis dùng chính **gói subscription** bạn đang trả làm bộ não (Claude Code cho gói Claude, Codex cho gói ChatGPT), nên **không cần** biến `ANTHROPIC_API_KEY` trong `.env`. Các MCP bạn cài vào Claude Code, Javis tự kế thừa. Nếu muốn dùng model qua nhà cung cấp API (OpenRouter, OpenAI API, Anthropic API, Google Gemini API, Groq API), bạn nhập khoá trong app ở trang **Models**, không đặt trong `.env`. Khoá nhập ở đó được mã hoá trước khi lưu xuống `settings.json`. Xem [Models & engine](10-models-va-engine.md).
 
 ## Ví dụ một file .env tối giản
 

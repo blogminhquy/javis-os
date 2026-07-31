@@ -609,6 +609,8 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
      "default_models": ["gpt-4o", "gpt-4o-mini", "o3-mini"]},
     {"id": "gemini",        "label": "Google Gemini (API)",     "kind": "api", "key_field": "gemini_api_key",    "catalog_key": "gemini",
      "default_models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]},
+    {"id": "groq",          "label": "Groq (API)",              "kind": "api", "key_field": "groq_api_key",      "catalog_key": "groq",
+     "default_models": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"]},
 ]
 
 def _provider_def(pid):
@@ -669,6 +671,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "openai-oauth"
     elif provider == "gemini":
         m["engine"] = "gemini"
+    elif provider == "groq":
+        m["engine"] = "groq"
     else:  # anthropic-cli
         m["engine"] = "cli"; m["claude_model"] = model
 
@@ -726,6 +730,8 @@ def _api_stream(prov, key, model, messages, reasoning="off"):
         return engine.openai_stream(key, model, messages, reasoning)
     if prov == "gemini":
         return engine.gemini_stream(key, model, messages, reasoning)
+    if prov == "groq":
+        return engine.groq_stream(key, model, messages, reasoning)
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -749,7 +755,7 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
     (file vault, use_skill) → engine API cũng là agent thực thụ. anthropic-api giờ CÓ tool loop.
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
     tools, route = [], {}
-    if prov in ("openrouter", "openai", "anthropic-api", "gemini"):
+    if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq"):
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
@@ -769,6 +775,8 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
             return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "gemini":
             return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "groq":
+            return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
     return _api_stream(prov, key, model, messages, reasoning)
 
 
@@ -809,7 +817,8 @@ def _schedule_cancel_reply(action: dict) -> str:
 
 def _api_label(prov):
     return {"openrouter": "OpenRouter", "openai": "OpenAI", "anthropic-api": "Anthropic API",
-            "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini"}.get(prov, prov)
+            "openai-oauth": "ChatGPT (OAuth)", "gemini": "Google Gemini",
+            "groq": "Groq"}.get(prov, prov)
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
@@ -1368,7 +1377,7 @@ async def settings_get():
     cfg = cfgmod.read_settings()
     safe = json.loads(json.dumps(cfg))
     safe["auth"] = {"username": cfg["auth"].get("username", ""), "has_password": bool(cfg["auth"].get("password_hash"))}
-    for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key"):
+    for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key", "groq_api_key"):
         k = cfg["model"].get(kf, "")
         safe["model"][kf] = ("••••" + k[-4:]) if k else ""
         safe["model"][kf + "_set"] = bool(k)
@@ -1414,7 +1423,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             if _provider_def(prov) and mod:
                 _set_main_model(cfg, prov, mod)
         # Nhập credential provider (chỉ ghi khi có giá trị mới - tránh xoá bằng giá trị che ••••)
-        for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key"):
+        for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key", "groq_api_key"):
             if patch.get(kf):
                 m[kf] = patch[kf]
         # Ngắt kết nối 1 provider (xoá key). Nếu nó đang là MAIN → quay về Claude Code CLI để chat không gãy.
@@ -1671,6 +1680,20 @@ async def _fetch_provider_models(provider, m):
         ids = [(x.get("name") or "").split("/")[-1] for x in data
                if "generateContent" in (x.get("supportedGenerationMethods") or [])]
         return sorted(i for i in ids if i.startswith("gemini")) or None
+    if provider == "groq":
+        key = m.get("groq_api_key")
+        if not key:
+            return None
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get("https://api.groq.com/openai/v1/models",
+                            headers={"Authorization": f"Bearer {key}"})
+            r.raise_for_status()
+            data = r.json().get("data", [])
+        # Groq phục vụ cả model whisper (chuyển giọng thành chữ) và guard trên cùng endpoint -
+        # lọc ra kẻo picker chat hiện model không chat được.
+        ids = [x.get("id") for x in data if x.get("id")
+               and not any(s in x["id"].lower() for s in ("whisper", "tts", "guard", "embed"))]
+        return sorted(ids) or None
     if provider == "openai-oauth":
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
@@ -5621,7 +5644,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await _persist_turn(store, conv_sid, brain, user_message, final_text)
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
-                if kind == "api" and api_key and prov in ("openrouter", "openai", "anthropic-api", "gemini"):
+                if kind == "api" and api_key and prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq"):
                     try:
                         asyncio.create_task(compaction.maybe_compact(
                             store, conv_sid, prov, api_key, api_model, _api_stream))

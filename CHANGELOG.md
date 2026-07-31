@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.292] - 2026-08-01
+Thêm Groq làm nhà cung cấp model thứ bảy.
+### Tính năng mới
+- **Đấu thêm Groq (API).** Trang Models có thêm card **Groq (API)**: dán API key là dùng được, danh sách model nạp LIVE từ Groq (đã lọc bỏ model whisper/guard/embedding vì chúng không chat được). Groq đi đường OpenAI-compatible nên dùng chung vòng gọi tool với OpenAI/Gemini - tức là **đủ MCP Javis + tool file brain + skill** ngay từ đầu, không phải chat suông.
+- Chọn được cả cho **model việc nền**. Groq suy luận rất nhanh và rẻ nên hợp với loop, việc Kanban, nhắc hẹn - những thứ đốt hạn mức âm thầm nhất.
+- `reasoning_effort` chỉ gửi cho dòng model suy luận (qwen3, deepseek-r1, gpt-oss, kimi thinking). Gửi cho llama/mixtral/gemma là Groq trả 400, nên phải lọc theo tên model y như cách đang làm với OpenAI o-series và Gemini 2.5.
+- Khoá Groq nằm trong danh sách **mã hoá trước khi ghi** `settings.json`, giống các khoá provider khác.
+- Thêm `test_groq_provider.py` chốt phần đấu dây. Thêm một provider phải chạm 7 chỗ rời nhau; sót một chỗ là lỗi câm (card hiện ra nhưng chat rơi về nhánh mặc định, hoặc key ghi plaintext, hoặc chọn làm model việc nền thì nổ lúc chạy nền). Test chạy với máy chủ Groq giả lập nên không cần mạng và không tốn quota.
+
 ## [0.9.291] - 2026-08-01
 Bỏ `html-to-webcake` khỏi bộ skill mặc định của hệ thống.
 ### Cải thiện

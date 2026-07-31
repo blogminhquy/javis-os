@@ -386,7 +386,7 @@ Phím tắt:
 
 - [Phiên hội thoại](04-phien-hoi-thoai.md) - lưu, mở lại, đổi tên, xoá hội thoại cũ.
 - [Skills](06-skills.md) - viết và gọi skill bằng lệnh `/slug`.
-- [Models & engine](10-models-va-engine.md) - sáu nhà cung cấp model và cách đổi engine.
+- [Models & engine](10-models-va-engine.md) - bảy nhà cung cấp model và cách đổi engine.
 - [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - đấu nguồn dữ liệu để hỏi số thật.
 - [Quản lý tệp tin](05-quan-ly-tep-tin.md) - cột VAULT bên trái và trang Tệp tin.
 - [Task & Dataview trong note](19-task-va-dataview.md) - khối `dataview` và `tasks` trong câu trả lời.

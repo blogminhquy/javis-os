@@ -36,13 +36,14 @@ import config as cfgmod
 
 CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
-API_PROVIDERS = ("openrouter", "openai", "gemini", "anthropic-api")
+API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api")
 
 # provider -> tên trường chứa API key trong settings["model"]
 _KEY_FIELD = {
     "openrouter": "openrouter_key",
     "openai": "openai_api_key",
     "gemini": "gemini_api_key",
+    "groq": "groq_api_key",
     "anthropic-api": "anthropic_api_key",
 }
 
@@ -204,12 +205,13 @@ class _ApiAuxEngine:
         if tools:
             fn = {"openrouter": eng.openrouter_chat_with_mcp,
                   "openai": eng.openai_chat_with_mcp,
-                  "gemini": eng.gemini_chat_with_mcp,
+                  "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
                   "anthropic-api": eng.anthropic_chat_with_mcp}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning, tools, route)
         else:
             fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
-                  "gemini": eng.gemini_stream, "anthropic-api": eng.anthropic_stream}[self.provider]
+                  "gemini": eng.gemini_stream, "groq": eng.groq_stream,
+                  "anthropic-api": eng.anthropic_stream}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning)
 
         # Đường API sinh "text" theo mảnh; việc nền chỉ đọc "final" nên gom lại rồi phát MỘT lần.

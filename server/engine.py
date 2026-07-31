@@ -248,6 +248,10 @@ ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 # Google Gemini qua endpoint TƯƠNG THÍCH OpenAI → dùng lại nguyên logic Chat Completions
 # (stream, usage, tool-calling) như OpenAI, chỉ khác base URL + auth Bearer bằng Gemini API key.
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+# Groq đổi tên model khá nhanh (model cũ bị deprecate rồi gỡ). Để một chỗ duy nhất, và
+# picker vẫn nạp danh sách LIVE từ /openai/v1/models nên mặc định này chỉ là lưới an toàn.
+GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 # Model Anthropic hỗ trợ adaptive thinking + output_config.effort (khỏi budget_tokens).
 _ADAPTIVE_THINKING = ("opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5", "sonnet-4-6", "fable-5", "mythos-5")
@@ -294,6 +298,13 @@ def _openai_is_reasoning(model):
     """OpenAI: chỉ model o-series / gpt-5 nhận reasoning_effort (gpt-4o sẽ 400 nếu gửi)."""
     m = (model or "").lower()
     return m.startswith(("o1", "o3", "o4")) or "gpt-5" in m
+
+
+def _groq_is_reasoning(model):
+    """Groq: chỉ dòng suy luận (qwen3, deepseek-r1, gpt-oss, kimi-k2-thinking) nhận
+    reasoning_effort. Model thường (llama, mixtral, gemma) gửi vào là 400."""
+    m = (model or "").lower()
+    return any(s in m for s in ("qwen3", "deepseek-r1", "gpt-oss", "thinking", "reasoning"))
 
 
 def _gemini_is_reasoning(model):
@@ -350,6 +361,14 @@ async def openai_stream(api_key, model, messages, reasoning="off"):
     """OpenAI Chat Completions (provider 'openai') - chat thuần, định dạng giống OpenRouter."""
     async for ev in _openai_compat_stream(OPENAI_URL, "OpenAI", api_key, model or "gpt-4o-mini",
                                           messages, reasoning, _openai_is_reasoning(model)):
+        yield ev
+
+
+async def groq_stream(api_key, model, messages, reasoning="off"):
+    """Groq (endpoint OpenAI-compatible, provider 'groq') - nhánh KHÔNG tool (dự phòng khi hub
+    không có tool nào; đường thường là groq_chat_with_mcp)."""
+    async for ev in _openai_compat_stream(GROQ_URL, "Groq", api_key, model or GROQ_DEFAULT_MODEL,
+                                          messages, reasoning, _groq_is_reasoning(model)):
         yield ev
 
 
@@ -1135,6 +1154,18 @@ async def openai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, m
         extra["reasoning_effort"] = api_effort(reasoning)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(OPENAI_URL, headers, model or "gpt-4o-mini", messages, mcp_tools, mcp_route, extra, "OpenAI"):
+        yield ev
+
+
+async def groq_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """Groq (endpoint OpenAI-compat) + vòng tool-calling MCP - Groq cũng là agent đủ đồ nghề
+    của Javis y như OpenAI/Gemini. Non-stream từng vòng (dùng _cc_tool_loop chung)."""
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    extra = {}
+    if reasoning not in (None, "", "off") and _groq_is_reasoning(model):
+        extra["reasoning_effort"] = api_effort(reasoning)
+    yield {"type": "meta", "model": model}
+    async for ev in _cc_tool_loop(GROQ_URL, headers, model or GROQ_DEFAULT_MODEL, messages, mcp_tools, mcp_route, extra, "Groq"):
         yield ev
 
 

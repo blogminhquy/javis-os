@@ -127,10 +127,10 @@ check("dòng Main Model nói rõ provider API vẫn có MCP + skill + loop",
 _ui = re.search(r"const MCP_PROVIDERS = \[([^\]]*)\]", CONSOLE_JS)
 check("tìm được MCP_PROVIDERS trên UI", _ui is not None)
 _ui_set = set(re.findall(r'"([^"]+)"', _ui.group(1))) if _ui else set()
-_srv = re.search(r'if prov in \("openrouter", "openai", "anthropic-api", "gemini"\)', MAIN_PY)
-check("server cấp MCP cho cả 4 provider API (kể cả gemini)", _srv is not None)
-check(f"UI liệt kê đúng 4 provider API đó + Claude Code (đang có: {sorted(_ui_set)})",
-      _ui_set == {"anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini"})
+_srv = re.search(r'if prov in \("openrouter", "openai", "anthropic-api", "gemini", "groq"\)', MAIN_PY)
+check("server cấp MCP cho cả 5 provider API (kể cả gemini, groq)", _srv is not None)
+check(f"UI liệt kê đúng 5 provider API đó + Claude Code (đang có: {sorted(_ui_set)})",
+      _ui_set == {"anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq"})
 
 # System prompt: Javis phải tự biết mình đổi được bộ não và không được tự hạ thấp.
 check("system prompt gọi Javis là AI agentic đổi được bộ não",
