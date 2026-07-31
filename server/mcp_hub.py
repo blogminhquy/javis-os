@@ -305,10 +305,19 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None):
     javis_connections để model biết mà nói đúng lý do thay vì tưởng nguồn thiếu năng lực."""
     tools, route = [], {}
 
-    def add(name, description, props, required, call):
+    def add(name, description, props, required, call, effect="read"):
         tools.append({"fn": name, "server": "javis", "name": name, "description": description,
                       "schema": {"type": "object", "properties": props, "required": required}})
-        route[name] = {"call": call}
+        route[name] = {
+            "call": call,
+            "source_type": "builtin",
+            "source_id": "javis-core",
+            "effect": effect,
+            "required_mode": "readonly" if effect in ("none", "read") else (
+                "safe" if effect == "write" else "full"
+            ),
+            "health": "healthy",
+        }
 
     add("javis_connections", "Liệt kê các nguồn dữ liệu (connector/tài khoản MCP) đang đấu vào Javis, "
         "kèm mức quyền và các tool đang bị mức quyền ẩn (tool_bi_an_do_quyen). Gồm cả connector đấu "
@@ -368,7 +377,8 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None):
         {"path": {"type": "string"}}, [], _ls)
     add("javis_write_file", "Ghi/tạo file trong vault (ghi đè nếu có). Dùng khi cần lưu ghi chú, "
         "báo cáo, nháp. KHÔNG dùng cho hành động ra ngoài.",
-        {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"], _write)
+        {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"], _write,
+        effect="write")
     # Mô tả tool = router thu nhỏ: liệt kê slug + mô tả ngắn để engine biết KHI NÀO gọi skill nào.
     # Trần lấy từ skill_router (CHUNG với system prompt) - trước đây hub tự cắt 60, system prompt
     # cắt 100 - người viết skill không biết mình bị chấm theo thước nào.
@@ -647,7 +657,14 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             h["tools"].append(raw["tool"])
             continue
         tools_spec.append(t)
-        route[t["fn"]] = {"call": _guard(raw, t["fn"], mode), "conn": conn, "tool": raw["tool"]}
+        route[t["fn"]] = {
+            "call": _guard(raw, t["fn"], mode), "conn": conn, "tool": raw["tool"],
+            # Metadata dùng bởi Registry/Resolver shadow; không tham gia dispatch.
+            "source_type": "mcp", "source_id": conn.get("id") or conn.get("namespace"),
+            "effect": cls,
+            "required_mode": "readonly" if cls == "read" else ("safe" if cls == "write" else "full"),
+            "health": "healthy",
+        }
 
     b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden)
     tools_spec += b_tools
@@ -675,12 +692,28 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     except Exception as e:
         print(f"[hub] plugin host lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
+    # Snapshot ĐẦY ĐỦ trước lazy cho Capability Registry Phase 2. Registry chỉ dùng metadata;
+    # model vẫn nhận đúng danh sách sau lazy như trước.
+    inventory_tools = list(tools_spec)
+    inventory_route = dict(route)
+
     # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
     tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden)
-    _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt}
+    _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt,
+                   "inventory_tools": inventory_tools, "inventory_route": inventory_route}
     return tools_spec, route
+
+
+def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False):
+    """Trả snapshot pre-lazy đã cache; không discover I/O và không lộ ra model."""
+    key = ((mode or "full").strip().lower(), str(vault_root or ""),
+           bool(include_plugins), bool(include_ambient))
+    ent = _cache.get(key) or {}
+    return list(ent.get("inventory_tools") or ent.get("tools") or []), dict(
+        ent.get("inventory_route") or ent.get("route") or {}
+    )
 
 
 def invalidate_cache():

@@ -61,6 +61,9 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
+import context_runtime   # Phase 0-3: trace + Registry/Resolver shadow, chưa đổi dispatch
+import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
+import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -69,6 +72,10 @@ from chat_runtime import ChatRuntime
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
+_CONTEXT_RUNTIME = context_runtime.get_runtime()
+_CAPABILITY_REGISTRY = capability_registry.get_registry()
+_CAPABILITY_RESOLVER = capability_resolver.get_resolver()
+_REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
 app.add_middleware(CORSMiddleware,
@@ -755,17 +762,32 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
     (file vault, use_skill) → engine API cũng là agent thực thụ. anthropic-api giờ CÓ tool loop.
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
     tools, route = [], {}
+    inventory_tools, inventory_route = [], {}
     if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq"):
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
                 tools, route = await mcp_hub.discover_all("full", vault_root=vault_root)
+                inventory_tools, inventory_route = mcp_hub.registry_inventory(
+                    "full", vault_root=vault_root)
             else:
                 servers = mcp_store.servers_for_client()
                 if servers:
                     tools, route = await mcp_client.discover(servers)
+                    inventory_tools, inventory_route = tools, route
         except Exception as e:
             print(f"[mcp discover] {e}", file=__import__('sys').stderr)
+    # Phase 0-1: chỉ đo metadata payload sau khi đã biết tool schema thật. Không lưu content,
+    # không chặn quota và không thay danh sách tool. ContextVar giữ trace riêng từng asyncio task.
+    _trace = context_runtime.current_trace()
+    if _trace:
+        _CONTEXT_RUNTIME.set_route(_trace, prov, model or "?")
+        _CONTEXT_RUNTIME.observe_payload(
+            _trace, messages, tools, provider=prov, model=model or "?")
+        _schedule_registry_shadow(
+            _trace, brain, inventory_tools or tools, inventory_route or route,
+            _last_user_text(messages), prov, model or "?", kind="api",
+        )
     if tools:
         if prov == "openrouter":
             return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
@@ -778,6 +800,80 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         if prov == "groq":
             return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
     return _api_stream(prov, key, model, messages, reasoning)
+
+
+def _last_user_text(messages) -> str:
+    for message in reversed(messages or []):
+        if isinstance(message, dict) and message.get("role") == "user":
+            content = message.get("content")
+            return content if isinstance(content, str) else ""
+    return ""
+
+
+def _track_shadow_task(coro) -> None:
+    """Chạy derived refresh/resolve ngoài hot path; lỗi không được ảnh hưởng chat."""
+    try:
+        task = asyncio.create_task(coro)
+        _REGISTRY_SHADOW_TASKS.add(task)
+        task.add_done_callback(_REGISTRY_SHADOW_TASKS.discard)
+    except Exception:
+        try:
+            coro.close()
+        except Exception:
+            pass
+
+
+def _schedule_registry_shadow(trace, brain, tools, route, query, provider, model,
+                              kind="unknown") -> None:
+    if not trace:
+        return
+
+    async def _job():
+        try:
+            await asyncio.to_thread(
+                _CAPABILITY_REGISTRY.refresh_tools, _brain_root(brain), tools or [], route or {})
+            await asyncio.to_thread(
+                _CAPABILITY_REGISTRY.refresh_model_profile,
+                provider or "unknown", model or "unknown", kind, True,
+                {"observed": True},
+            )
+            report = await asyncio.to_thread(
+                _CAPABILITY_RESOLVER.resolve, query or "", _brain_root(brain),
+                capability_resolver.ActorPolicy(mode="full", channel=trace.channel),
+            )
+            _CONTEXT_RUNTIME.record_shadow_resolution(trace, report)
+        except Exception as exc:
+            # Không lưu message lỗi vì có thể chứa path/source; chỉ lưu loại lỗi.
+            _CONTEXT_RUNTIME.record_shadow_resolution(trace, {
+                "policy_version": capability_resolver.RESOLVER_POLICY_VERSION,
+                "registry_revision": trace.registry_revision,
+                "miss_class": f"shadow_error:{type(exc).__name__}",
+            })
+
+    _track_shadow_task(_job())
+
+
+def _schedule_registry_discovery_shadow(trace, brain, query, provider, model,
+                                        kind="cli") -> None:
+    """CLI có tool native nên refresh inventory Hub ở task nền, không chặn lượt chat."""
+    if not trace:
+        return
+
+    async def _discover_then_shadow():
+        try:
+            root = _brain_root(brain)
+            await mcp_hub.discover_all("full", vault_root=root, include_ambient=True)
+            tools, route = mcp_hub.registry_inventory(
+                "full", vault_root=root, include_ambient=True)
+            _schedule_registry_shadow(trace, brain, tools, route, query, provider, model, kind)
+        except Exception as exc:
+            _CONTEXT_RUNTIME.record_shadow_resolution(trace, {
+                "policy_version": capability_resolver.RESOLVER_POLICY_VERSION,
+                "registry_revision": trace.registry_revision,
+                "miss_class": f"discovery_error:{type(exc).__name__}",
+            })
+
+    _track_shadow_task(_discover_then_shadow())
 
 
 async def _schedule_cancel_action(message: str, brain):
@@ -5449,23 +5545,38 @@ async def websocket_endpoint(ws: WebSocket):
     class _SendProxy:
         """Đội lốt ws bên trong 1 lượt: mọi send_text tự gắn session_id của lượt + qua khoá ghi.
         Nhờ vậy toàn bộ code các nhánh engine bên dưới KHÔNG cần sửa mà vẫn định tuyến đúng phiên."""
-        def __init__(self, sid):
+        def __init__(self, sid, runtime_trace=None):
             self._sid = sid
+            self._runtime_trace = runtime_trace
 
         async def send_text(self, txt):
             try:
                 o = json.loads(txt)
                 o["session_id"] = self._sid
+                o.update(context_runtime.event_fields(self._runtime_trace))
+                if o.get("type") == "error":
+                    _CONTEXT_RUNTIME.note_error(self._runtime_trace, "engine_error_event")
             except Exception:
                 return
             await _CHAT_RUNTIME.publish(o)
 
     try:
-        async def _do_turn(conv_sid, user_message, brain, turn_tag):
-            ws = _SendProxy(conv_sid)               # các nhánh engine bên dưới dùng ws proxy này
+        async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None):
+            ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
             mcfg = cfgmod.read_settings().get("model", {})
             prov, kind, api_key, api_model = _chat_provider(mcfg)
             reasoning = _reasoning_level(mcfg)
+            _CONTEXT_RUNTIME.set_route(
+                runtime_trace,
+                "codex" if prov == "openai-oauth" else prov,
+                api_model or mcfg.get("claude_model") or "mặc định",
+            )
+            if kind in ("cli", "oauth"):
+                _schedule_registry_discovery_shadow(
+                    runtime_trace, brain, user_message,
+                    "codex" if prov == "openai-oauth" else "cli",
+                    api_model or mcfg.get("claude_model") or "mặc định", kind,
+                )
             _row0 = store.get_session(conv_sid) or {}
             cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=CLAUDE_CWD, tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
@@ -5525,10 +5636,16 @@ async def websocket_endpoint(ws: WebSocket):
                     # không mất mạch, rồi thread.started sẽ được lưu và resume native từ lượt sau.
                     _codex_prompt = (_codex_current if stored_codex_thread else
                                      compaction.codex_bootstrap_prompt(_codex_raw, _codex_current))
-
                     async def _consume_codex(prompt, suppress_resume_error=False):
                         nonlocal final_text
                         resume_failed = False
+                        # Đo theo từng invocation thật: nhánh khôi phục thread có thể gọi lần hai.
+                        _CONTEXT_RUNTIME.observe_payload(
+                            runtime_trace,
+                            [{"role": "system", "content": sysprompt},
+                             {"role": "user", "content": prompt}],
+                            provider="codex", model=actual_model,
+                        )
                         async for ev in ccli.query(prompt):
                             et = ev["type"]
                             if et == "session":
@@ -5544,6 +5661,8 @@ async def websocket_endpoint(ws: WebSocket):
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
                                 usage_store.record("codex", actual_model, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
+                                _CONTEXT_RUNTIME.record_usage(
+                                    runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
                             elif et == "error":
                                 if ev.get("resume_failed"):
                                     resume_failed = True
@@ -5591,8 +5710,11 @@ async def websocket_endpoint(ws: WebSocket):
                 async for ev in gen:
                     if ev["type"] == "meta":
                         actual_model = ev.get("model") or actual_model
+                        _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
                     elif ev["type"] == "usage":
                         usage_store.record(prov, actual_model, ev.get("input", 0), ev.get("output", 0))
+                        _CONTEXT_RUNTIME.record_usage(
+                            runtime_trace, ev.get("input", 0), ev.get("output", 0))
                     elif ev["type"] == "tool_call":
                         await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "content": f"⚙ MCP: {ev.get('name', '')}"}))
                     elif ev["type"] == "text":
@@ -5612,7 +5734,14 @@ async def websocket_endpoint(ws: WebSocket):
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
                 _cost = None
-                async for event in cli.query(_cli_think(reasoning, user_message)):
+                _cli_prompt = _cli_think(reasoning, user_message)
+                _CONTEXT_RUNTIME.observe_payload(
+                    runtime_trace,
+                    [{"role": "system", "content": sysprompt},
+                     {"role": "user", "content": _cli_prompt}],
+                    provider="cli", model=cli.model or mcfg.get("claude_model") or "mặc định",
+                )
+                async for event in cli.query(_cli_prompt):
                     etype = event["type"]
                     if etype == "tool_call":
                         await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "content": f"⚙ Đang gọi: {event['name']}"}))
@@ -5629,6 +5758,8 @@ async def websocket_endpoint(ws: WebSocket):
                             store.set_cli_session_id(conv_sid, _cli_sid)
                         usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
                                            event.get("tokens_in", 0), event.get("tokens_out", 0), event.get("cost_usd") or 0)
+                        _CONTEXT_RUNTIME.record_usage(
+                            runtime_trace, event.get("tokens_in", 0), event.get("tokens_out", 0))
                     elif etype == "error":
                         await ws.send_text(json.dumps({"type": "error", "content": event["content"]}))
                 # Khung `response` PHẢI nằm NGOÀI vòng lặp. Trước đây nó nằm trong nhánh
@@ -5651,15 +5782,27 @@ async def websocket_endpoint(ws: WebSocket):
                     except Exception as _e:
                         print(f"[compact hook] {_e}", file=__import__('sys').stderr)
 
-        async def run_turn(conv_sid, user_message, brain, turn_tag):
+        async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None):
+            _trace_token = context_runtime.bind_trace(runtime_trace)
             try:
-                await _do_turn(conv_sid, user_message, brain, turn_tag)
+                await _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+                _CONTEXT_RUNTIME.finish(
+                    runtime_trace,
+                    "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
+                )
             except asyncio.CancelledError:
-                await send_raw({"type": "system", "content": "Đã dừng lượt này.", "session_id": conv_sid})
+                _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
+                await send_raw({"type": "system", "content": "Đã dừng lượt này.", "session_id": conv_sid,
+                                **context_runtime.event_fields(runtime_trace)})
             except Exception as e:
-                await send_raw({"type": "error", "content": f"Lỗi xử lý: {type(e).__name__}: {e}", "session_id": conv_sid})
+                _CONTEXT_RUNTIME.note_error(runtime_trace, type(e).__name__)
+                _CONTEXT_RUNTIME.finish(runtime_trace, "FAILED", type(e).__name__)
+                await send_raw({"type": "error", "content": f"Lỗi xử lý: {type(e).__name__}: {e}",
+                                "session_id": conv_sid, **context_runtime.event_fields(runtime_trace)})
             finally:
-                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                context_runtime.reset_trace(_trace_token)
+                await send_raw({"type": "turn_done", "session_id": conv_sid,
+                                **context_runtime.event_fields(runtime_trace)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
         while True:
@@ -5695,8 +5838,14 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
             store.append_message(conv_sid, "user", user_message)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
-            task = asyncio.create_task(run_turn(conv_sid, user_message, brain, turn_tag))
-            _CHAT_RUNTIME.register_job(conv_sid, task, turn_tag)
+            runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
+            task = asyncio.create_task(run_turn(
+                conv_sid, user_message, brain, turn_tag, runtime_trace))
+            _CHAT_RUNTIME.register_job(
+                conv_sid, task, turn_tag,
+                runtime_task_id=runtime_trace.task_id if runtime_trace else "",
+                runtime_step_id=runtime_trace.step_id if runtime_trace else "",
+            )
     except WebSocketDisconnect:
         pass
     finally:
@@ -5975,17 +6124,38 @@ async def _tg_answer(text, meta=None, progress=None):
     except Exception as e:
         print(f"[telegram session] {e}", file=__import__('sys').stderr)
 
-    out = await _tg_answer_engine(
-        text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
-        prov=prov, kind=kind, api_key=api_key, api_model=api_model,
-        store=store, conv_sid=conv_sid)
+    runtime_trace = _CONTEXT_RUNTIME.start_turn(
+        conv_sid or f"telegram:{chat_id}", brain, "telegram")
+    _CONTEXT_RUNTIME.set_route(runtime_trace, engine_label,
+                               api_model or mcfg.get("claude_model") or "mặc định")
+    _trace_token = context_runtime.bind_trace(runtime_trace)
+    try:
+        out = await _tg_answer_engine(
+            text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
+            prov=prov, kind=kind, api_key=api_key, api_model=api_model,
+            store=store, conv_sid=conv_sid)
 
-    if conv_sid and isinstance(out, dict):
-        try:
-            await _persist_turn(store, conv_sid, brain, text, out.get("text") or "")
-        except Exception as e:
-            print(f"[telegram persist] {e}", file=__import__('sys').stderr)
-    return out
+        if conv_sid and isinstance(out, dict):
+            try:
+                await _persist_turn(store, conv_sid, brain, text, out.get("text") or "")
+            except Exception as e:
+                print(f"[telegram persist] {e}", file=__import__('sys').stderr)
+        if isinstance(out, str):
+            _CONTEXT_RUNTIME.note_error(runtime_trace, "telegram_error_response")
+        _CONTEXT_RUNTIME.finish(
+            runtime_trace,
+            "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
+        )
+        return out
+    except asyncio.CancelledError:
+        _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
+        raise
+    except Exception as e:
+        _CONTEXT_RUNTIME.note_error(runtime_trace, type(e).__name__)
+        _CONTEXT_RUNTIME.finish(runtime_trace, "FAILED", type(e).__name__)
+        raise
+    finally:
+        context_runtime.reset_trace(_trace_token)
 
 
 def _tg_ket(clean_out, files, canh_bao="", loi=()):
@@ -6006,6 +6176,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     sess["last"] = text
     sess["sent"] = set()    # lượt mới → reset dedupe (endpoint /telegram/send-file add vào đây)
     reasoning = _reasoning_level(mcfg)
+    runtime_trace = context_runtime.current_trace()
 
     async def _p(s):
         # Báo trạng thái trung gian về kênh (Telegram) cho user đỡ lo khi chờ. Bỏ qua nếu lỗi.
@@ -6018,6 +6189,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # ai đang nhắn, và cách gửi file trả về (auto-attach + endpoint send-file).
     sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
         "telegram", meta, telegram_running=True, port=_javis_port(), brain_root=_brain_root(brain))
+    if kind in ("cli", "oauth"):
+        _schedule_registry_discovery_shadow(
+            runtime_trace, brain, text,
+            "codex" if prov == "openai-oauth" else "cli",
+            api_model or mcfg.get("claude_model") or "mặc định", kind,
+        )
     schedule_action = await _schedule_cancel_action(text, brain)
     if schedule_action:
         for call in schedule_action.get("calls") or []:
@@ -6067,6 +6244,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             """Tiêu thụ một lượt Codex. Trả về: lượt này có chết vì resume hỏng không."""
             nonlocal out
             resume_hong = False
+            _CONTEXT_RUNTIME.observe_payload(
+                runtime_trace,
+                [{"role": "system", "content": sysprompt},
+                 {"role": "user", "content": prompt}],
+                provider="codex", model=actual_model,
+            )
             async for ev in ccli.query(prompt):
                 et = ev.get("type")
                 if et in ("tool_call", "item"):
@@ -6088,12 +6271,15 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                         "codex", actual_model,
                         ev.get("tokens_in", 0), ev.get("tokens_out", 0),
                     )
+                    _CONTEXT_RUNTIME.record_usage(
+                        runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
                 elif et == "error":
                     if ev.get("resume_failed"):
                         resume_hong = True
                         if bo_qua_loi_resume:
                             continue    # còn cửa dựng lại, chưa phải lúc kêu lỗi với user
                     loi.append(str(ev.get("content") or "Codex lỗi"))
+                    _CONTEXT_RUNTIME.note_error(runtime_trace, "codex_error_event")
             return resume_hong
 
         # Lịch sử để dựng lại thread khi cần. Bỏ lượt cuối vì đó chính là câu đang hỏi.
@@ -6149,16 +6335,20 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 out += ev["content"]
             elif ev["type"] == "meta":
                 actual_model = ev.get("model") or actual_model   # model THẬT (OpenRouter tính tiền theo cái này)
+                _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
             elif ev["type"] == "usage":
                 # Thiếu dòng này tới 0.9.244: mọi lượt Telegram không đi qua Codex đều không
                 # được tính vào bảng Mức dùng.
                 usage_store.record(prov, actual_model, ev.get("input", 0), ev.get("output", 0))
+                _CONTEXT_RUNTIME.record_usage(
+                    runtime_trace, ev.get("input", 0), ev.get("output", 0))
             elif ev["type"] == "tool_call":
                 await _p(f"⚙ Đang gọi công cụ: {ev.get('name', '')}")
             elif ev["type"] == "error":
                 # KHÔNG return ngay: một tool hỏng giữa chừng không có nghĩa là cả lượt hỏng,
                 # luồng thường chạy tiếp và vẫn ra câu trả lời. Dashboard vốn xử lý như vậy.
                 loi.append(str(ev.get("content") or "lỗi không rõ"))
+                _CONTEXT_RUNTIME.note_error(runtime_trace, "api_error_event")
         if not out:
             return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
         sess["or"].append({"role": "assistant", "content": out})
@@ -6191,7 +6381,14 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _streamed = ""   # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
         loi = []
         _pinged = False
-        async for ev in cli.query(_cli_think(reasoning, text)):
+        _cli_prompt = _cli_think(reasoning, text)
+        _CONTEXT_RUNTIME.observe_payload(
+            runtime_trace,
+            [{"role": "system", "content": sysprompt},
+             {"role": "user", "content": _cli_prompt}],
+            provider="cli", model=cli.model or mcfg.get("claude_model") or "mặc định",
+        )
+        async for ev in cli.query(_cli_prompt):
             et = ev["type"]
             if et == "final":
                 out = ev.get("content") or out
@@ -6200,6 +6397,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
                                    ev.get("tokens_in", 0), ev.get("tokens_out", 0),
                                    ev.get("cost_usd") or 0)
+                _CONTEXT_RUNTIME.record_usage(
+                    runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
             elif et == "tool_call":
                 nm = ev.get("name", "")
                 if nm in ("Write", "NotebookEdit"):
@@ -6216,6 +6415,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             elif et == "error":
                 # Xem nhánh API: lỗi giữa lượt không chí mạng, cứ chạy tiếp rồi báo ở cuối.
                 loi.append(str(ev.get("content") or "lỗi không rõ"))
+                _CONTEXT_RUNTIME.note_error(runtime_trace, "cli_error_event")
         out = out or _streamed
         if not out:
             return "⚠ " + (loi[0] if loi else "Engine không trả về nội dung nào.")

@@ -1,0 +1,32 @@
+{
+  "version": "phase23-shadow-v1",
+  "privacy": "synthetic-only",
+  "cases": [
+    {
+      "id": "calendar-read-alias",
+      "query": "xem lịch hôm nay",
+      "actor_mode": "readonly",
+      "expected": ["calendar_list"],
+      "forbidden": ["calendar_delete"]
+    },
+    {
+      "id": "calendar-write-filtered",
+      "query": "xóa sự kiện lịch",
+      "actor_mode": "readonly",
+      "expected": [],
+      "expected_miss": "permission"
+    },
+    {
+      "id": "calendar-write-full",
+      "query": "xóa sự kiện lịch",
+      "actor_mode": "full",
+      "expected": ["calendar_delete"]
+    },
+    {
+      "id": "vault-write-safe",
+      "query": "ghi note vào vault",
+      "actor_mode": "safe",
+      "expected": ["vault_write"]
+    }
+  ]
+}

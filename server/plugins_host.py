@@ -497,7 +497,18 @@ def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
                 desc = f"[plugin {lp.slug}] {desc}"
             tools.append({"fn": fn, "server": "javis", "name": fn,
                           "description": desc, "schema": t["schema"]})
-            route[fn] = {"call": _make_call(t, lp.ctx, mode)}
+            effect = "read" if t["min_mode"] == "readonly" else (
+                "write" if t["min_mode"] == "safe" else "danger"
+            )
+            route[fn] = {
+                "call": _make_call(t, lp.ctx, mode),
+                # Metadata dẫn xuất cho Capability Registry Phase 2; dispatcher chỉ đọc `call`.
+                "source_type": "plugin",
+                "source_id": f"{lp.source}:{lp.slug}",
+                "effect": effect,
+                "required_mode": t["min_mode"],
+                "health": "healthy",
+            }
     return tools, route
 
 

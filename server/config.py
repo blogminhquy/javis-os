@@ -114,6 +114,16 @@ _DEFAULT = {
     # + lazy search cho engine Claude, để model biết chúng tồn tại (gọi qua tool native mcp__*).
     "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40,
             "lazy_top_k": 8, "ambient_hint": True},
+    # Adaptive Context Runtime Phase 0-3: Registry + Resolver chạy SHADOW, không đổi
+    # prompt/model/tool dispatch.
+    # store_content bị runtime ép false ở phase này dù settings bị sửa tay. Trace chỉ lưu số đo,
+    # route, ID và error code; không lưu raw prompt/message/tool args/result/secret.
+    "context_runtime": {
+        "mode": "shadow",                  # resolver đo song song; canary/on dành cho phase sau
+        "retention_days": 14,
+        "export_enabled": False,
+        "estimate_chars_per_token": 3.0,   # heuristic observe-only, reconcile bằng usage thật
+    },
 }
 
 

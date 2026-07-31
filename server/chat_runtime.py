@@ -18,6 +18,8 @@ class ChatJob:
     task: asyncio.Task
     tag: str
     text: str = ""
+    runtime_task_id: str = ""
+    runtime_step_id: str = ""
 
 
 class ChatRuntime:
@@ -33,8 +35,12 @@ class ChatRuntime:
     def remove_client(self, client_id: str) -> None:
         self._clients.pop(client_id, None)
 
-    def register_job(self, session_id: str, task: asyncio.Task, tag: str) -> None:
-        self._jobs[session_id] = ChatJob(task=task, tag=tag)
+    def register_job(self, session_id: str, task: asyncio.Task, tag: str,
+                     runtime_task_id: str = "", runtime_step_id: str = "") -> None:
+        self._jobs[session_id] = ChatJob(
+            task=task, tag=tag,
+            runtime_task_id=runtime_task_id, runtime_step_id=runtime_step_id,
+        )
 
     def get_job(self, session_id: str) -> Optional[ChatJob]:
         job = self._jobs.get(session_id)
@@ -74,7 +80,12 @@ class ChatRuntime:
         for session_id in list(self._jobs):
             job = self.get_job(session_id)
             if job:
-                out.append({"session_id": session_id, "text": job.text})
+                item = {"session_id": session_id, "text": job.text}
+                if job.runtime_task_id:
+                    item["task_id"] = job.runtime_task_id
+                if job.runtime_step_id:
+                    item["step_id"] = job.runtime_step_id
+                out.append(item)
         return out
 
     async def publish(self, event: dict) -> None:

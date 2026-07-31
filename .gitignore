@@ -37,6 +37,13 @@ server/connector-files/
 server/conversations.db
 server/conversations.db-wal
 server/conversations.db-shm
+server/runtime.db
+server/runtime.db-wal
+server/runtime.db-shm
+server/capability_registry.db
+server/capability_registry.db-wal
+server/capability_registry.db-shm
+server/capability_registry.db*.corrupt-*
 # Bổ sung 0.9.241: 6 artifact dưới đây vừa KHÔNG track vừa KHÔNG ignore, nên một cú
 # `git add -A` là commit thẳng dữ liệu chạy + trạng thái deploy vào repo.
 server/kanban.sqlite3*
