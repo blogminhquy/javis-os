@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.282] - 2026-07-31
+Menu gõ "/" sửa hai lỗi chặn dùng thật, và bỏ bớt hai mục thừa.
+### Sửa lỗi
+- **Bấm mũi tên xuống thì vệt chọn bật ngược lên đầu, không đi xuống được.** Bộ xử lý nhả phím chạy tiếp rồi đặt lại vị trí chọn về 0, nên keydown vừa chọn mục 2 xong là keyup kéo ngay về mục 1. Nay phím điều hướng được chặn hẳn ở nhả phím, và phần lọc chỉ chạy lại khi chữ đang gõ **thật sự đổi**.
+- **Chọn "Tiêu đề 1/2/3" ở một dòng trống thì không ra gì.** Sau khi xoá đoạn `/tu-dang-go`, text node còn rỗng nên trình duyệt dọn luôn, kéo theo vị trí con trỏ chết và rơi về thẻ bọc. Lúc đó `formatBlock` vẫn trả về `true` nhưng không làm gì cả vì nó không biết đang đứng ở khối nào. Nay con trỏ được đặt lại bám vào node còn sống, ưu tiên chính text node, không thì khối cha. Lỗi này có từ bản 0.9.280; test cũ không bắt được vì chỉ thử đường checkbox, mà lệnh đó dùng `insertUnorderedList` vốn dễ tính với con trỏ.
+- Menu đang mở mà con trỏ nhảy sang chỗ khác rồi gõ `/` thì menu đóng nhưng **không mở lại** ở chỗ mới, phải gõ `/` hai lần. Nay đóng xong vẫn xét tiếp chính phím vừa gõ.
+### Cải thiện
+- **Bỏ "Đậm" và "Nghiêng" khỏi menu `/`** theo yêu cầu. Hai lệnh đó bôi chữ **đang chọn**, mà gõ `/` xong thì có chọn gì đâu. Chúng vẫn giữ nút trên thanh công cụ và `Ctrl+B` / `Ctrl+I`. Menu còn 10 mục.
+- Mục đang chọn được kéo vào tầm nhìn khi bấm mũi tên, vì menu dài hơn khung nên trước đây đi xuống quá nửa là không còn thấy mình đang ở đâu.
+- Đã đo bằng Chromium thật: 11 phép thử điều hướng (xuống, lên, vòng lại, cuộn theo, Enter chèn đúng mục đang sáng, gõ chữ mới đặt lại vệt chọn) và 7 phép thử chọn từng lệnh bằng cách **gõ thật** vào khung soạn, cả dòng trống lẫn dòng có sẵn chữ.
+- Test CI thêm 5 phép thử khoá hai lỗi trên, có kiểm chứng ngược.
+
 ## [0.9.281] - 2026-07-31
 Cuộn lên đọc lại trong khung chat dài giờ có nút nhảy thẳng xuống cuối.
 ### Tính năng mới

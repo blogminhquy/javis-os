@@ -99,12 +99,15 @@
   //   letter - dung e.key cho phim CHU vi nguoi dung nho mat chu, khong nho vi tri.
   //   show   - chu hien trong nhan phim tat.
   var CMDS = [
-    { id: "bold", label: "Đậm", btn: { text: "B", style: "font-weight:700" },
+    // slash:false = KHONG vao menu "/". Dam va nghieng boi chu DANG CHON, khong phai thu
+    // "chen tai cho" nhu ca menu con lai; ma go "/" xong thi dau co gi dang chon. Chung van
+    // giu nut tren thanh cong cu va Ctrl+B / Ctrl+I - hai phim ai cung thuoc san.
+    { id: "bold", label: "Đậm", slash: false, btn: { text: "B", style: "font-weight:700" },
       key: { letter: "b", show: "B" },
       wys: function (c) { exec(c, "bold"); },
       src: function (c) { wrapTa(c, "**", "**", "chữ đậm"); } },
 
-    { id: "italic", label: "Nghiêng", btn: { text: "I", style: "font-style:italic" },
+    { id: "italic", label: "Nghiêng", slash: false, btn: { text: "I", style: "font-style:italic" },
       key: { letter: "i", show: "I" },
       wys: function (c) { exec(c, "italic"); },
       src: function (c) { wrapTa(c, "*", "*", "chữ nghiêng"); } },
@@ -195,11 +198,17 @@
     return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "")
       .replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
   }
+  // Cac lenh duoc bay trong menu "/". Loc san theo slash !== false, nen bo/them mot lenh khoi
+  // menu chi la sua ĐUNG mot chO trong bang CMDS.
+  function menuCmds() {
+    return CMDS.filter(function (c) { return c.slash !== false; });
+  }
   // Loc menu "/" theo chu vua go. Go khong dau van ra ("tieu de" khop "Tiêu đề 1").
   function filterCmds(q) {
+    var ds = menuCmds();
     var t = bo_dau(q).trim();
-    if (!t) return CMDS.slice();
-    return CMDS.filter(function (c) {
+    if (!t) return ds;
+    return ds.filter(function (c) {
       return (bo_dau(c.label) + " " + c.id + " " + (c.kw || "")).indexOf(t) !== -1;
     });
   }
@@ -221,7 +230,7 @@
 
   var api = {
     CMDS: CMDS, run: run, keyLabel: keyLabel, matchCmd: matchCmd,
-    filterCmds: filterCmds, slashTrigger: slashTrigger, esc: esc,
+    menuCmds: menuCmds, filterCmds: filterCmds, slashTrigger: slashTrigger, esc: esc,
     // Nhan nut cho thanh cong cu: SVG neu co icon, chu da escape neu la chu thuan.
     btnHtml: function (c) { return c.btn.icon ? ic(c.btn.icon) : esc(c.btn.text); },
     btnTitle: function (c) { var k = keyLabel(c); return c.label + (k ? " (" + k + ")" : ""); },
@@ -259,11 +268,11 @@
     }, true);
 
     // ----- menu go "/" (chi trong ban render dang sua) -----
-    var pop = null, mItems = [], mSel = 0, mNode = null, mOff = -1, mCtx = null;
+    var pop = null, mItems = [], mSel = 0, mNode = null, mOff = -1, mCtx = null, mQuery = "";
 
     function dongMenu() {
       if (pop) { pop.remove(); pop = null; }
-      mItems = []; mSel = 0; mNode = null; mOff = -1; mCtx = null;
+      mItems = []; mSel = 0; mNode = null; mOff = -1; mCtx = null; mQuery = "";
     }
     function veMenu() {
       pop.innerHTML = mItems.map(function (c, i) {
@@ -272,6 +281,12 @@
           '<span class="ec-lb">' + esc(c.label) + "</span>" +
           '<span class="ec-key">' + esc(keyLabel(c)) + "</span></div>";
       }).join("");
+      // Menu co the dai hon khung -> keo muc dang chon vao tam nhin, khong thi bam mui ten
+      // xuong toi muc khuat la nguoi dung khong con thay minh dang o dau.
+      try {
+        var el = pop.querySelector(".ec-item.sel");
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+      } catch (e) {}
     }
     function moMenu() {
       if (!pop) {
@@ -298,14 +313,25 @@
       } catch (e) {}
     }
     // Xoa doan "/tu-dang-go" roi moi chay lenh, khong thi chu "/" con nam lai trong note.
+    //
+    // Cho chet nguoi: go "/" o mot dong TRONG thi text node chi chua moi dau "/". Xoa xong no
+    // RONG, va Chromium don luon node rong -> range vua dat vao no chet theo, caret roi ve the
+    // boc (.ne-wys). Luc do execCommand("formatBlock") van tra ve true nhung KHONG lam gi ca,
+    // vi no khong biet dang dung o khoi nao. Trieu chung: chon "Tiêu đề 3" xong khong ra gi.
+    // Nen phai bam lai vao node CON SONG: uu tien chinh text node, khong thi khoi cha cua no.
     function xoaChuSlash() {
       try {
         var s = window.getSelection();
         var het = (s && s.rangeCount && s.anchorNode === mNode) ? s.anchorOffset : mNode.length;
+        var khoi = mNode.parentNode;                 // nhớ khối cha TRƯỚC khi xoá
         var r = document.createRange();
         r.setStart(mNode, mOff); r.setEnd(mNode, Math.max(mOff, het));
         r.deleteContents();
-        var c = document.createRange(); c.setStart(mNode, mOff); c.collapse(true);
+        var c = document.createRange();
+        if (mNode.isConnected && mNode.parentNode) c.setStart(mNode, Math.min(mOff, mNode.length));
+        else if (khoi && khoi.isConnected) c.selectNodeContents(khoi);
+        else return;
+        c.collapse(true);
         s.removeAllRanges(); s.addRange(c);
       } catch (e) {}
     }
@@ -317,29 +343,41 @@
       run(c.id, ctx);
     }
 
+    // Phim DIEU HUONG da do keydown lo tron ven. Phai chan o day, khong thi moi lan bam mui
+    // ten la keyup chay tiep xuong duoi roi dat lai mSel = 0 -> vet chon bat nguoc len dau,
+    // khong di xuong duoc (dung loi chu repo bao 2026-07-31).
+    var PHIM_DIEU_HUONG = { ArrowDown: 1, ArrowUp: 1, Enter: 1, Tab: 1, Escape: 1 };
+
     document.addEventListener("keyup", function (e) {
+      if (pop && PHIM_DIEU_HUONG[e.key]) return;
       var ctx = ctxTu(e.target);
       if (!ctx || ctx.mode() !== "wys") { if (pop) dongMenu(); return; }
       var s = window.getSelection();
       if (!s || !s.rangeCount || !s.isCollapsed) { if (pop) dongMenu(); return; }
       var node = s.anchorNode;
 
+      // Menu dang mo ma caret da roi khoi cho cu (nhay sang dong khac, xoa mat dau "/") thi
+      // dong lai. Dong xong VAN xet tiep phim vua go, vi chinh no co the la dau "/" mo menu
+      // MOI o cho moi - tra ve luon thi lan go do bi nuot, phai go "/" hai lan moi ra menu.
+      if (pop && !(node === mNode && mNode.textContent.charAt(mOff) === "/" && s.anchorOffset > mOff)) {
+        dongMenu();
+      }
       if (!pop) {
         if (e.key !== "/") return;
         if (!node || node.nodeType !== 3) return;                 // "/" phai nam trong text node
         var off = s.anchorOffset - 1;
         if (off < 0 || node.textContent.charAt(off) !== "/") return;
         if (!slashTrigger(node.textContent.slice(0, off))) return;
-        mNode = node; mOff = off; mCtx = ctx; mItems = CMDS.slice(); mSel = 0;
+        mNode = node; mOff = off; mCtx = ctx; mQuery = ""; mItems = filterCmds(""); mSel = 0;
         moMenu();
         return;
       }
-      // Menu dang mo: go tiep thi loc dan. Roi khoi text node cu / xoa mat dau "/" -> dong.
-      if (node !== mNode || mNode.textContent.charAt(mOff) !== "/" || s.anchorOffset <= mOff) {
-        dongMenu(); return;
-      }
       var q = mNode.textContent.slice(mOff + 1, s.anchorOffset);
       if (/\s/.test(q)) { dongMenu(); return; }                   // go khoang trang -> thoi tim
+      // Chu go THAT SU doi moi loc lai va nhay ve muc dau. Phim nao khong doi chu (Shift,
+      // Ctrl, mui ten trai/phai...) thi de nguyen vet chon nguoi dung dang nham.
+      if (q === mQuery) return;
+      mQuery = q;
       mItems = filterCmds(q); mSel = 0;
       if (!mItems.length) { dongMenu(); return; }
       veMenu();

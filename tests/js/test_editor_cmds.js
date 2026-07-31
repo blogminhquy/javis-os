@@ -76,17 +76,28 @@ check("lệnh không phím tắt -> nhãn rỗng", EC.keyLabel(EC.CMDS.find(c =>
 check("title nút kèm phím tắt", EC.btnTitle(EC.CMDS.find(c => c.id === "task")) === "Checkbox (Ctrl+Shift+9)");
 check("title nút không phím tắt thì trơn", EC.btnTitle(EC.CMDS.find(c => c.id === "hr")) === "Kẻ ngang");
 
-// ---- 5. Lọc menu "/" ----
-check("gõ '/' trơn -> hiện tất cả", EC.filterCmds("").length === EC.CMDS.length);
+// ---- 5. Menu "/" bỏ bớt đậm/nghiêng ----
+// Chủ repo (2026-07-31): "bỏ đậm nghiêng không cần ở khung này". Hai lệnh đó bôi chữ ĐANG
+// CHỌN, mà gõ "/" xong thì có chọn gì đâu. Chúng vẫn giữ nút và Ctrl+B / Ctrl+I.
+check("menu '/' KHÔNG còn đậm và nghiêng",
+      EC.menuCmds().every(c => c.id !== "bold" && c.id !== "italic"));
+check("menu '/' còn đúng 10 mục", EC.menuCmds().length === 10);
+check("CANARY: đậm/nghiêng VẪN nằm trên thanh công cụ", EC.CMDS.length === 12);
+check("CANARY: đậm/nghiêng VẪN còn phím tắt",
+      id(EC.matchCmd(ev({ ctrlKey: 1, key: "b" }))) === "bold" &&
+      id(EC.matchCmd(ev({ ctrlKey: 1, key: "i" }))) === "italic");
+
+// ---- 6. Lọc menu "/" ----
+check("gõ '/' trơn -> hiện cả menu", EC.filterCmds("").length === EC.menuCmds().length);
 check("lọc theo id", EC.filterCmds("h2").map(c => c.id).join() === "h2");
 check("lọc KHÔNG dấu vẫn ra (tieu -> Tiêu đề)", EC.filterCmds("tieu").map(c => c.id).join() === "h1,h2,h3");
 check("lọc CÓ dấu cũng ra", EC.filterCmds("tiêu").map(c => c.id).join() === "h1,h2,h3");
 check("lọc theo từ khoá tiếng Anh (todo -> checkbox)", EC.filterCmds("todo").map(c => c.id).join() === "task");
 check("lọc theo từ khoá tiếng Việt (viec -> checkbox)", EC.filterCmds("viec").map(c => c.id).join() === "task");
-check("chữ 'đ' quy về 'd' (đậm -> Đậm)", EC.filterCmds("đậm").map(c => c.id).join() === "bold");
+check("lọc 'đậm' trong menu -> rỗng vì đã bỏ", EC.filterCmds("đậm").length === 0);
 check("không khớp gì -> rỗng", EC.filterCmds("zzzz").length === 0);
 
-// ---- 6. "/" chỉ mở menu khi mở đầu một từ ----
+// ---- 7. "/" chỉ mở menu khi mở đầu một từ ----
 check("đầu dòng -> mở", EC.slashTrigger("") === true);
 check("sau khoảng trắng -> mở", EC.slashTrigger("ghi chú ") === true);
 check("sau nbsp của contenteditable -> mở", EC.slashTrigger("ghi chú ") === true);
@@ -94,7 +105,7 @@ check("CANARY: '12/2026' KHÔNG mở", EC.slashTrigger("12") === false);
 check("CANARY: 'và/hoặc' KHÔNG mở", EC.slashTrigger("và") === false);
 check("CANARY: đường dẫn 'a/b' KHÔNG mở", EC.slashTrigger("a") === false);
 
-// ---- 7. Nhánh chế độ Nguồn chèn đúng cú pháp markdown ----
+// ---- 8. Nhánh chế độ Nguồn chèn đúng cú pháp markdown ----
 function ta(v, s, e) { return { value: v, selectionStart: s, selectionEnd: e === undefined ? s : e, focus() {} }; }
 function src(id, truoc, sel) {
   const t = ta(truoc, sel[0], sel[1]);
@@ -115,9 +126,31 @@ check("Nguồn: checkbox nhiều dòng gắn từng dòng",
 check("Nguồn: danh sách số nhiều dòng đếm 1,2,3",
       src("ol", "a\nb\nc", [0, 5]) === "1. a\n2. b\n3. c");
 
-// ---- 8. run() lành với đầu vào rác ----
+// ---- 9. run() lành với đầu vào rác ----
 check("run() id lạ -> false, không ném", EC.run("khong-co", { mode: () => "source", ta: ta("", 0) }) === false);
 check("run() thiếu ctx -> false, không ném", EC.run("task", null) === false);
+
+// ---- 10. Hai lỗi của menu "/" đã sửa (0.9.282) ----
+// Đọc thẳng mã nguồn vì đây là phần DOM, node không dựng lại được.
+const fsx = require("fs");
+const SRC = fsx.readFileSync(require("path").join(__dirname, "../../dashboard/editor-cmds.js"), "utf8");
+
+// (a) Bấm mũi tên xuống thì vệt chọn bật ngược lên đầu. Nguyên nhân: keyup chạy tiếp rồi
+//     đặt lại mSel = 0. Phải chặn phím điều hướng ở keyup VÀ chỉ lọc lại khi chữ thật sự đổi.
+check("CANARY: keyup bỏ qua phím điều hướng khi menu đang mở",
+      /PHIM_DIEU_HUONG\s*=\s*\{[^}]*ArrowDown[^}]*ArrowUp/.test(SRC) &&
+      /if \(pop && PHIM_DIEU_HUONG\[e\.key\]\) return;/.test(SRC));
+check("CANARY: chỉ đặt lại vệt chọn khi chữ lọc ĐỔI", /if \(q === mQuery\) return;/.test(SRC));
+
+// (b) Chọn "Tiêu đề N" ở dòng trống thì không ra gì. Nguyên nhân: xoá dấu "/" xong text node
+//     rỗng bị trình duyệt dọn, range chết, caret rơi về thẻ bọc -> formatBlock trả true nhưng
+//     không làm gì. Phải bám lại vào node còn sống.
+check("CANARY: đặt lại caret bám node còn sống sau khi xoá '/'",
+      /mNode\.isConnected/.test(SRC) && /khoi && khoi\.isConnected/.test(SRC));
+check("nhớ khối cha TRƯỚC khi xoá", /var khoi = mNode\.parentNode;/.test(SRC));
+
+// Mục đang chọn phải được kéo vào tầm nhìn vì menu dài hơn khung.
+check("menu kéo mục đang chọn vào tầm nhìn", /scrollIntoView\(\{ block: "nearest" \}\)/.test(SRC));
 
 if (fails.length) {
   console.log("\nFAIL - test_editor_cmds: " + fails.length + " lỗi: " + fails.join(", "));
