@@ -813,10 +813,13 @@ def _api_label(prov):
 
 def _reasoning_level(mcfg):
     r = (mcfg or {}).get("reasoning", "off")
-    return r if r in ("off", "low", "medium", "high") else "off"
+    return r if r in engine.REASONING_LEVELS else "off"
 
 # Từ khoá kích hoạt extended thinking của Claude Code (engine cli không có flag chuẩn).
-_CLI_THINK_KW = {"low": "think", "medium": "think hard", "high": "ultrathink"}
+# Claude Code leo thang theo đúng bộ từ khoá này, nên hai mức trên cùng KHÁC nhau thật ở đây
+# chứ không phải bịa cho đủ nấc.
+_CLI_THINK_KW = {"low": "think", "medium": "think hard", "high": "think harder",
+                 "xhigh": "ultrathink", "ultra": "ultrathink"}
 
 def _cli_think(reasoning, message):
     """Chèn gợi ý suy nghĩ vào prompt cho engine Claude Code CLI (off = giữ nguyên)."""
@@ -1428,9 +1431,12 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             # Thiếu provider (client cũ) = Claude, đúng hành vi trước khi mở nhiều provider.
             prov = aux_patch.get("provider") or aux_engine.CLAUDE
             aux["provider"] = prov if _provider_def(prov) else aux_engine.CLAUDE
-        if "reasoning" in patch:   # độ sâu suy nghĩ: off|low|medium|high
+        # Độ sâu suy nghĩ. Danh sách nấc lấy từ engine.REASONING_LEVELS - đường LƯU này và
+        # đường ĐỌC (_reasoning_level) phải soi CÙNG một nguồn, nếu không thêm nấc mới là
+        # giao diện cho chọn mà server lặng lẽ hạ về "off".
+        if "reasoning" in patch:
             r = patch["reasoning"]
-            m["reasoning"] = r if r in ("off", "low", "medium", "high") else "off"
+            m["reasoning"] = r if r in engine.REASONING_LEVELS else "off"
         # Legacy trực tiếp (tương thích ngược)
         for k in ("engine", "claude_model", "openrouter_model"):
             if k in patch:

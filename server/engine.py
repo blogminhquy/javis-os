@@ -253,8 +253,26 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/compl
 _ADAPTIVE_THINKING = ("opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5", "sonnet-4-6", "fable-5", "mythos-5")
 
 
+# Thang độ sâu suy nghĩ của Javis. Nhiều nấc hơn bộ low/medium/high mà API nhận, vì hai nấc
+# trên cùng phục vụ đường Claude Code (từ khoá think) và đường Anthropic model cũ (budget token)
+# - hai chỗ Javis tự điều khiển được độ sâu.
+REASONING_LEVELS = ("off", "low", "medium", "high", "xhigh", "ultra")
+# Giá trị effort GỬI LÊN API. Nhà cung cấp chỉ nhận low|medium|high; gửi "ultra" là ăn 400 và
+# hỏng cả lượt chat. Nên hai nấc trên cùng quy về "high" khi nói chuyện với API.
+_API_EFFORT = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "ultra": "high"}
+
+
+def api_effort(reasoning):
+    """Mức Javis -> giá trị effort AN TOÀN để nhét vào payload của nhà cung cấp.
+
+    Nơi gọi phải TỰ chặn mức "off" trước (không gửi trường effort gì cả); hàm này chỉ lo dịch
+    mức đã bật. Giá trị lạ rơi về "medium" để một chỗ ghi sai config không làm hỏng cả lượt chat.
+    """
+    return _API_EFFORT.get(reasoning or "", "medium")
+
+
 def _anthropic_reasoning(model, reasoning):
-    """Phần payload thinking cho Messages API theo mức reasoning (off|low|medium|high).
+    """Phần payload thinking cho Messages API theo mức reasoning (xem REASONING_LEVELS).
     Model 4.6+ → adaptive thinking + effort (budget_tokens bị 400 trên 4.7/4.8).
     Model cũ (haiku-4-5, sonnet-4-5...) → extended thinking với budget_tokens < max_tokens."""
     if reasoning in (None, "", "off"):
@@ -263,10 +281,12 @@ def _anthropic_reasoning(model, reasoning):
     if any(k in m for k in _ADAPTIVE_THINKING):
         return {
             "thinking": {"type": "adaptive", "display": "summarized"},
-            "output_config": {"effort": reasoning},
+            "output_config": {"effort": api_effort(reasoning)},
             "max_tokens": 16000,   # chừa chỗ cho thinking + câu trả lời (đang stream nên không lo timeout)
         }
-    budget = {"low": 2000, "medium": 6000, "high": 12000}.get(reasoning, 6000)
+    # Model cũ: budget_tokens là chỗ hai nấc trên cùng khác nhau THẬT, không phải nhãn suông.
+    budget = {"low": 2000, "medium": 6000, "high": 12000,
+              "xhigh": 20000, "ultra": 32000}.get(reasoning, 6000)
     return {"thinking": {"type": "enabled", "budget_tokens": budget}, "max_tokens": budget + 8000}
 
 
@@ -290,7 +310,7 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
     payload = {"model": model, "messages": messages, "stream": True,
                "stream_options": {"include_usage": True}}   # → chunk cuối kèm usage token
     if reasoning not in (None, "", "off") and send_reasoning:
-        payload["reasoning_effort"] = reasoning
+        payload["reasoning_effort"] = api_effort(reasoning)
     try:
         timeout = httpx.Timeout(120.0, connect=15.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -424,7 +444,7 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
     payload = {"model": model or "openai/gpt-4o-mini", "messages": messages, "stream": True,
                "stream_options": {"include_usage": True}}   # → chunk cuối kèm usage token
     if reasoning not in (None, "", "off"):
-        payload["reasoning"] = {"effort": reasoning}   # OpenRouter chuẩn hoá effort cho mọi model reasoning
+        payload["reasoning"] = {"effort": api_effort(reasoning)}   # OpenRouter chuẩn hoá effort cho mọi model reasoning
     # Jittered retry - CHỈ cho transient (429/5xx hoặc network exception) và CHỈ khi chưa yield text.
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
@@ -541,7 +561,7 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
     payload = {"model": model or "gpt-5.5", "instructions": instructions, "input": inp,
                "stream": True, "store": False}
     if reasoning not in (None, "", "off"):
-        payload["reasoning"] = {"effort": reasoning}
+        payload["reasoning"] = {"effort": api_effort(reasoning)}
     headers = {
         "Authorization": f"Bearer {access_token}",
         "chatgpt-account-id": account_id or "",
@@ -1112,7 +1132,7 @@ async def openai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, m
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     extra = {}
     if reasoning not in (None, "", "off") and _openai_is_reasoning(model):
-        extra["reasoning_effort"] = reasoning
+        extra["reasoning_effort"] = api_effort(reasoning)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(OPENAI_URL, headers, model or "gpt-4o-mini", messages, mcp_tools, mcp_route, extra, "OpenAI"):
         yield ev
@@ -1124,7 +1144,7 @@ async def gemini_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, m
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     extra = {}
     if reasoning not in (None, "", "off") and _gemini_is_reasoning(model):
-        extra["reasoning_effort"] = reasoning
+        extra["reasoning_effort"] = api_effort(reasoning)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(GEMINI_URL, headers, model or "gemini-2.5-flash", messages, mcp_tools, mcp_route, extra, "Gemini"):
         yield ev
@@ -1135,7 +1155,7 @@ async def openrouter_chat_with_mcp(api_key, model, messages, reasoning, mcp_tool
                "HTTP-Referer": "http://localhost:7777", "X-Title": "Javis OS"}
     extra = {}
     if reasoning not in (None, "", "off"):
-        extra["reasoning"] = {"effort": reasoning}
+        extra["reasoning"] = {"effort": api_effort(reasoning)}
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(OPENROUTER_URL, headers, model or "openai/gpt-4o-mini", messages, mcp_tools, mcp_route, extra, "OpenRouter",
                                   cache_system=_is_claude_model(model)):
@@ -1168,7 +1188,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
             payload = {"model": model, "instructions": instructions, "input": items,
                        "tools": tools, "stream": True, "store": False}
             if reasoning not in (None, "", "off"):
-                payload["reasoning"] = {"effort": reasoning}
+                payload["reasoning"] = {"effort": api_effort(reasoning)}
             output, round_text = [], ""
             try:
                 async with client.stream("POST", CODEX_RESPONSES_URL, headers=headers, json=payload) as r:

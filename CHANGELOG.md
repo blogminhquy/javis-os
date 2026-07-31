@@ -4,6 +4,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.286] - 2026-07-31
+Trang Models gọn lại, thang độ sâu suy nghĩ thêm hai nấc.
+### Tính năng mới
+- **Thang độ sâu suy nghĩ thêm hai nấc: Rất cao và Tối đa.** Trước chỉ có Tắt / Thấp / Vừa / Cao, trong khi Claude Code cho tới Ultra. Nay đủ sáu nấc ở cả trang Models lẫn thanh chọn trong khung chat.
+### Cải thiện
+- **Trang Models bớt tường chữ.** Hai đoạn mô tả dài ở mục Model việc nền và mục Suy nghĩ rút còn một dòng mỗi mục; phần chi tiết kỹ thuật hạ xuống thành ghi chú nhỏ, mờ, một ý. Cảnh báo "nhà cung cấp chưa kết nối" tách thành dòng riêng thay vì nhét vào giữa dòng tên model.
+- **Chọn độ sâu đổi từ chip rời sang thanh phân đoạn liền.** Sáu nấc để rời thì hàng nút trôi lung tung; gộp một thanh thì nhìn ra ngay đây là một thang từ nhẹ tới nặng. Mỗi nấc kèm một dòng phụ rất ngắn (nhanh nhất, cân bằng, tốn token nhất). Màn hẹp thì giữ nhãn, bỏ dòng phụ cho khỏi vỡ hàng.
+- Card cài đặt thôi nhún khi rê chuột - nó là bảng cài đặt đứng yên, không phải thẻ bấm được.
+### Sửa lỗi
+- **Đường lưu và đường đọc mức suy nghĩ có hai danh sách hợp lệ riêng.** Thêm nấc mới mà chỉ sửa một bên thì giao diện cho chọn nhưng server lặng lẽ hạ về "Tắt" - đã đo được đúng lỗi này trong trình duyệt khi làm. Nay cả hai soi chung `engine.REASONING_LEVELS`.
+- **Nấc mới không được gửi thẳng lên API.** Nhà cung cấp chỉ nhận `low|medium|high`; gửi `ultra` là ăn 400 và hỏng cả lượt chat. Thêm một cửa ải dịch mức Javis sang giá trị API an toàn, và toàn bộ 9 chỗ nhét effort vào payload đều đi qua nó. Hai nấc trên cùng khác nhau thật ở chỗ Javis tự điều khiển được: từ khoá think của Claude Code và budget token của model Anthropic đời cũ (20k so với 32k).
+- Ghi chú dưới thanh chọn nói thẳng rằng nhiều nhà cung cấp chỉ nhận 3 nấc nên hai nấc trên cùng có thể như nhau ở đó - thà nói trước còn hơn để người dùng tưởng đã chọn sâu hơn.
+- Thêm `tests/python/test_do_sau_suy_nghi.py`: 33 phép thử, trong đó 5 canary, có kiểm chứng ngược.
+
 ## [0.9.285] - 2026-07-31
 Bấm ảnh trong chat là xem phóng to, không còn tự tải file về.
 ### Tính năng mới

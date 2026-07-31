@@ -3,7 +3,10 @@
 (function () {
   "use strict";
 
-  const EFFORT = [["off", "Tắt"], ["low", "Thấp"], ["medium", "Vừa"], ["high", "Cao"]];
+  // Thang độ sâu suy nghĩ - phải KHỚP engine.REASONING_LEVELS bên server, nếu không người dùng
+  // chọn xong server lọc về "off" mà giao diện vẫn khoe đang bật.
+  const EFFORT = [["off", "Tắt"], ["low", "Thấp"], ["medium", "Vừa"],
+                  ["high", "Cao"], ["xhigh", "Rất cao"], ["ultra", "Tối đa"]];
   const modelCache = {};   // provider id -> {models, ts}; không giữ catalog cũ suốt cả tab
   const MODEL_CACHE_MS = 5 * 60 * 1000;
   let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off" };

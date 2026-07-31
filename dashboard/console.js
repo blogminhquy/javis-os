@@ -2504,8 +2504,14 @@
     const auxProvDef = providers.find(p => p.id === auxProv) || {};
     const auxReady = auxProv === "anthropic-cli" || auxProvDef.configured;
     const reasoning = m.reasoning || "off";
-    const reasonChips = [["off", "Tắt"], ["low", "Thấp"], ["medium", "Vừa"], ["high", "Cao"]]
-      .map(([v, l]) => `<button class="aux-chip ${reasoning === v ? "sel" : ""}" data-reason="${v}">${l}</button>`).join("");
+    // Thang này phải KHỚP engine.REASONING_LEVELS bên server và EFFORT trong model-picker.js.
+    // Mỗi nấc kèm một dòng RẤT ngắn nói nó đánh đổi gì - đủ để chọn, không phải đọc bài.
+    const REASON = [["off", "Tắt", "nhanh nhất"], ["low", "Thấp", "nghĩ sơ"],
+                    ["medium", "Vừa", "cân bằng"], ["high", "Cao", "kỹ hơn"],
+                    ["xhigh", "Rất cao", "rất kỹ"], ["ultra", "Tối đa", "tốn token nhất"]];
+    const reasonChips = REASON.map(([v, l, d]) =>
+      `<button class="seg-btn ${reasoning === v ? "sel" : ""}" data-reason="${v}" title="${esc(d)}">` +
+      `<span class="seg-lb">${l}</span><span class="seg-d">${esc(d)}</span></button>`).join("");
 
     const KEYFIELD = { "openrouter": "openrouter_key", "anthropic-api": "anthropic_api_key", "openai": "openai_api_key", "gemini": "gemini_api_key" };
     const provHead = (p, on, kindLabel, statusText) => `
@@ -2572,27 +2578,29 @@
         <div class="prov-list">${providers.map(provCard).join("")}</div>
       </div>
       <div class="cview-section">
-        <h3>◆ Model việc nền <span style="opacity:.5">loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn</span></h3>
-        <div class="gcard" style="max-width:640px">
-          <div class="gcard-meta">Chọn model rẻ cho việc chạy nền để đỡ hạn mức. "Mặc định" = model mặc định của Claude Code. Chọn nhà cung cấp khác thì việc nền chạy bằng gói/khoá của nhà đó, không ăn vào hạn mức Claude nữa.</div>
+        <h3>◆ Model việc nền <span style="opacity:.5">loop · việc Kanban · nhắc hẹn · tự học</span></h3>
+        <div class="gcard aux-card">
+          <div class="gcard-meta">Model chạy việc nền. Chọn model rẻ để đỡ hạn mức Claude.</div>
           <div class="aux-now">
             <div class="aux-now-txt">
               <div class="aux-now-model">${aux ? esc(aux) : "Mặc định của Claude Code"}</div>
-              <div class="aux-now-prov">${aux ? esc(auxProvDef.label || auxProv) : "không đổi model, dùng model mặc định"}${auxReady ? "" : ' <span class="aux-warn">${WARN_ICON} nhà cung cấp này chưa kết nối - việc nền sẽ tự dùng lại Claude</span>'}</div>
+              <div class="aux-now-prov">${aux ? esc(auxProvDef.label || auxProv) : "dùng model mặc định"}</div>
             </div>
             <div class="aux-now-act">
-              ${aux ? '<button class="gcard-btn" id="auxReset">Về mặc định</button>' : ""}
+              ${aux ? '<button class="gcard-btn ghost" id="auxReset">Về mặc định</button>' : ""}
               <button class="gcard-btn" id="auxChange">Đổi model ▾</button>
             </div>
           </div>
-          <div class="gcard-meta" style="margin-top:12px;opacity:.75">Lưu ý công cụ: Claude Code và Codex đọc/ghi file trực tiếp trong brain. Các model API (OpenRouter, OpenAI, Gemini, Anthropic API) đọc/ghi qua công cụ vault của Javis và không chạy được lệnh máy, nên hợp với việc đọc - tổng hợp - ghi ghi chú; việc nền cần chạy lệnh thì cứ để Claude.</div>
+          ${auxReady ? "" : `<div class="aux-note warn">${WARN_ICON} Nhà cung cấp này chưa kết nối - việc nền sẽ tự dùng lại Claude.</div>`}
+          <div class="aux-note">Claude Code và Codex chạy được lệnh máy. Model API chỉ đọc/ghi qua vault - hợp việc đọc, tổng hợp, ghi chú.</div>
         </div>
       </div>
       <div class="cview-section">
-        <h3>◆ Suy nghĩ <span style="opacity:.5">độ sâu reasoning khi trả lời</span></h3>
-        <div class="gcard" style="max-width:540px">
-          <div class="gcard-meta">Bật để model suy nghĩ kỹ hơn trước khi trả lời - chính xác hơn nhưng chậm & tốn token hơn. Claude API/OpenRouter dùng adaptive thinking + effort; OpenAI chỉ áp cho model o-series; Gemini áp cho model 2.5 trở lên; Claude Code chèn gợi ý think/ultrathink.</div>
-          <div class="aux-chips">${reasonChips}</div>
+        <h3>◆ Độ sâu suy nghĩ <span style="opacity:.5">nghĩ kỹ hơn trước khi trả lời</span></h3>
+        <div class="gcard aux-card">
+          <div class="gcard-meta">Nghĩ càng sâu càng chính xác, nhưng chậm và tốn token hơn.</div>
+          <div class="seg">${reasonChips}</div>
+          <div class="aux-note">Nhiều nhà cung cấp chỉ nhận 3 nấc, nên hai nấc trên cùng có thể như nhau ở đó. OpenAI cần model o-series, Gemini cần 2.5 trở lên.</div>
         </div>
       </div>`;
 
@@ -2609,7 +2617,7 @@
       await saveSetting("model", { auxiliary: { provider: "anthropic-cli", model: "" } });
       renderModels(el);
     };
-    el.querySelectorAll(".aux-chip[data-reason]").forEach(b => b.onclick = async () => {
+    el.querySelectorAll("[data-reason]").forEach(b => b.onclick = async () => {
       await saveSetting("model", { reasoning: b.dataset.reason });
       renderModels(el);
     });

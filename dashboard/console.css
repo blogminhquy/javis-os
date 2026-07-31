@@ -163,15 +163,43 @@ body.in-console .hud-actions { display: none; }
 
 /* Model việc nền: chỉ hiện LỰA CHỌN HIỆN TẠI + nút mở picker. Phơi hết model thành chip thì
    tràn trang (riêng OpenRouter đã vài trăm dòng) và không có đường tìm kiếm. */
+.aux-card { max-width: 660px; }
+/* Card này KHÔNG nhấc lên khi rê chuột: nó là bảng cài đặt đứng yên, không phải thẻ bấm được.
+   Để nguyên hiệu ứng của .gcard thì rê ngang là cả khối nhún nhảy, trông lỏng lẻo.
+   Phải viết .gcard.aux-card: chỉ .aux-card:hover thì NGANG ĐIỂM với .gcard:hover, mà rule kia
+   nằm sau trong file nên nó thắng - đúng lỗi đo được trong trình duyệt. */
+.gcard.aux-card:hover { transform: none; border-color: var(--glass-brd); }
 .aux-now {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   margin-top: 12px; padding: 12px 14px;
   background: var(--surface-1); border: 1px solid var(--glass-brd); border-radius: 10px;
 }
-.aux-now-model { font-family: var(--font); font-size: 16px; color: var(--accent); }
+.aux-now-txt { min-width: 0; }
+.aux-now-model { font-family: var(--font); font-size: 16px; color: var(--accent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aux-now-prov { font-size: 13px; color: var(--text3); margin-top: 3px; }
 .aux-now-act { display: flex; gap: 8px; flex-shrink: 0; }
+.aux-card .aux-now-act .gcard-btn { width: auto; }   /* thắng luật full-width của .gcard .gcard-btn */
 .aux-warn { color: var(--yellow); }
+/* Ghi chú phụ: chữ nhỏ, mờ, một dòng ý - phần dài dòng đã cắt bớt ở console.js. */
+.aux-note { margin-top: 10px; font-size: 12.5px; line-height: 1.5; color: var(--text3); }
+.aux-note.warn { color: var(--yellow); }
+
+/* Thanh phân đoạn chọn độ sâu suy nghĩ. Sáu nấc mà để rời thành chip thì hàng nút trôi lung
+   tung; gộp vào một thanh liền thì nhìn ra ngay đây là MỘT thang từ nhẹ tới nặng. */
+.seg { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 12px; padding: 3px;
+  background: var(--surface-1); border: 1px solid var(--glass-brd); border-radius: 12px; }
+.seg-btn { flex: 1 1 90px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 10px; border: 1px solid transparent; border-radius: 9px; cursor: pointer;
+  background: transparent; color: var(--text2); font-family: inherit; transition: all 0.15s; }
+.seg-btn:hover { background: var(--surface-2); color: var(--text); }
+.seg-btn.sel { background: var(--accent-wash-2); border-color: var(--accent); color: var(--accent); }
+.seg-lb { font-size: 14px; font-weight: 600; }
+.seg-d { font-size: 11px; opacity: 0.7; white-space: nowrap; }
+@media (max-width: 640px) {
+  .seg-btn { flex-basis: 70px; padding: 7px 6px; }
+  .seg-d { display: none; }        /* màn hẹp: giữ nhãn, bỏ dòng phụ cho khỏi vỡ hàng */
+}
 
 /* Picker model (SET MAIN MODEL) */
 .mp-overlay {
