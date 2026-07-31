@@ -1085,6 +1085,44 @@
       },
       "default_perm": "readonly",
       "risk": "Kết nối này dùng Google MASTER TOKEN, loại token có TOÀN QUYỀN tài khoản Google (Gmail, Drive, Photos), không phải OAuth giới hạn phạm vi như Gmail hay Lịch.\n\nMức Ghi nháp cho Javis tạo và sửa note, ghim, lưu trữ, gắn nhãn thật trong Keep.\n\nMức Toàn quyền thêm quyền VỨT, XOÁ note và CHIA SẺ note cho người khác.\n\nNếu đã gõ true vào ô UNSAFE_MODE thì Javis đụng được cả note bạn viết tay, không riêng note nó tạo."
+    },
+    {
+      "id": "n8n",
+      "name": "n8n",
+      "icon": "/static/logos/n8n.svg",
+      "category": "Văn phòng",
+      "description": "Điều khiển n8n của bạn: tìm và đọc workflow, xem lịch sử chạy, tạo và sửa workflow, chạy workflow - qua MCP chính chủ của n8n. Cần địa chỉ n8n của bạn + MCP Access Token.",
+      "status": "beta",
+      "transport": "http",
+      "url_template": "{base_url}/mcp-server/http",
+      "auth": {
+        "type": "apikey",
+        "fields": [
+          { "key": "base_url", "label": "Địa chỉ n8n của bạn", "placeholder": "Ví dụ: https://cong-ty.app.n8n.cloud", "url_base": true },
+          { "key": "mcp_token", "label": "MCP Access Token", "placeholder": "Dán MCP Access Token từ n8n...", "header": "Authorization: Bearer {mcp_token}" }
+        ],
+        "guide": "Làm 1 lần:\n1. Mở n8n của bạn, vào Settings > MCP Access.\n2. Sang tab Access Token, copy token NGAY lúc đó - lần sau quay lại chỉ còn thấy bản che, không copy được nữa.\n3. Dán địa chỉ n8n và token vào hai ô dưới đây.\n\nĐịa chỉ gõ kiểu nào cũng được (thiếu https://, thừa gạch chéo, hay dán nguyên URL đang mở) - Javis tự cắt về đúng tên miền.\n\nTạo token mới là n8n THU HỒI token cũ, nên mỗi lần tạo lại phải cập nhật ở đây.\n\nDùng được cả n8n cloud lẫn n8n tự dựng, miễn máy chạy Javis vào được địa chỉ đó.",
+        "guide_url": "https://docs.n8n.io/connect/connect-to-n8n-mcp-server/",
+        "steps": [
+          { "text": "Mở n8n của bạn rồi đăng nhập." },
+          { "text": "Vào Settings > MCP Access. n8n tự sinh sẵn một token gắn với tài khoản bạn." },
+          { "text": "Sang tab Access Token, bấm copy NGAY lúc này - lần sau quay lại chỉ còn bản che, không copy lại được." },
+          { "text": "Dán địa chỉ n8n và token vào hai ô bên dưới rồi bấm Kết nối.", "link": "https://docs.n8n.io/connect/connect-to-n8n-mcp-server/", "link_label": "Hướng dẫn của n8n" }
+        ]
+      },
+      "validate": {
+        "tool": "list_tags",
+        "args": {}
+      },
+      "tool_meta": {
+        "read": ["search_workflows", "get_workflow", "list_tags", "get_execution",
+                 "search_executions", "list_credentials", "*search*", "*get_*", "*list_*"],
+        "write": ["create_workflow", "update_workflow", "*create*", "*update*"],
+        "danger": ["execute_workflow", "*execute*", "*run_*", "*delete*",
+                   "*activate*", "*deactivate*"]
+      },
+      "default_perm": "readonly",
+      "risk": "Mức Ghi nháp cho phép Javis TẠO và SỬA workflow thật trên n8n của bạn.\n\nMức Toàn quyền thêm quyền CHẠY workflow - đây là chỗ nguy hiểm nhất.\nMột workflow chạy lên có thể gửi mail, đăng bài, gọi API tính tiền, đẩy dữ liệu ra ngoài.\nJavis không nhìn được bên trong workflow làm gì, và chạy rồi thì không hoàn tác được.\n\nChỉ cần xem và soạn workflow thì giữ mức Chỉ đọc hoặc Ghi nháp.\n\nLưu ý: token này thấy MỌI workflow và cả danh sách credential mà tài khoản n8n của bạn thấy."
     }
   ]
 }

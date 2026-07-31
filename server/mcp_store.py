@@ -221,7 +221,10 @@ def add_connection(connector_id, data):
         "label": label,
         "slug": slug,
         "transport": data.get("transport") or (con or {}).get("transport") or "http",
-        "url": (data.get("url") or (con or {}).get("url") or "").strip(),
+        # url_template ưu tiên hơn url tĩnh: connector self-host lấy địa chỉ từ ô user gõ.
+        "url": (data.get("url")
+                or mcp_catalog.build_url(con, data.get("fields") or {})
+                or (con or {}).get("url") or "").strip(),
         "command": (data.get("command") or (con or {}).get("command") or "").strip(),
         "args": data.get("args") if data.get("args") is not None else list((con or {}).get("args") or []),
         "headers": secrets_store.encrypt_map(data.get("headers") or {}),
@@ -479,7 +482,12 @@ def resolved(enabled_only=True):
             "id": c["id"], "connector_id": c["connector_id"], "label": c.get("label"),
             "slug": c.get("slug"), "namespace": ns,
             "transport": c.get("transport") or "http",
-            "url": c.get("url", ""), "command": c.get("command", ""), "args": args,
+            # Connector khai url_template (server nằm trên tên miền của CHÍNH user, vd n8n tự
+            # dựng): dựng lại URL từ secret ở ĐÂY chứ không chỉ lúc thêm, để user sửa ô địa chỉ
+            # là kết nối đi theo ngay - y như headers vốn đã dựng lại mỗi lần resolve.
+            "url": (mcp_catalog.build_url(con, secrets) if (con or {}).get("url_template")
+                    else "") or c.get("url", ""),
+            "command": c.get("command", ""), "args": args,
             "headers": headers, "env": env,
             "internal": (con or {}).get("internal") or "",
             "secrets": secrets if (con or {}).get("internal") else {},

@@ -10,6 +10,7 @@ Tool đa hành động kiểu Pancake (1 tool, tham số action=list|create|...)
 THAM SỐ qua arg_rules - enforcement thật diễn ra lúc tools/call (có args).
 """
 import json
+import re
 import sys
 from fnmatch import fnmatch
 from pathlib import Path
@@ -110,6 +111,63 @@ def build_headers(connector, secrets):
             continue
         headers[name.strip()] = val.strip().replace("{" + key + "}", str((secrets or {}).get(key, "")))
     return headers
+
+
+def build_url(connector, secrets):
+    """Dựng URL thật cho connector khai `url_template` (vd '{base_url}/mcp-server/http').
+
+    Vì sao cần: hầu hết MCP có MỘT địa chỉ dùng chung nên catalog ghi cứng `url` là đủ. Nhưng
+    loại TỰ DỰNG (n8n, và mọi thứ self-host sau này) thì server nằm trên tên miền của chính
+    người dùng - địa chỉ là một phần THÔNG TIN ĐĂNG NHẬP, không phải hằng số của app. Cho khai
+    template rồi ghép từ ô người dùng gõ, thay vì bắt họ rơi sang connector "custom" (mất hướng
+    dẫn, mất phân loại quyền đọc/ghi, mất cảnh báo rủi ro).
+
+    Trả "" khi connector không khai template hoặc ô nguồn còn trống - caller tự rơi về url tĩnh.
+    """
+    tpl = (connector or {}).get("url_template") or ""
+    if not tpl:
+        return ""
+    out = tpl
+    for f in ((connector or {}).get("auth") or {}).get("fields", []):
+        key = f.get("key")
+        if not key or ("{" + key + "}") not in out:
+            continue
+        val = str((secrets or {}).get(key, "")).strip()
+        if not val:
+            return ""                      # thiếu ô nguồn thì đừng đẻ ra URL cụt
+        if f.get("url_base"):
+            val = normalize_base_url(val)
+            if not val:
+                return ""
+        out = out.replace("{" + key + "}", val)
+    return "" if "{" in out else out
+
+
+def normalize_base_url(raw):
+    """Chuẩn hoá địa chỉ instance người dùng gõ. Trả "" nếu không dùng được.
+
+    Người ta gõ đủ kiểu: thiếu scheme ("cty.app.n8n.cloud"), thừa gạch chéo cuối, hoặc dán
+    nguyên URL đang mở trên trình duyệt kèm đường dẫn và tham số. Cắt về đúng scheme + host
+    (+ cổng) thì ghép template mới ra địa chỉ đúng, thay vì để người dùng tự mò khi Test đỏ.
+    """
+    u = (raw or "").strip()
+    if not u or re.search(r"\s", u):
+        return ""                          # có khoảng trắng thì chắc chắn không phải địa chỉ
+    if "://" not in u:
+        u = "https://" + u
+    try:
+        from urllib.parse import urlsplit
+        p = urlsplit(u)
+    except Exception:
+        return ""
+    if p.scheme not in ("http", "https") or not p.hostname:
+        return ""
+    # urlsplit rất dễ dãi, gần như chuỗi nào cũng ra được "hostname". Siết bằng bộ ký tự hợp lệ
+    # của tên miền/IP (ngoặc vuông cho IPv6), nếu không thì chữ gõ nhầm lọt thành URL rồi tới
+    # lúc Test mới báo lỗi khó hiểu.
+    if not re.fullmatch(r"[A-Za-z0-9._\-\[\]:%]+", p.netloc):
+        return ""
+    return f"{p.scheme}://{p.netloc.lower()}"
 
 
 def build_env(connector, secrets):

@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.283] - 2026-07-31
+Đấu được n8n qua MCP chính chủ, và catalog học được kiểu connector tự dựng.
+### Tính năng mới
+- **Connector n8n.** Đấu vào trang Kết nối bằng địa chỉ n8n của bạn + MCP Access Token, dùng được cả n8n cloud lẫn n8n tự dựng. Javis tìm và đọc workflow, xem lịch sử chạy, tạo và sửa workflow, và chạy workflow nếu được cấp quyền.
+- **Catalog hỗ trợ URL động (`url_template`).** n8n là connector đầu tiên mà địa chỉ server nằm trên tên miền của **chính người dùng**, không phải một địa chỉ dùng chung ghi cứng trong app. Địa chỉ ở đây là một phần thông tin đăng nhập, nên catalog cho khai template rồi ghép từ ô người dùng gõ. Không có nó thì n8n phải rơi sang connector "custom", mất hướng dẫn, mất phân loại quyền đọc/ghi và mất cảnh báo rủi ro.
+- Địa chỉ gõ kiểu nào cũng nhận: thiếu `https://`, thừa gạch chéo cuối, hay dán nguyên URL đang mở kèm đường dẫn và tham số đều được cắt về đúng tên miền. Giữ nguyên `http` và cổng cho bản tự dựng trong mạng nội bộ. Đầu vào không phải địa chỉ thì trả rỗng để báo thiếu, thay vì đẻ ra URL cụt rồi để người dùng ngồi đoán vì sao Test đỏ.
+- URL được dựng lại **mỗi lần resolve** chứ không chỉ lúc thêm, nên sửa địa chỉ n8n là kết nối đi theo ngay, giống cách headers vốn đã hoạt động.
+### An toàn
+- **`execute_workflow` xếp vào nhóm NGUY HIỂM**, không phải nhóm ghi thường. Tên nghe hiền nhưng nó chạy thật một workflow: gửi mail, đăng bài, gọi API tính tiền, đẩy dữ liệu ra ngoài. Javis không nhìn được bên trong workflow làm gì và chạy rồi thì không hoàn tác được. Kết quả: mức **Ghi nháp** tạo và sửa được workflow nhưng **không chạy được**, phải lên Toàn quyền mới chạy. Loop nền ở chế độ gợi ý vẫn bị ép về chỉ đọc kể cả khi kết nối để Toàn quyền.
+- Mặc định mức **Chỉ đọc**. Cảnh báo rủi ro nói rõ token này thấy mọi workflow và cả danh sách credential mà tài khoản n8n của bạn thấy.
+### Cải thiện
+- Thêm `tests/python/test_n8n_connector.py`: 59 phép thử gồm chuẩn hoá địa chỉ, phân loại 12 tool, cổng quyền ở cả ba mức, và đường thật thêm kết nối rồi resolve. Có kiểm chứng ngược.
+
 ## [0.9.282] - 2026-07-31
 Menu gõ "/" sửa hai lỗi chặn dùng thật, và bỏ bớt hai mục thừa.
 ### Sửa lỗi
