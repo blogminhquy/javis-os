@@ -153,10 +153,28 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "- Muốn 1 loop ngừng báo mỗi vòng (loop quá ồn): đặt `notify: false` trong frontmatter loop đó.",
         ]
     else:
+        web_sid = str(meta.get("session_id") or "").strip()
         lines += [
             "- Nguồn tin nhắn này: Dashboard web Javis (user mở bằng trình duyệt, file hiện dạng đường dẫn).",
             f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
         ]
+        if web_sid:
+            lines += [
+                "",
+                "## Giao việc chạy nền rồi BÁO LẠI ĐÚNG KHUNG CHAT NÀY",
+                f"- Mã phiên chat hiện tại: `{web_sid}`.",
+                "- Khi POST http://127.0.0.1:%d/kanban/task, LUÔN kèm field "
+                "`\"chat_id\":\"web:%s\"`. Đó là cách kết quả rơi thẳng về khung chat này lúc việc "
+                "xong. Bỏ trống thì kết quả chỉ đi Telegram - user ngồi web sẽ không thấy gì cả." % (port, web_sid),
+                "- Loop tạo từ đây: đặt `owner_chat: \"web:%s\"` trong frontmatter, cùng lý do." % web_sid,
+                "- TUYỆT ĐỐI KHÔNG hứa kiểu \"em sẽ đợi các agent chạy xong rồi tổng hợp cho anh\": "
+                "lượt trả lời của bạn KẾT THÚC ngay sau khi bạn nói, không có chỗ nào để bạn ngồi đợi "
+                "và cũng không ai đánh thức bạn dậy để tổng hợp. Việc chạy nền tự báo kết quả THÔ về "
+                "khung chat khi xong. Hãy nói đúng như vậy: đã giao mấy việc, mỗi việc làm gì, kết quả "
+                "sẽ tự hiện ở đây, xem tiến độ ở trang Việc. Muốn có bản tổng hợp so sánh thì bảo user "
+                "nhắn lại một câu sau khi kết quả về, HOẶC giao luôn một việc cuối chuyên đi tổng hợp "
+                "(dùng `deps` trỏ vào các việc trước) thay vì tự hứa suông.",
+            ]
         if telegram_running:
             lines += [
                 "- Nếu user muốn nhận 1 file qua Telegram: dùng tool Bash gọi "

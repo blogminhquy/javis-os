@@ -161,6 +161,23 @@ function handleMessage(data) {
   const isActive = !!sid && sid === savedSessionId;
   const t = sid ? (turns[sid] || (turns[sid] = { text: "", bubble: null, spoke: false, running: true })) : null;
 
+  if (data.type === "push") {
+    // Tin do việc chạy NỀN đẩy vào (việc Kanban / loop / nhắc hẹn xong), không thuộc lượt
+    // hỏi-đáp nào. KHÔNG đụng turns[sid]: lượt đang chạy (nếu có) vẫn stream bình thường,
+    // tin này chỉ chèn thêm một bong bóng. Server đã lưu vào kho phiên nên F5 vẫn còn.
+    if (isActive) {
+      const el = appendJavisMessage(data.content || "");
+      recordTurn("javis", data.content || "", null, null);
+      scrollBottom();
+      if (voice.ttsEnabled) voice.enqueueSpeak(data.content || "");
+      try { if (el) el.scrollIntoView({ block: "nearest" }); } catch (e) {}
+    }
+    // Đang xem phiên KHÁC thì tin vẫn nằm trong kho phiên (server ghi trước khi bắn), chỉ là
+    // không hiện ở khung đang mở. Làm tươi Lịch sử để phiên đó nổi lên - không thì kết quả
+    // nằm im trong DB và người dùng không có cách nào biết là đã có.
+    notifySessions();
+    return;
+  }
   if (data.type === "status") {
     if (t) t.running = true;
     setSessionRunning(sid, true);

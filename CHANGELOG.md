@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.289] - 2026-07-31
+Giao việc nền trong chat web xong là im lặng tuyệt đối - giờ kết quả tự về đúng khung chat đó.
+### Sửa lỗi
+- **Chạy agent/việc nền trên dashboard: không trạng thái, không hồi âm.** Đường báo cáo của việc Kanban, loop và nhắc hẹn CHỈ biết gửi Telegram. Máy chưa đấu Telegram thì `_notify_owner` trả về thất bại và `TaskRunner._report` nuốt luôn - kết quả bay vào hư không, người ngồi web không có kênh nào nhận. Giờ chat web là kênh nhận báo thật: việc giao trong chat mang theo mã phiên (`chat_id: "web:<mã phiên>"`, mượn field có sẵn nên không phải đổi lược đồ CSDL), xong việc thì kết quả hiện thẳng thành một tin của Javis trong đúng cuộc trò chuyện đó. Server ghi vào lịch sử phiên TRƯỚC rồi mới đẩy WebSocket, nên đóng tab hay F5 vẫn còn; đang xem cuộc trò chuyện khác thì phiên gốc nổi lên trong Lịch sử.
+- **Javis hứa "em sẽ đợi các agent chạy nền hoàn tất rồi tổng hợp cho anh" - lời hứa không thể giữ.** Lượt trả lời kết thúc ngay khi nó nói xong, không cơ chế nào đánh thức nó dậy. System prompt và khối kênh dashboard nay cấm hẳn kiểu hứa đó, và chỉ hai đường thay thế: giao thêm một việc chuyên tổng hợp (dùng `deps` trỏ vào các việc trước), hoặc bảo user nhắn lại một câu khi kết quả đã về.
+- Javis giờ biết mã phiên chat hiện tại (khối "KÊNH HỘI THOẠI HIỆN TẠI" của bản web) nên tự gắn được người nhận. Nhánh Telegram giữ nguyên đường cũ, hai kênh độc lập.
+- Thêm `test_bao_viec_ve_chat_web.py` canh cả đường báo (đẩy WebSocket + lưu phiên + không bịa thành công khi thiếu kênh) lẫn lời văn trong prompt. Đặt lại lỗi cũ thì đỏ đúng 6 dòng.
+
 ## [0.9.288] - 2026-07-31
 Ô nhập tên miền teo còn một sợi, không thấy chỗ mà gõ.
 ### Sửa lỗi

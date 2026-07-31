@@ -3765,18 +3765,57 @@ async def _tg_send_to(chat_id, text) -> tuple:
     return ok_any, "; ".join(e for e in errs if e)[:200]
 
 
+async def push_to_chat(session_id, text) -> bool:
+    """Đẩy MỘT tin của Javis vào đúng phiên chat web, ngoài luồng hỏi-đáp thường.
+
+    Vì sao cần: việc Kanban / loop / nhắc hẹn chạy nền xong thì lượt chat đã kết thúc từ lâu,
+    không còn chỗ nào để trả lời. Trước 0.9.289 kết quả CHỈ đi Telegram, nên người dùng ngồi
+    trên web giao việc xong là im lặng tuyệt đối - không trạng thái, không hồi âm (đúng lỗi
+    chủ repo báo). Ghi vào kho phiên TRƯỚC rồi mới bắn WebSocket: ghi trước thì đóng tab hay
+    F5 xong mở lại vẫn thấy, bắn sau chỉ để ai đang mở thấy NGAY.
+    """
+    sid = str(session_id or "").strip()
+    clean = channel_context.strip_control_blocks(text or "").strip()
+    if not sid or not clean:
+        return False
+    try:
+        get_store().append_message(sid, "assistant", clean)
+    except Exception as e:
+        print(f"[push_to_chat] lưu phiên lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
+        await _CHAT_RUNTIME.publish({"type": "push", "content": clean, "session_id": sid})
+    except Exception as e:
+        print(f"[push_to_chat] bắn WebSocket lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    return True
+
+
+WEB_CHAT_PREFIX = "web:"   # owner_chat của việc giao từ dashboard: "web:<mã phiên chat>"
+
+
 async def _notify_owner(owner_chat, text) -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
-      - owner_chat có + nằm trong whitelist → gửi ĐÚNG người đó.
-      - owner_chat rỗng (vd loop/task tạo trên bản WEB) hoặc không rõ → gửi ID ĐẦU TIÊN
-        trong whitelist (chủ bot).
+      - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
+      - owner_chat là chat_id Telegram trong whitelist → gửi ĐÚNG người đó.
+      - owner_chat rỗng (không rõ ai giao) → gửi ID ĐẦU TIÊN trong whitelist (chủ bot).
+
+    Vì sao có nhánh web: người ngồi dashboard giao việc xong thì lượt chat đã đóng, mà kênh
+    báo duy nhất trước 0.9.289 là Telegram - máy không đấu Telegram thì im lặng tuyệt đối,
+    đúng lỗi "chạy agent không có trạng thái, không có phản hồi". Mượn luôn field chat_id
+    (đã xuyên suốt enqueue → DB → _report) thay vì thêm cột: một việc chỉ sinh ra từ MỘT
+    kênh nên không bao giờ cần mang cả hai.
+
     Im lặng (trả (False, lý do)) nếu bot chưa bật / chưa có chat_id. Trả (ok, error)."""
+    cid = str(owner_chat or "").strip()
+    if cid.startswith(WEB_CHAT_PREFIX):
+        sid = cid[len(WEB_CHAT_PREFIX):]
+        if await push_to_chat(sid, text):
+            return True, ""
+        return False, "Không tìm thấy phiên chat web để báo"
     tg = cfgmod.read_settings().get("telegram", {})
     token = tg.get("token")
     ids = tg_parse_ids(tg.get("chat_id"))
     if not (tg.get("enabled") and token and ids):
         return False, "Bot Telegram chưa bật hoặc chưa có chat_id"
-    cid = str(owner_chat or "").strip()
     target = cid if (cid and cid in ids) else ids[0]
     import httpx
     try:
@@ -5417,7 +5456,8 @@ async def websocket_endpoint(ws: WebSocket):
             # Nạp bộ nhớ của vault đang chọn vào system prompt (Javis luôn nhớ)
             # + block kênh (port gateway hermes): engine biết đang trả lời qua dashboard web
             sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
-                "dashboard", telegram_running=bool(_TG_BOT), port=_javis_port(), brain_root=_brain_root(brain))
+                "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
+                port=_javis_port(), brain_root=_brain_root(brain))
 
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)

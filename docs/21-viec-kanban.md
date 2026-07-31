@@ -169,9 +169,9 @@ Nói cách khác: mặc định Javis **không** tự tiêu tiền, không tự 
 
 Ngoài ra worker cũng không thấy repo mã nguồn nằm ngoài brain, và không làm được những việc cần chính chủ đăng nhập (cookie, OTP, quét mã QR, đổi mật khẩu).
 
-## Nhận kết quả trên Telegram
+## Nhận kết quả: về đúng nơi bạn đã giao việc
 
-Mỗi việc kết thúc ở trạng thái hoàn thành, chờ duyệt hoặc bị chặn đều **tự bắn một tin về Telegram**, nội dung ngắn gọn kiểu:
+Mỗi việc kết thúc ở trạng thái hoàn thành, chờ duyệt hoặc bị chặn đều **tự bắn một tin báo** về đúng kênh đã giao nó, nội dung ngắn gọn kiểu:
 
 - `✅ Việc '<tiêu đề>' đã hoàn thành.` kèm vài dòng đầu của kết quả.
 - `✅ Việc '<tiêu đề>' đã làm xong, cần duyệt ngoại lệ.`
@@ -179,7 +179,13 @@ Mỗi việc kết thúc ở trạng thái hoàn thành, chờ duyệt hoặc b�
 
 Tin nào cũng kết bằng "Xem chi tiết ở trang Việc." vì chi tiết đầy đủ nằm ở đây chứ không nhồi vào tin nhắn.
 
-Ai nhận tin: người đã giao việc. Việc tạo từ chat Telegram mang theo chat id của người đó nên báo về đúng họ; việc tạo trên dashboard không có chat id nên báo về **ID Telegram đầu tiên** trong whitelist. Bot chưa bật hoặc chưa có chat id thì bước báo cáo im lặng bỏ qua, việc vẫn chạy bình thường. Xem [Kênh Telegram](11-telegram.md).
+Ai nhận tin, nhận ở đâu:
+
+- **Giao trong chat trên dashboard** → kết quả hiện thẳng thành một tin của Javis **trong đúng cuộc trò chuyện đó**. Server ghi vào lịch sử phiên trước rồi mới đẩy lên, nên bạn đóng tab hay F5 xong mở lại vẫn thấy. Đang xem cuộc trò chuyện khác thì tin nằm sẵn ở phiên gốc và phiên đó nổi lên trong **Lịch sử**.
+- **Giao từ chat Telegram** → báo về đúng người đã nhắn (việc mang theo chat id của họ).
+- **Không rõ ai giao** (tạo tay ngoài chat) → báo về **ID Telegram đầu tiên** trong whitelist; chưa bật bot thì bước này bỏ qua, việc vẫn chạy bình thường. Xem [Kênh Telegram](11-telegram.md).
+
+> Trước 0.9.289 chỉ có đường Telegram. Ai giao việc trên web mà chưa đấu Telegram thì giao xong là im lặng tuyệt đối - không trạng thái, không hồi âm. Giờ chat web là một kênh nhận báo thật, không cần Telegram nữa.
 
 ## Giao việc bằng lời trong chat
 
@@ -268,8 +274,11 @@ Worker thấy thiếu một quyết định mà đoán bừa sẽ hại. Mở ng
 **Không bấm được "Xóa khỏi bảng" hay "↻ Thử lại".**
 Việc đang chạy không cho đổi trạng thái. Bấm **Dừng task** trước, đợi thẻ rời khỏi khung **Đang hoạt động**, rồi thao tác lại.
 
-**Việc xong rồi mà Telegram im lặng.**
-Bot chưa bật, chưa có chat id trong whitelist, hoặc bạn tạo việc trên dashboard nên tin bay về ID Telegram đầu tiên chứ không về tài khoản bạn nghĩ. Xem [Kênh Telegram](11-telegram.md).
+**Việc xong rồi mà không thấy báo ở đâu cả.**
+Việc giao trong chat web phải mang theo mã phiên chat thì kết quả mới về đúng khung đó. Javis tự gắn khi bạn giao bằng lời trong chat; còn việc tạo tay ở trang này hoặc bằng lệnh curl không có mã phiên nên chỉ đi Telegram. Nếu tin đi Telegram mà im lặng: bot chưa bật, chưa có chat id trong whitelist, hoặc việc không rõ người giao nên tin bay về ID Telegram đầu tiên chứ không về tài khoản bạn nghĩ. Xem [Kênh Telegram](11-telegram.md).
+
+**Javis hứa "em sẽ đợi các việc chạy xong rồi tổng hợp" nhưng chẳng bao giờ tổng hợp.**
+Đó là lời hứa suông và đã bị cấm từ 0.9.289: lượt trả lời của Javis kết thúc ngay khi nó nói xong, không có cơ chế nào đánh thức nó dậy để tổng hợp. Việc nền chỉ tự đẩy kết quả **thô** về khung chat. Muốn có bản tổng hợp, giao thêm một việc chuyên đi tổng hợp (dùng `deps` trỏ vào các việc trước), hoặc nhắn lại một câu sau khi kết quả đã về.
 
 **Bảng trống trơn dù hôm qua còn việc.**
 Ba khả năng, theo thứ tự hay gặp: bạn đang đứng ở **brain khác** (đổi brain ở đầu dashboard), việc đã kết thúc quá 3 ngày nên tự lưu trữ, hoặc ai đó đã gọi endpoint dọn bảng.
