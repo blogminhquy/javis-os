@@ -2493,6 +2493,17 @@
     const m = s.model || {};
     const providers = m.providers || [];
     const main = m.main || {};
+    // Đã kết nối xếp LÊN ĐẦU, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự
+    // gốc của PROVIDER_DEFS (sort có tiebreak theo chỉ số nên ổn định, không phụ thuộc engine).
+    // Phải hỏi /claude/status mới biết Claude Code có đăng nhập thật không: nó không có
+    // key_field nên server luôn trả configured=true, tin theo đó là Claude chưa đăng nhập vẫn
+    // nằm chễm chệ trên cùng. Một request cục bộ, rẻ.
+    let claudeOn = false;
+    try { claudeOn = !!(await (await fetch("/claude/status")).json()).connected; } catch (e) {}
+    const provOn = (p) => (p.kind === "cli" ? claudeOn : !!p.configured);
+    const provList = providers.map((p, i) => ({ p, i }))
+      .sort((a, b) => (provOn(b.p) - provOn(a.p)) || (a.i - b.i))
+      .map(x => x.p);
     const mainP = providers.find(p => p.id === main.provider) || {};
     const auxCfg = m.auxiliary || {};
     const aux = auxCfg.model || "";
@@ -2575,7 +2586,7 @@
       </div>
       <div class="cview-section">
         <h3>◆ Providers <span style="opacity:.5">đăng nhập / kết nối nhà cung cấp model</span></h3>
-        <div class="prov-list">${providers.map(provCard).join("")}</div>
+        <div class="prov-list">${provList.map(provCard).join("")}</div>
       </div>
       <div class="cview-section">
         <h3>◆ Model việc nền <span style="opacity:.5">loop · việc Kanban · nhắc hẹn · tự học</span></h3>
@@ -2605,9 +2616,9 @@
       </div>`;
 
     const chg = document.getElementById("mdChange");
-    if (chg) chg.onclick = () => openModelPicker(providers, main, () => renderModels(el));
+    if (chg) chg.onclick = () => openModelPicker(provList, main, () => renderModels(el));
     const auxChg = document.getElementById("auxChange");
-    if (auxChg) auxChg.onclick = () => openModelPicker(providers, { provider: auxProv, model: aux }, () => renderModels(el), {
+    if (auxChg) auxChg.onclick = () => openModelPicker(provList, { provider: auxProv, model: aux }, () => renderModels(el), {
       title: "MODEL VIỆC NỀN",
       note: "Việc nền: loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn",
       save: (prov, mod) => saveSetting("model", { auxiliary: { provider: prov, model: mod } }),

@@ -195,7 +195,9 @@ check("UI: bo nhan 'metrics' da go", "loop · metrics · ingest" not in console)
 # thì tràn và không có đường tìm. Phải đi qua openModelPicker - hộp có ô lọc + cột provider.
 check("UI: khong con day chip model viec nen", "auxGroups" not in console)
 check("UI: co hang tom tat lua chon hien tai", 'class="aux-now"' in console)
-check("UI: nut mo picker", 'id="auxChange"' in console and "openModelPicker(providers, { provider: auxProv" in console)
+# 0.9.293: danh sach provider duoc sap xep (da ket noi len dau) roi moi truyen vao picker,
+# nen bien la provList chu khong con la providers tho.
+check("UI: nut mo picker", 'id="auxChange"' in console and "openModelPicker(provList, { provider: auxProv" in console)
 check("UI: co duong ve mac dinh", 'id="auxReset"' in console)
 check("UI: picker nhan tuy chon (dung chung cho model chinh va model nen)",
       "function openModelPicker(providers, main, onDone, opts)" in console)

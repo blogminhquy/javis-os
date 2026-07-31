@@ -33,7 +33,7 @@ Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai 
 
 ## Bảy provider có sẵn
 
-Khối **Providers** liệt kê 7 nhà cung cấp theo đúng thứ tự này:
+Khối **Providers** liệt kê 7 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
 
 | Provider (nhãn trên màn hình) | Kiểu kết nối | Ghi chú |
 |---|---|---|

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.293] - 2026-08-01
+Trang Models xếp nhà cung cấp đã kết nối lên đầu.
+### Cải thiện
+- **Nhà cung cấp đã kết nối xếp lên đầu, chưa kết nối dồn xuống dưới.** Trong mỗi nhóm vẫn giữ nguyên thứ tự gốc nên nhìn không bị xáo trộn. Áp dụng cho cả danh sách card lẫn cột chọn nhà cung cấp trong hộp **Đổi model** (cả model chính lẫn model việc nền), để hai chỗ không nói hai kiểu.
+- Riêng Claude Code phải hỏi `/claude/status` mới biết có đăng nhập thật không: nó không có ô API key nên server luôn báo `configured=true`, tin theo đó thì máy chưa đăng nhập Claude vẫn thấy nó nằm chễm chệ trên cùng.
+
 ## [0.9.292] - 2026-08-01
 Thêm Groq làm nhà cung cấp model thứ bảy.
 ### Tính năng mới
