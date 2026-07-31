@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.281] - 2026-07-31
+Cuộn lên đọc lại trong khung chat dài giờ có nút nhảy thẳng xuống cuối.
+### Tính năng mới
+- **Nút xuống cuối hiện ngay khi rời đáy khung chat.** Nút `#newMsgBtn` vốn đã có nhưng chỉ được bật bên trong `scrollBottom()`, mà hàm đó chỉ chạy khi **có tin mới** tới. Nghĩa là cuộn lên đọc lại một hội thoại dài rồi muốn quay xuống thì không có nút nào, phải tự kéo tay hết cả khung. Nay chính bộ xử lý cuộn bật nút, nên rời đáy là có nút, không phụ thuộc tin mới.
+- Nút có **hai dạng cho hai tình huống**: chỉ đang cuộn lên đọc lại thì là nút tròn nhỏ chỉ có mũi tên, đủ để nhảy xuống; có tin mới tới lúc đang đọc thì nở ra thành viên thuốc chữ "Tin mới" màu nhấn để đập vào mắt. Cuộn về đáy thì nhả lại dạng gọn, nếu không thì lần sau chỉ cuộn lên đọc lại vẫn thấy chữ "Tin mới" báo sai.
+### Cải thiện
+- Nút mang `aria-label` đổi theo dạng, nên bộ đọc màn hình nói đúng việc nó làm.
+- Bóng đổ dùng `--shadow-2` thay vì `--shadow-1`, và viền/icon tăng tương phản: nút nổi **đè lên chữ** của tin nhắn nên nhạt quá là chìm hẳn vào nền chữ.
+- Đã đo trong app THẬT bằng Chromium (dựng server tại chỗ), 15 phép thử: cuộn lên hiện nút, bấm nhảy đúng xuống đáy, có tin mới thì nút nở ra, về đáy thì ẩn và nhả dạng tin mới, và nút vẫn đi theo khi phóng to khung chat. Xem cả hai tông sáng và tối.
+- Thêm `tests/js/test_nut_xuong_day.js`: 25 phép thử cho CI, có kiểm chứng ngược (gỡ `flex: none` hoặc gỡ lời gọi trong bộ xử lý cuộn thì test đỏ đúng chỗ).
+### Sửa lỗi
+- `flex: none` cho nút: `.transcript` là flex dọc nên nút là flex item **bị co theo chiều cao**, nút tròn 32px bị bóp còn 15px thành bầu dục. Lỗi này chỉ lộ ra khi đo trong trình duyệt thật.
+
 ## [0.9.280] - 2026-07-31
 Trình soạn .md có nút checkbox, phím tắt cho mọi định dạng, và menu gõ "/".
 ### Tính năng mới

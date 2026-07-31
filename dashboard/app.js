@@ -526,20 +526,52 @@ function setProcessing(s) { isProcessing = s; sendBtn.disabled = s; }
 // ============================================
 let stickBottom = true;
 const newMsgBtn = document.createElement("button");
-newMsgBtn.id = "newMsgBtn"; newMsgBtn.type = "button"; newMsgBtn.textContent = "↓ Tin mới";
+newMsgBtn.id = "newMsgBtn"; newMsgBtn.type = "button";
 newMsgBtn.addEventListener("click", () => scrollBottom(true));
+
+// Nút có HAI dạng, vì hai tình huống khác nhau:
+//   - Chỉ đang cuộn lên đọc lại  -> nút tròn nhỏ chỉ có mũi tên, đủ để nhảy xuống đáy.
+//   - Có tin MỚI tới lúc đang đọc -> nở ra thành "Tin mới" để báo là có cái đáng xuống xem.
+// Trước đây chỉ có dạng thứ hai, mà nó lại chỉ hiện khi scrollBottom() được gọi (tức là khi
+// có tin mới). Cuộn lên đọc lại một hội thoại dài rồi muốn quay xuống thì KHÔNG có nút nào,
+// phải tự kéo tay hết cả khung - đúng chỗ chủ repo kêu mất thời gian.
+const XUONG_ICON = (typeof ic === "function") ? ic("chevron-down") : "↓";
+function veNutXuong(coTinMoi) {
+  newMsgBtn.classList.toggle("has-new", !!coTinMoi);
+  newMsgBtn.innerHTML = coTinMoi ? XUONG_ICON + " Tin mới" : XUONG_ICON;
+  newMsgBtn.title = coTinMoi ? "Có tin mới - xuống cuối" : "Xuống cuối hội thoại";
+  newMsgBtn.setAttribute("aria-label", newMsgBtn.title);
+}
+veNutXuong(false);
+
 function chatAppend(el) {
   if (newMsgBtn.parentNode !== chatArea) chatArea.appendChild(newMsgBtn);
   chatArea.insertBefore(el, newMsgBtn);
 }
+// Ngưỡng 90px: coi như "đang ở đáy" nên vẫn tự cuộn theo tin mới, và không hiện nút.
+function ganDay() {
+  return chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 90;
+}
+function capNhatNutXuong() {
+  if (!newMsgBtn.parentNode) return;             // chưa có tin nào thì chưa chèn nút
+  if (stickBottom) { newMsgBtn.classList.remove("show"); veNutXuong(false); return; }
+  newMsgBtn.classList.add("show");
+}
 chatArea.addEventListener("scroll", () => {
-  stickBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 90;
-  if (stickBottom) newMsgBtn.classList.remove("show");
+  stickBottom = ganDay();
+  // Rời đáy là hiện nút NGAY, không chờ tin mới nào cả.
+  capNhatNutXuong();
 });
 function scrollBottom(force) {
   if (force) stickBottom = true;
-  if (stickBottom) { chatArea.scrollTop = chatArea.scrollHeight; newMsgBtn.classList.remove("show"); }
-  else if (newMsgBtn.parentNode) newMsgBtn.classList.add("show");
+  if (stickBottom) {
+    chatArea.scrollTop = chatArea.scrollHeight;
+    newMsgBtn.classList.remove("show");
+    veNutXuong(false);
+  } else if (newMsgBtn.parentNode) {
+    veNutXuong(true);                            // đang đọc phía trên mà có tin mới tới
+    newMsgBtn.classList.add("show");
+  }
 }
 
 // ============================================

@@ -895,13 +895,22 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   color: var(--accent); font-size: 13px; cursor: pointer; padding: 0; }
 .clamp-more:hover { text-decoration: underline; }
 
-/* Nút "↓ Tin mới" - sticky đáy khung chat khi user đang cuộn đọc phía trên */
+/* Nút xuống cuối - sticky đáy khung chat, hiện ngay khi user rời đáy cuộn lên đọc.
+   Hai dạng: mặc định là nút TRÒN chỉ có mũi tên (chỉ để nhảy xuống, không cần chữ);
+   thêm .has-new khi có tin mới thì nở ra thành viên thuốc có chữ để nó đập vào mắt.
+   flex: none BẮT BUỘC: .transcript là flex dọc, nút là flex item nên mặc định BỊ CO theo
+   chiều chính (chiều cao). Thiếu nó thì nút tròn 32px bị bóp còn 15px, méo thành bầu dục. */
 #newMsgBtn { position: sticky; bottom: 6px; align-self: center; display: none; z-index: 3;
-  background: var(--panel-solid); border: 1px solid var(--accent); color: var(--accent);
-  border-radius: 16px; padding: 5px 14px; font-size: 13px; cursor: pointer;
-  box-shadow: var(--shadow-1); }
+  flex: none; align-items: center; justify-content: center; gap: 5px;
+  background: var(--panel-solid); border: 1px solid var(--text3); color: var(--text);
+  width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  /* Bóng đậm hơn --shadow-1 vì nút NỔI ĐÈ lên chữ của tin nhắn; bóng nhạt là nó chìm vào nền chữ. */
+  font-size: 13px; cursor: pointer; box-shadow: var(--shadow-2);
+  transition: color 0.15s, border-color 0.15s, background 0.15s; }
+#newMsgBtn.has-new { width: auto; height: auto; padding: 5px 14px; border-radius: 16px;
+  border-color: var(--accent); color: var(--accent); }
 #newMsgBtn.show { display: inline-flex; }
-#newMsgBtn:hover { background: var(--accent-wash-2); }
+#newMsgBtn:hover { background: var(--accent-wash-2); color: var(--accent); border-color: var(--accent); }
 
 /* Chip hoạt động trong transcript - "đang suy nghĩ / gọi tool / soạn trả lời"
    (thay .tool-bar cũ nằm ngoài #chatArea nên biến mất khi phóng to chat workspace) */
