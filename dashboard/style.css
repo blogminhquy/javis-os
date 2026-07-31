@@ -752,6 +752,26 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .ts-item.sel, .ts-item:hover { background: var(--bg3); }
 .ts-ic { width: 20px; text-align: center; flex: none; }
 .ts-date { margin-left: auto; color: var(--text3); font-size: 12px; }
+/* Menu gõ "/" trong trình soạn .md (editor-cmds.js). Dùng lại đúng bộ mặt của .ts-pop để
+   hai menu trong cùng một editor không lệch nhau, thêm cột phím tắt căn phải. */
+.ec-pop {
+  position: fixed; z-index: 4000; min-width: 250px; max-width: 320px;
+  max-height: 292px; overflow-y: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-3); padding: 4px; font-size: 13.5px;
+}
+.ec-item {
+  display: flex; align-items: center; gap: 9px; padding: 6px 10px;
+  border-radius: 7px; color: var(--text); cursor: pointer; user-select: none;
+}
+.ec-item.sel, .ec-item:hover { background: var(--bg3); }
+/* Ô icon rộng cố định để nhãn thẳng cột, dù bên trong là SVG hay chữ ("B", "H1", "1."). */
+.ec-ic { width: 22px; flex: none; text-align: center; color: var(--text2); font-size: 12px; }
+.ec-lb { flex: 1 1 auto; min-width: 0; }
+.ec-key {
+  flex: none; color: var(--text3); font-size: 11.5px; letter-spacing: 0.4px;
+  border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; white-space: nowrap;
+}
 .ts-pop .ts-datein {
   width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border);
   color: var(--text); border-radius: 7px; padding: 6px 8px; font-size: 13.5px;

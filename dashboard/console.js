@@ -4141,7 +4141,7 @@
   const _vtNoAccent = (s) => (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase();
 
   async function _vtList(path) {
-    const key = (path == null) ? " home" : path;
+    const key = (path == null) ? "\0home" : path;
     if (_vtCache.has(key)) return _vtCache.get(key);
     const qp = (path == null) ? "" : `&path=${encodeURIComponent(path)}`;
     let items = [];
@@ -4508,45 +4508,24 @@
   }
 
   // Thanh công cụ markdown - hoạt động CẢ trên bản render (WYSIWYG, execCommand) LẪN nguồn thô (chèn cú pháp).
+  // Bảng lệnh nay ở editor-cmds.js (window.JavisEditorCmds), KHÔNG còn nằm trong hàm này:
+  // cùng một bảng đó nuôi luôn phím tắt và menu gõ "/". Để mỗi nơi giữ bảng riêng là ba chỗ
+  // trôi khỏi nhau ngay lần thêm lệnh đầu tiên. Hàm này giờ chỉ còn việc vẽ nút.
   function _neBuildToolbar(host, ctx) {
     if (!host) return;
-    const ta = ctx.ta, wys = ctx.wys, isWys = () => ctx.mode() === "wys";
-    const exec = (cmd, val) => { try { wys.focus(); document.execCommand(cmd, false, val || null); } catch (e) {} };
-    const wrapTa = (b, a, ph) => {
-      const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e) || ph || "";
-      ta.value = ta.value.slice(0, s) + b + sel + a + ta.value.slice(e);
-      ta.selectionStart = s + b.length; ta.selectionEnd = s + b.length + sel.length; ta.focus();
-    };
-    const lineTa = (prefix) => {
-      const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value, ls = v.lastIndexOf("\n", s - 1) + 1;
-      const block = v.slice(ls, e).split("\n").map((ln, i) => prefix.replace("{n}", i + 1) + ln).join("\n");
-      ta.value = v.slice(0, ls) + block + v.slice(e); ta.focus();
-    };
-    const insTa = (t) => { const s = ta.selectionStart; ta.value = ta.value.slice(0, s) + t + ta.value.slice(s); ta.selectionStart = ta.selectionEnd = s + t.length; ta.focus(); };
-    const B = (fn) => () => { fn(); };
-    const BTNS = [
-      ["B", "Đậm", () => isWys() ? exec("bold") : wrapTa("**", "**", "chữ đậm"), "font-weight:700"],
-      ["I", "Nghiêng", () => isWys() ? exec("italic") : wrapTa("*", "*", "chữ nghiêng"), "font-style:italic"],
-      ["H1", "Tiêu đề 1", () => isWys() ? exec("formatBlock", "H1") : lineTa("# ")],
-      ["H2", "Tiêu đề 2", () => isWys() ? exec("formatBlock", "H2") : lineTa("## ")],
-      ["H3", "Tiêu đề 3", () => isWys() ? exec("formatBlock", "H3") : lineTa("### ")],
-      ["•", "Gạch đầu dòng", () => isWys() ? exec("insertUnorderedList") : lineTa("- ")],
-      ["1.", "Danh sách số", () => isWys() ? exec("insertOrderedList") : lineTa("{n}. ")],
-      [ic("quote"), "Trích dẫn", () => isWys() ? exec("formatBlock", "BLOCKQUOTE") : lineTa("> ")],
-      ["</>", "Code", () => isWys() ? exec("insertHTML", "<code>code</code>") : wrapTa("`", "`", "code")],
-      [ic("link"), "Link", () => { const u = prompt("URL:", "https://"); if (!u) return; isWys() ? exec("createLink", u) : wrapTa("[", "](" + u + ")", "chữ"); }],
-      ["―", "Kẻ ngang", () => isWys() ? exec("insertHorizontalRule") : insTa("\n---\n")],
-    ];
+    const EC = window.JavisEditorCmds;
+    if (!EC) { host.innerHTML = ""; return; }   // index.html nạp editor-cmds.js TRƯỚC console.js
     host.innerHTML = "";
-    BTNS.forEach(([label, title, fn, style]) => {
-      const b = document.createElement("button"); b.type = "button"; b.title = title;
+    EC.CMDS.forEach((c) => {
+      const b = document.createElement("button"); b.type = "button";
+      b.title = EC.btnTitle(c);                  // nhãn kèm phím tắt, vd "Checkbox (Ctrl+Shift+9)"
       // Nhãn nút có hai loại: chuỗi SVG do ic() sinh ra, và chữ thuần ("B", "</>", "―").
       // Cả hai đều đi bằng innerHTML - textContent sẽ in nguyên thẻ <svg ...> ra màn hình.
       // Chữ thuần bắt buộc escape, nếu không nút "</>" bị trình duyệt nuốt mất.
-      b.innerHTML = /^\s*<svg\b/.test(label) ? label : Icons.esc(label);
-      if (style) b.style.cssText += style;
+      b.innerHTML = EC.btnHtml(c);
+      if (c.btn.style) b.style.cssText += c.btn.style;
       b.onmousedown = (e) => e.preventDefault();
-      b.onclick = fn;
+      b.onclick = () => EC.run(c.id, ctx);
       host.appendChild(b);
     });
   }

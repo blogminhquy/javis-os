@@ -4,6 +4,21 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.280] - 2026-07-31
+Trình soạn .md có nút checkbox, phím tắt cho mọi định dạng, và menu gõ "/".
+### Tính năng mới
+- **Nút checkbox trên thanh công cụ**, đứng ngay sau danh sách số vì nó cùng họ danh sách. Bấm ở chế độ Sửa là ra ô tick thật; ở chế độ Nguồn thì chèn `- [ ] `. Trước đây thanh công cụ có bullet và danh sách số nhưng thiếu hẳn checkbox, nên cách duy nhất để tạo là gõ `- [ ]` rồi nhấn phím cách, mà không có gì trên màn hình gợi ý điều đó.
+- **Phím tắt cho toàn bộ định dạng**, chạy ở cả hai chế độ Sửa và Nguồn: `Ctrl+B` đậm, `Ctrl+I` nghiêng, `Ctrl+Alt+1/2/3` tiêu đề, `Ctrl+Shift+8` gạch đầu dòng, `Ctrl+Shift+7` danh sách số, `Ctrl+Shift+9` checkbox, `Ctrl+Shift+.` trích dẫn (nhớ theo dấu `>` của markdown), `Ctrl+E` code, `Ctrl+K` link. Trên Mac đọc `Ctrl` thành `Cmd`.
+- **Menu gõ "/"**: trong chế độ Sửa, gõ `/` ở đầu một từ là sổ bảng chọn đủ 12 chức năng kèm phím tắt hiện bên cạnh. Gõ tiếp để lọc (không dấu cũng ra, `/tieu` khớp "Tiêu đề"), mũi tên chọn, Enter hoặc bấm chuột để chèn, Esc để đóng. Dấu `/` giữa từ như `12/2026`, `và/hoặc` hay đường dẫn `a/b` không kích hoạt menu.
+### Cải thiện
+- Bảng lệnh gom về một chỗ duy nhất (`dashboard/editor-cmds.js`) nuôi cả ba đầu ra: nút, phím tắt, menu "/". Trước đây bảng nút nằm lẫn trong hàm dựng thanh công cụ; để nguyên vậy thì ba nơi sẽ trôi khỏi nhau ngay lần thêm lệnh sau.
+- Phím SỐ khớp bằng `e.code` chứ không phải `e.key`: giữ Alt trên Mac làm `e.key` thành `¡`, dùng `e.key` là phím tắt tiêu đề chết trên Mac.
+- Không cướp phím của trình duyệt và của app: `Ctrl+1..9` trần (đổi tab), `Ctrl+S` (lưu note), `Ctrl+Shift+I` (devtools), `Ctrl+Shift+B` (thanh bookmark) đều được để nguyên.
+- Đã đo bằng Chromium thật: 24 phép thử cho nút, phím tắt hai chế độ, và menu "/"; cộng một vòng round-trip khép kín Sửa → markdown → vẽ lại với Turndown và plugin GFM thật, xác nhận checkbox lưu ra đúng `- [ ]` / `- [x]` và mở lại vẫn là ô tick.
+- Thêm `tests/js/test_editor_cmds.js`: 57 phép thử cho CI (vốn chỉ có `node`), gồm 8 canary chặn việc cướp phím trình duyệt và chặn menu "/" bung nhầm giữa từ.
+### Sửa lỗi
+- `dashboard/console.js` lẫn **một byte NUL thô** trong chuỗi khoá cache, khiến mọi công cụ coi cả file là nhị phân và `grep` không đọc được. Thay bằng escape `\0`, chuỗi lúc chạy y hệt.
+
 ## [0.9.279] - 2026-07-31
 Chat mở rộng thôi làm popup: nó choán đúng khung nội dung, dán tệt vào bố cục.
 ### Cải thiện
