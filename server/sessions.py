@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import sqlite3
 import threading
 import time
@@ -83,6 +84,77 @@ CREATE TRIGGER IF NOT EXISTS messages_fts_upd AFTER UPDATE ON messages BEGIN
     INSERT INTO messages_fts(rowid, content) VALUES (new.id, COALESCE(new.content, ''));
 END;
 """
+
+
+# ============================================
+# Đặt tên hội thoại
+# ============================================
+# Khối ngữ cảnh dashboard tự chèn TRƯỚC câu hỏi khi user đính kèm file (app.js). Hai dạng:
+#   [File đính kèm để ĐỌC (đường dẫn): ... ]
+#   [File đính kèm (đường dẫn), Sources="...", Attachments="...": ... ]
+# Neo vào đúng cụm "File đính kèm" chứ KHÔNG bóc mọi khối [..] mở đầu - người dùng có quyền
+# mở câu bằng ngoặc vuông ("[gấp] xem giúp anh..."), bóc bừa là mất luôn phần quan trọng nhất.
+_KHOI_DINH_KEM = re.compile(r"^\s*\[File đính kèm[^\]]*\]\s*")
+# Câu dashboard tự điền khi user đính kèm file mà KHÔNG gõ gì - không mang thông tin gì.
+_CAU_TU_DIEN = "Hãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính."
+# File đính kèm được app.js liệt kê mỗi dòng một cái, dạng "- <đường dẫn>". Neo vào ĐÚNG dạng
+# đó, đừng quét mọi thứ trông giống đường dẫn trong khối: dạng có Sources="..."/Attachments="..."
+# sẽ lọt hai thư mục cấu hình vào, ra tên kiểu "My +4 file" (lặp y hệt ở mọi hội thoại).
+_DONG_FILE = re.compile(r"^\s*-\s+(\S.*?)\s*$", re.M)
+TITLE_MAX = 48
+
+
+def _cat_gon(s: str, gioi_han: int = TITLE_MAX) -> str:
+    """Cắt ở RANH GIỚI TỪ. Cắt giữa chữ ra 'File đính kèm để ĐỌC (đườn…' - vừa xấu vừa khó đoán."""
+    s = s.strip()
+    if len(s) <= gioi_han:
+        return s
+    cut = s[:gioi_han + 1]
+    khoang = cut.rfind(" ")
+    if khoang >= gioi_han // 2:          # có chỗ ngắt tử tế thì dùng, không thì đành cắt cứng
+        cut = cut[:khoang]
+    else:
+        cut = cut[:gioi_han]
+    return cut.rstrip(" ,.;:-") + "…"
+
+
+def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
+    """Câu hỏi đầu của user -> tên hội thoại ngắn, THEO NỘI DUNG.
+
+    Vì sao có hàm này: trước đây title = 48 ký tự đầu của tin nhắn thô. Mà khi user đính kèm
+    file, dashboard chèn sẵn một khối hướng dẫn dài trước câu hỏi, nên MỌI hội thoại có file
+    đều mang đúng một cái tên "[File đính kèm để ĐỌC (đườn…" - nhìn danh sách Lịch sử không
+    phân biệt nổi cái nào là cái nào (đúng lỗi chủ repo báo 2026-07-31).
+
+    Thứ tự ưu tiên: câu user THỰC SỰ gõ > tên file đính kèm > chịu thua trả rỗng.
+    """
+    raw = msg or ""
+    con_lai = _KHOI_DINH_KEM.sub("", raw, count=1)
+    co_dinh_kem = con_lai != raw
+
+    tho = con_lai.replace(_CAU_TU_DIEN, " ").strip()
+    if tho.strip():
+        # Ngắt ý TRƯỚC khi gộp khoảng trắng, nếu không thì xuống dòng biến mất và tin nhiều
+        # dòng dính thành một chuỗi dài. Ngắt ở xuống dòng hoặc dấu kết câu; KHÔNG ngắt ở dấu
+        # chấm - tiếng Việt chấm nhiều, ngắt ở đó thì "Chào em. Doanh thu?" chỉ còn "Chào em".
+        y_dau = " ".join(re.split(r"\n+|(?<=[?!。])\s+", tho, maxsplit=1)[0].split())
+        ca_bai = " ".join(tho.split())
+        if ca_bai:
+            # Ý đầu quá cụt (dưới 8 ký tự) thì nó không nói lên chủ đề - lấy cả bài rồi cắt.
+            return _cat_gon(y_dau if 8 <= len(y_dau) else ca_bai, gioi_han)
+
+    # Chỉ đính kèm, không gõ chữ nào -> tên file còn nói được nhiều hơn khối hướng dẫn.
+    if co_dinh_kem:
+        khoi = _KHOI_DINH_KEM.match(raw)
+        duong_dan = _DONG_FILE.findall(khoi.group(0) if khoi else "")
+        # rstrip("]"): dạng có Sources= đóng khối NGAY sau đường dẫn cuối ("- /tmp/a.png]"),
+        # không bóc thì tên file dính dấu ngoặc.
+        ten = [re.split(r"[/\\]", p.rstrip("]").rstrip("/\\"))[-1] for p in duong_dan]
+        ten = [t for t in ten if t]
+        if ten:
+            return _cat_gon(ten[0] if len(ten) == 1 else f"{ten[0]} +{len(ten) - 1} file", gioi_han)
+        return "File đính kèm"
+    return ""
 
 
 class SessionStore:
@@ -350,16 +422,13 @@ class SessionStore:
     # ── auto-title ──
 
     def auto_title(self, session_id: str, first_user_message: str) -> Optional[str]:
-        """Đặt title nhanh (heuristic) từ câu hỏi đầu nếu phiên chưa có title."""
+        """Đặt title từ câu hỏi đầu nếu phiên chưa có title."""
         sess = self.get_session(session_id)
         if not sess or (sess.get("title") or "").strip():
             return None
-        snippet = " ".join((first_user_message or "").split())
-        if not snippet:
+        title = title_from_message(first_user_message)
+        if not title:
             return None
-        title = snippet[:48].rstrip()
-        if len(snippet) > 48:
-            title += "…"
         self.rename(session_id, title)
         return title
 

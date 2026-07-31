@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.284] - 2026-07-31
+Hội thoại có file đính kèm thôi trùng tên, đặt tên theo nội dung thật.
+### Sửa lỗi
+- **Mọi hội thoại có file đính kèm đều mang đúng một cái tên "[File đính kèm để ĐỌC (đườn…"**, nhìn danh sách Lịch sử không phân biệt nổi cái nào là cái nào. Nguyên nhân: tên = 48 ký tự **đầu** của tin nhắn thô, mà khi có file đính kèm thì dashboard chèn sẵn một khối hướng dẫn dài **trước** câu hỏi. Nay khối đó được bóc trước, tên lấy từ chính câu người dùng gõ.
+- Đính kèm file mà không gõ chữ nào thì tên lấy **tên file** (nhiều file thì "a.png +2 file"), thay vì lấy câu điền sẵn cũng vô nghĩa như nhau ở mọi hội thoại.
+- Cắt tên ở **ranh giới từ** thay vì cắt cứng giữa chữ, nên không còn ra kiểu "…(đườn…".
+- Tin nhiều dòng lấy **dòng đầu** làm tên, thay vì dính cả bài thành một chuỗi dài.
+### Cải thiện
+- Bóc khối đính kèm neo đúng vào cụm "File đính kèm" chứ không bóc mọi khối `[..]` mở đầu: người dùng có quyền mở câu bằng ngoặc vuông ("[gấp] xem giúp anh…"), bóc bừa là mất luôn phần quan trọng nhất. Có canary canh.
+- Tên file lấy theo đúng định dạng danh sách `- <đường dẫn>` mà dashboard sinh ra, nên hai thư mục cấu hình `Sources=`/`Attachments=` không lọt vào tên (trước khi sửa cho ra "My +4 file", lặp y hệt ở mọi hội thoại).
+- Không cắt ở dấu chấm giữa câu: tiếng Việt chấm nhiều, cắt ở đó thì "Chào em. Hôm nay doanh thu bao nhiêu?" chỉ còn "Chào em".
+- Thêm `tests/python/test_dat_ten_hoi_thoai.py`: 32 phép thử, có kiểm chứng ngược.
+
 ## [0.9.283] - 2026-07-31
 Đấu được n8n qua MCP chính chủ, và catalog học được kiểu connector tự dựng.
 ### Tính năng mới
