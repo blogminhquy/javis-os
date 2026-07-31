@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.291] - 2026-08-01
+Bỏ `html-to-webcake` khỏi bộ skill mặc định của hệ thống.
+### Cải thiện
+- **Gỡ skill hệ thống `html-to-webcake`.** Nó ship kèm `tools/` và `examples/`, nhưng cơ chế cài skill hệ thống chỉ chuyển mỗi `SKILL.md` nên cây con chưa bao giờ tới brain nào - skill này hỏng ở mọi brain từ đầu (đã ghi nhận ở 0.9.71 mà chưa vá). Chủ repo chốt bỏ hẳn thay vì vá.
+- Brain nào đã cài rồi thì **bản trong brain vẫn còn nguyên**, chỉ khác là giờ nó tính như skill của bạn: xoá được thẳng ở trang Skills (skill hệ thống thì không xoá được). Vòng đồng bộ không đụng tới mục đã rời khỏi nguồn hệ thống, nên không có gì tự mất.
+- Mục cảnh báo trong skill `javis-builder` bỏ ví dụ đã chết, viết lại thành luật chung: đừng viết skill HỆ THỐNG cần cây con.
+
 ## [0.9.290] - 2026-07-31
 Gõ `/` gọi skill được ở giữa câu, không phải chỉ ở đầu ô nhập.
 ### Cải thiện

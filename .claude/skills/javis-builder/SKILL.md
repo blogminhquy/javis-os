@@ -95,8 +95,8 @@ skill cứ thế hỏng âm thầm lúc chạy. Bạn là lớp phòng thủ duy
    sang `.claude/skills` (đường Claude Code nạp NATIVE) copy ĐỆ QUY cả cây, nên với skill
    trong brain, `references/`/`scripts/` tới được CẢ đường router lẫn đường native. Ngoại lệ
    còn lại: skill HỆ THỐNG (bundled sẵn theo app, cài vào brain qua system sync) vẫn chỉ ship
-   mỗi `SKILL.md` - cây con của chúng (vd `tools/`/`examples/` của `html-to-webcake`) CHƯA tới
-   brain nào, đây là lỗ ở tầng cài đặt khác, chưa được vá.
+   mỗi `SKILL.md` - cây con (`references/`, `scripts/`, `examples/`...) CHƯA tới brain nào,
+   đây là lỗ ở tầng cài đặt khác, chưa được vá. Nên đừng viết skill HỆ THỐNG cần cây con.
 8. KHÔNG viết skill kiểu router chỉ trỏ sang skill khác.
 
 ### Workflow -> `Javis/workflows/<slug>.md`
