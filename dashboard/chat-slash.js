@@ -3,12 +3,47 @@
 (function () {
   var SESSION_COMMANDS = ["new", "reset", "stop"];
 
+  // Danh sach slug skill dang co (menu nap tu /skills rot vao). Chi dung cho lenh GIUA cau:
+  // o giua cau ma bat bua theo hinh dang thi '/home/user/x' hay '3/4 cai' cung thanh lenh.
+  var knownSkills = [];
+  function setKnownSkills(list) {
+    knownSkills = [];
+    (list || []).forEach(function (s) {
+      var slug = (typeof s === "string") ? s : (s && s.slug);
+      if (slug) knownSkills.push(String(slug).toLowerCase());
+    });
+  }
+  function isKnownSkill(cmd) { return knownSkills.indexOf(String(cmd || "").toLowerCase()) !== -1; }
+
   // Nhan dien lenh: bat dau bang / + token [a-z0-9_-], phan sau la arg.
   function parseSlash(text) {
     if (typeof text !== "string") return null;
     var m = text.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
     if (!m) return null;
     return { cmd: m[1].toLowerCase(), arg: (m[2] || "").trim() };
+  }
+
+  // Lenh nam GIUA cau: "test sual skill giua khung chat /viet-email" -> skill viet-email,
+  // arg la phan chu con lai. Rang buoc de khoi bat nham:
+  //   - dau '/' phai dung dau chuoi hoac ngay sau khoang trang (giet 'https://', '3/4');
+  //   - token phai la skill CO THAT (giet '/home/user/x');
+  //   - lenh phien (/new /reset /stop) KHONG tinh o giua cau - "hay /reset lai" ma reset
+  //     that thi mat sach ngu canh, do la pha hoai chu khong phai tien.
+  // Lay lan xuat hien CUOI cung: nguoi dung vua go xong o cuoi cau la y dinh moi nhat.
+  var MID_RE = /(^|\s)\/([a-zA-Z0-9_-]+)(?=\s|$)/g;
+  function parseSlashAnywhere(text) {
+    if (typeof text !== "string") return null;
+    var head = parseSlash(text);
+    if (head) return head;                       // dau chuoi: giu nguyen hanh vi cu
+    var hit = null, m;
+    MID_RE.lastIndex = 0;
+    while ((m = MID_RE.exec(text)) !== null) {
+      if (isKnownSkill(m[2])) hit = m;
+    }
+    if (!hit) return null;
+    var start = hit.index + hit[1].length;
+    var rest = (text.slice(0, start) + " " + text.slice(start + 1 + hit[2].length)).trim();
+    return { cmd: hit[2].toLowerCase(), arg: rest.replace(/\s{2,}/g, " ") };
   }
 
   function classify(cmd) {
@@ -23,7 +58,7 @@
   }
 
   function route(text) {
-    var p = parseSlash(text);
+    var p = parseSlashAnywhere(text);
     if (!p) return { type: "passthrough" };
     if (classify(p.cmd) === "session") return { type: "session", cmd: p.cmd };
     return { type: "skill", cmd: p.cmd, message: buildSkillInvocation(p.cmd, p.arg) };
@@ -61,8 +96,22 @@
     return scored.map(function (x) { return x.it; });
   }
 
+  // Token lenh dang go NGAY TRUOC con tro. Tra {start, query, atHead} hoac null.
+  // atHead=true nghia la token bat dau tu vi tri 0 -> moi duoc hien them lenh phien.
+  function tokenAtCaret(text, caret) {
+    if (typeof text !== "string") return null;
+    var pos = (typeof caret === "number") ? caret : text.length;
+    var m = text.slice(0, pos).match(/(^|\s)\/([a-zA-Z0-9_-]*)$/);
+    if (!m) return null;
+    var start = m.index + m[1].length;
+    return { start: start, query: m[2], atHead: start === 0 };
+  }
+
   var api = {
     parseSlash: parseSlash,
+    parseSlashAnywhere: parseSlashAnywhere,
+    tokenAtCaret: tokenAtCaret,
+    setKnownSkills: setKnownSkills,
     SESSION_COMMANDS: SESSION_COMMANDS,
     classify: classify,
     buildSkillInvocation: buildSkillInvocation,
@@ -97,6 +146,8 @@
         skillsCache = (d && d.skills) || [];
       } catch (e) { skillsCache = []; }
       cacheBrain = brain;
+      // route() can biet slug CO THAT de dam nhan duoc lenh giua cau (xem parseSlashAnywhere).
+      api.setKnownSkills(skillsCache);
       return skillsCache;
     }
 
@@ -128,15 +179,24 @@
       });
     }
 
+    var tok = null;   // token dang go tai con tro (tokenAtCaret cua lan onInput gan nhat)
+
     function choose(i) {
       var it = items[i];
       if (!it) return;
       var input = document.getElementById("chatInput");
+      var t = tok;
       hide();
       if (it.kind === "skill") {
-        // Dien '/slug ' de nguoi dung go tiep noi dung roi Enter gui.
-        input.value = "/" + it.cmd + " ";
+        // Thay DUNG token dang go, giu nguyen chu hai ben - go lenh giua cau khong duoc
+        // xoa cau dang viet. Khong ro token thi rot ve hanh vi cu (thay ca o).
+        var val = input.value;
+        var end = t ? t.start + 1 + t.query.length : val.length;
+        var ins = "/" + it.cmd + " ";
+        input.value = t ? (val.slice(0, t.start) + ins + val.slice(end)) : ins;
+        var caret = (t ? t.start : 0) + ins.length;
         input.focus();
+        try { input.setSelectionRange(caret, caret); } catch (e) {}
         input.dispatchEvent(new Event("input"));
       } else {
         // Lenh phien: chay ngay.
@@ -147,15 +207,15 @@
 
     async function onInput() {
       var input = document.getElementById("chatInput");
-      var val = input.value;
-      // Chi mo menu khi dang go token lenh dau (chua co khoang trang sau lenh) hoac vua go '/'.
-      var typingCmd = /^\/[a-zA-Z0-9_-]*$/.test(val);
-      if (!typingCmd) { hide(); return; }
+      // Mo menu khi dang go token lenh NGAY TRUOC con tro - dau o hay giua cau deu duoc.
+      tok = api.tokenAtCaret(input.value, input.selectionStart);
+      if (!tok) { hide(); return; }
       ensureBox();
       var skills = await loadSkills();
-      var all = buildMenu(skills);
-      var query = val.slice(1);   // bo dau '/'
-      items = filterItems(all, query);
+      // Lenh phien (/new /reset /stop) chi hien khi token o DAU o nhap: giua cau ma bam
+      // /reset thi mat sach ngu canh dang viet do, khong ai muon vay.
+      var all = tok.atHead ? buildMenu(skills) : buildMenu(skills).filter(function (x) { return x.kind === "skill"; });
+      items = filterItems(all, tok.query);
       active = 0;
       if (!items.length) { hide(); return; }
       positionBox(input);
@@ -180,6 +240,10 @@
       // mo, onKeydown goi stopImmediatePropagation chan handler Enter cua app.js.
       input.addEventListener("keydown", onKeydown);
       input.addEventListener("blur", function () { setTimeout(hide, 120); });
+      // Nap truoc danh sach skill: lenh GIUA cau chi duoc nhan khi slug co that, ma nguoi
+      // dung hoan toan co the go tay '/viet-email' ma khong mo menu lan nao. Khong nap
+      // truoc thi lan go tay dau tien roi thang xuong chat thuong.
+      loadSkills().catch(function () {});
     };
     // #chatInput co san luc script chay -> init ngay de dang ky truoc app.js. Phong ho: neu
     // chua co (load-order doi ve sau), doi DOMContentLoaded.

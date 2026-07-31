@@ -191,6 +191,16 @@ def _codes(period, t):
     return {i["code"] for i in ui.insights(period, today=t)}
 
 
+# Fixture 5b o tren ghi vai dong theo NGAY THAT (_today_vn) de test nhanh du phong khi thieu
+# log tho. Insight ben duoi lai so ky hien tai voi ky LIEN TRUOC theo ngay CO DINH, nen khi
+# ngay that roi vao cua so so sanh cua mot moc co dinh thi dong rac do lam no canh bao oan.
+# Vu that: 00:07 ngay 2026-08-01 gio VN, dong ngay-that nam trong ky truoc cua thang 9
+# (01-15/08) -> "insight Sep: sach" do, dù chua ai sua gi. Don sach truoc khi vao phan insight.
+_c = ui._connect()
+_c.execute("DELETE FROM file_daily WHERE day=?", (_today_vn,))
+_c.commit()
+ui.refresh()
+
 # May: cache_low + background_heavy + expensive_model (opus, khong cache, ngam nhieu)
 _seed("p_may_bg", "2026-05-15", "claude", "claude-opus-4-8", 500000, 10000, cread=0, activity="background")
 _seed("p_may_chat", "2026-05-15", "claude", "claude-opus-4-8", 100000, 5000, cread=0, activity="chat")

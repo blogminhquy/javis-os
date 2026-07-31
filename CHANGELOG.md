@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.290] - 2026-07-31
+Gõ `/` gọi skill được ở giữa câu, không phải chỉ ở đầu ô nhập.
+### Cải thiện
+- **Lệnh `/` dùng được ở giữa khung chat.** Trước đây cả menu lẫn phần định tuyến đều neo vào đầu chuỗi, nên viết "test sử dụng skill giữa khung chat /" là không ra menu và gửi đi cũng không ăn gì. Giờ cứ viết yêu cầu trước, tới đâu cần thì gõ `/` tới đó: phần chữ hai bên lệnh đều được gộp thành yêu cầu cho skill. Chọn trong menu thì `/slug ` chèn đúng chỗ con trỏ, chữ đã gõ giữ nguyên.
+- **Ba rào chống bắt nhầm.** Dấu `/` phải đứng đầu câu hoặc ngay sau khoảng trắng (nên `https://vd.com/notes` và `3/4 cái bánh` vô can); ở giữa câu thì tên lệnh phải là skill CÓ THẬT trong brain đang chọn (nên `/home/user/notes` đi thẳng vào chat như chữ thường); và ba lệnh phiên `/new` `/reset` `/stop` chỉ chạy khi đứng ở đầu ô nhập - viết nửa câu rồi lỡ bấm `/reset` mà mất sạch ngữ cảnh thì hại hơn tiện, menu cũng không gợi ý chúng ở giữa câu.
+- Danh sách skill được nạp sẵn lúc khởi động thay vì đợi mở menu lần đầu, để người gõ tay `/viet-email` giữa câu mà chưa mở menu lần nào vẫn được nhận.
+- 20 kiểm tra mới trong `test_chat_slash.js` phủ cả định tuyến lẫn cách menu bắt token theo con trỏ.
+- Sửa một test đo mức dùng token bị đỏ theo giờ: nó ghi vài dòng theo NGÀY THẬT rồi lại so sánh mốc cố định, nên đúng lúc đồng hồ sang tháng mới là dòng rác đó rơi vào cửa sổ so sánh và làm nổ cảnh báo oan. Dọn sạch dòng ngày-thật trước phần kiểm tra cảnh báo.
+
 ## [0.9.289] - 2026-07-31
 Giao việc nền trong chat web xong là im lặng tuyệt đối - giờ kết quả tự về đúng khung chat đó.
 ### Sửa lỗi

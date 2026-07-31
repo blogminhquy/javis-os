@@ -100,7 +100,7 @@ Nút dừng chỉ dừng **phiên bạn đang xem**; phiên khác đang chạy n
 
 ## Lệnh gạch chéo "/" trong ô chat
 
-Gõ dấu **`/`** ở đầu ô nhập là một menu lệnh hiện lên ngay phía trên ô gõ.
+Gõ dấu **`/`** là một menu lệnh hiện lên ngay phía trên ô gõ - **ở đầu ô nhập hay giữa câu đều được**.
 
 Ba lệnh phiên đứng đầu danh sách:
 
@@ -119,11 +119,22 @@ Cách điều khiển menu:
 - Gõ tiếp vài chữ để lọc dần. Ưu tiên khớp theo slug trước, rồi mới tới tên skill.
 - **Mũi tên lên / xuống** để chọn dòng, **Enter** hoặc **Tab** để chốt, **Esc** để đóng menu. Bấm chuột vào một dòng cũng được.
 - Chọn một **lệnh phiên** thì nó chạy ngay, không cần Enter.
-- Chọn một **skill** thì ô chat được điền sẵn `/slug ` và con trỏ đứng chờ; bạn gõ tiếp nội dung yêu cầu rồi Enter để gửi.
+- Chọn một **skill** thì `/slug ` được chèn **đúng chỗ con trỏ**, chữ đã gõ hai bên giữ nguyên; bạn gõ tiếp rồi Enter để gửi.
 
 Khi gửi một lệnh skill, Javis dịch câu đó thành lời nhắc: "Hãy dùng skill `<slug>` với yêu cầu: ... Nếu không có skill tên này thì cứ xử lý yêu cầu của tôi bình thường."
 
-Menu chỉ mở khi bạn đang gõ **token lệnh đầu tiên**, tức là chưa có dấu cách sau lệnh. Gõ tiếp nội dung thì menu tự đóng, đó là bình thường. Chi tiết về skill xem [Skills](06-skills.md).
+### Gọi skill ở giữa câu
+
+Không phải lúc nào cũng nghĩ ra skill trước rồi mới viết. Cứ viết yêu cầu trước, tới đâu cần thì gõ `/` tới đó: *"test sử dụng skill giữa khung chat `/notes`"* chạy skill `notes` với yêu cầu là **phần chữ còn lại**. Chữ đứng trước và sau lệnh đều được gộp vào yêu cầu, nên *"viết cho anh `/notes` về cuộc họp"* thành yêu cầu "viết cho anh về cuộc họp".
+
+Vài luật cho khỏi bắt nhầm:
+
+- Dấu `/` phải đứng **đầu câu hoặc ngay sau khoảng trắng**. Nhờ vậy `https://vd.com/notes` và `3/4 cái bánh` không bị hiểu thành lệnh.
+- Ở giữa câu, tên lệnh phải là **skill có thật** trong brain đang chọn. `/home/user/notes` hay `/khong-co-that` cứ đi thẳng vào chat như chữ thường.
+- Có nhiều lệnh trong một câu thì lấy cái **cuối cùng** (ý định mới nhất). Riêng lệnh đứng ngay đầu ô nhập luôn được ưu tiên tuyệt đối.
+- **Ba lệnh phiên (`/new`, `/reset`, `/stop`) chỉ chạy khi đứng ở đầu ô nhập**, và menu cũng không gợi ý chúng ở giữa câu - viết nửa câu rồi lỡ bấm `/reset` mà mất sạch ngữ cảnh thì hại hơn tiện.
+
+Chi tiết về skill xem [Skills](06-skills.md).
 
 ## Khi Javis hỏi lại bằng nút bấm
 
