@@ -1347,6 +1347,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .quick-set .voice-picker-wrap { position: static; }
 .quick-set .voice-popover { position: static; display: block; width: auto; padding: 0; border: none; background: transparent; box-shadow: none; }
 .quick-set-body .s-btn, .quick-set-body .s-btn-ghost, .quick-set-body .test-btn { width: 100%; }
+/* Trừ nút nằm trong HÀNG NGANG (ô nhập + nút). Trong một flex row, item mang width:100% có
+   flex-basis:auto nên "cỡ mong muốn" của nó = trọn hàng; ô nhập bên cạnh lại là flex:1
+   (basis 0) nên khi phải co, toàn bộ phần co dồn vào nút còn ô nhập teo lại còn một sợi.
+   Đúng lỗi ô nhập tên miền bé tí không nhìn thấy. Specificity 3 lớp để thắng dòng trên
+   bất kể thứ tự nạp (CSS của khối tên miền do branding.js tiêm lúc chạy). */
+.quick-set-body .dom-field .s-btn,
+.quick-set-body .dom-ssl .s-btn,
+.quick-set-body .dom-ssl .s-btn-ghost { width: auto; }
 .quick-set .set-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 
 @media (max-width: 700px) {

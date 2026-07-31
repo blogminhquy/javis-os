@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.288] - 2026-07-31
+Ô nhập tên miền teo còn một sợi, không thấy chỗ mà gõ.
+### Sửa lỗi
+- **Ô nhập tên miền trong Cài đặt bị bóp còn một sợi.** style.css cho MỌI nút trong Cài đặt nhanh `width:100%` - đúng khi nút xếp chồng dọc, nhưng hàng tên miền là một hàng ngang "ô nhập + nút". Trong flex row, item mang `width:100%` có cỡ mong muốn bằng trọn hàng, còn ô nhập khai `flex:1` (cỡ mong muốn bằng 0), nên khi phải co thì phần co dồn hết vào nút và ô nhập ở lại 0 - chỉ còn thấy viền. Giờ ô nhập grow từ kích thước thật và nút chỉ rộng bằng chữ. Đo trên Chromium: ô nhập từ vài pixel lên 285px ở desktop, giãn hết 476px khi màn hẹp xếp dọc.
+- **Hàng nút SSL dính đúng lỗi đó** (nút "Kiểm tra lại" nuốt hàng, "Bật SSL" teo lại) vì chỉ khai flex cho một trong hai nút. Hàng này chỉ hiện sau khi đã đặt tên miền nên chưa ai kịp báo. Đã khai cho cả hai.
+- Ô nhập tên miền nay có kiểu riêng (nền, viền, bo góc, viền cam khi focus) thay vì để trơ mặc định trình duyệt - khối popover này không có kiểu input dùng chung.
+- Thêm `test_hang_nhap_ngang.py` canh luật: hàng ngang trong Cài đặt nhanh thì ô nhập phải grow từ basis auto, nút phải `width:auto`, và ngoại lệ trong style.css phải đủ 3 lớp class để thắng bất kể thứ tự nạp (CSS khối tên miền do branding.js tiêm lúc chạy).
+
 ## [0.9.287] - 2026-07-31
 Mở file nào trong trình sửa thì Javis làm việc trên file đó - khỏi dán đường dẫn hay tả lại.
 ### Tính năng mới

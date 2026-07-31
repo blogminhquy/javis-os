@@ -18,13 +18,26 @@
     if (document.getElementById("domCss")) return;
     var s = document.createElement("style"); s.id = "domCss";
     s.textContent =
-      ".dom-field{display:flex;gap:6px}.dom-field input{flex:1;min-width:0}" +
+      // Ô nhập: flex-basis auto + grow, KHÔNG dùng flex:1 (basis 0). Với basis 0 thì cỡ
+      // mong muốn của ô nhập bằng 0, nên hàng thiếu chỗ là nó teo hết còn nút giữ nguyên.
+      // Nút để width:auto (style.css cho nút trong quick-set width:100%, vào flex row là
+      // nó đòi trọn hàng). Ô nhập cũng tự khai kiểu vì popover không có kiểu input chung.
+      // KHÔNG đặt align-items:center: ở màn hẹp hàng này xoay thành cột, mà center thì con
+      // co về bề ngang nội dung thay vì giãn hết hàng - ô nhập lại bé. Để mặc định stretch.
+      ".dom-field{display:flex;gap:6px}" +
+      ".dom-field input{flex:1 1 auto;min-width:0;width:auto;background:var(--field-bg);" +
+      "border:1px solid var(--border);color:var(--text);border-radius:7px;padding:8px 10px;font-size:14px}" +
+      ".dom-field input:focus{outline:none;border-color:var(--accent)}" +
+      ".dom-field .s-btn{flex:0 0 auto;width:auto;white-space:nowrap}" +
       ".dom-status{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}" +
       ".dom-badge{font-size:12.5px;padding:3px 10px;border-radius:20px;border:1px solid var(--hairline);background:var(--surface-2);color:var(--text2);white-space:nowrap}" +
       ".dom-badge.ok{background:var(--ok-wash);border-color:var(--green);color:var(--green)}" +
       ".dom-badge.warn{background:var(--warn-wash);border-color:var(--warn-line);color:var(--warn-ink)}" +
       ".dom-badge.bad{background:var(--danger-wash);border-color:var(--danger-line);color:var(--red)}" +
-      ".dom-ssl{display:flex;gap:6px;margin-top:9px}.dom-ssl .s-btn{flex:1}" +
+      // Hai nút chia đôi hàng: phải khai flex CHO CẢ HAI. Trước đây chỉ .s-btn có flex:1,
+      // nút ghost giữ width:100% nên nó nuốt hàng còn nút kia teo - cùng một lỗi.
+      ".dom-ssl{display:flex;gap:6px;margin-top:9px}" +
+      ".dom-ssl .s-btn,.dom-ssl .s-btn-ghost{flex:1 1 0;width:auto;white-space:nowrap}" +
       ".dom-guide{margin-top:10px;font-size:13px;line-height:1.55;color:var(--text);display:flex;flex-direction:column;gap:8px}" +
       ".dom-step{display:grid;grid-template-columns:25px minmax(0,1fr);gap:8px;padding:9px 10px;background:var(--surface-1);border:1px solid var(--hairline);border-radius:9px}" +
       ".dom-step.done{border-color:var(--ok-line);background:var(--ok-wash)}" +
