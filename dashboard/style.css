@@ -1546,6 +1546,34 @@ body.chat-zoomed #jv-sess-btn { display: none; }
 .chat-img-gone { display: inline-block; margin: 6px 0; padding: 10px 14px; border-radius: 8px;
   border: 1px dashed var(--border); background: var(--bg3); color: var(--text3); font-size: 13px; }
 
+/* ===== Lightbox xem ảnh (bấm ảnh trong chat) =====
+   Con trỏ .chat-img vốn đã là zoom-in từ lâu, nhưng bấm vào lại TẢI FILE VỀ - hứa một đằng
+   làm một nẻo. Nay bấm là mở lớp này: ảnh vừa màn, kèm nút Tải về / Mở tab mới / Đóng. */
+.jv-lb { position: fixed; inset: 0; z-index: 5000; display: flex; flex-direction: column;
+  background: rgba(0, 0, 0, 0.86); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+body.jv-lb-open { overflow: hidden; }        /* khoá cuộn nền để lăn chuột là lăn trong ảnh */
+.jv-lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 14px; color: #fff; flex: none; }
+.jv-lb-ten { font-size: 13px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; min-width: 0; }
+.jv-lb-nut { display: flex; align-items: center; gap: 8px; flex: none; }
+.jv-lb-nut button { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; }
+.jv-lb-nut button:hover { background: rgba(255, 255, 255, 0.2); }
+/* Khung ảnh chiếm hết phần còn lại; ảnh canh giữa và luôn vừa màn ở trạng thái mặc định. */
+.jv-lb-khung { flex: 1 1 auto; min-height: 0; display: flex; align-items: center;
+  justify-content: center; padding: 0 14px 14px; overflow: auto; }
+.jv-lb-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px;
+  cursor: zoom-in; }
+/* Bấm vào ảnh -> xem cỡ thật để soi chi tiết, kéo trong khung để xem phần khuất. */
+.jv-lb.that .jv-lb-khung { align-items: flex-start; justify-content: flex-start; }
+.jv-lb.that .jv-lb-img { max-width: none; max-height: none; cursor: zoom-out; }
+@media (max-width: 700px) {
+  .jv-lb-bar { padding: 8px 10px; }
+  .jv-lb-nut button { padding: 6px 9px; }
+}
+
 /* Code block: header nhan ngon ngu + nut Copy + to mau cu phap */
 .code-wrap { position: relative; margin: 8px 0; }
 .code-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;

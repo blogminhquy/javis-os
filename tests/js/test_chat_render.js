@@ -171,8 +171,12 @@ check("editor: path Quan ly file khong bi ghep home hai lan",
 h = mdToHtml("[trang web](attachments/landing.html)");
 check("html noi bo: thanh link tai ve", has(h, 'class="jv-fdownload"') && has(h, "download"));
 check("html noi bo: dung endpoint dl=1", has(h, "dl=1") && !has(h, 'target="_blank"'));
+// 0.9.285 doi hanh vi CO Y: anh bam vao la XEM PHONG TO (lightbox), khong con tai file ve.
+// Tai ve chuyen vao trong lightbox. File khong phai anh (html, pdf...) van tai ve nhu cu -
+// hai dong tren van kiem dieu do. Chi tiet o tests/js/test_lightbox_anh.js.
 h = mdToHtml("![anh ket qua](attachments/post.png)");
-check("anh noi bo: bam la tai file goc", has(h, 'class="jv-fdownload"') && has(h, "dl=1"));
+check("anh noi bo: bam la XEM phong to, khong tai ve",
+  has(h, 'class="jv-img-link"') && !has(h, "dl=1") && !has(h, 'class="jv-fdownload"'));
 h = mdToHtml("[video](attachments/demo.mp4)");
 check("video noi bo: bam la tai ve", has(h, 'class="jv-fdownload"') && has(h, "download"));
 h = mdToHtml("[note](notes/ke-hoach.md)");

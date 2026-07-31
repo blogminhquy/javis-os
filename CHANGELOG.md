@@ -4,6 +4,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.9.285] - 2026-07-31
+Bấm ảnh trong chat là xem phóng to, không còn tự tải file về.
+### Tính năng mới
+- **Lightbox xem ảnh.** Bấm bất kỳ ảnh nào trong chat là mở lớp xem phóng to: ảnh vừa màn hình, nền tối, kèm tên file và ba nút Tải về / Mở tab mới / Đóng. Bấm vào ảnh để đổi qua lại giữa vừa-màn và cỡ thật (1:1) rồi kéo xem chi tiết. Esc hoặc bấm nền tối để đóng.
+### Sửa lỗi
+- **Bấm ảnh vừa tạo thì file tự tải xuống máy thay vì mở ra xem.** Ảnh trong brain được bọc trong `<a download href=…&dl=1>` nên bấm một cái là file rơi xuống máy; muốn xem cho rõ thì phải đi mở file vừa tải, rất vòng. Trớ trêu là CSS `.chat-img` đã để `cursor: zoom-in` từ lâu, tức con trỏ hứa phóng to mà hành vi lại là tải về. Nay xem là mặc định, tải về nằm trong lightbox.
+- Áp cho **mọi ảnh trong chat**: ảnh markdown, ảnh `![[...]]`, và ảnh từ URL ngoài đều cùng một hành vi.
+### Cải thiện
+- **Ctrl/Cmd/Shift/giữa chuột vẫn mở ảnh gốc ra tab mới** như mọi link khác - lightbox chỉ chặn cú bấm thường. Thẻ `<a>` vẫn trỏ thẳng tới ảnh nên hành vi này là của trình duyệt, không phải mô phỏng.
+- Nút Tải về đi qua đường `dl=1` của server, nên tên file giữ nguyên kể cả tên tiếng Việt.
+- Đang soạn note thì bấm ảnh vẫn là để sửa, không bung lightbox.
+- File **không phải ảnh** (html, pdf, docx…) giữ nguyên hành vi tải về như cũ.
+- Đã đo trong app THẬT bằng Chromium, 16 phép thử. Thêm `tests/js/test_lightbox_anh.js` (28 phép thử) cho CI, có kiểm chứng ngược. Một assertion cũ trong `test_chat_render.js` khoá đúng hành vi tải-về nay đã cập nhật theo, kèm ghi chú đây là đổi có chủ ý.
+
 ## [0.9.284] - 2026-07-31
 Hội thoại có file đính kèm thôi trùng tên, đặt tên theo nội dung thật.
 ### Sửa lỗi

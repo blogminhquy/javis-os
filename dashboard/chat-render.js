@@ -269,10 +269,18 @@
   function imgHtml(u, alt, rawpath) {
     var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' +
       ' loading="lazy" onerror="jvImgGone(this)">';
-    // Anh trong vault van hien inline; bam vao thi tai file goc ve.
-    if (rawpath && isVaultRel(rawpath)) return '<a ' + vaultDownload(rawpath) + ">" + img + "</a>";
-    var h = safeHref(u);
-    return h ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + img + "</a>" : img;
+    // Bam vao anh = XEM PHONG TO (lightbox), khong phai tai ve. Truoc day anh trong vault duoc
+    // boc trong <a download> nen bam mot cai la file rot xuong may - muon xem cho ro thi phai
+    // mo file vua tai, rat vong (chu repo bao 2026-07-31). Tai ve van con, nam trong lightbox.
+    //
+    // VAN giu the <a> tro thang toi anh (khong con dl=1): nho vay Ctrl/Cmd/giua chuot mo anh
+    // goc ra tab moi nhu moi link khac - handler o duoi chi chan cu bam THUONG.
+    var h = safeHref(rawpath && isVaultRel(rawpath) ? u : u);
+    if (!h) return img;
+    var vp = (rawpath && isVaultRel(rawpath))
+      ? ' data-vault-path="' + esc(String(rawpath).replace(/^\.?\//, "")) + '"' : "";
+    return '<a class="jv-img-link" href="' + esc(h) + '"' + vp +
+      ' target="_blank" rel="noopener" title="Bấm để xem phóng to">' + img + "</a>";
   }
   function tableHtml(tbl) {
     var rows = tbl.trim().split("\n").filter(function (r) { return r.trim(); });
@@ -694,8 +702,92 @@
     });
   }
 
+  // ---------------------------------------------------------------- lightbox xem anh
+  // Bam anh trong chat -> mo lop xem phong to (kieu ChatGPT): anh vua man, co nut Tai ve,
+  // Mo tab moi, Dong; bam nen den hoac Esc de dong; bam vao anh de doi qua lai giua "vua man"
+  // va "co that" (1:1) roi keo xem chi tiet.
+  var _lb = null, _lbUrl = "", _lbTen = "";
+
+  function _lbTaiVe() {
+    if (!_lbUrl) return;
+    var a = document.createElement("a");
+    // /files/raw?...&dl=1 la duong SERVER ep tai kem dung ten file (ke ca ten tieng Viet).
+    // Anh ngoai vault khong co duong do -> dua thuoc tinh download, cung lam gi hon duoc.
+    a.href = /\/files\/raw\?/.test(_lbUrl) ? _lbUrl + "&dl=1" : _lbUrl;
+    a.download = _lbTen || "";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  function dongLightbox() {
+    if (!_lb) return;
+    _lb.remove(); _lb = null; _lbUrl = ""; _lbTen = "";
+    document.body.classList.remove("jv-lb-open");
+  }
+  function moLightbox(url, ten) {
+    dongLightbox();
+    _lbUrl = url; _lbTen = ten || "";
+    _lb = document.createElement("div");
+    _lb.className = "jv-lb";
+    _lb.innerHTML =
+      '<div class="jv-lb-bar">' +
+        '<span class="jv-lb-ten"></span>' +
+        '<span class="jv-lb-nut">' +
+          '<button type="button" data-lb="tai" title="Tải ảnh về">' + ic("download") + " Tải về</button>" +
+          '<button type="button" data-lb="tab" title="Mở ảnh ở tab mới">' + ic("external-link") + "</button>" +
+          '<button type="button" data-lb="dong" title="Đóng (Esc)">' + ic("x") + "</button>" +
+        "</span>" +
+      "</div>" +
+      '<div class="jv-lb-khung"><img class="jv-lb-img" alt=""></div>';
+    // Ten file dat bang textContent, KHONG noi vao innerHTML: ten do nguoi dung dat, noi thang
+    // la mo duong cho HTML la lot vao trang.
+    _lb.querySelector(".jv-lb-ten").textContent = _lbTen;
+    var img = _lb.querySelector(".jv-lb-img");
+    img.src = url;
+    img.alt = _lbTen;
+    img.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      _lb.classList.toggle("that");             // vua man <-> co that (1:1), keo xem chi tiet
+    });
+    _lb.addEventListener("click", function (ev) {
+      var b = ev.target.closest ? ev.target.closest("[data-lb]") : null;
+      if (b) {
+        ev.stopPropagation();
+        var act = b.getAttribute("data-lb");
+        if (act === "tai") return _lbTaiVe();
+        if (act === "tab") return window.open(url, "_blank", "noopener");
+        return dongLightbox();
+      }
+      if (!ev.target.closest(".jv-lb-bar")) dongLightbox();   // bam nen den -> dong
+    });
+    document.body.appendChild(_lb);
+    document.body.classList.add("jv-lb-open");
+  }
   // ---------------------------------------------------------------- wiring (chi khi co DOM)
   if (typeof document !== "undefined") {
+    // Gan o TRONG khoi nay: file con duoc require duoi node de test ham thuan, ma duoi node
+    // khong co `window` - gan o ngoai la module nem ngay luc nap.
+    window.JavisLightbox = { open: moLightbox, close: dongLightbox };
+    document.addEventListener("keydown", function (e) {
+      if (_lb && e.key === "Escape") { e.preventDefault(); dongLightbox(); }
+    });
+    // Bam anh trong chat -> lightbox. Dang ky o pha CAPTURE va dat TRUOC cac handler khac de
+    // an chac khong bi handler link vault (jv-floc/jv-fdownload) cuop mat.
+    document.addEventListener("click", function (e) {
+      var a = e.target.closest ? e.target.closest("a.jv-img-link") : null;
+      if (!a) return;
+      // Chua/Ctrl/giua chuot -> de trinh duyet mo tab moi nhu moi link binh thuong.
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
+      // Dang soan trong editor thi de nguoi dung bam vao anh ma sua, dung bung lightbox.
+      if (e.target.closest('[contenteditable="true"], .jvfe-modal, .note-editor')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var img = a.querySelector("img");
+      var vp = a.getAttribute("data-vault-path") || "";
+      var ten = vp ? vp.split("/").pop() : (a.getAttribute("href") || "").split("/").pop().split("?")[0];
+      moLightbox(a.getAttribute("href") || (img && img.src) || "", ten);
+    }, true);
     // Checkbox task "- [ ]" (cam hung obsidian-tasks): trong editor (.ne-wys) tick duoc va tu luu
     // (editor nghe event jv-task-toggle); trong chat/khung chi-doc thi khoa lai (khong co file de ghi).
     // Task trong ket qua dataview co handler rieng (dataview.js) ghi thang vao file goc.
