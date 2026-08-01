@@ -15,6 +15,7 @@ edge-tts>=7.0.0
 python-multipart==0.0.18
 pyyaml>=6.0
 cryptography>=42.0
+jsonschema>=4.20,<5
 # uv: KHÔNG phải thư viện app import, mà là runner cho các connector MCP khai `command: uvx`
 # trong system/mcp-catalog.json (google-keep, google-sheets, google-search-console, google-ads,
 # tiktok-ads). Cài qua đây là đủ cho cả Docker lẫn máy cá nhân - `pip install uv` sinh ra sẵn

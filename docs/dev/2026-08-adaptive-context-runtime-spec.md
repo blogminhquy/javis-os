@@ -1,7 +1,7 @@
 # Adaptive Context Runtime cho Javis OS
 
 Ngày: 2026-08-01
-Trạng thái: **Phase 0-4 chạy `shadow`; code Phase 5 đã hoàn tất nhưng canary production đang tắt**
+Trạng thái: **Code Phase 0-6 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-6 tắt mặc định**
 Phạm vi: dashboard, Telegram, các engine API, Claude/Codex CLI, task nền, workflow và MCP Hub
 
 Bản sửa lộ trình: 2026-08-01. Task State tối thiểu, bảo mật trace và quota ledger được đưa lên đầu; multi-round read-only, tool write, workflow, agent và model routing được tách thành các phase độc lập.
@@ -24,6 +24,11 @@ Tiến độ triển khai ngày 2026-08-01:
 - Fast Path không đọc legacy system prompt, MEMORY, history hoặc tool schema. Request tool/live-data/side-effect/memory/attachment/không chắc chắn vẫn đi legacy trước model call.
 - Benchmark local 250 task chat-thuần gồm resolve + compile + pin + SQLite quota admission: median 5,4 ms, p95 7,8 ms, capsule median 401 token; giảm khoảng 97% so với riêng `CLAUDE.md + MEMORY.md` theo cùng estimator, chưa tính history và tool schema legacy.
 - Cấu hình mặc định vẫn là `mode=shadow`, `allocation_basis_points=0` và không có quota profile. Vì vậy merge code Phase 5 không tự chuyển bất kỳ người dùng thật nào sang đường mới.
+- Phase 6 đã có đường single-step read-only độc lập với tool loop cũ: resolver chỉ nhận effect `none/read`, compiler phơi đúng một schema, model lập arguments đúng một vòng, gateway validate bằng JSON Schema rồi gọi route qua lease dùng một lần.
+- Kết quả read được redaction, mã hoá thành artifact và lưu provenance `evidence://`; vòng model thứ hai chỉ nhận objective hiện tại cùng excerpt giới hạn. Quality Gate bắt buộc evidence ref và chặn tuyên bố hành động write trên đường read-only.
+- Schema được đối chiếu lại với discovery read-only ngay trước model call. Nếu revision lệch, runtime force-refresh inventory, rebase task khi chưa có invocation và resolve lại; schema vẫn không ổn định thì về legacy mà không chạy schema cũ.
+- Admission giữ quota cho tổng hai vòng trước khi gửi request. Timeout, arguments sai, tool-call contract sai và evidence encryption không sẵn sàng đều fail-closed, không tự replan hoặc replay qua vòng MCP tám lượt.
+- Rollout Phase 6 có allocation và allowlist capability group riêng. Mặc định `readonly_canary.allocation_basis_points=0`, `capability_profiles=[]`; tool đa hành động còn bị yêu cầu constraint arguments tĩnh trước khi cấp lease.
 - Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5 chưa được phép ảnh hưởng request thật.
 
 ## 0. Quyết định kiến trúc
@@ -1648,6 +1653,12 @@ thật của account/model, chạy release gate rồi tăng lần lượt 0,1% �
 Rollback: pin task mới về legacy. Task đang chạy tiếp tục theo runtime version đã ghim.
 
 ### Phase 6: Single-step read-only capability path
+
+Trạng thái code ngày 2026-08-01: **hoàn tất, chưa bật production**. Đường này chỉ áp dụng cho
+dashboard + provider API, capability effect `none/read` có profile allowlist rõ ràng và model/account có
+hard quota profile. CLI, OAuth, Telegram, attachment, skill, write tool, capability mơ hồ và request ngoài
+allocation tiếp tục dùng legacy. Việc bật production vẫn phụ thuộc release gate Phase 0/3/4 và benchmark
+canary với quota thật của từng account/model.
 
 Thay đổi:
 

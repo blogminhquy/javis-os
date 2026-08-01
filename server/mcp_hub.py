@@ -617,7 +617,8 @@ def _store_mtime():
         return 0
 
 
-async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False):
+async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
+                       force_refresh=False):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -629,7 +630,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient))
     ent = _cache.get(key)
     mt = _store_mtime()
-    if ent and time.time() - ent["ts"] < _CACHE_TTL and ent["mtime"] == mt:
+    if (not force_refresh and ent and time.time() - ent["ts"] < _CACHE_TTL
+            and ent["mtime"] == mt):
         return ent["tools"], ent["route"]
 
     conns = mcp_store.resolved(enabled_only=True)
@@ -663,6 +665,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             "source_type": "mcp", "source_id": conn.get("id") or conn.get("namespace"),
             "effect": cls,
             "required_mode": "readonly" if cls == "read" else ("safe" if cls == "write" else "full"),
+            "multiplexed": multiplexed,
             "health": "healthy",
         }
 

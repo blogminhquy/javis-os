@@ -61,11 +61,14 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
-import context_runtime   # Phase 0-5: trace + Registry/Resolver/Compiler + Fast Path canary
+import context_runtime   # Phase 0-6: trace + Registry/Resolver/Compiler + canary paths
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
 import context_compiler      # Phase 4: capsule + quota preflight + quality gate shadow
 import fast_path_runtime     # Phase 5: dashboard API canary, hard quota + single model call
+import evidence_store        # Phase 6: encrypted provenance/artifact store
+import capability_executor   # Phase 6: one-use read lease + schema validation
+import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -83,6 +86,11 @@ _FAST_PATH = fast_path_runtime.FastPathCanary(
     _CAPABILITY_REGISTRY, _CAPABILITY_RESOLVER, _CONTEXT_COMPILER,
     _CONTEXT_RUNTIME, cfgmod.read_settings,
 )
+_EVIDENCE_STORE = evidence_store.EvidenceStore(_CONTEXT_RUNTIME)
+_CAPABILITY_EXECUTOR = capability_executor.CapabilityExecutor(
+    _CAPABILITY_REGISTRY, _CONTEXT_RUNTIME, _EVIDENCE_STORE,
+)
+_READONLY_PATH = None
 _REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -818,6 +826,25 @@ def _last_user_text(messages) -> str:
     return ""
 
 
+def _get_readonly_path():
+    """Khởi tạo lười để production mặc định 0% không trả chi phí discovery hay Evidence Store."""
+    global _READONLY_PATH
+    if _READONLY_PATH is None:
+        async def _discover(mode, brain_root):
+            actual_mode = "full" if mode == "refresh_full" else mode
+            await mcp_hub.discover_all(
+                actual_mode, vault_root=brain_root,
+                force_refresh=(mode == "refresh_full"),
+            )
+            return mcp_hub.registry_inventory(actual_mode, vault_root=brain_root)
+
+        _READONLY_PATH = readonly_path_runtime.ReadonlyPathCanary(
+            _CAPABILITY_REGISTRY, _CAPABILITY_RESOLVER, _CONTEXT_COMPILER,
+            _CONTEXT_RUNTIME, _CAPABILITY_EXECUTOR, cfgmod.read_settings, _discover,
+        )
+    return _READONLY_PATH
+
+
 def _track_shadow_task(coro) -> None:
     """Chạy derived refresh/resolve ngoài hot path; lỗi không được ảnh hưởng chat."""
     try:
@@ -958,6 +985,184 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
     _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.completed", {
         "provider": provider, "model": actual_model, "model_rounds": 1,
         "response_chars": len(final_text), "quality_status": decision.status,
+    })
+    await ws.send_text(json.dumps({
+        "type": "response", "content": final_text, "engine": provider,
+        "model": actual_model, "session_id": session_id,
+    }))
+    return final_text, actual_model
+
+
+async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
+                                 reasoning: str, ws, session_id: str, runtime_trace,
+                                 objective: str, actor_id: str):
+    """Hai model round cố định: exact arguments, gateway read, evidence-only synthesis."""
+    actual_model = model or "?"
+    tokens_in = 0
+    tokens_out = 0
+    lease = plan.lease
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.started", {
+        "provider": provider, "model": actual_model, "model_rounds": 2,
+        "capability_id": lease.capability_id if lease else "",
+        "capability_revision": lease.revision if lease else "",
+        "schema_hash": lease.schema_hash if lease else "",
+        "estimated_input_tokens": plan.estimated_input_tokens,
+        "reserved_input_tokens": plan.reserved_input_tokens,
+        "reserved_output_tokens": plan.reserved_output_tokens,
+        "policy_version": plan.policy_version,
+    })
+    planned = await engine.single_tool_plan(
+        provider, api_key, model, list(plan.messages), reasoning, plan.tool_spec
+    )
+    tokens_in += int(planned.get("input") or 0)
+    tokens_out += int(planned.get("output") or 0)
+    if planned.get("model"):
+        actual_model = planned["model"]
+        _CONTEXT_RUNTIME.set_route(runtime_trace, provider, actual_model)
+    if planned.get("status") != "ok":
+        if lease:
+            _CONTEXT_RUNTIME.revoke_capability_lease(
+                runtime_trace, lease.lease_id, planned.get("error_code") or "planner_failed"
+            )
+        uncertain = str(planned.get("error_code") or "").startswith("provider_exception:")
+        _CONTEXT_RUNTIME.consume_quota(
+            runtime_trace, plan.reservation_id,
+            max(tokens_in, plan.estimated_input_tokens if uncertain else 0),
+            max(tokens_out, plan.reserved_output_tokens // 2 if uncertain else 0),
+        )
+        final_text = (
+            "Model không tạo được arguments đúng contract cho capability read-only. "
+            "Javis đã dừng an toàn, chưa gọi tool và không tự chuyển sang vòng agent cũ."
+        )
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.failed", {
+            "stage": "argument_planner", "error_code": planned.get("error_code") or "unknown",
+            "model_rounds": 1, "tool_calls": 0,
+        })
+        await ws.send_text(json.dumps({
+            "type": "response", "content": final_text, "engine": "javis-gateway",
+            "model": actual_model, "session_id": session_id,
+        }))
+        return final_text, actual_model
+
+    await ws.send_text(json.dumps({
+        "type": "tool_call", "tool": lease.capability_name,
+        "content": f"⚙ MCP read-only: {lease.capability_name}",
+    }))
+    invocation = await _CAPABILITY_EXECUTOR.invoke(
+        runtime_trace, actor_id, lease, planned.get("arguments"), plan.route_call
+    )
+    if invocation.status != "SUCCEEDED" or invocation.evidence is None:
+        _CONTEXT_RUNTIME.consume_quota(
+            runtime_trace, plan.reservation_id, tokens_in, tokens_out
+        )
+        final_text = (
+            "Capability read-only đã dừng an toàn trước vòng tổng hợp. "
+            f"Mã trạng thái: {invocation.error_code or invocation.status}."
+            + (f" Evidence đã lưu: {invocation.evidence.ref}" if invocation.evidence else "")
+        )
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.failed", {
+            "stage": "capability_execute", "error_code": invocation.error_code,
+            "model_rounds": 1, "tool_calls": 1,
+        })
+        await ws.send_text(json.dumps({
+            "type": "response", "content": final_text, "engine": "javis-gateway",
+            "model": actual_model, "session_id": session_id,
+        }))
+        return final_text, actual_model
+
+    evidence = invocation.evidence
+    await ws.send_text(json.dumps({
+        "type": "tool_result", "content": f"Evidence đã lưu: {evidence.ref}",
+    }))
+    try:
+        evidence_payload = json.loads(invocation.model_payload)
+    except (TypeError, json.JSONDecodeError):
+        evidence_payload = {
+            "evidence_ref": evidence.ref, "source_type": evidence.source_type,
+            "capability_id": lease.capability_id,
+            "capability_name": lease.capability_name,
+            "capability_revision": lease.revision,
+            "content_hash": evidence.content_hash, "excerpt": evidence.inline_excerpt,
+        }
+    compiled = _CONTEXT_COMPILER.compile_evidence_final(
+        plan.compile_request, evidence_payload
+    )
+    if compiled.status != "compiled" or compiled.capsule is None:
+        _CONTEXT_RUNTIME.consume_quota(
+            runtime_trace, plan.reservation_id, tokens_in, tokens_out
+        )
+        final_text = (
+            "Đã đọc dữ liệu và lưu evidence nhưng capsule tổng hợp vượt policy hiện tại. "
+            f"Anh có thể dùng lại nguồn này: {evidence.ref}"
+        )
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.failed", {
+            "stage": "final_compile", "error_code": compiled.status,
+            "model_rounds": 1, "tool_calls": 1, "evidence_id": evidence.id,
+        })
+        await ws.send_text(json.dumps({
+            "type": "response", "content": final_text, "engine": "javis-gateway",
+            "model": actual_model, "session_id": session_id,
+        }))
+        return final_text, actual_model
+
+    final_text = ""
+    engine_failed = False
+    gen = _api_stream(
+        provider, api_key, model,
+        list(compiled.capsule.rendered_request.get("messages") or []), reasoning,
+    )
+    async for ev in gen:
+        if ev["type"] == "meta":
+            actual_model = ev.get("model") or actual_model
+            _CONTEXT_RUNTIME.set_route(runtime_trace, provider, actual_model)
+        elif ev["type"] == "usage":
+            tokens_in += int(ev.get("input") or 0)
+            tokens_out += int(ev.get("output") or 0)
+        elif ev["type"] == "text":
+            final_text += ev["content"]
+        elif ev["type"] == "error":
+            engine_failed = True
+            _CONTEXT_RUNTIME.note_error(runtime_trace, "readonly_final_engine_error")
+
+    if not final_text:
+        final_text = (
+            "Vòng tổng hợp không trả nội dung, nhưng dữ liệu đọc được đã lưu an toàn tại "
+            + evidence.ref
+        )
+    elif evidence.ref not in final_text:
+        footer = "\n\nNguồn: " + evidence.ref
+        final_text += footer
+
+    if tokens_in or tokens_out:
+        usage_store.record(provider, actual_model, tokens_in, tokens_out)
+    _CONTEXT_RUNTIME.consume_quota(
+        runtime_trace, plan.reservation_id,
+        max(tokens_in, plan.reserved_input_tokens if engine_failed else 0),
+        max(tokens_out, plan.reserved_output_tokens if engine_failed else 0),
+    )
+    decision = _QUALITY_GATE.evaluate(
+        objective, final_text, "dashboard", had_error=engine_failed,
+        compiler_report=compiled.trace_report,
+        expected_evidence_ref=evidence.ref, read_only=True,
+    )
+    response_blocked = "false_action_claim" in decision.reasons
+    if response_blocked:
+        final_text = (
+            "Bản tổng hợp của model đã bị Quality Gate chặn vì có tuyên bố hành động không phù hợp "
+            "với lease read-only. Dữ liệu gốc vẫn được giữ an toàn tại " + evidence.ref
+        )
+    # Phase 6 buffer vòng cuối để Quality Gate có thể chặn false action trước khi client thấy text.
+    await ws.send_text(json.dumps({
+        "type": "stream", "content": final_text, "tts": False,
+    }))
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "quality.canary", {
+        **decision.trace_report(), "model_rounds": 2,
+        "evidence_id": evidence.id, "response_blocked": response_blocked,
+    })
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.completed", {
+        "provider": provider, "model": actual_model, "model_rounds": 2,
+        "tool_calls": 1, "response_chars": len(final_text),
+        "quality_status": decision.status, "evidence_id": evidence.id,
     })
     await ws.send_text(json.dumps({
         "type": "response", "content": final_text, "engine": provider,
@@ -5784,13 +5989,39 @@ async def websocket_endpoint(ws: WebSocket):
                         await _consume_codex(_fallback)
                     await ws.send_text(json.dumps({"type": "response", "content": final_text, "engine": "codex", "model": actual_model, "session_id": conv_sid}))
             elif (kind == "api" and api_key) or kind == "oauth":
+                readonly_plan = None
                 fast_plan = None
                 if kind == "api" and api_key:
-                    fast_plan = await asyncio.to_thread(
-                        _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
-                        "dashboard", prov, api_model or "?", kind, bool(has_attachments),
+                    readonly_plan = await _get_readonly_path().prepare(
+                        runtime_trace, user_message, _brain_root(brain),
+                        "dashboard", prov, api_model or "?", kind,
+                        actor_id=conv_sid, has_attachments=bool(has_attachments),
                     )
-                if fast_plan and fast_plan.action == "execute":
+                    if readonly_plan.action == "not_applicable":
+                        fast_plan = await asyncio.to_thread(
+                            _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
+                            "dashboard", prov, api_model or "?", kind, bool(has_attachments),
+                        )
+                if readonly_plan and readonly_plan.action == "execute":
+                    used_fast_path = True
+                    final_text, _actual_model = await _execute_readonly_path(
+                        readonly_plan, prov, api_key, api_model, reasoning, ws, conv_sid,
+                        runtime_trace, user_message, conv_sid,
+                    )
+                elif readonly_plan and readonly_plan.action == "reject":
+                    used_fast_path = True
+                    final_text = readonly_plan.rejection_message
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.rejected", {
+                        "reason": readonly_plan.reason, "model_rounds": 0,
+                        "estimated_input_tokens": readonly_plan.estimated_input_tokens,
+                        "reserved_input_tokens": readonly_plan.reserved_input_tokens,
+                    })
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text,
+                        "engine": "javis-gateway", "model": api_model or "?",
+                        "session_id": conv_sid,
+                    }))
+                elif fast_plan and fast_plan.action == "execute":
                     used_fast_path = True
                     final_text, _actual_model = await _execute_fast_path(
                         fast_plan, prov, api_key, api_model, reasoning, ws, conv_sid,
@@ -7018,6 +7249,7 @@ async def _warm_mcp_hub():
     để tin nhắn/tool call đầu tiên không phải chờ."""
     async def _w():
         try:
+            await asyncio.to_thread(_EVIDENCE_STORE.cleanup)
             await asyncio.sleep(3)
             if _hub_enabled():
                 await mcp_hub.discover_all("full")

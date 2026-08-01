@@ -72,6 +72,21 @@ def decrypt(value):
     return value
 
 
+def encryption_available() -> bool:
+    """Evidence/tool artifact dùng fail-closed; không chấp nhận fallback ``plain:``."""
+    return _get_fernet() is not None
+
+
+def encrypt_required(value: str) -> str:
+    """Mã hoá bắt buộc, raise nếu máy chưa có Fernet/key hợp lệ."""
+    if not isinstance(value, str):
+        raise TypeError("value_must_be_text")
+    f = _get_fernet()
+    if f is None:
+        raise RuntimeError("encryption_unavailable")
+    return "enc:" + f.encrypt(value.encode("utf-8")).decode("ascii")
+
+
 def encrypt_map(d):
     return {k: encrypt(v) for k, v in (d or {}).items()}
 

@@ -317,8 +317,14 @@ class ContextCompiler:
         )
         output_text = "Output contract: " + json.dumps(
             output_contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        planner_text = ""
+        if request.execution_mode == "canary" and (resolution.get("selected") or []):
+            planner_text = (
+                "Planner contract: đây là vòng lập arguments. Phải gọi đúng một function được cung cấp, "
+                "không trả prose, không gọi nhiều function và không tự thêm capability."
+            )
         system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
-                  "\n" + output_text)
+                  "\n" + output_text + ("\n" + planner_text if planner_text else ""))
         required_items = [
             ContextItem("core", "core_contract", CORE_CONTRACT, CORE_CONTRACT_VERSION,
                         tokenizer.count_text(CORE_CONTRACT), 1, 1, 1, 1, True, "system"),
@@ -332,6 +338,11 @@ class ContextCompiler:
             ContextItem("objective", "conversation_state", request.objective, "turn:current-user",
                         tokenizer.count_text(request.objective), 1, 1, 1, 1, True, "user"),
         ]
+        if planner_text:
+            required_items.append(ContextItem(
+                "planner", "planner_contract", planner_text, "planner:single-tool-v1",
+                tokenizer.count_text(planner_text), 1, 1, 1, 1, True, "system",
+            ))
         required_rendered = self.renderer.render(system, request.objective, [])
         required_estimate = tokenizer.count_rendered(required_rendered)
         if required_estimate.input_tokens > budget.max_input_tokens:
@@ -464,6 +475,116 @@ class ContextCompiler:
     def compile_canary(self, request: CompileRequest, resolution: dict) -> CompileResult:
         return self._compile(replace(request, execution_mode="canary"), resolution)
 
+    def compile_evidence_final(self, request: CompileRequest, evidence: dict) -> CompileResult:
+        """Dựng capsule tổng hợp chỉ từ objective hiện tại và evidence excerpt đã giới hạn."""
+        started = time.perf_counter()
+        evidence = evidence if isinstance(evidence, dict) else {}
+        evidence_ref = str(evidence.get("evidence_ref") or "")
+        excerpt = str(evidence.get("excerpt") or "")
+        if not evidence_ref.startswith("evidence://") or not excerpt:
+            report = {
+                "status": "evidence_invalid", "path": "readonly_final",
+                "policy_version": COMPILER_POLICY_VERSION,
+                "preflight_decision": "would_reject",
+                "preflight_reasons": ["evidence_invalid"],
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            }
+            self._remember(request.task_id, report)
+            return CompileResult("evidence_invalid", None, report)
+
+        profile = self.registry.get_model_profile(request.provider, request.model)
+        tokenizer = self.tokenizer_factory(request)
+        budget = self.budget_resolver.resolve(request, profile)
+        provider = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.provider or "unknown"))[:120]
+        model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.model or "unknown"))[:180]
+        channel_text = self._channel_contract(request.channel)
+        output_contract = self._output_contract(request.channel)
+        system = (
+            CORE_CONTRACT.rstrip() + "\n"
+            f"Runtime identity: provider={provider}; model={model}.\n" + channel_text + "\n"
+            "Đây là vòng tổng hợp cuối của một capability read-only. Không gọi tool, không lập kế hoạch "
+            "mới, không tuyên bố đã ghi, gửi, xoá hay thay đổi dữ liệu. Chỉ dùng evidence được gateway "
+            "cung cấp và phải ghi nguyên evidence_ref trong câu trả lời.\nOutput contract: "
+            + json.dumps(output_contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        )
+        safe_evidence = {
+            "evidence_ref": evidence_ref,
+            "source_type": str(evidence.get("source_type") or "capability_read")[:80],
+            "capability_id": str(evidence.get("capability_id") or "")[:120],
+            "capability_name": str(evidence.get("capability_name") or "")[:180],
+            "capability_revision": str(evidence.get("capability_revision") or "")[:128],
+            "content_hash": str(evidence.get("content_hash") or "")[:128],
+            "excerpt": excerpt,
+        }
+        user = (
+            "Mục tiêu hiện tại:\n" + str(request.objective or "") +
+            "\n\nEvidence đã xác minh bởi gateway:\n" +
+            json.dumps(safe_evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        )
+        rendered = self.renderer.render(system, user, [])
+        estimate = tokenizer.count_rendered(rendered)
+        preflight = QuotaPreflight.observe(estimate, budget)
+        if estimate.input_tokens > budget.max_input_tokens:
+            report = {
+                "status": "evidence_over_budget", "path": "readonly_final",
+                "policy_version": COMPILER_POLICY_VERSION,
+                "estimated_input_tokens": estimate.input_tokens,
+                "max_input_tokens": budget.max_input_tokens,
+                "reserved_output_tokens": budget.reserved_output_tokens,
+                "preflight_decision": "would_reject",
+                "preflight_reasons": list(dict.fromkeys(
+                    ["evidence_over_budget"] + preflight["reason_codes"])),
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            }
+            self._remember(request.task_id, report)
+            return CompileResult("evidence_over_budget", None, report)
+
+        evidence_hash = hashlib.sha256(excerpt.encode("utf-8", errors="replace")).hexdigest()
+        source_map = {
+            "evidence": {
+                "kind": "tool_evidence", "source_hash": hashlib.sha256(
+                    evidence_ref.encode("utf-8", errors="replace")
+                ).hexdigest(),
+                "content_hash": evidence_hash, "token_cost": tokenizer.count_text(excerpt),
+                "trust": "gateway_verified", "required": True,
+            }
+        }
+        capsule_hash = hashlib.sha256(json.dumps(
+            rendered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8", errors="replace")).hexdigest()
+        capsule = ContextCapsule(
+            task_id=request.task_id, step_id=request.step_id, path="readonly_final",
+            objective=request.objective, instructions=(CORE_CONTRACT, channel_text),
+            capabilities=(), output_contract=output_contract, source_map=source_map,
+            budget=budget, rendered_request=rendered, capsule_hash=capsule_hash,
+        )
+        report = {
+            "status": "compiled", "path": "readonly_final",
+            "policy_version": COMPILER_POLICY_VERSION,
+            "capsule_hash": capsule_hash,
+            "estimated_input_tokens": estimate.input_tokens,
+            "system_tokens": estimate.system_tokens,
+            "user_tokens": estimate.user_tokens,
+            "tool_tokens": 0,
+            "max_input_tokens": budget.max_input_tokens,
+            "reserved_output_tokens": budget.reserved_output_tokens,
+            "budget_source": budget.source,
+            "hard_context_known": budget.hard_context_known,
+            "selected_count": 0,
+            "evidence_count": 1,
+            "evidence_ref_hash": hashlib.sha256(
+                evidence_ref.encode("utf-8", errors="replace")
+            ).hexdigest(),
+            "preflight_decision": preflight["decision"],
+            "preflight_reasons": preflight["reason_codes"],
+            "quota_known": preflight["quota_known"],
+            "observe_only": False,
+            "execution_mode": "canary",
+            "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+        }
+        self._remember(request.task_id, report)
+        return CompileResult("compiled", capsule, report)
+
     def _remember(self, task_id: str, report: dict) -> None:
         with self._cache_lock:
             if len(self._report_cache) >= 1024:
@@ -496,7 +617,8 @@ class DeterministicQualityGate:
     )
 
     def evaluate(self, objective: str, response: str, channel: str,
-                 had_error: bool = False, compiler_report: dict | None = None) -> QualityDecision:
+                 had_error: bool = False, compiler_report: dict | None = None,
+                 expected_evidence_ref: str = "", read_only: bool = False) -> QualityDecision:
         text = str(response or "")
         reasons = []
         status = "pass"
@@ -509,6 +631,14 @@ class DeterministicQualityGate:
             reasons.append("engine_error_observed")
             status = "revise"
         report = compiler_report or {}
+        if expected_evidence_ref and expected_evidence_ref not in text:
+            reasons.append("evidence_ref_missing")
+            status = "revise"
+        if read_only and re.search(
+                r"(?i)\b(đã|da|successfully)\s+(gửi|gui|xoá|xoa|xóa|tạo|tao|cập nhật|cap nhat|"
+                r"send|sent|delete|deleted|create|created|update|updated|publish|published)\b", text):
+            reasons.append("false_action_claim")
+            status = "revise"
         if int(report.get("selected_count") or 0) > 0:
             low = text.casefold()
             if any(phrase in low for phrase in self._CAPABILITY_DENIAL):

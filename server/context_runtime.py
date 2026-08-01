@@ -1,4 +1,4 @@
-"""Trace substrate cho Adaptive Context Runtime Phase 0-5.
+"""Trace substrate cho Adaptive Context Runtime Phase 0-6.
 
 Substrate này chỉ làm ba việc:
 - gắn task_id/step_id ổn định vào một lượt chat;
@@ -27,7 +27,7 @@ from typing import Any, Callable, Optional
 import config
 
 
-RUNTIME_VERSION = "adaptive-v4"
+RUNTIME_VERSION = "adaptive-v5"
 RESOLVER_POLICY_VERSION = "deterministic-shadow-v1"
 COMPILER_POLICY_VERSION = "adaptive-compiler-shadow-v1"
 REGISTRY_REVISION = "legacy-live"
@@ -321,6 +321,60 @@ class ObserveRuntime:
                 );
                 CREATE INDEX IF NOT EXISTS idx_quota_reservations_model
                     ON quota_reservations(provider, model, created_at);
+                CREATE TABLE IF NOT EXISTS runtime_capability_leases (
+                    id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    step_id TEXT NOT NULL,
+                    capability_id TEXT NOT NULL,
+                    capability_revision TEXT NOT NULL,
+                    schema_hash TEXT NOT NULL,
+                    actor_hash TEXT NOT NULL,
+                    allowed_effect TEXT NOT NULL,
+                    resource_scope_json TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    expires_at REAL NOT NULL,
+                    created_at REAL NOT NULL,
+                    invoked_at REAL,
+                    FOREIGN KEY(task_id) REFERENCES runtime_tasks(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_leases_task
+                    ON runtime_capability_leases(task_id,step_id,status);
+                CREATE TABLE IF NOT EXISTS runtime_invocations (
+                    id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    step_id TEXT NOT NULL,
+                    lease_id TEXT NOT NULL,
+                    capability_id TEXT NOT NULL,
+                    capability_revision TEXT NOT NULL,
+                    args_hash TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result_evidence_id TEXT,
+                    error_code TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    FOREIGN KEY(task_id) REFERENCES runtime_tasks(id),
+                    FOREIGN KEY(lease_id) REFERENCES runtime_capability_leases(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_invocations_task
+                    ON runtime_invocations(task_id,step_id,status);
+                CREATE TABLE IF NOT EXISTS runtime_evidence (
+                    id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    step_id TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_ref_hash TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    artifact_path TEXT NOT NULL,
+                    excerpt_encrypted TEXT NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    trust TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    expires_at REAL,
+                    FOREIGN KEY(task_id) REFERENCES runtime_tasks(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_evidence_task
+                    ON runtime_evidence(task_id,step_id,created_at);
                 """
             )
             # Migrate an observe DB created by an earlier build without rewriting state.
@@ -356,8 +410,9 @@ class ObserveRuntime:
             ).fetchall()]
             if old:
                 marks = ",".join("?" for _ in old)
-                for table in ("quota_reservations", "runtime_evidence_refs",
-                              "runtime_events", "runtime_steps"):
+                for table in ("quota_reservations", "runtime_invocations",
+                              "runtime_capability_leases", "runtime_evidence",
+                              "runtime_evidence_refs", "runtime_events", "runtime_steps"):
                     self._db.execute(f"DELETE FROM {table} WHERE task_id IN ({marks})", old)
                 self._db.execute(f"DELETE FROM runtime_tasks WHERE id IN ({marks})", old)
                 self._db.commit()
@@ -472,7 +527,7 @@ class ObserveRuntime:
         """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
         if not trace:
             return "legacy"
-        requested = "fast" if path == "fast" else "legacy"
+        requested = path if path in {"fast", "readonly"} else "legacy"
         try:
             with self._lock:
                 db = self._conn()
@@ -512,6 +567,38 @@ class ObserveRuntime:
         except Exception:
             trace.execution_path = "legacy"
             return "legacy"
+
+    def rebase_registry_revision(self, trace: Optional[TurnTrace], revision: str,
+                                 reason: str = "source_changed") -> bool:
+        """Re-pin có kiểm soát trước model/tool khi discovery thấy source revision mới."""
+        if not trace or not revision or trace.execution_path != "unassigned":
+            return False
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    invocations = db.execute(
+                        "SELECT COUNT(*) FROM runtime_invocations WHERE task_id=?",
+                        (trace.task_id,),
+                    ).fetchone()[0]
+                    if invocations:
+                        return False
+                    changed = db.execute(
+                        "UPDATE runtime_tasks SET registry_revision=?,updated_at=? "
+                        "WHERE id=? AND status='RUNNING' AND execution_path='unassigned'",
+                        (str(revision)[:120], time.time(), trace.task_id),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    old = trace.registry_revision
+                    trace.registry_revision = str(revision)[:120]
+                    self._event(db, trace, "registry.rebased", {
+                        "old_revision": old, "new_revision": trace.registry_revision,
+                        "reason": str(reason or "")[:120],
+                    })
+                    return True
+        except Exception:
+            return False
 
     def record_runtime_event(self, trace: Optional[TurnTrace], event_type: str,
                              data: dict | None = None) -> None:
@@ -615,6 +702,265 @@ class ObserveRuntime:
                     })
         except Exception:
             pass
+
+    def release_quota(self, trace: Optional[TurnTrace], reservation_id: str,
+                      reason: str = "setup_failed") -> bool:
+        """Nhả reservation trước model call; không dùng để hoàn token đã gửi."""
+        if not trace or not reservation_id:
+            return False
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE quota_reservations SET status='RELEASED' "
+                        "WHERE id=? AND task_id=? AND status='ADMITTED'",
+                        (str(reservation_id), trace.task_id),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    self._event(db, trace, "quota.released", {
+                        "reservation_id": str(reservation_id)[:120],
+                        "reason": str(reason or "")[:120],
+                    })
+                    return True
+        except Exception:
+            return False
+
+    def create_capability_lease(self, trace: Optional[TurnTrace], capability_id: str,
+                                capability_revision: str, schema_hash: str,
+                                actor_hash: str, allowed_effect: str,
+                                resource_scope: dict, ttl_seconds: int = 120) -> str:
+        if not trace or allowed_effect not in {"none", "read"}:
+            return ""
+        lease_id = "cl_" + uuid.uuid4().hex
+        now = time.time()
+        scope = resource_scope if isinstance(resource_scope, dict) else {}
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    db.execute(
+                        "INSERT INTO runtime_capability_leases("
+                        "id,task_id,step_id,capability_id,capability_revision,schema_hash,"
+                        "actor_hash,allowed_effect,resource_scope_json,status,expires_at,created_at"
+                        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (lease_id, trace.task_id, trace.step_id, capability_id,
+                         capability_revision, schema_hash, actor_hash, allowed_effect,
+                         json.dumps(scope, ensure_ascii=False, sort_keys=True,
+                                    separators=(",", ":")),
+                         "ACTIVE", now + max(1, min(int(ttl_seconds or 120), 900)), now),
+                    )
+                    self._event(db, trace, "lease.issued", {
+                        "lease_id": lease_id, "capability_id": capability_id,
+                        "capability_revision": capability_revision,
+                        "schema_hash": schema_hash, "allowed_effect": allowed_effect,
+                    })
+            return lease_id
+        except Exception:
+            return ""
+
+    def get_capability_lease(self, lease_id: str) -> Optional[dict]:
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT * FROM runtime_capability_leases WHERE id=?", (str(lease_id),)
+                ).fetchone()
+            if not row:
+                return None
+            out = dict(row)
+            out["resource_scope"] = json.loads(out.pop("resource_scope_json") or "{}")
+            return out
+        except Exception:
+            return None
+
+    def revoke_capability_lease(self, trace: Optional[TurnTrace], lease_id: str,
+                                reason: str = "cancelled") -> bool:
+        if not trace or not lease_id:
+            return False
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_capability_leases SET status='REVOKED' "
+                        "WHERE id=? AND task_id=? AND status='ACTIVE'",
+                        (str(lease_id), trace.task_id),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    self._event(db, trace, "lease.revoked", {
+                        "lease_id": str(lease_id)[:120],
+                        "reason": str(reason or "")[:120],
+                    })
+                    return True
+        except Exception:
+            return False
+
+    def claim_read_invocation(self, trace: Optional[TurnTrace], lease_id: str,
+                              capability_id: str, capability_revision: str,
+                              schema_hash: str, actor_hash: str, args_hash: str) -> str:
+        """Claim lease dùng một lần trước I/O; không lưu arguments, chỉ lưu hash."""
+        if not trace:
+            return ""
+        now = time.time()
+        invocation_id = "ri_" + uuid.uuid4().hex
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_capability_leases SET status='INVOKING',invoked_at=? "
+                        "WHERE id=? AND task_id=? AND step_id=? AND capability_id=? "
+                        "AND capability_revision=? AND schema_hash=? AND actor_hash=? "
+                        "AND allowed_effect IN ('none','read') AND status='ACTIVE' AND expires_at>?",
+                        (now, lease_id, trace.task_id, trace.step_id, capability_id,
+                         capability_revision, schema_hash, actor_hash, now),
+                    )
+                    if changed.rowcount != 1:
+                        self._event(db, trace, "invocation.rejected", {
+                            "lease_id": lease_id, "capability_id": capability_id,
+                            "reason": "lease_mismatch_or_expired",
+                        })
+                        return ""
+                    db.execute(
+                        "INSERT INTO runtime_invocations("
+                        "id,task_id,step_id,lease_id,capability_id,capability_revision,"
+                        "args_hash,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        (invocation_id, trace.task_id, trace.step_id, lease_id,
+                         capability_id, capability_revision, args_hash, "RUNNING", now, now),
+                    )
+                    self._event(db, trace, "invocation.started", {
+                        "invocation_id": invocation_id, "lease_id": lease_id,
+                        "capability_id": capability_id,
+                        "capability_revision": capability_revision,
+                        "args_hash": args_hash,
+                    })
+            return invocation_id
+        except Exception:
+            return ""
+
+    def finish_read_invocation(self, trace: Optional[TurnTrace], invocation_id: str,
+                               lease_id: str, status: str,
+                               evidence_id: str = "", error_code: str = "") -> bool:
+        if not trace:
+            return False
+        allowed = {"SUCCEEDED", "FAILED_VALIDATION", "FAILED_FINAL", "TIMEOUT"}
+        final_status = status if status in allowed else "FAILED_FINAL"
+        lease_status = "CONSUMED" if final_status == "SUCCEEDED" else "FAILED"
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_invocations SET status=?,result_evidence_id=?,"
+                        "error_code=?,updated_at=? WHERE id=? AND task_id=? AND status='RUNNING'",
+                        (final_status, str(evidence_id or "")[:120],
+                         str(error_code or "")[:120], time.time(), invocation_id, trace.task_id),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    db.execute(
+                        "UPDATE runtime_capability_leases SET status=? WHERE id=? AND task_id=?",
+                        (lease_status, lease_id, trace.task_id),
+                    )
+                    self._event(db, trace, "invocation.finished", {
+                        "invocation_id": invocation_id, "lease_id": lease_id,
+                        "status": final_status, "evidence_id": evidence_id or "",
+                        "error_code": str(error_code or "")[:120],
+                    })
+            return True
+        except Exception:
+            return False
+
+    def persist_evidence_metadata(self, trace: Optional[TurnTrace], evidence_id: str,
+                                  source_type: str, source_ref: str, content_type: str,
+                                  artifact_path: str, excerpt_encrypted: str,
+                                  content_hash: str, trust: str,
+                                  metadata: dict | None = None,
+                                  expires_at: float | None = None) -> bool:
+        if not trace or not evidence_id or not artifact_path or not excerpt_encrypted:
+            return False
+        safe_meta = {str(k)[:80]: v for k, v in (metadata or {}).items()
+                     if isinstance(v, (str, int, float, bool)) or v is None}
+        source_hash = hashlib.sha256(
+            str(source_ref or "").encode("utf-8", errors="replace")
+        ).hexdigest()
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    db.execute(
+                        "INSERT INTO runtime_evidence("
+                        "id,task_id,step_id,source_type,source_ref_hash,content_type,"
+                        "artifact_path,excerpt_encrypted,content_hash,trust,metadata_json,"
+                        "created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (evidence_id, trace.task_id, trace.step_id,
+                         str(source_type or "unknown")[:80], source_hash,
+                         str(content_type or "text/plain")[:120], artifact_path,
+                         excerpt_encrypted, content_hash,
+                         str(trust or "tool_result")[:40],
+                         json.dumps(safe_meta, ensure_ascii=False, sort_keys=True,
+                                    separators=(",", ":")),
+                         time.time(), expires_at),
+                    )
+                    self._event(db, trace, "evidence.created", {
+                        "evidence_id": evidence_id,
+                        "source_type": str(source_type or "unknown")[:80],
+                        "content_type": str(content_type or "text/plain")[:120],
+                        "content_hash": content_hash,
+                        "trust": str(trust or "tool_result")[:40],
+                    })
+            return True
+        except Exception:
+            return False
+
+    def get_evidence_metadata(self, evidence_id: str) -> Optional[dict]:
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT * FROM runtime_evidence WHERE id=?", (str(evidence_id),)
+                ).fetchone()
+            if not row:
+                return None
+            out = dict(row)
+            out["metadata"] = json.loads(out.pop("metadata_json") or "{}")
+            return out
+        except Exception:
+            return None
+
+    def evidence_retention_snapshot(self, now: float | None = None) -> dict:
+        try:
+            with self._lock:
+                rows = self._conn().execute(
+                    "SELECT id,artifact_path,expires_at FROM runtime_evidence"
+                ).fetchall()
+            ts = float(now or time.time())
+            active, expired = set(), []
+            for row in rows:
+                if row["expires_at"] is not None and float(row["expires_at"]) <= ts:
+                    expired.append({"id": row["id"], "artifact_path": row["artifact_path"]})
+                else:
+                    active.add(str(row["artifact_path"]))
+            return {"active_paths": active, "expired": expired}
+        except Exception:
+            return {"active_paths": set(), "expired": []}
+
+    def delete_evidence_metadata(self, evidence_ids: list[str]) -> int:
+        ids = [str(x) for x in evidence_ids or [] if str(x)]
+        if not ids:
+            return 0
+        try:
+            with self._lock:
+                db = self._conn()
+                marks = ",".join("?" for _ in ids)
+                with db:
+                    changed = db.execute(
+                        f"DELETE FROM runtime_evidence WHERE id IN ({marks})", ids
+                    )
+                return int(changed.rowcount or 0)
+        except Exception:
+            return 0
 
     def observe_payload(self, trace: Optional[TurnTrace], messages, tools=None,
                         provider: str = "", model: str = "") -> dict:

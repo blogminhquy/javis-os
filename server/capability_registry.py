@@ -218,6 +218,11 @@ class CapabilityRegistry:
             self._model_revision_cache = None
 
     @staticmethod
+    def schema_hash(schema: Any) -> str:
+        """Canonical hash dùng chung giữa discovery, lease và executor."""
+        return _sha(schema if isinstance(schema, dict) else {})
+
+    @staticmethod
     def _tool_record(tool: dict, route_meta: dict, scope: str) -> dict:
         name = str(tool.get("fn") or tool.get("name") or "").strip()
         source_type, source_key = _source(tool, route_meta, scope)
@@ -251,7 +256,10 @@ class CapabilityRegistry:
             "side_effect": effect,
             "required_mode": required_mode,
             "health": str(route_meta.get("health") or "healthy"),
-            "metadata": {"server": str(tool.get("server") or "")[:120]},
+            "metadata": {
+                "server": str(tool.get("server") or "")[:120],
+                "multiplexed": bool(route_meta.get("multiplexed", False)),
+            },
         }
 
     def refresh_tools(self, brain: str | Path, tools: Iterable[dict], route: dict) -> dict:

@@ -451,6 +451,113 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
         yield {"type": "error", "content": f"Anthropic lỗi: {_describe_exc(e)}"}
 
 
+async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_spec):
+    """Phase 6 planner: đúng một non-stream model call và đúng một tool call.
+
+    Hàm chỉ trả arguments. Nó không dispatch tool, không retry, không chấp nhận câu trả lời text
+    thay thế và không đưa nội dung lỗi provider vào runtime log.
+    """
+    fn = str(((tool_spec or {}).get("function") or {}).get("name") or "")
+    params = ((tool_spec or {}).get("function") or {}).get("parameters")
+    description = str(((tool_spec or {}).get("function") or {}).get("description") or fn)
+    if not fn or not isinstance(params, dict):
+        return {"status": "error", "error_code": "invalid_tool_spec", "input": 0, "output": 0}
+
+    if provider == "anthropic-api":
+        sys_parts = [str(m.get("content") or "") for m in messages if m.get("role") == "system"]
+        conv = [{"role": m["role"], "content": m.get("content", "")}
+                for m in messages if m.get("role") in ("user", "assistant")]
+        payload = {
+            "model": model or "claude-sonnet-4-6", "max_tokens": 2048,
+            "messages": conv,
+            "tools": [{"name": fn, "description": description[:1024], "input_schema": params}],
+            "tool_choice": {
+                "type": "tool", "name": fn, "disable_parallel_tool_use": True,
+            },
+            "stream": False,
+        }
+        if sys_parts:
+            payload["system"] = "\n\n".join(x for x in sys_parts if x)
+        headers = {
+            "x-api-key": api_key, "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:
+                response = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
+            if response.status_code != 200:
+                return {"status": "error", "error_code": f"provider_http_{response.status_code}",
+                        "input": 0, "output": 0}
+            data = response.json()
+        except Exception as exc:
+            return {"status": "error", "error_code": f"provider_exception:{type(exc).__name__}",
+                    "input": 0, "output": 0}
+        uses = [x for x in (data.get("content") or []) if x.get("type") == "tool_use"]
+        usage = data.get("usage") or {}
+        tokens_in = ((usage.get("input_tokens") or 0) +
+                     (usage.get("cache_read_input_tokens") or 0) +
+                     (usage.get("cache_creation_input_tokens") or 0))
+        tokens_out = usage.get("output_tokens") or 0
+        if len(uses) != 1 or uses[0].get("name") != fn or not isinstance(uses[0].get("input"), dict):
+            return {"status": "error", "error_code": "tool_call_contract_violation",
+                    "input": tokens_in, "output": tokens_out}
+        return {"status": "ok", "arguments": uses[0]["input"], "name": fn,
+                "model": data.get("model") or model, "input": tokens_in, "output": tokens_out}
+
+    endpoints = {
+        "openai": (OPENAI_URL, model or "gpt-4o-mini"),
+        "groq": (GROQ_URL, model or GROQ_DEFAULT_MODEL),
+        "gemini": (GEMINI_URL, model or "gemini-2.5-flash"),
+        "openrouter": (OPENROUTER_URL, model or "openai/gpt-4o-mini"),
+    }
+    if provider not in endpoints:
+        return {"status": "error", "error_code": "provider_not_supported", "input": 0, "output": 0}
+    url, actual_model = endpoints[provider]
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    if provider == "openrouter":
+        headers.update({"HTTP-Referer": "http://localhost:7777", "X-Title": "Javis OS"})
+    payload = {
+        "model": actual_model, "messages": list(messages), "tools": [tool_spec],
+        "tool_choice": {"type": "function", "function": {"name": fn}},
+        "parallel_tool_calls": False, "stream": False,
+    }
+    if reasoning not in (None, "", "off"):
+        if provider == "openrouter":
+            payload["reasoning"] = {"effort": api_effort(reasoning)}
+        elif ((provider == "openai" and _openai_is_reasoning(model)) or
+              (provider == "groq" and _groq_is_reasoning(model)) or
+              (provider == "gemini" and _gemini_is_reasoning(model))):
+            payload["reasoning_effort"] = api_effort(reasoning)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:
+            response = await client.post(url, headers=headers, json=payload)
+        if response.status_code != 200:
+            return {"status": "error", "error_code": f"provider_http_{response.status_code}",
+                    "input": 0, "output": 0}
+        data = response.json()
+    except Exception as exc:
+        return {"status": "error", "error_code": f"provider_exception:{type(exc).__name__}",
+                "input": 0, "output": 0}
+    usage = data.get("usage") or {}
+    tokens_in = usage.get("prompt_tokens") or 0
+    tokens_out = usage.get("completion_tokens") or 0
+    calls = (((data.get("choices") or [{}])[0].get("message") or {}).get("tool_calls") or [])
+    if len(calls) != 1 or (calls[0].get("function") or {}).get("name") != fn:
+        return {"status": "error", "error_code": "tool_call_contract_violation",
+                "input": tokens_in, "output": tokens_out}
+    raw_args = (calls[0].get("function") or {}).get("arguments")
+    try:
+        arguments = raw_args if isinstance(raw_args, dict) else json.loads(raw_args or "{}")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {"status": "error", "error_code": "tool_arguments_not_json",
+                "input": tokens_in, "output": tokens_out}
+    if not isinstance(arguments, dict):
+        return {"status": "error", "error_code": "tool_arguments_not_object",
+                "input": tokens_in, "output": tokens_out}
+    return {"status": "ok", "arguments": arguments, "name": fn,
+            "model": data.get("model") or actual_model, "input": tokens_in, "output": tokens_out}
+
+
 async def openrouter_stream(api_key, model, messages, reasoning="off"):
     headers = {
         "Authorization": f"Bearer {api_key}",

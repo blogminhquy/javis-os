@@ -114,7 +114,7 @@ _DEFAULT = {
     # + lazy search cho engine Claude, để model biết chúng tồn tại (gọi qua tool native mcp__*).
     "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40,
             "lazy_top_k": 8, "ambient_hint": True},
-    # Adaptive Context Runtime Phase 0-5. Fast Path đã có nhưng rollout mặc định bằng 0 và mode
+    # Adaptive Context Runtime Phase 0-6. Hai canary rollout mặc định bằng 0 và mode
     # vẫn shadow, nên production chưa đổi dispatch. Muốn canary phải đồng thời đổi mode=canary,
     # allocation_basis_points > 0 và khai hard quota trong quota_profiles.
     "context_runtime": {
@@ -136,6 +136,23 @@ _DEFAULT = {
             #  "rolling_tpm":12000, "context_window":131072,
             #  "reserved_output_tokens":1200, "window_seconds":60}
             "quota_profiles": [],
+        },
+        # Phase 6: đúng một capability read-only, một vòng lập arguments và một vòng tổng hợp.
+        # Chỉ capability khớp capability_profiles mới được chạy. Danh sách rỗng là fail-closed.
+        "readonly_canary": {
+            "policy_version": "readonly-single-step-v1",
+            "allocation_basis_points": 0,
+            "salt": "readonly-single-step-v1",
+            "channels": ["dashboard"],
+            "provider_kinds": ["api"],
+            "registry_max_age_seconds": 900,
+            "min_resolver_score": 0.45,
+            "estimator_safety_factor": 1.35,
+            # Nếu để trống, quota dùng các rule Phase 5 ở trên.
+            "quota_profiles": [],
+            # Ví dụ allowlist: id, source_type, name_pattern, timeout_seconds,
+            # excerpt_chars, lease_ttl_seconds, max_artifact_bytes, retention_seconds.
+            "capability_profiles": [],
         },
     },
 }
