@@ -25,7 +25,7 @@ Hai tài liệu này ghi **vì sao** kiến trúc thành ra như hiện tại. �
 ## Đề xuất đang mở
 
 - [Gộp menu cài đặt](2026-07-gop-menu-cai-dat.md) - rail hiện có 18 mục, 7 trong đó là cài đặt. Kèm một khối UI chết cần xoá.
-- [Adaptive Context Runtime](2026-08-adaptive-context-runtime-spec.md) - Phase 0-3 đang chạy shadow: trace, Registry và Resolver thích ứng để số MCP/model/skill/workflow tăng mà prompt ban đầu không tăng tuyến tính.
+- [Adaptive Context Runtime](2026-08-adaptive-context-runtime-spec.md) - Phase 0-4 đang chạy shadow: trace, Registry, Resolver và Context Compiler thích ứng để capability tăng mà prompt ban đầu không tăng tuyến tính.
 
 ## Quy ước của chính tài liệu này
 

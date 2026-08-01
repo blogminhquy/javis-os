@@ -1,4 +1,4 @@
-"""Trace substrate cho Adaptive Context Runtime Phase 0-3.
+"""Trace substrate cho Adaptive Context Runtime Phase 0-4.
 
 Substrate này chỉ làm ba việc:
 - gắn task_id/step_id ổn định vào một lượt chat;
@@ -6,7 +6,8 @@ Substrate này chỉ làm ba việc:
 - lưu state tối thiểu trong runtime.db để các phase sau có chỗ mở rộng.
 
 Module này CỐ Ý không lưu raw prompt, message, tool arguments/result hay secret. Registry và
-Resolver Phase 2-3 chạy shadow; chưa được phép chặn, đổi model, rút context hoặc thay dispatch.
+Resolver và Context Compiler Phase 2-4 chạy shadow; chưa được phép chặn, đổi model, rút context
+hoặc thay dispatch.
 """
 from __future__ import annotations
 
@@ -25,9 +26,9 @@ from typing import Any, Callable, Optional
 import config
 
 
-RUNTIME_VERSION = "shadow-v2"
+RUNTIME_VERSION = "shadow-v3"
 RESOLVER_POLICY_VERSION = "deterministic-shadow-v1"
-COMPILER_POLICY_VERSION = "legacy-observe-v1"
+COMPILER_POLICY_VERSION = "adaptive-compiler-shadow-v1"
 REGISTRY_REVISION = "legacy-live"
 MODEL_PROFILE_REVISION = "settings-live"
 
@@ -524,6 +525,7 @@ class ObserveRuntime:
             "query_hash": report.get("query_hash"),
             "query_term_count": report.get("query_term_count", 0),
             "candidate_count": report.get("candidate_count", 0),
+            "selection_reason": report.get("selection_reason") or "",
             "selected_count": report.get("selected_count", 0),
             "selected_ids": selected_ids,
             "filtered_counts": filtered_counts,
@@ -542,6 +544,94 @@ class ObserveRuntime:
                     self._event(db, trace, "resolver.shadow", data)
         except Exception:
             pass
+
+    def record_compiler_shadow(self, trace: Optional[TurnTrace], report: dict) -> None:
+        if not trace:
+            return
+        excluded = report.get("excluded") or {}
+        excluded_counts = {}
+        for reason in excluded.values() if isinstance(excluded, dict) else []:
+            excluded_counts[str(reason)] = excluded_counts.get(str(reason), 0) + 1
+        data = {
+            "status": report.get("status") or "unknown",
+            "path": report.get("path") or "unknown",
+            "policy_version": report.get("policy_version") or COMPILER_POLICY_VERSION,
+            "core_contract_version": report.get("core_contract_version") or "",
+            "tokenizer_revision": report.get("tokenizer_revision") or "",
+            "tokenizer_method": report.get("tokenizer_method") or "",
+            "renderer_revision": report.get("renderer_revision") or "",
+            "tokenizer_confidence": report.get("tokenizer_confidence", 0),
+            "capsule_hash": report.get("capsule_hash") or "",
+            "estimated_input_tokens": report.get("estimated_input_tokens", 0),
+            "system_tokens": report.get("system_tokens", 0),
+            "user_tokens": report.get("user_tokens", 0),
+            "tool_tokens": report.get("tool_tokens", 0),
+            "max_input_tokens": report.get("max_input_tokens", 0),
+            "reserved_output_tokens": report.get("reserved_output_tokens", 0),
+            "budget_source": report.get("budget_source") or "",
+            "hard_context_known": bool(report.get("hard_context_known", False)),
+            "budget_utilization": report.get("budget_utilization", 0),
+            "candidate_count": report.get("candidate_count", 0),
+            "selected_count": report.get("selected_count", 0),
+            "excluded_count": report.get("excluded_count", 0),
+            "selected_ids": ",".join(str(x) for x in (report.get("selected_ids") or [])[:20]),
+            "excluded_counts": ",".join(f"{k}:{excluded_counts[k]}" for k in sorted(excluded_counts)),
+            "source_count": report.get("source_count", 0),
+            "source_map_hash": report.get("source_map_hash") or "",
+            "preflight_decision": report.get("preflight_decision") or "",
+            "preflight_reasons": ",".join(str(x) for x in (report.get("preflight_reasons") or [])),
+            "quota_known": bool(report.get("quota_known", False)),
+            "observe_only": True,
+            "legacy_memory_owner": bool(report.get("legacy_memory_owner", True)),
+            "legacy_history_owner": bool(report.get("legacy_history_owner", True)),
+            "calibration_samples": report.get("calibration_samples", 0),
+            "median_abs_pct_error": report.get("median_abs_pct_error", 0),
+            "latency_ms": report.get("latency_ms", 0),
+        }
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    self._event(db, trace, "compiler.shadow", data)
+        except Exception:
+            pass
+
+    def record_quality_shadow(self, trace: Optional[TurnTrace], report: dict) -> None:
+        if not trace:
+            return
+        data = {
+            "status": report.get("status") or "unknown",
+            "reason_codes": ",".join(str(x) for x in (report.get("reason_codes") or [])),
+            "confidence": report.get("confidence", 0),
+            "response_chars": report.get("response_chars", 0),
+        }
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    self._event(db, trace, "quality.shadow", data)
+        except Exception:
+            pass
+
+    def token_estimate_stats(self, provider: str, model: str, limit: int = 200) -> dict:
+        """Sai số estimator legacy so với usage thật; chỉ aggregate, không đọc nội dung."""
+        try:
+            with self._lock:
+                rows = self._conn().execute(
+                    "SELECT estimated_input_tokens,actual_input_tokens FROM runtime_steps "
+                    "WHERE provider=? AND model=? AND estimated_input_tokens>0 "
+                    "AND actual_input_tokens>0 ORDER BY started_at DESC LIMIT ?",
+                    (str(provider or "?"), str(model or "?"), max(1, min(int(limit), 1000))),
+                ).fetchall()
+            errors = sorted(abs(int(r[0]) - int(r[1])) / max(1, int(r[1])) for r in rows)
+            if not errors:
+                return {"samples": 0, "median_abs_pct_error": 0.0, "p95_abs_pct_error": 0.0}
+            mid = errors[len(errors) // 2]
+            p95 = errors[min(len(errors) - 1, int(len(errors) * 0.95))]
+            return {"samples": len(errors), "median_abs_pct_error": round(mid, 6),
+                    "p95_abs_pct_error": round(p95, 6)}
+        except Exception:
+            return {"samples": 0, "median_abs_pct_error": 0.0, "p95_abs_pct_error": 0.0}
 
     def note_error(self, trace: Optional[TurnTrace], error_code: str) -> None:
         if not trace:

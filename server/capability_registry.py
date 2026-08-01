@@ -432,6 +432,44 @@ class CapabilityRegistry:
             out.append(item)
         return out
 
+    def get_capabilities(self, capability_ids: Iterable[str], brain: str | Path) -> list[dict]:
+        """Lấy exact schema theo ID nhưng vẫn hard-scope theo brain; giữ thứ tự resolver."""
+        ordered = [str(x) for x in capability_ids or [] if str(x)]
+        if not ordered:
+            return []
+        scope = brain_scope(brain)
+        marks = ",".join("?" for _ in ordered)
+        with self._lock:
+            rows = self._conn().execute(
+                f"SELECT c.*,s.source_type FROM capabilities c JOIN capability_sources s "
+                f"ON s.source_key=c.source_key WHERE c.capability_id IN ({marks}) "
+                "AND c.brain_scope=? AND c.active=1 AND c.health='healthy'",
+                (*ordered, scope),
+            ).fetchall()
+        by_id = {}
+        for row in rows:
+            item = dict(row)
+            item["aliases"] = json.loads(item.pop("aliases_json") or "[]")
+            item["schema"] = json.loads(item.pop("schema_json") or "{}")
+            item["metadata"] = json.loads(item.pop("metadata_json") or "{}")
+            by_id[item["capability_id"]] = item
+        return [by_id[x] for x in ordered if x in by_id]
+
+    def get_model_profile(self, provider: str, model: str) -> dict:
+        profile_id = "model_" + _sha(str(provider or "unknown") + "|" + str(model or "unknown"))[:24]
+        with self._lock:
+            row = self._conn().execute(
+                "SELECT * FROM model_profiles WHERE profile_id=? AND active=1", (profile_id,)
+            ).fetchone()
+        if not row:
+            return {"provider": str(provider or "unknown"), "model": str(model or "unknown"),
+                    "kind": "unknown", "configured": False, "metadata": {},
+                    "revision": "unobserved"}
+        item = dict(row)
+        item["metadata"] = json.loads(item.pop("metadata_json") or "{}")
+        item["configured"] = bool(item.get("configured"))
+        return item
+
     def integrity_check(self, brain: str | Path | None = None) -> dict:
         scope = brain_scope(brain)
         with self._lock:

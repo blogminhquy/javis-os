@@ -61,9 +61,10 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
-import context_runtime   # Phase 0-3: trace + Registry/Resolver shadow, chưa đổi dispatch
+import context_runtime   # Phase 0-4: trace + Registry/Resolver/Compiler shadow, chưa đổi dispatch
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
+import context_compiler      # Phase 4: capsule + quota preflight + quality gate shadow
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -75,6 +76,8 @@ _CHAT_RUNTIME = ChatRuntime()
 _CONTEXT_RUNTIME = context_runtime.get_runtime()
 _CAPABILITY_REGISTRY = capability_registry.get_registry()
 _CAPABILITY_RESOLVER = capability_resolver.get_resolver()
+_CONTEXT_COMPILER = context_compiler.get_compiler()
+_QUALITY_GATE = context_compiler.get_quality_gate()
 _REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -842,6 +845,20 @@ def _schedule_registry_shadow(trace, brain, tools, route, query, provider, model
                 capability_resolver.ActorPolicy(mode="full", channel=trace.channel),
             )
             _CONTEXT_RUNTIME.record_shadow_resolution(trace, report)
+            compiled = await asyncio.to_thread(
+                _CONTEXT_COMPILER.compile_shadow,
+                context_compiler.CompileRequest(
+                    task_id=trace.task_id, step_id=trace.step_id,
+                    objective=query or "", brain=_brain_root(brain), channel=trace.channel,
+                    provider=provider or "unknown", model=model or "unknown", model_kind=kind,
+                ),
+                report,
+            )
+            compiler_report = dict(compiled.trace_report)
+            calibration = _CONTEXT_RUNTIME.token_estimate_stats(provider, model)
+            compiler_report["calibration_samples"] = calibration.get("samples", 0)
+            compiler_report["median_abs_pct_error"] = calibration.get("median_abs_pct_error", 0)
+            _CONTEXT_RUNTIME.record_compiler_shadow(trace, compiler_report)
         except Exception as exc:
             # Không lưu message lỗi vì có thể chứa path/source; chỉ lưu loại lỗi.
             _CONTEXT_RUNTIME.record_shadow_resolution(trace, {
@@ -874,6 +891,17 @@ def _schedule_registry_discovery_shadow(trace, brain, query, provider, model,
             })
 
     _track_shadow_task(_discover_then_shadow())
+
+
+def _record_quality_shadow(trace, objective: str, response: str, channel: str) -> None:
+    if not trace:
+        return
+    report = _CONTEXT_COMPILER.report_for_task(trace.task_id)
+    decision = _QUALITY_GATE.evaluate(
+        objective, response, channel,
+        had_error=bool(trace.had_error), compiler_report=report,
+    )
+    _CONTEXT_RUNTIME.record_quality_shadow(trace, decision.trace_report())
 
 
 async def _schedule_cancel_action(message: str, brain):
@@ -5781,11 +5809,14 @@ async def websocket_endpoint(ws: WebSocket):
                             store, conv_sid, prov, api_key, api_model, _api_stream))
                     except Exception as _e:
                         print(f"[compact hook] {_e}", file=__import__('sys').stderr)
+            return final_text
 
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             try:
-                await _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+                final_text = await _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+                _record_quality_shadow(
+                    runtime_trace, user_message, final_text or "", "dashboard")
                 _CONTEXT_RUNTIME.finish(
                     runtime_trace,
                     "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",
@@ -6142,6 +6173,11 @@ async def _tg_answer(text, meta=None, progress=None):
                 print(f"[telegram persist] {e}", file=__import__('sys').stderr)
         if isinstance(out, str):
             _CONTEXT_RUNTIME.note_error(runtime_trace, "telegram_error_response")
+        _record_quality_shadow(
+            runtime_trace, text,
+            (out.get("text") or "") if isinstance(out, dict) else str(out or ""),
+            "telegram",
+        )
         _CONTEXT_RUNTIME.finish(
             runtime_trace,
             "COMPLETED_WITH_ERROR" if runtime_trace and runtime_trace.had_error else "COMPLETED",

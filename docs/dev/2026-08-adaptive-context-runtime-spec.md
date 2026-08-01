@@ -1,7 +1,7 @@
 # Adaptive Context Runtime cho Javis OS
 
 Ngày: 2026-08-01
-Trạng thái: **Phase 0-3 đã triển khai ở chế độ `shadow`; đường legacy vẫn thực thi quyết định**
+Trạng thái: **Phase 0-4 đã triển khai ở chế độ `shadow`; đường legacy vẫn thực thi quyết định**
 Phạm vi: dashboard, Telegram, các engine API, Claude/Codex CLI, task nền, workflow và MCP Hub
 
 Bản sửa lộ trình: 2026-08-01. Task State tối thiểu, bảo mật trace và quota ledger được đưa lên đầu; multi-round read-only, tool write, workflow, agent và model routing được tách thành các phase độc lập.
@@ -16,7 +16,11 @@ Tiến độ triển khai ngày 2026-08-01:
 - Resolver deterministic đã có hard filter cho brain, health, source, permission và side effect; sau đó mới chấm alias/FTS/coverage và dynamic cutoff. Embedding chỉ là adapter đo recall bổ sung.
 - Registry refresh và Resolver chạy background bằng thread, chỉ ghi `resolver.shadow` đã redaction vào task trace; không thay tool list gửi model.
 - Benchmark synthetic cục bộ với 5.000 capability: rebuild khoảng 2,7 giây ở background; resolve median khoảng 8,4 ms và p95 khoảng 12,6 ms sau khi cache revision.
-- Phase 0 và Phase 3 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage thật và owner duyệt baseline/miss critical. Vì vậy Phase 4 chưa được phép ảnh hưởng request thật.
+- Context Compiler shadow đã có `ContextItem`, budget theo ModelProfile/adapter, renderer và tokenizer adapter thay thế được, quota preflight observe-only, source map/hash và giải thích capability được chọn/loại.
+- Core contract shadow không nhúng toàn bộ MEMORY, skill index hay capability catalog; memory và history production vẫn do legacy quản lý trong Phase 4.
+- Deterministic Quality Gate ghi baseline trên output legacy của Dashboard và Telegram, không sửa hoặc chặn câu trả lời.
+- Benchmark synthetic cục bộ với Registry 5.000 capability và một capability được chọn: capsule 415 token, compile median khoảng 1,0 ms và p95 khoảng 1,6 ms.
+- Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5 chưa được phép ảnh hưởng request thật.
 
 ## 0. Quyết định kiến trúc
 
@@ -1539,6 +1543,8 @@ Thay đổi:
 Rollback: tắt shadow worker, Registry tiếp tục tồn tại không có consumer runtime.
 
 ### Phase 4: Context Compiler ở shadow mode
+
+Trạng thái triển khai: compiler và Quality Gate shadow đã gắn vào Dashboard/Telegram; capsule chỉ tồn tại trong RAM và chưa có đường gọi model.
 
 Thay đổi:
 

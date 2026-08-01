@@ -84,7 +84,7 @@ def test_runtime_lifecycle_reconciles_usage_and_never_persists_content(tmp_path)
 
     task = runtime.get_task(trace.task_id)
     assert task["status"] == "COMPLETED"
-    assert task["runtime_version"] == "shadow-v2"
+    assert task["runtime_version"] == "shadow-v3"
     assert task["resolver_policy_version"]
     assert task["compiler_policy_version"]
     assert task["registry_revision"]
