@@ -1,7 +1,7 @@
-"""Context Compiler + deterministic Quality Gate chạy shadow ở Phase 4.
+"""Context Compiler + deterministic Quality Gate cho Phase 4-5.
 
-Capsule được dựng trong RAM để đo, giải thích và kiểm thử. Module này không có engine adapter
-generate và không thể gửi capsule tới model. Trace chỉ nhận metadata từ ``trace_report``.
+Compiler không có engine adapter generate. Phase 4 chỉ đo shadow; Phase 5 cho phép Fast Path
+gửi capsule sau khi module admission độc lập đã pin task và giữ quota thành công.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import math
 import re
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, Protocol
 
 from capability_registry import CapabilityRegistry, get_registry
@@ -88,6 +88,9 @@ class CompileRequest:
     rolling_tpm_remaining: Optional[int] = None
     latency_deadline_ms: Optional[int] = None
     monetary_remaining: Optional[float] = None
+    hard_max_input_tokens: Optional[int] = None
+    reserved_output_tokens: Optional[int] = None
+    execution_mode: str = "shadow"
 
 
 @dataclass(frozen=True)
@@ -190,10 +193,18 @@ class ModelBudgetResolver:
         profile_kind = str(profile.get("kind") or "unknown")
         kind = str(request.model_kind or "unknown") if profile_kind == "unknown" else profile_kind
         known_context = self._int(meta.get("context_window"), 0)
-        reserved = self._int(meta.get("reserved_output_tokens"), self._FALLBACK_OUTPUT.get(
-            kind, self._FALLBACK_OUTPUT["unknown"]))
+        requested_reserved = self._int(request.reserved_output_tokens, 0)
+        reserved = requested_reserved or self._int(
+            meta.get("reserved_output_tokens"),
+            self._FALLBACK_OUTPUT.get(kind, self._FALLBACK_OUTPUT["unknown"]),
+        )
         explicit_input = self._int(meta.get("max_input_tokens"), 0)
-        if explicit_input > 0:
+        runtime_input = self._int(request.hard_max_input_tokens, 0)
+        if runtime_input > 0:
+            max_input = runtime_input
+            source = "runtime_policy.hard_max_input_tokens"
+            hard_known = True
+        elif explicit_input > 0:
             max_input = explicit_input
             source = "model_profile.max_input_tokens"
             hard_known = True
@@ -291,21 +302,31 @@ class ContextCompiler:
             "required": item.required,
         }
 
-    def compile_shadow(self, request: CompileRequest, resolution: dict) -> CompileResult:
+    def _compile(self, request: CompileRequest, resolution: dict) -> CompileResult:
         started = time.perf_counter()
         profile = self.registry.get_model_profile(request.provider, request.model)
         tokenizer = self.tokenizer_factory(request)
         budget = self.budget_resolver.resolve(request, profile)
         channel_text = self._channel_contract(request.channel)
         output_contract = self._output_contract(request.channel)
+        provider = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.provider or "unknown"))[:120]
+        model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.model or "unknown"))[:180]
+        identity_text = (
+            f"Runtime identity: provider={provider}; model={model}. "
+            "Khi được hỏi danh tính model, phải trả lời đúng hai giá trị này."
+        )
         output_text = "Output contract: " + json.dumps(
             output_contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        system = CORE_CONTRACT.rstrip() + "\n" + channel_text + "\n" + output_text
+        system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
+                  "\n" + output_text)
         required_items = [
             ContextItem("core", "core_contract", CORE_CONTRACT, CORE_CONTRACT_VERSION,
                         tokenizer.count_text(CORE_CONTRACT), 1, 1, 1, 1, True, "system"),
             ContextItem("channel", "channel_context", channel_text, f"channel:{request.channel}",
                         tokenizer.count_text(channel_text), 1, 1, 1, 1, True, "gateway"),
+            ContextItem("identity", "provider_identity", identity_text,
+                        f"runtime:{provider}:{model}", tokenizer.count_text(identity_text),
+                        1, 1, 1, 1, True, "gateway"),
             ContextItem("output", "output_contract", output_text, "output:text-v1",
                         tokenizer.count_text(output_text), 1, 1, 1, 1, True, "system"),
             ContextItem("objective", "conversation_state", request.objective, "turn:current-user",
@@ -428,13 +449,20 @@ class ContextCompiler:
             "preflight_decision": preflight["decision"],
             "preflight_reasons": preflight["reason_codes"],
             "quota_known": preflight["quota_known"],
-            "observe_only": True,
-            "legacy_memory_owner": True,
-            "legacy_history_owner": True,
+            "observe_only": request.execution_mode != "canary",
+            "execution_mode": request.execution_mode,
+            "legacy_memory_owner": request.execution_mode != "canary",
+            "legacy_history_owner": request.execution_mode != "canary",
             "latency_ms": round((time.perf_counter() - started) * 1000, 3),
         }
         self._remember(request.task_id, report)
         return CompileResult("compiled", capsule, report)
+
+    def compile_shadow(self, request: CompileRequest, resolution: dict) -> CompileResult:
+        return self._compile(replace(request, execution_mode="shadow"), resolution)
+
+    def compile_canary(self, request: CompileRequest, resolution: dict) -> CompileResult:
+        return self._compile(replace(request, execution_mode="canary"), resolution)
 
     def _remember(self, task_id: str, report: dict) -> None:
         with self._cache_lock:

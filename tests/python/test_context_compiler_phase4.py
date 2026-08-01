@@ -87,7 +87,9 @@ def test_fast_capsule_has_source_map_and_is_within_final_budget(tmp_path):
     assert result.trace_report["estimated_input_tokens"] <= result.trace_report["max_input_tokens"]
     assert result.trace_report["preflight_decision"] == "would_allow"
     assert result.trace_report["observe_only"] is True
-    assert set(result.capsule.source_map) == {"core", "channel", "output", "objective"}
+    assert set(result.capsule.source_map) == {
+        "core", "identity", "channel", "output", "objective"
+    }
     assert result.trace_report["source_map_hash"]
 
 

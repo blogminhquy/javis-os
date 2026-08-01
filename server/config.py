@@ -114,15 +114,29 @@ _DEFAULT = {
     # + lazy search cho engine Claude, để model biết chúng tồn tại (gọi qua tool native mcp__*).
     "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40,
             "lazy_top_k": 8, "ambient_hint": True},
-    # Adaptive Context Runtime Phase 0-4: Registry + Resolver + Compiler chạy SHADOW, không đổi
-    # prompt/model/tool dispatch.
-    # store_content bị runtime ép false ở phase này dù settings bị sửa tay. Trace chỉ lưu số đo,
-    # route, ID và error code; không lưu raw prompt/message/tool args/result/secret.
+    # Adaptive Context Runtime Phase 0-5. Fast Path đã có nhưng rollout mặc định bằng 0 và mode
+    # vẫn shadow, nên production chưa đổi dispatch. Muốn canary phải đồng thời đổi mode=canary,
+    # allocation_basis_points > 0 và khai hard quota trong quota_profiles.
     "context_runtime": {
-        "mode": "shadow",                  # resolver đo song song; canary/on dành cho phase sau
+        "mode": "shadow",
         "retention_days": 14,
         "export_enabled": False,
         "estimate_chars_per_token": 3.0,   # heuristic observe-only, reconcile bằng usage thật
+        "canary": {
+            "policy_version": "fast-path-canary-v1",
+            "allocation_basis_points": 0,  # 100 = 1%; hash ổn định theo session
+            "salt": "fast-path-canary-v1",
+            "channels": ["dashboard"],
+            "provider_kinds": ["api"],
+            "registry_max_age_seconds": 900,
+            "estimator_safety_factor": 1.35,
+            "max_objective_chars": 12000,
+            # Không hardcode quota thương mại. Operator thêm rule versioned theo tài khoản thật:
+            # {"id":"groq-free", "provider":"groq", "model_pattern":"llama-*",
+            #  "rolling_tpm":12000, "context_window":131072,
+            #  "reserved_output_tokens":1200, "window_seconds":60}
+            "quota_profiles": [],
+        },
     },
 }
 

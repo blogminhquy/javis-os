@@ -1,7 +1,7 @@
 # Adaptive Context Runtime cho Javis OS
 
 Ngày: 2026-08-01
-Trạng thái: **Phase 0-4 đã triển khai ở chế độ `shadow`; đường legacy vẫn thực thi quyết định**
+Trạng thái: **Phase 0-4 chạy `shadow`; code Phase 5 đã hoàn tất nhưng canary production đang tắt**
 Phạm vi: dashboard, Telegram, các engine API, Claude/Codex CLI, task nền, workflow và MCP Hub
 
 Bản sửa lộ trình: 2026-08-01. Task State tối thiểu, bảo mật trace và quota ledger được đưa lên đầu; multi-round read-only, tool write, workflow, agent và model routing được tách thành các phase độc lập.
@@ -20,6 +20,10 @@ Tiến độ triển khai ngày 2026-08-01:
 - Core contract shadow không nhúng toàn bộ MEMORY, skill index hay capability catalog; memory và history production vẫn do legacy quản lý trong Phase 4.
 - Deterministic Quality Gate ghi baseline trên output legacy của Dashboard và Telegram, không sửa hoặc chặn câu trả lời.
 - Benchmark synthetic cục bộ với Registry 5.000 capability và một capability được chọn: capsule 415 token, compile median khoảng 1,0 ms và p95 khoảng 1,6 ms.
+- Fast Path Phase 5 đã có classifier bảo thủ, stable session hash, task path pinning, registry freshness/revision gate, hard-quota profile versioned, rolling-window admission atomic và direct API stream đúng một model call.
+- Fast Path không đọc legacy system prompt, MEMORY, history hoặc tool schema. Request tool/live-data/side-effect/memory/attachment/không chắc chắn vẫn đi legacy trước model call.
+- Benchmark local 250 task chat-thuần gồm resolve + compile + pin + SQLite quota admission: median 5,4 ms, p95 7,8 ms, capsule median 401 token; giảm khoảng 97% so với riêng `CLAUDE.md + MEMORY.md` theo cùng estimator, chưa tính history và tool schema legacy.
+- Cấu hình mặc định vẫn là `mode=shadow`, `allocation_basis_points=0` và không có quota profile. Vì vậy merge code Phase 5 không tự chuyển bất kỳ người dùng thật nào sang đường mới.
 - Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5 chưa được phép ảnh hưởng request thật.
 
 ## 0. Quyết định kiến trúc
@@ -1570,6 +1574,10 @@ Rollback: tắt compiler shadow và tokenizer observer.
 
 ### Phase 5: Fast path canary
 
+Trạng thái triển khai: code và test harness đã hoàn tất; production canary chưa bật vì release
+gate Phase 0/3/4 chưa được owner duyệt. “Hoàn tất Phase 5” ở mức code không đồng nghĩa tự động
+tăng allocation production.
+
 Phạm vi chỉ gồm chat không tool, không side effect và không yêu cầu dữ liệu live.
 
 Thay đổi:
@@ -1580,6 +1588,54 @@ Thay đổi:
 - Deterministic Quality Gate.
 - Fallback policy theo budget, không mặc định legacy cùng provider.
 - Legacy prompt vẫn dùng cho session/task ngoài canary.
+
+Guard thực thi:
+
+- Assignment dùng SHA-256 của `salt + session_id`, bucket 0..9.999 và được pin vào task.
+- Chỉ `dashboard` + provider `api`; Telegram, CLI và OAuth không vào Phase 5.
+- Registry phải có snapshot tươi và revision phải đúng revision task đã pin.
+- Classifier chỉ nhận chat tự chứa thuộc nhóm giải thích, viết/biến đổi, hội thoại hoặc reasoning;
+  mọi tín hiệu live data, external source, capability, side effect, memory/history và attachment
+  đều fallback legacy.
+- Provider/model phải match một hard-quota rule versioned do operator khai theo tài khoản thật.
+  Javis không hardcode quota thương mại theo tên provider.
+- Estimator được cộng safety factor trước reservation. Rolling TPM được reserve atomically trong
+  SQLite; request vượt budget bị chặn với `model_rounds=0`, không replay legacy cùng provider.
+- Sau khi model bắt đầu, Quality Gate chỉ đánh dấu kết quả; không gọi model lần hai trong Phase 5.
+
+Cấu hình rollout mẫu, mặc định repository giữ allocation bằng 0 và danh sách quota rỗng:
+
+```json
+{
+  "context_runtime": {
+    "mode": "canary",
+    "canary": {
+      "policy_version": "fast-path-canary-v1",
+      "allocation_basis_points": 100,
+      "salt": "fast-path-canary-v1",
+      "channels": ["dashboard"],
+      "provider_kinds": ["api"],
+      "registry_max_age_seconds": 900,
+      "estimator_safety_factor": 1.35,
+      "quota_profiles": [
+        {
+          "id": "account-tier-rule-v1",
+          "provider": "groq",
+          "model_pattern": "llama-*",
+          "rolling_tpm": 12000,
+          "context_window": 131072,
+          "reserved_output_tokens": 1200,
+          "window_seconds": 60
+        }
+      ]
+    }
+  }
+}
+```
+
+Con số trên chỉ minh hoạ cấu trúc, không phải quota mặc định. Trước khi bật phải thay bằng limit
+thật của account/model, chạy release gate rồi tăng lần lượt 0,1% → 1% → 5%; mỗi nấc giữ đủ mẫu
+để so task success, quality, token và p95 latency với legacy cohort.
 
 Điều kiện qua phase:
 

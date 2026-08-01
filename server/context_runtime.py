@@ -1,4 +1,4 @@
-"""Trace substrate cho Adaptive Context Runtime Phase 0-4.
+"""Trace substrate cho Adaptive Context Runtime Phase 0-5.
 
 Substrate này chỉ làm ba việc:
 - gắn task_id/step_id ổn định vào một lượt chat;
@@ -6,8 +6,8 @@ Substrate này chỉ làm ba việc:
 - lưu state tối thiểu trong runtime.db để các phase sau có chỗ mở rộng.
 
 Module này CỐ Ý không lưu raw prompt, message, tool arguments/result hay secret. Registry và
-Resolver và Context Compiler Phase 2-4 chạy shadow; chưa được phép chặn, đổi model, rút context
-hoặc thay dispatch.
+Resolver và Context Compiler Phase 2-4 chạy shadow. Phase 5 chỉ được phép pin một task vào
+Fast Path sau admission control; trace vẫn tuyệt đối không lưu nội dung người dùng.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ import contextvars
 import hashlib
 import json
 import math
+import re
 import sqlite3
 import threading
 import time
@@ -26,7 +27,7 @@ from typing import Any, Callable, Optional
 import config
 
 
-RUNTIME_VERSION = "shadow-v3"
+RUNTIME_VERSION = "adaptive-v4"
 RESOLVER_POLICY_VERSION = "deterministic-shadow-v1"
 COMPILER_POLICY_VERSION = "adaptive-compiler-shadow-v1"
 REGISTRY_REVISION = "legacy-live"
@@ -47,6 +48,20 @@ class TurnTrace:
     expected_version: int = 1
     registry_revision: str = "registry-unavailable"
     model_profile_revision: str = "models-unavailable"
+    execution_path: str = "unassigned"
+    canary_bucket: Optional[int] = None
+    canary_policy_version: str = ""
+
+
+@dataclass(frozen=True)
+class QuotaAdmission:
+    allowed: bool
+    reservation_id: str
+    reason: str
+    requested_tokens: int
+    used_tokens: int
+    limit_tokens: int
+    remaining_tokens: int
 
 
 def current_trace() -> Optional[TurnTrace]:
@@ -248,6 +263,9 @@ class ObserveRuntime:
                     model_profile_revision TEXT NOT NULL,
                     budget_json TEXT NOT NULL DEFAULT '{}',
                     deadline_at REAL,
+                    execution_path TEXT NOT NULL DEFAULT 'unassigned',
+                    canary_bucket INTEGER,
+                    canary_policy_version TEXT NOT NULL DEFAULT '',
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL
                 );
@@ -297,7 +315,9 @@ class ObserveRuntime:
                     output_reserved INTEGER NOT NULL,
                     status TEXT NOT NULL,
                     expires_at REAL NOT NULL,
-                    created_at REAL NOT NULL
+                    created_at REAL NOT NULL,
+                    actual_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    actual_output_tokens INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS idx_quota_reservations_model
                     ON quota_reservations(provider, model, created_at);
@@ -309,6 +329,17 @@ class ObserveRuntime:
                 db.execute("ALTER TABLE runtime_tasks ADD COLUMN budget_json TEXT NOT NULL DEFAULT '{}'")
             if "deadline_at" not in columns:
                 db.execute("ALTER TABLE runtime_tasks ADD COLUMN deadline_at REAL")
+            if "execution_path" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN execution_path TEXT NOT NULL DEFAULT 'unassigned'")
+            if "canary_bucket" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN canary_bucket INTEGER")
+            if "canary_policy_version" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN canary_policy_version TEXT NOT NULL DEFAULT ''")
+            quota_columns = {r[1] for r in db.execute("PRAGMA table_info(quota_reservations)")}
+            if "actual_input_tokens" not in quota_columns:
+                db.execute("ALTER TABLE quota_reservations ADD COLUMN actual_input_tokens INTEGER NOT NULL DEFAULT 0")
+            if "actual_output_tokens" not in quota_columns:
+                db.execute("ALTER TABLE quota_reservations ADD COLUMN actual_output_tokens INTEGER NOT NULL DEFAULT 0")
             db.commit()
             self._db = db
             self._cleanup_once()
@@ -337,11 +368,16 @@ class ObserveRuntime:
     def _safe_payload(data: dict | None) -> str:
         """Allowlist scalar metadata. Không có đường nào ghi raw content vào event."""
         out = {}
+        sensitive_keys = {
+            "content", "prompt", "messages", "message", "user_message", "objective",
+            "query", "response", "text", "body", "tools", "args", "result", "secret",
+            "source_ref", "path", "api_key", "access_token", "refresh_token",
+        }
         for key, value in (data or {}).items():
-            if key in {"content", "prompt", "messages", "tools", "args", "result", "secret"}:
+            if str(key).casefold() in sensitive_keys:
                 continue
             if isinstance(value, (str, int, float, bool)) or value is None:
-                out[str(key)[:80]] = value
+                out[str(key)[:80]] = value[:2000] if isinstance(value, str) else value
         return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
 
     def _event(self, db, trace: TurnTrace, kind: str, data: dict | None = None) -> None:
@@ -355,7 +391,7 @@ class ObserveRuntime:
     def _expire_reservations(db, now: float | None = None) -> None:
         db.execute(
             "UPDATE quota_reservations SET status='EXPIRED' "
-            "WHERE status='OBSERVED' AND expires_at<=?",
+            "WHERE status IN ('OBSERVED','ADMITTED') AND expires_at<=?",
             (float(now or time.time()),),
         )
 
@@ -395,14 +431,16 @@ class ObserveRuntime:
                         "INSERT INTO runtime_tasks("
                         "id,session_id,brain,channel,status,version,runtime_version,"
                         "resolver_policy_version,compiler_policy_version,registry_revision,"
-                        "model_profile_revision,budget_json,deadline_at,created_at,updated_at"
-                        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        "model_profile_revision,budget_json,deadline_at,execution_path,"
+                        "canary_bucket,canary_policy_version,created_at,updated_at"
+                        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (trace.task_id, trace.session_id, str(brain or ""), trace.channel,
                          "RUNNING", 1, RUNTIME_VERSION, RESOLVER_POLICY_VERSION,
                          COMPILER_POLICY_VERSION, trace.registry_revision,
                          trace.model_profile_revision,
                          json.dumps(budget, ensure_ascii=False, separators=(",", ":")),
-                         deadline_at, now, now),
+                         deadline_at, trace.execution_path, trace.canary_bucket,
+                         trace.canary_policy_version, now, now),
                     )
                     db.execute(
                         "INSERT INTO runtime_steps(id,task_id,ordinal,attempt,status,started_at) "
@@ -428,6 +466,156 @@ class ObserveRuntime:
         except Exception:
             pass
 
+    def pin_execution_path(self, trace: Optional[TurnTrace], path: str,
+                           bucket: Optional[int], policy_version: str,
+                           reason: str = "") -> str:
+        """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
+        if not trace:
+            return "legacy"
+        requested = "fast" if path == "fast" else "legacy"
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    row = db.execute(
+                        "SELECT execution_path,canary_bucket,canary_policy_version "
+                        "FROM runtime_tasks WHERE id=?", (trace.task_id,)
+                    ).fetchone()
+                    current = str(row["execution_path"] or "unassigned") if row else "unassigned"
+                    if current == "unassigned":
+                        db.execute(
+                            "UPDATE runtime_tasks SET execution_path=?,canary_bucket=?,"
+                            "canary_policy_version=?,updated_at=? WHERE id=? AND execution_path='unassigned'",
+                            (requested, bucket, str(policy_version or "")[:120], time.time(), trace.task_id),
+                        )
+                        current = requested
+                        self._event(db, trace, "canary.decision", {
+                            "execution_path": current,
+                            "bucket": bucket,
+                            "policy_version": str(policy_version or "")[:120],
+                            "reason": str(reason or "")[:120],
+                        })
+                        row = db.execute(
+                            "SELECT execution_path,canary_bucket,canary_policy_version "
+                            "FROM runtime_tasks WHERE id=?", (trace.task_id,)
+                        ).fetchone()
+                    trace.execution_path = current
+                    if row:
+                        trace.canary_bucket = row["canary_bucket"]
+                        trace.canary_policy_version = str(
+                            row["canary_policy_version"] or ""
+                        )[:120]
+                    else:
+                        trace.canary_bucket = bucket
+                        trace.canary_policy_version = str(policy_version or "")[:120]
+                    return current
+        except Exception:
+            trace.execution_path = "legacy"
+            return "legacy"
+
+    def record_runtime_event(self, trace: Optional[TurnTrace], event_type: str,
+                             data: dict | None = None) -> None:
+        """Ghi event metadata allowlist cho runtime phase mới; raw content vẫn bị loại."""
+        if not trace:
+            return
+        safe_type = re.sub(r"[^a-z0-9_.-]", "_", str(event_type or "runtime.event").lower())[:120]
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    self._event(db, trace, safe_type, data)
+        except Exception:
+            pass
+
+    def admit_quota(self, trace: Optional[TurnTrace], provider: str, model: str,
+                    input_tokens: int, output_tokens: int, rolling_tpm_limit: int,
+                    window_seconds: int = 60) -> QuotaAdmission:
+        """Admission atomically theo rolling-window local; fail closed khi limit không biết."""
+        requested = max(0, int(input_tokens or 0)) + max(0, int(output_tokens or 0))
+        limit = max(0, int(rolling_tpm_limit or 0))
+        if not trace or limit <= 0 or requested <= 0:
+            return QuotaAdmission(False, "", "quota_unknown", requested, 0, limit, 0)
+        now = time.time()
+        window = max(1, min(int(window_seconds or 60), 3600))
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    self._expire_reservations(db, now)
+                    row = db.execute(
+                        "SELECT COALESCE(SUM(CASE WHEN status IN ('CONSUMED','RECONCILED') THEN "
+                        "actual_input_tokens+actual_output_tokens ELSE "
+                        "input_reserved+output_reserved END),0) FROM quota_reservations "
+                        "WHERE provider=? AND model=? AND created_at>=? "
+                        "AND status IN ('OBSERVED','RECONCILED','ADMITTED','CONSUMED')",
+                        (str(provider or "?"), str(model or "?"), now - window),
+                    ).fetchone()
+                    used = int(row[0] or 0)
+                    remaining = max(0, limit - used)
+                    if requested > remaining:
+                        self._event(db, trace, "quota.rejected", {
+                            "provider": provider or "?", "model": model or "?",
+                            "requested_tokens": requested, "used_tokens": used,
+                            "limit_tokens": limit, "remaining_tokens": remaining,
+                            "reason": "rolling_tpm",
+                        })
+                        return QuotaAdmission(
+                            False, "", "rolling_tpm", requested, used, limit, remaining
+                        )
+                    reservation_id = "qa_" + uuid.uuid4().hex
+                    db.execute(
+                        "INSERT INTO quota_reservations("
+                        "id,task_id,step_id,provider,model,input_reserved,output_reserved,"
+                        "status,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        (reservation_id, trace.task_id, trace.step_id, provider or "?", model or "?",
+                         max(0, int(input_tokens or 0)), max(0, int(output_tokens or 0)),
+                         "ADMITTED", now + window, now),
+                    )
+                    db.execute(
+                        "UPDATE runtime_steps SET provider=?,model=?,estimated_input_tokens="
+                        "COALESCE(estimated_input_tokens,0)+? WHERE id=?",
+                        (provider or "?", model or "?", max(0, int(input_tokens or 0)), trace.step_id),
+                    )
+                    self._event(db, trace, "quota.admitted", {
+                        "provider": provider or "?", "model": model or "?",
+                        "requested_tokens": requested, "used_tokens": used,
+                        "limit_tokens": limit, "remaining_tokens": remaining - requested,
+                    })
+                    return QuotaAdmission(
+                        True, reservation_id, "admitted", requested, used, limit,
+                        remaining - requested,
+                    )
+        except Exception:
+            return QuotaAdmission(False, "", "quota_store_error", requested, 0, limit, 0)
+
+    def consume_quota(self, trace: Optional[TurnTrace], reservation_id: str,
+                      input_tokens: int = 0, output_tokens: int = 0) -> None:
+        if not trace or not reservation_id:
+            return
+        tin, tout = max(0, int(input_tokens or 0)), max(0, int(output_tokens or 0))
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE quota_reservations SET status='CONSUMED',"
+                        "actual_input_tokens=?,actual_output_tokens=? "
+                        "WHERE id=? AND task_id=? AND status='ADMITTED'",
+                        (tin, tout, str(reservation_id), trace.task_id),
+                    )
+                    if changed.rowcount != 1:
+                        return
+                    db.execute(
+                        "UPDATE runtime_steps SET actual_input_tokens=COALESCE(actual_input_tokens,0)+?,"
+                        "actual_output_tokens=COALESCE(actual_output_tokens,0)+? WHERE id=?",
+                        (tin, tout, trace.step_id),
+                    )
+                    self._event(db, trace, "usage.canary", {
+                        "input_tokens": tin, "output_tokens": tout,
+                    })
+        except Exception:
+            pass
+
     def observe_payload(self, trace: Optional[TurnTrace], messages, tools=None,
                         provider: str = "", model: str = "") -> dict:
         if not trace:
@@ -449,7 +637,9 @@ class ObserveRuntime:
                     )
                     self._event(db, trace, "payload.observed", meta)
                     db.execute(
-                        "INSERT INTO quota_reservations VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        "INSERT INTO quota_reservations("
+                        "id,task_id,step_id,provider,model,input_reserved,output_reserved,"
+                        "status,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
                         (reservation_id, trace.task_id, trace.step_id, provider or "?", model or "?",
                          meta["estimated_input_tokens"], 0, "OBSERVED", now + 300, now),
                     )
@@ -473,10 +663,11 @@ class ObserveRuntime:
                         (tin, tout, trace.step_id),
                     )
                     db.execute(
-                        "UPDATE quota_reservations SET status='RECONCILED' WHERE id=("
+                        "UPDATE quota_reservations SET status='RECONCILED',"
+                        "actual_input_tokens=?,actual_output_tokens=? WHERE id=("
                         "SELECT id FROM quota_reservations WHERE task_id=? AND step_id=? "
                         "AND status='OBSERVED' ORDER BY created_at,id LIMIT 1)",
-                        (trace.task_id, trace.step_id),
+                        (tin, tout, trace.task_id, trace.step_id),
                     )
                     self._event(db, trace, "usage.observed",
                                 {"input_tokens": tin, "output_tokens": tout})

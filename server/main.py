@@ -61,10 +61,11 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
-import context_runtime   # Phase 0-4: trace + Registry/Resolver/Compiler shadow, chưa đổi dispatch
+import context_runtime   # Phase 0-5: trace + Registry/Resolver/Compiler + Fast Path canary
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
 import context_compiler      # Phase 4: capsule + quota preflight + quality gate shadow
+import fast_path_runtime     # Phase 5: dashboard API canary, hard quota + single model call
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -78,6 +79,10 @@ _CAPABILITY_REGISTRY = capability_registry.get_registry()
 _CAPABILITY_RESOLVER = capability_resolver.get_resolver()
 _CONTEXT_COMPILER = context_compiler.get_compiler()
 _QUALITY_GATE = context_compiler.get_quality_gate()
+_FAST_PATH = fast_path_runtime.FastPathCanary(
+    _CAPABILITY_REGISTRY, _CAPABILITY_RESOLVER, _CONTEXT_COMPILER,
+    _CONTEXT_RUNTIME, cfgmod.read_settings,
+)
 _REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -902,6 +907,63 @@ def _record_quality_shadow(trace, objective: str, response: str, channel: str) -
         had_error=bool(trace.had_error), compiler_report=report,
     )
     _CONTEXT_RUNTIME.record_quality_shadow(trace, decision.trace_report())
+
+
+async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
+                             reasoning: str, ws, session_id: str, runtime_trace,
+                             objective: str = ""):
+    """Đúng một direct API stream; không MCP discovery, tool loop, compaction hay replay."""
+    actual_model = model or "?"
+    final_text = ""
+    tokens_in = 0
+    tokens_out = 0
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.started", {
+        "provider": provider, "model": actual_model, "model_rounds": 1,
+        "capsule_hash": plan.capsule_hash,
+        "estimated_input_tokens": plan.estimated_input_tokens,
+        "reserved_input_tokens": plan.reserved_input_tokens,
+        "reserved_output_tokens": plan.reserved_output_tokens,
+        "policy_version": plan.policy_version,
+    })
+    gen = _api_stream(provider, api_key, model, list(plan.messages), reasoning)
+    async for ev in gen:
+        if ev["type"] == "meta":
+            actual_model = ev.get("model") or actual_model
+            _CONTEXT_RUNTIME.set_route(runtime_trace, provider, actual_model)
+        elif ev["type"] == "usage":
+            tokens_in += int(ev.get("input") or 0)
+            tokens_out += int(ev.get("output") or 0)
+        elif ev["type"] == "text":
+            final_text += ev["content"]
+            await ws.send_text(json.dumps({
+                "type": "stream", "content": ev["content"], "tts": False,
+            }))
+        elif ev["type"] == "error":
+            await ws.send_text(json.dumps({"type": "error", "content": ev["content"]}))
+    if tokens_in or tokens_out:
+        usage_store.record(provider, actual_model, tokens_in, tokens_out)
+        _CONTEXT_RUNTIME.consume_quota(
+            runtime_trace, plan.reservation_id, tokens_in, tokens_out
+        )
+    decision = _QUALITY_GATE.evaluate(
+        objective, final_text, "dashboard",
+        had_error=bool(runtime_trace and runtime_trace.had_error),
+        compiler_report=_CONTEXT_COMPILER.report_for_task(
+            runtime_trace.task_id if runtime_trace else ""
+        ),
+    )
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "quality.canary", {
+        **decision.trace_report(), "model_rounds": 1,
+    })
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.completed", {
+        "provider": provider, "model": actual_model, "model_rounds": 1,
+        "response_chars": len(final_text), "quality_status": decision.status,
+    })
+    await ws.send_text(json.dumps({
+        "type": "response", "content": final_text, "engine": provider,
+        "model": actual_model, "session_id": session_id,
+    }))
+    return final_text, actual_model
 
 
 async def _schedule_cancel_action(message: str, brain):
@@ -5589,7 +5651,8 @@ async def websocket_endpoint(ws: WebSocket):
             await _CHAT_RUNTIME.publish(o)
 
     try:
-        async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None):
+        async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
+                           has_attachments=False):
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
             mcfg = cfgmod.read_settings().get("model", {})
             prov, kind, api_key, api_model = _chat_provider(mcfg)
@@ -5609,17 +5672,24 @@ async def websocket_endpoint(ws: WebSocket):
             cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=CLAUDE_CWD, tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
             final_text = ""
+            used_fast_path = False
 
             await ws.send_text(json.dumps({
                 "type": "status",
                 "content": "Javis đang suy nghĩ..."
             }))
 
-            # Nạp bộ nhớ của vault đang chọn vào system prompt (Javis luôn nhớ)
-            # + block kênh (port gateway hermes): engine biết đang trả lời qua dashboard web
-            sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
-                "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
-                port=_javis_port(), brain_root=_brain_root(brain))
+            # Dựng prompt cũ theo nhu cầu. Fast Path không đọc/nạp memory hoặc lịch sử cũ.
+            sysprompt = None
+
+            def _legacy_system_prompt():
+                nonlocal sysprompt
+                if sysprompt is None:
+                    sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
+                        "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
+                        port=_javis_port(), brain_root=_brain_root(brain),
+                    )
+                return sysprompt
 
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)
@@ -5637,6 +5707,7 @@ async def websocket_endpoint(ws: WebSocket):
                 }))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
+                sysprompt = _legacy_system_prompt()
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
                 if api_model and actual_model != api_model:
                     # Tự chữa: model đã lưu không hợp lệ cho Codex → ghi lại model đúng (converge sau 1 lượt)
@@ -5713,49 +5784,83 @@ async def websocket_endpoint(ws: WebSocket):
                         await _consume_codex(_fallback)
                     await ws.send_text(json.dumps({"type": "response", "content": final_text, "engine": "codex", "model": actual_model, "session_id": conv_sid}))
             elif (kind == "api" and api_key) or kind == "oauth":
-                # ===== PROVIDER API/OAuth (openrouter | openai | anthropic-api | gemini) =====
-                # Đi qua _api_stream_mcp: vòng gọi tool với MCP Javis + tool file brain + skill.
-                # Chỉ rơi về chat trần khi hub không trả tool nào. KHÔNG phải "chat thuần".
-                label = _api_label(prov)
-                actual_model = api_model or "?"
-                _ident = (
-                    f"\n\n[Sự thật hệ thống - TUÂN THỦ tuyệt đối: Bạn đang chạy qua {label}, "
-                    f"model thực tế là '{actual_model}'. Khi được hỏi bạn là AI/model nào, "
-                    f"trả lời ĐÚNG tên model này. KHÔNG được tự nhận là model khác.]"
-                )
-                _head = [{"role": "system", "content": sysprompt + _ident}]
-                # Resume: nạp lại lượt user/assistant cũ từ SQLite để engine API thấy lại mạch
-                # hội thoại (trừ lượt user vừa lưu ở trên). prepare_history đảm bảo phần cũ CHỈ
-                # rời payload khi đã vào tóm tắt nén - KHÔNG cắt câm như trim cũ (đó là lỗi mất
-                # ngữ cảnh khi phiên dài / vừa đổi từ engine Claude sang API).
-                _raw = [{"role": _m["role"], "content": _m["content"]}
-                        for _m in store.get_messages(conv_sid)[:-1]
-                        if _m["role"] in ("user", "assistant") and _m.get("content")]
-                or_messages = await compaction.prepare_history(
-                    _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
-                or_messages.append({"role": "user", "content": user_message})
-                gen = await _api_stream_mcp(prov, api_key, api_model, or_messages, reasoning, brain=brain)   # MCP đa-model qua hub
-                async for ev in gen:
-                    if ev["type"] == "meta":
-                        actual_model = ev.get("model") or actual_model
-                        _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
-                    elif ev["type"] == "usage":
-                        usage_store.record(prov, actual_model, ev.get("input", 0), ev.get("output", 0))
-                        _CONTEXT_RUNTIME.record_usage(
-                            runtime_trace, ev.get("input", 0), ev.get("output", 0))
-                    elif ev["type"] == "tool_call":
-                        await ws.send_text(json.dumps({"type": "tool_call", "tool": ev.get("name", ""), "content": f"⚙ MCP: {ev.get('name', '')}"}))
-                    elif ev["type"] == "text":
-                        final_text += ev["content"]
-                        # tts:False → frontend chỉ hiển thị token, đọc TTS 1 lần ở cuối
-                        await ws.send_text(json.dumps({"type": "stream", "content": ev["content"], "tts": False}))
-                    elif ev["type"] == "error":
-                        await ws.send_text(json.dumps({"type": "error", "content": ev["content"]}))
-                # (or_messages là biến cục bộ của lượt - mỗi lượt dựng lại từ SQLite qua
-                # prepare_history, nên không cần append/trim để giữ mạch; lịch sử ở store.)
-                await ws.send_text(json.dumps({"type": "response", "content": final_text, "engine": prov, "model": actual_model, "session_id": conv_sid}))
+                fast_plan = None
+                if kind == "api" and api_key:
+                    fast_plan = await asyncio.to_thread(
+                        _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
+                        "dashboard", prov, api_model or "?", kind, bool(has_attachments),
+                    )
+                if fast_plan and fast_plan.action == "execute":
+                    used_fast_path = True
+                    final_text, _actual_model = await _execute_fast_path(
+                        fast_plan, prov, api_key, api_model, reasoning, ws, conv_sid,
+                        runtime_trace, user_message,
+                    )
+                elif fast_plan and fast_plan.action == "reject":
+                    used_fast_path = True
+                    final_text = fast_plan.rejection_message
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.rejected", {
+                        "reason": fast_plan.reason, "model_rounds": 0,
+                        "estimated_input_tokens": fast_plan.estimated_input_tokens,
+                        "reserved_input_tokens": fast_plan.reserved_input_tokens,
+                    })
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text,
+                        "engine": "javis-gateway", "model": api_model or "?",
+                        "session_id": conv_sid,
+                    }))
+                else:
+                    # ===== Legacy API/OAuth: MCP Hub + memory/history đầy đủ =====
+                    sysprompt = _legacy_system_prompt()
+                    label = _api_label(prov)
+                    actual_model = api_model or "?"
+                    _ident = (
+                        f"\n\n[Sự thật hệ thống - TUÂN THỦ tuyệt đối: Bạn đang chạy qua {label}, "
+                        f"model thực tế là '{actual_model}'. Khi được hỏi bạn là AI/model nào, "
+                        f"trả lời ĐÚNG tên model này. KHÔNG được tự nhận là model khác.]"
+                    )
+                    _head = [{"role": "system", "content": sysprompt + _ident}]
+                    _raw = [{"role": _m["role"], "content": _m["content"]}
+                            for _m in store.get_messages(conv_sid)[:-1]
+                            if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    or_messages = await compaction.prepare_history(
+                        _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
+                    or_messages.append({"role": "user", "content": user_message})
+                    gen = await _api_stream_mcp(
+                        prov, api_key, api_model, or_messages, reasoning, brain=brain
+                    )
+                    async for ev in gen:
+                        if ev["type"] == "meta":
+                            actual_model = ev.get("model") or actual_model
+                            _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
+                        elif ev["type"] == "usage":
+                            usage_store.record(
+                                prov, actual_model, ev.get("input", 0), ev.get("output", 0)
+                            )
+                            _CONTEXT_RUNTIME.record_usage(
+                                runtime_trace, ev.get("input", 0), ev.get("output", 0)
+                            )
+                        elif ev["type"] == "tool_call":
+                            await ws.send_text(json.dumps({
+                                "type": "tool_call", "tool": ev.get("name", ""),
+                                "content": f"⚙ MCP: {ev.get('name', '')}",
+                            }))
+                        elif ev["type"] == "text":
+                            final_text += ev["content"]
+                            await ws.send_text(json.dumps({
+                                "type": "stream", "content": ev["content"], "tts": False,
+                            }))
+                        elif ev["type"] == "error":
+                            await ws.send_text(json.dumps({
+                                "type": "error", "content": ev["content"],
+                            }))
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": prov,
+                        "model": actual_model, "session_id": conv_sid,
+                    }))
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
+                sysprompt = _legacy_system_prompt()
                 cli.system_prompt = sysprompt
                 cli.model = api_model or mcfg.get("claude_model") or None   # alias opus/sonnet/haiku/fable
                 _apply_mcp(cli, brain=brain)   # gắn MCP do Javis quản lý (nhiều shop POSCake...)
@@ -5803,7 +5908,8 @@ async def websocket_endpoint(ws: WebSocket):
                 await _persist_turn(store, conv_sid, brain, user_message, final_text)
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
-                if kind == "api" and api_key and prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq"):
+                if (not used_fast_path and kind == "api" and api_key and
+                        prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq")):
                     try:
                         asyncio.create_task(compaction.maybe_compact(
                             store, conv_sid, prov, api_key, api_model, _api_stream))
@@ -5811,10 +5917,13 @@ async def websocket_endpoint(ws: WebSocket):
                         print(f"[compact hook] {_e}", file=__import__('sys').stderr)
             return final_text
 
-        async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None):
+        async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
+                           has_attachments=False):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             try:
-                final_text = await _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+                final_text = await _do_turn(
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments
+                )
                 _record_quality_shadow(
                     runtime_trace, user_message, final_text or "", "dashboard")
                 _CONTEXT_RUNTIME.finish(
@@ -5870,8 +5979,9 @@ async def websocket_endpoint(ws: WebSocket):
             store.append_message(conv_sid, "user", user_message)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
+            has_attachments = bool(payload.get("attachments") or payload.get("files"))
             task = asyncio.create_task(run_turn(
-                conv_sid, user_message, brain, turn_tag, runtime_trace))
+                conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments))
             _CHAT_RUNTIME.register_job(
                 conv_sid, task, turn_tag,
                 runtime_task_id=runtime_trace.task_id if runtime_trace else "",

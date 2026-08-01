@@ -393,6 +393,24 @@ class CapabilityRegistry:
             self._model_revision_cache = "models_" + _sha(rows)[:24]
             return self._model_revision_cache
 
+    def inventory_status(self, brain: str | Path | None = None) -> dict:
+        """Độ tươi snapshot capability, kể cả snapshot hợp lệ có 0 capability."""
+        scope = brain_scope(brain)
+        with self._lock:
+            row = self._conn().execute(
+                "SELECT value FROM registry_meta WHERE key=?", (f"last_refresh:{scope}",)
+            ).fetchone()
+        try:
+            refreshed_at = float(row[0]) if row else 0.0
+        except (TypeError, ValueError):
+            refreshed_at = 0.0
+        return {
+            "ready": refreshed_at > 0,
+            "refreshed_at": refreshed_at,
+            "age_seconds": max(0.0, time.time() - refreshed_at) if refreshed_at else None,
+            "revision": self.revision(brain),
+        }
+
     def search(self, query: str, brain: str | Path, limit: int = 80) -> list[dict]:
         scope = brain_scope(brain)
         terms = list(dict.fromkeys(_WORD_RE.findall(str(query or "").casefold())))

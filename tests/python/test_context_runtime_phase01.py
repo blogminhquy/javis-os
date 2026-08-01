@@ -84,7 +84,7 @@ def test_runtime_lifecycle_reconciles_usage_and_never_persists_content(tmp_path)
 
     task = runtime.get_task(trace.task_id)
     assert task["status"] == "COMPLETED"
-    assert task["runtime_version"] == "shadow-v3"
+    assert task["runtime_version"] == "adaptive-v4"
     assert task["resolver_policy_version"]
     assert task["compiler_policy_version"]
     assert task["registry_revision"]
@@ -223,4 +223,5 @@ def test_context_runtime_default_is_shadow_and_metadata_only():
     runtime_source = (SERVER / "context_runtime.py").read_text(encoding="utf-8")
     assert '"mode": "shadow"' in config_source
     assert '"store_content": False' in runtime_source
-    assert '"content", "prompt", "messages", "tools", "args", "result", "secret"' in runtime_source
+    for sensitive in ("content", "prompt", "messages", "objective", "query", "secret"):
+        assert f'"{sensitive}"' in runtime_source
