@@ -590,14 +590,14 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
     return tools, route
 
 
-def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None):
+def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=False):
     """Nếu bật lazy: giấu tool MCP (pool) sau meta-tool search/run; không bật → trả nguyên.
     Pool = tool có route entry mang 'conn' (đến từ connection MCP). Builtins + plugin (entry
     'call' không 'conn') LUÔN hiện trực tiếp - chúng ít và luôn hữu dụng.
     include_ambient (đường engine Claude): kèm connector tài khoản Claude vào menu/search để
     model biết còn nhóm tool native mcp__* ngoài pool của hub."""
     pool = [t for t in tools_spec if (route.get(t["fn"]) or {}).get("conn")]
-    if not _lazy_on(len(pool)):
+    if not force and not _lazy_on(len(pool)):
         return tools_spec, route
     pool_fns = {t["fn"] for t in pool}
     visible_tools = [t for t in tools_spec if t["fn"] not in pool_fns]
@@ -618,7 +618,7 @@ def _store_mtime():
 
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
-                       force_refresh=False):
+                       force_refresh=False, force_lazy=False):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -627,7 +627,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     engine, KHÔNG qua hub, hub chỉ mách chỗ cho model. Engine API (in-process) để False (không có
     tool native để mà chỉ tới)."""
     mode = (mode or "full").strip().lower()
-    key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient))
+    key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient), bool(force_lazy))
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < _CACHE_TTL
@@ -703,16 +703,17 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # LAZY: đông tool MCP thì giấu pool sau meta-tool search/run (giữ full route để dispatch).
     # Đặt SAU builtin+plugin để chúng luôn hiện; cache lưu bản ĐÃ biến đổi (route lazy vẫn dispatch
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
-    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden)
+    tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy)
     _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}
     return tools_spec, route
 
 
-def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False):
+def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
+                       force_lazy=False):
     """Trả snapshot pre-lazy đã cache; không discover I/O và không lộ ra model."""
     key = ((mode or "full").strip().lower(), str(vault_root or ""),
-           bool(include_plugins), bool(include_ambient))
+           bool(include_plugins), bool(include_ambient), bool(force_lazy))
     ent = _cache.get(key) or {}
     return list(ent.get("inventory_tools") or ent.get("tools") or []), dict(
         ent.get("inventory_route") or ent.get("route") or {}

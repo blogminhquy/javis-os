@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import Optional
+import hashlib
 
 import fastyaml
 
@@ -121,6 +122,28 @@ def split_frontmatter(text: str):
     return {}, (text or "")
 
 
+def read_frontmatter_only(smd: Path, max_bytes: int = 16384) -> tuple[dict, str]:
+    """Read only the bounded YAML header. Phase 8 discovery must never ingest body text."""
+    try:
+        with smd.open("rb") as fh:
+            raw = fh.read(max(512, int(max_bytes)))
+    except OSError:
+        return {}, ""
+    if not raw.startswith(b"---"):
+        return {}, ""
+    end = raw.find(b"\n---", 3)
+    if end < 0:
+        return {}, ""
+    header = raw[3:end].decode("utf-8", errors="replace")
+    try:
+        meta = fastyaml.safe_load(header) or {}
+    except Exception:
+        meta = {}
+    return (meta if isinstance(meta, dict) else {}), hashlib.sha256(
+        header.encode("utf-8", errors="replace")
+    ).hexdigest()
+
+
 def _meta_of(smd: Path) -> dict:
     """Bóc {name, description, group} từ 1 file SKILL.md (description rỗng → lấy dòng đầu body)."""
     try:
@@ -184,6 +207,65 @@ def list_skills(root) -> list:
 def list_enabled_meta(root) -> list:
     """Chỉ các skill đang BẬT (dùng để bơm router vào system prompt + mô tả tool javis_use_skill)."""
     return [s for s in list_skills(root) if s.get("enabled")]
+
+
+def list_skill_manifests(root) -> list:
+    """Enabled SkillSource manifests. Only frontmatter and relative path are exposed."""
+    root = Path(root)
+    out, seen = [], set()
+    for base_rel in _READ_BASES:
+        base = root / base_rel
+        disabled = base / ".disabled"
+        try:
+            # A disabled canonical skill must also shadow an enabled legacy mirror.
+            seen.update(d.name for d in disabled.iterdir()
+                        if d.is_dir() and (d / "SKILL.md").is_file())
+        except OSError:
+            pass
+        for directory in _iter_skill_dirs(base):
+            slug = directory.name
+            if slug in seen:
+                continue
+            seen.add(slug)
+            path = directory / "SKILL.md"
+            meta, fm_hash = read_frontmatter_only(path)
+            try:
+                relative = path.resolve().relative_to(root.resolve()).as_posix()
+            except (OSError, ValueError):
+                continue
+            out.append({
+                "slug": slug,
+                "name": str(meta.get("name") or slug),
+                "description": str(meta.get("description") or "")[:SKILL_DESC_MAX],
+                "group": str(meta.get("group") or "Chung"),
+                "relative_path": relative,
+                "frontmatter_hash": fm_hash,
+            })
+    return sorted(out, key=lambda x: x["slug"])
+
+
+def skill_manifest_signature(root) -> tuple:
+    """Cheap stat-only signature so Phase 8 does not parse every YAML header each turn."""
+    root = Path(root)
+    rows = []
+    for base_rel in _READ_BASES:
+        base = root / base_rel
+        candidates = list(_iter_skill_dirs(base))
+        try:
+            disabled = base / ".disabled"
+            candidates.extend(d for d in disabled.iterdir()
+                              if d.is_dir() and (d / "SKILL.md").is_file())
+        except OSError:
+            pass
+        for directory in candidates:
+            path = directory / "SKILL.md"
+            try:
+                stat = path.stat()
+                relative = path.resolve().relative_to(root.resolve()).as_posix()
+                rows.append((relative, stat.st_mtime_ns, stat.st_size))
+            except (OSError, ValueError):
+                continue
+    return tuple(sorted(rows))
 
 
 def enabled_slugs(root) -> list:

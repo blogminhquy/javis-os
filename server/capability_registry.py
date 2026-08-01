@@ -282,7 +282,8 @@ class CapabilityRegistry:
             db = self._conn()
             with db:
                 old_keys = {r[0] for r in db.execute(
-                    "SELECT source_key FROM capability_sources WHERE brain_scope=? AND active=1", (scope,)
+                    "SELECT source_key FROM capability_sources WHERE brain_scope=? AND active=1 "
+                    "AND source_type IN ('mcp','builtin')", (scope,)
                 )}
                 new_keys = set(grouped)
                 for removed in old_keys - new_keys:
@@ -341,6 +342,78 @@ class CapabilityRegistry:
             "changed_sources": changed_sources,
             "revision": self.revision(brain),
         }
+
+    def refresh_skills(self, brain: str | Path, manifests: Iterable[dict]) -> dict:
+        """Refresh a derived SkillSource using metadata/path only, never SKILL.md bodies."""
+        scope = brain_scope(brain)
+        source_key = f"{scope}:skill:brain-skills"
+        records = []
+        for manifest in manifests or []:
+            if not isinstance(manifest, dict):
+                continue
+            slug = str(manifest.get("slug") or "").strip()
+            if not slug:
+                continue
+            name = str(manifest.get("name") or slug).strip()[:180]
+            summary = str(manifest.get("description") or name).strip()[:2000]
+            group = str(manifest.get("group") or "Chung").strip()[:120]
+            aliases = list(dict.fromkeys([slug, name, group]))
+            payload = {
+                "slug": slug, "name": name, "summary": summary, "group": group,
+                "path": str(manifest.get("relative_path") or "")[:500],
+                "frontmatter_hash": str(manifest.get("frontmatter_hash") or "")[:128],
+            }
+            records.append({
+                "capability_id": "skill_" + _sha(source_key + "|" + slug)[:24],
+                "name": slug, "aliases": aliases, "summary": summary,
+                "intent": " ".join(_WORD_RE.findall((name + " " + summary + " " + group).casefold())[:80]),
+                "revision": _sha(payload), "metadata": payload,
+            })
+        records.sort(key=lambda x: x["name"])
+        source_hash = _sha([{"name": x["name"], "revision": x["revision"]} for x in records])
+        now = time.time()
+        with self._lock:
+            db = self._conn()
+            with db:
+                previous = db.execute(
+                    "SELECT source_hash,active FROM capability_sources WHERE source_key=?", (source_key,)
+                ).fetchone()
+                changed = not (previous and previous["source_hash"] == source_hash and previous["active"])
+                db.execute(
+                    "INSERT INTO capability_sources VALUES(?,?,?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(source_key) DO UPDATE SET source_hash=excluded.source_hash,"
+                    "revision=excluded.revision,health='healthy',capability_count=excluded.capability_count,"
+                    "active=1,last_seen_at=excluded.last_seen_at,updated_at=excluded.updated_at",
+                    (source_key, scope, "skill", _sha(source_key)[:24], source_hash,
+                     source_hash[:24], "healthy", len(records), 1, now, now),
+                )
+                if changed:
+                    old_ids = [r[0] for r in db.execute(
+                        "SELECT capability_id FROM capabilities WHERE source_key=?", (source_key,)
+                    )]
+                    if self._fts:
+                        for capability_id in old_ids:
+                            db.execute("DELETE FROM capabilities_fts WHERE capability_id=?", (capability_id,))
+                    db.execute("DELETE FROM capabilities WHERE source_key=?", (source_key,))
+                    empty_schema = {"type": "object", "properties": {}}
+                    for item in records:
+                        db.execute(
+                            "INSERT INTO capabilities VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (item["capability_id"], source_key, scope, "skill", item["name"],
+                             _json(item["aliases"]), item["summary"], item["intent"], _json(empty_schema),
+                             _sha(empty_schema), item["revision"], "read", "readonly", "healthy", 1,
+                             _json(item["metadata"]), now),
+                        )
+                        if self._fts:
+                            db.execute(
+                                "INSERT INTO capabilities_fts VALUES(?,?,?,?,?)",
+                                (item["capability_id"], item["name"], " ".join(item["aliases"]),
+                                 item["summary"], item["intent"]),
+                            )
+                self._set_meta(db, f"last_refresh_skills:{scope}", str(now))
+                self._revision_cache.pop(scope, None)
+        return {"brain_scope": scope, "capability_count": len(records),
+                "changed_sources": int(changed), "revision": self.revision(brain)}
 
     @staticmethod
     def _set_meta(db: sqlite3.Connection, key: str, value: str) -> None:
@@ -508,8 +581,8 @@ class CapabilityRegistry:
                 "SELECT COUNT(*) FROM capability_sources WHERE brain_scope=? AND active=1", (scope,)
             ).fetchone()[0]
             duplicates = db.execute(
-                "SELECT COUNT(*) FROM (SELECT name FROM capabilities WHERE brain_scope=? AND active=1 "
-                "GROUP BY name HAVING COUNT(*)>1)", (scope,)
+                "SELECT COUNT(*) FROM (SELECT kind,name FROM capabilities WHERE brain_scope=? AND active=1 "
+                "GROUP BY kind,name HAVING COUNT(*)>1)", (scope,)
             ).fetchone()[0]
             fts_rows = db.execute("SELECT COUNT(*) FROM capabilities_fts").fetchone()[0] if self._fts else None
         return {"ok": quick == "ok" and duplicates == 0, "quick_check": quick,

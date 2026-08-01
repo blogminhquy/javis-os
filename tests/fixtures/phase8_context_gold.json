@@ -1,0 +1,23 @@
+{
+  "memory_files": {
+    "memory/identity.md": "---\nalways_on: true\ntitle: Identity\n---\n# Identity\nTên người dùng: Anh Bình. Múi giờ: Asia/Saigon.",
+    "memory/facts/email-style.md": "# Phong cách email\nEmail bán hàng dùng giọng thư tay, gần gũi và không tiết lộ bí mật sản phẩm.",
+    "memory/facts/acme-ads.md": "# Quảng cáo Acme\nNgân sách quảng cáo tháng tám của [[Acme]] là 20 triệu đồng.",
+    "memory/facts/contact.md": "# Liên hệ\nSố điện thoại công việc: 0901 234 567.",
+    "memory/facts/models.md": "# Model mặc định\nModel Groq mặc định là llama-3.3-70b-versatile.",
+    "memory/facts/runtime-decision.md": "# Quyết định rollout\nAdaptive Context Runtime rollout theo thứ tự 0,1 phần trăm, 1 phần trăm rồi 5 phần trăm."
+  },
+  "memory_cases": [
+    {"query": "Email bán hàng nên dùng phong cách nào?", "source": "memory/facts/email-style.md"},
+    {"query": "Ngân sách quảng cáo Acme tháng tám là bao nhiêu?", "source": "memory/facts/acme-ads.md"},
+    {"query": "Số điện thoại công việc của anh là gì?", "source": "memory/facts/contact.md"},
+    {"query": "Model Groq mặc định đang dùng model nào?", "source": "memory/facts/models.md"},
+    {"query": "Adaptive Context Runtime rollout theo thứ tự nào?", "source": "memory/facts/runtime-decision.md"},
+    {"query": "Múi giờ của anh là gì?", "source": "memory/identity.md"}
+  ],
+  "skills": {
+    "webcake": {"description": "Xuất landing page sang Webcake", "query": "Xuất landing page này sang Webcake"},
+    "email-sequence": {"description": "Viết chuỗi email nurture bán sản phẩm số", "query": "Viết chuỗi email nurture cho ebook"},
+    "pdf-review": {"description": "Đọc và rà soát nội dung PDF", "query": "Rà soát nội dung file PDF này"}
+  }
+}

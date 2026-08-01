@@ -61,7 +61,7 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
-import context_runtime   # Phase 0-7: trace + Registry/Resolver/Compiler + canary paths
+import context_runtime   # Phase 0-8: trace + Registry/Resolver/Compiler + canary paths
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
 import context_compiler      # Phase 4: capsule + quota preflight + quality gate shadow
@@ -70,6 +70,7 @@ import evidence_store        # Phase 6: encrypted provenance/artifact store
 import capability_executor   # Phase 6: one-use read lease + schema validation
 import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
+import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -93,6 +94,7 @@ _CAPABILITY_EXECUTOR = capability_executor.CapabilityExecutor(
 )
 _READONLY_PATH = None
 _READONLY_ORCHESTRATOR = None
+_ADAPTIVE_CONTEXT = None
 _REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -288,7 +290,8 @@ def _fit_memory_index(mem: str, cap: int = None) -> str:
         "Đọc Memory/MEMORY.md để xem đủ danh sách, và Memory/facts/ để xem chi tiết.)")
 
 
-def build_system_prompt(brain: str = "brain") -> str:
+def build_system_prompt(brain: str = "brain", include_memory: bool = True,
+                        include_skills: bool = True) -> str:
     """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh."""
     base = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else ""
     idx = _brain_memory_dir(brain) / "MEMORY.md"
@@ -298,7 +301,7 @@ def build_system_prompt(brain: str = "brain") -> str:
             mem = idx.read_text(encoding="utf-8")
     except Exception:
         mem = ""
-    if mem.strip():
+    if include_memory and mem.strip():
         base += "\n\n# === BỘ NHỚ DÀI HẠN (nạp sẵn) ===\n" + _fit_memory_index(mem)
     # Đường dẫn lớp Agentic của vault đang làm việc (để Javis tạo agent/workflow/loop qua chat)
     root = _brain_root(brain)
@@ -307,7 +310,8 @@ def build_system_prompt(brain: str = "brain") -> str:
         # Mirror skills/ → .claude/skills để fork Claude cwd=brain (workflow/loop/learn/lint) nạp
         # native được skill viết giữa phiên (rẻ: cổng chữ ký stat-only bỏ qua nếu cây nguồn
         # không đổi, xem system_sync._mirror_signature - KHÔNG còn so hash nội dung nữa).
-        system_sync.mirror_skills(root)
+        if include_skills:
+            system_sync.mirror_skills(root)
     except Exception:
         pass
     ag, wf = _agents_dir(brain), _workflows_dir(brain)
@@ -329,7 +333,7 @@ def build_system_prompt(brain: str = "brain") -> str:
     # lọc lại), nên cả cây skill bị đi và parse YAML HAI lần mỗi lượt chat - đo được 18ms
     # mỗi lần trên brain 30 skill. Lỗi thì để None và mỗi khối tự quét như cũ.
     try:
-        _skills = skill_router.list_skills(root)
+        _skills = skill_router.list_skills(root) if include_skills else []
     except Exception:
         _skills = None
     try:
@@ -337,7 +341,8 @@ def build_system_prompt(brain: str = "brain") -> str:
     except Exception:
         pass
     try:
-        base += _skill_router_block(brain, root, _skills)   # ROUTER SKILL đa-engine: list skill + cách gọi
+        if include_skills:
+            base += _skill_router_block(brain, root, _skills)   # ROUTER SKILL đa-engine: list skill + cách gọi
     except Exception:
         pass
     try:
@@ -353,6 +358,46 @@ def build_system_prompt(brain: str = "brain") -> str:
     except Exception:
         pass
     return base
+
+
+def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = False,
+                                 include_skills: bool = False) -> str:
+    """Small Phase 8 base. Context Compiler already owns identity/safety/output contracts.
+
+    Only a source that has not entered its canary is restored here. This intentionally
+    does not wrap CLAUDE.md, otherwise lazy memory/skills would save little at first load.
+    """
+    root = _brain_root(brain)
+    ag, wf = _agents_dir(brain), _workflows_dir(brain)
+    loops = Path(root) / "Javis" / "loops"
+    skills = _skills_dir(brain)
+    parts = [
+        "# Javis adaptive source contract",
+        f"Brain root: {root}",
+        "MCP Hub và tool gateway là nguồn capability live. Chỉ gọi tool được cung cấp; "
+        "không bịa tool, dữ liệu live hay kết quả hành động.",
+        f"Agent files: {ag}/<slug>.md; workflow files: {wf}/<slug>.md; "
+        f"loop files: {loops}/<slug>.md; skill files: {skills}/<slug>/SKILL.md.",
+    ]
+    if include_memory:
+        try:
+            idx = _brain_memory_dir(brain) / "MEMORY.md"
+            memory = idx.read_text(encoding="utf-8") if idx.exists() else ""
+        except OSError:
+            memory = ""
+        if memory.strip():
+            parts.append("# Bộ nhớ fallback\n" + _fit_memory_index(memory))
+    if include_skills:
+        try:
+            system_sync.ensure_synced(root)
+            system_sync.mirror_skills(root)
+            skill_meta = skill_router.list_skills(root)
+            parts.append(_skill_router_block(brain, root, skill_meta))
+        except Exception:
+            # The caller records source fallback through Phase 8 status; empty router
+            # remains safer than aborting the existing chat request here.
+            pass
+    return "\n\n".join(x for x in parts if str(x).strip())
 
 # Redaction patterns - port subset từ hermes-agent/agent/redact.py.
 # Bảo vệ log_conversation() khỏi việc ghi vĩnh viễn API key / Telegram bot token /
@@ -775,7 +820,8 @@ def _hub_enabled():
     return bool(cfgmod.read_settings().get("mcp", {}).get("hub", True))
 
 
-async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None):
+async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None,
+                          force_lazy=False):
     """Model API/OAuth dùng MCP của Javis qua HUB: đa tài khoản + quyền + audit + builtin tools
     (file vault, use_skill) → engine API cũng là agent thực thụ. anthropic-api giờ CÓ tool loop.
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
@@ -785,9 +831,11 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
-                tools, route = await mcp_hub.discover_all("full", vault_root=vault_root)
+                tools, route = await mcp_hub.discover_all(
+                    "full", vault_root=vault_root, force_lazy=force_lazy
+                )
                 inventory_tools, inventory_route = mcp_hub.registry_inventory(
-                    "full", vault_root=vault_root)
+                    "full", vault_root=vault_root, force_lazy=force_lazy)
             else:
                 servers = mcp_store.servers_for_client()
                 if servers:
@@ -865,6 +913,17 @@ def _get_readonly_orchestrator():
             _QUALITY_GATE,
         )
     return _READONLY_ORCHESTRATOR
+
+
+def _get_adaptive_context():
+    """Lazy init để import/startup không mở thêm DB khi Phase 8 vẫn allocation=0."""
+    global _ADAPTIVE_CONTEXT
+    if _ADAPTIVE_CONTEXT is None:
+        _ADAPTIVE_CONTEXT = adaptive_context_runtime.AdaptiveContextCanary(
+            cfgmod.STATE_DIR, _CAPABILITY_REGISTRY, _CONTEXT_COMPILER,
+            _CONTEXT_RUNTIME, cfgmod.read_settings,
+        )
+    return _ADAPTIVE_CONTEXT
 
 
 def _track_shadow_task(coro) -> None:
@@ -6159,8 +6218,24 @@ async def websocket_endpoint(ws: WebSocket):
                         "session_id": conv_sid,
                     }))
                 else:
-                    # ===== Legacy API/OAuth: MCP Hub + memory/history đầy đủ =====
-                    sysprompt = _legacy_system_prompt()
+                    # ===== API/OAuth: Phase 8 sources canary, fallback độc lập về legacy =====
+                    def _phase8_base(include_memory: bool, include_skills: bool) -> str:
+                        return build_adaptive_source_prompt(
+                            brain, include_memory=include_memory, include_skills=include_skills
+                        ) + channel_context.build_channel_block(
+                            "dashboard", {"session_id": conv_sid},
+                            telegram_running=bool(_TG_BOT), port=_javis_port(),
+                            brain_root=_brain_root(brain),
+                        )
+
+                    _phase8_plan = await asyncio.to_thread(
+                        _get_adaptive_context().prepare,
+                        runtime_trace, user_message, _brain_root(brain), conv_sid,
+                        store.get_messages(conv_sid), "dashboard", prov,
+                        api_model or "?", kind, _phase8_base,
+                    )
+                    sysprompt = (_phase8_plan.system_prompt
+                                 if _phase8_plan.action == "use" else _legacy_system_prompt())
                     label = _api_label(prov)
                     actual_model = api_model or "?"
                     _ident = (
@@ -6169,14 +6244,19 @@ async def websocket_endpoint(ws: WebSocket):
                         f"trả lời ĐÚNG tên model này. KHÔNG được tự nhận là model khác.]"
                     )
                     _head = [{"role": "system", "content": sysprompt + _ident}]
-                    _raw = [{"role": _m["role"], "content": _m["content"]}
-                            for _m in store.get_messages(conv_sid)[:-1]
-                            if _m["role"] in ("user", "assistant") and _m.get("content")]
-                    or_messages = await compaction.prepare_history(
-                        _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
+                    if _phase8_plan.action == "use" and _phase8_plan.state_applied:
+                        # State + recent transcript were already budgeted by Context Compiler.
+                        or_messages = list(_head)
+                    else:
+                        _raw = [{"role": _m["role"], "content": _m["content"]}
+                                for _m in store.get_messages(conv_sid)[:-1]
+                                if _m["role"] in ("user", "assistant") and _m.get("content")]
+                        or_messages = await compaction.prepare_history(
+                            _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
                     or_messages.append({"role": "user", "content": user_message})
                     gen = await _api_stream_mcp(
-                        prov, api_key, api_model, or_messages, reasoning, brain=brain
+                        prov, api_key, api_model, or_messages, reasoning, brain=brain,
+                        force_lazy=(_phase8_plan.action == "use"),
                     )
                     async for ev in gen:
                         if ev["type"] == "meta":
@@ -6376,6 +6456,12 @@ async def sessions_rename(session_id: str, title: str = Form(...)):
 @app.post("/sessions/{session_id}/delete")
 async def sessions_delete(session_id: str):
     get_store().delete(session_id)
+    # Phase 8 state is a disposable projection; purge it with the source transcript.
+    if _ADAPTIVE_CONTEXT is not None:
+        try:
+            _ADAPTIVE_CONTEXT.state.delete(session_id)
+        except Exception:
+            pass
     return {"ok": True}
 
 

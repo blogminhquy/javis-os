@@ -28,7 +28,7 @@ from typing import Any, Callable, Optional
 import config
 
 
-RUNTIME_VERSION = "adaptive-v6"
+RUNTIME_VERSION = "adaptive-v7"
 RESOLVER_POLICY_VERSION = "deterministic-shadow-v1"
 COMPILER_POLICY_VERSION = "adaptive-compiler-shadow-v1"
 REGISTRY_REVISION = "legacy-live"

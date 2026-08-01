@@ -114,7 +114,7 @@ _DEFAULT = {
     # + lazy search cho engine Claude, để model biết chúng tồn tại (gọi qua tool native mcp__*).
     "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40,
             "lazy_top_k": 8, "ambient_hint": True},
-    # Adaptive Context Runtime Phase 0-7. Mọi canary rollout mặc định bằng 0 và mode
+    # Adaptive Context Runtime Phase 0-8. Mọi canary rollout mặc định bằng 0 và mode
     # vẫn shadow, nên production chưa đổi dispatch. Muốn canary phải đồng thời đổi mode=canary,
     # allocation_basis_points > 0 và khai hard quota trong quota_profiles.
     "context_runtime": {
@@ -186,6 +186,31 @@ _DEFAULT = {
             "quota_profiles": [],
             # Danh sách rỗng luôn fail-closed. Mỗi group có thể giới hạn args/TTL/timeout riêng.
             "capability_profiles": [],
+        },
+        # Phase 8 dùng hard quota operator khai báo; không đoán TPM/context theo tên model.
+        # Có thể để trống để dùng quota_profiles của Fast Path ở trên.
+        "context_sources": {"quota_profiles": []},
+        # Ba rollout độc lập. Nguồn nào lỗi/thiếu tự tin chỉ nguồn đó quay về cơ chế cũ.
+        "conversation_state_canary": {
+            "policy_version": "conversation-state-v1",
+            "allocation_basis_points": 0,
+            "salt": "conversation-state-v1",
+            "channels": ["dashboard"], "provider_kinds": ["api"],
+            "recent_messages": 6,
+        },
+        "memory_canary": {
+            "policy_version": "sourced-memory-v1",
+            "allocation_basis_points": 0,
+            "salt": "sourced-memory-v1",
+            "channels": ["dashboard"], "provider_kinds": ["api"],
+            "max_items": 6, "min_confidence": 0.38,
+        },
+        "lazy_skill_canary": {
+            "policy_version": "lazy-skill-v1",
+            "allocation_basis_points": 0,
+            "salt": "lazy-skill-v1",
+            "channels": ["dashboard"], "provider_kinds": ["api"],
+            "max_body_chars": 12000,
         },
     },
 }

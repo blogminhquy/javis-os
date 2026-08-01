@@ -91,6 +91,10 @@ class CompileRequest:
     hard_max_input_tokens: Optional[int] = None
     reserved_output_tokens: Optional[int] = None
     execution_mode: str = "shadow"
+    # Phase 8 sources (conversation state, retrieved memory, selected skill) use the
+    # same budget/source-map path as tools. Empty by default so Phase 4-7 contracts
+    # and provider adapters remain byte-for-byte compatible.
+    context_items: tuple[ContextItem, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -323,7 +327,7 @@ class ContextCompiler:
                 "Planner contract: đây là vòng lập arguments. Phải gọi đúng một function được cung cấp, "
                 "không trả prose, không gọi nhiều function và không tự thêm capability."
             )
-        system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
+        base_system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
                   "\n" + output_text + ("\n" + planner_text if planner_text else ""))
         required_items = [
             ContextItem("core", "core_contract", CORE_CONTRACT, CORE_CONTRACT_VERSION,
@@ -343,7 +347,7 @@ class ContextCompiler:
                 "planner", "planner_contract", planner_text, "planner:single-tool-v1",
                 tokenizer.count_text(planner_text), 1, 1, 1, 1, True, "system",
             ))
-        required_rendered = self.renderer.render(system, request.objective, [])
+        required_rendered = self.renderer.render(base_system, request.objective, [])
         required_estimate = tokenizer.count_rendered(required_rendered)
         if required_estimate.input_tokens > budget.max_input_tokens:
             required_preflight = QuotaPreflight.observe(required_estimate, budget)
@@ -366,6 +370,44 @@ class ContextCompiler:
             }
             self._remember(request.task_id, report)
             return CompileResult("required_items_too_large", None, report)
+
+        # Context sources are ranked independently from capability schemas. Required
+        # items fail closed; optional items are omitted with an explicit reason. The
+        # compiler, not a source plugin, is the final authority on prompt size.
+        selected_context: list[ContextItem] = []
+        excluded_context: dict[str, str] = {}
+        system = base_system
+        context_candidates = [x for x in request.context_items if isinstance(x, ContextItem) and x.content]
+        context_candidates.sort(key=lambda x: (
+            0 if x.required else 1,
+            -(x.relevance * x.confidence * x.authority * x.freshness),
+            x.id,
+        ))
+        for item in context_candidates:
+            block = f"\n\n# Context: {item.kind}\n{item.content.strip()}"
+            candidate_system = system + block
+            candidate_estimate = tokenizer.count_rendered(
+                self.renderer.render(candidate_system, request.objective, [])
+            )
+            if candidate_estimate.input_tokens <= budget.max_input_tokens:
+                system = candidate_system
+                selected_context.append(item)
+                continue
+            excluded_context[item.id] = "budget"
+            if item.required:
+                report = {
+                    "status": "required_context_too_large", "path": "failure",
+                    "policy_version": COMPILER_POLICY_VERSION,
+                    "estimated_input_tokens": candidate_estimate.input_tokens,
+                    "max_input_tokens": budget.max_input_tokens,
+                    "selected_context_ids": [x.id for x in selected_context],
+                    "excluded_context": excluded_context,
+                    "preflight_decision": "would_reject",
+                    "preflight_reasons": ["required_context"],
+                    "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+                }
+                self._remember(request.task_id, report)
+                return CompileResult("required_context_too_large", None, report)
 
         selected_refs = resolution.get("selected") or []
         selected_ids = list(dict.fromkeys(
@@ -416,7 +458,8 @@ class ContextCompiler:
             self._remember(request.task_id, report)
             return CompileResult("render_over_budget", None, report)
 
-        source_map = {item.id: self._source_entry(item) for item in required_items + capability_items}
+        source_map = {item.id: self._source_entry(item)
+                      for item in required_items + selected_context + capability_items}
         source_map_hash = hashlib.sha256(json.dumps(
             source_map, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8", errors="replace")).hexdigest()
@@ -425,7 +468,8 @@ class ContextCompiler:
         ).encode("utf-8", errors="replace")).hexdigest()
         capsule = ContextCapsule(
             task_id=request.task_id, step_id=request.step_id, path=path,
-            objective=request.objective, instructions=(CORE_CONTRACT, channel_text),
+            objective=request.objective,
+            instructions=tuple([CORE_CONTRACT, channel_text] + [x.content for x in selected_context]),
             capabilities=tuple(tools), output_contract=output_contract,
             source_map=source_map, budget=budget, rendered_request=rendered,
             capsule_hash=capsule_hash,
@@ -455,6 +499,10 @@ class ContextCompiler:
             "excluded_count": len(excluded),
             "selected_ids": accepted_ids,
             "excluded": excluded,
+            "context_candidate_count": len(context_candidates),
+            "selected_context_count": len(selected_context),
+            "selected_context_ids": [x.id for x in selected_context],
+            "excluded_context": excluded_context,
             "source_count": len(source_map),
             "source_map_hash": source_map_hash,
             "preflight_decision": preflight["decision"],

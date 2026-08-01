@@ -146,6 +146,14 @@ tools3, route3 = _fixture()
 lt_auto, _ = mcp_hub._apply_lazy(tools3, route3)
 check("_apply_lazy auto: 5 tool < ngưỡng → không lazy", lt_auto is tools3)
 
+# ---- Phase 8 ép lazy để số MCP tăng không làm prompt đầu tăng theo ----
+set_lazy({"lazy_tools": False})
+tools4, route4 = _fixture()
+lt_forced, _ = mcp_hub._apply_lazy(tools4, route4, force=True)
+forced_fns = {t["fn"] for t in lt_forced}
+check("_apply_lazy Phase 8 force: giấu pool dù global setting tắt",
+      mcp_hub._LAZY_SEARCH in forced_fns and not any(x.startswith("pos__") for x in forced_fns))
+
 
 # ============================================================
 # AMBIENT - connector đấu vào TÀI KHOẢN Claude (Drive/Gmail...): tool native mcp__*, hub chỉ

@@ -64,6 +64,10 @@ class DeterministicResolver:
 
     @staticmethod
     def _hard_filter(item: dict, actor: ActorPolicy) -> str:
+        # Skill manifests share the Registry in Phase 8, but they are context
+        # sources, never executable tool schemas. LazySkillResolver owns them.
+        if str(item.get("kind") or "tool") != "tool":
+            return "capability_kind"
         if str(item.get("health") or "healthy") != "healthy":
             return "health"
         if actor.allowed_source_types is not None and item.get("source_type") not in actor.allowed_source_types:

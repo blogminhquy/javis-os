@@ -1,7 +1,7 @@
 # Adaptive Context Runtime cho Javis OS
 
 Ngày: 2026-08-01
-Trạng thái: **Code Phase 0-7 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-7 tắt mặc định**
+Trạng thái: **Code Phase 0-8 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-8 tắt mặc định**
 Phạm vi: dashboard, Telegram, các engine API, Claude/Codex CLI, task nền, workflow và MCP Hub
 
 Bản sửa lộ trình: 2026-08-01. Task State tối thiểu, bảo mật trace và quota ledger được đưa lên đầu; multi-round read-only, tool write, workflow, agent và model routing được tách thành các phase độc lập.
@@ -34,7 +34,9 @@ Tiến độ triển khai ngày 2026-08-01:
 - Resume chỉ chạy khi actor, runtime, policy, Registry, model và quota rule vẫn đúng revision đã pin. Runtime reconcile invocation/evidence ledger trước; read step đã có artifact hợp lệ không bị gọi lại sau restart.
 - Token, latency, số model round và monetary budget được kiểm tra ở cấp task; rolling TPM vẫn admission trước từng batch model. Loop dừng khi đủ evidence, hết budget/deadline, không còn capability, failure lặp hoặc marginal information gain thấp.
 - Phase 7 có `orchestrator_canary` và allowlist độc lập, mặc định allocation `0` cùng profiles rỗng. Quota rule phải khai cả limit và đơn giá thật; thiếu metadata monetary thì fail-closed về legacy trước model/tool.
-- Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5-7 chưa được phép ảnh hưởng request thật.
+- Phase 8 đã có ba nguồn độc lập dùng chung Compiler: conversation state có transcript refs, MemoryIndex có file/line refs + widening/conflict fallback, và SkillSource manifest-only chỉ nạp đúng một body sau resolve.
+- Ba canary Phase 8 có bucket/rollback riêng, hard-quota gate chung và allocation mặc định 0. File memory cùng transcript gốc vẫn là source of truth; SQLite state/index chỉ là projection có thể dựng lại.
+- Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5-8 chưa được phép ảnh hưởng request thật.
 
 ## 0. Quyết định kiến trúc
 
@@ -1715,6 +1717,11 @@ Rollback: tắt tạo task agentic mới. Task read-only đang chạy có thể 
 
 ### Phase 8: Memory, conversation state và lazy skill
 
+Trạng thái code ngày 2026-08-01: **hoàn tất, chưa bật production**. Runtime version là
+`adaptive-v7`; ba allocation mặc định đều bằng 0. Đường Phase 8 chỉ thay nguồn context trước
+API chat hiện hữu, không tạo engine mới và không thay MCP Hub/tool execution. CLI, OAuth,
+Telegram và các phiên ngoài allocation tiếp tục dùng prompt/history cũ.
+
 Ba canary độc lập dùng chung Context Compiler:
 
 1. Structured conversation state.
@@ -1730,6 +1737,56 @@ Thay đổi:
 - Chỉ nạp thân skill sau khi Resolver chọn.
 - Core identity facts nhỏ vẫn có thể luôn hiện diện theo policy.
 - Transcript và file memory gốc không bị xoá.
+
+Contract đã triển khai:
+
+- `ConversationStateStore` chiếu transcript SQLite thành goals, decisions, constraints,
+  artifacts, entities, open questions và last completed step. Mỗi item mang
+  `session:<session_id>:message:<id>`; projection có source hash, bounded và dựng lại được.
+- `MemoryIndex` quét Markdown dưới `memory/` hoặc `Memory/`, bỏ `conversations/`, lưu excerpt
+  bounded cùng `file:<relative-path>#Lx-Ly`. Index FTS + graph đều là dữ liệu dẫn xuất; file
+  Markdown là nguồn sự thật và không bị sửa khi rebuild.
+- Retrieval đi theo cascade active state → identity/core → exact keyword/entity → FTS → graph
+  widening → đọc lại source file. Source hash sai, không có kết quả cho memory intent hoặc confidence
+  thấp sẽ fallback `MEMORY.md`; conflict giữ cả hai source thay vì tự chọn im lặng.
+- `SkillSource` chỉ đọc YAML frontmatter bounded + relative path và đăng ký capability kind `skill`
+  vào Registry. Resolver tool hard-filter kind này; chỉ `LazySkillSource` được chọn đúng một manifest
+  rồi mới đọc thân `SKILL.md`. Skill thiếu description, mơ hồ, quá dài hoặc source đổi sẽ dùng router cũ.
+- Context Compiler nhận các `ContextItem` Phase 8, rank/budget sau render cuối và đưa chúng vào source
+  map. Required source không vừa budget làm cả capsule fallback; optional source bị loại có reason rõ.
+- Phase 8 dùng Core Contract nhỏ của Compiler; không bọc lại toàn bộ `CLAUDE.md`. Chỉ source legacy
+  chưa được canary sở hữu mới được chèn riêng (`MEMORY.md` hoặc router skill), nhờ vậy một nguồn có
+  thể rollout/rollback mà không kéo lại mọi nguồn khác.
+- Request Phase 8 ép MCP Hub sang lazy search/run kể cả pool đang dưới ngưỡng global; số MCP tăng chỉ
+  làm registry/menu phái sinh lớn hơn, không làm prompt đầu nạp tuyến tính theo toàn bộ tool schema.
+- Mỗi canary có stable bucket, policy version, channel/provider allowlist và rollback riêng. Canary chỉ
+  chạy khi operator khai hard quota thật; repository không suy đoán TPM/context theo model name.
+
+Cấu hình rollout mẫu, không phải giá trị production:
+
+```json
+{
+  "context_runtime": {
+    "mode": "canary",
+    "context_sources": {
+      "quota_profiles": [{
+        "id": "account-model-rule-v1",
+        "provider": "groq",
+        "model_pattern": "llama-*",
+        "rolling_tpm": 12000,
+        "max_input_tokens": 10000,
+        "reserved_output_tokens": 1000
+      }]
+    },
+    "conversation_state_canary": {"allocation_basis_points": 10},
+    "memory_canary": {"allocation_basis_points": 0},
+    "lazy_skill_canary": {"allocation_basis_points": 0}
+  }
+}
+```
+
+Rollout từng nguồn theo 0,1% → 1% → 5%; không bật đồng thời cả ba ở nấc đầu. Với memory phải
+chạy gold benchmark theo brain thật trước khi tăng. Code complete không đồng nghĩa release gate đã duyệt.
 
 Điều kiện qua phase:
 
