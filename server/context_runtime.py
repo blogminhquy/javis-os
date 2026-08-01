@@ -1,13 +1,14 @@
-"""Trace substrate cho Adaptive Context Runtime Phase 0-6.
+"""Trace substrate cho Adaptive Context Runtime Phase 0-7.
 
-Substrate này chỉ làm ba việc:
+Substrate này làm bốn việc:
 - gắn task_id/step_id ổn định vào một lượt chat;
 - ghi metadata đã redaction để đo payload, usage và quota reservation;
 - lưu state tối thiểu trong runtime.db để các phase sau có chỗ mở rộng.
+- checkpoint Task State mã hoá và reconcile step/evidence cho Phase 7.
 
-Module này CỐ Ý không lưu raw prompt, message, tool arguments/result hay secret. Registry và
-Resolver và Context Compiler Phase 2-4 chạy shadow. Phase 5 chỉ được phép pin một task vào
-Fast Path sau admission control; trace vẫn tuyệt đối không lưu nội dung người dùng.
+Event, trace và invocation ledger CỐ Ý không lưu raw prompt, message, tool arguments/result hay
+secret. Phase 7 chỉ lưu objective/Task State dưới Fernet ciphertext fail-closed; plaintext chỉ tồn
+tại trong RAM của orchestrator. Các canary chỉ được pin task sau admission/policy gate riêng.
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ from typing import Any, Callable, Optional
 import config
 
 
-RUNTIME_VERSION = "adaptive-v5"
+RUNTIME_VERSION = "adaptive-v6"
 RESOLVER_POLICY_VERSION = "deterministic-shadow-v1"
 COMPILER_POLICY_VERSION = "adaptive-compiler-shadow-v1"
 REGISTRY_REVISION = "legacy-live"
@@ -266,6 +267,10 @@ class ObserveRuntime:
                     execution_path TEXT NOT NULL DEFAULT 'unassigned',
                     canary_bucket INTEGER,
                     canary_policy_version TEXT NOT NULL DEFAULT '',
+                    actor_hash TEXT NOT NULL DEFAULT '',
+                    objective_encrypted TEXT NOT NULL DEFAULT '',
+                    active_state_encrypted TEXT NOT NULL DEFAULT '',
+                    orchestration_status TEXT NOT NULL DEFAULT '',
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL
                 );
@@ -283,6 +288,9 @@ class ObserveRuntime:
                     started_at REAL NOT NULL,
                     completed_at REAL,
                     error_code TEXT,
+                    parent_step_id TEXT,
+                    step_kind TEXT NOT NULL DEFAULT 'turn',
+                    objective_hash TEXT NOT NULL DEFAULT '',
                     FOREIGN KEY(task_id) REFERENCES runtime_tasks(id)
                 );
                 CREATE TABLE IF NOT EXISTS runtime_events (
@@ -375,6 +383,21 @@ class ObserveRuntime:
                 );
                 CREATE INDEX IF NOT EXISTS idx_runtime_evidence_task
                     ON runtime_evidence(task_id,step_id,created_at);
+                CREATE TABLE IF NOT EXISTS runtime_checkpoints (
+                    id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    orchestration_status TEXT NOT NULL,
+                    state_encrypted TEXT NOT NULL,
+                    state_hash TEXT NOT NULL,
+                    runtime_version TEXT NOT NULL,
+                    registry_revision TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    UNIQUE(task_id,sequence),
+                    FOREIGN KEY(task_id) REFERENCES runtime_tasks(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_runtime_checkpoints_task
+                    ON runtime_checkpoints(task_id,sequence DESC);
                 """
             )
             # Migrate an observe DB created by an earlier build without rewriting state.
@@ -389,6 +412,21 @@ class ObserveRuntime:
                 db.execute("ALTER TABLE runtime_tasks ADD COLUMN canary_bucket INTEGER")
             if "canary_policy_version" not in columns:
                 db.execute("ALTER TABLE runtime_tasks ADD COLUMN canary_policy_version TEXT NOT NULL DEFAULT ''")
+            if "actor_hash" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN actor_hash TEXT NOT NULL DEFAULT ''")
+            if "objective_encrypted" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN objective_encrypted TEXT NOT NULL DEFAULT ''")
+            if "active_state_encrypted" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN active_state_encrypted TEXT NOT NULL DEFAULT ''")
+            if "orchestration_status" not in columns:
+                db.execute("ALTER TABLE runtime_tasks ADD COLUMN orchestration_status TEXT NOT NULL DEFAULT ''")
+            step_columns = {r[1] for r in db.execute("PRAGMA table_info(runtime_steps)")}
+            if "parent_step_id" not in step_columns:
+                db.execute("ALTER TABLE runtime_steps ADD COLUMN parent_step_id TEXT")
+            if "step_kind" not in step_columns:
+                db.execute("ALTER TABLE runtime_steps ADD COLUMN step_kind TEXT NOT NULL DEFAULT 'turn'")
+            if "objective_hash" not in step_columns:
+                db.execute("ALTER TABLE runtime_steps ADD COLUMN objective_hash TEXT NOT NULL DEFAULT ''")
             quota_columns = {r[1] for r in db.execute("PRAGMA table_info(quota_reservations)")}
             if "actual_input_tokens" not in quota_columns:
                 db.execute("ALTER TABLE quota_reservations ADD COLUMN actual_input_tokens INTEGER NOT NULL DEFAULT 0")
@@ -412,7 +450,8 @@ class ObserveRuntime:
                 marks = ",".join("?" for _ in old)
                 for table in ("quota_reservations", "runtime_invocations",
                               "runtime_capability_leases", "runtime_evidence",
-                              "runtime_evidence_refs", "runtime_events", "runtime_steps"):
+                              "runtime_evidence_refs", "runtime_events", "runtime_checkpoints",
+                              "runtime_steps"):
                     self._db.execute(f"DELETE FROM {table} WHERE task_id IN ({marks})", old)
                 self._db.execute(f"DELETE FROM runtime_tasks WHERE id IN ({marks})", old)
                 self._db.commit()
@@ -527,7 +566,7 @@ class ObserveRuntime:
         """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
         if not trace:
             return "legacy"
-        requested = path if path in {"fast", "readonly"} else "legacy"
+        requested = path if path in {"fast", "readonly", "orchestrator"} else "legacy"
         try:
             with self._lock:
                 db = self._conn()
@@ -613,6 +652,312 @@ class ObserveRuntime:
                     self._event(db, trace, safe_type, data)
         except Exception:
             pass
+
+    def initialize_orchestrator(self, trace: Optional[TurnTrace], actor_hash: str,
+                                objective_encrypted: str, state_encrypted: str,
+                                state_hash: str, orchestration_status: str,
+                                budget: dict, deadline_at: float | None) -> bool:
+        """Ghim state Phase 7 và checkpoint đầu tiên bằng cùng một transaction OCC."""
+        if (not trace or trace.execution_path != "orchestrator" or
+                not str(objective_encrypted).startswith("enc:") or
+                not str(state_encrypted).startswith("enc:")):
+            return False
+        now = time.time()
+        safe_status = str(orchestration_status or "CREATED")[:80]
+        safe_budget = budget if isinstance(budget, dict) else {}
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_tasks SET actor_hash=?,objective_encrypted=?,"
+                        "active_state_encrypted=?,orchestration_status=?,budget_json=?,"
+                        "deadline_at=?,version=version+1,updated_at=? "
+                        "WHERE id=? AND version=? AND status='RUNNING' "
+                        "AND execution_path='orchestrator'",
+                        (str(actor_hash or "")[:128], objective_encrypted,
+                         state_encrypted, safe_status,
+                         json.dumps(safe_budget, ensure_ascii=False, sort_keys=True,
+                                    separators=(",", ":")),
+                         deadline_at, now, trace.task_id, trace.expected_version),
+                    )
+                    if changed.rowcount != 1:
+                        self._event(db, trace, "orchestrator.version_conflict", {
+                            "expected_version": trace.expected_version,
+                            "stage": "initialize",
+                        })
+                        return False
+                    checkpoint_id = "cp_" + uuid.uuid4().hex
+                    db.execute(
+                        "INSERT INTO runtime_checkpoints("
+                        "id,task_id,sequence,orchestration_status,state_encrypted,state_hash,"
+                        "runtime_version,registry_revision,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                        (checkpoint_id, trace.task_id, 1, safe_status, state_encrypted,
+                         str(state_hash or "")[:128], RUNTIME_VERSION,
+                         trace.registry_revision, now),
+                    )
+                    self._event(db, trace, "orchestrator.checkpoint", {
+                        "checkpoint_id": checkpoint_id, "sequence": 1,
+                        "orchestration_status": safe_status,
+                    })
+                trace.expected_version += 1
+                return True
+        except Exception:
+            return False
+
+    def checkpoint_orchestrator(self, trace: Optional[TurnTrace], state_encrypted: str,
+                                state_hash: str, orchestration_status: str) -> bool:
+        """Checkpoint encrypted, append-only; task row và version đổi atomically."""
+        if (not trace or trace.execution_path != "orchestrator" or
+                not str(state_encrypted).startswith("enc:")):
+            return False
+        now = time.time()
+        safe_status = str(orchestration_status or "RUNNING")[:80]
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    row = db.execute(
+                        "SELECT COALESCE(MAX(sequence),0)+1 FROM runtime_checkpoints "
+                        "WHERE task_id=?", (trace.task_id,),
+                    ).fetchone()
+                    sequence = int(row[0] or 1)
+                    changed = db.execute(
+                        "UPDATE runtime_tasks SET active_state_encrypted=?,"
+                        "orchestration_status=?,version=version+1,updated_at=? "
+                        "WHERE id=? AND version=? AND status='RUNNING' "
+                        "AND execution_path='orchestrator'",
+                        (state_encrypted, safe_status, now, trace.task_id,
+                         trace.expected_version),
+                    )
+                    if changed.rowcount != 1:
+                        self._event(db, trace, "orchestrator.version_conflict", {
+                            "expected_version": trace.expected_version,
+                            "stage": "checkpoint",
+                        })
+                        return False
+                    checkpoint_id = "cp_" + uuid.uuid4().hex
+                    db.execute(
+                        "INSERT INTO runtime_checkpoints("
+                        "id,task_id,sequence,orchestration_status,state_encrypted,state_hash,"
+                        "runtime_version,registry_revision,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                        (checkpoint_id, trace.task_id, sequence, safe_status,
+                         state_encrypted, str(state_hash or "")[:128], RUNTIME_VERSION,
+                         trace.registry_revision, now),
+                    )
+                    self._event(db, trace, "orchestrator.checkpoint", {
+                        "checkpoint_id": checkpoint_id, "sequence": sequence,
+                        "orchestration_status": safe_status,
+                    })
+                trace.expected_version += 1
+                return True
+        except Exception:
+            return False
+
+    def load_orchestrator_checkpoint(self, task_id: str) -> Optional[dict]:
+        """Trả ciphertext và metadata pinning; caller có quyền mới được decrypt."""
+        try:
+            with self._lock:
+                db = self._conn()
+                task = db.execute(
+                    "SELECT * FROM runtime_tasks WHERE id=? AND execution_path='orchestrator'",
+                    (str(task_id),),
+                ).fetchone()
+                checkpoint = db.execute(
+                    "SELECT * FROM runtime_checkpoints WHERE task_id=? "
+                    "ORDER BY sequence DESC LIMIT 1", (str(task_id),),
+                ).fetchone()
+                if not task or not checkpoint:
+                    return None
+                return {"task": dict(task), "checkpoint": dict(checkpoint)}
+        except Exception:
+            return None
+
+    def resume_trace(self, task_id: str) -> Optional[TurnTrace]:
+        """Khôi phục trace đúng runtime/revision đã pin; không tự migrate task giữa chừng."""
+        snapshot = self.load_orchestrator_checkpoint(task_id)
+        if not snapshot:
+            return None
+        task = snapshot["task"]
+        checkpoint = snapshot["checkpoint"]
+        if (task.get("status") != "RUNNING" or
+                task.get("runtime_version") != RUNTIME_VERSION or
+                checkpoint.get("runtime_version") != RUNTIME_VERSION or
+                checkpoint.get("registry_revision") != task.get("registry_revision")):
+            return None
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT id FROM runtime_steps WHERE task_id=? "
+                    "ORDER BY ordinal,id LIMIT 1", (str(task_id),),
+                ).fetchone()
+            if not row:
+                return None
+            return TurnTrace(
+                task_id=str(task["id"]), step_id=str(row["id"]),
+                session_id=str(task["session_id"]), channel=str(task["channel"]),
+                expected_version=int(task["version"]),
+                registry_revision=str(task["registry_revision"]),
+                model_profile_revision=str(task["model_profile_revision"]),
+                execution_path="orchestrator", canary_bucket=task.get("canary_bucket"),
+                canary_policy_version=str(task.get("canary_policy_version") or ""),
+            )
+        except Exception:
+            return None
+
+    def claim_orchestrator_resume(self, trace: Optional[TurnTrace]) -> bool:
+        """OCC claim chống hai worker cùng resume một task trong cùng thời điểm."""
+        if not trace or trace.execution_path != "orchestrator":
+            return False
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_tasks SET orchestration_status='RESUMING',"
+                        "version=version+1,updated_at=? WHERE id=? AND version=? "
+                        "AND status='RUNNING' AND execution_path='orchestrator'",
+                        (time.time(), trace.task_id, trace.expected_version),
+                    )
+                    if changed.rowcount != 1:
+                        self._event(db, trace, "orchestrator.resume_conflict", {
+                            "expected_version": trace.expected_version,
+                        })
+                        return False
+                    self._event(db, trace, "orchestrator.resume_claimed", {
+                        "expected_version": trace.expected_version,
+                    })
+                trace.expected_version += 1
+                return True
+        except Exception:
+            return False
+
+    def create_child_step(self, trace: Optional[TurnTrace], step_kind: str,
+                          objective_hash: str, attempt: int = 1,
+                          parent_step_id: str | None = None) -> Optional[TurnTrace]:
+        """Tạo step con độc lập; parallel step không tranh optimistic version của task."""
+        if not trace or trace.execution_path != "orchestrator":
+            return None
+        step_id = "rs_" + uuid.uuid4().hex
+        now = time.time()
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    row = db.execute(
+                        "SELECT COALESCE(MAX(ordinal),0)+1 FROM runtime_steps WHERE task_id=?",
+                        (trace.task_id,),
+                    ).fetchone()
+                    ordinal = int(row[0] or 1)
+                    db.execute(
+                        "INSERT INTO runtime_steps("
+                        "id,task_id,ordinal,attempt,status,started_at,parent_step_id,"
+                        "step_kind,objective_hash) VALUES(?,?,?,?,?,?,?,?,?)",
+                        (step_id, trace.task_id, ordinal, max(1, int(attempt or 1)),
+                         "RUNNING", now, parent_step_id or trace.step_id,
+                         str(step_kind or "read")[:80], str(objective_hash or "")[:128]),
+                    )
+                    child = TurnTrace(
+                        task_id=trace.task_id, step_id=step_id,
+                        session_id=trace.session_id, channel=trace.channel,
+                        expected_version=trace.expected_version,
+                        registry_revision=trace.registry_revision,
+                        model_profile_revision=trace.model_profile_revision,
+                        execution_path="orchestrator", canary_bucket=trace.canary_bucket,
+                        canary_policy_version=trace.canary_policy_version,
+                    )
+                    self._event(db, child, "orchestrator.step_started", {
+                        "ordinal": ordinal, "step_kind": str(step_kind or "read")[:80],
+                        "attempt": max(1, int(attempt or 1)),
+                    })
+                    return child
+        except Exception:
+            return None
+
+    def finish_child_step(self, trace: Optional[TurnTrace], status: str,
+                          error_code: str = "") -> bool:
+        if not trace or trace.execution_path != "orchestrator":
+            return False
+        safe = status if status in {
+            "COMPLETED", "FAILED", "TIMEOUT", "SKIPPED", "CANCELLED"
+        } else "FAILED"
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_steps SET status=?,completed_at=?,error_code=? "
+                        "WHERE id=? AND task_id=? AND status='RUNNING'",
+                        (safe, time.time(), str(error_code or "")[:120],
+                         trace.step_id, trace.task_id),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    self._event(db, trace, "orchestrator.step_finished", {
+                        "status": safe, "error_code": str(error_code or "")[:120],
+                    })
+                    return True
+        except Exception:
+            return False
+
+    def find_reusable_read(self, task_id: str, capability_id: str,
+                           capability_revision: str, args_hash: str,
+                           now: float | None = None) -> Optional[dict]:
+        """Evidence reuse chỉ trong cùng task và đúng capability revision + args hash."""
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT e.*,i.id AS invocation_id FROM runtime_invocations i "
+                    "JOIN runtime_evidence e ON e.id=i.result_evidence_id "
+                    "WHERE i.task_id=? AND i.capability_id=? AND i.capability_revision=? "
+                    "AND i.args_hash=? AND i.status='SUCCEEDED' "
+                    "AND (e.expires_at IS NULL OR e.expires_at>?) "
+                    "ORDER BY i.updated_at DESC LIMIT 1",
+                    (str(task_id), str(capability_id), str(capability_revision),
+                     str(args_hash), float(now or time.time())),
+                ).fetchone()
+                return dict(row) if row else None
+        except Exception:
+            return None
+
+    def find_step_read_evidence(self, task_id: str, step_id: str,
+                                capability_id: str,
+                                capability_revision: str) -> Optional[dict]:
+        """Restart reconciliation: step đã SUCCEEDED thì dùng evidence, không gọi read lại."""
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT e.*,i.id AS invocation_id,i.args_hash FROM runtime_invocations i "
+                    "JOIN runtime_evidence e ON e.id=i.result_evidence_id "
+                    "WHERE i.task_id=? AND i.step_id=? AND i.capability_id=? "
+                    "AND i.capability_revision=? AND i.status='SUCCEEDED' "
+                    "AND (e.expires_at IS NULL OR e.expires_at>?) "
+                    "ORDER BY i.updated_at DESC LIMIT 1",
+                    (str(task_id), str(step_id), str(capability_id),
+                     str(capability_revision), time.time()),
+                ).fetchone()
+                return dict(row) if row else None
+        except Exception:
+            return None
+
+    def task_quota_usage(self, task_id: str) -> dict:
+        """Rebuild budget counters sau restart từ durable reservation ledger."""
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT COALESCE(SUM(actual_input_tokens),0),"
+                    "COALESCE(SUM(actual_output_tokens),0),COUNT(*) "
+                    "FROM quota_reservations WHERE task_id=? "
+                    "AND status IN ('CONSUMED','RECONCILED')",
+                    (str(task_id),),
+                ).fetchone()
+                return {
+                    "input_tokens": int(row[0] or 0),
+                    "output_tokens": int(row[1] or 0),
+                    "model_rounds": int(row[2] or 0),
+                }
+        except Exception:
+            return {"input_tokens": 0, "output_tokens": 0, "model_rounds": 0}
 
     def admit_quota(self, trace: Optional[TurnTrace], provider: str, model: str,
                     input_tokens: int, output_tokens: int, rolling_tpm_limit: int,

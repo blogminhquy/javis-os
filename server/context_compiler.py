@@ -475,6 +475,149 @@ class ContextCompiler:
     def compile_canary(self, request: CompileRequest, resolution: dict) -> CompileResult:
         return self._compile(replace(request, execution_mode="canary"), resolution)
 
+    def compile_orchestrator_plan(self, request: CompileRequest, candidates: list[dict],
+                                  evidence: list[dict], max_steps: int) -> CompileResult:
+        """Capsule planner nhỏ: manifest tóm tắt, không phơi exact schema của MCP."""
+        started = time.perf_counter()
+        profile = self.registry.get_model_profile(request.provider, request.model)
+        tokenizer = self.tokenizer_factory(request)
+        budget = self.budget_resolver.resolve(request, profile)
+        safe_candidates = []
+        seen = set()
+        for item in candidates or []:
+            capability_id = str(item.get("capability_id") or "")[:160]
+            if not capability_id or capability_id in seen:
+                continue
+            seen.add(capability_id)
+            safe_candidates.append({
+                "capability_id": capability_id,
+                "name": str(item.get("name") or "")[:180],
+                "summary": str(item.get("summary") or "")[:360],
+                "capability_revision": str(item.get("capability_revision") or "")[:128],
+                "score": round(float(item.get("score") or 0), 6),
+            })
+            if len(safe_candidates) >= 16:
+                break
+        if not safe_candidates:
+            report = {
+                "status": "planner_candidates_missing", "path": "orchestrator_plan",
+                "preflight_decision": "would_reject",
+                "preflight_reasons": ["planner_candidates_missing"],
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            }
+            self._remember(request.task_id, report)
+            return CompileResult("planner_candidates_missing", None, report)
+
+        safe_evidence = []
+        for item in evidence or []:
+            ref = str(item.get("evidence_ref") or "")
+            if not ref.startswith("evidence://"):
+                continue
+            safe_evidence.append({
+                "evidence_ref": ref,
+                "capability_id": str(item.get("capability_id") or "")[:160],
+                "content_hash": str(item.get("content_hash") or "")[:128],
+                "excerpt": str(item.get("excerpt") or "")[:1200],
+            })
+            if len(safe_evidence) >= 12:
+                break
+        step_limit = max(1, min(int(max_steps or 1), 8, len(safe_candidates)))
+        candidate_ids = [x["capability_id"] for x in safe_candidates]
+        tool_spec = {
+            "type": "function",
+            "function": {
+                "name": "submit_read_plan",
+                "description": "Lập DAG chỉ gồm capability read-only từ allowlist hiện tại.",
+                "parameters": {
+                    "type": "object", "additionalProperties": False,
+                    "properties": {
+                        "steps": {
+                            "type": "array", "minItems": 1, "maxItems": step_limit,
+                            "items": {
+                                "type": "object", "additionalProperties": False,
+                                "properties": {
+                                    "id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]{1,40}$"},
+                                    "capability_id": {"type": "string", "enum": candidate_ids},
+                                    "objective": {"type": "string", "minLength": 1, "maxLength": 1200},
+                                    "depends_on": {
+                                        "type": "array", "maxItems": step_limit,
+                                        "items": {"type": "string", "maxLength": 40},
+                                        "uniqueItems": True,
+                                    },
+                                },
+                                "required": ["id", "capability_id", "objective", "depends_on"],
+                            },
+                        },
+                        "completion_criteria": {"type": "string", "maxLength": 600},
+                    },
+                    "required": ["steps", "completion_criteria"],
+                },
+            },
+        }
+        system = (
+            CORE_CONTRACT.rstrip() + "\n" + self._channel_contract(request.channel) + "\n"
+            "Đây là planner read-only. Chỉ gọi submit_read_plan đúng một lần. Chỉ chọn capability_id "
+            "trong allowlist; không tạo write step. depends_on chỉ được trỏ tới step đứng trước. "
+            "Các read độc lập phải để depends_on rỗng để gateway có thể chạy song song. "
+            "Không lặp capability/nguồn đã có evidence hợp lệ nếu không nêu objective mới cụ thể."
+        )
+        user_payload = {
+            "objective": str(request.objective or ""),
+            "candidate_manifests": safe_candidates,
+            "verified_evidence": safe_evidence,
+            "max_new_steps": step_limit,
+        }
+        rendered = self.renderer.render(
+            system,
+            json.dumps(user_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            [tool_spec],
+        )
+        estimate = tokenizer.count_rendered(rendered)
+        preflight = QuotaPreflight.observe(estimate, budget)
+        if estimate.input_tokens > budget.max_input_tokens:
+            report = {
+                "status": "planner_over_budget", "path": "orchestrator_plan",
+                "estimated_input_tokens": estimate.input_tokens,
+                "max_input_tokens": budget.max_input_tokens,
+                "preflight_decision": "would_reject",
+                "preflight_reasons": ["planner_over_budget"],
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            }
+            self._remember(request.task_id, report)
+            return CompileResult("planner_over_budget", None, report)
+        capsule_hash = hashlib.sha256(json.dumps(
+            rendered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8", errors="replace")).hexdigest()
+        source_map = {
+            "candidate_manifests": {
+                "kind": "capability_manifest", "source_hash": hashlib.sha256(
+                    "|".join(candidate_ids).encode("utf-8", errors="replace")
+                ).hexdigest(), "content_hash": capsule_hash,
+                "token_cost": estimate.tool_tokens, "trust": "registry", "required": True,
+            }
+        }
+        capsule = ContextCapsule(
+            request.task_id, request.step_id, "orchestrator_plan", request.objective,
+            (CORE_CONTRACT, "read-only DAG planner"), (tool_spec,),
+            {"type": "submit_read_plan"}, source_map, budget, rendered, capsule_hash,
+        )
+        report = {
+            "status": "compiled", "path": "orchestrator_plan",
+            "policy_version": COMPILER_POLICY_VERSION, "capsule_hash": capsule_hash,
+            "estimated_input_tokens": estimate.input_tokens,
+            "system_tokens": estimate.system_tokens, "user_tokens": estimate.user_tokens,
+            "tool_tokens": estimate.tool_tokens, "max_input_tokens": budget.max_input_tokens,
+            "reserved_output_tokens": budget.reserved_output_tokens,
+            "candidate_count": len(safe_candidates), "evidence_count": len(safe_evidence),
+            "selected_count": 0, "preflight_decision": preflight["decision"],
+            "preflight_reasons": preflight["reason_codes"],
+            "quota_known": preflight["quota_known"], "observe_only": False,
+            "execution_mode": "canary",
+            "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+        }
+        self._remember(request.task_id, report)
+        return CompileResult("compiled", capsule, report)
+
     def compile_evidence_final(self, request: CompileRequest, evidence: dict) -> CompileResult:
         """Dựng capsule tổng hợp chỉ từ objective hiện tại và evidence excerpt đã giới hạn."""
         started = time.perf_counter()
@@ -585,6 +728,120 @@ class ContextCompiler:
         self._remember(request.task_id, report)
         return CompileResult("compiled", capsule, report)
 
+    def compile_evidence_bundle_final(self, request: CompileRequest,
+                                      evidence_items: list[dict]) -> CompileResult:
+        """Vòng tổng hợp Phase 7 chỉ nhận bundle evidence đã giới hạn, không nhận history/tool."""
+        started = time.perf_counter()
+        safe_items = []
+        seen_refs = set()
+        for item in evidence_items or []:
+            ref = str(item.get("evidence_ref") or "")
+            excerpt = str(item.get("excerpt") or "")
+            if not ref.startswith("evidence://") or not excerpt or ref in seen_refs:
+                continue
+            seen_refs.add(ref)
+            safe_items.append({
+                "evidence_ref": ref,
+                "source_type": str(item.get("source_type") or "capability_read")[:80],
+                "capability_id": str(item.get("capability_id") or "")[:160],
+                "capability_name": str(item.get("capability_name") or "")[:180],
+                "capability_revision": str(item.get("capability_revision") or "")[:128],
+                "content_hash": str(item.get("content_hash") or "")[:128],
+                "excerpt": excerpt,
+            })
+            if len(safe_items) >= 16:
+                break
+        if not safe_items:
+            report = {
+                "status": "evidence_invalid", "path": "orchestrator_final",
+                "preflight_decision": "would_reject",
+                "preflight_reasons": ["evidence_invalid"],
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            }
+            self._remember(request.task_id, report)
+            return CompileResult("evidence_invalid", None, report)
+
+        profile = self.registry.get_model_profile(request.provider, request.model)
+        tokenizer = self.tokenizer_factory(request)
+        budget = self.budget_resolver.resolve(request, profile)
+        provider = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.provider or "unknown"))[:120]
+        model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.model or "unknown"))[:180]
+        output_contract = self._output_contract(request.channel)
+        system = (
+            CORE_CONTRACT.rstrip() + "\n"
+            f"Runtime identity: provider={provider}; model={model}.\n"
+            + self._channel_contract(request.channel) + "\n"
+            "Đây là vòng tổng hợp cuối của task read-only nhiều bước. Không gọi tool, không replan, "
+            "không tuyên bố write. Chỉ dùng bundle evidence gateway đã xác minh. Mọi fact live quan "
+            "trọng phải dẫn ít nhất một evidence_ref nguyên văn. Nếu evidence xung đột hoặc thiếu, "
+            "nói rõ giới hạn thay vì suy đoán.\nOutput contract: "
+            + json.dumps(output_contract, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":"))
+        )
+        user = (
+            "Mục tiêu hiện tại:\n" + str(request.objective or "") +
+            "\n\nVerified evidence bundle:\n" +
+            json.dumps(safe_items, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        )
+        rendered = self.renderer.render(system, user, [])
+        estimate = tokenizer.count_rendered(rendered)
+        preflight = QuotaPreflight.observe(estimate, budget)
+        if estimate.input_tokens > budget.max_input_tokens:
+            report = {
+                "status": "evidence_over_budget", "path": "orchestrator_final",
+                "estimated_input_tokens": estimate.input_tokens,
+                "max_input_tokens": budget.max_input_tokens,
+                "reserved_output_tokens": budget.reserved_output_tokens,
+                "preflight_decision": "would_reject",
+                "preflight_reasons": list(dict.fromkeys(
+                    ["evidence_over_budget"] + preflight["reason_codes"])),
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            }
+            self._remember(request.task_id, report)
+            return CompileResult("evidence_over_budget", None, report)
+
+        capsule_hash = hashlib.sha256(json.dumps(
+            rendered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8", errors="replace")).hexdigest()
+        source_map = {}
+        for index, item in enumerate(safe_items):
+            source_map[f"evidence_{index + 1}"] = {
+                "kind": "tool_evidence",
+                "source_hash": hashlib.sha256(
+                    item["evidence_ref"].encode("utf-8", errors="replace")
+                ).hexdigest(),
+                "content_hash": hashlib.sha256(
+                    item["excerpt"].encode("utf-8", errors="replace")
+                ).hexdigest(),
+                "token_cost": tokenizer.count_text(item["excerpt"]),
+                "trust": "gateway_verified", "required": True,
+            }
+        capsule = ContextCapsule(
+            task_id=request.task_id, step_id=request.step_id, path="orchestrator_final",
+            objective=request.objective, instructions=(CORE_CONTRACT, "evidence bundle only"),
+            capabilities=(), output_contract=output_contract, source_map=source_map,
+            budget=budget, rendered_request=rendered, capsule_hash=capsule_hash,
+        )
+        report = {
+            "status": "compiled", "path": "orchestrator_final",
+            "policy_version": COMPILER_POLICY_VERSION, "capsule_hash": capsule_hash,
+            "estimated_input_tokens": estimate.input_tokens,
+            "system_tokens": estimate.system_tokens, "user_tokens": estimate.user_tokens,
+            "tool_tokens": 0, "max_input_tokens": budget.max_input_tokens,
+            "reserved_output_tokens": budget.reserved_output_tokens,
+            "evidence_count": len(safe_items), "selected_count": 0,
+            "evidence_ref_hash": hashlib.sha256(
+                "|".join(sorted(seen_refs)).encode("utf-8", errors="replace")
+            ).hexdigest(),
+            "preflight_decision": preflight["decision"],
+            "preflight_reasons": preflight["reason_codes"],
+            "quota_known": preflight["quota_known"], "observe_only": False,
+            "execution_mode": "canary",
+            "latency_ms": round((time.perf_counter() - started) * 1000, 3),
+        }
+        self._remember(request.task_id, report)
+        return CompileResult("compiled", capsule, report)
+
     def _remember(self, task_id: str, report: dict) -> None:
         with self._cache_lock:
             if len(self._report_cache) >= 1024:
@@ -618,7 +875,8 @@ class DeterministicQualityGate:
 
     def evaluate(self, objective: str, response: str, channel: str,
                  had_error: bool = False, compiler_report: dict | None = None,
-                 expected_evidence_ref: str = "", read_only: bool = False) -> QualityDecision:
+                 expected_evidence_ref: str = "", read_only: bool = False,
+                 expected_evidence_refs: tuple[str, ...] = ()) -> QualityDecision:
         text = str(response or "")
         reasons = []
         status = "pass"
@@ -633,6 +891,12 @@ class DeterministicQualityGate:
         report = compiler_report or {}
         if expected_evidence_ref and expected_evidence_ref not in text:
             reasons.append("evidence_ref_missing")
+            status = "revise"
+        required_refs = tuple(dict.fromkeys(
+            str(x) for x in expected_evidence_refs if str(x).startswith("evidence://")
+        ))
+        if required_refs and not any(ref in text for ref in required_refs):
+            reasons.append("evidence_bundle_ref_missing")
             status = "revise"
         if read_only and re.search(
                 r"(?i)\b(đã|da|successfully)\s+(gửi|gui|xoá|xoa|xóa|tạo|tao|cập nhật|cap nhat|"

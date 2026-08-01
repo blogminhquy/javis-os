@@ -114,7 +114,7 @@ _DEFAULT = {
     # + lazy search cho engine Claude, để model biết chúng tồn tại (gọi qua tool native mcp__*).
     "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40,
             "lazy_top_k": 8, "ambient_hint": True},
-    # Adaptive Context Runtime Phase 0-6. Hai canary rollout mặc định bằng 0 và mode
+    # Adaptive Context Runtime Phase 0-7. Mọi canary rollout mặc định bằng 0 và mode
     # vẫn shadow, nên production chưa đổi dispatch. Muốn canary phải đồng thời đổi mode=canary,
     # allocation_basis_points > 0 và khai hard quota trong quota_profiles.
     "context_runtime": {
@@ -152,6 +152,39 @@ _DEFAULT = {
             "quota_profiles": [],
             # Ví dụ allowlist: id, source_type, name_pattern, timeout_seconds,
             # excerpt_chars, lease_ttl_seconds, max_artifact_bytes, retention_seconds.
+            "capability_profiles": [],
+        },
+        # Phase 7: planner manifest nhỏ -> exact schema theo step -> evidence bundle.
+        # Canary và allowlist riêng Phase 6. quota profile phải có giá input/output thật để
+        # monetary budget fail-closed; repository không đoán giá hay quota theo tên provider.
+        "orchestrator_canary": {
+            "policy_version": "readonly-orchestrator-v1",
+            "allocation_basis_points": 0,
+            "salt": "readonly-orchestrator-v1",
+            "channels": ["dashboard"],
+            "provider_kinds": ["api"],
+            "registry_max_age_seconds": 900,
+            "min_resolver_score": 0.32,
+            "estimator_safety_factor": 1.35,
+            "max_candidate_manifests": 8,
+            "max_cycles": 2,
+            "max_total_steps": 6,
+            "max_parallel": 3,
+            "max_model_rounds": 10,
+            "max_evidence": 8,
+            "max_task_input_tokens": 20000,
+            "max_task_output_tokens": 6000,
+            "max_cost_usd": 0.05,
+            "deadline_seconds": 90,
+            "planner_output_tokens": 600,
+            "argument_output_tokens": 500,
+            "min_information_gain": 0.20,
+            "per_evidence_excerpt_chars": 2500,
+            "failure_repeat_limit": 2,
+            # Có thể dùng quota Phase 5, nhưng rule Phase 7 chỉ hợp lệ nếu thêm:
+            # input_cost_per_million và output_cost_per_million.
+            "quota_profiles": [],
+            # Danh sách rỗng luôn fail-closed. Mỗi group có thể giới hạn args/TTL/timeout riêng.
             "capability_profiles": [],
         },
     },

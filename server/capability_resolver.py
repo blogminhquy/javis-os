@@ -190,6 +190,9 @@ class DeterministicResolver:
             "query_term_count": len(query_terms),
             "candidate_count": len(candidates),
             "ranked_count": len(ranked),
+            # In-memory consumer Phase 7 cần manifest IDs để lập plan nhỏ. Reporter persist
+            # chỉ ghi count/hash nên danh sách này không làm trace phình hoặc lộ user query.
+            "ranked": ranked[:self.policy.max_selected],
             "selected": selected,
             "selected_count": len(selected),
             "cutoff": round(float(cutoff), 6),

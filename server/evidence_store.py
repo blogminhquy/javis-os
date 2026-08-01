@@ -180,6 +180,20 @@ class EvidenceStore:
         except Exception:
             return None
 
+    def get_valid(self, evidence_id: str, now: float | None = None) -> Evidence | None:
+        """Evidence chỉ reusable khi metadata, TTL, artifact và content hash đều còn hợp lệ."""
+        evidence = self.get(evidence_id)
+        if not evidence:
+            return None
+        if evidence.expires_at is not None and evidence.expires_at <= float(now or time.time()):
+            return None
+        try:
+            content = self.read_artifact(evidence_id)
+            digest = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()
+            return evidence if digest == evidence.content_hash else None
+        except Exception:
+            return None
+
     def read_artifact(self, evidence_id: str) -> str:
         meta = self.runtime.get_evidence_metadata(evidence_id)
         if not meta:

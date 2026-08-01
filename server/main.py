@@ -61,7 +61,7 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
-import context_runtime   # Phase 0-6: trace + Registry/Resolver/Compiler + canary paths
+import context_runtime   # Phase 0-7: trace + Registry/Resolver/Compiler + canary paths
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
 import context_compiler      # Phase 4: capsule + quota preflight + quality gate shadow
@@ -69,6 +69,7 @@ import fast_path_runtime     # Phase 5: dashboard API canary, hard quota + singl
 import evidence_store        # Phase 6: encrypted provenance/artifact store
 import capability_executor   # Phase 6: one-use read lease + schema validation
 import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
+import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -91,6 +92,7 @@ _CAPABILITY_EXECUTOR = capability_executor.CapabilityExecutor(
     _CAPABILITY_REGISTRY, _CONTEXT_RUNTIME, _EVIDENCE_STORE,
 )
 _READONLY_PATH = None
+_READONLY_ORCHESTRATOR = None
 _REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -845,6 +847,26 @@ def _get_readonly_path():
     return _READONLY_PATH
 
 
+def _get_readonly_orchestrator():
+    """Phase 7 khởi tạo lười; mặc định 0% không tạo planner/checkpoint trên hot path."""
+    global _READONLY_ORCHESTRATOR
+    if _READONLY_ORCHESTRATOR is None:
+        async def _discover(mode, brain_root):
+            actual_mode = "full" if mode == "refresh_full" else mode
+            await mcp_hub.discover_all(
+                actual_mode, vault_root=brain_root,
+                force_refresh=(mode == "refresh_full"),
+            )
+            return mcp_hub.registry_inventory(actual_mode, vault_root=brain_root)
+
+        _READONLY_ORCHESTRATOR = readonly_orchestrator.ReadonlyOrchestrator(
+            _CAPABILITY_REGISTRY, _CAPABILITY_RESOLVER, _CONTEXT_COMPILER,
+            _CONTEXT_RUNTIME, _CAPABILITY_EXECUTOR, cfgmod.read_settings, _discover,
+            _QUALITY_GATE,
+        )
+    return _READONLY_ORCHESTRATOR
+
+
 def _track_shadow_task(coro) -> None:
     """Chạy derived refresh/resolve ngoài hot path; lỗi không được ảnh hưởng chat."""
     try:
@@ -991,6 +1013,72 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
         "model": actual_model, "session_id": session_id,
     }))
     return final_text, actual_model
+
+
+async def _execute_readonly_orchestrator(plan, provider: str, api_key: str, model: str,
+                                         reasoning: str, ws, session_id: str,
+                                         runtime_trace):
+    """Adapter WebSocket mỏng; state machine, budget và checkpoint nằm trong Phase 7 runtime."""
+    async def emit(event_type: str, payload: dict):
+        if event_type == "started":
+            await ws.send_text(json.dumps({
+                "type": "system",
+                "content": (
+                    f"Orchestrator read-only: tối đa {payload.get('candidate_count', 0)} "
+                    "capability ứng viên, có checkpoint/resume."
+                ),
+                "task_id": payload.get("task_id") or runtime_trace.task_id,
+            }))
+        elif event_type == "plan":
+            await ws.send_text(json.dumps({
+                "type": "system",
+                "content": (
+                    f"Đã lập {payload.get('step_count', 0)} read step cho vòng "
+                    f"{payload.get('cycle', 0)}."
+                ),
+                "task_id": runtime_trace.task_id,
+            }))
+        elif event_type == "tool_call":
+            await ws.send_text(json.dumps({
+                "type": "tool_call", "tool": payload.get("tool") or "read-only",
+                "content": f"⚙ MCP read-only: {payload.get('tool') or 'capability'}",
+                "task_id": runtime_trace.task_id,
+            }))
+        elif event_type == "tool_result":
+            await ws.send_text(json.dumps({
+                "type": "tool_result",
+                "content": f"Evidence đã lưu: {payload.get('evidence_ref') or ''}",
+                "task_id": runtime_trace.task_id,
+            }))
+
+    result = await _get_readonly_orchestrator().run(
+        plan, api_key, reasoning, emit, _api_stream
+    )
+    if result.tokens_in or result.tokens_out:
+        usage_store.record(
+            provider, result.model or model or "?", result.tokens_in,
+            result.tokens_out, result.cost_usd,
+        )
+    if result.status not in ("COMPLETED",):
+        _CONTEXT_RUNTIME.note_error(runtime_trace, result.stop_reason or result.status)
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "orchestrator.completed", {
+        "status": result.status, "stop_reason": result.stop_reason,
+        "model_rounds": result.model_rounds, "evidence_count": len(result.evidence_refs),
+        "input_tokens": result.tokens_in, "output_tokens": result.tokens_out,
+        "cost_usd": result.cost_usd,
+    })
+    # Buffer final để Quality Gate trong orchestrator chặn false write claim trước khi client thấy.
+    await ws.send_text(json.dumps({
+        "type": "stream", "content": result.text, "tts": False,
+        "task_id": result.task_id,
+    }))
+    await ws.send_text(json.dumps({
+        "type": "response", "content": result.text, "engine": provider,
+        "model": result.model or model or "?", "session_id": session_id,
+        "task_id": result.task_id, "stop_reason": result.stop_reason,
+        "evidence_refs": list(result.evidence_refs),
+    }))
+    return result.text, result.model or model or "?"
 
 
 async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
@@ -5989,20 +6077,50 @@ async def websocket_endpoint(ws: WebSocket):
                         await _consume_codex(_fallback)
                     await ws.send_text(json.dumps({"type": "response", "content": final_text, "engine": "codex", "model": actual_model, "session_id": conv_sid}))
             elif (kind == "api" and api_key) or kind == "oauth":
+                orchestrator_plan = None
                 readonly_plan = None
                 fast_plan = None
                 if kind == "api" and api_key:
-                    readonly_plan = await _get_readonly_path().prepare(
-                        runtime_trace, user_message, _brain_root(brain),
-                        "dashboard", prov, api_model or "?", kind,
-                        actor_id=conv_sid, has_attachments=bool(has_attachments),
+                    orchestrator_plan = await _get_readonly_orchestrator().prepare(
+                        runtime_trace, user_message, _brain_root(brain), "dashboard",
+                        prov, api_model or "?", kind, actor_id=conv_sid,
+                        has_attachments=bool(has_attachments),
                     )
-                    if readonly_plan.action == "not_applicable":
-                        fast_plan = await asyncio.to_thread(
-                            _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
-                            "dashboard", prov, api_model or "?", kind, bool(has_attachments),
+                    if orchestrator_plan.action == "not_applicable":
+                        readonly_plan = await _get_readonly_path().prepare(
+                            runtime_trace, user_message, _brain_root(brain),
+                            "dashboard", prov, api_model or "?", kind,
+                            actor_id=conv_sid, has_attachments=bool(has_attachments),
                         )
-                if readonly_plan and readonly_plan.action == "execute":
+                        if readonly_plan.action == "not_applicable":
+                            fast_plan = await asyncio.to_thread(
+                                _FAST_PATH.prepare, runtime_trace, user_message,
+                                _brain_root(brain), "dashboard", prov,
+                                api_model or "?", kind, bool(has_attachments),
+                            )
+                if orchestrator_plan and orchestrator_plan.action == "execute":
+                    used_fast_path = True
+                    final_text, _actual_model = await _execute_readonly_orchestrator(
+                        orchestrator_plan, prov, api_key, api_model, reasoning, ws,
+                        conv_sid, runtime_trace,
+                    )
+                elif orchestrator_plan and orchestrator_plan.action == "reject":
+                    used_fast_path = True
+                    final_text = orchestrator_plan.rejection_message
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "orchestrator.rejected", {
+                            "reason": orchestrator_plan.reason, "model_rounds": 0,
+                            "estimated_input_tokens": orchestrator_plan.estimated_input_tokens,
+                            "reserved_output_tokens": orchestrator_plan.reserved_output_tokens,
+                            "estimated_cost_usd": orchestrator_plan.estimated_cost_usd,
+                        },
+                    )
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text,
+                        "engine": "javis-gateway", "model": api_model or "?",
+                        "session_id": conv_sid, "task_id": runtime_trace.task_id,
+                    }))
+                elif readonly_plan and readonly_plan.action == "execute":
                     used_fast_path = True
                     final_text, _actual_model = await _execute_readonly_path(
                         readonly_plan, prov, api_key, api_model, reasoning, ws, conv_sid,
@@ -6259,6 +6377,67 @@ async def sessions_rename(session_id: str, title: str = Form(...)):
 async def sessions_delete(session_id: str):
     get_store().delete(session_id)
     return {"ok": True}
+
+
+@app.get("/runtime/tasks/{task_id}")
+async def runtime_task_status(task_id: str):
+    """Phase 7 status tối thiểu; không trả objective, checkpoint ciphertext hay actor hash."""
+    task = _CONTEXT_RUNTIME.get_task(task_id)
+    if not task:
+        return JSONResponse({"error": "task_not_found"}, status_code=404)
+    return {
+        "task_id": task["id"], "session_id": task["session_id"],
+        "status": task["status"],
+        "orchestration_status": task.get("orchestration_status") or "",
+        "execution_path": task.get("execution_path") or "",
+        "runtime_version": task.get("runtime_version") or "",
+        "registry_revision": task.get("registry_revision") or "",
+        "policy_version": task.get("canary_policy_version") or "",
+        "updated_at": task.get("updated_at"),
+    }
+
+
+@app.post("/runtime/tasks/{task_id}/resume")
+async def runtime_task_resume(task_id: str):
+    """Resume explicit sau restart; OCC claim ngăn hai request chạy cùng task."""
+    task = _CONTEXT_RUNTIME.get_task(task_id)
+    if not task:
+        return JSONResponse({"error": "task_not_found"}, status_code=404)
+    if task.get("execution_path") != "orchestrator" or task.get("status") != "RUNNING":
+        return JSONResponse({"error": "task_not_resumable"}, status_code=409)
+    if _CHAT_RUNTIME.get_job(str(task.get("session_id") or "")):
+        return JSONResponse({"error": "session_is_running"}, status_code=409)
+    mcfg = cfgmod.read_settings().get("model", {})
+    provider, kind, api_key, model = _chat_provider(mcfg)
+    if kind != "api" or not api_key:
+        return JSONResponse({"error": "api_provider_required"}, status_code=409)
+    try:
+        result = await _get_readonly_orchestrator().resume(
+            task_id, str(task["session_id"]), provider, model or "?", api_key,
+            str(mcfg.get("reasoning") or "off"), None, _api_stream,
+        )
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return JSONResponse({"error": str(exc)[:160]}, status_code=409)
+    if result.tokens_in or result.tokens_out:
+        usage_store.record(
+            provider, result.model or model or "?", result.tokens_in,
+            result.tokens_out, result.cost_usd,
+        )
+    if result.text:
+        get_store().append_message(str(task["session_id"]), "assistant", result.text)
+    _CONTEXT_RUNTIME.finish(
+        _CONTEXT_RUNTIME.resume_trace(task_id),
+        "COMPLETED" if result.status == "COMPLETED" else "COMPLETED_WITH_ERROR",
+        result.stop_reason if result.status != "COMPLETED" else "",
+    )
+    return {
+        "ok": result.status == "COMPLETED", "task_id": result.task_id,
+        "status": result.status, "stop_reason": result.stop_reason,
+        "content": result.text, "model": result.model,
+        "model_rounds": result.model_rounds,
+        "tokens_in": result.tokens_in, "tokens_out": result.tokens_out,
+        "cost_usd": result.cost_usd, "evidence_refs": list(result.evidence_refs),
+    }
 
 
 # ============================================================

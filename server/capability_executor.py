@@ -26,6 +26,11 @@ def _hash(value: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()
 
 
+def arguments_hash(value: Any) -> str:
+    """Canonical hash dùng cho checkpoint/reuse; raw arguments không được persist."""
+    return _hash(value)
+
+
 def _has_external_ref(value: Any) -> bool:
     if isinstance(value, dict):
         ref = value.get("$ref")
@@ -197,6 +202,19 @@ class CapabilityExecutor:
                 return False, "resource_scope_argument_constraint"
         return True, ""
 
+    @staticmethod
+    def _model_payload(lease: CapabilityLease, evidence: Evidence) -> str:
+        return json.dumps({
+            "evidence_ref": evidence.ref,
+            "source_type": evidence.source_type,
+            "capability_id": lease.capability_id,
+            "capability_name": lease.capability_name,
+            "capability_revision": lease.revision,
+            "content_hash": evidence.content_hash,
+            "excerpt": evidence.inline_excerpt,
+            "instruction": "Chỉ dùng excerpt này cho dữ liệu live và phải dẫn evidence_ref.",
+        }, ensure_ascii=False, separators=(",", ":"))
+
     async def invoke(self, trace: context_runtime.TurnTrace, actor_id: str,
                      lease: CapabilityLease, args: Any,
                      route_call: Callable[[dict], Awaitable[Any]]) -> InvocationResult:
@@ -232,7 +250,27 @@ class CapabilityExecutor:
                 "REJECTED", "ERROR: capability revision đã thay đổi; cần resolve lại.",
                 error_code="capability_revision_mismatch",
             )
-        args_hash = _hash(args)
+        args_hash = arguments_hash(args)
+        reusable = self.runtime.find_reusable_read(
+            trace.task_id, lease.capability_id, lease.revision, args_hash
+        )
+        if reusable:
+            evidence = self.evidence_store.get_valid(str(reusable.get("id") or ""))
+            if evidence is not None:
+                self.runtime.revoke_capability_lease(
+                    trace, lease.lease_id, "valid_evidence_reused"
+                )
+                self.runtime.record_runtime_event(trace, "evidence.reused", {
+                    "evidence_id": evidence.id,
+                    "capability_id": lease.capability_id,
+                    "capability_revision": lease.revision,
+                    "args_hash": args_hash,
+                })
+                return InvocationResult(
+                    "SUCCEEDED", self._model_payload(lease, evidence),
+                    invocation_id=str(reusable.get("invocation_id") or ""),
+                    evidence=evidence,
+                )
         invocation_id = self.runtime.claim_read_invocation(
             trace, lease.lease_id, lease.capability_id, lease.revision,
             lease.schema_hash, lease.actor_hash, args_hash,
@@ -302,16 +340,7 @@ class CapabilityExecutor:
                 invocation_id=invocation_id, evidence=evidence,
                 error_code="invocation_finalize_failed",
             )
-        model_payload = json.dumps({
-            "evidence_ref": evidence.ref,
-            "source_type": evidence.source_type,
-            "capability_id": lease.capability_id,
-            "capability_name": lease.capability_name,
-            "capability_revision": lease.revision,
-            "content_hash": evidence.content_hash,
-            "excerpt": evidence.inline_excerpt,
-            "instruction": "Chỉ dùng excerpt này cho dữ liệu live và phải dẫn evidence_ref.",
-        }, ensure_ascii=False, separators=(",", ":"))
         return InvocationResult(
-            "SUCCEEDED", model_payload, invocation_id=invocation_id, evidence=evidence,
+            "SUCCEEDED", self._model_payload(lease, evidence),
+            invocation_id=invocation_id, evidence=evidence,
         )

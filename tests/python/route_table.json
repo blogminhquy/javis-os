@@ -1665,6 +1665,24 @@
  {
   "order": 185,
   "type": "APIRoute",
+  "path": "/runtime/tasks/{task_id}",
+  "name": "runtime_task_status",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 186,
+  "type": "APIRoute",
+  "path": "/runtime/tasks/{task_id}/resume",
+  "name": "runtime_task_resume",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 187,
+  "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
   "methods": [
@@ -1672,7 +1690,7 @@
   ]
  },
  {
-  "order": 186,
+  "order": 188,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -1681,7 +1699,7 @@
   ]
  },
  {
-  "order": 187,
+  "order": 189,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -1690,7 +1708,7 @@
   ]
  },
  {
-  "order": 188,
+  "order": 190,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

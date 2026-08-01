@@ -1,7 +1,7 @@
 # Adaptive Context Runtime cho Javis OS
 
 Ngày: 2026-08-01
-Trạng thái: **Code Phase 0-6 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-6 tắt mặc định**
+Trạng thái: **Code Phase 0-7 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-7 tắt mặc định**
 Phạm vi: dashboard, Telegram, các engine API, Claude/Codex CLI, task nền, workflow và MCP Hub
 
 Bản sửa lộ trình: 2026-08-01. Task State tối thiểu, bảo mật trace và quota ledger được đưa lên đầu; multi-round read-only, tool write, workflow, agent và model routing được tách thành các phase độc lập.
@@ -29,7 +29,12 @@ Tiến độ triển khai ngày 2026-08-01:
 - Schema được đối chiếu lại với discovery read-only ngay trước model call. Nếu revision lệch, runtime force-refresh inventory, rebase task khi chưa có invocation và resolve lại; schema vẫn không ổn định thì về legacy mà không chạy schema cũ.
 - Admission giữ quota cho tổng hai vòng trước khi gửi request. Timeout, arguments sai, tool-call contract sai và evidence encryption không sẵn sàng đều fail-closed, không tự replan hoặc replay qua vòng MCP tám lượt.
 - Rollout Phase 6 có allocation và allowlist capability group riêng. Mặc định `readonly_canary.allocation_basis_points=0`, `capability_profiles=[]`; tool đa hành động còn bị yêu cầu constraint arguments tĩnh trước khi cấp lease.
-- Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5 chưa được phép ảnh hưởng request thật.
+- Phase 7 đã có planner chỉ nhận manifest tóm tắt; exact schema chỉ nạp trong argument round của từng read step. DAG chỉ cho `none/read`, dependency rỗng được chạy song song theo `max_parallel`; write intent và conversation reference vẫn về legacy.
+- Structured Task State gồm revision pin, logical step, budget, failure signature và evidence map; objective/state đều được mã hoá. Checkpoint append-only được ghi trước tool I/O và sau từng layer, còn event chỉ giữ metadata/hash.
+- Resume chỉ chạy khi actor, runtime, policy, Registry, model và quota rule vẫn đúng revision đã pin. Runtime reconcile invocation/evidence ledger trước; read step đã có artifact hợp lệ không bị gọi lại sau restart.
+- Token, latency, số model round và monetary budget được kiểm tra ở cấp task; rolling TPM vẫn admission trước từng batch model. Loop dừng khi đủ evidence, hết budget/deadline, không còn capability, failure lặp hoặc marginal information gain thấp.
+- Phase 7 có `orchestrator_canary` và allowlist độc lập, mặc định allocation `0` cùng profiles rỗng. Quota rule phải khai cả limit và đơn giá thật; thiếu metadata monetary thì fail-closed về legacy trước model/tool.
+- Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5-7 chưa được phép ảnh hưởng request thật.
 
 ## 0. Quyết định kiến trúc
 
@@ -1681,6 +1686,12 @@ Thay đổi:
 Rollback: capability group trở về MCP Hub hiện tại nếu chưa có side effect. Evidence đã tạo giữ theo retention policy.
 
 ### Phase 7: Multi-round read-only Orchestrator
+
+Trạng thái code ngày 2026-08-01: **hoàn tất, chưa bật production**. Phase 7 có allocation,
+capability allowlist, task budget và quota/price profile riêng. Dashboard API mới là route canary;
+CLI, OAuth, Telegram, attachment, memory/history dependency và mọi write intent vẫn dùng legacy.
+Task mới có thể bị dừng bằng cách giữ allocation bằng 0; checkpoint đang chạy chỉ resume trên đúng
+runtime/policy/Registry/model metadata revision đã ghim.
 
 Thay đổi:
 
