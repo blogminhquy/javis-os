@@ -221,6 +221,81 @@ def test_malformed_settings_fall_back_to_keeping_the_current_model():
         assert decision.action == "keep" and decision.model == "llama-3.3"
 
 
+# ----------------------------------------------- nối vào bước workflow
+
+def _router_settings(models, allocation=10_000):
+    return {"context_runtime": {"mode": "canary", "model_router_canary": {
+        "allocation_basis_points": allocation, "models": models}}}
+
+
+def test_router_never_picks_a_provider_the_workflow_engine_cannot_reach(monkeypatch):
+    """Router có thể khai model API, nhưng engine workflow chỉ chạy được CLI.
+
+    Im lặng dùng model đó là chạy sai model so với thứ đã quyết.
+    """
+    import main
+
+    settings = _router_settings([
+        {"id": "api", "provider": "groq", "model": "llama-3.3", "supports": ["tools"],
+         "context_window": 100_000, "input_cost_per_million": 0.1,
+         "output_cost_per_million": 0.2},
+    ])
+    monkeypatch.setattr(main.cfgmod, "read_settings", lambda: settings)
+    router = main.model_router.ModelRouter(lambda: settings)
+    model, reason = main._route_step_model(router, None, "sonnet", "sid")
+    assert model == "sonnet", "giữ nguyên model của agent"
+    assert reason == "provider_not_reachable_from_workflow_engine"
+
+
+def test_router_applies_a_reachable_cli_model(monkeypatch):
+    import main
+
+    settings = _router_settings([
+        {"id": "cli", "provider": "anthropic-cli", "model": "opus", "supports": ["tools"],
+         "context_window": 200_000, "input_cost_per_million": 1.0,
+         "output_cost_per_million": 2.0},
+    ])
+    router = main.model_router.ModelRouter(lambda: settings)
+    model, _reason = main._route_step_model(router, None, "sonnet", "sid")
+    assert model == "opus"
+
+
+def test_router_refuses_a_codex_route_that_is_not_a_codex_model(monkeypatch):
+    import main
+
+    settings = _router_settings([
+        {"id": "codex", "provider": "codex", "model": "claude-sonnet-4",
+         "supports": ["tools"], "context_window": 100_000,
+         "input_cost_per_million": 1.0, "output_cost_per_million": 2.0},
+    ])
+    router = main.model_router.ModelRouter(lambda: settings)
+    model, reason = main._route_step_model(router, None, "sonnet", "sid")
+    assert model == "sonnet"
+    assert reason == "routed_model_not_valid_for_codex"
+
+
+def test_router_errors_keep_the_agent_model(monkeypatch):
+    import main
+
+    class Boom:
+        def route(self, *a, **k):
+            raise RuntimeError("router hỏng")
+
+    model, reason = main._route_step_model(Boom(), None, "sonnet", "sid")
+    assert model == "sonnet" and reason == ""
+
+
+def test_defaults_leave_every_workflow_step_on_the_agent_model(monkeypatch):
+    import copy
+    import config as cfgmod
+    import main
+
+    settings = copy.deepcopy(cfgmod._DEFAULT)
+    router = main.model_router.ModelRouter(lambda: settings)
+    model, reason = main._route_step_model(router, None, "sonnet", "sid")
+    assert model == "sonnet" and reason == "mode_not_canary"
+
+
 if __name__ == "__main__":
     import sys
     import pytest

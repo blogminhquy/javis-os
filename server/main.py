@@ -72,6 +72,7 @@ import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
+import model_router           # Phase 12: chọn model theo từng bước, lọc năng lực trước
 import workflow_graph          # Phase 10: workflow -> capability graph (thuần dữ liệu)
 import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
@@ -4356,12 +4357,57 @@ async def usage_refresh():
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink):
+# Engine của workflow chỉ chạy được CLI (Claude hoặc Codex). Router có thể khai model
+# của provider API, nhưng ở đây không với tới được, nên chỉ nhận đúng hai họ này.
+_WORKFLOW_ROUTABLE_PROVIDERS = {
+    "cli": "claude", "claude": "claude", "anthropic-cli": "claude",
+    "codex": "codex", "openai-oauth": "codex",
+}
+
+
+def _route_step_model(router, node, agent_model, session_id):
+    """Chọn model cho MỘT bước. Không route được thì giữ nguyên model của agent.
+
+    Guard quan trọng: router có thể trỏ sang provider mà engine workflow không gọi
+    được. Im lặng dùng model đó là chạy sai model so với thứ đã quyết.
+    """
+    if router is None:
+        return agent_model, ""
+    try:
+        decision = router.route(
+            model_router.RoutingRequest(
+                step_kind="model_step",
+                requires=model_router.requirements_for(
+                    "model_step", needs_tools=True),
+                risk="none",
+            ),
+            session_id or "workflow",
+            current_model=agent_model or "",
+        )
+    except Exception:
+        return agent_model, ""
+    if decision.action != "route":
+        return agent_model, decision.reason
+    family = _WORKFLOW_ROUTABLE_PROVIDERS.get(decision.provider)
+    if family is None:
+        return agent_model, "provider_not_reachable_from_workflow_engine"
+    if family == "codex" and not _is_codex_model(decision.model):
+        return agent_model, "routed_model_not_valid_for_codex"
+    return decision.model, decision.reason
+
+
+async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=None,
+                             session_id=""):
     """Chạy ĐÚNG một bước theo đúng ngữ nghĩa runner cũ: agent, kiểm chứng, retry.
 
     Dùng chung cho cả hai đường. `sink` nhận event để đường graph đẩy ra SSE y như cũ.
     """
     agent_name, sysprompt, agent_model = agent_sysprompt(node.agent)
+    routed_model, route_reason = _route_step_model(router, node, agent_model, session_id)
+    if routed_model != agent_model:
+        await sink({"type": "step_model", "node": node.id, "model": routed_model,
+                    "reason": route_reason})
+        agent_model = routed_model
     cur_prompt = prompt
     out = ""
     verified = None
@@ -4498,7 +4544,10 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
             # Phase 10 chỉ tự chạy model step. Node capability/workflow con do tầng
             # runtime quyết định; node ghi đã dừng hỏi trước khi tới đây.
             return {"output": "", "error": f"node_kind_not_executable:{node.kind}"}
-        return await _run_workflow_step(node, prompt, mk, agent_sysprompt, sink)
+        return await _run_workflow_step(
+            node, prompt, mk, agent_sysprompt, sink,
+            router=model_router.ModelRouter(cfgmod.read_settings),
+            session_id=session_id or f"wf:{slug}")
 
     async def planner(objective, summary, granted):
         """Phase 11 mặc định KHÔNG tự đề xuất gì.
