@@ -17,6 +17,8 @@ import threading
 import time
 import httpx
 
+import limit_learner
+
 # Lone surrogate (U+D800–U+DFFF) sanitizer - port từ hermes-agent/agent/message_sanitization.py.
 # Model open-weight (qwen/deepseek/minimax/glm…) thi thoảng stream ra lone surrogate trong content.
 # Ký tự này KHÔNG hợp lệ UTF-8: (1) ghi conversations/*.md (open encoding utf-8) ném UnicodeEncodeError
@@ -328,7 +330,18 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
             async with client.stream("POST", url, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
-                    yield {"type": "error", "content": f"{label} {r.status_code}: {body.decode('utf-8', 'replace')[:300]}"}
+                    body_text = body.decode("utf-8", "replace")
+                    # Nhà cung cấp vừa nói thẳng hạn mức thật của tài khoản này. Đó là con
+                    # số đáng tin nhất đang có - đáng tin hơn mọi thứ tra từ tài liệu - nên
+                    # phải học lấy thay vì vứt đi rồi bắt người dùng tự khai.
+                    _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                    if _fact:
+                        limit_learner.remember(label, model, _fact)
+                        yield {"type": "limit_exceeded", "provider": label, "model": model,
+                               "kind": _fact.kind, "limit": _fact.limit,
+                               "requested": _fact.requested,
+                               "shrink_to": limit_learner.shrink_target(_fact)}
+                    yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
                     return
                 got = False
                 usage = None
@@ -399,7 +412,15 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
             async with client.stream("POST", ANTHROPIC_URL, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
-                    yield {"type": "error", "content": f"Anthropic {r.status_code}: {body.decode('utf-8', 'replace')[:300]}"}
+                    body_text = body.decode("utf-8", "replace")
+                    _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                    if _fact:
+                        limit_learner.remember("anthropic", model, _fact)
+                        yield {"type": "limit_exceeded", "provider": "anthropic", "model": model,
+                               "kind": _fact.kind, "limit": _fact.limit,
+                               "requested": _fact.requested,
+                               "shrink_to": limit_learner.shrink_target(_fact)}
+                    yield {"type": "error", "content": f"Anthropic {r.status_code}: {body_text[:300]}"}
                     return
                 yield {"type": "meta", "model": model}
                 got = False
@@ -583,9 +604,19 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
                     if r.status_code != 200:
                         body = await r.aread()
                         body_text = body.decode("utf-8", "replace")
-                        retriable = r.status_code in _RETRY_STATUS or _is_transient_body(body_text)
+                        _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                        # Lỗi vượt KÍCH THƯỚC không phải lỗi tạm thời: thử lại y nguyên chỉ
+                        # tốn thêm một lượt để nhận đúng lỗi đó. Phải co lại rồi mới thử.
+                        retriable = (not _fact) and (
+                            r.status_code in _RETRY_STATUS or _is_transient_body(body_text))
                         if retriable and attempt < max_attempts:
                             raise _RetryStream(_parse_retry_after(r.headers))
+                        if _fact:
+                            limit_learner.remember("openrouter", model, _fact)
+                            yield {"type": "limit_exceeded", "provider": "openrouter",
+                                   "model": model, "kind": _fact.kind, "limit": _fact.limit,
+                                   "requested": _fact.requested,
+                                   "shrink_to": limit_learner.shrink_target(_fact)}
                         yield {"type": "error", "content": f"OpenRouter {r.status_code}: {body_text[:300]}"}
                         return
                     sent_model = False

@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.11.0] - 2026-08-02
+Javis tự học hạn mức của mọi nhà cung cấp từ chính câu báo lỗi, tự rút gọn rồi chạy tiếp. Trang Chẩn đoán viết lại bằng tiếng người.
+### Tính năng mới
+- **Vượt hạn mức thì tự xử, không bắt anh đọc lỗi kỹ thuật.** Khi nhà cung cấp từ chối vì request quá lớn, câu báo lỗi của họ có nêu hạn mức thật của tài khoản. Javis đọc lấy con số đó, tự bỏ lịch sử hội thoại cho nhẹ, rồi gửi lại. Anh chỉ thấy một dòng "đang rút gọn ngữ cảnh rồi thử lại" và sau đó là câu trả lời.
+- **Áp dụng cho MỌI nhà cung cấp, không riêng ai.** Nhận diện được câu báo lỗi của Groq, OpenAI, Anthropic, Gemini và OpenRouter, kể cả khi họ viết hai con số theo thứ tự ngược nhau. Cắm nhà cung cấp mới cũng không phải khai gì trước: Javis học từ lần từ chối đầu tiên và nhớ để không đâm vào nữa.
+- **Chỉ thử lại một lần.** Rút gọn rồi mà vẫn vượt thì báo cho anh kèm con số cụ thể, vì lúc đó vấn đề không còn nằm ở kích thước ngữ cảnh.
+- Câu hỏi hiện tại của anh **không bao giờ** bị cắt khi rút gọn. Thứ tự hy sinh là lịch sử cũ trước, rồi mới tới phần đuôi của hướng dẫn hệ thống.
+### Cải thiện
+- **Trang Chẩn đoán viết lại cho dễ hiểu.** Thêm phần giải thích trang này để làm gì, đường cũ khác đường mới ra sao, và "bật thử từng phần" nghĩa là gì. Mọi nhãn kỹ thuật đổi sang tiếng thường: "Token đã gửi đi" thay cho "Token vào (thật)", "Vì sao vẫn đi đường cũ" thay cho "Lý do không vào đường mới". Mỗi mục có một dòng nói rõ nhìn số đó để làm gì.
+- Thêm mục **Hạn mức Javis tự học được**, cho thấy nhà cung cấp nào đã nói ra hạn mức thật của tài khoản anh.
+- Lỗi vượt kích thước không còn bị thử lại y nguyên như lỗi quá tải tạm thời. Thử lại mà không rút gọn thì chỉ tốn thêm một lượt để nhận đúng lỗi đó.
+
 ## [0.10.1] - 2026-08-02
 Sửa lỗi làm không bật được đường chạy mới, phát hiện ngay khi dùng thật với Groq.
 ### Sửa lỗi

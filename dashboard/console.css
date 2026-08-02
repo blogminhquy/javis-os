@@ -753,3 +753,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   padding-top: 10px; font-size: 12px; }
 .rt-quota select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);
   background: var(--bg); color: inherit; font-size: 12px; }
+.rt-help { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  font-size: 13px; line-height: 1.6; background: var(--surface-2); }
+.rt-help b { display: block; margin-bottom: 6px; font-size: 13.5px; }
+.rt-help p { margin: 8px 0 0; color: var(--text2); }

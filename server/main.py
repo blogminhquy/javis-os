@@ -72,6 +72,7 @@ import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
+import limit_learner          # học hạn mức từ chính lỗi nhà cung cấp trả về
 import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
 import model_limits           # hạn mức GỢI Ý theo provider, để khai quota profile cho canary
 import model_router           # Phase 12: chọn model theo từng bước, lọc năng lực trước
@@ -7089,35 +7090,69 @@ async def websocket_endpoint(ws: WebSocket):
                             or_messages = await compaction.prepare_history(
                                 _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
                         or_messages.append({"role": "user", "content": user_message})
-                        gen = await _api_stream_mcp(
-                            prov, api_key, api_model, or_messages, reasoning, brain=brain,
-                            force_lazy=(_phase8_plan.action == "use"),
-                        )
-                        async for ev in gen:
-                            if ev["type"] == "meta":
-                                actual_model = ev.get("model") or actual_model
-                                _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
-                            elif ev["type"] == "usage":
-                                usage_store.record(
-                                    prov, actual_model, ev.get("input", 0), ev.get("output", 0)
-                                )
-                                _CONTEXT_RUNTIME.record_usage(
-                                    runtime_trace, ev.get("input", 0), ev.get("output", 0)
-                                )
-                            elif ev["type"] == "tool_call":
-                                await ws.send_text(json.dumps({
-                                    "type": "tool_call", "tool": ev.get("name", ""),
-                                    "content": f"⚙ MCP: {ev.get('name', '')}",
-                                }))
-                            elif ev["type"] == "text":
-                                final_text += ev["content"]
-                                await ws.send_text(json.dumps({
-                                    "type": "stream", "content": ev["content"], "tts": False,
-                                }))
-                            elif ev["type"] == "error":
-                                await ws.send_text(json.dumps({
-                                    "type": "error", "content": ev["content"],
-                                }))
+                        # Vòng gửi có TỰ CHỮA: nếu nhà cung cấp nói request quá hạn mức,
+                        # học lấy con số thật rồi co ngữ cảnh lại và chạy tiếp, thay vì ném
+                        # lỗi thô ra cho người dùng. Chỉ thử lại MỘT lần: lần hai mà vẫn
+                        # vượt thì vấn đề không nằm ở kích thước ngữ cảnh nữa.
+                        _limit_hit = None
+                        for _attempt in (1, 2):
+                            final_text = ""
+                            _limit_hit = None
+                            gen = await _api_stream_mcp(
+                                prov, api_key, api_model, or_messages, reasoning, brain=brain,
+                                force_lazy=(_phase8_plan.action == "use" or _attempt > 1),
+                            )
+                            async for ev in gen:
+                                if ev["type"] == "meta":
+                                    actual_model = ev.get("model") or actual_model
+                                    _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
+                                elif ev["type"] == "usage":
+                                    usage_store.record(
+                                        prov, actual_model, ev.get("input", 0), ev.get("output", 0)
+                                    )
+                                    _CONTEXT_RUNTIME.record_usage(
+                                        runtime_trace, ev.get("input", 0), ev.get("output", 0)
+                                    )
+                                elif ev["type"] == "limit_exceeded":
+                                    _limit_hit = ev
+                                elif ev["type"] == "tool_call":
+                                    await ws.send_text(json.dumps({
+                                        "type": "tool_call", "tool": ev.get("name", ""),
+                                        "content": f"⚙ MCP: {ev.get('name', '')}",
+                                    }))
+                                elif ev["type"] == "text":
+                                    final_text += ev["content"]
+                                    await ws.send_text(json.dumps({
+                                        "type": "stream", "content": ev["content"], "tts": False,
+                                    }))
+                                elif ev["type"] == "error":
+                                    if not _limit_hit:
+                                        await ws.send_text(json.dumps({
+                                            "type": "error", "content": ev["content"],
+                                        }))
+                            if not _limit_hit or _attempt == 2:
+                                break
+                            # Đã có bằng chứng cứng về hạn mức. Co ngữ cảnh xuống dưới nó rồi
+                            # thử lại: bỏ lịch sử hội thoại, giữ prompt lõi và câu hỏi.
+                            _CONTEXT_RUNTIME.record_runtime_event(
+                                runtime_trace, "limit.autoshrink", {
+                                    "provider": prov, "limit": _limit_hit.get("limit", 0),
+                                    "requested": _limit_hit.get("requested", 0),
+                                    "kind": _limit_hit.get("kind", ""),
+                                })
+                            await ws.send_text(json.dumps({
+                                "type": "tool_call", "tool": "javis_autoshrink",
+                                "content": (f"⚙ Vượt hạn mức {_limit_hit.get('limit', 0):,} token, "
+                                            "đang rút gọn ngữ cảnh rồi thử lại..."),
+                            }))
+                            or_messages = _shrink_messages(or_messages,
+                                                           _limit_hit.get("shrink_to") or 0)
+                        if _limit_hit:
+                            final_text = final_text or _limit_autoshrink_message(
+                                prov, actual_model, _limit_hit)
+                            await ws.send_text(json.dumps({
+                                "type": "error", "content": final_text,
+                            }))
                         await ws.send_text(json.dumps({
                             "type": "response", "content": final_text, "engine": prov,
                             "model": actual_model, "session_id": conv_sid,
@@ -7332,7 +7367,61 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             "quota_presets": model_limits.known_providers(),
             # Token đã đốt trong 60 giây qua, gộp MỌI nguồn. Đây là thứ trả lời được câu
             # "sao canary bị chặn trong khi tôi có chat gì đâu": loop nền vừa ăn hết hạn mức.
-            "tpm_window": quota_scheduler.snapshot(60)}
+            "tpm_window": quota_scheduler.snapshot(60),
+            # Hạn mức Javis TỰ HỌC từ lỗi nhà cung cấp trả về. Khác quota_presets ở chỗ
+            # đây là số thật của tài khoản này, do chính nhà cung cấp nói ra.
+            "learned_limits": limit_learner.snapshot()}
+
+
+def _shrink_messages(messages: list, target_tokens: int) -> list:
+    """Co danh sách message xuống dưới `target_tokens`, giữ thứ cần nhất.
+
+    Thứ tự hy sinh, từ bỏ được nhất tới không bỏ được:
+      1. Lịch sử hội thoại cũ (bỏ từ cũ nhất).
+      2. Phần đuôi của system prompt.
+    KHÔNG bao giờ bỏ câu hỏi hiện tại của người dùng - bỏ nó thì có trả lời cũng vô nghĩa.
+
+    target_tokens <= 0 nghĩa là không biết hạn mức: vẫn co bằng cách bỏ lịch sử, vì đó là
+    thứ duy nhất chắc chắn giúp được mà không làm hỏng câu trả lời.
+    """
+    if not messages:
+        return messages
+    system = [m for m in messages if m.get("role") == "system"]
+    rest = [m for m in messages if m.get("role") != "system"]
+    last_user = rest[-1:] if rest else []
+    kept = system + last_user           # bỏ sạch lịch sử, giữ prompt lõi + câu hỏi
+    if target_tokens <= 0:
+        return kept
+    # Vẫn quá thì cắt bớt đuôi system prompt. Ước lượng thô là đủ: đây đã là đường cứu hộ.
+    budget_chars = max(1000, int(target_tokens) * 3)
+    total = sum(len(str(m.get("content") or "")) for m in kept)
+    if total <= budget_chars or not system:
+        return kept
+    over = total - budget_chars
+    trimmed = []
+    for m in kept:
+        if m.get("role") == "system" and over > 0:
+            body = str(m.get("content") or "")
+            cut = min(over, max(0, len(body) - 500))
+            if cut > 0:
+                over -= cut
+                body = body[:len(body) - cut] + "\n[... đã rút gọn để vừa hạn mức ...]"
+            trimmed.append({**m, "content": body})
+        else:
+            trimmed.append(m)
+    return trimmed
+
+
+def _limit_autoshrink_message(provider: str, model: str, hit: dict) -> str:
+    """Câu nói khi đã co lại mà VẪN vượt. Nêu số thật, không nói chung chung."""
+    limit = int(hit.get("limit") or 0)
+    requested = int(hit.get("requested") or 0)
+    kind = "token mỗi phút" if hit.get("kind") == "tpm" else "cửa sổ ngữ cảnh"
+    head = (f"{provider} báo vượt {kind}: hạn mức {limit:,}, "
+            f"lượt này cần {requested:,}. " if limit else
+            f"{provider} báo request quá lớn. ")
+    return (head + "Javis đã tự rút gọn ngữ cảnh và thử lại một lần nhưng vẫn không vừa. "
+            + model_limits.blocked_hint(provider, model, requested or limit, ()))
 
 
 def _canary_keys() -> set:

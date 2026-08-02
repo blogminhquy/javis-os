@@ -374,28 +374,76 @@
         </div>
       </div>
 
-      <div class="rt-grid">
-        <div class="rt-card"><div class="rt-k">Lượt trong 24h</div><div class="rt-v">${num(tasks.length)}</div></div>
-        <div class="rt-card"><div class="rt-k">Token vào (thật)</div><div class="rt-v">${num(tk.actual_input)}</div></div>
-        <div class="rt-card"><div class="rt-k">Token ra (thật)</div><div class="rt-v">${num(tk.actual_output)}</div></div>
-        <div class="rt-card"><div class="rt-k">Ước lượng lệch</div><div class="rt-v">${tk.estimate_error_pct == null ? "-" : tk.estimate_error_pct + "%"}</div>
-          <div class="rt-note">âm = ước lượng THẤP hơn thật</div></div>
-        <div class="rt-card"><div class="rt-k">Capsule trung vị</div><div class="rt-v">${num(cap.median_tokens)}</div>
-          <div class="rt-note">${num(cap.samples)} mẫu, lớn nhất ${num(cap.max_tokens)}</div></div>
-        <div class="rt-card"><div class="rt-k">Capability trong Registry</div><div class="rt-v">${num((d.registry || {}).capabilities)}</div>
-          <div class="rt-note">revision ${esc(((d.registry || {}).revision || "").slice(0, 14))}</div></div>
+      <div class="rt-help">
+        <b>Trang này để làm gì</b>
+        <p>Mỗi lần anh chat, Javis phải gửi kèm một mớ thông tin nền cho model: nó là ai, có
+        những công cụ nào, nhớ gì về anh, đã nói gì trước đó. Mớ đó tốn tiền và có giới hạn.
+        Trang này cho thấy mớ đó đang to bao nhiêu và tiêu vào đâu.</p>
+        <p><b>Đường cũ và đường mới.</b> Javis đang có hai cách dựng mớ thông tin đó. Đường
+        cũ gửi gần như mọi thứ, lúc nào cũng vậy. Đường mới chỉ gửi phần liên quan tới câu
+        anh vừa hỏi, nên nhẹ hơn nhiều. Đường mới còn non nên mặc định tắt.</p>
+        <p><b>Bật thử từng phần (canary).</b> Thay vì bật đường mới cho tất cả rồi hồi hộp,
+        Javis cho bật cho một PHẦN các cuộc chat thôi, ví dụ 1 phần trăm. Nếu tốt thì nâng
+        dần, nếu tệ thì hạ về 0 là xong ngay. Mỗi dòng trong bảng dưới là một mảng việc bật
+        thử được riêng, và con số là tỉ lệ: 10000 nghĩa là toàn bộ, 100 nghĩa là 1 phần trăm,
+        0 là tắt. Cùng một cuộc chat thì luôn đi cùng một đường, không nhảy qua nhảy lại.</p>
       </div>
 
-      <div class="rt-sec"><h3>Đường chạy</h3><div class="rt-chips">${counts(d.paths, "Chưa có lượt nào.")}</div></div>
-      <div class="rt-sec"><h3>Lý do không vào đường mới</h3><div class="rt-chips">${counts(d.fallback_reasons, "Chưa ghi nhận lý do nào.")}</div></div>
-      <div class="rt-sec"><h3>Resolver trượt vì</h3><div class="rt-chips">${counts(d.miss_classes, "Chưa có miss nào.")}</div></div>
-      <div class="rt-sec"><h3>Quality Gate</h3><div class="rt-chips">${counts(d.quality, "Chưa có đánh giá nào.")}</div></div>
+      <div class="rt-grid">
+        <div class="rt-card"><div class="rt-k">Số cuộc chat 24h qua</div><div class="rt-v">${num(tasks.length)}</div></div>
+        <div class="rt-card"><div class="rt-k">Token đã gửi đi</div><div class="rt-v">${num(tk.actual_input)}</div>
+          <div class="rt-note">phần Javis gửi cho model</div></div>
+        <div class="rt-card"><div class="rt-k">Token model trả về</div><div class="rt-v">${num(tk.actual_output)}</div>
+          <div class="rt-note">phần model viết ra</div></div>
+        <div class="rt-card"><div class="rt-k">Độ chính xác khi đoán</div><div class="rt-v">${tk.estimate_error_pct == null ? "-" : tk.estimate_error_pct + "%"}</div>
+          <div class="rt-note">Javis đoán trước sẽ tốn bao nhiêu để còn biết đường chặn.
+          Số âm là đoán THẤP hơn thật, tức là dễ vượt hạn mức bất ngờ.</div></div>
+        <div class="rt-card"><div class="rt-k">Gói tin đường mới</div><div class="rt-v">${num(cap.median_tokens)}</div>
+          <div class="rt-note">cỡ trung bình, ${num(cap.samples)} lần đo, lần to nhất ${num(cap.max_tokens)}.
+          So với đường cũ để biết tiết kiệm được bao nhiêu.</div></div>
+        <div class="rt-card"><div class="rt-k">Công cụ Javis đang biết</div><div class="rt-v">${num((d.registry || {}).capabilities)}</div>
+          <div class="rt-note">gộp tool của các nguồn đã đấu, skill và workflow</div></div>
+      </div>
 
       <div class="rt-sec">
-        <h3>Token 60 giây qua (mọi nguồn)</h3>
-        <div class="rt-chips">${counts(d.tpm_window, "Chưa có lượt nào trong 60 giây qua.")}</div>
-        <div class="dim rt-note">Gộp chat, loop nền, việc Kanban, nhắc hẹn, Telegram. Đây là chỗ
-        xem khi canary bị chặn mà anh không chat gì: thường là loop nền vừa ăn hết hạn mức.</div>
+        <h3>Hạn mức Javis tự học được</h3>
+        <div class="rt-chips">${counts(_tpmFacts(d.learned_limits), "Chưa gặp lỗi hạn mức nào nên chưa học được gì.")}</div>
+        <div class="dim rt-note">Khi nhà cung cấp từ chối vì request quá lớn, câu báo lỗi của
+        họ có nêu hạn mức thật. Javis đọc lấy, tự rút gọn rồi chạy tiếp, và nhớ để lần sau
+        không đâm vào nữa. Không cần anh khai trước, và áp dụng cho mọi nhà cung cấp.</div>
+      </div>
+
+      <div class="rt-sec">
+        <h3>Mỗi cuộc chat đi đường nào</h3>
+        <div class="rt-chips">${counts(d.paths, "Chưa có cuộc chat nào.")}</div>
+        <div class="dim rt-note">legacy là đường cũ. Các tên khác là đường mới đang bật thử.</div>
+      </div>
+      <div class="rt-sec">
+        <h3>Vì sao vẫn đi đường cũ</h3>
+        <div class="rt-chips">${counts(d.fallback_reasons, "Chưa ghi nhận lý do nào.")}</div>
+        <div class="dim rt-note">Javis luôn quay về đường cũ khi chưa đủ chắc, nên thấy nhiều
+        lý do ở đây là bình thường. Đọc để biết còn thiếu điều kiện gì.</div>
+      </div>
+      <div class="rt-sec">
+        <h3>Tìm công cụ bị trượt vì</h3>
+        <div class="rt-chips">${counts(d.miss_classes, "Chưa lần nào trượt.")}</div>
+        <div class="dim rt-note">Javis không tìm ra công cụ hợp với câu hỏi. Trượt nhiều thường
+        là do mô tả tool hoặc skill viết chưa rõ, chứ không phải Javis dở.</div>
+      </div>
+      <div class="rt-sec">
+        <h3>Bộ kiểm chất lượng câu trả lời</h3>
+        <div class="rt-chips">${counts(d.quality, "Chưa có đánh giá nào.")}</div>
+        <div class="dim rt-note">Trước khi trả lời, Javis tự soát: có bịa số không, có nói mình
+        đã làm việc gì mà chưa làm không, hai nguồn có mâu thuẫn không. Ở đây liệt kê những
+        thứ nó bắt được.</div>
+      </div>
+
+      <div class="rt-sec">
+        <h3>Token đã tiêu trong 60 giây qua</h3>
+        <div class="rt-chips">${counts(d.tpm_window, "Chưa tiêu gì trong 60 giây qua.")}</div>
+        <div class="dim rt-note">Gộp mọi thứ đang chạy: chat, việc nền, nhắc hẹn, Telegram.
+        Nhà cung cấp tính hạn mức theo TÀI KHOẢN chứ không theo từng chỗ, nên đây là chỗ xem
+        khi bị chặn mà anh thấy mình có chat gì đâu: thường là việc nền vừa ăn hết.</div>
       </div>
 
       <div class="rt-sec">
@@ -477,6 +525,17 @@
         }
       });
     });
+  }
+
+  function _tpmFacts(learned) {
+    // learned_limits là object lồng; counts() chỉ vẽ được {nhãn: số}. Đổi sang dạng
+    // "groq|model — TPM" -> hạn mức, để người đọc thấy ngay con số nhà cung cấp đã nói.
+    const out = {};
+    Object.entries(learned || {}).forEach(([key, v]) => {
+      const kind = v && v.kind === "tpm" ? "token mỗi phút" : "cửa sổ ngữ cảnh";
+      out[`${key} (${kind})`] = (v && v.limit) || 0;
+    });
+    return out;
   }
 
   async function _bindModeApply(el) {
