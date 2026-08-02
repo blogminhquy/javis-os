@@ -201,6 +201,18 @@ _DEFAULT = {
             "max_nesting_depth": 1,
             "allow_write_nodes": False,
         },
+        # Phase 11: agent = workflow có quyền tự lập lại kế hoạch. Tập quyền được ghim
+        # từ đồ thị gốc và KHÔNG BAO GIỜ nới ra khi replan. Danh sách rỗng = fail-closed.
+        "agent_canary": {
+            "policy_version": "agent-replan-canary-v1",
+            "allocation_basis_points": 0,
+            "salt": "agent-replan-canary-v1",
+            "allowed_slugs": [],
+            "max_replan_rounds": 2,
+            "max_total_nodes": 24,
+            "max_nodes_per_replan": 3,
+            "failure_repeat_limit": 2,
+        },
         # Phase 8 dùng hard quota operator khai báo; không đoán TPM/context theo tên model.
         # Có thể để trống để dùng quota_profiles của Fast Path ở trên.
         "context_sources": {"quota_profiles": []},

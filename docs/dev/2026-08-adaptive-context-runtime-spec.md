@@ -1936,6 +1936,33 @@ Rollback: workflow mới trở về runner hiện tại; task workflow đang ch�
 
 ### Phase 11: Agent replanning
 
+Trạng thái code ngày 2026-08-02: **hoàn tất, chưa bật production**. `agent_canary` mặc định
+allocation `0` và `allowed_slugs` rỗng. Workflow chỉ được replan khi TỰ KHAI `agent: true`
+trong frontmatter; workflow thường giữ đồ thị cố định của Phase 10.
+
+Bất biến trung tâm, và cũng là thứ dễ hỏng nhất:
+
+> **Replan không bao giờ được cấp thêm quyền.**
+
+Tập quyền (`CapabilityGrant`) được ghim từ đồ thị GỐC lúc khởi tạo: agent nào được gọi,
+capability nào được dùng, có được ghi hay không. Node do model đề xuất phải nằm trọn trong
+tập đó. Model không thể mở rộng quyền của chính nó bằng cách đề xuất kế hoạch mới - đây là
+lý do phép kiểm nằm trong code chứ không nằm trong prompt (mục 4.4).
+
+Ba điểm thiết kế đáng ghi lại:
+
+- **Một node xấu chặn cả lô.** Kế hoạch có node vượt quyền thì dừng toàn bộ vòng, không
+  lặng lẽ bỏ node đó rồi chạy phần còn lại - chạy một nửa kế hoạch của model là hành vi
+  không ai suy luận được.
+- **Model chỉ được thêm `model_step` và `capability`.** `workflow_call`, `wait_user` và
+  `compensation` là thứ người viết workflow khai, không phải thứ model tự thêm giữa chừng.
+- **Lặp lại cùng dấu vết lỗi thì escalate**, không thử mãi. Dấu vết chỉ gồm node nào hỏng
+  vì lý do gì, không kèm nội dung.
+
+Người lập kế hoạch bằng model chưa được đấu vào: hàm planner mặc định trả rỗng (dừng sạch).
+Nó sẽ được nối khi có gold benchmark chứng minh đường agentic tốt hơn workflow cố định -
+đúng điều kiện qua phase bên dưới.
+
 Thay đổi:
 
 - Agent như workflow có quyền replan trong capability lease và task budget.

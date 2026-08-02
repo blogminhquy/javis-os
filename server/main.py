@@ -71,6 +71,7 @@ import capability_executor   # Phase 6: one-use read lease + schema validation
 import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
+import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
 import workflow_graph          # Phase 10: workflow -> capability graph (thuần dữ liệu)
 import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
@@ -4484,6 +4485,9 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
         _CONTEXT_RUNTIME.finish(trace, "COMPLETED", admission.reason)
         return
     mk, agent_sysprompt = _workflow_agent_helpers(brain, tools)
+    agent_policy = agent_runtime.AgentPolicy.from_settings(cfgmod.read_settings() or {})
+    agent_admitted = graph.allows_replan and agent_policy.admits(
+        graph.slug, session_id or f"wf:{slug}")[0]
     queue: asyncio.Queue = asyncio.Queue()
 
     async def sink(event):
@@ -4496,8 +4500,26 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
             return {"output": "", "error": f"node_kind_not_executable:{node.kind}"}
         return await _run_workflow_step(node, prompt, mk, agent_sysprompt, sink)
 
+    async def planner(objective, summary, granted):
+        """Phase 11 mặc định KHÔNG tự đề xuất gì.
+
+        Người lập kế hoạch bằng model sẽ được đấu vào khi allocation agent > 0 và có
+        gold benchmark chứng minh đường agentic tốt hơn workflow cố định (điều kiện
+        qua phase của spec). Trước lúc đó, trả rỗng là dừng sạch.
+        """
+        return []
+
     async def drive():
         try:
+            if agent_admitted:
+                runner = agent_runtime.AgentRunner(
+                    canary, cfgmod.read_settings, _QUALITY_GATE)
+                agent_result = await runner.run(
+                    trace, graph, input or "", session_id or f"wf:{slug}",
+                    node_executor, planner, sink)
+                return workflow_runtime.WorkflowRunResult(
+                    "COMPLETED" if agent_result.status == "COMPLETED" else "FAILED",
+                    agent_result.output, agent_result.stop_reason, agent_result.task_id)
             return await canary.run(trace, graph, input or "", session_id or f"wf:{slug}",
                                     node_executor, sink)
         finally:

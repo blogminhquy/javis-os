@@ -92,6 +92,8 @@ class WorkflowNode:
 
 @dataclass(frozen=True)
 class WorkflowGraph:
+    """`allows_replan` là ranh giới giữa Phase 10 và 11: workflow thường có đồ thị cố
+    định, agent được đề xuất thêm node sau khi chạy - nhưng chỉ trong quyền đã cấp."""
     slug: str
     name: str
     description: str
@@ -106,6 +108,7 @@ class WorkflowGraph:
     resumable: bool
     max_risk: str
     compensation: dict
+    allows_replan: bool = False
     graph_version: str = WORKFLOW_GRAPH_VERSION
 
     def node(self, node_id: str) -> WorkflowNode | None:
@@ -273,6 +276,7 @@ def compile_legacy_workflow(meta: dict, slug: str) -> WorkflowGraph:
         resumable=True,
         max_risk=_risk_of(nodes),
         compensation={},
+       allows_replan=bool(meta.get("agent") or meta.get("allows_replan")),
     )
 
 
@@ -352,6 +356,7 @@ def compile_native_workflow(meta: dict, slug: str) -> WorkflowGraph:
             x.is_write for x in nodes),
         max_risk=_risk_of(nodes),
         compensation=compensation,
+       allows_replan=bool(meta.get("agent") or meta.get("allows_replan")),
     )
 
 
