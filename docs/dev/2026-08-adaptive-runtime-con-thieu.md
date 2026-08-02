@@ -12,7 +12,7 @@ token, nên bị chặn ngay trước khi kịp trả lời.
 
 | Khối | Lúc chẩn đoán | Hôm nay | Có phase nào chạm tới chưa |
 |---|---|---|---|
-| `CLAUDE.md` làm system prompt | 21.479 ký tự | **26.505** (+23%) | Có, Phase 8 |
+| `CLAUDE.md` làm system prompt | 21.479 ký tự | 21.479, y nguyên | Có, Phase 8 |
 | `Memory/MEMORY.md` | 18.723 ký tự | trần 20.000 | Có, `memory_canary` |
 | 30 skill + context động | ~5.400 ký tự | trần theo `SKILL_LIST_MAX` | Có, `lazy_skill_canary` |
 | **26 schema MCP/tool** | **17.161 ký tự** | vẫn nguyên | **Chưa. Xem mục 3.1** |
@@ -77,11 +77,16 @@ hoặc báo" chưa được xây.
 
 ### 3.4 Không có gì canh kích thước prompt lõi
 
-`CLAUDE.md` phình từ 21.479 lên 26.505 ký tự, tăng 23%, **trong đúng quãng thời gian đang xây
-runtime để chống phình**. Không có test nào canh, không có cảnh báo nào.
+**Đính chính một khẳng định sai của chính tài liệu này ở bản đầu:** bản đầu ghi `CLAUDE.md`
+đã phình 23%, từ 21.479 lên 26.505. Sai. Đó là so **byte** với **ký tự**: `wc -c` trả 26.505
+byte, còn `len()` trả 21.479 ký tự, và chẩn đoán gốc đếm bằng ký tự. Tiếng Việt có dấu nên
+mỗi ký tự chiếm nhiều hơn một byte. `CLAUDE.md` **không hề phình, nó y nguyên**.
+
+Nhưng kết luận thì vẫn giữ, chỉ đổi lý do: không có gì canh. Không có test, không có cảnh
+báo. Việc nó chưa trôi cho tới giờ là may, không phải do có rào.
 
 Chừng nào Phase 8 chưa bật thì mỗi dòng thêm vào `CLAUDE.md` là thuế đánh lên mọi lượt chat
-của mọi model.
+của mọi model, và không ai nhìn thấy khoản thuế đó tăng.
 
 ### 3.5 Chưa có `capability_index.py`, mới chỉ có keyword
 
