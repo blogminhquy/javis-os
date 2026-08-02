@@ -4359,20 +4359,29 @@ async def usage_refresh():
 
 # Engine của workflow chỉ chạy được CLI (Claude hoặc Codex). Router có thể khai model
 # của provider API, nhưng ở đây không với tới được, nên chỉ nhận đúng hai họ này.
+# Dự trù output cho một bước workflow. Bảo thủ: thà loại một model sát trần còn hơn
+# route vào rồi tràn cửa sổ giữa chừng.
+_ROUTER_STEP_OUTPUT_RESERVE = 4000
+
 _WORKFLOW_ROUTABLE_PROVIDERS = {
     "cli": "claude", "claude": "claude", "anthropic-cli": "claude",
     "codex": "codex", "openai-oauth": "codex",
 }
 
 
-def _route_step_model(router, node, agent_model, session_id):
+def _route_step_model(router, prompt, agent_model, session_id):
     """Chọn model cho MỘT bước. Không route được thì giữ nguyên model của agent.
 
     Guard quan trọng: router có thể trỏ sang provider mà engine workflow không gọi
     được. Im lặng dùng model đó là chạy sai model so với thứ đã quyết.
+
+    Phải truyền KÍCH THƯỚC prompt thật, nếu không bộ lọc cửa sổ context vô hiệu và
+    một prompt dài vẫn lọt vào model cửa sổ nhỏ.
     """
     if router is None:
         return agent_model, ""
+    # Cùng heuristic ký tự/token với phần còn lại của runtime; ước lượng bảo thủ.
+    estimated = max(1, int(len(str(prompt or "")) / 3) + 1)
     try:
         decision = router.route(
             model_router.RoutingRequest(
@@ -4380,6 +4389,8 @@ def _route_step_model(router, node, agent_model, session_id):
                 requires=model_router.requirements_for(
                     "model_step", needs_tools=True),
                 risk="none",
+                estimated_input_tokens=estimated,
+                reserved_output_tokens=_ROUTER_STEP_OUTPUT_RESERVE,
             ),
             session_id or "workflow",
             current_model=agent_model or "",
@@ -4403,7 +4414,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     Dùng chung cho cả hai đường. `sink` nhận event để đường graph đẩy ra SSE y như cũ.
     """
     agent_name, sysprompt, agent_model = agent_sysprompt(node.agent)
-    routed_model, route_reason = _route_step_model(router, node, agent_model, session_id)
+    routed_model, route_reason = _route_step_model(router, prompt, agent_model, session_id)
     if routed_model != agent_model:
         await sink({"type": "step_model", "node": node.id, "model": routed_model,
                     "reason": route_reason})

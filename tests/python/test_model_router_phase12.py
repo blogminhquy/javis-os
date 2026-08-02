@@ -242,7 +242,7 @@ def test_router_never_picks_a_provider_the_workflow_engine_cannot_reach(monkeypa
     ])
     monkeypatch.setattr(main.cfgmod, "read_settings", lambda: settings)
     router = main.model_router.ModelRouter(lambda: settings)
-    model, reason = main._route_step_model(router, None, "sonnet", "sid")
+    model, reason = main._route_step_model(router, "prompt ngắn", "sonnet", "sid")
     assert model == "sonnet", "giữ nguyên model của agent"
     assert reason == "provider_not_reachable_from_workflow_engine"
 
@@ -256,7 +256,7 @@ def test_router_applies_a_reachable_cli_model(monkeypatch):
          "output_cost_per_million": 2.0},
     ])
     router = main.model_router.ModelRouter(lambda: settings)
-    model, _reason = main._route_step_model(router, None, "sonnet", "sid")
+    model, _reason = main._route_step_model(router, "prompt ngắn", "sonnet", "sid")
     assert model == "opus"
 
 
@@ -269,7 +269,7 @@ def test_router_refuses_a_codex_route_that_is_not_a_codex_model(monkeypatch):
          "input_cost_per_million": 1.0, "output_cost_per_million": 2.0},
     ])
     router = main.model_router.ModelRouter(lambda: settings)
-    model, reason = main._route_step_model(router, None, "sonnet", "sid")
+    model, reason = main._route_step_model(router, "prompt ngắn", "sonnet", "sid")
     assert model == "sonnet"
     assert reason == "routed_model_not_valid_for_codex"
 
@@ -281,7 +281,7 @@ def test_router_errors_keep_the_agent_model(monkeypatch):
         def route(self, *a, **k):
             raise RuntimeError("router hỏng")
 
-    model, reason = main._route_step_model(Boom(), None, "sonnet", "sid")
+    model, reason = main._route_step_model(Boom(), "prompt", "sonnet", "sid")
     assert model == "sonnet" and reason == ""
 
 
@@ -292,8 +292,30 @@ def test_defaults_leave_every_workflow_step_on_the_agent_model(monkeypatch):
 
     settings = copy.deepcopy(cfgmod._DEFAULT)
     router = main.model_router.ModelRouter(lambda: settings)
-    model, reason = main._route_step_model(router, None, "sonnet", "sid")
+    model, reason = main._route_step_model(router, "prompt ngắn", "sonnet", "sid")
     assert model == "sonnet" and reason == "mode_not_canary"
+
+
+def test_a_long_prompt_is_not_routed_into_a_small_context_model(monkeypatch):
+    """Bộ lọc cửa sổ context chỉ có tác dụng nếu ta ĐƯA cho nó kích thước thật."""
+    import main
+
+    settings = _router_settings([
+        # Cửa sổ phải lớn hơn dự trù output (4000), nếu không đến prompt rỗng cũng
+        # không vừa - fixture như vậy đo nhầm sang chuyện khác.
+        {"id": "nho", "provider": "anthropic-cli", "model": "cua-so-nho",
+         "supports": ["tools"], "context_window": 12_000,
+         "input_cost_per_million": 0.01, "output_cost_per_million": 0.02},
+    ])
+    router = main.model_router.ModelRouter(lambda: settings)
+
+    short_model, _ = main._route_step_model(router, "ngắn", "sonnet", "sid")
+    assert short_model == "cua-so-nho", "prompt ngắn thì vừa"
+
+    long_prompt = "x" * 200_000
+    long_model, reason = main._route_step_model(router, long_prompt, "sonnet", "sid")
+    assert long_model == "sonnet", "prompt dài phải giữ model của agent"
+    assert reason == "no_eligible_model"
 
 
 if __name__ == "__main__":
