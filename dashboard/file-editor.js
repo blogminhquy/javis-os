@@ -64,7 +64,10 @@
       ".jvfe-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border)}" +
       ".jvfe-title{font-weight:600;font-size:14px;color:var(--text);flex:1;overflow:hidden;" +
       "text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:7px}" +
-      ".jvfe-actions{display:flex;gap:6px;flex:none;align-items:center}" +
+      ".jvfe-actions{display:flex;gap:6px;flex:none;align-items:center;flex-wrap:wrap}" +
+      // Man hep: thanh nut trum khong du cho -> nut Dong bi day ra ngoai va nguoi dung
+      // mac ket trong trinh sua. Cho phep xuong dong va giu nut Dong luon o cuoi.
+      "@media(max-width:700px){.jvfe-head{flex-wrap:wrap;gap:6px}.jvfe-actions{width:100%;justify-content:flex-end}.jvfe-actions .icon{order:99}}" +
       ".jvfe-seg{display:flex;gap:4px;margin-right:4px}" +
       ".jvfe-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);" +
       "border-radius:7px;padding:5px 11px;font-size:13px;cursor:pointer;font-family:inherit}" +

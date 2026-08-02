@@ -102,6 +102,11 @@ def _parse_retry_after(headers, cap: float = 600.0):
         return None
 
 
+# Trần thời gian CHỜ cửa sổ hạn mức trượt qua. Quá ngưỡng này thì báo cho người dùng thay
+# vì ngồi im: chờ 10 giây là chấp nhận được, chờ một phút thì người ta tưởng treo.
+_WINDOW_WAIT_MAX = 25.0
+
+
 class _RetryStream(Exception):
     """Sentinel để thoát các async with lồng nhau và quay lại vòng retry.
     retry_after: giây provider yêu cầu chờ (từ header Retry-After) - None thì dùng jittered backoff."""
@@ -1162,6 +1167,9 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     tools = _mcp_to_openai_tools(mcp_tools)
     msgs = _or_mark_system(messages) if cache_system else list(messages)
     usage_in = usage_out = 0
+    # Chỉ chờ cửa sổ hạn mức MỘT lần mỗi lượt: chờ hai lần là người dùng ngồi nhìn màn hình
+    # đứng im nửa phút mà không hiểu chuyện gì.
+    waited_for_window = False
     requirement = _tool_requirement(messages, mcp_tools)
     requirement_pending = bool(requirement)
     ignored_required = 0
@@ -1243,9 +1251,23 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                 _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                 if _fact:
                     limit_learner.remember(label, model, _fact)
+                    # CỬA SỔ ĐẦY thì co nhỏ gần như vô ích: lượt này đã vừa hạn mức rồi, chỉ
+                    # là các lượt TRƯỚC chưa trôi qua. Việc đúng là chờ, và nhà cung cấp đã
+                    # nói chờ bao lâu. Chờ vài giây rồi trả lời được vẫn hơn hẳn ném lỗi.
+                    if (_fact.window_full and _fact.retry_after
+                            and _fact.retry_after <= _WINDOW_WAIT_MAX
+                            and not waited_for_window):
+                        waited_for_window = True
+                        yield {"type": "tool_call", "name": "javis_wait_quota",
+                               "content": (f"⚙ Hạn mức phút này đã đầy, chờ "
+                                           f"{_fact.retry_after:.0f}s rồi thử lại...")}
+                        await asyncio.sleep(_fact.retry_after + 0.5)
+                        continue
                     yield {"type": "limit_exceeded", "provider": label, "model": model,
                            "kind": _fact.kind, "limit": _fact.limit,
-                           "requested": _fact.requested,
+                           "requested": _fact.requested, "used": _fact.used,
+                           "window_full": _fact.window_full,
+                           "retry_after": _fact.retry_after,
                            "shrink_to": limit_learner.shrink_target(_fact)}
                 yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
                 return

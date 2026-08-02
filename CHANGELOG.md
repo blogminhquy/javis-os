@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.1] - 2026-08-02
+Groq/Llama: xử được cả trường hợp hạn mức phút đã đầy. Ba lỗi giao diện.
+### Sửa lỗi
+- **Groq báo lỗi hạn mức kiểu thứ hai mà Javis không nhận ra.** Nhà cung cấp có hai câu báo khác nhau: một là "lượt này quá lớn", hai là "phút này đã dùng hết hạn mức". Javis mới chỉ đọc được câu đầu, nên sau khi đã tự rút gọn thành công thì lại vấp câu thứ hai và trả lỗi thô. Nay đọc được cả hai, và với trường hợp thứ hai thì **chờ đúng số giây nhà cung cấp bảo chờ rồi tự gửi lại** thay vì cắt bớt ngữ cảnh vô ích. Vòng gọi công cụ vốn không có cơ chế thử lại nào nên đây cũng là lần đầu nó biết chờ.
+- **Phóng to khung chat rồi chuyển tab thì khung phóng to vẫn nằm đè lên trang mới.** Nay chuyển tab là tự thu lại.
+- **Trên điện thoại, chạm vào note mở trình sửa rồi không thoát được** vì thanh nút tràn khỏi màn hình hẹp. Theo yêu cầu, đã **tắt hẳn việc chạm note để sửa trên điện thoại** (node quá nhỏ nên gần như luôn chạm nhầm), kèm một dòng nhắc mở trên máy tính. Thanh nút của trình sửa cũng đã biết xuống dòng để nút Đóng luôn với tới được nếu vào bằng đường khác.
+- **Đổi model ở trang Models thì thanh model dưới khung chat và dòng trạng thái trên hội thoại không đổi theo.** Hai chỗ đó đọc cấu hình ở hai thời điểm khác nhau và không ai báo cho ai. Nay mọi đường đổi model đều làm mới cả hai ngay lập tức.
+
 ## [0.12.0] - 2026-08-02
 Trang Chẩn đoán đổi thành **Tiết kiệm token**: ba nút thay cho bảng mười dòng. Sửa lỗi Llama vẫn vượt hạn mức.
 ### Sửa lỗi

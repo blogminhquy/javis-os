@@ -38,6 +38,33 @@ check("Groq 413: rút đúng hạn mức 12000", _f and _f.limit == 12000)
 check("Groq 413: rút đúng số đã xin 15447", _f and _f.requested == 15447)
 check("Groq 413: phân loại đúng là TPM", _f and _f.kind == "tpm")
 
+# ---- 1b. Dạng 429 "cửa sổ đã đầy" - lỗi chủ repo gặp SAU khi đã vá dạng 413 ----
+# Khác hẳn dạng trên: lượt này chỉ xin 4701 (vừa hạn mức), nhưng các lượt TRƯỚC đã ăn 8812.
+# Co nhỏ prompt gần như vô ích ở đây; việc đúng là CHỜ, và nhà cung cấp đã nói chờ bao lâu.
+_groq429 = ('{"error":{"message":"Rate limit reached for model `llama-3.3-70b-versatile` in '
+            'organization `org_01kykn91sqfk5s9nda9m3vpbsc` service tier `on_demand` on tokens '
+            'per minute (TPM): Limit 12000, Used 8812, Requested 4701. Please try again in '
+            '7.564999999s. Need more tokens? Upgrade to Dev Tier today"}}')
+_f = ll.parse_limit_error(429, _groq429)
+check("Groq 429: nhận ra (mẫu cũ đòi Requested ngay sau Limit nên trượt)", _f is not None)
+check("Groq 429: rút đúng hạn mức", _f and _f.limit == 12000)
+check("Groq 429: rút đúng phần ĐÃ dùng", _f and _f.used == 8812)
+check("Groq 429: rút đúng phần vừa xin", _f and _f.requested == 4701)
+check("Groq 429: biết đây là CỬA SỔ ĐẦY, không phải lượt này quá to",
+      _f and _f.window_full is True)
+check("Groq 429: đọc được số giây cần chờ", _f and abs(_f.retry_after - 7.565) < 0.01)
+
+# Ngược lại: dạng 413 là lượt này quá to, KHÔNG phải cửa sổ đầy - phải co nhỏ chứ không chờ.
+_f413 = ll.parse_limit_error(413, _groq)
+check("Groq 413: KHÔNG bị nhầm thành cửa sổ đầy", _f413 and _f413.window_full is False)
+
+# parse_retry_after
+check("đọc 'try again in 7.5s'", abs(ll.parse_retry_after("try again in 7.5s") - 7.5) < 0.01)
+check("đọc đơn vị ms", abs(ll.parse_retry_after("try again in 500ms") - 0.5) < 0.01)
+check("đọc đơn vị phút", abs(ll.parse_retry_after("try again in 2m") - 120.0) < 0.01)
+check("không nói thì trả 0", ll.parse_retry_after("some other error") == 0.0)
+check("chờ quá lâu bị kẹp trần", ll.parse_retry_after("try again in 9999s") <= 300.0)
+
 # ---- 2. Nhà cung cấp KHÁC, cùng một cơ chế ----
 _f = ll.parse_limit_error(400, "This model's maximum context length is 8192 tokens, "
                                "however you requested 9000 tokens.")
@@ -161,6 +188,21 @@ if _missing:
     print("     dòng thiếu:", _missing)
 check("rào này có ý nghĩa (tìm được nhiều đường thật)",
       _eng.count("parse_limit_error") >= 4)
+
+# ---- 8. Nhánh CHỜ khi cửa sổ hạn mức đã đầy ----
+# _cc_tool_loop vốn KHÔNG có retry nào, nên 429 là chết luôn. Đây là lỗi chủ repo gặp sau khi
+# đã vá dạng 413: request đã co xuống 4701 (vừa hạn mức) nhưng cửa sổ còn 8812 chưa trôi qua.
+check("vòng gọi tool có nhánh chờ cửa sổ hạn mức", "waited_for_window" in _eng)
+# Điều kiện phải BAO GỒM window_full: thiếu nó thì nhánh chờ hoặc không bao giờ chạy, hoặc
+# chạy cả với lỗi "lượt này quá to" - chờ xong vẫn quá to, chỉ tốn thêm thời gian.
+check("nhánh chờ gác đúng trên window_full",
+      "_fact.window_full and _fact.retry_after" in _eng)
+check("thật sự có ngủ chờ rồi thử lại",
+      "await asyncio.sleep(_fact.retry_after" in _eng)
+check("có trần thời gian chờ, không treo vô hạn",
+      "_fact.retry_after <= _WINDOW_WAIT_MAX" in _eng)
+check("chỉ chờ MỘT lần mỗi lượt, không chờ chồng",
+      "not waited_for_window" in _eng)
 
 print()
 if _fails:

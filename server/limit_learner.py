@@ -42,6 +42,19 @@ class LimitFact:
     limit: int       # hạn mức nhà cung cấp nêu
     requested: int   # số nhà cung cấp nói là ta vừa xin
     source: str      # mẫu nào khớp, để còn lần lại khi nhận diện sai
+    # Đã tiêu bao nhiêu trong cửa sổ. 0 = nhà cung cấp không nói.
+    used: int = 0
+    # Nhà cung cấp bảo chờ bao nhiêu giây. 0 = không nói.
+    retry_after: float = 0.0
+
+    @property
+    def window_full(self) -> bool:
+        """Cửa sổ đã đầy vì các lượt TRƯỚC, không phải vì lượt này quá to.
+
+        Phân biệt này quyết định hành động: lượt này quá to thì phải CO NHỎ, còn cửa sổ đầy
+        thì co nhỏ gần như vô ích - phải CHỜ cho cửa sổ trượt qua. Nhầm hai cái này là cắt
+        ngữ cảnh của người dùng để giải một bài toán mà cắt không giải được."""
+        return self.used > 0 and self.requested > 0 and self.requested <= self.limit
 
 
 # Mỗi mẫu: (tên, kind, regex có 2 nhóm số theo thứ tự limit, requested).
@@ -49,7 +62,14 @@ class LimitFact:
 # limit" sẽ đọc nhầm số tiền, số giây, số phiên bản - và đọc nhầm hạn mức thì tệ hơn không
 # đọc, vì nó làm Javis tự bóp mình xuống một con số bịa.
 _PATTERNS: tuple[tuple[str, str, re.Pattern], ...] = (
-    # Groq: "on tokens per minute (TPM): Limit 12000, Requested 15447"
+    # Groq có HAI dạng, và chúng đòi hai cách xử lý khác hẳn nhau:
+    #   413 "Request too large ... Limit 12000, Requested 15447"      -> lượt này quá to
+    #   429 "Rate limit reached ... Limit 12000, Used 8812, Requested 4701" -> cửa sổ đã đầy
+    # Mẫu cũ đòi "Requested" đứng NGAY sau "Limit" nên dạng có "Used" chen vào không khớp,
+    # và lỗi 429 rơi thẳng ra màn hình. Đây đúng là lỗi chủ repo gặp sau khi đã vá dạng 413.
+    ("groq_tpm_used", "tpm", re.compile(
+        r"tokens?\s+per\s+minute[^:]*:\s*Limit\s+(\d+)\s*,\s*Used\s+(\d+)\s*,"
+        r"\s*Requested\s+(\d+)", re.I)),
     ("groq_tpm", "tpm", re.compile(
         r"tokens?\s+per\s+minute[^:]*:\s*Limit\s+(\d+)\s*,\s*Requested\s+(\d+)", re.I)),
     # OpenAI: "maximum context length is 8192 tokens, however you requested 9000 tokens"
@@ -74,8 +94,31 @@ _REVERSED = frozenset({"anthropic_context", "gemini_context"})
 _SIZE_ERROR_HINTS = (
     "request too large", "too many tokens", "maximum context length",
     "prompt is too long", "reduce your message size", "context_length_exceeded",
-    "input token count", "exceeds the maximum",
+    "input token count", "exceeds the maximum", "rate limit reached",
 )
+
+
+_RETRY_AFTER_RE = re.compile(r"try\s+again\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)?\b", re.I)
+
+
+def parse_retry_after(body: str) -> float:
+    """Số giây nhà cung cấp bảo chờ. 0 nếu không nói.
+
+    Con số này quý hơn mọi backoff tự đoán: nó là thời điểm cửa sổ trượt qua, do chính bên
+    đếm nói ra."""
+    m = _RETRY_AFTER_RE.search(str(body or ""))
+    if not m:
+        return 0.0
+    try:
+        value = float(m.group(1))
+    except (TypeError, ValueError):
+        return 0.0
+    unit = (m.group(2) or "s").lower()
+    if unit == "ms":
+        value /= 1000.0
+    elif unit == "m":
+        value *= 60.0
+    return max(0.0, min(value, 300.0))   # trần 5 phút: chờ lâu hơn thì báo còn hơn treo
 
 
 def parse_limit_error(status_code: int, body: str) -> LimitFact | None:
@@ -93,13 +136,19 @@ def parse_limit_error(status_code: int, body: str) -> LimitFact | None:
         if not m:
             continue
         try:
-            a, b = int(m.group(1)), int(m.group(2))
+            groups = [int(g) for g in m.groups()]
         except (TypeError, ValueError):
             continue
-        limit, requested = (b, a) if name in _REVERSED else (a, b)
+        used = 0
+        if len(groups) >= 3:
+            limit, used, requested = groups[0], groups[1], groups[2]
+        else:
+            a, b = groups[0], groups[1]
+            limit, requested = (b, a) if name in _REVERSED else (a, b)
         if limit <= 0:
             continue
-        return LimitFact(kind=kind, limit=limit, requested=max(0, requested), source=name)
+        return LimitFact(kind=kind, limit=limit, requested=max(0, requested), source=name,
+                         used=max(0, used), retry_after=parse_retry_after(text))
     # Nhận ra là lỗi kích thước nhưng không rút được số: vẫn đáng báo, vì nó nói cho tầng
     # trên biết "co prompt lại rồi thử lại" thay vì "chờ rồi thử lại".
     low = text.casefold()

@@ -1685,6 +1685,7 @@ async function refreshTgStatus() {
     else el.innerHTML = s.running ? ic("circle", { cls: "ic-fill ic-ok" }) + " Đang chạy" + (s.chat_id ? " · chỉ chat_id " + s.chat_id : " · MỌI người (nên đặt chat_id)") : ic("loader") + " Chưa chạy (lưu lại)";
   } catch (e) { el.textContent = ""; }
 }
+// Xuất ra window: console.js gọi lại sau khi đổi model để badge engine không bị cũ.
 async function refreshEngineBadge() {
   try {
     const s = await (await fetch("/settings")).json();
@@ -2023,3 +2024,6 @@ restoreSession();
 // mà khôi phục hội thoại ở trên sinh ra để tránh.
 _pinRestore();
 renderChips();
+
+// Đồng bộ badge engine từ module khác (console.js sau khi đổi model).
+window.refreshEngineBadge = refreshEngineBadge;

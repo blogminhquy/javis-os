@@ -188,7 +188,19 @@
     const swap = () => {
       const leave = _pageLeave; _pageLeave = null;
       if (leave) { try { leave(); } catch (e) {} }   // dọn trang cũ trước khi thay nội dung
+      // Khung chat phóng to là overlay MƯỢN node của cockpit (#chatArea, #modelBar...).
+      // Rời trang mà không thu lại thì overlay nằm đè lên trang mới, và các node đó vẫn
+      // đang ở trong overlay chứ không về chỗ cũ. Thu ở ĐÂY để phủ mọi tab, thay vì nhớ
+      // thêm một dòng ở từng trang.
+      try {
+        if (window.JavisChatStage && window.JavisChatStage.isOpen()) {
+          window.JavisChatStage.collapse();
+        }
+      } catch (e) {}
       store.active = id;
+      // Về nơi có hiển thị model thì làm mới, phòng khi model bị đổi bằng đường khác
+      // (trang Models, Cài đặt nhanh, hoặc chỉnh tay settings).
+      if (id === "home" || id === "chat") refreshModelUi();
       // Nút điều khiển cockpit (cài đặt, giọng nói, làm mới) chỉ hiện ở trang Javis, không hiện navbar trang quản lý
       document.body.classList.toggle("in-console", id !== "home");
       // Rời trang Cài đặt → cất #quickSet về holder TRƯỚC khi cviewBody bị ghi đè (giữ node + handler).
@@ -227,6 +239,14 @@
   // (đã dính ở 0.9.152).
   if (typeof window !== "undefined") window.JavisOpenNote = function (brainRel) {
     if (!brainRel) return;
+    // Trên điện thoại KHÔNG mở trình sửa: node trên đồ thị quá nhỏ nên chạm gần như luôn
+    // trúng nhầm note, và trình sửa mở ra rồi thì thanh nút tràn khỏi màn hẹp nên khó thoát.
+    // Mở nhầm một note rồi mắc kẹt trong đó tệ hơn hẳn là không mở.
+    if (isNarrow()) {
+      if (window.JavisToast) window.JavisToast("Sửa note trên điện thoại đã tắt - mở trên máy tính để chỉnh sửa.");
+      else alert("Sửa note trên điện thoại đã tắt. Mở trên máy tính để chỉnh sửa.");
+      return;
+    }
     const ceilingRel = _vtHome ? _vtHome + "/" + brainRel : brainRel;   // ghép tiền tố trần như cây
     const name = brainRel.split("/").pop();
     const ext = name.includes(".") ? "." + name.split(".").pop().toLowerCase() : ".md";
@@ -4107,9 +4127,23 @@
     const fd = new FormData();
     fd.append("section", section);
     fd.append("data", JSON.stringify(dataObj));
-    try { return await (await fetch("/settings", { method: "POST", body: fd })).json(); }
-    catch (e) { return { ok: false }; }
+    let res;
+    try { res = await (await fetch("/settings", { method: "POST", body: fd })).json(); }
+    catch (e) { res = { ok: false }; }
+    // Đổi model ở trang Models mà thanh model trong chat không đổi theo: hai chỗ đó đọc
+    // /settings ở hai thời điểm khác nhau và không ai báo cho ai. Làm mới ngay tại đây để
+    // mọi đường đổi model đều đồng bộ, thay vì nhớ gọi ở từng nút.
+    if (section === "model") refreshModelUi();
+    return res;
   }
+
+  // Đồng bộ mọi chỗ hiển thị model: thanh chọn model dưới khung chat và badge engine trên
+  // đầu hội thoại (badge trong trang chat soi gương từ badge HUD nên chỉ cần làm mới HUD).
+  function refreshModelUi() {
+    try { if (window.initModelBar) window.initModelBar(); } catch (e) {}
+    try { if (window.refreshEngineBadge) window.refreshEngineBadge(); } catch (e) {}
+  }
+  if (typeof window !== "undefined") window.JavisRefreshModelUi = refreshModelUi;
 
   // ---- Cất #quickSet (avatar/tên miền/giọng nói) về holder ẩn khi rời trang Cài đặt ----
   // Node giữ nguyên → mọi handler đã gắn ở app.js/branding.js/quick-settings.js vẫn sống.
