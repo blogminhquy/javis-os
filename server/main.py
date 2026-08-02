@@ -7052,59 +7052,75 @@ async def websocket_endpoint(ws: WebSocket):
                     except Exception as _exc:
                         _phase8_plan = adaptive_context_runtime.AdaptiveContextPlan(
                             "legacy", f"prepare_error:{type(_exc).__name__}")
-                    sysprompt = (_phase8_plan.system_prompt
-                                 if _phase8_plan.action == "use" else _legacy_system_prompt())
-                    label = _api_label(prov)
-                    actual_model = api_model or "?"
-                    _ident = (
-                        f"\n\n[Sự thật hệ thống - TUÂN THỦ tuyệt đối: Bạn đang chạy qua {label}, "
-                        f"model thực tế là '{actual_model}'. Khi được hỏi bạn là AI/model nào, "
-                        f"trả lời ĐÚNG tên model này. KHÔNG được tự nhận là model khác.]"
-                    )
-                    _head = [{"role": "system", "content": sysprompt + _ident}]
-                    if _phase8_plan.action == "use" and _phase8_plan.state_applied:
-                        # State + recent transcript were already budgeted by Context Compiler.
-                        or_messages = list(_head)
+                    if _phase8_plan.action == "reject":
+                        # Rơi về legacy ở đây là SAI CHIỀU. Phase 8 tồn tại để thay
+                        # CLAUDE.md bằng capsule nhỏ; legacy gửi nguyên CLAUDE.md cộng
+                        # MEMORY.md, tức là còn TO HƠN cái vừa bị từ chối vì quá to.
+                        # Provider sẽ trả lỗi hạn mức và user chỉ thấy thông báo khó hiểu.
+                        used_fast_path = True
+                        final_text = _phase8_plan.rejection_message
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "quota.rejected",
+                            {"reason": _phase8_plan.reason, "path": "context_sources"})
+                        await ws.send_text(json.dumps({
+                            "type": "response", "content": final_text,
+                            "engine": "javis-gateway", "model": api_model or "?",
+                            "session_id": conv_sid,
+                        }))
                     else:
-                        _raw = [{"role": _m["role"], "content": _m["content"]}
-                                for _m in store.get_messages(conv_sid)[:-1]
-                                if _m["role"] in ("user", "assistant") and _m.get("content")]
-                        or_messages = await compaction.prepare_history(
-                            _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
-                    or_messages.append({"role": "user", "content": user_message})
-                    gen = await _api_stream_mcp(
-                        prov, api_key, api_model, or_messages, reasoning, brain=brain,
-                        force_lazy=(_phase8_plan.action == "use"),
-                    )
-                    async for ev in gen:
-                        if ev["type"] == "meta":
-                            actual_model = ev.get("model") or actual_model
-                            _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
-                        elif ev["type"] == "usage":
-                            usage_store.record(
-                                prov, actual_model, ev.get("input", 0), ev.get("output", 0)
-                            )
-                            _CONTEXT_RUNTIME.record_usage(
-                                runtime_trace, ev.get("input", 0), ev.get("output", 0)
-                            )
-                        elif ev["type"] == "tool_call":
-                            await ws.send_text(json.dumps({
-                                "type": "tool_call", "tool": ev.get("name", ""),
-                                "content": f"⚙ MCP: {ev.get('name', '')}",
-                            }))
-                        elif ev["type"] == "text":
-                            final_text += ev["content"]
-                            await ws.send_text(json.dumps({
-                                "type": "stream", "content": ev["content"], "tts": False,
-                            }))
-                        elif ev["type"] == "error":
-                            await ws.send_text(json.dumps({
-                                "type": "error", "content": ev["content"],
-                            }))
-                    await ws.send_text(json.dumps({
-                        "type": "response", "content": final_text, "engine": prov,
-                        "model": actual_model, "session_id": conv_sid,
-                    }))
+                        sysprompt = (_phase8_plan.system_prompt
+                                     if _phase8_plan.action == "use" else _legacy_system_prompt())
+                        label = _api_label(prov)
+                        actual_model = api_model or "?"
+                        _ident = (
+                            f"\n\n[Sự thật hệ thống - TUÂN THỦ tuyệt đối: Bạn đang chạy qua {label}, "
+                            f"model thực tế là '{actual_model}'. Khi được hỏi bạn là AI/model nào, "
+                            f"trả lời ĐÚNG tên model này. KHÔNG được tự nhận là model khác.]"
+                        )
+                        _head = [{"role": "system", "content": sysprompt + _ident}]
+                        if _phase8_plan.action == "use" and _phase8_plan.state_applied:
+                            # State + recent transcript were already budgeted by Context Compiler.
+                            or_messages = list(_head)
+                        else:
+                            _raw = [{"role": _m["role"], "content": _m["content"]}
+                                    for _m in store.get_messages(conv_sid)[:-1]
+                                    if _m["role"] in ("user", "assistant") and _m.get("content")]
+                            or_messages = await compaction.prepare_history(
+                                _head, store, conv_sid, _raw, prov, api_key, api_model, _api_stream)
+                        or_messages.append({"role": "user", "content": user_message})
+                        gen = await _api_stream_mcp(
+                            prov, api_key, api_model, or_messages, reasoning, brain=brain,
+                            force_lazy=(_phase8_plan.action == "use"),
+                        )
+                        async for ev in gen:
+                            if ev["type"] == "meta":
+                                actual_model = ev.get("model") or actual_model
+                                _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
+                            elif ev["type"] == "usage":
+                                usage_store.record(
+                                    prov, actual_model, ev.get("input", 0), ev.get("output", 0)
+                                )
+                                _CONTEXT_RUNTIME.record_usage(
+                                    runtime_trace, ev.get("input", 0), ev.get("output", 0)
+                                )
+                            elif ev["type"] == "tool_call":
+                                await ws.send_text(json.dumps({
+                                    "type": "tool_call", "tool": ev.get("name", ""),
+                                    "content": f"⚙ MCP: {ev.get('name', '')}",
+                                }))
+                            elif ev["type"] == "text":
+                                final_text += ev["content"]
+                                await ws.send_text(json.dumps({
+                                    "type": "stream", "content": ev["content"], "tts": False,
+                                }))
+                            elif ev["type"] == "error":
+                                await ws.send_text(json.dumps({
+                                    "type": "error", "content": ev["content"],
+                                }))
+                        await ws.send_text(json.dumps({
+                            "type": "response", "content": final_text, "engine": prov,
+                            "model": actual_model, "session_id": conv_sid,
+                        }))
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
                 sysprompt = _legacy_system_prompt()

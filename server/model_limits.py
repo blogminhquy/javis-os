@@ -107,3 +107,42 @@ def as_quota_profile(item: dict) -> dict:
 
 def known_providers() -> list[str]:
     return sorted({item["provider"] for item in KNOWN_LIMITS})
+
+
+def fits_within(provider: str, model: str, needed_tokens: int) -> bool | None:
+    """Provider/model này có chứa nổi `needed_tokens` trong một cửa sổ TPM không?
+
+    Trả None nghĩa là CHƯA BIẾT (không có mục nào khớp). None khác False: chưa biết thì
+    không được kết luận là chặn, cũng không được kết luận là qua."""
+    matches = suggest_profiles(provider, model)
+    if not matches:
+        return None
+    # Khớp nhiều mục thì lấy mục rộng rãi nhất - hạn mức thật của tài khoản chỉ có thể
+    # cao hơn hoặc bằng con số công khai của gói thấp nhất.
+    return max(int(m["rolling_tpm"]) for m in matches) >= max(0, int(needed_tokens or 0))
+
+
+def blocked_hint(provider: str, model: str, needed_tokens: int,
+                 configured_providers=()) -> str:
+    """Câu giải thích cho người dùng khi request bị chặn vì hạn mức, kèm lối ra.
+
+    Chỉ nêu provider mà người dùng ĐÃ cấu hình và ta CHƯA biết là bị siết. Không quảng cáo
+    provider họ không có, và không hứa provider khác chắc chắn chạy được - ta chỉ biết là
+    chưa có bằng chứng nó bị chặn."""
+    matches = suggest_profiles(provider, model)
+    limit = max((int(m["rolling_tpm"]) for m in matches), default=0)
+    parts = []
+    if limit:
+        parts.append(f"Lượt này cần khoảng {int(needed_tokens):,} token, "
+                     f"trong khi {provider} giới hạn {limit:,} token mỗi phút.")
+    else:
+        parts.append(f"Lượt này cần khoảng {int(needed_tokens):,} token, "
+                     f"vượt hạn mức đã khai cho {provider}.")
+    others = [p for p in (configured_providers or ())
+              if str(p).strip().lower() != (provider or "").strip().lower()
+              and fits_within(str(p), "", needed_tokens) is not False]
+    if others:
+        parts.append("Có thể đổi sang " + ", ".join(sorted(set(others)))
+                     + " (chưa ghi nhận bị siết ở mức này).")
+    parts.append("Hoặc rút gọn yêu cầu, hoặc chờ hết cửa sổ một phút.")
+    return " ".join(parts)

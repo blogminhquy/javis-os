@@ -13,6 +13,7 @@ from pathlib import Path
 
 import context_compiler
 import context_runtime
+import model_limits
 from context_compiler import ContextItem, HeuristicTokenizer
 from conversation_state import ConversationStateStore
 from lazy_skill_runtime import LazySkillSource
@@ -95,6 +96,8 @@ class AdaptiveContextPlan:
     skill_applied: bool = False
     feature_status: dict = field(default_factory=dict)
     compiler_report: dict = field(default_factory=dict)
+    # Câu nói cho người dùng khi action == "reject". Rỗng ở mọi action khác.
+    rejection_message: str = ""
 
 
 class AdaptiveContextCanary:
@@ -140,6 +143,23 @@ class AdaptiveContextCanary:
                     "id": str(item.get("id") or f"phase8-quota-{index + 1}"),
                 }))
         return max(matches)[3] if matches else None
+
+    def _configured_providers(self) -> tuple[str, ...]:
+        """Provider người dùng ĐÃ cấu hình khoá, để gợi ý đường lui có thật.
+
+        Chỉ đọc SỰ TỒN TẠI của khoá, không đọc giá trị khoá. Gợi ý là phần phụ nên mọi lỗi
+        đều nuốt về rỗng, không được làm hỏng lượt chat."""
+        try:
+            model_cfg = (self.settings_reader() or {}).get("model") or {}
+        except Exception:  # noqa: BLE001 - xem docstring
+            return ()
+        out = []
+        for field_name, name in (("openrouter_key", "openrouter"), ("openai_api_key", "openai"),
+                                 ("gemini_api_key", "gemini"), ("groq_api_key", "groq"),
+                                 ("anthropic_api_key", "anthropic")):
+            if str(model_cfg.get(field_name) or "").strip():
+                out.append(name)
+        return tuple(out)
 
     @staticmethod
     def _recent_item(session_id: str, messages: list[dict], count: int) -> ContextItem | None:
@@ -301,6 +321,24 @@ class AdaptiveContextCanary:
             if any(x.id == "recent_transcript" for x in items):
                 expected.add("recent_transcript")
         if compiled.status != "compiled" or compiled.capsule is None:
+            # Rơi về legacy ở đây là SAI CHIỀU khi lý do là ngân sách. Phase 8 tồn tại để
+            # THAY CLAUDE.md bằng capsule nhỏ; legacy là đường gửi nguyên CLAUDE.md cộng
+            # MEMORY.md, tức là lớn hơn hẳn cái vừa bị từ chối vì quá lớn. Provider sẽ trả
+            # lỗi hạn mức, và người dùng chỉ thấy một lỗi khó hiểu từ nhà cung cấp.
+            #
+            # Đây đúng là ca đã chặn Javis: gói Groq 12.000 TPM, một lượt cần 21.446 token.
+            quota_reason = context_compiler.quota_block_reason(report)
+            if quota_reason:
+                needed = (int(report.get("estimated_input_tokens") or 0)
+                          + int(report.get("reserved_output_tokens") or 0))
+                return AdaptiveContextPlan(
+                    "reject", quota_reason, feature_status=status, compiler_report=report,
+                    rejection_message=(
+                        "Javis chưa gửi request vì biết trước là sẽ vượt hạn mức. "
+                        + model_limits.blocked_hint(provider, model, needed,
+                                                    self._configured_providers())
+                    ),
+                )
             return AdaptiveContextPlan("legacy", "compiler_rejected", feature_status=status,
                                        compiler_report=report)
         selected_ids = set(report.get("selected_context_ids") or [])

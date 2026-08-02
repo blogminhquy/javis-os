@@ -245,6 +245,34 @@ class ModelBudgetResolver:
         )
 
 
+# Lý do preflight từ chối vì KHÔNG ĐỦ NGÂN SÁCH, phân biệt với lý do "câu này không hợp
+# đường đang xét". Ranh giới này quyết định hành vi fallback, xem `quota_block_reason`.
+QUOTA_REASON_CODES = frozenset({
+    "rolling_tpm",     # vượt hạn mức token mỗi phút của provider
+    "input_budget",    # vượt cửa sổ ngữ cảnh đã trừ phần chừa cho câu trả lời
+    "task_budget",     # vượt ngân sách còn lại của cả task
+    "required_items",  # riêng phần BẮT BUỘC đã không vừa, nén thêm cũng vô ích
+})
+
+
+def quota_block_reason(report: dict) -> str:
+    """Mã lý do quota đã chặn request, "" nếu preflight từ chối vì lý do khác.
+
+    Vì sao cần phân biệt: khi preflight từ chối, phản xạ mặc định của canary là rơi về
+    legacy. Với lý do "câu này không hợp fast path" thì rơi về legacy là đúng. Nhưng với lý
+    do NGÂN SÁCH thì nó sai chiều, vì legacy chính là đường gửi NHIỀU token hơn - phát hiện
+    request quá to rồi phản ứng bằng cách gửi một request còn to hơn, và provider trả lỗi.
+
+    Đây đúng là tình huống đã chặn Javis với gói Groq 12.000 TPM.
+    """
+    if (report or {}).get("preflight_decision") == "would_allow":
+        return ""
+    for code in (report or {}).get("preflight_reasons") or []:
+        if code in QUOTA_REASON_CODES:
+            return str(code)
+    return ""
+
+
 class QuotaPreflight:
     @staticmethod
     def observe(estimate: TokenEstimate, budget: ContextBudget) -> dict:
