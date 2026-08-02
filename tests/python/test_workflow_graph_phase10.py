@@ -597,6 +597,39 @@ def test_each_brain_loads_its_own_nested_workflows(tmp_path, monkeypatch):
     assert a.revision != b.revision, "mỗi brain phải ra đồ thị của chính nó"
 
 
+def test_graph_path_events_carry_the_step_index_studio_needs(tmp_path, monkeypatch):
+    """Studio định vị chỗ đổ chữ bằng `i`. Thiếu nó thì chữ bị vứt lặng lẽ."""
+    import copy
+    import config as cfgmod
+
+    on = copy.deepcopy(cfgmod._DEFAULT)
+    on["context_runtime"]["mode"] = "canary"
+    on["context_runtime"]["workflow_canary"].update(
+        {"allocation_basis_points": 10_000, "allowed_slugs": ["demo"]})
+    main, brain, _ = _brain_with_workflow(tmp_path, monkeypatch, on)
+
+    class StreamingEngine:
+        def __init__(self, *a, **k):
+            self.model = None
+
+        async def query(self, prompt):
+            yield {"type": "text", "content": "từng"}
+            yield {"type": "tool_call", "name": "Read"}
+            yield {"type": "final", "content": "xong"}
+
+    monkeypatch.setattr(main, "claude_engine", lambda **k: StreamingEngine())
+    events = _drain(main.execute_workflow("brain", "demo", input="x", session_id="s"))
+
+    streamed = [x for x in events if x["type"] in
+                ("step_text", "step_tool", "step_start", "step_done")]
+    assert streamed, "phải có event bước"
+    for event in streamed:
+        assert "i" in event, f"{event['type']} thiếu chỉ số bước"
+        assert isinstance(event["i"], int)
+    # Và chỉ số phải trỏ đúng bước, không phải luôn là 0.
+    assert {x["i"] for x in streamed if x["type"] == "step_text"} == {0, 1}
+
+
 if __name__ == "__main__":
     import sys
     import pytest

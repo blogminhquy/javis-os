@@ -4414,10 +4414,15 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     Dùng chung cho cả hai đường. `sink` nhận event để đường graph đẩy ra SSE y như cũ.
     """
     agent_name, sysprompt, agent_model = agent_sysprompt(node.agent)
+    # Studio định vị chỗ đổ chữ bằng CHỈ SỐ bước, không phải id node. Thiếu `i` thì
+    # event vẫn phát ra nhưng giao diện lặng lẽ vứt đi - người xem thấy bước chạy và
+    # bước xong mà không thấy chữ nào.
+    index = int((node.metadata or {}).get("legacy_index",
+                (node.metadata or {}).get("declared_index", 0)) or 0)
     routed_model, route_reason = _route_step_model(router, prompt, agent_model, session_id)
     if routed_model != agent_model:
-        await sink({"type": "step_model", "node": node.id, "model": routed_model,
-                    "reason": route_reason})
+        await sink({"type": "step_model", "i": index, "node": node.id,
+                    "model": routed_model, "reason": route_reason})
         agent_model = routed_model
     cur_prompt = prompt
     out = ""
@@ -4428,17 +4433,21 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         out = ""
         async for ev in gcli.query(cur_prompt):
             if ev["type"] == "text":
-                await sink({"type": "step_text", "node": node.id, "content": ev["content"]})
+                await sink({"type": "step_text", "i": index, "node": node.id,
+                            "content": ev["content"]})
             elif ev["type"] == "tool_call":
-                await sink({"type": "step_tool", "node": node.id, "tool": ev["name"]})
+                await sink({"type": "step_tool", "i": index, "node": node.id,
+                            "tool": ev["name"]})
             elif ev["type"] == "final":
                 out = ev.get("content") or out
             elif ev["type"] == "error":
-                await sink({"type": "step_error", "node": node.id, "content": ev["content"]})
+                await sink({"type": "step_error", "i": index, "node": node.id,
+                            "content": ev["content"]})
         if not node.verify_agent:
             break
         v_name, v_body, v_model = agent_sysprompt(node.verify_agent)
-        await sink({"type": "step_verify", "node": node.id, "agent": v_name, "attempt": attempt})
+        await sink({"type": "step_verify", "i": index, "node": node.id,
+                    "agent": v_name, "attempt": attempt})
         v_sys = (
             v_body + "\n\nVAI TRÒ KIỂM CHỨNG: Bạn là người ĐÁNH GIÁ độc lập. "
             "Mặc định GIẢ ĐỊNH kết quả dưới đây ĐANG SAI và phải tự chứng minh. "
@@ -4467,13 +4476,13 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         passed = bool(verdict.get("pass", True))
         reason = verdict.get("reason", "")
         fixes = verdict.get("fixes", "")
-        await sink({"type": "step_verify_result", "node": node.id, "passed": passed,
+        await sink({"type": "step_verify_result", "i": index, "node": node.id, "passed": passed,
                     "reason": reason, "attempt": attempt})
         verified = passed
         if passed or attempt >= node.max_retries:
             break
         attempt += 1
-        await sink({"type": "step_retry", "node": node.id, "attempt": attempt})
+        await sink({"type": "step_retry", "i": index, "node": node.id, "attempt": attempt})
         cur_prompt = (
             f"{prompt}\n\n# KẾT QUẢ LẦN TRƯỚC (bị kiểm chứng đánh giá CHƯA ĐẠT):\n{out[:8000]}\n\n"
             f"# PHẢN HỒI KIỂM CHỨNG:\n- Vấn đề: {reason}\n- Cần sửa: {fixes}\n"
