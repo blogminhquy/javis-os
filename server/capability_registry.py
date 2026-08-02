@@ -359,6 +359,45 @@ class CapabilityRegistry:
             "revision": self.revision(brain),
         }
 
+    def refresh_workflows(self, brain: str | Path, manifests: Iterable[dict]) -> dict:
+        """Refresh a derived WorkflowSource: metadata + hợp đồng, KHÔNG kèm thân node.
+
+        Workflow vào Registry với kind `workflow`. Resolver hard-filter kind này khỏi
+        đường chọn tool y như `skill`, nên thêm workflow không làm prompt đầu nạp to ra.
+        """
+        scope = brain_scope(brain)
+        source_key = f"{scope}:workflow:brain-workflows"
+        records = []
+        for manifest in manifests or []:
+            if not isinstance(manifest, dict):
+                continue
+            slug = str(manifest.get("slug") or "").strip()
+            if not slug:
+                continue
+            name = str(manifest.get("name") or slug).strip()[:180]
+            summary = str(manifest.get("description") or name).strip()[:2000]
+            aliases = list(dict.fromkeys([slug, name]))
+            payload = {
+                "slug": slug, "name": name, "summary": summary,
+                "revision": str(manifest.get("revision") or "")[:128],
+                "adapter": str(manifest.get("adapter") or "")[:60],
+                "node_count": int(manifest.get("node_count") or 0),
+                "max_risk": str(manifest.get("max_risk") or "none")[:20],
+                "resumable": bool(manifest.get("resumable")),
+                "has_write_node": bool(manifest.get("has_write_node")),
+                "nested_slugs": list(manifest.get("nested_slugs") or []),
+                "input_contract": manifest.get("input_contract") or {},
+                "output_contract": manifest.get("output_contract") or {},
+                "path": str(manifest.get("relative_path") or "")[:500],
+            }
+            records.append({
+                "capability_id": "workflow_" + _sha(source_key + "|" + slug)[:24],
+                "name": slug, "aliases": aliases, "summary": summary,
+                "intent": " ".join(_WORD_RE.findall((name + " " + summary).casefold())[:80]),
+                "revision": _sha(payload), "metadata": payload,
+            })
+        return self._refresh_derived_kind(brain, scope, source_key, "workflow", records)
+
     def refresh_skills(self, brain: str | Path, manifests: Iterable[dict]) -> dict:
         """Refresh a derived SkillSource using metadata/path only, never SKILL.md bodies."""
         scope = brain_scope(brain)
@@ -385,6 +424,15 @@ class CapabilityRegistry:
                 "intent": " ".join(_WORD_RE.findall((name + " " + summary + " " + group).casefold())[:80]),
                 "revision": _sha(payload), "metadata": payload,
             })
+        return self._refresh_derived_kind(brain, scope, source_key, "skill", records)
+
+    def _refresh_derived_kind(self, brain: str | Path, scope: str, source_key: str,
+                              kind: str, records: list[dict]) -> dict:
+        """Thân chung cho các source DẪN XUẤT chỉ có metadata (skill, workflow).
+
+        Chúng không phải tool: schema rỗng, effect `read`, và Resolver hard-filter
+        theo kind nên chúng không bao giờ lọt vào danh sách tool gửi model.
+        """
         records.sort(key=lambda x: x["name"])
         source_hash = _sha([{"name": x["name"], "revision": x["revision"]} for x in records])
         now = time.time()
@@ -400,22 +448,25 @@ class CapabilityRegistry:
                     "ON CONFLICT(source_key) DO UPDATE SET source_hash=excluded.source_hash,"
                     "revision=excluded.revision,health='healthy',capability_count=excluded.capability_count,"
                     "active=1,last_seen_at=excluded.last_seen_at,updated_at=excluded.updated_at",
-                    (source_key, scope, "skill", _sha(source_key)[:24], source_hash,
+                    (source_key, scope, kind, _sha(source_key)[:24], source_hash,
                      source_hash[:24], "healthy", len(records), 1, now, now),
                 )
                 if changed:
                     old_ids = [r[0] for r in db.execute(
                         "SELECT capability_id FROM capabilities WHERE source_key=?", (source_key,)
                     )]
-                    if self._fts:
-                        for capability_id in old_ids:
-                            db.execute("DELETE FROM capabilities_fts WHERE capability_id=?", (capability_id,))
+                    if self._fts and old_ids:
+                        placeholders = ",".join("?" for _ in old_ids)
+                        db.execute(
+                            f"DELETE FROM capabilities_fts WHERE capability_id IN ({placeholders})",
+                            old_ids,
+                        )
                     db.execute("DELETE FROM capabilities WHERE source_key=?", (source_key,))
                     empty_schema = {"type": "object", "properties": {}}
                     for item in records:
                         db.execute(
                             "INSERT INTO capabilities VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                            (item["capability_id"], source_key, scope, "skill", item["name"],
+                            (item["capability_id"], source_key, scope, kind, item["name"],
                              _json(item["aliases"]), item["summary"], item["intent"], _json(empty_schema),
                              _sha(empty_schema), item["revision"], "read", "readonly", "healthy", 1,
                              _json(item["metadata"]), now),
@@ -426,7 +477,7 @@ class CapabilityRegistry:
                                 (item["capability_id"], item["name"], " ".join(item["aliases"]),
                                  item["summary"], item["intent"]),
                             )
-                self._set_meta(db, f"last_refresh_skills:{scope}", str(now))
+                self._set_meta(db, f"last_refresh_{kind}:{scope}", str(now))
                 self._revision_cache.pop(scope, None)
         return {"brain_scope": scope, "capability_count": len(records),
                 "changed_sources": int(changed), "revision": self.revision(brain)}

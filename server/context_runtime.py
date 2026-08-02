@@ -69,6 +69,11 @@ def current_trace() -> Optional[TurnTrace]:
     return _CURRENT.get()
 
 
+# Đường chạy có checkpoint encrypted append-only. Phase 7 (orchestrator read-only) và
+# Phase 10 (workflow graph) dùng CHUNG cỗ máy này, không đẻ bảng riêng.
+CHECKPOINTED_PATHS = frozenset({"orchestrator", "workflow"})
+
+
 def bind_trace(trace: Optional[TurnTrace]):
     return _CURRENT.set(trace)
 
@@ -620,7 +625,8 @@ class ObserveRuntime:
         """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
         if not trace:
             return "legacy"
-        requested = path if path in {"fast", "readonly", "orchestrator", "write"} else "legacy"
+        requested = path if path in {
+            "fast", "readonly", "orchestrator", "write", "workflow"} else "legacy"
         try:
             with self._lock:
                 db = self._conn()
@@ -712,7 +718,7 @@ class ObserveRuntime:
                                 state_hash: str, orchestration_status: str,
                                 budget: dict, deadline_at: float | None) -> bool:
         """Ghim state Phase 7 và checkpoint đầu tiên bằng cùng một transaction OCC."""
-        if (not trace or trace.execution_path != "orchestrator" or
+        if (not trace or trace.execution_path not in CHECKPOINTED_PATHS or
                 not str(objective_encrypted).startswith("enc:") or
                 not str(state_encrypted).startswith("enc:")):
             return False
@@ -728,7 +734,7 @@ class ObserveRuntime:
                         "active_state_encrypted=?,orchestration_status=?,budget_json=?,"
                         "deadline_at=?,version=version+1,updated_at=? "
                         "WHERE id=? AND version=? AND status='RUNNING' "
-                        "AND execution_path='orchestrator'",
+                        "AND execution_path IN ('orchestrator','workflow')",
                         (str(actor_hash or "")[:128], objective_encrypted,
                          state_encrypted, safe_status,
                          json.dumps(safe_budget, ensure_ascii=False, sort_keys=True,
@@ -762,7 +768,7 @@ class ObserveRuntime:
     def checkpoint_orchestrator(self, trace: Optional[TurnTrace], state_encrypted: str,
                                 state_hash: str, orchestration_status: str) -> bool:
         """Checkpoint encrypted, append-only; task row và version đổi atomically."""
-        if (not trace or trace.execution_path != "orchestrator" or
+        if (not trace or trace.execution_path not in CHECKPOINTED_PATHS or
                 not str(state_encrypted).startswith("enc:")):
             return False
         now = time.time()
@@ -780,7 +786,7 @@ class ObserveRuntime:
                         "UPDATE runtime_tasks SET active_state_encrypted=?,"
                         "orchestration_status=?,version=version+1,updated_at=? "
                         "WHERE id=? AND version=? AND status='RUNNING' "
-                        "AND execution_path='orchestrator'",
+                        "AND execution_path IN ('orchestrator','workflow')",
                         (state_encrypted, safe_status, now, trace.task_id,
                          trace.expected_version),
                     )
@@ -814,7 +820,8 @@ class ObserveRuntime:
             with self._lock:
                 db = self._conn()
                 task = db.execute(
-                    "SELECT * FROM runtime_tasks WHERE id=? AND execution_path='orchestrator'",
+                    "SELECT * FROM runtime_tasks WHERE id=? "
+                    "AND execution_path IN ('orchestrator','workflow')",
                     (str(task_id),),
                 ).fetchone()
                 checkpoint = db.execute(
@@ -861,7 +868,7 @@ class ObserveRuntime:
 
     def claim_orchestrator_resume(self, trace: Optional[TurnTrace]) -> bool:
         """OCC claim chống hai worker cùng resume một task trong cùng thời điểm."""
-        if not trace or trace.execution_path != "orchestrator":
+        if not trace or trace.execution_path not in CHECKPOINTED_PATHS:
             return False
         try:
             with self._lock:
@@ -870,7 +877,8 @@ class ObserveRuntime:
                     changed = db.execute(
                         "UPDATE runtime_tasks SET orchestration_status='RESUMING',"
                         "version=version+1,updated_at=? WHERE id=? AND version=? "
-                        "AND status='RUNNING' AND execution_path='orchestrator'",
+                        "AND status='RUNNING' "
+                        "AND execution_path IN ('orchestrator','workflow')",
                         (time.time(), trace.task_id, trace.expected_version),
                     )
                     if changed.rowcount != 1:
@@ -890,7 +898,7 @@ class ObserveRuntime:
                           objective_hash: str, attempt: int = 1,
                           parent_step_id: str | None = None) -> Optional[TurnTrace]:
         """Tạo step con độc lập; parallel step không tranh optimistic version của task."""
-        if not trace or trace.execution_path != "orchestrator":
+        if not trace or trace.execution_path not in CHECKPOINTED_PATHS:
             return None
         step_id = "rs_" + uuid.uuid4().hex
         now = time.time()
@@ -930,7 +938,7 @@ class ObserveRuntime:
 
     def finish_child_step(self, trace: Optional[TurnTrace], status: str,
                           error_code: str = "") -> bool:
-        if not trace or trace.execution_path != "orchestrator":
+        if not trace or trace.execution_path not in CHECKPOINTED_PATHS:
             return False
         safe = status if status in {
             "COMPLETED", "FAILED", "TIMEOUT", "SKIPPED", "CANCELLED"

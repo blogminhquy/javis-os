@@ -187,6 +187,20 @@ _DEFAULT = {
             # Danh sách rỗng luôn fail-closed. Mỗi group có thể giới hạn args/TTL/timeout riêng.
             "capability_profiles": [],
         },
+        # Phase 10: workflow chạy qua đồ thị có checkpoint thay vì vòng lặp không trạng thái.
+        # Danh sách slug rỗng = fail-closed. Node ghi LUÔN dừng hỏi người dùng, cờ dưới
+        # chỉ quyết định workflow CÓ node ghi được chạy tới chỗ hỏi hay bị chặn từ đầu.
+        "workflow_canary": {
+            "policy_version": "workflow-graph-canary-v1",
+            "allocation_basis_points": 0,
+            "salt": "workflow-graph-canary-v1",
+            "allowed_slugs": [],
+            "max_nodes": 24,
+            "max_parallel": 3,
+            "node_timeout_seconds": 300,
+            "max_nesting_depth": 1,
+            "allow_write_nodes": False,
+        },
         # Phase 8 dùng hard quota operator khai báo; không đoán TPM/context theo tên model.
         # Có thể để trống để dùng quota_profiles của Fast Path ở trên.
         "context_sources": {"quota_profiles": []},

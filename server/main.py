@@ -71,6 +71,8 @@ import capability_executor   # Phase 6: one-use read lease + schema validation
 import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
+import workflow_graph          # Phase 10: workflow -> capability graph (thuần dữ liệu)
+import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
@@ -4154,6 +4156,49 @@ def workflows_index(brain: str) -> list:
                     "steps": meta.get("steps", []) or []})
     return out
 
+_WORKFLOW_CANARY = None
+
+
+def _get_workflow_canary(brain):
+    """Khởi tạo lười; mặc định allocation 0 nên production không trả chi phí gì."""
+    global _WORKFLOW_CANARY
+    if _WORKFLOW_CANARY is None:
+        _WORKFLOW_CANARY = workflow_runtime.WorkflowCanary(
+            _CONTEXT_RUNTIME, cfgmod.read_settings,
+            graph_loader=lambda slug: load_workflow_graph(brain, slug),
+        )
+    return _WORKFLOW_CANARY
+
+
+def workflow_manifests(brain: str) -> list[dict]:
+    """WorkflowSource của Phase 10: manifest + hợp đồng, KHÔNG kèm thân prompt của node.
+
+    Workflow hỏng định nghĩa thì bỏ qua đúng workflow đó, không làm hỏng cả nguồn.
+    """
+    out = []
+    root = _workflows_dir(brain)
+    for f in sorted(root.glob("*.md")):
+        try:
+            meta, _ = _read_md(f)
+            graph = workflow_graph.compile_workflow(meta, f.stem)
+        except (workflow_graph.WorkflowContractError, Exception):
+            continue
+        out.append(workflow_graph.manifest_of(graph, relative_path=f.name))
+    return out
+
+
+def load_workflow_graph(brain: str, slug: str):
+    """Đọc một workflow thành đồ thị đã kiểm tra hợp lệ; None nếu thiếu hoặc sai."""
+    path = _workflows_dir(brain) / f"{slug}.md"
+    if not path.exists():
+        return None
+    try:
+        meta, _ = _read_md(path)
+        return workflow_graph.compile_workflow(meta, slug)
+    except Exception:
+        return None
+
+
 @app.get("/workflows")
 async def list_workflows(brain: str = Query("brain")):
     return {"workflows": workflows_index(brain)}
@@ -4311,58 +4356,102 @@ async def usage_refresh():
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-async def execute_workflow(brain, slug, input="", tools=None):
-    """Chạy workflow nhiều agent tuần tự, YIELD event dict (KHÔNG bọc SSE). Dùng CHUNG cho:
-      - /workflows/run  : user bấm ở Studio (full quyền, stream SSE).
-      - dispatcher Kanban: chạy nền không người xem → truyền tools=SAFE_FILE_TOOLS để agent
-        CHỈ thao tác file (không đụng MCP tiền/đơn) + cô lập MCP (strict rỗng). Task cần hành
-        động ra ngoài → dừng ở review cho người duyệt, KHÔNG tự làm.
-    tools=None → full (như cũ). list → giới hạn tool + cô lập MCP (an toàn nền)."""
-    wf_file = _workflows_dir(brain) / f"{slug}.md"
-    if not wf_file.exists():
-        yield {"type": "error", "content": "workflow not found"}
-        return
-    meta, _ = _read_md(wf_file)
-    steps = meta.get("steps", []) or []
+async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink):
+    """Chạy ĐÚNG một bước theo đúng ngữ nghĩa runner cũ: agent, kiểm chứng, retry.
+
+    Dùng chung cho cả hai đường. `sink` nhận event để đường graph đẩy ra SSE y như cũ.
+    """
+    agent_name, sysprompt, agent_model = agent_sysprompt(node.agent)
+    cur_prompt = prompt
+    out = ""
+    verified = None
+    attempt = 0
+    while True:
+        gcli = mk(sysprompt, agent_model)
+        out = ""
+        async for ev in gcli.query(cur_prompt):
+            if ev["type"] == "text":
+                await sink({"type": "step_text", "node": node.id, "content": ev["content"]})
+            elif ev["type"] == "tool_call":
+                await sink({"type": "step_tool", "node": node.id, "tool": ev["name"]})
+            elif ev["type"] == "final":
+                out = ev.get("content") or out
+            elif ev["type"] == "error":
+                await sink({"type": "step_error", "node": node.id, "content": ev["content"]})
+        if not node.verify_agent:
+            break
+        v_name, v_body, v_model = agent_sysprompt(node.verify_agent)
+        await sink({"type": "step_verify", "node": node.id, "agent": v_name, "attempt": attempt})
+        v_sys = (
+            v_body + "\n\nVAI TRÒ KIỂM CHỨNG: Bạn là người ĐÁNH GIÁ độc lập. "
+            "Mặc định GIẢ ĐỊNH kết quả dưới đây ĐANG SAI và phải tự chứng minh. "
+            "Kiểm tra thực tế (đọc file/chạy thử nếu cần), KHÔNG chỉ đọc lướt. "
+            'CHỈ trả JSON 1 dòng: {"pass":true|false,"reason":"ngắn gọn vì sao","fixes":"cần sửa gì nếu fail"}.'
+        )
+        v_prompt = (
+            f"NHIỆM VỤ GỐC:\n{prompt}\n\n"
+            f"KẾT QUẢ CẦN KIỂM CHỨNG:\n{out}\n\n"
+            "Đánh giá kết quả có ĐẠT nhiệm vụ không. Trả JSON như hướng dẫn."
+        )
+        vcli = mk(v_sys, v_model)
+        v_out = ""
+        async for ev in vcli.query(v_prompt):
+            if ev["type"] == "final":
+                v_out = ev.get("content") or v_out
+            elif ev["type"] == "error":
+                v_out = '{"pass":true,"reason":"verify lỗi, tạm chấp nhận"}'
+        vm = re.search(r"\{.*\}", v_out, re.DOTALL)
+        verdict = {}
+        if vm:
+            try:
+                verdict = json.loads(vm.group(0))
+            except json.JSONDecodeError:
+                verdict = {}
+        passed = bool(verdict.get("pass", True))
+        reason = verdict.get("reason", "")
+        fixes = verdict.get("fixes", "")
+        await sink({"type": "step_verify_result", "node": node.id, "passed": passed,
+                    "reason": reason, "attempt": attempt})
+        verified = passed
+        if passed or attempt >= node.max_retries:
+            break
+        attempt += 1
+        await sink({"type": "step_retry", "node": node.id, "attempt": attempt})
+        cur_prompt = (
+            f"{prompt}\n\n# KẾT QUẢ LẦN TRƯỚC (bị kiểm chứng đánh giá CHƯA ĐẠT):\n{out[:8000]}\n\n"
+            f"# PHẢN HỒI KIỂM CHỨNG:\n- Vấn đề: {reason}\n- Cần sửa: {fixes}\n"
+            "CẢI THIỆN kết quả lần trước theo phản hồi: giữ phần đã tốt, sửa đúng chỗ bị chê. Làm cho ĐẠT."
+        )
+    return {"output": out, "verified": verified, "attempts": attempt + 1,
+            "agent_name": agent_name}
+
+
+def _workflow_agent_helpers(brain, tools):
+    """Trả (_mk, _agent_sysprompt) dùng CHUNG cho runner cũ và đường graph Phase 10.
+
+    Tương đương giữa hai đường phải đến từ việc dùng chung code, không phải từ việc
+    chép cho giống. Mọi thay đổi ở đây tự động áp cho cả hai.
+    """
     vault_root = str(_brain_root(brain))
-    try:
-        # Agent workflow chạy cwd=brain, agent nền có MCP rỗng → chỉ nạp skill NATIVE từ
-        # .claude/skills. Đảm bảo đã migrate + mirror trước khi spawn (idempotent, rẻ).
-        system_sync.ensure_synced(vault_root)
-        system_sync.mirror_skills(vault_root)
-    except Exception:
-        pass
 
     def _mk(sysprompt, model=None):
-        # Agent model = Codex/ChatGPT → chạy qua Codex CLI (có tool file + MCP native của codex).
-        # CHỈ ở chế độ foreground (tools is None): codex không giới hạn tool được như Claude
-        # (--allowedTools), nên chạy nền an-toàn-file-only (tools != None) vẫn ép dùng Claude.
         if model and _is_codex_model(model) and tools is None and find_codex_cli():
-            openai_oauth.write_codex_auth()   # bắc cầu token ChatGPT → ~/.codex/auth.json
-            cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model), instructions=sysprompt)
-            _apply_codex_hub(cc, vault_root)   # MCP + đúng brain cho cron/nhắc hẹn
+            openai_oauth.write_codex_auth()
+            cc = CodexCLI(cwd=vault_root, tag="workflow", model=_codex_safe_model(model),
+                          instructions=sysprompt)
+            _apply_codex_hub(cc, vault_root)
             return cc
-        c = claude_engine(system_prompt=sysprompt, cwd=vault_root, tag="workflow", allowed_tools=tools)
-        # Model Claude của AGENT (sonnet/opus/haiku/fable) được ÁP THẬT vào CLI.
-        # Rỗng → dùng model phụ (việc nền) nếu có, cuối cùng None = mặc định CLI.
+        c = claude_engine(system_prompt=sysprompt, cwd=vault_root, tag="workflow",
+                          allowed_tools=tools)
         c.model = ((model if not _is_codex_model(model) else "") or _aux_model() or None)
-        if tools is not None:   # chạy nền hạn chế → cô lập MCP + chặn Bash/Web
+        if tools is not None:
             _mcpf = _empty_mcp_file()
             if _mcpf:
-                c.mcp_config = _mcpf; c.mcp_strict = True
+                c.mcp_config = _mcpf
+                c.mcp_strict = True
             c.disallowed_tools = ["Bash", "WebFetch", "WebSearch", "Task"]
             c.max_wall_s = 300
         else:
-            # Ungated (allowed_tools=None, "chạy full quyền" - Studio bấm nút): plugin in-process
-            # CÓ nạp (claude_sdk_engine._mcp_servers gọi _plugins_server() khi allowed_tools rỗng)
-            # nên PHẢI gắn brain để ctx plugin (vd javis_generate_image) suy đúng vault - thiếu
-            # dòng này thì rơi về Brain Default y hệt bug 0.9.70 đã vá ở đường chat (Nợ 1,
-            # final-fix-gd2). KHÔNG gọi _apply_mcp() ở đây: nhánh này cố ý dựa vào setting_sources
-            # (claude_sdk_engine.py _options(): permission_mode=bypassPermissions +
-            # setting_sources=[user,project,local]) để kế thừa MCP/skill/auth có sẵn của máy như
-            # 1 phiên `claude` tương tác thật - đúng ý đầu file main.py "claude CLI đã cài trên
-            # máy → tự kế thừa MCP". Gọi apply_mcp sẽ ép gắn thêm cấu hình MCP hub, đổi hành vi
-            # ngoài phạm vi lỗi vault_root đang vá.
             c.javis_vault = vault_root
         return c
 
@@ -4376,6 +4465,94 @@ async def execute_workflow(brain, slug, input="", tools=None):
             + "\nLàm việc trong vault. Tập trung hoàn thành nhiệm vụ, trả kết quả rõ ràng, ngắn gọn."
         )
         return ameta.get("name", aslug), sysprompt, (ameta.get("model") or "").strip() or None
+
+    return _mk, _agent_sysprompt
+
+
+async def execute_workflow_graph(brain, slug, input="", tools=None, session_id=""):
+    """Đường Phase 10: cùng engine, cùng prompt, khác ở chỗ CÓ trạng thái.
+
+    Yield đúng bộ event mà dashboard đang nghe, cộng thêm `node` để trace theo đồ thị.
+    Không admitted thì trả None để caller dùng runner cũ.
+    """
+    graph = load_workflow_graph(brain, slug)
+    if graph is None:
+        return
+    trace = _CONTEXT_RUNTIME.start_turn(session_id or f"wf:{slug}", _brain_root(brain), "workflow")
+    canary = _get_workflow_canary(brain)
+    admission = canary.prepare(trace, graph, session_id or f"wf:{slug}")
+    if admission.action != "execute":
+        _CONTEXT_RUNTIME.finish(trace, "COMPLETED", admission.reason)
+        return
+    mk, agent_sysprompt = _workflow_agent_helpers(brain, tools)
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def sink(event):
+        await queue.put(event)
+
+    async def node_executor(node, prompt):
+        if node.kind != "model_step":
+            # Phase 10 chỉ tự chạy model step. Node capability/workflow con do tầng
+            # runtime quyết định; node ghi đã dừng hỏi trước khi tới đây.
+            return {"output": "", "error": f"node_kind_not_executable:{node.kind}"}
+        return await _run_workflow_step(node, prompt, mk, agent_sysprompt, sink)
+
+    async def drive():
+        try:
+            return await canary.run(trace, graph, input or "", session_id or f"wf:{slug}",
+                                    node_executor, sink)
+        finally:
+            await queue.put(None)
+
+    task = asyncio.create_task(drive())
+    while True:
+        event = await queue.get()
+        if event is None:
+            break
+        yield event
+    result = await task
+    _CONTEXT_RUNTIME.finish(
+        trace, "COMPLETED" if result.status == "COMPLETED" else "FAILED", result.stop_reason)
+    if result.status == "WAITING_USER":
+        yield {"type": "wait_user", "node": result.pending_node_id,
+               "task_id": result.task_id, "reason": result.stop_reason}
+
+
+async def execute_workflow(brain, slug, input="", tools=None, session_id=""):
+    """Chạy workflow nhiều agent tuần tự, YIELD event dict (KHÔNG bọc SSE). Dùng CHUNG cho:
+      - /workflows/run  : user bấm ở Studio (full quyền, stream SSE).
+      - dispatcher Kanban: chạy nền không người xem → truyền tools=SAFE_FILE_TOOLS để agent
+        CHỈ thao tác file (không đụng MCP tiền/đơn) + cô lập MCP (strict rỗng). Task cần hành
+        động ra ngoài → dừng ở review cho người duyệt, KHÔNG tự làm.
+    tools=None → full (như cũ). list → giới hạn tool + cô lập MCP (an toàn nền)."""
+    wf_file = _workflows_dir(brain) / f"{slug}.md"
+    if not wf_file.exists():
+        yield {"type": "error", "content": "workflow not found"}
+        return
+    # Phase 10 canary: mặc định allocation 0 nên vòng lặp cũ vẫn là đường duy nhất.
+    # Lỗi ở đường mới không được cướp lượt chạy - rơi về runner cũ.
+    try:
+        emitted = False
+        async for event in execute_workflow_graph(brain, slug, input, tools, session_id):
+            emitted = True
+            yield event
+        if emitted:
+            return
+    except Exception as _wf_exc:
+        print(f"[workflow graph] {type(_wf_exc).__name__} - dùng runner cũ",
+              file=__import__('sys').stderr)
+    meta, _ = _read_md(wf_file)
+    steps = meta.get("steps", []) or []
+    vault_root = str(_brain_root(brain))
+    try:
+        # Agent workflow chạy cwd=brain, agent nền có MCP rỗng → chỉ nạp skill NATIVE từ
+        # .claude/skills. Đảm bảo đã migrate + mirror trước khi spawn (idempotent, rẻ).
+        system_sync.ensure_synced(vault_root)
+        system_sync.mirror_skills(vault_root)
+    except Exception:
+        pass
+
+    _mk, _agent_sysprompt = _workflow_agent_helpers(brain, tools)
 
     yield {"type": "start", "workflow": meta.get("name", slug), "steps": len(steps)}
     prev = ""

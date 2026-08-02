@@ -1894,6 +1894,28 @@ Rollback: tắt task write mới của capability group. Không rollback task đ
 
 ### Phase 10: Workflow capability graph
 
+Trạng thái code ngày 2026-08-02: **hoàn tất, chưa bật production**. `workflow_canary` mặc định
+allocation `0` và `allowed_slugs` rỗng (fail-closed), nên mọi workflow tiếp tục chạy bằng runner
+cũ. Đường mới dùng CHUNG engine, prompt và bộ event với runner cũ; khác biệt duy nhất là nó có
+trạng thái.
+
+Ba bất biến đã có test canh, mỗi cái được kiểm chứng bằng cách gỡ hàng rào ra xem test có đỏ:
+
+- **Node đã xong không chạy lại.** Resume đọc checkpoint; node `COMPLETED` giữ nguyên output.
+- **Node ghi không bao giờ tự chạy.** Workflow nền không có ai để hỏi, nên gặp node ghi là dừng
+  ở `WAITING_USER`. Xác nhận sai node thì vẫn đứng yên.
+- **Workflow con ghim theo revision.** Thiếu revision là từ chối biên dịch; revision lệch là node
+  hỏng, không chạy nhầm bản mới.
+
+Câu hỏi mục 30.3 ý 5 đã có câu trả lời: workflow hiện tại **không có hợp đồng dữ liệu nào cả**
+(bốn trường mỗi bước, truyền dữ liệu bằng thay chuỗi `{{prev}}`, chỉ output bước cuối quan sát
+được). Vì vậy adapter phải **tự suy ra** hợp đồng chứ không đọc được từ file, và hợp đồng suy ra
+được đánh dấu `derived: true`. Làm output giàu hơn "chuỗi của bước cuối" là ĐỔI HÀNH VI, không
+phải di trú - để lại cho một thay đổi riêng có canary riêng.
+
+Ngoài phạm vi phase này: node `capability` và `workflow_call` mới được validate và checkpoint,
+chưa được tự thực thi; đường graph hiện chỉ tự chạy `model_step`.
+
 Thay đổi:
 
 - WorkflowSource và WorkflowManifest.
