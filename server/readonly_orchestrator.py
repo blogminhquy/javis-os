@@ -51,7 +51,9 @@ def _float(value: Any, default: float) -> float:
 
 
 def _norm(value: str) -> str:
-    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    # "đ" không phân rã qua NFKD - map tay để deny-pattern ASCII khớp tiếng Việt có dấu.
+    raw = str(value or "").replace("đ", "d").replace("Đ", "D")
+    raw = unicodedata.normalize("NFKD", raw.casefold())
     return " ".join("".join(c for c in raw if not unicodedata.combining(c)).split())
 
 
@@ -304,7 +306,8 @@ class ReadonlyOrchestrator:
     async def _refresh_full(self, trace, brain: str, reason: str) -> bool:
         try:
             tools, routes = await self.discoverer("refresh_full", brain)
-            refreshed = self.registry.refresh_tools(brain, tools, routes)
+            # refresh_tools giữ registry lock + ghi SQLite: chạy ngoài event loop.
+            refreshed = await asyncio.to_thread(self.registry.refresh_tools, brain, tools, routes)
             revision = str(refreshed.get("revision") or self.registry.revision(brain))
             if revision != trace.registry_revision:
                 return self.runtime.rebase_registry_revision(trace, revision, reason)
@@ -446,8 +449,8 @@ class ReadonlyOrchestrator:
             if not await self._refresh_full(trace, brain, "orchestrator_preflight_refresh"):
                 return self._legacy(trace, policy, bucket, "registry_refresh_failed")
 
-        candidates, error = self._resolve_candidates(
-            trace, objective, brain, channel, policy
+        candidates, error = await asyncio.to_thread(
+            self._resolve_candidates, trace, objective, brain, channel, policy
         )
         if error == "insufficient_multi_read_candidates":
             return self._plan("not_applicable", error, policy, trace, bucket)
@@ -457,8 +460,8 @@ class ReadonlyOrchestrator:
         if route_error == "schema_revision_mismatch":
             if not await self._refresh_full(trace, brain, "orchestrator_schema_mismatch"):
                 return self._legacy(trace, policy, bucket, "schema_refresh_failed")
-            candidates, error = self._resolve_candidates(
-                trace, objective, brain, channel, policy
+            candidates, error = await asyncio.to_thread(
+                self._resolve_candidates, trace, objective, brain, channel, policy
             )
             if error:
                 return self._legacy(trace, policy, bucket, "schema_reresolve_failed")
@@ -476,9 +479,18 @@ class ReadonlyOrchestrator:
             request, manifests, [], policy.max_total_steps
         )
         if planner.status != "compiled" or planner.capsule is None:
+            # Budget của compiler = min(hard input, task budget - output reserve,
+            # rolling - reserve). Nếu chính task budget là ràng buộc đang cắt thì
+            # báo đúng mã task_budget để trace và người dùng biết nguyên nhân thật.
+            task_bound = max(1, policy.max_task_input_tokens - int(rule["reserved_output_tokens"]))
+            binding_task_budget = (
+                int(planner.trace_report.get("max_input_tokens") or 0) <= task_bound
+            )
             return self._plan(
-                "reject", "orchestrator_planner_compile_rejected", policy, trace, bucket,
-                "orchestrator",
+                "reject",
+                "task_budget_preflight_rejected" if binding_task_budget
+                else "orchestrator_planner_compile_rejected",
+                policy, trace, bucket, "orchestrator",
                 "Planner capsule vượt budget đã xác minh. Javis chưa gọi model hoặc tool.",
             )
         exact_estimates = []
@@ -1023,8 +1035,7 @@ class ReadonlyOrchestrator:
         refs = tuple(x["evidence_ref"] for x in state["evidence"])
         if not final_text:
             final_text = self._evidence_only_message(state)
-        elif not any(ref in final_text for ref in refs):
-            final_text += "\n\nNguồn: " + ", ".join(refs)
+        # Gate chấm text THÔ của model; footer "Nguồn:" nối SAU để check citation còn sống.
         decision = self.quality_gate.evaluate(
             plan.objective, final_text, plan.channel, had_error=engine_failed,
             compiler_report=compiled.trace_report, read_only=True,
@@ -1035,6 +1046,8 @@ class ReadonlyOrchestrator:
                 "Bản tổng hợp đã bị chặn vì tuyên bố hành động không phù hợp với task "
                 "read-only. Evidence vẫn được giữ tại: " + ", ".join(refs)
             )
+        elif refs and not any(ref in final_text for ref in refs):
+            final_text += "\n\nNguồn: " + ", ".join(refs)
         self.runtime.finish_child_step(
             child, "COMPLETED" if not engine_failed else "FAILED",
             "final_engine_error" if engine_failed else "",

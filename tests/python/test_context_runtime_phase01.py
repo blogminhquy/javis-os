@@ -225,3 +225,16 @@ def test_context_runtime_default_is_shadow_and_metadata_only():
     assert '"store_content": False' in runtime_source
     for sensitive in ("content", "prompt", "messages", "objective", "query", "secret"):
         assert f'"{sensitive}"' in runtime_source
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
+    # từng chạy một assertion nào.
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

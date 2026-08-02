@@ -23,7 +23,11 @@ CANARY_POLICY_VERSION = "fast-path-canary-v1"
 
 
 def _norm(value: str) -> str:
-    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    # NFKD KHÔNG phân rã "đ" (U+0111) nên phải map tay, nếu không mọi deny-pattern
+    # ASCII chứa "d" ("dinh kem", "dat lich", "dang bai"...) im lặng không bao giờ khớp
+    # với tiếng Việt thật - lỗ hổng classifier đã kiểm chứng bằng test.
+    raw = str(value or "").replace("đ", "d").replace("Đ", "D")
+    raw = unicodedata.normalize("NFKD", raw.casefold())
     return " ".join("".join(c for c in raw if not unicodedata.combining(c)).split())
 
 
@@ -48,22 +52,32 @@ class FastIntentClassifier:
     """Gate cố ý bảo thủ: false-negative đi legacy, false-positive mới là nguy hiểm."""
 
     _DENY = (
-        ("attachment", re.compile(r"\b(tep|file|attachment|dinh kem|hinh anh|anh nay|tai lieu)\b")),
+        ("attachment", re.compile(
+            r"\b(tep|file|attachment|attached|dinh kem|hinh anh|anh nay|tai lieu|"
+            r"uploaded|the document i|i uploaded)\b"
+        )),
+        ("url_reference", re.compile(r"(https?://|www\.)")),
         ("live_data", re.compile(
-            r"\b(hom nay|bay gio|hien tai|moi nhat|thoi tiet|tin tuc|ty gia|gia vang|"
-            r"gia co phieu|lich hom|current|latest|today|now|weather|news|stock price|exchange rate)\b"
+            r"\b(hom nay|hom qua|bay gio|hien tai|moi nhat|thoi tiet|tin tuc|ty gia|gia vang|"
+            r"gia co phieu|lich hom|thang nay|tuan nay|quy nay|thang truoc|tuan truoc|"
+            r"doanh thu|don hang|email moi|email cua|hop thu|check email|"
+            r"current|latest|today|yesterday|now|this week|this month|last week|last month|"
+            r"weather|news|stock price|exchange rate|revenue|my email|my inbox)\b"
         )),
         ("external_source", re.compile(
             r"\b(web|internet|google|drive|gmail|calendar|github|repository|repo|database|"
-            r"api|mcp|tool|vault|obsidian|slack|notion|airtable)\b"
+            r"api|mcp|tool|vault|obsidian|slack|notion|airtable|facebook|tiktok|zalo|telegram)\b"
         )),
         ("side_effect", re.compile(
             r"\b(gui email|gui tin|xoa|delete|remove|tao lich|dat lich|nhac toi|upload|"
-            r"publish|dang bai|cap nhat file|sua file|luu vao|write to|send email|create event)\b"
+            r"publish|dang bai|dang len|cap nhat file|sua file|luu vao|write to|send email|"
+            r"create event|post to|schedule)\b"
         )),
         ("conversation_state", re.compile(
-            r"\b(truoc day|lan truoc|vua roi|anh da|chung ta da|nho khong|memory|"
-            r"previously|earlier|last time|we discussed|do you remember|cai nay|do nay|no)\b"
+            r"\b(truoc day|lan truoc|vua roi|luc nay|anh da|chung ta da|nho khong|memory|"
+            r"cuoc tro chuyen|tin nhan truoc|doan chat|(nhung gi|cai) (anh|em|ban) (noi|viet)|"
+            r"(em|anh|ban) vua (noi|viet)|viet tiep|previously|earlier|last time|we discussed|"
+            r"do you remember|my last message|this conversation|cai nay|do nay|no)\b"
         )),
         ("agentic", re.compile(
             r"\b(hay lam giup|thuc hien|kiem tra giup|tim giup|doc giup|mo giup|"
@@ -175,8 +189,11 @@ class CanaryPolicy:
         )
 
     def quota_rule(self, provider: str, model: str) -> Optional[QuotaRule]:
+        # Casefold cả model lẫn pattern: "LLAMA-3" phải khớp rule "llama-*" thay vì
+        # rơi nhầm vào rule "*" catch-all có quota khác.
         matches = [rule for rule in self.rules if rule.provider == str(provider or "").lower()
-                   and fnmatch.fnmatchcase(str(model or ""), rule.model_pattern)]
+                   and fnmatch.fnmatchcase(str(model or "").casefold(),
+                                           rule.model_pattern.casefold())]
         if not matches:
             return None
         return sorted(matches, key=lambda r: (-r.priority, -len(r.model_pattern), r.rule_id))[0]

@@ -1007,14 +1007,19 @@ def _schedule_registry_discovery_shadow(trace, brain, query, provider, model,
 
 
 def _record_quality_shadow(trace, objective: str, response: str, channel: str) -> None:
+    # Shadow-only: chạy SAU khi câu trả lời đã có. Mọi exception ở đây phải nuốt tại chỗ,
+    # nếu để lọt ra ngoài thì run_turn/_tg sẽ biến một lượt THÀNH CÔNG thành báo lỗi cho user.
     if not trace:
         return
-    report = _CONTEXT_COMPILER.report_for_task(trace.task_id)
-    decision = _QUALITY_GATE.evaluate(
-        objective, response, channel,
-        had_error=bool(trace.had_error), compiler_report=report,
-    )
-    _CONTEXT_RUNTIME.record_quality_shadow(trace, decision.trace_report())
+    try:
+        report = _CONTEXT_COMPILER.report_for_task(trace.task_id)
+        decision = _QUALITY_GATE.evaluate(
+            objective, response, channel,
+            had_error=bool(trace.had_error), compiler_report=report,
+        )
+        _CONTEXT_RUNTIME.record_quality_shadow(trace, decision.trace_report())
+    except Exception as exc:
+        print(f"[quality shadow] {type(exc).__name__}", file=__import__('sys').stderr)
 
 
 async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
@@ -1276,9 +1281,6 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
             "Vòng tổng hợp không trả nội dung, nhưng dữ liệu đọc được đã lưu an toàn tại "
             + evidence.ref
         )
-    elif evidence.ref not in final_text:
-        footer = "\n\nNguồn: " + evidence.ref
-        final_text += footer
 
     if tokens_in or tokens_out:
         usage_store.record(provider, actual_model, tokens_in, tokens_out)
@@ -1287,11 +1289,15 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
         max(tokens_in, plan.reserved_input_tokens if engine_failed else 0),
         max(tokens_out, plan.reserved_output_tokens if engine_failed else 0),
     )
+    # Gate chấm trên text THÔ của model - footer "Nguồn:" chỉ được nối SAU khi chấm,
+    # nếu nối trước thì evidence_ref_missing không bao giờ bắn được (check chết).
     decision = _QUALITY_GATE.evaluate(
         objective, final_text, "dashboard", had_error=engine_failed,
         compiler_report=compiled.trace_report,
         expected_evidence_ref=evidence.ref, read_only=True,
     )
+    if evidence.ref not in final_text:
+        final_text += "\n\nNguồn: " + evidence.ref
     response_blocked = "false_action_claim" in decision.reasons
     if response_blocked:
         final_text = (
@@ -6140,23 +6146,43 @@ async def websocket_endpoint(ws: WebSocket):
                 readonly_plan = None
                 fast_plan = None
                 if kind == "api" and api_key:
-                    orchestrator_plan = await _get_readonly_orchestrator().prepare(
-                        runtime_trace, user_message, _brain_root(brain), "dashboard",
-                        prov, api_model or "?", kind, actor_id=conv_sid,
-                        has_attachments=bool(has_attachments),
-                    )
-                    if orchestrator_plan.action == "not_applicable":
-                        readonly_plan = await _get_readonly_path().prepare(
-                            runtime_trace, user_message, _brain_root(brain),
-                            "dashboard", prov, api_model or "?", kind,
-                            actor_id=conv_sid, has_attachments=bool(has_attachments),
+                    # Mọi exception trong prepare của canary phải rơi tiếp xuống nhánh
+                    # sau (cuối cùng là legacy), không được phá lượt chat (spec mục 23).
+                    try:
+                        orchestrator_plan = await _get_readonly_orchestrator().prepare(
+                            runtime_trace, user_message, _brain_root(brain), "dashboard",
+                            prov, api_model or "?", kind, actor_id=conv_sid,
+                            has_attachments=bool(has_attachments),
                         )
-                        if readonly_plan.action == "not_applicable":
-                            fast_plan = await asyncio.to_thread(
-                                _FAST_PATH.prepare, runtime_trace, user_message,
-                                _brain_root(brain), "dashboard", prov,
-                                api_model or "?", kind, bool(has_attachments),
+                    except Exception as _exc:
+                        orchestrator_plan = None
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "orchestrator.prepare_error",
+                            {"error_type": type(_exc).__name__})
+                    if orchestrator_plan is None or orchestrator_plan.action == "not_applicable":
+                        try:
+                            readonly_plan = await _get_readonly_path().prepare(
+                                runtime_trace, user_message, _brain_root(brain),
+                                "dashboard", prov, api_model or "?", kind,
+                                actor_id=conv_sid, has_attachments=bool(has_attachments),
                             )
+                        except Exception as _exc:
+                            readonly_plan = None
+                            _CONTEXT_RUNTIME.record_runtime_event(
+                                runtime_trace, "readonly.prepare_error",
+                                {"error_type": type(_exc).__name__})
+                        if readonly_plan is None or readonly_plan.action == "not_applicable":
+                            try:
+                                fast_plan = await asyncio.to_thread(
+                                    _FAST_PATH.prepare, runtime_trace, user_message,
+                                    _brain_root(brain), "dashboard", prov,
+                                    api_model or "?", kind, bool(has_attachments),
+                                )
+                            except Exception as _exc:
+                                fast_plan = None
+                                _CONTEXT_RUNTIME.record_runtime_event(
+                                    runtime_trace, "fast_path.prepare_error",
+                                    {"error_type": type(_exc).__name__})
                 if orchestrator_plan and orchestrator_plan.action == "execute":
                     used_fast_path = True
                     final_text, _actual_model = await _execute_readonly_orchestrator(
@@ -6228,12 +6254,16 @@ async def websocket_endpoint(ws: WebSocket):
                             brain_root=_brain_root(brain),
                         )
 
-                    _phase8_plan = await asyncio.to_thread(
-                        _get_adaptive_context().prepare,
-                        runtime_trace, user_message, _brain_root(brain), conv_sid,
-                        store.get_messages(conv_sid), "dashboard", prov,
-                        api_model or "?", kind, _phase8_base,
-                    )
+                    try:
+                        _phase8_plan = await asyncio.to_thread(
+                            _get_adaptive_context().prepare,
+                            runtime_trace, user_message, _brain_root(brain), conv_sid,
+                            store.get_messages(conv_sid), "dashboard", prov,
+                            api_model or "?", kind, _phase8_base,
+                        )
+                    except Exception as _exc:
+                        _phase8_plan = adaptive_context_runtime.AdaptiveContextPlan(
+                            "legacy", f"prepare_error:{type(_exc).__name__}")
                     sysprompt = (_phase8_plan.system_prompt
                                  if _phase8_plan.action == "use" else _legacy_system_prompt())
                     label = _api_label(prov)

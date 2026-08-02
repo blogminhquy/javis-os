@@ -216,13 +216,21 @@ class ModelBudgetResolver:
             max_input = known_context - reserved
             source = "model_profile.context_window"
             hard_known = True
+        elif known_context > 0:
+            # Cửa sổ khai báo còn nhỏ hơn cả output reserve: KHÔNG được rơi về fallback
+            # lớn hơn cửa sổ thật. Kẹp về 1 để preflight từ chối thay vì đo sai.
+            max_input = 1
+            source = "model_profile.context_window_too_small"
+            hard_known = True
         else:
             max_input = self._FALLBACK_TARGET.get(kind, self._FALLBACK_TARGET["unknown"])
             source = f"shadow_policy_fallback:{kind}"
             hard_known = False
         limits = [max_input]
         if request.task_tokens_remaining is not None:
-            limits.append(max(1, int(request.task_tokens_remaining)))
+            # Task budget phải trừ output reserve như rolling TPM, nếu không compile
+            # "compiled" nhưng preflight lại would_reject vì task_budget (mâu thuẫn nội bộ).
+            limits.append(max(1, int(request.task_tokens_remaining) - reserved))
         if request.rolling_tpm_remaining is not None:
             limits.append(max(1, int(request.rolling_tpm_remaining) - reserved))
         return ContextBudget(
@@ -378,12 +386,28 @@ class ContextCompiler:
         excluded_context: dict[str, str] = {}
         system = base_system
         context_candidates = [x for x in request.context_items if isinstance(x, ContextItem) and x.content]
+
+        def _rank_score(item: ContextItem) -> float:
+            # Điểm từ store ngoài có thể là NaN/inf; NaN phá tính ổn định của sort
+            # nên capsule hash hết deterministic. Kẹp về 0 trước khi xếp hạng.
+            score = item.relevance * item.confidence * item.authority * item.freshness
+            return score if math.isfinite(score) else 0.0
+
         context_candidates.sort(key=lambda x: (
             0 if x.required else 1,
-            -(x.relevance * x.confidence * x.authority * x.freshness),
+            -_rank_score(x),
             x.id,
         ))
+        seen_content_hashes: dict[str, str] = {}
         for item in context_candidates:
+            content_key = hashlib.sha256(
+                item.content.strip().encode("utf-8", errors="replace")
+            ).hexdigest()
+            duplicate_of = seen_content_hashes.get(content_key)
+            if duplicate_of is not None and not item.required:
+                # Spec 10.3 bước 3: item trùng nội dung chỉ vào prompt một lần.
+                excluded_context[item.id] = f"duplicate_of:{duplicate_of}"
+                continue
             block = f"\n\n# Context: {item.kind}\n{item.content.strip()}"
             candidate_system = system + block
             candidate_estimate = tokenizer.count_rendered(
@@ -392,6 +416,7 @@ class ContextCompiler:
             if candidate_estimate.input_tokens <= budget.max_input_tokens:
                 system = candidate_system
                 selected_context.append(item)
+                seen_content_hashes.setdefault(content_key, item.id)
                 continue
             excluded_context[item.id] = "budget"
             if item.required:
@@ -458,8 +483,15 @@ class ContextCompiler:
             self._remember(request.task_id, report)
             return CompileResult("render_over_budget", None, report)
 
-        source_map = {item.id: self._source_entry(item)
-                      for item in required_items + selected_context + capability_items}
+        # First-wins theo thứ tự required -> context -> capability: một context item
+        # trùng id với item bắt buộc không được đè entry attribution của item đó.
+        source_map: dict[str, dict] = {}
+        duplicate_source_ids: list[str] = []
+        for item in required_items + selected_context + capability_items:
+            if item.id in source_map:
+                duplicate_source_ids.append(item.id)
+                continue
+            source_map[item.id] = self._source_entry(item)
         source_map_hash = hashlib.sha256(json.dumps(
             source_map, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8", errors="replace")).hexdigest()
@@ -505,6 +537,7 @@ class ContextCompiler:
             "excluded_context": excluded_context,
             "source_count": len(source_map),
             "source_map_hash": source_map_hash,
+            "duplicate_source_ids": duplicate_source_ids,
             "preflight_decision": preflight["decision"],
             "preflight_reasons": preflight["reason_codes"],
             "quota_known": preflight["quota_known"],
@@ -920,6 +953,25 @@ class DeterministicQualityGate:
         "không có tool", "không có công cụ", "không thể truy cập công cụ",
         "i do not have access to tools", "no tools available",
     )
+    # Chỉ bắt claim HÀNH ĐỘNG CỦA CHÍNH ASSISTANT: chủ ngữ ngôi thứ nhất/Javis, hoặc
+    # câu tỉnh lược mở đầu bằng "Đã <động từ>". Tường thuật dữ liệu ("Khách A đã gửi
+    # 3 email", "Cuộc họp đã tạo tuần trước vẫn còn") KHÔNG được chặn - đây là use case
+    # chính của đường read-only. Regex chạy trên text thô nên giữ cả dạng có dấu.
+    _ACTION_VERBS = (
+        r"(?:gửi|gui|xoá|xoa|xóa|tạo|tao|cập nhật|cap nhat|đặt lịch|dat lich|đăng|dang|"
+        r"sent|send|deleted|delete|created|create|updated|update|published|publish|booked|book)"
+    )
+    _FALSE_ACTION = re.compile(
+        r"(?i)(?:"
+        r"(?:^|[.!?\n]\s*)(?:đã|da|vừa|vua)\s+(?:được\s+|duoc\s+)?" + _ACTION_VERBS + r"\b"
+        r"|\b(?:em|tôi|toi|mình|minh|javis)\s+(?:đã|da|vừa|vua)\s+" + _ACTION_VERBS + r"\b"
+        r"|\b" + _ACTION_VERBS + r"\s+thành công\b"
+        r"|\b" + _ACTION_VERBS + r"\s+thanh cong\b"
+        r"|\bsuccessfully\s+" + _ACTION_VERBS + r"\b"
+        r"|\b(?:was|has been|have been)\s+(?:sent|deleted|created|updated|published|booked)\b"
+        r"|\bi\s+(?:have\s+|just\s+)?(?:sent|deleted|created|updated|published|booked)\b"
+        r")"
+    )
 
     def evaluate(self, objective: str, response: str, channel: str,
                  had_error: bool = False, compiler_report: dict | None = None,
@@ -946,9 +998,7 @@ class DeterministicQualityGate:
         if required_refs and not any(ref in text for ref in required_refs):
             reasons.append("evidence_bundle_ref_missing")
             status = "revise"
-        if read_only and re.search(
-                r"(?i)\b(đã|da|successfully)\s+(gửi|gui|xoá|xoa|xóa|tạo|tao|cập nhật|cap nhat|"
-                r"send|sent|delete|deleted|create|created|update|updated|publish|published)\b", text):
+        if read_only and self._FALSE_ACTION.search(text):
             reasons.append("false_action_claim")
             status = "revise"
         if int(report.get("selected_count") or 0) > 0:

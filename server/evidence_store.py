@@ -20,11 +20,28 @@ EVIDENCE_STORE_VERSION = "evidence-store-v1"
 _SECRET_KEYS = {
     "password", "passwd", "secret", "token", "access_token", "refresh_token",
     "api_key", "apikey", "authorization", "cookie", "set-cookie", "client_secret",
+    "private_key", "session_token", "id_token", "auth", "credentials",
 }
 _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
 _KEY_RE = re.compile(
-    r"\b(?:(?:sk|gsk)[_-]|xox[baprs]-|ghp_)[A-Za-z0-9_-]{12,}\b"
+    r"\b(?:(?:sk|gsk|rk)[_-]|xox[baprs]-|gh[pousr]_|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|"
+    r"AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_-]{20,})[A-Za-z0-9_-]*\b"
 )
+# JWT ba đoạn base64url; header luôn bắt đầu bằng eyJ.
+_JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
+# Secret nhét trong query string: ?token=..., &api_key=..., ?key=...
+_URL_SECRET_RE = re.compile(
+    r"(?i)([?&](?:token|access_token|api_?key|key|secret|signature|sig|auth)=)[^&\s\"']{8,}"
+)
+
+
+def _secret_key_name(name: str) -> bool:
+    # Khớp cả biến thể có tiền tố/hậu tố kiểu "x-api-key", "openai_api_key".
+    folded = name.casefold().replace("-", "_")
+    if folded in _SECRET_KEYS or folded.replace("_", "") in {"apikey", "setcookie"}:
+        return True
+    return any(folded.endswith("_" + k) or folded.startswith(k + "_")
+               for k in ("password", "secret", "token", "api_key", "apikey"))
 
 
 @dataclass(frozen=True)
@@ -46,7 +63,9 @@ class Evidence:
 
 def _redact_text(value: str) -> str:
     text = _BEARER_RE.sub("Bearer [REDACTED]", str(value or ""))
-    return _KEY_RE.sub("[REDACTED_KEY]", text)
+    text = _KEY_RE.sub("[REDACTED_KEY]", text)
+    text = _JWT_RE.sub("[REDACTED_JWT]", text)
+    return _URL_SECRET_RE.sub(r"\1[REDACTED]", text)
 
 
 def redact(value: Any) -> Any:
@@ -54,7 +73,7 @@ def redact(value: Any) -> Any:
         out = {}
         for key, item in value.items():
             name = str(key)
-            out[name] = "[REDACTED]" if name.casefold() in _SECRET_KEYS else redact(item)
+            out[name] = "[REDACTED]" if _secret_key_name(name) else redact(item)
         return out
     if isinstance(value, (list, tuple)):
         return [redact(x) for x in value]

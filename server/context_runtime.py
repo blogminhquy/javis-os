@@ -223,17 +223,30 @@ class ObserveRuntime:
         self._cleaned = False
 
     def _policy(self) -> dict:
+        # Toàn bộ parse phải exception-proof: settings.json bị sửa tay sai kiểu
+        # ("context_runtime": "off", retention "hai tuần"...) không được phá lượt chat.
+        # Lỗi parse rơi về "off" (fail-closed): thà mất trace còn hơn bricked websocket.
         try:
             raw = (self._settings_reader() or {}).get("context_runtime", {}) or {}
+            if not isinstance(raw, dict):
+                raw = {"mode": "off"}
         except Exception:
-            raw = {}
+            raw = {"mode": "off"}
+        try:
+            retention = max(1, int(raw.get("retention_days") or 14))
+        except (TypeError, ValueError, OverflowError):
+            retention = 14
+        try:
+            chars_per_token = max(1.0, float(raw.get("estimate_chars_per_token") or 3.0))
+        except (TypeError, ValueError, OverflowError):
+            chars_per_token = 3.0
         return {
             "mode": str(raw.get("mode") or "observe").lower(),
-            "retention_days": max(1, int(raw.get("retention_days") or 14)),
+            "retention_days": retention,
             # Phase 0-1 hard-enforce metadata only dù settings bị sửa tay.
             "store_content": False,
             "export_enabled": bool(raw.get("export_enabled", False)),
-            "chars_per_token": max(1.0, float(raw.get("estimate_chars_per_token") or 3.0)),
+            "chars_per_token": chars_per_token,
         }
 
     def enabled(self) -> bool:
@@ -1029,10 +1042,13 @@ class ObserveRuntime:
             with self._lock:
                 db = self._conn()
                 with db:
+                    # Nhận cả EXPIRED: stream dài hơn window bị reaper lật sang EXPIRED
+                    # giữa chừng; usage thật vẫn phải vào ledger, nếu không rolling
+                    # window thiếu hụt và các lượt sau over-admit so với quota thật.
                     changed = db.execute(
                         "UPDATE quota_reservations SET status='CONSUMED',"
                         "actual_input_tokens=?,actual_output_tokens=? "
-                        "WHERE id=? AND task_id=? AND status='ADMITTED'",
+                        "WHERE id=? AND task_id=? AND status IN ('ADMITTED','EXPIRED')",
                         (tin, tout, str(reservation_id), trace.task_id),
                     )
                     if changed.rowcount != 1:
@@ -1226,6 +1242,14 @@ class ObserveRuntime:
                                   expires_at: float | None = None) -> bool:
         if not trace or not evidence_id or not artifact_path or not excerpt_encrypted:
             return False
+        # Cưỡng chế tại RANH GIỚI store, không dựa kỷ luật caller: excerpt phải là
+        # ciphertext ("enc:"), artifact_path phải là đường dẫn tương đối không thoát
+        # ra ngoài evidence root (spec mục 22.8).
+        if not str(excerpt_encrypted).startswith("enc:"):
+            return False
+        artifact = str(artifact_path)
+        if artifact.startswith(("/", "\\")) or ".." in artifact.replace("\\", "/").split("/"):
+            return False
         safe_meta = {str(k)[:80]: v for k, v in (metadata or {}).items()
                      if isinstance(v, (str, int, float, bool)) or v is None}
         source_hash = hashlib.sha256(
@@ -1353,11 +1377,13 @@ class ObserveRuntime:
                         "actual_output_tokens=COALESCE(actual_output_tokens,0)+? WHERE id=?",
                         (tin, tout, trace.step_id),
                     )
+                    # Nhận cả EXPIRED: lượt chạy quá TTL vẫn phải reconcile được với
+                    # usage thật, nếu không các lượt dài/tốn nhất biến mất khỏi số đo.
                     db.execute(
                         "UPDATE quota_reservations SET status='RECONCILED',"
                         "actual_input_tokens=?,actual_output_tokens=? WHERE id=("
                         "SELECT id FROM quota_reservations WHERE task_id=? AND step_id=? "
-                        "AND status='OBSERVED' ORDER BY created_at,id LIMIT 1)",
+                        "AND status IN ('OBSERVED','EXPIRED') ORDER BY created_at,id LIMIT 1)",
                         (tin, tout, trace.task_id, trace.step_id),
                     )
                     self._event(db, trace, "usage.observed",

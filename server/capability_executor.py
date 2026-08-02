@@ -133,7 +133,11 @@ class CapabilityExecutor:
             return None
         scope = {
             "argument_keys": sorted(str(x) for x in props),
-            "additional_properties": bool(schema.get("additionalProperties", True)),
+            # Default-DENY key ngoài schema: chỉ khi tool KHAI RÕ additionalProperties
+            # true mới cho key lạ đi qua. JSON Schema mặc định cho qua mọi key thừa,
+            # nghĩa là model có thể tuồn tham số ngoài hợp đồng vào tool - với write
+            # (Phase 9) còn làm lệch idempotency hash.
+            "additional_properties": schema.get("additionalProperties") is True,
             "argument_constraints": constraints,
             "max_argument_bytes": max(
                 1024, min(_int(profile.get("max_argument_bytes"), 131_072), 1_000_000)
@@ -282,6 +286,13 @@ class CapabilityExecutor:
             )
         try:
             result = await asyncio.wait_for(route_call(args), timeout=lease.timeout_seconds)
+        except asyncio.CancelledError:
+            # User bấm dừng giữa chừng: chốt sổ invocation rồi mới lan truyền cancel,
+            # không để row RUNNING/INVOKING mồ côi vĩnh viễn trong ledger.
+            self.runtime.finish_read_invocation(
+                trace, invocation_id, lease.lease_id, "FAILED_FINAL", error_code="cancelled"
+            )
+            raise
         except TimeoutError:
             self.runtime.finish_read_invocation(
                 trace, invocation_id, lease.lease_id, "TIMEOUT", error_code="tool_timeout"

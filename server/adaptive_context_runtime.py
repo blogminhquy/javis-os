@@ -41,20 +41,35 @@ class FeaturePolicy:
 
     @classmethod
     def from_settings(cls, settings: dict, key: str) -> FeaturePolicy:
+        # Settings do người vận hành sửa tay: một giá trị sai kiểu ("abc", "high")
+        # phải rơi về default an toàn (allocation 0), không được raise giữa lượt chat.
+        def _int(value, default):
+            try:
+                return int(value)
+            except (TypeError, ValueError, OverflowError):
+                return int(default)
+
+        def _float(value, default):
+            try:
+                return float(value)
+            except (TypeError, ValueError, OverflowError):
+                return float(default)
+
         runtime = (settings or {}).get("context_runtime") or {}
+        runtime = runtime if isinstance(runtime, dict) else {}
         raw = runtime.get(key) if isinstance(runtime.get(key), dict) else {}
         bps = raw.get("allocation_basis_points", 0)
         return cls(
             name=key,
             version=str(raw.get("policy_version") or f"{key}-v1"),
-            allocation_basis_points=max(0, min(int(bps or 0), 10_000)),
+            allocation_basis_points=max(0, min(_int(bps or 0, 0), 10_000)),
             salt=str(raw.get("salt") or f"{key}-v1"),
             channels=tuple(str(x) for x in (raw.get("channels") or ["dashboard"])),
             provider_kinds=tuple(str(x) for x in (raw.get("provider_kinds") or ["api"])),
-            recent_messages=max(2, min(int(raw.get("recent_messages") or 6), 20)),
-            max_items=max(1, min(int(raw.get("max_items") or 6), 12)),
-            min_confidence=max(0.0, min(float(raw.get("min_confidence") or 0.38), 1.0)),
-            max_body_chars=max(1000, min(int(raw.get("max_body_chars") or 12000), 40000)),
+            recent_messages=max(2, min(_int(raw.get("recent_messages") or 6, 6), 20)),
+            max_items=max(1, min(_int(raw.get("max_items") or 6, 6), 12)),
+            min_confidence=max(0.0, min(_float(raw.get("min_confidence") or 0.38, 0.38), 1.0)),
+            max_body_chars=max(1000, min(_int(raw.get("max_body_chars") or 12000, 12000), 40000)),
         )
 
     def assigned(self, mode: str, session_id: str, channel: str, provider_kind: str) -> tuple[bool, int, str]:
@@ -154,6 +169,18 @@ class AdaptiveContextCanary:
                 brain: str | Path, session_id: str, messages: list[dict], channel: str,
                 provider: str, model: str, provider_kind: str,
                 base_prompt_builder: Callable[[bool, bool], str]) -> AdaptiveContextPlan:
+        # Ranh giới fallback cuối: bất kỳ lỗi nào ngoài các block per-source (compile,
+        # settings, event ghi trace...) đều phải trả legacy, không được phá lượt chat.
+        try:
+            return self._prepare(trace, objective, brain, session_id, messages, channel,
+                                 provider, model, provider_kind, base_prompt_builder)
+        except Exception as exc:  # noqa: BLE001 - fallback-per-turn invariant
+            return AdaptiveContextPlan("legacy", f"prepare_error:{type(exc).__name__}")
+
+    def _prepare(self, trace: context_runtime.TurnTrace | None, objective: str,
+                 brain: str | Path, session_id: str, messages: list[dict], channel: str,
+                 provider: str, model: str, provider_kind: str,
+                 base_prompt_builder: Callable[[bool, bool], str]) -> AdaptiveContextPlan:
         try:
             settings = self.settings_reader() or {}
         except Exception:  # noqa: BLE001 - settings failure must fail closed to legacy

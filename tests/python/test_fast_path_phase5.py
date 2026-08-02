@@ -138,9 +138,12 @@ def test_fast_workload_reduces_total_input_not_just_one_prompt(tmp_path):
         assert plan.action == "execute", (prompt, plan.reason)
         fast_total += plan.estimated_input_tokens
 
+    # Baseline dùng fixture TỔNG HỢP đã commit, không đọc brain thật: brains/ nằm
+    # trong .gitignore nên bản cũ luôn đỏ ở CI, và Phase 0 cấm benchmark chạm dữ
+    # liệu người dùng chưa redaction.
     legacy_system_chars = len((ROOT / "CLAUDE.md").read_text(encoding="utf-8"))
     legacy_system_chars += len((
-        ROOT / "brains" / "My Bullet Journal" / "Memory" / "MEMORY.md"
+        ROOT / "tests" / "fixtures" / "legacy_memory_baseline.md"
     ).read_text(encoding="utf-8"))
     conservative_legacy_total = len(prompts) * (legacy_system_chars // 4)
     assert fast_total < conservative_legacy_total * 0.25
@@ -313,3 +316,16 @@ def test_phase5_defaults_remain_non_impacting():
     config_source = (SERVER / "config.py").read_text(encoding="utf-8")
     assert '"mode": "shadow"' in config_source
     assert '"allocation_basis_points": 0' in config_source
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
+    # từng chạy một assertion nào.
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

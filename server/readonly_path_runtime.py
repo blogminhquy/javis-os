@@ -5,6 +5,7 @@ gateway giữ lease dùng một lần, và quota được giữ cho đúng hai m
 """
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import math
 import re
@@ -31,7 +32,10 @@ def _int(value: Any, default: int = 0) -> int:
 
 
 def _norm(value: str) -> str:
-    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    # "đ" không phân rã qua NFKD - phải map tay như fast_path_runtime._norm, nếu không
+    # _WRITE_INTENT ("dat lich", "dang bai"...) không khớp tiếng Việt có dấu.
+    raw = str(value or "").replace("đ", "d").replace("Đ", "D")
+    raw = unicodedata.normalize("NFKD", raw.casefold())
     return " ".join("".join(c for c in raw if not unicodedata.combining(c)).split())
 
 
@@ -180,7 +184,9 @@ class ReadonlyPathCanary:
     async def _refresh_full(self, trace, brain: str, reason: str) -> bool:
         try:
             tools, route = await self.discoverer("refresh_full", brain)
-            refreshed = self.registry.refresh_tools(brain, tools, route)
+            # refresh_tools giữ registry lock và ghi SQLite - phải rời event loop,
+            # nếu không một source đổi lớn có thể treo mọi request chat vài giây.
+            refreshed = await asyncio.to_thread(self.registry.refresh_tools, brain, tools, route)
             revision = str(refreshed.get("revision") or self.registry.revision(brain))
             if revision != trace.registry_revision:
                 return self.runtime.rebase_registry_revision(trace, revision, reason)
@@ -265,8 +271,8 @@ class ReadonlyPathCanary:
             if not await self._refresh_full(trace, brain, "readonly_preflight_refresh"):
                 return self._legacy(trace, policy, bucket, "registry_refresh_failed")
 
-        capability, resolution, error = self._resolve_one(
-            trace, objective, brain, channel, policy
+        capability, resolution, error = await asyncio.to_thread(
+            self._resolve_one, trace, objective, brain, channel, policy
         )
         if error == "no_read_capability":
             return self._plan("not_applicable", error, policy, bucket)
@@ -292,8 +298,8 @@ class ReadonlyPathCanary:
         if (not tool or not route_entry or live_hash != capability.get("schema_hash")):
             if not await self._refresh_full(trace, brain, "schema_revision_mismatch"):
                 return self._legacy(trace, policy, bucket, "schema_refresh_failed")
-            capability, resolution, error = self._resolve_one(
-                trace, objective, brain, channel, policy
+            capability, resolution, error = await asyncio.to_thread(
+                self._resolve_one, trace, objective, brain, channel, policy
             )
             if error or capability is None:
                 return self._legacy(trace, policy, bucket, "schema_reresolve_failed")

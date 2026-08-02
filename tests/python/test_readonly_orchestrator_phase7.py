@@ -421,3 +421,16 @@ def test_main_phase7_adapter_buffers_final_and_exposes_task_id(tmp_path, monkeyp
     assert len(responses[0]["evidence_refs"]) == 2
     source = inspect.getsource(main._execute_readonly_orchestrator)
     assert "_api_stream_mcp" not in source and "compaction." not in source
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
+    # từng chạy một assertion nào.
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

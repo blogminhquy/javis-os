@@ -38,6 +38,34 @@ Tiến độ triển khai ngày 2026-08-01:
 - Ba canary Phase 8 có bucket/rollback riêng, hard-quota gate chung và allocation mặc định 0. File memory cùng transcript gốc vẫn là source of truth; SQLite state/index chỉ là projection có thể dựng lại.
 - Phase 0, Phase 3 và Phase 4 chỉ được coi là **qua release gate** sau khi có đủ mẫu production đã redaction, đối chiếu usage/tokenizer thật và owner duyệt baseline/miss critical. Vì vậy Phase 5-8 chưa được phép ảnh hưởng request thật.
 
+## Rà soát lại Phase 0-8 (2026-08-02)
+
+Trước khi mở Phase 9, toàn bộ Phase 0-8 được review lại theo từng lát cắt. Kết quả: kiến trúc đúng hướng (store dẫn xuất, ID/revision content-addressed, hard filter cưỡng chế bằng code, checkpoint append-only có OCC, mặc định fail-closed), nhưng có một nhóm lỗi phải vá trước khi đụng tới write.
+
+Đã sửa trong lượt này:
+
+- **Test Phase 0-8 chưa từng chạy ở CI.** CI chạy từng file test như script (`python tests/python/test_x.py`); tám file test viết theo kiểu pytest không có block `__main__` nên chỉ định nghĩa hàm rồi thoát 0. Đã thêm runner cho từng file và cài `pytest` trong workflow. 100 test giờ chạy thật.
+- **Settings sai kiểu làm sập lượt chat.** `ObserveRuntime._policy` và `FeaturePolicy.from_settings` parse ngoài try/except; một giá trị sai kiểu trong `settings.json` ném ra tận vòng websocket. Nay parse fail-closed về `off`/default.
+- **Shadow/canary làm hỏng lượt đã thành công.** `_record_quality_shadow` và các `prepare` của Phase 5/6/7/8 không có ranh giới exception; lỗi ở nhánh quan sát biến một lượt thành công thành báo lỗi. Nay mọi nhánh đều bọc và rơi về legacy.
+- **Quota ledger nuốt usage thật.** Reservation hết TTL giữa stream bị lật `EXPIRED`, `consume_quota`/`record_usage` bỏ qua nên token thật biến mất khỏi rolling window (chính các lượt dài và đắt nhất). Nay reconcile được cả trạng thái `EXPIRED`.
+- **Budget của Compiler mâu thuẫn với preflight.** `task_tokens_remaining` không trừ output reserve nên có capsule `compiled` mà preflight lại `would_reject`. Cửa sổ context khai nhỏ hơn output reserve còn rơi về fallback LỚN HƠN cửa sổ thật.
+- **Quality Gate chặn nhầm tường thuật dữ liệu.** Regex cũ bắt mọi cụm "đã gửi/đã tạo", nên câu tóm tắt email/lịch hợp lệ bị thay bằng thông báo chặn. Nay chỉ bắt claim hành động của chính assistant, đồng thời phủ thêm dạng bị động ("đã được gửi", "was created"). Footer `Nguồn:` chuyển xuống SAU khi chấm để check citation không còn là code chết.
+- **Classifier mất tín hiệu tiếng Việt.** NFKD không phân rã `đ`, nên các deny-pattern ASCII (`dinh kem`, `dat lich`, `dang bai`) không bao giờ khớp câu tiếng Việt thật. Đã map `đ→d` ở cả bốn module dùng `_norm`, thêm deny cho URL, tham chiếu hội thoại và kỳ thời gian tương đối.
+- **Registry.** Source `plugin` không nằm trong sweep nên gỡ plugin xong capability ma vẫn resolve được; hai tool trùng tên làm `IntegrityError` rollback TOÀN BỘ refresh của brain; thiếu index `source_key` và xoá FTS theo từng dòng. Đã sửa cả ba, và đưa `refresh_tools`/`resolve` của Phase 6-7 ra khỏi event loop.
+- **Executor cho phép tham số ngoài hợp đồng.** JSON Schema mặc định cho qua key thừa, nên model tuồn được tham số lạ xuống tool. Nay default-deny, chỉ khai rõ `additionalProperties: true` mới cho qua. Thêm chốt sổ invocation khi lượt bị huỷ.
+- **Evidence store.** Cưỡng chế `enc:` và chặn path thoát ra ngoài ngay tại ranh giới store thay vì tin caller; redaction phủ thêm JWT, khoá AWS/Google, secret trong query string và tên khoá dạng `x-api-key`.
+- **Memory index trả sai fact.** Bộ chia đoạn cộng dồn số dòng sau khi đã bỏ dòng trống, nên mọi đoạn từ thứ hai trở đi lệch dần; khi có conflict, `_read_detail` đọc theo ref lệch và THAY excerpt đúng bằng nội dung của fact khác. Nay ref bám dòng thật của file, và index tự dựng lại khi `schema_version` đổi.
+- **Benchmark Phase 5 đọc dữ liệu người dùng.** Test đọc `brains/My Bullet Journal/Memory/MEMORY.md` (nằm trong `.gitignore`) nên luôn đỏ ở checkout sạch. Đã thay bằng fixture tổng hợp đã commit.
+
+Còn nợ, phải làm trong hoặc trước Phase 9:
+
+- Resume của Phase 7 so pin bằng NHÃN (tên model, `id` của quota rule) chứ không phải nội dung, và deadline không được gia hạn khi resume nên restart lâu hơn deadline là không resume được gì.
+- `_continue` reset mọi step `RUNNING` về `PENDING` rồi chạy lại - đúng với read, nhưng chính là lỗi chạy trùng nếu áp cho write. Phase 9 phải có trạng thái `UNKNOWN` + reconcile thay vì retry mù.
+- `runtime_invocations` chưa có `idempotency_key UNIQUE` như spec mục 18.6 yêu cầu; hiện dựa vào lease dùng một lần.
+- Failure signature mới chặn vòng lặp planner, chưa chặn vòng lặp lỗi ở step thực thi.
+- Shadow production resolve bằng `ActorPolicy(mode="full")` nên không đo được miss do permission - đúng cái filter Phase 9 dựa vào.
+- Compiler chưa đọc `conflicts_with`, chưa có check "fact định lượng phải có evidence", và `QualityDecision` còn thiếu `missing_evidence`/`suggested_queries` theo mục 16.3.
+
 ## 0. Quyết định kiến trúc
 
 Javis sẽ chuyển từ cách dựng request theo kiểu "nối mọi thứ có thể hữu ích vào prompt" sang một runtime biên dịch context theo từng bước của nhiệm vụ.

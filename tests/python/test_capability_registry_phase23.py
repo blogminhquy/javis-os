@@ -229,3 +229,16 @@ def test_corrupt_registry_is_quarantined_and_rebuilt(tmp_path):
     check = registry.integrity_check("brain-a")
     assert check["ok"] is True
     assert list(tmp_path.glob("capability_registry.db.corrupt-*"))
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
+    # từng chạy một assertion nào.
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

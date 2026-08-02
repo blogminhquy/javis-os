@@ -266,3 +266,16 @@ def test_phase8_small_base_size_does_not_scale_with_legacy_prompt(tmp_path, monk
     legacy = main.build_system_prompt(str(brain))
     adaptive = main.build_adaptive_source_prompt(str(brain), False, False)
     assert len(adaptive) < len(legacy) * 0.05
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
+    # từng chạy một assertion nào.
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

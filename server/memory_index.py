@@ -19,7 +19,7 @@ from pathlib import Path
 from capability_registry import brain_scope
 from context_compiler import ContextItem, HeuristicTokenizer
 
-INDEX_SCHEMA_VERSION = "memory-index-v1"
+INDEX_SCHEMA_VERSION = "memory-index-v2"   # v2: line-ref theo dòng thật của file
 INDEX_POLICY_VERSION = "memory-retrieval-cascade-v1"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
 _WIKI_RE = re.compile(r"\[\[([^\]|#]+)")
@@ -40,7 +40,9 @@ def _json(value) -> str:
 
 
 def _norm(value: str) -> str:
-    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    # "đ" không phân rã qua NFKD - map tay để token hai phía (index và query) nhất quán.
+    raw = str(value or "").replace("đ", "d").replace("Đ", "D")
+    raw = unicodedata.normalize("NFKD", raw.casefold())
     return " ".join(_WORD_RE.findall("".join(c for c in raw if not unicodedata.combining(c))))
 
 
@@ -185,25 +187,47 @@ class MemoryIndex:
         default_title = str(meta.get("title") or Path(relative).stem)
         current_title = default_title
         blocks: list[tuple[str, int, int, str]] = []
-        block_start = start + 1
-        buffer: list[str] = []
+        # Buffer giữ (số dòng 1-based, nội dung) để ref file:#Lx-Ly luôn trỏ đúng dòng
+        # THẬT. Bản cũ đếm dòng bằng cách cộng dồn số newline sau khi đã strip dòng
+        # trống, nên mọi đoạn từ thứ hai trở đi lệch dần và _read_detail có thể đọc
+        # nhầm sang fact khác rồi thay thế excerpt đúng.
+        buffer: list[tuple[int, str]] = []
 
-        def flush(end_line: int):
-            nonlocal buffer, block_start
-            body = "\n".join(buffer).strip()
-            if body:
-                # Keep records bounded; long sections split on blank paragraphs.
-                paragraphs = [x.strip() for x in re.split(r"\n\s*\n", body) if x.strip()]
-                if not paragraphs:
-                    paragraphs = [body]
-                cursor = block_start
-                for paragraph in paragraphs:
-                    for offset in range(0, len(paragraph), 1400):
-                        excerpt = paragraph[offset:offset + 1400].strip()
-                        if excerpt:
-                            count = max(1, excerpt.count("\n") + 1)
-                            blocks.append((current_title, cursor, min(end_line, cursor + count - 1), excerpt))
-                            cursor += count
+        def flush(_end_line: int):
+            nonlocal buffer
+            paragraph: list[tuple[int, str]] = []
+
+            def emit(para: list[tuple[int, str]]):
+                if not para:
+                    return
+                chunk: list[tuple[int, str]] = []
+                size = 0
+                for lineno, content in para:
+                    if chunk and size + len(content) + 1 > 1400:
+                        text_chunk = "\n".join(x[1] for x in chunk).strip()
+                        if text_chunk:
+                            blocks.append((current_title, chunk[0][0], chunk[-1][0], text_chunk))
+                        chunk, size = [], 0
+                    if len(content) > 1400:
+                        # Dòng đơn quá dài: cắt theo ký tự nhưng giữ nguyên số dòng.
+                        for offset in range(0, len(content), 1400):
+                            piece = content[offset:offset + 1400].strip()
+                            if piece:
+                                blocks.append((current_title, lineno, lineno, piece))
+                        continue
+                    chunk.append((lineno, content))
+                    size += len(content) + 1
+                text_chunk = "\n".join(x[1] for x in chunk).strip()
+                if text_chunk:
+                    blocks.append((current_title, chunk[0][0], chunk[-1][0], text_chunk))
+
+            for lineno, content in buffer:
+                if content.strip():
+                    paragraph.append((lineno, content))
+                else:
+                    emit(paragraph)
+                    paragraph = []
+            emit(paragraph)
             buffer = []
 
         for index in range(start, len(lines)):
@@ -211,11 +235,8 @@ class MemoryIndex:
             if match:
                 flush(index)
                 current_title = match.group(2).strip()[:240]
-                block_start = index + 2
             else:
-                if not buffer:
-                    block_start = index + 1
-                buffer.append(lines[index])
+                buffer.append((index + 1, lines[index]))
         flush(len(lines))
         if not blocks and text.strip():
             blocks = [(default_title, 1, min(len(lines), 1), text.strip()[:1400])]
@@ -278,7 +299,11 @@ class MemoryIndex:
         db = self._conn()
         with self._lock:
             previous = db.execute("SELECT * FROM index_meta WHERE scope=?", (scope,)).fetchone()
-            if previous and previous["source_fingerprint"] == fingerprint and not force:
+            # Fingerprint chỉ bắt file đổi. Nâng cấp code (đổi cách chunk, đổi cách
+            # chấm điểm) không đổi file nào, nên phải so schema_version, nếu không
+            # index cũ sai vẫn được phục vụ mãi dù bản vá đã lên.
+            if (previous and previous["source_fingerprint"] == fingerprint and not force and
+                    previous["schema_version"] == INDEX_SCHEMA_VERSION):
                 return {"rebuilt": False, "revision": previous["revision"],
                         "source_count": previous["source_count"], "record_count": previous["record_count"]}
             files = []

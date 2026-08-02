@@ -148,6 +148,8 @@ class CapabilityRegistry:
                 ON capabilities(brain_scope,active,health);
             CREATE INDEX IF NOT EXISTS idx_capabilities_name
                 ON capabilities(brain_scope,name);
+            CREATE INDEX IF NOT EXISTS idx_capabilities_source_key
+                ON capabilities(source_key);
             CREATE TABLE IF NOT EXISTS model_profiles (
                 profile_id TEXT PRIMARY KEY,
                 provider TEXT NOT NULL,
@@ -281,9 +283,12 @@ class CapabilityRegistry:
         with self._lock:
             db = self._conn()
             with db:
+                # Sweep phải gồm cả 'plugin': plugin gỡ đi mà không sweep thì capability
+                # "healthy" ma tồn tại vĩnh viễn và resolver vẫn chọn nó. 'skill' do
+                # refresh_skills sở hữu nên vẫn loại trừ.
                 old_keys = {r[0] for r in db.execute(
                     "SELECT source_key FROM capability_sources WHERE brain_scope=? AND active=1 "
-                    "AND source_type IN ('mcp','builtin')", (scope,)
+                    "AND source_type IN ('mcp','builtin','plugin')", (scope,)
                 )}
                 new_keys = set(grouped)
                 for removed in old_keys - new_keys:
@@ -315,11 +320,22 @@ class CapabilityRegistry:
                     old_ids = [r[0] for r in db.execute(
                         "SELECT capability_id FROM capabilities WHERE source_key=?", (source_key,)
                     )]
-                    if self._fts:
-                        for capability_id in old_ids:
-                            db.execute("DELETE FROM capabilities_fts WHERE capability_id=?", (capability_id,))
+                    if self._fts and old_ids:
+                        # Một câu DELETE IN (...) = một lần quét FTS thay vì N lần
+                        # (capability_id là cột UNINDEXED nên mỗi DELETE là full scan).
+                        placeholders = ",".join("?" for _ in old_ids)
+                        db.execute(
+                            f"DELETE FROM capabilities_fts WHERE capability_id IN ({placeholders})",
+                            old_ids,
+                        )
                     db.execute("DELETE FROM capabilities WHERE source_key=?", (source_key,))
+                    # Dedupe theo capability_id: hai tool trùng tên trong một source không
+                    # được phép nổ IntegrityError làm rollback TOÀN BỘ refresh của brain.
+                    seen_capability_ids: set[str] = set()
                     for item in source_records:
+                        if item["capability_id"] in seen_capability_ids:
+                            continue
+                        seen_capability_ids.add(item["capability_id"])
                         db.execute(
                             "INSERT INTO capabilities VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (item["capability_id"], source_key, scope, "tool", item["name"],
