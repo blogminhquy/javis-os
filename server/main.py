@@ -7098,6 +7098,35 @@ async def sessions_delete(session_id: str):
     return {"ok": True}
 
 
+@app.get("/runtime/diagnostics")
+async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200)):
+    """Spec mục 27: trang chẩn đoán cho admin.
+
+    Chỉ trả metadata đã có sẵn trong runtime.db. Không objective (đang mã hoá),
+    không actor hash, không excerpt evidence, không arguments. Trang này để trả lời
+    "token đi đâu", không phải để đọc lại hội thoại.
+    """
+    snapshot = _CONTEXT_RUNTIME.diagnostics_snapshot(limit=limit, hours=hours)
+    settings = cfgmod.read_settings().get("context_runtime") or {}
+    canaries = {}
+    for key, value in settings.items():
+        if isinstance(value, dict) and "allocation_basis_points" in value:
+            canaries[key] = {
+                "allocation_basis_points": value.get("allocation_basis_points", 0),
+                "policy_version": value.get("policy_version", ""),
+                # Đếm thôi, không trả nội dung rule: chúng chứa hạn mức tài khoản thật.
+                "quota_rules": len(value.get("quota_profiles") or value.get("models") or []),
+                "allowlist": len(value.get("capability_profiles")
+                                 or value.get("allowed_slugs") or []),
+            }
+    registry = {}
+    try:
+        registry = _CAPABILITY_REGISTRY.integrity_check()
+    except Exception as exc:
+        registry = {"error": type(exc).__name__}
+    return {**snapshot, "canaries": canaries, "registry": registry}
+
+
 @app.get("/runtime/tasks/{task_id}")
 async def runtime_task_status(task_id: str):
     """Phase 7 status tối thiểu; không trả objective, checkpoint ciphertext hay actor hash."""

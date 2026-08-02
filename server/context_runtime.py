@@ -531,6 +531,12 @@ class ObserveRuntime:
                 continue
             if isinstance(value, (str, int, float, bool)) or value is None:
                 out[str(key)[:80]] = value[:2000] if isinstance(value, str) else value
+            elif isinstance(value, (list, tuple)) and all(
+                    isinstance(x, (str, int, float, bool)) for x in value):
+                # List mã lý do/ID trước đây RƠI IM LẶNG vì chỉ nhận scalar, nên
+                # quality.canary mất sạch reason_codes và không ai biết. Nối thành
+                # chuỗi để vẫn là scalar, vẫn không có đường lọt raw content.
+                out[str(key)[:80]] = ",".join(str(x) for x in value)[:2000]
         return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
 
     def _event(self, db, trace: TurnTrace, kind: str, data: dict | None = None) -> None:
@@ -1893,6 +1899,114 @@ class ObserveRuntime:
                 return True
         except Exception:
             return False
+
+    def diagnostics_snapshot(self, limit: int = 200, hours: float = 24.0) -> dict:
+        """Tổng hợp CHỈ-ĐỌC cho trang chẩn đoán (spec mục 27).
+
+        Nguyên tắc: chỉ trả thứ đã là metadata. Không có objective (đang mã hoá),
+        không actor_hash, không excerpt evidence, không arguments. Trang chẩn đoán
+        tồn tại để trả lời "token đi đâu", không phải để đọc lại hội thoại.
+        """
+        since = time.time() - max(0.1, float(hours or 24.0)) * 3600
+        bound = max(1, min(int(limit or 200), 1000))
+        out: dict = {
+            "mode": self._policy()["mode"], "window_hours": hours,
+            "tasks": [], "paths": {}, "channels": {}, "quality": {},
+            "miss_classes": {}, "fallback_reasons": {},
+            "tokens": {"estimated": 0, "actual_input": 0, "actual_output": 0},
+            "capsule": {"samples": 0, "median_tokens": 0, "max_tokens": 0},
+        }
+        try:
+            with self._lock:
+                db = self._conn()
+                rows = db.execute(
+                    "SELECT id,channel,status,execution_path,canary_bucket,"
+                    "canary_policy_version,registry_revision,created_at,updated_at "
+                    "FROM runtime_tasks WHERE created_at>=? ORDER BY created_at DESC LIMIT ?",
+                    (since, bound),
+                ).fetchall()
+                task_ids = [r["id"] for r in rows]
+                steps: dict[str, dict] = {}
+                if task_ids:
+                    marks = ",".join("?" for _ in task_ids)
+                    for row in db.execute(
+                        f"SELECT task_id,provider,model,"
+                        f"SUM(COALESCE(estimated_input_tokens,0)) est,"
+                        f"SUM(COALESCE(actual_input_tokens,0)) ain,"
+                        f"SUM(COALESCE(actual_output_tokens,0)) aout "
+                        f"FROM runtime_steps WHERE task_id IN ({marks}) GROUP BY task_id",
+                        task_ids,
+                    ):
+                        steps[row["task_id"]] = dict(row)
+                capsules: list[int] = []
+                for row in rows:
+                    agg = steps.get(row["id"], {})
+                    out["tasks"].append({
+                        "task_id": row["id"], "channel": row["channel"],
+                        "status": row["status"],
+                        "execution_path": row["execution_path"] or "unassigned",
+                        "bucket": row["canary_bucket"],
+                        "policy_version": row["canary_policy_version"] or "",
+                        "registry_revision": row["registry_revision"] or "",
+                        "provider": agg.get("provider") or "", "model": agg.get("model") or "",
+                        "estimated_input_tokens": int(agg.get("est") or 0),
+                        "actual_input_tokens": int(agg.get("ain") or 0),
+                        "actual_output_tokens": int(agg.get("aout") or 0),
+                        "created_at": row["created_at"], "updated_at": row["updated_at"],
+                    })
+                    path = row["execution_path"] or "unassigned"
+                    out["paths"][path] = out["paths"].get(path, 0) + 1
+                    out["channels"][row["channel"]] = out["channels"].get(row["channel"], 0) + 1
+                    out["tokens"]["estimated"] += int(agg.get("est") or 0)
+                    out["tokens"]["actual_input"] += int(agg.get("ain") or 0)
+                    out["tokens"]["actual_output"] += int(agg.get("aout") or 0)
+                if task_ids:
+                    marks = ",".join("?" for _ in task_ids)
+                    for row in db.execute(
+                        f"SELECT event_type,payload_json FROM runtime_events "
+                        f"WHERE task_id IN ({marks})", task_ids,
+                    ):
+                        try:
+                            payload = json.loads(row["payload_json"] or "{}")
+                        except (TypeError, ValueError):
+                            continue
+                        kind = row["event_type"]
+                        if kind in ("quality.shadow", "quality.canary"):
+                            # reason_codes được lưu dạng chuỗi ngăn phẩy (xem
+                            # _safe_payload). Lặp trực tiếp là đếm từng KÝ TỰ.
+                            raw = payload.get("reason_codes")
+                            codes = [c for c in str(raw or "").split(",") if c] or ["pass"]
+                            for code in codes:
+                                out["quality"][code] = out["quality"].get(code, 0) + 1
+                        elif kind in ("resolver.shadow", "resolver.readonly",
+                                      "resolver.orchestrator"):
+                            miss = str(payload.get("miss_class") or "")
+                            if miss:
+                                out["miss_classes"][miss] = out["miss_classes"].get(miss, 0) + 1
+                        elif kind == "canary.decision":
+                            reason = str(payload.get("reason") or "")
+                            if reason:
+                                out["fallback_reasons"][reason] = (
+                                    out["fallback_reasons"].get(reason, 0) + 1)
+                        elif kind in ("compiler.shadow", "compiler.canary"):
+                            tokens = int(payload.get("estimated_input_tokens") or 0)
+                            if tokens:
+                                capsules.append(tokens)
+                if capsules:
+                    capsules.sort()
+                    out["capsule"] = {
+                        "samples": len(capsules),
+                        "median_tokens": capsules[len(capsules) // 2],
+                        "max_tokens": capsules[-1],
+                    }
+                estimated = out["tokens"]["estimated"]
+                actual = out["tokens"]["actual_input"]
+                out["tokens"]["estimate_error_pct"] = (
+                    round((estimated - actual) / actual * 100, 1) if actual else None)
+            return out
+        except Exception as exc:
+            out["error"] = type(exc).__name__
+            return out
 
     def get_task(self, task_id: str) -> Optional[dict]:
         """Read-only helper cho test/admin tương lai; không trả raw content vì DB không lưu."""

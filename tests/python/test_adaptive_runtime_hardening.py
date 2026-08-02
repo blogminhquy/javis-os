@@ -525,6 +525,84 @@ def test_shadow_resolve_uses_the_real_permission_mode_not_a_hardcoded_full(tmp_p
         assert item.get("required_mode", "readonly") == "readonly"
 
 
+def test_diagnostics_answers_where_tokens_went_without_leaking_content(tmp_path):
+    """Spec mục 27. Trước trang này, trace được ghi mỗi lượt mà KHÔNG ai đọc được -
+    mục tiêu gốc của Phase 0 ("biết token đi đâu") chưa trả lời được dù đã tốn công ghi.
+
+    Ràng buộc: chỉ metadata. Không objective, không actor hash, không excerpt.
+    """
+    import json as _json
+    from context_runtime import ObserveRuntime
+
+    settings = {"context_runtime": {"mode": "shadow"}}
+    runtime = ObserveRuntime(tmp_path / "rt", settings_reader=lambda: settings)
+    trace = runtime.start_turn("phiên-bí-mật", str(tmp_path), "dashboard")
+    runtime.set_route(trace, "groq", "llama-3.3")
+    runtime.observe_payload(
+        trace, [{"role": "user", "content": "NỘI DUNG RIÊNG TƯ KHÔNG ĐƯỢC LỘ"}],
+        provider="groq", model="llama-3.3")
+    runtime.record_usage(trace, 1200, 300)
+    runtime.record_quality_shadow(trace, {"status": "revise", "reason_codes": ["engine_error_observed"]})
+    runtime.finish(trace)
+
+    snap = runtime.diagnostics_snapshot()
+    assert snap["mode"] == "shadow"
+    assert len(snap["tasks"]) == 1
+    task = snap["tasks"][0]
+    assert task["actual_input_tokens"] == 1200 and task["actual_output_tokens"] == 300
+    assert task["model"] == "llama-3.3"
+    assert snap["quality"].get("engine_error_observed") == 1
+    assert snap["tokens"]["actual_input"] == 1200
+
+    blob = _json.dumps(snap, ensure_ascii=False)
+    assert "NỘI DUNG RIÊNG TƯ" not in blob, "không được lộ nội dung hội thoại"
+    assert "objective" not in blob and "actor_hash" not in blob
+    assert "excerpt" not in blob
+
+
+def test_diagnostics_survives_a_broken_store(tmp_path):
+    """Trang chẩn đoán hỏng KHÔNG được kéo theo lỗi; nó chỉ để xem."""
+    from context_runtime import ObserveRuntime
+
+    runtime = ObserveRuntime(tmp_path / "rt", settings_reader=lambda: {"context_runtime": {}})
+    runtime._conn()
+    (tmp_path / "rt" / "runtime.db").write_bytes(b"khong phai sqlite")
+    runtime.close()
+    broken = ObserveRuntime(tmp_path / "rt", settings_reader=lambda: {"context_runtime": {}})
+    snap = broken.diagnostics_snapshot()
+    assert isinstance(snap, dict) and "tasks" in snap
+
+
+def test_list_payloads_are_kept_not_dropped_silently(tmp_path):
+    """`_safe_payload` chỉ nhận scalar, nên reason_codes dạng list RƠI IM LẶNG.
+
+    Hệ quả: quality.canary mất sạch mã lý do và không ai biết, vì event vẫn được
+    ghi và vẫn đúng tên. Chỉ lộ ra khi có trang chẩn đoán đọc chúng.
+    """
+    from context_runtime import ObserveRuntime
+
+    runtime = ObserveRuntime(tmp_path / "rt",
+                             settings_reader=lambda: {"context_runtime": {"mode": "shadow"}})
+    trace = runtime.start_turn("s", str(tmp_path), "dashboard")
+    runtime.record_runtime_event(trace, "quality.canary", {
+        "status": "revise", "reason_codes": ["false_action_claim", "engine_error_observed"]})
+    events = [e for e in runtime.list_events(trace.task_id)
+              if e["event_type"] == "quality.canary"]
+    assert events and events[0]["payload"].get("reason_codes"), "list không được rơi"
+
+    histogram = runtime.diagnostics_snapshot()["quality"]
+    # Đếm theo MÃ, không phải theo ký tự.
+    assert histogram.get("false_action_claim") == 1
+    assert histogram.get("engine_error_observed") == 1
+    assert "e" not in histogram, "đang đếm từng ký tự thay vì từng mã"
+
+    # Nhưng raw content vẫn tuyệt đối không lọt qua đường này.
+    runtime.record_runtime_event(trace, "quality.canary", {
+        "messages": ["NỘI DUNG RIÊNG TƯ"], "args": ["bí mật"]})
+    blob = str(runtime.list_events(trace.task_id))
+    assert "RIÊNG TƯ" not in blob and "bí mật" not in blob
+
+
 if __name__ == "__main__":
     # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
     # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa

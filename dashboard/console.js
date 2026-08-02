@@ -36,6 +36,7 @@
     logs: "scroll-text",
     account: "circle-user",
     usage: "chart-column",
+    runtime: "cpu",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -86,6 +87,7 @@
     { id: "logs",        icon: ICON.logs,        label: "Cập nhật" },
     { id: "account",     icon: ICON.account,     label: "Tài khoản" },
     { id: "usage",       icon: ICON.usage,       label: "Mức dùng" },
+    { id: "runtime",     icon: ICON.runtime,     label: "Chẩn đoán" },
   ];
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -97,7 +99,7 @@
     { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
-    { label: "Hệ thống",    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
+    { label: "Hệ thống",    icon: GICON["Hệ thống"], ids: ["usage", "runtime", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
@@ -140,6 +142,7 @@
     logs:        { icon: VIEW_ICON.logs, label: "Nhật ký cập nhật", sub: "Phiên bản & tính năng mới" },
     account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập & workspace" },
     usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Token & chi phí theo ngày, theo nhà cung cấp" },
+    runtime:     { icon: VIEW_ICON.runtime, label: "Chẩn đoán", sub: "Adaptive runtime đang quan sát gì: token, đường chạy, capsule" },
   };
 
   // 4 trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).
@@ -256,6 +259,7 @@
     if (id === "kanban")   return renderKanban(el);
     if (id === "logs")     return renderLogs(el);
     if (id === "usage")    return renderUsage(el);
+    if (id === "runtime")  return renderRuntime(el);
     el.innerHTML = placeholder(id);
   }
 
@@ -311,6 +315,102 @@
   const _uzCost = (c) => (+c > 0 ? "$" + (+c).toFixed(+c < 0.01 ? 4 : 2) : "-");
   const _UZ_PROV = { cli: "Claude Code", codex: "ChatGPT", openrouter: "OpenRouter", openai: "OpenAI", "anthropic-api": "Anthropic" };
   const _uzModel = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26);
+
+  // ===== Chẩn đoán adaptive runtime (spec muc 27) =====
+  // Trang nay tra loi dung mot cau hoi: runtime moi dang QUAN SAT duoc gi. No khong
+  // bat gi, khong sua gi. Truoc khi co no, trace duoc ghi vao runtime.db moi luot chat
+  // ma khong ai doc duoc - tuc la muc tieu goc cua Phase 0 ("biet token di dau") van
+  // chua tra loi duoc du da ton cong ghi.
+  async function renderRuntime(el) {
+    el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder" style="min-height:200px"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div class="dim">Đang đọc trace...</div></div></div>`;
+    let d;
+    try { d = await (await fetch("/runtime/diagnostics?hours=24&limit=200")).json(); }
+    catch (e) {
+      el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder"><div class="ph-ico">${ic("cpu", { cls: "ic-xl ic-dim" })}</div><div>Không đọc được trace runtime.</div></div></div>`;
+      return;
+    }
+    const esc = (x) => String(x == null ? "" : x)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const num = (n) => (Number(n) || 0).toLocaleString("vi-VN");
+    const tasks = d.tasks || [];
+    const tk = d.tokens || {};
+    const cap = d.capsule || {};
+
+    // Bang dem: {khoa: so} -> hang chip. Rong thi noi ro la rong, khong de trong.
+    const counts = (obj, empty) => {
+      const keys = Object.keys(obj || {});
+      if (!keys.length) return `<div class="dim">${esc(empty)}</div>`;
+      return keys.sort((a, b) => obj[b] - obj[a])
+        .map(k => `<span class="rt-chip">${esc(k)} <b>${num(obj[k])}</b></span>`).join("");
+    };
+
+    const canaries = Object.entries(d.canaries || {})
+      .sort((a, b) => (b[1].allocation_basis_points || 0) - (a[1].allocation_basis_points || 0));
+    const anyOn = canaries.some(([, v]) => (v.allocation_basis_points || 0) > 0);
+
+    const rows = tasks.slice(0, 60).map(t => {
+      const err = t.estimated_input_tokens && t.actual_input_tokens
+        ? Math.round((t.estimated_input_tokens - t.actual_input_tokens) / t.actual_input_tokens * 100) : null;
+      return `<tr>
+        <td class="rt-mono">${esc((t.task_id || "").slice(0, 12))}</td>
+        <td>${esc(t.channel || "")}</td>
+        <td><span class="rt-path rt-path-${esc(t.execution_path)}">${esc(t.execution_path)}</span></td>
+        <td>${esc(t.status || "")}</td>
+        <td>${esc(t.model || "-")}</td>
+        <td class="rt-right">${num(t.actual_input_tokens)}</td>
+        <td class="rt-right">${num(t.actual_output_tokens)}</td>
+        <td class="rt-right">${err == null ? "-" : err + "%"}</td>
+      </tr>`;
+    }).join("");
+
+    el.innerHTML = `<div class="uz-wrap rt-wrap">
+      <div class="rt-banner ${anyOn ? "rt-on" : "rt-off"}">
+        ${ic(anyOn ? "triangle-alert" : "check", { cls: anyOn ? "ic-warn" : "ic-ok" })}
+        <div>
+          <b>Chế độ: ${esc(d.mode || "?")}</b>
+          <div class="dim">${anyOn
+            ? "Có đường canary đang bật - một phần lượt chat đi đường mới."
+            : "Không đường canary nào bật. Runtime mới chỉ quan sát, mọi lượt vẫn đi đường cũ."}</div>
+        </div>
+      </div>
+
+      <div class="rt-grid">
+        <div class="rt-card"><div class="rt-k">Lượt trong 24h</div><div class="rt-v">${num(tasks.length)}</div></div>
+        <div class="rt-card"><div class="rt-k">Token vào (thật)</div><div class="rt-v">${num(tk.actual_input)}</div></div>
+        <div class="rt-card"><div class="rt-k">Token ra (thật)</div><div class="rt-v">${num(tk.actual_output)}</div></div>
+        <div class="rt-card"><div class="rt-k">Ước lượng lệch</div><div class="rt-v">${tk.estimate_error_pct == null ? "-" : tk.estimate_error_pct + "%"}</div>
+          <div class="rt-note">âm = ước lượng THẤP hơn thật</div></div>
+        <div class="rt-card"><div class="rt-k">Capsule trung vị</div><div class="rt-v">${num(cap.median_tokens)}</div>
+          <div class="rt-note">${num(cap.samples)} mẫu, lớn nhất ${num(cap.max_tokens)}</div></div>
+        <div class="rt-card"><div class="rt-k">Capability trong Registry</div><div class="rt-v">${num((d.registry || {}).capabilities)}</div>
+          <div class="rt-note">revision ${esc(((d.registry || {}).revision || "").slice(0, 14))}</div></div>
+      </div>
+
+      <div class="rt-sec"><h3>Đường chạy</h3><div class="rt-chips">${counts(d.paths, "Chưa có lượt nào.")}</div></div>
+      <div class="rt-sec"><h3>Lý do không vào đường mới</h3><div class="rt-chips">${counts(d.fallback_reasons, "Chưa ghi nhận lý do nào.")}</div></div>
+      <div class="rt-sec"><h3>Resolver trượt vì</h3><div class="rt-chips">${counts(d.miss_classes, "Chưa có miss nào.")}</div></div>
+      <div class="rt-sec"><h3>Quality Gate</h3><div class="rt-chips">${counts(d.quality, "Chưa có đánh giá nào.")}</div></div>
+
+      <div class="rt-sec">
+        <h3>Canary</h3>
+        <table class="rt-tbl"><thead><tr><th>Đường</th><th class="rt-right">Allocation</th><th class="rt-right">Quota rule</th><th class="rt-right">Allowlist</th></tr></thead><tbody>
+        ${canaries.map(([k, v]) => `<tr>
+          <td class="rt-mono">${esc(k)}</td>
+          <td class="rt-right">${(v.allocation_basis_points || 0) === 0 ? '<span class="dim">tắt</span>' : num(v.allocation_basis_points) + " bps"}</td>
+          <td class="rt-right">${num(v.quota_rules)}</td>
+          <td class="rt-right">${num(v.allowlist)}</td>
+        </tr>`).join("")}
+        </tbody></table>
+      </div>
+
+      <div class="rt-sec">
+        <h3>Lượt gần nhất</h3>
+        ${tasks.length ? `<table class="rt-tbl"><thead><tr><th>Task</th><th>Kênh</th><th>Đường</th><th>Trạng thái</th><th>Model</th><th class="rt-right">Vào</th><th class="rt-right">Ra</th><th class="rt-right">Lệch</th></tr></thead><tbody>${rows}</tbody></table>`
+          : `<div class="dim">Chưa có lượt nào trong 24 giờ qua.</div>`}
+      </div>
+      <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
+    </div>`;
+  }
 
   async function renderUsage(el) {
     // Trang Token nâng cấp (usage.js): index log thô Claude+Codex + lọc kỳ/provider + insight.
