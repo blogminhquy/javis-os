@@ -713,6 +713,52 @@ def test_a_proposal_without_a_code_is_refused_not_shown_as_a_dead_button(tmp_pat
     assert not calls, "và tuyệt đối không chạm tool"
 
 
+def test_the_code_survives_block_stripping_so_a_reload_is_not_a_dead_end(tmp_path, monkeypatch):
+    """Sau F5, dashboard KHÔNG dựng lại nút từ lịch sử.
+
+    Nếu mã chỉ nằm trong khối nút thì tải lại trang là mất đường duyệt. Nên mã phải
+    nằm cả trong phần chữ - đó là lý do vẫn giữ câu gõ tay dù đã có nút.
+    """
+    import json as _json
+    import re as _re
+    import main
+
+    stack = _stack(tmp_path)
+    brain, registry, runtime, trace, store, executor, canary, calls, routes = stack
+    plan = _prepare(stack)
+
+    async def fake_plan(*args):
+        return {"status": "ok", "arguments": {"calendar_id": "primary",
+                "start": "2026-08-05T09:00", "title": "R"},
+                "model": "m", "input": 10, "output": 5}
+
+    class WS:
+        async def send_text(self, raw):
+            pass
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", fake_plan)
+    monkeypatch.setattr(main, "_CAPABILITY_EXECUTOR", executor)
+    monkeypatch.setattr(main, "_CAPABILITY_REGISTRY", registry)
+    monkeypatch.setattr(main, "_CONTEXT_RUNTIME", runtime)
+    monkeypatch.setattr(main, "_WRITE_PATH", canary)
+    monkeypatch.setattr(main, "_brain_root", lambda b: str(brain))
+    monkeypatch.setattr(main.usage_store, "record", lambda *a, **k: None)
+    main._WRITE_PENDING_ARGS.clear()
+
+    text, _model = asyncio.run(main._execute_write_proposal(
+        plan, "groq", "secret", "m", "off", WS(), "session-f5", trace))
+
+    block = _re.search(r"<!--\s*JAVIS_ASK:\s*([\s\S]*?)\s*-->", text)
+    code = _json.loads(block.group(1))["options"][0]["label"].split()[-1]
+
+    # Đúng phép bóc mà bản lưu dùng.
+    stored = _re.sub(r"<!--\s*JAVIS_ASK:[\s\S]*?-->", "", text).strip()
+    assert "JAVIS_ASK" not in stored
+    assert code in stored, "mã phải còn trong phần chữ, không chỉ trong khối nút"
+    # Và gõ lại đúng câu đó vẫn duyệt được.
+    assert canary.pending_for("session-f5", f"XAC NHAN {code}").action == "execute"
+
+
 if __name__ == "__main__":
     import sys
     try:
