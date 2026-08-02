@@ -4,6 +4,21 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.10.0] - 2026-08-02
+Nền tảng Adaptive Context Runtime: ngữ cảnh gửi cho model co theo việc cần làm, không phình theo số thứ đã cắm.
+### Cải thiện
+- **Tool không còn nhồi hết vào mỗi lượt.** Trước đây mọi schema tool đi thẳng vào request, cho mọi model, mọi câu hỏi. Tầng "nạp theo nhu cầu" đã có sẵn nhưng chưa từng chạy: nó chỉ giấu tool của connector ngoài, còn tool nội bộ và plugin thì luôn hiện, mà ngưỡng bật lại đếm theo SỐ LƯỢNG tool trong khi cái tốn tiền là KÍCH THƯỚC. Nay ngưỡng xét cả hai, và chỉ giữ lại vài tool hạt nhân. Đo trên cấu hình 26 tool + 30 skill: schema mỗi lượt giảm **83%** (11.994 xuống 2.001 ký tự). Có tác dụng ngay, không cần bật gì.
+- **Javis biết trước là sẽ vượt hạn mức, và nói ra.** Trước đây gặp model bị siết token mỗi phút (như gói Groq miễn phí 12.000 TPM), Javis vẫn gửi request rồi để nhà cung cấp trả lỗi khó hiểu. Tệ hơn: khi phát hiện request quá to, nó lại rơi về đường gửi NHIỀU token hơn. Nay nó dừng trước, nêu rõ cần bao nhiêu token so với hạn mức, và gợi ý provider anh đang có mà chưa bị siết.
+- **Loop nền, việc Kanban và nhắc hẹn không còn âm thầm ăn hết hạn mức.** Hạn mức token mỗi phút là của TÀI KHOẢN, nhưng trước đây chỉ vài đường được kế toán, còn chat thường, loop, việc nền và Telegram thì đốt vô hình. Nay gom về một sổ chung, nên khi bị chặn thì con số nhìn thấy được đúng như thực tế.
+- **Trang Chẩn đoán** ở mục Hệ thống: token vào ra thật, sai số ước lượng, đường chạy từng lượt, lý do bị chặn, và token 60 giây qua gộp mọi nguồn. Chỉ số liệu, không có nội dung hội thoại hay tham số tool.
+### Bảo mật
+- **Chặn trang web lạ kích hoạt lệnh của Javis.** `/workflows/run` và `/workflows/resume` là địa chỉ dạng GET nên lớp chống giả mạo cũ không phủ tới, trong khi cookie đăng nhập vẫn đi kèm khi bị điều hướng. Một trang bất kỳ chỉ cần đẩy trình duyệt sang địa chỉ đó là workflow chạy trên máy anh, kể cả khi đã đặt mật khẩu. Nay chỉ chạy khi lệnh xuất phát từ chính dashboard; công cụ dòng lệnh không bị ảnh hưởng.
+- **Sửa cấu hình lồng nhau không còn xoá nhầm phần bên cạnh.** Trước đây sửa một mục con là thay trọn cả nhóm, làm mất các thiết lập anh em mà không báo gì.
+### Tính năng mới
+- **Bật/tắt và khai hạn mức ngay trên trang Chẩn đoán.** Không phải sửa tay file cấu hình nữa. Bật một đường mà chưa khai hạn mức thì bị chặn kèm lý do, thay vì bật xong ngồi đợi một thứ không bao giờ chạy. Tắt thì luôn có hiệu lực ngay, không cần khởi động lại.
+### Lưu ý
+- **Bản này chưa đổi cách Javis trả lời.** Toàn bộ đường chạy mới vẫn ở chế độ quan sát, mọi tỉ lệ bằng 0. Phần thấy được ngay là tool nhẹ đi, trang Chẩn đoán, và hai bản vá bảo mật. Việc bật đường mới để sau, khi đã có số liệu nền để so.
+
 ## [0.9.293] - 2026-08-01
 Trang Models xếp nhà cung cấp đã kết nối lên đầu.
 ### Cải thiện
