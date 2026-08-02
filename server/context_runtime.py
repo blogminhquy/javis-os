@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import config
+import quota_scheduler        # sổ cái TPM dùng chung cho MỌI nguồn gọi model
 
 
 RUNTIME_VERSION = "adaptive-v7"
@@ -1042,15 +1043,22 @@ class ObserveRuntime:
                 db = self._conn()
                 with db:
                     self._expire_reservations(db, now)
+                    # Chỉ đếm phần ĐANG BAY: request đã đặt chỗ mà chưa báo số thật về.
+                    # Phần đã tiêu thật (CONSUMED/RECONCILED) nay do quota_scheduler nắm,
+                    # vì nó thấy được CẢ những lượt không đi qua canary. Đếm cả hai chỗ là
+                    # đếm hai lần và sẽ tự bóp nghẹt throughput.
                     row = db.execute(
-                        "SELECT COALESCE(SUM(CASE WHEN status IN ('CONSUMED','RECONCILED') THEN "
-                        "actual_input_tokens+actual_output_tokens ELSE "
-                        "input_reserved+output_reserved END),0) FROM quota_reservations "
-                        "WHERE provider=? AND model=? AND created_at>=? "
-                        "AND status IN ('OBSERVED','RECONCILED','ADMITTED','CONSUMED')",
+                        "SELECT COALESCE(SUM(input_reserved+output_reserved),0) "
+                        "FROM quota_reservations WHERE provider=? AND model=? "
+                        "AND created_at>=? AND status IN ('ADMITTED','OBSERVED')",
                         (str(provider or "?"), str(model or "?"), now - window),
                     ).fetchone()
-                    used = int(row[0] or 0)
+                    in_flight = int(row[0] or 0)
+                    # Mức dùng THẬT của mọi nguồn: chat legacy, loop nền, task Kanban, nhắc
+                    # hẹn, Telegram... Thiếu số này thì canary tưởng còn nhiều token hơn
+                    # thực tế rồi cho qua đúng request làm vỡ hạn mức của tài khoản.
+                    external = quota_scheduler.used(provider, model, window, now)
+                    used = in_flight + external
                     remaining = max(0, limit - used)
                     if requested > remaining:
                         self._event(db, trace, "quota.rejected", {

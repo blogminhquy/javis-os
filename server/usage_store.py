@@ -17,6 +17,7 @@ import json
 import threading
 from datetime import datetime, timezone, timedelta
 
+import quota_scheduler          # sổ cái TPM dùng chung (không phụ thuộc ngược, xem module đó)
 from config import STATE_DIR
 
 _PATH = STATE_DIR / "usage.json"
@@ -88,6 +89,11 @@ def record(provider: str, model: str, tin=0, tout=0, cost=0.0) -> None:
             d["days"].pop(old, None)
         _save(d)
     _append_event(provider, model, tin, tout, cost)   # forward-log rieng (khong prune) cho dashboard token
+    # Sổ cái TPM dùng chung. Đây là điểm móc PHỔ QUÁT: mọi đường gọi model (chat, loop,
+    # task nền, nhắc hẹn, Telegram, CLI, Codex) đều đi qua record(), trong khi admit_quota
+    # chỉ nhìn thấy bốn đường canary. Thiếu móc này thì hạn mức của TÀI KHOẢN bị đốt vô hình
+    # và canary tưởng còn nhiều token hơn thực tế.
+    quota_scheduler.observe(provider, model, tin + tout)
 
 
 def _rollup(bucket: dict) -> dict:

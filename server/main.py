@@ -72,6 +72,7 @@ import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
+import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
 import model_limits           # hạn mức GỢI Ý theo provider, để khai quota profile cho canary
 import model_router           # Phase 12: chọn model theo từng bước, lọc năng lực trước
 import workflow_graph          # Phase 10: workflow -> capability graph (thuần dữ liệu)
@@ -7328,7 +7329,10 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
     return {**snapshot, "canaries": canaries, "registry": registry,
             # Provider đã tra được hạn mức gợi ý - để trang Chẩn đoán dựng ô chọn thay vì
             # bắt người vận hành nhớ tên provider nào có preset.
-            "quota_presets": model_limits.known_providers()}
+            "quota_presets": model_limits.known_providers(),
+            # Token đã đốt trong 60 giây qua, gộp MỌI nguồn. Đây là thứ trả lời được câu
+            # "sao canary bị chặn trong khi tôi có chat gì đâu": loop nền vừa ăn hết hạn mức.
+            "tpm_window": quota_scheduler.snapshot(60)}
 
 
 def _canary_keys() -> set:

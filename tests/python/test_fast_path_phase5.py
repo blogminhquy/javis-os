@@ -211,18 +211,31 @@ def test_atomic_rolling_quota_admission_rejects_concurrent_overcommit(tmp_path):
 
 
 def test_admission_accounts_for_recent_legacy_usage_too(tmp_path):
+    """Bất biến: lượt legacy vừa đốt token thì canary phải thấy và trừ đi.
+
+    Từ khi có `quota_scheduler`, mức dùng THẬT đi qua `usage_store.record` chứ không còn
+    đọc từ bảng đặt chỗ nữa (bảng đó nay chỉ giữ phần ĐANG BAY, để khỏi đếm hai lần). Trong
+    production hai lời gọi luôn đi CẶP - có test riêng khoá chuyện đó - nên ở đây gọi đủ
+    cặp để đo đúng đường thật.
+    """
+    import quota_scheduler
+    import usage_store
+
+    quota_scheduler.reset()
     runtime = ObserveRuntime(tmp_path, settings_reader=lambda: _settings())
     legacy = runtime.start_turn("legacy", "brain", "dashboard")
     runtime.observe_payload(
         legacy, [{"role": "user", "content": "x" * 1200}],
         provider="groq", model="m",
     )
+    usage_store.record("groq", "m", 700, 100)
     runtime.record_usage(legacy, 700, 100)
     canary = runtime.start_turn("canary", "brain", "dashboard")
     admission = runtime.admit_quota(canary, "groq", "m", 150, 100, 1000, 60)
     assert not admission.allowed
     assert admission.used_tokens == 800
     assert admission.remaining_tokens == 200
+    quota_scheduler.reset()
 
 
 def test_phase5_schema_migrates_existing_shadow_database_in_place(tmp_path):
