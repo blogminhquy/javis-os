@@ -28,6 +28,20 @@ import config as cfgmod
 _LOCALHOST = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
 MUTATING = {"POST", "PUT", "DELETE", "PATCH"}
 
+# GET có TÁC DỤNG PHỤ THẬT: /workflows/run chạy workflow FULL QUYỀN, /workflows/resume duyệt
+# một node ghi rồi thực thi (không hoàn tác được). Cả hai là SSE nên buộc phải là GET -
+# EventSource không POST được.
+#
+# Vì sao Origin-check ở csrf_decision KHÔNG cứu được nhóm này: điều hướng top-level bằng GET
+# (location.href) KHÔNG gửi Origin, trong khi cookie javis_session đặt SameSite=lax thì VẪN đi
+# kèm. Nghĩa là một trang lạ chỉ cần đẩy trình duyệt sang URL này là lệnh chạy trên máy nạn
+# nhân, kể cả khi đã bật mật khẩu. Slug workflow lại đoán được (bộ mẫu có sẵn
+# 'research-and-write'), nên /workflows/run là đường thật sự hở.
+#
+# Chốt bằng Sec-Fetch-Site: mọi trình duyệt hiện đại đều gửi header này và trang web KHÔNG đặt
+# đè được; client không-trình-duyệt (curl, Claude CLI, Codex) không gửi → không khoá nhầm.
+SIDE_EFFECT_GET = frozenset({"/workflows/run", "/workflows/resume"})
+
 _cache = {"hosts": None, "ts": 0.0}
 _CACHE_TTL = 5.0
 
@@ -97,6 +111,26 @@ def allowed_web_hosts(_now=None) -> set:
 
 def invalidate():
     _cache["hosts"] = None
+
+
+def navigation_decision(path: str, sec_fetch_site):
+    """Chặn GET có tác dụng phụ khi bị TRANG KHÁC kích hoạt. Hàm THUẦN - dễ test.
+
+    Cho qua khi Sec-Fetch-Site là:
+      - thiếu hẳn  → client không-trình-duyệt (curl, Claude CLI, Codex, plugin in-process)
+      - 'none'     → user tự gõ URL / mở bookmark, tức là chính chủ chủ động
+      - 'same-origin' → chính dashboard gọi (studio.js dùng URL tương đối)
+    Chặn 'cross-site' và 'same-site': cả hai đều nghĩa là một trang khác khởi xướng.
+
+    Đánh đổi đã biết: trình duyệt quá cũ không gửi Sec-Fetch-Site sẽ lọt. Chấp nhận, vì siết
+    hơn nữa (bắt buộc phải có header) sẽ khoá luôn curl/CLI - thứ mà cả hệ đang dựa vào.
+    """
+    if path not in SIDE_EFFECT_GET:
+        return None
+    site = (sec_fetch_site or "").strip().lower()
+    if site in ("", "none", "same-origin"):
+        return None
+    return 403, "lệnh có tác dụng phụ chỉ chạy được từ chính dashboard"
 
 
 def csrf_decision(method: str, host_header: str, origin_header, gate_active: bool):

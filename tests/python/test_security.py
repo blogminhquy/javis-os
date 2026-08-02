@@ -182,6 +182,35 @@ check("external_base: header nhiều giá trị (proxy chồng) → lấy giá t
 check("external_base: CHỈ dùng cho redirect_uri - không được lẫn vào quyết định localhost",
       "external_base" not in inspect.getsource(main._auth_guard))
 
+# ---- 12. GET có tác dụng phụ: chặn khi TRANG KHÁC kích hoạt (Sec-Fetch-Site) ----
+# Vì sao cần lớp này ngoài csrf_decision: điều hướng top-level GET không gửi Origin, mà cookie
+# javis_session là SameSite=lax nên VẪN đi kèm → csrf_decision cho qua sạch.
+check("cross-site điều hướng vào /workflows/run → chặn 403",
+      (web_security.navigation_decision("/workflows/run", "cross-site") or (0,))[0] == 403)
+check("cross-site điều hướng vào /workflows/resume (duyệt ghi) → chặn 403",
+      (web_security.navigation_decision("/workflows/resume", "cross-site") or (0,))[0] == 403)
+check("same-site (khác cổng, vẫn là trang khác) → chặn 403",
+      (web_security.navigation_decision("/workflows/run", "same-site") or (0,))[0] == 403)
+check("dashboard tự gọi (same-origin) → cho qua",
+      web_security.navigation_decision("/workflows/run", "same-origin") is None)
+check("user tự gõ URL / bookmark (none) → cho qua",
+      web_security.navigation_decision("/workflows/run", "none") is None)
+check("curl / Claude CLI / Codex (thiếu header) → cho qua, không khoá nhầm",
+      web_security.navigation_decision("/workflows/run", None) is None)
+check("endpoint ĐỌC không dính rào này",
+      web_security.navigation_decision("/workflows", "cross-site") is None)
+check("header hoa/thường lẫn lộn vẫn chặn",
+      (web_security.navigation_decision("/workflows/run", " Cross-Site ") or (0,))[0] == 403)
+
+# Rào chỉ có tác dụng nếu path trong SIDE_EFFECT_GET KHỚP route thật. Đổi tên route mà quên
+# sửa danh sách = mở cửa lại trong im lặng, nên khoá hai chiều ở đây.
+_get_routes = {r.path for r in main.app.routes
+               if "GET" in (getattr(r, "methods", None) or set())}
+for _p in web_security.SIDE_EFFECT_GET:
+    check(f"SIDE_EFFECT_GET '{_p}' trỏ đúng một route GET có thật", _p in _get_routes)
+check("middleware _csrf_guard có thật sự gọi navigation_decision",
+      "navigation_decision" in inspect.getsource(main._csrf_guard))
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

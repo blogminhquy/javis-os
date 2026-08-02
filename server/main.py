@@ -143,6 +143,10 @@ async def _csrf_guard(request: Request, call_next):
                                    request.headers.get("origin"), cfgmod.gate_active())
     if d:
         return JSONResponse({"error": d[1], "blocked": "web_security"}, status_code=d[0])
+    # GET có tác dụng phụ (chạy workflow, duyệt node ghi): Origin không đủ, xem SIDE_EFFECT_GET.
+    n = web_security.navigation_decision(request.url.path, request.headers.get("sec-fetch-site"))
+    if n:
+        return JSONResponse({"error": n[1], "blocked": "web_security"}, status_code=n[0])
     return await call_next(request)
 
 

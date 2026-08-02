@@ -2036,6 +2036,23 @@ từ phía tiêu thụ: ai gọi cái này, cái này hiện ra ở đâu, ai đ
 thêm một test đối chiếu hai chiều: mọi loại event runtime phát ra đều phải có nhánh xử lý
 trong `studio.js`. Thay đổi sau nào thêm trạng thái mới mà quên phía hiển thị sẽ đỏ ngay.
 
+Cùng họ lỗi đó, nhưng ở phía HTTP: `/workflows/resume` được thêm ở Phase 10 như một endpoint
+SSE, tức là buộc phải là `GET` (EventSource không POST được). Nó nằm sau `_auth_guard` nên
+không hở với người lạ, nhưng lớp chống CSRF sẵn có lại **không** phủ nó: `csrf_decision` chỉ
+xét Origin trên method ghi, trong khi điều hướng top-level bằng `GET` không gửi Origin và
+cookie `javis_session` đặt `SameSite=lax` thì vẫn đi kèm. Một trang lạ chỉ cần đẩy
+`location.href` sang là lệnh chạy trên máy nạn nhân, kể cả khi đã bật mật khẩu.
+
+Với `/workflows/resume` rủi ro thực tế thấp vì mã duyệt suy ra từ task + node + arguments nên
+không đoán được, nhưng endpoint anh em `/workflows/run` (có từ trước) thì nhận slug đoán được
+và chạy **full quyền**. Đã chốt bằng `web_security.navigation_decision`: nhóm
+`SIDE_EFFECT_GET` chỉ chạy khi `Sec-Fetch-Site` là `same-origin`, `none`, hoặc vắng mặt
+(curl/Claude CLI/Codex không gửi header này nên không bị khoá nhầm). Đổi `samesite="strict"`
+đã được cân nhắc và loại: nó sẽ giết luôn redirect OAuth ở `/connect/oauth/callback`.
+
+Bài học chung: mỗi lần thêm endpoint, hỏi "lớp phòng thủ hiện có phủ đúng method này chưa",
+đừng giả định vì hàng xóm của nó được phủ.
+
 Thay đổi:
 
 - ModelSource đầy đủ và live reliability/quota profile.
