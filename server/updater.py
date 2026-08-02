@@ -139,6 +139,38 @@ def git_dirty():
     return bool((r.stdout or "").strip())
 
 
+def chan_doan_pull(pull_out: str) -> str:
+    """Vì sao `git pull` trả về THÀNH CÔNG mà VERSION vẫn y nguyên.
+
+    Trước đây chỗ này chỉ nói "(pull chưa áp?)" rồi bảo người dùng đi đọc update.log - tức
+    là biết có chuyện bất thường mà không nói ra chuyện gì. Người dùng ở xa file log (bản
+    Windows/Docker) thì coi như không có manh mối nào.
+
+    Nguyên nhân hay gặp nhất: máy đang theo dõi một nhánh KHÁC nhánh có bản mới, nên git
+    báo "Already up to date" và trả về 0 một cách hoàn toàn hợp lệ."""
+    out = (pull_out or "").strip()
+    nhanh = (run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout or "").strip()
+    up = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+    theo_doi = (up.stdout or "").strip() if up.returncode == 0 else ""
+
+    if "up to date" in out.lower() or "up-to-date" in out.lower():
+        if not theo_doi:
+            return (f"Nhánh '{nhanh}' không theo dõi nhánh nào trên máy chủ nên git không có "
+                    f"gì để tải về. Chạy: git branch --set-upstream-to=origin/main {nhanh}")
+        if not theo_doi.endswith("/main"):
+            return (f"Máy đang ở nhánh '{nhanh}' theo dõi '{theo_doi}', mà bản mới nằm ở "
+                    f"nhánh main. Chạy: git checkout main && git pull")
+        return (f"Git báo đã mới nhất trên '{theo_doi}' nhưng phiên bản không đổi. Nhiều khả "
+                f"năng bản cài này không phải bản chạy từ mã nguồn (Docker/đóng gói sẵn) - "
+                f"hãy cập nhật bằng cách deploy lại image.")
+    if "detached" in out.lower() or nhanh == "HEAD":
+        return ("Máy đang ở trạng thái detached HEAD (không đứng trên nhánh nào). "
+                "Chạy: git checkout main && git pull")
+    return (f"Đã tải mã mới nhưng phiên bản không đổi. Nhánh '{nhanh}'"
+            + (f", theo dõi '{theo_doi}'" if theo_doi else ", chưa theo dõi nhánh nào")
+            + ". Xem update.log để biết chi tiết.")
+
+
 def pip_install():
     return run([venv_python(), "-m", "pip", "install", "-r", "requirements.txt", "-q"])
 
@@ -225,8 +257,10 @@ def main():
         us.write_state({"phase": "done", "result": "success", "finished_at": _now()})
         return 0
     if outcome == "version_mismatch":
+        ly_do = chan_doan_pull(pull.stdout or "")
+        log("Phiên bản không đổi. Chẩn đoán: " + ly_do)
         us.write_state({"phase": "done", "result": "error",
-                        "error": "Server lên nhưng phiên bản chưa đổi (pull chưa áp?). Xem update.log.",
+                        "error": f"Vẫn đang chạy {current}, chưa lên {target}. {ly_do}",
                         "finished_at": _now()})
         return 1
 

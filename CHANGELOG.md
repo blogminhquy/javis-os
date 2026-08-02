@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.3] - 2026-08-02
+Cập nhật thất bại thì nói rõ vì sao và phải làm gì, thay vì bảo đi đọc file log.
+### Sửa lỗi
+- **"Server lên nhưng phiên bản chưa đổi (pull chưa áp?). Xem update.log."** Câu này biết có chuyện bất thường mà không nói ra chuyện gì, rồi đẩy người dùng đi đọc một file log mà bản Windows/Docker gần như không với tới được. Nay Javis tự chẩn đoán và nói thẳng: đang đứng ở nhánh nào, theo dõi nhánh nào, và **lệnh cụ thể để sửa**. Nguyên nhân hay gặp nhất là máy đang theo dõi một nhánh khác nhánh có bản mới, nên `git` báo "đã mới nhất" một cách hoàn toàn hợp lệ. Cũng nhận ra trường hợp bản đóng gói sẵn (Docker) không cập nhật được từ mã nguồn, và trường hợp không đứng trên nhánh nào.
+- Thông báo lỗi giờ nêu cả phiên bản đang chạy lẫn phiên bản đích, để nhìn là biết ngay đã lên hay chưa.
+
 ## [0.12.2] - 2026-08-02
 Model yếu bịa sai cú pháp gọi công cụ thì Javis tự gỡ, thay vì hiện khối JSON lỗi rồi im lặng.
 ### Sửa lỗi
