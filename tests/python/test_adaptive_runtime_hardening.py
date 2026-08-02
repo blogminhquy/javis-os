@@ -396,9 +396,13 @@ def test_repository_defaults_activate_no_canary_path(tmp_path):
     import copy
     import asyncio
     import config as cfgmod
+    import agent_runtime
     import fast_path_runtime
+    import model_router
     import readonly_path_runtime
     import readonly_orchestrator
+    import workflow_graph
+    import workflow_runtime
     import write_path_runtime
     from adaptive_context_runtime import AdaptiveContextCanary
     from capability_executor import CapabilityExecutor
@@ -458,7 +462,20 @@ def test_repository_defaults_activate_no_canary_path(tmp_path):
             tmp_path / "st", registry, compiler, runtime, lambda: settings
         ).prepare(trace, objective, brain, "sid", [], "dashboard", "groq",
                   "llama-3.3", "api", lambda memory, skills: "base"),
+        # Phase 10-12. Test này là hàng rào cuối cùng chống việc vô tình bật một
+        # đường canary ở mặc định, nên nó phải phủ HẾT, không được rơi rớt phase nào.
+        "workflow": workflow_runtime.WorkflowCanary(
+            runtime, lambda: settings
+        ).prepare(trace, workflow_graph.compile_workflow(
+            {"name": "demo", "steps": [{"agent": "a", "task": "t"}]}, "demo"), "sid"),
     }
+    agent_admitted, _b, agent_reason = agent_runtime.AgentPolicy.from_settings(
+        settings).admits("demo", "sid")
+    assert not agent_admitted, f"agent canary bật ở mặc định: {agent_reason}"
+    routed = model_router.ModelRouter(lambda: settings).route(
+        model_router.RoutingRequest(), "sid", "groq", "model-cua-user")
+    assert routed.action == "keep" and routed.model == "model-cua-user", (
+        "model router đổi model ở mặc định")
     for name, plan in plans.items():
         assert plan.action in ("not_applicable", "legacy"), (name, plan.action, plan.reason)
 
