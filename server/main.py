@@ -72,6 +72,7 @@ import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
+import model_limits           # hạn mức GỢI Ý theo provider, để khai quota profile cho canary
 import model_router           # Phase 12: chọn model theo từng bước, lọc năng lực trước
 import workflow_graph          # Phase 10: workflow -> capability graph (thuần dữ liệu)
 import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
@@ -7308,7 +7309,10 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
         registry = _CAPABILITY_REGISTRY.integrity_check()
     except Exception as exc:
         registry = {"error": type(exc).__name__}
-    return {**snapshot, "canaries": canaries, "registry": registry}
+    return {**snapshot, "canaries": canaries, "registry": registry,
+            # Provider đã tra được hạn mức gợi ý - để trang Chẩn đoán dựng ô chọn thay vì
+            # bắt người vận hành nhớ tên provider nào có preset.
+            "quota_presets": model_limits.known_providers()}
 
 
 def _canary_keys() -> set:
@@ -7371,6 +7375,58 @@ def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_i
                          "goi_y": "khai quota profile trước, hoặc gửi lại với "
                                   "allow_inert=true nếu cố ý bật để quan sát"}
     return 0, {"ok": True, "allocation_basis_points": bp}
+
+
+@app.post("/runtime/quota")
+async def runtime_quota_apply(provider: str = Form(...), model: str = Form(""),
+                              paths: str = Form("")):
+    """Khai quota profile cho các đường canary từ bộ hạn mức gợi ý (model_limits).
+
+    Vì sao cần: fail-closed nghĩa là thiếu quota profile thì mọi task rơi về legacy, nên
+    trước bước này mọi thao tác bật canary đều vô nghĩa. Trước đây cách duy nhất để khai là
+    gõ tay JSON lồng ba tầng vào settings.json.
+
+    `paths` bỏ trống = áp cho MỌI đường canary có trường quota_profiles. Con số là GỢI Ý dựa
+    trên tài liệu công khai, người vận hành phải đối chiếu với gói cước thật của mình.
+    """
+    suggestions = model_limits.suggest_profiles(provider, model)
+    if not suggestions:
+        return JSONResponse({
+            "ok": False,
+            "error": f"chưa có hạn mức gợi ý cho provider '{provider}'"
+                     + (f" model '{model}'" if model else ""),
+            "provider_da_biet": model_limits.known_providers(),
+            "goi_y": "khai tay quota_profiles cho đường canary, hoặc bổ sung mục vào "
+                     "server/model_limits.py nếu đã tra được hạn mức chính thức",
+        }, status_code=404)
+
+    profiles = [model_limits.as_quota_profile(s) for s in suggestions]
+    wanted = {p.strip() for p in (paths or "").split(",") if p.strip()}
+    keys = _canary_keys()
+    if wanted - keys:
+        return JSONResponse({"ok": False, "error": "có đường canary không tồn tại",
+                             "sai": sorted(wanted - keys), "hop_le": sorted(keys)},
+                            status_code=400)
+
+    cfg = cfgmod.read_settings()
+    runtime_cfg = cfg.setdefault("context_runtime", {})
+    applied = []
+    for key in sorted(keys):
+        if wanted and key not in wanted:
+            continue
+        entry = dict(runtime_cfg.get(key) or {})
+        # Đường nào dùng 'models' (model router) có hình dạng rule khác hẳn - không áp bừa.
+        if "quota_profiles" not in entry:
+            continue
+        entry["quota_profiles"] = profiles
+        runtime_cfg[key] = entry
+        applied.append(key)
+    cfgmod.write_settings(cfg)
+    return {"ok": True, "provider": provider, "model": model or "(mọi model)",
+            "so_rule": len(profiles), "da_ap_cho": applied,
+            "can_doi_chieu": [s.get("source") for s in suggestions if s.get("verify")],
+            "luu_y": "Đây là hạn mức GỢI Ý theo tài liệu công khai. Đối chiếu với gói cước "
+                     "thật của tài khoản trước khi tin vào nó."}
 
 
 @app.post("/runtime/canary")

@@ -749,3 +749,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   background: color-mix(in srgb, var(--warn, #d29922) 16%, transparent); cursor: pointer;
   font-size: 13px; font-weight: 600; }
 .wf-approve:disabled { opacity: .5; cursor: default; }
+.rt-quota { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding-top: 10px; font-size: 12px; }
+.rt-quota select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: inherit; font-size: 12px; }

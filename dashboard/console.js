@@ -409,6 +409,14 @@
         <div class="dim rt-note">10000 bps = 100 phần trăm. Đổi xong có hiệu lực ngay, không cần khởi động lại;
         đặt về 0 là tắt tức thì. Bật một đường chưa khai quota sẽ bị chặn kèm lý do, vì fail-closed
         sẽ cho mọi lượt rơi về đường cũ mà không báo gì.</div>
+        ${(d.quota_presets || []).length ? `
+        <div class="rt-quota">
+          <label>Khai hạn mức gợi ý cho
+            <select class="rt-prov">${(d.quota_presets || []).map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
+          </label>
+          <button class="btn btn-sm rt-quota-apply">Khai</button>
+          <span class="dim">Con số theo tài liệu công khai, phải đối chiếu với gói cước thật của anh.</span>
+        </div>` : ""}
       </div>
 
       <div class="rt-sec">
@@ -418,6 +426,8 @@
       </div>
       <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
     </div>`;
+
+    _bindQuotaApply(el);
 
     // Đặt allocation. Nút này là đường DUY NHẤT để bật/tắt canary mà không phải sửa tay
     // settings.json - knob nằm sâu hai tầng nên sửa tay rất dễ làm mất field anh em.
@@ -449,6 +459,26 @@
           btn.textContent = old;
         }
       });
+    });
+  }
+
+  async function _bindQuotaApply(el) {
+    const btn = el.querySelector(".rt-quota-apply");
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const sel = el.querySelector(".rt-prov");
+      const provider = (sel && sel.value) || "";
+      if (!provider) return;
+      btn.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append("provider", provider);
+        const r = await fetch("/runtime/quota", { method: "POST", body: fd });
+        const body = await r.json().catch(() => null);
+        if (!r.ok) { alert((body && body.error) || "Khai hạn mức thất bại."); return; }
+        alert(`Đã khai ${body.so_rule} rule cho ${(body.da_ap_cho || []).length} đường.\n\n${body.luu_y || ""}`);
+        renderRuntime(el);
+      } finally { btn.disabled = false; }
     });
   }
 

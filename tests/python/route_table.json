@@ -1683,6 +1683,15 @@
  {
   "order": 187,
   "type": "APIRoute",
+  "path": "/runtime/quota",
+  "name": "runtime_quota_apply",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 188,
+  "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
   "methods": [
@@ -1690,7 +1699,7 @@
   ]
  },
  {
-  "order": 188,
+  "order": 189,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -1699,7 +1708,7 @@
   ]
  },
  {
-  "order": 189,
+  "order": 190,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -1708,7 +1717,7 @@
   ]
  },
  {
-  "order": 190,
+  "order": 191,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -1717,7 +1726,7 @@
   ]
  },
  {
-  "order": 191,
+  "order": 192,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -1726,7 +1735,7 @@
   ]
  },
  {
-  "order": 192,
+  "order": 193,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -1735,7 +1744,7 @@
   ]
  },
  {
-  "order": 193,
+  "order": 194,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",
