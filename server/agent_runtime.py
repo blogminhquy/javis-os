@@ -152,6 +152,9 @@ class AgentRunResult:
     added_node_ids: tuple[str, ...] = ()
     escalation: str = ""
     events: list[dict] = field(default_factory=list)
+    # Output đến từ node nào. Cần thiết vì khi node output cuối hỏng, ta trả kết quả
+    # của node hoàn tất gần nhất - người dùng phải biết mình đang đọc cái gì.
+    output_node_id: str = ""
 
 
 class AgentRunner:
@@ -168,6 +171,22 @@ class AgentRunner:
             return AgentPolicy.from_settings(self.settings_reader() or {})
         except Exception:
             return AgentPolicy.from_settings({})
+
+    @staticmethod
+    def _best_output(state: dict, preferred_node_id: str) -> tuple[str, str]:
+        """Node output ưu tiên; nếu nó rỗng thì lấy node hoàn tất GẦN NHẤT.
+
+        Vòng replan hỏng không được xoá sạch công sức các vòng trước: trả rỗng trong
+        khi đã có kết quả tốt là tệ hơn hẳn việc trả kết quả cũ kèm nói rõ nguồn.
+        """
+        nodes = state.get("nodes") or {}
+        preferred = (nodes.get(preferred_node_id) or {}).get("output") or ""
+        if preferred:
+            return preferred, preferred_node_id
+        for node_id, item in reversed(list(nodes.items())):
+            if (item or {}).get("status") == "COMPLETED" and (item or {}).get("output"):
+                return item["output"], node_id
+        return "", ""
 
     @staticmethod
     def _failure_signature(state: dict) -> str:
@@ -269,16 +288,20 @@ class AgentRunner:
                 # Đây không phải "chưa đạt mục tiêu" mà là runtime nói dừng: checkpoint
                 # hỏng nghĩa là tiến trình khác đang giữ task, revision lệch nghĩa là
                 # định nghĩa đã đổi. Replan lúc này là chạy đè lên người khác.
-                return AgentRunResult("STOPPED", result.output, result.stop_reason,
-                                      result.task_id, rounds, tuple(added), "", events)
+                text, from_node = self._best_output(state or {}, current.output_node_id)
+                return AgentRunResult("STOPPED", text, result.stop_reason,
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
             if state is None:
                 return AgentRunResult("FAILED", result.output, "agent_state_unavailable",
                                       result.task_id, rounds, tuple(added), "", events)
 
             decision = self._evaluate(result, state)
             if decision == "pass":
-                return AgentRunResult("COMPLETED", result.output, "objective_satisfied",
-                                      result.task_id, rounds, tuple(added), "", events)
+                text, from_node = self._best_output(state, current.output_node_id)
+                return AgentRunResult("COMPLETED", text, "objective_satisfied",
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
 
             signature = self._failure_signature(state)
             if signature:
@@ -286,17 +309,23 @@ class AgentRunner:
                 if seen_signatures[signature] >= policy.failure_repeat_limit:
                     # Lặp lại cùng một lỗi thì thử nữa cũng vô ích. Đưa ra người dùng.
                     await _emit({"type": "escalation", "reason": "repeated_failure_signature"})
+                    text, from_node = self._best_output(state, current.output_node_id)
                     return AgentRunResult(
-                        "ESCALATED", result.output, "repeated_failure_signature",
+                        "ESCALATED", text, "repeated_failure_signature",
                         result.task_id, rounds, tuple(added),
-                        "Agent gặp lại đúng một lỗi nhiều lần nên dừng để anh xem.", events)
+                        "Agent gặp lại đúng một lỗi nhiều lần nên dừng để anh xem.",
+                        events, from_node)
 
             if rounds >= policy.max_replan_rounds:
-                return AgentRunResult("STOPPED", result.output, "replan_budget_exhausted",
-                                      result.task_id, rounds, tuple(added), "", events)
+                text, from_node = self._best_output(state, current.output_node_id)
+                return AgentRunResult("STOPPED", text, "replan_budget_exhausted",
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
             if len(current.nodes) >= policy.max_total_nodes:
-                return AgentRunResult("STOPPED", result.output, "node_budget_exhausted",
-                                      result.task_id, rounds, tuple(added), "", events)
+                text, from_node = self._best_output(state, current.output_node_id)
+                return AgentRunResult("STOPPED", text, "node_budget_exhausted",
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
 
             summary = {
                 "objective": input_text,
@@ -312,12 +341,16 @@ class AgentRunner:
             try:
                 proposed = await planner(input_text, summary, granted)
             except Exception as exc:
-                return AgentRunResult("STOPPED", result.output,
+                text, from_node = self._best_output(state, current.output_node_id)
+                return AgentRunResult("STOPPED", text,
                                       f"planner_error:{type(exc).__name__}",
-                                      result.task_id, rounds, tuple(added), "", events)
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
             if not proposed:
-                return AgentRunResult("STOPPED", result.output, "planner_had_nothing_to_add",
-                                      result.task_id, rounds, tuple(added), "", events)
+                text, from_node = self._best_output(state, current.output_node_id)
+                return AgentRunResult("STOPPED", text, "planner_had_nothing_to_add",
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
 
             rounds += 1
             existing = {x.id for x in current.nodes}
@@ -326,13 +359,17 @@ class AgentRunner:
                     list(proposed), grant, existing, rounds, policy)
             except PermissionEscalation as exc:
                 await _emit({"type": "escalation", "reason": str(exc)})
+                text, from_node = self._best_output(state, current.output_node_id)
                 return AgentRunResult(
-                    "ESCALATED", result.output, str(exc), result.task_id,
+                    "ESCALATED", text, str(exc), result.task_id,
                     rounds, tuple(added),
-                    "Kế hoạch mới đòi quyền chưa được cấp nên Javis đã dừng.", events)
+                    "Kế hoạch mới đòi quyền chưa được cấp nên Javis đã dừng.",
+                    events, from_node)
             if len(current.nodes) + len(new_nodes) > policy.max_total_nodes:
-                return AgentRunResult("STOPPED", result.output, "node_budget_exhausted",
-                                      result.task_id, rounds, tuple(added), "", events)
+                text, from_node = self._best_output(state, current.output_node_id)
+                return AgentRunResult("STOPPED", text, "node_budget_exhausted",
+                                      result.task_id, rounds, tuple(added), "", events,
+                                      from_node)
 
             added.extend(x.id for x in new_nodes)
             current = self._extend(current, new_nodes, new_nodes[-1].id)

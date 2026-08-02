@@ -360,6 +360,41 @@ def test_runtime_stop_reasons_do_not_trigger_a_replan(tmp_path):
     assert planned["n"] == 0, "không được hỏi planner khi runtime đã bảo dừng"
 
 
+def test_a_failed_replan_does_not_erase_earlier_good_work(tmp_path):
+    """Vòng replan hỏng không được biến kết quả tốt của vòng trước thành chuỗi rỗng."""
+    gate = _Gate(pass_after=99)
+    runtime, canary, runner, _ = _stack(tmp_path, _settings(rounds=1), gate=gate)
+    graph = wg.compile_workflow({"name": "x", "nodes": [
+        {"id": "a", "kind": "model_step", "agent": "researcher", "task": "t"}]}, "demo")
+    trace = runtime.start_turn("sid-best", str(tmp_path), "dashboard")
+    canary.prepare(trace, graph, "sid-best")
+
+    async def executor(node, prompt):
+        if node.id.startswith("r"):
+            return {"error": "boom", "output": ""}
+        return {"output": "KẾT QUẢ TỐT"}
+
+    result = _run(runner, trace, graph, executor, _planner([
+        {"kind": "model_step", "agent": "researcher", "task": "thêm"},
+    ]), tmp_path)
+    assert result.status == "STOPPED"
+    assert result.output == "KẾT QUẢ TỐT", "phải trả lại việc đã làm được"
+    assert result.output_node_id == "a", "và nói rõ kết quả đến từ node nào"
+
+
+def test_output_provenance_points_at_the_newest_node_when_replan_works(tmp_path):
+    gate = _Gate(pass_after=2)
+    runtime, canary, runner, _ = _stack(tmp_path, gate=gate)
+    graph = wg.compile_workflow(BASE, "demo")
+    trace = runtime.start_turn("sid-prov", str(tmp_path), "dashboard")
+    canary.prepare(trace, graph, "sid-prov")
+    result = _run(runner, trace, graph, _executor([]), _planner([
+        {"kind": "model_step", "agent": "researcher", "task": "đào sâu", "depends_on": ["b"]},
+    ]), tmp_path)
+    assert result.status == "COMPLETED"
+    assert result.output_node_id == "r1_0" and result.output == "out-r1_0"
+
+
 # ------------------------------------------------- bất biến chung
 
 def test_only_workflows_that_declare_agent_get_replan():
