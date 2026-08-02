@@ -480,6 +480,51 @@ def test_repository_defaults_activate_no_canary_path(tmp_path):
         assert plan.action in ("not_applicable", "legacy"), (name, plan.action, plan.reason)
 
 
+def test_shadow_resolve_uses_the_real_permission_mode_not_a_hardcoded_full(tmp_path):
+    """Miss do phân quyền chỉ quan sát được nếu shadow đo bằng quyền THẬT.
+
+    Đường chat dashboard đúng là `full`, nhưng loop và task nền chạy ở `suggest`.
+    Đóng cứng "full" nghĩa là khi nối shadow vào chúng, nó im lặng đo bằng quyền
+    cao hơn thực tế.
+    """
+    import inspect
+    import main
+
+    source = inspect.getsource(main._schedule_registry_shadow)
+    assert 'ActorPolicy(mode="full"' not in source, "không được đóng cứng quyền"
+    assert "actor_mode" in source
+
+    # Và resolver thật sự chặn theo mode: capability cần quyền cao hơn bị loại.
+    registry = CapabilityRegistry(tmp_path / "reg")
+    brain = tmp_path / "brain"
+    tools = [
+        {"fn": "cal_list", "name": "cal_list", "description": "đọc lịch calendar list",
+         "schema": {"type": "object", "properties": {}}},
+        {"fn": "cal_delete", "name": "cal_delete", "description": "xoá lịch calendar delete",
+         "schema": {"type": "object", "properties": {}}},
+    ]
+    routes = {
+        "cal_list": {"source_type": "mcp", "source_id": "c", "effect": "read",
+                     "required_mode": "readonly", "health": "healthy", "call": lambda a: None},
+        "cal_delete": {"source_type": "mcp", "source_id": "c", "effect": "write",
+                       "required_mode": "safe", "health": "healthy", "call": lambda a: None},
+    }
+    registry.refresh_tools(brain, tools, routes)
+    resolver = capability_resolver.DeterministicResolver(registry)
+
+    full = resolver.resolve("calendar delete", str(brain),
+                            capability_resolver.ActorPolicy(mode="full"))
+    limited = resolver.resolve("calendar delete", str(brain),
+                               capability_resolver.ActorPolicy(mode="readonly"))
+    full_ids = {x["capability_id"] for x in (full.get("selected") or [])}
+    limited_ids = {x["capability_id"] for x in (limited.get("selected") or [])}
+    assert full_ids != limited_ids or not limited_ids, (
+        "quyền thấp phải cho kết quả KHÁC quyền full, nếu không filter vô nghĩa")
+    # Và mức quyền thấp không được chọn capability đòi quyền cao hơn.
+    for item in (limited.get("selected") or []):
+        assert item.get("required_mode", "readonly") == "readonly"
+
+
 if __name__ == "__main__":
     # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
     # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa

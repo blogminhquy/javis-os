@@ -462,6 +462,65 @@ def test_main_phase7_adapter_buffers_final_and_exposes_task_id(tmp_path, monkeyp
     assert "_api_stream_mcp" not in source and "compaction." not in source
 
 
+def test_resume_after_a_long_outage_extends_the_deadline(tmp_path, monkeypatch):
+    """Deadline đo từ lúc TẠO task. Chết lâu hơn deadline mà không gia hạn thì resume
+    thành vô nghĩa - đúng thứ Phase 7 sinh ra để tránh."""
+    crypto = _crypto()
+    stack = _stack(tmp_path, crypto=crypto)
+    plan = asyncio.run(_prepare(stack, actor="resume-actor"))
+    state = stack["orchestrator"]._initial_state(plan)
+    assert stack["orchestrator"]._checkpoint(plan.trace, state, initialize=True)
+    task_id = plan.trace.task_id
+    # Mô phỏng tiến trình chết lâu: deadline đã trôi qua từ lâu.
+    state["deadline_at"] = time.time() - 3600
+    state["status"] = "EXECUTING"
+    assert stack["orchestrator"]._checkpoint(plan.trace, state)
+    stack["runtime"].close()
+
+    runtime2 = ObserveRuntime(tmp_path / "runtime", settings_reader=lambda: stack["settings"])
+    store2 = EvidenceStore(runtime2, tmp_path / "runtime", encryptor=crypto[0],
+                           decryptor=crypto[1], ready_check=lambda: True)
+
+    async def discover(mode, root):
+        return stack["tools"], stack["routes"]
+
+    orchestrator2 = ReadonlyOrchestrator(
+        stack["registry"], DeterministicResolver(stack["registry"]),
+        ContextCompiler(stack["registry"]), runtime2,
+        CapabilityExecutor(stack["registry"], runtime2, store2),
+        lambda: stack["settings"], discover, DeterministicQualityGate(),
+        state_encryptor=crypto[0], state_decryptor=crypto[1])
+    monkeypatch.setattr(engine, "single_tool_plan", _model_stub(call_log=[]))
+    result = asyncio.run(orchestrator2.resume(
+        task_id, "resume-actor", "groq", "llama-test", "secret", "off", None,
+        _final_generator))
+    assert result.stop_reason != "batch_budget_or_quota", "phải gia hạn, không chặn ngay"
+    events = runtime2.list_events(task_id)
+    assert any(x["event_type"] == "orchestrator.deadline_extended" for x in events)
+
+
+def test_deadline_extensions_are_bounded(tmp_path, monkeypatch):
+    """Một task hỏng không được hồi sinh mãi bằng cách resume đi resume lại."""
+    crypto = _crypto()
+    settings = _settings()
+    settings["context_runtime"]["orchestrator_canary"]["max_deadline_extensions"] = 0
+    stack = _stack(tmp_path, settings=settings, crypto=crypto)
+    plan = asyncio.run(_prepare(stack, actor="resume-actor"))
+    state = stack["orchestrator"]._initial_state(plan)
+    assert stack["orchestrator"]._checkpoint(plan.trace, state, initialize=True)
+    state["deadline_at"] = time.time() - 3600
+    state["status"] = "EXECUTING"
+    assert stack["orchestrator"]._checkpoint(plan.trace, state)
+    task_id = plan.trace.task_id
+
+    monkeypatch.setattr(engine, "single_tool_plan", _model_stub(call_log=[]))
+    result = asyncio.run(stack["orchestrator"].resume(
+        task_id, "resume-actor", "groq", "llama-test", "secret", "off", None,
+        _final_generator))
+    assert result.status == "FAILED"
+    assert result.stop_reason == "deadline_extension_budget_exhausted"
+
+
 if __name__ == "__main__":
     # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
     # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa

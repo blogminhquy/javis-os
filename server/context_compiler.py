@@ -434,6 +434,24 @@ class ContextCompiler:
                 self._remember(request.task_id, report)
                 return CompileResult("required_context_too_large", None, report)
 
+        # Spec 10.3 bước 4: conflict CHƯA giải quyết thì giữ cả hai và nói rõ, không
+        # tự chọn một bên trong im lặng. `conflicts_with` do memory index ghi ra và
+        # trước đây không ai đọc, nghĩa là hai fact mâu thuẫn cùng vào prompt mà model
+        # không biết chúng mâu thuẫn.
+        selected_ids_set = {x.id for x in selected_context}
+        unresolved_conflicts = sorted({
+            tuple(sorted((item.id, other)))
+            for item in selected_context
+            for other in (item.conflicts_with or ())
+            if other in selected_ids_set
+        })
+        if unresolved_conflicts:
+            lines = "\n".join(f"- {a} và {b}" for a, b in unresolved_conflicts)
+            system += (
+                "\n\n# Context: conflict\nCác nguồn dưới đây MÂU THUẪN nhau và chưa được "
+                f"giải quyết. Nêu rõ cả hai và nói là đang mâu thuẫn, đừng tự chọn một bên:\n{lines}"
+            )
+
         selected_refs = resolution.get("selected") or []
         selected_ids = list(dict.fromkeys(
             str(x.get("capability_id") or "") for x in selected_refs if x.get("capability_id")
@@ -535,6 +553,7 @@ class ContextCompiler:
             "selected_context_count": len(selected_context),
             "selected_context_ids": [x.id for x in selected_context],
             "excluded_context": excluded_context,
+            "unresolved_conflicts": [list(x) for x in unresolved_conflicts],
             "source_count": len(source_map),
             "source_map_hash": source_map_hash,
             "duplicate_source_ids": duplicate_source_ids,
@@ -949,6 +968,13 @@ class QualityDecision:
 
 class DeterministicQualityGate:
     _CONTROL = re.compile(r"\[(?:JAVIS_|SYSTEM_|TOOL_)[A-Z0-9_:-]*\]")
+    # Con số có đơn vị hoặc quy mô: tiền, phần trăm, số lượng lớn, ngày giờ cụ thể.
+    # Cố ý KHÔNG bắt mọi chữ số (số thứ tự, "3 bước", năm) để tránh nhiễu.
+    _QUANTITATIVE = re.compile(
+        r"(?i)(?:\d[\d.,]*\s*(?:%|phần trăm|đ|vnđ|vnd|usd|\$|triệu|tỷ|ty|nghìn|nghin|k\b|đơn|don|"
+        r"khách|khach|lượt|luot|giờ|gio|phút|phut)"
+        r"|(?:doanh thu|chi phí|chi phi|lợi nhuận|loi nhuan|tổng|tong)\s*(?:là|la|:)?\s*\d)"
+    )
     _CAPABILITY_DENIAL = (
         "không có tool", "không có công cụ", "không thể truy cập công cụ",
         "i do not have access to tools", "no tools available",
@@ -998,6 +1024,16 @@ class DeterministicQualityGate:
         if required_refs and not any(ref in text for ref in required_refs):
             reasons.append("evidence_bundle_ref_missing")
             status = "revise"
+        # Spec 16.2: fact ĐỊNH LƯỢNG phải có evidence. Con số cụ thể là thứ người
+        # dùng hành động theo, nên nói số mà không có nguồn là dạng bịa nguy hiểm
+        # nhất. Chỉ soát khi bước này ĐÁNG LẼ phải có evidence (có expected ref),
+        # tránh bắt nhầm câu trả lời giải thích thuần tuý.
+        if (expected_evidence_ref or expected_evidence_refs) and self._QUANTITATIVE.search(text):
+            has_ref = (expected_evidence_ref and expected_evidence_ref in text) or any(
+                ref in text for ref in required_refs)
+            if not has_ref:
+                reasons.append("quantitative_fact_without_evidence")
+                status = "revise"
         if read_only and self._FALSE_ACTION.search(text):
             reasons.append("false_action_claim")
             status = "revise"

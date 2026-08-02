@@ -176,6 +176,10 @@ _DEFAULT = {
             "max_task_output_tokens": 6000,
             "max_cost_usd": 0.05,
             "deadline_seconds": 90,
+            # Resume sau restart cần cửa sổ deadline mới, nếu không task chết lâu hơn
+            # deadline là không bao giờ resume được. Có trần để một task hỏng không
+            # được hồi sinh mãi.
+            "max_deadline_extensions": 2,
             "planner_output_tokens": 600,
             "argument_output_tokens": 500,
             "min_information_gain": 0.20,

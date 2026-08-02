@@ -99,6 +99,7 @@ class OrchestratorPolicy:
     max_task_input_tokens: int
     max_task_output_tokens: int
     max_cost_usd: float
+    max_deadline_extensions: int
     deadline_seconds: int
     planner_output_tokens: int
     argument_output_tokens: int
@@ -152,6 +153,7 @@ class OrchestratorPolicy:
                 500, min(_int(raw.get("max_task_output_tokens"), 6_000), 100_000)
             ),
             max_cost_usd=max(0.0, min(_float(raw.get("max_cost_usd"), 0.05), 1000.0)),
+            max_deadline_extensions=max(0, min(_int(raw.get("max_deadline_extensions"), 2), 10)),
             deadline_seconds=max(10, min(_int(raw.get("deadline_seconds"), 90), 900)),
             planner_output_tokens=max(
                 100, min(_int(raw.get("planner_output_tokens"), 600), 4000)
@@ -605,6 +607,7 @@ class ReadonlyOrchestrator:
             "used_capability_ids": [], "steps": [], "evidence": [],
             "failure_signatures": {}, "stop_reason": "", "final_text": "",
             "created_at": now, "deadline_at": now + policy.deadline_seconds,
+            "deadline_extensions": 0,
             "budget": {
                 "max_input_tokens": policy.max_task_input_tokens,
                 "max_output_tokens": policy.max_task_output_tokens,
@@ -1091,6 +1094,33 @@ class ReadonlyOrchestrator:
                 state["budget"]["used_output_tokens"],
                 state["budget"]["used_cost_usd"], refs, state["model_rounds"],
             )
+        # Deadline được đo từ lúc TẠO task. Nếu tiến trình chết rồi khởi động lại sau
+        # deadline thì mọi batch đều bị chặn ngay và resume thành vô nghĩa - đúng thứ
+        # Phase 7 sinh ra để tránh. Gia hạn một cửa sổ mới kể từ lúc resume, nhưng
+        # KHÔNG vô hạn: đếm số lần gia hạn và chặn theo trần policy, nếu không một task
+        # hỏng có thể được hồi sinh mãi.
+        now = time.time()
+        if now >= float(state.get("deadline_at") or 0):
+            extensions = int(state.get("deadline_extensions") or 0)
+            if extensions >= plan.policy.max_deadline_extensions:
+                state["status"] = "FAILED"
+                state["stop_reason"] = "deadline_extension_budget_exhausted"
+                self._checkpoint(trace, state)
+                return OrchestratorResult(
+                    self._evidence_only_message(state), plan.model, "FAILED",
+                    trace.task_id, "deadline_extension_budget_exhausted",
+                    state["budget"]["used_input_tokens"],
+                    state["budget"]["used_output_tokens"],
+                    state["budget"]["used_cost_usd"],
+                    tuple(x["evidence_ref"] for x in state.get("evidence") or []),
+                    state["model_rounds"],
+                )
+            state["deadline_extensions"] = extensions + 1
+            state["deadline_at"] = now + plan.policy.deadline_seconds
+            self.runtime.record_runtime_event(trace, "orchestrator.deadline_extended", {
+                "extension": state["deadline_extensions"],
+                "deadline_seconds": plan.policy.deadline_seconds,
+            })
         durable_usage = self.runtime.task_quota_usage(trace.task_id)
         state["budget"]["used_input_tokens"] = max(
             int(state["budget"].get("used_input_tokens") or 0),

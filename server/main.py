@@ -1200,7 +1200,14 @@ def _track_shadow_task(coro) -> None:
 
 
 def _schedule_registry_shadow(trace, brain, tools, route, query, provider, model,
-                              kind="unknown") -> None:
+                              kind="unknown", actor_mode="full") -> None:
+    """`actor_mode` phải là mức quyền THẬT của lượt đang chạy.
+
+    Trước đây nó bị đóng cứng "full". Đường chat dashboard đúng là full nên số đo
+    không sai, nhưng khi nối shadow vào loop hay task nền (mức suggest/auto) thì
+    hằng số đó sẽ im lặng đo bằng quyền cao hơn thực tế, và miss do phân quyền -
+    đúng cái filter mà Phase 9 dựa vào - không bao giờ quan sát được.
+    """
     if not trace:
         return
 
@@ -1215,8 +1222,11 @@ def _schedule_registry_shadow(trace, brain, tools, route, query, provider, model
             )
             report = await asyncio.to_thread(
                 _CAPABILITY_RESOLVER.resolve, query or "", _brain_root(brain),
-                capability_resolver.ActorPolicy(mode="full", channel=trace.channel),
+                capability_resolver.ActorPolicy(
+                    mode=str(actor_mode or "full"), channel=trace.channel),
             )
+            report = dict(report)
+            report["actor_mode"] = str(actor_mode or "full")
             _CONTEXT_RUNTIME.record_shadow_resolution(trace, report)
             compiled = await asyncio.to_thread(
                 _CONTEXT_COMPILER.compile_shadow,
@@ -1244,7 +1254,7 @@ def _schedule_registry_shadow(trace, brain, tools, route, query, provider, model
 
 
 def _schedule_registry_discovery_shadow(trace, brain, query, provider, model,
-                                        kind="cli") -> None:
+                                        kind="cli", actor_mode="full") -> None:
     """CLI có tool native nên refresh inventory Hub ở task nền, không chặn lượt chat."""
     if not trace:
         return
@@ -1255,7 +1265,8 @@ def _schedule_registry_discovery_shadow(trace, brain, query, provider, model,
             await mcp_hub.discover_all("full", vault_root=root, include_ambient=True)
             tools, route = mcp_hub.registry_inventory(
                 "full", vault_root=root, include_ambient=True)
-            _schedule_registry_shadow(trace, brain, tools, route, query, provider, model, kind)
+            _schedule_registry_shadow(trace, brain, tools, route, query, provider, model,
+                                      kind, actor_mode)
         except Exception as exc:
             _CONTEXT_RUNTIME.record_shadow_resolution(trace, {
                 "policy_version": capability_resolver.RESOLVER_POLICY_VERSION,

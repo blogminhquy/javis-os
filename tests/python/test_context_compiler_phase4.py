@@ -247,6 +247,64 @@ def test_phase4_is_shadow_only_by_construction():
     assert "await asyncio.to_thread(" in main_source
 
 
+def test_unresolved_conflicts_are_surfaced_not_silently_merged(tmp_path):
+    """`conflicts_with` do memory index ghi ra và trước đây KHÔNG ai đọc.
+
+    Nghĩa là hai fact mâu thuẫn cùng vào prompt mà model không biết chúng mâu thuẫn -
+    nó sẽ chọn đại một bên và nói chắc nịch.
+    """
+    from context_compiler import ContextItem
+
+    registry = CapabilityRegistry(tmp_path / "reg")
+    compiler = ContextCompiler(registry)
+    items = (
+        ContextItem("mem_a", "memory_fact", "Giá sỉ là 100k", "file:a.md#L1",
+                    20, 1.0, 1.0, 1.0, 1.0, False, "memory_source",
+                    conflicts_with=("mem_b",)),
+        ContextItem("mem_b", "memory_fact", "Giá sỉ là 120k", "file:b.md#L1",
+                    20, 1.0, 1.0, 1.0, 1.0, False, "memory_source",
+                    conflicts_with=("mem_a",)),
+    )
+    result = compiler.compile_shadow(
+        CompileRequest(task_id="t", step_id="s", objective="giá sỉ bao nhiêu",
+                       brain=str(tmp_path), channel="dashboard", provider="groq",
+                       model="m", context_items=items),
+        {"selected": []})
+    assert result.status == "compiled"
+    system = result.capsule.rendered_request["messages"][0]["content"]
+    # Cả hai vẫn vào prompt...
+    assert "100k" in system and "120k" in system
+    # ...và model được BÁO là chúng mâu thuẫn.
+    assert "MÂU THUẪN" in system
+    assert result.trace_report["unresolved_conflicts"] == [["mem_a", "mem_b"]]
+
+
+def test_quantitative_facts_need_evidence(tmp_path):
+    """Spec 16.2. Con số là thứ người dùng hành động theo - nói số mà không có nguồn
+    là dạng bịa nguy hiểm nhất."""
+    from context_compiler import DeterministicQualityGate
+
+    gate = DeterministicQualityGate()
+    ref = "evidence://task/t/step/s/ev_1"
+
+    no_source = gate.evaluate("doanh thu?", "Doanh thu hôm qua là 999 triệu, tăng 45%.",
+                              "dashboard", expected_evidence_ref=ref)
+    assert "quantitative_fact_without_evidence" in no_source.reasons
+
+    with_source = gate.evaluate("doanh thu?", f"Doanh thu hôm qua là 999 triệu. Nguồn: {ref}",
+                                "dashboard", expected_evidence_ref=ref)
+    assert "quantitative_fact_without_evidence" not in with_source.reasons
+
+    # Không bắt nhầm số thứ tự trong câu giải thích thuần tuý.
+    explaining = gate.evaluate("giải thích", "Quy trình này gồm 3 bước chính.",
+                               "dashboard", expected_evidence_ref=ref)
+    assert "quantitative_fact_without_evidence" not in explaining.reasons
+
+    # Và bước KHÔNG đòi evidence thì không soát - tránh bắt nhầm chat thường.
+    chat = gate.evaluate("giải thích", "Lãi suất thường quanh 8%/năm.", "dashboard")
+    assert "quantitative_fact_without_evidence" not in chat.reasons
+
+
 if __name__ == "__main__":
     # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
     # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
