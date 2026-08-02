@@ -416,6 +416,15 @@
         <div class="dim rt-note">10000 bps = 100 phần trăm. Đổi xong có hiệu lực ngay, không cần khởi động lại;
         đặt về 0 là tắt tức thì. Bật một đường chưa khai quota sẽ bị chặn kèm lý do, vì fail-closed
         sẽ cho mọi lượt rơi về đường cũ mà không báo gì.</div>
+        <div class="rt-quota">
+          <label>Công tắc trùm (mode)
+            <select class="rt-mode">${["off", "observe", "shadow", "canary", "on"].map((m) =>
+              `<option value="${m}"${m === d.mode ? " selected" : ""}>${m}</option>`).join("")}</select>
+          </label>
+          <button class="btn btn-sm rt-mode-apply">Đổi</button>
+          <span class="dim">Mọi đường dưới đây CHỈ chạy khi mode là canary hoặc on. Còn ở
+          shadow thì đặt allocation bao nhiêu cũng không có gì đổi.</span>
+        </div>
         ${(d.quota_presets || []).length ? `
         <div class="rt-quota">
           <label>Khai hạn mức gợi ý cho
@@ -434,6 +443,7 @@
       <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
     </div>`;
 
+    _bindModeApply(el);
     _bindQuotaApply(el);
 
     // Đặt allocation. Nút này là đường DUY NHẤT để bật/tắt canary mà không phải sửa tay
@@ -466,6 +476,26 @@
           btn.textContent = old;
         }
       });
+    });
+  }
+
+  async function _bindModeApply(el) {
+    const btn = el.querySelector(".rt-mode-apply");
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const sel = el.querySelector(".rt-mode");
+      const mode = (sel && sel.value) || "";
+      if (!mode) return;
+      btn.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append("mode", mode);
+        const r = await fetch("/runtime/mode", { method: "POST", body: fd });
+        const body = await r.json().catch(() => null);
+        if (!r.ok) { alert((body && body.error) || "Đổi mode thất bại."); return; }
+        if (body && body.luu_y) alert(body.luu_y);
+        renderRuntime(el);
+      } finally { btn.disabled = false; }
     });
   }
 

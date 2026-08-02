@@ -7353,9 +7353,14 @@ def _canary_inert_reason(entry: dict) -> str:
     quả là người vận hành bật knob lên rồi ngồi đợi một thứ không bao giờ xảy ra. Chặn ở
     đây để cái im lặng đó thành một câu nói ra được.
 
-    Chỉ soát trường mà đường đó THẬT SỰ CÓ: fast path không gọi tool nên không có
-    `capability_profiles`, đòi nó ở đây là từ chối oan một cấu hình hợp lệ."""
-    if not (entry.get("quota_profiles") or entry.get("models")):
+    Chỉ soát trường mà đường đó THẬT SỰ CÓ. Hai ca đã cắn:
+      - fast path không gọi tool nên không có `capability_profiles`;
+      - ba canary Phase 8 (memory, lazy_skill, conversation_state) không có
+        `quota_profiles` riêng vì chúng đọc ké từ `context_sources`/`canary`.
+    Đòi trường mà đường đó không có nghĩa là từ chối oan một cấu hình hợp lệ, và người vận
+    hành nhận một lý do SAI - còn khó hiểu hơn là không chặn."""
+    has_quota_field = "quota_profiles" in entry or "models" in entry
+    if has_quota_field and not (entry.get("quota_profiles") or entry.get("models")):
         return ("chưa khai quota profile (rolling_tpm, context_window, giá) nên fail-closed "
                 "sẽ cho mọi task rơi về legacy")
     has_allowlist_field = "capability_profiles" in entry or "allowed_slugs" in entry
@@ -7365,7 +7370,8 @@ def _canary_inert_reason(entry: dict) -> str:
     return ""
 
 
-def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_inert: bool):
+def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_inert: bool,
+                        mode: str = "canary"):
     """Quyết định cho POST /runtime/canary. Hàm THUẦN, trả (status_code, payload).
 
     Tách khỏi endpoint vì hai lý do. Một, đây là hàng rào duy nhất chặn việc bật một đường
@@ -7388,6 +7394,16 @@ def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_i
     # Tắt về 0 LUÔN được phép: đường lui phải rẻ hơn đường tiến, nếu không thì người vận
     # hành sẽ ngại thử.
     if bp > 0 and not allow_inert:
+        # `mode` là điều kiện TRÙM: mọi canary đều đòi mode canary/on, nên còn ở shadow thì
+        # đặt allocation bao nhiêu cũng vô nghĩa. Bản đầu của rào này soát quota mà QUÊN
+        # mode, nên nó để lọt đúng cái kiểu hỏng nó sinh ra để chặn: người vận hành bật lên,
+        # endpoint trả ok, và không có gì chạy.
+        if str(mode or "").strip().casefold() not in ("canary", "on"):
+            return 409, {"ok": False, "can_force": True,
+                         "error": f"context_runtime.mode đang là '{mode}', mọi canary chỉ "
+                                  "chạy khi mode là 'canary' hoặc 'on'",
+                         "goi_y": "đổi mode sang canary trước (POST /runtime/mode), "
+                                  "hoặc gửi lại với allow_inert=true nếu cố ý"}
         reason = _canary_inert_reason(entry)
         if reason:
             # Cùng quy ước với POST /reminders: trả can_force kèm lý do thay vì âm thầm làm.
@@ -7395,6 +7411,32 @@ def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_i
                          "goi_y": "khai quota profile trước, hoặc gửi lại với "
                                   "allow_inert=true nếu cố ý bật để quan sát"}
     return 0, {"ok": True, "allocation_basis_points": bp}
+
+
+_RUNTIME_MODES = ("off", "observe", "shadow", "canary", "on")
+
+
+@app.post("/runtime/mode")
+async def runtime_mode_set(mode: str = Form(...)):
+    """Đổi `context_runtime.mode`. Đây là công tắc TRÙM của mọi đường canary.
+
+    Vì sao phải có endpoint riêng: mọi canary đều đòi mode là `canary` hoặc `on`, nên còn ở
+    `shadow` thì đặt allocation bao nhiêu cũng không có gì chạy. Trước khi có nút này, cách
+    duy nhất để đổi là SSH sửa tay settings.json.
+    """
+    value = str(mode or "").strip().casefold()
+    if value not in _RUNTIME_MODES:
+        return JSONResponse({"ok": False, "error": f"mode '{mode}' không hợp lệ",
+                             "hop_le": list(_RUNTIME_MODES)}, status_code=400)
+    cfg = cfgmod.read_settings()
+    cfg.setdefault("context_runtime", {})["mode"] = value
+    cfgmod.write_settings(cfg)
+    active = [k for k, v in (cfgmod.read_settings().get("context_runtime") or {}).items()
+              if isinstance(v, dict) and int(v.get("allocation_basis_points") or 0) > 0]
+    return {"ok": True, "mode": value, "duong_dang_bat": active,
+            "luu_y": ("Mode đã sang canary nhưng chưa đường nào có allocation > 0, "
+                      "nên vẫn chưa có gì đổi.") if value in ("canary", "on") and not active
+                     else ""}
 
 
 @app.post("/runtime/quota")
@@ -7463,9 +7505,11 @@ async def runtime_canary_set(
     chắn vô tác dụng (xem `_canary_inert_reason`).
     """
     cfg = cfgmod.read_settings()
-    entry = dict((cfg.get("context_runtime") or {}).get(path) or {})
+    runtime_cfg = cfg.get("context_runtime") or {}
+    entry = dict(runtime_cfg.get(path) or {})
     status, payload = canary_set_decision(path, allocation_basis_points, entry,
-                                          bool(allow_inert))
+                                          bool(allow_inert),
+                                          str(runtime_cfg.get("mode") or "off"))
     if status:
         return JSONResponse(payload, status_code=status)
     entry["allocation_basis_points"] = payload["allocation_basis_points"]

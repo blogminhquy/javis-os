@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.10.1] - 2026-08-02
+Sửa lỗi làm không bật được đường chạy mới, phát hiện ngay khi dùng thật với Groq.
+### Sửa lỗi
+- **Bật đường mới xong vẫn không có gì đổi.** Có một công tắc trùm (`mode`) mà 0.10.0 không hề phơi ra: mọi đường chỉ chạy khi nó ở `canary` hoặc `on`, còn mặc định là `shadow`. Đặt tỉ lệ lên bao nhiêu cũng vô nghĩa, mà màn hình lại báo thành công. Nay trang Chẩn đoán có ô chọn mode, và bật tỉ lệ khi mode chưa đúng thì bị chặn kèm lý do rõ ràng thay vì báo thành công giả.
+- **Ba đường của tầng ngữ cảnh bị chặn nhầm.** Chúng dùng chung hạn mức khai ở chỗ khác nên không có mục hạn mức riêng, nhưng bộ kiểm tra lại đòi và từ chối với lý do sai là "chưa khai hạn mức". Lý do sai còn khó lần ra hơn là không chặn.
+### Lưu ý
+- Sau khi cập nhật, muốn Javis chạy nhẹ với model bị siết hạn mức (Groq) thì vào **Chẩn đoán**: đổi mode sang `canary`, bấm **Khai** hạn mức cho groq, rồi đặt tỉ lệ 10000 cho `memory_canary`, `lazy_skill_canary`, `conversation_state_canary`. Đo trên cấu hình thật: phần cố định gửi đi giảm từ khoảng 15.400 xuống khoảng 4.100 token.
+
 ## [0.10.0] - 2026-08-02
 Nền tảng Adaptive Context Runtime: ngữ cảnh gửi cho model co theo việc cần làm, không phình theo số thứ đã cắm.
 ### Cải thiện

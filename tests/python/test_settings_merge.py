@@ -83,8 +83,10 @@ for _k in main._canary_keys():
           isinstance(_default_rt.get(_k), dict)
           and "allocation_basis_points" in _default_rt[_k])
 
-check("_canary_inert_reason: thiếu quota profile → nêu lý do",
-      "quota" in main._canary_inert_reason({"capability_profiles": ["x"]}))
+# Entry CÓ trường quota_profiles nhưng RỖNG = khai thiếu thật → phải cảnh báo.
+check("_canary_inert_reason: có trường quota nhưng rỗng → nêu lý do",
+      "quota" in main._canary_inert_reason({"quota_profiles": [],
+                                            "capability_profiles": ["x"]}))
 check("_canary_inert_reason: có quota nhưng allowlist RỖNG → nêu lý do",
       "allowlist" in main._canary_inert_reason({"quota_profiles": [{"a": 1}],
                                                 "capability_profiles": []}))
@@ -95,6 +97,13 @@ check("_canary_inert_reason: đủ cả hai → không cản",
 # chối oan một cấu hình hợp lệ, nên chỉ soát trường mà đường đó thật sự có.
 check("_canary_inert_reason: đường không có allowlist thì không đòi allowlist",
       main._canary_inert_reason({"quota_profiles": [{"a": 1}]}) == "")
+# Ba canary Phase 8 không có quota_profiles riêng, chúng đọc ké từ context_sources/canary.
+# Rào bản đầu chặn cả ba với lý do SAI ("chưa khai quota") - phát hiện khi bản deploy thật
+# vẫn lỗi hạn mức. Lý do sai còn khó hiểu hơn là không chặn.
+for _k in ("memory_canary", "lazy_skill_canary", "conversation_state_canary"):
+    _entry = dict(cfg._DEFAULT["context_runtime"][_k])
+    _st2, _pl2 = main.canary_set_decision(_k, 10000, _entry, False, mode="canary")
+    check(f"'{_k}' bật được, không bị đòi quota mà nó không có", _st2 == 0)
 
 # ---- 5. Hàm quyết định (THUẦN) - đây mới là hàng rào thật ----
 _EMPTY = {"quota_profiles": [], "capability_profiles": []}
@@ -110,6 +119,19 @@ _st, _pl = main.canary_set_decision("canary", -1, _READY, False)
 check("quyết định: allocation âm → 400", _st == 400)
 _st, _pl = main.canary_set_decision("canary", "abc", _READY, False)
 check("quyết định: allocation không phải số → 400", _st == 400)
+
+# `mode` là điều kiện TRÙM: mọi canary đòi mode canary/on. Bản đầu của rào này soát quota mà
+# QUÊN mode, nên nó để lọt đúng kiểu hỏng nó sinh ra để chặn - endpoint trả ok mà không có gì
+# chạy. Phát hiện khi bản deploy thật vẫn lỗi hạn mức dù đã bật.
+_st, _pl = main.canary_set_decision("canary", 100, _READY, False, mode="shadow")
+check("quyết định: mode còn shadow → chặn 409 dù quota đã khai đủ", _st == 409)
+check("quyết định: nêu đúng nguyên nhân là mode", "mode" in _pl.get("error", ""))
+_st, _pl = main.canary_set_decision("canary", 100, _READY, False, mode="off")
+check("quyết định: mode off cũng chặn", _st == 409)
+_st, _pl = main.canary_set_decision("canary", 100, _READY, False, mode="on")
+check("quyết định: mode on thì cho qua", _st == 0)
+_st, _pl = main.canary_set_decision("canary", 0, _READY, False, mode="shadow")
+check("quyết định: tắt về 0 không bị mode chặn", _st == 0)
 
 _st, _pl = main.canary_set_decision("canary", 100, _EMPTY, False)
 check("quyết định: bật đường sẽ fail-closed → chặn 409", _st == 409)
