@@ -664,6 +664,55 @@ def test_typed_confirmation_still_works_for_channels_without_buttons(tmp_path):
     assert parse_confirmation("ok") == ("", "")
 
 
+def test_a_proposal_without_a_code_is_refused_not_shown_as_a_dead_button(tmp_path, monkeypatch):
+    """Không có mã thì không có cách nào duyệt - nút sẽ chết, câu gõ tay cũng vô nghĩa.
+
+    Bày ra lời đề xuất không duyệt được là để người dùng bấm vào hư không.
+    """
+    import json as _json
+    import main
+
+    stack = _stack(tmp_path)
+    brain, registry, runtime, trace, store, executor, canary, calls, routes = stack
+    plan = _prepare(stack)
+
+    async def fake_plan(*args):
+        return {"status": "ok", "arguments": {"calendar_id": "primary",
+                "start": "2026-08-05T09:00", "title": "R"},
+                "model": "m", "input": 10, "output": 5}
+
+    real_register = canary.register_proposal
+
+    def register_without_code(*a, **k):
+        out = dict(real_register(*a, **k))
+        out["confirmation_code"] = ""      # mô phỏng sổ trả về thiếu mã
+        return out
+
+    class WS:
+        def __init__(self):
+            self.events = []
+
+        async def send_text(self, raw):
+            self.events.append(_json.loads(raw))
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", fake_plan)
+    monkeypatch.setattr(main, "_CAPABILITY_EXECUTOR", executor)
+    monkeypatch.setattr(main, "_CAPABILITY_REGISTRY", registry)
+    monkeypatch.setattr(main, "_CONTEXT_RUNTIME", runtime)
+    monkeypatch.setattr(main, "_WRITE_PATH", canary)
+    monkeypatch.setattr(main, "_brain_root", lambda b: str(brain))
+    monkeypatch.setattr(main.usage_store, "record", lambda *a, **k: None)
+    monkeypatch.setattr(canary, "register_proposal", register_without_code)
+    main._WRITE_PENDING_ARGS.clear()
+
+    text, _model = asyncio.run(main._execute_write_proposal(
+        plan, "groq", "secret", "m", "off", WS(), "session-nomã", trace))
+
+    assert "JAVIS_ASK" not in text, "không được bày nút không bấm được"
+    assert "không tạo được mã duyệt" in text
+    assert not calls, "và tuyệt đối không chạm tool"
+
+
 if __name__ == "__main__":
     import sys
     try:

@@ -1026,8 +1026,14 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
     elif status != "prepared":
         text = ("Không ghi được ý định vào sổ nên Javis dừng trước khi gọi tool. "
                 "Chưa có gì thay đổi.")
+    elif not str(registered.get("confirmation_code") or "").strip():
+        # Không có mã thì KHÔNG có cách nào duyệt: nút bấm sẽ chết và câu gõ tay cũng
+        # vô nghĩa. Nói thẳng là hỏng còn hơn bày ra một lời đề xuất không duyệt được.
+        status = "no_confirmation_code"
+        text = ("Javis không tạo được mã duyệt cho hành động ghi này nên đã dừng. "
+                "Chưa có gì thay đổi.")
     else:
-        code = registered.get("confirmation_code", "")
+        code = str(registered.get("confirmation_code")).strip()
         summary = ", ".join(f"{k}={json.dumps(v, ensure_ascii=False)}"
                             for k, v in sorted(args.items()))[:600]
         # Nút bấm, nhưng nhãn PHẢI mang mã của đúng ý định này. Chip gửi đi chính
