@@ -1030,12 +1030,26 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
         code = registered.get("confirmation_code", "")
         summary = ", ".join(f"{k}={json.dumps(v, ensure_ascii=False)}"
                             for k, v in sorted(args.items()))[:600]
+        # Nút bấm, nhưng nhãn PHẢI mang mã của đúng ý định này. Chip gửi đi chính
+        # nhãn đó như một tin nhắn người dùng, nên mã là thứ giữ lại tính chất cũ:
+        # cú xác nhận gắn với MỘT việc cụ thể, không phải một chữ "xác nhận" trôi
+        # nổi mà gõ nhầm cũng ra. Vẫn nói rõ câu gõ tay cho kênh không có nút.
+        ask = json.dumps({
+            "question": f"Chạy hành động ghi này chứ? ({lease.capability_name})",
+            "header": "Duyệt ghi",
+            "options": [
+                {"label": f"Xác nhận {code}", "desc": "Chạy thật, không hoàn tác được"},
+                {"label": "Huỷ", "desc": "Không chạy, bỏ ý định này"},
+            ],
+        }, ensure_ascii=False)
         text = (
             f"Javis chuẩn bị chạy hành động ghi: {lease.capability_name}.\n"
             f"Tham số: {summary}\n\n"
             f"Việc này thay đổi dữ liệu thật và không tự hoàn tác được, nên Javis "
-            f"CHƯA chạy. Muốn chạy thì anh nhắn lại đúng câu: XAC NHAN {code}\n"
-            f"Không muốn nữa thì nhắn: huỷ"
+            f"CHƯA chạy. Anh bấm nút duyệt bên dưới, hoặc nhắn lại đúng câu: "
+            f"XAC NHAN {code}\n"
+            f"Không muốn nữa thì nhắn: huỷ\n"
+            f"<!-- JAVIS_ASK: {ask} -->"
         )
     if status != "prepared":
         _CONTEXT_RUNTIME.revoke_capability_lease(

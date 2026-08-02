@@ -585,6 +585,85 @@ def test_two_turn_flow_through_main_executes_once(tmp_path, monkeypatch):
     assert len(calls) == 1
 
 
+# --------------------------------------------------- duyệt bằng nút bấm
+
+def test_proposal_offers_buttons_whose_label_carries_the_code(tmp_path, monkeypatch):
+    """Nút bấm gửi đi chính NHÃN của nó, nên nhãn phải mang mã của đúng ý định này.
+
+    Nếu nhãn chỉ là "Xác nhận" trơn thì bấm nút và gõ nhầm một chữ là như nhau -
+    mất đúng tính chất an toàn đã chọn từ đầu.
+    """
+    import json as _json
+    import re as _re
+    import main
+
+    stack = _stack(tmp_path)
+    brain, registry, runtime, trace, store, executor, canary, calls, routes = stack
+    plan = _prepare(stack)
+    approved = {"calendar_id": "primary", "start": "2026-08-05T09:00", "title": "Review"}
+
+    async def fake_plan(*args):
+        return {"status": "ok", "arguments": dict(approved), "model": "m",
+                "input": 10, "output": 5}
+
+    class WS:
+        def __init__(self):
+            self.events = []
+
+        async def send_text(self, raw):
+            self.events.append(_json.loads(raw))
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", fake_plan)
+    monkeypatch.setattr(main, "_CAPABILITY_EXECUTOR", executor)
+    monkeypatch.setattr(main, "_CAPABILITY_REGISTRY", registry)
+    monkeypatch.setattr(main, "_CONTEXT_RUNTIME", runtime)
+    monkeypatch.setattr(main, "_WRITE_PATH", canary)
+    monkeypatch.setattr(main, "_brain_root", lambda b: str(brain))
+    monkeypatch.setattr(main.usage_store, "record", lambda *a, **k: None)
+    main._WRITE_PENDING_ARGS.clear()
+
+    ws = WS()
+    text, _model = asyncio.run(main._execute_write_proposal(
+        plan, "groq", "secret", "m", "off", ws, "session-nut", trace))
+
+    block = _re.search(r"<!--\s*JAVIS_ASK:\s*([\s\S]*?)\s*-->", text)
+    assert block, "phải có khối nút bấm"
+    ask = _json.loads(block.group(1))
+    labels = [o["label"] for o in ask["options"]]
+    assert any(l.startswith("Xác nhận ") for l in labels), labels
+    assert "Huỷ" in labels
+
+    confirm_label = next(l for l in labels if l.startswith("Xác nhận "))
+    # Nhãn nút phải nằm vừa giới hạn hiển thị của chip (40 ký tự).
+    assert len(confirm_label) <= 40
+
+    # Bấm nút = gửi đúng nhãn đó đi. Phải kích hoạt đúng ý định đang chờ.
+    assert canary.pending_for("session-nut", confirm_label).action == "execute"
+    # Còn một chữ "xác nhận" trôi nổi thì vẫn không được.
+    assert canary.pending_for("session-nut", "ok xác nhận đi").action != "execute"
+    assert not calls, "vòng đề xuất vẫn không chạm tool"
+
+
+def test_button_block_is_stripped_before_the_turn_is_stored():
+    """Khối nút là thứ để VẼ, không phải thứ để lưu vào corpus tự học."""
+    import inspect
+    import main
+
+    source = inspect.getsource(main._persist_turn)
+    assert "JAVIS_ASK" in source, "vẫn phải bóc khối trước khi lưu"
+
+
+def test_typed_confirmation_still_works_for_channels_without_buttons(tmp_path):
+    """Telegram không có nút; câu gõ tay phải còn nguyên tác dụng."""
+    from write_path_runtime import parse_confirmation
+
+    assert parse_confirmation("XAC NHAN A3F9K2") == ("confirm", "A3F9K2")
+    assert parse_confirmation("Xác nhận A3F9K2") == ("confirm", "A3F9K2")
+    assert parse_confirmation("xac nhan a3f9k2") == ("confirm", "A3F9K2")
+    assert parse_confirmation("đồng ý") == ("", "")
+    assert parse_confirmation("ok") == ("", "")
+
+
 if __name__ == "__main__":
     import sys
     try:
