@@ -1913,8 +1913,14 @@ Câu hỏi mục 30.3 ý 5 đã có câu trả lời: workflow hiện tại **kh
 được đánh dấu `derived: true`. Làm output giàu hơn "chuỗi của bước cuối" là ĐỔI HÀNH VI, không
 phải di trú - để lại cho một thay đổi riêng có canary riêng.
 
-Ngoài phạm vi phase này: node `capability` và `workflow_call` mới được validate và checkpoint,
-chưa được tự thực thi; đường graph hiện chỉ tự chạy `model_step`.
+Node `capability` **đã chạy được**: đọc thì chạy thẳng, ghi thì dừng hỏi rồi chạy sau khi duyệt
+đúng mã. Mã suy ra từ task + node + arguments nên restart vẫn tính lại được, và mã của node này
+không duyệt được node khác. Tham số của node là TĨNH (người viết workflow khai trong file, không
+phải model sinh) nên đường này an toàn hơn Phase 9 một bậc. Hai lớp chặn "chưa duyệt không chạy":
+`workflow_runtime` dừng trước, và `workflow_capability_guard` là lớp thứ hai - tách thành hàm gọi
+được vì một hàng rào không kiểm được là hàng rào không tin được.
+
+Ngoài phạm vi phase này: `workflow_call` mới được validate và checkpoint, chưa tự thực thi.
 
 Thay đổi:
 
@@ -1959,9 +1965,11 @@ Ba điểm thiết kế đáng ghi lại:
 - **Lặp lại cùng dấu vết lỗi thì escalate**, không thử mãi. Dấu vết chỉ gồm node nào hỏng
   vì lý do gì, không kèm nội dung.
 
-Người lập kế hoạch bằng model chưa được đấu vào: hàm planner mặc định trả rỗng (dừng sạch).
-Nó sẽ được nối khi có gold benchmark chứng minh đường agentic tốt hơn workflow cố định -
-đúng điều kiện qua phase bên dưới.
+Người lập kế hoạch bằng model **đã được đấu vào**: danh sách agent/capability đã cấp đi thẳng
+vào `enum` của schema tool, nên model không tự do bịa tên. Nhưng prompt KHÔNG phải hàng rào -
+mọi đề xuất vẫn bị `CapabilityGrant` kiểm lại trong code và một node vượt quyền chặn cả lô.
+Không có quyền nào thì không tốn một model call; provider lỗi thì trả rỗng chứ không phá vòng
+chạy. Việc TĂNG allocation vẫn phụ thuộc gold benchmark theo đúng điều kiện qua phase bên dưới.
 
 Thay đổi:
 

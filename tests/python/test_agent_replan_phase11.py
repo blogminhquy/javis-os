@@ -532,6 +532,117 @@ def test_agent_pause_is_not_recorded_as_a_failure(tmp_path, monkeypatch):
     assert recorded == ["WAITING_USER"], f"trace ghi sai trạng thái: {recorded}"
 
 
+# ------------------------------------------------- planner bằng model
+
+def _planner_stack(tmp_path, monkeypatch, settings=None):
+    import copy
+    import config as cfgmod
+    import main
+
+    settings = settings or copy.deepcopy(cfgmod._DEFAULT)
+    monkeypatch.setattr(main.cfgmod, "read_settings", lambda: settings)
+    monkeypatch.setattr(main, "_chat_provider",
+                        lambda mcfg: ("groq", "api", "secret", "llama-3.3"))
+    return main
+
+
+def test_planner_only_offers_agents_and_capabilities_that_were_granted(tmp_path, monkeypatch):
+    """Danh sách đã cấp đi vào chính schema tool, nên model không tự do bịa tên.
+
+    Nhưng prompt KHÔNG phải hàng rào - đó chỉ là để model đỡ đoán mò.
+    """
+    main = _planner_stack(tmp_path, monkeypatch)
+    captured = {}
+
+    async def fake_plan(prov, key, model, messages, reasoning, spec):
+        captured["spec"] = spec
+        captured["messages"] = messages
+        return {"status": "ok", "arguments": {"steps": [
+            {"kind": "model_step", "agent": "researcher", "task": "đào sâu"}]}}
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", fake_plan)
+    planner = _extract_planner(main)
+    out = asyncio.run(planner("mục tiêu", {"nodes": {"b": {"status": "FAILED"}}},
+                              {"agents": ["researcher"], "capabilities": ["cal_list"],
+                               "allows_write": False}))
+    assert out == [{"kind": "model_step", "agent": "researcher", "task": "đào sâu"}]
+    props = captured["spec"]["function"]["parameters"]["properties"]["steps"]["items"]["properties"]
+    assert props["agent"]["enum"] == ["researcher"]
+    assert props["capability"]["enum"] == ["cal_list"]
+    assert props["kind"]["enum"] == ["model_step", "capability"]
+
+
+def test_planner_stays_silent_when_it_cannot_help(tmp_path, monkeypatch):
+    main = _planner_stack(tmp_path, monkeypatch)
+
+    async def empty(*a, **k):
+        return {"status": "ok", "arguments": {"steps": []}}
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", empty)
+    planner = _extract_planner(main)
+    assert asyncio.run(planner("x", {"nodes": {}}, {"agents": ["a"], "capabilities": []})) == []
+
+    # Model lỗi cũng không được làm hỏng vòng chạy.
+    async def boom(*a, **k):
+        raise RuntimeError("provider chết")
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", boom)
+    assert asyncio.run(planner("x", {"nodes": {}}, {"agents": ["a"], "capabilities": []})) == []
+
+    # Không có quyền nào thì không hỏi model làm gì.
+    called = []
+
+    async def counting(*a, **k):
+        called.append(1)
+        return {"status": "ok", "arguments": {"steps": []}}
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", counting)
+    assert asyncio.run(planner("x", {"nodes": {}}, {"agents": [], "capabilities": []})) == []
+    assert not called, "không có quyền thì đừng tốn một model call"
+
+
+def test_planner_proposals_still_go_through_the_permission_check(tmp_path, monkeypatch):
+    """Prompt không phải hàng rào: model bịa tên vẫn bị code chặn."""
+    main = _planner_stack(tmp_path, monkeypatch)
+
+    async def rogue(*a, **k):
+        return {"status": "ok", "arguments": {"steps": [
+            {"kind": "capability", "capability": "mail_send_KHONG_CAP"}]}}
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", rogue)
+    planner = _extract_planner(main)
+    proposed = asyncio.run(planner("x", {"nodes": {}},
+                                   {"agents": ["researcher"], "capabilities": ["cal_list"]}))
+    assert proposed, "planner cứ trả về, việc chặn là của tầng dưới"
+
+    runtime, canary, runner, _ = _stack(tmp_path, gate=_Gate(pass_after=99))
+    graph = wg.compile_workflow(BASE, "demo")
+    trace = runtime.start_turn("sid-rogue", str(tmp_path), "dashboard")
+    canary.prepare(trace, graph, "sid-rogue")
+
+    async def use_rogue(objective, summary, granted):
+        return proposed
+
+    result = asyncio.run(runner.run(trace, graph, "x", "sid-rogue", _executor([]),
+                                    use_rogue,
+                                    capability_runner=_capability_runner_for([])))
+    assert result.status == "ESCALATED"
+    assert "replan_capability_not_granted" in result.stop_reason
+
+
+def _extract_planner(main):
+    """Lấy closure planner ra khỏi execute_workflow_graph để test gọi thẳng."""
+    import inspect
+    source = inspect.getsource(main.execute_workflow_graph)
+    start = source.index("    async def planner(")
+    end = source.index("    async def drive(", start)
+    body = "\n".join(line[4:] for line in source[start:end].splitlines())
+    ns = {"json": main.json, "cfgmod": main.cfgmod, "engine": main.engine,
+          "_chat_provider": main._chat_provider}
+    exec(compile(body, "<planner>", "exec"), ns)
+    return ns["planner"]
+
+
 if __name__ == "__main__":
     import sys
     import pytest

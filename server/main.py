@@ -4626,13 +4626,65 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
         return {"output": text[:20000]}
 
     async def planner(objective, summary, granted):
-        """Phase 11 mặc định KHÔNG tự đề xuất gì.
+        """Hỏi model xem nên làm thêm bước nào, TRONG đúng quyền đã cấp.
 
-        Người lập kế hoạch bằng model sẽ được đấu vào khi allocation agent > 0 và có
-        gold benchmark chứng minh đường agentic tốt hơn workflow cố định (điều kiện
-        qua phase của spec). Trước lúc đó, trả rỗng là dừng sạch.
+        Model chỉ được chọn từ danh sách agent/capability đã cấp - danh sách đó đi
+        vào chính prompt. Nhưng prompt KHÔNG phải hàng rào: mọi đề xuất vẫn bị
+        CapabilityGrant kiểm lại trong code, và một node vượt quyền chặn cả lô.
+        Ở đây prompt chỉ để model đỡ đoán mò, không để thay phép kiểm.
         """
-        return []
+        agents = list(granted.get("agents") or [])
+        caps = list(granted.get("capabilities") or [])
+        if not agents and not caps:
+            return []
+        failed = {k: v for k, v in (summary.get("nodes") or {}).items()
+                  if (v or {}).get("status") != "COMPLETED"}
+        spec = {"type": "function", "function": {
+            "name": "submit_extra_steps",
+            "description": "Đề xuất thêm bước để đạt mục tiêu. Chỉ dùng agent/capability đã cấp.",
+            "parameters": {
+                "type": "object",
+                "properties": {"steps": {
+                    "type": "array", "maxItems": 3,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "kind": {"type": "string", "enum": ["model_step", "capability"]},
+                            "agent": {"type": "string", "enum": agents or ["-"]},
+                            "capability": {"type": "string", "enum": caps or ["-"]},
+                            "task": {"type": "string", "maxLength": 2000},
+                            "depends_on": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["kind"], "additionalProperties": False,
+                    }}},
+                "required": ["steps"], "additionalProperties": False,
+            }}}
+        messages = [
+            {"role": "system", "content":
+             "Bạn lập thêm bước cho một agent đang chạy dở. CHỈ dùng agent và capability "
+             "trong danh sách đã cấp. Không đủ căn cứ để làm thêm thì trả mảng rỗng - "
+             "đó là câu trả lời hợp lệ và tốt hơn việc bịa ra việc."},
+            {"role": "user", "content": json.dumps({
+                "objective": objective,
+                "granted_agents": agents, "granted_capabilities": caps,
+                "allows_write": bool(granted.get("allows_write")),
+                "nodes_not_completed": failed,
+            }, ensure_ascii=False)[:8000]},
+        ]
+        mcfg = cfgmod.read_settings().get("model", {})
+        prov, kind, api_key, api_model = _chat_provider(mcfg)
+        if kind != "api" or not api_key:
+            # Planner cần tool-call có kiểm soát; engine CLI không đi đường này.
+            return []
+        try:
+            planned = await engine.single_tool_plan(
+                prov, api_key, api_model, messages, "off", spec)
+        except Exception:
+            return []
+        if planned.get("status") != "ok":
+            return []
+        steps = (planned.get("arguments") or {}).get("steps")
+        return [x for x in (steps or []) if isinstance(x, dict)][:3]
 
     async def drive():
         try:
