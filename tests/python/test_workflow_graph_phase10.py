@@ -661,6 +661,57 @@ def test_paused_workflow_is_not_shown_as_a_crash():
     assert "chờ anh duyệt" in block
 
 
+def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
+    """Task chạy workflow mà dừng chờ duyệt KHÔNG được chấm là xong với kết quả rỗng.
+
+    Chạy thật `_execute` với một execute_workflow giả, không quét chuỗi source.
+    """
+    from tasks import TasksDeps, TasksFeature
+
+    async def paused_workflow(brain_root, slug, intent, tools):
+        yield {"type": "start", "workflow": "demo", "steps": 2}
+        yield {"type": "step_done", "i": 0, "output": "đã soạn xong"}
+        yield {"type": "wait_user", "node": "w", "reason": "write_node_needs_confirmation",
+               "prompt": "Gửi email cho khách?"}
+
+    feature = TasksFeature(TasksDeps(
+        brain_root=lambda b: str(tmp_path),
+        atomic_write_text=lambda path, text: None,
+        execute_workflow=paused_workflow,
+        workflows_dir=lambda b: tmp_path,
+        build_system_prompt=lambda b: "",
+        aux_model=lambda: None,
+        safe_tools=[],
+        state_dir=tmp_path,
+    ))
+    result, error, needs_input, _meta = asyncio.run(feature._execute({
+        "route": "wf:demo", "intent": "gửi báo cáo", "brain_root": str(tmp_path),
+    }))
+    assert needs_input is True, "phải chuyển sang trạng thái cần người"
+    assert not error
+    assert "[[NEEDS_INPUT]]" in result and "chờ duyệt" in result
+    assert "Gửi email cho khách?" in result, "phải nói rõ đang chờ duyệt việc gì"
+
+
+def test_kanban_surfaces_an_agent_escalation_too(tmp_path):
+    from tasks import TasksDeps, TasksFeature
+
+    async def escalating(brain_root, slug, intent, tools):
+        yield {"type": "escalation", "reason": "repeated_failure_signature"}
+
+    feature = TasksFeature(TasksDeps(
+        brain_root=lambda b: str(tmp_path),
+        atomic_write_text=lambda path, text: None,
+        execute_workflow=escalating, workflows_dir=lambda b: tmp_path,
+        build_system_prompt=lambda b: "", aux_model=lambda: None,
+        safe_tools=[], state_dir=tmp_path,
+    ))
+    result, _error, needs_input, _meta = asyncio.run(feature._execute({
+        "route": "wf:demo", "intent": "x", "brain_root": str(tmp_path),
+    }))
+    assert needs_input is True and "repeated_failure_signature" in result
+
+
 if __name__ == "__main__":
     import sys
     import pytest

@@ -645,6 +645,19 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
                     kind = event.get("type")
                     if kind == "done":
                         result = event.get("result") or result
+                    elif kind == "wait_user":
+                        # Workflow dừng chờ người duyệt. Không có nhánh này thì task bị
+                        # chấm là XONG với kết quả rỗng, và việc cần duyệt biến mất.
+                        result = (result or "") + (
+                            "\n[[NEEDS_INPUT]] Workflow dừng chờ duyệt bước "
+                            f"'{event.get('node') or '?'}'"
+                            f"{': ' + str(event.get('prompt')) if event.get('prompt') else ''}"
+                        )
+                    elif kind == "escalation":
+                        result = (result or "") + (
+                            "\n[[NEEDS_INPUT]] Agent chuyển lại cho người: "
+                            f"{event.get('reason') or 'không rõ lý do'}"
+                        )
                     elif kind in ("error", "step_error"):
                         error = event.get("content") or error
             except Exception as exc:
