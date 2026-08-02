@@ -112,8 +112,11 @@ _DEFAULT = {
     # tìm tool theo NGỮ CẢNH rồi mới nạp. lazy_top_k = số tool search trả về mỗi lần.
     # ambient_hint: kèm connector đấu vào TÀI KHOẢN Claude (Drive/Gmail...) vào javis_connections
     # + lazy search cho engine Claude, để model biết chúng tồn tại (gọi qua tool native mcp__*).
+    # lazy_char_budget: trần KÝ TỰ schema tool được phơi thẳng trước khi ép bật lazy. Đếm số
+    # tool không nói lên chi phí (một javis_use_skill nhúng cả danh sách skill có thể nặng hơn
+    # mười tool gọn), nên 'auto' xét cả hai: đông tool HOẶC schema nặng.
     "mcp": {"strict": False, "hub": True, "lazy_tools": "auto", "lazy_threshold": 40,
-            "lazy_top_k": 8, "ambient_hint": True},
+            "lazy_top_k": 8, "lazy_char_budget": 6000, "ambient_hint": True},
     # Adaptive Context Runtime Phase 0-8. Mọi canary rollout mặc định bằng 0 và mode
     # vẫn shadow, nên production chưa đổi dispatch. Muốn canary phải đồng thời đổi mode=canary,
     # allocation_basis_points > 0 và khai hard quota trong quota_profiles.

@@ -126,10 +126,16 @@ lt, lr = mcp_hub._apply_lazy(tools, route)
 lfns = {t["fn"] for t in lt}
 check("_apply_lazy bật: có javis_search_tools", mcp_hub._LAZY_SEARCH in lfns)
 check("_apply_lazy bật: có javis_run_tool", mcp_hub._LAZY_RUN in lfns)
-check("_apply_lazy bật: builtin vẫn hiện", "javis_connections" in lfns and "javis_use_skill" in lfns)
+# Builtin KHÔNG còn được miễn: javis_connections và javis_use_skill đều phình theo số
+# nguồn/số skill người dùng cắm thêm, đúng số hạng O(N) mà tầng lazy sinh ra để chống.
+# Trước đây chúng lọt lưới vì pool suy ra từ "có conn hay không", mà builtin thì không có.
+check("_apply_lazy bật: builtin phình theo N cũng bị giấu",
+      "javis_connections" not in lfns and "javis_use_skill" not in lfns)
 check("_apply_lazy bật: tool pool MCP bị giấu", not any(f.startswith(("pos__", "ads__")) for f in lfns))
 check("_apply_lazy bật: route lazy KHÔNG chứa tool pool", not any(f.startswith(("pos__", "ads__")) for f in lr))
-check("_apply_lazy bật: cắt gọn còn 4 tool (2 builtin + 2 meta)", len(lt) == 4)
+check("_apply_lazy bật: fixture không có tool hạt nhân → còn đúng 2 meta", len(lt) == 2)
+check("_apply_lazy bật: builtin bị giấu vẫn GỌI ĐƯỢC qua run",
+      "javis_use_skill" in lr or mcp_hub._LAZY_RUN in lr)
 search_spec = next(t for t in lt if t["fn"] == mcp_hub._LAZY_SEARCH)
 check("_apply_lazy: mô tả search nhúng thực đơn nguồn", "pos" in search_spec["description"] and "ads" in search_spec["description"])
 
@@ -307,6 +313,79 @@ async def mcp_client_call(route, fn, args):
 
 
 asyncio.run(_dispatch_tests())
+
+
+# ============================================================
+# Nhóm tool HẠT NHÂN + ngưỡng theo KÍCH THƯỚC
+# ============================================================
+def _core_fixture():
+    """Pool nhỏ nhưng có đủ tool hạt nhân, để kiểm chúng KHÔNG bị giấu."""
+    tools, route = [], {}
+    for fn in sorted(mcp_hub.CORE_TOOL_FNS):
+        spec, ent = _builtin(fn, f"tool hạt nhân {fn}")
+        tools.append(spec)
+        route[fn] = ent
+    for spec, ent in [_mcp_tool("pos__pos_order", "pos", "pos_order", "Đơn hàng POS")]:
+        tools.append(spec)
+        route[spec["fn"]] = ent
+    return tools, route
+
+
+set_lazy({"lazy_tools": True})
+ct, cr = mcp_hub._apply_lazy(*_core_fixture())
+cfns = {t["fn"] for t in ct}
+check("tool hạt nhân KHÔNG bao giờ bị giấu", mcp_hub.CORE_TOOL_FNS <= cfns)
+check("tool ngoài nhóm hạt nhân vẫn bị giấu", "pos__pos_order" not in cfns)
+
+# Rào khoá hai chiều: tên trong CORE_TOOL_FNS phải là builtin CÓ THẬT. Gõ sai hoặc đổi tên
+# builtin mà quên sửa danh sách thì tool đó âm thầm rơi vào pool - hỏng câm, không ai biết.
+_vault = tempfile.mkdtemp(prefix="javis-corecheck-")
+os.makedirs(os.path.join(_vault, "skills"), exist_ok=True)
+_bt, _br = mcp_hub._builtin_tools("full", _vault)
+_real = {t["fn"] for t in _bt}
+for _fn in sorted(mcp_hub.CORE_TOOL_FNS):
+    check(f"CORE_TOOL_FNS '{_fn}' là builtin có thật", _fn in _real)
+
+# Ngưỡng theo KÍCH THƯỚC: ít tool nhưng schema nặng vẫn phải bật lazy. Đây chính là tình
+# huống thật đã bỏ lọt - 26 tool nặng 17k ký tự nằm dưới ngưỡng đếm 40 nên lazy chưa từng
+# chạy lần nào.
+set_lazy({})   # về mặc định 'auto'
+check("auto: ít tool + schema nhẹ → KHÔNG bật lazy", mcp_hub._lazy_on(5, 1000) is False)
+check("auto: ít tool nhưng schema NẶNG → BẬT lazy",
+      mcp_hub._lazy_on(5, mcp_hub._lazy_char_budget() + 1) is True)
+check("auto: đông tool tuy schema nhẹ → vẫn bật (điều kiện cũ còn nguyên)",
+      mcp_hub._lazy_on(500, 0) is True)
+set_lazy({"lazy_tools": False})
+check("ép tắt: schema nặng vẫn KHÔNG bật", mcp_hub._lazy_on(500, 10**9) is False)
+
+# _pool_chars phải đo thật, vì nó là đại lượng quyết định
+set_lazy({})
+_p = [{"fn": "x", "description": "y" * 500, "schema": {}}]
+check("_pool_chars đếm theo ký tự schema thật", mcp_hub._pool_chars(_p) > 500)
+check("_pool_chars không nổ với dữ liệu lạ", mcp_hub._pool_chars([{"fn": object()}]) == 0)
+
+# Skill bị giấu vẫn phải TÌM LẠI được, nếu không thì tiết kiệm token bằng cách làm hỏng Javis.
+_vs = tempfile.mkdtemp(prefix="javis-skillfind-")
+for _slug, _desc in [("viet-email", "Soạn email bán hàng theo giọng thương hiệu")]:
+    _d = os.path.join(_vs, "skills", _slug)
+    os.makedirs(_d, exist_ok=True)
+    with open(os.path.join(_d, "SKILL.md"), "w", encoding="utf-8") as _fh:
+        _fh.write(f"---\nname: {_slug}\ndescription: {_desc}\ngroup: Test\n---\nnội dung\n")
+set_lazy({"lazy_tools": True})
+_st, _sr = mcp_hub._apply_lazy(*mcp_hub._builtin_tools("full", _vs))
+
+
+async def _skill_findable():
+    raw = await _sr[mcp_hub._LAZY_SEARCH]["call"]({"query": "viết email cho khách"})
+    try:
+        names = [t["name"] for t in json.loads(raw).get("tools", [])]
+    except (ValueError, TypeError):
+        names = []
+    check("giấu javis_use_skill rồi vẫn tìm lại được bằng từ khoá skill",
+          "javis_use_skill" in names)
+
+
+asyncio.run(_skill_findable())
 
 print()
 if _fails:

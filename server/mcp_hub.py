@@ -413,6 +413,35 @@ _LAZY_SEARCH = "javis_search_tools"
 _LAZY_RUN = "javis_run_tool"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)   # từ khoá ≥2 ký tự (giữ Unicode/tiếng Việt)
 
+# Nhóm tool HẠT NHÂN: luôn hiện thẳng, không bao giờ vào tầng lazy.
+#
+# Khai TƯỜNG MINH bằng tên. Trước đây pool được suy ra ngầm bằng "route entry có 'conn' hay
+# không", nên builtin và plugin lọt lưới VĨNH VIỄN: chúng không có 'conn' nên không bao giờ
+# bị giấu, kể cả khi schema của chúng đã phình theo số skill/plugin người dùng cài. Đó đúng
+# là bài toán O(N) mà cả tầng lazy sinh ra để chống, chỉ khác là nó nấp ở nhóm builtin.
+#
+# Tiêu chí vào nhóm hạt nhân, cả hai phải đúng:
+#   1. Schema NHỎ và CỐ ĐỊNH, không lớn lên theo số thứ user cắm thêm.
+#   2. Cần cho hầu hết mọi lượt, nên bắt model tìm trước khi dùng là lỗ vốn.
+#
+# Vì sao javis_use_skill KHÔNG ở đây dù skill là thứ trung tâm của Javis: mô tả của nó nhúng
+# nguyên danh sách skill (tới SKILL_LIST_MAX mục × SKILL_DESC_MAX ký tự), tức là chính cái
+# số hạng lớn theo N. Cho nó vào pool thì danh sách chỉ vào ngữ cảnh khi model tìm thứ khớp
+# một skill, mà _rank_tools đọc description nên tìm "viết email" vẫn trúng nó như thường.
+# javis_connections cũng vậy: đó là tool dùng khi bí, không phải mọi lượt.
+CORE_TOOL_FNS = frozenset({
+    "javis_read_file",
+    "javis_list_dir",
+    "javis_write_file",
+})
+
+# Mô tả nhóm tool nội bộ cho thực đơn lazy. Builtin/plugin không có connector trong
+# mcp_catalog nên không tự có mô tả; thiếu dòng này thì model chỉ thấy "javis (javis, N tool)".
+_LOCAL_GROUP_DESC = {
+    "javis": "skill của brain, danh sách nguồn đang đấu, tiện ích nội bộ",
+    "plugin": "tool do plugin cài thêm",
+}
+
 
 def _lazy_config():
     """(mode, threshold, top_k) từ settings mcp.*. mode: 'auto' | True | False.
@@ -431,15 +460,47 @@ def _lazy_config():
     return m.get("lazy_tools", "auto"), _int(m.get("lazy_threshold"), 40), min(50, _int(m.get("lazy_top_k"), 8))
 
 
-def _lazy_on(pool_n):
-    """Có bật chế độ lazy cho lần discover này không (theo config + số tool pool MCP)."""
+def _lazy_char_budget():
+    """Trần ký tự schema tool được phép hiện thẳng, trước khi bắt buộc bật lazy.
+
+    Vì sao cần thêm ngưỡng THEO KÍCH THƯỚC bên cạnh ngưỡng theo SỐ LƯỢNG: đếm tool không
+    nói lên chi phí. Một tool duy nhất có thể rất đắt (javis_use_skill nhúng cả danh sách
+    skill, phình theo số skill người dùng cài), trong khi mười tool schema gọn lại rẻ. Đếm
+    số lượng để quyết định là đo nhầm đại lượng, và đó là lý do máy có 26 tool nặng 17k ký
+    tự vẫn nằm dưới ngưỡng 40 nên lazy chưa từng kích hoạt lần nào.
+
+    Mặc định 6000 ký tự (~1.7k token): đủ chỗ cho một bộ tool vừa phải mà vẫn còn xa hạn
+    mức của model bị siết nhất."""
+    try:
+        m = config.read_settings().get("mcp") or {}
+        v = int(m.get("lazy_char_budget", 6000))
+        return max(500, v)
+    except (TypeError, ValueError, AttributeError):
+        return 6000
+
+
+def _pool_chars(pool) -> int:
+    """Số ký tự schema pool sẽ chiếm nếu phơi thẳng. Đây là đại lượng thật sự tốn tiền."""
+    try:
+        return sum(len(json.dumps(t, ensure_ascii=False)) for t in pool)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _lazy_on(pool_n, pool_chars=0):
+    """Có bật chế độ lazy cho lần discover này không.
+
+    'auto' bật khi ĐÔNG tool (pool_n > threshold) HOẶC khi schema NẶNG
+    (pool_chars > trần ký tự). Hai điều kiện độc lập vì chúng bắt hai kiểu phình khác nhau:
+    nhiều connector nhỏ, và ít tool nhưng mô tả phình theo số skill/plugin.
+    pool_chars=0 (mặc định) thì chỉ xét số lượng - giữ nguyên hành vi cho caller cũ."""
     mode, thr, _ = _lazy_config()
     s = str(mode).strip().lower()
     if mode is True or s in ("true", "on", "1", "always"):
         return True
     if mode is False or s in ("false", "off", "0", "never"):
         return False
-    return pool_n > thr   # 'auto': chỉ bật khi thật sự đông tool
+    return pool_n > thr or pool_chars > _lazy_char_budget()
 
 
 def _connector_menu(pool, ambient=None):
@@ -452,8 +513,14 @@ def _connector_menu(pool, ambient=None):
         ns = t.get("namespace") or t.get("server") or "?"
         if ns not in seen:
             con = mcp_catalog.get(t.get("connector_id")) or {}
+            desc = (con.get("description") or con.get("name") or "").strip()
+            if not desc and ns in _LOCAL_GROUP_DESC:
+                # Nhóm nội bộ (builtin/plugin) không có connector trong catalog nên trước đây
+                # hiện trơ là "javis (javis, N tool)" - model không đoán được skill nằm trong
+                # đó mà tìm. Nêu rõ có gì thì nó mới biết đường gọi search.
+                desc = _LOCAL_GROUP_DESC[ns]
             seen[ns] = {"label": t.get("label") or con.get("name") or ns,
-                        "desc": (con.get("description") or con.get("name") or "").strip(), "n": 0}
+                        "desc": desc, "n": 0}
         seen[ns]["n"] += 1
     parts = []
     for ns, v in seen.items():
@@ -591,13 +658,13 @@ def _lazy_tools_and_route(visible_tools, visible_route, pool, full_route, top_k,
 
 
 def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=False):
-    """Nếu bật lazy: giấu tool MCP (pool) sau meta-tool search/run; không bật → trả nguyên.
-    Pool = tool có route entry mang 'conn' (đến từ connection MCP). Builtins + plugin (entry
-    'call' không 'conn') LUÔN hiện trực tiếp - chúng ít và luôn hữu dụng.
+    """Nếu bật lazy: giấu tool sau meta-tool search/run; không bật → trả nguyên.
+    Pool = MỌI tool trừ nhóm hạt nhân CORE_TOOL_FNS - gồm cả builtin và plugin, không riêng
+    tool MCP. Xem chú thích ở CORE_TOOL_FNS về lý do không suy pool ra từ 'conn'.
     include_ambient (đường engine Claude): kèm connector tài khoản Claude vào menu/search để
     model biết còn nhóm tool native mcp__* ngoài pool của hub."""
-    pool = [t for t in tools_spec if (route.get(t["fn"]) or {}).get("conn")]
-    if not force and not _lazy_on(len(pool)):
+    pool = [t for t in tools_spec if t["fn"] not in CORE_TOOL_FNS]
+    if not force and not _lazy_on(len(pool), _pool_chars(pool)):
         return tools_spec, route
     pool_fns = {t["fn"] for t in pool}
     visible_tools = [t for t in tools_spec if t["fn"] not in pool_fns]
