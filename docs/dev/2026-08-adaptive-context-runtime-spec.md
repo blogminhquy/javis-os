@@ -1,7 +1,7 @@
 # Adaptive Context Runtime cho Javis OS
 
 Ngày: 2026-08-01
-Trạng thái: **Code Phase 0-8 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-8 tắt mặc định**
+Trạng thái: **Code Phase 0-9 đã hoàn tất; Phase 0-4 chạy `shadow`, canary Phase 5-9 tắt mặc định**
 Phạm vi: dashboard, Telegram, các engine API, Claude/Codex CLI, task nền, workflow và MCP Hub
 
 Bản sửa lộ trình: 2026-08-01. Task State tối thiểu, bảo mật trace và quota ledger được đưa lên đầu; multi-round read-only, tool write, workflow, agent và model routing được tách thành các phase độc lập.
@@ -1828,6 +1828,11 @@ Rollback từng canary độc lập: conversation dùng compaction cũ, memory d
 
 ### Phase 9: Tool write theo từng capability group
 
+Trạng thái code ngày 2026-08-02: **hoàn tất, chưa bật production**. Runtime version
+`write-single-step-v1`; `write_canary.allocation_basis_points=0` và `capability_profiles=[]`
+nên mặc định không request thật nào đi qua. Chỉ dashboard + provider API; CLI, OAuth,
+Telegram, attachment và mọi capability effect `dangerous` tiếp tục dùng legacy.
+
 Thay đổi:
 
 - Idempotency ledger.
@@ -1839,6 +1844,43 @@ Thay đổi:
 - Canary riêng cho từng connector/capability group.
 
 Không bật một cờ chung cho toàn bộ write tool.
+
+Contract đã triển khai:
+
+- **Hai lượt, không phải một.** Lượt một chỉ LẬP tham số (đúng một model call, forced
+  tool call) rồi ghi ý định vào ledger ở trạng thái `PREPARED` và hỏi lại người dùng.
+  Lượt hai KHÔNG có model call nào: tham số đã duyệt được khoá bằng `args_hash`, nên
+  model không có cơ hội đổi ý giữa lúc duyệt và lúc chạy.
+- **Xác nhận phải tường minh.** Người dùng phải gõ lại đúng `XAC NHAN <mã 6 ký tự>`.
+  "ok", "đồng ý", "ừ" cố tình KHÔNG được chấp nhận: một câu ừ hử không đủ làm bằng
+  chứng cho hành động không hoàn tác được. Mã suy ra từ chính ý định (`task_id` +
+  `args_hash` + salt) nên tính lại được, không phải số ngẫu nhiên.
+- **Ba hàng rào chống chạy trùng, mỗi cái đủ sức một mình.** `idempotency_key` UNIQUE
+  ở tầng SQLite (spec 18.6), resource lock theo tài nguyên (`resource_lock_fields` của
+  từng group; không khai thì khoá theo cả capability), và chuyển trạng thái có điều
+  kiện `PREPARED → RUNNING → kết thúc`. Tám lượt xác nhận đồng thời cho cùng ý định
+  chỉ chạy tool đúng một lần.
+- **UNKNOWN không bao giờ retry.** Timeout, huỷ giữa chừng và exception phía client
+  đều chuyển `UNKNOWN` và **giữ** resource lock, nên không write mới nào đè lên cùng
+  tài nguyên trước khi có kết luận. Chỉ hai đường kết luận được: một capability READ
+  do group khai (`reconcile_capability_id` + `reconcile_success_marker`), hoặc người
+  dùng. Tool trả `ERROR:` tường minh mới được coi là bằng chứng CHƯA chạy.
+- **Restart không chạy lại gì.** `sweep_stale_writes` ở startup chuyển mọi write còn
+  `RUNNING` sang `UNKNOWN` và giữ lock; write đã `SUCCEEDED` giữ nguyên. Cùng một ý
+  định sau restart cho ra cùng `idempotency_key`.
+- **Group không reconcile được thì về legacy**, trừ khi operator khai rõ
+  `allow_unreconcilable: true` cho group đó.
+- **Raw arguments vẫn không vào runtime store.** Ledger chỉ giữ hash. Tham số đã duyệt
+  nằm trong RAM, nên restart giữa lúc chờ xác nhận làm lượt xác nhận fail-closed thay
+  vì chạy một hành động mà Javis không còn đọc lại được tham số. Đây là đánh đổi có
+  chủ đích, không phải thiếu sót.
+- Audit nối được `task_id`, `step_id`, capability revision, `idempotency_key`,
+  `provider_request_id` và evidence ref; chuỗi sự kiện `write.prepared` →
+  `write.started` → `write.finished` (→ `write.reconciled`).
+
+Chưa làm trong phase này: compensation (chưa capability nào khai), write nhiều bước
+trong một task, và write trên đường Phase 7 orchestrator - `_continue` của Phase 7 vẫn
+reset step `RUNNING` về `PENDING` nên chỉ an toàn cho read.
 
 Điều kiện qua phase:
 

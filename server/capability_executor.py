@@ -31,6 +31,31 @@ def arguments_hash(value: Any) -> str:
     return _hash(value)
 
 
+def idempotency_key(task_id: str, logical_action_id: str, capability_id: str,
+                    capability_revision: str, args: Any) -> str:
+    """Khoá chống chạy trùng theo spec 14.2, tính trên arguments đã chuẩn hoá.
+
+    Cùng một ý định write trong cùng task luôn ra cùng khoá, kể cả sau restart, vì
+    mọi thành phần đều lấy từ state bền chứ không từ bộ nhớ tiến trình.
+    """
+    return _hash({
+        "task_id": str(task_id or ""),
+        "logical_action_id": str(logical_action_id or ""),
+        "capability_id": str(capability_id or ""),
+        "capability_revision": str(capability_revision or ""),
+        "args": args,
+    })
+
+
+def resource_lock_key(capability_id: str, args: Any, lock_fields: tuple[str, ...]) -> str:
+    """Khoá tài nguyên. Không khai `lock_fields` thì khoá theo capability (bảo thủ hơn)."""
+    if not lock_fields:
+        return f"cap:{capability_id}"
+    scope = {field: (args or {}).get(field) if isinstance(args, dict) else None
+             for field in sorted(lock_fields)}
+    return f"cap:{capability_id}:{_hash(scope)[:32]}"
+
+
 def _has_external_ref(value: Any) -> bool:
     if isinstance(value, dict):
         ref = value.get("$ref")
@@ -112,10 +137,19 @@ class CapabilityExecutor:
         ).hexdigest()
 
     def issue_lease(self, trace: context_runtime.TurnTrace, actor_id: str, brain: str,
-                    capability: dict, profile: dict) -> CapabilityLease | None:
+                    capability: dict, profile: dict,
+                    allow_write: bool = False) -> CapabilityLease | None:
+        """`allow_write=True` chỉ được truyền từ đường Phase 9 đã qua toàn bộ admission.
+
+        Mặc định vẫn là read-only, nên không đường cũ nào vô tình cấp được lease write.
+        Effect `dangerous` KHÔNG BAO GIỜ được cấp lease ở phase này.
+        """
         effect = str(capability.get("side_effect") or "read")
         required_mode = str(capability.get("required_mode") or "readonly")
-        if effect not in {"none", "read"} or required_mode != "readonly":
+        if allow_write:
+            if effect != "write" or required_mode != "safe":
+                return None
+        elif effect not in {"none", "read"} or required_mode != "readonly":
             return None
         schema = capability.get("schema") if isinstance(capability.get("schema"), dict) else {}
         if (_has_external_ref(schema) or _depth(schema) > 64 or
@@ -172,7 +206,8 @@ class CapabilityExecutor:
             retention_seconds=max(
                 3600, min(_int(profile.get("retention_seconds"), 14 * 86400), 90 * 86400)
             ),
-            profile_id=str(profile.get("id") or "readonly-default")[:120],
+            profile_id=str(profile.get("id") or ("write-default" if allow_write
+                                                 else "readonly-default"))[:120],
         )
 
     def _validate(self, lease: CapabilityLease, args: Any) -> tuple[bool, str]:

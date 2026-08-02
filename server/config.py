@@ -212,6 +212,30 @@ _DEFAULT = {
             "channels": ["dashboard"], "provider_kinds": ["api"],
             "max_body_chars": 12000,
         },
+        # Phase 9: tool WRITE, bật theo TỪNG capability group, không có cờ chung.
+        # Ba tầng fail-closed: allocation 0, capability_profiles rỗng, và mọi write
+        # đều phải được người dùng gõ lại mã xác nhận mới chạy.
+        # Mẫu một group (KHÔNG phải giá trị mặc định):
+        #   {"id": "calendar-create", "source_type": "mcp",
+        #    "source_id_pattern": "google-calendar", "name_pattern": "*create_event*",
+        #    "timeout_seconds": 30, "lease_ttl_seconds": 300,
+        #    "resource_lock_fields": ["calendar_id", "start"],
+        #    "reconcile_capability_id": "<id capability read để kiểm chứng>",
+        #    "reconcile_arguments": {...}, "reconcile_success_marker": "<chuỗi nhận biết>"}
+        # Group không khai được đường reconcile thì mặc định về legacy, trừ khi
+        # operator chấp nhận rủi ro bằng "allow_unreconcilable": true.
+        "write_canary": {
+            "policy_version": "write-single-step-v1",
+            "allocation_basis_points": 0,
+            "salt": "write-single-step-v1",
+            "channels": ["dashboard"], "provider_kinds": ["api"],
+            "registry_max_age_seconds": 900,
+            "min_resolver_score": 0.55,
+            "estimator_safety_factor": 1.35,
+            "confirmation_ttl_seconds": 900,
+            "quota_profiles": [],
+            "capability_profiles": [],
+        },
     },
 }
 

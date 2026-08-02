@@ -411,6 +411,14 @@ class ObserveRuntime:
                 );
                 CREATE INDEX IF NOT EXISTS idx_runtime_checkpoints_task
                     ON runtime_checkpoints(task_id,sequence DESC);
+                CREATE TABLE IF NOT EXISTS runtime_resource_locks (
+                    lock_key TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    invocation_id TEXT NOT NULL,
+                    capability_id TEXT NOT NULL,
+                    acquired_at REAL NOT NULL,
+                    expires_at REAL NOT NULL
+                );
                 """
             )
             # Migrate an observe DB created by an earlier build without rewriting state.
@@ -445,6 +453,39 @@ class ObserveRuntime:
                 db.execute("ALTER TABLE quota_reservations ADD COLUMN actual_input_tokens INTEGER NOT NULL DEFAULT 0")
             if "actual_output_tokens" not in quota_columns:
                 db.execute("ALTER TABLE quota_reservations ADD COLUMN actual_output_tokens INTEGER NOT NULL DEFAULT 0")
+            # Phase 9: ledger write. idempotency_key UNIQUE là hàng rào chống chạy
+            # trùng ở tầng DB theo spec 18.6, không dựa vào bộ nhớ tiến trình.
+            invocation_columns = {r[1] for r in db.execute("PRAGMA table_info(runtime_invocations)")}
+            if "idempotency_key" not in invocation_columns:
+                db.execute("ALTER TABLE runtime_invocations ADD COLUMN idempotency_key TEXT")
+            if "effect" not in invocation_columns:
+                db.execute(
+                    "ALTER TABLE runtime_invocations ADD COLUMN effect TEXT NOT NULL DEFAULT 'read'")
+            if "provider_request_id" not in invocation_columns:
+                db.execute(
+                    "ALTER TABLE runtime_invocations ADD COLUMN provider_request_id TEXT NOT NULL DEFAULT ''")
+            if "resource_lock_key" not in invocation_columns:
+                db.execute(
+                    "ALTER TABLE runtime_invocations ADD COLUMN resource_lock_key TEXT NOT NULL DEFAULT ''")
+            if "confirmation_code" not in invocation_columns:
+                db.execute(
+                    "ALTER TABLE runtime_invocations ADD COLUMN confirmation_code TEXT NOT NULL DEFAULT ''")
+            if "actor_hash" not in invocation_columns:
+                db.execute(
+                    "ALTER TABLE runtime_invocations ADD COLUMN actor_hash TEXT NOT NULL DEFAULT ''")
+            if "session_id" not in invocation_columns:
+                db.execute(
+                    "ALTER TABLE runtime_invocations ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+            if "expires_at" not in invocation_columns:
+                db.execute("ALTER TABLE runtime_invocations ADD COLUMN expires_at REAL")
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_runtime_invocations_idempotency "
+                "ON runtime_invocations(idempotency_key) WHERE idempotency_key IS NOT NULL"
+            )
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_runtime_invocations_pending "
+                "ON runtime_invocations(session_id,status,effect)"
+            )
             db.commit()
             self._db = db
             self._cleanup_once()
@@ -579,7 +620,7 @@ class ObserveRuntime:
         """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
         if not trace:
             return "legacy"
-        requested = path if path in {"fast", "readonly", "orchestrator"} else "legacy"
+        requested = path if path in {"fast", "readonly", "orchestrator", "write"} else "legacy"
         try:
             with self._lock:
                 db = self._conn()
@@ -1092,7 +1133,9 @@ class ObserveRuntime:
                                 capability_revision: str, schema_hash: str,
                                 actor_hash: str, allowed_effect: str,
                                 resource_scope: dict, ttl_seconds: int = 120) -> str:
-        if not trace or allowed_effect not in {"none", "read"}:
+        # 'write' chỉ dành cho Phase 9 và chỉ đi qua ledger write. claim_read_invocation
+        # vẫn khoá cứng none/read trong SQL nên lease write không thể bị dùng cho đường read.
+        if not trace or allowed_effect not in {"none", "read", "write"}:
             return ""
         lease_id = "cl_" + uuid.uuid4().hex
         now = time.time()
@@ -1233,6 +1276,263 @@ class ObserveRuntime:
             return True
         except Exception:
             return False
+
+    # ---------------------------------------------------------------- Phase 9
+    # Write ledger. Ba hàng rào độc lập, mỗi cái đủ sức một mình chặn chạy trùng:
+    # idempotency_key UNIQUE ở tầng DB, resource lock theo tài nguyên, và chuyển
+    # trạng thái có điều kiện (PREPARED -> RUNNING -> kết thúc). Trạng thái UNKNOWN
+    # KHÔNG BAO GIỜ được retry mù; chỉ reconcile bằng read hoặc hỏi người dùng.
+
+    def prepare_write_invocation(
+            self, trace: Optional[TurnTrace], lease_id: str, capability_id: str,
+            capability_revision: str, actor_hash: str, args_hash: str,
+            idempotency_key: str, resource_lock_key: str, confirmation_code: str,
+            session_id: str, ttl_seconds: int = 900) -> dict:
+        """Ghi ý định write ở trạng thái PREPARED, TRƯỚC khi hỏi xác nhận và trước I/O.
+
+        Trả về `{"status": "prepared"|"duplicate"|"locked"|"error", ...}`. Trùng
+        idempotency key trả về đúng invocation cũ thay vì tạo bản mới.
+        """
+        if not trace:
+            return {"status": "error", "error_code": "no_trace"}
+        now = time.time()
+        invocation_id = "wi_" + uuid.uuid4().hex
+        ttl = max(60, min(int(ttl_seconds or 900), 86_400))
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    existing = db.execute(
+                        "SELECT id,status,result_evidence_id,error_code FROM runtime_invocations "
+                        "WHERE idempotency_key=?", (str(idempotency_key),)
+                    ).fetchone()
+                    if existing:
+                        self._event(db, trace, "write.duplicate_intent", {
+                            "invocation_id": existing["id"], "status": existing["status"],
+                            "capability_id": capability_id,
+                        })
+                        return {"status": "duplicate", "invocation_id": existing["id"],
+                                "invocation_status": existing["status"],
+                                "evidence_id": existing["result_evidence_id"] or "",
+                                "error_code": existing["error_code"] or ""}
+                    if resource_lock_key:
+                        db.execute(
+                            "DELETE FROM runtime_resource_locks WHERE expires_at<=?", (now,))
+                        held = db.execute(
+                            "SELECT invocation_id FROM runtime_resource_locks WHERE lock_key=?",
+                            (str(resource_lock_key),)
+                        ).fetchone()
+                        if held:
+                            self._event(db, trace, "write.resource_locked", {
+                                "capability_id": capability_id,
+                                "holder_invocation_id": held["invocation_id"],
+                            })
+                            return {"status": "locked",
+                                    "holder_invocation_id": held["invocation_id"]}
+                        db.execute(
+                            "INSERT INTO runtime_resource_locks VALUES(?,?,?,?,?,?)",
+                            (str(resource_lock_key), trace.task_id, invocation_id,
+                             capability_id, now, now + ttl),
+                        )
+                    db.execute(
+                        "INSERT INTO runtime_invocations("
+                        "id,task_id,step_id,lease_id,capability_id,capability_revision,"
+                        "args_hash,status,created_at,updated_at,idempotency_key,effect,"
+                        "resource_lock_key,confirmation_code,actor_hash,session_id,expires_at"
+                        ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (invocation_id, trace.task_id, trace.step_id, lease_id,
+                         capability_id, capability_revision, args_hash, "PREPARED",
+                         now, now, str(idempotency_key), "write",
+                         str(resource_lock_key or ""), str(confirmation_code or ""),
+                         str(actor_hash or ""), str(session_id or ""), now + ttl),
+                    )
+                    self._event(db, trace, "write.prepared", {
+                        "invocation_id": invocation_id, "capability_id": capability_id,
+                        "capability_revision": capability_revision,
+                        "args_hash": args_hash, "resource_locked": bool(resource_lock_key),
+                    })
+            return {"status": "prepared", "invocation_id": invocation_id,
+                    "expires_at": now + ttl}
+        except Exception as exc:
+            return {"status": "error", "error_code": type(exc).__name__}
+
+    def find_pending_write(self, session_id: str, confirmation_code: str) -> Optional[dict]:
+        """Tra ý định write đang chờ xác nhận theo mã người dùng gõ lại."""
+        code = str(confirmation_code or "").strip().upper()
+        if not code:
+            return None
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT * FROM runtime_invocations WHERE session_id=? AND effect='write' "
+                    "AND status='PREPARED' AND confirmation_code=? AND expires_at>? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (str(session_id or ""), code, time.time()),
+                ).fetchone()
+                return dict(row) if row else None
+        except Exception:
+            return None
+
+    def start_write_invocation(self, trace: Optional[TurnTrace], invocation_id: str,
+                               actor_hash: str) -> bool:
+        """PREPARED -> RUNNING sau khi người dùng xác nhận. Chỉ thành công đúng một lần."""
+        if not trace or not invocation_id:
+            return False
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_invocations SET status='RUNNING',updated_at=? "
+                        "WHERE id=? AND effect='write' AND status='PREPARED' "
+                        "AND actor_hash=? AND expires_at>?",
+                        (time.time(), str(invocation_id), str(actor_hash or ""), time.time()),
+                    )
+                    if changed.rowcount != 1:
+                        self._event(db, trace, "write.start_rejected", {
+                            "invocation_id": str(invocation_id)[:120],
+                            "reason": "not_prepared_or_actor_mismatch",
+                        })
+                        return False
+                    self._event(db, trace, "write.started", {
+                        "invocation_id": str(invocation_id)[:120],
+                    })
+            return True
+        except Exception:
+            return False
+
+    def finish_write_invocation(self, trace: Optional[TurnTrace], invocation_id: str,
+                                lease_id: str, status: str, evidence_id: str = "",
+                                error_code: str = "", provider_request_id: str = "") -> bool:
+        """Chốt sổ write. UNKNOWN GIỮ resource lock để không ai ghi đè khi chưa reconcile."""
+        if not trace or not invocation_id:
+            return False
+        allowed = {"SUCCEEDED", "FAILED_VALIDATION", "FAILED_FINAL", "UNKNOWN"}
+        final_status = status if status in allowed else "UNKNOWN"
+        lease_status = "CONSUMED" if final_status == "SUCCEEDED" else "FAILED"
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_invocations SET status=?,result_evidence_id=?,"
+                        "error_code=?,provider_request_id=?,updated_at=? "
+                        "WHERE id=? AND effect='write' AND status IN ('RUNNING','PREPARED')",
+                        (final_status, str(evidence_id or "")[:120],
+                         str(error_code or "")[:120], str(provider_request_id or "")[:200],
+                         time.time(), str(invocation_id)),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    if lease_id:
+                        db.execute(
+                            "UPDATE runtime_capability_leases SET status=? WHERE id=? AND task_id=?",
+                            (lease_status, lease_id, trace.task_id),
+                        )
+                    if final_status != "UNKNOWN":
+                        db.execute(
+                            "DELETE FROM runtime_resource_locks WHERE invocation_id=?",
+                            (str(invocation_id),))
+                    self._event(db, trace, "write.finished", {
+                        "invocation_id": str(invocation_id)[:120],
+                        "status": final_status,
+                        "evidence_id": str(evidence_id or "")[:120],
+                        "error_code": str(error_code or "")[:120],
+                        "provider_request_id": str(provider_request_id or "")[:200],
+                        "lock_retained": final_status == "UNKNOWN",
+                    })
+            return True
+        except Exception:
+            return False
+
+    def resolve_unknown_write(self, trace: Optional[TurnTrace], invocation_id: str,
+                              landed: bool, evidence_id: str = "") -> bool:
+        """Kết luận một write UNKNOWN bằng bằng chứng reconcile, rồi mới nhả lock."""
+        if not trace or not invocation_id:
+            return False
+        final_status = "SUCCEEDED" if landed else "FAILED_FINAL"
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    changed = db.execute(
+                        "UPDATE runtime_invocations SET status=?,error_code=?,updated_at=?,"
+                        "result_evidence_id=COALESCE(NULLIF(?,''),result_evidence_id) "
+                        "WHERE id=? AND effect='write' AND status='UNKNOWN'",
+                        (final_status, "reconciled_landed" if landed else "reconciled_not_landed",
+                         time.time(), str(evidence_id or ""), str(invocation_id)),
+                    )
+                    if changed.rowcount != 1:
+                        return False
+                    db.execute("DELETE FROM runtime_resource_locks WHERE invocation_id=?",
+                               (str(invocation_id),))
+                    self._event(db, trace, "write.reconciled", {
+                        "invocation_id": str(invocation_id)[:120],
+                        "status": final_status, "landed": bool(landed),
+                    })
+            return True
+        except Exception:
+            return False
+
+    def sweep_stale_writes(self, max_running_seconds: float = 300.0) -> list[dict]:
+        """Restart reconciliation: write còn RUNNING sau crash chuyển UNKNOWN, KHÔNG chạy lại.
+
+        Lock của chúng được GIỮ để không có write mới nào đè lên cùng tài nguyên
+        trước khi người dùng hoặc read reconcile kết luận.
+        """
+        # Chỉ gọi lúc khởi động, khi chắc chắn không có write nào đang bay trong tiến
+        # trình này. Ngưỡng nhỏ hơn chỉ dùng cho test.
+        cutoff = time.time() - max(0.0, float(max_running_seconds if max_running_seconds
+                                              is not None else 300.0))
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    rows = [dict(r) for r in db.execute(
+                        "SELECT id,task_id,capability_id,resource_lock_key FROM runtime_invocations "
+                        "WHERE effect='write' AND status='RUNNING' AND updated_at<?", (cutoff,)
+                    )]
+                    for row in rows:
+                        db.execute(
+                            "UPDATE runtime_invocations SET status='UNKNOWN',"
+                            "error_code='process_restart',updated_at=? WHERE id=?",
+                            (time.time(), row["id"]),
+                        )
+                        db.execute(
+                            "INSERT INTO runtime_events(task_id,step_id,event_type,"
+                            "payload_json,created_at) VALUES(?,?,?,?,?)",
+                            (row["task_id"], None, "write.unknown_after_restart",
+                             json.dumps({"invocation_id": row["id"],
+                                         "capability_id": row["capability_id"]},
+                                        ensure_ascii=False, separators=(",", ":")),
+                             time.time()),
+                        )
+                    # PREPARED quá hạn chưa từng chạy: an toàn để bỏ và nhả lock.
+                    expired = [r[0] for r in db.execute(
+                        "SELECT id FROM runtime_invocations WHERE effect='write' "
+                        "AND status='PREPARED' AND expires_at<=?", (time.time(),)
+                    )]
+                    for invocation_id in expired:
+                        db.execute(
+                            "UPDATE runtime_invocations SET status='FAILED_FINAL',"
+                            "error_code='confirmation_expired',updated_at=? WHERE id=?",
+                            (time.time(), invocation_id),
+                        )
+                        db.execute("DELETE FROM runtime_resource_locks WHERE invocation_id=?",
+                                   (invocation_id,))
+                return rows
+        except Exception:
+            return []
+
+    def get_invocation(self, invocation_id: str) -> Optional[dict]:
+        try:
+            with self._lock:
+                row = self._conn().execute(
+                    "SELECT * FROM runtime_invocations WHERE id=?", (str(invocation_id),)
+                ).fetchone()
+                return dict(row) if row else None
+        except Exception:
+            return None
 
     def persist_evidence_metadata(self, trace: Optional[TurnTrace], evidence_id: str,
                                   source_type: str, source_ref: str, content_type: str,

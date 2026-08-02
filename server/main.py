@@ -71,6 +71,7 @@ import capability_executor   # Phase 6: one-use read lease + schema validation
 import readonly_path_runtime # Phase 6: exact-schema, two-round read-only canary
 import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
+import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -95,6 +96,13 @@ _CAPABILITY_EXECUTOR = capability_executor.CapabilityExecutor(
 _READONLY_PATH = None
 _READONLY_ORCHESTRATOR = None
 _ADAPTIVE_CONTEXT = None
+_WRITE_PATH = None
+# Tham số write ĐÃ ĐƯỢC DUYỆT, giữ trong RAM theo invocation_id. Cố ý KHÔNG persist:
+# raw arguments không được vào runtime store (bất biến privacy từ Phase 0). Hệ quả có
+# chủ đích: khởi động lại tiến trình là mất phần duyệt, và lượt xác nhận fail-closed
+# thay vì chạy một hành động ghi mà Javis không còn đọc lại được tham số.
+_WRITE_PENDING_ARGS: dict[str, dict] = {}
+_WRITE_PENDING_ARGS_MAX = 64
 _REGISTRY_SHADOW_TASKS = set()
 # CORS KHÔNG dùng '*' nữa: dashboard cùng-origin (không cần CORS). Chỉ mở cross-origin cho localhost
 # (tiện dev). Chống trang web độc ĐỌC API qua trình duyệt; phần chống GHI/CSRF ở _csrf_guard bên dưới.
@@ -924,6 +932,234 @@ def _get_adaptive_context():
             _CONTEXT_RUNTIME, cfgmod.read_settings,
         )
     return _ADAPTIVE_CONTEXT
+
+
+def _get_write_path():
+    """Phase 9 khởi tạo lười; mặc định allocation=0 nên không tốn gì trên hot path."""
+    global _WRITE_PATH
+    if _WRITE_PATH is None:
+        async def _discover(mode, brain_root):
+            actual_mode = "full" if mode == "refresh_full" else mode
+            await mcp_hub.discover_all(
+                actual_mode, vault_root=brain_root,
+                force_refresh=(mode == "refresh_full"),
+            )
+            return mcp_hub.registry_inventory(actual_mode, vault_root=brain_root)
+
+        _WRITE_PATH = write_path_runtime.WritePathCanary(
+            _CAPABILITY_REGISTRY, _CAPABILITY_RESOLVER, _CONTEXT_COMPILER,
+            _CONTEXT_RUNTIME, _CAPABILITY_EXECUTOR, cfgmod.read_settings, _discover,
+        )
+    return _WRITE_PATH
+
+
+async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
+                                  reasoning: str, ws, session_id: str, runtime_trace):
+    """Vòng 1 của Phase 9: model chỉ LẬP tham số, gateway ghi ý định rồi HỎI người dùng.
+
+    Không có nhánh nào trong hàm này gọi tool. Write chỉ chạy ở lượt sau, khi
+    người dùng gõ lại đúng mã xác nhận.
+    """
+    actual_model = model or "?"
+    lease = plan.lease
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write_path.proposal_started", {
+        "provider": provider, "model": actual_model, "model_rounds": 1,
+        "capability_id": lease.capability_id, "capability_revision": lease.revision,
+        "schema_hash": lease.schema_hash, "policy_version": plan.policy_version,
+        "profile_id": (plan.profile or {}).get("id", ""),
+    })
+    planned = await engine.single_tool_plan(
+        provider, api_key, model, list(plan.messages), reasoning, plan.tool_spec
+    )
+    tokens_in = int(planned.get("input") or 0)
+    tokens_out = int(planned.get("output") or 0)
+    if planned.get("model"):
+        actual_model = planned["model"]
+        _CONTEXT_RUNTIME.set_route(runtime_trace, provider, actual_model)
+    _CONTEXT_RUNTIME.consume_quota(runtime_trace, plan.reservation_id, tokens_in, tokens_out)
+    if tokens_in or tokens_out:
+        usage_store.record(provider, actual_model, tokens_in, tokens_out)
+    if planned.get("status") != "ok":
+        _CONTEXT_RUNTIME.revoke_capability_lease(
+            runtime_trace, lease.lease_id, planned.get("error_code") or "planner_failed")
+        text = ("Model không lập được tham số đúng hợp đồng cho hành động ghi này. "
+                "Javis đã dừng an toàn, chưa gọi tool và chưa thay đổi gì.")
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write_path.failed", {
+            "stage": "argument_planner", "error_code": planned.get("error_code") or "unknown",
+            "model_rounds": 1, "tool_calls": 0,
+        })
+        await ws.send_text(json.dumps({
+            "type": "response", "content": text, "engine": "javis-gateway",
+            "model": actual_model, "session_id": session_id,
+        }))
+        return text, actual_model
+
+    args = planned.get("arguments") or {}
+    valid, error_code = _CAPABILITY_EXECUTOR._validate(lease, args)
+    if not valid:
+        _CONTEXT_RUNTIME.revoke_capability_lease(runtime_trace, lease.lease_id, error_code)
+        text = ("Tham số model đề xuất không đạt JSON Schema của capability. "
+                "Javis chưa gọi tool và chưa thay đổi gì.")
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write_path.failed", {
+            "stage": "argument_validation", "error_code": error_code,
+            "model_rounds": 1, "tool_calls": 0,
+        })
+        await ws.send_text(json.dumps({
+            "type": "response", "content": text, "engine": "javis-gateway",
+            "model": actual_model, "session_id": session_id,
+        }))
+        return text, actual_model
+
+    registered = _get_write_path().register_proposal(
+        runtime_trace, plan, args, session_id)
+    status = registered.get("status")
+    if status == "duplicate":
+        text = ("Hành động này đã được ghi nhận trước đó nên Javis KHÔNG chạy lại. "
+                f"Trạng thái hiện tại: {registered.get('invocation_status')}.")
+    elif status == "locked":
+        text = ("Đang có một hành động ghi khác trên cùng tài nguyên chưa kết thúc. "
+                "Javis dừng để tránh ghi chồng; anh xử lý xong việc kia rồi nhắn lại.")
+    elif status != "prepared":
+        text = ("Không ghi được ý định vào sổ nên Javis dừng trước khi gọi tool. "
+                "Chưa có gì thay đổi.")
+    else:
+        code = registered.get("confirmation_code", "")
+        summary = ", ".join(f"{k}={json.dumps(v, ensure_ascii=False)}"
+                            for k, v in sorted(args.items()))[:600]
+        text = (
+            f"Javis chuẩn bị chạy hành động ghi: {lease.capability_name}.\n"
+            f"Tham số: {summary}\n\n"
+            f"Việc này thay đổi dữ liệu thật và không tự hoàn tác được, nên Javis "
+            f"CHƯA chạy. Muốn chạy thì anh nhắn lại đúng câu: XAC NHAN {code}\n"
+            f"Không muốn nữa thì nhắn: huỷ"
+        )
+    if status != "prepared":
+        _CONTEXT_RUNTIME.revoke_capability_lease(
+            runtime_trace, lease.lease_id, str(status or "register_failed"))
+    if status == "prepared":
+        invocation_id = str(registered.get("invocation_id") or "")
+        if len(_WRITE_PENDING_ARGS) >= _WRITE_PENDING_ARGS_MAX:
+            _WRITE_PENDING_ARGS.pop(next(iter(_WRITE_PENDING_ARGS)), None)
+        _WRITE_PENDING_ARGS[invocation_id] = dict(args)
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write_path.proposed", {
+        "register_status": status, "model_rounds": 1, "tool_calls": 0,
+        "capability_id": lease.capability_id,
+        "invocation_id": registered.get("invocation_id", ""),
+    })
+    await ws.send_text(json.dumps({
+        "type": "response", "content": text, "engine": provider,
+        "model": actual_model, "session_id": session_id,
+    }))
+    return text, actual_model
+
+
+async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
+                                      brain, provider: str, model: str):
+    """Vòng 2 của Phase 9: người dùng đã gõ đúng mã, giờ mới chạy write ĐÚNG MỘT lần.
+
+    Không có model call nào ở vòng này. Tham số đã được duyệt ở vòng trước và được
+    khoá bằng args_hash, nên model không còn cơ hội đổi ý giữa duyệt và chạy.
+    """
+    invocation = plan.invocation or {}
+    canary = _get_write_path()
+    policy = canary.policy()
+    capability_id = str(invocation.get("capability_id") or "")
+    records = _CAPABILITY_REGISTRY.get_capabilities([capability_id], _brain_root(brain))
+    profile = policy.profile_for(records[0]) if len(records) == 1 else None
+    if (len(records) != 1 or profile is None or
+            records[0].get("capability_revision") != invocation.get("capability_revision")):
+        _CONTEXT_RUNTIME.finish_write_invocation(
+            runtime_trace, str(invocation.get("id") or ""),
+            str(invocation.get("lease_id") or ""), "FAILED_VALIDATION",
+            error_code="capability_changed_since_proposal")
+        text = ("Capability đã thay đổi kể từ lúc Javis đề xuất, nên hành động ghi bị "
+                "huỷ để không chạy nhầm phiên bản cũ. Chưa có gì thay đổi.")
+        await ws.send_text(json.dumps({
+            "type": "response", "content": text, "engine": "javis-gateway",
+            "model": model, "session_id": session_id,
+        }))
+        return text
+
+    # Đọc lại arguments đã duyệt từ chính lease + args_hash: raw arguments KHÔNG được
+    # lưu ở trace, nên vòng này lấy lại qua evidence store của đề xuất.
+    args = _WRITE_PENDING_ARGS.pop(str(invocation.get("id") or ""), None)
+    if args is None:
+        _CONTEXT_RUNTIME.finish_write_invocation(
+            runtime_trace, str(invocation.get("id") or ""),
+            str(invocation.get("lease_id") or ""), "FAILED_FINAL",
+            error_code="approved_arguments_unavailable")
+        text = ("Javis không còn giữ tham số đã được duyệt (tiến trình đã khởi động lại), "
+                "nên không chạy hành động ghi này. Anh nhắn lại yêu cầu để Javis đề xuất mới.")
+        await ws.send_text(json.dumps({
+            "type": "response", "content": text, "engine": "javis-gateway",
+            "model": model, "session_id": session_id,
+        }))
+        return text
+
+    try:
+        _tools, route = await mcp_hub.discover_all("write", vault_root=_brain_root(brain))
+        route_entry = route.get(records[0]["name"])
+    except Exception as exc:
+        route_entry = None
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write.discovery_failed", {
+            "mode": "confirm", "error_type": type(exc).__name__})
+    if not route_entry or not callable(route_entry.get("call")) or \
+            str(route_entry.get("effect") or "") != "write":
+        _CONTEXT_RUNTIME.finish_write_invocation(
+            runtime_trace, str(invocation.get("id") or ""),
+            str(invocation.get("lease_id") or ""), "FAILED_FINAL",
+            error_code="write_route_unavailable")
+        text = "Không còn đường gọi tool ghi này, Javis dừng an toàn. Chưa có gì thay đổi."
+        await ws.send_text(json.dumps({
+            "type": "response", "content": text, "engine": "javis-gateway",
+            "model": model, "session_id": session_id,
+        }))
+        return text
+
+    await ws.send_text(json.dumps({
+        "type": "tool_call", "tool": records[0]["name"],
+        "content": f"⚙ MCP write (đã xác nhận): {records[0]['name']}",
+    }))
+    outcome = await canary.execute_confirmed(
+        runtime_trace, invocation, route_entry["call"], args,
+        float(profile.get("timeout_seconds") or 30),
+        str(invocation.get("actor_hash") or ""),
+    )
+    status = outcome.get("status")
+    if status == "UNKNOWN":
+        reconciled = await canary.reconcile_unknown(
+            runtime_trace, invocation, _brain_root(brain), profile)
+        if reconciled.get("status") == "SUCCEEDED":
+            text = ("Kết nối bị gián đoạn giữa chừng nên Javis đã kiểm chứng lại bằng một "
+                    "lệnh đọc: hành động ĐÃ được thực hiện. Javis không chạy lại.")
+        elif reconciled.get("status") == "FAILED_FINAL":
+            text = ("Kết nối bị gián đoạn, Javis kiểm chứng lại bằng lệnh đọc và thấy hành "
+                    "động CHƯA được thực hiện. Anh nhắn lại nếu muốn Javis làm lại.")
+        else:
+            text = ("Kết nối bị gián đoạn và Javis KHÔNG kiểm chứng được là hành động đã "
+                    "chạy hay chưa. Javis tuyệt đối không chạy lại để tránh làm hai lần. "
+                    "Anh kiểm tra trực tiếp bên hệ thống đích rồi báo lại giúp em.")
+    elif status == "SUCCEEDED":
+        evidence = outcome.get("evidence")
+        text = "Đã thực hiện xong hành động ghi."
+        if evidence is not None:
+            text += f"\n\nNguồn: {evidence.ref}"
+    elif status == "FAILED_FINAL":
+        text = ("Tool báo lỗi rõ ràng nên hành động KHÔNG được thực hiện. "
+                f"Mã lỗi: {outcome.get('error_code')}.")
+    else:
+        text = ("Javis dừng trước khi gọi tool vì ý định ghi không còn hợp lệ. "
+                f"Mã: {outcome.get('error_code')}.")
+    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write_path.completed", {
+        "status": status, "model_rounds": 0, "tool_calls": 1 if status != "REJECTED" else 0,
+        "capability_id": capability_id,
+        "invocation_id": outcome.get("invocation_id", ""),
+    })
+    await ws.send_text(json.dumps({
+        "type": "response", "content": text, "engine": "javis-gateway",
+        "model": model, "session_id": session_id,
+    }))
+    return text
 
 
 def _track_shadow_task(coro) -> None:
@@ -6145,7 +6381,59 @@ async def websocket_endpoint(ws: WebSocket):
                 orchestrator_plan = None
                 readonly_plan = None
                 fast_plan = None
+                write_plan = None
+                confirm_plan = None
                 if kind == "api" and api_key:
+                    # Phase 9 xét TRƯỚC: lượt này có thể là câu xác nhận cho một hành
+                    # động ghi đã đề xuất ở lượt trước, không phải một yêu cầu mới.
+                    try:
+                        confirm_plan = _get_write_path().pending_for(conv_sid, user_message)
+                    except Exception as _exc:
+                        confirm_plan = None
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "write.confirm_lookup_error",
+                            {"error_type": type(_exc).__name__})
+                    if confirm_plan is None or confirm_plan.action != "execute":
+                        try:
+                            write_plan = await _get_write_path().prepare(
+                                runtime_trace, user_message, _brain_root(brain),
+                                "dashboard", prov, api_model or "?", kind,
+                                actor_id=conv_sid, has_attachments=bool(has_attachments),
+                            )
+                        except Exception as _exc:
+                            write_plan = None
+                            _CONTEXT_RUNTIME.record_runtime_event(
+                                runtime_trace, "write.prepare_error",
+                                {"error_type": type(_exc).__name__})
+                write_handled = False
+                if confirm_plan is not None and confirm_plan.action == "execute":
+                    used_fast_path = True
+                    write_handled = True
+                    final_text = await _execute_write_confirmation(
+                        confirm_plan, ws, conv_sid, runtime_trace, brain, prov,
+                        api_model or "?",
+                    )
+                elif write_plan is not None and write_plan.action == "propose":
+                    used_fast_path = True
+                    write_handled = True
+                    final_text, _actual_model = await _execute_write_proposal(
+                        write_plan, prov, api_key, api_model, reasoning, ws, conv_sid,
+                        runtime_trace,
+                    )
+                elif write_plan is not None and write_plan.action == "reject":
+                    used_fast_path = True
+                    write_handled = True
+                    final_text = write_plan.rejection_message
+                    _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "write_path.rejected", {
+                        "reason": write_plan.reason, "model_rounds": 0,
+                        "estimated_input_tokens": write_plan.estimated_input_tokens,
+                    })
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text,
+                        "engine": "javis-gateway", "model": api_model or "?",
+                        "session_id": conv_sid,
+                    }))
+                elif kind == "api" and api_key:
                     # Mọi exception trong prepare của canary phải rơi tiếp xuống nhánh
                     # sau (cuối cùng là legacy), không được phá lượt chat (spec mục 23).
                     try:
@@ -6183,7 +6471,9 @@ async def websocket_endpoint(ws: WebSocket):
                                 _CONTEXT_RUNTIME.record_runtime_event(
                                     runtime_trace, "fast_path.prepare_error",
                                     {"error_type": type(_exc).__name__})
-                if orchestrator_plan and orchestrator_plan.action == "execute":
+                if write_handled:
+                    pass
+                elif orchestrator_plan and orchestrator_plan.action == "execute":
                     used_fast_path = True
                     final_text, _actual_model = await _execute_readonly_orchestrator(
                         orchestrator_plan, prov, api_key, api_model, reasoning, ws,
@@ -7545,6 +7835,13 @@ async def _warm_mcp_hub():
     async def _w():
         try:
             await asyncio.to_thread(_EVIDENCE_STORE.cleanup)
+            # Phase 9 restart reconciliation: write còn RUNNING sau khi tiến trình chết
+            # KHÔNG được chạy lại; chuyển UNKNOWN và giữ resource lock cho tới khi có
+            # kết luận. Chạy trước khi nhận lượt chat đầu tiên.
+            stale = await asyncio.to_thread(_CONTEXT_RUNTIME.sweep_stale_writes)
+            if stale:
+                print(f"[write ledger] {len(stale)} write chuyển UNKNOWN sau restart",
+                      file=__import__('sys').stderr)
             await asyncio.sleep(3)
             if _hub_enabled():
                 await mcp_hub.discover_all("full")
