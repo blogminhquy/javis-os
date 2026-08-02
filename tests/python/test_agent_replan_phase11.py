@@ -72,7 +72,22 @@ def _stack(tmp_path, settings=None, gate=None):
 
 
 def _executor(calls, fail_on=()):
+    """Ghi lại MỌI node đã chạy, kể cả node capability.
+
+    Node capability đi qua capability_runner chứ không qua executor prompt, nên nếu
+    chỉ ghi ở executor thì các assert "node này tuyệt đối không được chạy" sẽ xanh
+    một cách giả tạo - test không còn thấy node capability chạy nữa.
+    """
     async def run(node, prompt):
+        calls.append(node.id)
+        if node.id in fail_on:
+            return {"error": "boom", "output": ""}
+        return {"output": f"out-{node.id}"}
+    return run
+
+
+def _capability_runner_for(calls, fail_on=()):
+    async def run(node, approved):
         calls.append(node.id)
         if node.id in fail_on:
             return {"error": "boom", "output": ""}
@@ -89,8 +104,10 @@ def _planner(*batches):
     return plan
 
 
-def _run(runner, trace, graph, executor, planner, tmp_path):
-    return asyncio.run(runner.run(trace, graph, "cà phê", "sid-agent", executor, planner))
+def _run(runner, trace, graph, executor, planner, tmp_path, calls=None, fail_on=()):
+    return asyncio.run(runner.run(
+        trace, graph, "cà phê", "sid-agent", executor, planner,
+        capability_runner=_capability_runner_for(calls if calls is not None else [], fail_on)))
 
 
 # ------------------------------------------------- không cấp thêm quyền
@@ -104,7 +121,7 @@ def test_replan_cannot_introduce_an_ungranted_capability(tmp_path):
     result = _run(runner, trace, graph, _executor(calls), _planner([
         {"kind": "capability", "capability": "mail_send_KHONG_DUOC_CAP",
          "effect": "read", "depends_on": ["b"]},
-    ]), tmp_path)
+    ]), tmp_path, calls)
     assert result.status == "ESCALATED"
     assert "replan_capability_not_granted" in result.stop_reason
     assert calls == ["a", "b"], "node vượt quyền tuyệt đối không được chạy"
@@ -120,7 +137,7 @@ def test_replan_cannot_introduce_a_write_when_none_was_granted(tmp_path):
     result = _run(runner, trace, graph, _executor(calls), _planner([
         {"kind": "capability", "capability": "cal_list", "effect": "write",
          "depends_on": ["b"]},
-    ]), tmp_path)
+    ]), tmp_path, calls)
     assert result.status == "ESCALATED"
     assert result.stop_reason == "replan_write_not_granted"
     assert calls == ["a", "b"]
@@ -134,7 +151,7 @@ def test_replan_cannot_summon_an_ungranted_agent(tmp_path):
     calls = []
     result = _run(runner, trace, graph, _executor(calls), _planner([
         {"kind": "model_step", "agent": "agent-la-hoac", "task": "x", "depends_on": ["b"]},
-    ]), tmp_path)
+    ]), tmp_path, calls)
     assert result.status == "ESCALATED"
     assert "replan_agent_not_granted" in result.stop_reason
 
@@ -167,7 +184,7 @@ def test_one_bad_node_stops_the_whole_round(tmp_path):
     result = _run(runner, trace, graph, _executor(calls), _planner([
         {"kind": "model_step", "agent": "researcher", "task": "hợp lệ", "depends_on": ["b"]},
         {"kind": "capability", "capability": "khong-duoc-cap", "effect": "read"},
-    ]), tmp_path)
+    ]), tmp_path, calls)
     assert result.status == "ESCALATED"
     assert calls == ["a", "b"], "cả lô bị chặn, kể cả node hợp lệ"
 
@@ -183,7 +200,7 @@ def test_valid_replan_runs_only_the_new_nodes(tmp_path):
     calls = []
     result = _run(runner, trace, graph, _executor(calls), _planner([
         {"kind": "model_step", "agent": "researcher", "task": "đào sâu", "depends_on": ["b"]},
-    ]), tmp_path)
+    ]), tmp_path, calls)
     assert result.status == "COMPLETED"
     assert result.replan_rounds == 1
     assert result.added_node_ids == ("r1_0",)
@@ -201,7 +218,7 @@ def test_replan_can_reuse_capabilities_already_granted(tmp_path):
     calls = []
     result = _run(runner, trace, graph, _executor(calls), _planner([
         {"kind": "capability", "capability": "cal_list", "effect": "read", "depends_on": ["b"]},
-    ]), tmp_path)
+    ]), tmp_path, calls)
     assert result.status == "COMPLETED" and calls == ["a", "b", "r1_0"]
 
 
@@ -256,7 +273,7 @@ def test_repeated_failure_signature_escalates(tmp_path):
     calls = []
     good = {"kind": "model_step", "agent": "researcher", "task": "thêm"}
     result = _run(runner, trace, graph, _executor(calls, fail_on=("b",)),
-                  _planner([good], [good], [good], [good]), tmp_path)
+                  _planner([good], [good], [good], [good]), tmp_path, calls, ("b",))
     assert result.status == "ESCALATED"
     assert result.stop_reason == "repeated_failure_signature"
     assert result.escalation, "phải có lời giải thích cho người dùng"

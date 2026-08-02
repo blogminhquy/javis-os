@@ -257,7 +257,8 @@ class AgentRunner:
 
     async def run(self, trace, graph: WorkflowGraph, input_text: str, session_id: str,
                   executor, planner: Planner,
-                  emit: Callable[[dict], Awaitable[None]] | None = None) -> AgentRunResult:
+                  emit: Callable[[dict], Awaitable[None]] | None = None,
+                  capability_runner=None) -> AgentRunResult:
         policy = self.policy()
         grant = CapabilityGrant.from_graph(graph)
         events: list[dict] = []
@@ -277,7 +278,7 @@ class AgentRunner:
         while True:
             result = await self.canary.run(
                 trace, current, input_text, session_id, executor, _emit,
-                resume_state=state)
+                resume_state=state, capability_runner=capability_runner)
             # `_emit` đã gom event vào `events` rồi; đừng gộp thêm result.events, vì
             # phép loại trùng theo GIÁ TRỊ sẽ nuốt mất event lặp lại một cách hợp lệ.
             state = self.canary.load_state(result.task_id) if result.task_id else None

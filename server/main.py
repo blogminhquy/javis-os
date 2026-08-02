@@ -4600,6 +4600,31 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
             router=model_router.ModelRouter(cfgmod.read_settings),
             session_id=session_id or f"wf:{slug}")
 
+    async def capability_runner(node, approved):
+        """Node capability của workflow.
+
+        Tham số là TĨNH, do người viết workflow khai trong file - không phải do model
+        sinh - nên đường này an toàn hơn Phase 9 một bậc. Nhưng node ghi vẫn phải đi
+        qua đúng sổ ghi của Phase 9 để giữ chống chạy trùng và trạng thái UNKNOWN.
+        """
+        try:
+            tools, route = await mcp_hub.discover_all(
+                "full", vault_root=_brain_root(brain))
+        except Exception as exc:
+            return {"output": "", "error": f"discover_failed:{type(exc).__name__}"}
+        entry = (route or {}).get(node.capability_name or node.capability_id)
+        blocked = workflow_capability_guard(node, entry, approved)
+        if blocked:
+            return {"output": "", "error": blocked}
+        try:
+            result = await entry["call"](dict(node.arguments or {}))
+        except Exception as exc:
+            return {"output": "", "error": f"capability_error:{type(exc).__name__}"}
+        text = str(result)
+        if text.startswith("ERROR:"):
+            return {"output": "", "error": "capability_returned_error"}
+        return {"output": text[:20000]}
+
     async def planner(objective, summary, granted):
         """Phase 11 mặc định KHÔNG tự đề xuất gì.
 
@@ -4616,7 +4641,8 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
                     canary, cfgmod.read_settings, _QUALITY_GATE)
                 agent_result = await runner.run(
                     trace, graph, input or "", session_id or f"wf:{slug}",
-                    node_executor, planner, sink)
+                    node_executor, planner, sink,
+                    capability_runner=capability_runner)
                 # Giữ nguyên trạng thái thật. Gộp "đang chờ người duyệt" hay "đã
                 # chuyển lại cho người" thành FAILED là ghi sai vào trace: chúng là
                 # kết cục BÌNH THƯỜNG, không phải hỏng.
@@ -4625,7 +4651,8 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
                     agent_result.stop_reason, agent_result.task_id,
                     pending_node_id=agent_result.output_node_id)
             return await canary.run(trace, graph, input or "", session_id or f"wf:{slug}",
-                                    node_executor, sink)
+                                    node_executor, sink,
+                                    capability_runner=capability_runner)
         finally:
             await queue.put(None)
 
@@ -4770,6 +4797,107 @@ async def execute_workflow(brain, slug, input="", tools=None, session_id=""):
         yield {"type": "step_done", "i": i, "agent": agent_name, "output": out, "verified": verified}
         _log_agent_run(brain, agent_slug, task_f, out)
     yield {"type": "done", "result": prev}
+
+
+def workflow_capability_guard(node, route_entry, approved: bool) -> str:
+    """Hàng rào cuối trước khi chạy một node capability. Rỗng = cho chạy.
+
+    Tách ra thành hàm gọi được là có chủ đích: tầng workflow_runtime đã dừng ở node
+    ghi trước khi tới đây, nên đây là LỚP THỨ HAI và không bao giờ được chạm tới ở
+    luồng bình thường. Một hàng rào không kiểm được là hàng rào không tin được.
+    """
+    if not route_entry or not callable(route_entry.get("call")):
+        return "capability_route_missing"
+    effect = str(route_entry.get("effect") or "read")
+    if effect not in ("none", "read", "write"):
+        return f"effect_not_allowed:{effect}"
+    if effect == "write" and not approved:
+        return "write_without_approval"
+    return ""
+
+
+async def execute_workflow_resume(brain, slug, task_id, node_id, code, tools=None,
+                                  session_id=""):
+    """Duyệt xong thì chạy tiếp workflow đang dừng. Yield event như /workflows/run."""
+    graph = load_workflow_graph(brain, slug)
+    if graph is None:
+        yield {"type": "error", "content": "workflow not found"}
+        return
+    trace = _CONTEXT_RUNTIME.resume_trace(task_id)
+    if trace is None:
+        yield {"type": "error", "content": "Không tìm thấy hoặc không resume được task này."}
+        return
+    canary = _get_workflow_canary(brain)
+    mk, agent_sysprompt = _workflow_agent_helpers(brain, tools)
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def sink(event):
+        await queue.put(event)
+
+    async def node_executor(node, prompt):
+        if node.kind != "model_step":
+            return {"output": "", "error": f"node_kind_not_executable:{node.kind}"}
+        return await _run_workflow_step(
+            node, prompt, mk, agent_sysprompt, sink,
+            router=model_router.ModelRouter(cfgmod.read_settings),
+            session_id=session_id or f"wf:{slug}")
+
+    async def capability_runner(node, approved):
+        try:
+            _tools, route = await mcp_hub.discover_all("full", vault_root=_brain_root(brain))
+        except Exception as exc:
+            return {"output": "", "error": f"discover_failed:{type(exc).__name__}"}
+        entry = (route or {}).get(node.capability_name or node.capability_id)
+        blocked = workflow_capability_guard(node, entry, approved)
+        if blocked:
+            return {"output": "", "error": blocked}
+        try:
+            result = await entry["call"](dict(node.arguments or {}))
+        except Exception as exc:
+            return {"output": "", "error": f"capability_error:{type(exc).__name__}"}
+        text = str(result)
+        return ({"output": "", "error": "capability_returned_error"}
+                if text.startswith("ERROR:") else {"output": text[:20000]})
+
+    async def drive():
+        try:
+            return await canary.resume(
+                trace, task_id, graph, node_executor, sink,
+                confirmed_node_id=str(node_id or ""),
+                confirmation_code=str(code or ""),
+                capability_runner=capability_runner)
+        finally:
+            await queue.put(None)
+
+    task = asyncio.create_task(drive())
+    while True:
+        event = await queue.get()
+        if event is None:
+            break
+        yield event
+    result = await task
+    _CONTEXT_RUNTIME.finish(
+        trace, "COMPLETED" if result.status == "COMPLETED" else "COMPLETED_WITH_ERROR",
+        result.stop_reason)
+    if result.status == "WAITING_USER":
+        yield {"type": "wait_user", "node": result.pending_node_id,
+               "task_id": task_id, "reason": result.stop_reason}
+
+
+@app.get("/workflows/resume")
+async def resume_workflow(task_id: str = Query(...), node: str = Query(...),
+                          code: str = Query(...), slug: str = Query(...),
+                          brain: str = Query("brain")):
+    """Duyệt một node đang chờ rồi chạy tiếp. Mã sai thì workflow đứng yên."""
+    def sse(obj):
+        return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+    async def gen():
+        async for ev in execute_workflow_resume(brain, slug, task_id, node, code):
+            yield sse(ev)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/workflows/run")

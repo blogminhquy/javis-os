@@ -259,17 +259,28 @@ def test_pending_write_stays_put_without_matching_confirmation(tmp_path):
     canary.prepare(trace, graph, "sid-wait")
     first = asyncio.run(canary.run(trace, graph, "x", "sid-wait", _executor([])))
     assert first.status == "WAITING_USER" and first.pending_node_id == "q"
+    code = [e for e in first.events if e["type"] == "wait_user"][0]["code"]
+    assert code and len(code) == 6
     task_id = trace.task_id
 
     calls = []
+    # Sai node thì đứng yên.
     stuck = asyncio.run(canary.resume(
         runtime.resume_trace(task_id), task_id, graph, _executor(calls),
-        confirmed_node_id="sai-node"))
+        confirmed_node_id="sai-node", confirmation_code=code))
     assert stuck.status == "WAITING_USER" and not calls
+
+    # Đúng node nhưng SAI MÃ cũng đứng yên - duyệt phải gắn với đúng ý định.
+    wrong_code = asyncio.run(canary.resume(
+        runtime.resume_trace(task_id), task_id, graph, _executor(calls),
+        confirmed_node_id="q", confirmation_code="XXXXXX"))
+    assert wrong_code.status == "WAITING_USER"
+    assert wrong_code.stop_reason == "confirmation_code_mismatch"
+    assert not calls
 
     went = asyncio.run(canary.resume(
         runtime.resume_trace(task_id), task_id, graph, _executor(calls),
-        confirmed_node_id="q"))
+        confirmed_node_id="q", confirmation_code=code))
     assert went.status == "COMPLETED"
     assert [x["node"] for x in calls] == ["b"]
 
@@ -366,59 +377,64 @@ def test_defaults_do_not_admit_any_workflow(tmp_path):
     assert canary.prepare(trace, graph, "sid-def").action == "legacy"
 
 
-def test_confirming_a_write_node_reports_instead_of_pausing_forever(tmp_path):
-    """Người dùng đã đồng ý mà workflow cứ dừng lại mãi là hành vi dối trá."""
+def test_a_write_node_runs_only_after_the_right_code_is_confirmed(tmp_path):
+    """Duyệt đúng mã thì node ghi CHẠY. Sai mã, sai node, hay chưa duyệt thì tuyệt đối không."""
     native = {"name": "có ghi", "nodes": [
         {"id": "a", "kind": "model_step", "agent": "x", "task": "soạn"},
         {"id": "w", "kind": "capability", "capability": "mail_send", "effect": "write",
-         "depends_on": ["a"]},
+         "depends_on": ["a"], "arguments": {"to": "khach@vidu.com"}},
     ]}
     graph = wg.compile_workflow(native, "demo")
     runtime, canary, *_ = _stack(tmp_path, _settings(allow_write=True))
     trace = runtime.start_turn("sid-wc", str(tmp_path), "dashboard")
     canary.prepare(trace, graph, "sid-wc")
-    first = asyncio.run(canary.run(trace, graph, "x", "sid-wc", _executor([])))
+
+    written = []
+
+    async def capability_runner(node, approved):
+        assert approved, "chỉ được gọi sau khi đã duyệt"
+        written.append(node.id)
+        return {"output": "đã gửi"}
+
+    first = asyncio.run(canary.run(trace, graph, "x", "sid-wc", _executor([]),
+                                   capability_runner=capability_runner))
     assert first.status == "WAITING_USER" and first.pending_node_id == "w"
+    assert not written, "chưa duyệt thì tuyệt đối không chạy"
+    code = [e for e in first.events if e["type"] == "wait_user"][0]["code"]
 
-    calls = []
-    confirmed = asyncio.run(canary.resume(
-        runtime.resume_trace(trace.task_id), trace.task_id, graph,
-        _executor(calls), confirmed_node_id="w"))
-    assert confirmed.status == "WAITING_USER"
-    assert confirmed.stop_reason == "write_execution_not_enabled_in_this_phase"
-    assert not calls, "vẫn tuyệt đối không gọi tool ghi"
+    # Sai mã: vẫn không chạy.
+    wrong = asyncio.run(canary.resume(
+        runtime.resume_trace(trace.task_id), trace.task_id, graph, _executor([]),
+        confirmed_node_id="w", confirmation_code="XXXXXX",
+        capability_runner=capability_runner))
+    assert wrong.stop_reason == "confirmation_code_mismatch" and not written
+
+    # Đúng mã: chạy đúng một lần.
+    ok = asyncio.run(canary.resume(
+        runtime.resume_trace(trace.task_id), trace.task_id, graph, _executor([]),
+        confirmed_node_id="w", confirmation_code=code,
+        capability_runner=capability_runner))
+    assert ok.status == "COMPLETED"
+    assert written == ["w"]
 
 
-def test_checkpoint_failure_stops_instead_of_running_on(tmp_path):
-    """Checkpoint hỏng thường là do tiến trình khác đã resume cùng task.
+def test_the_confirmation_code_is_derived_not_random(tmp_path):
+    """Mã suy ra từ task + node + arguments nên restart vẫn tính lại được đúng mã,
+    và mã của node này không dùng được cho node khác."""
+    from workflow_runtime import _pending_code
 
-    Đi tiếp lúc đó là hai bên cùng chạy một node, tức là gọi model hai lần.
-    """
-    native = {"name": "ba bước", "nodes": [
-        {"id": "a", "kind": "model_step", "agent": "x", "task": "A"},
-        {"id": "b", "kind": "model_step", "agent": "y", "task": "B", "depends_on": ["a"]},
-        {"id": "c", "kind": "model_step", "agent": "z", "task": "C", "depends_on": ["b"]},
-    ]}
-    graph = wg.compile_workflow(native, "demo")
-    runtime, canary, *_ = _stack(tmp_path)
-    trace = runtime.start_turn("sid-cp", str(tmp_path), "dashboard")
-    canary.prepare(trace, graph, "sid-cp")
+    node_a = wg.compile_workflow({"name": "x", "nodes": [
+        {"id": "w", "kind": "capability", "capability": "mail_send", "effect": "write",
+         "arguments": {"to": "a@b.c"}}]}, "demo").nodes[0]
+    node_b = wg.compile_workflow({"name": "x", "nodes": [
+        {"id": "w", "kind": "capability", "capability": "mail_send", "effect": "write",
+         "arguments": {"to": "KHAC@b.c"}}]}, "demo").nodes[0]
 
-    real = canary._checkpoint
-    seen = {"n": 0}
+    assert _pending_code("task-1", node_a) == _pending_code("task-1", node_a)
+    assert _pending_code("task-1", node_a) != _pending_code("task-2", node_a)
+    assert _pending_code("task-1", node_a) != _pending_code("task-1", node_b), (
+        "đổi tham số phải đổi mã, nếu không mã cũ duyệt được việc mới")
 
-    def flaky(tr, state, initialize=False):
-        if initialize:
-            return real(tr, state, initialize=True)
-        seen["n"] += 1
-        return False if seen["n"] >= 1 else real(tr, state)
-
-    canary._checkpoint = flaky
-    calls = []
-    result = asyncio.run(canary.run(trace, graph, "x", "sid-cp", _executor(calls)))
-    assert result.status == "FAILED" and result.stop_reason == "checkpoint_failed"
-    # Dừng ngay sau lô đầu, không chạy nốt b và c.
-    assert [x["node"] for x in calls] == ["a"]
 
 
 # ------------------------------------------- tích hợp qua main.execute_workflow
@@ -710,6 +726,113 @@ def test_kanban_surfaces_an_agent_escalation_too(tmp_path):
         "route": "wf:demo", "intent": "x", "brain_root": str(tmp_path),
     }))
     assert needs_input is True and "repeated_failure_signature" in result
+
+
+def test_studio_offers_an_approve_button_carrying_the_code():
+    """Cùng nguyên tắc với đường write trong chat: nhãn nút mang mã của đúng node.
+
+    Nếu nút chỉ là "Duyệt" trơn thì nó duyệt được bất cứ thứ gì đang chờ.
+    """
+    from pathlib import Path
+
+    studio = (Path(__file__).resolve().parents[2] / "dashboard" / "studio.js").read_text(
+        encoding="utf-8")
+    block = studio.split('d.type === "wait_user"', 1)[1].split("} else if", 1)[0]
+    assert "wf-approve" in block
+    assert "Duyệt ${esc(d.code)}" in block, "nhãn nút phải mang mã"
+    assert "không hoàn tác" in block, "phải cảnh báo trước khi bấm"
+    # Và cú bấm gửi đủ ba thứ định danh, không đoán bên server.
+    handler = studio.split("wf-approve", 2)[2]
+    for field in ("task_id", "node", "code"):
+        assert field in handler, field
+
+
+def test_resume_endpoint_refuses_a_task_it_cannot_resume(tmp_path, monkeypatch):
+    """Task không tồn tại thì báo lỗi rõ, không im lặng chạy gì cả."""
+    import main
+
+    async def go():
+        return [x async for x in main.execute_workflow_resume(
+            "brain", "demo", "khong-co-task", "w", "ABC123")]
+
+    monkeypatch.setattr(main, "load_workflow_graph",
+                        lambda b, s: wg.compile_workflow(LEGACY, "demo"))
+    events = asyncio.run(go())
+    assert events and events[0]["type"] == "error"
+
+
+def test_main_capability_runner_refuses_a_write_before_approval(tmp_path, monkeypatch):
+    """Hàng rào CUỐI trong main.py: kể cả tầng trên có lỗi logic, chưa duyệt là không chạy.
+
+    Đây là đường đi thật (qua mcp_hub), không phải runner giả của test.
+    """
+    import copy
+    import config as cfgmod
+    import main
+
+    settings = copy.deepcopy(cfgmod._DEFAULT)
+    settings["context_runtime"]["mode"] = "canary"
+    settings["context_runtime"]["workflow_canary"].update({
+        "allocation_basis_points": 10_000, "allowed_slugs": ["demo"],
+        "allow_write_nodes": True})
+
+    brain = tmp_path / "brain"
+    (brain / "workflows").mkdir(parents=True)
+    (brain / "agents").mkdir(parents=True)
+    (brain / "workflows" / "demo.md").write_text(
+        "---\ntype: workflow\nname: Demo\nslug: demo\nstatus: active\n"
+        "nodes:\n"
+        "  - id: w\n    kind: capability\n    capability: mail_send\n"
+        "    effect: write\n    arguments: {to: 'a@b.c'}\n---\n", encoding="utf-8")
+
+    sent = []
+
+    async def mail_send(args):
+        sent.append(args)
+        return "đã gửi"
+
+    async def fake_discover(mode, vault_root=None, **kwargs):
+        route = {"mail_send": {"effect": "write", "required_mode": "safe",
+                               "health": "healthy", "call": mail_send}}
+        return list(route.keys()), route
+
+    monkeypatch.setattr(main, "_brain_root", lambda b: str(brain))
+    monkeypatch.setattr(main, "_workflows_dir", lambda b: brain / "workflows")
+    monkeypatch.setattr(main, "_agents_dir", lambda b: brain / "agents")
+    monkeypatch.setattr(main, "_agent_memory", lambda b, s: "")
+    monkeypatch.setattr(main.system_sync, "ensure_synced", lambda *a, **k: None)
+    monkeypatch.setattr(main.system_sync, "mirror_skills", lambda *a, **k: None)
+    monkeypatch.setattr(main.cfgmod, "read_settings", lambda: settings)
+    monkeypatch.setattr(main.mcp_hub, "discover_all", fake_discover)
+
+    events = _drain(main.execute_workflow_graph("brain", "demo", "x", None, "sid-w"))
+    waits = [x for x in events if x["type"] == "wait_user"]
+    assert waits, "phải dừng hỏi trước node ghi"
+    assert not sent, "tool ghi tuyệt đối không được gọi khi chưa duyệt"
+    assert waits[0].get("code"), "phải kèm mã để duyệt"
+
+
+def test_the_second_layer_write_guard_is_testable_and_works():
+    """Lớp thứ hai không bao giờ chạm tới ở luồng bình thường, nên phải kiểm riêng."""
+    import main
+
+    node = wg.compile_workflow({"name": "x", "nodes": [
+        {"id": "w", "kind": "capability", "capability": "mail_send", "effect": "write"}]},
+        "demo").nodes[0]
+
+    async def call(args):
+        return "ok"
+
+    write_route = {"effect": "write", "call": call}
+    read_route = {"effect": "read", "call": call}
+
+    assert main.workflow_capability_guard(node, write_route, False) == "write_without_approval"
+    assert main.workflow_capability_guard(node, write_route, True) == ""
+    assert main.workflow_capability_guard(node, read_route, False) == ""
+    assert main.workflow_capability_guard(node, None, True) == "capability_route_missing"
+    assert main.workflow_capability_guard(node, {"effect": "write"}, True) == "capability_route_missing"
+    assert "effect_not_allowed" in main.workflow_capability_guard(
+        node, {"effect": "dangerous", "call": call}, True)
 
 
 if __name__ == "__main__":

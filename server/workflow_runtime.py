@@ -35,6 +35,8 @@ STATE_SCHEMA_VERSION = "workflow-state-v1"
 
 # Executor của một node: nhận (node, prompt đã nội suy) -> (text, events).
 NodeExecutor = Callable[[WorkflowNode, str], Awaitable[dict]]
+# Chạy một node capability. `approved` chỉ True khi người dùng đã duyệt đúng mã.
+CapabilityRunner = Callable[[WorkflowNode, bool], Awaitable[dict]]
 GraphLoader = Callable[[str], Optional[WorkflowGraph]]
 
 
@@ -43,6 +45,20 @@ def _int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError, OverflowError):
         return int(default)
+
+
+def _pending_code(task_id: str, node: WorkflowNode) -> str:
+    """Mã duyệt suy ra từ task + node + arguments, không phải số ngẫu nhiên."""
+    digest = _sha({"task": str(task_id or ""), "node": node.id,
+                   "capability": node.capability_name or node.capability_id,
+                   "arguments": node.arguments})
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    value = int(digest[:16], 16)
+    out = []
+    for _ in range(6):
+        value, index = divmod(value, len(alphabet))
+        out.append(alphabet[index])
+    return "".join(out)
 
 
 def _sha(value: Any) -> str:
@@ -181,6 +197,8 @@ class WorkflowCanary:
             "nodes": {x.id: {"status": "PENDING", "output": "", "attempts": 0,
                              "verified": None, "error": ""} for x in graph.nodes},
             "pending_node_id": "",
+            "pending_code": "",
+            "approved_nodes": [],
             "output": "",
             "stop_reason": "",
             "created_at": 0.0,
@@ -230,11 +248,20 @@ class WorkflowCanary:
             "{{prev}}", previous)
 
     async def _run_node(self, node: WorkflowNode, state: dict, graph: WorkflowGraph,
-                        executor: NodeExecutor, policy: WorkflowPolicy) -> dict:
+                        executor: NodeExecutor, policy: WorkflowPolicy,
+                        capability_runner: CapabilityRunner | None = None) -> dict:
         prompt = self._interpolate(node, state, graph)
+        approved = node.id in set(state.get("approved_nodes") or [])
         try:
-            result = await asyncio.wait_for(
-                executor(node, prompt), timeout=policy.node_timeout_seconds)
+            if node.kind == "capability":
+                if capability_runner is None:
+                    return {"status": "FAILED", "output": "",
+                            "error": "capability_runner_not_available"}
+                result = await asyncio.wait_for(
+                    capability_runner(node, approved), timeout=policy.node_timeout_seconds)
+            else:
+                result = await asyncio.wait_for(
+                    executor(node, prompt), timeout=policy.node_timeout_seconds)
         except asyncio.TimeoutError:
             return {"status": "FAILED", "output": "", "error": "node_timeout"}
         except asyncio.CancelledError:
@@ -252,7 +279,8 @@ class WorkflowCanary:
 
     async def run(self, trace, graph: WorkflowGraph, input_text: str, session_id: str,
                   executor: NodeExecutor, emit: Callable[[dict], Awaitable[None]] | None = None,
-                  resume_state: dict | None = None, depth: int = 0) -> WorkflowRunResult:
+                  resume_state: dict | None = None, depth: int = 0,
+                  capability_runner: CapabilityRunner | None = None) -> WorkflowRunResult:
         policy = self.policy()
         events: list[dict] = []
 
@@ -296,15 +324,25 @@ class WorkflowCanary:
                 runnable.append(node)
 
             # BẤT BIẾN 2: gặp node ghi là dừng và hỏi, không tự chạy.
+            approved_nodes = set(state.get("approved_nodes") or [])
             for node in runnable:
+                if node.id in approved_nodes:
+                    continue          # đã duyệt rồi thì không hỏi lại
                 if node.is_write or node.kind == "wait_user":
                     state["pending_node_id"] = node.id
                     state["status"] = "WAITING_USER"
                     state["stop_reason"] = ("write_node_needs_confirmation"
                                             if node.is_write else "wait_user_node")
+                    # Mã suy ra từ task + node + arguments, KHÔNG phải số ngẫu nhiên:
+                    # sau restart vẫn tính lại được đúng mã cho đúng ý định, và một
+                    # cú duyệt không dùng lại được cho node khác.
+                    state["pending_code"] = _pending_code(
+                        getattr(trace, "task_id", ""), node)
                     self._checkpoint(trace, state)
                     await _emit({"type": "wait_user", "node": node.id,
                                  "reason": state["stop_reason"],
+                                 "code": state["pending_code"],
+                                 "task_id": getattr(trace, "task_id", ""),
                                  "prompt": node.prompt or node.task})
                     return WorkflowRunResult(
                         "WAITING_USER", state.get("output") or "", state["stop_reason"],
@@ -337,7 +375,8 @@ class WorkflowCanary:
                                  "node": node.id, "agent": node.agent,
                                  "task": self._interpolate(node, state, graph)})
                 results = await asyncio.gather(*[
-                    self._run_node(node, state, graph, executor, policy) for node in chunk
+                    self._run_node(node, state, graph, executor, policy, capability_runner)
+                    for node in chunk
                 ], return_exceptions=True)
                 for node, result in zip(chunk, results):
                     if isinstance(result, BaseException):
@@ -380,7 +419,8 @@ class WorkflowCanary:
 
     async def resume(self, trace, task_id: str, graph: WorkflowGraph, executor: NodeExecutor,
                      emit: Callable[[dict], Awaitable[None]] | None = None,
-                     confirmed_node_id: str = "") -> WorkflowRunResult:
+                     confirmed_node_id: str = "", confirmation_code: str = "",
+                     capability_runner: CapabilityRunner | None = None) -> WorkflowRunResult:
         """Chạy tiếp từ checkpoint. Node đã COMPLETED giữ nguyên, không gọi lại executor."""
         state = self.load_state(task_id)
         if state is None:
@@ -388,27 +428,33 @@ class WorkflowCanary:
                                      task_id=task_id)
         pending = state.get("pending_node_id") or ""
         if pending:
+            expected = str(state.get("pending_code") or "")
+            # Mã sai thì đứng yên y như node sai. Duyệt phải gắn với ĐÚNG ý định này.
+            if expected and str(confirmation_code or "").strip().upper() != expected:
+                return WorkflowRunResult("WAITING_USER", state.get("output") or "",
+                                         "confirmation_code_mismatch", task_id,
+                                         pending_node_id=pending)
             if confirmed_node_id != pending:
                 # Không có xác nhận đúng node thì vẫn đứng yên, không tự đi tiếp.
                 return WorkflowRunResult("WAITING_USER", state.get("output") or "",
                                          state.get("stop_reason") or "wait_user_node",
                                          task_id, pending_node_id=pending)
             node = graph.node(pending)
-            if node is not None and node.is_write:
-                # Phase 10 mới chỉ ĐƯA node ghi ra hỏi, chưa tự thực thi (việc đó thuộc
-                # đường write của Phase 9). Nói thẳng ra thay vì lặng lẽ dừng lại lần
-                # nữa - dừng vô hạn sau khi người dùng đã đồng ý là hành vi dối trá.
-                return WorkflowRunResult(
-                    "WAITING_USER", state.get("output") or "",
-                    "write_execution_not_enabled_in_this_phase", task_id,
-                    pending_node_id=pending)
             if node is not None and node.kind == "wait_user":
                 state["nodes"][pending] = {
                     "status": "COMPLETED", "output": state.get("input") or "",
                     "attempts": 1, "verified": True, "error": "",
                 }
             state["pending_node_id"] = ""
+            state["pending_code"] = ""
             state["status"] = "RUNNING"
+            # Node ghi ĐÃ được duyệt: ghi vào state để vòng chạy tới không dừng lại lần
+            # nữa. Danh sách này là bằng chứng duyệt, nên nó đi cùng checkpoint.
+            approved = list(state.get("approved_nodes") or [])
+            if pending not in approved:
+                approved.append(pending)
+            state["approved_nodes"] = approved
         return await self.run(trace, graph, state.get("input") or "",
                               state.get("session_id") or "", executor, emit,
-                              resume_state=state, depth=_int(state.get("depth"), 0))
+                              resume_state=state, depth=_int(state.get("depth"), 0),
+                              capability_runner=capability_runner)

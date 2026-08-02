@@ -25,7 +25,7 @@ def check(name: str, condition: bool) -> None:
 
 
 check("viewport hỗ trợ safe area", "viewport-fit=cover" in INDEX)
-check("cache bust console.css đã tăng", 'console.css?v=32' in INDEX)
+check("cache bust console.css đã tăng", 'console.css?v=33' in INDEX)
 check("mobile dùng dynamic viewport", CSS.count("100dvh") >= 3)
 check("graph mobile có fallback nhỏ hơn bản cũ", "height: 30vh;" in CSS)
 check("graph mobile có trần/sàn theo chiều cao", "height: clamp(190px, 27dvh, 260px);" in CSS)

@@ -48,7 +48,7 @@ check("sysbar trong drawer mobile lấy lại đủ chiều rộng",
       ".rail-sys .sysbar {" in CONSOLE_CSS
       and "display: flex; flex: none; width: 100%; min-width: 0; max-width: 100%;" in CONSOLE_CSS)
 check("cache bust CSS và app đã tăng",
-      'style.css?v=52' in INDEX and 'console.css?v=32' in INDEX and 'app.js?v=73' in INDEX)
+      'style.css?v=52' in INDEX and 'console.css?v=33' in INDEX and 'app.js?v=73' in INDEX)
 
 if fails:
     raise SystemExit(f"\nFAIL - test_sysbar_layout: {len(fails)} lỗi")

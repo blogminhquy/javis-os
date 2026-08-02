@@ -197,10 +197,21 @@
       } else if (d.type === "replan") {
         stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("search")} Agent lập thêm ${(d.added || []).length} bước (vòng ${d.round})</div>`);
       } else if (d.type === "wait_user") {
-        // Dừng chờ duyệt KHÔNG được trông giống bị sập: phải nói rõ đang chờ gì.
+        // Dừng chờ duyệt KHÔNG được trông giống bị sập: phải nói rõ đang chờ gì,
+        // và nếu duyệt được thì cho bấm ngay tại đây.
         es.close();
         endRun();
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Workflow dừng chờ anh duyệt bước "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}</div>`);
+        const canApprove = d.code && d.task_id;
+        stepsEl.insertAdjacentHTML("beforeend",
+          `<div class="run-info wf-wait">${ic("triangle-alert", { cls: "ic-warn" })} ` +
+          `Workflow dừng chờ anh duyệt bước "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}` +
+          (canApprove
+            ? `<div class="wf-wait-act"><button type="button" class="wf-approve" ` +
+              `data-task="${esc(d.task_id)}" data-node="${esc(d.node || "")}" ` +
+              `data-code="${esc(d.code)}">Duyệt ${esc(d.code)}</button>` +
+              `<span class="dim">Việc này chạy thật, không hoàn tác được.</span></div>`
+            : "") +
+          `</div>`);
         stepsEl.scrollTop = stepsEl.scrollHeight;
       } else if (d.type === "escalation") {
         stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Agent dừng và chuyển lại cho anh: ${esc(d.reason || "")}</div>`);
@@ -217,6 +228,20 @@
       }
     };
     es.onerror = () => { es.close(); endRun(); };
+    // Nút Duyệt: mã nằm trên chính nút, nên một cú bấm gắn với ĐÚNG node đang chờ.
+    stepsEl.onclick = (ev) => {
+      const btn = ev.target.closest ? ev.target.closest(".wf-approve") : null;
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = "Đang chạy...";
+      const q = new URLSearchParams({
+        task_id: btn.dataset.task, node: btn.dataset.node, code: btn.dataset.code,
+        slug: w.slug, brain: brain(),
+      });
+      const es2 = new EventSource(`/workflows/resume?${q}`);
+      es2.onmessage = es.onmessage;
+      es2.onerror = () => { es2.close(); endRun(); };
+    };
     document.getElementById("runClose").onclick = () => { es.close(); endRun(); drawer.classList.remove("open"); };
   }
 
