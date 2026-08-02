@@ -630,6 +630,37 @@ def test_graph_path_events_carry_the_step_index_studio_needs(tmp_path, monkeypat
     assert {x["i"] for x in streamed if x["type"] == "step_text"} == {0, 1}
 
 
+def test_studio_handles_every_event_type_the_graph_path_emits():
+    """Event phát ra mà giao diện không xử lý = người dùng không thấy gì.
+
+    Đây đúng loại lỗi mà test phía server không bắt được, vì server vẫn phát đủ.
+    """
+    import re as _re
+    from pathlib import Path
+
+    studio = (Path(__file__).resolve().parents[2] / "dashboard" / "studio.js").read_text(
+        encoding="utf-8")
+    handled = set(_re.findall(r'd\.type === "([a-z_]+)"', studio))
+    # Mọi loại event mà execute_workflow_graph / workflow_runtime / agent_runtime phát.
+    emitted = {"start", "step_start", "step_text", "step_tool", "step_done",
+               "step_error", "step_verify", "step_verify_result", "step_retry",
+               "step_model", "resume", "replan", "wait_user", "escalation",
+               "error", "done"}
+    missing = emitted - handled
+    assert not missing, f"Studio chưa xử lý: {sorted(missing)}"
+
+
+def test_paused_workflow_is_not_shown_as_a_crash():
+    """Dừng chờ duyệt phải đóng stream VÀ nói rõ, không im lặng như bị sập."""
+    from pathlib import Path
+
+    studio = (Path(__file__).resolve().parents[2] / "dashboard" / "studio.js").read_text(
+        encoding="utf-8")
+    block = studio.split('d.type === "wait_user"', 1)[1].split("} else if", 1)[0]
+    assert "es.close()" in block and "endRun()" in block
+    assert "chờ anh duyệt" in block
+
+
 if __name__ == "__main__":
     import sys
     import pytest

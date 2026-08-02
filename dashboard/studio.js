@@ -187,6 +187,28 @@
         }
       } else if (d.type === "step_error") {
         const out = document.getElementById(`rs-out-${d.i}`); if (out) out.innerHTML += `<div class="rs-err">${ic("triangle-alert", { cls: "ic-warn" })} ${esc(d.content)}</div>`;
+      } else if (d.type === "step_model") {
+        // Router chọn model khác model mặc định của agent - nói rõ để khỏi ngờ ngợ.
+        const div = stepDivs[d.i];
+        if (div) div.querySelector(".rs-head").insertAdjacentHTML("beforeend",
+          `<span class="rs-tool">${ic("settings")} model: ${esc(d.model)}</span>`);
+      } else if (d.type === "resume") {
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("loader")} Chạy tiếp, giữ lại ${d.reused} bước đã xong</div>`);
+      } else if (d.type === "replan") {
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("search")} Agent lập thêm ${(d.added || []).length} bước (vòng ${d.round})</div>`);
+      } else if (d.type === "wait_user") {
+        // Dừng chờ duyệt KHÔNG được trông giống bị sập: phải nói rõ đang chờ gì.
+        es.close();
+        endRun();
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Workflow dừng chờ anh duyệt bước "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}</div>`);
+        stepsEl.scrollTop = stepsEl.scrollHeight;
+      } else if (d.type === "escalation") {
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Agent dừng và chuyển lại cho anh: ${esc(d.reason || "")}</div>`);
+      } else if (d.type === "error") {
+        es.close();
+        endRun();
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("circle-x", { cls: "ic-err" })} ${esc(d.content || "Workflow dừng vì lỗi")}</div>`);
+        stepsEl.scrollTop = stepsEl.scrollHeight;
       } else if (d.type === "done") {
         es.close();
         endRun();
