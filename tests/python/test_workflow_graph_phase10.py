@@ -366,6 +366,29 @@ def test_defaults_do_not_admit_any_workflow(tmp_path):
     assert canary.prepare(trace, graph, "sid-def").action == "legacy"
 
 
+def test_confirming_a_write_node_reports_instead_of_pausing_forever(tmp_path):
+    """Người dùng đã đồng ý mà workflow cứ dừng lại mãi là hành vi dối trá."""
+    native = {"name": "có ghi", "nodes": [
+        {"id": "a", "kind": "model_step", "agent": "x", "task": "soạn"},
+        {"id": "w", "kind": "capability", "capability": "mail_send", "effect": "write",
+         "depends_on": ["a"]},
+    ]}
+    graph = wg.compile_workflow(native, "demo")
+    runtime, canary, *_ = _stack(tmp_path, _settings(allow_write=True))
+    trace = runtime.start_turn("sid-wc", str(tmp_path), "dashboard")
+    canary.prepare(trace, graph, "sid-wc")
+    first = asyncio.run(canary.run(trace, graph, "x", "sid-wc", _executor([])))
+    assert first.status == "WAITING_USER" and first.pending_node_id == "w"
+
+    calls = []
+    confirmed = asyncio.run(canary.resume(
+        runtime.resume_trace(trace.task_id), trace.task_id, graph,
+        _executor(calls), confirmed_node_id="w"))
+    assert confirmed.status == "WAITING_USER"
+    assert confirmed.stop_reason == "write_execution_not_enabled_in_this_phase"
+    assert not calls, "vẫn tuyệt đối không gọi tool ghi"
+
+
 # ------------------------------------------- tích hợp qua main.execute_workflow
 
 def _brain_with_workflow(tmp_path, monkeypatch, settings):

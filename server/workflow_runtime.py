@@ -387,6 +387,14 @@ class WorkflowCanary:
                                          state.get("stop_reason") or "wait_user_node",
                                          task_id, pending_node_id=pending)
             node = graph.node(pending)
+            if node is not None and node.is_write:
+                # Phase 10 mới chỉ ĐƯA node ghi ra hỏi, chưa tự thực thi (việc đó thuộc
+                # đường write của Phase 9). Nói thẳng ra thay vì lặng lẽ dừng lại lần
+                # nữa - dừng vô hạn sau khi người dùng đã đồng ý là hành vi dối trá.
+                return WorkflowRunResult(
+                    "WAITING_USER", state.get("output") or "",
+                    "write_execution_not_enabled_in_this_phase", task_id,
+                    pending_node_id=pending)
             if node is not None and node.kind == "wait_user":
                 state["nodes"][pending] = {
                     "status": "COMPLETED", "output": state.get("input") or "",
