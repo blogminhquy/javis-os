@@ -106,6 +106,17 @@ def _parse_retry_after(headers, cap: float = 600.0):
 # vì ngồi im: chờ 10 giây là chấp nhận được, chờ một phút thì người ta tưởng treo.
 _WINDOW_WAIT_MAX = 25.0
 
+# Model tự bịa cú pháp gọi tool thay vì JSON chuẩn. Provider trả 400 kèm mã riêng; bắt theo
+# MÃ và cụm từ đặc trưng chứ không theo status, vì 400 còn dùng cho cả chục lỗi khác mà thử
+# lại chỉ tổ tốn thêm một lượt (payload sai định dạng, model không tồn tại, thiếu tham số).
+_TOOL_SYNTAX_FAIL = ("tool_use_failed", "failed to call a function",
+                     "failed_generation")
+
+
+def _is_tool_syntax_failure(body_text: str) -> bool:
+    low = str(body_text or "").casefold()
+    return any(p in low for p in _TOOL_SYNTAX_FAIL)
+
 
 class _RetryStream(Exception):
     """Sentinel để thoát các async with lồng nhau và quay lại vòng retry.
@@ -1170,6 +1181,8 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
     # Chỉ chờ cửa sổ hạn mức MỘT lần mỗi lượt: chờ hai lần là người dùng ngồi nhìn màn hình
     # đứng im nửa phút mà không hiểu chuyện gì.
     waited_for_window = False
+    # Số lần model bịa sai cú pháp gọi tool. 0 -> thử lại; 1 -> bỏ tool; 2 -> chịu, báo lỗi.
+    tool_fumbles = 0
     requirement = _tool_requirement(messages, mcp_tools)
     requirement_pending = bool(requirement)
     ignored_required = 0
@@ -1228,8 +1241,12 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         })
         requirement_pending = False
     for _ in range(8):
-        payload = {"model": model, "messages": msgs, "tools": tools, "stream": False}
-        if requirement_pending:
+        payload = {"model": model, "messages": msgs, "stream": False}
+        # Bỏ hẳn khoá "tools" khi rỗng: vài endpoint OpenAI-compat từ chối mảng rỗng, và
+        # nhánh cứu hộ ở dưới (model vấp cú pháp gọi tool) dựa vào đúng chỗ này.
+        if tools:
+            payload["tools"] = tools
+        if requirement_pending and tools:
             payload["tool_choice"] = (
                 {"type": "function", "function": {"name": requirement}}
                 if requirement != "required" else "required"
@@ -1245,9 +1262,23 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     r = await client.post(url, headers=headers, json=payload)
             if r.status_code != 200:
                 body_text = r.text or ""
-                # ĐÂY mới là đường mọi provider API thật sự đi qua khi có tool (luôn có, vì
-                # Javis có builtin tools). Bản vá đầu chỉ đặt ở các hàm stream thuần nên
-                # không bao giờ chạy - lỗi "code đúng mà không nối được với đường thật".
+                # Model YẾU tự bịa cú pháp gọi tool (Llama hay phát
+                # "<function=ten{...}</function>" thay vì JSON tool_calls chuẩn), provider
+                # trả 400 tool_use_failed. Đây KHÔNG phải lỗi của người dùng và cũng không
+                # phải lỗi hạn mức - model chỉ vấp một lần. Hai nấc gỡ:
+                #   1. Thử lại y nguyên: sinh chữ là ngẫu nhiên, lần sau thường trúng.
+                #   2. Vẫn hỏng thì BỎ TOOL và hỏi lại, để model ít nhất trả lời bằng lời.
+                # Trả lời thiếu tool vẫn hơn hẳn ném JSON lỗi ra rồi im lặng, mà "(không có
+                # nội dung trả về)" chính là thứ người dùng đang thấy.
+                if _is_tool_syntax_failure(body_text) and tool_fumbles < 2:
+                    tool_fumbles += 1
+                    if tool_fumbles == 2:
+                        tools = []          # nấc 2: bỏ hẳn tool, cứu lấy câu trả lời
+                        # Còn ép gọi một tool vừa bị gỡ thì request sau lại 400 ngay.
+                        requirement_pending = False
+                        yield {"type": "tool_call", "name": "javis_no_tools",
+                               "content": "⚙ Model vấp cú pháp gọi công cụ, trả lời không dùng công cụ..."}
+                    continue
                 _fact = limit_learner.parse_limit_error(r.status_code, body_text)
                 if _fact:
                     limit_learner.remember(label, model, _fact)

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.2] - 2026-08-02
+Model yếu bịa sai cú pháp gọi công cụ thì Javis tự gỡ, thay vì hiện khối JSON lỗi rồi im lặng.
+### Sửa lỗi
+- **Llama đôi khi trả lời được, đôi khi hiện lỗi JSON rồi "(không có nội dung trả về)".** Nguyên nhân: model yếu thỉnh thoảng tự bịa cú pháp gọi công cụ thay vì đúng định dạng, nhà cung cấp từ chối. Nay Javis gỡ theo hai nấc: thử lại một lần (model sinh chữ có yếu tố ngẫu nhiên nên lần sau thường trúng), vẫn hỏng thì **bỏ công cụ và trả lời bằng lời** kèm một dòng báo. Trả lời thiếu công cụ vẫn hơn hẳn không trả lời gì.
+- Chỉ áp cho đúng lỗi này, nhận theo mã lỗi riêng chứ không theo mã trạng thái, vì cùng mã đó còn dùng cho cả chục lỗi khác mà thử lại chỉ tổ tốn thêm một lượt.
+
 ## [0.12.1] - 2026-08-02
 Groq/Llama: xử được cả trường hợp hạn mức phút đã đầy. Ba lỗi giao diện.
 ### Sửa lỗi
