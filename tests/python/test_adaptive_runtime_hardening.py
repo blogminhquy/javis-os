@@ -385,6 +385,84 @@ def test_resolver_never_returns_capabilities_outside_the_actor_effects(tmp_path)
     assert not result.get("selected")
 
 
+# ------------------------------------------- bất biến chung của cả 9 phase
+
+def test_repository_defaults_activate_no_canary_path(tmp_path):
+    """Một test canh bất biến quan trọng nhất: cài mặc định KHÔNG đổi hành vi ai cả.
+
+    Kiểm bằng cách chạy thật admission của cả năm đường canary với chính hằng
+    mặc định trong config.py, không phải bằng cách grep chuỗi trong source.
+    """
+    import copy
+    import asyncio
+    import config as cfgmod
+    import fast_path_runtime
+    import readonly_path_runtime
+    import readonly_orchestrator
+    import write_path_runtime
+    from adaptive_context_runtime import AdaptiveContextCanary
+    from capability_executor import CapabilityExecutor
+    from context_compiler import get_quality_gate
+    from evidence_store import EvidenceStore
+
+    settings = copy.deepcopy(cfgmod._DEFAULT)
+    runtime_cfg = settings["context_runtime"]
+    assert runtime_cfg["mode"] == "shadow"
+    for key, value in runtime_cfg.items():
+        if isinstance(value, dict) and "allocation_basis_points" in value:
+            assert value["allocation_basis_points"] == 0, key
+        if isinstance(value, dict) and "quota_profiles" in value:
+            assert value["quota_profiles"] == [], key
+        if isinstance(value, dict) and "capability_profiles" in value:
+            assert value["capability_profiles"] == [], key
+
+    brain = tmp_path / "brain"
+    registry = CapabilityRegistry(tmp_path / "reg")
+    tools = [{"fn": "calendar_create", "name": "calendar_create",
+              "description": "tạo sự kiện lịch calendar create",
+              "schema": {"type": "object", "properties": {}}}]
+    routes = {"calendar_create": {
+        "source_type": "mcp", "source_id": "cal", "effect": "write",
+        "required_mode": "safe", "health": "healthy", "call": lambda a: None}}
+    registry.refresh_tools(brain, tools, routes)
+    runtime = ObserveRuntime(tmp_path / "rt", settings_reader=lambda: settings)
+    trace = runtime.start_turn("sid", str(brain), "dashboard")
+    trace.registry_revision = registry.revision(brain)
+    compiler = ContextCompiler(registry)
+    executor = CapabilityExecutor(
+        registry, runtime, EvidenceStore(runtime, tmp_path / "rt"))
+    resolver = capability_resolver.DeterministicResolver(registry)
+
+    async def discover(mode, root):
+        return tools, routes
+
+    objective = "tạo sự kiện lịch calendar create"
+    plans = {
+        "fast": fast_path_runtime.FastPathCanary(
+            registry, resolver, compiler, runtime, lambda: settings
+        ).prepare(trace, objective, str(brain), "dashboard", "groq", "llama-3.3", "api"),
+        "readonly": asyncio.run(readonly_path_runtime.ReadonlyPathCanary(
+            registry, resolver, compiler, runtime, executor, lambda: settings, discover
+        ).prepare(trace, objective, str(brain), "dashboard", "groq", "llama-3.3",
+                  "api", "actor")),
+        "orchestrator": asyncio.run(readonly_orchestrator.ReadonlyOrchestrator(
+            registry, resolver, compiler, runtime, executor, lambda: settings,
+            discover, get_quality_gate()
+        ).prepare(trace, objective, str(brain), "dashboard", "groq", "llama-3.3",
+                  "api", "actor")),
+        "write": asyncio.run(write_path_runtime.WritePathCanary(
+            registry, resolver, compiler, runtime, executor, lambda: settings, discover
+        ).prepare(trace, objective, str(brain), "dashboard", "groq", "llama-3.3",
+                  "api", "actor")),
+        "context_sources": AdaptiveContextCanary(
+            tmp_path / "st", registry, compiler, runtime, lambda: settings
+        ).prepare(trace, objective, brain, "sid", [], "dashboard", "groq",
+                  "llama-3.3", "api", lambda memory, skills: "base"),
+    }
+    for name, plan in plans.items():
+        assert plan.action in ("not_applicable", "legacy"), (name, plan.action, plan.reason)
+
+
 if __name__ == "__main__":
     # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
     # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa
