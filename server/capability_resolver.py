@@ -13,6 +13,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
+import capability_index
 from capability_registry import CapabilityRegistry, get_registry
 
 
@@ -42,6 +43,9 @@ class ResolverPolicy:
     min_score: float = 0.18
     near_top_band: float = 0.16
     meaningful_gap: float = 0.10
+    # Hệ số nới rộng khi tín hiệu yếu (xem capability_index.needs_widening). Nới bằng cách
+    # tăng candidate_limit chứ không hạ ngưỡng chất lượng - hạ ngưỡng là mở cửa cho rác.
+    widen_factor: int = 3
 
 
 @dataclass(frozen=True)
@@ -148,6 +152,7 @@ class DeterministicResolver:
                 "capability_id": item["capability_id"],
                 "name": item["name"],
                 "source_type": item.get("source_type"),
+                "source_id": item.get("source_id"),
                 "side_effect": item.get("side_effect"),
                 "required_mode": item.get("required_mode"),
                 "score": round(score, 6),
@@ -155,7 +160,6 @@ class DeterministicResolver:
                 "capability_revision": item.get("capability_revision"),
             })
         ranked.sort(key=lambda x: (-x["score"], -x["coverage"], x["capability_id"]))
-        selected, cutoff, cutoff_reason = self._cut(ranked)
 
         embedding_ids = []
         embedding_error = ""
@@ -166,6 +170,40 @@ class DeterministicResolver:
                 )]
             except Exception as exc:
                 embedding_error = type(exc).__name__
+
+        # Nới rộng khi tín hiệu YẾU, không theo ngưỡng số lượng cố định. Ứng viên thêm vào
+        # vẫn đi qua ĐÚNG _hard_filter ở dưới, nên widening không bao giờ nới quyền.
+        widen_reason = capability_index.needs_widening(
+            ranked, self.policy.min_score, self.policy.meaningful_gap)
+        if widen_reason and query_terms:
+            try:
+                extra = self.registry.search(
+                    query, brain, self.policy.candidate_limit * self.policy.widen_factor)
+            except Exception:  # noqa: BLE001 - nới rộng là phần thêm, hỏng thì giữ kết quả cũ
+                extra = []
+            seen = {x["capability_id"] for x in ranked}
+            for item in extra:
+                if item["capability_id"] in seen:
+                    continue
+                if self._hard_filter(item, actor):
+                    continue
+                score, coverage = self._score(query_norm, query_terms, item)
+                ranked.append({
+                    "capability_id": item["capability_id"], "name": item["name"],
+                    "source_type": item.get("source_type"),
+                    "source_id": item.get("source_id"),
+                    "side_effect": item.get("side_effect"),
+                    "required_mode": item.get("required_mode"),
+                    "score": round(score, 6), "coverage": round(coverage, 6),
+                    "capability_revision": item.get("capability_revision"),
+                })
+            ranked.sort(key=lambda x: (-x["score"], -x["coverage"], x["capability_id"]))
+
+        # Hợp nhất lexical + semantic + affinity nguồn. Chỉ ĐỔI THỨ TỰ trong nhóm đã lọc.
+        fused = capability_index.apply_fusion(ranked, embedding_ids)
+        if fused:
+            ranked = fused
+        selected, cutoff, cutoff_reason = self._cut(ranked)
         lexical_ids = {x["capability_id"] for x in ranked}
         selected_ids = {x["capability_id"] for x in selected}
         top_gap = (ranked[0]["score"] - ranked[1]["score"]) if len(ranked) > 1 else (
@@ -208,6 +246,9 @@ class DeterministicResolver:
             "embedding_lexical_overlap": len(set(embedding_ids) & lexical_ids),
             "embedding_selected_overlap": len(set(embedding_ids) & selected_ids),
             "embedding_error": embedding_error,
+            # Tín hiệu yếu tới mức phải tìm rộng hơn. Đây là thứ đọc trên trang Chẩn đoán
+            # để biết registry đang thiếu mô tả tốt, chứ không phải resolver dở.
+            "widen_reason": widen_reason,
             "latency_ms": round((time.perf_counter() - started) * 1000, 3),
         }
 
