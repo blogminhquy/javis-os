@@ -4156,18 +4156,17 @@ def workflows_index(brain: str) -> list:
                     "steps": meta.get("steps", []) or []})
     return out
 
-_WORKFLOW_CANARY = None
-
-
 def _get_workflow_canary(brain):
-    """Khởi tạo lười; mặc định allocation 0 nên production không trả chi phí gì."""
-    global _WORKFLOW_CANARY
-    if _WORKFLOW_CANARY is None:
-        _WORKFLOW_CANARY = workflow_runtime.WorkflowCanary(
-            _CONTEXT_RUNTIME, cfgmod.read_settings,
-            graph_loader=lambda slug: load_workflow_graph(brain, slug),
-        )
-    return _WORKFLOW_CANARY
+    """Dựng mới theo TỪNG brain.
+
+    KHÔNG được cache toàn cục: graph_loader đóng gói `brain`, nên một instance dùng
+    chung sẽ nạp workflow con của brain khác - đúng kiểu rò rỉ xuyên brain mà spec
+    bắt phải chặn. Object này thuần tham chiếu, không I/O, nên dựng mới là miễn phí.
+    """
+    return workflow_runtime.WorkflowCanary(
+        _CONTEXT_RUNTIME, cfgmod.read_settings,
+        graph_loader=lambda slug: load_workflow_graph(brain, slug),
+    )
 
 
 def workflow_manifests(brain: str) -> list[dict]:
@@ -4531,16 +4530,22 @@ async def execute_workflow(brain, slug, input="", tools=None, session_id=""):
         return
     # Phase 10 canary: mặc định allocation 0 nên vòng lặp cũ vẫn là đường duy nhất.
     # Lỗi ở đường mới không được cướp lượt chạy - rơi về runner cũ.
+    emitted = False
     try:
-        emitted = False
         async for event in execute_workflow_graph(brain, slug, input, tools, session_id):
             emitted = True
             yield event
         if emitted:
             return
     except Exception as _wf_exc:
-        print(f"[workflow graph] {type(_wf_exc).__name__} - dùng runner cũ",
-              file=__import__('sys').stderr)
+        print(f"[workflow graph] {type(_wf_exc).__name__}", file=__import__('sys').stderr)
+        if emitted:
+            # Đã phát event ra client rồi thì chạy lại bằng runner cũ là CHẠY HAI LẦN.
+            # Báo lỗi và dừng, để người dùng quyết định chạy lại.
+            yield {"type": "error",
+                   "content": "Workflow dừng giữa chừng ở đường mới. Không tự chạy lại "
+                              "để tránh làm hai lần; anh chạy lại nếu cần."}
+            return
     meta, _ = _read_md(wf_file)
     steps = meta.get("steps", []) or []
     vault_root = str(_brain_root(brain))

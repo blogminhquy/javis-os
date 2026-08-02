@@ -429,7 +429,6 @@ def _brain_with_workflow(tmp_path, monkeypatch, settings):
     monkeypatch.setattr(main.system_sync, "ensure_synced", lambda *a, **k: None)
     monkeypatch.setattr(main.system_sync, "mirror_skills", lambda *a, **k: None)
     monkeypatch.setattr(main.cfgmod, "read_settings", lambda: settings)
-    monkeypatch.setattr(main, "_WORKFLOW_CANARY", None)
     return main, brain, calls
 
 
@@ -515,6 +514,55 @@ def test_workflow_source_exposes_manifest_without_node_bodies(tmp_path, monkeypa
     # Thân prompt của node KHÔNG được lọt vào manifest.
     blob = json.dumps(item, ensure_ascii=False)
     assert "Tìm {{input}}" not in blob and "Viết từ" not in blob
+
+
+def test_failure_after_events_does_not_run_the_workflow_twice(tmp_path, monkeypatch):
+    """Lỗi giữa chừng KHÔNG được kéo theo một lượt legacy đầy đủ nữa."""
+    import copy
+    import config as cfgmod
+
+    on = copy.deepcopy(cfgmod._DEFAULT)
+    on["context_runtime"]["mode"] = "canary"
+    on["context_runtime"]["workflow_canary"].update(
+        {"allocation_basis_points": 10_000, "allowed_slugs": ["demo"]})
+    main, brain, calls = _brain_with_workflow(tmp_path, monkeypatch, on)
+
+    async def half_then_boom(brain_, slug, input_="", tools=None, session_id=""):
+        yield {"type": "start", "workflow": "Demo", "steps": 2}
+        yield {"type": "step_done", "node": "s0", "output": "KQ(1)"}
+        raise RuntimeError("đứt giữa chừng")
+
+    monkeypatch.setattr(main, "execute_workflow_graph", half_then_boom)
+    events = _drain(main.execute_workflow("brain", "demo", input="x", session_id="s"))
+    assert not calls, "không được chạy lại bằng runner cũ sau khi đã phát event"
+    assert events[-1]["type"] == "error"
+
+
+def test_each_brain_loads_its_own_nested_workflows(tmp_path, monkeypatch):
+    """graph_loader ôm ĐỊNH DANH brain, nên một canary dùng chung sẽ nạp nhầm brain.
+
+    Test phải để `_workflows_dir` TÔN TRỌNG tham số brain, nếu không nó chỉ đo lại
+    chính cái monkeypatch của mình chứ không đo sự cô lập giữa các brain.
+    """
+    import main
+
+    roots = {}
+    for name, task in (("brain-a", "A {{input}}"), ("brain-b", "B {{input}}")):
+        root = tmp_path / name
+        (root / "workflows").mkdir(parents=True)
+        (root / "workflows" / "demo.md").write_text(
+            f"---\ntype: workflow\nname: {name}\nslug: demo\nstatus: active\n"
+            f"steps:\n  - agent: researcher\n    task: '{task}'\n---\n",
+            encoding="utf-8")
+        roots[name] = root
+
+    monkeypatch.setattr(main, "_workflows_dir", lambda b: roots[b] / "workflows")
+
+    a = main._get_workflow_canary("brain-a").graph_loader("demo")
+    b = main._get_workflow_canary("brain-b").graph_loader("demo")
+    assert a is not None and b is not None
+    assert a.name == "brain-a" and b.name == "brain-b"
+    assert a.revision != b.revision, "mỗi brain phải ra đồ thị của chính nó"
 
 
 if __name__ == "__main__":
