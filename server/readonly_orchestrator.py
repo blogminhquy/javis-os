@@ -50,6 +50,13 @@ def _float(value: Any, default: float) -> float:
         return float(default)
 
 
+def _rule_hash(rule: dict) -> str:
+    """Băm toàn bộ giá trị của quota rule, không chỉ `id`."""
+    return hashlib.sha256(json.dumps(
+        rule, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
+    ).encode("utf-8", errors="replace")).hexdigest()
+
+
 def _norm(value: str) -> str:
     # "đ" không phân rã qua NFKD - map tay để deny-pattern ASCII khớp tiếng Việt có dấu.
     raw = str(value or "").replace("đ", "d").replace("Đ", "D")
@@ -583,6 +590,11 @@ class ReadonlyOrchestrator:
             "schema_version": STATE_SCHEMA_VERSION,
             "policy_version": policy.version,
             "quota_rule_id": rule["id"],
+            # Pin theo NỘI DUNG, không theo nhãn: operator đổi rolling_tpm/giá/cửa sổ
+            # mà giữ nguyên `id` (hoặc sửa policy mà quên bump policy_version) thì task
+            # đang chạy KHÔNG được âm thầm nhận giá trị mới.
+            "quota_rule_hash": _rule_hash(rule),
+            "model_profile_revision": trace.model_profile_revision,
             "task_id": trace.task_id, "session_id": trace.session_id,
             "objective": plan.objective, "brain": plan.brain, "channel": plan.channel,
             "provider": plan.provider, "model": plan.model,
@@ -1273,8 +1285,14 @@ class ReadonlyOrchestrator:
         if self.registry.revision(task["brain"]) != trace.registry_revision:
             raise ValueError("task_registry_revision_mismatch")
         rule = policy.quota_rule(state["provider"], state["model"])
-        if rule is None or rule["id"] != state.get("quota_rule_id"):
+        if (rule is None or rule["id"] != state.get("quota_rule_id") or
+                _rule_hash(rule) != state.get("quota_rule_hash")):
             raise ValueError("task_quota_rule_mismatch")
+        # Metadata model cũng phải đúng revision đã ghim: compiler đọc lại model profile
+        # LIVE khi resume, nên profile đổi giữa chừng sẽ đổi budget của task đang chạy.
+        if (state.get("model_profile_revision") and
+                self.registry.model_revision() != state["model_profile_revision"]):
+            raise ValueError("task_model_profile_revision_mismatch")
         records = self.registry.get_capabilities(state["candidate_ids"], task["brain"])
         if len(records) != len(state["candidate_ids"]):
             raise ValueError("task_capability_missing")

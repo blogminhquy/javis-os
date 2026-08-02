@@ -59,7 +59,7 @@ Trước khi mở Phase 9, toàn bộ Phase 0-8 được review lại theo từn
 
 Còn nợ, phải làm trong hoặc trước Phase 9:
 
-- Resume của Phase 7 so pin bằng NHÃN (tên model, `id` của quota rule) chứ không phải nội dung, và deadline không được gia hạn khi resume nên restart lâu hơn deadline là không resume được gì.
+- ~~Resume của Phase 7 so pin bằng NHÃN (`id` của quota rule)~~ **đã sửa 2026-08-02**: pin thêm `quota_rule_hash` (băm toàn bộ giá trị rule) và `model_profile_revision`, nên đổi giá/TPM mà giữ nguyên `id`, hoặc đổi model profile giữa chừng, đều làm resume dừng thay vì âm thầm dùng giá trị mới. Còn lại: deadline không được gia hạn khi resume nên restart lâu hơn deadline là không resume được gì.
 - `_continue` reset mọi step `RUNNING` về `PENDING` rồi chạy lại - đúng với read, nhưng chính là lỗi chạy trùng nếu áp cho write. Phase 9 phải có trạng thái `UNKNOWN` + reconcile thay vì retry mù.
 - `runtime_invocations` chưa có `idempotency_key UNIQUE` như spec mục 18.6 yêu cầu; hiện dựa vào lease dùng một lần.
 - Failure signature mới chặn vòng lặp planner, chưa chặn vòng lặp lỗi ở step thực thi.

@@ -316,6 +316,45 @@ def test_resume_reconciles_successful_read_without_repeating_tool(tmp_path, monk
     assert reconciled and reconciled[-1]["payload"]["recovered_steps"] == 1
 
 
+def test_resume_refuses_a_silently_changed_quota_rule(tmp_path):
+    """Đổi giá/TPM mà giữ nguyên `id` phải làm resume dừng, không âm thầm dùng giá mới."""
+    crypto = _crypto()
+    stack = _stack(tmp_path, crypto=crypto)
+    plan = asyncio.run(_prepare(stack, actor="resume-actor"))
+    state = stack["orchestrator"]._initial_state(plan)
+    assert stack["orchestrator"]._checkpoint(plan.trace, state, initialize=True)
+    task_id = plan.trace.task_id
+    stack["runtime"].close()
+
+    # Operator sửa đơn giá nhưng giữ nguyên id rule và policy_version.
+    rule = stack["settings"]["context_runtime"]["orchestrator_canary"]["quota_profiles"][0]
+    rule["input_cost_per_million"] = 9.99
+    runtime2 = ObserveRuntime(tmp_path / "runtime", settings_reader=lambda: stack["settings"])
+    store2 = EvidenceStore(
+        runtime2, tmp_path / "runtime", encryptor=crypto[0], decryptor=crypto[1],
+        ready_check=lambda: True,
+    )
+
+    async def discover(mode, root):
+        return stack["tools"], stack["routes"]
+
+    orchestrator2 = ReadonlyOrchestrator(
+        stack["registry"], DeterministicResolver(stack["registry"]),
+        ContextCompiler(stack["registry"]), runtime2,
+        CapabilityExecutor(stack["registry"], runtime2, store2),
+        lambda: stack["settings"], discover, DeterministicQualityGate(),
+        state_encryptor=crypto[0], state_decryptor=crypto[1],
+    )
+    try:
+        asyncio.run(orchestrator2.resume(
+            task_id, "resume-actor", "groq", "llama-test", "secret", "off", None,
+            _final_generator))
+        raise AssertionError("resume phải từ chối khi nội dung quota rule đã đổi")
+    except ValueError as exc:
+        assert "quota_rule_mismatch" in str(exc)
+    assert not stack["calls"]
+
+
 def test_repeated_invalid_plan_stops_bounded_without_tool_call(tmp_path, monkeypatch):
     stack = _stack(tmp_path)
     calls = []
