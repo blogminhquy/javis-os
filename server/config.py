@@ -324,6 +324,32 @@ def _transform_secret_fields(cfg, fn):
 _SETTINGS_CACHE = {"sig": None, "cfg": None}
 
 
+def _deep_merge(base: dict, patch: dict) -> dict:
+    """Gộp `patch` lên `base` ĐỆ QUY, sửa tại chỗ, trả lại `base`.
+
+    Vì sao phải đệ quy chứ không phải `.update()` một tầng như trước: các cấu hình quan
+    trọng nằm sâu từ HAI tầng trở lên, ví dụ
+    `context_runtime.canary.allocation_basis_points`. Với merge một tầng, ghi vào
+    settings.json đúng một trường
+
+        {"context_runtime": {"canary": {"allocation_basis_points": 100}}}
+
+    sẽ THAY THẾ trọn sub-dict `canary`, làm `quota_profiles` và `capability_profiles` biến
+    mất. Mà thiết kế fail-closed nói thiếu quota profile thì rơi về legacy. Kết quả: người
+    vận hành bật canary lên 1 phần trăm, tưởng đã bật, và KHÔNG CÓ GÌ xảy ra cả - im lặng,
+    không lỗi, không cảnh báo. Đây là kiểu hỏng tệ nhất vì knob xoay được mà đèn không sáng.
+
+    List cố ý THAY THẾ chứ không nối: `quota_profiles` là danh sách luật, nối thêm vào danh
+    sách luật gần như luôn là ý sai (sinh luật trùng, luật cũ không xoá được).
+    """
+    for k, v in (patch or {}).items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
 def read_settings():
     try:
         st = SETTINGS_PATH.stat()
@@ -336,11 +362,7 @@ def read_settings():
     try:
         if SETTINGS_PATH.exists():
             data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-            for k, v in (data or {}).items():
-                if isinstance(v, dict) and isinstance(cfg.get(k), dict):
-                    cfg[k].update(v)
-                else:
-                    cfg[k] = v
+            _deep_merge(cfg, data or {})
     except Exception:
         pass
     try:

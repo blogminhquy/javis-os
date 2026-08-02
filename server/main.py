@@ -7311,6 +7311,100 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
     return {**snapshot, "canaries": canaries, "registry": registry}
 
 
+def _canary_keys() -> set:
+    """Tên các đường canary hợp lệ, lấy từ CHÍNH _DEFAULT chứ không chép tay.
+
+    Chép tay thì thêm phase mới là danh sách lệch, và endpoint sẽ từ chối một đường có
+    thật với lý do 'không tồn tại'. Nguồn sự thật duy nhất là cấu hình mặc định."""
+    rt = (cfgmod._DEFAULT.get("context_runtime") or {})
+    return {k for k, v in rt.items()
+            if isinstance(v, dict) and "allocation_basis_points" in v}
+
+
+def _canary_inert_reason(entry: dict) -> str:
+    """Vì sao đặt allocation > 0 cho đường này sẽ KHÔNG có tác dụng gì. "" nếu ổn.
+
+    Thiết kế fail-closed: thiếu quota profile hoặc allowlist rỗng thì mọi task đều rơi về
+    legacy. Cộng với việc canary không báo lỗi khi rơi về legacy (đúng theo thiết kế), kết
+    quả là người vận hành bật knob lên rồi ngồi đợi một thứ không bao giờ xảy ra. Chặn ở
+    đây để cái im lặng đó thành một câu nói ra được.
+
+    Chỉ soát trường mà đường đó THẬT SỰ CÓ: fast path không gọi tool nên không có
+    `capability_profiles`, đòi nó ở đây là từ chối oan một cấu hình hợp lệ."""
+    if not (entry.get("quota_profiles") or entry.get("models")):
+        return ("chưa khai quota profile (rolling_tpm, context_window, giá) nên fail-closed "
+                "sẽ cho mọi task rơi về legacy")
+    has_allowlist_field = "capability_profiles" in entry or "allowed_slugs" in entry
+    if has_allowlist_field and not (entry.get("capability_profiles")
+                                    or entry.get("allowed_slugs")):
+        return "allowlist rỗng nên fail-closed sẽ cho mọi task rơi về legacy"
+    return ""
+
+
+def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_inert: bool):
+    """Quyết định cho POST /runtime/canary. Hàm THUẦN, trả (status_code, payload).
+
+    Tách khỏi endpoint vì hai lý do. Một, đây là hàng rào duy nhất chặn việc bật một đường
+    chắc chắn vô tác dụng, mà hàng rào không kiểm được là hàng rào không tin được. Hai, gọi
+    thẳng một hàm FastAPI trong test thì tham số mặc định vẫn là object `Form(...)` (truthy),
+    nên test đi qua endpoint chỉ đo được cái vỏ chứ không đo được quyết định.
+    status_code 0 nghĩa là cho phép ghi."""
+    keys = _canary_keys()
+    if path not in keys:
+        return 400, {"ok": False, "error": f"đường canary '{path}' không tồn tại",
+                     "hop_le": sorted(keys)}
+    try:
+        bp = int(allocation_basis_points)
+    except (TypeError, ValueError):
+        return 400, {"ok": False, "error": "allocation_basis_points phải là số"}
+    if not 0 <= bp <= 10000:
+        return 400, {"ok": False,
+                     "error": "allocation_basis_points phải trong khoảng 0..10000 "
+                              "(10000 = 100 phần trăm)"}
+    # Tắt về 0 LUÔN được phép: đường lui phải rẻ hơn đường tiến, nếu không thì người vận
+    # hành sẽ ngại thử.
+    if bp > 0 and not allow_inert:
+        reason = _canary_inert_reason(entry)
+        if reason:
+            # Cùng quy ước với POST /reminders: trả can_force kèm lý do thay vì âm thầm làm.
+            return 409, {"ok": False, "can_force": True, "error": reason,
+                         "goi_y": "khai quota profile trước, hoặc gửi lại với "
+                                  "allow_inert=true nếu cố ý bật để quan sát"}
+    return 0, {"ok": True, "allocation_basis_points": bp}
+
+
+@app.post("/runtime/canary")
+async def runtime_canary_set(
+    path: str = Form(...),
+    allocation_basis_points: int = Form(...),
+    allow_inert: bool = Form(False),
+):
+    """Đặt allocation cho MỘT đường canary, an toàn hơn sửa tay settings.json.
+
+    Vì sao cần endpoint riêng thay vì bảo người vận hành tự sửa file: knob nằm sâu hai tầng
+    (`context_runtime.<path>.allocation_basis_points`). Endpoint này đọc-sửa-ghi trọn cấu
+    hình nên không bao giờ làm mất field anh em, và nó CHẶN trước khi bật một đường chắc
+    chắn vô tác dụng (xem `_canary_inert_reason`).
+    """
+    cfg = cfgmod.read_settings()
+    entry = dict((cfg.get("context_runtime") or {}).get(path) or {})
+    status, payload = canary_set_decision(path, allocation_basis_points, entry,
+                                          bool(allow_inert))
+    if status:
+        return JSONResponse(payload, status_code=status)
+    entry["allocation_basis_points"] = payload["allocation_basis_points"]
+    cfg.setdefault("context_runtime", {})[path] = entry
+    cfgmod.write_settings(cfg)
+    # Không cần restart: read_settings cache theo mtime nên lượt kế tiếp đã ăn giá trị mới.
+    after = (cfgmod.read_settings().get("context_runtime") or {}).get(path) or {}
+    return {"ok": True, "path": path,
+            "allocation_basis_points": after.get("allocation_basis_points"),
+            "quota_rules": len(after.get("quota_profiles") or after.get("models") or []),
+            "allowlist": len(after.get("capability_profiles")
+                             or after.get("allowed_slugs") or []),
+            "co_hieu_luc_ngay": True}
+
+
 @app.get("/runtime/tasks/{task_id}")
 async def runtime_task_status(task_id: str):
     """Phase 7 status tối thiểu; không trả objective, checkpoint ciphertext hay actor hash."""

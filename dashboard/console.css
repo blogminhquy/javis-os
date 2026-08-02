@@ -738,6 +738,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .rt-path { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
 .rt-path-legacy, .rt-path-unassigned { opacity: .6; }
 .rt-foot { font-size: 12px; padding-top: 4px; }
+.rt-set { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.rt-bps { width: 78px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: inherit; font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.rt-apply { font-size: 12px; padding: 4px 10px; }
+.rt-note { font-size: 12px; padding-top: 8px; line-height: 1.5; }
 .wf-wait-act { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .wf-approve { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line);
   background: color-mix(in srgb, var(--warn, #d29922) 16%, transparent); cursor: pointer;

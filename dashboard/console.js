@@ -393,14 +393,22 @@
 
       <div class="rt-sec">
         <h3>Canary</h3>
-        <table class="rt-tbl"><thead><tr><th>Đường</th><th class="rt-right">Allocation</th><th class="rt-right">Quota rule</th><th class="rt-right">Allowlist</th></tr></thead><tbody>
+        <table class="rt-tbl"><thead><tr><th>Đường</th><th class="rt-right">Allocation</th><th class="rt-right">Quota rule</th><th class="rt-right">Allowlist</th><th>Đặt</th></tr></thead><tbody>
         ${canaries.map(([k, v]) => `<tr>
           <td class="rt-mono">${esc(k)}</td>
           <td class="rt-right">${(v.allocation_basis_points || 0) === 0 ? '<span class="dim">tắt</span>' : num(v.allocation_basis_points) + " bps"}</td>
           <td class="rt-right">${num(v.quota_rules)}</td>
           <td class="rt-right">${num(v.allowlist)}</td>
+          <td class="rt-set">
+            <input type="number" min="0" max="10000" step="100" class="rt-bps" data-path="${esc(k)}"
+                   value="${v.allocation_basis_points || 0}" aria-label="allocation ${esc(k)} basis points">
+            <button class="btn btn-sm rt-apply" data-path="${esc(k)}">Đặt</button>
+          </td>
         </tr>`).join("")}
         </tbody></table>
+        <div class="dim rt-note">10000 bps = 100 phần trăm. Đổi xong có hiệu lực ngay, không cần khởi động lại;
+        đặt về 0 là tắt tức thì. Bật một đường chưa khai quota sẽ bị chặn kèm lý do, vì fail-closed
+        sẽ cho mọi lượt rơi về đường cũ mà không báo gì.</div>
       </div>
 
       <div class="rt-sec">
@@ -410,6 +418,49 @@
       </div>
       <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
     </div>`;
+
+    // Đặt allocation. Nút này là đường DUY NHẤT để bật/tắt canary mà không phải sửa tay
+    // settings.json - knob nằm sâu hai tầng nên sửa tay rất dễ làm mất field anh em.
+    el.querySelectorAll(".rt-apply").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const path = btn.dataset.path;
+        const input = el.querySelector(`.rt-bps[data-path="${CSS.escape(path)}"]`);
+        const bps = String((input && input.value) || "0");
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = "Đang đặt...";
+        try {
+          let res = await _setCanary(path, bps, false);
+          if (res.status === 409 && res.body && res.body.can_force) {
+            // Chặn có chủ đích: đường này bật lên sẽ fail-closed về legacy trong im lặng.
+            // Hỏi thẳng thay vì làm rồi để user ngồi đợi thứ không bao giờ chạy.
+            if (!confirm(`${res.body.error}.\n\nVẫn bật để quan sát?`)) return;
+            res = await _setCanary(path, bps, true);
+          }
+          if (!res.ok) {
+            alert((res.body && res.body.error) || "Đặt allocation thất bại.");
+            return;
+          }
+          renderRuntime(el);
+        } catch (e) {
+          alert("Đặt allocation thất bại: " + (e && e.message ? e.message : e));
+        } finally {
+          btn.disabled = false;
+          btn.textContent = old;
+        }
+      });
+    });
+  }
+
+  async function _setCanary(path, bps, allowInert) {
+    const fd = new FormData();
+    fd.append("path", path);
+    fd.append("allocation_basis_points", bps);
+    if (allowInert) fd.append("allow_inert", "true");
+    const r = await fetch("/runtime/canary", { method: "POST", body: fd });
+    let body = null;
+    try { body = await r.json(); } catch (e) { body = null; }
+    return { ok: r.ok, status: r.status, body };
   }
 
   async function renderUsage(el) {
