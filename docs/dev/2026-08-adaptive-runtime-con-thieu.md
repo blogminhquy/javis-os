@@ -1,5 +1,9 @@
 # Còn thiếu gì để đạt mục đích gốc
 
+> **Trạng thái: cả 7 việc ở mục 4 ĐÃ LÀM XONG** (2026-08-02). Mục 3 giữ nguyên như bản phân
+> tích ban đầu để còn đối chiếu, kèm ba đính chính ở cuối tài liệu về những chỗ bản đầu quy
+> sai. Xem mục 6 để biết cái gì đã thay đổi thật.
+
 Đi cùng `2026-08-adaptive-context-runtime-spec.md` (xây cái gì) và
 `2026-08-adaptive-runtime-trien-khai.md` (đưa lên bằng cách nào).
 
@@ -192,3 +196,50 @@ cảm.
 Điểm cần nhớ: sau 12 phase, thứ chặn Groq hôm nay **không phải kiến trúc còn thiếu**, mà là
 một khối schema tool chưa ai đưa vào tầng lazy, cộng với một dòng cấu hình hạn mức chưa ai
 điền.
+
+## 6. Đã làm gì, và ba chỗ bản phân tích này nói sai
+
+### 6.1 Kết quả đo được
+
+| Khối | Trước | Sau |
+|---|---|---|
+| Schema tool gửi mỗi lượt (26 tool, 30 skill) | 11.994 ký tự | **2.001** (giảm 83%) |
+| System prompt đường biên dịch | 21.479 ký tự | **724** (giảm 97%) |
+| Chi phí cố định đường biên dịch | - | **~772 token**, còn ~11.200 dưới hạn mức Groq |
+
+Phần giảm schema tool có tác dụng **ngay trên đường legacy**, không cần bật canary nào.
+
+### 6.2 Bảy việc
+
+1. **Tầng lazy nhận cả builtin và plugin.** Pool không còn suy ngầm từ `conn` mà khai tường
+   minh qua `CORE_TOOL_FNS`. Thêm ngưỡng theo KÍCH THƯỚC bên cạnh ngưỡng số lượng, vì đếm
+   tool không nói lên chi phí.
+2. **Canh ngân sách prompt** bằng `test_prompt_budget.py`: ba trần cộng một phép thử tổng
+   phải vừa hạn mức Groq miễn phí.
+3. **Merge cấu hình đệ quy** (diệt bẫy mất `quota_profiles` im lặng) cộng `POST /runtime/canary`
+   và nút Đặt trên trang Chẩn đoán.
+4. **`model_limits.py`** - hạn mức gợi ý có ghi nguồn, `POST /runtime/quota`, nút Khai.
+5. **Chiều fail-closed** cho ràng buộc ngân sách: từ chối và nói, kèm số và lối ra.
+6. **`quota_scheduler.py`** - sổ cái TPM dùng chung, móc vào `usage_store.record` nên phủ
+   mọi nguồn.
+7. **`capability_index.py`** - RRF fusion, nới rộng động, affinity nguồn.
+
+### 6.3 Ba đính chính
+
+Ghi lại vì chúng cho thấy phân tích đọc code mà chưa chạy thì sai ở đâu.
+
+- **`CLAUDE.md` không hề phình 23%.** Bản đầu so `wc -c` (26.505 **byte**) với con số chẩn
+  đoán gốc (21.479 **ký tự**). Tiếng Việt có dấu nên mỗi ký tự hơn một byte. File y nguyên.
+  Rào vẫn cần, nhưng vì chưa từng có rào, không phải vì đã trôi.
+- **Fast path và readonly path KHÔNG sai chiều fail-closed.** Chúng đã từ chối-và-nói từ
+  đầu. Đường sai chiều là Phase 8, và nó là đường quan trọng nhất cho bài toán Groq.
+- **TPM không phải "chỗ để trống".** Admission cửa sổ trượt 60 giây có thật và fail-closed
+  đúng. Lỗ nằm ở chỗ chỉ 4 đường canary đi qua nó, trong khi 10 chỗ gọi model khác thì không.
+
+### 6.4 Vẫn chưa có
+
+- Baseline production, gold benchmark. Không code nào thay được, phải chạy shadow rồi đọc
+  trang Chẩn đoán.
+- Embedding thật cho `capability_index`: khung fusion đã sẵn sàng nhưng chưa có adapter nào
+  được cấu hình, nên phần semantic hiện luôn rỗng và fusion trở về đúng thứ tự lexical.
+- Hạn mức trong `model_limits` mới có Groq. Provider khác trả rỗng, và đó là cố ý.
