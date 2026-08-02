@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.0] - 2026-08-02
+Trang Chẩn đoán đổi thành **Tiết kiệm token**: ba nút thay cho bảng mười dòng. Sửa lỗi Llama vẫn vượt hạn mức.
+### Sửa lỗi
+- **Llama/Groq vẫn báo vượt hạn mức dù 0.11.0 nói là đã tự xử.** Phần tự học hạn mức đặt nhầm chỗ: nó nằm ở các hàm gửi đơn giản, trong khi mọi lượt chat thật đều đi qua vòng gọi công cụ (Javis luôn có công cụ nội bộ nên vòng đó luôn được dùng). Code chạy đúng, test xanh, và không bao giờ được gọi tới. Nay đã đặt đúng chỗ, phủ cả năm nhà cung cấp cùng ChatGPT.
+- **Bấm nút "Đặt" không thấy gì xảy ra.** Ô số hiện sẵn giá trị đang dùng, nên bấm mà không sửa số là đặt lại đúng giá trị cũ - một thao tác rỗng, lại không có thông báo nào. Nay mọi thao tác đều hiện một dòng xác nhận nói rõ vừa đổi cái gì.
+### Cải thiện
+- **Đổi tên trang thành "Tiết kiệm token".** Tên cũ "Chẩn đoán" không nói được trang dùng để làm gì.
+- **Ba nút thay cho bảng mười dòng.** Chọn **Tắt**, **Tiết kiệm** hoặc **Tối đa**, mỗi nút có một dòng nói rõ đánh đổi. Javis tự lo phần bên dưới: bật đúng những mảng cần, tự bật công tắc trùm, tự khai hạn mức cho nhà cung cấp đang dùng. Không còn phải hiểu "canary", "allocation" hay "basis point" mới dùng được.
+- Mức chỉ gồm những mảng **chạy được thật**. Mảng nào cần danh sách cho phép mà chưa khai thì không đưa vào, vì bật lên chỉ tạo cảm giác đã bật trong khi mọi lượt vẫn đi đường cũ.
+- Bảng chi tiết cùng công tắc trùm chuyển vào mục **Nâng cao** gập sẵn, cho ai muốn thử nghiệm.
+- Hạ mức thì tắt hẳn phần dư, không cộng dồn. Chỉnh tay lệch chuẩn thì trang báo là "custom" chứ không im lặng nhận bừa.
+
 ## [0.11.0] - 2026-08-02
 Javis tự học hạn mức của mọi nhà cung cấp từ chính câu báo lỗi, tự rút gọn rồi chạy tiếp. Trang Chẩn đoán viết lại bằng tiếng người.
 ### Sửa lỗi

@@ -737,7 +737,15 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
             async with client.stream("POST", CODEX_RESPONSES_URL, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
-                    yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body.decode('utf-8', 'replace')[:400]}"}
+                    body_text = body.decode("utf-8", "replace")
+                    _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                    if _fact:
+                        limit_learner.remember("openai-oauth", model, _fact)
+                        yield {"type": "limit_exceeded", "provider": "ChatGPT", "model": model,
+                               "kind": _fact.kind, "limit": _fact.limit,
+                               "requested": _fact.requested,
+                               "shrink_to": limit_learner.shrink_target(_fact)}
+                    yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body_text[:400]}"}
                     return
                 yield {"type": "meta", "model": model or "gpt-5-codex"}
                 got = False
@@ -1228,7 +1236,18 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     payload["tool_choice"] = "required"
                     r = await client.post(url, headers=headers, json=payload)
             if r.status_code != 200:
-                yield {"type": "error", "content": f"{label} {r.status_code}: {(r.text or '')[:300]}"}
+                body_text = r.text or ""
+                # ĐÂY mới là đường mọi provider API thật sự đi qua khi có tool (luôn có, vì
+                # Javis có builtin tools). Bản vá đầu chỉ đặt ở các hàm stream thuần nên
+                # không bao giờ chạy - lỗi "code đúng mà không nối được với đường thật".
+                _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                if _fact:
+                    limit_learner.remember(label, model, _fact)
+                    yield {"type": "limit_exceeded", "provider": label, "model": model,
+                           "kind": _fact.kind, "limit": _fact.limit,
+                           "requested": _fact.requested,
+                           "shrink_to": limit_learner.shrink_target(_fact)}
+                yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
                 return
             data = r.json()
         except Exception as e:
@@ -1363,7 +1382,15 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                 async with client.stream("POST", CODEX_RESPONSES_URL, headers=headers, json=payload) as r:
                     if r.status_code != 200:
                         body = await r.aread()
-                        yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body.decode('utf-8', 'replace')[:300]}"}
+                        body_text = body.decode("utf-8", "replace")
+                        _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                        if _fact:
+                            limit_learner.remember("openai-oauth", model, _fact)
+                            yield {"type": "limit_exceeded", "provider": "ChatGPT",
+                                   "model": model, "kind": _fact.kind, "limit": _fact.limit,
+                                   "requested": _fact.requested,
+                                   "shrink_to": limit_learner.shrink_target(_fact)}
+                        yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body_text[:300]}"}
                         return
                     async for line in r.aiter_lines():
                         line = (line or "").strip()
@@ -1462,7 +1489,15 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                 extras = {}   # thinking không tương thích payload/tool này → bỏ thinking, thử lại
                 continue
             if r.status_code != 200:
-                yield {"type": "error", "content": f"Anthropic {r.status_code}: {(r.text or '')[:300]}"}
+                body_text = r.text or ""
+                _fact = limit_learner.parse_limit_error(r.status_code, body_text)
+                if _fact:
+                    limit_learner.remember("anthropic", model, _fact)
+                    yield {"type": "limit_exceeded", "provider": "anthropic", "model": model,
+                           "kind": _fact.kind, "limit": _fact.limit,
+                           "requested": _fact.requested,
+                           "shrink_to": limit_learner.shrink_target(_fact)}
+                yield {"type": "error", "content": f"Anthropic {r.status_code}: {body_text[:300]}"}
                 return
             try:
                 data = r.json()

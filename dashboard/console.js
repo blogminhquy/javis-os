@@ -87,7 +87,7 @@
     { id: "logs",        icon: ICON.logs,        label: "Cập nhật" },
     { id: "account",     icon: ICON.account,     label: "Tài khoản" },
     { id: "usage",       icon: ICON.usage,       label: "Mức dùng" },
-    { id: "runtime",     icon: ICON.runtime,     label: "Chẩn đoán" },
+    { id: "runtime",     icon: ICON.runtime,     label: "Tiết kiệm token" },
   ];
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -142,7 +142,7 @@
     logs:        { icon: VIEW_ICON.logs, label: "Nhật ký cập nhật", sub: "Phiên bản & tính năng mới" },
     account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập & workspace" },
     usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Token & chi phí theo ngày, theo nhà cung cấp" },
-    runtime:     { icon: VIEW_ICON.runtime, label: "Chẩn đoán", sub: "Adaptive runtime đang quan sát gì: token, đường chạy, capsule" },
+    runtime:     { icon: VIEW_ICON.runtime, label: "Tiết kiệm token", sub: "Xem Javis đang tốn bao nhiêu token mỗi lượt, và chọn mức tiết kiệm" },
   };
 
   // 4 trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).
@@ -447,31 +447,45 @@
       </div>
 
       <div class="rt-sec">
-        <h3>Canary</h3>
-        <table class="rt-tbl"><thead><tr><th>Đường</th><th class="rt-right">Allocation</th><th class="rt-right">Quota rule</th><th class="rt-right">Allowlist</th><th>Đặt</th></tr></thead><tbody>
+        <h3>Mức tiết kiệm</h3>
+        <div class="rt-presets">
+          ${(d.presets || []).map((p) => `
+            <button class="rt-preset${p.id === d.preset ? " on" : ""}" data-preset="${esc(p.id)}">
+              <b>${esc(p.nhan)}</b>
+              <small>${esc(p.mo_ta)}</small>
+              ${p.id === d.preset ? '<span class="rt-preset-now">đang dùng</span>' : ""}
+            </button>`).join("")}
+        </div>
+        ${d.preset === "custom" ? `<div class="dim rt-note">Cấu hình hiện tại không khớp mức
+          nào (đã chỉnh tay ở phần Nâng cao). Bấm một mức để về lại chuẩn.</div>` : ""}
+        <div class="dim rt-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis
+        trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức.</div>
+      </div>
+
+      <details class="rt-adv">
+        <summary>Nâng cao: bật/tắt từng mảng một</summary>
+        <div class="dim rt-note">Phần này để thử nghiệm. Bình thường dùng ba mức ở trên là đủ.
+        Đơn vị là phần vạn: 10000 là toàn bộ, 100 là 1 phần trăm, 0 là tắt.</div>
+        <table class="rt-tbl"><thead><tr><th>Mảng</th><th class="rt-right">Đang bật</th><th class="rt-right">Hạn mức</th><th class="rt-right">Allowlist</th><th>Đặt</th></tr></thead><tbody>
         ${canaries.map(([k, v]) => `<tr>
           <td class="rt-mono">${esc(k)}</td>
-          <td class="rt-right">${(v.allocation_basis_points || 0) === 0 ? '<span class="dim">tắt</span>' : num(v.allocation_basis_points) + " bps"}</td>
+          <td class="rt-right">${(v.allocation_basis_points || 0) === 0 ? '<span class="dim">tắt</span>' : num(v.allocation_basis_points)}</td>
           <td class="rt-right">${num(v.quota_rules)}</td>
           <td class="rt-right">${num(v.allowlist)}</td>
           <td class="rt-set">
             <input type="number" min="0" max="10000" step="100" class="rt-bps" data-path="${esc(k)}"
-                   value="${v.allocation_basis_points || 0}" aria-label="allocation ${esc(k)} basis points">
+                   value="${v.allocation_basis_points || 0}" aria-label="mức ${esc(k)}">
             <button class="btn btn-sm rt-apply" data-path="${esc(k)}">Đặt</button>
           </td>
         </tr>`).join("")}
         </tbody></table>
-        <div class="dim rt-note">10000 bps = 100 phần trăm. Đổi xong có hiệu lực ngay, không cần khởi động lại;
-        đặt về 0 là tắt tức thì. Bật một đường chưa khai quota sẽ bị chặn kèm lý do, vì fail-closed
-        sẽ cho mọi lượt rơi về đường cũ mà không báo gì.</div>
         <div class="rt-quota">
-          <label>Công tắc trùm (mode)
+          <label>Công tắc trùm
             <select class="rt-mode">${["off", "observe", "shadow", "canary", "on"].map((m) =>
               `<option value="${m}"${m === d.mode ? " selected" : ""}>${m}</option>`).join("")}</select>
           </label>
           <button class="btn btn-sm rt-mode-apply">Đổi</button>
-          <span class="dim">Mọi đường dưới đây CHỈ chạy khi mode là canary hoặc on. Còn ở
-          shadow thì đặt allocation bao nhiêu cũng không có gì đổi.</span>
+          <span class="dim">Mọi mảng trên CHỈ chạy khi công tắc này ở canary hoặc on.</span>
         </div>
         ${(d.quota_presets || []).length ? `
         <div class="rt-quota">
@@ -479,9 +493,9 @@
             <select class="rt-prov">${(d.quota_presets || []).map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
           </label>
           <button class="btn btn-sm rt-quota-apply">Khai</button>
-          <span class="dim">Con số theo tài liệu công khai, phải đối chiếu với gói cước thật của anh.</span>
+          <span class="dim">Con số theo tài liệu công khai, phải đối chiếu với gói cước thật.</span>
         </div>` : ""}
-      </div>
+      </details>
 
       <div class="rt-sec">
         <h3>Lượt gần nhất</h3>
@@ -491,6 +505,7 @@
       <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
     </div>`;
 
+    _bindPresets(el);
     _bindModeApply(el);
     _bindQuotaApply(el);
 
@@ -513,12 +528,14 @@
             res = await _setCanary(path, bps, true);
           }
           if (!res.ok) {
-            alert((res.body && res.body.error) || "Đặt allocation thất bại.");
+            _rtToast(el, (res.body && res.body.error) || "Đặt thất bại.", false);
             return;
           }
+          _rtToast(el, `Đã đặt ${path} = ${bps}.`
+            + (String(bps) === "0" ? " (0 nghĩa là tắt mảng này)" : ""), true);
           renderRuntime(el);
         } catch (e) {
-          alert("Đặt allocation thất bại: " + (e && e.message ? e.message : e));
+          _rtToast(el, "Đặt thất bại: " + (e && e.message ? e.message : e), false);
         } finally {
           btn.disabled = false;
           btn.textContent = old;
@@ -536,6 +553,50 @@
       out[`${key} (${kind})`] = (v && v.limit) || 0;
     });
     return out;
+  }
+
+  function _rtToast(el, text, ok) {
+    // Bấm mà không thấy gì xảy ra thì người dùng tưởng nút hỏng - đó đúng là phản hồi đã
+    // nhận được về bản trước.
+    let t = el.querySelector(".rt-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.className = "rt-toast";
+      el.querySelector(".rt-wrap")?.prepend(t) || el.prepend(t);
+    }
+    t.className = "rt-toast" + (ok ? " ok" : " err");
+    t.textContent = text;
+    t.style.opacity = "1";
+    clearTimeout(t._h);
+    t._h = setTimeout(() => { t.style.opacity = "0"; }, 6000);
+  }
+
+  function _bindPresets(el) {
+    el.querySelectorAll(".rt-preset").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const level = btn.dataset.preset;
+        el.querySelectorAll(".rt-preset").forEach((b) => { b.disabled = true; });
+        try {
+          const fd = new FormData();
+          fd.append("level", level);
+          const r = await fetch("/runtime/preset", { method: "POST", body: fd });
+          const body = await r.json().catch(() => null);
+          if (!r.ok) {
+            _rtToast(el, (body && body.error) || "Đổi mức thất bại.", false);
+            return;
+          }
+          const n = (body.da_bat || []).length, m = (body.da_tat || []).length;
+          _rtToast(el, `Đã chuyển sang mức "${body.nhan}".`
+            + (n ? ` Bật thêm ${n} mảng.` : "") + (m ? ` Tắt ${m} mảng.` : "")
+            + " Có hiệu lực ngay từ câu hỏi tiếp theo.", true);
+          renderRuntime(el);
+        } catch (e) {
+          _rtToast(el, "Đổi mức thất bại: " + (e && e.message ? e.message : e), false);
+        } finally {
+          el.querySelectorAll(".rt-preset").forEach((b) => { b.disabled = false; });
+        }
+      });
+    });
   }
 
   async function _bindModeApply(el) {

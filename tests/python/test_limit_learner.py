@@ -138,6 +138,30 @@ check("báo lỗi cuối: nêu hạn mức thật", "12,000" in _msg)
 check("báo lỗi cuối: nêu số đã cần", "15,447" in _msg)
 check("báo lỗi cuối: nói rõ đã tự thử lại", "thử lại" in _msg)
 
+# ---- 7. MỌI đường gọi provider đều phải học hạn mức ----
+# Lỗi đã xảy ra thật: bản đầu chỉ vá các hàm stream thuần, trong khi đường Groq thật đi qua
+# _cc_tool_loop (luôn có tool vì Javis có builtin tools). Code đúng, test xanh, và không bao
+# giờ chạy. Rào này đối chiếu: chỗ nào phát "error" theo status_code thì phải có học hạn mức
+# ngay trên đó.
+import re as _re  # noqa: E402
+
+_eng = (ROOT / "server" / "engine.py").read_text(encoding="utf-8")
+_lines = _eng.split("\n")
+_missing = []
+for _i, _ln in enumerate(_lines):
+    if "status_code != 200" not in _ln:
+        continue
+    # 12 dòng sau đó phải có parse_limit_error, nếu không là một đường bị bỏ sót.
+    _win = "\n".join(_lines[_i:_i + 14])
+    if '"type": "error"' in _win and "parse_limit_error" not in _win:
+        _missing.append(_i + 1)
+
+check("mọi chỗ báo lỗi HTTP đều học hạn mức, không sót đường nào", not _missing)
+if _missing:
+    print("     dòng thiếu:", _missing)
+check("rào này có ý nghĩa (tìm được nhiều đường thật)",
+      _eng.count("parse_limit_error") >= 4)
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

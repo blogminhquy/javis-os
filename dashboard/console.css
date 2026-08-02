@@ -763,3 +763,27 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-size: 13px; line-height: 1.6; background: var(--surface-2); }
 .rt-help b { display: block; margin-bottom: 6px; font-size: 13.5px; }
 .rt-help p { margin: 8px 0 0; color: var(--text2); }
+/* Ba nút chọn mức tiết kiệm - thay cho bảng 10 dòng canary mà người dùng không hiểu. */
+.rt-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px; margin-bottom: 10px; }
+.rt-preset { position: relative; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  background: var(--surface-2); color: inherit;
+  transition: border-color 0.15s, background 0.15s; }
+.rt-preset:hover:not(:disabled) { border-color: var(--accent); }
+.rt-preset:disabled { opacity: .55; cursor: default; }
+.rt-preset b { display: block; font-size: 14px; margin-bottom: 4px; }
+.rt-preset small { display: block; font-size: 12px; line-height: 1.5; color: var(--text2); }
+.rt-preset.on { border-color: var(--accent); background: var(--accent-wash-2); }
+.rt-preset-now { display: inline-block; margin-top: 8px; font-size: 11px;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 999px;
+  padding: 1px 8px; }
+.rt-adv { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.rt-adv summary { cursor: pointer; font-size: 13px; font-weight: 600; list-style: none; }
+.rt-adv summary::-webkit-details-marker { display: none; }
+.rt-adv summary::before { content: "▸ "; opacity: .6; }
+.rt-adv[open] summary::before { content: "▾ "; }
+.rt-toast { padding: 10px 14px; border-radius: 10px; font-size: 13px; margin-bottom: 10px;
+  transition: opacity 0.4s; border: 1px solid; }
+.rt-toast.ok { border-color: var(--accent); background: var(--accent-wash-2); }
+.rt-toast.err { border-color: var(--danger-line); background: var(--danger-wash); color: var(--red); }

@@ -7370,7 +7370,12 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             "tpm_window": quota_scheduler.snapshot(60),
             # Hạn mức Javis TỰ HỌC từ lỗi nhà cung cấp trả về. Khác quota_presets ở chỗ
             # đây là số thật của tài khoản này, do chính nhà cung cấp nói ra.
-            "learned_limits": limit_learner.snapshot()}
+            "learned_limits": limit_learner.snapshot(),
+            # Mức tiết kiệm token đang chọn + danh sách mức, để giao diện vẽ ba nút thay
+            # vì bắt người dùng tự hiểu 10 đường canary và đơn vị basis point.
+            "preset": current_preset(settings),
+            "presets": [{"id": k, **{x: v[x] for x in ("nhan", "mo_ta")}}
+                        for k, v in RUNTIME_PRESETS.items()]}
 
 
 def _shrink_messages(messages: list, target_tokens: int) -> list:
@@ -7503,6 +7508,116 @@ def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_i
 
 
 _RUNTIME_MODES = ("off", "observe", "shadow", "canary", "on")
+
+# Ba MỨC tiết kiệm token, thay cho việc bắt người dùng tự hiểu 10 đường canary và đơn vị
+# basis point. Người dùng chỉ cần biết "tiết kiệm ít hay nhiều", còn bên dưới bật đường nào
+# là việc của Javis.
+#
+# Chỉ đưa vào đây những đường CHẠY ĐƯỢC với cấu hình mặc định. readonly_canary,
+# orchestrator_canary, write_canary... đều đòi allowlist capability mà mặc định rỗng, nên
+# bật chúng chỉ tạo cảm giác đã bật trong khi mọi lượt vẫn rơi về đường cũ.
+RUNTIME_PRESETS = {
+    "off": {
+        "nhan": "Tắt",
+        "mo_ta": "Gửi đầy đủ mọi thứ cho model như trước. An toàn nhất, tốn token nhất.",
+        "mode": "shadow",
+        "duong": {},
+    },
+    "saving": {
+        "nhan": "Tiết kiệm",
+        "mo_ta": ("Chỉ gửi phần liên quan tới câu hỏi: nhớ có chọn lọc, skill nạp khi cần. "
+                  "Giảm mạnh token mỗi lượt, hợp với model bị siết hạn mức."),
+        "mode": "canary",
+        "duong": {
+            "conversation_state_canary": 10000,
+            "memory_canary": 10000,
+            "lazy_skill_canary": 10000,
+        },
+    },
+    "max": {
+        "nhan": "Tối đa",
+        "mo_ta": ("Như mức Tiết kiệm, cộng thêm đường tắt cho câu hỏi đơn giản không cần "
+                  "tra cứu gì. Nhanh và rẻ nhất, nhưng mới nhất nên ít được thử nhất."),
+        "mode": "canary",
+        "duong": {
+            "conversation_state_canary": 10000,
+            "memory_canary": 10000,
+            "lazy_skill_canary": 10000,
+            "canary": 10000,
+        },
+    },
+}
+
+
+def current_preset(runtime_cfg: dict) -> str:
+    """Cấu hình hiện tại khớp mức nào. "custom" nếu người dùng tự chỉnh tay khác cả ba."""
+    cfg = runtime_cfg or {}
+    mode = str(cfg.get("mode") or "").casefold()
+    on = {k: int((v or {}).get("allocation_basis_points") or 0)
+          for k, v in cfg.items()
+          if isinstance(v, dict) and "allocation_basis_points" in v}
+    bat = {k for k, v in on.items() if v > 0}
+    for name, preset in RUNTIME_PRESETS.items():
+        want = set(preset["duong"])
+        if bat != want:
+            continue
+        # Mức off không quan tâm mode là gì, vì không đường nào bật thì mode vô nghĩa.
+        if name == "off" or mode in ("canary", "on"):
+            return name
+    return "custom"
+
+
+@app.post("/runtime/preset")
+async def runtime_preset_set(level: str = Form(...)):
+    """Đặt mức tiết kiệm token. Một thao tác thay cho việc chỉnh mode + 10 allocation.
+
+    Trả về ĐÚNG những gì đã đổi, để giao diện nói được "đã bật cái gì" thay vì im lặng.
+    """
+    key = str(level or "").strip().casefold()
+    preset = RUNTIME_PRESETS.get(key)
+    if not preset:
+        return JSONResponse({"ok": False, "error": f"mức '{level}' không có",
+                             "hop_le": list(RUNTIME_PRESETS)}, status_code=400)
+    cfg = cfgmod.read_settings()
+    runtime_cfg = cfg.setdefault("context_runtime", {})
+    runtime_cfg["mode"] = preset["mode"]
+
+    # Đường nào cần hạn mức mà chưa khai thì TỰ KHAI cho provider đang dùng. Không làm bước
+    # này thì bấm một mức sẽ bật một đường fail-closed: knob xoay được, đèn không sáng - đúng
+    # cái người dùng đã phàn nàn là "ấn vào đặt thì không có gì diễn ra".
+    canh_bao = []
+    prov, _kind, _key, model = _chat_provider(cfg.get("model", {}) or {})
+    goi_y = [model_limits.as_quota_profile(x)
+             for x in model_limits.suggest_profiles(prov, model or "")]
+    for name in preset["duong"]:
+        entry = dict(runtime_cfg.get(name) or {})
+        if "quota_profiles" not in entry or entry.get("quota_profiles"):
+            continue
+        if goi_y:
+            entry["quota_profiles"] = goi_y
+            runtime_cfg[name] = entry
+        else:
+            canh_bao.append(
+                f"'{name}' cần hạn mức mà chưa có bộ gợi ý cho provider '{prov}'. "
+                "Javis vẫn học được hạn mức từ lần nhà cung cấp từ chối đầu tiên, "
+                "nhưng tới lúc đó đường này chưa chạy.")
+
+    da_bat, da_tat = [], []
+    for name in _canary_keys():
+        entry = dict(runtime_cfg.get(name) or {})
+        muon = int(preset["duong"].get(name, 0))
+        truoc = int(entry.get("allocation_basis_points") or 0)
+        entry["allocation_basis_points"] = muon
+        runtime_cfg[name] = entry
+        if muon > 0 and truoc == 0:
+            da_bat.append(name)
+        elif muon == 0 and truoc > 0:
+            da_tat.append(name)
+    cfgmod.write_settings(cfg)
+    return {"ok": True, "level": key, "nhan": preset["nhan"],
+            "mode": preset["mode"], "da_bat": da_bat, "da_tat": da_tat,
+            "dang_bat": sorted(preset["duong"]), "canh_bao": canh_bao,
+            "co_hieu_luc_ngay": True}
 
 
 @app.post("/runtime/mode")
