@@ -66,6 +66,32 @@ def _is_transient_body(text: str) -> bool:
     return any(p in low for p in _TRANSIENT_BODY_PATTERNS)
 
 
+def describe_http_error(label: str, status: int, body: str) -> str:
+    """Lỗi HTTP của provider -> câu người đọc hiểu và biết làm gì tiếp.
+
+    Riêng 429 (vượt hạn mức) phải nói rõ: nhiều provider giới hạn theo token/PHÚT chứ không
+    phải theo số request, nên người dùng thấy "mới hỏi câu đầu đã bị chặn" và tưởng hỏng.
+    Groq gói miễn phí là 12.000 TPM, trong khi một lượt của Javis (system prompt + bộ nhớ +
+    lịch sử) dễ vượt - nói thẳng con số trong body lỗi để user tự đối chiếu.
+    """
+    raw = (body or "").strip()
+    low = raw.lower()
+    if status == 429 or "rate limit" in low or "rate_limit" in low:
+        tip = (f"{label} chặn vì VƯỢT HẠN MỨC (429). Đa số provider giới hạn theo token mỗi PHÚT, "
+               "nên một lượt chat dài là bị chặn ngay dù bạn mới hỏi câu đầu. Cách xử lý: đợi một "
+               "phút rồi hỏi lại; chọn model có hạn mức rộng hơn ở trang Models; hoặc chuyển sang "
+               "nhà cung cấp không siết token/phút (Claude Code, Anthropic API, OpenRouter). "
+               "Javis đã tự rút ngắn system prompt cho các provider siết chặt, nhưng lịch sử chat "
+               "dài vẫn có thể đẩy vượt trần - bấm nút + để mở hội thoại mới cũng đỡ.")
+        return tip + (f"\nNguyên văn: {raw[:220]}" if raw else "")
+    if status in (401, 403):
+        return f"{label} từ chối API key ({status}). Vào trang Models dán lại key.\nNguyên văn: {raw[:200]}"
+    if status == 413 or "context length" in low or "too large" in low:
+        return (f"{label} báo request QUÁ DÀI ({status}). Mở hội thoại mới (nút +) để bỏ bớt lịch sử, "
+                f"hoặc chọn model có cửa sổ ngữ cảnh lớn hơn.\nNguyên văn: {raw[:200]}")
+    return f"{label} {status}: {raw[:300]}"
+
+
 def _describe_exc(err: BaseException, max_depth: int = 3) -> str:
     """Walk __cause__/__context__ để phơi root cause. SDK thường wrap httpx error
     → 'APIConnectionError' đơn độc vô nghĩa, cần thấy 'RemoteProtocolError' bên trong."""
@@ -328,7 +354,7 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
             async with client.stream("POST", url, headers=headers, json=payload) as r:
                 if r.status_code != 200:
                     body = await r.aread()
-                    yield {"type": "error", "content": f"{label} {r.status_code}: {body.decode('utf-8', 'replace')[:300]}"}
+                    yield {"type": "error", "content": describe_http_error(label, r.status_code, body.decode("utf-8", "replace"))}
                     return
                 got = False
                 usage = None
@@ -1090,7 +1116,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     payload["tool_choice"] = "required"
                     r = await client.post(url, headers=headers, json=payload)
             if r.status_code != 200:
-                yield {"type": "error", "content": f"{label} {r.status_code}: {(r.text or '')[:300]}"}
+                yield {"type": "error", "content": describe_http_error(label, r.status_code, r.text or "")}
                 return
             data = r.json()
         except Exception as e:

@@ -263,8 +263,65 @@ def _fit_memory_index(mem: str, cap: int = None) -> str:
         "Đọc Memory/MEMORY.md để xem đủ danh sách, và Memory/facts/ để xem chi tiết.)")
 
 
-def build_system_prompt(brain: str = "brain") -> str:
-    """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh."""
+# Trần KÝ TỰ cho toàn bộ system prompt, theo từng nhà cung cấp. 0 = không giới hạn.
+#
+# Vì sao cần: có provider giới hạn token/PHÚT rất chặt. Groq gói on_demand miễn phí chỉ cho
+# 12.000 TPM, trong khi system prompt của Javis (CLAUDE.md ~21.500 ký tự + chỉ mục bộ nhớ tới
+# 20.000 + năng lực + router skill) đã ~41.000 ký tự, cộng lịch sử chat là một lượt hơn 21.000
+# token - bị chặn ngay từ đầu, chưa kịp trả lời. Càng dùng lâu bộ nhớ càng dày thì càng chắc
+# chết. Cắt theo ngân sách ở gateway là chỗ xử lý đúng: bộ nhớ cứ việc lớn lên, phần GỬI ĐI
+# vẫn nhỏ.
+#
+# Tiếng Việt ~3 ký tự/token nên 24.000 ký tự ~ 8.000 token, còn chỗ cho lịch sử + câu trả lời
+# trong hạn mức 12.000.
+PROMPT_BUDGET_CHARS = {
+    "groq": int(os.getenv("JAVIS_PROMPT_BUDGET_GROQ", "24000")),
+}
+
+
+def prompt_budget(provider: str) -> int:
+    """Trần ký tự system prompt cho provider này (0 = thả cửa)."""
+    return int(PROMPT_BUDGET_CHARS.get(provider, 0) or 0)
+
+
+def _fit_prompt(core: str, blocks: list, budget: int) -> tuple:
+    """Ghép `core` + các khối phụ sao cho tổng <= `budget` ký tự.
+
+    blocks: [(tên, nội dung, shrink)] xếp theo ĐỘ QUAN TRỌNG GIẢM DẦN. `shrink` là hàm
+    (text, cap) -> text, hoặc None nếu khối chỉ bỏ được chứ không rút được.
+    Cắt từ CUỐI danh sách lên - khối kém quan trọng nhất đi trước. Rút trước, bỏ sau: rút
+    chỉ mất chi tiết (đường dẫn file vẫn còn để đọc lại), bỏ mới là mất hẳn.
+    Trả (prompt, [mô tả những gì đã rút/bỏ])."""
+    if budget <= 0:
+        return core + "".join(t for _, t, _ in blocks), []
+    keep, trimmed = list(blocks), []
+    total = lambda ks: len(core) + sum(len(t) for _, t, _ in ks)   # noqa: E731
+    for i in range(len(keep) - 1, -1, -1):
+        if total(keep) <= budget:
+            break
+        name, text, shrink = keep[i]
+        if not shrink:
+            continue
+        room = budget - (total(keep) - len(text))
+        if room > 400:
+            new = shrink(text, room)
+            if len(new) < len(text):
+                keep[i] = (name, new, shrink)
+                trimmed.append(f"{name} (rút gọn)")
+    while keep and total(keep) > budget:
+        trimmed.append(f"{keep.pop()[0]} (bỏ)")
+    out = core + "".join(t for _, t, _ in keep)
+    if len(out) > budget:
+        # Chỉ riêng CLAUDE.md đã vượt trần. Cắt đuôi và nói thẳng, hơn là gửi đi rồi ăn lỗi.
+        out = out[:budget] + "\n\n[... phần cuối system prompt bị cắt cho vừa hạn mức nhà cung cấp ...]"
+        trimmed.append("system prompt gốc (cắt đuôi)")
+    return out, trimmed
+
+
+def build_system_prompt(brain: str = "brain", budget: int = 0) -> str:
+    """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh.
+
+    budget > 0: ép toàn bộ prompt xuống dưới trần ký tự đó (xem PROMPT_BUDGET_CHARS)."""
     base = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else ""
     idx = _brain_memory_dir(brain) / "MEMORY.md"
     mem = ""
@@ -273,8 +330,13 @@ def build_system_prompt(brain: str = "brain") -> str:
             mem = idx.read_text(encoding="utf-8")
     except Exception:
         mem = ""
+    # Từ 0.9.294 các khối phụ gom vào `blocks` thay vì cộng thẳng vào base, để _fit_prompt
+    # cắt được theo ngân sách của provider. Thứ tự trong blocks = ĐỘ QUAN TRỌNG giảm dần.
+    blocks = []
     if mem.strip():
-        base += "\n\n# === BỘ NHỚ DÀI HẠN (nạp sẵn) ===\n" + _fit_memory_index(mem)
+        blocks.append(("bộ nhớ dài hạn",
+                       "\n\n# === BỘ NHỚ DÀI HẠN (nạp sẵn) ===\n" + _fit_memory_index(mem),
+                       lambda t, cap: t[:120] + _fit_memory_index(t[120:], max(400, cap - 120))))
     # Đường dẫn lớp Agentic của vault đang làm việc (để Javis tạo agent/workflow/loop qua chat)
     root = _brain_root(brain)
     system_sync.ensure_synced(root)   # brain nào cũng có đủ năng lực hệ thống (1 lần/process, rẻ)
@@ -288,7 +350,7 @@ def build_system_prompt(brain: str = "brain") -> str:
     ag, wf = _agents_dir(brain), _workflows_dir(brain)
     lp = Path(root) / "Javis" / "loops"
     sk = _skills_dir(brain)
-    base += (
+    agentic = (
         "\n\n# === LỚP AGENTIC (vault đang làm việc) ===\n"
         f"Vault root: {root}\n"
         f"- AGENT: tạo/sửa tại `{ag}/<slug>.md`\n"
@@ -299,6 +361,7 @@ def build_system_prompt(brain: str = "brain") -> str:
         "(xem mục 'Tạo/sửa Agent & Workflow qua chat' và 'Điều phối' trong system prompt) bằng "
         "ĐƯỜNG DẪN TUYỆT ĐỐI ở trên. Trang Agents/Workflows/Việc định kỳ sẽ tự nhận file mới."
     )
+    blocks.insert(0, ("lớp agentic", agentic, None))   # quan trọng nhất: thiếu là không ghi được file
     # Quét cây skill MỘT lần cho cả hai khối dưới. Trước đây _javis_capability_summary
     # gọi list_skills còn _skill_router_block gọi list_enabled_meta (vốn chỉ là list_skills
     # lọc lại), nên cả cây skill bị đi và parse YAML HAI lần mỗi lượt chat - đo được 18ms
@@ -308,11 +371,14 @@ def build_system_prompt(brain: str = "brain") -> str:
     except Exception:
         _skills = None
     try:
-        base += _javis_capability_summary(brain, _skills)   # chỉ mục năng lực LIVE (mọi engine biết Javis có gì)
+        blocks.append(("chỉ mục năng lực", _javis_capability_summary(brain, _skills), None))
     except Exception:
         pass
     try:
-        base += _skill_router_block(brain, root, _skills)   # ROUTER SKILL đa-engine: list skill + cách gọi
+        # Router skill rút được: cắt bớt dòng cuối, giữ nguyên cách gọi ở đầu khối.
+        blocks.append(("router skill", _skill_router_block(brain, root, _skills),
+                       lambda t, cap: t[:cap].rsplit("\n", 1)[0]
+                       + "\n… (danh sách skill bị cắt cho vừa hạn mức - hỏi `javis_use_skill` hoặc đọc thư mục skills/)"))
     except Exception:
         pass
     try:
@@ -320,14 +386,24 @@ def build_system_prompt(brain: str = "brain") -> str:
         _t = usage_store.summary().get("today", {}).get("total", {})
         if _t.get("in") or _t.get("out"):
             _c = f", ~${_t.get('cost', 0):.4f}" if _t.get("cost") else ""
-            base += (f"\n\n# === MỨC DÙNG HÔM NAY (Javis tự đo) ===\n"
-                     f"{_t.get('in', 0):,} token vào + {_t.get('out', 0):,} token ra qua "
-                     f"{_t.get('turns', 0)} lượt{_c}. Đây là token Javis TỰ ĐO, KHÔNG phải hạn mức gói "
-                     f"thuê bao (đa số nhà cung cấp không cho lấy hạn mức tài khoản qua API). Chi tiết "
-                     f"từng nhà cung cấp ở panel 'Mức dùng' trên dashboard.")
+            blocks.append(("mức dùng hôm nay",
+                           f"\n\n# === MỨC DÙNG HÔM NAY (Javis tự đo) ===\n"
+                           f"{_t.get('in', 0):,} token vào + {_t.get('out', 0):,} token ra qua "
+                           f"{_t.get('turns', 0)} lượt{_c}. Đây là token Javis TỰ ĐO, KHÔNG phải hạn mức gói "
+                           f"thuê bao (đa số nhà cung cấp không cho lấy hạn mức tài khoản qua API). Chi tiết "
+                           f"từng nhà cung cấp ở panel 'Mức dùng' trên dashboard.", None))
     except Exception:
         pass
-    return base
+    out, trimmed = _fit_prompt(base, blocks, budget)
+    if trimmed:
+        # Nói cho model biết nó đang thiếu gì và lấy lại ở đâu, thay vì im lặng đưa bản cụt
+        # rồi để nó tưởng brain trống trơn.
+        out += ("\n\n# === ĐÃ RÚT NGỮ CẢNH CHO VỪA HẠN MỨC NHÀ CUNG CẤP ===\n"
+                "Đã rút/bỏ: " + ", ".join(trimmed) + ".\n"
+                "Nội dung đầy đủ VẪN CÒN trên đĩa: chỉ mục bộ nhớ ở `Memory/MEMORY.md`, chi tiết ở "
+                "`Memory/facts/*.md`, danh sách skill ở thư mục `skills/`. Cần chi tiết nào thì ĐỌC FILE "
+                "đó rồi trả lời, đừng nói là không có.")
+    return out
 
 # Redaction patterns - port subset từ hermes-agent/agent/redact.py.
 # Bảo vệ log_conversation() khỏi việc ghi vĩnh viễn API key / Telegram bot token /
@@ -5478,7 +5554,9 @@ async def websocket_endpoint(ws: WebSocket):
 
             # Nạp bộ nhớ của vault đang chọn vào system prompt (Javis luôn nhớ)
             # + block kênh (port gateway hermes): engine biết đang trả lời qua dashboard web
-            sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
+            # Ngân sách theo provider: Groq gói miễn phí chặn ở 12.000 token/phút, mà system
+            # prompt đầy đủ đã hơn thế. Cắt TRƯỚC khi gọi, đừng gửi đi rồi ăn 429.
+            sysprompt = build_system_prompt(brain, budget=prompt_budget(prov)) + channel_context.build_channel_block(
                 "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                 port=_javis_port(), brain_root=_brain_root(brain))
 
@@ -6016,7 +6094,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 pass
     # Block kênh (port gateway hermes-agent): engine biết đang trả lời qua Telegram,
     # ai đang nhắn, và cách gửi file trả về (auto-attach + endpoint send-file).
-    sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
+    _tg_prov = _chat_provider(cfgmod.read_settings().get("model", {}))[0]
+    sysprompt = build_system_prompt(brain, budget=prompt_budget(_tg_prov)) + channel_context.build_channel_block(
         "telegram", meta, telegram_running=True, port=_javis_port(), brain_root=_brain_root(brain))
     schedule_action = await _schedule_cancel_action(text, brain)
     if schedule_action:
