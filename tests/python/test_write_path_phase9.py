@@ -521,6 +521,70 @@ def test_expired_confirmation_cannot_be_used_and_releases_the_lock(tmp_path):
     assert not calls
 
 
+# --------------------------------------------------- tích hợp qua main.py
+
+def test_two_turn_flow_through_main_executes_once(tmp_path, monkeypatch):
+    """Đi qua đúng hai hàm dispatch của main.py, không gọi tắt vào module."""
+    import main
+
+    stack = _stack(tmp_path)
+    brain, registry, runtime, trace, store, executor, canary, calls, routes = stack
+    plan = _prepare(stack)
+    assert plan.action == "propose"
+
+    approved = {"calendar_id": "primary", "start": "2026-08-05T09:00", "title": "Review"}
+    planner_calls = []
+
+    async def fake_plan(*args):
+        planner_calls.append(args)
+        return {"status": "ok", "arguments": dict(approved), "model": "llama-3.3",
+                "input": 90, "output": 12}
+
+    class WS:
+        def __init__(self):
+            self.events = []
+
+        async def send_text(self, raw):
+            self.events.append(json.loads(raw))
+
+    async def fake_discover(mode, vault_root=None, **kwargs):
+        return stack[8] and (list(stack[8].keys()), stack[8])
+
+    monkeypatch.setattr(main.engine, "single_tool_plan", fake_plan)
+    monkeypatch.setattr(main, "_CAPABILITY_EXECUTOR", executor)
+    monkeypatch.setattr(main, "_CAPABILITY_REGISTRY", registry)
+    monkeypatch.setattr(main, "_CONTEXT_RUNTIME", runtime)
+    monkeypatch.setattr(main, "_WRITE_PATH", canary)
+    monkeypatch.setattr(main, "_brain_root", lambda b: str(brain))
+    monkeypatch.setattr(main.usage_store, "record", lambda *a, **k: None)
+    monkeypatch.setattr(main.mcp_hub, "discover_all", fake_discover)
+    main._WRITE_PENDING_ARGS.clear()
+
+    ws = WS()
+    text, _model = asyncio.run(main._execute_write_proposal(
+        plan, "groq", "secret", "llama-3.3", "off", ws, "session-phase9", trace))
+    assert len(planner_calls) == 1
+    assert not calls, "vòng đề xuất tuyệt đối không được gọi tool"
+    assert "XAC NHAN" in text
+    code = text.split("XAC NHAN ")[1].split()[0].strip()
+
+    # Câu ừ hử không kích hoạt được gì.
+    assert canary.pending_for("session-phase9", "ok em làm đi").action != "execute"
+    confirm_plan = canary.pending_for("session-phase9", f"xác nhận {code}")
+    assert confirm_plan.action == "execute"
+
+    ws2 = WS()
+    result_text = asyncio.run(main._execute_write_confirmation(
+        confirm_plan, ws2, "session-phase9", trace, brain, "groq", "llama-3.3"))
+    assert len(calls) == 1, "write chạy đúng một lần"
+    assert "Đã thực hiện xong" in result_text
+    assert len(planner_calls) == 1, "vòng xác nhận không được gọi model"
+
+    # Gõ lại mã lần nữa: không còn ý định nào đang chờ.
+    assert canary.pending_for("session-phase9", f"XAC NHAN {code}").action != "execute"
+    assert len(calls) == 1
+
+
 if __name__ == "__main__":
     import sys
     try:
