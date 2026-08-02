@@ -392,6 +392,13 @@
       <div class="rt-sec"><h3>Quality Gate</h3><div class="rt-chips">${counts(d.quality, "Chưa có đánh giá nào.")}</div></div>
 
       <div class="rt-sec">
+        <h3>Token 60 giây qua (mọi nguồn)</h3>
+        <div class="rt-chips">${counts(d.tpm_window, "Chưa có lượt nào trong 60 giây qua.")}</div>
+        <div class="dim rt-note">Gộp chat, loop nền, việc Kanban, nhắc hẹn, Telegram. Đây là chỗ
+        xem khi canary bị chặn mà anh không chat gì: thường là loop nền vừa ăn hết hạn mức.</div>
+      </div>
+
+      <div class="rt-sec">
         <h3>Canary</h3>
         <table class="rt-tbl"><thead><tr><th>Đường</th><th class="rt-right">Allocation</th><th class="rt-right">Quota rule</th><th class="rt-right">Allowlist</th><th>Đặt</th></tr></thead><tbody>
         ${canaries.map(([k, v]) => `<tr>

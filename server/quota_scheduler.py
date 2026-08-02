@@ -77,15 +77,6 @@ def used(provider: str, model: str, window_seconds: int = 60,
         return 0
 
 
-def remaining(provider: str, model: str, limit: int, window_seconds: int = 60,
-              now: float | None = None) -> int:
-    """Còn lại bao nhiêu token. limit <= 0 nghĩa là CHƯA BIẾT hạn mức, trả 0 (fail-closed)."""
-    cap = max(0, int(limit or 0))
-    if cap <= 0:
-        return 0
-    return max(0, cap - used(provider, model, window_seconds, now))
-
-
 def snapshot(window_seconds: int = 60, now: float | None = None) -> dict:
     """Mức dùng theo provider/model trong cửa sổ, cho trang Chẩn đoán.
 

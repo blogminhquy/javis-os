@@ -45,13 +45,6 @@ check("tách theo provider", qs.used("openai", "llama", 60, now=1020.0) == 0)
 check("provider không phân biệt hoa thường",
       qs.used("GROQ", "llama", 60, now=1020.0) == 8000)
 
-# remaining fail-closed: chưa biết hạn mức thì coi như hết, không phải còn nhiều.
-check("chưa biết hạn mức → còn 0 (fail-closed)",
-      qs.remaining("groq", "llama", 0, 60, now=1020.0) == 0)
-check("biết hạn mức → trừ đúng",
-      qs.remaining("groq", "llama", 12000, 60, now=1020.0) == 4000)
-check("dùng vượt hạn mức → còn 0, không âm",
-      qs.remaining("groq", "llama", 5000, 60, now=1020.0) == 0)
 
 # Kế toán là việc phụ, không được ném lỗi làm hỏng lượt chat.
 qs.observe("groq", "llama", None, now=1020.0)
@@ -146,6 +139,15 @@ if _unpaired:
     print("     dòng thiếu cặp:", _unpaired)
 check("bất biến này có ý nghĩa (tìm thấy ít nhất vài cặp thật)",
       _main_src.count("_CONTEXT_RUNTIME.record_usage(") >= 4)
+
+# ---- 6. Số liệu chẩn đoán phải ĐẾN ĐƯỢC MẮT NGƯỜI ----
+# Họ lỗi lặp lại nhiều nhất trong nhánh này: code đúng, test xanh, nhưng không nối được với
+# thứ nó phục vụ. Chính tpm_window đã dính: API trả về mà trang Chẩn đoán không vẽ, nên cái
+# số sinh ra để trả lời "sao tôi bị chặn" lại vô hình đúng lúc cần.
+_console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+for _field in ("tpm_window", "quota_presets", "canaries", "registry"):
+    check(f"trang Chẩn đoán có dùng trường '{_field}' mà API trả về",
+          _field in _console)
 
 print()
 if _fails:

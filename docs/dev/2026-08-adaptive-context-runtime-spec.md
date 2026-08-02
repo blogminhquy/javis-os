@@ -2070,6 +2070,29 @@ Thay đổi:
 
 Rollback: pin model chính hiện tại theo task policy; Registry và runtime còn nguyên.
 
+### Bảy việc đóng lại khoảng cách với mục đích gốc (2026-08-02)
+
+Chi tiết ở `2026-08-adaptive-runtime-con-thieu.md`. Tóm tắt để spec không lệch với code:
+
+- `mcp_hub.CORE_TOOL_FNS` - tầng lazy nhận cả builtin và plugin; ngưỡng xét cả KÍCH THƯỚC
+  schema chứ không chỉ số lượng tool. Schema mỗi lượt giảm 83%, có tác dụng ngay trên đường
+  legacy, không cần bật canary.
+- `tests/python/test_prompt_budget.py` - trần cho `CLAUDE.md`, `CORE_CONTRACT` và schema tool
+  hiện thẳng, cộng phép thử tổng phải vừa hạn mức Groq miễn phí.
+- `config._deep_merge` - gộp cấu hình ĐỆ QUY. Merge một tầng cũ làm ghi tay một knob canary
+  là xoá sạch `quota_profiles` anh em, và fail-closed biến nó thành hỏng CÂM.
+- `model_limits.py` - hạn mức gợi ý có ghi nguồn và cờ verify; `POST /runtime/quota`.
+- `POST /runtime/canary` - đặt allocation an toàn, CHẶN việc bật một đường chắc chắn
+  fail-closed, tắt về 0 thì luôn cho.
+- `quota_scheduler.py` - sổ cái TPM dùng chung, móc vào `usage_store.record`. Bảng đặt chỗ
+  nay chỉ đếm phần ĐANG BAY để không đếm hai lần.
+- `capability_index.py` - RRF fusion, nới rộng theo tín hiệu yếu, affinity nguồn.
+
+Ba đính chính so với bản phân tích ban đầu, ghi lại vì chúng cho thấy đọc code mà chưa chạy
+thì sai ở đâu: `CLAUDE.md` không hề phình (so byte với ký tự); fast path và readonly path
+không sai chiều fail-closed (Phase 8 mới là đường sai); TPM không phải chỗ để trống (lỗ nằm
+ở chỗ chỉ 4 trên 14 đường gọi model đi qua admission).
+
 ## 25. Chiến lược kiểm thử
 
 ### 25.1 Unit test
