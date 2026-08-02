@@ -389,6 +389,38 @@ def test_confirming_a_write_node_reports_instead_of_pausing_forever(tmp_path):
     assert not calls, "vẫn tuyệt đối không gọi tool ghi"
 
 
+def test_checkpoint_failure_stops_instead_of_running_on(tmp_path):
+    """Checkpoint hỏng thường là do tiến trình khác đã resume cùng task.
+
+    Đi tiếp lúc đó là hai bên cùng chạy một node, tức là gọi model hai lần.
+    """
+    native = {"name": "ba bước", "nodes": [
+        {"id": "a", "kind": "model_step", "agent": "x", "task": "A"},
+        {"id": "b", "kind": "model_step", "agent": "y", "task": "B", "depends_on": ["a"]},
+        {"id": "c", "kind": "model_step", "agent": "z", "task": "C", "depends_on": ["b"]},
+    ]}
+    graph = wg.compile_workflow(native, "demo")
+    runtime, canary, *_ = _stack(tmp_path)
+    trace = runtime.start_turn("sid-cp", str(tmp_path), "dashboard")
+    canary.prepare(trace, graph, "sid-cp")
+
+    real = canary._checkpoint
+    seen = {"n": 0}
+
+    def flaky(tr, state, initialize=False):
+        if initialize:
+            return real(tr, state, initialize=True)
+        seen["n"] += 1
+        return False if seen["n"] >= 1 else real(tr, state)
+
+    canary._checkpoint = flaky
+    calls = []
+    result = asyncio.run(canary.run(trace, graph, "x", "sid-cp", _executor(calls)))
+    assert result.status == "FAILED" and result.stop_reason == "checkpoint_failed"
+    # Dừng ngay sau lô đầu, không chạy nốt b và c.
+    assert [x["node"] for x in calls] == ["a"]
+
+
 # ------------------------------------------- tích hợp qua main.execute_workflow
 
 def _brain_with_workflow(tmp_path, monkeypatch, settings):

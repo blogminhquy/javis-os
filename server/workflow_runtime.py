@@ -357,7 +357,14 @@ class WorkflowCanary:
                                  "verified": result.get("verified")})
                 # Checkpoint sau MỖI lô, trước khi chạy lô kế: tiến trình chết ở đây
                 # thì resume không mất phần đã xong.
-                self._checkpoint(trace, state)
+                if not self._checkpoint(trace, state):
+                    # Checkpoint hỏng thường là do OCC: một tiến trình khác đã resume
+                    # đúng task này. Đi tiếp là hai bên cùng chạy một node - dừng ngay.
+                    await _emit({"type": "error", "content": "checkpoint_failed"})
+                    return WorkflowRunResult(
+                        "FAILED", state.get("output") or "", "checkpoint_failed",
+                        getattr(trace, "task_id", ""), tuple(completed), tuple(reused),
+                        "", events)
 
         output_entry = state["nodes"].get(graph.output_node_id) or {}
         failed = [nid for nid, item in state["nodes"].items() if item.get("status") == "FAILED"]
