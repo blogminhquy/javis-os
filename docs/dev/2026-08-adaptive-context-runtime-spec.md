@@ -2001,8 +2001,32 @@ Hai quyết định đáng ghi lại:
   cái mà chạy. Cờ `downgrade` tách riêng khỏi `priority`: `priority` là thứ tự xếp hạng,
   còn `downgrade` là rào an toàn cho bước rủi ro cao.
 
+Router được nối vào việc chọn model cho từng bước workflow. Engine workflow chỉ chạy được
+CLI, nên có hai guard ở ranh giới: rule trỏ sang provider API thì giữ nguyên model của agent
+(không im lặng chạy model khác với thứ đã quyết), và route sang họ Codex mà model không phải
+model Codex cũng bị từ chối. Kích thước prompt thật được đưa vào request, nếu không bộ lọc
+cửa sổ context vô hiệu và prompt dài vẫn lọt vào model cửa sổ nhỏ.
+
 Chưa làm trong phase này: reliability live (hiện là số người vận hành khai, chưa tự học từ
 lỗi quan sát được) và validator bằng model.
+
+### Bài học tích hợp, ghi lại cho các thay đổi sau
+
+Phase 10-12 sinh ra năm trạng thái mới (`wait_user`, `replan`, `escalation`, `resume`,
+`step_model`) và bốn lỗi tích hợp - tất cả đều là **code đúng, test xanh, nhưng không nối
+được với thứ nó phục vụ**:
+
+- Router viết xong mà không có ai gọi.
+- Event bước thiếu trường chỉ số nên Studio lặng lẽ vứt phần chữ đang chạy.
+- Studio không có nhánh cho trạng thái mới, nên workflow dừng chờ duyệt trông y hệt bị sập.
+- Dispatcher Kanban không bắt `wait_user`, nên task chờ duyệt bị chấm HOÀN THÀNH với kết quả
+  rỗng và việc cần người biến mất; đồng thời trace ghi "đang chờ người" thành `FAILED`, làm
+  lệch chính các chỉ số dùng làm điều kiện qua phase.
+
+Test đơn vị mù với họ lỗi này vì nó chỉ kiểm phần mình viết. Thứ bắt được chúng là đi NGƯỢC
+từ phía tiêu thụ: ai gọi cái này, cái này hiện ra ở đâu, ai đọc trạng thái này. Vì vậy đã
+thêm một test đối chiếu hai chiều: mọi loại event runtime phát ra đều phải có nhánh xử lý
+trong `studio.js`. Thay đổi sau nào thêm trạng thái mới mà quên phía hiển thị sẽ đỏ ngay.
 
 Thay đổi:
 
