@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.11.0] - 2026-08-02
 Javis tự học hạn mức của mọi nhà cung cấp từ chính câu báo lỗi, tự rút gọn rồi chạy tiếp. Trang Chẩn đoán viết lại bằng tiếng người.
+### Sửa lỗi
+- **Dải báo đỏ trên thanh trạng thái nói sai và chỉ sai chỗ.** Nó ghi "Bộ não claude mất đăng nhập... Mở terminal chạy claude rồi gõ /login" - hướng dẫn đã lỗi thời vì giờ kết nối ở trang **Models**. Chuỗi lại dài hơn cả thanh trạng thái nên bị cắt cụt giữa chừng, mà phần bị cắt đúng là phần nói phải làm gì. Nay chỉ còn một câu ngắn **"Chưa kết nối Model AI - bấm để kết nối"**, bấm vào là sang thẳng trang Models. Chi tiết kỹ thuật chuyển vào tooltip, vẫn còn khi cần đi tra.
+- Thông báo cùng nội dung gửi qua Telegram cũng viết lại theo góc người dùng, không mở đầu bằng tên bộ não nữa.
+
 ### Tính năng mới
 - **Vượt hạn mức thì tự xử, không bắt anh đọc lỗi kỹ thuật.** Khi nhà cung cấp từ chối vì request quá lớn, câu báo lỗi của họ có nêu hạn mức thật của tài khoản. Javis đọc lấy con số đó, tự bỏ lịch sử hội thoại cho nhẹ, rồi gửi lại. Anh chỉ thấy một dòng "đang rút gọn ngữ cảnh rồi thử lại" và sau đó là câu trả lời.
 - **Áp dụng cho MỌI nhà cung cấp, không riêng ai.** Nhận diện được câu báo lỗi của Groq, OpenAI, Anthropic, Gemini và OpenRouter, kể cả khi họ viết hai con số theo thứ tự ngược nhau. Cắm nhà cung cấp mới cũng không phải khai gì trước: Javis học từ lần từ chối đầu tiên và nhớ để không đâm vào nữa.

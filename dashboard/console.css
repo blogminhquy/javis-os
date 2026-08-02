@@ -642,9 +642,15 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   padding: 9px 12px; border: 1px solid var(--ok-line); border-radius: 10px; background: var(--ok-wash); }
 .reuse-row select { max-width: 200px; }
 /* Đèn báo não: bộ não mất đăng nhập - dải đỏ mỏng giữa thanh trạng thái */
-.engine-banner { display: inline-flex; align-items: center; max-width: 46vw; padding: 3px 12px;
+/* Ngắn gọn và BẤM ĐƯỢC. Trước đây chuỗi dài hơn cả thanh trạng thái nên bị cắt cụt giữa
+   chừng, và phần bị cắt lại đúng là phần nói phải làm gì. Nay chữ đủ ngắn để không cần cắt;
+   max-width chỉ còn là lưới an toàn cho màn hẹp. */
+.engine-banner { display: inline-flex; align-items: center; gap: 5px; max-width: 46vw;
+  padding: 3px 12px; cursor: pointer;
   border: 1px solid var(--danger-line); border-radius: 14px; background: var(--danger-wash);
-  color: var(--red); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  color: var(--red); font-size: 12.5px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; transition: background 0.15s, border-color 0.15s; }
+.engine-banner:hover { background: var(--danger-wash); border-color: var(--red); }
 /* display của class đè mất [hidden] mặc định của trình duyệt → phải tự ẩn lại, không thì
    đèn lộ vỏ rỗng thường trực trên thanh trạng thái (bug 0.9.195). */
 .engine-banner[hidden] { display: none; }

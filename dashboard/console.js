@@ -4952,10 +4952,11 @@
 
   // ── Đèn báo não: bộ não (Claude/Codex) mất đăng nhập thì thắp dải đỏ trên thanh trạng thái.
   // Não chết thì chính não không tự báo được, nên server probe + cắm cờ, UI chỉ việc hỏi.
-  const ENGINE_FIX_UI = {
-    claude: "Mở terminal chạy claude rồi gõ /login.",
-    codex: "Vào trang Models kết nối lại ChatGPT (hoặc chạy codex login).",
-  };
+  // Thông báo phải NGẮN và nói được VIỆC CẦN LÀM. Bản cũ ghép tên engine với câu báo lỗi
+  // của server rồi nối thêm hướng dẫn, ra một chuỗi dài hơn cả thanh trạng thái nên bị cắt
+  // cụt, và nó còn chỉ sai chỗ ("mở terminal gõ /login") vì giờ kết nối ở trang Models.
+  // Người dùng cũng không cần biết "bộ não claude" là gì: với họ chỉ có một sự thật là chưa
+  // dùng được Javis, và một việc phải làm là vào Models.
   async function refreshEngineBanner() {
     const b = document.getElementById("engineBanner");
     if (!b) return;
@@ -4967,9 +4968,12 @@
     } catch (e) { return; }
     const dead = Object.entries(d.engines || {}).filter(([, rec]) => rec && rec.ok === false);
     if (!dead.length) { b.hidden = true; return; }
+    b.innerHTML = WARN_ICON + " Chưa kết nối Model AI - bấm để kết nối";
+    // Chi tiết kỹ thuật (engine nào, lỗi gì) chuyển vào tooltip: cần khi đi hỏi, nhưng
+    // không đáng chiếm chỗ trên thanh trạng thái.
     const [name, rec] = dead[0];
-    b.innerHTML = WARN_ICON + " Bộ não " + esc(name) + " mất đăng nhập: " + esc(rec.message || "")
-      + " " + (ENGINE_FIX_UI[name] || "");
+    b.title = `Chưa dùng được: ${name} - ${rec.message || "không phản hồi"}. `
+      + "Vào trang Models để kết nối và sử dụng Javis.";
     b.hidden = false;
   }
 
@@ -4977,6 +4981,9 @@
     document.body.classList.add("has-rail");
     refreshEngineBanner();
     setInterval(refreshEngineBanner, 90000);
+    // Báo "chưa kết nối" mà không đưa được người ta tới chỗ kết nối thì chỉ là than phiền.
+    const _eb = document.getElementById("engineBanner");
+    if (_eb) _eb.addEventListener("click", () => navigateTo("models"));
     const ver = document.getElementById("railVersion");
     if (ver) {
       ver.textContent = "v" + APP_VERSION;   // hiện tạm, thay ngay bằng phiên bản thật từ server

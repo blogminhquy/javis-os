@@ -152,10 +152,14 @@ _ENGINE_AUTH_PATTERNS = ("failed to authenticate", "oauth session expired",
                          "could not be refreshed", "refresh token was already used",
                          "log out and sign in again")
 
+# Việc người dùng CẦN LÀM khi một bộ não hỏng. Mọi đường đều dẫn về trang Models: đó là chỗ
+# kết nối duy nhất giờ đây, kể cả Claude (trước đây phải mở terminal gõ /login - hướng dẫn đó
+# đã sai và từng làm người dùng đi nhầm đường).
 ENGINE_FIX = {
-    "claude": "Mở terminal chạy claude rồi gõ /login để đăng nhập lại.",
-    "codex": "Vào trang Models bấm kết nối lại ChatGPT, hoặc chạy codex login trong terminal.",
+    "claude": "Vào trang Models để kết nối lại.",
+    "codex": "Vào trang Models để kết nối lại ChatGPT.",
 }
+ENGINE_FIX_DEFAULT = "Vào trang Models để kết nối và sử dụng Javis."
 
 
 def _set_engine(name, ok, message="", source="probe"):
@@ -168,8 +172,13 @@ def _set_engine(name, ok, message="", source="probe"):
     if not ok and not rec["notified"] and on_engine_down:
         rec["notified"] = True
         try:
-            coro = on_engine_down(f"⚠ Bộ não {name} của Javis đang mất đăng nhập: {message} "
-                                  + ENGINE_FIX.get(name, ""))
+            # Nói theo góc NGƯỜI DÙNG: với họ chỉ có một sự thật là chưa dùng được Javis,
+            # và một việc phải làm. Tên engine để trong ngoặc cho ai cần đi tra, không đặt
+            # lên đầu câu.
+            coro = on_engine_down(
+                "⚠ Javis chưa dùng được: chưa kết nối được Model AI. "
+                + ENGINE_FIX.get(name, ENGINE_FIX_DEFAULT)
+                + f" (chi tiết: {name} - {message})")
             if asyncio.iscoroutine(coro):
                 asyncio.ensure_future(coro)
         except Exception as e:
