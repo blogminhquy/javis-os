@@ -140,12 +140,16 @@ def test_replan_cannot_summon_an_ungranted_agent(tmp_path):
 
 
 def test_replan_cannot_add_node_kinds_the_author_did_not_write(tmp_path):
-    """workflow_call và wait_user là thứ người viết khai, không phải model tự thêm."""
-    runtime, canary, runner, _ = _stack(tmp_path, gate=_Gate(pass_after=99))
+    """workflow_call và wait_user là thứ người viết khai, không phải model tự thêm.
+
+    Mỗi kind phải chạy trên MỘT task riêng: dùng lại task cũ thì lần chạy thứ hai
+    không khởi tạo được checkpoint và ta đo nhầm sang lỗi runtime.
+    """
     graph = wg.compile_workflow(BASE, "demo")
-    trace = runtime.start_turn("sid-agent", str(tmp_path), "dashboard")
-    canary.prepare(trace, graph, "sid-agent")
     for kind in ("workflow_call", "wait_user", "compensation"):
+        runtime, canary, runner, _ = _stack(tmp_path / kind, gate=_Gate(pass_after=99))
+        trace = runtime.start_turn(f"sid-{kind}", str(tmp_path), "dashboard")
+        canary.prepare(trace, graph, f"sid-{kind}")
         result = _run(runner, trace, graph, _executor([]), _planner([
             {"kind": kind, "workflow": "con", "workflow_revision": "r", "depends_on": ["b"]},
         ]), tmp_path)
@@ -321,6 +325,39 @@ def test_defaults_do_not_admit_any_agent(tmp_path):
     assert policy.allowed_slugs == ()
     admitted, _bucket, reason = policy.admits("demo", "phiên bất kỳ")
     assert not admitted and reason == "mode_not_canary"
+
+
+def test_runtime_stop_reasons_do_not_trigger_a_replan(tmp_path):
+    """Checkpoint hỏng là 'người khác đang giữ task', không phải 'kết quả chưa đạt'.
+
+    Replan lúc đó là chạy đè lên tiến trình kia.
+    """
+    gate = _Gate(pass_after=99)
+    runtime, canary, runner, _ = _stack(tmp_path, gate=gate)
+    graph = wg.compile_workflow(BASE, "demo")
+    trace = runtime.start_turn("sid-term", str(tmp_path), "dashboard")
+    canary.prepare(trace, graph, "sid-term")
+
+    real = canary._checkpoint
+    calls = {"n": 0}
+
+    def flaky(tr, state, initialize=False):
+        if initialize:
+            return real(tr, state, initialize=True)
+        calls["n"] += 1
+        return False
+
+    canary._checkpoint = flaky
+    planned = {"n": 0}
+
+    async def counting_planner(objective, summary, granted):
+        planned["n"] += 1
+        return [{"kind": "model_step", "agent": "researcher", "task": "thêm"}]
+
+    result = _run(runner, trace, graph, _executor([]), counting_planner, tmp_path)
+    assert result.status == "STOPPED"
+    assert result.stop_reason == "checkpoint_failed"
+    assert planned["n"] == 0, "không được hỏi planner khi runtime đã bảo dừng"
 
 
 # ------------------------------------------------- bất biến chung

@@ -47,6 +47,14 @@ def _sha(value: Any) -> str:
     ).encode("utf-8", errors="replace")).hexdigest()
 
 
+# Runtime báo dừng vì lý do KHÔNG phải "kết quả chưa đạt". Replan trong các trường
+# hợp này là sai bản chất, nên agent dừng luôn.
+_RUNTIME_TERMINAL_REASONS = frozenset({
+    "checkpoint_failed", "workflow_revision_mismatch", "checkpoint_unavailable",
+    "workflow_state_unavailable",
+})
+
+
 class PermissionEscalation(PermissionError):
     """Kế hoạch mới đòi quyền chưa được cấp. Luôn dừng, không bao giờ nới ra."""
 
@@ -251,10 +259,17 @@ class AgentRunner:
             result = await self.canary.run(
                 trace, current, input_text, session_id, executor, _emit,
                 resume_state=state)
-            events.extend(x for x in result.events if x not in events)
+            # `_emit` đã gom event vào `events` rồi; đừng gộp thêm result.events, vì
+            # phép loại trùng theo GIÁ TRỊ sẽ nuốt mất event lặp lại một cách hợp lệ.
             state = self.canary.load_state(result.task_id) if result.task_id else None
-            if result.status in ("WAITING_USER",):
+            if result.status == "WAITING_USER":
                 return AgentRunResult(result.status, result.output, result.stop_reason,
+                                      result.task_id, rounds, tuple(added), "", events)
+            if result.stop_reason in _RUNTIME_TERMINAL_REASONS:
+                # Đây không phải "chưa đạt mục tiêu" mà là runtime nói dừng: checkpoint
+                # hỏng nghĩa là tiến trình khác đang giữ task, revision lệch nghĩa là
+                # định nghĩa đã đổi. Replan lúc này là chạy đè lên người khác.
+                return AgentRunResult("STOPPED", result.output, result.stop_reason,
                                       result.task_id, rounds, tuple(added), "", events)
             if state is None:
                 return AgentRunResult("FAILED", result.output, "agent_state_unavailable",
