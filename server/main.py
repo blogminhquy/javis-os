@@ -4586,9 +4586,13 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
                 agent_result = await runner.run(
                     trace, graph, input or "", session_id or f"wf:{slug}",
                     node_executor, planner, sink)
+                # Giữ nguyên trạng thái thật. Gộp "đang chờ người duyệt" hay "đã
+                # chuyển lại cho người" thành FAILED là ghi sai vào trace: chúng là
+                # kết cục BÌNH THƯỜNG, không phải hỏng.
                 return workflow_runtime.WorkflowRunResult(
-                    "COMPLETED" if agent_result.status == "COMPLETED" else "FAILED",
-                    agent_result.output, agent_result.stop_reason, agent_result.task_id)
+                    agent_result.status, agent_result.output,
+                    agent_result.stop_reason, agent_result.task_id,
+                    pending_node_id=agent_result.output_node_id)
             return await canary.run(trace, graph, input or "", session_id or f"wf:{slug}",
                                     node_executor, sink)
         finally:
@@ -4601,8 +4605,13 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
             break
         yield event
     result = await task
+    # ESCALATED và STOPPED là dừng có chủ đích, không phải lỗi runtime.
     _CONTEXT_RUNTIME.finish(
-        trace, "COMPLETED" if result.status == "COMPLETED" else "FAILED", result.stop_reason)
+        trace,
+        {"COMPLETED": "COMPLETED", "WAITING_USER": "WAITING_USER",
+         "ESCALATED": "COMPLETED_WITH_ERROR", "STOPPED": "COMPLETED_WITH_ERROR"}.get(
+            result.status, "FAILED"),
+        result.stop_reason)
     if result.status == "WAITING_USER":
         yield {"type": "wait_user", "node": result.pending_node_id,
                "task_id": result.task_id, "reason": result.stop_reason}

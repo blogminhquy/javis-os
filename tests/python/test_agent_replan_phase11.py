@@ -455,6 +455,66 @@ def test_repo_defaults_never_admit_the_agent_path(tmp_path, monkeypatch):
     assert calls == ["Tìm x"]
 
 
+def test_agent_pause_is_not_recorded_as_a_failure(tmp_path, monkeypatch):
+    """Chờ người duyệt là kết cục BÌNH THƯỜNG. Ghi FAILED vào trace là ghi sai.
+
+    Chạy thật execute_workflow_graph, không quét chuỗi source.
+    """
+    import asyncio as aio
+    import copy
+    import config as cfgmod
+    import main
+
+    settings = copy.deepcopy(cfgmod._DEFAULT)
+    settings["context_runtime"]["mode"] = "canary"
+    settings["context_runtime"]["workflow_canary"].update({
+        "allocation_basis_points": 10_000, "allowed_slugs": ["demo"],
+        "allow_write_nodes": True,
+    })
+
+    brain = tmp_path / "brain"
+    (brain / "workflows").mkdir(parents=True)
+    (brain / "agents").mkdir(parents=True)
+    # Node đầu là bước model, node sau là ghi -> chạy tới đó thì dừng hỏi.
+    (brain / "workflows" / "demo.md").write_text(
+        "---\ntype: workflow\nname: Demo\nslug: demo\nstatus: active\n"
+        "nodes:\n"
+        "  - id: a\n    kind: model_step\n    agent: researcher\n    task: 'soạn'\n"
+        "  - id: w\n    kind: capability\n    capability: mail_send\n"
+        "    effect: write\n    depends_on: [a]\n---\n", encoding="utf-8")
+    (brain / "agents" / "researcher.md").write_text(
+        "---\ntype: agent\nname: researcher\nslug: researcher\nrole: r\nskills: []\n---\nx\n",
+        encoding="utf-8")
+
+    class FakeEngine:
+        def __init__(self, *a, **k):
+            self.model = None
+
+        async def query(self, prompt):
+            yield {"type": "final", "content": "đã soạn"}
+
+    monkeypatch.setattr(main, "claude_engine", lambda **k: FakeEngine())
+    monkeypatch.setattr(main, "_brain_root", lambda b: str(brain))
+    monkeypatch.setattr(main, "_workflows_dir", lambda b: brain / "workflows")
+    monkeypatch.setattr(main, "_agents_dir", lambda b: brain / "agents")
+    monkeypatch.setattr(main, "_agent_memory", lambda b, s: "")
+    monkeypatch.setattr(main.system_sync, "ensure_synced", lambda *a, **k: None)
+    monkeypatch.setattr(main.system_sync, "mirror_skills", lambda *a, **k: None)
+    monkeypatch.setattr(main.cfgmod, "read_settings", lambda: settings)
+
+    recorded = []
+    monkeypatch.setattr(main._CONTEXT_RUNTIME, "finish",
+                        lambda trace, status="COMPLETED", reason="": recorded.append(status))
+
+    async def go():
+        return [x async for x in main.execute_workflow_graph(
+            "brain", "demo", "x", None, "sid-pause")]
+
+    events = aio.run(go())
+    assert any(x["type"] == "wait_user" for x in events), "phải báo đang chờ duyệt"
+    assert recorded == ["WAITING_USER"], f"trace ghi sai trạng thái: {recorded}"
+
+
 if __name__ == "__main__":
     import sys
     import pytest
