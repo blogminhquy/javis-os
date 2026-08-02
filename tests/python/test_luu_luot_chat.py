@@ -128,7 +128,7 @@ def lap_gia(prov, kind, key, model):
     main._reasoning_level = lambda mcfg: "off"
     main._tg_brain = lambda chat_id: BRAIN
     main._brain_root = lambda b: BRAIN
-    main.build_system_prompt = lambda b: "SYS"
+    main.build_system_prompt = lambda b, budget=0: "SYS"
     main._apply_mcp = lambda cli, brain=None: None
     main._apply_codex_hub = lambda ccli, root: None
     main.claude_engine = lambda **kw: CLIGia(**kw)
