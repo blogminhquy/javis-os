@@ -213,6 +213,22 @@ _DEFAULT = {
             "max_nodes_per_replan": 3,
             "failure_repeat_limit": 2,
         },
+        # Phase 12: chọn model theo từng bước. Lọc năng lực TRƯỚC, xếp hạng giá SAU -
+        # rẻ hơn không bao giờ thắng nếu thiếu năng lực bắt buộc (spec mục 9.3).
+        # Không đoán năng lực theo tên model: rule nào không khai `supports` thì coi
+        # như không có năng lực đó. Danh sách rỗng = giữ nguyên model người dùng chọn.
+        "model_router_canary": {
+            "policy_version": "model-router-canary-v1",
+            "allocation_basis_points": 0,
+            "salt": "model-router-canary-v1",
+            "step_kinds": ["model_step"],
+            "allow_downgrade_on_risk": False,
+            # Ví dụ một rule: {"id":"...", "provider":"groq", "model":"llama-3.3",
+            #  "supports":["tools"], "context_window":131072,
+            #  "input_cost_per_million":0.59, "output_cost_per_million":0.79,
+            #  "latency_hint_ms":1200, "reliability":0.99, "data_classes":[]}
+            "models": [],
+        },
         # Phase 8 dùng hard quota operator khai báo; không đoán TPM/context theo tên model.
         # Có thể để trống để dùng quota_profiles của Fast Path ở trên.
         "context_sources": {"quota_profiles": []},

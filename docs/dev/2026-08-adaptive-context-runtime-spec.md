@@ -1982,6 +1982,28 @@ Rollback: tắt agent task mới; workflow deterministic vẫn hoạt động.
 
 Đây là phase cuối vì model switching làm tăng mạnh số biến khi debug.
 
+Trạng thái code ngày 2026-08-02: **hoàn tất, chưa bật production**. `model_router_canary`
+mặc định allocation `0` và danh sách `models` rỗng, nên router luôn trả `keep` và model
+người dùng chọn ở trang Models vẫn là model chạy thật.
+
+Router làm việc theo thứ tự CỨNG: **lọc trước, xếp hạng sau**. Ứng viên thiếu một năng lực
+bắt buộc, vượt cửa sổ context, bị chính sách dữ liệu cấm, chậm quá deadline hay đắt quá
+ngân sách bước đều bị loại hẳn - không có điểm số nào cứu được. Rẻ hơn chỉ là tiêu chí xếp
+hạng GIỮA những ứng viên đã đủ năng lực. Đó là cách diễn đạt bằng code của luật mục 9.3.
+
+Hai quyết định đáng ghi lại:
+
+- **Không đoán năng lực theo tên model.** Rule không khai `supports: ["vision"]` thì model
+  đó không nhận ảnh, kể cả khi tên nó là `gpt-4o-super-vision-pro`. Đoán mò là cách chắc
+  chắn để một ngày nào đó gửi ảnh vào một model mù. Rule thiếu giá thật hoặc thiếu cửa sổ
+  context bị loại khỏi danh sách ứng viên, không được đoán bù.
+- **Không ai đủ năng lực thì GIỮ NGUYÊN model người dùng chọn**, không hạ tiêu chuẩn để có
+  cái mà chạy. Cờ `downgrade` tách riêng khỏi `priority`: `priority` là thứ tự xếp hạng,
+  còn `downgrade` là rào an toàn cho bước rủi ro cao.
+
+Chưa làm trong phase này: reliability live (hiện là số người vận hành khai, chưa tự học từ
+lỗi quan sát được) và validator bằng model.
+
 Thay đổi:
 
 - ModelSource đầy đủ và live reliability/quota profile.
