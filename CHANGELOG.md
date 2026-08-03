@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.8] - 2026-08-03
+Trang Cập nhật thôi báo "đang dùng bản mới nhất" trong khi ngay dưới nó nói có bản mới.
+### Sửa lỗi
+- **Máy đang chạy v0.14.4 mà khung trên vẫn ghi "Đang dùng bản mới nhất", nút cập nhật không hiện.** Ngay bên dưới, cùng trang đó, lại ghi "Có bản mới: v0.14.7". Hai dòng nói ngược nhau vì chúng đọc hai nguồn khác nhau: khung trên so file `VERSION` trên nhánh main, còn huy hiệu dưới đọc `CHANGELOG.md`. Ba bản 0.14.5, 0.14.6, 0.14.7 đều được ghi vào nhật ký mà quên bump `VERSION`, nên với khung trên thì bản mới nhất vẫn là 0.14.4 - đúng bằng bản đang chạy, và nó kết luận không có gì để cập nhật.
+
+  Hậu quả nặng hơn vẻ ngoài: người dùng Docker không có nút bấm nào, cũng không thấy hướng dẫn Redeploy, tức là **không có đường nào lên bản mới** trừ khi tự SSH. Ba bản vá liên tiếp nằm đó mà không ai lấy được.
+- **Nay có hàng rào chặn đúng lỗi này.** Test soát `VERSION` phải khớp mục mới nhất trong `CHANGELOG.md`, nên lần sau quên bump là CI đỏ ngay tại chỗ chứ không im lặng phát ra ngoài. Cùng bài đó soát luôn định dạng số hiệu và thứ tự các mục trong nhật ký.
+
 ## [0.14.7] - 2026-08-03
 Mức Siêu tiết kiệm chưa chạy lần nào trên máy đấu nhiều MCP. Tìm ra và mở khoá.
 ### Sửa lỗi
@@ -624,14 +632,6 @@ Webcake có thêm cách đấu dễ hơn: bấm Kết nối rồi đăng nhập,
 ### Kiểm thử
 - `test_webcake_env.py`: dán JWT là đủ để giải được base, không được đẻ ô nhập cho URL kỹ thuật, tool validate phải nằm trong nhóm cần base, thứ tự ưu tiên của env tĩnh so với ô đăng nhập và env connection, kèm canary chứng minh check đọc catalog thật chứ không luôn xanh.
 
-## [0.9.251] - 2026-07-30
-Zalo được rút về đúng một đường MCP: nối tài khoản xong là tìm cuộc chat và gửi trực tiếp, không cần bật nghe hay chọn danh sách theo dõi.
-### Cải thiện
-- **Gửi Zalo trực tiếp bằng MCP upstream**: Javis dùng `zalo_search_threads` để tìm đúng người/nhóm rồi gọi `zalo_send_message`; bỏ chốt phụ thuộc danh sách cuộc chat đang nghe và bỏ tool `javis_zalo_send`.
-- **Gỡ toàn bộ menu “Nghe tin liên tục”**: không còn chọn tài khoản nghe, cuộc chat theo dõi, báo Telegram theo từ khoá hay giờ im lặng.
-- **Một tiến trình Zalo duy nhất**: bỏ sidecar listener, webhook, luật theo từng cuộc chat và hai plugin Zalo cũ; dùng thẳng `zalo-agent-cli` 1.6.2 qua stdio với đủ 7 tool MCP.
-- Thẻ kết nối Zalo có link mở tài liệu hướng dẫn trên GitHub.
-
 ## [0.9.254] - 2026-07-29
 Note trong đồ thị 3D vẫn nhạt nhoè không đọc được. Hai lỗi, và bộ mô phỏng ở bản trước đã che mất cả hai.
 ### Sửa lỗi
@@ -671,6 +671,14 @@ Bản trước sửa đồ thị 3D nhưng làm nó tệ hơn: cả tối lẫn 
 - Dây nối nâng từ mờ 0.11 lên 0.20 nên thấy được cấu trúc mạng, và tự mờ theo chiều sâu cùng với hạt.
 ### Kiểm thử
 - `test_graph3d_nebula.js` khoá 20 điểm: hạt không được có điểm dừng trắng, tông sáng phải đổi kiểu chồng lớp, sương suy ra từ bán kính, lõi/bụi đúng thứ tự vẽ và không nhân bản khi dựng lại. Đã đối chiếu mọi API dùng tới với three.js r159 thật.
+
+## [0.9.251] - 2026-07-30
+Zalo được rút về đúng một đường MCP: nối tài khoản xong là tìm cuộc chat và gửi trực tiếp, không cần bật nghe hay chọn danh sách theo dõi.
+### Cải thiện
+- **Gửi Zalo trực tiếp bằng MCP upstream**: Javis dùng `zalo_search_threads` để tìm đúng người/nhóm rồi gọi `zalo_send_message`; bỏ chốt phụ thuộc danh sách cuộc chat đang nghe và bỏ tool `javis_zalo_send`.
+- **Gỡ toàn bộ menu “Nghe tin liên tục”**: không còn chọn tài khoản nghe, cuộc chat theo dõi, báo Telegram theo từ khoá hay giờ im lặng.
+- **Một tiến trình Zalo duy nhất**: bỏ sidecar listener, webhook, luật theo từng cuộc chat và hai plugin Zalo cũ; dùng thẳng `zalo-agent-cli` 1.6.2 qua stdio với đủ 7 tool MCP.
+- Thẻ kết nối Zalo có link mở tài liệu hướng dẫn trên GitHub.
 
 ## [0.9.250] - 2026-07-29
 Nút đổi tông trước giờ chỉ lật từ đen sang xám, không phải giao diện sáng thật. Nay có tông sáng đúng nghĩa, và khoang não được vẽ lại cho hợp nền giấy.
@@ -1849,18 +1857,6 @@ Sửa lỗi báo nhầm "Chưa cài Codex CLI" khiến không chat được bằ
 - **Dò Codex CLI không còn phụ thuộc mỗi USERPROFILE**: thêm các đường lùi lần lượt là HOME, HOMEDRIVE cộng HOMEPATH, rồi Path.home(). Đã kiểm bằng cách bỏ lần lượt cả ba biến môi trường, vẫn dò ra đúng binary.
 - **Thêm biến JAVIS_CODEX_BIN**: trỏ thẳng tới file codex nếu máy cài ở chỗ lạ; trỏ sai đường dẫn thì bỏ qua và dò tiếp như thường.
 
-## [0.9.111] - 2026-07-20
-Viết lại hướng dẫn đăng nhập của TẤT CẢ 23 connector cho dễ đọc, và sửa lỗi hộp hướng dẫn bị tràn ngang. Trước đây cả 23 guide đều là MỘT đoạn văn chạy dài không ngắt dòng, các bước (1)(2)(3) chen ngang giữa câu; gặp chuỗi dài không khoảng trắng (lệnh shell, URL callback) thì hộp bị đẩy tràn ra ngoài modal, phải kéo ngang mới đọc hết.
-### Sửa lỗi
-- **Hộp hướng dẫn không tràn ngang nữa**: thêm `overflow-wrap: anywhere` cho `.conn-guide` và `.conn-risk`, nên lệnh shell dài hay URL callback tự bẻ dòng thay vì đẩy tràn. Đã đo trên modal thật rộng 520px: `scrollWidth == clientWidth`, không còn thanh cuộn ngang.
-- **Xuống dòng trong catalog giờ hiện đúng**: thêm `white-space: pre-line`, nên ký tự xuống dòng viết trong `mcp-catalog.json` hiện thành xuống dòng thật trên giao diện (guide là chuỗi thuần đi qua `esc()`, trước đây HTML nuốt hết).
-### Cải thiện
-- **23/23 guide viết lại theo một khuôn**: dòng "Cần trước:" cho thứ phải cài sẵn, rồi "Làm 1 lần:" với mỗi bước một dòng đánh số, cuối cùng là ghi chú và cảnh báo tách đoạn riêng. Nội dung sự thật giữ nguyên, chỉ đổi cách trình bày.
-- **Tách các đoạn quá dài**: `meta-ads` (226 ký tự), `facebook-personal` (235), `google-keep` (204) được cắt thành đoạn ngắn hơn. Bước 2 của `facebook-personal` vốn nhồi cả quy trình DevTools vào một câu, nay tách thành 3 bước riêng.
-- **Entry `google-keep` khớp style file**: mảng gọn trên một dòng như 22 connector còn lại, thay vì mỗi phần tử một dòng.
-### Thêm mới
-- Test `server/test_catalog_guides.py` (10 kiểm tra, không mạng): guide dài phải có xuống dòng, không dòng nào quá 200 ký tự, bước đánh số phải mở đầu dòng, CSS phải thật sự khai `pre-line` + `overflow-wrap`, và cấm em dash / en dash trong cả file. Có canary chứng minh luật bắt được chuỗi kiểu cũ.
-
 ## [0.9.116] - 2026-07-20
 Rà soát toàn bộ cảnh báo rủi ro của 23 connector. Từ khi viết ra tới nay chưa ai kiểm lại, mà chúng lại không hiện trên giao diện (sửa ở 0.9.115) nên lỗi tích lại không ai thấy. Tìm được ba connector có tool nguy hiểm mà không một chữ cảnh báo, một chỗ xếp loại mâu thuẫn, và một chỗ mô tả nhẹ hơn thực tế.
 ### Bảo mật
@@ -1927,6 +1923,18 @@ Bỏ hẳn bước bắt người dùng mở terminal để đấu **Google Keep
 ### Cải thiện
 - **Ghi chú lý do vào `requirements.txt`**: dòng `uv>=0.5` giờ có comment nói rõ nó không phải thư viện app import mà là runner cho các connector khai `command: uvx`, kèm cảnh báo đừng gỡ.
 - Sửa lại `CHANGELOG` bản 0.9.110 và file thiết kế `docs/superpowers/specs/2026-07-20-google-keep-connector-design.md` cho khớp sự thật, giữ lại phần phân tích cái sai để lần sau không lặp lại.
+
+## [0.9.111] - 2026-07-20
+Viết lại hướng dẫn đăng nhập của TẤT CẢ 23 connector cho dễ đọc, và sửa lỗi hộp hướng dẫn bị tràn ngang. Trước đây cả 23 guide đều là MỘT đoạn văn chạy dài không ngắt dòng, các bước (1)(2)(3) chen ngang giữa câu; gặp chuỗi dài không khoảng trắng (lệnh shell, URL callback) thì hộp bị đẩy tràn ra ngoài modal, phải kéo ngang mới đọc hết.
+### Sửa lỗi
+- **Hộp hướng dẫn không tràn ngang nữa**: thêm `overflow-wrap: anywhere` cho `.conn-guide` và `.conn-risk`, nên lệnh shell dài hay URL callback tự bẻ dòng thay vì đẩy tràn. Đã đo trên modal thật rộng 520px: `scrollWidth == clientWidth`, không còn thanh cuộn ngang.
+- **Xuống dòng trong catalog giờ hiện đúng**: thêm `white-space: pre-line`, nên ký tự xuống dòng viết trong `mcp-catalog.json` hiện thành xuống dòng thật trên giao diện (guide là chuỗi thuần đi qua `esc()`, trước đây HTML nuốt hết).
+### Cải thiện
+- **23/23 guide viết lại theo một khuôn**: dòng "Cần trước:" cho thứ phải cài sẵn, rồi "Làm 1 lần:" với mỗi bước một dòng đánh số, cuối cùng là ghi chú và cảnh báo tách đoạn riêng. Nội dung sự thật giữ nguyên, chỉ đổi cách trình bày.
+- **Tách các đoạn quá dài**: `meta-ads` (226 ký tự), `facebook-personal` (235), `google-keep` (204) được cắt thành đoạn ngắn hơn. Bước 2 của `facebook-personal` vốn nhồi cả quy trình DevTools vào một câu, nay tách thành 3 bước riêng.
+- **Entry `google-keep` khớp style file**: mảng gọn trên một dòng như 22 connector còn lại, thay vì mỗi phần tử một dòng.
+### Thêm mới
+- Test `server/test_catalog_guides.py` (10 kiểm tra, không mạng): guide dài phải có xuống dòng, không dòng nào quá 200 ký tự, bước đánh số phải mở đầu dòng, CSS phải thật sự khai `pre-line` + `overflow-wrap`, và cấm em dash / en dash trong cả file. Có canary chứng minh luật bắt được chuỗi kiểu cũ.
 
 ## [0.9.110] - 2026-07-20
 Thêm connector **Google Keep** để Javis đọc và thao tác ghi chú Keep. Google Keep không có API chính chủ cho tài khoản gmail thường nên connector này đi qua thư viện không chính thức và đòi Google master token, loại token có TOÀN QUYỀN tài khoản Google chứ không giới hạn phạm vi như OAuth. Rủi ro này được ghi thẳng vào phần cảnh báo của connector.
