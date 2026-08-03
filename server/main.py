@@ -7676,6 +7676,12 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             "preset": current_preset(settings),
             "presets": [{"id": k, **{x: v[x] for x in ("nhan", "mo_ta")}}
                         for k, v in RUNTIME_PRESETS.items()],
+            # Mức đang chạy là do NGƯỜI DÙNG chọn, hay chỉ là mặc định của bản đã cài? Hai
+            # thứ đó trông y hệt nhau trên màn hình mà ý nghĩa ngược nhau: cái sau sẽ đi lên
+            # theo bản cập nhật, cái trước thì không. Nói ra để người dùng biết mình đang ở
+            # đâu, và biết rằng bấm một mức là ghim lại.
+            "preset_nguon": str((settings.get("preset_choice") or {}).get("source") or ""),
+            "preset_mac_dinh": cfgmod.PRESET_MAC_DINH,
             # Bộ não đang chạy có ăn được phần tiết kiệm này không. Câu hỏi đầu tiên của
             # người dùng khi mở trang, mà trước đây trang không trả lời được: bảng canary
             # chỉ hiện allocation, còn việc engine của họ có nằm trong provider_kinds hay
@@ -8090,7 +8096,7 @@ def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_i
     return 0, {"ok": True, "allocation_basis_points": bp}
 
 
-_RUNTIME_MODES = ("off", "observe", "shadow", "canary", "on")
+_RUNTIME_MODES = cfgmod.RUNTIME_MODES
 
 # Đường canary nào ĐỌC hạn mức ở chỗ nào. Mặc định là đọc của chính mình; ba đường Phase 8 thì
 # không có `quota_profiles` riêng mà đọc ké `context_sources` (xem AdaptiveContextCanary._quota).
@@ -8112,41 +8118,48 @@ QUOTA_OWNER_OF = {
 # Chỉ đưa vào đây những đường CHẠY ĐƯỢC với cấu hình mặc định. readonly_canary,
 # orchestrator_canary, write_canary... đều đòi allowlist capability mà mặc định rỗng, nên
 # bật chúng chỉ tạo cảm giác đã bật trong khi mọi lượt vẫn rơi về đường cũ.
+#
+# `mode` và `duong` KHÔNG gõ ở đây mà lấy từ `cfgmod.PRESET_DUONG`. Vì sao: `_ap_muc_mac_dinh`
+# bên config phải biết mức xuất xưởng bật những đường nào, mà config không import được main.
+# Chép bảng ra hai chỗ thì tới lúc thêm một đường vào mức nào đó, chỗ nâng mặc định vẫn nâng
+# theo bảng cũ - lệch âm thầm, đúng kiểu lỗi không ai phát hiện cho tới khi hoá đơn token nói.
+def _muc(key: str, nhan: str, mo_ta: str) -> dict:
+    p = cfgmod.PRESET_DUONG[key]
+    return {"nhan": nhan, "mo_ta": mo_ta, "mode": p["mode"], "duong": dict(p["duong"])}
+
+
 RUNTIME_PRESETS = {
-    "off": {
-        "nhan": "Tắt",
-        # Nhắc tên "Đầy đủ" ngay trong mô tả để nối với nhãn chế độ hiện dưới mỗi câu trả lời
-        # và trong bảng đo. Nút thì tên "Tắt" (tắt phần tiết kiệm), còn thứ đang chạy khi tắt
-        # thì tên "Đầy đủ" - không buộc hai tên đó lại là người dùng thấy hai thứ khác nhau.
-        "mo_ta": ("Chế độ Đầy đủ: gửi mọi thứ cho model mỗi lượt. "
-                  "An toàn nhất, tốn token nhất."),
-        "mode": "shadow",
-        "duong": {},
-    },
-    "saving": {
-        "nhan": "Tối ưu",
-        "mo_ta": ("Chỉ gửi phần liên quan tới câu hỏi: nhớ có chọn lọc, skill nạp khi cần. "
-                  "Giảm mạnh token mỗi lượt, hợp với model bị siết hạn mức."),
-        "mode": "canary",
-        "duong": {
-            "conversation_state_canary": 10000,
-            "memory_canary": 10000,
-            "lazy_skill_canary": 10000,
-        },
-    },
-    "max": {
-        "nhan": "Siêu tiết kiệm",
-        "mo_ta": ("Như mức Tiết kiệm, cộng thêm đường tắt cho câu hỏi đơn giản không cần "
-                  "tra cứu gì. Nhanh và rẻ nhất, nhưng mới nhất nên ít được thử nhất."),
-        "mode": "canary",
-        "duong": {
-            "conversation_state_canary": 10000,
-            "memory_canary": 10000,
-            "lazy_skill_canary": 10000,
-            "canary": 10000,
-        },
-    },
+    # Nhắc tên "Đầy đủ" ngay trong mô tả để nối với nhãn chế độ hiện dưới mỗi câu trả lời và
+    # trong bảng đo. Nút thì tên "Tắt" (tắt phần tiết kiệm), còn thứ đang chạy khi tắt thì tên
+    # "Đầy đủ" - không buộc hai tên đó lại là người dùng thấy hai thứ khác nhau.
+    "off": _muc("off", "Tắt",
+                "Chế độ Đầy đủ: gửi mọi thứ cho model mỗi lượt. "
+                "An toàn nhất, tốn token nhất."),
+    "saving": _muc("saving", "Tối ưu",
+                   "Chỉ gửi phần liên quan tới câu hỏi: nhớ có chọn lọc, skill nạp khi cần. "
+                   "Giảm mạnh token mỗi lượt, hợp với model bị siết hạn mức."),
+    "max": _muc("max", "Siêu tiết kiệm",
+                "Như mức Tiết kiệm, cộng thêm đường tắt cho câu hỏi đơn giản không cần "
+                "tra cứu gì. Nhanh và rẻ nhất, nhưng mới nhất nên ít được thử nhất."),
 }
+
+
+def _ky_ten_muc(runtime_cfg: dict, level: str) -> dict:
+    """Đóng dấu "chính người dùng đã chọn mức này" vào config.
+
+    Đây là thứ duy nhất phân biệt được "cố ý chọn Tắt" với "chưa ai chọn gì, mặc định cũ
+    đóng băng lại trong settings.json". Thiếu nó thì mọi lần nâng mặc định về sau đều phải
+    chọn giữa hai cái sai: giẫm lên quyết định của người dùng, hoặc để mặc định mới không bao
+    giờ tới được máy đã cài. Xem `config._ap_muc_mac_dinh`.
+
+    Gọi từ MỌI endpoint đổi mức tiết kiệm, kể cả đổi tay từng đường: người vào tận phần Nâng
+    cao chỉnh allocation rõ ràng là người có ý kiến riêng, đừng nâng của họ lên sau lưng.
+    """
+    from datetime import datetime, timezone
+    dau = {"level": str(level or ""), "source": "user",
+           "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    runtime_cfg["preset_choice"] = dau
+    return dau
 
 
 def current_preset(runtime_cfg: dict) -> str:
@@ -8181,6 +8194,9 @@ async def runtime_preset_set(level: str = Form(...)):
     cfg = cfgmod.read_settings()
     runtime_cfg = cfg.setdefault("context_runtime", {})
     runtime_cfg["mode"] = preset["mode"]
+    # Ký tên TRƯỚC khi ghi: từ đây trở đi mức này là quyết định của người dùng, không bản
+    # cập nhật nào được nâng nó lên sau lưng.
+    _ky_ten_muc(runtime_cfg, key)
 
     # Đường nào cần hạn mức mà chưa khai thì TỰ KHAI cho provider đang dùng. Không làm bước
     # này thì bấm một mức sẽ bật một đường fail-closed: knob xoay được, đèn không sáng - đúng
@@ -8247,7 +8263,11 @@ async def runtime_mode_set(mode: str = Form(...)):
         return JSONResponse({"ok": False, "error": f"mode '{mode}' không hợp lệ",
                              "hop_le": list(_RUNTIME_MODES)}, status_code=400)
     cfg = cfgmod.read_settings()
-    cfg.setdefault("context_runtime", {})["mode"] = value
+    runtime_cfg = cfg.setdefault("context_runtime", {})
+    runtime_cfg["mode"] = value
+    # Đổi công tắc trùm cũng là một quyết định về mức tiết kiệm: hạ xuống shadow là cố ý tắt
+    # hết. Không ký ở đây thì lần nâng mặc định sau sẽ kéo mode trở lại canary sau lưng.
+    _ky_ten_muc(runtime_cfg, current_preset(runtime_cfg))
     cfgmod.write_settings(cfg)
     active = [k for k, v in (cfgmod.read_settings().get("context_runtime") or {}).items()
               if isinstance(v, dict) and int(v.get("allocation_basis_points") or 0) > 0]
@@ -8331,7 +8351,11 @@ async def runtime_canary_set(
     if status:
         return JSONResponse(payload, status_code=status)
     entry["allocation_basis_points"] = payload["allocation_basis_points"]
-    cfg.setdefault("context_runtime", {})[path] = entry
+    rt = cfg.setdefault("context_runtime", {})
+    rt[path] = entry
+    # Người vào tận phần Nâng cao chỉnh từng đường là người có ý kiến riêng. Ký tên để bản
+    # cập nhật sau không nâng cấu hình tay của họ lên theo mặc định mới.
+    _ky_ten_muc(rt, current_preset(rt))
     cfgmod.write_settings(cfg)
     # Không cần restart: read_settings cache theo mtime nên lượt kế tiếp đã ăn giá trị mới.
     after = (cfgmod.read_settings().get("context_runtime") or {}).get(path) or {}

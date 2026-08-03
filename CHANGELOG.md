@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.5] - 2026-08-03
+Dọn đường để sau này nâng được mức tiết kiệm mặc định, mà không giẫm lên ai đã tự chọn.
+### Sửa lỗi
+- **Đổi mức tiết kiệm mặc định sẽ không bao giờ tới được máy đã cài.** Cái bẫy nằm ở chỗ Javis lưu cấu hình: mỗi lần ghi là ghi lại TOÀN BỘ config đã trộn, nên ngay lần đầu người dùng bấm bất cứ nút nào ở trang Cài đặt, giá trị mặc định của đúng ngày hôm đó bị đóng băng vào settings.json. Lúc đọc thì file lại đè lên mặc định. Hệ quả: về sau nâng mặc định lên mức Tối ưu hay Siêu tiết kiệm thì chỉ máy cài mới tinh mới thấy, còn máy đang chạy thì không, và không có lỗi nào báo ra cả. Đây đúng là con bệnh đã cắn `provider_kinds` hồi 0.12.4, lần này rơi vào thứ quyết định mỗi lượt chat tốn bao nhiêu token.
+
+  Chỗ khó riêng: số 0 nằm trong file có hai nghĩa ngược nhau, "đã cân nhắc và cố ý chọn Tắt" và "chưa ai chọn gì cả". Không phân biệt được thì hoặc là giẫm lên quyết định của người dùng, hoặc là mặc định mới không bao giờ tới nơi. Nay mọi lần tự đổi mức đều để lại chữ ký, và có chữ ký thì bản cập nhật không đụng vào. Máy chưa từng chọn thì đi theo mặc định của bản đang chạy, kể cả máy đã cài từ lâu.
+### Cải thiện
+- **Trang Tiết kiệm nói rõ mức đang chạy là do anh chọn hay chỉ là mặc định.** Hai thứ đó trông y hệt nhau trên màn hình mà ý nghĩa ngược nhau: cái sau sẽ đi lên theo bản cập nhật, cái trước thì không. Chưa chọn bao giờ thì có một dòng nói thẳng điều đó, kèm cách ghim lại là bấm một mức bất kỳ, kể cả bấm đúng mức đang hiện.
+- **Nâng mức mặc định chỉ NÂNG, không bao giờ HẠ.** Máy đang chạy mức cao hơn mặc định, kể cả do sửa tay settings.json, vẫn giữ nguyên. Không có thứ gì người dùng đã bật bị bản cập nhật tắt đi.
+- Bảng "mức nào bật đường nào" gom về một chỗ duy nhất. Trước đó nó nằm ở `main.py`, mà chỗ nâng mặc định lại ở `config.py` và không import được sang - chép ra hai bản thì tới lúc thêm một đường vào mức nào đó, chỗ nâng mặc định vẫn nâng theo bảng cũ, lệch âm thầm.
+### Lưu ý
+- Bản này chưa đổi mặc định của ai, mức xuất xưởng vẫn là Tắt. Nó chỉ dựng sẵn cơ chế để lần nâng sau đi được tới nơi. Một chỗ mơ hồ còn lại, nói ra cho minh bạch: máy nào từng cố ý chọn Tắt TRƯỚC bản này thì không để lại chữ ký nào, nên tới ngày nâng mặc định sẽ được nâng theo. Bấm một mức một lần sau khi cập nhật là ghim vĩnh viễn.
+
 ## [0.14.4] - 2026-08-03
 Gói Claude Code dùng được mức Siêu tiết kiệm. Trước đó nó là bộ não duy nhất bị đứng ngoài.
 ### Thêm mới

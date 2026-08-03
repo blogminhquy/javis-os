@@ -801,6 +801,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .rt-preset-na { display: inline-block; margin-top: 8px; margin-right: 6px; font-size: 11px;
   color: var(--warn-ink); border: 1px solid var(--warn-line); border-radius: 999px;
   padding: 1px 8px; }
+/* "Mức này chỉ là mặc định, anh chưa chọn." Đậm hơn rt-note thường vì nó nói một điều người
+   dùng không đoán được: cái đang hiện có thể tự đổi sau bản cập nhật. */
+.rt-chuachon { opacity: .85; border-left: 2px solid var(--line); padding-left: 10px; }
 .rt-adv { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
 .rt-adv summary { cursor: pointer; font-size: 13px; font-weight: 600; list-style: none; }
 .rt-adv summary::-webkit-details-marker { display: none; }

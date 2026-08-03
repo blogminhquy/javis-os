@@ -125,6 +125,11 @@ _DEFAULT = {
         "retention_days": 14,
         "export_enabled": False,
         "estimate_chars_per_token": 3.0,   # heuristic observe-only, reconcile bằng usage thật
+        # CHỮ KÝ lựa chọn mức tiết kiệm của người dùng. Rỗng = chưa ai chọn, mức đang chạy
+        # chỉ là mặc định của bản đã cài. Xem `_ap_muc_mac_dinh` để biết vì sao thiếu trường
+        # này thì mọi lần đổi mặc định về sau đều không tới được máy đã cài.
+        # source: "user" (người dùng tự bấm/tự đổi) | "" (chưa chọn bao giờ).
+        "preset_choice": {"level": "", "source": "", "at": ""},
         "canary": {
             "policy_version": "fast-path-canary-v1",
             "allocation_basis_points": 0,  # 100 = 1%; hash ổn định theo session
@@ -412,6 +417,91 @@ def _deep_merge(base: dict, patch: dict) -> dict:
     return base
 
 
+RUNTIME_MODES = ("off", "observe", "shadow", "canary", "on")
+
+# MỖI MỨC TIẾT KIỆM BẬT NHỮNG ĐƯỜNG NÀO. Bảng này là nguồn sự thật; `main.RUNTIME_PRESETS`
+# chỉ khoác thêm nhãn và mô tả cho người đọc. Để ở config vì `_ap_muc_mac_dinh` bên dưới cần
+# nó, mà config thì không import được main (vòng lặp import).
+PRESET_DUONG = {
+    "off": {"mode": "shadow", "duong": {}},
+    "saving": {"mode": "canary", "duong": {
+        "conversation_state_canary": 10000,
+        "memory_canary": 10000,
+        "lazy_skill_canary": 10000,
+    }},
+    "max": {"mode": "canary", "duong": {
+        "conversation_state_canary": 10000,
+        "memory_canary": 10000,
+        "lazy_skill_canary": 10000,
+        "canary": 10000,
+    }},
+}
+
+# MỨC XUẤT XƯỞNG CỦA BẢN NÀY. Đổi đúng dòng này là đổi mặc định cho MỌI máy chưa từng tự
+# chọn mức, kể cả máy đã cài từ lâu. Đừng sửa `_DEFAULT` ở trên để đổi mặc định: xem
+# `_ap_muc_mac_dinh` để biết vì sao sửa ở đó không tới được máy nào.
+PRESET_MAC_DINH = "off"
+
+
+def _ap_muc_mac_dinh(cfg: dict) -> bool:
+    """Nâng mức tiết kiệm lên ÍT NHẤT mức xuất xưởng, nếu người dùng CHƯA TỪNG tự chọn mức.
+
+    Vì sao phải có, và vì sao sửa `_DEFAULT` là không đủ. `write_settings` ghi lại TOÀN BỘ
+    config đã trộn, nên ngay lần đầu người dùng bấm bất cứ nút nào ở trang Cài đặt, giá trị
+    mặc định của NGÀY HÔM ĐÓ bị đóng băng vào settings.json. `read_settings` lại trộn file ĐÈ
+    LÊN mặc định. Hệ quả: về sau ta có nâng mặc định lên mức Tối ưu hay Siêu tiết kiệm thì
+    máy đã cài rồi KHÔNG BAO GIỜ thấy - mặc định mới chỉ tới được máy cài mới tinh. Đúng con
+    bệnh đã cắn `provider_kinds` hồi 0.12.4 (xem `_no_rong_pham_vi_bo_nao`), lần này rơi vào
+    thứ quyết định mỗi lượt chat tốn bao nhiêu token.
+
+    Cái khó riêng của mức tiết kiệm: số 0 nằm trong file có HAI nghĩa hoàn toàn khác nhau -
+    "người dùng đã cân nhắc và cố ý chọn Tắt", hoặc "chưa ai chọn gì, đây là mặc định cũ
+    đóng băng lại". Không phân biệt được hai cái đó thì hoặc là ta giẫm lên quyết định của
+    người dùng, hoặc là mặc định mới không bao giờ tới nơi. Nên từ bản này, mọi lần người
+    dùng tự đổi mức đều để lại chữ ký `preset_choice.source == "user"`, và có chữ ký thì hàm
+    này không đụng vào gì hết.
+
+    CHỈ NÂNG, KHÔNG BAO GIỜ HẠ. Máy đang chạy mức cao hơn mặc định (kể cả do sửa tay
+    settings.json, thứ không để lại chữ ký nào) vẫn giữ nguyên mức của nó. Nhờ vậy trường
+    hợp mơ hồ duy nhất còn lại là máy cũ từng cố ý chọn Tắt TRƯỚC khi có chữ ký: máy đó sẽ
+    được nâng theo mặc định mới. Đổi lại, không có gì người dùng đã bật bị tắt đi, và bấm
+    "Tắt" một lần sau khi cập nhật là ghim vĩnh viễn.
+
+    Trả về True nếu có sửa gì, để chỗ gọi biết mà ghi file lại nếu muốn.
+    """
+    rt = cfg.get("context_runtime")
+    if not isinstance(rt, dict):
+        return False
+    chon = rt.get("preset_choice")
+    if isinstance(chon, dict) and str(chon.get("source") or "") == "user":
+        return False
+    muc = PRESET_DUONG.get(PRESET_MAC_DINH) or {}
+    doi = False
+    for ten, bp in (muc.get("duong") or {}).items():
+        entry = rt.get(ten)
+        if not isinstance(entry, dict):
+            continue
+        if int(entry.get("allocation_basis_points") or 0) < int(bp):
+            entry["allocation_basis_points"] = int(bp)
+            doi = True
+    # `mode` là công tắc TRÙM: nâng allocation mà quên nâng mode là bật đúng cái kiểu hỏng
+    # "knob xoay được mà đèn không sáng". Các phase khác (readonly/orchestrator/write) không
+    # bị mode này bật lây vì allowlist capability của chúng mặc định rỗng, và riêng write
+    # còn đòi người dùng gõ lại mã xác nhận.
+    #
+    # Mức xuất xưởng KHÔNG bật đường nào (hôm nay là mức Tắt) thì đừng đụng vào mode: chẳng
+    # có gì để bật, mà mode lại là công tắc dùng chung với các phase khác. Đi sửa một thứ
+    # không cần sửa là cách rẻ nhất để tạo ra một lỗi không ai ngờ tới.
+    can = str(muc.get("mode") or "")
+    if muc.get("duong") and can in RUNTIME_MODES:
+        dang = str(rt.get("mode") or "")
+        i_dang = RUNTIME_MODES.index(dang) if dang in RUNTIME_MODES else -1
+        if i_dang < RUNTIME_MODES.index(can):
+            rt["mode"] = can
+            doi = True
+    return doi
+
+
 def _no_rong_pham_vi_bo_nao(cfg: dict) -> bool:
     """Nới `provider_kinds` của các mảng tiết kiệm về ÍT NHẤT bằng mặc định hiện tại.
 
@@ -472,6 +562,7 @@ def read_settings():
     except Exception:
         pass
     _no_rong_pham_vi_bo_nao(cfg)
+    _ap_muc_mac_dinh(cfg)
     try:
         import secrets_store   # lazy: secrets_store import config → tránh vòng lặp import
         _transform_secret_fields(cfg, secrets_store.decrypt)

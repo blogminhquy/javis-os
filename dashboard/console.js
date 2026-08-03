@@ -415,6 +415,10 @@
         </div>
         ${d.preset === "custom" ? `<div class="dim rt-note">Cấu hình hiện tại không khớp mức
           nào (đã chỉnh tay ở phần Nâng cao). Bấm một mức để về lại chuẩn.</div>` : ""}
+        ${d.preset_nguon === "user" ? "" : `<div class="dim rt-note rt-chuachon">Mức đang chạy
+          là <b>mặc định của bản này</b>, anh chưa tự chọn bao giờ. Bản cập nhật sau có thể
+          nâng nó lên. Bấm một mức bất kỳ là Javis ghim lại, từ đó không bản nào đổi nữa
+          (kể cả bấm đúng mức đang chạy).</div>`}
         <div class="dim rt-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis
         trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức.
         ${uoc.la_uoc_luong ? ` Con số phần trăm là <b>ước lượng</b> đo trên chính bộ não và bộ
