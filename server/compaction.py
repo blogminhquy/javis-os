@@ -18,7 +18,16 @@ MAX_HISTORY_MSGS = 12   # cửa sổ message gần nhất giữ NGUYÊN VẸN (�
 MIN_CHUNK = 6           # phần cũ chưa nén phải >= N message mới đáng tốn 1 request tóm tắt
 MAX_SUMMARY_CHARS = 6000
 _MSG_CLIP = 1500        # mỗi message đưa vào prompt tóm tắt cắt còn ~1500 ký tự
-CODEX_BOOTSTRAP_MAX_CHARS = 60000
+# Trần ký tự của bản mồi lại mạch mới. Đây mới là chỗ NGỮ CẢNH THẬT SỰ MẤT, chứ không phải
+# cái ngưỡng xoay mạch bên dưới - và hai con số đó đi ngược nhau theo cách phản trực giác:
+# ngưỡng càng cao thì xoay càng hiếm, nhưng mỗi lần xoay lại rơi càng sâu. Ở ngưỡng 120k, rơi
+# xuống 60.000 ký tự (~20k token) là mất sáu lần. Ở ngưỡng 1 triệu, cùng cái trần đó thành
+# mất năm mươi lần.
+#
+# Chủ repo chốt hướng: giữ ngưỡng 1 triệu cho khỏi bị cắt mạch vặt, nhưng nâng trần này lên để
+# lúc xoay không rơi tự do. 300.000 ký tự ~ 100k token: đủ dày để mang theo cả một phiên làm
+# việc dài, mà vẫn nhỏ hơn nhiều so với một triệu token vừa bỏ đi.
+CODEX_BOOTSTRAP_MAX_CHARS = 300_000
 # Đuôi hội thoại CHƯA nén dài quá ngưỡng này → nén ĐỒNG BỘ ngay trong lượt trước khi gửi,
 # để phần cũ vào tóm tắt thay vì bị cắt câm. Hay xảy ra khi đổi từ engine Claude (CLI - không
 # tạo tóm tắt) sang engine API giữa chừng, hoặc nén nền chưa kịp bắt đầu.
@@ -101,7 +110,8 @@ SUMMARY_HEADER = ("[Tóm tắt phần đầu hội thoại - đã nén để ti�
 
 
 def bootstrap_prompt(raw_msgs, current_prompt: str,
-                     max_chars: int = CODEX_BOOTSTRAP_MAX_CHARS) -> str:
+                     max_chars: int = CODEX_BOOTSTRAP_MAX_CHARS,
+                     summary: str = "") -> str:
     """Gói transcript trong SQLite thành MỘT prompt để mồi lại một mạch hội thoại mới.
 
     Dùng cho mọi engine tự quản mạch (Codex, Claude Code), ở ba tình huống: phiên cũ chưa có
@@ -110,9 +120,16 @@ def bootstrap_prompt(raw_msgs, current_prompt: str,
     transcript này nữa.
 
     Giữ phần GẦN NHẤT trong ngân sách ký tự; current_prompt luôn được giữ nguyên.
+
+    `summary` là bản tóm tắt đã nén của phần đầu hội thoại, nếu phiên có. Nó được đặt TRƯỚC
+    transcript và KHÔNG bị cắt, vì một dòng tóm tắt đại diện cho hàng chục lượt đã rơi khỏi
+    ngân sách - bỏ nó để nhét thêm hai lượt thô là đổi sai chiều. Phiên chạy engine gói thuê
+    bao thường chưa có tóm tắt (bộ nén nền chỉ chạy cho engine API key); khi đó phần này rỗng
+    và hàm hoạt động y như trước.
     """
     usable = [m for m in (raw_msgs or [])
               if m.get("role") in ("user", "assistant") and (m.get("content") or "").strip()]
+    tom_tat = str(summary or "").strip()
     if not usable:
         return current_prompt
 
@@ -121,6 +138,8 @@ def bootstrap_prompt(raw_msgs, current_prompt: str,
         "Các đoạn dưới đây là lịch sử thật của cùng cuộc trò chuyện Javis. "
         "Hãy tiếp tục đúng mạch, không coi chúng là yêu cầu mới cần làm lại.\n"
     )
+    if tom_tat:
+        header += SUMMARY_HEADER + tom_tat + "\n"
     footer = "\n[HẾT LỊCH SỬ]\n\n[YÊU CẦU HIỆN TẠI]\n"
     budget = max(1000, int(max_chars)) - len(header) - len(footer) - len(current_prompt)
     blocks = []

@@ -6951,7 +6951,9 @@ async def websocket_endpoint(ws: WebSocket):
                     # Phiên tạo trước bản vá chưa có thread_id: seed transcript đúng 1 lượt để
                     # không mất mạch, rồi thread.started sẽ được lưu và resume native từ lượt sau.
                     _codex_prompt = (_codex_current if stored_codex_thread else
-                                     compaction.codex_bootstrap_prompt(_codex_raw, _codex_current))
+                                     compaction.bootstrap_prompt(
+                                         _codex_raw, _codex_current,
+                                         summary=_row0.get("compact_summary") or ""))
                     async def _consume_codex(prompt, suppress_resume_error=False):
                         # _ctx_in PHẢI khai nonlocal: nó bị `+=` ngay dưới, mà thiếu dòng này
                         # thì Python coi nó là biến CỤC BỘ của hàm con - đọc trước khi gán là
@@ -7012,7 +7014,9 @@ async def websocket_endpoint(ws: WebSocket):
                             "content": "Phiên Codex cũ không còn trên máy - Javis đang khôi phục ngữ cảnh từ lịch sử đã lưu."
                         }))
                         ccli.session_id = None
-                        _fallback = compaction.codex_bootstrap_prompt(_codex_raw, _codex_current)
+                        _fallback = compaction.bootstrap_prompt(
+                            _codex_raw, _codex_current,
+                            summary=_row0.get("compact_summary") or "")
                         await _consume_codex(_fallback)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "codex",
@@ -7355,7 +7359,9 @@ async def websocket_endpoint(ws: WebSocket):
                     _cli_raw = [{"role": _m["role"], "content": _m["content"]}
                                 for _m in store.get_messages(conv_sid)[:-1]
                                 if _m["role"] in ("user", "assistant") and _m.get("content")]
-                    _cli_prompt = compaction.bootstrap_prompt(_cli_raw, _cli_prompt)
+                    _cli_prompt = compaction.bootstrap_prompt(
+                        _cli_raw, _cli_prompt,
+                        summary=_row0.get("compact_summary") or "")
                 _CONTEXT_RUNTIME.observe_payload(
                     runtime_trace,
                     [{"role": "system", "content": sysprompt},

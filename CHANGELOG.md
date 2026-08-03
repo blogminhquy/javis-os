@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.2] - 2026-08-03
+Mở mạch mới thôi làm mất ngữ cảnh: bản mồi lại dày lên năm lần và mang theo tóm tắt.
+### Cải thiện
+- **Khi Javis mở mạch hội thoại mới, nó mang theo nhiều gấp năm lần so với trước.** Chủ repo lo mất ngữ cảnh khi giao việc nặng chạy lâu, và soi lại thì chỗ đau không nằm ở cái ngưỡng như tưởng, mà ở bản mồi lại. Hai con số đó đi ngược nhau theo cách phản trực giác: ngưỡng càng cao thì xoay mạch càng hiếm, nhưng mỗi lần xoay lại **rơi càng sâu**. Ở ngưỡng 120.000, rơi xuống bản mồi 60.000 ký tự là mất sáu lần. Ở ngưỡng 1 triệu vừa nâng, cùng cái trần đó thành mất năm mươi lần.
+
+  Nay bản mồi lại rộng 300.000 ký tự, khoảng 100.000 token. Đo trên một hội thoại 120 lượt: trước giữ được 16 lượt, nay giữ được 86.
+- **Và nó mang theo cả bản tóm tắt đã nén của phần đầu hội thoại**, đặt trước phần lịch sử thô và không bị cắt. Một dòng tóm tắt đại diện cho hàng chục lượt đã rơi khỏi ngân sách, nên bỏ nó để nhét thêm hai lượt thô là đổi sai chiều.
+- Đã kiểm: ngưỡng xoay mạch **không đụng gì tới việc nền**. Nó chỉ chạy trong khung chat; loop và việc Kanban mở phiên engine mới mỗi lần chạy nên không có mạch nào để xoay.
+
 ## [0.14.1] - 2026-08-03
 Ngưỡng xoay mạch nâng lên 1 triệu token theo số dùng thật, và dọn rác trích dẫn lọt vào câu trả lời.
 ### Sửa lỗi

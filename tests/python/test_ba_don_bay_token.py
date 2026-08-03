@@ -348,5 +348,42 @@ _src_eng = (SERVER / "engine.py").read_text(encoding="utf-8")
 check("CANARY: đường gọi thẳng của gói ChatGPT cũng bóc",
       "strip_provider_markers(obj.get(\"delta\")" in _src_eng)
 
+
+# ============================================================
+# 6. Bản mồi lại mạch mới phải ĐỦ DÀY
+# ============================================================
+# Đây mới là chỗ ngữ cảnh THẬT SỰ mất khi xoay mạch, và nó đi ngược cái ngưỡng theo cách phản
+# trực giác: ngưỡng càng cao thì xoay càng hiếm, nhưng mỗi lần xoay lại rơi càng sâu. Ở ngưỡng
+# 120k, rơi xuống 60.000 ký tự là mất sáu lần; ở ngưỡng 1 triệu, cùng cái trần đó thành mất
+# năm mươi lần. Chủ repo lo mất ngữ cảnh khi giao việc nặng chạy lâu, và chỗ đau đúng là đây.
+_msgs = [{"role": "user" if _i % 2 == 0 else "assistant",
+          "content": f"noi dung luot {_i} " * 200} for _i in range(120)]
+_moi = compaction.bootstrap_prompt(_msgs, "cau hoi moi")
+_giu = _moi.count("<User>") + _moi.count("<Javis>")
+_giu_cu = (lambda p: p.count("<User>") + p.count("<Javis>"))(
+    compaction.bootstrap_prompt(_msgs, "cau hoi moi", max_chars=60_000))
+check("CANARY: trần mồi lại đủ dày cho phiên làm việc dài",
+      compaction.CODEX_BOOTSTRAP_MAX_CHARS >= 300_000)
+check(f"giữ được nhiều lượt hơn hẳn trần cũ ({_giu} so với {_giu_cu})", _giu > _giu_cu * 3)
+check("câu hỏi hiện tại luôn còn nguyên, không bị cắt", _moi.endswith("cau hoi moi"))
+
+# Tóm tắt đã nén đại diện cho hàng chục lượt đã rơi khỏi ngân sách. Bỏ nó để nhét thêm hai
+# lượt thô là đổi sai chiều, nên nó đứng TRƯỚC transcript và không bị cắt.
+_co_tt = compaction.bootstrap_prompt(_msgs, "cau hoi moi",
+                                     summary="Hai ben da chot kien truc Javis Gateway.")
+check("CANARY: bản tóm tắt đã nén được mang theo khi mồi lại",
+      "Javis Gateway" in _co_tt)
+check("và đứng TRƯỚC phần transcript thô",
+      _co_tt.find("Javis Gateway") < _co_tt.find("<User>"))
+check("phiên chưa có tóm tắt vẫn chạy y như cũ",
+      compaction.bootstrap_prompt(_msgs, "x", summary="") == compaction.bootstrap_prompt(_msgs, "x"))
+check("tóm tắt rác không làm hỏng gì",
+      compaction.bootstrap_prompt(_msgs, "x", summary="   ")
+      == compaction.bootstrap_prompt(_msgs, "x"))
+# Và phải NỐI vào đường xoay mạch thật, không chỉ nhận tham số rồi không ai truyền.
+_src_main = (SERVER / "main.py").read_text(encoding="utf-8")
+check("CANARY: đường mồi lại THẬT SỰ truyền tóm tắt vào",
+      _src_main.count('summary=_row0.get("compact_summary")') >= 3)
+
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)
