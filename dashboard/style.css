@@ -1362,43 +1362,12 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   .settings-page .quick-set-body > .qs-row { grid-column: auto; }
 }
 
-/* ===== CHAT WORKSPACE (phóng to) - CHOÁN ĐÚNG khung nội dung, 2 cột: lịch sử trái + chat =====
-   Trước đây đây là POPUP: khung bo tròn 16px, có bóng đổ, nổi giữa màn hình và chừa mép hai
-   bên cho graph lộ ra sau lưng - nhìn như hộp thoại đè lên app chứ không phải một phần app.
-   Nay nó dán TỆT vào đúng vùng nội dung: từ dưới thanh top xuống đáy, từ mép phải rail sang
-   mép phải cửa sổ. Toạ độ KHÔNG hardcode - chat-zoom.js đo khung thật rồi bơm vào 4 biến dưới,
-   nên rail thu/mở, cửa sổ đổi cỡ hay màn mobile (rail rộng 0) đều bám đúng.
-   Bốn giá trị dự phòng chỉ để hở một nhịp trước khi JS đo xong. */
-.chat-stage {
-  position: fixed; transform: none;
-  top: var(--cs-top, 52px); left: var(--cs-left, 0px);
-  width: var(--cs-w, 100vw); height: var(--cs-h, calc(100vh - 52px));
-  z-index: 360; display: none; flex-direction: column; gap: 10px;
-  /* Nền ĐẶC + bỏ blur: đã choán trọn khung thì không việc gì phải nhìn xuyên xuống graph,
-     mà kính mờ lại chính là thứ khiến nó đọc ra "lớp nổi". */
-  background: var(--bg);
-  /* Chỉ giữ một vạch trên để phân với thanh top; ba cạnh kia trùng mép cửa sổ nên bỏ hết
-     viền, bo góc và bóng đổ - còn lại là còn thấy đường nét của một cái hộp. */
-  border: 0; border-top: 1px solid var(--border); border-radius: 0;
-  box-shadow: none; padding: 12px 14px 14px;
-}
-body.chat-zoomed .chat-stage { display: flex; }
-.chat-stage-head { display: flex; align-items: center; justify-content: space-between;
-  font-family: var(--font); font-size: 12px; letter-spacing: 2px; color: var(--text3); }
-.cs-actions { display: flex; gap: 8px; }
-.cs-side-toggle { background: none; border: 1px solid var(--border); color: var(--text2);
-  border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; letter-spacing: 0; }
-.cs-side-toggle:hover, .cs-side-toggle.active { color: var(--accent); border-color: var(--accent); }
-.chat-stage-close { background: none; border: 1px solid var(--border); color: var(--text2);
-  border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
-.chat-stage-close:hover { color: var(--accent); border-color: var(--accent); }
-.chat-stage-main { flex: 1 1 auto; display: flex; min-height: 0; gap: 12px; position: relative; }
-
-/* Sidebar Lịch sử (cột trái) */
-.chat-side { display: none; width: 300px; flex: none; min-height: 0;
-  flex-direction: column; gap: 8px; padding: 10px;
-  background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; }
-.chat-stage.side-on .chat-side { display: flex; }
+/* ===== SIDEBAR LỊCH SỬ HỘI THOẠI (sessions-ui.js) =====
+   Dùng chung cho MỌI chỗ đặt danh sách hội thoại. Hiện chỉ còn một chỗ: cột trái của trang
+   Trò chuyện (console.js renderChat -> #chatPageSide). Lớp nổi .chat-stage cũ - khung chat
+   "phóng to" đè lên cockpit - đã bỏ ở 0.12.4: nó mượn đúng bốn node #chatArea/#attachBar/
+   #modelBar/#hudVoice mà trang Trò chuyện cũng mượn, nên hai bên giành nhau và người dùng
+   có hai khung chat gần giống hệt. Nút phóng to nay chuyển thẳng sang trang Trò chuyện. */
 .cside-new { background: var(--accent-wash-2); border: 1px solid var(--accent-line);
   color: var(--accent); border-radius: 9px; padding: 9px 10px; cursor: pointer;
   font-size: 14px; font-weight: 600; text-align: left; }
@@ -1424,6 +1393,9 @@ body.chat-zoomed .chat-stage { display: flex; }
 .cside-item:hover .act { opacity: 1; }
 .ci-meta .act span { cursor: pointer; }
 .ci-meta .act span:hover { color: var(--text-hi); }
+/* Lớp chắn thứ hai cho cùng lỗi bấm-trượt: icon không nhận chuột thì e.target luôn là cái
+   span, kể cả khi ai đó lỡ viết lại handler theo kiểu so classList. */
+.ci-meta .act span .ic { pointer-events: none; }
 .ci-snip { font-size: 12.5px; color: var(--text2); margin-top: 2px; }
 .ci-snip b { color: var(--warn-ink); }
 .cside-empty { color: var(--text3); text-align: center; padding: 26px 8px; font-size: 13.5px; }
@@ -1433,32 +1405,13 @@ body.chat-zoomed .chat-stage { display: flex; }
 .cside-more:hover { background: var(--info-wash); border-color: var(--info-line);
   color: var(--text); }
 
-/* Cột chat chính: nội dung căn giữa, rộng tối đa ~980px cho dễ đọc */
-.chat-stage-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
-.chat-stage-body > * { width: 100%; max-width: 980px; margin-left: auto; margin-right: auto; }
-.chat-stage-body .transcript { flex: 1 1 auto; min-height: 0; max-height: none; background: transparent; }
-/* Cùng bộ mặt với thanh nhập ở màn Javis (--bg2 + bo 18px) để 3 chỗ đặt chat
-   (cockpit · tab Trò chuyện · lớp phóng to) trông như một. */
-.chat-stage-body .hud-voice { background: var(--bg2); border: 1px solid var(--border); border-radius: 18px; margin: 0 auto; }
-.chat-stage-body .attach-bar { flex: none; }
-/* xoá dải composer trống ở đáy cockpit khi đang phóng to (composer đã dời vào lớp nổi) */
-body.chat-zoomed .hud { grid-template-rows: 52px 1fr 0; }
 /* nút Lịch sử (sessions-ui): nằm INLINE trong hàng nút header (.hud-actions) để không đè
-   lên các nút Cài đặt/Đọc/Reset như khi còn position:fixed. Ẩn khi workspace đang mở. */
+   lên các nút Cài đặt/Đọc/Reset như khi còn position:fixed. Bấm vào là sang trang Trò chuyện. */
 #jv-sess-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
   border-radius: 20px; white-space: nowrap; flex-shrink: 0;
   border: 1px solid var(--info-line); background: var(--info-wash); color: var(--info-ink);
   font: 600 12px/1 var(--font, system-ui); cursor: pointer; }
 #jv-sess-btn:hover { border-color: var(--info-line); color: var(--text-hi); }
-body.chat-zoomed #jv-sess-btn { display: none; }
-@media (max-width: 900px) {
-  /* Toạ độ vẫn do JS đo (rail rộng 0 ở cỡ này nên nó tự trải hết bề ngang) - chỉ bóp padding. */
-  .chat-stage { padding: 10px; }
-  /* sidebar thành drawer nổi trên cột chat */
-  .chat-stage.side-on .chat-side { position: absolute; left: 0; top: 0; bottom: 0; z-index: 6;
-    width: min(300px, 86%); background: var(--panel-solid);
-    box-shadow: 8px 0 40px var(--shadow-veil); }
-}
 
 /* ===== Thanh chọn model + effort ngay trên khung chat ===== */
 /* KHÔNG đặt overflow:hidden lên hàng này. Popup đổi model (.mb-pop) là con position:absolute

@@ -188,15 +188,8 @@
     const swap = () => {
       const leave = _pageLeave; _pageLeave = null;
       if (leave) { try { leave(); } catch (e) {} }   // dọn trang cũ trước khi thay nội dung
-      // Khung chat phóng to là overlay MƯỢN node của cockpit (#chatArea, #modelBar...).
-      // Rời trang mà không thu lại thì overlay nằm đè lên trang mới, và các node đó vẫn
-      // đang ở trong overlay chứ không về chỗ cũ. Thu ở ĐÂY để phủ mọi tab, thay vì nhớ
-      // thêm một dòng ở từng trang.
-      try {
-        if (window.JavisChatStage && window.JavisChatStage.isOpen()) {
-          window.JavisChatStage.collapse();
-        }
-      } catch (e) {}
+      // (Trước 0.12.4 ở đây còn một nhát thu lớp chat phóng to. Lớp nổi đó đã bỏ - phóng to
+      // giờ là chuyển hẳn sang trang Trò chuyện, và _pageLeave ở trên đã trả node về HUD.)
       store.active = id;
       // Về nơi có hiển thị model thì làm mới, phòng khi model bị đổi bằng đường khác
       // (trang Models, Cài đặt nhanh, hoặc chỉnh tay settings).
@@ -226,8 +219,6 @@
     const parent = i >= 0 ? clean.slice(0, i) : "";
     const isDir = /\/$/.test(raw) || (base !== "" && base.indexOf(".") < 0);   // gạch chéo cuối hoặc không có đuôi → thư mục
     _fmPending = isDir ? { dir: clean, file: "" } : { dir: parent, file: base };
-    // Chat mở dạng overlay phóng to (chat-stage) sẽ che trang Tệp tin → thu lại trước cho thấy kết quả.
-    try { if (window.JavisChatStage && window.JavisChatStage.isOpen()) window.JavisChatStage.collapse(); } catch (e) {}
     const active = window.Alpine ? Alpine.store("nav").active : "";
     if (active === "files") renderPage("files");   // đã ở trang Tệp tin → nạp lại để nhảy tới vị trí mới
     else navigateTo("files");
@@ -4398,7 +4389,9 @@
     .cp-ico-btn{ background:none; border:1px solid var(--border); color:var(--text2); border-radius:8px;
       padding:4px 10px; cursor:pointer; font-size:14px; line-height:1; }
     .cp-ico-btn:hover{ color:var(--accent); border-color:var(--accent); }
+    .cp-ico-btn .ic{ vertical-align:-2px; }
     .cp-side-toggle{ display:none; }
+    .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
     .chatpage-slot > *{ width:100%; max-width:900px; margin-left:auto; margin-right:auto; }
     .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; background:transparent; }
@@ -4442,8 +4435,6 @@
     // Vào lại trang này (vd đổi brain gọi thẳng renderPage) trong khi node đang mượn ở cviewBody
     // cũ → TRẢ về HUD trước, nếu không el.innerHTML bên dưới sẽ xoá luôn #chatArea đang nằm trong đó.
     if (_chatSlots.length) _returnChatNodes();
-    // chat-zoom overlay cũng mượn cùng các node → thu lại trước cho khỏi giành
-    try { if (window.JavisChatStage && window.JavisChatStage.isOpen()) window.JavisChatStage.collapse(); } catch (e) {}
     document.body.classList.add("on-chat");
     el.innerHTML =
       '<div class="chatpage" id="chatPage">' +
@@ -4451,6 +4442,8 @@
         '<div class="chatpage-main">' +
           '<div class="chatpage-bar">' +
             '<button class="cp-ico-btn cp-side-toggle" type="button" title="Ẩn/hiện lịch sử">' + ic("history") + '</button>' +
+            '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" ' +
+              'title="Thu nhỏ về màn Javis">' + ic("chevron-left") + ' Thu nhỏ</button>' +
             '<span class="cp-title">Trò chuyện với Javis</span>' +
             '<span class="cp-engine" id="cpEngine"></span>' +
           '</div>' +
@@ -4475,6 +4468,9 @@
     // Mobile: nút lịch sử mở/đóng drawer lịch sử; bấm vào vùng chat thì đóng drawer
     const isNar = () => window.matchMedia("(max-width: 860px)").matches;
     el.querySelector(".cp-side-toggle").onclick = () => page.classList.toggle("side-open");
+    // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
+    // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
+    el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
     slot.addEventListener("click", () => { if (isNar() && page.classList.contains("side-open")) page.classList.remove("side-open"); });
     el.querySelector("#chatPageSide").addEventListener("click", (e) => {
       if (isNar() && e.target.closest(".cside-item")) page.classList.remove("side-open");

@@ -20,18 +20,22 @@ function check(name, cond) {
   if (!cond) fails.push(name);
 }
 
-// ---- 1. Chuyen tab phai thu zoom chat ----
-// Overlay MUON node cua cockpit (#chatArea, #modelBar...). Roi trang ma khong thu thi overlay
-// de len trang moi VA cac node do van nam trong overlay chu khong ve cho cu.
+// ---- 1. Chuyen tab khong duoc de overlay chat treo lai ----
+// Loi goc 0.12.1: overlay zoom MUON node cua cockpit (#chatArea, #modelBar...), roi trang ma
+// khong thu thi overlay de len trang moi VA cac node do van nam trong overlay.
+// 0.12.4 sua tan goc: bo han overlay - phong to gio la CHUYEN sang trang Tro chuyen. Khong con
+// lop noi thi khong con gi de treo. Chi tiet duong di moi o test_chat_zoom_sang_trang.js;
+// o day chi khoa cai INVARIANT: khong duoc de mot lop noi muon node cua HUD quay lai.
 const navStart = CONSOLE.indexOf("function navigateTo(id)");
 const navEnd = CONSOLE.indexOf("\n  function ", navStart + 10);
 check("tim thay navigateTo", navStart !== -1 && navEnd > navStart);
 const NAV = CONSOLE.slice(navStart, navEnd);
-check("chuyen tab thi thu zoom chat lai", NAV.indexOf("JavisChatStage") !== -1
-  && NAV.indexOf("collapse()") !== -1);
-// Phai thu TRUOC khi doi trang, khong thi trang moi da render voi overlay con treo.
-check("thu zoom TRUOC khi doi store.active",
-  NAV.indexOf("collapse()") < NAV.indexOf("store.active = id"));
+// _pageLeave tra node ve HUD truoc khi cviewBody bi ghi de - day moi la duong tra node that.
+check("roi trang thi tra node chat ve HUD truoc",
+  NAV.indexOf("_pageLeave") !== -1 && NAV.indexOf("leave()") < NAV.indexOf("store.active = id"));
+check("CANARY: khong con lop noi muon node cua HUD",
+  fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "chat-zoom.js"), "utf8")
+    .indexOf("appendChild") === -1);
 
 // ---- 2. Dien thoai: khong mo trinh sua note ----
 const onStart = CONSOLE.indexOf("window.JavisOpenNote = function");

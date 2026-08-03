@@ -85,10 +85,13 @@
     }, 150);
   }
 
+  // Màn hẹp: cột lịch sử là drawer trượt đè lên khung chat, nên chọn xong phải tự đóng.
+  // Mốc 860px khớp @media của trang Trò chuyện (console.js _injectChatCss); lớp nổi
+  // .chat-stage cũ dùng mốc 900 đã bỏ cùng lớp đó.
   function closeDrawerIfNarrow() {
-    if (window.innerWidth >= 900) return;
-    var st = document.querySelector(".chat-stage");
-    if (st) st.classList.remove("side-on");
+    if (window.innerWidth >= 860) return;
+    var page = document.getElementById("chatPage");
+    if (page) page.classList.remove("side-open");
   }
 
   function openSession(id) {
@@ -146,9 +149,14 @@
         '<span>' + (s.msg_count || 0) + ' tin</span>' +
         '<span class="act"><span class="ren" title="Đổi tên">' + ic("pencil") + '</span><span class="del" title="Xoá">' + ic("trash-2") + '</span></span>' +
         '</div></div>');
+      // Bấm phải dò theo TỔ TIÊN, không so class của đúng node bị bấm. Nội dung .ren/.del là
+      // một <svg> (ic() trả chuỗi SVG), nên chạm vào icon thì e.target LÀ cái svg chứ không
+      // phải cái span - so classList kiểu cũ luôn trượt và click rơi xuống openSession.
+      // Đó chính là lỗi "hover vào không xoá/đổi tên được": nút có hiện, bấm lại mở hội thoại.
       item.onclick = function (e) {
-        if (e.target.classList.contains("del")) { e.stopPropagation(); delSession(s); return; }
-        if (e.target.classList.contains("ren")) { e.stopPropagation(); renSession(s); return; }
+        var hit = e.target && e.target.closest ? e.target.closest(".ren, .del") : null;
+        if (hit && hit.classList.contains("del")) { e.stopPropagation(); delSession(s); return; }
+        if (hit && hit.classList.contains("ren")) { e.stopPropagation(); renSession(s); return; }
         openSession(s.id);
       };
       listEl.appendChild(item);

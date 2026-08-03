@@ -1570,8 +1570,9 @@ window.addEventListener("drop", (e) => {
 // ============================================
 chatInput.addEventListener("input", () => {
   chatInput.style.height = "auto";
-  // Khi phóng to khung chat (chat-zoomed) cho ô nhập cao hơn để gõ dài dễ hơn.
-  const _cap = document.body.classList.contains("chat-zoomed") ? 220 : 90;
+  // Ở trang Trò chuyện (body.on-chat) cho ô nhập cao hơn để gõ dài dễ hơn. Trước đây mốc là
+  // .chat-zoomed của lớp phóng to; lớp đó đã bỏ, phóng to giờ là chuyển hẳn sang trang chat.
+  const _cap = document.body.classList.contains("on-chat") ? 220 : 90;
   chatInput.style.height = Math.min(chatInput.scrollHeight, _cap) + "px";
 });
 chatInput.addEventListener("keydown", (e) => {
