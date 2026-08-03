@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.13.3] - 2026-08-03
+Rà lại xem bật mức tiết kiệm thì có tiết kiệm thật không. Thủng bốn chỗ, và cả bốn đều im lặng: trang vẫn báo xanh, token vẫn tốn như cũ.
+### Sửa lỗi
+- **Bốn trên năm bộ não dùng API key bấm "Tối ưu" xong không tiết kiệm được gì.** OpenRouter, OpenAI, Gemini và Anthropic API đều rơi vào đây. Lý do: phần chọn lọc ngữ cảnh đòi phải biết trước hạn mức token, mà bảng hạn mức có sẵn trong máy hiện **chỉ có Groq**. Không biết hạn mức thì nó lặng lẽ quay về gửi nguyên bộ luật mỗi lượt, trong khi trang vẫn ghi "đã bật, giảm 89%". Nay khi chưa biết hạn mức thật, Javis dùng một **trần ngữ cảnh mặc định** để gói ghém. Trần đó chỉ để biên soạn, không bao giờ dùng để từ chối câu hỏi của anh: vượt thì lui về cách cũ chứ không chặn. Và ngay lần đầu nhà cung cấp báo vượt hạn mức, Javis dùng đúng con số thật của họ thay cho trần này.
+- **Đổi bộ não là mức tiết kiệm lặng lẽ ngừng chạy.** Hạn mức chỉ được khai đúng một lần, lần sau thấy "đã có gì đó" là bỏ qua. Nên bấm mức khi đang dùng Groq, sau đổi sang bộ não khác, thì Javis vẫn cầm hạn mức của Groq, không khớp bộ não mới, và mọi lượt về đường cũ mà không báo gì. Nay hạn mức được **bổ sung** cho bộ não đang dùng, giữ nguyên phần người dùng tự khai, và không đẻ bản sao khi bấm lại.
+- **Lượt đã tiết kiệm vẫn bị ghi là "Đầy đủ".** Một lượt đi qua nhiều tầng; tầng nào không nhận thì đánh dấu "đường cũ", mà cách cũ là ai đánh dấu trước thì thắng. Phần tiết kiệm ngữ cảnh chạy sau cùng nên có nhận lượt cũng không đổi được nhãn. Hệ quả: dòng dưới câu trả lời ghi "Đầy đủ", bảng đo 24 giờ xếp lượt đó vào cột chưa tiết kiệm, và trang bảo anh chưa tiết kiệm được gì trong khi đang tiết kiệm. Toàn bộ bộ não API key dính, tức đúng những người trả tiền theo token. Nay "đường cũ" chỉ là mặc định khi chưa ai nhận, tầng nào nhận thật thì nhãn theo tầng đó. Vẫn giữ nguyên hai luật cũ: đường thật không ghi đè đường thật, và chỉnh mức giữa lượt không đổi lượt đang chạy.
+- **Mức "Siêu tiết kiệm" khoe giảm 96% cho cả bộ não không dùng được nó.** Mức này hơn "Tối ưu" ở đúng đường tắt cho câu hỏi đơn giản, mà đường tắt chỉ chạy trên bộ não dùng API key. Ai đang chạy gói Claude hay gói ChatGPT thì bấm vào cũng chỉ bằng mức Tối ưu. Nay nút đó hiện đúng con số của bộ não đang chạy, kèm dấu **"không áp cho bộ não đang dùng"** và một câu nói rõ vì sao.
+- **Cảnh báo của máy chủ bị nuốt.** Máy chủ có trả lời "mảng này chưa chạy được đâu" khi bấm mức, nhưng giao diện chưa bao giờ hiện nó, nên anh chỉ thấy một dòng xanh "đã bật, có hiệu lực ngay". Nay cảnh báo hiện thẳng trong thông báo.
+### Cải thiện
+- **Test mới `test_tiet_kiem_chay_that.py` bấm mức đúng như người dùng bấm, trên cả bảy bộ não, rồi hỏi thẳng lớp quyết định xem lượt này đi đường nào.** Kiểm ngược năm đột biến, gieo lại đúng năm lỗi trên, cả năm đều bị bắt.
+- Nới trần độ dài một bước hướng dẫn kết nối lên 450 ký tự (chủ repo duyệt). Chín bước của Facebook và Google đang vượt mức cũ vì mỗi câu thêm vào là một sự cố có thật; giao diện không cắt chữ nên cắt cho vừa con số cũ là vứt đúng phần cứu người dùng.
+
 ## [0.13.2] - 2026-08-03
 Bật gói ChatGPT là lượt chat nào cũng chết. Sửa lỗi đó, và dọn ba chỗ hỏng cùng họ mà CI không có cách nào nhìn thấy.
 ### Sửa lỗi

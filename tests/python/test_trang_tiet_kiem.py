@@ -70,8 +70,23 @@ check("mức Tắt là mốc 0 phần trăm", _muc.get("off", {}).get("phan_tram
 # Thứ tự phải đúng: càng tiết kiệm càng ít token. Đảo là con số vô nghĩa.
 check("CANARY: Tối ưu tốn ít token hơn Tắt",
       _muc["saving"]["token_moi_request"] < _muc["off"]["token_moi_request"])
-check("CANARY: Siêu tiết kiệm tốn ít hơn Tối ưu",
-      _muc["max"]["token_moi_request"] < _muc["saving"]["token_moi_request"])
+# "Siêu tiết kiệm" hơn "Tối ưu" ở đúng một thứ: đường tắt cho câu hỏi đơn giản. Đường đó
+# nằm trong nhánh engine API của _do_turn và provider_kinds của nó cũng chỉ có "api", nên
+# bộ não gói thuê bao KHÔNG ăn phần này - với họ hai mức bằng nhau. Con số phải nói đúng
+# chuyện đó thay vì khoe 96% cho một người sẽ không bao giờ chạm tới nó.
+_fast_hop = _uoc.get("kind_bo_nao") == "api"
+check("có khai bộ não đang chạy thuộc loại nào", bool(_uoc.get("kind_bo_nao")))
+check("mỗi mức khai rõ bộ não này có ăn được không",
+      all("ap_dung" in _muc[k] for k in ("off", "saving", "max")))
+if _fast_hop:
+    check("CANARY: bộ não API key thì Siêu tiết kiệm tốn ít hơn Tối ưu",
+          _muc["max"]["token_moi_request"] < _muc["saving"]["token_moi_request"])
+    check("và mức đó được đánh dấu là áp dụng được", _muc["max"]["ap_dung"] is True)
+else:
+    check("CANARY: bộ não thuê bao thì Siêu tiết kiệm KHÔNG được khoe thấp hơn Tối ưu",
+          _muc["max"]["token_moi_request"] == _muc["saving"]["token_moi_request"])
+    check("và mức đó bị đánh dấu là không áp dụng", _muc["max"]["ap_dung"] is False)
+    check("kèm câu giải thích vì sao", "API key" in (_muc["max"].get("ghi_chu") or ""))
 check("phần trăm tăng dần theo mức",
       _muc["off"]["phan_tram"] < _muc["saving"]["phan_tram"] <= _muc["max"]["phan_tram"])
 check("phần trăm nằm trong khoảng đọc được",

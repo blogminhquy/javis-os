@@ -390,6 +390,14 @@
       if (!m) return "";
       return `<span class="rt-pertok">${num(m.token_moi_request)} token mỗi lượt</span>`;
     };
+    // Mức nào bộ não đang chạy KHÔNG ăn được thì phải nói ra ngay trên cái nút. Đường tắt
+    // của "Siêu tiết kiệm" chỉ chạy trên bộ não dùng API key, nên với gói thuê bao nó y hệt
+    // mức Tối ưu. Khoe một con số không bao giờ tới là dạy người dùng thôi tin cả trang.
+    const presetKhongAp = (id) => {
+      const m = uocMuc[id];
+      if (!m || m.ap_dung !== false) return "";
+      return `<span class="rt-preset-na">không áp cho bộ não đang dùng</span>`;
+    };
 
     el.innerHTML = `<div class="uz-wrap rt-wrap">
       <div class="rt-sec rt-first">
@@ -399,7 +407,8 @@
             <button class="rt-preset${p.id === d.preset ? " on" : ""}" data-preset="${esc(p.id)}">
               <span class="rt-preset-top"><b>${esc(p.nhan)}</b>${presetPct(p.id)}</span>
               ${presetTok(p.id)}
-              <small>${esc(p.mo_ta)}</small>
+              <small>${esc((uocMuc[p.id] || {}).ghi_chu || p.mo_ta)}</small>
+              ${presetKhongAp(p.id)}
               ${p.id === d.preset ? '<span class="rt-preset-now">đang dùng</span>' : ""}
             </button>`).join("")}
         </div>
@@ -680,9 +689,15 @@
             return;
           }
           const n = (body.da_bat || []).length, m = (body.da_tat || []).length;
+          // Cảnh báo của máy chủ PHẢI hiện ra. Trước đây nó bị nuốt trọn, nên người dùng
+          // engine chưa có bảng hạn mức chỉ thấy một dòng xanh "đã bật, có hiệu lực ngay"
+          // trong khi máy chủ vừa nói thẳng là đường đó chưa chạy được. Đúng cái cảm giác
+          // "ấn vào đặt thì không có gì diễn ra".
+          const cb = (body.canh_bao || []).join(" ");
           _rtToast(el, `Đã chuyển sang mức "${body.nhan}".`
             + (n ? ` Bật thêm ${n} mảng.` : "") + (m ? ` Tắt ${m} mảng.` : "")
-            + " Có hiệu lực ngay từ câu hỏi tiếp theo.", true);
+            + " Có hiệu lực ngay từ câu hỏi tiếp theo."
+            + (cb ? " " + cb : ""), true);
           renderRuntime(el);
         } catch (e) {
           _rtToast(el, "Đổi mức thất bại: " + (e && e.message ? e.message : e), false);

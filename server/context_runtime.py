@@ -629,7 +629,26 @@ class ObserveRuntime:
     def pin_execution_path(self, trace: Optional[TurnTrace], path: str,
                            bucket: Optional[int], policy_version: str,
                            reason: str = "") -> str:
-        """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
+        """Pin đường chạy cho task. Đường THẬT chốt đúng một lần; "legacy" chỉ là mặc định.
+
+        Vì sao "legacy" phải được ghi đè. Một lượt trên engine API đi qua nhiều tầng: Phase 9
+        (ghi), Phase 6/7 (tra cứu), Phase 5 (đường tắt), rồi mới tới Phase 8 (tiết kiệm ngữ
+        cảnh). Tầng nào không nhận lượt này thì gọi `_legacy(...)`, và cách cũ - hễ đã có gì
+        thì thôi - biến chính lời từ chối đó thành quyết định cuối cùng. Hệ quả: Phase 8 nhận
+        lượt, gói ngữ cảnh nhỏ lại thật, nhưng ghim "sources" tới nơi thì đã muộn. Dòng dưới
+        câu trả lời ghi "Đầy đủ", bảng đo 24 giờ xếp lượt đó vào cột đường cũ, và trang Tiết
+        kiệm token nói người dùng chưa tiết kiệm được gì trong khi họ đang tiết kiệm. Toàn bộ
+        engine API key dính, tức là chính những người trả tiền theo token.
+
+        "legacy" nghĩa là CHƯA AI NHẬN, không phải một lựa chọn. Nên đường thật được phép
+        chồng lên nó; sau đó không đường thật nào ghi đè đường thật nào, và legacy không bao
+        giờ ghi đè ngược lại.
+
+        Nhưng chỉ khi lời từ chối đến từ TẦNG KHÁC. Cùng một tầng ghim legacy rồi lát sau
+        đòi ghim đường thật thì đó không phải "tầng sau nhận việc", đó là allocation vừa bị
+        sửa giữa lượt - và một lượt đang chạy không được đổi đường vì ai đó xoay knob. Phân
+        biệt bằng `canary_policy_version`: khác chủ thì cho nâng, cùng chủ thì giữ nguyên.
+        """
         if not trace:
             return "legacy"
         # "sources" = Phase 8 (bộ nhớ chọn lọc + skill nạp khi cần thay cho CLAUDE.md).
@@ -647,11 +666,19 @@ class ObserveRuntime:
                         "FROM runtime_tasks WHERE id=?", (trace.task_id,)
                     ).fetchone()
                     current = str(row["execution_path"] or "unassigned") if row else "unassigned"
-                    if current == "unassigned":
+                    # Ghi được khi chưa ai nhận, HOẶC khi mới chỉ có lời từ chối ("legacy")
+                    # của TẦNG KHÁC mà giờ có đường thật nhận. Xem docstring: legacy là mặc
+                    # định, không phải quyết định; còn cùng-chủ-ghim-lại là knob bị xoay
+                    # giữa lượt, cái đó vẫn phải bị chặn.
+                    chu_cu = str((row["canary_policy_version"] if row else "") or "")
+                    nang_cap = (current == "legacy" and requested != "legacy"
+                                and chu_cu != str(policy_version or "")[:120])
+                    if current == "unassigned" or nang_cap:
                         db.execute(
                             "UPDATE runtime_tasks SET execution_path=?,canary_bucket=?,"
-                            "canary_policy_version=?,updated_at=? WHERE id=? AND execution_path='unassigned'",
-                            (requested, bucket, str(policy_version or "")[:120], time.time(), trace.task_id),
+                            "canary_policy_version=?,updated_at=? WHERE id=? AND execution_path=?",
+                            (requested, bucket, str(policy_version or "")[:120], time.time(),
+                             trace.task_id, current),
                         )
                         current = requested
                         self._event(db, trace, "canary.decision", {
@@ -659,6 +686,9 @@ class ObserveRuntime:
                             "bucket": bucket,
                             "policy_version": str(policy_version or "")[:120],
                             "reason": str(reason or "")[:120],
+                            # Đánh dấu lượt vừa được nâng từ legacy lên đường thật, để đọc
+                            # nhật ký còn phân biệt được với lượt chốt ngay từ đầu.
+                            **({"nang_cap_tu": "legacy"} if nang_cap else {}),
                         })
                         row = db.execute(
                             "SELECT execution_path,canary_bucket,canary_policy_version "

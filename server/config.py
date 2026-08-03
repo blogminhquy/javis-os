@@ -254,6 +254,28 @@ _DEFAULT = {
             "context_window": 180000,
             "reserved_output_tokens": 8000,
         },
+        # TRẦN NGỮ CẢNH MẶC ĐỊNH cho engine dùng API KEY, khi chưa biết gì khác.
+        #
+        # Vì sao phải có: cùng một lỗ hổng như trần thuê bao ở trên, nhưng ở phía API key và
+        # rộng hơn nhiều. `_quota` chỉ nhận hạn mức người vận hành khai tay, mà bảng gợi ý
+        # `model_limits.KNOWN_LIMITS` hiện CHỈ có Groq. Nên người dùng OpenRouter, OpenAI,
+        # Gemini hay Anthropic API bấm mức Tối ưu là bật một đường fail-closed: trang báo
+        # "đã bật, giảm 89%", còn mọi lượt vẫn lặng lẽ gửi nguyên CLAUDE.md. Bốn trên năm
+        # engine API key rơi vào ca này.
+        #
+        # Đây KHÔNG phải suy đoán hạn mức thương mại - thứ module model_limits cố ý từ chối
+        # làm. Con số này chỉ là NGÂN SÁCH ĐỂ BIÊN SOẠN: cho Context Compiler biết gói tối đa
+        # bao nhiêu, không dùng để chặn lượt chat (soft, vượt thì về đường cũ chứ không
+        # reject) và không tự nhận là biết TPM của ai. Nhà cung cấp vẫn là bên duy nhất có
+        # quyền nói không, và lần nó nói thì limit_learner ghi lại con số THẬT, con số đó
+        # xét trước cái trần này ngay từ lượt sau.
+        #
+        # 32k là mức thận trọng: nằm dưới cửa sổ của gần như mọi model API đang bán, mà vẫn
+        # rộng gấp nhiều lần một capsule Javis điển hình (khoảng 1.000 token).
+        "api_context": {
+            "context_window": 32000,
+            "reserved_output_tokens": 4000,
+        },
         # NGÂN SÁCH TỪ HẠN MỨC JAVIS TỰ HỌC ĐƯỢC (limit_learner).
         #
         # Vì sao cần: fail-closed bắt phải khai quota_profiles trước, nên tới khi có người

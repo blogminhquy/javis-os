@@ -796,6 +796,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .rt-preset-now { display: inline-block; margin-top: 8px; font-size: 11px;
   color: var(--accent); border: 1px solid var(--accent); border-radius: 999px;
   padding: 1px 8px; }
+/* Mức mà bộ não đang chạy không ăn được. Cùng hình dạng viên thuốc với "đang dùng" để mắt
+   đọc cùng một chỗ, nhưng màu cảnh báo - đây là lời đính chính cho con số ngay phía trên. */
+.rt-preset-na { display: inline-block; margin-top: 8px; margin-right: 6px; font-size: 11px;
+  color: var(--warn-ink); border: 1px solid var(--warn-line); border-radius: 999px;
+  padding: 1px 8px; }
 .rt-adv { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
 .rt-adv summary { cursor: pointer; font-size: 13px; font-weight: 600; list-style: none; }
 .rt-adv summary::-webkit-details-marker { display: none; }

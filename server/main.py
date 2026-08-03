@@ -7578,17 +7578,36 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
     def muc(token_moi_request: int) -> int:
         return max(0, min(99, round((1 - token_moi_request / goc) * 100)))
 
+    # Đường tắt của mức "Siêu tiết kiệm" (fast path) CHỈ chạy trên engine dùng API key: nó
+    # nằm trong nhánh `kind == "api"` của _do_turn, và provider_kinds mặc định của nó cũng
+    # chỉ có "api". Với gói thuê bao (Claude Code, ChatGPT) thì mức đó y hệt mức Tối ưu.
+    # Vẫn khoe "giảm 96%" cho họ là hứa một con số không bao giờ tới - đúng kiểu knob xoay
+    # mà đèn không sáng. Nên đo xong thì kiểm luôn xem bộ não đang chạy có ăn được không.
+    try:
+        _prov, _kind, _k, _m = _chat_provider(cfgmod.read_settings().get("model", {}) or {})
+    except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
+        _kind = "api"
+    fast_hop = _kind == "api"
+    max_token = vien if fast_hop else (vien + cong_cu)
     return {
         "chu_ky_ky_tu_tren_token": ratio,
         "la_uoc_luong": True,
+        "kind_bo_nao": _kind,
         "chi_tiet": {"claude_md_va_bo_nho": cu, "capsule": vien, "mo_ta_cong_cu": cong_cu},
         "muc": {
-            "off": {"token_moi_request": goc, "phan_tram": 0,
+            "off": {"token_moi_request": goc, "phan_tram": 0, "ap_dung": True,
                     "ghi_chu": "Gửi nguyên bộ luật, bộ nhớ và danh sách skill mỗi lượt."},
             "saving": {"token_moi_request": vien + cong_cu, "phan_tram": muc(vien + cong_cu),
+                       "ap_dung": True,
                        "ghi_chu": "Thay bộ luật dài bằng bản rút gọn; nhớ và skill chỉ nạp phần liên quan."},
-            "max": {"token_moi_request": vien, "phan_tram": muc(vien),
-                    "ghi_chu": "Như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả công cụ."},
+            "max": {"token_moi_request": max_token, "phan_tram": muc(max_token),
+                    "ap_dung": fast_hop,
+                    "ghi_chu": ("Như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả công cụ."
+                                if fast_hop else
+                                "Đường tắt cho câu hỏi đơn giản chỉ chạy trên bộ não dùng API "
+                                "key. Bộ não gói thuê bao đang chạy không ăn phần này, nên bấm "
+                                "mức này cũng chỉ bằng mức Tối ưu."),
+                    },
         },
     }
 
@@ -7974,21 +7993,30 @@ async def runtime_preset_set(level: str = Form(...)):
              for x in model_limits.suggest_profiles(prov, model or "")]
     for name in sorted({QUOTA_OWNER_OF.get(n, n) for n in preset["duong"]}):
         entry = dict(runtime_cfg.get(name) or {})
-        if "quota_profiles" not in entry or entry.get("quota_profiles"):
+        if "quota_profiles" not in entry:
             continue
-        if goi_y:
-            entry["quota_profiles"] = goi_y
+        # BỔ SUNG chứ không phải "trống thì mới ghi". Bản trước bỏ qua khi danh sách đã có
+        # gì đó, nên người đổi bộ não (đúng thứ Javis mời chào: đổi được bộ não) bị kẹt với
+        # hạn mức của bộ não CŨ: `_quota` lọc theo provider nên không khớp cái nào, và mức
+        # tiết kiệm lặng lẽ ngừng chạy trong khi trang vẫn ghi đang bật.
+        co_san = [x for x in (entry.get("quota_profiles") or []) if isinstance(x, dict)]
+        da_co = {str(x.get("id") or "") for x in co_san}
+        them = [x for x in goi_y if str(x.get("id") or "") not in da_co]
+        if them:
+            entry["quota_profiles"] = co_san + them
             runtime_cfg[name] = entry
-        elif kind_hien_tai in ("cli", "oauth"):
+            continue
+        if co_san or goi_y:
+            continue        # đã có hạn mức dùng được cho bộ não này
+        if kind_hien_tai in ("cli", "oauth"):
             # Gói thuê bao không có hạn mức token để khai, và cũng không cần: Phase 8 dùng
             # trần ngữ cảnh ở context_runtime.subscription_context. Cảnh báo ở đây là cảnh
             # báo oan, sẽ dạy người dùng bỏ qua mọi cảnh báo khác.
-            pass
-        else:
-            canh_bao.append(
-                f"'{name}' cần hạn mức mà chưa có bộ gợi ý cho provider '{prov}'. "
-                "Javis vẫn học được hạn mức từ lần nhà cung cấp từ chối đầu tiên, "
-                "nhưng tới lúc đó đường này chưa chạy.")
+            continue
+        canh_bao.append(
+            f"Chưa có bảng hạn mức sẵn cho '{prov}', nên Javis biên soạn ngữ cảnh theo trần "
+            "mặc định (context_runtime.api_context). Vẫn tiết kiệm được ngay; sau lần đầu "
+            "nhà cung cấp báo vượt hạn mức, Javis dùng đúng con số thật của họ.")
 
     da_bat, da_tat = [], []
     for name in _canary_keys():

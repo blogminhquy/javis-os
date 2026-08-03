@@ -142,7 +142,41 @@ class AdaptiveContextCanary:
         if hard_input <= 0:
             return None
         return {"hard_input": hard_input, "rolling_tpm": hard_input + reserved,
-                "reserved": reserved, "id": "subscription-context"}
+                "reserved": reserved, "id": "subscription-context", "soft": True}
+
+    @staticmethod
+    def _api_context_quota(settings: dict) -> dict | None:
+        """Ngân sách biên soạn mặc định cho engine dùng API KEY, khi chưa biết gì khác.
+
+        Cùng lỗ hổng với trần thuê bao ở trên, nhưng rộng hơn nhiều: `_quota` chỉ nhận hạn
+        mức khai tay, mà bảng gợi ý `model_limits.KNOWN_LIMITS` hiện CHỈ có Groq. Nên người
+        dùng OpenRouter, OpenAI, Gemini hay Anthropic API bấm mức Tối ưu là bật một đường
+        fail-closed: trang báo đã bật và giảm 89%, còn mọi lượt vẫn gửi nguyên CLAUDE.md.
+        Bốn trên năm engine API key rơi vào ca đó.
+
+        Ở đây KHÔNG suy ra hạn mức thương mại nào - điều model_limits cố ý từ chối làm. Chỉ
+        đọc trần ngữ cảnh người vận hành khai trong `context_runtime.api_context` (mặc định
+        có sẵn), và trần đó là SOFT: vượt thì về đường cũ chứ không được reject lượt chat của
+        người dùng bằng một con số của chính mình.
+        """
+        runtime = (settings or {}).get("context_runtime") or {}
+        raw = runtime.get("api_context")
+        if not isinstance(raw, dict):
+            return None
+        if not raw.get("enabled", True):
+            return None
+        try:
+            reserved = max(1, int(raw.get("reserved_output_tokens") or 0))
+            window = int(raw.get("context_window") or 0)
+            hard_input = int(raw.get("max_input_tokens") or 0)
+        except (TypeError, ValueError):
+            return None
+        if hard_input <= 0 and window > reserved:
+            hard_input = window - reserved
+        if hard_input <= 0:
+            return None
+        return {"hard_input": hard_input, "rolling_tpm": hard_input + reserved,
+                "reserved": reserved, "id": "api-context", "soft": True}
 
     @staticmethod
     def _learned_quota(settings: dict, provider: str, model: str) -> dict | None:
@@ -294,6 +328,11 @@ class AdaptiveContextCanary:
             quota = self._learned_quota(settings, provider, model)
         if quota is None and subscription:
             quota = self._subscription_quota(settings)
+        if quota is None and not subscription:
+            # Engine API key chưa có hạn mức nào biết được. Trước đây dừng ở đây là legacy
+            # vĩnh viễn, tức bấm mức tiết kiệm xong không tiết kiệm gì mà trang vẫn báo đã
+            # bật. Trần mặc định là SOFT nên nó chỉ dùng để biên soạn, không để chặn.
+            quota = self._api_context_quota(settings)
         if quota is None:
             for value in status.values():
                 if value["assigned"]:
@@ -400,6 +439,13 @@ class AdaptiveContextCanary:
             #
             # Đây đúng là ca đã chặn Javis: gói Groq 12.000 TPM, một lượt cần 21.446 token.
             quota_reason = context_compiler.quota_block_reason(report)
+            # Ngân sách SOFT = con số của CHÍNH TA (trần thuê bao, trần ngữ cảnh API mặc
+            # định), không phải lời nhà cung cấp. Vượt nó thì lui về đường cũ, tuyệt đối
+            # không được lấy nó ra để từ chối lượt chat của người dùng.
+            if quota_reason and quota.get("soft") and not subscription:
+                return AdaptiveContextPlan(
+                    "legacy", "self_declared_soft_over_budget", feature_status=status,
+                    compiler_report=report)
             if quota_reason and subscription:
                 # ... TRỪ engine thuê bao. Ở đó con số vừa vượt là TRẦN NGỮ CẢNH do ta tự khai
                 # trong subscription_context, không phải hạn mức nhà cung cấp nói ra. Lấy một
