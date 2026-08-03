@@ -38,7 +38,9 @@ LEARNED_TTL_SECONDS = 24 * 3600
 @dataclass(frozen=True)
 class LimitFact:
     """Một lần nhà cung cấp nói thẳng ra hạn mức của mình."""
-    kind: str        # "tpm" (token mỗi phút) | "context" (cửa sổ ngữ cảnh)
+    # "tpm" token mỗi phút | "tpd" token mỗi ngày | "rpm" số lượt mỗi phút
+    # "rpd" số lượt mỗi ngày | "context" cửa sổ ngữ cảnh | "rate" chặn nhịp không rõ chiều nào
+    kind: str
     limit: int       # hạn mức nhà cung cấp nêu
     requested: int   # số nhà cung cấp nói là ta vừa xin
     source: str      # mẫu nào khớp, để còn lần lại khi nhận diện sai
@@ -46,6 +48,25 @@ class LimitFact:
     used: int = 0
     # Nhà cung cấp bảo chờ bao nhiêu giây. 0 = không nói.
     retry_after: float = 0.0
+    # Nguyên văn (đã cắt) câu nhà cung cấp nói, để hiện lại khi ta không hiểu nó.
+    raw: str = ""
+
+    # Hạn mức ĐẾM TOKEN (để trang chẩn đoán nói đúng đơn vị).
+    TOKEN_KINDS = ("tpm", "tpd", "context")
+    # Hạn mức dùng được làm NGÂN SÁCH CHO MỘT REQUEST. Hẹp hơn TOKEN_KINDS một cách có chủ ý:
+    #   - rpm/rpd đếm LƯỢT. Lấy "30 lượt mỗi phút" làm ngân sách là co prompt xuống 22 token.
+    #   - tpd đếm token nhưng theo NGÀY. Lấy "100.000 token mỗi ngày" làm trần cho một
+    #     request thì vừa quá rộng để bảo vệ được gì, vừa sai bản chất: hết hạn mức ngày thì
+    #     request nhỏ cỡ nào cũng bị từ chối.
+    BUDGET_KINDS = ("tpm", "context")
+
+    @property
+    def counts_tokens(self) -> bool:
+        return self.kind in self.TOKEN_KINDS
+
+    @property
+    def usable_as_budget(self) -> bool:
+        return self.kind in self.BUDGET_KINDS and self.limit > 0
 
     @property
     def window_full(self) -> bool:
@@ -56,22 +77,59 @@ class LimitFact:
         ngữ cảnh của người dùng để giải một bài toán mà cắt không giải được."""
         return self.used > 0 and self.requested > 0 and self.requested <= self.limit
 
+    @property
+    def remedy(self) -> str:
+        """Việc ĐÚNG phải làm với lỗi này. Đây là thứ quyết định hành vi, không phải `kind`.
+
+        Bốn giá trị:
+          "shrink"    - lượt này quá to, co ngữ cảnh lại là qua.
+          "wait"      - cửa sổ theo PHÚT đã đầy, chờ vài giây. Co nhỏ vô ích.
+          "wait_long" - hết hạn mức theo NGÀY. Co nhỏ hoàn toàn vô ích, phải chờ sang ngày
+                        hoặc đổi bộ não / nâng gói.
+          "unknown"   - không đủ bằng chứng. Phải hiện nguyên văn lời nhà cung cấp.
+
+        Vì sao tách khỏi kind: chủ repo gặp đúng ca này. Gói Groq siết BỐN thứ cùng lúc
+        (token/phút, lượt/phút, token/ngày, lượt/ngày) và cả bốn đều mở đầu bằng "Rate limit
+        reached", nên bản trước gộp hết vào một rọ "request quá lớn" rồi khuyên rút gọn yêu
+        cầu - lời khuyên vô nghĩa với ba trong bốn loại.
+        """
+        if self.kind == "context":
+            return "shrink"
+        if self.kind == "tpm":
+            return "wait" if self.window_full else "shrink"
+        if self.kind in ("tpd", "rpd"):
+            return "wait_long"
+        if self.kind == "rpm":
+            return "wait"
+        if self.kind == "rate":
+            return "wait" if self.retry_after > 0 else "unknown"
+        return "unknown"
+
 
 # Mỗi mẫu: (tên, kind, regex có 2 nhóm số theo thứ tự limit, requested).
 # Viết riêng từng nhà cung cấp thay vì một regex tham lam: một regex "bắt mọi số gần chữ
 # limit" sẽ đọc nhầm số tiền, số giây, số phiên bản - và đọc nhầm hạn mức thì tệ hơn không
 # đọc, vì nó làm Javis tự bóp mình xuống một con số bịa.
+# Groq (và vài endpoint OpenAI-compatible khác) dùng CHUNG một khuôn cho cả bốn chiều siết:
+#
+#   ... on tokens per minute (TPM): Limit 12000, Used 8812, Requested 4701. try again in 7.5s
+#   ... on requests per minute (RPM): Limit 30, Used 30, Requested 1. ...
+#   ... on tokens per day (TPD): Limit 100000, Used 100000, Requested 3200. ...
+#   ... on requests per day (RPD): Limit 14400, Used 14400, Requested 1. ...
+#
+# Bản trước chỉ viết mẫu cho "tokens per minute", nên ba chiều kia rơi vào nhánh đoán mò
+# "lỗi kích thước không rút được số" -> limit 0, requested 0 -> người dùng thấy câu
+# "request quá lớn ... lượt này cần khoảng 0 token" rồi được khuyên rút gọn yêu cầu, trong
+# khi rút gọn chẳng liên quan gì tới hết lượt-mỗi-ngày. Một mẫu đọc luôn CHIỀU siết thay vì
+# bốn mẫu rời, vì bốn mẫu rời là bốn cơ hội quên một cái.
+_GROQ_DIM_RE = re.compile(
+    r"\bon\s+(tokens?|requests?)\s+per\s+(minute|hour|day)[^:]{0,40}:\s*"
+    r"Limit\s+(\d+)\s*,\s*(?:Used\s+(\d+)\s*,\s*)?Requested\s+(\d+)", re.I)
+_DIM_KIND = {("token", "minute"): "tpm", ("token", "day"): "tpd", ("token", "hour"): "tpm",
+             ("request", "minute"): "rpm", ("request", "day"): "rpd",
+             ("request", "hour"): "rpm"}
+
 _PATTERNS: tuple[tuple[str, str, re.Pattern], ...] = (
-    # Groq có HAI dạng, và chúng đòi hai cách xử lý khác hẳn nhau:
-    #   413 "Request too large ... Limit 12000, Requested 15447"      -> lượt này quá to
-    #   429 "Rate limit reached ... Limit 12000, Used 8812, Requested 4701" -> cửa sổ đã đầy
-    # Mẫu cũ đòi "Requested" đứng NGAY sau "Limit" nên dạng có "Used" chen vào không khớp,
-    # và lỗi 429 rơi thẳng ra màn hình. Đây đúng là lỗi chủ repo gặp sau khi đã vá dạng 413.
-    ("groq_tpm_used", "tpm", re.compile(
-        r"tokens?\s+per\s+minute[^:]*:\s*Limit\s+(\d+)\s*,\s*Used\s+(\d+)\s*,"
-        r"\s*Requested\s+(\d+)", re.I)),
-    ("groq_tpm", "tpm", re.compile(
-        r"tokens?\s+per\s+minute[^:]*:\s*Limit\s+(\d+)\s*,\s*Requested\s+(\d+)", re.I)),
     # OpenAI: "maximum context length is 8192 tokens, however you requested 9000 tokens"
     ("openai_context", "context", re.compile(
         r"maximum\s+context\s+length\s+is\s+(\d+)\s+tokens?.{0,40}?requested\s+(\d+)", re.I | re.S)),
@@ -90,12 +148,22 @@ _PATTERNS: tuple[tuple[str, str, re.Pattern], ...] = (
 # nhớ trong đầu, vì đọc ngược hai số này là học đúng cái hạn mức sai.
 _REVERSED = frozenset({"anthropic_context", "gemini_context"})
 
-# Dấu hiệu "vượt kích thước" nói chung, để còn nhận ra lỗi mà không rút được số.
+# Dấu hiệu "vượt KÍCH THƯỚC" nói chung, để còn nhận ra lỗi mà không rút được số.
+#
+# "rate limit reached" ĐÃ BỊ GỠ khỏi danh sách này, và đó là bản vá quan trọng nhất ở đây.
+# Nó là câu mở đầu chung của CẢ BỐN chiều siết (token/phút, lượt/phút, token/ngày,
+# lượt/ngày), nên để nó ở đây nghĩa là mọi lần bị chặn nhịp đều bị gán nhãn "request quá
+# lớn". Chặn nhịp giờ đi lối riêng ở _RATE_HINTS bên dưới, nơi lời khuyên là CHỜ chứ không
+# phải co nhỏ.
 _SIZE_ERROR_HINTS = (
     "request too large", "too many tokens", "maximum context length",
     "prompt is too long", "reduce your message size", "context_length_exceeded",
-    "input token count", "exceeds the maximum", "rate limit reached",
+    "input token count", "exceeds the maximum",
 )
+
+# Bị chặn nhịp mà không đọc được chiều nào. Biết đây là chặn nhịp đã đủ để làm việc đúng
+# (chờ), và quan trọng hơn là đủ để KHÔNG khuyên sai (rút gọn).
+_RATE_HINTS = ("rate limit reached", "rate_limit_exceeded", "too many requests")
 
 
 _RETRY_AFTER_RE = re.compile(r"try\s+again\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)?\b", re.I)
@@ -131,6 +199,26 @@ def parse_limit_error(status_code: int, body: str) -> LimitFact | None:
     text = str(body or "")
     if not text:
         return None
+    snippet = text.strip()[:300]
+
+    # Khuôn chung của Groq: đọc luôn CHIỀU siết, vì chiều mới quyết định phải làm gì.
+    m = _GROQ_DIM_RE.search(text)
+    if m:
+        don_vi = m.group(1).rstrip("s").lower()
+        chu_ky = m.group(2).lower()
+        kind = _DIM_KIND.get((don_vi, chu_ky))
+        if kind:
+            try:
+                limit = int(m.group(3))
+                used = int(m.group(4) or 0)
+                requested = int(m.group(5))
+            except (TypeError, ValueError):
+                limit = used = requested = 0
+            if limit > 0:
+                return LimitFact(kind=kind, limit=limit, requested=max(0, requested),
+                                 source=f"groq_{kind}", used=max(0, used),
+                                 retry_after=parse_retry_after(text), raw=snippet)
+
     for name, kind, pattern in _PATTERNS:
         m = pattern.search(text)
         if not m:
@@ -148,12 +236,19 @@ def parse_limit_error(status_code: int, body: str) -> LimitFact | None:
         if limit <= 0:
             continue
         return LimitFact(kind=kind, limit=limit, requested=max(0, requested), source=name,
-                         used=max(0, used), retry_after=parse_retry_after(text))
+                         used=max(0, used), retry_after=parse_retry_after(text), raw=snippet)
     # Nhận ra là lỗi kích thước nhưng không rút được số: vẫn đáng báo, vì nó nói cho tầng
     # trên biết "co prompt lại rồi thử lại" thay vì "chờ rồi thử lại".
     low = text.casefold()
     if any(h in low for h in _SIZE_ERROR_HINTS):
-        return LimitFact(kind="context", limit=0, requested=0, source="unparsed_size_error")
+        return LimitFact(kind="context", limit=0, requested=0, source="unparsed_size_error",
+                         raw=snippet)
+    # Bị chặn nhịp mà không đọc được chiều nào. KHÔNG gán nhãn kích thước: lời khuyên ở đây
+    # là chờ, và nếu không biết chờ bao lâu thì phải hiện nguyên văn lời nhà cung cấp chứ
+    # không được bịa một câu nghe như đã hiểu chuyện.
+    if any(h in low for h in _RATE_HINTS):
+        return LimitFact(kind="rate", limit=0, requested=0, source="unparsed_rate_limit",
+                         retry_after=parse_retry_after(text), raw=snippet)
     return None
 
 
@@ -272,7 +367,10 @@ def _key(provider: str, model: str) -> tuple[str, str]:
 
 
 def remember(provider: str, model: str, fact: LimitFact, now: float | None = None) -> None:
-    """Nhớ hạn mức nhà cung cấp vừa nói. Bỏ qua fact không có con số."""
+    """Nhớ hạn mức nhà cung cấp vừa nói. Bỏ qua fact không có con số.
+
+    Nhớ CẢ hạn mức đếm lượt (rpm/rpd) vì trang chẩn đoán cần hiện, nhưng nơi dùng làm ngân
+    sách token phải tự lọc bằng `counts_tokens` - xem `learned_token_limit`."""
     if not fact or fact.limit <= 0:
         return
     ts = time.time() if now is None else float(now)
@@ -293,6 +391,15 @@ def learned(provider: str, model: str, now: float | None = None) -> LimitFact | 
     return fact
 
 
+def learned_token_limit(provider: str, model: str, now: float | None = None) -> LimitFact | None:
+    """Hạn mức đã học mà DÙNG ĐƯỢC làm ngân sách cho một request.
+
+    Tách hẳn khỏi `learned()` để chỗ gọi không phải nhớ tự lọc. Quên lọc một lần là lấy
+    "30 lượt mỗi phút" làm ngân sách 30 token - xem LimitFact.BUDGET_KINDS."""
+    fact = learned(provider, model, now)
+    return fact if (fact and fact.usable_as_budget) else None
+
+
 def snapshot(now: float | None = None) -> dict:
     """Cho trang Chẩn đoán: hạn mức nào đã tự học được, học lúc nào."""
     ts = time.time() if now is None else float(now)
@@ -306,6 +413,10 @@ def snapshot(now: float | None = None) -> dict:
             "kind": fact.kind, "limit": fact.limit,
             "requested_khi_hoc": fact.requested,
             "hoc_cach_day_giay": int(ts - at),
+            # Đếm token hay đếm lượt. Trang chẩn đoán phải nói ra, vì "Limit 30" của hạn mức
+            # lượt-mỗi-phút nhìn giống hệt một hạn mức token bé tí đáng sợ.
+            "dem_token": fact.counts_tokens,
+            "viec_can_lam": fact.remedy,
         }
     return out
 
@@ -314,8 +425,12 @@ def shrink_target(fact: LimitFact, safety: float = 0.75) -> int:
     """Số token nên nhắm tới cho lần thử lại. 0 nghĩa là không biết, đừng đoán.
 
     Nhắm THẤP hơn hạn mức khá nhiều vì hai lý do: hạn mức TPM là cửa sổ trượt nên phần vừa
-    gửi hỏng vẫn còn nằm trong cửa sổ đó, và bộ đếm token của ta chỉ là ước lượng."""
-    if not fact or fact.limit <= 0:
+    gửi hỏng vẫn còn nằm trong cửa sổ đó, và bộ đếm token của ta chỉ là ước lượng.
+
+    CHỈ trả số cho hạn mức ĐẾM TOKEN. Hạn mức đếm LƯỢT ("30 lượt mỗi phút") mà đem nhân 0,75
+    thì thành "co ngữ cảnh xuống 22 token" - vô nghĩa và huỷ hoại lượt chat. Đây là loại lỗi
+    chỉ lộ ra khi gặp đúng gói bị siết theo lượt, tức là muộn."""
+    if not fact or not fact.usable_as_budget:
         return 0
     return max(256, int(fact.limit * max(0.1, min(float(safety), 0.95))))
 

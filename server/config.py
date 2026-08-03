@@ -254,6 +254,21 @@ _DEFAULT = {
             "context_window": 180000,
             "reserved_output_tokens": 8000,
         },
+        # NGÂN SÁCH TỪ HẠN MỨC JAVIS TỰ HỌC ĐƯỢC (limit_learner).
+        #
+        # Vì sao cần: fail-closed bắt phải khai quota_profiles trước, nên tới khi có người
+        # ngồi khai thì mọi lượt đã rơi về đường cũ - đúng lúc bị siết lại là đúng lúc phần
+        # tiết kiệm không chạy. Nhưng chính câu báo lỗi của nhà cung cấp ĐÃ nói ra hạn mức
+        # thật của tài khoản này, đáng tin hơn mọi con số tra tài liệu. Sau lần bị từ chối
+        # đầu tiên, dùng luôn con số đó làm ngân sách thay vì đợi khai tay.
+        #
+        # safety_factor: chừa biên vì hạn mức mỗi phút là cửa sổ TRƯỢT (phần vừa gửi hỏng vẫn
+        # còn nằm trong cửa sổ) và bộ đếm token của Javis chỉ là ước lượng.
+        "learned_quota": {
+            "enabled": True,
+            "reserved_output_tokens": 1200,
+            "safety_factor": 0.85,
+        },
         # Ba rollout độc lập. Nguồn nào lỗi/thiếu tự tin chỉ nguồn đó quay về cơ chế cũ.
         #
         # conversation_state CHỈ chạy trên engine API, cố ý. Claude Code và Codex tự nối lại

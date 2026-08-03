@@ -7189,21 +7189,37 @@ async def websocket_endpoint(ws: WebSocket):
                                         }))
                             if not _limit_hit or _attempt == 2:
                                 break
-                            # Đã có bằng chứng cứng về hạn mức. Co ngữ cảnh xuống dưới nó rồi
-                            # thử lại: bỏ lịch sử hội thoại, giữ prompt lõi và câu hỏi.
+                            # Thử lại chỉ có nghĩa khi việc cần làm là CO NHỎ. Hết hạn mức
+                            # theo NGÀY, hay bị chặn nhịp mà không rõ chiều nào, thì gửi lại
+                            # chỉ tốn thêm một lượt để ăn đúng cái lỗi đó lần nữa - và tệ hơn,
+                            # nó dựng lên vẻ "Javis đang xử lý" trong khi không xử lý được gì.
+                            if str(_limit_hit.get("remedy") or "") not in ("shrink", "wait"):
+                                break
+                            # Không đọc được hạn mức từ lỗi lần này thì lấy con số đã HỌC được
+                            # từ lần nhà cung cấp từ chối trước đó. Đây chính là chỗ trước đây
+                            # bỏ trống: target = 0 làm _shrink_messages chỉ bỏ lịch sử rồi trả
+                            # về, không đụng system prompt - mà system prompt mới là chỗ phình.
+                            _target = int(_limit_hit.get("shrink_to") or 0)
+                            if _target <= 0:
+                                _hoc = limit_learner.learned_token_limit(prov, actual_model)
+                                _target = limit_learner.shrink_target(_hoc) if _hoc else 0
+                            if _target <= 0:
+                                break
                             _CONTEXT_RUNTIME.record_runtime_event(
                                 runtime_trace, "limit.autoshrink", {
                                     "provider": prov, "limit": _limit_hit.get("limit", 0),
                                     "requested": _limit_hit.get("requested", 0),
                                     "kind": _limit_hit.get("kind", ""),
+                                    "remedy": _limit_hit.get("remedy", ""),
+                                    "shrink_to": _target,
                                 })
                             await ws.send_text(json.dumps({
                                 "type": "tool_call", "tool": "javis_autoshrink",
-                                "content": (f"⚙ Vượt hạn mức {_limit_hit.get('limit', 0):,} token, "
-                                            "đang rút gọn ngữ cảnh rồi thử lại..."),
+                                "content": (f"⚙ Vượt hạn mức {_limit_hit.get('limit', 0):,} "
+                                            f"{_LIMIT_KIND_LABEL.get(_limit_hit.get('kind') or '', 'token')}, "
+                                            f"đang rút gọn ngữ cảnh xuống {_target:,} token rồi thử lại..."),
                             }))
-                            or_messages = _shrink_messages(or_messages,
-                                                           _limit_hit.get("shrink_to") or 0)
+                            or_messages = _shrink_messages(or_messages, _target)
                         if _limit_hit:
                             final_text = final_text or _limit_autoshrink_message(
                                 prov, actual_model, _limit_hit)
@@ -7527,16 +7543,67 @@ def _shrink_messages(messages: list, target_tokens: int) -> list:
     return trimmed
 
 
+_LIMIT_KIND_LABEL = {
+    "tpm": "token mỗi phút", "tpd": "token mỗi ngày",
+    "rpm": "số lượt mỗi phút", "rpd": "số lượt mỗi ngày",
+    "context": "cửa sổ ngữ cảnh", "rate": "nhịp gọi",
+}
+
+
 def _limit_autoshrink_message(provider: str, model: str, hit: dict) -> str:
-    """Câu nói khi đã co lại mà VẪN vượt. Nêu số thật, không nói chung chung."""
+    """Câu nói khi nhà cung cấp chặn vì hạn mức. Lời khuyên phải khớp ĐÚNG loại hạn mức.
+
+    Bản trước gộp mọi thứ thành "request quá lớn, rút gọn yêu cầu đi". Với gói Groq - siết
+    bốn chiều cùng lúc và cả bốn đều mở đầu bằng "Rate limit reached" - lời khuyên đó sai với
+    ba trong bốn trường hợp, và người dùng thấy đúng câu này:
+
+        "groq báo request quá lớn ... Lượt này cần khoảng 0 token, trong khi groq giới hạn
+         12,000 token mỗi phút."
+
+    Con số 0 là vì không đọc được gì từ lỗi; con 12.000 thì lấy từ BẢNG TRA SẴN trong code
+    chứ không phải từ Groq. Ghép hai thứ đó lại thành một câu nghe như đã hiểu chuyện là kiểu
+    hỏng tệ nhất: nó vừa sai, vừa che mất bằng chứng để lần ra cái sai.
+
+    Nguyên tắc bây giờ: biết tới đâu nói tới đó, không biết thì đưa nguyên văn lời nhà cung
+    cấp ra chứ không bịa một câu cho tròn.
+    """
     limit = int(hit.get("limit") or 0)
     requested = int(hit.get("requested") or 0)
-    kind = "token mỗi phút" if hit.get("kind") == "tpm" else "cửa sổ ngữ cảnh"
-    head = (f"{provider} báo vượt {kind}: hạn mức {limit:,}, "
-            f"lượt này cần {requested:,}. " if limit else
-            f"{provider} báo request quá lớn. ")
-    return (head + "Javis đã tự rút gọn ngữ cảnh và thử lại một lần nhưng vẫn không vừa. "
-            + model_limits.blocked_hint(provider, model, requested or limit, ()))
+    used = int(hit.get("used") or 0)
+    remedy = str(hit.get("remedy") or "")
+    nhan = _LIMIT_KIND_LABEL.get(str(hit.get("kind") or ""), "hạn mức")
+    raw = str(hit.get("raw") or "").strip()
+    cho = float(hit.get("retry_after") or 0)
+
+    if not limit:
+        # Không đọc được con số nào. Đây là lúc TUYỆT ĐỐI không được nói như thể đã hiểu.
+        loi = f'\n\n{provider} nói nguyên văn: "{raw}"' if raw else ""
+        if remedy == "wait" and cho:
+            return (f"{provider} đang chặn nhịp gọi, bảo chờ {cho:.0f} giây. "
+                    f"Anh hỏi lại sau chừng đó là được.{loi}")
+        return (f"{provider} từ chối lượt này vì hạn mức, nhưng không nói rõ hạn mức nào nên "
+                f"Javis chưa biết phải làm gì để qua.{loi}")
+
+    dau = f"{provider} báo vượt {nhan}: hạn mức {limit:,}"
+    if used:
+        dau += f", đã dùng {used:,}"
+    if requested:
+        dau += f", lượt này xin thêm {requested:,}"
+    dau += ". "
+
+    if remedy == "wait_long":
+        # Cửa sổ NGÀY. Rút gọn hoàn toàn vô ích ở đây - nói thẳng ra thay vì để người dùng
+        # ngồi cắt câu hỏi cho ngắn rồi vẫn lỗi.
+        return (dau + "Đây là hạn mức theo NGÀY nên rút gọn câu hỏi không giúp gì cả. "
+                "Phải chờ sang ngày mới, hoặc đổi tạm sang bộ não khác ở trang Models, "
+                "hoặc nâng gói với nhà cung cấp.")
+    if remedy == "wait":
+        khi_nao = f" khoảng {cho:.0f} giây nữa" if cho else " một lát"
+        return (dau + f"Cửa sổ hiện tại đã đầy vì các lượt trước, hỏi lại{khi_nao} là được. "
+                "Rút gọn câu hỏi không giúp vì hạn mức này đếm theo thời gian.")
+    return (dau + "Javis đã tự rút gọn ngữ cảnh và thử lại một lần nhưng vẫn không vừa. "
+            + model_limits.blocked_hint(provider, model, requested or limit,
+                                        _configured_api_providers()))
 
 
 def _configured_api_providers() -> tuple:

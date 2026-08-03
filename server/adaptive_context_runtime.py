@@ -13,6 +13,7 @@ from pathlib import Path
 
 import context_compiler
 import context_runtime
+import limit_learner
 import model_limits
 from context_compiler import ContextItem, HeuristicTokenizer
 from conversation_state import ConversationStateStore
@@ -144,6 +145,38 @@ class AdaptiveContextCanary:
                 "reserved": reserved, "id": "subscription-context"}
 
     @staticmethod
+    def _learned_quota(settings: dict, provider: str, model: str) -> dict | None:
+        """Ngân sách dựng từ hạn mức Javis TỰ HỌC được từ lỗi nhà cung cấp.
+
+        Đây không phải suy đoán hạn mức thương mại - điều mà module này vẫn từ chối làm. Đây
+        là con số chính nhà cung cấp vừa nói ra cho ĐÚNG tài khoản này, đáng tin hơn mọi bảng
+        tra. Chỗ này tồn tại vì thứ tự cũ bị ngược: fail-closed đòi khai quota trước, nên
+        đúng lúc bị siết lại là đúng lúc phần tiết kiệm ngữ cảnh không chạy.
+
+        Chỉ nhận hạn mức DÙNG ĐƯỢC làm ngân sách một request (token mỗi phút, cửa sổ ngữ
+        cảnh). Hạn mức đếm lượt hay đếm theo ngày bị `learned_token_limit` loại từ trước.
+        """
+        runtime = (settings or {}).get("context_runtime") or {}
+        raw = runtime.get("learned_quota")
+        raw = raw if isinstance(raw, dict) else {}
+        if not raw.get("enabled", True):
+            return None
+        fact = limit_learner.learned_token_limit(provider, model)
+        if not fact:
+            return None
+        try:
+            reserved = max(1, int(raw.get("reserved_output_tokens") or 1200))
+            safety = float(raw.get("safety_factor") or 0.85)
+        except (TypeError, ValueError):
+            return None
+        safety = max(0.1, min(safety, 0.99))
+        hard_input = int(fact.limit * safety) - reserved
+        if hard_input <= 0:
+            return None
+        return {"hard_input": hard_input, "rolling_tpm": fact.limit, "reserved": reserved,
+                "id": f"learned:{fact.source}"}
+
+    @staticmethod
     def _quota(settings: dict, provider: str, model: str) -> dict | None:
         """Reuse operator-declared hard quota profiles; never infer commercial limits."""
         import fnmatch
@@ -253,7 +286,12 @@ class AdaptiveContextCanary:
         if not any(assigned.values()):
             return AdaptiveContextPlan("legacy", "no_phase8_assignment", feature_status=status)
         subscription = str(provider_kind or "").strip().casefold() in ("cli", "oauth")
+        # Thứ tự: người vận hành khai tay > hạn mức đã HỌC từ lỗi > trần ngữ cảnh gói thuê
+        # bao. Khai tay đứng trước vì đó là chủ đích rõ ràng của người vận hành; hạn mức học
+        # được đứng trên trần thuê bao vì nó là con số nhà cung cấp nói cho đúng tài khoản này.
         quota = self._quota(settings, provider, model)
+        if quota is None:
+            quota = self._learned_quota(settings, provider, model)
         if quota is None and subscription:
             quota = self._subscription_quota(settings)
         if quota is None:

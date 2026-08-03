@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.5] - 2026-08-03
+Groq siết bốn chiều cùng lúc, Javis từng gộp cả bốn thành "request quá lớn". Nay nói đúng loại và khuyên đúng việc.
+### Sửa lỗi
+- **"groq báo request quá lớn... lượt này cần khoảng 0 token".** Ba thứ sai trong đúng một câu. Gói Groq siết **bốn** thứ song song: token mỗi phút, **số lượt** mỗi phút, token mỗi **ngày**, số lượt mỗi ngày. Cả bốn đều mở đầu bằng "Rate limit reached", mà Javis lại lấy đúng cụm đó làm dấu hiệu "vượt kích thước", nên ba chiều kia bị gán nhãn sai. Số 0 là vì không đọc được gì từ câu lỗi, còn con 12.000 thì lấy từ **bảng tra sẵn trong code** chứ không phải từ Groq. Ghép hai thứ đó thành một câu nghe như đã hiểu chuyện vừa sai vừa che mất bằng chứng.
+- **Nay mỗi loại hạn mức được khuyên đúng việc.** Lượt quá to thì rút gọn rồi thử lại. Cửa sổ phút đã đầy thì chờ đúng số giây nhà cung cấp nói. **Hết hạn mức theo ngày thì nói thẳng là rút gọn không giúp gì**, phải chờ sang ngày hoặc đổi bộ não hoặc nâng gói, thay vì để anh ngồi cắt câu hỏi cho ngắn rồi vẫn lỗi.
+- **Không hiểu lỗi thì đưa nguyên văn lời nhà cung cấp ra, không bịa câu cho tròn.** Trước đây câu lỗi thật bị nuốt mất nên không ai lần ra được nguyên nhân.
+- **Hạn mức đếm LƯỢT không còn bị dùng làm ngân sách token.** "30 lượt mỗi phút" mà đem nhân hệ số an toàn thì thành "co ngữ cảnh xuống 22 token", đủ để hỏng lượt chat.
+- **Thôi thử lại khi thử lại chắc chắn vô ích.** Hết hạn mức ngày mà gửi lại chỉ tốn thêm một lượt để ăn đúng lỗi đó lần nữa.
+### Cải thiện
+- **Bộ định tuyến tự dùng hạn mức nó đã học được, khỏi chờ ai khai.** Thứ tự cũ bị ngược: cơ chế an toàn đòi khai hạn mức trước mới cho chạy, nên đúng lúc bị siết lại là đúng lúc phần tiết kiệm ngữ cảnh không hoạt động. Nay sau **một lần** bị nhà cung cấp từ chối là Javis có ngay con số thật của tài khoản đó và dùng luôn làm ngân sách. Người vận hành khai tay vẫn được ưu tiên trên hết.
+- Rút gọn ngữ cảnh khi không đọc được hạn mức lần này thì lấy con số đã học từ lần trước, thay vì bỏ trống rồi chỉ cắt được mỗi lịch sử hội thoại.
+
 ## [0.12.4] - 2026-08-03
 Phần tiết kiệm token nay dùng được cho **gói Claude và gói ChatGPT**, không chỉ tài khoản API key. Bỏ khung chat phóng to. Sửa nút xoá/đổi tên hội thoại.
 ### Thêm mới

@@ -83,8 +83,15 @@ check("Gemini: thứ tự ngược vẫn rút đúng", _f and _f.limit == 8192 a
 # ---- 3. KHÔNG nhận nhầm lỗi khác thành lỗi kích thước ----
 check("quá tải tạm thời KHÔNG phải lỗi kích thước",
       ll.parse_limit_error(503, "The model is overloaded, please try again later") is None)
-check("rate limit theo SỐ REQUEST không phải lỗi kích thước",
-      ll.parse_limit_error(429, "Too many requests, try again in 20s") is None)
+# Bị chặn NHỊP GỌI: nhận ra là chuyện có thật, nhưng tuyệt đối không được gán nhãn kích
+# thước. Hai chuyện khác hẳn nhau và đòi hai việc ngược nhau (chờ vs co nhỏ).
+_f_rate = ll.parse_limit_error(429, "Too many requests, try again in 20s")
+check("chặn nhịp gọi được nhận ra", _f_rate is not None and _f_rate.kind == "rate")
+check("CANARY: chặn nhịp KHÔNG bị gán nhãn lỗi kích thước",
+      _f_rate is not None and _f_rate.kind != "context"
+      and ll.shrink_target(_f_rate) == 0)
+check("và việc cần làm là CHỜ, không phải co nhỏ",
+      _f_rate is not None and _f_rate.remedy == "wait" and _f_rate.retry_after == 20.0)
 check("lỗi xác thực không phải lỗi kích thước",
       ll.parse_limit_error(401, "Invalid API key provided") is None)
 check("body rỗng → None", ll.parse_limit_error(400, "") is None)
@@ -193,10 +200,17 @@ check("rào này có ý nghĩa (tìm được nhiều đường thật)",
 # _cc_tool_loop vốn KHÔNG có retry nào, nên 429 là chết luôn. Đây là lỗi chủ repo gặp sau khi
 # đã vá dạng 413: request đã co xuống 4701 (vừa hạn mức) nhưng cửa sổ còn 8812 chưa trôi qua.
 check("vòng gọi tool có nhánh chờ cửa sổ hạn mức", "waited_for_window" in _eng)
-# Điều kiện phải BAO GỒM window_full: thiếu nó thì nhánh chờ hoặc không bao giờ chạy, hoặc
-# chạy cả với lỗi "lượt này quá to" - chờ xong vẫn quá to, chỉ tốn thêm thời gian.
-check("nhánh chờ gác đúng trên window_full",
-      "_fact.window_full and _fact.retry_after" in _eng)
+# Điều kiện gác phải hỏi thẳng "việc cần làm là gì" (remedy) chứ không suy từ ba con số.
+# Bản trước gác trên window_full, mà window_full chỉ đúng cho hạn mức ĐẾM TOKEN: hết
+# lượt-mỗi-phút (rpm) cũng phải chờ nhưng ba con số của nó nói chuyện khác hẳn. Thiếu điều
+# kiện thì nhánh chờ hoặc không bao giờ chạy, hoặc chạy cả với lỗi "lượt này quá to" - chờ
+# xong vẫn quá to, chỉ tốn thêm thời gian.
+check("nhánh chờ gác trên VIỆC CẦN LÀM, không suy từ ba con số",
+      '_fact.remedy == "wait" and _fact.retry_after' in _eng)
+check("và remedy phân biệt được bốn chiều siết của cùng một nhà cung cấp",
+      {ll.LimitFact("tpm", 12000, 21446, "t").remedy,
+       ll.LimitFact("tpm", 12000, 4701, "t", used=8812).remedy,
+       ll.LimitFact("rpd", 14400, 1, "t", used=14400).remedy} == {"shrink", "wait", "wait_long"})
 check("thật sự có ngủ chờ rồi thử lại",
       "await asyncio.sleep(_fact.retry_after" in _eng)
 check("có trần thời gian chờ, không treo vô hạn",

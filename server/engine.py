@@ -356,7 +356,8 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                         yield {"type": "limit_exceeded", "provider": label, "model": model,
                                "kind": _fact.kind, "limit": _fact.limit,
                                "requested": _fact.requested,
-                               "shrink_to": limit_learner.shrink_target(_fact)}
+                               "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                     yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
                     return
                 got = False
@@ -435,7 +436,8 @@ async def anthropic_stream(api_key, model, messages, reasoning="off"):
                         yield {"type": "limit_exceeded", "provider": "anthropic", "model": model,
                                "kind": _fact.kind, "limit": _fact.limit,
                                "requested": _fact.requested,
-                               "shrink_to": limit_learner.shrink_target(_fact)}
+                               "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                     yield {"type": "error", "content": f"Anthropic {r.status_code}: {body_text[:300]}"}
                     return
                 yield {"type": "meta", "model": model}
@@ -632,7 +634,8 @@ async def openrouter_stream(api_key, model, messages, reasoning="off"):
                             yield {"type": "limit_exceeded", "provider": "openrouter",
                                    "model": model, "kind": _fact.kind, "limit": _fact.limit,
                                    "requested": _fact.requested,
-                                   "shrink_to": limit_learner.shrink_target(_fact)}
+                                   "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                         yield {"type": "error", "content": f"OpenRouter {r.status_code}: {body_text[:300]}"}
                         return
                     sent_model = False
@@ -760,7 +763,8 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                         yield {"type": "limit_exceeded", "provider": "ChatGPT", "model": model,
                                "kind": _fact.kind, "limit": _fact.limit,
                                "requested": _fact.requested,
-                               "shrink_to": limit_learner.shrink_target(_fact)}
+                               "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                     yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body_text[:400]}"}
                     return
                 yield {"type": "meta", "model": model or "gpt-5-codex"}
@@ -1285,7 +1289,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                     # CỬA SỔ ĐẦY thì co nhỏ gần như vô ích: lượt này đã vừa hạn mức rồi, chỉ
                     # là các lượt TRƯỚC chưa trôi qua. Việc đúng là chờ, và nhà cung cấp đã
                     # nói chờ bao lâu. Chờ vài giây rồi trả lời được vẫn hơn hẳn ném lỗi.
-                    if (_fact.window_full and _fact.retry_after
+                    if (_fact.remedy == "wait" and _fact.retry_after
                             and _fact.retry_after <= _WINDOW_WAIT_MAX
                             and not waited_for_window):
                         waited_for_window = True
@@ -1299,7 +1303,8 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                            "requested": _fact.requested, "used": _fact.used,
                            "window_full": _fact.window_full,
                            "retry_after": _fact.retry_after,
-                           "shrink_to": limit_learner.shrink_target(_fact)}
+                           "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                 yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
                 return
             data = r.json()
@@ -1442,7 +1447,8 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                             yield {"type": "limit_exceeded", "provider": "ChatGPT",
                                    "model": model, "kind": _fact.kind, "limit": _fact.limit,
                                    "requested": _fact.requested,
-                                   "shrink_to": limit_learner.shrink_target(_fact)}
+                                   "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                         yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body_text[:300]}"}
                         return
                     async for line in r.aiter_lines():
@@ -1549,7 +1555,8 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                     yield {"type": "limit_exceeded", "provider": "anthropic", "model": model,
                            "kind": _fact.kind, "limit": _fact.limit,
                            "requested": _fact.requested,
-                           "shrink_to": limit_learner.shrink_target(_fact)}
+                           "shrink_to": limit_learner.shrink_target(_fact),
+                           "remedy": _fact.remedy, "raw": _fact.raw}
                 yield {"type": "error", "content": f"Anthropic {r.status_code}: {body_text[:300]}"}
                 return
             try:
