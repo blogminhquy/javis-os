@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.15.0] - 2026-08-03
+Cột trái khung chat có thêm tab **Thư mục**: cây file của brain, ngay cạnh lịch sử hội thoại.
+### Thêm mới
+- **Tab Thư mục trong khung Trò chuyện.** Cột trái trước nay chỉ có lịch sử hội thoại, nên muốn xem brain đang có file gì là phải rời sang trang Tệp tin - mà rời đi thì mất chỗ đang nói dở. Nay cột đó có hai tab, bấm qua lại không rời khung chat. Tab đang chọn được nhớ lại cho lần sau.
+- **Cây xổ ra thu vào, nạp theo nhu cầu.** Bấm mở thư mục nào mới đọc thư mục đó, nên brain vài nghìn file vẫn mở tức thì. Bấm vào một file là mở thẳng trong trình sửa của dashboard, tức là nó thành file đang mở của cuộc trò chuyện luôn.
+- **Nút "Vị trí" ở kết quả tìm kiếm xổ cây tới đúng chỗ file đang nằm** và tô sáng nó. Tìm ra file mà không biết nó nằm thư mục nào thì lần sau vẫn phải đi tìm lại; nút này trả lời đúng câu đó. Các nhánh không nằm trên đường đi vẫn đóng nguyên, nên "xổ tới nơi" không biến thành "xổ tung cả cây".
+### Cải thiện
+- Đổi brain thì cây tự dựng lại. Không có bước này thì tab Thư mục còn treo cây của brain cũ và bấm vào là mở nhầm brain - im lặng và rất khó ngờ.
+
 ## [0.14.8] - 2026-08-03
 Trang Cập nhật thôi báo "đang dùng bản mới nhất" trong khi ngay dưới nó nói có bản mới.
 ### Sửa lỗi

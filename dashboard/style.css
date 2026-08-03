@@ -1376,6 +1376,53 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    "phóng to" đè lên cockpit - đã bỏ ở 0.12.4: nó mượn đúng bốn node #chatArea/#attachBar/
    #modelBar/#hudVoice mà trang Trò chuyện cũng mượn, nên hai bên giành nhau và người dùng
    có hai khung chat gần giống hệt. Nút phóng to nay chuyển thẳng sang trang Trò chuyện. */
+/* Hai tab của cột trái: Hội thoại | Thư mục. Cột này vốn chỉ có lịch sử chat, nên muốn xem
+   brain đang có file gì là phải rời khung chat sang trang Tệp tin - mà rời đi rồi thì mất chỗ
+   đang nói dở. Tab thứ hai giữ cả hai thứ trong cùng một cột. */
+.cside-tabs { display: flex; gap: 4px; flex: none; }
+.cside-tab { flex: 1 1 0; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: var(--text3);
+  font-size: 13px; font-weight: 600; }
+.cside-tab:hover { color: var(--text); }
+.cside-tab.active { background: var(--accent-wash-2); border-color: var(--accent-line);
+  color: var(--accent); }
+/* Pane không hoạt động phải display:none chứ không chỉ ẩn: cây thư mục dài có thanh cuộn
+   riêng, để nó nằm trong luồng là cột trái cao gấp đôi và danh sách hội thoại bị đẩy mất. */
+.cside-pane { display: none; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; }
+.cside-pane.on { display: flex; }
+
+/* ===== CÂY THƯ MỤC (file-tree.js) ===== */
+.ftree-search { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--field-bg); color: var(--text); font-size: 14px; outline: none; flex: none; }
+.ftree-search:focus { border-color: var(--info-line); }
+.ftree-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
+.ftree-body::-webkit-scrollbar { width: 4px; }
+.ftree-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.ftree-empty { color: var(--text3); text-align: center; padding: 22px 8px; font-size: 13.5px; }
+.ftree-row { display: flex; align-items: center; gap: 5px; padding: 4px 6px; cursor: pointer;
+  border-radius: 7px; border: 1px solid transparent; font-size: 13.5px; color: var(--text2); }
+.ftree-row:hover { background: var(--info-wash); color: var(--text); }
+.ftree-row.is-dir { color: var(--text); font-weight: 600; }
+/* Node vừa được bấm "Vị trí". Phải nổi rõ: cả điểm của nút đó là chỉ ra file nằm ĐÂU, mà tô
+   nhạt quá thì xổ xong vẫn phải đưa mắt đi dò. */
+.ftree-row.hit { background: var(--accent-wash-2); border-color: var(--accent-line);
+  color: var(--accent); }
+.ftree-caret { width: 10px; flex: none; font-size: 10px; color: var(--text3); }
+.ftree-ico { flex: none; display: inline-flex; }
+.ftree-ico .ic { width: 14px; height: 14px; vertical-align: -2px; }
+.ftree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftree-hit { display: flex; align-items: center; gap: 7px; padding: 6px; border-radius: 8px;
+  border: 1px solid transparent; }
+.ftree-hit:hover { background: var(--info-wash); border-color: var(--info-line); }
+.ftree-hit-main { flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.ftree-hit-name { display: block; font-size: 13.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftree-hit-path { display: block; font-size: 11.5px; color: var(--text3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftree-loc { flex: none; padding: 3px 8px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 11.5px; }
+.ftree-loc:hover { border-color: var(--accent-line); color: var(--accent); }
+
 .cside-new { background: var(--accent-wash-2); border: 1px solid var(--accent-line);
   color: var(--accent); border-radius: 9px; padding: 9px 10px; cursor: pointer;
   font-size: 14px; font-weight: 600; text-align: left; }

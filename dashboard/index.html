@@ -684,7 +684,10 @@
   <script src="/static/quick-settings.js?v=4"></script>
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
-  <script src="/static/sessions-ui.js?v=7"></script>
+  <!-- Cây thư mục brain: nạp TRƯỚC sessions-ui vì cột trái của trang Trò chuyện mount nó ở
+       tab "Thư mục". Thiếu file này thì tab đó rỗng chứ không lỗi (sessions-ui dò window). -->
+  <script src="/static/file-tree.js?v=1"></script>
+  <script src="/static/sessions-ui.js?v=8"></script>
   <script src="/static/studio.js?v=26"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>

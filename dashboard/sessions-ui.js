@@ -33,6 +33,15 @@
   }
 
   var side = null, listEl = null, searchEl = null, searchTimer = null, refreshTimer = null;
+  // Cột trái có HAI tab: hội thoại và cây thư mục brain. Nhớ tab đã chọn qua localStorage -
+  // ai dùng cây làm chính thì mỗi lần mở chat lại phải bấm sang là phiền vô ích.
+  var TAB_KEY = "javis.chatside.tab";
+  var tabHienTai = "chat", cayEl = null, cayCtl = null;
+
+  function tabDaLuu() {
+    try { return localStorage.getItem(TAB_KEY) === "files" ? "files" : "chat"; }
+    catch (e) { return "chat"; }
+  }
 
   // Danh sách chỉ hiện PAGE mục đầu, bấm "Xem thêm" mở thêm PAGE nữa.
   // shown = số mục đang hiện; giữ nguyên qua các lần refresh, chỉ reset khi đổi brain.
@@ -56,11 +65,20 @@
     shown = PAGE;
     lastBrain = brain();
     side.innerHTML =
-      '<button class="cside-new" type="button">＋ Hội thoại mới</button>' +
-      '<input class="cside-search" placeholder="Tìm trong mọi hội thoại…">' +
-      '<div class="cside-list"></div>';
+      '<div class="cside-tabs">' +
+        '<button class="cside-tab" data-tab="chat" type="button">Hội thoại</button>' +
+        '<button class="cside-tab" data-tab="files" type="button">Thư mục</button>' +
+      '</div>' +
+      '<div class="cside-pane" data-pane="chat">' +
+        '<button class="cside-new" type="button">＋ Hội thoại mới</button>' +
+        '<input class="cside-search" placeholder="Tìm trong mọi hội thoại…">' +
+        '<div class="cside-list"></div>' +
+      '</div>' +
+      '<div class="cside-pane ftree" data-pane="files"></div>';
     listEl = side.querySelector(".cside-list");
     searchEl = side.querySelector(".cside-search");
+    cayEl = side.querySelector('[data-pane="files"]');
+    cayCtl = null;
     side.querySelector(".cside-new").onclick = function () {
       if (window.JavisSessions) window.JavisSessions.new();
       closeDrawerIfNarrow();
@@ -70,13 +88,42 @@
       var q = searchEl.value.trim();
       searchTimer = setTimeout(function () { q ? doSearch(q) : loadList(); }, 280);
     };
+    side.querySelectorAll(".cside-tab").forEach(function (b) {
+      b.onclick = function () { chonTab(b.dataset.tab); };
+    });
     loadList();   // lần đầu mở panel: nạp THẲNG, không qua debounce 150ms của refresh()
+    chonTab(tabDaLuu());
+  }
+
+  /**
+   * Đổi tab. Cây thư mục dựng LƯỜI - lần đầu bấm sang mới mount, vì đa số lượt mở chat là để
+   * chat chứ không phải duyệt file, mà mount là một lượt gọi mạng.
+   */
+  function chonTab(tab) {
+    if (!side) return;
+    tabHienTai = tab === "files" ? "files" : "chat";
+    try { localStorage.setItem(TAB_KEY, tabHienTai); } catch (e) {}
+    side.querySelectorAll(".cside-tab").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.tab === tabHienTai);
+    });
+    side.querySelectorAll(".cside-pane").forEach(function (p) {
+      p.classList.toggle("on", p.dataset.pane === tabHienTai);
+    });
+    if (tabHienTai === "files" && cayEl && window.JavisFileTree) {
+      if (!cayCtl) cayCtl = window.JavisFileTree.mount(cayEl, { brain: brain });
+      else cayCtl.refresh();
+    }
   }
 
   function refresh() {
     if (!side) return;
     var b = brain();
-    if (b !== lastBrain) { lastBrain = b; shown = PAGE; }
+    if (b !== lastBrain) {
+      lastBrain = b; shown = PAGE;
+      // Đổi brain là đổi luôn cây file. Không dựng lại thì tab Thư mục còn treo cây của brain
+      // CŨ, mở file ra là mở nhầm brain - im lặng và rất khó ngờ.
+      if (cayCtl) cayCtl.reload();
+    }
     // debounce nhẹ: response + notifySessions có thể bắn sát nhau
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(function () {
@@ -207,7 +254,7 @@
     refresh();
   }
 
-  window.JavisChatSide = { mount: mount, refresh: refresh };
+  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab };
 
   // Cập nhật khi có lượt chat mới / đổi phiên / đổi brain
   window.addEventListener("javis:sessions-changed", refresh);
