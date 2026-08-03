@@ -1669,12 +1669,21 @@ document.addEventListener("keydown", resumeAudio, { once: true });
 // ============================================
 // Badge engine+model (sự thật, không hỏi model)
 // ============================================
+// Nhãn hiển thị cho TỪNG provider. Trước đây chỉ có hai nhánh openrouter-hoặc-CLI, nên chọn
+// Groq/Gemini/OpenAI đều bị dán nhãn "CLI" - vừa sai, vừa phạm đúng luật trong CLAUDE.md là
+// phải trả lời ĐÚNG engine đang chạy. Chủ repo chụp lại cảnh badge ghi "CLI · openai/gpt-oss-120b"
+// trong khi thanh model ngay bên cạnh ghi "Groq".
+const ENGINE_LABEL = {
+  "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
+  "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
+};
 function setEngineBadge(engine, model) {
   const el = document.getElementById("engineBadge");
   if (!el) return;
-  const isOr = engine === "openrouter";
-  el.textContent = (isOr ? "OpenRouter" : "CLI") + (model ? " · " + model : "");
-  el.className = "engine-badge " + (isOr ? "or" : "cli");
+  const label = ENGINE_LABEL[engine] || engine || "Chưa rõ";
+  el.textContent = label + (model ? " · " + model : "");
+  // Chỉ còn hai lớp màu: giữ nguyên bộ mặt cũ, không đẻ thêm 7 biến thể CSS.
+  el.className = "engine-badge " + (engine === "openrouter" ? "or" : "cli");
 }
 async function refreshTgStatus() {
   const el = document.getElementById("setTgStatus");
@@ -1687,19 +1696,28 @@ async function refreshTgStatus() {
   } catch (e) { el.textContent = ""; }
 }
 // Xuất ra window: console.js gọi lại sau khi đổi model để badge engine không bị cũ.
+// Model chính HIỆU LỰC, soi theo đúng thứ tự server dùng (_effective_main trong main.py):
+// model.main nếu đã đặt, không thì suy từ trường engine cũ. Đọc thiếu bước này là badge
+// đứng ì ở "CLI" cho mọi provider API.
+function _mainProviderModel(m) {
+  const main = m.main || {};
+  if (main.provider) return [main.provider, main.model || ""];
+  if (m.engine === "openrouter") return ["openrouter", m.openrouter_model || ""];
+  if (m.engine === "anthropic-api") return ["anthropic-api", m.claude_model || ""];
+  return ["anthropic-cli", m.claude_model || "mặc định"];
+}
 async function refreshEngineBadge() {
   try {
     const s = await (await fetch("/settings")).json();
-    const m = s.model || {};
-    if (m.engine === "openrouter") setEngineBadge("openrouter", m.openrouter_model);
-    else setEngineBadge("cli", m.claude_model || "mặc định");
+    const [prov, model] = _mainProviderModel(s.model || {});
+    setEngineBadge(prov, model || "mặc định");
   } catch (e) {}
 }
 
 // ============================================
 // Mức dùng (token Javis tự đo, đa nhà cung cấp) - panel sidebar
 // ============================================
-const _PROV_LABEL = { cli: "Claude Code", codex: "ChatGPT", openrouter: "OpenRouter", openai: "OpenAI", "anthropic-api": "Anthropic" };
+const _PROV_LABEL = { cli: "Claude Code", codex: "ChatGPT", openrouter: "OpenRouter", openai: "OpenAI", "anthropic-api": "Anthropic", gemini: "Gemini", groq: "Groq" };
 function _fmtTok(n) {
   n = +n || 0;
   if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M";

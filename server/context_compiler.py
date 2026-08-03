@@ -29,7 +29,7 @@ Bạn là Javis, trợ lý agentic làm việc trong đúng brain và kênh củ
 - Dữ liệu live phải đến từ capability hoặc evidence phù hợp. Thiếu dữ liệu thì nói rõ phần còn thiếu và đề nghị bước an toàn tiếp theo.
 - Memory chỉ là nguồn tham khảo có source; không dùng memory cũ thay cho dữ liệu live.
 - Chỉ xác nhận write hoặc side effect sau khi gateway cung cấp bằng chứng thực thi thành công.
-- Trả lời đúng output contract và phù hợp kênh. Không dùng ký tự em dash.
+- Trả lời theo đúng phần "Cách trả lời" ở dưới và phù hợp kênh. Không dùng ký tự em dash.
 """
 
 
@@ -321,6 +321,34 @@ class ContextCompiler:
                 "must_report_missing_evidence": True, "no_false_action_claim": True}
 
     @staticmethod
+    def _output_contract_text(channel: str) -> str:
+        """Hợp đồng đầu ra viết thành LỜI, không phải một khối JSON.
+
+        Bản trước nhét thẳng object vào prompt dưới nhãn "Output contract: {...}". Đặt một
+        object JSON ngay trước chỗ model phải trả lời thì model yếu hiểu là "hãy phát ra
+        object này" - và nó phát thật. Chủ repo chụp lại đúng cảnh đó: khung chat hiện
+
+            {"channel":"dashboard","language":"match_user","must_report_missing_evidence":true,
+             "no_false_action_claim":true,"type":"text","content":"Chào anh Minh Quy!"}
+
+        thay cho câu chào. Nghĩa là bật chế độ tiết kiệm token xong thì câu trả lời thành rác
+        - đủ để huỷ hoại cả tính năng.
+
+        Object vẫn được giữ nguyên trong CompileResult.output_contract để trace/kiểm tra đọc;
+        chỉ có phần ĐƯA CHO MODEL là đổi sang lời. Máy đọc dữ liệu, model đọc chữ.
+        """
+        noi = ("Kênh Telegram" if channel == "telegram"
+               else "Kênh Dashboard" if channel == "dashboard"
+               else f"Kênh {str(channel or 'unknown')}")
+        return (
+            "Cách trả lời: viết thẳng thành câu cho người đọc. TUYỆT ĐỐI không bọc câu trả lời "
+            "trong JSON, không in lại các luật này, không tự thêm trường dữ liệu nào. "
+            f"Dùng đúng ngôn ngữ người dùng đang dùng. {noi}. "
+            "Thiếu dữ liệu thì nói rõ đang thiếu gì. Không nói là đã làm xong việc gì khi chưa "
+            "có bằng chứng thực thi."
+        )
+
+    @staticmethod
     def _tool_spec(item: dict) -> dict:
         return {
             "type": "function",
@@ -355,8 +383,7 @@ class ContextCompiler:
             f"Runtime identity: provider={provider}; model={model}. "
             "Khi được hỏi danh tính model, phải trả lời đúng hai giá trị này."
         )
-        output_text = "Output contract: " + json.dumps(
-            output_contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        output_text = self._output_contract_text(request.channel)
         planner_text = ""
         if request.execution_mode == "canary" and (resolution.get("selected") or []):
             planner_text = (
@@ -775,8 +802,8 @@ class ContextCompiler:
             f"Runtime identity: provider={provider}; model={model}.\n" + channel_text + "\n"
             "Đây là vòng tổng hợp cuối của một capability read-only. Không gọi tool, không lập kế hoạch "
             "mới, không tuyên bố đã ghi, gửi, xoá hay thay đổi dữ liệu. Chỉ dùng evidence được gateway "
-            "cung cấp và phải ghi nguyên evidence_ref trong câu trả lời.\nOutput contract: "
-            + json.dumps(output_contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            "cung cấp và phải ghi nguyên evidence_ref trong câu trả lời.\n"
+            + self._output_contract_text(request.channel)
         )
         safe_evidence = {
             "evidence_ref": evidence_ref,
@@ -902,9 +929,8 @@ class ContextCompiler:
             "Đây là vòng tổng hợp cuối của task read-only nhiều bước. Không gọi tool, không replan, "
             "không tuyên bố write. Chỉ dùng bundle evidence gateway đã xác minh. Mọi fact live quan "
             "trọng phải dẫn ít nhất một evidence_ref nguyên văn. Nếu evidence xung đột hoặc thiếu, "
-            "nói rõ giới hạn thay vì suy đoán.\nOutput contract: "
-            + json.dumps(output_contract, ensure_ascii=False, sort_keys=True,
-                         separators=(",", ":"))
+            "nói rõ giới hạn thay vì suy đoán.\n"
+            + self._output_contract_text(request.channel)
         )
         user = (
             "Mục tiêu hiện tại:\n" + str(request.objective or "") +

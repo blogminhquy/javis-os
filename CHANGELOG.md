@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.6] - 2026-08-03
+Bật tiết kiệm token không còn biến câu trả lời thành khối JSON. Badge gọi đúng tên bộ não. Sửa vỡ khung chat trên điện thoại.
+### Sửa lỗi
+- **Bật mức Tiết kiệm xong, câu trả lời hiện ra thành một khối JSON.** Chỗ đáng lẽ là lời chào thì khung chat in nguyên `{"channel":"dashboard","language":"match_user",...,"content":"Chào anh"}`. Nguyên nhân: phần dặn cách trả lời được nhét vào prompt dưới dạng một object JSON. Đặt object ngay trước chỗ model phải trả lời thì model yếu hiểu là "hãy phát ra object này", và nó phát thật. Nay phần đó viết thành lời, cấm đích danh việc bọc câu trả lời trong JSON. Đây là lỗi nặng nhất trong nhóm: nó làm chính tính năng tiết kiệm token sinh ra rác, bật lên là hỏng.
+- **Badge góc phải ghi "CLI" cho mọi bộ não dùng API key.** Chọn Groq mà badge ghi "CLI", trong khi thanh model ngay bên cạnh ghi "Groq". Chỗ nhận diện chỉ có hai nhánh: OpenRouter, hoặc CLI. Nay biết đủ bảy bộ não và đọc model chính theo đúng thứ tự máy chủ dùng.
+- **Khung chat vỡ trên điện thoại.** Tiêu đề "Trò chuyện với Javis" xuống bốn dòng, chữ "Thu nhỏ" xuống hai dòng, đẩy khung chat tụt hẳn xuống. Hồi quy từ chính nút Thu nhỏ thêm ở 0.12.4. Nay màn hẹp thì nút chỉ còn icon, tiêu đề và nhãn bộ não tự cắt gọn trong một dòng.
+- Panel Mức dùng thôi hiện trần mã provider cho Groq và Gemini.
+
 ## [0.12.5] - 2026-08-03
 Groq siết bốn chiều cùng lúc, Javis từng gộp cả bốn thành "request quá lớn". Nay nói đúng loại và khuyên đúng việc.
 ### Sửa lỗi

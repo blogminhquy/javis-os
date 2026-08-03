@@ -4414,7 +4414,17 @@
        gõ cứng rgba(24,24,34,.6) nên tông sáng lòi ra một dải xám đen giữa nền giấy. */
     .chatpage-slot .hud-voice{ background:var(--bg2); border:1px solid var(--border); border-radius:18px; }
     .chatpage-slot .attach-bar{ flex:none; }
+    /* Màn hẹp: cả hàng tiêu đề phải nằm gọn MỘT dòng. Trước đây tiêu đề "Trò chuyện với Javis"
+       xuống bốn dòng và chữ "Thu nhỏ" xuống hai dòng, đẩy khung chat tụt hẳn xuống - chủ repo
+       chụp lại đúng cảnh đó. Ba việc: nút chỉ còn icon, tiêu đề cấm xuống dòng và tự cắt,
+       nhãn engine nhường chỗ trước vì nó là thứ ít cần nhất trong ba. */
     @media (max-width:860px){
+      .chatpage-bar{ gap:6px; min-width:0; }
+      .cp-min span{ display:none; }
+      .cp-min{ padding:4px 8px; }
+      .cp-title{ font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        min-width:0; flex:0 1 auto; }
+      .cp-engine{ flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
       .cp-side-toggle{ display:inline-block; }
       .chatpage-side{ position:absolute; left:0; top:0; bottom:0; z-index:6; width:min(84vw,300px);
         transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px var(--shadow-veil); background:var(--bg); }
@@ -4457,8 +4467,11 @@
         '<div class="chatpage-main">' +
           '<div class="chatpage-bar">' +
             '<button class="cp-ico-btn cp-side-toggle" type="button" title="Ẩn/hiện lịch sử">' + ic("history") + '</button>' +
+            // Chữ nằm trong <span> để màn hẹp ẩn được, giữ lại icon. Để chữ trần thì không
+            // có cách nào ẩn mà không mất luôn cả nút.
             '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" ' +
-              'title="Thu nhỏ về màn Javis">' + ic("chevron-left") + ' Thu nhỏ</button>' +
+              'title="Thu nhỏ về màn Javis" aria-label="Thu nhỏ về màn Javis">' +
+              ic("chevron-left") + '<span>Thu nhỏ</span></button>' +
             '<span class="cp-title">Trò chuyện với Javis</span>' +
             '<span class="cp-engine" id="cpEngine"></span>' +
           '</div>' +

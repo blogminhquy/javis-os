@@ -1,17 +1,24 @@
 {
   "version": "compiler-shadow-v1",
-  "providers": ["groq", "openai", "anthropic-cli", "openai-oauth"],
+  "providers": [
+    "groq",
+    "openai",
+    "anthropic-cli",
+    "openai-oauth"
+  ],
   "required_terms": [
     "Bạn là Javis",
     "Không bịa capability",
     "Dữ liệu live",
     "Memory chỉ là nguồn tham khảo",
     "quyền gateway",
-    "output contract"
+    "Cách trả lời"
   ],
   "forbidden_terms": [
     "# === BỘ NHỚ DÀI HẠN",
     "# === SKILL KHẢ DỤNG",
-    "# === NĂNG LỰC JAVIS HIỆN CÓ"
+    "# === NĂNG LỰC JAVIS HIỆN CÓ",
+    "output contract",
+    "Output contract"
   ]
 }
