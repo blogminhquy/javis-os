@@ -442,6 +442,8 @@
         lượt chạy ở cả chế độ Đầy đủ lẫn chế độ Tối ưu trong 24 giờ qua. Bật một mức rồi chat
         vài câu là bảng đo sẽ hiện ra ở đây.</div>`}
 
+      ${_viSao(d.vi_sao)}
+
       <div class="rt-banner ${anyOn ? "rt-on" : "rt-off"}">
         ${ic(anyOn ? "triangle-alert" : "check", { cls: anyOn ? "ic-warn" : "ic-ok" })}
         <div>
@@ -682,6 +684,27 @@
   };
   function _lyDo(ma) {
     return LY_DO_LABEL[ma] || String(ma || "");
+  }
+  // Lý do LẶP LẠI khiến lượt không đi được đường tắt. Bảng "Lượt gần nhất" đã ghi lý do từng
+  // dòng, nhưng một lý do chiếm 18 trên 20 lượt là một cái hỏng, còn xuất hiện 2 lần thì
+  // bình thường - nhìn từng dòng không phân biệt nổi hai ca đó. Chủ repo đã phải nói bằng
+  // lời "chưa lần nào thấy chữ Tức thì" thay vì chỉ vào một con số ở đây.
+  function _viSao(vs) {
+    const top = (vs && vs.top) || [];
+    const tong = Number(vs && vs.tong) || 0;
+    if (!tong || !top.length) return "";
+    const dong = top.map((x) => {
+      const pct = Math.round((Number(x.so_lan) || 0) * 100 / tong);
+      return `<li><b>${pct}%</b> ${esc(_lyDo(x.ma))}
+        <span class="dim">(${Number(x.so_lan) || 0}/${tong} lượt)</span></li>`;
+    }).join("");
+    return `<div class="rt-sec rt-visao">
+      <h3>Vì sao lượt chat chưa đi đường tắt</h3>
+      <ul class="rt-visao-list">${dong}</ul>
+      <div class="dim rt-note">Đường tắt (nhãn <b>Tức thì</b>) chỉ nhận câu chắc chắn không
+      cần tra cứu gì. Lý do nào chiếm gần hết số lượt thì đó là chỗ đang chặn, không phải
+      chuyện ngẫu nhiên.</div>
+    </div>`;
   }
   function _tenDuong(paths) {
     const out = {};

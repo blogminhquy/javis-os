@@ -144,6 +144,12 @@ _DEFAULT = {
             "registry_max_age_seconds": 900,
             "estimator_safety_factor": 1.35,
             "max_objective_chars": 12000,
+            # Điểm khớp tối thiểu để coi là "câu này có thể cần tool" và nhường đường thường.
+            # Xét ĐIỂM chứ không xét số ứng viên dò trúng chữ: máy đấu vài trăm tool MCP thì
+            # câu nào cũng dò trúng vài cái qua một từ chung, và đường tắt sẽ không bao giờ
+            # chạy. Hạ số này = đi tắt nhiều hơn nhưng dễ trả lời hụt; nâng lên = an toàn hơn
+            # nhưng tiết kiệm ít đi. Cùng thang điểm với readonly_canary.min_resolver_score.
+            "min_resolver_score": 0.45,
             # Không hardcode quota thương mại. Operator thêm rule versioned theo tài khoản thật:
             # {"id":"groq-free", "provider":"groq", "model_pattern":"llama-*",
             #  "rolling_tpm":12000, "context_window":131072,

@@ -139,6 +139,7 @@ class CanaryPolicy:
     registry_max_age_seconds: int
     estimator_safety_factor: float
     max_objective_chars: int
+    min_resolver_score: float
     rules: tuple[QuotaRule, ...]
     version: str
 
@@ -185,6 +186,7 @@ class CanaryPolicy:
             registry_max_age_seconds=max(1, int(raw.get("registry_max_age_seconds") or 900)),
             estimator_safety_factor=max(1.0, min(float(raw.get("estimator_safety_factor") or 1.35), 3.0)),
             max_objective_chars=max(100, int(raw.get("max_objective_chars") or 12_000)),
+            min_resolver_score=max(0.0, min(float(raw.get("min_resolver_score") or 0.45), 1.0)),
             rules=tuple(rules), version=str(raw.get("policy_version") or CANARY_POLICY_VERSION),
         )
 
@@ -307,18 +309,42 @@ class FastPathCanary:
             objective, brain,
             capability_resolver.ActorPolicy(mode="full", channel=channel),
         )
+        # Điểm CAO NHẤT sau khi chấm và lọc, không phải số lần dò trúng chữ. Xem lý do ngay
+        # dưới - đây là chỗ mức Siêu tiết kiệm chết lặng suốt mấy bản liền.
+        _ranked = resolution.get("ranked") or []
+        diem_cao = 0.0
+        try:
+            diem_cao = max(float(x.get("score") or 0.0) for x in _ranked) if _ranked else 0.0
+        except (TypeError, ValueError):
+            diem_cao = 0.0
         self.runtime.record_runtime_event(trace, "resolver.canary", {
             "policy_version": resolution.get("policy_version") or "",
             "registry_revision": resolution.get("registry_revision") or "",
             "candidate_count": resolution.get("candidate_count", 0),
             "selected_count": resolution.get("selected_count", 0),
+            "top_score": round(diem_cao, 6),
+            "min_resolver_score": policy.min_resolver_score,
             "miss_class": resolution.get("miss_class") or "",
             "intent_class": intent.intent_class,
             "intent_confidence": intent.confidence,
         })
         if int(resolution.get("selected_count") or 0) > 0:
             return self._legacy(trace, policy, bucket, "capability_selected")
-        if int(resolution.get("candidate_count") or 0) > 0 or resolution.get("filtered"):
+        # VÌ SAO KHÔNG CÒN XÉT `candidate_count`. Nó là số ứng viên dò được bằng CHỮ, tính
+        # trước khi chấm điểm và trước khi lọc quyền. Trên máy có vài trăm tool MCP (Gmail,
+        # Drive, Lịch, quảng cáo...), gần như câu tiếng Việt nào cũng dò trúng ít nhất một
+        # tool qua một từ chung, nên `candidate_count > 0` đúng với MỌI lượt. Kết quả là mức
+        # Siêu tiết kiệm càng đấu nhiều nguồn càng không bao giờ chạy - ngược hẳn với thứ nó
+        # hứa. Chủ repo báo đúng triệu chứng đó: chưa lần nào thấy chữ "Tức thì".
+        #
+        # Trên máy dev thì không lộ, vì kho tool ở đó gần như rỗng và mọi test đều xanh.
+        #
+        # Nay xét ĐIỂM cao nhất sau khi chấm. Resolver đã tự nói "không chọn cái nào"
+        # (selected_count = 0) ở trên; điểm ở đây trả lời tiếp câu "có cái nào SUÝT trúng
+        # không". Suýt trúng thì nhường đường thường cho chắc, còn dò trúng một từ vu vơ thì
+        # không phải lý do để bỏ đường tắt. `filtered` cũng thôi được xét: capability đã bị
+        # chặn quyền thì đi đường thường cũng không gọi được, chặn đường tắt chẳng cứu ai.
+        if diem_cao >= policy.min_resolver_score:
             return self._legacy(trace, policy, bucket, "capability_ambiguous")
 
         compile_resolution = dict(resolution)

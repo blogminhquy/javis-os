@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.7] - 2026-08-03
+Mức Siêu tiết kiệm chưa chạy lần nào trên máy đấu nhiều MCP. Tìm ra và mở khoá.
+### Sửa lỗi
+- **Đường tắt bị chặn ở gần như mọi lượt, càng đấu nhiều nguồn càng chặn chắc.** Chủ repo báo "chưa lần nào chat anh nhìn thấy chữ Tức thì", và soi ra thì đúng như vậy. Cửa nhận lượt xét số ứng viên **dò được bằng chữ**, đếm trước khi chấm điểm và trước khi lọc quyền. Trên máy đấu vài trăm tool MCP (Gmail, Drive, Lịch, quảng cáo...), gần như câu tiếng Việt nào cũng dò trúng vài tool qua một từ chung, nên điều kiện đó đúng với mọi lượt và đường tắt không bao giờ chạy.
+
+  Nghĩa là mức Siêu tiết kiệm càng đấu nhiều nguồn càng không tiết kiệm được, ngược hẳn thứ nó hứa. Trên máy dev thì không lộ, vì kho tool ở đó gần như rỗng và mọi test đều xanh.
+
+  Nay xét **điểm khớp cao nhất** sau khi đã chấm. Có cái suýt trúng thì vẫn nhường đường thường cho chắc, còn dò trúng một từ vu vơ thì không phải lý do để bỏ đường tắt. Ngưỡng nằm ở `context_runtime.canary.min_resolver_score` (mặc định 0.45) để vặn được khi cần.
+- **Nhiều nhánh trả lời không gắn nhãn chế độ, nên có lượt không hiện gì dưới câu trả lời.** Dòng "chế độ + token" do gói tin trả lời mang theo, mà chỉ ba nhánh gắn nó. Nhánh nhắc hẹn, nhánh tra cứu, nhánh thực thi, nhánh từ chối vì vượt hạn mức đều gửi câu trả lời trần. Nay mọi gói trả lời đều mang nhãn, và có test soát toàn bộ mã nguồn để không nhánh nào mới thêm bị sót nữa.
+### Thêm mới
+- **Trang Tiết kiệm nói thẳng vì sao lượt chat chưa đi được đường tắt**, gộp theo lý do và xếp theo số lần. Bảng "Lượt gần nhất" đã ghi lý do từng dòng, nhưng một lý do chiếm 18 trên 20 lượt là một cái hỏng còn xuất hiện 2 lần thì bình thường, mà nhìn từng dòng không phân biệt nổi hai ca đó. Chính vì thiếu con số này mà lỗi ở trên phải chờ chủ repo nói bằng lời mới lộ ra.
+
 ## [0.14.6] - 2026-08-03
 Javis biết bây giờ mấy giờ trên mọi đường, thôi bịa lý do khi không biết.
 ### Sửa lỗi

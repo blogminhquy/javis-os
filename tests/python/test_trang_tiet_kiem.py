@@ -199,9 +199,13 @@ class _TraceChua:
 check("đường chưa gán cũng quy về đường cũ, không nói 'chưa rõ'",
       main._ctx_frame(_TraceChua(), 10)["ctx_path"] == "legacy")
 
-# Và phải NỐI vào cả ba khung trả lời người dùng thật sự đi qua. Đây là chỗ hay sót nhất.
-check("CANARY: cả ba nhánh engine đều gắn thông tin đường chạy",
-      _MAIN.count("**_ctx_frame(runtime_trace, _ctx_in)") == 3)
+# Và phải NỐI vào các khung trả lời người dùng thật sự đi qua. Đây là chỗ hay sót nhất.
+# Đếm CHÍNH XÁC bằng 3 là bản cũ, viết từ hồi chỉ có ba nhánh engine gắn nhãn. Nó vô tình
+# thành hàng rào chặn việc SỬA: gắn nhãn cho nhánh thứ tư là test đỏ, dù đó đúng là thứ phải
+# làm (chủ repo báo "có chỗ thì không hiện gì"). Bài kiểm đầy đủ - mọi gói `response` đều
+# phải mang nhãn - nằm ở test_duong_tat_bi_chan.
+check("CANARY: các nhánh engine đều gắn thông tin đường chạy",
+      _MAIN.count("**_ctx_frame(runtime_trace, _ctx_in)") >= 3)
 check("có cộng dồn token vào của lượt", _MAIN.count("_ctx_in +=") >= 3)
 check("giao diện có hàm vẽ dòng đó", "function _renderCtxLine(" in _APP and "msg-ctx" in _APP)
 # Định nghĩa hàm cũng chứa "_renderCtxLine(msgEl, data" nên phải soi lời GỌI có dấu chấm phẩy,

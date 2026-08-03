@@ -1052,6 +1052,7 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
         await ws.send_text(json.dumps({
             "type": "response", "content": text, "engine": "javis-gateway",
             "model": actual_model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, tokens_in),
         }))
         return text, actual_model
 
@@ -1068,6 +1069,7 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
         await ws.send_text(json.dumps({
             "type": "response", "content": text, "engine": "javis-gateway",
             "model": actual_model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, tokens_in),
         }))
         return text, actual_model
 
@@ -1130,6 +1132,7 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
     await ws.send_text(json.dumps({
         "type": "response", "content": text, "engine": provider,
         "model": actual_model, "session_id": session_id,
+        **_ctx_frame(runtime_trace, tokens_in),
     }))
     return text, actual_model
 
@@ -1158,6 +1161,7 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
         await ws.send_text(json.dumps({
             "type": "response", "content": text, "engine": "javis-gateway",
             "model": model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, 0),
         }))
         return text
 
@@ -1174,6 +1178,7 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
         await ws.send_text(json.dumps({
             "type": "response", "content": text, "engine": "javis-gateway",
             "model": model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, 0),
         }))
         return text
 
@@ -1194,6 +1199,7 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
         await ws.send_text(json.dumps({
             "type": "response", "content": text, "engine": "javis-gateway",
             "model": model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, 0),
         }))
         return text
 
@@ -1239,6 +1245,7 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
     await ws.send_text(json.dumps({
         "type": "response", "content": text, "engine": "javis-gateway",
         "model": model, "session_id": session_id,
+        **_ctx_frame(runtime_trace, 0),
     }))
     return text
 
@@ -1493,6 +1500,7 @@ async def _execute_readonly_orchestrator(plan, provider: str, api_key: str, mode
         "model": result.model or model or "?", "session_id": session_id,
         "task_id": result.task_id, "stop_reason": result.stop_reason,
         "evidence_refs": list(result.evidence_refs),
+        **_ctx_frame(runtime_trace, 0),
     }))
     return result.text, result.model or model or "?"
 
@@ -1545,6 +1553,7 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
         await ws.send_text(json.dumps({
             "type": "response", "content": final_text, "engine": "javis-gateway",
             "model": actual_model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, tokens_in),
         }))
         return final_text, actual_model
 
@@ -1571,6 +1580,7 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
         await ws.send_text(json.dumps({
             "type": "response", "content": final_text, "engine": "javis-gateway",
             "model": actual_model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, tokens_in),
         }))
         return final_text, actual_model
 
@@ -1606,6 +1616,7 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
         await ws.send_text(json.dumps({
             "type": "response", "content": final_text, "engine": "javis-gateway",
             "model": actual_model, "session_id": session_id,
+            **_ctx_frame(runtime_trace, tokens_in),
         }))
         return final_text, actual_model
 
@@ -1672,6 +1683,7 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
     await ws.send_text(json.dumps({
         "type": "response", "content": final_text, "engine": provider,
         "model": actual_model, "session_id": session_id,
+        **_ctx_frame(runtime_trace, tokens_in),
     }))
     return final_text, actual_model
 
@@ -6937,6 +6949,7 @@ async def websocket_endpoint(ws: WebSocket):
                     "type": "response", "content": final_text,
                     "engine": "javis_schedule", "model": "gateway",
                     "session_id": conv_sid,
+                    **_ctx_frame(runtime_trace, _ctx_in),
                 }))
             elif _codex_fast_plan is not None and kind in ("oauth", "cli"):
                 # ===== GÓI THUÊ BAO, ĐƯỜNG TẮT: gọi thẳng model một vòng =====
@@ -7158,6 +7171,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in),
                     }))
                 elif kind == "api" and api_key:
                     # Mọi exception trong prepare của canary phải rơi tiếp xuống nhánh
@@ -7220,6 +7234,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid, "task_id": runtime_trace.task_id,
+                        **_ctx_frame(runtime_trace, _ctx_in),
                     }))
                 elif readonly_plan and readonly_plan.action == "execute":
                     used_fast_path = True
@@ -7239,6 +7254,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in),
                     }))
                 elif fast_plan and fast_plan.action == "execute":
                     used_fast_path = True
@@ -7258,6 +7274,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text,
                         "engine": "javis-gateway", "model": api_model or "?",
                         "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in),
                     }))
                 else:
                     # ===== API/OAuth: Phase 8 sources canary, fallback độc lập về legacy =====
@@ -7294,6 +7311,7 @@ async def websocket_endpoint(ws: WebSocket):
                             "type": "response", "content": final_text,
                             "engine": "javis-gateway", "model": api_model or "?",
                             "session_id": conv_sid,
+                            **_ctx_frame(runtime_trace, _ctx_in),
                         }))
                     else:
                         sysprompt = (_phase8_plan.system_prompt
@@ -7695,7 +7713,10 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             # là ba cái tên, người dùng bấm mà không biết đổi được gì.
             "uoc_tinh": await _uoc_tinh_tiet_kiem(brain),
             # Và con số ĐO ĐƯỢC từ chính các lượt đã chạy, đáng tin hơn hẳn ước lượng.
-            "do_duoc": _do_duoc_tiet_kiem(snapshot.get("tasks") or [])}
+            "do_duoc": _do_duoc_tiet_kiem(snapshot.get("tasks") or []),
+            # Lý do LẶP LẠI nhiều nhất khiến lượt không đi được đường tắt. Đây là câu trả lời
+            # cho "sao chưa lần nào thấy chữ Tức thì" - thứ trước đây chỉ đoán được.
+            "vi_sao": _vi_sao_chua_di_tat(snapshot.get("tasks") or [])}
 
 
 def _ctx_frame(trace, tokens_in) -> dict:
@@ -7845,6 +7866,29 @@ def _do_duoc_tiet_kiem(tasks: list) -> dict:
     if out["du_du_lieu"] and out["tb_cu"] > 0:
         out["phan_tram"] = max(0, min(99, round((1 - out["tb_moi"] / out["tb_cu"]) * 100)))
     return out
+
+
+def _vi_sao_chua_di_tat(tasks: list) -> dict:
+    """Gộp lý do của những lượt KHÔNG đi đường tắt, xếp theo số lần.
+
+    Vì sao cần con số gộp trong khi bảng "Lượt gần nhất" đã ghi lý do từng lượt: một lý do
+    lặp lại 18 trên 20 lượt là một CÁI HỎNG, còn cùng lý do đó xuất hiện 2 lần là chuyện
+    bình thường. Bảng từng dòng không phân biệt nổi hai ca đó, và chủ repo đã phải nói bằng
+    lời "chưa lần nào thấy chữ Tức thì" thay vì chỉ vào một con số. Đó là lúc trang chẩn đoán
+    thua: người dùng biết có gì đó sai mà trang không nói được sai ở đâu.
+    """
+    dem: dict[str, int] = {}
+    tong = 0
+    for t in tasks or []:
+        if str(t.get("execution_path") or "") == "fast":
+            continue
+        ly = str(t.get("ly_do") or "").strip()
+        if not ly:
+            continue
+        tong += 1
+        dem[ly] = dem.get(ly, 0) + 1
+    top = sorted(dem.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
+    return {"tong": tong, "top": [{"ma": k, "so_lan": v} for k, v in top]}
 
 
 def _engine_runtime_view(settings: dict) -> dict:
