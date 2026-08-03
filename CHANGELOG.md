@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.13.4] - 2026-08-03
+Máy đã cài Javis từ trước thì bật tiết kiệm cũng không ăn: cấu hình cũ trong máy đè lên mặc định mới, và nó đè im lặng.
+### Sửa lỗi
+- **Bật mức tiết kiệm rồi mà dòng dưới mỗi câu trả lời vẫn ghi "Đầy đủ".** Đúng lỗi chủ repo chụp lại. Nguyên nhân nằm ở chỗ không ai ngờ: **mọi máy đã chạy Javis từ trước bản 0.12.4 đều dính**, còn máy cài mới thì không, nên mọi thử nghiệm trước đó đều xanh.
+
+  Javis ghi lại **toàn bộ** cấu hình vào `settings.json` ngay lần đầu người dùng bấm bất cứ thứ gì, và khi đọc thì lấy file đè lên mặc định. Nghĩa là mặc định của ngày hôm đó bị đóng băng vĩnh viễn: sau này Javis có sửa mặc định cho tốt hơn thì máy đã cài rồi **không bao giờ thấy**. Trước 0.12.4, hai mảng tiết kiệm quan trọng nhất (bộ nhớ chọn lọc và skill nạp khi cần) chỉ chạy trên bộ não dùng API key. Máy cũ ghim cứng con số đó. Nâng cấp lên, bấm "Tối ưu", trang báo xanh "đã bật, có hiệu lực ngay", rồi mọi lượt trên gói ChatGPT hay gói Claude vẫn gửi nguyên bộ luật vì cả ba nguồn bị loại lặng lẽ.
+
+  Nay khi đọc cấu hình, Javis **nới** phạm vi bộ não của các mảng tiết kiệm về ít nhất bằng mặc định hiện tại, và chỉ nới chứ không bao giờ thu hẹp. Mảng nào cố ý chỉ chạy trên bộ não API key (phần gửi lại lịch sử hội thoại: Claude Code và ChatGPT tự nhớ mạch của chúng rồi, gửi thêm là gửi hai lần) vẫn giữ đúng phạm vi của nó. Bấm mức một lần nữa thì chính file cấu hình cũng được chữa luôn.
+### Cải thiện
+- **Test mới `test_cauhinh_cu_khong_ket.py` dựng đúng một máy cài từ trước** rồi bấm mức như người dùng bấm. Đây là lớp lỗi mà test chạy trên máy sạch không bao giờ thấy được. Gỡ bản vá ra thì nó đỏ đúng năm chỗ.
+
 ## [0.13.3] - 2026-08-03
 Rà lại xem bật mức tiết kiệm thì có tiết kiệm thật không. Thủng bốn chỗ, và cả bốn đều im lặng: trang vẫn báo xanh, token vẫn tốn như cũ.
 ### Sửa lỗi

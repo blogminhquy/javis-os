@@ -407,6 +407,50 @@ def _deep_merge(base: dict, patch: dict) -> dict:
     return base
 
 
+def _no_rong_pham_vi_bo_nao(cfg: dict) -> bool:
+    """Nới `provider_kinds` của các mảng tiết kiệm về ÍT NHẤT bằng mặc định hiện tại.
+
+    Vì sao phải có. `write_settings` ghi lại TOÀN BỘ config đã trộn, nên giá trị mặc định
+    của ngày hôm đó bị đóng băng vào settings.json ngay lần đầu người dùng bấm bất cứ thứ gì.
+    `read_settings` lại trộn file ĐÈ LÊN mặc định, nên về sau ta có sửa mặc định cho rộng ra
+    thì máy đã cài rồi KHÔNG BAO GIỜ thấy. Mặc định mới chỉ tới được máy cài mới.
+
+    Nó cắn đúng chỗ đau nhất: trước 0.12.4, `memory_canary` và `lazy_skill_canary` chỉ cho
+    "api". Mọi máy chạy Javis từ trước mốc đó có file settings.json ghim cứng `["api"]`. Chủ
+    máy nâng cấp lên, bấm mức Tối ưu, thấy trang báo xanh "đã bật, có hiệu lực ngay" - rồi
+    mọi lượt chat trên gói ChatGPT hay gói Claude vẫn gửi nguyên CLAUDE.md, vì cả ba nguồn
+    đều bị loại với lý do `provider_kind_not_allowed`. Không lỗi, không cảnh báo, chỉ có dòng
+    "Đầy đủ" dưới mỗi câu trả lời và hoá đơn token không giảm.
+
+    Chỉ NỚI RỘNG, không bao giờ thu hẹp: hợp giá trị đang có với mặc định. Nên mảng nào cố ý
+    chỉ chạy trên engine API (conversation_state_canary - Claude Code và Codex tự nhớ mạch
+    hội thoại của chúng, gửi thêm là gửi hai lần) vẫn giữ nguyên đúng phạm vi của nó.
+
+    Trả về True nếu có sửa gì, để chỗ gọi biết mà ghi file lại nếu muốn.
+    """
+    rt = cfg.get("context_runtime")
+    goc = _DEFAULT.get("context_runtime") or {}
+    if not isinstance(rt, dict):
+        return False
+    doi = False
+    for ten, mac_dinh in goc.items():
+        if not isinstance(mac_dinh, dict) or "provider_kinds" not in mac_dinh:
+            continue
+        muc = rt.get(ten)
+        if not isinstance(muc, dict):
+            continue
+        for truong in ("provider_kinds", "channels"):
+            can = [str(x) for x in (mac_dinh.get(truong) or [])]
+            if not can:
+                continue
+            dang_co = [str(x) for x in (muc.get(truong) or [])]
+            thieu = [x for x in can if x not in dang_co]
+            if thieu:
+                muc[truong] = dang_co + thieu
+                doi = True
+    return doi
+
+
 def read_settings():
     try:
         st = SETTINGS_PATH.stat()
@@ -422,6 +466,7 @@ def read_settings():
             _deep_merge(cfg, data or {})
     except Exception:
         pass
+    _no_rong_pham_vi_bo_nao(cfg)
     try:
         import secrets_store   # lazy: secrets_store import config → tránh vòng lặp import
         _transform_secret_fields(cfg, secrets_store.decrypt)
