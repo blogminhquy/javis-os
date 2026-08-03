@@ -24,16 +24,85 @@ CODEX_BOOTSTRAP_MAX_CHARS = 60000
 # tạo tóm tắt) sang engine API giữa chừng, hoặc nén nền chưa kịp bắt đầu.
 SYNC_COMPACT_TAIL = 24
 
+# ── Mạch hội thoại của engine gói thuê bao (Claude Code, Codex) ──────────────────────────
+#
+# Hai engine này tự quản mạch: Javis chỉ đưa `--resume <id>` rồi chúng gửi lại toàn bộ
+# transcript ở phía chúng. Nghĩa là phần TO NHẤT của mỗi lượt nằm ngoài tầm với của mọi cơ
+# chế tiết kiệm ngữ cảnh - Phase 8 gọt bộ luật xuống còn vài trăm token thì mạch cũ vẫn kéo
+# theo hàng trăm nghìn. Số đo thật của chủ repo: lượt đầu hội thoại 36k, cùng hội thoại đó
+# vài lượt sau đã 191k, có lượt chạm 412k. Bộ luật + bộ nhớ + mô tả tool của anh chỉ khoảng
+# 10.6k, tức phần Javis gọt được chưa tới 3% của lượt nặng nhất.
+#
+# Javis không chèn được vào giữa mạch của chúng, nhưng làm được một việc: khi mạch đã phình
+# quá ngưỡng thì THÔI resume, mở mạch MỚI và mồi lại bằng transcript đã nén trong SQLite
+# (codex_bootstrap_prompt ở dưới). Đổi lại là mất phần ngữ cảnh ngầm mà engine tự giữ, nên
+# ngưỡng phải đủ cao để chỉ chạm tới khi mạch thật sự đã quá dài.
+#
+# 120k chọn theo số đo thật: dưới ngưỡng này hội thoại vẫn chạy thoải mái, còn vượt lên thì
+# mỗi lượt tiếp theo đều đắt hơn lượt trước mà không thêm giá trị gì.
+SUBSCRIPTION_THREAD_MAX_TOKENS = 120_000
+# Số message tối thiểu phải tích thêm kể từ lần xoay trước thì mới được xoay tiếp.
+#
+# Vì sao cần cái này, và vì sao nó QUAN TRỌNG hơn nó trông. Token vào của engine thuê bao
+# phần lớn KHÔNG đến từ độ dài mạch, mà từ vòng lặp agentic bên trong nó: một lượt Codex gọi
+# model nhiều vòng, mỗi vòng gửi lại toàn bộ ngữ cảnh đã tích. Số đo thật của chủ repo cho
+# thấy đúng điều đó - model chỉ viết ra 266 tới 1.496 token trong khi đọc vào 35k tới 412k.
+# Nghĩa là một lượt NẶNG có thể nặng vì công việc, không phải vì mạch dài. Xoay mạch trong ca
+# đó không giúp gì cả: lượt sau vẫn nặng, lại xoay tiếp, và mỗi lần xoay là một lần Javis
+# quên mất phần ngữ cảnh ngầm mà engine đang giữ. Mốc này bắt buộc phải có tiến triển thật
+# (thêm hai lượt hỏi-đáp) mới cho xoay lần nữa.
+SUBSCRIPTION_ROTATE_MIN_MSGS = 4
+
+
+def nen_mach_thue_bao(last_input_tokens, nguong: int = SUBSCRIPTION_THREAD_MAX_TOKENS,
+                      msg_count=None, rotated_at=None,
+                      min_msgs: int = SUBSCRIPTION_ROTATE_MIN_MSGS) -> bool:
+    """Mạch hội thoại của engine thuê bao đã đáng xoay chưa.
+
+    Tách thành hàm riêng vì đây là một QUYẾT ĐỊNH, không phải một phép so sánh: nó đánh đổi
+    ngữ cảnh ngầm lấy token, và đó là thứ phải test được, phải chỉnh được, và phải đọc ra
+    lý do được. Giá trị rác (None, chuỗi, số âm) đều coi như chưa đáng xoay - thà bỏ sót còn
+    hơn cắt mạch của người đang nói dở.
+
+    Hai điều kiện phải cùng đúng: lượt trước đã vượt ngưỡng token, VÀ đã có đủ message mới
+    kể từ lần xoay gần nhất (xem SUBSCRIPTION_ROTATE_MIN_MSGS).
+    """
+    try:
+        tokens = int(last_input_tokens or 0)
+    except (TypeError, ValueError):
+        return False
+    try:
+        muc = int(nguong or 0)
+    except (TypeError, ValueError):
+        muc = SUBSCRIPTION_THREAD_MAX_TOKENS
+    if not (muc > 0 and tokens > muc):
+        return False
+    try:
+        moc = int(rotated_at or 0)
+    except (TypeError, ValueError):
+        moc = 0
+    if moc <= 0:
+        return True          # chưa xoay lần nào, không có gì phải chờ
+    try:
+        hien_tai = int(msg_count or 0)
+    except (TypeError, ValueError):
+        return True          # không đọc được số message thì đừng chặn quyết định
+    return hien_tai - moc >= max(1, int(min_msgs or 1))
+
+
 SUMMARY_HEADER = ("[Tóm tắt phần đầu hội thoại - đã nén để tiết kiệm context. "
                   "Coi đây là ký ức về những gì hai bên đã trao đổi trước đó:]\n")
 
 
-def codex_bootstrap_prompt(raw_msgs, current_prompt: str,
-                           max_chars: int = CODEX_BOOTSTRAP_MAX_CHARS) -> str:
-    """Khôi phục phiên dashboard cũ chưa có Codex thread_id vào MỘT thread native mới.
+def bootstrap_prompt(raw_msgs, current_prompt: str,
+                     max_chars: int = CODEX_BOOTSTRAP_MAX_CHARS) -> str:
+    """Gói transcript trong SQLite thành MỘT prompt để mồi lại một mạch hội thoại mới.
 
-    Chỉ dùng ở lượt chuyển tiếp đầu tiên (hoặc khi rollout Codex cũ bị mất). Sau khi Codex phát
-    `thread.started`, các lượt kế tiếp dùng `exec resume` nên không resend transcript này nữa.
+    Dùng cho mọi engine tự quản mạch (Codex, Claude Code), ở ba tình huống: phiên cũ chưa có
+    thread id, rollout cũ bị mất trên máy, và mạch đã phình quá ngưỡng nên Javis chủ động mở
+    mạch mới. Sau khi engine phát thread mới thì các lượt kế tiếp resume native, không resend
+    transcript này nữa.
+
     Giữ phần GẦN NHẤT trong ngân sách ký tự; current_prompt luôn được giữ nguyên.
     """
     usable = [m for m in (raw_msgs or [])
@@ -65,6 +134,11 @@ def codex_bootstrap_prompt(raw_msgs, current_prompt: str,
     blocks.reverse()
     note = "\n[...phần lịch sử cũ hơn đã lược bớt...]\n" if truncated else ""
     return header + note + "".join(blocks) + footer + current_prompt
+
+
+# Tên cũ, giữ lại vì đã có sẵn ở nhiều chỗ gọi. Hàm chưa bao giờ riêng cho Codex, nay Claude
+# Code dùng chung nên tên chính đổi cho đúng việc nó làm.
+codex_bootstrap_prompt = bootstrap_prompt
 
 
 def trim_history(messages, max_msgs: int = MAX_HISTORY_MSGS):

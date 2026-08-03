@@ -1364,9 +1364,14 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
         "provider": provider, "model": actual_model, "model_rounds": 1,
         "response_chars": len(final_text), "quality_status": decision.status,
     })
+    # Dòng "đi đường nào, tốn bao nhiêu" phải có ở ĐÂY nữa. Bản 0.13.0 gắn nó vào ba nhánh
+    # engine mà quên nhánh này, nên đúng những lượt TIẾT KIỆM NHẤT lại là những lượt duy nhất
+    # không khoe được gì: khung chat để trống dòng đó, và người dùng không có cách nào biết
+    # câu vừa rồi đã đi đường tắt.
     await ws.send_text(json.dumps({
         "type": "response", "content": final_text, "engine": provider,
         "model": actual_model, "session_id": session_id,
+        **_ctx_frame(runtime_trace, tokens_in),
     }))
     return final_text, actual_model
 
@@ -6844,6 +6849,26 @@ async def websocket_endpoint(ws: WebSocket):
 
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)
+            # Đường tắt cho gói ChatGPT phải xét TRƯỚC chuỗi nhánh engine, vì nó thay hẳn
+            # nhánh Codex chứ không chạy bên trong. Tính ở đây để chuỗi bên dưới chỉ còn là
+            # một điều kiện, khỏi phải thụt lề lại cả nhánh Codex. None = không đi đường tắt.
+            _codex_fast_plan = None
+            if prov == "openai-oauth" and not _schedule_action:
+                try:
+                    _plan = await asyncio.to_thread(
+                        _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
+                        "dashboard", prov, _codex_safe_model(api_model), kind,
+                        bool(has_attachments),
+                    )
+                    # Chỉ nhận "execute". "reject" của đường tắt là lời từ chối dựa trên
+                    # TRẦN TỰ KHAI của gói thuê bao, không phải hạn mức nhà cung cấp nói ra -
+                    # lấy nó chặn lượt chat là vượt quyền, cùng lý do với nhánh soft ở Phase 8.
+                    _codex_fast_plan = _plan if _plan and _plan.action == "execute" else None
+                except Exception as _exc:
+                    _codex_fast_plan = None
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "fast_path.prepare_error",
+                        {"error_type": type(_exc).__name__, "engine": "codex"})
             if _schedule_action:
                 for _call in _schedule_action.get("calls") or []:
                     await ws.send_text(json.dumps({
@@ -6856,6 +6881,26 @@ async def websocket_endpoint(ws: WebSocket):
                     "engine": "javis_schedule", "model": "gateway",
                     "session_id": conv_sid,
                 }))
+            elif prov == "openai-oauth" and _codex_fast_plan is not None:
+                # ===== ChatGPT subscription, ĐƯỜNG TẮT: gọi thẳng model một vòng =====
+                # Câu hỏi không cần tra cứu gì thì không có lý do đi qua Codex CLI, nơi mỗi
+                # lượt là cả một vòng lặp đọc file và gọi tool. Đây là chỗ token thật sự nằm:
+                # đo trên máy chủ repo, một lượt Codex vào 100k tới 412k trong khi model chỉ
+                # viết ra vài trăm token. Đường tắt đi đúng một vòng.
+                # _execute_fast_path tự gửi gói `response` kèm dòng đường chạy, y như nhánh
+                # engine API vẫn dùng nó. Gửi thêm một gói nữa ở đây là hiện hai câu trả lời.
+                used_fast_path = True
+                final_text, _fast_model = await _execute_fast_path(
+                    _codex_fast_plan, prov, "", _codex_safe_model(api_model), reasoning,
+                    ws, conv_sid, runtime_trace, user_message,
+                )
+                # Lượt này KHÔNG đi qua Codex, nên mạch native của Codex không hề biết nó đã
+                # xảy ra. Cứ resume mạch cũ ở lượt sau là Codex trả lời với một bản ghi
+                # THIẾU: nó không thấy câu vừa hỏi lẫn câu vừa đáp, rồi nói lại hoặc nói mâu
+                # thuẫn. Bỏ liên kết mạch để lượt Codex kế tiếp dựng lại từ SQLite - nơi lượt
+                # này ĐÃ được lưu. Bootstrap có trần ký tự nên nó còn rẻ hơn mạch cũ.
+                if final_text:
+                    store.clear_codex_thread_id(conv_sid)
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
@@ -6874,6 +6919,27 @@ async def websocket_endpoint(ws: WebSocket):
                 ccli = CodexCLI(cwd=_brain_root(brain), model=actual_model, tag=turn_tag, instructions=sysprompt)
                 _apply_codex_hub(ccli, _brain_root(brain))   # MCP + đúng brain cho cron/nhắc hẹn
                 stored_codex_thread = (_row0.get("codex_thread_id") or "").strip()
+                # Mạch Codex đã phình quá ngưỡng thì THÔI resume: mở mạch mới rồi mồi lại
+                # bằng transcript trong SQLite. Không làm bước này thì mỗi lượt tiếp theo
+                # đều đắt hơn lượt trước mà không thêm giá trị gì, và đó là phần TO NHẤT của
+                # hoá đơn token - to hơn hẳn thứ Phase 8 gọt được. Xem compaction.
+                if stored_codex_thread and compaction.nen_mach_thue_bao(
+                        _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                        rotated_at=_row0.get("thread_rotated_msg")):
+                    stored_codex_thread = ""
+                    store.clear_codex_thread_id(conv_sid)
+                    store.mark_thread_rotated(conv_sid)
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "thread.rotated",
+                        {"engine": "codex",
+                         "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                         "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                    await ws.send_text(json.dumps({
+                        "type": "tool_call", "tool": "javis_nen_mach",
+                        "content": ("⚙ Mạch hội thoại đã dài "
+                                    f"({int(_row0.get('last_input_tokens') or 0):,} token mỗi lượt), "
+                                    "Javis mở mạch mới và mang theo tóm tắt."),
+                    }))
                 ccli.session_id = stored_codex_thread or None
                 if not ccli.is_available():
                     await ws.send_text(json.dumps({"type": "error", "content": "Chưa cài Codex CLI trong container. ChatGPT subscription là THỬ NGHIỆM - dùng Claude Code hoặc OpenRouter cho ổn định (đổi ở Models)."}))
@@ -7253,6 +7319,26 @@ async def websocket_endpoint(ws: WebSocket):
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
                 cli.model = api_model or mcfg.get("claude_model") or None   # alias opus/sonnet/haiku/fable
+                # Cùng luật với Codex: mạch phình quá ngưỡng thì thôi --resume, mở mạch mới.
+                # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
+                # của lượt trước làm dấu hiệu.
+                _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
+                    _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                    rotated_at=_row0.get("thread_rotated_msg"))
+                if _cli_xoay_mach:
+                    cli.session_id = None
+                    store.mark_thread_rotated(conv_sid)
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "thread.rotated",
+                        {"engine": "claude-code",
+                         "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                         "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                    await ws.send_text(json.dumps({
+                        "type": "tool_call", "tool": "javis_nen_mach",
+                        "content": ("⚙ Mạch hội thoại đã dài "
+                                    f"({int(_row0.get('last_input_tokens') or 0):,} token mỗi lượt), "
+                                    "Javis mở mạch mới."),
+                    }))
                 sysprompt, _sub_plan = await _subscription_system_prompt(
                     "cli", cli.model or mcfg.get("claude_model") or "mặc định", kind)
                 cli.system_prompt = sysprompt
@@ -7261,6 +7347,15 @@ async def websocket_endpoint(ws: WebSocket):
                 _cli_sid = None
                 _cost = None
                 _cli_prompt = _cli_think(reasoning, user_message)
+                if _cli_xoay_mach:
+                    # Bỏ --resume là Claude Code mất sạch mạch cũ. Mở mạch mới mà không mang
+                    # theo gì thì đó không phải tiết kiệm, đó là làm hỏng hội thoại: người
+                    # dùng hỏi tiếp "cái đó" và Javis không còn biết "cái đó" là gì. Mồi lại
+                    # từ transcript SQLite, đúng cách nhánh Codex vẫn làm.
+                    _cli_raw = [{"role": _m["role"], "content": _m["content"]}
+                                for _m in store.get_messages(conv_sid)[:-1]
+                                if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    _cli_prompt = compaction.bootstrap_prompt(_cli_raw, _cli_prompt)
                 _CONTEXT_RUNTIME.observe_payload(
                     runtime_trace,
                     [{"role": "system", "content": sysprompt},
@@ -7310,6 +7405,17 @@ async def websocket_endpoint(ws: WebSocket):
                     "cli_session_id": _cli_sid, "cost_usd": _cost, "engine": "cli",
                     "model": (mcfg.get("claude_model") or "mặc định"),
                     **_ctx_frame(runtime_trace, _ctx_in)}))
+
+            # Token VÀO của lượt vừa xong. Với engine gói thuê bao đây là DẤU HIỆU DUY NHẤT
+            # cho biết mạch hội thoại của chúng đã phình tới đâu: Claude Code và Codex tự quản
+            # transcript ở phía chúng, Javis không đếm được bằng cách nào khác. Lượt sau đọc
+            # con số này để quyết định có mở mạch mới hay không (xem compaction).
+            # Chỉ ghi khi ĐO ĐƯỢC: lượt lỗi trả 0 mà ghi đè thì tưởng mạch vừa được dọn.
+            if _ctx_in > 0:
+                try:
+                    store.set_last_input_tokens(conv_sid, _ctx_in)
+                except Exception as _e:
+                    print(f"[last_input_tokens] {type(_e).__name__}: {_e}", file=sys.stderr)
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.

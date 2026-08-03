@@ -188,6 +188,37 @@ class CanaryPolicy:
             rules=tuple(rules), version=str(raw.get("policy_version") or CANARY_POLICY_VERSION),
         )
 
+    @staticmethod
+    def _rule_thue_bao(settings: dict) -> Optional[QuotaRule]:
+        """Ngân sách biên soạn cho engine gói thuê bao, đọc từ `subscription_context`.
+
+        Cùng lý do với Phase 8: gói thuê bao không công bố hạn mức token nên `quota_rule`
+        luôn trả None cho chúng, và đường tắt fail-closed vĩnh viễn. Đó là lý do mức "Siêu
+        tiết kiệm" trước nay chỉ là cái tên với người dùng gói ChatGPT.
+
+        Con số này KHÔNG phải hạn mức thương mại, chỉ là trần ngữ cảnh người vận hành tự
+        khai. Đường tắt vốn không dùng nó để từ chối lượt chat: vượt trần thì compiler trả
+        về không-fast và lượt rơi về đường thường.
+        """
+        raw = ((settings or {}).get("context_runtime") or {}).get("subscription_context")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            reserved = max(1, int(raw.get("reserved_output_tokens") or 0))
+            window = int(raw.get("context_window") or 0)
+            hard_input = int(raw.get("max_input_tokens") or 0)
+        except (TypeError, ValueError):
+            return None
+        if hard_input <= 0 and window > reserved:
+            hard_input = window - reserved
+        if hard_input <= 0:
+            return None
+        return QuotaRule(
+            provider="*", model_pattern="*", rolling_tpm=hard_input + reserved,
+            hard_max_input_tokens=hard_input, reserved_output_tokens=reserved,
+            window_seconds=60, priority=-1, rule_id="subscription-context",
+        )
+
     def quota_rule(self, provider: str, model: str) -> Optional[QuotaRule]:
         # Casefold cả model lẫn pattern: "LLAMA-3" phải khớp rule "llama-*" thay vì
         # rơi nhầm vào rule "*" catch-all có quota khác.
@@ -252,7 +283,16 @@ class FastPathCanary:
             return self._legacy(trace, policy, bucket, "channel_not_allowed")
         if provider_kind not in policy.provider_kinds:
             return self._legacy(trace, policy, bucket, "provider_kind_not_allowed")
+        # RÀO CỨNG cho Claude Code, không phụ thuộc cấu hình. Đường tắt chạy bằng
+        # `main._api_stream`, mà với provider `anthropic-cli` hàm đó rơi vào
+        # `engine.anthropic_stream(key, ...)` - cần API key, thứ gói Claude Code không có.
+        # Nới `provider_kinds` bằng tay tới đây là mọi câu hỏi đơn giản ăn 401. Codex thì
+        # khác: `_api_stream` có sẵn nhánh OAuth đã chạy thật (openai_responses_stream).
+        if str(provider_kind or "") == "cli":
+            return self._legacy(trace, policy, bucket, "cli_khong_co_duong_goi_thang")
         rule = policy.quota_rule(provider, model)
+        if rule is None and str(provider_kind or "") in ("cli", "oauth"):
+            rule = policy._rule_thue_bao(self.settings_reader() or {})
         if rule is None:
             return self._legacy(trace, policy, bucket, "hard_quota_unknown")
 

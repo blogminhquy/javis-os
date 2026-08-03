@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.0] - 2026-08-03
+Số đo thật cho thấy phần Javis gọt được chỉ là 13%, còn 87% token nằm ở chỗ khác. Bản này đi lấy chỗ đó.
+### Thêm mới
+- **Câu hỏi đơn giản trên gói ChatGPT giờ đi thẳng, không qua vòng lặp công cụ.** Số đo trên máy chủ repo: mỗi lượt Codex đọc vào 35.000 tới 412.000 token trong khi model chỉ viết ra 266 tới 1.496. Tỉ lệ đó không phải một lần gọi, mà là cả một vòng lặp: Codex nhận câu hỏi rồi tự gọi model nhiều vòng, mỗi vòng gửi lại toàn bộ ngữ cảnh đã tích. Với câu không cần tra cứu gì - "entropy là gì", "viết giúp em một tiêu đề" - cả vòng lặp đó là thừa. Nay những câu như vậy đi thẳng một vòng. Đây chính là thứ mức **Siêu tiết kiệm** hứa mà trước nay chưa từng làm được cho người dùng gói thuê bao.
+- **Javis tự mở mạch hội thoại mới khi mạch cũ phình quá 120.000 token mỗi lượt.** Claude Code và Codex tự quản mạch của chúng, nên phần to nhất của mỗi lượt vốn nằm ngoài tầm với: gọt bộ luật xuống vài trăm token thì mạch cũ vẫn kéo theo hàng trăm nghìn. Số đo thật: lượt đầu một hội thoại 36.000 token, vài lượt sau đã 191.000. Nay khi vượt ngưỡng, Javis mở mạch mới và **mang theo tóm tắt lịch sử**, có báo cho anh biết ngay trong khung chat. Có mốc chống xoay liên tục: phải có thêm ít nhất hai lượt hỏi-đáp mới được xoay lần nữa, để một lượt nặng vì công việc không kéo theo việc phá mạch mỗi lượt.
+### Sửa lỗi
+- **Javis đoán trước mỗi lượt tốn bao nhiêu, và đoán thấp hơn thật gần bảy lần.** Trang ghi lệch âm 86%, có lượt âm 96%. Con số đó không chỉ để xem: nó chính là thứ Javis dùng để chặn TRƯỚC khi vượt hạn mức, nên đoán thấp bảy lần nghĩa là hàng rào đó gần như không tồn tại. Nguyên nhân: bộ đoán đếm đúng những gì Javis gói lại, nhưng không thấy được các vòng lặp mà engine tự chạy sau đó. Nay Javis **học từ chính các lượt đã chạy** của từng bộ não: thật gấp mấy lần đoán thì nhân lại bấy nhiêu. Chỉ nới lên chứ không bao giờ thu nhỏ, và có kẹp trần để một lượt bất thường không kéo lệch cả hệ số.
+- **Lượt đi đường tắt là lượt duy nhất không có dòng "đi đường nào, tốn bao nhiêu".** Bản 0.13.0 gắn dòng đó vào ba nhánh mà quên nhánh này, nên đúng những lượt tiết kiệm nhất lại là những lượt không khoe được gì.
+- **Lượt đi đường tắt không đi qua Codex, nên mạch của Codex không biết nó đã xảy ra.** Cứ nối tiếp mạch cũ ở lượt sau là Codex trả lời với một bản ghi thiếu: không thấy câu vừa hỏi lẫn câu vừa đáp, rồi nói lại hoặc nói mâu thuẫn. Nay sau mỗi lượt đường tắt, mạch được dựng lại từ lịch sử đã lưu.
+- Đường tắt bị **chặn cứng** với gói Claude Code, không phụ thuộc cấu hình: nó chạy bằng đường gọi thẳng cần API key, thứ gói Claude Code không có. Nới cấu hình bằng tay tới đó là mọi câu hỏi đơn giản báo lỗi đăng nhập.
+### Cải thiện
+- **Test mới `test_ba_don_bay_token.py` chạy lượt chat thật qua cả ba đường** và canh cả chiều nguy hiểm: câu cần dữ liệu thật thì TUYỆT ĐỐI không được đi tắt, vì đi tắt một câu cần tra cứu là trả lời bịa. Kiểm ngược 10 đột biến, cả 10 đều bị bắt.
+
 ## [0.13.4] - 2026-08-03
 Máy đã cài Javis từ trước thì bật tiết kiệm cũng không ăn: cấu hình cũ trong máy đè lên mặc định mới, và nó đè im lặng.
 ### Sửa lỗi

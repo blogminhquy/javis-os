@@ -130,7 +130,12 @@ _DEFAULT = {
             "allocation_basis_points": 0,  # 100 = 1%; hash ổn định theo session
             "salt": "fast-path-canary-v1",
             "channels": ["dashboard"],
-            "provider_kinds": ["api"],
+            # "oauth" = gói ChatGPT qua Codex. Có ở đây vì `_api_stream` đã có sẵn nhánh gọi
+            # thẳng bằng token OAuth, nên đường tắt chạy được thật. "cli" (gói Claude Code)
+            # CỐ Ý vắng mặt: không có đường gọi thẳng nào không cần API key, thêm vào là mọi
+            # câu hỏi đơn giản ăn 401. fast_path_runtime còn chặn cứng "cli" một lần nữa,
+            # không phụ thuộc dòng này.
+            "provider_kinds": ["api", "oauth"],
             "registry_max_age_seconds": 900,
             "estimator_safety_factor": 1.35,
             "max_objective_chars": 12000,

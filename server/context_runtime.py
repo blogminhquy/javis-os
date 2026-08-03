@@ -1687,6 +1687,51 @@ class ObserveRuntime:
         except Exception:
             return 0
 
+    # Hệ số hiệu chỉnh ước lượng. Xem `_he_so_hieu_chinh`.
+    _HIEU_CHINH_MAU_TOI_THIEU = 5
+    _HIEU_CHINH_TRAN = 20.0
+    _HIEU_CHINH_SO_LUOT_DOC = 40
+
+    def _he_so_hieu_chinh(self, db, provider: str) -> float:
+        """Thực tế gấp mấy lần ước lượng, học từ chính các lượt đã chạy của provider này.
+
+        Vì sao cần. `payload_attribution` đếm ĐÚNG những gì Javis gói lại và gửi đi: một
+        system prompt cộng một câu hỏi. Với engine API thì đó là toàn bộ request, ước lượng
+        sát. Với engine gói thuê bao thì không: Claude Code và Codex nhận prompt đó rồi tự
+        chạy cả một vòng lặp - đọc file, gọi tool, suy nghĩ, gọi lại model - và mỗi vòng gửi
+        lại toàn bộ ngữ cảnh đã tích luỹ. Javis không nhìn thấy các vòng đó, chỉ nhận tổng
+        token ở cuối.
+
+        Số đo thật của chủ repo: lệch âm 86% trên bảng tổng, có lượt âm 96%. Nghĩa là bộ đoán
+        tưởng một lượt tốn 15k trong khi nó tốn 100k. Hậu quả không chỉ là con số hiển thị
+        sai: chính con số này là thứ `admit_quota` dùng để chặn TRƯỚC khi vượt hạn mức, nên
+        đoán thấp bảy lần là hàng rào đó gần như không tồn tại.
+
+        Không có cách nào đoán đúng số vòng từ trước. Nhưng có thể HỌC: tỉ lệ thật trên đoán
+        của các lượt vừa chạy chính là con số cần nhân vào. Dùng TRUNG VỊ chứ không phải
+        trung bình, vì một lượt đơn lẻ chạy hai chục vòng sẽ kéo lệch cả hệ số.
+
+        Chỉ NỚI LÊN, không bao giờ thu nhỏ (kẹp sàn ở 1.0): đoán cao hơn thật thì cùng lắm là
+        thận trọng thừa, đoán thấp hơn thật là để lọt đúng thứ hàng rào sinh ra để chặn.
+        """
+        prov = str(provider or "").strip()
+        if not prov:
+            return 1.0
+        try:
+            rows = db.execute(
+                "SELECT estimated_input_tokens AS uoc, actual_input_tokens AS that "
+                "FROM runtime_steps WHERE provider=? AND estimated_input_tokens>0 "
+                "AND actual_input_tokens>0 ORDER BY started_at DESC LIMIT ?",
+                (prov, self._HIEU_CHINH_SO_LUOT_DOC),
+            ).fetchall()
+        except Exception:  # noqa: BLE001 - hiệu chỉnh hỏng không được phá lượt chat
+            return 1.0
+        ti_le = sorted(float(r["that"]) / float(r["uoc"]) for r in rows)
+        if len(ti_le) < self._HIEU_CHINH_MAU_TOI_THIEU:
+            return 1.0
+        giua = ti_le[len(ti_le) // 2]
+        return max(1.0, min(giua, self._HIEU_CHINH_TRAN))
+
     def observe_payload(self, trace: Optional[TurnTrace], messages, tools=None,
                         provider: str = "", model: str = "") -> dict:
         if not trace:
@@ -1699,6 +1744,14 @@ class ObserveRuntime:
                 db = self._conn()
                 now = time.time()
                 reservation_id = "qr_" + uuid.uuid4().hex
+                he_so = self._he_so_hieu_chinh(db, provider)
+                tho = int(meta["estimated_input_tokens"])
+                # Giữ lại cả con số thô: nó là thứ đo được từ payload, còn con số đã hiệu
+                # chỉnh là dự đoán. Trộn hai thứ vào một ô là mất đường lần ngược khi hệ số
+                # chạy sai.
+                meta["estimated_input_tokens_raw"] = tho
+                meta["calibration_factor"] = round(he_so, 3)
+                meta["estimated_input_tokens"] = max(tho, int(round(tho * he_so)))
                 with db:
                     db.execute(
                         "UPDATE runtime_steps SET provider=COALESCE(NULLIF(?,''),provider),"

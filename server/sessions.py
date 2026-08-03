@@ -208,7 +208,19 @@ class SessionStore:
             for name, ddl in (("codex_thread_id", "TEXT"),
                               ("compact_summary", "TEXT"),
                               ("compact_count", "INTEGER NOT NULL DEFAULT 0"),
-                              ("channel", "TEXT NOT NULL DEFAULT 'web'")):
+                              ("channel", "TEXT NOT NULL DEFAULT 'web'"),
+                              # Token VÀO của lượt gần nhất. Engine gói thuê bao (Claude Code,
+                              # Codex) tự quản mạch hội thoại của chúng, nên Javis không nhìn
+                              # thấy thread phình tới đâu - trừ chính con số này. Nó là dấu
+                              # hiệu DUY NHẤT để biết khi nào phải bắt đầu mạch mới.
+                              ("last_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                              # msg_count tại lần xoay mạch gần nhất. Có để chống XOAY LIÊN
+                              # TỤC: token vào của engine thuê bao phần lớn đến từ vòng lặp
+                              # agentic bên trong nó, không phải từ độ dài mạch. Nếu một lượt
+                              # nặng sinh ra bởi vòng lặp chứ không bởi mạch dài, xoay xong
+                              # lượt sau vẫn nặng, và không có mốc này thì Javis xoay mãi -
+                              # phá mạch hội thoại mỗi lượt mà chẳng tiết kiệm được gì.
+                              ("thread_rotated_msg", "INTEGER NOT NULL DEFAULT 0")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             if self._probe_fts5():
@@ -393,6 +405,20 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "UPDATE sessions SET compact_summary = ?, compact_count = ? WHERE id = ?",
             (summary, int(count), session_id),
+        ))
+
+    def set_last_input_tokens(self, session_id: str, tokens: int) -> None:
+        """Ghi token VÀO của lượt vừa xong. Xem cột cùng tên ở phần migration."""
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET last_input_tokens = ? WHERE id = ?",
+            (max(0, int(tokens or 0)), session_id),
+        ))
+
+    def mark_thread_rotated(self, session_id: str) -> None:
+        """Ghi mốc msg_count lúc vừa xoay mạch. Xem cột thread_rotated_msg ở migration."""
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET thread_rotated_msg = msg_count WHERE id = ?",
+            (session_id,),
         ))
 
     def set_cli_session_id(self, session_id: str, cli_session_id: str) -> None:
