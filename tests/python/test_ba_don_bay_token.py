@@ -385,5 +385,68 @@ _src_main = (SERVER / "main.py").read_text(encoding="utf-8")
 check("CANARY: đường mồi lại THẬT SỰ truyền tóm tắt vào",
       _src_main.count('summary=_row0.get("compact_summary")') >= 3)
 
+
+# ============================================================
+# 7. Trang phải nói ĐÚNG mức nào áp cho bộ não nào, và VÌ SAO một lượt không đi tắt
+# ============================================================
+# Chủ repo bấm mức Siêu tiết kiệm, trang vẫn dán nhãn "không áp cho bộ não đang dùng", còn
+# chat vẫn hiện "Tối ưu". Nhãn đó SAI: nó gõ cứng `kind == "api"` từ hồi đường tắt mới chỉ
+# chạy trên engine API key, và không ai nhớ sửa khi 0.14.0 mở cho gói ChatGPT. Đọc thẳng
+# provider_kinds của đường tắt thì lần sau mở thêm bộ não nào, trang tự đúng theo.
+_src_main = (SERVER / "main.py").read_text(encoding="utf-8")
+# Soi DÒNG CODE thật, không phải "chuỗi có xuất hiện đâu đó": chính comment giải thích lỗi
+# cũ cũng chứa nguyên văn dòng gõ cứng, nên phép kiểm tìm-chữ trần sẽ đỏ oan. Cùng cái bẫy
+# đã làm test 0.13.0 xanh trong khi lỗi đang xảy ra.
+_dong_code = [ln.strip() for ln in _src_main.split("\n")
+              if ln.strip().startswith("fast_hop =")]
+check("CANARY: nhãn 'mức này có áp không' đọc cấu hình THẬT, không gõ cứng",
+      _dong_code == ["fast_hop = _kind in _kinds_tat"])
+
+
+def _ap_dung_cho(prov, model, kind_kf=None):
+    _t = cfg.read_settings()
+    _t.setdefault("model", {})["main"] = {"provider": prov, "model": model}
+    cfg.write_settings(_t)
+    asyncio.run(main.runtime_preset_set(level="max"))
+    return asyncio.run(main._uoc_tinh_tiet_kiem("brain"))["muc"]["max"]
+
+
+check("CANARY: gói ChatGPT giờ ĂN được mức Siêu tiết kiệm",
+      _ap_dung_cho("openai-oauth", "gpt-5.6-luna")["ap_dung"] is True)
+check("bộ não API key vẫn ăn",
+      _ap_dung_cho("groq", "llama-3.3-70b-versatile")["ap_dung"] is True)
+check("gói Claude Code vẫn được báo là chưa mở",
+      _ap_dung_cho("anthropic-cli", "opus")["ap_dung"] is False)
+
+# Và khi một lượt KHÔNG đi đường tắt, phải nói được vì sao. Lý do vốn đã ghi vào trace từ
+# đầu nhưng chưa ai đưa ra màn hình, nên bấm mức xong thấy vẫn "Tối ưu" là chịu.
+_rt3 = context_runtime.ObserveRuntime(
+    Path(tempfile.mkdtemp(prefix="javis-3db-ld-")), cfg.read_settings)
+_t1 = _rt3.start_turn("s-ld1", "brain", "dashboard")
+_rt3.pin_execution_path(_t1, "legacy", 1, "fast-path-canary-v1", "requires_live_data")
+_hang = [x for x in _rt3.diagnostics_snapshot()["tasks"] if x["task_id"] == _t1.task_id][0]
+check("CANARY: lượt không đi tắt có kèm LÝ DO", _hang.get("ly_do") == "requires_live_data")
+# Lượt bị tầng trước từ chối rồi tầng sau nhận: phải hiện lý do CUỐI CÙNG, không phải lời
+# từ chối đầu tiên - nếu không thì lượt đã tiết kiệm lại mang nhãn giải thích vì sao không.
+_t2 = _rt3.start_turn("s-ld2", "brain", "dashboard")
+_rt3.pin_execution_path(_t2, "legacy", 1, "fast-path-canary-v1", "outside_allocation")
+_rt3.pin_execution_path(_t2, "sources", None, "adaptive-context-sources-v1", "da_nhan")
+_hang2 = [x for x in _rt3.diagnostics_snapshot()["tasks"] if x["task_id"] == _t2.task_id][0]
+check("CANARY: lượt được tầng sau nhận thì lấy lý do CUỐI", _hang2.get("ly_do") == "da_nhan")
+_t3 = _rt3.start_turn("s-ld3", "brain", "dashboard")
+_hang3 = [x for x in _rt3.diagnostics_snapshot()["tasks"] if x["task_id"] == _t3.task_id][0]
+check("lượt chưa ghim đường nào thì để trống, không bịa", _hang3.get("ly_do") == "")
+
+# Giao diện phải DỊCH mã đó ra tiếng người và thật sự vẽ ra.
+_CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+check("trang có bảng dịch lý do", "LY_DO_LABEL" in _CONSOLE and "_lyDo(" in _CONSOLE)
+check("CANARY: và THẬT SỰ vẽ lý do vào bảng lượt gần nhất",
+      "_lyDo(t.ly_do)" in _CONSOLE)
+check("dịch được mấy mã hay gặp nhất",
+      all(k in _CONSOLE for k in ("requires_live_data", "registry_stale",
+                                  "provider_kind_not_allowed", "capability_selected")))
+check("có CSS cho dòng lý do",
+      ".rt-lydo" in (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8"))
+
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)

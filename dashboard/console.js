@@ -365,7 +365,8 @@
       return `<tr>
         <td class="rt-mono">${esc((t.task_id || "").slice(0, 12))}</td>
         <td>${esc(t.channel || "")}</td>
-        <td><span class="rt-path rt-path-${esc(t.execution_path)}">${esc(t.execution_path)}</span></td>
+        <td><span class="rt-path rt-path-${esc(t.execution_path)}">${esc(t.execution_path)}</span>
+          ${t.ly_do ? `<div class="rt-lydo">${esc(_lyDo(t.ly_do))}</div>` : ""}</td>
         <td>${esc(t.status || "")}</td>
         <td>${esc(t.model || "-")}</td>
         <td class="rt-right">${num(t.actual_input_tokens)}</td>
@@ -649,6 +650,35 @@
     readonly: "Tra cứu", orchestrator: "Tra cứu sâu",
     write: "Thực thi", workflow: "Quy trình",
   };
+  // Vì sao lượt đó KHÔNG đi đường tắt. Máy chủ vẫn ghi lý do từ đầu nhưng chưa ai đưa ra
+  // màn hình, nên bấm mức Siêu tiết kiệm rồi thấy vẫn "Tối ưu" là chịu, không có cách nào
+  // biết do câu hỏi cần tra cứu, do bộ não chưa mở, hay do kho công cụ chưa sẵn sàng.
+  // Mã lạ thì hiện nguyên mã: một chuỗi khó hiểu vẫn hơn một ô trống.
+  const LY_DO_LABEL = {
+    mode_not_canary: "chưa bật mức tiết kiệm nào",
+    outside_allocation: "mức đang bật không phủ hội thoại này",
+    channel_not_allowed: "kênh này chưa được mở",
+    provider_kind_not_allowed: "bộ não đang dùng chưa mở đường tắt",
+    cli_khong_co_duong_goi_thang: "gói Claude Code không có đường gọi thẳng",
+    hard_quota_unknown: "chưa biết hạn mức của bộ não này",
+    registry_stale: "kho công cụ chưa sẵn sàng, thử lại sau vài lượt",
+    registry_revision_changed: "kho công cụ vừa đổi giữa lượt",
+    capability_selected: "câu này cần gọi công cụ",
+    capability_ambiguous: "câu này có thể cần công cụ, không dám đi tắt",
+    requires_live_data: "câu này cần dữ liệu thật",
+    attachment_present: "lượt này có file đính kèm",
+    conversation_state: "câu này nhắc tới phần đã nói trước đó",
+    external_source: "câu này nhắc tới nguồn bên ngoài",
+    side_effect: "câu này yêu cầu làm một việc, không chỉ trả lời",
+    agentic: "câu này yêu cầu Javis tự đi làm",
+    objective_too_large: "câu hỏi quá dài",
+    task_already_pinned: "một tầng khác đã nhận lượt này",
+    compiler_not_fast: "gói tin không vừa đường tắt",
+    admitted: "đã đi đường tắt",
+  };
+  function _lyDo(ma) {
+    return LY_DO_LABEL[ma] || String(ma || "");
+  }
   function _tenDuong(paths) {
     const out = {};
     Object.entries(paths || {}).forEach(([k, v]) => {

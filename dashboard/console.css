@@ -810,3 +810,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   transition: opacity 0.4s; border: 1px solid; }
 .rt-toast.ok { border-color: var(--accent); background: var(--accent-wash-2); }
 .rt-toast.err { border-color: var(--danger-line); background: var(--danger-wash); color: var(--red); }
+
+/* Lý do một lượt không đi đường tắt, nằm ngay dưới tên đường trong bảng lượt gần nhất.
+   Nhỏ và mờ vì nó là chú thích, nhưng phải có: thiếu nó thì bấm mức Siêu tiết kiệm rồi
+   thấy vẫn "Tối ưu" là chịu, không ai nói được vì sao. */
+.rt-lydo { margin-top: 3px; font-size: 11px; line-height: 1.35; color: var(--text3); }

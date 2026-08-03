@@ -7695,11 +7695,19 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
     # chỉ có "api". Với gói thuê bao (Claude Code, ChatGPT) thì mức đó y hệt mức Tối ưu.
     # Vẫn khoe "giảm 96%" cho họ là hứa một con số không bao giờ tới - đúng kiểu knob xoay
     # mà đèn không sáng. Nên đo xong thì kiểm luôn xem bộ não đang chạy có ăn được không.
+    # ĐỌC cấu hình thật, KHÔNG gõ cứng. Bản trước viết `fast_hop = _kind == "api"` vì lúc đó
+    # đường tắt mới chỉ chạy trên engine API key. Tới 0.14.0 nó mở cho cả gói ChatGPT, mà dòng
+    # gõ cứng này không ai nhớ sửa - nên trang vẫn dán nhãn "không áp cho bộ não đang dùng"
+    # lên đúng mức vừa được mở, và chủ repo bấm vào rồi tưởng mình bấm nhầm. Đọc thẳng
+    # provider_kinds của đường tắt thì lần sau mở thêm bộ não nào, trang tự đúng theo.
     try:
-        _prov, _kind, _k, _m = _chat_provider(cfgmod.read_settings().get("model", {}) or {})
+        _st = cfgmod.read_settings()
+        _prov, _kind, _k, _m = _chat_provider(_st.get("model", {}) or {})
+        _kinds_tat = [str(x) for x in (((_st.get("context_runtime") or {}).get("canary") or {})
+                                       .get("provider_kinds") or ["api"])]
     except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
-        _kind = "api"
-    fast_hop = _kind == "api"
+        _kind, _kinds_tat = "api", ["api"]
+    fast_hop = _kind in _kinds_tat
     max_token = vien if fast_hop else (vien + cong_cu)
     return {
         "chu_ky_ky_tu_tren_token": ratio,
@@ -7714,11 +7722,12 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
                        "ghi_chu": "Thay bộ luật dài bằng bản rút gọn; nhớ và skill chỉ nạp phần liên quan."},
             "max": {"token_moi_request": max_token, "phan_tram": muc(max_token),
                     "ap_dung": fast_hop,
-                    "ghi_chu": ("Như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả công cụ."
+                    "ghi_chu": ("Như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả công cụ. "
+                                "Câu cần tra cứu vẫn đi đường đầy đủ, nên không phải lượt nào "
+                                "cũng thấy khác."
                                 if fast_hop else
-                                "Đường tắt cho câu hỏi đơn giản chỉ chạy trên bộ não dùng API "
-                                "key. Bộ não gói thuê bao đang chạy không ăn phần này, nên bấm "
-                                "mức này cũng chỉ bằng mức Tối ưu."),
+                                "Đường tắt cho câu hỏi đơn giản chưa mở cho loại bộ não đang "
+                                "chạy, nên bấm mức này cũng chỉ bằng mức Tối ưu."),
                     },
         },
     }

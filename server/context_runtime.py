@@ -2033,6 +2033,29 @@ class ObserveRuntime:
                         task_ids,
                     ):
                         steps[row["task_id"]] = dict(row)
+                # LÝ DO chốt đường chạy. Nó vốn đã được ghi vào event `canary.decision` từ
+                # đầu, nhưng chưa ai đưa ra màn hình - nên khi một lượt không đi đường tắt,
+                # người dùng chỉ thấy nhãn "Tối ưu" mà không có cách nào biết vì sao. Chủ repo
+                # bấm mức Siêu tiết kiệm, chat, thấy vẫn "Tối ưu", và không ai nói được là do
+                # câu hỏi cần tra cứu, do bộ não chưa mở, hay do kho công cụ chưa sẵn sàng.
+                ly_do: dict[str, str] = {}
+                if task_ids:
+                    marks = ",".join("?" for _ in task_ids)
+                    for row in db.execute(
+                        f"SELECT task_id,payload_json FROM runtime_events "
+                        f"WHERE task_id IN ({marks}) AND event_type='canary.decision' "
+                        f"ORDER BY seq",
+                        task_ids,
+                    ):
+                        try:
+                            reason = str((json.loads(row["payload_json"] or "{}")
+                                          ).get("reason") or "")
+                        except Exception:  # noqa: BLE001 - phần thông tin, nuốt tại chỗ
+                            reason = ""
+                        # Lần ghim SAU thắng: một lượt có thể bị tầng trước từ chối rồi tầng
+                        # sau nhận, và cái người dùng cần biết là quyết định CUỐI CÙNG.
+                        if reason:
+                            ly_do[row["task_id"]] = reason
                 capsules: list[int] = []
                 for row in rows:
                     agg = steps.get(row["id"], {})
@@ -2044,6 +2067,7 @@ class ObserveRuntime:
                         "policy_version": row["canary_policy_version"] or "",
                         "registry_revision": row["registry_revision"] or "",
                         "provider": agg.get("provider") or "", "model": agg.get("model") or "",
+                        "ly_do": ly_do.get(row["id"], ""),
                         "estimated_input_tokens": int(agg.get("est") or 0),
                         "actual_input_tokens": int(agg.get("ain") or 0),
                         "actual_output_tokens": int(agg.get("aout") or 0),

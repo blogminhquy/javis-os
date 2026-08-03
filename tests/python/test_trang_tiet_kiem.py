@@ -74,7 +74,11 @@ check("CANARY: Tối ưu tốn ít token hơn Tắt",
 # nằm trong nhánh engine API của _do_turn và provider_kinds của nó cũng chỉ có "api", nên
 # bộ não gói thuê bao KHÔNG ăn phần này - với họ hai mức bằng nhau. Con số phải nói đúng
 # chuyện đó thay vì khoe 96% cho một người sẽ không bao giờ chạm tới nó.
-_fast_hop = _uoc.get("kind_bo_nao") == "api"
+# Đường tắt mở cho bộ não nào là do CẤU HÌNH quyết, không phải một danh sách gõ cứng ở
+# đây: 0.14.0 mở thêm gói ChatGPT, và một hằng số trong test sẽ lặng lẽ kiểm sai từ đó.
+_kinds_tat = ((main.cfgmod.read_settings().get("context_runtime") or {}).get("canary") or {}
+              ).get("provider_kinds") or ["api"]
+_fast_hop = _uoc.get("kind_bo_nao") in _kinds_tat
 check("có khai bộ não đang chạy thuộc loại nào", bool(_uoc.get("kind_bo_nao")))
 check("mỗi mức khai rõ bộ não này có ăn được không",
       all("ap_dung" in _muc[k] for k in ("off", "saving", "max")))
@@ -86,7 +90,7 @@ else:
     check("CANARY: bộ não thuê bao thì Siêu tiết kiệm KHÔNG được khoe thấp hơn Tối ưu",
           _muc["max"]["token_moi_request"] == _muc["saving"]["token_moi_request"])
     check("và mức đó bị đánh dấu là không áp dụng", _muc["max"]["ap_dung"] is False)
-    check("kèm câu giải thích vì sao", "API key" in (_muc["max"].get("ghi_chu") or ""))
+    check("kèm câu giải thích vì sao", "chưa mở" in (_muc["max"].get("ghi_chu") or ""))
 check("phần trăm tăng dần theo mức",
       _muc["off"]["phan_tram"] < _muc["saving"]["phan_tram"] <= _muc["max"]["phan_tram"])
 check("phần trăm nằm trong khoảng đọc được",

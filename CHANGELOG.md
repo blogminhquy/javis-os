@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.3] - 2026-08-03
+Trang thôi dán nhãn sai lên mức Siêu tiết kiệm, và mỗi lượt nói được VÌ SAO nó không đi đường tắt.
+### Sửa lỗi
+- **Bấm mức Siêu tiết kiệm xong trang vẫn ghi "không áp cho bộ não đang dùng".** Nhãn đó sai từ 0.14.0: nó gõ cứng "chỉ chạy trên bộ não dùng API key" từ hồi đường tắt đúng là như vậy, rồi 0.14.0 mở cho gói ChatGPT mà không ai nhớ sửa dòng đó. Kết quả là trang dán nhãn phủ nhận lên đúng cái mức vừa được mở, và người bấm tưởng mình bấm nhầm. Nay nhãn đọc thẳng cấu hình thật, nên lần sau mở thêm bộ não nào là trang tự đúng theo. Chỉ gói Claude Code còn được báo là chưa mở, và đó là rào cứng có lý do: đường tắt gọi model bằng đường cần API key, thứ gói đó không có.
+### Thêm mới
+- **Mỗi lượt trong bảng "Lượt gần nhất" giờ nói rõ vì sao nó đi đường đó.** Lý do vẫn được ghi lại từ đầu nhưng chưa bao giờ đưa ra màn hình, nên bấm mức xong thấy chat vẫn hiện "Tối ưu" là chịu, không có cách nào biết do câu hỏi cần tra cứu, do bộ não chưa mở, hay do kho công cụ chưa kịp sẵn sàng. Nay mỗi dòng có một chú thích tiếng Việt ngay dưới tên chế độ: "câu này cần dữ liệu thật", "kho công cụ chưa sẵn sàng, thử lại sau vài lượt", "câu này cần gọi công cụ"...
+### Cải thiện
+- Mô tả mức Siêu tiết kiệm nói thêm một câu quan trọng: **câu cần tra cứu vẫn đi đường đầy đủ**, nên không phải lượt nào bật mức này cũng thấy khác. Đó là chủ đích, không phải hỏng.
+
 ## [0.14.2] - 2026-08-03
 Mở mạch mới thôi làm mất ngữ cảnh: bản mồi lại dày lên năm lần và mang theo tóm tắt.
 ### Cải thiện
