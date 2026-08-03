@@ -1678,13 +1678,17 @@ const ENGINE_LABEL = {
   "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
   "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
 };
-// Một dòng nhỏ dưới câu trả lời: lượt này đi đường tiết kiệm hay đường cũ, và tốn bao nhiêu
+// Một dòng nhỏ dưới câu trả lời: lượt này chạy ở chế độ nào, và tốn bao nhiêu
 // token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn
 // mức, tức là đã muộn. Thấy được thì người dùng tự biết mức vừa bật có ăn thật hay không.
+// Tên NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người viết
+// code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn khi
+// bấm "Tắt" - gọi nó là "cũ" vừa nghe như đang xin lỗi, vừa làm người ta tưởng máy đang hỏng.
+// Tên ở đây khớp tên nút bên trang Tiết kiệm token để nhìn một dòng là biết mình đang ở đâu.
 const CTX_PATH_LABEL = {
-  legacy: "đường cũ", sources: "tiết kiệm", fast: "đường tắt",
-  readonly: "tra cứu", orchestrator: "tra cứu nhiều bước", write: "hành động ghi",
-  workflow: "workflow",
+  legacy: "Đầy đủ", sources: "Tối ưu", fast: "Tức thì",
+  readonly: "Tra cứu", orchestrator: "Tra cứu sâu", write: "Thực thi",
+  workflow: "Quy trình",
 };
 function _renderCtxLine(msgEl, data) {
   if (!msgEl || !data || !data.ctx_path) return;
@@ -1695,11 +1699,12 @@ function _renderCtxLine(msgEl, data) {
   if (old) old.remove();
   const el = document.createElement("div");
   el.className = "msg-ctx" + (cu ? "" : " saved");
-  // Bấm vào là sang trang Tiết kiệm token - thấy dòng "đường cũ" mà không biết chỉnh ở đâu
+  // Bấm vào là sang trang Tiết kiệm token - thấy chế độ đang chạy mà không biết chỉnh ở đâu
   // thì thông tin đó cũng chỉ để bực mình.
   el.dataset.usageGoto = "runtime";
-  el.title = "Mở trang Tiết kiệm token";
-  el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token vào" : "");
+  el.title = cu ? "Đang gửi đủ mọi thứ. Bấm để xem mức tiết kiệm."
+                : "Đang tiết kiệm token. Bấm để xem chi tiết.";
+  el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token" : "");
   msgEl.appendChild(el);
 }
 

@@ -7886,7 +7886,11 @@ QUOTA_OWNER_OF = {
 RUNTIME_PRESETS = {
     "off": {
         "nhan": "Tắt",
-        "mo_ta": "Gửi đầy đủ mọi thứ cho model như trước. An toàn nhất, tốn token nhất.",
+        # Nhắc tên "Đầy đủ" ngay trong mô tả để nối với nhãn chế độ hiện dưới mỗi câu trả lời
+        # và trong bảng đo. Nút thì tên "Tắt" (tắt phần tiết kiệm), còn thứ đang chạy khi tắt
+        # thì tên "Đầy đủ" - không buộc hai tên đó lại là người dùng thấy hai thứ khác nhau.
+        "mo_ta": ("Chế độ Đầy đủ: gửi mọi thứ cho model mỗi lượt. "
+                  "An toàn nhất, tốn token nhất."),
         "mode": "shadow",
         "duong": {},
     },

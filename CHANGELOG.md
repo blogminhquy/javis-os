@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.13.1] - 2026-08-03
+Đặt lại tên các chế độ theo hướng nói đúng nó làm gì, thay vì nó cũ hay mới.
+### Cải thiện
+- **Bỏ chữ "đường cũ".** Đó là góc nhìn của người viết code, không phải của người dùng: với anh đó là chế độ **gửi đủ mọi thứ**, an toàn nhất, và đúng là thứ đang chạy khi bấm **Tắt**. Gọi nó là "cũ" vừa nghe như đang xin lỗi, vừa làm người ta tưởng máy đang chạy thứ hỏng.
+- Bốn chế độ giờ có tên nói thẳng lợi ích: **Đầy đủ** (gửi mọi thứ, an toàn nhất), **Tối ưu** (chỉ gửi phần liên quan), **Tức thì** (câu đơn giản trả lời thẳng, không qua vòng công cụ), **Tra cứu** / **Tra cứu sâu** / **Thực thi** / **Quy trình**.
+- Tên khớp nhau ở cả hai chỗ: dòng nhỏ dưới mỗi câu trả lời và bảng trên trang Tiết kiệm token, để nhìn một chỗ là nối được sang chỗ kia.
+- Các mục trên trang viết lại theo bộ từ mới: "Vì sao chưa tối ưu được", "Mỗi cuộc chat dùng chế độ nào", "Gói tin khi Tối ưu".
+
 ## [0.13.0] - 2026-08-03
 Trang Tiết kiệm token viết lại quanh câu hỏi duy nhất người dùng quan tâm: bật cái này thì đỡ được bao nhiêu. Và mỗi câu trả lời tự nói nó đi đường nào.
 ### Thêm mới

@@ -416,25 +416,25 @@
       ${dod.du_du_lieu ? `<div class="rt-sec rt-doduoc">
         <h3>Thực tế đo được trong 24 giờ qua</h3>
         <div class="rt-doduoc-row">
-          <div><div class="rt-k">Đường cũ</div><div class="rt-v">${num(dod.tb_cu)}</div>
+          <div><div class="rt-k">Chế độ Đầy đủ</div><div class="rt-v">${num(dod.tb_cu)}</div>
             <div class="rt-note">token mỗi lượt, ${num(dod.so_luot_cu)} lượt</div></div>
-          <div><div class="rt-k">Đường tiết kiệm</div><div class="rt-v">${num(dod.tb_moi)}</div>
+          <div><div class="rt-k">Chế độ Tối ưu</div><div class="rt-v">${num(dod.tb_moi)}</div>
             <div class="rt-note">token mỗi lượt, ${num(dod.so_luot_moi)} lượt</div></div>
           <div class="rt-doduoc-pct"><div class="rt-k">Giảm được</div>
             <div class="rt-v">${num(dod.phan_tram)}%</div>
             <div class="rt-note">số THẬT, không phải ước lượng</div></div>
         </div>
       </div>` : `<div class="dim rt-note rt-first-note">Chưa đủ dữ liệu để đo thực tế: cần có
-        lượt chạy ở cả đường cũ lẫn đường tiết kiệm trong 24 giờ qua. Bật một mức rồi chat vài
-        câu là bảng đo sẽ hiện ra ở đây.</div>`}
+        lượt chạy ở cả chế độ Đầy đủ lẫn chế độ Tối ưu trong 24 giờ qua. Bật một mức rồi chat
+        vài câu là bảng đo sẽ hiện ra ở đây.</div>`}
 
       <div class="rt-banner ${anyOn ? "rt-on" : "rt-off"}">
         ${ic(anyOn ? "triangle-alert" : "check", { cls: anyOn ? "ic-warn" : "ic-ok" })}
         <div>
           <b>Chế độ: ${esc(d.mode || "?")}</b>
           <div class="dim">${anyOn
-            ? "Có đường canary đang bật - một phần lượt chat đi đường mới."
-            : "Không đường canary nào bật. Runtime mới chỉ quan sát, mọi lượt vẫn đi đường cũ."}</div>
+            ? "Đang bật tiết kiệm cho một phần lượt chat."
+            : "Chưa bật mảng nào, mọi lượt đang chạy ở chế độ Đầy đủ."}</div>
         </div>
       </div>
 
@@ -443,14 +443,15 @@
         <p>Mỗi lần anh chat, Javis phải gửi kèm một mớ thông tin nền cho model: nó là ai, có
         những công cụ nào, nhớ gì về anh, đã nói gì trước đó. Mớ đó tốn tiền và có giới hạn.
         Trang này cho thấy mớ đó đang to bao nhiêu và tiêu vào đâu.</p>
-        <p><b>Đường cũ và đường mới.</b> Javis đang có hai cách dựng mớ thông tin đó. Đường
-        cũ gửi gần như mọi thứ, lúc nào cũng vậy. Đường mới chỉ gửi phần liên quan tới câu
-        anh vừa hỏi, nên nhẹ hơn nhiều. Đường mới còn non nên mặc định tắt.</p>
-        <p><b>Bật thử từng phần (canary).</b> Thay vì bật đường mới cho tất cả rồi hồi hộp,
+        <p><b>Đầy đủ và Tối ưu.</b> Javis có hai cách dựng mớ thông tin đó. Chế độ
+        <b>Đầy đủ</b> gửi gần như mọi thứ, lúc nào cũng vậy: an toàn nhất, tốn nhất. Chế độ
+        <b>Tối ưu</b> chỉ gửi phần liên quan tới câu anh vừa hỏi, nên nhẹ hơn nhiều. Tối ưu
+        còn mới nên mặc định chưa bật.</p>
+        <p><b>Bật thử từng phần (canary).</b> Thay vì bật cho tất cả rồi hồi hộp,
         Javis cho bật cho một PHẦN các cuộc chat thôi, ví dụ 1 phần trăm. Nếu tốt thì nâng
         dần, nếu tệ thì hạ về 0 là xong ngay. Mỗi dòng trong bảng dưới là một mảng việc bật
         thử được riêng, và con số là tỉ lệ: 10000 nghĩa là toàn bộ, 100 nghĩa là 1 phần trăm,
-        0 là tắt. Cùng một cuộc chat thì luôn đi cùng một đường, không nhảy qua nhảy lại.</p>
+        0 là tắt. Cùng một cuộc chat thì luôn ở cùng một chế độ, không nhảy qua nhảy lại.</p>
       </div>
 
       <div class="rt-grid">
@@ -462,9 +463,9 @@
         <div class="rt-card"><div class="rt-k">Độ chính xác khi đoán</div><div class="rt-v">${tk.estimate_error_pct == null ? "-" : tk.estimate_error_pct + "%"}</div>
           <div class="rt-note">Javis đoán trước sẽ tốn bao nhiêu để còn biết đường chặn.
           Số âm là đoán THẤP hơn thật, tức là dễ vượt hạn mức bất ngờ.</div></div>
-        <div class="rt-card"><div class="rt-k">Gói tin đường mới</div><div class="rt-v">${num(cap.median_tokens)}</div>
+        <div class="rt-card"><div class="rt-k">Gói tin khi Tối ưu</div><div class="rt-v">${num(cap.median_tokens)}</div>
           <div class="rt-note">cỡ trung bình, ${num(cap.samples)} lần đo, lần to nhất ${num(cap.max_tokens)}.
-          So với đường cũ để biết tiết kiệm được bao nhiêu.</div></div>
+          So với chế độ Đầy đủ để biết tiết kiệm được bao nhiêu.</div></div>
         <div class="rt-card"><div class="rt-k">Công cụ Javis đang biết</div><div class="rt-v">${num((d.registry || {}).capabilities)}</div>
           <div class="rt-note">gộp tool của các nguồn đã đấu, skill và workflow</div></div>
       </div>
@@ -478,16 +479,16 @@
       </div>
 
       <div class="rt-sec">
-        <h3>Mỗi cuộc chat đi đường nào</h3>
+        <h3>Mỗi cuộc chat dùng chế độ nào</h3>
         <div class="rt-chips">${counts(_tenDuong(d.paths), "Chưa có cuộc chat nào.")}</div>
-        <div class="dim rt-note">Đây là chỗ xem một cách chắc chắn xem mức vừa bật có ăn thật
-        không: còn thấy nhiều "đường cũ" nghĩa là phần tiết kiệm chưa áp được cho các lượt đó.</div>
+        <div class="dim rt-note">Đây là chỗ xem chắc chắn nhất xem mức vừa bật có ăn thật
+        không: còn nhiều lượt ở <b>Đầy đủ</b> nghĩa là phần tiết kiệm chưa áp được cho chúng.</div>
       </div>
       <div class="rt-sec">
-        <h3>Vì sao vẫn đi đường cũ</h3>
+        <h3>Vì sao chưa tối ưu được</h3>
         <div class="rt-chips">${counts(d.fallback_reasons, "Chưa ghi nhận lý do nào.")}</div>
-        <div class="dim rt-note">Javis luôn quay về đường cũ khi chưa đủ chắc, nên thấy nhiều
-        lý do ở đây là bình thường. Đọc để biết còn thiếu điều kiện gì.</div>
+        <div class="dim rt-note">Javis luôn quay về chế độ Đầy đủ khi chưa đủ chắc, nên thấy
+        nhiều lý do ở đây là bình thường. Đọc để biết còn thiếu điều kiện gì.</div>
       </div>
       <div class="rt-sec">
         <h3>Tìm công cụ bị trượt vì</h3>
@@ -625,12 +626,19 @@
   }
 
   // "legacy"/"sources" là chữ của máy. Trang này để người dùng đọc, nên dịch ra.
-  // sources = đường tiết kiệm của Phase 8 (bộ nhớ chọn lọc + skill nạp khi cần).
+  //
+  // Và dịch theo hướng NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn
+  // của người viết code, không phải của người dùng: với họ đó là chế độ gửi đủ mọi thứ, an
+  // toàn nhất, và đúng là thứ họ chọn khi bấm "Tắt". Gọi nó là "cũ" vừa nghe như đang xin
+  // lỗi, vừa làm người ta tưởng mình đang chạy thứ hỏng.
+  //
+  // Tên chế độ khớp luôn tên nút ở đầu trang (Đầy đủ / Tối ưu / Siêu tiết kiệm) để nhìn dòng
+  // dưới câu trả lời là biết ngay mình đang ở mức nào.
   const DUONG_LABEL = {
-    legacy: "đường cũ (gửi đủ)", unassigned: "đường cũ (gửi đủ)",
-    sources: "tiết kiệm", fast: "đường tắt (câu đơn giản)",
-    readonly: "tra cứu một bước", orchestrator: "tra cứu nhiều bước",
-    write: "hành động ghi", workflow: "workflow",
+    legacy: "Đầy đủ", unassigned: "Đầy đủ",
+    sources: "Tối ưu", fast: "Tức thì",
+    readonly: "Tra cứu", orchestrator: "Tra cứu sâu",
+    write: "Thực thi", workflow: "Quy trình",
   };
   function _tenDuong(paths) {
     const out = {};

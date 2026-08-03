@@ -210,12 +210,41 @@ check("CANARY: có cache để không gọi lại sau mỗi lượt chat",
 # ============================================================
 # 8. Tên đường phải dịch ra tiếng người
 # ============================================================
-check("có bảng dịch tên đường", "DUONG_LABEL" in _CONSOLE)
-for _k in ("legacy", "sources", "fast"):
-    check(f"dịch được đường '{_k}'", f"{_k}:" in _CONSOLE.split("DUONG_LABEL")[1][:400])
-check("CANARY: bảng đường chạy dùng bản đã dịch", "_tenDuong(d.paths)" in _CONSOLE)
-check("không còn để người dùng tự hiểu chữ 'legacy'",
-      "legacy là đường cũ" not in _CONSOLE)
+# Tên phải NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người
+# viết code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn
+# khi bấm "Tắt". Chủ repo nói thẳng: "đừng đặt tên là đường cũ nghe nó buồn cười".
+_TEN = {"legacy": "Đầy đủ", "unassigned": "Đầy đủ", "sources": "Tối ưu", "fast": "Tức thì"}
+check("có bảng dịch tên chế độ ở trang", "DUONG_LABEL" in _CONSOLE)
+check("có bảng dịch tên chế độ ở khung chat", "CTX_PATH_LABEL" in _APP)
+_bang_trang = _CONSOLE.split("DUONG_LABEL = {")[1].split("};")[0]
+_bang_chat = _APP.split("CTX_PATH_LABEL = {")[1].split("};")[0]
+for _k, _v in _TEN.items():
+    check(f"trang gọi '{_k}' là '{_v}'", f'{_k}: "{_v}"' in _bang_trang)
+    if _k != "unassigned":   # khung chat quy unassigned về legacy từ phía máy chủ
+        check(f"khung chat gọi '{_k}' là '{_v}'", f'{_k}: "{_v}"' in _bang_chat)
+# Hai bảng phải khớp nhau: dòng dưới câu trả lời ghi một đằng, bảng trên trang ghi một nẻo
+# thì người dùng không nối được hai chỗ với nhau.
+for _k in ("readonly", "orchestrator", "write", "workflow"):
+    _a = _bang_trang.split(f"{_k}: ")[1].split('"')[1]
+    _b = _bang_chat.split(f"{_k}: ")[1].split('"')[1]
+    check(f"CANARY: trang và khung chat gọi '{_k}' giống nhau ({_a})", _a == _b)
+
+check("CANARY: bảng chế độ dùng bản đã dịch", "_tenDuong(d.paths)" in _CONSOLE)
+
+# Và không được sót chữ cũ ở BẤT KỲ chỗ nào người dùng đọc. Bỏ comment trước khi soi: cả hai
+# file đều nhắc lại cụm cũ trong phần giải thích vì sao bỏ nó, quét cả comment là bắt nhầm
+# chính lời giải thích đó.
+def _bo_comment(src):
+    import re
+    src = re.sub(r"/\*[\s\S]*?\*/", "", src)
+    return re.sub(r"(^|[^:])//.*$", r"\1", src, flags=re.M)
+
+
+for _ten_file, _src in (("console.js", _CONSOLE), ("app.js", _APP)):
+    _code = _bo_comment(_src)
+    for _xau in ("đường cũ", "Đường cũ", "đường mới", "Đường mới"):
+        check(f"CANARY: {_ten_file} không còn chữ '{_xau}' trước mắt người dùng",
+              _xau not in _code)
 
 print()
 if _fails:
