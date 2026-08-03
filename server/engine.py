@@ -32,6 +32,37 @@ def _sanitize_surrogates(text: str) -> str:
         return _SURROGATE_RE.sub("�", text)
     return text
 
+
+# Dấu trích dẫn nội bộ của OpenAI, gói trong vùng ký tự Private Use: U+E200 mở, U+E202 ngăn,
+# U+E201 đóng. Ví dụ thật lọt ra màn hình chủ repo: "citeturn4view0" - trình
+# duyệt vẽ ba ký tự đó thành ba ô vuông trống, nên câu trả lời hiện ra là
+# "Độ ẩm 70-99%. ␣cite␣turn4view0␣".
+#
+# Bóc chứ không dịch, vì bên trong KHÔNG có gì để giữ: nó chỉ là mã tham chiếu nội bộ
+# ("turn4view0"), không kèm URL. Chính Javis cũng mắc bẫy này - được hỏi lấy tin ở đâu thì
+# trả lời "mình chỉ còn mã tham chiếu turn4view0, không có URL nguồn gốc". Để nguyên là vừa
+# bẩn màn hình vừa dạy model rằng đó là một nguồn có thật.
+#
+# Vùng Private Use không có nghĩa chuẩn nào, nội dung thật không bao giờ chứa nó, nên quét
+# sạch cả vùng là an toàn - kể cả khi nhà cung cấp đổi khuôn dấu.
+# Viết bằng mã escape chứ KHÔNG dán ký tự thật: chúng vô hình trong mọi trình soạn thảo,
+# nên dán thẳng vào nguồn là dòng code trông như có lỗi đánh máy và lần sau ai đọc cũng
+# xoá nhầm.
+_MARKER_CA_KHOI = re.compile("\ue200[^\ue201]{0,200}\ue201")   # nguyên một dấu, có mở có đóng
+_MARKER_SOT = re.compile("[\ue200-\ue20f]")                     # mảnh vụn khi dấu bị cắt giữa
+
+
+def strip_provider_markers(text: str) -> str:
+    """Bóc dấu trích dẫn nội bộ nhà cung cấp khỏi văn bản trước khi cho người dùng thấy.
+
+    Bóc hai lượt vì stream cắt văn bản thành từng mẩu: một dấu hoàn chỉnh có thể bị chia
+    đôi giữa hai mẩu, nên sau khi gỡ các khối trọn vẹn vẫn phải quét nốt mảnh vụn còn sót.
+    """
+    if not text:
+        return text
+    return _MARKER_SOT.sub("", _MARKER_CA_KHOI.sub("", text))
+
+
 # Decorrelated jitter counter để nhiều stream chạy song song không retry cùng instant
 _retry_counter = 0
 _retry_lock = threading.Lock()
@@ -785,7 +816,11 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                         continue
                     et = obj.get("type")
                     if et == "response.output_text.delta":
-                        d = obj.get("delta") or ""
+                        # Đường tắt của gói ChatGPT đi qua đây, và nó cũng phát dấu trích dẫn
+                        # nội bộ như Codex CLI. Bóc ngay tại nguồn: một mẩu delta có thể chỉ
+                        # chứa mảnh vụn của dấu, nên hàm bóc quét cả vùng ký tự chứ không chỉ
+                        # khối trọn vẹn.
+                        d = strip_provider_markers(obj.get("delta") or "")
                         if d:
                             got = True
                             yield {"type": "text", "content": d}

@@ -100,8 +100,15 @@ class _WS:
 DEM = {"codex": 0, "thang": 0}
 
 
+# Số token Codex giả báo về. Suy từ chính hằng số ngưỡng chứ KHÔNG gõ tay: chủ repo đã
+# nâng ngưỡng từ 120k lên 1 triệu sau khi dùng thật, và một con số gõ cứng ở đây sẽ lặng
+# lẽ ngừng kiểm đúng thứ nó sinh ra để kiểm ngay lần chỉnh ngưỡng kế tiếp.
+TOKEN_VUOT_NGUONG = compaction.SUBSCRIPTION_THREAD_MAX_TOKENS + 30_000
+TOKEN_DUOI_NGUONG = compaction.SUBSCRIPTION_THREAD_MAX_TOKENS // 2
+
+
 class _Codex:
-    """Codex giả, báo về con số token vào ĐÚNG cỡ máy thật đang gặp."""
+    """Codex giả, báo về con số token vào vượt ngưỡng xoay mạch."""
     last_resume = "chua chay"
     last_prompt = ""
 
@@ -118,7 +125,7 @@ class _Codex:
         _Codex.last_resume = self.session_id
         _Codex.last_prompt = prompt
         yield {"type": "final", "content": "codex tra loi", "session_id": "thread-1",
-               "tokens_in": 150_000, "tokens_out": 400}
+               "tokens_in": TOKEN_VUOT_NGUONG, "tokens_out": 400}
 
 
 def chay(cau_hoi, sid, store):
@@ -236,7 +243,7 @@ check("CANARY: và bị chặn CỨNG trong mã, không chỉ dựa vào cấu h
 # ============================================================
 _row = STORE.get_session("s-that") or {}
 check("token vào của lượt trước được ghi lại",
-      int(_row.get("last_input_tokens") or 0) == 150_000)
+      int(_row.get("last_input_tokens") or 0) == TOKEN_VUOT_NGUONG)
 check("mạch Codex đang được lưu", bool(_row.get("codex_thread_id")))
 DEM["codex"] = DEM["thang"] = 0
 _r3 = chay("doanh thu tuan nay bao nhieu", "s-that", STORE)
@@ -248,13 +255,19 @@ check("có ghi mốc để lần sau không xoay liên tục",
       int((STORE.get_session("s-that") or {}).get("thread_rotated_msg") or 0) > 0)
 
 # Luật xoay: hai điều kiện, và mọi giá trị rác đều phải quy về "chưa đáng xoay".
-check("dưới ngưỡng thì không xoay", compaction.nen_mach_thue_bao(50_000) is False)
-check("trên ngưỡng, chưa từng xoay thì xoay", compaction.nen_mach_thue_bao(150_000) is True)
+check("dưới ngưỡng thì không xoay",
+      compaction.nen_mach_thue_bao(TOKEN_DUOI_NGUONG) is False)
+# Số đo thật của chủ repo: ba lượt liên tiếp 83k, 552k, 36k. Lượt 552k nặng vì công việc
+# của chính nó (đi tra thời tiết), không vì mạch dài - và mạch tự co ngay lượt sau. Ngưỡng
+# phải đủ cao để không xoay trong ca đó.
+check("CANARY: lượt 552k như thực tế đo được KHÔNG được xoay mạch",
+      compaction.nen_mach_thue_bao(552_000) is False)
+check("trên ngưỡng, chưa từng xoay thì xoay", compaction.nen_mach_thue_bao(TOKEN_VUOT_NGUONG) is True)
 check("CANARY: vừa xoay xong thì KHÔNG xoay tiếp ngay",
-      compaction.nen_mach_thue_bao(150_000, msg_count=10, rotated_at=10) is False)
+      compaction.nen_mach_thue_bao(TOKEN_VUOT_NGUONG, msg_count=10, rotated_at=10) is False)
 check("phải có đủ message mới mới xoay lần nữa",
-      compaction.nen_mach_thue_bao(150_000, msg_count=12, rotated_at=10) is False
-      and compaction.nen_mach_thue_bao(150_000, msg_count=14, rotated_at=10) is True)
+      compaction.nen_mach_thue_bao(TOKEN_VUOT_NGUONG, msg_count=12, rotated_at=10) is False
+      and compaction.nen_mach_thue_bao(TOKEN_VUOT_NGUONG, msg_count=14, rotated_at=10) is True)
 for _rac in (None, "abc", -5, 0):
     check(f"giá trị rác {_rac!r} coi như chưa đáng xoay",
           compaction.nen_mach_thue_bao(_rac) is False)
@@ -304,6 +317,36 @@ check("CANARY: con số ghi xuống ĐÃ được hiệu chỉnh",
       _meta["estimated_input_tokens"] > _meta["estimated_input_tokens_raw"])
 check("và vẫn giữ lại con số thô để lần ngược được",
       _meta["estimated_input_tokens_raw"] > 0 and _meta["calibration_factor"] > 1)
+
+
+# ============================================================
+# 5. Rác trích dẫn nội bộ của nhà cung cấp không được lọt ra màn hình
+# ============================================================
+# Chủ repo chụp lại: câu trả lời thời tiết hiện ra "Độ ẩm 70-99%. \ue200cite\ue202turn4view0
+# \ue201" - ba ký tự vùng Private Use, trình duyệt vẽ thành ô vuông trống. Tệ hơn phần nhìn:
+# nó đi thẳng vào lịch sử hội thoại, nên lượt sau chính Javis đọc lại rồi tưởng "turn4view0"
+# là nguồn có thật. Được hỏi lấy tin ở đâu, nó trả lời "mình chỉ còn mã tham chiếu
+# turn4view0, không có URL nguồn gốc".
+import engine  # noqa: E402
+
+_ban = "Do am cao 70-99%. \ue200cite\ue202turn4view0\ue201\n\nAnh nen mang ao mua."
+_sach = engine.strip_provider_markers(_ban)
+check("CANARY: bóc sạch dấu trích dẫn nội bộ", "\ue200" not in _sach and "\ue201" not in _sach)
+check("và không nuốt mất chữ thật của câu trả lời",
+      "Do am cao 70-99%." in _sach and "Anh nen mang ao mua." in _sach)
+check("mảnh vụn khi stream cắt giữa dấu cũng bị quét",
+      "\ue200" not in engine.strip_provider_markers("abc\ue200cite\ue202turn4"))
+check("văn bản thường không bị đụng vào",
+      engine.strip_provider_markers("Doanh thu 5 trieu.") == "Doanh thu 5 trieu.")
+for _rong in ("", None):
+    check(f"đầu vào {_rong!r} không làm hỏng gì",
+          engine.strip_provider_markers(_rong) == _rong)
+# Phải nối vào CẢ HAI đường text đi ra, không thì bóc ở một chỗ rồi chỗ kia vẫn rò.
+_src_cli = (SERVER / "claude_cli.py").read_text(encoding="utf-8")
+check("CANARY: nhánh Codex CLI có bóc", "engine.strip_provider_markers(" in _src_cli)
+_src_eng = (SERVER / "engine.py").read_text(encoding="utf-8")
+check("CANARY: đường gọi thẳng của gói ChatGPT cũng bóc",
+      "strip_provider_markers(obj.get(\"delta\")" in _src_eng)
 
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)

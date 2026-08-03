@@ -17,6 +17,9 @@ import traceback
 from pathlib import Path
 from typing import AsyncIterator, Optional
 
+# Chỉ để dùng strip_provider_markers. engine KHÔNG import ngược claude_cli nên không có vòng.
+import engine
+
 
 # Registry các tiến trình Claude đang chạy - để ngắt giữa chừng.
 # Map proc -> tag ("chat" | "metrics" | "workflow" | "loop" | ...) để ngắt CÓ CHỌN LỌC.
@@ -812,7 +815,11 @@ class CodexCLI:
                 it = ev.get("item") or {}
                 itype = it.get("type")
                 if itype == "agent_message":
-                    txt = it.get("text") or ""
+                    # Bóc dấu trích dẫn nội bộ của OpenAI TRƯỚC khi text đi bất cứ đâu. Nếu
+                    # để lọt, ba ký tự vô hình đó hiện thành ô vuông giữa câu trả lời, VÀ đi
+                    # thẳng vào lịch sử hội thoại - lượt sau model đọc lại rồi tưởng
+                    # "turn4view0" là một nguồn có thật để trích dẫn tiếp.
+                    txt = engine.strip_provider_markers(it.get("text") or "")
                     if txt.strip():
                         final_text += (("\n" if final_text else "") + txt)
                         yield {"type": "text", "content": txt}

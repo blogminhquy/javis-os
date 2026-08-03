@@ -38,9 +38,15 @@ SYNC_COMPACT_TAIL = 24
 # (codex_bootstrap_prompt ở dưới). Đổi lại là mất phần ngữ cảnh ngầm mà engine tự giữ, nên
 # ngưỡng phải đủ cao để chỉ chạm tới khi mạch thật sự đã quá dài.
 #
-# 120k chọn theo số đo thật: dưới ngưỡng này hội thoại vẫn chạy thoải mái, còn vượt lên thì
-# mỗi lượt tiếp theo đều đắt hơn lượt trước mà không thêm giá trị gì.
-SUBSCRIPTION_THREAD_MAX_TOKENS = 120_000
+# 1 triệu, do chủ repo chốt sau khi dùng thật, và số đo ủng hộ con số đó. Ba lượt liên tiếp
+# trong cùng một hội thoại của anh: 83k, rồi 552k (lượt đi tra thời tiết, Codex chạy cả vòng
+# lặp web search), rồi 36k. Nghĩa là một lượt NẶNG thường nặng vì công việc của chính lượt
+# đó, không vì mạch dài - và mạch tự co lại ngay lượt sau.
+#
+# Đặt 120k như bản đầu là gần như lượt nào cũng vượt, tức xoay mạch liên tục: mỗi lần xoay là
+# một lần vứt phần ngữ cảnh ngầm engine đang giữ, đổi lấy gần như không gì. Mốc chống xoay
+# liên tục bên dưới có chặn bớt, nhưng chặn một hành vi sai vẫn không bằng đừng làm nó.
+SUBSCRIPTION_THREAD_MAX_TOKENS = 1_000_000
 # Số message tối thiểu phải tích thêm kể từ lần xoay trước thì mới được xoay tiếp.
 #
 # Vì sao cần cái này, và vì sao nó QUAN TRỌNG hơn nó trông. Token vào của engine thuê bao

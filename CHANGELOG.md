@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.1] - 2026-08-03
+Ngưỡng xoay mạch nâng lên 1 triệu token theo số dùng thật, và dọn rác trích dẫn lọt vào câu trả lời.
+### Sửa lỗi
+- **Câu trả lời hiện ra kèm mấy ô vuông trống và chữ `citeturn4view0`.** Đó là dấu trích dẫn nội bộ của OpenAI, viết bằng ba ký tự vô hình mà trình duyệt vẽ thành ô vuông. Phần khó chịu hơn nằm ở chỗ không nhìn thấy: nó đi thẳng vào lịch sử hội thoại, nên lượt sau chính Javis đọc lại rồi tưởng `turn4view0` là một nguồn có thật. Hỏi "em lấy thông tin ở đâu" thì nó trả lời "mình chỉ còn mã tham chiếu `turn4view0`, không có URL nguồn gốc". Nay dấu đó được bóc ngay tại nguồn, ở cả đường Codex lẫn đường gọi thẳng.
+### Cải thiện
+- **Ngưỡng tự mở mạch hội thoại mới nâng từ 120.000 lên 1.000.000 token mỗi lượt**, theo yêu cầu chủ repo sau khi dùng thật. Số đo ủng hộ: ba lượt liên tiếp trong cùng một hội thoại là 83.000, rồi 552.000 (lượt đi tra thời tiết, Codex chạy cả vòng lặp tìm kiếm), rồi 36.000. Nghĩa là một lượt nặng thường nặng vì **công việc của chính lượt đó**, không phải vì mạch dài, và mạch tự co lại ngay lượt sau. Để 120.000 thì gần như lượt nào cũng vượt, tức xoay mạch liên tục: mỗi lần xoay là một lần vứt phần ngữ cảnh mà engine đang giữ, đổi lấy gần như không gì.
+
 ## [0.14.0] - 2026-08-03
 Số đo thật cho thấy phần Javis gọt được chỉ là 13%, còn 87% token nằm ở chỗ khác. Bản này đi lấy chỗ đó.
 ### Thêm mới
