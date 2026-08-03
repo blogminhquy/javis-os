@@ -718,13 +718,12 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
      "default_models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]},
     {"id": "groq",          "label": "Groq (API)",              "kind": "api", "key_field": "groq_api_key",      "catalog_key": "groq",
      "default_models": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"]},
-    # Ollama chạy model NGAY TRÊN MÁY người dùng: miễn phí, không hạn mức, không gửi dữ liệu
-    # ra ngoài. Đổi lại nó không có API key mà có ĐỊA CHỈ (máy khác trong mạng, cổng khác),
-    # nên dùng `host_field` thay cho `key_field` - đây là provider đầu tiên như vậy.
-    # default_models để RỖNG: model là thứ người dùng tự `ollama pull` về, đoán hộ một danh
-    # sách là bày ra những cái máy họ không có.
-    {"id": "ollama",        "label": "Ollama (máy bạn / Cloud)", "kind": "api", "key_field": "ollama_key",
-     "host_field": "ollama_host", "catalog_key": "ollama", "default_models": []},
+    # Ollama Cloud. CỐ Ý không đấu bản chạy trên máy nhà: bản đó đòi một ô địa chỉ riêng, tức
+    # một ca đặc biệt duy nhất xuyên suốt lớp này, trong khi phần đông người dùng Javis chạy
+    # nó trên VPS - nơi "localhost" là chính cái container chứ không phải máy họ.
+    # default_models RỖNG: danh sách model của Ollama đổi luôn, /provider/models nạp bản LIVE.
+    {"id": "ollama",        "label": "Ollama Cloud",            "kind": "api", "key_field": "ollama_key",
+     "catalog_key": "ollama", "default_models": []},
 ]
 
 def _provider_def(pid):
@@ -755,11 +754,6 @@ def _providers_view(cfg):
         models = cat.get(p["catalog_key"]) or p.get("default_models", [])
         if p["kind"] == "oauth":
             configured = oauth_on
-        elif p.get("host_field"):
-            # Provider theo ĐỊA CHỈ (Ollama): không có key để mà kiểm. Coi là đã kết nối khi
-            # đã từng lấy được danh sách model từ máy đó - tức là bằng chứng nó CHẠY THẬT,
-            # đáng tin hơn hẳn việc chỉ thấy ô host có chữ.
-            configured = bool(models)
         elif p["key_field"] is None:
             configured = True
         else:
@@ -767,8 +761,6 @@ def _providers_view(cfg):
         item = {
             "id": p["id"], "label": p["label"], "kind": p["kind"],
             "needs_key": p["key_field"] is not None,
-            "needs_host": bool(p.get("host_field")),
-            "host": m.get(p.get("host_field") or "", "") or "",
             "configured": configured,
             "models": models,
             "is_main": main.get("provider") == p["id"],
@@ -847,33 +839,6 @@ def _chat_provider(mcfg):
     return prov, kind, key, model
 
 
-def _ollama_cfg(mcfg=None) -> tuple:
-    """(địa chỉ, key) của Ollama. Một nhà, hai đường chạy.
-
-    Luật chọn đường khi người dùng KHÔNG khai địa chỉ: có key thì đi Ollama Cloud, không key
-    thì máy này. Đoán như vậy vì dán key mà vẫn gửi về localhost là chắc chắn sai - máy nhà
-    không đòi key bao giờ - và người dùng sẽ nhận một lỗi kết nối chẳng liên quan gì tới điều
-    họ vừa làm. Khai địa chỉ rõ thì luôn theo địa chỉ đó, kể cả có key.
-
-    Tách hàm riêng thay vì nhét host vào ô `key` của _chat_provider: ô đó mang secret ở mọi
-    provider khác, mượn nó cho một thứ KHÔNG phải secret là mời gọi việc che/ghi log sai chỗ
-    về sau.
-    """
-    try:
-        m = mcfg if isinstance(mcfg, dict) else (cfgmod.read_settings().get("model", {}) or {})
-    except Exception:  # noqa: BLE001 - thiếu cấu hình thì về mặc định, không phá lượt chat
-        m = {}
-    key = str(m.get("ollama_key") or "").strip()
-    host = str(m.get("ollama_host") or "").strip()
-    if not host:
-        host = engine.OLLAMA_CLOUD_HOST if key else engine.OLLAMA_DEFAULT_HOST
-    return host, key
-
-
-def _ollama_host(mcfg=None) -> str:
-    """Chỉ địa chỉ. Giữ tên cũ cho chỗ gọi không cần key."""
-    return _ollama_cfg(mcfg)[0]
-
 def _claude_api_model(model: str) -> str:
     """Alias của Claude Code -> model id THẬT mà API nhận.
 
@@ -910,8 +875,7 @@ def _api_stream(prov, key, model, messages, reasoning="off"):
     if prov == "groq":
         return engine.groq_stream(key, model, messages, reasoning)
     if prov == "ollama":
-        _h, _k = _ollama_cfg()
-        return engine.ollama_stream(_h, model, messages, reasoning, api_key=_k)
+        return engine.ollama_stream(key, model, messages, reasoning)
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -983,8 +947,7 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         if prov == "groq":
             return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama":
-            _h, _k = _ollama_cfg()
-            return engine.ollama_chat_with_mcp(_h, model, messages, reasoning, tools, route, api_key=_k)
+            return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
     return _api_stream(prov, key, model, messages, reasoning)
 
 
@@ -2654,33 +2617,28 @@ async def _fetch_provider_models(provider, m):
                and not any(s in x["id"].lower() for s in ("whisper", "tts", "guard", "embed"))]
         return sorted(ids) or None
     if provider == "ollama":
-        # Danh sách model VÀ phép thử kết nối gộp làm một: lấy được nghĩa là địa chỉ đúng,
-        # Ollama đang chạy (hoặc key Cloud còn hiệu lực).
-        #
-        # Hỏi HAI đường vì hai chỗ chạy trả lời khác nhau, và không đường nào phủ được cả hai:
-        #   /api/tags  - đường gốc của Ollama, liệt kê model đã tải về MÁY đó;
-        #   /v1/models - đường chuẩn OpenAI, thứ bản Cloud phục vụ.
-        # Thử đường gốc trước (máy nhà là ca phổ biến nhất), hụt thì sang đường chuẩn. Lỗi của
-        # đường sau mới được ném ra, vì đó là lỗi người dùng cần đọc.
-        host, key = _ollama_cfg(m)
-        base = engine.ollama_base(host)
-        headers = engine.ollama_headers(key)
-        timeout = 6 if not key else 20   # máy nhà thì nhanh; Cloud đi qua mạng, cho rộng hơn
-        async with httpx.AsyncClient(timeout=timeout) as c:
+        key = m.get("ollama_key")
+        if not key:
+            return None
+        # Hỏi HAI đường vì Ollama phục vụ cả hai và tài liệu của họ không nói rõ đường nào là
+        # chính cho bản Cloud: /v1/models là chuẩn OpenAI, /api/tags là đường gốc của Ollama.
+        # Thử chuẩn trước, hụt mới sang gốc. Lỗi của đường sau mới ném ra, vì đó là lỗi người
+        # dùng cần đọc. Thà thừa một request còn hơn báo "chưa thấy model" với một key đúng.
+        headers = {"Authorization": f"Bearer {key}"}
+        async with httpx.AsyncClient(timeout=20) as c:
             try:
-                r = await c.get(base + "/api/tags", headers=headers)
+                r = await c.get(engine.OLLAMA_BASE + "/v1/models", headers=headers)
                 r.raise_for_status()
-                data = r.json().get("models", [])
-                # `name` là tên đầy đủ kèm tag (llama3.1:8b) - đúng thứ phải gửi lại khi chat.
-                ids = sorted(x.get("name") for x in data if x.get("name"))
+                ids = sorted(x.get("id") for x in (r.json().get("data") or []) if x.get("id"))
                 if ids:
                     return ids
             except Exception:  # noqa: BLE001 - còn một đường nữa, chưa phải lúc bỏ cuộc
                 pass
-            r = await c.get(base + "/v1/models", headers=headers)
+            r = await c.get(engine.OLLAMA_BASE + "/api/tags", headers=headers)
             r.raise_for_status()
-            data = r.json().get("data", [])
-        return sorted(x.get("id") for x in data if x.get("id")) or None
+            data = r.json().get("models", [])
+        # `name` là tên đầy đủ kèm tag (gpt-oss:120b-cloud) - đúng thứ phải gửi lại khi chat.
+        return sorted(x.get("name") for x in data if x.get("name")) or None
     if provider == "openai-oauth":
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.

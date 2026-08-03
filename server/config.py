@@ -58,12 +58,10 @@ _DEFAULT = {
         "openai_api_key": "",                  # provider OpenAI (ChatGPT API)
         "gemini_api_key": "",                  # provider Google Gemini (endpoint OpenAI-compat)
         "groq_api_key": "",                    # provider Groq (endpoint OpenAI-compat, suy luận rất nhanh)
-        # Provider 'ollama' - MỘT nhà, HAI đường chạy:
-        #   máy nhà : để trống cả hai. Miễn phí, không hạn mức, dữ liệu không ra khỏi máy.
-        #   Ollama Cloud: dán API key (lấy ở ollama.com). Model to chạy trên máy chủ của họ.
-        # ollama_host "" = tự chọn: có key thì đi Cloud, không key thì máy này (cổng 11434).
-        # host KHÔNG phải secret; key thì có, nên chỉ key nằm trong _SECRET_PATHS.
-        "ollama_host": "",
+        # Provider 'ollama' = Ollama Cloud (ollama.com). Bản chạy trên máy nhà KHÔNG được đấu,
+        # cố ý: nó đòi thêm một ô địa chỉ - ca đặc biệt duy nhất của cả lớp nhà cung cấp -
+        # trong khi phần đông người dùng Javis chạy nó trên VPS, nơi "localhost" là chính cái
+        # container chứ không phải máy họ.
         "ollama_key": "",
         # Provider 'openai-oauth' - đăng nhập ChatGPT Plus/Pro qua device-code (xem openai_oauth.py).
         "openai_oauth": {"access_token": "", "refresh_token": "", "id_token": "", "account_id": "", "plan": "", "expires_at": 0},

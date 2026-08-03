@@ -22,9 +22,9 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 | **Gọi API thẳng** | Anthropic (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Google Gemini (API) | Có - như trên (từ 0.9.270 trang Kết nối cũng hết báo nhầm) | Không |
 | **Gọi API thẳng** | Groq (API) | Có - như trên | Không |
-| **Chạy trên máy bạn / Cloud** | Ollama | Có - như trên | Không |
+| **Gọi API thẳng** | Ollama Cloud | Có - như trên | Không |
 
-Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai engine CLI (**Claude Code** với gói Claude, **Codex** với gói ChatGPT) tận dụng chính gói subscription bạn đang trả và chạy thêm được lệnh máy; năm provider API chỉ cần một API key và làm được mọi thứ còn lại - kể cả điều phối việc, tạo loop, chạy skill; còn **Ollama** có hai đường: chạy model ngay trên máy bạn (không cần key, không hạn mức, dữ liệu không đi đâu cả) hoặc dùng Ollama Cloud bằng API key khi cần model to. Agent trong Workflow cũng chọn được model theo nhà cung cấp - xem [Agents & Workflows](07-agents-va-workflows.md).
+Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai engine CLI (**Claude Code** với gói Claude, **Codex** với gói ChatGPT) tận dụng chính gói subscription bạn đang trả và chạy thêm được lệnh máy; sáu provider API chỉ cần một API key và làm được mọi thứ còn lại - kể cả điều phối việc, tạo loop, chạy skill. Agent trong Workflow cũng chọn được model theo nhà cung cấp - xem [Agents & Workflows](07-agents-va-workflows.md).
 
 ## Mở ở đâu trong Javis
 
@@ -45,7 +45,7 @@ Khối **Providers** liệt kê 7 nhà cung cấp. **Cái nào đã kết nối 
 | **OpenAI (ChatGPT API)** | Dán API key | MCP + tool file + skill qua hub |
 | **Google Gemini (API)** | Dán API key | MCP + tool file + skill qua hub |
 | **Groq (API)** | Dán API key | MCP + tool file + skill qua hub. Suy luận rất nhanh, hợp làm model việc nền |
-| **Ollama (máy bạn / Cloud)** | Máy nhà: không cần gì. Cloud: dán API key lấy ở ollama.com | MCP + tool file + skill qua hub. Máy nhà thì miễn phí, không hạn mức, dữ liệu không ra khỏi máy; Cloud thì chạy được model to mà máy nhà không kham nổi |
+| **Ollama Cloud** | Dán API key lấy ở ollama.com | MCP + tool file + skill qua hub. Model mã nguồn mở cỡ lớn (gpt-oss, qwen3-coder, deepseek) chạy trên máy chủ của Ollama |
 
 Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc **○ Chưa kết nối**, kèm số model khả dụng, và một nhãn kiểu bên cạnh tên: **MCP/skill** (Claude Code), **Device code** (ChatGPT), **MCP Javis** (các provider API). Card nào đang là Main Model sẽ có nhãn **MAIN**.
 

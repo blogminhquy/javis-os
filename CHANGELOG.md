@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.16.1] - 2026-08-03
+Ollama gọn lại còn đúng bản **Cloud** - dán API key là chạy, như mọi nhà cung cấp khác.
+### Cải thiện
+- **Gỡ đường chạy trên máy nhà, chỉ giữ Ollama Cloud.** Javis phần đông chạy trên VPS trong Docker, nơi "localhost" là chính cái container chứ không phải máy người dùng - nên đường máy nhà gần như không ai dùng được, mà lại kéo theo nguyên một ca đặc biệt: ô địa chỉ riêng (`host_field`, thứ duy nhất trong cả lớp nhà cung cấp có), một nhánh riêng để tính "đã kết nối chưa", một nhánh giao diện riêng, và một hàm chọn-đường-theo-key.
+
+  Nay Ollama đúng hình dạng của Groq hay Gemini: dán key, xong. Thẻ nhà cung cấp cũng về đúng một ô như các thẻ còn lại.
+- Lấy danh sách model vẫn hỏi hai đường (`/v1/models` chuẩn OpenAI trước, `/api/tags` gốc Ollama sau) vì tài liệu của họ không nói rõ đường nào là chính cho bản Cloud. Thà thừa một request còn hơn báo "chưa thấy model" với một key hoàn toàn đúng.
+
 ## [0.16.0] - 2026-08-03
 Thêm bộ não thứ tám: **Ollama** - chạy model ngay trên máy bạn, hoặc qua Ollama Cloud.
 ### Thêm mới
