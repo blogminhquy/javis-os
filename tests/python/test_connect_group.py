@@ -39,6 +39,16 @@ def test_cac_connector_bat_buoc_co_steps():
         assert pc[cid].get("steps"), f"{cid}: thiếu wizard steps"
 
 
+# Trần độ dài của MỘT bước wizard. Con số này là hàng rào chống một bước phình thành cả
+# bài guide, KHÔNG phải ràng buộc layout: .conn-steps chỉ là <li> chữ xuống dòng tự do, không
+# cắt cụt, không line-clamp (đã soi console.css). Trần cũ 260 đặt hồi các bước còn ngắn; sau
+# đó chín bước của Facebook/Google dài ra vì mỗi câu thêm vào là một sự cố có thật của người
+# dùng ('URL bị chặn', 'Invalid Scopes', 'Miền ứng dụng'). Vì test này CHƯA TỪNG chạy trong CI
+# (thiếu block __main__) nên không ai thấy lúc chúng vượt trần. Cắt bớt để vừa con số cũ là
+# vứt đúng phần cứu người dùng, nên nới trần thay vì cắt chữ.
+STEP_TEXT_MAX = 450
+
+
 def test_steps_dung_schema():
     """Soi schema MỌI connector có steps (không chỉ nhóm Google) - thêm connector mới
     có steps là tự động được kiểm."""
@@ -50,12 +60,16 @@ def test_steps_dung_schema():
         assert len(steps) >= 4, f"{cid}: quá ít bước"
         for i, s in enumerate(steps):
             assert s.get("text", "").strip(), f"{cid} bước {i}: thiếu text"
-            assert len(s["text"]) <= 260, f"{cid} bước {i}: text dài quá"
+            assert len(s["text"]) <= STEP_TEXT_MAX, \
+                f"{cid} bước {i}: text dài quá ({len(s['text'])}/{STEP_TEXT_MAX})"
             assert "—" not in s["text"], f"{cid} bước {i}: em dash"
             if s.get("link"):
                 assert s["link"].startswith("https://"), f"{cid} bước {i}: link không https"
                 assert s.get("link_label", "").strip(), f"{cid} bước {i}: có link phải có nhãn"
-            assert s.get("copy", "") in ("", "redirect"), f"{cid} bước {i}: copy lạ"
+            # "domain" là ô copy tên miền cho bản cài VPS - console.js dựng nó bằng
+            # domainCopyBox(). Danh sách này viết hồi chỉ có mỗi ô Redirect URI, và vì test
+            # chưa từng chạy nên không ai thấy nó đã lạc hậu so với giao diện.
+            assert s.get("copy", "") in ("", "redirect", "domain"), f"{cid} bước {i}: copy lạ"
 
 
 def test_oauth_byo_co_buoc_redirect():
@@ -119,3 +133,17 @@ def test_reuse_khong_from_thi_giu_nguyen():
     fields = {"client_id": "a"}
     out = mcp_store.reuse_client_fields(_target_con(), fields, "")
     assert out == fields
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa từng
+    # chạy một assertion nào. Bảy file từng ở tình trạng đó, và bốn assertion trong số
+    # chúng đang ĐỎ mà không ai biết (xem CHANGELOG 0.13.2).
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

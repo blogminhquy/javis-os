@@ -168,12 +168,19 @@ def test_flag_engine_bat_den_voi_loi_that():
     assert connect_health.engines_snapshot()["claude"]["ok"] is False
 
 
-def test_flag_engine_bat_voi_loi_refresh_token_codex():
+def test_flag_engine_bat_voi_loi_refresh_token_codex(monkeypatch):
     """Chuỗi lỗi THẬT của vụ 2026-07-30: Codex mất phiên nhưng nói theo kiểu khác hẳn.
 
     Không câu nào khớp mẫu cũ nên đèn im, user chỉ thấy ba bong bóng lỗi liên tiếp
     mà không ai nói cho biết phải đăng nhập lại.
+
+    Phải giả lập người dùng ĐANG chọn gói ChatGPT: engines_snapshot() cố ý chỉ trả đèn của
+    bộ não đang được giao việc (xem engines_in_use), nếu không thì máy chạy OpenRouter vẫn
+    bị nagging 'bộ não claude mất đăng nhập'. Không đặt provider thì mặc định là claude, và
+    đèn codex vừa bật đã bị lọc mất - test cũ thiếu đúng chỗ này nên đỏ, mà nó chưa từng
+    chạy trong CI (thiếu block __main__) nên không ai biết.
     """
+    monkeypatch.setattr(connect_health, "engines_in_use", lambda: {"codex"})
     for raw in (
         "Codex: Your access token could not be refreshed because your refresh token "
         "was already used. Please log out and sign in again.",
@@ -263,3 +270,17 @@ def test_probe_mac_doc_keychain_khong_bao_do_oan(tmp_path, monkeypatch):
                         lambda: ({"claudeAiOauth": {"expiresAt": 1000}}, True))
     ok, msg = connect_health.probe_claude_credentials(missing)
     assert ok is False and "hết hạn" in msg
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa từng
+    # chạy một assertion nào. Bảy file từng ở tình trạng đó, và bốn assertion trong số
+    # chúng đang ĐỎ mà không ai biết (xem CHANGELOG 0.13.2).
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

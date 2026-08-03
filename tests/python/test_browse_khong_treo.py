@@ -130,3 +130,17 @@ def test_browse_bao_loi_gon_khi_path_sai():
 
 def test_browse_van_la_async():
     assert inspect.iscoroutinefunction(main.browse)
+
+
+if __name__ == "__main__":
+    # CI chạy TỪNG FILE như script (`python tests/python/test_x.py`), không gọi pytest.
+    # Thiếu block này thì file chỉ định nghĩa hàm rồi thoát 0 - test "xanh" mà chưa từng
+    # chạy một assertion nào. Bảy file từng ở tình trạng đó, và bốn assertion trong số
+    # chúng đang ĐỎ mà không ai biết (xem CHANGELOG 0.13.2).
+    import sys
+    try:
+        import pytest
+    except ImportError:
+        print("bỏ qua: chưa cài pytest")
+        sys.exit(0)
+    sys.exit(pytest.main([__file__, "-q"]))

@@ -11,6 +11,11 @@ import math
 import asyncio
 import glob
 import hashlib
+# `sys` phải nằm ở ĐẦU file: rải rác trong file có chỗ `import sys` cục bộ, nhưng cũng có chỗ
+# dùng sys.stderr mà quên import - và vì chúng nằm trong nhánh `except` (đường ghi log lỗi),
+# chúng chỉ nổ đúng lúc đã có sự cố khác, biến một lỗi lẽ ra chỉ cần ghi log thành NameError
+# phá cả luồng. Import một lần ở đây thì mọi chỗ dùng đều an toàn.
+import sys
 import uuid
 from pathlib import Path
 import re
@@ -6882,7 +6887,14 @@ async def websocket_endpoint(ws: WebSocket):
                     _codex_prompt = (_codex_current if stored_codex_thread else
                                      compaction.codex_bootstrap_prompt(_codex_raw, _codex_current))
                     async def _consume_codex(prompt, suppress_resume_error=False):
-                        nonlocal final_text
+                        # _ctx_in PHẢI khai nonlocal: nó bị `+=` ngay dưới, mà thiếu dòng này
+                        # thì Python coi nó là biến CỤC BỘ của hàm con - đọc trước khi gán là
+                        # UnboundLocalError, ném đúng lúc Codex trả lời xong. Hậu quả không chỉ
+                        # là mất dòng đếm token: cả lượt chat vỡ, câu trả lời đã stream ra không
+                        # được lưu, người dùng chỉ thấy "Lỗi xử lý". Đây là hàm con DUY NHẤT
+                        # đụng vào _ctx_in; hai nhánh engine kia cộng thẳng trong _do_turn nên
+                        # không dính.
+                        nonlocal final_text, _ctx_in
                         resume_failed = False
                         # Đo theo từng invocation thật: nhánh khôi phục thread có thể gọi lần hai.
                         _CONTEXT_RUNTIME.observe_payload(

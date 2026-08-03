@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.13.2] - 2026-08-03
+Bật gói ChatGPT là lượt chat nào cũng chết. Sửa lỗi đó, và dọn ba chỗ hỏng cùng họ mà CI không có cách nào nhìn thấy.
+### Sửa lỗi
+- **Chat qua gói ChatGPT (Codex) lượt nào cũng hỏng: `UnboundLocalError: cannot access local variable '_ctx_in'`.** Bộ đếm token thêm ở 0.13.0 cộng dồn ở ba nhánh bộ não; hai nhánh cộng ngay trong thân hàm nên chạy tốt, riêng nhánh Codex cộng bên trong một hàm con mà quên khai `nonlocal`. Python liền coi đó là biến cục bộ của hàm con, và `+=` đọc phải một biến chưa hề được gán. Nó nổ đúng vào khoảnh khắc Codex trả lời xong, nên hậu quả không chỉ là mất dòng đếm token: cả lượt vỡ, câu trả lời đã hiện trên màn hình không được lưu vào lịch sử, người dùng chỉ còn thấy "Lỗi xử lý". Mọi lượt chat của người dùng gói ChatGPT đều dính từ 0.13.0.
+- **Đường đẩy kết quả việc nền về khung chat web có sẵn một NameError nằm phục.** `push_to_chat` ghi log lỗi bằng `sys.stderr` trong khi `main.py` chưa từng import `sys`. Vì nó nằm trong nhánh `except`, nó chỉ nổ khi đã có sự cố khác, và biến chuyện "ghi log rồi chạy tiếp" thành vỡ luôn cả đường báo kết quả. Đây đúng là đường mà việc Kanban, loop và nhắc hẹn dùng để trả kết quả về khung chat.
+- **Nút "Bật People API" ở thẻ Google Lịch không bao giờ hiện ra.** Thẻ nào có wizard từng bước thì khối nút cũ bị ẩn hẳn, mà link People API chỉ nằm ở khối cũ. Người dùng làm đủ các bước vẫn bị `ACCESS_TOKEN_SCOPE_INSUFFICIENT` khi tìm giờ trống, không có cách nào biết còn thiếu gì. Nay People API là một bước riêng, có nút bấm.
+- **Bảy file test chưa từng chạy một dòng nào trong CI.** Chúng viết theo kiểu pytest nhưng thiếu block `__main__`, mà CI thì chạy từng file như script, nên file chỉ định nghĩa hàm rồi thoát 0. Bốn assertion trong số đó đang ĐỎ và không ai biết, gồm cả lỗi nút People API ở trên. Nay cả bảy đều chạy thật.
+### Cải thiện
+- **Test mới `test_luot_chat_codex.py` chạy trọn MỘT lượt chat thật qua nhánh Codex** với WebSocket giả và Codex CLI giả, rồi soi đúng ba thứ lỗi kia phá: không gói lỗi nào, có câu trả lời kèm số token vào, và lượt được lưu vào lịch sử. Gieo lại đúng lỗi cũ thì test đỏ với y nguyên câu "Lỗi xử lý: UnboundLocalError" người dùng nhìn thấy.
+- **Test mới `test_bien_chua_gan.py` canh đúng hai loại lỗi vừa sửa** trên toàn bộ cây mã: hàm con cộng dồn vào biến hàm cha mà quên `nonlocal`, và hàm dùng một tên toàn cục không tồn tại. Byte-compile không thấy được hai thứ này vì cú pháp hoàn toàn đúng, còn test kiểu tìm chữ thì càng mù: chúng vẫn đếm đủ số lần `_ctx_in +=` trong khi lỗi đang xảy ra. Bộ quét tự kiểm bằng cách dựng lại đúng hai đoạn mã hỏng và bắt mình phải kêu.
+- Dòng giới thiệu gói Google Workspace và bước đầu của nó ngắn lại cho vừa một dòng menu, không cắt mất ý nào.
+
 ## [0.13.1] - 2026-08-03
 Đặt lại tên các chế độ theo hướng nói đúng nó làm gì, thay vì nó cũ hay mới.
 ### Cải thiện
