@@ -47,7 +47,36 @@ check("có đường cho mượn panel Vault", /window\.JavisVaultPanel\s*=\s*\{
 check("mượn thì nhớ đúng chỗ cũ để trả",
   /_vaultSlot = \{ node: n, parent: n\.parentNode, next: n\.nextSibling \}/.test(CON));
 check("CANARY: rời trang Trò chuyện thì trả panel Vault về",
-  /function _returnChatNodes\(\)[\s\S]{0,400}_returnVaultPanel\(\)/.test(CON));
+  /function _returnChatNodes\(\)[\s\S]{0,700}_returnVaultPanel\(\)/.test(CON));
+
+// ============================================================
+// 2b. Mở file từ tab Thư mục: trình sửa CHIẾM CHỖ khung chat
+// ============================================================
+// Ở màn chính trình sửa là lớp nổi đè lên visual não - chỗ đó rỗng nên đè là hợp lý. Ở trang
+// Trò chuyện thì bên dưới là khung chat đang có nội dung, đè lên vừa chật vừa rối. Yêu cầu:
+// mở file thì khung chat biến mất hẳn, chỉ còn trình sửa.
+check("có chỗ đứng riêng cho trình sửa trong trang Trò chuyện", /id="chatPageEdit"/.test(CON));
+check("mở file khi đang ở trang Trò chuyện thì trình sửa dọn sang đó",
+  /document\.body\.classList\.contains\("on-chat"\)\) _borrowNoteEditor\(\)/.test(CON));
+check("CANARY: đóng trình sửa thì trả chỗ lại cho khung chat",
+  /function closeNote\(\)[\s\S]{0,400}_returnNoteEditor\(\)/.test(CON));
+// Rời trang mà không trả thì node trình sửa bị xoá theo khung, và mở file ở màn chính sau đó
+// sẽ trắng trơn - hỏng ở MỘT NƠI KHÁC hẳn nơi gây ra, kiểu khó lần nhất.
+check("CANARY: rời trang Trò chuyện cũng trả trình sửa về",
+  /function _returnChatNodes\(\)[\s\S]{0,700}_returnNoteEditor\(\)/.test(CON));
+check("trình sửa mượn chính #noteEditor, không dựng bản thứ hai",
+  /_borrowNoteEditor[\s\S]{0,300}getElementById\("noteEditor"\)/.test(CON));
+check("nhớ đúng chỗ cũ của trình sửa để trả",
+  /_neSlot = \{ node: ed, parent: ed\.parentNode, next: ed\.nextSibling \}/.test(CON));
+check("khung chat bị ẩn khi trình sửa đang chiếm chỗ",
+  /\.chatpage-main\.edit-on > \.chatpage-slot\{ display:none/.test(CON));
+// Ẩn bằng display:none chứ không xoá: đóng trình sửa ra phải còn nguyên đoạn chat đang dở.
+check("CANARY: khung chat chỉ bị ẩn chứ không bị dựng lại",
+  !/edit-on[\s\S]{0,200}innerHTML\s*=\s*""/.test(CON));
+// Nút phóng to trình sửa (.ne-full) phải còn tác dụng: hai selector cùng độ ưu tiên, khối CSS
+// của trang chat nạp sau nên sẽ THẮNG và vô hiệu hoá nút đó nếu quên :not().
+check("CANARY: không vô hiệu hoá nút phóng to trình sửa",
+  /\.chatpage-edit > \.note-editor:not\(\.ne-full\)/.test(CON));
 
 // ============================================================
 // 3. Nút "Vị trí" ở kết quả tìm kiếm

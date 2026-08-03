@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.15.2] - 2026-08-03
+Mở file từ tab Thư mục thì trình sửa CHIẾM CHỖ khung chat, không đè lên nó.
+### Thêm mới
+- **Bấm một file trong tab Thư mục là mở thẳng trình sửa markdown, y như ở màn chính** - nhưng ở trang Trò chuyện thì khung chat bên dưới biến mất hẳn, chỉ còn trình sửa. Ở màn chính, trình sửa là lớp nổi đè lên visual não, chỗ đó rỗng nên đè là hợp lý; còn ở trang Trò chuyện thì phía dưới là đoạn chat đang có nội dung, đè lên vừa chật vừa rối.
+
+  Đóng trình sửa (nút đóng hoặc phím Esc) là khung chat hiện lại nguyên vẹn, còn đủ đoạn đang nói dở - nó chỉ bị ẩn chứ không bị dựng lại.
+- Vẫn dùng **chính trình sửa của màn chính**, không dựng bản thứ hai. Nên mọi thứ nó vốn có đi theo: xem/sửa markdown, Ctrl+S để lưu, đổi tên, tải về, nút phóng to, và file đang mở tự được ghim làm đầu vào của cuộc trò chuyện.
+
 ## [0.15.1] - 2026-08-03
 Tab Thư mục dùng ĐÚNG cây Vault sẵn có, thay vì cây thứ hai tự dựng ở bản trước.
 ### Sửa lỗi

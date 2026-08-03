@@ -4548,6 +4548,17 @@
     .cp-side-toggle{ display:none; }
     .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
+    /* Mở file từ tab Thư mục: trình sửa CHIẾM CHỖ khung chat, không đè lên nó. Khung chat chỉ
+       bị display:none - node vẫn nguyên nên đóng trình sửa ra là còn đủ đoạn chat đang dở. */
+    .chatpage-edit{ display:none; position:relative; flex:1 1 auto; min-height:0; }
+    .chatpage-main.edit-on > .chatpage-slot{ display:none; }
+    .chatpage-main.edit-on > .chatpage-edit{ display:flex; }
+    /* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của
+       cột chat, nên gỡ inset/z-index đi kẻo nó bung ra ngoài khung. TRỪ khi đang phóng to
+       (.ne-full) - lúc đó nó cố ý phủ kín màn hình, và :not() giữ cho khối CSS này không
+       vô hiệu hoá nút phóng to (hai selector cùng độ ưu tiên, khối này nạp sau nên thắng). */
+    .chatpage-edit > .note-editor:not(.ne-full){ position:static; inset:auto; z-index:auto;
+      flex:1 1 auto; min-height:0; border-radius:12px; }
     .chatpage-slot > *{ width:100%; max-width:900px; margin-left:auto; margin-right:auto; }
     .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; background:transparent; }
     /* Khung nhập giữ NGUYÊN bộ mặt của thanh nhập ở màn Javis (--bg2 + bo 18px). Trước đây
@@ -4589,6 +4600,32 @@
   // Đúng - cây Vault đã có sẵn tìm theo tên/nội dung, tạo file, tạo thư mục, làm mới, tô sáng
   // file đang mở. Dựng bản thứ hai là chép lại từng đó thứ rồi để hai bản trôi lệch nhau.
   // Mượn node y như cách trang này vẫn mượn #chatArea: cùng một cây, chỉ đổi chỗ đứng.
+  // ===== Trình sửa file CHIẾM CHỖ khung chat khi mở file từ tab Thư mục =====
+  // Ở màn chính, trình sửa là lớp nổi đè lên visual não - chỗ đó rỗng nên đè là hợp lý. Ở
+  // trang Trò chuyện thì phía dưới là khung chat đang có nội dung; đè lên nó vừa chật vừa
+  // rối. Yêu cầu của chủ repo: mở file thì khung chat biến mất hẳn, chỉ còn trình sửa.
+  // Vẫn MƯỢN chính #noteEditor chứ không dựng trình sửa thứ hai - cùng lý do với cây Vault.
+  let _neSlot = null;
+  function _borrowNoteEditor() {
+    const ed = document.getElementById("noteEditor");
+    const into = document.getElementById("chatPageEdit");
+    if (!ed || !into) return false;
+    if (!_neSlot) _neSlot = { node: ed, parent: ed.parentNode, next: ed.nextSibling };
+    into.appendChild(ed);
+    const main = into.parentNode;
+    if (main && main.classList) main.classList.add("edit-on");
+    return true;
+  }
+  function _returnNoteEditor() {
+    const s = _neSlot; if (!s || !s.parent) return;
+    const into = document.getElementById("chatPageEdit");
+    const main = into && into.parentNode;
+    if (main && main.classList) main.classList.remove("edit-on");
+    if (s.next && s.next.parentNode === s.parent) s.parent.insertBefore(s.node, s.next);
+    else s.parent.appendChild(s.node);
+    _neSlot = null;
+  }
+
   let _vaultSlot = null;
   function _borrowVaultPanel(into) {
     const n = document.querySelector(".hud-left");
@@ -4612,7 +4649,9 @@
   function _returnChatNodes() {
     if (_chatEngObs) { try { _chatEngObs.disconnect(); } catch (e) {} _chatEngObs = null; }
     // Rời trang Trò chuyện thì trả cây Vault về cột trái màn chính, nếu không màn chính mất
-    // hẳn panel Vault và người dùng tưởng app hỏng.
+    // hẳn panel Vault và người dùng tưởng app hỏng. Trình sửa cũng vậy - nó đang nằm trong
+    // khung sắp bị xoá, không trả về là mất luôn node và mở file ở màn chính sẽ trắng trơn.
+    _returnNoteEditor();
     _returnVaultPanel();
     for (let i = _chatSlots.length - 1; i >= 0; i--) {
       const s = _chatSlots[i];
@@ -4645,6 +4684,8 @@
             '<span class="cp-engine" id="cpEngine"></span>' +
           '</div>' +
           '<div class="chatpage-slot" id="chatPageSlot"></div>' +
+          // Chỗ đứng cho TRÌNH SỬA khi mở file từ tab Thư mục. Rỗng và ẩn cho tới lúc đó.
+          '<div class="chatpage-edit" id="chatPageEdit"></div>' +
         '</div>' +
       '</div>';
     const page = el.querySelector("#chatPage");
@@ -5013,6 +5054,9 @@
   function closeNote() {
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     ed.hidden = true; ed.classList.remove("ne-full");
+    // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
+    // vẫn bị ẩn và người dùng nhìn vào một trang trống, tưởng chat hỏng.
+    _returnNoteEditor();
     document.getElementById("neBody").innerHTML = ""; document.getElementById("neActions").innerHTML = "";
     _neSaveFn = null;
     document.removeEventListener("keydown", _neKeyHandler, true);
@@ -5157,6 +5201,9 @@
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     it = it || {}; const ext = (it.ext || "").toLowerCase();
     ed.hidden = false; ed.classList.remove("ne-full");
+    // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
+    // (thứ không hề hiện ở trang này).
+    if (document.body.classList.contains("on-chat")) _borrowNoteEditor();
     document.removeEventListener("keydown", _neKeyHandler, true);
     document.addEventListener("keydown", _neKeyHandler, true);
     try { if (window.__javisGraph && window.__javisGraph.pause) window.__javisGraph.pause(); } catch (e) {}
