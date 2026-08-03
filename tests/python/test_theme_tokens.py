@@ -51,12 +51,13 @@ check("khung nhập ở tab Trò chuyện dùng đúng nền của thanh nhập 
 check("khung nhập ở tab Trò chuyện bo góc bằng bản gốc (18px)",
       re.search(r"\.chatpage-slot \.hud-voice\{[^}]*border-radius:18px", CP_CSS) is not None)
 
-# Ba chỗ đặt chat phải cùng một bộ mặt, nếu không lật tông là thấy ngay chỗ vênh.
+# HAI chỗ đặt chat phải cùng một bộ mặt, nếu không lật tông là thấy ngay chỗ vênh.
+# (Trước 0.12.4 có ba: cockpit, tab Trò chuyện, và lớp nổi "phóng to". Lớp nổi đã bỏ - phóng
+# to nay là chuyển hẳn sang tab Trò chuyện, xem tests/js/test_chat_zoom_sang_trang.js.)
 check("thanh nhập gốc ở cockpit vẫn là --bg2 + bo 18px",
       re.search(r"\.hud-voice \{[^}]*border-radius: 18px;[^}]*background: var\(--bg2\)", STYLE) is not None)
-check("lớp phóng to chat dùng chung bộ mặt đó",
-      ".chat-stage-body .hud-voice { background: var(--bg2);" in STYLE
-      and re.search(r"\.chat-stage-body \.hud-voice \{[^}]*border-radius: 18px", STYLE) is not None)
+check("không còn bộ mặt thứ ba đi lạc (lớp nổi đã bỏ)",
+      ".chat-stage-body" not in STYLE)
 
 
 # --- 2. Nút: style inline không được chặn hiệu ứng hover ----------------------

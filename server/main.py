@@ -329,8 +329,12 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
         # Mirror skills/ → .claude/skills để fork Claude cwd=brain (workflow/loop/learn/lint) nạp
         # native được skill viết giữa phiên (rẻ: cổng chữ ký stat-only bỏ qua nếu cây nguồn
         # không đổi, xem system_sync._mirror_signature - KHÔNG còn so hash nội dung nữa).
-        if include_skills:
-            system_sync.mirror_skills(root)
+        #
+        # KHÔNG gắn với include_skills. Cờ đó chỉ nói "có chèn khối ROUTER SKILL vào prompt hay
+        # không" - một chuyện về CHỮ. Còn mirror là một tác dụng phụ lên ĐĨA mà Claude Code và
+        # Codex dựa vào để tự tìm skill. Gộp hai chuyện làm một thì bật tiết kiệm token cho
+        # Claude Code là vô hiệu hoá luôn skill native của nó, mà lỗi đó im lặng hoàn toàn.
+        system_sync.mirror_skills(root)
     except Exception:
         pass
     ag, wf = _agents_dir(brain), _workflows_dir(brain)
@@ -351,8 +355,12 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # gọi list_skills còn _skill_router_block gọi list_enabled_meta (vốn chỉ là list_skills
     # lọc lại), nên cả cây skill bị đi và parse YAML HAI lần mỗi lượt chat - đo được 18ms
     # mỗi lần trên brain 30 skill. Lỗi thì để None và mỗi khối tự quét như cũ.
+    # Quét LUÔN, kể cả khi bỏ khối router. Khối "NĂNG LỰC JAVIS HIỆN CÓ" chỉ ĐẾM skill và
+    # liệt kê tên nhóm (vài chục ký tự), nên nó không phải chỗ tốn token; nhưng đưa cho nó một
+    # danh sách rỗng thì Javis sẽ tự khai là mình không có skill nào - một câu SAI, và sai theo
+    # hướng khiến nó đi tạo lại thứ đã có.
     try:
-        _skills = skill_router.list_skills(root) if include_skills else []
+        _skills = skill_router.list_skills(root)
     except Exception:
         _skills = None
     try:
@@ -6785,6 +6793,48 @@ async def websocket_endpoint(ws: WebSocket):
                     )
                 return sysprompt
 
+            async def _subscription_system_prompt(route_provider, route_model, route_kind):
+                """System prompt cho engine chạy bằng GÓI THUÊ BAO (Claude Code, Codex).
+
+                Cùng bộ máy Phase 8 với engine API, nhưng khác một điểm CỐ Ý: nền vẫn là
+                `build_system_prompt` (giữ nguyên CLAUDE.md) chứ không phải
+                `build_adaptive_source_prompt` (bỏ CLAUDE.md).
+
+                Vì sao khác: bỏ CLAUDE.md đổi lấy token là món hời khi bị siết TPM và mỗi
+                token đều tính tiền. Với gói thuê bao thì không tính tiền theo token, mà
+                CLAUDE.md lại chính là 21.500 ký tự luật hành xử của Javis - vứt nó đi để
+                tiết kiệm thứ mình không bị tính là đổi hành vi lấy một khoản không cần.
+                Nên ở đây chỉ chọn lọc hai nguồn ĐỌC THÊM: bộ nhớ và skill.
+
+                Trả về (prompt, plan). plan=None nghĩa là Phase 8 không chạy được lượt này.
+                """
+                def _base(include_memory: bool, include_skills: bool) -> str:
+                    return build_system_prompt(
+                        brain, include_memory=include_memory, include_skills=include_skills
+                    ) + channel_context.build_channel_block(
+                        "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
+                        port=_javis_port(), brain_root=_brain_root(brain),
+                    )
+
+                try:
+                    plan = await asyncio.to_thread(
+                        _get_adaptive_context().prepare,
+                        runtime_trace, user_message, _brain_root(brain), conv_sid,
+                        store.get_messages(conv_sid), "dashboard", route_provider,
+                        route_model, route_kind, _base,
+                    )
+                except Exception as _exc:   # noqa: BLE001 - không được phá lượt chat
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "context_sources.subscription_error",
+                        {"error_type": type(_exc).__name__, "provider_kind": route_kind})
+                    return _legacy_system_prompt(), None
+                # "reject" không tới được đây: với engine thuê bao, prepare() đã đổi nhánh
+                # vượt ngân sách thành legacy (subscription_soft_over_budget) vì con số đó là
+                # trần ta tự khai, không phải hạn mức nhà cung cấp nói ra.
+                if plan.action == "use" and plan.system_prompt:
+                    return plan.system_prompt, plan
+                return _legacy_system_prompt(), plan
+
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)
             if _schedule_action:
@@ -6801,8 +6851,8 @@ async def websocket_endpoint(ws: WebSocket):
                 }))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
-                sysprompt = _legacy_system_prompt()
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
+                sysprompt, _sub_plan = await _subscription_system_prompt("codex", actual_model, kind)
                 if api_model and actual_model != api_model:
                     # Tự chữa: model đã lưu không hợp lệ cho Codex → ghi lại model đúng (converge sau 1 lượt)
                     try:
@@ -6861,7 +6911,14 @@ async def websocket_endpoint(ws: WebSocket):
                                     resume_failed = True
                                     if suppress_resume_error:
                                         continue
-                                await ws.send_text(json.dumps({"type": "error", "content": ev["content"]}))
+                                _noi = _subscription_limit_message(ev.get("content") or "", "codex")
+                                if _noi:
+                                    _CONTEXT_RUNTIME.record_runtime_event(
+                                        runtime_trace, "subscription.limit_reached",
+                                        {"engine": "codex", "model": actual_model})
+                                    final_text = final_text or _noi
+                                await ws.send_text(json.dumps({
+                                    "type": "error", "content": _noi or ev["content"]}))
                         return resume_failed
 
                     _resume_failed = await _consume_codex(
@@ -7159,9 +7216,10 @@ async def websocket_endpoint(ws: WebSocket):
                         }))
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
-                sysprompt = _legacy_system_prompt()
-                cli.system_prompt = sysprompt
                 cli.model = api_model or mcfg.get("claude_model") or None   # alias opus/sonnet/haiku/fable
+                sysprompt, _sub_plan = await _subscription_system_prompt(
+                    "cli", cli.model or mcfg.get("claude_model") or "mặc định", kind)
+                cli.system_prompt = sysprompt
                 _apply_mcp(cli, brain=brain)   # gắn MCP do Javis quản lý (nhiều shop POSCake...)
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
@@ -7193,7 +7251,18 @@ async def websocket_endpoint(ws: WebSocket):
                         _CONTEXT_RUNTIME.record_usage(
                             runtime_trace, event.get("tokens_in", 0), event.get("tokens_out", 0))
                     elif etype == "error":
-                        await ws.send_text(json.dumps({"type": "error", "content": event["content"]}))
+                        # Hết lượt gói Claude thì Claude Code in nguyên văn câu tiếng Anh (có khi
+                        # là dạng máy "…reached|<epoch>"). Dịch sang câu nói được TRƯỚC khi đẩy
+                        # ra khung chat, và giữ lại làm final_text để lượt này còn lưu được.
+                        _noi = _subscription_limit_message(event.get("content") or "", "claude-code")
+                        if _noi:
+                            _CONTEXT_RUNTIME.record_runtime_event(
+                                runtime_trace, "subscription.limit_reached",
+                                {"engine": "claude-code",
+                                 "model": cli.model or mcfg.get("claude_model") or "mặc định"})
+                            final_text = final_text or _noi
+                        await ws.send_text(json.dumps({
+                            "type": "error", "content": _noi or event["content"]}))
                 # Khung `response` PHẢI nằm NGOÀI vòng lặp. Trước đây nó nằm trong nhánh
                 # `final`, nên luồng đứt trước khi có `final` (engine chết, mạng rớt) là client
                 # không nhận `response` nào cả và bong bóng chat treo mãi - trong khi phần chữ
@@ -7375,7 +7444,48 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             # vì bắt người dùng tự hiểu 10 đường canary và đơn vị basis point.
             "preset": current_preset(settings),
             "presets": [{"id": k, **{x: v[x] for x in ("nhan", "mo_ta")}}
-                        for k, v in RUNTIME_PRESETS.items()]}
+                        for k, v in RUNTIME_PRESETS.items()],
+            # Bộ não đang chạy có ăn được phần tiết kiệm này không. Câu hỏi đầu tiên của
+            # người dùng khi mở trang, mà trước đây trang không trả lời được: bảng canary
+            # chỉ hiện allocation, còn việc engine của họ có nằm trong provider_kinds hay
+            # không thì phải SSH đọc settings.json mới biết.
+            "engine_hien_tai": _engine_runtime_view(settings)}
+
+
+def _engine_runtime_view(settings: dict) -> dict:
+    """Bộ não đang dùng ăn được những đường tiết kiệm nào. Cho trang Tiết kiệm token.
+
+    Mọi lỗi nuốt về một khối "chưa biết": đây là phần THÔNG TIN của trang chẩn đoán, không
+    được phép làm chính trang chẩn đoán sập."""
+    try:
+        prov, kind, _key, model = _chat_provider(cfgmod.read_settings().get("model", {}) or {})
+        label = (_provider_def(prov) or {}).get("label") or prov
+        thue_bao = kind in ("cli", "oauth")
+        hop, khong = [], []
+        for name, value in (settings or {}).items():
+            if not (isinstance(value, dict) and "allocation_basis_points" in value):
+                continue
+            if int(value.get("allocation_basis_points") or 0) <= 0:
+                continue
+            kinds = [str(x) for x in (value.get("provider_kinds") or ["api"])]
+            (hop if kind in kinds else khong).append(name)
+        if not (hop or khong):
+            giai_thich = "Chưa bật mảng nào, nên mọi lượt vẫn đi đường cũ. Chọn một mức ở trên."
+        elif hop:
+            giai_thich = (f"{label} đang ăn được {len(hop)} mảng tiết kiệm."
+                          + (f" {len(khong)} mảng khác không áp cho loại bộ não này."
+                             if khong else ""))
+        else:
+            giai_thich = (f"Đã bật {len(khong)} mảng nhưng không mảng nào áp cho {label}, "
+                          "nên thực tế chưa tiết kiệm được gì.")
+        return {"provider": prov, "nhan": label, "kind": kind, "model": model or "",
+                "loai": "Gói thuê bao" if thue_bao else "API key",
+                "duong_hop": sorted(hop), "duong_khong_hop": sorted(khong),
+                "giai_thich": giai_thich}
+    except Exception:   # noqa: BLE001 - xem docstring
+        return {"provider": "", "nhan": "", "kind": "", "model": "", "loai": "",
+                "duong_hop": [], "duong_khong_hop": [],
+                "giai_thich": "Chưa đọc được cấu hình bộ não."}
 
 
 def _shrink_messages(messages: list, target_tokens: int) -> list:
@@ -7427,6 +7537,44 @@ def _limit_autoshrink_message(provider: str, model: str, hit: dict) -> str:
             f"{provider} báo request quá lớn. ")
     return (head + "Javis đã tự rút gọn ngữ cảnh và thử lại một lần nhưng vẫn không vừa. "
             + model_limits.blocked_hint(provider, model, requested or limit, ()))
+
+
+def _configured_api_providers() -> tuple:
+    """Provider API mà người dùng ĐÃ cắm khoá - để gợi ý đường lui CÓ THẬT.
+
+    Chỉ đọc SỰ TỒN TẠI của khoá, không đọc giá trị. Đây là phần phụ của một câu báo lỗi nên
+    mọi trục trặc đều nuốt về rỗng: gợi ý sai còn đỡ hơn làm hỏng chính câu báo lỗi."""
+    try:
+        mcfg = (cfgmod.read_settings() or {}).get("model") or {}
+    except Exception:   # noqa: BLE001 - xem docstring
+        return ()
+    out = []
+    for pdef in PROVIDER_DEFS:
+        field = pdef.get("key_field")
+        if field and str(mcfg.get(field) or "").strip():
+            out.append(pdef["label"])
+    return tuple(out)
+
+
+def _subscription_limit_message(raw: str, engine_hint: str) -> str:
+    """Đổi lỗi thô "gói thuê bao hết lượt" thành câu người dùng hiểu. "" nếu không phải.
+
+    Vì sao cần: Claude Code và Codex in ra nguyên văn câu tiếng Anh của nhà cung cấp, có khi
+    còn là dạng máy đọc ("Claude AI usage limit reached|1730000000"). Đẩy thẳng chuỗi đó ra
+    khung chat là người dùng thấy một lỗi lạ mà không biết phải làm gì - đúng cái kiểu hỏng
+    mà dải đỏ "mở terminal gõ /login" từng mắc.
+
+    Ranh giới: KHÔNG tự đổi engine hộ. Chuyển sang một bộ não khác là tiêu hạn mức của một
+    tài khoản khác, có khi mất tiền thật - đó là quyết định của người dùng. Việc của câu này
+    là nói rõ hết lượt tới bao giờ và bộ não nào đang sẵn sàng.
+    """
+    try:
+        hit = limit_learner.parse_subscription_limit(raw, engine_hint=engine_hint)
+        if not hit:
+            return ""
+        return model_limits.subscription_blocked_hint(hit, _configured_api_providers())
+    except Exception:   # noqa: BLE001 - không được để câu báo lỗi tự nó nổ
+        return ""
 
 
 def _canary_keys() -> set:
@@ -7509,6 +7657,19 @@ def canary_set_decision(path: str, allocation_basis_points, entry: dict, allow_i
 
 _RUNTIME_MODES = ("off", "observe", "shadow", "canary", "on")
 
+# Đường canary nào ĐỌC hạn mức ở chỗ nào. Mặc định là đọc của chính mình; ba đường Phase 8 thì
+# không có `quota_profiles` riêng mà đọc ké `context_sources` (xem AdaptiveContextCanary._quota).
+#
+# Vì sao phải viết ra thành bảng: vòng khai hạn mức của /runtime/preset duyệt theo TÊN ĐƯỜNG và
+# bỏ qua đường nào không có sẵn khoá `quota_profiles` - tức là bỏ qua đúng ba đường Phase 8. Kết
+# quả: bấm mức "Tiết kiệm" thì allocation lên 10000, mode sang canary, mà _quota() vẫn trả None
+# nên MỌI lượt rơi về legacy. Knob xoay, đèn không sáng - đúng lỗi người dùng đã báo.
+QUOTA_OWNER_OF = {
+    "conversation_state_canary": "context_sources",
+    "memory_canary": "context_sources",
+    "lazy_skill_canary": "context_sources",
+}
+
 # Ba MỨC tiết kiệm token, thay cho việc bắt người dùng tự hiểu 10 đường canary và đơn vị
 # basis point. Người dùng chỉ cần biết "tiết kiệm ít hay nhiều", còn bên dưới bật đường nào
 # là việc của Javis.
@@ -7586,16 +7747,21 @@ async def runtime_preset_set(level: str = Form(...)):
     # này thì bấm một mức sẽ bật một đường fail-closed: knob xoay được, đèn không sáng - đúng
     # cái người dùng đã phàn nàn là "ấn vào đặt thì không có gì diễn ra".
     canh_bao = []
-    prov, _kind, _key, model = _chat_provider(cfg.get("model", {}) or {})
+    prov, kind_hien_tai, _key, model = _chat_provider(cfg.get("model", {}) or {})
     goi_y = [model_limits.as_quota_profile(x)
              for x in model_limits.suggest_profiles(prov, model or "")]
-    for name in preset["duong"]:
+    for name in sorted({QUOTA_OWNER_OF.get(n, n) for n in preset["duong"]}):
         entry = dict(runtime_cfg.get(name) or {})
         if "quota_profiles" not in entry or entry.get("quota_profiles"):
             continue
         if goi_y:
             entry["quota_profiles"] = goi_y
             runtime_cfg[name] = entry
+        elif kind_hien_tai in ("cli", "oauth"):
+            # Gói thuê bao không có hạn mức token để khai, và cũng không cần: Phase 8 dùng
+            # trần ngữ cảnh ở context_runtime.subscription_context. Cảnh báo ở đây là cảnh
+            # báo oan, sẽ dạy người dùng bỏ qua mọi cảnh báo khác.
+            pass
         else:
             canh_bao.append(
                 f"'{name}' cần hạn mức mà chưa có bộ gợi ý cho provider '{prov}'. "

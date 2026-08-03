@@ -763,6 +763,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-size: 13px; line-height: 1.6; background: var(--surface-2); }
 .rt-help b { display: block; margin-bottom: 6px; font-size: 13.5px; }
 .rt-help p { margin: 8px 0 0; color: var(--text2); }
+/* Bộ não đang dùng: câu hỏi đầu tiên khi mở trang là "cái này có áp cho gói của tôi không". */
+.rt-engine { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.rt-engine b { font-size: 15px; }
+.rt-eng-model { font-size: 12.5px; color: var(--text2); font-family: var(--mono, monospace); }
 /* Ba nút chọn mức tiết kiệm - thay cho bảng 10 dòng canary mà người dùng không hiểu. */
 .rt-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 10px; margin-bottom: 10px; }

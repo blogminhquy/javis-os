@@ -157,6 +157,112 @@ def parse_limit_error(status_code: int, body: str) -> LimitFact | None:
     return None
 
 
+# ============================================================
+# Hạn mức của gói THUÊ BAO (Claude Code, ChatGPT/Codex)
+# ============================================================
+# Vì sao tách hẳn khỏi LimitFact ở trên: hai loại hạn mức này đòi hai cách xử lý ngược nhau.
+#
+#   - Hạn mức API (LimitFact) đếm TOKEN. Vượt thì CO NHỎ prompt là qua được ngay.
+#   - Hạn mức thuê bao đếm LƯỢT DÙNG theo cửa sổ giờ (Claude: 5 tiếng và tuần; ChatGPT:
+#     tương tự). Vượt thì co prompt bao nhiêu cũng vô ích - phải CHỜ tới mốc reset, hoặc
+#     đổi sang bộ não khác.
+#
+# Nhầm hai cái này là Javis sẽ cắt ngữ cảnh của người dùng để giải một bài toán mà cắt không
+# giải được, rồi vẫn lỗi - tệ hơn hẳn việc nói thẳng "gói này hết lượt, tới HH:MM mới lại".
+#
+# Ranh giới trung thực: đây là NHẬN DẠNG CÂU CHỮ do CLI in ra, không phải một API hạn mức.
+# Nhà cung cấp đổi cách viết thì mẫu sẽ trượt, và khi trượt thì Javis phải trả nguyên văn lỗi
+# gốc chứ không được bịa ra một mốc reset. Vì vậy `reset_epoch` = 0 nghĩa là KHÔNG BIẾT, và
+# mọi chỗ hiển thị đều phải xử đúng nghĩa "không biết" thay vì đoán bừa.
+
+
+@dataclass(frozen=True)
+class SubscriptionLimit:
+    """Gói thuê bao đã hết lượt trong cửa sổ hiện tại."""
+    engine: str            # "claude-code" | "codex"
+    source: str            # mẫu nào khớp, để lần lại khi nhận diện sai
+    reset_epoch: float = 0.0   # mốc reset (epoch giây). 0 = nhà cung cấp không nói.
+    reset_text: str = ""       # nguyên văn phần nói về lúc reset, để hiện lại cho người dùng
+    scope: str = ""            # "5 giờ" | "tuần" | "" (không rõ cửa sổ nào)
+
+
+# Claude Code in ra dạng máy đọc được: "Claude AI usage limit reached|1730000000"
+_CLAUDE_EPOCH_RE = re.compile(r"usage\s+limit\s+reached\s*\|\s*(\d{9,})", re.I)
+# Và các dạng chữ. Mỗi mẫu kèm cửa sổ mà nó nói tới (nếu câu đó có nói).
+_SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
+    ("claude_weekly", "claude-code", "tuần",
+     re.compile(r"(weekly|per\s+week)\s+limit\s+reached|reached\s+your\s+weekly\s+limit", re.I)),
+    ("claude_5h", "claude-code", "5 giờ",
+     re.compile(r"\b5[\s-]?hour\s+limit\s+reached", re.I)),
+    ("claude_usage", "claude-code", "",
+     re.compile(r"claude\s+(ai\s+)?(usage|api)?\s*limit\s+reached", re.I)),
+    ("claude_reached", "claude-code", "",
+     re.compile(r"(you'?ve\s+)?reached\s+your\s+(current\s+)?usage\s+limit", re.I)),
+    ("codex_hit", "codex", "",
+     re.compile(r"(you'?ve\s+)?(hit|reached)\s+your\s+(usage|plan|weekly)\s+limit", re.I)),
+    ("codex_quota", "codex", "",
+     re.compile(r"usage\s+limit\s+reached|quota\s+exceeded\s+for\s+your\s+plan", re.I)),
+)
+
+# "resets at 3pm", "resets in 2 hours 15 minutes", "try again in 45 minutes"
+_RESET_TEXT_RE = re.compile(
+    r"(resets?\s+(?:at|in|on)\s+[^.\n|]{1,60}|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
+_RESET_IN_RE = re.compile(
+    r"\b(?:resets?|try\s+again)\s+in\s+"
+    r"(?:(\d+)\s*(?:hours?|hrs?|h|giờ)\s*)?(?:(\d+)\s*(?:minutes?|mins?|m|phút))?", re.I)
+
+
+def _reset_seconds(text: str) -> float:
+    """Còn bao nhiêu giây nữa reset, theo câu "resets in ...". 0 = không đọc được."""
+    m = _RESET_IN_RE.search(text or "")
+    if not m or not (m.group(1) or m.group(2)):
+        return 0.0
+    hours = int(m.group(1) or 0)
+    minutes = int(m.group(2) or 0)
+    return float(hours * 3600 + minutes * 60)
+
+
+def parse_subscription_limit(text: str, engine_hint: str = "",
+                             now: float | None = None) -> SubscriptionLimit | None:
+    """Nhận ra lỗi "gói thuê bao hết lượt". None nghĩa là không phải loại lỗi này.
+
+    engine_hint dùng khi câu chữ không tự nói nó là engine nào (vd Codex chỉ in "usage limit
+    reached"). Không có hint thì để mẫu tự quyết.
+    """
+    raw = str(text or "")
+    if not raw.strip():
+        return None
+    ts = time.time() if now is None else float(now)
+
+    epoch = 0.0
+    m = _CLAUDE_EPOCH_RE.search(raw)
+    if m:
+        try:
+            epoch = float(m.group(1))
+        except (TypeError, ValueError):
+            epoch = 0.0
+
+    for name, engine, scope, pattern in _SUB_PATTERNS:
+        if not pattern.search(raw):
+            continue
+        if epoch <= 0:
+            delta = _reset_seconds(raw)
+            if delta > 0:
+                epoch = ts + delta
+        note = _RESET_TEXT_RE.search(raw)
+        return SubscriptionLimit(
+            engine=(engine_hint or engine), source=name,
+            reset_epoch=epoch if epoch > ts else 0.0,
+            reset_text=(note.group(1).strip() if note else ""),
+            scope=scope,
+        )
+    # Dạng máy đọc được của Claude Code có thể tới mà không kèm câu chữ nào khớp mẫu trên.
+    if epoch > 0:
+        return SubscriptionLimit(engine=(engine_hint or "claude-code"), source="claude_epoch",
+                                 reset_epoch=epoch if epoch > ts else 0.0, scope="")
+    return None
+
+
 _lock = threading.Lock()
 _learned: dict[tuple[str, str], tuple[LimitFact, float]] = {}
 

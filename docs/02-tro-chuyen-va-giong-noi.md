@@ -31,7 +31,7 @@ Rail điều hướng bên trái, nhóm **Trợ lý** → mục **Javis**. Đây
 |---|---|---|
 | VAULT | Cột trái | Cây thư mục của brain đang chọn, ô **Tìm note...**, hai chế độ lọc **Tên** / **Nội dung**, ba nút **＋** (tạo file), **📁** (tạo thư mục), **⟳** (làm mới cây) |
 | Đồ thị tri thức + trạng thái | Chính giữa | Mạng ghi chú, dòng chữ trạng thái (SẴN SÀNG, ĐANG NGHE...), dải số **AGENTS** / **SKILLS** / **WORKFLOWS** ở đáy |
-| HỘI THOẠI | Cột phải | Lịch sử chat, badge engine, nút **⛶** phóng to khung chat |
+| HỘI THOẠI | Cột phải | Lịch sử chat, badge engine, nút **⛶** sang trang Trò chuyện |
 | Thanh model | Ngay trên thanh nhập | Chip chọn model + Effort, dải **HỆ THỐNG** và **MCP** đang dùng |
 | Thanh nhập liệu | Dưới cùng | Nút mic, nút kẹp file, nút loa, ô gõ chữ, nút gửi (đang chạy thì thành nút dừng) |
 
@@ -289,15 +289,13 @@ Các bước:
 
 Mọi lựa chọn giọng, tốc độ, ngôn ngữ nghe đều được ghi nhớ cho lần sau.
 
-## Phóng to khung chat thành không gian làm việc
+## Phóng to khung chat
 
-Khi làm việc lâu trong chat ở màn **Javis**, hãy phóng to nó thành một không gian làm việc thật sự:
+Khi làm việc lâu trong chat ở màn **Javis**, bấm nút **⛶** ở góc mục HỘI THOẠI để sang thẳng trang **Trò chuyện** - khung chat toàn màn hình, cột trái là **lịch sử hội thoại** (mở lại/tìm/đổi tên/xoá phiên cũ - xem [Phiên hội thoại](04-phien-hoi-thoai.md)), cột phải là nội dung chat căn giữa cho dễ đọc, ô nhập cao hơn để gõ dài.
 
-1. Bấm nút **⛶** ở góc mục HỘI THOẠI (gợi ý "Phóng to khung chat (Esc để thu nhỏ)"), hoặc nút **🕘 Lịch sử** ở góc trên phải màn hình. Khung chat mở rộng gần hết màn hình: cột trái là **lịch sử hội thoại** (mở lại/tìm/đổi tên/xoá phiên cũ - xem [Phiên hội thoại](04-phien-hoi-thoai.md)), cột phải là nội dung chat căn giữa cho dễ đọc, ô nhập cao hơn để gõ dài.
-2. Nút **🕘 Lịch sử** ở đầu lớp nổi bật/tắt cột lịch sử. Trên màn rộng, Javis nhớ lựa chọn đó cho lần sau.
-3. Thu nhỏ lại: bấm nút **✕ Thu nhỏ (Esc)** ở đầu lớp nổi, hoặc nhấn phím **Esc**. Trên màn hẹp mà cột lịch sử đang mở thì Esc đóng cột lịch sử trước, nhấn lần nữa mới thu nhỏ chat.
+Về lại màn Javis: bấm nút **‹ Thu nhỏ** trên thanh tiêu đề của trang Trò chuyện.
 
-Thanh model, chip file đính kèm và thanh nhập đi theo vào lớp nổi, nên phóng to xong vẫn đổi model và đính file được như thường.
+Đây vẫn là **một cuộc trò chuyện duy nhất**: chat ở màn Javis hay ở trang Trò chuyện đều là cùng một mạch, cùng một thanh model, cùng chỗ đính file. Từ bản 0.12.4, nút phóng to không còn mở một lớp nổi riêng nữa - trước đây có hai khung chat trông gần giống nhau mà hành xử khác nhau, dễ nhầm.
 
 ## Hỏi số liệu kinh doanh
 
@@ -355,7 +353,7 @@ Phím tắt:
 | **Shift + Enter** | Xuống dòng trong tin nhắn |
 | **Ctrl + V** | Dán ảnh, hoặc dán văn bản dài thành file .txt đính kèm |
 | **/** (đầu ô nhập) | Mở menu lệnh; ↑ ↓ chọn, Enter hoặc Tab chốt |
-| **Esc** | Thoát chế độ rảnh tay + tắt mic; đóng menu lệnh; đóng panel artifact; thu nhỏ khung chat đang phóng to. **Không** dừng câu trả lời |
+| **Esc** | Thoát chế độ rảnh tay + tắt mic; đóng menu lệnh; đóng panel artifact. **Không** dừng câu trả lời |
 
 ## Mẹo
 
@@ -365,7 +363,7 @@ Phím tắt:
 - Nếu bạn quen nói tiếng Anh, đổi "Ngôn ngữ nghe" sang Tiếng Anh để nhận diện chính xác hơn.
 - Dán nguyên một bài dài vào ô chat cứ dán thoải mái: Javis tự biến thành file `.txt` đính kèm, khung chat vẫn gọn.
 - Hỏi lại một câu đã hỏi mà muốn đổi vài chữ: bấm **✎** trên tin cũ, sửa trong ô nhập rồi gửi, khỏi gõ lại từ đầu.
-- Muốn chat toàn màn hình lâu dài thì dùng thẳng trang **Trò chuyện** trong nhóm Trợ lý, khỏi phóng to thu nhỏ mỗi lần.
+- Nút **⛶** trên mục HỘI THOẠI và mục **Trò chuyện** trong nhóm Trợ lý dẫn tới cùng một chỗ, dùng đường nào tiện hơn thì dùng.
 
 ## Sự cố thường gặp
 

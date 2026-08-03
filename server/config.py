@@ -239,7 +239,27 @@ _DEFAULT = {
         # Phase 8 dùng hard quota operator khai báo; không đoán TPM/context theo tên model.
         # Có thể để trống để dùng quota_profiles của Fast Path ở trên.
         "context_sources": {"quota_profiles": []},
+        # NGÂN SÁCH NGỮ CẢNH cho engine chạy bằng GÓI THUÊ BAO (Claude Code, ChatGPT/Codex).
+        #
+        # Vì sao phải có mục riêng: quota_profiles ở trên khai hạn mức THƯƠNG MẠI (token mỗi
+        # phút, giá tiền) - thứ chỉ tài khoản API mới có và mới tra được. Gói thuê bao không
+        # công bố con số nào tương đương, nên đòi khai nó là ép người vận hành bịa số, và
+        # fail-closed sẽ cho mọi lượt Claude Code rơi về đường cũ mãi mãi.
+        #
+        # Ở đây chỉ khai TRẦN NGỮ CẢNH - thứ có thật, tra được, và không dính gì tới tiền.
+        # Nó cho Context Compiler một ngân sách để CHỌN LỌC nguồn, chứ không dùng để chặn
+        # lượt chat: xem AdaptiveContextCanary._quota và nhánh subscription_soft.
+        # 180k là mức thận trọng dưới cửa sổ 200k của các model Claude đang bán.
+        "subscription_context": {
+            "context_window": 180000,
+            "reserved_output_tokens": 8000,
+        },
         # Ba rollout độc lập. Nguồn nào lỗi/thiếu tự tin chỉ nguồn đó quay về cơ chế cũ.
+        #
+        # conversation_state CHỈ chạy trên engine API, cố ý. Claude Code và Codex tự nối lại
+        # mạch hội thoại bằng session/thread của chính chúng (--resume, codex exec resume),
+        # nên nhét thêm một cửa sổ transcript vào system prompt là gửi lịch sử HAI LẦN - vừa
+        # tốn token vừa dễ làm model lẫn thứ tự. Hai nguồn kia không có vấn đề đó.
         "conversation_state_canary": {
             "policy_version": "conversation-state-v1",
             "allocation_basis_points": 0,
@@ -251,14 +271,14 @@ _DEFAULT = {
             "policy_version": "sourced-memory-v1",
             "allocation_basis_points": 0,
             "salt": "sourced-memory-v1",
-            "channels": ["dashboard"], "provider_kinds": ["api"],
+            "channels": ["dashboard"], "provider_kinds": ["api", "cli", "oauth"],
             "max_items": 6, "min_confidence": 0.38,
         },
         "lazy_skill_canary": {
             "policy_version": "lazy-skill-v1",
             "allocation_basis_points": 0,
             "salt": "lazy-skill-v1",
-            "channels": ["dashboard"], "provider_kinds": ["api"],
+            "channels": ["dashboard"], "provider_kinds": ["api", "cli", "oauth"],
             "max_body_chars": 12000,
         },
         # Phase 9: tool WRITE, bật theo TỪNG capability group, không có cờ chung.

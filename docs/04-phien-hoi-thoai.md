@@ -39,17 +39,15 @@ Vì trên Telegram gần như không ai bấm bắt đầu cuộc mới, Javis t
 
 ## Mở ở đâu trong Javis
 
-Có hai chỗ mở được cùng một sidebar lịch sử. Nội dung y hệt nhau, chọn chỗ nào tiện hơn thì dùng.
+Sidebar lịch sử nằm ở trang **Trò chuyện**. Có ba đường vào, đều dẫn tới đúng chỗ đó:
 
-**Cách 1 - trang Trò chuyện (nhóm Trợ lý).** Mở nhóm **Trợ lý** trên rail điều hướng bên trái rồi bấm **Trò chuyện**. Trang này có sẵn hai cột: cột trái là sidebar lịch sử, cột phải là khung chat với tiêu đề "Trò chuyện với Javis". Bấm nút **🕘** trên thanh tiêu đề (chú thích khi rê chuột: "Ẩn/hiện lịch sử") để thu hoặc mở cột trái. Đây là chỗ chính thức trên rail, không cần phóng to gì cả.
+- **Rail điều hướng.** Mở nhóm **Trợ lý** bên trái rồi bấm **Trò chuyện**.
+- **Nút ⛶** trên khung **HỘI THOẠI** ở màn hình chính Javis.
+- **Nút 🕘 Lịch sử** ở hàng nút góc trên bên phải màn hình.
 
-**Cách 2 - chat phóng to (chat workspace).** Từ màn hình chính **Javis**:
+Trang có hai cột: cột trái là **sidebar Lịch sử** gồm nút **＋ Hội thoại mới** trên cùng, ô tìm kiếm, và danh sách các cuộc trò chuyện nhóm theo thời gian (**Hôm nay / Hôm qua / 7 ngày qua / Cũ hơn**); cột phải là khung chat với tiêu đề "Trò chuyện với Javis". Cuộc đang mở được tô sáng trong danh sách để bạn biết mình đang ở đâu.
 
-1. Bấm nút **🕘 Lịch sử** ở hàng nút góc trên bên phải màn hình. Hoặc bấm nút **⛶** trên khung **HỘI THOẠI** để phóng to chat, rồi bấm **🕘 Lịch sử** ở góc trái thanh tiêu đề.
-2. Khung chat mở rộng gần hết màn hình; cột bên trái là **sidebar Lịch sử** gồm: nút **＋ Hội thoại mới** trên cùng, ô tìm kiếm, và danh sách các cuộc trò chuyện nhóm theo thời gian (**Hôm nay / Hôm qua / 7 ngày qua / Cũ hơn**).
-3. Cuộc đang mở được tô sáng trong danh sách để bạn biết mình đang ở đâu.
-
-Ẩn/hiện sidebar ở chế độ phóng to: bấm nút **🕘 Lịch sử** trên thanh tiêu đề (trạng thái được nhớ cho lần sau). Trên màn hình hẹp (dưới ~900px), sidebar tự ẩn và mở dạng ngăn kéo nổi; nhấn **Esc** đóng ngăn kéo trước, nhấn lần nữa mới thu nhỏ chat. Nút thu nhỏ ghi **✕ Thu nhỏ (Esc)**.
+Nút **🕘** trên thanh tiêu đề (chú thích khi rê chuột: "Ẩn/hiện lịch sử") thu hoặc mở cột trái. Nút **‹ Thu nhỏ** đưa về lại màn Javis. Trên màn hình hẹp (dưới 860px), sidebar tự ẩn và mở dạng ngăn kéo nổi; chọn một cuộc là ngăn kéo tự đóng.
 
 ## Cách dùng (từng bước)
 
@@ -141,11 +139,10 @@ Việc nén thường chạy nền sau mỗi lượt nên bạn không thấy ch
 
 | Thao tác | Nút / phím | Vị trí |
 |---|---|---|
-| Mở sidebar lịch sử (chính thức) | Mục `Trò chuyện` | Rail điều hướng, nhóm Trợ lý |
-| Ẩn/hiện sidebar ở trang Trò chuyện | `🕘` | Thanh tiêu đề "Trò chuyện với Javis" |
-| Mở chat phóng to + lịch sử | `🕘 Lịch sử` (góc phải màn hình) hoặc `⛶` | Màn hình Javis, khung HỘI THOẠI |
-| Ẩn/hiện sidebar khi phóng to | `🕘 Lịch sử` | Thanh tiêu đề khung chat phóng to |
-| Thu nhỏ chat | `✕ Thu nhỏ (Esc)` hoặc phím `Esc` | Thanh tiêu đề |
+| Mở trang Trò chuyện (có sidebar lịch sử) | Mục `Trò chuyện` | Rail điều hướng, nhóm Trợ lý |
+| Mở trang Trò chuyện từ màn Javis | `⛶` hoặc `🕘 Lịch sử` | Khung HỘI THOẠI / hàng nút góc trên phải |
+| Ẩn/hiện sidebar | `🕘` | Thanh tiêu đề "Trò chuyện với Javis" |
+| Về lại màn Javis | `‹ Thu nhỏ` | Thanh tiêu đề |
 | Tìm toàn văn | Ô "Tìm trong mọi hội thoại…" | Đầu sidebar |
 | Cuộc mới | `＋ Hội thoại mới` | Đầu sidebar |
 | Mở lại cuộc | Bấm vào dòng | Danh sách (cuộc đang mở được tô sáng) |

@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.12.4] - 2026-08-03
+Phần tiết kiệm token nay dùng được cho **gói Claude và gói ChatGPT**, không chỉ tài khoản API key. Bỏ khung chat phóng to. Sửa nút xoá/đổi tên hội thoại.
+### Thêm mới
+- **Tiết kiệm token cho gói thuê bao.** Trước đây toàn bộ phần chọn lọc ngữ cảnh chỉ chạy trên bộ não dùng API key: Claude Code và ChatGPT/Codex bị loại ngay từ đầu vì hệ thống đòi biết "hạn mức token mỗi phút", thứ gói thuê bao không công bố. Nay hai bộ não đó dùng **trần ngữ cảnh** thay cho hạn mức thương mại, và ăn được hai mảng: **nhớ có chọn lọc** và **skill nạp khi cần**.
+- **Trang Tiết kiệm token có khối "Bộ não đang dùng".** Nói thẳng bộ não hiện tại là loại gì, đang ăn được mấy mảng, mảng nào không áp cho nó và vì sao. Trước đây muốn biết phải đọc file cấu hình trên máy chủ.
+- **Hết lượt gói thuê bao thì nói bằng tiếng Việt.** Claude Code và Codex in nguyên văn câu tiếng Anh, có khi là dạng máy đọc. Nay Javis dịch thành câu nói rõ: hết lượt gói nào, còn bao lâu nữa, bộ não nào đang sẵn sàng chạy tạm. Không tự đổi bộ não hộ - đó là tiêu hạn mức của một tài khoản khác, có khi mất tiền thật.
+### Sửa lỗi
+- **Bấm mức "Tiết kiệm" xong vẫn không có gì đổi.** Hạn mức được khai theo tên từng mảng, trong khi ba mảng chọn lọc ngữ cảnh lại đọc hạn mức ở một chỗ dùng chung. Kết quả: công tắc bật, con số lên, mà mọi lượt vẫn đi đường cũ. Nay khai vào đúng chỗ chúng đọc.
+- **Hover vào một hội thoại thì nút xoá và đổi tên bấm không ăn.** Nút có hiện, bấm vào lại mở hội thoại đó. Vùng bấm thật chỉ còn viền mỏng quanh icon. Nay bấm đâu trong nút cũng ăn.
+- Bật tiết kiệm token cho Claude Code không còn vô tình tắt phần skill native của nó.
+### Cải thiện
+- **Bỏ hẳn khung chat phóng to.** Nút phóng to nay **chuyển thẳng sang trang Trò chuyện**, và trang đó có nút **Thu nhỏ** để về lại màn Javis. Trước đây có hai khung chat trông gần giống nhau mà hành xử khác nhau, và cả hai giành chung một bộ thành phần nên hay sinh lỗi khi chuyển tab.
+
 ## [0.12.3] - 2026-08-02
 Cập nhật thất bại thì nói rõ vì sao và phải làm gì, thay vì bảo đi đọc file log.
 ### Sửa lỗi

@@ -113,6 +113,37 @@ class AdaptiveContextCanary:
         self.settings_reader = settings_reader
 
     @staticmethod
+    def _subscription_quota(settings: dict) -> dict | None:
+        """Ngân sách ngữ cảnh cho engine chạy bằng GÓI THUÊ BAO (Claude Code, Codex).
+
+        Gói thuê bao không công bố hạn mức token-mỗi-phút, nên `_quota` bên dưới luôn trả
+        None cho chúng và cả Phase 8 fail-closed về legacy vĩnh viễn - tức là toàn bộ phần
+        tiết kiệm ngữ cảnh chỉ dùng được cho người có API key. Đó đúng là chỗ chủ repo bảo
+        "phải dùng được cho cả Claude lẫn ChatGPT subscription".
+
+        Ở đây KHÔNG suy ra hạn mức thương mại nào. Chỉ đọc trần ngữ cảnh do người vận hành
+        khai trong `context_runtime.subscription_context` (mặc định có sẵn trong config), rồi
+        đặt rolling_tpm bằng đúng trần đó để nó KHÔNG phải ràng buộc nào cả - cửa sổ trượt
+        theo phút là thứ ta không biết và không được đoán.
+        """
+        runtime = (settings or {}).get("context_runtime") or {}
+        raw = runtime.get("subscription_context")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            reserved = max(1, int(raw.get("reserved_output_tokens") or 0))
+            window = int(raw.get("context_window") or 0)
+            hard_input = int(raw.get("max_input_tokens") or 0)
+        except (TypeError, ValueError):
+            return None
+        if hard_input <= 0 and window > reserved:
+            hard_input = window - reserved
+        if hard_input <= 0:
+            return None
+        return {"hard_input": hard_input, "rolling_tpm": hard_input + reserved,
+                "reserved": reserved, "id": "subscription-context"}
+
+    @staticmethod
     def _quota(settings: dict, provider: str, model: str) -> dict | None:
         """Reuse operator-declared hard quota profiles; never infer commercial limits."""
         import fnmatch
@@ -221,7 +252,10 @@ class AdaptiveContextCanary:
                             "bucket": bucket, "policy_version": policy.version}
         if not any(assigned.values()):
             return AdaptiveContextPlan("legacy", "no_phase8_assignment", feature_status=status)
+        subscription = str(provider_kind or "").strip().casefold() in ("cli", "oauth")
         quota = self._quota(settings, provider, model)
+        if quota is None and subscription:
+            quota = self._subscription_quota(settings)
         if quota is None:
             for value in status.values():
                 if value["assigned"]:
@@ -328,6 +362,15 @@ class AdaptiveContextCanary:
             #
             # Đây đúng là ca đã chặn Javis: gói Groq 12.000 TPM, một lượt cần 21.446 token.
             quota_reason = context_compiler.quota_block_reason(report)
+            if quota_reason and subscription:
+                # ... TRỪ engine thuê bao. Ở đó con số vừa vượt là TRẦN NGỮ CẢNH do ta tự khai
+                # trong subscription_context, không phải hạn mức nhà cung cấp nói ra. Lấy một
+                # con số của chính mình để TỪ CHỐI lượt chat của người dùng là vượt quyền: khai
+                # nhầm thấp một lần là chết cả đường Claude Code, mà lỗi đó lại im lặng.
+                # Nhà cung cấp mới là bên có quyền nói không - để nó nói.
+                return AdaptiveContextPlan(
+                    "legacy", "subscription_soft_over_budget", feature_status=status,
+                    compiler_report=report)
             if quota_reason:
                 needed = (int(report.get("estimated_input_tokens") or 0)
                           + int(report.get("reserved_output_tokens") or 0))

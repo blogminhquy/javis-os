@@ -146,3 +146,52 @@ def blocked_hint(provider: str, model: str, needed_tokens: int,
                      + " (chưa ghi nhận bị siết ở mức này).")
     parts.append("Hoặc rút gọn yêu cầu, hoặc chờ hết cửa sổ một phút.")
     return " ".join(parts)
+
+
+# Nhãn người-đọc-được cho hai engine chạy bằng gói thuê bao.
+SUBSCRIPTION_LABEL = {
+    "claude-code": "gói Claude (Claude Code)",
+    "codex": "gói ChatGPT (Codex)",
+}
+
+
+def subscription_blocked_hint(limit, configured_providers=(), now=None) -> str:
+    """Câu giải thích khi GÓI THUÊ BAO hết lượt, kèm lối ra.
+
+    Khác hẳn `blocked_hint` ở trên: đây KHÔNG phải chuyện prompt quá to. Cửa sổ thuê bao đếm
+    lượt dùng theo giờ, nên rút gọn câu hỏi không giúp gì cả - nói "rút gọn yêu cầu" ở đây là
+    chỉ sai đường. Hai lối ra thật chỉ có: chờ tới mốc reset, hoặc đổi sang bộ não khác.
+
+    Không biết mốc reset thì NÓI LÀ KHÔNG BIẾT. Bịa một con giờ ra cho tròn câu là thứ khiến
+    người dùng ngồi đợi nhầm.
+    """
+    import time as _time
+
+    engine = getattr(limit, "engine", "") or ""
+    label = SUBSCRIPTION_LABEL.get(engine, "gói thuê bao đang dùng")
+    scope = getattr(limit, "scope", "") or ""
+    parts = [f"Hết lượt {label}" + (f" trong cửa sổ {scope}." if scope else ".")]
+
+    reset = float(getattr(limit, "reset_epoch", 0) or 0)
+    ts = _time.time() if now is None else float(now)
+    if reset > ts:
+        con = int(reset - ts)
+        gio, phut = con // 3600, (con % 3600) // 60
+        khi_nao = _time.strftime("%H:%M", _time.localtime(reset))
+        cho = f"{gio} giờ {phut} phút" if gio else f"{phut} phút"
+        parts.append(f"Khoảng {cho} nữa mới lại dùng được (tầm {khi_nao}).")
+    elif getattr(limit, "reset_text", ""):
+        parts.append(f"Nhà cung cấp nói: {limit.reset_text}.")
+    else:
+        parts.append("Nhà cung cấp không nói lúc nào reset, nên Javis cũng chưa biết.")
+
+    others = sorted({str(p) for p in (configured_providers or ()) if str(p).strip()})
+    if others:
+        parts.append("Đang chờ thì đổi tạm sang " + ", ".join(others)
+                     + " ở trang Models - hội thoại giữ nguyên.")
+    else:
+        parts.append("Chưa đấu bộ não nào khác để chạy tạm; thêm một API key ở trang Models "
+                     "là những lúc thế này vẫn làm việc được.")
+    parts.append("Rút gọn câu hỏi KHÔNG giúp gì ở đây - hạn mức này đếm lượt dùng theo giờ, "
+                 "không đếm độ dài.")
+    return " ".join(parts)

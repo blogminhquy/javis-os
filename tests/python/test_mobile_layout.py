@@ -3,6 +3,7 @@
 Chạy:
     .venv/Scripts/python.exe server/test_mobile_layout.py
 """
+import re  # noqa: E402
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 from pathlib import Path
 
@@ -25,7 +26,12 @@ def check(name: str, condition: bool) -> None:
 
 
 check("viewport hỗ trợ safe area", "viewport-fit=cover" in INDEX)
-check("cache bust console.css đã tăng", 'console.css?v=38' in INDEX)
+# Khoá SÀN chứ không ghim số: ghim số thì mỗi lần sửa CSS ở nơi khác là test đỏ oan, và
+# người sửa sẽ học cách "chỉnh test cho xanh". Tụt xuống mới là lỗi thật (trình duyệt của
+# người dùng giữ bản CSS cũ trong cache).
+_m_css = re.search(r"console\.css\?v=(\d+)", INDEX)
+check("cache bust console.css không tụt dưới v39",
+      _m_css is not None and int(_m_css.group(1)) >= 39)
 check("mobile dùng dynamic viewport", CSS.count("100dvh") >= 3)
 check("graph mobile có fallback nhỏ hơn bản cũ", "height: 30vh;" in CSS)
 check("graph mobile có trần/sàn theo chiều cao", "height: clamp(190px, 27dvh, 260px);" in CSS)

@@ -1,4 +1,5 @@
 """Regression: dòng HỆ THỐNG/MCP không được làm nở cockpit và đẩy cột chat ra ngoài."""
+import re  # noqa: E402
 from _paths import ROOT, SERVER  # noqa: E402,F401
 
 
@@ -47,8 +48,14 @@ check("nhãn tool không chèn HTML thô", "div.innerHTML" not in track_block)
 check("sysbar trong drawer mobile lấy lại đủ chiều rộng",
       ".rail-sys .sysbar {" in CONSOLE_CSS
       and "display: flex; flex: none; width: 100%; min-width: 0; max-width: 100%;" in CONSOLE_CSS)
-check("cache bust CSS và app đã tăng",
-      'style.css?v=52' in INDEX and 'console.css?v=38' in INDEX and 'app.js?v=74' in INDEX)
+# Ghim SỐ CHÍNH XÁC thì mỗi lần sửa CSS ở nơi khác là test này đỏ oan, và người sửa sẽ học
+# cách "chỉnh test cho xanh" - đúng thói quen làm test mất giá trị. Chỉ khoá SÀN: đã lên tới
+# đây rồi thì không được tụt xuống (tụt = trình duyệt của người dùng giữ bản cũ trong cache).
+_SAN = {"style.css": 53, "console.css": 39, "app.js": 75}
+for _ten, _san in _SAN.items():
+    _m = re.search(re.escape(_ten) + r"\?v=(\d+)", INDEX)
+    check(f"cache bust {_ten} không tụt dưới v{_san}",
+          _m is not None and int(_m.group(1)) >= _san)
 
 if fails:
     raise SystemExit(f"\nFAIL - test_sysbar_layout: {len(fails)} lỗi")

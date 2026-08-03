@@ -458,6 +458,21 @@
       </div>
 
       <div class="rt-sec">
+        <h3>Bộ não đang dùng</h3>
+        <div class="rt-engine">
+          <b>${esc((d.engine_hien_tai || {}).nhan || "chưa rõ")}</b>
+          ${(d.engine_hien_tai || {}).model ? `<span class="rt-eng-model">${esc(d.engine_hien_tai.model)}</span>` : ""}
+          ${(d.engine_hien_tai || {}).loai ? `<span class="ci-badge">${esc(d.engine_hien_tai.loai)}</span>` : ""}
+        </div>
+        <div class="dim rt-note">${esc((d.engine_hien_tai || {}).giai_thich || "")}</div>
+        ${((d.engine_hien_tai || {}).duong_khong_hop || []).length ? `
+          <div class="dim rt-note">Không áp cho bộ não này:
+          ${((d.engine_hien_tai || {}).duong_khong_hop || []).map((x) => esc(x)).join(", ")}.
+          Có mảng cố ý chỉ chạy trên bộ não dùng API key, ví dụ phần gửi lại lịch sử hội thoại:
+          Claude Code và ChatGPT tự nhớ mạch hội thoại của chúng rồi, gửi thêm là gửi hai lần.</div>` : ""}
+      </div>
+
+      <div class="rt-sec">
         <h3>Mức tiết kiệm</h3>
         <div class="rt-presets">
           ${(d.presets || []).map((p) => `

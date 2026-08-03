@@ -145,7 +145,7 @@ check("bất biến này có ý nghĩa (tìm thấy ít nhất vài cặp thật
 # thứ nó phục vụ. Chính tpm_window đã dính: API trả về mà trang Chẩn đoán không vẽ, nên cái
 # số sinh ra để trả lời "sao tôi bị chặn" lại vô hình đúng lúc cần.
 _console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-for _field in ("tpm_window", "quota_presets", "canaries", "registry"):
+for _field in ("tpm_window", "quota_presets", "canaries", "registry", "engine_hien_tai"):
     check(f"trang Chẩn đoán có dùng trường '{_field}' mà API trả về",
           _field in _console)
 
