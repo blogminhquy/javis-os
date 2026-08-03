@@ -632,8 +632,12 @@ class ObserveRuntime:
         """Pin đường chạy đúng một lần cho task; đổi config giữa lượt không đổi task đang chạy."""
         if not trace:
             return "legacy"
+        # "sources" = Phase 8 (bộ nhớ chọn lọc + skill nạp khi cần thay cho CLAUDE.md).
+        # Thiếu tên này thì mọi lượt đi đường tiết kiệm vẫn bị ghi là "legacy", nên trang
+        # Tiết kiệm token không đếm được đường nào đang chạy - và người dùng không có cách
+        # nào biết mình vừa tiết kiệm hay vừa gửi nguyên 7.500 token như cũ.
         requested = path if path in {
-            "fast", "readonly", "orchestrator", "write", "workflow"} else "legacy"
+            "fast", "readonly", "orchestrator", "write", "workflow", "sources"} else "legacy"
         try:
             with self._lock:
                 db = self._conn()

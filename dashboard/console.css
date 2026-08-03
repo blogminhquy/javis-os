@@ -776,7 +776,21 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   transition: border-color 0.15s, background 0.15s; }
 .rt-preset:hover:not(:disabled) { border-color: var(--accent); }
 .rt-preset:disabled { opacity: .55; cursor: default; }
-.rt-preset b { display: block; font-size: 14px; margin-bottom: 4px; }
+.rt-preset b { display: block; font-size: 14px; }
+/* Phần trăm tiết kiệm nằm NGAY cạnh tên mức: đó là thứ quyết định người dùng bấm cái nào,
+   để nó lẫn trong đoạn mô tả là coi như không có. */
+.rt-preset-top { display: flex; align-items: baseline; gap: 8px; justify-content: space-between; }
+.rt-pct { font-size: 13px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.rt-pertok { display: block; font-size: 11.5px; color: var(--text3); margin: 2px 0 5px;
+  font-variant-numeric: tabular-nums; }
+.rt-first { margin-top: 0; }
+.rt-first-note { margin: 0 0 14px; }
+/* Bảng đo THẬT: tách hẳn khỏi phần ước lượng để không ai nhầm hai loại số với nhau. */
+.rt-doduoc-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; }
+.rt-doduoc-row .rt-v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rt-doduoc-row .rt-k { font-size: 12px; color: var(--text2); }
+.rt-doduoc-pct .rt-v { color: var(--accent); }
 .rt-preset small { display: block; font-size: 12px; line-height: 1.5; color: var(--text2); }
 .rt-preset.on { border-color: var(--accent); background: var(--accent-wash-2); }
 .rt-preset-now { display: inline-block; margin-top: 8px; font-size: 11px;

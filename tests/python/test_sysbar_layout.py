@@ -51,7 +51,7 @@ check("sysbar trong drawer mobile lấy lại đủ chiều rộng",
 # Ghim SỐ CHÍNH XÁC thì mỗi lần sửa CSS ở nơi khác là test này đỏ oan, và người sửa sẽ học
 # cách "chỉnh test cho xanh" - đúng thói quen làm test mất giá trị. Chỉ khoá SÀN: đã lên tới
 # đây rồi thì không được tụt xuống (tụt = trình duyệt của người dùng giữ bản cũ trong cache).
-_SAN = {"style.css": 53, "console.css": 39, "app.js": 75}
+_SAN = {"style.css": 54, "console.css": 40, "app.js": 77}
 for _ten, _san in _SAN.items():
     _m = re.search(re.escape(_ten) + r"\?v=(\d+)", INDEX)
     check(f"cache bust {_ten} không tụt dưới v{_san}",

@@ -433,6 +433,14 @@ class AdaptiveContextCanary:
             return AdaptiveContextPlan("legacy", "compiled_system_missing", feature_status=status,
                                        compiler_report=report)
         if trace:
+            # Ghim TÊN đường chạy. Không ghim thì lượt này vẫn bị đếm là "legacy", nên trang
+            # Tiết kiệm token không phân biệt nổi lượt đã tiết kiệm với lượt gửi nguyên
+            # CLAUDE.md - mà đó chính là con số duy nhất người dùng cần thấy.
+            try:
+                self.runtime.pin_execution_path(
+                    trace, "sources", None, PHASE8_POLICY_VERSION, "context_sources")
+            except Exception:  # noqa: BLE001 - ghim hỏng không được phá lượt chat
+                pass
             self.runtime.record_runtime_event(trace, "context_sources.canary", {
                 "policy_version": PHASE8_POLICY_VERSION,
                 "state_applied": state_applied, "memory_applied": memory_applied,

@@ -374,7 +374,60 @@
       </tr>`;
     }).join("");
 
+    // Ba mức là thứ ĐẦU TIÊN người dùng thấy, và mỗi mức phải nói được nó đổi gì. Bản trước
+    // chôn ba nút này ở giữa trang, dưới bốn khối biểu đồ, nên mở trang ra là thấy số liệu
+    // trước khi thấy cái nút cần bấm - đúng lý do chủ repo bảo "không biết dùng như nào".
+    const uoc = d.uoc_tinh || {};
+    const uocMuc = uoc.muc || {};
+    const dod = d.do_duoc || {};
+    const presetPct = (id) => {
+      const m = uocMuc[id];
+      if (!m || id === "off") return "";
+      return `<span class="rt-pct">-${Number(m.phan_tram) || 0}% token</span>`;
+    };
+    const presetTok = (id) => {
+      const m = uocMuc[id];
+      if (!m) return "";
+      return `<span class="rt-pertok">${num(m.token_moi_request)} token mỗi lượt</span>`;
+    };
+
     el.innerHTML = `<div class="uz-wrap rt-wrap">
+      <div class="rt-sec rt-first">
+        <h3>Chọn mức tiết kiệm</h3>
+        <div class="rt-presets">
+          ${(d.presets || []).map((p) => `
+            <button class="rt-preset${p.id === d.preset ? " on" : ""}" data-preset="${esc(p.id)}">
+              <span class="rt-preset-top"><b>${esc(p.nhan)}</b>${presetPct(p.id)}</span>
+              ${presetTok(p.id)}
+              <small>${esc(p.mo_ta)}</small>
+              ${p.id === d.preset ? '<span class="rt-preset-now">đang dùng</span>' : ""}
+            </button>`).join("")}
+        </div>
+        ${d.preset === "custom" ? `<div class="dim rt-note">Cấu hình hiện tại không khớp mức
+          nào (đã chỉnh tay ở phần Nâng cao). Bấm một mức để về lại chuẩn.</div>` : ""}
+        <div class="dim rt-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis
+        trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức.
+        ${uoc.la_uoc_luong ? ` Con số phần trăm là <b>ước lượng</b> đo trên chính bộ não và bộ
+        nhớ của anh (${num((uoc.chi_tiet || {}).claude_md_va_bo_nho)} token bộ luật + bộ nhớ,
+        ${num((uoc.chi_tiet || {}).mo_ta_cong_cu)} token mô tả công cụ). Bộ đếm của mỗi nhà
+        cung cấp lệch nhau đôi chút.` : ""}</div>
+      </div>
+
+      ${dod.du_du_lieu ? `<div class="rt-sec rt-doduoc">
+        <h3>Thực tế đo được trong 24 giờ qua</h3>
+        <div class="rt-doduoc-row">
+          <div><div class="rt-k">Đường cũ</div><div class="rt-v">${num(dod.tb_cu)}</div>
+            <div class="rt-note">token mỗi lượt, ${num(dod.so_luot_cu)} lượt</div></div>
+          <div><div class="rt-k">Đường tiết kiệm</div><div class="rt-v">${num(dod.tb_moi)}</div>
+            <div class="rt-note">token mỗi lượt, ${num(dod.so_luot_moi)} lượt</div></div>
+          <div class="rt-doduoc-pct"><div class="rt-k">Giảm được</div>
+            <div class="rt-v">${num(dod.phan_tram)}%</div>
+            <div class="rt-note">số THẬT, không phải ước lượng</div></div>
+        </div>
+      </div>` : `<div class="dim rt-note rt-first-note">Chưa đủ dữ liệu để đo thực tế: cần có
+        lượt chạy ở cả đường cũ lẫn đường tiết kiệm trong 24 giờ qua. Bật một mức rồi chat vài
+        câu là bảng đo sẽ hiện ra ở đây.</div>`}
+
       <div class="rt-banner ${anyOn ? "rt-on" : "rt-off"}">
         ${ic(anyOn ? "triangle-alert" : "check", { cls: anyOn ? "ic-warn" : "ic-ok" })}
         <div>
@@ -426,8 +479,9 @@
 
       <div class="rt-sec">
         <h3>Mỗi cuộc chat đi đường nào</h3>
-        <div class="rt-chips">${counts(d.paths, "Chưa có cuộc chat nào.")}</div>
-        <div class="dim rt-note">legacy là đường cũ. Các tên khác là đường mới đang bật thử.</div>
+        <div class="rt-chips">${counts(_tenDuong(d.paths), "Chưa có cuộc chat nào.")}</div>
+        <div class="dim rt-note">Đây là chỗ xem một cách chắc chắn xem mức vừa bật có ăn thật
+        không: còn thấy nhiều "đường cũ" nghĩa là phần tiết kiệm chưa áp được cho các lượt đó.</div>
       </div>
       <div class="rt-sec">
         <h3>Vì sao vẫn đi đường cũ</h3>
@@ -470,22 +524,6 @@
           ${((d.engine_hien_tai || {}).duong_khong_hop || []).map((x) => esc(x)).join(", ")}.
           Có mảng cố ý chỉ chạy trên bộ não dùng API key, ví dụ phần gửi lại lịch sử hội thoại:
           Claude Code và ChatGPT tự nhớ mạch hội thoại của chúng rồi, gửi thêm là gửi hai lần.</div>` : ""}
-      </div>
-
-      <div class="rt-sec">
-        <h3>Mức tiết kiệm</h3>
-        <div class="rt-presets">
-          ${(d.presets || []).map((p) => `
-            <button class="rt-preset${p.id === d.preset ? " on" : ""}" data-preset="${esc(p.id)}">
-              <b>${esc(p.nhan)}</b>
-              <small>${esc(p.mo_ta)}</small>
-              ${p.id === d.preset ? '<span class="rt-preset-now">đang dùng</span>' : ""}
-            </button>`).join("")}
-        </div>
-        ${d.preset === "custom" ? `<div class="dim rt-note">Cấu hình hiện tại không khớp mức
-          nào (đã chỉnh tay ở phần Nâng cao). Bấm một mức để về lại chuẩn.</div>` : ""}
-        <div class="dim rt-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis
-        trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức.</div>
       </div>
 
       <details class="rt-adv">
@@ -572,11 +610,33 @@
 
   function _tpmFacts(learned) {
     // learned_limits là object lồng; counts() chỉ vẽ được {nhãn: số}. Đổi sang dạng
-    // "groq|model — TPM" -> hạn mức, để người đọc thấy ngay con số nhà cung cấp đã nói.
+    // "groq|model - loại hạn mức" -> con số, để người đọc thấy ngay điều nhà cung cấp đã nói.
+    // Phải nói ĐÚNG loại: "Limit 30" của hạn mức đếm LƯỢT nhìn giống hệt một hạn mức token
+    // bé tí đáng sợ, mà hai thứ đó đòi hai cách xử lý ngược nhau.
+    const KIND = {
+      tpm: "token mỗi phút", tpd: "token mỗi ngày", rpm: "số lượt mỗi phút",
+      rpd: "số lượt mỗi ngày", context: "cửa sổ ngữ cảnh", rate: "chặn nhịp gọi",
+    };
     const out = {};
     Object.entries(learned || {}).forEach(([key, v]) => {
-      const kind = v && v.kind === "tpm" ? "token mỗi phút" : "cửa sổ ngữ cảnh";
-      out[`${key} (${kind})`] = (v && v.limit) || 0;
+      out[`${key} (${KIND[(v || {}).kind] || "hạn mức"})`] = (v && v.limit) || 0;
+    });
+    return out;
+  }
+
+  // "legacy"/"sources" là chữ của máy. Trang này để người dùng đọc, nên dịch ra.
+  // sources = đường tiết kiệm của Phase 8 (bộ nhớ chọn lọc + skill nạp khi cần).
+  const DUONG_LABEL = {
+    legacy: "đường cũ (gửi đủ)", unassigned: "đường cũ (gửi đủ)",
+    sources: "tiết kiệm", fast: "đường tắt (câu đơn giản)",
+    readonly: "tra cứu một bước", orchestrator: "tra cứu nhiều bước",
+    write: "hành động ghi", workflow: "workflow",
+  };
+  function _tenDuong(paths) {
+    const out = {};
+    Object.entries(paths || {}).forEach(([k, v]) => {
+      const ten = DUONG_LABEL[k] || k;
+      out[ten] = (out[ten] || 0) + (Number(v) || 0);   // legacy + unassigned gộp làm một
     });
     return out;
   }

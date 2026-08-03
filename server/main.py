@@ -7,6 +7,7 @@ Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling �
 """
 import os
 import json
+import math
 import asyncio
 import glob
 import hashlib
@@ -6770,6 +6771,7 @@ async def websocket_endpoint(ws: WebSocket):
                     "codex" if prov == "openai-oauth" else "cli",
                     api_model or mcfg.get("claude_model") or "mặc định", kind,
                 )
+            _ctx_in = 0        # token VÀO của lượt này, để khung chat nói được nó tốn bao nhiêu
             _row0 = store.get_session(conv_sid) or {}
             cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=CLAUDE_CWD, tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
@@ -6903,6 +6905,7 @@ async def websocket_endpoint(ws: WebSocket):
                                 final_text = ev.get("content") or final_text
                                 if ev.get("session_id"):
                                     store.set_codex_thread_id(conv_sid, ev["session_id"])
+                                _ctx_in += int(ev.get("tokens_in", 0) or 0)
                                 usage_store.record("codex", actual_model, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
                                 _CONTEXT_RUNTIME.record_usage(
                                     runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
@@ -6933,7 +6936,10 @@ async def websocket_endpoint(ws: WebSocket):
                         ccli.session_id = None
                         _fallback = compaction.codex_bootstrap_prompt(_codex_raw, _codex_current)
                         await _consume_codex(_fallback)
-                    await ws.send_text(json.dumps({"type": "response", "content": final_text, "engine": "codex", "model": actual_model, "session_id": conv_sid}))
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "codex",
+                        "model": actual_model, "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
             elif (kind == "api" and api_key) or kind == "oauth":
                 orchestrator_plan = None
                 readonly_plan = None
@@ -7164,6 +7170,7 @@ async def websocket_endpoint(ws: WebSocket):
                                     actual_model = ev.get("model") or actual_model
                                     _CONTEXT_RUNTIME.set_route(runtime_trace, prov, actual_model)
                                 elif ev["type"] == "usage":
+                                    _ctx_in += int(ev.get("input", 0) or 0)
                                     usage_store.record(
                                         prov, actual_model, ev.get("input", 0), ev.get("output", 0)
                                     )
@@ -7229,6 +7236,7 @@ async def websocket_endpoint(ws: WebSocket):
                         await ws.send_text(json.dumps({
                             "type": "response", "content": final_text, "engine": prov,
                             "model": actual_model, "session_id": conv_sid,
+                            **_ctx_frame(runtime_trace, _ctx_in),
                         }))
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
@@ -7262,6 +7270,7 @@ async def websocket_endpoint(ws: WebSocket):
                         _cost = event.get("cost_usd")
                         if _cli_sid:
                             store.set_cli_session_id(conv_sid, _cli_sid)
+                        _ctx_in += int(event.get("tokens_in", 0) or 0)
                         usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
                                            event.get("tokens_in", 0), event.get("tokens_out", 0), event.get("cost_usd") or 0)
                         _CONTEXT_RUNTIME.record_usage(
@@ -7284,7 +7293,11 @@ async def websocket_endpoint(ws: WebSocket):
                 # không nhận `response` nào cả và bong bóng chat treo mãi - trong khi phần chữ
                 # đã stream ra thì vẫn còn đó. Ba nhánh engine kia vốn đã gửi ngoài vòng lặp.
                 final_text = final_text or _streamed
-                await ws.send_text(json.dumps({"type": "response", "content": final_text, "session_id": conv_sid, "cli_session_id": _cli_sid, "cost_usd": _cost, "engine": "cli", "model": (mcfg.get("claude_model") or "mặc định")}))
+                await ws.send_text(json.dumps({
+                    "type": "response", "content": final_text, "session_id": conv_sid,
+                    "cli_session_id": _cli_sid, "cost_usd": _cost, "engine": "cli",
+                    "model": (mcfg.get("claude_model") or "mặc định"),
+                    **_ctx_frame(runtime_trace, _ctx_in)}))
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
@@ -7421,7 +7434,8 @@ async def sessions_delete(session_id: str):
 
 
 @app.get("/runtime/diagnostics")
-async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200)):
+async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200),
+                              brain: str = Query("brain")):
     """Spec mục 27: trang chẩn đoán cho admin.
 
     Chỉ trả metadata đã có sẵn trong runtime.db. Không objective (đang mã hoá),
@@ -7465,7 +7479,132 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
             # người dùng khi mở trang, mà trước đây trang không trả lời được: bảng canary
             # chỉ hiện allocation, còn việc engine của họ có nằm trong provider_kinds hay
             # không thì phải SSH đọc settings.json mới biết.
-            "engine_hien_tai": _engine_runtime_view(settings)}
+            "engine_hien_tai": _engine_runtime_view(settings),
+            # Mỗi mức tiết kiệm được bao nhiêu phần trăm. Không có con số này thì ba nút chỉ
+            # là ba cái tên, người dùng bấm mà không biết đổi được gì.
+            "uoc_tinh": await _uoc_tinh_tiet_kiem(brain),
+            # Và con số ĐO ĐƯỢC từ chính các lượt đã chạy, đáng tin hơn hẳn ước lượng.
+            "do_duoc": _do_duoc_tiet_kiem(snapshot.get("tasks") or [])}
+
+
+def _ctx_frame(trace, tokens_in) -> dict:
+    """Cho khung chat biết lượt vừa rồi đi đường nào và tốn bao nhiêu token vào.
+
+    Vì sao cần: trước đây không có cách nào biết một lượt đã đi đường tiết kiệm hay lặng lẽ
+    tụt về đường cũ - phải đợi tới lúc nhà cung cấp báo vượt hạn mức mới lộ ra, mà lúc đó thì
+    đã muộn. Một dòng nhỏ dưới câu trả lời biến thứ vô hình thành thứ nhìn thấy được.
+
+    Không có trace thì coi như đường cũ: nói "chưa rõ" ở đây chỉ làm người đọc phân vân, mà
+    đường cũ đúng là thứ chạy khi runtime chưa gắn vào."""
+    try:
+        path = str(getattr(trace, "execution_path", "") or "")
+    except Exception:  # noqa: BLE001 - phần hiển thị, không được phá lượt chat
+        path = ""
+    return {"ctx_path": path if path and path != "unassigned" else "legacy",
+            "ctx_in": max(0, int(tokens_in or 0))}
+
+
+async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
+    """Mỗi mức tiết kiệm được bao nhiêu PHẦN TRĂM token mỗi request.
+
+    Đo trên prompt THẬT của brain đang chọn, không phải con số quảng cáo. Người dùng bấm một
+    mức mà không biết nó đổi được gì thì bấm cũng như không - đó là lý do trang này bị chê
+    "không hiểu dùng như nào".
+
+    Ba con số:
+      - Tắt: gửi nguyên CLAUDE.md + chỉ mục bộ nhớ + khối skill + mô tả tool.
+      - Tối ưu: capsule nhỏ thay chỗ CLAUDE.md, vẫn kèm mô tả tool.
+      - Siêu tiết kiệm: như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả tool.
+
+    Dùng CHÍNH hệ số ký tự-trên-token mà runtime đang dùng để ước lượng, để con số ở đây và
+    con số ở chỗ khác không đá nhau. Đây là ƯỚC LƯỢNG: bộ đếm token thật của từng nhà cung
+    cấp khác nhau, và tiếng Việt có dấu tốn hơn tiếng Anh. Giao diện phải nói rõ là ước lượng.
+    """
+    # Gọi thẳng hàm endpoint trong test thì tham số mặc định vẫn là object Query(...) chứ
+    # không phải chuỗi. Không chặn ở đây là cả bảng ước tính im lặng trả rỗng, và test đi qua
+    # endpoint chỉ đo được cái vỏ.
+    if not isinstance(brain, str) or not brain.strip():
+        brain = "brain"
+    try:
+        cfg = cfgmod.read_settings().get("context_runtime") or {}
+        ratio = max(1.0, float(cfg.get("estimate_chars_per_token") or 3.0))
+    except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
+        ratio = 3.0
+
+    def tok(text: str) -> int:
+        return int(math.ceil(len(str(text or "")) / ratio))
+
+    def _dung_prompt_cu() -> str:
+        return build_system_prompt(brain) + channel_context.build_channel_block(
+            "dashboard", {"session_id": "uoc-tinh"}, telegram_running=bool(_TG_BOT),
+            port=_javis_port(), brain_root=_brain_root(brain))
+
+    try:
+        # build_system_prompt quét cây skill và đọc file, khoảng 18ms - đẩy sang thread để
+        # trang chẩn đoán không chặn vòng lặp sự kiện.
+        cu = tok(await asyncio.to_thread(_dung_prompt_cu))
+    except Exception:  # noqa: BLE001
+        return {}
+    try:
+        cc = context_compiler
+        vien = tok(cc.CORE_CONTRACT
+                   + "Runtime identity: provider=x; model=y. "
+                   + cc.ContextCompiler._channel_contract("dashboard")
+                   + cc.ContextCompiler._output_contract_text("dashboard"))
+    except Exception:  # noqa: BLE001
+        return {}
+    try:
+        # discover_all trả danh sách ĐÃ qua tầng lazy - tức đúng thứ được gửi đi thật, không
+        # phải kho tool đầy đủ. Lấy nhầm bản đầy đủ là thổi phồng con số tiết kiệm.
+        spec, _route = await mcp_hub.discover_all(mode="full", vault_root=_brain_root(brain))
+        cong_cu = tok(json.dumps(spec, ensure_ascii=False))
+    except Exception:  # noqa: BLE001 - thiếu tool thì tính phần còn lại, đừng bỏ cả bảng
+        cong_cu = 0
+
+    goc = max(1, cu + cong_cu)
+
+    def muc(token_moi_request: int) -> int:
+        return max(0, min(99, round((1 - token_moi_request / goc) * 100)))
+
+    return {
+        "chu_ky_ky_tu_tren_token": ratio,
+        "la_uoc_luong": True,
+        "chi_tiet": {"claude_md_va_bo_nho": cu, "capsule": vien, "mo_ta_cong_cu": cong_cu},
+        "muc": {
+            "off": {"token_moi_request": goc, "phan_tram": 0,
+                    "ghi_chu": "Gửi nguyên bộ luật, bộ nhớ và danh sách skill mỗi lượt."},
+            "saving": {"token_moi_request": vien + cong_cu, "phan_tram": muc(vien + cong_cu),
+                       "ghi_chu": "Thay bộ luật dài bằng bản rút gọn; nhớ và skill chỉ nạp phần liên quan."},
+            "max": {"token_moi_request": vien, "phan_tram": muc(vien),
+                    "ghi_chu": "Như trên, và câu hỏi đơn giản đi thẳng không kèm mô tả công cụ."},
+        },
+    }
+
+
+def _do_duoc_tiet_kiem(tasks: list) -> dict:
+    """Tiết kiệm ĐO ĐƯỢC từ chính các lượt đã chạy, không phải ước lượng.
+
+    Con số này đáng tin hơn hẳn phần ước lượng vì nó là token nhà cung cấp thật sự tính. Đổi
+    lại, nó chỉ có khi đã chạy cả hai đường trong cùng cửa sổ thời gian - nên giao diện phải
+    chịu được ca "chưa đủ dữ liệu" thay vì hiện 0% một cách vô nghĩa.
+    """
+    cu, moi = [], []
+    for t in tasks or []:
+        n = int(t.get("actual_input_tokens") or t.get("estimated_input_tokens") or 0)
+        if n <= 0:
+            continue
+        duong = str(t.get("execution_path") or "")
+        if duong in ("legacy", "unassigned"):
+            cu.append(n)
+        elif duong in ("sources", "fast"):
+            moi.append(n)
+    out = {"so_luot_cu": len(cu), "so_luot_moi": len(moi),
+           "tb_cu": round(sum(cu) / len(cu)) if cu else 0,
+           "tb_moi": round(sum(moi) / len(moi)) if moi else 0,
+           "phan_tram": 0, "du_du_lieu": bool(cu and moi)}
+    if out["du_du_lieu"] and out["tb_cu"] > 0:
+        out["phan_tram"] = max(0, min(99, round((1 - out["tb_moi"] / out["tb_cu"]) * 100)))
+    return out
 
 
 def _engine_runtime_view(settings: dict) -> dict:
@@ -7752,7 +7891,7 @@ RUNTIME_PRESETS = {
         "duong": {},
     },
     "saving": {
-        "nhan": "Tiết kiệm",
+        "nhan": "Tối ưu",
         "mo_ta": ("Chỉ gửi phần liên quan tới câu hỏi: nhớ có chọn lọc, skill nạp khi cần. "
                   "Giảm mạnh token mỗi lượt, hợp với model bị siết hạn mức."),
         "mode": "canary",
@@ -7763,7 +7902,7 @@ RUNTIME_PRESETS = {
         },
     },
     "max": {
-        "nhan": "Tối đa",
+        "nhan": "Siêu tiết kiệm",
         "mo_ta": ("Như mức Tiết kiệm, cộng thêm đường tắt cho câu hỏi đơn giản không cần "
                   "tra cứu gì. Nhanh và rẻ nhất, nhưng mới nhất nên ít được thử nhất."),
         "mode": "canary",

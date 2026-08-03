@@ -214,6 +214,7 @@ function handleMessage(data) {
       else msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
       if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       if (data.engine) setEngineBadge(data.engine, data.model);   // sự thật engine+model của lượt này
+      _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
       if (voice.ttsEnabled && t && !t.spoke && finalText) { setOrbState("speaking", "ĐANG NÓI"); voice.speak(finalText); }
       else if (!voice.ttsEnabled) setOrbState("", "SẴN SÀNG");
@@ -1677,6 +1678,31 @@ const ENGINE_LABEL = {
   "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
   "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
 };
+// Một dòng nhỏ dưới câu trả lời: lượt này đi đường tiết kiệm hay đường cũ, và tốn bao nhiêu
+// token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn
+// mức, tức là đã muộn. Thấy được thì người dùng tự biết mức vừa bật có ăn thật hay không.
+const CTX_PATH_LABEL = {
+  legacy: "đường cũ", sources: "tiết kiệm", fast: "đường tắt",
+  readonly: "tra cứu", orchestrator: "tra cứu nhiều bước", write: "hành động ghi",
+  workflow: "workflow",
+};
+function _renderCtxLine(msgEl, data) {
+  if (!msgEl || !data || !data.ctx_path) return;
+  const cu = data.ctx_path === "legacy";
+  const ten = CTX_PATH_LABEL[data.ctx_path] || data.ctx_path;
+  const tok = Number(data.ctx_in) || 0;
+  const old = msgEl.querySelector(".msg-ctx");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.className = "msg-ctx" + (cu ? "" : " saved");
+  // Bấm vào là sang trang Tiết kiệm token - thấy dòng "đường cũ" mà không biết chỉnh ở đâu
+  // thì thông tin đó cũng chỉ để bực mình.
+  el.dataset.usageGoto = "runtime";
+  el.title = "Mở trang Tiết kiệm token";
+  el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token vào" : "");
+  msgEl.appendChild(el);
+}
+
 function setEngineBadge(engine, model) {
   const el = document.getElementById("engineBadge");
   if (!el) return;
@@ -1746,11 +1772,52 @@ async function refreshUsage() {
     }).join("");
     html += row(`<b>Tổng ${scope}</b>`, `<b>${_fmtTok(tot.in)}↑ ${_fmtTok(tot.out)}↓${tot.cost > 0 ? " · $" + tot.cost.toFixed(2) : ""}</b>`, "border-top:1px solid var(--hairline);margin-top:2px;padding-top:3px");
   }
+  html += await _usageSavingRow();
   if (d.openrouter && d.openrouter.remaining != null) {
     html += row("OpenRouter còn", `$${(+d.openrouter.remaining).toFixed(2)}`, "margin-top:4px;color:var(--green)");
   }
   el.innerHTML = html;
 }
+
+// Một dòng "đang tiết kiệm bao nhiêu" ngay dưới bảng Mức dùng.
+//
+// Vì sao đặt ở đây: panel này trả lời "tiêu bao nhiêu", nhưng con số đó vô nghĩa nếu không
+// biết mình đang ở mức nào. Người dùng nhìn thấy 40k token mà không biết đáng lẽ là 400k, hay
+// đáng lẽ chỉ 4k. Ghép hai thứ lại thì một liếc mắt là đủ hiểu.
+//
+// Cache 60 giây: refreshUsage chạy sau MỖI lượt chat, mà /runtime/diagnostics phải dựng lại
+// prompt thật để ước lượng - gọi mỗi lượt là tự bắt mình trả giá cho cái panel đo giá.
+let _savingCache = { at: 0, html: "" };
+async function _usageSavingRow() {
+  const now = Date.now();
+  if (now - _savingCache.at < 60000) return _savingCache.html;
+  let d;
+  try { d = await (await fetch("/runtime/diagnostics?hours=24&limit=60")).json(); }
+  catch (e) { return _savingCache.html; }
+  const presets = d.presets || [];
+  const ten = (presets.find(p => p.id === d.preset) || {}).nhan
+    || (d.preset === "custom" ? "Tự chỉnh" : "?");
+  const dod = d.do_duoc || {};
+  const uoc = ((d.uoc_tinh || {}).muc || {})[d.preset] || {};
+  // Ưu tiên số ĐO ĐƯỢC; chưa đủ dữ liệu thì mới dùng ước lượng, và nói rõ là ước lượng.
+  let phu;
+  if (dod.du_du_lieu) phu = `giảm ${dod.phan_tram}% (đo thật)`;
+  else if (d.preset === "off") phu = "chưa bật tiết kiệm";
+  else if (uoc.phan_tram) phu = `giảm ~${uoc.phan_tram}% (ước lượng)`;
+  else phu = "chưa đo được";
+  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="runtime" title="Mở trang Tiết kiệm token">`
+    + `<span style="color:var(--text2)">Tiết kiệm token: <b>${escapeHtml(ten)}</b></span>`
+    + `<span style="color:#7aa2ff;white-space:nowrap">${escapeHtml(phu)}</span></div>`;
+  _savingCache = { at: now, html };
+  return html;
+}
+
+// Bấm vào dòng đó thì sang thẳng trang Tiết kiệm token - đỡ phải đi tìm trong rail.
+document.addEventListener("click", (e) => {
+  const hit = e.target && e.target.closest && e.target.closest("[data-usage-goto]");
+  if (!hit) return;
+  try { window.Alpine.store("nav").go(hit.dataset.usageGoto); } catch (err) {}
+});
 
 // Nút thu nhỏ / mở to hộp MỨC DÙNG (nhớ trạng thái qua localStorage).
 (function initUsageToggle() {

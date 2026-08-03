@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.13.0] - 2026-08-03
+Trang Tiết kiệm token viết lại quanh câu hỏi duy nhất người dùng quan tâm: bật cái này thì đỡ được bao nhiêu. Và mỗi câu trả lời tự nói nó đi đường nào.
+### Thêm mới
+- **Mỗi mức ghi rõ tiết kiệm bao nhiêu phần trăm.** Ba nút giờ hiện thẳng con số: **Tắt** (mốc), **Tối ưu** (giảm khoảng 89%), **Siêu tiết kiệm** (khoảng 96%), kèm số token mỗi lượt. Con số đo trên chính bộ luật và bộ nhớ của anh chứ không phải hằng số quảng cáo, nên mỗi bộ não ra một con số riêng. Có ghi rõ đây là ước lượng.
+- **Bảng đo THẬT.** Khi đã có lượt chạy ở cả hai đường trong 24 giờ, trang hiện luôn số thật: đường cũ tốn bao nhiêu, đường tiết kiệm tốn bao nhiêu, giảm mấy phần trăm. Chưa đủ dữ liệu thì nói là chưa đủ, không hiện 0% một cách vô nghĩa.
+- **Mỗi câu trả lời có một dòng nhỏ nói nó đi đường nào** và tốn bao nhiêu token vào. Trước đây chuyện một lượt lặng lẽ tụt về đường cũ là hoàn toàn vô hình, phải đợi tới lúc nhà cung cấp báo vượt hạn mức mới lộ ra. Bấm vào dòng đó là sang thẳng trang Tiết kiệm token.
+- **Panel Mức dùng nói luôn đang ở mức nào và giảm được bao nhiêu.** Con số tiêu thụ chỉ có nghĩa khi biết đáng lẽ nó phải là bao nhiêu.
+### Cải thiện
+- **Đổi tên ba mức thành Tắt / Tối ưu / Siêu tiết kiệm**, và đưa lên **đầu trang**. Trước đây ba nút bị chôn ở giữa, dưới bốn khối biểu đồ, nên mở trang ra là thấy số liệu trước khi thấy cái nút cần bấm.
+- **Bảng "mỗi cuộc chat đi đường nào" thôi bắt người dùng tự hiểu chữ `legacy`.** Tên đường dịch hết ra tiếng Việt, và đường tiết kiệm giờ có tên riêng thay vì bị đếm nhầm thành đường cũ. Đây cũng là thứ làm bảng đo thật ở trên chạy được.
+- Bảng hạn mức tự học nói đúng loại: token mỗi phút, token mỗi ngày, số lượt mỗi phút, số lượt mỗi ngày. Trước đây cái nào cũng ghi là token.
+
 ## [0.12.6] - 2026-08-03
 Bật tiết kiệm token không còn biến câu trả lời thành khối JSON. Badge gọi đúng tên bộ não. Sửa vỡ khung chat trên điện thoại.
 ### Sửa lỗi

@@ -1362,6 +1362,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   .settings-page .quick-set-body > .qs-row { grid-column: auto; }
 }
 
+/* Dòng nhỏ dưới mỗi câu trả lời: lượt này đi đường nào, tốn bao nhiêu token vào.
+   Cố ý MỜ và nhỏ: đây là thông tin nền, không được tranh chỗ với câu trả lời. Nhưng phải có,
+   vì trước đó chuyện lượt chat tụt về đường cũ là hoàn toàn vô hình. */
+.msg-ctx { font-size: 10.5px; color: var(--text3); margin: 3px 0 0 2px; cursor: pointer;
+  font-variant-numeric: tabular-nums; opacity: .65; transition: opacity .15s; }
+.msg-ctx:hover { opacity: 1; }
+.msg-ctx.saved { color: var(--accent); }
+
 /* ===== SIDEBAR LỊCH SỬ HỘI THOẠI (sessions-ui.js) =====
    Dùng chung cho MỌI chỗ đặt danh sách hội thoại. Hiện chỉ còn một chỗ: cột trái của trang
    Trò chuyện (console.js renderChat -> #chatPageSide). Lớp nổi .chat-stage cũ - khung chat
