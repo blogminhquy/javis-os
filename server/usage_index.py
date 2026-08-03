@@ -42,7 +42,7 @@ _EVENTS_PATH = STATE_DIR / "usage-events.jsonl"
 
 _DIMS = {"provider", "source", "activity", "model", "project", "day"}
 # provider API (chi nhung nay lay tu usage-events.jsonl; claude/codex lay tu log tho)
-_API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth"}
+_API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth", "ollama"}
 
 
 def _claude_dir() -> str:

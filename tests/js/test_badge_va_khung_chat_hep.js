@@ -24,12 +24,12 @@ function check(name, cond) {
   if (!cond) fails.push(name);
 }
 
-// ---- 1. Badge phải biết đủ bảy bộ não ----
+// ---- 1. Badge phải biết đủ tám bộ não ----
 check("có bảng nhãn engine", APP.indexOf("const ENGINE_LABEL") !== -1);
 for (const [id, nhan] of [["anthropic-cli", "Claude Code"], ["openai-oauth", "ChatGPT"],
                           ["openrouter", "OpenRouter"], ["openai", "OpenAI"],
                           ["anthropic-api", "Anthropic"], ["gemini", "Gemini"],
-                          ["groq", "Groq"]]) {
+                          ["groq", "Groq"], ["ollama", "Ollama"]]) {
   check(`badge biết '${id}' là "${nhan}"`,
         new RegExp('"?' + id + '"?\\s*:\\s*"' + nhan + '"').test(APP));
 }

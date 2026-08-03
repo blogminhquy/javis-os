@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.16.0] - 2026-08-03
+Thêm bộ não thứ tám: **Ollama** - chạy model ngay trên máy bạn, hoặc qua Ollama Cloud.
+### Thêm mới
+- **Nhà cung cấp Ollama, hai đường chạy trong một thẻ.**
+  - **Máy nhà**: để trống cả hai ô. Miễn phí, không hạn mức token, và dữ liệu không ra khỏi máy - thứ chưa provider nào trong Javis làm được. Cần cài Ollama rồi tải model về (`ollama pull llama3.1`).
+  - **Ollama Cloud**: dán API key lấy ở ollama.com. Chạy được model to mà máy nhà không kham nổi.
+  - Để trống địa chỉ thì Javis tự chọn đường: có key thì đi Cloud, không key thì máy này. Khai địa chỉ rõ thì luôn theo địa chỉ đó, kể cả máy khác trong mạng.
+- **Ollama là agent đủ đồ nghề như mọi bộ não khác**: gọi MCP đã đấu, đọc/ghi brain, chạy skill, nhận việc Kanban. Không phải chat suông. Model cần biết gọi tool (llama3.1 trở lên, qwen2.5, mistral-nemo, gpt-oss... đều biết).
+- **Nút Kiểm tra hỏi thẳng máy đó xem có model gì.** Lấy được model tức là địa chỉ đúng và Ollama đang chạy - nên nó vừa là danh sách model vừa là đèn báo kết nối, không cần nút thử riêng. Không thấy gì thì báo rõ nên kiểm tra cái nào, và lời nhắc phân biệt máy nhà với Cloud.
+### Sửa lỗi
+- Bài kiểm "UI liệt kê đúng 5 provider có MCP" ghim cứng năm cái tên, nên thêm nhà cung cấp là CI đỏ dù mọi thứ đều đúng - hàng rào quay ra chặn việc sửa. Nay nó đọc danh sách thật ở máy chủ và canh đúng bất biến cần canh: **giao diện khớp máy chủ**.
+
 ## [0.15.2] - 2026-08-03
 Mở file từ tab Thư mục thì trình sửa CHIẾM CHỖ khung chat, không đè lên nó.
 ### Thêm mới

@@ -3068,6 +3068,27 @@
           <div class="prov-action" id="cliAction"></div>
         </div>`;
       }
+      // Provider theo ĐỊA CHỈ (Ollama): không có key, chỉ có chỗ nó đang chạy. Ô để trống là
+      // dùng máy này - đúng ca của gần hết mọi người, nên đừng bắt gõ gì cả.
+      if (p.needs_host) {
+        const maskedH = (m.ollama_key || "").slice(-4);
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP Javis", (on ? "● Đang chạy" : "○ Chưa thấy") + " · " + p.models.length + " model")}
+          <div class="prov-action">
+            <input class="js-input" id="ph-${p.id}" type="text" value="${esc(p.host || "")}"
+                   placeholder="Để trống = máy này (http://localhost:11434)">
+          </div>
+          <div class="prov-action">
+            <input class="js-input" id="pk-${p.id}" type="password"
+                   placeholder="${m.ollama_key ? "Đổi key Cloud (•••" + esc(maskedH) + ")" : "API key nếu dùng Ollama Cloud - để trống nếu chạy máy nhà"}">
+            <button class="gcard-btn" data-ph="${p.id}">Kiểm tra</button>
+          </div>
+          <div class="prov-note">Hai đường chạy. <b>Máy nhà</b>: để trống cả hai ô - miễn phí,
+            không hạn mức, dữ liệu không ra khỏi máy; cần cài Ollama và tải model trước
+            (<code>ollama pull llama3.1</code>). <b>Ollama Cloud</b>: dán API key lấy ở
+            ollama.com - chạy được model to mà máy nhà không kham nổi.</div>
+        </div>`;
+      }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
       return `<div class="prov-card ${p.is_main ? "main" : ""}">
         ${provHead(p, on, p.kind === "cli" ? "MCP/skill" : "MCP Javis", (on ? "● Đã kết nối" : "○ Chưa kết nối") + " · " + p.models.length + " model")}
@@ -3144,6 +3165,35 @@
         if (!val) { if (inp) inp.focus(); return; }
         b.disabled = true; b.textContent = "Đang lưu...";
         await saveSetting("model", { [KEYFIELD[pid]]: val });
+        renderModels(el);
+      };
+    });
+    // Lưu địa chỉ rồi HỎI THẲNG máy đó xem có model gì. Chỉ lưu không thôi thì người dùng
+    // không biết mình gõ đúng hay sai cho tới lúc chat mới lòi ra lỗi - lúc đó thì đã muộn.
+    el.querySelectorAll(".gcard-btn[data-ph]").forEach(b => {
+      b.onclick = async () => {
+        const pid = b.dataset.ph;
+        const inp = document.getElementById("ph-" + pid);
+        const kinp = document.getElementById("pk-" + pid);
+        const val = (inp && inp.value || "").trim();
+        const kval = (kinp && kinp.value || "").trim();
+        b.disabled = true; b.textContent = "Đang thử...";
+        // Ô key để trống = KHÔNG đụng tới key đã lưu. Gửi chuỗi rỗng lên là mỗi lần bấm
+        // Kiểm tra lại xoá mất key Cloud, mà ô key thì luôn hiện trống (nó là ô mật khẩu).
+        const patch = { ollama_host: val };
+        if (kval) patch.ollama_key = kval;
+        await saveSetting("model", patch);
+        let d = {};
+        try { d = await (await fetch(`/provider/models?provider=${encodeURIComponent(pid)}&refresh=1`)).json(); }
+        catch (e) { d = {}; }
+        if (!(d.models || []).length) {
+          const cloud = !!(kval || m.ollama_key);
+          const noi = val || (cloud ? "https://ollama.com" : "http://localhost:11434");
+          alert("Không thấy model nào ở " + noi + ".\n\n" + (cloud
+            ? "Kiểm tra: API key còn hiệu lực không, và tài khoản Ollama Cloud đã bật model nào chưa."
+            : "Kiểm tra: đã cài và đang chạy Ollama chưa, địa chỉ có đúng không,"
+              + " và đã tải model nào về chưa (ollama pull llama3.1)."));
+        }
         renderModels(el);
       };
     });
@@ -4022,7 +4072,7 @@
     // native, bốn provider API đi qua vòng gọi tool + hub trong _api_stream_mcp. Gemini từng
     // thiếu trong danh sách này nên khách chạy Gemini bị banner vàng "chưa hỗ trợ gọi công cụ"
     // dù bên dưới đã chạy MCP ngon - nhánh vàng giờ chỉ còn để chặn provider lạ.
-    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq"];
+    const MCP_PROVIDERS = ["anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"];
     const mainLabel = (provs.find(p => p.id === main.provider) || {}).label || main.provider || "-";
     let warn = "";
     if (main.provider === "openai-oauth") {

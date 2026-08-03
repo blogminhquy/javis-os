@@ -127,10 +127,17 @@ check("dòng Main Model nói rõ provider API vẫn có MCP + skill + loop",
 _ui = re.search(r"const MCP_PROVIDERS = \[([^\]]*)\]", CONSOLE_JS)
 check("tìm được MCP_PROVIDERS trên UI", _ui is not None)
 _ui_set = set(re.findall(r'"([^"]+)"', _ui.group(1))) if _ui else set()
-_srv = re.search(r'if prov in \("openrouter", "openai", "anthropic-api", "gemini", "groq"\)', MAIN_PY)
-check("server cấp MCP cho cả 5 provider API (kể cả gemini, groq)", _srv is not None)
-check(f"UI liệt kê đúng 5 provider API đó + Claude Code (đang có: {sorted(_ui_set)})",
-      _ui_set == {"anthropic-cli", "openrouter", "openai", "anthropic-api", "gemini", "groq"})
+# Đọc danh sách THẬT ở server thay vì chép lại tay lần thứ ba. Bản trước ghim cứng đúng năm
+# tên, nên thêm một provider là test đỏ dù mọi thứ đều đúng - hàng rào quay ra chặn việc sửa.
+# Bất biến cần canh không phải "có đúng năm cái", mà là "UI khớp server".
+_srv = re.search(r'if prov in \(([^)]*)\):\n\s+try:\n\s+if _hub_enabled\(\)', MAIN_PY)
+check("đọc được danh sách provider có MCP ở server", _srv is not None)
+_srv_set = set(re.findall(r'"([^"]+)"', _srv.group(1))) if _srv else set()
+check(f"server cấp MCP cho mọi provider API (đang có: {sorted(_srv_set)})",
+      {"openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"} <= _srv_set)
+check(f"CANARY: UI liệt kê ĐÚNG danh sách của server + Claude Code "
+      f"(UI: {sorted(_ui_set)} | server: {sorted(_srv_set)})",
+      _ui_set == _srv_set | {"anthropic-cli"})
 
 # System prompt: Javis phải tự biết mình đổi được bộ não và không được tự hạ thấp.
 check("system prompt gọi Javis là AI agentic đổi được bộ não",

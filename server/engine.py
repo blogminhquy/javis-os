@@ -302,6 +302,37 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # picker vẫn nạp danh sách LIVE từ /openai/v1/models nên mặc định này chỉ là lưới an toàn.
 GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
+# Ollama - model chạy NGAY TRÊN MÁY người dùng. Khác mọi provider trên ở hai điểm, và cả hai
+# đều ăn vào cách viết mã chứ không chỉ là cấu hình:
+#   1. KHÔNG có API key. Nó nghe trên máy nhà nên không có gì để xác thực. Header Authorization
+#      vẫn gửi (Ollama bỏ qua) để dùng lại nguyên đường OpenAI-compat, khỏi rẽ thêm nhánh.
+#   2. Địa chỉ KHÔNG cố định. Người dùng có thể chạy trên máy khác trong mạng, hoặc đổi cổng,
+#      nên URL phải dựng từ host trong cấu hình chứ không hằng số hoá được như bốn cái trên.
+OLLAMA_DEFAULT_HOST = "http://localhost:11434"
+# Ollama Cloud - cùng nhà, cùng API, khác chỗ chạy: model to nằm trên máy chủ của họ và cần
+# API key. Người dùng chỉ cần dán key là đi đường này.
+OLLAMA_CLOUD_HOST = "https://ollama.com"
+
+
+def ollama_base(host: str = "") -> str:
+    """Địa chỉ gốc đã chuẩn hoá (không gạch chéo cuối, có sẵn http:// nếu người dùng bỏ)."""
+    h = str(host or "").strip().rstrip("/") or OLLAMA_DEFAULT_HOST
+    if not h.startswith(("http://", "https://")):
+        h = "http://" + h            # gõ "localhost:11434" là ý muốn http, đừng bắt gõ đủ
+    return h
+
+
+def ollama_url(host: str = "") -> str:
+    """Endpoint chat OpenAI-compatible của Ollama (máy nhà lẫn Cloud dùng chung đường này)."""
+    return ollama_base(host) + "/v1/chat/completions"
+
+
+def ollama_headers(api_key: str = "") -> dict:
+    """Header cho Ollama. Máy nhà không xác thực gì (gửi chuỗi bất kỳ, nó bỏ qua); Cloud thì
+    đọc đúng Bearer key. Một hàm cho cả hai để không có chỗ nào quên gắn key."""
+    return {"Authorization": "Bearer " + (str(api_key or "").strip() or "ollama"),
+            "Content-Type": "application/json"}
+
 # Model Anthropic hỗ trợ adaptive thinking + output_config.effort (khỏi budget_tokens).
 _ADAPTIVE_THINKING = ("opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5", "sonnet-4-6", "fable-5", "mythos-5")
 
@@ -430,6 +461,22 @@ async def groq_stream(api_key, model, messages, reasoning="off"):
     không có tool nào; đường thường là groq_chat_with_mcp)."""
     async for ev in _openai_compat_stream(GROQ_URL, "Groq", api_key, model or GROQ_DEFAULT_MODEL,
                                           messages, reasoning, _groq_is_reasoning(model)):
+        yield ev
+
+
+async def ollama_stream(host, model, messages, reasoning="off", api_key=""):
+    """Ollama (provider 'ollama') - nhánh KHÔNG tool. Chạy được cả máy nhà lẫn Ollama Cloud.
+
+    Tham số đầu là HOST chứ không phải api key - khác mọi hàm *_stream còn lại, vì Ollama
+    xác định bằng ĐỊA CHỈ trước, key chỉ là thứ Cloud mới cần. Key đi ở tham số cuối để chỗ
+    gọi cũ không vỡ.
+
+    reasoning bỏ qua: `reasoning_effort` là tham số của OpenAI, model chạy local không hiểu,
+    và gửi thừa thì có bản Ollama trả 400 chứ không im lặng bỏ qua.
+    """
+    async for ev in _openai_compat_stream(ollama_url(host), "Ollama",
+                                          str(api_key or "").strip() or "ollama", model,
+                                          messages, reasoning, False):
         yield ev
 
 
@@ -590,6 +637,10 @@ async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_s
         "groq": (GROQ_URL, model or GROQ_DEFAULT_MODEL),
         "gemini": (GEMINI_URL, model or "gemini-2.5-flash"),
         "openrouter": (OPENROUTER_URL, model or "openai/gpt-4o-mini"),
+        # Ollama: `api_key` mang HOST chứ không mang key (nó không có key). Đây là chỗ DUY
+        # NHẤT trong file phải chấp nhận sự lệch đó, vì hàm này nhận provider dạng chuỗi và
+        # không có tham số host riêng; đổi chữ ký của nó thì kéo theo cả Phase 6/7.
+        "ollama": (ollama_url(api_key), model),
     }
     if provider not in endpoints:
         return {"status": "error", "error_code": "provider_not_supported", "input": 0, "output": 0}
@@ -1427,6 +1478,19 @@ async def groq_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp
         extra["reasoning_effort"] = api_effort(reasoning)
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(GROQ_URL, headers, model or GROQ_DEFAULT_MODEL, messages, mcp_tools, mcp_route, extra, "Groq"):
+        yield ev
+
+
+async def ollama_chat_with_mcp(host, model, messages, reasoning, mcp_tools, mcp_route, api_key=""):
+    """Ollama + vòng tool-calling MCP. Model chạy local hay Cloud đều là agent đủ đồ nghề của
+    Javis, miễn model đó biết gọi tool (llama3.1+, qwen2.5, mistral-nemo, gpt-oss... đều biết).
+
+    Tham số đầu là HOST, không phải key - xem ollama_stream.
+    """
+    headers = ollama_headers(api_key)
+    yield {"type": "meta", "model": model}
+    async for ev in _cc_tool_loop(ollama_url(host), headers, model, messages,
+                                  mcp_tools, mcp_route, {}, "Ollama"):
         yield ev
 
 
