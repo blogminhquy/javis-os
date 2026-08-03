@@ -36,7 +36,7 @@
   // Cột trái có HAI tab: hội thoại và cây thư mục brain. Nhớ tab đã chọn qua localStorage -
   // ai dùng cây làm chính thì mỗi lần mở chat lại phải bấm sang là phiền vô ích.
   var TAB_KEY = "javis.chatside.tab";
-  var tabHienTai = "chat", cayEl = null, cayCtl = null;
+  var tabHienTai = "chat", cayEl = null;
 
   function tabDaLuu() {
     try { return localStorage.getItem(TAB_KEY) === "files" ? "files" : "chat"; }
@@ -74,11 +74,10 @@
         '<input class="cside-search" placeholder="Tìm trong mọi hội thoại…">' +
         '<div class="cside-list"></div>' +
       '</div>' +
-      '<div class="cside-pane ftree" data-pane="files"></div>';
+      '<div class="cside-pane" data-pane="files"></div>';
     listEl = side.querySelector(".cside-list");
     searchEl = side.querySelector(".cside-search");
     cayEl = side.querySelector('[data-pane="files"]');
-    cayCtl = null;
     side.querySelector(".cside-new").onclick = function () {
       if (window.JavisSessions) window.JavisSessions.new();
       closeDrawerIfNarrow();
@@ -96,8 +95,13 @@
   }
 
   /**
-   * Đổi tab. Cây thư mục dựng LƯỜI - lần đầu bấm sang mới mount, vì đa số lượt mở chat là để
-   * chat chứ không phải duyệt file, mà mount là một lượt gọi mạng.
+   * Đổi tab. Tab "Thư mục" MƯỢN chính panel Vault ở cột trái màn chính chứ không dựng cây
+   * riêng - cùng một cây, chỉ đổi chỗ đứng. Nhờ vậy mọi thứ cây đó đã có (tìm theo tên và
+   * theo nội dung, tạo file, tạo thư mục, làm mới, tô sáng file đang mở) đi theo luôn, và
+   * không có bản thứ hai để trôi lệch.
+   *
+   * Trả về ngay khi bấm sang tab Hội thoại: node chỉ có một, để nó nằm trong pane đang ẩn thì
+   * màn chính mất panel Vault.
    */
   function chonTab(tab) {
     if (!side) return;
@@ -109,10 +113,9 @@
     side.querySelectorAll(".cside-pane").forEach(function (p) {
       p.classList.toggle("on", p.dataset.pane === tabHienTai);
     });
-    if (tabHienTai === "files" && cayEl && window.JavisFileTree) {
-      if (!cayCtl) cayCtl = window.JavisFileTree.mount(cayEl, { brain: brain });
-      else cayCtl.refresh();
-    }
+    if (!window.JavisVaultPanel) return;
+    if (tabHienTai === "files" && cayEl) window.JavisVaultPanel.borrow(cayEl);
+    else window.JavisVaultPanel.giveBack();
   }
 
   function refresh() {
@@ -120,9 +123,8 @@
     var b = brain();
     if (b !== lastBrain) {
       lastBrain = b; shown = PAGE;
-      // Đổi brain là đổi luôn cây file. Không dựng lại thì tab Thư mục còn treo cây của brain
-      // CŨ, mở file ra là mở nhầm brain - im lặng và rất khó ngờ.
-      if (cayCtl) cayCtl.reload();
+      // Cây Vault tự dựng lại khi đổi brain (console.js theo dõi #graphSource), nên ở đây
+      // không phải làm gì thêm - đó chính là cái lợi của việc mượn node thay vì nuôi bản hai.
     }
     // debounce nhẹ: response + notifySessions có thể bắn sát nhau
     clearTimeout(refreshTimer);

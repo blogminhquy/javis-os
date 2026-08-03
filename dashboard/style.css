@@ -1391,37 +1391,20 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cside-pane { display: none; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; }
 .cside-pane.on { display: flex; }
 
-/* ===== CÂY THƯ MỤC (file-tree.js) ===== */
-.ftree-search { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--field-bg); color: var(--text); font-size: 14px; outline: none; flex: none; }
-.ftree-search:focus { border-color: var(--info-line); }
-.ftree-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
-.ftree-body::-webkit-scrollbar { width: 4px; }
-.ftree-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.ftree-empty { color: var(--text3); text-align: center; padding: 22px 8px; font-size: 13.5px; }
-.ftree-row { display: flex; align-items: center; gap: 5px; padding: 4px 6px; cursor: pointer;
-  border-radius: 7px; border: 1px solid transparent; font-size: 13.5px; color: var(--text2); }
-.ftree-row:hover { background: var(--info-wash); color: var(--text); }
-.ftree-row.is-dir { color: var(--text); font-weight: 600; }
-/* Node vừa được bấm "Vị trí". Phải nổi rõ: cả điểm của nút đó là chỉ ra file nằm ĐÂU, mà tô
-   nhạt quá thì xổ xong vẫn phải đưa mắt đi dò. */
-.ftree-row.hit { background: var(--accent-wash-2); border-color: var(--accent-line);
-  color: var(--accent); }
-.ftree-caret { width: 10px; flex: none; font-size: 10px; color: var(--text3); }
-.ftree-ico { flex: none; display: inline-flex; }
-.ftree-ico .ic { width: 14px; height: 14px; vertical-align: -2px; }
-.ftree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ftree-hit { display: flex; align-items: center; gap: 7px; padding: 6px; border-radius: 8px;
-  border: 1px solid transparent; }
-.ftree-hit:hover { background: var(--info-wash); border-color: var(--info-line); }
-.ftree-hit-main { flex: 1 1 auto; min-width: 0; cursor: pointer; }
-.ftree-hit-name { display: block; font-size: 13.5px; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ftree-hit-path { display: block; font-size: 11.5px; color: var(--text3);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ftree-loc { flex: none; padding: 3px 8px; border-radius: 7px; cursor: pointer;
-  border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 11.5px; }
-.ftree-loc:hover { border-color: var(--accent-line); color: var(--accent); }
+/* ===== PANEL VAULT KHI ĐƯỢC MƯỢN SANG CỘT CHAT =====
+   Không có cây thứ hai: tab "Thư mục" mượn đúng .hud-left của màn chính. Nó vốn là một cột
+   của lưới HUD nên mang theo bề rộng và viền riêng; ở đây phải gỡ những thứ đó ra, nếu không
+   cột chat bị đội rộng và có hai đường viền chồng nhau. */
+.cside-pane > .hud-left { width: auto; max-width: none; min-width: 0; flex: 1 1 auto;
+  min-height: 0; padding: 0; border: 0; background: transparent; }
+/* Nút "Vị trí" ở kết quả tìm kiếm: xổ cây tới đúng thư mục đang chứa file. Nằm bên phải tên
+   file, chỉ hiện rõ khi rê chuột để không tranh chỗ với chính cái tên. */
+.vr-name { display: flex; align-items: center; gap: 6px; }
+.vr-loc { margin-left: auto; flex: none; padding: 2px 7px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text3);
+  font-size: 11px; opacity: .55; transition: opacity .15s; }
+.vr-item:hover .vr-loc { opacity: 1; }
+.vr-loc:hover { border-color: var(--accent-line); color: var(--accent); }
 
 .cside-new { background: var(--accent-wash-2); border: 1px solid var(--accent-line);
   color: var(--accent); border-radius: 9px; padding: 9px 10px; cursor: pointer;

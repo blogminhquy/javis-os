@@ -4583,8 +4583,37 @@
       into.appendChild(n);
     });
   }
+  // ===== Cho tab "Thư mục" của khung chat MƯỢN chính panel Vault =====
+  // Không dựng lại cây thứ hai. Bản đầu của tính năng này viết hẳn một module cây riêng, và
+  // chủ repo chỉ ra ngay: "sao không bê nguyên cái cây y hệt bên Javis sang mà phải dựng lại".
+  // Đúng - cây Vault đã có sẵn tìm theo tên/nội dung, tạo file, tạo thư mục, làm mới, tô sáng
+  // file đang mở. Dựng bản thứ hai là chép lại từng đó thứ rồi để hai bản trôi lệch nhau.
+  // Mượn node y như cách trang này vẫn mượn #chatArea: cùng một cây, chỉ đổi chỗ đứng.
+  let _vaultSlot = null;
+  function _borrowVaultPanel(into) {
+    const n = document.querySelector(".hud-left");
+    if (!n || !into) return false;
+    if (_vaultSlot && _vaultSlot.node === n) { into.appendChild(n); return true; }
+    _vaultSlot = { node: n, parent: n.parentNode, next: n.nextSibling };
+    into.appendChild(n);
+    try { renderVaultTree(); } catch (e) {}
+    return true;
+  }
+  function _returnVaultPanel() {
+    const s = _vaultSlot; if (!s || !s.parent) return;
+    if (s.next && s.next.parentNode === s.parent) s.parent.insertBefore(s.node, s.next);
+    else s.parent.appendChild(s.node);
+    _vaultSlot = null;
+  }
+  if (typeof window !== "undefined") {
+    window.JavisVaultPanel = { borrow: _borrowVaultPanel, giveBack: _returnVaultPanel };
+  }
+
   function _returnChatNodes() {
     if (_chatEngObs) { try { _chatEngObs.disconnect(); } catch (e) {} _chatEngObs = null; }
+    // Rời trang Trò chuyện thì trả cây Vault về cột trái màn chính, nếu không màn chính mất
+    // hẳn panel Vault và người dùng tưởng app hỏng.
+    _returnVaultPanel();
     for (let i = _chatSlots.length - 1; i >= 0; i--) {
       const s = _chatSlots[i];
       if (!s.parent) continue;
@@ -4846,14 +4875,38 @@
     return dir;
   }
 
+  /** Xổ cây tới đúng chỗ `path` đang nằm rồi tô sáng nó, và tắt khung kết quả tìm kiếm.
+   *
+   * Tìm ra file mà không biết nó nằm thư mục nào thì lần sau vẫn phải đi tìm lại - đó là chỗ
+   * hụt của khung tìm kiếm cũ: bấm kết quả là mở note luôn, cây phía sau không hề nhúc nhích.
+   * Dùng lại `_vtRebuildReExpand` (vốn viết cho việc tạo file mới) nên không đẻ thêm cơ chế
+   * xổ cây thứ hai.
+   */
+  async function _vtRevealInTree(path) {
+    const p = String(path || "");
+    const dir = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : (_vtHome || "");
+    const input = document.getElementById("vaultSearch");
+    if (input) input.value = "";
+    const results = document.getElementById("vaultResults"); if (results) results.hidden = true;
+    const clearBtn = document.getElementById("vaultSearchClear"); if (clearBtn) clearBtn.hidden = true;
+    const tree = document.getElementById("vaultTree"); if (tree) tree.hidden = false;
+    await _vtRebuildReExpand(dir);
+    _vtMarkActive(p);
+    const sel = (window.CSS && CSS.escape) ? CSS.escape(p) : p.replace(/"/g, '\\"');
+    const node = tree && tree.querySelector(`.vt-node[data-rel="${sel}"]`);
+    if (node && node.scrollIntoView) node.scrollIntoView({ block: "center" });
+  }
+
   function _vtRenderResults(box, list, withSnippet) {
     box.innerHTML = "";
     list.forEach(it => {
       const el = document.createElement("div"); el.className = "vr-item";
       const sub = withSnippet ? (it.snippet || "") : _vtRelHome(it.dir);
-      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${_fileIcon(it.ext)}</span>${esc(it.name)}</div>`
+      el.innerHTML = `<div class="vr-name"><span class="vt-ico">${_fileIcon(it.ext)}</span>${esc(it.name)}`
+        + `<button class="vr-loc" type="button" title="Xổ cây tới thư mục đang chứa file này">Vị trí</button></div>`
         + (sub ? `<div class="vr-snip">${esc(sub)}</div>` : "");
       el.onclick = () => openNote(it.path, { name: it.name, ext: it.ext, type: "file" });
+      el.querySelector(".vr-loc").onclick = (e) => { e.stopPropagation(); _vtRevealInTree(it.path); };
       box.appendChild(el);
     });
   }

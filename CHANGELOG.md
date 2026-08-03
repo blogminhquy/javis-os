@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.15.1] - 2026-08-03
+Tab Thư mục dùng ĐÚNG cây Vault sẵn có, thay vì cây thứ hai tự dựng ở bản trước.
+### Sửa lỗi
+- **Bản 0.15.0 dựng một cây thư mục thứ hai thay vì dùng cây đã có.** Chủ repo chỉ ra ngay: "sao không bê nguyên cái cây y hệt bên Javis sang mà phải dựng lại phức tạp thế, lại còn lỗi nữa chứ". Đúng vậy - Javis đã có cây Vault ở cột trái màn chính, kèm tìm theo tên và theo nội dung, tạo file, tạo thư mục, làm mới, tô sáng file đang mở. Viết bản thứ hai là chép lại từng đó thứ rồi để hai bản trôi lệch nhau, mà bản mới thì chưa ai dùng thật nên lỗi cứ nằm im ở đó.
+
+  Nay tab Thư mục **mượn đúng panel Vault** đó, y như cách trang Trò chuyện vẫn mượn khung chat của màn chính. Cùng một cây, chỉ đổi chỗ đứng. Module tự dựng đã gỡ bỏ hoàn toàn.
+### Thêm mới
+- **Nút "Vị trí" ở kết quả tìm kiếm của cây Vault** - có ở CẢ màn chính lẫn tab Thư mục trong khung chat, vì giờ chỉ còn một cây. Bấm là xổ cây tới đúng thư mục đang chứa file rồi tô sáng nó, thay vì mở note ra luôn như trước.
+
 ## [0.15.0] - 2026-08-03
 Cột trái khung chat có thêm tab **Thư mục**: cây file của brain, ngay cạnh lịch sử hội thoại.
 ### Thêm mới
