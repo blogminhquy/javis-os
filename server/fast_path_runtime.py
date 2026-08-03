@@ -283,13 +283,6 @@ class FastPathCanary:
             return self._legacy(trace, policy, bucket, "channel_not_allowed")
         if provider_kind not in policy.provider_kinds:
             return self._legacy(trace, policy, bucket, "provider_kind_not_allowed")
-        # RÀO CỨNG cho Claude Code, không phụ thuộc cấu hình. Đường tắt chạy bằng
-        # `main._api_stream`, mà với provider `anthropic-cli` hàm đó rơi vào
-        # `engine.anthropic_stream(key, ...)` - cần API key, thứ gói Claude Code không có.
-        # Nới `provider_kinds` bằng tay tới đây là mọi câu hỏi đơn giản ăn 401. Codex thì
-        # khác: `_api_stream` có sẵn nhánh OAuth đã chạy thật (openai_responses_stream).
-        if str(provider_kind or "") == "cli":
-            return self._legacy(trace, policy, bucket, "cli_khong_co_duong_goi_thang")
         rule = policy.quota_rule(provider, model)
         if rule is None and str(provider_kind or "") in ("cli", "oauth"):
             rule = policy._rule_thue_bao(self.settings_reader() or {})

@@ -194,23 +194,16 @@ check("CANARY: cùng một tầng ghim lại giữa lượt thì KHÔNG đổi �
 # ============================================================
 # 4. Mức "Siêu tiết kiệm" không được khoe con số bộ não này không với tới
 # ============================================================
-# Từ 0.14.0 đường tắt mở cho gói ChatGPT, nên bộ não KHÔNG ăn được mức này giờ chỉ còn gói
-# Claude Code - và đó là rào CỨNG trong mã, không phải cấu hình: đường tắt gọi model bằng
-# đường cần API key, thứ gói Claude Code không có.
-dat_bo_nao("anthropic-cli", "opus", None)
-_uoc_sub = asyncio.run(main._uoc_tinh_tiet_kiem("brain"))
-_m_sub = _uoc_sub.get("muc") or {}
-check("gói Claude Code: Siêu tiết kiệm bị đánh dấu không áp dụng",
-      _m_sub.get("max", {}).get("ap_dung") is False)
-check("CANARY: và KHÔNG được khoe tốn ít token hơn mức Tối ưu",
-      _m_sub["max"]["token_moi_request"] == _m_sub["saving"]["token_moi_request"])
-check("có câu nói rõ vì sao", "chưa mở" in (_m_sub["max"].get("ghi_chu") or ""))
-
-# Còn gói ChatGPT thì ăn được. Nhãn này từng gõ cứng kind=="api" nên dán "không áp" lên đúng
-# mức vừa được mở cho nó, và chủ repo bấm vào rồi tưởng mình bấm nhầm.
-dat_bo_nao("openai-oauth", "gpt-5.6-luna", None)
-check("CANARY: gói ChatGPT ĂN được mức Siêu tiết kiệm",
-      (asyncio.run(main._uoc_tinh_tiet_kiem("brain"))["muc"]["max"]).get("ap_dung") is True)
+# Nhãn này từng gõ cứng kind=="api", nên khi đường tắt mở cho gói thuê bao thì trang vẫn dán
+# "không áp" lên đúng mức vừa được mở, và chủ repo bấm vào rồi tưởng mình bấm nhầm. Nay nó
+# đọc cấu hình thật, và cả ba loại bộ não đều ăn được mức này.
+for _nhan_bn, _p_bn, _m_bn, _kf_bn in (("gói ChatGPT", "openai-oauth", "gpt-5.6-luna", None),
+                                       ("gói Claude Code", "anthropic-cli", "opus", None),
+                                       ("API key", "groq", "llama-3.3-70b-versatile",
+                                        "groq_api_key")):
+    dat_bo_nao(_p_bn, _m_bn, _kf_bn)
+    check(f"CANARY: {_nhan_bn} ĂN được mức Siêu tiết kiệm",
+          (asyncio.run(main._uoc_tinh_tiet_kiem("brain"))["muc"]["max"]).get("ap_dung") is True)
 
 dat_bo_nao("groq", "llama-3.3-70b-versatile", "groq_api_key")
 _uoc_api = asyncio.run(main._uoc_tinh_tiet_kiem("brain"))

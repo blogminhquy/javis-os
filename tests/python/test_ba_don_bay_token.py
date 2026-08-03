@@ -230,13 +230,16 @@ check("và KHÔNG đi đường tắt", DEM["thang"] == 0)
 # Rào cứng cho Claude Code: đường tắt chạy bằng _api_stream, mà provider anthropic-cli rơi
 # vào nhánh cần API key - thứ gói Claude Code không có. Nới cấu hình bằng tay tới đây là mọi
 # câu hỏi đơn giản ăn 401.
+# Gói Claude Code: 0.14.0 chặn cứng vì chưa có đường gọi thẳng nào không cần API key. Nay
+# có rồi (mượn access token OAuth của chính CLI), nên nó cũng đi tắt được.
 _tr = main._CONTEXT_RUNTIME.start_turn("s-cli", "brain", "dashboard")
 _ke = main._FAST_PATH.prepare(_tr, "entropy la gi", str(BRAIN), "dashboard",
                               "anthropic-cli", "opus", "cli", False)
-check("CANARY: Claude Code KHÔNG bao giờ đi đường tắt", _ke.action == "legacy")
-_src_fp = (SERVER / "fast_path_runtime.py").read_text(encoding="utf-8")
-check("CANARY: và bị chặn CỨNG trong mã, không chỉ dựa vào cấu hình",
-      'provider_kind or "") == "cli"' in _src_fp)
+check("CANARY: gói Claude Code giờ ĐI ĐƯỢC đường tắt", _ke.action == "execute")
+_tr_b = main._CONTEXT_RUNTIME.start_turn("s-cli2", "brain", "dashboard")
+check("CANARY: nhưng câu cần dữ liệu thật thì vẫn không",
+      main._FAST_PATH.prepare(_tr_b, "doanh thu hom nay bao nhieu", str(BRAIN), "dashboard",
+                              "anthropic-cli", "opus", "cli", False).action == "legacy")
 
 # ============================================================
 # 3. Xoay mạch khi mạch phình
@@ -415,8 +418,8 @@ check("CANARY: gói ChatGPT giờ ĂN được mức Siêu tiết kiệm",
       _ap_dung_cho("openai-oauth", "gpt-5.6-luna")["ap_dung"] is True)
 check("bộ não API key vẫn ăn",
       _ap_dung_cho("groq", "llama-3.3-70b-versatile")["ap_dung"] is True)
-check("gói Claude Code vẫn được báo là chưa mở",
-      _ap_dung_cho("anthropic-cli", "opus")["ap_dung"] is False)
+check("CANARY: gói Claude Code cũng ăn được (mở ở 0.14.4)",
+      _ap_dung_cho("anthropic-cli", "opus")["ap_dung"] is True)
 
 # Và khi một lượt KHÔNG đi đường tắt, phải nói được vì sao. Lý do vốn đã ghi vào trace từ
 # đầu nhưng chưa ai đưa ra màn hình, nên bấm mức xong thấy vẫn "Tối ưu" là chịu.
@@ -447,6 +450,66 @@ check("dịch được mấy mã hay gặp nhất",
                                   "provider_kind_not_allowed", "capability_selected")))
 check("có CSS cho dòng lý do",
       ".rt-lydo" in (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8"))
+
+
+# ============================================================
+# 8. Đường tắt cho GÓI CLAUDE CODE, và lưới an toàn khi token hỏng
+# ============================================================
+# 0.14.0 chặn cứng gói Claude Code khỏi đường tắt vì lúc đó không có đường gọi thẳng nào
+# không cần API key. Nhưng claude_models vẫn hỏi /v1/models bằng chính access token OAuth mà
+# CLI đã lưu, nên cùng token đó gọi /v1/messages được - đó là cách chính Claude Code chạy.
+# Mở ra thì cả ba loại bộ não đều ăn mức Siêu tiết kiệm.
+check("CANARY: đường tắt mở cho cả ba loại bộ não",
+      set((cfg._DEFAULT["context_runtime"]["canary"]["provider_kinds"]))
+      >= {"api", "oauth", "cli"})
+check("CANARY: rào cứng chặn 'cli' đã gỡ",
+      'cli_khong_co_duong_goi_thang' not in
+      (SERVER / "fast_path_runtime.py").read_text(encoding="utf-8"))
+_src_eng2 = (SERVER / "engine.py").read_text(encoding="utf-8")
+check("đường gọi thẳng của gói Claude dùng token OAuth, không đòi API key",
+      'oauth_token=""' in _src_eng2 and 'Bearer {oauth_token}' in _src_eng2)
+check("và main nối nó vào provider anthropic-cli",
+      'oauth_token=claude_models.oauth_token()' in _src_main)
+
+# Alias của Claude Code (haiku/opus) KHÔNG phải model id mà API nhận - gửi thẳng là 404.
+_cfg_tmp = cfg.read_settings()
+_cfg_tmp.setdefault("model", {}).setdefault("catalog", {})["claude"] = [
+    "haiku", "opus", "claude-haiku-4-5-20251001", "claude-opus-4-8"]
+cfg.write_settings(_cfg_tmp)
+check("CANARY: alias được dịch sang model id thật",
+      main._claude_api_model("haiku") == "claude-haiku-4-5-20251001")
+check("id đầy đủ thì giữ nguyên",
+      main._claude_api_model("claude-opus-4-8") == "claude-opus-4-8")
+check("tra không ra thì trả nguyên, không tự đoán tên khác",
+      main._claude_api_model("khong-co-that") == "khong-co-that"
+      and main._claude_api_model("") == "")
+
+# Lưới an toàn: đường tắt ghim "fast" lúc nhận lượt. Nếu nó về tay không (token hết hạn, nhà
+# cung cấp từ chối) thì lượt lui về engine đầy đủ - và phải TRẢ LẠI chỗ ghim, nếu không lượt
+# chạy bằng engine đầy đủ vẫn đeo nhãn "Tức thì" và con số tiết kiệm bị thổi lên bằng đúng
+# những lượt không hề tiết kiệm.
+_rt4 = context_runtime.ObserveRuntime(
+    Path(tempfile.mkdtemp(prefix="javis-3db-nha-")), cfg.read_settings)
+_tn = _rt4.start_turn("s-nha", "brain", "dashboard")
+_rt4.pin_execution_path(_tn, "fast", 1, "fast-path-canary-v1", "admitted")
+check("đường tắt ghim được", _tn.execution_path == "fast")
+check("CANARY: nhả ghim khi về tay không", _rt4.nha_ghim_duong(_tn, "fast") is True)
+check("và nhãn trở lại chưa gán", _tn.execution_path == "unassigned")
+check("nhả xong thì tầng sau ghim được đường thật của nó",
+      _rt4.pin_execution_path(_tn, "sources", None, "adaptive-context-sources-v1", "x")
+      == "sources")
+# Một tầng KHÔNG được gỡ cam kết của tầng khác.
+_tn2 = _rt4.start_turn("s-nha2", "brain", "dashboard")
+_rt4.pin_execution_path(_tn2, "sources", None, "adaptive-context-sources-v1", "x")
+check("CANARY: không nhả được đường mình không ghim",
+      _rt4.nha_ghim_duong(_tn2, "fast") is False and _tn2.execution_path == "sources")
+check("không có trace thì bỏ qua êm", _rt4.nha_ghim_duong(None, "fast") is False)
+
+# Và chỗ gọi phải THẬT SỰ nhả, không chỉ có hàm nằm đó.
+check("CANARY: lượt lui về engine THẬT SỰ nhả ghim",
+      '_CONTEXT_RUNTIME.nha_ghim_duong(runtime_trace, "fast")' in _src_main)
+check("đường tắt của gói thuê bao chạy ở chế độ im lặng khi lỗi",
+      "im_lang_khi_loi=True" in _src_main)
 
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)

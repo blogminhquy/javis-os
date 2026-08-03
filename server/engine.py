@@ -440,14 +440,25 @@ async def gemini_stream(api_key, model, messages, reasoning="off"):
         yield ev
 
 
-async def anthropic_stream(api_key, model, messages, reasoning="off"):
+async def anthropic_stream(api_key, model, messages, reasoning="off", oauth_token=""):
     """Anthropic Messages API (provider 'anthropic-api') - nhánh KHÔNG tool (dự phòng khi hub
     không có tool nào; đường thường là anthropic_chat_with_mcp).
-    Tách system ra field riêng (Anthropic không nhận role=system trong messages)."""
+    Tách system ra field riêng (Anthropic không nhận role=system trong messages).
+
+    `oauth_token` là access token của Claude Code, dùng cho provider 'anthropic-cli' - gói
+    thuê bao KHÔNG có API key nên đây là đường gọi thẳng DUY NHẤT của nó. Cùng cặp header mà
+    claude_models đã dùng để hỏi /v1/models bằng chính token đó, chỉ đổi endpoint.
+    """
     sys_parts = [m.get("content", "") for m in messages if m.get("role") == "system"]
     conv = [{"role": m["role"], "content": m.get("content", "")}
             for m in messages if m.get("role") in ("user", "assistant")]
-    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    if oauth_token:
+        headers = {"Authorization": f"Bearer {oauth_token}",
+                   "anthropic-beta": "oauth-2025-04-20",
+                   "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    else:
+        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01",
+                   "content-type": "application/json"}
     payload = {"model": model or "claude-sonnet-4-6", "max_tokens": 4096, "messages": conv, "stream": True}
     payload.update(_anthropic_reasoning(model, reasoning))   # thinking + effort + max_tokens nếu bật reasoning
     sys_txt = "\n\n".join(s for s in sys_parts if s)

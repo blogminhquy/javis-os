@@ -626,6 +626,43 @@ class ObserveRuntime:
         except Exception:
             pass
 
+    def nha_ghim_duong(self, trace: Optional[TurnTrace], path: str) -> bool:
+        """Trả lại chỗ ghim khi tầng đã nhận lượt lại KHÔNG giao được hàng.
+
+        Ghim một đường là cam kết "tầng này lo lượt này". Đường tắt của bộ não gói thuê bao có
+        thể ghim xong rồi về tay không - token của CLI hết hạn, nhà cung cấp từ chối - và lúc
+        đó lượt lui về engine đầy đủ. Không trả lại chỗ ghim thì lượt CHẠY BẰNG engine đầy đủ
+        vẫn đeo nhãn "Tức thì": dòng dưới câu trả lời nói sai, bảng đo 24 giờ xếp nhầm cột, và
+        con số tiết kiệm bị thổi lên bằng đúng những lượt không hề tiết kiệm.
+
+        Chỉ nhả đúng đường mình đã ghim (`path`), để một tầng không gỡ được cam kết của tầng
+        khác. Trả True nếu có nhả.
+        """
+        if not trace or not path:
+            return False
+        try:
+            with self._lock:
+                db = self._conn()
+                with db:
+                    cur = db.execute(
+                        "UPDATE runtime_tasks SET execution_path='unassigned',"
+                        "canary_bucket=NULL,canary_policy_version='',updated_at=? "
+                        "WHERE id=? AND execution_path=?",
+                        (time.time(), trace.task_id, str(path)),
+                    )
+                    if not cur.rowcount:
+                        return False
+                    trace.execution_path = "unassigned"
+                    trace.canary_bucket = None
+                    trace.canary_policy_version = ""
+                    self._event(db, trace, "canary.decision", {
+                        "execution_path": "unassigned",
+                        "reason": "nha_ghim:" + str(path)[:40],
+                    })
+                    return True
+        except Exception:  # noqa: BLE001 - nhả ghim hỏng không được phá lượt chat
+            return False
+
     def pin_execution_path(self, trace: Optional[TurnTrace], path: str,
                            bucket: Optional[int], policy_version: str,
                            reason: str = "") -> str:

@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.4] - 2026-08-03
+Gói Claude Code dùng được mức Siêu tiết kiệm. Trước đó nó là bộ não duy nhất bị đứng ngoài.
+### Thêm mới
+- **Đường tắt cho câu hỏi đơn giản giờ chạy trên cả gói Claude Code.** Bản 0.14.0 chặn cứng nó vì lúc đó không có cách nào gọi thẳng model mà không cần API key, thứ gói thuê bao không có. Nhưng Javis vốn đã mượn chính access token của Claude Code để hỏi danh sách model, và cùng token đó gọi được cả đường trả lời. Nay cả ba loại bộ não đều ăn được mức này.
+- **Có lưới an toàn.** Token của CLI có thể hết hạn hoặc bị từ chối. Khi đó lượt tự lui về Claude Code đầy đủ ngay trong lượt, không ném lỗi ra và không để lại bong bóng rỗng. Chậm hơn một chút, nhưng anh vẫn có câu trả lời.
+### Sửa lỗi
+- **Lượt lui về engine đầy đủ vẫn đeo nhãn "Tức thì".** Đường tắt ghim nhãn ngay lúc nhận lượt, nên khi nó về tay không thì nhãn vẫn còn nguyên: dòng dưới câu trả lời nói sai, bảng đo 24 giờ xếp nhầm cột, và con số tiết kiệm bị thổi lên bằng đúng những lượt không hề tiết kiệm. Nay ghim được trả lại khi tầng đó không giao được hàng, và một tầng không gỡ được cam kết của tầng khác.
+- **Alias model của Claude Code được dịch sang tên thật.** Claude Code hiểu "haiku" và tự chọn bản mới nhất, nhưng đường gọi thẳng thì không: gửi "haiku" là báo không tìm thấy model. Nay Javis tra danh sách model đang có và dịch sang đúng bản mới nhất cùng dòng.
+
 ## [0.14.3] - 2026-08-03
 Trang thôi dán nhãn sai lên mức Siêu tiết kiệm, và mỗi lượt nói được VÌ SAO nó không đi đường tắt.
 ### Sửa lỗi

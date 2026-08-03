@@ -825,6 +825,31 @@ def _chat_provider(mcfg):
         model = model or mcfg.get("openrouter_model")
     return prov, kind, key, model
 
+def _claude_api_model(model: str) -> str:
+    """Alias của Claude Code -> model id THẬT mà API nhận.
+
+    Claude Code hiểu "opus"/"sonnet"/"haiku" và tự chọn bản mới nhất, nhưng /v1/messages thì
+    không: gửi "haiku" là ăn 404 model_not_found. Đường gọi thẳng của gói thuê bao đi qua API
+    nên phải dịch. Catalog `claude` đã được /provider/models ghi đè bằng danh sách LIVE (alias
+    đứng trước, id đầy đủ đứng sau), nên chỉ cần lấy id đầy đủ ĐẦU TIÊN cùng dòng - đó chính
+    là bản mới nhất, đúng thứ alias vẫn trỏ tới.
+
+    Không tra được thì trả nguyên: thà để nhà cung cấp nói không còn hơn tự đoán một tên khác.
+    """
+    m = str(model or "").strip()
+    if not m or "-" in m:
+        return m                      # đã là id đầy đủ (claude-opus-4-8...), hoặc rỗng
+    try:
+        cat = (cfgmod.read_settings().get("model", {}).get("catalog", {}).get("claude")) or []
+    except Exception:  # noqa: BLE001 - tra cứu hỏng không được phá lượt chat
+        return m
+    for x in cat:
+        x = str(x or "")
+        if "-" in x and x.split("-")[1:2] == [m]:
+            return x
+    return m
+
+
 def _api_stream(prov, key, model, messages, reasoning="off"):
     """Chọn generator stream theo provider api-kind. reasoning=off|low|medium|high."""
     if prov == "openrouter":
@@ -839,6 +864,13 @@ def _api_stream(prov, key, model, messages, reasoning="off"):
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
                                               _codex_safe_model(model), messages, reasoning)
+    if prov == "anthropic-cli":
+        # Gói Claude Code không có API key. Mượn access token OAuth mà chính CLI đã lưu -
+        # đúng cách claude_models vẫn hỏi /v1/models bằng token đó, chỉ khác endpoint. Đây là
+        # đường gọi thẳng DUY NHẤT của gói này, và cũng là thứ mở được mức Siêu tiết kiệm cho
+        # nó. Không có token thì trả về đường cũ để lỗi nói đúng chuyện thiếu đăng nhập.
+        return engine.anthropic_stream(key, _claude_api_model(model), messages, reasoning,
+                                       oauth_token=claude_models.oauth_token())
     return engine.anthropic_stream(key, model, messages, reasoning)
 
 
@@ -1316,8 +1348,14 @@ def _record_quality_shadow(trace, objective: str, response: str, channel: str) -
 
 async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
                              reasoning: str, ws, session_id: str, runtime_trace,
-                             objective: str = ""):
-    """Đúng một direct API stream; không MCP discovery, tool loop, compaction hay replay."""
+                             objective: str = "", im_lang_khi_loi: bool = False):
+    """Đúng một direct API stream; không MCP discovery, tool loop, compaction hay replay.
+
+    `im_lang_khi_loi`: nuốt gói lỗi và KHÔNG gửi gói trả lời rỗng, để chỗ gọi còn lui về
+    engine đầy đủ trong cùng lượt. Dùng cho bộ não gói thuê bao, nơi đường tắt chạy bằng
+    access token của CLI - token đó có thể hết hạn hoặc bị nhà cung cấp từ chối cho đường
+    này, và người dùng không việc gì phải nhìn thấy một lỗi mà Javis tự xử lý được.
+    """
     actual_model = model or "?"
     final_text = ""
     tokens_in = 0
@@ -1344,7 +1382,20 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
                 "type": "stream", "content": ev["content"], "tts": False,
             }))
         elif ev["type"] == "error":
-            await ws.send_text(json.dumps({"type": "error", "content": ev["content"]}))
+            if im_lang_khi_loi:
+                # Nuốt tại chỗ: chỗ gọi sẽ lui về engine đầy đủ và người dùng vẫn có câu trả
+                # lời. Vẫn ghi vào trace để trang chẩn đoán nói được đường tắt đã hỏng vì gì.
+                _CONTEXT_RUNTIME.record_runtime_event(
+                    runtime_trace, "fast_path.stream_error",
+                    {"provider": provider, "model": actual_model})
+            else:
+                await ws.send_text(json.dumps({"type": "error", "content": ev["content"]}))
+    if im_lang_khi_loi and not final_text.strip():
+        # Về tay không. KHÔNG gửi gói `response`: gửi là khung chat chốt một bong bóng rỗng
+        # rồi lượt lui về engine sẽ chèn thêm bong bóng thứ hai.
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.empty", {
+            "provider": provider, "model": actual_model})
+        return "", actual_model
     if tokens_in or tokens_out:
         usage_store.record(provider, actual_model, tokens_in, tokens_out)
         _CONTEXT_RUNTIME.consume_quota(
@@ -6849,16 +6900,18 @@ async def websocket_endpoint(ws: WebSocket):
 
             final_text = ""
             _schedule_action = await _schedule_cancel_action(user_message, brain)
-            # Đường tắt cho gói ChatGPT phải xét TRƯỚC chuỗi nhánh engine, vì nó thay hẳn
-            # nhánh Codex chứ không chạy bên trong. Tính ở đây để chuỗi bên dưới chỉ còn là
-            # một điều kiện, khỏi phải thụt lề lại cả nhánh Codex. None = không đi đường tắt.
+            # Đường tắt cho bộ não GÓI THUÊ BAO phải xét TRƯỚC chuỗi nhánh engine, vì nó thay
+            # hẳn nhánh engine chứ không chạy bên trong. Tính ở đây để chuỗi bên dưới chỉ còn
+            # là một điều kiện, khỏi phải thụt lề lại cả hai nhánh. None = không đi đường tắt.
             _codex_fast_plan = None
-            if prov == "openai-oauth" and not _schedule_action:
+            if kind in ("oauth", "cli") and not _schedule_action:
                 try:
                     _plan = await asyncio.to_thread(
                         _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
-                        "dashboard", prov, _codex_safe_model(api_model), kind,
-                        bool(has_attachments),
+                        "dashboard", prov,
+                        _codex_safe_model(api_model) if kind == "oauth"
+                        else (api_model or mcfg.get("claude_model") or "mặc định"),
+                        kind, bool(has_attachments),
                     )
                     # Chỉ nhận "execute". "reject" của đường tắt là lời từ chối dựa trên
                     # TRẦN TỰ KHAI của gói thuê bao, không phải hạn mức nhà cung cấp nói ra -
@@ -6881,26 +6934,50 @@ async def websocket_endpoint(ws: WebSocket):
                     "engine": "javis_schedule", "model": "gateway",
                     "session_id": conv_sid,
                 }))
-            elif prov == "openai-oauth" and _codex_fast_plan is not None:
-                # ===== ChatGPT subscription, ĐƯỜNG TẮT: gọi thẳng model một vòng =====
-                # Câu hỏi không cần tra cứu gì thì không có lý do đi qua Codex CLI, nơi mỗi
-                # lượt là cả một vòng lặp đọc file và gọi tool. Đây là chỗ token thật sự nằm:
-                # đo trên máy chủ repo, một lượt Codex vào 100k tới 412k trong khi model chỉ
-                # viết ra vài trăm token. Đường tắt đi đúng một vòng.
+            elif _codex_fast_plan is not None and kind in ("oauth", "cli"):
+                # ===== GÓI THUÊ BAO, ĐƯỜNG TẮT: gọi thẳng model một vòng =====
+                # Câu hỏi không cần tra cứu gì thì không có lý do đi qua CLI, nơi mỗi lượt là
+                # cả một vòng lặp đọc file và gọi tool. Đây là chỗ token thật sự nằm: đo trên
+                # máy chủ repo, một lượt Codex vào 100k tới 412k trong khi model chỉ viết ra
+                # vài trăm token. Đường tắt đi đúng một vòng.
                 # _execute_fast_path tự gửi gói `response` kèm dòng đường chạy, y như nhánh
                 # engine API vẫn dùng nó. Gửi thêm một gói nữa ở đây là hiện hai câu trả lời.
-                used_fast_path = True
                 final_text, _fast_model = await _execute_fast_path(
-                    _codex_fast_plan, prov, "", _codex_safe_model(api_model), reasoning,
-                    ws, conv_sid, runtime_trace, user_message,
+                    _codex_fast_plan, prov, "",
+                    _codex_safe_model(api_model) if kind == "oauth"
+                    else (api_model or mcfg.get("claude_model") or "mặc định"),
+                    reasoning, ws, conv_sid, runtime_trace, user_message,
+                    im_lang_khi_loi=True,
                 )
-                # Lượt này KHÔNG đi qua Codex, nên mạch native của Codex không hề biết nó đã
-                # xảy ra. Cứ resume mạch cũ ở lượt sau là Codex trả lời với một bản ghi
-                # THIẾU: nó không thấy câu vừa hỏi lẫn câu vừa đáp, rồi nói lại hoặc nói mâu
-                # thuẫn. Bỏ liên kết mạch để lượt Codex kế tiếp dựng lại từ SQLite - nơi lượt
-                # này ĐÃ được lưu. Bootstrap có trần ký tự nên nó còn rẻ hơn mạch cũ.
                 if final_text:
+                    used_fast_path = True
+                    # Lượt này KHÔNG đi qua CLI, nên mạch native của engine không hề biết nó
+                    # đã xảy ra. Cứ nối tiếp mạch cũ ở lượt sau là engine trả lời với một bản
+                    # ghi THIẾU: không thấy câu vừa hỏi lẫn câu vừa đáp, rồi nói lại hoặc nói
+                    # mâu thuẫn. Bỏ liên kết mạch để lượt sau dựng lại từ SQLite - nơi lượt
+                    # này ĐÃ được lưu. Bản mồi lại có trần ký tự nên còn rẻ hơn mạch cũ.
                     store.clear_codex_thread_id(conv_sid)
+                    store.set_cli_session_id(conv_sid, "")
+                else:
+                    # Đường tắt về tay không. Với gói Claude Code đây là ca THẬT SỰ có thể
+                    # xảy ra: nó gọi Messages API bằng access token của CLI, mà token đó có
+                    # thể hết hạn hoặc bị Anthropic từ chối cho đường này. Không có lưới ở
+                    # đây thì một câu hỏi đơn giản trả về bong bóng rỗng. Lui về engine đầy
+                    # đủ ngay trong lượt: chậm hơn, nhưng người dùng có câu trả lời.
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "fast_path.fallback_engine",
+                        {"engine": "codex" if kind == "oauth" else "claude-code"})
+                    # Trả lại chỗ ghim. Đường tắt đã ghim "fast" lúc nhận lượt; giữ nguyên là
+                    # lượt CHẠY BẰNG engine đầy đủ vẫn đeo nhãn "Tức thì", và con số tiết kiệm
+                    # bị thổi lên bằng đúng những lượt không hề tiết kiệm.
+                    _CONTEXT_RUNTIME.nha_ghim_duong(runtime_trace, "fast")
+
+            # Một cờ DUY NHẤT cho "lượt này đã có câu trả lời rồi". Hai nhánh trên đều có thể
+            # kết thúc lượt, mà đường tắt còn có thể về tay không rồi nhường lại cho engine
+            # đầy đủ - viết thành hai chuỗi if/elif lồng nhau thì đúng nhưng không ai đọc nổi.
+            _da_tra_loi = bool(_schedule_action) or used_fast_path
+            if _da_tra_loi:
+                pass
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
