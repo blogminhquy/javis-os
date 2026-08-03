@@ -14,6 +14,13 @@ from context_compiler import (
 )
 from context_runtime import ObserveRuntime
 
+# Ghim đồng hồ: capsule mang theo giờ thật, nên từ 0.14.6 thời điểm biên soạn cũng là một
+# đầu vào của capsule hash. Không ghim thì hai lần biên soạn rơi hai bên mốc phút sẽ ra hai
+# hash khác nhau và bất biến dưới đây thỉnh thoảng đỏ - loại đỏ tệ nhất vì chạy lại là xanh.
+import context_compiler as _cc
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+_cc._DONG_HO_NOW = lambda: _dt(2026, 8, 3, 21, 34, tzinfo=_tz(_td(hours=7)))
+
 
 def _tool(name, description, schema=None):
     return {"fn": name, "name": name, "server": "synthetic", "description": description,
@@ -87,8 +94,10 @@ def test_fast_capsule_has_source_map_and_is_within_final_budget(tmp_path):
     assert result.trace_report["estimated_input_tokens"] <= result.trace_report["max_input_tokens"]
     assert result.trace_report["preflight_decision"] == "would_allow"
     assert result.trace_report["observe_only"] is True
+    # "time" là món bắt buộc từ 0.14.6: đường tắt không phát tool nào nên nếu capsule không
+    # mang theo giờ thì model không có cách nào biết bây giờ mấy giờ, và nó sẽ bịa lý do.
     assert set(result.capsule.source_map) == {
-        "core", "identity", "channel", "output", "objective"
+        "core", "identity", "channel", "time", "output", "objective"
     }
     assert result.trace_report["source_map_hash"]
 

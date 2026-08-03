@@ -378,6 +378,10 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
             base += _skill_router_block(brain, root, _skills)   # ROUTER SKILL đa-engine: list skill + cách gọi
     except Exception:
         pass
+    # Đồng hồ. Cùng một dòng với capsule của đường tiết kiệm (context_compiler.dong_ho), để
+    # bật hay tắt tiết kiệm thì Javis vẫn biết bây giờ mấy giờ y như nhau. Model không có
+    # đồng hồ, và tool `javis_now` thì không phải đường nào cũng phát tool.
+    base += "\n\n# === BÂY GIỜ ===\n" + context_compiler.dong_ho()
     try:
         # 1 dòng MỨC DÙNG để Javis TRẢ LỜI được khi user hỏi "token tiêu bao nhiêu" (chi tiết ở panel).
         _t = usage_store.summary().get("today", {}).get("total", {})
@@ -7757,6 +7761,7 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
         vien = tok(cc.CORE_CONTRACT
                    + "Runtime identity: provider=x; model=y. "
                    + cc.ContextCompiler._channel_contract("dashboard")
+                   + cc.dong_ho()
                    + cc.ContextCompiler._output_contract_text("dashboard"))
     except Exception:  # noqa: BLE001
         return {}

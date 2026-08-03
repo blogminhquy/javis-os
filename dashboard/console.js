@@ -87,7 +87,7 @@
     { id: "logs",        icon: ICON.logs,        label: "Cập nhật" },
     { id: "account",     icon: ICON.account,     label: "Tài khoản" },
     { id: "usage",       icon: ICON.usage,       label: "Mức dùng" },
-    { id: "runtime",     icon: ICON.runtime,     label: "Tiết kiệm token" },
+    { id: "runtime",     icon: ICON.runtime,     label: "Tiết kiệm" },
   ];
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -142,7 +142,7 @@
     logs:        { icon: VIEW_ICON.logs, label: "Nhật ký cập nhật", sub: "Phiên bản & tính năng mới" },
     account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập & workspace" },
     usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Token & chi phí theo ngày, theo nhà cung cấp" },
-    runtime:     { icon: VIEW_ICON.runtime, label: "Tiết kiệm token", sub: "Xem Javis đang tốn bao nhiêu token mỗi lượt, và chọn mức tiết kiệm" },
+    runtime:     { icon: VIEW_ICON.runtime, label: "Tiết kiệm", sub: "Xem Javis đang tốn bao nhiêu token mỗi lượt, và chọn mức tiết kiệm" },
   };
 
   // 4 trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).

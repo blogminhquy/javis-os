@@ -24,6 +24,14 @@ from context_runtime import ObserveRuntime
 from evidence_store import EvidenceStore, redact
 from memory_index import MemoryIndex
 
+# Ghim đồng hồ: capsule mang theo giờ thật, nên từ 0.14.6 thời điểm biên soạn cũng là một
+# đầu vào của capsule hash. Không ghim thì hai lần biên soạn rơi hai bên mốc phút sẽ ra hai
+# hash khác nhau và bất biến dưới đây thỉnh thoảng đỏ - loại đỏ tệ nhất vì chạy lại là xanh.
+import context_compiler as _cc
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+_cc._DONG_HO_NOW = lambda: _dt(2026, 8, 3, 21, 34, tzinfo=_tz(_td(hours=7)))
+
+
 
 # ---------------------------------------------------------------- Phase 0-1
 

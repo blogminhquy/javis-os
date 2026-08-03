@@ -1810,8 +1810,8 @@ async function _usageSavingRow() {
   else if (d.preset === "off") phu = "chưa bật tiết kiệm";
   else if (uoc.phan_tram) phu = `giảm ~${uoc.phan_tram}% (ước lượng)`;
   else phu = "chưa đo được";
-  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="runtime" title="Mở trang Tiết kiệm token">`
-    + `<span style="color:var(--text2)">Tiết kiệm token: <b>${escapeHtml(ten)}</b></span>`
+  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="runtime" title="Mở trang Tiết kiệm">`
+    + `<span style="color:var(--text2)">Tiết kiệm: <b>${escapeHtml(ten)}</b></span>`
     + `<span style="color:#7aa2ff;white-space:nowrap">${escapeHtml(phu)}</span></div>`;
   _savingCache = { at: now, html };
   return html;

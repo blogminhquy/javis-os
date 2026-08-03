@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.14.6] - 2026-08-03
+Javis biết bây giờ mấy giờ trên mọi đường, thôi bịa lý do khi không biết.
+### Sửa lỗi
+- **Hỏi mấy giờ thì Javis nói "MCP server đang mất kết nối".** Không có server nào mất kết nối cả. Sự thật là lượt đó đi đường tắt của mức Siêu tiết kiệm, mà đường tắt gửi gói tin KHÔNG kèm tool nào - đó chính là chỗ nó tiết kiệm. Model thì không có đồng hồ sẵn trong đầu, nên khi bị hỏi giờ mà không có tool để gọi, nó làm cái tệ nhất: bịa ra một lý do nghe hợp lý.
+
+  Bộ lọc câu hỏi có chặn "bây giờ", "hôm nay" và bắt những câu đó đi đường đầy đủ, nhưng chặn theo từ khoá là trò đuổi bắt: "giờ Việt Nam là mấy giờ" lọt qua ngay. Nay chữa ở gốc - mọi gói tin Javis gửi đi, đường tắt lẫn đường đầy đủ, đều mang sẵn một dòng giờ thật theo múi giờ Việt Nam. Khoảng 30 token mỗi lượt, đổi lấy việc không còn cửa nào để bịa, và bật hay tắt tiết kiệm thì Javis cũng biết giờ y như nhau.
+
+  Múi giờ là UTC+7 cố định chứ không đọc múi giờ của máy chủ, vì VPS gần như luôn chạy giờ UTC.
+### Cải thiện
+- Trang **Tiết kiệm token** đổi tên thành **Tiết kiệm** cho gọn.
+
 ## [0.14.5] - 2026-08-03
 Dọn đường để sau này nâng được mức tiết kiệm mặc định, mà không giẫm lên ai đã tự chọn.
 ### Sửa lỗi

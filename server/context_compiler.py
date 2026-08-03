@@ -12,6 +12,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Protocol
 
 from capability_registry import CapabilityRegistry, get_registry
@@ -20,6 +21,45 @@ from capability_registry import CapabilityRegistry, get_registry
 COMPILER_POLICY_VERSION = "adaptive-compiler-shadow-v1"
 CORE_CONTRACT_VERSION = "javis-core-contract-v1"
 TOKENIZER_POLICY_VERSION = "tokenizer-observe-v1"
+THOI_GIAN_POLICY_VERSION = "dong-ho-vn-v1"
+
+# Việt Nam không có giờ mùa hè nên UTC+7 là hằng số - không phụ thuộc tzdata của máy chủ.
+_TZ_VN = timezone(timedelta(hours=7))
+_THU_VN = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
+
+
+# Ghim đồng hồ (test đặt một hàm trả datetime cố định). Capsule hash băm trọn phần đã dựng,
+# nên từ lúc có dòng giờ thì THỜI ĐIỂM cũng là một đầu vào của hash. Không ghim được thì hai
+# lần biên soạn rơi hai bên mốc phút sẽ ra hai hash khác nhau, và bất biến "cùng đầu vào thì
+# cùng capsule" thành ra thỉnh thoảng đỏ - loại test đỏ tệ nhất vì chạy lại là xanh.
+_DONG_HO_NOW = None
+
+
+def _bay_gio():
+    return _DONG_HO_NOW() if _DONG_HO_NOW else datetime.now(_TZ_VN)
+
+
+def dong_ho(now=None) -> str:
+    """Một dòng "bây giờ là mấy giờ" để nhét vào MỌI prompt Javis gửi đi.
+
+    Vì sao phải có. Model không có đồng hồ; Javis vốn để nó tự gọi tool `javis_now`. Nhưng
+    đường tắt của mức Siêu tiết kiệm gửi capsule KHÔNG KÈM TOOL NÀO - đó chính là chỗ nó
+    tiết kiệm. Nên hỏi "mấy giờ rồi" trên đường tắt là hỏi một thứ model không có cách nào
+    biết, và nó làm cái tệ nhất: bịa ra lý do. Chủ repo chụp lại đúng cảnh đó, Javis nói
+    "MCP server của Javis hiện đang mất kết nối" trong khi chẳng có server nào mất kết nối
+    cả - chỉ là lượt đó không được phát tool.
+
+    Bộ lọc câu hỏi có chặn "bây giờ", "hôm nay"... nhưng chặn theo từ khoá là trò đuổi bắt:
+    "giờ Việt Nam là mấy giờ" lọt ngay. Sửa ở gốc thì rẻ hơn nhiều - 30 token mỗi lượt đổi
+    lấy việc mọi đường đều biết giờ, không cần tool, không còn cửa nào để bịa.
+
+    Không lo hỏng prompt cache: system prompt của Javis vốn đã đổi mỗi lượt (khối MỨC DÙNG
+    HÔM NAY đếm token theo thời gian thật), nên dòng này không làm mất thêm lần cache nào.
+    """
+    n = now or _bay_gio()
+    return (f"Bây giờ là {n:%H:%M} {_THU_VN[n.weekday()]} ngày {n:%d/%m/%Y}, "
+            "giờ Việt Nam (UTC+7). Đây là giờ THẬT tại thời điểm câu hỏi này được gửi: cứ "
+            "dùng thẳng khi cần biết hôm nay/bây giờ, không phải đoán và không cần gọi tool.")
 
 
 CORE_CONTRACT = """# Javis Core Contract
@@ -390,11 +430,17 @@ class ContextCompiler:
                 "Planner contract: đây là vòng lập arguments. Phải gọi đúng một function được cung cấp, "
                 "không trả prose, không gọi nhiều function và không tự thêm capability."
             )
+        # Đồng hồ đi cùng capsule và là món BẮT BUỘC: đường tắt không phát tool nào, nên
+        # thiếu dòng này là model không có cách nào biết bây giờ mấy giờ.
+        time_text = dong_ho()
         base_system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
-                  "\n" + output_text + ("\n" + planner_text if planner_text else ""))
+                  "\n" + time_text + "\n" + output_text +
+                  ("\n" + planner_text if planner_text else ""))
         required_items = [
             ContextItem("core", "core_contract", CORE_CONTRACT, CORE_CONTRACT_VERSION,
                         tokenizer.count_text(CORE_CONTRACT), 1, 1, 1, 1, True, "system"),
+            ContextItem("time", "wall_clock", time_text, THOI_GIAN_POLICY_VERSION,
+                        tokenizer.count_text(time_text), 1, 1, 1, 1, True, "gateway"),
             ContextItem("channel", "channel_context", channel_text, f"channel:{request.channel}",
                         tokenizer.count_text(channel_text), 1, 1, 1, 1, True, "gateway"),
             ContextItem("identity", "provider_identity", identity_text,

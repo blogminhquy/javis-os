@@ -215,7 +215,7 @@ check("bấm vào dòng đó thì sang trang Tiết kiệm token", 'usageGoto = 
 # 7. Panel Mức dùng cũng phải nói được chuyện này
 # ============================================================
 check("panel Mức dùng có dòng tiết kiệm", "_usageSavingRow" in _APP)
-check("nó nêu tên mức đang dùng", "Tiết kiệm token: <b>" in _APP)
+check("nó nêu tên mức đang dùng", "Tiết kiệm: <b>" in _APP)
 # Ưu tiên số ĐO ĐƯỢC, chưa có mới dùng ước lượng - và phải nói rõ cái nào là cái nào.
 check("CANARY: ưu tiên số đo thật hơn ước lượng",
       _APP.find("dod.du_du_lieu") < _APP.find("uoc.phan_tram"))
