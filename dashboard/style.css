@@ -1319,6 +1319,39 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    full-width làm nó rớt xuống dòng riêng và đẩy chữ "lần" xuống dòng thứ ba. */
 .editor-box .st-retries { width: 48px; flex: 0 0 48px; background: var(--field-bg); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 3px; font-size: 13px; text-align: center; }
 .st-del:hover { color: var(--red); border-color: var(--red); }
+/* Thanh lật trang của các khung nhật ký (pager() trong console.js). Trước đây trang Việc định
+   kỳ tự vẽ bằng style nội tuyến; nay ba trang dùng chung một khối nên style về đây luôn. */
+.jv-pager { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.jv-pager-n { font-size: 13px; color: var(--text3); }
+.jv-pager button[disabled] { opacity: .45; cursor: default; }
+
+/* ===== Khung chọn skill trong màn sửa Agent (tìm kiếm + gom nhóm) ===== */
+.sp-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; }
+.sp-bar { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
+.sp-bar input { flex: 1 1 auto; min-width: 0; padding: 6px 9px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--field-bg); color: var(--text);
+  font-size: 13.5px; outline: none; }
+.sp-bar input:focus { border-color: var(--info-line); }
+.sp-count { flex: none; font-size: 12px; color: var(--text3); white-space: nowrap; }
+.sp-clear { flex: none; font-size: 12px; padding: 5px 9px; }
+.sp-groups { max-height: 320px; overflow-y: auto; padding: 6px; }
+.sp-empty { padding: 14px 8px; text-align: center; font-size: 13px; }
+.sp-g + .sp-g { margin-top: 2px; }
+.sp-g-head { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 8px;
+  border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+  color: var(--text2); font-size: 13px; font-weight: 600; font-family: inherit; text-align: left; }
+.sp-g-head:hover { background: var(--info-wash); color: var(--text); }
+.sp-g-caret { flex: none; display: inline-flex; transition: transform .15s; }
+.sp-g.open .sp-g-caret { transform: rotate(90deg); }
+.sp-g-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-g-n { flex: none; font-size: 11px; font-weight: 400; color: var(--text3); }
+.sp-g-body { display: none; padding: 2px 8px 8px 26px; }
+.sp-g.open .sp-g-body { display: flex; flex-direction: column; gap: 5px; }
+.sp-g-body .sp { display: flex; align-items: center; gap: 7px; font-size: 13.5px;
+  color: var(--text); cursor: pointer; }
+.sp-g-body .sp span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-g-body input { width: auto; flex: none; accent-color: var(--accent2); }
+
 .skill-pick { display: flex; flex-wrap: wrap; gap: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
 .skill-pick .sp { display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--text); width: auto; background: none; border: none; padding: 0; cursor: pointer; }
 .skill-pick input { width: auto; accent-color: var(--accent2); }
@@ -1413,6 +1446,62 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cside-search { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--field-bg); color: var(--text); font-size: 14px; outline: none; }
 .cside-search:focus { border-color: var(--info-line); }
+
+/* ===== Thanh Project (nhóm hội thoại) trên đầu cột trái ===== */
+.cside-proj { display: flex; align-items: center; gap: 4px; flex: none; }
+.cs-proj-cur { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
+  padding: 7px 9px; border-radius: 8px; cursor: pointer; text-align: left;
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+  font-size: 13px; font-family: inherit; }
+.cs-proj-cur:hover { border-color: var(--info-line); color: var(--text); }
+.cs-proj-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-proj-caret { flex: none; opacity: .6; display: inline-flex; }
+.cs-proj-x, .cs-proj-add { flex: none; width: 30px; height: 30px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text3); }
+.cs-proj-x:hover, .cs-proj-add:hover { border-color: var(--accent-line); color: var(--accent); }
+
+/* ===== Popover dùng chung: menu project + bộ chọn icon ===== */
+/* Neo vào body chứ không vào cột trái: cột đó có overflow riêng, để menu bên trong là nó bị
+   cắt cụt ngay hàng thứ hai. */
+.cs-menu { position: fixed; z-index: 4000; min-width: 200px; max-width: 280px;
+  max-height: 60vh; overflow-y: auto; padding: 5px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45); }
+.cs-menu-sep { height: 1px; background: var(--border); margin: 5px 3px; }
+.cs-menu-row { display: flex; align-items: center; gap: 2px; border-radius: 7px; }
+.cs-menu-row:hover { background: var(--info-wash); }
+.cs-menu-row.on .cs-menu-lbl { color: var(--accent); font-weight: 600; }
+.cs-menu-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; border: 0; background: transparent; cursor: pointer;
+  color: var(--text); font-size: 13.5px; font-family: inherit; text-align: left; }
+.cs-menu-lbl { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-menu-right { flex: none; color: var(--text3); font-size: 12px; }
+.cs-menu-acts { flex: none; display: flex; gap: 1px; opacity: 0; transition: opacity .15s; }
+.cs-menu-row:hover .cs-menu-acts { opacity: 1; }
+.cs-menu-act { width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; color: var(--text3); }
+.cs-menu-act:hover { color: var(--text-hi); background: var(--bg3); }
+.cs-emo { min-width: 268px; }
+.cs-emo-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.cs-emo-b { height: 30px; border-radius: 6px; cursor: pointer; font-size: 17px; line-height: 1;
+  border: 1px solid transparent; background: transparent; }
+.cs-emo-b:hover { background: var(--info-wash); }
+.cs-emo-b.on { border-color: var(--accent-line); background: var(--accent-wash-2); }
+.cs-emo-foot { display: flex; gap: 5px; margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid var(--border); }
+.cs-emo-in { flex: 1 1 auto; min-width: 0; padding: 5px 8px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--field-bg); color: var(--text);
+  font-size: 13px; outline: none; }
+.cs-emo-clear { flex: none; padding: 5px 9px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text3); font-size: 12px; }
+.cs-emo-clear:hover { border-color: var(--red); color: var(--red); }
+/* Icon của hội thoại đứng ngay trước tên. */
+.ci-icon { font-size: 14px; }
+/* Nút ghim đang BẬT thì tô màu, nhưng vẫn nằm trong .act nên chỉ hiện khi rê chuột - hàng đã
+   ghim đã có nhóm "Đã ghim" trên đầu làm dấu hiệu rồi, không cần thêm một chấm màu nữa. */
+.ci-meta .act .pin.on { color: var(--accent); }
 .cside-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
 .cside-list::-webkit-scrollbar { width: 4px; }
 .cside-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -1754,6 +1843,11 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .ne-prev p, .ne-prev li { margin: .4em 0; }
 .ne-prev ul, .ne-prev ol { padding-left: 1.4em; margin: .4em 0; }
 .ne-prev a { color: var(--link-ink); }
+/* Bản render là contenteditable nên con trỏ mặc định là con trỏ chữ - nhìn vào không ai đoán
+   được link bấm được. Mà bấm thì ĐI THẬT (chat-render.js xử lý trước hàng rào contenteditable),
+   nên con trỏ phải nói đúng điều đó. Ảnh thì không: ảnh vẫn để kéo thả và xoá như một ký tự. */
+.ne-prev a:not(:has(img)), .jvfe-prev a:not(:has(img)) { cursor: pointer; }
+.ne-prev a:not(:has(img)):hover, .jvfe-prev a:not(:has(img)):hover { text-decoration: underline; }
 .ne-prev code { background: var(--surface-3); padding: 1px 5px; border-radius: 4px; font-family: var(--font); font-size: .92em; }
 .ne-prev pre { background: var(--field-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; margin: .5em 0; }
 .ne-prev pre code { background: none; padding: 0; }

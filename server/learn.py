@@ -1185,10 +1185,18 @@ class LearnFeature:
 
         @router.get("/learn/log")
         async def learn_log(brain: str = Query("brain"), limit: int = Query(15)):
+            """Nhật ký học, mới nhất trước.
+
+            Đọc tới khi ĐỦ `limit` mục chứ không cắt cứng ở 3 file như trước. Nhật ký ghi mỗi
+            ngày một file, nên cắt ở 3 file nghĩa là dù dashboard có phân trang cũng chỉ lật
+            được trong 3 ngày gần nhất - phân trang mà không có gì để lật. Vẫn có trần 60 file
+            để một brain chạy lâu năm không kéo cả năm nhật ký lên chỉ vì ai đó gõ limit to.
+            """
             d = Path(self.deps.brain_root(brain)) / "Javis" / "learn-log"
             entries = []
+            want = max(1, min(int(limit or 15), 500))
             if d.is_dir():
-                for f in sorted(d.glob("*.md"), reverse=True)[:3]:
+                for f in sorted(d.glob("*.md"), reverse=True)[:60]:
                     try:
                         txt = f.read_text(encoding="utf-8")
                     except Exception:
@@ -1197,7 +1205,9 @@ class LearnFeature:
                         chunk = chunk.strip()
                         if chunk.startswith("## ["):
                             entries.append(chunk)
-            return {"entries": entries[:limit], "running": self.lock.locked()}
+                    if len(entries) >= want:
+                        break
+            return {"entries": entries[:want], "running": self.lock.locked()}
 
         @router.get("/learn/metrics")
         async def learn_metrics(brain: str = Query("brain")):

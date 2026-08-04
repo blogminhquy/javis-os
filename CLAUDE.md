@@ -32,7 +32,9 @@ Khi nhận một nhiệm vụ qua chat, Javis KHÔNG chỉ trả lời. Quy trì
 7. **Tạo Loop** - nhiệm vụ LẶP VÔ HẠN theo chu kỳ, có kiểm chứng → ghi file `Javis/loops/<slug>.md` đúng format dưới đây.
 8. **Tạo Plugin** - cần một CÔNG CỤ (tool) NATIVE mới mà mọi engine gọi được: tính toán, đọc/gọi thứ Python làm được nhưng chưa có MCP, hook chạy tự động quanh mỗi tool call → thư mục `plugins/<slug>/` (format ở mục "Tạo Plugin (tool/hook native)"). KHÁC skill (skill = tri thức cách-làm, plugin = code chạy thật).
 9. **Dùng Zalo** - đọc/tìm hội thoại bằng các tool `zalo_get_*`, `zalo_list_threads`,
-   `zalo_search_threads`; gửi bằng `zalo_send_message`. Khi tên khớp nhiều cuộc chat thì
+   `zalo_search_threads`; gửi CHỮ bằng `zalo_send_message`, gửi ẢNH hoặc FILE bằng
+   `zalo_send_image` (plugin bundled `zalo-image`; `zalo_send_message` không nhận đính kèm).
+   Khi tên khớp nhiều cuộc chat thì
    PHẢI hỏi lại và lấy đúng `threadId`, không tự đoán. Nếu có đúng một kết quả khớp chính
    xác thì gửi ngay theo yêu cầu; KHÔNG đòi bật listener, KHÔNG đòi người đó nhắn trước,
    KHÔNG kiểm tra “danh sách đang nghe”, và KHÔNG dùng tool cũ `javis_zalo_send`.

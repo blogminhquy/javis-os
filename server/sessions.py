@@ -64,9 +64,23 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_calls_json TEXT
 );
 
+-- Project = nhóm hội thoại do người dùng tự gom (ý "gom hội thoại thành Project").
+-- KHÔNG khai REFERENCES ở cột sessions.project_id: cột đó thêm bằng ALTER TABLE cho DB cũ,
+-- mà SQLite không cho ALTER kèm khoá ngoại. Ràng buộc được giữ ở tầng code: xoá project là
+-- GỠ NHÃN các hội thoại về NULL, không bao giờ xoá hội thoại theo.
+CREATE TABLE IF NOT EXISTS projects (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    icon       TEXT,
+    brain      TEXT NOT NULL DEFAULT 'brain',
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_brain   ON sessions(brain, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, ts);
+CREATE INDEX IF NOT EXISTS idx_projects_brain   ON projects(brain, updated_at DESC);
 """
 
 # FTS5 mirror giữ đồng bộ qua trigger (shape port từ hermes_state.py:738-761).
@@ -220,9 +234,22 @@ class SessionStore:
                               # nặng sinh ra bởi vòng lặp chứ không bởi mạch dài, xoay xong
                               # lượt sau vẫn nặng, và không có mốc này thì Javis xoay mãi -
                               # phá mạch hội thoại mỗi lượt mà chẳng tiết kiệm được gì.
-                              ("thread_rotated_msg", "INTEGER NOT NULL DEFAULT 0")):
+                              ("thread_rotated_msg", "INTEGER NOT NULL DEFAULT 0"),
+                              # Ghim hội thoại lên đầu danh sách. Cuộc dùng đi dùng lại không
+                              # bị trôi xuống dưới theo thời gian nữa.
+                              ("pinned", "INTEGER NOT NULL DEFAULT 0"),
+                              # Emoji cạnh tên hội thoại. Danh sách toàn chữ thì nhìn lâu
+                              # không phân biệt nổi cái nào là cái nào.
+                              ("icon", "TEXT"),
+                              # Project (nhóm) đang chứa hội thoại. NULL = chưa xếp vào đâu.
+                              ("project_id", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
+            # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
+            # INDEX ở _SCHEMA_SQL sẽ ném "no such column" và huỷ cả lượt khởi tạo schema.
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sessions_project "
+                "ON sessions(project_id, updated_at DESC)")
             if self._probe_fts5():
                 try:
                     self._conn.executescript(_FTS_SQL)
@@ -342,7 +369,14 @@ class SessionStore:
         return out
 
     def list_sessions(self, limit: int = 50, brain: Optional[str] = None,
-                      include_archived: bool = False) -> List[Dict[str, Any]]:
+                      include_archived: bool = False,
+                      project: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Danh sách hội thoại, MỤC GHIM luôn nằm trên đầu.
+
+        `project`: bỏ trống = tất cả; "none" = các cuộc chưa xếp vào project nào;
+        còn lại = đúng project đó. Giá trị "none" là chuỗi cố định chứ không phải id thật -
+        id project là uuid hex nên không bao giờ đụng.
+        """
         where = []
         params: list = []
         if brain:
@@ -350,23 +384,134 @@ class SessionStore:
             params.append(brain)
         if not include_archived:
             where.append("s.archived = 0")
+        if project == "none":
+            where.append("(s.project_id IS NULL OR s.project_id = '')")
+        elif project:
+            where.append("s.project_id = ?")
+            params.append(project)
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
         params.append(limit)
         rows = self._read(
             f"""
             SELECT s.id, s.title, s.brain, s.engine, s.model, s.channel, s.cli_session_id,
                    s.created_at, s.updated_at, s.msg_count,
+                   s.pinned, s.icon, s.project_id,
                    (SELECT substr(content, 1, 80) FROM messages
                     WHERE session_id = s.id AND role = 'user'
                     ORDER BY ts, id LIMIT 1) AS preview
             FROM sessions s
             {where_sql}
-            ORDER BY s.updated_at DESC
+            ORDER BY s.pinned DESC, s.updated_at DESC
             LIMIT ?
             """,
             tuple(params),
         )
         return [dict(r) for r in rows]
+
+    # ── ghim / icon / project của một hội thoại ──
+
+    def set_pinned(self, session_id: str, pinned: bool = True) -> None:
+        """Ghim hay bỏ ghim. KHÔNG đụng updated_at: ghim không phải là 'vừa nói chuyện',
+        đẩy mốc lên là xáo trộn thứ tự của mọi cuộc còn lại một cách vô cớ."""
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET pinned = ? WHERE id = ?",
+            (1 if pinned else 0, session_id),
+        ))
+
+    def set_icon(self, session_id: str, icon: Optional[str]) -> None:
+        """Gắn emoji cho hội thoại. Chuỗi rỗng = gỡ icon."""
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET icon = ? WHERE id = ?",
+            ((icon or "").strip()[:8] or None, session_id),
+        ))
+
+    def set_project(self, session_id: str, project_id: Optional[str], *,
+                    brain: Optional[str] = None) -> bool:
+        """Xếp hội thoại vào project. project_id rỗng = gỡ khỏi mọi project.
+
+        `brain` khác None thì TẠO hàng nếu chưa có. Vì sao cần: dashboard tự sinh id hội thoại
+        ở phía client ngay lúc bấm gửi (dashboard/app.js), còn hàng trong DB thì tới lượt
+        server xử lý mới có. Muốn "đang mở project nào thì chat mới rơi vào project đó" thì
+        phải gắn nhãn được ngay lúc đó. create_session dùng ON CONFLICT DO NOTHING nên hai
+        đường tạo cùng lúc không giẫm nhau.
+
+        Trả về True nếu có hàng để gắn nhãn.
+        """
+        pid = (project_id or "").strip() or None
+        if brain and not self.get_session(session_id):
+            self.create_session(brain=brain, session_id=session_id)
+        if not self.get_session(session_id):
+            return False
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET project_id = ? WHERE id = ?", (pid, session_id)))
+        return True
+
+    # ── projects (nhóm hội thoại) ──
+
+    def create_project(self, name: str, *, icon: str = "", brain: str = "brain") -> str:
+        pid = uuid.uuid4().hex
+        now = time.time()
+        self._write(lambda c: c.execute(
+            "INSERT INTO projects (id, name, icon, brain, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (pid, (name or "").strip()[:80] or "Project", (icon or "").strip()[:8] or None,
+             brain or "brain", now, now),
+        ))
+        return pid
+
+    def list_projects(self, brain: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Project kèm số hội thoại đang nằm trong đó (đếm cả cuộc đã cất vào kho lưu:
+        con số này để người dùng biết xoá project sẽ gỡ nhãn bao nhiêu cuộc)."""
+        where_sql, params = ("WHERE p.brain = ?", (brain,)) if brain else ("", ())
+        rows = self._read(
+            f"""
+            SELECT p.id, p.name, p.icon, p.brain, p.created_at, p.updated_at,
+                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS session_count
+            FROM projects p
+            {where_sql}
+            ORDER BY p.updated_at DESC
+            """,
+            params,
+        )
+        return [dict(r) for r in rows]
+
+    def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+        rows = self._read("SELECT * FROM projects WHERE id = ?", (project_id,))
+        return dict(rows[0]) if rows else None
+
+    def update_project(self, project_id: str, *, name: Optional[str] = None,
+                       icon: Optional[str] = None) -> None:
+        """Đổi tên và/hoặc icon. Tham số None = không đụng tới; icon = "" là GỠ icon."""
+        sets, params = [], []
+        if name is not None:
+            n = (name or "").strip()[:80]
+            if n:
+                sets.append("name = ?")
+                params.append(n)
+        if icon is not None:
+            sets.append("icon = ?")
+            params.append((icon or "").strip()[:8] or None)
+        if not sets:
+            return
+        sets.append("updated_at = ?")
+        params += [time.time(), project_id]
+        self._write(lambda c: c.execute(
+            f"UPDATE projects SET {', '.join(sets)} WHERE id = ?", tuple(params)))
+
+    def delete_project(self, project_id: str) -> int:
+        """Xoá project và GỠ NHÃN các hội thoại về NULL. Trả số hội thoại được gỡ.
+
+        Xoá project KHÔNG xoá hội thoại. Người dùng gom nhóm để đỡ rối, không phải để một cú
+        bấm nhầm mất cả tháng trò chuyện - và không có đường hoàn tác nào cả.
+        Cả hai bước trong MỘT transaction: gỡ nhãn xong mà xoá lỗi thì hội thoại mồ côi im lặng.
+        """
+        def _do(conn):
+            cur = conn.execute("UPDATE sessions SET project_id = NULL WHERE project_id = ?",
+                               (project_id,))
+            n = cur.rowcount or 0
+            conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+            return n
+        return self._write(_do)
 
     def rename(self, session_id: str, title: str) -> None:
         self._write(lambda c: c.execute(

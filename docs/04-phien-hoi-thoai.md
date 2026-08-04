@@ -12,7 +12,38 @@ Javis tự lưu lại từng lượt hỏi và trả lời vào một cơ sở d
 - Tìm kiếm toàn văn: gõ một từ khoá và Javis tìm trong nội dung của mọi cuộc trò chuyện.
 - Mở lại một cuộc cũ và trò chuyện tiếp đúng mạch cũ.
 - Đổi tên cho dễ nhớ.
+- **Ghim** cuộc quan trọng lên đầu danh sách.
+- **Gom** nhiều cuộc vào một **Project** (nhóm).
+- **Gắn icon** cho từng cuộc để nhìn phát ra ngay.
 - Xoá cuộc không cần nữa.
+
+## Ghim, Project và icon
+
+Danh sách xếp theo thời gian, nên một cuộc dùng đi dùng lại sẽ trôi dần xuống dưới. Ba công cụ
+dưới đây để bạn tự sắp lại, tất cả đều nằm ở cột **Lịch sử** bên trái khung chat.
+
+**Ghim.** Rê chuột vào một cuộc rồi bấm biểu tượng ghim. Cuộc đó chuyển lên nhóm **Đã ghim**
+trên đầu danh sách và ở yên đó. Ghim không làm cuộc đó trông như "vừa nói chuyện" nên thứ tự
+của các cuộc còn lại giữ nguyên. Bấm lại để bỏ ghim.
+
+**Project.** Thanh ngay dưới nút "Hội thoại mới" là nơi chọn nhóm. Bấm vào để xem danh sách,
+tạo nhóm mới, đổi tên, đổi icon hoặc xoá. Khi đang mở một project:
+
+- Danh sách chỉ hiện các cuộc thuộc project đó.
+- **Cuộc trò chuyện mới bạn bắt đầu sẽ tự rơi vào project đó**, không phải gắn tay.
+
+Chọn "Tất cả hội thoại" để xem lại toàn bộ, hoặc "Chưa xếp nhóm" để tìm những cuộc còn sót.
+Muốn chuyển một cuộc sang nhóm khác thì rê chuột vào nó và bấm biểu tượng thư mục.
+
+**Xoá project KHÔNG xoá hội thoại.** Các cuộc bên trong chỉ được gỡ khỏi nhóm và quay về
+"Chưa xếp nhóm". Hộp xác nhận cũng nói rõ điều này kèm số cuộc sẽ được gỡ.
+
+**Icon.** Rê chuột vào một cuộc rồi bấm biểu tượng mặt cười để chọn emoji. Có sẵn một bảng
+emoji hay dùng, hoặc dán emoji bất kỳ vào ô bên dưới rồi Enter. Bấm "Xoá icon" để gỡ. Project
+cũng gắn icon được, qua menu chọn nhóm.
+
+Project gắn theo bộ não, nên đổi bộ não thì danh sách project đổi theo. Riêng "đang mở project
+nào" được nhớ trên từng máy (trình duyệt), không đồng bộ sang máy khác.
 
 Một điểm quan trọng: các cuộc trò chuyện được gắn theo "bộ não" (vault) đang chọn. Khi bạn đổi bộ não ở thanh chọn vault, danh sách lịch sử đổi theo để chỉ hiện các cuộc thuộc bộ não đó, **và khung chat cũng đổi theo**. Xem mục "Đổi bộ não giữa chừng" bên dưới, và cách chọn bộ não ở [Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md).
 

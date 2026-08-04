@@ -47,6 +47,31 @@ Danh sách trên theo mã nguồn `zalo-agent-cli` 1.6.2. Tài liệu MCP của 
 
 <https://github.com/PhucMPham/zalo-agent-cli/blob/main/skill/references/mcp-guide.md>
 
+## Gửi ảnh và file
+
+`zalo_send_message` ở trên **chỉ gửi được chữ**. Muốn gửi ảnh (ví dụ ảnh Javis vừa tạo) hay
+file (báo cáo PDF, bảng tính) thì dùng tool `zalo_send_image` do plugin bundled `zalo-image`
+cung cấp. Plugin bật sẵn, không cần cài gì thêm, và dùng đúng tài khoản Zalo bạn đã quét QR.
+
+| Tool | Công dụng | Mức thao tác |
+|---|---|---|
+| `zalo_send_image` | Gửi ảnh hoặc file kèm lời nhắn | Nguy hiểm (mức Toàn quyền) |
+
+Nói trong chat như bình thường, ví dụ “gửi ảnh này cho nhóm Kinh doanh” hoặc “gửi báo cáo
+tháng 7 cho anh Nam qua Zalo”.
+
+Ba điều nên biết:
+
+- **Chỉ gửi được file nằm trong bộ não đang dùng.** Đây là rào an toàn cố ý: nếu không, một
+  câu chat khéo léo có thể khiến Javis gửi file bất kỳ trên máy chủ ra ngoài, mà tin nhắn Zalo
+  thì không thu hồi được.
+- **Một lượt gửi cùng một loại**, hoặc toàn ảnh hoặc toàn file, tối đa 10 file. Trộn lẫn thì
+  Zalo hiển thị sai kiểu nên Javis sẽ báo lại thay vì tự đoán.
+- **Đấu nhiều tài khoản Zalo thì Javis hỏi lại** nên gửi bằng tài khoản nào. Gửi nhầm tài
+  khoản là gửi dưới danh tính người khác, nên đây là chỗ không được đoán.
+
+Cần Node.js 20+ trên máy chạy Javis, giống như phần kết nối Zalo.
+
 ## Cách dùng trong chat
 
 Có thể nói tự nhiên:
@@ -67,7 +92,7 @@ Kết nối mới mặc định ở mức **Toàn quyền** để có thể dùn
 
 - **Chỉ đọc**: chỉ dùng năm tool đọc.
 - **Ghi nháp**: thêm `zalo_mark_read`, vẫn chặn gửi tin.
-- **Toàn quyền**: cho phép gửi tin.
+- **Toàn quyền**: cho phép gửi tin (cả `zalo_send_message` lẫn `zalo_send_image`).
 
 Bạn đổi quyền trong menu của chip tài khoản ở trang **Kết nối**. Việc nền chạy ở chế độ
 giới hạn vẫn bị MCP Hub chặn gửi tin, dù tài khoản đang đặt Toàn quyền.

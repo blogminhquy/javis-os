@@ -7713,8 +7713,11 @@ async def websocket_endpoint(ws: WebSocket):
 # /sessions/search KHAI BÁO TRƯỚC /sessions/{id} để không bị nuốt làm path param.
 # ============================================================
 @app.get("/sessions")
-async def sessions_list(brain: str = Query(None), limit: int = Query(50)):
-    return {"sessions": get_store().list_sessions(limit=limit, brain=brain)}
+async def sessions_list(brain: str = Query(None), limit: int = Query(50),
+                        project: str = Query("")):
+    """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project."""
+    return {"sessions": get_store().list_sessions(limit=limit, brain=brain,
+                                                  project=project or None)}
 
 
 @app.get("/sessions/search")
@@ -7748,6 +7751,72 @@ async def sessions_delete(session_id: str):
         except Exception:
             pass
     return {"ok": True}
+
+
+@app.post("/sessions/{session_id}/pin")
+async def sessions_pin(session_id: str, pinned: str = Form("1")):
+    """Ghim hội thoại lên đầu danh sách (hoặc bỏ ghim khi pinned=0)."""
+    get_store().set_pinned(session_id, str(pinned).strip() not in ("0", "false", ""))
+    return {"ok": True}
+
+
+@app.post("/sessions/{session_id}/icon")
+async def sessions_icon(session_id: str, icon: str = Form("")):
+    """Gắn emoji cho hội thoại. Gửi chuỗi rỗng để gỡ."""
+    get_store().set_icon(session_id, icon)
+    return {"ok": True}
+
+
+@app.post("/sessions/{session_id}/project")
+async def sessions_set_project(session_id: str, project_id: str = Form(""),
+                               brain: str = Form("")):
+    """Xếp hội thoại vào project (project_id rỗng = gỡ khỏi nhóm).
+
+    Có `brain` thì tạo hàng nếu hội thoại chưa kịp tồn tại: dashboard mint id ở phía client
+    ngay lúc bấm gửi, nên đây là cách duy nhất để chat mới tạo trong lúc đang mở một project
+    rơi đúng vào project đó ngay từ tin nhắn đầu. Xem sessions.set_project.
+    """
+    pid = (project_id or "").strip()
+    store = get_store()
+    if pid and not store.get_project(pid):
+        return JSONResponse({"error": "project không tồn tại"}, status_code=404)
+    if not store.set_project(session_id, pid, brain=(brain or "").strip() or None):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"ok": True}
+
+
+# ============================================================
+# Project = nhóm hội thoại người dùng tự gom. Xoá project chỉ GỠ NHÃN, không xoá hội thoại.
+# ============================================================
+@app.get("/projects")
+async def projects_list(brain: str = Query(None)):
+    return {"projects": get_store().list_projects(brain=brain)}
+
+
+@app.post("/projects")
+async def projects_create(name: str = Form(...), icon: str = Form(""),
+                          brain: str = Form("brain")):
+    if not (name or "").strip():
+        return JSONResponse({"error": "thiếu tên project"}, status_code=400)
+    pid = get_store().create_project(name, icon=icon, brain=brain or "brain")
+    return {"ok": True, "id": pid}
+
+
+@app.post("/projects/{project_id}/update")
+async def projects_update(project_id: str, name: str = Form(None), icon: str = Form(None)):
+    store = get_store()
+    if not store.get_project(project_id):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    store.update_project(project_id, name=name, icon=icon)
+    return {"ok": True}
+
+
+@app.post("/projects/{project_id}/delete")
+async def projects_delete(project_id: str):
+    store = get_store()
+    if not store.get_project(project_id):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"ok": True, "detached": store.delete_project(project_id)}
 
 
 @app.get("/runtime/diagnostics")

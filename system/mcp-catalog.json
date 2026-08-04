@@ -1088,6 +1088,62 @@
       "risk": "Kết nối này dùng Google MASTER TOKEN, loại token có TOÀN QUYỀN tài khoản Google (Gmail, Drive, Photos), không phải OAuth giới hạn phạm vi như Gmail hay Lịch.\n\nMức Ghi nháp cho Javis tạo và sửa note, ghim, lưu trữ, gắn nhãn thật trong Keep.\n\nMức Toàn quyền thêm quyền VỨT, XOÁ note và CHIA SẺ note cho người khác.\n\nNếu đã gõ true vào ô UNSAFE_MODE thì Javis đụng được cả note bạn viết tay, không riêng note nó tạo."
     },
     {
+      "id": "notebooklm",
+      "name": "Google NotebookLM",
+      "icon": "notebook",
+      "_group_doc": "CỐ Ý không nằm trong nhóm \"google\": nhóm đó là các connector đi chung MỘT key OAuth client (Javis dựng sẵn màn đăng nhập Google, chọn phạm vi từng dịch vụ). NotebookLM không có OAuth - nó mượn cookie phiên trình duyệt, cách đăng nhập khác hẳn và rủi ro khác hẳn. Xếp chung là hứa một trải nghiệm một-cửa mà nó không làm được.",
+      "category": "Văn phòng",
+      "description": "Đọc và thao tác notebook trên Google NotebookLM: liệt kê notebook, đọc nguồn, hỏi đáp ngay trong notebook, thêm nguồn, lưu ghi chú, tạo tóm tắt/audio ở Studio. LƯU Ý: NotebookLM chưa có API chính chủ nên phải mượn PHIÊN ĐĂNG NHẬP trình duyệt (cookie Google), không phải OAuth giới hạn phạm vi như Gmail hay Lịch.",
+      "status": "beta",
+      "transport": "stdio",
+      "command": "uvx",
+      "_args_doc": "Tên package (notebooklm-py) KHÁC tên lệnh (notebooklm-mcp) nên bắt buộc `--from`, và phải kèm extra [mcp] vì fastmcp không nằm trong dependency lõi - thiếu nó thì lệnh chạy được nhưng chết ngay ở import. Đúng loại bẫy đã ghi ở connector google-keep. Server MCP là của CHÍNH thư viện (console script notebooklm-mcp, transport stdio), Javis không viết wrapper.",
+      "args": ["--from", "notebooklm-py[mcp]", "notebooklm-mcp"],
+      "requires": { "uv": true },
+      "isolate_home": true,
+      "auth": {
+        "type": "apikey",
+        "fields": [
+          { "key": "auth_json", "label": "Phiên đăng nhập (dán toàn bộ nội dung storage_state.json)",
+            "placeholder": "Ví dụ: {\"cookies\":[{\"name\":\"SID\",\"value\":\"...\"}],\"origins\":[]}",
+            "env": "NOTEBOOKLM_AUTH_JSON" },
+          { "key": "profile", "label": "Tên hồ sơ (bỏ trống nếu chỉ đấu 1 tài khoản)",
+            "placeholder": "Ví dụ: cong-viec", "optional": true, "env": "NOTEBOOKLM_PROFILE" }
+        ],
+        "guide": "NotebookLM chưa có API chính thức, nên Javis phải mượn PHIÊN ĐĂNG NHẬP trình duyệt của bạn.\n\nCẢNH BÁO: chuỗi dán vào đây là cookie phiên Google, tương đương đang đăng nhập tài khoản Google, KHÔNG phải OAuth giới hạn phạm vi. Chỉ làm trên máy bạn tin tưởng.\n\nLàm 1 lần, TRÊN MÁY CÁ NHÂN có trình duyệt (không làm được trên VPS):\n1. Cài uv nếu chưa có.\n2. Chạy: uvx --from \"notebooklm-py[browser]\" notebooklm login\n   Trình duyệt mở ra, đăng nhập Google rồi vào notebooklm.google.com một lần.\n3. Mở file vừa sinh ra: ~/.notebooklm/profiles/default/storage_state.json (Windows: %USERPROFILE%\\.notebooklm\\profiles\\default\\storage_state.json). Copy TOÀN BỘ nội dung.\n4. Dán vào ô trên rồi bấm Kết nối.\n\nPhiên Google hết hạn thì chạy lại bước 2 và dán chuỗi mới. Muốn đấu nhiều tài khoản thì thêm kết nối nữa, mỗi cái đặt một tên hồ sơ khác nhau.",
+        "guide_url": "https://github.com/teng-lin/notebooklm-py#readme",
+        "setup": {
+          "links": [
+            { "label": "Mở NotebookLM", "url": "https://notebooklm.google.com/" },
+            { "label": "Cài uv", "url": "https://docs.astral.sh/uv/getting-started/installation/" }
+          ]
+        },
+        "steps": [
+          { "text": "CẢNH BÁO: đây là cookie phiên Google (tương đương đang đăng nhập), không phải OAuth giới hạn phạm vi. Cân nhắc trước khi đấu." },
+          { "text": "Cài uv trên máy chạy Javis - Javis dùng uvx để chạy server MCP của notebooklm-py.",
+            "link": "https://docs.astral.sh/uv/getting-started/installation/", "link_label": "Cài uv" },
+          { "text": "Trên MÁY CÁ NHÂN có trình duyệt, chạy: uvx --from \"notebooklm-py[browser]\" notebooklm login rồi đăng nhập Google và mở NotebookLM một lần.",
+            "link": "https://notebooklm.google.com/", "link_label": "Mở NotebookLM" },
+          { "text": "Mở ~/.notebooklm/profiles/default/storage_state.json, copy toàn bộ nội dung dán vào ô bên dưới rồi bấm Kết nối." }
+        ]
+      },
+      "validate": { "tool": "notebook_list", "args": {} },
+      "tool_meta": {
+        "read": ["notebook_list", "notebook_describe", "source_list", "source_read", "source_wait",
+                 "await_upload", "studio_list", "studio_status", "research_status", "share_status",
+                 "suggest_prompts", "server_info"],
+        "write": ["notebook_create", "notebook_rename", "source_add", "source_add_drive_file",
+                  "source_rename", "note_save", "chat_ask", "chat_configure", "studio_generate",
+                  "studio_rename", "studio_retry", "studio_download", "research_start",
+                  "research_import", "research_cancel"],
+        "danger": ["notebook_delete", "source_delete", "studio_delete",
+                   "share_set_access", "share_set_user", "share_remove_user"]
+      },
+      "default_perm": "readonly",
+      "risk": "Kết nối này dùng COOKIE PHIÊN Google, credential tương đương đang đăng nhập tài khoản Google của bạn, không phải OAuth giới hạn phạm vi như Gmail hay Lịch.\n\nMức Chỉ đọc: liệt kê notebook, đọc nguồn, xem trạng thái. Không đụng gì.\n\nMức Ghi nháp: thêm quyền tạo notebook, thêm nguồn, lưu ghi chú, hỏi đáp trong notebook và tạo tóm tắt/audio ở Studio - những thứ này tiêu quota NotebookLM của bạn.\n\nMức Toàn quyền: thêm quyền XOÁ notebook, xoá nguồn, và CHIA SẺ notebook cho người khác. Chia sẻ nhầm thì gỡ lại được nhưng người ta đã đọc rồi, nên nó nằm ở mức cao nhất.\n\nnotebooklm-py là thư viện KHÔNG chính thức, chạy trên giao thức nội bộ của NotebookLM. Google đổi giao thức lúc nào cũng có thể làm kết nối này gãy.",
+      "rate_limit": { "calls_per_min": 20 }
+    },
+    {
       "id": "n8n",
       "name": "n8n",
       "icon": "/static/logos/n8n.svg",

@@ -163,6 +163,43 @@
     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5l8-3z"/></svg>';
   const body = () => document.getElementById("cviewBody");
 
+  /** Phân trang phía client cho các khung nhật ký: tải một lần rồi lật trang tại chỗ.
+   *
+   * Dùng chung cho nhật ký loop (trang Việc định kỳ), nhật ký học + commit học (trang Tự học)
+   * và bảng "Lượt gần nhất" (trang Tiết kiệm). Trước đây chỉ trang Việc định kỳ có, viết
+   * thẳng trong hàm render của nó; hai trang kia thì cắt cứng ở 10 và 12 mục. Chép khối đó
+   * ra thành bản thứ hai và thứ ba là ba bản trôi lệch nhau ngay lần sửa đầu tiên.
+   *
+   * KHÔNG dùng cuộn vô hạn: mấy khung này nằm GIỮA trang còn nội dung phía dưới, cuộn vô hạn
+   * sẽ nuốt luôn đường xuống phần đó.
+   *
+   * @param box       node chứa (bị ghi đè innerHTML)
+   * @param items     mảng đã sắp sẵn, mới nhất trước
+   * @param perPage   số mục mỗi trang
+   * @param renderPage  (mảng con) -> chuỗi HTML
+   * @param emptyHtml HTML hiện khi không có mục nào
+   */
+  function pager(box, items, perPage, renderPage, emptyHtml) {
+    if (!box) return;
+    const all = items || [];
+    if (!all.length) { box.innerHTML = emptyHtml || `<div class="dim" style="color:var(--text3)">Chưa có gì.</div>`; return; }
+    const pages = Math.max(1, Math.ceil(all.length / perPage));
+    let page = 0;
+    const draw = () => {
+      page = Math.min(Math.max(0, page), pages - 1);
+      const nav = pages > 1 ? `<div class="jv-pager">
+          <button class="s-btn-ghost" data-pg="prev"${page === 0 ? " disabled" : ""}>← Trước</button>
+          <span class="jv-pager-n">Trang ${page + 1}/${pages} · ${all.length} mục</span>
+          <button class="s-btn-ghost" data-pg="next"${page >= pages - 1 ? " disabled" : ""}>Sau →</button>
+        </div>` : "";
+      box.innerHTML = renderPage(all.slice(page * perPage, page * perPage + perPage)) + nav;
+      const p = box.querySelector('[data-pg="prev"]'), n = box.querySelector('[data-pg="next"]');
+      if (p) p.onclick = () => { page--; draw(); };
+      if (n) n.onclick = () => { page++; draw(); };
+    };
+    draw();
+  }
+
   // Pause SỚM (chạy ngay khi parse, không chờ Alpine tải): màn hẹp → graph app.js vừa dựng
   // dừng luôn, khỏi ngốn pin/GPU trong lúc Alpine đang tải. _animate có guard _paused nên
   // dù load() chạy xong gọi lại cũng không bật lại.
@@ -242,7 +279,15 @@
     const name = brainRel.split("/").pop();
     const ext = name.includes(".") ? "." + name.split(".").pop().toLowerCase() : ".md";
     openNote(ceilingRel, { name: name, ext: ext, type: "file" });
+    // Đi tới một file bằng LINK thì cây bên cạnh phải sổ tới đúng nhánh chứa nó. Không có
+    // nhát này thì mở xong vẫn không biết file nằm đâu, lần sau lại phải đi tìm lại từ đầu.
+    // Đặt ở wrapper chứ không trong openNote: openNote còn được chính cây gọi khi bấm node,
+    // ở đó cây đã đúng chỗ rồi, dựng lại là thừa.
+    try { _vtRevealInTree(ceilingRel); } catch (e) {}
   };
+  // Xổ cây tới đúng nhánh chứa `path` (đường dẫn theo TRẦN DUYỆT). Phơi ra cho chỗ khác gọi
+  // mà không phải chép lại cơ chế xổ cây thứ hai.
+  if (typeof window !== "undefined") window.JavisRevealInTree = (path) => _vtRevealInTree(path);
 
   // ============================================
   // Render từng trang vào #cviewBody
@@ -359,7 +404,9 @@
       .sort((a, b) => (b[1].allocation_basis_points || 0) - (a[1].allocation_basis_points || 0));
     const anyOn = canaries.some(([, v]) => (v.allocation_basis_points || 0) > 0);
 
-    const rows = tasks.slice(0, 60).map(t => {
+    // Bảng "Lượt gần nhất" trước đổ thẳng 60 dòng ra một lượt. Nay lật trang 20 dòng một
+    // (pager() dùng chung), và không cắt ở 60 nữa - lấy hết những gì trace trả về.
+    const rowHtml = (t) => {
       const err = t.estimated_input_tokens && t.actual_input_tokens
         ? Math.round((t.estimated_input_tokens - t.actual_input_tokens) / t.actual_input_tokens * 100) : null;
       return `<tr>
@@ -373,7 +420,7 @@
         <td class="rt-right">${num(t.actual_output_tokens)}</td>
         <td class="rt-right">${err == null ? "-" : err + "%"}</td>
       </tr>`;
-    }).join("");
+    };
 
     // Ba mức là thứ ĐẦU TIÊN người dùng thấy, và mỗi mức phải nói được nó đổi gì. Bản trước
     // chôn ba nút này ở giữa trang, dưới bốn khối biểu đồ, nên mở trang ra là thấy số liệu
@@ -580,11 +627,16 @@
 
       <div class="rt-sec">
         <h3>Lượt gần nhất</h3>
-        ${tasks.length ? `<table class="rt-tbl"><thead><tr><th>Task</th><th>Kênh</th><th>Đường</th><th>Trạng thái</th><th>Model</th><th class="rt-right">Vào</th><th class="rt-right">Ra</th><th class="rt-right">Lệch</th></tr></thead><tbody>${rows}</tbody></table>`
-          : `<div class="dim">Chưa có lượt nào trong 24 giờ qua.</div>`}
+        <div id="rtTasks"></div>
       </div>
       <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
     </div>`;
+
+    pager(el.querySelector("#rtTasks"), tasks, 20, (page) =>
+      `<table class="rt-tbl"><thead><tr><th>Task</th><th>Kênh</th><th>Đường</th><th>Trạng thái</th>` +
+      `<th>Model</th><th class="rt-right">Vào</th><th class="rt-right">Ra</th><th class="rt-right">Lệch</th>` +
+      `</tr></thead><tbody>${page.map(rowHtml).join("")}</tbody></table>`,
+      `<div class="dim">Chưa có lượt nào trong 24 giờ qua.</div>`);
 
     _bindPresets(el);
     _bindModeApply(el);
@@ -2195,7 +2247,6 @@
     // Nhật ký gần đây: tải 1 lần (mới nhất trước), rồi phân trang phía client 10 mục/trang - đỡ
     // đổ cả trăm dòng DOM cùng lúc, có nút Trước/Sau để lật xem tin cũ hơn.
     let logEntries = [];
-    let logPage = 0;
     const LOG_PER_PAGE = 10;
     async function loadLog() {
       if (myGen !== _renderGen) return;
@@ -2206,32 +2257,12 @@
       try { d = await (await fetch(`/loops/log?brain=${encodeURIComponent(brainQ)}&slug=${encodeURIComponent(slugQ)}&limit=200`)).json(); } catch (e) { }
       if (myGen !== _renderGen) return;
       logEntries = d.entries || [];
-      logPage = 0;
       renderLog();
     }
     function renderLog() {
-      const box = el.querySelector("#lpLog");
-      if (!box) return;
-      const total = logEntries.length;
-      if (!total) { box.innerHTML = `<div class="dim" style="color:var(--text3)">Chưa có nhật ký.</div>`; return; }
-      const pages = Math.ceil(total / LOG_PER_PAGE);
-      if (logPage >= pages) logPage = pages - 1;
-      if (logPage < 0) logPage = 0;
-      const start = logPage * LOG_PER_PAGE;
-      const items = logEntries.slice(start, start + LOG_PER_PAGE)
-        .map(e => `<div class="le">${esc(e)}</div>`).join("");
-      let pager = "";
-      if (pages > 1) {
-        pager = `<div class="lp-pager" style="display:flex;align-items:center;gap:10px;margin-top:10px">
-          <button class="s-btn-ghost" id="lpLogPrev" ${logPage === 0 ? "disabled" : ""}>← Trước</button>
-          <span class="dim" style="font-size:13px;color:var(--text3)">Trang ${logPage + 1}/${pages} · ${total} mục</span>
-          <button class="s-btn-ghost" id="lpLogNext" ${logPage >= pages - 1 ? "disabled" : ""}>Sau →</button>
-        </div>`;
-      }
-      box.innerHTML = items + pager;
-      const prev = el.querySelector("#lpLogPrev"), next = el.querySelector("#lpLogNext");
-      if (prev) prev.onclick = () => { if (logPage > 0) { logPage--; renderLog(); } };
-      if (next) next.onclick = () => { if (logPage < pages - 1) { logPage++; renderLog(); } };
+      pager(el.querySelector("#lpLog"), logEntries, LOG_PER_PAGE,
+            (rows) => rows.map(e => `<div class="le">${esc(e)}</div>`).join(""),
+            `<div class="dim" style="color:var(--text3)">Chưa có nhật ký.</div>`);
     }
     el.querySelector("#lpLogFilter").onchange = loadLog;
     { const s = el.querySelector("#lpSearch"); if (s) s.oninput = applyLpSearch; }
@@ -2381,19 +2412,23 @@
         `<b>Chỉ số</b> · Ký ức: <b>${m.facts ?? "?"}</b> · Wiki: <b>${m.wiki ?? "?"}</b> · MEMORY.md: ${(m.memory_bytes||0)}B` +
         ` · Fork hôm nay: ${m.fork_today ?? 0} · Token ước tính: ${m.token_today ?? 0} · Commit học: ${m.learn_commits ?? 0}`;
     }
+    // Hai khung dưới đây trước chỉ hiện 10 dòng nhật ký và 12 commit rồi hết - muốn xem xa hơn
+    // là không có đường nào. Nay tải sâu hơn hẳn rồi lật trang tại chỗ bằng pager() dùng chung.
     async function loadReview() {
-      let d = { commits: [] }; try { d = await (await fetch(`/learn/review?brain=${encodeURIComponent(fbrain())}&limit=12`)).json(); } catch (e) { }
+      let d = { commits: [] }; try { d = await (await fetch(`/learn/review?brain=${encodeURIComponent(fbrain())}&limit=60`)).json(); } catch (e) { }
       const box = el.querySelector("#lnReview");
       if (!d.git_repo) { box.innerHTML = `<div class="dim" style="color:var(--warn-ink)">Brain chưa phải git repo - bật Tự học để git-init (mới xem/undo được commit).</div>`; return; }
-      box.innerHTML = (d.commits || []).length ? d.commits.map(c => {
+      pager(box, d.commits || [], 6, (rows) => rows.map(c => {
         const when = c.ts ? new Date(c.ts * 1000).toLocaleString() : "";
         const files = (c.files || []).slice(0, 6).map(f => `<code style="font-size:11px">${esc(f)}</code>`).join(" ");
         return `<div class="le"><b>${esc(c.subject)}</b> <span class="dim" style="color:var(--text3)">${esc(c.hash)} · ${esc(when)}</span><br>${files}</div>`;
-      }).join("") : `<div class="dim" style="color:var(--text3)">Chưa có commit học nào.</div>`;
+      }).join(""), `<div class="dim" style="color:var(--text3)">Chưa có commit học nào.</div>`);
     }
     async function loadLog() {
-      let d = { entries: [] }; try { d = await (await fetch(`/learn/log?brain=${encodeURIComponent(fbrain())}&limit=10`)).json(); } catch (e) { }
-      el.querySelector("#lnLog").innerHTML = (d.entries || []).length ? d.entries.map(e => `<div class="le">${esc(e)}</div>`).join("") : `<div class="dim" style="color:var(--text3)">Chưa có nhật ký học.</div>`;
+      let d = { entries: [] }; try { d = await (await fetch(`/learn/log?brain=${encodeURIComponent(fbrain())}&limit=200`)).json(); } catch (e) { }
+      pager(el.querySelector("#lnLog"), d.entries || [], 10,
+            (rows) => rows.map(e => `<div class="le">${esc(e)}</div>`).join(""),
+            `<div class="dim" style="color:var(--text3)">Chưa có nhật ký học.</div>`);
     }
     // ── Backup GitHub ──
     let bkAutoOn = false;

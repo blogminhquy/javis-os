@@ -376,7 +376,13 @@
       <label>Tên</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>Vai trò (mô tả ngắn)</label><input id="agRole" value="${esc(a ? a.role : "")}">
       <label>System prompt (cách làm việc chi tiết)</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
-      <label>Skills</label><div class="skill-pick" id="skillPick">${skills.length ? skills.map(s => `<label class="sp"><input type="checkbox" value="${esc(s.slug)}" ${a && (a.skills || []).includes(s.slug) ? "checked" : ""}> ${esc(s.name)}</label>`).join("") : '<span class="dim">Vault chưa có skill trong skills/ - vẫn tạo agent được, gán skill sau.</span>'}</div>
+      <label>Skills</label>
+      ${skills.length ? `<div class="sp-box">
+        <div class="sp-bar"><input id="spSearch" placeholder="Tìm skill theo tên, nhóm hoặc mô tả…">
+          <span class="sp-count" id="spCount"></span>
+          <button type="button" class="s-btn-ghost sp-clear" id="spClear">Bỏ chọn hết</button></div>
+        <div class="sp-groups" id="skillPick"></div>
+      </div>` : '<div class="skill-pick"><span class="dim">Vault chưa có skill trong skills/ - vẫn tạo agent được, gán skill sau.</span></div>'}
       <label>Model</label><select id="agModel">
         <option value="">Mặc định (theo CLI)</option>
         ${currentOnly}
@@ -386,14 +392,91 @@
       <div class="dim" style="font-size:12px;margin-top:4px">Agent chạy qua CLI của nhà cung cấp. Model ChatGPT được lấy trực tiếp từ Codex nên bản mới sẽ tự xuất hiện; chọn Mặc định để Codex tự dùng model mặc định mới nhất. Cả hai đều đọc/ghi file vault + dùng MCP.</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">Huỷ</button><button class="s-btn" id="saveAg">Lưu</button></div>`;
     if (a && a.model) box.querySelector("#agModel").value = a.model;
+    // Trạng thái chọn giữ trong Set, DOM chỉ là HÌNH CHIẾU của nó. Đây là chỗ dễ hỏng nhất của
+    // khung có bộ lọc: vẽ lại theo bộ lọc rồi lúc lưu mới đi đọc DOM thì mọi skill đang bị lọc
+    // ra khỏi màn hình sẽ mất tick, im lặng, và người dùng chỉ phát hiện sau khi agent chạy sai.
+    const chosen = new Set(a ? (a.skills || []) : []);
+    renderSkillPick(box, skills, chosen);
     box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
     box.querySelector("#saveAg").onclick = async () => {
       const name = box.querySelector("#agName").value.trim(); if (!name) return alert("Nhập tên");
-      const sk = [...box.querySelectorAll("#skillPick input:checked")].map(c => c.value).join(",");
+      const sk = [...chosen].join(",");
       await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value, prompt: box.querySelector("#agPrompt").value, skills: sk, model: box.querySelector("#agModel").value, slug: a ? a.slug : "", brain: brain() }) });
       editor.classList.remove("open"); loadAgents();
     };
     editor.classList.add("open");
+  }
+
+  // ===== Khung chọn skill trong màn sửa Agent =====
+  // Brain thật đang có 55+ skill, nên danh sách checkbox phẳng là dò bằng mắt qua cả trang.
+  // Ở đây: ô tìm + gom nhóm theo field `group` sẵn có của skill (đúng nhóm mà trang Skills
+  // dùng, không đẻ cách phân loại thứ hai), mỗi nhóm sổ ra thu vào được.
+  function _spNoAccent(s) {
+    s = String(s == null ? "" : s);
+    try { s = s.normalize("NFD").replace(/[̀-ͯ]/g, ""); } catch (e) {}
+    return s.replace(/[đĐ]/g, "d").toLowerCase();
+  }
+
+  function renderSkillPick(box, skills, chosen) {
+    const host = box.querySelector("#skillPick");
+    if (!host) return;
+    const countEl = box.querySelector("#spCount");
+    const searchEl = box.querySelector("#spSearch");
+    // Nhóm nào đang có skill được tick thì mở sẵn: người sửa agent quan tâm cái đang bật trước.
+    const openGroups = new Set(skills.filter(s => chosen.has(s.slug)).map(s => s.group || "Chung"));
+    let q = "";
+
+    const draw = () => {
+      const nq = _spNoAccent(q.trim());
+      const hop = (s) => !nq || _spNoAccent(`${s.name} ${s.slug} ${s.group || ""} ${s.description || ""}`).includes(nq);
+      const groups = new Map();
+      skills.forEach(s => {
+        if (!hop(s)) return;
+        const g = s.group || "Chung";
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(s);
+      });
+      if (countEl) countEl.textContent = `đã chọn ${chosen.size}/${skills.length}`;
+      if (!groups.size) { host.innerHTML = `<div class="dim sp-empty">Không có skill nào khớp "${esc(q)}".</div>`; return; }
+      host.innerHTML = "";
+      [...groups.keys()].sort((x, y) => x.localeCompare(y, "vi")).forEach(g => {
+        const list = groups.get(g);
+        const nSel = list.filter(s => chosen.has(s.slug)).length;
+        // Đang tìm thì mọi nhóm còn khớp đều sổ ra - lọc xong mà vẫn phải bấm mở từng nhóm
+        // thì ô tìm chẳng đỡ được gì.
+        const open = !!nq || openGroups.has(g);
+        const wrap = document.createElement("div");
+        wrap.className = "sp-g" + (open ? " open" : "");
+        wrap.innerHTML = `<button type="button" class="sp-g-head">
+            <span class="sp-g-caret">${ic("chevron-right")}</span>
+            <span class="sp-g-name">${esc(g)}</span>
+            <span class="sp-g-n">${nSel ? `${nSel}/${list.length}` : list.length}</span>
+          </button><div class="sp-g-body"></div>`;
+        const body = wrap.querySelector(".sp-g-body");
+        list.forEach(s => {
+          const lb = document.createElement("label");
+          lb.className = "sp";
+          lb.title = s.description || s.name;
+          lb.innerHTML = `<input type="checkbox" value="${esc(s.slug)}"${chosen.has(s.slug) ? " checked" : ""}> <span>${esc(s.name)}</span>`;
+          lb.querySelector("input").onchange = (e) => {
+            if (e.target.checked) { chosen.add(s.slug); openGroups.add(g); } else chosen.delete(s.slug);
+            // Vẽ lại để con số của nhóm và ô đếm khớp ngay; Set là nguồn sự thật nên an toàn.
+            draw();
+          };
+          body.appendChild(lb);
+        });
+        wrap.querySelector(".sp-g-head").onclick = () => {
+          if (openGroups.has(g)) openGroups.delete(g); else openGroups.add(g);
+          wrap.classList.toggle("open");
+        };
+        host.appendChild(wrap);
+      });
+    };
+
+    if (searchEl) searchEl.oninput = () => { q = searchEl.value; draw(); };
+    const clearBtn = box.querySelector("#spClear");
+    if (clearBtn) clearBtn.onclick = () => { chosen.clear(); draw(); };
+    draw();
   }
 
   // ===== Skills (cột nhóm + tìm kiếm + bật/tắt) =====

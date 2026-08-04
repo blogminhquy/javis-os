@@ -692,14 +692,35 @@
         setTimeout(function () { wl.classList.remove("jv-wl-miss"); }, 1500);
         return;
       }
-      // Dang doc trong editor cay (trang Bo nao/Tep tin) -> dieu huong NGAY TRONG editor do (nhu Wikipedia).
-      // JavisOpenNote la wrapper SAN CO cua console.js (cung cai click node do thi dung): nhan MOT chuoi
-      // path tuong doi GOC BRAIN, tu ghep tien to tran + suy ten/duoi. KHONG duoc ghi de/goi khac chu ky.
-      if (wl.closest("#noteEditor") && typeof window.JavisOpenNote === "function")
-        window.JavisOpenNote(hit.rel);
-      else if (typeof window.JavisEditFile === "function") window.JavisEditFile(hit.rel);
-      else if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(hit.rel);
+      moFileVault(hit.rel);
     });
+  }
+
+  // Mo mot FILE cua vault tu link (trong chat hoac trong ban render cua trinh sua).
+  //
+  // Uu tien TRINH SUA DINH - window.JavisOpenNote, wrapper SAN CO cua console.js (cung cai
+  // click node do thi dung): nhan MOT chuoi path tuong doi GOC BRAIN, tu ghep tien to tran +
+  // suy ten/duoi, tu so cay toi dung nhanh. O trang Tro chuyen no CHIEM CHO khung chat
+  // (#chatPageEdit tu 0.15.2), o man chinh no noi len tren visual nao - cho do rong nen de la
+  // hop ly. KHONG duoc goi khac chu ky nay.
+  //
+  // Popup .jvfe-modal chi con la duong lui, dung hai truong hop: man HEP (duoi 860px thi
+  // khong con cho cho khung dinh, ma popup von co @media rieng cho man hep), va luc console.js
+  // chua kip nap. Loai file khong sua duoc (pdf, docx, zip...) khong can nhanh rieng: openNote
+  // da co san _neRenderDownload hien the file kem nut Mo tab moi / Tai ve.
+  // Node dang nam trong BAN RENDER cua mot trinh sua (editor cay, khung sua file bung giua
+  // man hinh, hay o ghi chu)? Dung de phan biet "chat chi doc" voi "dang mo file ra sua".
+  function trongTrinhSua(node) {
+    return !!(node && node.closest &&
+              node.closest('[contenteditable="true"], .jvfe-modal, .note-editor'));
+  }
+
+  function moFileVault(rel) {
+    var hep = false;
+    try { hep = window.matchMedia("(max-width: 860px)").matches; } catch (e) {}
+    if (!hep && typeof window.JavisOpenNote === "function") { window.JavisOpenNote(rel); return; }
+    if (typeof window.JavisEditFile === "function") { window.JavisEditFile(rel); return; }
+    if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(rel);
   }
 
   // ---------------------------------------------------------------- lightbox xem anh
@@ -813,26 +834,45 @@
         openWikilink(wl);
         return;
       }
-      // Dang SOAN trong editor (contenteditable/.ne-wys) hoac trong khung sua file -> khong mo gi ca,
-      // de nguoi dung bam link/anh ma sua binh thuong (tranh bung editor long nhau).
-      if (e.target.closest && e.target.closest('[contenteditable="true"], .jvfe-modal, .note-editor')) return;
-      // Link file/thu muc vault: bam thuong -> mo trang Tep tin dung vi tri. Ctrl/Cmd/Shift/giua chuot
-      // -> de trinh duyet dung deep-link href (#open=..) mo tab moi (chat van con o tab cu).
+      // Link file/thu muc vault: bam thuong -> mo file. Ctrl/Cmd/Shift/giua chuot -> de trinh
+      // duyet dung deep-link href (#open=..) mo tab moi (chat van con o tab cu).
+      //
+      // Nhanh nay nam TRUOC hang rao contenteditable ben duoi, dung cho voi wikilink. Vi sao:
+      // ban render cua trinh sua LA contenteditable, nen truoc day MOI link markdown trong
+      // mot file .md deu roi vao hang rao do va bam khong di dau ca - trong khi [[wikilink]]
+      // ngay canh no thi di duoc, du hai cai nhin y het nhau. Luat da chon tu truoc cho
+      // wikilink: trong ban render, link la de DI, muon sua chu cua link thi bat che do Nguon.
       var loc = e.target.closest ? e.target.closest("a.jv-floc") : null;
       if (loc && loc.getAttribute("data-vault-path") != null) {
         if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
-        e.preventDefault();
         var vp = loc.getAttribute("data-vault-path") || "";
         var isImg = !!(loc.querySelector && loc.querySelector("img"));   // anh inline -> giu hanh vi cu
-        var trimmed = vp.replace(/\/+$/, "");
-        var base = trimmed.split("/").pop();
-        var isDir = /\/$/.test(vp) || base === "" || base.indexOf(".") < 0;   // co duoi -> FILE (nhu openFilesAt)
-        // FILE co duoi -> bung khung sua giua man hinh; THU MUC / anh inline -> mo trang Tep tin dung vi tri.
-        if (!isImg && !isDir && typeof window.JavisEditFile === "function") { window.JavisEditFile(trimmed); return; }
-        if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(vp);
-        else window.open(loc.href, "_blank");   // du phong: mo tab moi neu console.js chua san sang
+        // Anh trong ban render phai keo tha va xoa duoc nhu mot ky tu -> khong cuop cu bam.
+        if (!(isImg && trongTrinhSua(e.target))) {
+          e.preventDefault();
+          var trimmed = vp.replace(/\/+$/, "");
+          var base = trimmed.split("/").pop();
+          var isDir = /\/$/.test(vp) || base === "" || base.indexOf(".") < 0;   // co duoi -> FILE (nhu openFilesAt)
+          // FILE co duoi -> mo trong trinh sua; THU MUC / anh inline -> mo trang Tep tin dung vi tri.
+          if (!isImg && !isDir) { moFileVault(trimmed); return; }
+          if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(vp);
+          else window.open(loc.href, "_blank");   // du phong: mo tab moi neu console.js chua san sang
+          return;
+        }
+      }
+      // Link NGOAI trong ban render: trong contenteditable trinh duyet khong tu mo tab moi,
+      // no chi dat con tro - nen bam vao mot link http trong file .md xem nhu khong co gi xay
+      // ra. Tu mo ho. (Ngoai ban render thi the <a target="_blank"> lo roi, khong dung vao.)
+      var ext = e.target.closest ? e.target.closest("a[href]") : null;
+      if (ext && trongTrinhSua(e.target) && /^(https?:|mailto:)/i.test(ext.getAttribute("href") || "")) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
+        e.preventDefault();
+        window.open(ext.getAttribute("href"), "_blank", "noopener");
         return;
       }
+      // Dang SOAN trong editor (contenteditable/.ne-wys) hoac trong khung sua file -> khong mo gi ca,
+      // de nguoi dung bam anh ma sua binh thuong (tranh bung editor long nhau).
+      if (trongTrinhSua(e.target)) return;
       var card = e.target.closest ? e.target.closest(".jv-art") : null;
       if (card && card.dataset.art) { e.preventDefault(); openArtifact(card.dataset.art); }
     });

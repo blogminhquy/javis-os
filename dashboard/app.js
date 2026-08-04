@@ -250,7 +250,12 @@ function sendMessage(text) {
     return;
   }
   if ((!msg && atts.length === 0) || !ws || ws.readyState !== WebSocket.OPEN) return;
-  if (!savedSessionId) savedSessionId = newSid();        // hội thoại mới → mint id để định tuyến
+  if (!savedSessionId) {
+    savedSessionId = newSid();                           // hội thoại mới → mint id để định tuyến
+    // Đang mở một project ở cột Lịch sử thì hội thoại mới rơi thẳng vào project đó, khỏi phải
+    // gắn tay. Gắn NGAY tại đây vì đây là chỗ duy nhất biết "id này vừa được sinh ra".
+    try { if (window.JavisProjects) window.JavisProjects.claim(savedSessionId); } catch (e) {}
+  }
   const sid = savedSessionId;
   if (turns[sid] && turns[sid].running) return;          // phiên này đang trả lời → chưa gửi tiếp
   voice.stopSpeaking();

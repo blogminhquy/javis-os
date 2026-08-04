@@ -4,6 +4,35 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.18.0] - 2026-08-04
+Dọn một loạt ý trong sổ tay phát triển: **ghim và gom nhóm hội thoại**, **link trong file .md bấm được**, **chọn skill khi số skill đã lên 55+**, **phân trang nhật ký**, thêm **NotebookLM** vào kho kết nối và **gửi ảnh qua Zalo**. Spec đầy đủ ở `docs/dev/2026-08-backlog-spec.md`.
+### Thêm mới
+- **Ghim hội thoại lên đầu, gom thành Project, gắn icon.** Danh sách Lịch sử xếp thuần theo thời gian nên cuộc dùng đi dùng lại cứ trôi dần xuống dưới, và toàn chữ nên nhìn lâu không phân biệt nổi cái nào là cái nào. Nay rê chuột vào một cuộc là ghim được, gắn emoji được, chuyển sang một Project được.
+
+  Thanh chọn nhóm nằm ngay dưới nút Hội thoại mới. Đang mở một project thì danh sách lọc theo nó, **và cuộc trò chuyện mới bạn bắt đầu tự rơi vào project đó** chứ không phải gắn tay - thứ chỉ làm được vì id hội thoại sinh ở phía trình duyệt ngay lúc bấm gửi, nên nhãn kịp gắn từ tin nhắn ĐẦU TIÊN.
+
+  **Xoá project KHÔNG xoá hội thoại**: các cuộc bên trong chỉ được gỡ khỏi nhóm. Hộp xác nhận nói rõ điều đó kèm số cuộc sẽ được gỡ, vì không có đường hoàn tác nào cho một cú bấm nhầm cuốn theo cả tháng trò chuyện.
+- **Kho kết nối có Google NotebookLM.** Liệt kê notebook, đọc nguồn, hỏi đáp ngay trong notebook, thêm nguồn, tạo tóm tắt hay audio ở Studio.
+
+  Sổ tay ghi việc này là "viết MCP server wrapper", nhưng đào ra thì `notebooklm-py` đã đóng gói sẵn một MCP server, nên phần Javis làm chỉ là một mục trong kho connector - không một dòng Python nào. Mặc định **Chỉ đọc**; đăng nhập bằng phiên trình duyệt (xem phần Bảo mật bên dưới).
+- **Gửi ẢNH và FILE qua Zalo** (plugin bundled `zalo-image`, tool `zalo_send_image`). `zalo_send_message` của MCP chuẩn chỉ nhận chữ, nên Javis tạo được ảnh mà vẫn không gửi cho ai được. Trong khi thư viện bên dưới (`zca-js`) làm được từ lâu, và chính CLI đó đã có lệnh `msg send-image`.
+
+  Bản 1.6.2 đã là bản mới nhất trên npm nên chờ upstream phơi thêm tham số là chờ vô hạn. Cách làm: gọi lại chính CLI đó với `HOME` trỏ vào đúng thư mục phiên của kết nối Zalo đang đăng nhập - không fork package Node, không bắt quét QR lần hai.
+### Cải thiện
+- **Link trong file .md giờ bấm được.** Mở một note ra đọc, bấm vào link tới file khác thì trước đây không đi đâu cả; trong khi `[[wikilink]]` ngay cạnh nó thì đi được, dù hai cái nhìn y hệt nhau.
+
+  Nguyên nhân: xử lý CÓ, nhưng nằm SAU hàng rào "đang soạn trong trình sửa thì đừng mở gì cả" - mà bản render của trình sửa CHÍNH LÀ vùng soạn thảo, nên mọi link markdown đều rơi vào hàng rào đó. Nay link file nằm trước hàng rào, đúng chỗ wikilink vẫn đứng. Link http trong bản render cũng được mở hộ (trình duyệt không tự mở tab trong vùng soạn thảo, nó chỉ đặt con trỏ). Ảnh giữ nguyên hành vi cũ để còn kéo thả và xoá được như một ký tự.
+- **Đi tới một file bằng link thì cây thư mục tự sổ tới đúng nhánh chứa nó.** Trước đây mở xong vẫn không biết file nằm đâu, lần sau lại đi tìm lại từ đầu.
+- **Mở file từ trong chat dùng khung sửa dính thay cho popup.** Mở file từ tab Thư mục thì trình sửa chiếm chỗ khung chat, mở cùng file đó bằng link trong chat thì bật popup che giữa màn hình - hai đường vào một file, hai bộ mặt. Nay cùng một đường. Popup vẫn còn cho màn hẹp (dưới 860px không đủ chỗ cho khung dính). Loại file không sửa được (pdf, docx, zip) hiện thẻ file kèm nút Mở tab mới và Tải về.
+- **Khung chọn skill khi sửa Agent có tìm kiếm và gom nhóm.** Brain thật đang có 55+ skill mà khung này là một mớ checkbox phẳng, nên tick đúng cái muốn là dò bằng mắt qua cả danh sách. Nay có ô tìm (không dấu, quét cả tên, slug, nhóm và mô tả), gom nhóm theo đúng field `group` mà trang Skills đang dùng, nhóm nào có skill đã tick thì mở sẵn, kèm ô đếm và nút Bỏ chọn hết.
+- **Phân trang cho nhật ký tự học, commit học và bảng Lượt gần nhất.** Trang Tự học trước chỉ hiện 10 dòng nhật ký và 12 commit rồi hết, không có đường xem xa hơn. Nguồn cũng nới theo: nhật ký học đọc tới khi đủ số mục thay vì cắt cứng ở 3 tệp - nhật ký ghi mỗi ngày một tệp, nên cắt ở 3 nghĩa là phân trang cũng chỉ lật quanh 3 ngày.
+
+  Khối phân trang được tách thành một hàm dùng chung thay vì chép ra bản thứ hai và thứ ba, đúng bài học đã học ở cây Vault (0.15.1) và Javis CLI (0.17.0).
+### Bảo mật
+- **Gửi ảnh Zalo chỉ gửi được file NẰM TRONG bộ não đang dùng.** Tool nhận đường dẫn từ chính câu chat và đầu ra là gửi ra ngoài, không thu hồi được; thiếu rào này thì một câu khéo léo là tuồn được tệp khoá hay `/etc/passwd` ra một cuộc chat Zalo bất kỳ. Đường dẫn tuyệt đối ngoài bộ não cũng bị chặn, không riêng dạng `../`.
+- **Đấu nhiều tài khoản Zalo thì Javis hỏi lại, không đoán.** Gửi nhầm tài khoản là gửi dưới danh tính người khác. Tool cũng ở mức `full` như `zalo_send_message`, nên chế độ suggest và các việc nền chạy giới hạn không tự gửi được.
+- **NotebookLM nói thẳng đây là cookie phiên Google, không phải OAuth giới hạn phạm vi.** Ai cầm được chuỗi đó thì vào được tài khoản Google, nên connector mặc định **Chỉ đọc** và cảnh báo ngay ở bước đầu của trình hướng dẫn. Các tool CHIA SẺ notebook ra ngoài được xếp nhóm nguy hiểm dù thư viện tự đánh dấu chúng là không phá huỷ: gỡ chia sẻ lại được, nhưng không rút lại được việc người ta đã đọc. Connector cố ý KHÔNG xếp vào nhóm Google một cửa - nhóm đó là các kết nối đi chung một key OAuth client, cách đăng nhập và rủi ro khác hẳn.
+
 ## [0.17.1] - 2026-08-04
 Giao việc Kanban nay làm được từ **mọi bộ não**, không chỉ hai engine chạy được lệnh máy.
 ### Thêm mới
