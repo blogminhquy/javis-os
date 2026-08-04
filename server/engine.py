@@ -11,6 +11,7 @@ Stream token-by-token; trả các event {"type":"text"|"error","content":...} gi
 """
 import asyncio
 import json
+import os
 import random
 import re
 import threading
@@ -1315,7 +1316,7 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
             ),
         })
         requirement_pending = False
-    for _ in range(8):
+    for _ in range(_max_tool_rounds()):
         payload = {"model": model, "messages": msgs, "stream": False}
         # Bỏ hẳn khoá "tools" khi rỗng: vài endpoint OpenAI-compat từ chối mảng rỗng, và
         # nhánh cứu hộ ở dưới (model vấp cú pháp gọi tool) dựa vào đúng chỗ này.
@@ -1430,7 +1431,29 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
         else:
             yield {"type": "error", "content": f"{label} trả về rỗng."}
         return
-    yield {"type": "text", "content": "\n\n⚠ Đã đạt giới hạn 8 vòng gọi tool MCP."}
+    yield {"type": "text", "content": _het_vong_msg()}
+
+
+# ── Trần số vòng gọi tool của engine API (Claude Code/Codex tự quản vòng lặp của chúng) ──
+# Mỗi vòng = một lượt gọi model + chạy tool nó xin. Có trần vì model kẹt vòng lặp sẽ đốt
+# token vô hạn mà không ai thấy. 8 đủ cho gần hết câu hỏi thường ngày, nhưng một việc nền
+# nhiều bước (đọc vài file, tra vài nguồn, ghi vài file) thì chạm trần rồi dừng giữa chừng.
+# Nên nó là BIẾN MÔI TRƯỜNG, không phải số ghim trong ba chỗ khác nhau như trước.
+def _max_tool_rounds() -> int:
+    try:
+        n = int(os.getenv("JAVIS_MAX_TOOL_ROUNDS", "8"))
+    except (TypeError, ValueError):
+        return 8
+    return max(1, min(n, 40))   # kẹp: 0 thì không tool nào chạy, quá to thì mất ý nghĩa của trần
+
+
+def _het_vong_msg() -> str:
+    """Chạm trần phải nói ĐƯỢC VIỆC CẦN LÀM. Bản cũ chỉ báo con số rồi im, người dùng không
+    biết mình vừa mất gì hay chỉnh ở đâu."""
+    n = _max_tool_rounds()
+    return (f"\n\n⚠ Đã chạy hết {n} vòng gọi tool cho lượt này nên phải dừng, câu trả lời ở "
+            f"trên có thể còn dở. Cách xử lý: chia nhỏ yêu cầu thành từng bước, hoặc nâng trần "
+            f"bằng biến môi trường JAVIS_MAX_TOOL_ROUNDS (tối đa 40) rồi khởi động lại Javis.")
 
 
 async def openai_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
@@ -1510,7 +1533,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
     timeout = httpx.Timeout(180, connect=15)
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
-        for _ in range(8):
+        for _ in range(_max_tool_rounds()):
             # Backend Codex BẮT BUỘC stream=True → đọc SSE, lấy response.completed.output để chạy vòng tool
             payload = {"model": model, "instructions": instructions, "input": items,
                        "tools": tools, "stream": True, "store": False}
@@ -1591,7 +1614,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
             else:
                 yield {"type": "error", "content": "ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool)."}
             return
-        yield {"type": "text", "content": "\n\n⚠ Đã đạt giới hạn 8 vòng gọi tool MCP."}
+        yield {"type": "text", "content": _het_vong_msg()}
 
 
 async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
@@ -1611,7 +1634,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
     timeout = httpx.Timeout(180, connect=15)
     async with httpx.AsyncClient(timeout=timeout) as client:
         usage_in = usage_out = 0
-        for _ in range(8):
+        for _ in range(_max_tool_rounds()):
             # Cache theo lối không-mutate (system dựng mới mỗi vòng, conv copy-khi-đánh-dấu)
             # → marker KHÔNG tích luỹ qua vòng tool, tối đa 3 breakpoint/request (trần API là 4).
             # Vòng tool là nơi cache lãi nhất: mỗi vòng 1 request chở lại nguyên system+tools+conv.
@@ -1674,4 +1697,4 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             else:
                 yield {"type": "error", "content": "Anthropic trả về rỗng. Thử model khác trong Models."}
             return
-        yield {"type": "text", "content": "\n\n⚠ Đã đạt giới hạn 8 vòng gọi tool MCP."}
+        yield {"type": "text", "content": _het_vong_msg()}

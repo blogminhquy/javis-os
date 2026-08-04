@@ -347,7 +347,18 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None):
 
     async def _write(args):
         if mcp_catalog.effective_perm("full", mode) == "readonly":
-            return "ERROR: chế độ hiện tại (suggest/chỉ đọc) không được ghi file. Chỉ đề xuất thôi."
+            # Câu này phải NÓI RÕ ĐÂY LÀ QUYỀN CỦA JAVIS, không phải lỗi máy. Bản cũ chỉ ghi
+            # "chế độ hiện tại (suggest/chỉ đọc) không được ghi file", và model đọc xong tự
+            # dựng ra một nguyên nhân nghe hợp lý mà sai hoàn toàn - người dùng thật nhận
+            # được câu "môi trường filesystem đang lỗi quyền sandbox" rồi đi tìm lỗi ổ đĩa,
+            # trong khi thứ cần làm chỉ là nâng mức việc lên Ghi nháp (2026-08-04).
+            # Kèm luôn việc-cần-làm-thay-thế để lượt đó vẫn ra kết quả dùng được.
+            return ("ERROR: KHÔNG ghi được file vì việc này đang chạy ở mức 'Chỉ đọc' (suggest). "
+                    "Đây là GIỚI HẠN QUYỀN do người dùng đặt, KHÔNG phải lỗi ổ đĩa, không phải "
+                    "lỗi sandbox, không phải thiếu quyền hệ điều hành - đừng báo cáo sai nguyên "
+                    "nhân. Muốn ghi thật: mở trang Việc, nâng mức của việc này lên 'Ghi nháp' "
+                    "(auto) rồi chạy lại. Ngay bây giờ: ĐỪNG thử ghi lại, hãy đưa TRỌN nội dung "
+                    "file vào câu trả lời để người dùng tự lưu.")
         p = _safe_path(vault_root, (args or {}).get("path"))
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(str((args or {}).get("content") or ""), encoding="utf-8")

@@ -4,6 +4,21 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.18.2] - 2026-08-04
+Ba lỗi người dùng thật báo: **cài đặt chết trên Windows tiếng Việt**, **model báo sai nguyên nhân khi bị chặn ghi file**, và **chạm trần vòng gọi tool rồi dừng không có lối thoát**.
+### Sửa lỗi
+- **`setup.bat` chết ngay bước [2/3] trên Windows tiếng Việt.** `pip install -r requirements.txt` nổ `UnicodeDecodeError` giữa chừng, không cài được gì.
+
+  Nguyên nhân: pip đọc `requirements.txt` bằng `auto_decode()`. Không thấy BOM và không thấy khai báo encoding kiểu PEP-263 ở HAI DÒNG ĐẦU thì nó decode bằng `locale.getpreferredencoding()` - trên Windows tiếng Việt là cp1252/cp1258, mà file có chú thích tiếng Việt. Đây là loại lỗi máy dev không đời nào thấy: Linux và macOS locale UTF-8 nên đọc trót lọt. `chcp 65001` sẵn có trong `setup.bat` cũng không cứu được, vì nó đổi codepage của console chứ không đổi ANSI codepage mà Python đọc.
+
+  Sửa bằng một dòng `# -*- coding: utf-8 -*-` ở đầu file, kèm chú thích dặn đừng xoá. Test chạy CHÍNH hàm `auto_decode` của pip với locale giả lập cp1252 và cp1258.
+- **Model báo sai nguyên nhân khi bị chặn ghi file.** Việc Kanban chạy ở mức Chỉ đọc thì `javis_write_file` từ chối, đúng thiết kế. Nhưng câu từ chối cũ mơ hồ ("chế độ hiện tại không được ghi file"), nên model đọc xong tự dựng ra một nguyên nhân nghe hợp lý mà sai hoàn toàn. Người dùng thật nhận được câu **"môi trường filesystem đang lỗi quyền sandbox"** rồi đi tìm lỗi ổ đĩa, trong khi thứ cần làm chỉ là nâng mức việc lên Ghi nháp.
+
+  Nay câu từ chối nói thẳng đây là giới hạn QUYỀN chứ không phải lỗi ổ đĩa hay sandbox, chỉ đúng chỗ chỉnh (trang Việc, mức Ghi nháp), và dặn model đừng thử ghi lại mà trả trọn nội dung ra câu trả lời để người dùng tự lưu. Thông báo dành cho MÁY đọc cũng là giao diện: viết mơ hồ thì máy đoán, và nó đoán sai.
+### Cải thiện
+- **Trần vòng gọi tool chỉnh được bằng `JAVIS_MAX_TOOL_ROUNDS`** (mặc định vẫn 8, kẹp trong 1-40). Việc nền nhiều bước hay chạm trần rồi dừng giữa chừng mà không có đường nào nâng lên. Con số 8 trước đây ghim cứng ở ba chỗ khác nhau trong `engine.py`; nay một chỗ khai duy nhất.
+- **Câu báo chạm trần nói được việc cần làm**: nêu đúng con số đang áp dụng, cảnh báo câu trả lời có thể còn dở, và chỉ ra hai cách xử lý (chia nhỏ yêu cầu, hoặc nâng biến môi trường). Bản cũ chỉ nêu con số rồi im.
+
 ## [0.18.1] - 2026-08-04
 Sửa chỗ đặt icon: đưa về **đầu hai tab** và về **Project**, gỡ khỏi từng hội thoại.
 ### Sửa lỗi

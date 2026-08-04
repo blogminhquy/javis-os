@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+# ^ DÒNG TRÊN KHÔNG PHẢI TRANG TRÍ, ĐỪNG XOÁ. pip đọc file này bằng auto_decode(): không có
+# BOM và không có khai báo encoding kiểu PEP-263 ở HAI DÒNG ĐẦU thì nó decode bằng
+# locale.getpreferredencoding() - trên Windows tiếng Việt là cp1252/cp1258, và mọi chú thích
+# tiếng Việt bên dưới làm `pip install -r requirements.txt` NỔ UnicodeDecodeError ngay bước
+# cài đặt (setup.bat [2/3]). chcp 65001 KHÔNG cứu được: nó đổi codepage của console, còn
+# locale.getpreferredencoding() đọc ANSI codepage của hệ thống.
 # QUAN TRỌNG: fastapi và starlette bị KHOÁ CẶP. fastapi 0.115.0 cần starlette<0.39;
 # fastapi 0.115.6 cần starlette>=0.40. Engine Agent SDK yêu cầu giữ starlette<0.39
 # (pin bên dưới), nên fastapi PHẢI ở 0.115.0 - đừng bump lên 0.115.6 nếu chưa gỡ pin
