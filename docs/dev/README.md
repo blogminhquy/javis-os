@@ -29,6 +29,17 @@ Hai tài liệu này ghi **vì sao** kiến trúc thành ra như hiện tại. �
 - [Javis CLI](2026-08-cli-spec.md) - đưa Javis ra terminal như một KÊNH thứ ba (sau dashboard và Telegram), bằng client mỏng chứ không nhân bản runtime. Kèm bốn chỗ đang thiếu và kế hoạch bốn giai đoạn.
 - [Spec 10 ý tưởng trong sổ tay](2026-08-backlog-spec.md) - chốt cách làm cho sổ "Ý tưởng phát triển Javis" ngày 2026-08-04: ghim/Project/icon cho hội thoại, link .md bấm được, khung sửa dính, chọn skill có tìm kiếm, phân trang nhật ký, connector NotebookLM, gửi ảnh Zalo. Chín ý đã làm ở 0.18.0; ý "chatbot cho Agent" còn để mở kèm ba cách hiểu.
 
+## Đã cân nhắc rồi quyết định KHÔNG làm
+
+Giữ lại vì lý do từ chối thường bền hơn thứ bị từ chối, và vì phần khảo sát bên trong vẫn
+dùng lại được cho việc khác.
+
+- [Đấu 9Router vào trang Models](2026-08-9router-spec.md) - gác lại 2026-08-04. 9Router là
+  proxy chạy TẠI MÁY người dùng, giá trị cốt lõi là ghép nhiều tài khoản rẻ lại với nhau, đi
+  ngược hướng doanh nghiệp mà Javis đang nhắm. Ba phần vẫn dùng lại được: bức tường "localhost
+  trên VPS không phải máy người dùng", phép thử mất tool calling trong im lặng, và bản đồ chỗ
+  phải chạm khi thêm một nhà cung cấp mới.
+
 ## Quy ước của chính tài liệu này
 
 - Tiếng Việt, văn nói, không dùng ký tự em dash (làm giọng đọc TTS bị khựng - đây là luật toàn dự án, xem `CLAUDE.md`).
