@@ -7760,13 +7760,6 @@ async def sessions_pin(session_id: str, pinned: str = Form("1")):
     return {"ok": True}
 
 
-@app.post("/sessions/{session_id}/icon")
-async def sessions_icon(session_id: str, icon: str = Form("")):
-    """Gắn emoji cho hội thoại. Gửi chuỗi rỗng để gỡ."""
-    get_store().set_icon(session_id, icon)
-    return {"ok": True}
-
-
 @app.post("/sessions/{session_id}/project")
 async def sessions_set_project(session_id: str, project_id: str = Form(""),
                                brain: str = Form("")):

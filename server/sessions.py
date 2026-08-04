@@ -171,8 +171,13 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
     return ""
 
 
-# Tên icon Lucide: chữ thường, số và gạch nối (vd "message-circle"). Giá trị lưu vào DB là
-# TÊN icon chứ không phải ký tự emoji - xem chú thích cột `icon` ở phần migration.
+# Tên icon Lucide: chữ thường, số và gạch nối (vd "message-circle"). Cột `projects.icon` lưu
+# TÊN icon chứ không phải ký tự emoji: icon Lucide tự đổi màu theo tông sáng/tối và vẽ giống
+# nhau trên mọi máy.
+#
+# CHỈ project mới có icon. Hội thoại thì không: hàng nào trong danh sách cũng là một cuộc trò
+# chuyện nên icon ở đó không phân loại được gì, chỉ thêm một nút phải bấm. Icon để PHÂN LOẠI
+# thuộc về Project, nơi mỗi nhóm thật sự là một thứ khác nhau.
 _ICON_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 
 
@@ -254,11 +259,6 @@ class SessionStore:
                               # Ghim hội thoại lên đầu danh sách. Cuộc dùng đi dùng lại không
                               # bị trôi xuống dưới theo thời gian nữa.
                               ("pinned", "INTEGER NOT NULL DEFAULT 0"),
-                              # TÊN icon Lucide (vd "star") hiện cạnh tên hội thoại. Danh sách
-                              # toàn chữ thì nhìn lâu không phân biệt nổi cái nào là cái nào.
-                              # Lưu TÊN chứ không lưu ký tự: icon Lucide tự đổi màu theo tông
-                              # sáng/tối và vẽ giống nhau trên mọi máy, emoji thì không.
-                              ("icon", "TEXT"),
                               # Project (nhóm) đang chứa hội thoại. NULL = chưa xếp vào đâu.
                               ("project_id", "TEXT")):
                 if name not in cols:
@@ -413,7 +413,7 @@ class SessionStore:
             f"""
             SELECT s.id, s.title, s.brain, s.engine, s.model, s.channel, s.cli_session_id,
                    s.created_at, s.updated_at, s.msg_count,
-                   s.pinned, s.icon, s.project_id,
+                   s.pinned, s.project_id,
                    (SELECT substr(content, 1, 80) FROM messages
                     WHERE session_id = s.id AND role = 'user'
                     ORDER BY ts, id LIMIT 1) AS preview
@@ -434,13 +434,6 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "UPDATE sessions SET pinned = ? WHERE id = ?",
             (1 if pinned else 0, session_id),
-        ))
-
-    def set_icon(self, session_id: str, icon: Optional[str]) -> None:
-        """Gắn icon cho hội thoại. Chuỗi rỗng hoặc tên không hợp lệ = gỡ icon."""
-        self._write(lambda c: c.execute(
-            "UPDATE sessions SET icon = ? WHERE id = ?",
-            (_sach_icon(icon), session_id),
         ))
 
     def set_project(self, session_id: str, project_id: Optional[str], *,

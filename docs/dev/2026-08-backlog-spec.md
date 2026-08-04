@@ -147,7 +147,7 @@ trôi xuống dưới, và toàn chữ nên nhìn lâu không phân biệt đư�
 
 - Ghim: cột `pinned` trên `sessions`, mục ghim gom thành nhóm **Đã ghim** trên đầu danh sách.
 - Project: bảng `projects` mới + cột `project_id` trên `sessions`.
-- Icon: cột `icon` trên `sessions` và trên `projects`, lưu **tên icon Lucide** (vd `star`), tối đa 40 ký tự, khuôn `^[a-z0-9][a-z0-9-]*$`.
+- Icon: cột `icon` **chỉ trên `projects`**, lưu **tên icon Lucide** (vd `star`), khuôn `^[a-z0-9][a-z0-9-]{0,39}$`. Hội thoại KHÔNG có icon riêng - xem mục bổ sung ở cuối.
 
 **Thiết kế.**
 
@@ -176,7 +176,6 @@ POST   /projects                   name, icon, brain            -> tạo
 POST   /projects/{id}/update       name?, icon?                 -> đổi tên / đổi icon
 POST   /projects/{id}/delete                                    -> xoá, hội thoại về NULL
 POST   /sessions/{id}/pin          pinned=1|0
-POST   /sessions/{id}/icon         icon=<tên-icon|rỗng>
 POST   /sessions/{id}/project      project_id=<id|rỗng>, brain?
 GET    /sessions?...&project=      lọc theo project
 ```
@@ -330,3 +329,37 @@ một khối sổ ra thu vào được.
   ở tầng kho dữ liệu hội thoại, giao diện dashboard, kho connector và plugin.
 - Không đổi hành vi mặc định của thứ đang chạy: hội thoại cũ không có project, không ghim,
   không icon, và hiện đúng như trước.
+
+---
+
+## Bổ sung 0.18.1: icon ở ĐÂU cho đúng
+
+Bản 0.18.0 hiểu sai ý số 6 trong sổ tay ("thêm icon cho hội thoại và thư mục"). Nó làm thành
+**bộ chọn icon cho từng cuộc hội thoại**. Chủ repo chỉ ra ngay khi nhìn màn hình thật: ý là
+thêm **một icon phù hợp ở ĐẦU hai tab** "Hội thoại" và "Thư mục", còn chỗ đổi icon thì thuộc
+về **Project**, nơi thật sự cần nhiều icon khác nhau để phân loại.
+
+Đúng, và đúng ở chỗ có thể suy ra được từ trước nếu chịu hỏi "icon này phân loại cái gì":
+
+- **Danh sách hội thoại**: hàng nào cũng là một cuộc trò chuyện. Icon ở đó không tách được
+  nhóm nào ra khỏi nhóm nào, nên nó chỉ là trang trí phải bấm tay từng cái, cộng thêm một nút
+  nữa vào hàng nút vốn đã có bốn cái và chỉ hiện khi rê chuột.
+- **Hai tab**: chúng là hai thứ KHÁC LOẠI đứng cạnh nhau và chỉ phân biệt bằng chữ, nên liếc
+  qua phải đọc mới biết đang ở đâu. Đây đúng là chỗ một icon cố định giúp được.
+- **Project**: mỗi nhóm thật sự là một thứ khác nhau (Khách hàng, Nội dung, Kỹ thuật...).
+  Đây mới là chỗ icon có việc để làm.
+
+Đã đổi ở 0.18.1:
+
+- Gỡ hẳn icon của từng hội thoại: cột `sessions.icon`, `SessionStore.set_icon`, endpoint
+  `POST /sessions/{id}/icon`, nút bấm và phần render. Không để lại UI chết.
+- Thêm icon cố định ở đầu hai tab, lấy đúng icon rail đang dùng cho hai thứ đó
+  (`message-circle` cho Trò chuyện, `folder-tree` cho Tệp tin) để cả app nói cùng một ngôn ngữ
+  hình, chứ không đặt icon mới chỉ riêng chỗ này.
+- Project chưa đặt icon thì mượn `folder` làm mặc định, và hai dòng đầu menu ("Tất cả hội
+  thoại", "Chưa xếp nhóm") cũng có icon. Hàng nào cũng có icon thì mắt quét được theo cột
+  icon, và người dùng nhìn là biết chỗ này đổi icon được.
+
+**Bài học ghi lại.** Cả hai lần hiểu sai ý này đều do nhảy thẳng vào "làm bộ chọn icon" mà
+không hỏi trước **icon đó dùng để phân biệt cái gì với cái gì**. Trả lời được câu đó là biết
+ngay nó thuộc về Project và hai tab, không thuộc về từng hàng hội thoại.

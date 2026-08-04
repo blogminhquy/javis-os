@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.18.1] - 2026-08-04
+Sửa chỗ đặt icon: đưa về **đầu hai tab** và về **Project**, gỡ khỏi từng hội thoại.
+### Sửa lỗi
+- **Icon đặt nhầm chỗ ở 0.18.0.** Ý trong sổ tay là thêm một icon phù hợp ở đầu hai tab "Hội thoại" và "Thư mục"; bản trước lại làm thành bộ chọn icon cho TỪNG cuộc hội thoại.
+
+  Sai ở chỗ có thể suy ra được nếu chịu hỏi "icon này phân loại cái gì với cái gì". Danh sách hội thoại thì hàng nào cũng là một cuộc trò chuyện, nên icon ở đó không tách được nhóm nào ra khỏi nhóm nào - chỉ là trang trí phải bấm tay từng cái, cộng thêm một nút nữa vào hàng nút vốn đã có bốn cái. Còn hai tab là hai thứ khác loại đứng cạnh nhau mà chỉ phân biệt bằng chữ, nên liếc qua phải đọc mới biết đang ở đâu.
+### Thêm mới
+- **Hai tab của cột Lịch sử có icon.** Lấy đúng icon rail đang dùng cho hai thứ đó để cả app nói cùng một ngôn ngữ hình, chứ không đặt icon mới chỉ riêng chỗ này.
+- **Project chưa đặt icon thì mượn icon thư mục làm mặc định**, và hai dòng đầu của menu chọn nhóm cũng có icon. Hàng nào cũng có icon thì mắt quét được theo cột icon, và nhìn là biết chỗ này đổi icon được. Project vẫn là nơi DUY NHẤT đổi icon, vì mỗi nhóm thật sự là một thứ khác nhau.
+### Cải thiện
+- **Gỡ sạch icon của từng hội thoại, không để lại UI chết**: cột `sessions.icon`, `SessionStore.set_icon`, endpoint `POST /sessions/{id}/icon`, nút bấm và phần render đều bỏ. Hàng nút khi rê chuột còn bốn nút thay vì năm.
+
 ## [0.18.0] - 2026-08-04
 Dọn một loạt ý trong sổ tay phát triển: **ghim và gom nhóm hội thoại**, **link trong file .md bấm được**, **chọn skill khi số skill đã lên 55+**, **phân trang nhật ký**, thêm **NotebookLM** vào kho kết nối và **gửi ảnh qua Zalo**. Spec đầy đủ ở `docs/dev/2026-08-backlog-spec.md`.
 ### Thêm mới

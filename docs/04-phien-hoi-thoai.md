@@ -14,7 +14,7 @@ Javis tự lưu lại từng lượt hỏi và trả lời vào một cơ sở d
 - Đổi tên cho dễ nhớ.
 - **Ghim** cuộc quan trọng lên đầu danh sách.
 - **Gom** nhiều cuộc vào một **Project** (nhóm).
-- **Gắn icon** cho từng cuộc để nhìn phát ra ngay (lấy từ chính bộ icon của Javis).
+- **Gắn icon cho từng Project** để phân loại nhóm bằng mắt.
 - Xoá cuộc không cần nữa.
 
 ## Ghim, Project và icon
@@ -38,9 +38,14 @@ Muốn chuyển một cuộc sang nhóm khác thì rê chuột vào nó và bấ
 **Xoá project KHÔNG xoá hội thoại.** Các cuộc bên trong chỉ được gỡ khỏi nhóm và quay về
 "Chưa xếp nhóm". Hộp xác nhận cũng nói rõ điều này kèm số cuộc sẽ được gỡ.
 
-**Icon.** Rê chuột vào một cuộc rồi bấm biểu tượng bảng màu để chọn icon. Bảng chọn hiện
-toàn bộ icon Javis đang dùng, kèm ô lọc theo tên (gõ `star`, `folder`, `brain`...). Bấm
-"Xoá icon" để gỡ. Project cũng gắn icon được, qua menu chọn nhóm.
+**Icon cho Project.** Mở menu chọn nhóm, rê chuột vào một project rồi bấm biểu tượng bảng
+màu. Bảng chọn hiện toàn bộ icon Javis đang dùng, kèm ô lọc theo tên (gõ `star`, `folder`,
+`brain`...). Project chưa đặt icon thì mượn tạm icon thư mục, nên hàng nào cũng có icon và mắt
+quét theo cột icon được.
+
+Icon chỉ có ở **Project**, không có ở từng cuộc trò chuyện. Lý do: hàng nào trong danh sách
+cũng là một cuộc trò chuyện nên icon ở đó chẳng phân loại được gì, chỉ thêm một nút phải bấm.
+Còn mỗi project thật sự là một thứ khác nhau, nên icon ở đó mới có việc để làm.
 
 Đây là **icon của chính Javis** chứ không phải emoji, và đó là chủ ý: icon Javis tự đổi màu
 theo tông sáng hay tối bạn đang dùng, và vẽ giống hệt nhau trên mọi máy. Emoji thì mỗi hệ

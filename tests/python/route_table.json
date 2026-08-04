@@ -1710,15 +1710,6 @@
  {
   "order": 190,
   "type": "APIRoute",
-  "path": "/sessions/{session_id}/icon",
-  "name": "sessions_icon",
-  "methods": [
-   "POST"
-  ]
- },
- {
-  "order": 191,
-  "type": "APIRoute",
   "path": "/sessions/{session_id}/project",
   "name": "sessions_set_project",
   "methods": [
@@ -1726,7 +1717,7 @@
   ]
  },
  {
-  "order": 192,
+  "order": 191,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_list",
@@ -1735,7 +1726,7 @@
   ]
  },
  {
-  "order": 193,
+  "order": 192,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_create",
@@ -1744,7 +1735,7 @@
   ]
  },
  {
-  "order": 194,
+  "order": 193,
   "type": "APIRoute",
   "path": "/projects/{project_id}/update",
   "name": "projects_update",
@@ -1753,7 +1744,7 @@
   ]
  },
  {
-  "order": 195,
+  "order": 194,
   "type": "APIRoute",
   "path": "/projects/{project_id}/delete",
   "name": "projects_delete",
@@ -1762,7 +1753,7 @@
   ]
  },
  {
-  "order": 196,
+  "order": 195,
   "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
@@ -1771,7 +1762,7 @@
   ]
  },
  {
-  "order": 197,
+  "order": 196,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -1780,7 +1771,7 @@
   ]
  },
  {
-  "order": 198,
+  "order": 197,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -1789,7 +1780,7 @@
   ]
  },
  {
-  "order": 199,
+  "order": 198,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -1798,7 +1789,7 @@
   ]
  },
  {
-  "order": 200,
+  "order": 199,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -1807,7 +1798,7 @@
   ]
  },
  {
-  "order": 201,
+  "order": 200,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -1816,7 +1807,7 @@
   ]
  },
  {
-  "order": 202,
+  "order": 201,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -1825,7 +1816,7 @@
   ]
  },
  {
-  "order": 203,
+  "order": 202,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -1834,7 +1825,7 @@
   ]
  },
  {
-  "order": 204,
+  "order": 203,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -1843,7 +1834,7 @@
   ]
  },
  {
-  "order": 205,
+  "order": 204,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -1852,7 +1843,7 @@
   ]
  },
  {
-  "order": 206,
+  "order": 205,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -1861,7 +1852,7 @@
   ]
  },
  {
-  "order": 207,
+  "order": 206,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -1870,7 +1861,7 @@
   ]
  },
  {
-  "order": 208,
+  "order": 207,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

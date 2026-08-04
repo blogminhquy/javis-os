@@ -9,7 +9,7 @@ Ba thứ này đi chung một bảng nên test chung một chỗ. Những gì fi
    cuốn theo cả tháng trò chuyện thì không có đường hoàn tác nào. Ràng buộc này CHỈ nằm ở
    tầng code (cột project_id không khai khoá ngoại được vì thêm bằng ALTER TABLE), nên nó
    phải có test canh, không thì lần refactor sau là mất.
-2. DB CŨ PHẢI TỰ NÂNG CẤP. Ba cột mới thêm bằng ALTER TABLE; CREATE TABLE IF NOT EXISTS
+2. DB CŨ PHẢI TỰ NÂNG CẤP. Hai cột mới thêm bằng ALTER TABLE; CREATE TABLE IF NOT EXISTS
    không tự thêm cột cho DB đã có sẵn. Ai cũng đang có conversations.db chạy từ lâu.
 3. GẮN NHÃN ĐƯỢC TRƯỚC KHI HÀNG TỒN TẠI. Dashboard tự sinh id hội thoại ở phía client ngay
    lúc bấm gửi, còn hàng trong DB thì tới lượt server xử lý mới có. Không có nhánh
@@ -64,24 +64,14 @@ check("bỏ ghim thì về đúng thứ tự thời gian",
       [s["id"] for s in st.list_sessions(brain="brain")] == [moi, cu])
 
 # ============================================================
-# 2. Icon
+# 2. Hội thoại KHÔNG có icon riêng - icon là chuyện của Project
 # ============================================================
-# Icon lưu là TÊN icon Lucide (vd "star"), không phải ký tự emoji: icon Lucide tự đổi màu
-# theo tông sáng/tối và vẽ giống hệt nhau trên mọi máy. Cả dashboard đã bỏ emoji vì lý do đó.
-st.set_icon(moi, "star")
-check("icon lưu và trả về được", st.get_session(moi)["icon"] == "star")
-st.set_icon(moi, "message-circle")
-check("tên icon có gạch nối vẫn hợp lệ", st.get_session(moi)["icon"] == "message-circle")
-st.set_icon(moi, "  Star ")
-check("chuẩn hoá về chữ thường, bỏ khoảng trắng thừa", st.get_session(moi)["icon"] == "star")
-st.set_icon(moi, "   ")
-check("chuỗi trắng = gỡ icon", st.get_session(moi)["icon"] is None)
-for rac in ("🔥", "x" * 60, "a b", "../../etc", "<svg>"):
-    st.set_icon(moi, "star")
-    st.set_icon(moi, rac)
-    check(f"giá trị rác {rac[:12]!r} bị từ chối (gỡ icon) chứ không lọt vào cột",
-          st.get_session(moi)["icon"] is None)
-st.set_icon(moi, "")
+# Hàng nào trong danh sách cũng là một cuộc trò chuyện nên icon ở đó không phân loại được gì,
+# chỉ thêm một nút phải bấm và một hàng nút chật thêm. Icon để PHÂN LOẠI thuộc về Project,
+# nơi mỗi nhóm thật sự là một thứ khác nhau (chủ repo chốt 2026-08-04).
+check("CANARY: kho KHÔNG còn đường đặt icon cho hội thoại", not hasattr(st, "set_icon"))
+check("danh sách hội thoại không trả cột icon nữa",
+      "icon" not in st.list_sessions(brain="brain")[0])
 
 # ============================================================
 # 3. Project: lọc, đếm, và XOÁ THÌ CHỈ GỠ NHÃN
@@ -100,8 +90,15 @@ st.update_project(pid, name="Khách VIP", icon="")
 p = st.get_project(pid)
 check("đổi tên project", p["name"] == "Khách VIP")
 check("icon rỗng = gỡ icon của project", p["icon"] is None)
-st.update_project(pid, icon="🔥")
-check("project cũng từ chối giá trị icon rác", st.get_project(pid)["icon"] is None)
+st.update_project(pid, icon="message-circle")
+check("tên icon có gạch nối vẫn hợp lệ", st.get_project(pid)["icon"] == "message-circle")
+st.update_project(pid, icon="  Star ")
+check("chuẩn hoá về chữ thường, bỏ khoảng trắng thừa", st.get_project(pid)["icon"] == "star")
+for rac in ("🔥", "x" * 60, "a b", "../../etc", "<svg>"):
+    st.update_project(pid, icon="star")
+    st.update_project(pid, icon=rac)
+    check(f"giá trị icon rác {rac[:12]!r} bị từ chối chứ không lọt vào cột",
+          st.get_project(pid)["icon"] is None)
 st.update_project(pid, name="   ")
 check("tên toàn khoảng trắng thì GIỮ tên cũ, không xoá trắng",
       st.get_project(pid)["name"] == "Khách VIP")
@@ -136,7 +133,7 @@ check("CANARY: lượt chat sau không thổi bay nhãn project",
       lai["project_id"] == pid2 and lai["engine"] == "cli")
 
 # ============================================================
-# 5. DB CŨ (chưa có 3 cột mới) phải tự nâng cấp, không mất dữ liệu
+# 5. DB CŨ (chưa có cột mới) phải tự nâng cấp, không mất dữ liệu
 # ============================================================
 old = Path(tempfile.mkdtemp(prefix="javis-old-")) / "old.db"
 con = sqlite3.connect(str(old))
@@ -156,8 +153,8 @@ st2 = sessions.SessionStore(old)
 ds2 = st2.list_sessions(brain="brain")
 check("DB cũ mở được và giữ nguyên hội thoại cũ",
       len(ds2) == 1 and ds2[0]["title"] == "Hội thoại cũ")
-check("DB cũ có đủ 3 cột mới với giá trị mặc định an toàn",
-      ds2[0]["pinned"] == 0 and ds2[0]["icon"] is None and ds2[0]["project_id"] is None)
+check("DB cũ có đủ cột mới với giá trị mặc định an toàn",
+      ds2[0]["pinned"] == 0 and ds2[0]["project_id"] is None)
 idx = {r[0] for r in st2._read("SELECT name FROM sqlite_master WHERE type='index'")}
 # Index này phải tạo SAU vòng ALTER. Đặt nhầm vào _SCHEMA_SQL thì DB cũ ném "no such column"
 # và huỷ cả lượt khởi tạo schema - app không mở nổi hội thoại nào.
@@ -172,9 +169,10 @@ import main  # noqa: E402
 
 duong = {getattr(r, "path", "") for r in main.app.routes}
 for p in ("/projects", "/projects/{project_id}/update", "/projects/{project_id}/delete",
-          "/sessions/{session_id}/pin", "/sessions/{session_id}/icon",
-          "/sessions/{session_id}/project"):
+          "/sessions/{session_id}/pin", "/sessions/{session_id}/project"):
     check(f"có endpoint {p}", p in duong)
+check("CANARY: KHÔNG còn endpoint đặt icon cho hội thoại",
+      "/sessions/{session_id}/icon" not in duong)
 
 if fails:
     print("\nFAIL - test_hoi_thoai_nhom: " + str(len(fails)) + " lỗi: " + ", ".join(fails))

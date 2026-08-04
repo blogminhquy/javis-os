@@ -1413,7 +1413,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    brain đang có file gì là phải rời khung chat sang trang Tệp tin - mà rời đi rồi thì mất chỗ
    đang nói dở. Tab thứ hai giữ cả hai thứ trong cùng một cột. */
 .cside-tabs { display: flex; gap: 4px; flex: none; }
-.cside-tab { flex: 1 1 0; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+.cside-tab { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
   border: 1px solid transparent; background: transparent; color: var(--text3);
   font-size: 13px; font-weight: 600; }
 .cside-tab:hover { color: var(--text); }
@@ -1504,9 +1505,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .cs-ico-b.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--accent); }
 .cs-ico-empty { grid-column: 1 / -1; padding: 14px 6px; text-align: center;
   color: var(--text3); font-size: 12.5px; }
-/* Icon của hội thoại đứng ngay trước tên; icon trong hàng menu đứng trước nhãn project. */
-.ci-icon, .cs-menu-ico { display: inline-flex; flex: none; color: var(--text2); }
-.cside-item.active .ci-icon, .cs-menu-row.on .cs-menu-ico { color: var(--accent); }
+/* Icon đứng trước nhãn project, ở thanh chọn nhóm lẫn trong menu. Icon để PHÂN LOẠI nằm ở
+   đây chứ không ở từng hội thoại: mỗi project thật sự là một thứ khác nhau, còn hàng nào
+   trong danh sách hội thoại cũng là một cuộc trò chuyện. */
+.cs-menu-ico, .cs-proj-name .ic { display: inline-flex; flex: none; color: var(--text2); }
+.cs-menu-row.on .cs-menu-ico, .cs-proj-name .ic { color: inherit; }
 /* Nút ghim đang BẬT thì tô màu, nhưng vẫn nằm trong .act nên chỉ hiện khi rê chuột - hàng đã
    ghim đã có nhóm "Đã ghim" trên đầu làm dấu hiệu rồi, không cần thêm một chấm màu nữa. */
 .ci-meta .act .pin.on { color: var(--accent); }

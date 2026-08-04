@@ -70,13 +70,16 @@
   // escape ở đây - tên project do người dùng gõ.
   function projLabelHtml() {
     var cur = curProject();
-    if (!cur) return "Tất cả hội thoại";
-    if (cur === "none") return "Chưa xếp nhóm";
+    if (!cur) return ic("layers") + " Tất cả hội thoại";
+    if (cur === "none") return ic("circle") + " Chưa xếp nhóm";
     var p = projById(cur);
-    if (!p) return "Tất cả hội thoại";
-    var i = iconHtml(p.icon);
-    return (i ? i + " " : "") + esc(p.name);
+    if (!p) return ic("layers") + " Tất cả hội thoại";
+    return projIcon(p) + " " + esc(p.name);
   }
+
+  // Icon của một project. Chưa đặt thì lấy icon thư mục làm mặc định - hàng nào cũng có icon
+  // thì mắt quét theo cột icon được, và nhìn là biết chỗ này đổi icon được.
+  function projIcon(p) { return iconHtml((p || {}).icon) || ic("folder"); }
 
   async function post(url, fields) {
     var fd = new FormData();
@@ -124,14 +127,14 @@
   function openProjMenu(anchor) {
     var cur = curProject();
     var rows = [
-      { label: "Tất cả hội thoại", on: !cur, run: function () { chonProject(""); } },
-      { label: "Chưa xếp nhóm", on: cur === "none", run: function () { chonProject("none"); } },
+      { label: "Tất cả hội thoại", icon: "layers", on: !cur, run: function () { chonProject(""); } },
+      { label: "Chưa xếp nhóm", icon: "circle", on: cur === "none", run: function () { chonProject("none"); } },
     ];
     if (projects.length) rows.push({ sep: true });
     projects.forEach(function (p) {
       rows.push({
         label: p.name,
-        icon: p.icon,
+        icon: p.icon || "folder",
         right: String(p.session_count || 0),
         on: cur === p.id,
         run: function () { chonProject(p.id); },
@@ -301,8 +304,12 @@
     lastBrain = brain();
     side.innerHTML =
       '<div class="cside-tabs">' +
-        '<button class="cside-tab" data-tab="chat" type="button">Hội thoại</button>' +
-        '<button class="cside-tab" data-tab="files" type="button">Thư mục</button>' +
+        // Icon ở đầu mỗi tab: hai tab đứng cạnh nhau và chỉ khác nhau bằng chữ, nên liếc qua
+        // phải đọc mới biết đang ở đâu. Dùng đúng icon rail đang dùng cho hai thứ đó
+        // (message-circle cho Trò chuyện, folder-tree cho Tệp tin) để cả app nói cùng một
+        // ngôn ngữ hình, chứ không đặt icon mới chỉ riêng chỗ này.
+        '<button class="cside-tab" data-tab="chat" type="button">' + ic("message-circle") + ' Hội thoại</button>' +
+        '<button class="cside-tab" data-tab="files" type="button">' + ic("folder-tree") + ' Thư mục</button>' +
       '</div>' +
       '<div class="cside-pane" data-pane="chat">' +
         '<button class="cside-new" type="button">＋ Hội thoại mới</button>' +
@@ -434,11 +441,11 @@
       var ch = (s.channel || "").toString();
       var chLabel = ch === "telegram" ? "TG" : (ch && ch !== "web" ? ch.slice(0, 8) : "");
       var isRun = !!(window.JavisRunning && window.JavisRunning.has(s.id));
-      var icon = (s.icon || "").toString();
-      var iHtml = iconHtml(icon);
+      // KHÔNG có icon riêng cho từng hội thoại. Hàng nào cũng là một cuộc trò chuyện nên icon
+      // ở đây không phân loại được gì, chỉ thêm một nút phải bấm và một hàng nút chật thêm.
+      // Icon để PHÂN LOẠI thì nằm ở Project - xem openProjMenu.
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + '">' +
         '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="Đang trả lời">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
-        (iHtml ? '<span class="ci-icon">' + iHtml + '</span> ' : '') +
         esc(s.title || s.preview || "(chưa đặt tên)") + '</div>' +
         '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
@@ -446,22 +453,15 @@
         '<span>' + (s.msg_count || 0) + ' tin</span>' +
         '<span class="act">' +
           '<span class="pin' + (s.pinned ? " on" : "") + '" title="' + (s.pinned ? "Bỏ ghim" : "Ghim lên đầu") + '">' + ic("pin") + '</span>' +
-          '<span class="emo" title="Đổi icon">' + ic("palette") + '</span>' +
           '<span class="mov" title="Chuyển vào project">' + ic("folder") + '</span>' +
           '<span class="ren" title="Đổi tên">' + ic("pencil") + '</span>' +
           '<span class="del" title="Xoá">' + ic("trash-2") + '</span>' +
         '</span>' +
         '</div></div>');
-      // Ba nút mới gắn handler RIÊNG kèm stopPropagation, không nhét thêm nhánh vào
+      // Hai nút mới gắn handler RIÊNG kèm stopPropagation, không nhét thêm nhánh vào
       // item.onclick bên dưới. Handler đó là thứ test_chat_side_actions.js bóc ra chạy thật
       // với đúng năm tham số của nó; thêm tên hàm lạ vào là test nổ ReferenceError.
       item.querySelector(".pin").onclick = function (ev) { ev.stopPropagation(); togglePin(s); };
-      item.querySelector(".emo").onclick = function (ev) {
-        ev.stopPropagation();
-        pickIcon(ev.currentTarget, icon, function (v) {
-          post("/sessions/" + encodeURIComponent(s.id) + "/icon", { icon: v }).then(refresh);
-        });
-      };
       item.querySelector(".mov").onclick = function (ev) { ev.stopPropagation(); moveMenu(ev.currentTarget, s); };
       // Bấm phải dò theo TỔ TIÊN, không so class của đúng node bị bấm. Nội dung .ren/.del là
       // một <svg> (ic() trả chuỗi SVG), nên chạm vào icon thì e.target LÀ cái svg chứ không
@@ -536,7 +536,7 @@
     projects.forEach(function (p) {
       rows.push({
         label: p.name,
-        icon: p.icon,
+        icon: p.icon || "folder",
         on: s.project_id === p.id,
         run: function () { moveTo(s, p.id); },
       });

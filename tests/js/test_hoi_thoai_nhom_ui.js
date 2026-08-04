@@ -59,7 +59,7 @@ check("CANARY: không còn bảng emoji trong nguồn", SESS.indexOf("var EMOJI"
 // Nhãn project giờ là HTML (icon là thẻ <svg>) nên phần CHỮ phải tự escape - tên project do
 // người dùng gõ, bọc cả cụm bằng esc() như cũ là icon hiện ra nguyên mã <svg>.
 check("nhãn project trả HTML và tự escape phần chữ",
-  /function projLabelHtml\(\)/.test(SESS) && /return \(i \? i \+ " " : ""\) \+ esc\(p\.name\);/.test(SESS));
+  /function projLabelHtml\(\)/.test(SESS) && /return projIcon\(p\) \+ " " \+ esc\(p\.name\);/.test(SESS));
 
 // Project đang mở là chỗ đứng trên MỘT máy -> localStorage, không đẩy lên server.
 check("project đang mở nhớ ở localStorage theo brain",
@@ -76,7 +76,7 @@ check("CANARY: hộp xác nhận xoá project nói rõ hội thoại KHÔNG bị
 // ============================================================
 // 3. Nút mới: có handler riêng + chặn nổi bọt
 // ============================================================
-["pin", "emo", "mov"].forEach((cls) => {
+["pin", "mov"].forEach((cls) => {
   // stopPropagation phải là việc ĐẦU TIÊN trong handler, không phải đâu đó ở giữa: chỉ cần
   // một nhánh return sớm nằm trước nó là cú bấm rơi xuống hàng cha và mở nhầm hội thoại.
   const re = new RegExp('item\\.querySelector\\("\\.' + cls + '"\\)\\.onclick = function \\(ev\\) \\{\\s*ev\\.stopPropagation\\(\\);');
@@ -91,7 +91,7 @@ const m = SESS.match(/item\.onclick = function \(e\) \{\n([\s\S]*?)\n      \};/)
 check("vẫn tìm được khối item.onclick (test kia dựa vào nó)", !!m);
 if (m) {
   const than = m[1];
-  ["togglePin", "pickIcon", "moveMenu", "post(", "openMenu"].forEach((ten) => {
+  ["togglePin", "moveMenu", "post(", "openMenu"].forEach((ten) => {
     check(`item.onclick KHÔNG gọi ${ten} (test_chat_side_actions bóc khối này ra chạy riêng)`,
       than.indexOf(ten) === -1);
   });
@@ -102,7 +102,25 @@ if (m) {
 // 5. Ghim: nhóm riêng trên đầu, và server sắp trước
 // ============================================================
 check("mục đã ghim gom thành nhóm riêng", SESS.indexOf('"Đã ghim"') !== -1);
-check("icon hội thoại hiện trước tên", SESS.indexOf('class="ci-icon"') !== -1);
+// Icon để PHÂN LOẠI thuộc về Project, không phải từng hội thoại: hàng nào trong danh sách
+// cũng là một cuộc trò chuyện nên icon ở đó không phân loại được gì, chỉ thêm một nút phải
+// bấm vào hàng nút vốn đã chật. Chủ repo chốt 2026-08-04, sau khi bản đầu làm ngược lại.
+check("CANARY: KHÔNG có nút đổi icon trên từng hội thoại", SESS.indexOf('class="emo"') === -1);
+check("CANARY: hàng hội thoại không vẽ icon riêng", SESS.indexOf('class="ci-icon"') === -1);
+check("CANARY: không còn gọi endpoint icon của hội thoại",
+  SESS.indexOf('/icon"') === -1 && SESS.indexOf("/sessions/\" + encodeURIComponent(s.id) + \"/icon") === -1);
+
+// Hai tab chỉ khác nhau bằng chữ thì liếc qua phải ĐỌC mới biết đang ở đâu.
+check("tab Hội thoại có icon", /data-tab="chat"[^>]*>' \+ ic\("message-circle"\)/.test(SESS));
+check("tab Thư mục có icon", /data-tab="files"[^>]*>' \+ ic\("folder-tree"\)/.test(SESS));
+check("CSS xếp icon cạnh chữ trong tab", /\.cside-tab \{[^}]*display: inline-flex/.test(CSS));
+
+// Project là nơi icon thật sự phân loại, nên hàng nào cũng phải có icon - chưa đặt thì mượn
+// icon thư mục, để mắt quét được theo cột icon và người dùng thấy chỗ này đổi icon được.
+check("project chưa đặt icon vẫn có icon mặc định",
+  /function projIcon\(p\) \{ return iconHtml\(\(p \|\| \{\}\)\.icon\) \|\| ic\("folder"\); \}/.test(SESS));
+check("hàng project trong menu dùng icon mặc định", /icon: p\.icon \|\| "folder"/.test(SESS));
+check("vẫn đổi được icon của project", /title: "Đổi icon", run: function \(\) \{ pickIcon\(/.test(SESS));
 // Ghim đổi THỨ TỰ danh sách, mà cache lại giữ thứ tự cũ -> phải bỏ cache rồi tải lại,
 // không thì bấm ghim xong nhìn như không có gì xảy ra.
 check("CANARY: ghim xong thì bỏ cache danh sách (nếu không thứ tự cũ còn nguyên trên màn hình)",
