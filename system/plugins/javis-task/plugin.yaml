@@ -1,0 +1,10 @@
+name: Giao việc Kanban
+slug: javis-task
+version: 1.0.0
+description: Giao một việc nền vào hàng đợi Kanban và xem việc đang chạy tới đâu, ngay từ chat. Trước tool này chỉ engine chạy được lệnh máy (Claude Code, Codex) mới giao việc được, vì đường duy nhất là curl POST /kanban/task - năm engine API đứng ngoài.
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_task
+hooks: []

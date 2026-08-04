@@ -4,6 +4,22 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.17.1] - 2026-08-04
+Giao việc Kanban nay làm được từ **mọi bộ não**, không chỉ hai engine chạy được lệnh máy.
+### Thêm mới
+- **Tool `javis_task`** (plugin bundled `javis-task`, bật sẵn): giao việc nền vào hàng đợi Kanban (`op=add`) và xem việc đang chạy tới đâu (`op=list`), ngay từ chat, trên bất kỳ engine nào.
+### Sửa lỗi
+- **Tài liệu hứa một thứ mã không làm được, suốt nhiều bản.** `CLAUDE.md` và `docs/10-models-va-engine.md` đều ghi mọi bộ não được cấp cùng bộ đồ nghề, trong đó có "giao việc Kanban". Thực tế đường duy nhất để giao việc là `POST /kanban/task`, mà gọi được nó thì phải có Bash và curl - tức là chỉ Claude Code với Codex. Năm engine API đứng ngoài.
+
+  Tệ hơn cả việc thiếu: `CLAUDE.md` còn dặn Javis "đừng bao giờ nói mình không làm task được, sai sự thật". Nên một engine API sẽ TỰ TIN nhận lời rồi im lặng không làm gì. Người dùng ngồi đợi một việc không bao giờ chạy, và không có một dòng lỗi nào ở đâu cả.
+
+  Sửa theo hướng nâng MÃ lên cho khớp tài liệu, chứ không hạ tài liệu xuống: giao việc là thứ dùng thật, và để nó chỉ chạy trên hai engine thì lời hứa "đổi não thoải mái không mất chức năng" thủng đúng chỗ đáng tiếc nhất.
+- **Câu "khác biệt DUY NHẤT là chạy lệnh máy" cũng sai, nay nói đủ.** Hai engine CLI còn có thêm **WebFetch/WebSearch** (tự mở URL lạ ra đọc, tự tra web), **Task** (đẻ agent con chạy song song), và nối lại được phiên cũ. Engine API còn hai giới hạn thực dụng chưa từng ghi ở đâu: mỗi lượt tối đa **8 vòng gọi tool**, và khi lượt có gọi tool thì câu trả lời hiện một cục ở cuối chứ không chạy dần từng chữ.
+### Bảo mật
+- **Tool `javis_task` KHÔNG tạo được việc mức `full`.** Mức full cho việc tự thao tác thật ra ngoài (tạo đơn, tiêu tiền, chạy quảng cáo, gửi tin) và không hoàn tác được, nên phải do chính người dùng đặt ở trang Việc. Mặc định là `suggest`; mode lạ kẹp về `suggest` chứ không trôi thành `auto`.
+- **Gọi thẳng hàng đợi in-process, không mở thêm cửa HTTP.** Cách dễ hơn là cho plugin POST `/kanban/task` như `javis-schedule` vẫn POST `/reminders`, nhưng route đó đòi đăng nhập và cách duy nhất để mở là thêm vào danh sách miễn auth cho localhost - nghĩa là bất kỳ tiến trình nào trên cùng máy chủ cũng giao được việc cho Javis mà không cần credential. Không đáng, khi plugin vốn đã chạy trong tiến trình server.
+- **Không nuốt thiếu sót.** Chưa biết brain nào thì từ chối chứ không âm thầm rơi về Brain Default (giao việc nhầm brain là chạy trên dữ liệu của người khác). Thiếu người nhận thì cảnh báo ngay trong kết quả, vì đó là lý do số một khiến người dùng "giao việc rồi không thấy gì".
+
 ## [0.17.0] - 2026-08-04
 **Javis CLI**: gõ `javis "doanh thu tuần này thế nào"` ngay trong terminal. Kênh thứ ba, cùng một Javis.
 ### Thêm mới

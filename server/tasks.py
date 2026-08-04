@@ -1041,7 +1041,24 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         return router
 
 
+# Bản đang chạy, để CODE TRONG CÙNG TIẾN TRÌNH gọi tới hàng đợi mà không phải đi vòng qua HTTP.
+# Người dùng đầu tiên: plugin `javis-task` - nó chạy in-process nên gọi thẳng `enqueue()` được.
+#
+# Vì sao không cho plugin POST /kanban/task như javis-schedule vẫn POST /reminders: đường đó đòi
+# đăng nhập, và cách duy nhất để mở là thêm nó vào `_AUTH_LOCAL_EXACT` (danh sách miễn auth cho
+# localhost). Làm vậy nghĩa là BẤT KỲ tiến trình nào trên cùng máy chủ cũng giao được việc cho
+# Javis mà không cần credential - một lỗ hổng thật, chỉ để tránh ba dòng code này.
+_FEATURE: Optional["TasksFeature"] = None
+
+
+def current() -> Optional["TasksFeature"]:
+    """Hàng đợi đang chạy, hoặc None nếu chưa register (test nạp lẻ module này)."""
+    return _FEATURE
+
+
 def register(app, deps: TasksDeps) -> TasksFeature:
+    global _FEATURE
     feature = TasksFeature(deps)
     app.include_router(feature.router)
+    _FEATURE = feature
     return feature

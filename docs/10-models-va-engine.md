@@ -11,7 +11,7 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 - **Model việc nền**: model rẻ hơn cho những việc Javis tự chạy khi bạn không ngồi đó - loop, việc Kanban, nhắc hẹn, tự học, tiêu hoá nguồn.
 - **Suy nghĩ (reasoning)**: mức độ model động não trước khi trả lời.
 
-Điểm quan trọng nhất cần hiểu: **đổi model KHÔNG làm Javis mất chức năng.** Mọi provider đều được cấp cùng một bộ đồ nghề qua trung tâm kết nối (MCP Hub) của Javis: gọi kho Kết nối đã đấu, đọc/ghi file trong brain, chạy skill, giao việc Kanban, tạo agent/workflow/loop/nhắc hẹn. Khác biệt **duy nhất** là chạy được lệnh máy hay không.
+Điểm quan trọng nhất cần hiểu: **đổi model KHÔNG làm Javis mất chức năng.** Mọi provider đều được cấp cùng một bộ đồ nghề qua trung tâm kết nối (MCP Hub) của Javis: gọi kho Kết nối đã đấu, đọc/ghi file trong brain, chạy skill, giao việc Kanban (tool `javis_task`), tạo agent/workflow/loop/nhắc hẹn (tool `javis_schedule`).
 
 | Cách gọi | Provider | MCP Javis · tool file brain · skill | Chạy lệnh máy (Bash) |
 |---|---|---|---|
@@ -23,6 +23,21 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 | **Gọi API thẳng** | Google Gemini (API) | Có - như trên (từ 0.9.270 trang Kết nối cũng hết báo nhầm) | Không |
 | **Gọi API thẳng** | Groq (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Ollama Cloud | Có - như trên | Không |
+
+### Bốn thứ engine API không có
+
+Trước 0.17.1 trang này ghi "khác biệt **duy nhất** là chạy được lệnh máy hay không". Nói vậy gọn nhưng không đúng. Danh sách thật:
+
+- **Lệnh máy (Bash)** - chạy lệnh trên máy chủ.
+- **WebFetch và WebSearch** - tự mở một URL lạ ra đọc, tự tra web. Engine API muốn lấy dữ liệu ngoài thì phải qua một MCP đã đấu.
+- **Task** - đẻ agent con chạy song song trong cùng một lượt.
+- **Nối lại phiên cũ của CLI** - engine API dựng lại ngữ cảnh mỗi lượt.
+
+Thêm hai giới hạn thực dụng của engine API: mỗi lượt tối đa **8 vòng gọi tool** (quá thì dừng và báo), và khi lượt **có gọi tool** thì câu trả lời hiện một cục ở cuối chứ không chạy dần từng chữ (mỗi vòng là một request riêng).
+
+Ngoài từng ấy, mọi năng lực còn lại là như nhau. Cụ thể là: gọi mọi MCP đã đấu, đọc và ghi file trong brain, chạy skill, giao việc Kanban, tạo loop và nhắc hẹn, tạo agent/workflow/skill (chúng chỉ là file `.md` trong vault), tạo ảnh, dùng tool của plugin.
+
+> **Giao việc Kanban từ engine API có từ 0.17.1.** Trước đó đường duy nhất là `POST /kanban/task`, mà gọi được nó thì phải có Bash và curl - nên chỉ Claude Code với Codex làm được, dù tài liệu vẫn hứa mọi bộ não đều làm được. Nay có tool `javis_task` đi qua hub nên lời hứa đó thành đúng.
 
 Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai engine CLI (**Claude Code** với gói Claude, **Codex** với gói ChatGPT) tận dụng chính gói subscription bạn đang trả và chạy thêm được lệnh máy; sáu provider API chỉ cần một API key và làm được mọi thứ còn lại - kể cả điều phối việc, tạo loop, chạy skill. Agent trong Workflow cũng chọn được model theo nhà cung cấp - xem [Agents & Workflows](07-agents-va-workflows.md).
 

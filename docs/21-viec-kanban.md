@@ -195,6 +195,13 @@ Javis được dạy chọn công cụ nhỏ nhất đủ dùng, nên nó chỉ 
 
 Nhớ rằng việc tạo qua chat vẫn nằm trong hàng đợi của brain đang chat, và vẫn phải có chế độ **AI tự vận hành** thì mới tự chạy. Nếu bảng đang **Tắt**, việc chỉ nằm chờ cho tới khi bạn bật hoặc bấm **Chạy nhịp ngay**.
 
+Việc này chạy trên **mọi bộ não** từ 0.17.1, qua tool `javis_task`. Trước đó chỉ Claude Code và ChatGPT/Codex giao được việc từ chat, vì đường duy nhất là gọi HTTP bằng lệnh máy mà chỉ hai engine đó chạy được. Các engine API (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) nhận lời rồi không làm gì cả, và không báo lỗi. Nếu bạn từng gặp cảnh "bảo giao việc mà bảng vẫn trống", nhiều khả năng đó là lỗi này.
+
+Hai điều tool đó **không** làm, cố ý:
+
+- **Không tạo được việc mức `full`.** Mức full cho việc tự thao tác thật ra ngoài (tạo đơn, tiêu tiền, chạy quảng cáo, gửi tin) và không hoàn tác được. Javis tạo mức `suggest` hoặc `auto` thôi; muốn full thì bạn tự nâng ở trang này, nơi bạn nhìn thấy rõ mình đang cho phép gì.
+- **Không chuyển cột, không huỷ việc, không duyệt việc đang chờ phê duyệt.** Những thao tác đó cần nhìn thấy bảng, nên chúng ở lại trang này.
+
 ## Việc do trang Tự học đề xuất
 
 Trang **Tự học** có một công tắc năng lực tên **Việc (Kanban)** cho phép engine học tự đề xuất việc nền từ hội thoại. Công tắc này **mặc định tắt** ở bản hiện tại, sau khi soi một bảng thật và thấy phần lớn việc máy tự đẻ ra là thứ worker headless không thể làm (cần cookie, cần gửi tin ra ngoài, chỉ ngồi chờ người khác duyệt, đụng repo ngoài brain). Việc giờ chỉ sinh ra khi bạn bảo thẳng.
