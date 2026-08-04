@@ -97,9 +97,13 @@ check("form nói rõ bot đọc tài liệu trong brain nào",
 // đúng câu thuộc chuyên môn của nó. Phải cho chọn, và phải giải thích ngay tại chỗ chọn.
 check("form cho chọn nguồn trả lời", /id="cbNguon"/.test(CB));
 check("mặc định là chuyên môn Agent", /value="agent"[^>]*\+ \(!b \|\| b\.nguon_tra_loi !== "tai_lieu"/.test(CB));
-check("giải thích khi nào dùng chế độ nào", /coach, đào tạo/.test(CB) && /thiệt hại thật/.test(CB));
-check("nói rõ giá và chính sách LUÔN cần tài liệu ở cả hai chế độ",
-  /Cả hai chế độ đều bắt buộc phải có tài liệu/.test(CB));
+check("giải thích khi nào dùng chế độ nào", /thiệt hại thật/.test(CB));
+// Trang phải nói ĐÚNG việc Javis làm: nó không viết luật cho bot, nó chỉ khoá phạm vi brain.
+// Hứa nhiều hơn thế là dạy người dùng tin vào một rào không tồn tại.
+check("nói rõ Javis không thêm luật của mình vào Agent",
+  /Javis không thêm luật nào của/.test(CB));
+check("nói rõ rào duy nhất là chỉ đọc được brain của chính nó",
+  /chỉ đọc được brain của chính nó/.test(CB));
 check("lựa chọn được gửi lên server", /nguon_tra_loi: ngu/.test(CB));
 check("thẻ bot hiện đang chạy chế độ nào", /b\.nguon_tra_loi === "tai_lieu" \? "chỉ tài liệu"/.test(CB));
 check("trang nói rõ bot không ghi, không có lệnh quản trị",

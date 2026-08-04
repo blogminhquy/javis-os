@@ -4,6 +4,23 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.21.0] - 2026-08-04
+Chủ repo chốt lại phạm vi của Bot chuyên trách: **"Anh có Agent và quy định của nó rồi, em đừng tự thêm vào quy định của nó. Chỉ có làm việc chống chỉ định xem các brain khác ngoài brain agent đang ở thôi."** Bản này bỏ hết luật Javis tự chèn, và đi kiểm tra lại rào cách ly brain - hoá ra nó hở thật.
+### Bảo mật
+- **Bot chạy trên Claude Code có TOÀN QUYỀN máy, không chỉ brain của nó.** Lượt bot dựng engine với `cwd=CLAUDE_CWD` (gốc project) và không đặt `allowed_tools`, nên engine chạy `permission_mode="bypassPermissions"`: các tool NATIVE (Bash, Read, Glob, Grep, Write) **không đi qua hub** và không bị `mcp_hub._safe_path` chặn. Một người lạ nhắn cho bot có thể lấy được nội dung mọi brain khác lẫn mã nguồn server.
+
+  Mức quyền `suggest` đặt từ 0.19.0 không cứu được: nó lọc tool của HUB, không đụng tới tool native của engine. Và `cwd` một mình chưa bao giờ là rào - `cat ../brain-khac/...` vẫn chạy.
+
+  Nay lượt bot dựng engine với `cwd` = brain của bot **và** `allowed_tools = ["mcp__javis"]`. Đặt `allowed_tools` mới là lớp chặn thật: nó bật `permission_mode="default"` cùng cổng `can_use_tool`, nên mọi tool ngoài hub bị TỪ CHỐI từng lượt gọi.
+- **Bot bị TỪ CHỐI chạy khi engine chính là ChatGPT (Codex).** Codex không có allowlist per-call như Claude, và sandbox của nó chặn GHI với mạng chứ không nhốt phạm vi ĐỌC - `cat` sang brain khác vẫn chạy. Không khoá được thì nói thẳng, chứ không hạ sandbox rồi coi như xong: một rào chặn được nửa vời còn tệ hơn không có, vì chủ tưởng nó đang bảo vệ mình. Bot trả một câu nêu rõ lý do và cách xử lý (đổi engine chính sang Claude Code hoặc một engine API).
+- **Test mới `test_chatbot_cach_ly.py` canh đúng rào này**, gồm cả các đường trèo ra: `../`, `../../`, đường dẫn tuyệt đối, và brain trùng tiền tố tên (`brain-bot` với `brain-bot-khac`) - ca mà so chuỗi thô sẽ cho lọt.
+### Thay đổi hành vi
+- **Javis KHÔNG còn chèn luật nào vào prompt của bot.** Từ 0.19.0 tới 0.20.1, prompt bot luôn có một khối "luật bắt buộc, đứng trên mọi hướng dẫn khác" - dặn xưng hô, cấm hứa hẹn, cấm đổi vai, bắt trả lời ngắn. Khối đó cãi nhau với chính quy định người dùng viết trong file Agent, và 0.20.1 mới chỉ sửa cho nó bớt gắn với ngành bán hàng chứ chưa bỏ.
+
+  Nay prompt của bot = **đúng file Agent**, cộng tài liệu tra sẵn đưa vào như dữ liệu chứ không kèm mệnh lệnh nào. Muốn bot không nói về giá, không hứa giao hàng, không đổi vai khi bị dụ thì viết vào Agent - đó là nơi những điều ấy thuộc về.
+- **Chế độ "chỉ tài liệu" là luật duy nhất còn lại, và người dùng phải tự bật.** Chế độ mặc định giờ không thêm chữ nào khi tra không ra tài liệu; Agent tự quyết.
+- Trang Chatbot và tài liệu nói lại cho đúng việc Javis thật sự làm: nó không viết luật cho bot, nó khoá phạm vi brain. Hứa nhiều hơn thế là dạy người dùng tin vào một rào không tồn tại.
+
 ## [0.20.1] - 2026-08-04
 Chủ repo tạo Agent **"Coach kỷ luật"**, hỏi bot về kỷ luật, và nhận lại một con bot ngu ngơ: nó tự xưng là trợ lý cửa hàng, trích một mục quy ước nội bộ của Javis ra làm câu trả lời, rồi nói "em chưa có thông tin" cho đúng câu thuộc chuyên môn của Agent. Bốn lỗi chồng lên nhau, đều do bản Chatbot đầu tiên mặc định rằng mọi bot đều là bot bán hàng.
 ### Sửa lỗi

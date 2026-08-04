@@ -265,6 +265,9 @@ check("lệnh lạ trả lời chung chung, không khai còn tập lệnh khác"
 # ============================================================
 # 10. Prompt của bot
 # ============================================================
+# Nội dung prompt do test_chatbot_cach_ly.py canh (Javis không được chèn luật của mình lên
+# quy định người dùng viết trong Agent). Ở đây chỉ kiểm đúng phần thuộc về kho: bot TRỎ TỚI
+# một Agent bằng cặp (brain, slug), và prompt dựng từ đúng cặp đó.
 chatbot_runtime.wire(
     answer=None,
     brain_root=lambda b: "/tmp/khong-dung",
@@ -276,28 +279,8 @@ p = chatbot_runtime.build_bot_prompt({"name": "Bot CSKH", "agent": {"brain": "br
 check("prompt lấy TÊN từ Agent", "Hoa CSKH" in p)
 check("prompt lấy VAI TRÒ từ Agent", "Trả lời khách về sản phẩm" in p)
 check("prompt lấy THÂN file Agent", "Luôn hỏi khách đã mua chưa." in p)
-check("prompt có luật bắt buộc", "Luật bắt buộc khi trả lời" in p)
-check("prompt cấm khai hệ thống bên trong", "model" in p and "brain" in p)
-check("có nhân viên thì hướng dẫn chuyển người thật", "nhân viên" in p)
 check("prompt KHÔNG mang system prompt điều phối của Javis",
       "javis_schedule" not in p and "Kanban" not in p)
-
-# CANARY - đừng gỡ. Bản 0.19.0/0.20.0 đóng khung MỌI bot là "trợ lý trả lời khách của cửa
-# hàng" và cấm nó "chốt giá ngoài bảng giá". Chủ repo tạo Agent "Coach kỷ luật", hỏi về kỷ
-# luật, và nhận lại một nhân viên bán hàng từ chối tư vấn - vì prompt bảo nó là nhân viên bán
-# hàng. Bán hàng chỉ là MỘT ca dùng; khung phải trung tính để Agent nói nó là ai.
-p_coach = chatbot_runtime.build_bot_prompt(
-    {"name": "Coach kỷ luật", "agent": {"brain": "brain", "slug": "coach"}})
-check("CANARY: prompt KHÔNG tự gán bot vào nghề bán hàng",
-      "cửa hàng" not in p_coach and "bảng giá" not in p_coach)
-check("CANARY: prompt KHÔNG tự xưng 'trợ lý trả lời khách'", "trả lời khách của" not in p_coach)
-check("hướng dẫn vai của Agent được nêu là phần quan trọng nhất",
-      "Hướng dẫn vai của bạn" in p)
-check("vẫn cấm bịa chi tiết riêng của nơi đó", "phải có tài liệu mới được nói" in p_coach)
-check("vẫn cấm hứa thay chủ", "Không hứa hẹn thay chủ" in p_coach)
-
-p2 = chatbot_runtime.build_bot_prompt({"name": "Bot CSKH", "agent": {"brain": "brain", "slug": "cskh"}})
-check("không có nhân viên thì bảo dừng lại, không đoán tiếp", "đừng đoán tiếp" in p2)
 
 
 def _no_agent(brain, slug):
@@ -307,7 +290,8 @@ def _no_agent(brain, slug):
 chatbot_runtime.wire(answer=None, brain_root=lambda b: "/tmp/khong-dung", read_agent=_no_agent)
 p3 = chatbot_runtime.build_bot_prompt({"name": "Bot mồ côi", "agent": {"brain": "brain", "slug": "mat-roi"}})
 check("Agent biến mất thì prompt vẫn dựng được, không sập", bool(p3) and "Bot mồ côi" in p3)
-check("Agent biến mất thì prompt tự dặn thận trọng", "thận trọng" in p3)
+check("Agent biến mất thì prompt nói rõ là chưa nạp được hướng dẫn",
+      "chưa nạp được hướng dẫn" in p3)
 
 
 # ============================================================

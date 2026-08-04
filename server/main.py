@@ -8994,6 +8994,21 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # dict (không phải chuỗi): đây là câu trả lời THẬT nên vỏ phải lưu nó lại.
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
+    if prov == "openai-oauth" and bot:
+        # Bot chuyên trách KHÔNG chạy được trên Codex, và nói thẳng ra còn hơn chạy hở.
+        #
+        # Rào duy nhất của bot là cách ly brain. Với Claude Code thì khoá được bằng
+        # allowed_tools (cổng can_use_tool từ chối mọi tool native), với năm engine API thì
+        # mọi đường đọc file đều qua hub và bị `_safe_path` chặn. Codex thì không có cả hai:
+        # sandbox của nó chặn GHI và mạng, chứ không nhốt phạm vi ĐỌC - `cat` sang brain khác
+        # vẫn chạy, và cwd chỉ là thư mục khởi điểm chứ không phải rào.
+        #
+        # Nên ở đây từ chối, chứ không hạ sandbox rồi coi như xong: một rào chặn được nửa vời
+        # còn tệ hơn không có, vì chủ tưởng nó đang bảo vệ mình.
+        return ("⚠ Bot chuyên trách chưa chạy được khi engine chính là ChatGPT (Codex): Codex "
+                "không khoá được phạm vi đọc file, nên không bảo đảm bot chỉ thấy brain của nó. "
+                "Đổi engine chính sang Claude Code hoặc một engine API (OpenRouter, OpenAI API, "
+                "Anthropic API, Gemini, Groq, Ollama) ở trang Models rồi bật lại bot.")
     if prov == "openai-oauth":
         # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth
         # rơi vào Responses chat-thuần nên model nói đúng là phiên không có tool.
@@ -9163,7 +9178,23 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     else:
         if sess["cli"] is None:
             # tag riêng theo chat → /stop chỉ giết đúng subprocess của chat này, không đụng người khác
-            sess["cli"] = claude_engine(system_prompt=sysprompt, cwd=CLAUDE_CWD, tag=f"telegram:{chat_id}")
+            #
+            # Bot chuyên trách phải bị NHỐT trong brain của nó. Hai thứ ở đây làm việc đó, và
+            # thiếu một trong hai là hở toang:
+            #   - cwd = brain của bot, không phải gốc project. Chạy ở gốc project thì tool
+            #     native của Claude Code đọc thẳng được mã nguồn server và MỌI brain khác.
+            #   - allowed_tools = chỉ tool qua hub Javis. Đây mới là lớp chặn thật: đặt
+            #     allowed_tools làm engine bật permission_mode="default" + cổng can_use_tool,
+            #     nên Bash/Read/Write/Glob/Grep native bị TỪ CHỐI từng lượt gọi. Không đặt thì
+            #     engine chạy "bypassPermissions" và cwd chỉ là thư mục khởi điểm, không phải
+            #     rào - `cat ../brain-khac/...` vẫn chạy ngon.
+            # Tool qua hub thì đã bị `mcp_hub._safe_path` khoá trong vault rồi.
+            sess["cli"] = claude_engine(
+                system_prompt=sysprompt,
+                cwd=_brain_root(brain) if bot else CLAUDE_CWD,
+                tag=f"telegram:{chat_id}",
+                allowed_tools=mcp_hub.allow_patterns() if bot else None,
+            )
         cli = sess["cli"]
         cli.system_prompt = sysprompt
         cli.model = api_model or mcfg.get("claude_model") or None

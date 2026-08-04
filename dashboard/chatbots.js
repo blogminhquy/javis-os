@@ -49,9 +49,10 @@
           '<input class="cb-search" placeholder="Tìm bot theo tên…">' +
           '<button class="s-btn cb-new" type="button">' + ic("plus") + ' Bot mới</button>' +
         '</div>' +
-        '<p class="cb-intro">Mỗi bot là một <b>Agent</b> bạn đã tạo, đem ra trả lời khách qua ' +
-        'một bot Telegram riêng và một <b>brain riêng</b>. Bot chỉ <b>đọc</b> brain của nó, ' +
-        'không ghi được gì, không gọi được nguồn dữ liệu nào, và không có lệnh quản trị.</p>' +
+        '<p class="cb-intro">Mỗi bot là một <b>Agent</b> bạn đã tạo, đem ra trả lời người ngoài ' +
+        'qua một bot Telegram riêng và một <b>brain riêng</b>. Bot làm theo đúng quy định trong ' +
+        'file Agent; Javis chỉ khoá một thứ: nó <b>chỉ đọc được brain của chính nó</b>, không ' +
+        'thấy brain khác, không ghi, không có lệnh quản trị.</p>' +
         '<div class="cb-grid"></div>' +
       '</div>';
     host.querySelector(".cb-new").onclick = function () { moForm(null); };
@@ -285,11 +286,12 @@
           '<option value="tai_lieu"' + (b && b.nguon_tra_loi === "tai_lieu" ? " selected" : "") + '>' +
             'CHỈ tài liệu trong brain</option>' +
         '</select>' +
-        '<div class="cb-hint"><b>Chuyên môn của Agent</b>: bot trả lời như chính Agent bạn chọn, ' +
-        'tài liệu là phần bổ sung. Hợp với bot tư vấn, coach, đào tạo, giải đáp nghiệp vụ.<br>' +
-        '<b>Chỉ tài liệu</b>: không có tài liệu thì bot nói chưa có thông tin, không tự nói thêm. ' +
-        'Hợp với bot đọc giá và chính sách, nơi một câu sai là thiệt hại thật.<br>' +
-        'Cả hai chế độ đều bắt buộc phải có tài liệu mới được nói về giá, chính sách, tồn kho.</div>' +
+        '<div class="cb-hint"><b>Chuyên môn của Agent</b>: bot làm đúng theo quy định bạn viết ' +
+        'trong file Agent, tài liệu tra được là phần bổ sung. Javis không thêm luật nào của ' +
+        'mình vào.<br>' +
+        '<b>Chỉ tài liệu</b>: thêm một luật duy nhất là không tìm thấy tài liệu thì nói chưa ' +
+        'có thông tin, không tự nói thêm. Hợp với bot đọc giá và chính sách, nơi một câu sai ' +
+        'là thiệt hại thật.</div>' +
 
         '<label>Token Telegram' + (sua ? " (để trống nếu không đổi)" : "") + '</label>' +
         '<div class="cb-row">' +

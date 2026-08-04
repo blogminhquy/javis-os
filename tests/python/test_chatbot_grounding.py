@@ -209,37 +209,37 @@ bot = {"name": "Bot", "agent": {"brain": "brain", "slug": "cskh"}, "handoff_to":
 
 p_co = chatbot_runtime.build_bot_prompt({**bot, "_tai_lieu": tl})
 check("có tài liệu -> prompt kèm nguyên văn tài liệu", "185.000" in p_co)
-check("có tài liệu -> prompt chốt đây là căn cứ cho chi tiết riêng",
-      "căn cứ cho mọi chi tiết" in p_co)
+check("có tài liệu -> nói rõ nó lấy từ brain của bot",
+      "Tài liệu trong brain của bạn" in p_co)
 
 p_ngoai = chatbot_runtime.build_bot_prompt(bot)
 check("dựng prompt ngoài một lượt thật -> không bịa ra khối tài liệu nào",
-      "## TÀI LIỆU" not in p_ngoai)
+      "Tài liệu trong brain" not in p_ngoai)
 
 
 # ============================================================
 # 4b. Hai chế độ nguồn trả lời
 # ============================================================
-# Đây là chỗ bản 0.20.0 làm hỏng trải nghiệm thật. Một Agent coach có chuyên môn nằm trong
-# hướng dẫn vai, không nằm ở file nào trong brain. Bắt nó im khi brain không có tài liệu là
-# bịt miệng đúng cái nó giỏi nhất, và người dùng thấy một con bot "ngu ngơ" dù Agent viết kỹ.
+# Bản 0.20.0 ép MỌI bot phải im khi brain không có tài liệu. Một Agent coach có chuyên môn nằm
+# trong hướng dẫn vai chứ không nằm ở file nào, nên đó là bịt miệng đúng cái nó giỏi nhất.
+#
+# Cách sửa cuối cùng KHÔNG phải là đổi câu dặn cho nhẹ đi, mà là BỎ HẲN câu dặn: mặc định
+# Javis không nói gì thêm, Agent tự quyết theo quy định người dùng viết. Chỉ chế độ mà người
+# dùng CHỦ ĐỘNG bật mới có một câu chỉ dẫn.
 p_agent = chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "agent", "_tai_lieu": trong})
-check("chế độ Agent + không có tài liệu -> vẫn được trả lời bằng chuyên môn của vai",
-      "trả lời bằng chính hướng dẫn vai ở trên" in p_agent)
-check("chế độ Agent -> vẫn chặn bịa chi tiết riêng (giá, chính sách, tồn kho)",
-      "giá, chính sách, tồn kho" in p_agent)
-check("CANARY: chế độ Agent KHÔNG ép bot câm khi thiếu tài liệu",
-      "TUYỆT ĐỐI không trả lời bằng kiến thức chung" not in p_agent)
+check("CANARY: chế độ mặc định + không có tài liệu -> Javis không thêm chữ nào",
+      p_agent == chatbot_runtime.build_bot_prompt(bot))
+check("CANARY: chế độ mặc định KHÔNG ép bot câm khi thiếu tài liệu",
+      "kiến thức chung" not in p_agent)
 
 p_chat = chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "tai_lieu", "_tai_lieu": trong})
-check("chế độ chỉ-tài-liệu + không có tài liệu -> nói thẳng đã tìm và không có",
+check("chế độ chỉ-tài-liệu + không có tài liệu -> nói thẳng đã tra và không có",
       "không có phần nào" in p_chat.lower())
-check("chế độ chỉ-tài-liệu -> cấm dùng kiến thức chung",
-      "TUYỆT ĐỐI không trả lời bằng kiến thức chung" in p_chat)
+check("chế độ chỉ-tài-liệu -> dặn đừng dùng kiến thức chung",
+      "kiến thức chung" in p_chat)
 
-check("bản ghi cũ thiếu khoá -> rơi vào chế độ Agent, không phải chế độ câm",
-      "trả lời bằng chính hướng dẫn vai ở trên" in
-      chatbot_runtime.build_bot_prompt({**bot, "_tai_lieu": trong}))
+check("bản ghi cũ thiếu khoá -> rơi vào chế độ mặc định, không phải chế độ câm",
+      chatbot_runtime.build_bot_prompt({**bot, "_tai_lieu": trong}) == p_agent)
 # Có tài liệu thì hai chế độ giống hệt nhau: khác biệt CHỈ nằm ở lúc không tìm thấy gì.
 check("có tài liệu thì hai chế độ cho ra cùng một khối",
       chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "tai_lieu", "_tai_lieu": tl})

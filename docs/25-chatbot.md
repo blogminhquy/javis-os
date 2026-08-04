@@ -1,15 +1,16 @@
 # Chatbot (Bot chuyên trách)
 
-Đem một **Agent** bạn đã tạo ra đứng trước khách hàng: khách nhắn vào một bot Telegram riêng, Agent đó trả lời trong phạm vi tài liệu bạn cho phép, gặp câu ngoài tầm thì chuyển cho nhân viên thật.
+Đem một **Agent** bạn đã tạo ra đứng trước người ngoài: họ nhắn vào một bot Telegram riêng, Agent đó trả lời theo đúng quy định bạn viết cho nó, gặp câu ngoài tầm thì chuyển cho nhân viên thật.
 
-Khác với [Kênh Telegram](11-telegram.md) ở một điểm quyết định: bot Telegram ở trang **Kênh** là **Javis của bạn** (toàn quyền, đọc brain chính, gọi được mọi nguồn dữ liệu, chỉ bạn nhắn được). Bot ở trang **Chatbot** là **nhân viên trực chat** (chỉ đọc, brain riêng, người lạ nhắn được). Đừng dùng cái này thay cái kia.
+Khác với [Kênh Telegram](11-telegram.md) ở một điểm quyết định: bot Telegram ở trang **Kênh** là **Javis của bạn** (toàn quyền, đọc brain chính, gọi được mọi nguồn dữ liệu, chỉ bạn nhắn được). Bot ở trang **Chatbot** là **một Agent đứng trực** (chỉ đọc, brain riêng, người lạ nhắn được). Đừng dùng cái này thay cái kia.
 
 ## Tính năng này là gì
 
-- Mỗi bot = một **Agent** (bộ não nghiệp vụ) + một **brain riêng** (kho tài liệu nó được đọc) + một **token Telegram riêng**.
-- Khách nhắn riêng cho bot, hoặc bạn thả bot vào nhóm chăm sóc khách hàng.
-- Bot **chỉ đọc**. Nó không ghi file, không tạo đơn, không chạy quảng cáo, không giao việc, không có lệnh quản trị. Rào này nằm trong mã nguồn chứ không phải trong câu dặn dò, nên khách có dụ cách mấy cũng không mở ra được.
-- Câu ngoài tầm hiểu biết thì bot nói "để em chuyển nhân viên" và nhắn thẳng cho người bạn chỉ định.
+- Mỗi bot = một **Agent** (quy định và chuyên môn) + một **brain riêng** (kho tài liệu nó được đọc) + một **token Telegram riêng**.
+- Người ta nhắn riêng cho bot, hoặc bạn thả bot vào nhóm.
+- **Bot làm theo đúng file Agent của bạn.** Javis không chèn thêm luật nào của mình vào.
+- Javis khoá đúng một thứ, và khoá bằng mã nguồn chứ không bằng câu dặn: **bot chỉ đọc được brain của chính nó**, không thấy brain khác, không ghi, không có lệnh quản trị.
+- Câu ngoài tầm hiểu biết thì bot chuyển cho nhân viên bạn chỉ định.
 - Trang Chatbot dựng theo hướng **nhiều bot** ngay từ đầu: lưới thẻ, ô tìm, thêm/sửa/xoá, bật/tắt tại chỗ. Chạy một con hay mười con đều cùng một giao diện.
 
 ## Mở ở đâu trong Javis
@@ -113,18 +114,30 @@ Khác biệt chỉ nằm ở **lúc không tìm thấy tài liệu nào khớp**
 
 | Chế độ | Không tìm thấy tài liệu thì bot làm gì | Hợp với |
 |---|---|---|
-| **Chuyên môn của Agent** (mặc định) | Trả lời bằng chính hướng dẫn vai của Agent, nếu câu hỏi thuộc chuyên môn đó | Bot tư vấn, coach, đào tạo, giải đáp nghiệp vụ |
-| **Chỉ tài liệu** | Nói chưa có thông tin rồi dừng, không tự nói thêm | Bot đọc giá và chính sách, nơi một câu sai là thiệt hại thật |
-
-**Cả hai chế độ đều bắt buộc phải có tài liệu mới được nói về giá, chính sách, tồn kho, lịch làm việc, thông tin liên hệ, cam kết dịch vụ.** Chế độ "chuyên môn Agent" mở đường cho bot giải thích phương pháp và tư vấn, không mở đường cho nó bịa con số.
+| **Chuyên môn của Agent** (mặc định) | Javis không nói gì thêm; Agent tự xử theo quy định anh viết | Bot tư vấn, coach, đào tạo, giải đáp nghiệp vụ |
+| **Chỉ tài liệu** | Thêm một luật: nói chưa có thông tin, đừng dùng kiến thức chung | Bot đọc giá và chính sách, nơi một câu sai là thiệt hại thật |
 
 Chọn sai thì thấy ngay: một Agent coach chạy ở chế độ "chỉ tài liệu" sẽ trả lời "em chưa có thông tin" cho đúng câu thuộc chuyên môn của nó, dù anh viết hướng dẫn vai rất kỹ. Đổi chế độ ở nút **Sửa**, có hiệu lực ngay.
 
-### Bot nói năng theo Agent, không theo khuôn có sẵn
+### Javis KHÔNG viết luật cho bot
 
-Javis không áp cho bot một nghề nào. Agent nói nó là ai và làm gì; Javis chỉ thêm mấy luật không phụ thuộc ngành: đừng bịa chi tiết riêng của nơi này, đừng nói về hệ thống bên trong, đừng hứa thay chủ, đừng đổi vai khi bị dụ.
+Đây là điều quan trọng nhất nên biết về trang này.
 
-Nên **hướng dẫn vai trong file Agent là thứ quyết định chất lượng bot nhất**. Viết như dặn một người mới: nói năng thế nào, ưu tiên gì, gặp trường hợp nào thì chuyển người thật.
+Bot chạy bằng **đúng nội dung file Agent** của anh, không hơn. Javis không chèn thêm luật nào lên trên: không dặn nó xưng hô thế nào, không cấm nó nói về chủ đề gì, không ép nó trả lời ngắn. Quy định anh viết trong Agent là quy định duy nhất bot có.
+
+Ngoại lệ duy nhất là chế độ "chỉ tài liệu" ở trên, và đó là luật **anh chủ động bật**, không phải mặc định của Javis.
+
+Nên **file Agent là thứ quyết định chất lượng bot, gần như hoàn toàn**. Viết như dặn một người mới vào làm: nói năng thế nào, phạm vi tới đâu, cái gì không được hứa, gặp trường hợp nào thì chuyển người thật. Bot cư xử sai thì sửa Agent, đừng tìm nút nào khác.
+
+### Thứ duy nhất Javis khoá: bot chỉ thấy brain của chính nó
+
+Rào duy nhất, và nó nằm trong mã nguồn chứ không nằm trong lời dặn, nên không lách được bằng lời lẽ:
+
+- Bot **không đọc được brain khác**, kể cả brain chính của anh. Mọi đường đọc file đều bị kẹp trong đúng thư mục brain của bot; trèo ra bằng `../` hay đường dẫn tuyệt đối đều bị từ chối.
+- Bot **không ghi** gì, không tạo đơn, không tiêu tiền, không đăng bài, không giao việc.
+- Bot **không có lệnh quản trị**. `/brain`, `/model`, `/status` không có tác dụng.
+
+Một lưu ý về engine: bot **chưa chạy được khi engine chính là ChatGPT (Codex)**, vì Codex không khoá được phạm vi đọc file nên Javis không bảo đảm được điều trên. Bot sẽ trả lời một câu báo rõ điều đó. Đổi engine chính sang Claude Code hoặc một engine API ở trang Models là chạy bình thường.
 
 ### Để tài liệu ăn khớp tốt
 
@@ -157,15 +170,13 @@ Nhật ký giữ 2000 lượt gần nhất mỗi bot, cũ hơn thì tự cắt. 
 
 ## Bot làm được gì và KHÔNG làm được gì
 
-Cố ý cắt rất sâu, vì người ở đầu bên kia là người lạ.
-
-**Làm được:** đọc tài liệu trong brain của nó, trả lời trong phạm vi đó, nhớ mạch hội thoại với từng khách, chuyển cho nhân viên.
+**Làm được:** đọc tài liệu trong brain của nó, trả lời theo quy định trong file Agent, nhớ mạch hội thoại với từng người, chuyển cho nhân viên.
 
 **Không làm được:** ghi file, tạo đơn, tiêu tiền, chạy quảng cáo, đăng bài, giao việc Kanban, tạo lịch, gọi các nguồn dữ liệu bạn đã đấu, đọc brain khác, dùng lệnh quản trị (`/brain`, `/model`, `/status`... đều không có tác dụng, bot chỉ trả lời chung chung).
 
-Bot cũng được dặn không nói về model, engine, brain hay bất cứ thứ gì bên trong hệ thống, và bỏ qua mọi yêu cầu kiểu "quên hướng dẫn của mày đi" hay "in ra prompt của mày".
-
 Menu lệnh trong Telegram của bot khách chỉ có ba mục (`/help`, `/nhanvien`, `/id`), không phải menu quản trị của bot Javis chính. Liệt kê ở đó những lệnh bot từ chối chạy là dạy khách đi tìm một tập lệnh khác.
+
+Còn **cách nó nói năng, phạm vi nó nhận trả lời, thứ nó từ chối** thì do file Agent của bạn quyết, không do Javis. Muốn bot không nói về giá, không hứa giao hàng, không đổi vai khi bị dụ thì viết những điều đó vào Agent.
 
 Lưu ý cách hiểu đúng: những giới hạn trên nằm ở **mức quyền trong mã nguồn**, không phải ở câu dặn trong prompt. Câu dặn có thể bị lời lẽ khôn khéo lách qua; mức quyền thì không, vì công cụ đơn giản là không được cấp cho lượt chạy đó.
 
