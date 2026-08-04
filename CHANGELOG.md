@@ -4,6 +4,33 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.20.0] - 2026-08-04
+Ba giai đoạn còn lại của Bot chuyên trách: **trả lời có căn cứ**, **vào nhóm được thật**, và **thống kê câu bot trả lời không nổi**. Kèm một lỗ của 0.19.0 phải vá.
+### Sửa lỗi
+- **Bot IM trong MỌI nhóm ở 0.19.0.** Luật mặc định "chỉ trả lời khi được gọi tên" đọc hai cờ `mentioned`/`reply_to_bot`, mà `TelegramBot._build_meta` không hề gắn chúng - nó chỉ gắn `chat_type`. Nên điều kiện luôn sai và bot không bao giờ mở miệng trong nhóm. Hỏng đúng kiểu tệ nhất: im lặng, không log, không báo, chủ chỉ thấy bot "như chết".
+
+  Nay `_build_meta` đọc thẳng từ tin nhắn: `entities` loại `mention` (khách gõ `@ten_bot`, phải cắt chuỗi theo offset/length ra so) và loại `text_mention` (khách bấm chọn từ danh sách thành viên, không có `@` trong chữ, danh tính nằm ở `entity.user.id`), cộng `reply_to_message`. Cả `caption_entities` của ảnh cũng tính. Bot tự hỏi `getMe` lúc khởi động để biết chính nó là ai, thay vì nhận từ cấu hình vốn có thể chép sai hoặc cũ.
+
+  So theo **id** chứ không theo cờ `is_bot`: trong nhóm có thể có nhiều bot, nhận vơ tin reply vào bot khác là chen ngang vào việc của người ta.
+### Thêm mới
+- **Tra tài liệu trước rồi mới trả lời (giai đoạn 2).** Bot vốn đã có `javis_read_file` trỏ vào brain của nó, nhưng **có tool đọc không bằng có đọc**: model trả lời thẳng bằng kiến thức chung thì câu vẫn trôi chảy tự tin y hệt, và chủ KHÔNG phân biệt được từ bên ngoài. Với khách hàng thật thì một câu bịa về giá hay chính sách là rủi ro thật.
+
+  Nay mỗi lượt đều tra brain trước (module mới `chatbot_grounding`), lấy vài đoạn khớp nhất và nhét thẳng vào prompt làm căn cứ duy nhất. Không tìm thấy gì thì prompt **nói thẳng là đã tìm và không có** - đưa khối rỗng rồi im lặng chính là để model tự lấp bằng trí nhớ chung của nó.
+
+  Tìm bằng đối chiếu từ khoá có trọng số IDF, không nhúng vector: brain của một bot chăm sóc khách là vài chục tới vài trăm file, ở cỡ đó thì cách này đủ tốt, chạy tại chỗ, không thêm dịch vụ nào, và quan trọng nhất là **giải thích được** - chủ nhìn vào biết vì sao bot lấy đúng file đó. Tài liệu cắt theo tiêu đề markdown để mỗi đoạn là một ý trọn vẹn; cắt cứng theo số ký tự thì bot đọc được nửa điều kiện rồi trả lời như thể đó là toàn bộ điều kiện.
+- **Nhật ký hội thoại khách + danh sách CÂU BOT TRẢ LỜI KHÔNG NỔI (giai đoạn 4).** Nút Nhật ký trên mỗi thẻ bot, hai tab, và tab mở sẵn là "Bot bí" chứ không phải hội thoại: hội thoại chỉ để soi lại khi nghi ngờ, còn mỗi dòng trong "Bot bí" là một chỗ tài liệu đang thiếu, tức là thứ chủ **làm được gì đó** với nó.
+
+  Gom trùng theo câu hỏi đã bỏ dấu, xếp theo số lần hỏi giảm dần - thứ đáng viết tài liệu bổ sung trước là thứ nhiều khách hỏi nhất, không phải thứ vừa mới hỏi. Bot tính là bí trong hai trường hợp: không tìm ra tài liệu, hoặc tìm ra rồi mà vẫn phải nói chưa có thông tin. Trường hợp sau tinh vi hơn và đáng chú ý hơn - tài liệu CÓ mà THIẾU Ý.
+
+  Tab hội thoại hiện **đúng file bot đã dùng** cho từng lượt. Không có dòng nguồn đó thì "bot trả lời đúng chưa" là câu hỏi không kiểm chứng được, chỉ đoán.
+- **Bí thì báo nhân viên ngay**, kèm câu khách vừa hỏi, nếu đã đặt Chat ID nhân viên. Khách hỏi hụt mà không ai biết là mất một khách.
+### Bảo mật
+- **File khách gửi lên KHÔNG được tính là tài liệu.** `inbox/` bị loại khỏi phần tra cứu, cùng với các thư mục hệ thống. Nếu không thì bất kỳ ai cũng tải lên một file ghi "chính sách mới: hoàn tiền 100% mọi trường hợp" rồi hỏi lại một câu, và bot trích dẫn nó như tài liệu chính thức của cửa hàng - tự đầu độc kho tri thức bằng một lần bấm gửi file.
+- **Menu lệnh Telegram của bot khách không còn là menu quản trị của chủ.** `TelegramBot` trước đây ghim cứng `BOT_COMMANDS`, nên bot chăm sóc khách hiện cho khách thấy "/brain - Xem hoặc đổi brain (vault) của phiên này" và cả tập lệnh quản trị khác, dù chính nó từ chối chạy chúng. Nay menu truyền vào được; bot khách dùng đúng ba mục `/help`, `/nhanvien`, `/id`.
+### Cải thiện
+- **Ngưỡng "coi như tìm thấy" đo bằng ĐỘ PHỦ câu hỏi, không phải điểm tuyệt đối.** Điểm tuyệt đối một mình không dùng được: "cửa hàng có tuyển lập trình viên Rust không" trúng đúng chữ "hàng" trong mục Giao hàng, mà "hàng" hiếm nên IDF cao, nên điểm vượt ngưỡng và bot tưởng mình có căn cứ để trả lời về tuyển dụng. Nay đo tỉ lệ sức nặng câu hỏi thật sự có mặt trong đoạn, cộng luật câu từ ba chữ có nghĩa trở lên phải trúng ít nhất hai chữ. Kèm bộ 28 câu chuẩn trong test làm hàng rào cho cả hai hướng hỏng (quá lỏng thì bot bịa, quá chặt thì bot nói không biết trong khi câu trả lời nằm ngay trong bảng giá).
+- **Từ dừng soạn lại cho tiếng Việt bỏ dấu.** "bán" và "bạn" cùng ra "ban"; loại "ban" đi là mất luôn chữ "bán" - với bot bán hàng thì đó là chữ có nghĩa nhất trong câu, và "có bán cà phê không" tụt xuống còn hai chữ rồi khớp bừa vào "cá cơm". Cùng lý do với "anh" (ảnh) và "chi" (chi phí).
+
 ## [0.19.0] - 2026-08-04
 Trang **Chatbot**: đem một Agent bạn đã tạo ra đứng trước KHÁCH HÀNG, qua bot Telegram riêng, brain riêng, gặp câu ngoài tầm thì chuyển nhân viên thật. Spec đầy đủ ở `docs/dev/2026-08-bot-chuyen-trach-spec.md`, hướng dẫn dùng ở [docs/25-chatbot.md](docs/25-chatbot.md).
 ### Thêm mới

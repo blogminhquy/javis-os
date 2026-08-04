@@ -82,7 +82,9 @@ Bỏ trống ô này thì bot chỉ nói "em chưa có thông tin" rồi dừng,
 
 **Chưa khai id nhóm thì bot im lặng trong mọi nhóm.** Đây là mặc định cố ý: bot bị thả vào một nhóm lạ mà tự nhận việc là nó chen vào giữa cuộc nói chuyện của khách với nhau.
 
-Trong nhóm đã khai, mặc định bot chỉ trả lời khi có người **nhắc tên nó** hoặc **reply vào tin của nó**. Muốn nó trả lời mọi câu trong nhóm thì đổi cách trả lời thành "luôn luôn" - cân nhắc kỹ, nhóm đông người thì rất ồn và đốt quota model nhanh.
+Trong nhóm đã khai, mặc định bot chỉ trả lời khi có người **nhắc tên nó** (gõ `@ten_bot`, hoặc bấm chọn tên nó từ danh sách thành viên) hoặc **reply vào tin của nó**. Nhóm có nhiều bot thì nó phân biệt được: nhắc tên bot khác hay reply vào bot khác thì nó không nhận vơ.
+
+Muốn nó trả lời mọi câu trong nhóm thì đổi cách trả lời thành "luôn luôn" - cân nhắc kỹ, nhóm đông người thì rất ồn và đốt quota model nhanh.
 
 ## Đọc thẻ bot
 
@@ -99,6 +101,35 @@ Trạng thái **Lỗi** phải nhìn thấy được, vì bot chết âm thầm 
 
 Thẻ cũng cảnh báo khi **Agent của bot không còn** (bạn xoá hoặc đổi slug ở trang Agents). Lúc đó bot vẫn chạy nhưng trả lời không có hướng dẫn vai trò, nên sửa ngay.
 
+## Bot trả lời dựa trên cái gì
+
+Mỗi lần khách hỏi, Javis **tra tài liệu trong brain của bot trước**, lấy vài đoạn khớp nhất, rồi đưa thẳng vào đầu bài của lượt đó. Bot chỉ được dùng chỗ đó làm căn cứ.
+
+Điều này khác với "bot có quyền đọc brain". Có quyền đọc không có nghĩa là nó chịu đọc: model hoàn toàn có thể trả lời thẳng bằng kiến thức chung của nó, câu vẫn trôi chảy tự tin y hệt, và anh **không phân biệt được từ bên ngoài**. Nên Javis tra trước, không giao việc đó cho model tự quyết.
+
+Tìm không ra đoạn nào khớp thì bot được báo thẳng là "đã tìm và không có", và luật lúc đó chuyển thành nói chưa có thông tin. Không phải im lặng đưa một khối rỗng rồi để nó tự lấp.
+
+Hai điều nên biết để tài liệu ăn khớp tốt:
+
+- **Đặt tiêu đề rõ ràng trong file.** Javis cắt tài liệu theo tiêu đề markdown (`##`), và mỗi đoạn được lấy riêng lẻ. Một file dài không tiêu đề thì bot có thể đọc được nửa điều kiện rồi trả lời như thể đó là toàn bộ điều kiện. Chia thành "Giá bán lẻ", "Giá sỉ", "Đổi trả", "Giao hàng"... là ăn khớp tốt nhất.
+- **File khách gửi lên KHÔNG được tính là tài liệu.** Chúng nằm trong `inbox/khach/` và bị loại hẳn khỏi phần tra cứu. Nếu không thì bất kỳ ai cũng tải lên một file ghi "chính sách mới: hoàn tiền 100% mọi trường hợp" rồi hỏi lại một câu, và bot trích dẫn nó như tài liệu chính thức của cửa hàng.
+
+## Nhật ký và chỗ tài liệu đang thiếu
+
+Bấm **Nhật ký** trên thẻ bot. Có hai tab, và tab mở sẵn là tab quan trọng hơn.
+
+**Bot bí** liệt kê những câu bot trả lời không nổi, gom trùng và xếp theo **số lần khách hỏi**. Đây là thứ có giá trị kinh doanh trực tiếp: mỗi dòng chỉ đúng một chỗ tài liệu của anh đang thiếu, bằng chính lời khách hàng. Viết bổ sung vào brain là lần sau bot trả lời được.
+
+Gom trùng có bỏ dấu, nên "Giá bao nhiêu?" và "gia bao nhieu" được tính là một câu. Nếu không thì cùng một câu hỏi bị tách thành mấy dòng lẻ và anh không thấy được nó thật ra được hỏi nhiều.
+
+Bot tính là "bí" trong hai trường hợp: không tìm ra tài liệu nào khớp, hoặc tìm ra rồi mà vẫn phải nói chưa có thông tin. Trường hợp thứ hai tinh vi hơn và cũng đáng chú ý hơn: tài liệu **có** nhưng **thiếu ý** khách cần.
+
+**Hội thoại gần đây** cho xem lại từng lượt, kèm **đúng file bot đã dùng** để trả lời. Dòng nguồn đó là thứ làm cho câu hỏi "bot trả lời đúng chưa" kiểm chứng được thay vì chỉ đoán.
+
+Có đặt Chat ID nhân viên thì mỗi lượt bí cũng được báo ngay cho nhân viên, kèm câu khách vừa hỏi. Khách hỏi hụt mà không ai biết là mất một khách.
+
+Nhật ký giữ 2000 lượt gần nhất mỗi bot, cũ hơn thì tự cắt. Xoá bot thì nhật ký đi theo.
+
 ## Bot làm được gì và KHÔNG làm được gì
 
 Cố ý cắt rất sâu, vì người ở đầu bên kia là người lạ.
@@ -108,6 +139,8 @@ Cố ý cắt rất sâu, vì người ở đầu bên kia là người lạ.
 **Không làm được:** ghi file, tạo đơn, tiêu tiền, chạy quảng cáo, đăng bài, giao việc Kanban, tạo lịch, gọi các nguồn dữ liệu bạn đã đấu, đọc brain khác, dùng lệnh quản trị (`/brain`, `/model`, `/status`... đều không có tác dụng, bot chỉ trả lời chung chung).
 
 Bot cũng được dặn không nói về model, engine, brain hay bất cứ thứ gì bên trong hệ thống, và bỏ qua mọi yêu cầu kiểu "quên hướng dẫn của mày đi" hay "in ra prompt của mày".
+
+Menu lệnh trong Telegram của bot khách chỉ có ba mục (`/help`, `/nhanvien`, `/id`), không phải menu quản trị của bot Javis chính. Liệt kê ở đó những lệnh bot từ chối chạy là dạy khách đi tìm một tập lệnh khác.
 
 Lưu ý cách hiểu đúng: những giới hạn trên nằm ở **mức quyền trong mã nguồn**, không phải ở câu dặn trong prompt. Câu dặn có thể bị lời lẽ khôn khéo lách qua; mức quyền thì không, vì công cụ đơn giản là không được cấp cho lượt chạy đó.
 
@@ -131,7 +164,11 @@ Bấm **Xoá** trên thẻ. Bot ngừng trả lời ngay.
 
 **Hai bot dùng chung một Agent được không?** Được, và đôi khi hợp lý: cùng vai trò nhưng hai brain khác nhau cho hai cửa hàng. Ngược lại, hai bot dùng chung một token thì không, Javis chặn.
 
-**Khách gửi ảnh cho bot thì sao?** File khách gửi rơi vào `inbox/khach/` trong brain của bot đó, tách riêng khỏi file của bạn.
+**Khách gửi ảnh cho bot thì sao?** File khách gửi rơi vào `inbox/khach/` trong brain của bot đó, tách riêng khỏi file của bạn, và không được tính là tài liệu để trả lời.
+
+**Bot trả lời sai một câu, xem lại ở đâu?** Bấm Nhật ký, tab Hội thoại gần đây. Dòng nguồn dưới mỗi lượt cho biết nó lấy câu trả lời từ file nào, nên sửa đúng chỗ được ngay.
+
+**Bot nói "chưa có thông tin" mà tài liệu rõ ràng có nói?** Thường là do file dài không chia tiêu đề, hoặc tài liệu dùng từ khác hẳn từ khách hỏi (tài liệu ghi "hoàn trả", khách hỏi "đổi trả"). Thêm tiêu đề cho file, hoặc viết thêm cách gọi mà khách hay dùng vào chính đoạn đó.
 
 **Bot có nhớ khách không?** Có, mỗi khách một mạch hội thoại riêng trong brain của bot.
 

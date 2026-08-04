@@ -87,6 +87,7 @@ import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
+import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
@@ -9701,6 +9702,19 @@ async def chatbots_enable(bot_id: str, on: str = Form("1")):
     return {"ok": True, "status": chatbot_runtime.status(bot_id)}
 
 
+@app.get("/chatbots/{bot_id}/log")
+async def chatbots_log(bot_id: str, limit: int = 50):
+    """Nhật ký hội thoại khách + danh sách CÂU BOT TRẢ LỜI KHÔNG NỔI.
+
+    Trả cả hai trong một lời gọi: chúng luôn được xem cùng nhau, và mỗi cái đọc lại chính file
+    đó nên tách ra chỉ tốn hai lượt đọc đĩa cho cùng một dữ liệu.
+    """
+    if not chatbot_store.get_bot(bot_id):
+        return JSONResponse({"ok": False, "error": "Không có bot nào id đó"}, status_code=404)
+    return {"ok": True, "turns": chatbot_log.doc(bot_id, limit),
+            "gaps": chatbot_log.lo_hong(bot_id), "tom_tat": chatbot_log.tom_tat(bot_id)}
+
+
 @app.post("/chatbots/{bot_id}/delete")
 async def chatbots_delete(bot_id: str):
     """Xoá bản ghi bot. KHÔNG đụng brain và Agent của nó - xem chatbot_store.delete_bot."""
@@ -9708,6 +9722,7 @@ async def chatbots_delete(bot_id: str):
     ok, err = chatbot_store.delete_bot(bot_id)
     if not ok:
         return JSONResponse({"ok": False, "error": err}, status_code=404)
+    chatbot_log.xoa(bot_id)   # nhật ký của một bot không còn tồn tại thì không ai đọc được nữa
     return {"ok": True}
 
 

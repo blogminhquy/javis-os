@@ -125,14 +125,89 @@
         '<div class="cb-acts">' +
           '<button class="s-btn-ghost cb-toggle" type="button">' +
             (b.enabled ? ic("circle-stop") + " Tắt" : ic("play") + " Bật") + '</button>' +
+          '<button class="s-btn-ghost cb-log" type="button">' + ic("history") + ' Nhật ký</button>' +
           '<button class="s-btn-ghost cb-edit" type="button">Sửa</button>' +
           '<button class="s-btn-ghost cb-del" type="button">Xoá</button>' +
         '</div>' +
       '</div>');
     c.querySelector(".cb-toggle").onclick = function () { bat(b, !b.enabled); };
+    c.querySelector(".cb-log").onclick = function () { moNhatKy(b); };
     c.querySelector(".cb-edit").onclick = function () { moForm(b); };
     c.querySelector(".cb-del").onclick = function () { xoa(b); };
     return c;
+  }
+
+  // ---------------------------------------------------------------- nhật ký + lỗ hổng
+  // Mở tab "Bot bí" TRƯỚC, không phải tab hội thoại. Hội thoại chỉ để soi lại khi nghi ngờ,
+  // còn danh sách câu bot trả lời không nổi mới là thứ chủ cần LÀM GÌ ĐÓ với nó: mỗi dòng ở
+  // đó là một chỗ tài liệu đang thiếu, viết bổ sung vào brain là lần sau bot trả lời được.
+  async function moNhatKy(b) {
+    var box = el('<div class="cb-modal"><div class="cb-form cb-log-form">' +
+      '<h3>Nhật ký - ' + esc(b.name) + '</h3>' +
+      '<div class="cb-tabs">' +
+        '<button class="cb-tab on" data-t="gaps" type="button">Bot bí</button>' +
+        '<button class="cb-tab" data-t="turns" type="button">Hội thoại gần đây</button>' +
+      '</div>' +
+      '<div class="cb-log-body">Đang tải…</div>' +
+      '<div class="cb-form-acts"><button class="s-btn" id="cbLogClose" type="button">Đóng</button></div>' +
+      '</div></div>');
+    document.body.appendChild(box);
+    var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
+    box.onmousedown = function (e) { if (e.target === box) dong(); };
+    box.querySelector("#cbLogClose").onclick = dong;
+
+    var than = box.querySelector(".cb-log-body"), d = null;
+    try { d = await api("/chatbots/" + encodeURIComponent(b.id) + "/log?limit=60"); }
+    catch (e) { than.textContent = "Không tải được nhật ký: " + e.message; return; }
+
+    function ve(tab) {
+      if (tab === "turns") { than.innerHTML = veLuot(d.turns || []); return; }
+      than.innerHTML = veLoHong(d.gaps || [], d.tom_tat || {});
+    }
+    box.querySelectorAll(".cb-tab").forEach(function (t) {
+      t.onclick = function () {
+        box.querySelectorAll(".cb-tab").forEach(function (x) { x.classList.remove("on"); });
+        t.classList.add("on");
+        ve(t.dataset.t);
+      };
+    });
+    ve("gaps");
+  }
+
+  function gio(ts) {
+    if (!ts) return "";
+    try { return new Date(ts * 1000).toLocaleString("vi-VN"); } catch (e) { return ""; }
+  }
+
+  function veLoHong(gaps, tt) {
+    if (!gaps.length) {
+      return '<div class="cb-empty">' + (tt.luot
+        ? '<b>Chưa có câu nào bot bí.</b><div>' + tt.luot + ' lượt đã trả lời được hết.</div>'
+        : '<b>Chưa có lượt nào.</b><div>Nhắn thử cho bot vài câu rồi quay lại đây.</div>') + '</div>';
+    }
+    return '<div class="cb-sum">' + tt.luot + ' lượt, ' + tt.bi + ' lượt bí (' + tt.ty_le_bi +
+      '%). Mỗi dòng dưới đây là một chỗ tài liệu trong brain đang thiếu.</div>' +
+      '<table class="cb-tbl"><thead><tr><th>Khách hỏi</th><th>Số lần</th><th>Gần nhất</th></tr></thead><tbody>' +
+      gaps.map(function (g) {
+        return '<tr><td>' + esc(g.hoi) + '</td><td class="cb-num">' + g.lan + '</td><td>' +
+               esc(gio(g.lan_cuoi)) + '</td></tr>';
+      }).join("") + '</tbody></table>';
+  }
+
+  function veLuot(turns) {
+    if (!turns.length) return '<div class="cb-empty">Chưa có lượt nào.</div>';
+    return turns.map(function (t) {
+      // Nguồn hiện ra để chủ kiểm được bot lấy câu trả lời TỪ ĐÂU. Không có dòng này thì
+      // "bot trả lời đúng chưa" là câu hỏi không kiểm chứng được, chỉ đoán.
+      var ng = (t.nguon || []).length
+        ? '<div class="cb-src">' + ic("file-text") + " " + esc(t.nguon.join(", ")) + '</div>'
+        : '<div class="cb-src cb-warn">không tìm thấy tài liệu nào khớp</div>';
+      return '<div class="cb-turn' + (t.bi ? " bi" : "") + '">' +
+        '<div class="cb-turn-h">' + esc(t.user_name || t.chat_id) + ' · ' + esc(gio(t.ts)) +
+        (t.chuyen_nguoi ? ' · <b>đã báo nhân viên</b>' : "") + '</div>' +
+        '<div class="cb-q">' + esc(t.hoi) + '</div>' +
+        '<div class="cb-a">' + esc(t.dap) + '</div>' + ng + '</div>';
+    }).join("");
   }
 
   async function bat(b, on) {

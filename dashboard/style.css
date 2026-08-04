@@ -2036,3 +2036,26 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .cb-row > :first-child { flex: 1 1 auto; min-width: 0; }
 .cb-hint { font-size: 12.5px; color: var(--text3); line-height: 1.55; margin-top: 5px; }
 .cb-form-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* ---- Nhật ký bot: hai tab "Bot bí" / "Hội thoại gần đây" ---- */
+.cb-log-form { width: min(760px, 96vw); }
+.cb-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.cb-tab { background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+          padding: 8px 12px; font-size: 13.5px; color: var(--text3); font-weight: 600; }
+.cb-tab.on { color: var(--text); border-bottom-color: var(--info-line); }
+.cb-log-body { min-height: 120px; max-height: 58vh; overflow-y: auto; }
+.cb-sum { font-size: 12.5px; color: var(--text3); line-height: 1.55; margin-bottom: 10px; }
+.cb-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cb-tbl th { text-align: left; font-size: 12px; color: var(--text3); font-weight: 600;
+             padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.cb-tbl td { padding: 7px 8px; border-bottom: 1px solid var(--line); color: var(--text2);
+             vertical-align: top; }
+.cb-tbl .cb-num { text-align: right; width: 64px; color: var(--text); font-weight: 600; }
+.cb-turn { border-left: 2px solid var(--line); padding: 6px 0 10px 10px; margin-bottom: 10px; }
+.cb-turn.bi { border-left-color: var(--warn-ink); }
+.cb-turn-h { font-size: 11.5px; color: var(--text3); margin-bottom: 4px; }
+.cb-q { font-size: 13.5px; color: var(--text); font-weight: 600; line-height: 1.5; }
+.cb-a { font-size: 13px; color: var(--text2); line-height: 1.55; margin-top: 3px;
+        white-space: pre-wrap; }
+.cb-src { font-size: 11.5px; color: var(--text3); margin-top: 5px;
+          display: inline-flex; align-items: center; gap: 4px; }

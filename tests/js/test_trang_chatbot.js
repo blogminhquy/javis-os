@@ -104,6 +104,23 @@ check("tạo bot mới thì tạo được brain ngay tại chỗ", /\/brains\/n
 check("chỉ vào trang Agents khi chưa có Agent phù hợp", /trang <b>Agents<\/b>/.test(CB));
 
 // ============================================================
+// 6b. Nhật ký: mở ra là thấy VIỆC CẦN LÀM, không phải thấy log
+// ============================================================
+check("thẻ nào cũng mở được nhật ký", /cb-log/.test(CB) && /\/log\?limit=/.test(CB));
+check("nhật ký có hai tab", /data-t="gaps"/.test(CB) && /data-t="turns"/.test(CB));
+// Tab mặc định là "Bot bí" chứ không phải hội thoại: hội thoại chỉ để soi lại khi nghi ngờ,
+// còn mỗi dòng trong "Bot bí" là một chỗ tài liệu đang thiếu - thứ chủ làm được gì đó với nó.
+check("mở ra vào thẳng tab Bot bí", /ve\("gaps"\)/.test(CB));
+check("tab Bot bí là tab được đánh dấu sẵn", /data-t="gaps"[\s\S]{0,40}>Bot bí|cb-tab on" data-t="gaps"/.test(CB));
+check("lỗ hổng xếp theo số lần hỏi", /g\.lan/.test(CB));
+check("nói rõ mỗi dòng nghĩa là tài liệu đang thiếu", /tài liệu.{0,20}(đang )?thiếu/.test(CB));
+// Nguồn phải hiện: không có nó thì "bot trả lời đúng chưa" là câu hỏi không kiểm chứng được.
+check("từng lượt hiện NGUỒN bot đã dùng", /t\.nguon/.test(CB));
+check("lượt không tìm ra tài liệu bị đánh dấu", /không tìm thấy tài liệu/.test(CB));
+check("chưa có lượt nào thì dạy bước tiếp theo", /Nhắn thử cho bot/.test(CB));
+check("CSS của nhật ký đã có", /\.cb-tab/.test(CSS) && /\.cb-turn/.test(CSS));
+
+// ============================================================
 // 7. Luật chung của dashboard
 // ============================================================
 check("HTML người dùng nhập đều qua esc()", !/innerHTML\s*=\s*[^;]*\+\s*(b|e)\.(name|message)\b(?![^;]*esc)/.test(CB));

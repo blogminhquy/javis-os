@@ -4,7 +4,8 @@ Chủ repo nêu ngày 2026-08-04, thay cho ý "Cho Agent gắn chatbot AI" còn 
 `2026-08-backlog-spec.md` mục 2. Ý đã rõ hẳn, và nó không trùng cách hiểu nào trong ba cách
 em đoán lúc đó.
 
-Trạng thái: **đã chốt kiến trúc, chưa viết mã**.
+Trạng thái: **đã làm xong cả bốn giai đoạn**. Giai đoạn 1 ra ở 0.19.0; giai đoạn 2, 3, 4 ra ở
+0.20.0 (kèm một lỗ của 0.19.0 phải vá, ghi ở mục 7). Hướng dẫn người dùng: `docs/25-chatbot.md`.
 
 ## 0. Đã chốt (2026-08-04)
 
@@ -280,26 +281,51 @@ brain riêng của nó nên **không lẫn vào Lịch sử của chủ**.
 Xếp lại sau khi chốt trang Chatbot là cửa vào. Nguyên tắc giữ nguyên: mỗi giai đoạn xong là
 **có thứ dùng được thật**, không phải xong hết mới thấy gì.
 
-**Giai đoạn 1 - Tạo và chạy được một bot, chỉ nhắn riêng.**
+**Giai đoạn 1 - Tạo và chạy được một bot, chỉ nhắn riêng.** XONG, 0.19.0.
 Kho bot + bộ giám sát nhiều poller (gỡ `_TG_BOT` khỏi thế biến toàn cục một cái) + trang
 Chatbot đủ dùng: danh sách, trình tạo năm bước, bật/tắt không cần khởi động lại. Lượt của bot
 đi qua `_tg_answer` với mức khoá cứng chỉ-đọc, không MCP, không lệnh quản trị.
 *Xong là*: tạo bot trên dashboard, nhắn riêng cho nó, nó trả lời đúng vai trò Agent và không
 đụng được gì ngoài brain của chính nó.
 
-**Giai đoạn 2 - Trả lời có căn cứ.**
+**Giai đoạn 2 - Trả lời có căn cứ.** XONG, 0.20.0 (`server/chatbot_grounding.py`).
 Giới hạn phạm vi đọc trong brain của bot. Bắt dựa trên tài liệu, không tìm thấy thì nói không
 biết thay vì suy đoán.
 *Xong là*: bot trả lời theo tài liệu của anh thay vì theo trí nhớ chung của model.
 
-**Giai đoạn 3 - Vào nhóm.**
+Ba điều học được khi làm thật, đáng ghi lại vì không đoán ra từ trên giấy:
+
+- **Chỉ giới hạn phạm vi đọc là chưa đủ.** Bot đã có tool đọc trỏ đúng brain của nó từ giai
+  đoạn 1, nhưng có tool đọc không bằng có đọc: model trả lời thẳng bằng trí nhớ chung thì câu
+  vẫn trôi chảy y hệt và chủ không phân biệt được từ bên ngoài. Nên tài liệu phải được tra
+  TRƯỚC và nhét sẵn vào prompt, không giao việc đó cho model tự quyết.
+- **Ngưỡng "coi như tìm thấy" phải đo bằng ĐỘ PHỦ câu hỏi, không phải điểm tuyệt đối.** "Cửa
+  hàng có tuyển lập trình viên Rust không" trúng đúng chữ "hàng" trong mục Giao hàng, mà "hàng"
+  hiếm nên IDF cao, nên điểm vượt ngưỡng. Thêm luật câu từ ba chữ có nghĩa trở lên phải trúng
+  ít nhất hai chữ.
+- **Từ dừng phải soạn riêng cho tiếng Việt BỎ DẤU.** "bán" và "bạn" cùng ra "ban"; loại "ban"
+  theo thói quen là mất luôn chữ có nghĩa nhất của một bot bán hàng.
+
+**Giai đoạn 3 - Vào nhóm.** XONG, 0.20.0.
 Dùng `chat_type` sẵn có. Chỉ trả lời khi được gọi tên hoặc reply. Lệnh `/id` lấy id nhóm.
 Chuyển người thật. Giới hạn tần suất mỗi người.
 *Xong là*: thả vào nhóm khách hàng dùng thật được.
 
-**Giai đoạn 4 - Đo lường.**
+**Lỗ của 0.19.0 phát hiện khi rà lại giai đoạn này, ghi lại để đừng lặp:** luật mở miệng đọc
+hai cờ `mentioned`/`reply_to_bot`, mà `TelegramBot._build_meta` không hề gắn chúng. Điều kiện
+luôn sai nên bot IM trong MỌI nhóm. Bản 0.19.0 còn có test khẳng định đúng hành vi đó, và test
+vẫn xanh - vì nó kiểm HỢP ĐỒNG của hàm `_nen_tra_loi` (cho cờ vào thì ra gì) chứ không kiểm ai
+là người gắn cờ. Bài học: một luật đọc dữ liệu do NƠI KHÁC gắn thì phải có ít nhất một test đi
+từ đầu vào thô (ở đây là JSON update của Telegram) tới quyết định cuối, chứ test từng mảnh xanh
+hết vẫn hở đúng chỗ nối.
+
+**Giai đoạn 4 - Đo lường.** XONG, 0.20.0 (`server/chatbot_log.py`).
 Nhật ký hội thoại khách trên thẻ bot, và thống kê **câu hỏi bot trả lời không nổi**. Cái sau
 là thứ có giá trị kinh doanh thật: nó chỉ đúng chỗ tài liệu của anh đang thiếu.
+
+Làm rồi mới thấy: "bí" có hai loại, và loại thứ hai mới đáng chú ý. Không tìm ra tài liệu nào
+là loại dễ thấy. Tìm ra tài liệu rồi mà vẫn phải nói chưa có thông tin mới là loại tinh vi -
+tài liệu CÓ nhưng THIẾU Ý khách cần, và đó thường là chỗ đáng sửa nhất.
 
 ## 8. Những gì em khuyên KHÔNG làm
 

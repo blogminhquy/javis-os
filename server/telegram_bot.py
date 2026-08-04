@@ -124,10 +124,15 @@ def md_to_mdv2(text: str) -> str:
 
 class TelegramBot:
     def __init__(self, token, chat_id, answer_fn, command_fn=None, callback_fn=None,
-                 download_dir=None):
+                 download_dir=None, commands=None):
         self.token = token
         # chat_id nhận chuỗi "id1,id2" hoặc list → whitelist NHIỀU người dùng chung 1 bot.
         self.chat_ids = parse_chat_ids(chat_id)
+        # Menu lệnh đẩy lên Telegram. Mặc định là menu của CHỦ; bot chuyên trách truyền menu
+        # riêng vào đây. Trước đây ghim cứng BOT_COMMANDS nên bot chăm sóc khách hiện cho
+        # khách thấy "/brain - Xem hoặc đổi brain (vault) của phiên này" - khai ra cả một tập
+        # lệnh quản trị mà chính nó từ chối chạy.
+        self.commands = BOT_COMMANDS if commands is None else list(commands)
         self.answer_fn = answer_fn          # async (text, meta, progress) -> str | {"text":..., "files":[...]}; progress(txt) = báo trạng thái trung gian
         self.command_fn = command_fn        # async (cmd, arg, chat) -> dict|None
         self.callback_fn = callback_fn      # async (data, chat) -> dict|None (bấm nút inline; chat = ai bấm)
@@ -140,6 +145,10 @@ class TelegramBot:
         self.offset = 0
         self.status = "off"      # off | starting | polling | conflict | error | stopped
         self.last_error = ""
+        # Danh tính của CHÍNH con bot này, lấy bằng getMe lúc khởi động. Cần để biết một tin
+        # trong nhóm có nhắc tên nó hay reply vào nó không - xem _build_meta.
+        self.bot_id = 0
+        self.bot_username = ""
 
     def _url(self, method):
         return TG_API.format(token=self.token, method=method)
@@ -256,8 +265,7 @@ class TelegramBot:
             pass
 
     # ---- Meta kênh: engine cần biết tin đến từ đâu (DM/nhóm, ai gửi) ----
-    @staticmethod
-    def _build_meta(msg):
+    def _build_meta(self, msg):
         chat_obj = msg.get("chat") or {}
         frm = msg.get("from") or {}
         name = " ".join(x for x in (frm.get("first_name", ""), frm.get("last_name", "")) if x).strip()
@@ -269,7 +277,47 @@ class TelegramBot:
             "user_name": name,
             "username": frm.get("username", ""),
             "message_id": msg.get("message_id"),
+            "bot_username": self.bot_username,
+            "mentioned": self._co_nhac_ten(msg),
+            "reply_to_bot": self._la_reply_bot(msg),
         }
+
+    def _co_nhac_ten(self, msg):
+        """Tin này có nhắc tên CHÍNH con bot này không.
+
+        Cần cho bot chuyên trách trong nhóm: mặc định nó chỉ mở miệng khi được gọi tên. Trước
+        0.19.1 hai cờ này không ai gắn, nên luật "chỉ trả lời khi được gọi tên" đọc phải None
+        và bot IM trong mọi nhóm - hỏng đúng kiểu im lặng, không log, không báo.
+
+        Hai đường nhắc của Telegram, phải nhận cả hai:
+          - `mention`: khách gõ "@ten_bot", entity chỉ cho offset/length nên phải cắt chuỗi ra so.
+          - `text_mention`: khách bấm chọn từ danh sách thành viên, không có "@" trong chữ,
+            danh tính nằm ở `entity.user.id`.
+        """
+        if not (self.bot_username or self.bot_id):
+            return False
+        u = "@" + str(self.bot_username or "").lower()
+        for khoa_text, khoa_ent in (("text", "entities"), ("caption", "caption_entities")):
+            s = msg.get(khoa_text) or ""
+            for e in (msg.get(khoa_ent) or []):
+                loai = e.get("type")
+                if loai == "mention" and self.bot_username:
+                    off, ln = e.get("offset") or 0, e.get("length") or 0
+                    if s[off:off + ln].lower() == u:
+                        return True
+                elif loai == "text_mention" and self.bot_id:
+                    if (e.get("user") or {}).get("id") == self.bot_id:
+                        return True
+        return False
+
+    def _la_reply_bot(self, msg):
+        """Tin này có phải reply vào một tin của CHÍNH con bot này không.
+
+        So theo id chứ không theo cờ `is_bot`: trong nhóm có thể có nhiều bot, reply vào bot
+        khác mà tính là gọi mình thì bot chen ngang vào việc của người ta.
+        """
+        rep = msg.get("reply_to_message") or {}
+        return bool(self.bot_id) and (rep.get("from") or {}).get("id") == self.bot_id
 
     # ---- User gửi file/ảnh lên bot → tải về, trả dòng mô tả (đường dẫn) cho engine ----
     async def _ingest_attachment(self, client, msg):
@@ -380,7 +428,16 @@ class TelegramBot:
             except Exception as e:
                 print(f"[telegram deleteWebhook] {e}", file=sys.stderr)
             try:
-                await client.post(self._url("setMyCommands"), json={"commands": BOT_COMMANDS})
+                # Danh tính của chính mình. Hỏi ở ĐÂY chứ không nhận từ cấu hình: cấu hình có
+                # thể chép sai hoặc cũ, còn getMe luôn nói đúng con bot mà token này mở ra.
+                r = await client.get(self._url("getMe"))
+                me = (r.json() or {}).get("result") or {}
+                self.bot_id = me.get("id") or 0
+                self.bot_username = me.get("username") or ""
+            except Exception as e:
+                print(f"[telegram getMe] {e}", file=sys.stderr)
+            try:
+                await client.post(self._url("setMyCommands"), json={"commands": self.commands})
             except Exception as e:
                 print(f"[telegram setMyCommands] {e}", file=sys.stderr)
             print(f"[telegram] bot started (chat_id={','.join(self.chat_ids) or 'mọi người'})", file=sys.stderr)
