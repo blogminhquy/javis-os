@@ -17,12 +17,13 @@ Javis xử lý việc này theo 6 lớp:
 
 ## Mở ở đâu trong Javis
 
-Mọi thao tác tài khoản nằm ở mục **Tài khoản** trong nhóm **Hệ thống** trên thanh nav bên trái (phụ đề "Đăng nhập & workspace"). Từ trang **Cài đặt** cũng có lối tắt tới đây; không có form tài khoản trùng lặp ở nơi khác.
+Mọi thao tác tài khoản nằm ở mục **Tài khoản** trong nhóm **Hệ thống** trên thanh nav bên trái (phụ đề "Đăng nhập, workspace, token API"). Từ trang **Cài đặt** cũng có lối tắt tới đây; không có form tài khoản trùng lặp ở nơi khác.
 
-Trang **Tài khoản** có 2 khối:
+Trang **Tài khoản** có 3 khối:
 
 - **Workspace**: đổi tên workspace hiển thị.
 - **Tài khoản đăng nhập**: đặt mật khẩu, đăng xuất, tắt đăng nhập.
+- **Token API (cho CLI)**: tạo và thu hồi token để [Javis CLI](24-cli-terminal.md) hay script gọi được Javis. Nằm cùng trang vì token cũng là một cách đăng nhập, chỉ khác là dành cho máy chứ không cho trình duyệt.
 
 ## Khi nào Javis bắt buộc đăng nhập
 
@@ -151,7 +152,7 @@ Khi nào bạn cần đụng tới: chạy Javis sau một reverse proxy với t
 
 ## Token API - cửa cho CLI và script
 
-Cookie đăng nhập chỉ hợp với trình duyệt. Khi bạn muốn [Javis CLI](24-cli-terminal.md) hay một script gọi được Javis, cần một credential khác: **token API**, tạo ở **Cài đặt > Token API (cho CLI)**.
+Cookie đăng nhập chỉ hợp với trình duyệt. Khi bạn muốn [Javis CLI](24-cli-terminal.md) hay một script gọi được Javis, cần một credential khác: **token API**, tạo ở **Tài khoản > Token API (cho CLI)** (nhóm Hệ thống, cùng trang với mật khẩu đăng nhập).
 
 Điểm quan trọng nhất: **không có token nào sẵn**. Chưa tự tay bấm tạo thì không token nào tồn tại, và không cửa nào vào ngoài trình duyệt. Mở thêm một cổng ra Internet phải là một hành động có ý thức.
 

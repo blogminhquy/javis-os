@@ -103,7 +103,7 @@ def login(args) -> int:
         url = "https://" + url
     token = args.token or ""
     if not token:
-        r.tieu_de("Tạo token ở dashboard: Cài đặt > Token API, rồi dán vào đây.")
+        r.tieu_de("Tạo token ở dashboard: Tài khoản > Token API, rồi dán vào đây.")
         try:
             token = input("Token: ").strip()
         except (EOFError, KeyboardInterrupt):

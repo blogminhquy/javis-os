@@ -85,6 +85,33 @@ check("khối token mới có kiểu riêng để không lướt qua mất", /\.
 check("bản thô cho bôi đen cả cụm", /user-select: all/.test(CSS));
 check("danh sách token có kiểu", /\.tk-row \{/.test(CSS));
 
+// ============================================================
+// 6. Tài liệu và CLI phải chỉ ĐÚNG trang
+// ============================================================
+// Lỗi thật, bắt được ngay ngày phát hành: cả tài liệu lẫn lời nhắc trong `javis login` đều ghi
+// "Cài đặt > Token API", trong khi mục đó do renderAccount() vẽ, tức là trang **Tài khoản**.
+// Người dùng vào Cài đặt, không thấy gì, và kết luận tính năng chưa có. Không một dòng lỗi nào
+// xuất hiện - đây đúng loại sai mà chỉ test mới bắt được, còn người thì đọc mãi vẫn trượt.
+check("mục Token API do renderAccount vẽ (tức là trang Tài khoản)",
+  CON.indexOf("async function renderAccount(") < CON.indexOf("<h3>Token API (cho CLI)</h3>")
+  && CON.indexOf("<h3>Token API (cho CLI)</h3>") < CON.indexOf("async function renderTokens("));
+
+const NOI = [
+  ["cli/javis_cli/client.py", "thông báo 401 của CLI"],
+  ["cli/javis_cli/commands.py", "lời nhắc lúc javis login"],
+  ["docs/24-cli-terminal.md", "tài liệu CLI"],
+  ["docs/14-bao-mat-tai-khoan.md", "tài liệu bảo mật"],
+  ["docs/17-khac-phuc-su-co.md", "tài liệu sự cố"],
+];
+for (const [f, ten] of NOI) {
+  const t = fs.readFileSync(path.join(ROOT, f), "utf8");
+  check(`CANARY: ${ten} không chỉ nhầm sang trang Cài đặt`,
+    !/Cài đặt\s*(>|&gt;)\s*Token API/.test(t));
+}
+// Và phải chỉ ĐÚNG chỗ, chứ không phải chỉ "không sai".
+const DOC = fs.readFileSync(path.join(ROOT, "docs", "24-cli-terminal.md"), "utf8");
+check("tài liệu CLI chỉ đúng trang Tài khoản", /Tài khoản\s*(>|&gt;)?\s*.{0,40}Token API|\*\*Tài khoản\*\*/.test(DOC));
+
 console.log("");
 if (fails.length) { console.log("THẤT BẠI " + fails.length + ": " + fails.join(", ")); process.exit(1); }
 console.log("OK - test_token_api_ui: tất cả pass");

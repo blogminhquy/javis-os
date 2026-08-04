@@ -29,8 +29,8 @@ Rất nhiều lỗi biến mất sau một trong hai việc này, nên thử tr�
 | Ảnh trong hội thoại cũ hiện ô xám **Ảnh đã hết hạn** | Đúng thiết kế: `attachments/` và `inbox/` là vùng cache, file quá 30 ngày (hoặc khi vượt trần 300MB) bị dọn. Xem mục "Ảnh và file cũ biến mất" bên dưới để biết cách giữ lại hoặc tắt hẳn. |
 | Voice / micro không bật được | Trình duyệt chỉ cấp quyền micro trên **HTTPS** (hoặc localhost). Mở qua `http://<ip>:7777` sẽ luôn bị chặn. Dùng URL `https://` (Hostinger `*.hstgr.cloud`, Cloudflare Tunnel, hoặc tên miền riêng có SSL). Xem [Thương hiệu & tên miền riêng](15-thuong-hieu-ten-mien.md). |
 | Cập nhật trong app xong mà **phiên bản không đổi** | Đợi thêm; nếu vẫn báo bản cũ, kiểm tra log cập nhật: `update.log` trong thư mục state (`server/update.log` khi chạy local, `/data/state/update.log` trên Docker), hoặc `docker compose logs`. |
-| **`javis` báo 401** hoặc "token không hợp lệ" | Token sai hoặc đã bị thu hồi. Tạo cái mới ở **Cài đặt > Token API** rồi `javis login <địa-chỉ>` lại. Xem [Javis CLI](24-cli-terminal.md). |
-| **`javis task add` / `javis brain ls` báo 403** | Token của bạn là loại **chỉ chat**. Những lệnh này cần token **toàn quyền** - tạo thêm một cái ở Cài đặt > Token API. |
+| **`javis` báo 401** hoặc "token không hợp lệ" | Token sai hoặc đã bị thu hồi. Tạo cái mới ở **Tài khoản > Token API** rồi `javis login <địa-chỉ>` lại. Xem [Javis CLI](24-cli-terminal.md). |
+| **`javis task add` / `javis brain ls` báo 403** | Token của bạn là loại **chỉ chat**. Những lệnh này cần token **toàn quyền** - tạo thêm một cái ở Tài khoản > Token API. |
 | **`javis up` báo không thấy bản cài Javis** | Đúng như nó nói: gói CLI KHÔNG chứa server bên trong. Đặt `JAVIS_HOME` trỏ tới thư mục Javis, chạy lệnh từ trong thư mục đó, hoặc `javis login <địa-chỉ>` để nối tới một Javis đang chạy nơi khác. |
 
 Các mục dưới đây giải thích chi tiết hơn từng dòng trong bảng.

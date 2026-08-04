@@ -16,7 +16,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Javis biết mình đang nói qua terminal nên trả lời khác.** Kênh `cli` có khối ngữ cảnh và hợp đồng đầu ra riêng: không bảng markdown, không nhúng ảnh, không link markdown, đường dẫn file in TUYỆT ĐỐI để copy chạy được luôn.
 - **Luật Unix, để ghép được vào script.** Câu trả lời ra stdout, mọi thứ khác (tiến độ, tên tool, lỗi) ra stderr. Nên `javis "tóm tắt tuần này" > bao-cao.md` cho ra file sạch. Lỗi thì thoát khác 0 và không in gì ra stdout, nên `&&` trong script hành xử đúng. Có test canh đúng MỘT chỗ trong cả gói được ghi stdout.
 - **Nối được nhiều Javis cùng lúc**: một hồ sơ cho máy nhà, một cho VPS, đổi bằng `--profile`. Cấu hình ở `~/.javis/config.json` quyền `600`, và bốn biến môi trường (`JAVIS_URL`, `JAVIS_TOKEN`, `JAVIS_BRAIN`, `JAVIS_PROFILE`) đè lên file cho CI/Docker.
-- **Trang Cài đặt có mục Token API.** Tạo token, chọn phạm vi, xem lần dùng cuối của từng cái, thu hồi. Chuỗi thô hiện đúng MỘT lần kèm sẵn câu lệnh `javis login` để dán sang máy kia.
+- **Trang Tài khoản có mục Token API.** Tạo token, chọn phạm vi, xem lần dùng cuối của từng cái, thu hồi. Chuỗi thô hiện đúng MỘT lần kèm sẵn câu lệnh `javis login` để dán sang máy kia.
 ### Bảo mật
 - **Không có token nào sẵn.** Chưa ai bấm tạo thì không token nào tồn tại, và không cửa nào vào ngoài trình duyệt. Đây là điểm quan trọng nhất của cả tính năng: mở cổng mới ra Internet phải là một hành động CÓ Ý THỨC, không phải mặc định.
 - **Hai mức phạm vi.** `chat` đi theo danh sách TRẮNG (`/chat`, `/version`, `/health`, `/sessions`); `full` ngang session trình duyệt. Chọn chiều trắng chứ không chiều đen, vì danh sách đen nghĩa là mỗi endpoint mới thêm vào server tự động phơi ra cho token hẹp.

@@ -32,7 +32,7 @@ class Client:
         if r.status_code == 401:
             raise LoiJavis(
                 "Máy chủ từ chối: token thiếu hoặc đã bị thu hồi.\n"
-                "Tạo token mới ở dashboard (Cài đặt > Token API) rồi chạy lại `javis login`.")
+                "Tạo token mới ở dashboard (Tài khoản > Token API) rồi chạy lại `javis login`.")
         if r.status_code == 403:
             raise LoiJavis("Máy chủ từ chối: token này không có quyền cho lệnh đó.")
         if r.status_code == 429:

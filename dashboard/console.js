@@ -140,7 +140,7 @@
     mcp:         { icon: VIEW_ICON.mcp, label: "Kết nối", sub: "Nguồn dữ liệu & công cụ" },
     plugins:     { icon: VIEW_ICON.plugins, label: "Plugins", sub: "Tool/hook native cho mọi engine" },
     logs:        { icon: VIEW_ICON.logs, label: "Nhật ký cập nhật", sub: "Phiên bản & tính năng mới" },
-    account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập & workspace" },
+    account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập, workspace, token API" },
     usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Token & chi phí theo ngày, theo nhà cung cấp" },
     runtime:     { icon: VIEW_ICON.runtime, label: "Tiết kiệm", sub: "Xem Javis đang tốn bao nhiêu token mỗi lượt, và chọn mức tiết kiệm" },
   };
@@ -4441,7 +4441,7 @@
           <div class="settings-links">
             <button data-settings-go="models"><span>◈</span><b>Models</b><small>Model và nhà cung cấp</small></button>
             <button data-settings-go="channels"><span>${ic("send")}</span><b>Kênh</b><small>Telegram và kết nối chat</small></button>
-            <button data-settings-go="account"><span>${ic("circle-user")}</span><b>Tài khoản</b><small>Đăng nhập và workspace</small></button>
+            <button data-settings-go="account"><span>${ic("circle-user")}</span><b>Tài khoản</b><small>Đăng nhập, workspace, token API cho CLI</small></button>
             <button data-settings-go="logs"><span>${ic("scroll-text")}</span><b>Cập nhật</b><small>Phiên bản và nhật ký mới</small></button>
           </div>
         </div>
