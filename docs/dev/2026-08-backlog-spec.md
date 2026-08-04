@@ -72,10 +72,15 @@ người dùng không đấu.
 
 ## 2. Cho Agent gắn chatbot AI
 
-**Trạng thái: CHƯA LÀM, chờ brainstorm.** Chủ repo chốt ngày 2026-08-04: để lại, bàn kỹ rồi
-mới làm.
+**Trạng thái: ĐÃ RÕ Ý, tách thành tài liệu riêng.** Chủ repo nêu rõ cuối ngày 2026-08-04:
+tận dụng các Agent sẵn có để tạo ra nhiều chatbot, mỗi con chuyên một lĩnh vực, trả lời khách
+qua Telegram và thả được vào nhóm chăm sóc khách hàng.
 
-Ghi lại ba cách hiểu để lần bàn sau khỏi bắt đầu từ số không:
+Đó là cách hiểu thứ 3 dưới đây, nhưng cụ thể hơn hẳn, nên bàn tiếp ở
+**[Bot chuyên trách](2026-08-bot-chuyen-trach-spec.md)**.
+
+Giữ lại ba cách đoán ban đầu để thấy đoán lệch tới đâu - hai cách đầu là em tự nghĩ ra, không
+phải thứ chủ repo cần:
 
 1. **Khung chat riêng cho từng Agent.** Bấm vào một agent trong Studio thì mở một hội thoại
    hỏi thẳng nó, agent chạy với vai trò + skill + model của chính nó. Dùng lại được gần như

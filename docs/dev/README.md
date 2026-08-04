@@ -27,6 +27,7 @@ Hai tài liệu này ghi **vì sao** kiến trúc thành ra như hiện tại. �
 - [Gộp menu cài đặt](2026-07-gop-menu-cai-dat.md) - rail hiện có 18 mục, 7 trong đó là cài đặt. Kèm một khối UI chết cần xoá.
 - [Adaptive Context Runtime](2026-08-adaptive-context-runtime-spec.md) - Phase 0-4 đang chạy shadow: trace, Registry, Resolver và Context Compiler thích ứng để capability tăng mà prompt ban đầu không tăng tuyến tính.
 - [Javis CLI](2026-08-cli-spec.md) - đưa Javis ra terminal như một KÊNH thứ ba (sau dashboard và Telegram), bằng client mỏng chứ không nhân bản runtime. Kèm bốn chỗ đang thiếu và kế hoạch bốn giai đoạn.
+- [Bot chuyên trách](2026-08-bot-chuyen-trach-spec.md) - biến Agent sẵn có thành chatbot chuyên một lĩnh vực, trả lời khách qua Telegram và trong nhóm chăm sóc khách hàng. Điểm cốt lõi: bot khách hàng KHÔNG phải bot của chủ đổi prompt, vì mọi giả định an toàn đảo ngược khi người nhắn là khách lạ. Kèm sáu rào bắt buộc và lộ trình bốn giai đoạn. **Đang bàn, chưa làm.**
 - [Spec 10 ý tưởng trong sổ tay](2026-08-backlog-spec.md) - chốt cách làm cho sổ "Ý tưởng phát triển Javis" ngày 2026-08-04: ghim/Project/icon cho hội thoại, link .md bấm được, khung sửa dính, chọn skill có tìm kiếm, phân trang nhật ký, connector NotebookLM, gửi ảnh Zalo. Chín ý đã làm ở 0.18.0; ý "chatbot cho Agent" còn để mở kèm ba cách hiểu.
 
 ## Đã cân nhắc rồi quyết định KHÔNG làm
