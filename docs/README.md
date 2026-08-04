@@ -32,6 +32,7 @@ Thanh điều hướng của dashboard gom **17 trang** thành **6 nhóm**: Tr�
 - [10 - Models & engine](10-models-va-engine.md) - đổi bộ não giữa Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic mà không mất chức năng; mức suy nghĩ, model việc nền.
 - [11 - Kênh Telegram](11-telegram.md) - hỏi Javis qua điện thoại, gửi và nhận file.
 - [12 - Zalo Agent MCP](12-zalo.md) - đăng nhập QR, đọc/tìm lịch sử và gửi tin qua MCP chuẩn.
+- [24 - Javis CLI (terminal)](24-cli-terminal.md) - gõ `javis "..."` từ terminal, token API, ghép vào script.
 
 ### Bộ não & dữ liệu
 - [13 - Second Brain: bộ nhớ, Wiki, INGEST](13-second-brain-bo-nho-wiki.md) - đa brain, bộ nhớ sống, tiêu hoá tri thức.

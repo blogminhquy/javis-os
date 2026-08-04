@@ -351,6 +351,9 @@ class ContextCompiler:
     def _channel_contract(channel: str) -> str:
         if channel == "telegram":
             return "Kênh Telegram: trả lời gọn, không dùng bảng Markdown; file phải đi qua gateway."
+        if channel == "cli":
+            return ("Kênh CLI (terminal): trả lời gọn; KHÔNG bảng Markdown, KHÔNG ảnh nhúng, "
+                    "KHÔNG link Markdown; file thì in đường dẫn tuyệt đối.")
         if channel == "dashboard":
             return "Kênh Dashboard: trả lời rõ ràng; file phải dùng đường dẫn do gateway cung cấp."
         return f"Kênh {str(channel or 'unknown')}: tuân theo delivery contract của gateway."
@@ -378,6 +381,7 @@ class ContextCompiler:
         chỉ có phần ĐƯA CHO MODEL là đổi sang lời. Máy đọc dữ liệu, model đọc chữ.
         """
         noi = ("Kênh Telegram" if channel == "telegram"
+               else "Kênh CLI (terminal)" if channel == "cli"
                else "Kênh Dashboard" if channel == "dashboard"
                else f"Kênh {str(channel or 'unknown')}")
         return (

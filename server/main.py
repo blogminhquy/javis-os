@@ -171,9 +171,38 @@ async def _auth_guard(request: Request, call_next):
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
                   or (path in _AUTH_LOCAL_EXACT and client_host in ("127.0.0.1", "::1")))
         if not public and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
-            return JSONResponse({"error": "unauthorized", "auth_required": True,
-                                 "setup_required": not cfgmod.auth_enabled()}, status_code=401)
+            # Client ngoài trình duyệt (CLI, script, cron) không có cookie. Nhánh token là
+            # đường DUY NHẤT của chúng - xem docs/dev/2026-08-cli-spec.md. Đặt SAU nhánh
+            # cookie để dashboard không phải đọc file token mỗi request.
+            if not _token_ok(request, path):
+                return JSONResponse({"error": "unauthorized", "auth_required": True,
+                                     "setup_required": not cfgmod.auth_enabled()},
+                                    status_code=401)
     return await call_next(request)
+
+
+def _bearer(request) -> str:
+    raw = str(request.headers.get("authorization") or "")
+    return raw[7:].strip() if raw[:7].lower() == "bearer " else ""
+
+
+def _token_ok(request, path: str) -> bool:
+    """Request này mang token API hợp lệ cho `path` không.
+
+    Chặn dò trước khi kiểm: IP đã sai quá nhiều thì từ chối thẳng, không cho nó dò tiếp và
+    cũng không tốn công băm. Không có header thì im lặng trả False - đó là ca thường của
+    trình duyệt chưa đăng nhập, không phải chuyện đáng ghi nhật ký.
+    """
+    raw = _bearer(request)
+    if not raw:
+        return False
+    ip = request.client.host if request.client else ""
+    if cfgmod.token_ip_banned(ip):
+        return False
+    if cfgmod.verify_api_token(raw, path):
+        return True
+    cfgmod.note_token_failure(ip, raw[:12])
+    return False
 
 DASHBOARD_PATH = Path(__file__).parent.parent / "dashboard"
 # Windows/mimetypes không biết .webp -> StaticFiles trả text/plain; khai rõ để logo webp đúng kiểu ảnh.
@@ -675,6 +704,34 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
         return JSONResponse({"ok": False, "error": "Sai tài khoản hoặc mật khẩu"}, status_code=401)
     _LOGIN_FAILS.pop(ip, None)
     return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
+
+
+@app.get("/auth/tokens")
+async def auth_tokens_list():
+    """Token API đang có. KHÔNG kèm bản băm và không có đường nào đọc lại token thô."""
+    return {"tokens": cfgmod.list_api_tokens()}
+
+
+@app.post("/auth/tokens")
+async def auth_tokens_create(request: Request, name: str = Form(""), scope: str = Form("full")):
+    """Tạo token mới. Trả bản THÔ đúng MỘT lần.
+
+    Bắt buộc phải đang đăng nhập bằng SESSION mới tạo được: không cho dùng token đẻ token.
+    Thiếu rào này thì một token rò ra là kẻ cầm nó tự cấp thêm token vĩnh viễn cho mình, và
+    thu hồi cái đã rò cũng vô nghĩa.
+    """
+    if cfgmod.gate_active() and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
+        return JSONResponse({"ok": False, "error": "Tạo token phải đăng nhập bằng trình duyệt "
+                                                  "(không dùng token để tạo token)."},
+                            status_code=403)
+    return {"ok": True, **cfgmod.create_api_token(name, scope)}
+
+
+@app.post("/auth/tokens/revoke")
+async def auth_tokens_revoke(request: Request, id: str = Form(...)):
+    """Thu hồi. Cho phép dùng chính token đang cầm để tự thu hồi mình: mất máy thì phải hạ
+    được credential ngay, kể cả khi không mở nổi trình duyệt."""
+    return {"ok": cfgmod.revoke_api_token(id)}
 
 
 @app.post("/auth/logout")
@@ -8708,8 +8765,14 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
     return sess["sid"]
 
 
-async def _tg_answer(text, meta=None, progress=None):
-    """Vỏ ngoài một lượt Telegram: khớp phiên trong kho -> chạy engine -> LƯU lượt.
+async def _tg_answer(text, meta=None, progress=None, channel="telegram"):
+    """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
+
+    `channel` mở hàm này cho kênh thứ ba là CLI (xem docs/dev/2026-08-cli-spec.md). Cố ý
+    THÊM THAM SỐ chứ không viết một vỏ riêng: vỏ này là chỗ duy nhất biết cách khớp phiên,
+    ghi bộ nhớ hội thoại, gắn trace runtime và chấm chất lượng. Viết bản thứ hai là lượt CLI
+    sẽ vắng mặt ở /sessions và ở vòng tự học - đúng lỗ hổng mà nhánh Telegram từng dính
+    trước 0.9.244, chỉ khác là lần này biết trước mà vẫn làm.
 
     Vì sao tách vỏ khỏi lõi: trước 0.9.244 nhánh Telegram không lưu gì cả, nên hội thoại
     Telegram vắng mặt ở `/sessions`, ở `brain/Memory/conversations`, và ở vòng tự học -
@@ -8750,7 +8813,7 @@ async def _tg_answer(text, meta=None, progress=None):
         print(f"[telegram session] {e}", file=__import__('sys').stderr)
 
     runtime_trace = _CONTEXT_RUNTIME.start_turn(
-        conv_sid or f"telegram:{chat_id}", brain, "telegram")
+        conv_sid or f"{channel}:{chat_id}", brain, channel)
     _CONTEXT_RUNTIME.set_route(runtime_trace, engine_label,
                                api_model or mcfg.get("claude_model") or "mặc định")
     _trace_token = context_runtime.bind_trace(runtime_trace)
@@ -8758,7 +8821,7 @@ async def _tg_answer(text, meta=None, progress=None):
         out = await _tg_answer_engine(
             text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
             prov=prov, kind=kind, api_key=api_key, api_model=api_model,
-            store=store, conv_sid=conv_sid)
+            store=store, conv_sid=conv_sid, channel=channel)
 
         if conv_sid and isinstance(out, dict):
             try:
@@ -8766,11 +8829,11 @@ async def _tg_answer(text, meta=None, progress=None):
             except Exception as e:
                 print(f"[telegram persist] {e}", file=__import__('sys').stderr)
         if isinstance(out, str):
-            _CONTEXT_RUNTIME.note_error(runtime_trace, "telegram_error_response")
+            _CONTEXT_RUNTIME.note_error(runtime_trace, f"{channel}_error_response")
         _record_quality_shadow(
             runtime_trace, text,
             (out.get("text") or "") if isinstance(out, dict) else str(out or ""),
-            "telegram",
+            channel,
         )
         _CONTEXT_RUNTIME.finish(
             runtime_trace,
@@ -8800,7 +8863,8 @@ def _tg_ket(clean_out, files, canh_bao="", loi=()):
 
 
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
-                            prov, kind, api_key, api_model, store=None, conv_sid=""):
+                            prov, kind, api_key, api_model, store=None, conv_sid="",
+                            channel="telegram"):
     """Lõi 4 nhánh engine của một lượt Telegram. Trả dict khi có câu trả lời thật,
     trả CHUỖI khi là thông báo lỗi (vỏ `_tg_answer` dựa vào đó để biết lượt nào đáng lưu)."""
     sess["last"] = text
@@ -8815,10 +8879,13 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                 await progress(s)
             except Exception:
                 pass
-    # Block kênh (port gateway hermes-agent): engine biết đang trả lời qua Telegram,
-    # ai đang nhắn, và cách gửi file trả về (auto-attach + endpoint send-file).
+    # Block kênh (port gateway hermes-agent): engine biết đang trả lời qua đâu, ai đang nhắn,
+    # và cách gửi file trả về (auto-attach + endpoint send-file).
+    # telegram_running phải theo kênh THẬT: bật cờ đó cho lượt CLI là dạy Javis một công thức
+    # gửi file qua Telegram trong khi người hỏi đang ngồi ở terminal.
     sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
-        "telegram", meta, telegram_running=True, port=_javis_port(), brain_root=_brain_root(brain))
+        channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
+        brain_root=_brain_root(brain))
     if kind in ("cli", "oauth"):
         _schedule_registry_discovery_shadow(
             runtime_trace, brain, text,
@@ -9465,6 +9532,118 @@ async def telegram_test():
                 "error": "; ".join(errs)[:300]}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+# ============================================================
+# KÊNH CLI - chat qua HTTP (xem docs/dev/2026-08-cli-spec.md)
+#
+# Trước bản này, muốn nói chuyện với Javis chỉ có hai đường: WebSocket /ws (dashboard, cần
+# cookie) và long-polling Telegram. Không có cách nào `curl` một câu hỏi vào, nên cũng không
+# có cách nào cắm Javis vào cron, đường ống Unix hay một CLI.
+#
+# Hai endpoint dưới đây KHÔNG có lõi riêng: chúng gọi thẳng `_tg_answer(..., channel="cli")`,
+# tức đúng cái vỏ mà Telegram chạy hằng ngày. Vỏ đó là chỗ duy nhất biết khớp phiên trong kho,
+# ghi bộ nhớ hội thoại, gắn trace runtime và chấm chất lượng. Viết bản thứ hai thì lượt CLI sẽ
+# vắng mặt ở /sessions và ở vòng tự học.
+# ============================================================
+
+def _cli_sess_key(session: str) -> str:
+    """Khoá phiên trong RAM cho một terminal. Tiền tố `cli:` để không đụng khoá của Telegram
+    (cùng một map `_TG_SESS`), và để nhìn log là biết lượt đó tới từ đâu."""
+    # Bỏ dấu chấm khỏi tập cho phép: id phiên không cần nó, mà cho phép thì chuỗi ".." đi
+    # thẳng vào khoá và vào nhật ký. Chặn ở đây rẻ hơn tin rằng mọi chỗ dùng khoá đều an toàn.
+    raw = "".join(ch for ch in str(session or "").strip() if ch.isalnum() or ch in "-_")[:64]
+    return "cli:" + (raw or "default")
+
+
+async def _cli_turn(message: str, brain: str, session: str, host: str, progress=None):
+    """Một lượt chat của kênh CLI. Trả (out, key) với out là dict (trả lời thật) hoặc str (lỗi)."""
+    key = _cli_sess_key(session)
+    sess = _tg_session(key)
+    if brain:
+        # Brain do client chọn, ghi vào phiên RAM y như lệnh /brain của Telegram. Không ghi thì
+        # mọi lượt CLI rơi vào brain mặc định, và người dùng nhiều brain sẽ hỏi nhầm kho.
+        try:
+            root = _brain_root(brain)
+            if os.path.isdir(root):
+                sess["brain"] = root
+        except Exception:  # noqa: BLE001 - brain sai tên thì dùng mặc định, không phá lượt
+            pass
+    meta = {"chat_id": key, "host": (host or "")[:64]}
+    out = await _tg_answer(message, meta=meta, progress=progress, channel="cli")
+    return out, key
+
+
+def _cli_payload(out, key: str) -> dict:
+    """Đóng gói câu trả lời cho client. Lỗi (chuỗi) vẫn trả 200 kèm ok=false: lượt chat lỗi là
+    chuyện thường của một agent, không phải lỗi giao thức HTTP."""
+    if isinstance(out, dict):
+        return {"ok": True, "text": out.get("text") or "", "session": key,
+                "files": list(out.get("files") or []),
+                "ctx_path": out.get("ctx_path") or "legacy"}
+    return {"ok": False, "text": str(out or ""), "session": key, "files": [], "ctx_path": ""}
+
+
+@app.post("/chat")
+async def chat_once(message: str = Form(...), brain: str = Form(""),
+                    session: str = Form(""), host: str = Form("")):
+    """Một lượt chat, đồng bộ. Trả câu trả lời cuối cùng.
+
+    KHÔNG đặt trần thời gian riêng: một lượt agentic có thể chạy vài phút và cắt ngang giữa
+    chừng là mất luôn công đã bỏ ra. Client tự chọn thời gian chờ; muốn thấy tiến độ thì dùng
+    /chat/stream.
+    """
+    if not str(message or "").strip():
+        return JSONResponse({"ok": False, "error": "message rỗng"}, status_code=400)
+    out, key = await _cli_turn(message, brain, session, host)
+    return _cli_payload(out, key)
+
+
+@app.post("/chat/stream")
+async def chat_stream(message: str = Form(...), brain: str = Form(""),
+                      session: str = Form(""), host: str = Form("")):
+    """Cùng một lượt, nhưng đẩy tiến độ về ngay khi có (SSE).
+
+    Gói đi theo ĐÚNG quy ước của WebSocket dashboard (`{"type": ...}`) để client không phải
+    học giao thức thứ hai. Hiện phát `status` (tiến độ, tên tool đang gọi) rồi `response`
+    (câu trả lời cuối). Nói rõ giới hạn thay vì hứa suông: đây KHÔNG phải stream từng chữ -
+    stream từng chữ nằm ở đường WebSocket, và kéo nó ra khỏi vòng đời WebSocket là một việc
+    lớn hơn hẳn, để dành cho bản sau.
+
+    Client PHẢI bỏ qua im lặng mọi `type` nó chưa biết: server thêm loại gói mới là chuyện
+    thường, và một CLI cũ không được vỡ vì điều đó.
+    """
+    if not str(message or "").strip():
+        return JSONResponse({"ok": False, "error": "message rỗng"}, status_code=400)
+
+    hang = asyncio.Queue()
+
+    async def _progress(s):
+        await hang.put({"type": "status", "content": str(s or "")})
+
+    async def _chay():
+        try:
+            out, key = await _cli_turn(message, brain, session, host, progress=_progress)
+            await hang.put({"type": "response", **_cli_payload(out, key)})
+        except Exception as exc:  # noqa: BLE001 - lỗi phải tới được client, không nuốt
+            await hang.put({"type": "error", "content": f"{type(exc).__name__}: {exc}"})
+        finally:
+            await hang.put(None)
+
+    async def _phat():
+        viec = asyncio.create_task(_chay())
+        try:
+            while True:
+                goi = await hang.get()
+                if goi is None:
+                    break
+                yield "data: " + json.dumps(goi, ensure_ascii=False) + "\n\n"
+        finally:
+            if not viec.done():
+                viec.cancel()
+
+    return StreamingResponse(_phat(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.post("/telegram/send-file")

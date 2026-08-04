@@ -6,13 +6,14 @@ Trang này giải thích cách Javis OS tự bảo vệ khi bạn đưa nó lên
 
 Javis chạy bộ não AI với **toàn quyền trên máy/VPS** của bạn: nó đọc được tệp, chạy lệnh, gọi công cụ. Vì thế nếu để dashboard hở ra Internet mà không có mật khẩu thì bất kỳ ai biết địa chỉ cũng điều khiển được máy của bạn.
 
-Javis xử lý việc này theo 5 lớp:
+Javis xử lý việc này theo 6 lớp:
 
 1. **Tự bắt buộc đăng nhập khi chạy public.** Khi server nghe ra ngoài (không phải chỉ máy này), Javis chặn mọi chức năng cho tới khi bạn đăng nhập. Chạy trên máy cá nhân (localhost) thì không ép, dùng thẳng như cũ.
 2. **Chống chiếm tài khoản lần đầu.** Người đầu tiên muốn tạo admin phải có **MÃ THIẾT LẬP** (in trong log server) hoặc admin đã được đặt sẵn qua biến môi trường. Kẻ chỉ biết URL không tạo được tài khoản.
 3. **Chống dò mật khẩu.** Sai nhiều lần bị khoá tạm theo địa chỉ IP; mỗi lần sai bị làm chậm.
 4. **Chặn trang web lạ sai khiến Javis (CSRF) và chặn tên miền lạ trỏ về máy bạn (DNS-rebinding).** Xem mục riêng bên dưới.
 5. **Mã hoá khoá bí mật lưu trong `settings.json`.** API key, token Telegram, token GitHub... không nằm dạng chữ thô trên đĩa.
+6. **Token API cho CLI và script, mặc định KHÔNG có cái nào.** Cookie đăng nhập chỉ hợp với trình duyệt; muốn gọi Javis từ terminal thì phải tự tay tạo token, chọn phạm vi, và thu hồi được bất cứ lúc nào. Xem mục riêng bên dưới.
 
 ## Mở ở đâu trong Javis
 
@@ -148,6 +149,26 @@ Allowlist gồm: `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, cộng tên miền 
 
 Khi nào bạn cần đụng tới: chạy Javis sau một reverse proxy với tên miền chưa khai trong app, mà lại **chưa** đặt mật khẩu. Lúc đó Javis coi tên miền đó là lạ và trả 403. Cách sửa: đặt mật khẩu (bật cổng đăng nhập là bước kiểm Host tự bỏ qua), hoặc thêm tên miền vào `JAVIS_ALLOWED_HOSTS`.
 
+## Token API - cửa cho CLI và script
+
+Cookie đăng nhập chỉ hợp với trình duyệt. Khi bạn muốn [Javis CLI](24-cli-terminal.md) hay một script gọi được Javis, cần một credential khác: **token API**, tạo ở **Cài đặt > Token API (cho CLI)**.
+
+Điểm quan trọng nhất: **không có token nào sẵn**. Chưa tự tay bấm tạo thì không token nào tồn tại, và không cửa nào vào ngoài trình duyệt. Mở thêm một cổng ra Internet phải là một hành động có ý thức.
+
+Cách Javis giữ token:
+
+| Luật | Vì sao |
+|---|---|
+| Hai mức phạm vi: **chỉ chat** và **toàn quyền** | Mức chỉ chat đi theo danh sách TRẮNG (`/chat`, `/version`, `/health`, `/sessions`). Chọn chiều trắng chứ không chiều đen, vì danh sách đen nghĩa là mỗi endpoint mới thêm vào Javis tự động phơi ra cho token hẹp. |
+| Trên đĩa chỉ có bản băm SHA-256 | Ai đọc được file cấu hình của máy chủ cũng không lấy được token. Chuỗi thô hiện đúng một lần lúc tạo. |
+| So bằng `compare_digest` | So chuỗi thường thoát sớm ở ký tự đầu khác nhau, và chênh lệch thời gian đó đủ để dò token theo từng ký tự. |
+| Token đi trong header `Authorization`, không bao giờ trong query string | Query string nằm trong log của mọi proxy trên đường đi. |
+| **Không dùng token để tạo token** | Tạo token đòi session trình duyệt. Thiếu rào này thì một token rò ra là kẻ cầm nó tự cấp thêm token vĩnh viễn, và thu hồi cái đã rò thành vô nghĩa. |
+| Nhưng token **tự thu hồi được chính mình** | Mất laptop mà không mở nổi trình duyệt thì vẫn phải hạ được credential ngay. |
+| Sai quá 10 lần trong 5 phút thì IP bị chặn 15 phút | Ghi vào `auth_audit.jsonl`, chỉ 12 ký tự đầu (file log hay bị gửi kèm báo lỗi). Một cuộc dò token trở thành thứ nhìn thấy được thay vì chạy im lặng hàng tháng. |
+
+Danh sách token hiện **lần dùng cuối** của từng cái. Thấy một token bạn không nhớ đang được dùng đều đặn thì thu hồi ngay - thu hồi có hiệu lực lập tức, không hoàn tác được.
+
 ## Khoá bí mật trong settings.json được mã hoá
 
 Các trường nhạy cảm trong `settings.json` không lưu dạng chữ thô. Javis mã hoá chúng bằng Fernet (AES-128-CBC + HMAC) trước khi ghi ra đĩa, và tự giải mã khi đọc lên. Giá trị đã mã hoá có tiền tố `enc:`.
@@ -249,4 +270,5 @@ Vì server vẫn đang public (hoặc `JAVIS_REQUIRE_LOGIN=1`). Ở chế độ 
 - [Thương hiệu & tên miền riêng](15-thuong-hieu-ten-mien.md) - trỏ tên miền và bật HTTPS tự động.
 - [Cấu hình .env](16-cau-hinh-env.md) - danh sách biến môi trường bảo mật (`JAVIS_HOST`, `JAVIS_REQUIRE_LOGIN`, `JAVIS_ADMIN_USER/PASSWORD`, `JAVIS_SECURE_COOKIE`, `JAVIS_ALLOWED_HOSTS`, `JAVIS_STATE_DIR`).
 - [Plugins](20-plugins.md) - vì sao plugin do bạn cài phải bật riêng bằng biến môi trường.
+- [Javis CLI (terminal)](24-cli-terminal.md) - dùng token API để gọi Javis từ máy khác.
 - [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md) - các lỗi thường gặp khác.

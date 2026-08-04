@@ -152,6 +152,23 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "- Bỏ trống owner_chat/chat_id (vd tạo trên bản web) → báo về chủ bot (ID Telegram đầu tiên).",
             "- Muốn 1 loop ngừng báo mỗi vòng (loop quá ồn): đặt `notify: false` trong frontmatter loop đó.",
         ]
+    elif source == "cli":
+        # Terminal. Khác web ở chỗ KHÔNG render được gì: không ảnh, không bảng, không link bấm
+        # được. Nói thẳng ra đây, nếu không Javis sẽ trả về markdown của web và người dùng nhận
+        # một đống ký tự gạch dọc.
+        who = (meta.get("host") or "").strip()
+        lines += [
+            "- Nguồn tin nhắn này: Javis CLI (user đang gõ trong terminal"
+            + (f", máy {who}" if who else "") + ").",
+            f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
+            "- Terminal KHÔNG render markdown: TUYỆT ĐỐI không dùng bảng, không nhúng ảnh "
+            "`![](...)`, không dùng link markdown. Có file hay ảnh thì in ĐƯỜNG DẪN TUYỆT ĐỐI "
+            "trên một dòng riêng để user copy hoặc mở bằng lệnh khác.",
+            "- Trả lời gọn, xuống dòng thường xuyên. Khối mã vẫn dùng ba dấu backtick "
+            "(CLI tô màu được).",
+            "- Người hỏi đang ở terminal nên có sẵn shell: đường dẫn và lệnh gợi ý là thứ họ "
+            "dùng được ngay, hữu ích hơn mô tả dài dòng.",
+        ]
     else:
         web_sid = str(meta.get("session_id") or "").strip()
         lines += [

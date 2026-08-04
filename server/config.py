@@ -726,6 +726,142 @@ def clear_sessions():
     _save_sessions()
 
 
+
+# ---- TOKEN API cho client ngoài trình duyệt (CLI, script, cron) ----
+# Vì sao không dùng lại session: session sinh ra cho trình duyệt - lưu {token: created_ts},
+# TTL 30 ngày, không có tên, không thu hồi riêng lẻ được. Một credential dán sang máy khác thì
+# cần đủ ba thứ: có TÊN để biết nó của máy nào, THU HỒI được từng cái, và KHÔNG BAO GIỜ nằm ở
+# dạng đọc lại được trên đĩa.
+#
+# Mức quyền: `full` ngang phiên đăng nhập dashboard, `chat` chỉ chạm được đường hội thoại.
+# Nói thẳng chứ không giả vờ có phân quyền tinh vi - `full` không phải quyền MỚI, nó đúng bằng
+# cái quyền chủ máy đã có khi mở dashboard; chỉ là một loại credential khác.
+_TOKENS_PATH = STATE_DIR / ".api_tokens.json"
+TOKEN_PREFIX = "jvs_"
+# Đường mà token scope `chat` được đi. Danh sách TRẮNG, khớp theo tiền tố: thiếu tên nào thì
+# token đó bị từ chối chứ không lọt - fail-closed, đúng nếp của mọi hàng rào khác trong Javis.
+TOKEN_SCOPE_CHAT = ("/chat", "/version", "/health", "/sessions")
+
+
+def _load_tokens():
+    try:
+        if _TOKENS_PATH.exists():
+            data = json.loads(_TOKENS_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return [x for x in data if isinstance(x, dict)]
+    except Exception:
+        pass
+    return []
+
+
+def _save_tokens(items):
+    try:
+        _TOKENS_PATH.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            os.chmod(_TOKENS_PATH, 0o600)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[auth] không ghi được token: {e}", file=__import__('sys').stderr)
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(str(token or "").encode("utf-8")).hexdigest()
+
+
+def create_api_token(name: str, scope: str = "full") -> dict:
+    """Sinh token mới. Trả BẢN THÔ đúng một lần - về sau trên đĩa chỉ còn bản băm."""
+    raw = TOKEN_PREFIX + secrets.token_urlsafe(32)
+    item = {
+        "id": "tok_" + secrets.token_hex(6),
+        "name": (str(name or "").strip() or "không tên")[:60],
+        "scope": "chat" if str(scope) == "chat" else "full",
+        "hash": _token_hash(raw),
+        "prefix": raw[:12],
+        "created_at": _time.time(),
+        "last_used_at": 0.0,
+    }
+    items = _load_tokens()
+    items.append(item)
+    _save_tokens(items)
+    ra = {k: v for k, v in item.items() if k != "hash"}
+    ra["token"] = raw
+    return ra
+
+
+def list_api_tokens():
+    """Danh sách token, KHÔNG kèm bản băm - không có lý do nào để nó ra khỏi đĩa."""
+    return [{k: v for k, v in x.items() if k != "hash"} for x in _load_tokens()]
+
+
+def revoke_api_token(token_id: str) -> bool:
+    items = _load_tokens()
+    con = [x for x in items if x.get("id") != str(token_id or "")]
+    if len(con) == len(items):
+        return False
+    _save_tokens(con)
+    return True
+
+
+def verify_api_token(raw: str, path: str = ""):
+    """Token có hợp lệ cho `path` này không. Trả mục token (đã bỏ hash) hoặc None.
+
+    So bằng `compare_digest` trên bản băm chứ không so chuỗi thô: so chuỗi thường thoát sớm ở
+    ký tự đầu khác nhau, và thời gian chênh đó đủ để dò token theo từng ký tự.
+    """
+    raw = str(raw or "").strip()
+    if not raw or not raw.startswith(TOKEN_PREFIX):
+        return None
+    h = _token_hash(raw)
+    for x in _load_tokens():
+        if secrets.compare_digest(str(x.get("hash") or ""), h):
+            if str(x.get("scope")) == "chat" and path:
+                if not any(str(path).startswith(p) for p in TOKEN_SCOPE_CHAT):
+                    return None
+            x["last_used_at"] = _time.time()
+            _save_tokens(_load_tokens_touch(x))
+            return {k: v for k, v in x.items() if k != "hash"}
+    return None
+
+
+def _load_tokens_touch(moi_nhat):
+    """Ghi lại last_used_at của đúng một token, giữ nguyên phần còn lại."""
+    items = _load_tokens()
+    for x in items:
+        if x.get("id") == moi_nhat.get("id"):
+            x["last_used_at"] = moi_nhat.get("last_used_at") or _time.time()
+    return items
+
+
+# ---- Chặn dò token ----
+# Token là chuỗi 43 ký tự ngẫu nhiên nên dò mù gần như bất khả, nhưng đếm và chặn vẫn đáng làm:
+# nó biến một cuộc dò thành thứ NHÌN THẤY ĐƯỢC trong nhật ký thay vì im lặng chạy hàng tháng.
+_AUTH_FAIL = {}          # ip -> [mốc thời gian thất bại]
+_AUTH_AUDIT = STATE_DIR / "auth_audit.jsonl"
+_FAIL_MAX, _FAIL_WINDOW, _BAN_SECONDS = 10, 300, 900
+
+
+def token_ip_banned(ip: str) -> bool:
+    hs = _AUTH_FAIL.get(str(ip or ""), [])
+    if len(hs) < _FAIL_MAX:
+        return False
+    return (_time.time() - hs[-1]) < _BAN_SECONDS
+
+
+def note_token_failure(ip: str, thu: str = ""):
+    ip = str(ip or "")
+    now = _time.time()
+    hs = [t for t in _AUTH_FAIL.get(ip, []) if now - t < _FAIL_WINDOW]
+    hs.append(now)
+    _AUTH_FAIL[ip] = hs[-50:]
+    try:
+        with open(_AUTH_AUDIT, "a", encoding="utf-8") as f:
+            # Ghi TIỀN TỐ thôi, không ghi token thô: nhật ký là thứ hay bị gửi đi kèm báo lỗi.
+            f.write(json.dumps({"ts": now, "ip": ip, "prefix": str(thu or "")[:12],
+                                "fails": len(hs)}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
 # ---- Setup token: chống CHIẾM ADMIN lần đầu trên public ----
 # Khi chạy public mà CHƯA có admin, /auth/setup PHẢI kèm token này - token chỉ in ra LOG server
 # lúc khởi động, nên chỉ chính chủ (xem được log/terminal) tạo được tài khoản. Kẻ chỉ-có-URL bó tay.

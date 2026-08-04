@@ -3,8 +3,13 @@
 > Bản spec dev, viết 2026-08-03 trên nền v0.16.1. Mục tiêu: đưa Javis ra terminal mà KHÔNG
 > nhân bản runtime, bằng cách coi CLI là một KÊNH thứ ba bên cạnh dashboard và Telegram.
 >
-> **Trạng thái: CHƯA TRIỂN KHAI - đang chờ duyệt.** Không dòng mã nào được viết trước khi
-> chủ repo duyệt bản này.
+> **Trạng thái: ĐÃ TRIỂN KHAI ĐỦ 4 PHASE ở v0.17.0** (2026-08-04). Ba chỗ lệch so với bản
+> spec này, ghi lại ngay đây thay vì để người đọc tự đối chiếu:
+>
+> - **Phụ thuộc chỉ còn `httpx`, bỏ `rich`.** Xem mục 6.
+> - **`render.py` là một file phẳng**, không tách thư mục `commands/` thành sáu file. Cả CLI
+>   gói gọn trong năm file; chia nhỏ hơn nữa là thêm chỗ để lạc chứ không thêm gì.
+> - **Ba câu hỏi ở mục 8 đã tự chốt** theo phương án tốt nhất, ghi ngay tại mục đó.
 
 ## 1. Quyết định cốt lõi và vì sao
 
@@ -205,8 +210,13 @@ cli/
       chat.py  task.py  brain.py  loop.py  status.py
 ```
 
-Phụ thuộc tối thiểu: `httpx` và `rich`. **Không** kéo `fastapi`, `uvicorn` hay bất cứ thứ gì
-của server vào - gói CLI phải cài được trên máy chưa từng có Javis.
+Phụ thuộc tối thiểu: **chỉ `httpx`**. Bản spec ban đầu tính thêm `rich`, nhưng lúc viết thật
+thì hoá ra không cần: cả CLI dùng đúng bốn mã màu ANSI và một dòng trạng thái, đủ gọn để viết
+tay trong `render.py`. Kéo `rich` về là bắt người dùng tải một thư viện dựng bảng và cây thư
+mục cho terminal, trong khi kênh CLI có luật CẤM bảng. Đã bỏ.
+
+**Không** kéo `fastapi`, `uvicorn` hay bất cứ thứ gì của server vào - gói CLI phải cài được
+trên máy chưa từng có Javis.
 
 Cấu hình ở `~/.javis/config.json`, `chmod 600`:
 
@@ -290,18 +300,46 @@ tồn tại cho tới khi chủ máy tự tạo.
 SSE bọc chính gói WebSocket. Mọi tính năng mới vào server là CLI thấy ngay, không phải sửa hai
 chỗ.
 
-**Gói CLI phình theo server.** Chặn bằng thư mục `cli/` tách hẳn và luật phụ thuộc: chỉ `httpx`
-với `rich`. Có test soát danh sách phụ thuộc.
+**Gói CLI phình theo server.** Chặn bằng thư mục `cli/` tách hẳn và luật phụ thuộc: chỉ
+`httpx`. Có test soát ĐÚNG dòng `dependencies` trong `pyproject.toml` (không quét cả file -
+chính lời chú thích ở đó có nhắc tên các gói bị cấm, quét cả file là test tự bắt chú thích của
+mình; đã dính đúng bẫy này một lần ở 0.14.3).
 
 **Người dùng tưởng CLI chạy được không cần server.** Chặn bằng tài liệu nói thẳng ngay dòng
 đầu, và `javis` khi không kết nối được thì báo đúng nguyên nhân kèm cách khắc phục, không báo
 lỗi mạng chung chung.
 
-## 8. Câu chưa trả lời, cần chủ repo chốt
+## 8. Ba câu bỏ ngỏ - đã chốt ở v0.17.0
 
-1. **Tên gói trên PyPI.** `javis-cli` hay `javis`? Cái sau đẹp hơn nhưng cần kiểm tra còn trống
-   không, và nó ghim luôn thương hiệu.
-2. **Có làm giai đoạn 4 không?** Nó đổi định vị sản phẩm từ "server tự dựng" sang "cài một dòng
-   là chạy". Đáng làm hay để sau?
-3. **Phân quyền token.** v1 để quyền ngang session như spec này, hay cần ngay hai mức chat và
-   admin?
+Chủ repo giao "dựng toàn bộ luôn các phase, phần nào cần phê duyệt đề xuất thì tự lựa chọn
+những đề xuất tốt nhất". Ba câu dưới đây chốt như sau, kèm lý do để sau này đổi thì biết đang
+đổi cái gì.
+
+1. **Tên gói: `javis-cli`, lệnh gõ là `javis`.** Người dùng không bao giờ gõ tên gói - họ gõ
+   `javis`, và cái đó vẫn ngắn đúng như mong muốn. Đổi lại, tên gói nói rõ đây là CLIENT chứ
+   không phải cả Javis, đúng thứ dễ hiểu nhầm nhất của tính năng này. Một người `pip install
+   javis` rồi tưởng mình vừa cài cả hệ thống là hiểu nhầm do chính cái tên gây ra.
+
+2. **Có làm giai đoạn 4, nhưng theo nghĩa hẹp: `javis up` KHỞI ĐỘNG bản Javis đã cài trên
+   máy, chứ gói CLI không chứa server.** Nhét server vào gói CLI là kéo `fastapi`, `uvicorn`
+   và toàn bộ phụ thuộc nặng về cho một người chỉ muốn hỏi một câu từ terminal - và tệ hơn, là
+   có hai đường cài Javis phải giữ đồng bộ mãi mãi. `javis up` đi tìm `server/main.py` thật
+   (qua `JAVIS_HOME`, thư mục hiện tại, hoặc `~/javis-os`), tìm không ra thì NÓI THẲNG là nó
+   không chứa server và chỉ ba cách xử lý, chứ không báo lỗi mơ hồ.
+
+3. **Token có hai mức ngay từ v1: `full` và `chat`.** Để quyền ngang session là mỗi máy muốn
+   hỏi một câu phải cầm một credential mở được cả `/settings` lẫn kho MCP. Mức `chat` đi theo
+   danh sách TRẮNG `("/chat", "/version", "/health", "/sessions")` - chọn chiều trắng chứ
+   không chiều đen, vì danh sách đen nghĩa là mỗi endpoint mới thêm vào server tự động phơi ra
+   cho token hẹp.
+
+Ba rào an toàn kèm theo, không có trong spec gốc:
+
+- **Không có token mặc định.** Chưa ai bấm tạo thì không token nào tồn tại, và không cửa nào
+  vào ngoài trình duyệt.
+- **Token không đẻ được token.** `POST /auth/tokens` đòi session trình duyệt. Thiếu rào này
+  thì một token rò ra là kẻ cầm nó tự cấp thêm token vĩnh viễn, và thu hồi cái đã rò vô nghĩa.
+  Ngược lại, THU HỒI thì cho phép dùng chính token đang cầm: mất máy là phải hạ được
+  credential ngay, kể cả khi không mở nổi trình duyệt.
+- **Băm khi lưu, so bằng `compare_digest`, đếm và chặn IP dò.** Nhật ký `auth_audit.jsonl` chỉ
+  ghi 12 ký tự đầu, vì nhật ký là thứ hay bị gửi kèm báo lỗi.

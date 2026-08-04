@@ -30,6 +30,9 @@ server/.mcp_config.json
 server/.mcp_hub_*.json
 server/.secret_key
 server/.hub_token
+# Token API của CLI: file chứa bản BĂM + tên token, vẫn là bí mật vận hành, không vào repo.
+server/.api_tokens.json
+server/auth_audit.jsonl*
 server/.oauth_mcp.json
 server/mcp_audit.jsonl*
 server/connector-home/

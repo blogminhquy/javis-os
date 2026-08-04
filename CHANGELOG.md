@@ -4,6 +4,26 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.17.0] - 2026-08-04
+**Javis CLI**: gõ `javis "doanh thu tuần này thế nào"` ngay trong terminal. Kênh thứ ba, cùng một Javis.
+### Thêm mới
+- **`pip install javis-cli` rồi gõ thẳng câu hỏi.** Không cần lệnh con, không cần mở trình duyệt. Câu trả lời vẫn đến từ chính Javis của bạn: cùng brain, cùng bộ nhớ, cùng MCP đã đấu, cùng lịch sử hội thoại ở trang Phiên.
+
+  Có cả `javis chat` (phiên hỏi đáp liên tục, giữ mạch), `javis status`, `javis task add`, `javis tasks`, `javis brain ls|cat`, `javis loops`, và `javis up` để bật Javis đã cài trên chính máy đó.
+- **CLI là CLIENT MỎNG, không phải Javis thứ hai.** Nó không chứa server bên trong và nói thẳng điều đó ở dòng đầu tài liệu lẫn trong thông báo lỗi. Lý do: gần như mọi thứ làm nên Javis đều đòi một tiến trình sống dài (loop theo chu kỳ, nhắc hẹn chờ tới giờ, MCP Hub giữ kết nối, kho capability, runtime tiết kiệm token học dần), mà một lệnh gõ xong là thoát thì không phải chỗ cho chúng.
+
+  Nên CLI đi qua ĐÚNG cái lõi dashboard và Telegram đang dùng (`_tg_answer`, nay nhận thêm tham số kênh). Đổi lại: tính năng mới vào Javis là CLI thấy ngay, không phải sửa hai chỗ. Đây cũng là bài học 0.15.0 - dựng bản thứ hai của thứ đã có rồi để hai bản trôi lệch - áp dụng ở quy mô lớn hơn nhiều.
+- **Javis biết mình đang nói qua terminal nên trả lời khác.** Kênh `cli` có khối ngữ cảnh và hợp đồng đầu ra riêng: không bảng markdown, không nhúng ảnh, không link markdown, đường dẫn file in TUYỆT ĐỐI để copy chạy được luôn.
+- **Luật Unix, để ghép được vào script.** Câu trả lời ra stdout, mọi thứ khác (tiến độ, tên tool, lỗi) ra stderr. Nên `javis "tóm tắt tuần này" > bao-cao.md` cho ra file sạch. Lỗi thì thoát khác 0 và không in gì ra stdout, nên `&&` trong script hành xử đúng. Có test canh đúng MỘT chỗ trong cả gói được ghi stdout.
+- **Nối được nhiều Javis cùng lúc**: một hồ sơ cho máy nhà, một cho VPS, đổi bằng `--profile`. Cấu hình ở `~/.javis/config.json` quyền `600`, và bốn biến môi trường (`JAVIS_URL`, `JAVIS_TOKEN`, `JAVIS_BRAIN`, `JAVIS_PROFILE`) đè lên file cho CI/Docker.
+- **Trang Cài đặt có mục Token API.** Tạo token, chọn phạm vi, xem lần dùng cuối của từng cái, thu hồi. Chuỗi thô hiện đúng MỘT lần kèm sẵn câu lệnh `javis login` để dán sang máy kia.
+### Bảo mật
+- **Không có token nào sẵn.** Chưa ai bấm tạo thì không token nào tồn tại, và không cửa nào vào ngoài trình duyệt. Đây là điểm quan trọng nhất của cả tính năng: mở cổng mới ra Internet phải là một hành động CÓ Ý THỨC, không phải mặc định.
+- **Hai mức phạm vi.** `chat` đi theo danh sách TRẮNG (`/chat`, `/version`, `/health`, `/sessions`); `full` ngang session trình duyệt. Chọn chiều trắng chứ không chiều đen, vì danh sách đen nghĩa là mỗi endpoint mới thêm vào server tự động phơi ra cho token hẹp.
+- **Token không đẻ được token.** Tạo token đòi session trình duyệt. Thiếu rào này thì một token rò ra là kẻ cầm nó tự cấp thêm token vĩnh viễn, và thu hồi cái đã rò thành vô nghĩa. Ngược lại, THU HỒI thì cho dùng chính token đang cầm: mất máy là phải hạ được credential ngay, kể cả khi không mở nổi trình duyệt.
+- **Trên đĩa chỉ có bản băm SHA-256**, so bằng `compare_digest` chứ không so chuỗi (so chuỗi thường thoát sớm ở ký tự đầu khác nhau, và chênh lệch thời gian đó đủ để dò token theo từng ký tự). Token đi trong header `Authorization`, không bao giờ trong query string - query string nằm trong log của mọi proxy trên đường đi.
+- **Sai quá 10 lần trong 5 phút thì IP bị chặn 15 phút**, mỗi lần sai ghi vào `auth_audit.jsonl` nhưng chỉ 12 ký tự đầu, vì file log là thứ hay bị gửi kèm báo lỗi. Chặn dò được kiểm TRƯỚC khi băm, và nhánh token đặt SAU nhánh cookie để dashboard không phải đọc file token mỗi request.
+
 ## [0.16.1] - 2026-08-03
 Ollama gọn lại còn đúng bản **Cloud** - dán API key là chạy, như mọi nhà cung cấp khác.
 ### Cải thiện

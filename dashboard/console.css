@@ -334,6 +334,28 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   background: var(--accent2-wash-2); color: var(--accent2-ink); text-transform: uppercase; letter-spacing: 0.5px;
 }
 .gcard-meta { margin-top: 8px; font-size: 14px; color: var(--text2); }
+
+/* Token API (CLI). Bản thô chỉ hiện đúng một lần nên khối .tk-new phải NỔI BẬT - lướt qua nó
+   là mất token và phải tạo lại cái khác. */
+.tk-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.tk-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid var(--glass-brd);
+}
+.tk-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tk-meta { font-size: 12px; color: var(--text2); }
+.tk-row .gcard-btn { margin-top: 0; width: auto; padding: 6px 12px; font-size: 13px; flex: none; }
+.tk-new {
+  margin-top: 14px; padding: 12px; border-radius: 10px;
+  background: var(--accent2-wash-2); border: 1px solid var(--accent-solid);
+}
+.tk-new-hd { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+.tk-code {
+  display: block; padding: 10px; border-radius: 8px; background: var(--surface);
+  border: 1px solid var(--glass-brd); font-size: 13px; word-break: break-all;
+  user-select: all;
+}
 .gcard-btn {
   margin-top: 14px; width: 100%; padding: 9px; border-radius: 10px; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--glass-brd); color: var(--text);

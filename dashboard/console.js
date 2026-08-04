@@ -4243,7 +4243,57 @@
           </div>
           <div class="gcard-meta" id="acStatus"></div>
         </div>
+      </div>
+      <div class="cview-section">
+        <h3>Token API (cho CLI)</h3>
+        <div class="gcard" style="max-width:560px">
+          <div class="gcard-meta">Token để <b>Javis CLI</b> (hoặc script) gọi được Javis từ máy khác. Không có token nào sẵn - chưa tạo thì không đường nào vào ngoài trình duyệt.</div>
+          <label class="js-lbl">Tên token</label>
+          <input class="js-input" id="tkName" placeholder="Ví dụ: laptop của anh">
+          <label class="js-lbl">Phạm vi</label>
+          <select class="js-input" id="tkScope">
+            <option value="chat">Chỉ chat - vào được /chat, /version, /health, /sessions</option>
+            <option value="full">Toàn quyền - như đang đăng nhập</option>
+          </select>
+          <div class="js-actions"><button class="gcard-btn" id="tkCreate">Tạo token</button></div>
+          <div class="gcard-meta" id="tkStatus"></div>
+          <div id="tkNew"></div>
+          <div id="tkList" class="tk-list"></div>
+        </div>
       </div>`;
+    renderTokens();
+    document.getElementById("tkCreate").onclick = async () => {
+      const st = document.getElementById("tkStatus");
+      st.textContent = "Đang tạo...";
+      const fd = new FormData();
+      fd.append("name", document.getElementById("tkName").value.trim());
+      fd.append("scope", document.getElementById("tkScope").value);
+      let r;
+      try { r = await (await fetch("/auth/tokens", { method: "POST", body: fd })).json(); }
+      catch (e) { st.innerHTML = WARN_ICON + " Lỗi mạng."; return; }
+      if (!r.ok) { st.innerHTML = Icons.warn(r.error || "Không tạo được token."); return; }
+      st.textContent = "";
+      document.getElementById("tkName").value = "";
+      // Bản thô hiện ĐÚNG một lần. Trên đĩa chỉ còn bản băm nên không có đường nào xem lại,
+      // và nói thẳng điều đó ra ngay tại đây thay vì để người dùng phát hiện lúc F5.
+      document.getElementById("tkNew").innerHTML = `
+        <div class="tk-new">
+          <div class="tk-new-hd">${OK_ICON} Token mới - copy ngay, đóng trang là không xem lại được.</div>
+          <code class="tk-code" id="tkRaw">${esc(r.token || "")}</code>
+          <div class="js-actions">
+            <button class="gcard-btn" id="tkCopy">Copy</button>
+            <button class="gcard-btn ghost" id="tkHide">Ẩn đi</button>
+          </div>
+          <div class="gcard-meta">Dán vào máy kia: <code>javis login ${esc(location.origin)} --token &lt;token&gt;</code></div>
+        </div>`;
+      document.getElementById("tkCopy").onclick = () => {
+        const c = document.getElementById("tkCopy");
+        try { navigator.clipboard.writeText(r.token || ""); c.textContent = "Đã copy"; }
+        catch (e) { c.textContent = "Copy tay giúp em"; }
+      };
+      document.getElementById("tkHide").onclick = () => { document.getElementById("tkNew").innerHTML = ""; };
+      renderTokens();
+    };
     const wsStatus = document.getElementById("acWsStatus");
     document.getElementById("acWsSave").onclick = async () => {
       wsStatus.textContent = "Đang lưu...";
@@ -4266,6 +4316,39 @@
     if (lo) lo.onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
     const dis = document.getElementById("acDisable");
     if (dis) dis.onclick = async () => { if (confirm("Tắt đăng nhập? Ai mở dashboard cũng dùng được.")) { await fetch("/auth/disable", { method: "POST" }); renderAccount(el); } };
+  }
+
+  // Danh sách token. Chỉ có tiền tố + tên: máy chủ không giữ bản thô nên UI cũng không có gì
+  // để hiện lại, và đó là điểm mạnh chứ không phải thiếu sót.
+  async function renderTokens() {
+    const box = document.getElementById("tkList");
+    if (!box) return;
+    let d;
+    try { d = await (await fetch("/auth/tokens")).json(); }
+    catch (e) { box.innerHTML = `<div class="gcard-meta">${WARN_ICON} Không đọc được danh sách token.</div>`; return; }
+    const ds = d.tokens || [];
+    if (!ds.length) { box.innerHTML = '<div class="gcard-meta">Chưa có token nào.</div>'; return; }
+    box.innerHTML = ds.map(t => {
+      const dung = Number(t.last_used_at) > 0
+        ? "dùng lần cuối " + new Date(Number(t.last_used_at) * 1000).toLocaleString("vi-VN")
+        : "chưa dùng lần nào";
+      const pv = t.scope === "chat" ? "chỉ chat" : "toàn quyền";
+      return `<div class="tk-row">
+        <div class="tk-info">
+          <b>${esc(t.name || "không tên")}</b>
+          <span class="tk-meta"><code>${esc(t.prefix || "")}…</code> · ${pv} · ${esc(dung)}</span>
+        </div>
+        <button class="gcard-btn ghost tk-del" data-id="${esc(t.id || "")}">Thu hồi</button>
+      </div>`;
+    }).join("");
+    box.querySelectorAll(".tk-del").forEach(b => {
+      b.onclick = async () => {
+        if (!confirm("Thu hồi token này? Máy nào đang dùng nó sẽ mất kết nối ngay.")) return;
+        const fd = new FormData(); fd.append("id", b.dataset.id || "");
+        try { await fetch("/auth/tokens/revoke", { method: "POST", body: fd }); } catch (e) {}
+        renderTokens();
+      };
+    });
   }
 
   // ---- Lưu 1 section settings ----
