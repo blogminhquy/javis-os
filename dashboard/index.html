@@ -13,7 +13,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=54">
+  <link rel="stylesheet" href="/static/style.css?v=55">
   <link rel="stylesheet" href="/static/console.css?v=40">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -659,7 +659,7 @@
   <!-- Bộ icon nạp ĐẦU TIÊN: mọi file dưới đây gọi ic() lúc render, thiếu nó thì
        icon ra rỗng. lucide-icons.js chỉ định nghĩa dữ liệu nên phải đứng trước
        icons.js (file dựng hàm ic / Icons). Cả hai đều không phụ thuộc DOM. -->
-  <script src="/static/vendor/lucide-icons.js?v=1"></script>
+  <script src="/static/vendor/lucide-icons.js?v=2"></script>
   <script src="/static/icons.js?v=1"></script>
 
   <!-- theme.js phải nạp TRƯỚC mọi file khác: graph.js / app.js đăng ký
@@ -668,7 +668,7 @@
   <script src="/static/theme.js?v=1"></script>
   <script src="/static/voice.js?v=14"></script>
   <script src="/static/graph.js?v=15"></script>
-  <script src="/static/chat-render.js?v=7"></script>
+  <script src="/static/chat-render.js?v=8"></script>
   <script src="/static/dataview.js?v=1"></script>
   <script src="/static/task-suggest.js?v=1"></script>
   <!-- Bảng lệnh của trình soạn .md (nút thanh công cụ + phím tắt + menu "/"). PHẢI đứng
@@ -678,18 +678,18 @@
   <script src="/static/chat-ask.js?v=1"></script>
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
-  <script src="/static/app.js?v=78"></script>
+  <script src="/static/app.js?v=79"></script>
   <script src="/static/model-picker.js?v=3"></script>
   <script src="/static/branding.js?v=7"></script>
   <script src="/static/quick-settings.js?v=4"></script>
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
-  <script src="/static/sessions-ui.js?v=9"></script>
-  <script src="/static/studio.js?v=26"></script>
+  <script src="/static/sessions-ui.js?v=10"></script>
+  <script src="/static/studio.js?v=27"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=93"></script>
+  <script src="/static/console.js?v=94"></script>
   <script src="/static/mobile-chat.js?v=4"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>
