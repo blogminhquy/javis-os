@@ -24,6 +24,7 @@
     settings: "settings",
     workflows: "workflow",
     agents: "bot",
+    chatbots: "headset",
     skills: "puzzle",
     files: "folder-tree",
     selfimprove: "repeat",
@@ -76,6 +77,7 @@
     { id: "workflows",   icon: ICON.workflows,   label: "Workflows" },
     { id: "agents",      icon: ICON.agents,      label: "Agents" },
     { id: "skills",      icon: ICON.skills,      label: "Skills" },
+    { id: "chatbots",    icon: ICON.chatbots,    label: "Chatbot" },
     { id: "files",       icon: ICON.files,       label: "Tệp tin" },
     { id: "selfimprove", icon: ICON.selfimprove, label: "Việc định kỳ" },
     { id: "learn",       icon: ICON.learn,       label: "Tự học" },
@@ -96,7 +98,7 @@
   const RAIL_GROUPS = [
     { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
     { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
-    { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "skills", "workflows", "plugins"] },
+    { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
     { label: "Hệ thống",    icon: GICON["Hệ thống"], ids: ["usage", "runtime", "settings", "logs", "account"], foot: true },
@@ -133,6 +135,7 @@
     skills:      { icon: VIEW_ICON.skills, label: "Skills", sub: "Kỹ năng khả dụng" },
     files:       { icon: VIEW_ICON.files, label: "Tệp tin", sub: "Duyệt · sửa · tải file trong brain" },
     selfimprove: { icon: VIEW_ICON.selfimprove, label: "Việc định kỳ", sub: "Việc định kỳ + nhắc hẹn đang chờ" },
+    chatbots:    { icon: VIEW_ICON.chatbots, label: "Chatbot", sub: "Bot chuyên trách trả lời khách qua Telegram" },
     learn:       { icon: VIEW_ICON.learn, label: "Tự học", sub: "Rewire Memory · Wiki · Skill (an toàn, undo được)" },
     kanban:      { icon: VIEW_ICON.kanban, label: "Việc (Kanban)", sub: "AI tự đặc tả, điều phối và chạy task nền" },
     models:      { icon: VIEW_ICON.models, label: "Models", sub: "Main model & providers" },
@@ -311,6 +314,7 @@
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
     if (id === "selfimprove") return renderSelfImprove(el);
+    if (id === "chatbots") return renderChatbots(el);
     if (id === "learn")    return renderLearn(el);
     if (id === "kanban")   return renderKanban(el);
     if (id === "logs")     return renderLogs(el);
@@ -325,6 +329,14 @@
     const fn = window.JavisStudio && window.JavisStudio[id];
     if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); } }
     else el.innerHTML = placeholder(id, "studio.js chưa sẵn sàng.");
+  }
+
+  // Trang Chatbot do chatbots.js dựng - uỷ quyền y như renderStudioPage uỷ cho studio.js,
+  // để console.js không phình thêm một màn hình nữa.
+  function renderChatbots(el) {
+    const fn = window.JavisChatbots && window.JavisChatbots.render;
+    if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("chatbots", "Lỗi nạp: " + e.message); } }
+    else el.innerHTML = placeholder("chatbots", "chatbots.js chưa sẵn sàng.");
   }
 
   function placeholder(id, note) {

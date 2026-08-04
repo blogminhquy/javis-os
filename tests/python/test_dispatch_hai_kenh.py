@@ -110,7 +110,7 @@ def lap_gia(prov, kind, key, model, *, that_collect=False):
     main._tg_brain = lambda chat_id: BRAIN
     main._brain_root = lambda b: BRAIN
     main.build_system_prompt = lambda b: "SYS"
-    main._apply_mcp = lambda cli, brain=None: None
+    main._apply_mcp = lambda cli, mode="full", brain=None: None
     main._apply_codex_hub = lambda ccli, root: None
     main.openai_oauth.write_codex_auth = lambda: None
     main.usage_store.record = lambda *a, **k: usage.append(a)
@@ -279,7 +279,8 @@ main._TG_SESS.clear()
 _nen = {"xong": False}
 
 
-async def _api_gia(prov, key, model, messages, reasoning="off", brain=None):
+async def _api_gia(prov, key, model, messages, reasoning="off", brain=None,
+                   force_lazy=False, mode="full"):
     async def _gen():
         yield {"type": "text", "content": "Trả lời nhanh."}
         yield {"type": "usage", "input": 10, "output": 5}

@@ -55,7 +55,9 @@ check("có endpoint chat dạng luồng", "/chat/stream" in _paths)
 # không được có lõi riêng.
 check("CANARY: lượt CLI đi qua đúng vỏ chung, không đẻ lõi thứ hai",
       'await _tg_answer(message, meta=meta, progress=progress, channel="cli")' in _SRC)
-check("vỏ chung nhận tham số kênh", 'async def _tg_answer(text, meta=None, progress=None, channel="telegram")' in _SRC)
+# Không ghim dấu đóng ngoặc: thứ cần canh là vỏ chung CÓ tham số kênh, không phải vỏ chung
+# vĩnh viễn không được thêm tham số nào nữa (Bot chuyên trách thêm `bot=None` ở 0.19.0).
+check("vỏ chung nhận tham số kênh", 'async def _tg_answer(text, meta=None, progress=None, channel="telegram"' in _SRC)
 check("trace runtime gắn đúng kênh", 'conv_sid or f"{channel}:{chat_id}", brain, channel)' in _SRC)
 check("chấm chất lượng cũng theo kênh", "(out.get(\"text\") or \"\") if isinstance(out, dict) else str(out or \"\"),\n            channel," in _SRC)
 # Bật cờ telegram_running cho lượt CLI là dạy Javis công thức gửi file qua Telegram trong khi

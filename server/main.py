@@ -87,6 +87,8 @@ import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
+import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
+import chatbot_store     # kho bản ghi bot + token qua secrets_store
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
 import compaction   # nén hội thoại dài cho engine API (tóm tắt phần cũ thay vì cắt bỏ)
 from chat_runtime import ChatRuntime
@@ -959,7 +961,7 @@ def _hub_enabled():
 
 
 async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=None,
-                          force_lazy=False):
+                          force_lazy=False, mode="full"):
     """Model API/OAuth dùng MCP của Javis qua HUB: đa tài khoản + quyền + audit + builtin tools
     (file vault, use_skill) → engine API cũng là agent thực thụ. anthropic-api giờ CÓ tool loop.
     ChatGPT OAuth ở các kênh tương tác đi qua Codex CLI native MCP, không dùng fallback này."""
@@ -970,10 +972,10 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
                 tools, route = await mcp_hub.discover_all(
-                    "full", vault_root=vault_root, force_lazy=force_lazy
+                    mode, vault_root=vault_root, force_lazy=force_lazy
                 )
                 inventory_tools, inventory_route = mcp_hub.registry_inventory(
-                    "full", vault_root=vault_root, force_lazy=force_lazy)
+                    mode, vault_root=vault_root, force_lazy=force_lazy)
             else:
                 servers = mcp_store.servers_for_client()
                 if servers:
@@ -6008,6 +6010,17 @@ async def _start_scheduler():
         restart_telegram()   # bật bot Telegram nếu đã cấu hình
     except Exception as e:
         print(f"[telegram start] {e}", file=__import__('sys').stderr)
+    try:
+        # Bot chuyên trách: nối bộ giám sát rồi bật những con đang để BẬT. Nối ở đây chứ không
+        # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
+        # khởi động (xem bước "Import thật main" trong CI).
+        chatbot_runtime.wire(answer=_tg_answer, brain_root=_brain_root,
+                             read_agent=lambda b, slug: _read_md(_agents_dir(b) / f"{slug}.md"))
+        kq = chatbot_runtime.sync_all()
+        if kq.get("errors"):
+            print(f"[chatbot] bật lỗi: {kq['errors']}", file=__import__('sys').stderr)
+    except Exception as e:
+        print(f"[chatbot start] {type(e).__name__}: {e}", file=__import__('sys').stderr)
 
 
 _BROWSE_MD_CAP = 500        # trần đếm .md cho mỗi thư mục con
@@ -8827,7 +8840,7 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
     return sess["sid"]
 
 
-async def _tg_answer(text, meta=None, progress=None, channel="telegram"):
+async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None):
     """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
 
     `channel` mở hàm này cho kênh thứ ba là CLI (xem docs/dev/2026-08-cli-spec.md). Cố ý
@@ -8845,8 +8858,16 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram"):
     """
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
-    sess = _tg_session(chat_id)
-    brain = _tg_brain(chat_id)   # brain riêng của phiên (đổi bằng /brain), mặc định theo Settings
+    if bot:
+        # Bot chuyên trách: brain RIÊNG của bot, không phải brain của chủ. Khoá phiên gắn id bot
+        # nên hai bot cùng nói chuyện với một khách vẫn là hai mạch tách bạch, và không cái nào
+        # đụng vào phiên của chủ. Nhãn kênh "bot:<slug>" để hội thoại khách nằm riêng ở /sessions.
+        sess = _tg_session(f"bot:{bot['id']}:{chat_id}")
+        brain = bot["brain"]
+        channel = f"bot:{bot.get('slug') or bot['id']}"
+    else:
+        sess = _tg_session(chat_id)
+        brain = _tg_brain(chat_id)   # brain riêng của phiên (đổi bằng /brain), mặc định theo Settings
     mcfg = cfgmod.read_settings().get("model", {})
     prov, kind, api_key, api_model = _chat_provider(mcfg)
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
@@ -8883,7 +8904,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram"):
         out = await _tg_answer_engine(
             text, meta, progress, chat_id=chat_id, sess=sess, brain=brain, mcfg=mcfg,
             prov=prov, kind=kind, api_key=api_key, api_model=api_model,
-            store=store, conv_sid=conv_sid, channel=channel)
+            store=store, conv_sid=conv_sid, channel=channel, bot=bot)
 
         if conv_sid and isinstance(out, dict):
             try:
@@ -8926,7 +8947,7 @@ def _tg_ket(clean_out, files, canh_bao="", loi=()):
 
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                             prov, kind, api_key, api_model, store=None, conv_sid="",
-                            channel="telegram"):
+                            channel="telegram", bot=None):
     """Lõi 4 nhánh engine của một lượt Telegram. Trả dict khi có câu trả lời thật,
     trả CHUỖI khi là thông báo lỗi (vỏ `_tg_answer` dựa vào đó để biết lượt nào đáng lưu)."""
     sess["last"] = text
@@ -8945,7 +8966,18 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # và cách gửi file trả về (auto-attach + endpoint send-file).
     # telegram_running phải theo kênh THẬT: bật cờ đó cho lượt CLI là dạy Javis một công thức
     # gửi file qua Telegram trong khi người hỏi đang ngồi ở terminal.
-    sysprompt = build_system_prompt(brain) + channel_context.build_channel_block(
+    # Bot chuyên trách KHÔNG dùng system prompt của Javis: prompt đó dạy cách điều phối, ghi
+    # vault, giao việc - toàn thứ bot khách hàng không được làm. Nó dùng prompt của chính Agent
+    # nó trỏ tới, cộng luật trả lời khách. Xem chatbot_runtime.build_bot_prompt.
+    # Mức quyền hạ xuống 'suggest' ở ĐÂY, trong mã, chứ không dặn trong prompt: prompt là thứ
+    # khách nói chuyện được với nó, mã thì không (đúng nguyên tắc ở agent_runtime.py).
+    bot_mode = "suggest" if bot else "full"
+    if bot:
+        import chatbot_runtime
+        sysprompt = chatbot_runtime.build_bot_prompt(bot)
+    else:
+        sysprompt = build_system_prompt(brain)
+    sysprompt += channel_context.build_channel_block(
         channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
         brain_root=_brain_root(brain))
     if kind in ("cli", "oauth"):
@@ -9087,7 +9119,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         actual_model = api_model or "?"
         loi = []
         _pinged = False
-        async for ev in (await _api_stream_mcp(prov, api_key, api_model, sess["or"], reasoning, brain=brain)):
+        async for ev in (await _api_stream_mcp(prov, api_key, api_model, sess["or"], reasoning,
+                                               brain=brain, mode=bot_mode)):
             if ev["type"] == "text":
                 if not _pinged:
                     _pinged = True; await _p("✍ Đang soạn câu trả lời…")
@@ -9133,7 +9166,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         cli = sess["cli"]
         cli.system_prompt = sysprompt
         cli.model = api_model or mcfg.get("claude_model") or None
-        _apply_mcp(cli, brain=brain)
+        _apply_mcp(cli, mode=bot_mode, brain=brain)
         t0 = time.time()
         written = []   # file agent ghi bằng tool Write trong lượt này (ứng viên auto-gửi)
         out = ""
@@ -9566,6 +9599,116 @@ async def telegram_status():
 @app.post("/telegram/restart")
 async def telegram_restart():
     return {"ok": True, "running": restart_telegram()}
+
+
+# ============================================================
+# Bot chuyên trách - chatbot chuyên một lĩnh vực, trả lời KHÁCH
+# Xem docs/dev/2026-08-bot-chuyen-trach-spec.md
+# ============================================================
+@app.get("/chatbots")
+async def chatbots_list():
+    """Danh sách bot kèm trạng thái SỐNG (không phải trạng thái mong muốn).
+
+    Gộp cấu hình với trạng thái thật ngay tại đây: tách hai lời gọi thì giao diện có lúc vẽ
+    'đang chạy' cho một con vừa chết, và 'bot chết âm thầm' đúng là thứ tính năng này phải
+    chống.
+    """
+    out = []
+    for b in chatbot_store.list_bots():
+        b = dict(b)
+        b["status"] = chatbot_runtime.status(b["id"])
+        a = b.get("agent") or {}
+        meta, _ = _read_md(_agents_dir(a.get("brain") or "brain") / f"{a.get('slug')}.md")
+        b["agent_name"] = meta.get("name") or ""
+        b["agent_missing"] = not bool(meta)   # Agent bị xoá/đổi slug -> thẻ phải báo, đừng im
+        out.append(b)
+    return {"bots": out}
+
+
+@app.post("/chatbots/verify-token")
+async def chatbots_verify_token(token: str = Form(...), bot_id: str = Form("")):
+    """Hỏi Telegram xem token này là con bot nào (getMe), và chặn trùng.
+
+    Chặn theo @username chứ không so chuỗi token: cùng một token dán hai lần với khoảng trắng
+    khác nhau vẫn là hai chuỗi khác nhau. Một token chỉ được MỘT tiến trình long-polling; hai
+    poller cùng token thì Telegram trả 409 và CẢ HAI cùng chết.
+    """
+    tok = (token or "").strip()
+    if not tok:
+        return JSONResponse({"ok": False, "error": "Thiếu token"}, status_code=400)
+    import httpx   # main.py không import httpx ở mức module (xem telegram_test làm y hệt)
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(f"https://api.telegram.org/bot{tok}/getMe")
+        d = r.json()
+    except Exception as e:
+        return {"ok": False, "error": f"Không nối được Telegram: {e}"}
+    if not d.get("ok"):
+        return {"ok": False, "error": "Token không hợp lệ (Telegram từ chối)"}
+    info = d.get("result") or {}
+    username = info.get("username") or ""
+    chu = cfgmod.read_settings().get("telegram", {})
+    if chu.get("token", "").strip() == tok:
+        return {"ok": False, "error": "Đây là token bot chính của bạn. Bot chuyên trách phải "
+                                      "dùng một bot Telegram RIÊNG (tạo thêm ở BotFather)."}
+    trung = chatbot_store.token_owner(username, exclude_id=bot_id)
+    if trung:
+        return {"ok": False, "error": f"Bot Telegram @{username} đã được bot \"{trung['name']}\" "
+                                      f"dùng rồi. Mỗi bot phải một token riêng."}
+    return {"ok": True, "username": username, "bot_name": info.get("first_name") or ""}
+
+
+@app.post("/chatbots")
+async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
+                          brain: str = Form(...), agent_brain: str = Form("brain"),
+                          icon: str = Form(""), token: str = Form(""),
+                          bot_username: str = Form(""), handoff_to: str = Form("")):
+    bid, err = chatbot_store.create_bot({
+        "name": name, "agent_slug": agent_slug, "agent_brain": agent_brain, "brain": brain,
+        "icon": icon, "token": token, "bot_username": bot_username, "handoff_to": handoff_to,
+    })
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    return {"ok": True, "id": bid}
+
+
+@app.post("/chatbots/{bot_id}/update")
+async def chatbots_update(bot_id: str, request: Request):
+    form = dict(await request.form())
+    ok, err = chatbot_store.update_bot(bot_id, form)
+    if not ok:
+        return JSONResponse({"ok": False, "error": err}, status_code=404)
+    # Đang chạy mà đổi token/agent/brain thì phải khởi động lại mới ăn. Khởi động lại luôn cho
+    # chắc thay vì đoán trường nào cần: sai ở đây là bot chạy bằng cấu hình cũ mà không ai biết.
+    if bot_id in chatbot_runtime._RUNNING:
+        chatbot_runtime.start_bot(bot_id)
+    return {"ok": True}
+
+
+@app.post("/chatbots/{bot_id}/enable")
+async def chatbots_enable(bot_id: str, on: str = Form("1")):
+    bat = str(on).strip() not in ("0", "false", "")
+    ok, err = chatbot_store.set_enabled(bot_id, bat)
+    if not ok:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if bat:
+        thanh, loi = chatbot_runtime.start_bot(bot_id)
+        if not thanh:
+            chatbot_store.set_enabled(bot_id, False)   # bật hụt thì đừng để cấu hình nói dối
+            return JSONResponse({"ok": False, "error": loi}, status_code=400)
+    else:
+        chatbot_runtime.stop_bot(bot_id)
+    return {"ok": True, "status": chatbot_runtime.status(bot_id)}
+
+
+@app.post("/chatbots/{bot_id}/delete")
+async def chatbots_delete(bot_id: str):
+    """Xoá bản ghi bot. KHÔNG đụng brain và Agent của nó - xem chatbot_store.delete_bot."""
+    chatbot_runtime.stop_bot(bot_id)
+    ok, err = chatbot_store.delete_bot(bot_id)
+    if not ok:
+        return JSONResponse({"ok": False, "error": err}, status_code=404)
+    return {"ok": True}
 
 
 @app.post("/telegram/test")

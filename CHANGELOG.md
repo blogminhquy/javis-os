@@ -4,6 +4,34 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.19.0] - 2026-08-04
+Trang **Chatbot**: đem một Agent bạn đã tạo ra đứng trước KHÁCH HÀNG, qua bot Telegram riêng, brain riêng, gặp câu ngoài tầm thì chuyển nhân viên thật. Spec đầy đủ ở `docs/dev/2026-08-bot-chuyen-trach-spec.md`, hướng dẫn dùng ở [docs/25-chatbot.md](docs/25-chatbot.md).
+### Thêm mới
+- **Bot chuyên trách.** Javis đã có Agent, Skill, Workflow, nhưng tất cả đều chỉ phục vụ CHỦ. Nay một Agent đem ra trả lời khách được: mỗi bot là bộ ba **Agent + brain riêng + token Telegram riêng**. Khách nhắn riêng cho bot, hoặc bạn thả bot vào nhóm chăm sóc khách hàng.
+
+  Bot **trỏ tới** Agent chứ không chép lại nó: sửa Agent ở trang Agents là bot đổi theo ngay, không phải sửa hai chỗ. Agent bị xoá thì bot vẫn chạy (không sập) nhưng thẻ trên trang Chatbot báo động, và prompt tự dặn nó thận trọng hơn.
+
+- **Trang Chatbot dựng theo hướng nhiều bot ngay từ bản đầu**: lưới thẻ, ô tìm theo tên, thêm/sửa/xoá, bật/tắt tại chỗ. Chủ repo đặt đề bài đúng như vậy ("làm 1 bot, nhưng uxui có tính scale"), nên bản này chạy một con mà thêm con thứ hai không phải sửa lại giao diện.
+
+  Thẻ bot có **bốn** trạng thái chứ không phải hai: đang chạy, đang khởi động, **lỗi**, đã tắt. Bot chết âm thầm (token bị thu hồi, mạng rớt, trùng token) là thứ chủ cửa hàng chỉ phát hiện khi khách phàn nàn, nên "lỗi" phải là một ô màu nhìn thấy được kèm lý do, chứ không phải sự vắng mặt của màu xanh.
+
+- **Chuyển cho nhân viên thật.** Đặt Chat ID nhân viên là bot có hai đường chuyển: tự chuyển khi gặp câu ngoài phạm vi, và khách chủ động gõ `/nhanvien`. Nhân viên nhận được tin có tên bot, id khách và lý do. Bỏ trống thì bot chỉ nói chưa có thông tin rồi dừng, không đoán tiếp.
+
+- **Kiểm tra token trước khi lưu.** Nút Kiểm tra hỏi thẳng Telegram, trả về đúng tên bot, và **chặn nếu token đó đã có bot khác trong Javis đang dùng** (so theo @username từ getMe chứ không so chuỗi token, vì cùng một token dán hai lần với khoảng trắng khác nhau vẫn là hai chuỗi khác nhau). Một token chỉ chạy được MỘT tiến trình long-polling; hai poller cùng token thì Telegram trả 409 và cả hai cùng chết, hỏng ở chỗ không ai ngờ và không ai báo.
+### Bảo mật
+- **Rào của bot nằm ở MÃ NGUỒN, không phải ở prompt.** Đây là điểm thiết kế quan trọng nhất của tính năng, vì người ở đầu bên kia là người lạ:
+  - Lượt của bot chạy ở mức quyền **suggest** (chỉ đọc), hạ bằng mã trong `_tg_answer_engine`. Không ghi file, không tạo đơn, không tiêu tiền, không đăng bài, không giao việc, không gọi được nguồn dữ liệu chủ đã đấu. Câu dặn trong prompt có thể bị lời lẽ khôn khéo lách qua; mức quyền thì không, vì công cụ đơn giản là không được cấp cho lượt đó.
+  - Bot **không** dùng system prompt của Javis (prompt đó dạy điều phối, ghi vault, giao việc, toàn thứ bot khách hàng không được làm) mà dùng prompt riêng: vai trò của Agent nó trỏ tới, cộng luật trả lời khách.
+  - Lệnh là danh sách **TRẮNG**: chỉ `/start`, `/help`, `/id`, `/nhanvien`. Mọi lệnh khác trả lời chung chung. Bot chủ có `/brain`, `/model`, `/status`; kế thừa được một lệnh trong số đó là khách đổi được brain của cửa hàng.
+  - **Bot mới LUÔN tắt**, kể cả khi lời gọi tạo gửi `enabled: true`. Bật là một cú bấm có ý thức, không phải tác dụng phụ của việc tạo. Bật mà chưa có token thì từ chối kèm lý do, chứ không bật rồi để nó chết lặng lẽ trong bộ giám sát.
+  - Token mã hoá qua `secrets_store`, **không bao giờ** trả ra giao diện kể cả dạng đã mã hoá; giao diện chỉ nhận cờ `token_set`. Bản vá từ giao diện đi qua danh sách **TRẮNG** các trường được sửa, nên `id`, `created_at`, `token_enc`, `channel` không ghi đè được.
+  - **Giới hạn tần suất** theo giờ trượt, riêng từng người trong từng bot (mặc định 20 lượt/giờ). Một người rảnh trong nhóm đủ đốt hết quota model của chủ trong một buổi chiều, và chủ chỉ biết khi nhìn hoá đơn.
+  - **Trong nhóm thì mặc định IM.** Chưa khai id nhóm thì bot không tự nhận việc ở nhóm lạ; đã khai rồi thì mặc định chỉ trả lời khi có người nhắc tên hoặc reply vào tin của nó.
+- **Xoá bot KHÔNG xoá brain và Agent của nó**, và hộp xác nhận nói rõ điều đó. Cùng lý do với xoá Project không xoá hội thoại ở 0.18.0: brain có thể chứa cả tháng tài liệu chủ tự soạn, Agent có thể đang được bot khác hoặc workflow dùng.
+### Cải thiện
+- **Mức quyền của lượt chat truyền được xuống MCP Hub.** `_api_stream_mcp` nhận thêm tham số `mode`, nên `discover_all`/`registry_inventory` lọc tool theo đúng mức quyền của lượt đó thay vì luôn ở mức toàn quyền. Đây là thứ làm cho rào "bot chỉ đọc" là thật chứ không phải lời hứa.
+- **Mục Chatbot trên thanh bên có icon riêng** (`headset`), không dùng lại icon của Trò chuyện. Hai mục cạnh nhau mà cùng một icon thì mắt không tách được.
+
 ## [0.18.2] - 2026-08-04
 Ba lỗi người dùng thật báo: **cài đặt chết trên Windows tiếng Việt**, **model báo sai nguyên nhân khi bị chặn ghi file**, và **chạm trần vòng gọi tool rồi dừng không có lối thoát**.
 ### Sửa lỗi

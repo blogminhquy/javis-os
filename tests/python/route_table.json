@@ -1836,6 +1836,60 @@
  {
   "order": 204,
   "type": "APIRoute",
+  "path": "/chatbots",
+  "name": "chatbots_list",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 205,
+  "type": "APIRoute",
+  "path": "/chatbots/verify-token",
+  "name": "chatbots_verify_token",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 206,
+  "type": "APIRoute",
+  "path": "/chatbots",
+  "name": "chatbots_create",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 207,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/update",
+  "name": "chatbots_update",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 208,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/enable",
+  "name": "chatbots_enable",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 209,
+  "type": "APIRoute",
+  "path": "/chatbots/{bot_id}/delete",
+  "name": "chatbots_delete",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 210,
+  "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
   "methods": [
@@ -1843,7 +1897,7 @@
   ]
  },
  {
-  "order": 205,
+  "order": 211,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -1852,7 +1906,7 @@
   ]
  },
  {
-  "order": 206,
+  "order": 212,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -1861,7 +1915,7 @@
   ]
  },
  {
-  "order": 207,
+  "order": 213,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

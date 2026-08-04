@@ -129,7 +129,7 @@ def lap_gia(prov, kind, key, model):
     main._tg_brain = lambda chat_id: BRAIN
     main._brain_root = lambda b: BRAIN
     main.build_system_prompt = lambda b: "SYS"
-    main._apply_mcp = lambda cli, brain=None: None
+    main._apply_mcp = lambda cli, mode="full", brain=None: None
     main._apply_codex_hub = lambda ccli, root: None
     main.claude_engine = lambda **kw: CLIGia(**kw)
     main.usage_store.record = lambda *a, **k: usage.append((a, k))
@@ -198,7 +198,8 @@ check("cli: hai chat khác nhau -> hai phiên khác nhau",
 kho2, usage2, nhat_ky2, hoc2 = lap_gia("openrouter", "api", "sk-test", "x/y")
 
 
-async def _api_gia(prov, key, model, messages, reasoning="off", brain=None):
+async def _api_gia(prov, key, model, messages, reasoning="off", brain=None,
+                   force_lazy=False, mode="full"):
     async def _gen():
         yield {"type": "meta", "model": "x/y-thuc"}
         yield {"type": "text", "content": "Xong rồi anh."}

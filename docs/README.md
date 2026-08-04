@@ -21,6 +21,7 @@ Thanh điều hướng của dashboard gom **17 trang** thành **6 nhóm**: Tr�
 - [06 - Skills](06-skills.md) - gom nhóm, tìm kiếm, bật/tắt, thêm/sửa/xoá, nhập/xuất skill.
 - [07 - Agents & Workflows](07-agents-va-workflows.md) - tạo trợ lý chuyên biệt + chuỗi tự động nhiều bước.
 - [20 - Plugins](20-plugins.md) - thêm tool/hook native cho mọi engine bằng một thư mục Python.
+- [25 - Chatbot (Bot chuyên trách)](25-chatbot.md) - đem Agent ra trả lời khách qua bot Telegram riêng, brain riêng, chuyển nhân viên khi bí.
 
 ### Việc chạy nền (nhóm Việc & Bộ não)
 - [08 - Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md) - nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron.
