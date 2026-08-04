@@ -4,6 +4,24 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.20.1] - 2026-08-04
+Chủ repo tạo Agent **"Coach kỷ luật"**, hỏi bot về kỷ luật, và nhận lại một con bot ngu ngơ: nó tự xưng là trợ lý cửa hàng, trích một mục quy ước nội bộ của Javis ra làm câu trả lời, rồi nói "em chưa có thông tin" cho đúng câu thuộc chuyên môn của Agent. Bốn lỗi chồng lên nhau, đều do bản Chatbot đầu tiên mặc định rằng mọi bot đều là bot bán hàng.
+### Sửa lỗi
+- **Prompt đóng khung MỌI bot là nhân viên bán hàng, đè lên chính Agent người dùng vừa chọn.** Bản cũ viết thẳng "trợ lý trả lời khách của cửa hàng", "không chốt giá ngoài bảng giá", "không hứa giao hàng". Agent coach nào rơi vào đó cũng thành nhân viên bán hàng từ chối tư vấn.
+
+  Bán hàng chỉ là MỘT ca dùng. Đề bài gốc là "mỗi chatbot chuyên về 1 lĩnh vực để hỗ trợ trả lời", còn nhóm chăm sóc khách hàng là ví dụ chứ không phải định nghĩa. Nay khung trung tính: Agent nói nó là ai, phần hướng dẫn vai được nêu rõ là **phần quan trọng nhất**, và luật chỉ giữ ba thứ không phụ thuộc ngành - đừng bịa chi tiết riêng của nơi đó, đừng khai hệ thống bên trong, đừng hứa thay chủ.
+- **Bot bị bịt miệng khi brain không có tài liệu.** Bản 0.20.0 ép mọi bot vào chế độ chỉ-trả-lời-theo-tài-liệu, nên một Agent coach viết rất kỹ vẫn trả lời "em chưa có thông tin" cho câu thuộc đúng chuyên môn của nó - chuyên môn ấy nằm trong hướng dẫn vai, không nằm ở file nào trong brain.
+
+  Nay bot có **hai chế độ**, chọn khi tạo hoặc sửa: *chuyên môn của Agent + tài liệu* (mặc định) và *chỉ tài liệu*. Khác biệt CHỈ nằm ở lúc không tìm thấy gì; tìm thấy thì hai chế độ hành xử y hệt. Cả hai đều vẫn bắt buộc phải có tài liệu mới được nói về giá, chính sách, tồn kho, lịch, liên hệ. Bot tạo trước bản này tự đọc thành chế độ mặc định, không cần di trú.
+- **Bot trích quy ước nội bộ của Javis ra trả lời khách.** `meta_tools` seed `CLAUDE.md` + `AGENTS.md` vào GỐC mọi brain, mà danh sách loại trừ chỉ chặn theo thư mục. Hỏi "sao lại kỷ luật cửa hàng" thì bot tra ra mục "Ba kỷ luật chống Wiki rỗng/sai" rồi giải thích cho khách rằng đó là "quy tắc nội bộ vận hành hệ thống của cửa hàng" - vừa vô nghĩa, vừa khai ruột hệ thống, đúng thứ luật trong prompt cấm mà chính phần tra cứu lại dâng tận tay. Nay loại cả `CLAUDE.md`, `AGENTS.md`, `index.md`, `log.md`, `_open-questions.md`, `_session-handoff.md`; note Wiki thật của người dùng vẫn dùng bình thường.
+- **Gọi nhân viên vì một câu hỏi vu vơ.** Bản 0.20.0 báo ngay từ lượt bí đầu tiên. Nhân viên bị đánh thức vì câu không ai cần xử lý thì vài lần là họ tắt thông báo, rồi lúc có người thật cần giúp thì không ai đọc nữa. Nay chỉ gọi khi khách gõ `/nhanvien`, hoặc bot bí **hai câu liên tiếp** với cùng một người; trả lời được một câu là đếm về 0.
+### Cải thiện
+- **Phân biệt khớp đúng dấu với khớp nhờ bỏ dấu.** Bỏ dấu là con dao hai lưỡi: nó cho khách gõ "gia si bao nhieu" mà vẫn ra "giá sỉ" (rất cần), nhưng cũng làm những cặp từ khác hẳn nghĩa đụng nhau, và tiếng Việt đụng rất nhiều. Ca thật: "có bán cà phê không" khớp vào note "Kỷ luật bản thân" có câu "kể cả khi hết hứng" - "bán" gặp "bản", "cà" gặp "cả", trúng hai chữ, đủ qua mọi ngưỡng.
+
+  Nay chỉ mục giữ cả hai dạng. Người hỏi có đánh dấu mà tài liệu mang dấu khác thì hạ mạnh trọng số (0.3) chứ không loại hẳn, vì vẫn có người gõ sai dấu. Người hỏi gõ không dấu thì họ không nói gì về dấu, không phạt: mọi dạng tính là khớp thật. Bộ câu chuẩn trong test lên 30 câu, có cả cặp bẫy dấu đó.
+- **"Bí" đo bằng chính câu bot vừa nói**, không bằng việc có tìm ra tài liệu hay không. Ở chế độ theo Agent thì không có tài liệu là chuyện thường và bot vẫn trả lời tốt; đếm nó là bí thì danh sách "Bot bí" đầy rác đúng chỗ nó phải sạch.
+- **Thẻ bot hiện đang chạy chế độ nào**, và ô chọn chế độ nằm ngay dưới ô brain trong form kèm giải thích khi nào dùng cái nào - đây là thứ người dùng cần hiểu TRƯỚC khi bấm tạo, không phải thứ giấu ở cuối.
+
 ## [0.20.0] - 2026-08-04
 Ba giai đoạn còn lại của Bot chuyên trách: **trả lời có căn cứ**, **vào nhóm được thật**, và **thống kê câu bot trả lời không nổi**. Kèm một lỗ của 0.19.0 phải vá.
 ### Sửa lỗi

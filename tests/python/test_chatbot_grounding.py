@@ -117,6 +117,30 @@ check("file khách tự tải lên KHÔNG được tính là tài liệu",
 check("thư mục hệ thống cũng bị loại",
       all(not h["path"].lower().startswith("javis") for h in moi))
 
+# CANARY - lỗi đã xảy ra thật. meta_tools seed CLAUDE.md + AGENTS.md vào GỐC mọi brain, nên
+# danh sách thư mục không chặn được. Chủ repo hỏi bot "sao lại kỷ luật cửa hàng", bot tra ra
+# mục "Ba kỷ luật chống Wiki rỗng/sai" trong CLAUDE.md rồi trả lời khách rằng đó là "quy tắc
+# nội bộ vận hành hệ thống của cửa hàng" - vừa vô nghĩa với khách, vừa khai ruột hệ thống.
+(BRAIN / "CLAUDE.md").write_text(
+    "# Schema vault\n\n## Ba kỷ luật chống Wiki rỗng/sai (BẮT BUỘC)\n\n"
+    "1. Citation trong thân bài. Mọi khẳng định phải kèm nguồn.\n", encoding="utf-8")
+(BRAIN / "AGENTS.md").write_text("# Schema vault\n\nQuy ước vận hành nội bộ.\n", encoding="utf-8")
+(BRAIN / "wiki").mkdir(exist_ok=True)
+(BRAIN / "wiki" / "_open-questions.md").write_text("# Câu hỏi mở\n\n- Kỷ luật nào chưa rõ?\n",
+                                                   encoding="utf-8")
+(BRAIN / "wiki" / "ky-luat-ban-than.md").write_text(
+    "# Kỷ luật bản thân\n\nKỷ luật là làm điều đã định kể cả khi hết hứng.\n", encoding="utf-8")
+
+kl = chatbot_grounding.tim(BRAIN, "ba kỷ luật chống wiki rỗng sai là gì", 8)
+check("CANARY: CLAUDE.md của Javis KHÔNG lọt vào tài liệu trả khách",
+      all(h["path"].lower() != "claude.md" for h in kl))
+check("AGENTS.md cũng bị loại", all(h["path"].lower() != "agents.md" for h in kl))
+check("file điều hướng wiki bị loại",
+      all("_open-questions" not in h["path"] for h in kl))
+check("nhưng note wiki THẬT của người dùng vẫn dùng được",
+      any("ky-luat-ban-than" in h["path"]
+          for h in chatbot_grounding.tim(BRAIN, "kỷ luật bản thân là gì", 8)))
+
 
 # ============================================================
 # 3. Khối nhét vào prompt
@@ -156,9 +180,14 @@ NEN_CO = ["giá bao nhiêu", "chai 500ml giá thế nào", "mua sỉ có rẻ h�
           "độ đạm bao nhiêu", "cá đánh bắt ở đâu", "gia si the nao", "do dam bao nhieu",
           "nuoc mam u bao lau", "chai 1 lít giá nhiêu", "doi tra trong bao nhieu ngay",
           "nước mắm này ủ bao lâu vậy shop", "cho hỏi giá sỉ 20 chai",
-          "shop có bán loại 1 lít không", "giá bán lẻ thế nào"]
+          "shop có bán loại 1 lít không", "giá bán lẻ thế nào",
+          # Đúng note kia, hỏi cả hai kiểu gõ. Chữa bẫy dấu mà làm hụt câu này là chữa hỏng.
+          "kỷ luật bản thân là gì", "ky luat ban than la gi"]
 NEN_BI = ["cửa hàng có tuyển lập trình viên Rust không", "hôm nay thời tiết thế nào",
-          "cho xin số tài khoản ngân hàng", "có bán cà phê không",
+          "cho xin số tài khoản ngân hàng",
+          # BẪY DẤU: "bán/cà" đụng "bản/cả" trong note "Kỷ luật bản thân" ("kể cả khi hết
+          # hứng"). Trúng hai chữ, đủ qua mọi ngưỡng dựa trên chữ đã bỏ dấu.
+          "có bán cà phê không",
           "shop mở cửa mấy giờ", "có chi nhánh ở Hà Nội không", "thủ đô nước Pháp là gì",
           "có ship đi Mỹ không", "bên mình có tuyển cộng tác viên không",
           "có bán trà sữa không", "cho hỏi wifi mật khẩu gì"]
@@ -180,18 +209,41 @@ bot = {"name": "Bot", "agent": {"brain": "brain", "slug": "cskh"}, "handoff_to":
 
 p_co = chatbot_runtime.build_bot_prompt({**bot, "_tai_lieu": tl})
 check("có tài liệu -> prompt kèm nguyên văn tài liệu", "185.000" in p_co)
-check("có tài liệu -> prompt chốt đây là TOÀN BỘ căn cứ", "toàn bộ căn cứ" in p_co.lower())
-
-p_khong = chatbot_runtime.build_bot_prompt({**bot, "_tai_lieu": trong})
-check("KHÔNG có tài liệu -> prompt nói thẳng là đã tìm và không có",
-      "không có phần nào" in p_khong.lower())
-check("KHÔNG có tài liệu -> cấm dùng kiến thức chung",
-      "kiến thức chung" in p_khong.lower())
-check("KHÔNG có tài liệu -> không kèm khối tài liệu rỗng", "TÀI LIỆU của cửa hàng (đã tìm sẵn" not in p_khong)
+check("có tài liệu -> prompt chốt đây là căn cứ cho chi tiết riêng",
+      "căn cứ cho mọi chi tiết" in p_co)
 
 p_ngoai = chatbot_runtime.build_bot_prompt(bot)
 check("dựng prompt ngoài một lượt thật -> không bịa ra khối tài liệu nào",
-      "TÀI LIỆU của cửa hàng" not in p_ngoai)
+      "## TÀI LIỆU" not in p_ngoai)
+
+
+# ============================================================
+# 4b. Hai chế độ nguồn trả lời
+# ============================================================
+# Đây là chỗ bản 0.20.0 làm hỏng trải nghiệm thật. Một Agent coach có chuyên môn nằm trong
+# hướng dẫn vai, không nằm ở file nào trong brain. Bắt nó im khi brain không có tài liệu là
+# bịt miệng đúng cái nó giỏi nhất, và người dùng thấy một con bot "ngu ngơ" dù Agent viết kỹ.
+p_agent = chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "agent", "_tai_lieu": trong})
+check("chế độ Agent + không có tài liệu -> vẫn được trả lời bằng chuyên môn của vai",
+      "trả lời bằng chính hướng dẫn vai ở trên" in p_agent)
+check("chế độ Agent -> vẫn chặn bịa chi tiết riêng (giá, chính sách, tồn kho)",
+      "giá, chính sách, tồn kho" in p_agent)
+check("CANARY: chế độ Agent KHÔNG ép bot câm khi thiếu tài liệu",
+      "TUYỆT ĐỐI không trả lời bằng kiến thức chung" not in p_agent)
+
+p_chat = chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "tai_lieu", "_tai_lieu": trong})
+check("chế độ chỉ-tài-liệu + không có tài liệu -> nói thẳng đã tìm và không có",
+      "không có phần nào" in p_chat.lower())
+check("chế độ chỉ-tài-liệu -> cấm dùng kiến thức chung",
+      "TUYỆT ĐỐI không trả lời bằng kiến thức chung" in p_chat)
+
+check("bản ghi cũ thiếu khoá -> rơi vào chế độ Agent, không phải chế độ câm",
+      "trả lời bằng chính hướng dẫn vai ở trên" in
+      chatbot_runtime.build_bot_prompt({**bot, "_tai_lieu": trong}))
+# Có tài liệu thì hai chế độ giống hệt nhau: khác biệt CHỈ nằm ở lúc không tìm thấy gì.
+check("có tài liệu thì hai chế độ cho ra cùng một khối",
+      chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "tai_lieu", "_tai_lieu": tl})
+      == chatbot_runtime.build_bot_prompt({**bot, "nguon_tra_loi": "agent", "_tai_lieu": tl}))
 
 
 # ============================================================
@@ -336,6 +388,27 @@ check("câu 'chưa có thông tin' tính là bí", chatbot_runtime._co_bi("Cái 
 check("câu chuyển nhân viên tính là bí", chatbot_runtime._co_bi("Để em chuyển cho nhân viên hỗ trợ ạ"))
 check("câu trả lời bình thường KHÔNG tính là bí",
       not chatbot_runtime._co_bi("Chai 500ml giá 185.000 đồng ạ"))
+
+
+# ============================================================
+# 9. Gọi người thật: hai câu bí LIÊN TIẾP mới gọi
+# ============================================================
+# Bản 0.20.0 báo ngay từ lượt bí đầu tiên, và thực tế nó kêu vì một câu vu vơ. Nhân viên bị
+# đánh thức vì câu không ai cần xử lý thì vài lần là họ tắt thông báo, rồi lúc có khách thật
+# cần giúp thì không ai đọc nữa. Bí một câu là bình thường; bí hai câu liên tiếp mới là dấu
+# hiệu người ta đang mắc kẹt.
+check("ngưỡng gọi người là 2 câu liên tiếp", chatbot_runtime.BI_LIEN_TIEP_DE_GOI == 2)
+_SRC_RT = (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8")
+check("gọi người dựa trên số câu bí LIÊN TIẾP, không phải câu bí lẻ",
+      "lien_tiep >= BI_LIEN_TIEP_DE_GOI" in _SRC_RT)
+check("trả lời được một câu thì đếm về 0",
+      "lien_tiep = (_BI_LIEN_TIEP.get(khoa, 0) + 1) if bi else 0" in _SRC_RT)
+check("gọi người xong thì đếm lại, không gọi mỗi lượt sau đó",
+      "_BI_LIEN_TIEP[khoa] = 0" in _SRC_RT)
+# Ở chế độ Agent, không tìm ra tài liệu KHÔNG phải là bí - bot vẫn trả lời tốt bằng chuyên môn
+# của vai. Đếm nó là bí thì danh sách "Bot bí" đầy rác đúng chỗ nó phải sạch.
+check("chế độ Agent: không có tài liệu KHÔNG tự động tính là bí",
+      '_co_bi(dap) or (cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co"))' in _SRC_RT)
 
 print()
 if _fails:

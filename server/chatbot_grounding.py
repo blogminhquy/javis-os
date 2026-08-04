@@ -39,6 +39,16 @@ DUOI = (".md", ".txt", ".markdown")
 BO_QUA = {"inbox", "attachments", "javis", ".git", ".obsidian", ".trash", "node_modules",
           "memory", "skills", "plugins", ".claude", ".agents", "05 - data cache"}
 
+# File QUY ƯỚC VẬN HÀNH của chính Javis, seed vào MỌI brain (xem meta_tools.ensure_brain_pattern).
+# Chúng nằm ở GỐC brain nên danh sách thư mục ở trên không chặn được.
+#
+# Đây là một lỗi đã xảy ra thật, không phải phòng xa: chủ repo hỏi bot "sao lại kỷ luật cửa
+# hàng", bot tra ra mục "Ba kỷ luật chống Wiki rỗng/sai" trong CLAUDE.md rồi trả lời khách rằng
+# "đó là quy tắc nội bộ vận hành hệ thống của cửa hàng". Vừa vô nghĩa với khách, vừa khai ra
+# ruột hệ thống - đúng thứ luật số 3 trong prompt cấm, mà chính phần tra cứu lại dâng tận tay.
+BO_QUA_FILE = {"claude.md", "agents.md", "readme.md", "index.md", "log.md",
+               "_open-questions.md", "_session-handoff.md", "memory.md"}
+
 MAX_FILE = 400          # trần số file quét, tránh brain khổng lồ làm chậm từng tin nhắn
 MAX_BYTES = 120_000     # trần đọc mỗi file
 CHUNK_MAX = 1_400       # cỡ một mảnh tài liệu đưa vào prompt
@@ -62,6 +72,7 @@ NGAN_SACH = 5_000       # tổng chữ tài liệu tối đa nhét vào một pr
 DIEM_SAN = 0.8
 PHU_SAN = 0.34
 KHOP_TOI_THIEU = 2      # áp dụng khi câu hỏi có từ 3 chữ có nghĩa trở lên
+YEU = 0.3               # hệ số cho chữ chỉ khớp được sau khi bỏ dấu (xem _tach_cap)
 
 # Từ quá phổ biến thì có mặt ở mọi tài liệu, giữ lại chỉ làm nhiễu điểm.
 #
@@ -89,8 +100,30 @@ def _bo_dau(s: str) -> str:
 
 
 def _tach_tu(s: str) -> List[str]:
-    s = _bo_dau(str(s or "")).lower()
-    return [t for t in re.split(r"[^a-z0-9]+", s) if len(t) > 1 and t not in DUNG_TU]
+    return [a for a, _ in _tach_cap(s)]
+
+
+def _tach_cap(s: str) -> List[tuple]:
+    """Cắt thành các cặp (bỏ dấu, giữ dấu).
+
+    Phải giữ CẢ HAI dạng vì bỏ dấu là con dao hai lưỡi. Nó cho khách gõ "gia si bao nhieu" mà
+    vẫn tìm ra "giá sỉ" - rất cần, vì khách gõ không dấu suốt. Nhưng nó cũng làm những cặp từ
+    khác hẳn nghĩa đụng nhau, và tiếng Việt thì đụng rất nhiều: "bán" gặp "bản", "cà" gặp "cả",
+    "chi" gặp "chỉ/chí/chị".
+
+    Đã hỏng thật vì chuyện này: "có bán cà phê không" khớp vào một note tên "Kỷ luật bản thân"
+    có câu "kể cả khi hết hứng" - trúng hai chữ, đủ qua mọi ngưỡng, và bot tưởng mình có căn cứ.
+    """
+    tho = str(s or "")
+    thuong = _bo_dau(tho).lower()
+    ra = []
+    # Bỏ dấu KHÔNG đổi độ dài chuỗi (chỉ bỏ ký tự tổ hợp sau khi NFD rồi ghép lại), nên cắt
+    # trên bản đã bỏ dấu vẫn lấy đúng lát tương ứng ở bản gốc.
+    for m in re.finditer(r"[a-z0-9]+", thuong):
+        t = m.group(0)
+        if len(t) > 1 and t not in DUNG_TU:
+            ra.append((t, tho[m.start():m.end()].lower()))
+    return ra
 
 
 # ============================================================
@@ -126,6 +159,8 @@ def _duyet(root: Path):
         if p.suffix.lower() not in DUOI or not p.is_file():
             continue
         if any(x.lower() in BO_QUA or x.startswith(".") for x in p.relative_to(root).parts[:-1]):
+            continue
+        if p.name.lower() in BO_QUA_FILE:
             continue
         dem += 1
         yield p
@@ -167,22 +202,23 @@ def _dung_chi_muc(root: Path) -> dict:
         duong = str(p.relative_to(root))
         for m in _cat_manh(raw, p.stem):
             m["path"] = duong
-            m["tu"] = _tach_tu(m["ten"] + " " + p.stem + " " + m["text"])
+            m["cap"] = _tach_cap(m["ten"] + " " + p.stem + " " + m["text"])
             manh.append(m)
 
     df: Dict[str, int] = {}
     for m in manh:
-        for t in set(m["tu"]):
+        for t, _ in set(m["cap"]):
             df[t] = df.get(t, 0) + 1
     n = max(1, len(manh))
     idf = {t: math.log(1 + n / (1 + c)) for t, c in df.items()}
     for m in manh:
         dem: Dict[str, int] = {}
-        for t in m["tu"]:
+        for t, _ in m["cap"]:
             dem[t] = dem.get(t, 0) + 1
         m["dem"] = dem
+        m["dau"] = {a for _, a in m["cap"]}     # dạng CÒN DẤU, để phân biệt khớp thật/khớp mờ
         m["ten_tu"] = set(_tach_tu(m["ten"]))
-        del m["tu"]
+        del m["cap"]
     return {"manh": manh, "idf": idf}
 
 
@@ -215,12 +251,16 @@ def xoa_cache() -> None:
 # ============================================================
 def tim(root: Any, cau_hoi: str, k: int = 4) -> List[dict]:
     """Các mảnh tài liệu khớp nhất với câu hỏi, sắp theo điểm giảm dần."""
-    tu = _tach_tu(cau_hoi)
-    if not tu:
+    cap = _tach_cap(cau_hoi)
+    if not cap:
         return []
     ix = chi_muc(root)
     idf = ix["idf"]
-    hoi = set(tu)
+    # Một từ bỏ dấu có thể ứng với nhiều dạng có dấu trong CÙNG câu hỏi; giữ tất cả để chỉ cần
+    # tài liệu khớp một dạng là tính khớp thật.
+    hoi: Dict[str, set] = {}
+    for t, a in cap:
+        hoi.setdefault(t, set()).add(a)
     # Từ nào không có trong brain thì IDF không tra được. Cho nó sức nặng TRUNG BÌNH thay vì 0:
     # "Rust" không nằm ở đâu trong brain nước mắm, và chính việc nó vắng mặt là bằng chứng
     # mạnh nhất rằng câu hỏi này nằm ngoài phạm vi. Cho 0 là bỏ đúng bằng chứng đó đi.
@@ -231,19 +271,28 @@ def tim(root: Any, cau_hoi: str, k: int = 4) -> List[dict]:
     ra = []
     for m in ix["manh"]:
         d, khop, n_khop = 0.0, 0.0, 0
-        for t in hoi:
+        for t, dang in hoi.items():
             c = m["dem"].get(t)
             if not c:
                 continue
-            n_khop += 1
+            # Khớp THẬT hay chỉ khớp nhờ bỏ dấu?
+            #
+            # Người hỏi có đánh dấu mà tài liệu lại mang dấu khác thì gần như luôn là hai từ
+            # khác nhau ("bán" vs "bản"), nên hạ mạnh chứ không loại hẳn - vẫn có người gõ sai
+            # dấu. Còn người hỏi gõ KHÔNG dấu thì họ không nói gì về dấu cả, không có cớ gì
+            # phạt họ: lúc đó mọi dạng đều tính là khớp thật.
+            that = any(a == t or a in m["dau"] for a in dang)
+            he_so = 1.0 if that else YEU
+            if that:
+                n_khop += 1
             # Tần suất vào theo log: một mảnh nhắc "giá" 40 lần không đáng gấp 40 lần mảnh
             # nhắc một lần. Trúng ở TIÊU ĐỀ thì nhân rưỡi - tiêu đề là thứ nói mảnh này VỀ cái
             # gì, còn trong thân thì có thể chỉ là nhắc ngang qua.
-            w = nang[t] * (1 + math.log(c))
+            w = nang[t] * (1 + math.log(c)) * he_so
             if t in m["ten_tu"]:
                 w *= 1.5
             d += w
-            khop += nang[t]
+            khop += nang[t] * he_so
         if d > 0:
             ra.append((d, khop / tong, n_khop, m))
     ra.sort(key=lambda x: -x[0])
@@ -267,6 +316,8 @@ def thu_thap(root: Any, cau_hoi: str, k: int = 4) -> dict:
     # Mảnh ĐẦU phải tự nó đủ liên quan; qua được cửa đó rồi thì các mảnh sau chỉ cần đạt điểm
     # sàn, vì chúng vào prompt với tư cách ngữ cảnh bổ sung chứ không phải căn cứ chính.
     can = KHOP_TOI_THIEU if len(set(_tach_tu(cau_hoi))) >= 3 else 1
+    # so_khop chỉ đếm chữ khớp THẬT, nên luật "câu dài phải trúng hai chữ" giờ là hai chữ trúng
+    # thật, không phải hai chữ trùng nhau sau khi bỏ dấu.
     if (not hit or hit[0]["phu"] < PHU_SAN or hit[0]["diem"] < DIEM_SAN
             or hit[0]["so_khop"] < can):
         return {"co": False, "khoi": "", "nguon": []}

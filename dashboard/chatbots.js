@@ -117,6 +117,7 @@
         '</div>' +
         '<div class="cb-meta">' +
           '<span>' + ((b.groups || []).length ? (b.groups.length + ' nhóm') : 'chỉ tin nhắn riêng') + '</span>' +
+          '<span>' + (b.nguon_tra_loi === "tai_lieu" ? "chỉ tài liệu" : "chuyên môn Agent") + '</span>' +
           '<span>' + (st.answered || 0) + ' lượt trả lời</span>' +
           (b.handoff_to ? '<span>' + ic("user") + ' có chuyển nhân viên</span>'
                         : '<span class="cb-warn">chưa đặt người nhận</span>') +
@@ -272,8 +273,23 @@
           '</select>' +
           (sua ? "" : '<button class="s-btn-ghost" id="cbNewBrain" type="button">' + ic("plus") + ' Tạo brain mới</button>') +
         '</div>' +
-        '<div class="cb-hint"><b>Bot chỉ biết những gì nằm trong brain này.</b> Nên dùng một ' +
-        'brain riêng chứa đúng tài liệu khách được xem, đừng trỏ vào brain chính của bạn.</div>' +
+        '<div class="cb-hint">Bot đọc tài liệu trong brain này để trả lời. Nên dùng một brain ' +
+        'riêng chứa đúng tài liệu người ngoài được xem, đừng trỏ vào brain chính của bạn.</div>' +
+
+        // Lựa chọn này quyết định bot "ăn nhập với Agent" hay không, nên đặt ngay dưới brain
+        // chứ không giấu ở cuối form: nó là thứ người dùng cần hiểu TRƯỚC khi bấm tạo.
+        '<label>Bot trả lời dựa trên gì</label>' +
+        '<select id="cbNguon">' +
+          '<option value="agent"' + (!b || b.nguon_tra_loi !== "tai_lieu" ? " selected" : "") + '>' +
+            'Chuyên môn của Agent + tài liệu (mặc định)</option>' +
+          '<option value="tai_lieu"' + (b && b.nguon_tra_loi === "tai_lieu" ? " selected" : "") + '>' +
+            'CHỈ tài liệu trong brain</option>' +
+        '</select>' +
+        '<div class="cb-hint"><b>Chuyên môn của Agent</b>: bot trả lời như chính Agent bạn chọn, ' +
+        'tài liệu là phần bổ sung. Hợp với bot tư vấn, coach, đào tạo, giải đáp nghiệp vụ.<br>' +
+        '<b>Chỉ tài liệu</b>: không có tài liệu thì bot nói chưa có thông tin, không tự nói thêm. ' +
+        'Hợp với bot đọc giá và chính sách, nơi một câu sai là thiệt hại thật.<br>' +
+        'Cả hai chế độ đều bắt buộc phải có tài liệu mới được nói về giá, chính sách, tồn kho.</div>' +
 
         '<label>Token Telegram' + (sua ? " (để trống nếu không đổi)" : "") + '</label>' +
         '<div class="cb-row">' +
@@ -286,8 +302,9 @@
 
         '<label>Chat ID nhân viên nhận chuyển tiếp</label>' +
         '<input id="cbHandoff" value="' + esc(b ? (b.handoff_to || "") : "") + '" placeholder="Ví dụ: 123456789">' +
-        '<div class="cb-hint">Khách hỏi ngoài phạm vi thì bot nói "để em chuyển nhân viên" và ' +
-        'nhắn vào đây. Bỏ trống thì bot chỉ nói chưa có thông tin rồi dừng.</div>' +
+        '<div class="cb-hint">Bot bí <b>hai câu liên tiếp</b> với cùng một người thì nhắn vào ' +
+        'đây, và khách gõ /nhanvien thì báo ngay. Bí một câu lẻ không gọi - báo mọi câu vu vơ ' +
+        'thì vài lần là nhân viên tắt thông báo. Bỏ trống thì bot chỉ nói chưa có thông tin rồi dừng.</div>' +
 
         (sua ? '<label>Nhóm được phép (mỗi id một dòng, mời bot vào nhóm rồi gõ /id để lấy)</label>' +
                '<textarea id="cbGroups" rows="2">' + esc((b.groups || []).join("\n")) + '</textarea>' : "") +
@@ -337,6 +354,7 @@
       var br = box.querySelector("#cbBrain").value;
       var tok = box.querySelector("#cbToken").value.trim();
       var ho = box.querySelector("#cbHandoff").value.trim();
+      var ngu = box.querySelector("#cbNguon").value;
       if (!ten) return alert("Nhập tên bot");
       if (!ag) return alert("Chọn Agent làm bộ não cho bot");
       if (!br) return alert("Chọn hoặc tạo brain riêng cho bot");
@@ -346,7 +364,7 @@
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", {
             method: "POST",
             body: fd({ name: ten, agent_slug: ag, agent_brain: brain(), brain: br,
-                       handoff_to: ho, token: tok, bot_username: uname,
+                       handoff_to: ho, token: tok, bot_username: uname, nguon_tra_loi: ngu,
                        groups: gr ? gr.value : undefined }),
           });
         } else {
@@ -354,7 +372,7 @@
           await api("/chatbots", {
             method: "POST",
             body: fd({ name: ten, agent_slug: ag, agent_brain: brain(), brain: br,
-                       token: tok, bot_username: uname, handoff_to: ho }),
+                       token: tok, bot_username: uname, handoff_to: ho, nguon_tra_loi: ngu }),
           });
         }
       } catch (e) { return alert("Không lưu được: " + e.message); }

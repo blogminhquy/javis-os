@@ -9663,10 +9663,12 @@ async def chatbots_verify_token(token: str = Form(...), bot_id: str = Form("")):
 async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           brain: str = Form(...), agent_brain: str = Form("brain"),
                           icon: str = Form(""), token: str = Form(""),
-                          bot_username: str = Form(""), handoff_to: str = Form("")):
+                          bot_username: str = Form(""), handoff_to: str = Form(""),
+                          nguon_tra_loi: str = Form("")):
     bid, err = chatbot_store.create_bot({
         "name": name, "agent_slug": agent_slug, "agent_brain": agent_brain, "brain": brain,
         "icon": icon, "token": token, "bot_username": bot_username, "handoff_to": handoff_to,
+        "nguon_tra_loi": nguon_tra_loi,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)

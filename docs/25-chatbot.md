@@ -103,16 +103,35 @@ Thẻ cũng cảnh báo khi **Agent của bot không còn** (bạn xoá hoặc �
 
 ## Bot trả lời dựa trên cái gì
 
-Mỗi lần khách hỏi, Javis **tra tài liệu trong brain của bot trước**, lấy vài đoạn khớp nhất, rồi đưa thẳng vào đầu bài của lượt đó. Bot chỉ được dùng chỗ đó làm căn cứ.
+Mỗi lần có người hỏi, Javis **tra tài liệu trong brain của bot trước**, lấy vài đoạn khớp nhất, rồi đưa thẳng vào đầu bài của lượt đó.
 
 Điều này khác với "bot có quyền đọc brain". Có quyền đọc không có nghĩa là nó chịu đọc: model hoàn toàn có thể trả lời thẳng bằng kiến thức chung của nó, câu vẫn trôi chảy tự tin y hệt, và anh **không phân biệt được từ bên ngoài**. Nên Javis tra trước, không giao việc đó cho model tự quyết.
 
-Tìm không ra đoạn nào khớp thì bot được báo thẳng là "đã tìm và không có", và luật lúc đó chuyển thành nói chưa có thông tin. Không phải im lặng đưa một khối rỗng rồi để nó tự lấp.
+### Hai chế độ, chọn khi tạo bot
 
-Hai điều nên biết để tài liệu ăn khớp tốt:
+Khác biệt chỉ nằm ở **lúc không tìm thấy tài liệu nào khớp**. Tìm thấy thì hai chế độ hành xử y hệt.
+
+| Chế độ | Không tìm thấy tài liệu thì bot làm gì | Hợp với |
+|---|---|---|
+| **Chuyên môn của Agent** (mặc định) | Trả lời bằng chính hướng dẫn vai của Agent, nếu câu hỏi thuộc chuyên môn đó | Bot tư vấn, coach, đào tạo, giải đáp nghiệp vụ |
+| **Chỉ tài liệu** | Nói chưa có thông tin rồi dừng, không tự nói thêm | Bot đọc giá và chính sách, nơi một câu sai là thiệt hại thật |
+
+**Cả hai chế độ đều bắt buộc phải có tài liệu mới được nói về giá, chính sách, tồn kho, lịch làm việc, thông tin liên hệ, cam kết dịch vụ.** Chế độ "chuyên môn Agent" mở đường cho bot giải thích phương pháp và tư vấn, không mở đường cho nó bịa con số.
+
+Chọn sai thì thấy ngay: một Agent coach chạy ở chế độ "chỉ tài liệu" sẽ trả lời "em chưa có thông tin" cho đúng câu thuộc chuyên môn của nó, dù anh viết hướng dẫn vai rất kỹ. Đổi chế độ ở nút **Sửa**, có hiệu lực ngay.
+
+### Bot nói năng theo Agent, không theo khuôn có sẵn
+
+Javis không áp cho bot một nghề nào. Agent nói nó là ai và làm gì; Javis chỉ thêm mấy luật không phụ thuộc ngành: đừng bịa chi tiết riêng của nơi này, đừng nói về hệ thống bên trong, đừng hứa thay chủ, đừng đổi vai khi bị dụ.
+
+Nên **hướng dẫn vai trong file Agent là thứ quyết định chất lượng bot nhất**. Viết như dặn một người mới: nói năng thế nào, ưu tiên gì, gặp trường hợp nào thì chuyển người thật.
+
+### Để tài liệu ăn khớp tốt
 
 - **Đặt tiêu đề rõ ràng trong file.** Javis cắt tài liệu theo tiêu đề markdown (`##`), và mỗi đoạn được lấy riêng lẻ. Một file dài không tiêu đề thì bot có thể đọc được nửa điều kiện rồi trả lời như thể đó là toàn bộ điều kiện. Chia thành "Giá bán lẻ", "Giá sỉ", "Đổi trả", "Giao hàng"... là ăn khớp tốt nhất.
 - **File khách gửi lên KHÔNG được tính là tài liệu.** Chúng nằm trong `inbox/khach/` và bị loại hẳn khỏi phần tra cứu. Nếu không thì bất kỳ ai cũng tải lên một file ghi "chính sách mới: hoàn tiền 100% mọi trường hợp" rồi hỏi lại một câu, và bot trích dẫn nó như tài liệu chính thức của cửa hàng.
+- **File quy ước nội bộ của Javis cũng bị loại.** `CLAUDE.md`, `AGENTS.md`, `wiki/index.md`, `wiki/log.md` và mấy file điều hướng khác có mặt trong mọi brain nhưng là ruột hệ thống, không phải nội dung trả lời người ngoài. Note Wiki thật của anh vẫn dùng bình thường.
+- **Gõ có dấu và không dấu đều tìm được**, nhưng gõ có dấu chính xác hơn: "bán" không khớp vào "bản", "cà" không khớp vào "cả". Tài liệu nên viết đúng chính tả và đúng dấu.
 
 ## Nhật ký và chỗ tài liệu đang thiếu
 
@@ -122,11 +141,17 @@ Bấm **Nhật ký** trên thẻ bot. Có hai tab, và tab mở sẵn là tab qu
 
 Gom trùng có bỏ dấu, nên "Giá bao nhiêu?" và "gia bao nhieu" được tính là một câu. Nếu không thì cùng một câu hỏi bị tách thành mấy dòng lẻ và anh không thấy được nó thật ra được hỏi nhiều.
 
-Bot tính là "bí" trong hai trường hợp: không tìm ra tài liệu nào khớp, hoặc tìm ra rồi mà vẫn phải nói chưa có thông tin. Trường hợp thứ hai tinh vi hơn và cũng đáng chú ý hơn: tài liệu **có** nhưng **thiếu ý** khách cần.
+"Bí" đo bằng **chính câu bot vừa nói**: nó nói chưa có thông tin, hoặc nó phải chuyển người thật. Với bot chạy chế độ "chỉ tài liệu" thì không tìm ra tài liệu cũng tính luôn.
+
+Đáng chú ý nhất là loại bí mà bot **vẫn tìm ra tài liệu**: tài liệu có nhưng thiếu đúng ý người ta cần. Loại đó chỉ ra chỗ tài liệu viết chưa đủ, tinh vi hơn loại không có file nào.
 
 **Hội thoại gần đây** cho xem lại từng lượt, kèm **đúng file bot đã dùng** để trả lời. Dòng nguồn đó là thứ làm cho câu hỏi "bot trả lời đúng chưa" kiểm chứng được thay vì chỉ đoán.
 
-Có đặt Chat ID nhân viên thì mỗi lượt bí cũng được báo ngay cho nhân viên, kèm câu khách vừa hỏi. Khách hỏi hụt mà không ai biết là mất một khách.
+### Khi nào nhân viên bị gọi
+
+Có đặt Chat ID nhân viên thì bot gọi người trong hai trường hợp: khách gõ `/nhanvien`, hoặc bot **bí hai câu liên tiếp** với cùng một người. Trả lời được một câu là đếm về 0.
+
+Bí một câu lẻ thì không gọi. Báo mọi câu vu vơ thì vài lần là nhân viên tắt thông báo, và lúc có người thật cần giúp thì không ai đọc nữa. Hai câu liên tiếp mới là dấu hiệu người ta đang mắc kẹt thật.
 
 Nhật ký giữ 2000 lượt gần nhất mỗi bot, cũ hơn thì tự cắt. Xoá bot thì nhật ký đi theo.
 

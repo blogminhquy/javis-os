@@ -40,6 +40,20 @@ _CHAT_ID_RE = re.compile(r"^-?\d{1,20}$")               # id nhóm Telegram là 
 REPLY_WHEN = ("mention", "always")
 RATE_MIN, RATE_MAX, RATE_DEFAULT = 1, 200, 20
 
+# Bot lấy câu trả lời từ đâu khi tài liệu không phủ được câu hỏi.
+#
+#   "agent"     - chuyên môn của Agent là nguồn chính, tài liệu là phần bổ sung. Đúng cho bot
+#                 tư vấn, coach, đào tạo, giải đáp nghiệp vụ: cái nó giỏi nằm trong hướng dẫn
+#                 vai chứ không nằm ở file nào.
+#   "tai_lieu"  - CHỈ tài liệu, không có thì im. Đúng cho bot đọc giá và chính sách, nơi một
+#                 câu sai là thiệt hại thật.
+#
+# Mặc định "agent" vì đó là hành vi người dùng MONG ĐỢI sau khi chọn một Agent: bot phải nói
+# giống Agent đó. Bản 0.20.0 ép cứng chế độ kia cho mọi bot, và một Agent coach viết rất kỹ
+# vẫn trả lời "em chưa có thông tin" cho đúng câu thuộc chuyên môn của nó.
+NGUON = ("agent", "tai_lieu")
+NGUON_DEFAULT = "agent"
+
 
 def _now() -> float:
     return time.time()
@@ -118,6 +132,10 @@ def _public(b: dict) -> dict:
     """Bản trả ra giao diện. KHÔNG bao giờ kèm token, kể cả dạng đã mã hoá."""
     out = {k: v for k, v in b.items() if k not in ("token", "token_enc")}
     out["token_set"] = bool(b.get("token_enc"))
+    # Bù trường mới cho bản ghi cũ ngay lúc ĐỌC, không viết script di trú. Bot tạo trước 0.20.1
+    # không có khoá này; thiếu nó thì prompt rơi vào nhánh mặc định của Python chứ không phải
+    # nhánh mình chọn, và bug đó chỉ hiện ra trên máy người đã dùng - đúng chỗ khó dò nhất.
+    out.setdefault("nguon_tra_loi", NGUON_DEFAULT)
     return out
 
 
@@ -202,6 +220,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "bot_username": str(data.get("bot_username") or "").strip().lstrip("@"),
             "groups": _clean_groups(data.get("groups")),
             "reply_when": (data.get("reply_when") if data.get("reply_when") in REPLY_WHEN else "mention"),
+            "nguon_tra_loi": (data.get("nguon_tra_loi") if data.get("nguon_tra_loi") in NGUON
+                              else NGUON_DEFAULT),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "rate_limit": _clean_rate(data.get("rate_limit")),
             "created_at": _now(),
@@ -218,7 +238,8 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
 # Trường giao diện được phép sửa. Danh sách TRẮNG chứ không phải "nhận hết trừ vài cái":
 # thêm trường mới vào bản ghi mà quên loại khỏi danh sách đen là mở một đường ghi không ai ngờ.
 _PATCHABLE = ("name", "icon", "groups", "reply_when", "handoff_to", "rate_limit",
-              "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled")
+              "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
+              "nguon_tra_loi")
 
 
 def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
@@ -242,6 +263,9 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                 elif k == "reply_when":
                     if v in REPLY_WHEN:
                         b["reply_when"] = v
+                elif k == "nguon_tra_loi":
+                    if v in NGUON:
+                        b["nguon_tra_loi"] = v
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
                 elif k == "rate_limit":

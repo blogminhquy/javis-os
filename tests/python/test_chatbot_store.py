@@ -97,6 +97,10 @@ check("id nhóm ÂM được giữ (nhóm Telegram là số âm)", "-10012345678
 check("chuỗi không phải số bị loại khỏi danh sách nhóm", "khong-phai-so" not in b["groups"])
 check("rate_limit bị kẹp về trần", b["rate_limit"] == chatbot_store.RATE_MAX)
 check("reply_when mặc định là mention", b["reply_when"] == "mention")
+# Mặc định phải là "agent": người dùng vừa CHỌN một Agent thì mong bot nói giống Agent đó. Ép
+# cứng chế độ chỉ-tài-liệu như 0.20.0 làm một Agent coach viết rất kỹ vẫn trả lời "em chưa có
+# thông tin" cho đúng câu thuộc chuyên môn của nó.
+check("nguồn trả lời mặc định là chuyên môn Agent", b["nguon_tra_loi"] == "agent")
 
 
 # ============================================================
@@ -140,6 +144,14 @@ check("token_enc KHÔNG ghi đè thẳng được",
 
 chatbot_store.update_bot(bid, {"reply_when": "khi-nao-cung-duoc"})
 check("reply_when giá trị lạ bị bỏ qua", chatbot_store.get_bot(bid)["reply_when"] == "always")
+
+chatbot_store.update_bot(bid, {"nguon_tra_loi": "tai_lieu"})
+check("đổi được sang chế độ chỉ tài liệu",
+      chatbot_store.get_bot(bid)["nguon_tra_loi"] == "tai_lieu")
+chatbot_store.update_bot(bid, {"nguon_tra_loi": "linh-tinh"})
+check("nguồn trả lời giá trị lạ bị bỏ qua",
+      chatbot_store.get_bot(bid)["nguon_tra_loi"] == "tai_lieu")
+chatbot_store.update_bot(bid, {"nguon_tra_loi": "agent"})
 
 chatbot_store.update_bot(bid, {"name": "   "})
 check("tên rỗng không xoá mất tên cũ", chatbot_store.get_bot(bid)["name"] == "Bot CSKH")
@@ -264,11 +276,25 @@ p = chatbot_runtime.build_bot_prompt({"name": "Bot CSKH", "agent": {"brain": "br
 check("prompt lấy TÊN từ Agent", "Hoa CSKH" in p)
 check("prompt lấy VAI TRÒ từ Agent", "Trả lời khách về sản phẩm" in p)
 check("prompt lấy THÂN file Agent", "Luôn hỏi khách đã mua chưa." in p)
-check("prompt có luật trả lời khách", "Luật trả lời khách" in p)
+check("prompt có luật bắt buộc", "Luật bắt buộc khi trả lời" in p)
 check("prompt cấm khai hệ thống bên trong", "model" in p and "brain" in p)
 check("có nhân viên thì hướng dẫn chuyển người thật", "nhân viên" in p)
 check("prompt KHÔNG mang system prompt điều phối của Javis",
       "javis_schedule" not in p and "Kanban" not in p)
+
+# CANARY - đừng gỡ. Bản 0.19.0/0.20.0 đóng khung MỌI bot là "trợ lý trả lời khách của cửa
+# hàng" và cấm nó "chốt giá ngoài bảng giá". Chủ repo tạo Agent "Coach kỷ luật", hỏi về kỷ
+# luật, và nhận lại một nhân viên bán hàng từ chối tư vấn - vì prompt bảo nó là nhân viên bán
+# hàng. Bán hàng chỉ là MỘT ca dùng; khung phải trung tính để Agent nói nó là ai.
+p_coach = chatbot_runtime.build_bot_prompt(
+    {"name": "Coach kỷ luật", "agent": {"brain": "brain", "slug": "coach"}})
+check("CANARY: prompt KHÔNG tự gán bot vào nghề bán hàng",
+      "cửa hàng" not in p_coach and "bảng giá" not in p_coach)
+check("CANARY: prompt KHÔNG tự xưng 'trợ lý trả lời khách'", "trả lời khách của" not in p_coach)
+check("hướng dẫn vai của Agent được nêu là phần quan trọng nhất",
+      "Hướng dẫn vai của bạn" in p)
+check("vẫn cấm bịa chi tiết riêng của nơi đó", "phải có tài liệu mới được nói" in p_coach)
+check("vẫn cấm hứa thay chủ", "Không hứa hẹn thay chủ" in p_coach)
 
 p2 = chatbot_runtime.build_bot_prompt({"name": "Bot CSKH", "agent": {"brain": "brain", "slug": "cskh"}})
 check("không có nhân viên thì bảo dừng lại, không đoán tiếp", "đừng đoán tiếp" in p2)

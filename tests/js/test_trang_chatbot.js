@@ -90,8 +90,18 @@ check("dặn mỗi bot một token riêng", /token RIÊNG/.test(CB));
 check("xoá bot có hỏi lại", /confirm\(/.test(CB));
 check("xoá nói rõ brain và Agent KHÔNG bị xoá", /KHÔNG bị xoá/.test(CB));
 check("form nói rõ bot tạo ra ở trạng thái tắt", /trạng thái <b>TẮT<\/b>/.test(CB));
-check("form cảnh báo bot chỉ biết những gì trong brain của nó",
-  /Bot chỉ biết những gì nằm trong brain này/.test(CB));
+check("form nói rõ bot đọc tài liệu trong brain nào",
+  /Bot đọc tài liệu trong brain này/.test(CB));
+// Lựa chọn quyết định bot "ăn nhập với Agent" hay không. Bản 0.20.0 ép cứng chế độ chỉ-tài-
+// liệu cho mọi bot, và một Agent coach viết rất kỹ vẫn trả lời "em chưa có thông tin" cho
+// đúng câu thuộc chuyên môn của nó. Phải cho chọn, và phải giải thích ngay tại chỗ chọn.
+check("form cho chọn nguồn trả lời", /id="cbNguon"/.test(CB));
+check("mặc định là chuyên môn Agent", /value="agent"[^>]*\+ \(!b \|\| b\.nguon_tra_loi !== "tai_lieu"/.test(CB));
+check("giải thích khi nào dùng chế độ nào", /coach, đào tạo/.test(CB) && /thiệt hại thật/.test(CB));
+check("nói rõ giá và chính sách LUÔN cần tài liệu ở cả hai chế độ",
+  /Cả hai chế độ đều bắt buộc phải có tài liệu/.test(CB));
+check("lựa chọn được gửi lên server", /nguon_tra_loi: ngu/.test(CB));
+check("thẻ bot hiện đang chạy chế độ nào", /b\.nguon_tra_loi === "tai_lieu" \? "chỉ tài liệu"/.test(CB));
 check("trang nói rõ bot không ghi, không có lệnh quản trị",
   /không có lệnh quản trị/.test(CB));
 
