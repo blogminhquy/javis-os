@@ -1483,22 +1483,30 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   display: inline-flex; align-items: center; justify-content: center;
   border: 0; background: transparent; color: var(--text3); }
 .cs-menu-act:hover { color: var(--text-hi); background: var(--bg3); }
-.cs-emo { min-width: 268px; }
-.cs-emo-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
-.cs-emo-b { height: 30px; border-radius: 6px; cursor: pointer; font-size: 17px; line-height: 1;
-  border: 1px solid transparent; background: transparent; }
-.cs-emo-b:hover { background: var(--info-wash); }
-.cs-emo-b.on { border-color: var(--accent-line); background: var(--accent-wash-2); }
-.cs-emo-foot { display: flex; gap: 5px; margin-top: 6px; padding-top: 6px;
-  border-top: 1px solid var(--border); }
-.cs-emo-in { flex: 1 1 auto; min-width: 0; padding: 5px 8px; border-radius: 7px;
+/* Bộ chọn icon: lưới icon Lucide app đã vendor (KHÔNG phải emoji - xem sessions-ui.js).
+   Ô lọc dính trên đầu vì lưới dài hơn khung và có thanh cuộn riêng. */
+.cs-ico { min-width: 280px; }
+.cs-ico-head { position: sticky; top: -5px; z-index: 1; display: flex; gap: 5px;
+  padding: 3px 0 6px; margin-bottom: 4px; background: var(--bg2);
+  border-bottom: 1px solid var(--border); }
+.cs-ico-in { flex: 1 1 auto; min-width: 0; padding: 5px 8px; border-radius: 7px;
   border: 1px solid var(--border); background: var(--field-bg); color: var(--text);
   font-size: 13px; outline: none; }
-.cs-emo-clear { flex: none; padding: 5px 9px; border-radius: 7px; cursor: pointer;
+.cs-ico-in:focus { border-color: var(--info-line); }
+.cs-ico-clear { flex: none; padding: 5px 9px; border-radius: 7px; cursor: pointer;
   border: 1px solid var(--border); background: transparent; color: var(--text3); font-size: 12px; }
-.cs-emo-clear:hover { border-color: var(--red); color: var(--red); }
-/* Icon của hội thoại đứng ngay trước tên. */
-.ci-icon { font-size: 14px; }
+.cs-ico-clear:hover { border-color: var(--red); color: var(--red); }
+.cs-ico-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cs-ico-b { display: inline-flex; align-items: center; justify-content: center;
+  height: 32px; border-radius: 6px; cursor: pointer; font-size: 17px; color: var(--text2);
+  border: 1px solid transparent; background: transparent; }
+.cs-ico-b:hover { background: var(--info-wash); color: var(--text-hi); }
+.cs-ico-b.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--accent); }
+.cs-ico-empty { grid-column: 1 / -1; padding: 14px 6px; text-align: center;
+  color: var(--text3); font-size: 12.5px; }
+/* Icon của hội thoại đứng ngay trước tên; icon trong hàng menu đứng trước nhãn project. */
+.ci-icon, .cs-menu-ico { display: inline-flex; flex: none; color: var(--text2); }
+.cside-item.active .ci-icon, .cs-menu-row.on .cs-menu-ico { color: var(--accent); }
 /* Nút ghim đang BẬT thì tô màu, nhưng vẫn nằm trong .act nên chỉ hiện khi rê chuột - hàng đã
    ghim đã có nhóm "Đã ghim" trên đầu làm dấu hiệu rồi, không cần thêm một chấm màu nữa. */
 .ci-meta .act .pin.on { color: var(--accent); }

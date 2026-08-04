@@ -171,6 +171,22 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
     return ""
 
 
+# Tên icon Lucide: chữ thường, số và gạch nối (vd "message-circle"). Giá trị lưu vào DB là
+# TÊN icon chứ không phải ký tự emoji - xem chú thích cột `icon` ở phần migration.
+_ICON_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+
+
+def _sach_icon(icon: Optional[str]) -> Optional[str]:
+    """Chuẩn hoá tên icon; rỗng hoặc sai khuôn -> None (tức là GỠ icon).
+
+    Không cần biết bộ icon hiện có những tên nào: dashboard chỉ đưa ra tên có thật, còn tên
+    lạ (bộ icon đổi giữa hai phiên bản, hay ai đó sửa tay DB) thì phía hiển thị đã tự bỏ qua.
+    Việc của hàm này là chặn dạng RÁC lọt vào cột - nhất là chuỗi dài hay ký tự lạ.
+    """
+    v = (icon or "").strip().lower()
+    return v if _ICON_RE.match(v) else None
+
+
 class SessionStore:
     """Kho hội thoại SQLite thread-safe (1 connection + app-lock, WAL)."""
 
@@ -238,8 +254,10 @@ class SessionStore:
                               # Ghim hội thoại lên đầu danh sách. Cuộc dùng đi dùng lại không
                               # bị trôi xuống dưới theo thời gian nữa.
                               ("pinned", "INTEGER NOT NULL DEFAULT 0"),
-                              # Emoji cạnh tên hội thoại. Danh sách toàn chữ thì nhìn lâu
-                              # không phân biệt nổi cái nào là cái nào.
+                              # TÊN icon Lucide (vd "star") hiện cạnh tên hội thoại. Danh sách
+                              # toàn chữ thì nhìn lâu không phân biệt nổi cái nào là cái nào.
+                              # Lưu TÊN chứ không lưu ký tự: icon Lucide tự đổi màu theo tông
+                              # sáng/tối và vẽ giống nhau trên mọi máy, emoji thì không.
                               ("icon", "TEXT"),
                               # Project (nhóm) đang chứa hội thoại. NULL = chưa xếp vào đâu.
                               ("project_id", "TEXT")):
@@ -419,10 +437,10 @@ class SessionStore:
         ))
 
     def set_icon(self, session_id: str, icon: Optional[str]) -> None:
-        """Gắn emoji cho hội thoại. Chuỗi rỗng = gỡ icon."""
+        """Gắn icon cho hội thoại. Chuỗi rỗng hoặc tên không hợp lệ = gỡ icon."""
         self._write(lambda c: c.execute(
             "UPDATE sessions SET icon = ? WHERE id = ?",
-            ((icon or "").strip()[:8] or None, session_id),
+            (_sach_icon(icon), session_id),
         ))
 
     def set_project(self, session_id: str, project_id: Optional[str], *,
@@ -454,7 +472,7 @@ class SessionStore:
         self._write(lambda c: c.execute(
             "INSERT INTO projects (id, name, icon, brain, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (pid, (name or "").strip()[:80] or "Project", (icon or "").strip()[:8] or None,
+            (pid, (name or "").strip()[:80] or "Project", _sach_icon(icon),
              brain or "brain", now, now),
         ))
         return pid
@@ -490,7 +508,7 @@ class SessionStore:
                 params.append(n)
         if icon is not None:
             sets.append("icon = ?")
-            params.append((icon or "").strip()[:8] or None)
+            params.append(_sach_icon(icon))
         if not sets:
             return
         sets.append("updated_at = ?")

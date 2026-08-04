@@ -66,12 +66,16 @@
     for (var i = 0; i < projects.length; i++) if (projects[i].id === id) return projects[i];
     return null;
   }
-  function projLabel() {
+  // Nhãn project trả về HTML (icon là thẻ <svg>, không phải ký tự) nên phần CHỮ phải tự
+  // escape ở đây - tên project do người dùng gõ.
+  function projLabelHtml() {
     var cur = curProject();
     if (!cur) return "Tất cả hội thoại";
     if (cur === "none") return "Chưa xếp nhóm";
     var p = projById(cur);
-    return p ? ((p.icon ? p.icon + " " : "") + p.name) : "Tất cả hội thoại";
+    if (!p) return "Tất cả hội thoại";
+    var i = iconHtml(p.icon);
+    return (i ? i + " " : "") + esc(p.name);
   }
 
   async function post(url, fields) {
@@ -98,7 +102,7 @@
     var cur = curProject();
     projBar.innerHTML =
       '<button class="cs-proj-cur" type="button" title="Chọn nhóm hội thoại">' +
-        '<span class="cs-proj-name">' + esc(projLabel()) + '</span>' +
+        '<span class="cs-proj-name">' + projLabelHtml() + '</span>' +
         '<span class="cs-proj-caret">' + ic("chevron-down") + '</span>' +
       '</button>' +
       (cur ? '<button class="cs-proj-x" type="button" title="Bỏ lọc, xem tất cả">' + ic("x") + '</button>' : '') +
@@ -126,12 +130,13 @@
     if (projects.length) rows.push({ sep: true });
     projects.forEach(function (p) {
       rows.push({
-        label: (p.icon ? p.icon + " " : "") + p.name,
+        label: p.name,
+        icon: p.icon,
         right: String(p.session_count || 0),
         on: cur === p.id,
         run: function () { chonProject(p.id); },
         acts: [
-          { icon: "smile", title: "Đổi icon", run: function () { pickIcon(anchor, p.icon || "", function (v) { post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects); }); } },
+          { icon: "palette", title: "Đổi icon", run: function () { pickIcon(anchor, p.icon || "", function (v) { post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects); }); } },
           { icon: "pencil", title: "Đổi tên", run: function () { renameProject(p); } },
           { icon: "trash-2", title: "Xoá project", run: function () { delProject(p); } },
         ],
@@ -192,8 +197,12 @@
     menuEl.className = "cs-menu";
     rows.forEach(function (r) {
       if (r.sep) { menuEl.appendChild(el('<div class="cs-menu-sep"></div>')); return; }
+      // r.icon là TÊN icon Lucide, đi qua iconHtml (thẻ <svg>); r.label là chữ nên phải escape.
+      var iHtml = r.icon ? iconHtml(r.icon) : "";
       var row = el('<div class="cs-menu-row' + (r.on ? " on" : "") + '">' +
-        '<button class="cs-menu-main" type="button"><span class="cs-menu-lbl">' + esc(r.label) + '</span>' +
+        '<button class="cs-menu-main" type="button">' +
+        (iHtml ? '<span class="cs-menu-ico">' + iHtml + '</span>' : '') +
+        '<span class="cs-menu-lbl">' + esc(r.label) + '</span>' +
         (r.right ? '<span class="cs-menu-right">' + esc(r.right) + '</span>' : '') + '</button>' +
         '<span class="cs-menu-acts"></span></div>');
       row.querySelector(".cs-menu-main").onclick = function () { closeMenu(); r.run(); };
@@ -208,33 +217,57 @@
     placeMenu(anchor);
   }
 
-  // Bộ chọn icon: một nắm emoji hay dùng + ô gõ tay. KHÔNG kéo thư viện emoji-picker nào về -
-  // nó nặng hơn cả tính năng, mà bàn phím hệ điều hành nào cũng có sẵn bảng emoji.
-  var EMOJI = ["📌","⭐","🔥","💡","📊","💰","🛒","📦","📈","🎯","🧠","📝","📅","✅","⚙️","🚀",
-               "🎨","🖼️","📷","🎵","🍜","☕","🏠","🏢","👤","👥","💬","📣","🔧","🔍","🧪","🧾",
-               "❤️","😀","😎","🤖","🌱","🌙","⚡","🐛"];
+  // Bộ chọn icon dùng CHÍNH bộ icon Lucide app đã vendor, không phải emoji. Vì sao:
+  // icon Lucide vẽ bằng stroke="currentColor" nên tự đổi màu theo tông SÁNG/TỐI và theo màu
+  // chữ chỗ nó đứng, lại giống hệt nhau trên mọi máy - hai thứ emoji không bao giờ làm được
+  // (mỗi hệ điều hành vẽ một kiểu, và emoji màu cứng nên tông tối nhìn chói). Cả dashboard
+  // đã bỏ emoji vì đúng lý do đó; để riêng chỗ này dùng emoji là lệch khỏi phần còn lại.
+  // Giá trị lưu vào DB là TÊN icon (vd "star"), không phải ký tự.
+  function tenIcon() {
+    try { return (window.Icons && window.Icons.names && window.Icons.names()) || []; }
+    catch (e) { return []; }
+  }
+  // Icon người dùng chọn -> HTML. Tên lạ (bộ icon đổi giữa hai phiên bản, hay ai đó sửa tay
+  // DB) thì trả rỗng chứ không để ic() vẽ dấu hỏi kèm cảnh báo console mỗi lần render.
+  function iconHtml(name) {
+    var n = String(name || "").trim();
+    if (!n) return "";
+    try { if (!(window.Icons && window.Icons.has(n))) return ""; } catch (e) { return ""; }
+    return ic(n, { title: n });
+  }
   function pickIcon(anchor, cur, onPick) {
     closeMenu();
     menuEl = document.createElement("div");
-    menuEl.className = "cs-menu cs-emo";
-    var grid = el('<div class="cs-emo-grid"></div>');
-    EMOJI.forEach(function (em) {
-      var b = el('<button class="cs-emo-b' + (em === cur ? " on" : "") + '" type="button">' + esc(em) + "</button>");
-      b.onclick = function () { closeMenu(); onPick(em); };
-      grid.appendChild(b);
-    });
+    menuEl.className = "cs-menu cs-ico";
+    var head = el('<div class="cs-ico-head">' +
+      '<input class="cs-ico-in" placeholder="Lọc theo tên icon (star, folder…)">' +
+      '<button class="cs-ico-clear" type="button">Xoá icon</button></div>');
+    var grid = el('<div class="cs-ico-grid"></div>');
+    var tenAll = tenIcon();
+
+    function ve(loc) {
+      var q = String(loc || "").trim().toLowerCase();
+      var ds = q ? tenAll.filter(function (n) { return n.indexOf(q) !== -1; }) : tenAll;
+      grid.innerHTML = "";
+      if (!ds.length) {
+        grid.appendChild(el('<div class="cs-ico-empty">Không có icon nào tên chứa "' + esc(q) + '".</div>'));
+        return;
+      }
+      ds.forEach(function (n) {
+        var b = el('<button class="cs-ico-b' + (n === cur ? " on" : "") + '" type="button" title="' +
+                   esc(n) + '">' + ic(n) + "</button>");
+        b.onclick = function () { closeMenu(); onPick(n); };
+        grid.appendChild(b);
+      });
+    }
+
+    head.querySelector(".cs-ico-in").oninput = function (ev) { ve(ev.currentTarget.value); };
+    head.querySelector(".cs-ico-clear").onclick = function () { closeMenu(); onPick(""); };
+    menuEl.appendChild(head);
     menuEl.appendChild(grid);
-    var foot = el('<div class="cs-emo-foot">' +
-      '<input class="cs-emo-in" maxlength="8" placeholder="Dán emoji khác…" value="' + esc(cur) + '">' +
-      '<button class="cs-emo-clear" type="button">Xoá icon</button></div>');
-    foot.querySelector(".cs-emo-in").onkeydown = function (ev) {
-      if (ev.key !== "Enter") return;
-      var v = ev.currentTarget.value.trim();
-      closeMenu(); onPick(v);
-    };
-    foot.querySelector(".cs-emo-clear").onclick = function () { closeMenu(); onPick(""); };
-    menuEl.appendChild(foot);
+    ve("");
     placeMenu(anchor);
+    try { head.querySelector(".cs-ico-in").focus(); } catch (e) {}
   }
 
   // Bấm ra ngoài thì đóng. Dùng pha CAPTURE để chạy trước handler của chính hàng hội thoại
@@ -402,9 +435,10 @@
       var chLabel = ch === "telegram" ? "TG" : (ch && ch !== "web" ? ch.slice(0, 8) : "");
       var isRun = !!(window.JavisRunning && window.JavisRunning.has(s.id));
       var icon = (s.icon || "").toString();
+      var iHtml = iconHtml(icon);
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + '">' +
         '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="Đang trả lời">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
-        (icon ? '<span class="ci-icon">' + esc(icon) + '</span> ' : '') +
+        (iHtml ? '<span class="ci-icon">' + iHtml + '</span> ' : '') +
         esc(s.title || s.preview || "(chưa đặt tên)") + '</div>' +
         '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
@@ -412,7 +446,7 @@
         '<span>' + (s.msg_count || 0) + ' tin</span>' +
         '<span class="act">' +
           '<span class="pin' + (s.pinned ? " on" : "") + '" title="' + (s.pinned ? "Bỏ ghim" : "Ghim lên đầu") + '">' + ic("pin") + '</span>' +
-          '<span class="emo" title="Đổi icon">' + ic("smile") + '</span>' +
+          '<span class="emo" title="Đổi icon">' + ic("palette") + '</span>' +
           '<span class="mov" title="Chuyển vào project">' + ic("folder") + '</span>' +
           '<span class="ren" title="Đổi tên">' + ic("pencil") + '</span>' +
           '<span class="del" title="Xoá">' + ic("trash-2") + '</span>' +
@@ -501,7 +535,8 @@
     if (projects.length) rows.push({ sep: true });
     projects.forEach(function (p) {
       rows.push({
-        label: (p.icon ? p.icon + " " : "") + p.name,
+        label: p.name,
+        icon: p.icon,
         on: s.project_id === p.id,
         run: function () { moveTo(s, p.id); },
       });

@@ -12,6 +12,8 @@ Dọn một loạt ý trong sổ tay phát triển: **ghim và gom nhóm hội t
   Thanh chọn nhóm nằm ngay dưới nút Hội thoại mới. Đang mở một project thì danh sách lọc theo nó, **và cuộc trò chuyện mới bạn bắt đầu tự rơi vào project đó** chứ không phải gắn tay - thứ chỉ làm được vì id hội thoại sinh ở phía trình duyệt ngay lúc bấm gửi, nên nhãn kịp gắn từ tin nhắn ĐẦU TIÊN.
 
   **Xoá project KHÔNG xoá hội thoại**: các cuộc bên trong chỉ được gỡ khỏi nhóm. Hộp xác nhận nói rõ điều đó kèm số cuộc sẽ được gỡ, vì không có đường hoàn tác nào cho một cú bấm nhầm cuốn theo cả tháng trò chuyện.
+
+  Icon lấy từ **chính bộ icon của Javis**, không phải emoji: icon Javis tự đổi màu theo tông sáng/tối và vẽ giống hệt nhau trên mọi máy, còn emoji thì mỗi hệ điều hành một kiểu và màu cứng nên nền tối nhìn chói. Bảng chọn hiện toàn bộ icon đang có kèm ô lọc theo tên.
 - **Kho kết nối có Google NotebookLM.** Liệt kê notebook, đọc nguồn, hỏi đáp ngay trong notebook, thêm nguồn, tạo tóm tắt hay audio ở Studio.
 
   Sổ tay ghi việc này là "viết MCP server wrapper", nhưng đào ra thì `notebooklm-py` đã đóng gói sẵn một MCP server, nên phần Javis làm chỉ là một mục trong kho connector - không một dòng Python nào. Mặc định **Chỉ đọc**; đăng nhập bằng phiên trình duyệt (xem phần Bảo mật bên dưới).

@@ -14,7 +14,7 @@ Javis tự lưu lại từng lượt hỏi và trả lời vào một cơ sở d
 - Đổi tên cho dễ nhớ.
 - **Ghim** cuộc quan trọng lên đầu danh sách.
 - **Gom** nhiều cuộc vào một **Project** (nhóm).
-- **Gắn icon** cho từng cuộc để nhìn phát ra ngay.
+- **Gắn icon** cho từng cuộc để nhìn phát ra ngay (lấy từ chính bộ icon của Javis).
 - Xoá cuộc không cần nữa.
 
 ## Ghim, Project và icon
@@ -38,9 +38,13 @@ Muốn chuyển một cuộc sang nhóm khác thì rê chuột vào nó và bấ
 **Xoá project KHÔNG xoá hội thoại.** Các cuộc bên trong chỉ được gỡ khỏi nhóm và quay về
 "Chưa xếp nhóm". Hộp xác nhận cũng nói rõ điều này kèm số cuộc sẽ được gỡ.
 
-**Icon.** Rê chuột vào một cuộc rồi bấm biểu tượng mặt cười để chọn emoji. Có sẵn một bảng
-emoji hay dùng, hoặc dán emoji bất kỳ vào ô bên dưới rồi Enter. Bấm "Xoá icon" để gỡ. Project
-cũng gắn icon được, qua menu chọn nhóm.
+**Icon.** Rê chuột vào một cuộc rồi bấm biểu tượng bảng màu để chọn icon. Bảng chọn hiện
+toàn bộ icon Javis đang dùng, kèm ô lọc theo tên (gõ `star`, `folder`, `brain`...). Bấm
+"Xoá icon" để gỡ. Project cũng gắn icon được, qua menu chọn nhóm.
+
+Đây là **icon của chính Javis** chứ không phải emoji, và đó là chủ ý: icon Javis tự đổi màu
+theo tông sáng hay tối bạn đang dùng, và vẽ giống hệt nhau trên mọi máy. Emoji thì mỗi hệ
+điều hành vẽ một kiểu, lại có màu cứng nên nền tối nhìn chói.
 
 Project gắn theo bộ não, nên đổi bộ não thì danh sách project đổi theo. Riêng "đang mở project
 nào" được nhớ trên từng máy (trình duyệt), không đồng bộ sang máy khác.

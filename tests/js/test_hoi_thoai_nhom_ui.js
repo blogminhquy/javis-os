@@ -24,6 +24,7 @@ const D = (f) => fs.readFileSync(path.join(ROOT, "dashboard", f), "utf8");
 const SESS = D("sessions-ui.js");
 const APP = D("app.js");
 const CSS = D("style.css");
+const ICONS = D("icons.js");
 
 const fails = [];
 const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
@@ -38,7 +39,27 @@ check("xoá project qua endpoint riêng", SESS.indexOf('"/delete"') !== -1 || /p
 check("lọc danh sách theo project", SESS.indexOf('"&project=" + encodeURIComponent(p)') !== -1);
 check("CSS có thanh project", /\.cside-proj \{/.test(CSS));
 check("CSS có popover menu", /\.cs-menu \{/.test(CSS));
-check("CSS có bộ chọn emoji", /\.cs-emo-grid \{/.test(CSS));
+check("CSS có bộ chọn icon", /\.cs-ico-grid \{/.test(CSS));
+
+// Bộ chọn icon phải dùng CHÍNH bộ icon Lucide app đã vendor, không phải emoji: icon Lucide
+// tự đổi màu theo tông sáng/tối và vẽ giống hệt nhau trên mọi máy, emoji thì mỗi hệ điều
+// hành một kiểu và màu cứng. Cả dashboard đã bỏ emoji đúng vì lý do đó (test_icons.py canh),
+// nên để riêng chỗ này dùng emoji là lệch khỏi phần còn lại.
+check("CANARY: bộ chọn icon lấy tên từ tầng icon chung, không tự nuôi bảng riêng",
+  /window\.Icons && window\.Icons\.names && window\.Icons\.names\(\)/.test(SESS));
+check("tầng icon có phơi danh sách tên ra", /names: function \(\) \{ return Object\.keys\(RAW\)\.sort\(\); \}/.test(ICONS));
+check("vẽ icon đã chọn bằng ic(), không phải đổ chữ ra", /return ic\(n, \{ title: n \}\);/.test(SESS));
+// Tên lạ (bộ icon đổi giữa hai phiên bản, hay ai đó sửa tay DB) mà đưa thẳng vào ic() thì
+// mỗi lần render là một dấu hỏi kèm một dòng cảnh báo console.
+check("tên icon lạ thì bỏ qua chứ không vẽ dấu hỏi",
+  /if \(!\(window\.Icons && window\.Icons\.has\(n\)\)\) return "";/.test(SESS));
+check("lưới icon có ô lọc theo tên", SESS.indexOf('class="cs-ico-in"') !== -1);
+check("có nút gỡ icon", SESS.indexOf('class="cs-ico-clear"') !== -1);
+check("CANARY: không còn bảng emoji trong nguồn", SESS.indexOf("var EMOJI") === -1);
+// Nhãn project giờ là HTML (icon là thẻ <svg>) nên phần CHỮ phải tự escape - tên project do
+// người dùng gõ, bọc cả cụm bằng esc() như cũ là icon hiện ra nguyên mã <svg>.
+check("nhãn project trả HTML và tự escape phần chữ",
+  /function projLabelHtml\(\)/.test(SESS) && /return \(i \? i \+ " " : ""\) \+ esc\(p\.name\);/.test(SESS));
 
 // Project đang mở là chỗ đứng trên MỘT máy -> localStorage, không đẩy lên server.
 check("project đang mở nhớ ở localStorage theo brain",

@@ -147,7 +147,7 @@ trôi xuống dưới, và toàn chữ nên nhìn lâu không phân biệt đư�
 
 - Ghim: cột `pinned` trên `sessions`, mục ghim gom thành nhóm **Đã ghim** trên đầu danh sách.
 - Project: bảng `projects` mới + cột `project_id` trên `sessions`.
-- Icon: cột `icon` trên `sessions` và trên `projects` (emoji, tối đa 8 ký tự).
+- Icon: cột `icon` trên `sessions` và trên `projects`, lưu **tên icon Lucide** (vd `star`), tối đa 40 ký tự, khuôn `^[a-z0-9][a-z0-9-]*$`.
 
 **Thiết kế.**
 
@@ -176,7 +176,7 @@ POST   /projects                   name, icon, brain            -> tạo
 POST   /projects/{id}/update       name?, icon?                 -> đổi tên / đổi icon
 POST   /projects/{id}/delete                                    -> xoá, hội thoại về NULL
 POST   /sessions/{id}/pin          pinned=1|0
-POST   /sessions/{id}/icon         icon=<emoji|rỗng>
+POST   /sessions/{id}/icon         icon=<tên-icon|rỗng>
 POST   /sessions/{id}/project      project_id=<id|rỗng>, brain?
 GET    /sessions?...&project=      lọc theo project
 ```
@@ -195,8 +195,19 @@ GET    /sessions?...&project=      lọc theo project
 - Đang mở project thì danh sách lọc theo nó, và **chat mới tạo tự gắn project đó** qua
   `window.JavisProjects.claim(sid)` mà `app.js` gọi ngay sau khi mint id.
 - Mỗi mục hội thoại: icon (nếu có) + tên; hover ra hàng nút ghim / icon / đổi tên / xoá.
-- Bộ chọn icon là một popover ~40 emoji + ô gõ tay + nút Xoá icon. Không kéo thư viện emoji
-  picker nào về: nặng hơn cả tính năng.
+- Bộ chọn icon là một popover hiện **toàn bộ icon Lucide app đã vendor**, kèm ô lọc theo tên
+  và nút Xoá icon. **Không dùng emoji** - chủ repo chốt ngày 2026-08-04. Lý do đúng và đáng
+  ghi lại: icon Lucide vẽ bằng `stroke="currentColor"` nên tự đổi màu theo tông sáng/tối và
+  theo màu chữ chỗ nó đứng, lại giống hệt nhau trên mọi máy; emoji thì mỗi hệ điều hành vẽ
+  một kiểu và màu cứng. Cả dashboard đã bỏ emoji đúng vì lý do đó và có `test_icons.py` canh,
+  nên để riêng chỗ này dùng emoji vừa lệch khỏi phần còn lại, vừa phải nới chính cái test đang
+  giữ luật ấy.
+- Giá trị lưu là **TÊN** icon, không phải ký tự. Danh sách tên lấy qua `Icons.names()` (thêm
+  mới ở đợt này) chứ không đọc thẳng `window.LucideIcons`: cả `icons.js` sinh ra để làm tầng
+  duy nhất đứng giữa dashboard và bộ icon đã vendor.
+- Tên lạ (bộ icon đổi giữa hai phiên bản, hay ai đó sửa tay DB) thì phía hiển thị bỏ qua, chứ
+  không để `ic()` vẽ dấu hỏi kèm một dòng cảnh báo console mỗi lần render. Phía kho thì chặn
+  dạng rác ngay khi ghi.
 - **Trạng thái project đang mở lưu ở `localStorage`** theo brain, không lưu server. Nó là chỗ
   đứng của người dùng trên MỘT máy, không phải dữ liệu chung.
 

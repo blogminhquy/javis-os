@@ -130,6 +130,10 @@
     esc: esc,
     missing: function () { return Object.keys(missing); },
     count: function () { return Object.keys(RAW).length; },
+    // Tên MỌI icon đang có, đã sắp. Dùng cho chỗ để NGƯỜI DÙNG tự chọn icon (bộ chọn icon
+    // của hội thoại và project). Không đọc thẳng window.LucideIcons ở nơi khác: cả file này
+    // sinh ra để làm tầng duy nhất đứng giữa dashboard và bộ icon đã vendor.
+    names: function () { return Object.keys(RAW).sort(); },
   };
 
   if (document.readyState === "loading") {

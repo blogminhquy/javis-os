@@ -66,19 +66,27 @@ check("bỏ ghim thì về đúng thứ tự thời gian",
 # ============================================================
 # 2. Icon
 # ============================================================
-st.set_icon(moi, "🔥")
-check("icon lưu và trả về được", st.get_session(moi)["icon"] == "🔥")
+# Icon lưu là TÊN icon Lucide (vd "star"), không phải ký tự emoji: icon Lucide tự đổi màu
+# theo tông sáng/tối và vẽ giống hệt nhau trên mọi máy. Cả dashboard đã bỏ emoji vì lý do đó.
+st.set_icon(moi, "star")
+check("icon lưu và trả về được", st.get_session(moi)["icon"] == "star")
+st.set_icon(moi, "message-circle")
+check("tên icon có gạch nối vẫn hợp lệ", st.get_session(moi)["icon"] == "message-circle")
+st.set_icon(moi, "  Star ")
+check("chuẩn hoá về chữ thường, bỏ khoảng trắng thừa", st.get_session(moi)["icon"] == "star")
 st.set_icon(moi, "   ")
-check("chuỗi trắng = gỡ icon (không lưu khoảng trắng)", st.get_session(moi)["icon"] is None)
-st.set_icon(moi, "x" * 40)
-check("icon bị cắt ngắn, không cho nhét cả đoạn văn vào",
-      len(st.get_session(moi)["icon"] or "") <= 8)
+check("chuỗi trắng = gỡ icon", st.get_session(moi)["icon"] is None)
+for rac in ("🔥", "x" * 60, "a b", "../../etc", "<svg>"):
+    st.set_icon(moi, "star")
+    st.set_icon(moi, rac)
+    check(f"giá trị rác {rac[:12]!r} bị từ chối (gỡ icon) chứ không lọt vào cột",
+          st.get_session(moi)["icon"] is None)
 st.set_icon(moi, "")
 
 # ============================================================
 # 3. Project: lọc, đếm, và XOÁ THÌ CHỈ GỠ NHÃN
 # ============================================================
-pid = st.create_project("Khách hàng", icon="📁", brain="brain")
+pid = st.create_project("Khách hàng", icon="folder", brain="brain")
 st.set_project(cu, pid)
 ds = st.list_projects(brain="brain")
 check("project hiện ra kèm số hội thoại", len(ds) == 1 and ds[0]["session_count"] == 1)
@@ -92,6 +100,8 @@ st.update_project(pid, name="Khách VIP", icon="")
 p = st.get_project(pid)
 check("đổi tên project", p["name"] == "Khách VIP")
 check("icon rỗng = gỡ icon của project", p["icon"] is None)
+st.update_project(pid, icon="🔥")
+check("project cũng từ chối giá trị icon rác", st.get_project(pid)["icon"] is None)
 st.update_project(pid, name="   ")
 check("tên toàn khoảng trắng thì GIỮ tên cũ, không xoá trắng",
       st.get_project(pid)["name"] == "Khách VIP")

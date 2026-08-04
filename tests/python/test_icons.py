@@ -80,21 +80,6 @@ ALLOW = {
     ("task-suggest.js", "\U0001F53D"),   # ưu tiên thấp
 }
 
-# Ngoại lệ theo DÒNG, cho chỗ mà emoji là NỘI DUNG NGƯỜI DÙNG CHỌN chứ không phải
-# icon do giao diện tự vẽ. Cùng đúng một lý do với ALLOW ở trên (emoji = dữ liệu),
-# chỉ khác là ở đây không liệt kê nổi từng ký tự: đó là cả một bảng chọn.
-#
-# Bảng emoji của bộ chọn icon hội thoại/project: người dùng bấm một cái, Javis lưu
-# vào cột `icon` của bảng sessions/projects rồi hiện lại đúng ký tự đó. Icon Lucide
-# KHÔNG thay được ở đây - cả điểm của tính năng là mỗi người tự chọn dấu hiệu riêng,
-# và thứ đó phải đi theo dữ liệu (đọc lại được từ Telegram, từ CLI, từ máy khác).
-#
-# Mỗi dòng thêm vào đây phải kèm lý do "vì sao đây là dữ liệu". Không có lý do đó
-# thì dùng ic() như mọi chỗ khác trong dashboard.
-ALLOW_DONG = {
-    ("sessions-ui.js", "var EMOJI = ["),
-}
-
 
 # Chuỗi trả về từ tầng icon: ic(...), Icons.msg/warn/ok, và các hằng *_ICON
 # dựng sẵn ở đầu console.js. Tất cả đều là HTML.
@@ -348,16 +333,7 @@ def scan_x_text_icon():
 def scan_emoji():
     hits = []
     for path in SCAN:
-        trong_bang = False   # đang ở giữa một bảng dữ liệu emoji được miễn (xem ALLOW_DONG)
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if trong_bang:
-                # Bảng trải nhiều dòng: miễn cho tới hết CÂU LỆNH đó, không miễn cả file.
-                if "];" in line:
-                    trong_bang = False
-                continue
-            if any(p == path.name and moc in line for p, moc in ALLOW_DONG):
-                trong_bang = "];" not in line
-                continue
             for glyph in EMOJI.findall(line):
                 if (path.name, glyph) in ALLOW:
                     continue
