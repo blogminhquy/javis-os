@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   pull_request:
+  # Chạy tay từ tab Actions. Cần vì có một khe hở thật: đẩy commit lên một nhánh CHƯA có PR mở
+  # thì không sự kiện nào bắt (push chỉ nghe `main`), và mở PR sau đó có lúc GitHub không sinh
+  # run cho commit đã nằm sẵn ở đó. Lúc ấy không có cách nào bắt CI chạy ngoài việc đẩy thêm
+  # một commit rác. Có nút chạy tay thì hết phải làm vậy.
+  workflow_dispatch:
 
 jobs:
   test:
