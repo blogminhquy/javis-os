@@ -204,6 +204,15 @@
       var ng = (t.nguon || []).length
         ? '<div class="cb-src">' + ic("file-text") + " " + esc(t.nguon.join(", ")) + '</div>'
         : '<div class="cb-src cb-warn">không tìm thấy tài liệu nào khớp</div>';
+      // Lượt GÃY: khách chỉ nhận một câu xin lỗi chung, nên đây là chỗ DUY NHẤT chủ đọc được
+      // lý do thật. Thiếu nó thì "bot trả lời sai" và "bot đang hỏng" nhìn giống hệt nhau.
+      if (t.loi) {
+        return '<div class="cb-turn loi">' +
+          '<div class="cb-turn-h">' + esc(t.user_name || t.chat_id) + ' · ' + esc(gio(t.ts)) + '</div>' +
+          '<div class="cb-q">' + esc(t.hoi) + '</div>' +
+          '<div class="cb-err">' + ic("triangle-alert") + ' Lượt này LỖI, không phải bot trả lời sai: ' +
+          esc(t.loi) + '</div></div>';
+      }
       return '<div class="cb-turn' + (t.bi ? " bi" : "") + '">' +
         '<div class="cb-turn-h">' + esc(t.user_name || t.chat_id) + ' · ' + esc(gio(t.ts)) +
         (t.chuyen_nguoi ? ' · <b>đã báo nhân viên</b>' : "") + '</div>' +

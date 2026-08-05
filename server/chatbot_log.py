@@ -58,6 +58,10 @@ def ghi(bot_id: str, rec: dict) -> None:
             "user_name": str(rec.get("user_name") or "")[:80],
             "hoi": _cat(rec.get("hoi")),
             "dap": _cat(rec.get("dap")),
+            # Lý do KỸ THUẬT khi lượt gãy (engine lỗi, hết quota, chưa cấu hình...). Khách chỉ
+            # nhận một câu xin lỗi chung, nên nếu không giữ ở đây thì không còn chỗ nào cho chủ
+            # biết vì sao bot im - đúng ca đã xảy ra thật.
+            "loi": str(rec.get("loi") or "")[:500],
             "co_tai_lieu": bool(rec.get("co_tai_lieu")),
             "nguon": [str(x)[:200] for x in (rec.get("nguon") or [])][:8],
             "chuyen_nguoi": bool(rec.get("chuyen_nguoi")),

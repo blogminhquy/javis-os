@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.22.1] - 2026-08-05
+Bot báo lỗi mà **không ai đọc được lý do**. Chủ repo gặp đúng ca: hỏi "chào Coach", bot đáp "Em chưa trả lời được câu này, anh chị chờ cửa hàng phản hồi giúp em ạ." Đó là câu xin lỗi CHUNG khi lượt gãy, không phải bot trả lời sai - nhưng nhìn từ ngoài hai chuyện đó giống hệt nhau.
+### Sửa lỗi
+- **Lý do kỹ thuật của lượt gãy bị ném đi trước khi tới chỗ nào đọc được.** Lõi một lượt trả CHUỖI khi lỗi (đúng quy ước), `_make_answer_fn` thay nó bằng câu xin lỗi chung để không dội lỗi kỹ thuật vào mặt người ngoài - nhưng rồi **vứt luôn bản gốc**. Kết quả: khách thấy một câu vô nghĩa, chủ cũng thấy đúng câu đó, và không ai biết bot đang hỏng hay chỉ đang thiếu tài liệu. Hai chuyện ấy sửa khác nhau hoàn toàn (một bên đổi engine, một bên viết thêm tài liệu), nên lẫn vào nhau là bắt chủ đi sai đường.
+
+  Nay lý do được giữ lại ở ba chỗ: ghi vào nhật ký (trường `loi`), in ra stderr, và hiện thành một dòng đỏ trong tab **Hội thoại gần đây** ghi rõ "Lượt này LỖI, không phải bot trả lời sai" kèm nguyên văn. Khách vẫn chỉ nhận câu xin lỗi chung.
+- **Lượt gãy giờ báo nhân viên NGAY từ lần đầu**, không chờ đủ hai câu bí như trước. Bí là thiếu tài liệu, gãy là bot không chạy được - mỗi phút im lặng là khách nghĩ cửa hàng bỏ mặc họ. Tin báo cũng nói thẳng "Bot đang LỖI: ..." thay vì "bí N câu liên tiếp".
+
+  Nhưng chỉ báo **một lần** cho tới khi có lượt chạy được: engine hỏng thì mọi lượt sau đều gãy, báo hết là biến hộp thư nhân viên thành log lỗi.
+
 ## [0.22.0] - 2026-08-04
 Chủ repo bác cách làm ở 0.21.0: **"anh muốn dù là claude hay codex hay dùng api thì trải nghiệm nói chuyện với bot cũng vẫn giống nhau, em không nghĩ cách làm sao để có thể đổi các bộ não mà không ảnh hưởng đến chất lượng trả lời của bot à?"**
 

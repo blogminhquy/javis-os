@@ -46,6 +46,9 @@ _RUNNING: Dict[str, dict] = {}
 _HITS: Dict[tuple, deque] = {}
 # (bot_id, chat_id) -> số lượt BÍ LIÊN TIẾP. Trả lời được một câu là về 0.
 _BI_LIEN_TIEP: Dict[tuple, int] = {}
+# bot_id đã báo lỗi kỹ thuật cho nhân viên và chưa chạy lại được lượt nào. Chống báo mỗi lượt
+# khi engine hỏng - lúc đó MỌI lượt đều gãy.
+_DA_BAO_LOI: set = set()
 
 # Bí bao nhiêu lượt liên tiếp thì mới gọi người thật.
 #
@@ -286,8 +289,15 @@ def _make_answer_fn(bot_id: str):
         if run:
             run["answered"] = run.get("answered", 0) + 1
             run["last_at"] = time.time()
-        # Lõi trả CHUỖI khi là thông báo lỗi. Không dội nguyên câu lỗi kỹ thuật vào mặt khách.
+        # Lõi trả CHUỖI khi là thông báo lỗi. Không dội câu lỗi kỹ thuật vào mặt người ngoài,
+        # nhưng phải GIỮ LẠI cho chủ - bản trước ném thẳng nó đi, nên khi bot hỏng thì cả khách
+        # lẫn chủ đều chỉ thấy đúng một câu "em chưa trả lời được câu này" và không ai biết vì
+        # sao. Chủ repo dính đúng ca đó: bot im vì một lý do có thật và ghi rõ, mà câu ghi rõ ấy
+        # bị nuốt mất trước khi tới nơi nào đọc được.
+        loi_ky_thuat = ""
         if isinstance(out, str):
+            loi_ky_thuat = out.strip()
+            print(f"[chatbot {bot_id}] lượt hỏng: {loi_ky_thuat[:300]}", file=sys.stderr)
             out = {"text": "Em chưa trả lời được câu này, anh chị chờ cửa hàng phản hồi giúp em ạ.",
                    "files": []}
 
@@ -302,20 +312,36 @@ def _make_answer_fn(bot_id: str):
         khoa = (bot_id, chat_id)
         lien_tiep = (_BI_LIEN_TIEP.get(khoa, 0) + 1) if bi else 0
         _BI_LIEN_TIEP[khoa] = lien_tiep
-        goi_nguoi = bool(cfg.get("handoff_to")) and lien_tiep >= BI_LIEN_TIEP_DE_GOI
+
+        # Lượt GÃY khác hẳn lượt bí: bí là thiếu tài liệu, gãy là bot không chạy được. Gãy thì
+        # báo NGAY từ lần đầu, đừng bắt chờ đủ hai câu - mỗi phút im lặng là khách nghĩ cửa
+        # hàng bỏ mặc họ. Nhưng chỉ báo MỘT lần cho tới khi có lượt chạy được: engine hỏng thì
+        # mọi lượt sau đều gãy, báo hết là biến hộp thư nhân viên thành log lỗi.
+        if loi_ky_thuat:
+            bao_lan_dau = bot_id not in _DA_BAO_LOI
+            _DA_BAO_LOI.add(bot_id)
+        else:
+            bao_lan_dau = False
+            _DA_BAO_LOI.discard(bot_id)
+
+        goi_nguoi = bool(cfg.get("handoff_to")) and (
+            bao_lan_dau or (not loi_ky_thuat and lien_tiep >= BI_LIEN_TIEP_DE_GOI))
 
         chatbot_log.ghi(bot_id, {
             "chat_id": chat_id, "chat_type": (meta or {}).get("chat_type"),
             "user_name": (meta or {}).get("user_name"),
-            "hoi": text, "dap": dap,
+            "hoi": text, "dap": dap, "loi": loi_ky_thuat,
             "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
             "chuyen_nguoi": goi_nguoi, "bi": bi,
         })
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
+            # Lượt HỎNG thì báo nguyên văn lý do kỹ thuật, không báo "bí N câu": chủ cần biết
+            # bot đang gãy chứ không phải đang thiếu tài liệu. Hai chuyện đó sửa khác nhau hoàn toàn.
             asyncio.ensure_future(_gui_nhan_vien(
                 cfg, str(cfg["handoff_to"]), chat_id,
-                f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}"))
+                (f"Bot đang LỖI: {loi_ky_thuat[:300]}" if loi_ky_thuat else
+                 f"Bí {lien_tiep} câu liên tiếp. Câu gần nhất: {str(text)[:200]}")))
         return out
     return _answer
 

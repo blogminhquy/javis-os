@@ -26,6 +26,7 @@ Ba mảnh, mỗi mảnh canh một kiểu hỏng khác nhau:
    tìm ra tài liệu nhưng tài liệu không nói tới điều khách hỏi.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
+import asyncio
 import os
 import sys
 import tempfile
@@ -409,6 +410,45 @@ check("gọi người xong thì đếm lại, không gọi mỗi lượt sau đ�
 # của vai. Đếm nó là bí thì danh sách "Bot bí" đầy rác đúng chỗ nó phải sạch.
 check("chế độ Agent: không có tài liệu KHÔNG tự động tính là bí",
       '_co_bi(dap) or (cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co"))' in _SRC_RT)
+
+
+# ============================================================
+# 10. Lượt GÃY phải để lại dấu vết đọc được
+# ============================================================
+# Ca đã xảy ra thật: bot trả "Em chưa trả lời được câu này, anh chị chờ cửa hàng phản hồi giúp
+# em ạ." Đó là câu xin lỗi CHUNG khi lượt gãy, không phải bot trả lời sai. Lý do thật thì lõi
+# có ghi rõ, nhưng `_make_answer_fn` ném thẳng nó đi trước khi tới chỗ nào đọc được - nên chủ
+# nhìn màn hình mà không có cách nào biết bot đang hỏng hay chỉ đang thiếu tài liệu.
+#
+# Hai chuyện đó sửa khác nhau hoàn toàn (một bên đổi engine, một bên viết thêm tài liệu), nên
+# lẫn chúng vào nhau là bắt chủ đi sai đường.
+
+
+async def _loi_gia(text, meta=None, progress=None, channel="telegram", bot=None):
+    return "⚠ Model 'x' không chạy được qua engine này."
+
+
+chatbot_runtime.wire(answer=_loi_gia, brain_root=lambda b: str(BRAIN),
+                     read_agent=lambda b, s: ({"name": "Hoa"}, ""))
+BID2 = "bot_loi"
+import chatbot_store  # noqa: E402
+
+_bid, _ = chatbot_store.create_bot({"name": "Bot lỗi", "agent_slug": "cskh", "brain": "b",
+                                    "token": "1:x", "handoff_to": "999"})
+_fn = chatbot_runtime._make_answer_fn(_bid)
+_ra = asyncio.run(_fn("chào Coach", {"chat_id": "77", "chat_type": "private"}))
+
+check("khách chỉ nhận câu xin lỗi chung, không nhận lỗi kỹ thuật",
+      "Em chưa trả lời được câu này" in _ra["text"] and "Model" not in _ra["text"])
+_luot = chatbot_log.doc(_bid)
+check("CANARY: nhật ký GIỮ LẠI lý do kỹ thuật cho chủ đọc",
+      _luot and "không chạy được qua engine" in (_luot[0].get("loi") or ""))
+check("lượt gãy tính là bí", _luot and _luot[0]["bi"] is True)
+check("lượt gãy báo nhân viên NGAY, không chờ đủ hai câu", _luot[0]["chuyen_nguoi"] is True)
+
+# Engine hỏng thì MỌI lượt sau đều gãy. Báo hết là biến hộp thư nhân viên thành log lỗi.
+asyncio.run(_fn("câu nữa", {"chat_id": "77", "chat_type": "private"}))
+check("lượt gãy thứ hai KHÔNG báo lại", chatbot_log.doc(_bid)[0]["chuyen_nguoi"] is False)
 
 print()
 if _fails:
