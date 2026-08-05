@@ -420,11 +420,18 @@ mấy mảnh nhỏ (lịch sử, đọc stream, ghim đường đo). Cố ý:
 
 ### Cái KHÔNG giải được bằng mã, và phải nói thẳng với chủ
 
-Ở mức `full`, người điều khiển tool là **khách lạ**. Rào còn lại đúng bằng file Agent chủ viết,
+Ở mức `full`, người điều khiển tool là **người nhắn cho bot**. Rào còn lại đúng bằng file Agent chủ viết,
 mà chữ thì lách được - đây chính là điều mục 6 đã cảnh báo ("không chống chèn lệnh bằng cách
 dặn thêm trong prompt"), chỉ khác là giờ bot CÓ thứ để mất.
 
 Nên phần "thông báo nguy cơ" chủ repo yêu cầu không phải là tính năng phụ, nó là **nửa còn lại
 của lời giải**: mã chặn được cái chặn được, phần còn lại chủ phải biết trước khi bấm. Vì thế
-cảnh báo kể ra cái MẤT ĐƯỢC (tiền, đơn, không hoàn tác, ai điều khiển) chứ không phải một câu
-"hãy cẩn thận" - và nó xuất hiện ba lần: lúc chọn mức, lúc lưu mức `full`, lúc Bật bot.
+cảnh báo kể ra cái MẤT ĐƯỢC (loại thao tác, không hoàn tác, ai điều khiển) chứ không phải một
+câu "hãy cẩn thận" - và nó xuất hiện ba lần: lúc chọn mức, lúc lưu mức `full`, lúc Bật bot.
+
+Một chỗ nữa phải giữ, vì bản đầu sai đúng chỗ này: cảnh báo tả theo **LOẠI THAO TÁC** (gửi đi,
+thanh toán, đặt/huỷ, xoá, công bố), KHÔNG kể tên việc của một ngành. Bản đầu viết "tạo đơn,
+tiêu tiền quảng cáo, đăng bài" - lọt tai người bán hàng, vô nghĩa với người dùng Javis để quản
+lý dự án, chăm sức khoẻ hay dạy học. Tệ hơn: người đó đọc xong tưởng cảnh báo không áp cho
+mình rồi bật Toàn quyền vì nghĩ mình không có gì để mất. Chủ repo bác (2026-08-05): "nó cá
+nhân hóa với anh quá". Có canary ở cả test Python lẫn test JS.

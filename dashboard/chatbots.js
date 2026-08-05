@@ -31,7 +31,7 @@
   }
 
   // Bốn trạng thái THẬT, không phải hai. "Bot chết âm thầm" là thứ chủ chỉ phát hiện khi
-  // khách phàn nàn, nên lỗi phải là một ô màu nhìn thấy được chứ không phải sự vắng mặt.
+  // có người phàn nàn, nên lỗi phải là một ô màu nhìn thấy được chứ không phải sự vắng mặt.
   var TRANG_THAI = {
     running:  { nhan: "Đang chạy", mau: "ok" },
     starting: { nhan: "Đang khởi động", mau: "wait" },
@@ -62,7 +62,7 @@
         'Bot làm theo đúng quy định trong file Agent. Mặc định nó <b>chỉ đọc được brain này</b>: ' +
         'không ghi, không gọi nguồn dữ liệu, không có lệnh quản trị. Cần bot <b>làm việc thật</b> ' +
         'thì nâng mức quyền khi tạo hoặc sửa - đọc kỹ phần rủi ro ở đó, vì người điều khiển bot ' +
-        'là khách chứ không phải bạn.<br>' +
+        'là người nhắn cho nó chứ không phải bạn.<br>' +
         'Hai rào giữ nguyên ở MỌI mức: bot không thấy brain khác, và không chạy được lệnh máy.<br>' +
         'Đổi brain ở đầu trang là thấy bot của brain đó.</p>' +
         '<div class="cb-grid"></div>' +
@@ -100,8 +100,8 @@
       box.innerHTML =
         '<div class="cb-empty"><div class="cb-empty-ico">' + ic("bot", { cls: "ic-xl" }) + '</div>' +
         '<b>Chưa có bot nào</b>' +
-        '<div>Tạo một bot để Agent của bạn đứng ra trả lời khách. Bot mới luôn ở trạng thái ' +
-        '<b>tắt</b>, bạn tự bật sau khi đã nhắn thử.</div></div>';
+        '<div>Tạo một bot để Agent của bạn đứng ra trả lời người ngoài. Bot mới luôn ở trạng ' +
+        'thái <b>tắt</b>, bạn tự bật sau khi đã nhắn thử.</div></div>';
       return;
     }
     if (!ds.length) { box.innerHTML = '<div class="cb-empty">Không có bot nào khớp.</div>'; return; }
@@ -119,20 +119,20 @@
       ? '<div class="cb-err">' + ic("triangle-alert") + ' Agent "' + esc((b.agent || {}).slug) +
         '" không còn. Bot đang trả lời mà không có hướng dẫn vai trò.</div>' : "";
     // Poller sống KHÔNG có nghĩa là bot trả lời được: model gọi hỏng thì chấm vẫn xanh trong
-    // khi khách nhận toàn câu xin lỗi. Lỗi lượt gần nhất phải nằm ngay trên thẻ, không bắt chủ
+    // khi người hỏi nhận toàn câu xin lỗi. Lỗi lượt gần nhất phải nằm ngay trên thẻ, không bắt chủ
     // mở Nhật ký mới thấy - vì chủ chỉ mở Nhật ký khi đã NGỜ là có chuyện.
     var lluot = b.loi_luot
       ? '<div class="cb-err">' + ic("triangle-alert") + ' Lượt gần nhất LỖI: ' +
         esc(String(b.loi_luot).slice(0, 200)) + '</div>' : "";
     // Mức quyền phải nhìn thấy TỪ NGOÀI THẺ, không phải mở form Sửa mới biết. Một con bot toàn
     // quyền lẫn giữa mấy con chỉ đọc mà nhìn giống hệt nhau là đúng kiểu hỏng im lặng: chủ nhớ
-    // nhầm con nào là con nào rồi thả nhầm vào nhóm khách.
+    // nhầm con nào là con nào rồi thả nhầm vào chỗ ai cũng nhắn được.
     var mq = b.muc_quyen || "suggest";
     var quyen = mq === "suggest" ? "" :
       '<div class="cb-quyen ' + (mq === "full" ? "full" : "ghi") + '">' +
         ic(mq === "full" ? "shield-alert" : "pencil") + ' Mức <b>' + esc(mucCua(mq).nhan) +
         '</b>' + (mq === "full"
-          ? ' - bot tự tạo đơn, tiêu tiền, gửi tin được. Người điều khiển là khách lạ.'
+          ? ' - bot tự gửi đi, thanh toán, đặt/huỷ, xoá được. Người điều khiển là người nhắn cho nó.'
           : ' - bot ghi được file trong brain này và gọi được nguồn dữ liệu đã đấu.') +
       '</div>';
     var c = el(
@@ -153,7 +153,7 @@
           '<span>' + ((b.groups || []).length ? (b.groups.length + ' nhóm') : 'chỉ tin nhắn riêng') + '</span>' +
           '<span>' + (b.nguon_tra_loi === "tai_lieu" ? "chỉ tài liệu" : "chuyên môn Agent") + '</span>' +
           '<span>' + (st.answered || 0) + ' lượt trả lời</span>' +
-          (b.handoff_to ? '<span>' + ic("user") + ' có chuyển nhân viên</span>'
+          (b.handoff_to ? '<span>' + ic("user") + ' có chuyển người trực</span>'
                         : '<span class="cb-warn">chưa đặt người nhận</span>') +
         '</div>' +
         quyen + mat + lluot + loi +
@@ -237,7 +237,7 @@
       var ng = (t.nguon || []).length
         ? '<div class="cb-src">' + ic("file-text") + " " + esc(t.nguon.join(", ")) + '</div>'
         : '<div class="cb-src cb-warn">không tìm thấy tài liệu nào khớp</div>';
-      // Lượt GÃY: khách chỉ nhận một câu xin lỗi chung, nên đây là chỗ DUY NHẤT chủ đọc được
+      // Lượt GÃY: người hỏi chỉ nhận một câu xin lỗi chung, nên đây là chỗ DUY NHẤT chủ đọc được
       // lý do thật. Thiếu nó thì "bot trả lời sai" và "bot đang hỏng" nhìn giống hệt nhau.
       if (t.loi) {
         return '<div class="cb-turn loi">' +
@@ -248,7 +248,7 @@
       }
       return '<div class="cb-turn' + (t.bi ? " bi" : "") + '">' +
         '<div class="cb-turn-h">' + esc(t.user_name || t.chat_id) + ' · ' + esc(gio(t.ts)) +
-        (t.chuyen_nguoi ? ' · <b>đã báo nhân viên</b>' : "") + '</div>' +
+        (t.chuyen_nguoi ? ' · <b>đã báo người trực</b>' : "") + '</div>' +
         '<div class="cb-q">' + esc(t.hoi) + '</div>' +
         '<div class="cb-a">' + esc(t.dap) + '</div>' + ng + '</div>';
     }).join("");
@@ -262,10 +262,10 @@
     if (on && mucCua(mq).can_xac_nhan &&
         !confirm('Bật bot "' + b.name + '" ở mức ' + mucCua(mq).nhan + '?\n\n' +
                  (mq === "full"
-                   ? "Từ lúc này ai nhắn cho bot cũng có thể khiến nó tạo đơn, tiêu tiền, gửi "
-                     + "tin và đăng bài. Không hoàn tác được."
+                   ? "Từ lúc này ai nhắn cho bot cũng có thể khiến nó gửi đi, thanh toán, "
+                     + "đặt/huỷ, xoá hoặc công bố ra ngoài. Không hoàn tác được."
                    : "Từ lúc này bot ghi được file trong brain của nó và gọi được các nguồn dữ "
-                     + "liệu bạn đã đấu, theo lời khách nhắn."))) return;
+                     + "liệu bạn đã đấu, theo lời người nhắn."))) return;
     try {
       await api("/chatbots/" + encodeURIComponent(b.id) + "/enable",
                 { method: "POST", body: fd({ on: on ? "1" : "0" }) });
@@ -314,8 +314,8 @@
   // server cấp; ba dòng này chỉ để chọn cho đúng ngay từ đầu.
   var MUC_TOM = {
     suggest: "Chỉ đọc - bot chỉ trả lời, không đụng được gì (mặc định)",
-    auto: "Được ghi - ghi file trong brain này + gọi nguồn dữ liệu, KHÔNG tiền/đơn/gửi tin",
-    full: "Toàn quyền - làm được mọi thứ, kể cả tiền, đơn, gửi tin, đăng bài",
+    auto: "Được ghi - ghi file trong brain này + gọi nguồn dữ liệu, KHÔNG thao tác ra ngoài",
+    full: "Toàn quyền - làm được mọi thứ, kể cả gửi đi, thanh toán, đặt/huỷ, xoá",
   };
 
   function htmlMuc(dangChon) {
@@ -394,11 +394,11 @@
           (b && b.bot_username ? "Đang dùng @" + esc(b.bot_username) : "Mỗi bot phải một token RIÊNG. Đừng dùng token bot chính của bạn.") +
         '</div>' +
 
-        '<label>Chat ID nhân viên nhận chuyển tiếp</label>' +
+        '<label>Chat ID người trực nhận chuyển tiếp</label>' +
         '<input id="cbHandoff" value="' + esc(b ? (b.handoff_to || "") : "") + '" placeholder="Ví dụ: 123456789">' +
         '<div class="cb-hint">Bot bí <b>hai câu liên tiếp</b> với cùng một người thì nhắn vào ' +
-        'đây, và khách gõ /nhanvien thì báo ngay. Bí một câu lẻ không gọi - báo mọi câu vu vơ ' +
-        'thì vài lần là nhân viên tắt thông báo.<br>' +
+        'đây, và người đang hỏi gõ /nhanvien thì báo ngay. Bí một câu lẻ không gọi - báo mọi câu ' +
+        'vu vơ thì vài lần là người trực tắt thông báo.<br>' +
         'Bỏ trống thì bot <b>vẫn trả lời bình thường</b> theo Agent, chỉ là không có ai để ' +
         'chuyển tiếp. Muốn nó im khi thiếu căn cứ thì chọn chế độ <b>Chỉ tài liệu</b> ở trên.</div>' +
 
@@ -465,10 +465,10 @@
       }
       if (muc === "full" &&
           !confirm("Bot \"" + ten + "\" sẽ chạy ở mức TOÀN QUYỀN.\n\n"
-                   + "Ai nhắn cho bot cũng có thể khiến nó tạo đơn, tiêu tiền quảng cáo, gửi "
-                   + "tin và đăng bài. Những việc đó không hoàn tác được, và bot không hỏi lại "
-                   + "bạn trước khi làm.\n\nChỉ nên dùng trong nhóm kín toàn người bạn tin. "
-                   + "Vẫn muốn đặt mức này?")) return;
+                   + "Ai nhắn cho bot cũng có thể khiến nó gửi đi, thanh toán, đặt hoặc huỷ, "
+                   + "xoá, công bố ra ngoài. Những thao tác đó không hoàn tác được, và bot "
+                   + "không hỏi lại bạn trước khi làm.\n\nChỉ nên dùng khi bạn kiểm soát được "
+                   + "danh sách người nhắn vào. Vẫn muốn đặt mức này?")) return;
       try {
         if (sua) {
           var gr = box.querySelector("#cbGroups");

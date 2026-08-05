@@ -22,7 +22,7 @@ Bản chuẩn (canonical) của skill nằm ở `skills/<slug>/SKILL.md` - đún
 
 **1. Tối đa 150 ký tự.** Đây không phải chuyện thẩm mỹ. Javis cắt mô tả đúng ở 150 ký tự khi bơm vào system prompt và vào mô tả tool `javis_use_skill`, nên phần dư mất im lặng và skill không route được. Lý do từ chối hiện đúng chữ: "description dài N ký tự, vượt trần 150. Router cắt đúng ở 150 nên phần dư MẤT IM LẶNG và skill không route được. Đưa ví dụ trigger xuống mục '## Khi nào dùng' trong thân file."
 
-**2. Không mở đầu bằng cụm sáo rỗng.** Các cụm bị chặn: "Kích hoạt khi...", "Sử dụng skill này khi...", "Dùng skill này khi...", "Skill này dùng / Skill này được dùng...", "Use this skill when...", "Activate when...". Mọi skill đều mở y hệt nhau nên cụm đó đốt ngân sách ký tự mà không phân biệt được skill nào với skill nào. Lý do từ chối gợi ý luôn cách viết đúng: nêu thẳng năng lực, ví dụ "Chuyển HTML sang file Webcake .pke."
+**2. Không mở đầu bằng cụm sáo rỗng.** Các cụm bị chặn: "Kích hoạt khi...", "Sử dụng skill này khi...", "Dùng skill này khi...", "Skill này dùng / Skill này được dùng...", "Use this skill when...", "Activate when...". Mọi skill đều mở y hệt nhau nên cụm đó đốt ngân sách ký tự mà không phân biệt được skill nào với skill nào. Lý do từ chối gợi ý luôn cách viết đúng: nêu thẳng năng lực, ví dụ "Tóm tắt biên bản họp thành danh sách việc cần làm."
 
 Cách viết đúng: một câu nêu thẳng skill **làm được gì**, dưới 150 ký tự. Ví dụ trigger dài, danh sách từ khoá, các tình huống chi tiết thì đưa xuống mục `## Khi nào dùng` trong **thân** file `SKILL.md` - chỗ đó không bị cắt và chỉ được đọc khi skill đã nạp. Nói gọn: phần mô tả để TÌM, thân file để LÀM.
 

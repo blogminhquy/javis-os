@@ -127,7 +127,15 @@ check("đổi mức là vẽ lại cảnh báo ngay", /oMuc\.onchange/.test(CB))
 check("chưa tick đồng ý thì không lưu được",
   /can_xac_nhan && !\(ack && ack\.checked\)/.test(CB));
 check("mức toàn quyền còn hỏi lại một lần nữa", /muc === "full" &&\s*\n?\s*!confirm\(/.test(CB));
-check("cảnh báo nói thẳng người điều khiển là khách lạ", /người lạ điều khiển|khách lạ/.test(CB));
+check("cảnh báo nói thẳng người điều khiển là người nhắn cho bot",
+  /người nhắn cho nó|người điều khiển bot/.test(CB));
+// CANARY - chữ trên trang phải tả theo LOẠI THAO TÁC, không kể tên việc của một ngành.
+// Bản đầu viết "tạo đơn, tiêu tiền quảng cáo, đăng bài": người dùng Javis để quản lý dự án hay
+// dạy học đọc xong tưởng cảnh báo không áp cho mình. Chủ repo bác (2026-08-05).
+["đơn hàng", "tạo đơn", "tiêu tiền", "quảng cáo", "đăng bài", "cửa hàng", "bán hàng", "bảng giá"]
+  .forEach((n) => {
+    check(`CANARY: trang KHÔNG kể tên việc của một ngành - "${n}"`, CB.indexOf(n) === -1);
+  });
 // Nhìn lưới thẻ phải phân biệt được ngay con nào có quyền thao tác. Không thì chủ nhớ nhầm
 // con nào là con nào rồi thả nhầm vào nhóm khách.
 check("thẻ bot hiện mức quyền khi được nới", /cb-quyen/.test(CB));

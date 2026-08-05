@@ -550,7 +550,7 @@ class LearnFeature:
                "ĐẾM, đừng ước lượng.\n"
                "  2. description nêu THẲNG năng lực. KHÔNG mở đầu bằng 'Kích hoạt khi...', "
                "'Sử dụng skill này khi...' - mọi skill đều mở như vậy nên nó đốt ngân sách mà "
-               "không phân biệt gì. Tốt: 'Chuyển HTML sang file Webcake .pke.'\n"
+               "không phân biệt gì. Tốt: 'Tóm tắt biên bản họp thành danh sách việc cần làm.'\n"
                "  3. description có dấu hai chấm thì phải bọc cả giá trị trong nháy kép, kẻo "
                "YAML hiểu nhầm thành mapping.\n"
                "  4. Ví dụ trigger đầy đủ đưa vào body, mục '## Khi nào dùng' - KHÔNG nhét "

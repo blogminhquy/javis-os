@@ -61,7 +61,7 @@ Prompt tốt thường 10-25 dòng. Viết xong tự đọc lại bằng mắt m
 ```
 ---
 name: <Tên skill>
-description: <nêu THẲNG năng lực, TỐI ĐA 150 ký tự - vd "Chuyển HTML sang file Webcake .pke.">
+description: <nêu THẲNG năng lực, TỐI ĐA 150 ký tự - vd "Tóm tắt biên bản họp thành danh sách việc cần làm.">
 group: <Marketing|Bán hàng|Nội dung|Vận hành|Tài chính|AI|Năng suất|Cá nhân>
 ---
 <hướng dẫn chi tiết cho AI khi skill kích hoạt>
@@ -80,7 +80,8 @@ skill cứ thế hỏng âm thầm lúc chạy. Bạn là lớp phòng thủ duy
    route được. Không ai cảnh báo bạn: không đếm là hỏng mà không biết.
 2. `description` nêu THẲNG năng lực. KHÔNG mở đầu bằng "Kích hoạt khi...", "Sử dụng skill
    này khi..." - mọi skill đều mở như vậy nên nó đốt 29 ký tự mà không phân biệt gì.
-   Tốt: `Chuyển HTML sang file Webcake .pke.` Xấu: `Kích hoạt khi người dùng muốn chuyển...`
+   Tốt: `Tóm tắt biên bản họp thành danh sách việc cần làm.`
+   Xấu: `Kích hoạt khi người dùng muốn tóm tắt biên bản...`
 3. `description` có dấu hai chấm thì phải bọc cả giá trị trong nháy kép, kẻo YAML hiểu
    nhầm thành mapping.
 4. Ví dụ trigger đầy đủ đưa vào THÂN file, mục `## Khi nào dùng` - nơi không bị cắt và chỉ

@@ -70,7 +70,7 @@ def validate_description(desc) -> Optional[str]:
     if _DESC_BOILERPLATE_RE.match(d):
         return ("description mở đầu bằng cụm sáo rỗng (vd 'Kích hoạt khi ...'). Mọi skill "
                 "đều mở như vậy nên nó đốt ngân sách mà không phân biệt gì. Nêu thẳng "
-                "năng lực, vd 'Chuyển HTML sang file Webcake .pke.'")
+                "năng lực, vd 'Tóm tắt biên bản họp thành danh sách việc cần làm.'")
     return None
 
 

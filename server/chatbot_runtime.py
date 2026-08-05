@@ -38,7 +38,7 @@ from telegram_bot import TelegramBot
 # một tập lệnh khác, còn liệt kê lệnh quản trị của bot chủ thì khai luôn là có tập lệnh đó.
 LENH_KHACH = [
     {"command": "help", "description": "Bot này giúp được gì"},
-    {"command": "nhanvien", "description": "Nhờ nhân viên thật hỗ trợ"},
+    {"command": "nhanvien", "description": "Nhờ người thật hỗ trợ"},
     {"command": "id", "description": "Xem ID cuộc trò chuyện này"},
 ]
 
@@ -209,7 +209,7 @@ def _make_command_fn(bot_cfg: dict):
             # ở trong nhóm đó, nên để công khai được.
             return {"reply": f"ID cuộc trò chuyện này: `{chat}`"}
         if c in ("nhanvien", "nhan_vien", "human"):
-            return {"reply": _bao_nhan_vien(bot_cfg, chat, "Khách chủ động xin gặp nhân viên.")}
+            return {"reply": _bao_nhan_vien(bot_cfg, chat, "Người hỏi chủ động xin gặp người thật.")}
         # Mọi lệnh khác (kể cả /brain, /model, /status của bot chủ) im lặng: nói "không có lệnh
         # đó" là tự khai còn tồn tại một tập lệnh khác ở đâu đó.
         return {"reply": "Anh chị cứ nhắn câu hỏi bình thường giúp em ạ."}
@@ -226,7 +226,7 @@ def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
         return ("Hiện em chưa nối máy sang người trực được ạ. Anh chị cứ hỏi tiếp ở đây, "
                 "em trả lời được tới đâu em hỗ trợ tới đó.")
     asyncio.ensure_future(_gui_nhan_vien(bot_cfg, dich, chat_id, ly_do))
-    return ("Cái này để em chuyển cho nhân viên hỗ trợ anh chị ạ. "
+    return ("Cái này để em chuyển cho người phụ trách hỗ trợ anh chị ạ. "
             "Anh chị chờ một chút nhé.")
 
 
@@ -241,7 +241,7 @@ async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str) -> 
             await client.post(tb._url("sendMessage"), json={
                 "chat_id": dich,
                 "text": (f"🔔 Bot \"{bot_cfg.get('name')}\" cần người thật.\n"
-                         f"Khách: {chat_id}\nLý do: {ly_do}"),
+                         f"Người nhắn: {chat_id}\nLý do: {ly_do}"),
             })
     except Exception as e:
         print(f"[chatbot handoff] {e}", file=sys.stderr)
@@ -251,11 +251,16 @@ async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str) -> 
 # Một lượt của bot
 # ============================================================
 # Dấu hiệu bot đã bí, đọc từ chính câu nó vừa nói. Cần vì tìm được tài liệu KHÔNG bảo đảm trả
-# lời được: tài liệu nói về sản phẩm A trong khi khách hỏi hạn bảo hành, model đọc xong vẫn phải
-# nói chưa có thông tin. Đó là lượt bí, và là loại đáng ghi nhất - nó chỉ đúng chỗ tài liệu có
-# mà THIẾU Ý, tinh vi hơn hẳn loại không tìm ra file nào.
+# lời được: tài liệu nói về mục A trong khi người ta hỏi điều kiện của mục B, model đọc xong vẫn
+# phải nói chưa có thông tin. Đó là lượt bí, và là loại đáng ghi nhất - nó chỉ đúng chỗ tài liệu
+# có mà THIẾU Ý, tinh vi hơn hẳn loại không tìm ra file nào.
+#
+# Giữ cả cách nói CŨ ("nhân viên") lẫn cách nói trung tính: câu bot thốt ra là do file Agent
+# người dùng viết, và Agent đã viết từ trước vẫn đang dùng từ cũ. Bỏ pattern cũ đi là những bot
+# đó lặng lẽ ngừng được tính là bí, tab "Bot bí" rỗng dần mà không ai hiểu vì sao.
 _DAU_BI = ("chưa có thông tin", "không có thông tin", "chưa nắm được", "chuyển cho nhân viên",
-           "chuyển nhân viên", "em chưa rõ", "chưa trả lời được")
+           "chuyển nhân viên", "chuyển cho người phụ trách", "chuyển cho người thật",
+           "em chưa rõ", "chưa trả lời được")
 
 
 def _co_bi(dap: str) -> bool:

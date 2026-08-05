@@ -120,14 +120,26 @@ for m in ("auto", "full"):
     check(f"mức '{m}' có nhãn tiếng Việt", bool(chatbot_store.MUC_NHAN.get(m)))
 
 _full = " ".join(chatbot_store.canh_bao_muc("full")).lower()
-check("cảnh báo Toàn quyền nói rõ tiền/đơn/gửi tin",
-      "tiền" in _full and "đơn" in _full and "gửi tin" in _full)
-check("cảnh báo Toàn quyền nói rõ ai là người điều khiển", "khách lạ" in _full)
+check("cảnh báo Toàn quyền kể ra loại thao tác mất được",
+      "gửi đi" in _full and "thanh toán" in _full and "xoá" in _full)
+check("cảnh báo Toàn quyền nói rõ ai là người điều khiển", "người nhắn cho nó" in _full)
 check("cảnh báo Toàn quyền nói rõ không hoàn tác được", "hoàn tác" in _full)
 
 _auto = " ".join(chatbot_store.canh_bao_muc("auto")).lower()
-check("cảnh báo Được ghi nói rõ vẫn CHẶN nhóm nguy hiểm",
-      "không tạo đơn" in _auto and "không tiêu tiền" in _auto)
+check("cảnh báo Được ghi nói rõ vẫn CHẶN nhóm thao tác ra ngoài",
+      "không gửi đi" in _auto and "không thanh toán" in _auto)
+
+# CANARY - cảnh báo phải tả theo LOẠI THAO TÁC, không kể tên việc của một ngành.
+#
+# Bản đầu viết "tạo đơn, tiêu tiền quảng cáo, đăng bài": đọc lọt tai với người bán hàng, vô
+# nghĩa với người dùng Javis để quản lý dự án, chăm sức khoẻ hay dạy học. Tệ hơn: người đó đọc
+# xong tưởng cảnh báo không áp cho mình, rồi bật Toàn quyền vì nghĩ mình không có gì để mất.
+# Chủ repo bác đúng chỗ này (2026-08-05): "nó cá nhân hóa với anh quá".
+for nganh in ("đơn hàng", "tạo đơn", "quảng cáo", "khách hàng", "cửa hàng", "bán hàng",
+              "bảng giá", "POS", "shop"):
+    check(f"CANARY: cảnh báo KHÔNG kể tên việc của một ngành - '{nganh}'",
+          all(nganh.lower() not in " ".join(chatbot_store.canh_bao_muc(m)).lower()
+              for m in chatbot_store.MUC_QUYEN))
 # Hai rào không đổi theo mức. Không nói ra thì chủ ngại nâng mức một cách vô cớ; nói sai thì
 # chủ tin vào một rào không tồn tại. Cả hai mức đều phải nhắc.
 for m in ("auto", "full"):
