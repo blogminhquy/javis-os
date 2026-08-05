@@ -9756,15 +9756,22 @@ async def telegram_restart():
 # Xem docs/dev/2026-08-bot-chuyen-trach-spec.md
 # ============================================================
 @app.get("/chatbots")
-async def chatbots_list():
+async def chatbots_list(brain: str = ""):
     """Danh sách bot kèm trạng thái SỐNG (không phải trạng thái mong muốn).
 
     Gộp cấu hình với trạng thái thật ngay tại đây: tách hai lời gọi thì giao diện có lúc vẽ
     'đang chạy' cho một con vừa chết, và 'bot chết âm thầm' đúng là thứ tính năng này phải
     chống.
+
+    `brain` lọc theo brain - trang Chatbot chỉ hiện bot của brain đang mở, đúng như trang
+    Agents và trang Skills. Bỏ trống thì trả TẤT CẢ (bộ giám sát và các lời gọi nội bộ cần
+    thấy hết, chúng không đứng ở brain nào cả).
     """
+    loc = str(brain or "").strip()
     out = []
     for b in chatbot_store.list_bots():
+        if loc and str(b.get("brain") or "") != loc:
+            continue
         b = dict(b)
         b["status"] = chatbot_runtime.status(b["id"])
         a = b.get("agent") or {}
@@ -9813,12 +9820,15 @@ async def chatbots_verify_token(token: str = Form(...), bot_id: str = Form("")):
 
 @app.post("/chatbots")
 async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
-                          brain: str = Form(...), agent_brain: str = Form("brain"),
+                          brain: str = Form(""), agent_brain: str = Form(""),
                           icon: str = Form(""), token: str = Form(""),
                           bot_username: str = Form(""), handoff_to: str = Form(""),
                           nguon_tra_loi: str = Form("")):
+    # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
+    # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
+    br = (brain or agent_brain or "").strip()
     bid, err = chatbot_store.create_bot({
-        "name": name, "agent_slug": agent_slug, "agent_brain": agent_brain, "brain": brain,
+        "name": name, "agent_slug": agent_slug, "agent_brain": br, "brain": br,
         "icon": icon, "token": token, "bot_username": bot_username, "handoff_to": handoff_to,
         "nguon_tra_loi": nguon_tra_loi,
     })
@@ -9830,6 +9840,11 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
 @app.post("/chatbots/{bot_id}/update")
 async def chatbots_update(bot_id: str, request: Request):
     form = dict(await request.form())
+    # Giữ hai trường brain luôn bằng nhau: Agent và tài liệu của bot ở cùng một chỗ. Sửa lệch
+    # được thì bot trỏ vào Agent nằm ngoài brain nó đọc, và không có gì báo.
+    br = (form.get("brain") or form.get("agent_brain") or "").strip()
+    if br:
+        form["brain"] = form["agent_brain"] = br
     ok, err = chatbot_store.update_bot(bot_id, form)
     if not ok:
         return JSONResponse({"ok": False, "error": err}, status_code=404)

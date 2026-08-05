@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.23.0] - 2026-08-05
+Bỏ hẳn khái niệm **"brain riêng của bot"**. Chủ repo chốt: *"lựa brain nào thì hiện agent và chatbot của brain đó thôi. Chứ không cần phải có việc tạo brain cho bot. Như thế sẽ dễ dàng hơn trong quản lý."*
+### Thay đổi hành vi
+- **Trang Chatbot thuộc về brain đang mở**, y như trang Agents và Skills. Đổi brain ở đầu trang là thấy bot của brain đó. `GET /chatbots?brain=` lọc theo brain; bỏ trống vẫn trả tất cả vì bộ giám sát không đứng ở brain nào cả.
+- **Form tạo bot không còn ô chọn brain và nút "Tạo brain mới".** Bot thuộc brain đang mở, Agent lấy từ chính brain đó.
+
+  Bản 0.22.3 bắt chọn brain trong form rồi phải nhớ Agent nằm ở brain nào - hai lớp phải khớp nhau mà **không có gì bắt chúng khớp**. Bỏ hẳn ô đó thì phạm vi của trang chính là câu trả lời, và không còn gì để lệch. Server cũng tự giữ `brain` và `agent_brain` bằng nhau ở cả lúc tạo lẫn lúc sửa.
+- **Thẻ bot bỏ dòng brain**, thay bằng một dòng ở đầu trang nói rõ đang xem bot của brain nào. Mọi bot trên trang đều cùng một brain nên nhắc lại từng thẻ chỉ là nhiễu.
+
+Cách ly brain **không đổi**: bot vẫn chỉ đọc được brain của chính nó, khoá bằng mã nguồn. Chỉ đổi cách CHỌN brain đó - trước là một ô trong form, nay là brain bạn đang đứng.
+
+Kèm theo: tài liệu đổi bước chuẩn bị thành "đứng đúng brain trước đã", và nói rõ chỗ đáng cân nhắc nhất - bot trả lời người lạ thì đừng tạo nó trong brain chính của bạn.
+
 ## [0.22.3] - 2026-08-05
 Dọn form tạo bot theo góp ý dùng thật, và sửa một câu hướng dẫn đã mô tả sai hành vi.
 ### Sửa lỗi

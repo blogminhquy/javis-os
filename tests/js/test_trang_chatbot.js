@@ -90,8 +90,7 @@ check("dặn mỗi bot một token riêng", /token RIÊNG/.test(CB));
 check("xoá bot có hỏi lại", /confirm\(/.test(CB));
 check("xoá nói rõ brain và Agent KHÔNG bị xoá", /KHÔNG bị xoá/.test(CB));
 check("form nói rõ bot tạo ra ở trạng thái tắt", /trạng thái <b>TẮT<\/b>/.test(CB));
-check("form nói rõ bot đọc tài liệu trong brain nào",
-  /Bot đọc tài liệu trong brain này/.test(CB));
+check("form nói rõ bot đọc tài liệu của brain nào", /chính brain này/.test(CB));
 // Lựa chọn quyết định bot "ăn nhập với Agent" hay không. Bản 0.20.0 ép cứng chế độ chỉ-tài-
 // liệu cho mọi bot, và một Agent coach viết rất kỹ vẫn trả lời "em chưa có thông tin" cho
 // đúng câu thuộc chuyên môn của nó. Phải cho chọn, và phải giải thích ngay tại chỗ chọn.
@@ -102,32 +101,33 @@ check("giải thích khi nào dùng chế độ nào", /thiệt hại thật/.te
 // Hứa nhiều hơn thế là dạy người dùng tin vào một rào không tồn tại.
 check("nói rõ Javis không thêm luật của mình vào Agent",
   /Javis không thêm luật nào của/.test(CB));
-check("nói rõ rào duy nhất là chỉ đọc được brain của chính nó",
-  /chỉ đọc được brain của chính nó/.test(CB));
+check("nói rõ rào duy nhất là chỉ đọc được brain này",
+  /chỉ đọc\b[\s\S]{0,40}brain này/.test(CB));
 check("lựa chọn được gửi lên server", /nguon_tra_loi: ngu/.test(CB));
 check("thẻ bot hiện đang chạy chế độ nào", /b\.nguon_tra_loi === "tai_lieu" \? "chỉ tài liệu"/.test(CB));
 check("trang nói rõ bot không ghi, không có lệnh quản trị",
   /không có lệnh quản trị/.test(CB));
 
 // ============================================================
-// 6. Chọn Agent có sẵn HOẶC tạo brain mới ngay trong form
+// 6. Bot KHÔNG có brain riêng - trang thuộc về brain đang mở
 // ============================================================
-check("form nạp danh sách Agent của brain hiện tại", /\/agents\?brain=/.test(CB));
-check("form nạp danh sách brain", /api\("\/brains"\)/.test(CB));
-check("tạo bot mới thì tạo được brain ngay tại chỗ", /\/brains\/new/.test(CB));
-
-// Brain quyết định danh sách Agent, nên brain phải hỏi TRƯỚC. Hỏi ngược lại là bắt người dùng
-// chọn Agent rồi mới biết mình vừa chọn từ kho nào.
-check("ô brain đứng TRƯỚC ô Agent trong form",
-  CB.indexOf('id="cbBrain"') < CB.indexOf('id="cbAgent"'));
-// CANARY: trước đây danh sách Agent luôn lấy theo brain đang mở trên DASHBOARD, nên chọn brain
-// khác cho bot thì hai ô nói về hai brain khác nhau mà không có gì báo.
-check("CANARY: Agent nạp theo brain ĐÃ CHỌN, không theo brain đang mở",
-  /nạpAgent\(selBrain\.value\)/.test(CB) && !/agents\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(CB));
-check("đổi brain thì nạp lại danh sách Agent", /selBrain\.onchange = doiBrain/.test(CB));
-check("tạo brain mới xong cũng nạp lại Agent", /await doiBrain\(\)/.test(CB));
+// Bản 0.22.3 bắt chọn brain trong form, rồi phải nhớ Agent nằm ở brain nào - hai lớp phải khớp
+// nhau mà không có gì bắt chúng khớp. Chủ repo bác: "lựa brain nào thì hiện agent và chatbot
+// của brain đó thôi". Bỏ hẳn ô brain thì phạm vi của trang CHÍNH LÀ câu trả lời.
+check("CANARY: form KHÔNG còn ô chọn brain", CB.indexOf('id="cbBrain"') === -1);
+check("CANARY: form KHÔNG còn nút tạo brain", CB.indexOf('cbNewBrain') === -1);
+check("trang lọc bot theo brain đang mở", /\/chatbots\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(CB));
+check("form nạp Agent của brain đang mở",
+  /var br = brain\(\)/.test(CB) && /nạpAgent\(br\)/.test(CB));
 check("lưu bot thì Agent và tài liệu cùng một brain", /agent_brain: br, brain: br,/.test(CB));
+check("trang nói rõ đang xem bot của brain nào", /Bot của brain <b>/.test(CB));
+check("trang chỉ cách xem brain khác", /Đổi brain ở đầu trang/.test(CB));
+// Thẻ bot bỏ dòng brain: mọi bot ở đây đều cùng một brain nên nhắc lại từng thẻ chỉ là nhiễu.
+check("thẻ bot không nhắc lại brain", !/ic\("brain"\) \+ ' ' \+ esc\(b\.brain\)/.test(CB));
 check("có nút sang trang Agents để tạo", /id="cbNewAgent"/.test(CB) && /JavisNav\.go\("agents"\)/.test(CB));
+// Vai trò dài làm <option> tràn ngang khỏi hộp, mà <option> thì không tạo kiểu được.
+check("vai trò Agent bị cắt ngắn trước khi vào option", /vai\.slice\(0, 34\)/.test(CB));
+check("CSS chặn select nở rộng ra khỏi form", /\.cb-form select \{[^}]*text-overflow: ellipsis/.test(CSS));
 check("console phơi cửa chuyển trang cho module ngoài",
   /window\.JavisNav = \{ go: navigateTo \}/.test(CON));
 // Vai trò dài làm <option> tràn ngang khỏi hộp, mà <option> thì không tạo kiểu được.

@@ -314,6 +314,17 @@ _SRC = (SERVER / "main.py").read_text(encoding="utf-8")
 check("lõi một lượt nhận tham số bot", "async def _tg_answer(text, meta=None, progress=None" in _SRC
       and "bot=None" in _SRC)
 check("có bot thì rẽ sang đường riêng", "return await _bot_tra_loi(" in _SRC)
+
+# Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Giao diện không
+# hỏi brain nữa (trang thuộc về brain đang mở), nên server phải tự giữ hai trường bằng nhau -
+# lệch được thì bot trỏ vào Agent nằm ngoài brain nó đọc, và không có gì báo.
+check("trang Chatbot lọc bot theo brain", "async def chatbots_list(brain: str = \"\")" in _SRC)
+check("bỏ trống brain thì trả tất cả (bộ giám sát cần thấy hết)",
+      'if loc and str(b.get("brain") or "") != loc:' in _SRC)
+check("tạo bot: hai trường brain tự bù cho nhau",
+      'br = (brain or agent_brain or "").strip()' in _SRC)
+check("sửa bot: hai trường brain luôn bằng nhau",
+      'form["brain"] = form["agent_brain"] = br' in _SRC)
 check("bot dùng prompt riêng chứ không phải build_system_prompt",
       "chatbot_runtime.build_bot_prompt(bot)" in _SRC)
 

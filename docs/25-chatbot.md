@@ -2,11 +2,12 @@
 
 Đem một **Agent** bạn đã tạo ra đứng trước người ngoài: họ nhắn vào một bot Telegram riêng, Agent đó trả lời theo đúng quy định bạn viết cho nó, gặp câu ngoài tầm thì chuyển cho nhân viên thật.
 
-Khác với [Kênh Telegram](11-telegram.md) ở một điểm quyết định: bot Telegram ở trang **Kênh** là **Javis của bạn** (toàn quyền, đọc brain chính, gọi được mọi nguồn dữ liệu, chỉ bạn nhắn được). Bot ở trang **Chatbot** là **một Agent đứng trực** (chỉ đọc, brain riêng, người lạ nhắn được). Đừng dùng cái này thay cái kia.
+Khác với [Kênh Telegram](11-telegram.md) ở một điểm quyết định: bot Telegram ở trang **Kênh** là **Javis của bạn** (toàn quyền, đọc brain chính, gọi được mọi nguồn dữ liệu, chỉ bạn nhắn được). Bot ở trang **Chatbot** là **một Agent đứng trực** (chỉ đọc, chỉ thấy brain của nó, người lạ nhắn được). Đừng dùng cái này thay cái kia.
 
 ## Tính năng này là gì
 
-- Mỗi bot = một **Agent** (quy định và chuyên môn) + một **brain riêng** (kho tài liệu nó được đọc) + một **token Telegram riêng**.
+- Mỗi bot = một **Agent** trong một brain + một **token Telegram riêng**. Bot đọc tài liệu của chính brain đó.
+- Trang Chatbot **thuộc về brain đang mở**: đổi brain ở đầu trang là thấy bot của brain đó, y như trang Agents và Skills.
 - Người ta nhắn riêng cho bot, hoặc bạn thả bot vào nhóm.
 - **Bot làm theo đúng file Agent của bạn.** Javis không chèn thêm luật nào của mình vào.
 - Javis khoá đúng một thứ, và khoá bằng mã nguồn chứ không bằng câu dặn: **bot chỉ đọc được brain của chính nó**, không thấy brain khác, không ghi, không có lệnh quản trị.
@@ -21,21 +22,21 @@ Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**.
 
 Ba thứ, làm theo thứ tự này là đỡ phải quay lại sửa.
 
-### 1. Một Agent làm bộ não
+### 1. Đứng đúng brain
+
+Bot thuộc về **brain bạn đang mở**. Agent nó dùng và tài liệu nó đọc đều lấy từ brain đó, nên trước khi tạo bot hãy chuyển sang đúng brain bạn muốn giao cho nó.
+
+**Bot chỉ biết những gì nằm trong brain này.** Đây là chỗ đáng cân nhắc nhất: nếu bot sẽ trả lời người lạ thì đừng tạo nó trong brain chính của bạn, vì trong đó có ghi chú nội bộ, giá vốn, chiến lược, và bot không phân biệt được cái nào nói ra được cái nào không.
+
+Cách làm gọn: tạo một brain riêng cho việc trả lời khách (trang **Second Brain**), bỏ vào đó đúng những tài liệu khách được xem - bảng giá, chính sách đổi trả, mô tả sản phẩm, câu hỏi thường gặp - rồi chuyển sang brain đó và tạo bot.
+
+### 2. Một Agent trong chính brain đó
 
 Vào trang **Agents** tạo một Agent cho đúng việc bot sẽ làm (ví dụ "Tư vấn sản phẩm", "Hỗ trợ đơn hàng"). Viết phần vai trò và hướng dẫn như thể bạn đang dặn một nhân viên mới: nói năng thế nào, ưu tiên gì, gặp trường hợp nào thì chuyển người thật.
 
-Agent phải nằm **trong đúng brain bạn sẽ giao cho bot** - hai thứ đi cùng nhau. Chưa tạo brain thì làm bước 2 trước, hoặc tạo bot rồi bấm **Tạo Agent** ngay trong form.
+Đang ở trang Chatbot mà brain chưa có Agent nào thì bấm **Tạo Agent** để sang thẳng trang Agents, tạo xong quay lại.
 
 Bot **đọc Agent lúc chạy**, không chép lại. Sau này sửa Agent ở trang Agents là bot đổi theo ngay, không phải sửa hai chỗ. Chi tiết cách viết Agent ở [Agents & Workflows](07-agents-va-workflows.md).
-
-### 2. Một brain riêng cho bot
-
-Đây là chỗ dễ sai nhất, và sai thì hậu quả thật.
-
-**Bot chỉ biết những gì nằm trong brain của nó.** Nên tạo một brain riêng, bỏ vào đó đúng những tài liệu khách được xem: bảng giá, chính sách đổi trả, mô tả sản phẩm, câu hỏi thường gặp. Đừng trỏ bot vào brain chính của bạn - trong đó có ghi chú nội bộ, giá vốn, chiến lược, số liệu kinh doanh, và bot không phân biệt được cái nào nói ra được cái nào không.
-
-Tạo brain mới ngay trong form tạo bot cũng được (nút **Tạo brain mới**), rồi qua trang **Tệp tin** bỏ tài liệu vào sau.
 
 ### 3. Một token Telegram riêng
 
@@ -52,13 +53,12 @@ Bấm **Bot mới**, điền:
 | Ô | Điền gì |
 |---|---|
 | Tên bot | Tên bạn nhìn để phân biệt, ví dụ "Tư vấn sản phẩm" |
-| Brain riêng của bot | Chọn brain đã tạo, hoặc bấm **Tạo brain mới** |
-| Agent làm bộ não | Chọn Agent **nằm trong brain vừa chọn**, hoặc bấm **Tạo Agent** để sang trang Agents |
+| Agent làm bộ não | Chọn Agent trong brain đang mở, hoặc bấm **Tạo Agent** |
 | Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |
 | Token Telegram | Dán token từ BotFather rồi bấm **Kiểm tra** |
 | Chat ID nhân viên | Số Telegram của người nhận chuyển tiếp (xem bên dưới) |
 
-**Brain hỏi trước Agent là cố ý**: Agent và tài liệu của bot lấy từ **cùng một brain**, nên đổi brain là danh sách Agent nạp lại theo brain đó. Chọn brain chưa có Agent nào thì bấm **Tạo Agent**, tạo xong quay lại đây chọn.
+**Không có ô chọn brain**, và đó là cố ý: bot thuộc về brain bạn đang mở. Muốn bot ở brain khác thì đổi brain ở đầu trang rồi tạo lại - một chỗ để nhìn, không có hai lớp phải khớp nhau.
 
 Bấm **Kiểm tra** trước khi lưu: Javis hỏi thẳng Telegram xem token có thật không, trả về đúng tên bot, và báo ngay nếu token đó đã có bot khác trong Javis đang dùng.
 
@@ -231,5 +231,5 @@ Bấm **Xoá** trên thẻ. Bot ngừng trả lời ngay.
 
 - [Agents & Workflows](07-agents-va-workflows.md) - viết Agent làm bộ não cho bot.
 - [Kênh Telegram](11-telegram.md) - bot Telegram cá nhân của bạn, khác hẳn bot ở đây.
-- [Second Brain](13-second-brain-bo-nho-wiki.md) - tạo và nạp tài liệu vào brain riêng của bot.
+- [Second Brain](13-second-brain-bo-nho-wiki.md) - tạo brain và nạp tài liệu cho bot đọc.
 - [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md) - token được mã hoá thế nào.
