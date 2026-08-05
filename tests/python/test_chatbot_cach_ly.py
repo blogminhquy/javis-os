@@ -182,12 +182,41 @@ for moc, ten in ((_than.index('if prov == "openai-oauth":'), "nhánh Codex"),
 
 check("bot đi đường không tool (_api_stream), không phải đường có tool (_api_stream_mcp)",
       "_api_stream(prov, api_key, api_model, messages, reasoning)" in _SRC)
-_ham = _SRC[_SRC.index("async def _bot_tra_loi("):_SRC.index("async def _tg_answer_engine")]
+# Cắt ĐÚNG thân `_bot_tra_loi` - đường của mức Chỉ đọc. Từ 0.22.0 có thêm `_bot_tra_loi_co_tool`
+# cho hai mức nới quyền, và nó nằm ngay dưới; cắt tới `_tg_answer_engine` như trước là nuốt luôn
+# hàm kia vào rồi báo động giả. Mốc cắt phải là hàm ngay sau, không phải "hàm nào đó ở xa".
+_ham = _SRC[_SRC.index("async def _bot_tra_loi("):_SRC.index("def _bot_stream_co_tool(")]
 for cam in ("_api_stream_mcp", "mcp_hub", "discover_all", "claude_engine", "CodexCLI",
             "_apply_mcp", "collect_turn_files"):
     check(f"đường của bot KHÔNG đụng tới '{cam}'", cam not in _ham)
 check("bot không nhận block kênh (dạy gửi file + lộ đường dẫn brain thật)",
       "build_channel_block" not in _ham)
+
+# Mức nới quyền (0.22.0) KHÔNG được làm mềm rào này. Hai thứ giữ nguyên ở MỌI mức, và cả hai
+# đều là hệ quả của việc bot không bao giờ chạm vào tool NATIVE:
+#   - tool chỉ đến từ hub, nên tool file đi qua `_safe_path(vault_root)` và không trèo ra được;
+#   - không có Bash/WebFetch/WebSearch/Task, vì hub không có chúng.
+# Mở CLI cho bot là mất cả hai cùng lúc: `Read` của Claude Code nhận đường dẫn TUYỆT ĐỐI, đúng
+# lỗ mà 0.21.0 đã phải vá bằng allowed_tools.
+_ham_tool = _SRC[_SRC.index("def _bot_stream_co_tool("):_SRC.index("async def _tg_answer_engine")]
+# Tên tool native soi ở dạng CÓ NHÁY: trong mã chúng chỉ xuất hiện thành chuỗi trong một
+# allowlist (`["Bash", "WebFetch", …]`). Soi dạng trần thì chính đoạn ghi chú giải thích vì sao
+# không có Bash lại làm test đỏ - canary bắt lời văn thay vì bắt mã.
+for cam in ("claude_engine", "CodexCLI", "_apply_mcp", "allowed_tools",
+            '"Bash"', '"WebFetch"', '"WebSearch"', '"Task"', "build_channel_block"):
+    check(f"CANARY: đường bot CÓ TOOL vẫn không đụng tới '{cam}'", cam not in _ham_tool)
+check("tool của bot lấy từ hub, cắm vào ĐÚNG brain của bot",
+      "discover_all(muc_quyen, vault_root=_brain_root(brain))" in _ham_tool)
+check("mức quyền đi thẳng xuống hub, không qua bảng dịch nào",
+      "discover_all(muc_quyen" in _ham_tool)
+
+# Fail-closed: chỉ HAI chữ đã khai mới mở tool, mọi thứ khác (bản ghi cũ thiếu khoá, file sửa
+# tay gõ sai, None) rơi về đường không tool. Viết ngược lại - "khác 'suggest' thì mở tool" - là
+# một lỗi chính tả trong chatbots.json cũng đủ cấp tool cho bot đang chat với người lạ.
+_ren = _SRC[_SRC.index("async def _tg_answer_engine"):]
+_ren = _ren[:_ren.index("return await _bot_tra_loi(")]
+check("rẽ sang đường có tool CHỈ khi mức nằm trong danh sách đã khai",
+      "if _muc in chatbot_store.MUC_NANG:" in _ren)
 
 # _api_stream phục vụ đủ TÁM provider, kể cả hai gói subscription - nên không con nào phải mở
 # CLI, và không con nào bị bỏ lại.

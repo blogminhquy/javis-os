@@ -109,6 +109,39 @@ check("trang nói rõ bot không ghi, không có lệnh quản trị",
   /không có lệnh quản trị/.test(CB));
 
 // ============================================================
+// 5b. Mức quyền: nới được, nhưng phải NHÌN THẤY cái mình đang trao đi
+// ============================================================
+// Chủ repo mở phạm vi ngày 2026-08-05: "anh vẫn muốn có thể thực hiện nhiều task, nhưng em
+// thêm phần thông báo cho anh để hiểu rõ nguy cơ". Nghĩa là ô chọn mức KHÔNG được là một
+// dropdown trơ ba dòng - mỗi mức phải kể ra nó lấy đi cái gì, ngay tại chỗ chọn.
+check("form cho chọn mức quyền", /id="cbMuc"/.test(CB));
+check("có ô đồng ý rủi ro", /id="cbAck"/.test(CB));
+check("gửi mức quyền lên server", /muc_quyen: muc/.test(CB));
+check("gửi kèm xác nhận đã đọc rủi ro", /xac_nhan_rui_ro: "1"/.test(CB));
+// Câu chữ cảnh báo do SERVER cấp. Chép cứng ở giao diện thì một hôm server siết thêm rào mà ô
+// cảnh báo vẫn hứa như cũ, và chủ bấm đồng ý dựa trên một câu đã sai.
+check("cảnh báo lấy từ server chứ không chép cứng ở giao diện",
+  /d\.muc_quyen \|\| \[\]/.test(CB) && /m\.canh_bao/.test(CB));
+check("đổi mức là vẽ lại cảnh báo ngay", /oMuc\.onchange/.test(CB));
+// Chưa tick mà lưu được thì cả khối cảnh báo chỉ là trang trí.
+check("chưa tick đồng ý thì không lưu được",
+  /can_xac_nhan && !\(ack && ack\.checked\)/.test(CB));
+check("mức toàn quyền còn hỏi lại một lần nữa", /muc === "full" &&\s*\n?\s*!confirm\(/.test(CB));
+check("cảnh báo nói thẳng người điều khiển là khách lạ", /người lạ điều khiển|khách lạ/.test(CB));
+// Nhìn lưới thẻ phải phân biệt được ngay con nào có quyền thao tác. Không thì chủ nhớ nhầm
+// con nào là con nào rồi thả nhầm vào nhóm khách.
+check("thẻ bot hiện mức quyền khi được nới", /cb-quyen/.test(CB));
+check("thẻ bot mức chỉ đọc KHÔNG dán nhãn (mặc định thì không cần)",
+  /mq === "suggest" \? "" :/.test(CB));
+check("bật bot có quyền thao tác thì hỏi lại", /if \(on && mucCua\(mq\)\.can_xac_nhan/.test(CB));
+check("CSS cho nhãn mức quyền và khối cảnh báo",
+  /\.cb-quyen\.full/.test(CSS) && /\.cb-canhbao\.full/.test(CSS) && /\.cb-ack/.test(CSS));
+// Hai rào KHÔNG đổi theo mức, và trang phải nói đúng như vậy - hứa thiếu thì chủ ngại nâng
+// mức một cách vô cớ, hứa thừa thì chủ tin vào một rào không tồn tại.
+check("trang nói rõ hai rào giữ nguyên ở mọi mức",
+  /không thấy brain khác, và không chạy được lệnh máy/.test(CB));
+
+// ============================================================
 // 6. Bot KHÔNG có brain riêng - trang thuộc về brain đang mở
 // ============================================================
 // Bản 0.22.3 bắt chọn brain trong form, rồi phải nhớ Agent nằm ở brain nào - hai lớp phải khớp

@@ -2014,6 +2014,14 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .cb-warn { color: var(--warn-ink); }
 .cb-err { font-size: 12.5px; color: var(--red); line-height: 1.5;
   background: var(--surface-3); border-radius: 7px; padding: 6px 8px; }
+/* Mức quyền trên thẻ. Chỉ hiện khi bot ĐƯỢC nới quyền - mức chỉ đọc là mặc định nên không cần
+   dán nhãn, còn con làm việc thật thì phải nhận ra được từ xa giữa một lưới thẻ giống nhau. */
+.cb-quyen { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px;
+  line-height: 1.5; border-radius: 7px; padding: 6px 8px; }
+.cb-quyen.ghi { color: var(--warn-ink); background: var(--warn-wash);
+  border: 1px solid var(--warn-line); }
+.cb-quyen.full { color: var(--red); background: var(--danger-wash);
+  border: 1px solid var(--danger-line); }
 .cb-acts { display: flex; gap: 6px; margin-top: 2px; }
 .cb-empty { grid-column: 1 / -1; text-align: center; color: var(--text3); padding: 40px 16px;
   font-size: 14px; line-height: 1.7; }
@@ -2041,6 +2049,22 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
    được cắt sẵn ở JS - đây là lớp thứ hai cho tên brain dài. */
 .cb-form select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cb-hint { font-size: 12.5px; color: var(--text3); line-height: 1.55; margin-top: 5px; }
+/* Cảnh báo rủi ro của mức quyền. Cố ý KHÔNG dùng .cb-hint (chữ xám nhạt, mắt lướt qua): đây là
+   thứ duy nhất trong form mà đọc sót là mất tiền thật, nên nó phải chặn mắt lại. Ô đồng ý nằm
+   trong chính khối này, không tách ra - tick vào một ô đặt cách xa danh sách rủi ro thì cái
+   tick ấy không còn nghĩa gì. */
+.cb-canhbao { margin-top: 8px; border-radius: 9px; padding: 10px 12px; font-size: 12.5px;
+  line-height: 1.6; }
+.cb-canhbao.ghi { color: var(--warn-ink); background: var(--warn-wash);
+  border: 1px solid var(--warn-line); }
+.cb-canhbao.full { color: var(--red); background: var(--danger-wash);
+  border: 1px solid var(--danger-line); }
+.cb-canhbao-h { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.cb-canhbao ul { margin: 7px 0 0; padding-left: 18px; }
+.cb-canhbao li { margin: 3px 0; }
+.cb-ack { display: flex; align-items: flex-start; gap: 7px; margin-top: 10px; font-weight: 600;
+  cursor: pointer; }
+.cb-ack input { width: auto; flex: none; margin-top: 2px; }
 .cb-form-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 /* ---- Nhật ký bot: hai tab "Bot bí" / "Hội thoại gần đây" ---- */

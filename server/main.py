@@ -8960,6 +8960,77 @@ BOT_LICH_SU_MAX = 20
 BOT_KHONG_TOOL = ["__javis_bot_khong_tool__"]
 
 
+# ------------------------------------------------------------
+# Mảnh dùng chung của MỘT lượt bot
+# ------------------------------------------------------------
+# Hai mức quyền của bot khác nhau đúng MỘT chỗ: có tool hay không. Mọi thứ còn lại (lịch sử,
+# ghim đường đo, đọc stream, tính usage, cắt lịch sử) phải giống hệt nhau, nên chúng nằm ở đây
+# chứ không chép hai bản. Chép hai bản là cách chắc chắn để một hôm nào đó `usage_store.record`
+# có ở đường này mà thiếu ở đường kia - hoá đơn thiếu, và không ai nhìn ra được từ bên ngoài.
+def _bot_lich_su(sess):
+    if sess.get("bot") is None:
+        sess["bot"] = []
+    return sess["bot"]
+
+
+def _bot_cat_lich_su(lich_su):
+    if len(lich_su) > BOT_LICH_SU_MAX:
+        del lich_su[:len(lich_su) - BOT_LICH_SU_MAX]
+
+
+def _bot_ghim_duong(runtime_trace, prov, api_model, messages, tools=()):
+    """Ghim lượt này vào đường 'bot' trên trang Tiết kiệm token.
+
+    Không ghim thì `pin_execution_path` xếp nó vào 'Đầy đủ' - đường ĐẮT NHẤT - trong khi lượt
+    bot là đường rẻ nhất hệ thống (không CLAUDE.md, không MEMORY.md). Trang đo nói ngược sự thật.
+    """
+    if not runtime_trace:
+        return
+    _CONTEXT_RUNTIME.set_route(runtime_trace, prov, api_model or "?")
+    _CONTEXT_RUNTIME.pin_execution_path(
+        runtime_trace, "bot", None, context_runtime.RUNTIME_VERSION, "bot_chuyen_trach")
+    _CONTEXT_RUNTIME.observe_payload(runtime_trace, messages, list(tools or []),
+                                     provider=prov, model=api_model or "?")
+
+
+async def _bot_doc_stream(stream, *, progress, runtime_trace, prov, api_model):
+    """Đọc MỘT stream của bot: trả (text, [lỗi]). Tính usage, báo tiến độ, không đụng lịch sử.
+
+    Lỗi giữa lượt KHÔNG dừng vòng lặp: một tool hỏng không có nghĩa là cả lượt hỏng, và luồng
+    thường vẫn chạy tiếp ra câu trả lời. Đúng cách đường chat của chủ vẫn xử lý.
+    """
+    out, loi, actual_model = "", [], api_model or "?"
+    _pinged = False
+    try:
+        async for ev in stream:
+            t = ev.get("type")
+            if t == "text":
+                if not _pinged:
+                    _pinged = True
+                    await progress("✍ Đang soạn câu trả lời…")
+                out += ev.get("content") or ""
+            elif t == "meta":
+                actual_model = ev.get("model") or actual_model
+            elif t == "tool_call":
+                await progress(f"⚙ Đang dùng công cụ: {ev.get('name', '')}")
+            elif t == "usage":
+                usage_store.record(prov, actual_model, ev.get("input", 0), ev.get("output", 0))
+                _CONTEXT_RUNTIME.record_usage(runtime_trace, ev.get("input", 0), ev.get("output", 0))
+            elif t == "error":
+                loi.append(str(ev.get("content") or "lỗi không rõ"))
+    except Exception as e:
+        print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+        loi.append(str(e))
+    return out, loi
+
+
+def _bot_ket(out, lich_su):
+    """Đóng gói câu trả lời của một lượt bot đã chạy được."""
+    lich_su.append({"role": "assistant", "content": out})
+    _bot_cat_lich_su(lich_su)   # cắt SAU khi thêm, không thì trần bị vượt đúng một lượt mỗi vòng
+    return {"text": channel_context.strip_control_blocks(out), "files": []}
+
+
 async def _bot_cli_du_phong(sysprompt, text, *, sess, brain, chat_id, model, progress):
     """Đường dự phòng cho gói Claude Code khi gọi thẳng API hỏng (hay gặp nhất: không đọc được
     token OAuth mà CLI đã lưu, nên /v1/messages trả 401 và LƯỢT NÀO CŨNG hỏng).
@@ -9019,51 +9090,23 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     `_api_stream` phục vụ đủ tám provider, kể cả hai gói subscription: ChatGPT OAuth đi
     `openai_responses_stream`, Claude Code đi `anthropic_stream` với token OAuth mà chính CLI
     đã lưu. Không con nào phải mở CLI, nên cũng không con nào tốn thời gian khởi động CLI.
+
+    Đây là đường của mức **Chỉ đọc** - mức mặc định. Bot đặt ở mức Được ghi / Toàn quyền đi
+    `_bot_tra_loi_co_tool`. Hai đường tách hẳn nhau CÓ CHỦ Ý: đường này phải soi được bằng mắt
+    là không có tool nào, và một test canh đúng thân hàm này (test_chatbot_cach_ly.py mục B2).
     """
-    if sess.get("bot") is None:
-        sess["bot"] = []
-    lich_su = sess["bot"]
-
-    def _cat():
-        if len(lich_su) > BOT_LICH_SU_MAX:
-            del lich_su[:len(lich_su) - BOT_LICH_SU_MAX]
-
+    lich_su = _bot_lich_su(sess)
     lich_su.append({"role": "user", "content": text})
-    _cat()
+    _bot_cat_lich_su(lich_su)
 
     # System dựng LẠI mỗi lượt: tài liệu tra được đổi theo từng câu hỏi. Giữ system cũ là bot
     # trả lời câu này bằng tài liệu của câu trước.
     messages = [{"role": "system", "content": sysprompt}] + lich_su
-    if runtime_trace:
-        _CONTEXT_RUNTIME.set_route(runtime_trace, prov, api_model or "?")
-        # Ghim đường "bot". Không ghim thì trang Tiết kiệm token xếp lượt này vào "Đầy đủ" -
-        # báo đúng NGƯỢC sự thật, vì đây là đường nhẹ nhất hệ thống: không CLAUDE.md, không
-        # MEMORY.md, không đặc tả tool. Nó không đi Phase 5/8 và cũng không cần.
-        _CONTEXT_RUNTIME.pin_execution_path(
-            runtime_trace, "bot", None, context_runtime.RUNTIME_VERSION, "bot_chuyen_trach")
-        _CONTEXT_RUNTIME.observe_payload(runtime_trace, messages, [], provider=prov,
-                                         model=api_model or "?")
+    _bot_ghim_duong(runtime_trace, prov, api_model, messages)
 
-    out, loi, actual_model = "", [], api_model or "?"
-    _pinged = False
-    try:
-        async for ev in _api_stream(prov, api_key, api_model, messages, reasoning):
-            t = ev.get("type")
-            if t == "text":
-                if not _pinged:
-                    _pinged = True
-                    await progress("✍ Đang soạn câu trả lời…")
-                out += ev.get("content") or ""
-            elif t == "meta":
-                actual_model = ev.get("model") or actual_model
-            elif t == "usage":
-                usage_store.record(prov, actual_model, ev.get("input", 0), ev.get("output", 0))
-                _CONTEXT_RUNTIME.record_usage(runtime_trace, ev.get("input", 0), ev.get("output", 0))
-            elif t == "error":
-                loi.append(str(ev.get("content") or "lỗi không rõ"))
-    except Exception as e:
-        print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
-        loi.append(str(e))
+    out, loi = await _bot_doc_stream(
+        _api_stream(prov, api_key, api_model, messages, reasoning),
+        progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
     # Gói Claude Code: gọi thẳng /v1/messages cần token OAuth mà CLI đã lưu. Đọc không ra (hoặc
     # Anthropic không nhận) là LƯỢT NÀO CŨNG hỏng, và người dùng chỉ thấy một câu xin lỗi lặp
@@ -9091,11 +9134,109 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
             return ("⚠ Chưa đăng nhập được ChatGPT nên bot không gọi được model. "
                     "Vào trang Models kết nối lại tài khoản ChatGPT rồi nhắn lại.")
         return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
-    lich_su.append({"role": "assistant", "content": out})
-    _cat()   # cắt lại SAU khi thêm câu trả lời, không thì trần bị vượt đúng một lượt mỗi vòng
-    # Không gửi kèm file: bot không tạo được file (không có tool), và quét thư mục brain để
-    # tìm file "mới" thì lại là một đường rò tài liệu ra ngoài.
-    return {"text": channel_context.strip_control_blocks(out), "files": []}
+    # Không gửi kèm file: bot ở mức này không tạo được file (không có tool), và quét thư mục
+    # brain để tìm file "mới" thì lại là một đường rò tài liệu ra ngoài.
+    return _bot_ket(out, lich_su)
+
+
+# ============================================================
+# Bot ở mức Được ghi / Toàn quyền - CÓ tool
+# ============================================================
+def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route):
+    """Vòng gọi tool cho một lượt bot, đủ CẢ TÁM bộ não.
+
+    Vẫn giữ nguyên lời hứa gốc: đổi bộ não thì trải nghiệm không đổi. Nên hai gói thuê bao
+    không bị bỏ lại - ChatGPT đi `responses_with_mcp`, Claude Code đi `anthropic_chat_with_mcp`
+    với chính token OAuth mà CLI đã lưu. KHÔNG con nào mở CLI, nên không con nào chạm được vào
+    tool NATIVE (Bash, Read, WebFetch) - và đó là chỗ tựa của cả rào an toàn bên dưới.
+
+    `tools` rỗng (hub tắt, hoặc chưa đấu nguồn nào) → rơi về stream không tool. Bot vẫn trả lời
+    được thay vì im; chỗ gọi báo cho chủ biết là lượt đó không có công cụ nào.
+    """
+    if not tools:
+        return _api_stream(prov, key, model, messages, reasoning)
+    if prov == "openrouter":
+        return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
+    if prov == "openai":
+        return engine.openai_chat_with_mcp(key, model, messages, reasoning, tools, route)
+    if prov == "gemini":
+        return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
+    if prov == "groq":
+        return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
+    if prov == "ollama":
+        return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
+    if prov == "openai-oauth":
+        creds = openai_oauth.valid_creds() or {}
+        return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
+                                         _codex_safe_model(model), messages, reasoning, tools, route)
+    if prov == "anthropic-cli":
+        return engine.anthropic_chat_with_mcp(key, _claude_api_model(model), messages, reasoning,
+                                              tools, route, oauth_token=claude_models.oauth_token())
+    return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
+
+
+async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
+                               progress, runtime_trace, brain, chat_id, muc_quyen):
+    """Một lượt của bot ở mức **Được ghi** (auto) hoặc **Toàn quyền** (full).
+
+    Khác `_bot_tra_loi` đúng một thứ: có tool. Mọi thứ còn lại - prompt của Agent, tài liệu tra
+    sẵn, lịch sử, cách đọc stream - dùng chung mã, nên hai mức không trôi xa nhau.
+
+    **Tool ở đây CHỈ đến từ hub MCP, không có tool native nào.** Đó là điều kiện để nới quyền
+    mà không phá rào đã có:
+
+    1. **Cách ly brain vẫn nguyên.** Tool file của hub đi qua `mcp_hub._safe_path(vault_root,…)`
+       với `vault_root` là brain CỦA CHÍNH BOT, nên trèo sang brain khác thì nổ ValueError chứ
+       không trả rỗng. Nếu mở tool native của Claude Code thì `Read` đọc được đường dẫn tuyệt
+       đối bất kỳ - đúng lỗ mà 0.21.0 đã phải vá.
+    2. **Không lệnh máy, không lang thang web.** Không Bash, không WebFetch, không WebSearch,
+       không Task - vì chúng vốn không nằm trong hub.
+    3. **Mức quyền là lớp CỨNG, không phải lời dặn.** `muc_quyen` đi thẳng vào `discover_all`
+       rồi thành header `X-Javis-Mode`: mức `auto` thì hub tự chặn nhóm nguy hiểm (tiền, đơn,
+       gửi tin, đăng bài) ngay tại chỗ gọi, bất kể prompt nói gì và khách dụ khéo cỡ nào.
+
+    Cái KHÔNG còn nữa, và chủ phải biết trước khi bật: ở mức này người điều khiển tool là KHÁCH
+    LẠ. Rào còn lại chỉ là quy định trong file Agent, mà chữ thì lách được. Vì thế nâng mức đòi
+    một cú xác nhận có ý thức (`chatbot_store.can_xac_nhan`), và trang Chatbot nói thẳng cái
+    mất được trước khi chủ bấm.
+
+    Vẫn KHÔNG tự đính kèm file như đường chat của chủ, dù ở mức này bot tạo được file thật.
+    `collect_turn_files` quét thư mục brain tìm file "mới", và với người lạ thì đó là một đường
+    rò tài liệu: hỏi một câu vu vơ đúng lúc có file khác vừa sinh ra là nhận được nó. Bot muốn
+    đưa file cho khách thì nói đường dẫn trong câu trả lời.
+    """
+    lich_su = _bot_lich_su(sess)
+    lich_su.append({"role": "user", "content": text})
+    _bot_cat_lich_su(lich_su)
+    messages = [{"role": "system", "content": sysprompt}] + lich_su
+
+    # vault_root = brain CỦA BOT. Đây là một tham số, không phải một quy ước - truyền nhầm brain
+    # của chủ vào đây là mở toang đúng thứ cả tính năng này đang giữ.
+    tools, route = [], {}
+    try:
+        tools, route = await mcp_hub.discover_all(muc_quyen, vault_root=_brain_root(brain))
+    except Exception as e:
+        print(f"[bot {prov} chat {chat_id}] nạp tool hỏng: {type(e).__name__}: {e}",
+              file=__import__('sys').stderr)
+    _bot_ghim_duong(runtime_trace, prov, api_model, messages, tools)
+
+    out, loi = await _bot_doc_stream(
+        _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route),
+        progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
+
+    if not out:
+        lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
+            return ("⚠ Chưa đăng nhập được ChatGPT nên bot không gọi được model. "
+                    "Vào trang Models kết nối lại tài khoản ChatGPT rồi nhắn lại.")
+        return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
+    if not tools:
+        # Bot được đặt ở mức có quyền mà lại chẳng có công cụ nào - im lặng ở đây thì chủ tưởng
+        # bot đang làm việc, còn thực tế nó chỉ đang nói chuyện. Trả về dạng CHUỖI lỗi thì mất
+        # luôn câu trả lời, nên nói ra ở nhật ký để thẻ bot hiện lên.
+        print(f"[bot {prov} chat {chat_id}] mức '{muc_quyen}' nhưng hub không trả tool nào - "
+              f"lượt này chỉ chat", file=__import__('sys').stderr)
+    return _bot_ket(out, lich_su)
 
 
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
@@ -9127,7 +9268,17 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # Prompt của bot KHÔNG kèm block kênh: block đó dạy cách tự gửi file qua Telegram và
         # nêu đường dẫn thư mục thật của brain - kiến thức vận hành, không phải thứ đưa cho
         # một con bot đang nói chuyện với người lạ.
-        return await _bot_tra_loi(text, sess=sess, sysprompt=chatbot_runtime.build_bot_prompt(bot),
+        _sys_bot = chatbot_runtime.build_bot_prompt(bot)
+        # Mức quyền đọc từ BẢN GHI, và giá trị lạ (file sửa tay, bản ghi cũ) rơi về Chỉ đọc.
+        # Fail-closed là bắt buộc ở đây: đoán sai theo hướng kia là cấp tool cho một con bot
+        # đang nói chuyện với người lạ.
+        _muc = str((bot or {}).get("muc_quyen") or "").strip().lower()
+        if _muc in chatbot_store.MUC_NANG:
+            return await _bot_tra_loi_co_tool(
+                text, sess=sess, sysprompt=_sys_bot, prov=prov, api_key=api_key,
+                api_model=api_model, reasoning=reasoning, progress=_p,
+                runtime_trace=runtime_trace, brain=brain, chat_id=chat_id, muc_quyen=_muc)
+        return await _bot_tra_loi(text, sess=sess, sysprompt=_sys_bot,
                                   prov=prov, api_key=api_key, api_model=api_model,
                                   reasoning=reasoning, progress=_p, runtime_trace=runtime_trace,
                                   brain=brain, chat_id=chat_id)
@@ -9787,7 +9938,15 @@ async def chatbots_list(brain: str = ""):
         # trong khi khách nhận toàn câu xin lỗi. Lấy lỗi của lượt gần nhất lên thẻ luôn.
         b["loi_luot"] = chatbot_log.loi_gan_nhat(b["id"])
         out.append(b)
-    return {"bots": out}
+    # Nhãn + cảnh báo rủi ro của từng mức quyền đi kèm luôn: giao diện KHÔNG được giữ bản chép
+    # riêng. Chép riêng thì một hôm server siết thêm một rào mà ô cảnh báo vẫn hứa như cũ, và
+    # chủ bấm đồng ý dựa trên một câu đã sai.
+    return {"bots": out, "muc_quyen": [
+        {"id": m, "nhan": chatbot_store.MUC_NHAN.get(m, m),
+         "canh_bao": chatbot_store.canh_bao_muc(m),
+         "can_xac_nhan": m in chatbot_store.MUC_NANG}
+        for m in chatbot_store.MUC_QUYEN
+    ]}
 
 
 @app.post("/chatbots/verify-token")
@@ -9823,19 +9982,40 @@ async def chatbots_verify_token(token: str = Form(...), bot_id: str = Form("")):
     return {"ok": True, "username": username, "bot_name": info.get("first_name") or ""}
 
 
+def _chan_nang_quyen(muc, xac_nhan):
+    """Chặn nâng mức quyền khi chủ chưa xác nhận đã đọc rủi ro. None = cho qua.
+
+    Cùng khuôn với `POST /reminders` lúc chưa đấu kênh báo: trả `can_force` kèm LÝ DO cụ thể
+    để giao diện hỏi lại, chứ không im lặng hạ mức. Hạ mức im lặng thì chủ tưởng bot đang làm
+    việc, còn nó thì từ chối mọi công cụ mà không ai biết.
+    """
+    if not chatbot_store.can_xac_nhan(muc, xac_nhan):
+        return None
+    m = str(muc).strip().lower()
+    return JSONResponse({"ok": False, "error": chatbot_store.LOI_CHUA_XAC_NHAN,
+                         "can_force": True, "muc_quyen": m,
+                         "nhan": chatbot_store.MUC_NHAN.get(m, m),
+                         "canh_bao": chatbot_store.canh_bao_muc(m)}, status_code=400)
+
+
 @app.post("/chatbots")
 async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           brain: str = Form(""), agent_brain: str = Form(""),
                           icon: str = Form(""), token: str = Form(""),
                           bot_username: str = Form(""), handoff_to: str = Form(""),
-                          nguon_tra_loi: str = Form("")):
+                          nguon_tra_loi: str = Form(""), muc_quyen: str = Form(""),
+                          xac_nhan_rui_ro: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
+    ack = str(xac_nhan_rui_ro).strip() not in ("", "0", "false")
+    chan = _chan_nang_quyen(muc_quyen, ack)
+    if chan is not None:
+        return chan
     bid, err = chatbot_store.create_bot({
         "name": name, "agent_slug": agent_slug, "agent_brain": br, "brain": br,
         "icon": icon, "token": token, "bot_username": bot_username, "handoff_to": handoff_to,
-        "nguon_tra_loi": nguon_tra_loi,
+        "nguon_tra_loi": nguon_tra_loi, "muc_quyen": muc_quyen, "xac_nhan_rui_ro": ack,
     })
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
@@ -9850,9 +10030,16 @@ async def chatbots_update(bot_id: str, request: Request):
     br = (form.get("brain") or form.get("agent_brain") or "").strip()
     if br:
         form["brain"] = form["agent_brain"] = br
+    form["xac_nhan_rui_ro"] = str(form.get("xac_nhan_rui_ro") or "").strip() not in ("", "0", "false")
+    if "muc_quyen" in form:
+        chan = _chan_nang_quyen(form.get("muc_quyen"), form["xac_nhan_rui_ro"])
+        if chan is not None:
+            return chan
     ok, err = chatbot_store.update_bot(bot_id, form)
     if not ok:
-        return JSONResponse({"ok": False, "error": err}, status_code=404)
+        # 404 là "không có bot nào id đó"; rào xác nhận rủi ro là 400 (yêu cầu sai, bot có thật).
+        return JSONResponse({"ok": False, "error": err},
+                            status_code=400 if err == chatbot_store.LOI_CHUA_XAC_NHAN else 404)
     # Đang chạy mà đổi token/agent/brain thì phải khởi động lại mới ăn. Khởi động lại luôn cho
     # chắc thay vì đoán trường nào cần: sai ở đây là bot chạy bằng cấu hình cũ mà không ai biết.
     if bot_id in chatbot_runtime._RUNNING:

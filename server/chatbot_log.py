@@ -66,6 +66,10 @@ def ghi(bot_id: str, rec: dict) -> None:
             "nguon": [str(x)[:200] for x in (rec.get("nguon") or [])][:8],
             "chuyen_nguoi": bool(rec.get("chuyen_nguoi")),
             "bi": bool(rec.get("bi")),
+            # Mức quyền lượt này CHẠY THẬT, không phải mức đang đặt trong cấu hình lúc đọc lại
+            # nhật ký. Hai thứ đó lệch nhau ngay khi chủ hạ mức sau một sự cố, và lúc soi lại
+            # "hôm đó bot làm gì" thì cái cần biết là mức lúc ĐÓ.
+            "muc_quyen": str(rec.get("muc_quyen") or "suggest")[:20],
         }
         p = _path(bot_id)
         with _lock:

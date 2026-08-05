@@ -1617,14 +1617,25 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
         yield {"type": "text", "content": _het_vong_msg()}
 
 
-async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route,
+                                  oauth_token=""):
     """Anthropic Messages API + vòng tool-calling MCP - gỡ hạn chế 'anthropic-api = chat thuần'.
-    Non-stream từng vòng (như _cc_tool_loop); yield meta/tool_call/text/error thống nhất."""
+    Non-stream từng vòng (như _cc_tool_loop); yield meta/tool_call/text/error thống nhất.
+
+    `oauth_token` là access token của gói Claude Code (provider 'anthropic-cli'), đúng cặp
+    header mà `anthropic_stream` đã dùng. Có nó thì gói thuê bao cũng gọi được tool chứ không
+    chỉ chat thuần - cần cho bot chuyên trách ở mức Được ghi/Toàn quyền, vì lời hứa của Javis
+    là đổi bộ não thì năng lực không đổi.
+    """
     import mcp_client
     sys_txt = "\n\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
     conv = [{"role": m["role"], "content": m.get("content", "")}
             for m in messages if m.get("role") in ("user", "assistant")]
-    headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    headers = ({"Authorization": f"Bearer {oauth_token}", "anthropic-beta": "oauth-2025-04-20",
+                "anthropic-version": "2023-06-01", "content-type": "application/json"}
+               if oauth_token else
+               {"x-api-key": api_key, "anthropic-version": "2023-06-01",
+                "content-type": "application/json"})
     tools = [{"name": t["fn"], "description": (t.get("description") or t["fn"])[:1024],
               "input_schema": t.get("schema") or {"type": "object", "properties": {}}} for t in mcp_tools]
     if tools:

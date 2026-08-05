@@ -4,6 +4,34 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.24.0] - 2026-08-05
+Chủ repo mở phạm vi của Bot chuyên trách: *"ở chức năng tạo bot đang là chỉ đọc, anh muốn thêm chức năng được ghi và toàn quyền. Vì cơ bản anh vẫn muốn có thể thực hiện nhiều task, nhưng em thêm phần thông báo cho anh để hiểu rõ nguy cơ khi sử dụng."*
+
+Bản này cho bot **làm việc thật**, và làm đúng điều kiện chủ đặt ra: nói rõ cái mất được, trước khi chủ bấm.
+### Thêm mới
+- **Ba mức quyền cho bot** (`muc_quyen`), chọn ở ô **Bot được làm gì** khi tạo hoặc sửa:
+  - **Chỉ đọc** (`suggest`, MẶC ĐỊNH) - hành vi cũ y nguyên: không công cụ nào, chỉ đọc tài liệu rồi trả lời.
+  - **Được ghi** (`auto`) - ghi file trong brain của chính bot + gọi nguồn dữ liệu đã đấu ở mức đọc/ghi. Hub vẫn **chặn cứng** nhóm nguy hiểm: tiền, đơn, gửi tin, đăng bài.
+  - **Toàn quyền** (`full`) - làm được mọi thứ nguồn đã đấu cho phép, kể cả nhóm nguy hiểm.
+
+  Ba chữ này ĐÚNG bằng bộ tên của loop và của hub, cố ý: chữ chọn trên giao diện đi thẳng vào `discover_all` rồi thành header `X-Javis-Mode`, không qua bảng dịch nào. Bảng dịch là chỗ dễ sai nhất, và sai ở đây nghĩa là cấp nhầm quyền cho một con bot đang nói chuyện với người lạ.
+- **Cảnh báo rủi ro hiện ngay tại chỗ chọn**, và do SERVER cấp (`GET /chatbots` trả kèm nhãn + danh sách rủi ro từng mức). Giao diện không giữ bản chép riêng: chép rồi thì một hôm server siết thêm rào mà ô cảnh báo vẫn hứa như cũ, và chủ bấm đồng ý dựa trên một câu đã sai.
+- **Thẻ bot dán nhãn mức quyền** - vàng cho Được ghi, đỏ cho Toàn quyền, không dán gì cho Chỉ đọc. Một con toàn quyền lẫn giữa mấy con chỉ đọc mà nhìn giống hệt nhau là đúng kiểu hỏng im lặng: chủ nhớ nhầm con nào là con nào rồi thả nhầm vào nhóm khách.
+- **Nhật ký ghi mức quyền của TỪNG LƯỢT**, không phải mức đang đặt lúc đọc lại. Hai thứ đó lệch nhau ngay khi chủ hạ mức sau một sự cố, và lúc soi lại "hôm đó bot làm gì" thì cái cần biết là mức lúc ĐÓ.
+- **Gói Claude Code gọi được tool** (`engine.anthropic_chat_with_mcp` nhận `oauth_token`). Trước đó gói thuê bao chỉ chat thuần được vì hàm này chỉ nhận `x-api-key`.
+### Bảo mật
+- **Hai rào KHÔNG đổi theo mức**, và cả hai là hệ quả của việc bot không bao giờ chạm vào tool NATIVE của engine:
+  - **Cách ly brain.** Tool file đi qua hub nên bị kẹp bằng `_safe_path(vault_root)` với `vault_root` là brain CỦA BOT - kể cả ở mức Toàn quyền. Mở CLI cho bot là mất rào này ngay: `Read` của Claude Code nhận đường dẫn tuyệt đối, đúng lỗ 0.21.0 đã phải vá.
+  - **Không lệnh máy.** Không Bash, không WebFetch/WebSearch, không Task - chúng vốn không nằm trong hub.
+- **Nâng mức phải xác nhận có ý thức.** Rào đặt ở KHO (`chatbot_store.can_xac_nhan`) chứ không chỉ ở route, vì route chỉ là một trong nhiều đường vào. Route trả `can_force` kèm đúng lý do, cùng khuôn với `POST /reminders` lúc chưa đấu kênh báo. **HẠ** mức thì không đòi gì: hạ quyền luôn an toàn, và lúc chủ đang dập sự cố thì đừng bắt bấm thêm.
+- **Fail-closed ở chỗ rẽ.** Chỉ đúng hai chữ đã khai mới mở tool; bản ghi cũ thiếu khoá, file sửa tay gõ sai, `None` - tất cả rơi về đường không tool. Viết ngược lại ("khác `suggest` thì mở tool") là một lỗi chính tả trong `chatbots.json` cũng đủ cấp tool cho bot đang chat với khách.
+- **Giá trị lạ trong bản vá GIỮ NGUYÊN mức cũ**, không rơi về mặc định: bot đang Toàn quyền mà một bản vá gõ sai lại lặng lẽ hạ nó xuống thì chủ tưởng bot vẫn làm việc, còn nó thì từ chối mọi công cụ.
+- Giao diện hỏi lại thêm một lần cho mức Toàn quyền, và hỏi lại lúc **Bật** bot có quyền thao tác - lúc tạo có thể là mấy hôm trước.
+### Kiểm thử
+- `test_chatbot_muc_quyen.py` mới: chạy THẬT một lượt bot qua cả tám provider ở mức Toàn quyền rồi kiểm từng con có gọi vòng tool không. Cấp tool cho sáu engine API rồi bỏ hai gói thuê bao lại là kiểu hỏng im lặng tệ nhất - chủ đặt Toàn quyền, bot vẫn lễ phép trả lời, và không làm gì cả.
+- Cùng file canh fail-closed bằng tám giá trị lạ (kể cả `1`, `True`, `"readonly"`, và hai chuỗi thừa khoảng trắng để ai bỏ `strip()` thì đỏ ngay), hub trả rỗng, và hub nổ giữa chừng.
+- `test_chatbot_cach_ly.py` thêm canary cho đường CÓ tool: không `claude_engine`, không `CodexCLI`, không `allowed_tools`, không tên tool native nào. Tên tool soi ở dạng có nháy - soi dạng trần thì chính đoạn ghi chú giải thích vì sao không có Bash lại làm test đỏ.
+
 ## [0.23.1] - 2026-08-05
 Chủ repo hỏi: *"anh thấy chưa qua chức năng tiết kiệm và siêu tiết kiệm của bot. em kiểm tra giúp anh xem có phải vậy không?"* Đúng là chưa qua, nhưng cái sai không nằm ở chỗ đó.
 ### Sửa lỗi

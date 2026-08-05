@@ -341,6 +341,15 @@ tài liệu CÓ nhưng THIẾU Ý khách cần, và đó thường là chỗ đ�
   có thể bị khoá; đem một tài khoản Zalo ra làm bot chăm sóc khách hàng là đặt cược vào thứ
   không kiểm soát được. Telegram có API bot chính thức, làm xong ổn rồi hãy tính Zalo OA.
 
+### Cập nhật 2026-08-05: mục "khoá cứng ở chỉ-đọc" không còn đúng nữa
+
+Mục 4 (mảnh số 4), mục 6 (rào số 1 và số 2) và bảng ở mục 3 đều viết trên giả định **bot luôn
+chỉ đọc**. Chủ repo bỏ giả định đó: *"anh vẫn muốn có thể thực hiện nhiều task, nhưng em thêm
+phần thông báo cho anh để hiểu rõ nguy cơ khi sử dụng."* Xem mục 10.
+
+Giữ nguyên văn ba mục kia thay vì sửa lại, vì lý lẽ trong đó vẫn đúng cho mức mặc định - và
+đọc được vì sao mặc định phải là chỉ-đọc thì mới hiểu được cái giá của việc nâng mức.
+
 ## 9. Còn cần anh chốt
 
 Hai câu đầu đã trả lời rồi (brain riêng, token riêng, có trang quản lý). Còn hai:
@@ -350,3 +359,72 @@ Hai câu đầu đã trả lời rồi (brain riêng, token riêng, có trang qu
 2. **Khách hỏi ngoài phạm vi thì bot làm gì?** Im lặng, hay nói "để em chuyển anh chị cho nhân
    viên"? Cái sau cần có người thật trực, nên phụ thuộc anh có người hay không. Nếu chưa có
    thì mặc định nên là nói thẳng "cái này em chưa có thông tin" rồi dừng, chứ đừng đoán.
+
+## 10. Mở phạm vi (2026-08-05): ba mức quyền
+
+Chủ repo: *"ở chức năng tạo bot đang là chỉ đọc, anh muốn thêm chức năng được ghi và toàn
+quyền. Vì cơ bản anh vẫn muốn có thể thực hiện nhiều task, nhưng em thêm phần thông báo cho
+anh để hiểu rõ nguy cơ khi sử dụng."* Ra ở 0.24.0.
+
+### Bài toán thật nằm ở đâu
+
+Không phải "làm sao cấp tool cho bot" - cấp tool là chuyện dễ. Bài toán là **cấp tool mà không
+đánh mất hai rào đã có**, vì hai rào đó chính là lý do 0.21.0 tồn tại:
+
+1. **Cách ly brain.** Bot chỉ thấy brain của nó.
+2. **Không lệnh máy.** Không Bash, không web, không agent con.
+
+Đường dễ nhất - mở CLI cho bot rồi giới hạn bằng `allowed_tools` như loop đang làm - **mất cả
+hai cùng lúc**. `Read` của Claude Code nhận đường dẫn TUYỆT ĐỐI, nên một allowlist có `Read`
+là bot đọc được mọi brain và cả `/etc/passwd`. Đúng lỗ 0.21.0 đã phải vá, và vá bằng cách bỏ
+tool hẳn.
+
+### Lời giải: tool CHỈ đến từ hub, trên cả tám bộ não
+
+Bot không bao giờ mở CLI. Ở mức nới quyền nó đi vòng gọi tool kiểu API (`*_chat_with_mcp`) với
+tool lấy từ `mcp_hub.discover_all(muc_quyen, vault_root=<brain của bot>)`. Ba hệ quả, và cả ba
+đều là hệ quả của KIẾN TRÚC chứ không phải một rào phải canh:
+
+- Tool file đi qua `_safe_path(vault_root)` → cách ly brain giữ nguyên **kể cả ở mức full**.
+- Hub không có Bash/WebFetch/WebSearch/Task → rào số 2 giữ nguyên.
+- `muc_quyen` thành `mode` của hub → `mcp_catalog.allowed()` chặn nhóm nguy hiểm ở mức `auto`
+  ngay tại chỗ gọi, không phụ thuộc prompt.
+
+Hai gói thuê bao không bị bỏ lại (lời hứa "đổi bộ não không đổi năng lực"): ChatGPT đi
+`responses_with_mcp`, Claude Code đi `anthropic_chat_with_mcp` với `oauth_token` - tham số mới
+thêm ở bản này, mirror đúng cặp header mà `anthropic_stream` đã dùng.
+
+### Vì sao hai đường tách hẳn nhau
+
+`_bot_tra_loi` (không tool) và `_bot_tra_loi_co_tool` (có tool) là hai hàm riêng, dùng chung
+mấy mảnh nhỏ (lịch sử, đọc stream, ghim đường đo). Cố ý:
+
+- Đường không-tool phải **soi được bằng mắt** là không có tool nào, và có test cắt đúng thân
+  hàm đó ra kiểm (`test_chatbot_cach_ly.py` mục B2). Nhét cả hai vào một hàm với một cái `if`
+  thì canary ấy không viết được nữa.
+- Mức Chỉ đọc là mặc định, tức đường đi của gần như mọi bot. Nó không được động vào khi thêm
+  tính năng cho hai mức kia.
+
+### Chỗ dễ hỏng nhất, ghi lại để đừng lặp
+
+- **Rẽ nhánh phải fail-closed.** `if _muc in MUC_NANG` chứ không phải `if _muc != "suggest"`.
+  Vế sau thì một lỗi chính tả trong `chatbots.json`, hay một bản ghi cũ thiếu khoá, cũng đủ
+  cấp tool cho bot đang chat với người lạ.
+- **Giá trị lạ khi SỬA thì giữ mức cũ**, không rơi về mặc định. Rơi về mặc định là hạ quyền
+  im lặng: chủ tưởng bot vẫn làm việc, còn nó thì từ chối mọi tool mà không ai biết.
+- **Rào xác nhận phải ở KHO, không chỉ ở route.** Route là một trong nhiều đường vào (giao
+  diện, chat tự tạo bot, script của chủ). Đặt ở kho thì đường nào cũng đi qua.
+- **Chỉ chặn lúc NÂNG.** Bắt xác nhận lúc hạ mức là dựng rào đúng lúc chủ đang dập sự cố.
+- **Cảnh báo do server cấp, giao diện không chép.** Chép rồi thì một hôm server siết thêm rào
+  mà ô cảnh báo vẫn hứa như cũ, và chủ bấm đồng ý dựa trên một câu đã sai.
+
+### Cái KHÔNG giải được bằng mã, và phải nói thẳng với chủ
+
+Ở mức `full`, người điều khiển tool là **khách lạ**. Rào còn lại đúng bằng file Agent chủ viết,
+mà chữ thì lách được - đây chính là điều mục 6 đã cảnh báo ("không chống chèn lệnh bằng cách
+dặn thêm trong prompt"), chỉ khác là giờ bot CÓ thứ để mất.
+
+Nên phần "thông báo nguy cơ" chủ repo yêu cầu không phải là tính năng phụ, nó là **nửa còn lại
+của lời giải**: mã chặn được cái chặn được, phần còn lại chủ phải biết trước khi bấm. Vì thế
+cảnh báo kể ra cái MẤT ĐƯỢC (tiền, đơn, không hoàn tác, ai điều khiển) chứ không phải một câu
+"hãy cẩn thận" - và nó xuất hiện ba lần: lúc chọn mức, lúc lưu mức `full`, lúc Bật bot.

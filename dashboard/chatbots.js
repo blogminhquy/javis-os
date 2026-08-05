@@ -39,7 +39,15 @@
     off:      { nhan: "Đã tắt", mau: "off" },
   };
 
-  var _bots = [], _q = "", _host = null;
+  // Nhãn + cảnh báo của từng mức quyền do SERVER cấp (kèm trong GET /chatbots). Không chép
+  // cứng ở đây: chép rồi thì một hôm server siết thêm rào mà ô cảnh báo vẫn hứa như cũ, và
+  // chủ bấm đồng ý dựa trên một câu đã sai.
+  var _bots = [], _q = "", _host = null, _mucDS = [];
+
+  function mucCua(id) {
+    for (var i = 0; i < _mucDS.length; i++) if (_mucDS[i].id === id) return _mucDS[i];
+    return { id: id || "suggest", nhan: "Chỉ đọc", canh_bao: [], can_xac_nhan: false };
+  }
 
   function render(host) {
     _host = host;
@@ -51,8 +59,11 @@
         '</div>' +
         '<p class="cb-intro">Bot của brain <b>' + esc(brain()) + '</b>. Mỗi bot là một ' +
         '<b>Agent</b> trong brain này, đem ra trả lời người ngoài qua một bot Telegram riêng. ' +
-        'Bot làm theo đúng quy định trong file Agent; Javis chỉ khoá một thứ: nó <b>chỉ đọc ' +
-        'được brain này</b>, không thấy brain khác, không ghi, không có lệnh quản trị.<br>' +
+        'Bot làm theo đúng quy định trong file Agent. Mặc định nó <b>chỉ đọc được brain này</b>: ' +
+        'không ghi, không gọi nguồn dữ liệu, không có lệnh quản trị. Cần bot <b>làm việc thật</b> ' +
+        'thì nâng mức quyền khi tạo hoặc sửa - đọc kỹ phần rủi ro ở đó, vì người điều khiển bot ' +
+        'là khách chứ không phải bạn.<br>' +
+        'Hai rào giữ nguyên ở MỌI mức: bot không thấy brain khác, và không chạy được lệnh máy.<br>' +
         'Đổi brain ở đầu trang là thấy bot của brain đó.</p>' +
         '<div class="cb-grid"></div>' +
       '</div>';
@@ -71,6 +82,7 @@
       // console.js tự gọi lại renderPage khi đổi brain nên không cần lắng nghe gì thêm.
       var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
       _bots = d.bots || [];
+      _mucDS = d.muc_quyen || [];
     } catch (e) {
       box.innerHTML = '<div class="cb-empty">Không tải được danh sách bot: ' + esc(e.message) + '</div>';
       return;
@@ -112,6 +124,17 @@
     var lluot = b.loi_luot
       ? '<div class="cb-err">' + ic("triangle-alert") + ' Lượt gần nhất LỖI: ' +
         esc(String(b.loi_luot).slice(0, 200)) + '</div>' : "";
+    // Mức quyền phải nhìn thấy TỪ NGOÀI THẺ, không phải mở form Sửa mới biết. Một con bot toàn
+    // quyền lẫn giữa mấy con chỉ đọc mà nhìn giống hệt nhau là đúng kiểu hỏng im lặng: chủ nhớ
+    // nhầm con nào là con nào rồi thả nhầm vào nhóm khách.
+    var mq = b.muc_quyen || "suggest";
+    var quyen = mq === "suggest" ? "" :
+      '<div class="cb-quyen ' + (mq === "full" ? "full" : "ghi") + '">' +
+        ic(mq === "full" ? "shield-alert" : "pencil") + ' Mức <b>' + esc(mucCua(mq).nhan) +
+        '</b>' + (mq === "full"
+          ? ' - bot tự tạo đơn, tiêu tiền, gửi tin được. Người điều khiển là khách lạ.'
+          : ' - bot ghi được file trong brain này và gọi được nguồn dữ liệu đã đấu.') +
+      '</div>';
     var c = el(
       '<div class="cb-card">' +
         '<div class="cb-head">' +
@@ -133,7 +156,7 @@
           (b.handoff_to ? '<span>' + ic("user") + ' có chuyển nhân viên</span>'
                         : '<span class="cb-warn">chưa đặt người nhận</span>') +
         '</div>' +
-        mat + lluot + loi +
+        quyen + mat + lluot + loi +
         '<div class="cb-acts">' +
           '<button class="s-btn-ghost cb-toggle" type="button">' +
             (b.enabled ? ic("circle-stop") + " Tắt" : ic("play") + " Bật") + '</button>' +
@@ -232,6 +255,17 @@
   }
 
   async function bat(b, on) {
+    // Bật là lúc bot bắt đầu nói chuyện với người thật. Với bot có quyền thao tác, nhắc lại
+    // đúng ở đây - lúc tạo có thể là mấy hôm trước, và tay bấm Bật chưa chắc nhớ mình đã đặt
+    // mức nào cho con này.
+    var mq = b.muc_quyen || "suggest";
+    if (on && mucCua(mq).can_xac_nhan &&
+        !confirm('Bật bot "' + b.name + '" ở mức ' + mucCua(mq).nhan + '?\n\n' +
+                 (mq === "full"
+                   ? "Từ lúc này ai nhắn cho bot cũng có thể khiến nó tạo đơn, tiêu tiền, gửi "
+                     + "tin và đăng bài. Không hoàn tác được."
+                   : "Từ lúc này bot ghi được file trong brain của nó và gọi được các nguồn dữ "
+                     + "liệu bạn đã đấu, theo lời khách nhắn."))) return;
     try {
       await api("/chatbots/" + encodeURIComponent(b.id) + "/enable",
                 { method: "POST", body: fd({ on: on ? "1" : "0" }) });
@@ -276,6 +310,39 @@
                      : '<option value="">(brain này chưa có Agent nào)</option>';
   }
 
+  // Mô tả một dòng cho mỗi mức, hiện ngay trong ô chọn. Cảnh báo ĐẦY ĐỦ nằm ở khối dưới và do
+  // server cấp; ba dòng này chỉ để chọn cho đúng ngay từ đầu.
+  var MUC_TOM = {
+    suggest: "Chỉ đọc - bot chỉ trả lời, không đụng được gì (mặc định)",
+    auto: "Được ghi - ghi file trong brain này + gọi nguồn dữ liệu, KHÔNG tiền/đơn/gửi tin",
+    full: "Toàn quyền - làm được mọi thứ, kể cả tiền, đơn, gửi tin, đăng bài",
+  };
+
+  function htmlMuc(dangChon) {
+    var ds = _mucDS.length ? _mucDS : [{ id: "suggest", nhan: "Chỉ đọc" }];
+    return ds.map(function (m) {
+      return '<option value="' + esc(m.id) + '"' + (m.id === dangChon ? " selected" : "") + '>' +
+             esc(MUC_TOM[m.id] || m.nhan) + '</option>';
+    }).join("");
+  }
+
+  // Khối cảnh báo dựng từ danh sách câu SERVER trả về. Mức chỉ đọc không có câu nào, và đúng
+  // như vậy: nó không lấy đi thứ gì để mà cảnh báo.
+  function veCanhBao(id) {
+    var m = mucCua(id);
+    if (!(m.canh_bao || []).length) {
+      return '<div class="cb-hint">Bot chỉ đọc tài liệu trong brain này rồi trả lời. Không ghi ' +
+             'file, không gọi nguồn dữ liệu, không thao tác gì ra ngoài. An toàn nhất khi bot ' +
+             'nói chuyện với người lạ.</div>';
+    }
+    return '<div class="cb-canhbao ' + (id === "full" ? "full" : "ghi") + '">' +
+      '<div class="cb-canhbao-h">' + ic("triangle-alert") + ' Bật mức <b>' + esc(m.nhan) +
+      '</b> nghĩa là:</div><ul>' +
+      m.canh_bao.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") +
+      '</ul><label class="cb-ack"><input type="checkbox" id="cbAck"> Tôi đã đọc và chấp nhận ' +
+      'rủi ro trên</label></div>';
+  }
+
   async function moForm(b) {
     var sua = !!b;
     var br = brain();                 // brain đang mở = brain của bot, không hỏi lại
@@ -311,6 +378,12 @@
         '<b>Chỉ tài liệu</b>: thêm một luật duy nhất là không tìm thấy tài liệu thì nói chưa ' +
         'có thông tin, không tự nói thêm. Hợp với bot đọc giá và chính sách, nơi một câu sai ' +
         'là thiệt hại thật.</div>' +
+
+        // Đặt NGAY sau "trả lời dựa trên gì" và trước token: đây là quyết định nặng nhất trong
+        // cả form, phải đọc trước khi bấm tạo chứ không phải một ô giấu ở cuối.
+        '<label>Bot được làm gì</label>' +
+        '<select id="cbMuc">' + htmlMuc((b && b.muc_quyen) || "suggest") + '</select>' +
+        '<div class="cb-muc-note">' + veCanhBao((b && b.muc_quyen) || "suggest") + '</div>' +
 
         '<label>Token Telegram' + (sua ? " (để trống nếu không đổi)" : "") + '</label>' +
         '<div class="cb-row">' +
@@ -351,6 +424,13 @@
       try { window.JavisNav.go("agents"); } catch (e) {}
     };
 
+    // Đổi mức là vẽ lại cảnh báo NGAY, và ô đồng ý luôn bắt đầu ở trạng thái chưa tick. Giữ
+    // lại tick cũ khi đổi từ "Được ghi" sang "Toàn quyền" là để chủ đồng ý với một danh sách
+    // rủi ro mà họ chưa đọc.
+    var oMuc = box.querySelector("#cbMuc");
+    var oNote = box.querySelector(".cb-muc-note");
+    oMuc.onchange = function () { oNote.innerHTML = veCanhBao(oMuc.value); };
+
     var uname = (b && b.bot_username) || "";
     box.querySelector("#cbCheck").onclick = async function () {
       var t = box.querySelector("#cbToken").value.trim();
@@ -371,9 +451,24 @@
       var tok = box.querySelector("#cbToken").value.trim();
       var ho = box.querySelector("#cbHandoff").value.trim();
       var ngu = box.querySelector("#cbNguon").value;
+      var muc = oMuc.value;
+      var ack = box.querySelector("#cbAck");
       if (!ten) return alert("Nhập tên bot");
       if (!ag) return alert("Chọn Agent làm bộ não cho bot. Brain này chưa có Agent nào thì "
                             + "bấm Tạo Agent để tạo trước.");
+      // Hai lớp, cố ý: ô tick ở đây để chủ ĐỌC, và server vẫn tự chặn lần nữa (can_force) nên
+      // gỡ ô này bằng devtools cũng không nâng được quyền.
+      if (mucCua(muc).can_xac_nhan && !(ack && ack.checked)) {
+        return alert("Mức \"" + mucCua(muc).nhan + "\" cho bot làm việc thật ra ngoài, do "
+                     + "người lạ điều khiển.\n\nĐọc phần rủi ro rồi tick vào ô đồng ý bên dưới "
+                     + "ô chọn mức thì mới lưu được.");
+      }
+      if (muc === "full" &&
+          !confirm("Bot \"" + ten + "\" sẽ chạy ở mức TOÀN QUYỀN.\n\n"
+                   + "Ai nhắn cho bot cũng có thể khiến nó tạo đơn, tiêu tiền quảng cáo, gửi "
+                   + "tin và đăng bài. Những việc đó không hoàn tác được, và bot không hỏi lại "
+                   + "bạn trước khi làm.\n\nChỉ nên dùng trong nhóm kín toàn người bạn tin. "
+                   + "Vẫn muốn đặt mức này?")) return;
       try {
         if (sua) {
           var gr = box.querySelector("#cbGroups");
@@ -381,6 +476,7 @@
             method: "POST",
             body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
                        handoff_to: ho, token: tok, bot_username: uname, nguon_tra_loi: ngu,
+                       muc_quyen: muc, xac_nhan_rui_ro: "1",
                        groups: gr ? gr.value : undefined }),
           });
         } else {
@@ -388,7 +484,8 @@
           await api("/chatbots", {
             method: "POST",
             body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
-                       token: tok, bot_username: uname, handoff_to: ho, nguon_tra_loi: ngu }),
+                       token: tok, bot_username: uname, handoff_to: ho, nguon_tra_loi: ngu,
+                       muc_quyen: muc, xac_nhan_rui_ro: "1" }),
           });
         }
       } catch (e) { return alert("Không lưu được: " + e.message); }

@@ -12,8 +12,10 @@ Ba thứ module này chịu trách nhiệm, và cả ba đều là chỗ dễ h�
    trỏ tới, cộng luật trả lời khách.
 
 3. **RÀO.** Danh sách lệnh TRẮNG (không có lệnh quản trị nào), giới hạn tần suất mỗi người, và
-   chuyển người thật khi bí. Mức quyền thì hạ ở `main._tg_answer_engine` bằng mã, không phải ở
-   đây và càng không phải trong prompt.
+   chuyển người thật khi bí. Mức quyền thì áp ở `main._tg_answer_engine` bằng mã, không phải ở
+   đây và càng không phải trong prompt: bản ghi có `muc_quyen` (suggest/auto/full), lượt chạy rẽ
+   theo đúng chữ đó sang đường không-tool hay đường có-tool-của-hub. Chữ trong prompt thì lách
+   được; nhánh trong mã thì không.
 
 Xem docs/dev/2026-08-bot-chuyen-trach-spec.md.
 """
@@ -344,6 +346,7 @@ def _make_answer_fn(bot_id: str):
             "hoi": text, "dap": dap, "loi": loi_ky_thuat,
             "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
             "chuyen_nguoi": goi_nguoi, "bi": bi,
+            "muc_quyen": cfg.get("muc_quyen") or "suggest",
         })
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
