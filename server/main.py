@@ -8946,6 +8946,88 @@ def _tg_ket(clean_out, files, canh_bao="", loi=()):
     return {"text": txt, "files": files or []}
 
 
+# Số lượt hội thoại (user+assistant) giữ lại cho một người nói chuyện với bot. Cắt cứng thay
+# vì nén như đường chat của chủ: nén là thêm một lượt gọi model nữa, mà bot trả lời người lạ
+# thì cần nhanh và rẻ hơn là cần nhớ dai.
+BOT_LICH_SU_MAX = 20
+
+
+async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
+                       progress, runtime_trace):
+    """Một lượt của Bot chuyên trách. MỘT đường duy nhất cho CẢ TÁM bộ não.
+
+    Vì sao không đi theo bốn nhánh engine như đường chat của chủ:
+
+    1. **Để đổi bộ não không đổi trải nghiệm.** Đó là lời hứa gốc của Javis. Đi bốn nhánh thì
+       Claude Code có Bash, Codex có kho MCP riêng, engine API bị trần 8 vòng gọi tool - ba
+       kiểu hành xử khác nhau cho cùng một con bot, và chủ đổi model là khách thấy khác ngay.
+       Ở đây mọi engine nhận CÙNG system prompt, CÙNG tài liệu, CÙNG lịch sử, và đều không có
+       tool. Khác biệt còn lại đúng bằng khác biệt giữa các model, không phải giữa các đường ống.
+
+    2. **Để cách ly brain là thật, không phải là rào.** Bot không được cấp tool nào cả, nên nó
+       KHÔNG CÓ cách nào chạm vào đĩa - khỏi cần cổng duyệt, khỏi cần sandbox, khỏi phải hy
+       vọng cwd giữ chân được nó. Trước đó bản 0.21.0 phải khoá allowed_tools cho Claude Code
+       và TỪ CHỐI chạy trên Codex vì Codex không khoá được phạm vi đọc. Cả hai chỗ chắp vá đó
+       biến mất: không có tool thì không có gì để khoá.
+
+    Tài liệu đã được `chatbot_grounding` tra sẵn bằng Python TRƯỚC khi model chạy và nằm trong
+    `sysprompt`, nên bỏ tool không làm bot mất khả năng đọc brain - chỉ bỏ khả năng đi lang
+    thang trong đó.
+
+    `_api_stream` phục vụ đủ tám provider, kể cả hai gói subscription: ChatGPT OAuth đi
+    `openai_responses_stream`, Claude Code đi `anthropic_stream` với token OAuth mà chính CLI
+    đã lưu. Không con nào phải mở CLI, nên cũng không con nào tốn thời gian khởi động CLI.
+    """
+    if sess.get("bot") is None:
+        sess["bot"] = []
+    lich_su = sess["bot"]
+
+    def _cat():
+        if len(lich_su) > BOT_LICH_SU_MAX:
+            del lich_su[:len(lich_su) - BOT_LICH_SU_MAX]
+
+    lich_su.append({"role": "user", "content": text})
+    _cat()
+
+    # System dựng LẠI mỗi lượt: tài liệu tra được đổi theo từng câu hỏi. Giữ system cũ là bot
+    # trả lời câu này bằng tài liệu của câu trước.
+    messages = [{"role": "system", "content": sysprompt}] + lich_su
+    if runtime_trace:
+        _CONTEXT_RUNTIME.set_route(runtime_trace, prov, api_model or "?")
+        _CONTEXT_RUNTIME.observe_payload(runtime_trace, messages, [], provider=prov,
+                                         model=api_model or "?")
+
+    out, loi, actual_model = "", [], api_model or "?"
+    _pinged = False
+    try:
+        async for ev in _api_stream(prov, api_key, api_model, messages, reasoning):
+            t = ev.get("type")
+            if t == "text":
+                if not _pinged:
+                    _pinged = True
+                    await progress("✍ Đang soạn câu trả lời…")
+                out += ev.get("content") or ""
+            elif t == "meta":
+                actual_model = ev.get("model") or actual_model
+            elif t == "usage":
+                usage_store.record(prov, actual_model, ev.get("input", 0), ev.get("output", 0))
+                _CONTEXT_RUNTIME.record_usage(runtime_trace, ev.get("input", 0), ev.get("output", 0))
+            elif t == "error":
+                loi.append(str(ev.get("content") or "lỗi không rõ"))
+    except Exception as e:
+        print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+        loi.append(str(e))
+
+    if not out:
+        lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
+    lich_su.append({"role": "assistant", "content": out})
+    _cat()   # cắt lại SAU khi thêm câu trả lời, không thì trần bị vượt đúng một lượt mỗi vòng
+    # Không gửi kèm file: bot không tạo được file (không có tool), và quét thư mục brain để
+    # tìm file "mới" thì lại là một đường rò tài liệu ra ngoài.
+    return {"text": channel_context.strip_control_blocks(out), "files": []}
+
+
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                             prov, kind, api_key, api_model, store=None, conv_sid="",
                             channel="telegram", bot=None):
@@ -8968,16 +9050,17 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # telegram_running phải theo kênh THẬT: bật cờ đó cho lượt CLI là dạy Javis một công thức
     # gửi file qua Telegram trong khi người hỏi đang ngồi ở terminal.
     # Bot chuyên trách KHÔNG dùng system prompt của Javis: prompt đó dạy cách điều phối, ghi
-    # vault, giao việc - toàn thứ bot khách hàng không được làm. Nó dùng prompt của chính Agent
-    # nó trỏ tới, cộng luật trả lời khách. Xem chatbot_runtime.build_bot_prompt.
-    # Mức quyền hạ xuống 'suggest' ở ĐÂY, trong mã, chứ không dặn trong prompt: prompt là thứ
-    # khách nói chuyện được với nó, mã thì không (đúng nguyên tắc ở agent_runtime.py).
-    bot_mode = "suggest" if bot else "full"
+    # vault, giao việc - toàn thứ bot trả lời người ngoài không được làm. Nó dùng prompt của
+    # chính Agent nó trỏ tới. Xem chatbot_runtime.build_bot_prompt.
     if bot:
         import chatbot_runtime
-        sysprompt = chatbot_runtime.build_bot_prompt(bot)
-    else:
-        sysprompt = build_system_prompt(brain)
+        # Prompt của bot KHÔNG kèm block kênh: block đó dạy cách tự gửi file qua Telegram và
+        # nêu đường dẫn thư mục thật của brain - kiến thức vận hành, không phải thứ đưa cho
+        # một con bot đang nói chuyện với người lạ.
+        return await _bot_tra_loi(text, sess=sess, sysprompt=chatbot_runtime.build_bot_prompt(bot),
+                                  prov=prov, api_key=api_key, api_model=api_model,
+                                  reasoning=reasoning, progress=_p, runtime_trace=runtime_trace)
+    sysprompt = build_system_prompt(brain)
     sysprompt += channel_context.build_channel_block(
         channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
         brain_root=_brain_root(brain))
@@ -8994,21 +9077,6 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # dict (không phải chuỗi): đây là câu trả lời THẬT nên vỏ phải lưu nó lại.
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
-    if prov == "openai-oauth" and bot:
-        # Bot chuyên trách KHÔNG chạy được trên Codex, và nói thẳng ra còn hơn chạy hở.
-        #
-        # Rào duy nhất của bot là cách ly brain. Với Claude Code thì khoá được bằng
-        # allowed_tools (cổng can_use_tool từ chối mọi tool native), với năm engine API thì
-        # mọi đường đọc file đều qua hub và bị `_safe_path` chặn. Codex thì không có cả hai:
-        # sandbox của nó chặn GHI và mạng, chứ không nhốt phạm vi ĐỌC - `cat` sang brain khác
-        # vẫn chạy, và cwd chỉ là thư mục khởi điểm chứ không phải rào.
-        #
-        # Nên ở đây từ chối, chứ không hạ sandbox rồi coi như xong: một rào chặn được nửa vời
-        # còn tệ hơn không có, vì chủ tưởng nó đang bảo vệ mình.
-        return ("⚠ Bot chuyên trách chưa chạy được khi engine chính là ChatGPT (Codex): Codex "
-                "không khoá được phạm vi đọc file, nên không bảo đảm bot chỉ thấy brain của nó. "
-                "Đổi engine chính sang Claude Code hoặc một engine API (OpenRouter, OpenAI API, "
-                "Anthropic API, Gemini, Groq, Ollama) ở trang Models rồi bật lại bot.")
     if prov == "openai-oauth":
         # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth
         # rơi vào Responses chat-thuần nên model nói đúng là phiên không có tool.
@@ -9136,7 +9204,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         loi = []
         _pinged = False
         async for ev in (await _api_stream_mcp(prov, api_key, api_model, sess["or"], reasoning,
-                                               brain=brain, mode=bot_mode)):
+                                               brain=brain)):
             if ev["type"] == "text":
                 if not _pinged:
                     _pinged = True; await _p("✍ Đang soạn câu trả lời…")
@@ -9178,27 +9246,11 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     else:
         if sess["cli"] is None:
             # tag riêng theo chat → /stop chỉ giết đúng subprocess của chat này, không đụng người khác
-            #
-            # Bot chuyên trách phải bị NHỐT trong brain của nó. Hai thứ ở đây làm việc đó, và
-            # thiếu một trong hai là hở toang:
-            #   - cwd = brain của bot, không phải gốc project. Chạy ở gốc project thì tool
-            #     native của Claude Code đọc thẳng được mã nguồn server và MỌI brain khác.
-            #   - allowed_tools = chỉ tool qua hub Javis. Đây mới là lớp chặn thật: đặt
-            #     allowed_tools làm engine bật permission_mode="default" + cổng can_use_tool,
-            #     nên Bash/Read/Write/Glob/Grep native bị TỪ CHỐI từng lượt gọi. Không đặt thì
-            #     engine chạy "bypassPermissions" và cwd chỉ là thư mục khởi điểm, không phải
-            #     rào - `cat ../brain-khac/...` vẫn chạy ngon.
-            # Tool qua hub thì đã bị `mcp_hub._safe_path` khoá trong vault rồi.
-            sess["cli"] = claude_engine(
-                system_prompt=sysprompt,
-                cwd=_brain_root(brain) if bot else CLAUDE_CWD,
-                tag=f"telegram:{chat_id}",
-                allowed_tools=mcp_hub.allow_patterns() if bot else None,
-            )
+            sess["cli"] = claude_engine(system_prompt=sysprompt, cwd=CLAUDE_CWD, tag=f"telegram:{chat_id}")
         cli = sess["cli"]
         cli.system_prompt = sysprompt
         cli.model = api_model or mcfg.get("claude_model") or None
-        _apply_mcp(cli, mode=bot_mode, brain=brain)
+        _apply_mcp(cli, brain=brain)
         t0 = time.time()
         written = []   # file agent ghi bằng tool Write trong lượt này (ứng viên auto-gửi)
         out = ""

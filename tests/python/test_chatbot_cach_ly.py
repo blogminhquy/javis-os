@@ -13,17 +13,22 @@ A. **Prompt là của Agent, không phải của Javis.** Không chèn khối lu
 
 B. **Cách ly brain, bằng MÃ chứ không bằng chữ.** Đây là phần đáng canh nhất, vì nó KHÔNG hiện
    ra khi dùng thử: bot vẫn trả lời đúng, vẫn lịch sự, và chủ không có cách nào biết nó vừa
-   đọc được brain khác. Ba đường ra ngoài, mỗi đường một lớp chặn khác nhau:
+   đọc được brain khác.
 
-     1. Engine API (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama): mọi đường đọc file
-        đều qua tool của hub, và hub khoá bằng `mcp_hub._safe_path`.
-     2. Claude Code: có tool NATIVE (Bash, Read, Glob, Grep) KHÔNG đi qua hub. cwd một mình
-        không phải rào - `cat ../brain-khac/...` vẫn chạy. Lớp chặn thật là `allowed_tools`,
-        vì đặt nó làm engine bật permission_mode="default" + cổng can_use_tool từ chối từng
-        lượt gọi tool ngoài danh sách.
-     3. Codex: KHÔNG có cả hai. Sandbox của nó chặn ghi và mạng, không nhốt phạm vi đọc. Nên
-        bot bị TỪ CHỐI chạy trên Codex, chứ không hạ sandbox rồi coi như xong - một rào chặn
-        được nửa vời còn tệ hơn không có, vì chủ tưởng nó đang bảo vệ mình.
+   Cách giải: **bot không được cấp tool nào cả.** Tài liệu do `chatbot_grounding` tra sẵn bằng
+   Python TRƯỚC khi model chạy và nằm sẵn trong prompt, nên bỏ tool không làm bot mất khả năng
+   đọc brain - chỉ bỏ khả năng đi lang thang trong đó. Không có tool thì không có gì để khoá.
+
+   Hai bản trước đi đường vòng và đều hỏng theo kiểu riêng, ghi lại để đừng quay về:
+     - 0.19.0-0.20.1 hạ mức quyền MCP xuống 'suggest'. Chỉ lọc tool của HUB, không đụng tool
+       NATIVE của Claude Code (Bash, Read, Glob, Grep) - bot đọc được cả máy.
+     - 0.21.0 khoá `allowed_tools` cho Claude Code, rồi TỪ CHỐI chạy trên Codex vì Codex không
+       khoá được phạm vi đọc. Vá được lỗ nhưng phá lời hứa gốc của Javis: đổi bộ não thì năng
+       lực phải giữ nguyên. Chủ repo bác đúng chỗ đó.
+
+C. **Cùng một trải nghiệm trên cả tám bộ não.** Hệ quả của (B), và cũng là yêu cầu riêng:
+   "dù là claude hay codex hay dùng api thì trải nghiệm nói chuyện với bot cũng vẫn giống
+   nhau". Mục B3 chạy THẬT qua cả tám provider rồi đối chiếu payload từng con.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
 import os
@@ -146,46 +151,125 @@ check("CANARY: brain trùng tiền tố tên cũng bị chặn (không so chuỗ
 
 
 # ============================================================
-# B2. Claude Code: cwd một mình KHÔNG phải rào, phải có allowed_tools
+# B2. Bot KHÔNG được cấp tool nào - cùng một đường cho cả tám bộ não
 # ============================================================
+# Đây là lời giải cuối cùng, và nó thay cho hai bản chắp vá trước đó (khoá allowed_tools cho
+# Claude Code ở 0.21.0, và TỪ CHỐI chạy trên Codex vì Codex không khoá được phạm vi đọc).
+#
+# Chủ repo đặt lại bài đúng chỗ: "dù là claude hay codex hay dùng api thì trải nghiệm nói
+# chuyện với bot cũng vẫn giống nhau". Đi bốn nhánh engine thì không bao giờ giống nhau được -
+# Claude Code có Bash, Codex có kho MCP riêng, engine API bị trần 8 vòng gọi tool.
+#
+# Bỏ tool giải cả hai bài cùng lúc: mọi engine nhận CÙNG prompt + CÙNG tài liệu + CÙNG lịch sử
+# nên trả lời như nhau, và không có tool thì không có gì để khoá - cách ly brain thành hệ quả
+# của kiến trúc chứ không phải một rào phải canh.
+import asyncio  # noqa: E402
+import types  # noqa: E402
+
+import main  # noqa: E402
+
 _SRC = (SERVER / "main.py").read_text(encoding="utf-8")
-check("bot chạy Claude Code với cwd = brain của nó",
-      "cwd=_brain_root(brain) if bot else CLAUDE_CWD" in _SRC)
-# Đây mới là lớp chặn thật. Không có nó thì engine chạy permission_mode="bypassPermissions",
-# và Bash/Read/Glob/Grep native đọc thẳng brain khác lẫn mã nguồn server.
-check("CANARY: bot chỉ được gọi tool qua hub Javis, cấm tool native",
-      "allowed_tools=mcp_hub.allow_patterns() if bot else None" in _SRC)
-check("engine bật cổng duyệt thật khi có allowed_tools",
-      'kw["permission_mode"] = "default"' in
-      (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8"))
-check("allow_patterns chỉ mở đúng nhóm tool của hub",
-      mcp_hub.allow_patterns() == ["mcp__javis"])
+
+# Lượt bot phải THOÁT khỏi _tg_answer_engine trước MỌI nhánh engine. Đứng sau một nhánh nào là
+# lượt đó đã kịp dựng CLI hoặc kịp nạp tool MCP rồi.
+_than = _SRC[_SRC.index("async def _tg_answer_engine"):]
+_vi_bot = _than.index("return await _bot_tra_loi(")
+for moc, ten in ((_than.index('if prov == "openai-oauth":'), "nhánh Codex"),
+                 (_than.index("_api_stream_mcp("), "nhánh engine API"),
+                 (_than.index("claude_engine("), "nhánh Claude Code"),
+                 (_than.index("_schedule_cancel_action("), "xử lý lệnh lịch của chủ")):
+    check(f"lượt bot thoát ra TRƯỚC {ten}", _vi_bot < moc)
+
+check("bot đi đường không tool (_api_stream), không phải đường có tool (_api_stream_mcp)",
+      "_api_stream(prov, api_key, api_model, messages, reasoning)" in _SRC)
+_ham = _SRC[_SRC.index("async def _bot_tra_loi("):_SRC.index("async def _tg_answer_engine")]
+for cam in ("_api_stream_mcp", "mcp_hub", "discover_all", "claude_engine", "CodexCLI",
+            "_apply_mcp", "collect_turn_files"):
+    check(f"đường của bot KHÔNG đụng tới '{cam}'", cam not in _ham)
+check("bot không nhận block kênh (dạy gửi file + lộ đường dẫn brain thật)",
+      "build_channel_block" not in _ham)
+
+# _api_stream phục vụ đủ TÁM provider, kể cả hai gói subscription - nên không con nào phải mở
+# CLI, và không con nào bị bỏ lại.
+_as = _SRC[_SRC.index("def _api_stream(prov, key, model"):_SRC.index("async def _api_stream_mcp")]
+for pid in [d["id"] for d in main.PROVIDER_DEFS]:
+    check(f"_api_stream phục vụ được '{pid}'",
+          f'prov == "{pid}"' in _as or pid == "anthropic-api")   # anthropic-api là nhánh mặc định
+check("gói ChatGPT dùng token OAuth, không cần API key", "openai_oauth.valid_creds()" in _as)
+check("gói Claude Code dùng token OAuth, không cần API key", "claude_models.oauth_token()" in _as)
 
 
 # ============================================================
-# B3. Codex: không khoá được phạm vi đọc -> TỪ CHỐI chạy bot
+# B3. Chạy THẬT: tám bộ não, cùng một đầu vào
 # ============================================================
-check("CANARY: bot bị từ chối khi engine chính là Codex",
-      'if prov == "openai-oauth" and bot:' in _SRC)
-check("câu từ chối nói rõ lý do và cách xử lý",
-      "không khoá được phạm vi đọc file" in _SRC and "Đổi engine chính sang" in _SRC)
-# Nếu ai đó gỡ nhánh từ chối rồi thay bằng hạ sandbox, test này đỏ - đúng ý đồ: sandbox của
-# Codex chặn GHI và mạng, không nhốt phạm vi ĐỌC, nên nó không phải lời giải cho bài này.
-check("không dùng sandbox Codex làm rào cách ly (nó không nhốt đường đọc)",
-      'ccli.sandbox = "read-only"' not in _SRC)
+# Kiểm bằng hành vi chứ không bằng đọc mã: ghi lại đúng thứ được gửi đi cho từng provider rồi
+# đối chiếu. Đây mới là thứ trả lời được câu hỏi của chủ repo.
+_goi = []
 
 
-# ============================================================
-# B4. Mức quyền của lượt bot vẫn hạ bằng mã
-# ============================================================
-# Không phải luật trong prompt nên không vi phạm phạm vi chủ repo chốt: đây là quyền của tiến
-# trình, thứ khách nói chuyện với bot không đụng tới được.
-check("lượt bot chạy mức chỉ đọc", 'bot_mode = "suggest" if bot else "full"' in _SRC)
-check("mức quyền truyền xuống hub", "mode=bot_mode" in _SRC)
-check("bot đọc brain RIÊNG của nó, không phải brain của chủ",
-      'brain = bot["brain"]' in _SRC)
-check("phiên của bot tách khỏi phiên của chủ",
-      '_tg_session(f"bot:{bot[\'id\']}:{chat_id}")' in _SRC)
+def _stream_gia(prov, key, model, messages, reasoning="off"):
+    _goi.append({"prov": prov, "messages": [dict(m) for m in messages], "reasoning": reasoning})
+
+    async def _gen():
+        yield {"type": "text", "content": "Chào anh chị."}
+        yield {"type": "usage", "input": 10, "output": 5}
+    return _gen()
+
+
+main._api_stream = _stream_gia
+BOT = {"id": "bot_x", "name": "Bot", "brain": "brain-bot",
+       "agent": {"brain": "brain", "slug": "coach"}}
+
+
+def chay(prov, kind, sess=None, hoi="giá bao nhiêu"):
+    return asyncio.run(main._tg_answer_engine(
+        hoi, {"chat_id": "1", "chat_type": "private"}, None,
+        chat_id="1", sess=sess if sess is not None else {"last": None, "sent": set()},
+        brain="brain-bot", mcfg={}, prov=prov, kind=kind, api_key="k", api_model="m",
+        bot={**BOT, "_tai_lieu": {"co": True, "khoi": "### Giá\n\n185.000đ", "nguon": ["gia.md"]}}))
+
+
+_goi.clear()
+ket = {}
+for prov, kind in [(d["id"], d["kind"]) for d in main.PROVIDER_DEFS]:
+    ket[prov] = chay(prov, kind)
+
+check("cả tám bộ não đều trả lời được", all(isinstance(v, dict) and v["text"] for v in ket.values()))
+check("cả tám đều đi qua đúng một đường", len(_goi) == len(main.PROVIDER_DEFS))
+check("KHÔNG con nào bị từ chối vì engine",
+      not any("chưa chạy được" in v.get("text", "") for v in ket.values() if isinstance(v, dict)))
+
+# Đây là câu trả lời cho "đổi bộ não mà trải nghiệm không đổi": cùng một câu hỏi thì mọi engine
+# nhận y hệt nhau, khác biệt còn lại đúng bằng khác biệt giữa các model.
+_mau = _goi[0]["messages"]
+check("CANARY: tám bộ não nhận CÙNG một payload", all(g["messages"] == _mau for g in _goi))
+check("payload có system prompt của Agent", _mau[0]["role"] == "system")
+check("payload có tài liệu đã tra sẵn", "185.000" in _mau[0]["content"])
+check("payload có câu hỏi của người dùng", _mau[-1] == {"role": "user", "content": "giá bao nhiêu"})
+check("payload KHÔNG kèm tool nào", all("tool" not in str(k).lower() for m in _mau for k in m))
+
+# Nhớ mạch hội thoại, và cắt lịch sử để không phình vô hạn.
+_sess = {"last": None, "sent": set()}
+for i in range(15):
+    chay("openrouter", "api", _sess, hoi=f"câu {i}")
+check("bot nhớ mạch hội thoại", len(_sess["bot"]) > 2)
+check("lịch sử bị cắt, không phình vô hạn", len(_sess["bot"]) <= main.BOT_LICH_SU_MAX)
+check("cắt xong vẫn còn câu hỏi gần nhất",
+      _sess["bot"][-2] == {"role": "user", "content": "câu 14"})
+
+# Lượt hỏng thì không để câu hỏi treo lơ lửng không có câu trả lời.
+def _stream_hong(prov, key, model, messages, reasoning="off"):
+    async def _gen():
+        yield {"type": "error", "content": "hết quota"}
+    return _gen()
+
+
+main._api_stream = _stream_hong
+_sess2 = {"last": None, "sent": set()}
+r = chay("groq", "api", _sess2)
+check("lượt hỏng trả về chuỗi lỗi", isinstance(r, str) and "hết quota" in r)
+check("lượt hỏng KHÔNG để câu hỏi treo trong lịch sử", _sess2["bot"] == [])
+
 
 print()
 if _fails:

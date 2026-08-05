@@ -137,7 +137,15 @@ Rào duy nhất, và nó nằm trong mã nguồn chứ không nằm trong lời 
 - Bot **không ghi** gì, không tạo đơn, không tiêu tiền, không đăng bài, không giao việc.
 - Bot **không có lệnh quản trị**. `/brain`, `/model`, `/status` không có tác dụng.
 
-Một lưu ý về engine: bot **chưa chạy được khi engine chính là ChatGPT (Codex)**, vì Codex không khoá được phạm vi đọc file nên Javis không bảo đảm được điều trên. Bot sẽ trả lời một câu báo rõ điều đó. Đổi engine chính sang Claude Code hoặc một engine API ở trang Models là chạy bình thường.
+Cách Javis bảo đảm điều này: **bot không được cấp công cụ nào cả.** Tài liệu được tra sẵn bằng Python trước khi model chạy rồi đưa vào đầu bài, nên bot vẫn đọc được brain của nó, chỉ là không đi lang thang trong đó được. Không có công cụ thì không có gì để lách.
+
+### Đổi bộ não không đổi trải nghiệm
+
+Bot chạy giống hệt nhau trên **cả tám bộ não**: Claude Code, ChatGPT, OpenRouter, OpenAI API, Anthropic API, Gemini, Groq, Ollama. Đổi model ở trang Models thì bot đổi theo, nhưng cách nó làm việc không đổi.
+
+Làm được vì lượt của bot đi một đường riêng, chung cho mọi engine: cùng đầu bài từ Agent, cùng tài liệu tra sẵn, cùng lịch sử hội thoại, và không engine nào có công cụ. Khác biệt còn lại đúng bằng khác biệt giữa các model, không phải giữa các đường ống.
+
+Đường này cũng không mở CLI, nên bot trả lời nhanh hơn đường chat của bạn và không dính trần 8 vòng gọi công cụ.
 
 ### Để tài liệu ăn khớp tốt
 
@@ -194,7 +202,9 @@ Bấm **Xoá** trên thẻ. Bot ngừng trả lời ngay.
 
 ## Câu hỏi thường gặp
 
-**Bot dùng model nào?** Chính model bạn chọn ở trang Models. Đổi model là bot đổi theo.
+**Bot dùng model nào?** Chính model bạn chọn ở trang Models. Đổi model là bot đổi theo, và cách nó làm việc không đổi - mọi bộ não đi cùng một đường.
+
+**Bot có gọi được POS, quảng cáo hay các nguồn dữ liệu tôi đã đấu không?** Không. Bot chỉ có tài liệu trong brain của nó. Muốn báo cáo số liệu thật thì hỏi Javis của bạn ở dashboard hoặc kênh Telegram riêng, đó mới là chỗ có đủ công cụ.
 
 **Chạy nhiều bot cùng lúc được không?** Được. Mỗi bot một token, một tiến trình riêng. Trang Chatbot dựng sẵn cho việc đó.
 

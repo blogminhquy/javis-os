@@ -307,14 +307,13 @@ check("bật bot đã xoá -> từ chối", ok is False and why)
 
 
 # ============================================================
-# 12. Mức quyền hạ ở MÃ, không ở prompt
+# 12. Lượt bot đi đường riêng, hạ bằng MÃ chứ không dặn trong prompt
 # ============================================================
+# Chi tiết của đường đó (không tool, chung cho tám bộ não) do test_chatbot_cach_ly.py canh.
 _SRC = (SERVER / "main.py").read_text(encoding="utf-8")
 check("lõi một lượt nhận tham số bot", "async def _tg_answer(text, meta=None, progress=None" in _SRC
       and "bot=None" in _SRC)
-check("có bot thì mức quyền hạ xuống suggest bằng mã",
-      'bot_mode = "suggest" if bot else "full"' in _SRC)
-check("mức quyền được truyền xuống hub MCP", "mode=bot_mode" in _SRC)
+check("có bot thì rẽ sang đường riêng", "return await _bot_tra_loi(" in _SRC)
 check("bot dùng prompt riêng chứ không phải build_system_prompt",
       "chatbot_runtime.build_bot_prompt(bot)" in _SRC)
 

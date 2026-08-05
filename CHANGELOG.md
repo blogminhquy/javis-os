@@ -4,6 +4,28 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.22.0] - 2026-08-04
+Chủ repo bác cách làm ở 0.21.0: **"anh muốn dù là claude hay codex hay dùng api thì trải nghiệm nói chuyện với bot cũng vẫn giống nhau, em không nghĩ cách làm sao để có thể đổi các bộ não mà không ảnh hưởng đến chất lượng trả lời của bot à?"**
+
+Đúng, và bản 0.21.0 đã phá chính lời hứa gốc của Javis: đổi bộ não thì năng lực không đổi. Chặn Codex là thừa nhận thua ở đúng chỗ không được phép thua.
+
+Lời giải hoá ra đơn giản hơn cả hai bản chắp vá trước: **bot không cần tool nào cả.**
+### Thay đổi hành vi
+- **Lượt của Bot chuyên trách đi MỘT đường duy nhất cho cả tám bộ não** (`_bot_tra_loi`), không còn rẽ theo bốn nhánh engine. Mọi engine nhận cùng system prompt từ Agent, cùng tài liệu đã tra sẵn, cùng lịch sử hội thoại, và đều không có tool. Khác biệt còn lại đúng bằng khác biệt giữa các model, không phải giữa các đường ống.
+
+  Đi bốn nhánh thì không bao giờ giống nhau được: Claude Code có Bash, Codex có kho MCP riêng, engine API bị trần 8 vòng gọi tool. Ba kiểu hành xử cho cùng một con bot, và chủ đổi model là khách thấy khác ngay.
+- **Bỏ tool KHÔNG làm bot mất khả năng đọc brain.** `chatbot_grounding` vốn đã tra tài liệu bằng Python TRƯỚC khi model chạy và nhét sẵn vào prompt. Bỏ tool chỉ bỏ khả năng đi lang thang trong brain, không bỏ khả năng đọc nó.
+- **Bot chạy được trên Codex trở lại**, và trên cả tám bộ não. Cả hai gói subscription đều đã có sẵn đường gọi thẳng không tool trong `_api_stream` (ChatGPT qua `openai_responses_stream`, Claude Code qua `anthropic_stream` với token OAuth mà chính CLI đã lưu) - bản trước bỏ sót điều này nên mới phải chặn.
+- **Bot trả lời nhanh hơn và rẻ hơn**: không mở CLI, không nạp danh mục tool, không vòng gọi tool nào. Trần `JAVIS_MAX_TOOL_ROUNDS` cũng không còn liên quan tới bot.
+- Lịch sử hội thoại với mỗi người được cắt cứng ở 20 lượt thay vì nén. Nén là thêm một lượt gọi model nữa, mà bot trả lời người lạ thì cần nhanh và rẻ hơn là cần nhớ dai.
+### Bảo mật
+- **Cách ly brain giờ là hệ quả của kiến trúc, không phải một rào phải canh.** Bot không có tool nên KHÔNG CÓ cách nào chạm vào đĩa: khỏi cần cổng duyệt per-call, khỏi cần sandbox, khỏi phải hy vọng `cwd` giữ chân được nó.
+
+  Hai bản chắp vá biến mất theo: `allowed_tools` khoá cho Claude Code (0.21.0) và nhánh từ chối Codex (0.21.0). Cùng với đó là mức quyền `suggest` cho lượt bot (0.19.0) - nó vốn chỉ lọc tool của hub, không đụng tool native, nên chưa bao giờ là rào thật.
+- **Lượt bot thoát khỏi `_tg_answer_engine` trước cả `_schedule_cancel_action`.** Trước đó một người lạ nhắn "huỷ lịch" cho bot là chạm được vào lịch của chủ.
+- **Prompt của bot không còn kèm block kênh.** Block đó dạy cách tự gửi file qua Telegram và nêu đường dẫn thư mục thật của brain - kiến thức vận hành, không phải thứ đưa cho một con bot đang nói chuyện với người lạ.
+- Test `test_chatbot_cach_ly.py` giờ kiểm bằng **hành vi thật**: chạy một lượt bot qua cả tám provider rồi đối chiếu payload từng con phải giống hệt nhau, thay vì chỉ đọc mã nguồn.
+
 ## [0.21.0] - 2026-08-04
 Chủ repo chốt lại phạm vi của Bot chuyên trách: **"Anh có Agent và quy định của nó rồi, em đừng tự thêm vào quy định của nó. Chỉ có làm việc chống chỉ định xem các brain khác ngoài brain agent đang ở thôi."** Bản này bỏ hết luật Javis tự chèn, và đi kiểm tra lại rào cách ly brain - hoá ra nó hở thật.
 ### Bảo mật
