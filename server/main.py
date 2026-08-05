@@ -9036,6 +9036,11 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     messages = [{"role": "system", "content": sysprompt}] + lich_su
     if runtime_trace:
         _CONTEXT_RUNTIME.set_route(runtime_trace, prov, api_model or "?")
+        # Ghim đường "bot". Không ghim thì trang Tiết kiệm token xếp lượt này vào "Đầy đủ" -
+        # báo đúng NGƯỢC sự thật, vì đây là đường nhẹ nhất hệ thống: không CLAUDE.md, không
+        # MEMORY.md, không đặc tả tool. Nó không đi Phase 5/8 và cũng không cần.
+        _CONTEXT_RUNTIME.pin_execution_path(
+            runtime_trace, "bot", None, context_runtime.RUNTIME_VERSION, "bot_chuyen_trach")
         _CONTEXT_RUNTIME.observe_payload(runtime_trace, messages, [], provider=prov,
                                          model=api_model or "?")
 

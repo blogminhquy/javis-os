@@ -109,6 +109,24 @@ Trạng thái **Lỗi** phải nhìn thấy được, vì bot chết âm thầm 
 
 Thẻ cũng cảnh báo khi **Agent của bot không còn** (bạn xoá hoặc đổi slug ở trang Agents). Lúc đó bot vẫn chạy nhưng trả lời không có hướng dẫn vai trò, nên sửa ngay.
 
+## Bot tốn bao nhiêu token
+
+Bot **không đi qua** hai mức Tối ưu và Siêu tiết kiệm ở trang Mức dùng. Đó là cố ý, không phải thiếu sót: hai mức đó sinh ra để gọt bớt CLAUDE.md, MEMORY.md và bảng đặc tả công cụ - **ba thứ bot chưa bao giờ có**.
+
+Đo trên một brain mẫu, phần cố định mỗi lượt:
+
+| Đường | Token cố định |
+|---|---|
+| Chat dashboard, mức Đầy đủ | ~8.900 |
+| Chat dashboard, mức Siêu tiết kiệm | ~460 |
+| **Bot chuyên trách** | **~20** |
+
+Phần còn lại của một lượt bot là tài liệu tra được - mà đó chính là câu trả lời, không phải phần thừa. Nói cách khác bot đã nhẹ hơn mức tiết kiệm sâu nhất, nên đẩy nó qua hai tầng kia chỉ làm nó **nặng thêm**.
+
+Trên dòng dưới câu trả lời và ở bảng đo, lượt bot hiện là **"Bot chuyên trách"**. Trước 0.23.1 nó bị gộp vào "Đầy đủ" - đúng ngược sự thật, vì đây là đường rẻ nhất hệ thống.
+
+Bot vẫn được tính vào **Mức dùng** như mọi lượt khác, theo đúng nhà cung cấp và model đang chạy.
+
 ## Bot trả lời dựa trên cái gì
 
 Mỗi lần có người hỏi, Javis **tra tài liệu trong brain của bot trước**, lấy vài đoạn khớp nhất, rồi đưa thẳng vào đầu bài của lượt đó.

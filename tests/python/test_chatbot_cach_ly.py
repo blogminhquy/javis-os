@@ -271,6 +271,41 @@ check("lượt hỏng trả về chuỗi lỗi", isinstance(r, str) and "hết q
 check("lượt hỏng KHÔNG để câu hỏi treo trong lịch sử", _sess2["bot"] == [])
 
 
+
+# ============================================================
+# B4. Lượt bot được ghi ĐÚNG đường trên trang Tiết kiệm token
+# ============================================================
+# Chủ repo hỏi: "anh thấy chưa qua chức năng tiết kiệm và siêu tiết kiệm của bot".
+#
+# Đúng là bot không đi Phase 5 (đường tắt) hay Phase 8 (bộ nhớ chọn lọc) - hai tầng đó nằm
+# TRONG websocket_endpoint, tức chỉ chạy cho chat trên dashboard. Nhưng bot cũng KHÔNG CẦN
+# chúng: nó vốn đã nhẹ hơn cả mức Siêu tiết kiệm, vì hai tầng kia sinh ra để gọt đúng những
+# thứ bot chưa bao giờ có (CLAUDE.md, MEMORY.md, đặc tả tool).
+#
+# Cái SAI thật nằm ở báo cáo: `pin_execution_path` chỉ nhận một danh sách tên cố định, tên lạ
+# rơi hết về "legacy". Lượt bot không ghim gì nên bị xếp vào "Đầy đủ" - đường ĐẮT NHẤT - trong
+# khi nó là đường RẺ NHẤT hệ thống. Trang đo nói ngược hẳn sự thật.
+import context_runtime  # noqa: E402
+
+check("'bot' là một đường hợp lệ, không rơi về legacy",
+      '"workflow", "sources", "bot"' in (SERVER / "context_runtime.py").read_text(encoding="utf-8"))
+check("lượt bot tự ghim đường của nó", '_CONTEXT_RUNTIME.pin_execution_path(' in _SRC
+      and '"bot", None, context_runtime.RUNTIME_VERSION' in _SRC)
+check("giao diện có nhãn tiếng Việt cho đường bot",
+      'bot: "Bot chuyên trách"' in (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8"))
+
+# Đo thật: prompt của bot phải nhỏ hơn hẳn capsule của mức Siêu tiết kiệm. Đây là bằng chứng
+# cho câu "bot không cần hai tầng đó", chứ không phải lời khẳng định suông.
+import context_compiler  # noqa: E402
+
+_cc = context_compiler
+_capsule = (_cc.CORE_CONTRACT + "Runtime identity: provider=x; model=y. "
+            + _cc.ContextCompiler._channel_contract("dashboard") + _cc.dong_ho()
+            + _cc.ContextCompiler._output_contract_text("dashboard"))
+_p_bot = chatbot_runtime.build_bot_prompt(bot)
+check(f"prompt bot ({len(_p_bot)} ký tự) nhỏ hơn capsule Siêu tiết kiệm ({len(_capsule)} ký tự)",
+      len(_p_bot) < len(_capsule))
+
 print()
 if _fails:
     print(f"ĐỎ {len(_fails)} mục: " + ", ".join(_fails))

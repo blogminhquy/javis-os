@@ -719,6 +719,10 @@
     sources: "Tối ưu", fast: "Tức thì",
     readonly: "Tra cứu", orchestrator: "Tra cứu sâu",
     write: "Thực thi", workflow: "Quy trình",
+    // Bot chuyên trách không đi Phase 5/8 và cũng không cần: nó vốn nhẹ hơn cả Siêu tiết
+    // kiệm (không CLAUDE.md, không MEMORY.md, không đặc tả tool). Có tên riêng thì bảng đo
+    // mới nói đúng - trước đó lượt bot bị gộp vào "Đầy đủ", tức cột đắt nhất.
+    bot: "Bot chuyên trách",
   };
   // Vì sao lượt đó KHÔNG đi đường tắt. Máy chủ vẫn ghi lý do từ đầu nhưng chưa ai đưa ra
   // màn hình, nên bấm mức Siêu tiết kiệm rồi thấy vẫn "Tối ưu" là chịu, không có cách nào

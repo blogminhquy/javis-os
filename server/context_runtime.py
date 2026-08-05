@@ -692,8 +692,13 @@ class ObserveRuntime:
         # Thiếu tên này thì mọi lượt đi đường tiết kiệm vẫn bị ghi là "legacy", nên trang
         # Tiết kiệm token không đếm được đường nào đang chạy - và người dùng không có cách
         # nào biết mình vừa tiết kiệm hay vừa gửi nguyên 7.500 token như cũ.
+        # "bot" = lượt của Bot chuyên trách. Nó KHÔNG đi qua Phase 5/8 và cũng không cần: nó
+        # vốn đã nhẹ hơn cả mức Siêu tiết kiệm (không CLAUDE.md, không MEMORY.md, không đặc tả
+        # tool - đo được ~21 token cố định so với ~457 của capsule và ~8.900 của đường Đầy đủ).
+        # Thiếu tên này thì mọi lượt bot bị ghi là "legacy" và trang Tiết kiệm token báo đúng
+        # ngược sự thật: xếp đường RẺ NHẤT hệ thống vào cột đắt nhất.
         requested = path if path in {
-            "fast", "readonly", "orchestrator", "write", "workflow", "sources"} else "legacy"
+            "fast", "readonly", "orchestrator", "write", "workflow", "sources", "bot"} else "legacy"
         try:
             with self._lock:
                 db = self._conn()

@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.23.1] - 2026-08-05
+Chủ repo hỏi: *"anh thấy chưa qua chức năng tiết kiệm và siêu tiết kiệm của bot. em kiểm tra giúp anh xem có phải vậy không?"* Đúng là chưa qua, nhưng cái sai không nằm ở chỗ đó.
+### Sửa lỗi
+- **Trang Tiết kiệm token xếp lượt bot vào "Đầy đủ" - đúng NGƯỢC sự thật.** `pin_execution_path` chỉ nhận một danh sách tên cố định, tên lạ rơi hết về `legacy`. Lượt bot không ghim gì nên bị gộp vào cột **đắt nhất**, trong khi đo ra nó là đường **rẻ nhất** hệ thống.
+
+  Nay có đường `bot`, hiện trên giao diện là **"Bot chuyên trách"**.
+### Ghi nhận (không phải lỗi)
+- **Bot không đi Phase 5 (đường tắt) và Phase 8 (bộ nhớ chọn lọc), và cũng không cần.** Hai tầng đó nằm trong `websocket_endpoint`, tức chỉ chạy cho chat trên dashboard - đường Telegram của chủ cũng chưa bao giờ đi qua chúng.
+
+  Quan trọng hơn: chúng sinh ra để gọt CLAUDE.md, MEMORY.md và bảng đặc tả tool - ba thứ bot chưa bao giờ có. Đo phần cố định mỗi lượt trên một brain mẫu: **~8.900 token** (dashboard mức Đầy đủ), **~460** (mức Siêu tiết kiệm), **~20** (bot). Đẩy bot qua hai tầng kia chỉ làm nó nặng thêm, vì riêng capsule của mức Siêu tiết kiệm đã lớn gấp năm lần cả prompt của bot.
+
+  Test giờ đo thẳng hai con số đó và bắt prompt bot phải nhỏ hơn capsule - để lần sau ai đó "tối ưu" bot bằng cách nối nó vào Phase 8 thì có chỗ đỏ.
+
 ## [0.23.0] - 2026-08-05
 Bỏ hẳn khái niệm **"brain riêng của bot"**. Chủ repo chốt: *"lựa brain nào thì hiện agent và chatbot của brain đó thôi. Chứ không cần phải có việc tạo brain cho bot. Như thế sẽ dễ dàng hơn trong quản lý."*
 ### Thay đổi hành vi
