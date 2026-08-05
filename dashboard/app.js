@@ -1581,7 +1581,14 @@ chatInput.addEventListener("input", () => {
   const _cap = document.body.classList.contains("on-chat") ? 220 : 90;
   chatInput.style.height = Math.min(chatInput.scrollHeight, _cap) + "px";
 });
+// Bộ gõ tiếng Việt/IME có thể phát keydown Enter trước compositionend. Nếu gửi và xoá
+// textarea ở thời điểm đó, trình duyệt sẽ chốt phần chữ đang ghép vào ô vừa xoá, làm sót
+// lại ký tự hoặc từ cuối. Giữ cờ riêng cho các trình duyệt báo isComposing không ổn định.
+let chatInputComposing = false;
+chatInput.addEventListener("compositionstart", () => { chatInputComposing = true; });
+chatInput.addEventListener("compositionend", () => { chatInputComposing = false; });
 chatInput.addEventListener("keydown", (e) => {
+  if (chatInputComposing || e.isComposing || e.keyCode === 229) return;
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 sendBtn.addEventListener("click", () => sendMessage());
