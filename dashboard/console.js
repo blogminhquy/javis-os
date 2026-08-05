@@ -4774,6 +4774,10 @@
   }
   if (typeof window !== "undefined") {
     window.JavisVaultPanel = { borrow: _borrowVaultPanel, giveBack: _returnVaultPanel };
+    // Cửa chuyển trang cho module ngoài (vd nút "Tạo Agent" ở trang Chatbot). Phơi navigateTo
+    // chứ không để module tự đặt store.active: navigateTo còn dọn trang cũ, cất #quickSet và
+    // vẽ lại đồ thị - bỏ qua mấy bước đó là để lại rác của trang trước trên trang sau.
+    window.JavisNav = { go: navigateTo };
   }
 
   function _returnChatNodes() {

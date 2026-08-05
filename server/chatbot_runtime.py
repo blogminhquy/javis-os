@@ -218,7 +218,11 @@ def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
     """Chuyển người thật. Trả về câu nói với khách; phần báo nhân viên chạy nền."""
     dich = str(bot_cfg.get("handoff_to") or "").strip()
     if not dich:
-        return "Cái này em chưa có thông tin ạ. Anh chị chờ phản hồi lại giúp em nhé."
+        # Chưa đặt người nhận thì nói THẬT là chưa nối được người, và mời hỏi tiếp - đừng dừng
+        # hẳn cuộc trò chuyện. Câu cũ ("chưa có thông tin, chờ phản hồi") vừa sai (khách có hỏi
+        # thông tin gì đâu, họ xin gặp người), vừa đóng cửa: khách không biết còn hỏi được nữa.
+        return ("Hiện em chưa nối máy sang người trực được ạ. Anh chị cứ hỏi tiếp ở đây, "
+                "em trả lời được tới đâu em hỗ trợ tới đó.")
     asyncio.ensure_future(_gui_nhan_vien(bot_cfg, dich, chat_id, ly_do))
     return ("Cái này để em chuyển cho nhân viên hỗ trợ anh chị ạ. "
             "Anh chị chờ một chút nhé.")

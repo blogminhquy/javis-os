@@ -25,6 +25,8 @@ Ba thứ, làm theo thứ tự này là đỡ phải quay lại sửa.
 
 Vào trang **Agents** tạo một Agent cho đúng việc bot sẽ làm (ví dụ "Tư vấn sản phẩm", "Hỗ trợ đơn hàng"). Viết phần vai trò và hướng dẫn như thể bạn đang dặn một nhân viên mới: nói năng thế nào, ưu tiên gì, gặp trường hợp nào thì chuyển người thật.
 
+Agent phải nằm **trong đúng brain bạn sẽ giao cho bot** - hai thứ đi cùng nhau. Chưa tạo brain thì làm bước 2 trước, hoặc tạo bot rồi bấm **Tạo Agent** ngay trong form.
+
 Bot **đọc Agent lúc chạy**, không chép lại. Sau này sửa Agent ở trang Agents là bot đổi theo ngay, không phải sửa hai chỗ. Chi tiết cách viết Agent ở [Agents & Workflows](07-agents-va-workflows.md).
 
 ### 2. Một brain riêng cho bot
@@ -50,10 +52,13 @@ Bấm **Bot mới**, điền:
 | Ô | Điền gì |
 |---|---|
 | Tên bot | Tên bạn nhìn để phân biệt, ví dụ "Tư vấn sản phẩm" |
-| Agent làm bộ não | Chọn Agent đã tạo ở bước chuẩn bị |
 | Brain riêng của bot | Chọn brain đã tạo, hoặc bấm **Tạo brain mới** |
+| Agent làm bộ não | Chọn Agent **nằm trong brain vừa chọn**, hoặc bấm **Tạo Agent** để sang trang Agents |
+| Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |
 | Token Telegram | Dán token từ BotFather rồi bấm **Kiểm tra** |
 | Chat ID nhân viên | Số Telegram của người nhận chuyển tiếp (xem bên dưới) |
+
+**Brain hỏi trước Agent là cố ý**: Agent và tài liệu của bot lấy từ **cùng một brain**, nên đổi brain là danh sách Agent nạp lại theo brain đó. Chọn brain chưa có Agent nào thì bấm **Tạo Agent**, tạo xong quay lại đây chọn.
 
 Bấm **Kiểm tra** trước khi lưu: Javis hỏi thẳng Telegram xem token có thật không, trả về đúng tên bot, và báo ngay nếu token đó đã có bot khác trong Javis đang dùng.
 
@@ -71,9 +76,11 @@ Thấy chưa ổn thì tắt đi, sửa Agent hoặc bổ sung tài liệu vào 
 
 Nhân viên phải bấm **Start** trong chat với con bot này một lần, nếu không Telegram chặn không cho bot nhắn tới.
 
-Khi đó bot có hai đường chuyển: tự chuyển khi gặp câu ngoài phạm vi, và khách chủ động gõ `/nhanvien`. Cả hai đều gửi cho nhân viên một tin có tên bot, id khách và lý do.
+Khi đó bot có hai đường chuyển: tự gọi người khi **bí hai câu liên tiếp** với cùng một người, và khách chủ động gõ `/nhanvien` thì báo ngay. Cả hai đều gửi cho nhân viên một tin có tên bot, id khách và lý do. Lượt bot bị **lỗi kỹ thuật** cũng báo ngay từ lần đầu, nhưng chỉ một lần cho tới khi bot chạy lại được.
 
-Bỏ trống ô này thì bot chỉ nói "em chưa có thông tin" rồi dừng, không đoán tiếp.
+Bỏ trống ô này thì **bot vẫn trả lời bình thường** theo Agent, chỉ là không có ai để chuyển tiếp. Ai gõ `/nhanvien` sẽ được nói thật là chưa nối máy sang người trực được, và mời hỏi tiếp.
+
+Muốn bot im khi không tìm thấy tài liệu thì đó là việc của chế độ **Chỉ tài liệu** ở mục trên, không phải của ô này.
 
 ### Bước 4: Thả bot vào nhóm chăm sóc khách hàng
 

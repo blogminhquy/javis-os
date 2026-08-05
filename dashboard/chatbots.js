@@ -247,17 +247,40 @@
   }
 
   // ---------------------------------------------------------------- form tạo / sửa
+  // Agent của MỘT brain. Bot đọc brain nào thì lấy Agent ở đúng brain đó - trước đây luôn lấy
+  // theo brain đang mở trên dashboard, nên chọn brain "My Bullet Journal" mà danh sách Agent
+  // vẫn là của brain khác. Chọn xong lưu lại thì bot trỏ vào một Agent không nằm trong brain
+  // nó đọc, và không có chỗ nào báo chuyện đó.
+  async function nạpAgent(br) {
+    try {
+      var ad = await api("/agents?brain=" + encodeURIComponent(br || "brain"));
+      return ad.agents || [];
+    } catch (e) { return []; }
+  }
+
+  // Vai trò dài thì <option> tràn ngang khỏi hộp và không xuống dòng được (giới hạn của thẻ
+  // select gốc). Cắt ngắn là cách duy nhất chắc chắn; tên Agent luôn giữ đủ.
+  function optAgent(a, slugDangChon) {
+    var vai = String(a.role || "").trim();
+    if (vai.length > 34) vai = vai.slice(0, 34).trim() + "…";
+    return '<option value="' + esc(a.slug) + '"' + (a.slug === slugDangChon ? " selected" : "") +
+           '>' + esc(a.name) + (vai ? " - " + esc(vai) : "") + '</option>';
+  }
+
+  function htmlAgent(ds, slugDangChon) {
+    return ds.length ? ds.map(function (a) { return optAgent(a, slugDangChon); }).join("")
+                     : '<option value="">(brain này chưa có Agent nào)</option>';
+  }
+
   async function moForm(b) {
     var sua = !!b;
-    var agents = [], brains = [];
-    try {
-      var ad = await api("/agents?brain=" + encodeURIComponent(brain()));
-      agents = ad.agents || [];
-    } catch (e) {}
+    var brains = [];
     try {
       var bd = await api("/brains");
       brains = (bd.brains || []).map(function (x) { return typeof x === "string" ? x : (x.name || x.path); });
     } catch (e) {}
+    var brainDau = (b && b.brain) || brains[0] || brain();
+    var agents = await nạpAgent(brainDau);
 
     var goiY = "bot-" + String((b && b.name) || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     var box = el(
@@ -267,30 +290,29 @@
         '<label>Tên bot</label>' +
         '<input id="cbName" value="' + esc(b ? b.name : "") + '" placeholder="Ví dụ: Tư vấn sản phẩm">' +
 
-        '<label>Agent làm bộ não</label>' +
-        '<select id="cbAgent">' +
-          (agents.length
-            ? agents.map(function (a) {
-                var sel = b && (b.agent || {}).slug === a.slug ? " selected" : "";
-                return '<option value="' + esc(a.slug) + '"' + sel + '>' + esc(a.name) +
-                       (a.role ? " - " + esc(String(a.role).slice(0, 50)) : "") + '</option>';
-              }).join("")
-            : '<option value="">(brain này chưa có Agent nào)</option>') +
-        '</select>' +
-        '<div class="cb-hint">Chưa có Agent phù hợp? Tạo ở trang <b>Agents</b> rồi quay lại đây ' +
-        'chọn. Sửa Agent là bot đổi theo ngay, không phải sửa hai chỗ.</div>' +
-
+        // BRAIN đứng TRƯỚC Agent: brain quyết định danh sách Agent, nên hỏi ngược lại là bắt
+        // người dùng chọn Agent rồi mới biết mình chọn từ kho nào.
         '<label>Brain riêng của bot</label>' +
         '<div class="cb-row">' +
           '<select id="cbBrain">' +
-            (b ? '<option value="' + esc(b.brain) + '" selected>' + esc(b.brain) + '</option>' : "") +
-            brains.filter(function (x) { return !b || x !== b.brain; })
-                  .map(function (x) { return '<option value="' + esc(x) + '">' + esc(x) + '</option>'; }).join("") +
+            brains.map(function (x) {
+              return '<option value="' + esc(x) + '"' + (x === brainDau ? " selected" : "") +
+                     '>' + esc(x) + '</option>';
+            }).join("") +
           '</select>' +
           (sua ? "" : '<button class="s-btn-ghost" id="cbNewBrain" type="button">' + ic("plus") + ' Tạo brain mới</button>') +
         '</div>' +
-        '<div class="cb-hint">Bot đọc tài liệu trong brain này để trả lời. Nên dùng một brain ' +
-        'riêng chứa đúng tài liệu người ngoài được xem, đừng trỏ vào brain chính của bạn.</div>' +
+        '<div class="cb-hint">Bot đọc tài liệu trong brain này để trả lời, và Agent cũng lấy từ ' +
+        'chính brain này. Nên dùng một brain riêng chứa đúng tài liệu người ngoài được xem, ' +
+        'đừng trỏ vào brain chính của bạn.</div>' +
+
+        '<label>Agent làm bộ não</label>' +
+        '<div class="cb-row">' +
+          '<select id="cbAgent">' + htmlAgent(agents, (b && (b.agent || {}).slug) || "") + '</select>' +
+          '<button class="s-btn-ghost" id="cbNewAgent" type="button">' + ic("plus") + ' Tạo Agent</button>' +
+        '</div>' +
+        '<div class="cb-hint">Sửa Agent là bot đổi theo ngay, không phải sửa hai chỗ. Bấm ' +
+        '<b>Tạo Agent</b> để sang trang Agents, tạo xong quay lại đây chọn.</div>' +
 
         // Lựa chọn này quyết định bot "ăn nhập với Agent" hay không, nên đặt ngay dưới brain
         // chứ không giấu ở cuối form: nó là thứ người dùng cần hiểu TRƯỚC khi bấm tạo.
@@ -321,7 +343,9 @@
         '<input id="cbHandoff" value="' + esc(b ? (b.handoff_to || "") : "") + '" placeholder="Ví dụ: 123456789">' +
         '<div class="cb-hint">Bot bí <b>hai câu liên tiếp</b> với cùng một người thì nhắn vào ' +
         'đây, và khách gõ /nhanvien thì báo ngay. Bí một câu lẻ không gọi - báo mọi câu vu vơ ' +
-        'thì vài lần là nhân viên tắt thông báo. Bỏ trống thì bot chỉ nói chưa có thông tin rồi dừng.</div>' +
+        'thì vài lần là nhân viên tắt thông báo.<br>' +
+        'Bỏ trống thì bot <b>vẫn trả lời bình thường</b> theo Agent, chỉ là không có ai để ' +
+        'chuyển tiếp. Muốn nó im khi thiếu căn cứ thì chọn chế độ <b>Chỉ tài liệu</b> ở trên.</div>' +
 
         (sua ? '<label>Nhóm được phép (mỗi id một dòng, mời bot vào nhóm rồi gõ /id để lấy)</label>' +
                '<textarea id="cbGroups" rows="2">' + esc((b.groups || []).join("\n")) + '</textarea>' : "") +
@@ -339,16 +363,33 @@
     box.onmousedown = function (e) { if (e.target === box) dong(); };
     box.querySelector("#cbCancel").onclick = dong;
 
+    var selBrain = box.querySelector("#cbBrain");
+    var selAgent = box.querySelector("#cbAgent");
+
+    // Đổi brain -> nạp lại danh sách Agent của ĐÚNG brain đó. Không làm thì hai ô nói về hai
+    // brain khác nhau, và người dùng không có cách nào biết.
+    async function doiBrain() {
+      selAgent.innerHTML = '<option value="">Đang tải Agent…</option>';
+      selAgent.innerHTML = htmlAgent(await nạpAgent(selBrain.value), selAgent.value);
+    }
+    selBrain.onchange = doiBrain;
+
     var nut = box.querySelector("#cbNewBrain");
     if (nut) nut.onclick = async function () {
       var ten = prompt("Tên brain mới cho bot:", goiY || "bot-moi");
       if (!ten) return;
       try {
         var r = await api("/brains/new", { method: "POST", body: fd({ name: ten }) });
-        var sel = box.querySelector("#cbBrain");
-        sel.insertAdjacentHTML("afterbegin", '<option value="' + esc(r.name) + '" selected>' + esc(r.name) + '</option>');
-        sel.value = r.name;
+        selBrain.insertAdjacentHTML("afterbegin", '<option value="' + esc(r.name) + '" selected>' + esc(r.name) + '</option>');
+        selBrain.value = r.name;
+        await doiBrain();   // brain mới thì chưa có Agent nào - phải nói ra, đừng để danh sách cũ
       } catch (e) { alert("Không tạo được brain: " + e.message); }
+    };
+
+    // Sang thẳng trang Agents. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
+    box.querySelector("#cbNewAgent").onclick = function () {
+      dong();
+      try { window.JavisNav.go("agents"); } catch (e) {}
     };
 
     var uname = (b && b.bot_username) || "";
@@ -380,7 +421,7 @@
           var gr = box.querySelector("#cbGroups");
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", {
             method: "POST",
-            body: fd({ name: ten, agent_slug: ag, agent_brain: brain(), brain: br,
+            body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
                        handoff_to: ho, token: tok, bot_username: uname, nguon_tra_loi: ngu,
                        groups: gr ? gr.value : undefined }),
           });
@@ -388,7 +429,7 @@
           if (!tok) return alert("Dán token Telegram của bot (lấy ở @BotFather)");
           await api("/chatbots", {
             method: "POST",
-            body: fd({ name: ten, agent_slug: ag, agent_brain: brain(), brain: br,
+            body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
                        token: tok, bot_username: uname, handoff_to: ho, nguon_tra_loi: ngu }),
           });
         }

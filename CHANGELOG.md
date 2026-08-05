@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.22.3] - 2026-08-05
+Dọn form tạo bot theo góp ý dùng thật, và sửa một câu hướng dẫn đã mô tả sai hành vi.
+### Sửa lỗi
+- **Danh sách Agent lấy theo brain đang mở trên dashboard, không theo brain của bot.** Chọn brain "My Bullet Journal" cho bot mà ô Agent vẫn liệt kê Agent của brain khác. Lưu xong thì bot trỏ vào một Agent KHÔNG nằm trong brain nó đọc, và không có chỗ nào báo chuyện đó.
+
+  Nay **brain hỏi trước Agent**, và đổi brain là nạp lại danh sách Agent của đúng brain đó. `agent_brain` cũng bằng luôn brain của bot - Agent và tài liệu đi cùng một chỗ.
+- **Ô chọn Agent tràn ngang ra khỏi form** khi tên Agent kèm vai trò quá dài. Thẻ `<option>` thì trình duyệt không cho tạo kiểu, nên cắt chuỗi ở JS (vai trò tối đa 34 ký tự, tên Agent luôn giữ đủ) và thêm `min-width:0` + `text-overflow` cho chính thẻ `<select>`.
+- **Câu hướng dẫn ô "Chat ID nhân viên" mô tả hành vi đã không còn đúng**: nó viết "bỏ trống thì bot chỉ nói chưa có thông tin rồi dừng". Từ 0.21.0 Javis không chèn luật nào vào prompt nữa, nên bỏ trống thì bot **vẫn trả lời bình thường** theo Agent, chỉ là không có ai để chuyển tiếp. Câu cũ dạy người dùng sợ một hành vi không tồn tại.
+- **`/nhanvien` khi chưa đặt người nhận trả lời sai chuyện.** Câu cũ ("Cái này em chưa có thông tin ạ, anh chị chờ phản hồi") vừa lạc đề - khách xin gặp người chứ có hỏi thông tin gì đâu - vừa đóng cửa cuộc trò chuyện. Nay nói thật là chưa nối máy sang người trực được, và mời hỏi tiếp.
+### Thêm mới
+- **Nút "Tạo Agent"** ngay cạnh ô chọn Agent, bấm là sang thẳng trang Agents. Trước đó form chỉ nói "tạo ở trang Agents" bằng chữ, người dùng phải tự đi tìm.
+- `console.js` phơi `window.JavisNav.go(id)` để module trang khác chuyển trang được. Phơi `navigateTo` chứ không để module tự đặt `store.active`: `navigateTo` còn dọn trang cũ, cất `#quickSet` và vẽ lại đồ thị.
+
 ## [0.22.2] - 2026-08-05
 Bot vẫn kêu "chưa trả lời được" sau khi cập nhật. Ba lỗi riêng biệt chồng lên nhau, và cả ba đều làm chủ nhìn màn hình mà không biết chuyện gì đang xảy ra.
 ### Sửa lỗi

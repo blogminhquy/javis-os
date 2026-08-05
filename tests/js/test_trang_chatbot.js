@@ -115,7 +115,24 @@ check("trang nói rõ bot không ghi, không có lệnh quản trị",
 check("form nạp danh sách Agent của brain hiện tại", /\/agents\?brain=/.test(CB));
 check("form nạp danh sách brain", /api\("\/brains"\)/.test(CB));
 check("tạo bot mới thì tạo được brain ngay tại chỗ", /\/brains\/new/.test(CB));
-check("chỉ vào trang Agents khi chưa có Agent phù hợp", /trang <b>Agents<\/b>/.test(CB));
+
+// Brain quyết định danh sách Agent, nên brain phải hỏi TRƯỚC. Hỏi ngược lại là bắt người dùng
+// chọn Agent rồi mới biết mình vừa chọn từ kho nào.
+check("ô brain đứng TRƯỚC ô Agent trong form",
+  CB.indexOf('id="cbBrain"') < CB.indexOf('id="cbAgent"'));
+// CANARY: trước đây danh sách Agent luôn lấy theo brain đang mở trên DASHBOARD, nên chọn brain
+// khác cho bot thì hai ô nói về hai brain khác nhau mà không có gì báo.
+check("CANARY: Agent nạp theo brain ĐÃ CHỌN, không theo brain đang mở",
+  /nạpAgent\(selBrain\.value\)/.test(CB) && !/agents\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(CB));
+check("đổi brain thì nạp lại danh sách Agent", /selBrain\.onchange = doiBrain/.test(CB));
+check("tạo brain mới xong cũng nạp lại Agent", /await doiBrain\(\)/.test(CB));
+check("lưu bot thì Agent và tài liệu cùng một brain", /agent_brain: br, brain: br,/.test(CB));
+check("có nút sang trang Agents để tạo", /id="cbNewAgent"/.test(CB) && /JavisNav\.go\("agents"\)/.test(CB));
+check("console phơi cửa chuyển trang cho module ngoài",
+  /window\.JavisNav = \{ go: navigateTo \}/.test(CON));
+// Vai trò dài làm <option> tràn ngang khỏi hộp, mà <option> thì không tạo kiểu được.
+check("vai trò Agent bị cắt ngắn trước khi vào option", /vai\.slice\(0, 34\)/.test(CB));
+check("CSS chặn select nở rộng ra khỏi form", /\.cb-form select \{[^}]*text-overflow: ellipsis/.test(CSS));
 
 // ============================================================
 // 6b. Nhật ký: mở ra là thấy VIỆC CẦN LÀM, không phải thấy log
