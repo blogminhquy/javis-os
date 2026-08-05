@@ -135,7 +135,10 @@ def lo_hong(bot_id: str, limit: int = 30) -> List[dict]:
     """
     gom: Dict[str, dict] = {}
     for r in _nap(bot_id):
-        if not r.get("bi"):
+        # Lượt GÃY cũng có bi=True (bot đúng là không trả lời được), nhưng nó không phải chỗ
+        # tài liệu thiếu - nó là bot hỏng. Để lẫn vào đây thì danh sách "viết thêm tài liệu"
+        # đầy dòng lỗi kỹ thuật, và chủ đi sửa nhầm chỗ. Lượt gãy xem ở tab Hội thoại.
+        if not r.get("bi") or r.get("loi"):
             continue
         k = _chuan(r.get("hoi"))
         if not k:
@@ -176,3 +179,16 @@ def xoa(bot_id: str) -> None:
         pass
     except Exception as e:
         print(f"[chatbot log xoá] {e}", file=sys.stderr)
+
+
+def loi_gan_nhat(bot_id: str) -> str:
+    """Lý do kỹ thuật của lượt GÃY gần nhất, hoặc '' nếu lượt gần nhất chạy được.
+
+    Cho thẻ bot ở trang Chatbot. Trạng thái poller (đang chạy / lỗi) KHÔNG nói lên chuyện này:
+    poller vẫn "đang chạy" ngon lành trong khi mọi lượt trả lời đều gãy vì model không gọi
+    được. Nhìn thẻ thấy chấm xanh mà khách thì nhận toàn câu xin lỗi - đúng ca đã xảy ra.
+
+    Chỉ soi lượt GẦN NHẤT: lỗi đã sửa xong thì thẻ phải sạch ngay, không treo cảnh báo cũ.
+    """
+    rs = _nap(bot_id)
+    return str(rs[-1].get("loi") or "") if rs else ""

@@ -409,7 +409,8 @@ check("gọi người xong thì đếm lại, không gọi mỗi lượt sau đ�
 # Ở chế độ Agent, không tìm ra tài liệu KHÔNG phải là bí - bot vẫn trả lời tốt bằng chuyên môn
 # của vai. Đếm nó là bí thì danh sách "Bot bí" đầy rác đúng chỗ nó phải sạch.
 check("chế độ Agent: không có tài liệu KHÔNG tự động tính là bí",
-      '_co_bi(dap) or (cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co"))' in _SRC_RT)
+      'cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co")' in _SRC_RT
+      and "_co_bi(dap)" in _SRC_RT)
 
 
 # ============================================================
@@ -439,11 +440,18 @@ _fn = chatbot_runtime._make_answer_fn(_bid)
 _ra = asyncio.run(_fn("chào Coach", {"chat_id": "77", "chat_type": "private"}))
 
 check("khách chỉ nhận câu xin lỗi chung, không nhận lỗi kỹ thuật",
-      "Em chưa trả lời được câu này" in _ra["text"] and "Model" not in _ra["text"])
+      "trục trặc kỹ thuật" in _ra["text"] and "Model" not in _ra["text"])
+# Câu báo lượt GÃY phải khác hẳn câu "chưa có thông tin". Dùng chung một câu thì chủ nhìn màn
+# hình không phân biệt được bot đang hỏng hay đang thiếu tài liệu - đúng ca chủ repo đã dính.
+check("câu báo lượt gãy khác hẳn câu thiếu tài liệu",
+      "chưa có thông tin" not in _ra["text"])
 _luot = chatbot_log.doc(_bid)
 check("CANARY: nhật ký GIỮ LẠI lý do kỹ thuật cho chủ đọc",
       _luot and "không chạy được qua engine" in (_luot[0].get("loi") or ""))
-check("lượt gãy tính là bí", _luot and _luot[0]["bi"] is True)
+check("lượt gãy tính là bí (bot đúng là không trả lời được)", _luot and _luot[0]["bi"] is True)
+# ...nhưng KHÔNG được lẫn vào danh sách "thiếu tài liệu": một bên sửa bằng cách đổi engine,
+# một bên sửa bằng cách viết thêm tài liệu vào brain.
+check("CANARY: lượt gãy KHÔNG lọt vào tab Bot bí", chatbot_log.lo_hong(_bid) == [])
 check("lượt gãy báo nhân viên NGAY, không chờ đủ hai câu", _luot[0]["chuyen_nguoi"] is True)
 
 # Engine hỏng thì MỌI lượt sau đều gãy. Báo hết là biến hộp thư nhân viên thành log lỗi.

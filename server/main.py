@@ -8951,9 +8951,51 @@ def _tg_ket(clean_out, files, canh_bao="", loi=()):
 # thì cần nhanh và rẻ hơn là cần nhớ dai.
 BOT_LICH_SU_MAX = 20
 
+# Danh sách tool cho phép của bot khi phải chạy qua CLI: một chuỗi KHÔNG khớp tool nào.
+#
+# Không dùng list rỗng được: `claude_sdk_engine` kiểm `if self.allowed_tools:` nên [] là falsy,
+# và engine hiểu thành "không có allowlist" rồi chạy thẳng permission_mode="bypassPermissions"
+# - tức mở TOÀN QUYỀN đúng lúc mình định khoá chặt nhất. Một chuỗi vô nghĩa thì truthy, cổng
+# can_use_tool bật lên, và mọi tool đều rớt khỏi allowlist nên bị từ chối từng lượt gọi.
+BOT_KHONG_TOOL = ["__javis_bot_khong_tool__"]
+
+
+async def _bot_cli_du_phong(sysprompt, text, *, sess, brain, chat_id, model, progress):
+    """Đường dự phòng cho gói Claude Code khi gọi thẳng API hỏng (hay gặp nhất: không đọc được
+    token OAuth mà CLI đã lưu, nên /v1/messages trả 401 và LƯỢT NÀO CŨNG hỏng).
+
+    Vẫn giữ nguyên hợp đồng của bot: cùng prompt, cùng tài liệu, cùng lịch sử, và KHÔNG tool.
+    Chỉ khác đường truyền. Không tool ở đây là thật chứ không phải lời hứa - `allowed_tools`
+    bật cổng `can_use_tool` của engine, và mọi tool đều rớt khỏi danh sách nên bị từ chối.
+
+    Không có bản tương ứng cho Codex: Codex không có cổng duyệt per-call, nên chạy nó không
+    tool là bất khả. Codex hỏng thì báo thẳng, xem chỗ gọi.
+    """
+    cli = sess.get("botcli")
+    if cli is None:
+        cli = claude_engine(system_prompt=sysprompt, cwd=_brain_root(brain),
+                            tag=f"bot:{chat_id}", allowed_tools=BOT_KHONG_TOOL)
+        sess["botcli"] = cli
+    cli.system_prompt = sysprompt      # tài liệu đổi theo từng câu hỏi
+    cli.model = model or None
+    out, loi = "", []
+    async for ev in cli.query(text):
+        et = ev.get("type")
+        if et == "final":
+            out = ev.get("content") or out
+            usage_store.record("cli", cli.model or "mặc định",
+                               ev.get("tokens_in", 0), ev.get("tokens_out", 0),
+                               ev.get("cost_usd") or 0)
+        elif et == "text":
+            out += ev.get("content") or ""
+            await progress("✍ Đang soạn câu trả lời…")
+        elif et == "error":
+            loi.append(str(ev.get("content") or "lỗi không rõ"))
+    return out, loi
+
 
 async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
-                       progress, runtime_trace):
+                       progress, runtime_trace, brain=None, chat_id=""):
     """Một lượt của Bot chuyên trách. MỘT đường duy nhất cho CẢ TÁM bộ não.
 
     Vì sao không đi theo bốn nhánh engine như đường chat của chủ:
@@ -9018,8 +9060,31 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
         print(f"[bot {prov}] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         loi.append(str(e))
 
+    # Gói Claude Code: gọi thẳng /v1/messages cần token OAuth mà CLI đã lưu. Đọc không ra (hoặc
+    # Anthropic không nhận) là LƯỢT NÀO CŨNG hỏng, và người dùng chỉ thấy một câu xin lỗi lặp
+    # đi lặp lại. Rơi về chính CLI của gói đó - vẫn không tool, nên vẫn đúng hợp đồng của bot.
+    if not out and prov == "anthropic-cli" and brain:
+        print(f"[bot {prov}] gọi thẳng hỏng ({loi[0] if loi else '?'}), thử lại qua CLI",
+              file=__import__('sys').stderr)
+        try:
+            out, loi2 = await _bot_cli_du_phong(sysprompt, text, sess=sess, brain=brain,
+                                                chat_id=chat_id, model=api_model,
+                                                progress=progress)
+            if out:
+                loi = []
+            else:
+                loi += loi2
+        except Exception as e:
+            print(f"[bot {prov}] CLI dự phòng cũng hỏng: {e}", file=__import__('sys').stderr)
+            loi.append(str(e))
+
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
+        if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
+            # Codex không chạy không-tool được nên không có đường dự phòng. Nói đúng việc cần
+            # làm thay vì để chủ đọc một mã lỗi HTTP.
+            return ("⚠ Chưa đăng nhập được ChatGPT nên bot không gọi được model. "
+                    "Vào trang Models kết nối lại tài khoản ChatGPT rồi nhắn lại.")
         return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
     lich_su.append({"role": "assistant", "content": out})
     _cat()   # cắt lại SAU khi thêm câu trả lời, không thì trần bị vượt đúng một lượt mỗi vòng
@@ -9059,7 +9124,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # một con bot đang nói chuyện với người lạ.
         return await _bot_tra_loi(text, sess=sess, sysprompt=chatbot_runtime.build_bot_prompt(bot),
                                   prov=prov, api_key=api_key, api_model=api_model,
-                                  reasoning=reasoning, progress=_p, runtime_trace=runtime_trace)
+                                  reasoning=reasoning, progress=_p, runtime_trace=runtime_trace,
+                                  brain=brain, chat_id=chat_id)
     sysprompt = build_system_prompt(brain)
     sysprompt += channel_context.build_channel_block(
         channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
@@ -9705,6 +9771,9 @@ async def chatbots_list():
         meta, _ = _read_md(_agents_dir(a.get("brain") or "brain") / f"{a.get('slug')}.md")
         b["agent_name"] = meta.get("name") or ""
         b["agent_missing"] = not bool(meta)   # Agent bị xoá/đổi slug -> thẻ phải báo, đừng im
+        # Poller sống KHÔNG có nghĩa là bot trả lời được: model gọi hỏng thì thẻ vẫn chấm xanh
+        # trong khi khách nhận toàn câu xin lỗi. Lấy lỗi của lượt gần nhất lên thẻ luôn.
+        b["loi_luot"] = chatbot_log.loi_gan_nhat(b["id"])
         out.append(b)
     return {"bots": out}
 

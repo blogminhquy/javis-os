@@ -197,7 +197,10 @@ def _make_command_fn(bot_cfg: dict):
     async def _cmd(cmd, arg, chat):
         c = (cmd or "").lstrip("/").lower()
         if c in ("start", "help"):
-            return {"reply": f"Chào anh chị, em là {bot_cfg.get('name') or 'trợ lý'} của cửa hàng. "
+            # KHÔNG gắn "của cửa hàng" vào sau tên bot. Bot tên "Coach kỷ luật" mà Javis tự nối
+            # thành "Coach kỷ luật của cửa hàng" là áp nghề bán hàng cho một Agent huấn luyện -
+            # đúng lỗi chủ repo đã bác ở 0.20.1, sót lại ở đây vì lệnh không đi qua prompt.
+            return {"reply": f"Chào anh chị, em là {bot_cfg.get('name') or 'trợ lý'}. "
                              f"Anh chị cứ hỏi, em trả lời trong phạm vi em biết ạ."}
         if c == "id":
             # Cần để lấy id nhóm khi thả bot vào nhóm. Id nhóm không phải bí mật với người đã
@@ -215,7 +218,7 @@ def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
     """Chuyển người thật. Trả về câu nói với khách; phần báo nhân viên chạy nền."""
     dich = str(bot_cfg.get("handoff_to") or "").strip()
     if not dich:
-        return "Cái này em chưa có thông tin ạ. Anh chị chờ cửa hàng phản hồi lại giúp em nhé."
+        return "Cái này em chưa có thông tin ạ. Anh chị chờ phản hồi lại giúp em nhé."
     asyncio.ensure_future(_gui_nhan_vien(bot_cfg, dich, chat_id, ly_do))
     return ("Cái này để em chuyển cho nhân viên hỗ trợ anh chị ạ. "
             "Anh chị chờ một chút nhé.")
@@ -298,7 +301,7 @@ def _make_answer_fn(bot_id: str):
         if isinstance(out, str):
             loi_ky_thuat = out.strip()
             print(f"[chatbot {bot_id}] lượt hỏng: {loi_ky_thuat[:300]}", file=sys.stderr)
-            out = {"text": "Em chưa trả lời được câu này, anh chị chờ cửa hàng phản hồi giúp em ạ.",
+            out = {"text": "Em đang gặp trục trặc kỹ thuật, anh chị nhắn lại giúp em sau ít phút ạ.",
                    "files": []}
 
         dap = (out or {}).get("text") or ""
@@ -307,7 +310,11 @@ def _make_answer_fn(bot_id: str):
         # Ở chế độ theo Agent thì không có tài liệu là chuyện thường - bot vẫn trả lời tốt bằng
         # chuyên môn của vai. Lấy "không tìm ra tài liệu" làm dấu hiệu bí như bản 0.20.0 thì
         # mọi lượt tư vấn đều bị đếm là bí, và danh sách "Bot bí" đầy rác đúng chỗ nó phải sạch.
-        bi = _co_bi(dap) or (cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co"))
+        # Lượt gãy cũng là "bot không trả lời được", nên tính là bí để bộ đếm gọi người thấy nó.
+        # Nhưng nó KHÔNG phải lỗ hổng tài liệu - `chatbot_log.lo_hong` lọc bỏ lượt có `loi`,
+        # nếu không thì tab "Bot bí" đầy dòng lỗi kỹ thuật đúng chỗ chỉ nên có câu khách hỏi.
+        bi = bool(loi_ky_thuat) or _co_bi(dap) or (
+            cfg.get("nguon_tra_loi") == "tai_lieu" and not tl.get("co"))
 
         khoa = (bot_id, chat_id)
         lien_tiep = (_BI_LIEN_TIEP.get(khoa, 0) + 1) if bi else 0

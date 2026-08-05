@@ -103,6 +103,12 @@
     var mat = b.agent_missing
       ? '<div class="cb-err">' + ic("triangle-alert") + ' Agent "' + esc((b.agent || {}).slug) +
         '" không còn. Bot đang trả lời mà không có hướng dẫn vai trò.</div>' : "";
+    // Poller sống KHÔNG có nghĩa là bot trả lời được: model gọi hỏng thì chấm vẫn xanh trong
+    // khi khách nhận toàn câu xin lỗi. Lỗi lượt gần nhất phải nằm ngay trên thẻ, không bắt chủ
+    // mở Nhật ký mới thấy - vì chủ chỉ mở Nhật ký khi đã NGỜ là có chuyện.
+    var lluot = b.loi_luot
+      ? '<div class="cb-err">' + ic("triangle-alert") + ' Lượt gần nhất LỖI: ' +
+        esc(String(b.loi_luot).slice(0, 200)) + '</div>' : "";
     var c = el(
       '<div class="cb-card">' +
         '<div class="cb-head">' +
@@ -123,7 +129,7 @@
           (b.handoff_to ? '<span>' + ic("user") + ' có chuyển nhân viên</span>'
                         : '<span class="cb-warn">chưa đặt người nhận</span>') +
         '</div>' +
-        mat + loi +
+        mat + lluot + loi +
         '<div class="cb-acts">' +
           '<button class="s-btn-ghost cb-toggle" type="button">' +
             (b.enabled ? ic("circle-stop") + " Tắt" : ic("play") + " Bật") + '</button>' +

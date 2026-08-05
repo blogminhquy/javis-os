@@ -4,6 +4,22 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.22.2] - 2026-08-05
+Bot vẫn kêu "chưa trả lời được" sau khi cập nhật. Ba lỗi riêng biệt chồng lên nhau, và cả ba đều làm chủ nhìn màn hình mà không biết chuyện gì đang xảy ra.
+### Sửa lỗi
+- **Gói subscription gọi thẳng API có thể 401 ở MỌI lượt.** 0.22.0 cho bot đi `_api_stream` cho cả tám bộ não - đúng hướng, nhưng với gói Claude Code thì đường đó cần token OAuth mà CLI đã lưu. Đọc không ra (hoặc Anthropic không nhận) là lượt nào cũng gãy, và người dùng chỉ thấy một câu xin lỗi lặp đi lặp lại.
+
+  Nay có đường dự phòng: gọi thẳng hỏng thì rơi về chính CLI của gói đó, với `allowed_tools` là một chuỗi **không khớp tool nào** - cổng `can_use_tool` bật lên và mọi tool đều bị từ chối từng lượt gọi. Vẫn đúng hợp đồng của bot: cùng prompt, cùng tài liệu, cùng lịch sử, không tool. Chỉ khác đường truyền.
+
+  (Không dùng list rỗng làm allowlist được: engine kiểm `if self.allowed_tools:` nên `[]` là falsy và nó hiểu thành "không có allowlist" rồi chạy `bypassPermissions` - mở toàn quyền đúng lúc mình định khoá chặt nhất.)
+
+  Codex không có đường dự phòng vì không có cổng duyệt per-call. Bù lại, chưa đăng nhập được ChatGPT thì bot nói thẳng việc cần làm thay vì trả một mã lỗi HTTP.
+- **Câu chào `/start` vẫn tự gắn "của cửa hàng" vào tên bot.** Bot tên "Coach kỷ luật" thành "Coach kỷ luật của cửa hàng" - đúng lỗi áp nghề bán hàng đã bác ở 0.20.1, sót lại ở đây vì lệnh không đi qua prompt.
+- **Câu báo lượt GÃY trùng với câu báo THIẾU TÀI LIỆU.** Cả hai đều là "Em chưa trả lời được câu này..." nên nhìn từ ngoài không phân biệt được bot đang hỏng hay đang thiếu tài liệu - hai chuyện sửa khác nhau hoàn toàn. Nay lượt gãy nói "Em đang gặp trục trặc kỹ thuật", tách hẳn.
+### Cải thiện
+- **Lỗi lượt gần nhất hiện ngay trên THẺ bot**, không bắt mở Nhật ký mới thấy. Trạng thái poller không nói lên chuyện này: poller vẫn "đang chạy" chấm xanh trong khi mọi lượt trả lời đều gãy. Chủ chỉ mở Nhật ký khi đã NGỜ là có chuyện, nên cảnh báo phải tự đập vào mắt trước.
+- **Lượt gãy tính là bí** (bot đúng là không trả lời được, nên bộ đếm gọi người thấy nó) **nhưng bị loại khỏi tab "Bot bí"** - tab đó dành cho chỗ tài liệu thiếu. Để lẫn thì danh sách "viết thêm tài liệu" đầy dòng lỗi kỹ thuật và chủ đi sửa nhầm chỗ. Lượt gãy xem ở tab Hội thoại, có dòng đỏ riêng.
+
 ## [0.22.1] - 2026-08-05
 Bot báo lỗi mà **không ai đọc được lý do**. Chủ repo gặp đúng ca: hỏi "chào Coach", bot đáp "Em chưa trả lời được câu này, anh chị chờ cửa hàng phản hồi giúp em ạ." Đó là câu xin lỗi CHUNG khi lượt gãy, không phải bot trả lời sai - nhưng nhìn từ ngoài hai chuyện đó giống hệt nhau.
 ### Sửa lỗi
