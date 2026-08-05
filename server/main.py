@@ -9224,6 +9224,39 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
         _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
+    # Engine KHÔNG chạy nổi vòng tool: trả lời lại lượt này mà bỏ tool đi.
+    #
+    # Không phải phòng xa. Bản 0.24.0 nối mức Được ghi của gói ChatGPT vào
+    # `engine.responses_with_mcp`, một hàm tới lúc đó CHƯA TỪNG được gọi từ đâu và tự ghi
+    # EXPERIMENTAL trong docstring. Chạy thật thì nó trả rỗng, và hậu quả không dừng ở "tính
+    # năng mới chưa chạy": MỌI câu người ta nhắn cho bot đều nhận một lời xin lỗi kỹ thuật, tức
+    # nâng mức quyền làm HỎNG con bot vốn đang chạy tốt. Nâng quyền không được phép lấy đi năng
+    # lực đã có.
+    #
+    # Nên đường lui: vẫn trả lời, chỉ là không có công cụ. Và tuyệt đối KHÔNG im lặng về việc
+    # đó - chủ đặt mức Được ghi mà bot lặng lẽ chạy như mức Chỉ đọc là đúng kiểu hỏng tệ nhất.
+    # Cảnh báo đi kèm câu trả lời, lên thẻ bot, và nói luôn việc cần làm.
+    canh_bao = ""
+    if not out and tools:
+        print(f"[bot {prov} chat {chat_id}] vòng tool rỗng ({loi[0] if loi else '?'}), "
+              f"trả lời lại KHÔNG tool", file=__import__('sys').stderr)
+        out, loi2 = await _bot_doc_stream(
+            _api_stream(prov, api_key, api_model, messages, reasoning),
+            progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
+        if out:
+            canh_bao = (f"Engine đang chạy ({_api_label(prov)}) không gọi được công cụ cho bot, "
+                        f"nên lượt vừa rồi trả lời ở mức Chỉ đọc chứ không phải mức "
+                        f"{chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} bạn đã đặt. "
+                        f"Cần bot làm việc thật thì đổi engine ở trang Models, hoặc hạ mức bot "
+                        f"xuống Chỉ đọc cho khỏi hiểu nhầm.")
+            loi = []
+        else:
+            # Gãy CẢ đường không-tool thì lỗi đáng báo là lỗi của đường đó, không phải lỗi vòng
+            # tool. Đường không-tool là lời gọi đơn giản nhất còn lại, nên nó nói đúng bệnh hơn:
+            # hết quota, sai token, mạng chết. Báo lỗi vòng tool trước là đẩy chủ đi tìm xem
+            # engine có hỗ trợ tool không, trong khi thứ hỏng là cái khác hẳn.
+            loi = loi2 + loi
+
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
@@ -9232,11 +9265,16 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
         return "⚠ " + (loi[0] if loi else "Không nhận được nội dung nào.")
     if not tools:
         # Bot được đặt ở mức có quyền mà lại chẳng có công cụ nào - im lặng ở đây thì chủ tưởng
-        # bot đang làm việc, còn thực tế nó chỉ đang nói chuyện. Trả về dạng CHUỖI lỗi thì mất
-        # luôn câu trả lời, nên nói ra ở nhật ký để thẻ bot hiện lên.
+        # bot đang làm việc, còn thực tế nó chỉ đang nói chuyện.
+        canh_bao = (f"Bot đang ở mức {chatbot_store.MUC_NHAN.get(muc_quyen, muc_quyen)} nhưng "
+                    f"chưa có nguồn dữ liệu nào đấu vào, nên không có công cụ nào để dùng. "
+                    f"Đấu thêm ở trang Kết nối, hoặc hạ mức bot xuống Chỉ đọc.")
         print(f"[bot {prov} chat {chat_id}] mức '{muc_quyen}' nhưng hub không trả tool nào - "
               f"lượt này chỉ chat", file=__import__('sys').stderr)
-    return _bot_ket(out, lich_su)
+    ket = _bot_ket(out, lich_su)
+    if canh_bao:
+        ket["canh_bao"] = canh_bao
+    return ket
 
 
 async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
@@ -9937,6 +9975,9 @@ async def chatbots_list(brain: str = ""):
         # Poller sống KHÔNG có nghĩa là bot trả lời được: model gọi hỏng thì thẻ vẫn chấm xanh
         # trong khi khách nhận toàn câu xin lỗi. Lấy lỗi của lượt gần nhất lên thẻ luôn.
         b["loi_luot"] = chatbot_log.loi_gan_nhat(b["id"])
+        # Lượt gần nhất chạy được nhưng KHÔNG đúng mức đã đặt. Không gộp vào `loi_luot`: hai
+        # chuyện sửa khác nhau, gộp lại là thẻ báo sai loại việc.
+        b["canh_bao_luot"] = chatbot_log.canh_bao_gan_nhat(b["id"])
         out.append(b)
     # Nhãn + cảnh báo rủi ro của từng mức quyền đi kèm luôn: giao diện KHÔNG được giữ bản chép
     # riêng. Chép riêng thì một hôm server siết thêm một rào mà ô cảnh báo vẫn hứa như cũ, và

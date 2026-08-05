@@ -70,6 +70,10 @@ def ghi(bot_id: str, rec: dict) -> None:
             # nhật ký. Hai thứ đó lệch nhau ngay khi chủ hạ mức sau một sự cố, và lúc soi lại
             # "hôm đó bot làm gì" thì cái cần biết là mức lúc ĐÓ.
             "muc_quyen": str(rec.get("muc_quyen") or "suggest")[:20],
+            # Lượt chạy được nhưng KHÔNG đúng như chủ đặt. Khác `loi` (lượt gãy hẳn) ở chỗ
+            # người đang hỏi vẫn nhận được câu trả lời tử tế - chỉ chủ mới cần biết là nó chạy
+            # thiếu quyền. Tách hẳn hai trường vì `loi` còn kéo theo bộ đếm bí và gọi người trực.
+            "canh_bao": str(rec.get("canh_bao") or "")[:500],
         }
         p = _path(bot_id)
         with _lock:
@@ -196,3 +200,15 @@ def loi_gan_nhat(bot_id: str) -> str:
     """
     rs = _nap(bot_id)
     return str(rs[-1].get("loi") or "") if rs else ""
+
+
+def canh_bao_gan_nhat(bot_id: str) -> str:
+    """Lượt gần nhất chạy được nhưng KHÔNG đúng mức chủ đặt, hoặc '' nếu mọi thứ đúng.
+
+    Tách khỏi `loi_gan_nhat` vì hai chuyện khác hẳn nhau và sửa khác nhau: `loi` là bot gãy
+    (đổi engine, nạp lại token), còn cái này là bot vẫn trả lời tử tế nhưng chạy thiếu quyền
+    (đổi engine, đấu thêm nguồn, hoặc hạ mức cho khỏi hiểu nhầm). Gộp một chỗ thì thẻ báo sai
+    loại việc, và chủ đi sửa nhầm hướng.
+    """
+    rs = _nap(bot_id)
+    return str(rs[-1].get("canh_bao") or "") if rs else ""

@@ -270,6 +270,74 @@ check(f"cả {len(main.PROVIDER_DEFS)} bộ não đều gọi được tool ở 
 if _thieu:
     print("     bị bỏ lại: " + ", ".join(_thieu))
 
+# ============================================================
+# 5b. Engine không chạy nổi vòng tool -> bot vẫn phải TRẢ LỜI
+# ============================================================
+# Đây là ca ĐÃ XẢY RA THẬT, không phải phòng xa. Bản 0.24.0 nối mức Được ghi của gói ChatGPT
+# vào `engine.responses_with_mcp` - một hàm tới lúc đó CHƯA TỪNG được gọi từ đâu và tự ghi
+# EXPERIMENTAL trong docstring. Chạy thật thì nó trả rỗng, và hậu quả không dừng ở "tính năng
+# mới chưa chạy": MỌI câu người ta nhắn cho bot đều nhận một lời xin lỗi kỹ thuật.
+#
+# Luật rút ra, và đây là thứ file này canh: **nâng mức quyền không được phép LẤY ĐI năng lực
+# đã có.** Bot chạy tốt ở mức Chỉ đọc thì nâng lên Được ghi, xấu nhất, phải vẫn chạy như mức
+# Chỉ đọc - kèm một câu nói rõ cho chủ, chứ không được chết.
+def _lam_stream_rong(prov):
+    def _fn(*a, **kw):
+        _goi.append({"prov": prov, "co_tool": True})
+
+        async def _gen():
+            yield {"type": "error", "content": "ChatGPT trả về rỗng (backend Codex chưa hỗ trợ tool)."}
+        return _gen()
+    return _fn
+
+
+for _ten in ("openrouter_chat_with_mcp", "responses_with_mcp"):
+    setattr(main.engine, _ten, _lam_stream_rong(_ten))
+
+_goi.clear()
+r = chay("openai-oauth", "oauth", {**BOT, "muc_quyen": "auto"})
+check("engine không gọi nổi tool -> bot VẪN trả lời được", isinstance(r, dict) and r.get("text"))
+check("và lượt đó chạy lại bằng stream KHÔNG tool",
+      len(_goi) == 2 and _goi[0]["co_tool"] is True and _goi[1]["co_tool"] is False)
+# Trả lời được nhưng chạy THIẾU QUYỀN so với mức chủ đặt. Im lặng ở đây là kiểu hỏng tệ nhất:
+# chủ tưởng bot đang làm việc thật, còn nó chỉ đang nói chuyện.
+_cb = (r or {}).get("canh_bao") or ""
+check("và kèm cảnh báo cho chủ, không im lặng hạ mức", bool(_cb))
+check("cảnh báo nói rõ mức đang chạy khác mức đã đặt", "Chỉ đọc" in _cb and "Được ghi" in _cb)
+check("cảnh báo nói luôn việc cần làm", "trang Models" in _cb or "hạ mức" in _cb)
+
+# Cảnh báo phải đi tới THẺ BOT, không chỉ nằm trong biến. Và phải tách khỏi `loi` - `loi` kéo
+# theo bộ đếm bí rồi kéo theo gọi người trực, trong khi đây là lượt trả lời bình thường.
+import chatbot_log  # noqa: E402
+
+chatbot_log.ghi("bot_cb", {"hoi": "x", "dap": "y", "canh_bao": "chạy thiếu quyền"})
+check("nhật ký giữ cảnh báo tách khỏi lỗi",
+      chatbot_log.canh_bao_gan_nhat("bot_cb") == "chạy thiếu quyền"
+      and chatbot_log.loi_gan_nhat("bot_cb") == "")
+check("lượt có cảnh báo KHÔNG bị tính là bí (không gọi người trực oan)",
+      chatbot_log.doc("bot_cb")[0].get("bi") is False)
+check("thẻ bot nhận được cảnh báo lượt gần nhất",
+      'b["canh_bao_luot"] = chatbot_log.canh_bao_gan_nhat(b["id"])' in
+      (SERVER / "main.py").read_text(encoding="utf-8"))
+
+# Cả hai engine cùng gãy (tool rỗng VÀ không-tool cũng rỗng) thì mới được báo hỏng.
+main._api_stream = _stream_hong_luon = lambda *a, **kw: _gen_rong()
+
+
+def _gen_rong():
+    async def _g():
+        yield {"type": "error", "content": "hết quota"}
+    return _g()
+
+
+r = chay("openai-oauth", "oauth", {**BOT, "muc_quyen": "auto"})
+check("gãy cả hai đường -> mới báo hỏng, và nói đúng lý do",
+      isinstance(r, str) and "quota" in r)
+main._api_stream = _stream_khong_tool
+for _ten in ("openrouter_chat_with_mcp", "responses_with_mcp"):
+    setattr(main.engine, _ten, _lam_stream_co_tool(_ten))
+
+
 # Hub không trả tool nào (chưa đấu nguồn nào, hoặc hub tắt): bot vẫn phải TRẢ LỜI được thay vì
 # im. Nhưng lượt đó là "chỉ chat", nên nó phải đi đúng stream không tool chứ không gọi vòng
 # tool rỗng - vòng tool rỗng thì engine API nào cũng có con báo lỗi schema.
@@ -283,6 +351,8 @@ r = chay("openrouter", "api", {**BOT, "muc_quyen": "full"})
 check("hub không có tool nào -> bot vẫn trả lời được",
       isinstance(r, dict) and r.get("text"))
 check("và lượt đó rơi về stream không tool", _goi[-1]["co_tool"] is False)
+check("chưa đấu nguồn nào cũng phải cảnh báo, đừng để chủ tưởng bot đang làm việc",
+      bool((r or {}).get("canh_bao")))
 
 # Hub NỔ giữa chừng cũng không được làm gãy lượt của khách đang chờ.
 async def _discover_no(mode="full", vault_root=None, **kw):

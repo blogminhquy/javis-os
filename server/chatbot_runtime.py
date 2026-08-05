@@ -352,6 +352,11 @@ def _make_answer_fn(bot_id: str):
             "co_tai_lieu": bool(tl.get("co")), "nguon": tl.get("nguon"),
             "chuyen_nguoi": goi_nguoi, "bi": bi,
             "muc_quyen": cfg.get("muc_quyen") or "suggest",
+            # Lượt CHẠY ĐƯỢC nhưng không đúng như chủ đặt (vd mức Được ghi mà engine không gọi
+            # nổi công cụ). Cố ý KHÔNG nhét vào `loi`: `loi` kéo theo `bi`, kéo theo gọi người
+            # trực, và làm bẩn tab "Bot bí" - trong khi đây là lượt trả lời bình thường. Chủ
+            # cần biết, người đang hỏi thì không cần.
+            "canh_bao": (out or {}).get("canh_bao") or "",
         })
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó

@@ -124,6 +124,12 @@
     var lluot = b.loi_luot
       ? '<div class="cb-err">' + ic("triangle-alert") + ' Lượt gần nhất LỖI: ' +
         esc(String(b.loi_luot).slice(0, 200)) + '</div>' : "";
+    // Lượt CHẠY ĐƯỢC nhưng không đúng mức đã đặt (engine không gọi nổi công cụ, hoặc chưa đấu
+    // nguồn nào). Màu vàng chứ không đỏ: bot vẫn trả lời tử tế, chỉ là chạy thiếu quyền. Để im
+    // thì chủ tưởng bot đang làm việc thật - đúng kiểu hỏng lặng lẽ mà cả trang này chống.
+    var cbao = b.canh_bao_luot
+      ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + ' ' +
+        esc(String(b.canh_bao_luot).slice(0, 300)) + '</div>' : "";
     // Mức quyền phải nhìn thấy TỪ NGOÀI THẺ, không phải mở form Sửa mới biết. Một con bot toàn
     // quyền lẫn giữa mấy con chỉ đọc mà nhìn giống hệt nhau là đúng kiểu hỏng im lặng: chủ nhớ
     // nhầm con nào là con nào rồi thả nhầm vào chỗ ai cũng nhắn được.
@@ -156,7 +162,7 @@
           (b.handoff_to ? '<span>' + ic("user") + ' có chuyển người trực</span>'
                         : '<span class="cb-warn">chưa đặt người nhận</span>') +
         '</div>' +
-        quyen + mat + lluot + loi +
+        quyen + mat + lluot + cbao + loi +
         '<div class="cb-acts">' +
           '<button class="s-btn-ghost cb-toggle" type="button">' +
             (b.enabled ? ic("circle-stop") + " Tắt" : ic("play") + " Bật") + '</button>' +

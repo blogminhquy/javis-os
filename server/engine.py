@@ -1513,7 +1513,12 @@ async def openrouter_chat_with_mcp(api_key, model, messages, reasoning, mcp_tool
 
 
 async def responses_with_mcp(access_token, account_id, model, messages, reasoning, mcp_tools, mcp_route):
-    """ChatGPT OAuth (Codex Responses API) + tool MCP. EXPERIMENTAL (backend Codex)."""
+    """ChatGPT OAuth (Codex Responses API) + tool MCP. EXPERIMENTAL (backend Codex).
+
+    "EXPERIMENTAL" ở đây KHÔNG phải lời rào đón: tới 0.24.0 hàm này chưa từng được gọi từ đâu
+    cả, và lần đầu có người gọi thật (bot chuyên trách mức Được ghi) thì nó trả rỗng ngay. Chỗ
+    gọi phải coi "rỗng" là một kết cục CÓ THẬT và có đường lui, đừng coi là chuyện hiếm.
+    """
     import uuid
     import mcp_client
     if not access_token:
@@ -1528,6 +1533,10 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
         "session_id": str(uuid.uuid4()), "Content-Type": "application/json", "Accept": "text/event-stream",
         "User-Agent": "javis-os/0.3 (codex)",
     }
+    # Không có account_id thì BỎ HẲN header, đừng gửi chuỗi rỗng. `openai_responses_stream` -
+    # đường không-tool đang chạy thật của gói này - làm đúng vậy, và hàm này thiếu đúng dòng đó.
+    if not (account_id or ""):
+        headers.pop("chatgpt-account-id", None)
     model = model or "gpt-5-codex"
     yield {"type": "meta", "model": model}
     timeout = httpx.Timeout(180, connect=15)
@@ -1560,15 +1569,19 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                         if not line.startswith("data:"):
                             continue
                         data = line[5:].strip()
-                        if not data or data == "[DONE]":
+                        if not data:
                             continue
+                        if data == "[DONE]":
+                            break
                         try:
                             obj = json.loads(data)
                         except json.JSONDecodeError:
                             continue
                         et = obj.get("type")
                         if et == "response.output_text.delta":
-                            round_text += obj.get("delta") or ""
+                            # Bóc dấu trích dẫn nội bộ ngay tại nguồn, y như đường không-tool:
+                            # backend Codex phát chúng ở CẢ hai đường.
+                            round_text += strip_provider_markers(obj.get("delta") or "")
                         elif et == "response.completed":
                             _resp = obj.get("response") or {}
                             output = (_resp.get("output")) or []

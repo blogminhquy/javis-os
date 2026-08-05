@@ -435,3 +435,29 @@ tiêu tiền quảng cáo, đăng bài" - lọt tai người bán hàng, vô ngh
 lý dự án, chăm sức khoẻ hay dạy học. Tệ hơn: người đó đọc xong tưởng cảnh báo không áp cho
 mình rồi bật Toàn quyền vì nghĩ mình không có gì để mất. Chủ repo bác (2026-08-05): "nó cá
 nhân hóa với anh quá". Có canary ở cả test Python lẫn test JS.
+
+### Bẫy đã sập thật (0.24.0 → 0.24.2)
+
+Ghi lại vì nó là một kiểu ẩu có tên, và mục "chỗ dễ hỏng nhất" ở trên **không** nêu ra nó.
+
+**Nối đường đi thật vào một hàm chưa ai từng gọi.** Để giữ lời hứa "cả tám bộ não như nhau",
+0.24.0 cho gói ChatGPT đi `engine.responses_with_mcp`. Hàm đó có sẵn trong repo, tên đúng, chữ
+ký đúng, đọc qua thì hợp lý. Nhưng `git log -S responses_with_mcp` trả về đúng MỘT kết quả -
+chính commit 0.24.0 - nghĩa là trước đó **không nơi nào gọi nó**, và docstring của nó tự ghi
+EXPERIMENTAL. Chạy thật thì nó trả rỗng.
+
+Hai bài học tách bạch:
+
+1. **"Có sẵn trong repo" không đồng nghĩa "chạy được".** Trước khi nối một đường đi thật vào
+   một hàm chưa quen, chạy `git log -S <tên hàm>` xem đã có ai gọi chưa. Không có ai, hoặc
+   docstring ghi EXPERIMENTAL, thì coi như code chưa kiểm chứng - phải có đường lui.
+
+2. **Nâng quyền không được LẤY ĐI năng lực đã có.** Đây mới là phần đau. Bot đang trả lời tốt ở
+   mức Chỉ đọc; chủ nâng lên Được ghi để nó làm được NHIỀU hơn; kết quả nó ngừng trả lời hoàn
+   toàn. Một tính năng "thêm quyền" mà làm hỏng đường cơ bản thì tệ hơn hẳn việc không có tính
+   năng đó. Nay vòng tool rỗng thì chạy lại lượt đó không tool, và có test canh.
+
+Đường lui KHÔNG được im lặng. Chủ đặt Được ghi mà bot lặng lẽ chạy như Chỉ đọc là kiểu hỏng tệ
+hơn cả gãy hẳn - gãy thì còn nhìn thấy. Nên lượt chạy thiếu quyền mang theo `canh_bao` lên thẻ
+bot, đi đường RIÊNG chứ không mượn trường `loi`: `loi` kéo theo bộ đếm bí, kéo theo gọi người
+trực, và làm bẩn tab "Bot bí", trong khi đây là một lượt trả lời bình thường.

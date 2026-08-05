@@ -4,6 +4,25 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.24.2] - 2026-08-05
+Chủ repo bật mức **Được ghi** cho một bot chạy gói ChatGPT, và bot chết: mọi câu nhắn vào đều nhận *"⚠ ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool)"*.
+
+Lỗi của bản 0.24.0, và đáng ghi lại vì nó là một kiểu ẩu có tên: **nối đường đi thật vào một hàm chưa ai từng gọi.**
+### Sửa lỗi
+- **Nâng mức quyền làm HỎNG con bot vốn đang chạy tốt.** `engine.responses_with_mcp` tới 0.24.0 **chưa từng được gọi từ đâu** - `git log -S` cho đúng một kết quả, là chính commit 0.24.0 - và docstring của nó tự ghi EXPERIMENTAL. Bản 0.24.0 nối mức Được ghi/Toàn quyền của gói ChatGPT vào đó rồi phát hành mà không có đường lui.
+
+  Hậu quả không dừng ở "tính năng mới chưa chạy": bot đang trả lời tốt ở mức Chỉ đọc, chủ nâng mức, và nó **ngừng trả lời hoàn toàn**.
+
+  Nay có đường lui: vòng tool trả rỗng thì chạy lại lượt đó **không tool**. Luật rút ra và đã viết thành test - *nâng mức quyền không được phép LẤY ĐI năng lực đã có*.
+- **Nhưng KHÔNG im lặng hạ mức.** Chủ đặt Được ghi mà bot lặng lẽ chạy như Chỉ đọc là kiểu hỏng tệ hơn cả gãy hẳn. Lượt chạy thiếu quyền mang theo một **cảnh báo** lên thẻ bot (dải vàng, khác dải đỏ của lượt gãy), nói rõ nó đang chạy ở mức nào so với mức đã đặt và việc cần làm: đổi engine ở trang Models, hoặc hạ mức xuống Chỉ đọc.
+
+  Cảnh báo đi đường RIÊNG chứ không mượn trường `loi`: `loi` kéo theo bộ đếm bí, kéo theo gọi người trực, và làm bẩn tab "Bot bí" - trong khi đây là lượt trả lời bình thường.
+- **`responses_with_mcp` khớp lại với đường không-tool đang chạy thật.** Nó thiếu đúng dòng `openai_responses_stream` có: không có `account_id` thì BỎ HẲN header `chatgpt-account-id` thay vì gửi chuỗi rỗng. Thêm cả xử lý `[DONE]` và bóc dấu trích dẫn nội bộ.
+- **Gãy cả hai đường thì báo lỗi của đường KHÔNG TOOL, không phải lỗi vòng tool.** Đường không-tool là lời gọi đơn giản nhất còn lại nên nó nói đúng bệnh hơn (hết quota, sai token, mạng chết). Báo lỗi vòng tool trước là đẩy chủ đi tìm xem engine có hỗ trợ tool không, trong khi thứ hỏng là cái khác hẳn.
+- **Chưa đấu nguồn nào mà đặt mức nâng quyền** cũng ra cảnh báo tương tự, thay vì chỉ ghi một dòng stderr không ai đọc.
+### Tài liệu
+- `docs/25-chatbot.md` thêm mục **Engine nào chạy được mức nâng quyền**: mức Chỉ đọc chạy trên cả tám bộ não không ngoại lệ; hai mức nâng quyền thì gói ChatGPT đi qua đường backend Codex chưa ổn định, gặp vậy bot vẫn trả lời và thẻ hiện dải vàng.
+
 ## [0.24.1] - 2026-08-05
 Chủ repo đọc lại chữ nghĩa của 0.24.0: *"em chỉnh sửa lại các text đừng có dùng tiền, đơn, đăng bài. nó cá nhân hóa với anh quá. Các hướng dẫn ở mức chung nhất cho nhiều trường hợp thôi."*
 
