@@ -139,7 +139,11 @@ _DEFAULT = {
             "policy_version": "fast-path-canary-v1",
             "allocation_basis_points": 0,  # 100 = 1%; hash ổn định theo session
             "salt": "fast-path-canary-v1",
-            "channels": ["dashboard"],
+            # Telegram và CLI cũng đi được đường tắt. Tới 0.23.1 danh sách này chỉ có
+            # "dashboard", nên người dùng bấm mức Siêu tiết kiệm rồi nhắn qua Telegram
+            # vẫn gửi nguyên CLAUDE.md mỗi lượt - trang Cài đặt báo đã bật, mà kênh họ
+            # dùng nhiều nhất thì không đi qua dòng code nào của nó.
+            "channels": ["dashboard", "telegram", "cli"],
             # Cả ba loại bộ não. "oauth" (gói ChatGPT) gọi thẳng qua Codex Responses, "cli"
             # (gói Claude Code) gọi thẳng qua Messages API bằng chính access token OAuth mà
             # CLI đã lưu. Bản trước để "cli" ngoài danh sách vì chưa có đường gọi thẳng nào
@@ -329,14 +333,14 @@ _DEFAULT = {
             "policy_version": "sourced-memory-v1",
             "allocation_basis_points": 0,
             "salt": "sourced-memory-v1",
-            "channels": ["dashboard"], "provider_kinds": ["api", "cli", "oauth"],
+            "channels": ["dashboard", "telegram", "cli"], "provider_kinds": ["api", "cli", "oauth"],
             "max_items": 6, "min_confidence": 0.38,
         },
         "lazy_skill_canary": {
             "policy_version": "lazy-skill-v1",
             "allocation_basis_points": 0,
             "salt": "lazy-skill-v1",
-            "channels": ["dashboard"], "provider_kinds": ["api", "cli", "oauth"],
+            "channels": ["dashboard", "telegram", "cli"], "provider_kinds": ["api", "cli", "oauth"],
             "max_body_chars": 12000,
         },
         # Phase 9: tool WRITE, bật theo TỪNG capability group, không có cờ chung.

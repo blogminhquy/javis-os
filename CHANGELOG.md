@@ -4,6 +4,23 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.24.3] - 2026-08-06
+Chủ repo đọc thẳng mã nguồn và chỉ ra: **toàn bộ hệ Tiết kiệm chỉ được nối vào đúng handler WebSocket của dashboard.** Đúng, và đây là lỗ hổng kiến trúc thật.
+### Sửa lỗi
+- **Mức Tối ưu và Siêu tiết kiệm không có hiệu lực trên Telegram.** Ba thứ khớp nhau hoàn toàn: mọi lệnh gọi `prepare()` trong `websocket_endpoint` truyền cứng chữ `"dashboard"`, `_tg_answer_engine` không có một dòng nào chạm tới chúng, và `channels` trong config cũng chỉ khai `["dashboard"]`.
+
+  Hệ quả: người dùng bấm mức tiết kiệm, trang Cài đặt báo xanh "đã bật, có hiệu lực ngay", rồi mỗi lượt Telegram vẫn gửi nguyên `CLAUDE.md` + `MEMORY.md`. **Không lỗi, không cảnh báo - chỉ có hoá đơn token không giảm** ở đúng kênh nhiều người dùng nhất. Cùng họ với con bệnh `provider_kinds` hồi 0.12.4, lần này rơi vào KÊNH thay vì loại bộ não.
+
+  Nay `_tg_answer_engine` nối cả hai tầng, theo thứ tự rẻ dần: đường tắt (Phase 5) rồi nguồn chọn lọc (Phase 8). Cả hai đều nhận **biến** `channel` chứ không phải hằng chuỗi.
+- **Lõi đường tắt tách khỏi WebSocket.** `_execute_fast_path` gắn chặt với `ws.send_text` nên kênh khác không dùng lại được. Nay lõi nằm ở `_fast_path_core` với hai móc gửi tin tuỳ kênh; bản WebSocket chỉ còn là cái vỏ mỏng bọc nó.
+- **`channels` mở thêm `telegram` và `cli`** cho đường tắt, bộ nhớ chọn lọc và skill nạp-khi-cần. Máy đã cài cũng được nới nhờ `_no_rong_pham_vi_bo_nao` (settings.json cũ ghim cứng `["dashboard"]`, sửa mặc định thôi thì bản vá chỉ tới được máy cài mới).
+
+  `conversation_state_canary` **cố ý không mở**: phiên Telegram đã giữ mạch hội thoại riêng, đưa thêm transcript vào system prompt là gửi lịch sử hai lần.
+### Ghi chú
+- Ba đường thực thi tool (`readonly`, `orchestrator`, `write`) vẫn chỉ chạy trên dashboard. Chúng fail-closed sẵn (`capability_profiles` rỗng) nên hôm nay không ảnh hưởng ai, và mỗi đường cần một adapter gửi tin riêng - việc đó tách khỏi bản này.
+- **Bot chuyên trách KHÔNG đi qua hai tầng đó**, và không phải vì bỏ sót: prompt của bot (~20 token) vốn đã nhỏ hơn capsule của mức Siêu tiết kiệm (~460 token) hơn hai chục lần. Test canh đúng điều đó.
+- Lệnh điều khiển lịch vẫn do gateway lịch xử lý; đường tắt được hỏi SAU khi lệnh lịch đã giải quyết xong, nên không cướp lượt.
+
 ## [0.24.2] - 2026-08-05
 Chủ repo bật mức **Được ghi** cho một bot chạy gói ChatGPT, và bot chết: mọi câu nhắn vào đều nhận *"⚠ ChatGPT trả về rỗng (backend Codex có thể chưa hỗ trợ tool)"*.
 

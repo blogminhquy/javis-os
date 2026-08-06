@@ -79,8 +79,13 @@ check("mảng skill cũng vậy",
 check("CANARY: mảng gửi lại lịch sử vẫn chỉ dành cho engine API",
       _rc["conversation_state_canary"]["provider_kinds"] == ["api"])
 # Người vận hành tự thêm loại bộ não lạ thì phải giữ nguyên: hàm này chỉ NỚI.
+#
+# `channels` phải khai ĐỦ theo mặc định hiện tại, nếu không thì chính nó là thứ được nới và
+# hàm trả True - lúc đó phép thử không còn kiểm được điều nó định kiểm. Bản trước ghi cứng
+# ["dashboard"] và hoá đỏ khi mặc định mở thêm telegram (0.24.0).
+_ch_mac_dinh = list(cfg._DEFAULT["context_runtime"]["memory_canary"]["channels"])
 _rieng = {"context_runtime": {"memory_canary": {
-    "provider_kinds": ["api", "cli", "oauth", "loai-rieng"], "channels": ["dashboard"]}}}
+    "provider_kinds": ["api", "cli", "oauth", "loai-rieng"], "channels": _ch_mac_dinh}}}
 check("chỉ nới, không bao giờ thu hẹp",
       cfg._no_rong_pham_vi_bo_nao(_rieng) is False
       and _rieng["context_runtime"]["memory_canary"]["provider_kinds"][-1] == "loai-rieng")

@@ -1431,15 +1431,19 @@ def _record_quality_shadow(trace, objective: str, response: str, channel: str) -
         print(f"[quality shadow] {type(exc).__name__}", file=__import__('sys').stderr)
 
 
-async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
-                             reasoning: str, ws, session_id: str, runtime_trace,
-                             objective: str = "", im_lang_khi_loi: bool = False):
-    """Đúng một direct API stream; không MCP discovery, tool loop, compaction hay replay.
+async def _fast_path_core(plan, provider: str, api_key: str, model: str, reasoning: str,
+                          runtime_trace, objective: str = "", im_lang_khi_loi: bool = False,
+                          channel: str = "dashboard", gui_stream=None, gui_loi=None):
+    """Lõi đường tắt, KHÔNG dính kênh nào. Trả (text, model, tokens_in).
 
-    `im_lang_khi_loi`: nuốt gói lỗi và KHÔNG gửi gói trả lời rỗng, để chỗ gọi còn lui về
-    engine đầy đủ trong cùng lượt. Dùng cho bộ não gói thuê bao, nơi đường tắt chạy bằng
-    access token của CLI - token đó có thể hết hạn hoặc bị nhà cung cấp từ chối cho đường
-    này, và người dùng không việc gì phải nhìn thấy một lỗi mà Javis tự xử lý được.
+    Tách ra khỏi `_execute_fast_path` để Telegram dùng lại được. Trước đó toàn bộ hệ Tiết
+    kiệm chỉ nối vào đúng handler WebSocket của dashboard, nên người dùng bấm mức Siêu tiết
+    kiệm rồi nhắn qua Telegram vẫn gửi nguyên CLAUDE.md + MEMORY.md mỗi lượt - trang Cài đặt
+    báo đã bật, mà kênh họ dùng nhiều nhất thì không đi qua dòng code nào của nó.
+
+    `gui_stream(text)` / `gui_loi(text)` là hai móc gửi tin của kênh; bỏ trống thì lượt chạy
+    im lặng và chỗ gọi tự gửi bản đầy đủ (đúng cách Telegram làm - nó gửi MỘT tin cuối chứ
+    không stream từng mẩu).
     """
     actual_model = model or "?"
     final_text = ""
@@ -1463,9 +1467,8 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
             tokens_out += int(ev.get("output") or 0)
         elif ev["type"] == "text":
             final_text += ev["content"]
-            await ws.send_text(json.dumps({
-                "type": "stream", "content": ev["content"], "tts": False,
-            }))
+            if gui_stream:
+                await gui_stream(ev["content"])
         elif ev["type"] == "error":
             if im_lang_khi_loi:
                 # Nuốt tại chỗ: chỗ gọi sẽ lui về engine đầy đủ và người dùng vẫn có câu trả
@@ -1473,21 +1476,21 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
                 _CONTEXT_RUNTIME.record_runtime_event(
                     runtime_trace, "fast_path.stream_error",
                     {"provider": provider, "model": actual_model})
-            else:
-                await ws.send_text(json.dumps({"type": "error", "content": ev["content"]}))
+            elif gui_loi:
+                await gui_loi(ev["content"])
     if im_lang_khi_loi and not final_text.strip():
         # Về tay không. KHÔNG gửi gói `response`: gửi là khung chat chốt một bong bóng rỗng
         # rồi lượt lui về engine sẽ chèn thêm bong bóng thứ hai.
         _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.empty", {
             "provider": provider, "model": actual_model})
-        return "", actual_model
+        return "", actual_model, 0
     if tokens_in or tokens_out:
         usage_store.record(provider, actual_model, tokens_in, tokens_out)
         _CONTEXT_RUNTIME.consume_quota(
             runtime_trace, plan.reservation_id, tokens_in, tokens_out
         )
     decision = _QUALITY_GATE.evaluate(
-        objective, final_text, "dashboard",
+        objective, final_text, channel,
         had_error=bool(runtime_trace and runtime_trace.had_error),
         compiler_report=_CONTEXT_COMPILER.report_for_task(
             runtime_trace.task_id if runtime_trace else ""
@@ -1499,7 +1502,26 @@ async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
     _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "fast_path.completed", {
         "provider": provider, "model": actual_model, "model_rounds": 1,
         "response_chars": len(final_text), "quality_status": decision.status,
+        "channel": channel,
     })
+    return final_text, actual_model, tokens_in
+
+
+async def _execute_fast_path(plan, provider: str, api_key: str, model: str,
+                             reasoning: str, ws, session_id: str, runtime_trace,
+                             objective: str = "", im_lang_khi_loi: bool = False):
+    """Vỏ WebSocket của đường tắt: stream từng mẩu về khung chat rồi chốt gói `response`."""
+    async def _stream(txt):
+        await ws.send_text(json.dumps({"type": "stream", "content": txt, "tts": False}))
+
+    async def _loi(txt):
+        await ws.send_text(json.dumps({"type": "error", "content": txt}))
+
+    final_text, actual_model, tokens_in = await _fast_path_core(
+        plan, provider, api_key, model, reasoning, runtime_trace, objective,
+        im_lang_khi_loi, channel="dashboard", gui_stream=_stream, gui_loi=_loi)
+    if im_lang_khi_loi and not final_text.strip():
+        return "", actual_model
     # Dòng "đi đường nào, tốn bao nhiêu" phải có ở ĐÂY nữa. Bản 0.13.0 gắn nó vào ba nhánh
     # engine mà quên nhánh này, nên đúng những lượt TIẾT KIỆM NHẤT lại là những lượt duy nhất
     # không khoe được gì: khung chat để trống dòng đó, và người dùng không có cách nào biết
@@ -9320,7 +9342,49 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                                   prov=prov, api_key=api_key, api_model=api_model,
                                   reasoning=reasoning, progress=_p, runtime_trace=runtime_trace,
                                   brain=brain, chat_id=chat_id)
-    sysprompt = build_system_prompt(brain)
+    # ===== Hệ Tiết kiệm cho kênh NGOÀI dashboard =====
+    #
+    # Tới 0.23.1, cả Tối ưu lẫn Siêu tiết kiệm chỉ được nối vào đúng handler WebSocket của
+    # dashboard: mọi lệnh gọi prepare() ở đó truyền cứng chữ "dashboard", và khối này không
+    # có một dòng nào chạm tới chúng. Hệ quả là người dùng bấm mức tiết kiệm ở trang Cài đặt,
+    # trang báo xanh "đã bật", rồi mỗi lượt Telegram vẫn gửi nguyên CLAUDE.md + MEMORY.md.
+    # Không lỗi, không cảnh báo - chỉ có hoá đơn token không giảm ở đúng kênh dùng nhiều nhất.
+    #
+    # Hai tầng nối ở đây, theo thứ tự rẻ dần:
+    #   1. Đường tắt (Phase 5): câu không cần tra cứu thì gọi model MỘT vòng với capsule nhỏ.
+    #   2. Nguồn chọn lọc (Phase 8): thay CLAUDE.md + MEMORY.md bằng prompt gọn hơn.
+    #
+    # Bot chuyên trách KHÔNG đi qua đây - nó thoát khỏi hàm này từ trên, và prompt của nó
+    # (~20 token) vốn đã nhỏ hơn capsule của mức Siêu tiết kiệm (~460 token) hơn hai chục lần.
+    # Phase 8 (mức Tối ưu): thay CLAUDE.md + MEMORY.md bằng nguồn chọn lọc. Gọi qua
+    # `_get_adaptive_context()` chứ không kiểm biến global - biến đó dựng LƯỜI, còn None cho
+    # tới lần gọi đầu tiên, nên kiểm nó là khối này không bao giờ chạy.
+    #
+    # Truyền [] làm lịch sử: `conversation_state_canary` cố ý KHÔNG mở cho kênh này, vì phiên
+    # Telegram đã giữ mạch hội thoại riêng (sess["or"] cho engine API, session/thread cho hai
+    # gói thuê bao). Đưa thêm transcript vào system prompt là gửi lịch sử HAI LẦN.
+    sysprompt = ""
+
+    def _nen_goc(include_memory: bool, include_skills: bool) -> str:
+        return build_adaptive_source_prompt(
+            brain, include_memory=include_memory, include_skills=include_skills)
+
+    try:
+        _p8 = await asyncio.to_thread(
+            _get_adaptive_context().prepare, runtime_trace, text, _brain_root(brain),
+            str(conv_sid or chat_id), [], channel, prov,
+            api_model or mcfg.get("claude_model") or "mặc định", kind, _nen_goc)
+        if _p8.action == "use":
+            sysprompt = _p8.system_prompt
+    except Exception as _e:
+        _CONTEXT_RUNTIME.record_runtime_event(
+            runtime_trace, "adaptive_context.prepare_error",
+            {"error_type": type(_e).__name__, "channel": channel})
+    # "reject" của Phase 8 KHÔNG được chặn lượt ở đây. Rơi về prompt đầy đủ là sai chiều trên
+    # dashboard (bản đầy đủ còn TO HƠN cái vừa bị từ chối vì quá to), nhưng ở kênh này ta chưa
+    # có đường nào khác để đi, nên cứ chạy tiếp và để nhà cung cấp nói nếu thật sự quá hạn mức.
+    if not sysprompt:
+        sysprompt = build_system_prompt(brain)
     sysprompt += channel_context.build_channel_block(
         channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
         brain_root=_brain_root(brain))
@@ -9337,6 +9401,29 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         # dict (không phải chuỗi): đây là câu trả lời THẬT nên vỏ phải lưu nó lại.
         return {"text": channel_context.strip_control_blocks(_schedule_cancel_reply(schedule_action)),
                 "files": []}
+
+    if _FAST_PATH is not None:
+        try:
+            _fp = await asyncio.to_thread(
+                _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
+                api_model or mcfg.get("claude_model") or "mặc định", kind, False)
+        except Exception as _e:
+            _fp = None
+            _CONTEXT_RUNTIME.record_runtime_event(
+                runtime_trace, "fast_path.prepare_error",
+                {"error_type": type(_e).__name__, "channel": channel})
+        # CHỈ nhận "execute". "reject" của đường tắt dựa trên trần TỰ KHAI, không phải hạn mức
+        # nhà cung cấp nói ra - lấy nó chặn lượt chat là vượt quyền (cùng lý do với dashboard).
+        if _fp is not None and _fp.action == "execute":
+            await _p("⚡ Đường tắt…")
+            _txt, _mdl, _ = await _fast_path_core(
+                _fp, prov, api_key, api_model or mcfg.get("claude_model") or "mặc định",
+                reasoning, runtime_trace, text, im_lang_khi_loi=True, channel=channel)
+            # Rỗng = đường tắt hụt (token gói thuê bao hết hạn, model không trả gì). Rơi
+            # xuống engine đầy đủ bên dưới, người dùng vẫn có câu trả lời.
+            if _txt.strip():
+                return {"text": channel_context.strip_control_blocks(_txt), "files": []}
+
     if prov == "openai-oauth":
         # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth
         # rơi vào Responses chat-thuần nên model nói đúng là phiên không có tool.

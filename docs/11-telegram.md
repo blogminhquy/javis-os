@@ -275,6 +275,21 @@ Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Teleg
 
 **Đổi cấu hình xong bot vẫn như cũ.** Chờ vài giây rồi tải lại trang **Kênh** để dòng trạng thái cập nhật. Nếu vẫn không lên 🟢, xem thêm [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
 
+## Mức tiết kiệm token áp dụng luôn cho Telegram
+
+Từ **0.24.0**, mức bạn chọn ở trang Cài đặt (**Tối ưu** / **Siêu tiết kiệm**) có hiệu lực cho cả kênh Telegram, không riêng chat trên dashboard.
+
+Trước đó cả hai mức chỉ được nối vào trang dashboard, nên bấm bật xong thì mỗi lượt Telegram vẫn gửi nguyên `CLAUDE.md` + `MEMORY.md`. Không có lỗi nào hiện ra - chỉ là hoá đơn token không giảm ở đúng kênh nhiều người dùng nhất.
+
+Hai mức làm gì:
+
+- **Tối ưu**: thay `CLAUDE.md` + `MEMORY.md` bằng phần ký ức và skill chọn lọc theo đúng câu bạn vừa hỏi.
+- **Siêu tiết kiệm**: câu nào không cần tra cứu gì (ví dụ hỏi đáp thường, tính toán ngắn) thì gọi model **đúng một vòng** với một capsule nhỏ, không nạp bảng công cụ.
+
+Câu cần tra cứu, cần gọi nguồn dữ liệu, hay có kèm file thì tự đi đường đầy đủ như cũ - đường tắt chỉ nhận những lượt nó chắc chắn trả lời được. Đường tắt hụt (token gói thuê bao hết hạn chẳng hạn) cũng tự lui về đường đầy đủ, bạn vẫn có câu trả lời.
+
+Lệnh điều khiển lịch (`huỷ lịch...`) luôn do gateway lịch xử lý, đường tắt không cướp lượt đó.
+
 ## Liên quan
 
 - [Models & engine](10-models-va-engine.md) - chọn provider và model cho cả dashboard lẫn bot.

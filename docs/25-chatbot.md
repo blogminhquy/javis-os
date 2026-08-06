@@ -135,6 +135,8 @@ Trên dòng dưới câu trả lời và ở bảng đo, lượt bot hiện là 
 
 Bot vẫn được tính vào **Mức dùng** như mọi lượt khác, theo đúng nhà cung cấp và model đang chạy.
 
+Đừng lẫn bot với **kênh Telegram của chính bạn**: kênh đó *có* đi qua hai mức tiết kiệm (từ 0.24.0), vì Javis của bạn đúng là có CLAUDE.md và MEMORY.md để gọt. Bot thì không có gì để gọt.
+
 ## Bot trả lời dựa trên cái gì
 
 Mỗi lần có người hỏi, Javis **tra tài liệu trong brain của bot trước**, lấy vài đoạn khớp nhất, rồi đưa thẳng vào đầu bài của lượt đó.
