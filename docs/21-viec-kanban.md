@@ -187,6 +187,28 @@ Ai nhận tin, nhận ở đâu:
 
 > Trước 0.9.289 chỉ có đường Telegram. Ai giao việc trên web mà chưa đấu Telegram thì giao xong là im lặng tuyệt đối - không trạng thái, không hồi âm. Giờ chat web là một kênh nhận báo thật, không cần Telegram nữa.
 
+## Thấy việc nền đang chạy ngay trong khung chat
+
+Từ 0.25.2, ngay trên ô nhập của khung chat có một **dải việc nền**. Nó chỉ hiện khi thật sự có gì đó đang sống, và nói đúng một điều: ngay lúc này có cái gì đang chạy cho bạn không.
+
+| Màu | Nghĩa |
+|---|---|
+| **Xanh** | Có việc **đang chạy thật**. Chấm nhấp nháy. |
+| **Vàng** | Việc **đã giao nhưng không tự chạy** vì chế độ dispatcher chưa phải **AI tự vận hành**. Dải nói luôn phải bật ở đâu. |
+| **Xám** | Chỉ còn loop hoặc nhắc hẹn đang chờ tới giờ. |
+
+Dải gom cả ba nguồn: việc Kanban, [loop và nhắc hẹn](08-viec-dinh-ky.md). Việc giao từ chính cuộc trò chuyện đang mở được viền riêng và đếm riêng ("2 việc đang chạy ngầm · 1 của hội thoại này"), vì "máy đang bận" với "việc của tôi đang chạy" là hai chuyện khác nhau. Bấm **Trang Việc** ở góc phải để mở bảng đầy đủ.
+
+Dải tự hỏi lại server mỗi vài giây, và hỏi ngay mỗi khi một lượt chat kết thúc hoặc một việc nền vừa báo kết quả về. Không có việc nào thì nó ẩn hẳn, không chiếm chỗ của khung chat.
+
+> Vì sao có: trước bản này khung chat không hiện một chữ nào về việc nền, nên "Javis đang chạy việc cho tôi" và "Javis quên mất rồi" trông y hệt nhau. Muốn biết phải tự nghĩ ra việc mở trang này, mà không ai có lý do để nghĩ ra.
+
+## Javis tự đính chính khi lỡ hứa suông
+
+Cũng từ 0.25.2, cuối mỗi lượt chat server dò xem câu trả lời có hẹn báo lại không ("có kết quả em báo ngay", "xong em báo anh", "anh chờ em chút"), rồi đối chiếu với việc nền đang có thật. Hứa mà không có gì chạy thì Javis tự dán một dòng đính chính ngay dưới câu trả lời, nói rõ là sẽ không có báo cáo nào tự về và bạn cần làm gì tiếp.
+
+Đây không phải kiểm duyệt: nó không chặn và không sửa câu trả lời, chỉ nói thêm sự thật ở dưới. Lý do là một lượt trả lời kết thúc ngay khi Javis nói xong - không có cơ chế nào đánh thức nó dậy để làm nốt, nên một lời hẹn không kèm việc nền là một lời hẹn sẽ không bao giờ tới.
+
 ## Giao việc bằng lời trong chat
 
 Bạn không bắt buộc phải mở trang này. Nói thẳng trong chat kiểu "giao việc nền: rà lại toàn bộ note trong Wiki tháng này rồi liệt kê note thiếu liên kết" là Javis tự tạo một việc trong hàng đợi và gắn danh tính người đang nói để báo kết quả về đúng chỗ.
@@ -194,6 +216,8 @@ Bạn không bắt buộc phải mở trang này. Nói thẳng trong chat kiểu
 Javis được dạy chọn công cụ nhỏ nhất đủ dùng, nên nó chỉ tạo việc khi việc đó **làm một lần, cần chạy nền hoặc cần duyệt**. Câu hỏi trả lời được ngay thì nó trả lời luôn; việc lặp theo chu kỳ hoặc có mốc giờ thì nó chuyển sang [Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md).
 
 Nhớ rằng việc tạo qua chat vẫn nằm trong hàng đợi của brain đang chat, và vẫn phải có chế độ **AI tự vận hành** thì mới tự chạy. Nếu bảng đang **Tắt**, việc chỉ nằm chờ cho tới khi bạn bật hoặc bấm **Chạy nhịp ngay**.
+
+Từ 0.25.2 Javis **nói ra chuyện đó ngay lúc giao**: giao việc vào một bảng đang **Tắt** hoặc **Quan sát** thì nó báo lại là việc đang xếp hàng chứ chưa chạy, kèm cách bật. Trước đó nó luôn kết bằng "Việc chạy nền, kết quả tự về" bất kể chế độ nào - một lời hứa sai mà chính Javis không có cách nào biết là sai. Dải việc nền ở khung chat cũng chuyển sang màu vàng trong đúng tình huống này.
 
 Việc này chạy trên **mọi bộ não** từ 0.17.1, qua tool `javis_task`. Trước đó chỉ Claude Code và ChatGPT/Codex giao được việc từ chat, vì đường duy nhất là gọi HTTP bằng lệnh máy mà chỉ hai engine đó chạy được. Các engine API (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) nhận lời rồi không làm gì cả, và không báo lỗi. Nếu bạn từng gặp cảnh "bảo giao việc mà bảng vẫn trống", nhiều khả năng đó là lỗi này.
 

@@ -69,6 +69,17 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
         "- Với mọi dữ liệu đang chạy hoặc dữ liệu tài khoản ngoài (MCP/Google/POS...): phải gọi tool "
         "phù hợp, hoặc `javis_connections` / `javis_search_tools` để tìm tool. Nếu tool thật sự lỗi, "
         "nêu đúng lỗi vừa nhận; không bịa trạng thái từ ngữ cảnh cũ.",
+        "- KHÔNG HỨA THỨ MÌNH KHÔNG LÀM ĐƯỢC. Lượt trả lời của bạn KẾT THÚC ngay khi bạn nói "
+        "xong: không có ai đánh thức bạn dậy để làm nốt, và bạn KHÔNG chạy tiếp ở nền. Nên "
+        "TUYỆT ĐỐI không nói những câu kiểu \"em đang dò/đang kiểm tra, có kết quả em báo ngay\", "
+        "\"xong em báo lại\", \"anh chờ em chút\", \"em sẽ đợi rồi tổng hợp\". Chỉ có hai lối "
+        "đúng: (1) LÀM LUÔN trong lượt này rồi trả kết quả thật, hoặc (2) giao thành việc nền "
+        "(`javis_task` op=add) / nhắc hẹn (`javis_schedule`) rồi nói rõ đã giao gì và kết quả sẽ "
+        "về đâu. Không làm được cả hai thì nói thẳng là chưa làm, đừng hẹn.",
+        "- Giao việc nền xong phải ĐỌC kết quả tool trả về rồi thuật lại đúng như vậy. Nếu tool "
+        "báo điều phối đang TẮT thì việc chỉ nằm xếp hàng chứ chưa chạy - phải nói thẳng câu đó "
+        "và bảo user bật \"AI tự vận hành\" ở trang Việc, KHÔNG được rút gọn thành \"việc đang "
+        "chạy, kết quả sẽ tự về\".",
         "- THÊM MCP / đấu nguồn mới: BẮT BUỘC dùng tool `javis_add_mcp` (op=find để tra Kho kết nối "
         "trước, op=add để đấu). Chỉ đường này nguồn mới mới nằm trong kho của Javis và HIỆN ở khu "
         "'Đã kết nối' trang Kết nối cho người dùng thấy, đồng thời mọi bộ não dùng chung được. "
@@ -199,6 +210,10 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
                 "sẽ tự hiện ở đây, xem tiến độ ở trang Việc. Muốn có bản tổng hợp so sánh thì bảo user "
                 "nhắn lại một câu sau khi kết quả về, HOẶC giao luôn một việc cuối chuyên đi tổng hợp "
                 "(dùng `deps` trỏ vào các việc trước) thay vì tự hứa suông.",
+                "- Javis TỰ KIỂM lời hứa: cuối mỗi lượt server dò câu trả lời xem có hẹn báo lại "
+                "không, rồi đối chiếu với việc nền thật đang có. Hứa mà không có việc nào thì "
+                "server tự dán một dòng đính chính ngay dưới câu của bạn cho user thấy. Nên câu "
+                "hẹn suông không giúp bạn thoát, chỉ làm câu trả lời trông tệ hơn.",
             ]
         if telegram_running:
             lines += [

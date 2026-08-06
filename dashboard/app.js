@@ -176,6 +176,9 @@ function handleMessage(data) {
     // không hiện ở khung đang mở. Làm tươi Lịch sử để phiên đó nổi lên - không thì kết quả
     // nằm im trong DB và người dùng không có cách nào biết là đã có.
     notifySessions();
+    // Một việc nền vừa báo xong = hàng đợi vừa đổi. Hỏi lại ngay thay vì đợi hết nhịp 6 giây,
+    // để dải trạng thái không còn khoe một việc vừa kết thúc.
+    try { if (window.JavisBackground) window.JavisBackground.refresh(); } catch (e) {}
     return;
   }
   if (data.type === "status") {
@@ -232,6 +235,9 @@ function handleMessage(data) {
     if (isActive) syncActiveUI();
     if (sid) delete turns[sid];
     notifySessions();
+    // Lượt vừa xong có thể đã giao việc nền. Đây là ĐÚNG khoảnh khắc người dùng đọc câu trả
+    // lời "em đã giao 3 việc" và tự hỏi nó có chạy thật không - dải phải trả lời được ngay.
+    try { if (window.JavisBackground) window.JavisBackground.refresh(); } catch (e) {}
   }
 }
 
@@ -377,6 +383,9 @@ async function openStoredSession(id) {
     scrollBottom(true);
     notifySessions();
     syncActiveUI();
+    // Dải việc nền đánh dấu "việc CỦA hội thoại này" theo chat_id, nên đổi phiên là nó sai
+    // ngay. Xoá rồi hỏi lại thay vì để chip của phiên trước nằm lại vài giây.
+    try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
   } catch (e) {}
 }
 // Xoá trắng khung chat về trạng thái "hội thoại mới" - dùng chung cho nút + Hội thoại mới
@@ -389,6 +398,7 @@ function resetChatView() {
   persistSession();
   notifySessions();
   syncActiveUI();
+  try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
 }
 function newChat() {
   // KHÔNG reset server, KHÔNG đụng lượt đang chạy của phiên khác - chúng chạy nền + tự lưu; vào

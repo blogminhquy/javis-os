@@ -134,7 +134,14 @@ async def _chay():
 
     # Nói thẳng rằng lượt trả lời này KHÔNG đợi việc chạy xong. Luật CLAUDE.md, và là hiểu nhầm
     # số một của người dùng khi giao việc lần đầu.
-    check("nói rõ việc chạy nền, không hứa đợi", "chạy nền" in out)
+    #
+    # Từ 0.24.9 câu này PHỤ THUỘC mức điều phối, và đó mới là sự thật: brain mới mặc định
+    # `orchestration="off"` nên không có dispatcher nào lấy việc ra chạy. Nói "việc chạy nền,
+    # kết quả tự về" ở trạng thái đó là hứa hộ một thứ sẽ không xảy ra, rồi model chuyển tiếp
+    # nguyên văn cho người dùng - đúng lỗi "giao việc xong không thấy gì, không chạy luôn".
+    check("CANARY: điều phối TẮT thì KHÔNG được hứa việc đang chạy",
+          "KHÔNG tự chạy" in out and "chạy nền" not in out)
+    check("nói luôn cách bật cho người dùng", "AI tự vận hành" in out)
 
     # ============================================================
     # 4. Không nuốt thiếu sót
@@ -194,6 +201,23 @@ async def _chay():
               "ERROR" in out and "brain" in out)
         check("việc lạc brain không lọt vào kho nào",
               len([t for c in (feat.board_view(str(_VAULT)).get("columns") or {}).values() for t in c]) == 3)
+
+    # ============================================================
+    # 6b. Mặt kia của cổng điều phối - đặt CUỐI vì nó đẻ thêm một việc vào kho
+    # ============================================================
+    # Bật "AI tự vận hành" rồi thì câu "việc chạy nền, kết quả tự về" mới là sự thật, và tool
+    # phải nói đúng như vậy. Kiểm cả hai chiều mới chứng minh được cổng đang ĐỌC mức điều phối
+    # chứ không phải cứ dán cứng một câu (bản trước dán cứng, nên nó sai ở mức off suốt).
+    feat.store.set_orchestration(str(_VAULT), "auto")
+    out_auto = await goi({"op": "add", "title": "việc khi đã bật điều phối",
+                          "chat_id": "web:phien123"})
+    check("bật AI tự vận hành rồi thì mới nói việc chạy nền", "chạy nền" in out_auto)
+    feat.store.set_orchestration(str(_VAULT), "off")
+
+    # Cảnh báo ở op=list cũng vậy. Trước đây cổng viết là `not view.get("orchestration")`, mà
+    # giá trị là CHUỖI "off" nên luôn truthy - dòng cảnh báo đó chưa từng in ra lần nào.
+    check("CANARY: op=list cảnh báo khi điều phối tắt",
+          "KHÔNG tự chạy" in await goi({"op": "list"}))
 
 
 asyncio.run(_chay())

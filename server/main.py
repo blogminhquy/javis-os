@@ -87,6 +87,7 @@ import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
+import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
@@ -5620,6 +5621,93 @@ async def viec_all():
             "notify": {"ok": ready, "error": why, "warn": _notify_live_warn()}}
 
 
+# ============================================================
+# VIỆC NỀN CỦA MỘT KHUNG CHAT - dải trạng thái sống trong khung chat
+#
+# Lỗi thật chủ repo báo (2026-08-06): "có agent chạy ngầm thì anh cũng không biết là nó đang
+# chạy thật hay không, không giống Claude nếu đang chạy ngầm thì vẫn có báo ở đầu hội thoại".
+# Đúng: trước bản này khung chat KHÔNG hiện một chữ nào về việc nền. Muốn biết phải tự mở
+# trang Việc, mà người dùng thì không có lý do nào để nghĩ là phải mở.
+#
+# Ba kho khác nhau nên phải gom ở đây, không nằm sẵn chỗ nào: việc Kanban (sqlite), loop
+# (file .md trong brain), nhắc hẹn (reminders.json). Cả ba đều tự báo kết quả về khung chat
+# qua `_notify_owner`, nên cả ba đều đáng hiện.
+# ============================================================
+def _viec_nen_view(brain: str, chat_id: str = "") -> dict:
+    """Khung nhìn việc nền còn sống của một brain, đánh dấu việc thuộc đúng khung chat này."""
+    root = _brain_root(brain)
+    try:
+        tasks = tasks_feature.store.list_tasks(root)
+    except Exception:
+        tasks = []
+    try:
+        orchestration = tasks_feature.store.board_mode(root)
+    except Exception:
+        orchestration = "off"
+    try:
+        st_all = loop_feature.read_state(root)
+        loops = [loop_feature.loop_view(root, lp, st_all)
+                 for lp in loop_feature.list_loops(root)]
+    except Exception:
+        loops = []
+    try:
+        rems = reminders_feature.pending_views(root)
+    except Exception:
+        rems = []
+    running_slug = ""
+    try:
+        running_slug = loop_feature._running[1] if loop_feature._running else ""
+    except Exception:
+        pass
+    return background_status.active_view(
+        tasks, loops, rems, chat_id=chat_id,
+        orchestration=orchestration, running_loop=running_slug,
+    )
+
+
+@app.get("/background")
+async def background_active(brain: str = Query("brain"), chat_id: str = Query("")):
+    """Việc nền đang sống, cho dải trạng thái trong khung chat.
+
+    `chat_id`: "web:<mã phiên>" khi gọi từ dashboard. Việc khớp chat_id được đánh dấu `mine`
+    để dải trạng thái nói được "việc CỦA hội thoại này" thay vì gộp chung với việc của người
+    khác - gộp chung thì lại đúng chỗ mù mà endpoint này sinh ra để lấp.
+    """
+    try:
+        return {"ok": True, **_viec_nen_view(brain, chat_id)}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
+
+
+async def _canh_bao_hua_suong(brain: str, chat_id: str, final_text: str,
+                              runtime_trace=None) -> str:
+    """Dòng sự thật khi Javis hứa "xong em báo" mà lượt đó KHÔNG có việc nền nào.
+
+    Trả về chuỗi cảnh báo (rỗng = không cần cảnh báo). Người gọi quyết định dán vào đâu:
+    dashboard đẩy thành một bong bóng riêng (câu trả lời đã stream xong từ lâu), Telegram nối
+    thẳng vào cuối tin nhắn.
+
+    KHÔNG chặn và KHÔNG sửa câu trả lời của model - chỉ nói thêm sự thật ở dưới.
+    """
+    mau = background_status.detect_promise(final_text or "")
+    if not mau:
+        return ""
+    try:
+        view = _viec_nen_view(brain, chat_id)
+    except Exception:
+        return ""    # không đọc được kho việc thì im, thà thiếu cảnh báo còn hơn cảnh báo sai
+    if background_status.has_pending_work(view):
+        return ""
+    try:
+        _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "promise.unbacked", {
+            "pattern": mau, "orchestration": view.get("orchestration") or "",
+            "background_count": view.get("count", 0),
+        })
+    except Exception:
+        pass
+    return background_status.promise_note(view.get("orchestration") or "")
+
+
 @app.get("/lint")
 async def lint(brain: str = Query("brain")):
     """LINT - health-check Wiki (chỉ đọc, không sửa). Trả danh sách 8 loại vấn đề."""
@@ -7679,6 +7767,17 @@ async def websocket_endpoint(ws: WebSocket):
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
             if final_text:
                 await _persist_turn(store, conv_sid, brain, user_message, final_text)
+                # Hứa "xong em báo" mà không có việc nền nào → nói thẳng ra ngay dưới câu trả
+                # lời. Đẩy thành bong bóng RIÊNG (không sửa câu của model, và câu đó cũng đã
+                # stream xong từ lâu). push_to_chat ghi kho phiên trước rồi mới bắn WebSocket
+                # nên F5 vẫn còn - người dùng cần thấy dòng này đúng lúc họ quay lại đợi.
+                try:
+                    _canh_bao = await _canh_bao_hua_suong(
+                        brain, WEB_CHAT_PREFIX + conv_sid, final_text, runtime_trace)
+                    if _canh_bao:
+                        await push_to_chat(conv_sid, _canh_bao)
+                except Exception as _e:
+                    print(f"[hua suong] {type(_e).__name__}: {_e}", file=sys.stderr)
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
                 if (not used_fast_path and kind == "api" and api_key and
@@ -8984,6 +9083,18 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             prov=prov, kind=kind, api_key=api_key, api_model=api_model,
             store=store, conv_sid=conv_sid, channel=channel, bot=bot)
 
+        # Cùng luật với dashboard: hứa "xong em báo" mà không có việc nền nào thì nói thẳng.
+        # Ở kênh này tin nhắn CHƯA gửi đi nên nối luôn vào cuối, khỏi phải bắn thêm một tin.
+        # Bot chuyên trách đứng ngoài: nó nói chuyện với người lạ và không có quyền giao việc
+        # nền, nên dán một dòng nội bộ về điều phối Kanban vào đó là lạc chỗ.
+        if not bot and isinstance(out, dict):
+            try:
+                _canh_bao = await _canh_bao_hua_suong(
+                    brain, str(chat_id or ""), out.get("text") or "", runtime_trace)
+                if _canh_bao:
+                    out["text"] = (out.get("text") or "") + "\n\n" + _canh_bao
+            except Exception as e:
+                print(f"[hua suong telegram] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         if conv_sid and isinstance(out, dict):
             try:
                 await _persist_turn(store, conv_sid, brain, text, out.get("text") or "")

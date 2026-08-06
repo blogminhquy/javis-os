@@ -13,7 +13,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=60">
+  <link rel="stylesheet" href="/static/style.css?v=61">
   <link rel="stylesheet" href="/static/console.css?v=40">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -343,6 +343,12 @@
         </details>
       </aside>
     </div>
+
+    <!-- Việc nền đang sống của hội thoại này (app.js JavisBackground bơm nội dung, ẩn khi rỗng).
+         Nằm NGAY trên khung nhập vì đó là chỗ mắt người dùng đang ở lúc họ tự hỏi "nó có chạy
+         thật không". Được đăng ký trong CHAT_NODE_IDS (console.js) nên sang trang Trò chuyện
+         là nó đi theo, không bị bỏ lại như thanh #toolBar cũ. -->
+    <div class="bg-strip" id="bgStrip" hidden></div>
 
     <!-- Attachment chips -->
     <div class="attach-bar" id="attachBar"></div>
@@ -679,7 +685,9 @@
   <script src="/static/chat-ask.js?v=1"></script>
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
-  <script src="/static/app.js?v=79"></script>
+  <script src="/static/app.js?v=80"></script>
+  <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
+  <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=3"></script>
   <script src="/static/branding.js?v=7"></script>
   <script src="/static/quick-settings.js?v=4"></script>
@@ -691,7 +699,7 @@
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=97"></script>
+  <script src="/static/console.js?v=98"></script>
   <script src="/static/mobile-chat.js?v=4"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>

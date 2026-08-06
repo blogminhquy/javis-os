@@ -1046,6 +1046,50 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   background: var(--red); border-radius: 2px; transform: rotate(-45deg);
 }
 
+/* ===== Dải VIỆC NỀN ngay trên khung nhập (background-strip.js) =====
+   Ba tông theo đúng ba trạng thái người dùng cần phân biệt:
+     .bg-run   xanh  - có việc đang chạy THẬT
+     .bg-stall vàng  - đã giao nhưng điều phối tắt nên nó KHÔNG chạy (đây là ca gây hiểu lầm
+                       nhất, nên nó phải nổi hơn cả ca đang chạy)
+     .bg-idle  xám   - chỉ còn loop/nhắc hẹn chờ tới giờ
+   Rỗng thì phần tử mang [hidden] nên không chiếm một pixel nào của khung chat. */
+.bg-strip {
+  margin: 0 20px 8px; padding: 8px 12px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--bg3);
+  font-size: 13px; color: var(--text2); max-height: 168px; overflow-y: auto;
+}
+.bg-strip[hidden] { display: none; }
+.bg-run { border-color: var(--ok-line); background: var(--ok-wash); }
+.bg-stall { border-color: var(--warn-line); background: var(--warn-wash); }
+.bg-head { display: flex; align-items: center; gap: 8px; }
+.bg-title { font-weight: 600; color: var(--text); flex: 1 1 auto; min-width: 0; }
+.bg-open {
+  flex: none; background: none; border: 1px solid var(--border); color: var(--text2);
+  border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.bg-open:hover { color: var(--accent); border-color: var(--accent); }
+.bg-dot {
+  flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--text2);
+}
+.bg-run .bg-dot { background: var(--green, #3fb27f); animation: bgPulse 1.4s ease-in-out infinite; }
+.bg-stall .bg-dot { background: var(--warn-ink); }
+@keyframes bgPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.bg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.bg-chip {
+  display: inline-flex; align-items: baseline; gap: 5px; max-width: 320px;
+  padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bg-chip b { font-weight: 600; color: var(--text2); font-size: 11px; }
+.bg-chip i { font-style: normal; color: var(--text2); opacity: 0.75; font-size: 11px; }
+.bg-chip.mine { border-color: var(--accent); }
+.bg-chip.on b { color: var(--green, #3fb27f); }
+.bg-warn { margin-top: 7px; color: var(--warn-ink); line-height: 1.45; }
+@media (max-width: 860px) {
+  .bg-strip { margin: 0 12px 6px; max-height: 132px; }
+}
+
 /* Attachment chips */
 .attach-bar {
   display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px;

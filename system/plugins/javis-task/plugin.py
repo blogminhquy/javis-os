@@ -60,6 +60,18 @@ _COT = [
 
 _MODE_CHO_PHEP = ("suggest", "auto")
 
+# Chỉ mức điều phối "auto" mới có dispatcher lấy việc ra chạy (`tasks.TaskRunner._dispatch`).
+# "off" (mặc định của MỌI brain mới) và "manual" đều để việc nằm im vô thời hạn.
+_CANH_BAO_DIEU_PHOI = (
+    "LƯU Ý QUAN TRỌNG: điều phối việc nền của brain này đang ở mức \"{muc}\" nên việc chỉ nằm "
+    "xếp hàng, KHÔNG tự chạy và sẽ không có kết quả nào tự về. Phải nói thẳng điều này với "
+    "người dùng và bảo họ bật \"AI tự vận hành\" ở trang Việc, đừng hứa là việc đang chạy."
+)
+
+
+def _dieu_phoi_chay(muc) -> bool:
+    return str(muc or "").strip().lower() == "auto"
+
 
 def _feature():
     f = tasks_mod.current()
@@ -119,7 +131,20 @@ def _them(args, ctx) -> str:
         ra.append("CẢNH BÁO: chưa gắn người nhận (chat_id), nên kết quả sẽ về ID Telegram đầu "
                   "tiên trong whitelist - máy chưa đấu Telegram thì mất hút. Lần sau hãy truyền "
                   "chat_id lấy từ khối KÊNH HỘI THOẠI HIỆN TẠI.")
-    ra.append("Việc chạy nền. Kết quả tự về, tiến độ xem ở trang Việc.")
+
+    # Lý do số hai, và là lý do LẶNG LẼ nhất: điều phối mặc định TẮT ở mọi brain mới, nên
+    # "đã giao việc" và "việc đang chạy" là hai chuyện hoàn toàn khác nhau. Trước bản này tool
+    # kết thúc bằng câu "Việc chạy nền. Kết quả tự về" trong MỌI trường hợp - một lời hứa sai
+    # mà model không có cách nào biết là sai, rồi nó chuyển tiếp nguyên văn cho người dùng.
+    muc = "off"
+    try:
+        muc = f.board_view(ctx.vault_root).get("orchestration") or "off"
+    except Exception:
+        pass
+    if _dieu_phoi_chay(muc):
+        ra.append("Việc chạy nền. Kết quả tự về, tiến độ xem ở trang Việc.")
+    else:
+        ra.append(_CANH_BAO_DIEU_PHOI.format(muc=muc))
     return "\n".join(ra)
 
 
@@ -152,9 +177,13 @@ def _liet_ke(args, ctx) -> str:
 
     # Điều phối TẮT thì việc nằm im mãi mãi mà không có một dòng lỗi nào. Nói ngay ở đây, vì đây
     # là chỗ model đang nhìn khi người dùng hỏi "việc chạy tới đâu rồi".
-    if not view.get("orchestration"):
-        dong.append("LƯU Ý: điều phối đang TẮT cho brain này nên việc sẽ nằm chờ, không tự "
-                    "chạy. Bật ở trang Việc.")
+    #
+    # `board_mode` trả CHUỖI "off"/"manual"/"auto", không phải bool - nên `not view.get(...)`
+    # là sai: "off" là chuỗi rỗng-khác-rỗng nên luôn truthy, và cảnh báo này chưa từng in ra
+    # một lần nào kể từ khi được viết. Đúng cổng phải là so với "auto": chỉ mức đó mới có
+    # dispatcher lấy việc ra chạy (xem `tasks.TaskRunner._dispatch`).
+    if not _dieu_phoi_chay(view.get("orchestration")):
+        dong.append(_CANH_BAO_DIEU_PHOI.format(muc=str(view.get("orchestration") or "off")))
     return "\n".join(dong)
 
 

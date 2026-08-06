@@ -4,6 +4,25 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.25.2] - 2026-08-06
+Chủ repo gửi ảnh chụp khung chat kèm câu: *"anh đang bật chức năng siêu tiết kiệm, nhiều khi nó trả lời như này nhưng không hề báo lại chút nào cả. Và có agent chạy ngầm thì anh cũng không biết là nó đang chạy thật hay không? Không giống như claude nếu đang chạy ngầm thì vẫn có báo ở đầu hội thoại. Đây là không thấy gì luôn và không chạy luôn."*
+
+Câu Javis nói trong ảnh: *"Em đang dò code để xem trong nhóm bot có lọc tin nhắn (theo mention, reply, hay AI tự quyết định) trước khi trả lời hay không, có kết quả em báo ngay."* Rồi hết. Không có gì về nữa.
+
+Ba nguyên nhân khác nhau chồng lên nhau cho ra đúng một triệu chứng, và không cái nào để lại một dòng lỗi nào.
+### Sửa lỗi
+- **Cảnh báo "điều phối đang TẮT" của tool giao việc CHƯA TỪNG in ra một lần nào.** Cổng viết là `not view.get("orchestration")`, mà giá trị trả về là CHUỖI `"off"` - luôn truthy, nên nhánh cảnh báo chết từ lúc được viết. Đây là "không chạy luôn": điều phối Kanban mặc định `off` ở mọi brain mới, việc giao từ chat nằm xếp hàng vô thời hạn, và chỗ duy nhất có thể nói ra chuyện đó thì im. Cổng nay so đúng với `"auto"` - mức duy nhất có dispatcher lấy việc ra chạy.
+- **`javis_task` op=add hứa hộ "Việc chạy nền. Kết quả tự về" trong MỌI trường hợp**, kể cả khi điều phối tắt và việc chắc chắn không chạy. Model không có cách nào biết câu đó sai nên nó chuyển tiếp nguyên văn cho người dùng. Nay câu này chỉ xuất hiện khi điều phối THẬT SỰ chạy; còn lại tool nói thẳng việc đang nằm xếp hàng và dặn model đừng hứa là nó đang chạy.
+- **Hứa "xong em báo" rồi im vĩnh viễn.** Luật cũ chỉ cấm đúng một câu mẫu ("em sẽ đợi các agent chạy xong rồi tổng hợp"), nên kiểu "đang làm, có kết quả em báo ngay" lọt thẳng. Chặn bằng cách liệt kê chữ cấm là trò đuổi bắt, nên nay Javis **tự kiểm bằng sự thật**: cuối mỗi lượt server dò lời hứa trong câu trả lời rồi đối chiếu với việc nền đang có thật (việc Kanban, loop, nhắc hẹn). Hứa mà không có gì chạy thì nó tự dán một dòng đính chính ngay dưới câu trả lời, nói rõ là sẽ không có báo cáo nào tự về và anh cần làm gì tiếp. Chạy ở cả dashboard lẫn Telegram; không chặn và không sửa câu của model, chỉ nói thêm sự thật.
+### Thêm mới
+- **Dải "đang chạy ngầm" ngay trên khung nhập.** Đây là vế "không thấy gì luôn": việc nền sống ở ba kho khác nhau (Kanban trong sqlite, loop là file .md, nhắc hẹn trong json) và không kho nào lộ ra ở khung chat, nên muốn biết phải tự nghĩ ra việc mở trang Việc. Dải mới trả lời đúng một câu hỏi "ngay lúc này có cái gì đang chạy cho tôi không", với ba tông rõ ràng: xanh có việc **đang chạy thật**, vàng là **đã giao nhưng KHÔNG tự chạy** (kèm cách bật), xám là loop/nhắc đang chờ tới giờ. Không có gì thì dải ẩn hẳn. Việc giao từ chính hội thoại này được viền riêng và đếm riêng, vì "máy đang bận" với "việc CỦA TÔI đang chạy" là hai chuyện khác nhau.
+- **`GET /background?brain=&chat_id=`**: gom việc nền còn sống của một khung chat từ cả ba kho. Dải trên hỏi endpoint này mỗi 6 giây khi tab đang mở (30 giây khi tab ẩn), và hỏi lại ngay mỗi khi một lượt chat kết thúc hoặc một việc nền vừa báo kết quả về.
+### Cải thiện
+- **Luật cấm hẹn suông chuyển lên khối kênh dùng CHUNG cho mọi kênh** (dashboard, Telegram, CLI) thay vì chỉ nằm ở nhánh dashboard. Nêu thẳng hai lối đúng: làm luôn trong lượt này, hoặc giao thành việc nền rồi nói rõ đã giao gì và kết quả về đâu. Kèm luật mới: giao việc xong phải đọc kết quả tool và thuật lại đúng như vậy, tool báo điều phối tắt thì phải nói ra chứ không rút gọn thành "việc đang chạy".
+### Kiểm thử
+- `test_viec_nen_hien_ra.py`: canh cả ba nguyên nhân. Bộ dò lời hứa kiểm bằng ĐÚNG câu chủ repo chụp lại, cộng 6 câu hứa khác và 6 câu vô hại phải không bị bắt nhầm (cảnh báo thừa dán dưới một câu trả lời đúng còn hỏng hơn là thiếu cảnh báo). Ca đắt nhất: việc đã giao + điều phối tắt thì lời hứa VẪN là suông, vì việc đó sẽ không chạy.
+- `test_giao_viec_moi_engine.py`: kiểm cả hai chiều của cổng điều phối, mức `off` cấm hứa "chạy nền" còn mức `auto` bắt buộc phải nói - một chiều thì không phân biệt được cổng đang đọc mức thật với việc dán cứng một câu.
+
 ## [0.25.1] - 2026-08-06
 Chủ repo cập nhật 0.25.0 rồi báo lại: *"chat trong nhóm vẫn im re, còn chat riêng thì vẫn được"*. Nghĩa là 0.25.0 mới vá đúng MỘT trong ba nguyên nhân cho ra cùng một triệu chứng đó, và hai nguyên nhân còn lại đều nằm ở chỗ Javis không nhìn thấy tin nào.
 
