@@ -28,6 +28,17 @@ def check(name, cond):
 
 
 def _write(data):
+    """Ghi settings.json THÔ, kèm chữ ký "người dùng đã tự chọn mức".
+
+    Chữ ký đó không phải chi tiết vặt. Từ 0.24.7 mức xuất xưởng là Siêu tiết kiệm, nên
+    `read_settings` tự NÂNG allocation của máy chưa từng chọn mức lên 10000 (xem
+    `config._ap_muc_mac_dinh`). File này đo chuyện khác hẳn - `_deep_merge` có giữ được
+    field anh em không - nên nếu để cơ chế nâng mặc định chạy vào thì mọi con số ghi ở đây
+    đều bị viết đè, và test đỏ vì một lý do chẳng liên quan gì tới thứ nó kiểm.
+    """
+    data = json.loads(json.dumps(data))
+    rt = data.setdefault("context_runtime", {})
+    rt.setdefault("preset_choice", {"level": "off", "source": "user", "at": "2026-01-01T00:00:00+00:00"})
     cfg.SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     cfg.SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 

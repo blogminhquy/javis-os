@@ -4,6 +4,31 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.24.7] - 2026-08-06
+Chủ repo chốt bốn việc cùng một lúc: *"gom nút tiết kiệm sang bên Mức Dùng, đặt mặc định phiên bản mới là siêu tiết kiệm, và loại bỏ các thông số không có ý nghĩa với người dùng cuối. Menu tiết kiệm cũng không cần nữa."*
+### Thay đổi hành vi
+- **Mặc định của bản này là Siêu tiết kiệm**, thay cho Tắt. Áp cho cả máy đã cài từ lâu, không riêng máy cài mới - cơ chế `_ap_muc_mac_dinh` dựng sẵn từ 0.16.0 nay mới thật sự được dùng lần đầu.
+
+  Vì sao đổi: trước đây mặc định là Tắt và gần như không ai tự bật, nghĩa là **đa số đang trả tiền cho chế độ đắt nhất mà không biết**. Đo trên một brain mẫu: mức Tắt khoảng 8.900 token cố định mỗi lượt, Siêu tiết kiệm khoảng 460.
+
+  Đây là mặc định an toàn được, không phải liều: mọi đường trong mức này đều fail-closed, thiếu điều kiện thì lượt đó tự rơi về chế độ Đầy đủ chứ không trả lời sai. Và ai **đã từng tự bấm một mức** thì không bị đụng tới, kể cả người cố ý bấm Tắt.
+- **Trang Tiết kiệm gộp vào trang Mức dùng, mục "Tiết kiệm" biến khỏi thanh bên.** Ba nút chọn mức nằm ở ĐẦU trang Mức dùng, trên cả bộ lọc kỳ.
+
+  "Tôi tiêu bao nhiêu" và "làm sao tiêu ít đi" là cùng một câu hỏi. Tách hai trang thì người dùng đọc hết hoá đơn mà không bao giờ thấy cái công tắc.
+- **Bỏ khỏi màn hình mọi thông số của người vận hành máy**: bảng canary tính bằng phần vạn, công tắc trùm off/observe/shadow/canary/on, ô khai hạn mức, cửa sổ token 60 giây, hạn mức tự học, số công cụ registry, độ chính xác khi đoán, bảng "Lượt gần nhất" kèm task_id và execution_path, các bảng đếm lý do trượt.
+
+  Giữ lại đúng thứ người dùng cuối quyết định được: tên mức, tiết kiệm bao nhiêu phần trăm, còn bao nhiêu token mỗi lượt, dấu "không áp cho bộ não đang dùng", và khối **đo thật 24 giờ qua**.
+### Thêm mới
+- **`GET /runtime/muc`** - endpoint gọn trả đúng bốn thứ trang cần. Trang Mức dùng gọi nó sau mỗi lần đổi mức nên nó phải rẻ; `/runtime/diagnostics` vẫn còn nguyên cho ai soi máy, kèm mọi trường vừa gỡ khỏi giao diện.
+- Bấm vào dòng chế độ dưới mỗi câu trả lời, hoặc dòng "Tiết kiệm" trong panel Mức dùng, đều sang thẳng trang Mức dùng. Id trang cũ `runtime` có bảng chuyển hướng nên bookmark cũ không rơi vào màn hình trắng.
+### Sửa lỗi
+- **Bảng dịch tên chế độ giờ chỉ còn MỘT bản** (ở khung chat). Trước đó có hai bản chép tay của cùng một tập tên, và hai bản chép tay là hai chỗ để lệch nhau - lệch thì người dùng không nối được dòng dưới câu trả lời với chỗ chỉnh mức. Bản còn lại được bổ sung tên cho đường `bot`.
+### Kiểm thử
+- Ba fixture ghim cứng "nền sạch là toàn số 0" được sửa lại (`test_muc_mac_dinh`, `test_settings_merge`, `test_runtime_preset`): nền sạch không còn toàn số 0 từ khi mức xuất xưởng là một mức thật. Đây đúng là cái bẫy đã cắn `test_cauhinh_cu_khong_ket` hồi 0.24.3, nên lần này ghi thẳng lý do vào test.
+- Bất biến "số liệu phải đến được mắt người" đổi PHẠM VI chứ không bỏ: nay soi bốn trường của `/runtime/muc` trên trang Mức dùng, và canh riêng rằng đường lấy số liệu chẩn đoán vẫn còn cho người vận hành.
+### Tài liệu
+- `docs/23-muc-dung-token.md` thêm mục **Chế độ tiết kiệm token** và **Vì sao mặc định là Siêu tiết kiệm**; `docs/10` và `docs/17` trỏ lại đúng chỗ mới.
+
 ## [0.24.6] - 2026-08-06
 Chủ repo gửi ảnh một con bot chuyên trách đang trực: người ta nhắn vào, bot trả lời *"Em đang gặp trục trặc kỹ thuật, anh chị nhắn lại giúp em sau ít phút ạ"*, và người trực bị đánh thức kèm lý do `⚠ Anthropic 429: {"type":"rate_limit_error"}`.
 

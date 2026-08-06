@@ -1,6 +1,11 @@
-"""Trang Tiết kiệm token phải nói được nó tiết kiệm BAO NHIÊU, và lượt chat đi đường nào.
+"""Khối chọn mức tiết kiệm phải nói được nó tiết kiệm BAO NHIÊU, và lượt chat đi đường nào.
 
     python tests/run.py trang_tiet_kiem
+
+Từ 0.24.7 khối này nằm ở ĐẦU trang Mức dùng (`dashboard/usage.js`), không còn là một trang
+riêng trong rail. Chủ repo chốt: "gom nút tiết kiệm sang bên Mức dùng... Menu tiết kiệm cũng
+không cần nữa". Đúng: "tôi tiêu bao nhiêu" và "làm sao tiêu ít đi" là cùng một câu hỏi, tách
+hai trang thì người dùng thấy hoá đơn mà không thấy cái công tắc.
 
 Yêu cầu chủ repo: đổi tên ba mức thành Tắt / Tối ưu / Siêu tiết kiệm, đặt lên đầu trang, và
 "bộ đếm thì sẽ ghi tiết kiệm được bao nhiêu % khi tối ưu, khi bật mode siêu tiết kiệm".
@@ -32,6 +37,7 @@ def check(name, cond):
 
 
 _CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+_USAGE = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
 _APP = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 _MAIN = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 
@@ -46,17 +52,24 @@ check("CANARY: không còn tên cũ 'Tiết kiệm' cho mức giữa", "Tiết k
 check("CANARY: không còn tên cũ 'Tối đa'", "Tối đa" not in _nhan.values())
 
 # ============================================================
-# 2. Ba mức nằm ở ĐẦU trang
+# 2. Ba mức nằm ở ĐẦU trang Mức dùng
 # ============================================================
-# Chôn ba nút ở giữa trang, dưới bốn khối biểu đồ, là mở trang ra thấy số liệu trước khi thấy
-# cái nút cần bấm.
-_i_preset = _CONSOLE.find('<h3>Chọn mức tiết kiệm</h3>')
-_i_banner = _CONSOLE.find('class="rt-banner')
-_i_grid = _CONSOLE.find('<div class="rt-grid">')
-check("có khối chọn mức", _i_preset != -1)
-check("CANARY: khối chọn mức đứng TRƯỚC dải trạng thái", 0 < _i_preset < _i_banner)
-check("CANARY: và đứng trước các khối số liệu", 0 < _i_preset < _i_grid)
-check("khối cũ ở giữa trang đã gỡ", _CONSOLE.count("<h3>Mức tiết kiệm</h3>") == 0)
+# Chôn ba nút xuống dưới hoá đơn là mở trang ra thấy số liệu trước khi thấy cái nút cần bấm.
+# Đây chính là yêu cầu của chủ repo: "trong mức dùng sẽ để chế độ tiết kiệm ngay trên đầu
+# tiên luôn". Soi THỨ TỰ GHÉP CHUỖI thật, không soi định nghĩa hàm - hàm có thể tồn tại mà
+# không bao giờ được ghép vào trang.
+check("có khối chọn mức trong trang Mức dùng", "function mucHtml(" in _USAGE)
+_i_ghep = _USAGE.find("mucHtml(state.muc) + bar1")
+check("CANARY: khối chọn mức ghép TRƯỚC thanh lọc kỳ và mọi con số", _i_ghep != -1)
+check("và có tiêu đề người đọc hiểu", "Chế độ tiết kiệm token" in _USAGE)
+
+# Trang riêng đã gỡ hẳn: còn sót một mảnh là rail vẫn hiện mục Tiết kiệm, hoặc tệ hơn, hai
+# nơi cùng vẽ một khối và chúng lệch nhau.
+check("CANARY: trang Tiết kiệm không còn trong rail",
+      'label: "Tiết kiệm"' not in _CONSOLE and '{ id: "runtime"' not in _CONSOLE)
+check("CANARY: và hàm dựng trang đó đã xoá", "renderRuntime" not in _CONSOLE)
+check("id cũ vẫn có chỗ đáp, không rơi vào màn hình trắng",
+      "TRANG_GOP" in _CONSOLE and 'runtime: "usage"' in _CONSOLE)
 
 # ============================================================
 # 3. Mỗi mức ghi rõ tiết kiệm bao nhiêu phần trăm
@@ -113,7 +126,7 @@ check("có chi tiết để đối chiếu, không chỉ một con số trơ",
       set(_uoc.get("chi_tiet") or {}) >= {"claude_md_va_bo_nho", "capsule", "mo_ta_cong_cu"})
 # Nói rõ là ƯỚC LƯỢNG. Trình bày một ước lượng như số đo là hứa thứ không giữ được.
 check("CANARY: tự khai đây là ước lượng", _uoc.get("la_uoc_luong") is True)
-check("giao diện có nói ra chữ 'ước lượng'", "ước lượng" in _CONSOLE)
+check("giao diện có nói ra chữ 'ước lượng'", "ước lượng" in _USAGE)
 
 # Khai hỏng thì trả rỗng chứ không nổ giữa trang.
 check("brain không tồn tại vẫn không nổ",
@@ -121,13 +134,40 @@ check("brain không tồn tại vẫn không nổ",
 check("tham số sai kiểu vẫn không nổ (gọi thẳng hàm endpoint)",
       isinstance(asyncio.run(main._uoc_tinh_tiet_kiem(None)), dict))
 
-# Giao diện phải THẬT SỰ vẽ con số đó ra.
-_nut = _CONSOLE[_CONSOLE.find('data-preset="${esc(p.id)}"'):][:520]
-check("CANARY: nút mức GỌI hàm dựng phần trăm (không chỉ có định nghĩa)",
-      "${presetPct(p.id)}" in _nut)
-check("CANARY: và gọi hàm dựng token mỗi lượt", "${presetTok(p.id)}" in _nut)
-check("có CSS cho hai thứ đó", "rt-pct" in _CONSOLE and "rt-pertok" in _CONSOLE)
-check("giao diện đọc đúng trường API trả về", "d.uoc_tinh" in _CONSOLE)
+# Giao diện phải THẬT SỰ vẽ con số đó ra, không chỉ định nghĩa biến rồi bỏ đó.
+_nut = _USAGE[_USAGE.find('data-muc="'):][:900]
+check("CANARY: nút mức có ghép phần trăm vào", "pct" in _nut and "m.phan_tram" in _USAGE)
+check("CANARY: và ghép token mỗi lượt vào", "tok" in _nut and "m.token_moi_request" in _USAGE)
+check("có CSS cho hai thứ đó", ".tk-muc-pct{" in _USAGE and ".tk-muc-tok{" in _USAGE)
+check("giao diện đọc đúng trường API trả về", "d.uoc_tinh" in _USAGE)
+
+# ============================================================
+# 3b. Endpoint gọn: trả ĐÚNG bốn thứ trang cần, không hơn
+# ============================================================
+# Trang Mức dùng không được gọi `/runtime/diagnostics`: endpoint đó gánh theo bảng canary
+# tính bằng phần vạn, cửa sổ token 60 giây, hạn mức tự học, danh sách task kèm
+# execution_path, kết quả integrity_check. Không thứ nào trả lời được câu hỏi duy nhất của
+# người dùng cuối ("tôi nên bấm mức nào"), mà mỗi thứ đều tốn một lượt đọc runtime.db.
+_muc_api = asyncio.run(main.runtime_muc(brain="brain"))
+check("endpoint gọn trả về dict", isinstance(_muc_api, dict))
+check("có đủ bốn thứ trang cần",
+      set(_muc_api) == {"muc", "danh_sach", "tu_chon", "uoc_tinh", "do_duoc"})
+check("CANARY: và KHÔNG kèm số liệu chẩn đoán",
+      not ({"canaries", "tpm_window", "quota_presets", "registry", "tasks"} & set(_muc_api)))
+check("danh sách mức khớp bảng mức thật",
+      [x["id"] for x in _muc_api["danh_sach"]] == list(main.RUNTIME_PRESETS))
+check("mỗi mức có nhãn và mô tả",
+      all(x.get("nhan") and x.get("mo_ta") for x in _muc_api["danh_sach"]))
+check("mức đang chạy là một trong số đó (hoặc custom)",
+      _muc_api["muc"] in set(main.RUNTIME_PRESETS) | {"custom"})
+check("khai rõ người dùng đã tự chọn hay chưa", isinstance(_muc_api["tu_chon"], bool))
+# Giao diện đọc đúng những tên đó. Backend đúng mà tên trường lệch một chữ thì trang vẽ ra
+# ba cái nút trống, và không có gì báo lỗi cả.
+for _f in ("d.muc", "d.danh_sach", "d.tu_chon", "d.uoc_tinh", "d.do_duoc"):
+    check(f"giao diện đọc '{_f}'", _f in _USAGE)
+check("giao diện gọi đúng endpoint gọn",
+      '"/runtime/muc"' in _USAGE and "/runtime/diagnostics" not in _USAGE)
+
 
 # ============================================================
 # 4. Số ĐO ĐƯỢC từ lượt thật, tách hẳn khỏi ước lượng
@@ -157,8 +197,8 @@ check("phần trăm giảm đúng", _do["phan_tram"] == 92)
 # Lượt không có số token thì bỏ, đừng kéo trung bình xuống 0 rồi khoe tiết kiệm 100%.
 check("CANARY: lượt thiếu số token bị bỏ, không thổi phồng con số",
       _do["so_luot_moi"] == 2 and _do["tb_moi"] > 0)
-check("giao diện có vẽ bảng đo thật", "rt-doduoc" in _CONSOLE and "d.do_duoc" in _CONSOLE)
-check("và nói rõ đây là số THẬT chứ không phải ước lượng", "không phải ước lượng" in _CONSOLE)
+check("giao diện có vẽ bảng đo thật", "tk-muc-do" in _USAGE and "d.do_duoc" in _USAGE)
+check("và nói rõ đây là số THẬT chứ không phải ước lượng", "số thật" in _USAGE)
 
 # ============================================================
 # 5. Đường tiết kiệm phải có TÊN RIÊNG trong trace
@@ -213,7 +253,7 @@ check("giao diện có hàm vẽ dòng đó", "function _renderCtxLine(" in _APP
 check("CANARY: và THẬT SỰ gọi khi lượt kết thúc", "_renderCtxLine(msgEl, data);" in _APP)
 check("CSS cho dòng đó có thật",
       ".msg-ctx" in (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8"))
-check("bấm vào dòng đó thì sang trang Tiết kiệm token", 'usageGoto = "runtime"' in _APP)
+check("bấm vào dòng đó thì sang trang Mức dùng", 'usageGoto = "usage"' in _APP)
 
 # ============================================================
 # 7. Panel Mức dùng cũng phải nói được chuyện này
@@ -236,23 +276,18 @@ check("CANARY: có cache để không gọi lại sau mỗi lượt chat",
 # Tên phải NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người
 # viết code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn
 # khi bấm "Tắt". Chủ repo nói thẳng: "đừng đặt tên là đường cũ nghe nó buồn cười".
-_TEN = {"legacy": "Đầy đủ", "unassigned": "Đầy đủ", "sources": "Tối ưu", "fast": "Tức thì"}
-check("có bảng dịch tên chế độ ở trang", "DUONG_LABEL" in _CONSOLE)
+# Từ 0.24.7 chỉ còn MỘT bảng dịch, ở khung chat. Bảng thứ hai đi cùng trang Tiết kiệm - và
+# đó là cái kết đúng: hai bảng chép tay của cùng một tập tên là hai chỗ để lệch nhau, mà
+# lệch thì người dùng không nối được dòng dưới câu trả lời với chỗ chỉnh mức.
+_TEN = {"legacy": "Đầy đủ", "sources": "Tối ưu", "fast": "Tức thì"}
 check("có bảng dịch tên chế độ ở khung chat", "CTX_PATH_LABEL" in _APP)
-_bang_trang = _CONSOLE.split("DUONG_LABEL = {")[1].split("};")[0]
+check("CANARY: không còn bảng thứ hai để lệch", "DUONG_LABEL" not in _CONSOLE)
 _bang_chat = _APP.split("CTX_PATH_LABEL = {")[1].split("};")[0]
 for _k, _v in _TEN.items():
-    check(f"trang gọi '{_k}' là '{_v}'", f'{_k}: "{_v}"' in _bang_trang)
-    if _k != "unassigned":   # khung chat quy unassigned về legacy từ phía máy chủ
-        check(f"khung chat gọi '{_k}' là '{_v}'", f'{_k}: "{_v}"' in _bang_chat)
-# Hai bảng phải khớp nhau: dòng dưới câu trả lời ghi một đằng, bảng trên trang ghi một nẻo
-# thì người dùng không nối được hai chỗ với nhau.
-for _k in ("readonly", "orchestrator", "write", "workflow"):
-    _a = _bang_trang.split(f"{_k}: ")[1].split('"')[1]
-    _b = _bang_chat.split(f"{_k}: ")[1].split('"')[1]
-    check(f"CANARY: trang và khung chat gọi '{_k}' giống nhau ({_a})", _a == _b)
-
-check("CANARY: bảng chế độ dùng bản đã dịch", "_tenDuong(d.paths)" in _CONSOLE)
+    check(f"khung chat gọi '{_k}' là '{_v}'", f'{_k}: "{_v}"' in _bang_chat)
+for _k in ("readonly", "orchestrator", "write", "workflow", "bot"):
+    check(f"và có tên tiếng Việt cho '{_k}'",
+          len(_bang_chat.split(f"{_k}: ")[1].split('"')[1]) > 2)
 
 # Và không được sót chữ cũ ở BẤT KỲ chỗ nào người dùng đọc. Bỏ comment trước khi soi: cả hai
 # file đều nhắc lại cụm cũ trong phần giải thích vì sao bỏ nó, quét cả comment là bắt nhầm

@@ -117,11 +117,15 @@ check("nâng mặc định lên Tối ưu thì máy cũ được đúng ba đư�
       main.current_preset(_rt) == "saving")
 check("Tối ưu KHÔNG kéo theo đường tắt", _bp(_rt, "canary") == 0)
 
-# Mức xuất xưởng hiện tại là "off" nên hàm phải đứng im - đổi hành vi ngay hôm nay là đổi
-# sau lưng người đang dùng, mà bản này chỉ dựng sẵn cơ chế.
+# Mức xuất xưởng THẬT của bản đang build, đo qua đường đọc bình thường chứ không giả lập.
+# Từ 0.24.7 là "max": máy đã cài từ lâu, chưa từng tự chọn mức, mở lên là đã ở Siêu tiết
+# kiệm. Đây là điểm khác biệt lớn nhất của bản này với mọi bản trước, nên nó phải có một
+# phép thử đọc thẳng `PRESET_MAC_DINH` - đổi lại "off" mà quên chỗ khác thì đỏ ngay.
 _ghi(MAY_CU)
-check("mức xuất xưởng của bản NÀY chưa đổi gì của ai",
-      main.current_preset(cfg.read_settings().get("context_runtime") or {}) == "off")
+check(f"mức xuất xưởng của bản NÀY là '{cfg.PRESET_MAC_DINH}', và máy cũ ăn được nó",
+      main.current_preset(cfg.read_settings().get("context_runtime") or {})
+      == cfg.PRESET_MAC_DINH)
+check("CANARY: bản này xuất xưởng ở mức Siêu tiết kiệm", cfg.PRESET_MAC_DINH == "max")
 
 # Mức không bật đường nào thì không có lý do gì đụng tới công tắc trùm - công tắc đó dùng
 # chung với các phase khác (readonly, orchestrator, write).
@@ -222,12 +226,19 @@ async def _go():
           main.current_preset(_rt) == "saving")
 
     # Công tắc trùm: hạ về shadow là cố ý tắt hết, phải được tôn trọng y như bấm Tắt.
+    #
+    # Đo bằng "KHÔNG ĐỔI so với ngay sau khi ký", không phải bằng số 0 gõ cứng. Nền sạch
+    # không còn là toàn số 0 từ khi mức xuất xưởng là một mức thật (0.24.7), và một fixture
+    # ghim số 0 thì hoá đỏ ngay lúc đổi mặc định - trong khi thứ nó định kiểm (cập nhật
+    # không giẫm lên người đã ký) vẫn đúng nguyên. Đúng cái bẫy đã cắn
+    # test_cauhinh_cu_khong_ket một lần rồi.
     _lam_moi()
     await main.runtime_mode_set(mode="shadow")
     check("đổi công tắc trùm cũng ký tên", _chu_ky().get("source") == "user")
+    _truoc = _bp(cfg.read_settings().get("context_runtime") or {}, "memory_canary")
     _rt = _doc_voi_mac_dinh("max")
     check("hạ mode về shadow rồi thì cập nhật không kéo lên lại",
-          _rt.get("mode") == "shadow" and _bp(_rt, "memory_canary") == 0)
+          _rt.get("mode") == "shadow" and _bp(_rt, "memory_canary") == _truoc)
 
     # Chỉnh tay một đường ở phần Nâng cao cũng là có ý kiến riêng.
     _lam_moi()
@@ -235,20 +246,22 @@ async def _go():
                                       allocation_basis_points=5000, allow_inert=True)
     check("chỉnh tay một đường → ok", isinstance(r, dict) and r.get("ok"))
     check("chỉnh tay một đường cũng ký tên", _chu_ky().get("source") == "user")
+    _canary_truoc = _bp(cfg.read_settings().get("context_runtime") or {}, "canary")
     _rt = _doc_voi_mac_dinh("max")
     check("cấu hình chỉnh tay không bị cập nhật ghi đè",
-          _bp(_rt, "memory_canary") == 5000 and _bp(_rt, "canary") == 0)
+          _bp(_rt, "memory_canary") == 5000 and _bp(_rt, "canary") == _canary_truoc)
 
 asyncio.run(_go())
 
 # ---- 7. Người dùng phải THẤY mình đang ở mặc định hay ở lựa chọn của mình ----
-_console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("giao diện đọc nguồn của mức đang chạy", "preset_nguon" in _console)
-check("giao diện nói rõ khi mức chỉ là mặc định", "rt-chuachon" in _console)
-_css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
-check("có style cho dòng đó", ".rt-chuachon" in _css)
+# Khối chọn mức nằm ở đầu trang Mức dùng từ 0.24.7 (trước đó là một trang riêng trong rail).
+_usage = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
+check("giao diện đọc nguồn của mức đang chạy", "d.tu_chon" in _usage)
+check("giao diện nói rõ khi mức chỉ là mặc định",
+      "mặc định của bản này" in _usage and "chưa tự chọn bao giờ" in _usage)
 _src_main = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
-check("máy chủ trả nguồn của mức cho giao diện", '"preset_nguon"' in _src_main)
+check("máy chủ trả nguồn của mức cho giao diện",
+      '"tu_chon"' in _src_main and '"preset_nguon"' in _src_main)
 
 print()
 if _fails:

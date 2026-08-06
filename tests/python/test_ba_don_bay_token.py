@@ -440,16 +440,19 @@ _t3 = _rt3.start_turn("s-ld3", "brain", "dashboard")
 _hang3 = [x for x in _rt3.diagnostics_snapshot()["tasks"] if x["task_id"] == _t3.task_id][0]
 check("lượt chưa ghim đường nào thì để trống, không bịa", _hang3.get("ly_do") == "")
 
-# Giao diện phải DỊCH mã đó ra tiếng người và thật sự vẽ ra.
-_CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("trang có bảng dịch lý do", "LY_DO_LABEL" in _CONSOLE and "_lyDo(" in _CONSOLE)
-check("CANARY: và THẬT SỰ vẽ lý do vào bảng lượt gần nhất",
-      "_lyDo(t.ly_do)" in _CONSOLE)
-check("dịch được mấy mã hay gặp nhất",
-      all(k in _CONSOLE for k in ("requires_live_data", "registry_stale",
-                                  "provider_kind_not_allowed", "capability_selected")))
-check("có CSS cho dòng lý do",
-      ".rt-lydo" in (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8"))
+# Mã lý do phải ĐẾN được nơi đọc nó. Từ 0.24.7 nơi đó là API, không phải màn hình: trang
+# Tiết kiệm gộp vào Mức dùng và bỏ bảng "Lượt gần nhất" cùng cột lý do - task_id,
+# execution_path và mã lý do là ngôn ngữ của người vận hành máy, và chủ repo bảo bỏ đúng
+# nhóm đó. Bù lại phải chắc rằng đường lấy chúng còn nguyên, nếu không thì lý do bị ghi vào
+# một cái giếng không ai múc được.
+_MAIN_SRC = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+check("API vẫn trả lý do ra ngoài", '"vi_sao"' in _MAIN_SRC)
+_RT_SRC = (ROOT / "server" / "context_runtime.py").read_text(encoding="utf-8")
+check("và runtime vẫn ghi mã lý do vào trace", "ly_do" in _RT_SRC)
+_FP_SRC = (ROOT / "server" / "fast_path_runtime.py").read_text(encoding="utf-8")
+check("CANARY: mấy mã hay gặp nhất vẫn được sinh ra",
+      all(k in (_MAIN_SRC + _RT_SRC + _FP_SRC)
+          for k in ("registry_stale", "provider_kind_not_allowed", "capability_selected")))
 
 
 # ============================================================

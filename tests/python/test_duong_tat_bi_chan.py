@@ -203,9 +203,12 @@ check("xếp lý do nhiều nhất lên đầu",
 check("lượt đã đi tắt không bị tính là lý do",
       all(x["ma"] != "admitted" for x in _vs["top"]))
 
-_console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("giao diện có vẽ khối lý do", "_viSao" in _console and "vi_sao" in _console)
-check("và dịch mã lý do sang tiếng Việt", "_lyDo(x.ma)" in _console)
+# Khối "vì sao chưa đi tắt" đi cùng trang Tiết kiệm khi trang đó gộp vào Mức dùng (0.24.7).
+# Bảng xếp hạng lý do vẫn được tính và vẫn trả qua `/runtime/diagnostics` cho người vận hành;
+# chỉ là không còn màn hình nào bắt buộc phải vẽ nó cho người dùng cuối.
+_main_src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+check("máy chủ vẫn xếp hạng lý do và trả ra", "_vi_sao_chua_di_tat(" in _main_src
+      and '"vi_sao"' in _main_src)
 check("máy chủ có trả khối đó", '"vi_sao"' in _src)
 
 print()

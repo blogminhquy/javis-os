@@ -18,7 +18,7 @@
   var ACT_LABEL = { chat: "Chat", background: "Nền (loop/lịch)", subagent: "Subagent", manual: "Thủ công" };
   var PROV_COLOR = { claude: "var(--accent)", codex: "var(--green)", api: "var(--link-ink)" };
 
-  var state = { period: "this_month", provider: "", el: null, busy: false };
+  var state = { period: "this_month", provider: "", el: null, busy: false, muc: null, toast: "" };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
@@ -83,7 +83,32 @@
       + ".tk-ins .ico{font-size:16px;flex:0 0 auto}"
       + ".tk-ins .t{font-weight:600;color:var(--text);font-size:13.5px}"
       + ".tk-ins .d{color:var(--text2);font-size:12.5px;margin-top:2px;line-height:1.5}"
-      + ".tk-note{margin-top:22px;font-size:12px;color:var(--text3);line-height:1.55;max-width:720px}";
+      + ".tk-note{margin-top:22px;font-size:12px;color:var(--text3);line-height:1.55;max-width:720px}"
+      // Khối chọn mức tiết kiệm, đặt ở ĐẦU trang. Trước 0.24.7 nó là một trang riêng trong
+      // rail; gộp vào đây vì "tôi tiêu bao nhiêu" và "tôi muốn tiêu ít đi" là cùng một câu
+      // hỏi, tách hai chỗ thì người dùng thấy con số mà không thấy cái nút.
+      + ".tk-muc{margin-bottom:22px}"
+      + ".tk-muc-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}"
+      + ".tk-muc-b{position:relative;text-align:left;cursor:pointer;padding:13px 15px;border-radius:12px;border:1px solid var(--glass-brd);background:var(--glass);color:var(--text);transition:.12s}"
+      + ".tk-muc-b:hover:not(:disabled){border-color:var(--accent)}"
+      + ".tk-muc-b:disabled{opacity:.55;cursor:default}"
+      + ".tk-muc-b.on{border-color:var(--accent);background:var(--accent-wash-2,var(--glass))}"
+      + ".tk-muc-b b{display:block;font-size:14px}"
+      + ".tk-muc-top{display:flex;align-items:baseline;gap:8px;justify-content:space-between}"
+      + ".tk-muc-pct{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap}"
+      + ".tk-muc-tok{display:block;font-size:11.5px;color:var(--text3);margin:2px 0 5px;font-variant-numeric:tabular-nums}"
+      + ".tk-muc-b small{display:block;font-size:12px;line-height:1.5;color:var(--text2)}"
+      + ".tk-muc-now{display:inline-block;margin-top:8px;font-size:11px;padding:1px 8px;border-radius:999px;background:var(--accent-solid);color:var(--on-accent)}"
+      + ".tk-muc-na{display:inline-block;margin-top:8px;font-size:11px;color:var(--text3)}"
+      + ".tk-muc-note{font-size:12px;color:var(--text3);line-height:1.55;margin-top:10px;max-width:720px}"
+      + ".tk-muc-do{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:14px;padding:13px 15px;border:1px solid var(--glass-brd);border-radius:12px;background:var(--glass)}"
+      + ".tk-muc-do .k{font-size:12px;color:var(--text2)}"
+      + ".tk-muc-do .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:3px}"
+      + ".tk-muc-do .s{font-size:11px;color:var(--text3);margin-top:2px}"
+      + ".tk-muc-do .pct .v{color:var(--accent)}"
+      + ".tk-muc-toast{padding:9px 13px;border-radius:10px;font-size:13px;margin-top:10px;border:1px solid var(--glass-brd)}"
+      + ".tk-muc-toast.ok{border-color:var(--accent)}"
+      + ".tk-muc-toast.err{color:var(--red)}";
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
   }
 
@@ -94,6 +119,15 @@
     load(true);
   }
 
+  // Mức tiết kiệm không đổi theo kỳ hay theo provider, nên chỉ gọi lại khi thật sự cần
+  // (lần đầu mở trang, và sau khi người dùng bấm đổi mức).
+  function loadMuc(force) {
+    if (state.muc && !force) return Promise.resolve(state.muc);
+    return fetch("/runtime/muc").then(function (r) { return r.json(); })
+      .then(function (d) { state.muc = d || {}; return state.muc; })
+      .catch(function () { return state.muc || null; });
+  }
+
   function load(doRefresh) {
     var q = "?period=" + encodeURIComponent(state.period)
       + (state.provider ? "&provider=" + state.provider : "")
@@ -102,10 +136,88 @@
       fetch("/usage/summary" + q).then(function (r) { return r.json(); }),
       fetch("/usage/insights?period=" + encodeURIComponent(state.period)).then(function (r) { return r.json(); }).catch(function () { return { items: [] }; }),
       fetch("/usage").then(function (r) { return r.json(); }).catch(function () { return {}; }),
+      loadMuc(false),
     ]).then(function (res) {
       paint(res[0] || {}, (res[1] || {}).items || [], res[2] || {});
     }).catch(function () {
       if (state.el) state.el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder"><div class="ph-ico">' + ic("chart-column", { cls: "ic-xl ic-dim" }) + '</div><div>Không tải được số liệu token.</div></div></div>';
+    });
+  }
+
+  // ===== Mức tiết kiệm token =====
+  // Khối này đứng ĐẦU trang Mức dùng, trước cả bộ lọc kỳ. Lý do: mọi con số bên dưới trả
+  // lời "tôi đã tiêu bao nhiêu", còn đây là chỗ duy nhất trả lời "làm sao tiêu ít đi". Để
+  // nó ở cuối trang, hay ở một trang riêng như trước, là bắt người dùng đọc hết hoá đơn rồi
+  // mới tình cờ thấy cái công tắc.
+  //
+  // Chỉ vẽ những gì người dùng cuối quyết định được: tên mức, tiết kiệm bao nhiêu, và số đo
+  // thật. Mọi thứ còn lại của trang chẩn đoán cũ (allocation tính bằng phần vạn, tên đường
+  // canary, cửa sổ token 60 giây, execution_path từng lượt) là ngôn ngữ của người vận hành
+  // máy, không phải của người đang trả tiền token.
+  function mucHtml(d) {
+    if (!d || !(d.danh_sach || []).length) return "";
+    var uocMuc = ((d.uoc_tinh || {}).muc) || {};
+    var dod = d.do_duoc || {};
+    var btns = d.danh_sach.map(function (p) {
+      var m = uocMuc[p.id] || {};
+      var pct = (p.id !== "off" && m.phan_tram)
+        ? '<span class="tk-muc-pct">-' + (+m.phan_tram || 0) + "% token</span>" : "";
+      var tok = m.token_moi_request != null
+        ? '<span class="tk-muc-tok">' + (+m.token_moi_request || 0).toLocaleString("vi-VN") + " token mỗi lượt</span>" : "";
+      // Bộ não đang chạy không ăn được mức này thì phải nói NGAY trên nút. Khoe một con số
+      // không bao giờ tới là dạy người dùng thôi tin cả trang.
+      var na = m.ap_dung === false ? '<span class="tk-muc-na">không áp cho bộ não đang dùng</span>' : "";
+      var now = p.id === d.muc ? '<span class="tk-muc-now">đang dùng</span>' : "";
+      return '<button class="tk-muc-b' + (p.id === d.muc ? " on" : "") + '" data-muc="' + esc(p.id) + '">'
+        + '<span class="tk-muc-top"><b>' + esc(p.nhan) + "</b>" + pct + "</span>"
+        + tok + "<small>" + esc(m.ghi_chu || p.mo_ta) + "</small>" + na + now + "</button>";
+    }).join("");
+
+    var doHtml = "";
+    if (dod.du_du_lieu) {
+      doHtml = '<div class="tk-muc-do">'
+        + '<div><div class="k">Chế độ Đầy đủ</div><div class="v">' + fTok(dod.tb_cu) + '</div><div class="s">token mỗi lượt, ' + (dod.so_luot_cu || 0) + " lượt</div></div>"
+        + '<div><div class="k">Khi tiết kiệm</div><div class="v">' + fTok(dod.tb_moi) + '</div><div class="s">token mỗi lượt, ' + (dod.so_luot_moi || 0) + " lượt</div></div>"
+        + '<div class="pct"><div class="k">Giảm được</div><div class="v">' + (dod.phan_tram || 0) + '%</div><div class="s">số thật đo trong 24 giờ qua</div></div>'
+        + "</div>";
+    }
+
+    var chuaChon = d.tu_chon ? "" : " Mức đang chạy là mặc định của bản này, bạn chưa tự chọn bao giờ."
+      + " Bấm một mức bất kỳ là Javis ghim lại, từ đó không bản cập nhật nào đổi nữa.";
+    return '<div class="tk-muc"><div class="tk-sec">Chế độ tiết kiệm token</div>'
+      + '<div class="tk-muc-list">' + btns + "</div>"
+      + (state.toast ? state.toast : "")
+      + doHtml
+      + '<div class="tk-muc-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis'
+      + " trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức."
+      + " Con số phần trăm là ước lượng đo trên chính bộ não và bộ nhớ của bạn."
+      + esc(chuaChon) + "</div></div>";
+  }
+
+  function bindMuc() {
+    var el = state.el; if (!el) return;
+    el.querySelectorAll("[data-muc]").forEach(function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute("data-muc");
+        el.querySelectorAll("[data-muc]").forEach(function (x) { x.disabled = true; });
+        var fd = new FormData(); fd.append("level", id);
+        fetch("/runtime/preset", { method: "POST", body: fd })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.j || res.j.ok === false) {
+              state.toast = '<div class="tk-muc-toast err">' + esc((res.j && res.j.error) || "Đổi mức thất bại.") + "</div>";
+            } else {
+              var cb = (res.j.canh_bao || []).join(" ");
+              state.toast = '<div class="tk-muc-toast ok">Đã chuyển sang mức "' + esc(res.j.nhan) + '". Có hiệu lực ngay.'
+                + (cb ? " " + esc(cb) : "") + "</div>";
+            }
+            return loadMuc(true);
+          })
+          .catch(function (e) {
+            state.toast = '<div class="tk-muc-toast err">Đổi mức thất bại: ' + esc(e && e.message ? e.message : e) + "</div>";
+          })
+          .then(function () { load(false); });
+      };
     });
   }
 
@@ -207,8 +319,9 @@
 
     var note = '<div class="tk-note">Số "Tổng token" gồm cả token đọc-cache (cache_read), nên rất lớn - cache hit cao nghĩa là phần lớn là đọc lại ngữ cảnh (rẻ), xem cột Cache hit. Chi phí là QUY ĐỔI theo giá API để tham khảo: với gói thuê bao Claude/ChatGPT đây không phải tiền thật, chỉ OpenRouter mới là tiền thật. Nguồn Claude và Codex dựng từ log thật (có lịch sử); nhánh API chỉ có số từ khi bật ghi log.</div>';
 
-    el.innerHTML = '<div class="tk-wrap">' + bar1 + cards + chart + grid + tables + insHtml + note + "</div>";
+    el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + cards + chart + grid + tables + insHtml + note + "</div>";
     bind();
+    bindMuc();
   }
 
   function tableProj(items) {

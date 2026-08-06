@@ -215,12 +215,12 @@ check("và thật sự tốn ít token hơn mức Tối ưu",
 
 # Giao diện phải VẼ được chuyện đó ra, không thì con số đúng nằm trong JSON mà người dùng
 # vẫn đọc nhầm.
-_CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+# Khối chọn mức nằm ở đầu trang Mức dùng từ 0.24.7 (trước đó là trang riêng trong rail).
+_USAGE = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
 check("trang có vẽ dấu 'không áp cho bộ não đang dùng'",
-      "presetKhongAp" in _CONSOLE and "rt-preset-na" in _CONSOLE)
-check("CANARY: và THẬT SỰ gọi khi vẽ nút", "${presetKhongAp(p.id)}" in _CONSOLE)
-check("có CSS cho dấu đó",
-      ".rt-preset-na" in (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8"))
+      "không áp cho bộ não đang dùng" in _USAGE and "tk-muc-na" in _USAGE)
+check("CANARY: và THẬT SỰ gọi khi vẽ nút", "m.ap_dung === false" in _USAGE)
+check("có CSS cho dấu đó", ".tk-muc-na{" in _USAGE)
 
 
 # ============================================================
@@ -228,10 +228,10 @@ check("có CSS cho dấu đó",
 # ============================================================
 # Máy chủ trả `canh_bao` từ 0.13.0, nhưng giao diện chưa bao giờ hiện nó: người dùng chỉ
 # thấy một dòng xanh "đã bật, có hiệu lực ngay" kể cả khi máy chủ vừa nói ngược lại.
-check("CANARY: giao diện đọc canh_bao từ máy chủ", "body.canh_bao" in _CONSOLE)
-_i3 = _CONSOLE.find("body.canh_bao")
+check("CANARY: giao diện đọc canh_bao từ máy chủ", "res.j.canh_bao" in _USAGE)
+_i3 = _USAGE.find("res.j.canh_bao")
 check("CANARY: và ghép nó vào đúng thông báo hiện ra",
-      "cb" in _CONSOLE[_i3:_i3 + 600] and "_rtToast" in _CONSOLE[_i3:_i3 + 600])
+      "cb" in _USAGE[_i3:_i3 + 600] and "tk-muc-toast" in _USAGE[_i3:_i3 + 600])
 
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)

@@ -1690,11 +1690,14 @@ const ENGINE_LABEL = {
 // Tên NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người viết
 // code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn khi
 // bấm "Tắt" - gọi nó là "cũ" vừa nghe như đang xin lỗi, vừa làm người ta tưởng máy đang hỏng.
-// Tên ở đây khớp tên nút bên trang Tiết kiệm token để nhìn một dòng là biết mình đang ở đâu.
+// Tên ở đây khớp tên nút bên trang Mức dùng để nhìn một dòng là biết mình đang ở đâu.
 const CTX_PATH_LABEL = {
   legacy: "Đầy đủ", sources: "Tối ưu", fast: "Tức thì",
   readonly: "Tra cứu", orchestrator: "Tra cứu sâu", write: "Thực thi",
   workflow: "Quy trình",
+  // Bot chuyên trách vốn nhẹ hơn cả mức Siêu tiết kiệm (không CLAUDE.md, không MEMORY.md,
+  // không đặc tả tool) nên nó có tên riêng - gộp vào "Đầy đủ" là nói ngược hẳn sự thật.
+  bot: "Bot chuyên trách",
 };
 function _renderCtxLine(msgEl, data) {
   if (!msgEl || !data || !data.ctx_path) return;
@@ -1705,10 +1708,10 @@ function _renderCtxLine(msgEl, data) {
   if (old) old.remove();
   const el = document.createElement("div");
   el.className = "msg-ctx" + (cu ? "" : " saved");
-  // Bấm vào là sang trang Tiết kiệm token - thấy chế độ đang chạy mà không biết chỉnh ở đâu
-  // thì thông tin đó cũng chỉ để bực mình.
-  el.dataset.usageGoto = "runtime";
-  el.title = cu ? "Đang gửi đủ mọi thứ. Bấm để xem mức tiết kiệm."
+  // Bấm vào là sang trang Mức dùng, nơi có khối chọn mức ngay đầu trang - thấy chế độ đang
+  // chạy mà không biết chỉnh ở đâu thì thông tin đó cũng chỉ để bực mình.
+  el.dataset.usageGoto = "usage";
+  el.title = cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
                 : "Đang tiết kiệm token. Bấm để xem chi tiết.";
   el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token" : "");
   msgEl.appendChild(el);
@@ -1796,34 +1799,33 @@ async function refreshUsage() {
 // biết mình đang ở mức nào. Người dùng nhìn thấy 40k token mà không biết đáng lẽ là 400k, hay
 // đáng lẽ chỉ 4k. Ghép hai thứ lại thì một liếc mắt là đủ hiểu.
 //
-// Cache 60 giây: refreshUsage chạy sau MỖI lượt chat, mà /runtime/diagnostics phải dựng lại
-// prompt thật để ước lượng - gọi mỗi lượt là tự bắt mình trả giá cho cái panel đo giá.
+// Cache 60 giây: refreshUsage chạy sau MỖI lượt chat, mà /runtime/muc phải dựng lại prompt
+// thật để ước lượng - gọi mỗi lượt là tự bắt mình trả giá cho cái panel đo giá.
 let _savingCache = { at: 0, html: "" };
 async function _usageSavingRow() {
   const now = Date.now();
   if (now - _savingCache.at < 60000) return _savingCache.html;
   let d;
-  try { d = await (await fetch("/runtime/diagnostics?hours=24&limit=60")).json(); }
+  try { d = await (await fetch("/runtime/muc")).json(); }
   catch (e) { return _savingCache.html; }
-  const presets = d.presets || [];
-  const ten = (presets.find(p => p.id === d.preset) || {}).nhan
-    || (d.preset === "custom" ? "Tự chỉnh" : "?");
+  const ten = ((d.danh_sach || []).find(p => p.id === d.muc) || {}).nhan
+    || (d.muc === "custom" ? "Tự chỉnh" : "?");
   const dod = d.do_duoc || {};
-  const uoc = ((d.uoc_tinh || {}).muc || {})[d.preset] || {};
+  const uoc = ((d.uoc_tinh || {}).muc || {})[d.muc] || {};
   // Ưu tiên số ĐO ĐƯỢC; chưa đủ dữ liệu thì mới dùng ước lượng, và nói rõ là ước lượng.
   let phu;
   if (dod.du_du_lieu) phu = `giảm ${dod.phan_tram}% (đo thật)`;
-  else if (d.preset === "off") phu = "chưa bật tiết kiệm";
+  else if (d.muc === "off") phu = "chưa bật tiết kiệm";
   else if (uoc.phan_tram) phu = `giảm ~${uoc.phan_tram}% (ước lượng)`;
   else phu = "chưa đo được";
-  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="runtime" title="Mở trang Tiết kiệm">`
+  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="usage" title="Mở trang Mức dùng">`
     + `<span style="color:var(--text2)">Tiết kiệm: <b>${escapeHtml(ten)}</b></span>`
     + `<span style="color:#7aa2ff;white-space:nowrap">${escapeHtml(phu)}</span></div>`;
   _savingCache = { at: now, html };
   return html;
 }
 
-// Bấm vào dòng đó thì sang thẳng trang Tiết kiệm token - đỡ phải đi tìm trong rail.
+// Bấm vào dòng đó thì sang thẳng trang Mức dùng - đỡ phải đi tìm trong rail.
 document.addEventListener("click", (e) => {
   const hit = e.target && e.target.closest && e.target.closest("[data-usage-goto]");
   if (!hit) return;

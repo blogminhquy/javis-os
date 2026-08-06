@@ -191,7 +191,7 @@ Kết luận thực dụng: để Javis "làm việc" trọn vẹn nhất, giữ
 
 ## Tiết kiệm token áp cho cả gói thuê bao
 
-Trang **Tiết kiệm token** (nhóm Hệ thống) cho Javis gửi ít chữ hơn mỗi lượt: chỉ nạp phần bộ nhớ liên quan tới câu hỏi, chỉ nạp skill khi cần thay vì liệt kê hết.
+Khối **Chế độ tiết kiệm token** ở đầu trang **Mức dùng** (nhóm Hệ thống) cho Javis gửi ít chữ hơn mỗi lượt: chỉ nạp phần bộ nhớ liên quan tới câu hỏi, chỉ nạp skill khi cần thay vì liệt kê hết.
 
 Từ bản 0.12.4, phần này chạy được cho **cả ba loại bộ não**, không riêng bộ não dùng API key:
 

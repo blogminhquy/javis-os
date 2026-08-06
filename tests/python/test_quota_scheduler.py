@@ -140,14 +140,26 @@ if _unpaired:
 check("bất biến này có ý nghĩa (tìm thấy ít nhất vài cặp thật)",
       _main_src.count("_CONTEXT_RUNTIME.record_usage(") >= 4)
 
-# ---- 6. Số liệu chẩn đoán phải ĐẾN ĐƯỢC MẮT NGƯỜI ----
+# ---- 6. Số liệu phải ĐẾN ĐƯỢC MẮT NGƯỜI ----
 # Họ lỗi lặp lại nhiều nhất trong nhánh này: code đúng, test xanh, nhưng không nối được với
-# thứ nó phục vụ. Chính tpm_window đã dính: API trả về mà trang Chẩn đoán không vẽ, nên cái
-# số sinh ra để trả lời "sao tôi bị chặn" lại vô hình đúng lúc cần.
-_console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-for _field in ("tpm_window", "quota_presets", "canaries", "registry", "engine_hien_tai"):
-    check(f"trang Chẩn đoán có dùng trường '{_field}' mà API trả về",
-          _field in _console)
+# thứ nó phục vụ. Chính tpm_window đã dính một lần: API trả về mà giao diện không vẽ, nên
+# cái số sinh ra để trả lời "sao tôi bị chặn" lại vô hình đúng lúc cần.
+#
+# Từ 0.24.7 bất biến này đổi PHẠM VI, không bỏ. Trang Tiết kiệm gộp vào Mức dùng và bỏ hẳn
+# phần chẩn đoán: tpm_window, quota_presets, canaries (tính bằng phần vạn), registry,
+# engine_hien_tai đều là ngôn ngữ của người vận hành máy, không phải của người đang trả tiền
+# token - chủ repo bảo bỏ đúng chúng. Chúng vẫn nằm trong `/runtime/diagnostics` cho ai soi
+# máy, chỉ là không còn màn hình nào bắt buộc phải vẽ.
+#
+# Cái PHẢI vẽ giờ là bốn trường của `/runtime/muc`, thứ trả lời câu hỏi duy nhất người dùng
+# cuối có: tôi nên bấm mức nào.
+_usage = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
+for _field in ("danh_sach", "uoc_tinh", "do_duoc", "tu_chon"):
+    check(f"trang Mức dùng có vẽ trường '{_field}' mà /runtime/muc trả về",
+          _field in _usage)
+_main_txt = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+check("CANARY: số liệu chẩn đoán vẫn còn đường lấy cho người vận hành",
+      all(f'"{f}"' in _main_txt for f in ("tpm_window", "quota_presets", "engine_hien_tai")))
 
 print()
 if _fails:

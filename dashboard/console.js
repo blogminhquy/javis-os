@@ -37,7 +37,6 @@
     logs: "scroll-text",
     account: "circle-user",
     usage: "chart-column",
-    runtime: "cpu",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -89,7 +88,6 @@
     { id: "logs",        icon: ICON.logs,        label: "Cập nhật" },
     { id: "account",     icon: ICON.account,     label: "Tài khoản" },
     { id: "usage",       icon: ICON.usage,       label: "Mức dùng" },
-    { id: "runtime",     icon: ICON.runtime,     label: "Tiết kiệm" },
   ];
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -101,7 +99,7 @@
     { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
-    { label: "Hệ thống",    icon: GICON["Hệ thống"], ids: ["usage", "runtime", "settings", "logs", "account"], foot: true },
+    { label: "Hệ thống",    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
@@ -144,8 +142,7 @@
     plugins:     { icon: VIEW_ICON.plugins, label: "Plugins", sub: "Tool/hook native cho mọi engine" },
     logs:        { icon: VIEW_ICON.logs, label: "Nhật ký cập nhật", sub: "Phiên bản & tính năng mới" },
     account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập, workspace, token API" },
-    usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Token & chi phí theo ngày, theo nhà cung cấp" },
-    runtime:     { icon: VIEW_ICON.runtime, label: "Tiết kiệm", sub: "Xem Javis đang tốn bao nhiêu token mỗi lượt, và chọn mức tiết kiệm" },
+    usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Mức tiết kiệm token, và token đã tiêu theo ngày" },
   };
 
   // 4 trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).
@@ -222,7 +219,12 @@
   // Hook "rời trang": trang nào mượn DOM dùng chung (vd tab Trò chuyện mượn khung chat của
   // cockpit) đặt _pageLeave để TRẢ node về chỗ cũ TRƯỚC khi cviewBody bị ghi đè / cview bị ẩn.
   let _pageLeave = null;
+  // Trang cũ đã gộp đi đâu. Giữ bảng này thay vì xoá trắng: người dùng có bookmark, có nút
+  // trong chat, và có thói quen. Bấm vào một id đã biến mất mà không có chỗ đáp là màn hình
+  // trắng không giải thích gì.
+  const TRANG_GOP = { runtime: "usage" };
   function navigateTo(id) {
+    id = TRANG_GOP[id] || id;
     const store = Alpine.store("nav");
     if (store.active === id) return;   // đang ở trang này → khỏi đổi (tránh nháy + mượn/trả node thừa)
     const swap = () => {
@@ -319,7 +321,6 @@
     if (id === "kanban")   return renderKanban(el);
     if (id === "logs")     return renderLogs(el);
     if (id === "usage")    return renderUsage(el);
-    if (id === "runtime")  return renderRuntime(el);
     el.innerHTML = placeholder(id);
   }
 
@@ -383,506 +384,6 @@
   const _uzCost = (c) => (+c > 0 ? "$" + (+c).toFixed(+c < 0.01 ? 4 : 2) : "-");
   const _UZ_PROV = { cli: "Claude Code", codex: "ChatGPT", openrouter: "OpenRouter", openai: "OpenAI", "anthropic-api": "Anthropic" };
   const _uzModel = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26);
-
-  // ===== Chẩn đoán adaptive runtime (spec muc 27) =====
-  // Trang nay tra loi dung mot cau hoi: runtime moi dang QUAN SAT duoc gi. No khong
-  // bat gi, khong sua gi. Truoc khi co no, trace duoc ghi vao runtime.db moi luot chat
-  // ma khong ai doc duoc - tuc la muc tieu goc cua Phase 0 ("biet token di dau") van
-  // chua tra loi duoc du da ton cong ghi.
-  async function renderRuntime(el) {
-    el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder" style="min-height:200px"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div class="dim">Đang đọc trace...</div></div></div>`;
-    let d;
-    try { d = await (await fetch("/runtime/diagnostics?hours=24&limit=200")).json(); }
-    catch (e) {
-      el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder"><div class="ph-ico">${ic("cpu", { cls: "ic-xl ic-dim" })}</div><div>Không đọc được trace runtime.</div></div></div>`;
-      return;
-    }
-    const esc = (x) => String(x == null ? "" : x)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const num = (n) => (Number(n) || 0).toLocaleString("vi-VN");
-    const tasks = d.tasks || [];
-    const tk = d.tokens || {};
-    const cap = d.capsule || {};
-
-    // Bang dem: {khoa: so} -> hang chip. Rong thi noi ro la rong, khong de trong.
-    const counts = (obj, empty) => {
-      const keys = Object.keys(obj || {});
-      if (!keys.length) return `<div class="dim">${esc(empty)}</div>`;
-      return keys.sort((a, b) => obj[b] - obj[a])
-        .map(k => `<span class="rt-chip">${esc(k)} <b>${num(obj[k])}</b></span>`).join("");
-    };
-
-    const canaries = Object.entries(d.canaries || {})
-      .sort((a, b) => (b[1].allocation_basis_points || 0) - (a[1].allocation_basis_points || 0));
-    const anyOn = canaries.some(([, v]) => (v.allocation_basis_points || 0) > 0);
-
-    // Bảng "Lượt gần nhất" trước đổ thẳng 60 dòng ra một lượt. Nay lật trang 20 dòng một
-    // (pager() dùng chung), và không cắt ở 60 nữa - lấy hết những gì trace trả về.
-    const rowHtml = (t) => {
-      const err = t.estimated_input_tokens && t.actual_input_tokens
-        ? Math.round((t.estimated_input_tokens - t.actual_input_tokens) / t.actual_input_tokens * 100) : null;
-      return `<tr>
-        <td class="rt-mono">${esc((t.task_id || "").slice(0, 12))}</td>
-        <td>${esc(t.channel || "")}</td>
-        <td><span class="rt-path rt-path-${esc(t.execution_path)}">${esc(t.execution_path)}</span>
-          ${t.ly_do ? `<div class="rt-lydo">${esc(_lyDo(t.ly_do))}</div>` : ""}</td>
-        <td>${esc(t.status || "")}</td>
-        <td>${esc(t.model || "-")}</td>
-        <td class="rt-right">${num(t.actual_input_tokens)}</td>
-        <td class="rt-right">${num(t.actual_output_tokens)}</td>
-        <td class="rt-right">${err == null ? "-" : err + "%"}</td>
-      </tr>`;
-    };
-
-    // Ba mức là thứ ĐẦU TIÊN người dùng thấy, và mỗi mức phải nói được nó đổi gì. Bản trước
-    // chôn ba nút này ở giữa trang, dưới bốn khối biểu đồ, nên mở trang ra là thấy số liệu
-    // trước khi thấy cái nút cần bấm - đúng lý do chủ repo bảo "không biết dùng như nào".
-    const uoc = d.uoc_tinh || {};
-    const uocMuc = uoc.muc || {};
-    const dod = d.do_duoc || {};
-    const presetPct = (id) => {
-      const m = uocMuc[id];
-      if (!m || id === "off") return "";
-      return `<span class="rt-pct">-${Number(m.phan_tram) || 0}% token</span>`;
-    };
-    const presetTok = (id) => {
-      const m = uocMuc[id];
-      if (!m) return "";
-      return `<span class="rt-pertok">${num(m.token_moi_request)} token mỗi lượt</span>`;
-    };
-    // Mức nào bộ não đang chạy KHÔNG ăn được thì phải nói ra ngay trên cái nút. Đường tắt
-    // của "Siêu tiết kiệm" chỉ chạy trên bộ não dùng API key, nên với gói thuê bao nó y hệt
-    // mức Tối ưu. Khoe một con số không bao giờ tới là dạy người dùng thôi tin cả trang.
-    const presetKhongAp = (id) => {
-      const m = uocMuc[id];
-      if (!m || m.ap_dung !== false) return "";
-      return `<span class="rt-preset-na">không áp cho bộ não đang dùng</span>`;
-    };
-
-    el.innerHTML = `<div class="uz-wrap rt-wrap">
-      <div class="rt-sec rt-first">
-        <h3>Chọn mức tiết kiệm</h3>
-        <div class="rt-presets">
-          ${(d.presets || []).map((p) => `
-            <button class="rt-preset${p.id === d.preset ? " on" : ""}" data-preset="${esc(p.id)}">
-              <span class="rt-preset-top"><b>${esc(p.nhan)}</b>${presetPct(p.id)}</span>
-              ${presetTok(p.id)}
-              <small>${esc((uocMuc[p.id] || {}).ghi_chu || p.mo_ta)}</small>
-              ${presetKhongAp(p.id)}
-              ${p.id === d.preset ? '<span class="rt-preset-now">đang dùng</span>' : ""}
-            </button>`).join("")}
-        </div>
-        ${d.preset === "custom" ? `<div class="dim rt-note">Cấu hình hiện tại không khớp mức
-          nào (đã chỉnh tay ở phần Nâng cao). Bấm một mức để về lại chuẩn.</div>` : ""}
-        ${d.preset_nguon === "user" ? "" : `<div class="dim rt-note rt-chuachon">Mức đang chạy
-          là <b>mặc định của bản này</b>, anh chưa tự chọn bao giờ. Bản cập nhật sau có thể
-          nâng nó lên. Bấm một mức bất kỳ là Javis ghim lại, từ đó không bản nào đổi nữa
-          (kể cả bấm đúng mức đang chạy).</div>`}
-        <div class="dim rt-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis
-        trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức.
-        ${uoc.la_uoc_luong ? ` Con số phần trăm là <b>ước lượng</b> đo trên chính bộ não và bộ
-        nhớ của anh (${num((uoc.chi_tiet || {}).claude_md_va_bo_nho)} token bộ luật + bộ nhớ,
-        ${num((uoc.chi_tiet || {}).mo_ta_cong_cu)} token mô tả công cụ). Bộ đếm của mỗi nhà
-        cung cấp lệch nhau đôi chút.` : ""}</div>
-      </div>
-
-      ${dod.du_du_lieu ? `<div class="rt-sec rt-doduoc">
-        <h3>Thực tế đo được trong 24 giờ qua</h3>
-        <div class="rt-doduoc-row">
-          <div><div class="rt-k">Chế độ Đầy đủ</div><div class="rt-v">${num(dod.tb_cu)}</div>
-            <div class="rt-note">token mỗi lượt, ${num(dod.so_luot_cu)} lượt</div></div>
-          <div><div class="rt-k">Chế độ Tối ưu</div><div class="rt-v">${num(dod.tb_moi)}</div>
-            <div class="rt-note">token mỗi lượt, ${num(dod.so_luot_moi)} lượt</div></div>
-          <div class="rt-doduoc-pct"><div class="rt-k">Giảm được</div>
-            <div class="rt-v">${num(dod.phan_tram)}%</div>
-            <div class="rt-note">số THẬT, không phải ước lượng</div></div>
-        </div>
-      </div>` : `<div class="dim rt-note rt-first-note">Chưa đủ dữ liệu để đo thực tế: cần có
-        lượt chạy ở cả chế độ Đầy đủ lẫn chế độ Tối ưu trong 24 giờ qua. Bật một mức rồi chat
-        vài câu là bảng đo sẽ hiện ra ở đây.</div>`}
-
-      ${_viSao(d.vi_sao)}
-
-      <div class="rt-banner ${anyOn ? "rt-on" : "rt-off"}">
-        ${ic(anyOn ? "triangle-alert" : "check", { cls: anyOn ? "ic-warn" : "ic-ok" })}
-        <div>
-          <b>Chế độ: ${esc(d.mode || "?")}</b>
-          <div class="dim">${anyOn
-            ? "Đang bật tiết kiệm cho một phần lượt chat."
-            : "Chưa bật mảng nào, mọi lượt đang chạy ở chế độ Đầy đủ."}</div>
-        </div>
-      </div>
-
-      <div class="rt-help">
-        <b>Trang này để làm gì</b>
-        <p>Mỗi lần anh chat, Javis phải gửi kèm một mớ thông tin nền cho model: nó là ai, có
-        những công cụ nào, nhớ gì về anh, đã nói gì trước đó. Mớ đó tốn tiền và có giới hạn.
-        Trang này cho thấy mớ đó đang to bao nhiêu và tiêu vào đâu.</p>
-        <p><b>Đầy đủ và Tối ưu.</b> Javis có hai cách dựng mớ thông tin đó. Chế độ
-        <b>Đầy đủ</b> gửi gần như mọi thứ, lúc nào cũng vậy: an toàn nhất, tốn nhất. Chế độ
-        <b>Tối ưu</b> chỉ gửi phần liên quan tới câu anh vừa hỏi, nên nhẹ hơn nhiều. Tối ưu
-        còn mới nên mặc định chưa bật.</p>
-        <p><b>Bật thử từng phần (canary).</b> Thay vì bật cho tất cả rồi hồi hộp,
-        Javis cho bật cho một PHẦN các cuộc chat thôi, ví dụ 1 phần trăm. Nếu tốt thì nâng
-        dần, nếu tệ thì hạ về 0 là xong ngay. Mỗi dòng trong bảng dưới là một mảng việc bật
-        thử được riêng, và con số là tỉ lệ: 10000 nghĩa là toàn bộ, 100 nghĩa là 1 phần trăm,
-        0 là tắt. Cùng một cuộc chat thì luôn ở cùng một chế độ, không nhảy qua nhảy lại.</p>
-      </div>
-
-      <div class="rt-grid">
-        <div class="rt-card"><div class="rt-k">Số cuộc chat 24h qua</div><div class="rt-v">${num(tasks.length)}</div></div>
-        <div class="rt-card"><div class="rt-k">Token đã gửi đi</div><div class="rt-v">${num(tk.actual_input)}</div>
-          <div class="rt-note">phần Javis gửi cho model</div></div>
-        <div class="rt-card"><div class="rt-k">Token model trả về</div><div class="rt-v">${num(tk.actual_output)}</div>
-          <div class="rt-note">phần model viết ra</div></div>
-        <div class="rt-card"><div class="rt-k">Độ chính xác khi đoán</div><div class="rt-v">${tk.estimate_error_pct == null ? "-" : tk.estimate_error_pct + "%"}</div>
-          <div class="rt-note">Javis đoán trước sẽ tốn bao nhiêu để còn biết đường chặn.
-          Số âm là đoán THẤP hơn thật, tức là dễ vượt hạn mức bất ngờ.</div></div>
-        <div class="rt-card"><div class="rt-k">Gói tin khi Tối ưu</div><div class="rt-v">${num(cap.median_tokens)}</div>
-          <div class="rt-note">cỡ trung bình, ${num(cap.samples)} lần đo, lần to nhất ${num(cap.max_tokens)}.
-          So với chế độ Đầy đủ để biết tiết kiệm được bao nhiêu.</div></div>
-        <div class="rt-card"><div class="rt-k">Công cụ Javis đang biết</div><div class="rt-v">${num((d.registry || {}).capabilities)}</div>
-          <div class="rt-note">gộp tool của các nguồn đã đấu, skill và workflow</div></div>
-      </div>
-
-      <div class="rt-sec">
-        <h3>Hạn mức Javis tự học được</h3>
-        <div class="rt-chips">${counts(_tpmFacts(d.learned_limits), "Chưa gặp lỗi hạn mức nào nên chưa học được gì.")}</div>
-        <div class="dim rt-note">Khi nhà cung cấp từ chối vì request quá lớn, câu báo lỗi của
-        họ có nêu hạn mức thật. Javis đọc lấy, tự rút gọn rồi chạy tiếp, và nhớ để lần sau
-        không đâm vào nữa. Không cần anh khai trước, và áp dụng cho mọi nhà cung cấp.</div>
-      </div>
-
-      <div class="rt-sec">
-        <h3>Mỗi cuộc chat dùng chế độ nào</h3>
-        <div class="rt-chips">${counts(_tenDuong(d.paths), "Chưa có cuộc chat nào.")}</div>
-        <div class="dim rt-note">Đây là chỗ xem chắc chắn nhất xem mức vừa bật có ăn thật
-        không: còn nhiều lượt ở <b>Đầy đủ</b> nghĩa là phần tiết kiệm chưa áp được cho chúng.</div>
-      </div>
-      <div class="rt-sec">
-        <h3>Vì sao chưa tối ưu được</h3>
-        <div class="rt-chips">${counts(d.fallback_reasons, "Chưa ghi nhận lý do nào.")}</div>
-        <div class="dim rt-note">Javis luôn quay về chế độ Đầy đủ khi chưa đủ chắc, nên thấy
-        nhiều lý do ở đây là bình thường. Đọc để biết còn thiếu điều kiện gì.</div>
-      </div>
-      <div class="rt-sec">
-        <h3>Tìm công cụ bị trượt vì</h3>
-        <div class="rt-chips">${counts(d.miss_classes, "Chưa lần nào trượt.")}</div>
-        <div class="dim rt-note">Javis không tìm ra công cụ hợp với câu hỏi. Trượt nhiều thường
-        là do mô tả tool hoặc skill viết chưa rõ, chứ không phải Javis dở.</div>
-      </div>
-      <div class="rt-sec">
-        <h3>Bộ kiểm chất lượng câu trả lời</h3>
-        <div class="rt-chips">${counts(d.quality, "Chưa có đánh giá nào.")}</div>
-        <div class="dim rt-note">Trước khi trả lời, Javis tự soát: có bịa số không, có nói mình
-        đã làm việc gì mà chưa làm không, hai nguồn có mâu thuẫn không. Ở đây liệt kê những
-        thứ nó bắt được.</div>
-      </div>
-
-      <div class="rt-sec">
-        <h3>Token đã tiêu trong 60 giây qua</h3>
-        <div class="rt-chips">${counts(d.tpm_window, "Chưa tiêu gì trong 60 giây qua.")}</div>
-        <div class="dim rt-note">Gộp mọi thứ đang chạy: chat, việc nền, nhắc hẹn, Telegram.
-        Nhà cung cấp tính hạn mức theo TÀI KHOẢN chứ không theo từng chỗ, nên đây là chỗ xem
-        khi bị chặn mà anh thấy mình có chat gì đâu: thường là việc nền vừa ăn hết.</div>
-      </div>
-
-      <div class="rt-sec">
-        <h3>Bộ não đang dùng</h3>
-        <div class="rt-engine">
-          <b>${esc((d.engine_hien_tai || {}).nhan || "chưa rõ")}</b>
-          ${(d.engine_hien_tai || {}).model ? `<span class="rt-eng-model">${esc(d.engine_hien_tai.model)}</span>` : ""}
-          ${(d.engine_hien_tai || {}).loai ? `<span class="ci-badge">${esc(d.engine_hien_tai.loai)}</span>` : ""}
-        </div>
-        <div class="dim rt-note">${esc((d.engine_hien_tai || {}).giai_thich || "")}</div>
-        ${((d.engine_hien_tai || {}).duong_khong_hop || []).length ? `
-          <div class="dim rt-note">Không áp cho bộ não này:
-          ${((d.engine_hien_tai || {}).duong_khong_hop || []).map((x) => esc(x)).join(", ")}.
-          Có mảng cố ý chỉ chạy trên bộ não dùng API key, ví dụ phần gửi lại lịch sử hội thoại:
-          Claude Code và ChatGPT tự nhớ mạch hội thoại của chúng rồi, gửi thêm là gửi hai lần.</div>` : ""}
-      </div>
-
-      <details class="rt-adv">
-        <summary>Nâng cao: bật/tắt từng mảng một</summary>
-        <div class="dim rt-note">Phần này để thử nghiệm. Bình thường dùng ba mức ở trên là đủ.
-        Đơn vị là phần vạn: 10000 là toàn bộ, 100 là 1 phần trăm, 0 là tắt.</div>
-        <table class="rt-tbl"><thead><tr><th>Mảng</th><th class="rt-right">Đang bật</th><th class="rt-right">Hạn mức</th><th class="rt-right">Allowlist</th><th>Đặt</th></tr></thead><tbody>
-        ${canaries.map(([k, v]) => `<tr>
-          <td class="rt-mono">${esc(k)}</td>
-          <td class="rt-right">${(v.allocation_basis_points || 0) === 0 ? '<span class="dim">tắt</span>' : num(v.allocation_basis_points)}</td>
-          <td class="rt-right">${num(v.quota_rules)}</td>
-          <td class="rt-right">${num(v.allowlist)}</td>
-          <td class="rt-set">
-            <input type="number" min="0" max="10000" step="100" class="rt-bps" data-path="${esc(k)}"
-                   value="${v.allocation_basis_points || 0}" aria-label="mức ${esc(k)}">
-            <button class="btn btn-sm rt-apply" data-path="${esc(k)}">Đặt</button>
-          </td>
-        </tr>`).join("")}
-        </tbody></table>
-        <div class="rt-quota">
-          <label>Công tắc trùm
-            <select class="rt-mode">${["off", "observe", "shadow", "canary", "on"].map((m) =>
-              `<option value="${m}"${m === d.mode ? " selected" : ""}>${m}</option>`).join("")}</select>
-          </label>
-          <button class="btn btn-sm rt-mode-apply">Đổi</button>
-          <span class="dim">Mọi mảng trên CHỈ chạy khi công tắc này ở canary hoặc on.</span>
-        </div>
-        ${(d.quota_presets || []).length ? `
-        <div class="rt-quota">
-          <label>Khai hạn mức gợi ý cho
-            <select class="rt-prov">${(d.quota_presets || []).map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
-          </label>
-          <button class="btn btn-sm rt-quota-apply">Khai</button>
-          <span class="dim">Con số theo tài liệu công khai, phải đối chiếu với gói cước thật.</span>
-        </div>` : ""}
-      </details>
-
-      <div class="rt-sec">
-        <h3>Lượt gần nhất</h3>
-        <div id="rtTasks"></div>
-      </div>
-      <div class="rt-foot dim">Trang này chỉ đọc metadata. Không có nội dung hội thoại, tham số tool hay evidence.</div>
-    </div>`;
-
-    pager(el.querySelector("#rtTasks"), tasks, 20, (page) =>
-      `<table class="rt-tbl"><thead><tr><th>Task</th><th>Kênh</th><th>Đường</th><th>Trạng thái</th>` +
-      `<th>Model</th><th class="rt-right">Vào</th><th class="rt-right">Ra</th><th class="rt-right">Lệch</th>` +
-      `</tr></thead><tbody>${page.map(rowHtml).join("")}</tbody></table>`,
-      `<div class="dim">Chưa có lượt nào trong 24 giờ qua.</div>`);
-
-    _bindPresets(el);
-    _bindModeApply(el);
-    _bindQuotaApply(el);
-
-    // Đặt allocation. Nút này là đường DUY NHẤT để bật/tắt canary mà không phải sửa tay
-    // settings.json - knob nằm sâu hai tầng nên sửa tay rất dễ làm mất field anh em.
-    el.querySelectorAll(".rt-apply").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const path = btn.dataset.path;
-        const input = el.querySelector(`.rt-bps[data-path="${CSS.escape(path)}"]`);
-        const bps = String((input && input.value) || "0");
-        btn.disabled = true;
-        const old = btn.textContent;
-        btn.textContent = "Đang đặt...";
-        try {
-          let res = await _setCanary(path, bps, false);
-          if (res.status === 409 && res.body && res.body.can_force) {
-            // Chặn có chủ đích: đường này bật lên sẽ fail-closed về legacy trong im lặng.
-            // Hỏi thẳng thay vì làm rồi để user ngồi đợi thứ không bao giờ chạy.
-            if (!confirm(`${res.body.error}.\n\nVẫn bật để quan sát?`)) return;
-            res = await _setCanary(path, bps, true);
-          }
-          if (!res.ok) {
-            _rtToast(el, (res.body && res.body.error) || "Đặt thất bại.", false);
-            return;
-          }
-          _rtToast(el, `Đã đặt ${path} = ${bps}.`
-            + (String(bps) === "0" ? " (0 nghĩa là tắt mảng này)" : ""), true);
-          renderRuntime(el);
-        } catch (e) {
-          _rtToast(el, "Đặt thất bại: " + (e && e.message ? e.message : e), false);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = old;
-        }
-      });
-    });
-  }
-
-  function _tpmFacts(learned) {
-    // learned_limits là object lồng; counts() chỉ vẽ được {nhãn: số}. Đổi sang dạng
-    // "groq|model - loại hạn mức" -> con số, để người đọc thấy ngay điều nhà cung cấp đã nói.
-    // Phải nói ĐÚNG loại: "Limit 30" của hạn mức đếm LƯỢT nhìn giống hệt một hạn mức token
-    // bé tí đáng sợ, mà hai thứ đó đòi hai cách xử lý ngược nhau.
-    const KIND = {
-      tpm: "token mỗi phút", tpd: "token mỗi ngày", rpm: "số lượt mỗi phút",
-      rpd: "số lượt mỗi ngày", context: "cửa sổ ngữ cảnh", rate: "chặn nhịp gọi",
-    };
-    const out = {};
-    Object.entries(learned || {}).forEach(([key, v]) => {
-      out[`${key} (${KIND[(v || {}).kind] || "hạn mức"})`] = (v && v.limit) || 0;
-    });
-    return out;
-  }
-
-  // "legacy"/"sources" là chữ của máy. Trang này để người dùng đọc, nên dịch ra.
-  //
-  // Và dịch theo hướng NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn
-  // của người viết code, không phải của người dùng: với họ đó là chế độ gửi đủ mọi thứ, an
-  // toàn nhất, và đúng là thứ họ chọn khi bấm "Tắt". Gọi nó là "cũ" vừa nghe như đang xin
-  // lỗi, vừa làm người ta tưởng mình đang chạy thứ hỏng.
-  //
-  // Tên chế độ khớp luôn tên nút ở đầu trang (Đầy đủ / Tối ưu / Siêu tiết kiệm) để nhìn dòng
-  // dưới câu trả lời là biết ngay mình đang ở mức nào.
-  const DUONG_LABEL = {
-    legacy: "Đầy đủ", unassigned: "Đầy đủ",
-    sources: "Tối ưu", fast: "Tức thì",
-    readonly: "Tra cứu", orchestrator: "Tra cứu sâu",
-    write: "Thực thi", workflow: "Quy trình",
-    // Bot chuyên trách không đi Phase 5/8 và cũng không cần: nó vốn nhẹ hơn cả Siêu tiết
-    // kiệm (không CLAUDE.md, không MEMORY.md, không đặc tả tool). Có tên riêng thì bảng đo
-    // mới nói đúng - trước đó lượt bot bị gộp vào "Đầy đủ", tức cột đắt nhất.
-    bot: "Bot chuyên trách",
-  };
-  // Vì sao lượt đó KHÔNG đi đường tắt. Máy chủ vẫn ghi lý do từ đầu nhưng chưa ai đưa ra
-  // màn hình, nên bấm mức Siêu tiết kiệm rồi thấy vẫn "Tối ưu" là chịu, không có cách nào
-  // biết do câu hỏi cần tra cứu, do bộ não chưa mở, hay do kho công cụ chưa sẵn sàng.
-  // Mã lạ thì hiện nguyên mã: một chuỗi khó hiểu vẫn hơn một ô trống.
-  const LY_DO_LABEL = {
-    mode_not_canary: "chưa bật mức tiết kiệm nào",
-    outside_allocation: "mức đang bật không phủ hội thoại này",
-    channel_not_allowed: "kênh này chưa được mở",
-    provider_kind_not_allowed: "bộ não đang dùng chưa mở đường tắt",
-    cli_khong_co_duong_goi_thang: "gói Claude Code không có đường gọi thẳng",
-    hard_quota_unknown: "chưa biết hạn mức của bộ não này",
-    registry_stale: "kho công cụ chưa sẵn sàng, thử lại sau vài lượt",
-    registry_revision_changed: "kho công cụ vừa đổi giữa lượt",
-    capability_selected: "câu này cần gọi công cụ",
-    capability_ambiguous: "câu này có thể cần công cụ, không dám đi tắt",
-    requires_live_data: "câu này cần dữ liệu thật",
-    attachment_present: "lượt này có file đính kèm",
-    conversation_state: "câu này nhắc tới phần đã nói trước đó",
-    external_source: "câu này nhắc tới nguồn bên ngoài",
-    side_effect: "câu này yêu cầu làm một việc, không chỉ trả lời",
-    agentic: "câu này yêu cầu Javis tự đi làm",
-    objective_too_large: "câu hỏi quá dài",
-    task_already_pinned: "một tầng khác đã nhận lượt này",
-    compiler_not_fast: "gói tin không vừa đường tắt",
-    admitted: "đã đi đường tắt",
-  };
-  function _lyDo(ma) {
-    return LY_DO_LABEL[ma] || String(ma || "");
-  }
-  // Lý do LẶP LẠI khiến lượt không đi được đường tắt. Bảng "Lượt gần nhất" đã ghi lý do từng
-  // dòng, nhưng một lý do chiếm 18 trên 20 lượt là một cái hỏng, còn xuất hiện 2 lần thì
-  // bình thường - nhìn từng dòng không phân biệt nổi hai ca đó. Chủ repo đã phải nói bằng
-  // lời "chưa lần nào thấy chữ Tức thì" thay vì chỉ vào một con số ở đây.
-  function _viSao(vs) {
-    const top = (vs && vs.top) || [];
-    const tong = Number(vs && vs.tong) || 0;
-    if (!tong || !top.length) return "";
-    const dong = top.map((x) => {
-      const pct = Math.round((Number(x.so_lan) || 0) * 100 / tong);
-      return `<li><b>${pct}%</b> ${esc(_lyDo(x.ma))}
-        <span class="dim">(${Number(x.so_lan) || 0}/${tong} lượt)</span></li>`;
-    }).join("");
-    return `<div class="rt-sec rt-visao">
-      <h3>Vì sao lượt chat chưa đi đường tắt</h3>
-      <ul class="rt-visao-list">${dong}</ul>
-      <div class="dim rt-note">Đường tắt (nhãn <b>Tức thì</b>) chỉ nhận câu chắc chắn không
-      cần tra cứu gì. Lý do nào chiếm gần hết số lượt thì đó là chỗ đang chặn, không phải
-      chuyện ngẫu nhiên.</div>
-    </div>`;
-  }
-  function _tenDuong(paths) {
-    const out = {};
-    Object.entries(paths || {}).forEach(([k, v]) => {
-      const ten = DUONG_LABEL[k] || k;
-      out[ten] = (out[ten] || 0) + (Number(v) || 0);   // legacy + unassigned gộp làm một
-    });
-    return out;
-  }
-
-  function _rtToast(el, text, ok) {
-    // Bấm mà không thấy gì xảy ra thì người dùng tưởng nút hỏng - đó đúng là phản hồi đã
-    // nhận được về bản trước.
-    let t = el.querySelector(".rt-toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.className = "rt-toast";
-      el.querySelector(".rt-wrap")?.prepend(t) || el.prepend(t);
-    }
-    t.className = "rt-toast" + (ok ? " ok" : " err");
-    t.textContent = text;
-    t.style.opacity = "1";
-    clearTimeout(t._h);
-    t._h = setTimeout(() => { t.style.opacity = "0"; }, 6000);
-  }
-
-  function _bindPresets(el) {
-    el.querySelectorAll(".rt-preset").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const level = btn.dataset.preset;
-        el.querySelectorAll(".rt-preset").forEach((b) => { b.disabled = true; });
-        try {
-          const fd = new FormData();
-          fd.append("level", level);
-          const r = await fetch("/runtime/preset", { method: "POST", body: fd });
-          const body = await r.json().catch(() => null);
-          if (!r.ok) {
-            _rtToast(el, (body && body.error) || "Đổi mức thất bại.", false);
-            return;
-          }
-          const n = (body.da_bat || []).length, m = (body.da_tat || []).length;
-          // Cảnh báo của máy chủ PHẢI hiện ra. Trước đây nó bị nuốt trọn, nên người dùng
-          // engine chưa có bảng hạn mức chỉ thấy một dòng xanh "đã bật, có hiệu lực ngay"
-          // trong khi máy chủ vừa nói thẳng là đường đó chưa chạy được. Đúng cái cảm giác
-          // "ấn vào đặt thì không có gì diễn ra".
-          const cb = (body.canh_bao || []).join(" ");
-          _rtToast(el, `Đã chuyển sang mức "${body.nhan}".`
-            + (n ? ` Bật thêm ${n} mảng.` : "") + (m ? ` Tắt ${m} mảng.` : "")
-            + " Có hiệu lực ngay từ câu hỏi tiếp theo."
-            + (cb ? " " + cb : ""), true);
-          renderRuntime(el);
-        } catch (e) {
-          _rtToast(el, "Đổi mức thất bại: " + (e && e.message ? e.message : e), false);
-        } finally {
-          el.querySelectorAll(".rt-preset").forEach((b) => { b.disabled = false; });
-        }
-      });
-    });
-  }
-
-  async function _bindModeApply(el) {
-    const btn = el.querySelector(".rt-mode-apply");
-    if (!btn) return;
-    btn.addEventListener("click", async () => {
-      const sel = el.querySelector(".rt-mode");
-      const mode = (sel && sel.value) || "";
-      if (!mode) return;
-      btn.disabled = true;
-      try {
-        const fd = new FormData();
-        fd.append("mode", mode);
-        const r = await fetch("/runtime/mode", { method: "POST", body: fd });
-        const body = await r.json().catch(() => null);
-        if (!r.ok) { alert((body && body.error) || "Đổi mode thất bại."); return; }
-        if (body && body.luu_y) alert(body.luu_y);
-        renderRuntime(el);
-      } finally { btn.disabled = false; }
-    });
-  }
-
-  async function _bindQuotaApply(el) {
-    const btn = el.querySelector(".rt-quota-apply");
-    if (!btn) return;
-    btn.addEventListener("click", async () => {
-      const sel = el.querySelector(".rt-prov");
-      const provider = (sel && sel.value) || "";
-      if (!provider) return;
-      btn.disabled = true;
-      try {
-        const fd = new FormData();
-        fd.append("provider", provider);
-        const r = await fetch("/runtime/quota", { method: "POST", body: fd });
-        const body = await r.json().catch(() => null);
-        if (!r.ok) { alert((body && body.error) || "Khai hạn mức thất bại."); return; }
-        alert(`Đã khai ${body.so_rule} rule cho ${(body.da_ap_cho || []).length} đường.\n\n${body.luu_y || ""}`);
-        renderRuntime(el);
-      } finally { btn.disabled = false; }
-    });
-  }
-
-  async function _setCanary(path, bps, allowInert) {
-    const fd = new FormData();
-    fd.append("path", path);
-    fd.append("allocation_basis_points", bps);
-    if (allowInert) fd.append("allow_inert", "true");
-    const r = await fetch("/runtime/canary", { method: "POST", body: fd });
-    let body = null;
-    try { body = await r.json(); } catch (e) { body = null; }
-    return { ok: r.ok, status: r.status, body };
-  }
 
   async function renderUsage(el) {
     // Trang Token nâng cấp (usage.js): index log thô Claude+Codex + lọc kỳ/provider + insight.

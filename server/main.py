@@ -8444,6 +8444,38 @@ def current_preset(runtime_cfg: dict) -> str:
     return "custom"
 
 
+@app.get("/runtime/muc")
+async def runtime_muc(brain: str = Query("brain")):
+    """Đúng những gì trang Mức dùng cần để vẽ khối chọn mức tiết kiệm. Không hơn.
+
+    Tách khỏi `/runtime/diagnostics` có chủ ý. Endpoint kia sinh ra cho người vận hành soi
+    máy: nó gánh theo bảng canary tính bằng phần vạn, cửa sổ token 60 giây, hạn mức tự học,
+    danh sách task kèm execution_path, kết quả integrity_check của registry. Không thứ nào
+    trong đó trả lời được câu hỏi của người dùng cuối - *"tôi nên bấm mức nào"* - mà mỗi thứ
+    đều tốn một lượt đọc runtime.db hoặc một vòng quét registry.
+
+    Người dùng cần đúng bốn thứ: có những mức nào, đang ở mức nào, mỗi mức tiết kiệm bao
+    nhiêu, và thực tế 24 giờ qua đo được bao nhiêu. Trang Mức dùng gọi endpoint này sau mỗi
+    lần đổi mức, nên nó phải rẻ.
+    """
+    settings = cfgmod.read_settings().get("context_runtime") or {}
+    tasks = []
+    try:
+        tasks = (_CONTEXT_RUNTIME.diagnostics_snapshot(limit=200, hours=24.0) or {}).get("tasks") or []
+    except Exception as exc:  # noqa: BLE001 - không đọc được trace thì vẫn phải vẽ được nút
+        print(f"[runtime/muc] đọc trace hỏng: {type(exc).__name__}: {exc}", file=sys.stderr)
+    return {
+        "muc": current_preset(settings),
+        "danh_sach": [{"id": k, "nhan": v["nhan"], "mo_ta": v["mo_ta"]}
+                      for k, v in RUNTIME_PRESETS.items()],
+        # Người dùng đã tự chọn mức, hay đây chỉ là mặc định của bản đã cài? Hai thứ trông y
+        # hệt nhau trên màn hình mà ý nghĩa ngược nhau: cái sau còn đi lên theo bản cập nhật.
+        "tu_chon": str((settings.get("preset_choice") or {}).get("source") or "") == "user",
+        "uoc_tinh": await _uoc_tinh_tiet_kiem(brain),
+        "do_duoc": _do_duoc_tiet_kiem(tasks),
+    }
+
+
 @app.post("/runtime/preset")
 async def runtime_preset_set(level: str = Form(...)):
     """Đặt mức tiết kiệm token. Một thao tác thay cho việc chỉnh mode + 10 allocation.

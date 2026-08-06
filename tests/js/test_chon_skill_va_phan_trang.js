@@ -72,8 +72,13 @@ check("CANARY: nhật ký học tải sâu hơn hẳn (không còn limit=10)",
   /\/learn\/log\?brain=\$\{encodeURIComponent\(fbrain\(\)\)\}&limit=200/.test(CONSOLE));
 check("CANARY: commit học tải sâu hơn (không còn limit=12)",
   /\/learn\/review\?brain=\$\{encodeURIComponent\(fbrain\(\)\)\}&limit=60/.test(CONSOLE));
-check("bảng Lượt gần nhất không còn cắt cứng 60 dòng", CONSOLE.indexOf("tasks.slice(0, 60)") === -1);
-check("bảng Lượt gần nhất có chỗ đứng riêng để phân trang", CONSOLE.indexOf('id="rtTasks"') !== -1);
+// Bảng "Lượt gần nhất" biến mất cùng trang Tiết kiệm ở 0.24.7: nó liệt kê task_id,
+// execution_path và độ lệch ước lượng - ngôn ngữ của người vận hành máy, không phải của
+// người đang trả tiền token. Giữ lại phép thử chống cắt cứng cho các bảng còn lại.
+check("CANARY: không bảng nào cắt cứng 60 dòng rồi bỏ phần còn lại",
+  CONSOLE.indexOf("tasks.slice(0, 60)") === -1);
+check("CANARY: trang Tiết kiệm đã gộp vào Mức dùng, không còn bảng chẩn đoán",
+  CONSOLE.indexOf('id="rtTasks"') === -1 && CONSOLE.indexOf("renderRuntime") === -1);
 
 // ---- Chạy thật helper để chắc nó lật đúng ----
 const src = CONSOLE.slice(CONSOLE.indexOf("function pager(box, items"));

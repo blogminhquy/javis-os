@@ -1,8 +1,10 @@
 # Mức dùng: token & chi phí
 
-Trang **Mức dùng** trả lời đúng một câu hỏi: *bạn đã đốt bao nhiêu token, và cái gì đốt nhiều nhất*. Javis tự đo lấy con số này từ log thật trên máy, không phải xin từ nhà cung cấp, nên bạn thấy được cả phần mà Claude hay ChatGPT không bao giờ lộ ra: phần do chính Javis chạy nền tiêu tốn.
+Trang **Mức dùng** trả lời hai câu hỏi đi liền nhau: *bạn đã đốt bao nhiêu token* và *làm sao đốt ít đi*. Javis tự đo lấy con số này từ log thật trên máy, không phải xin từ nhà cung cấp, nên bạn thấy được cả phần mà Claude hay ChatGPT không bao giờ lộ ra: phần do chính Javis chạy nền tiêu tốn.
 
-Trang này hướng dẫn đọc từng thẻ, từng đồ thị, từng bảng trên đó, và cách dùng nó để tìm chỗ đang ăn hạn mức của bạn.
+Ngay đầu trang là khối **Chế độ tiết kiệm token** với ba nút. Từ bản 0.24.7 nó nằm ở đây; trước đó là một trang riêng tên "Tiết kiệm" trong thanh bên. Gộp lại vì tách hai chỗ thì người dùng đọc hết hoá đơn mà không bao giờ thấy cái công tắc.
+
+Trang này hướng dẫn chọn mức tiết kiệm, rồi đọc từng thẻ, từng đồ thị, từng bảng, và cách dùng nó để tìm chỗ đang ăn hạn mức của bạn.
 
 ## Tính năng này là gì
 
@@ -20,6 +22,30 @@ Trang cho bạn: bộ lọc 8 kỳ và 4 nhà cung cấp, các thẻ tổng kèm
 Mở dashboard (mặc định tại cổng 7777). Trên thanh điều hướng bên trái, bấm mở nhóm **Hệ thống** (nhóm này được ghim ở đáy thanh), rồi bấm mục **Mức dùng** (biểu tượng 📊).
 
 Đầu trang hiện tiêu đề **Mức dùng** kèm dòng phụ "Token & chi phí theo ngày, theo nhà cung cấp".
+
+## Chế độ tiết kiệm token (khối đầu trang)
+
+Mỗi lần bạn chat, Javis phải gửi kèm một mớ thông tin nền cho model: nó là ai, có công cụ nào, nhớ gì về bạn, đã nói gì trước đó. Mớ đó tốn tiền và ăn vào hạn mức. Ba nút ở đây quyết định mớ đó to bao nhiêu.
+
+- **Tắt** - chế độ Đầy đủ. Gửi mọi thứ, mỗi lượt. An toàn nhất, tốn nhất.
+- **Tối ưu** - chỉ gửi phần liên quan tới câu vừa hỏi: bộ nhớ có chọn lọc, skill nạp khi cần.
+- **Siêu tiết kiệm** - như Tối ưu, cộng thêm đường tắt cho câu hỏi đơn giản không cần tra cứu gì. **Đây là mặc định từ bản 0.24.7.**
+
+Mỗi nút ghi sẵn nó tiết kiệm bao nhiêu phần trăm và còn bao nhiêu token mỗi lượt. Con số đó là **ước lượng đo trên chính bộ não và bộ nhớ của bạn**, không phải số quảng cáo, nên hai máy khác nhau sẽ thấy hai con số khác nhau.
+
+Nếu bộ não bạn đang chạy không ăn được một mức nào đó, nút của mức ấy ghi thẳng *"không áp cho bộ não đang dùng"*. Ví dụ đường tắt của Siêu tiết kiệm chỉ chạy trên bộ não dùng API key, nên với gói thuê bao thì nó bằng đúng mức Tối ưu.
+
+Khi đã có đủ lượt chạy ở cả hai chế độ trong 24 giờ, một khối số **đo thật** hiện ngay dưới ba nút: token mỗi lượt ở chế độ Đầy đủ, token mỗi lượt khi tiết kiệm, và phần trăm giảm được. Đây là số thật, không phải ước lượng.
+
+**Đổi mức có hiệu lực ngay**, không cần khởi động lại. Thấy Javis trả lời tệ đi thì bấm **Tắt** là quay lại như cũ lập tức.
+
+### Vì sao mặc định là Siêu tiết kiệm
+
+Trước 0.24.7 mặc định là **Tắt**, và gần như không ai tự bật - nghĩa là đa số đang trả tiền cho chế độ đắt nhất mà không biết. Đo trên một brain mẫu: mức Tắt tốn khoảng 8.900 token cố định mỗi lượt, mức Siêu tiết kiệm khoảng 460.
+
+Đây là mặc định an toàn được, không phải liều: mọi đường trong mức này đều **fail-closed**. Thiếu điều kiện thì lượt đó tự rơi về chế độ Đầy đủ chứ không trả lời sai.
+
+Nếu bạn **đã từng tự bấm một mức**, Javis ghim lựa chọn đó lại và không bản cập nhật nào đổi nó nữa - kể cả khi bạn cố ý bấm **Tắt**. Dòng chữ dưới ba nút cho biết bạn đang ở mặc định hay ở lựa chọn của mình.
 
 ## Cách dùng (từng bước)
 

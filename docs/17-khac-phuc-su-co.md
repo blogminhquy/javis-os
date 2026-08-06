@@ -118,14 +118,14 @@ Lưu ý nếu bạn đang bật đồng bộ GitHub: `attachments/` và `inbox/`
 
 Gói miễn phí của các nhà cung cấp API (Groq rõ nhất) siết **bốn thứ song song**, và chúng đòi bốn cách xử lý khác hẳn nhau. Javis đọc câu báo lỗi rồi tự phân loại, nên đọc thông báo trong chat là biết mình đang dính cái nào:
 
-- **Token mỗi phút, lượt này quá to.** Javis tự rút gọn ngữ cảnh rồi gửi lại. Không vừa nữa thì bật mức **Tiết kiệm** ở trang Tiết kiệm token, hoặc hỏi câu ngắn hơn.
+- **Token mỗi phút, lượt này quá to.** Javis tự rút gọn ngữ cảnh rồi gửi lại. Không vừa nữa thì bật mức **Tối ưu** ở đầu trang Mức dùng, hoặc hỏi câu ngắn hơn.
 - **Token mỗi phút, cửa sổ đang đầy.** Các lượt trước chưa trôi qua. Javis tự chờ đúng số giây nhà cung cấp nói rồi gửi lại. Rút gọn câu hỏi không giúp gì.
 - **Số lượt mỗi phút.** Gọi quá dày. Chờ một lát rồi hỏi lại.
 - **Hạn mức theo NGÀY** (token hoặc số lượt). Hết quota ngày. Rút gọn câu hỏi hoàn toàn không giúp. Phải chờ sang ngày mới, đổi tạm sang bộ não khác ở trang **Models**, hoặc nâng gói với nhà cung cấp.
 
 Nếu Javis không nhận ra loại nào, nó sẽ **đưa nguyên văn câu báo lỗi của nhà cung cấp** ra thay vì đoán. Gửi nguyên câu đó khi báo lỗi thì dễ lần ra hơn nhiều.
 
-Mẹo giảm hẳn tần suất gặp: bật mức **Tiết kiệm** ở trang **Tiết kiệm token**. Sau lần đầu bị từ chối, Javis nhớ luôn hạn mức thật của tài khoản đó (do chính nhà cung cấp nói ra) và tự canh ngữ cảnh dưới ngưỡng cho các lượt sau, không cần khai gì cả.
+Mẹo giảm hẳn tần suất gặp: chọn mức **Tối ưu** hoặc **Siêu tiết kiệm** ở đầu trang **Mức dùng** (từ 0.24.7 máy mới đã mặc định ở Siêu tiết kiệm). Sau lần đầu bị từ chối, Javis nhớ luôn hạn mức thật của tài khoản đó (do chính nhà cung cấp nói ra) và tự canh ngữ cảnh dưới ngưỡng cho các lượt sau, không cần khai gì cả.
 
 ### Nhà cung cấp gãy một nhịp thì Javis tự hỏi lại
 

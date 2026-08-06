@@ -320,8 +320,10 @@ check("'bot' là một đường hợp lệ, không rơi về legacy",
       '"workflow", "sources", "bot"' in (SERVER / "context_runtime.py").read_text(encoding="utf-8"))
 check("lượt bot tự ghim đường của nó", '_CONTEXT_RUNTIME.pin_execution_path(' in _SRC
       and '"bot", None, context_runtime.RUNTIME_VERSION' in _SRC)
+# Bảng nhãn đường giờ chỉ còn MỘT bản, nằm ở khung chat (app.js): trang Tiết kiệm gộp vào
+# Mức dùng ở 0.24.7 và mang theo bản sao thứ hai của bảng này.
 check("giao diện có nhãn tiếng Việt cho đường bot",
-      'bot: "Bot chuyên trách"' in (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8"))
+      'bot: "Bot chuyên trách"' in (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8"))
 
 # Đo thật: prompt của bot phải nhỏ hơn hẳn capsule của mức Siêu tiết kiệm. Đây là bằng chứng
 # cho câu "bot không cần hai tầng đó", chứ không phải lời khẳng định suông.

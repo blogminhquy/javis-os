@@ -455,7 +455,16 @@ PRESET_DUONG = {
 # MỨC XUẤT XƯỞNG CỦA BẢN NÀY. Đổi đúng dòng này là đổi mặc định cho MỌI máy chưa từng tự
 # chọn mức, kể cả máy đã cài từ lâu. Đừng sửa `_DEFAULT` ở trên để đổi mặc định: xem
 # `_ap_muc_mac_dinh` để biết vì sao sửa ở đó không tới được máy nào.
-PRESET_MAC_DINH = "off"
+#
+# Từ 0.24.7 là "max" (Siêu tiết kiệm). Trước đó là "off", tức mặc định gửi trọn CLAUDE.md +
+# MEMORY.md + đặc tả tool mỗi lượt, và người dùng phải tự tìm ra trang tiết kiệm rồi tự bật.
+# Gần như không ai bật, nên mặc định ấy là con số thật mà đa số đang trả. Đo trên một brain
+# mẫu: mức Tắt ~8.900 token cố định mỗi lượt, mức Siêu tiết kiệm ~460.
+#
+# Đây là mặc định AN TOÀN được, không phải liều: mọi đường trong mức này đều fail-closed -
+# thiếu điều kiện thì lượt đó tự rơi về chế độ Đầy đủ chứ không trả lời sai. Và người đã tự
+# chọn mức thì hàm trên không đụng tới, kể cả người cố ý chọn Tắt.
+PRESET_MAC_DINH = "max"
 
 
 def _ap_muc_mac_dinh(cfg: dict) -> bool:

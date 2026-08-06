@@ -88,6 +88,10 @@ async def _go():
     r = await main.runtime_preset_set(level="khong_co")
     check("mức không tồn tại → 400", getattr(r, "status_code", 0) == 400)
 
+    # Về nền TẮT trước đã. Từ 0.24.7 máy mới xuất xưởng ở mức Siêu tiết kiệm, nên nếu đo
+    # thẳng từ trạng thái ban đầu thì ba đường của mức Tối ưu ĐÃ bật sẵn và `da_bat` rỗng -
+    # test đỏ vì nền đổi, chứ không phải vì endpoint hỏng.
+    await main.runtime_preset_set(level="off")
     r = await main.runtime_preset_set(level="saving")
     check("đổi sang Tiết kiệm → ok", isinstance(r, dict) and r.get("ok"))
     check("báo rõ đã bật những gì (không im lặng)", len(r.get("da_bat") or []) == 3)
@@ -129,13 +133,22 @@ asyncio.run(_go())
 # ---- 5. Giao diện phải thật sự vẽ ba nút đó ----
 # Backend đúng mà giao diện không dùng thì y như không có - đã dính đúng lỗi này với
 # tpm_window một lần rồi.
-_console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
-check("giao diện có dùng danh sách mức", "d.presets" in _console)
-check("giao diện tô đậm mức đang dùng", "d.preset" in _console)
-check("có gắn sự kiện bấm mức", "_bindPresets" in _console)
+#
+# Từ 0.24.7 ba nút nằm ở ĐẦU trang Mức dùng, không còn trang riêng trong rail.
+_usage = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
+check("giao diện có dùng danh sách mức", "d.danh_sach" in _usage)
+check("giao diện tô đậm mức đang dùng", 'p.id === d.muc ? " on"' in _usage)
+check("có gắn sự kiện bấm mức", "function bindMuc(" in _usage and "[data-muc]" in _usage)
 check("bấm xong có phản hồi nhìn thấy được (không im lặng như bản cũ)",
-      "_rtToast" in _console)
-check("bảng canary thô đã gập vào phần Nâng cao", "rt-adv" in _console)
+      "tk-muc-toast" in _usage and "state.toast" in _usage)
+# Bảng canary thô (allocation tính bằng phần vạn, tên đường, hạn mức, allowlist) đã bỏ hẳn
+# khỏi màn hình chứ không chỉ gập lại: nó là ngôn ngữ của người vận hành máy. Ai cần vẫn có
+# `/runtime/canary` và `/runtime/diagnostics`.
+_console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+check("CANARY: bảng canary thô không còn trước mắt người dùng",
+      "rt-adv" not in _console and "rt-bps" not in _console and "rt-adv" not in _usage)
+check("nhưng đường API cho người vận hành vẫn còn",
+      "/runtime/canary" in (ROOT / "server" / "main.py").read_text(encoding="utf-8"))
 check("tên trang không còn chung chung là 'Chẩn đoán'",
       '"Chẩn đoán"' not in _console)
 
