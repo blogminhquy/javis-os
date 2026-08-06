@@ -14,6 +14,7 @@ import json
 import os
 import random
 import re
+import sys
 import threading
 import time
 import httpx
@@ -156,6 +157,105 @@ class _RetryStream(Exception):
     def __init__(self, retry_after=None):
         super().__init__()
         self.retry_after = retry_after
+
+
+# ============================================================
+# Lỗi TẠM THỜI: đánh dấu tại nguồn, chạy lại ở tầng trên
+# ============================================================
+def ev_loi_http(nhan, status, body_text, headers=None, fact=None, cat=300):
+    """Sự kiện lỗi HTTP, kèm câu trả lời cho một câu hỏi: lượt này chạy lại được không?
+
+    Đánh dấu tại NGUỒN vì chỉ ở đây mới còn đủ dữ kiện: status thật, body thật, và header
+    `Retry-After` nhà cung cấp gửi kèm. Lên tới tầng trên thì tất cả đã bị ép thành một chuỗi
+    chữ, và đoán lại bằng cách dò chữ trong chuỗi đó là thứ hỏng ngay lần đầu ai đó sửa nhãn.
+
+    `fact` là hạn mức `limit_learner` vừa đọc được. Có nó thì KHÔNG đánh dấu: đó là lỗi vượt
+    kích thước hoặc hết quota có thật, chạy lại y nguyên chỉ tốn thêm một lượt để nhận lại
+    đúng lỗi đó. Phải co lại hoặc chờ cửa sổ trượt qua trước.
+    """
+    ev = {"type": "error", "content": f"{nhan} {status}: {str(body_text or '')[:cat]}"}
+    if fact is None and (status in _RETRY_STATUS or _is_transient_body(str(body_text or ""))):
+        ev["tam_thoi"] = True
+        cho = _parse_retry_after(headers)
+        if cho is not None:
+            ev["cho"] = cho
+    return ev
+
+
+def ev_loi_exc(nhan, exc):
+    """Sự kiện lỗi từ một ngoại lệ. Chỉ lỗi MẠNG mới đáng chạy lại.
+
+    Lỗi lập trình (JSON hỏng, thiếu khoá, sai kiểu) chạy lại bao nhiêu lần cũng hỏng y hệt,
+    và mỗi lần chạy lại là một lượt gọi model thật đã trả tiền.
+    """
+    ev = {"type": "error", "content": f"{nhan}: {_describe_exc(exc)}"}
+    if isinstance(exc, _RETRY_EXC):
+        ev["tam_thoi"] = True
+    return ev
+
+
+async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
+    """Chạy lại một lượt gọi model khi nó gãy vì lỗi TẠM THỜI (429, 5xx, mạng chớp tắt).
+
+    Vì sao nằm ở TẦNG SỰ KIỆN chứ không nhét vào từng hàm stream: có tám đường gọi model và
+    bốn vòng tool, mỗi cái một kiểu HTTP riêng. Nhét retry vào từng cái là tám bản sao của
+    cùng một logic - và đó đúng là chỗ đã hỏng: `openrouter_stream` có retry từ lâu, bảy
+    đường còn lại thì không. Một cú 429 chớp nhoáng của Anthropic đủ giết trọn một lượt trả
+    lời của bot chuyên trách, để lại cho người nhắn một câu xin lỗi kỹ thuật và gọi người
+    trực dậy - trong khi thử lại sau một giây là xong.
+
+    Hai điều kiện để chạy lại, thiếu một là thôi:
+
+    1. **Chưa nhả chữ nào ra ngoài.** Người ta đã đọc được nửa câu rồi thì chạy lại nghĩa là
+       câu trả lời hiện ra hai lần.
+    2. **Chưa chạy tool nào.** Vòng tool có thể đã gửi tin, đã ghi file, đã đặt lịch. Chạy
+       lại cả vòng là làm lại từ đầu những việc đó. Thà báo lỗi còn hơn làm hai lần.
+
+    Hết lượt mà vẫn hỏng thì trả đúng lỗi gốc, nhưng GỠ dấu `tam_thoi` đi: dấu đó là lời mời
+    chạy lại, mà đã hết lượt rồi. Nhờ vậy bọc chồng hai lớp cũng không nở thành chín lần gọi,
+    và `openrouter_stream` - vốn tự retry bên trong - không bị thử lại thêm một tầng nữa.
+    """
+    da_meta = False
+    for lan in range(1, max(1, so_lan) + 1):
+        chan = False        # đã nhả chữ / đã chạy tool → lượt này không chạy lại được nữa
+        loi_hoan = None
+        gen = tao_stream()
+        try:
+            async for ev in gen:
+                t = ev.get("type")
+                if t == "meta":
+                    if da_meta:
+                        continue        # lần chạy lại không phát lại meta cũ
+                    da_meta = True
+                elif t == "tool_call" or (t == "text" and ev.get("content")):
+                    chan = True
+                elif t == "error" and ev.get("tam_thoi") and not chan:
+                    loi_hoan = ev
+                    break
+                yield ev
+        finally:
+            aclose = getattr(gen, "aclose", None)
+            if aclose is not None:
+                await aclose()
+        if loi_hoan is None:
+            return
+        cho = loi_hoan.get("cho")
+        if cho is None:
+            cho = _jittered_backoff(lan)
+        # Nhà cung cấp bảo chờ lâu hơn ngưỡng người ta chịu ngồi im thì đừng chờ - báo ngay để
+        # họ biết mà làm việc khác, thay vì nhìn màn hình đứng yên nửa phút.
+        if lan >= so_lan or cho > _WINDOW_WAIT_MAX:
+            cuoi = dict(loi_hoan)
+            cuoi.pop("tam_thoi", None)
+            cuoi.pop("cho", None)
+            cuoi["da_thu"] = lan
+            if lan > 1:
+                cuoi["content"] = f"{cuoi['content']} (đã thử lại {lan} lần)"
+            yield cuoi
+            return
+        print(f"[thử lại {nhan or '?'}] lần {lan} gãy tạm thời, chờ {cho:.1f}s: "
+              f"{str(loi_hoan.get('content'))[:160]}", file=sys.stderr)
+        await asyncio.sleep(cho)
 
 
 def _apply_anthropic_cache(payload: dict, cache_ttl: str = "5m") -> None:
@@ -403,7 +503,7 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                                "requested": _fact.requested,
                                "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                    yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
+                    yield ev_loi_http(label, r.status_code, body_text, r.headers, _fact)
                     return
                 got = False
                 usage = None
@@ -429,7 +529,7 @@ async def _openai_compat_stream(url, label, api_key, model, messages, reasoning,
                 if not got:
                     yield {"type": "error", "content": f"{label} trả về rỗng. Thử model khác."}
     except Exception as e:
-        yield {"type": "error", "content": f"{label} lỗi: {_describe_exc(e)}"}
+        yield ev_loi_exc(f"{label} lỗi", e)
 
 
 async def openai_stream(api_key, model, messages, reasoning="off"):
@@ -505,7 +605,7 @@ async def anthropic_stream(api_key, model, messages, reasoning="off", oauth_toke
                                "requested": _fact.requested,
                                "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                    yield {"type": "error", "content": f"Anthropic {r.status_code}: {body_text[:300]}"}
+                    yield ev_loi_http("Anthropic", r.status_code, body_text, r.headers, _fact)
                     return
                 yield {"type": "meta", "model": model}
                 got = False
@@ -554,7 +654,7 @@ async def anthropic_stream(api_key, model, messages, reasoning="off", oauth_toke
                     }
                     yield {"type": "text", "content": "\n\n" + notes.get(stop_reason, f"⚠️ Stream kết thúc bất thường (stop_reason={stop_reason}).")}
     except Exception as e:
-        yield {"type": "error", "content": f"Anthropic lỗi: {_describe_exc(e)}"}
+        yield ev_loi_exc("Anthropic lỗi", e)
 
 
 async def single_tool_plan(provider, api_key, model, messages, reasoning, tool_spec):
@@ -833,7 +933,7 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                                "requested": _fact.requested,
                                "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                    yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body_text[:400]}"}
+                    yield ev_loi_http("ChatGPT", r.status_code, body_text, r.headers, _fact, cat=400)
                     return
                 yield {"type": "meta", "model": model or "gpt-5-codex"}
                 got = False
@@ -873,7 +973,7 @@ async def openai_responses_stream(access_token, account_id, model, messages, rea
                 if not got:
                     yield {"type": "error", "content": "ChatGPT trả về rỗng. Kiểm tra gói Plus/Pro hoặc thử lại."}
     except Exception as e:
-        yield {"type": "error", "content": f"ChatGPT OAuth lỗi: {_describe_exc(e)}"}
+        yield ev_loi_exc("ChatGPT OAuth lỗi", e)
 
 
 # ============================================================
@@ -1377,11 +1477,11 @@ async def _cc_tool_loop(url, headers, model, messages, mcp_tools, mcp_route, rea
                            "retry_after": _fact.retry_after,
                            "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                yield {"type": "error", "content": f"{label} {r.status_code}: {body_text[:300]}"}
+                yield ev_loi_http(label, r.status_code, body_text, r.headers, _fact)
                 return
             data = r.json()
         except Exception as e:
-            yield {"type": "error", "content": f"{label} lỗi: {_describe_exc(e)}"}
+            yield ev_loi_exc(f"{label} lỗi", e)
             return
         u = data.get("usage") or {}   # cộng dồn token mọi vòng (kể cả vòng gọi tool)
         usage_in += u.get("prompt_tokens", 0) or 0
@@ -1562,7 +1662,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                                    "requested": _fact.requested,
                                    "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                        yield {"type": "error", "content": f"ChatGPT {r.status_code}: {body_text[:300]}"}
+                        yield ev_loi_http("ChatGPT", r.status_code, body_text, r.headers, _fact)
                         return
                     async for line in r.aiter_lines():
                         line = (line or "").strip()
@@ -1594,7 +1694,7 @@ async def responses_with_mcp(access_token, account_id, model, messages, reasonin
                             yield {"type": "error", "content": "ChatGPT: " + (msg or "lỗi")}
                             return
             except Exception as e:
-                yield {"type": "error", "content": f"ChatGPT lỗi: {_describe_exc(e)}"}
+                yield ev_loi_exc("ChatGPT lỗi", e)
                 return
             fcalls = [o for o in output if o.get("type") == "function_call"]
             if fcalls:
@@ -1670,7 +1770,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
             try:
                 r = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
             except Exception as e:
-                yield {"type": "error", "content": f"Anthropic lỗi: {_describe_exc(e)}"}
+                yield ev_loi_exc("Anthropic lỗi", e)
                 return
             if r.status_code == 400 and extras and "thinking" in (r.text or "").lower():
                 extras = {}   # thinking không tương thích payload/tool này → bỏ thinking, thử lại
@@ -1685,7 +1785,7 @@ async def anthropic_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools
                            "requested": _fact.requested,
                            "shrink_to": limit_learner.shrink_target(_fact),
                            "remedy": _fact.remedy, "raw": _fact.raw}
-                yield {"type": "error", "content": f"Anthropic {r.status_code}: {body_text[:300]}"}
+                yield ev_loi_http("Anthropic", r.status_code, body_text, r.headers, _fact)
                 return
             try:
                 data = r.json()

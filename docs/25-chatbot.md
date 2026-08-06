@@ -262,6 +262,10 @@ Có đặt Chat ID người trực thì bot gọi người trong hai trường h
 
 Bí một câu lẻ thì không gọi. Báo mọi câu vu vơ thì vài lần là người trực tắt thông báo, và lúc có người thật cần giúp thì không ai đọc nữa. Hai câu liên tiếp mới là dấu hiệu người ta đang mắc kẹt thật.
 
+Trường hợp thứ ba là bot **gãy** (không gọi được model). Cái này báo ngay từ lần đầu, không chờ đủ hai câu, vì mỗi phút im lặng là người đang nhắn nghĩ mình bị bỏ mặc. Nhưng chỉ báo **một lần** cho tới khi có lượt chạy được, không thì hộp thư người trực thành log lỗi.
+
+Trước khi coi là gãy, Javis đã tự hỏi lại tối đa ba lần nếu lỗi là loại **tạm thời** (nhà cung cấp trả 429 vì gọi quá dày, 5xx vì quá tải, mạng chớp tắt). Một cú 429 chớp nhoáng không còn đánh thức người trực nữa. Thông báo gãy có kèm chữ *(đã thử lại 3 lần)* nghĩa là đã thử hết cách, nên đi xem trang **Models** hoặc hạn mức của tài khoản. Chi tiết ở [Khắc phục sự cố](17-khac-phuc-su-co.md#nhà-cung-cấp-báo-vượt-hạn-mức).
+
 Nhật ký giữ 2000 lượt gần nhất mỗi bot, cũ hơn thì tự cắt. Xoá bot thì nhật ký đi theo.
 
 ## Bot làm được gì và KHÔNG làm được gì

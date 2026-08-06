@@ -925,6 +925,23 @@ def _claude_api_model(model: str) -> str:
 
 
 def _api_stream(prov, key, model, messages, reasoning="off"):
+    """Stream của một provider, KÈM chạy lại khi nhà cung cấp gãy tạm thời.
+
+    Chạy lại nằm ở đây chứ không nằm trong từng hàm engine vì đây là chỗ DUY NHẤT mọi đường
+    chat không-tool đi qua: dashboard, Telegram, bot chuyên trách, việc nền, đường tắt. Một
+    chỗ sửa là tám bộ não cùng được.
+
+    Lỗi tạm thời là 429 và 5xx - nhà cung cấp đang quá tải hoặc mình vừa gọi hơi dày. Trước
+    bản này chỉ OpenRouter tự thử lại, nên một cú 429 chớp nhoáng của Anthropic giết trọn
+    lượt trả lời: người nhắn cho bot nhận câu xin lỗi kỹ thuật, người trực bị gọi dậy, còn
+    thứ cần làm chỉ là chờ một giây rồi hỏi lại.
+    """
+    return engine.thu_lai_khi_tam_thoi(
+        lambda: _api_stream_goc(prov, key, model, messages, reasoning),
+        nhan=f"{prov}/{model or 'mặc định'}")
+
+
+def _api_stream_goc(prov, key, model, messages, reasoning="off"):
     """Chọn generator stream theo provider api-kind. reasoning=off|low|medium|high."""
     if prov == "openrouter":
         return engine.openrouter_stream(key, model, messages, reasoning)
@@ -996,18 +1013,24 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
             _last_user_text(messages), prov, model or "?", kind="api",
         )
     if tools:
-        if prov == "openrouter":
-            return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
-        if prov == "openai":
-            return engine.openai_chat_with_mcp(key, model, messages, reasoning, tools, route)
-        if prov == "anthropic-api":
-            return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
-        if prov == "gemini":
-            return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
-        if prov == "groq":
-            return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
-        if prov == "ollama":
+        # Vòng tool cũng được chạy lại khi gãy tạm thời, nhưng chỉ tới khi nó chạy tool ĐẦU
+        # TIÊN: từ đó trở đi lượt này đã để lại dấu vết ngoài đời (ghi file, gửi tin, đặt
+        # lịch) và chạy lại là làm hai lần. Điều kiện đó do `thu_lai_khi_tam_thoi` giữ.
+        def _vong_tool():
+            if prov == "openrouter":
+                return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "openai":
+                return engine.openai_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "anthropic-api":
+                return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "gemini":
+                return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
+            if prov == "groq":
+                return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
+
+        if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"):
+            return engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool")
     return _api_stream(prov, key, model, messages, reasoning)
 
 
@@ -9177,24 +9200,30 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route):
     """
     if not tools:
         return _api_stream(prov, key, model, messages, reasoning)
-    if prov == "openrouter":
-        return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
-    if prov == "openai":
-        return engine.openai_chat_with_mcp(key, model, messages, reasoning, tools, route)
-    if prov == "gemini":
-        return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
-    if prov == "groq":
-        return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
-    if prov == "ollama":
-        return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
-    if prov == "openai-oauth":
-        creds = openai_oauth.valid_creds() or {}
-        return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
-                                         _codex_safe_model(model), messages, reasoning, tools, route)
-    if prov == "anthropic-cli":
-        return engine.anthropic_chat_with_mcp(key, _claude_api_model(model), messages, reasoning,
-                                              tools, route, oauth_token=claude_models.oauth_token())
-    return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
+
+    def _vong():
+        if prov == "openrouter":
+            return engine.openrouter_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "openai":
+            return engine.openai_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "gemini":
+            return engine.gemini_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "groq":
+            return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "ollama":
+            return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "openai-oauth":
+            creds = openai_oauth.valid_creds() or {}
+            return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
+                                             _codex_safe_model(model), messages, reasoning, tools, route)
+        if prov == "anthropic-cli":
+            return engine.anthropic_chat_with_mcp(key, _claude_api_model(model), messages, reasoning,
+                                                  tools, route, oauth_token=claude_models.oauth_token())
+        return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
+
+    # Nhà cung cấp gãy tạm thời thì thử lại - nhưng dừng ngay khi tool đầu tiên đã chạy, vì từ
+    # đó lượt này đã chạm vào thế giới thật.
+    return engine.thu_lai_khi_tam_thoi(_vong, nhan=f"bot {prov}/{model or 'mặc định'}")
 
 
 async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,

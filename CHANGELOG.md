@@ -4,6 +4,28 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.24.6] - 2026-08-06
+Chủ repo gửi ảnh một con bot chuyên trách đang trực: người ta nhắn vào, bot trả lời *"Em đang gặp trục trặc kỹ thuật, anh chị nhắn lại giúp em sau ít phút ạ"*, và người trực bị đánh thức kèm lý do `⚠ Anthropic 429: {"type":"rate_limit_error"}`.
+
+429 là lỗi **tạm thời**. Việc đúng là chờ một nhịp rồi hỏi lại.
+### Sửa lỗi
+- **Bảy trong tám bộ não bỏ cuộc ngay ở lần gãy đầu tiên.** `engine.py` có sẵn đủ bộ đồ nghề để thử lại từ lâu - `_RETRY_STATUS`, `_is_transient_body`, `_parse_retry_after`, `_jittered_backoff` - nhưng **chỉ `openrouter_stream` dùng chúng**. Bảy đường gọi model còn lại và cả bốn vòng tool đều chết ngay khi nhà cung cấp hắt hơi một cái.
+
+  Không ai thấy vì trên máy sạch thì nhà cung cấp không 429 bao giờ. Chỉ khi một con bot trực thật, cho người thật, mới lộ ra: một cú 429 kéo dài chưa tới một giây đủ để một người đang hỏi nhận lời xin lỗi kỹ thuật và một người trực bị gọi dậy giữa ca.
+- **Nay lỗi tạm thời được đánh dấu TẠI NGUỒN** (`engine.ev_loi_http` / `ev_loi_exc`), vì chỉ chỗ gọi HTTP mới còn status thật, body thật và header `Retry-After`. Lên tới tầng trên thì tất cả đã bị ép thành một chuỗi chữ, và đoán lại bằng cách dò chữ trong chuỗi đó là thứ hỏng ngay lần đầu ai đó sửa nhãn.
+- **Chạy lại nằm ở `_api_stream`**, chỗ DUY NHẤT mọi đường chat không-tool đi qua: dashboard, Telegram, bot chuyên trách, việc nền, đường tắt. Tối đa ba lượt, nghe theo `Retry-After` nếu nhà cung cấp có gửi. Vòng tool cũng được bọc.
+### Bảo mật
+- **Hai điều kiện để chạy lại, thiếu một là thôi.** Đã nhả chữ ra ngoài thì thôi (người ta sẽ đọc câu trả lời hai lần), và **đã chạy tool thì càng thôi** - lượt đó có thể đã gửi tin, đã ghi file, đã đặt lịch, chạy lại cả vòng là làm những việc đó lần thứ hai. Đây là mục canary nặng nhất của file test.
+- **Lỗi KHÔNG tạm thời báo ngay từ lần đầu**: sai khoá, sai tên model, vượt kích thước ngữ cảnh, và mọi lỗi đã đọc ra được hạn mức thật. Thử lại y nguyên chỉ tốn thêm một lượt gọi model đã trả tiền để nhận lại đúng lỗi đó.
+- **Lượt cuối gỡ dấu `tam_thoi` đi.** Dấu đó là lời mời chạy lại, mà đã hết lượt rồi. Nhờ vậy bọc chồng hai lớp không nở thành chín lần gọi, và `openrouter_stream` (vốn tự thử lại bên trong) không bị thử thêm một tầng nữa.
+### Cải thiện
+- Câu lỗi cuối cùng có thêm *(đã thử lại 3 lần)* - để chủ phân biệt được sự cố chớp nhoáng với hạn mức đã cạn thật, hai thứ sửa khác nhau hoàn toàn.
+### Kiểm thử
+- `test_thu_lai_tam_thoi.py` mới, canh cả ba tầng, và mục cuối dựng lại ĐÚNG ảnh chụp của chủ: bot gặp 429 một nhịp thì vẫn trả lời người đang hỏi và **không** gọi người trực dậy; 429 mãi thì vẫn phải báo hỏng chứ không nuốt lỗi.
+- Canary "cả tám bộ não": sửa cho Anthropic rồi bỏ bảy đường kia lại đúng là kiểu hỏng vừa sửa, nên test chạy thẳng qua từng provider trong `PROVIDER_DEFS`.
+### Tài liệu
+- `docs/17-khac-phuc-su-co.md` thêm mục **Nhà cung cấp gãy một nhịp thì Javis tự hỏi lại**; `docs/25-chatbot.md` nói rõ trường hợp thứ ba khiến người trực bị gọi (bot gãy) và việc đã thử lại trước đó.
+
 ## [0.24.5] - 2026-08-06
 Hai chỗ vướng khi Javis đưa một file HTML vào chat: bấm vào link thì file rơi xuống máy, và mở ra sửa thì code một màu xám đọc mỏi mắt.
 ### Cải thiện

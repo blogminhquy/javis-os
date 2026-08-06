@@ -127,6 +127,17 @@ Nếu Javis không nhận ra loại nào, nó sẽ **đưa nguyên văn câu bá
 
 Mẹo giảm hẳn tần suất gặp: bật mức **Tiết kiệm** ở trang **Tiết kiệm token**. Sau lần đầu bị từ chối, Javis nhớ luôn hạn mức thật của tài khoản đó (do chính nhà cung cấp nói ra) và tự canh ngữ cảnh dưới ngưỡng cho các lượt sau, không cần khai gì cả.
 
+### Nhà cung cấp gãy một nhịp thì Javis tự hỏi lại
+
+Từ bản 0.24.4, lượt gọi model gãy vì lỗi **tạm thời** (429 gọi quá dày, 5xx quá tải, mạng chớp tắt) được tự chạy lại tối đa ba lần, cách nhau vài giây. Nhà cung cấp có gửi kèm `Retry-After` thì Javis nghe theo đúng số giây đó. Bạn thường không thấy gì cả, chỉ là câu trả lời tới chậm hơn một hai giây.
+
+Hai trường hợp Javis **cố ý không** chạy lại:
+
+- **Câu trả lời đã bắt đầu hiện ra.** Chạy lại là bạn đọc câu trả lời hai lần.
+- **Lượt đó đã chạy công cụ** (gửi tin, ghi file, đặt lịch). Chạy lại cả vòng là làm những việc đó lần thứ hai. Thà báo lỗi.
+
+Hết ba lần vẫn hỏng thì Javis báo nguyên văn lỗi của nhà cung cấp, kèm chữ *(đã thử lại 3 lần)* để bạn biết đây không phải sự cố chớp nhoáng. Lỗi **không** tạm thời (sai khoá, sai tên model, hết quota ngày, vượt kích thước ngữ cảnh) thì báo ngay từ lần đầu, vì thử lại y nguyên chỉ tốn thêm một lượt gọi để nhận lại đúng lỗi đó.
+
 ## Xem nhật ký (log) ở đâu
 
 Có vài nơi xem "nhật ký" tùy loại thông tin:

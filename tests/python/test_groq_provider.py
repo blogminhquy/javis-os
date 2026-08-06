@@ -146,10 +146,17 @@ async def _run():
 asyncio.run(_run())
 
 # _api_stream / _api_stream_mcp phải trỏ vào đúng hàm Groq, không rơi về nhánh mặc định
-# (nhánh cuối của _api_stream là anthropic_stream - sót là chat Groq đi gọi Anthropic).
-_gen = main._api_stream("groq", "k", "m", [{"role": "user", "content": "x"}], "off")
+# (nhánh cuối của _api_stream_goc là anthropic_stream - sót là chat Groq đi gọi Anthropic).
+_gen = main._api_stream_goc("groq", "k", "m", [{"role": "user", "content": "x"}], "off")
 check("_api_stream chọn đúng generator của Groq", _gen.__qualname__.startswith("groq_stream"))
 _gen.aclose() if hasattr(_gen, "aclose") else None
+
+# Và lượt chat thật phải đi qua lớp thử-lại, không gọi thẳng generator gốc: nhà cung cấp trả
+# 429 một nhịp mà bỏ cuộc ngay là chuyện đã xảy ra thật với bot chuyên trách.
+_boc = main._api_stream("groq", "k", "m", [{"role": "user", "content": "x"}], "off")
+check("_api_stream bọc lớp thử lại khi gãy tạm thời",
+      _boc.__qualname__.startswith("thu_lai_khi_tam_thoi"))
+_boc.aclose() if hasattr(_boc, "aclose") else None
 
 
 if fails:
