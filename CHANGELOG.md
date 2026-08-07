@@ -4,6 +4,23 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.25.3] - 2026-08-06
+Chủ repo gửi ảnh chụp iPhone kèm câu: *"Ở điện thoại khi não thu nhỏ thì nó quá bé ko thấy gì cả."* Đúng. Đo lại bằng Chromium 390x844 thì khoang não cao 228px, mà lệnh canh khung chừa cứng 70px mỗi bên - còn đúng 88px cho TOÀN BỘ đồ thị. Cụm node ra 87x88 giữa một khung 390x228, chiếm 22% bề ngang. Ba thứ khác cộng dồn vào cùng chỗ đó: 8 nhãn thư mục rải kín khung (tên dài tràn hẳn ra ngoài mép phải), dải Agents/Skills/Workflows xếp chồng cao ~56px, và sàn lưới phối cảnh ăn 28% cuối.
+### Sửa lỗi
+- **Lề canh khung tính theo KÍCH THƯỚC KHUNG, không còn là hằng số.** `zoomToFit(500, 70)` là con số hợp lý cho khoang não desktop (~900x700) và thảm hoạ trên điện thoại. Nay lấy 10% của cạnh nhỏ nhất, kẹp trong [10, 70]: desktop giữ nguyên cảm giác cũ (700 x 0.10 = 70), mobile tự co xuống 23. Đo lại trên cùng máy ảo: cụm node từ **87x88 lên 200x202**, tức lấp 77% chiều cao khoang thay vì 39%.
+- **Trên điện thoại nút "ẩn nhãn" chưa từng bấm được.** Cả ba nút góc phải đều mang class `.brain-overlay-toggle`, nên dòng `top: 7px` trong khối mobile của `console.css` đè luôn `.graph-timelapse-btn { top: 58px }` bên `style.css` (cùng độ ưu tiên, `console.css` nạp sau). Hai nút chồng khít lên nhau và nút vẽ sau ăn hết cú chạm. Nay mỗi nút một hàng, đặt tường minh.
+- **Tên thư mục dài bị cắt cụt ngoài mép.** Nhãn vốn `nowrap` + `translate(-50%)` nên "BRAIN DEFAULT" ở rìa phải tràn hẳn ra ngoài khoang. Nay kẹp bề ngang và cắt bằng dấu ba chấm; đo trên 5 cỡ màn khác nhau, không nhãn nào còn tràn.
+### Cải thiện
+- **Khung hẹp rải 4 nhãn ở bốn góc thay vì 8 nhãn kín khung**, khe trống dưới đáy nới rộng cho chữ trạng thái. Desktop giữ nguyên 8 nhãn và bán kính cũ. Xoay ngang dọc thì tự rải lại.
+- **Dải Agents/Skills/Workflows mỏng còn một dòng** (số và nhãn cùng hàng): từ ~56px xuống ~28px, trả lại một phần tám khoang não cho đồ thị.
+- **Sàn lưới phối cảnh tụt chân trời xuống 86%** khi khoang não thấp dưới 320px, thay vì 72% cố định. Vẫn còn chiều sâu, nhưng thôi cướp chỗ của thứ người dùng thật sự muốn nhìn.
+- **Khoang não mobile cao thêm một nhịp**: `clamp(190px, 27dvh, 260px)` thành `clamp(210px, 31dvh, 300px)`.
+### Thêm mới
+- **Nút BUNG NÃO toàn màn trên điện thoại.** Siết lề với thu nhỏ chữ chỉ làm một khung 228px bớt tệ chứ không biến nó thành chỗ xem đồ thị tử tế - đây mới là câu trả lời thật. Bấm là khoang não chiếm trọn phần thân (cụm node lên 301x305), bấm lần nữa thu về. Gửi tin nhắn lúc đang bung thì tự thu lại, vì ở trạng thái đó khung chat bị ẩn và người dùng gõ xong sẽ không thấy câu trả lời ở đâu. Về màn rộng thì cờ bung tự bỏ. Chip đính kèm KHÔNG bị giấu (giấu là tưởng gắn hụt); chỉ dải việc nền nhường chỗ.
+### Kiểm thử
+- `test_nao_tren_dien_thoai.js`: canh lề động, `refit()` phải mở lại `minZoom` trước khi canh (không thì khung to hơn không bao giờ zoom-out đủ), ba nút ba hàng riêng, desktop không đổi, và luật "gửi tin thì thu não".
+- `test_mobile_layout.py`: đổi từ ghim nguyên chuỗi `clamp` sang khoá theo SÀN, đúng tinh thần đã ghi ngay trên nó. Ghim nguyên chuỗi thì một lần nới khoang não cho dễ nhìn cũng làm test đỏ oan; cái phải chặn là chiều ngược lại.
+
 ## [0.25.2] - 2026-08-06
 Chủ repo gửi ảnh chụp khung chat kèm câu: *"anh đang bật chức năng siêu tiết kiệm, nhiều khi nó trả lời như này nhưng không hề báo lại chút nào cả. Và có agent chạy ngầm thì anh cũng không biết là nó đang chạy thật hay không? Không giống như claude nếu đang chạy ngầm thì vẫn có báo ở đầu hội thoại. Đây là không thấy gì luôn và không chạy luôn."*
 

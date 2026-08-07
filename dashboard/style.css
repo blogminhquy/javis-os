@@ -505,6 +505,9 @@ body {
   stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
 }
 .brain-eye-off { display: none; }
+/* Nút bung/thu khoang não: MẶC ĐỊNH ẨN, chỉ mobile bật lên (console.css). Trên desktop
+   khoang não đã là cả cột giữa, không có gì để bung ra. */
+.brain-max-btn { display: none; }
 /* Nút timelapse: cùng khuôn nút mắt, xếp ngay bên dưới */
 .graph-timelapse-btn { top: 58px; }
 .graph-timelapse-btn .tl-stop { display: none; }

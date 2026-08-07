@@ -34,7 +34,15 @@ check("cache bust console.css không tụt dưới v40",
       _m_css is not None and int(_m_css.group(1)) >= 40)
 check("mobile dùng dynamic viewport", CSS.count("100dvh") >= 3)
 check("graph mobile có fallback nhỏ hơn bản cũ", "height: 30vh;" in CSS)
-check("graph mobile có trần/sàn theo chiều cao", "height: clamp(190px, 27dvh, 260px);" in CSS)
+# Khoá theo SÀN, đúng tinh thần ghi ở trên chứ không ghim nguyên chuỗi: ghim nguyên chuỗi thì
+# một lần nới khoang não lên cho dễ nhìn cũng làm test đỏ oan. Cái phải chặn là chiều ngược
+# lại - khoang não TỤT xuống dưới mức đã từng có, vì dưới đó thì đồ thị lại thành cục nhỏ xíu
+# đúng như bản 0.25.2 đi sửa.
+_m_ctr = re.search(r"height: clamp\((\d+)px,\s*(\d+)dvh,\s*(\d+)px\);", CSS)
+check("graph mobile có trần/sàn theo chiều cao", _m_ctr is not None)
+check("khoang não mobile không tụt dưới mức cũ (190px / 27dvh / 260px)",
+      _m_ctr is not None and int(_m_ctr.group(1)) >= 190
+      and int(_m_ctr.group(2)) >= 27 and int(_m_ctr.group(3)) >= 260)
 check("transcript mobile được phép co trong viewport", ".hud-right .transcript {" in CSS and "min-height: 0;" in CSS)
 check("thanh năng lực mobile chia đều ba mục", ".bstat { flex: 1 1 0;" in CSS)
 check("ô nhập chừa safe area dưới", "env(safe-area-inset-bottom, 0px)" in CSS)

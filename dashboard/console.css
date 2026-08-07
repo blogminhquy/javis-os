@@ -557,9 +557,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .hud-center {
     flex: 0 0 auto;
     height: 30vh;
-    height: clamp(190px, 27dvh, 260px);
+    height: clamp(210px, 31dvh, 300px);
     min-height: 0;
   }
+  /* BUNG NÃO: khoang não chiếm trọn phần thân, khung chat nhường chỗ. Đây là câu trả lời
+     thật cho "trên điện thoại não bé quá không thấy gì" - chỉnh lề với co chữ chỉ giúp
+     khung 228px bớt tệ, chứ 228px thì không bao giờ là chỗ xem đồ thị tử tế. */
+  body.brain-max .hud-center { flex: 1 1 auto; height: auto; min-height: 0; }
+  body.brain-max .hud-right { display: none; }
+  /* Dải việc nền là thông tin trạng thái, thu não lại là thấy ngay - giấu đi để lấy chỗ.
+     Chip ĐÍNH KÈM thì KHÔNG giấu: giấu là người dùng vừa gắn file xong không thấy nó đâu,
+     tưởng gắn hụt. */
+  body.brain-max .bg-strip { display: none; }
   .hud-right {
     flex: 1 1 auto; min-height: 0; overflow: hidden;
     padding: 8px 10px 4px;
@@ -582,7 +591,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   /* Neuron chỉ là bối cảnh trên mobile: nhãn và lớp trạng thái nhỏ hơn để chat là nội dung chính. */
   .concept-label .cl-name { font-size: 10px; letter-spacing: 1.2px; }
   .concept-label .cl-meta { font-size: 8px; letter-spacing: .5px; margin-top: 0; }
-  .orb-overlay { bottom: 48px; }
+  /* Tên thư mục dài ("BRAIN DEFAULT") vốn nowrap + translate(-50%) nên tràn hẳn ra ngoài mép
+     phải và bị cắt cụt. Kẹp bề ngang rồi cắt bằng dấu ba chấm: nhãn nào cũng nằm gọn trong
+     khoang, kể cả nhãn ngoài rìa nhất. */
+  .concept-label { max-width: 32vw; }
+  .concept-label .cl-name, .concept-label .cl-meta {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .orb-overlay { bottom: 40px; }
   .orb-state { font-size: 11px; letter-spacing: 2px; }
   .orb-interim {
     max-width: calc(100vw - 28px);
@@ -595,18 +611,35 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     width: 32px; height: 32px; padding: 7px; border-radius: 9px;
   }
   .brain-overlay-toggle svg { width: 17px; height: 17px; }
+  /* CẢ BA nút cùng mang class .brain-overlay-toggle, nên dòng `top: 7px` ngay trên đè luôn
+     `.graph-timelapse-btn { top: 58px }` của style.css (cùng độ ưu tiên, console.css nạp
+     sau). Hệ quả suốt từ trước: trên điện thoại nút mắt và nút timelapse CHỒNG KHÍT lên
+     nhau ở góc phải, nút vẽ sau ăn hết cú chạm, và nút ẩn nhãn không cách nào bấm được.
+     Xếp lại tường minh, mỗi nút một hàng. */
+  .graph-timelapse-btn { top: 46px; }
+  .brain-max-btn { top: 85px; }
 
-  /* Agents / Skills / Workflows thành một thanh mỏng thay vì một card lớn che neuron. */
+  /* Agents / Skills / Workflows thành một thanh mỏng thay vì một card lớn che neuron.
+     Số và nhãn nằm CÙNG MỘT DÒNG: xếp chồng như desktop thì dải cao ~56px, tức một phần tư
+     khoang não mobile, chỉ để nói ba con số. Một dòng còn ~28px. */
   .brain-stats {
     bottom: 6px;
     width: min(420px, calc(100% - 20px));
     padding: 2px;
     border-radius: 10px;
   }
-  .bstat { flex: 1 1 0; padding: 4px 5px; border-radius: 8px; }
-  .bstat-num { font-size: 17px; }
-  .bstat-lbl { margin-top: 3px; font-size: 8px; letter-spacing: 1px; }
+  .bstat { flex: 1 1 0; flex-direction: row; align-items: baseline; justify-content: center;
+    gap: 4px; padding: 4px 5px; border-radius: 8px; }
+  .bstat-num { font-size: 14px; }
+  .bstat-lbl { margin-top: 0; font-size: 8px; letter-spacing: .8px; }
   .bstat-sep { margin: 4px 0; }
+
+  /* Nút BUNG/THU khoang não - chỉ có trên mobile, xếp dưới nút mắt và nút timelapse. */
+  .brain-max-btn { display: grid; }
+  .brain-max-btn .bmx-out { display: none; }
+  body.brain-max .brain-max-btn .bmx-in { display: none; }
+  body.brain-max .brain-max-btn .bmx-out { display: block; }
+  body.brain-max .brain-max-btn { color: var(--accent-ink); border-color: var(--accent-line); }
 
   /* Ô nhập luôn nằm trong visual viewport của Safari/Chrome iOS và chừa safe area. */
   .hud-voice {
@@ -619,8 +652,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 }
 
 @media (max-width: 860px) and (max-height: 620px) {
-  .hud-center { height: clamp(150px, 25dvh, 190px); }
+  .hud-center { height: clamp(160px, 27dvh, 210px); }
   .concept-label .cl-meta { display: none; }
+  /* Màn thấp: ba nút xếp dọc đã chạm mép dưới khoang, kéo khoảng cách lại. */
+  .graph-timelapse-btn { top: 42px; }
+  .brain-max-btn { top: 77px; }
 }
 
 /* ==== Trang Kết nối (kho connector + đa tài khoản) ==== */

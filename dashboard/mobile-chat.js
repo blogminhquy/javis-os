@@ -118,7 +118,41 @@
       if (e.target.closest(".rail-item") && mq.matches) closeNav();  // chọn mục điều hướng -> đóng
     });
 
-    function applyAll() { placeHeader(); placeSystem(); setPlaceholder(); }
+    // ---- 6) Bung/thu khoang não (mobile-only) ----
+    // Khoang não trên điện thoại chỉ cao hơn 200px một chút. Kể cả sau khi đã siết lề canh
+    // khung, thu nhỏ nhãn và làm mỏng dải số liệu, chừng đó vẫn không phải chỗ để NHÌN một
+    // đồ thị - đây mới là câu trả lời cho "não bé quá không thấy gì".
+    // Bung xong phải gọi refit(): canvas vừa đổi kích thước, mà mức zoom hiện tại là mức
+    // canh cho khung CŨ, giữ nguyên là đồ thị vẫn bé y như lúc chưa bung.
+    var brainMaxBtn = document.getElementById("brainMaxBtn");
+    function refitGraph(delay) {
+      setTimeout(function () {
+        try {
+          var g = window.__javisGraph;
+          if (g && typeof g.refit === "function") g.refit(360);
+          else if (g && typeof g.resize === "function") g.resize();
+        } catch (e) {}
+      }, delay || 60);
+    }
+    function setBrainMax(on) {
+      document.body.classList.toggle("brain-max", !!on);
+      if (brainMaxBtn) {
+        brainMaxBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        brainMaxBtn.title = on ? "Thu khoang não về khung nhỏ"
+                               : "Bung khoang não ra toàn màn để nhìn rõ đồ thị";
+      }
+      refitGraph(340);   // đợi hết hoạt ảnh đổi layout rồi mới đo lại
+    }
+    if (brainMaxBtn) brainMaxBtn.addEventListener("click", function () {
+      setBrainMax(!document.body.classList.contains("brain-max"));
+    });
+    // Về desktop (xoay máy, đổi cửa sổ) thì trạng thái bung không còn nghĩa gì: khoang não
+    // vốn đã là cả cột giữa. Bỏ cờ đi kẻo khung chat biến mất trên màn rộng.
+    function syncBrainMax() {
+      if (!mq.matches && document.body.classList.contains("brain-max")) setBrainMax(false);
+    }
+
+    function applyAll() { placeHeader(); placeSystem(); setPlaceholder(); syncBrainMax(); }
     applyAll();
 
     var onChange = function () { applyAll(); closeNav(); };

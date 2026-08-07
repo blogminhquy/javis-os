@@ -231,11 +231,7 @@ class JavisGraph {
         .onEngineStop(() => {
           if (self._fitted) return;
           self._fitted = true;
-          try {
-            self.graph.zoomToFit(500, 70);                                               // canh cho MỌI node vừa khung
-            // sau khi fit: chặn zoom-out nhỏ hơn mức "mọi node vừa khung"
-            setTimeout(() => { try { self.graph.minZoom(Math.min(self.graph.zoom() * 0.95, 1.2)); } catch (e) {} }, 600);
-          } catch (e) {}
+          self._fit(500);
         });
 
       // Lực đẩy vừa (node gần nhau, không văng) + hút MẠNH về tâm (co thành khối TRÒN, kéo node lẻ vào)
@@ -312,6 +308,42 @@ class JavisGraph {
     });
     // Ép force-graph vẽ lại dây nối (linkColor là hàm nên chỉ cần đánh thức vòng vẽ).
     try { this.graph.linkColor(this.graph.linkColor()); } catch (e) {}
+  }
+
+  // Lề chừa quanh đồ thị khi canh khung, TÍNH THEO khung thật chứ không phải số cố định.
+  //
+  // Trước bản này là `zoomToFit(500, 70)` - 70px mỗi bên, hằng số hợp lý cho khoang não
+  // desktop (~900x700) nhưng thảm hoạ trên điện thoại. Khoang não mobile chỉ cao khoảng
+  // 228px, nên 70px trên cộng 70px dưới ăn mất 140px, còn đúng 88px cho TOÀN BỘ đồ thị -
+  // đó chính là "cục nhỏ xíu giữa màn hình" chủ repo chụp lại. Theo tỉ lệ thì desktop giữ
+  // nguyên cảm giác cũ (700 * 0.10 = 70) còn mobile tự co xuống (228 * 0.10 = 23).
+  _fitPad() {
+    const w = this.container ? this.container.clientWidth : 0;
+    const h = this.container ? this.container.clientHeight : 0;
+    const nho = Math.min(w || 800, h || 600);
+    return Math.max(10, Math.min(70, Math.round(nho * 0.10)));
+  }
+
+  _fit(ms = 400) {
+    if (!this.graph) return;
+    try {
+      this.graph.zoomToFit(ms, this._fitPad());                 // canh cho MỌI node vừa khung
+      // Sau khi fit: chặn zoom-out nhỏ hơn mức "mọi node vừa khung". Đặt sau khi hoạt ảnh
+      // fit chạy xong, nếu không nó đọc phải mức zoom giữa chừng.
+      setTimeout(() => {
+        try { this.graph.minZoom(Math.min(this.graph.zoom() * 0.95, 1.2)); } catch (e) {}
+      }, ms + 100);
+    } catch (e) {}
+  }
+
+  // Canh lại khung theo yêu cầu (bung/thu khoang não trên điện thoại). Mở lại minZoom
+  // trước: lần fit trước đã kẹp nó ở mức của khung CŨ, giữ nguyên là khung to hơn không
+  // bao giờ zoom-out đủ để thấy hết.
+  refit(ms = 400) {
+    if (!this.graph) return;
+    this.resize();
+    try { this.graph.minZoom(0.05); } catch (e) {}
+    this._fit(ms);
   }
 
   resize() {

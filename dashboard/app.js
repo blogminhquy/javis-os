@@ -264,6 +264,12 @@ function sendMessage(text) {
   }
   const sid = savedSessionId;
   if (turns[sid] && turns[sid].running) return;          // phiên này đang trả lời → chưa gửi tiếp
+  // Đang BUNG NÃO toàn màn (mobile) mà gửi tin thì thu lại: ở trạng thái đó khung chat bị
+  // ẩn hẳn, không thu thì người dùng gõ xong không thấy câu trả lời hiện ở đâu cả. Bấm hộ
+  // đúng cái nút để đi chung một đường (đổi aria + canh lại khung đồ thị).
+  if (document.body.classList.contains("brain-max")) {
+    try { document.getElementById("brainMaxBtn").click(); } catch (e) {}
+  }
   voice.stopSpeaking();
   window.JavisAsk.freezeAll();   // trả lời rồi thì chip của lượt trước hết bấm được
   appendUserMessage(msg, atts);
@@ -985,23 +991,41 @@ window.addEventListener("javis-catcolors-change", function repaintConceptLabels(
 });
 
 // Nhãn concept (HUD brain-region) quanh orb - số liệu THẬT
+//
+// Nhớ lại danh mục lần vẽ gần nhất để xoay ngang/dọc điện thoại còn rải lại được: số nhãn và
+// bán kính phụ thuộc BỀ NGANG khoang não, mà hàm này vốn chỉ chạy lúc nạp đồ thị.
+let _catsCache = null;
+
 function renderConceptLabels(categories, total) {
   const container = document.getElementById("conceptLabels");
   container.innerHTML = "";
+  if (categories) _catsCache = { categories: categories, total: total };
   if (!categories || !categories.length) return;
   const denom = total || categories.reduce((s, c) => s + c.count, 0);
-  const n = Math.min(categories.length, 8);
+
+  // Khoang não hẹp (điện thoại) chỉ cao khoảng 228px và rộng 390px. Rải đủ 8 nhãn cỡ desktop
+  // vào đó thì nhãn phủ kín khung, tên dài ("BRAIN DEFAULT") tràn hẳn ra ngoài mép phải, và
+  // đồ thị - thứ duy nhất đáng nhìn ở đây - bị dồn vào một cục giữa màn. Chủ repo chụp lại
+  // đúng cảnh đó. Hẹp thì rải 4 nhãn ở bốn góc và kéo bán kính vào trong mép.
+  const host = container.parentElement;
+  const pw = (host && host.clientWidth) || window.innerWidth || 900;
+  const ph = (host && host.clientHeight) || 600;
+  const hep = pw < 620 || ph < 320;
+  const n = Math.min(categories.length, hep ? 4 : 8);
+  const rx = hep ? 33 : 40;
+  const ry = hep ? 34 : 32;
+  const cy = hep ? 44 : 45;
   // Rải nhãn theo cung HỞ ĐÁY: chừa khe dưới-giữa cho "SẴN SÀNG" + dải số liệu
   // → không bao giờ có nhãn nằm chính giữa-đáy đè lên chữ trạng thái.
-  const gap = (76 * Math.PI) / 180;          // độ rộng khe trống ở đáy
+  const gap = ((hep ? 104 : 76) * Math.PI) / 180;   // khe trống ở đáy (hẹp thì chừa rộng hơn)
   const sweep = Math.PI * 2 - gap;           // cung còn lại để rải nhãn
   const start = Math.PI / 2 + gap / 2;       // bắt đầu ở đáy-trái, đi qua đỉnh tới đáy-phải
   for (let i = 0; i < n; i++) {
     const c = categories[i];
     const frac = n === 1 ? 0.5 : i / (n - 1);
     const angle = start + frac * sweep;
-    const x = 50 + Math.cos(angle) * 40;
-    const y = 45 + Math.sin(angle) * 32;
+    const x = 50 + Math.cos(angle) * rx;
+    const y = cy + Math.sin(angle) * ry;
     const share = denom ? Math.round((c.count / denom) * 100) : 0;
     const div = document.createElement("div");
     div.className = "concept-label";
@@ -1030,6 +1054,16 @@ function renderConceptLabels(categories, total) {
     setTimeout(() => div.classList.add("show"), 120 + i * 110);
   }
 }
+
+// Xoay ngang/dọc điện thoại, hoặc bung/thu khoang não: số nhãn và bán kính đổi theo bề ngang
+// nên phải rải lại. Chống dội bằng debounce - resize bắn hàng chục lần mỗi giây.
+let _catsT = null;
+window.addEventListener("resize", () => {
+  if (_catsT) clearTimeout(_catsT);
+  _catsT = setTimeout(() => {
+    if (_catsCache) renderConceptLabels(_catsCache.categories, _catsCache.total);
+  }, 220);
+});
 
 // Brain folder tùy chọn - lưu localStorage, hiện trong dropdown.
 //
@@ -1252,8 +1286,11 @@ function initStarfield() {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, cssW, cssH);
 
-    // Grid floor phối cảnh (HUD command center) - đáy màn hình
-    const horizonY = cssH * 0.72;
+    // Grid floor phối cảnh (HUD command center) - đáy màn hình.
+    // Khoang não thấp (điện thoại: ~228px) thì 28% cuối là 64px sàn lưới đè lên đúng chỗ đồ
+    // thị cần. Panel càng thấp thì đẩy chân trời càng xuống - vẫn còn cảm giác chiều sâu,
+    // nhưng không cướp chỗ của thứ người dùng thật sự muốn nhìn.
+    const horizonY = cssH * (cssH < 320 ? 0.86 : 0.72);
     const vpX = cssW / 2;
     ctx.strokeStyle = rgba(sky.grid, sky.gridBase + lvl * sky.gridGain);
     ctx.lineWidth = 1;

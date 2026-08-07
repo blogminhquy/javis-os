@@ -13,8 +13,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=61">
-  <link rel="stylesheet" href="/static/console.css?v=40">
+  <link rel="stylesheet" href="/static/style.css?v=62">
+  <link rel="stylesheet" href="/static/console.css?v=41">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -190,6 +190,19 @@
           <svg class="tl-stop" viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="9"></circle>
             <rect x="9" y="9" width="6" height="6" rx="1"></rect>
+          </svg>
+        </button>
+
+        <!-- BUNG/THU khoang não - CHỈ hiện trên điện thoại (console.css .brain-max-btn).
+             Trên desktop khoang não đã chiếm cả cột giữa nên không có gì để bung. -->
+        <button class="brain-overlay-toggle brain-max-btn" id="brainMaxBtn" type="button"
+                aria-pressed="false" aria-label="Bung khoang não toàn màn"
+                title="Bung khoang não ra toàn màn để nhìn rõ đồ thị">
+          <svg class="bmx-in" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4"></path>
+          </svg>
+          <svg class="bmx-out" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 10h4a2 2 0 0 0 2-2V4M20 10h-4a2 2 0 0 1-2-2V4M4 14h4a2 2 0 0 1 2 2v4M20 14h-4a2 2 0 0 0-2 2v4"></path>
           </svg>
         </button>
 
@@ -673,7 +686,7 @@
        đăng ký hụt và các lớp canvas kẹt ở bảng màu tối. -->
   <script src="/static/theme.js?v=1"></script>
   <script src="/static/voice.js?v=14"></script>
-  <script src="/static/graph.js?v=15"></script>
+  <script src="/static/graph.js?v=16"></script>
   <script src="/static/chat-render.js?v=8"></script>
   <script src="/static/code-hl.js?v=1"></script>
   <script src="/static/dataview.js?v=1"></script>
@@ -685,7 +698,7 @@
   <script src="/static/chat-ask.js?v=1"></script>
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
-  <script src="/static/app.js?v=80"></script>
+  <script src="/static/app.js?v=81"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=3"></script>
@@ -700,7 +713,7 @@
   <script src="/static/usage.js?v=1"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <script src="/static/console.js?v=98"></script>
-  <script src="/static/mobile-chat.js?v=4"></script>
+  <script src="/static/mobile-chat.js?v=5"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>
   <!-- (Nút đổi tông TỐI ↔ SÁNG: theme.js đã nạp ở đầu khối script phía trên) -->
