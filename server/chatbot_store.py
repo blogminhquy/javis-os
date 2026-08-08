@@ -35,7 +35,24 @@ _lock = threading.Lock()
 NAME_MAX = 60
 _ICON_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")     # tên icon Lucide, như projects.icon
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-_CHAT_ID_RE = re.compile(r"^-?\d{1,20}$")               # id nhóm Telegram là số ÂM
+# id nhóm Telegram là số ÂM; id cuộc chat Zalo là chuỗi HEX (vd "6ede9afa66b88fe6d6a9"). Một
+# khuôn cho cả hai, vì bản ghi bot chỉ có một trường `groups` và kênh nào cũng đổ vào đó.
+_CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|[0-9a-fA-F]{8,40})$")
+
+# Kênh nhắn tin của bot. Trường này có từ 0.20.0 nhưng ghim cứng "telegram"; 0.26.5 cho nó
+# thành lựa chọn thật. Giữ ĐÚNG hai giá trị: mỗi giá trị là một lớp vận chuyển có thật trong
+# `chatbot_runtime._LOP_KENH`, không phải một nhãn để hiển thị.
+KENH = ("telegram", "zalo")
+KENH_DEFAULT = "telegram"
+
+# Nhãn + cách lấy token, để server và giao diện nói cùng một câu. Người dùng lấy token ở hai
+# nơi hoàn toàn khác nhau, và dán nhầm chỗ thì bot chết lặng với lỗi 401.
+KENH_NHAN = {"telegram": "Telegram", "zalo": "Zalo"}
+KENH_NGUON_TOKEN = {
+    "telegram": "Nhắn @BotFather trên Telegram, gõ /newbot rồi làm theo hướng dẫn.",
+    "zalo": "Mở app Zalo, tìm Official Account \"Zalo Bot Manager\", chọn Tạo bot. "
+            "Tên bot bắt buộc mở đầu bằng chữ \"Bot\". Token được gửi về bằng tin nhắn Zalo.",
+}
 
 REPLY_WHEN = ("mention", "always")
 RATE_MIN, RATE_MAX, RATE_DEFAULT = 1, 200, 20
@@ -182,6 +199,14 @@ def _clean_groups(v: Any) -> List[str]:
     return out[:50]
 
 
+def _clean_kenh(v: Any) -> str:
+    """Kênh lạ thì rơi về Telegram chứ KHÔNG lưu nguyên: `chatbot_runtime` tra bảng lớp vận
+    chuyển bằng chuỗi này, và một chuỗi không có trong bảng nghĩa là bot không bao giờ bật
+    được, với thông báo lỗi chẳng nói lên điều gì."""
+    s = str(v or "").strip().lower()
+    return s if s in KENH else KENH_DEFAULT
+
+
 def _clean_rate(v: Any) -> int:
     try:
         n = int(v)
@@ -202,6 +227,8 @@ def _public(b: dict) -> dict:
     # None, và None rơi vào nhánh mặc định của người gọi chứ không phải nhánh mình chọn - ở đây
     # nhánh đó quyết định bot CÓ TOOL hay không, nên đoán sai một lần là cấp nhầm quyền.
     out.setdefault("muc_quyen", MUC_QUYEN_DEFAULT)
+    # Cùng lý do: bot tạo trước 0.26.5 luôn là bot Telegram, và trường này lúc đó ghim cứng.
+    out["channel"] = _clean_kenh(out.get("channel"))
     return out
 
 
@@ -234,20 +261,29 @@ def enabled_bots() -> List[Dict[str, Any]]:
     return [b for b in list_bots() if b.get("enabled")]
 
 
-def token_owner(username: str, exclude_id: str = "") -> Optional[Dict[str, Any]]:
-    """Bot nào đang giữ đúng con bot Telegram này (so theo @username từ getMe, KHÔNG so chuỗi
+def token_owner(username: str, exclude_id: str = "", channel: str = "") -> Optional[Dict[str, Any]]:
+    """Bot nào đang giữ đúng con bot này (so theo tên tài khoản lấy từ getMe, KHÔNG so chuỗi
     token: cùng một token dán hai lần với khoảng trắng khác nhau vẫn là hai chuỗi khác nhau).
 
     Vì sao phải chặn: một token chỉ được MỘT tiến trình long-polling. Hai poller cùng token
-    thì Telegram trả 409 và CẢ HAI cùng chết - hỏng ở chỗ không ai ngờ, và không ai báo.
+    thì máy chủ trả 409 và CẢ HAI cùng chết - hỏng ở chỗ không ai ngờ, và không ai báo.
+
+    So THEO KÊNH từ 0.26.5: tên tài khoản là không gian tên riêng của từng nền tảng, nên một
+    bot Telegram tên "shopbot" và một bot Zalo cũng tên "shopbot" là hai con khác nhau. Gộp
+    hai không gian tên lại thì trang Chatbot từ chối một token hoàn toàn hợp lệ, và câu từ
+    chối đó nói về một con bot ở kênh khác nên đọc xong không ai hiểu.
     """
     u = str(username or "").strip().lower().lstrip("@")
     if not u:
         return None
+    kenh = _clean_kenh(channel) if channel else ""
     with _lock:
         for b in _load()["bots"]:
-            if b.get("id") != exclude_id and str(b.get("bot_username", "")).lower() == u:
-                return _public(b)
+            if b.get("id") == exclude_id or str(b.get("bot_username", "")).lower() != u:
+                continue
+            if kenh and _clean_kenh(b.get("channel")) != kenh:
+                continue
+            return _public(b)
     return None
 
 
@@ -299,7 +335,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "agent": {"brain": str(data.get("agent_brain") or "brain").strip() or "brain",
                       "slug": agent_slug},
             "brain": brain,
-            "channel": "telegram",
+            "channel": _clean_kenh(data.get("channel")),
             "bot_username": str(data.get("bot_username") or "").strip().lstrip("@"),
             "groups": _clean_groups(data.get("groups")),
             "reply_when": (data.get("reply_when") if data.get("reply_when") in REPLY_WHEN else "mention"),
@@ -324,6 +360,10 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
 _PATCHABLE = ("name", "icon", "groups", "reply_when", "handoff_to", "rate_limit",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen")
+# `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
+# BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
+# nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
+# con khác. Muốn kênh khác thì tạo bot mới - giao diện cũng khoá đúng như vậy.
 
 
 def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
@@ -396,7 +436,7 @@ def set_enabled(bot_id: str, on: bool) -> tuple[bool, str]:
             if b.get("id") != bot_id:
                 continue
             if on and not b.get("token_enc"):
-                return False, "Chưa có token Telegram cho bot này"
+                return False, f"Chưa có token {KENH_NHAN.get(_clean_kenh(b.get('channel')), '')} cho bot này"
             b["enabled"] = bool(on)
             b["updated_at"] = _now()
             _save(d)

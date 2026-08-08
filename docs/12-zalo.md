@@ -1,5 +1,19 @@
 # Zalo Agent MCP
 
+> **Javis có HAI đường vào Zalo, đừng lẫn.** Trang này nói về đường thứ nhất: đăng nhập
+> **chính tài khoản Zalo của bạn** để Javis thao tác thay bạn. Đường thứ hai là **Zalo Bot**
+> (API chính thức) ở trang [Chatbot](25-chatbot.md): một danh tính riêng, an toàn, để KHÁCH
+> nói chuyện với Javis. Cái nào cũng dùng được, và dùng cả hai cũng được.
+>
+> | | Zalo Agent MCP (trang này) | [Zalo Bot](25-chatbot.md) |
+> |---|---|---|
+> | Là ai | Chính bạn | Một bot riêng |
+> | API | Không chính thức (zca-js) | Chính thức |
+> | Rủi ro khoá tài khoản | Có | Không |
+> | Đọc được hội thoại cũ | Có | Chỉ tin nhắn gửi cho bot |
+> | Nhắn cho người chưa quen bot | Được | Không |
+> | Dùng để | Javis làm việc thay bạn | Khách nói chuyện với Javis |
+
 Javis kết nối Zalo cá nhân bằng MCP chuẩn của dự án
 [`zalo-agent-cli`](https://github.com/PhucMPham/zalo-agent-cli). Luồng mới chỉ có một
 tiến trình MCP: đăng nhập QR, đọc hoặc tìm hội thoại và gửi tin qua các tool do dự án

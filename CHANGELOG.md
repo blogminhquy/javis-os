@@ -4,6 +4,26 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.5] - 2026-08-08
+### Thêm mới
+- **Bot chuyên trách chạy được trên Zalo, bằng API CHÍNH THỨC.** Đây là thay đổi có giá trị kinh doanh lớn nhất của bản này: khách hàng Việt Nam không ai cài Telegram, còn Zalo thì đã nằm sẵn trên máy họ. Tạo bot ở trang **Chatbot**, chọn kênh Zalo, dán token lấy từ Official Account "Zalo Bot Manager" trong app Zalo. Không có rủi ro khoá tài khoản như đường Zalo cá nhân.
+- **Zalo Bot KHÔNG thay Zalo Agent MCP**, hai thứ khác bản chất và cùng tồn tại. Bot là một danh tính riêng, chính thức, chỉ thấy thứ người ta nhắn thẳng cho nó; còn `zalo-agent-cli` đăng nhập chính tài khoản của bạn, đọc được hội thoại thật và nhắn được cho bất kỳ ai, đổi lại có rủi ro bị khoá. Cái đầu để **khách nói chuyện với Javis**, cái sau để **Javis thao tác thay bạn**.
+- **Chọn kênh là ô ĐẦU TIÊN trong form tạo bot**, dạng hai thẻ bấm có logo chứ không phải một ô chọn trơn. Nó đứng đầu vì nó đổi cả phần còn lại: token lấy ở đâu, có dùng được nhóm không, có gửi được tài liệu không. Mỗi thẻ nói luôn ưu và nhược ngay trên nút.
+- **Dấu hiệu kênh cho từng bot**, vẽ tay theo mô tả của chủ repo: Telegram là máy bay giấy trắng trên nền xanh, Zalo là chữ Z trắng trong bong bóng trò chuyện xanh. Hiện ở hai chỗ với hai khoảng cách nhìn khác nhau: huy hiệu nhỏ đè góc icon bot (liếc qua là biết), và chip có logo trong phần thông tin (đọc lướt). Hai con bot khác nền tảng nằm cạnh nhau mà chỉ khác một chữ nhỏ thì sẽ có ngày sửa nhầm con đang nói chuyện với khách.
+- **Hàng lọc Tất cả / Telegram / Zalo** ở đầu trang Chatbot, chỉ hiện khi thật sự có từ hai kênh trở lên. Người mới chỉ có bot Telegram mà đã phải nhìn một hàng nút lọc thì đó là trả lời một câu họ chưa từng hỏi.
+
+### Cải thiện
+- **Giao diện tự giấu những thứ Zalo không làm được**, thay vì hiện ra rồi để chúng vô tác dụng. Chọn Zalo thì cả khối khai nhóm biến mất kèm một dòng nói rõ vì sao (gói bot cơ bản của Zalo không cho bot vào nhóm), và id nhóm đã gõ cũng không bị gửi lên máy chủ. Cảnh báo "chế độ riêng tư Telegram" cũng thôi hiện trên thẻ bot Zalo, vì nó dạy người ta đi tìm một cài đặt không tồn tại.
+- **Nút Kiểm tra token hỏi ĐÚNG nền tảng đã chọn.** Dán token Zalo vào đường Telegram chỉ ra lỗi 401, và câu "token không hợp lệ" khi token hoàn toàn hợp lệ là chỗ người dùng mắc kẹt lâu nhất. Chặn trùng token cũng xét theo từng kênh, vì tên tài khoản là không gian tên riêng của mỗi nền tảng.
+- **Kênh KHÔNG đổi được sau khi tạo bot**, và form Sửa nói thẳng điều đó thay vì cho bấm rồi báo lỗi token ở bước sau. Đổi kênh là đổi sang một con bot khác hẳn: token khác, danh tính khác, khách khác, và mọi id nhóm đang lưu lập tức vô nghĩa.
+- **Phần dùng chung của mọi cổng bot tách ra `server/bot_gateway.py`**: hàng đợi lượt, luật `/stop`, cổng chặn trước khi tốn một lượt, dòng vết công cụ. Đó là luật hành vi của Javis chứ không phải chi tiết của một nhà cung cấp, nên hai kênh dùng chung một bản. Chép sang bản thứ hai là bảo đảm hai bản trôi lệch, và chỗ lệch sẽ nằm đúng ở nơi ít được nhìn nhất: bot đang nói chuyện với người lạ.
+
+### Cần biết
+- Zalo Bot **chưa có API gửi tài liệu** (chỉ có gửi ảnh), nên file Javis tạo ra không gửi qua kênh này được. Javis nói thẳng lý do thay vì im lặng nuốt file.
+- Zalo **không sửa và không xoá được tin đã gửi**, nên bot Zalo không có tin trạng thái nào: chỉ có chấm "đang nhập" trong lúc chờ, và dòng vết công cụ đi kèm ngay trong câu trả lời.
+- Trần một tin nhắn Zalo là **2000 ký tự** (Telegram là 4096), câu trả lời dài tự chia nhỏ.
+- Zalo chưa công bố hạn mức gọi API. Gặp lỗi 429 thì Javis tự nghỉ rồi thử lại, và phơi lỗi ra dòng trạng thái chứ không nuốt.
+
 ## [0.26.4] - 2026-08-08
 ### Cải thiện
 - **Bot Telegram không còn gửi tin rồi xoá tin.** Trước đây mỗi lượt hỏi, bot gửi tin "🤔 Javis đang xử lý…", cập nhật nó theo tiến trình, rồi **xoá hẳn** và gửi câu trả lời. Người dùng thấy một tin nhấp nháy rồi biến mất, đọc như lỗi, và ai đang đọc dở thì mất chữ giữa chừng. Nay tin đó **ở lại**: lần cập nhật cuối biến nó thành một dòng vết gọn, còn câu trả lời là một tin mới bên dưới. Không tin nào biến mất nữa.

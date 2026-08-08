@@ -310,7 +310,8 @@ async def t_khong_goi_ten_thi_im():
 
 
 def t_precheck_hop_dong():
-    src = (Path(SERVER) / "telegram_bot.py").read_text(encoding="utf-8")
+    # Cổng precheck nằm ở `bot_gateway._dispatch` từ 0.26.5 (dùng chung Telegram + Zalo).
+    src = (Path(SERVER) / "bot_gateway.py").read_text(encoding="utf-8")
     # So trên DÒNG MÃ thật, không so cả file: chuỗi "if chan:" còn nằm trong chú thích kể lại
     # con bọ, và một test bắt cả chú thích thì cấm luôn việc ghi lại vì sao đã sửa.
     dong_ma = [d.strip() for d in src.split("\n") if not d.strip().startswith("#")]

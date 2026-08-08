@@ -3,7 +3,19 @@
 > Bản spec dev, viết 2026-08-08 trên nền v0.26.3. Nguồn: tài liệu chính thức
 > <https://bot.zaloplatforms.com/docs/> (đọc ngày 2026-08-08).
 >
-> **Trạng thái: CHƯA VIẾT MÃ.** Đây là kế hoạch, chưa phải nhật ký triển khai.
+> **Trạng thái: ĐÃ LÀM XONG PHASE 1, 2 (một phần), 3 (chiều vào) và 5 ở v0.26.5.** Bot chuyên
+> trách chạy được trên Zalo. Ba chỗ lệch so với bản spec này, ghi ngay đây thay vì để người
+> đọc tự đối chiếu:
+>
+> - **Làm PHASE 5 TRƯỚC PHASE 4**, theo yêu cầu của chủ repo (2026-08-08): giá trị nằm ở bot
+>   chuyên trách nói chuyện với khách Việt, không ở kênh của chủ. Kênh riêng cho chủ (thẻ
+>   Zalo trên trang **Kênh**, tiền tố `zalo:` cho thông báo nền) **chưa làm**.
+> - **Phần dùng chung tách ra `server/bot_gateway.py`** chứ không để `zalo_bot.py` chép lại:
+>   hàng đợi lượt, luật `/stop`, cổng precheck và dòng vết công cụ là luật hành vi của Javis,
+>   không phải chi tiết của một nhà cung cấp. `TelegramBot` cũng đã chuyển sang dùng nó.
+> - **Phase 0 (thăm dò API thật) CHƯA CHẠY** vì chưa có token thật. Mã viết theo hướng chịu
+>   được cả ba khuôn phản hồi `getUpdates` có thể có, và kêu ra stderr khi gặp khuôn lạ. Sáu
+>   câu hỏi ở Phase 0 vẫn còn nguyên giá trị, xem mục 7.
 
 ## 1. Quyết định cốt lõi
 

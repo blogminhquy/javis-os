@@ -2114,7 +2114,48 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .cb-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
   background: var(--bg2); display: flex; flex-direction: column; gap: 8px; }
 .cb-head { display: flex; align-items: center; gap: 8px; }
-.cb-ico { display: inline-flex; color: var(--accent); }
+.cb-ico { display: inline-flex; color: var(--accent); position: relative; }
+
+/* ---- Dấu hiệu KÊNH (Telegram / Zalo) --------------------------------------------------
+   Hai con bot khác nền tảng nằm cạnh nhau trong cùng một lưới thẻ mà chỉ khác nhau ở một
+   chữ nhỏ thì người ta sẽ bấm nhầm - và bấm nhầm ở đây nghĩa là sửa nhầm con bot đang nói
+   chuyện với khách. Nên kênh được nói ba lần, mỗi lần cho một khoảng cách nhìn khác nhau:
+   huy hiệu trên icon (liếc qua), chip trong phần thông tin (đọc lướt), và hàng nút lọc ở
+   đầu trang (khi có nhiều bot). Màu thương hiệu giữ nguyên ở cả nền sáng lẫn nền tối. */
+.kenh-logo { display: inline-block; vertical-align: -0.15em; flex: none; }
+/* Huy hiệu nhỏ nằm đè góc icon bot. Viền cùng màu nền thẻ để nó tách khỏi icon bên dưới. */
+.cb-ico-kenh { position: absolute; right: -5px; bottom: -5px; display: inline-flex;
+  border-radius: 50%; background: var(--bg2); box-shadow: 0 0 0 2px var(--bg2); }
+.cb-kenh-chip { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Hàng lọc theo kênh. Chỉ hiện khi thật sự có từ hai kênh trở lên (xem chatbots.js: người
+   mới chỉ có bot Telegram mà đã phải nhìn nút lọc thì đó là trả lời một câu chưa ai hỏi). */
+.cb-loc { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.cb-loc-o { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 5px 11px; border-radius: 999px; font-size: 13px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text2); }
+.cb-loc-o:hover { border-color: var(--info-line); }
+.cb-loc-o.on { background: var(--surface-3); color: var(--text); border-color: var(--info-line); }
+.cb-loc-n { font-size: 11.5px; color: var(--text3); }
+
+/* Bộ chọn kênh trong form. Thẻ bấm to chứ không phải <select>: đây là quyết định ĐẦU TIÊN
+   và nó đổi cả phần còn lại của form (token lấy ở đâu, có nhóm không), nên nó phải nhìn ra
+   được là một ngã rẽ chứ không phải một tuỳ chọn nhỏ. */
+.cb-kenh { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.cb-kenh-o { display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  cursor: pointer; text-align: left; padding: 11px 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text); }
+.cb-kenh-o:hover { border-color: var(--info-line); }
+.cb-kenh-o.on { border-color: var(--accent); background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--accent); }
+.cb-kenh-o b { font-size: 14px; }
+.cb-kenh-o small { font-size: 12px; color: var(--text3); line-height: 1.45; }
+.cb-kenh-logo { display: inline-flex; margin-bottom: 2px; }
+.cb-kenh-khoa { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: 10px; margin-top: 4px;
+  border: 1px solid var(--border); background: var(--surface-3); color: var(--text); }
+.cb-kenh-khoa span { font-size: 12.5px; color: var(--text3); }
+.cb-khong-nhom { border-left: 2px solid var(--info-line); padding-left: 9px; }
 .cb-name { font-weight: 600; color: var(--text); flex: 1 1 auto; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 /* Đèn trạng thái: bốn màu cho bốn trạng thái thật. Bot chết âm thầm là thứ chủ chỉ phát

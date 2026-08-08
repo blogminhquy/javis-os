@@ -1,6 +1,6 @@
 # Chatbot (Bot chuyên trách)
 
-Đem một **Agent** bạn đã tạo ra đứng trước người ngoài: họ nhắn vào một bot Telegram riêng, Agent đó trả lời theo đúng quy định bạn viết cho nó, gặp câu ngoài tầm thì chuyển cho người thật.
+Đem một **Agent** bạn đã tạo ra đứng trước người ngoài: họ nhắn vào một bot riêng trên **Telegram** hoặc **Zalo**, Agent đó trả lời theo đúng quy định bạn viết cho nó, gặp câu ngoài tầm thì chuyển cho người thật.
 
 Dùng được cho bất cứ việc gì bạn phải trả lời đi trả lời lại cho người khác: hỏi đáp về một sản phẩm hay dịch vụ, giải đáp quy định nội bộ cho đồng nghiệp, trực câu hỏi của học viên, hướng dẫn thành viên trong một cộng đồng, sàng lọc câu hỏi trước khi tới tay bạn.
 
@@ -10,7 +10,8 @@ Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quy�
 
 ## Tính năng này là gì
 
-- Mỗi bot = một **Agent** trong một brain + một **token Telegram riêng**. Bot đọc tài liệu của chính brain đó.
+- Mỗi bot = một **Agent** trong một brain + một **token riêng** trên Telegram hoặc Zalo. Bot đọc tài liệu của chính brain đó.
+- **Chọn được kênh**: Telegram hoặc Zalo. Với khách hàng Việt Nam thì Zalo gần như luôn là lựa chọn đúng, vì họ đã có sẵn app trên máy. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo).
 - Trang Chatbot **thuộc về brain đang mở**: đổi brain ở đầu trang là thấy bot của brain đó, y như trang Agents và Skills.
 - Người ta nhắn riêng cho bot, hoặc bạn thả bot vào nhóm.
 - **Bot làm theo đúng file Agent của bạn.** Javis không chèn thêm luật nào của mình vào.
@@ -45,11 +46,45 @@ Vào trang **Agents** tạo một Agent cho đúng việc bot sẽ làm. Viết 
 
 Bot **đọc Agent lúc chạy**, không chép lại. Sau này sửa Agent ở trang Agents là bot đổi theo ngay, không phải sửa hai chỗ. Chi tiết cách viết Agent ở [Agents & Workflows](07-agents-va-workflows.md).
 
-### 3. Một token Telegram riêng
+### 3. Một token riêng, lấy đúng chỗ theo kênh
 
-Vào **@BotFather** trên Telegram gõ `/newbot`, đặt tên và username, lấy chuỗi token dạng `123456789:ABCdef...`.
+Nếu bot chạy trên **Telegram**: vào **@BotFather** gõ `/newbot`, đặt tên và username, lấy chuỗi token dạng `123456789:ABCdef...`.
 
-**Mỗi bot phải một token riêng, và đừng dùng token bot Javis chính của bạn.** Một token chỉ chạy được một tiến trình; dùng chung là cả hai cùng chết và Telegram trả lỗi 409. Javis chặn sẵn việc này lúc bạn bấm Kiểm tra, nhưng biết trước vẫn hơn.
+Nếu bot chạy trên **Zalo**: mở app Zalo, tìm Official Account **Zalo Bot Manager**, chọn **Tạo bot**. Tên bot bắt buộc mở đầu bằng chữ "Bot" (ví dụ "Bot Kim Khí Hà Lộc"). Token được gửi về cho bạn bằng tin nhắn Zalo, dạng `123456789:abc-xyz`, và nó **không hết hạn** cho tới khi bạn tự đặt lại.
+
+**Mỗi bot phải một token riêng, và đừng dùng token bot Javis chính của bạn.** Một token chỉ chạy được một tiến trình; dùng chung là cả hai cùng chết và máy chủ trả lỗi 409. Javis chặn sẵn việc này lúc bạn bấm Kiểm tra, nhưng biết trước vẫn hơn.
+
+Dán nhầm token của kênh này vào kênh kia thì Javis nói thẳng ra chứ không để bạn ngồi đoán: nút **Kiểm tra** hỏi đúng nền tảng bạn vừa chọn.
+
+## Chọn Telegram hay Zalo
+
+Ô đầu tiên trong form tạo bot là chọn kênh, và nó đứng đầu vì nó quyết định mọi thứ phía dưới: token lấy ở đâu, bot có vào được nhóm không, có gửi được file không.
+
+| | Telegram | Zalo |
+|---|---|---|
+| Khách Việt Nam có sẵn app | Ít khi | Gần như luôn có |
+| Vào được nhóm | Có | **Không** ở gói bot cơ bản |
+| Bot gửi ảnh cho khách | Có | Đang thử nghiệm |
+| Bot gửi file tài liệu (PDF, bảng tính) | Có | **Chưa được** (Zalo chưa mở API) |
+| Khách gửi ảnh cho bot đọc | Có | Có |
+| Khách gửi file tài liệu cho bot đọc | Có | Chưa |
+| Trần một tin nhắn | 4096 ký tự | 2000 ký tự |
+| Bot hiện menu lệnh `/` | Có | Không, phải gõ tay |
+
+Nói gọn: **bot nói chuyện với khách hàng Việt Nam thì chọn Zalo**, chấp nhận đổi lại là chỉ chat riêng và chưa gửi được tài liệu. **Bot dùng trong nhóm nội bộ, hoặc cần đưa file qua lại thì chọn Telegram.**
+
+**Kênh không đổi được sau khi tạo bot.** Đổi kênh nghĩa là đổi sang một con bot khác hẳn: token khác, danh tính khác, khách khác, và mọi id nhóm đang lưu lập tức vô nghĩa. Cần kênh khác thì tạo bot mới; form Sửa sẽ hiện kênh ở dạng khoá kèm đúng câu này.
+
+Trên lưới thẻ, mỗi bot mang **dấu hiệu kênh** ở hai chỗ: một huy hiệu nhỏ đè lên góc icon (để liếc qua là biết), và một chip có logo trong phần thông tin (để đọc lướt). Khi bạn có bot ở cả hai kênh, đầu trang tự hiện thêm hàng nút lọc **Tất cả / Telegram / Zalo**.
+
+### Zalo Bot khác gì Zalo Agent MCP
+
+Javis có hai đường vào Zalo, và chúng không thay thế nhau:
+
+- **Zalo Bot** (trang này) là một **danh tính riêng**, dùng API chính thức. Không có rủi ro khoá tài khoản, nhưng nó chỉ thấy được thứ người ta nhắn thẳng cho nó.
+- **[Zalo Agent MCP](12-zalo.md)** đăng nhập **chính tài khoản Zalo của bạn** qua API không chính thức. Đọc được hội thoại thật, nhắn cho bất kỳ ai, đổi lại tài khoản có thể bị hạn chế hoặc khoá.
+
+Cái đầu để **người khác nói chuyện với Javis**. Cái sau để **Javis thao tác thay bạn**. Dùng cả hai cũng được.
 
 ## Cách dùng (từng bước)
 
@@ -59,18 +94,21 @@ Bấm **Bot mới**, điền:
 
 | Ô | Điền gì |
 |---|---|
+| Bot này nói chuyện ở đâu | **Telegram** hay **Zalo**. Ô đầu tiên vì nó đổi cả phần còn lại của form. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
 | Tên bot | Tên bạn nhìn để phân biệt các bot với nhau |
 | Agent làm bộ não | Chọn Agent trong brain đang mở, hoặc bấm **Tạo Agent** |
 | Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |
 | Bot được làm gì | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
-| Token Telegram | Dán token từ BotFather rồi bấm **Kiểm tra** |
+| Token | Dán token của đúng kênh vừa chọn rồi bấm **Kiểm tra** |
 | Chat ID người trực | Số Telegram của người nhận chuyển tiếp (xem bên dưới) |
-| Nhóm được phép | Để trống cũng được - thả bot vào nhóm rồi cho phép bằng một cú bấm sau (xem Bước 4) |
-| Khi nào bot lên tiếng trong nhóm | Mặc định chỉ khi được gọi tên hoặc reply vào nó |
+| Nhóm được phép | Chỉ hiện với bot Telegram. Để trống cũng được - thả bot vào nhóm rồi cho phép bằng một cú bấm sau (xem Bước 4) |
+| Khi nào bot lên tiếng trong nhóm | Chỉ hiện với bot Telegram. Mặc định chỉ khi được gọi tên hoặc reply vào nó |
+
+Chọn Zalo thì hai ô cuối **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên khai id nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
 
 **Không có ô chọn brain**, và đó là cố ý: bot thuộc về brain bạn đang mở. Muốn bot ở brain khác thì đổi brain ở đầu trang rồi tạo lại - một chỗ để nhìn, không có hai lớp phải khớp nhau.
 
-Bấm **Kiểm tra** trước khi lưu: Javis hỏi thẳng Telegram xem token có thật không, trả về đúng tên bot, và báo ngay nếu token đó đã có bot khác trong Javis đang dùng.
+Bấm **Kiểm tra** trước khi lưu: Javis hỏi thẳng nền tảng bạn vừa chọn xem token có thật không, trả về đúng tên bot, và báo ngay nếu token đó đã có bot khác trong Javis đang dùng. Với bot Zalo, nếu gói của bạn không cho bot vào nhóm thì nó nói luôn tại đây.
 
 **Bot tạo ra luôn ở trạng thái TẮT.** Đây là cố ý: bật lên là bot nói chuyện với người thật ngay lập tức, nên bật phải là một cú bấm có ý thức chứ không phải tác dụng phụ của việc tạo.
 

@@ -22,7 +22,8 @@ from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.pat
 import asyncio
 import sys
 
-from telegram_bot import RE_TEN_TOOL, TelegramBot
+from bot_gateway import RE_TEN_TOOL
+from telegram_bot import TelegramBot
 
 loi = []
 

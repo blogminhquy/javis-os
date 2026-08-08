@@ -433,10 +433,13 @@ check("xoá bot thì dọn luôn vết trong RAM", "chatbot_runtime.quen_bot(bot
 # xoá nó, rồi gửi "(không có nội dung)" vào mặt người ngoài. Vừa lộ, vừa che mất lượt hỏng thật
 # (câu trả lời rỗng vì engine gãy cũng ra đúng chuỗi đó).
 _TG = (SERVER / "telegram_bot.py").read_text(encoding="utf-8")
+# Điều phối lượt (chốt chặn, hàng đợi, /stop) nằm ở `bot_gateway` từ 0.26.5, dùng chung cho
+# Telegram và Zalo. Phần riêng của Telegram vẫn soi ở _TG.
+_GW = (SERVER / "bot_gateway.py").read_text(encoding="utf-8")
 check("kênh có chốt chặn chạy TRƯỚC khi tốn một lượt", "self.precheck_fn = precheck_fn" in _TG)
-check("chốt chặn đứng trước cả tin trạng thái", "if self.precheck_fn and not text.startswith" in _TG)
+check("chốt chặn đứng trước cả tin trạng thái", "if self.precheck_fn and not text.startswith" in _GW)
 check("lệnh KHÔNG bị chốt chặn (còn /id để lấy id nhóm)",
-      'not text.startswith("/")' in _TG)
+      'not text.startswith("/")' in _GW)
 check("im lặng có chủ ý khác câu trả lời rỗng",
       'im_lang = bool(reply.get("im_lang"))' in _TG and
       'if im_lang and not str(reply or "").strip() and not files:' in _TG)
@@ -466,7 +469,7 @@ check("trạng thái phơi lý do mất danh tính ra giao diện", '"loi_danh_t
 check("'đã hỏi được Telegram' đo bằng danh tính, không bằng trạng thái poll",
       '"da_hoi_telegram": bool(getattr(tb, "bot_id", 0))' in _RT)
 check("lệnh nhận được meta để chẩn đoán đúng nhóm đang đứng",
-      "res = await self.command_fn(cmd, arg, chat, meta)" in _TG
+      "res = await self.command_fn(cmd, arg, chat, meta)" in _GW
       and "async def _cmd(cmd, arg, chat, meta=None)" in _RT)
 
 print()

@@ -38,6 +38,11 @@ import chatbot_grounding
 import chatbot_log
 import chatbot_store
 from telegram_bot import TelegramBot
+from zalo_bot import ZaloBot
+
+# Kênh -> lớp vận chuyển. Bảng này là NƠI DUY NHẤT biết kênh nào chạy bằng lớp nào; thêm kênh
+# thứ ba sau này chỉ phải thêm một dòng ở đây và một giá trị vào `chatbot_store.KENH`.
+_LOP_KENH = {"telegram": TelegramBot, "zalo": ZaloBot}
 
 # Menu lệnh Telegram của bot khách. ĐÚNG bằng danh sách trắng trong `_make_command_fn`, không
 # hơn. Menu là một mặt giao diện: liệt kê ở đó những lệnh bot từ chối chạy là dạy khách đi tìm
@@ -528,7 +533,8 @@ def _make_answer_fn(bot_id: str):
         # Bản ghi truyền xuống lõi phải có brain và slug - lõi dựa vào đó để đổi brain, đổi
         # khoá phiên và đổi nhãn kênh.
         try:
-            out = await _deps["answer"](text, meta, progress, channel="telegram", bot=cfg)
+            out = await _deps["answer"](text, meta, progress,
+                                        channel=str(cfg.get("channel") or "telegram"), bot=cfg)
         except Exception as e:
             print(f"[chatbot {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
             return {"text": "Em đang gặp trục trặc, anh chị nhắn lại giúp em sau ít phút ạ.",
@@ -619,25 +625,37 @@ def start_bot(bot_id: str) -> tuple[bool, str]:
     cfg = chatbot_store.get_bot(bot_id)
     if not cfg:
         return False, "Không có bot nào id đó"
+    kenh = str(cfg.get("channel") or "telegram")
+    nhan_kenh = chatbot_store.KENH_NHAN.get(kenh, kenh)
     token = chatbot_store.get_token(bot_id)
     if not token:
-        return False, "Chưa có token Telegram cho bot này"
+        return False, f"Chưa có token {nhan_kenh} cho bot này"
     if not _deps.get("answer"):
         return False, "Bộ giám sát chưa được nối vào server"
-    stop_bot(bot_id)      # huỷ TRƯỚC khi tạo: hai poller cùng token thì Telegram trả 409 và cả hai chết
-    tb = TelegramBot(
-        token,
-        "",                       # KHÔNG whitelist: bot khách hàng vốn để người lạ nhắn.
-        _make_answer_fn(bot_id),  # rào nằm ở mức quyền và ở luật trả lời, không ở whitelist.
-        _make_command_fn(cfg),
-        None,
+    stop_bot(bot_id)      # huỷ TRƯỚC khi tạo: hai poller cùng token thì máy chủ trả 409 và cả hai chết
+    # Hai lớp vận chuyển giữ CHUNG một khế ước (xem đầu zalo_bot.py), nên chỗ này chỉ chọn
+    # lớp rồi dựng y hệt. Khác biệt duy nhất: Zalo không có nút bấm nên không nhận callback_fn,
+    # và cũng không đẩy được menu lệnh lên app.
+    Lop = _LOP_KENH.get(kenh)
+    if not Lop:
+        return False, f"Kênh '{kenh}' chưa có lớp vận chuyển nào"
+    chung = dict(
         download_dir=_inbox_dir(cfg),
-        commands=LENH_KHACH,      # menu Telegram của khách, KHÔNG phải menu quản trị của chủ
+        commands=LENH_KHACH,      # menu của khách, KHÔNG phải menu quản trị của chủ
         precheck_fn=_make_precheck_fn(bot_id),   # nhóm chưa được bật: im, nhưng KHÔNG im lặng
         event_fn=_make_event_fn(bot_id),         # vào nhóm / bị đá / nhóm đổi id khi nâng cấp
         # Bot này nói chuyện với KHÁCH, nên không được để lộ một dòng trạng thái nào của Javis.
         # Xem khối chú thích "nói như người thật" ở đầu telegram_bot.py.
         giau_trang_thai=True,
+    )
+    if kenh == "telegram":
+        chung["callback_fn"] = None
+    tb = Lop(
+        token,
+        "",                       # KHÔNG whitelist: bot khách hàng vốn để người lạ nhắn.
+        _make_answer_fn(bot_id),  # rào nằm ở mức quyền và ở luật trả lời, không ở whitelist.
+        _make_command_fn(cfg),
+        **chung,
     )
     tb.start()
     _RUNNING[bot_id] = {"bot": tb, "cfg": cfg, "started": time.time(), "answered": 0}

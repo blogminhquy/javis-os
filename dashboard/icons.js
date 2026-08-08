@@ -119,9 +119,69 @@
     return !!RAW[name];
   }
 
+  // ---- Dấu hiệu KÊNH nhắn tin (Telegram, Zalo) --------------------------------------
+  //
+  // Vì sao không dùng ic() như mọi icon khác: bộ Lucide vẽ bằng nét, một màu, tự đổi theo
+  // màu chữ - đúng cho icon chức năng, và SAI cho dấu hiệu nhận biết nền tảng. Hai con bot
+  // nằm cạnh nhau trong cùng một lưới thẻ mà chỉ khác nhau ở một chữ nhỏ thì người ta sẽ
+  // bấm nhầm; MÀU mới là thứ mắt bắt được trước khi kịp đọc. Nên đây là hình khối đặc, giữ
+  // đúng màu thương hiệu ở cả nền sáng lẫn nền tối.
+  //
+  // Vẽ tay theo mô tả của chủ repo (2026-08-08): Telegram là máy bay giấy TRẮNG trên nền
+  // XANH DƯƠNG; Zalo là chữ Z trên nền xanh dương, bọc trong khung bong bóng trò chuyện.
+  // Vẽ tay chứ không nhúng ảnh: SVG nội tuyến thì nét ở mọi độ phân giải, không thêm tệp
+  // nhị phân vào repo, và không phải một lời gọi mạng nữa lúc vẽ lưới thẻ.
+  var KENH = {
+    telegram: {
+      nhan: "Telegram",
+      mau: "#229ED9",
+      than:
+        '<rect width="24" height="24" rx="7" fill="#229ED9"/>' +
+        '<path fill="#fff" d="M18.75 5.6 4.6 11.25c-.62.25-.6.72.02.9l3.5 1.05 1.35 4.1c' +
+        '.17.5.5.58.87.2l1.9-1.85 3.55 2.62c.42.31.86.14.97-.4L19.6 6.2c.11-.55-.24-.8-.85-.6z"/>' +
+        '<path fill="#c8e6f7" d="M9.55 13.75 16.5 8.3c.3-.24.6.1.35.4l-5.55 6.2-.12 2.55z"/>',
+    },
+    zalo: {
+      nhan: "Zalo",
+      mau: "#0068FF",
+      than:
+        '<path fill="#0068FF" d="M12 2.6c-5.35 0-9.4 3.5-9.4 7.9 0 2.6 1.4 4.9 3.62 6.35' +
+        '-.16 1.2-.78 2.28-1.55 3.05-.33.33-.1.87.36.8 2-.28 3.46-1 4.4-1.63.8.17 1.66.26 2.57.26' +
+        ' 5.35 0 9.4-3.5 9.4-7.9S17.35 2.6 12 2.6z"/>' +
+        '<path fill="#fff" d="M8.5 7.9h7.05v1.6l-4.7 4.75h4.8v1.7H8.3v-1.6l4.7-4.75H8.5z"/>',
+    },
+  };
+
+  // kenh(id, opts) -> chuỗi SVG dấu hiệu nền tảng. opts.size (mặc định 1.15em), opts.cls.
+  // Tên kênh lạ thì trả rỗng, KHÔNG vẽ dấu hỏi: chỗ gọi luôn đứng cạnh chữ nói rõ kênh nào,
+  // nên một ô trống đọc nhẹ hơn một ký hiệu sai.
+  function kenh(id, opts) {
+    var k = KENH[String(id || "").toLowerCase()];
+    if (!k) return "";
+    var o = opts || {};
+    var size = o.size || "1.15em";
+    return '<svg class="kenh-logo ' + esc(o.cls || "") + '" viewBox="0 0 24 24" width="' +
+      esc(size) + '" height="' + esc(size) + '" role="img" aria-label="' + esc(k.nhan) +
+      '" focusable="false">' + k.than + "</svg>";
+  }
+
+  function kenhNhan(id) {
+    var k = KENH[String(id || "").toLowerCase()];
+    return k ? k.nhan : "";
+  }
+
+  function kenhMau(id) {
+    var k = KENH[String(id || "").toLowerCase()];
+    return k ? k.mau : "";
+  }
+
   window.ic = ic;
   window.Icons = {
     ic: ic,
+    kenh: kenh,
+    kenhNhan: kenhNhan,
+    kenhMau: kenhMau,
+    kenhDS: function () { return Object.keys(KENH); },
     msg: msg,
     warn: warn,
     ok: okMsg,

@@ -249,6 +249,57 @@ check("thẻ nói ra khi bot không hỏi được danh tính của chính nó",
   /st\.loi_danh_tinh/.test(CB) && /loiTen/.test(CB));
 
 // ============================================================
+// 6b. Hai KÊNH: chọn đúng chỗ, và không lẫn con nọ với con kia
+// ============================================================
+// Từ 0.26.5 bot chạy được trên Telegram HOẶC Zalo. Hai con bot khác nền tảng nằm cạnh nhau
+// trong cùng một lưới thẻ mà chỉ khác nhau ở một chữ nhỏ thì người ta sẽ bấm nhầm, và bấm
+// nhầm ở đây nghĩa là sửa nhầm con bot đang nói chuyện với khách.
+const ICONS = D("icons.js");
+check("có dấu hiệu kênh vẽ sẵn cho cả hai nền tảng",
+  /telegram:\s*\{/.test(ICONS) && /zalo:\s*\{/.test(ICONS) && /function kenh\(id, opts\)/.test(ICONS));
+check("dấu hiệu kênh giữ MÀU thương hiệu, không theo màu chữ như icon Lucide",
+  /#229ED9/.test(ICONS) && /#0068FF/.test(ICONS));
+check("Telegram là máy bay giấy trắng trên nền xanh",
+  /rect width="24" height="24" rx="7" fill="#229ED9"/.test(ICONS) && /fill="#fff"/.test(ICONS));
+check("Zalo là chữ Z trắng trong bong bóng trò chuyện xanh",
+  /zalo:[\s\S]{0,400}fill="#0068FF"[\s\S]{0,600}M8\.5 7\.9h7\.05/.test(ICONS));
+check("kênh lạ trả rỗng chứ không vẽ dấu hỏi", /if \(!k\) return "";/.test(ICONS));
+
+check("kênh hiện trên thẻ bot (huy hiệu ở icon + chip ở phần thông tin)",
+  /class="cb-ico-kenh"/.test(CB) && /function chipKenh\(/.test(CB) && /chipKenh\(kenh\)/.test(CB));
+check("form hỏi kênh NGAY Ở ĐẦU, trước cả tên bot",
+  CB.indexOf("Bot này nói chuyện ở đâu") > -1 &&
+  CB.indexOf("Bot này nói chuyện ở đâu") < CB.indexOf("<label>Tên bot</label>"));
+check("chọn kênh bằng thẻ bấm có logo, không phải <select> trơn",
+  /class="cb-kenh"/.test(CB) && /class="cb-kenh-o/.test(CB) && /cb-kenh-logo/.test(CB));
+check("mỗi kênh nói rõ ưu và nhược ngay trên nút",
+  /KENH_TOM\s*=/.test(CB) && /chưa gửi được tài liệu/.test(CB));
+// Đổi kênh của bot đã tạo = đổi sang một con bot khác (token khác, khách khác). Khoá lại và
+// nói thẳng, chứ đừng cho bấm rồi báo lỗi token ở bước sau.
+check("sửa bot thì kênh bị KHOÁ kèm lý do",
+  /veKenhChon\(kenh, sua\)/.test(CB) && /cb-kenh-khoa/.test(CB) &&
+  /Không đổi được kênh của bot đã tạo/.test(CB));
+check("đổi kênh là đổi theo cả form (nhãn token, chỗ lấy token, khối nhóm)",
+  /function apKenh\(k\)/.test(CB) && /cbTokenLabel/.test(CB) && /cbNhomBox/.test(CB));
+check("đổi kênh thì BỎ token đã kiểm (nó là danh tính ở nền tảng kia)",
+  /function apKenh\(k\)[\s\S]{0,260}uname = "";/.test(CB));
+check("kiểm token gửi kèm kênh để hỏi đúng nền tảng",
+  /channel: kenh/.test(CB) && /Đang hỏi " \+ kc\.nhan/.test(CB));
+check("tạo bot gửi kênh lên server", /channel: kenh,/.test(CB));
+check("kênh không vào được nhóm thì ẨN cả khối nhóm, không hiện ra rồi vô tác dụng",
+  /cbKhongNhom/.test(CB) && /kc\.co_nhom \? "" : "none"/.test(CB));
+check("và KHÔNG gửi id nhóm thừa lên server",
+  /var coNhom = kenhCua\(kenh\)\.co_nhom/.test(CB) && /coNhom \? box\.querySelector\("#cbGroups"\)/.test(CB));
+check("cảnh báo riêng tư chỉ hiện cho bot Telegram", /kenh === "telegram" && duNhom/.test(CB));
+check("bộ lọc kênh chỉ hiện khi có từ hai kênh trở lên",
+  /function veLoc\(/.test(CB) && /if \(ks\.length < 2\)/.test(CB));
+check("danh sách kênh lấy từ SERVER, không chép cứng ở giao diện",
+  /_kenhDS = d\.kenh \|\| \[\]/.test(CB));
+check("CSS của bộ chọn kênh đã có",
+  /\.cb-kenh-o/.test(CSS) && /\.cb-loc-o/.test(CSS) && /\.cb-ico-kenh/.test(CSS));
+check("icons.js không có em dash", ICONS.indexOf("—") === -1);
+
+// ============================================================
 // 7. Luật chung của dashboard
 // ============================================================
 check("HTML người dùng nhập đều qua esc()", !/innerHTML\s*=\s*[^;]*\+\s*(b|e)\.(name|message)\b(?![^;]*esc)/.test(CB));

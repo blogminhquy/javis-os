@@ -43,6 +43,22 @@
   // cứng ở đây: chép rồi thì một hôm server siết thêm rào mà ô cảnh báo vẫn hứa như cũ, và
   // chủ bấm đồng ý dựa trên một câu đã sai.
   var _bots = [], _q = "", _host = null, _mucDS = [], _timer = null, _dauVet = "";
+  // Danh sách kênh do SERVER cấp (kèm chỗ lấy token và kênh đó KHÔNG làm được gì). Không chép
+  // cứng ở đây: hôm nào Zalo mở API gửi tài liệu thì server đổi một chỗ, giao diện theo ngay.
+  var _kenhDS = [], _kenhLoc = "";
+
+  function kenhCua(id) {
+    for (var i = 0; i < _kenhDS.length; i++) if (_kenhDS[i].id === id) return _kenhDS[i];
+    return { id: id || "telegram", nhan: Icons.kenhNhan(id) || "Telegram",
+             lay_token: "", co_nhom: id !== "zalo", gui_tai_lieu: id !== "zalo" };
+  }
+
+  // Nhãn kênh: LOGO + tên. Đây là thứ phân biệt hai con bot trong cùng một lưới thẻ, nên nó
+  // phải bắt mắt trước khi người ta kịp đọc chữ - xem khối chú thích ở Icons.kenh.
+  function chipKenh(id, cls) {
+    return '<span class="cb-kenh-chip ' + (cls || "") + '">' + Icons.kenh(id, { size: "13px" }) +
+           " " + esc(kenhCua(id).nhan) + "</span>";
+  }
 
   // Trạng thái bot là thứ ĐỔI MÀ KHÔNG AI BẤM: bấm Bật xong server trả về "đang khởi động"
   // (poller mới tạo, chưa kịp hỏi Telegram), rồi vài giây sau nó thành "đang chạy" - nhưng
@@ -77,8 +93,10 @@
           '<input class="cb-search" placeholder="Tìm bot theo tên…">' +
           '<button class="s-btn cb-new" type="button">' + ic("plus") + ' Bot mới</button>' +
         '</div>' +
+        '<div class="cb-loc"></div>' +
         '<p class="cb-intro">Bot của brain <b>' + esc(brain()) + '</b>. Mỗi bot là một ' +
-        '<b>Agent</b> trong brain này, đem ra trả lời người ngoài qua một bot Telegram riêng. ' +
+        '<b>Agent</b> trong brain này, đem ra trả lời người ngoài qua một bot nhắn tin riêng ' +
+        'trên <b>Telegram</b> hoặc <b>Zalo</b>. ' +
         'Bot làm theo đúng quy định trong file Agent. Mặc định nó <b>chỉ đọc được brain này</b>: ' +
         'không ghi, không gọi nguồn dữ liệu, không có lệnh quản trị. Cần bot <b>làm việc thật</b> ' +
         'thì nâng mức quyền khi tạo hoặc sửa - đọc kỹ phần rủi ro ở đó, vì người điều khiển bot ' +
@@ -107,6 +125,7 @@
       var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
       _bots = d.bots || [];
       _mucDS = d.muc_quyen || [];
+      _kenhDS = d.kenh || [];
       var vet = JSON.stringify(_bots);
       // Nhịp ngầm mà không có gì đổi thì ĐỪNG dựng lại DOM. Không phải để tiết kiệm: dựng lại
       // mỗi 5 giây nghĩa là cứ 5 giây một lần có một khoảnh khắc nút vừa bị thay khỏi cây, và
@@ -120,10 +139,37 @@
     ve();
   }
 
+  // Bộ lọc kênh chỉ hiện khi thật sự có từ HAI kênh trở lên. Người mới chỉ có bot Telegram mà
+  // đã phải nhìn một hàng nút lọc thì đó là câu trả lời cho một câu hỏi họ chưa từng hỏi.
+  function veLoc() {
+    var hop = _host && _host.querySelector(".cb-loc");
+    if (!hop) return;
+    var dem = {};
+    _bots.forEach(function (b) {
+      var k = b.channel || "telegram";
+      dem[k] = (dem[k] || 0) + 1;
+    });
+    var ks = Object.keys(dem);
+    if (ks.length < 2) { hop.innerHTML = ""; _kenhLoc = ""; return; }
+    hop.innerHTML =
+      '<button class="cb-loc-o' + (_kenhLoc ? "" : " on") + '" data-k="" type="button">Tất cả ' +
+        '<span class="cb-loc-n">' + _bots.length + '</span></button>' +
+      ks.map(function (k) {
+        return '<button class="cb-loc-o' + (_kenhLoc === k ? " on" : "") + '" data-k="' + esc(k) +
+          '" type="button">' + Icons.kenh(k, { size: "14px" }) + " " + esc(kenhCua(k).nhan) +
+          ' <span class="cb-loc-n">' + dem[k] + '</span></button>';
+      }).join("");
+    hop.querySelectorAll(".cb-loc-o").forEach(function (n) {
+      n.onclick = function () { _kenhLoc = n.dataset.k || ""; ve(); };
+    });
+  }
+
   function ve() {
     var box = _host && _host.querySelector(".cb-grid");
     if (!box) return;
+    veLoc();
     var ds = _bots.filter(function (b) {
+      if (_kenhLoc && (b.channel || "telegram") !== _kenhLoc) return false;
       return !_q || String(b.name || "").toLowerCase().indexOf(_q) !== -1;
     });
     if (!_bots.length) {
@@ -206,8 +252,11 @@
     // Hiện cho MỌI bot có dùng nhóm, không riêng bot đặt "trả lời mọi tin": nó là nguyên nhân
     // số một của "nhắn riêng thì được, trong nhóm tag tên thì im re", và người dùng không có
     // cách nào đoán ra vì mọi dấu hiệu trên trang này đều xanh.
+    var kenh = b.channel || "telegram";
     var duNhom = (b.groups || []).length || (b.nhom_cho || []).length;
-    var riengTu = (duNhom && st.da_hoi_telegram && !st.doc_moi_tin_nhom)
+    // Cảnh báo chế độ riêng tư là chuyện RIÊNG của Telegram. Hiện nó trên một thẻ Zalo là dạy
+    // người dùng đi mở @BotFather tìm một cài đặt không tồn tại cho con bot đó.
+    var riengTu = (kenh === "telegram" && duNhom && st.da_hoi_telegram && !st.doc_moi_tin_nhom)
       ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + ' Telegram đang bật <b>chế độ riêng ' +
         'tư</b> cho bot này. Trong nhóm, thứ chắc chắn tới được nó là <b>lệnh /...</b> và <b>tin ' +
         'trả lời thẳng vào tin của nó</b>' +
@@ -220,7 +269,9 @@
     var c = el(
       '<div class="cb-card">' +
         '<div class="cb-head">' +
-          '<span class="cb-ico">' + ic(b.icon || "headset") + '</span>' +
+          '<span class="cb-ico">' + ic(b.icon || "headset") +
+            '<span class="cb-ico-kenh" title="' + esc(kenhCua(kenh).nhan) + '">' +
+              Icons.kenh(kenh, { size: "14px" }) + '</span></span>' +
           '<span class="cb-name">' + esc(b.name) + '</span>' +
           '<span class="cb-dot ' + tt.mau + '" title="' + esc(st.last_error || tt.nhan) + '"></span>' +
           '<span class="cb-state">' + tt.nhan + '</span>' +
@@ -228,11 +279,14 @@
         // Không hiện brain trên thẻ nữa: mọi bot ở đây đều thuộc brain đang mở, nên nhắc lại
         // trên từng thẻ chỉ là nhiễu. Brain nói một lần ở đầu trang là đủ.
         '<div class="cb-meta">' +
-          (b.bot_username ? '<span>@' + esc(b.bot_username) + '</span>' : '<span class="cb-warn">chưa có token</span>') +
+          chipKenh(kenh) +
+          (b.bot_username
+            ? '<span>' + (kenh === "telegram" ? "@" : "") + esc(b.bot_username) + '</span>'
+            : '<span class="cb-warn">chưa có token</span>') +
           '<span>' + ic("bot") + ' ' + esc(b.agent_name || (b.agent || {}).slug || "?") + '</span>' +
         '</div>' +
         '<div class="cb-meta">' +
-          '<span>' + ((b.groups || []).length
+          '<span>' + (!kenhCua(kenh).co_nhom ? 'chỉ tin nhắn riêng' : (b.groups || []).length
             ? ((b.groups.length + ' nhóm') + (b.reply_when === "always" ? ", trả lời mọi tin" : ", khi được gọi tên"))
             : 'chỉ tin nhắn riêng') + '</span>' +
           '<span>' + (b.nguon_tra_loi === "tai_lieu" ? "chỉ tài liệu" : "chuyên môn Agent") + '</span>' +
@@ -443,13 +497,45 @@
       'rủi ro trên</label></div>';
   }
 
+  // Một dòng nói ĐÚNG cái người ta cần cân nhắc khi chọn kênh: ai sẽ nhắn cho bot, và kênh
+  // đó KHÔNG làm được gì. Ưu nhược điểm phải nằm ngay trên nút bấm, không phải trong tài liệu.
+  var KENH_TOM = {
+    telegram: "Vào được nhóm, gửi được ảnh và tài liệu. Người Việt ít dùng.",
+    zalo: "Khách Việt Nam đã có sẵn trên máy. Chỉ chat riêng, chưa gửi được tài liệu.",
+  };
+
+  function veKenhChon(dangChon, khoa) {
+    var ds = _kenhDS.length ? _kenhDS : [{ id: "telegram", nhan: "Telegram" }, { id: "zalo", nhan: "Zalo" }];
+    if (khoa) {
+      // Đổi kênh của một bot đã tạo là đổi sang một CON BOT KHÁC (token khác, danh tính khác,
+      // khách khác). Khoá lại và nói thẳng, chứ đừng cho bấm rồi báo lỗi token ở bước sau.
+      return '<div class="cb-kenh-khoa">' + Icons.kenh(dangChon, { size: "18px" }) +
+        ' <b>' + esc(kenhCua(dangChon).nhan) + '</b>' +
+        '<span>Không đổi được kênh của bot đã tạo. Cần kênh khác thì tạo bot mới.</span></div>';
+    }
+    return '<div class="cb-kenh">' + ds.map(function (k) {
+      return '<button class="cb-kenh-o' + (k.id === dangChon ? " on" : "") + '" data-k="' +
+        esc(k.id) + '" type="button">' +
+        '<span class="cb-kenh-logo">' + Icons.kenh(k.id, { size: "26px" }) + '</span>' +
+        '<b>' + esc(k.nhan) + '</b>' +
+        '<small>' + esc(KENH_TOM[k.id] || "") + '</small></button>';
+    }).join("") + '</div>';
+  }
+
   async function moForm(b) {
     var sua = !!b;
     var br = brain();                 // brain đang mở = brain của bot, không hỏi lại
     var agents = await nạpAgent(br);
+    var kenh = (b && b.channel) || "telegram";
     var box = el(
       '<div class="cb-modal"><div class="cb-form">' +
         '<h3>' + (sua ? "Sửa bot" : "Bot mới") + '</h3>' +
+
+        // Kênh đứng ĐẦU vì nó quyết định mọi thứ phía dưới: token lấy ở đâu, có dùng được
+        // nhóm không, có gửi được tài liệu không. Hỏi sau cùng thì người dùng đã điền xong cả
+        // form rồi mới biết mình chọn nhầm chỗ.
+        '<label>Bot này nói chuyện ở đâu</label>' +
+        '<div id="cbKenhBox">' + veKenhChon(kenh, sua) + '</div>' +
 
         '<label>Tên bot</label>' +
         '<input id="cbName" value="' + esc(b ? b.name : "") + '" placeholder="Ví dụ: Tư vấn sản phẩm">' +
@@ -485,13 +571,17 @@
         '<select id="cbMuc">' + htmlMuc((b && b.muc_quyen) || "suggest") + '</select>' +
         '<div class="cb-muc-note">' + veCanhBao((b && b.muc_quyen) || "suggest") + '</div>' +
 
-        '<label>Token Telegram' + (sua ? " (để trống nếu không đổi)" : "") + '</label>' +
+        '<label id="cbTokenLabel">Token ' + esc(kenhCua(kenh).nhan) +
+          (sua ? " (để trống nếu không đổi)" : "") + '</label>' +
         '<div class="cb-row">' +
-          '<input id="cbToken" type="password" placeholder="Lấy từ @BotFather, dạng 123456:AA...">' +
+          '<input id="cbToken" type="password" placeholder="Dạng 123456789:AbC-xyz">' +
           '<button class="s-btn-ghost" id="cbCheck" type="button">Kiểm tra</button>' +
         '</div>' +
         '<div class="cb-hint" id="cbTokenNote">' +
-          (b && b.bot_username ? "Đang dùng @" + esc(b.bot_username) : "Mỗi bot phải một token RIÊNG. Đừng dùng token bot chính của bạn.") +
+          (b && b.bot_username
+            ? "Đang dùng " + (kenh === "telegram" ? "@" : "") + esc(b.bot_username)
+            : esc(kenhCua(kenh).lay_token) +
+              " Mỗi bot phải một token RIÊNG.") +
         '</div>' +
 
         '<label>Chat ID người trực nhận chuyển tiếp</label>' +
@@ -505,24 +595,33 @@
         // Khai được NGAY LÚC TẠO, không chỉ ở form Sửa. Đường đi tự nhiên nhất là tạo bot rồi
         // thả thẳng vào nhóm; bắt quay lại bấm Sửa mới khai được nhóm là bảo đảm lần thử đầu
         // tiên của mọi người dùng đều gặp một con bot im lặng.
-        '<label>Nhóm được phép (mỗi id một dòng)</label>' +
-        '<textarea id="cbGroups" rows="2" placeholder="Ví dụ: -1001234567890">' +
-          esc(((b && b.groups) || []).join("\n")) + '</textarea>' +
-        '<div class="cb-hint">Bỏ trống thì bot <b>chỉ trả lời tin nhắn riêng</b>, trong nhóm nó ' +
-        'im. Không cần chép tay: mời bot vào nhóm rồi nhắn cho nó một câu, nhóm đó sẽ hiện trên ' +
-        'thẻ bot ở trang này kèm nút <b>Cho phép</b>. Hoặc gõ <b>/id</b> trong nhóm để lấy id ' +
-        'rồi dán vào đây.</div>' +
+        // Cả khối nhóm ẩn đi với kênh không vào được nhóm. Hiện ra rồi để nó không có tác dụng
+        // là hứa suông: người dùng ngồi khai id nhóm xong chờ mãi một con bot không bao giờ
+        // vào được nhóm nào, và không có gì nói cho họ biết.
+        '<div id="cbNhomBox">' +
+          '<label>Nhóm được phép (mỗi id một dòng)</label>' +
+          '<textarea id="cbGroups" rows="2" placeholder="Ví dụ: -1001234567890">' +
+            esc(((b && b.groups) || []).join("\n")) + '</textarea>' +
+          '<div class="cb-hint">Bỏ trống thì bot <b>chỉ trả lời tin nhắn riêng</b>, trong nhóm nó ' +
+          'im. Không cần chép tay: mời bot vào nhóm rồi nhắn cho nó một câu, nhóm đó sẽ hiện trên ' +
+          'thẻ bot ở trang này kèm nút <b>Cho phép</b>. Hoặc gõ <b>/id</b> trong nhóm để lấy id ' +
+          'rồi dán vào đây.</div>' +
 
-        '<label>Trong nhóm thì khi nào bot lên tiếng</label>' +
-        '<select id="cbReplyWhen">' +
-          '<option value="mention"' + (!b || b.reply_when !== "always" ? " selected" : "") + '>' +
-            'Chỉ khi được gọi tên hoặc trả lời vào nó (mặc định)</option>' +
-          '<option value="always"' + (b && b.reply_when === "always" ? " selected" : "") + '>' +
-            'Mọi tin trong nhóm đã cho phép</option>' +
-        '</select>' +
-        '<div class="cb-hint"><b>Mọi tin</b> chỉ hợp với nhóm nhỏ, và còn phải tắt chế độ riêng ' +
-        'tư ở @BotFather (<b>/setprivacy</b> → Disable) thì Telegram mới chuyển hết tin cho bot. ' +
-        'Bot chen vào mọi câu khách nói với nhau thì phiền hơn là giúp.</div>' +
+          '<label>Trong nhóm thì khi nào bot lên tiếng</label>' +
+          '<select id="cbReplyWhen">' +
+            '<option value="mention"' + (!b || b.reply_when !== "always" ? " selected" : "") + '>' +
+              'Chỉ khi được gọi tên hoặc trả lời vào nó (mặc định)</option>' +
+            '<option value="always"' + (b && b.reply_when === "always" ? " selected" : "") + '>' +
+              'Mọi tin trong nhóm đã cho phép</option>' +
+          '</select>' +
+          '<div class="cb-hint"><b>Mọi tin</b> chỉ hợp với nhóm nhỏ, và còn phải tắt chế độ riêng ' +
+          'tư ở @BotFather (<b>/setprivacy</b> → Disable) thì Telegram mới chuyển hết tin cho bot. ' +
+          'Bot chen vào mọi câu khách nói với nhau thì phiền hơn là giúp.</div>' +
+        '</div>' +
+        '<div class="cb-hint cb-khong-nhom" id="cbKhongNhom" style="display:none">' +
+          'Bot Zalo <b>chỉ trả lời tin nhắn riêng</b>. Gói bot cơ bản của Zalo không cho bot vào ' +
+          'nhóm, và Zalo cũng chưa có API gửi tài liệu nên file Javis tạo ra sẽ không gửi qua ' +
+          'kênh này được (ảnh thì đang thử).</div>' +
 
         '<div class="cb-form-acts">' +
           '<button class="s-btn-ghost" id="cbCancel" type="button">Huỷ</button>' +
@@ -551,16 +650,51 @@
     oMuc.onchange = function () { oNote.innerHTML = veCanhBao(oMuc.value); };
 
     var uname = (b && b.bot_username) || "";
+
+    // Đổi kênh là đổi CẢ form theo: nhãn token, chỗ lấy token, và khối nhóm còn dùng được hay
+    // không. Token đã kiểm cũng phải bỏ đi - nó là danh tính ở nền tảng KIA, giữ lại thì lưu
+    // xong bản ghi mang tên một con bot không tồn tại trên kênh vừa chọn.
+    function apKenh(k) {
+      kenh = k;
+      var kc = kenhCua(k);
+      uname = "";
+      var lb = box.querySelector("#cbTokenLabel");
+      if (lb) lb.textContent = "Token " + kc.nhan + (sua ? " (để trống nếu không đổi)" : "");
+      var note = box.querySelector("#cbTokenNote");
+      if (note) note.textContent = kc.lay_token + " Mỗi bot phải một token RIÊNG.";
+      var nhomBox = box.querySelector("#cbNhomBox");
+      var khong = box.querySelector("#cbKhongNhom");
+      if (nhomBox) nhomBox.style.display = kc.co_nhom ? "" : "none";
+      if (khong) khong.style.display = kc.co_nhom ? "none" : "";
+      box.querySelectorAll(".cb-kenh-o").forEach(function (n) {
+        n.classList.toggle("on", n.dataset.k === k);
+      });
+    }
+    box.querySelectorAll(".cb-kenh-o").forEach(function (n) {
+      n.onclick = function () { apKenh(n.dataset.k); };
+    });
+    apKenh(kenh);
+
     box.querySelector("#cbCheck").onclick = async function () {
       var t = box.querySelector("#cbToken").value.trim();
       var note = box.querySelector("#cbTokenNote");
+      var kc = kenhCua(kenh);
       if (!t) { note.textContent = "Dán token vào đã."; return; }
-      note.textContent = "Đang hỏi Telegram…";
+      note.textContent = "Đang hỏi " + kc.nhan + "…";
       try {
-        var r = await api("/chatbots/verify-token",
-                          { method: "POST", body: fd({ token: t, bot_id: (b && b.id) || "" }) });
+        var r = await api("/chatbots/verify-token", {
+          method: "POST",
+          body: fd({ token: t, bot_id: (b && b.id) || "", channel: kenh }),
+        });
         uname = r.username || "";
-        note.innerHTML = ic("check", { cls: "ic-ok" }) + " Đúng bot <b>@" + esc(uname) + "</b> (" + esc(r.bot_name || "") + ")";
+        note.innerHTML = ic("check", { cls: "ic-ok" }) + " Đúng bot <b>" +
+          (kenh === "telegram" ? "@" : "") + esc(uname) + "</b> (" + esc(r.bot_name || "") + ")" +
+          // Gói bot Zalo cơ bản không vào được nhóm. Nói NGAY tại đây, lúc người dùng còn đang
+          // nhìn vào token, chứ không để họ phát hiện ra sau vài ngày bot im trong nhóm.
+          (r.vao_duoc_nhom === false
+            ? '<br><span class="cb-warn">Bot này không vào được nhóm Zalo (gói ' +
+              esc(r.account_type || "cơ bản") + '), nên nó chỉ trả lời tin nhắn riêng.</span>'
+            : "");
       } catch (e) { note.innerHTML = '<span class="cb-warn">' + esc(e.message) + '</span>'; }
     };
 
@@ -588,8 +722,12 @@
                    + "xoá, công bố ra ngoài. Những thao tác đó không hoàn tác được, và bot "
                    + "không hỏi lại bạn trước khi làm.\n\nChỉ nên dùng khi bạn kiểm soát được "
                    + "danh sách người nhắn vào. Vẫn muốn đặt mức này?")) return;
-      var gr = box.querySelector("#cbGroups").value;
-      var rw = box.querySelector("#cbReplyWhen").value;
+      // Kênh không dùng nhóm thì gửi rỗng, đừng gửi thứ người dùng gõ từ lúc còn chọn kênh
+      // khác: bản ghi mang một danh sách nhóm không bao giờ dùng tới là một lời hứa suông
+      // nằm lại trong dữ liệu.
+      var coNhom = kenhCua(kenh).co_nhom;
+      var gr = coNhom ? box.querySelector("#cbGroups").value : "";
+      var rw = coNhom ? box.querySelector("#cbReplyWhen").value : "mention";
       try {
         if (sua) {
           await api("/chatbots/" + encodeURIComponent(b.id) + "/update", {
@@ -600,12 +738,13 @@
                        groups: gr, reply_when: rw }),
           });
         } else {
-          if (!tok) return alert("Dán token Telegram của bot (lấy ở @BotFather)");
+          if (!tok) return alert("Dán token " + kenhCua(kenh).nhan + " của bot.\n\n" +
+                                 kenhCua(kenh).lay_token);
           await api("/chatbots", {
             method: "POST",
             body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
                        token: tok, bot_username: uname, handoff_to: ho, nguon_tra_loi: ngu,
-                       muc_quyen: muc, xac_nhan_rui_ro: "1",
+                       muc_quyen: muc, xac_nhan_rui_ro: "1", channel: kenh,
                        groups: gr, reply_when: rw }),
           });
         }
