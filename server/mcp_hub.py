@@ -1100,9 +1100,14 @@ async def validate_connection(conn_id):
     conn = next((c for c in mcp_store.resolved(enabled_only=False) if c["id"] == conn_id), None)
     if not conn:
         return {"ok": False, "label": "", "tools": 0, "error": "Không tìm thấy kết nối"}
-    # Connector ẢO (không URL, không command): tool do PLUGIN phục vụ (vd Meta/Facebook gọi
-    # Graph API/cookie), không có MCP server để dial. Coi là hợp lệ; đếm tool theo tool_meta để hiển thị.
-    if not (conn.get("url") or "").strip() and not (conn.get("command") or "").strip():
+    # Connector ẢO (không URL, không command, không phải internal): tool do PLUGIN phục vụ (vd
+    # Meta/Facebook gọi Graph API/cookie), không có MCP server để dial. Coi là hợp lệ; đếm tool
+    # theo tool_meta để hiển thị.
+    #
+    # Connector `internal` (Substack, Botcake) KHÔNG đi lối này dù cũng không có url/command:
+    # nó có module Python thật để gọi, nên phải DIAL THẬT. Trả "ổn" theo tool_meta cho nó là
+    # nút Test nói dối - đúng cái đã xảy ra: trang Kết nối xanh, mà hộp công cụ trống rỗng.
+    if not mcp_client.co_server_de_dial(conn):
         tm = (conn.get("connector") or {}).get("tool_meta") or {}
         n = len((tm.get("read") or []) + (tm.get("write") or []) + (tm.get("danger") or []))
         return {"ok": True, "label": "", "tools": n, "error": ""}

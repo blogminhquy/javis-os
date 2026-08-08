@@ -416,6 +416,29 @@ def _conn_spec(conn):
             "label": conn.get("label", "")}
 
 
+def co_server_de_dial(conn) -> bool:
+    """Connection này có thứ gì để MỞ PHIÊN không. Nhận cả bản `resolved()` lẫn `_conn_spec()`.
+
+    Ba dạng CÓ: http (`url`), stdio (`command`), và **internal** (module Python trong repo,
+    xem `_INTERNAL`). Dạng KHÔNG có là connection chỉ giữ token OAuth cho một plugin dùng
+    (vd Meta Ads Graph API): trang Kết nối vẫn hiện nó, nhưng không có MCP server nào để dial.
+
+    Vì sao phải là một hàm dùng chung chứ không viết tay ở từng chỗ: câu hỏi này được hỏi ở
+    BA nơi (dò tool ở `discover_resolved`, nút Test ở `mcp_hub.validate_connection`, vòng kiểm
+    sức khoẻ ở `connect_health`) và cả ba từng viết tay `not (url or command)`. Transport
+    internal không có url cũng không có command, nên **Substack và Botcake rơi hết vào nhánh
+    "không có server"**: vòng dò quét sạch chúng nên không bộ não nào gọi được tool, trong khi
+    hai chỗ kia lại trả về "ổn" mà chưa hề gọi thử. Kết quả là trang Kết nối báo xanh, hộp
+    công cụ thì trống, và không có một dòng lỗi nào ở đâu cả.
+    """
+    if (conn.get("url") or "").strip() or (conn.get("command") or "").strip():
+        return True
+    # Có tên module thì mới tính. Transport internal mà tên rỗng là bản ghi hỏng: cho đi tiếp
+    # chỉ đổi một lỗi im lặng thành một KeyError mỗi vòng dò.
+    return ((conn.get("transport") or "") == "internal"
+            and (conn.get("internal") or "").strip() in _INTERNAL)
+
+
 async def _oauth_headers(conn):
     """Connection auth=oauth → hub/oauth_mcp giữ token, merge vào headers (lazy import tránh vòng)."""
     if conn.get("auth") != "oauth":
@@ -464,7 +487,9 @@ async def discover_resolved(conns):
         spec = _conn_spec(conn)
         # Connection OAuth-only (giữ token, tool đến từ plugin - vd Meta Ads Graph API): không có
         # MCP server để discover → bỏ qua sạch, không thử kết nối (khỏi log lỗi mỗi vòng).
-        if not (spec.get("url") or spec.get("command")):
+        # Transport `internal` KHÔNG thuộc nhóm này dù cũng không có url/command - xem
+        # `co_server_de_dial`, và xem cả cái giá đã trả khi nhầm hai thứ đó với nhau.
+        if not co_server_de_dial(spec):
             continue
         spec["headers"].update(await _oauth_headers(conn))
         try:

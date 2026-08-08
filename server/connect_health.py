@@ -80,9 +80,13 @@ async def check_one(conn, pool=None) -> dict:
                 return rec
         except Exception:
             pass
-    # Connector ẢO (không URL, không command): tool do plugin phục vụ (vd Meta Ads Graph),
-    # không có server nào để dial - coi là sống, khỏi báo đỏ oan.
-    if not (conn.get("url") or "").strip() and not (conn.get("command") or "").strip():
+    # Connector ẢO (không URL, không command, không phải internal): tool do plugin phục vụ (vd
+    # Meta Ads Graph), không có server nào để dial - coi là sống, khỏi báo đỏ oan.
+    #
+    # Connector `internal` (Substack, Botcake) có module Python thật để gọi nên KHÔNG đi lối
+    # này: nó phải được dial như mọi connector khác, không thì đèn sức khoẻ xanh vĩnh viễn kể
+    # cả lúc tool chết hẳn.
+    if not mcp_client.co_server_de_dial(conn):
         rec["ok"] = True
         _state[conn["id"]] = rec
         return rec

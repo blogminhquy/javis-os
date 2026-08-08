@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.7] - 2026-08-08
+### Sửa lỗi
+- **Connector nội bộ (Substack, Botcake) bị quét sạch khỏi vòng dò tool, nên không bộ não nào gọi được.** Kết nối bật, quyền full, token còn sống, trang Kết nối hiện "Đã kết nối", mà cả 16 tool của hai connector này đều vô hình với mọi engine - và không có một dòng lỗi ở đâu cả. Đây là loại hỏng tệ nhất: mọi đèn đều xanh trong khi chẳng có gì chạy.
+- **Nguyên nhân: ba chỗ cùng hỏi một câu rồi cùng trả lời sai.** "Connection này có server để dial không" được hỏi ở vòng dò tool, ở nút Test, và ở vòng kiểm sức khoẻ; cả ba đều tự viết tay `not (url or command)`. Transport `internal` gọi thẳng một module Python trong repo nên nó không có url cũng không có command, và rơi trọn vào nhánh "không có server" vốn dành cho connection chỉ giữ token OAuth.
+- **Hai chỗ sau còn che mất chỗ đầu.** Nút Test và đèn sức khoẻ trả về "ổn" mà chưa hề gọi thử, đếm số tool theo mô tả trong catalog thay vì gọi thật. Nên không có đường nào để phát hiện ra vòng dò đang hỏng. Nay cả hai dial thật như mọi connector khác.
+- Cách sửa: một hàm dùng chung `mcp_client.co_server_de_dial`, và `tests/python/test_mcp_connector_internal.py` canh cả hành vi lẫn việc ba chỗ đó thật sự gọi hàm chung - vì bệnh gốc chính là ba bản chép tay trôi lệch.
+
 ## [0.26.6] - 2026-08-08
 ### Sửa lỗi
 - **Mở form Sửa bot rồi bấm Lưu không còn xoá trắng tên bot đang chạy.** Lỗi vừa vào ở 0.26.5: hàm áp dụng lựa chọn kênh cũng chạy MỘT LẦN lúc mở form để dựng trạng thái ban đầu, mà nó lại bỏ token đã kiểm vô điều kiện. Hệ quả là sửa một ô bất kỳ rồi lưu thì thẻ quay ra báo "chưa có token" cho một con bot vẫn đang sống. Nay chỉ bỏ khi kênh THẬT SỰ đổi, và dòng "Đang dùng ..." giữ nguyên khi chưa đổi gì.
