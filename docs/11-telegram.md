@@ -80,9 +80,7 @@ Lưu ý quan trọng: gửi test thành công KHÔNG có nghĩa bot đang nhận
 3. Bot hiện chỉ báo "đang gõ" kèm một tin trạng thái tạm, rồi gửi câu trả lời. Câu trả lời dài sẽ được tự chia thành nhiều tin.
 4. Trong lúc bot đang trả lời, nếu bạn gửi câu mới, bot báo "⏳ Đang xử lý câu trước. Gửi /stop để dừng rồi hỏi lại." Mỗi lúc chỉ chạy 1 lượt cho mỗi người.
 
-## Tin trạng thái tự đổi chữ rồi biến mất
-
-Đây là thứ hay làm người mới tưởng bot lỗi, nên nói rõ một lần.
+## Tin trạng thái tự đổi chữ rồi ở lại thành dòng vết
 
 Ngay khi nhận câu hỏi, bot gửi cho bạn một tin thật: **🤔 Javis đang xử lý…**. Tin đó KHÔNG bị gửi thêm lần nữa, nó được **sửa nội dung tại chỗ** theo tiến trình, luôn mở đầu bằng ⏳:
 
@@ -97,8 +95,10 @@ Ngay khi nhận câu hỏi, bot gửi cho bạn một tin thật: **🤔 Javis �
 Vài điểm cần biết:
 
 - Tin trạng thái chỉ cập nhật tối đa **2,5 giây một lần**, nên đừng chờ nó nhảy liên tục. Giới hạn này để Telegram không chặn bot vì gửi quá dày.
-- Xong việc, bot **xoá hẳn tin trạng thái** rồi mới gửi câu trả lời thật. Tin biến mất là bình thường, không phải lỗi và cũng không phải bị thu hồi.
-- Gõ `/stop` giữa chừng: tin trạng thái cũng bị xoá và bot không gửi thêm câu trả lời nào cho lượt đó.
+- Tin này **gửi im lặng, không rung điện thoại**. Nó chỉ để bạn nhìn khi đang mở chat chờ. Cả lượt hỏi chỉ có đúng một tiếng chuông: lúc câu trả lời thật tới, và thông báo hiện đúng nội dung trả lời.
+- Xong việc, bot **không xoá tin trạng thái nữa**. Lần sửa cuối biến nó thành một dòng vết gọn, còn câu trả lời là tin mới nằm ngay dưới. Từ **0.26.4** mới như vậy; trước đó tin này bị xoá hẳn nên nhiều người tưởng bot lỗi.
+- Dòng vết ghi lượt đó đã gọi công cụ nào và mất bao lâu, ví dụ `⚙ pos_statistics · Read · 8s`. Lượt không cần công cụ nào thì ghi `✓ Trả lời trực tiếp · 3s`. Đây là cách phân biệt một con số vừa lấy từ POS thật với một câu trả lời chay, và nó nằm lại trong lịch sử để sau tra lại được.
+- Gõ `/stop` giữa chừng: tin trạng thái đổi thành **⏹ Đã dừng.** và bot không gửi thêm câu trả lời nào cho lượt đó.
 - Dòng "⚙ Đang gọi..." chính là bằng chứng Javis đang chạm vào MCP thật (POS, quảng cáo, lịch, file...) chứ không phải trả lời chay.
 - Mấy tin trạng thái này chỉ có ở **bot Javis của bạn**. [Bot chuyên trách](25-chatbot.md) nói chuyện với khách thì giấu sạch, chỉ để lại chấm "đang nhập…" cho giống người thật.
 
@@ -264,7 +264,7 @@ Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Teleg
 
 **Nhắn cho bot bị trả lời "Bạn không có quyền dùng bot Javis này."** Chat ID bạn đặt trong Javis không khớp tài khoản đang nhắn. Lấy lại Chat ID đúng bằng @userinfobot, dán vào ô Chat ID rồi Lưu & bật.
 
-**Tin "🤔 Javis đang xử lý…" tự biến mất.** Đúng như thiết kế: bot xoá tin trạng thái rồi mới gửi câu trả lời thật. Nếu nó biến mất mà KHÔNG có câu trả lời nào theo sau thì lượt đó đã bị `/stop` cắt.
+**Tin "🤔 Javis đang xử lý…" đứng yên không đổi chữ.** Lượt đó chưa gọi công cụ nào nên chưa có gì để báo, hoặc engine đang chờ. Xong việc nó sẽ đổi thành dòng vết (`⚙ ...` hoặc `✓ Trả lời trực tiếp`). Nếu nó kẹt mãi ở "🤔" mà không có câu trả lời nào theo sau thì lượt đó đã hỏng, xem dòng trạng thái ở trang **Kênh**.
 
 **Gõ `/tên-skill` bị báo cần engine Claude CLI.** Bạn đang ở engine OpenRouter. Gõ `/cli` để chuyển về Claude rồi gọi lại skill.
 

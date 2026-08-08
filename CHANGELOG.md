@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.4] - 2026-08-08
+### Cải thiện
+- **Bot Telegram không còn gửi tin rồi xoá tin.** Trước đây mỗi lượt hỏi, bot gửi tin "🤔 Javis đang xử lý…", cập nhật nó theo tiến trình, rồi **xoá hẳn** và gửi câu trả lời. Người dùng thấy một tin nhấp nháy rồi biến mất, đọc như lỗi, và ai đang đọc dở thì mất chữ giữa chừng. Nay tin đó **ở lại**: lần cập nhật cuối biến nó thành một dòng vết gọn, còn câu trả lời là một tin mới bên dưới. Không tin nào biến mất nữa.
+- **Điện thoại chỉ rung một lần cho mỗi lượt, và rung đúng lúc đáng rung.** Tin trạng thái nay gửi im lặng (`disable_notification`), nên thông báo duy nhất là lúc câu trả lời thật tới, hiện đúng nội dung trả lời. Trước đây nó rung hai lần mà lần đầu chỉ nói "đang xử lý", tức là gọi người ta ra xem một câu không có thông tin nào.
+- **Dòng vết nói được lượt đó đã chạm vào cái gì**, ví dụ `⚙ pos_statistics · Read · 8s`. Lượt không gọi công cụ nào thì ghi `✓ Trả lời trực tiếp · 3s`. Đây không phải chi tiết trang trí: nó là cách phân biệt một con số vừa lấy từ POS thật với một câu trả lời chay, và nó nằm lại trong lịch sử chat để tra lại được.
+- **Gõ `/stop` giữa chừng thì tin trạng thái đổi thành "⏹ Đã dừng"** thay vì biến mất không dấu vết, nên câu hỏi bị cắt vẫn còn chỗ đứng trong mạch chat.
+- Đã kiểm với API Telegram: **không có cách nào hiện chữ trạng thái tuỳ ý mà không gửi tin nhắn** (`sendChatAction` chỉ nhận một bộ hành động cố định như "đang nhập", "đang gửi ảnh", và không nhận chữ). Nên thứ sửa được là đừng để tin nào biến mất và đừng nổ thông báo thừa, chứ không phải bỏ hẳn tin trạng thái.
+- Bot chuyên trách nói chuyện với khách **giữ nguyên hành vi cũ**: vẫn không để lộ một dòng trạng thái nào, chỉ có chấm "đang nhập…".
+
 ## [0.26.3] - 2026-08-08
 ### Thêm mới
 - **Chế độ tiết kiệm nói được nó tiết kiệm BAO NHIÊU, không chỉ bao nhiêu phần trăm.** Trang Mức dùng thêm ba con số: số token thật đã tiết kiệm trong cửa sổ vừa đo, phép chiếu ra một tháng theo đúng nhịp đó, và quy đổi ra tiền. "Giảm 38%" không nói lên điều gì với người đang trả tiền; "khoảng 40 nghìn một tháng" thì có.

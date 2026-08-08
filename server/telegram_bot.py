@@ -75,6 +75,11 @@ MAX_DOWNLOAD_MB = 20  # bot API chỉ cho TẢI VỀ file ≤ 20MB
 # lời một thể, chứ không bị chặn: im lặng mà đánh rơi câu hỏi của khách còn tệ hơn cả tin
 # trạng thái.
 TYPING_MOI_GIAY = 4.0   # Telegram tắt chấm "đang nhập" sau ~5 giây, phải nhắc lại trước đó
+MAX_VET_TOOL = 6        # số tên công cụ hiện trên dòng vết, dư thì gộp thành "+n"
+# Tên công cụ nằm trong các chuỗi tiến trình do main.py bắn ra: "⚙ Đang gọi: X",
+# "⚙ Đang gọi công cụ: X", "⚙ Đang dùng công cụ: X". Bắt chung một khuôn để thêm engine mới
+# không phải sửa ở đây.
+RE_TEN_TOOL = re.compile(r"^⚙[^:]*:\s*(.+)$")
 MAX_CHO_TIN = 5         # trần số tin gom lại khi bot đang bận (chống spam làm phình bộ nhớ)
 MAX_CHO_KY_TU = 4000
 
@@ -309,11 +314,20 @@ class TelegramBot:
             await self._typing(client, chat)
             await asyncio.sleep(TYPING_MOI_GIAY)
 
-    # ---- Tin TRẠNG THÁI tạm: cho user đỡ lo khi chờ (gửi → cập nhật theo tiến trình → xoá) ----
+    # ---- Tin TRẠNG THÁI: gửi IM LẶNG → cập nhật theo tiến trình → ở lại làm dòng vết ----
     async def _send_status(self, client, chat, text):
-        """Gửi 1 tin trạng thái (plain, không markdown) → trả message_id để sửa/xoá sau."""
+        """Gửi 1 tin trạng thái (plain, không markdown) → trả message_id để sửa sau.
+
+        `disable_notification` là phần quan trọng chứ không phải chi tiết làm đẹp. Trước đây
+        mỗi lượt hỏi nổ HAI thông báo lên điện thoại: một cái "🤔 Javis đang xử lý…" hoàn toàn
+        vô nghĩa, rồi mới tới câu trả lời. Tin này chỉ để NHÌN trong lúc chờ, không phải để
+        gọi người ta ra xem, nên nó đi im. Sửa tin (`editMessageText`) vốn không nổ thông báo,
+        nên cả lượt chỉ còn đúng một tiếng chuông: lúc câu trả lời thật được gửi.
+        """
         try:
-            r = await client.post(self._url("sendMessage"), json={"chat_id": chat, "text": text})
+            r = await client.post(self._url("sendMessage"),
+                                  json={"chat_id": chat, "text": text,
+                                        "disable_notification": True})
             d = r.json()
             if d.get("ok"):
                 return d["result"]["message_id"]
@@ -330,14 +344,22 @@ class TelegramBot:
         except Exception as e:
             print(f"[telegram status edit] {e}", file=sys.stderr)
 
-    async def _del_msg(self, client, chat, mid):
-        if not mid:
-            return
-        try:
-            await client.post(self._url("deleteMessage"),
-                              json={"chat_id": chat, "message_id": mid})
-        except Exception:
-            pass
+    def _dong_vet(self, tools, giay):
+        """Chữ CUỐI CÙNG của tin trạng thái, thứ sẽ nằm lại trong chat vĩnh viễn.
+
+        Vì nó ở lại nên nó phải nói được một điều thật, chứ không phải một dòng rác. Lượt có
+        gọi công cụ thì liệt kê tên: đó đúng là bằng chứng Javis chạm vào dữ liệu thật (POS,
+        quảng cáo, file) chứ không trả lời chay. Lượt không gọi gì thì nói thẳng là trả lời
+        trực tiếp - cũng là thông tin, và là thông tin người dùng cần để biết có nên tin con
+        số vừa đọc hay không.
+        """
+        giay = max(0.0, float(giay))
+        s = f"{giay:.0f}s" if giay < 60 else f"{int(giay // 60)}m{int(giay % 60):02d}s"
+        if not tools:
+            return f"✓ Trả lời trực tiếp · {s}"
+        ten = tools[:MAX_VET_TOOL]
+        du = f" +{len(tools) - len(ten)}" if len(tools) > len(ten) else ""
+        return "⚙ " + " · ".join(ten) + du + f" · {s}"
 
     # ---- Meta kênh: engine cần biết tin đến từ đâu (DM/nhóm, ai gửi) ----
     def _build_meta(self, msg):
@@ -546,9 +568,16 @@ class TelegramBot:
         await self._typing(client, chat)
         files = []
         # Chờ dài mà đầu kia im hẳn thì người ta tưởng hỏng. Hai cách nói điều đó:
-        #   - bot của CHỦ: một tin trạng thái tạm, cập nhật theo tiến trình (đang gọi công cụ /
-        #     nhận data / soạn trả lời), xong thì xoá và thay bằng câu trả lời thật;
+        #   - bot của CHỦ: một tin trạng thái gửi IM LẶNG, cập nhật theo tiến trình (đang gọi
+        #     công cụ / nhận data / soạn trả lời), xong thì Ở LẠI thành một dòng vết gọn;
         #   - chế độ NGƯỜI THẬT: không tin nào cả, chỉ giữ chấm "đang nhập…" của Telegram.
+        #
+        # Trước 0.26.4 tin trạng thái bị XOÁ rồi mới gửi câu trả lời. Hai chỗ sai: người dùng
+        # thấy một tin nhấp nháy rồi biến mất (đọc như lỗi, và ai đang đọc dở thì mất chữ), và
+        # mỗi lượt nổ hai thông báo mà cái đầu chỉ nói "đang xử lý". Nay không xoá gì nữa.
+        # Telegram KHÔNG có bề mặt nào hiện chữ tuỳ ý ngoài tin nhắn (`sendChatAction` chỉ nhận
+        # một bộ hành động cố định, không nhận chữ), nên "hiện trạng thái mà không gửi tin" là
+        # bất khả; thứ sửa được là đừng để tin nào biến mất và đừng nổ thông báo thừa.
         status_mid = None
         giu = None
         if self.giau_trang_thai:
@@ -556,10 +585,20 @@ class TelegramBot:
         else:
             status_mid = await self._send_status(client, chat, "🤔 Javis đang xử lý…")
         _last = [0.0]
+        t0 = time.monotonic()
+        tools = []          # tên công cụ đã gọi trong lượt, giữ thứ tự, không trùng
 
         async def progress(txt):
             if self.giau_trang_thai:
                 return              # đã có chấm "đang nhập…" chạy đều, không cần tin nào
+            # Gom tên công cụ TRƯỚC cửa throttle. Throttle sinh ra để đỡ spam Telegram, không
+            # phải để quên bớt việc đã làm: gom sau cửa thì mấy tool chạy nhanh (2 tool trong
+            # cùng một giây) rụng khỏi dòng vết, và dòng vết là thứ nằm lại vĩnh viễn.
+            m = RE_TEN_TOOL.match(str(txt or "").strip())
+            if m:
+                ten = m.group(1).strip().strip("`").strip()
+                if ten and ten not in tools:
+                    tools.append(ten)
             now = time.monotonic()
             if now - _last[0] < 2.5:      # throttle ~2.5s → không spam / dính rate-limit Telegram
                 return
@@ -571,7 +610,9 @@ class TelegramBot:
             try:
                 reply = await self.answer_fn(text, meta, progress)
             except asyncio.CancelledError:
-                await self._del_msg(client, chat, status_mid)
+                # /stop: tin trạng thái ở lại nói rõ lượt này đã bị cắt, thay vì biến mất không
+                # dấu vết rồi để người ta tự đoán câu hỏi của mình đã đi đâu.
+                await self._edit_status(client, chat, status_mid, "⏹ Đã dừng.")
                 return   # /stop sẽ tự báo, không gửi trùng
             except Exception as e:
                 print(f"[telegram lượt hỏng] {type(e).__name__}: {e}", file=sys.stderr)
@@ -586,7 +627,10 @@ class TelegramBot:
                 # với người ngoài, vừa che mất lượt hỏng thật.
                 im_lang = bool(reply.get("im_lang"))
                 reply = reply.get("text") or ""
-            await self._del_msg(client, chat, status_mid)   # bỏ tin trạng thái, thay bằng câu trả lời
+            # Chốt tin trạng thái thành dòng vết rồi ĐỂ NGUYÊN ĐÓ. Câu trả lời đi sau, là một
+            # tin MỚI có chuông - nên thông báo trên điện thoại hiện đúng nội dung trả lời.
+            await self._edit_status(client, chat, status_mid,
+                                    self._dong_vet(tools, time.monotonic() - t0))
             if im_lang and not str(reply or "").strip() and not files:
                 return
             # Nếu câu trả lời chỉ là ![](local-path) và file đã được tách để gửi riêng, không gửi
