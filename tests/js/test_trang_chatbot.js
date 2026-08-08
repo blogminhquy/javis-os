@@ -282,7 +282,13 @@ check("sửa bot thì kênh bị KHOÁ kèm lý do",
 check("đổi kênh là đổi theo cả form (nhãn token, chỗ lấy token, khối nhóm)",
   /function apKenh\(k\)/.test(CB) && /cbTokenLabel/.test(CB) && /cbNhomBox/.test(CB));
 check("đổi kênh thì BỎ token đã kiểm (nó là danh tính ở nền tảng kia)",
-  /function apKenh\(k\)[\s\S]{0,260}uname = "";/.test(CB));
+  /function apKenh\(k\)[\s\S]{0,400}if \(k !== kenh\) uname = "";/.test(CB));
+// Hàm này còn chạy MỘT LẦN lúc mở form để dựng trạng thái ban đầu. Bỏ uname vô điều kiện thì
+// mở form Sửa rồi bấm Lưu là xoá trắng tên bot đang chạy, và thẻ báo "chưa có token" cho một
+// con bot vẫn sống - hỏng im lặng, chỉ lộ ra khi nhìn kỹ thẻ.
+check("mở form Sửa mà chưa đổi kênh thì KHÔNG xoá tên bot đang dùng",
+  /if \(k !== kenh\) uname = "";/.test(CB) &&
+  /sua && k === \(\(b && b\.channel\) \|\| "telegram"\) && uname/.test(CB));
 check("kiểm token gửi kèm kênh để hỏi đúng nền tảng",
   /channel: kenh/.test(CB) && /Đang hỏi " \+ kc\.nhan/.test(CB));
 check("tạo bot gửi kênh lên server", /channel: kenh,/.test(CB));

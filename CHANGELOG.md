@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.6] - 2026-08-08
+### Sửa lỗi
+- **Mở form Sửa bot rồi bấm Lưu không còn xoá trắng tên bot đang chạy.** Lỗi vừa vào ở 0.26.5: hàm áp dụng lựa chọn kênh cũng chạy MỘT LẦN lúc mở form để dựng trạng thái ban đầu, mà nó lại bỏ token đã kiểm vô điều kiện. Hệ quả là sửa một ô bất kỳ rồi lưu thì thẻ quay ra báo "chưa có token" cho một con bot vẫn đang sống. Nay chỉ bỏ khi kênh THẬT SỰ đổi, và dòng "Đang dùng ..." giữ nguyên khi chưa đổi gì.
+
 ## [0.26.5] - 2026-08-08
 ### Thêm mới
 - **Bot chuyên trách chạy được trên Zalo, bằng API CHÍNH THỨC.** Đây là thay đổi có giá trị kinh doanh lớn nhất của bản này: khách hàng Việt Nam không ai cài Telegram, còn Zalo thì đã nằm sẵn trên máy họ. Tạo bot ở trang **Chatbot**, chọn kênh Zalo, dán token lấy từ Official Account "Zalo Bot Manager" trong app Zalo. Không có rủi ro khoá tài khoản như đường Zalo cá nhân.

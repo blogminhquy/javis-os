@@ -655,13 +655,19 @@
     // không. Token đã kiểm cũng phải bỏ đi - nó là danh tính ở nền tảng KIA, giữ lại thì lưu
     // xong bản ghi mang tên một con bot không tồn tại trên kênh vừa chọn.
     function apKenh(k) {
+      // Chỉ bỏ token đã kiểm khi kênh THẬT SỰ đổi. Hàm này còn được gọi một lần lúc mở form
+      // để dựng đúng trạng thái ban đầu; bỏ vô điều kiện thì mở form Sửa rồi bấm Lưu là xoá
+      // trắng tên bot đang chạy, và thẻ quay ra báo "chưa có token" cho một con bot vẫn sống.
+      if (k !== kenh) uname = "";
       kenh = k;
       var kc = kenhCua(k);
-      uname = "";
       var lb = box.querySelector("#cbTokenLabel");
       if (lb) lb.textContent = "Token " + kc.nhan + (sua ? " (để trống nếu không đổi)" : "");
       var note = box.querySelector("#cbTokenNote");
-      if (note) note.textContent = kc.lay_token + " Mỗi bot phải một token RIÊNG.";
+      // Giữ nguyên dòng "Đang dùng <tên bot>" khi mở form Sửa mà chưa đổi gì.
+      if (note && !(sua && k === ((b && b.channel) || "telegram") && uname)) {
+        note.textContent = kc.lay_token + " Mỗi bot phải một token RIÊNG.";
+      }
       var nhomBox = box.querySelector("#cbNhomBox");
       var khong = box.querySelector("#cbKhongNhom");
       if (nhomBox) nhomBox.style.display = kc.co_nhom ? "" : "none";
