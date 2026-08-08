@@ -4,6 +4,22 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.8] - 2026-08-08
+### Thêm mới
+- **Kênh Zalo cho CHỦ: hỏi Javis ngay trên Zalo, không cần cài Telegram.** Thẻ Zalo mới ở trang **Kênh** (nhóm Kết nối). Dùng API chính thức của Zalo nên không có rủi ro khoá tài khoản. Xem [Kênh Zalo Bot](docs/26-kenh-zalo-bot.md).
+- **Ghép nối bằng MỘT cú bấm, không phải đi tra id.** Zalo không có công cụ nào để bạn tự tra id Zalo của mình, và id đó là chuỗi hex như `6ede9afa66b88fe6d6a9` chứ không phải con số dễ đọc. Nên Javis đảo chiều: bật bot với ô Chat ID để TRỐNG, nhắn cho bot một câu, bot đáp lại kèm mã ghép nối 4 số, rồi bạn bấm **Cho phép** ngay trên dashboard. Người chờ hiện ra kèm **tên Zalo thật** để không bấm nhầm.
+- **Việc giao từ Zalo báo kết quả VỀ Zalo.** Loop, việc Kanban và nhắc hẹn đặt qua Zalo mang tiền tố `zalo:` nên kết quả rơi đúng khung chat đó, không lạc sang Telegram của chủ.
+- **Cửa "đủ điều kiện mới tạo lịch" nay chấp nhận Zalo.** Trước đó chỉ đấu Zalo mà tạo nhắc hẹn thì bị chặn với lý do "bot Telegram chưa bật" - một câu vừa sai vừa không sửa được, và nó đẩy người dùng đi cài một app họ không cần.
+
+### Bảo mật
+- **Ô Chat ID trống của kênh Zalo nghĩa là CHƯA AI được phép**, cố ý khác Telegram. Bên Telegram ô trống mở cho tất cả, và tài liệu phải dặn đừng để trống - vì bên đó người dùng tra được id của mình trước khi bật. Zalo không có đường đó, nên luồng đúng là bật với ô trống rồi tự nhắn cho bot. Giữ nguyên nết của Telegram ở đây thì chính luồng hướng dẫn đó sẽ tạo ra một con bot ai cũng chạm được vào brain, trong khoảng giữa lúc bật và lúc bấm Cho phép. Fail-closed.
+- Người lạ nhắn tới chỉ nhận **một** câu từ chối trong 10 phút, hàng chờ giữ tối đa 20 người và mục cũ hơn 30 phút tự rụng. Đây là hộp thư mở cho người lạ nên nó không được phình theo.
+
+### Cần biết
+- Zalo không sửa và không xoá được tin, nên kênh này **không có tin trạng thái**: trong lúc chờ chỉ có chấm "đang nhập", và dòng vết công cụ đi kèm cuối câu trả lời.
+- Zalo Bot **chưa có API gửi tài liệu**, nên PDF và bảng tính không gửi qua kênh này được. Javis nói thẳng và đưa đường dẫn trong brain thay vì im lặng nuốt file.
+- Trần một tin là **2000 ký tự**, và Zalo **không hiện menu lệnh** nên các lệnh `/...` phải gõ tay.
+
 ## [0.26.7] - 2026-08-08
 ### Sửa lỗi
 - **Connector nội bộ (Substack, Botcake) bị quét sạch khỏi vòng dò tool, nên không bộ não nào gọi được.** Kết nối bật, quyền full, token còn sống, trang Kết nối hiện "Đã kết nối", mà cả 16 tool của hai connector này đều vô hình với mọi engine - và không có một dòng lỗi ở đâu cả. Đây là loại hỏng tệ nhất: mọi đèn đều xanh trong khi chẳng có gì chạy.

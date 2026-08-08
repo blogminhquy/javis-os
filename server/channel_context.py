@@ -45,6 +45,8 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
     platforms = ["local (file trên máy chạy Javis)", "dashboard web"]
     if telegram_running or source == "telegram":
         platforms.append("Telegram bot")
+    if source == "zalo":
+        platforms.append("Zalo bot")
 
     lines = [
         "", "",
@@ -170,6 +172,39 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             f"- Tạo VIỆC: khi POST http://127.0.0.1:{port}/kanban/task, kèm field \"chat_id\":\"{chat_id}\".",
             "- Bỏ trống owner_chat/chat_id (vd tạo trên bản web) → báo về chủ bot (ID Telegram đầu tiên).",
             "- Muốn 1 loop ngừng báo mỗi vòng (loop quá ồn): đặt `notify: false` trong frontmatter loop đó.",
+        ]
+    elif source == "zalo":
+        # Kênh Zalo Bot. Cố ý KHÔNG gộp vào nhánh Telegram: hai chỗ khác nhau ở đúng những
+        # thứ mà một câu hướng dẫn sai sẽ dạy Javis hứa hão - gửi tài liệu, trần độ dài, và
+        # cách nhắc hẹn tìm đường về.
+        who = (meta.get("user_name") or "").strip() or "user"
+        conv = (f"nhóm '{meta.get('chat_title') or '?'}', tin nhắn từ {who}"
+                if meta.get("chat_type") == "group" else f"chat riêng với {who}")
+        chat_id = meta.get("chat_id") or "?"
+        lines += [
+            f"- Nguồn tin nhắn này: Zalo ({conv}, chat_id {chat_id}).",
+            f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
+            "- Đang chat qua Zalo: trả lời NGẮN gọn kiểu tin nhắn. Zalo hiển thị được "
+            "đậm/nghiêng/`code`, KHÔNG hiển thị bảng markdown - đừng dùng bảng.",
+            "- TRẦN 2000 KÝ TỰ một tin. Câu dài bị cắt thành nhiều tin liên tiếp, đọc rời rạc, "
+            "nên hãy viết gọn ngay từ đầu thay vì để gateway cắt hộ.",
+            "",
+            "## Gửi file cho user qua Zalo - ĐỌC KỸ, khác Telegram",
+            "- Zalo Bot **CHƯA có API gửi tài liệu** (chỉ có gửi ảnh). PDF, bảng tính, .docx, "
+            ".md KHÔNG gửi ra được qua kênh này. TUYỆT ĐỐI không nói \"em đã gửi file\" - hãy "
+            "nói thẳng là chưa gửi được qua Zalo, rồi đưa ĐƯỜNG DẪN trong brain để user tự mở, "
+            "hoặc đề nghị tóm tắt nội dung ngay trong tin nhắn.",
+            "- ẢNH thì Javis tự đính kèm khi bạn nhúng `![](attachments/...)` như thường lệ, "
+            "nhưng đây là đường đang thử nghiệm: gửi hỏng thì user sẽ thấy một dòng báo lỗi.",
+            "- Ảnh user gửi lên đã được gateway tải về máy sẵn - đường dẫn nằm ngay trong tin nhắn.",
+            "",
+            "## Đặt nhắc hẹn và giao việc nền",
+            "- Nhắc hẹn: gọi tool `javis_schedule` (op=create). Nó tự gắn đúng brain phiên này.",
+            f"- Kết quả loop và việc Kanban phải về ĐÚNG người đang hỏi: gắn `owner_chat: "
+            f"\"{chat_id}\"` cho loop, hoặc field \"chat_id\":\"{chat_id}\" khi POST "
+            f"http://127.0.0.1:{port}/kanban/task. Giữ NGUYÊN cả tiền tố `zalo:` - đó chính là "
+            "thứ server đọc để biết gửi về Zalo chứ không phải Telegram.",
+            "- Bỏ trống thì kết quả rơi về chủ bot Telegram, tức là người đang hỏi không thấy gì.",
         ]
     elif source == "cli":
         # Terminal. Khác web ở chỗ KHÔNG render được gì: không ảnh, không bảng, không link bấm

@@ -21,7 +21,7 @@ Thanh điều hướng của dashboard gom **17 trang** thành **6 nhóm**: Tr�
 - [06 - Skills](06-skills.md) - gom nhóm, tìm kiếm, bật/tắt, thêm/sửa/xoá, nhập/xuất skill.
 - [07 - Agents & Workflows](07-agents-va-workflows.md) - tạo trợ lý chuyên biệt + chuỗi tự động nhiều bước.
 - [20 - Plugins](20-plugins.md) - thêm tool/hook native cho mọi engine bằng một thư mục Python.
-- [25 - Chatbot (Bot chuyên trách)](25-chatbot.md) - đem Agent ra trả lời khách qua bot Telegram riêng, brain riêng, chuyển nhân viên khi bí.
+- [25 - Chatbot (Bot chuyên trách)](25-chatbot.md) - đem Agent ra trả lời khách qua bot Telegram hoặc Zalo riêng, brain riêng, chuyển nhân viên khi bí.
 
 ### Việc chạy nền (nhóm Việc & Bộ não)
 - [08 - Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md) - nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron.
@@ -32,6 +32,7 @@ Thanh điều hướng của dashboard gom **17 trang** thành **6 nhóm**: Tr�
 - [09 - Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - kho dịch vụ ngoài đa tài khoản, phân quyền, báo cáo số thật.
 - [10 - Models & engine](10-models-va-engine.md) - đổi bộ não giữa Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic mà không mất chức năng; mức suy nghĩ, model việc nền.
 - [11 - Kênh Telegram](11-telegram.md) - hỏi Javis qua điện thoại, gửi và nhận file.
+- [26 - Kênh Zalo Bot](26-kenh-zalo-bot.md) - hỏi Javis trên Zalo bằng API chính thức, ghép nối bằng một cú bấm.
 - [12 - Zalo Agent MCP](12-zalo.md) - đăng nhập QR, đọc/tìm lịch sử và gửi tin qua MCP chuẩn.
 - [24 - Javis CLI (terminal)](24-cli-terminal.md) - gõ `javis "..."` từ terminal, token API, ghép vào script.
 

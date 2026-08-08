@@ -19,6 +19,7 @@ import sys
 import uuid
 from pathlib import Path
 import re
+import secrets
 import shutil
 import time
 import yaml
@@ -86,6 +87,7 @@ import workflow_graph          # Phase 10: workflow -> capability graph (thuần
 import workflow_runtime        # Phase 10: chạy graph có checkpoint/resume
 import write_path_runtime    # Phase 9: write có xác nhận, idempotency và reconcile
 from telegram_bot import TelegramBot, parse_chat_ids as tg_parse_ids
+import zalo_bot   # kênh Zalo Bot của chủ (API chính thức) - cùng khế ước với TelegramBot
 import channel_context   # metadata kênh + gom file trả về kênh chat (port gateway hermes-agent)
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
@@ -2487,6 +2489,16 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             t["chat_id"] = ",".join(tg_parse_ids(patch["chat_id"]))
         if patch.get("token"):
             t["token"] = patch["token"]
+    elif section == "zalo_bot":
+        # Cùng khuôn với telegram. Id Zalo là chuỗi HEX chứ không phải số, nhưng `tg_parse_ids`
+        # chỉ tách và bỏ trùng chứ không ép kiểu nên dùng chung được.
+        z = cfg.setdefault("zalo_bot", {"enabled": False, "token": "", "chat_id": ""})
+        if "enabled" in patch:
+            z["enabled"] = bool(patch["enabled"])
+        if "chat_id" in patch:
+            z["chat_id"] = ",".join(tg_parse_ids(patch["chat_id"]))
+        if patch.get("token"):
+            z["token"] = patch["token"]
     elif section == "dashboard":
         cfg.setdefault("dashboard", {})
         if "graph_enabled" in patch:
@@ -2524,6 +2536,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             restart_telegram()   # áp cấu hình bot ngay
         except Exception as e:
             print(f"[telegram restart] {e}", file=__import__('sys').stderr)
+    if section == "zalo_bot":
+        try:
+            restart_zalo_bot()   # áp cấu hình bot ngay
+        except Exception as e:
+            print(f"[zalo restart] {e}", file=__import__('sys').stderr)
     if section == "voice":
         cfgmod.apply_tool_env(cfg)   # key ElevenLabs -> env cho tool ngoài (video-use) ngay, không cần restart
     return {"ok": True}
@@ -5266,8 +5283,16 @@ async def _loop_notify(text: str) -> None:
 
 
 async def _tg_send_to(chat_id, text) -> tuple:
-    """Gửi 1 tin Telegram tới ĐÚNG chat_id (dùng cho nhắc hẹn). chat_id rỗng hoặc không nằm
-    trong whitelist → gửi cho CHỦ bot (mọi ID whitelist). Trả (ok, error)."""
+    """Gửi 1 tin tới ĐÚNG chat_id (dùng cho nhắc hẹn). chat_id rỗng hoặc không nằm trong
+    whitelist → gửi cho CHỦ bot (mọi ID whitelist). Trả (ok, error).
+
+    Nhắc hẹn đặt TỪ Zalo mang chat_id có tiền tố `zalo:` - rẽ sang bot Zalo ngay tại đây. Tên
+    hàm giữ nguyên vì nó là cửa duy nhất `reminders.py` biết; đổi tên chỉ để đúng chính tả là
+    phải sửa cả một tầng không liên quan.
+    """
+    cid_raw = str(chat_id or "").strip()
+    if cid_raw.startswith(ZALO_CHAT_PREFIX):
+        return await _zalo_send_to(cid_raw[len(ZALO_CHAT_PREFIX):], text)
     tg = cfgmod.read_settings().get("telegram", {})
     token = tg.get("token")
     ids = tg_parse_ids(tg.get("chat_id"))
@@ -5324,9 +5349,41 @@ async def push_to_chat(session_id, text) -> bool:
 WEB_CHAT_PREFIX = "web:"   # owner_chat của việc giao từ dashboard: "web:<mã phiên chat>"
 
 
+async def _zalo_send_to(chat_id, text) -> tuple:
+    """Gửi 1 tin Zalo tới ĐÚNG chat_id. Trả (ok, error). Đối xứng với `_tg_send_to`."""
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    token = z.get("token")
+    ids = tg_parse_ids(z.get("chat_id"))
+    if not (z.get("enabled") and token):
+        return False, "Bot Zalo chưa bật"
+    cid = str(chat_id or "").strip()
+    targets = [cid] if (cid and (not ids or cid in ids)) else (ids or ([cid] if cid else []))
+    if not targets:
+        return False, "Chưa có chat_id đích"
+    import httpx
+    ok_any, errs = False, []
+    url = f"https://bot-api.zaloplatforms.com/bot{token}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            for t in targets:
+                try:
+                    r = await c.post(url, json={"chat_id": t, "text": text[:1900]})
+                    d = r.json() if r.content else {}
+                    if d.get("ok"):
+                        ok_any = True
+                    else:
+                        errs.append(str(d.get("description") or f"HTTP {r.status_code}")[:120])
+                except Exception as e:
+                    errs.append(f"{type(e).__name__}: {e}")
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    return ok_any, "; ".join(errs)[:200]
+
+
 async def _notify_owner(owner_chat, text) -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
+      - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
       - owner_chat là chat_id Telegram trong whitelist → gửi ĐÚNG người đó.
       - owner_chat rỗng (không rõ ai giao) → gửi ID ĐẦU TIÊN trong whitelist (chủ bot).
 
@@ -5343,6 +5400,11 @@ async def _notify_owner(owner_chat, text) -> tuple:
         if await push_to_chat(sid, text):
             return True, ""
         return False, "Không tìm thấy phiên chat web để báo"
+    # Việc giao TỪ Zalo phải báo VỀ Zalo. Không có nhánh này thì kết quả rơi sang Telegram của
+    # chủ, tức là người giao việc không bao giờ thấy nó, còn chủ thì nhận một báo cáo không
+    # rõ của ai - và máy chưa đấu Telegram thì mất hút hoàn toàn.
+    if cid.startswith(ZALO_CHAT_PREFIX):
+        return await _zalo_send_to(cid[len(ZALO_CHAT_PREFIX):], text)
     tg = cfgmod.read_settings().get("telegram", {})
     token = tg.get("token")
     ids = tg_parse_ids(tg.get("chat_id"))
@@ -5487,19 +5549,29 @@ import reminders as reminders_mod
 
 def _notify_ready() -> tuple:
     """(sẵn_sàng, lý_do): Javis có đường BÁO kết quả cho người dùng hay chưa. Nhắc hẹn và việc
-    nền chỉ có giá trị khi tới giờ nó nói được với ai đó - chưa đấu Telegram thì việc chạy xong
-    rồi kết quả rơi vào hư không, người dùng tưởng Javis quên. Dùng để chặn ngay lúc TẠO."""
+    nền chỉ có giá trị khi tới giờ nó nói được với ai đó - chưa đấu kênh nào thì việc chạy xong
+    rồi kết quả rơi vào hư không, người dùng tưởng Javis quên. Dùng để chặn ngay lúc TẠO.
+
+    ĐỦ MỘT kênh là đủ. Từ 0.26.8 Zalo cũng tính: người dùng chỉ đấu Zalo mà bị chặn tạo nhắc
+    hẹn với lý do "bot Telegram chưa bật" là một câu vừa sai vừa không sửa được, và nó đẩy họ
+    đi cài một app họ không cần.
+    """
     try:
-        tg = cfgmod.read_settings().get("telegram", {}) or {}
+        cfg = cfgmod.read_settings()
     except Exception:
         return True, ""      # không đọc được cấu hình thì đừng dựng rào, cứ để tạo
-    if not tg.get("enabled"):
-        return False, "bot Telegram chưa bật"
-    if not tg.get("token"):
-        return False, "chưa có bot token"
-    if not tg_parse_ids(tg.get("chat_id")):
-        return False, "chưa có Chat ID được phép"
-    return True, ""
+    thieu = []
+    for khoa, ten in (("telegram", "Telegram"), ("zalo_bot", "Zalo")):
+        c = cfg.get(khoa, {}) or {}
+        if not c.get("enabled"):
+            thieu.append(f"bot {ten} chưa bật")
+        elif not c.get("token"):
+            thieu.append(f"bot {ten} chưa có token")
+        elif not tg_parse_ids(c.get("chat_id")):
+            thieu.append(f"bot {ten} chưa có Chat ID được phép")
+        else:
+            return True, ""
+    return False, " và ".join(thieu)
 
 
 def _notify_live_warn() -> str:
@@ -5507,9 +5579,12 @@ def _notify_live_warn() -> str:
     việc tới giờ vẫn chạy mà tin không đi được. KHÔNG dùng để chặn tạo việc (lỗi có thể thoáng
     qua và tự khỏi), chỉ để nói ra ở trang Việc. Rỗng = không có gì đáng báo."""
     try:
-        if not _TG_BOT or _TG_BOT.status not in ("error", "conflict"):
-            return ""
-        return f"bot Telegram đang lỗi ({_TG_BOT.status}): {(_TG_BOT.last_error or '')[:160]}"
+        loi = []
+        if _TG_BOT and _TG_BOT.status in ("error", "conflict"):
+            loi.append(f"bot Telegram đang lỗi ({_TG_BOT.status}): {(_TG_BOT.last_error or '')[:160]}")
+        if _ZALO_BOT and _ZALO_BOT.status == "error":
+            loi.append(f"bot Zalo đang lỗi: {(_ZALO_BOT.last_error or '')[:160]}")
+        return "; ".join(loi)
     except Exception:
         return ""
 
@@ -6144,6 +6219,10 @@ async def _start_scheduler():
         restart_telegram()   # bật bot Telegram nếu đã cấu hình
     except Exception as e:
         print(f"[telegram start] {e}", file=__import__('sys').stderr)
+    try:
+        restart_zalo_bot()   # bật bot Zalo nếu đã cấu hình
+    except Exception as e:
+        print(f"[zalo start] {e}", file=__import__('sys').stderr)
     try:
         # Bot chuyên trách: nối bộ giám sát rồi bật những con đang để BẬT. Nối ở đây chứ không
         # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
@@ -10232,6 +10311,191 @@ def _tg_inbox_dir(chat=None):
     (đổi bằng /brain; chưa đổi thì brain mặc định) để agent đọc được ngay."""
     root = _brain_root(_tg_brain(chat))
     return str(Path(root) / "inbox" / "telegram")
+
+
+# ============================================================
+# Kênh Zalo Bot của CHỦ (API chính thức). Xem docs/dev/2026-08-zalo-bot-spec.md
+# ============================================================
+_ZALO_BOT = None
+# Hàng chờ ghép nối: người lạ nhắn cho bot -> vào đây kèm MÃ, chủ bấm một nút là vào whitelist.
+#
+# Vì sao không chép cách của Telegram: bên đó bắt chủ đi tìm Chat ID bằng @userinfobot rồi tự
+# dán vào ô. Zalo KHÔNG có công cụ tương đương, và id là chuỗi hex như "6ede9afa66b88fe6d6a9" -
+# không ai đọc ra được nó là ai. Nên đảo chiều: bot thấy người lạ thì đưa họ lên đây kèm tên
+# hiển thị THẬT và một mã ngắn để chủ đối chiếu đúng người khi hai người trùng tên.
+_ZALO_CHO = {}                 # chat_id -> {chat_id, ten, ma, ts, lan}
+_ZALO_CHO_MAX = 20             # trần: hộp thư mở cho người lạ, không được phình theo
+_ZALO_CHO_TTL = 30 * 60        # mục cũ hơn 30 phút thì rụng
+_ZALO_CHO_NHAC = 10 * 60       # mỗi chat_id lạ chỉ nhận MỘT câu từ chối trong 10 phút
+ZALO_CHAT_PREFIX = "zalo:"     # owner_chat của việc giao từ Zalo: "zalo:<chat_id>"
+
+
+def _zalo_don_cho():
+    het = [k for k, v in _ZALO_CHO.items() if time.time() - v.get("ts", 0) > _ZALO_CHO_TTL]
+    for k in het:
+        _ZALO_CHO.pop(k, None)
+
+
+def _zalo_ghi_cho(meta) -> str:
+    """Đưa một chat lạ lên hàng chờ, trả câu bot nên đáp ("" = im, vừa đáp gần đây rồi)."""
+    _zalo_don_cho()
+    cid = str((meta or {}).get("chat_id") or "").strip()
+    if not cid:
+        return ""
+    cu = _ZALO_CHO.get(cid)
+    if cu:
+        cu["lan"] = cu.get("lan", 0) + 1
+        cu["ten"] = str((meta or {}).get("user_name") or cu.get("ten") or "")[:80]
+        nhac_lai = time.time() - cu.get("nhac", 0) > _ZALO_CHO_NHAC
+        cu["ts"] = time.time()
+        if not nhac_lai:
+            return ""      # im: không để người lạ bơm tin làm ngập cả hàng chờ lẫn chat của họ
+        cu["nhac"] = time.time()
+        return _zalo_cau_tu_choi(cu["ma"])
+    if len(_ZALO_CHO) >= _ZALO_CHO_MAX:
+        _ZALO_CHO.pop(min(_ZALO_CHO, key=lambda k: _ZALO_CHO[k].get("ts", 0)), None)
+    ma = f"{secrets.randbelow(9000) + 1000}"
+    _ZALO_CHO[cid] = {"chat_id": cid, "ten": str((meta or {}).get("user_name") or "")[:80],
+                      "ma": ma, "ts": time.time(), "nhac": time.time(), "lan": 1}
+    return _zalo_cau_tu_choi(ma)
+
+
+def _zalo_cau_tu_choi(ma: str) -> str:
+    return ("Bạn chưa được cấp quyền dùng Javis này.\n"
+            f"Mã ghép nối của bạn: {ma}\n"
+            "Đưa mã này cho chủ máy để họ cho phép ở trang Kênh.")
+
+
+def _zalo_inbox_dir(chat=None):
+    """Nơi lưu ảnh user gửi lên Zalo - trong brain CỦA PHIÊN người gửi, y như Telegram."""
+    root = _brain_root(_tg_brain(ZALO_CHAT_PREFIX + str(chat or "")))
+    return str(Path(root) / "inbox" / "zalo")
+
+
+async def _zalo_answer(text, meta=None, progress=None, channel="zalo", bot=None):
+    """Vỏ cho kênh Zalo: gắn TIỀN TỐ vào chat_id rồi mới vào lõi chung.
+
+    Vì sao phải gắn: `_tg_answer` dùng `meta["chat_id"]` làm khoá phiên, khoá brain, và làm
+    `owner_chat` cho việc nền. Id Zalo là chuỗi hex còn id Telegram là số, nên trùng nhau thì
+    khó, nhưng "khó" không phải là một bảo đảm - và cái giá của một lần trùng là hai người
+    khác nhau dùng chung một mạch hội thoại. Tiền tố cũng chính là thứ `_notify_owner` đọc để
+    biết đường nào gửi kết quả về.
+
+    KHÔNG gắn tiền tố vào `meta` mà lớp vận chuyển đang cầm: nó dùng chat_id THẬT để gửi tin.
+    """
+    m = dict(meta or {})
+    goc = str(m.get("chat_id") or "").strip()
+    m["chat_id"] = (ZALO_CHAT_PREFIX + goc) if goc else "default"
+    return await _tg_answer(text, m, progress, channel="zalo", bot=bot)
+
+
+def _zalo_precheck(text, meta):
+    """Chốt chặn TRƯỚC khi tốn một lượt: người lạ thì đưa vào hàng chờ ghép nối.
+
+    Whitelist của lớp vận chuyển cũng chặn được, nhưng nó chỉ trả một câu cụt. Chặn ở đây thì
+    người lạ nhận được MÃ, và chủ có một nút để bấm - thay vì phải đi tra một chuỗi hex.
+    """
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    ids = tg_parse_ids(z.get("chat_id"))
+    cid = str((meta or {}).get("chat_id") or "").strip()
+    if cid and cid in ids:
+        return None
+    # DANH SÁCH RỖNG = CHƯA AI ĐƯỢC PHÉP, không phải "ai cũng được".
+    #
+    # Đây là chỗ CỐ Ý khác Telegram, đừng "sửa" cho giống. Bên Telegram ô trống nghĩa là mở
+    # cho tất cả, và tài liệu phải đi kèm một câu dặn đừng để trống - vì bên đó user tự tra
+    # được id của mình bằng @userinfobot rồi điền vào trước khi bật.
+    #
+    # Zalo không có công cụ đó, nên luồng đúng là bật bot với ô TRỐNG rồi tự nhắn cho nó một
+    # câu để hiện lên hàng chờ. Nếu ô trống lại mở cho tất cả thì đúng cái luồng mà giao diện
+    # đang hướng dẫn sẽ tạo ra một con bot ai nhắn cũng chạm được vào brain của chủ, trong
+    # khoảng thời gian giữa lúc bật và lúc bấm Cho phép. Fail-closed.
+    return {"reply": _zalo_ghi_cho(meta)}
+
+
+def restart_zalo_bot():
+    """Bật lại bot Zalo theo cấu hình settings.zalo_bot (tắt bot cũ nếu có)."""
+    global _ZALO_BOT
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    if _ZALO_BOT:
+        _ZALO_BOT.stop()
+        _ZALO_BOT = None
+    if z.get("enabled") and z.get("token"):
+        # KHÔNG truyền whitelist xuống lớp vận chuyển: `_zalo_precheck` lo phần đó và còn trả
+        # về mã ghép nối. Truyền cả hai là người lạ ăn hai câu từ chối cho một tin.
+        _ZALO_BOT = zalo_bot.ZaloBot(z["token"], "", _zalo_answer, _tg_command,
+                                     download_dir=_zalo_inbox_dir,
+                                     precheck_fn=_zalo_precheck)
+        _ZALO_BOT.start()
+        return True
+    return False
+
+
+@app.get("/zalo-bot/status")
+async def zalo_bot_status():
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    running = bool(_ZALO_BOT and _ZALO_BOT._task and not _ZALO_BOT._task.done())
+    _zalo_don_cho()
+    cho = sorted(_ZALO_CHO.values(), key=lambda x: x.get("ts", 0), reverse=True)
+    return {"enabled": bool(z.get("enabled")), "token_set": bool(z.get("token")),
+            "chat_id": z.get("chat_id", ""), "chat_ids": tg_parse_ids(z.get("chat_id")),
+            "running": running,
+            "status": (_ZALO_BOT.status if _ZALO_BOT else "off"),
+            "last_error": (_ZALO_BOT.last_error if _ZALO_BOT else ""),
+            "bot_name": (_ZALO_BOT.bot_username if _ZALO_BOT else ""),
+            "loi_danh_tinh": (_ZALO_BOT.loi_danh_tinh if _ZALO_BOT else ""),
+            "cho": cho}
+
+
+@app.post("/zalo-bot/restart")
+async def zalo_bot_restart():
+    return {"ok": True, "running": restart_zalo_bot()}
+
+
+@app.post("/zalo-bot/allow")
+async def zalo_bot_allow(chat_id: str = Form(...), on: str = Form("1")):
+    """Cho phép (hoặc bỏ qua) một chat đang chờ, bằng ĐÚNG một cú bấm."""
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return JSONResponse({"ok": False, "error": "Thiếu chat_id"}, status_code=400)
+    if str(on).strip() not in ("", "0", "false"):
+        z = cfgmod.read_settings().get("zalo_bot", {})
+        ids = tg_parse_ids(z.get("chat_id"))
+        if cid not in ids:
+            ids.append(cid)
+        cfgmod.write_settings({"zalo_bot": {"chat_id": ", ".join(ids)}})
+    # Ra khỏi hàng chờ dù chủ chọn gì: cho phép rồi thì hết chờ, mà bấm bỏ qua cũng là đã quyết.
+    _ZALO_CHO.pop(cid, None)
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    return {"ok": True, "chat_ids": tg_parse_ids(z.get("chat_id"))}
+
+
+@app.post("/zalo-bot/test")
+async def zalo_bot_test():
+    """Gửi tin test tới TẤT CẢ chat ID trong whitelist - báo rõ ID nào lỗi."""
+    z = cfgmod.read_settings().get("zalo_bot", {})
+    ids = tg_parse_ids(z.get("chat_id"))
+    if not z.get("token") or not ids:
+        return {"ok": False, "error": "Thiếu token hoặc chat ID (lưu trước đã)"}
+    import httpx
+    sent, errs = 0, []
+    url = f"https://bot-api.zaloplatforms.com/bot{z['token']}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            for cid in ids:
+                try:
+                    r = await c.post(url, json={"chat_id": cid,
+                                                "text": "Javis Zalo đã kết nối. Nhắn câu hỏi bất kỳ nhé."})
+                    d = r.json() if r.content else {}
+                    if d.get("ok"):
+                        sent += 1
+                    else:
+                        errs.append(f"{cid}: {str(d.get('description') or 'lỗi')[:80]}")
+                except Exception as e:
+                    errs.append(f"{cid}: {type(e).__name__}")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    return {"ok": sent > 0, "sent": sent, "total": len(ids), "error": "; ".join(errs)[:300]}
 
 
 def restart_telegram():

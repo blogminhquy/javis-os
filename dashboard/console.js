@@ -3763,6 +3763,7 @@
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
     const s = await freshSettings();
     const tg = s.telegram || {};
+    const zl = s.zalo_bot || {};
     el.innerHTML = `
       <div class="cview-section">
         <h3>Telegram</h3>
@@ -3776,7 +3777,26 @@
           <div class="gcard-meta" id="tgStatus"></div>
         </div>
       </div>
-      ${placeholder("channels", "Sắp tới: thêm kênh Zalo, web widget… mỗi kênh là 1 card ở đây.")}`;
+      <div class="cview-section">
+        <h3>${Icons.kenh("zalo", { size: "18px" })} Zalo</h3>
+        <div class="gcard" style="max-width:560px">
+          <div class="gcard-meta" style="margin-bottom:8px">Bot Zalo <b>chính thức</b> để hỏi Javis
+            từ điện thoại. Khác <b>Zalo Agent MCP</b> ở trang Kết nối: cái kia đăng nhập chính tài
+            khoản của bạn để Javis thao tác thay bạn, cái này là một danh tính riêng, an toàn, để
+            bạn nhắn cho Javis.</div>
+          <label class="js-row"><span>Bật bot Zalo</span><input type="checkbox" id="zlEnabled" ${zl.enabled ? "checked" : ""}></label>
+          <label class="js-lbl">Bot token ${zl.token_set ? '<span class="dim">(đã đặt)</span>' : ""}</label>
+          <input class="js-input" id="zlToken" type="password" placeholder="${zl.token_set ? "Để trống nếu không đổi" : "Ví dụ: 123456789:abc-xyz"}">
+          <div class="gcard-meta">Lấy token: mở app Zalo, tìm Official Account <b>Zalo Bot Manager</b>,
+            chọn <b>Tạo bot</b>. Tên bot bắt buộc mở đầu bằng chữ "Bot". Token gửi về bằng tin nhắn Zalo.</div>
+          <label class="js-lbl">Chat ID được phép dùng <span class="dim">(không cần gõ tay - xem bên dưới)</span></label>
+          <input class="js-input" id="zlChat" value="${esc(zl.chat_id || "")}" placeholder="Để trống rồi nhắn cho bot một câu">
+          <div class="js-actions"><button class="gcard-btn" id="zlSave">Lưu & bật</button><button class="gcard-btn ghost" id="zlTest">Gửi test</button></div>
+          <div class="gcard-meta" id="zlStatus"></div>
+          <div id="zlCho"></div>
+        </div>
+      </div>
+      ${placeholder("channels", "Sắp tới: web widget… mỗi kênh là 1 card ở đây.")}`;
     const st = document.getElementById("tgStatus");
     async function refreshTgStatus() {
       let d; try { d = await (await fetch("/telegram/status")).json(); } catch (e) { return; }
@@ -3812,6 +3832,69 @@
           : Icons.warn(r.error || "Chưa cấu hình bot.");
       }
       catch (e) { st.innerHTML = WARN_ICON + " Lỗi mạng."; }
+    };
+
+    // ---- Thẻ Zalo ----
+    const zst = document.getElementById("zlStatus");
+    const zcho = document.getElementById("zlCho");
+    async function refreshZalo() {
+      let d; try { d = await (await fetch("/zalo-bot/status")).json(); } catch (e) { return; }
+      let line;
+      if (!d.enabled) line = ic("circle", { cls: "ic-dim" }) + " Bot CHƯA bật - tích 'Bật bot Zalo' rồi Lưu.";
+      else if (!d.token_set) line = ic("circle", { cls: "ic-dim" }) + " Chưa có bot token.";
+      else if (d.status === "polling") {
+        const n = (d.chat_ids || []).length;
+        line = `${ic("circle", { cls: "ic-fill ic-ok" })} Bot đang nhận tin${d.bot_name ? " (" + esc(d.bot_name) + ")" : ""} - ${n ? n + " chat ID được phép" : "chưa cho phép ai - nhắn cho bot một câu rồi bấm Cho phép bên dưới"}.`;
+      }
+      else if (d.status === "error") line = WARN_ICON + " Lỗi bot: " + esc(d.last_error || "");
+      else if (d.status === "starting") line = ic("loader", { cls: "ic-spin" }) + " Đang khởi động bot…";
+      else line = ic("circle", { cls: "ic-dim" }) + " Bot đã tắt.";
+      if (d.loi_danh_tinh) line += "<br>" + WARN_ICON + " " + esc(d.loi_danh_tinh);
+      zst.innerHTML = line;
+      // Hàng chờ ghép nối: thay cho việc bắt user đi tra một chuỗi hex không ai đọc nổi.
+      // Zalo không có công cụ kiểu @userinfobot của Telegram, nên phải đảo chiều - người lạ
+      // nhắn cho bot thì họ hiện ra ở đây kèm TÊN THẬT và một mã để chủ đối chiếu đúng người.
+      const cho = d.cho || [];
+      zcho.innerHTML = cho.length
+        ? '<div class="gcard-meta" style="margin-top:10px"><b>Đang chờ bạn cho phép</b></div>' +
+          cho.map(g => `<div class="zl-cho" data-cid="${esc(g.chat_id)}">
+              <div><b>${esc(g.ten || "Người dùng Zalo")}</b> <span class="dim">mã ${esc(g.ma)}</span></div>
+              <div class="dim">Đã nhắn ${Number(g.lan) || 1} lần. Hỏi họ đọc mã trong tin bot trả lời để chắc đúng người.</div>
+              <div class="js-actions"><button class="gcard-btn zl-ok">Cho phép</button><button class="gcard-btn ghost zl-bo">Bỏ qua</button></div>
+            </div>`).join("")
+        : "";
+      zcho.querySelectorAll(".zl-cho").forEach(n => {
+        const cid = n.dataset.cid;
+        const gui = async (on) => {
+          const f = new FormData(); f.append("chat_id", cid); f.append("on", on ? "1" : "0");
+          try { await fetch("/zalo-bot/allow", { method: "POST", body: f }); } catch (e) {}
+          const inp = document.getElementById("zlChat");
+          if (on && inp) inp.value = inp.value ? inp.value + ", " + cid : cid;
+          refreshZalo();
+        };
+        n.querySelector(".zl-ok").onclick = () => gui(true);
+        n.querySelector(".zl-bo").onclick = () => gui(false);
+      });
+    }
+    refreshZalo();
+    document.getElementById("zlSave").onclick = async () => {
+      const data = { enabled: document.getElementById("zlEnabled").checked, chat_id: document.getElementById("zlChat").value.trim() };
+      const tok = document.getElementById("zlToken").value.trim();
+      if (tok) data.token = tok;
+      zst.textContent = "Đang lưu...";
+      const r = await saveSetting("zalo_bot", data);
+      zst.innerHTML = r.ok ? OK_ICON + " Đã lưu, đang khởi động bot…" : WARN_ICON + " Lỗi lưu.";
+      if (r.ok) setTimeout(refreshZalo, 1800);
+    };
+    document.getElementById("zlTest").onclick = async () => {
+      zst.textContent = "Đang gửi test...";
+      try {
+        const r = await (await fetch("/zalo-bot/test", { method: "POST" })).json();
+        zst.innerHTML = r.ok
+          ? (r.total > 1 ? `${OK_ICON} Đã gửi tin test tới ${Number(r.sent) || 0}/${Number(r.total) || 0} ID.` + (r.error ? " Lỗi: " + esc(r.error) : "") : OK_ICON + " Đã gửi tin test.")
+          : Icons.warn(r.error || "Chưa cấu hình bot.");
+      }
+      catch (e) { zst.innerHTML = WARN_ICON + " Lỗi mạng."; }
     };
   }
 

@@ -3,19 +3,25 @@
 > Bản spec dev, viết 2026-08-08 trên nền v0.26.3. Nguồn: tài liệu chính thức
 > <https://bot.zaloplatforms.com/docs/> (đọc ngày 2026-08-08).
 >
-> **Trạng thái: ĐÃ LÀM XONG PHASE 1, 2 (một phần), 3 (chiều vào) và 5 ở v0.26.5.** Bot chuyên
-> trách chạy được trên Zalo. Ba chỗ lệch so với bản spec này, ghi ngay đây thay vì để người
-> đọc tự đối chiếu:
+> **Trạng thái: ĐÃ LÀM XONG PHASE 1, 2, 3 (chiều vào), 4 và 5.** Bot chuyên trách chạy trên
+> Zalo từ v0.26.5; kênh Zalo của CHỦ và định tuyến thông báo xong ở v0.26.8. Bốn chỗ lệch so
+> với bản spec này, ghi ngay đây thay vì để người đọc tự đối chiếu:
 >
 > - **Làm PHASE 5 TRƯỚC PHASE 4**, theo yêu cầu của chủ repo (2026-08-08): giá trị nằm ở bot
->   chuyên trách nói chuyện với khách Việt, không ở kênh của chủ. Kênh riêng cho chủ (thẻ
->   Zalo trên trang **Kênh**, tiền tố `zalo:` cho thông báo nền) **chưa làm**.
+>   chuyên trách nói chuyện với khách Việt, không ở kênh của chủ.
 > - **Phần dùng chung tách ra `server/bot_gateway.py`** chứ không để `zalo_bot.py` chép lại:
 >   hàng đợi lượt, luật `/stop`, cổng precheck và dòng vết công cụ là luật hành vi của Javis,
 >   không phải chi tiết của một nhà cung cấp. `TelegramBot` cũng đã chuyển sang dùng nó.
-> - **Phase 0 (thăm dò API thật) CHƯA CHẠY** vì chưa có token thật. Mã viết theo hướng chịu
->   được cả ba khuôn phản hồi `getUpdates` có thể có, và kêu ra stderr khi gặp khuôn lạ. Sáu
->   câu hỏi ở Phase 0 vẫn còn nguyên giá trị, xem mục 7.
+> - **Danh sách trắng RỖNG = CHƯA AI ĐƯỢC PHÉP** (mục 5 chỉ nói tới hàng chờ, không nói tới
+>   luật này). Bên Telegram ô trống nghĩa là mở cho tất cả; giữ nguyên nết đó ở Zalo thì chính
+>   luồng "bật bot với ô trống rồi tự nhắn cho nó" mà giao diện đang hướng dẫn sẽ tạo ra một
+>   con bot ai cũng chạm được vào brain, trong khoảng giữa lúc bật và lúc bấm Cho phép.
+> - **Phase 0 (thăm dò API thật) mới trả lời được MỘT câu**, xem mục 7. Còn lại vẫn chờ token
+>   thật. Mã viết theo hướng chịu được cả ba khuôn phản hồi `getUpdates` có thể có, và kêu ra
+>   stderr khi gặp khuôn lạ.
+>
+> **Còn lại: Phase 3 chiều RA (gửi ảnh) và Phase 6 (webhook).** Cả hai phụ thuộc kết quả thăm
+> dò và phụ thuộc Javis đang chạy ở đâu.
 
 ## 1. Quyết định cốt lõi
 
@@ -232,9 +238,14 @@ làm phần ống nước), vừa là thứ nên đem ngược về cho Telegram
 
 ## 7. Các giai đoạn
 
-### Phase 0: Thăm dò API thật (nửa ngày, không viết mã sản phẩm)
+### Phase 0: Thăm dò API thật
 
-Bắt buộc làm trước. Một script vứt đi, một bot token thật, trả lời sáu câu:
+**Đã trả lời được một câu mà không cần token** (2026-08-08): gọi `getMe` với một token rác
+thì Zalo trả `{"ok":false,"description":"Unauthorized","error_code":401}` kèm **HTTP 200**,
+chứ không phải HTTP 401 như Telegram. Nghĩa là **bắt buộc đọc trường `ok`, không được nhìn mã
+HTTP**. Mã hiện tại đang làm đúng vậy.
+
+Năm câu còn lại vẫn cần một bot token thật:
 
 1. `getUpdates` có trả lại tin cũ sau khi đã nhận không? Trùng ở mức nào?
 2. `sendPhoto` có nhận `multipart/form-data` không, hay bắt buộc URL công khai?

@@ -98,6 +98,14 @@ _DEFAULT = {
     # Ngắn hơn hẳn vì đó là chỗ trung chuyển một lượt chat, không ai mở lại bao giờ.
     "media": {"enabled": True, "max_age_days": 30, "max_mb": 300, "staging_days": 3},
     "telegram": {"enabled": False, "token": "", "chat_id": ""},
+    # Kênh Zalo Bot của CHỦ (API chính thức bot.zaloplatforms.com). Cùng hình dạng với telegram
+    # để trang Kênh và mọi chỗ định tuyến thông báo chỉ phải học một khuôn.
+    #
+    # `chat_id` là whitelist, và trên Zalo nó là chuỗi HEX chứ không phải số. Zalo KHÔNG có
+    # công cụ kiểu @userinfobot để tự tra id của mình, nên đừng bắt user đi tìm: người lạ nhắn
+    # cho bot thì Javis đưa họ vào hàng chờ kèm mã ghép nối, chủ bấm một nút là xong.
+    # Xem `_ZALO_CHO` trong main.py.
+    "zalo_bot": {"enabled": False, "token": "", "chat_id": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
     # Lưu trong settings.json (đã gitignored) - KHÔNG bao giờ đẩy lên brain repo.
     "backup": {"enabled": False, "repo_url": "", "token": "", "branch": "main",
@@ -378,7 +386,7 @@ _SECRET_PATHS = (
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.ollama_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
-    "telegram.token", "backup.token", "voice.elevenlabs_key",
+    "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
 )
 
 
