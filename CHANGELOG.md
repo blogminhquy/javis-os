@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.10] - 2026-08-09
+### Sửa lỗi
+- **Bot Zalo đang RẢNH không còn bị báo là đang LỖI.** Thẻ bot ở trang Chatbot đỏ chấm "Lỗi" kèm dòng "Request timeout" trong khi con bot vẫn sống và vẫn trả lời được. Nguyên nhân: `getUpdates` của Zalo không cư xử như Telegram. Telegram hết giờ chờ thì trả `ok: true` với danh sách rỗng, còn Zalo trả `ok: false` kèm `description: "Request timeout"`. Đó là nhịp bình thường của long polling, 25 giây không ai nhắn thì đúng là không có gì để trả về.
+- **Và bot thôi bị ĐIẾC 10 giây mỗi vòng rảnh.** Đây mới là phần nặng, nhưng nó nấp sau phần trên nên không ai nhìn ra: nhánh lỗi ngủ 10 giây rồi mới poll lại, nên cứ mỗi vòng không có tin là bot không nghe gì trong 10 giây. Tin nhắn rơi vào khoảng đó không mất, chỉ là phải chờ tới vòng sau mới được đọc. Nay vòng rảnh poll lại ngay, và chỉ tự ghìm một nhịp ngắn nếu Zalo đáp gần như tức thì (không tôn trọng tham số `timeout`), để vòng lặp không nện API vài lần mỗi giây rồi ăn 429 thật.
+- **Thẻ đỏ thường trực là loại hỏng tệ hơn vẻ ngoài của nó:** rảnh là trạng thái bình thường của một con bot chăm sóc khách, nên thẻ gần như luôn đỏ, và tới lần bot hỏng THẬT thì không còn ai nhìn ra nữa.
+- **Ranh giới của bản sửa nằm ở chỗ ai đang nói, không phải ở chữ "timeout".** Máy chủ Javis mất mạng cũng đẻ ra một chuỗi có chữ timeout, và đó là hỏng thật. Nay `_api` gắn dấu `loi_mang` cho dict sinh từ ngoại lệ, còn nhịp rảnh thì phải do chính Zalo đáp bằng body JSON và không mang mã lỗi nào. Lỗi thật (401, 429, mất mạng) giữ nguyên hành vi cũ: đỏ thẻ, ghi lý do, nghỉ dài rồi thử lại.
+
+### Cải thiện
+- **429 của Anthropic nay được chờ theo nhịp của hạn mức, không phải nhịp của một cú vấp mạng.** Bản trước thử lại theo 1 giây, 2 giây, 4 giây, nên cả ba lần hỏi lại gói gọn trong bảy giây, trong khi cửa sổ hạn mức tính bằng phút. Ba lần hỏi trong bảy giây chỉ là ăn đúng cú 429 đó ba lần, rồi báo "đã thử lại 3 lần" và bỏ cuộc. Nay 429 chờ theo nhịp riêng, đủ dài để một đợt nghẽn ngắn kịp trôi qua.
+- **Đọc thêm mốc cửa sổ mở lại mà Anthropic vẫn gửi kèm** (`anthropic-ratelimit-*-reset`). Anthropic không phải lúc nào cũng gửi `Retry-After`, và khi thiếu nó thì mấy header này là nguồn DUY NHẤT nói được phải chờ bao lâu. Bỏ qua chúng nghĩa là tự bịt mắt rồi đoán. Lấy cửa sổ mở sớm nhất: chờ hụt thì còn lượt thử lại để chờ tiếp, còn chờ dư là bắt người ta ngồi im vô ích.
+- **Câu lỗi trên thẻ bot nói được phải làm gì tiếp.** Trước đó nó dán nguyên một cục JSON của nhà cung cấp, thứ không trả lời được câu hỏi duy nhất người chủ đang có khi nhìn thẻ đỏ. Nay nó nói rõ đây là hạn mức, còn bao lâu nữa cửa sổ mở lại (khi biết), và rằng có thể đổi bộ não cho bot ở trang Models. Lỗi gốc vẫn giữ nguyên bên cạnh để còn tra được.
+
 ## [0.26.9] - 2026-08-09
 ### Cải thiện
 - **Javis thôi trả lời bằng những bức tường văn xuôi trên khung chat web.** Câu trả lời dài nay có hình khối để mắt bám: đoạn 2-4 câu, gạch đầu dòng khi liệt kê từ 3 ý trở lên, in đậm con số và kết luận, tiêu đề `###` khi câu trả lời có nhiều phần rõ rệt, và bảng khi so sánh cùng một bộ trường giữa nhiều mục.

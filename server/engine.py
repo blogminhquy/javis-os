@@ -17,6 +17,8 @@ import re
 import sys
 import threading
 import time
+from datetime import datetime, timezone
+
 import httpx
 
 import limit_learner
@@ -120,19 +122,59 @@ def _describe_exc(err: BaseException, max_depth: int = 3) -> str:
     return " <- ".join(parts) if parts else type(err).__name__
 
 
+# Anthropic gắn thời điểm cửa sổ hạn mức mở lại vào các header này, dạng mốc thời gian
+# RFC3339 (vd "2026-08-09T09:52:31Z"). Chúng có mặt kể cả khi KHÔNG có `Retry-After`, và
+# lúc đó đây là nguồn duy nhất nói được phải chờ bao lâu. Bỏ qua chúng nghĩa là tự đoán
+# bằng backoff, mà đoán 1 giây cho một cửa sổ tính bằng phút thì thử lại chỉ tổ tốn lượt.
+_ANTHROPIC_RESET_HEADERS = (
+    "anthropic-ratelimit-requests-reset",
+    "anthropic-ratelimit-tokens-reset",
+    "anthropic-ratelimit-input-tokens-reset",
+    "anthropic-ratelimit-output-tokens-reset",
+)
+
+
+def _giay_toi_moc(raw) -> float | None:
+    """Mốc RFC3339 -> còn bao nhiêu giây nữa tới đó. None nếu không đọc được."""
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    try:
+        moc = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moc.tzinfo is None:
+        moc = moc.replace(tzinfo=timezone.utc)
+    return (moc - datetime.now(timezone.utc)).total_seconds()
+
+
 def _parse_retry_after(headers, cap: float = 600.0):
-    """Đọc header Retry-After (giây) provider gửi kèm 429/503. Trả None nếu không có/không parse được.
-    Provider (OpenRouter/Anthropic) gửi dạng số giây; bỏ qua dạng HTTP-date hiếm gặp.
-    Cap 600s: đủ phủ mọi reset window thực tế, chặn giá trị bệnh lý."""
+    """Nhà cung cấp bảo chờ bao nhiêu giây trước khi hỏi lại? None nếu không nói.
+
+    Ưu tiên `Retry-After` (OpenRouter/Anthropic gửi dạng số giây; bỏ qua dạng HTTP-date hiếm
+    gặp). Thiếu nó thì đọc các header reset của Anthropic và lấy cửa sổ mở SỚM NHẤT: chờ hụt
+    thì còn lượt thử lại để chờ tiếp, còn chờ dư là bắt người ta ngồi im vô ích.
+
+    Cap 600s: đủ phủ mọi reset window thực tế, chặn giá trị bệnh lý.
+    """
     if not headers or not hasattr(headers, "get"):
         return None
     raw = headers.get("retry-after") or headers.get("Retry-After")
-    if not raw:
+    if raw:
+        try:
+            return max(0.0, min(float(raw), cap))
+        except (TypeError, ValueError):
+            pass
+    som_nhat = None
+    for ten in _ANTHROPIC_RESET_HEADERS:
+        giay = _giay_toi_moc(headers.get(ten))
+        # Mốc đã trôi qua (<=0) không nói được gì: đồng hồ hai máy lệch nhau là thường, và
+        # "chờ 0 giây" thì hỏi lại ngay chỉ để nhận đúng cú 429 vừa rồi.
+        if giay is not None and giay > 0 and (som_nhat is None or giay < som_nhat):
+            som_nhat = giay
+    if som_nhat is None:
         return None
-    try:
-        return max(0.0, min(float(raw), cap))
-    except (TypeError, ValueError):
-        return None
+    return max(0.0, min(som_nhat, cap))
 
 
 # Trần thời gian CHỜ cửa sổ hạn mức trượt qua. Quá ngưỡng này thì báo cho người dùng thay
@@ -176,6 +218,10 @@ def ev_loi_http(nhan, status, body_text, headers=None, fact=None, cat=300):
     ev = {"type": "error", "content": f"{nhan} {status}: {str(body_text or '')[:cat]}"}
     if fact is None and (status in _RETRY_STATUS or _is_transient_body(str(body_text or ""))):
         ev["tam_thoi"] = True
+        # Giữ status thật để tầng thử lại chọn được nhịp chờ đúng loại. 429 là hạn mức, cửa
+        # sổ của nó tính bằng chục giây; 502/504 là một cú vấp, một giây sau thường đã ngon.
+        # Hai thứ đó mà chờ chung một nhịp thì một trong hai luôn sai.
+        ev["ma"] = status
         cho = _parse_retry_after(headers)
         if cho is not None:
             ev["cho"] = cho
@@ -241,7 +287,12 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
             return
         cho = loi_hoan.get("cho")
         if cho is None:
-            cho = _jittered_backoff(lan)
+            # Nhà cung cấp không nói phải chờ bao lâu thì tự đoán, nhưng đoán theo LOẠI lỗi.
+            # Nhịp mặc định 1s-2s-4s vá được cú vấp mạng, còn với 429 thì nó vô dụng: ba lần
+            # thử gói gọn trong bảy giây, trong khi cửa sổ hạn mức của Anthropic tính theo
+            # phút. Hỏi lại ba lần trong bảy giây chỉ là ăn đúng cú 429 đó ba lần.
+            cho = (_jittered_backoff(lan, base=5.0, max_delay=20.0)
+                   if loi_hoan.get("ma") == 429 else _jittered_backoff(lan))
         # Nhà cung cấp bảo chờ lâu hơn ngưỡng người ta chịu ngồi im thì đừng chờ - báo ngay để
         # họ biết mà làm việc khác, thay vì nhìn màn hình đứng yên nửa phút.
         if lan >= so_lan or cho > _WINDOW_WAIT_MAX:
@@ -251,6 +302,14 @@ async def thu_lai_khi_tam_thoi(tao_stream, *, so_lan=3, nhan=""):
             cuoi["da_thu"] = lan
             if lan > 1:
                 cuoi["content"] = f"{cuoi['content']} (đã thử lại {lan} lần)"
+            # Câu này đi thẳng lên thẻ bot của CHỦ. Một cục JSON của nhà cung cấp không nói
+            # được phải làm gì tiếp, mà đó đúng là thứ chủ cần biết khi nhìn thẻ đỏ.
+            if loi_hoan.get("ma") == 429:
+                cuoi["content"] += (
+                    f" - hạn mức nhà cung cấp đang đầy"
+                    + (f", cửa sổ mở lại sau khoảng {cho:.0f}s" if cho > _WINDOW_WAIT_MAX else "")
+                    + ". Chờ cửa sổ trôi qua, hoặc đổi bộ não cho bot ở trang Models."
+                )
             yield cuoi
             return
         print(f"[thử lại {nhan or '?'}] lần {lan} gãy tạm thời, chờ {cho:.1f}s: "

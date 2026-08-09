@@ -57,6 +57,32 @@ SK_STICKER = "message.sticker.received"
 SK_VOICE = "message.voice.received"
 
 
+# `getUpdates` của Zalo KHÔNG trả `ok: true` với danh sách rỗng như Telegram khi hết giờ chờ.
+# Nó trả `ok: false` kèm `description: "Request timeout"`. Đó là nhịp bình thường của long-poll,
+# không phải hỏng: 25 giây trôi qua mà không ai nhắn thì đúng là không có gì để trả về.
+#
+# Đọc nhầm nhịp đó thành lỗi gây ra hai chuyện, cái sau nặng hơn cái trước:
+#   1. Thẻ bot ở trang Chatbot đỏ chấm "Lỗi" kèm dòng "Request timeout" suốt những lúc bot
+#      rảnh, tức là gần như luôn luôn. Chủ repo chụp lại đúng cảnh đó.
+#   2. Nhánh lỗi nghỉ 10 giây rồi mới poll lại, nên cứ mỗi vòng rảnh là bot ĐIẾC 10 giây.
+#      Tin nhắn rơi vào khoảng đó không mất, nhưng phải chờ tới vòng sau mới được đọc.
+_HET_GIO_CHO = ("request timeout", "timeout", "no update", "no new update", "empty")
+
+
+def _la_het_gio_cho(d: dict) -> bool:
+    """Phản hồi `getUpdates` này là 'hết giờ chờ, không có tin' chứ không phải hỏng?
+
+    Chỉ nhận khi CHÍNH máy chủ Zalo đáp (có body JSON). Dict sinh từ ngoại lệ mang `loi_mang`
+    và bị loại thẳng: `ReadTimeout` là máy mình không nối ra được, trông giống mà khác hẳn.
+    Cũng loại mọi phản hồi có `error_code` - Zalo gắn mã cho lỗi thật (401, 429...), còn nhịp
+    hết giờ thì không có mã nào.
+    """
+    if not isinstance(d, dict) or d.get("loi_mang") or d.get("error_code"):
+        return False
+    mo_ta = str(d.get("description") or "").strip().casefold()
+    return bool(mo_ta) and any(k in mo_ta for k in _HET_GIO_CHO)
+
+
 def _chat_type(raw) -> str:
     """Zalo dùng PRIVATE/GROUP, Javis dùng private/group ở mọi nơi khác (xem
     `chatbot_runtime._ly_do_im`). Quy về MỘT bảng chữ ngay tại cửa vào, chứ đừng bắt mỗi
@@ -113,7 +139,13 @@ class ZaloBot(HangLuot):
         return ZALO_API.format(token=self.token, method=method)
 
     async def _api(self, client, method, **payload):
-        """Gọi một method, luôn trả dict. Lỗi mạng cũng thành dict để chỗ gọi chỉ xử một kiểu."""
+        """Gọi một method, luôn trả dict. Lỗi mạng cũng thành dict để chỗ gọi chỉ xử một kiểu.
+
+        Dict sinh từ NGOẠI LỆ mang thêm `loi_mang: True`. Cần phân biệt vì `description` của
+        hai loại trông giống nhau khi đọc bằng mắt, mà xử lý thì ngược nhau: máy chủ Zalo đáp
+        "Request timeout" là chuyện thường của long-poll, còn máy mình không nối được ra
+        Internet cũng ra một chuỗi có chữ timeout nhưng đó là hỏng thật.
+        """
         try:
             r = await client.post(self._url(method), json=payload or {})
             try:
@@ -121,7 +153,7 @@ class ZaloBot(HangLuot):
             except Exception:
                 return {"ok": False, "description": f"HTTP {r.status_code}", "error_code": r.status_code}
         except Exception as e:
-            return {"ok": False, "description": f"{type(e).__name__}: {e}"}
+            return {"ok": False, "description": f"{type(e).__name__}: {e}", "loi_mang": True}
 
     async def _send(self, client, chat, text, reply_markup=None):
         """Gửi câu trả lời, chia nhỏ theo trần 2000 ký tự.
@@ -441,7 +473,21 @@ class ZaloBot(HangLuot):
             self.status = "polling"
             while not self._stop:
                 try:
+                    _t0 = time.monotonic()
                     d = await self._api(client, "getUpdates", timeout=25)
+                    if not d.get("ok") and _la_het_gio_cho(d):
+                        # Vòng rảnh: máy chủ sống, token còn tốt, chỉ là không ai nhắn. Thẻ bot
+                        # phải SẠCH sau nhịp này - nó vừa là bằng chứng đường đi vẫn thông, nên
+                        # nó cũng xoá luôn lỗi cũ nếu vòng trước có lỗi thật.
+                        self.status = "polling"
+                        self.last_error = ""
+                        # Poll lại NGAY nếu Zalo vừa giữ đủ lâu (long-poll chạy đúng). Nếu nó
+                        # đáp gần như tức thì (không tôn trọng `timeout`) thì phải tự ghìm lại,
+                        # kẻo vòng lặp nện API vài lần mỗi giây rồi ăn 429 thật.
+                        _lau = time.monotonic() - _t0
+                        if _lau < 5:
+                            await asyncio.sleep(2)
+                        continue
                     if not d.get("ok"):
                         ma = d.get("error_code")
                         self.status = "error"

@@ -52,7 +52,7 @@ def check(name, cond):
 
 # Thử lại thật thì mỗi lần chờ 1-3 giây. Test không cần chờ, chỉ cần biết nó CÓ chờ.
 _da_cho = []
-engine._jittered_backoff = lambda attempt, **kw: (_da_cho.append(attempt), 0.001)[1]
+engine._jittered_backoff = lambda attempt, **kw: (_da_cho.append((attempt, kw)), 0.001)[1]
 
 
 def chay(gen):
@@ -284,6 +284,70 @@ check("hết đường thì vẫn báo lỗi cho người trực", isinstance(_r
 check("và nói luôn là đã thử lại rồi", isinstance(_r, str) and "đã thử lại" in _r)
 
 check("KHÔNG có em dash trong câu lỗi trả ra", "—" not in (_r if isinstance(_r, str) else ""))
+
+
+# ============================================================
+# 5. Chờ ĐÚNG NHỊP: 429 không phải một cú vấp mạng
+# ============================================================
+# Chủ repo gửi lại đúng cái thẻ bot đó vào 2026-08-09, lần này kèm dòng "(đã thử lại 3 lần)".
+# Nghĩa là máy thử lại đủ ba lần rồi vẫn ăn 429. Nhìn con số thì thấy ngay vì sao: nhịp chờ
+# mặc định là 1s, 2s, 4s, nên cả ba lần hỏi lại gói gọn trong bảy giây, trong khi cửa sổ hạn
+# mức của Anthropic tính bằng phút. Ba lần hỏi trong bảy giây chỉ là ăn đúng cú 429 đó ba lần.
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+def _moc(sau_bao_giay):
+    return (datetime.now(timezone.utc) + timedelta(seconds=sau_bao_giay)) \
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# 5a. Anthropic không phải lúc nào cũng gửi Retry-After, nhưng LUÔN gửi mốc cửa sổ mở lại.
+# Bỏ qua mấy header đó là tự bịt mắt rồi đoán, mà đoán 1 giây cho cửa sổ tính bằng phút.
+_h = {"anthropic-ratelimit-requests-reset": _moc(40),
+      "anthropic-ratelimit-tokens-reset": _moc(90)}
+_cho = engine._parse_retry_after(_h)
+check("thiếu Retry-After thì đọc mốc reset của Anthropic", _cho is not None)
+check("và lấy cửa sổ mở SỚM NHẤT (chờ hụt còn lượt sau, chờ dư là ngồi im vô ích)",
+      _cho is not None and 30 < _cho <= 45)
+
+check("Retry-After vẫn thắng khi có cả hai",
+      engine._parse_retry_after(dict(_h, **{"retry-after": "3"})) == 3.0)
+check("mốc đã trôi qua thì bỏ (đồng hồ hai máy lệch nhau là thường)",
+      engine._parse_retry_after({"anthropic-ratelimit-tokens-reset": _moc(-30)}) is None)
+check("mốc không đọc được thì bỏ, không nổ",
+      engine._parse_retry_after({"anthropic-ratelimit-tokens-reset": "hôm qua"}) is None)
+check("không có header nào thì vẫn None như cũ", engine._parse_retry_after({}) is None)
+
+# 5b. Không nhà cung cấp nào nói gì thì tự đoán, nhưng đoán theo LOẠI lỗi.
+check("429 mang theo status thật để tầng trên chọn nhịp",
+      engine.ev_loi_http("X", 429, "bận").get("ma") == 429)
+
+_da_cho.clear()
+chay(lambda: engine.thu_lai_khi_tam_thoi(lam_stream([[LOI_429]], []), nhan="t"))
+_base_429 = [kw.get("base") for _, kw in _da_cho]
+check("429 chờ theo nhịp hạn mức, không phải nhịp vấp mạng",
+      _base_429 and all(b and b >= 5.0 for b in _base_429))
+
+_da_cho.clear()
+_loi502 = engine.ev_loi_http("X", 502, "bận")
+chay(lambda: engine.thu_lai_khi_tam_thoi(lam_stream([[_loi502]], []), nhan="t"))
+check("5xx giữ nhịp nhanh như cũ (một giây sau thường đã ngon)",
+      _da_cho and all(not kw.get("base") for _, kw in _da_cho))
+
+# 5c. Câu cuối đi thẳng lên thẻ bot của CHỦ. Một cục JSON không nói được phải làm gì tiếp.
+_cuoi = chay(lambda: engine.thu_lai_khi_tam_thoi(lam_stream([[LOI_429]], []), nhan="t"))[-1]
+check("hết đường thì nói rõ đây là hạn mức, không chỉ dán JSON",
+      "hạn mức" in _cuoi["content"])
+check("và chỉ luôn đường đi tiếp", "Models" in _cuoi["content"])
+check("vẫn giữ nguyên lỗi gốc để còn tra được",
+      "Anthropic 429" in _cuoi["content"] and "rate_limit_error" in _cuoi["content"])
+check("không em dash", "—" not in _cuoi["content"])
+
+# Nhà cung cấp bảo chờ lâu hơn ngưỡng ngồi im được thì nói luôn còn bao lâu, thay vì bỏ lửng.
+_lau429 = engine.ev_loi_http("X", 429, "bận",
+                             headers={"retry-after": str(engine._WINDOW_WAIT_MAX + 40)})
+_c2 = chay(lambda: engine.thu_lai_khi_tam_thoi(lam_stream([[_lau429]], []), nhan="t"))[-1]
+check("chờ quá lâu thì báo ngay VÀ nói còn bao lâu", "cửa sổ mở lại sau" in _c2["content"])
 
 print(("\nFAILED: " + ", ".join(_fails)) if _fails else "\nAll passed")
 sys.exit(1 if _fails else 0)
