@@ -6581,6 +6581,17 @@ async def do_update():
 # ============================================================
 _AUTOSTART_NAME = "JavisOS"
 _AUTOSTART_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+# Task Manager tab "Startup" KHÔNG xoá mục trong Run key khi người dùng bấm Disable. Nó ghi
+# một cờ 12 byte vào khoá riêng dưới đây, rồi Explorer bỏ qua mục đó lúc đăng nhập.
+#
+# Đây là kiểu hỏng tệ nhất của cả tính năng: Run key còn nguyên nên `/autostart` báo "Bật",
+# người dùng nhìn dashboard thấy đúng, mà mở máy lên thì không có gì chạy và không có một
+# dòng lỗi nào ở đâu cả. Mấy phần mềm "dọn máy, tăng tốc khởi động" cũng tắt bằng đúng cờ này.
+_AUTOSTART_APPROVED_KEY = (
+    r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run")
+# Byte đầu: 2 hoặc 6 = đang bật, 3 = đã tắt. Xét theo BIT 0 chứ không so bằng, vì các byte còn
+# lại là dấu thời gian và Windows có dùng vài giá trị khác nhau cho trạng thái bật.
+_AUTOSTART_APPROVED_ON = bytes([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
 def _autostart_command() -> str:
@@ -6589,25 +6600,85 @@ def _autostart_command() -> str:
     return f'wscript.exe //nologo "{vbs}"'
 
 
+def _autostart_bi_chan(raw) -> bool:
+    """Cờ StartupApproved nói mục này đã bị tắt trong Task Manager?"""
+    try:
+        return bool(raw) and bool(raw[0] & 1)
+    except (TypeError, IndexError):
+        return False
+
+
+def _autostart_thieu_gi(root=None) -> list:
+    """Mảnh nào của dây chuyền khởi động không còn trên đĩa.
+
+    Thiếu một trong hai là lúc đăng nhập chắc chắn không có gì chạy, mà cũng chẳng có lỗi nào
+    hiện ra: `wscript` im lặng khi không thấy file .vbs, còn `cmd` thì ghi lỗi vào javis.log,
+    một file không ai mở ra xem bao giờ. Kiểm ngay lúc đọc trạng thái thì rẻ hơn nhiều.
+    """
+    goc = Path(root) if root else PROJECT_ROOT
+    thieu = []
+    if not (goc / "start-javis.vbs").is_file():
+        thieu.append("start-javis.vbs")
+    if not (goc / ".venv" / "Scripts" / "python.exe").is_file():
+        thieu.append(r".venv\Scripts\python.exe")
+    return thieu
+
+
+def _autostart_ly_do(st: dict) -> str:
+    """Một câu nói thẳng vì sao autostart sẽ KHÔNG chạy, hoặc '' nếu mọi thứ ổn.
+
+    Tính ở server chứ không ở dashboard: cùng một trạng thái đang hiện ở hai trang (Tổng quan
+    và Cài đặt), và luật kiểu này viết hai bản thì sớm muộn hai bản nói khác nhau.
+    """
+    if not st.get("enabled"):
+        return ""
+    if st.get("blocked"):
+        return ("Windows đang chặn mục khởi động này (ai đó tắt nó trong Task Manager, thẻ "
+                "Startup, hoặc một phần mềm dọn máy đã tắt hộ). Bấm bật lại để gỡ chặn.")
+    if st.get("stale"):
+        return ("Thư mục cài đặt đã đổi chỗ nên lệnh khởi động đang trỏ vào đường dẫn cũ. "
+                "Bấm bật lại để cập nhật.")
+    if st.get("missing"):
+        return ("Thiếu " + ", ".join(st["missing"]) + " trong thư mục cài đặt nên lúc đăng nhập "
+                "sẽ không có gì chạy. Chạy lại setup.bat để dựng lại phần thiếu.")
+    return ""
+
+
 def _autostart_status() -> dict:
-    """{supported, enabled, command, stale}. stale = đang bật nhưng trỏ đường dẫn cũ (đã move folder)."""
+    """Trạng thái ĐẦY ĐỦ của autostart, đủ để nói vì sao nó không chạy.
+
+    `enabled` một mình không trả lời được câu hỏi thật của người dùng ("sao mở máy lên không
+    thấy Javis"): Run key còn nguyên vẫn có ba đường chết lặng khác nhau, và cả ba đều được
+    kiểm ở đây - Windows chặn, đường dẫn cũ, hoặc file đã mất.
+    """
     if os.name != "nt":
         return {"supported": False, "enabled": False}
     expected = _autostart_command()
+    st = {"supported": True, "enabled": False, "expected": expected,
+          "log": str(PROJECT_ROOT / "server" / "javis.log")}
     try:
         import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_RUN_KEY) as k:
-            try:
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_RUN_KEY) as k:
                 val, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
-                return {"supported": True, "enabled": bool(val),
-                        "command": val, "expected": expected,
-                        "stale": bool(val) and val.strip() != expected}
+            st["enabled"] = bool(val)
+            st["command"] = val
+            st["stale"] = bool(val) and val.strip() != expected
+        except FileNotFoundError:
+            pass
+        if st["enabled"]:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_APPROVED_KEY) as k:
+                    raw, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
+                st["blocked"] = _autostart_bi_chan(raw)
             except FileNotFoundError:
-                return {"supported": True, "enabled": False, "expected": expected}
-    except FileNotFoundError:
-        return {"supported": True, "enabled": False, "expected": expected}
+                st["blocked"] = False     # không có cờ nghĩa là chưa ai tắt
+            st["missing"] = _autostart_thieu_gi()
     except Exception as e:
-        return {"supported": True, "enabled": False, "expected": expected, "error": str(e)}
+        st["error"] = str(e)
+    st["ly_do"] = _autostart_ly_do(st)
+    st["healthy"] = bool(st["enabled"]) and not st["ly_do"]
+    return st
 
 
 def _autostart_set(enabled: bool) -> dict:
@@ -6623,7 +6694,23 @@ def _autostart_set(enabled: bool) -> dict:
                     winreg.DeleteValue(k, _AUTOSTART_NAME)
                 except FileNotFoundError:
                     pass
-        return {"ok": True, "enabled": enabled}
+        if enabled:
+            # Ghi lại Run key KHÔNG gỡ được cờ chặn của Task Manager, nên bật xong vẫn không
+            # chạy và nút bấm thành ra vô nghĩa. Chỉ lật cờ đã có sẵn của CHÍNH mục này, không
+            # tự tạo mới: không có cờ đã là đang bật rồi.
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _AUTOSTART_APPROVED_KEY,
+                                    0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
+                    try:
+                        raw, _ = winreg.QueryValueEx(k, _AUTOSTART_NAME)
+                    except FileNotFoundError:
+                        raw = None
+                    if _autostart_bi_chan(raw):
+                        winreg.SetValueEx(k, _AUTOSTART_NAME, 0, winreg.REG_BINARY,
+                                          _AUTOSTART_APPROVED_ON)
+            except FileNotFoundError:
+                pass
+        return {"ok": True, "enabled": enabled, **_autostart_status()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.12] - 2026-08-09
+### Sửa lỗi
+- **"Tự khởi động cùng Windows" báo Bật trong khi mở máy lên không có gì chạy.** Cả tính năng nằm gọn trong một dòng registry `HKCU\...\Run`, và dashboard đọc đúng dòng đó rồi kết luận "Bật". Nhưng dòng đó **còn nguyên** trong ít nhất ba cảnh mà lúc đăng nhập vẫn không có gì chạy, và không cảnh nào để lại lỗi ở đâu để lần ra. Người dùng chỉ thấy `ERR_CONNECTION_REFUSED` và một cái thẻ nói dối.
+- **Cảnh im lặng nhất: Task Manager tắt hộ.** Thẻ **Startup** không xoá mục trong Run key khi bấm Disable, nó ghi một cờ 12 byte vào `Explorer\StartupApproved\Run` rồi Explorer bỏ qua mục đó. Mấy phần mềm "dọn máy, tăng tốc khởi động" cũng tắt bằng đúng cờ này, thường là không hỏi. Javis nay đọc cờ đó, và **bấm Bật tự khởi động sẽ gỡ cờ thật** thay vì chỉ ghi lại Run key (ghi lại Run key không đụng gì tới cờ, nên trước đây cái nút đó là một cái nút không làm gì trong đúng ca này).
+- **Cảnh thứ hai: thư mục cài đặt đổi chỗ.** Cờ `stale` đã được tính từ lâu nhưng **trang Cài đặt bỏ qua hẳn nó**, chỉ trang Tổng quan mới hiện. Cùng một máy hỏng mà mở hai trang thì đọc được hai câu trả lời khác nhau. Nay lý do do server tính một lần và cả hai trang cùng hiện, nên không còn cửa cho hai bản trôi lệch.
+- **Cảnh thứ ba: mảnh của dây chuyền biến mất** (`start-javis.vbs` hoặc `.venv\Scripts\python.exe`). `wscript` không thấy file .vbs thì im hoàn toàn, còn `cmd` thì ghi lỗi vào `javis.log`, một file không ai mở ra xem bao giờ. Nay Javis kiểm ngay lúc đọc trạng thái và gọi tên đúng file đang thiếu.
+- **Nhãn trên thẻ nói thật:** bật mà có vấn đề thì ghi "Bật nhưng không chạy" kèm một câu chỉ rõ phải sửa gì, thay vì chữ "Bật" trơn. Trạng thái cũng trả kèm đường dẫn `server\javis.log` để còn chỗ mà soi khi server có chạy nhưng chết giữa chừng.
+- Tài liệu: thêm mục "Khi thẻ ghi Bật nhưng không chạy" vào [Bắt đầu & thiết lập](docs/01-bat-dau-thiet-lap.md).
+
 ## [0.26.11] - 2026-08-09
 ### Sửa lỗi
 - **Thẻ bot Zalo thôi đỏ vì một vòng poll gãy lẻ.** Bản 0.26.10 chữa được ca "Request timeout" lúc bot rảnh, nhưng nó dựa trên một PHỎNG ĐOÁN chưa kiểm chứng: rằng nhịp hết giờ chờ của Zalo không gắn `error_code`. Tài liệu Zalo không nói gì về chuyện đó. Đoán sai theo hướng ấy thì bản vá im lặng không chạy, và người dùng lại thấy đúng cái thẻ đỏ cũ mà không hiểu vì sao. Nay nhận cả hai khuôn: có mã hết giờ (408, 504) kèm chữ timeout vẫn là nhịp rảnh.

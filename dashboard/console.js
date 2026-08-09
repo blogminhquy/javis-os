@@ -2541,12 +2541,15 @@
       if (!j.supported) { sec.style.display = "none"; return; }   // Docker/Linux: ẩn hẳn
       sec.style.display = "";
       const on = !!j.enabled;
-      document.getElementById("ovAutoTag").textContent = on ? "bật" : "tắt";
+      // Nhãn phải nói THẬT. "Bật" mà lúc mở máy không có gì chạy là kiểu hỏng đã đưa người
+      // dùng tới màn hình ERR_CONNECTION_REFUSED mà không biết bắt đầu tìm từ đâu.
+      document.getElementById("ovAutoTag").textContent =
+        on ? (j.ly_do ? "bật nhưng không chạy" : "bật") : "tắt";
       const meta = document.getElementById("ovAutoMeta");
       meta.innerHTML = on
         ? "Javis tự chạy nền mỗi khi anh đăng nhập Windows - không cần bật tay. Chạy ẩn, mở <code>localhost:7777</code> để dùng."
         : "Bật để Javis tự khởi động mỗi khi mở máy. Chạy ẩn ở nền, không hiện cửa sổ.";
-      if (j.stale) meta.innerHTML += '<br><span class="dim">' + WARN_ICON + ' Đường dẫn cài đặt đã đổi - bấm bật lại để cập nhật.</span>';
+      if (j.ly_do) meta.innerHTML += '<br><span class="dim">' + WARN_ICON + " " + esc(j.ly_do) + "</span>";
       const btn = document.getElementById("ovAutoToggle");
       btn.style.display = "";
       btn.disabled = false;
@@ -4263,10 +4266,15 @@
       if (!j.supported) return;
       section.style.display = ""; section.open = true;
       const on = !!j.enabled;
-      document.getElementById("setAutoTag").textContent = on ? "Bật" : "Tắt";
-      document.getElementById("setAutoMeta").innerHTML = on
+      document.getElementById("setAutoTag").textContent =
+        on ? (j.ly_do ? "Bật nhưng không chạy" : "Bật") : "Tắt";
+      // Lý do do SERVER tính (`ly_do`), không dựng lại ở đây: cùng trạng thái này hiện ở cả
+      // trang Tổng quan lẫn trang Cài đặt, viết hai bản thì sớm muộn hai bản nói khác nhau.
+      // Bản trước trang này bỏ qua hẳn cờ `stale`, nên cùng một máy hỏng mà hai trang nói khác nhau.
+      document.getElementById("setAutoMeta").innerHTML = (on
         ? "Javis tự chạy nền khi anh đăng nhập Windows; mở <code>localhost:7777</code> để dùng."
-        : "Bật để Javis tự khởi động ở nền mỗi khi mở máy.";
+        : "Bật để Javis tự khởi động ở nền mỗi khi mở máy.")
+        + (j.ly_do ? '<br><span class="dim">' + WARN_ICON + " " + esc(j.ly_do) + "</span>" : "");
       const button = document.getElementById("setAutoToggle");
       button.style.display = ""; button.disabled = false; button.textContent = on ? "Tắt tự khởi động" : "Bật tự khởi động";
       button.onclick = async () => {

@@ -150,6 +150,16 @@ Chi tiết xem [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md) và
 
 Nhóm này **chỉ hiện trên bản chạy Windows**; bản Docker/Linux ẩn hẳn. Thẻ **Tự bật Javis** cho biết trạng thái ("Bật" hoặc "Tắt") và có một nút duy nhất: **Bật tự khởi động** hoặc **Tắt tự khởi động**. Khi bật, Javis tự chạy nền lúc bạn đăng nhập Windows, mở `localhost:7777` là dùng được.
 
+#### Khi thẻ ghi "Bật nhưng không chạy"
+
+Mở máy lên mà `localhost:7777` báo **ERR_CONNECTION_REFUSED** thì mở lại trang này. Javis tự kiểm ba nguyên nhân và ghi thẳng nguyên nhân dưới thẻ, vì cả ba đều **không để lại lỗi ở đâu**:
+
+- **Windows đang chặn mục khởi động này.** Task Manager, thẻ **Startup**, khi bạn bấm Disable thì nó không xoá gì cả, chỉ ghi một cờ để Windows bỏ qua. Nhiều phần mềm "dọn máy, tăng tốc khởi động" cũng tắt bằng đúng cờ đó mà không hỏi. Bấm **Bật tự khởi động** lại là Javis tự gỡ cờ.
+- **Thư mục cài đặt đã đổi chỗ**, lệnh khởi động còn trỏ đường dẫn cũ. Bấm bật lại để cập nhật.
+- **Thiếu `start-javis.vbs` hoặc `.venv\Scripts\python.exe`.** Chạy lại `setup.bat` để dựng lại phần thiếu.
+
+Nếu thẻ ghi **Bật** không kèm cảnh báo nào mà mở máy vẫn không lên, mở `server\javis.log` trong thư mục cài đặt: đó là nơi server ghi lỗi khi nó có chạy nhưng chết giữa chừng.
+
 Về Second Brain (bộ nhớ, Wiki, cấu trúc vault), xem [Second Brain: bộ nhớ, Wiki, INGEST](13-second-brain-bo-nho-wiki.md).
 
 ## Cập nhật phiên bản
