@@ -252,6 +252,24 @@ Badge cạnh chữ **HỘI THOẠI** (và ở góc phải trang Trò chuyện) h
 
 Trên điện thoại, chip model dời lên header và bảng chọn mở ra giữa màn hình.
 
+## Javis trình bày câu trả lời thế nào
+
+Từ bản 0.26.9, câu trả lời trên khung chat web được viết cho **mắt đọc**, không phải cho tai nghe:
+
+- Đoạn ngắn 2-4 câu rồi xuống dòng, thay vì mấy khối văn xuôi liền mạch.
+- Liệt kê từ 3 ý trở lên thì gạch đầu dòng.
+- **In đậm** con số, tên riêng và kết luận, tức là những thứ bạn lướt mắt tìm.
+- Câu trả lời dài có nhiều phần rõ rệt thì mỗi phần một tiêu đề.
+- Bảng khi so sánh cùng một bộ trường giữa nhiều mục, ví dụ doanh thu ba kênh theo tuần.
+
+Trước đó Javis được dặn viết văn xuôi trơn vì Javis vốn hay được dùng bằng **giọng nói**. Nay không cần đánh đổi nữa: nút loa **tự bóc markdown** (tiêu đề, in đậm, gạch đầu dòng, link, khối mã) trước khi đọc thành tiếng, nên định dạng đẹp cho mắt không làm giọng đọc vấp.
+
+Câu hỏi ngắn vẫn được trả lời bằng một câu. Định dạng là để dễ đọc, không phải để mọi câu trả lời trông như một bản báo cáo.
+
+Các kênh chữ thuần thì siết hơn vì bản thân chúng không vẽ được: **Telegram** và **Zalo** không có bảng markdown, **terminal** thì không có bảng, ảnh nhúng lẫn link markdown. Cả ba vẫn dùng gạch đầu dòng bình thường. Xem [Telegram](11-telegram.md) và [CLI trong terminal](24-cli-terminal.md).
+
+> Nếu Javis vẫn trả lời bằng văn xuôi dài: nhiều khả năng bộ nhớ dài hạn của brain còn một ký ức cũ kiểu "không thích bảng markdown, thích văn nói ngắn" từ thời bạn dùng bằng giọng nói, và ký ức đó được nạp vào **mọi** lượt chat. Mở `memory/MEMORY.md` trong trang **Tệp tin**, tìm dòng nói về cách trả lời rồi xoá dòng đó cùng file tương ứng trong `memory/facts/`. Xem [Second Brain, bộ nhớ & wiki](13-second-brain-bo-nho-wiki.md).
+
 ## Giọng đọc: nhà cung cấp, giọng, tốc độ
 
 Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**.

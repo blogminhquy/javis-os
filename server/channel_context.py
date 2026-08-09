@@ -105,6 +105,9 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
             "- Đang chat qua Telegram: trả lời NGẮN gọn kiểu tin nhắn. Telegram hiển thị được "
             "đậm/nghiêng/`code`, KHÔNG hiển thị bảng markdown - đừng dùng bảng.",
+            "- Vẫn trình bày cho dễ đọc trong khuôn khổ đó: liệt kê từ 3 ý trở lên thì gạch đầu "
+            "dòng `- `, in đậm con số và kết luận, đoạn dài thì tách dòng. Tiêu đề `###` gateway "
+            "tự hạ thành một dòng in đậm nên dùng được, nhưng tin nhắn ngắn thì khỏi cần.",
             "",
             "## Gửi file cho user qua Telegram (2 cách)",
             "1. TỰ ĐỘNG (nên dùng - luôn về ĐÚNG người đang hỏi): file bạn tạo bằng tool Write trong "
@@ -186,6 +189,8 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
             "- Đang chat qua Zalo: trả lời NGẮN gọn kiểu tin nhắn. Zalo hiển thị được "
             "đậm/nghiêng/`code`, KHÔNG hiển thị bảng markdown - đừng dùng bảng.",
+            "- Liệt kê từ 3 ý trở lên thì gạch đầu dòng `- ` cho dễ đọc, in đậm con số và kết "
+            "luận. Đừng dồn nhiều ý vào một đoạn văn xuôi dài.",
             "- TRẦN 2000 KÝ TỰ một tin. Câu dài bị cắt thành nhiều tin liên tiếp, đọc rời rạc, "
             "nên hãy viết gọn ngay từ đầu thay vì để gateway cắt hộ.",
             "",
@@ -220,6 +225,9 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "trên một dòng riêng để user copy hoặc mở bằng lệnh khác.",
             "- Trả lời gọn, xuống dòng thường xuyên. Khối mã vẫn dùng ba dấu backtick "
             "(CLI tô màu được).",
+            "- Liệt kê từ 3 ý trở lên thì gạch đầu dòng `- ` (terminal hiện đúng dấu gạch, đọc "
+            "vẫn rõ). Nhấn mạnh bằng CHỮ HOA hoặc vị trí câu, đừng bọc `**` vì nó hiện nguyên "
+            "dấu sao.",
             "- Người hỏi đang ở terminal nên có sẵn shell: đường dẫn và lệnh gợi ý là thứ họ "
             "dùng được ngay, hữu ích hơn mô tả dài dòng.",
         ]
@@ -228,6 +236,23 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
         lines += [
             "- Nguồn tin nhắn này: Dashboard web Javis (user mở bằng trình duyệt, file hiện dạng đường dẫn).",
             f"- Nền tảng đang kết nối: {', '.join(platforms)}.",
+            "",
+            "## Cách trình bày trong khung chat này (kênh ĐỌC, không phải kênh nghe)",
+            "- Khung chat web render ĐỦ markdown: tiêu đề `#`..`######`, gạch đầu dòng, danh sách "
+            "số, `- [ ]` checkbox, **đậm**, *nghiêng*, `code`, khối ```code``` có tô màu, bảng, "
+            "trích dẫn `>`, ảnh `![](...)`, link, wikilink `[[...]]`. Cứ dùng, đừng tự siết về "
+            "văn xuôi trơn.",
+            "- Người dùng ở đây ĐỌC bằng mắt. Một câu trả lời dài đổ ra thành mấy đoạn văn xuôi "
+            "liền mạch là lỗi trình bày nặng nhất của kênh này, và chủ repo đã than đúng chuyện "
+            "đó. Chia đoạn 2-4 câu, liệt kê từ 3 ý trở lên thì gạch đầu dòng, in đậm con số và "
+            "kết luận, câu trả lời dài có từ 3 phần rõ rệt thì đặt tiêu đề `###` cho từng phần.",
+            "- Bảng thì kênh này VẼ ĐƯỢC, nên dùng khi so sánh cùng một bộ trường giữa 2 mục trở "
+            "lên. Chỉ một danh sách phẳng thì gạch đầu dòng đọc nhanh hơn bảng.",
+            "- KHÔNG viết xấu đi vì sợ giọng đọc: nút loa của dashboard tự bóc markdown (tiêu đề, "
+            "đậm, gạch đầu dòng, link, khối mã) trước khi đọc thành tiếng, nên định dạng không "
+            "làm hỏng phần nghe.",
+            "- Vẫn giữ giọng người đang nói và vẫn ngắn gọn. Định dạng là để dễ đọc, không phải "
+            "cái cớ để viết dài ra hay bẻ một ý nhỏ thành ba gạch đầu dòng.",
         ]
         if web_sid:
             lines += [

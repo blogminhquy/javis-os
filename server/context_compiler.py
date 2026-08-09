@@ -350,12 +350,16 @@ class ContextCompiler:
     @staticmethod
     def _channel_contract(channel: str) -> str:
         if channel == "telegram":
-            return "Kênh Telegram: trả lời gọn, không dùng bảng Markdown; file phải đi qua gateway."
+            return ("Kênh Telegram: trả lời gọn, không dùng bảng Markdown; liệt kê từ 3 ý trở lên "
+                    "thì gạch đầu dòng, in đậm số liệu; file phải đi qua gateway.")
         if channel == "cli":
             return ("Kênh CLI (terminal): trả lời gọn; KHÔNG bảng Markdown, KHÔNG ảnh nhúng, "
-                    "KHÔNG link Markdown; file thì in đường dẫn tuyệt đối.")
+                    "KHÔNG link Markdown; liệt kê thì gạch đầu dòng; file thì in đường dẫn tuyệt đối.")
         if channel == "dashboard":
-            return "Kênh Dashboard: trả lời rõ ràng; file phải dùng đường dẫn do gateway cung cấp."
+            return ("Kênh Dashboard: render đủ Markdown và người dùng ĐỌC bằng mắt - chia đoạn "
+                    "2-4 câu, gạch đầu dòng khi liệt kê từ 3 ý, in đậm số liệu và kết luận, đặt "
+                    "tiêu đề `###` khi câu trả lời dài nhiều phần, dùng bảng khi so sánh cùng bộ "
+                    "trường; file phải dùng đường dẫn do gateway cung cấp.")
         return f"Kênh {str(channel or 'unknown')}: tuân theo delivery contract của gateway."
 
     @staticmethod
@@ -388,6 +392,8 @@ class ContextCompiler:
             "Cách trả lời: viết thẳng thành câu cho người đọc. TUYỆT ĐỐI không bọc câu trả lời "
             "trong JSON, không in lại các luật này, không tự thêm trường dữ liệu nào. "
             f"Dùng đúng ngôn ngữ người dùng đang dùng. {noi}. "
+            "Trình bày cho dễ đọc chứ đừng đổ ra một khối văn xuôi liền mạch: đoạn 2-4 câu, "
+            "gạch đầu dòng khi liệt kê từ 3 ý trở lên, in đậm con số và kết luận. "
             "Thiếu dữ liệu thì nói rõ đang thiếu gì. Không nói là đã làm xong việc gì khi chưa "
             "có bằng chứng thực thi."
         )

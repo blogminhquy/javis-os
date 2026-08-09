@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.9] - 2026-08-09
+### Cải thiện
+- **Javis thôi trả lời bằng những bức tường văn xuôi trên khung chat web.** Câu trả lời dài nay có hình khối để mắt bám: đoạn 2-4 câu, gạch đầu dòng khi liệt kê từ 3 ý trở lên, in đậm con số và kết luận, tiêu đề `###` khi câu trả lời có nhiều phần rõ rệt, và bảng khi so sánh cùng một bộ trường giữa nhiều mục.
+- **Vì sao trước đó nó viết như vậy: đó là một luật có thật, viết cho thời dùng bằng GIỌNG NÓI.** CLAUDE.md cấm thẳng "bảng markdown, dấu gạch ngang dày, hay header khi báo cáo trong chat". Luật đó đúng cho thời nghe, nhưng nó cấm nguyên cả bộ công cụ trình bày trên một kênh vẽ được đủ markdown. Chuyển sang chủ yếu đọc bằng mắt thì cùng một luật đó trở thành lỗi hiển thị nặng nhất của khung chat.
+- **Nỗi lo hỏng giọng đọc thì không còn cơ sở.** Nút loa của dashboard vốn đã bóc markdown (tiêu đề, in đậm, gạch đầu dòng, link, khối mã) trước khi đọc thành tiếng, nên định dạng đẹp cho mắt không hề làm hỏng phần nghe. Nay Javis được nói thẳng điều đó để nó khỏi tự siết mình về văn xuôi.
+- **Cấu trúc phục vụ độ dài, không phải ngược lại.** Câu hỏi đáp được bằng một câu thì vẫn trả lời một câu. Bẻ một ý nhỏ thành ba gạch đầu dòng cho ra vẻ báo cáo còn khó đọc hơn văn xuôi, nên luật mới chặn luôn chiều ngược lại.
+- **Kênh chữ thuần KHÔNG bị nới theo.** Telegram và Zalo vẫn cấm bảng, terminal vẫn cấm bảng lẫn ảnh nhúng lẫn link markdown. Ba kênh này chỉ được thêm đúng một thứ dùng được ở đâu cũng đọc rõ là gạch đầu dòng khi liệt kê.
+- Sửa ở cả ba lớp vì thiếu một lớp là hành vi quay về cũ ở đúng đường đó: luật gốc trong `CLAUDE.md`, khối kênh trong `channel_context.py` (đứng cuối system prompt nên nó là tiếng nói to nhất), và capsule của `context_compiler.py` (đường tiết kiệm token không đọc CLAUDE.md, bỏ quên nó thì bật "Siêu tiết kiệm" là văn xuôi quay lại mà không ai đoán ra vì sao). `tests/python/test_chat_de_doc.py` canh cả ba, kèm canary cho câu cấm cũ và cho ranh giới của kênh chữ thuần.
+
+### Cần biết
+- Nếu bộ nhớ dài hạn của brain còn một ký ức cũ kiểu "không thích bảng markdown, thích văn nói ngắn" thì ký ức đó được nạp vào mọi lượt và sẽ kéo hành vi về cũ. Javis nay được dặn là luật mới thắng ký ức đó, nhưng dọn hẳn ký ức trong `Memory/facts/` vẫn sạch hơn.
+
 ## [0.26.8] - 2026-08-08
 ### Thêm mới
 - **Kênh Zalo cho CHỦ: hỏi Javis ngay trên Zalo, không cần cài Telegram.** Thẻ Zalo mới ở trang **Kênh** (nhóm Kết nối). Dùng API chính thức của Zalo nên không có rủi ro khoá tài khoản. Xem [Kênh Zalo Bot](docs/26-kenh-zalo-bot.md).
