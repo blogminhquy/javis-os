@@ -58,12 +58,24 @@ check("viết hoa thường kiểu gì cũng nhận",
 check("CANARY: mất mạng phía mình -> KHÔNG phải nhịp rảnh",
       _la_het_gio_cho({"ok": False, "description": "ReadTimeout: quá lâu",
                        "loi_mang": True}) is False)
-check("có error_code -> lỗi thật, dù chữ có nói gì",
-      _la_het_gio_cho({"ok": False, "description": "Request timeout",
-                       "error_code": 429}) is False)
+for _ma in (401, 403, 404, 429):
+    check(f"mã {_ma} -> lỗi thật, dù chữ có nói gì",
+          _la_het_gio_cho({"ok": False, "description": "Request timeout",
+                           "error_code": _ma}) is False)
 for _mo_ta in ("Unauthorized", "Bot not found", ""):
     check(f"'{_mo_ta or '(rỗng)'}' -> lỗi thật",
           _la_het_gio_cho({"ok": False, "description": _mo_ta}) is False)
+
+# Bản đầu của bản vá loại MỌI phản hồi có `error_code`, dựa trên phỏng đoán rằng nhịp hết giờ
+# của Zalo không gắn mã. Tài liệu Zalo không nói gì về chuyện đó, và đoán sai theo hướng ấy thì
+# bản vá im lặng không chạy - người dùng lại thấy đúng thẻ đỏ cũ mà không hiểu vì sao.
+for _ma in (408, 504):
+    check(f"mã hết giờ {_ma} kèm chữ timeout -> vẫn là nhịp rảnh",
+          _la_het_gio_cho({"ok": False, "description": "Request timeout",
+                           "error_code": _ma}) is True)
+check("mã lạ ngoài hai nhóm trên -> không đoán bừa là rảnh",
+      _la_het_gio_cho({"ok": False, "description": "Request timeout",
+                       "error_code": 500}) is False)
 
 # `_api` phải THẬT SỰ gắn dấu, nếu không hàm trên chỉ đúng trên giấy.
 _src = (ROOT / "server" / "zalo_bot.py").read_text(encoding="utf-8")
@@ -148,6 +160,48 @@ check("429 của Zalo vẫn nghỉ hẳn 60 giây", any(g >= 60 for g in _ngu3))
 # Zalo đáp gần như tức thì (không tôn trọng `timeout`) thì phải tự ghìm, kẻo vòng lặp nện API
 # vài lần mỗi giây rồi ăn 429 thật - tức là tự tạo ra đúng cái lỗi vừa sửa xong ở trên.
 check("Zalo đáp tức thì thì vẫn ghìm lại một nhịp ngắn", any(0 < g <= 5 for g in _ngu))
+
+
+# ============================================================
+# 3. Gãy vì lý do KHÔNG rõ: chỉ đỏ thẻ khi nó lặp lại
+# ============================================================
+# Một vòng gãy lẻ là chuyện của đường truyền chứ không phải chuyện của người chủ. Đỏ thẻ vì nó
+# thì cái thẻ mất giá trị đúng như hồi nó đỏ vì mỗi vòng rảnh - và đó là cả cái bệnh đang chữa.
+_LA = {"ok": False, "description": "Internal error", "error_code": 500}
+
+_b4 = _bot()
+asyncio.run(_mot_vong(_b4, _LA))
+check("gãy lần đầu vì lý do lạ -> CHƯA đỏ thẻ", _b4.status == "polling")
+check("và chưa dán lỗi lên thẻ", _b4.last_error == "")
+
+_b5 = _bot()
+for _ in range(3):
+    _b5._stop = False
+    asyncio.run(_mot_vong(_b5, _LA))
+check("gãy 3 vòng LIÊN TIẾP -> đỏ thẻ", _b5.status == "error")
+check("và nói rõ là gãy liên tiếp mấy vòng", "liên tiếp" in _b5.last_error)
+check("kèm nguyên văn lý do gốc", "Internal error" in _b5.last_error)
+
+# Một vòng chạy được là xoá sạch bộ đếm: hai lần gãy cách nhau một tiếng không phải là hỏng.
+_b6 = _bot()
+for _ in range(2):
+    _b6._stop = False
+    asyncio.run(_mot_vong(_b6, _LA))
+_b6._stop = False
+asyncio.run(_mot_vong(_b6, {"ok": True, "result": []}))
+check("một vòng chạy được thì xoá bộ đếm gãy", _b6._gay_lien_tiep == 0)
+_b6._stop = False
+asyncio.run(_mot_vong(_b6, _LA))
+check("nên lần gãy sau đó lại tính từ đầu, chưa đỏ thẻ", _b6.status == "polling")
+
+# Nhịp rảnh cũng phải xoá bộ đếm, vì nó là bằng chứng đường đi vẫn thông.
+_b7 = _bot()
+for _ in range(2):
+    _b7._stop = False
+    asyncio.run(_mot_vong(_b7, _LA))
+_b7._stop = False
+asyncio.run(_mot_vong(_b7, {"ok": False, "description": "Request timeout"}))
+check("nhịp rảnh cũng xoá bộ đếm gãy", _b7._gay_lien_tiep == 0)
 
 check("không dùng em dash trong mã nguồn (luật CLAUDE.md)", "—" not in _src)
 

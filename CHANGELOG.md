@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.11] - 2026-08-09
+### Sửa lỗi
+- **Thẻ bot Zalo thôi đỏ vì một vòng poll gãy lẻ.** Bản 0.26.10 chữa được ca "Request timeout" lúc bot rảnh, nhưng nó dựa trên một PHỎNG ĐOÁN chưa kiểm chứng: rằng nhịp hết giờ chờ của Zalo không gắn `error_code`. Tài liệu Zalo không nói gì về chuyện đó. Đoán sai theo hướng ấy thì bản vá im lặng không chạy, và người dùng lại thấy đúng cái thẻ đỏ cũ mà không hiểu vì sao. Nay nhận cả hai khuôn: có mã hết giờ (408, 504) kèm chữ timeout vẫn là nhịp rảnh.
+- **Lỗi không rõ nguyên nhân chỉ đỏ thẻ khi gãy 3 vòng LIÊN TIẾP.** Một vòng gãy lẻ là chuyện của đường truyền chứ không phải chuyện người chủ phải ra tay, mà đỏ thẻ vì nó thì cái thẻ mất giá trị đúng như hồi nó đỏ vì mỗi vòng rảnh. Vòng chạy được hoặc vòng rảnh đều xoá bộ đếm, nên hai lần gãy cách nhau một tiếng không bị cộng dồn thành "đang hỏng".
+- **Nhóm lỗi CẦN NGƯỜI vẫn đỏ thẻ ngay lập tức** (401 sai token, 403 bị chặn, 404 bot đã xoá, 429 gọi quá dày). Chỉ nhóm này mới nói được cho chủ một việc cụ thể để làm, nên nó không bị hoãn theo ngưỡng 3 vòng.
+- Vì sao cả hai chuyện trên hay bị bắt gặp khi hỏi câu KHÓ: lúc Javis nghĩ lâu thì vòng poll chạy không mà không có tin nào, nên mọi vòng trong khoảng đó đều rơi vào đúng nhánh này. Chat qua lại nhanh thì các vòng poll đều có tin và thẻ sạch, nên lỗi chỉ ló ra đúng lúc người ta ngồi chờ một câu trả lời dài.
+
 ## [0.26.10] - 2026-08-09
 ### Sửa lỗi
 - **Bot Zalo đang RẢNH không còn bị báo là đang LỖI.** Thẻ bot ở trang Chatbot đỏ chấm "Lỗi" kèm dòng "Request timeout" trong khi con bot vẫn sống và vẫn trả lời được. Nguyên nhân: `getUpdates` của Zalo không cư xử như Telegram. Telegram hết giờ chờ thì trả `ok: true` với danh sách rỗng, còn Zalo trả `ok: false` kèm `description: "Request timeout"`. Đó là nhịp bình thường của long polling, 25 giây không ai nhắn thì đúng là không có gì để trả về.

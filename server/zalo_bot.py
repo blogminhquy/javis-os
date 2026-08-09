@@ -68,16 +68,33 @@ SK_VOICE = "message.voice.received"
 #      Tin nhắn rơi vào khoảng đó không mất, nhưng phải chờ tới vòng sau mới được đọc.
 _HET_GIO_CHO = ("request timeout", "timeout", "no update", "no new update", "empty")
 
+# Mã lỗi mà CHỦ phải ra tay: token sai, bot bị xoá, gọi quá dày. Chỉ những mã này mới đáng
+# đỏ thẻ ngay lập tức, vì chỉ chúng nói được cho chủ một việc cụ thể để làm.
+_MA_CAN_NGUOI = {401, 403, 404, 429}
+# Mã đi kèm một nhịp hết giờ chờ. Tài liệu Zalo không nói nó có gắn mã hay không, nên nhận
+# cả hai khuôn: đoán chặt một khuôn rồi đoán sai thì bản vá này im lặng không chạy.
+_MA_HET_GIO = {408, 504}
+# Gãy vì lý do KHÔNG rõ thì phải lặp lại đủ nhiều mới đỏ thẻ. Một vòng gãy lẻ là chuyện của
+# đường truyền, không phải chuyện của người chủ.
+_NGUONG_DO_THE = 3
+
 
 def _la_het_gio_cho(d: dict) -> bool:
     """Phản hồi `getUpdates` này là 'hết giờ chờ, không có tin' chứ không phải hỏng?
 
     Chỉ nhận khi CHÍNH máy chủ Zalo đáp (có body JSON). Dict sinh từ ngoại lệ mang `loi_mang`
     và bị loại thẳng: `ReadTimeout` là máy mình không nối ra được, trông giống mà khác hẳn.
-    Cũng loại mọi phản hồi có `error_code` - Zalo gắn mã cho lỗi thật (401, 429...), còn nhịp
-    hết giờ thì không có mã nào.
+
+    Mã lỗi: loại thẳng nhóm cần người can thiệp (401/403/404/429). Ngoài nhóm đó thì một mã
+    đi kèm chữ "timeout" vẫn được coi là nhịp rảnh - bản trước loại MỌI phản hồi có mã, và đó
+    là một phỏng đoán về khuôn phản hồi của Zalo chứ không phải điều đã kiểm chứng.
     """
-    if not isinstance(d, dict) or d.get("loi_mang") or d.get("error_code"):
+    if not isinstance(d, dict) or d.get("loi_mang"):
+        return False
+    ma = d.get("error_code")
+    if ma in _MA_CAN_NGUOI:
+        return False
+    if ma is not None and ma not in _MA_HET_GIO:
         return False
     mo_ta = str(d.get("description") or "").strip().casefold()
     return bool(mo_ta) and any(k in mo_ta for k in _HET_GIO_CHO)
@@ -118,6 +135,7 @@ class ZaloBot(HangLuot):
         self._stop = False
         self.status = "off"           # off | starting | polling | error | stopped
         self.last_error = ""
+        self._gay_lien_tiep = 0       # số vòng getUpdates gãy LIÊN TIẾP vì lý do không rõ
         # Danh tính của chính bot này (getMe).
         self.bot_id = ""
         self.bot_username = ""        # `account_name` của Zalo, giữ tên trường cho khớp Telegram
@@ -485,19 +503,38 @@ class ZaloBot(HangLuot):
                         # đáp gần như tức thì (không tôn trọng `timeout`) thì phải tự ghìm lại,
                         # kẻo vòng lặp nện API vài lần mỗi giây rồi ăn 429 thật.
                         _lau = time.monotonic() - _t0
+                        self._gay_lien_tiep = 0
                         if _lau < 5:
                             await asyncio.sleep(2)
                         continue
                     if not d.get("ok"):
                         ma = d.get("error_code")
-                        self.status = "error"
-                        self.last_error = str(d.get("description") or "getUpdates lỗi")
-                        # 429 là hạn mức, không phải hỏng: nghỉ dài hơn hẳn rồi thử lại. Zalo
-                        # chưa công bố con số hạn mức nào nên đây là chỗ duy nhất biết được.
-                        await asyncio.sleep(60 if ma == 429 else 10)
+                        mo_ta = str(d.get("description") or "getUpdates lỗi")
+                        if ma in _MA_CAN_NGUOI:
+                            # Chủ phải ra tay: sai token, bot bị xoá, gọi quá dày. Đỏ thẻ NGAY,
+                            # vì chỉ nhóm này mới nói được cho chủ một việc cụ thể để làm.
+                            self._gay_lien_tiep = 0
+                            self.status = "error"
+                            self.last_error = mo_ta
+                            # 429 là hạn mức, không phải hỏng: nghỉ dài hơn hẳn rồi thử lại. Zalo
+                            # chưa công bố con số hạn mức nào nên đây là chỗ duy nhất biết được.
+                            await asyncio.sleep(60 if ma == 429 else 10)
+                            continue
+                        # Không rõ là chuyện gì. Một vòng gãy lẻ là chuyện của đường truyền chứ
+                        # không phải chuyện của người chủ, mà đỏ thẻ vì nó thì cái thẻ mất giá
+                        # trị đúng như hồi nó đỏ vì mỗi vòng rảnh. Chỉ đỏ khi gãy LIÊN TIẾP.
+                        self._gay_lien_tiep += 1
+                        if self._gay_lien_tiep >= _NGUONG_DO_THE:
+                            self.status = "error"
+                            self.last_error = f"{mo_ta} (gãy {self._gay_lien_tiep} vòng liên tiếp)"
+                        else:
+                            print(f"[zalo] getUpdates gãy vòng {self._gay_lien_tiep}: {mo_ta[:160]}",
+                                  file=sys.stderr)
+                        await asyncio.sleep(min(10, 2 * self._gay_lien_tiep))
                         continue
                     self.status = "polling"
                     self.last_error = ""
+                    self._gay_lien_tiep = 0
                     if not self.bot_id and time.monotonic() - self._lan_hoi_danh_tinh > 60:
                         await self._hoi_danh_tinh(client, lan=1)
                     for ev, msg in self._boc_su_kien(d):
