@@ -118,6 +118,19 @@ Vài điều nên biết về tìm kiếm:
 3. Sửa xong bấm **💾 Lưu**. Khi lưu thành công, nút đổi thành **✓ Đã lưu** rồi trở lại như cũ.
 4. Bấm **✕** ở góc trên cửa sổ để đóng. Bạn cũng có thể bấm ra vùng tối bên ngoài cửa sổ để đóng.
 
+### Lùi về / Tiến lên giữa các note
+
+Đọc một note wiki là đi theo chuỗi liên kết: bấm một `[[wikilink]]` là sang note khác. Hai nút mũi tên **‹ ›** ở **góc trên bên trái**, ngay trước tên file, đưa bạn đi lại trên vệt đó - đúng như nút Lùi/Tiến của trình duyệt.
+
+- **Bấm mũi tên trái** để quay lại note vừa đọc, **mũi tên phải** để tiến lên lại.
+- **Rê chuột vào nút là biết sẽ tới đâu.** Tooltip gọi thẳng tên file, ví dụ "Lùi về: Bát Giác Offer.md". Đi sâu bốn năm tầng liên kết thì nhớ mình từ đâu tới là chuyện không dễ, nên nút nói hộ.
+- **Hết chỗ để đi thì nút mờ đi chứ không biến mất.** Nút ẩn hiện làm thanh tiêu đề nhảy, và bạn sẽ không bao giờ biết là có nút đó.
+- **Phím tắt: `Alt` + `←` và `Alt` + `→`.** Chuột có nút lùi/tiến bên hông cũng dùng được luôn.
+- Vệt đường đi **giữ nguyên khi bạn đóng trình sửa** rồi mở lại (đóng ra để chat về chính note đó là chuyện thường), và **tự xoá khi bạn đổi sang brain khác** - vì mọi bước trong vệt đều thuộc brain cũ.
+- Đang đứng giữa vệt mà mở một note mới thì phần phía trước bị cắt, y như trình duyệt.
+
+**Rời một file đang sửa dở thì Javis tự lưu trước.** Bấm mũi tên, bấm một wikilink, hay bấm file khác trong cây - nếu bạn có sửa gì mà chưa bấm Lưu, Javis lưu lại rồi mới đi. Nếu lưu hỏng (mất mạng, file bị khoá) thì **Javis không đi đâu cả** và nút Lưu hiện lỗi, để bài bạn vừa viết không bị vứt đi âm thầm. File bạn chỉ mở ra đọc rồi rời đi thì không bị ghi lại gì cả.
+
 **Mở file nào thì Javis làm việc trên file đó.** Ngay khi mở một file văn bản để sửa, Javis tự **ghim** file đó vào khung chat: một thẻ màu cam hiện phía trên thanh nhập, ghi tên file kèm dòng "đang mở - bấm để sửa tiếp". Từ lúc đó bạn hỏi gì thì Javis cũng đã có sẵn file đó làm đầu vào, khỏi phải dán đường dẫn hay mô tả lại. Bảo "dọn lại phần quá hạn giúp anh" hay "viết thêm mục kết luận" mà không nói file nào thì Javis ghi thẳng vào chính file đang mở.
 
 Thẻ ghim khác thẻ file đính kèm ở ba chỗ:

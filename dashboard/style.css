@@ -1936,7 +1936,15 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .ne-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px;
   border-bottom: 1px solid var(--border); background: var(--bg2); }
 .ne-title { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  display: flex; align-items: center; gap: 7px; }
+  display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
+/* Lùi / Tiến giữa các note. Hết chỗ để đi thì MỜ ĐI chứ không biến mất: nút ẩn hiện làm
+   thanh tiêu đề nhảy, và người dùng không bao giờ học được là có nút đó. */
+.ne-nav { display: flex; gap: 3px; flex: none; align-items: center; }
+.ne-nav button { background: var(--surface-1); border: 1px solid var(--border); color: var(--text2);
+  cursor: pointer; width: 28px; height: 26px; border-radius: 6px; padding: 0;
+  display: flex; align-items: center; justify-content: center; }
+.ne-nav button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent-line); }
+.ne-nav button:disabled { opacity: 0.35; cursor: default; }
 .ne-actions { display: flex; gap: 5px; flex: none; align-items: center; }
 .ne-actions button { background: var(--surface-1); border: 1px solid var(--border); color: var(--text2);
   cursor: pointer; font-size: 13px; padding: 4px 10px; border-radius: 6px; white-space: nowrap; }

@@ -4,6 +4,22 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.16] - 2026-08-10
+### Thêm mới
+- **Nút Lùi / Tiến giữa các note trong trình sửa.** Đọc wiki là đi theo chuỗi `[[wikilink]]`: bấm một cái là rời khỏi note đang đọc, mà trước bản này KHÔNG có đường về - phải đi tìm lại file cũ trong cây. Nghĩa là mỗi cú bấm link là một quyết định một chiều, đúng thứ làm người ta ngại bấm link trong chính vault của mình.
+- **Thiết kế theo hướng quen tay hơn là thông minh.** Hai mũi tên `‹ ›` nằm bên TRÁI tên file, đúng chỗ mọi trình duyệt đặt nó, nên không phải học. Phím `Alt` + `←` / `→` như trình duyệt. Chuột có nút lùi/tiến bên hông dùng được luôn (chặn ở `mousedown` để không lùi cả trang dashboard, mất luôn hội thoại đang mở).
+- **Tooltip gọi TÊN file sẽ tới**, không phải chữ "Lùi" trơn: "Lùi về: Bát Giác Offer.md". Đi sâu bốn năm tầng liên kết thì nhớ mình từ đâu tới là chuyện không dễ, nên nút nói hộ trước khi bấm.
+- **Hết chỗ đi thì nút MỜ đi chứ không biến mất.** Nút ẩn hiện làm thanh tiêu đề nhảy, và người dùng không bao giờ học được là có nút đó. Nút mờ vẫn nói được vì sao bấm không ăn.
+- Vệt đường đi sống qua lần đóng trình sửa (đóng ra chat về chính note đó rồi mở lại là luồng thường gặp nhất), tự xoá khi đổi brain, tự sửa theo khi đổi tên file và tự rút khi xoá file - ba ca đều dẫn tới "bấm Lùi rơi vào đường dẫn không còn tồn tại". Đang đứng giữa vệt mà mở note mới thì nhánh tiến bị cắt, y như trình duyệt.
+
+### Sửa lỗi
+- **Rời một file đang sửa dở thì thôi mất chữ.** Bấm `[[wikilink]]`, bấm file khác trong cây, hay bấm Lùi/Tiến: nếu có sửa mà chưa bấm Lưu thì Javis lưu trước rồi mới đi. Lỗi này có từ trước, nhưng nút Lùi/Tiến làm chuyện rời file xảy ra thường xuyên hơn hẳn nên không vá thì nó thành cái bẫy.
+- **Lưu hỏng thì Ở LẠI**, không đi tiếp, và lỗi hiện ngay trên nút Lưu. Đi tiếp lúc đó là vứt bài người ta vừa viết mà không nói một câu nào.
+- **Chỉ ĐỌC rồi rời đi thì không ghi lại gì.** Mốc so sánh "đã sửa gì chưa" lấy từ chính khung soạn lúc vừa mở, không phải chữ thô đọc từ đĩa: bản render WYSIWYG đổi ngược thành markdown luôn lệch đôi chỗ so với file gốc (chuẩn hoá dấu, xuống dòng), nên so với file gốc thì mở ra đọc một cái cũng bị tính là có sửa và Javis sẽ âm thầm ghi đè định dạng của file đó.
+
+### Cải thiện
+- Tài liệu: [Quản lý tệp tin](docs/05-quan-ly-tep-tin.md) thêm mục "Lùi về / Tiến lên giữa các note".
+
 ## [0.26.15] - 2026-08-10
 ### Thêm mới
 - **Ra lệnh bằng ghi âm trên Zalo**, y như Telegram ở bản trước. Bấm giữ micro nói một câu, Javis nghe thành chữ rồi làm như bạn gõ tay. **Dùng chung một key Groq**: đã đấu cho Telegram thì Zalo chạy luôn, không phải làm gì thêm.

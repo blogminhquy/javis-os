@@ -4565,8 +4565,17 @@
   let _vtActivePath = null;    // file .md đang mở (để tô sáng trong cây)
   let _vtWired = false;        // đã gắn handler search/toolbar chưa
   let _vtIndex = null;         // chỉ mục file toàn vault (crawl client) - cho tìm theo Tên không cần server restart
-  let _neSaveFn = null;        // hàm lưu của editor đang mở (cho Ctrl+S)
+  let _neSaveFn = null;        // hàm lưu của editor đang mở (cho Ctrl+S), trả true nếu lưu được
   let _neOpenRel = "";         // file đang mở trong trình sửa (đường dẫn theo TRẦN DUYỆT)
+  let _neLayNoiDung = null;    // () -> nội dung ĐANG soạn (markdown nếu là .md ở chế độ Sửa)
+  let _neGocText = null;       // nội dung lúc VỪA MỞ, để biết có sửa gì chưa (xem _neCoSuaChua)
+  // Vệt đường đi giữa các note, y hệt lịch sử trình duyệt: bấm [[wikilink]] là đi tới, Lùi là
+  // quay lại chỗ vừa đọc. Một mảng + một con trỏ, không phải hai ngăn xếp - dễ đọc hơn và
+  // đúng ngữ nghĩa "đi tới giữa chừng thì cắt nhánh tiến".
+  let _neLichSu = [];          // [{rel, name, ext}] theo thứ tự đi
+  let _neViTri = -1;           // vị trí đang đứng trong _neLichSu
+  let _neDangDiLichSu = false; // cờ: lần openNote này là do bấm Lùi/Tiến, đừng ghi thêm vệt
+  const NE_LICH_SU_MAX = 50;   // vệt là để quay lại chỗ vừa đọc, không phải nhật ký cả phiên
   const _vtRaw = (rel, dl) => `/files/raw?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}${dl ? "&dl=1" : ""}`;
   const _vtNoAccent = (s) => (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase();
 
@@ -4854,8 +4863,28 @@
   function _neKeyHandler(e) {
     const ed = document.getElementById("noteEditor"); if (!ed || ed.hidden) return;
     if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); if (_neSaveFn) _neSaveFn(); }
+    // Alt+mũi tên: đúng phím trình duyệt nào cũng dùng cho Lùi/Tiến. Chiếm phím này lúc trình
+    // sửa đang mở là đúng - lùi trong note mới là thứ người ta đang nghĩ tới, không phải lùi
+    // cả trang dashboard (mà lùi cả trang thì mất luôn hội thoại đang mở).
+    else if (e.altKey && e.key === "ArrowLeft") { e.preventDefault(); _neDiLichSu(-1); }
+    else if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); _neDiLichSu(1); }
     else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeNote(); }
   }
+  // Chuột có nút lùi/tiến bên hông (button 3/4): dùng được luôn, không phải học gì thêm.
+  // Chặn ở `mousedown` mới cắt được hành vi lùi TRANG của trình duyệt (chặn ở mouseup là
+  // muộn, trang đã đi rồi - mà lùi cả trang dashboard thì mất luôn hội thoại đang mở).
+  function _neTrongEditor(target) {
+    const ed = document.getElementById("noteEditor");
+    return !!(ed && !ed.hidden && ed.contains(target));
+  }
+  document.addEventListener("mousedown", (e) => {
+    if ((e.button === 3 || e.button === 4) && _neTrongEditor(e.target)) e.preventDefault();
+  });
+  document.addEventListener("auxclick", (e) => {
+    if (!_neTrongEditor(e.target)) return;
+    if (e.button === 3) { e.preventDefault(); _neDiLichSu(-1); }
+    else if (e.button === 4) { e.preventDefault(); _neDiLichSu(1); }
+  });
   function closeNote() {
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     ed.hidden = true; ed.classList.remove("ne-full");
@@ -4865,6 +4894,9 @@
     document.getElementById("neBody").innerHTML = ""; document.getElementById("neActions").innerHTML = "";
     _neSaveFn = null;
     _neOpenRel = "";
+    _neLayNoiDung = null; _neGocText = null;
+    // Vệt đường đi SỐNG QUA lần đóng: đóng trình sửa để quay sang chat về chính note đó rồi mở
+    // lại là luồng thường gặp nhất, xoá vệt ở đây là bắt người ta đi lại từ đầu.
     document.removeEventListener("keydown", _neKeyHandler, true);
     _vtMarkActive(null);
     try { recomputeGraph(); } catch (e) {}   // chạy lại não (đã gate active===home + không lite + studio đóng)
@@ -4881,6 +4913,9 @@
     const dir = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
     const newRel = dir ? dir + "/" + nn : nn;
     const ext = nn.includes(".") ? "." + nn.split(".").pop().toLowerCase() : ".md";
+    // Vệt đường đi đang trỏ vào TÊN CŨ ở mọi bước từng ghé file này. Không sửa lại thì bấm Lùi
+    // sẽ đi mở một đường dẫn không còn tồn tại.
+    _neLichSu.forEach(n => { if (n.rel === rel) { n.rel = newRel; n.name = nn; n.ext = ext; } });
     openNote(newRel, { name: nn, ext: ext, type: "file" });
   }
   async function _neDeleteCur(rel, it) {
@@ -4893,6 +4928,10 @@
       const p = window.JavisPin && window.JavisPin.get();
       if (p && p.rel === rel) window.JavisPin.clear();
     } catch (e) {}
+    // Cùng lý do: rút file đã xoá khỏi vệt đường đi, kẻo bấm Lùi lại rơi vào nó.
+    const truoc = _neLichSu.slice(0, _neViTri + 1).filter(n => n.rel !== rel).length;
+    _neLichSu = _neLichSu.filter(n => n.rel !== rel);
+    _neViTri = Math.min(truoc - 1, _neLichSu.length - 1);
     closeNote();
     await _vtRebuildReExpand(null);
   }
@@ -5003,11 +5042,102 @@
     };
   }
 
+  // ============================================================
+  // LÙI / TIẾN giữa các note - vệt đường đi kiểu trình duyệt
+  //
+  // Vì sao cần: bấm một [[wikilink]] là rời khỏi note đang đọc, và trước bản này KHÔNG có
+  // đường về - phải đi tìm lại file cũ trong cây. Đọc wiki là đi theo chuỗi liên kết, nên
+  // thiếu nút Lùi thì mỗi cú bấm link là một quyết định một chiều.
+  //
+  // Ba lựa chọn thiết kế, cả ba đều theo hướng "quen tay hơn là thông minh":
+  //   1. Nút nằm BÊN TRÁI tên file, hình mũi tên ‹ › - đúng chỗ mọi trình duyệt đặt nó.
+  //   2. Hết chỗ để đi thì nút MỜ ĐI chứ không biến mất. Nút ẩn hiện làm thanh tiêu đề nhảy
+  //      và người dùng không bao giờ học được là có nút đó.
+  //   3. Tooltip GỌI TÊN file sẽ tới ("Lùi về: Bát Giác Offer.md"), không phải chữ "Lùi" trơn.
+  //      Đi sâu bốn năm tầng link thì nhớ được mình từ đâu tới là chuyện không dễ.
+  // ============================================================
+  // Luật đi vệt, tách riêng và THUẦN (không đụng DOM, không đụng biến ngoài) để test chạy
+  // được thẳng vào nó. Ba luật, và luật thứ hai là thứ dễ bị sửa hỏng nhất về sau.
+  function _neVetMoi(lichSu, viTri, nut, max) {
+    if (!nut || !nut.rel) return { lichSu, viTri };
+    // 1. Mở lại đúng file đang đứng (bấm lại chính nó trong cây) thì không đẻ thêm một bước.
+    if (viTri >= 0 && lichSu[viTri] && lichSu[viTri].rel === nut.rel) {
+      const ra = lichSu.slice(); ra[viTri] = nut;
+      return { lichSu: ra, viTri };
+    }
+    // 2. Đang đứng GIỮA vệt mà đi chỗ mới thì nhánh TIẾN bị cắt - y như trình duyệt. Không cắt
+    //    thì bấm Tiến sẽ nhảy sang một nhánh người ta đã bỏ, và không cách nào đoán ra vì sao.
+    const ra = lichSu.slice(0, viTri + 1);
+    ra.push(nut);
+    // 3. Vệt là để quay lại chỗ vừa đọc, không phải nhật ký cả phiên: quá trần thì rụng đầu.
+    while (ra.length > max) ra.shift();
+    return { lichSu: ra, viTri: ra.length - 1 };
+  }
+
+  function _neDayLichSu(rel, it) {
+    const nut = { rel: rel || "", name: (it && it.name) || String(rel || "").split("/").pop(),
+                  ext: (it && it.ext) || "" };
+    const kq = _neVetMoi(_neLichSu, _neViTri, nut, NE_LICH_SU_MAX);
+    _neLichSu = kq.lichSu; _neViTri = kq.viTri;
+  }
+
+  // Nội dung có khác lúc vừa mở không. So với BẢN ĐÃ VÒNG QUA markdown lúc mở, không phải
+  // chữ thô đọc từ đĩa: bản render WYSIWYG đổi lại thành markdown luôn lệch đôi chỗ so với
+  // file gốc (turndown chuẩn hoá dấu, xuống dòng). So với file gốc thì mỗi lần chỉ ĐỌC rồi
+  // rời đi cũng bị tính là có sửa, và Javis sẽ âm thầm ghi đè định dạng của file đó.
+  function _neCoSuaChua() {
+    if (!_neSaveFn || !_neLayNoiDung || _neGocText == null) return false;
+    try { return _neLayNoiDung() !== _neGocText; } catch (e) { return false; }
+  }
+
+  function _neVeNutLui() {
+    const host = document.getElementById("neNav");
+    if (!host) return;
+    const truoc = _neViTri > 0 ? _neLichSu[_neViTri - 1] : null;
+    const sau = _neViTri >= 0 && _neViTri < _neLichSu.length - 1 ? _neLichSu[_neViTri + 1] : null;
+    host.innerHTML = "";
+    [[truoc, -1, "chevron-left", "Lùi về", "Chưa đi đâu để lùi về", "Alt+←"],
+     [sau, 1, "chevron-right", "Tiến tới", "Chưa có note nào ở phía trước", "Alt+→"]]
+      .forEach(([dich, buoc, icon, nhan, khiTrong, phim]) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.innerHTML = ic(icon);
+        b.disabled = !dich;
+        b.title = dich ? `${nhan}: ${dich.name} (${phim})` : `${khiTrong} (${phim})`;
+        b.setAttribute("aria-label", b.title);
+        b.onclick = () => _neDiLichSu(buoc);
+        host.appendChild(b);
+      });
+  }
+
+  async function _neDiLichSu(buoc) {
+    const dich = _neLichSu[_neViTri + buoc];
+    if (!dich) return;
+    // Giữ chữ đang gõ dở: lưu TRƯỚC khi rời đi, và lưu hỏng thì KHÔNG đi. Đi tiếp lúc đó là
+    // vứt bài người ta vừa viết mà không nói một câu nào.
+    if (_neCoSuaChua() && (await _neSaveFn()) === false) return;
+    _neViTri += buoc;
+    _neDangDiLichSu = true;
+    openNote(dich.rel, { name: dich.name, ext: dich.ext, type: "file" });
+    try { _vtRevealInTree(dich.rel); } catch (e) {}
+  }
+
   async function openNote(rel, it) {
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     it = it || {}; const ext = (it.ext || "").toLowerCase();
+    // Rời một file đang sửa dở (bấm [[wikilink]], bấm file khác trong cây) thì lưu lại trước.
+    // Trước bản này chữ vừa gõ bay sạch, im lặng - và nút Lùi/Tiến làm chuyện rời file xảy ra
+    // thường xuyên hơn hẳn nên không vá thì đây thành cái bẫy.
+    if (_neOpenRel && _neOpenRel !== (rel || "") && _neCoSuaChua()) {
+      if ((await _neSaveFn()) === false) return;   // lưu hỏng thì ở lại, lỗi hiện trên nút Lưu
+    }
+    const laLichSu = _neDangDiLichSu;
+    _neDangDiLichSu = false;
+    if (!laLichSu) _neDayLichSu(rel, it);
+    _neVeNutLui();
     ed.hidden = false; ed.classList.remove("ne-full");
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
+    _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
     // (thứ không hề hiện ở trang này).
     if (document.body.classList.contains("on-chat")) _borrowNoteEditor();
@@ -5075,14 +5205,26 @@
         } catch (e) {}
       }
       const saveBtn = document.createElement("button"); saveBtn.innerHTML = SAVE_ICON + " Lưu"; saveBtn.title = "Lưu (Ctrl+S)";
+      // Mốc so sánh "đã sửa gì chưa": lấy SAU khi dựng xong khung soạn, tức là bản đã vòng
+      // qua markdown một lượt - xem chú thích ở `_neCoSuaChua`.
+      _neLayNoiDung = () => (mdGetter ? mdGetter() : ta.value);
+      try { _neGocText = _neLayNoiDung(); } catch (e) { _neGocText = null; }
+      // Trả true/false chứ không nuốt kết quả: chỗ gọi tự động (rời file, bấm Lùi) phải biết
+      // lưu có ăn không để quyết định có đi tiếp hay ở lại.
       _neSaveFn = async () => {
-        const content = mdGetter ? mdGetter() : ta.value;
+        const content = _neLayNoiDung();
         const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("content", content);
         try {
           const r = await (await fetch("/files/write", { method: "POST", body: fd })).json();
-          if (r.ok) { saveBtn.innerHTML = CHECK_ICON + " Đã lưu"; saveBtn.classList.add("ne-saved"); setTimeout(() => { saveBtn.innerHTML = SAVE_ICON + " Lưu"; saveBtn.classList.remove("ne-saved"); }, 1400); }
-          else saveBtn.innerHTML = WARN_ICON + " Lỗi";
+          if (r.ok) {
+            saveBtn.innerHTML = CHECK_ICON + " Đã lưu"; saveBtn.classList.add("ne-saved");
+            setTimeout(() => { saveBtn.innerHTML = SAVE_ICON + " Lưu"; saveBtn.classList.remove("ne-saved"); }, 1400);
+            _neGocText = content;   // vừa lưu = mốc mới, không thì rời file lại lưu lần nữa
+            return true;
+          }
+          saveBtn.innerHTML = WARN_ICON + " Lỗi";
         } catch (e) { saveBtn.innerHTML = WARN_ICON + " Lỗi"; }
+        return false;
       };
       saveBtn.onclick = _neSaveFn;
       actions.appendChild(saveBtn);
@@ -5178,6 +5320,8 @@
       _vtCache.clear(); _vtIndex = null; _vtActivePath = null; renderVaultTree();
       // Ghim của brain cũ trỏ ra ngoài brain mới → bỏ, kẻo Javis sửa nhầm file brain khác.
       try { if (window.JavisPin) window.JavisPin.clear(); } catch (e) {}
+      // Vệt đường đi cũng thuộc brain cũ: mọi bước trong đó trỏ vào file của brain kia.
+      _neLichSu = []; _neViTri = -1; _neVeNutLui();
     });
 
     // Cột trái = Vault explorer (luôn có trong DOM ở màn home) → nạp cây ngay khi khởi động
