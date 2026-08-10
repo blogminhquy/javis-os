@@ -142,7 +142,7 @@ Vài điều nên biết:
 - Gửi tin thoại kèm caption `/notes` vẫn chạy đúng lệnh, với nội dung là câu bạn vừa nói.
 - Nghe không ra chữ (im lặng, quá ồn) hay Groq trả lỗi thì bot nói rõ lý do và nhờ bạn gõ chữ. Không có ngả nào im lặng.
 
-Kênh Zalo hiện **chưa** nghe được tin thoại, mới có Telegram.
+Kênh Zalo cũng nghe được tin thoại, dùng **chung một key Groq** - đấu một lần là hai kênh cùng chạy. Xem [Kênh Zalo Bot](26-kenh-zalo-bot.md).
 
 ### Bot gửi file về cho bạn
 

@@ -33,6 +33,26 @@ _HD_THIEU_KEY = (
     "họ gõ chữ, đừng nhắc gì tới API key hay dashboard.]")
 
 
+# Dòng mở đầu khối tin thoại đã nghe thành chữ, DÙNG CHUNG mọi kênh. Là hằng số vì
+# `telegram_bot._caption_command_text` phải nhận ra khối này để đừng cắt mất câu vừa nghe
+# (khối thoại nhiều dòng, khác marker file đính kèm chỉ có một dòng).
+MARK_THOAI = "[Tin THOẠI"
+
+
+def khoi_thoai(nghe, kenh):
+    """Câu đã nghe + một dòng dặn ở trên, dạng đưa thẳng vào lượt chat.
+
+    Vì sao có dòng dặn: Whisper vẫn nghe nhầm, và một câu nghe nhầm đi thẳng ra hành động
+    thật (gửi tin, đăng bài, đặt lịch, tiêu tiền) là loại sai không rút lại được. Đọc lại
+    câu nghe được TRƯỚC khi làm là chỗ duy nhất người dùng bắt lỗi được.
+    """
+    dan = (MARK_THOAI + f" qua {kenh}. Javis đã nghe thành chữ (có thể nhầm vài từ) - câu ở "
+           "dưới. Cứ làm theo như user gõ tay. Nếu việc sắp làm có tác động RA NGOÀI (gửi "
+           "tin, đăng bài, đặt lịch, tiêu tiền, sửa file) thì mở đầu bằng một dòng "
+           "\"Em nghe: ...\" rồi hỏi xác nhận trước khi làm.]")
+    return dan + "\n" + str(nghe or "").strip()
+
+
 def _mb(n):
     return round(n / (1024 * 1024), 1)
 

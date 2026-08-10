@@ -1,4 +1,4 @@
-"""Ghi âm gửi qua Telegram thì Javis NGHE được (Whisper qua Groq), chưa đấu key thì nói rõ.
+"""Ghi âm gửi qua Telegram / Zalo thì Javis NGHE được (Whisper qua Groq), chưa đấu key thì nói rõ.
 
     python tests/run.py tin_thoai
 
@@ -6,14 +6,17 @@ Vì sao có file này. Tin thoại là loại tin duy nhất mà "hỏng" và "c
 phía người gửi: bấm giữ, thả ra, thấy đã gửi. Mọi ngả hỏng (chưa đấu key, file to, nghe không
 ra chữ, Groq trả lỗi) đều phải quay lại thành MỘT CÂU NÓI, không được im.
 
-Ba chỗ dễ vỡ khi sửa code sau này, test khoá cả ba:
+Bốn chỗ dễ vỡ khi sửa code sau này, test khoá cả bốn:
   1. Chưa đấu key Groq -> phải nói ra là cần dán key ở trang Models, chứ không phải "chưa đọc
      được loại này" như thời chưa có STT.
   2. Khối tin thoại là NHIỀU dòng. `_caption_command_text` cắt lấy dòng đầu (đúng cho ảnh/file)
-     sẽ vứt luôn câu vừa nói - im lặng, không lỗi nào.
+     sẽ vứt luôn câu vừa nói - im lặng, không lỗi nào. Và marker phải nhận ra khối của CẢ HAI
+     kênh: Zalo mượn thẳng hàm này của Telegram.
   3. Key đọc TẠI THỜI ĐIỂM NGHE. Đọc lúc dựng bot thì key mới dán nằm im tới lần khởi động sau.
+  4. Zalo KHÔNG có `getFile`: file thoại chỉ tới được qua URL nằm trong payload, mà khuôn
+     payload đó Zalo chưa công bố. Trượt hết tên trường thì phải kêu ra kèm mẫu, không im.
 
-Không chạm mạng: httpx của stt.py bị thay bằng client giả, phần tải file Telegram bị thay
+Không chạm mạng: httpx của stt.py bị thay bằng client giả, phần tải file của hai kênh bị thay
 bằng hàm trả bytes sẵn.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
@@ -25,6 +28,7 @@ os.environ.setdefault("JAVIS_STATE_DIR", tempfile.mkdtemp(prefix="javis-thoai-")
 
 import stt  # noqa: E402
 import telegram_bot as tb  # noqa: E402
+import zalo_bot as zb  # noqa: E402
 
 MAIN = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 
@@ -206,9 +210,87 @@ check("thoại quá dài -> báo quá lớn thay vì tải về rồi hỏng", "
 
 
 # ============================================================
+# zalo_bot.py - cùng luật, khác đúng khâu LẤY FILE
+# ============================================================
+# Zalo không có getFile: đường duy nhất là URL trong payload, mà khuôn payload chưa công bố.
+check("moi được URL dạng chuỗi",
+      zb._lay_url({"voice_url": "https://a/v.ogg"}, ("voice_url", "voice")) == "https://a/v.ogg")
+check("moi được URL lồng trong dict",
+      zb._lay_url({"voice": {"url": "https://b/v.ogg"}}, ("voice_url", "voice")) == "https://b/v.ogg")
+check("moi được URL ở khoá download_url",
+      zb._lay_url({"voice": {"download_url": "https://c/v.ogg"}}, ("voice",)) == "https://c/v.ogg")
+check("không có URL -> trả rỗng chứ không nổ", zb._lay_url({"voice": 123}, ("voice",)) == "")
+check("bỏ qua giá trị không phải http", zb._lay_url({"voice": "abc"}, ("voice",)) == "")
+
+
+class _ZClient:
+    """Client giả cho phần TẢI FILE của Zalo (bot tự gọi client.get vào URL trong payload)."""
+
+    def __init__(self, noi_dung=b"AUDIO"):
+        self.noi_dung = noi_dung
+
+    async def get(self, url, timeout=None):
+        return _ZResp(self.noi_dung)
+
+
+class _ZResp:
+    def __init__(self, noi_dung):
+        self.content = noi_dung
+
+    def raise_for_status(self):
+        return None
+
+
+def _zbot(stt_fn=None):
+    return zb.ZaloBot("tok", "", answer_fn=None, stt_fn=stt_fn)
+
+
+def _zvoice(caption=""):
+    m = {"message_id": "abc", "chat": {"id": "z1"}, "voice": {"url": "https://x/v.ogg"}}
+    if caption:
+        m["caption"] = caption
+    return m
+
+
+out = chay(_zbot(None)._ingest_attachment(_ZClient(), zb.SK_VOICE, _zvoice()))
+check("Zalo chưa đấu STT -> nói về key Groq", "Groq" in out and "Models" in out)
+
+out = chay(_zbot(_stt_ok)._ingest_attachment(_ZClient(), zb.SK_VOICE, _zvoice()))
+check("Zalo nghe được -> khối mở đầu bằng marker thoại", out.startswith(stt.MARK_THOAI))
+check("Zalo nghe được -> ghi đúng tên kênh trong khối", "qua Zalo" in out)
+check("Zalo nghe được -> có câu vừa nói", "doanh thu hôm nay bao nhiêu" in out)
+check("Zalo nghe được -> KHÔNG lưu file .ogg vào inbox", "đã tải về" not in out)
+
+# Marker dùng chung: hàm cắt caption-lệnh của Telegram phải nhận ra cả khối của Zalo.
+ghep = tb._caption_command_text(out, "/notes")
+check("Zalo + caption lệnh -> lệnh lên đầu mà vẫn giữ câu đã nghe",
+      ghep.startswith("/notes") and "doanh thu hôm nay bao nhiêu" in ghep)
+
+# Không tìm ra URL: phải nói thẳng + kêu MỘT lần ra stderr (đây là ca dễ xảy ra nhất vì
+# Zalo chưa công bố khuôn payload của tin thoại).
+b = _zbot(_stt_ok)
+out = chay(b._ingest_attachment(_ZClient(), zb.SK_VOICE, {"message_id": "m", "chat": {"id": "z"}}))
+check("Zalo thiếu đường dẫn file -> nói thẳng chứ không im", "không tải về nghe được" in out
+      or "không kèm đường dẫn" in out)
+check("kêu khuôn lạ đúng MỘT lần (không spam log mỗi tin)", b._da_bao_khuon_thoai is True)
+
+# Ảnh Zalo vẫn đi đường cũ (tải về đĩa, báo path) - không được sửa lây.
+check("ảnh Zalo vẫn dùng _lay_url với bộ khoá của ảnh",
+      '_lay_url(msg, ("photo_url", "photo", "image_url", "url", "file_url"))'
+      in (ROOT / "server" / "zalo_bot.py").read_text(encoding="utf-8"))
+
+# Sticker giữ nguyên hành vi cũ.
+out = chay(_zbot(_stt_ok)._ingest_attachment(_ZClient(), zb.SK_STICKER,
+                                             {"message_id": "s", "chat": {"id": "z"}}))
+check("sticker Zalo vẫn báo không có chữ để đọc", "sticker" in out.lower())
+
+
+# ============================================================
 # main.py - đấu dây
 # ============================================================
 check("bot Telegram được cấp hàm nghe", "stt_fn=_stt_nghe" in MAIN)
+check("bot Zalo cũng được cấp hàm nghe (cùng một key Groq)",
+      MAIN.count("stt_fn=_stt_nghe") >= 2)
 _fn = MAIN.split("async def _stt_nghe(", 1)[1].split("\n\n\n", 1)[0]
 check("hàm nghe đọc key Groq", 'get("groq_api_key")' in _fn)
 check("đọc key TẠI THỜI ĐIỂM GỌI (dán key xong không phải tắt bật lại bot)",
@@ -217,5 +299,5 @@ check("hàm nghe gọi đúng module stt", "stt.groq_nghe(" in _fn)
 
 
 if _fails:
-    raise SystemExit(f"\nFAIL - test_tin_thoai_telegram: {len(_fails)} lỗi")
-print("\nOK - test_tin_thoai_telegram: tất cả pass")
+    raise SystemExit(f"\nFAIL - test_tin_thoai: {len(_fails)} lỗi")
+print("\nOK - test_tin_thoai: tất cả pass")

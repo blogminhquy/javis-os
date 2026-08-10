@@ -90,9 +90,9 @@ CAU_LOI_NGUOI_THAT = ("Dạ em xin lỗi, chỗ này em đang trục trặc nên
                       "Anh chị nhắn lại giúp em một chút nữa nhé.")
 
 
-# Dòng mở đầu khối tin thoại đã nghe thành chữ. Là HẰNG SỐ vì `_caption_command_text` phải
-# nhận ra khối này để đừng cắt mất câu đã nghe (xem chú thích trong hàm đó).
-MARK_THOAI = "[Tin THOẠI qua Telegram."
+# Dòng mở đầu khối tin thoại đã nghe thành chữ. Nằm ở `stt` vì kênh nào cũng dùng, và
+# `_caption_command_text` (Zalo mượn luôn hàm này) phải nhận ra khối của MỌI kênh.
+MARK_THOAI = stt.MARK_THOAI
 
 
 def _caption_command_text(ingested, caption):
@@ -551,17 +551,10 @@ class TelegramBot(HangLuot):
             kq = {"ok": False, "noi_voi_javis": stt.loi_thanh_dong("loi", f"{type(e).__name__}: {e}")}
         if not (kq or {}).get("ok"):
             return (kq or {}).get("noi_voi_javis") or stt.loi_thanh_dong("loi")
-        nghe = str(kq.get("text") or "").strip()
-        # Câu nghe được đi vào lượt như user gõ tay, nhưng có một dòng dặn ở trên: Whisper vẫn
-        # nghe nhầm, và một câu nghe nhầm mà đi thẳng ra hành động thật (gửi tin, đăng bài,
-        # đặt lịch, tiêu tiền) là loại sai không rút lại được.
-        dan = (MARK_THOAI + " Javis đã nghe thành chữ (có thể nhầm vài từ) - câu ở "
-               "dưới. Cứ làm theo như user gõ tay. Nếu việc sắp làm có tác động RA NGOÀI (gửi "
-               "tin, đăng bài, đặt lịch, tiêu tiền, sửa file) thì mở đầu bằng một dòng "
-               "\"Em nghe: ...\" rồi hỏi xác nhận trước khi làm.]")
         # Caption là LỆNH thì để `_caption_command_text` đưa nó lên đầu (khối này đi nguyên
         # vẹn xuống dưới); ghép ở đây nữa là lệnh xuất hiện hai lần trong cùng một lượt.
-        return dan + "\n" + nghe + ("\n" + caption if caption and not caption.startswith("/") else "")
+        khoi = stt.khoi_thoai(kq.get("text"), "Telegram")
+        return khoi + ("\n" + caption if caption and not caption.startswith("/") else "")
 
     # ---- User gửi file/ảnh lên bot → tải về, trả dòng mô tả (đường dẫn) cho engine ----
     async def _ingest_attachment(self, client, msg):

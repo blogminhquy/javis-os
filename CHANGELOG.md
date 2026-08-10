@@ -4,6 +4,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.15] - 2026-08-10
+### Thêm mới
+- **Ra lệnh bằng ghi âm trên Zalo**, y như Telegram ở bản trước. Bấm giữ micro nói một câu, Javis nghe thành chữ rồi làm như bạn gõ tay. **Dùng chung một key Groq**: đã đấu cho Telegram thì Zalo chạy luôn, không phải làm gì thêm.
+- Việc có tác động ra ngoài (gửi tin, đăng bài, đặt lịch, tiêu tiền, sửa file) vẫn đọc lại "Em nghe: ..." rồi hỏi xác nhận. File ghi âm không lưu vào `inbox/`.
+- Phần nghe nằm ở `server/stt.py` từ bản trước, không biết Telegram hay Zalo là gì, nên bản này chỉ nối dây chứ không viết bản thứ hai. Dòng dặn engine cũng chuyển hẳn vào đó để hai kênh không trôi lệch câu chữ.
+
+### Sửa lỗi
+- **Khác Telegram đúng một khâu, và đó là khâu rủi ro nhất: Zalo KHÔNG có `getFile`.** Cả bộ method Zalo công bố không có cái nào tải file, nên đường duy nhất tới file ghi âm là một URL nằm sẵn trong dữ liệu tin nhắn - mà khuôn dữ liệu của `message.voice.received` thì Zalo bỏ trống trong tài liệu. Nên Javis thử một loạt tên trường (`voice_url`, `voice`, `audio_url`, `audio`, `file_url`, `url`, kể cả dạng lồng `{"url": ...}`) thay vì cược vào một cái rồi im lặng bỏ hết tin thoại khi cược sai.
+- **Trượt hết thì kêu ra, không im.** Bot nói thẳng với người gửi là không tải được file ghi âm, và server ghi MỘT dòng `[zalo voice] không tìm ra đường dẫn file thoại trong payload` kèm mẫu dữ liệu thật - lần chạy đầu tiên tự nói cho biết trường tên gì. Kêu một lần cho mỗi phiên bot, không spam log mỗi tin.
+- Hàm moi URL này dùng chung với phần ảnh (trước đây viết lồng trong nhánh ảnh), nên hai loại file không còn hai bản logic trôi lệch nhau.
+
+### Cải thiện
+- Tài liệu: [Kênh Zalo Bot](docs/26-kenh-zalo-bot.md) thêm mục "Ra lệnh bằng ghi âm" kèm cảnh báo về khuôn dữ liệu chưa công bố; [Telegram](docs/11-telegram.md) và [Models & engine](docs/10-models-va-engine.md) cập nhật theo.
+
 ## [0.26.14] - 2026-08-10
 ### Thêm mới
 - **Ra lệnh bằng ghi âm trên Telegram.** Bấm giữ micro nói một câu, Javis nghe thành chữ rồi làm y như bạn gõ tay. Trước đây gửi tin thoại chỉ nhận lại một câu "Javis chưa đọc được loại này, nhờ anh gõ chữ" - tức là cái nút micro to nhất trong Telegram không dùng được, đúng lúc người ta cần nó nhất (đang lái xe, tay bận).

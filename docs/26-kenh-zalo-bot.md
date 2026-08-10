@@ -60,6 +60,21 @@ Các lệnh gõ nhanh (`/status`, `/reset`, `/stop`, `/model`, `/brain`, `/notes
 
 Kết quả việc nền và nhắc hẹn đặt từ Zalo sẽ **tự về đúng khung chat Zalo đó**, không rơi sang Telegram.
 
+### Ra lệnh bằng ghi âm (tin thoại)
+
+Bấm giữ micro trong Zalo, nói, thả tay. Javis nghe câu đó thành chữ và làm y như bạn gõ tay.
+
+**Cần API key của Groq** - chỗ Javis mượn để chuyển giọng nói thành chữ (model Whisper). Vào dashboard, trang **Models**, mục **Groq (API)**, dán key lấy ở [console.groq.com](https://console.groq.com) rồi lưu. Chưa đấu thì gửi tin thoại Javis sẽ nói rõ là cần dán key, không im lặng. Dán xong dùng được ngay, không cần tắt bật lại bot.
+
+Đây là **cùng một key với kênh Telegram**: đấu một lần là hai kênh cùng nghe được.
+
+Vài điều nên biết:
+
+- **Việc có tác động ra ngoài thì Javis hỏi lại trước.** Gửi tin, đăng bài, đặt lịch, tiêu tiền, sửa file: Javis mở đầu bằng một dòng "Em nghe: ..." rồi chờ bạn xác nhận. Hỏi số liệu, tra cứu, tóm tắt thì làm thẳng.
+- **File ghi âm không lưu vào brain.** Nghe xong lấy chữ là xong.
+- Nghe không ra chữ, file quá lớn, hay Groq trả lỗi thì bot nói rõ lý do. Không có ngả nào im lặng.
+- **Một rủi ro riêng của Zalo:** Zalo chưa công bố khuôn dữ liệu của tin thoại, nên có khả năng Javis không tìm thấy đường dẫn file ghi âm trong tin Zalo gửi về. Gặp ca đó, bot nói thẳng là không tải được file, và server ghi một dòng `[zalo voice] không tìm ra đường dẫn file thoại trong payload` kèm mẫu dữ liệu. Gửi dòng đó cho người phát triển là sửa được ngay. Bên Telegram không có rủi ro này vì khuôn dữ liệu đã công bố rõ.
+
 ## Bốn chỗ Zalo làm được ít hơn Telegram
 
 Nói trước để bạn không tưởng là lỗi.

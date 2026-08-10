@@ -10524,7 +10524,7 @@ def restart_zalo_bot():
         # về mã ghép nối. Truyền cả hai là người lạ ăn hai câu từ chối cho một tin.
         _ZALO_BOT = zalo_bot.ZaloBot(z["token"], "", _zalo_answer, _tg_command,
                                      download_dir=_zalo_inbox_dir,
-                                     precheck_fn=_zalo_precheck)
+                                     precheck_fn=_zalo_precheck, stt_fn=_stt_nghe)
         _ZALO_BOT.start()
         return True
     return False

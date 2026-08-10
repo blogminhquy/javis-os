@@ -25,6 +25,12 @@ BỐN CHỖ KHÁC TELEGRAM, và cả bốn đều đổi hành vi chứ không c
   3. **Trần 2000 ký tự** một tin, không phải 4096.
   4. **`getUpdates` không có `offset` cũng không có `update_id`** (tham số duy nhất là
      `timeout`). Không có cách xác nhận đã nhận, nên phải TỰ chống trùng theo `message_id`.
+  5. **Không có `getFile`.** File người dùng gửi lên (ảnh, tin thoại) chỉ tới được qua một URL
+     nằm sẵn trong payload, mà khuôn payload đó Zalo chưa công bố. Nên `_lay_url` thử một loạt
+     tên trường, và khi trượt hết thì kêu ra stderr kèm mẫu chứ không im lặng bỏ file.
+
+Tin THOẠI nghe được như Telegram (Whisper qua Groq, xem `server/stt.py`): `stt_fn` do main.py
+cấp, chưa đấu key thì trả lời là cần dán API key Groq ở trang Models.
 
 Xem docs/dev/2026-08-zalo-bot-spec.md.
 """
@@ -39,6 +45,7 @@ from pathlib import Path
 
 import httpx
 
+import stt
 from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
 
 ZALO_API = "https://bot-api.zaloplatforms.com/bot{token}/{method}"
@@ -100,6 +107,25 @@ def _la_het_gio_cho(d: dict) -> bool:
     return bool(mo_ta) and any(k in mo_ta for k in _HET_GIO_CHO)
 
 
+def _lay_url(msg: dict, khoa_thu) -> str:
+    """Moi đường dẫn file ra khỏi payload Zalo. Trả "" nếu không có.
+
+    Tài liệu Zalo bỏ trống payload của `message.image.received` lẫn `message.voice.received`
+    (xem docs/dev/2026-08-zalo-bot-spec.md), nên thử một loạt tên trường đã thấy thay vì cược
+    vào một cái rồi im lặng bỏ hết file khi cược sai. Nhận cả chuỗi lẫn dict lồng `{"url": ...}`.
+    """
+    for khoa in khoa_thu:
+        v = (msg or {}).get(khoa)
+        if isinstance(v, str) and v.startswith("http"):
+            return v
+        if isinstance(v, dict):
+            for trong in ("url", "download_url", "file_url", "link"):
+                u = v.get(trong)
+                if isinstance(u, str) and u.startswith("http"):
+                    return u
+    return ""
+
+
 def _chat_type(raw) -> str:
     """Zalo dùng PRIVATE/GROUP, Javis dùng private/group ở mọi nơi khác (xem
     `chatbot_runtime._ly_do_im`). Quy về MỘT bảng chữ ngay tại cửa vào, chứ đừng bắt mỗi
@@ -116,7 +142,7 @@ class ZaloBot(HangLuot):
 
     def __init__(self, token, chat_id, answer_fn, command_fn=None,
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
-                 giau_trang_thai=False):
+                 giau_trang_thai=False, stt_fn=None):
         self.token = token
         self.giau_trang_thai = bool(giau_trang_thai)
         self.chat_ids = parse_chat_ids(chat_id)
@@ -129,6 +155,11 @@ class ZaloBot(HangLuot):
         self.precheck_fn = precheck_fn
         self.event_fn = event_fn
         self.download_dir = download_dir
+        # Nghe tin thoại: async (bytes, tên file) -> dict như `stt.groq_nghe`. None = chưa đấu
+        # (gửi tin thoại sẽ được trả lời là cần dán API key Groq ở trang Models).
+        self.stt_fn = stt_fn
+        # Đã kêu một lần về payload thoại không có đường dẫn file chưa (xem `_nghe_tin_thoai`).
+        self._da_bao_khuon_thoai = False
         self._task = None
         self._current = {}
         self._cho = {}
@@ -325,8 +356,49 @@ class ZaloBot(HangLuot):
         return bool(re.search(re.escape(ten) + r"(?![A-Za-zÀ-ỹ0-9_])", s, re.I))
 
     # ---- File người dùng gửi lên ------------------------------------------------------
+    async def _nghe_tin_thoai(self, client, msg, caption):
+        """Tin thoại Zalo -> chữ -> chạy như câu user gõ tay. Trả chuỗi đưa vào lượt chat.
+
+        Khác Telegram ở đúng khâu LẤY FILE: Zalo không có `getFile`, cả bộ method công bố
+        cũng không có cái nào tải file, nên đường duy nhất là URL nằm sẵn trong payload. Mà
+        payload thật của `message.voice.received` thì tài liệu Zalo bỏ trống (xem câu hỏi mở
+        trong docs/dev/2026-08-zalo-bot-spec.md), nên thử một loạt tên trường như đã làm với
+        ảnh, và khi trượt hết thì IN NGUYÊN payload ra stderr một lần - lần chạy thật đầu
+        tiên tự nói cho biết trường tên gì, thay vì để lỗi này im lặng mãi.
+        """
+        if not self.stt_fn:
+            return stt.loi_thanh_dong("thieu_key")
+        url = _lay_url(msg, ("voice_url", "voice", "audio_url", "audio", "file_url", "url"))
+        if not url:
+            if not self._da_bao_khuon_thoai:
+                self._da_bao_khuon_thoai = True
+                print(f"[zalo voice] không tìm ra đường dẫn file thoại trong payload: "
+                      f"{str(msg)[:400]}", file=sys.stderr)
+            return stt.loi_thanh_dong("loi", "Zalo không kèm đường dẫn file ghi âm nên Javis "
+                                             "không tải về nghe được")
+        try:
+            rr = await client.get(url, timeout=httpx.Timeout(180.0))
+            rr.raise_for_status()
+            data = rr.content
+        except Exception as e:
+            return stt.loi_thanh_dong("loi", f"không tải được file ghi âm ({type(e).__name__}: {e})")
+        if len(data) > MAX_TAI_MB * 1024 * 1024:
+            return stt.loi_thanh_dong("qua_lon", f"({len(data) // (1024 * 1024)}MB, "
+                                                 f"trần tải về của Javis là {MAX_TAI_MB}MB)")
+        ten = f"zalo_{msg.get('message_id') or int(time.time())}.ogg"
+        try:
+            kq = await self.stt_fn(data, ten)
+        except Exception as e:
+            kq = {"ok": False, "noi_voi_javis": stt.loi_thanh_dong("loi", f"{type(e).__name__}: {e}")}
+        if not (kq or {}).get("ok"):
+            return (kq or {}).get("noi_voi_javis") or stt.loi_thanh_dong("loi")
+        # Caption là LỆNH thì để `_caption_command_text` đưa nó lên đầu; ghép ở đây nữa là
+        # lệnh xuất hiện hai lần trong cùng một lượt.
+        khoi = stt.khoi_thoai(kq.get("text"), "Zalo")
+        return khoi + ("\n" + caption if caption and not caption.startswith("/") else "")
+
     async def _ingest_attachment(self, client, ev, msg):
-        """Tải ảnh/voice người dùng gửi về inbox của brain, trả dòng mô tả cho engine."""
+        """Tải ảnh người dùng gửi về inbox của brain / nghe tin thoại, trả chuỗi cho engine."""
         caption = str(msg.get("caption") or "").strip()
 
         def _with_cap(s):
@@ -335,21 +407,14 @@ class ZaloBot(HangLuot):
         if ev == SK_STICKER:
             return _with_cap("[Người dùng gửi một sticker Zalo. Không có nội dung chữ để đọc.]")
         if ev == SK_VOICE:
-            return _with_cap("[Người dùng gửi tin thoại qua Zalo - Javis chưa đọc được loại này. "
-                             "Hãy lịch sự nhờ họ gõ chữ.]")
+            # Tin thoại đi ĐƯỜNG RIÊNG: nghe thành chữ rồi chạy như một câu hỏi, không tải về
+            # đĩa rồi báo "đã tải về path" - người ta ghi âm để RA LỆNH, không phải để gửi
+            # Javis một file .ogg.
+            return await self._nghe_tin_thoai(client, msg, caption)
         if ev not in (SK_ANH,):
             return None
 
-        # Tên trường ảnh chưa được tài liệu chốt, nên thử các tên đã thấy thay vì cược vào một cái.
-        url = ""
-        for khoa in ("photo_url", "photo", "image_url", "url", "file_url"):
-            v = msg.get(khoa)
-            if isinstance(v, str) and v.startswith("http"):
-                url = v
-                break
-            if isinstance(v, dict) and isinstance(v.get("url"), str):
-                url = v["url"]
-                break
+        url = _lay_url(msg, ("photo_url", "photo", "image_url", "url", "file_url"))
         if not url:
             return _with_cap("[Người dùng gửi một ảnh qua Zalo nhưng Javis không lấy được "
                              "đường dẫn ảnh.]")
