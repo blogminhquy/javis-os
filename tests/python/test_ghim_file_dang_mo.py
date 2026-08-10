@@ -56,6 +56,26 @@ check("thanh chip bung ra khi chỉ có ghim",
 check("chip ghim render với class riêng .pinned", '"attach-chip pinned"' in APP)
 check("chip ghim có nút bỏ ghim riêng", 'data-unpin="1"' in APP and "if (b.dataset.unpin) JavisPin.clear();" in APP)
 
+# --- Bấm chip = quay lại sửa file đó ---------------------------------------
+# Chip là lối quay lại DUY NHẤT khi trình sửa đã đóng: không có nó thì phải đi tìm lại file
+# trong cây vault, đúng cái việc mà ghim sinh ra để khỏi phải làm.
+_chips = APP.split("function renderChips()", 1)[1].split("\n}", 1)[0]
+check("chip ghim bấm được (role + tabIndex cho bàn phím)",
+      'chip.setAttribute("role", "button")' in _chips and "chip.tabIndex = 0" in _chips)
+check("bấm chip gọi mở lại file", "reopenPinnedNote()" in _chips)
+check("bấm nút X KHÔNG mở lại file (chỉ bỏ ghim)",
+      'e.target.closest(".chip-x")) return;' in _chips)
+check("Enter/Space cũng mở lại được", 'e.key !== "Enter" && e.key !== " "' in _chips)
+check("chip có dấu hiệu nhìn thấy được là bấm được (cây bút)", "chip-edit" in _chips)
+
+_reopen = APP.split("function reopenPinnedNote()", 1)[1].split("\n}", 1)[0]
+check("mở lại đi qua trình sửa đính trước",
+      "window.JavisOpenNoteAt(rel, pinnedNote.name)" in _reopen)
+check("màn hẹp / console chưa nạp thì rơi về khung sửa bung giữa màn",
+      "window.JavisEditFile(rel)" in _reopen and "window.JavisOpenFiles(rel)" in _reopen)
+check("mở lại dùng rel (path theo trần) chứ không phải abs của máy",
+      "pinnedNote.rel" in _reopen and "pinnedNote.abs" not in _reopen)
+
 # Gửi xong KHÔNG được mất ghim: clearAttachments chỉ đụng pendingAttachments.
 _clear = APP.split("function clearAttachments()", 1)[1].split("\n}", 1)[0]
 check("clearAttachments() KHÔNG đụng tới ghim", "pinnedNote" not in _clear)
@@ -81,6 +101,19 @@ check("openNote ghim file vừa mở",
 check("ghim dùng abs từ server chứ không tự ghép đường dẫn",
       "d.abs" in _open and "_vtHome +" not in _open)
 
+# Cửa "mở lại" của console.js: nhận path THEO TRẦN DUYỆT (đúng dạng ghim đang giữ). Đi vòng
+# qua JavisOpenNote sẽ ghép tiền tố trần lần hai → mở hụt file khi trần cao hơn gốc brain.
+check("console.js mở cửa JavisOpenNoteAt cho chip ghim gọi",
+      "window.JavisOpenNoteAt = function (ceilRel, name)" in CONSOLE)
+_at = CONSOLE.split("window.JavisOpenNoteAt = function (ceilRel, name) {", 1)[1].split("\n  };", 1)[0]
+check("màn hẹp thì trả false để người gọi tự lo đường lui", "if (isNarrow()) return false;" in _at)
+check("đúng file đang mở sẵn thì KHÔNG nạp lại (giữ chữ đang gõ dở)",
+      "_neOpenRel === ceilRel" in _at and "openNote(ceilRel" in _at.split("_neOpenRel === ceilRel", 1)[1])
+check("mở lại ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat",
+      '_borrowNoteEditor();' in _at)
+check("openNote nhớ file đang mở để so", "_neOpenRel = rel" in CONSOLE)
+check("đóng trình sửa thì quên file đang mở", '_neOpenRel = "";' in CONSOLE)
+
 check("đổi brain thì bỏ ghim (file thuộc brain cũ)",
       re.search(r"_vtCache\.clear\(\);[\s\S]{0,400}?window\.JavisPin\.clear\(\)", CONSOLE) is not None)
 _del = CONSOLE.split("async function _neDeleteCur(", 1)[1].split("\n  function ", 1)[0]
@@ -90,13 +123,21 @@ check("xoá file đang ghim thì bỏ ghim", "p.rel === rel" in _del and "JavisP
 # --- Giao diện + tài liệu ---------------------------------------------------
 check("chip ghim có kiểu riêng để phân biệt với đính kèm",
       ".attach-chip.pinned {" in STYLE)
+check("chip ghim trông như bấm được (con trỏ tay + viền nhấn khi rê chuột)",
+      ".attach-chip.pinned { cursor: pointer; }" in STYLE
+      and ".attach-chip.pinned:hover {" in STYLE
+      and ".attach-chip.pinned .chip-edit {" in STYLE)
 check("system prompt dạy Javis xử lý khối FILE ĐANG MỞ",
       "## File đang mở (khối FILE ĐANG MỞ)" in CLAUDE_MD
       and "ghi thẳng vào chính file này" in CLAUDE_MD)
 check("doc Quản lý tệp tin mô tả tính năng ghim",
-      "đang mở - Javis làm việc trên file này" in DOC05)
+      "đang mở - bấm để sửa tiếp" in DOC05)
+check("doc Quản lý tệp tin dạy cách bấm thẻ để sửa tiếp",
+      "Bấm vào thẻ là quay lại sửa file đó" in DOC05)
 check("doc Trò chuyện nói rõ ghim không mất sau khi gửi",
       "không mất sau khi gửi" in DOC02)
+check("doc Trò chuyện nói thẻ ghim là lối quay lại trình sửa",
+      "lối quay lại" in DOC02)
 
 
 if fails:

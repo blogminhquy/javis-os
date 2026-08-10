@@ -1475,11 +1475,25 @@ function renderChips() {
   if (pinnedNote) {
     const chip = document.createElement("div");
     chip.className = "attach-chip pinned";
-    chip.title = pinnedNote.abs;
+    chip.setAttribute("role", "button");
+    chip.tabIndex = 0;
+    chip.title = `${pinnedNote.abs}\nJavis đang làm việc trên file này - bấm để mở lại trong trình sửa`;
     chip.innerHTML = `<div class="chip-ico">${ic("file-text")}</div>`
       + `<div class="chip-info"><span class="chip-name">${escapeHtml(pinnedNote.name)}</span>`
-      + `<span class="chip-meta">đang mở - Javis làm việc trên file này</span></div>`
+      + `<span class="chip-meta">đang mở - bấm để sửa tiếp</span></div>`
+      + `<span class="chip-edit" aria-hidden="true">${ic("pen-line")}</span>`
       + `<button class="chip-x" data-unpin="1" title="Bỏ ghim file">${ic("x")}</button>`;
+    // Bấm vào chip = quay lại đúng chỗ đang sửa. Nút X nằm trong chip nên phải loại nó ra,
+    // không thì bỏ ghim xong lại mở file vừa bỏ ra.
+    chip.addEventListener("click", (e) => {
+      if (e.target.closest && e.target.closest(".chip-x")) return;
+      reopenPinnedNote();
+    });
+    chip.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      reopenPinnedNote();
+    });
     attachBar.appendChild(chip);
   }
   pendingAttachments.forEach((a, i) => {
@@ -1499,6 +1513,24 @@ function renderChips() {
       if (b.dataset.unpin) JavisPin.clear();
       else removeAttachment(+b.dataset.i);
     }));
+}
+
+// Bấm chip ghim = quay lại chỉnh sửa chính file đó. Ba đường, thử theo thứ tự:
+//   1. Trình sửa ĐÍNH của console.js (JavisOpenNoteAt) - cùng cái mở ra lúc đầu, có cây vault
+//      bên cạnh; nó tự biết file đang mở sẵn thì chỉ đưa mắt về chứ không nạp lại (giữ chữ
+//      đang gõ dở). Trả false khi màn hẹp hoặc chưa nạp xong console.js.
+//   2. Khung sửa bung giữa màn (file-editor.js) - đường lui cho điện thoại.
+//   3. Trang Tệp tin - cùng đường mà link file trong chat vẫn đi.
+// pinnedNote.rel là path theo TRẦN DUYỆT (openNote ghim lại đúng cái nó nhận); cả (2) và (3)
+// đều nhận path trần lẫn path gốc brain nên không phải gọt gì thêm.
+function reopenPinnedNote() {
+  if (!pinnedNote || !pinnedNote.rel) return;
+  const rel = pinnedNote.rel;
+  try {
+    if (typeof window.JavisOpenNoteAt === "function" && window.JavisOpenNoteAt(rel, pinnedNote.name)) return;
+  } catch (e) {}
+  if (typeof window.JavisEditFile === "function") { window.JavisEditFile(rel); return; }
+  if (typeof window.JavisOpenFiles === "function") window.JavisOpenFiles(rel);
 }
 
 // API cho console.js (trình sửa note) gọi khi mở/đóng file.

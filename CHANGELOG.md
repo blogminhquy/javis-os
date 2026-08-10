@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.13] - 2026-08-10
+### Cải thiện
+- **Thẻ "file đang mở" dưới khung chat nay bấm được: bấm vào là quay lại sửa đúng file đó.** Trước đây thẻ chỉ để nhìn. Mở một note ra sửa, đóng trình sửa lại rồi chat vài lượt, muốn sửa tiếp thì phải đi tìm lại file trong cây vault - đúng cái việc mà thẻ ghim sinh ra để khỏi phải làm. Nay bấm thẻ (hoặc chọn bằng phím Tab rồi Enter) là file mở lại trong trình sửa, cây vault tự xổ tới đúng nhánh chứa nó.
+- **File đang mở sẵn thì chỉ đưa mắt về, KHÔNG nạp lại.** Đây là phần dễ làm hỏng nhất: mở lại một file đang mở nghĩa là đọc lại nội dung từ đĩa, tức là đoạn chữ vừa gõ mà chưa bấm Lưu sẽ bay sạch. Nên trình sửa nhớ file nào đang mở, trùng thì chỉ cuộn về và đặt con trỏ vào chỗ đang soạn.
+- **Nút ✕ trên thẻ vẫn chỉ là bỏ ghim**, không bị lây cú bấm mở file. Trên điện thoại (màn dưới 860px, nơi trình sửa đính bị tắt) thẻ mở file trong khung sửa bung giữa màn hình.
+- Thẻ nay có cây bút bên phải và đổi viền khi rê chuột - không có dấu hiệu nhìn thấy được thì tính năng coi như không tồn tại. Dòng phụ đổi từ "đang mở - Javis làm việc trên file này" thành "đang mở - bấm để sửa tiếp"; ý "Javis đang làm việc trên file này" chuyển vào tooltip cùng đường dẫn đầy đủ.
+- Tài liệu: cập nhật [Quản lý tệp tin](docs/05-quan-ly-tep-tin.md) và [Trò chuyện & giọng nói](docs/02-tro-chuyen-va-giong-noi.md).
+
 ## [0.26.12] - 2026-08-09
 ### Sửa lỗi
 - **"Tự khởi động cùng Windows" báo Bật trong khi mở máy lên không có gì chạy.** Cả tính năng nằm gọn trong một dòng registry `HKCU\...\Run`, và dashboard đọc đúng dòng đó rồi kết luận "Bật". Nhưng dòng đó **còn nguyên** trong ít nhất ba cảnh mà lúc đăng nhập vẫn không có gì chạy, và không cảnh nào để lại lỗi ở đâu để lần ra. Người dùng chỉ thấy `ERR_CONNECTION_REFUSED` và một cái thẻ nói dối.

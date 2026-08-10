@@ -290,6 +290,33 @@
     // ở đó cây đã đúng chỗ rồi, dựng lại là thừa.
     try { _vtRevealInTree(ceilingRel); } catch (e) {}
   };
+  // Mở lại một file bằng đường dẫn THEO TRẦN DUYỆT (đã có sẵn tiền tố nhà brain). Người gọi:
+  // chip "file đang mở" dưới khung chat (app.js) - ghim giữ đúng dạng path mà openNote nhận,
+  // nên gọi thẳng vào đây; đi vòng qua JavisOpenNote sẽ ghép tiền tố trần LẦN HAI và mở hụt.
+  // Trả về true nếu đã mở được; false = người gọi tự lo đường lui (khung sửa bung giữa màn).
+  if (typeof window !== "undefined") window.JavisOpenNoteAt = function (ceilRel, name) {
+    if (!ceilRel) return false;
+    // Màn hẹp không có chỗ cho trình sửa đính, nhưng ở đây người dùng bấm ĐÚNG một file đã biết
+    // (khác click nhầm node đồ thị) nên đừng chặn - trả false để app.js rơi về JavisEditFile.
+    if (isNarrow()) return false;
+    const ed = document.getElementById("noteEditor");
+    if (!ed) return false;
+    // Đúng file này đang mở sẵn: chỉ đưa mắt về, TUYỆT ĐỐI không openNote lại - openNote đọc lại
+    // file từ đĩa nên chữ đang gõ dở mà chưa lưu sẽ bay sạch.
+    if (!ed.hidden && _neOpenRel && _neOpenRel === ceilRel) {
+      if (document.body.classList.contains("on-chat")) _borrowNoteEditor();
+      try { ed.scrollIntoView({ block: "nearest" }); } catch (e) {}
+      try { (document.getElementById("neWys") || document.getElementById("neText")).focus(); } catch (e) {}
+      return true;
+    }
+    // Đuôi file suy từ ĐƯỜNG DẪN chứ không từ `name`: tên hiển thị của ghim có lúc là cả
+    // đường dẫn (lúc server không trả tên), mà thư mục cũng có thể chứa dấu chấm.
+    const fileName = String(ceilRel).split("/").pop();
+    const ext = fileName.includes(".") ? "." + fileName.split(".").pop().toLowerCase() : ".md";
+    openNote(ceilRel, { name: name || fileName, ext: ext, type: "file" });
+    try { _vtRevealInTree(ceilRel); } catch (e) {}
+    return true;
+  };
   // Xổ cây tới đúng nhánh chứa `path` (đường dẫn theo TRẦN DUYỆT). Phơi ra cho chỗ khác gọi
   // mà không phải chép lại cơ chế xổ cây thứ hai.
   if (typeof window !== "undefined") window.JavisRevealInTree = (path) => _vtRevealInTree(path);
@@ -4539,6 +4566,7 @@
   let _vtWired = false;        // đã gắn handler search/toolbar chưa
   let _vtIndex = null;         // chỉ mục file toàn vault (crawl client) - cho tìm theo Tên không cần server restart
   let _neSaveFn = null;        // hàm lưu của editor đang mở (cho Ctrl+S)
+  let _neOpenRel = "";         // file đang mở trong trình sửa (đường dẫn theo TRẦN DUYỆT)
   const _vtRaw = (rel, dl) => `/files/raw?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}${dl ? "&dl=1" : ""}`;
   const _vtNoAccent = (s) => (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase();
 
@@ -4836,6 +4864,7 @@
     _returnNoteEditor();
     document.getElementById("neBody").innerHTML = ""; document.getElementById("neActions").innerHTML = "";
     _neSaveFn = null;
+    _neOpenRel = "";
     document.removeEventListener("keydown", _neKeyHandler, true);
     _vtMarkActive(null);
     try { recomputeGraph(); } catch (e) {}   // chạy lại não (đã gate active===home + không lite + studio đóng)
@@ -4978,6 +5007,7 @@
     const ed = document.getElementById("noteEditor"); if (!ed) return;
     it = it || {}; const ext = (it.ext || "").toLowerCase();
     ed.hidden = false; ed.classList.remove("ne-full");
+    _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
     // (thứ không hề hiện ở trang này).
     if (document.body.classList.contains("on-chat")) _borrowNoteEditor();

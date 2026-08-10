@@ -166,9 +166,11 @@ Quan trọng về cách Javis xử lý file:
 
 ## Thẻ "đang mở": file bạn đang sửa tự thành đầu vào của cuộc trò chuyện
 
-Ngoài file đính kèm, còn một loại thẻ nữa: khi bạn mở một file văn bản trong trình sửa (xem [Quản lý tệp tin](05-quan-ly-tep-tin.md)), Javis tự ghim file đó vào khung chat thành một thẻ màu cam ghi "đang mở - Javis làm việc trên file này".
+Ngoài file đính kèm, còn một loại thẻ nữa: khi bạn mở một file văn bản trong trình sửa (xem [Quản lý tệp tin](05-quan-ly-tep-tin.md)), Javis tự ghim file đó vào khung chat thành một thẻ màu cam ghi "đang mở - bấm để sửa tiếp".
 
-Khác thẻ đính kèm ở chỗ: chỉ có **một** thẻ ghim (mở file khác thì đổi theo), và nó **không mất sau khi gửi** - file đó là đầu vào của cả cuộc trò chuyện chứ không phải dữ liệu kèm một lần. Nhờ vậy bạn nói "dọn lại phần quá hạn" hay "viết thêm phần kết" mà không cần nhắc tên file, Javis vẫn biết đang nói về file nào và ghi thẳng vào đó. Bấm **✕** trên thẻ để bỏ ghim.
+Khác thẻ đính kèm ở chỗ: chỉ có **một** thẻ ghim (mở file khác thì đổi theo), và nó **không mất sau khi gửi** - file đó là đầu vào của cả cuộc trò chuyện chứ không phải dữ liệu kèm một lần. Nhờ vậy bạn nói "dọn lại phần quá hạn" hay "viết thêm phần kết" mà không cần nhắc tên file, Javis vẫn biết đang nói về file nào và ghi thẳng vào đó.
+
+Thẻ ghim còn là **lối quay lại**: bấm vào thẻ là file mở lại trong trình sửa đúng chỗ đang làm dở (đang mở sẵn thì chỉ đưa mắt về, không nạp lại nên chữ chưa lưu vẫn còn). Bấm **✕** trên thẻ để bỏ ghim.
 
 ## Javis hiện ảnh, file và artifact trong câu trả lời
 
