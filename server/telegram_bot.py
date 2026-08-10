@@ -9,6 +9,9 @@ Telegram bot cho Javis - long-polling getUpdates, whitelist theo chat_id (MỘT 
 - Gửi tin: thử MarkdownV2 (đậm/nghiêng/code hiện đẹp) → hỏng thì gửi lại plain
   (mirror vòng (True, False) trong telegram adapter của hermes).
 - Nhận file/ảnh từ user: tự tải về download_dir rồi đưa đường dẫn vào tin nhắn.
+- Nhận TIN THOẠI: stt_fn(bytes, tên) -> dict (xem server/stt.py, Whisper qua Groq) → nghe
+  thành chữ rồi chạy như câu user gõ tay. Không có stt_fn / chưa đấu key Groq thì trả lời là
+  cần dán API key Groq ở trang Models mới ra lệnh bằng ghi âm được.
 - precheck_fn(text, meta) -> None|{"reply":...}: chặn một tin TRƯỚC khi tốn lượt (bot chuyên
   trách dùng để không mở miệng trong nhóm chưa được cho phép).
 - event_fn(loai, thong_tin): tin DỊCH VỤ của nhóm (bot vào nhóm / bị đá / nhóm nâng cấp lên
@@ -23,6 +26,7 @@ from pathlib import Path
 
 import httpx
 
+import stt
 from bot_gateway import HangLuot, dong_vet, ten_tool
 
 
@@ -86,17 +90,28 @@ CAU_LOI_NGUOI_THAT = ("Dạ em xin lỗi, chỗ này em đang trục trặc nên
                       "Anh chị nhắn lại giúp em một chút nữa nhé.")
 
 
+# Dòng mở đầu khối tin thoại đã nghe thành chữ. Là HẰNG SỐ vì `_caption_command_text` phải
+# nhận ra khối này để đừng cắt mất câu đã nghe (xem chú thích trong hàm đó).
+MARK_THOAI = "[Tin THOẠI qua Telegram."
+
+
 def _caption_command_text(ingested, caption):
-    """Text cuối cho tin CHỈ có đính kèm (ảnh/file). Nếu caption là LỆNH ('/...', vd '/notes ...')
-    thì đưa LỆNH lên ĐẦU + dòng marker '[... đã tải về: path]' để _dispatch nhận đúng lệnh mà
-    skill vẫn thấy đường dẫn file; caption thường hoặc rỗng thì giữ NGUYÊN ingested (hành vi cũ).
-    Cần vì gửi ảnh + caption '/notes' trước đây bị chôn lệnh giữa text ingest nên không route
-    được như lệnh - đúng ca dùng chính của /notes (chộp ảnh lưu vào Sources).
+    """Text cuối cho tin CHỈ có đính kèm (ảnh/file/thoại). Nếu caption là LỆNH ('/...', vd
+    '/notes ...') thì đưa LỆNH lên ĐẦU + dòng marker '[... đã tải về: path]' để _dispatch nhận
+    đúng lệnh mà skill vẫn thấy đường dẫn file; caption thường hoặc rỗng thì giữ NGUYÊN ingested
+    (hành vi cũ). Cần vì gửi ảnh + caption '/notes' trước đây bị chôn lệnh giữa text ingest nên
+    không route được như lệnh - đúng ca dùng chính của /notes (chộp ảnh lưu vào Sources).
     _ingest_attachment ghép caption vào CUỐI marker, nên ở nhánh lệnh ta lấy lại dòng marker
-    (dòng đầu, marker luôn 1 dòng) rồi đặt SAU lệnh."""
+    (dòng đầu, marker luôn 1 dòng) rồi đặt SAU lệnh.
+
+    NGOẠI LỆ tin thoại: khối của nó là NHIỀU dòng (dòng dặn + câu đã nghe, câu nói dài thì
+    xuống dòng thoải mái). Cắt lấy dòng đầu như file đính kèm là vứt luôn câu người ta vừa
+    nói - im lặng, không lỗi. Nên khối thoại đi nguyên vẹn xuống sau lệnh."""
     cap = (caption or "").strip()
     ing = ingested or ""
     if cap.startswith("/") and ing:
+        if ing.startswith(MARK_THOAI):
+            return cap + "\n" + ing
         return cap + "\n" + ing.split("\n", 1)[0]
     return ing
 
@@ -151,7 +166,7 @@ def md_to_mdv2(text: str) -> str:
 class TelegramBot(HangLuot):
     def __init__(self, token, chat_id, answer_fn, command_fn=None, callback_fn=None,
                  download_dir=None, commands=None, precheck_fn=None, event_fn=None,
-                 giau_trang_thai=False):
+                 giau_trang_thai=False, stt_fn=None):
         self.token = token
         # Giấu MỌI tin trạng thái/kỹ thuật của Javis, để cuộc trò chuyện đọc như người thật.
         # Bot của CHỦ để False (chủ cần thấy "đang gọi công cụ…", cần lệnh /stop); bot chuyên
@@ -180,6 +195,10 @@ class TelegramBot(HangLuot):
         # Tin DỊCH VỤ của nhóm: async (loai, thong_tin) -> None. Xem `_bao_su_kien`.
         self.event_fn = event_fn
         self.download_dir = download_dir    # str | callable(chat) -> str: nơi lưu file user gửi lên
+        # Nghe tin thoại: async (bytes, tên file) -> dict như `stt.groq_nghe`. None = chưa đấu
+        # (gửi tin thoại sẽ được trả lời là cần dán API key Groq ở trang Models). Nhận qua tham
+        # số chứ không tự đọc settings: module này cố ý không biết gì về config của Javis.
+        self.stt_fn = stt_fn
         self._task = None
         # ĐA PHIÊN: mỗi chat_id có lượt trả lời RIÊNG → các tài khoản chạy song song,
         # cùng 1 tài khoản vẫn tuần tự (1 lượt/lúc). Map chat_id(str) -> asyncio.Task.
@@ -493,16 +512,73 @@ class TelegramBot(HangLuot):
         except Exception as e:
             print(f"[telegram sự kiện nhóm] {type(e).__name__}: {e}", file=sys.stderr)
 
+    # ---- Tải một file từ Telegram về BỘ NHỚ (không ghi đĩa) ----
+    async def _tai_ve_ram(self, client, file_id):
+        """Trả (bytes, loi). Dùng cho tin thoại: nghe xong là xong, không cần để lại file."""
+        try:
+            r = await client.get(self._url("getFile"), params={"file_id": file_id})
+            fp = ((r.json() or {}).get("result") or {}).get("file_path")
+            if not fp:
+                return b"", "Telegram không trả đường dẫn file"
+            rr = await client.get(f"https://api.telegram.org/file/bot{self.token}/{fp}",
+                                  timeout=httpx.Timeout(180.0))
+            rr.raise_for_status()
+            return rr.content, ""
+        except Exception as e:
+            return b"", f"{type(e).__name__}: {e}"
+
+    # ---- Tin THOẠI → chữ (Whisper qua Groq) → chạy như câu người dùng gõ tay ----
+    async def _nghe_tin_thoai(self, client, media, caption):
+        """Trả chuỗi đưa vào lượt chat. `stt_fn` do main.py cấp: async (bytes, tên) -> dict.
+
+        Chưa cấu hình `stt_fn`, chưa đấu key, nghe hỏng: mọi ngả đều trả một dòng DẶN Javis
+        nói gì, không phải câu nói sẵn - kênh nào cũng đi qua engine nên giọng còn hợp ngữ
+        cảnh (chủ hay khách). Im lặng nuốt tin thoại là ngả duy nhất không được phép.
+        """
+        if not self.stt_fn:
+            return stt.loi_thanh_dong("thieu_key")
+        fsize = media.get("file_size") or 0
+        if fsize and fsize > MAX_DOWNLOAD_MB * 1024 * 1024:
+            return stt.loi_thanh_dong("qua_lon", f"({fsize // (1024 * 1024)}MB, "
+                                                 f"trần tải về của Telegram bot là {MAX_DOWNLOAD_MB}MB)")
+        ten = media.get("file_name") or f"voice_{int(time.time())}.ogg"
+        data, loi = await self._tai_ve_ram(client, media.get("file_id"))
+        if loi:
+            return stt.loi_thanh_dong("loi", "không tải được tin thoại về (" + loi + ")")
+        try:
+            kq = await self.stt_fn(data, ten)
+        except Exception as e:
+            kq = {"ok": False, "noi_voi_javis": stt.loi_thanh_dong("loi", f"{type(e).__name__}: {e}")}
+        if not (kq or {}).get("ok"):
+            return (kq or {}).get("noi_voi_javis") or stt.loi_thanh_dong("loi")
+        nghe = str(kq.get("text") or "").strip()
+        # Câu nghe được đi vào lượt như user gõ tay, nhưng có một dòng dặn ở trên: Whisper vẫn
+        # nghe nhầm, và một câu nghe nhầm mà đi thẳng ra hành động thật (gửi tin, đăng bài,
+        # đặt lịch, tiêu tiền) là loại sai không rút lại được.
+        dan = (MARK_THOAI + " Javis đã nghe thành chữ (có thể nhầm vài từ) - câu ở "
+               "dưới. Cứ làm theo như user gõ tay. Nếu việc sắp làm có tác động RA NGOÀI (gửi "
+               "tin, đăng bài, đặt lịch, tiêu tiền, sửa file) thì mở đầu bằng một dòng "
+               "\"Em nghe: ...\" rồi hỏi xác nhận trước khi làm.]")
+        # Caption là LỆNH thì để `_caption_command_text` đưa nó lên đầu (khối này đi nguyên
+        # vẹn xuống dưới); ghép ở đây nữa là lệnh xuất hiện hai lần trong cùng một lượt.
+        return dan + "\n" + nghe + ("\n" + caption if caption and not caption.startswith("/") else "")
+
     # ---- User gửi file/ảnh lên bot → tải về, trả dòng mô tả (đường dẫn) cho engine ----
     async def _ingest_attachment(self, client, msg):
         doc = msg.get("document")
         photos = msg.get("photo") or []
-        media_khac = msg.get("voice") or msg.get("audio") or msg.get("video") or msg.get("video_note")
+        thoai = msg.get("voice") or msg.get("audio")
+        media_khac = msg.get("video") or msg.get("video_note")
         caption = (msg.get("caption") or "").strip()
 
         def _with_cap(s):
             return s + ("\n" + caption if caption else "")
 
+        if thoai:
+            # Tin thoại có đường đi RIÊNG: nghe thành chữ rồi chạy như một câu hỏi, chứ không
+            # tải về đĩa rồi báo "đã tải về path" như file thường - người ta ghi âm để RA LỆNH,
+            # không phải để gửi Javis một file .ogg.
+            return await self._nghe_tin_thoai(client, thoai, caption)
         if doc:
             kind = "file"
             file_id = doc.get("file_id")
@@ -515,8 +591,8 @@ class TelegramBot(HangLuot):
             name = f"photo_{msg.get('message_id')}.jpg"
             fsize = big.get("file_size") or 0
         elif media_khac:
-            return _with_cap("[Người dùng gửi voice/audio/video qua Telegram - Javis chưa đọc được "
-                             "loại này. Hãy lịch sự nhờ user gõ chữ hoặc gửi dạng file tài liệu.]")
+            return _with_cap("[Người dùng gửi video qua Telegram - Javis chưa xem được loại này. "
+                             "Hãy lịch sự nhờ user gõ chữ, gửi tin thoại, hoặc gửi dạng file tài liệu.]")
         else:
             return None
 

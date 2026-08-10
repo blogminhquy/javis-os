@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.14] - 2026-08-10
+### Thêm mới
+- **Ra lệnh bằng ghi âm trên Telegram.** Bấm giữ micro nói một câu, Javis nghe thành chữ rồi làm y như bạn gõ tay. Trước đây gửi tin thoại chỉ nhận lại một câu "Javis chưa đọc được loại này, nhờ anh gõ chữ" - tức là cái nút micro to nhất trong Telegram không dùng được, đúng lúc người ta cần nó nhất (đang lái xe, tay bận).
+- **Chạy bằng Whisper của Groq, tận dụng key có sẵn.** Groq vốn đã là một trong tám bộ não của Javis và phục vụ Whisper trên cùng endpoint với model chat, nên ai đã đấu Groq để chat thì tin thoại chạy luôn, không phải đăng ký thêm nhà cung cấp nào. Ngược lại, đấu key chỉ để nghe giọng cũng được - không bắt buộc đổi model chính sang Groq.
+- **Chưa đấu key thì nói rõ phải làm gì**, không im lặng và cũng không nói lấp lửng "chưa đọc được": bot chỉ thẳng vào trang Models, mục Groq (API), dán key lấy ở console.groq.com. Key đọc TẠI THỜI ĐIỂM NGHE nên dán xong là tin thoại tiếp theo chạy được ngay, không phải tắt bật lại bot.
+- **Việc có tác động ra ngoài thì hỏi lại trước.** Gửi tin, đăng bài, đặt lịch, tiêu tiền, sửa file: Javis mở đầu bằng một dòng "Em nghe: ..." rồi chờ xác nhận. Máy vẫn nghe nhầm được, mà mấy việc đó lỡ làm rồi thì không rút lại. Hỏi số liệu, tra cứu, tóm tắt thì làm thẳng.
+- **Mọi ngả hỏng đều quay lại thành một câu nói**: file quá dài, nghe không ra chữ, Groq trả lỗi, hàm nghe ném ngoại lệ. Tin thoại là loại tin mà "hỏng" và "chạy" nhìn giống hệt nhau ở phía người gửi (bấm giữ, thả ra, thấy đã gửi), nên im lặng ở đây là kiểu hỏng tệ nhất.
+- File ghi âm KHÔNG lưu vào `inbox/`: nghe xong lấy chữ là xong, người ta ghi âm để ra lệnh chứ không phải để gửi Javis một file `.ogg`.
+- Gửi tin thoại kèm caption `/notes` vẫn chạy đúng lệnh với nội dung là câu vừa nói (khối thoại nhiều dòng đi nguyên vẹn, không bị cắt như marker file đính kèm).
+- Video và video note vẫn chưa xem được, nhưng câu từ chối thôi gộp chung với voice.
+- Kênh Zalo chưa nghe được tin thoại. Phần nghe nằm ở `server/stt.py`, không biết gì về Telegram, nên đấu Zalo vào sau này là nối dây chứ không viết lại.
+- Tài liệu: [Telegram](docs/11-telegram.md) thêm mục "Ra lệnh bằng ghi âm (tin thoại)" + hai mục sự cố; [Models & engine](docs/10-models-va-engine.md) ghi rõ key Groq còn dùng để nghe giọng.
+
 ## [0.26.13] - 2026-08-10
 ### Cải thiện
 - **Thẻ "file đang mở" dưới khung chat nay bấm được: bấm vào là quay lại sửa đúng file đó.** Trước đây thẻ chỉ để nhìn. Mở một note ra sửa, đóng trình sửa lại rồi chat vài lượt, muốn sửa tiếp thì phải đi tìm lại file trong cây vault - đúng cái việc mà thẻ ghim sinh ra để khỏi phải làm. Nay bấm thẻ (hoặc chọn bằng phím Tab rồi Enter) là file mở lại trong trình sửa, cây vault tự xổ tới đúng nhánh chứa nó.

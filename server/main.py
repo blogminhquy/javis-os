@@ -60,6 +60,7 @@ import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm to
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
 import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo hạn tuổi + trần dung lượng
+import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import zalo_login
 import oauth_mcp
 import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định) - update theo phiên bản app
@@ -10400,6 +10401,17 @@ def _tg_inbox_dir(chat=None):
     return str(Path(root) / "inbox" / "telegram")
 
 
+async def _stt_nghe(data, ten=""):
+    """Nghe tin thoại của kênh chat -> chữ. Đọc key Groq TẠI THỜI ĐIỂM GỌI, cố ý.
+
+    Dán key ở trang Models xong là tin thoại tiếp theo nghe được ngay, không phải tắt bật lại
+    bot. Đọc lúc dựng bot thì key mới dán nằm im tới lần khởi động sau, mà chẳng có gì trên
+    màn hình nói cho người ta biết điều đó.
+    """
+    key = (cfgmod.read_settings().get("model") or {}).get("groq_api_key") or ""
+    return await stt.groq_nghe(data, ten, key)
+
+
 # ============================================================
 # Kênh Zalo Bot của CHỦ (API chính thức). Xem docs/dev/2026-08-zalo-bot-spec.md
 # ============================================================
@@ -10595,7 +10607,7 @@ def restart_telegram():
     _TG_SESS.clear()   # xoá mọi phiên hội thoại cũ khi khởi động lại bot
     if t.get("enabled") and t.get("token"):
         _TG_BOT = TelegramBot(t["token"], t.get("chat_id", ""), _tg_answer, _tg_command, _tg_callback,
-                              download_dir=_tg_inbox_dir)
+                              download_dir=_tg_inbox_dir, stt_fn=_stt_nghe)
         _TG_BOT.start()
         return True
     return False

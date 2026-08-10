@@ -9,6 +9,7 @@ Bật bot Telegram để hỏi Javis ngay từ điện thoại, không cần m�
 - Có sẵn các lệnh gõ nhanh (bắt đầu bằng dấu `/`) để xem trạng thái, đổi model, dừng câu đang chạy, bắt đầu hội thoại mới, lưu note vào brain.
 - Qua Telegram Javis vẫn có đủ MCP và skill: hỏi số liệu bán hàng, quảng cáo, đọc và ghi file trong vault đều được. Điều này đúng với MỌI engine (Claude Code, ChatGPT/Codex, OpenRouter, Claude API, OpenAI API) vì công cụ của Javis đi qua MCP Hub chứ không gắn riêng vào engine nào.
 - Gửi file được cả hai chiều: bạn gửi ảnh/tài liệu cho bot để Javis đọc, và file Javis tạo ra trong lượt sẽ tự gửi ngược về cho bạn.
+- **Ra lệnh bằng ghi âm**: bấm giữ micro nói một câu, Javis nghe thành chữ rồi làm như bạn gõ tay. Cần dán API key Groq ở trang Models một lần.
 - Trả lời chạy nền: đang trả lời câu này bạn vẫn gửi được `/stop` để cắt ngang.
 
 Xem thêm engine và model ở [Models & engine](10-models-va-engine.md), công cụ MCP ở [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md).
@@ -115,9 +116,33 @@ Bot chạy được cả hai chiều file. Đây là cách nhanh nhất để đ
 Giới hạn cần nhớ:
 
 - **Trần tải về là 20MB** (giới hạn của Telegram bot API, không phải của Javis). File to hơn, bot báo lại là không tải về được và gợi ý cách gửi khác.
-- **Voice, audio, video, video note: Javis chưa đọc được.** Bot sẽ lịch sự nhờ bạn gõ chữ hoặc gửi lại dạng file tài liệu.
+- **Tin thoại (ghi âm) thì Javis nghe được** - xem mục ngay dưới đây.
+- **Video và video note: Javis chưa xem được.** Bot sẽ lịch sự nhờ bạn gõ chữ, gửi tin thoại, hoặc gửi lại dạng file tài liệu.
 - Caption là một lệnh cũng được nhận đúng. Ví dụ chộp ảnh hoá đơn rồi đặt caption `/notes hoá đơn thép hộp hôm nay` thì Javis chạy lệnh `/notes` với đúng tấm ảnh đó, chứ không coi cả cụm là chữ thường.
 - `inbox/` là **vùng cache**, không phải kho tri thức: file quá **30 ngày** hoặc khi vùng cache vượt **300MB** sẽ bị dọn tự động. Cần giữ lâu dài thì bảo Javis rút nội dung thành ghi chú `.md` hoặc chuyển sang thư mục khác trong brain. Xem [Quản lý tệp tin](05-quan-ly-tep-tin.md).
+
+### Ra lệnh bằng ghi âm (tin thoại)
+
+Bấm giữ nút micro trong Telegram, nói, rồi thả tay. Javis nghe câu đó thành chữ và làm y như bạn gõ tay - tiện nhất lúc đang lái xe hoặc tay bận.
+
+**Cần một thứ: API key của Groq.** Groq là chỗ Javis mượn để chuyển giọng nói thành chữ (model Whisper). Chưa đấu thì gửi tin thoại Javis sẽ trả lời là cần dán key, kèm chỉ dẫn - chứ không im lặng.
+
+Cách đấu, làm một lần:
+
+1. Vào [console.groq.com](https://console.groq.com), đăng nhập, tạo một API key.
+2. Mở dashboard Javis, vào trang **Models**, tìm nhà cung cấp **Groq (API)**, dán key vào rồi lưu.
+3. Xong. Gửi tin thoại tiếp theo là nghe được ngay, **không cần tắt bật lại bot**.
+
+Vài điều nên biết:
+
+- **Key này dùng chung với phần chat.** Đã đấu Groq làm bộ não thì tin thoại chạy luôn, không phải làm gì thêm. Ngược lại, đấu key chỉ để nghe giọng cũng được - không bắt buộc phải đổi model chính sang Groq.
+- **Javis nghe tiếng Việt** (có gợi ý ngôn ngữ cho Whisper nên câu ngắn không bị đoán nhầm sang tiếng khác rồi dịch luôn).
+- **Việc có tác động ra ngoài thì Javis hỏi lại trước.** Gửi tin, đăng bài, đặt lịch, tiêu tiền, sửa file: Javis mở đầu bằng một dòng "Em nghe: ..." rồi chờ bạn xác nhận. Máy vẫn nghe nhầm được, mà mấy việc đó lỡ làm rồi thì không rút lại. Hỏi số liệu, tra cứu, tóm tắt thì làm thẳng, không hỏi lại.
+- **File ghi âm không được lưu vào brain.** Javis nghe xong lấy chữ, không để lại file `.ogg` trong `inbox/`.
+- Gửi tin thoại kèm caption `/notes` vẫn chạy đúng lệnh, với nội dung là câu bạn vừa nói.
+- Nghe không ra chữ (im lặng, quá ồn) hay Groq trả lỗi thì bot nói rõ lý do và nhờ bạn gõ chữ. Không có ngả nào im lặng.
+
+Kênh Zalo hiện **chưa** nghe được tin thoại, mới có Telegram.
 
 ### Bot gửi file về cho bạn
 
@@ -268,7 +293,11 @@ Nhóm **Hệ thống** ở đầu trang **Cài đặt** cũng hiện nhanh Teleg
 
 **Gõ `/tên-skill` bị báo cần engine Claude CLI.** Bạn đang ở engine OpenRouter. Gõ `/cli` để chuyển về Claude rồi gọi lại skill.
 
-**Gửi file lên bot mà Javis nói không đọc được.** Kiểm tra 2 thứ: file có quá 20MB không (trần tải về của Telegram bot API), và có phải voice/audio/video không (Javis chưa đọc được mấy loại này, hãy gửi dạng file tài liệu hoặc gõ chữ).
+**Gửi file lên bot mà Javis nói không đọc được.** Kiểm tra 2 thứ: file có quá 20MB không (trần tải về của Telegram bot API), và có phải video/video note không (Javis chưa xem được hai loại này, hãy gửi dạng file tài liệu hoặc gõ chữ).
+
+**Gửi tin thoại mà Javis nói cần API key Groq.** Đúng như vậy: phần nghe giọng chạy bằng Whisper của Groq. Vào trang **Models**, mục **Groq (API)**, dán key lấy ở console.groq.com rồi lưu. Không cần tắt bật lại bot.
+
+**Javis nghe sai chữ.** Thu lại gần micro hơn, nói chậm và tránh chỗ ồn. Câu quá ngắn (một hai từ) cũng dễ nghe nhầm - nói trọn một câu thì chuẩn hơn hẳn. Với việc có tác động ra ngoài, Javis đọc lại câu nghe được rồi mới làm, nên bạn có cơ hội bắt lỗi trước.
 
 **Javis nói đã tạo file nhưng bạn không nhận được.** Chỉ file vừa tạo/sửa trong chính lượt đó, dưới 50MB, tối đa 10 file mỗi lượt mới được tự đính kèm. File cũ thì bảo Javis gửi lại cụ thể tên file.
 
