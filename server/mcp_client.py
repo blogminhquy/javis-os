@@ -30,6 +30,9 @@ PROTOCOL = "2025-06-18"
 _IDLE_TTL = 600          # đóng session không dùng > 10 phút
 _INTERNAL = {"botcake": "botcake_mcp", "substack": "substack_mcp"}   # transport internal → tên module
 
+_DIAL_SONG_SONG = 8      # số connection dò tool CÙNG LÚC (đừng để npx nổ ra 30 tiến trình)
+_DIAL_TRAN = "20"        # giây - trần dò tool CHO MỖI connection (0 = không giới hạn)
+
 
 def sanitize_fn(name):
     """Tên function gửi cho model phải khớp ^[a-zA-Z0-9_-]{1,64}$."""
@@ -478,25 +481,74 @@ async def discover(servers):
     return tools_spec, route
 
 
+def tran_dial():
+    """Trần dò tool cho MỘT connection (giây). Trả None = không giới hạn.
+
+    Vì sao phải có trần: danh sách tool của hub nằm trên ĐƯỜNG GĂNG của mọi lượt chat qua
+    Claude Code. Lúc khởi động, `claude` đấu xong MCP rồi mới nhận việc, mà SDK chỉ chờ
+    `initialize` 60 giây. Một connection chết mà cứ để nó chạy hết trần riêng của transport
+    (http 60s, stdio 90s lúc init) là một mình nó thổi bay cả lượt chat - lỗi người dùng thật
+    gặp ngày 2026-08-11: "chạy rất lâu rồi báo Control request timeout: initialize".
+
+    Bỏ nguồn chậm ở vòng này KHÔNG mất gì lâu dài: cache hub hết hạn sau 60s là dò lại, và
+    nguồn khoẻ vẫn lên tool đầy đủ ngay lượt đó.
+    """
+    raw = os.getenv("JAVIS_MCP_DISCOVER_TIMEOUT", _DIAL_TRAN)
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        v = float(_DIAL_TRAN)
+    return v if v > 0 else None
+
+
 async def discover_resolved(conns):
     """conns = mcp_store.resolved() → (tools_spec, route) namespaced theo connection.
-    Conn nào không kết nối được thì BỎ QUA (không raise) để nguồn khác vẫn chạy."""
-    tools_spec, route = [], {}
-    for conn in conns:
-        deny = set(conn.get("deny_tools") or [])
+    Conn nào không kết nối được thì BỎ QUA (không raise) để nguồn khác vẫn chạy.
+
+    Dò SONG SONG (trước 0.26.18 là tuần tự): tổng thời gian nay xấp xỉ nguồn CHẬM NHẤT chứ
+    không còn là tổng của mọi nguồn. Máy đấu chục connector thì đây là khác biệt giữa vài giây
+    và vài phút. Thứ tự kết quả vẫn theo đúng thứ tự `conns` để tên tool (`_mk_fn` chống trùng
+    bằng hậu tố) không đổi giữa hai lần dò.
+    """
+    tran = tran_dial()
+    sem = asyncio.Semaphore(_DIAL_SONG_SONG)
+
+    async def _dial(conn):
+        """(spec, tools|None) cho 1 connection. Không bao giờ raise."""
         spec = _conn_spec(conn)
         # Connection OAuth-only (giữ token, tool đến từ plugin - vd Meta Ads Graph API): không có
         # MCP server để discover → bỏ qua sạch, không thử kết nối (khỏi log lỗi mỗi vòng).
         # Transport `internal` KHÔNG thuộc nhóm này dù cũng không có url/command - xem
         # `co_server_de_dial`, và xem cả cái giá đã trả khi nhầm hai thứ đó với nhau.
         if not co_server_de_dial(spec):
+            return spec, None
+
+        async def _lay():
+            spec["headers"].update(await _oauth_headers(conn))
+            return await pool.list_tools(spec)
+
+        async with sem:
+            try:
+                if tran is None:
+                    return spec, await _lay()
+                return spec, await asyncio.wait_for(_lay(), timeout=tran)
+            except (asyncio.TimeoutError, TimeoutError):
+                # Huỷ từ NGOÀI cắt ngang giữa một request NDJSON: phiên stdio còn nửa câu trả
+                # lời nằm trong ống, lần sau đọc là lệch pha vĩnh viễn. Vứt phiên, đừng tái dùng.
+                pool.invalidate(spec.get("key") or _spec_hash(spec))
+                print(f"[mcp discover] {conn.get('label')}: quá hạn dò tool - bỏ qua vòng này",
+                      file=sys.stderr)
+            except Exception as e:
+                print(f"[mcp discover] {conn.get('label')}: {type(e).__name__}: {e}", file=sys.stderr)
+        return spec, None
+
+    ket = await asyncio.gather(*(_dial(c) for c in conns)) if conns else []
+
+    tools_spec, route = [], {}
+    for conn, (spec, tools) in zip(conns, ket):
+        if not tools:
             continue
-        spec["headers"].update(await _oauth_headers(conn))
-        try:
-            tools = await pool.list_tools(spec)
-        except Exception as e:
-            print(f"[mcp discover] {conn.get('label')}: {type(e).__name__}: {e}", file=sys.stderr)
-            continue
+        deny = set(conn.get("deny_tools") or [])
         ns = conn.get("namespace") or conn.get("slug") or conn["id"]
         for t in tools:
             tname = t.get("name")
