@@ -93,8 +93,23 @@ không vite, không bundler. Chuỗi tiếng Việt nằm rải trong template l
 Cộng thêm phía server: **182 chuỗi lỗi tiếng Việt** trả về giao diện dạng `{"error": "..."}`
 (ví dụ `"Sai tài khoản hoặc mật khẩu"`, `"Mật khẩu tối thiểu 8 ký tự"`).
 
-Còn 9.384 dòng tiếng Việt trong `server/*.py` thì **phần lớn là chú thích và docstring cho lập
-trình viên** - không dịch, không nằm trong phạm vi.
+**Còn 9.384 dòng tiếng Việt trong `server/*.py` thì phần lớn KHÔNG phải bề mặt sản phẩm.** Chỗ
+này hay bị đếm nhầm nên bóc bằng AST cho hết đường suy đoán:
+
+| Loại | Dòng | Ai đọc | Có dịch không |
+|------|------|--------|----------------|
+| Chú thích (`#`) | 3.142 | lập trình viên | Không |
+| **Docstring** | **3.313** | **lập trình viên** | **Không** |
+| Chuỗi thật (prompt gửi model + lỗi hiện cho user) | 2.482 | model và người dùng | Chỉ phần hiện cho user |
+
+**69% dòng tiếng Việt trong server là chú thích và docstring.** Repo này cố ý viết docstring
+dài để giải thích *vì sao* (một mình `dong_ho()` đã 15 dòng), nên con số 9.384 nhìn thì to mà
+bề mặt sản phẩm thật chỉ khoảng **2.500 dòng**, trong đó 182 là chuỗi lỗi hiện cho user còn lại
+gần hết là prompt.
+
+Nói cách khác: **ai quy đổi "9.384 dòng tiếng Việt" thành "9.384 dòng phải dịch" là đang ước
+lượng cao hơn thực tế khoảng 3,7 lần.** Phạm vi thật của cả dự án đa ngôn ngữ là 3.520 dòng
+giao diện cộng 182 chuỗi lỗi, không phải hai vạn dòng.
 
 ### 2.3. Tầng LOGIC - chỗ chảy máu
 
@@ -110,8 +125,21 @@ Mỗi mục đều đọc mã, có số dòng.
 | Bộ dò lời hứa suông | `background_status.py:60-85` - `_PROMISE` | Luật "KHÔNG hứa em sẽ báo lại" trong `CLAUDE.md` mất hiệu lực im lặng |
 | Cổng thao tác lịch | `engine.py:1143-1220` - danh sách từ khoá `hom nay`, `nhac hen`, `dat lich tu van`... | Vừa bỏ sót lệnh thật, vừa nổ nhầm khi khách chỉ nói chuyện phiếm |
 | Tìm kiếm cho chatbot khách | `chatbot_grounding.py:70-115` - bỏ dấu tiếng Việt, danh sách từ đụng nhau soạn tay | Chatbot phục vụ khách nước ngoài tra tài liệu kém hẳn |
+| **Cò ghi ký ức** | `learn.py:313` - `_REMEMBER_RE` bắt `ghi nhớ`, `nhớ giúp`, `lưu lại`, `remember this` | **Javis không học gì cả.** Người nói *"remember I prefer short answers"* thì khớp, nhưng *"save this"*, *"note that"*, *"keep in mind"* thì không - và không có lỗi nào báo là ký ức đã trượt |
+| **Dò bot bí** | `chatbot_runtime.py:497` - `_DAU_BI` gồm `chưa có thông tin`, `chuyển nhân viên`, `em chưa rõ`... | **Thuần tiếng Việt, không một chữ tiếng Anh.** Bot chăm khách nước ngoài không bao giờ được tính là bí, tab "Bot bí" rỗng, chủ nhìn vào tưởng bot chạy hoàn hảo |
+| Rút trạng thái hội thoại | `conversation_state.py:26-29` - `_GOAL_RE`, `_DECISION_RE`, `_CONSTRAINT_RE`, `_DONE_RE` | Mục tiêu, quyết định, ràng buộc và việc đã xong không được mang sang lượt sau |
+| Gợi ý tra bộ nhớ | `memory_index.py:28` - `_MEMORY_HINT_RE` | Không kích hoạt tra ký ức khi đáng tra |
 | Suy ý định việc nền | `tasks.py:575` | Phân loại việc sai nhóm |
 | Cắt câu để đặt tên phiên | `sessions.py:153` - cắt ở dấu chấm vì "tiếng Việt chấm nhiều" | Tên phiên xấu, không nguy hiểm |
+
+Mười ba chỗ, không phải chín như bản khảo sát đầu. Bốn chỗ tìm ra sau lại **tệ hơn** nhóm tìm
+ra trước, vì hai trong số đó đánh vào chính hai thứ làm Javis là Javis: **nó có học được từ
+người dùng không**, và **chủ có biết bot của mình đang bí không**.
+
+**Và đây là chỗ dễ đọc sai nhất của cả spec: nhỏ KHÔNG có nghĩa là ít rủi ro.** Mười ba chỗ này
+cộng lại chưa tới 60 dòng mã trên tổng số 49.000, nên nhìn bảng dễ kết luận "khoanh vùng được,
+không đáng lo". Sai. Chúng nhỏ **chính vì chúng là cổng**: một cái cổng ba dòng điều khiển toàn
+bộ thứ chạy sau nó. Thước đo đúng là **bán kính vụ nổ**, không phải số dòng.
 
 Tất cả các bộ trên dùng chung một thủ thuật `_norm()`: bỏ dấu rồi hạ chữ thường, kèm map tay
 `đ -> d` vì NFKD không phân rã được `đ` (`fast_path_runtime.py:25`, `readonly_path_runtime.py:34`,
@@ -151,6 +179,7 @@ không, và đó là chuyện tốt: được chọn thứ vừa vặn thay vì 
 
 ### 3.1. Có làm
 
+- **Bản nhỏ nhất đo được nhu cầu trước (mục 6)**, rồi mới tới phần còn lại của danh sách này.
 - Ba biến ngôn ngữ tách rời + một hàm quyết định duy nhất `resolve_lang()`.
 - Lớp **bộ từ vựng (lexicon)** thay cho regex nhúng cứng, kèm luật suy biến an toàn.
 - Hạ tầng i18n cho dashboard không cần bước build, kèm test chống thoái lui.
@@ -250,7 +279,7 @@ LANGS = {
 ```
 
 Luật: **không mã nào ngoài file này được viết `if lang == "vi"`.** Cần biết gì về một ngôn ngữ
-thì hỏi sổ đăng ký. Có một test canh đúng luật này (mục 7).
+thì hỏi sổ đăng ký. Có một test canh đúng luật này (mục 8).
 
 ### 4.3. Lớp bộ từ vựng và luật suy biến an toàn
 
@@ -442,7 +471,104 @@ dùng không đụng tới.
 **Không sửa file nào khác. Phải sửa chỗ khác nghĩa là spec này đã hỏng - sửa spec trước, đừng
 sửa lén.**
 
-## 6. Sáu giai đoạn
+## 6. Bản nhỏ nhất đo được nhu cầu
+
+Trước khi bỏ hai tuần, có một câu hỏi hợp lý: **có nhu cầu thật không, hay đây là tính năng tự
+kỷ ám thị?** Câu đó đáng trả lời bằng tiền thật chứ không bằng suy đoán. Nhưng phép thử phải
+được thiết kế cẩn thận, vì bản trực giác của nó **trả về số liệu bẩn**.
+
+### 6.1. Cái bẫy: phép thử rẻ mà kết quả sai
+
+Bản trực giác nghe rất hợp lý: *chèn "Reply in English" vào prompt, dịch vài chục nhãn chính,
+ship, có 50 người nước ngoài dùng thật thì mới đầu tư sâu.* Một tới hai ngày công.
+
+Vấn đề: kế hoạch đó **bật tiếng Anh mà không đụng vào 13 cái cổng ở mục 2.3**. Nghĩa là 50
+người dùng thử đó nhận một Javis mà:
+
+- đường tắt tiết kiệm token nuốt câu hỏi cần dữ liệu live rồi model bịa,
+- bộ bắt khai man không nổ khi Javis nói "đã gửi xong" mà chưa gửi,
+- **cò ghi ký ức không kích hoạt, nên Javis không học được gì từ họ** - đúng cái làm Javis khác
+  một khung chat thường,
+- bot chăm khách không bao giờ được tính là bí.
+
+Rồi anh đo ra "không có nhu cầu". **Nhưng thứ vừa đo là một sản phẩm hỏng, không phải thị
+trường.** Một phép thử rẻ mà trả về âm tính giả thì tệ hơn không thử, vì anh sẽ hành động theo
+nó và đóng cửa một hướng đi vì lý do sai.
+
+### 6.2. Cách sửa, và nó rẻ hơn vẻ ngoài
+
+**Không cần cả Phase 2.** Chỉ cần luật suy biến ở mục 4.3, rút gọn còn đúng một điều kiện:
+
+> Phiên không phải tiếng Việt thì **tắt hết đường tối ưu, đi đường đầy đủ.**
+
+Tắt đường tắt nhanh, tắt một-bước-chỉ-đọc. Tốn thêm token cho vài chục người dùng beta, tốn gần
+như không gì để viết. Cộng một nhãn thành thật trên giao diện: *"beta, chưa tối ưu cho ngôn ngữ
+này"*.
+
+Bản nhỏ nhất vì vậy gồm:
+
+1. Phase 0 rút gọn: `lang.py` + sổ đăng ký hai mục `vi`, `en`, ghi `lang` vào trace.
+2. Khối NGÔN NGỮ trong prompt + sửa `CLAUDE.md` luật 5.
+3. **Luật một dòng ở trên: phiên không phải tiếng Việt thì không đi đường tối ưu.**
+4. Trường `ngon_ngu` cho chatbot chuyên trách.
+5. STT và TTS theo ngôn ngữ đã chọn.
+
+**Hai tới ba ngày thay vì một tới hai.** Đổi lại số liệu đo được đáng tin. Đánh đổi này quá hời:
+một ngày công để một quyết định chiến lược không dựa trên dữ liệu rác.
+
+Ba thứ **KHÔNG** có trong bản nhỏ nhất: dịch giao diện (không cần, xem 6.3), lớp bộ từ vựng đầy
+đủ, và locale.
+
+### 6.3. Chĩa phép thử vào đâu
+
+Đây là chỗ dễ chọn sai, và chọn sai thì hai tuần sau mới biết.
+
+Bản trực giác chĩa vào **chủ shop nước ngoài**: dịch giao diện, chờ người Mỹ tới. Phép thử đó
+đắt (phải dịch giao diện trước mới thử được), chậm (phải có kênh phân phối ở thị trường mới), và
+**đánh vào chỗ Javis yếu nhất** - ra khỏi Zalo, ra khỏi POS Việt, vào một cái chợ có hàng trăm
+AI dashboard đang đánh nhau.
+
+Chĩa đúng là vào **chủ shop Việt phục vụ khách ngoại**:
+
+> Chủ shop Việt có chatbot chăm khách Nhật, Hàn, Trung, hoặc bán hàng xuất khẩu. Giao diện chủ
+> vẫn tiếng Việt, brain vẫn tiếng Việt, Zalo vẫn Zalo. **Chỉ đổi một trường `ngon_ngu` trên con
+> bot đối ngoại.**
+
+Ba cái lợi, cái thứ ba lớn nhất:
+
+- **Không phải dịch một nhãn giao diện nào**, vì chủ shop không bao giờ rời tiếng Việt. Bản nhỏ
+  nhất bớt được nguyên hạng mục đắt nhất.
+- **Đo trên tập khách đã có**, không phải đi tìm thị trường mới rồi mới đo được.
+- **Đào sâu hào thay vì đổi hào.** Đây là tính năng mà đám dashboard quốc tế không đấu lại được,
+  vì họ không có Zalo và không có ngữ cảnh kinh doanh Việt. Còn "dịch giao diện ra tiếng Anh rồi
+  ra quốc tế" thì là bỏ lợi thế duy nhất để bước vào chỗ mình không có lợi thế nào.
+
+Nói cho rõ, vì chỗ này hay bị gộp: **đa ngôn ngữ KHÔNG đồng nghĩa với ra quốc tế.** Có ít nhất
+ba đường dùng nó, và đường thứ hai mới là đường nên thử trước:
+
+| Hướng | Ai trả tiền | Có phải dịch giao diện không | Quan hệ với hào Zalo/POS |
+|-------|-------------|------------------------------|--------------------------|
+| Chủ ngoại dùng Javis | khách hoàn toàn mới | Có, toàn bộ | Bỏ hào |
+| **Chủ Việt, khách ngoại** | **khách đã có** | **Không** | **Đào sâu hào** |
+| Chủ Việt thích dùng UI tiếng Anh | khách đã có | Có, một phần | Trung tính |
+
+### 6.4. Chốt ngưỡng TRƯỚC khi chạy
+
+Phép thử chỉ có nghĩa khi con số quyết định được ghi ra **trước** lúc nhìn kết quả, nếu không
+thì nhìn số nào cũng thấy hợp lý. Ngưỡng cụ thể là quyết định của chủ repo, nhưng nó phải có
+hình dạng như: *"trong N tuần, có ít nhất X chủ shop bật `ngon_ngu` khác `vi` trên bot của họ và
+còn bật sau hai tuần"*. Chỉ số "còn bật sau hai tuần" quan trọng hơn số lượt bật, vì bật thử
+một lần là tò mò chứ chưa phải nhu cầu.
+
+Chạm ngưỡng thì đi tiếp Phase 2 và 3. Không chạm thì dừng ở đây, và cái đã làm vẫn không phí:
+luật suy biến ở bước 3 là một rào an toàn có giá trị tự thân, kể cả khi Javis mãi mãi chỉ nói
+tiếng Việt.
+
+## 7. Sáu giai đoạn
+
+Mục này là kế hoạch ĐẦY ĐỦ, chạy sau khi bản nhỏ nhất ở mục 6 đã chạm ngưỡng. Bản nhỏ nhất
+chính là một lát cắt mỏng của Phase 0 và 1 cộng một mẩu của Phase 2, nên làm nó không phải là
+làm thừa.
 
 **Phase 0 - Đo và khoá (nửa ngày).** Thêm `server/lang.py`, `lang_registry.py` với đúng một mục
 `vi`, thêm cụm `locale` vào cấu hình, ghi `lang` và `lang_source` vào trace. **Không đổi một
@@ -473,7 +599,7 @@ của spec này.
 ngữ, các cổng an toàn không bị vô hiệu), rồi Phase 3 theo nhịp có sức, rồi Phase 4 và 5. Tổng
 khoảng hai tuần làm tập trung.
 
-## 7. Kiểm thử
+## 8. Kiểm thử
 
 Bộ test hiện có nằm ở `tests/python`, `tests/js`, chạy qua `tests/run.py`. Thêm:
 
@@ -489,7 +615,7 @@ Bộ test hiện có nằm ở `tests/python`, `tests/js`, chạy qua `tests/run
   Việt trong file đã di trú**.
 - `test_prompt_lang_block.py` - đúng một khối NGÔN NGỮ, đúng ngôn ngữ, có `nudge` khi engine yếu.
 
-## 8. Rủi ro và bẫy
+## 9. Rủi ro và bẫy
 
 - **Cổng an toàn tắt trong im lặng.** Rủi ro lớn nhất của cả spec. Cách chống duy nhất đáng tin
   là `test_lexicon_degrade.py`, và ghi `unverified` ra trace để nhìn thấy được ngoài thực địa.
@@ -508,7 +634,7 @@ Bộ test hiện có nằm ở `tests/python`, `tests/js`, chạy qua `tests/run
 - **Giọng đọc thiếu.** Không có giọng thì phải nói thẳng ra giao diện, đừng đọc bằng giọng tiếng
   Việt cho một câu tiếng Nhật.
 
-## 9. Ba câu hỏi đã tự chốt
+## 10. Ba câu hỏi đã tự chốt
 
 **Tiếng Việt hay tiếng Anh làm từ điển gốc?** Chốt **tiếng Việt**. `vi.json` được rút ra từ mã
 đang chạy nên đủ 100% key theo định nghĩa, và mọi ngôn ngữ khác suy biến về nó thì không bao giờ
@@ -524,7 +650,7 @@ Lần đầu chưa chọn gì thì gợi ý một dòng, chọn rồi thì nhớ
 `match_user` (context_compiler.py:366) và nó đang chạy tốt; đặt mặc định thành `vi` là tự tay
 làm thụt lùi một hành vi đang đúng. Ai muốn ghim thì ghim theo brain hoặc theo bot.
 
-## 10. Nguồn trong repo
+## 11. Nguồn trong repo
 
 - [Kiến trúc tổng quan](01-kien-truc.md) - một lượt chat chạy qua đâu
 - [Spec Javis CLI](2026-08-cli-spec.md) - tiền lệ "kênh thứ ba" và bài học không nhân bản runtime
