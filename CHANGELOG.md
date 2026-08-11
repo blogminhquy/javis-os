@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.18] - 2026-08-11
+### Cải thiện
+- **Cài xong là đăng nhập được luôn, hết cảnh đi đọc MÃ THIẾT LẬP trong log.** Trước bản này, mở Javis ra công khai mà chưa có tài khoản thì server sinh một chuỗi ngẫu nhiên và chỉ in nó vào log lúc khởi động; người dùng phải SSH vào máy, `docker compose logs javis`, chép mã, dán vào trình duyệt. Cái mã đó chặn người lạ chỉ-có-URL chiếm quyền admin trước chủ máy nên nó có lý do tồn tại, nhưng bắt người ta đọc log là trải nghiệm tệ, và tệ đúng lúc họ vừa cài xong và chưa quen gì cả. Nay `install.sh` hỏi thẳng tên đăng nhập và mật khẩu rồi ghi vào `.env`: người đang chạy script vốn đã ngồi trên máy chủ, nên hỏi một câu KHÔNG thêm bước nào, mà server boot lên đã có admin nên mã thiết lập không bao giờ hiện ra.
+- **Enter một cái là có mật khẩu mạnh.** Bỏ trống ô mật khẩu thì script tự sinh 20 ký tự chữ-số và in ra ĐÚNG MỘT LẦN ở cuối màn hình cài. Chạy không có bàn phím (`curl | bash`, CI) cũng tự sinh chứ không bỏ trống, vì bỏ trống là đẩy người dùng về đúng cái màn đọc-log vừa xoá đi.
+- **Chạy lại `install.sh` không đổi mật khẩu đang dùng.** Đã có trong `.env` thì giữ nguyên và nói rõ là giữ nguyên. Cài lại hoặc chạy lại script là chuyện thường, không được biến nó thành lần đổi mật khẩu ngoài ý muốn.
+- **`docker-compose.yml` nhận `JAVIS_ADMIN_USER` / `JAVIS_ADMIN_PASSWORD`.** Bản Hostinger đã có hai trường này từ lâu, riêng compose thường thì không, nên ai deploy bằng nó LUÔN phải đi đọc log - không có đường nào khác. Nay điền hai dòng vào `.env` cạnh compose là xong.
+- Mật khẩu ghi vào `.env` bằng Python chứ không bằng `sed`: mật khẩu người ta tự gõ có thể chứa `|`, `&`, `\`, `"`, `'` và mọi ký tự đó đều làm vỡ một lệnh `sed` viết theo lối thường gặp. Có test ghi rồi đọc lại một mật khẩu chứa đủ cả sáu ký tự đó.
+
+### Bảo mật
+- **Cơ chế MÃ THIẾT LẬP KHÔNG bị bỏ**, chỉ thôi làm đường chính. Nó vẫn là lưới cho người deploy bằng cách khác (compose tay, image trần). Bỏ hẳn là mở toang `/auth/setup` cho bất kỳ ai gõ trúng URL trước chủ máy, mà thứ họ chiếm được là một máy có Bash, chạy full quyền, cắm sẵn vào POS/quảng cáo/email của chủ. Có canary trong `test_install_admin.py` giữ cơ chế này khỏi bị gỡ nhầm về sau.
+
 ## [0.26.17] - 2026-08-11
 ### Bảo mật
 - **Javis không còn tự đọc token đăng nhập Claude Code của bạn.** Từ 0.18.2 tới bản này, Javis mở `~/.claude/.credentials.json` (hoặc Keychain trên macOS), lấy access token OAuth ra rồi gửi thẳng `Authorization: Bearer <token>` tới `api.anthropic.com/v1/messages`. Anthropic cấm đúng việc đó: token của gói Free/Pro/Max chỉ được dùng trong Claude Code và Claude.ai, họ nói rõ chuyện này trong tài liệu Legal & compliance từ tháng 2/2026 và chặn hẳn các công cụ bên thứ ba từ 04/04/2026. Cách họ phát hiện là soi dấu vân tay request - thiếu telemetry và heartbeat mà CLI chính chủ mới phát - mà request Javis tự dựng thì không có gì trong số đó. Có người dùng Javis đã bị khoá tài khoản.

@@ -60,9 +60,20 @@ hostinger_vars = set(
 check("Hostinger chỉ tham chiếu đúng ba biến nhập liệu", hostinger_vars == hostinger_env)
 
 vps = compose("docker-compose.yml")["services"]["javis"]
+vps_env = set((vps.get("environment") or {}).keys())
+# Trước 0.26.18 khối này CHỈ có WATCHTOWER_TOKEN, và hệ quả là người deploy bằng compose thường
+# không có đường nào đặt sẵn admin: họ luôn phải `docker compose logs javis` đọc MÃ THIẾT LẬP
+# rồi dán vào trình duyệt. Hai biến admin là ĐẦU VÀO CỦA NGƯỜI DÙNG, cùng loại với ba trường
+# của Hostinger, không phải mặc định kỹ thuật của image - nên chúng thuộc về đây.
 check(
-    "VPS production chỉ giữ token Watchtower cần chia sẻ",
-    set((vps.get("environment") or {}).keys()) == {"WATCHTOWER_TOKEN"},
+    "VPS production giữ token Watchtower + hai trường tài khoản quản trị",
+    vps_env == {"WATCHTOWER_TOKEN", "JAVIS_ADMIN_USER", "JAVIS_ADMIN_PASSWORD"},
+)
+check("VPS production vẫn không lặp lại biến kỹ thuật của image", not (vps_env & internal))
+check(
+    "và hai trường admin đọc từ .env cạnh compose, có mặc định rỗng",
+    "${JAVIS_ADMIN_USER:-}" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    and "${JAVIS_ADMIN_PASSWORD:-}" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8"),
 )
 
 build = compose("docker-compose.build.yml")["services"]["javis"]

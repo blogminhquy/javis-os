@@ -25,6 +25,12 @@ services:
       # Các mặc định cổng/state/brain đã nằm trong Docker image; compose chỉ giữ
       # token thật sự cần chia sẻ giữa app và Watchtower.
       WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}   # để nút "Cập nhật" gọi được Watchtower
+      # Tài khoản quản trị đặt SẴN lúc deploy. Điền hai dòng này vào file `.env` nằm cạnh
+      # compose là xong: server boot lên đã có admin, nên KHÔNG bao giờ hỏi MÃ THIẾT LẬP.
+      # Bỏ trống thì rơi về đường cũ - phải đọc mã trong log container rồi dán vào trình duyệt
+      # (`docker compose logs javis`). Đường cũ vẫn còn làm lưới, nhưng đừng dùng làm mặc định.
+      JAVIS_ADMIN_USER: ${JAVIS_ADMIN_USER:-}
+      JAVIS_ADMIN_PASSWORD: ${JAVIS_ADMIN_PASSWORD:-}
     ports:
       - "7777:7777"                 # Hostinger proxy / VPS map vào cổng này → cấp URL công khai
     volumes:

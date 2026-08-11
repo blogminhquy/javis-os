@@ -92,6 +92,81 @@ if [ -t 0 ]; then
 fi
 grep -q '^JAVIS_HOST=' .env || echo "JAVIS_HOST=127.0.0.1" >> .env
 
+# --- 7b. Tài khoản quản trị: ĐẶT SẴN ngay lúc cài ---
+#
+# Trước đây bước này không tồn tại, nên ai mở Javis ra công khai đều đụng "MÃ THIẾT LẬP":
+# server in một chuỗi ngẫu nhiên vào log lúc khởi động, và người dùng phải SSH vào VPS đọc log
+# rồi dán vào trình duyệt mới tạo được tài khoản. Cái mã đó có lý do tồn tại - nó chặn người
+# lạ chỉ-có-URL chiếm quyền admin lần đầu - nhưng bắt người ta đi đọc log là một trải nghiệm
+# tệ, và tệ ĐÚNG LÚC họ mới cài xong và chưa quen gì cả.
+#
+# Đặt sẵn tài khoản ở đây giải quyết cả hai đầu: người đang chạy script này vốn ĐÃ ngồi trên
+# máy chủ rồi, nên hỏi họ một câu không thêm bước nào; mà server thì boot lên đã có admin nên
+# `setup_token_required()` trả về false và MÃ THIẾT LẬP không bao giờ hiện ra.
+#
+# KHÔNG bỏ hẳn cơ chế mã: nó vẫn là lưới cho ai deploy bằng cách khác (compose tay, image trần).
+# Bỏ nó đi là mở toang `/auth/setup` cho bất kỳ ai gõ trúng URL trước chủ máy - mà thứ họ chiếm
+# được là một máy có Bash, chạy full quyền, cắm sẵn vào POS/quảng cáo/email của chủ.
+_gen_pw() { python3 -c "import secrets,string; a=string.ascii_letters+string.digits; print(''.join(secrets.choice(a) for _ in range(20)))"; }
+
+# Ghi .env bằng python chứ không bằng sed: mật khẩu người dùng tự gõ có thể chứa | & \ " '
+# và mọi ký tự đó đều làm vỡ một lệnh sed viết theo lối thường gặp. Giá trị đi qua argv nên
+# không qua tay shell lần nào; ghi ra dạng nháy kép có escape để python-dotenv đọc lại đúng.
+_env_set() {
+  python3 - "$1" "$2" <<'PY'
+import pathlib, sys
+key, val = sys.argv[1], sys.argv[2]
+esc = val.replace("\\", "\\\\").replace('"', '\\"')
+p = pathlib.Path(".env")
+lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+out, done = [], False
+for ln in lines:
+    if ln.split("=", 1)[0].strip() == key and not ln.lstrip().startswith("#"):
+        if not done:
+            out.append(f'{key}="{esc}"')
+            done = True
+    else:
+        out.append(ln)
+if not done:
+    out.append(f'{key}="{esc}"')
+p.write_text("\n".join(out) + "\n", encoding="utf-8")
+PY
+}
+
+_env_has() { grep -qE "^[[:space:]]*$1=[\"']?[^\"'[:space:]]" .env 2>/dev/null; }
+
+ADMIN_PW_SINH=""      # chỉ có giá trị khi script TỰ SINH - để in ra đúng một lần ở cuối
+if _env_has JAVIS_ADMIN_PASSWORD; then
+  ok "Tài khoản quản trị đã có sẵn trong .env - giữ nguyên"
+else
+  ADMIN_USER="admin"
+  ADMIN_PW=""
+  if [ -t 0 ]; then
+    echo ""
+    log "Tài khoản quản trị của Javis (Claude chạy full quyền nên bắt buộc có):"
+    read -rp "  Tên đăng nhập [admin]: " AU || true
+    [ -n "${AU:-}" ] && ADMIN_USER="$AU"
+    while :; do
+      read -rsp "  Mật khẩu (Enter = tự sinh một cái mạnh): " AP || true; echo ""
+      if [ -z "${AP:-}" ]; then ADMIN_PW="$(_gen_pw)"; ADMIN_PW_SINH="$ADMIN_PW"; break; fi
+      # Server cũng chặn dưới 8 ký tự (main.py /auth/setup). Chặn luôn ở đây để người ta biết
+      # ngay lúc gõ, thay vì lúc đăng nhập lần đầu mới phát hiện .env có mật khẩu không xài được.
+      if [ "${#AP}" -lt 8 ]; then warn "  Tối thiểu 8 ký tự."; continue; fi
+      read -rsp "  Nhập lại: " AP2 || true; echo ""
+      if [ "$AP" = "${AP2:-}" ]; then ADMIN_PW="$AP"; break; fi
+      warn "  Hai lần nhập không khớp, thử lại."
+    done
+  else
+    # Chạy không có bàn phím (curl | bash, CI, script khác gọi vào). Tự sinh chứ KHÔNG bỏ trống:
+    # bỏ trống là đẩy người dùng về đúng cái màn đọc-log mà bước này sinh ra để xoá đi.
+    ADMIN_PW="$(_gen_pw)"; ADMIN_PW_SINH="$ADMIN_PW"
+  fi
+  _env_set JAVIS_ADMIN_USER "$ADMIN_USER"
+  _env_set JAVIS_ADMIN_PASSWORD "$ADMIN_PW"
+  chmod 600 .env
+  ok "Đã đặt sẵn tài khoản quản trị trong .env - khỏi cần MÃ THIẾT LẬP"
+fi
+
 # --- 8. one-time Claude auth reminder ---
 if ! claude auth status >/dev/null 2>&1; then
   warn "Claude CLI is not logged in. Run this ONCE (opens a browser-login URL):"
@@ -139,9 +214,22 @@ fi
 echo ""
 ok "Javis OS is up at: http://127.0.0.1:7777"
 log "Remote access (SSH tunnel): ssh -L 7777:localhost:7777 $(whoami)@<vps-ip>"
+
+# Mật khẩu tự sinh chỉ in ra ĐÚNG chỗ này, đúng một lần. Không ghi vào log service, không in
+# lại ở lần chạy sau - `.env` (chmod 600) là nơi giữ nó. In sau phần khởi động để nó nằm ở
+# cuối màn hình, chỗ người ta chắc chắn còn nhìn.
+if [ -n "${ADMIN_PW_SINH:-}" ]; then
+  echo ""
+  echo "=================================================================="
+  echo "  TÀI KHOẢN QUẢN TRỊ (đã lưu trong .env, chỉ hiện MỘT LẦN):"
+  echo "      Tên đăng nhập:  ${ADMIN_USER:-admin}"
+  echo "      Mật khẩu:       $ADMIN_PW_SINH"
+  echo "  Chép ra chỗ an toàn ngay. Đổi được sau trong Dashboard → Tài khoản."
+  echo "=================================================================="
+fi
 echo ""
 log "Truy cập từ xa qua Cloudflare Tunnel (không cần mở port, có HTTPS):"
-echo "    1) Đặt MẬT KHẨU trong Dashboard → Tài khoản TRƯỚC (Claude chạy full quyền!)."
+echo "    1) Đăng nhập bằng tài khoản quản trị ở trên (Claude chạy full quyền!)."
 if command -v cloudflared >/dev/null 2>&1; then
   echo "    2) cloudflared tunnel --url http://localhost:7777   → mở URL https://<random>.trycloudflare.com"
 else
