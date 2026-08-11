@@ -48,7 +48,8 @@ _update_outcome = update_state.update_outcome
 import git_brain
 import engine
 import openai_oauth
-import claude_models   # model Claude LIVE cho provider anthropic-cli (mượn token OAuth của Claude Code)
+import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
+import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import mcp_store
 import mcp_client
@@ -832,6 +833,13 @@ def _providers_view(cfg):
         if p["kind"] == "oauth":
             item["account"] = oauth.get("account_id", "")
             item["plan"] = oauth.get("plan", "")
+        if p["id"] == "anthropic-cli":
+            # Gói Claude Code chạy bằng gì, và có đang gánh việc nền không. Trang Models vẽ ô
+            # chọn + cảnh báo từ ba field này. Cảnh báo đi kèm DỮ LIỆU chứ không hardcode ở
+            # dashboard: chỉ server mới biết model việc nền đang trỏ vào đâu.
+            item["auth_mode"] = claude_auth.che_do(cfg)
+            item["auth_api_key_set"] = bool(claude_auth.api_key(cfg))
+            item["auth_warning"] = claude_auth.canh_bao_neu_can(cfg)
         out.append(item)
     return out
 
@@ -945,6 +953,123 @@ def _api_stream(prov, key, model, messages, reasoning="off"):
         nhan=f"{prov}/{model or 'mặc định'}")
 
 
+# Allowlist rỗng-thật cho engine Claude Code: bật cổng `can_use_tool` mà không tool nào khớp,
+# nên MỌI tool bị từ chối per-call. Danh sách rỗng [] KHÔNG dùng được - nó falsy nên engine rơi
+# vào nhánh bypassPermissions, tức mở toang đúng cái ta đang muốn đóng.
+CLAUDE_SUB_KHONG_TOOL = ["__javis_claude_sub_khong_tool__"]
+
+
+def _claude_sub_tach(messages):
+    """messages kiểu API -> (system, prompt) cho engine Claude Code.
+
+    Engine Claude Code nhận MỘT prompt chứ không nhận mảng messages, nên lịch sử được gói lại
+    bằng chính `compaction.bootstrap_prompt` mà nhánh Codex và nhánh xoay-mạch vẫn dùng.
+    """
+    sys_txt = "\n\n".join((m.get("content") or "") for m in messages
+                          if m.get("role") == "system").strip()
+    conv = [{"role": m["role"], "content": m.get("content") or ""}
+            for m in messages
+            if m.get("role") in ("user", "assistant") and (m.get("content") or "").strip()]
+    if not conv:
+        return sys_txt, "(tiếp tục)"
+    if conv[-1]["role"] == "user":
+        return sys_txt, compaction.bootstrap_prompt(conv[:-1], conv[-1]["content"])
+    return sys_txt, compaction.bootstrap_prompt(conv, "(tiếp tục)")
+
+
+async def _claude_sub_doc(cli, prompt, model):
+    """Đọc một lượt engine Claude Code -> đúng hợp đồng sự kiện của `_api_stream`.
+
+    `final` mang TOÀN VĂN câu trả lời, còn `text` là từng mảnh của chính văn bản đó - phát cả
+    hai là người dùng đọc câu trả lời hai lần. Nên `final` chỉ được phát chữ khi chưa mảnh nào
+    đi qua (lượt không stream), và luôn là chỗ chốt usage.
+    """
+    yield {"type": "meta", "model": model}
+    da_co_chu = False
+    async for ev in cli.query(prompt):
+        et = ev.get("type")
+        if et == "text":
+            txt = ev.get("content") or ""
+            if txt:
+                da_co_chu = True
+                yield {"type": "text", "content": txt}
+        elif et == "tool_call":
+            yield {"type": "tool_call", "tool": ev.get("name") or "",
+                   "content": f"⚙ {ev.get('name') or 'tool'}"}
+        elif et == "final":
+            txt = ev.get("content") or ""
+            if txt and not da_co_chu:
+                yield {"type": "text", "content": txt}
+            ti = int(ev.get("tokens_in") or 0)
+            to = int(ev.get("tokens_out") or 0)
+            if ti or to:
+                yield {"type": "usage", "input": ti, "output": to}
+        elif et == "error":
+            yield {"type": "error", "content": str(ev.get("content") or "lỗi không rõ")}
+
+
+def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                       tiet_kiem=False):
+    """Gói Claude Code, KHÔNG tool - thay cho đường gọi thẳng /v1/messages bằng token OAuth.
+
+    Đường cũ tự đọc `~/.claude/.credentials.json` rồi gửi `Authorization: Bearer <token>` tới
+    api.anthropic.com. Anthropic cấm đúng việc đó (xem claude_auth.py), và cách họ bắt là soi
+    dấu vân tay request - thứ mà request Javis tự dựng chắc chắn không có. Nay lượt này chạy
+    qua chính binary `claude`, nên ai đăng nhập và ai trả tiền là chuyện của Claude Code.
+
+    `tiet_kiem=True` cho đường Siêu tiết kiệm: gửi system prompt TRẦN thay vì preset
+    claude_code, giữ nguyên phần tiết kiệm token vốn là toàn bộ lý do tồn tại của nó.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    cli = claude_engine(system_prompt=sys_txt, cwd=_brain_root(brain) if brain else None,
+                        tag=tag, allowed_tools=CLAUDE_SUB_KHONG_TOOL,
+                        model=_claude_api_model(model) or None)
+    cli.system_prompt_raw = bool(tiet_kiem)
+    return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
+
+
+# Tool NATIVE của Claude Code mà bot chuyên trách TUYỆT ĐỐI không được chạm, ở mọi mức quyền.
+# Bot phục vụ người lạ nhắn tới, nên "chạy được lệnh máy" là một hạng rủi ro khác hẳn phần còn
+# lại của Javis. Allowlist bên dưới đã đủ chặn (mọi tool ngoài list bị `can_use_tool` từ chối
+# per-call); danh sách này là lớp thứ hai, để một hôm nào đó allowlist bị nới thì đây vẫn giữ.
+BOT_CAM_NATIVE = ["Bash", "BashOutput", "KillShell", "WebFetch", "WebSearch", "Task",
+                  "Write", "Edit", "NotebookEdit", "Read", "Glob", "Grep"]
+
+
+def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, tag="bot",
+                            mode="full"):
+    """Gói Claude Code CÓ tool, cho bot chuyên trách - thay `anthropic_chat_with_mcp(oauth_token=)`.
+
+    Đường cũ an toàn nhờ MỘT sự thật kiến trúc: không engine nào của bot mở CLI, nên không con
+    nào có tool native, nên không con nào trèo ra khỏi brain của bot được. Mở engine Claude
+    Code là MẤT sự thật đó. Nó được dựng lại ở đây bằng bốn lớp tường minh, và cả bốn đều cần:
+
+    1. `allowed_tools` chỉ có `mcp__javis` → cổng `can_use_tool` TỪ CHỐI mọi tool khác từng lần
+       gọi, kể cả Bash/Read/Write builtin của Claude Code.
+    2. `BOT_CAM_NATIVE` chặn thẳng nhóm native, phòng khi lớp 1 bị nới sau này.
+    3. Config hub mang X-Javis-Vault = brain CỦA BOT → tool file đi qua `_safe_path` của đúng
+       brain đó. Thiếu nó thì hub không cấp nhóm tool file (mặc định của đường Claude), và bot
+       mức Được ghi mất khả năng ghi - vì lớp 1 đã chặn Write native rồi.
+    4. `mcp_strict` → không nạp MCP ambient của máy chủ, tức bot không thấy connector của chủ.
+
+    Cố ý KHÔNG dùng `_apply_mcp`: hàm đó gắn config hub DÙNG CHUNG không mang brain, đúng cho
+    chat của chủ (Claude có tool file native nên hub bỏ nhóm file đi cho khỏi trùng) nhưng sai
+    cho ca này. Đây là chỗ duy nhất cần cấu hình riêng, nên nó viết thẳng ra chứ không nới hàm
+    dùng chung của mọi đường Claude.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    vault = _brain_root(brain) if brain else None
+    cli = claude_engine(system_prompt=sys_txt, cwd=vault, tag=tag,
+                        allowed_tools=list(mcp_hub.allow_patterns()),
+                        model=_claude_api_model(model) or None)
+    cli.javis_mode = mode
+    cli.javis_vault = vault
+    cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault)
+    cli.mcp_strict = cli.mcp_config is not None
+    cli.disallowed_tools = list(BOT_CAM_NATIVE)
+    return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
+
+
 def _api_stream_goc(prov, key, model, messages, reasoning="off"):
     """Chọn generator stream theo provider api-kind. reasoning=off|low|medium|high."""
     if prov == "openrouter":
@@ -962,12 +1087,10 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
                                               _codex_safe_model(model), messages, reasoning)
     if prov == "anthropic-cli":
-        # Gói Claude Code không có API key. Mượn access token OAuth mà chính CLI đã lưu -
-        # đúng cách claude_models vẫn hỏi /v1/models bằng token đó, chỉ khác endpoint. Đây là
-        # đường gọi thẳng DUY NHẤT của gói này, và cũng là thứ mở được mức Siêu tiết kiệm cho
-        # nó. Không có token thì trả về đường cũ để lỗi nói đúng chuyện thiếu đăng nhập.
-        return engine.anthropic_stream(key, _claude_api_model(model), messages, reasoning,
-                                       oauth_token=claude_models.oauth_token())
+        # Gói Claude Code đi qua chính binary `claude`, KHÔNG tự dựng request tới
+        # api.anthropic.com bằng token của người dùng nữa (xem claude_auth.py). Vẫn không có
+        # tool nào ở đường này, đúng hợp đồng cũ. `tiet_kiem` giữ được mức Siêu tiết kiệm.
+        return _claude_sub_stream(model, messages, reasoning, tiet_kiem=True)
     return engine.anthropic_stream(key, model, messages, reasoning)
 
 
@@ -2472,6 +2595,13 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 m[d["key_field"]] = ""
                 if _effective_main(cfg).get("provider") == patch["clear_key"]:
                     _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
+        # Gói Claude Code xác thực bằng gì: phiên subscription sẵn có, hay API key riêng.
+        # Giá trị lạ về "subscription" thay vì báo lỗi - đây là ô hai lựa chọn, gõ sai thì lui
+        # về cái không tốn tiền của người dùng chứ không làm chết đường chat.
+        if "claude_auth" in patch:
+            m["claude_auth"] = (claude_auth.API_KEY
+                                if str(patch["claude_auth"] or "").strip().lower() == claude_auth.API_KEY
+                                else claude_auth.SUBSCRIPTION)
         if "auxiliary" in patch:   # model phụ cho việc nền (provider + model)
             aux_patch = patch["auxiliary"] or {}
             aux = m.setdefault("auxiliary", {})
@@ -9456,38 +9586,9 @@ def _bot_ket(out, lich_su):
     return {"text": channel_context.strip_control_blocks(out), "files": []}
 
 
-async def _bot_cli_du_phong(sysprompt, text, *, sess, brain, chat_id, model, progress):
-    """Đường dự phòng cho gói Claude Code khi gọi thẳng API hỏng (hay gặp nhất: không đọc được
-    token OAuth mà CLI đã lưu, nên /v1/messages trả 401 và LƯỢT NÀO CŨNG hỏng).
-
-    Vẫn giữ nguyên hợp đồng của bot: cùng prompt, cùng tài liệu, cùng lịch sử, và KHÔNG tool.
-    Chỉ khác đường truyền. Không tool ở đây là thật chứ không phải lời hứa - `allowed_tools`
-    bật cổng `can_use_tool` của engine, và mọi tool đều rớt khỏi danh sách nên bị từ chối.
-
-    Không có bản tương ứng cho Codex: Codex không có cổng duyệt per-call, nên chạy nó không
-    tool là bất khả. Codex hỏng thì báo thẳng, xem chỗ gọi.
-    """
-    cli = sess.get("botcli")
-    if cli is None:
-        cli = claude_engine(system_prompt=sysprompt, cwd=_brain_root(brain),
-                            tag=f"bot:{chat_id}", allowed_tools=BOT_KHONG_TOOL)
-        sess["botcli"] = cli
-    cli.system_prompt = sysprompt      # tài liệu đổi theo từng câu hỏi
-    cli.model = model or None
-    out, loi = "", []
-    async for ev in cli.query(text):
-        et = ev.get("type")
-        if et == "final":
-            out = ev.get("content") or out
-            usage_store.record("cli", cli.model or "mặc định",
-                               ev.get("tokens_in", 0), ev.get("tokens_out", 0),
-                               ev.get("cost_usd") or 0)
-        elif et == "text":
-            out += ev.get("content") or ""
-            await progress("✍ Đang soạn câu trả lời…")
-        elif et == "error":
-            loi.append(str(ev.get("content") or "lỗi không rõ"))
-    return out, loi
+# `_bot_cli_du_phong` đã gỡ ở 0.26.17. Nó là đường LUI cho ca "đọc không ra token OAuth nên
+# /v1/messages trả 401". Nay không còn token nào để đọc: gói Claude Code chạy thẳng qua binary
+# `claude` ngay từ `_api_stream`, nên một đường lui cũng dẫn tới đúng engine ấy là vô nghĩa.
 
 
 async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
@@ -9512,9 +9613,10 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     `sysprompt`, nên bỏ tool không làm bot mất khả năng đọc brain - chỉ bỏ khả năng đi lang
     thang trong đó.
 
-    `_api_stream` phục vụ đủ tám provider, kể cả hai gói subscription: ChatGPT OAuth đi
-    `openai_responses_stream`, Claude Code đi `anthropic_stream` với token OAuth mà chính CLI
-    đã lưu. Không con nào phải mở CLI, nên cũng không con nào tốn thời gian khởi động CLI.
+    `_api_stream` phục vụ sáu provider API cộng gói ChatGPT (đi `openai_responses_stream`).
+    Gói Claude Code là ngoại lệ DUY NHẤT: nó rẽ sang `_bot_cli_du_phong` ngay dưới đây, tức
+    chạy qua binary `claude`. Đắt hơn một nhịp khởi động tiến trình, đổi lại không phải mượn
+    token đăng nhập của ai - thứ Anthropic cấm và có khoá tài khoản thật (xem claude_auth.py).
 
     Đây là đường của mức **Chỉ đọc** - mức mặc định. Bot đặt ở mức Được ghi / Toàn quyền đi
     `_bot_tra_loi_co_tool`. Hai đường tách hẳn nhau CÓ CHỦ Ý: đường này phải soi được bằng mắt
@@ -9533,24 +9635,6 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
         _api_stream(prov, api_key, api_model, messages, reasoning),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
-    # Gói Claude Code: gọi thẳng /v1/messages cần token OAuth mà CLI đã lưu. Đọc không ra (hoặc
-    # Anthropic không nhận) là LƯỢT NÀO CŨNG hỏng, và người dùng chỉ thấy một câu xin lỗi lặp
-    # đi lặp lại. Rơi về chính CLI của gói đó - vẫn không tool, nên vẫn đúng hợp đồng của bot.
-    if not out and prov == "anthropic-cli" and brain:
-        print(f"[bot {prov}] gọi thẳng hỏng ({loi[0] if loi else '?'}), thử lại qua CLI",
-              file=__import__('sys').stderr)
-        try:
-            out, loi2 = await _bot_cli_du_phong(sysprompt, text, sess=sess, brain=brain,
-                                                chat_id=chat_id, model=api_model,
-                                                progress=progress)
-            if out:
-                loi = []
-            else:
-                loi += loi2
-        except Exception as e:
-            print(f"[bot {prov}] CLI dự phòng cũng hỏng: {e}", file=__import__('sys').stderr)
-            loi.append(str(e))
-
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
@@ -9567,13 +9651,17 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
 # ============================================================
 # Bot ở mức Được ghi / Toàn quyền - CÓ tool
 # ============================================================
-def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route):
+def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
+                        *, brain=None, tag_bot="bot", muc_quyen="full"):
     """Vòng gọi tool cho một lượt bot, đủ CẢ TÁM bộ não.
 
     Vẫn giữ nguyên lời hứa gốc: đổi bộ não thì trải nghiệm không đổi. Nên hai gói thuê bao
-    không bị bỏ lại - ChatGPT đi `responses_with_mcp`, Claude Code đi `anthropic_chat_with_mcp`
-    với chính token OAuth mà CLI đã lưu. KHÔNG con nào mở CLI, nên không con nào chạm được vào
-    tool NATIVE (Bash, Read, WebFetch) - và đó là chỗ tựa của cả rào an toàn bên dưới.
+    không bị bỏ lại - ChatGPT đi `responses_with_mcp`, Claude Code đi engine Claude Code thật
+    (`_claude_sub_stream_tools`) thay cho đường mượn token OAuth đã gỡ ở 0.26.17.
+
+    Điều đó có một hệ quả PHẢI biết: nhánh Claude Code nay CÓ tool native (Bash, Read,
+    WebFetch), khác hẳn sáu nhánh kia. Rào an toàn vì thế không còn tựa vào "không engine nào
+    mở CLI" được nữa, mà tựa vào allowlist per-call của `can_use_tool` - xem `_bot_allowlist`.
 
     `tools` rỗng (hub tắt, hoặc chưa đấu nguồn nào) → rơi về stream không tool. Bot vẫn trả lời
     được thay vì im; chỗ gọi báo cho chủ biết là lượt đó không có công cụ nào.
@@ -9597,8 +9685,12 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route):
             return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
                                              _codex_safe_model(model), messages, reasoning, tools, route)
         if prov == "anthropic-cli":
-            return engine.anthropic_chat_with_mcp(key, _claude_api_model(model), messages, reasoning,
-                                                  tools, route, oauth_token=claude_models.oauth_token())
+            # Gói Claude Code: qua binary `claude` + hub, không mượn token đăng nhập của ai.
+            # `tools` chỉ dùng để BIẾT lượt này có công cụ hay không - engine tự đấu hub bằng
+            # config riêng mang brain của bot, nên không phải chuyển danh sách schema sang.
+            # Bốn lớp rào giữ đúng hợp đồng cách ly: xem `_claude_sub_stream_tools`.
+            return _claude_sub_stream_tools(model, messages, reasoning, brain=brain,
+                                            tag=tag_bot, mode=muc_quyen)
         return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
 
     # Nhà cung cấp gãy tạm thời thì thử lại - nhưng dừng ngay khi tool đầu tiên đã chạy, vì từ
@@ -9652,7 +9744,8 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     _bot_ghim_duong(runtime_trace, prov, api_model, messages, tools)
 
     out, loi = await _bot_doc_stream(
-        _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route),
+        _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route,
+                            brain=brain, tag_bot=f"bot:{chat_id}", muc_quyen=muc_quyen),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
     # Engine KHÔNG chạy nổi vòng tool: trả lời lại lượt này mà bỏ tool đi.

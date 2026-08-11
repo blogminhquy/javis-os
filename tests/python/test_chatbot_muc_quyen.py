@@ -206,7 +206,10 @@ for _ten in ("openrouter_chat_with_mcp", "openai_chat_with_mcp", "gemini_chat_wi
     setattr(main.engine, _ten, _lam_stream_co_tool(_ten))
 # Gói ChatGPT: đường có tool đọc creds OAuth. Không giả thì nó rơi vào nhánh "chưa đăng nhập".
 main.openai_oauth.valid_creds = lambda: {"access_token": "tok", "account_id": "acc"}
-main.claude_models.oauth_token = lambda: "tok-claude"
+# Gói Claude Code KHÔNG đi qua engine.*_chat_with_mcp nữa: từ 0.26.17 nó dựng engine Claude Code
+# thật (đường mượn token OAuth đã gỡ - xem server/claude_auth.py). Giả ở đúng tầng đó. Rào an
+# toàn của nhánh này được canh riêng ở test_chatbot_cach_ly.py mục "bốn lớp".
+main._claude_sub_stream_tools = _lam_stream_co_tool("_claude_sub_stream_tools")
 
 
 def chay(prov, kind, bot, sess=None, hoi="giá bao nhiêu"):

@@ -2685,6 +2685,10 @@
         </div>`;
       }
       if (p.kind === "cli") {   // Claude Code - trạng thái + login/logout nạp động qua /claude/status
+        // Ô chọn nguồn xác thực. Cả hai lựa chọn giữ NGUYÊN năng lực (Bash, WebFetch, MCP, nối
+        // phiên cũ); khác nhau ở chỗ ai trả tiền và ai chịu rủi ro. Javis cố ý không tắt cứng
+        // đường subscription - chủ máy tự cân, nhưng phải cân khi đã BIẾT, nên có cảnh báo.
+        const byKey = p.auth_mode === "api_key";
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           <div class="prov-head">
             <span class="prov-shield on">${_shield(true)}</span>
@@ -2695,6 +2699,15 @@
             ${p.is_main ? '<span class="prov-badge">MAIN</span>' : ""}
           </div>
           <div class="prov-action" id="cliAction"></div>
+          <div class="prov-auth">
+            <div class="prov-auth-title">Chạy bằng</div>
+            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="subscription" ${byKey ? "" : "checked"}>
+              <span><b>Gói đang đăng nhập</b> - không tốn thêm tiền. Hợp với một người dùng cá nhân.</span></label>
+            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="api_key" ${byKey ? "checked" : ""}>
+              <span><b>API key Anthropic</b> - trả theo lượt dùng, hợp cho việc nền và nhiều người dùng chung.
+              ${p.auth_api_key_set ? "" : ` <i>Chưa có key: dán ở thẻ "${esc("Anthropic (API)")}" bên dưới.</i>`}</span></label>
+            ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}
+          </div>
         </div>`;
       }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
@@ -2750,6 +2763,15 @@
 
     const chg = document.getElementById("mdChange");
     if (chg) chg.onclick = () => openModelPicker(provList, main, () => renderModels(el));
+    // Nguồn xác thực của gói Claude Code. Vẽ lại cả trang sau khi lưu vì cảnh báo phụ thuộc
+    // cả lựa chọn này LẪN model việc nền - chỉ server mới ghép được hai thứ đó.
+    el.querySelectorAll('input[name="claudeAuth"]').forEach((r) => {
+      r.onchange = async () => {
+        if (!r.checked) return;
+        await saveSetting("model", { claude_auth: r.value });
+        renderModels(el);
+      };
+    });
     const auxChg = document.getElementById("auxChange");
     if (auxChg) auxChg.onclick = () => openModelPicker(provList, { provider: auxProv, model: aux }, () => renderModels(el), {
       title: "MODEL VIỆC NỀN",

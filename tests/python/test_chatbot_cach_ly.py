@@ -192,23 +192,44 @@ for cam in ("_api_stream_mcp", "mcp_hub", "discover_all", "claude_engine", "Code
 check("bot không nhận block kênh (dạy gửi file + lộ đường dẫn brain thật)",
       "build_channel_block" not in _ham)
 
-# Mức nới quyền (0.22.0) KHÔNG được làm mềm rào này. Hai thứ giữ nguyên ở MỌI mức, và cả hai
-# đều là hệ quả của việc bot không bao giờ chạm vào tool NATIVE:
-#   - tool chỉ đến từ hub, nên tool file đi qua `_safe_path(vault_root)` và không trèo ra được;
-#   - không có Bash/WebFetch/WebSearch/Task, vì hub không có chúng.
-# Mở CLI cho bot là mất cả hai cùng lúc: `Read` của Claude Code nhận đường dẫn TUYỆT ĐỐI, đúng
-# lỗ mà 0.21.0 đã phải vá bằng allowed_tools.
+# Mức nới quyền (0.22.0) KHÔNG được làm mềm rào này. Hai thứ phải giữ ở MỌI mức:
+#   - tool file đi qua `_safe_path(vault_root)` của ĐÚNG brain bot, không trèo ra được;
+#   - không có Bash/WebFetch/WebSearch/Task.
+#
+# Tới 0.26.16 cả hai là HỆ QUẢ MIỄN PHÍ của một sự thật kiến trúc: không engine nào của bot mở
+# CLI, nên không con nào có tool native, nên chẳng có gì để trèo. 0.26.17 phải bỏ sự thật đó -
+# gói Claude Code trước đây chạy bằng token OAuth moi từ Claude Code, thứ Anthropic cấm, nên
+# nay nó chạy bằng chính binary `claude` và binary ấy CÓ tool native.
+#
+# Nên hai tính chất trên không còn miễn phí, và canary đổi theo: thay vì canh "đừng mở CLI",
+# nó canh ĐÚNG BỐN LỚP đang thay thế cho sự thật cũ. Mất một lớp là mất rào.
 _ham_tool = _SRC[_SRC.index("def _bot_stream_co_tool("):_SRC.index("async def _tg_answer_engine")]
-# Tên tool native soi ở dạng CÓ NHÁY: trong mã chúng chỉ xuất hiện thành chuỗi trong một
-# allowlist (`["Bash", "WebFetch", …]`). Soi dạng trần thì chính đoạn ghi chú giải thích vì sao
-# không có Bash lại làm test đỏ - canary bắt lời văn thay vì bắt mã.
-for cam in ("claude_engine", "CodexCLI", "_apply_mcp", "allowed_tools",
-            '"Bash"', '"WebFetch"', '"WebSearch"', '"Task"', "build_channel_block"):
-    check(f"CANARY: đường bot CÓ TOOL vẫn không đụng tới '{cam}'", cam not in _ham_tool)
+check("CANARY: đường bot CÓ TOOL không tự dựng engine, chỉ gọi đúng hàm đã bọc rào",
+      "claude_engine" not in _ham_tool and "CodexCLI" not in _ham_tool
+      and "_claude_sub_stream_tools(" in _ham_tool)
+check("bot không nhận block kênh, kể cả ở mức có tool",
+      "build_channel_block" not in _ham_tool)
 check("tool của bot lấy từ hub, cắm vào ĐÚNG brain của bot",
       "discover_all(muc_quyen, vault_root=_brain_root(brain))" in _ham_tool)
 check("mức quyền đi thẳng xuống hub, không qua bảng dịch nào",
       "discover_all(muc_quyen" in _ham_tool)
+
+# Bốn lớp rào của nhánh Claude Code, soi trong chính hàm dựng engine cho nó.
+_ham_sub = _SRC[_SRC.index("def _claude_sub_stream_tools("):_SRC.index("def _api_stream_goc(")]
+check("LỚP 1: allowlist chỉ có hub, nên cổng can_use_tool từ chối mọi tool native per-call",
+      "allowed_tools=list(mcp_hub.allow_patterns())" in _ham_sub)
+check("LỚP 2: chặn thẳng nhóm tool native",
+      "cli.disallowed_tools = list(BOT_CAM_NATIVE)" in _ham_sub)
+for _t in ('"Bash"', '"WebFetch"', '"WebSearch"', '"Task"', '"Read"', '"Write"', '"Edit"',
+           '"Glob"', '"Grep"'):
+    check(f"LỚP 2 gồm {_t}", _t in _SRC[_SRC.index("BOT_CAM_NATIVE = ["):
+                                        _SRC.index("BOT_CAM_NATIVE = [") + 400])
+check("LỚP 3: config hub mang brain CỦA BOT, nên tool file bị _safe_path khoá đúng brain đó",
+      "mcp_hub.claude_config_path(mode, vault_root=vault)" in _ham_sub)
+check("LỚP 4: strict, nên bot không thấy MCP ambient của máy chủ",
+      "cli.mcp_strict = cli.mcp_config is not None" in _ham_sub)
+check("và cwd của engine cũng là brain của bot, không phải gốc project",
+      "cwd=vault" in _ham_sub)
 
 # Fail-closed: chỉ HAI chữ đã khai mới mở tool, mọi thứ khác (bản ghi cũ thiếu khoá, file sửa
 # tay gõ sai, None) rơi về đường không tool. Viết ngược lại - "khác 'suggest' thì mở tool" - là
@@ -225,7 +246,10 @@ for pid in [d["id"] for d in main.PROVIDER_DEFS]:
     check(f"_api_stream phục vụ được '{pid}'",
           f'prov == "{pid}"' in _as or pid == "anthropic-api")   # anthropic-api là nhánh mặc định
 check("gói ChatGPT dùng token OAuth, không cần API key", "openai_oauth.valid_creds()" in _as)
-check("gói Claude Code dùng token OAuth, không cần API key", "claude_models.oauth_token()" in _as)
+# Gói Claude Code cũng không cần API key, nhưng KHÔNG phải bằng cách mượn token đăng nhập nữa:
+# nó chạy qua binary `claude`. Đây là canary chống hồi quy cho đúng chỗ đã làm khoá tài khoản.
+check("gói Claude Code không cần API key, và không mượn token đăng nhập của ai",
+      "_claude_sub_stream(" in _as and "claude_models.oauth_token" not in _as)
 
 
 # ============================================================

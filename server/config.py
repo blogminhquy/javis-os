@@ -53,6 +53,15 @@ _DEFAULT = {
         # Claude Code CLI → chèn từ khoá think/ultrathink vào prompt. off = trả lời nhanh như cũ.
         "reasoning": "off",
         # --- Credentials theo provider ---
+        # Gói Claude Code (provider 'anthropic-cli') xác thực bằng CÁI GÌ:
+        #   "subscription" (mặc định) - phiên đăng nhập của chính Claude Code, tức gói Pro/Max
+        #       người dùng đang trả. Javis KHÔNG đọc token đó nữa; nó chỉ chạy binary `claude`
+        #       và để chính sản phẩm của Anthropic lo đăng nhập.
+        #   "api_key" - truyền `anthropic_api_key` xuống cho binary `claude` qua biến môi
+        #       trường, tức trả tiền theo lượt dùng qua Claude Console. Đây là đường Anthropic
+        #       chỉ định cho sản phẩm bên thứ ba (xem claude_auth.CANH_BAO_SUBSCRIPTION).
+        # Đổi ở trang Models. Cả hai đều giữ NGUYÊN năng lực: Bash, WebFetch, MCP, nối phiên cũ.
+        "claude_auth": "subscription",
         "openrouter_key": "",
         "anthropic_api_key": "",               # provider Anthropic API (P2)
         "openai_api_key": "",                  # provider OpenAI (ChatGPT API)
@@ -71,8 +80,10 @@ _DEFAULT = {
         "openrouter_model": "openai/gpt-4o-mini",
         # Catalog model theo provider (Telegram /model dùng key 'claude'+'openrouter'; picker dùng cả 3).
         "catalog": {
-            # anthropic-cli: chỉ là mồi lúc cài mới. /provider/models hỏi API Anthropic bằng token
-            # OAuth của Claude Code rồi ghi đè danh sách THẬT vào đây (xem claude_models.py).
+            # anthropic-cli: danh sách nền, LUÔN dùng được kể cả khi máy không có API key.
+            # /provider/models hỏi API Anthropic bằng `anthropic_api_key` (nếu có) rồi ghi đè
+            # danh sách THẬT vào đây. Không có key thì giữ nguyên các alias dưới đây - chúng
+            # luôn trỏ tới bản mới nhất của từng dòng nên không bao giờ lạc hậu.
             "claude": ["opus", "sonnet", "haiku", "fable"],
             "anthropic-api": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
