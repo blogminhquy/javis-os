@@ -4,7 +4,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.26.19] - 2026-08-11
+## [0.26.20] - 2026-08-11
 ### Thêm mới
 - **Xác thực 2 lớp (2FA) bằng app Authenticator.** Bật ở Dashboard → Tài khoản: quét QR bằng Google Authenticator / Microsoft Authenticator / 1Password / Bitwarden (cái nào cũng được), nhập một mã 6 số để xác nhận, xong. Từ đó mỗi lần đăng nhập hỏi thêm mã. Javis chạy full quyền và có Bash, nên mật khẩu lộ ra ngoài mà vẫn vào được là một rủi ro không nên chấp nhận.
 - **10 mã khôi phục, hiện đúng một lần lúc bật.** Không có chúng thì bật 2FA là tự đặt bẫy: mất điện thoại là mất luôn đường vào, và lối ra duy nhất là SSH vào server sửa tay `settings.json` - đúng thứ người ta bật 2FA để khỏi phải làm. Mã dùng một lần rồi tiêu; sinh lại bộ mới được (bộ cũ hết hiệu lực ngay).
@@ -18,7 +18,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Tắt 2FA đòi CẢ mật khẩu lẫn một mã đúng.** Ai đó mượn được máy đang mở sẵn dashboard mà tắt được lớp thứ hai bằng một cú bấm thì lớp đó coi như không có. Mọi endpoint 2FA đều đòi session trình duyệt, không nhận token API.
 - Tự viết TOTP (RFC 6238) thay vì thêm thư viện: nó là HMAC-SHA1 trên một bộ đếm 30 giây, đúng 20 dòng thật sự, và đã đứng yên từ 2011. Thêm dependency cho ngần đó code là đổi một thứ đọc hết được lấy một thứ không kiểm soát, ngay tại cổng đăng nhập. Chỉ thêm `segno` để vẽ QR (thuần Python, không kéo theo gì); thiếu nó thì màn bật lui về nhập tay khoá.
 
-## [0.26.18] - 2026-08-11
+## [0.26.19] - 2026-08-11
 ### Cải thiện
 - **Cài xong là đăng nhập được luôn, hết cảnh đi đọc MÃ THIẾT LẬP trong log.** Trước bản này, mở Javis ra công khai mà chưa có tài khoản thì server sinh một chuỗi ngẫu nhiên và chỉ in nó vào log lúc khởi động; người dùng phải SSH vào máy, `docker compose logs javis`, chép mã, dán vào trình duyệt. Cái mã đó chặn người lạ chỉ-có-URL chiếm quyền admin trước chủ máy nên nó có lý do tồn tại, nhưng bắt người ta đọc log là trải nghiệm tệ, và tệ đúng lúc họ vừa cài xong và chưa quen gì cả. Nay `install.sh` hỏi thẳng tên đăng nhập và mật khẩu rồi ghi vào `.env`: người đang chạy script vốn đã ngồi trên máy chủ, nên hỏi một câu KHÔNG thêm bước nào, mà server boot lên đã có admin nên mã thiết lập không bao giờ hiện ra.
 - **Enter một cái là có mật khẩu mạnh.** Bỏ trống ô mật khẩu thì script tự sinh 20 ký tự chữ-số và in ra ĐÚNG MỘT LẦN ở cuối màn hình cài. Chạy không có bàn phím (`curl | bash`, CI) cũng tự sinh chứ không bỏ trống, vì bỏ trống là đẩy người dùng về đúng cái màn đọc-log vừa xoá đi.
@@ -28,6 +28,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ### Bảo mật
 - **Cơ chế MÃ THIẾT LẬP KHÔNG bị bỏ**, chỉ thôi làm đường chính. Nó vẫn là lưới cho người deploy bằng cách khác (compose tay, image trần). Bỏ hẳn là mở toang `/auth/setup` cho bất kỳ ai gõ trúng URL trước chủ máy, mà thứ họ chiếm được là một máy có Bash, chạy full quyền, cắm sẵn vào POS/quảng cáo/email của chủ. Có canary trong `test_install_admin.py` giữ cơ chế này khỏi bị gỡ nhầm về sau.
+
+## [0.26.18] - 2026-08-11
+### Sửa lỗi
+- **Chat chạy rất lâu rồi chết bằng `Control request timeout: initialize`.** Chủ repo gõ một câu nhờ tạo 2 trang checkout trên Webcake, ngồi chờ, rồi nhận đúng hai dòng: một chuỗi lỗi tiếng Anh trần trụi và "(không có nội dung trả về)". Nguyên nhân nằm ở chỗ không ai nghĩ tới - danh sách tool của MCP nằm trên ĐƯỜNG GĂNG của mọi lượt chat. Lúc khởi động, `claude` phải đấu xong mọi MCP server rồi mới nhận việc; nó đấu vào hub Javis; hub trả tool bằng cách **dò tuần tự từng nguồn**, mỗi nguồn được chờ hết trần riêng của transport (http 60s, stdio 90s lúc init). Máy đấu chục connector mà có một nguồn chết là tổng thời gian tính bằng phút, trong khi Agent SDK chỉ chờ đúng 60 giây rồi bỏ cuộc. Cả lượt chat mất trắng vì một nguồn không liên quan.
+- **Dò MCP nay chạy song song, mỗi nguồn có trần riêng 20 giây.** Tổng thời gian xấp xỉ nguồn chậm nhất chứ không còn là tổng của mọi nguồn, và một nguồn treo bị bỏ qua ở vòng đó thay vì kéo cả lượt chờ theo (cache hub hết hạn sau 60s là dò lại, nên không mất gì lâu dài). Phiên bị cắt giữa chừng bị vứt hẳn chứ không tái dùng - cắt ngang một request NDJSON là ống stdio lệch pha vĩnh viễn. Chỉnh bằng `JAVIS_MCP_DISCOVER_TIMEOUT=<giây>`, đặt 0 để bỏ trần.
+- **Trần chờ `claude` khởi động nới từ 60 lên 300 giây.** Agent SDK chỉ nhận trần này qua biến môi trường `CLAUDE_CODE_STREAM_CLOSE_TIMEOUT` chứ không có tham số nào trong options, nên Javis tự đặt hộ; ai đã tự đặt biến đó thì Javis không đè. Chỉnh bằng `JAVIS_CLAUDE_INIT_TIMEOUT=<giây>` (sàn cứng 60s là của SDK).
+- **Lỗi hết giờ khởi động nay nói ra việc phải làm.** Thay cho `SDK engine: Exception: Control request timeout: initialize`, người dùng đọc được rằng thủ phạm gần như luôn là một nguồn dữ liệu chết, và mở trang Kết nối bấm Kiểm tra để tìm nó. Lỗi nào không khớp mẫu thì vẫn giữ nguyên chuỗi gốc - đoán bừa nguyên nhân còn tệ hơn tiếng Anh trần.
+- Thêm `test_khoi_dong_cham.py` khoá cả ba chỗ: dò song song có trần từng nguồn, nới trần khởi động, và câu báo lỗi chỉ được chỗ bấm.
 
 ## [0.26.17] - 2026-08-11
 ### Bảo mật

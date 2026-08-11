@@ -100,6 +100,53 @@ def tran_watchdog(bien: str, mac_dinh: str):
     return v if v > 0 else None
 
 
+_INIT_MAC_DINH = "300"    # giây - trần chờ `claude` khởi động xong (SDK mặc định chỉ 60)
+
+
+def ap_tran_khoi_dong():
+    """Nới trần chờ control request `initialize` của SDK. Trả số giây đang áp dụng (None = giữ
+    nguyên biến người dùng tự đặt).
+
+    Vì sao cần: lúc initialize, `claude` phải đấu XONG mọi MCP server rồi mới nhận việc, mà SDK
+    chờ đúng 60 giây rồi ném `Control request timeout: initialize`. Máy đấu nhiều nguồn (hub
+    Javis + connector tài khoản Claude) vượt 60s là chuyện thường, và người dùng nhận về một
+    dòng tiếng Anh trần trụi sau khi ngồi chờ - đúng ca báo ngày 2026-08-11.
+
+    SDK chỉ đọc trần này qua env `CLAUDE_CODE_STREAM_CLOSE_TIMEOUT` (mili giây, sàn cứng 60s)
+    chứ KHÔNG có tham số nào trong options, nên phải đặt env của chính tiến trình server. Ai đã
+    tự đặt biến của SDK thì tôn trọng, không đè.
+    """
+    raw = os.getenv("JAVIS_CLAUDE_INIT_TIMEOUT")
+    if raw is None and os.getenv("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"):
+        return None
+    try:
+        giay = float(raw if raw is not None else _INIT_MAC_DINH)
+    except (TypeError, ValueError):
+        giay = float(_INIT_MAC_DINH)
+    giay = max(giay, 60.0)   # SDK có sàn 60s; đặt thấp hơn chỉ là tự lừa mình
+    os.environ["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = str(int(giay * 1000))
+    return giay
+
+
+def loi_de_hieu(e, tran_init=None):
+    """Đổi exception của SDK thành câu người dùng ĐỌC RA ĐƯỢC VIỆC PHẢI LÀM.
+
+    Mẫu nào không khớp thì giữ nguyên chuỗi gốc: đoán bừa nguyên nhân còn tệ hơn tiếng Anh trần.
+    """
+    raw = str(e)
+    if "Control request timeout: initialize" in raw:
+        n = f"{int(tran_init)}s" if tran_init else "trần cho phép"
+        return ("Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
+                "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
+                "nguồn rồi mới nhận việc, nên một nguồn chết hoặc chậm là kéo cả lượt chờ theo "
+                "rồi hết giờ. Mở trang Kết nối, bấm Kiểm tra để tìm nguồn đang đỏ rồi tắt nó đi "
+                "và gửi lại tin nhắn. (JAVIS_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)")
+    if "Control request timeout:" in raw:
+        return (f"Claude Code không phản hồi lệnh điều khiển ({raw}). Gửi lại tin nhắn; còn lặp "
+                "lại thì mở hội thoại mới.")
+    return f"SDK engine: {type(e).__name__}: {e}"
+
+
 def map_message(msg):
     """Map 1 message SDK → (list event dict 'hợp đồng ClaudeCLI', session_id|None).
     PURE - test offline được, không cần CLI/auth."""
@@ -397,6 +444,8 @@ class ClaudeSDK:
         # nén lịch sử), nên cũng để không giới hạn.
         FIRST_IDLE = tran_watchdog("JAVIS_CLAUDE_FIRST_TIMEOUT", "0")
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
+        # Nới trần `initialize` TRƯỚC khi dựng client: SDK đọc env ngay trong connect().
+        tran_init = ap_tran_khoi_dong()
         loop = asyncio.get_running_loop()
         client = ClaudeSDKClient(options=self._options())
         started = time.time()
@@ -470,7 +519,7 @@ class ClaudeSDK:
                 if isinstance(msg, ResultMessage):
                     break
         except Exception as e:
-            yield {"type": "error", "content": f"SDK engine: {type(e).__name__}: {e}"}
+            yield {"type": "error", "content": loi_de_hieu(e, tran_init)}
         finally:
             with _LOCK:
                 _ACTIVE.pop(client, None)
