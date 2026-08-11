@@ -152,6 +152,15 @@ body.in-console .hud-actions { display: none; }
 .prov-action .gcard-btn { width: auto; flex: 0 0 auto; }
 .prov-note { font-size: 13px; color: var(--text3); margin-top: 8px; opacity: 0.7; }
 
+/* Nguồn xác thực của gói Claude Code (subscription / API key) */
+.prov-auth { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--glass-brd); }
+.prov-auth-title { font-family: var(--font); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.prov-auth-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 6px; cursor: pointer; }
+.prov-auth-opt input { margin-top: 3px; flex: 0 0 auto; }
+.prov-auth-opt b { color: var(--text); font-weight: 600; }
+.prov-auth-opt i { color: var(--text3); }
+.prov-auth-warn { font-size: 13px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+
 /* Auxiliary model chips */
 .aux-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .aux-chip {

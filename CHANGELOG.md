@@ -4,6 +4,21 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.17] - 2026-08-11
+### Bảo mật
+- **Javis không còn tự đọc token đăng nhập Claude Code của bạn.** Từ 0.18.2 tới bản này, Javis mở `~/.claude/.credentials.json` (hoặc Keychain trên macOS), lấy access token OAuth ra rồi gửi thẳng `Authorization: Bearer <token>` tới `api.anthropic.com/v1/messages`. Anthropic cấm đúng việc đó: token của gói Free/Pro/Max chỉ được dùng trong Claude Code và Claude.ai, họ nói rõ chuyện này trong tài liệu Legal & compliance từ tháng 2/2026 và chặn hẳn các công cụ bên thứ ba từ 04/04/2026. Cách họ phát hiện là soi dấu vân tay request - thiếu telemetry và heartbeat mà CLI chính chủ mới phát - mà request Javis tự dựng thì không có gì trong số đó. Có người dùng Javis đã bị khoá tài khoản.
+- **Ba chỗ moi token đều đã gỡ**, và mỗi chỗ có một canary chống hồi quy: đường chat tiết kiệm (`main._api_stream_goc`), vòng gọi tool của bot chuyên trách (`main._bot_stream_co_tool`), và danh sách model live (`claude_models`). Hai tham số `oauth_token` trong `engine.py` gỡ theo. Module `claude_models` nay chỉ còn hai hàm và không đụng vào file nào của người dùng.
+- **Không mất tính năng nào.** Cả ba đường chạy lại qua đúng binary `claude`, tức để chính sản phẩm của Anthropic lo phần đăng nhập. Mức Siêu tiết kiệm giữ nguyên phần tiết kiệm nhờ gửi system prompt trần thay vì preset của Claude Code - để preset vào là nó tự nhét lại prompt đầy đủ và ăn sạch phần tiết kiệm. Danh sách model live nay hỏi bằng API key nếu máy có; không có key thì giữ bốn alias `opus/sonnet/haiku/fable`, mà alias thì luôn trỏ bản mới nhất nên không lạc hậu.
+
+### Thêm mới
+- **Trang Models có ô "Chạy bằng" cho Claude Code**: giữ gói đang đăng nhập, hoặc dùng API key Anthropic. Hai lựa chọn giữ NGUYÊN năng lực - Bash, WebFetch, MCP, nối lại phiên cũ - chỉ khác ai trả tiền và ai chịu rủi ro. Chọn API key thì Javis truyền `ANTHROPIC_API_KEY` xuống tiến trình `claude`; chọn API key mà bỏ trống ô key thì lui về phiên đăng nhập sẵn có chứ không làm chết lượt chat.
+- **Cảnh báo hiện đúng lúc đáng lo**, không phải lúc nào cũng nhá: chỉ khi máy đang để gói subscription gánh việc nền (model việc nền trỏ vào Claude Code) thì thẻ Claude Code mới hiện dải vàng nói rõ rủi ro và hai lối ra. Server tự ghép hai điều kiện đó rồi trả kèm dữ liệu, dashboard không tự đoán.
+- **Việc nền chạy bằng gói subscription vẫn là một LỰA CHỌN, không bị tắt cứng.** Chủ máy tự cân rủi ro, Javis chỉ bảo đảm họ cân khi đã biết. README, trang web và system prompt đều nói thẳng chuyện này thay vì chỉ quảng cáo "0đ tiền API".
+
+### Cải thiện
+- **Bot chuyên trách chạy trên gói Claude Code giờ dựng rào an toàn tường minh.** Tới bản trước, "bot không bao giờ có tool native" là hệ quả miễn phí của một sự thật kiến trúc: không engine nào của bot mở CLI. Bản này phải bỏ sự thật đó, nên chỗ tựa được dựng lại bằng bốn lớp và cả bốn đều có canary: allowlist chỉ có hub (cổng `can_use_tool` từ chối mọi tool khác từng lần gọi), danh sách chặn thẳng nhóm native, config hub mang brain CỦA BOT nên tool file bị `_safe_path` khoá đúng brain đó, và `mcp_strict` để bot không thấy connector của chủ.
+- `mcp_hub.claude_config_path` nhận thêm `vault_root`. Cần cho đúng ca trên: engine Claude bình thường có Read/Write native nên hub cố ý không cấp nhóm tool file, nhưng bot bị chặn native nên không có nó là mất luôn khả năng ghi. File config tách theo brain nên hai bot hai brain chạy song song không đè header của nhau.
+
 ## [0.26.16] - 2026-08-10
 ### Thêm mới
 - **Nút Lùi / Tiến giữa các note trong trình sửa.** Đọc wiki là đi theo chuỗi `[[wikilink]]`: bấm một cái là rời khỏi note đang đọc, mà trước bản này KHÔNG có đường về - phải đi tìm lại file cũ trong cây. Nghĩa là mỗi cú bấm link là một quyết định một chiều, đúng thứ làm người ta ngại bấm link trong chính vault của mình.

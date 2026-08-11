@@ -8,7 +8,11 @@ Engine Claude qua claude-agent-sdk CHÍNH CHỦ (Phase 1-2 của docs/dev/2026-0
   - cancel_all(tag) interrupt theo họ tag (claude_cli.cancel_all gọi hộ)
 
 Bật bằng env JAVIS_CLAUDE_ENGINE=sdk (mặc định cli - qua factory claude_cli.claude_engine).
-Auth kế thừa đăng nhập Claude Code CLI (subscription) - không cần API key.
+
+Auth: engine KHÔNG bao giờ đọc token của ai. Nó chạy binary `claude` và để chính sản phẩm
+của Anthropic lo đăng nhập - mặc định là phiên Claude Code sẵn có (gói subscription). Người
+dùng chọn `api_key` ở trang Models thì `claude_auth.env_cho_cli` đưa ANTHROPIC_API_KEY xuống
+tiến trình con. Hai lối cùng năng lực; khác nhau ở chỗ ai trả tiền. Xem claude_auth.py.
 
 Nâng cấp so với CLI Popen: khi có allowed_tools (fork nền an toàn của loop/workflow),
 quyền enforce PER-CALL bằng callback can_use_tool - tool ngoài whitelist bị TỪ CHỐI THẬT
@@ -170,6 +174,10 @@ class ClaudeSDK:
         self.max_wall_s = None
         self.javis_mode = None    # _apply_mcp đặt (suggest|auto|full) - enforce min_mode plugin in-process
         self.javis_vault = None   # _apply_mcp đặt - brain đang làm việc, cho ctx của plugin
+        # True = gửi system_prompt TRẦN, bỏ preset claude_code. Đường tiết kiệm token dùng cái
+        # này: cả giá trị của nó nằm ở chỗ system prompt chỉ còn vài trăm token, mà preset
+        # claude_code thì tự nhét lại prompt đầy đủ của Claude Code và ăn sạch phần tiết kiệm.
+        self.system_prompt_raw = False
         self._tmp_files = []      # file tạm (system prompt) dọn sau mỗi query
 
     def is_available(self) -> bool:
@@ -320,7 +328,11 @@ class ClaudeSDK:
         # SDK dán nhãn nhầm "Claude Code not found at ...\\_bundled\\claude.exe". System prompt của Javis
         # (CLAUDE.md + bộ nhớ brain nhiều note) dễ vượt ngưỡng -> đây là gốc lỗi đó. Đọc qua file thì
         # không còn giới hạn độ dài. SDK cũ không có extra_args thì fallback nhét inline (chỉ hợp prompt ngắn).
-        if self.system_prompt and "extra_args" in fields:
+        if self.system_prompt and self.system_prompt_raw:
+            # Trần: KHÔNG preset. Đây là đường tiết kiệm token - thêm preset vào là mất sạch
+            # phần tiết kiệm. Vẫn đi qua binary `claude` nên vẫn là đường chính chủ.
+            kw["system_prompt"] = self.system_prompt
+        elif self.system_prompt and "extra_args" in fields:
             _p = self._write_sysprompt_file(self.system_prompt)
             kw["system_prompt"] = {"type": "preset", "preset": "claude_code"}
             kw["extra_args"] = {"append-system-prompt-file": _p}
@@ -332,6 +344,17 @@ class ClaudeSDK:
         # ảnh chụp màn hình) vượt ngưỡng này là vỡ buffer -> SDKJSONDecodeError.
         if "max_buffer_size" in getattr(ClaudeAgentOptions, "__dataclass_fields__", {}):
             kw["max_buffer_size"] = 32 * 1024 * 1024
+        # Chế độ API key: đưa ANTHROPIC_API_KEY xuống tiến trình `claude`. Phải MERGE với
+        # os.environ chứ không thay thế - SDK truyền thẳng dict này cho tiến trình con, và một
+        # env chỉ có mỗi API key là mất PATH, mất HOME, tiến trình chết trước khi kịp chào.
+        try:
+            import claude_auth
+            _env = claude_auth.env_cho_cli()
+        except Exception as e:   # noqa: BLE001 - đọc cấu hình hỏng không được phá lượt chat
+            print(f"[sdk engine] không đọc được chế độ auth: {type(e).__name__}: {e}", file=sys.stderr)
+            _env = {}
+        if _env and "env" in fields:
+            kw["env"] = {**os.environ, **_env}
         if self.model:
             kw["model"] = self.model
         if self.session_id:
