@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.21] - 2026-08-11
+### Sửa lỗi
+- **Xác thực 2 lớp không tìm thấy được từ trang Cài đặt.** Javis có HAI bề mặt cài đặt tài khoản - trang **Tài khoản** (đủ thứ, gồm luồng bật 2FA có QR) và khối "Tài khoản đăng nhập" cũ nhúng trong trang **Cài đặt** (chỉ đổi mật khẩu). 0.26.20 thêm 2FA vào chỗ đầu mà quên chỗ sau. Hậu quả không phải "thiếu một nút": người dùng mở trang Cài đặt, thấy khối tài khoản không nhắc gì tới 2FA, rồi kết luận Javis chưa có tính năng đó - trong khi nó đã chạy được cả ngày. Một tính năng bảo mật mà người ta không tìm ra thì bằng không.
+- Nay khối đó có thêm một dòng trạng thái: chưa bật thì mời bật, đang bật thì khoe còn mấy mã khôi phục (kèm cảnh báo khi sắp hết), chưa đặt mật khẩu thì nói thẳng phải đặt mật khẩu trước chứ không đưa ra một nút bấm vào không ăn.
+- **Cố ý chỉ là lối đi, không nhân đôi luồng bật.** Màn quét QR vẫn nằm đúng một chỗ ở trang Tài khoản; nút ở đây dùng chung đường chuyển trang sẵn có. Hai bản sao của một luồng bảo mật là hai chỗ phải sửa mỗi lần đổi, và chỗ nào quên sửa thì chỗ đó thành lỗ - `test_2fa_loi_vao.js` có canary cấm nhân đôi.
+
 ## [0.26.20] - 2026-08-11
 ### Thêm mới
 - **Xác thực 2 lớp (2FA) bằng app Authenticator.** Bật ở Dashboard → Tài khoản: quét QR bằng Google Authenticator / Microsoft Authenticator / 1Password / Bitwarden (cái nào cũng được), nhập một mã 6 số để xác nhận, xong. Từ đó mỗi lần đăng nhập hỏi thêm mã. Javis chạy full quyền và có Bash, nên mật khẩu lộ ra ngoài mà vẫn vào được là một rủi ro không nên chấp nhận.

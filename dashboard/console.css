@@ -800,3 +800,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tfa-rec-note { font-size: 13px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 9px 11px; margin-bottom: 10px; }
 .tfa-rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 7px; margin-bottom: 12px; }
 .tfa-rec-grid code { font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 1px; text-align: center; background: var(--surface-2); border: 1px solid var(--glass-brd); border-radius: 6px; padding: 6px 4px; user-select: all; }
+
+/* Dòng trạng thái 2FA trong khối "Tài khoản đăng nhập" cũ (#quickSet nhúng ở trang Cài đặt) */
+.set-tfa { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; line-height: 1.55; color: var(--text2); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-brd); }
+.set-tfa .tfa-on { color: var(--green); }
+.set-tfa .tfa-off { color: var(--text); }
+.set-tfa .tfa-low { color: var(--warn-ink); }
+.set-tfa button { margin-left: auto; flex: 0 0 auto; }

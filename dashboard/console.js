@@ -4235,6 +4235,38 @@
   }
 
   // ---- Trang Cài đặt: nhúng #quickSet + bộ chọn nhà cung cấp giọng đọc ----
+  // Dòng trạng thái 2FA trong khối "Tài khoản đăng nhập" cũ (#quickSet, index.html).
+  //
+  // Vì sao cần: Javis có HAI bề mặt cài đặt tài khoản - trang Tài khoản (đủ thứ, gồm cả 2FA)
+  // và khối cũ này nhúng trong trang Cài đặt (chỉ đổi mật khẩu). Ai mở Cài đặt trước sẽ thấy
+  // một khối tài khoản không nhắc gì tới 2FA và kết luận Javis không có, rồi thôi.
+  //
+  // Đây CHỈ là trạng thái + lối đi. Nút bấm mang data-settings-go="account" nên nó dùng chung
+  // đúng đường chuyển trang với mấy nút còn lại, không tự gọi navigateTo.
+  async function renderTfaRow() {
+    const row = document.getElementById("setTfaRow");
+    if (!row) return;                     // index.html bản cũ (cache) → bỏ qua, không làm sập trang
+    let a = {};
+    try { a = await (await fetch("/auth/status")).json(); } catch (e) { row.hidden = true; return; }
+    // Chưa đặt mật khẩu thì chưa có gì để chồng lớp thứ hai lên. Nói thẳng thứ tự phải làm,
+    // thay vì hiện một nút bấm vào rồi mới biết là chưa tới lượt.
+    if (a.needs_setup) {
+      row.hidden = false;
+      row.innerHTML = `${ic("shield")} Xác thực 2 lớp: <b>đặt mật khẩu trước đã</b> - xong mới bật được.`;
+      return;
+    }
+    const con = Number(a.totp_recovery_left || 0);
+    row.hidden = false;
+    row.innerHTML = a.totp_enabled
+      ? `${ic("shield")} Xác thực 2 lớp: <b class="tfa-on">đang bật</b>`
+        + ` · còn ${con} mã khôi phục`
+        + (con <= 2 ? ` <b class="tfa-low">(sắp hết)</b>` : "")
+        + ` <button class="s-btn-ghost" data-settings-go="account">Quản lý</button>`
+      : `${ic("shield")} Xác thực 2 lớp: <b class="tfa-off">chưa bật</b>`
+        + ` - bật thì mật khẩu lộ ra ngoài cũng chưa đủ để vào được Javis.`
+        + ` <button class="s-btn" data-settings-go="account">Bật ngay</button>`;
+  }
+
   async function renderSettings(el) {
     const gen = _renderGen;               // chốt token: nếu user đổi trang trong lúc await → bỏ render này
     parkQuickSet();                       // giữ #quickSet an toàn TRƯỚC khi ghi đè cviewBody
@@ -4349,6 +4381,9 @@
     const host = el.querySelector(".cs-host");
     const qs = document.getElementById("quickSet");
     if (qs && host) host.appendChild(qs);         // nhúng bộ điều khiển cũ vào trang (giữ handler)
+    // Phải chạy TRƯỚC vòng nối [data-settings-go] bên dưới: nút "Bật ngay" nằm trong khối vừa
+    // nhúng, và nó dựa vào chính vòng đó để nối hành động chuyển trang.
+    await renderTfaRow();
     if (window.__javisRefreshExtras) { try { window.__javisRefreshExtras(); } catch (e) {} }  // nạp lại avatar/tên miền
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
     if (provHost) provHost.innerHTML = provHtml;

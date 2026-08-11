@@ -14,7 +14,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=62">
-  <link rel="stylesheet" href="/static/console.css?v=41">
+  <link rel="stylesheet" href="/static/console.css?v=42">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -678,6 +678,11 @@
             <button class="s-btn-ghost" id="disableAuthBtn">Tắt đăng nhập</button>
           </div>
           <div class="set-note">Đặt mật khẩu để chặn người lạ khi đưa Javis lên VPS. Lưu ý: trên VPS nên chạy sau HTTPS (reverse proxy).</div>
+          <!-- Xác thực 2 lớp: CỐ Ý chỉ là dòng trạng thái + lối đi, không phải luồng bật đầy đủ.
+               Màn quét QR nằm ở trang Tài khoản. Bê nguyên luồng đó sang đây là có hai bản sao
+               của một tính năng bảo mật, và chỗ nào quên sửa thì chỗ đó thành lỗ.
+               Nội dung do console.js đổ vào (renderTfaRow) vì nó cần hỏi /auth/status. -->
+          <div class="set-tfa" id="setTfaRow" hidden></div>
         </div>
         <div class="set-note" style="opacity:.7">Ảnh đại diện, tên miền, giọng nói &amp; tốc độ nằm trong trang <b>Cài đặt</b>.</div>
       </div>
@@ -724,7 +729,7 @@
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=98"></script>
+  <script src="/static/console.js?v=99"></script>
   <script src="/static/mobile-chat.js?v=5"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>
