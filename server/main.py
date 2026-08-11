@@ -49,6 +49,7 @@ import git_brain
 import engine
 import openai_oauth
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
+import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import mcp_store
@@ -647,6 +648,11 @@ def _session_cookie(resp, token, request=None):
     return resp
 
 
+def _env_bat(ten: str) -> bool:
+    """Biến môi trường có đang bật không (1/true/yes/on). Dùng cho cờ gợi ý, không phải rào."""
+    return (os.getenv(ten, "") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 @app.get("/auth/status")
 async def auth_status(request: Request):
     cfg = cfgmod.read_settings()
@@ -657,6 +663,14 @@ async def auth_status(request: Request):
     authed = has_session or (not enabled and not require)
     return {"needs_setup": not enabled, "auth_required": enabled or require,
             "require_login": require, "authed": authed,
+            # 2FA lộ ra ở đây là CỐ Ý và không phải rò rỉ: màn đăng nhập cần biết có hỏi ô mã
+            # hay không, mà việc "tài khoản này có 2FA" thì kẻ tấn công cũng biết ngay sau lần
+            # nhập mật khẩu đầu tiên. Số mã khôi phục còn lại thì chỉ trả khi ĐÃ đăng nhập.
+            "totp_enabled": cfgmod.totp_enabled(cfg),
+            "totp_recovery_left": (cfgmod.totp_recovery_left(cfg) if authed else None),
+            # install.sh có thể ghi JAVIS_SETUP_2FA=1 vào .env khi người cài chọn bật 2FA.
+            # Đây chỉ là LỜI NHẮC cho giao diện mở sẵn màn bật, không phải một cơ chế bảo mật.
+            "totp_suggested": (_env_bat("JAVIS_SETUP_2FA") and not cfgmod.totp_enabled(cfg)),
             "username": (cfg.get("auth", {}).get("username", "") if authed else "")}
 
 
@@ -699,7 +713,13 @@ def _login_fail(ip):
 
 
 @app.post("/auth/login")
-async def auth_login(request: Request, username: str = Form(...), password: str = Form(...)):
+async def auth_login(request: Request, username: str = Form(...), password: str = Form(...),
+                     code: str = Form("")):
+    """Đăng nhập. `code` chỉ cần khi đã bật 2FA - nhận CẢ mã 6 số lẫn mã khôi phục.
+
+    Thứ tự kiểm CÓ CHỦ Ý: mật khẩu trước, mã sau. Đảo lại là biến ô mã thành một máy dò xem
+    tài khoản nào đã bật 2FA, cho người còn chưa biết mật khẩu.
+    """
     ip = request.client.host if request.client else "?"
     if _login_locked(ip):
         return JSONResponse({"ok": False, "error": "Quá nhiều lần sai - thử lại sau ít phút."}, status_code=429)
@@ -710,8 +730,119 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
         _login_fail(ip)
         await asyncio.sleep(0.5)   # làm chậm brute-force online
         return JSONResponse({"ok": False, "error": "Sai tài khoản hoặc mật khẩu"}, status_code=401)
+    if cfgmod.totp_enabled(cfg):
+        ma = (code or "").strip()
+        if not ma:
+            # 401 kèm needs_2fa để giao diện hiện ô mã. KHÔNG tính là một lần sai: người dùng
+            # chưa gõ gì cả, tính vào hạn mức là tự khoá chính chủ sau vài lần mở màn đăng nhập.
+            return JSONResponse({"ok": False, "needs_2fa": True,
+                                 "error": "Nhập mã xác thực 2 lớp."}, status_code=401)
+        buoc = totp.kiem(cfgmod.totp_secret(cfg), ma,
+                         buoc_da_dung=cfgmod.totp_last_step(cfg))
+        if buoc is not None:
+            cfgmod.totp_ghi_buoc(buoc)
+        elif cfgmod.totp_dung_ma_khoi_phuc(ma):
+            con = cfgmod.totp_recovery_left()
+            print(f"[auth] đăng nhập bằng MÃ KHÔI PHỤC, còn {con} mã", file=__import__('sys').stderr)
+        else:
+            _login_fail(ip)
+            await asyncio.sleep(0.5)
+            return JSONResponse({"ok": False, "needs_2fa": True,
+                                 "error": "Mã xác thực không đúng hoặc đã dùng rồi."},
+                                status_code=401)
     _LOGIN_FAILS.pop(ip, None)
     return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
+
+
+# ---- Xác thực 2 lớp: bật / xác nhận / tắt ----
+# MỌI endpoint dưới đây đòi SESSION trình duyệt, không nhận token API. Cùng lý do với
+# /auth/tokens: cho token đổi được cách đăng nhập thì một token rò ra là kẻ cầm nó tự gắn 2FA
+# của mình vào rồi khoá chính chủ ra ngoài.
+def _doi_phien_that(request: Request):
+    if cfgmod.gate_active() and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
+        return JSONResponse({"ok": False, "error": "Thao tác này phải đăng nhập bằng trình duyệt."},
+                            status_code=403)
+    return None
+
+
+# Secret ĐANG CHỜ xác nhận, giữ trong RAM chứ không ghi settings. Ghi xuống đĩa trước khi
+# người dùng chứng minh app của họ sinh đúng mã là để lại một secret nửa vời trong file cấu
+# hình; restart giữa chừng thì nó nằm đó mãi mà chẳng ai dùng.
+_TOTP_CHO = {}          # {"secret": str, "ts": float}
+_TOTP_CHO_TTL = 15 * 60
+
+
+@app.post("/auth/2fa/start")
+async def auth_2fa_start(request: Request):
+    """Sinh secret MỚI (chưa bật) + QR để quét. Gọi lại là sinh cái khác, cái cũ bỏ đi."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if cfgmod.totp_enabled(cfg):
+        return JSONResponse({"ok": False, "error": "2FA đang bật rồi - tắt trước nếu muốn đổi."},
+                            status_code=400)
+    secret = totp.sinh_secret()
+    _TOTP_CHO.clear()
+    _TOTP_CHO.update(secret=secret, ts=time.time())
+    uri = totp.otpauth_uri(secret, cfg.get("auth", {}).get("username") or "admin",
+                           cfg.get("workspace_name") or "Javis OS")
+    return {"ok": True, "secret": secret, "uri": uri, "qr_svg": totp.qr_svg(uri)}
+
+
+@app.post("/auth/2fa/enable")
+async def auth_2fa_enable(request: Request, code: str = Form(...)):
+    """Xác nhận bằng một mã đúng rồi mới BẬT. Trả mã khôi phục đúng MỘT lần."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cho = dict(_TOTP_CHO)
+    if not cho.get("secret") or time.time() - float(cho.get("ts") or 0) > _TOTP_CHO_TTL:
+        return JSONResponse({"ok": False, "error": "Phiên bật 2FA đã hết hạn - bấm Bật lại."},
+                            status_code=400)
+    buoc = totp.kiem(cho["secret"], code)
+    if buoc is None:
+        return JSONResponse({"ok": False, "error": "Mã không đúng. Kiểm tra giờ trên điện thoại "
+                                                   "rồi nhập mã đang hiện."}, status_code=400)
+    ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
+    cfgmod.totp_set(secret=cho["secret"], enabled=True, recovery=ma_khoi_phuc, last_step=buoc)
+    _TOTP_CHO.clear()
+    return {"ok": True, "recovery": ma_khoi_phuc}
+
+
+@app.post("/auth/2fa/disable")
+async def auth_2fa_disable(request: Request, password: str = Form(...), code: str = Form("")):
+    """Tắt 2FA. Đòi mật khẩu VÀ một mã đúng (hoặc mã khôi phục).
+
+    Đòi cả hai vì đây là thao tác HẠ bảo mật: ai đó mượn được máy đang mở sẵn dashboard mà tắt
+    được 2FA chỉ bằng một cú bấm thì lớp thứ hai coi như không có.
+    """
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if not cfgmod.totp_enabled(cfg):
+        return {"ok": True, "note": "2FA vốn đã tắt"}
+    if not cfgmod.verify_password(password, cfg):
+        return JSONResponse({"ok": False, "error": "Sai mật khẩu."}, status_code=401)
+    ma = (code or "").strip()
+    if totp.kiem(cfgmod.totp_secret(cfg), ma, buoc_da_dung=cfgmod.totp_last_step(cfg)) is None \
+            and not cfgmod.totp_dung_ma_khoi_phuc(ma):
+        return JSONResponse({"ok": False, "error": "Mã xác thực không đúng."}, status_code=401)
+    cfgmod.totp_tat()
+    return {"ok": True}
+
+
+@app.post("/auth/2fa/recovery")
+async def auth_2fa_recovery(request: Request, password: str = Form(...)):
+    """Sinh LẠI bộ mã khôi phục (bộ cũ hết hiệu lực ngay). Dùng khi lỡ mất tờ giấy cũ."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if not cfgmod.totp_enabled(cfg):
+        return JSONResponse({"ok": False, "error": "2FA chưa bật."}, status_code=400)
+    if not cfgmod.verify_password(password, cfg):
+        return JSONResponse({"ok": False, "error": "Sai mật khẩu."}, status_code=401)
+    ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
+    cfgmod.totp_set(secret=None, recovery=ma_khoi_phuc)
+    return {"ok": True, "recovery": ma_khoi_phuc}
 
 
 @app.get("/auth/tokens")

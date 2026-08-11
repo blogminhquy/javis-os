@@ -4,6 +4,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.19] - 2026-08-11
+### Thêm mới
+- **Xác thực 2 lớp (2FA) bằng app Authenticator.** Bật ở Dashboard → Tài khoản: quét QR bằng Google Authenticator / Microsoft Authenticator / 1Password / Bitwarden (cái nào cũng được), nhập một mã 6 số để xác nhận, xong. Từ đó mỗi lần đăng nhập hỏi thêm mã. Javis chạy full quyền và có Bash, nên mật khẩu lộ ra ngoài mà vẫn vào được là một rủi ro không nên chấp nhận.
+- **10 mã khôi phục, hiện đúng một lần lúc bật.** Không có chúng thì bật 2FA là tự đặt bẫy: mất điện thoại là mất luôn đường vào, và lối ra duy nhất là SSH vào server sửa tay `settings.json` - đúng thứ người ta bật 2FA để khỏi phải làm. Mã dùng một lần rồi tiêu; sinh lại bộ mới được (bộ cũ hết hiệu lực ngay).
+- **`install.sh` hỏi có bật 2FA không.** Cố ý KHÔNG làm trọn trong terminal: vẽ QR ra terminal thì nửa số máy hiện sai và người dùng phải soi điện thoại vào cửa sổ SSH, trong khi vài giây nữa họ sẽ mở trình duyệt - chỗ hiện QR đúng đắn. Nên bước này chỉ ghi ý định vào `.env`, còn Dashboard mở sẵn màn quét QR ở trang Tài khoản.
+
+### Bảo mật
+- **Chống dùng lại mã.** Một mã TOTP sống 30 giây, cộng cửa sổ bù lệch đồng hồ là tới 90. Javis ghi lại bước thời gian của lần đăng nhập thành công gần nhất và từ chối mọi bước nhỏ hơn hoặc bằng, nên một mã bị nhìn trộm qua vai cũng không xài lại được. Đây là lỗ mà phần lớn bản TOTP tự viết mắc phải, vì nó không lộ ra trong lúc dùng thử.
+- **Chỉ bật SAU khi người dùng chứng minh app sinh đúng mã.** Secret mới nằm trong RAM cho tới lúc xác nhận, không ghi vào cấu hình. Bật trước là tự khoá chính chủ ra ngoài khi app lệch giờ hoặc quét hụt.
+- **Mật khẩu kiểm TRƯỚC, mã kiểm SAU.** Đảo lại là biến ô mã thành máy dò xem tài khoản nào đã bật 2FA, cho người còn chưa biết mật khẩu. Sai mật khẩu thì phản hồi không hề nhắc tới 2FA.
+- **Secret TOTP và mã khôi phục không nằm nguyên văn trên đĩa.** Secret đi vào danh sách trường được mã hoá at rest như API key; mã khôi phục lưu dạng băm PBKDF2 như mật khẩu, nên không có đường nào đọc lại chúng.
+- **Tắt 2FA đòi CẢ mật khẩu lẫn một mã đúng.** Ai đó mượn được máy đang mở sẵn dashboard mà tắt được lớp thứ hai bằng một cú bấm thì lớp đó coi như không có. Mọi endpoint 2FA đều đòi session trình duyệt, không nhận token API.
+- Tự viết TOTP (RFC 6238) thay vì thêm thư viện: nó là HMAC-SHA1 trên một bộ đếm 30 giây, đúng 20 dòng thật sự, và đã đứng yên từ 2011. Thêm dependency cho ngần đó code là đổi một thứ đọc hết được lấy một thứ không kiểm soát, ngay tại cổng đăng nhập. Chỉ thêm `segno` để vẽ QR (thuần Python, không kéo theo gì); thiếu nó thì màn bật lui về nhập tay khoá.
+
 ## [0.26.18] - 2026-08-11
 ### Cải thiện
 - **Cài xong là đăng nhập được luôn, hết cảnh đi đọc MÃ THIẾT LẬP trong log.** Trước bản này, mở Javis ra công khai mà chưa có tài khoản thì server sinh một chuỗi ngẫu nhiên và chỉ in nó vào log lúc khởi động; người dùng phải SSH vào máy, `docker compose logs javis`, chép mã, dán vào trình duyệt. Cái mã đó chặn người lạ chỉ-có-URL chiếm quyền admin trước chủ máy nên nó có lý do tồn tại, nhưng bắt người ta đọc log là trải nghiệm tệ, và tệ đúng lúc họ vừa cài xong và chưa quen gì cả. Nay `install.sh` hỏi thẳng tên đăng nhập và mật khẩu rồi ghi vào `.env`: người đang chạy script vốn đã ngồi trên máy chủ, nên hỏi một câu KHÔNG thêm bước nào, mà server boot lên đã có admin nên mã thiết lập không bao giờ hiện ra.

@@ -1964,18 +1964,30 @@ async function initAuthGate() {
   }
 }
 document.getElementById("authSubmit").addEventListener("click", async () => {
+  const codeWrap = document.getElementById("authCodeWrap");
+  const codeInp = document.getElementById("authCode");
   const fd = new FormData();
   fd.append("username", document.getElementById("authUser").value.trim());
   fd.append("password", document.getElementById("authPass").value);
+  if (codeInp && codeInp.value.trim()) fd.append("code", codeInp.value.trim());
   const err = document.getElementById("authErr"); err.textContent = "";
   try {
     const r = await fetch("/auth/login", { method: "POST", body: fd });
     const d = await r.json();
-    if (d.ok) location.reload();
-    else err.textContent = d.error || "Đăng nhập thất bại";
+    if (d.ok) { location.reload(); return; }
+    // needs_2fa = mật khẩu ĐÚNG rồi, chỉ còn thiếu mã. Hiện ô mã và đưa con trỏ vào đó luôn,
+    // đừng bắt người ta tự nhận ra là có thêm một ô mới xuất hiện bên dưới.
+    if (d.needs_2fa && codeWrap) {
+      codeWrap.style.display = "";
+      if (codeInp) { codeInp.value = ""; codeInp.focus(); }
+    }
+    err.textContent = d.error || "Đăng nhập thất bại";
   } catch (e) { err.textContent = "Lỗi mạng"; }
 });
-document.getElementById("authPass").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("authSubmit").click(); });
+["authPass", "authCode"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("authSubmit").click(); });
+});
 
 // ---- Settings ----
 async function openSettings() {

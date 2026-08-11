@@ -3978,6 +3978,15 @@
           <div class="gcard-meta" id="acStatus"></div>
         </div>
       </div>
+      ${auth.has_password ? `
+      <div class="cview-section">
+        <h3>Xác thực 2 lớp <span style="opacity:.5">mã 6 số từ app Authenticator</span></h3>
+        <div class="gcard tfa-card" style="max-width:560px" id="tfaCard">
+          <div class="gcard-meta" id="tfaHead">Đang kiểm tra...</div>
+          <div id="tfaBody"></div>
+          <div class="gcard-meta" id="tfaStatus"></div>
+        </div>
+      </div>` : ""}
       <div class="cview-section">
         <h3>Token API (cho CLI)</h3>
         <div class="gcard" style="max-width:560px">
@@ -4050,6 +4059,115 @@
     if (lo) lo.onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
     const dis = document.getElementById("acDisable");
     if (dis) dis.onclick = async () => { if (confirm("Tắt đăng nhập? Ai mở dashboard cũng dùng được.")) { await fetch("/auth/disable", { method: "POST" }); renderAccount(el); } };
+    renderTfa(el);
+  }
+
+  // ---- Xác thực 2 lớp (TOTP) ----
+  // Ba trạng thái: TẮT (mời bật), ĐANG BẬT (quét QR + nhập mã xác nhận), ĐÃ BẬT (quản lý).
+  // Vẽ lại cả thẻ theo trạng thái thay vì ẩn/hiện từng mảnh: luồng này người ta đi đúng một
+  // lần rồi thôi, nên rõ ràng quan trọng hơn mượt.
+  async function renderTfa(rootEl) {
+    const head = document.getElementById("tfaHead");
+    const body = document.getElementById("tfaBody");
+    const st = document.getElementById("tfaStatus");
+    if (!head || !body) return;
+    let a = {};
+    try { a = await (await fetch("/auth/status")).json(); } catch (e) {
+      head.innerHTML = WARN_ICON + " Không đọc được trạng thái."; return;
+    }
+    const bao = (m, loi) => { if (st) st.innerHTML = (loi ? WARN_ICON : OK_ICON) + " " + esc(m); };
+
+    if (a.totp_enabled) {
+      const con = Number(a.totp_recovery_left || 0);
+      head.innerHTML = ic("shield") + " <b>Đang bật.</b> Mỗi lần đăng nhập sẽ hỏi thêm mã 6 số."
+        + ` Còn <b>${con}</b> mã khôi phục.`
+        + (con <= 2 ? ' <span class="tfa-warn">Sắp hết - nên tạo bộ mới.</span>' : "");
+      body.innerHTML = `
+        <label class="js-lbl">Mật khẩu (xác nhận là chính anh)</label>
+        <input class="js-input" id="tfaPw" type="password" placeholder="Mật khẩu đang dùng">
+        <label class="js-lbl">Mã 6 số (chỉ cần khi TẮT)</label>
+        <input class="js-input" id="tfaCode" inputmode="numeric" placeholder="Mã đang hiện, hoặc mã khôi phục">
+        <div class="js-actions">
+          <button class="gcard-btn" id="tfaRegen">Tạo bộ mã khôi phục mới</button>
+          <button class="gcard-btn ghost" id="tfaOff">Tắt 2 lớp</button>
+        </div>`;
+      document.getElementById("tfaRegen").onclick = async () => {
+        const pw = document.getElementById("tfaPw").value;
+        if (!pw) { bao("Nhập mật khẩu trước.", true); return; }
+        const fd = new FormData(); fd.append("password", pw);
+        const r = await (await fetch("/auth/2fa/recovery", { method: "POST", body: fd })).json();
+        if (!r.ok) { bao(r.error || "Lỗi.", true); return; }
+        hienMaKhoiPhuc(body, r.recovery, "Bộ mã CŨ vừa hết hiệu lực. Đây là bộ mới:");
+        bao("Đã tạo bộ mã khôi phục mới.");
+      };
+      document.getElementById("tfaOff").onclick = async () => {
+        if (!confirm("Tắt xác thực 2 lớp? Từ đó chỉ còn mật khẩu bảo vệ Javis.")) return;
+        const fd = new FormData();
+        fd.append("password", document.getElementById("tfaPw").value);
+        fd.append("code", document.getElementById("tfaCode").value.trim());
+        const r = await (await fetch("/auth/2fa/disable", { method: "POST", body: fd })).json();
+        if (!r.ok) { bao(r.error || "Lỗi.", true); return; }
+        renderTfa(rootEl);
+      };
+      return;
+    }
+
+    // Chưa bật. `totp_suggested` = lúc cài người dùng đã CHỌN bật 2FA (install.sh ghi cờ vào
+    // .env), nên nói rõ ra thay vì để họ tự nhớ mình đã chọn gì mấy phút trước.
+    head.innerHTML = a.totp_suggested
+      ? ic("shield") + " <b>Anh đã chọn bật 2 lớp lúc cài.</b> Bấm Bật để quét QR và hoàn tất."
+      : ic("shield") + " Chưa bật. Bật thì mật khẩu lộ ra ngoài cũng chưa đủ để vào được Javis.";
+    body.innerHTML = `<div class="js-actions"><button class="gcard-btn" id="tfaOn">Bật xác thực 2 lớp</button></div>`;
+    document.getElementById("tfaOn").onclick = async () => {
+      const r = await (await fetch("/auth/2fa/start", { method: "POST" })).json();
+      if (!r.ok) { bao(r.error || "Không bắt đầu được.", true); return; }
+      body.innerHTML = `
+        <div class="tfa-steps">
+          <div class="tfa-step"><b>1.</b> Mở app Authenticator (Google Authenticator, Microsoft
+            Authenticator, 1Password, Bitwarden... cái nào cũng được) rồi quét mã dưới đây.</div>
+          <div class="tfa-qr">${r.qr_svg || '<div class="gcard-meta">Máy chủ chưa cài segno nên không vẽ được QR - nhập tay khoá bên dưới.</div>'}</div>
+          <div class="tfa-step"><b>2.</b> Quét không được thì nhập tay khoá này:
+            <code class="tfa-secret">${esc(r.secret)}</code></div>
+          <div class="tfa-step"><b>3.</b> Nhập mã 6 số đang hiện trong app để xác nhận:</div>
+          <input class="js-input" id="tfaVerify" inputmode="numeric" placeholder="Mã 6 số">
+          <div class="js-actions">
+            <button class="gcard-btn" id="tfaConfirm">Xác nhận và bật</button>
+            <button class="gcard-btn ghost" id="tfaCancel">Huỷ</button>
+          </div>
+        </div>`;
+      const inp = document.getElementById("tfaVerify");
+      inp.focus();
+      const xacNhan = async () => {
+        const fd = new FormData(); fd.append("code", inp.value.trim());
+        const d = await (await fetch("/auth/2fa/enable", { method: "POST", body: fd })).json();
+        if (!d.ok) { bao(d.error || "Mã không đúng.", true); inp.select(); return; }
+        // Mã khôi phục chỉ hiện ĐÚNG LÚC NÀY. Server giữ bản băm nên không có đường nào xem lại.
+        hienMaKhoiPhuc(body, d.recovery,
+          "Đã bật. Chép 10 mã khôi phục dưới đây ra chỗ an toàn NGAY - chúng chỉ hiện một lần, "
+          + "và là đường vào duy nhất nếu anh mất điện thoại:");
+        bao("Đã bật xác thực 2 lớp.");
+      };
+      document.getElementById("tfaConfirm").onclick = xacNhan;
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") xacNhan(); });
+      document.getElementById("tfaCancel").onclick = () => renderTfa(rootEl);
+    };
+  }
+
+  function hienMaKhoiPhuc(body, ds, loiNhan) {
+    body.innerHTML = `
+      <div class="tfa-rec">
+        <div class="tfa-rec-note">${esc(loiNhan)}</div>
+        <div class="tfa-rec-grid">${(ds || []).map(m => `<code>${esc(m)}</code>`).join("")}</div>
+        <div class="js-actions">
+          <button class="gcard-btn" id="tfaCopy">Chép tất cả</button>
+          <button class="gcard-btn ghost" id="tfaDone">Tôi đã lưu xong</button>
+        </div>
+      </div>`;
+    document.getElementById("tfaCopy").onclick = async () => {
+      try { await navigator.clipboard.writeText((ds || []).join("\n")); } catch (e) {}
+      document.getElementById("tfaCopy").textContent = "Đã chép";
+    };
+    document.getElementById("tfaDone").onclick = () => location.reload();
   }
 
   // Danh sách token. Chỉ có tiền tố + tên: máy chủ không giữ bản thô nên UI cũng không có gì

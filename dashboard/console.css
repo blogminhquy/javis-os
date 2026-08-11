@@ -787,3 +787,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .aud-ts { opacity: .55; font-size: 12px; margin-right: 6px; }
 .aud-err { font-size: 12px; opacity: .8; margin-top: 2px; }
 
+
+/* Xác thực 2 lớp (trang Tài khoản) */
+.tfa-card .tfa-warn { color: var(--warn-ink); font-weight: 600; }
+.tfa-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.tfa-step { font-size: 13px; line-height: 1.55; color: var(--text2); }
+.tfa-step b { color: var(--text); }
+.tfa-qr { align-self: flex-start; background: #fff; padding: 10px; border-radius: 10px; border: 1px solid var(--glass-brd); }
+.tfa-qr svg { display: block; width: 200px; height: 200px; }
+.tfa-secret { display: inline-block; font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 1px; background: var(--surface-2); border: 1px solid var(--glass-brd); border-radius: 6px; padding: 3px 8px; margin-left: 4px; user-select: all; word-break: break-all; }
+.tfa-rec { margin-top: 10px; }
+.tfa-rec-note { font-size: 13px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 9px 11px; margin-bottom: 10px; }
+.tfa-rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 7px; margin-bottom: 12px; }
+.tfa-rec-grid code { font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 1px; text-align: center; background: var(--surface-2); border: 1px solid var(--glass-brd); border-radius: 6px; padding: 6px 4px; user-select: all; }

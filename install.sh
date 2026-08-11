@@ -167,6 +167,27 @@ else
   ok "Đã đặt sẵn tài khoản quản trị trong .env - khỏi cần MÃ THIẾT LẬP"
 fi
 
+# --- 7c. Xác thực 2 lớp: HỎI ở đây, BẬT ở trình duyệt ---
+#
+# Cố ý không làm trọn vẹn trong terminal. Bật 2FA cần quét một mã QR, mà vẽ QR ra terminal thì
+# nửa số máy hiện sai (font, tỉ lệ ô, nền sáng/tối) và người dùng phải soi điện thoại vào cửa
+# sổ SSH. Trong khi vài giây nữa họ sẽ mở trình duyệt để đăng nhập - chỗ hiện QR đúng đắn.
+#
+# Nên bước này chỉ ghi Ý ĐỊNH vào .env. Server đọc cờ đó rồi mở sẵn màn bật 2FA ở trang Tài
+# khoản. Cờ này KHÔNG phải rào bảo mật và không tự bật gì cả: 2FA chỉ thật sự bật sau khi
+# người dùng quét QR và nhập đúng một mã, vì bật trước lúc họ chứng minh app sinh đúng mã là
+# tự khoá họ ra ngoài chính máy vừa cài.
+if ! _env_has JAVIS_SETUP_2FA && [ -t 0 ]; then
+  read -rp "  Bật xác thực 2 lớp (Google Authenticator)? [y/N]: " TFA || true
+  case "${TFA:-}" in
+    [yY]*)
+      _env_set JAVIS_SETUP_2FA 1
+      ok "Đã ghi nhận - lần đầu vào Dashboard sẽ có sẵn màn quét QR ở trang Tài khoản"
+      ;;
+    *) log "Bỏ qua - bật lúc nào cũng được ở Dashboard → Tài khoản" ;;
+  esac
+fi
+
 # --- 8. one-time Claude auth reminder ---
 if ! claude auth status >/dev/null 2>&1; then
   warn "Claude CLI is not logged in. Run this ONCE (opens a browser-login URL):"
