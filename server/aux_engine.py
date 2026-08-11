@@ -199,8 +199,25 @@ class _ApiAuxEngine:
             print(f"[aux discover] {e}", file=sys.stderr)
 
         messages = []
-        if self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
+        sysprompt = self.system_prompt or ""
+        # Khai THẬT năng lực của engine này. Không có dòng này, model chỉ thấy "gọi tool X
+        # không được" rồi tự dựng một lý do nghe hợp lý mà sai - hay gặp nhất là đổ cho quyền
+        # ("phiên này bị chặn quyền"), khiến chủ đi sửa mức quyền trong khi mức quyền không hề
+        # sai. Nói rõ THIẾU GÌ và VÌ SAO thì câu báo về mới dẫn đúng tới việc cần làm.
+        sysprompt += (
+            "\n\n[Sự thật hệ thống - năng lực của phiên này] Bạn đang chạy bằng engine API "
+            f"'{self.provider}', KHÔNG phải Claude Code. Bạn có: các tool qua MCP Hub của Javis "
+            "(gồm tool đọc/ghi file trong vault và mọi MCP người dùng đã đấu vào Javis). "
+            "Bạn KHÔNG có: lệnh máy (Bash), tự mở URL (WebFetch/WebSearch), và KHÔNG có các "
+            "connector gắn thẳng vào TÀI KHOẢN Claude - Gmail, Google Drive, Google Calendar "
+            "gọi bằng tool native `mcp__<tên>__*` chỉ tồn tại trên engine Claude Code. "
+            "Nếu việc được giao cần một trong những thứ đó, hãy nói THẲNG là engine hiện tại "
+            "không có công cụ ấy và chủ cần đổi model việc nền sang Claude Code. TUYỆT ĐỐI "
+            "không mô tả chuyện này là bị chặn quyền hay thiếu quyền: mức quyền không liên "
+            "quan, đây là chuyện engine nào có tool nào."
+        )
+        if sysprompt.strip():
+            messages.append({"role": "system", "content": sysprompt})
         messages.append({"role": "user", "content": prompt})
 
         if tools:
@@ -377,6 +394,31 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     try:
         sp = spec if spec is not None else read_spec(settings)
         prov = sp.get("provider", CLAUDE)
+        # MỨC FULL KHÔNG CÓ CHUỖI DỰ PHÒNG. Đây là quyết định có chủ ý, không phải bỏ sót.
+        #
+        # Việc ở mức full thường là hành động RA NGOÀI: đăng bài, gửi tin, tạo đơn, đặt lịch.
+        # Ba lý do khiến rơi engine ở đây tệ hơn là chết hẳn:
+        #   1. Engine dự phòng (API) không có tool NATIVE, nên không gọi được connector ambient
+        #      của tài khoản Claude. Việc cần Google Drive/Gmail sẽ dừng giữa chừng.
+        #   2. Model không biết mình vừa bị đổi engine, nên nó suy ra một lý do nghe hợp lý mà
+        #      sai - ca thật: nhắc hẹn đăng Fanpage báo "phiên này bị chặn quyền" trong khi
+        #      user đã bật Toàn quyền, làm người ta đi tìm nhầm chỗ.
+        #   3. Mắt trước có thể đã làm xong MỘT PHẦN việc (đăng được 1 trong 3 bài) rồi mới
+        #      gãy. Chạy lại nguyên prompt bằng engine khác là đăng lại từ đầu.
+        # Thà dừng và nói đúng "Claude gãy vì X" để chủ xử lý, hơn là làm nửa vời trong im lặng.
+        if str(mode or "").strip().lower() == "full":
+            if prov == CLAUDE:
+                cli.model = sp.get("model") or None
+                return cli
+            ok, why = availability(sp, settings)
+            if not ok:
+                print(f"[aux] {why} → việc full tạm dùng lại Claude.", file=sys.stderr)
+                return cli
+            if prov == CODEX:
+                return _build_codex(sp, cli, mode, tag, codex_profile)
+            if prov in API_PROVIDERS:
+                return _build_api(sp, cli, mode, tag)
+            return cli
         if prov == CLAUDE:
             cli.model = sp.get("model") or None
             or_free = _openrouter_free_engine(cli, mode, tag, settings)

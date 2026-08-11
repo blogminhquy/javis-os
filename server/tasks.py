@@ -600,9 +600,24 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
                 continue
         return None
 
-    def _lane_tools(self, task: dict) -> tuple[list[str], str, list[str]]:
+    def _lane_tools(self, task: dict) -> tuple[Optional[list[str]], str, list[str]]:
+        """(allowlist, mode, danh sách chặn) cho một việc. allowlist None = KHÔNG rào.
+
+        `full` trả về None, giống hệt nhánh full của loop (`self_improve._make_cli`) và nhắc
+        hẹn (`reminders._run_task`). Tới 0.26.17 hàm này ĐỌC `execution_mode` rồi vứt đi: mọi
+        việc đều bị rào, kể cả việc user đã chủ động đặt Toàn quyền. Hậu quả không phải "hơi
+        chặt hơn" mà là mất hẳn một lớp công cụ - connector ambient của tài khoản Claude (Gmail,
+        Google Drive, Lịch) chỉ gọi được bằng tool NATIVE `mcp__<tên>__*`, mà tool native chỉ
+        xuất hiện khi phiên KHÔNG có allowlist. Việc "tới giờ đọc Sheet rồi đăng bài" vì thế
+        chạy tới nơi rồi dừng, và model báo lại là "bị chặn quyền" - đúng, nhưng user đã bật
+        Toàn quyền rồi nên câu đó nghe như máy hỏng.
+
+        Ba mức dưới full giữ nguyên rào cũ: đó là chỗ dựa của chúng, không phải thiếu sót.
+        """
         capability = str(task.get("capability") or "files")
         mode = str(task.get("execution_mode") or "auto")
+        if mode == "full":
+            return None, mode, []
         tools = list(self.deps.safe_tools)
         disallowed = ["Task"]
         if capability == "code":
@@ -670,8 +685,11 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             )
 
         cli = self._base_cli(task, tools, mode, "execute")
+        # `disallowed` rỗng ở mức full: gán một danh sách rỗng vẫn khác gán None ở chỗ khác
+        # trong mã, nên đặt None cho rõ ý "không chặn gì". Đặt `["Task"]` như ba mức dưới là
+        # bịt lại đúng thứ vừa mở.
         try:
-            cli.disallowed_tools = disallowed
+            cli.disallowed_tools = disallowed or None
         except Exception:
             pass
         acceptance = task.get("metadata", {}).get("acceptance") or []

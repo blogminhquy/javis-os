@@ -1930,7 +1930,15 @@ def _apply_mcp(cli, mode="full", brain=None):
         cli.javis_vault = _brain_root(brain) if brain else None
         if _hub_enabled():
             cli.mcp_config = mcp_hub.claude_config_path(mode)
-            cli.mcp_strict = bool(cfgmod.read_settings().get("mcp", {}).get("strict")) and cli.mcp_config is not None
+            # `strict` = chỉ dùng MCP của Javis, bỏ qua config MCP sẵn có của máy. Ở mức FULL
+            # thì cờ này bị bỏ qua, cố ý: connector ambient của tài khoản Claude (Gmail, Google
+            # Drive, Lịch) nằm ngoài registry của Javis và chỉ gọi được bằng tool native, nên
+            # strict ở mức full là mở allowlist ra rồi lại khoá cửa sau. Người bật strict muốn
+            # siết mấy mức DƯỚI; ai đã chủ động chọn Toàn quyền cho một việc thì việc đó phải
+            # thật sự toàn quyền, không thì "Toàn quyền" là một cái nhãn nói dối.
+            cli.mcp_strict = (mode != "full"
+                              and bool(cfgmod.read_settings().get("mcp", {}).get("strict"))
+                              and cli.mcp_config is not None)
         else:
             cli.mcp_config = mcp_store.config_path()
             cli.mcp_strict = bool(cfgmod.read_settings().get("mcp", {}).get("strict")) and cli.mcp_config is not None

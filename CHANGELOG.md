@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.17] - 2026-08-11
+### Sửa lỗi
+- **Mức Toàn quyền của việc Kanban chưa từng là toàn quyền.** `_lane_tools` đọc `execution_mode` rồi vứt đi: mọi việc đều bị rào allowlist, kể cả việc chủ đã chủ động đặt Toàn quyền. Hậu quả không phải "hơi chặt hơn" mà là mất hẳn một lớp công cụ. Gmail, Google Drive, Google Calendar đấu vào TÀI KHOẢN Claude chứ không nằm trong registry MCP của Javis, nên chúng chỉ gọi được bằng tool native `mcp__<tên>__*` - mà tool native chỉ tồn tại khi phiên chạy KHÔNG có allowlist. Nay `full` trả về allowlist rỗng thật, giống hệt nhánh full của loop và nhắc hẹn. Ba mức dưới giữ nguyên rào.
+- **Bật `mcp.strict` là âm thầm khoá cửa sau của mức Toàn quyền.** Cờ này nghĩa là "chỉ dùng MCP của Javis", mà connector ambient thì nằm ngoài registry của Javis, nên ở mức full nó mở allowlist ra rồi lại chặn đúng nhóm vừa mở. Nay `full` bỏ qua cờ này. Người bật strict muốn siết mấy mức DƯỚI; ai đã chọn Toàn quyền cho một việc thì việc đó phải thật sự toàn quyền, không thì "Toàn quyền" là một cái nhãn nói dối.
+- **Việc nền mức Toàn quyền thôi tự rơi sang engine dự phòng.** Chuỗi *engine phụ → Claude → OpenRouter free* đúng cho việc nhẹ, nhưng sai hẳn ở mức full vì ba lý do: engine API không có tool native nên việc cần Google Drive dừng giữa chừng; model không biết mình vừa bị đổi engine nên tự dựng một lý do nghe hợp lý mà sai; và mắt trước có thể đã làm xong MỘT PHẦN việc (đăng được 1 trong 3 bài) rồi mới gãy, chạy lại nguyên prompt là đăng lại từ đầu. Nay mức full dừng hẳn và báo lý do thật. Mức auto/suggest giữ nguyên chuỗi dự phòng.
+- **Engine API khai thật là nó thiếu tool gì.** Không có lời khai này thì model chỉ thấy "gọi tool không được" rồi đổ cho quyền - đúng cái đã xảy ra: một nhắc hẹn đăng Fanpage báo về Telegram "phiên này bị chặn quyền" trong khi chủ đã bật Toàn quyền, làm người ta đi sửa nhầm chỗ suốt buổi sáng. Nay system prompt của engine API nói rõ nó không có Bash, không có WebFetch, không có connector của tài khoản Claude, và cấm thẳng chuyện mô tả điều đó là thiếu quyền.
+
+### Cải thiện
+- Thêm `test_full_quyen_ungated.py` canh luật **"full ⇒ ungated"** ở cả bốn đường nền. Bốn đường cố ý không chia chung một hàm dựng engine (rào của chúng khác nhau thật), nên luật này phải được canh ở từng đường một - đó chính là lý do `tasks.py` lệch suốt nhiều bản mà không ai thấy.
+
 ## [0.26.16] - 2026-08-10
 ### Thêm mới
 - **Nút Lùi / Tiến giữa các note trong trình sửa.** Đọc wiki là đi theo chuỗi `[[wikilink]]`: bấm một cái là rời khỏi note đang đọc, mà trước bản này KHÔNG có đường về - phải đi tìm lại file cũ trong cây. Nghĩa là mỗi cú bấm link là một quyết định một chiều, đúng thứ làm người ta ngại bấm link trong chính vault của mình.
