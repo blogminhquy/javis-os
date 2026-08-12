@@ -2004,11 +2004,33 @@ async function openSettings() {
     document.getElementById("setTgChat").value = (s.telegram && s.telegram.chat_id) || "";
     document.getElementById("setTgHint").textContent = (s.telegram && s.telegram.token_set) ? "(đã lưu " + s.telegram.token + ")" : "(chưa có)";
     refreshTgStatus();
-    document.getElementById("setAuthUser").value = (s.auth && s.auth.username) || "";
-    document.getElementById("setAuthState").innerHTML = (s.auth && s.auth.has_password)
-      ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu - đăng nhập bắt buộc." : ic("triangle-alert", { cls: "ic-warn" }) + " Chưa đặt mật khẩu - ai mở trang cũng dùng được. Đặt mật khẩu trước khi lên VPS.";
+    await refreshAuthRow();
   } catch (e) {}
 }
+// Đổ trạng thái tài khoản vào khối #quickSet. Đọc /auth/status chứ không dựa vào _settingsCache:
+// khối này còn được NHÚNG sang trang Cài đặt của console (console.js renderSettings) mà đường đó
+// KHÔNG đi qua openSettings(), nên cache rỗng - và cache rỗng thì nút Lưu tưởng là "chưa có tài
+// khoản" rồi đi nhầm sang /auth/setup, nhận 400 "Đã có tài khoản". Đó đúng là lỗi bấm-Lưu-không-ăn.
+async function refreshAuthRow() {
+  const st = document.getElementById("setAuthState");
+  if (!st) return false;
+  let a = {};
+  try { a = await (await fetch("/auth/status")).json(); } catch (e) { return false; }
+  const co = !a.needs_setup;
+  st.innerHTML = co
+    ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu - đăng nhập bắt buộc."
+    : ic("triangle-alert", { cls: "ic-warn" }) + " Chưa đặt mật khẩu - ai mở trang cũng dùng được. Đặt mật khẩu trước khi lên VPS.";
+  const u = document.getElementById("setAuthUser");
+  if (u && a.username) u.value = a.username;
+  const cur = document.getElementById("setAuthCur");
+  const curLbl = document.getElementById("setAuthCurLbl");
+  if (cur) { cur.hidden = !co; if (!co) cur.value = ""; }
+  if (curLbl) curLbl.hidden = !co;
+  const p = document.getElementById("setAuthPass");
+  if (p) p.placeholder = co ? "Mật khẩu mới (để trống nếu chỉ đổi tên)" : "Đặt mật khẩu (tối thiểu 8 ký tự)";
+  return co;
+}
+window.__javisRefreshAuthRow = refreshAuthRow;
 function _saveSetting(section, dataObj, btn) {
   const fd = new FormData();
   fd.append("section", section);
@@ -2070,19 +2092,48 @@ if (document.getElementById("settingsBtn")) {
   document.getElementById("savePassword").addEventListener("click", async (e) => {
     const user = document.getElementById("setAuthUser").value.trim();
     const pass = document.getElementById("setAuthPass").value;
-    const hasPw = _settingsCache && _settingsCache.auth && _settingsCache.auth.has_password;
+    const curEl = document.getElementById("setAuthCur");
+    const btn = e.target; const old = btn.textContent;
+    const bao = (ok, msg) => {
+      btn.innerHTML = (ok ? ic("check", { cls: "ic-ok" }) : ic("triangle-alert", { cls: "ic-warn" })) + " " + escapeHtml(msg);
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = old; }, 3000);
+    };
+    // Hỏi trạng thái TƯƠI ngay lúc bấm. Trang Cài đặt của console nhúng khối này mà không gọi
+    // openSettings(), nên tin vào _settingsCache là đi nhầm nhánh và bấm Lưu không ăn.
+    let hasPw = false;
+    try { hasPw = !(await (await fetch("/auth/status")).json()).needs_setup; }
+    catch (err) { bao(false, "Không đọc được trạng thái đăng nhập."); return; }
+    btn.disabled = true; btn.textContent = "Đang lưu...";
     if (!hasPw) {
       // Lần đầu đặt mật khẩu → /auth/setup (cấp cookie luôn)
-      if (!pass) { alert("Nhập mật khẩu để đặt lần đầu."); return; }
+      if (!pass || pass.length < 8) { bao(false, "Mật khẩu tối thiểu 8 ký tự."); return; }
       const fd = new FormData(); fd.append("username", user || "admin"); fd.append("password", pass);
-      const btn = e.target; btn.disabled = true; const old = btn.textContent; btn.textContent = "Đang đặt...";
-      const d = await (await fetch("/auth/setup", { method: "POST", body: fd })).json();
-      btn.innerHTML = d.ok ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu" : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || "lỗi")); btn.disabled = false;
-      if (d.ok) { document.getElementById("setAuthPass").value = ""; openSettings(); }
-    } else {
-      const data = { username: user }; if (pass) data.new_password = pass;
-      _saveSetting("password", data, e.target).then(() => { document.getElementById("setAuthPass").value = ""; });
+      try {
+        const d = await (await fetch("/auth/setup", { method: "POST", body: fd })).json();
+        bao(!!d.ok, d.ok ? "Đã đặt mật khẩu" : (d.error || "lỗi"));
+        if (d.ok) { document.getElementById("setAuthPass").value = ""; openSettings(); }
+      } catch (err) { bao(false, "lỗi mạng"); }
+      return;
     }
+    // Đã có tài khoản → ĐỔI qua /auth/password (đòi mật khẩu hiện tại). /auth/setup là đường
+    // lần-đầu, gọi nó ở đây chỉ nhận về "Đã có tài khoản - hãy đăng nhập".
+    const cur = curEl ? curEl.value : "";
+    if (!cur) { bao(false, "Nhập mật khẩu hiện tại."); return; }
+    if (pass && pass.length < 8) { bao(false, "Mật khẩu mới tối thiểu 8 ký tự."); return; }
+    if (!pass && !user) { bao(false, "Chưa đổi gì cả."); return; }
+    const fd = new FormData();
+    fd.append("current_password", cur); fd.append("username", user);
+    if (pass) fd.append("password", pass);
+    try {
+      const d = await (await fetch("/auth/password", { method: "POST", body: fd })).json();
+      bao(!!d.ok, d.ok ? (pass ? "Đã đổi mật khẩu" : "Đã đổi tên đăng nhập") : (d.error || "lỗi"));
+      if (d.ok) {
+        document.getElementById("setAuthPass").value = "";
+        if (curEl) curEl.value = "";
+        refreshAuthRow();
+      }
+    } catch (err) { bao(false, "lỗi mạng"); }
   });
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/auth/logout", { method: "POST" }); location.reload();

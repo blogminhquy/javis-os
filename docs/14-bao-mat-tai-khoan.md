@@ -17,7 +17,7 @@ Javis xử lý việc này theo 6 lớp:
 
 ## Mở ở đâu trong Javis
 
-Mọi thao tác tài khoản nằm ở mục **Tài khoản** trong nhóm **Hệ thống** trên thanh nav bên trái (phụ đề "Đăng nhập, workspace, token API"). Từ trang **Cài đặt** cũng có lối tắt tới đây; không có form tài khoản trùng lặp ở nơi khác.
+Mọi thao tác tài khoản nằm ở mục **Tài khoản** trong nhóm **Hệ thống** trên thanh nav bên trái (phụ đề "Đăng nhập, workspace, token API"). Trang **Cài đặt** có một khối rút gọn làm được ba việc hay dùng nhất (đổi mật khẩu, đăng xuất, tắt đăng nhập) cùng một dòng trạng thái xác thực 2 lớp; những thứ còn lại như bật 2 lớp hay token API chỉ có ở trang **Tài khoản**.
 
 Trang **Tài khoản** có 3 khối:
 
@@ -78,30 +78,24 @@ Nếu bạn chạy Javis ở nhà mà muốn khoá lại trước khi đưa lên
 4. Bấm **Đặt mật khẩu**.
 5. Javis lưu tài khoản và cấp phiên đăng nhập ngay cho bạn (không tự khoá bạn ra ngoài).
 
-Lưu ý về độ dài mật khẩu, vì hai bên kiểm khác nhau và dễ gây bối rối:
+Mật khẩu tối thiểu **8 ký tự**, và giao diện chặn đúng ở con số đó trước khi gửi đi, nên bạn không bấm Lưu xong mới biết mình gõ ngắn.
 
-| Nơi kiểm | Ngưỡng | Thông báo khi trượt |
-|---|---|---|
-| Giao diện (trước khi gửi) | dưới 4 ký tự là chặn ngay | ⚠ Mật khẩu tối thiểu 4 ký tự. |
-| Server (khi lưu thật) | dưới 8 ký tự là từ chối | Mật khẩu tối thiểu 8 ký tự |
+### C. Đổi mật khẩu / tên đăng nhập
 
-Nghĩa là nhập 4-7 ký tự thì giao diện cho qua nhưng server vẫn không lưu, và bạn nhận hai con số khác nhau trong hai lần bấm. Cứ đặt từ 8 ký tự trở lên là hết chuyện.
+Khi đã có mật khẩu, khối **Tài khoản đăng nhập** hiện dòng "🔒 Đã đặt mật khẩu · tài khoản: <tên của bạn>", thêm ô **Mật khẩu hiện tại**, và nút chuyển nhãn thành **Đổi mật khẩu**.
 
-### C. Đổi mật khẩu (phải đi vòng)
+1. Vào **Tài khoản** trên thanh nav trái (hoặc khối **Tài khoản đăng nhập** trong trang **Cài đặt**, hai chỗ làm được như nhau).
+2. Nhập **Mật khẩu hiện tại**. Bắt buộc, kể cả khi bạn đang đăng nhập sẵn: một máy mở dashboard bỏ đó không được phép đổi mật khẩu rồi khoá chính chủ ra ngoài.
+3. Nhập **Mật khẩu mới** (từ 8 ký tự). Muốn đổi mỗi tên đăng nhập thì để trống ô này và chỉ sửa ô **Tài khoản**.
+4. Bấm **Đổi mật khẩu**.
 
-Khi đã có mật khẩu, khối **Tài khoản đăng nhập** hiện dòng "🔒 Đã đặt mật khẩu · tài khoản: <tên của bạn>" và nút chuyển nhãn thành **Đổi mật khẩu**.
+Đổi xong, **mọi phiên đăng nhập khác bị huỷ** (máy khác, trình duyệt khác, điện thoại) còn máy bạn vừa thao tác được cấp phiên mới ngay nên không bị văng ra. Xác thực 2 lớp và bộ mã khôi phục giữ nguyên, không phải quét lại QR.
 
-Nói thẳng để bạn khỏi mất thời gian: **nút Đổi mật khẩu hiện không đổi được gì.** Nó gửi tới đúng cái cửa dùng lúc tạo tài khoản lần đầu (`/auth/setup`), mà cửa đó luôn từ chối khi máy đã có tài khoản. Bấm vào bạn sẽ nhận đúng một dòng: **⚠ Đã có tài khoản - hãy đăng nhập.**
+Đổi mỗi tên đăng nhập thì các phiên khác vẫn sống, vì mật khẩu chưa đổi.
 
-Đường đi được, khi bạn đang chạy trên **máy cá nhân**:
+**Quên mật khẩu hiện tại** thì không có đường vòng nào trong dashboard, phải sửa từ máy chủ:
 
-1. Vào **Tài khoản**, bấm **Tắt đăng nhập**.
-2. Xác nhận ở hộp thoại "Tắt đăng nhập? Ai mở dashboard cũng dùng được." Javis xoá mật khẩu cũ và đăng xuất mọi phiên.
-3. Khối quay lại trạng thái chưa có mật khẩu. Nhập **Tài khoản** + **Mật khẩu** mới rồi bấm **Đặt mật khẩu**.
-
-Trên **VPS/public** thì cách trên không chạy trọn: vừa tắt xong là Javis ép ngay màn tạo tài khoản kèm MÃ THIẾT LẬP, mà mã cũ đã bị huỷ sau lần tạo đầu. Trên VPS hãy đổi mật khẩu bằng đường deploy:
-
-1. Dừng container.
+1. Dừng container (hoặc dừng Javis).
 2. Xoá (hoặc làm rỗng) khối `"auth"` trong `settings.json` ở thư mục state (Docker: `/data/state/settings.json`).
 3. Đặt `JAVIS_ADMIN_PASSWORD` (và `JAVIS_ADMIN_USER` nếu muốn) rồi khởi động lại. Javis tạo lại admin từ biến môi trường lúc boot.
 
@@ -217,14 +211,15 @@ Về cookie `secure`: mặc định Javis **không** ép cookie `secure` để c
 | Nút / dòng chữ | Ở đâu | Xảy ra chuyện gì |
 |---|---|---|
 | **Đặt mật khẩu** | Tài khoản → Tài khoản đăng nhập (khi chưa có mật khẩu) | Tạo tài khoản admin và cấp phiên ngay cho bạn |
-| **Đổi mật khẩu** | Cùng chỗ, khi đã có mật khẩu | Luôn báo "Đã có tài khoản - hãy đăng nhập." Xem mục C để biết đường vòng |
+| **Đổi mật khẩu** | Cùng chỗ, khi đã có mật khẩu | Đổi mật khẩu và/hoặc tên đăng nhập. Phải nhập mật khẩu hiện tại; đổi xong mọi phiên khác bị đăng xuất |
 | **Đăng xuất** | Tài khoản → Tài khoản đăng nhập | Xoá phiên trình duyệt này, tải lại trang |
 | **Tắt đăng nhập** | Tài khoản → Tài khoản đăng nhập | Xoá mật khẩu + đăng xuất mọi phiên (hỏi xác nhận trước) |
 | **Lưu** | Tài khoản → Workspace | Đổi tên workspace hiển thị |
 | 🔒 Đã đặt mật khẩu · tài khoản: ... | Tài khoản đăng nhập | Đang có admin, tên đăng nhập hiện ngay sau dấu hai chấm |
 | Chưa đặt mật khẩu - ai mở dashboard cũng dùng được. Đặt mật khẩu nếu đưa lên VPS. | Tài khoản đăng nhập | Chưa có admin |
 | ✅ Đã lưu tài khoản. | Tài khoản đăng nhập | Đặt mật khẩu thành công |
-| ⚠ Mật khẩu tối thiểu 4 ký tự. | Tài khoản đăng nhập | Giao diện chặn trước khi gửi lên server |
+| ⚠ Mật khẩu tối thiểu 8 ký tự. | Tài khoản đăng nhập | Giao diện chặn trước khi gửi lên server, cùng ngưỡng với server |
+| ⚠ Sai mật khẩu hiện tại. | Tài khoản đăng nhập | Ô **Mật khẩu hiện tại** gõ sai, không có gì bị đổi |
 | **Quên mật khẩu?** | Màn đăng nhập | Bấm vào hiện hướng dẫn xoá khối `"auth"` trong `server/settings.json` rồi khởi động lại |
 
 ## Mẹo
@@ -242,7 +237,10 @@ Về cookie `secure`: mặc định Javis **không** ép cookie `secure` để c
 Bạn đang chạy public và chưa có admin. Lấy mã trong state: App terminal (trong container) chạy `cat /data/state/.setup_token`; trên host chạy `docker compose logs javis` rồi tìm dòng có `SETUP TOKEN`. Hoặc đặt `JAVIS_ADMIN_PASSWORD` để khỏi cần mã.
 
 **Bấm Đổi mật khẩu thì báo "Đã có tài khoản - hãy đăng nhập."**
-Đúng như thiết kế hiện tại, không phải lỗi máy bạn. Nút đó không đổi được mật khẩu. Làm theo mục C ở trên: máy cá nhân thì Tắt đăng nhập rồi Đặt mật khẩu lại; VPS thì xoá khối `"auth"` trong `settings.json` rồi đặt lại qua `JAVIS_ADMIN_PASSWORD`.
+Lỗi của các bản trước 0.28.3, đã sửa. Trang đang mở còn giữ bản cũ trong bộ nhớ đệm trình duyệt thì tải lại bằng Ctrl+F5 (máy Mac là Cmd+Shift+R) rồi làm lại theo mục C.
+
+**Đổi mật khẩu xong thì điện thoại (hoặc máy khác) đòi đăng nhập lại.**
+Đúng như thiết kế. Đổi mật khẩu huỷ mọi phiên cũ để người đang mượn máy bạn không dùng tiếp được; đăng nhập lại bằng mật khẩu mới là xong.
 
 **Nhập đúng user/password nhưng vẫn quay lại màn đăng nhập (kẹt vòng đăng nhập).**
 Thường do cookie `secure` bị bật trong khi bạn đang truy cập qua HTTP (nhiều proxy phục vụ HTTP dạng `http://host/PORT/`). Đừng bật `JAVIS_SECURE_COOKIE` trừ khi bạn chắc chắn HTTPS đầu-cuối. Nếu đã lỡ bật, gỡ biến này rồi khởi động lại server.

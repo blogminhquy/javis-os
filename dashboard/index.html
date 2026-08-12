@@ -671,7 +671,11 @@
           <h4>Tài khoản đăng nhập</h4>
           <div class="set-note" id="setAuthState"></div>
           <label>Tài khoản</label><input id="setAuthUser" placeholder="Ví dụ: admin">
-          <label>Mật khẩu</label><input id="setAuthPass" type="password" placeholder="Đặt mật khẩu (để trống nếu không đổi)">
+          <!-- Mật khẩu hiện tại: chỉ hiện khi ĐÃ có tài khoản (app.js refreshAuthRow bật lên).
+               Server đòi nó để một phiên bị mượn không đổi được mật khẩu rồi khoá chính chủ. -->
+          <label id="setAuthCurLbl" hidden>Mật khẩu hiện tại</label>
+          <input id="setAuthCur" type="password" autocomplete="current-password" placeholder="Mật khẩu đang dùng" hidden>
+          <label>Mật khẩu</label><input id="setAuthPass" type="password" autocomplete="new-password" placeholder="Đặt mật khẩu (để trống nếu không đổi)">
           <div class="set-actions">
             <button class="s-btn" id="savePassword">Lưu tài khoản</button>
             <button class="s-btn-ghost" id="logoutBtn">Đăng xuất</button>
@@ -716,7 +720,7 @@
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
   <script src="/static/chat-marks.js?v=1"></script>
-  <script src="/static/app.js?v=81"></script>
+  <script src="/static/app.js?v=82"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=3"></script>
@@ -730,7 +734,7 @@
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=99"></script>
+  <script src="/static/console.js?v=100"></script>
   <script src="/static/mobile-chat.js?v=5"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>

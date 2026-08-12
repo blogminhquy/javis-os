@@ -4048,9 +4048,10 @@
       <div class="cview-section">
         <h3>Tài khoản đăng nhập</h3>
         <div class="gcard" style="max-width:560px">
-          <div class="gcard-meta">${auth.has_password ? ic("lock") + " Đã đặt mật khẩu · tài khoản: <b>" + esc(auth.username || "admin") + "</b>" : "Chưa đặt mật khẩu - ai mở dashboard cũng dùng được. Đặt mật khẩu nếu đưa lên VPS."}</div>
+          <div class="gcard-meta" id="acAuthMeta">${auth.has_password ? ic("lock") + " Đã đặt mật khẩu · tài khoản: <b>" + esc(auth.username || "admin") + "</b>" : "Chưa đặt mật khẩu - ai mở dashboard cũng dùng được. Đặt mật khẩu nếu đưa lên VPS."}</div>
           <label class="js-lbl">Tài khoản</label><input class="js-input" id="acUser" value="${esc(auth.username || "")}" placeholder="Ví dụ: admin">
-          <label class="js-lbl">Mật khẩu</label><input class="js-input" id="acPass" type="password" placeholder="${auth.has_password ? "Đổi mật khẩu" : "Đặt mật khẩu"}">
+          ${auth.has_password ? '<label class="js-lbl">Mật khẩu hiện tại</label><input class="js-input" id="acCur" type="password" placeholder="Mật khẩu đang dùng" autocomplete="current-password">' : ""}
+          <label class="js-lbl">${auth.has_password ? "Mật khẩu mới" : "Mật khẩu"}</label><input class="js-input" id="acPass" type="password" autocomplete="new-password" placeholder="${auth.has_password ? "Tối thiểu 8 ký tự - để trống nếu chỉ đổi tên đăng nhập" : "Đặt mật khẩu (tối thiểu 8 ký tự)"}">
           <div class="js-actions">
             <button class="gcard-btn" id="acSave">${auth.has_password ? "Đổi mật khẩu" : "Đặt mật khẩu"}</button>
             ${auth.has_password ? '<button class="gcard-btn ghost" id="acLogout">Đăng xuất</button><button class="gcard-btn ghost" id="acDisable">Tắt đăng nhập</button>' : ""}
@@ -4130,14 +4131,44 @@
       const wn = document.getElementById("workspaceName"); if (wn) wn.textContent = document.getElementById("acWs").value.trim() || "Javis OS";
     };
     const acStatus = document.getElementById("acStatus");
+    // HAI đường, đừng gộp: /auth/setup là đường CÔNG KHAI cho lần đầu tạo admin và nó TỪ CHỐI
+    // khi đã có tài khoản, nên gọi nó để đổi mật khẩu là bấm Lưu mà không có gì xảy ra (lỗi
+    // 0.28.2 trở về trước). Đã có tài khoản thì đi /auth/password, kèm mật khẩu hiện tại.
     document.getElementById("acSave").onclick = async () => {
       const user = document.getElementById("acUser").value.trim() || "admin";
       const pass = document.getElementById("acPass").value;
-      if (!pass || pass.length < 4) { acStatus.innerHTML = WARN_ICON + " Mật khẩu tối thiểu 4 ký tự."; return; }
+      const curEl = document.getElementById("acCur");
+      if (auth.has_password) {
+        const cur = curEl ? curEl.value : "";
+        if (!cur) { acStatus.innerHTML = WARN_ICON + " Nhập mật khẩu hiện tại để xác nhận."; return; }
+        if (pass && pass.length < 8) { acStatus.innerHTML = WARN_ICON + " Mật khẩu mới tối thiểu 8 ký tự."; return; }
+        if (!pass && user === (auth.username || "")) { acStatus.innerHTML = WARN_ICON + " Chưa đổi gì cả - nhập mật khẩu mới hoặc tên đăng nhập mới."; return; }
+        acStatus.textContent = "Đang lưu...";
+        const fd = new FormData();
+        fd.append("current_password", cur); fd.append("username", user);
+        if (pass) fd.append("password", pass);
+        try {
+          const r = await (await fetch("/auth/password", { method: "POST", body: fd })).json();
+          if (!r.ok) { acStatus.innerHTML = Icons.warn(r.error || "Lỗi."); return; }
+          // KHÔNG vẽ lại cả trang: vẽ lại là xoá mất câu báo vừa hiện, mà đây đúng là lúc người
+          // ta cần đọc nó (các máy khác vừa bị đăng xuất).
+          auth.username = r.username || user;
+          if (curEl) curEl.value = "";
+          document.getElementById("acPass").value = "";
+          document.getElementById("acUser").value = auth.username;
+          const meta = document.getElementById("acAuthMeta");
+          if (meta) meta.innerHTML = ic("lock") + " Đã đặt mật khẩu · tài khoản: <b>" + esc(auth.username) + "</b>";
+          acStatus.innerHTML = OK_ICON + (pass
+            ? " Đã đổi mật khẩu. Máy khác đang đăng nhập sẽ phải đăng nhập lại."
+            : " Đã đổi tên đăng nhập.");
+        } catch (e) { acStatus.innerHTML = WARN_ICON + " Lỗi mạng."; }
+        return;
+      }
+      if (!pass || pass.length < 8) { acStatus.innerHTML = WARN_ICON + " Mật khẩu tối thiểu 8 ký tự."; return; }
       acStatus.textContent = "Đang lưu...";
       // /auth/setup cấp cookie ngay → tránh tự khoá khi bật auth lần đầu
       const fd = new FormData(); fd.append("username", user); fd.append("password", pass);
-      try { const r = await (await fetch("/auth/setup", { method: "POST", body: fd })).json(); acStatus.innerHTML = r.ok ? OK_ICON + " Đã lưu tài khoản." : Icons.warn(r.error || "Lỗi."); renderAccount(el); }
+      try { const r = await (await fetch("/auth/setup", { method: "POST", body: fd })).json(); acStatus.innerHTML = r.ok ? OK_ICON + " Đã lưu tài khoản." : Icons.warn(r.error || "Lỗi."); if (r.ok) renderAccount(el); }
       catch (e) { acStatus.innerHTML = WARN_ICON + " Lỗi mạng."; }
     };
     const lo = document.getElementById("acLogout");
@@ -4469,6 +4500,10 @@
     // Phải chạy TRƯỚC vòng nối [data-settings-go] bên dưới: nút "Bật ngay" nằm trong khối vừa
     // nhúng, và nó dựa vào chính vòng đó để nối hành động chuyển trang.
     await renderTfaRow();
+    // Khối tài khoản vừa nhúng do app.js nuôi, và đường vào trang này KHÔNG đi qua
+    // openSettings() - không gọi cái này thì ô "Tài khoản" trống trơn, ô mật khẩu hiện tại
+    // không hiện ra, và nút Lưu tưởng là chưa có tài khoản nên bấm không ăn.
+    if (window.__javisRefreshAuthRow) { try { await window.__javisRefreshAuthRow(); } catch (e) {} }
     if (window.__javisRefreshExtras) { try { window.__javisRefreshExtras(); } catch (e) {} }  // nạp lại avatar/tên miền
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
     if (provHost) provHost.innerHTML = provHtml;

@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.3] - 2026-08-12
+### Sửa lỗi
+- **Đổi mật khẩu quản trị nay lưu được thật.** Trước đây điền tên đăng nhập với mật khẩu mới rồi bấm Lưu là không có gì xảy ra: app gửi nhầm sang đường dành cho lần đầu tạo tài khoản, mà đường đó luôn từ chối khi máy đã có chủ. Cả trang Tài khoản lẫn khối tài khoản trong trang Cài đặt đều dính, nay cả hai đều chạy.
+- Form hỏi thêm **mật khẩu hiện tại** trước khi đổi, và báo ngay tại chỗ nếu mật khẩu mới dưới 8 ký tự thay vì để bấm xong mới biết.
+
+### Bảo mật
+- Đổi mật khẩu xong thì **mọi máy khác đang đăng nhập bị đăng xuất**, riêng máy bạn vừa thao tác ở lại. Xác thực 2 lớp giữ nguyên, không phải quét lại mã QR.
+- Bịt đường đổi mật khẩu cũ: nó không hỏi mật khẩu hiện tại và token API gọi được, nên một token lộ ra là đủ để chiếm tài khoản rồi khoá chính chủ ra ngoài.
+
 ## [0.28.2] - 2026-08-12
 ### Sửa lỗi
 - **Chuông thông báo hết nhắc bản mà bạn đã cài rồi.** Trước đây đọc hết thông báo, nâng cấp xong là con số lại hiện ra - vì các bản ra sau lần bấm "Đọc tất cả" vẫn nằm trong hàng chưa đọc dù chính chúng vừa được cài. Nay cài xong là hết nhắc, còn bản chưa cài thì vẫn báo bình thường.

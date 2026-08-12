@@ -861,6 +861,55 @@ async def auth_2fa_recovery(request: Request, password: str = Form(...)):
     return {"ok": True, "recovery": ma_khoi_phuc}
 
 
+@app.post("/auth/password")
+async def auth_password(request: Request, current_password: str = Form(""),
+                        password: str = Form(""), username: str = Form("")):
+    """ĐỔI mật khẩu / tên đăng nhập của tài khoản ĐANG CÓ.
+
+    Vì sao không dùng lại /auth/setup: đó là đường CÔNG KHAI cho lần đầu tạo admin, nên nó
+    buộc phải từ chối khi đã có tài khoản - không thì ai gõ trúng URL cũng chiếm được quyền
+    trước chủ máy. Dashboard trước đây gọi nhầm sang đó để đổi mật khẩu và nhận đúng cái từ
+    chối ấy, nên bấm Lưu là không có gì xảy ra.
+
+    Đòi MẬT KHẨU HIỆN TẠI dù đã đăng nhập, cùng lý do với /auth/2fa/disable: một phiên bị mượn
+    (máy mở sẵn dashboard) không được phép biến thành "đổi mật khẩu rồi khoá chính chủ ra ngoài".
+
+    Để trống `password` = chỉ đổi tên đăng nhập; vẫn phải nhập mật khẩu hiện tại vì đổi tên
+    đăng nhập cũng là đổi credential vào máy.
+    """
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if not cfgmod.auth_enabled(cfg):
+        return JSONResponse({"ok": False, "error": "Chưa có tài khoản nào - đặt mật khẩu lần đầu đã."},
+                            status_code=400)
+    if not cfgmod.verify_password(current_password, cfg):
+        await asyncio.sleep(0.5)   # cùng nhịp làm chậm với /auth/login
+        return JSONResponse({"ok": False, "error": "Sai mật khẩu hiện tại."}, status_code=401)
+    ten = (username or "").strip()
+    if password and len(password) < 8:
+        return JSONResponse({"ok": False, "error": "Mật khẩu tối thiểu 8 ký tự"}, status_code=400)
+    if not password and not ten:
+        return JSONResponse({"ok": False, "error": "Không có gì để đổi."}, status_code=400)
+    # GHI ĐÈ TỪNG KHOÁ, không thay cả object `auth`: 2FA cũng nằm trong đó, gán đè nguyên cục
+    # là lặng lẽ tắt xác thực 2 lớp của người ta ngay lúc họ vừa đổi mật khẩu.
+    a = dict(cfg.get("auth") or {})
+    if ten:
+        a["username"] = ten
+    if password:
+        a["password_hash"], a["salt"] = cfgmod.hash_password(password)
+    cfg["auth"] = a
+    cfgmod.write_settings(cfg)
+    if not password:
+        return {"ok": True, "username": a.get("username", "")}
+    # Đổi mật khẩu = hạ MỌI phiên cũ (máy khác, trình duyệt khác) rồi cấp lại phiên cho chính
+    # máy này. Thiếu bước này thì cái phiên mà người ta đổi mật khẩu để đuổi đi vẫn sống thêm
+    # 30 ngày, và việc đổi coi như không có tác dụng.
+    cfgmod.clear_sessions()
+    return _session_cookie(JSONResponse({"ok": True, "username": a.get("username", "")}),
+                           cfgmod.new_session(), request)
+
+
 @app.get("/auth/tokens")
 async def auth_tokens_list():
     """Token API đang có. KHÔNG kèm bản băm và không có đường nào đọc lại token thô."""
@@ -2808,14 +2857,13 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if patch.get("elevenlabs_key") and not patch["elevenlabs_key"].strip().startswith("••••"):
             v["elevenlabs_key"] = patch["elevenlabs_key"].strip()
     elif section == "password":
-        if patch.get("new_password"):
-            if len(patch["new_password"]) < 4:
-                return JSONResponse({"ok": False, "error": "Mật khẩu quá ngắn"}, status_code=400)
-            h, salt = cfgmod.hash_password(patch["new_password"])
-            cfg["auth"]["password_hash"] = h
-            cfg["auth"]["salt"] = salt
-        if patch.get("username"):
-            cfg["auth"]["username"] = patch["username"].strip()
+        # Đổi mật khẩu KHÔNG đi qua đây nữa - xem /auth/password. Đường này không đòi mật khẩu
+        # hiện tại VÀ nhận cả token API scope `full`, nghĩa là một token rò ra là đổi được mật
+        # khẩu chủ máy rồi khoá chính chủ ra ngoài. Nó cũng nhận mật khẩu 4 ký tự trong khi mọi
+        # đường khác đòi 8.
+        return JSONResponse({"ok": False, "error": "Đổi mật khẩu chuyển sang trang Tài khoản "
+                                                   "(phải nhập mật khẩu hiện tại). Tải lại trang "
+                                                   "nếu vẫn thấy form cũ."}, status_code=400)
     else:
         return JSONResponse({"ok": False, "error": "section không hợp lệ"}, status_code=400)
 
