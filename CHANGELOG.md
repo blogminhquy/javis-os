@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.6] - 2026-08-12
+### Thêm mới
+- **Đăng nhập Google cho Gemini CLI ngay trên trang Models, không phải mở terminal nữa.** Bấm **Đăng nhập Google**, đăng nhập, Google hiện ra một mã, dán mã đó lại là xong - giống hệt cách đăng nhập Claude Code và ChatGPT đang có.
+- Chạy được cả khi Javis nằm trên VPS còn trình duyệt ở máy bạn, vì không có localhost nào ở giữa. Màn hình đồng ý của Google ghi đúng tên **Gemini CLI**.
+- Có nút **Ngắt** để gỡ tài khoản Google khỏi Javis. Ai thích đăng nhập bằng terminal thì vẫn dùng được như cũ.
+
 ## [0.28.5] - 2026-08-12
 ### Thêm mới
 - **Bộ não thứ 9: Gemini CLI, chạy bằng tài khoản Google của bạn - không cần mua API key.** Ngang hàng Claude Code và ChatGPT: chạy được lệnh máy, gọi được mọi kết nối đã đấu, dùng skill, nhận việc nền. Cài `npm install -g @google/gemini-cli`, chạy `gemini` một lần để đăng nhập Google, rồi vào trang Models bấm **Kiểm tra lại**.

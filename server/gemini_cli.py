@@ -116,6 +116,17 @@ def auth_status() -> dict:
     if not cli:
         return {"connected": False, "method": "", "email": "",
                 "error": "Chưa cài Gemini CLI (npm i -g @google/gemini-cli)."}
+    # Đăng nhập NGAY TRÊN DASHBOARD đứng trước mọi thứ khác: Javis giữ refresh token nên nó
+    # biết chắc, còn mấy dấu hiệu dưới đây đều là suy từ file của CLI. Quan trọng hơn: bản CLI
+    # mới NUỐT `oauth_creds.json` vào keychain rồi xoá file đi, nên soi file mà kết luận là
+    # ngay sau lượt chat đầu tiên trang Models sẽ báo "chưa đăng nhập" dù mọi thứ đang chạy.
+    try:
+        import gemini_oauth
+        if gemini_oauth.connected():
+            return {"connected": True, "method": "oauth-personal (Javis)",
+                    "email": gemini_oauth.email(), "error": ""}
+    except Exception:
+        pass
     home = _gemini_home()
     creds = _doc_json(home / "oauth_creds.json") or {}
     co_oauth = bool(creds.get("refresh_token") or creds.get("access_token"))
@@ -136,24 +147,22 @@ def auth_status() -> dict:
     if chon and chon != "oauth-personal":
         return {"connected": True, "method": chon, "email": "", "error": ""}
     return {"connected": False, "method": "", "email": "",
-            "error": "Đã cài Gemini CLI nhưng chưa đăng nhập. Chạy `gemini` một lần rồi chọn "
-                     "\"Login with Google\"."}
+            "error": "Đã cài Gemini CLI nhưng chưa đăng nhập. Bấm \"Đăng nhập Google\" ngay "
+                     "trên thẻ này."}
 
 
 def login_huong_dan() -> dict:
-    """Cách đăng nhập, để dashboard hiện chữ chứ không giả vờ bấm một nút là xong.
+    """Đường đăng nhập DỰ PHÒNG, cho ai thích làm trong terminal.
 
-    KHÔNG tự chạy `gemini` rồi bắt cửa sổ: luồng đăng nhập của nó là giao diện bàn phím trong
-    terminal (chọn nấc auth bằng phím mũi tên) rồi mở trình duyệt. Không có cờ `--login`
-    headless nào để bọc lại cho tử tế, nên nói thẳng câu lệnh còn hơn dựng một cái nút chỉ
-    chạy được trên máy có màn hình.
+    Đường chính nay là nút "Đăng nhập Google" trên trang Models (xem gemini_oauth.py): Javis
+    tự chạy vòng OAuth rồi bắc cầu token sang kho của CLI. Vẫn giữ hướng dẫn này vì ai đã
+    `gemini` sẵn trên máy thì không cần đăng nhập lại lần nữa.
     """
     return {
         "cai": "npm install -g @google/gemini-cli",
         "dang_nhap": "gemini",
-        "ghi_chu": ("Chạy `gemini` trong terminal, chọn \"Login with Google\" rồi đăng nhập "
-                    "bằng đúng tài khoản Google của anh. Xong thoát ra (Ctrl+C) là Javis thấy ngay - "
-                    "không cần mua API key."),
+        "ghi_chu": ("Cách khác: chạy `gemini` trong terminal rồi chọn \"Login with Google\". "
+                    "Javis nhận ra cả tài khoản đăng nhập kiểu đó."),
     }
 
 
@@ -267,12 +276,26 @@ class GeminiCLI:
         args += ["-p", ""]
         return args
 
+    def _bac_cau_token(self):
+        """Dựng lại `~/.gemini/oauth_creds.json` trước mỗi lượt, và làm mới token nếu sắp hết.
+
+        Phải làm MỖI LƯỢT chứ không phải một lần lúc đăng nhập: bản CLI mới nạp file đó vào
+        keychain rồi xoá đi, nên ghi một lần là lượt thứ hai đã không còn gì để đọc.
+        """
+        try:
+            import gemini_oauth
+            if gemini_oauth.connected():
+                gemini_oauth.ghi_creds_cho_cli()
+        except Exception:
+            pass   # đăng nhập bằng terminal vẫn chạy bình thường, không được chặn lượt
+
     async def query(self, prompt: str) -> AsyncIterator[dict]:
         if not self.cli_path:
             yield {"type": "error",
                    "content": "Không tìm thấy Gemini CLI. Cài bằng `npm i -g @google/gemini-cli` "
                               "rồi chạy `gemini` một lần để đăng nhập Google."}
             return
+        self._bac_cau_token()
         args = self._build_args()
         # Gemini CLI không nhận system prompt riêng ở chế độ headless → gộp vào đầu prompt,
         # đúng cách CodexCLI đang làm.
@@ -410,6 +433,12 @@ def kiem_tra_nhanh(timeout: float = 20.0) -> dict:
     cli = find_gemini_cli()
     if not cli:
         return {"ok": False, "error": "Chưa cài Gemini CLI."}
+    try:
+        import gemini_oauth
+        if gemini_oauth.connected():
+            gemini_oauth.ghi_creds_cho_cli()
+    except Exception:
+        pass
     try:
         r = subprocess.run([cli, "--approval-mode", "plan", "--skip-trust", "-o", "json",
                             "-p", "Trả lời đúng một chữ: ok"],

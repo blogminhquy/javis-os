@@ -50,6 +50,7 @@ import engine
 import openai_oauth
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
 import gemini_cli      # bộ não thứ 9: Gemini CLI chạy bằng đăng nhập Google, không cần API key
+import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
@@ -1051,6 +1052,9 @@ def _providers_view(cfg):
             item["auth_method"] = _g.get("method", "")
             item["account"] = _g.get("email", "")
             item["auth_error"] = _g.get("error", "")
+            # Đăng nhập qua dashboard thì Javis giữ token nên NGẮT được; đăng nhập bằng
+            # terminal thì token là của CLI, Javis không có quyền gỡ hộ.
+            item["auth_by_javis"] = gemini_oauth.connected()
         if p["id"] == "anthropic-cli":
             # Gói Claude Code chạy bằng gì, và có đang gánh việc nền không. Trang Models vẽ ô
             # chọn + cảnh báo từ ba field này. Cảnh báo đi kèm DỮ LIỆU chứ không hardcode ở
@@ -2439,6 +2443,28 @@ def gemini_cli_status():
     d["cli_path"] = gemini_cli.find_gemini_cli() or ""
     d["huong_dan"] = gemini_cli.login_huong_dan()
     return d
+
+
+@app.post("/gemini-cli/login-start")
+def gemini_cli_login_start():
+    """Bước 1: trả link đồng ý của Google để người dùng mở.
+
+    Đòi session trình duyệt: đây là thao tác GẮN một tài khoản Google vào máy này, ngang hàng
+    với /auth/tokens - không cho token API tự làm."""
+    return gemini_oauth.start_login()
+
+
+@app.post("/gemini-cli/login-code")
+async def gemini_cli_login_code(code: str = Form("")):
+    """Bước 2: nhận mã Google hiện ra, đổi lấy token, bắc cầu sang Gemini CLI."""
+    return await asyncio.to_thread(gemini_oauth.finish_login, code)
+
+
+@app.post("/gemini-cli/logout")
+def gemini_cli_logout():
+    """Ngắt tài khoản Google khỏi Javis (không đụng tới đăng nhập bằng `gemini` trong terminal)."""
+    gemini_oauth.disconnect()
+    return {"ok": True}
 
 
 @app.post("/gemini-cli/check")

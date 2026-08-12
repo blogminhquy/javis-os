@@ -118,11 +118,18 @@ Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn �
 Đây là đường dùng **gói miễn phí của Google**: đăng nhập bằng tài khoản Google thường, hạn mức do Google đặt, không phải mua API key. Cùng cơ chế mà app Antigravity dùng, nhưng đi qua CLI chính chủ nên ổn định và không phải đào token trong máy.
 
 1. Cài CLI một lần trên máy chạy Javis: `npm install -g @google/gemini-cli`
-2. Mở terminal (VPS thì SSH vào, Hostinger thì App terminal) chạy `gemini`, chọn **Login with Google**, đăng nhập rồi thoát bằng Ctrl+C.
-3. Vào **Models**, ở thẻ **Google Gemini CLI (đăng nhập Google)** bấm **Kiểm tra lại**. Javis chạy thử một lượt thật rồi báo dùng được hay chưa.
-4. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này và một model (mặc định `gemini-2.5-pro`).
+2. Vào **Models**, thẻ **Google Gemini CLI (đăng nhập Google)**, bấm **Đăng nhập Google**.
+3. Javis mở trang đồng ý của Google (hiện đúng tên ứng dụng **Gemini CLI**). Đăng nhập bằng tài khoản Google của bạn, đồng ý xong Google hiện ra **một mã**.
+4. Chép mã đó dán vào ô trong Javis, bấm **Xong**. Thẻ đổi sang **● Đã đăng nhập Google** kèm email.
+5. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này và một model (mặc định `gemini-2.5-pro`).
 
-Trên trang không có nút "Đăng nhập" là **cố ý**: luồng đăng nhập của Gemini CLI là giao diện bàn phím trong terminal rồi mở trình duyệt, không có chế độ chạy ngầm nào để bọc lại - dựng một cái nút như vậy thì trên VPS nó là nút chết.
+Không có localhost nào ở giữa nên cách này chạy được **cả khi Javis nằm trên VPS còn trình duyệt ở máy bạn** - giống hệt luồng đăng nhập Claude Code. Javis dùng đúng client OAuth công khai của Gemini CLI, nên màn hình đồng ý của Google ghi tên **Gemini CLI**, đúng cái sẽ dùng token.
+
+Đăng nhập xong Javis giữ refresh token (mã hoá trong `settings.json`) và **dựng lại file credential cho CLI trước mỗi lượt chạy** - cần vậy vì bản Gemini CLI mới nạp file đó vào keychain rồi xoá đi.
+
+Bấm **Ngắt** để gỡ tài khoản Google khỏi Javis. Nút này chỉ hiện khi bạn đăng nhập qua dashboard; ai đã tự chạy `gemini` trong terminal thì token là của CLI, Javis không gỡ hộ.
+
+Vẫn đăng nhập bằng terminal được nếu thích: chạy `gemini` rồi chọn **Login with Google**. Javis nhận ra cả tài khoản kiểu đó.
 
 Cài ở chỗ lạ mà Javis không tìm ra binary thì đặt biến môi trường `JAVIS_GEMINI_BIN` trỏ thẳng vào nó rồi khởi động lại.
 

@@ -2779,15 +2779,17 @@
           ${provHead(p, on, "MCP/skill", st)}
           <div class="prov-note">Dùng gói <b>đăng nhập tài khoản Google</b> - không cần mua API key.
             Khác thẻ "Google Gemini (API)" bên dưới: thẻ đó trả tiền theo lượt gọi.</div>
-          ${on ? "" : `<div class="prov-steps">
-            <div>1. Cài CLI: <code>npm install -g @google/gemini-cli</code></div>
-            <div>2. Chạy <code>gemini</code> trong terminal, chọn <b>Login with Google</b>, đăng nhập rồi thoát (Ctrl+C).</div>
-            <div>3. Bấm <b>Kiểm tra lại</b>.</div>
+          ${p.cli_found ? "" : `<div class="prov-steps">
+            <div>Chưa thấy CLI trên máy. Cài một lần: <code>npm install -g @google/gemini-cli</code></div>
           </div>`}
-          <div class="prov-action">
-            <button class="gcard-btn" data-gcheck="1">Kiểm tra lại</button>
+          <div class="prov-action" style="flex-wrap:wrap">
+            ${on
+              ? (p.auth_by_javis ? `<button class="gcard-btn ghost" data-glogout="1">Ngắt</button>` : "")
+              : `<button class="gcard-btn" data-glogin="1">Đăng nhập Google</button>`}
+            <button class="gcard-btn ghost" data-gcheck="1">Kiểm tra lại</button>
             <span id="gcliMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
           </div>
+          <div id="gcliLogin"></div>
         </div>`;
       }
       if (p.kind === "cli") {   // Claude Code - trạng thái + login/logout nạp động qua /claude/status
@@ -2916,6 +2918,16 @@
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");
     if (ob) ob.onclick = () => startOauthBrowser(el);
+    const gl = el.querySelector("[data-glogin]");
+    if (gl) gl.onclick = () => startGeminiLogin(el);
+    const glo = el.querySelector("[data-glogout]");
+    if (glo) glo.onclick = async () => {
+      if (!confirm("Ngắt tài khoản Google khỏi Javis?")) return;
+      glo.disabled = true; glo.textContent = "Đang ngắt...";
+      try { await fetch("/gemini-cli/logout", { method: "POST" }); } catch (e) {}
+      _daHoiModel.delete("gemini-cli");
+      renderModels(el);
+    };
     const gk = el.querySelector("[data-gcheck]");
     if (gk) gk.onclick = async () => {
       const msg = el.querySelector("#gcliMsg");
@@ -3042,6 +3054,54 @@
       catch (e) { if (m2) m2.textContent = "Lỗi mạng."; return; }
       if (rr.ok) { stopped = true; refreshClaudeCard(el); }
       else if (m2) m2.innerHTML = Icons.warn(rr.error || "Code sai, thử lại.");
+    };
+  }
+
+  // ---- Gemini CLI: đăng nhập Google ngay trên trang, không phải mở terminal ----
+  // Dùng đúng đường "mã dán" của chính Gemini CLI: Google redirect về trang codeassist của họ,
+  // trang đó HIỆN RA một mã cho người dùng chép. Không có localhost nào ở giữa nên chạy được
+  // cả khi Javis nằm trên VPS còn trình duyệt ở máy người dùng - y như đăng nhập Claude Code.
+  async function startGeminiLogin(el) {
+    const hop = el.querySelector("#gcliLogin");
+    const msg = el.querySelector("#gcliMsg");
+    if (msg) msg.textContent = "Đang lấy link đăng nhập…";
+    let r;
+    try { r = await (await fetch("/gemini-cli/login-start", { method: "POST" })).json(); }
+    catch (e) { if (msg) msg.textContent = "Lỗi mạng."; return; }
+    if (!r.ok || !r.authorize_url) {
+      if (msg) msg.innerHTML = Icons.warn(r.error || "Không bắt đầu được đăng nhập.");
+      return;
+    }
+    if (msg) msg.textContent = "";
+    try { window.open(r.authorize_url, "_blank"); } catch (e) {}
+    if (hop) hop.innerHTML = `
+      <div class="prov-steps">
+        <div><b>1)</b> Mở link này rồi đăng nhập bằng tài khoản Google của anh:<br>
+          <a href="${esc(safeHref(r.authorize_url))}" target="_blank" rel="noopener"
+             style="color:var(--link-ink);word-break:break-all">${esc(r.authorize_url.slice(0, 90))}…</a></div>
+        <div><b>2)</b> Đồng ý xong, Google hiện ra <b>một mã</b>. Chép mã đó dán vào đây:</div>
+        <div style="margin-top:6px;display:flex;gap:8px;max-width:520px">
+          <input class="js-input" id="gcliCode" placeholder="Dán mã Google vừa hiện" style="flex:1">
+          <button class="gcard-btn" id="gcliCodeBtn">Xong</button>
+        </div>
+        <div id="gcliCodeMsg" class="gcard-meta" style="margin-top:4px"></div>
+      </div>`;
+    const btn = el.querySelector("#gcliCodeBtn");
+    if (btn) btn.onclick = async () => {
+      const m2 = el.querySelector("#gcliCodeMsg");
+      const code = (el.querySelector("#gcliCode").value || "").trim();
+      if (!code) { if (m2) m2.textContent = "Dán mã vào đã."; return; }
+      btn.disabled = true; if (m2) m2.textContent = "Đang xác nhận…";
+      let d;
+      try {
+        const fd = new FormData(); fd.append("code", code);
+        d = await (await fetch("/gemini-cli/login-code", { method: "POST", body: fd })).json();
+      } catch (e) { d = { ok: false, error: "Lỗi mạng." }; }
+      btn.disabled = false;
+      if (!d.ok) { if (m2) m2.innerHTML = Icons.warn(d.error || "Chưa được, thử lại."); return; }
+      if (m2) m2.innerHTML = OK_ICON + " Đã kết nối" + (d.email ? " · " + esc(d.email) : "") + ".";
+      _daHoiModel.delete("gemini-cli");
+      setTimeout(() => renderModels(el), 900);
     };
   }
 

@@ -224,8 +224,8 @@ try:
     gemini_cli.find_gemini_cli = lambda: "/fake/gemini"
     try:
         st = gemini_cli.auth_status()
-        check("có CLI mà chưa đăng nhập -> nói rõ phải chạy `gemini`",
-              st["connected"] is False and "Login with Google" in st["error"], st)
+        check("có CLI mà chưa đăng nhập -> chỉ thẳng nút trên trang, không bắt mở terminal",
+              st["connected"] is False and "Đăng nhập Google" in st["error"], st)
         (_home / ".gemini" / "oauth_creds.json").write_text(
             json.dumps({"refresh_token": "r", "access_token": "a"}), encoding="utf-8")
         (_home / ".gemini" / "settings.json").write_text(
@@ -377,14 +377,171 @@ check("CANARY: thẻ Gemini nằm TRƯỚC nhánh kind==='cli' (nhánh đó là 
 check("CANARY: không hỏi /claude/status hộ Gemini (trạng thái Claude không nói gì về Gemini)",
       'p.id === "anthropic-cli" ? claudeOn' in _console)
 check("có nút kiểm tra lại gọi đúng endpoint", '/gemini-cli/check' in _console)
-check("hướng dẫn cài + đăng nhập hiện ngay trên thẻ",
-      "npm install -g @google/gemini-cli" in _console and "Login with Google" in _console)
+check("thẻ vẫn chỉ cách cài CLI khi máy chưa có",
+      "npm install -g @google/gemini-cli" in _console)
 
 _src_main = (SERVER / "main.py").read_text(encoding="utf-8")
 check("chat dashboard có nhánh riêng cho gemini-cli", 'elif prov == "gemini-cli":' in _src_main)
 check("Telegram cũng có nhánh đó", 'if prov == "gemini-cli":' in _src_main)
 check("CANARY: nhãn engine không đội lốt 'cli' của Claude Code",
       _src_main.count('else "gemini-cli" if prov == "gemini-cli"') == 2)
+
+# ============================================================
+# 8. Đăng nhập Google NGAY TRÊN DASHBOARD (gemini_oauth)
+# ============================================================
+import gemini_oauth as _go   # noqa: E402
+from urllib.parse import urlparse, parse_qs   # noqa: E402
+
+_r = _go.start_login()
+_q = parse_qs(urlparse(_r["authorize_url"]).query)
+check("link đăng nhập trỏ đúng Google", urlparse(_r["authorize_url"]).netloc == "accounts.google.com")
+_cid, _csec = _go.doc_client()
+check("đọc được client OAuth TỪ CHÍNH bản Gemini CLI đã cài",
+      _cid.endswith("apps.googleusercontent.com") and bool(_csec))
+check("và link đăng nhập dùng đúng client đó", _q["client_id"][0] == _cid)
+# GitHub push protection chặn đúng lần đầu thử chép cứng vào repo, và nó chặn đúng.
+_src_oauth = (SERVER / "gemini_oauth.py").read_text(encoding="utf-8")
+check("CANARY: KHÔNG chép cứng client secret của Google vào repo",
+      "GOCSPX" not in _src_oauth and _cid not in _src_oauth)
+check("có cửa thoát bằng biến môi trường cho bản đóng gói lạ",
+      "JAVIS_GEMINI_OAUTH_CLIENT_ID" in _src_oauth)
+# Đây là điểm KHÁC biệt quyết định so với luồng gốc của CLI: nó dựng máy chủ loopback ở cổng
+# ngẫu nhiên TRÊN MÁY CHẠY CLI, vô dụng khi Javis ở VPS còn trình duyệt ở máy người dùng.
+check("CANARY: redirect về trang HIỆN MÃ của Google, không phải localhost",
+      _q["redirect_uri"][0] == "https://codeassist.google.com/authcode"
+      and "localhost" not in _r["authorize_url"] and "127.0.0.1" not in _r["authorize_url"])
+check("có PKCE S256", _q["code_challenge_method"][0] == "S256" and len(_q["code_challenge"][0]) > 20)
+check("CANARY: access_type=offline + prompt=consent - thiếu là không có refresh token, "
+      "chạy được 1 tiếng rồi im",
+      _q["access_type"][0] == "offline" and _q["prompt"][0] == "consent")
+check("xin đủ scope Code Assist + email",
+      "cloud-platform" in _q["scope"][0] and "userinfo.email" in _q["scope"][0])
+check("mỗi lần bấm là một verifier khác",
+      parse_qs(urlparse(_go.start_login()["authorize_url"]).query)["code_challenge"][0]
+      != _q["code_challenge"][0])
+
+_cache_cu = dict(_go._CLIENT_CACHE)
+_that_cli = gemini_cli.find_gemini_cli
+try:
+    _go._CLIENT_CACHE.clear()
+    gemini_cli.find_gemini_cli = lambda: None
+    check("chưa cài CLI -> nói cách cài thay vì dựng link hỏng",
+          _go.start_login()["ok"] is False and "npm i -g" in _go.start_login()["error"])
+finally:
+    gemini_cli.find_gemini_cli = _that_cli
+    _go._CLIENT_CACHE.update(_cache_cu)
+_go.start_login()
+
+check("dán mã rỗng -> báo rõ, không gọi Google", _go.finish_login("")["ok"] is False)
+_go._pending.clear()
+check("chưa bấm đăng nhập mà dán mã -> nói phải bấm trước",
+      "Đăng nhập" in _go.finish_login("abc")["error"])
+_go.start_login()
+_go._pending["ts"] = 0.0
+check("phiên quá hạn -> bắt bấm lại chứ không gửi mã cũ đi",
+      "hết hạn" in _go.finish_login("abc")["error"])
+
+# Token phải MÃ HOÁ trên đĩa như mọi secret khác.
+_go._ghi({"access_token": "AT-abc", "refresh_token": "RT-xyz", "email": "quy@example.com",
+          "expires_at": int(__import__("time").time()) + 3600})
+_raw = (Path(os.environ["JAVIS_STATE_DIR"]) / "settings.json").read_text(encoding="utf-8")
+check("CANARY: refresh token KHÔNG nằm nguyên văn trong settings.json",
+      "RT-xyz" not in _raw and "AT-abc" not in _raw)
+check("đọc lại vẫn ra đúng", _go.connected() is True and _go.email() == "quy@example.com")
+
+# Refresh bị Google từ chối = mất quyền thật -> phải XOÁ, không được giữ trạng thái nói dối.
+class _Rep:
+    def __init__(self, code, payload=None):
+        self.status_code = code
+        self._p = payload or {}
+
+    def json(self):
+        return self._p
+
+
+_post_that = _go.httpx.post
+try:
+    _go._ghi({"access_token": "cu", "refresh_token": "RT", "email": "a@b.com", "expires_at": 0})
+    _go.httpx.post = lambda *a, **k: _Rep(400, {"error": "invalid_grant"})
+    check("CANARY: refresh token bị thu hồi -> Javis nhận là MẤT đăng nhập",
+          _go.valid_creds() == {} and _go.connected() is False)
+    _go._ghi({"access_token": "cu", "refresh_token": "RT", "email": "a@b.com", "expires_at": 0})
+    _go.httpx.post = lambda *a, **k: _Rep(200, {"access_token": "MOI", "expires_in": 3600})
+    _d = _go.valid_creds()
+    check("token sắp hết hạn thì tự làm mới", _d["access_token"] == "MOI")
+    check("và giữ nguyên refresh token cũ khi Google không cấp cái mới", _d["refresh_token"] == "RT")
+finally:
+    _go.httpx.post = _post_that
+
+# Bắc cầu sang kho của CLI.
+_gh = Path(tempfile.mkdtemp(prefix="javis-gembridge-"))
+_moi_cu = {k: os.environ.get(k) for k in ("HOME", "USERPROFILE")}
+try:
+    os.environ["HOME"] = str(_gh)
+    os.environ["USERPROFILE"] = str(_gh)
+    _go._ghi({"access_token": "AT", "refresh_token": "RT", "email": "quy@example.com",
+              "expires_at": int(__import__("time").time()) + 3600})
+    check("bắc cầu được", _go.ghi_creds_cho_cli() is True)
+    _cred = json.loads((_gh / ".gemini" / "oauth_creds.json").read_text(encoding="utf-8"))
+    check("ghi đúng file mà CLI đọc", _cred["access_token"] == "AT" and _cred["refresh_token"] == "RT")
+    check("CANARY: expiry_date tính bằng MILI giây (CLI dùng ms, sai đơn vị là nó tưởng hết hạn)",
+          _cred["expiry_date"] > 1e12)
+    check("file chứa token bị siết quyền",
+          (os.stat(_gh / ".gemini" / "oauth_creds.json").st_mode & 0o077) == 0 or os.name == "nt")
+    _st = json.loads((_gh / ".gemini" / "settings.json").read_text(encoding="utf-8"))
+    check("CANARY: đặt luôn selectedType=oauth-personal - thiếu nó CLI dừng ở 'set an Auth method'",
+          _st["security"]["auth"]["selectedType"] == "oauth-personal")
+    check("ghi email để CLI + trang Models cùng hiện đúng tài khoản",
+          json.loads((_gh / ".gemini" / "google_accounts.json").read_text(encoding="utf-8"))["active"]
+          == "quy@example.com")
+
+    # Người dùng đã tự chọn cách đăng nhập khác thì KHÔNG giẫm lên.
+    (_gh / ".gemini" / "settings.json").write_text(
+        json.dumps({"security": {"auth": {"selectedType": "vertex-ai"}}}), encoding="utf-8")
+    _go.ghi_creds_cho_cli()
+    check("CANARY: không đè cách đăng nhập người dùng đã tự chọn",
+          json.loads((_gh / ".gemini" / "settings.json").read_text(encoding="utf-8"))
+          ["security"]["auth"]["selectedType"] == "vertex-ai")
+
+    # CLI bản mới NUỐT file rồi xoá đi -> mỗi lượt chạy phải dựng lại.
+    (_gh / ".gemini" / "oauth_creds.json").unlink()
+    _gq = gemini_cli.GeminiCLI(cwd=str(_gh))
+    _gq.cli_path = None
+    _gq._bac_cau_token()
+    check("CANARY: mỗi lượt chạy tự dựng lại file (CLI nuốt xong là xoá)",
+          (_gh / ".gemini" / "oauth_creds.json").exists())
+
+    _that2 = gemini_cli.find_gemini_cli
+    gemini_cli.find_gemini_cli = lambda: "/fake/gemini"
+    try:
+        _st2 = gemini_cli.auth_status()
+        check("trang Models đọc trạng thái từ Javis, không phụ thuộc file CLI vừa bị nuốt",
+              _st2["connected"] is True and _st2["email"] == "quy@example.com")
+    finally:
+        gemini_cli.find_gemini_cli = _that2
+
+    _go.disconnect()
+    check("ngắt thì xoá cả bản đã bắc cầu",
+          _go.connected() is False and not (_gh / ".gemini" / "oauth_creds.json").exists())
+finally:
+    for k, v in _moi_cu.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+
+_duong = {getattr(r, "path", "") for r in main.app.routes}
+for _e in ("/gemini-cli/login-start", "/gemini-cli/login-code", "/gemini-cli/logout",
+           "/gemini-cli/check", "/gemini-cli/status"):
+    check(f"có endpoint {_e}", _e in _duong)
+check("CANARY: endpoint đăng nhập KHÔNG nằm trong danh sách miễn đăng nhập Javis",
+      "gemini" not in _src_main[_src_main.index("_AUTH_PUBLIC_EXACT = "):
+                                _src_main.index("_AUTH_PUBLIC_EXACT = ") + 400])
+check("thẻ Models có nút đăng nhập ngay trên trang",
+      "startGeminiLogin" in _console and "/gemini-cli/login-start" in _console)
+check("và ô dán mã", "gcliCode" in _console and "/gemini-cli/login-code" in _console)
+check("CANARY: giao diện không còn bắt người dùng mở terminal để đăng nhập",
+      "Chạy <code>gemini</code> trong terminal" not in _console)
 
 print()
 if _fails:
