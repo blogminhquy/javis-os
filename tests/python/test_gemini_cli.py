@@ -392,19 +392,41 @@ check("CANARY: nhãn engine không đội lốt 'cli' của Claude Code",
 import gemini_oauth as _go   # noqa: E402
 from urllib.parse import urlparse, parse_qs   # noqa: E402
 
+# CI không cài Node nên KHÔNG có binary `gemini` để moi client OAuth ra. Dùng chính cửa thoát
+# bằng biến môi trường - vừa chạy được ở CI, vừa là phép thử cho cái cửa thoát đó.
+_GIA_ID = "test-1234.apps.googleusercontent.com"
+_GIA_SECRET = "GIA-SECRET"
+os.environ["JAVIS_GEMINI_OAUTH_CLIENT_ID"] = _GIA_ID
+os.environ["JAVIS_GEMINI_OAUTH_CLIENT_SECRET"] = _GIA_SECRET
+check("biến môi trường ghi đè được client (cửa thoát cho bản đóng gói lạ)",
+      _go.doc_client() == (_GIA_ID, _GIA_SECRET))
+
 _r = _go.start_login()
 _q = parse_qs(urlparse(_r["authorize_url"]).query)
 check("link đăng nhập trỏ đúng Google", urlparse(_r["authorize_url"]).netloc == "accounts.google.com")
-_cid, _csec = _go.doc_client()
-check("đọc được client OAuth TỪ CHÍNH bản Gemini CLI đã cài",
-      _cid.endswith("apps.googleusercontent.com") and bool(_csec))
-check("và link đăng nhập dùng đúng client đó", _q["client_id"][0] == _cid)
-# GitHub push protection chặn đúng lần đầu thử chép cứng vào repo, và nó chặn đúng.
+check("và dùng đúng client đang cấu hình", _q["client_id"][0] == _GIA_ID)
+
+# Máy nào CÓ Gemini CLI thật thì phải moi được client từ bundle của nó. CI bỏ qua nhánh này.
+_go._CLIENT_CACHE.clear()
+for _k in ("JAVIS_GEMINI_OAUTH_CLIENT_ID", "JAVIS_GEMINI_OAUTH_CLIENT_SECRET"):
+    os.environ.pop(_k, None)
+if gemini_cli.find_gemini_cli():
+    _cid, _csec = _go.doc_client()
+    check("đọc được client OAuth TỪ CHÍNH bản Gemini CLI đã cài",
+          _cid.endswith("apps.googleusercontent.com") and bool(_csec), _cid)
+    # GitHub push protection chặn đúng lần đầu thử chép cứng vào repo, và nó chặn đúng.
+    check("CANARY: client đọc được KHÔNG nằm nguyên văn trong mã nguồn",
+          bool(_cid) and _cid not in (SERVER / "gemini_oauth.py").read_text(encoding="utf-8"))
+else:
+    print("bỏ qua  đọc client từ bundle (máy này chưa cài gemini CLI)")
 _src_oauth = (SERVER / "gemini_oauth.py").read_text(encoding="utf-8")
 check("CANARY: KHÔNG chép cứng client secret của Google vào repo",
-      "GOCSPX" not in _src_oauth and _cid not in _src_oauth)
+      "GOCSPX" not in _src_oauth and "apps.googleusercontent.com\"" not in _src_oauth)
 check("có cửa thoát bằng biến môi trường cho bản đóng gói lạ",
       "JAVIS_GEMINI_OAUTH_CLIENT_ID" in _src_oauth)
+os.environ["JAVIS_GEMINI_OAUTH_CLIENT_ID"] = _GIA_ID
+os.environ["JAVIS_GEMINI_OAUTH_CLIENT_SECRET"] = _GIA_SECRET
+_go._CLIENT_CACHE.clear()
 # Đây là điểm KHÁC biệt quyết định so với luồng gốc của CLI: nó dựng máy chủ loopback ở cổng
 # ngẫu nhiên TRÊN MÁY CHẠY CLI, vô dụng khi Javis ở VPS còn trình duyệt ở máy người dùng.
 check("CANARY: redirect về trang HIỆN MÃ của Google, không phải localhost",
@@ -420,16 +442,19 @@ check("mỗi lần bấm là một verifier khác",
       parse_qs(urlparse(_go.start_login()["authorize_url"]).query)["code_challenge"][0]
       != _q["code_challenge"][0])
 
-_cache_cu = dict(_go._CLIENT_CACHE)
 _that_cli = gemini_cli.find_gemini_cli
 try:
+    for _k in ("JAVIS_GEMINI_OAUTH_CLIENT_ID", "JAVIS_GEMINI_OAUTH_CLIENT_SECRET"):
+        os.environ.pop(_k, None)
     _go._CLIENT_CACHE.clear()
     gemini_cli.find_gemini_cli = lambda: None
-    check("chưa cài CLI -> nói cách cài thay vì dựng link hỏng",
+    check("chưa cài CLI -> nói cách cài thay vì dựng một link hỏng",
           _go.start_login()["ok"] is False and "npm i -g" in _go.start_login()["error"])
 finally:
     gemini_cli.find_gemini_cli = _that_cli
-    _go._CLIENT_CACHE.update(_cache_cu)
+    os.environ["JAVIS_GEMINI_OAUTH_CLIENT_ID"] = _GIA_ID
+    os.environ["JAVIS_GEMINI_OAUTH_CLIENT_SECRET"] = _GIA_SECRET
+    _go._CLIENT_CACHE.clear()
 _go.start_login()
 
 check("dán mã rỗng -> báo rõ, không gọi Google", _go.finish_login("")["ok"] is False)
