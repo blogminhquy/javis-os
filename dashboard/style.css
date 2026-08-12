@@ -956,10 +956,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 #chatMarks:hover .cm-vach { opacity: .62; }
 #chatMarks:hover .cm-vach.active { opacity: 1; }
 
-/* Danh sách prompt - mở khi rê vào. Nằm bên TRÁI thanh vạch vì thanh đã sát mép phải khung. */
-.cm-hop { position: absolute; top: 0; right: 26px; z-index: 5;
+/* Danh sách prompt - mở khi rê vào. Nằm bên TRÁI dãy vạch vì dãy đã sát mép phải khung.
+   right:100% = mép phải hộp DÍNH vào mép trái dãy vạch, không chừa khe nào. Chủ repo báo bản
+   đầu "hover thì nó hiện hơi xa trỏ nên không trỏ được": hộp neo ở đỉnh khung trong khi vạch
+   nằm giữa, giữa hai thứ là một vùng không thuộc hover, chuột đi chéo qua là hộp tắt.
+   top:50% ăn theo .cm-ray (cao thật, JS đặt bằng clientHeight của khung) chứ không ăn theo
+   #chatMarks vốn cao 0 - phần trăm trên số 0 luôn ra 0. max-height cũng vậy: 100% ở đây là
+   chiều cao khung chat, nên hộp không bao giờ tràn ra ngoài khung dù hội thoại dài tới đâu. */
+.cm-hop { position: absolute; top: 50%; right: 100%; transform: translateY(-50%); z-index: 5;
   display: flex; flex-direction: column; gap: 1px; padding: 6px;
-  width: min(320px, 52vw); max-height: min(420px, 62vh); overflow-y: auto;
+  width: min(320px, 52vw); max-height: min(420px, calc(100% - 16px)); overflow-y: auto;
   background: var(--panel-solid); border: 1px solid var(--border); border-radius: 12px;
   box-shadow: var(--shadow-2); }
 .cm-hop[hidden] { display: none; }

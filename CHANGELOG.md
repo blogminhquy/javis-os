@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.27.1] - 2026-08-12
+### Sửa lỗi
+- **Mở hội thoại cũ nay rơi thẳng vào cuối, không phải câu hỏi đầu tiên.** App vẫn cuộn xuống đáy đàng hoàng, nhưng ngay sau đó khung chat bị dời sang trang Trò chuyện, mà dời một khung đang cuộn thì trình duyệt tự kéo về đầu. Nay giữ đúng chỗ đang đọc ở cả hai chiều đi và về.
+- **Danh sách của thanh mốc hội thoại nay trỏ tới được.** Bản trước nó hiện ở đỉnh khung trong khi dãy vạch nằm giữa, chuột đi tới nửa đường là nó tắt. Nay hộp nằm ngang hàng với dãy vạch và dính liền, thêm một nhịp trễ nhỏ để lỡ tay đưa chuột ra ngoài vẫn kịp quay lại.
+
 ## [0.27.0] - 2026-08-12
 ### Thêm mới
 - **Thanh mốc hội thoại ở khung chat.** Mép phải khung chat giờ có một dãy vạch nhỏ, mỗi vạch là một câu bạn đã hỏi. Rê chuột vào thì hiện danh sách các câu hỏi, bấm một câu là nhảy thẳng về chỗ đó. Hội thoại càng dài càng đỡ phải kéo tay đi tìm.

@@ -31,7 +31,7 @@
   var chatArea = null, boc = null, ray = null, hop = null;
   var moc = [];             // [{el, text}]
   var vanTruoc = "";        // chữ ký nội dung, để bỏ qua lượt dựng lại không đổi gì
-  var choDung = null, choScroll = 0;
+  var choDung = null, choScroll = 0, choDong = null;
 
   function hepQua() {
     // Màn hẹp KHÔNG có thanh này. Khung chat trên điện thoại đã chật, mà thao tác chính của
@@ -65,10 +65,16 @@
     if (boc) return boc;
     boc = document.createElement("div");
     boc.id = "chatMarks";
-    boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="Mốc hội thoại"></div>'
-      + '<div class="cm-hop" hidden></div>';
+    // Hộp danh sách nằm BÊN TRONG .cm-ray, không phải anh em với nó. Hai lý do, cái thứ hai
+    // mới là lỗi thật chủ repo báo (2026-08-12) "hover thì nó hiện hơi xa trỏ nên không trỏ
+    // được":
+    //   1. #chatMarks cao 0 nên mọi phần trăm dọc tính trên nó đều ra 0 - không căn giữa được.
+    //      .cm-ray có chiều cao thật (JS đặt bằng clientHeight của khung) nên top:50% mới có
+    //      nghĩa, và hộp mới ngang hàng với chùm vạch thay vì dán lên đỉnh khung.
+    //   2. Dán ở đỉnh trong khi vạch nằm giữa thì giữa hai thứ là một khoảng trống KHÔNG thuộc
+    //      vùng hover. Chuột đi chéo qua đó là rời vùng, hộp tắt ngay trước khi tới nơi.
+    boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="Mốc hội thoại"></div>';
     ray = boc.querySelector(".cm-ray");
-    hop = boc.querySelector(".cm-hop");
     // Rê vào bất kỳ đâu trong khối thì mở danh sách; rời ra thì đóng. Nghe ở KHỐI BỌC chứ
     // không ở riêng thanh: chuột đi từ thanh sang danh sách phải được coi là vẫn ở trong.
     boc.addEventListener("mouseenter", moHop);
@@ -87,6 +93,7 @@
   }
 
   function moHop() {
+    clearTimeout(choDong);
     if (!hop || !moc.length) return;
     hop.hidden = false;
     // Đưa mục đang đọc vào tầm mắt: hội thoại dài thì danh sách tự cuộn, mở ra mà nó nằm ở
@@ -96,7 +103,14 @@
       try { act.scrollIntoView({ block: "nearest" }); } catch (e) {}
     }
   }
-  function dongHop() { if (hop) hop.hidden = true; }
+  // Đóng CÓ TRỄ. Hình học ở trên đã bỏ khoảng trống giữa vạch và hộp, nhưng chuột người ta đi
+  // không thẳng: vòng ra ngoài mép một chút rồi vào lại là chuyện thường, và nếu đóng ngay thì
+  // lần nào cũng hụt. Đây là lớp bảo hiểm thứ hai cho đúng lỗi "hiện xa trỏ nên không trỏ được".
+  function dongHop(ngay) {
+    clearTimeout(choDong);
+    if (ngay) { if (hop) hop.hidden = true; return; }
+    choDong = setTimeout(function () { if (hop) hop.hidden = true; }, 220);
+  }
 
   function nhayToi(i) {
     var m = moc[i];
@@ -108,7 +122,7 @@
     var toi = chatArea.scrollTop + d - 12;
     try { chatArea.scrollTo({ top: toi, behavior: "smooth" }); }
     catch (e) { chatArea.scrollTop = toi; }
-    dongHop();
+    dongHop(true);
     m.el.classList.add("cm-vua-nhay");
     setTimeout(function () { m.el.classList.remove("cm-vua-nhay"); }, 1200);
   }
@@ -128,7 +142,10 @@
     for (var i = 0; i < moc.length; i++) {
       if (moc[i].el.getBoundingClientRect().top <= moc0) at = i; else break;
     }
-    var vach = ray.children, mucs = hop ? hop.children : [];
+    // querySelectorAll(".cm-vach") chứ KHÔNG phải ray.children: hộp danh sách nay cũng là con
+    // của ray, nên đếm theo children là lẫn nó vào dãy vạch và chỉ số lệch ngay khi ai đó đổi
+    // thứ tự dựng. Chọn theo lớp thì không có cách nào lẫn.
+    var vach = ray.querySelectorAll(".cm-vach"), mucs = hop ? hop.children : [];
     for (var k = 0; k < vach.length; k++) vach[k].classList.toggle("active", k === at);
     for (var j = 0; j < mucs.length; j++) mucs[j].classList.toggle("active", j === at);
   }
@@ -152,8 +169,11 @@
       hopHtml += '<button type="button" class="cm-muc" data-cm="' + i + '">'
         + escHtml(moc[i].text) + "</button>";
     }
-    ray.innerHTML = rayHtml;
-    hop.innerHTML = hopHtml;
+    // Dựng MỘT LƯỢT cả vạch lẫn hộp: hộp là con của ray nên ghi ray.innerHTML riêng sẽ xoá
+    // mất nó, rồi biến `hop` thành con trỏ tới một node đã rời khỏi trang - hover không còn
+    // gì để mở, mà nhìn code thì vẫn thấy "có gán hop" nên rất khó soi ra.
+    ray.innerHTML = rayHtml + '<div class="cm-hop" hidden>' + hopHtml + "</div>";
+    hop = ray.querySelector(".cm-hop");
 
     // Chèn LÊN ĐẦU: app.js chèn tin mới vào trước #newMsgBtn nên nó luôn ở cuối; để thanh ở
     // đầu thì hai bên không giành chỗ. Sticky vẫn bám đúng vì phần tử neo theo cả vùng cuộn.

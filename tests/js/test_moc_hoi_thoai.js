@@ -85,6 +85,29 @@ check("cập nhật vạch sáng theo cuộn, có ghìm bằng rAF",
   /requestAnimationFrame/.test(JS) && /addEventListener\("scroll"/.test(JS));
 
 // ============================================================
+// 4b. Rê vào phải TỚI ĐƯỢC danh sách
+// ============================================================
+// Chủ repo báo bản đầu (2026-08-12): "hover vào nó đang bị hiện hơi xa trỏ nên không trỏ được".
+// Hộp neo ở ĐỈNH khung trong khi chùm vạch nằm GIỮA, nên giữa hai thứ là một vùng không thuộc
+// hover; chuột đi chéo qua đó là rời vùng và hộp tắt trước khi tới nơi.
+//
+// Gốc của cái sai: #chatMarks cao 0, mà mọi phần trăm dọc tính trên nó đều ra 0. Đưa hộp vào
+// TRONG .cm-ray (cao thật) thì top:50% mới có nghĩa.
+check("CANARY: hộp nằm trong .cm-ray để căn giữa được theo phần trăm",
+  /ray\.innerHTML = rayHtml \+ '<div class="cm-hop"/.test(JS));
+check("CANARY: hộp căn giữa theo chiều dọc, ngang hàng chùm vạch",
+  /\.cm-hop \{[^}]*top: 50%[^}]*transform: translateY\(-50%\)/.test(CSS));
+check("CANARY: hộp DÍNH vào dãy vạch, không chừa khe (right:100%)",
+  /\.cm-hop \{[^}]*right: 100%/.test(CSS));
+check("hộp không tràn ra ngoài khung chat", /max-height: min\(420px, calc\(100% - 16px\)\)/.test(CSS));
+// Lớp bảo hiểm thứ hai: chuột người ta đi không thẳng, vòng ra mép rồi vào lại là chuyện thường.
+check("CANARY: đóng có TRỄ, không tắt phựt khi chuột lỡ ra mép", /choDong = setTimeout/.test(JS));
+check("bấm xong thì đóng NGAY, không chờ hết trễ", /dongHop\(true\)/.test(JS));
+// Hộp nay cũng là con của ray, nên đếm vạch bằng ray.children là lẫn nó vào và lệch chỉ số.
+check("CANARY: đếm vạch theo lớp, không theo ray.children",
+  /ray\.querySelectorAll\(["']\.cm-vach["']\)/.test(JS) && !/var vach = ray\.children/.test(JS));
+
+// ============================================================
 // 5. Hội thoại dài
 // ============================================================
 check("khoảng cách vạch nén dần khi nhiều câu hỏi", /CACH_TOI_THIEU/.test(JS) && /CACH_TOI_DA/.test(JS));

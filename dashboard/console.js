@@ -4628,7 +4628,44 @@
     const st = document.createElement("style"); st.id = "cp-css"; st.textContent = css; document.head.appendChild(st);
   }
 
+  // DỜI một node đang cuộn thì trình duyệt ĐẶT LẠI scrollTop về 0. Đây là lý do chủ repo báo
+  // (2026-08-12) "mở hội thoại cũ thì luôn bắt đầu từ câu hỏi đầu tiên": bấm một phiên ở cột
+  // Lịch sử → app.js nạp tin rồi cuộn xuống đáy → NGAY SAU ĐÓ trang Trò chuyện mượn #chatArea,
+  // và cú dời node xoá sạch vị trí vừa đặt. Không lỗi nào hiện ra, chỉ là mỗi lần mở đều rơi
+  // về đầu một hội thoại có khi dài hàng trăm tin.
+  //
+  // Nhớ theo PIXEL là sai: cột chat ở màn chính hẹp hơn khung ở trang Trò chuyện, nên cùng nội
+  // dung mà xuống dòng khác đi và scrollHeight đổi hẳn. Phải neo vào MỘT TIN NHẮN cụ thể rồi
+  // đặt lại đúng tin đó về đúng chỗ cũ trên màn hình.
+  function _neoCuon() {
+    const ca = document.getElementById("chatArea");
+    if (!ca) return null;
+    // Đang ở đáy thì neo là "đáy" chứ không phải một tin cụ thể: có tin mới tới trong lúc
+    // chuyển trang thì vẫn phải nằm ở đáy, đó mới là chỗ người dùng muốn về.
+    if (ca.scrollHeight - ca.scrollTop - ca.clientHeight < 90) return { day: true };
+    const tren = ca.getBoundingClientRect().top;
+    for (let i = 0; i < ca.children.length; i++) {
+      const n = ca.children[i], r = n.getBoundingClientRect();
+      if (r.bottom > tren) return { day: false, node: n, lech: r.top - tren };
+    }
+    return { day: true };
+  }
+  function _thaCuon(neo) {
+    if (!neo) return;
+    const dat = () => {
+      const ca = document.getElementById("chatArea");
+      if (!ca) return;
+      if (neo.day || !neo.node || !neo.node.isConnected) { ca.scrollTop = ca.scrollHeight; return; }
+      ca.scrollTop += neo.node.getBoundingClientRect().top - ca.getBoundingClientRect().top - neo.lech;
+    };
+    dat();
+    // Lần hai ở khung hình sau: lúc gọi dat() lần đầu, trang mới vừa dựng xong DOM nhưng bề
+    // rộng cuối cùng chưa chốt, nên đo được một con số rồi nó lệch đi ngay sau đó.
+    try { requestAnimationFrame(dat); } catch (e) {}
+  }
+
   function _borrowChatNodes(into) {
+    const neo = _neoCuon();
     _chatSlots = [];
     CHAT_NODE_IDS.forEach(id => {
       const n = document.getElementById(id);
@@ -4636,6 +4673,7 @@
       _chatSlots.push({ node: n, parent: n.parentNode, next: n.nextSibling });
       into.appendChild(n);
     });
+    _thaCuon(neo);
   }
   // ===== Cho tab "Thư mục" của khung chat MƯỢN chính panel Vault =====
   // Không dựng lại cây thứ hai. Bản đầu của tính năng này viết hẳn một module cây riêng, và
@@ -4700,6 +4738,7 @@
     // khung sắp bị xoá, không trả về là mất luôn node và mở file ở màn chính sẽ trắng trơn.
     _returnNoteEditor();
     _returnVaultPanel();
+    const neo = _neoCuon();   // đường VỀ cũng dời node, cũng mất chỗ đọc - xem _neoCuon
     for (let i = _chatSlots.length - 1; i >= 0; i--) {
       const s = _chatSlots[i];
       if (!s.parent) continue;
@@ -4708,6 +4747,7 @@
     }
     _chatSlots = [];
     document.body.classList.remove("on-chat");
+    _thaCuon(neo);
   }
 
   function renderChat(el) {
