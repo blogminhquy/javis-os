@@ -1512,7 +1512,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    Không có cây thứ hai: tab "Thư mục" mượn đúng .hud-left của màn chính. Nó vốn là một cột
    của lưới HUD nên mang theo bề rộng và viền riêng; ở đây phải gỡ những thứ đó ra, nếu không
    cột chat bị đội rộng và có hai đường viền chồng nhau. */
-.cside-pane > .hud-left { width: auto; max-width: none; min-width: 0; flex: 1 1 auto;
+/* display:flex KHÔNG thừa. Trên điện thoại console.css ẩn hẳn .hud-left (`display: none`) vì
+   ở màn chính cột đó không có chỗ. Nhưng tab "Thư mục" MƯỢN đúng node ấy, nên luật kia đi
+   theo sang đây và cả tab thành một khoảng trắng - bấm vào không thấy gì, không lỗi, không
+   báo. Chủ repo báo đúng triệu chứng đó (2026-08-12). Chọn hai lớp nên thắng luật một lớp
+   trong media query mà không cần !important; pane đang tắt vẫn display:none nên cây chỉ hiện
+   khi thật sự mở tab. */
+.cside-pane > .hud-left { display: flex; width: auto; max-width: none; min-width: 0; flex: 1 1 auto;
   min-height: 0; padding: 0; border: 0; background: transparent; }
 /* Nút "Vị trí" ở kết quả tìm kiếm: xổ cây tới đúng thư mục đang chứa file. Nằm bên phải tên
    file, chỉ hiện rõ khi rê chuột để không tranh chỗ với chính cái tên. */

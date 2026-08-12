@@ -258,3 +258,4 @@ updated: YYYY-MM-DD
 - Sau khi hoàn thành thay đổi và CI xanh: **merge luôn vào `main`** (rebase/squash, giữ lịch sử thẳng - repo không dùng merge commit). Chủ repo đã cho phép (2026-07-30) để test live ngay trên VPS qua bản cập nhật; không cần hỏi lại từng lần.
 - CI đỏ thì KHÔNG merge - sửa cho xanh trước rồi mới merge.
 - Vẫn phát triển trên nhánh riêng + mở PR như thường lệ; chỉ khác là bước merge không chờ duyệt tay.
+- **Viết CHANGELOG.md cho NGƯỜI ĐỌC TRÊN ĐIỆN THOẠI, không phải cho lập trình viên đọc diff.** Chủ repo đọc trang Nhật ký cập nhật trên màn hình dọc (2026-08-12), nên: tối đa 3-4 gạch đầu dòng mỗi phiên bản, mỗi gạch 1-2 câu, nói người dùng THẤY GÌ KHÁC chứ không kể tên hàm và đường dẫn file. Chi tiết kỹ thuật để trong thân commit và mô tả PR - đó mới là chỗ của chúng. Dấu `**` với `` ` `` dùng dè, chỉ cho chỗ thật sự đáng nhấn; trang có render markdown nhưng một dòng dày đặc dấu vẫn khó đọc trên màn hẹp.

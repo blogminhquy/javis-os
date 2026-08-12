@@ -496,6 +496,12 @@
     .cl-sec h4{margin:8px 0 5px;font-size:14px;color:var(--text3);font-weight:600}
     .cl-sec ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
     .cl-sec li{font-size:14.5px;color:var(--text);line-height:1.5;padding-left:24px;position:relative}
+    /* Đoạn mã trong dòng nhật ký thường là đường dẫn dài (07%20-%20Wiki/...). Không cho ngắt
+       thì trên điện thoại nó đẩy ngang cả trang, mà trang đọc chữ thì tuyệt đối không được
+       cuộn ngang. */
+    .cl-sec li code,.upd-changes code{background:var(--surface-2);padding:1px 5px;border-radius:5px;
+      font-size:.9em;overflow-wrap:anywhere;word-break:break-word}
+    .cl-sec li strong{font-weight:650}
     .cl-sec li:before{position:absolute;left:0;top:0}
     .cl-sec li:before{content:"";display:inline-block;width:1em;height:1em;vertical-align:-.14em;background-color:currentColor;mask-position:center;mask-size:contain;mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat}
     .cl-sec.feat li:before{mask-image:var(--ic-sparkles);-webkit-mask-image:var(--ic-sparkles)}
@@ -525,12 +531,28 @@
   let _clData = null;              // cache /changelog để đổi trang không phải gọi lại mạng
   const CL_PAGE_SIZE = 20;         // số phiên bản hiển thị mỗi trang
 
+  // CHANGELOG.md là markdown, nhưng trang này in bằng esc() nên người dùng đọc thấy nguyên
+  // `**Bấm vào link...**` kèm dấu sao và dấu huyền quanh mỗi tên file. Trên điện thoại thì
+  // nặng hẳn: dòng ngắn, dấu nhiều, mắt phải tự lọc (chủ repo báo 2026-08-12).
+  //
+  // KHÔNG dùng mdToHtml: hàm đó là bộ dựng khối, nó bọc <p>, và tệ hơn là biến mọi đường dẫn
+  // trông giống file trong vault thành link bấm mở - ở đây `dashboard/console.js` chỉ là tên
+  // file được nhắc tới, bấm vào chỉ tổ 404.
+  //
+  // esc() chạy TRƯỚC rồi mới dựng thẻ, nên dù CHANGELOG.md có chứa HTML cũng không có đường
+  // nào chèn vào trang. Một lượt quét với hai luật thay vì hai lượt: dấu sao nằm TRONG một
+  // đoạn mã bị nhánh code nuốt trước nên còn nguyên là dấu sao, khỏi cần chỗ giữ tạm.
+  function _clInline(s) {
+    return esc(String(s == null ? "" : s)).replace(
+      /`([^`]+)`|\*\*([^*]+)\*\*/g,
+      (_m, ma, dam) => ma != null ? "<code>" + ma + "</code>" : "<strong>" + dam + "</strong>");
+  }
   function _clRelHtml(rel) {
     const cls = rel.is_current ? "cur" : (rel.installed ? "" : "new");
     const tag = rel.is_current ? `<span class="cl-tag cur">đang dùng</span>`
       : (!rel.installed ? `<span class="cl-tag new">bản mới</span>` : "");
     const secs = (rel.sections || []).map(s => {
-      const items = (s.items || []).map(it => `<li>${esc(it)}</li>`).join("");
+      const items = (s.items || []).map(it => `<li>${_clInline(it)}</li>`).join("");
       return `<div class="cl-sec ${_clSecClass(s.title)}"><h4>${esc(s.title)}</h4><ul>${items}</ul></div>`;
     }).join("");
     return `<div class="cl-rel ${cls}">
@@ -641,7 +663,7 @@
       box.style.display = "";
       box.innerHTML = "<b>Bản mới có gì:</b>" + fresh.map(r => {
         const items = (r.sections || []).flatMap(s => s.items || []).slice(0, 3);
-        return `<div style="margin-top:5px">v${esc(r.version)}${r.date ? " · " + esc(r.date) : ""}</div><ul style="margin:2px 0 0 16px;padding:0">${items.map(it => `<li>${esc(it)}</li>`).join("")}</ul>`;
+        return `<div style="margin-top:5px">v${esc(r.version)}${r.date ? " · " + esc(r.date) : ""}</div><ul style="margin:2px 0 0 16px;padding:0">${items.map(it => `<li>${_clInline(it)}</li>`).join("")}</ul>`;
       }).join("");
     };
     const loadVersion = async () => {
