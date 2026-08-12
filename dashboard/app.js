@@ -370,7 +370,13 @@ async function openStoredSession(id) {
     chatArea.innerHTML = "";
     (sess.messages || []).forEach(m => {
       const ts = m.ts ? Math.round(m.ts * 1000) : 0;   // server lưu epoch giây (sessions.py)
-      if (m.role === "user") { appendUserMessage(m.content || "", [], ts); convo.push({ role: "user", text: m.content || "", atts: [], ts }); }
+      // convo là thứ được ghi xuống localStorage rồi dựng lại ở lần F5 sau. Nhét bản CÒN khối
+      // vào đây là lỗi sống dai qua mọi lần tải lại, dù bong bóng lượt này đã sạch.
+      if (m.role === "user") {
+        const _sach = chuNguoiGo(m.content || "");
+        appendUserMessage(_sach, [], ts);
+        convo.push({ role: "user", text: _sach, atts: [], ts });
+      }
       // sess.brain: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
       // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
       // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
@@ -431,7 +437,38 @@ function lastUserText() {
 }
 // ts === undefined nghĩa là tin VỪA xảy ra; còn khôi phục tin cũ thì truyền ts thật
 // (hoặc 0 nếu tin lưu từ trước bản này chưa có mốc giờ, khi đó phần giờ được ẩn).
+// Khối ngữ cảnh do CHÍNH dashboard chèn vào ĐẦU tin trước khi gửi: file đang ghim trong trình
+// sửa, đường dẫn file đính kèm. Chúng là chỉ dẫn cho model, không phải câu người dùng gõ.
+const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm"];
+
+// Gỡ mấy khối đó ra để lấy lại ĐÚNG câu người dùng đã gõ.
+//
+// Vì sao cần: lúc gõ, `appendUserMessage` nhận chữ sạch nên bong bóng đúng. Nhưng mở lại hội
+// thoại cũ (F5, bấm vào một cuộc trong danh sách) thì `loadSession` dựng bong bóng từ chữ
+// SERVER LƯU - tức là bản đã kèm khối. Và khối "file đang ghim" được gửi lại MỖI LƯỢT, nên
+// hội thoại càng dài thì càng nhiều bong bóng chỉ toàn chữ máy, còn thanh mốc hội thoại thành
+// một dãy dòng giống hệt nhau "[FILE ĐANG MỞ trong trình sửa..." - không nhìn ra câu nào với
+// câu nào. Đó đúng là cảnh chủ repo chụp lại (2026-08-12).
+//
+// Cắt ở ĐÂY chứ không ở từng nơi gọi: hàm này là cửa duy nhất dựng bong bóng người dùng, nên
+// mọi đường (gõ mới, F5, mở hội thoại cũ) đi qua cùng một chỗ. Và vì `dataset.text` cũng sạch
+// theo, ba thứ đọc ké nó được sửa luôn: thanh mốc hội thoại, nút gửi lại, nút sửa câu hỏi -
+// trước đây "gửi lại" một câu cũ là gửi kèm nguyên khối rồi bị chèn thêm khối mới lần nữa.
+function chuNguoiGo(text) {
+  let s = String(text == null ? "" : text);
+  for (let vong = 0; vong < 4; vong++) {   // ghim + đính kèm có thể lồng nhau
+    const t = s.replace(/^\s+/, "");
+    if (!_KHOI_NGU_CANH.some(k => t.startsWith(k))) break;
+    const i = t.indexOf("]\n\n");
+    if (i < 0) break;   // không thấy chỗ kết thúc → thà giữ nguyên còn hơn cắt mất câu hỏi
+    s = t.slice(i + 3);
+  }
+  return s;
+}
+window.JavisChuNguoiGo = chuNguoiGo;   // console.js dùng lại khi dựng bản xem trước hội thoại
+
 function appendUserMessage(text, attachments, ts) {
+  text = chuNguoiGo(text);
   const div = document.createElement("div");
   div.className = "msg msg-user";
   div.dataset.text = text || "";   // giữ nguyên văn để gửi lại / sửa lại đúng chữ gốc

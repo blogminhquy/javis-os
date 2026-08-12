@@ -109,6 +109,12 @@ END;
 # Neo vào đúng cụm "File đính kèm" chứ KHÔNG bóc mọi khối [..] mở đầu - người dùng có quyền
 # mở câu bằng ngoặc vuông ("[gấp] xem giúp anh..."), bóc bừa là mất luôn phần quan trọng nhất.
 _KHOI_DINH_KEM = re.compile(r"^\s*\[File đính kèm[^\]]*\]\s*")
+# Khối "file đang ghim trong trình sửa" (app.js chèn khi user mở một file .md rồi chat). Cùng
+# LOẠI với khối đính kèm ở trên, nhưng là một CỬA KHÁC: nó ra đời sau bản vá 2026-07-31 nên
+# lọt qua, và hậu quả giống hệt - mọi hội thoại mở lúc đang ghim file đều mang đúng một cái
+# tên "[FILE ĐANG MỞ trong trình sửa của Javis: /home/…". Ghim còn được gửi lại MỖI LƯỢT nên
+# nó phổ biến hơn khối đính kèm nhiều.
+_KHOI_GHIM = re.compile(r"^\s*\[FILE ĐANG MỞ[^\]]*\]\s*")
 # Câu dashboard tự điền khi user đính kèm file mà KHÔNG gõ gì - không mang thông tin gì.
 _CAU_TU_DIEN = "Hãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính."
 # File đính kèm được app.js liệt kê mỗi dòng một cái, dạng "- <đường dẫn>". Neo vào ĐÚNG dạng
@@ -143,8 +149,23 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
     Thứ tự ưu tiên: câu user THỰC SỰ gõ > tên file đính kèm > chịu thua trả rỗng.
     """
     raw = msg or ""
-    con_lai = _KHOI_DINH_KEM.sub("", raw, count=1)
-    co_dinh_kem = con_lai != raw
+    # Bóc LẶP và bóc CẢ HAI loại khối: ghim đi trước đính kèm nên chúng lồng nhau được, mà
+    # bóc đúng một lần thì tên hội thoại vẫn là chữ máy của khối còn lại.
+    #
+    # Giữ lại khối đính kèm vừa bóc ngay TẠI ĐÂY thay vì tìm lại trong `raw` ở dưới: cả hai
+    # mẫu đều neo `^`, nên khi khối ghim đứng trước thì tìm lại trong `raw` luôn trượt - và
+    # trượt lặng lẽ, hậu quả là hội thoại "chỉ đính kèm file" mất tên thay vì mang tên file.
+    con_lai, khoi_dk = raw, ""
+    for _ in range(4):
+        truoc = con_lai
+        con_lai = _KHOI_GHIM.sub("", con_lai, count=1)
+        m_dk = _KHOI_DINH_KEM.match(con_lai)
+        if m_dk:
+            khoi_dk = m_dk.group(0)
+            con_lai = con_lai[m_dk.end():]
+        if con_lai == truoc:
+            break
+    co_dinh_kem = bool(khoi_dk)
 
     tho = con_lai.replace(_CAU_TU_DIEN, " ").strip()
     if tho.strip():
@@ -159,8 +180,7 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
 
     # Chỉ đính kèm, không gõ chữ nào -> tên file còn nói được nhiều hơn khối hướng dẫn.
     if co_dinh_kem:
-        khoi = _KHOI_DINH_KEM.match(raw)
-        duong_dan = _DONG_FILE.findall(khoi.group(0) if khoi else "")
+        duong_dan = _DONG_FILE.findall(khoi_dk)
         # rstrip("]"): dạng có Sources= đóng khối NGAY sau đường dẫn cuối ("- /tmp/a.png]"),
         # không bóc thì tên file dính dấu ngoặc.
         ten = [re.split(r"[/\\]", p.rstrip("]").rstrip("/\\"))[-1] for p in duong_dan]

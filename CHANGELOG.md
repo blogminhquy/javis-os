@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.7] - 2026-08-12
+### Sửa lỗi
+- **Mở lại hội thoại cũ không còn thấy một đống chữ máy trong bong bóng câu hỏi của mình.** Khi bạn đang mở một file trong trình sửa, Javis kèm một khối hướng dẫn vào tin nhắn để nó biết đang làm việc trên file nào. Khối đó lẽ ra chỉ dành cho máy đọc, nhưng lúc tải lại trang thì nó hiện ra thay cho câu bạn đã gõ.
+- **Thanh mốc hội thoại đọc được trở lại.** Trước đây hội thoại càng dài thì danh sách càng toàn những dòng giống hệt nhau, vì dòng nào cũng là khối hướng dẫn đó - không nhìn ra câu nào với câu nào.
+- **Tên hội thoại trong Lịch sử cũng hết bị đặt theo khối đó.** Nút gửi lại và sửa câu hỏi giờ dùng đúng câu bạn gõ, không kèm rác.
+
 ## [0.28.6] - 2026-08-12
 ### Thêm mới
 - **Đăng nhập Google cho Gemini CLI ngay trên trang Models, không phải mở terminal nữa.** Bấm **Đăng nhập Google**, đăng nhập, Google hiện ra một mã, dán mã đó lại là xong - giống hệt cách đăng nhập Claude Code và ChatGPT đang có.
