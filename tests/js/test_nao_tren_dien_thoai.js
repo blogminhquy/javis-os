@@ -120,6 +120,28 @@ check("CANARY: gui tin khi dang bung thi tu thu lai (khong thu = go xong khong t
   check("index.html co danh so phien ban cho " + f, !!m && Number(m[1]) > 0);
 });
 
+// ============================================================
+// Thanh nhan khung chat tren dien thoai
+// ============================================================
+// Chu repo bao (2026-08-12, kem anh chup): "o khung chat dien thoai thi anh muon dua nut zoom
+// va ten model gan sat ben trai hon".
+//
+// Mac dinh .panel-label la space-between: tren man rong thi dep, nhung tren dien thoai no nem
+// ten model + nut phong to ra tan mep phai, cach chu HOI THOAI mot khoang trong to - mat phai
+// quet ngang ca man moi doc duoc dang chay model nao.
+//
+// Do that trong Chromium 390px: truoc khi sua ten model bat dau o 115px, sau khi sua con 70px,
+// tuc ngay canh chu HOI THOAI (ket thuc o 62px). Nut phong to van nam gon trong hang ke ca khi
+// ten model dai ("Claude Code - claude-sonnet-5-20260101").
+check("khung chat dien thoai: don ten model + nut phong to ve sat trai",
+  /\.hud-right \.panel-label \{[^}]*justify-content: flex-start/.test(CONSOLE_CSS));
+check("co khoang cach giua chu HOI THOAI va ten model",
+  /\.hud-right \.panel-label \{[^}]*gap: 8px/.test(CONSOLE_CSS));
+// max-width:60% mac dinh tinh theo khoi boc, ma khoi do co theo noi dung nen ten model dai la
+// no day nut phong to di. Tren man hep phai neo theo BE NGANG MAN HINH.
+check("CANARY: ten model dai khong day nut phong to ra ngoai",
+  /\.hud-right \.panel-label \.engine-badge \{ max-width: 58vw; \}/.test(CONSOLE_CSS));
+
 if (fails.length) {
   console.error("\nFAIL - test_nao_tren_dien_thoai: " + fails.length + " loi");
   process.exit(1);

@@ -39,8 +39,22 @@
       saveRead();
     } catch (e) {}
   }
+  // Bản ĐÃ CÀI thì không bao giờ tính là chưa đọc.
+  //
+  // Chủ repo báo (2026-08-12): "ấn đọc tất cả rồi, nâng cấp bản mới vẫn hiện các số như là
+  // chưa đọc". Đo lại thì cơ chế đánh dấu không hỏng - nó giữ đúng qua cả lần tải lại trang.
+  // Chuyện thật sự xảy ra: giữa lúc bấm "Đọc tất cả" và lúc nâng cấp có thêm vài bản phát
+  // hành mới. Chúng chưa từng được đọc nên vào hàng chưa đọc, rồi người dùng CÀI CHÍNH CHÚNG,
+  // mà chuông vẫn nhắc.
+  //
+  // Nhắc một bản đang nằm sẵn trong máy là vô nghĩa: thông báo phát hành chỉ đáng chú ý khi
+  // nó là thứ mình CHƯA có. Cài xong là hết việc, khỏi cần bấm đọc thêm lần nữa.
+  function chuaDoc(item) {
+    if (item.kind === "update" && item.installed) return false;
+    return !state.read.has(String(item.id));
+  }
   function unreadItems() {
-    return state.items.filter(function (item) { return !state.read.has(String(item.id)); });
+    return state.items.filter(chuaDoc);
   }
   function markRead(id) {
     state.read.add(String(id));
@@ -95,7 +109,9 @@
     var visible = limited.slice(0, state.visibleCount);
     var cards = visible.map(function (item) {
       var id = String(item.id);
-      var unreadClass = state.read.has(id) ? "" : " unread";
+      // Dùng CHUNG một luật với con số trên chuông. Trước đây thẻ tự soi state.read, nên chỉ
+      // cần hai chỗ lệch nhau một chút là chuông báo 0 mà thẻ vẫn tô đậm kiểu chưa đọc.
+      var unreadClass = chuaDoc(item) ? " unread" : "";
       var kind = item.kind || "update";
       // Release chỉ cần tóm tắt; toàn bộ bullet đã có ở trang Nhật ký cập nhật.
       // Tin cộng đồng/marketing được giữ body nhưng clamp bằng CSS để card vẫn gọn.
