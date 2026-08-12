@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.27.0] - 2026-08-12
+### Thêm mới
+- **Thanh mốc hội thoại ở khung chat.** Mép phải khung chat giờ có một dãy vạch nhỏ, mỗi vạch là một câu bạn đã hỏi. Rê chuột vào thì hiện danh sách các câu hỏi, bấm một câu là nhảy thẳng về chỗ đó. Hội thoại càng dài càng đỡ phải kéo tay đi tìm.
+- Vạch của câu đang đọc sáng lên theo vị trí cuộn, nên liếc một cái là biết mình đang ở đâu trong cuộc trò chuyện.
+- Ý tưởng từ **Trưng Minh** góp qua nhóm. Cảm ơn bạn.
+- Thanh chỉ hiện trên máy tính. Trên điện thoại thao tác chính của nó là rê chuột, mà chạm sát mép phải lại giành mất cú vuốt để cuộn.
+
 ## [0.26.28] - 2026-08-12
 ### Cải thiện
 - **Khung Cập nhật chỉ luôn cách tìm thư mục compose.** Bản trước bảo "chạy ở thư mục chứa file compose" nhưng không nói cách tìm, nên gõ xong hay lãnh `no configuration file provided: not found` - tên thư mục tuỳ lúc tải về, có máy là `javis`, có máy là `javis-os`.

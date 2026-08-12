@@ -1,0 +1,114 @@
+/* Thanh mốc hội thoại: nhảy nhanh về một câu hỏi cũ trong khung chat.
+
+       node tests/js/test_moc_hoi_thoai.js
+
+   Người dùng Trưng Minh đề nghị qua chủ repo (2026-08-12): quen ChatGPT, ở đó cột phải có một
+   dãy vạch nhỏ, mỗi vạch là một câu mình đã hỏi; rê vào hiện danh sách để nhảy thẳng về prompt
+   cũ. Hội thoại dài mà thiếu cái này thì tìm lại một câu hỏi cũ phải kéo tay cả khung.
+
+   HÀNH VI đã đo trong Chromium THẬT trước khi chốt (18 phép thử: chèn lười, đếm vạch, rê chuột
+   mở danh sách, bấm nhảy đúng chỗ, vạch sáng đi theo vị trí cuộn, 60 câu hỏi không tràn khung,
+   xoá hết thì tự tháo, màn hẹp thì không bày ra). Chính lượt đo đó bắt được một lỗi đọc code
+   không thấy: đường ngắm đặt sát mép trên làm vạch sáng lệch một câu so với thứ đang chiếm màn
+   hình. CI chỉ có node nên file này khoá phần hợp đồng đọc được từ mã nguồn. */
+const fs = require("fs");
+const path = require("path");
+
+const ROOT = path.join(__dirname, "..", "..");
+const D = (f) => fs.readFileSync(path.join(ROOT, "dashboard", f), "utf8");
+const JS = D("chat-marks.js");
+const CSS = D("style.css");
+const HTML = D("index.html");
+
+const fails = [];
+const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
+
+// ============================================================
+// 1. Có mặt và được nạp
+// ============================================================
+check("index.html nạp chat-marks.js", /chat-marks\.js/.test(HTML));
+check("module không đụng vào app.js",
+  !/chat-marks/.test(fs.readFileSync(path.join(ROOT, "dashboard", "app.js"), "utf8")));
+
+// ============================================================
+// 2. Ba quyết định kiến trúc - mỗi cái đều có cách làm sai trông hợp lý hơn
+// ============================================================
+// (a) Theo dõi KẾT QUẢ chứ không hook từng chỗ thêm tin. Hook appendUserMessage + lúc nạp hội
+//     thoại cũ + lúc xoá chat là ba chỗ, và chỗ thứ tư sinh sau sẽ không ai nhớ hook.
+check("CANARY: dựng lại theo MutationObserver, không đi hook từng chỗ",
+  /new MutationObserver/.test(JS));
+// Nghe subtree là dựng lại hàng chục lần mỗi câu trả lời (bong bóng vẽ lại theo từng chữ),
+// trong khi số câu HỎI có đổi đâu.
+check("CANARY: chỉ nghe childList, KHÔNG nghe subtree",
+  /observe\([^)]*\{\s*childList:\s*true\s*\}\)/.test(JS) && !/subtree:\s*true/.test(JS));
+
+// (b) Thanh là CON của #chatArea. #chatArea bị dời qua lại giữa màn chính và trang Trò chuyện
+//     (console.js mượn node); là con thì nó đi theo, là lớp fixed thì phải tự dò xem khung vừa
+//     nhảy đi đâu.
+check("CANARY: chèn vào trong #chatArea (đi theo khi khung bị mượn)",
+  /chatArea\.insertBefore\(boc/.test(JS));
+check("CANARY: dùng position sticky, không phải fixed",
+  /#chatMarks \{[^}]*position: sticky/.test(CSS) && !/#chatMarks \{[^}]*position: fixed/.test(CSS));
+// height:0 + align-self:flex-end: .transcript là flex DỌC nên một flex item bình thường sẽ
+// chiếm nguyên một hàng ngang và đẩy hết tin nhắn xuống.
+check("CANARY: cao 0 nên không chiếm hàng, không đẩy tin nhắn xuống",
+  /#chatMarks \{[^}]*height: 0/.test(CSS));
+
+// (c) Chèn LƯỜI. `.transcript:empty::after` là câu mời "Nói hoặc gõ để bắt đầu" - chèn một node
+//     con thường trực là #chatArea không còn :empty và câu đó biến mất IM LẶNG. Cùng cái bẫy đã
+//     ghi sẵn trong app.js cho #newMsgBtn.
+check("CANARY: câu mời khi khung rỗng vẫn còn trong CSS",
+  /\.transcript:empty::after/.test(CSS));
+check("CANARY: có đường THÁO node ra khi không đủ mốc", /function thaoRa\(/.test(JS));
+check("dưới ngưỡng thì tháo, không để lại node rỗng",
+  /moc\.length < TOI_THIEU\) \{ thaoRa\(\); return; \}/.test(JS));
+check("1 câu hỏi thì chưa bày thanh ra", /TOI_THIEU = 2/.test(JS));
+
+// ============================================================
+// 3. Nhảy tới đúng chỗ ở CẢ HAI trang
+// ============================================================
+// offsetTop đo theo offsetParent, mà #chatArea bị dời qua lại nên offsetParent đổi theo. Hiệu
+// hai getBoundingClientRect thì đúng ở mọi chỗ đứng - đây đúng loại lỗi chỉ lộ ở một trang.
+check("CANARY: cuộn tính bằng hiệu rect, KHÔNG bằng offsetTop",
+  /getBoundingClientRect\(\)\.top - chatArea\.getBoundingClientRect\(\)\.top/.test(JS)
+  && !/\.offsetTop/.test(JS));
+check("nhảy xong có nháy vào đúng bong bóng vừa tới", /cm-vua-nhay/.test(JS) && /cm-vua-nhay/.test(CSS));
+
+// ============================================================
+// 4. Vạch sáng phải khớp thứ đang CHIẾM màn hình
+// ============================================================
+// Lỗi đo được trong Chromium: đường ngắm sát mép trên thì màn hình đã hiện rõ câu hỏi 4 mà thanh
+// vẫn sáng vạch 3, chỉ vì đuôi câu trả lời 3 còn sót vài chục pixel trên đỉnh.
+check("CANARY: đường ngắm hạ xuống khỏi mép trên", /clientHeight \* 0\.4/.test(JS));
+check("đường ngắm có trần, hội thoại câu ngắn không nhảy vọt", /Math\.min\(180,/.test(JS));
+check("cập nhật vạch sáng theo cuộn, có ghìm bằng rAF",
+  /requestAnimationFrame/.test(JS) && /addEventListener\("scroll"/.test(JS));
+
+// ============================================================
+// 5. Hội thoại dài
+// ============================================================
+check("khoảng cách vạch nén dần khi nhiều câu hỏi", /CACH_TOI_THIEU/.test(JS) && /CACH_TOI_DA/.test(JS));
+check("danh sách có thanh cuộn riêng", /\.cm-hop \{[^}]*overflow-y: auto/.test(CSS));
+check("chữ dài trong danh sách cắt bằng dấu ba chấm", /\.cm-muc \{[^}]*text-overflow: ellipsis/.test(CSS));
+
+// ============================================================
+// 6. Màn hẹp: bỏ hẳn, và bỏ ở CẢ HAI tầng
+// ============================================================
+// Thao tác chính là RÊ CHUỘT, mà ngón tay không rê được; chạm sát mép phải thì giành mất cú
+// vuốt để cuộn. Chỉ ẩn bằng CSS thì node vẫn dựng và vẫn nghe scroll - tốn việc cho một thứ
+// không ai thấy.
+check("CANARY: JS tự tháo trên màn hẹp", /function hepQua\(/.test(JS) && /hepQua\(\)\) \{ thaoRa\(\)/.test(JS));
+check("CANARY: CSS cũng ẩn trên màn hẹp (lớp thứ hai)",
+  /@media \(max-width: 860px\) \{ #chatMarks \{ display: none; \} \}/.test(CSS));
+check("mốc màn hẹp khớp trang Trò chuyện (860px)", /HEP = 860/.test(JS));
+
+// ============================================================
+// 7. Chữ người dùng gõ là DỮ LIỆU, không phải HTML
+// ============================================================
+check("CANARY: chữ câu hỏi được escape trước khi dựng danh sách",
+  /escHtml\(moc\[i\]\.text\)/.test(JS));
+check("có tôn trọng prefers-reduced-motion", /prefers-reduced-motion/.test(CSS));
+
+console.log("");
+if (fails.length) { console.log("THẤT BẠI " + fails.length + ": " + fails.join(", ")); process.exit(1); }
+console.log("OK - test_moc_hoi_thoai: tất cả pass");

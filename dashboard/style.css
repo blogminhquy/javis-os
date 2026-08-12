@@ -934,6 +934,56 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 #newMsgBtn.show { display: inline-flex; }
 #newMsgBtn:hover { background: var(--accent-wash-2); color: var(--accent); border-color: var(--accent); }
 
+/* ===== THANH MỐC HỘI THOẠI (chat-marks.js) =====
+   Mỗi vạch là một câu mình đã hỏi; rê vào hiện danh sách để nhảy về prompt cũ.
+
+   height:0 + align-self:flex-end là cặp quan trọng: .transcript là flex DỌC, nên một flex item
+   bình thường sẽ chiếm một hàng ngang và đẩy tin nhắn xuống. Cao 0 thì nó không chiếm hàng nào,
+   còn phần nhìn thấy được là .cm-ray định vị tuyệt đối bên trong. sticky top:0 giữ nó dính mép
+   trên vùng cuộn, và chiều cao thật của ray do JS đo theo clientHeight của khung. */
+#chatMarks { position: sticky; top: 0; height: 0; z-index: 4; flex: none;
+  align-self: flex-end; width: 0; overflow: visible; }
+.cm-ray { position: absolute; top: 0; right: 2px; width: 22px;
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+  gap: calc(var(--cm-cach, 11px) - 2px); pointer-events: auto; }
+.cm-vach { flex: none; width: 13px; height: 2px; padding: 0; border: 0; border-radius: 2px;
+  background: var(--text3); opacity: .38; cursor: pointer;
+  transition: width .14s, opacity .14s, background .14s; }
+.cm-vach:hover { width: 20px; opacity: .85; }
+/* Vạch đang đọc: dài hơn VÀ đậm hơn. Chỉ đổi màu thôi thì trên dãy vạch mờ nhìn lướt không
+   thấy, mà mục đích của nó là biết mình đang ở đâu trong hội thoại chỉ bằng một cái liếc. */
+.cm-vach.active { width: 20px; opacity: 1; background: var(--accent); }
+#chatMarks:hover .cm-vach { opacity: .62; }
+#chatMarks:hover .cm-vach.active { opacity: 1; }
+
+/* Danh sách prompt - mở khi rê vào. Nằm bên TRÁI thanh vạch vì thanh đã sát mép phải khung. */
+.cm-hop { position: absolute; top: 0; right: 26px; z-index: 5;
+  display: flex; flex-direction: column; gap: 1px; padding: 6px;
+  width: min(320px, 52vw); max-height: min(420px, 62vh); overflow-y: auto;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-2); }
+.cm-hop[hidden] { display: none; }
+.cm-muc { text-align: left; padding: 6px 9px; border: 0; border-radius: 7px; cursor: pointer;
+  background: transparent; color: var(--text2); font-family: var(--font); font-size: 13px;
+  line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-muc:hover { background: var(--surface-2); color: var(--text); }
+.cm-muc.active { background: var(--accent-wash-2); color: var(--text); font-weight: 600; }
+
+/* Nhảy xong thì nháy nhẹ vào đúng bong bóng vừa tới. Không có nhát này thì màn hình vừa
+   trượt một đoạn dài xong người đọc phải tự dò xem mình đang đứng ở câu nào. */
+.msg-user.cm-vua-nhay .bubble { animation: cmNhay 1.2s ease; }
+@keyframes cmNhay {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  22% { box-shadow: 0 0 0 3px var(--accent-line); }
+}
+
+/* Màn hẹp: bỏ hẳn. Thao tác chính là RÊ CHUỘT, mà ngón tay không rê được; chạm sát mép phải
+   thì giành mất cú vuốt để cuộn. JS cũng tự tháo node ra, luật này là lớp thứ hai. */
+@media (max-width: 860px) { #chatMarks { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .msg-user.cm-vua-nhay .bubble { animation: none; }
+}
+
 /* Chip hoạt động trong transcript - "đang suy nghĩ / gọi tool / soạn trả lời"
    (thay .tool-bar cũ nằm ngoài #chatArea nên biến mất khi phóng to chat workspace) */
 .msg-activity .act-bubble {
