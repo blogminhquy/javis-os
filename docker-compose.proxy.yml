@@ -1,0 +1,57 @@
+# ============================================================================
+# Javis OS - PROXY DÙNG CHUNG cho NHIỀU BẢN Javis trên cùng một VPS.
+#
+# Chạy MỘT LẦN cho cả máy (không phải mỗi bản một cái). Nó giữ cổng 80/443, tự xin
+# và tự gia hạn chứng chỉ Let's Encrypt, rồi lái mỗi tên miền về đúng bản Javis của nó.
+#
+# VÌ SAO PHẢI TÁCH RA MỘT FILE RIÊNG: một máy chỉ có MỘT cổng 443. Bản Caddy trong
+# docker-compose.https.yml nằm chung project với Javis, nên bản Javis thứ hai dựng lên là
+# hai Caddy tranh nhau cổng 443 và con thứ hai chết. Proxy phải sống ngoài mọi bản.
+#
+# CÀI (làm một lần cho cả VPS):
+#   docker network create javis-web
+#   curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.proxy.yml
+#   docker compose -f docker-compose.proxy.yml -p javis-proxy up -d
+#
+# SAU ĐÓ mỗi bản Javis chạy ở THƯ MỤC RIÊNG với .env riêng (xem docker-compose.multi.yml):
+#   JAVIS_NAME=javis-shop     JAVIS_HOST_PORT=7777   DOMAIN_NAME=shop.tencuaban.com
+#   JAVIS_NAME=javis-ca-nhan  JAVIS_HOST_PORT=7778   DOMAIN_NAME=canhan.tencuaban.com
+#
+# Proxy TỰ PHÁT HIỆN bản mới qua nhãn Docker - thêm hay bớt một bản KHÔNG phải sửa gì ở đây,
+# cũng không phải khởi động lại proxy. Đúng cách Traefik của Hostinger đang làm.
+#
+# TRỎ DNS: mỗi tên miền phụ một bản ghi A về IP VPS. Chứng chỉ cấp ở lần mở đầu tiên.
+#
+# ⚠️ Proxy đọc Docker socket (chỉ ĐỌC) để thấy nhãn của các container. Đây là quyền mạnh -
+#    cùng loại quyền Watchtower cần. Chỉ chạy file này trên VPS của chính bạn.
+# ============================================================================
+services:
+  proxy:
+    image: lucaslorentz/caddy-docker-proxy:2.13-alpine
+    container_name: javis-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"        # HTTP/3
+    environment:
+      # Chỉ nhìn các container nằm trên mạng này -> không vô tình phơi container khác của VPS ra Internet.
+      CADDY_INGRESS_NETWORKS: javis-web
+      # Muốn Let's Encrypt gửi cảnh báo hết hạn về email: bind-mount một Caddyfile chỉ chứa
+      #   { email ban@tencuaban.com }
+      # rồi trỏ CADDY_DOCKER_CADDYFILE_PATH vào nó. Không đặt cũng chạy và vẫn tự gia hạn.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - proxy-data:/data       # chứng chỉ đã cấp - giữ qua restart, không xin lại (tránh cạn rate-limit)
+      - proxy-config:/config
+    networks:
+      - javis-web
+
+networks:
+  javis-web:
+    external: true
+    name: javis-web
+
+volumes:
+  proxy-data:
+  proxy-config:
