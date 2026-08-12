@@ -4,6 +4,23 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.22] - 2026-08-12
+### Thêm mới
+- **Cài được NHIỀU bản Javis trên cùng một VPS, mỗi bản một link riêng.** Trước bản này thì không: bản thứ hai dựng lên là chết ngay. Bản thân app đã đa-bản-được từ lâu (`JAVIS_PORT`, `JAVIS_STATE_DIR` đều đọc từ biến môi trường); chỗ chặn nằm hết ở file cài đặt, và đều là cùng một loại lỗi - một cái tên bị đóng cứng ở nơi Docker/Traefik/systemd định danh theo phạm vi TOÀN MÁY. Năm cái tên đó: `container_name: javis`, cổng máy chủ `7777`, tên router/service Traefik `javis`, `/etc/systemd/system/javis.service`, và `~/.codex/javis.config.toml`.
+- **Ba biến là đủ để tách một bản:** `JAVIS_NAME` (tên container + tên router Traefik + tên dịch vụ systemd), `JAVIS_HOST_PORT` (cổng máy chủ), `DOMAIN_NAME` (link). Bỏ trống cả ba = `javis` + cổng `7777`, tức **y hệt cách cài cũ** - ai đang chạy một bản không phải sửa gì.
+- **Proxy dùng chung cho VPS tự quản** (`docker-compose.proxy.yml` + `docker-compose.multi.yml`). Một máy chỉ có một cổng 443, nên Caddy phải đứng NGOÀI mọi bản: chạy proxy một lần cho cả máy, rồi mỗi bản một thư mục riêng. Proxy tự phát hiện bản mới qua nhãn Docker và tự xin Let's Encrypt, nên thêm hay bớt một bản KHÔNG phải sửa gì ở proxy, cũng không phải khởi động lại nó. Đúng cách Traefik của Hostinger đang làm. Socket Docker chỉ mount `:ro`.
+- **Hostinger:** deploy `docker-compose.hostinger.yml` thành stack thứ hai rồi điền ba ô đó. Ô Environment vì vậy có thêm hai trường `JAVIS_NAME` + `JAVIS_HOST_PORT`; cả hai đều có mặc định nên người cài bản đầu vẫn bỏ trống. Không có cách nào suy chúng ra từ ba trường cũ vì Traefik và Docker đều định danh theo phạm vi toàn máy.
+- **Native:** `JAVIS_NAME=javis-shop JAVIS_PORT=7778 ./install.sh` cho ra `javis-shop.service` thay vì ghi đè `javis.service` của bản trước. `install.sh` chặn tên có ký tự lạ trước khi ghi vào `/etc/systemd`.
+
+### Sửa lỗi
+- **Hai bản Javis native chạy chung một user ghi đè profile Codex của nhau.** `~/.codex/javis.config.toml` là tên cố định, mà file đó chứa URL + token của hub, nên bản khởi động sau đè bản trước và Codex của bản A quay sang gọi hub của bản B - sai im lặng, không lỗi nào hiện ra ở đâu. Nay tên profile gắn cổng khi cổng khác mặc định (`javis-7778.config.toml`); cổng 7777 giữ nguyên tên `javis` nên máy đang chạy không phải sinh file mới. Hai nơi ghi profile (hub bật / hub tắt) nay dùng chung một hàm đặt tên.
+- **`update.sh` của bản này đi restart bản khác.** Script dò container và dịch vụ bằng tên `javis` đóng cứng. Nay nó đọc `JAVIS_NAME` từ `.env` của đúng thư mục đang đứng, và giữ nguyên override `docker-compose.multi.yml` khi phát hiện proxy dùng chung - thiếu chỗ này thì một lượt cập nhật là gỡ mất nhãn Caddy và bản đó rơi khỏi proxy.
+- **Watchtower theo dõi đúng container của bản mình** thay vì luôn nhắm vào container tên `javis`.
+
+### Cải thiện
+- `JAVIS_BIND` cho phép thu cổng về `127.0.0.1` khi đã có proxy đứng trước. Làm bằng biến chứ không phải một dòng `ports` trong file override, vì compose NỐI CHỒNG danh sách `ports` giữa các file `-f` chứ không thay thế - khai lại là ra hai binding cùng một cổng và Docker báo `port is already allocated`.
+- Thêm `test_nhieu_ban_mot_vps.py` khoá cả năm cái tên toàn cục, khoá luôn điều kiện quan trọng nhất là bỏ trống mọi biến thì mọi file phải render ra y hệt trước đây. Test tự bung `${VAR:-mặc định}` như compose làm nên chạy được ở CI không có Docker.
+- DEPLOY.md có mục riêng cho việc này, kèm bảng nói rõ trùng biến nào thì hỏng ra làm sao, và nói thẳng cái gì dùng chung cái gì riêng (không có gì dùng chung - mỗi bản phải đăng nhập Claude một lần).
 ## [0.26.21] - 2026-08-11
 ### Sửa lỗi
 - **Xác thực 2 lớp không tìm thấy được từ trang Cài đặt.** Javis có HAI bề mặt cài đặt tài khoản - trang **Tài khoản** (đủ thứ, gồm luồng bật 2FA có QR) và khối "Tài khoản đăng nhập" cũ nhúng trong trang **Cài đặt** (chỉ đổi mật khẩu). 0.26.20 thêm 2FA vào chỗ đầu mà quên chỗ sau. Hậu quả không phải "thiếu một nút": người dùng mở trang Cài đặt, thấy khối tài khoản không nhắc gì tới 2FA, rồi kết luận Javis chưa có tính năng đó - trong khi nó đã chạy được cả ngày. Một tính năng bảo mật mà người ta không tìm ra thì bằng không.

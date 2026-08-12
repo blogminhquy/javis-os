@@ -10,13 +10,13 @@ services:
       args:
         CLAUDE_CLI_VERSION: ${CLAUDE_CLI_VERSION:-latest}
     image: ghcr.io/blogminhquy/javis-os:latest
-    container_name: javis
+    container_name: ${JAVIS_NAME:-javis}          # đổi trong .env khi chạy nhiều bản trên một máy
     restart: unless-stopped
     env_file:
       - path: .env
         required: false
     ports:
-      - "7777:7777"
+      - "${JAVIS_HOST_PORT:-7777}:7777"
     volumes:
       - javis-data:/data
       - javis-brains:/brains      # đổi sang  ./brains:/brains  nếu muốn git-backup (chown -R 10001 ./brains)

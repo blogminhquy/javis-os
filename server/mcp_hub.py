@@ -952,9 +952,28 @@ def _toml_str(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def codex_profile_name():
+    """Tên profile Codex của BẢN NÀY (file `~/.codex/<tên>.config.toml`).
+
+    Vì sao không phải hằng số "javis": nhiều bản Javis cài native trên cùng một VPS chạy chung
+    một user, tức chung `$HOME`. Tên cố định là bản khởi động sau ghi đè profile của bản trước,
+    mà profile đó chứa URL + token của hub, nên Codex của bản A quay sang gọi hub của bản B - sai
+    im lặng, không lỗi nào hiện ra. Gắn cổng vào tên là hết đụng (Docker thì mỗi container một
+    HOME nên vốn đã không dính).
+
+    Cổng mặc định giữ nguyên tên "javis" để máy đang chạy không phải sinh file mới.
+    """
+    p = hub_port()
+    return "javis" if p == 7777 else f"javis-{p}"
+
+
+def codex_profile_path():
+    return Path.home() / ".codex" / f"{codex_profile_name()}.config.toml"
+
+
 def codex_profile(mode="full"):
-    """Ghi ~/.codex/javis.config.toml 1 entry hub → `codex exec -p javis` thấy MỌI MCP của Javis."""
-    path = Path.home() / ".codex" / "javis.config.toml"
+    """Ghi ~/.codex/<profile>.config.toml 1 entry hub → `codex exec -p <profile>` thấy MỌI MCP của Javis."""
+    path = codex_profile_path()
     try:
         # Hub còn cung cấp plugin nội bộ (javis_schedule, datetime-vn...) ngay cả khi user chưa
         # đấu connector ngoài. Không được xoá profile chỉ vì mcp_store đang rỗng.
@@ -970,7 +989,7 @@ def codex_profile(mode="full"):
             os.chmod(path, 0o600)   # chứa hub token
         except Exception:
             pass
-        return "javis"
+        return codex_profile_name()
     except Exception as e:
         print(f"[hub codex profile] {e}", file=sys.stderr)
         return None

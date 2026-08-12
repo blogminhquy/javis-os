@@ -4,6 +4,11 @@
 #   ./install.sh
 # Installs python3 + node + Claude Code CLI, creates a venv, installs deps,
 # seeds .env, and registers a systemd service (or falls back to nohup).
+#
+# NHIEU BAN TREN CUNG MOT MAY: clone vao THU MUC KHAC roi dat hai bien truoc khi chay.
+#   JAVIS_NAME=javis-shop JAVIS_PORT=7778 ./install.sh
+# JAVIS_NAME dat ten dich vu systemd (javis-shop.service); JAVIS_PORT la cong nghe.
+# Bo trong ca hai = javis.service + cong 7777, y het truoc day.
 # ============================================================================
 set -euo pipefail
 
@@ -15,6 +20,14 @@ err()  { echo -e "${RED}xx${NC} $*" >&2; }
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APP_DIR"
+
+# Ten dich vu + cong cua BAN NAY. Truoc day ca hai deu dong cung, nen cai ban thu hai la ghi de
+# /etc/systemd/system/javis.service cua ban thu nhat va hai ban tranh nhau cong 7777.
+SVC="${JAVIS_NAME:-javis}"
+PORT="${JAVIS_PORT:-7777}"
+case "$SVC" in
+  *[!A-Za-z0-9._-]*) err "JAVIS_NAME chi duoc dung chu, so, '.', '_', '-' (dang co: $SVC)"; exit 1;;
+esac
 
 SUDO=""; [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 
@@ -197,10 +210,10 @@ fi
 # --- 9. service: systemd if available, else nohup ---
 PY="$APP_DIR/.venv/bin/python"
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-  log "Installing systemd service..."
-  $SUDO tee /etc/systemd/system/javis.service >/dev/null <<UNIT
+  log "Installing systemd service ($SVC.service, port $PORT)..."
+  $SUDO tee "/etc/systemd/system/$SVC.service" >/dev/null <<UNIT
 [Unit]
-Description=Javis OS
+Description=Javis OS ($SVC)
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -210,10 +223,10 @@ Type=simple
 User=$(whoami)
 WorkingDirectory=$APP_DIR/server
 Environment="JAVIS_HOST=127.0.0.1"
-Environment="JAVIS_PORT=7777"
+Environment="JAVIS_PORT=$PORT"
 Environment="JAVIS_STATE_DIR=$APP_DIR/server"
 Environment="PATH=$APP_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=$PY -m uvicorn main:app --host 127.0.0.1 --port 7777
+ExecStart=$PY -m uvicorn main:app --host 127.0.0.1 --port $PORT
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM
@@ -224,17 +237,17 @@ StandardError=journal
 WantedBy=multi-user.target
 UNIT
   $SUDO systemctl daemon-reload
-  $SUDO systemctl enable --now javis.service
-  ok "Service installed. Logs: journalctl -u javis -f"
+  $SUDO systemctl enable --now "$SVC.service"
+  ok "Service installed. Logs: journalctl -u $SVC -f"
 else
   warn "systemd not available - starting under nohup..."
-  ( cd "$APP_DIR/server" && JAVIS_STATE_DIR="$APP_DIR/server" nohup "$PY" -m uvicorn main:app --host 127.0.0.1 --port 7777 > "$APP_DIR/server/javis.log" 2>&1 & )
+  ( cd "$APP_DIR/server" && JAVIS_STATE_DIR="$APP_DIR/server" JAVIS_PORT="$PORT" nohup "$PY" -m uvicorn main:app --host 127.0.0.1 --port "$PORT" > "$APP_DIR/server/javis.log" 2>&1 & )
   ok "Started. Logs: $APP_DIR/server/javis.log"
 fi
 
 echo ""
-ok "Javis OS is up at: http://127.0.0.1:7777"
-log "Remote access (SSH tunnel): ssh -L 7777:localhost:7777 $(whoami)@<vps-ip>"
+ok "Javis OS is up at: http://127.0.0.1:$PORT"
+log "Remote access (SSH tunnel): ssh -L $PORT:localhost:$PORT $(whoami)@<vps-ip>"
 
 # Mật khẩu tự sinh chỉ in ra ĐÚNG chỗ này, đúng một lần. Không ghi vào log service, không in
 # lại ở lần chạy sau - `.env` (chmod 600) là nơi giữ nó. In sau phần khởi động để nó nằm ở
@@ -252,8 +265,8 @@ echo ""
 log "Truy cập từ xa qua Cloudflare Tunnel (không cần mở port, có HTTPS):"
 echo "    1) Đăng nhập bằng tài khoản quản trị ở trên (Claude chạy full quyền!)."
 if command -v cloudflared >/dev/null 2>&1; then
-  echo "    2) cloudflared tunnel --url http://localhost:7777   → mở URL https://<random>.trycloudflare.com"
+  echo "    2) cloudflared tunnel --url http://localhost:$PORT   → mở URL https://<random>.trycloudflare.com"
 else
   echo "    2) Cài cloudflared:  curl -fsSL https://pkg.cloudflare.com/cloudflared.deb -o /tmp/cf.deb && $SUDO dpkg -i /tmp/cf.deb"
-  echo "       Rồi:  cloudflared tunnel --url http://localhost:7777"
+  echo "       Rồi:  cloudflared tunnel --url http://localhost:$PORT"
 fi
