@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.25] - 2026-08-12
+### Sửa lỗi
+- **Bấm vào link trong file .md không mở ra gì cả.** Chủ repo báo hai lần: lần đầu ở hai link "LLM Wiki" và "Bullet Journal số hoá" trong `AGENTS.md`, lần hai vì nó quay lại ở chỗ khác. Vòng đầu chỉ chữa triệu chứng (đổi hai link đó sang `[[wikilink]]`); lỗi nằm ở dashboard nên link markdown nào cũng dính.
+- **Gốc: đường dẫn trong link markdown là URL-ish, còn tên file trên đĩa thì không.** Obsidian, VS Code lẫn AI đều ghi `07%20-%20Wiki/LLM%20Wiki.md` chứ không ghi khoảng trắng trần. Dashboard đem nguyên chuỗi đó đi hỏi server, tức là hỏi một file tên `07%20-%20Wiki` - thứ không bao giờ tồn tại. Nay gỡ mã hoá phần trăm trước khi coi nó là đường dẫn vault.
+- **Ảnh còn hỏng nặng hơn một bậc:** `fileUrl()` mã hoá THÊM một lần nữa thành `%2520`, server giải mã một lần được lại đúng `%20`, vẫn trượt, và ô ảnh thành ô xám - người dùng tưởng Javis tự xoá ảnh.
+- Chỉ gỡ cho đường dẫn TRONG vault. URL ngoài giữ nguyên mã hoá, vì `%E1%BB%87` trong một link Wikipedia là một phần của địa chỉ mạng chứ không phải thứ để gỡ. Tên file có dấu `%` thật (`100%.md`) và dấu `+` (`a+b.md`) cũng giữ nguyên - `+` chỉ là khoảng trắng trong query string, đem luật đó sang đường dẫn là hỏng file.
+- **Bấm trượt nay NÓI RA thay vì im.** Trước đây file không tồn tại và file nhị phân rơi chung một cửa, và người dùng nhận đúng một câu "loại file này không xem trực tiếp - hãy tải về" - sai sự thật, lại còn mời tải một thứ không có, nên người ta đi nghi ngờ loại file thay vì nghi ngờ cái link. Nay 404 có cửa riêng, in ra đường dẫn đã thử để còn sửa được link. File nhị phân / quá to vẫn mời tải về như cũ.
+- **Wikilink kẹt trạng thái "bận" thì chết hẳn.** Lớp `jv-wl-busy` chặn mọi cú bấm sau đó, nên một lỗi không ai bắt là link đó chết cho tới khi vẽ lại cả bài - đúng triệu chứng "thi thoảng bấm không mở được file tiếp theo". Nay có nhánh bắt lỗi gỡ lớp bận ra và báo trượt.
+
 ## [0.26.24] - 2026-08-12
 ### Cải thiện
 - **Thẻ Token API nay chỉ đường sang tài liệu.** Trước đây thẻ này là ngõ cụt: người dùng bấm "Tạo token", nhận một chuỗi `jvs_...` chỉ hiện đúng một lần, rồi đứng đó không biết mang nó đi đâu. Tài liệu CLI vẫn nằm trong repo nhưng không có một đường nào từ giao diện dẫn tới - mà đây lại đúng chỗ người dùng gặp tính năng lần đầu.

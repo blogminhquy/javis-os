@@ -65,6 +65,21 @@
     try { return decodeURIComponent(String(s || "").replace(/\+/g, " ")); }
     catch (e) { return ""; }
   }
+  // Duong dan trong link/anh markdown la URL-ish: Obsidian, VS Code va ca AI deu ma hoa phan
+  // tram khi ghi ra, nen "07 - Wiki/LLM Wiki.md" thanh "07%20-%20Wiki/LLM%20Wiki.md". Ten THAT
+  // tren dia khong he co %20. Khong go o day thi ta di hoi server mot file ten "07%20-%20Wiki",
+  // khong bao gio co, va cu bam chet IM - dung trieu chung chu repo bao: bam vao link khong
+  // mo ra gi ca. Con anh thi te hon mot bac: fileUrl() ma hoa THEM lan nua (%2520) nen server
+  // nhan lai dung chuoi %20 sau khi giai ma mot lan, ra 404, o anh thanh o xam.
+  //
+  // KHONG doi "+" thanh khoang trang: do la luat cua query string, con "+" la ky tu hop le
+  // trong ten file. Chuoi khong co %hh thi tra ve nguyen ven, va decodeURIComponent nem loi
+  // voi thu nhu "100%.md" - bat lai roi giu nguyen, vi ten that co the co dau % that.
+  function decodeVaultPath(s) {
+    s = String(s == null ? "" : s);
+    if (!/%[0-9a-f]{2}/i.test(s)) return s;
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
   function currentBrainMatches(name) {
     var b = String(brainPath() || "").replace(/\\/g, "/").replace(/\/+$/, "");
     var base = b === "brain" ? "Brain Default" : b.split("/").pop();
@@ -430,6 +445,7 @@
     // Bat ca cap ngoac can bang 1 tang, roi cat title markdown tuy chon o duoi ( "tieu de" / 'tieu de').
     raw = raw.replace(/!\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, function (_m, alt, src) {
       src = src.replace(/\s+(["']).*\1\s*$/, "").trim();
+      if (isVaultRel(src)) src = decodeVaultPath(src);   // %20 -> khoang trang; xem decodeVaultPath
       return put(imgHtml(resolveSrc(src), alt, src));
     });
     // 4) link []() : URL ngoai -> tab moi; file/thu muc vault -> mo dung vi tri trong Tep tin; con lai giu cu
@@ -438,7 +454,9 @@
       var appRef = appFileRef(href);
       if (appRef) return put('<a ' + vaultLink(appRef.path, "", appRef.brain) + ">" + esc(t) + "</a>");
       if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
-      if (isVaultRel(href)) return put('<a ' + vaultLink(href) + ">" + esc(t) + "</a>");
+      // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
+      // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
+      if (isVaultRel(href)) return put('<a ' + vaultLink(decodeVaultPath(href)) + ">" + esc(t) + "</a>");
       return put('<a href="' + esc(resolveSrc(href)) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
     });
     // 4b) URL tran (AI go thang, khong boc markdown) -> tu thanh link mo tab moi. Chay SAU khi link/anh/
@@ -689,6 +707,10 @@
     var tgt = wl.getAttribute("data-vault-path") || "";
     if (!tgt) return;
     wl.classList.add("jv-wl-busy");
+    // Nhanh .catch KHONG phai trang tri: lop 'jv-wl-busy' chan moi cu bam sau do, nen mot loi
+    // duy nhat khong ai bat la link do CHET HAN cho toi khi ve lai ca bai - dung trieu chung
+    // "thi thoang bam khong mo duoc file tiep theo". Go lop bận ra roi bao truot nhu khi khong
+    // tim thay: bam lai duoc, va thay ro la vua that bai.
     wkResolve(tgt).then(function (hit) {
       wl.classList.remove("jv-wl-busy");
       if (!hit) {
@@ -698,6 +720,11 @@
         return;
       }
       moFileVault(hit.rel);
+    }).catch(function () {
+      wl.classList.remove("jv-wl-busy");
+      wl.classList.add("jv-wl-miss");
+      wl.title = "Không mở được note này - thử lại";
+      setTimeout(function () { wl.classList.remove("jv-wl-miss"); }, 1500);
     });
   }
 

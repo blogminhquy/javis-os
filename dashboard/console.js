@@ -5133,6 +5133,24 @@
       + `<div><a href="${_vtRaw(rel, 1)}">⤓ Tải về</a> &nbsp;·&nbsp; <a href="${_vtRaw(rel)}" target="_blank">↗ Mở tab mới</a></div></div>`;
     _neCommonBtns(actions, rel, it);
   }
+  // File KHÔNG TỒN TẠI là chuyện khác hẳn file không xem trực tiếp được, nhưng trước bản này cả
+  // hai rơi chung một cửa và người dùng nhận đúng một câu: "loại file này không xem trực tiếp -
+  // hãy tải về". Câu đó sai sự thật khi link trỏ trượt, lại còn mời tải một thứ không có, nên
+  // người dùng đi nghi ngờ loại file thay vì nghi ngờ cái link. Nói thẳng đường dẫn đã thử là
+  // biến một cú bấm chết thành một báo lỗi sửa được.
+  function _neRenderMissing(body, actions, rel, it, loi) {
+    body.className = "ne-body";
+    body.innerHTML = `<div class="ne-dl"><div class="ne-dl-ico">${_fileIcon(it.ext)}</div>`
+      + `<div><b>${esc(loi || "Không tìm thấy file")}</b><br>`
+      + `Link trỏ tới <code>${esc(rel)}</code> nhưng chỗ đó không có gì.<br>`
+      + `File có thể đã đổi tên, bị xoá, hoặc link ghi sai đường dẫn.</div></div>`;
+    const ed = document.getElementById("noteEditor");
+    actions.innerHTML = "";
+    const b = document.createElement("button");
+    b.innerHTML = X_ICON; b.title = "Đóng (Esc)"; b.onclick = closeNote;
+    actions.appendChild(b);
+    if (ed) ed.classList.remove("ne-full");
+  }
 
   // Nạp turndown (HTML→markdown) LAZY, chỉ khi cần lưu bản WYSIWYG. + plugin GFM (bảng).
   let _tdPromise = null, _td = null;
@@ -5337,6 +5355,9 @@
       let resp, d = {};
       try { resp = await fetch(`/files/read?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}`); d = await resp.json().catch(() => ({})); }
       catch (e) { _neRenderDownload(body, actions, rel, it); return; }
+      // 404 = không có file ở đường dẫn đó (server trả rõ như vậy). Mọi lỗi còn lại - nhị phân,
+      // quá to - vẫn là file CÓ THẬT nên đường tải về mới có nghĩa.
+      if (resp.status === 404) { _neRenderMissing(body, actions, rel, it, d.error); return; }
       if (!resp.ok || d.error || d.content == null) { _neRenderDownload(body, actions, rel, it); return; }
       // Mở file để sửa = GHIM nó vào khung chat làm file đầu vào. Mở file khác thì thay chỗ,
       // nên chỉ cần gọi set() ở đây, không phải dọn ghim cũ. Đóng trình sửa KHÔNG bỏ ghim:
