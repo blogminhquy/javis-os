@@ -68,8 +68,20 @@ check("tạo thiếu Agent -> từ chối", bad is None and "agent" in why.lower
 bad, why = chatbot_store.create_bot({"name": "Bot", "agent_slug": "cskh"})
 check("tạo thiếu brain -> từ chối", bad is None and "brain" in why.lower())
 
-bad, _ = chatbot_store.create_bot({"name": "Bot", "agent_slug": "CSKH Hoa!", "brain": "shop"})
-check("slug Agent bậy -> từ chối", bad is None)
+# Slug Agent = TÊN FILE trong Javis/agents, và tên đó do người dùng đặt. Rào ở đây canh AN
+# TOÀN ĐƯỜNG DẪN chứ không canh hình dạng: khuôn cũ chỉ nhận ASCII nên nó chặn đúng những
+# Agent đặt tên tiếng Việt (`main._slugify` giữ nguyên dấu), và chặn bằng câu "Thiếu Agent"
+# trong khi chủ đang nhìn thấy Agent mình vừa chọn trong ô.
+for xau in ("../../etc/passwd", "a/b", "a\\b", ".hidden", "x" * 65, "  "):
+    bad, why = chatbot_store.create_bot({"name": "Bot", "agent_slug": xau, "brain": "shop"})
+    check(f"slug Agent nguy hiểm {xau!r} -> từ chối", bad is None and bool(why))
+
+bid_vn, why = chatbot_store.create_bot({"name": "Bot tiếng Việt",
+                                        "agent_slug": "tư-vấn-sản-phẩm", "brain": "shop"})
+check("slug Agent tiếng Việt CÓ DẤU -> nhận", bool(bid_vn) and why == "")
+check("slug tiếng Việt lưu nguyên vẹn",
+      chatbot_store.get_bot(bid_vn)["agent"]["slug"] == "tư-vấn-sản-phẩm")
+chatbot_store.delete_bot(bid_vn)
 
 bid, why = chatbot_store.create_bot({
     "name": "Bot Chăm sóc khách",
@@ -157,7 +169,21 @@ chatbot_store.update_bot(bid, {"name": "   "})
 check("tên rỗng không xoá mất tên cũ", chatbot_store.get_bot(bid)["name"] == "Bot CSKH")
 
 ok, why = chatbot_store.update_bot("bot_khong-co", {"name": "x"})
-check("sửa bot không tồn tại -> báo lỗi", ok is False and why)
+check("sửa bot không tồn tại -> báo lỗi", ok is False and why == chatbot_store.LOI_KHONG_CO_BOT)
+
+# Slug Agent hỏng phải TỪ CHỐI cả bản vá. Bản trước lặng lẽ bỏ qua riêng trường đó, nên form
+# Sửa báo "đã lưu" trong khi bot vẫn trỏ về Agent cũ - chủ chỉ biết khi khách nhận được câu
+# trả lời của một vai mà mình tưởng đã đổi.
+ok, why = chatbot_store.update_bot(bid, {"name": "Tên mới", "agent_slug": "../trom"})
+check("sửa với slug Agent nguy hiểm -> từ chối cả bản vá",
+      ok is False and why == chatbot_store.LOI_SLUG_AGENT)
+check("bản vá bị từ chối thì KHÔNG ghi trường nào",
+      chatbot_store.get_bot(bid)["name"] == "Bot CSKH")
+
+ok, _ = chatbot_store.update_bot(bid, {"agent_slug": "chăm-sóc-khách-hàng"})
+check("sửa sang Agent tên tiếng Việt -> nhận",
+      ok and chatbot_store.get_bot(bid)["agent"]["slug"] == "chăm-sóc-khách-hàng")
+chatbot_store.update_bot(bid, {"agent_slug": "cskh"})
 
 
 # ============================================================

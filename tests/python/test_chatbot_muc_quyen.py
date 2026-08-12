@@ -392,8 +392,11 @@ check("route trả can_force kèm lý do, không im lặng hạ mức",
       '"can_force": True' in _SRC and "chatbot_store.canh_bao_muc(m)" in _SRC)
 check("danh sách bot kèm luôn nhãn + cảnh báo từng mức (giao diện không chép cứng)",
       '"muc_quyen": [' in _SRC and "chatbot_store.MUC_NHAN.get(m, m)" in _SRC)
+# 404 CHỈ dành cho "không có bot nào id đó". Mọi lý do từ chối khác (xác nhận rủi ro, slug
+# Agent hỏng) là 400 - bot có thật, chỉ yêu cầu sai. Liệt kê ngược lại (mặc định 404, trừ ra
+# một trường hợp) thì mỗi lý do mới thêm vào kho lại đi ra ngoài dưới dạng "không tìm thấy bot".
 check("rào xác nhận trả 400 chứ không phải 404",
-      "status_code=400 if err == chatbot_store.LOI_CHUA_XAC_NHAN else 404" in _SRC)
+      "status_code=404 if err == chatbot_store.LOI_KHONG_CO_BOT else 400" in _SRC)
 
 print()
 if _fails:

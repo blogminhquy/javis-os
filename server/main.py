@@ -11073,9 +11073,12 @@ async def chatbots_update(bot_id: str, request: Request):
             return chan
     ok, err = chatbot_store.update_bot(bot_id, form)
     if not ok:
-        # 404 là "không có bot nào id đó"; rào xác nhận rủi ro là 400 (yêu cầu sai, bot có thật).
+        # 404 CHỈ khi thật sự không có bot nào id đó; mọi lý do còn lại (xác nhận rủi ro, slug
+        # Agent hỏng) là 400 - bot có thật, chỉ yêu cầu sai. Bản trước liệt kê ngược lại: mặc
+        # định 404 rồi trừ ra một trường hợp, nên mỗi lý do từ chối mới thêm vào kho lại đi ra
+        # ngoài dưới dạng "không tìm thấy bot", đọc xong không lần được ra lỗi thật.
         return JSONResponse({"ok": False, "error": err},
-                            status_code=400 if err == chatbot_store.LOI_CHUA_XAC_NHAN else 404)
+                            status_code=404 if err == chatbot_store.LOI_KHONG_CO_BOT else 400)
     # Đang chạy mà đổi token/agent/brain thì phải khởi động lại mới ăn. Khởi động lại luôn cho
     # chắc thay vì đoán trường nào cần: sai ở đây là bot chạy bằng cấu hình cũ mà không ai biết.
     if bot_id in chatbot_runtime._RUNNING:
