@@ -73,13 +73,84 @@ check("nhưng bước SAU đó vẫn nhận",
 _uri = totp.otpauth_uri(S, "admin", "Javis OS của Quý: bản 1")
 check("otpauth bỏ dấu tiếng Việt và ký tự phá cú pháp",
       _uri.startswith("otpauth://totp/") and "ủ" not in _uri and _uri.count(":") == 1)
-check("otpauth mang secret + chu kỳ + số chữ số", f"secret={S}" in _uri and "period=30" in _uri)
+# `period`/`digits` cố ý KHÔNG có mặt khi chúng đúng bằng mặc định - xem mục 1b, chúng chỉ làm
+# QR dày lên mà không thêm thông tin nào. Phần bắt buộc được kiểm kỹ hơn ở đó.
+check("otpauth mang secret và issuer", f"secret={S}" in _uri and "issuer=" in _uri)
 _ma = totp.sinh_ma_khoi_phuc()
 check("sinh đúng 10 mã khôi phục", len(_ma) == 10 and len(set(_ma)) == 10)
 check("mã khôi phục không có ký tự dễ nhầm (0 O 1 I L)",
       not any(ch in "01OIL" for m in _ma for ch in m))
 check("chuẩn hoá bỏ qua cách gõ",
       totp.chuan_hoa_ma_khoi_phuc(_ma[0].lower().replace("-", " ")) == _ma[0])
+
+
+# ============================================================
+# 1b. QR phải QUÉT ĐƯỢC - lỗi thật ở 0.26.20
+# ============================================================
+# Chủ repo bật 2FA, QR hiện ra đàng hoàng, và điện thoại quét không ra. Ba lỗi cộng dồn, mà
+# cả ba đều KHÔNG nhìn thấy được bằng mắt vì cái QR trông vẫn "bình thường":
+#
+#   1. Vùng trắng viền chỉ 2 ô, chuẩn QR đòi 4. Máy quét không tách được mã khỏi nền.
+#   2. URI nhét thừa `algorithm=SHA1&digits=6&period=30` - toàn giá trị MẶC ĐỊNH mà app nào
+#      cũng tự hiểu. 34 ký tự thừa đẩy QR từ v6 (41x41) lên v8 (49x49).
+#   3. CSS ép ảnh xuống 200px trong khi ảnh gốc 265px → mỗi ô còn 3,77px. Người dùng soi
+#      điện thoại vào MÀN HÌNH máy tính chứ không phải tờ giấy, nên cỡ mỗi ô là tất cả.
+#
+# Con số là thứ duy nhất canh được ở đây, nên test đo bằng số chứ không đọc chữ.
+import re as _re          # noqa: E402
+import segno as _segno    # noqa: E402
+
+_uri = totp.otpauth_uri(S, "admin", "Javis OS")
+for _thua in ("algorithm=", "digits=", "period="):
+    check(f"URI KHÔNG nhét tham số mặc định ({_thua!r}) - chỉ làm QR dày thêm",
+          _thua not in _uri)
+check("nhưng vẫn đủ phần bắt buộc", _uri.startswith("otpauth://totp/")
+      and f"secret={S}" in _uri and "issuer=" in _uri)
+
+# Đổi hằng số mà URI im lặng thì app sinh mã KHÁC server chờ - hỏng câm, phải khai lại.
+_cu = (totp.SO_CHU_SO, totp.CHU_KY)
+try:
+    totp.SO_CHU_SO, totp.CHU_KY = 8, 60
+    _u2 = totp.otpauth_uri(S, "admin", "Javis OS")
+    check("CANARY: đổi hằng số khác mặc định thì URI PHẢI khai ra",
+          "digits=8" in _u2 and "period=60" in _u2)
+finally:
+    totp.SO_CHU_SO, totp.CHU_KY = _cu
+
+# Tên workspace nằm HAI chỗ trong URI nên mỗi ký tự tốn gấp đôi. Đo thật: 48 ký tự đẩy QR
+# từ v6 lên v11 (69 ô) - đủ để quét không ra nữa.
+_dai = totp.otpauth_uri(S, "nguyenvanadmin" * 3, "Cong ty TNHH Thuong mai Dich vu Minh Quy Sai Gon")
+check("tên workspace/tài khoản dài bị cắt để QR không phình", len(_dai) <= 180)
+
+
+def _px_moi_o(uri):
+    """Số pixel mỗi ô ở kích thước TỰ NHIÊN của SVG. Đây là con số quyết định quét được hay không."""
+    svg = totp.qr_svg(uri)
+    canh_px = int(_re.search(r'width="(\d+)"', svg).group(1))
+    so_o = _segno.make(uri, error="m").symbol_size(scale=1, border=4)[0]
+    return canh_px / so_o, svg
+
+
+for _ten, _tk in (("Javis OS", "admin"),
+                  ("Cong ty TNHH Thuong mai Dich vu Minh Quy Sai Gon", "nguyenvanadmin")):
+    _px, _svg = _px_moi_o(totp.otpauth_uri(S, _tk, _ten))
+    check(f"CANARY: mỗi ô >= 7px ở cỡ tự nhiên (workspace {len(_ten)} ký tự) - đang {_px:.1f}px",
+          _px >= 7)
+
+_px, _svg = _px_moi_o(_uri)
+check("QR có nền TRẮNG THẬT, không dựa vào màu nền của thẻ bọc (tông tối vẫn quét được)",
+      "#fff" in _svg.lower())
+_src_totp = (SERVER / "totp.py").read_text(encoding="utf-8")
+check("CANARY: vùng trắng viền đúng chuẩn 4 ô", "border=4" in _src_totp)
+check("CANARY: KHÔNG để nền trong suốt", "light=None" not in _src_totp)
+
+# CSS ép kích thước là cách âm thầm nhất để phá lại mọi thứ ở trên: server trả ảnh đúng cỡ,
+# trình duyệt nén nó lại, và không có test nào phía server thấy được.
+_css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
+_dong = [l for l in _css.splitlines() if ".tfa-qr svg" in l]
+check("có luật CSS cho ảnh QR", len(_dong) == 1)
+check("CANARY: CSS KHÔNG ép ảnh QR về một cỡ pixel cố định",
+      bool(_dong) and not _re.search(r"width:\s*\d+px", _dong[0]))
 
 
 # ============================================================

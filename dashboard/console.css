@@ -794,7 +794,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .tfa-step { font-size: 13px; line-height: 1.55; color: var(--text2); }
 .tfa-step b { color: var(--text); }
 .tfa-qr { align-self: flex-start; background: #fff; padding: 10px; border-radius: 10px; border: 1px solid var(--glass-brd); }
-.tfa-qr svg { display: block; width: 200px; height: 200px; }
+/* KHÔNG ép kích thước: để SVG ra đúng cỡ tự nhiên mà server đã tính (8px mỗi ô).
+   Ép xuống 200px là nén 49 ô vào 200px = 3,7px mỗi ô, và camera điện thoại soi màn hình
+   ở cỡ đó thì quét không ra - đúng lỗi ở 0.26.20. max-width giữ cho nó không tràn thẻ
+   trên màn hình hẹp; height:auto để tỉ lệ vuông không bị méo khi bị thu. */
+.tfa-qr svg { display: block; width: auto; max-width: 100%; height: auto; }
 .tfa-secret { display: inline-block; font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 1px; background: var(--surface-2); border: 1px solid var(--glass-brd); border-radius: 6px; padding: 3px 8px; margin-left: 4px; user-select: all; word-break: break-all; }
 .tfa-rec { margin-top: 10px; }
 .tfa-rec-note { font-size: 13px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 9px 11px; margin-bottom: 10px; }

@@ -85,11 +85,30 @@ def _sach(s: str) -> str:
 
 
 def otpauth_uri(secret: str, ten_dang_nhap: str, ten_workspace: str = "Javis OS") -> str:
-    """Chuỗi `otpauth://` để app Authenticator quét QR hoặc nhập tay."""
-    issuer = _sach(ten_workspace)
-    label = quote(f"{issuer}:{_sach(ten_dang_nhap) or 'admin'}", safe="")
-    return (f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer, safe='')}"
-            f"&algorithm=SHA1&digits={SO_CHU_SO}&period={CHU_KY}")
+    """Chuỗi `otpauth://` để app Authenticator quét QR hoặc nhập tay.
+
+    CHỈ kèm `algorithm`/`digits`/`period` khi chúng KHÁC mặc định. Ba giá trị SHA1 / 6 số /
+    30 giây là mặc định của Key Uri Format và mọi app Authenticator đều tự hiểu, nên viết ra
+    không thêm thông tin gì - chỉ làm chuỗi dài thêm 34 ký tự.
+
+    Nghe như chuyện thẩm mỹ nhưng không phải: chuỗi dài đẩy QR từ phiên bản 6 lên 8, tức từ
+    41x41 ô lên 49x49 ô trong cùng một khung hình. Ô nhỏ đi là camera điện thoại soi màn hình
+    máy tính không bắt được nữa - đúng lỗi chủ repo gặp ở 0.26.20.
+    """
+    # Cắt ngắn tên: tên workspace nằm HAI chỗ trong URI (đầu nhãn + tham số issuer) nên mỗi ký
+    # tự tốn gấp đôi. Đo thật: workspace 48 ký tự đẩy QR từ v6 (49 ô) lên v11 (69 ô) - đủ để
+    # quét không ra nữa. Người dùng đặt tên dài không có lỗi gì, nên chặn ở đây thay vì để họ
+    # gặp một cái QR hỏng mà không hiểu vì sao.
+    issuer = _sach(ten_workspace)[:24].strip() or "Javis"
+    tai_khoan = _sach(ten_dang_nhap)[:24].strip() or "admin"
+    label = quote(f"{issuer}:{tai_khoan}", safe="")
+    uri = f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer, safe='')}"
+    # Ai đổi hằng số ở đầu file thì URI tự khai lại - bỏ im lặng ở đây là app sinh mã sai.
+    if SO_CHU_SO != 6:
+        uri += f"&digits={SO_CHU_SO}"
+    if CHU_KY != 30:
+        uri += f"&period={CHU_KY}"
+    return uri
 
 
 def qr_svg(noi_dung: str) -> str:
@@ -109,8 +128,16 @@ def qr_svg(noi_dung: str) -> str:
         # rồi trả "" nên lỗi này không hiện ra ở đâu cả: QR biến mất, giao diện lặng lẽ lui về
         # nhập tay, và không ai biết vì sao. Nên vừa dùng BytesIO cho đúng, vừa in lỗi ra log.
         buf = io.BytesIO()
-        segno.make(noi_dung, error="m").save(buf, kind="svg", scale=5, border=2,
-                                             dark="#111", light=None)
+        # border=4: ĐÚNG CHUẨN QR. Vùng trắng quanh mã phải rộng 4 ô thì máy quét mới tách được
+        # mã ra khỏi nền. Bản 0.26.20 để 2 và đó là một trong ba lý do chủ repo quét không ra.
+        #
+        # light="#fff": nền TRẮNG THẬT, không để trong suốt. Trước đây QR dựa vào màu nền của
+        # thẻ bọc nó; đúng ở tông sáng, nhưng ai đổi sang tông tối là mã đen nằm trên nền tối.
+        #
+        # scale=8: mỗi ô 8px thay vì 5. Người dùng soi điện thoại vào MÀN HÌNH máy tính chứ
+        # không phải vào tờ giấy, nên ô to là thứ quyết định quét được hay không.
+        segno.make(noi_dung, error="m").save(buf, kind="svg", scale=8, border=4,
+                                             dark="#111", light="#fff")
         return buf.getvalue().decode("utf-8")
     except Exception as e:  # noqa: BLE001 - thiếu QR không được làm hỏng cả màn bật 2FA
         import sys
