@@ -12,6 +12,8 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **CSS ép ảnh QR xuống 200px trong khi ảnh gốc 265px**, tức mỗi ô còn 3,77 pixel. Đây là thủ phạm nặng nhất: người dùng soi điện thoại vào MÀN HÌNH máy tính chứ không phải tờ giấy, nên cỡ mỗi ô quyết định tất cả. Nay để ảnh ra đúng cỡ server tính (8 pixel mỗi ô, hơn gấp đôi).
 - **Tên workspace dài làm QR phình lại.** Tên nằm HAI chỗ trong chuỗi otpauth nên mỗi ký tự tốn gấp đôi; đo thật thì tên 48 ký tự đẩy QR lên phiên bản 11 (69 ô). Nay cắt tên ở 24 ký tự, nên đặt tên kiểu gì QR cũng giữ được 8 pixel mỗi ô.
 - **Nền QR nay là trắng thật**, không còn trong suốt dựa vào màu nền của thẻ bọc - ai dùng tông tối trước đây sẽ thấy mã đen nằm trên nền tối.
+- **Tên trong app Authenticator lấy theo workspace và theo NGƯỜI.** Trước đây hiện "Javis OS: admin" - đúng về kỹ thuật nhưng vô nghĩa khi nằm giữa chục tài khoản 2FA trên điện thoại. Nay lấy tên workspace thật cộng tên người dùng (`USER_NAME`), rơi về tên đăng nhập khi chưa đặt: "Javis OS: Minh Quý".
+- **Nhãn GIỮ nguyên dấu tiếng Việt.** Bản đầu bóc sạch dấu ("Minh Quý" thành "Minh Quy") vì sợ app hiện chuỗi hỏng; nỗi sợ đó lỗi thời - Key Uri Format cho phép nhãn UTF-8 phần trăm-mã-hoá và các app phổ biến đọc đúng từ lâu. Chỉ còn bỏ ký tự điều khiển và dấu ':' (nó là dấu ngăn giữa tên workspace và tên tài khoản, lọt vào là vỡ nhãn). Đã đo: kể cả tên có dấu dài hết mức thì QR vẫn giữ 8 pixel mỗi ô.
 - Thêm canary đo bằng SỐ chứ không đọc chữ: mỗi ô phải >= 7 pixel ở cỡ tự nhiên, viền phải 4 ô, nền không được trong suốt, và CSS không được ép ảnh về một cỡ pixel cố định. Vế cuối là cách âm thầm nhất để phá lại mọi thứ ở trên - server trả ảnh đúng cỡ, trình duyệt nén lại, và không test phía server nào thấy được.
 
 ## [0.26.21] - 2026-08-11

@@ -70,9 +70,15 @@ check("CANARY: bước <= bước đã dùng thì TỪ CHỐI (chống dùng l�
 check("nhưng bước SAU đó vẫn nhận",
       totp.kiem(S, totp.ma_cua_buoc(S, B + 1), buoc_da_dung=B) == B + 1)
 # Nhãn otpauth: tên workspace tiếng Việt có dấu làm vài app hiện chuỗi hỏng, dấu ':' phá cú pháp.
-_uri = totp.otpauth_uri(S, "admin", "Javis OS của Quý: bản 1")
-check("otpauth bỏ dấu tiếng Việt và ký tự phá cú pháp",
-      _uri.startswith("otpauth://totp/") and "ủ" not in _uri and _uri.count(":") == 1)
+# Nhãn GIỮ dấu tiếng Việt (phần trăm-mã-hoá UTF-8, đúng Key Uri Format) nhưng phải bỏ dấu ':'
+# vì nó là dấu ngăn giữa issuer và tên tài khoản - lọt vào là vỡ cú pháp nhãn.
+_uri = totp.otpauth_uri(S, "Minh Quý", "Javis OS của Quý: bản 1")
+import urllib.parse as _up   # noqa: E402
+_nhan = _up.unquote(_up.urlparse(_uri).path).lstrip("/")
+check("otpauth đúng dạng và chỉ còn MỘT dấu ':' (của scheme)",
+      _uri.startswith("otpauth://totp/") and _uri.count(":") == 1)
+check("nhãn GIỮ nguyên dấu tiếng Việt", _nhan == "Javis OS của Quý bản 1:Minh Quý")
+check("dấu ':' trong tên workspace bị bỏ, không phá nhãn", _nhan.count(":") == 1)
 # `period`/`digits` cố ý KHÔNG có mặt khi chúng đúng bằng mặc định - xem mục 1b, chúng chỉ làm
 # QR dày lên mà không thêm thông tin nào. Phần bắt buộc được kiểm kỹ hơn ở đó.
 check("otpauth mang secret và issuer", f"secret={S}" in _uri and "issuer=" in _uri)
@@ -121,6 +127,23 @@ finally:
 # từ v6 lên v11 (69 ô) - đủ để quét không ra nữa.
 _dai = totp.otpauth_uri(S, "nguyenvanadmin" * 3, "Cong ty TNHH Thuong mai Dich vu Minh Quy Sai Gon")
 check("tên workspace/tài khoản dài bị cắt để QR không phình", len(_dai) <= 180)
+
+# Tên hiển thị trong app: USER_NAME (tên người tự đặt) thắng auth.username (thường là "admin",
+# đúng kỹ thuật nhưng vô nghĩa khi nằm giữa chục tài khoản 2FA trên điện thoại).
+_cfg_gia = {"auth": {"username": "admin"}}
+_env_cu = os.environ.get("USER_NAME")
+try:
+    for _v, _mong in (("Minh Quý", "Minh Quý"), ("Bạn", "admin"), ("", "admin"), ("  ", "admin")):
+        os.environ["USER_NAME"] = _v
+        check(f"USER_NAME={_v!r} -> app hiện {_mong!r}", main._ten_hien_thi(_cfg_gia) == _mong)
+    os.environ.pop("USER_NAME", None)
+    check("không có USER_NAME -> lấy tên đăng nhập", main._ten_hien_thi(_cfg_gia) == "admin")
+    check("không có gì cả -> 'admin', không nổ", main._ten_hien_thi({}) == "admin")
+finally:
+    if _env_cu is None:
+        os.environ.pop("USER_NAME", None)
+    else:
+        os.environ["USER_NAME"] = _env_cu
 
 
 def _px_moi_o(uri):

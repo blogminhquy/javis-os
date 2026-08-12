@@ -78,10 +78,19 @@ def kiem(secret: str, ma: str, *, buoc_da_dung: int = 0, luc: float | None = Non
 
 
 def _sach(s: str) -> str:
-    """Bỏ dấu + ký tự lạ cho nhãn otpauth. Tên workspace tiếng Việt có dấu làm vài app
-    Authenticator hiện chuỗi hỏng, và ':' thì phá luôn cú pháp label của otpauth."""
-    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode("ascii")
-    return "".join(ch for ch in s if ch.isalnum() or ch in " ._-").strip() or "Javis"
+    """Dọn nhãn otpauth, GIỮ NGUYÊN dấu tiếng Việt.
+
+    Bản đầu bóc sạch dấu ("Minh Quý" -> "Minh Quy") vì sợ app Authenticator hiện chuỗi hỏng.
+    Nỗi sợ đó lỗi thời: Key Uri Format cho phép nhãn là UTF-8 phần trăm-mã-hoá, và các app
+    phổ biến (Google, Microsoft, 1Password, Bitwarden) đọc đúng từ lâu. Với một sản phẩm dùng
+    tiếng Việt thì hiện đúng tên người ta đáng giá hơn nhiều so với rủi ro đó.
+
+    Chỉ còn bỏ đúng hai nhóm gây hỏng THẬT:
+      - ký tự điều khiển (xuống dòng, tab...) - làm vỡ chuỗi URI;
+      - dấu ':' - nó là dấu ngăn giữa issuer và tên tài khoản, lọt vào là hỏng cú pháp nhãn.
+    """
+    s = unicodedata.normalize("NFC", str(s or ""))
+    return "".join(ch for ch in s if ch.isprintable() and ch != ":").strip()
 
 
 def otpauth_uri(secret: str, ten_dang_nhap: str, ten_workspace: str = "Javis OS") -> str:
@@ -99,6 +108,9 @@ def otpauth_uri(secret: str, ten_dang_nhap: str, ten_workspace: str = "Javis OS"
     # tự tốn gấp đôi. Đo thật: workspace 48 ký tự đẩy QR từ v6 (49 ô) lên v11 (69 ô) - đủ để
     # quét không ra nữa. Người dùng đặt tên dài không có lỗi gì, nên chặn ở đây thay vì để họ
     # gặp một cái QR hỏng mà không hiểu vì sao.
+    # Cắt ở 24 KÝ TỰ chứ không phải 24 byte: chữ có dấu chiếm 6 ký tự sau khi mã hoá ("ý" ->
+    # %C3%BD), nên cùng một giới hạn thì tên tiếng Việt tốn chỗ hơn tên không dấu. Đã đo: kể cả
+    # 24 ký tự có dấu hết thì QR vẫn giữ 8px mỗi ô, tức vẫn quét thoải mái.
     issuer = _sach(ten_workspace)[:24].strip() or "Javis"
     tai_khoan = _sach(ten_dang_nhap)[:24].strip() or "admin"
     label = quote(f"{issuer}:{tai_khoan}", safe="")

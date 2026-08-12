@@ -765,6 +765,22 @@ def _doi_phien_that(request: Request):
     return None
 
 
+def _ten_hien_thi(cfg=None) -> str:
+    """Tên NGƯỜI để hiện trong app Authenticator, sau tên workspace: "Javis OS: Minh Quý".
+
+    Thứ tự ưu tiên có lý do: `USER_NAME` là tên người dùng tự đặt cho chính mình, còn
+    `auth.username` là tên ĐĂNG NHẬP - thường là "admin", đúng về kỹ thuật nhưng vô nghĩa khi
+    nằm trong danh sách chục tài khoản 2FA trên điện thoại.
+
+    Bỏ qua giá trị mặc định "Bạn" của env: nó là chỗ giữ chỗ, không phải tên ai cả.
+    """
+    cfg = cfg if cfg is not None else cfgmod.read_settings()
+    ten = (os.getenv("USER_NAME", "") or "").strip()
+    if ten and ten.lower() not in ("bạn", "ban", "you", "user"):
+        return ten
+    return (cfg.get("auth", {}) or {}).get("username") or "admin"
+
+
 # Secret ĐANG CHỜ xác nhận, giữ trong RAM chứ không ghi settings. Ghi xuống đĩa trước khi
 # người dùng chứng minh app của họ sinh đúng mã là để lại một secret nửa vời trong file cấu
 # hình; restart giữa chừng thì nó nằm đó mãi mà chẳng ai dùng.
@@ -784,7 +800,7 @@ async def auth_2fa_start(request: Request):
     secret = totp.sinh_secret()
     _TOTP_CHO.clear()
     _TOTP_CHO.update(secret=secret, ts=time.time())
-    uri = totp.otpauth_uri(secret, cfg.get("auth", {}).get("username") or "admin",
+    uri = totp.otpauth_uri(secret, _ten_hien_thi(cfg),
                            cfg.get("workspace_name") or "Javis OS")
     return {"ok": True, "secret": secret, "uri": uri, "qr_svg": totp.qr_svg(uri)}
 
