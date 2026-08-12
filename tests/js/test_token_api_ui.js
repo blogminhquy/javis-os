@@ -112,6 +112,25 @@ for (const [f, ten] of NOI) {
 const DOC = fs.readFileSync(path.join(ROOT, "docs", "24-cli-terminal.md"), "utf8");
 check("tài liệu CLI chỉ đúng trang Tài khoản", /Tài khoản\s*(>|&gt;)?\s*.{0,40}Token API|\*\*Tài khoản\*\*/.test(DOC));
 
+// ============================================================
+// 7. Có đường sang tài liệu, và đường đó phải còn thật
+// ============================================================
+// Người dùng cầm chuỗi `jvs_...` trong tay mà không biết bước kế tiếp là `pip install javis-cli`
+// thì token vừa tạo thành rác. Link chết cũng hỏng im lặng như vậy: đổi tên file tài liệu thì
+// trang vẫn vẽ ra bình thường, chỉ có người bấm mới lãnh 404. Nên soi cả hai đầu.
+const LINKS = [
+  ["docs/24-cli-terminal.md", "tài liệu CLI"],
+  ["docs/14-bao-mat-tai-khoan.md", "tài liệu bảo mật"],
+];
+for (const [f, ten] of LINKS) {
+  check(`thẻ Token API có link tới ${ten}`, CON.includes("/blob/main/" + f));
+  check(`CANARY: ${ten} còn tồn tại đúng đường đó`, fs.existsSync(path.join(ROOT, f)));
+}
+check("link mở tab mới, không cuốn người dùng ra khỏi dashboard",
+  /24-cli-terminal\.md" target="_blank" rel="noopener"/.test(CON));
+check("lúc token vừa hiện thì chỉ luôn cách cài CLI", /pip install javis-cli/.test(khoiTao));
+check("khối link có kiểu riêng", /\.tk-docs \{/.test(CSS));
+
 console.log("");
 if (fails.length) { console.log("THẤT BẠI " + fails.length + ": " + fails.join(", ")); process.exit(1); }
 console.log("OK - test_token_api_ui: tất cả pass");

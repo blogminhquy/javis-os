@@ -365,6 +365,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 1px solid var(--glass-brd); font-size: 13px; word-break: break-all;
   user-select: all;
 }
+/* Token mà không có tài liệu thì người dùng cầm chuỗi jvs_ trong tay mà không biết dán vào đâu.
+   Link đặt ngay dưới thẻ, và lặp lại lúc token vừa hiện ra - đúng lúc cần bước kế tiếp nhất. */
+.tk-docs {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--surface-3);
+}
+.tk-docs a, .tk-doclink { font-size: 12.5px; color: var(--link-ink); text-decoration: none; }
+.tk-docs a:hover, .tk-doclink:hover { text-decoration: underline; }
 .gcard-btn {
   margin-top: 14px; width: 100%; padding: 9px; border-radius: 10px; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--glass-brd); color: var(--text);

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.24] - 2026-08-12
+### Cải thiện
+- **Thẻ Token API nay chỉ đường sang tài liệu.** Trước đây thẻ này là ngõ cụt: người dùng bấm "Tạo token", nhận một chuỗi `jvs_...` chỉ hiện đúng một lần, rồi đứng đó không biết mang nó đi đâu. Tài liệu CLI vẫn nằm trong repo nhưng không có một đường nào từ giao diện dẫn tới - mà đây lại đúng chỗ người dùng gặp tính năng lần đầu.
+- Link đặt ở HAI nơi vì đó là hai thời điểm khác nhau: dưới thẻ (lúc đang cân nhắc có nên tạo token không) và ngay trong khối token vừa hiện ra, kèm `pip install javis-cli` - lúc token nằm trong tay và câu hỏi duy nhất là "giờ làm gì tiếp".
+- Test canary kiểm CẢ HAI ĐẦU: trang có link, và file tài liệu còn tồn tại đúng đường dẫn đó. Đổi tên file tài liệu là kiểu hỏng im lặng nhất - trang vẫn vẽ ra bình thường, chỉ người bấm mới lãnh 404.
+
 ## [0.26.23] - 2026-08-12
 ### Sửa lỗi
 - **Mã QR của xác thực 2 lớp quét không ra.** Chủ repo bật 2FA, QR hiện ra đàng hoàng, điện thoại soi vào thì chịu. Ba lỗi cộng dồn, và cả ba đều KHÔNG nhìn thấy được bằng mắt vì cái QR trông vẫn bình thường.
