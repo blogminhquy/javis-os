@@ -628,10 +628,18 @@
       </section>
       <div id="clTimeline"><div class="cl-note">Đang tải nhật ký cập nhật...</div></div>
     </div>`;
-    wireUpdateManager(el);
+    // Nút "Kiểm tra lại" PHẢI làm mới cả danh sách bên dưới, không chỉ khung trên.
+    wireUpdateManager(el, napTimeline);
+    await napTimeline();
+
+    async function napTimeline() {
     let d;
     try {
-      const r = await fetch("/changelog");
+      // cache: "no-store" - KHÔNG phải đề phòng suông. Mọi lời gọi khác ở trang này đều đã
+      // no-store; riêng dòng nạp danh sách phiên bản thì quên, nên nó là chỗ duy nhất có thể
+      // ăn bản cũ trong bộ nhớ đệm trình duyệt. Triệu chứng đúng như chủ repo báo (2026-08-12):
+      // khung trên báo có bản mới, mà danh sách bên dưới không thấy bản đó đâu.
+      const r = await fetch("/changelog", { cache: "no-store" });
       d = await r.json();
     } catch (e) {
       if (myGen !== _renderGen) return;
@@ -643,6 +651,7 @@
     _clData = d;
     const timeline = el.querySelector("#clTimeline");
     if (timeline) _clRenderPage(timeline, 0);
+    }
   }
 
   const UPDATE_STEPS = [
@@ -685,7 +694,7 @@
       + "<code>docker compose up -d --pull always</code>.";
   }
 
-  function wireUpdateManager(root) {
+  function wireUpdateManager(root, napLai) {
     const q = (id) => root.querySelector("#" + id);
     const progress = (phase, extra) => {
       const box = q("updVerProgress"); if (!box) return;
@@ -732,7 +741,15 @@
         update.style.display = "none";
       }
     };
-    const check = q("updVerCheck"); if (check) check.onclick = loadVersion;
+    // Trước bản này nút chỉ gọi loadVersion, tức chỉ vẽ lại KHUNG TRÊN. Danh sách phiên bản
+    // bên dưới chỉ được nạp ĐÚNG MỘT LẦN lúc mở trang, nên bấm "Kiểm tra lại" bao nhiêu lần
+    // cũng không thấy bản mới hiện ra - phải rời trang rồi quay lại, hoặc F5. Chủ repo báo
+    // đúng triệu chứng đó (2026-08-12): "trên bản update anh chưa thấy bản 28".
+    const check = q("updVerCheck");
+    if (check) check.onclick = async () => {
+      await loadVersion();
+      if (typeof napLai === "function") await napLai();
+    };
     const update = q("updVerUpdate");
     if (update) update.onclick = async () => {
       if (!confirm("Cập nhật Javis lên bản mới nhất?\nApp sẽ tự khởi động lại; nếu lỗi hệ thống sẽ thử quay về bản cũ.")) return;

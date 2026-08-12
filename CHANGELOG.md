@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.1] - 2026-08-12
+### Sửa lỗi
+- **Nút "Kiểm tra lại" ở trang Cập nhật nay làm mới cả danh sách phiên bản.** Trước đây nó chỉ làm mới cái khung trên, còn danh sách bên dưới chỉ nạp một lần lúc mở trang - nên bấm bao nhiêu lần cũng không thấy bản mới hiện ra, phải rời trang rồi quay lại hoặc tải lại trang.
+- Danh sách cũng không còn ăn bản cũ trong bộ nhớ đệm trình duyệt. Đây là chỗ duy nhất ở trang này còn thiếu, và đúng chỗ hiển thị các phiên bản.
+
 ## [0.28.0] - 2026-08-12
 ### Thêm mới
 - **Thanh mốc hội thoại nay có trên điện thoại.** Không phải dãy vạch thu nhỏ mà là một nút nhỏ ở góc trên khung chat, chạm vào thì danh sách câu hỏi trượt lên từ đáy, chạm một câu là nhảy tới.
