@@ -472,6 +472,12 @@
     .upd-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .upd-name{font-family:var(--font);font-size:17px;font-weight:700;color:var(--text)}
     .upd-changes{display:none;margin:10px 0;padding:10px 12px;border-left:3px solid var(--accent);background:rgba(120,140,160,.08);border-radius:7px;font-size:13px;line-height:1.55}
+    /* Lý do máy này không có nút cập nhật. Có lệnh để copy nên phải cho ngắt dòng và cho bôi
+       đen cả cụm - dòng lệnh mà đứt mất một chữ là chạy ra lỗi khó hiểu hơn cả lúc chưa có. */
+    .upd-why{margin-top:8px;line-height:1.6;font-size:13.5px}
+    .upd-why code{display:inline-block;margin:3px 0;padding:2px 7px;border-radius:6px;
+      background:var(--surface-2);border:1px solid var(--glass-brd);user-select:all;
+      overflow-wrap:anywhere;word-break:break-word}
     .upd-progress{display:none;margin-top:10px}
     .upd-rollback{display:none;margin-top:10px;padding:10px;border:1px solid var(--red);border-radius:8px;background:rgba(200,80,80,.08);font-size:13px;line-height:1.6}
     .cl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
@@ -644,6 +650,30 @@
     : j.mode === "windows" ? "Windows"
     : (j.platform === "mac" ? "macOS" : "Linux");
 
+  // Vì sao máy này không có nút "Cập nhật ngay". Chủ repo báo (2026-08-12): "một số máy VPS
+  // không có nút update, anh không hiểu vì sao". Cả hai lý do đều ĐÚNG THIẾT KẾ, nhưng app gộp
+  // chúng vào một câu chung chung nên nhìn hệt như máy hỏng.
+  //
+  // Khác nhau ở chỗ QUAN TRỌNG NHẤT: một cái bật được bằng đúng một lệnh, một cái thì không.
+  // Gộp lại là cướp mất của người dùng thông tin duy nhất họ cần.
+  function _updVimSaoKhongCoNut(maLyDo) {
+    if (maLyDo === "watchtower_off") {
+      return "Máy này <b>chưa bật Watchtower</b> - đó là thứ nhận lệnh cập nhật từ nút bấm, và nó "
+        + "nằm ngoài luồng <code>docker compose up -d</code> thường lệ. Bật một lần, ở thư mục chứa "
+        + "file compose:<br><code>docker compose --profile update up -d</code><br>"
+        + "Xong tải lại trang là nút hiện ra. Không muốn bật thì vẫn cập nhật tay được: "
+        + "<code>docker compose up -d --pull always</code>.";
+    }
+    if (maLyDo === "no_token") {
+      return "Bản cài này <b>không kèm Watchtower</b> (stack Hostinger cố tình bỏ - trên đó nó không "
+        + "đụng được Docker socket nên chạy là lỗi vòng lặp). Cập nhật bằng <b>Redeploy</b> trong "
+        + "Hostinger Docker Manager.";
+    }
+    // Rơi vào đây là mode lạ hoặc server cũ chưa trả mã lý do - giữ nguyên câu cũ, đừng đoán bừa.
+    return "↻ Cập nhật bằng <b>Redeploy</b>: Hostinger dùng Docker Manager; VPS chạy "
+      + "<code>docker compose up -d --pull always</code>.";
+  }
+
   function wireUpdateManager(root) {
     const q = (id) => root.querySelector("#" + id);
     const progress = (phase, extra) => {
@@ -682,7 +712,7 @@
         const base = `🆕 Có bản mới <b>v${esc(j.latest)}</b> (đang chạy v${esc(j.current)}) · ${esc(mode)}`;
         if (j.can_self_update) { meta.innerHTML = base; update.style.display = ""; }
         else {
-          meta.innerHTML = base + '<div style="margin-top:8px;line-height:1.55">↻ Cập nhật bằng <b>Redeploy</b>: Hostinger dùng Docker Manager; VPS chạy <code>docker compose up -d --pull always</code>.</div>';
+          meta.innerHTML = base + '<div class="upd-why">' + _updVimSaoKhongCoNut(j.self_update_off) + "</div>";
           update.style.display = "none";
         }
         loadChanges();

@@ -6688,16 +6688,35 @@ async def _watchtower_reachable() -> bool:
     WATCHTOWER_TOKEN luôn được set sẵn trong compose nên KHÔNG đủ để kết luận - phải dò thật.
     Dò bằng cách MỞ KẾT NỐI TCP tới cổng, TUYỆT ĐỐI không gửi HTTP: endpoint /v1/update của
     Watchtower bị kích hoạt update kể cả với GET, nên một request 'thăm dò' sẽ trigger nhầm."""
+    return await _watchtower_ly_do() == ""
+
+
+async def _watchtower_ly_do() -> str:
+    """"" = Watchtower đang chạy, tự cập nhật được. Khác rỗng = MÃ LÝ DO vì sao không.
+
+    Vì sao cần mã lý do chứ không chỉ True/False: chủ repo báo (2026-08-12) rằng "một số máy
+    VPS không có nút update, không hiểu vì sao". Cả hai lý do dưới đây đều là HÀNH VI ĐÚNG
+    theo thiết kế, nhưng app trước nay gộp chúng vào một câu chung chung nên nhìn hệt như máy
+    hỏng - và không có cách nào tự biết máy mình thiếu gì.
+
+    - no_token: WATCHTOWER_TOKEN không được set. Đây là stack Hostinger, nơi CỐ TÌNH không
+      kèm Watchtower (nó không đụng được Docker socket, bị Restarting liên tục). Đường cập
+      nhật ở đây là Redeploy, không có gì để bật thêm.
+    - watchtower_off: token có (docker-compose.yml luôn đặt sẵn) nhưng không nối được tới
+      container. Gần như luôn là vì Watchtower nằm trong `profiles: ["update"]`, tức là
+      `docker compose up -d` KHÔNG bật nó. Đây mới là trường hợp bật được, và bật bằng đúng
+      một lệnh - nên phải nói ra lệnh đó.
+    """
     if not os.getenv("WATCHTOWER_TOKEN", ""):
-        return False
+        return "no_token"
     import asyncio
     writer = None
     try:
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection("watchtower", 8080), timeout=4)
-        return True   # bắt tay TCP xong = container Watchtower đang lắng nghe
+        return ""     # bắt tay TCP xong = container Watchtower đang lắng nghe
     except Exception:
-        return False  # không phân giải host / connection refused = Watchtower không chạy
+        return "watchtower_off"   # không phân giải host / connection refused = không chạy
     finally:
         if writer is not None:
             try:
@@ -6725,11 +6744,14 @@ async def version_info():
     avail = _ver_newer(latest, cur)
     # docker: chỉ tự cập nhật tại chỗ được nếu Watchtower ĐANG chạy (ping thật). Không có →
     # frontend chuyển sang hướng dẫn REDEPLOY. native/windows: git pull tự lo.
-    can = mode in ("native", "windows") or (mode == "docker" and await _watchtower_reachable())
+    ly_do = await _watchtower_ly_do() if mode == "docker" else ""
+    can = mode in ("native", "windows") or (mode == "docker" and ly_do == "")
     st = _read_update_state()
+    # self_update_off: mã lý do để UI nói ĐÚNG máy này thiếu gì thay vì một câu chung chung.
+    # Rỗng khi tự cập nhật được - frontend chỉ đọc nó ở nhánh không có nút.
     return {"current": cur, "latest": latest, "update_available": avail,
             "mode": mode, "platform": _host_platform(), "can_self_update": can, "error": err,
-            "previous_version": st.get("previous_version")}
+            "self_update_off": ly_do, "previous_version": st.get("previous_version")}
 
 
 @app.get("/update/status")

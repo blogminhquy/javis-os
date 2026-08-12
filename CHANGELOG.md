@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.27] - 2026-08-12
+### Sửa lỗi
+- **Trang Cập nhật nay nói rõ vì sao máy này không có nút "Cập nhật ngay".** Trước đây mọi máy thiếu nút đều nhận chung một câu, nên không có cách nào biết máy mình thiếu gì.
+- Nếu là **VPS tự quản**: nút cần Watchtower, mà lệnh `docker compose up -d` quen tay không bật nó. Khung giờ đưa thẳng lệnh cần chạy một lần: `docker compose --profile update up -d`. Đây là lý do phổ biến nhất khiến máy này có nút mà máy kia không.
+- Nếu là **Hostinger**: bản đó cố tình không kèm Watchtower, khung nói luôn là cập nhật bằng Redeploy chứ không có gì để bật.
+
 ## [0.26.26] - 2026-08-12
 ### Sửa lỗi
 - **Trên điện thoại, tab "Thư mục" ở trang Trò chuyện bấm vào chỉ thấy khoảng trắng.** Tab này dùng chung cây thư mục với màn chính, mà cây đó lại đang bị ẩn trên màn hẹp nên nó ẩn theo. Nay mở tab là thấy cây.
