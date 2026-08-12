@@ -54,6 +54,19 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}" \
 RUN (npm install -g @openai/codex && npm cache clean --force && codex --version) \
     || echo "[build] codex cài KHÔNG thành công - provider ChatGPT subscription sẽ không dùng được (các provider khác vẫn chạy)."
 
+# Gemini CLI - bộ não thứ 9, chạy bằng ĐĂNG NHẬP GOOGLE (không cần mua API key). BEST-EFFORT
+# y như Codex: registry chậm hay npm hỏng thì build vẫn qua, chỉ mất đúng engine đó.
+#
+# Cài sẵn ở đây vì trong container KHÔNG có đường cài sau: runtime chạy bằng `USER javis`
+# (không phải root) nên `npm i -g` lúc đang chạy sẽ bị từ chối ghi vào /usr/local/lib. Trước
+# thay đổi này, người dùng Docker muốn có bộ não Gemini CLI phải tự dựng lại image.
+#
+# KHÔNG cần volume cho ~/.gemini: refresh token nằm trong settings.json của Javis (trên volume
+# /data), còn gemini_oauth.ghi_creds_cho_cli() dựng lại file credential của CLI trước mỗi lượt
+# chạy. Đăng nhập một lần ở trang Models là sống qua mọi lần cập nhật container.
+RUN (npm install -g @google/gemini-cli && npm cache clean --force && gemini --version) \
+    || echo "[build] gemini-cli cài KHÔNG thành công - bộ não Gemini CLI sẽ không dùng được (các provider khác vẫn chạy)."
+
 WORKDIR /app
 
 # Layer-cached Python deps (copy requirements first so app changes don't re-pip).

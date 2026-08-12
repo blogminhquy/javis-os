@@ -107,16 +107,16 @@ Mở `http://<ip-vps>:7777` → màn tạo tài khoản admin (xem MÃ THIẾT L
 git clone https://github.com/blogminhquy/javis-os.git javis && cd javis
 chmod +x install.sh && ./install.sh
 ```
-Script tự cài Python + Node + Claude CLI, tạo venv, đăng ký dịch vụ systemd tự chạy khi boot, in ra địa chỉ. Báo Claude chưa đăng nhập thì chạy 1 lần: `claude auth login --claudeai`.
+Script tự cài Python + Node + cả ba engine CLI (Claude Code, Codex, Gemini CLI), tạo venv, đăng ký dịch vụ systemd tự chạy khi boot, in ra địa chỉ. Báo Claude chưa đăng nhập thì chạy 1 lần: `claude auth login --claudeai`.
 
 ### Cách 4 - Windows (máy cá nhân)
 
 ```
 1. Cài Python 3.12 (tick "Add to PATH") + Node.js LTS
-2. npm install -g @anthropic-ai/claude-code  &&  claude auth login --claudeai
-3. Double-click  setup.bat   (chạy hiện cửa sổ)
-   hoặc           start-javis.vbs   (chạy ngầm, log ở server\javis.log)
-4. Mở http://localhost:7777   ·   Dừng: stop-javis.bat
+2. Double-click  setup.bat   (chạy hiện cửa sổ - tự cài Claude Code + Codex + Gemini CLI)
+   Lần sau muốn chạy ngầm: start-javis.vbs   (log ở server\javis.log)
+3. Mở http://localhost:7777 → trang Models, đăng nhập bộ não muốn dùng
+4. Dừng: stop-javis.bat
 ```
 
 ### Nhiều bản Javis trên cùng một VPS (mỗi bản một link riêng)

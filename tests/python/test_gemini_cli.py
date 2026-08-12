@@ -568,6 +568,22 @@ check("và ô dán mã", "gcliCode" in _console and "/gemini-cli/login-code" in 
 check("CANARY: giao diện không còn bắt người dùng mở terminal để đăng nhập",
       "Chạy <code>gemini</code> trong terminal" not in _console)
 
+# Ô dán mã từng KHÔNG GÕ ĐƯỢC (chủ repo báo 2026-08-12 kèm ảnh): khối #gcliLogin nằm ngoài
+# .prov-action nên không hưởng luật `width:auto` của nút ở đó, mà luật gốc .gcard-btn cuối
+# console.css là `width:100%` - nút "Xong" giãn ra nuốt cả hàng flex, ô nhập còn vài chục
+# pixel. Hai check này giữ đúng cặp class + luật CSS đã chữa, vì tách rời nhau là tái phát.
+_console_css = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
+check("ô dán mã dùng class riêng thay cho style inline",
+      'class="gcli-code-row"' in _console)
+check("CANARY: có luật CSS gò nút 'Xong' lại - thiếu nó nút nuốt hết chỗ của ô nhập",
+      ".gcli-code-row .gcard-btn" in _console_css and "width: auto" in _console_css[
+          _console_css.index(".gcli-code-row .gcard-btn"):
+          _console_css.index(".gcli-code-row .gcard-btn") + 120])
+check("CANARY: ô nhập được phép co (min-width:0) nên không tràn ra ngoài card",
+      ".gcli-code-row .js-input" in _console_css and "min-width: 0" in _console_css[
+          _console_css.index(".gcli-code-row .js-input"):
+          _console_css.index(".gcli-code-row .js-input") + 120])
+
 print()
 if _fails:
     print(f"{len(_fails)} test HỎNG: " + ", ".join(_fails))

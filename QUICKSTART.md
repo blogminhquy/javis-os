@@ -28,8 +28,8 @@ Mở http://localhost:7777. Muốn HTTPS qua Caddy: thêm `-f docker-compose.htt
 
 ## Cách 3 - Chạy trực tiếp (Windows, không Docker)
 
-1. Cài Python 3.12 + Node 22 + `npm i -g @anthropic-ai/claude-code`.
-2. Trong thư mục dự án: `setup.bat` (tạo .venv + cài deps) một lần.
+1. Cài Python 3.12 + Node 22.
+2. Trong thư mục dự án: `setup.bat` một lần - tạo .venv, cài deps, và cài sẵn ba engine CLI (Claude Code, Codex, Gemini CLI).
 3. `start-javis.bat` để chạy nền (tắt: `stop-javis.bat`).
 4. Mở http://localhost:7777.
 

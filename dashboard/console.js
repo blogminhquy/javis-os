@@ -2780,7 +2780,8 @@
           <div class="prov-note">Dùng gói <b>đăng nhập tài khoản Google</b> - không cần mua API key.
             Khác thẻ "Google Gemini (API)" bên dưới: thẻ đó trả tiền theo lượt gọi.</div>
           ${p.cli_found ? "" : `<div class="prov-steps">
-            <div>Chưa thấy CLI trên máy. Cài một lần: <code>npm install -g @google/gemini-cli</code></div>
+            <div>Chưa thấy CLI trên máy. Bản cài mới của Javis đã kèm sẵn - <b>cập nhật Javis</b> là có.
+              Cài tay cũng được: <code>npm install -g @google/gemini-cli</code></div>
           </div>`}
           <div class="prov-action" style="flex-wrap:wrap">
             ${on
@@ -3080,8 +3081,9 @@
           <a href="${esc(safeHref(r.authorize_url))}" target="_blank" rel="noopener"
              style="color:var(--link-ink);word-break:break-all">${esc(r.authorize_url.slice(0, 90))}…</a></div>
         <div><b>2)</b> Đồng ý xong, Google hiện ra <b>một mã</b>. Chép mã đó dán vào đây:</div>
-        <div style="margin-top:6px;display:flex;gap:8px;max-width:520px">
-          <input class="js-input" id="gcliCode" placeholder="Dán mã Google vừa hiện" style="flex:1">
+        <div class="gcli-code-row">
+          <input class="js-input" id="gcliCode" placeholder="Dán mã Google vừa hiện" autocomplete="off"
+                 spellcheck="false">
           <button class="gcard-btn" id="gcliCodeBtn">Xong</button>
         </div>
         <div id="gcliCodeMsg" class="gcard-meta" style="margin-top:4px"></div>

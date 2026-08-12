@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.8] - 2026-08-12
+### Sửa lỗi
+- **Ô dán mã khi đăng nhập Google đã gõ được.** Nút "Xong" bị giãn ra chiếm hết hàng làm ô nhập teo lại còn vài chục pixel, không dán nổi mã vào. Màn hình hẹp thì nút tự rơi xuống dòng dưới cho ô nhập đủ rộng.
+
+### Cải thiện
+- **Cài Javis là có sẵn cả ba bộ não chạy bằng gói đăng nhập: Claude Code, ChatGPT (Codex) và Gemini CLI.** Không phải tự mở terminal gõ `npm i -g` từng cái nữa, mở trang Models ra là chỉ còn việc đăng nhập.
+- Áp cho cả ba đường cài: Docker, `install.sh` trên VPS, và `setup.bat` trên Windows (trước đây file này không cài bộ não nào).
+- Bản đang chạy thì **cập nhật Javis** một lần là có. Cái nào cài lỗi cũng không sao: các bộ não còn lại vẫn chạy như thường, thẻ ở trang Models chỉ báo cách cài tay.
+
 ## [0.28.7] - 2026-08-12
 ### Sửa lỗi
 - **Mở lại hội thoại cũ không còn thấy một đống chữ máy trong bong bóng câu hỏi của mình.** Khi bạn đang mở một file trong trình sửa, Javis kèm một khối hướng dẫn vào tin nhắn để nó biết đang làm việc trên file nào. Khối đó lẽ ra chỉ dành cho máy đọc, nhưng lúc tải lại trang thì nó hiện ra thay cho câu bạn đã gõ.

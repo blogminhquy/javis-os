@@ -117,7 +117,7 @@ Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn �
 
 Đây là đường dùng **gói miễn phí của Google**: đăng nhập bằng tài khoản Google thường, hạn mức do Google đặt, không phải mua API key. Cùng cơ chế mà app Antigravity dùng, nhưng đi qua CLI chính chủ nên ổn định và không phải đào token trong máy.
 
-1. Cài CLI một lần trên máy chạy Javis: `npm install -g @google/gemini-cli`
+1. Kiểm CLI đã có chưa. Bản cài bằng Docker và bằng `install.sh` **đã cài sẵn** `@google/gemini-cli`, nên thường bỏ qua được bước này. Chỉ khi thẻ báo *"Chưa cài Gemini CLI"* mới cài tay trên máy chạy Javis: `npm install -g @google/gemini-cli`
 2. Vào **Models**, thẻ **Google Gemini CLI (đăng nhập Google)**, bấm **Đăng nhập Google**.
 3. Javis mở trang đồng ý của Google (hiện đúng tên ứng dụng **Gemini CLI**). Đăng nhập bằng tài khoản Google của bạn, đồng ý xong Google hiện ra **một mã**.
 4. Chép mã đó dán vào ô trong Javis, bấm **Xong**. Thẻ đổi sang **● Đã đăng nhập Google** kèm email.
@@ -271,7 +271,7 @@ Bạn không cần rời trang Models để đổi model: bấm **Đổi model �
 
 - **Banner đỏ "⚠ Bộ não claude mất đăng nhập" trên máy chưa từng cài Claude**: sửa ở 0.9.270. Đèn báo não giữ trạng thái trong RAM và không ai dọn, nên đèn đỏ thắp hồi Claude còn là Main Model treo mãi sau khi bạn đổi sang OpenRouter. Giờ đèn chỉ tính những bộ não bạn THẬT SỰ chọn (Main Model + model việc nền khi đặt rõ provider), và tự tắt ngay khi bạn đổi sang nhà cung cấp khác - không phải chờ vòng quét 10 phút.
 - **Bấm Ngắt provider đang là Main**: Javis tự chuyển Main về Claude Code để chat không gãy. Đây là hành vi cố ý, không phải lỗi.
-- **ChatGPT OAuth báo chưa cài Codex CLI**: kênh này cần Codex CLI trên máy. Nếu chưa có, dùng Claude Code hoặc OpenRouter cho ổn định.
+- **ChatGPT OAuth báo chưa cài Codex CLI**: kênh này cần Codex CLI trên máy. Từ 0.28.8 cả ba engine CLI (Claude Code, Codex, Gemini CLI) đều được cài sẵn lúc cài Javis - bản Docker, `install.sh` lẫn `setup.bat` - nên báo thiếu thường là bản cài cũ, **cập nhật Javis** một lần là có. Cài tay cũng được: `npm i -g @openai/codex`.
 
 ## Liên quan
 

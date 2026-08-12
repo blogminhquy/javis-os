@@ -86,6 +86,28 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 ok "Claude CLI $(claude --version 2>/dev/null || echo installed)"
 
+# --- 4b. Hai engine CLI còn lại: Codex (gói ChatGPT) + Gemini CLI (đăng nhập Google) ---
+#
+# Javis có ba bộ não chạy bằng GÓI ĐANG ĐĂNG NHẬP thay vì API key trả tiền theo lượt, nhưng
+# trước đây script chỉ cài Claude. Hai cái kia người dùng phải tự mò `npm i -g`, mà trang
+# Models thì chỉ báo "chưa cài" chứ không cài hộ được. Nay cài luôn cả ba: việc đăng nhập của
+# cả ba đều bấm được trên dashboard, binary là thứ duy nhất phải có sẵn từ lúc cài.
+#
+# BEST-EFFORT, cố ý khác Claude ở trên: thiếu Claude thì Javis không còn bộ não mặc định nào
+# để chạy, còn thiếu hai cái này chỉ mất đúng một engine trong chín. Nên lỗi ở đây chỉ cảnh
+# báo chứ không cho `set -e` giết cả lần cài.
+cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
+  command -v "$2" >/dev/null 2>&1 && return 0
+  log "Installing $3 globally via npm (best-effort)..."
+  if npm install -g "$1" >/dev/null 2>&1 || $SUDO npm install -g "$1" >/dev/null 2>&1; then
+    ok "$3 $("$2" --version 2>/dev/null || echo installed)"
+  else
+    warn "Chua cai duoc $3 - engine do se khong hien o trang Models. Cai tay: npm i -g $1"
+  fi
+}
+cai_them_cli @openai/codex codex "Codex CLI"
+cai_them_cli @google/gemini-cli gemini "Gemini CLI"
+
 # --- 5. venv + python deps ---
 log "Creating virtualenv (.venv)..."
 [ -d .venv ] || python3 -m venv .venv
