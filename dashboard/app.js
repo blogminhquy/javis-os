@@ -1812,6 +1812,9 @@ async function refreshTgStatus() {
     if (!s.enabled) el.innerHTML = ic("circle", { cls: "ic-fill ic-dim" }) + " Tắt";
     else if (!s.token_set) el.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Đã bật nhưng chưa có token";
     else el.innerHTML = s.running ? ic("circle", { cls: "ic-fill ic-ok" }) + " Đang chạy" + (s.chat_id ? " · chỉ chat_id " + s.chat_id : " · MỌI người (nên đặt chat_id)") : ic("loader") + " Chưa chạy (lưu lại)";
+    // Menu lệnh "/" đặt hụt: bot vẫn chạy nên mọi thứ ở trên vẫn xanh, chỉ là gõ "/" trong
+    // Telegram không sổ ra danh sách lệnh. Không nói ra thì không ai đoán được vì sao.
+    if (s.loi_menu_lenh) el.innerHTML += '<div class="set-note">' + ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(s.loi_menu_lenh) + "</div>";
   } catch (e) { el.textContent = ""; }
 }
 // Xuất ra window: console.js gọi lại sau khi đổi model để badge engine không bị cũ.

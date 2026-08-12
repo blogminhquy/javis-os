@@ -3131,6 +3131,34 @@ def _remember_catalog(cfg, d, ids):
         print(f"[models] không ghi được catalog {key}: {e}", file=sys.stderr)
 
 
+def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
+    """Vì sao provider này không trả về model nào - viết cho NGƯỜI ĐỌC, không phải log.
+
+    Hầu hết đường lấy model hỏng theo kiểu IM LẶNG: hàm trả None chứ không ném lỗi, nên phía
+    trên chỉ còn một danh sách rỗng và giao diện đành nói "không có model" - đúng nhưng vô
+    dụng. ChatGPT là ca nặng nhất vì nó KHÔNG có catalog dự phòng (danh sách model do Codex
+    quyết, Javis cố ý không ghim version), nên hỏng là thẻ hiện đúng "0 model" ngay sau khi
+    người dùng vừa đăng nhập xong - trông y như đăng nhập hỏng.
+    """
+    d = _provider_def(provider) or {}
+    if provider == "openai-oauth":
+        if not (openai_oauth.valid_creds() or {}).get("access_token"):
+            return ("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
+                    "đăng nhập lại ở thẻ ChatGPT.")
+        if not find_codex_cli():
+            return ("Không thấy Codex CLI trên máy - danh sách model của gói ChatGPT do chính "
+                    "Codex cấp. Cài bằng `npm i -g @openai/codex` (macOS có thể dùng "
+                    "`brew install codex`) rồi bấm lại. Cài ở chỗ lạ thì trỏ thẳng bằng biến "
+                    "môi trường JAVIS_CODEX_BIN.")
+        return ("Có Codex CLI nhưng nó chưa trả được danh sách model. Thường là bản Codex quá "
+                "cũ (`npm i -g @openai/codex@latest`), hoặc máy chưa chạy `codex login` lần nào.")
+    if provider == "ollama":
+        return "Không gọi được Ollama. Kiểm tra máy chủ Ollama còn chạy và key còn hạn."
+    if d.get("key_field") and not m.get(d["key_field"]):
+        return "Chưa có API key cho nhà cung cấp này."
+    return ""
+
+
 async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     """Lõi thuần của GET /provider/models. Dùng chung với Telegram (menu chọn model)."""
     cfg = cfgmod.read_settings()
@@ -3153,7 +3181,8 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
         _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
         _remember_catalog(cfg, d, ids)
         return {"models": ids, "live": True}
-    return {"models": fallback, "live": False, "error": last_err}
+    return {"models": fallback, "live": False,
+            "error": last_err or _vi_sao_khong_co_model(provider, m)}
 
 
 @app.get("/provider/models")
@@ -10942,7 +10971,10 @@ async def telegram_status():
             "chat_id": t.get("chat_id", ""), "chat_ids": tg_parse_ids(t.get("chat_id")),
             "running": running,
             "status": (_TG_BOT.status if _TG_BOT else "off"),
-            "last_error": (_TG_BOT.last_error if _TG_BOT else "")}
+            "last_error": (_TG_BOT.last_error if _TG_BOT else ""),
+            # Menu lệnh "/" đặt hụt: bot vẫn chạy, chỉ là gõ "/" không sổ ra danh sách. Tách
+            # khỏi last_error vì vòng poll xoá last_error sau mỗi lượt thành công.
+            "loi_menu_lenh": (getattr(_TG_BOT, "loi_menu_lenh", "") if _TG_BOT else "")}
 
 
 @app.post("/telegram/restart")

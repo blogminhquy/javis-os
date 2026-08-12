@@ -84,9 +84,49 @@ def _kill_tree(p):
         pass
 
 
+# Thư mục cài binary hay gặp mà PATH của TIẾN TRÌNH NỀN thường không có. macOS đau nhất:
+# tiến trình chạy qua launchd (hoặc `nohup` do install.sh đẻ ra, hoặc app bật từ Finder) nhận
+# PATH tối giản `/usr/bin:/bin:/usr/sbin:/sbin`, nên `claude`/`codex` cài bằng Homebrew - Apple
+# Silicon để ở /opt/homebrew/bin - hay bằng nvm đều "không tìm thấy", dù gõ trong Terminal vẫn
+# chạy ngon. Triệu chứng ở tầng trên là danh sách model rỗng mà không lý do.
+_THU_MUC_BIN_THEM = (
+    "/opt/homebrew/bin",          # Homebrew trên Apple Silicon
+    "/usr/local/bin",             # Homebrew trên Intel + npm global mặc định
+    "/opt/homebrew/opt/node/bin",
+    "~/.local/bin",
+    "~/.npm-global/bin",
+    "~/.bun/bin",
+    "~/.volta/bin",
+    "~/Library/pnpm",             # pnpm global trên macOS
+    "~/.yarn/bin",
+)
+
+
+def _duong_dan_tim_binary() -> str:
+    """PATH hiện tại CỘNG các thư mục cài quen thuộc. PATH thật đứng trước để không đổi ưu tiên."""
+    parts = [os.environ.get("PATH", "")]
+    for d in _THU_MUC_BIN_THEM:
+        try:
+            parts.append(str(Path(d).expanduser()))
+        except Exception:
+            pass
+    try:
+        # nvm: mỗi bản Node một thư mục bin riêng. Bản mới nhất trước (sort ngược theo tên).
+        nvm = sorted((_home_dir() / ".nvm" / "versions" / "node").glob("*/bin"), reverse=True)
+        parts += [str(p) for p in nvm[:5]]
+    except Exception:
+        pass
+    return os.pathsep.join(p for p in parts if p)
+
+
+def tim_binary(ten: str) -> Optional[str]:
+    """`shutil.which` nhưng soi thêm các thư mục cài quen thuộc nằm ngoài PATH."""
+    return shutil.which(ten) or shutil.which(ten, path=_duong_dan_tim_binary())
+
+
 def find_claude_cli() -> Optional[str]:
     """Tìm claude CLI trên máy."""
-    cli = shutil.which("claude")
+    cli = tim_binary("claude")
     if cli:
         return cli
     if os.name == "nt":
@@ -429,7 +469,7 @@ def find_codex_cli() -> Optional[str]:
     # service/tiến trình nền không được quyền chạy alias đó (WinError 5). Bản
     # executable Codex Desktop xuất trong ~/.codex chạy được thật, nên ưu tiên
     # nó trên Windows. POSIX vẫn tôn trọng PATH trước như thông lệ.
-    cli = shutil.which("codex")
+    cli = tim_binary("codex")
     if cli and (os.name != "nt" or "windowsapps" not in cli.lower()):
         return cli
     for p in cands:

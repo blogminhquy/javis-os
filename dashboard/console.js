@@ -2893,9 +2893,39 @@
     if (od) od.onclick = async () => {
       od.disabled = true; od.textContent = "Đang ngắt...";
       try { await fetch("/oauth/openai/disconnect", { method: "POST" }); } catch (e) {}
+      _daHoiModel.delete("openai-oauth");
       renderModels(el);
     };
     refreshClaudeCard(el);   // nạp trạng thái đăng nhập Claude Code (bất đồng bộ)
+    hoiModelConNo(el, provList);   // thẻ "0 model" của provider đã kết nối: hỏi danh sách thật
+  }
+
+  // Provider nào ĐÃ kết nối mà thẻ vẫn hiện "0 model" thì đi hỏi danh sách thật ngay tại đây.
+  //
+  // Vì sao cần: con số trên thẻ đọc từ `model.catalog` trong settings, mà catalog chỉ được ghi
+  // SAU một lần lấy live thành công. ChatGPT không có catalog mặc định (danh sách model do
+  // Codex quyết, Javis cố ý không ghim version), nên trên máy mới đăng nhập xong là thẻ hiện
+  // "● Đã kết nối · 0 model" và nằm im như vậy cho tới khi ai đó mở hộp chọn model - trông y
+  // hệt đăng nhập hỏng. Máy cũ không thấy lỗi này chỉ vì catalog đã có sẵn từ lần trước.
+  const _daHoiModel = new Set();   // hỏi HỤT thì thôi, không quay vòng vô tận
+  async function hoiModelConNo(el, provList) {
+    const rong = (provList || []).filter(p => p.configured && !(p.models || []).length
+                                              && !_daHoiModel.has(p.id));
+    if (!rong.length) return;
+    let coThem = false;
+    for (const p of rong) {
+      _daHoiModel.add(p.id);
+      try {
+        const r = await (await fetch("/provider/models?provider=" + encodeURIComponent(p.id) + "&refresh=1")).json();
+        // `live` = vừa lấy được thật và server đã ghi vào catalog → vẽ lại là con số đúng.
+        if (r && r.live && r.models && r.models.length) coThem = true;
+        else if (r && r.error) {
+          const box = el.querySelector("#oauthMsg");
+          if (box && p.kind === "oauth" && !box.textContent.trim()) box.innerHTML = Icons.warn(r.error);
+        }
+      } catch (e) {}
+    }
+    if (coThem && el.isConnected) renderModels(el);
   }
 
   // ---- Card Claude Code: status + login/logout (giống OpenAI OAuth) ----
@@ -2990,7 +3020,11 @@
       let p;
       try { p = await (await fetch("/oauth/openai/poll", { method: "POST" })).json(); }
       catch (e) { setTimeout(poll, iv); return; }
-      if (p.status === "connected") { if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối!"; renderModels(el); return; }
+      if (p.status === "connected") {
+        if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối! Đang hỏi Codex xem gói này có model nào…";
+        _daHoiModel.delete("openai-oauth");   // vừa đăng nhập xong: cho phép hỏi lại danh sách
+        renderModels(el); return;
+      }
       if (p.status === "error") { if (msg) msg.textContent = "Lỗi: " + (p.error || ""); return; }
       setTimeout(poll, iv);
     };
@@ -3028,7 +3062,11 @@
           body: JSON.stringify({ callback: cb }),
         })).json();
       } catch (e) { if (m2) m2.textContent = "Lỗi mạng."; btn.disabled = false; return; }
-      if (p.status === "connected") { if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối!"; renderModels(el); return; }
+      if (p.status === "connected") {
+        if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối! Đang hỏi Codex xem gói này có model nào…";
+        _daHoiModel.delete("openai-oauth");
+        renderModels(el); return;
+      }
       if (m2) m2.innerHTML = Icons.warn(p.error || "Chưa được, thử lại.");
       btn.disabled = false;
     };
@@ -3067,7 +3105,10 @@
       } catch (e) {}
       const stat = (providers.find(x => x.id === pid) || {}).models || [];
       liveCache[pid] = (res && res.models && res.models.length)
-        ? { models: res.models, live: !!res.live } : { models: stat, live: false };
+        ? { models: res.models, live: !!res.live }
+        // Rỗng thì GIỮ LẠI lý do server nói. Trước đây nuốt mất nên hộp chọn chỉ còn một câu
+        // chung chung "chưa kết nối hoặc không có model", đọc xong vẫn không biết phải làm gì.
+        : { models: stat, live: false, error: (res && res.error) || "" };
       if (loadingProv === pid) loadingProv = null;
       if (pid === selProv) {   // model đang chọn không còn trong list mới → reset
         const ms = liveCache[pid].models;
@@ -3094,7 +3135,9 @@
               </button>`).join("")}</div>
             <div class="mp-models">${models.length ? models.map(mod => `
               <button class="mp-model ${mod === selModel ? "sel" : ""}" data-mod="${esc(mod)}">${esc(mod)}${(selProv === main.provider && mod === main.model) ? ' <span class="mp-cur">ĐANG DÙNG</span>' : ""}</button>`).join("")
-                : (loadingProv === selProv ? '<div class="mp-empty">Đang tải model…</div>' : '<div class="mp-empty">Provider chưa kết nối hoặc không có model. Kết nối ở Providers (hoặc thêm vào settings.json → model.catalog).</div>')}</div>
+                : (loadingProv === selProv ? '<div class="mp-empty">Đang tải model…</div>'
+                    : '<div class="mp-empty">' + esc((liveCache[selProv] && liveCache[selProv].error)
+                        || "Provider chưa kết nối hoặc không có model. Kết nối ở Providers (hoặc thêm vào settings.json → model.catalog).") + '</div>')}</div>
           </div>
           <div class="mp-foot">
             <span class="mp-note">${esc(opts.note || "Model load động theo provider · lưu cho phiên mới")}</span>

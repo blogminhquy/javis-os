@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.4] - 2026-08-12
+### Sửa lỗi
+- **Kết nối ChatGPT xong không còn đứng ở "0 model".** Danh sách model của gói ChatGPT do Codex cấp, mà trước đây không ai đi hỏi cho tới khi bạn tự mở hộp chọn model. Nay đăng nhập xong là trang Models tự hỏi và điền con số thật. Máy mới cài (hay máy Mac vừa dựng) là chỗ lộ rõ nhất vì chưa có danh sách cũ để hiện tạm.
+- **Không lấy được model thì nói rõ vì sao.** Thay cho câu chung chung "provider chưa kết nối hoặc không có model", giờ là câu chỉ đúng việc phải làm: chưa đăng nhập, chưa cài Codex CLI, hay thiếu API key.
+- **Trên máy Mac, Javis tự tìm thấy `claude` và `codex` cài bằng Homebrew hoặc nvm.** Chạy nền thì hệ điều hành chỉ đưa cho Javis một danh sách thư mục rất ngắn, nên hai lệnh này gõ trong Terminal vẫn chạy mà Javis lại báo chưa cài.
+
+### Cải thiện
+- **Gõ `/` trong Telegram sổ ra danh sách lệnh đáng tin hơn.** Javis đặt menu cho cả chat riêng lẫn nhóm, và nếu Telegram từ chối thì báo hẳn lý do ở trang Cài đặt thay vì im lặng như trước.
+
 ## [0.28.3] - 2026-08-12
 ### Sửa lỗi
 - **Đổi mật khẩu quản trị nay lưu được thật.** Trước đây điền tên đăng nhập với mật khẩu mới rồi bấm Lưu là không có gì xảy ra: app gửi nhầm sang đường dành cho lần đầu tạo tài khoản, mà đường đó luôn từ chối khi máy đã có chủ. Cả trang Tài khoản lẫn khối tài khoản trong trang Cài đặt đều dính, nay cả hai đều chạy.
