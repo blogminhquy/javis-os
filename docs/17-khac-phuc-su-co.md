@@ -165,6 +165,14 @@ Bản cài trực tiếp trên máy (Windows, Linux, macOS) luôn tự cập nh�
 
 Watchtower nằm trong `profiles: ["update"]`, nên `docker compose up -d` **không** bật nó - đó là lý do phổ biến nhất khiến máy này có nút mà máy kia không. Bật một lần bằng `docker compose --profile update up -d` rồi tải lại trang. Stack Hostinger cố tình không kèm Watchtower (không đụng được Docker socket), máy đó cập nhật bằng **Redeploy**. Khung Cập nhật tự nói máy bạn rơi vào trường hợp nào.
 
+**Gõ lệnh compose mà báo `not found`** - ba kiểu, ba nguyên nhân khác hẳn:
+
+| Báo lỗi | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `no configuration file provided: not found` | Đứng sai thư mục. Tên thư mục tuỳ lúc clone: `javis` nếu theo đúng lệnh trong DEPLOY.md, `javis-os` nếu clone thẳng không đổi tên | `cd` vào đúng thư mục chứa `docker-compose.yml`. Không nhớ nó đâu thì hỏi Docker: `docker ps --format '{{.Names}}\t{{.Label "com.docker.compose.project.working_dir"}}'` |
+| `docker: command not found` | Đang gõ **bên trong** container Javis (terminal của app) chứ không phải trên máy chủ | SSH vào VPS rồi gõ |
+| `docker: 'compose' is not a docker command` | Compose bản cũ (v1) | Viết có gạch nối: `docker-compose --profile update up -d` |
+
 ### Chạy nhiều brain (second brain) được không?
 
 Được. Javis quản lý nhiều brain trong thư mục `brains/`. Ở dropdown chọn brain trên giao diện, bạn có thể:

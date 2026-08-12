@@ -475,6 +475,10 @@
     /* Lý do máy này không có nút cập nhật. Có lệnh để copy nên phải cho ngắt dòng và cho bôi
        đen cả cụm - dòng lệnh mà đứt mất một chữ là chạy ra lỗi khó hiểu hơn cả lúc chưa có. */
     .upd-why{margin-top:8px;line-height:1.6;font-size:13.5px}
+    /* Cách gỡ khi lệnh trên báo lỗi: cần có mặt, nhưng phải nhạt hơn lệnh chính để mắt đi đúng
+       thứ tự - làm trước, chỉ đọc phần này khi vấp. */
+    .upd-why-sub{margin-top:8px;padding-top:8px;border-top:1px solid var(--surface-3);
+      font-size:12.5px;color:var(--text2)}
     .upd-why code{display:inline-block;margin:3px 0;padding:2px 7px;border-radius:6px;
       background:var(--surface-2);border:1px solid var(--glass-brd);user-select:all;
       overflow-wrap:anywhere;word-break:break-word}
@@ -662,7 +666,14 @@
         + "nằm ngoài luồng <code>docker compose up -d</code> thường lệ. Bật một lần, ở thư mục chứa "
         + "file compose:<br><code>docker compose --profile update up -d</code><br>"
         + "Xong tải lại trang là nút hiện ra. Không muốn bật thì vẫn cập nhật tay được: "
-        + "<code>docker compose up -d --pull always</code>.";
+        + "<code>docker compose up -d --pull always</code>."
+        // Chủ repo gõ lệnh trên rồi lãnh "no configuration file provided: not found" - đứng sai
+        // thư mục, vì tên thư mục tuỳ lúc clone (javis hay javis-os). Câu "ở thư mục chứa file
+        // compose" đúng nhưng vô dụng khi người ta KHÔNG BIẾT nó nằm đâu. Docker biết, nên hỏi nó.
+        + "<div class=\"upd-why-sub\">Báo <code>no configuration file provided: not found</code> "
+        + "là đang đứng sai thư mục. Hỏi Docker xem nó nằm đâu:<br>"
+        + "<code>docker ps --format '{{.Names}}\\t{{.Label \"com.docker.compose.project.working_dir\"}}'</code>"
+        + "</div>";
     }
     if (maLyDo === "no_token") {
       return "Bản cài này <b>không kèm Watchtower</b> (stack Hostinger cố tình bỏ - trên đó nó không "

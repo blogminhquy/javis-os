@@ -107,6 +107,13 @@ check("CANARY: nhánh watchtower_off chỉ ra ĐÚNG lệnh bật",
       "docker compose --profile update up -d" in CON)
 check("nhánh no_token nói Hostinger dùng Redeploy",
       re.search(r'no_token[\s\S]{0,600}Redeploy', CON) is not None)
+# Chủ repo gõ đúng lệnh rồi vẫn lãnh "no configuration file provided: not found" - đứng sai thư
+# mục, vì tên thư mục tuỳ lúc clone (javis hay javis-os). Bảo người ta "chạy ở thư mục chứa file
+# compose" là đúng nhưng vô dụng khi họ KHÔNG BIẾT nó nằm đâu. Docker biết, nên phải hỏi nó.
+check("CANARY: có cách TÌM thư mục compose, không chỉ bảo 'đúng thư mục'",
+      "com.docker.compose.project.working_dir" in CON)
+check("gọi tên đúng câu báo lỗi để người dùng nhận ra mình",
+      "no configuration file provided" in CON)
 # Server cũ chưa trả mã lý do (app mới, server chưa update): không được vỡ, giữ câu cũ.
 check("thiếu mã lý do vẫn có câu dự phòng",
       re.search(r'docker compose up -d --pull always', CON) is not None)
@@ -129,6 +136,12 @@ for f in ("DEPLOY.md", "docs/01-bat-dau-thiet-lap.md", "docs/17-khac-phuc-su-co.
     t = io.open(os.path.join(ROOT, f), encoding="utf-8").read()
     check(f"{f} ghi đúng lệnh bật Watchtower",
           "docker compose --profile update up -d" in t)
+
+_sc = io.open(os.path.join(ROOT, "docs", "17-khac-phuc-su-co.md"), encoding="utf-8").read()
+check("tài liệu sự cố có bảng phân biệt ba kiểu 'not found'",
+      all(k in _sc for k in ("no configuration file provided",
+                             "docker: command not found",
+                             "is not a docker command")))
 
 print("")
 if _fails:

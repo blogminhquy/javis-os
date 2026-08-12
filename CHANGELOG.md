@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.26.28] - 2026-08-12
+### Cải thiện
+- **Khung Cập nhật chỉ luôn cách tìm thư mục compose.** Bản trước bảo "chạy ở thư mục chứa file compose" nhưng không nói cách tìm, nên gõ xong hay lãnh `no configuration file provided: not found` - tên thư mục tuỳ lúc tải về, có máy là `javis`, có máy là `javis-os`.
+- Tài liệu Khắc phục sự cố thêm bảng phân biệt ba kiểu báo `not found` khi gõ lệnh Docker, mỗi kiểu một cách xử lý.
+
 ## [0.26.27] - 2026-08-12
 ### Sửa lỗi
 - **Trang Cập nhật nay nói rõ vì sao máy này không có nút "Cập nhật ngay".** Trước đây mọi máy thiếu nút đều nhận chung một câu, nên không có cách nào biết máy mình thiếu gì.
