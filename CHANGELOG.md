@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.0] - 2026-08-12
+### Thêm mới
+- **Thanh mốc hội thoại nay có trên điện thoại.** Không phải dãy vạch thu nhỏ mà là một nút nhỏ ở góc trên khung chat, chạm vào thì danh sách câu hỏi trượt lên từ đáy, chạm một câu là nhảy tới.
+- Nút hiện luôn **đang ở câu mấy trên tổng mấy**, thay cho việc nhìn vạch sáng bên máy tính.
+- Đóng bằng cách chạm ra ngoài, bấm dấu X, hoặc phím Esc. Xoay máy sang ngang thì tự đổi về dãy vạch như trên máy tính.
+
 ## [0.27.2] - 2026-08-12
 ### Sửa lỗi
 - **Tạo bot Zalo hay Telegram báo "Thiếu Agent" trong khi đã chọn Agent hẳn hoi.** Lỗi rơi vào đúng những Agent bạn đặt tên tiếng Việt: tên file của chúng có dấu, mà chỗ lưu bot lại chỉ nhận chữ không dấu. Nay chọn Agent nào cũng lưu được, kể cả "Tư vấn sản phẩm" hay "Chăm sóc khách hàng".

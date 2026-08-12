@@ -115,15 +115,39 @@ check("danh sách có thanh cuộn riêng", /\.cm-hop \{[^}]*overflow-y: auto/.t
 check("chữ dài trong danh sách cắt bằng dấu ba chấm", /\.cm-muc \{[^}]*text-overflow: ellipsis/.test(CSS));
 
 // ============================================================
-// 6. Màn hẹp: bỏ hẳn, và bỏ ở CẢ HAI tầng
+// 6. Điện thoại: chế độ KHÁC HẲN, không phải dãy vạch thu nhỏ
 // ============================================================
-// Thao tác chính là RÊ CHUỘT, mà ngón tay không rê được; chạm sát mép phải thì giành mất cú
-// vuốt để cuộn. Chỉ ẩn bằng CSS thì node vẫn dựng và vẫn nghe scroll - tốn việc cho một thứ
-// không ai thấy.
-check("CANARY: JS tự tháo trên màn hẹp", /function hepQua\(/.test(JS) && /hepQua\(\)\) \{ thaoRa\(\)/.test(JS));
-check("CANARY: CSS cũng ẩn trên màn hẹp (lớp thứ hai)",
-  /@media \(max-width: 860px\) \{ #chatMarks \{ display: none; \} \}/.test(CSS));
+// Bản 0.27.0 bỏ hẳn tính năng này trên màn hẹp, và chủ repo bảo "làm cho điện thoại luôn nhé".
+// Thu nhỏ dãy vạch là đáp án SAI: nó sống bằng rê chuột (ngón tay không rê được) và bằng một
+// dải sát mép phải (giành mất cú vuốt để cuộn). Bỏ hai thứ đó thì chẳng còn gì. Nên màn hẹp là
+// một nút mở tấm trượt lên từ đáy, mỗi dòng đủ to để chạm.
+check("CANARY: màn hẹp dựng NÚT chứ không tháo bỏ", /boc\.querySelector\("\.cm-nut"\)\.onclick = moTam/.test(JS));
+check("CANARY: CSS đổi chế độ chứ không ẩn cả khối",
+  /@media \(max-width: 860px\) \{\s*\.cm-ray \{ display: none; \}\s*\.cm-nut \{ display: inline-flex; \}\s*\}/.test(CSS)
+  && !/#chatMarks \{ display: none; \}/.test(CSS));
 check("mốc màn hẹp khớp trang Trò chuyện (860px)", /HEP = 860/.test(JS));
+// Điện thoại không có dãy vạch để nói vị trí bằng hình, nên nút phải nói bằng chữ.
+check("nút nói 'đang ở câu mấy trên tổng mấy'", /\(at \+ 1\) \+ "\/" \+ moc\.length/.test(JS));
+// Chặn theo `ray` ở đây là con số trên nút đứng im mãi - sai mà trông vẫn có vẻ chạy.
+check("CANARY: cập nhật vị trí KHÔNG chặn theo dãy vạch",
+  !/if \(!chatArea \|\| !moc\.length \|\| !ray\) return;/.test(JS));
+
+// Tấm trượt gắn ở BODY: nó là lớp phủ toàn màn hình, để trong khung chat đang cuộn thì nền mờ
+// chỉ che được đúng phần khung và nó cuộn theo nội dung.
+check("CANARY: tấm trượt gắn vào body, không nhét trong khung chat",
+  /document\.body\.appendChild\(tam\)/.test(JS));
+check("tấm trượt dán đáy màn hình", /\.cm-tam-lop \{[^}]*position: fixed[^}]*\}/.test(CSS)
+  && /align-items: flex-end/.test(CSS));
+// Ba lối thoát: nút X, chạm nền mờ, phím Esc. Thiếu lối nào cũng thành bẫy trên màn nhỏ.
+check("đóng được bằng nút X", /cm-tam-dong/.test(JS));
+check("CANARY: chạm nền mờ cũng đóng", /e\.target === tam/.test(JS));
+check("CANARY: Esc cũng đóng", /e\.key === "Escape" && tam/.test(JS));
+// Ngón tay cần đích chạm thật, không phải một dòng chữ mảnh.
+check("mỗi dòng cao tối thiểu 44px theo cỡ ngón tay", /\.cm-tam \.cm-muc \{[^}]*min-height: 44px/.test(CSS));
+check("chừa vùng an toàn dưới đáy (thanh gạt Home)", /env\(safe-area-inset-bottom/.test(CSS));
+// Đổi chế độ giữa chừng (xoay máy) phải dựng lại: hai chế độ có cấu trúc node khác hẳn.
+check("CANARY: đổi cỡ màn thì dựng lại chứ không giữ bản cũ",
+  /\(hep \? "m\|" : "d\|"\)/.test(JS));
 
 // ============================================================
 // 7. Chữ người dùng gõ là DỮ LIỆU, không phải HTML

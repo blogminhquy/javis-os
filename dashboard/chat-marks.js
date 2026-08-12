@@ -28,15 +28,16 @@
   var HEP = 860;            // khớp mốc màn hẹp của trang Trò chuyện (console.js)
   var DAI_XEM_TRUOC = 70;   // số ký tự hiện trong danh sách
 
-  var chatArea = null, boc = null, ray = null, hop = null;
+  var chatArea = null, boc = null, ray = null, hop = null, tam = null;
   var moc = [];             // [{el, text}]
   var vanTruoc = "";        // chữ ký nội dung, để bỏ qua lượt dựng lại không đổi gì
   var choDung = null, choScroll = 0, choDong = null;
 
+  // Màn hẹp dùng chế độ KHÁC HẲN, không phải dãy vạch thu nhỏ. Dãy vạch sống bằng rê chuột, mà
+  // ngón tay không rê được; và một dải chạm sát mép phải thì giành mất cú vuốt để cuộn - hai
+  // thứ đó bỏ đi là cả tính năng vô dụng trên điện thoại. Nên ở đây là một nút mở tấm trượt,
+  // mỗi dòng đủ to để chạm.
   function hepQua() {
-    // Màn hẹp KHÔNG có thanh này. Khung chat trên điện thoại đã chật, mà thao tác chính của
-    // thanh là RÊ CHUỘT - ngón tay không rê được, còn chạm sát mép phải thì giành mất cú vuốt
-    // để cuộn. Thà không có còn hơn có mà cướp thao tác cuộn.
     try { return window.innerWidth < HEP; } catch (e) { return false; }
   }
 
@@ -65,16 +66,10 @@
     if (boc) return boc;
     boc = document.createElement("div");
     boc.id = "chatMarks";
-    // Hộp danh sách nằm BÊN TRONG .cm-ray, không phải anh em với nó. Hai lý do, cái thứ hai
-    // mới là lỗi thật chủ repo báo (2026-08-12) "hover thì nó hiện hơi xa trỏ nên không trỏ
-    // được":
-    //   1. #chatMarks cao 0 nên mọi phần trăm dọc tính trên nó đều ra 0 - không căn giữa được.
-    //      .cm-ray có chiều cao thật (JS đặt bằng clientHeight của khung) nên top:50% mới có
-    //      nghĩa, và hộp mới ngang hàng với chùm vạch thay vì dán lên đỉnh khung.
-    //   2. Dán ở đỉnh trong khi vạch nằm giữa thì giữa hai thứ là một khoảng trống KHÔNG thuộc
-    //      vùng hover. Chuột đi chéo qua đó là rời vùng, hộp tắt ngay trước khi tới nơi.
-    boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="Mốc hội thoại"></div>';
-    ray = boc.querySelector(".cm-ray");
+    // Ruột để veLai() dựng, vì hai chế độ (máy tính / điện thoại) có cấu trúc khác hẳn nhau.
+    // Mấy handler dưới đây chỉ có tác dụng ở chế độ máy tính, nhưng gắn một lần ở đây là đủ:
+    // chế độ điện thoại không có node nào khớp nên chúng lặng lẽ không làm gì.
+    //
     // Rê vào bất kỳ đâu trong khối thì mở danh sách; rời ra thì đóng. Nghe ở KHỐI BỌC chứ
     // không ở riêng thanh: chuột đi từ thanh sang danh sách phải được coi là vẫn ở trong.
     boc.addEventListener("mouseenter", moHop);
@@ -123,6 +118,7 @@
     try { chatArea.scrollTo({ top: toi, behavior: "smooth" }); }
     catch (e) { chatArea.scrollTop = toi; }
     dongHop(true);
+    dongTam();
     m.el.classList.add("cm-vua-nhay");
     setTimeout(function () { m.el.classList.remove("cm-vua-nhay"); }, 1200);
   }
@@ -135,7 +131,9 @@
   // thì vạch sáng khớp với phần đang CHIẾM màn hình. Chặn trần 180px để hội thoại có câu trả
   // lời ngắn không bị nhảy vọt qua hai ba câu một lúc.
   function capNhatDangDoc() {
-    if (!chatArea || !moc.length || !ray) return;
+    // KHÔNG chặn theo `ray`: chế độ điện thoại không có dãy vạch, chặn ở đây là con số "4/9"
+    // trên nút đứng im mãi ở lượt dựng đầu tiên - sai mà trông vẫn có vẻ chạy.
+    if (!chatArea || !moc.length) return;
     var moc0 = chatArea.getBoundingClientRect().top
       + Math.min(180, chatArea.clientHeight * 0.4);
     var at = 0;
@@ -145,45 +143,110 @@
     // querySelectorAll(".cm-vach") chứ KHÔNG phải ray.children: hộp danh sách nay cũng là con
     // của ray, nên đếm theo children là lẫn nó vào dãy vạch và chỉ số lệch ngay khi ai đó đổi
     // thứ tự dựng. Chọn theo lớp thì không có cách nào lẫn.
-    var vach = ray.querySelectorAll(".cm-vach"), mucs = hop ? hop.children : [];
-    for (var k = 0; k < vach.length; k++) vach[k].classList.toggle("active", k === at);
+    if (ray) {
+      var vach = ray.querySelectorAll(".cm-vach");
+      for (var k = 0; k < vach.length; k++) vach[k].classList.toggle("active", k === at);
+    }
+    // Điện thoại không có dãy vạch để nói "đang ở đâu" bằng hình, nên nút phải nói bằng chữ.
+    var so = boc && boc.querySelector(".cm-nut-so");
+    if (so) so.textContent = (at + 1) + "/" + moc.length;
+    // Tô mục đang đọc ở CẢ hộp rê chuột lẫn tấm trượt - chỉ một trong hai đang sống mỗi lúc.
+    var mucs = (boc || document).querySelectorAll(".cm-muc");
     for (var j = 0; j < mucs.length; j++) mucs[j].classList.toggle("active", j === at);
+    if (tam) {
+      var tm = tam.querySelectorAll(".cm-muc");
+      for (var q = 0; q < tm.length; q++) tm[q].classList.toggle("active", q === at);
+    }
+  }
+
+  function mucHtml() {
+    var h = "";
+    for (var i = 0; i < moc.length; i++) {
+      h += '<button type="button" class="cm-muc" data-cm="' + i + '">'
+        + '<span class="cm-so">' + (i + 1) + "</span>" + escHtml(moc[i].text) + "</button>";
+    }
+    return h;
   }
 
   function veLai() {
     if (!chatArea) return;
-    if (hepQua()) { thaoRa(); return; }
     moc = docMoc();
     if (moc.length < TOI_THIEU) { thaoRa(); return; }
+    var hep = hepQua();
 
-    var van = moc.length + "|" + moc.map(function (m) { return m.text; }).join("");
+    // Đổi chế độ (xoay ngang máy, kéo cửa sổ) phải dựng lại từ đầu: hai chế độ có cấu trúc
+    // node khác hẳn nhau, giữ lại bản cũ là còn nguyên dãy vạch trên điện thoại.
+    var van = (hep ? "m|" : "d|") + moc.length + "|" + moc.map(function (m) { return m.text; }).join("");
     var daGan = boc && boc.parentNode === chatArea;
     if (van === vanTruoc && daGan) { doCao(); capNhatDangDoc(); return; }
     vanTruoc = van;
 
     dungBoc();
-    var rayHtml = "", hopHtml = "";
-    for (var i = 0; i < moc.length; i++) {
-      rayHtml += '<button type="button" class="cm-vach" data-cm="' + i + '" tabindex="-1" '
-        + 'aria-label="Câu hỏi ' + (i + 1) + '"></button>';
-      hopHtml += '<button type="button" class="cm-muc" data-cm="' + i + '">'
-        + escHtml(moc[i].text) + "</button>";
+    if (hep) {
+      // ĐIỆN THOẠI: không có chuột để rê nên không có dãy vạch. Một nút nhỏ ở góc trên, chạm
+      // vào thì mở tấm trượt lên từ đáy - ngón cái với tới được, và mỗi dòng đủ to để chạm.
+      // Nút hiện luôn "đang ở câu mấy trên tổng mấy", thứ mà dãy vạch bên máy tính nói bằng
+      // hình thì ở đây phải nói bằng chữ.
+      boc.innerHTML = '<button type="button" class="cm-nut" aria-haspopup="dialog">'
+        + '<span class="cm-nut-ic" aria-hidden="true"></span>'
+        + '<span class="cm-nut-so"></span></button>';
+      ray = null; hop = null;
+      boc.querySelector(".cm-nut").onclick = moTam;
+    } else {
+      boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="Mốc hội thoại"></div>';
+      ray = boc.querySelector(".cm-ray");
+      var rayHtml = "";
+      for (var i = 0; i < moc.length; i++) {
+        rayHtml += '<button type="button" class="cm-vach" data-cm="' + i + '" tabindex="-1" '
+          + 'aria-label="Câu hỏi ' + (i + 1) + '"></button>';
+      }
+      // Dựng MỘT LƯỢT cả vạch lẫn hộp: hộp là con của ray nên ghi ray.innerHTML riêng sẽ xoá
+      // mất nó, rồi biến `hop` thành con trỏ tới một node đã rời khỏi trang - hover không
+      // còn gì để mở, mà nhìn code thì vẫn thấy "có gán hop" nên rất khó soi ra.
+      ray.innerHTML = rayHtml + '<div class="cm-hop" hidden>' + mucHtml() + "</div>";
+      hop = ray.querySelector(".cm-hop");
+      dongTam();   // rời khỏi cỡ điện thoại thì tấm trượt không còn chỗ đứng
     }
-    // Dựng MỘT LƯỢT cả vạch lẫn hộp: hộp là con của ray nên ghi ray.innerHTML riêng sẽ xoá
-    // mất nó, rồi biến `hop` thành con trỏ tới một node đã rời khỏi trang - hover không còn
-    // gì để mở, mà nhìn code thì vẫn thấy "có gán hop" nên rất khó soi ra.
-    ray.innerHTML = rayHtml + '<div class="cm-hop" hidden>' + hopHtml + "</div>";
-    hop = ray.querySelector(".cm-hop");
 
-    // Chèn LÊN ĐẦU: app.js chèn tin mới vào trước #newMsgBtn nên nó luôn ở cuối; để thanh ở
-    // đầu thì hai bên không giành chỗ. Sticky vẫn bám đúng vì phần tử neo theo cả vùng cuộn.
+    // Chèn LÊN ĐẦU: app.js chèn tin mới vào trước #newMsgBtn nên nó luôn ở cuối; để thanh
+    // ở đầu thì hai bên không giành chỗ. Sticky vẫn bám đúng vì phần tử neo theo cả vùng cuộn.
     if (!daGan) chatArea.insertBefore(boc, chatArea.firstChild);
     doCao();
     capNhatDangDoc();
   }
 
+  // ---- Tấm trượt lên từ đáy (chỉ điện thoại) -------------------------------------------
+  // Gắn vào BODY chứ không vào #chatMarks. #chatMarks nằm trong khung chat đang cuộn, mà một
+  // lớp phủ toàn màn hình thì phải neo theo MÀN HÌNH; để trong đó là nó cuộn theo nội dung
+  // và cái nền mờ chỉ che được đúng phần khung chat. Đổi lại phải tự dọn khi đóng.
+  function moTam() {
+    dongTam();
+    tam = document.createElement("div");
+    tam.className = "cm-tam-lop";
+    tam.innerHTML = '<div class="cm-tam" role="dialog" aria-label="Câu hỏi trong hội thoại">'
+      + '<div class="cm-tam-dau"><b>Câu hỏi trong hội thoại</b>'
+      + '<button type="button" class="cm-tam-dong" aria-label="Đóng">\u2715</button></div>'
+      + '<div class="cm-tam-ds">' + mucHtml() + "</div></div>";
+    document.body.appendChild(tam);
+    tam.addEventListener("click", function (e) {
+      // Chạm ra ngoài tấm (tức trúng nền mờ) thì đóng - phản xạ ai cũng thử trước khi đi tìm
+      // nút X, nhất là khi tay đang cầm máy một tay.
+      if (e.target === tam || (e.target.closest && e.target.closest(".cm-tam-dong"))) { dongTam(); return; }
+      var n = e.target.closest ? e.target.closest("[data-cm]") : null;
+      if (!n) return;
+      nhayToi(parseInt(n.getAttribute("data-cm"), 10));
+    });
+    capNhatDangDoc();
+    var act = tam.querySelector(".cm-muc.active");
+    if (act && act.scrollIntoView) { try { act.scrollIntoView({ block: "center" }); } catch (e) {} }
+  }
+  function dongTam() {
+    if (tam && tam.parentNode) tam.parentNode.removeChild(tam);
+    tam = null;
+  }
+
   function doCao() {
-    if (!ray || !chatArea || !moc.length) return;
+    if (!ray || !chatArea || !moc.length) return;   // chế độ điện thoại không có dãy vạch
     var caoKhung = chatArea.clientHeight;
     ray.style.height = caoKhung + "px";
     // Khoảng cách giữa hai vạch: rộng thì để thoáng, hội thoại dài thì nén dần. Chạm sàn thì
@@ -196,6 +259,7 @@
   }
 
   function thaoRa() {
+    dongTam();
     if (boc && boc.parentNode) boc.parentNode.removeChild(boc);
     vanTruoc = "";
     moc = [];
@@ -225,6 +289,9 @@
       choScroll = requestAnimationFrame(function () { choScroll = 0; capNhatDangDoc(); });
     }, { passive: true });
     window.addEventListener("resize", hen);
+    // Esc đóng tấm trượt. Máy tính bảng có bàn phím rời cũng rơi vào cỡ màn hẹp này, và một
+    // lớp phủ toàn màn hình mà không thoát được bằng Esc thì thành cái bẫy.
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && tam) dongTam(); });
     veLai();
   }
 
