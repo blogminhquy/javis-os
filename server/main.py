@@ -49,6 +49,7 @@ import git_brain
 import engine
 import openai_oauth
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
+import gemini_cli      # bộ não thứ 9: Gemini CLI chạy bằng đăng nhập Google, không cần API key
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
@@ -959,16 +960,27 @@ async def auth_disable():
 # ============================================================
 # Providers - nhà cung cấp model. MỌI kind đều được cấp MCP Javis + tool file brain + skill;
 # khác nhau ở ĐƯỜNG đi và ở việc chạy được lệnh máy hay không:
-#   kind=cli   (Claude Code)      - MCP native + Bash, chạy lệnh máy
+#   kind=cli   (Claude Code, Gemini CLI) - MCP native + Bash, chạy lệnh máy
 #   kind=oauth (ChatGPT qua Codex) - MCP native + kho MCP gốc Codex, chạy lệnh máy
 #   kind=api   (OpenRouter/OpenAI/Anthropic/Gemini) - MCP qua hub trong vòng gọi tool
 #              (_api_stream_mcp), đọc/ghi brain bằng tool vault, KHÔNG chạy lệnh máy
+#
+# `gemini-cli` để kind="cli" là CỐ Ý, không phải tiện tay: `kind` phân loại NĂNG LỰC chứ không
+# phải nhà cung cấp. Mọi chỗ hỏi "đây có phải bộ não gói thuê bao có tool thật không" đều viết
+# `kind in ("cli","oauth")` - đường tắt fast-path, ngân sách ngữ cảnh, nhãn thuê bao. Đặt nó
+# một kind riêng là phải sửa đúng 17 chỗ đó và chắc chắn sót. Chỗ nào cần biết ĐÚNG engine nào
+# thì so bằng `prov`, như nhánh chat vẫn làm với openai-oauth.
 # ============================================================
 PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "anthropic-cli", "label": "Anthropic OAuth (Claude Code)", "kind": "cli", "key_field": None,          "catalog_key": "claude",
      "default_models": ["opus", "sonnet", "haiku", "fable"]},
     {"id": "openai-oauth",  "label": "OpenAI OAuth (ChatGPT)",  "kind": "oauth", "key_field": None,             "catalog_key": "openai-oauth",
      "default_models": []},  # model/list của Codex app-server là nguồn chân lý; không ghim version ở đây
+    # Gemini CLI: đăng nhập bằng TÀI KHOẢN GOOGLE, không cần mua API key - cùng backend Code
+    # Assist mà Antigravity dùng, nhưng qua CLI chính chủ Google có hỗ trợ bên thứ ba.
+    # Khác hẳn provider `gemini` bên dưới (kind=api, trả tiền theo lượt gọi bằng API key).
+    {"id": "gemini-cli",    "label": "Google Gemini CLI (đăng nhập Google)", "kind": "cli", "key_field": None,
+     "catalog_key": "gemini-cli", "default_models": list(gemini_cli.MODELS_MAC_DINH)},
     {"id": "openrouter",    "label": "OpenRouter",              "kind": "api", "key_field": "openrouter_key",    "catalog_key": "openrouter",
      "default_models": ["openai/gpt-4o-mini"]},
     {"id": "anthropic-api", "label": "Anthropic (API)",         "kind": "api", "key_field": "anthropic_api_key", "catalog_key": "anthropic-api",
@@ -1015,6 +1027,10 @@ def _providers_view(cfg):
         models = cat.get(p["catalog_key"]) or p.get("default_models", [])
         if p["kind"] == "oauth":
             configured = oauth_on
+        elif p["id"] == "gemini-cli":
+            # Không dùng lối "key_field rỗng nên coi như xong" của anthropic-cli: Gemini CLI có
+            # thể chưa cài, hoặc cài rồi mà chưa đăng nhập Google. Cả hai đều đọc từ file, rẻ.
+            configured = bool(gemini_cli.auth_status().get("connected"))
         elif p["key_field"] is None:
             configured = True
         else:
@@ -1029,6 +1045,12 @@ def _providers_view(cfg):
         if p["kind"] == "oauth":
             item["account"] = oauth.get("account_id", "")
             item["plan"] = oauth.get("plan", "")
+        if p["id"] == "gemini-cli":
+            _g = gemini_cli.auth_status()
+            item["cli_found"] = bool(gemini_cli.find_gemini_cli())
+            item["auth_method"] = _g.get("method", "")
+            item["account"] = _g.get("email", "")
+            item["auth_error"] = _g.get("error", "")
         if p["id"] == "anthropic-cli":
             # Gói Claude Code chạy bằng gì, và có đang gánh việc nền không. Trang Models vẽ ô
             # chọn + cảnh báo từ ba field này. Cảnh báo đi kèm DỮ LIỆU chứ không hardcode ở
@@ -1053,6 +1075,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "openai-oauth"
     elif provider == "gemini":
         m["engine"] = "gemini"
+    elif provider == "gemini-cli":
+        m["engine"] = "gemini-cli"
     elif provider == "groq":
         m["engine"] = "groq"
     elif provider == "ollama":
@@ -1224,6 +1248,50 @@ def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
     return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
 
 
+def _gemini_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                       mode="suggest"):
+    """Gói Google (Gemini CLI) cho đường CHAT-THUẦN của `_api_stream`.
+
+    Vì sao phải có: `_api_stream` là đường DÙNG CHUNG của bot chuyên trách, tóm tắt, đặt tiêu
+    đề - những chỗ chỉ cần một lượt chữ. Provider nào không có nhánh ở đó thì rơi xuống dòng
+    cuối `engine.anthropic_stream(key, ...)` với key rỗng, tức là hỏng câm. Đúng khuôn
+    `_claude_sub_stream` đã dựng cho gói Claude Code.
+
+    `mode="suggest"` mặc định là CỐ Ý: đường này không phải chỗ để một bot đang nói chuyện với
+    người lạ ghi file. Nơi cần quyền cao hơn thì truyền vào tường minh.
+
+    KHÔNG phải `async def`, y như `_claude_sub_stream`: nơi gọi làm `async for ev in
+    _api_stream(...)`, nên hàm phải TRẢ VỀ async generator chứ không phải là coroutine sinh ra
+    nó. Viết `async def` ở đây thì `async for` nhận một coroutine và ném TypeError giữa lượt.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    g = gemini_cli.GeminiCLI(cwd=_brain_root(brain) if brain else None, tag=tag,
+                             model=model or gemini_cli.MODEL_MAC_DINH, instructions=sys_txt)
+    g.approval_mode = gemini_cli.approval_cho_mode(mode)
+    if brain:
+        _apply_gemini_hub(g, _brain_root(brain), mode=mode)
+    return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
+
+
+async def _gemini_sub_doc(g, prompt, model):
+    """Một lượt Gemini CLI -> đúng hợp đồng sự kiện của `_api_stream`."""
+    yield {"type": "meta", "model": model}
+    async for ev in g.query(prompt):
+        et = ev.get("type")
+        if et == "final":
+            txt = ev.get("content") or ""
+            if txt:
+                yield {"type": "text", "content": txt}
+        elif et == "tool_call":
+            yield {"type": "tool_call", "tool": ev.get("name") or "",
+                   "content": f"⚙ {ev.get('name') or 'tool'}"}
+        elif et == "usage":
+            yield {"type": "usage", "input": int(ev.get("input_tokens") or 0),
+                   "output": int(ev.get("output_tokens") or 0)}
+        elif et == "error":
+            yield {"type": "error", "content": str(ev.get("content") or "lỗi không rõ")}
+
+
 # Tool NATIVE của Claude Code mà bot chuyên trách TUYỆT ĐỐI không được chạm, ở mọi mức quyền.
 # Bot phục vụ người lạ nhắn tới, nên "chạy được lệnh máy" là một hạng rủi ro khác hẳn phần còn
 # lại của Javis. Allowlist bên dưới đã đủ chặn (mọi tool ngoài list bị `can_use_tool` từ chối
@@ -1282,6 +1350,10 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
                                               _codex_safe_model(model), messages, reasoning)
+    if prov == "gemini-cli":
+        # Gói Google đi qua chính binary `gemini`, cùng lý do với anthropic-cli ngay dưới:
+        # Javis không cầm token của ai, CLI tự lo đăng nhập.
+        return _gemini_sub_stream(model, messages, reasoning)
     if prov == "anthropic-cli":
         # Gói Claude Code đi qua chính binary `claude`, KHÔNG tự dựng request tới
         # api.anthropic.com bằng token của người dùng nữa (xem claude_auth.py). Vẫn không có
@@ -2230,6 +2302,33 @@ def _write_codex_profile():
     return None
 
 
+def _apply_gemini_hub(cli, vault_root=None, mode="full"):
+    """Gắn MCP hub của Javis vào tiến trình Gemini CLI, khoá theo đúng brain đang mở.
+
+    Gemini CLI đọc `mcpServers` từ `.gemini/settings.json` của THƯ MỤC LÀM VIỆC, và Javis luôn
+    chạy nó với cwd = gốc brain - nên ghi file ngay trong brain vừa đúng chỗ vừa cô lập sẵn
+    từng brain. Không đụng `~/.gemini/settings.json` của người dùng: đó là cấu hình cá nhân họ
+    dùng cho mọi thứ chạy bằng `gemini`, và nhiều brain thì brain nọ sẽ đọc header brain kia.
+
+    Header giống hệt đường Claude/Codex (`Bearer hub_token` + X-Javis-Mode + X-Javis-Vault) nên
+    hub áp đúng một bộ luật quyền cho cả ba engine.
+    """
+    root = vault_root or getattr(cli, "cwd", None)
+    if not root:
+        return cli
+    hub = None
+    if _hub_enabled():
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        try:
+            headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
+        except Exception:
+            headers["X-Javis-Vault"] = str(root)
+        hub = {"httpUrl": mcp_hub.hub_url(), "headers": headers,
+               "trust": True, "timeout": 20000}
+    gemini_cli.ghi_mcp_settings(root, hub)
+    return cli
+
+
 def _apply_codex_hub(cli, vault_root=None):
     """Gắn profile MCP và brain hiện tại vào riêng tiến trình Codex."""
     cli.profile = _write_codex_profile()
@@ -2331,6 +2430,25 @@ def oauth_openai_status():
 @app.get("/claude/status")
 def claude_status():
     return claude_auth_status()
+
+
+@app.get("/gemini-cli/status")
+def gemini_cli_status():
+    """Trạng thái bộ não Gemini CLI: đã cài chưa, đã đăng nhập Google chưa, đăng nhập kiểu gì."""
+    d = gemini_cli.auth_status()
+    d["cli_path"] = gemini_cli.find_gemini_cli() or ""
+    d["huong_dan"] = gemini_cli.login_huong_dan()
+    return d
+
+
+@app.post("/gemini-cli/check")
+async def gemini_cli_check():
+    """Chạy thử MỘT lượt thật để biết chắc gói đang dùng được.
+
+    File credential còn nằm đó không có nghĩa là còn dùng được (token hết hạn mà refresh hỏng
+    thì file vẫn nguyên). Trang Models cần câu trả lời dứt khoát, và đây là cách duy nhất có nó.
+    """
+    return await asyncio.to_thread(gemini_cli.kiem_tra_nhanh)
 
 
 @app.post("/claude/login")
@@ -3103,6 +3221,8 @@ async def _fetch_provider_models(provider, m):
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
         return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
+    if provider == "gemini-cli":
+        return gemini_cli.list_models()
     if provider == "anthropic-cli":
         # Provider này chạy bằng đăng nhập OAuth của Claude Code → mượn chính token đó hỏi
         # /v1/models, nên Anthropic ra bản mới là picker thấy ngay (trước kẹt ở 4 alias tĩnh).
@@ -3152,6 +3272,9 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
                     "môi trường JAVIS_CODEX_BIN.")
         return ("Có Codex CLI nhưng nó chưa trả được danh sách model. Thường là bản Codex quá "
                 "cũ (`npm i -g @openai/codex@latest`), hoặc máy chưa chạy `codex login` lần nào.")
+    if provider == "gemini-cli":
+        return (gemini_cli.auth_status().get("error")
+                or "Không đọc được danh sách model của Gemini CLI.")
     if provider == "ollama":
         return "Không gọi được Ollama. Kiểm tra máy chủ Ollama còn chạy và key còn hạn."
     if d.get("key_field") and not m.get(d["key_field"]):
@@ -7769,6 +7892,7 @@ async def websocket_endpoint(ws: WebSocket):
                     # mâu thuẫn. Bỏ liên kết mạch để lượt sau dựng lại từ SQLite - nơi lượt
                     # này ĐÃ được lưu. Bản mồi lại có trần ký tự nên còn rẻ hơn mạch cũ.
                     store.clear_codex_thread_id(conv_sid)
+                    store.clear_gemini_session_id(conv_sid)
                     store.set_cli_session_id(conv_sid, "")
                 else:
                     # Đường tắt về tay không. Với gói Claude Code đây là ca THẬT SỰ có thể
@@ -7790,6 +7914,90 @@ async def websocket_endpoint(ws: WebSocket):
             _da_tra_loi = bool(_schedule_action) or used_fast_path
             if _da_tra_loi:
                 pass
+            elif prov == "gemini-cli":
+                # ===== Gói Google (đăng nhập tài khoản) qua GEMINI CLI - tool native + MCP hub =====
+                actual_model = api_model or gemini_cli.MODEL_MAC_DINH
+                sysprompt, _sub_plan = await _subscription_system_prompt(
+                    "gemini-cli", actual_model, kind)
+                gcli = gemini_cli.GeminiCLI(cwd=_brain_root(brain), model=actual_model,
+                                            tag=turn_tag, instructions=sysprompt)
+                _apply_gemini_hub(gcli, _brain_root(brain))
+                if not gcli.is_available():
+                    final_text = ("⚠ Chưa cài Gemini CLI trên máy này. Cài bằng "
+                                  "`npm i -g @google/gemini-cli` rồi chạy `gemini` một lần để "
+                                  "đăng nhập Google.")
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "gemini-cli",
+                        "model": actual_model, "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                else:
+                    # Mạch cũ: nối lại nếu có và chưa phình quá ngưỡng. Cùng luật với Codex và
+                    # Claude Code - Javis không nhìn được vào mạch của CLI, chỉ có token vào của
+                    # lượt trước làm dấu hiệu.
+                    _g_mach = (_row0.get("gemini_session_id") or "").strip()
+                    if _g_mach and compaction.nen_mach_thue_bao(
+                            _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                            rotated_at=_row0.get("thread_rotated_msg")):
+                        _g_mach = ""
+                        store.clear_gemini_session_id(conv_sid)
+                        store.mark_thread_rotated(conv_sid)
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "thread.rotated",
+                            {"engine": "gemini-cli",
+                             "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                             "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                        await ws.send_text(json.dumps({
+                            "type": "tool_call", "tool": "javis_nen_mach",
+                            "content": "⚙ Mạch hội thoại đã dài, Javis mở mạch mới."}))
+                    gcli.session_id = _g_mach or None
+                    # Mạch mới thì mồi lại bằng transcript đã lưu, y như Codex: không có bước
+                    # này là mở mạch mới = mất sạch ngữ cảnh cuộc đang nói dở.
+                    _g_cur = _cli_think(reasoning, user_message)
+                    _g_raw = [{"role": _m["role"], "content": _m["content"]}
+                              for _m in store.get_messages(conv_sid)[:-1]
+                              if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    _g_prompt = (_g_cur if _g_mach else compaction.bootstrap_prompt(
+                        _g_raw, _g_cur, summary=_row0.get("compact_summary") or ""))
+
+                    async def _nuot_gemini(prompt):
+                        nonlocal final_text
+                        _CONTEXT_RUNTIME.observe_payload(
+                            runtime_trace,
+                            [{"role": "system", "content": sysprompt},
+                             {"role": "user", "content": prompt}],
+                            provider="gemini-cli", model=actual_model)
+                        async for ev in gcli.query(prompt):
+                            et = ev.get("type")
+                            if et == "tool_call":
+                                await ws.send_text(json.dumps({
+                                    "type": "tool_call", "tool": ev.get("name", ""),
+                                    "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
+                            elif et == "final":
+                                final_text = ev.get("content") or ""
+                            elif et == "usage":
+                                # Token VÀO của lượt là dấu hiệu DUY NHẤT để biết mạch đã phình
+                                # tới đâu (CLI tự quản mạch, Javis không nhìn vào được).
+                                store.set_last_input_tokens(
+                                    conv_sid, int(ev.get("input_tokens") or 0))
+                            elif et == "error":
+                                _noi = _subscription_limit_message(ev.get("content") or "",
+                                                                   "gemini-cli")
+                                if _noi:
+                                    _CONTEXT_RUNTIME.record_runtime_event(
+                                        runtime_trace, "subscription.limit_reached",
+                                        {"engine": "gemini-cli", "model": actual_model})
+                                    final_text = final_text or _noi
+                                await ws.send_text(json.dumps({
+                                    "type": "error", "content": _noi or ev.get("content", "")}))
+
+                    await _nuot_gemini(_g_prompt)
+                    # CLI cấp UUID mạch ở sự kiện `init`; lưu lại để lượt sau --resume.
+                    if gcli.session_id:
+                        store.set_gemini_session_id(conv_sid, gcli.session_id)
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "gemini-cli",
+                        "model": actual_model, "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
@@ -8390,6 +8598,7 @@ async def websocket_endpoint(ws: WebSocket):
             mcfg = cfgmod.read_settings().get("model", {})
             prov, kind, api_key, api_model = _chat_provider(mcfg)
             engine_label = ("codex" if prov == "openai-oauth"
+                            else "gemini-cli" if prov == "gemini-cli"
                             else prov if ((kind == "api" and api_key) or kind == "oauth")
                             else "cli")
             conv_sid = store.get_or_create(
@@ -9666,8 +9875,17 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
     engine_label = ("codex" if prov == "openai-oauth"
+                    else "gemini-cli" if prov == "gemini-cli"
                     else prov if ((kind == "api" and api_key) or kind == "oauth")
                     else "cli")
+
+    if engine_label != "gemini-cli" and sess.get("gemini") is not None:
+        # Cùng lý do với khối Codex ngay dưới: provider khác vừa chen một lượt nên mạch Gemini
+        # cũ KHÔNG chứa lượt đó; resume tiếp là nó mù đúng đoạn ở giữa.
+        try:
+            sess["gemini"].session_id = None
+        except Exception:
+            sess["gemini"] = None
 
     if engine_label != "codex" and sess.get("codex") is not None:
         # Bản tương ứng của `store.clear_codex_thread_id` bên dashboard: provider khác vừa chen
@@ -10174,6 +10392,38 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             # xuống engine đầy đủ bên dưới, người dùng vẫn có câu trả lời.
             if _txt.strip():
                 return {"text": channel_context.strip_control_blocks(_txt), "files": []}
+
+    if prov == "gemini-cli":
+        # Cùng engine với dashboard: Gemini CLI + tool native + MCP hub, chỉ khác chỗ giữ mạch.
+        # Phiên Telegram giữ luôn object engine trong `sess` (như Codex), nên mạch hội thoại
+        # nối tiếp qua các tin nhắn mà không phải đụng SQLite.
+        actual_model = api_model or gemini_cli.MODEL_MAC_DINH
+        gcli = sess.get("gemini")
+        if gcli is None:
+            gcli = gemini_cli.GeminiCLI(cwd=_brain_root(brain), model=actual_model,
+                                        tag=f"telegram:{chat_id}", instructions=sysprompt)
+            sess["gemini"] = gcli
+        else:
+            gcli.cwd = _brain_root(brain)
+            gcli.model = actual_model
+            gcli.instructions = sysprompt
+        _apply_gemini_hub(gcli, _brain_root(brain))
+        if not gcli.is_available():
+            return ("⚠ Chưa cài Gemini CLI trên máy chạy Javis. Cài bằng "
+                    "`npm i -g @google/gemini-cli` rồi chạy `gemini` một lần để đăng nhập Google.")
+        out, loi = "", []
+        async for ev in gcli.query(text):
+            et = ev.get("type")
+            if et == "tool_call":
+                await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
+            elif et == "final":
+                out = ev.get("content") or ""
+            elif et == "error":
+                loi.append(str(ev.get("content") or ""))
+        if not out and loi:
+            _noi = _subscription_limit_message(loi[0], "gemini-cli")
+            return _noi or ("⚠ Gemini CLI lỗi: " + loi[0][:400])
+        return out or "(không có nội dung)"
 
     if prov == "openai-oauth":
         # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth

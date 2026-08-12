@@ -260,7 +260,11 @@ class SessionStore:
                               # bị trôi xuống dưới theo thời gian nữa.
                               ("pinned", "INTEGER NOT NULL DEFAULT 0"),
                               # Project (nhóm) đang chứa hội thoại. NULL = chưa xếp vào đâu.
-                              ("project_id", "TEXT")):
+                              ("project_id", "TEXT"),
+                              # Mạch native của Gemini CLI (UUID). Cùng vai với codex_thread_id
+                              # nhưng phải là cột RIÊNG: đổi bộ não giữa chừng mà dùng chung một
+                              # cột là lượt sau đưa UUID của engine này cho engine kia resume.
+                              ("gemini_session_id", "TEXT")):
                 if name not in cols:
                     self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {name} {ddl}")
             # Index cho cột vừa thêm phải chạy SAU vòng ALTER: DB cũ chưa có cột thì CREATE
@@ -598,6 +602,22 @@ class SessionStore:
         """Thread Codex thành stale khi provider khác chen lượt vào cùng hội thoại."""
         self._write(lambda c: c.execute(
             "UPDATE sessions SET codex_thread_id = NULL WHERE id = ? AND codex_thread_id IS NOT NULL",
+            (session_id,),
+        ))
+
+    def set_gemini_session_id(self, session_id: str, gemini_id: str) -> None:
+        """Gắn mạch native của Gemini CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
+        if not gemini_id:
+            return
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET gemini_session_id = ?, updated_at = ? WHERE id = ?",
+            (gemini_id, time.time(), session_id),
+        ))
+
+    def clear_gemini_session_id(self, session_id: str) -> None:
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET gemini_session_id = NULL "
+            "WHERE id = ? AND gemini_session_id IS NOT NULL",
             (session_id,),
         ))
 

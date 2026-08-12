@@ -17,6 +17,7 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 |---|---|---|---|
 | Qua **Claude Code** | Anthropic OAuth (Claude Code) | Có - MCP native + skill native | **Có** |
 | Qua **Codex** | OpenAI OAuth (ChatGPT) | Có - MCP qua hub (cả kết nối local như Zalo/Webcake) + kho MCP GỐC của Codex (server bạn tự `codex mcp add`) + skill qua router (`javis_use_skill` / đọc file `skills/`) | **Có** |
+| Qua **Gemini CLI** | Google Gemini CLI (đăng nhập Google) | Có - MCP qua hub (ghi vào `.gemini/settings.json` trong chính brain đang mở) + skill qua router | **Có** |
 | **Gọi API thẳng** | OpenRouter | Có - MCP qua hub + tool file vault + skill qua router | Không |
 | **Gọi API thẳng** | OpenAI (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Anthropic (API) | Có - như trên | Không |
@@ -47,14 +48,15 @@ Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai 
 2. Ở thanh bên trái, mở nhóm **Kết nối**, rồi bấm mục **Models**.
 3. Trang Models hiện 4 khối theo thứ tự: **◆ Main Model** ("model chính cho hội thoại"), **◆ Providers** ("đăng nhập / kết nối nhà cung cấp model"), **◆ Model việc nền** ("loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn"), **◆ Suy nghĩ** ("độ sâu reasoning khi trả lời").
 
-## Bảy provider có sẵn
+## Chín provider có sẵn
 
-Khối **Providers** liệt kê 7 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
+Khối **Providers** liệt kê 9 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
 
 | Provider (nhãn trên màn hình) | Kiểu kết nối | Ghi chú |
 |---|---|---|
 | **Anthropic OAuth (Claude Code)** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
 | **OpenAI OAuth (ChatGPT)** | Device code (đăng nhập gói ChatGPT) | Chạy qua Codex, đấu kho Kết nối qua hub + dùng skill qua router |
+| **Google Gemini CLI (đăng nhập Google)** | Đăng nhập tài khoản Google trong terminal, không cần key | Chạy qua binary `gemini`. Đầy đủ MCP/skill/tool máy. **Khác hẳn** thẻ "Google Gemini (API)" bên dưới: thẻ đó trả tiền theo lượt gọi |
 | **OpenRouter** | Dán API key | Nhiều model 1 chỗ, MCP + tool file + skill qua hub |
 | **Anthropic (API)** | Dán API key | MCP + tool file + skill qua hub (từ 0.9) |
 | **OpenAI (ChatGPT API)** | Dán API key | MCP + tool file + skill qua hub |
@@ -110,6 +112,21 @@ Vì chỉ cần dán lại đường dẫn nên đường này cũng chạy đư
 Muốn ngắt: bấm **Ngắt** trên card này. Nếu ChatGPT đang là Main Model khi bạn ngắt, Javis tự chuyển Main Model về Claude Code để chat không bị gãy.
 
 Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn định tối đa, dùng Claude Code hoặc OpenRouter.
+
+### B2. Kết nối Gemini CLI bằng tài khoản Google (không cần mua API key)
+
+Đây là đường dùng **gói miễn phí của Google**: đăng nhập bằng tài khoản Google thường, hạn mức do Google đặt, không phải mua API key. Cùng cơ chế mà app Antigravity dùng, nhưng đi qua CLI chính chủ nên ổn định và không phải đào token trong máy.
+
+1. Cài CLI một lần trên máy chạy Javis: `npm install -g @google/gemini-cli`
+2. Mở terminal (VPS thì SSH vào, Hostinger thì App terminal) chạy `gemini`, chọn **Login with Google**, đăng nhập rồi thoát bằng Ctrl+C.
+3. Vào **Models**, ở thẻ **Google Gemini CLI (đăng nhập Google)** bấm **Kiểm tra lại**. Javis chạy thử một lượt thật rồi báo dùng được hay chưa.
+4. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này và một model (mặc định `gemini-2.5-pro`).
+
+Trên trang không có nút "Đăng nhập" là **cố ý**: luồng đăng nhập của Gemini CLI là giao diện bàn phím trong terminal rồi mở trình duyệt, không có chế độ chạy ngầm nào để bọc lại - dựng một cái nút như vậy thì trên VPS nó là nút chết.
+
+Cài ở chỗ lạ mà Javis không tìm ra binary thì đặt biến môi trường `JAVIS_GEMINI_BIN` trỏ thẳng vào nó rồi khởi động lại.
+
+**Vì sao không nối thẳng vào Antigravity:** app đó là Electron thuần, không có cổng dòng lệnh nào để gọi ngầm, và token của nó nằm trong Keychain đã mã hoá. Kể cả moi ra được thì đó là API nội bộ Google không cam kết hỗ trợ bên thứ ba, hỏng lúc nào không biết. Gemini CLI cho đúng cái gói đó bằng đường Google công khai.
 
 ### C. Kết nối provider bằng API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq)
 

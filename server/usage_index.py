@@ -186,6 +186,9 @@ def _scan_codex(conn) -> int:
 # codex/openai-oauth = engine ChatGPT. Gom ve 'claude'/'codex' de tron dung cot voi log tho.
 _EVENT_CLAUDE = {"cli", "claude", "anthropic-cli"}
 _EVENT_CODEX = {"codex", "openai-oauth", "chatgpt", "oauth"}
+# Gemini CLI (goi dang nhap Google). Cot rieng chu KHONG gom vao 'api': provider 'gemini' o cot
+# api la duong TRA TIEN bang API key, hai thu khac hoan toan ve hoa don du cung ten model.
+_EVENT_GEMINI_CLI = {"gemini-cli", "gemini_cli"}
 
 
 def _ingest_events(conn) -> int:
@@ -244,6 +247,10 @@ def _ingest_events(conn) -> int:
         elif prov in _EVENT_CODEX:
             events.append({"day": day, "provider": "codex", "source": "javis", "activity": "chat",
                            "model": model, "project": "(events)",
+                           "input": tin, "output": tout, "cache_read": 0, "cache_create": 0})
+        elif prov in _EVENT_GEMINI_CLI:
+            events.append({"day": day, "provider": "gemini-cli", "source": "javis",
+                           "activity": "chat", "model": model, "project": "(events)",
                            "input": tin, "output": tout, "cache_read": 0, "cache_create": 0})
     if events:
         _insert_events(conn, path, events)

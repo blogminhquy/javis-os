@@ -16,6 +16,9 @@ Ba loại engine, khác nhau ở CÔNG CỤ có được - đây là chỗ phả
 - openai-oauth: Codex CLI, cũng là agent thật (đọc/ghi file + MCP qua profile javis).
   Sandbox của Codex ánh xạ theo mode: suggest -> read-only, auto -> workspace-write,
   full -> toàn quyền. KHÔNG có allowlist per-call như Claude nên chỉ chặn ở tầng sandbox.
+- gemini-cli: Gemini CLI chạy bằng đăng nhập Google. Cũng agent thật (tool file + MCP hub qua
+  .gemini/settings.json trong brain). Mức quyền ánh xạ thẳng vào --approval-mode của nó:
+  suggest -> plan (chỉ đọc), auto -> auto_edit, full -> yolo.
 - api (openrouter/openai/gemini/anthropic-api): KHÔNG có tool native. Bù lại hub cấp
   javis_read_file / javis_list_dir / javis_write_file / javis_use_skill + tool MCP, và
   javis_write_file tự chặn khi mode là suggest (mcp_hub._builtin_tools). Không có Bash,
@@ -36,6 +39,7 @@ import config as cfgmod
 
 CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
+GEMINI_CLI = "gemini-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api")
 
 # provider -> tên trường chứa API key trong settings["model"]
@@ -133,6 +137,15 @@ def availability(spec: dict, settings: dict = None) -> tuple:
                 return False, "Chưa cài Codex CLI (cần đăng nhập gói ChatGPT)."
         except Exception:
             return False, "Không kiểm tra được Codex CLI."
+        return True, ""
+    if prov == GEMINI_CLI:
+        try:
+            import gemini_cli as _g
+            st = _g.auth_status()
+            if not st.get("connected"):
+                return False, st.get("error") or "Gemini CLI chưa sẵn sàng."
+        except Exception:
+            return False, "Không kiểm tra được Gemini CLI."
         return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
@@ -352,6 +365,36 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
     return cc
 
 
+def _build_gemini(spec, claude_cli_obj, mode, tag):
+    """Engine việc nền chạy bằng Gemini CLI.
+
+    Mức quyền của Javis đi thẳng vào `--approval-mode` của CLI chứ không phải một lời hứa
+    trong prompt: `plan` là chế độ CHỈ ĐỌC do chính CLI cưỡng chế. Cùng vai với sandbox của
+    Codex - lớp chặn thật sự duy nhất, vì Gemini CLI cũng không có allowlist per-call.
+    """
+    import gemini_cli as _g
+    muc = mode or getattr(claude_cli_obj, "javis_mode", None) or "full"
+    gc = _g.GeminiCLI(cwd=getattr(claude_cli_obj, "cwd", None),
+                      tag=tag or getattr(claude_cli_obj, "tag", "aux"),
+                      model=spec.get("model") or None,
+                      instructions=getattr(claude_cli_obj, "system_prompt", None))
+    gc.approval_mode = _g.approval_cho_mode(muc)
+    vault = getattr(claude_cli_obj, "javis_vault", None) or getattr(claude_cli_obj, "cwd", None)
+    if vault:
+        try:
+            import mcp_hub
+            hub = None
+            if bool(cfgmod.read_settings().get("mcp", {}).get("hub", True)):
+                hub = {"httpUrl": mcp_hub.hub_url(),
+                       "headers": {"Authorization": f"Bearer {mcp_hub.hub_token()}",
+                                   "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)},
+                       "trust": True, "timeout": 20000}
+            _g.ghi_mcp_settings(vault, hub)
+        except Exception as e:
+            print(f"[aux gemini mcp] {e}", file=sys.stderr)
+    return gc
+
+
 def apply(deps, cli, mode: str = None, tag: str = None):
     """Dùng ở các nơi chạy nền sau khi đã dựng xong engine Claude.
 
@@ -416,6 +459,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
                 return cli
             if prov == CODEX:
                 return _build_codex(sp, cli, mode, tag, codex_profile)
+            if prov == GEMINI_CLI:
+                return _build_gemini(sp, cli, mode, tag)
             if prov in API_PROVIDERS:
                 return _build_api(sp, cli, mode, tag)
             return cli
@@ -429,6 +474,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             return cli
         if prov == CODEX:
             primary = _build_codex(sp, cli, mode, tag, codex_profile)
+        elif prov == GEMINI_CLI:
+            primary = _build_gemini(sp, cli, mode, tag)
         elif prov in API_PROVIDERS:
             primary = _build_api(sp, cli, mode, tag)
         else:

@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.28.5] - 2026-08-12
+### Thêm mới
+- **Bộ não thứ 9: Gemini CLI, chạy bằng tài khoản Google của bạn - không cần mua API key.** Ngang hàng Claude Code và ChatGPT: chạy được lệnh máy, gọi được mọi kết nối đã đấu, dùng skill, nhận việc nền. Cài `npm install -g @google/gemini-cli`, chạy `gemini` một lần để đăng nhập Google, rồi vào trang Models bấm **Kiểm tra lại**.
+- Thẻ mới nằm riêng, không lẫn với **Google Gemini (API)** cũ: thẻ cũ trả tiền theo lượt gọi, thẻ mới dùng gói miễn phí gắn với tài khoản Google.
+- Việc chạy nền giao cho nó cũng được, và ba mức quyền của Javis xuống thẳng chế độ duyệt của CLI - mức **Chỉ đọc** là do chính Gemini CLI chặn, không phải một lời dặn trong prompt.
+
+### Cải thiện
+- Hết lượt gói Google giờ báo bằng tiếng Việt kèm mốc dùng lại được, thay cho câu tiếng Anh của Google.
+
 ## [0.28.4] - 2026-08-12
 ### Sửa lỗi
 - **Kết nối ChatGPT xong không còn đứng ở "0 model".** Danh sách model của gói ChatGPT do Codex cấp, mà trước đây không ai đi hỏi cho tới khi bạn tự mở hộp chọn model. Nay đăng nhập xong là trang Models tự hỏi và điền con số thật. Máy mới cài (hay máy Mac vừa dựng) là chỗ lộ rõ nhất vì chưa có danh sách cũ để hiện tạm.

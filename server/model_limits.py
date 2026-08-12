@@ -152,6 +152,7 @@ def blocked_hint(provider: str, model: str, needed_tokens: int,
 SUBSCRIPTION_LABEL = {
     "claude-code": "gói Claude (Claude Code)",
     "codex": "gói ChatGPT (Codex)",
+    "gemini-cli": "gói Google (Gemini CLI)",
 }
 
 

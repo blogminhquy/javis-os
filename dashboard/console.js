@@ -2713,7 +2713,9 @@
     // nằm chễm chệ trên cùng. Một request cục bộ, rẻ.
     let claudeOn = false;
     try { claudeOn = !!(await (await fetch("/claude/status")).json()).connected; } catch (e) {}
-    const provOn = (p) => (p.kind === "cli" ? claudeOn : !!p.configured);
+    // kind "cli" nay có HAI bộ não (Claude Code, Gemini CLI). Chỉ Claude mới phải hỏi
+    // /claude/status; Gemini CLI đã có `configured` thật từ server (đọc file đăng nhập).
+    const provOn = (p) => (p.id === "anthropic-cli" ? claudeOn : !!p.configured);
     const provList = providers.map((p, i) => ({ p, i }))
       .sort((a, b) => (provOn(b.p) - provOn(a.p)) || (a.i - b.i))
       .map(x => x.p);
@@ -2764,6 +2766,30 @@
           </div>
         </div>`;
       }
+      if (p.id === "gemini-cli") {
+        // Gemini CLI: đăng nhập bằng tài khoản Google, KHÔNG cần mua API key. Không có nút
+        // "Đăng nhập" ở đây là cố ý - luồng đăng nhập của nó là giao diện bàn phím trong
+        // terminal rồi mở trình duyệt, không có cờ headless nào để bọc cho tử tế. Dựng một
+        // cái nút chỉ chạy được trên máy có màn hình thì trên VPS nó là nút chết.
+        const st = on
+          ? "● Đã đăng nhập Google" + (p.account ? " · " + esc(p.account) : "")
+            + (p.auth_method ? " · " + esc(p.auth_method) : "") + " · " + p.models.length + " model"
+          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Gemini CLI");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP/skill", st)}
+          <div class="prov-note">Dùng gói <b>đăng nhập tài khoản Google</b> - không cần mua API key.
+            Khác thẻ "Google Gemini (API)" bên dưới: thẻ đó trả tiền theo lượt gọi.</div>
+          ${on ? "" : `<div class="prov-steps">
+            <div>1. Cài CLI: <code>npm install -g @google/gemini-cli</code></div>
+            <div>2. Chạy <code>gemini</code> trong terminal, chọn <b>Login with Google</b>, đăng nhập rồi thoát (Ctrl+C).</div>
+            <div>3. Bấm <b>Kiểm tra lại</b>.</div>
+          </div>`}
+          <div class="prov-action">
+            <button class="gcard-btn" data-gcheck="1">Kiểm tra lại</button>
+            <span id="gcliMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
+          </div>
+        </div>`;
+      }
       if (p.kind === "cli") {   // Claude Code - trạng thái + login/logout nạp động qua /claude/status
         // Ô chọn nguồn xác thực. Cả hai lựa chọn giữ NGUYÊN năng lực (Bash, WebFetch, MCP, nối
         // phiên cũ); khác nhau ở chỗ ai trả tiền và ai chịu rủi ro. Javis cố ý không tắt cứng
@@ -2804,7 +2830,8 @@
         <h3>◆ Main Model <span style="opacity:.5">model chính cho hội thoại</span></h3>
         <div class="gcard current" style="max-width:540px">
           <div class="gcard-top"><span class="gcard-name">${esc(main.model || "-")}</span><span class="gcard-tag">${esc(mainP.label || main.provider || "")}</span></div>
-          <div class="gcard-meta">${mainP.kind === "cli" ? "Qua Claude Code - MCP Javis + skill + loop + chạy lệnh máy"
+          <div class="gcard-meta">${mainP.id === "gemini-cli" ? "Qua Gemini CLI - MCP Javis + skill + loop + chạy lệnh máy (đăng nhập Google)"
+            : mainP.kind === "cli" ? "Qua Claude Code - MCP Javis + skill + loop + chạy lệnh máy"
             : mainP.kind === "oauth" ? "Qua Codex - MCP Javis + skill + loop + chạy lệnh máy"
             : mainP.kind === "api" ? "Gọi API thẳng - MCP Javis + skill + loop (không chạy lệnh máy)" : ""}</div>
           <button class="gcard-btn" id="mdChange">Đổi model ▾</button>
@@ -2889,6 +2916,21 @@
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");
     if (ob) ob.onclick = () => startOauthBrowser(el);
+    const gk = el.querySelector("[data-gcheck]");
+    if (gk) gk.onclick = async () => {
+      const msg = el.querySelector("#gcliMsg");
+      gk.disabled = true; const cu = gk.textContent; gk.textContent = "Đang thử…";
+      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
+      let r = null;
+      try { r = await (await fetch("/gemini-cli/check", { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      gk.disabled = false; gk.textContent = cu;
+      if (r && r.ok) {
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
+        _daHoiModel.delete("gemini-cli");
+        setTimeout(() => renderModels(el), 700);
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
+    };
     const od = el.querySelector("[data-oauth-disc]");
     if (od) od.onclick = async () => {
       od.disabled = true; od.textContent = "Đang ngắt...";

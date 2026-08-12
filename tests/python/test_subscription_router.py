@@ -257,8 +257,12 @@ check("CANARY: nhánh Claude Code dùng câu đã dịch",
       '_subscription_limit_message(event.get("content") or "", "claude-code")' in _MAIN_SRC)
 check("CANARY: nhánh Codex dùng câu đã dịch",
       '_subscription_limit_message(ev.get("content") or "", "codex")' in _MAIN_SRC)
+# Bộ não thứ 9 (Gemini CLI) cũng là gói thuê bao, nên cũng phải đi qua đúng cái dịch này -
+# không thì nó là engine DUY NHẤT dội nguyên văn tiếng Anh của Google vào mặt người dùng.
+check("CANARY: nhánh Gemini CLI dùng câu đã dịch",
+      '"gemini-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 4)
 check("không nhận ra thì vẫn trả nguyên văn lỗi gốc, không nuốt mất",
-      _MAIN_SRC.count('"content": _noi or ') == 2)
+      _MAIN_SRC.count('"content": _noi or ') == 3)
 check("hàm dịch nuốt mọi lỗi của chính nó (câu báo lỗi không được tự nổ)",
       main._subscription_limit_message(None, "claude-code") == ""
       and main._subscription_limit_message(12345, "codex") == "")
