@@ -611,6 +611,44 @@ check("CANARY: có luật CSS gò nút 'Xong' lại - thiếu nó nút nuốt h�
       ".gcli-code-row .gcard-btn" in _console_css and "width: auto" in _console_css[
           _console_css.index(".gcli-code-row .gcard-btn"):
           _console_css.index(".gcli-code-row .gcard-btn") + 120])
+# --- Thẻ Models ẨN khi máy không có binary (0.29.1) -------------------------
+# Google ngắt hạng cá nhân nên với gần như mọi người đây là lựa chọn chết; bày ra chỉ để họ
+# đăng nhập xong rồi đâm vào tường. Nhưng engine KHÔNG bị xoá (doanh nghiệp + API key vẫn
+# chạy), nên ranh giới là "máy có binary hay không".
+import config as _cfgmod   # noqa: E402
+_cfg_the = _cfgmod.read_settings()
+_that_find2 = gemini_cli.find_gemini_cli
+try:
+    gemini_cli.find_gemini_cli = lambda: None
+    _ids = [p["id"] for p in main._providers_view(_cfg_the)]
+    check("CANARY: máy KHÔNG có binary `gemini` -> thẻ Gemini CLI biến mất khỏi trang Models",
+          "gemini-cli" not in _ids, _ids)
+    check("và các thẻ khác không bị ảnh hưởng",
+          "antigravity-cli" in _ids and "anthropic-cli" in _ids and len(_ids) == 9, _ids)
+
+    gemini_cli.find_gemini_cli = lambda: "/usr/bin/gemini"
+    check("máy CÓ binary (doanh nghiệp / chạy bằng API key) -> thẻ hiện lại",
+          "gemini-cli" in [p["id"] for p in main._providers_view(_cfg_the)])
+
+    # Ai đang ĐẶT nó làm Main Model mà mất thẻ thì mất luôn đường đổi sang engine khác.
+    gemini_cli.find_gemini_cli = lambda: None
+    _cfg_main = dict(_cfg_the)
+    _cfg_main["model"] = dict(_cfg_the["model"])
+    _cfg_main["model"]["main"] = {"provider": "gemini-cli", "model": "gemini-2.5-pro"}
+    check("CANARY: đang là Main Model thì VẪN hiện dù không có binary "
+          "(không thì người dùng kẹt, không đổi engine được)",
+          "gemini-cli" in [p["id"] for p in main._providers_view(_cfg_main)])
+finally:
+    gemini_cli.find_gemini_cli = _that_find2
+
+for _f, _ten in ((ROOT / "Dockerfile", "Dockerfile"), (ROOT / "install.sh", "install.sh"),
+                 (ROOT / "setup.bat", "setup.bat")):
+    _txt = _f.read_text(encoding="utf-8")
+    _dong_cai = [d for d in _txt.splitlines()
+                 if "@google/gemini-cli" in d and not d.strip().startswith(("#", "REM"))]
+    check(f"CANARY: {_ten} KHÔNG còn tự cài @google/gemini-cli (Google đã ngắt hạng cá nhân)",
+          _dong_cai == [], _dong_cai)
+
 check("CANARY: ô nhập được phép co (min-width:0) nên không tràn ra ngoài card",
       ".gcli-code-row .js-input" in _console_css and "min-width: 0" in _console_css[
           _console_css.index(".gcli-code-row .js-input"):

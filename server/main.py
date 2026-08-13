@@ -1033,6 +1033,19 @@ def _providers_view(cfg):
     oauth_on = bool(oauth.get("access_token") or oauth.get("refresh_token"))
     out = []
     for p in PROVIDER_DEFS:
+        # Gemini CLI: ẨN thẻ khi máy không có binary `gemini` (0.29.1).
+        #
+        # Google ngừng phục vụ nó cho MỌI tài khoản cá nhân từ 18/06/2026, nên với gần như mọi
+        # người đây là một lựa chọn chết - bày ra chỉ để họ đăng nhập xong rồi đâm vào tường.
+        # Nhưng KHÔNG xoá engine: hai diện Google giữ nguyên là giấy phép Code Assist doanh
+        # nghiệp và chạy bằng API key, mà máy của họ thì luôn có sẵn binary. Nên "có binary hay
+        # không" vừa đúng là ranh giới giữa hai nhóm, vừa không cần thêm nút bật/tắt nào.
+        #
+        # Ngoại lệ `is_main`: ai đang ĐẶT nó làm Main Model thì phải thấy thẻ, không thì họ mất
+        # đường đổi sang engine khác ngay trên trang này.
+        if (p["id"] == "gemini-cli" and not gemini_cli.find_gemini_cli()
+                and main.get("provider") != p["id"]):
+            continue
         models = cat.get(p["catalog_key"]) or p.get("default_models", [])
         if p["kind"] == "oauth":
             configured = oauth_on

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.29.1] - 2026-08-13
+### Cải thiện
+- **Thẻ Google Gemini CLI tự ẩn đi nếu máy bạn không có nó**, nên sẽ không còn ai vấp vào một lựa chọn Google đã ngắt rồi loay hoay đăng nhập. Ai đang đặt nó làm bộ não chính thì vẫn thấy thẻ để còn đổi sang cái khác.
+- **Javis thôi tự cài Gemini CLI lúc cài đặt.** Bản cài nhẹ hơn và nhanh hơn một chút. Vẫn dùng được nếu bạn có giấy phép doanh nghiệp hoặc chạy bằng API key: tự cài `npm i -g @google/gemini-cli` là thẻ hiện lại.
+- Bộ não Google cho tài khoản cá nhân giờ là **Antigravity CLI** (bản 0.29.0).
+
 ## [0.29.0] - 2026-08-13
 ### Thêm mới
 - **Bộ não thứ 10: Antigravity CLI - dùng gói Google của bạn, và chọn được đúng dàn model như trong Antigravity IDE**, gồm cả model không phải của Google. Đây là đường Google chỉ định sau khi họ ngắt Gemini CLI với tài khoản cá nhân.

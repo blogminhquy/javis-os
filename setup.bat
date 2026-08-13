@@ -41,7 +41,6 @@ if errorlevel 1 (
 ) else (
   call :cai_cli @anthropic-ai/claude-code claude "Claude Code"
   call :cai_cli @openai/codex codex "Codex - goi ChatGPT"
-  call :cai_cli @google/gemini-cli gemini "Gemini CLI - dang nhap Google"
 )
 
 REM Giai phong port 7777 neu dang bi chiem

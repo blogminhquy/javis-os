@@ -145,6 +145,8 @@ Vài chỗ khác với Gemini CLI, nói trước cho khỏi hiểu nhầm:
 >
 > Bản thay thế chính chủ của Google là **Antigravity CLI** (binary `agy`, cài bằng `curl -fsSL https://antigravity.google/cli/install.sh | bash`). Javis **chưa** đấu engine này.
 
+> **Từ 0.29.1 thẻ này TỰ ẨN** ở trang Models khi máy không có binary `gemini` - tức là gần như mọi người sẽ không thấy nó nữa, khỏi vấp vào một lựa chọn đã chết. Máy nào có cài `gemini` (thường là máy dùng giấy phép doanh nghiệp hoặc chạy bằng API key) thì thẻ hiện lại như cũ, và ai đang ĐẶT nó làm Main Model cũng vẫn thấy để còn đổi sang engine khác. Javis cũng thôi cài sẵn `@google/gemini-cli` lúc cài đặt; cần thì tự cài một dòng `npm i -g @google/gemini-cli`.
+
 Phần dưới giữ lại cho ai còn thuộc diện dùng được (doanh nghiệp / API key).
 
 1. Kiểm CLI đã có chưa. Bản cài bằng Docker và bằng `install.sh` **đã cài sẵn** `@google/gemini-cli`, nên thường bỏ qua được bước này. Chỉ khi thẻ báo *"Chưa cài Gemini CLI"* mới cài tay trên máy chạy Javis: `npm install -g @google/gemini-cli`

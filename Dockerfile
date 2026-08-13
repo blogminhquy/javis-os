@@ -54,18 +54,16 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}" \
 RUN (npm install -g @openai/codex && npm cache clean --force && codex --version) \
     || echo "[build] codex cài KHÔNG thành công - provider ChatGPT subscription sẽ không dùng được (các provider khác vẫn chạy)."
 
-# Gemini CLI - bộ não thứ 9, chạy bằng ĐĂNG NHẬP GOOGLE (không cần mua API key). BEST-EFFORT
-# y như Codex: registry chậm hay npm hỏng thì build vẫn qua, chỉ mất đúng engine đó.
+# Gemini CLI KHÔNG còn được cài sẵn (bỏ ở 0.29.1).
 #
-# Cài sẵn ở đây vì trong container KHÔNG có đường cài sau: runtime chạy bằng `USER javis`
-# (không phải root) nên `npm i -g` lúc đang chạy sẽ bị từ chối ghi vào /usr/local/lib. Trước
-# thay đổi này, người dùng Docker muốn có bộ não Gemini CLI phải tự dựng lại image.
+# 0.28.8 có cài, nhưng lúc đó chưa ai biết Google đã ngừng phục vụ Gemini CLI cho MỌI tài khoản
+# cá nhân từ 18/06/2026 (miễn phí, AI Pro, Ultra - mã UNSUPPORTED_CLIENT). Với gần như mọi
+# người cài Javis, gói đó nay tải về một CLI không dùng được: phình image, chậm build, và tệ
+# hơn là làm thẻ đã chết trông như đã sẵn sàng.
 #
-# KHÔNG cần volume cho ~/.gemini: refresh token nằm trong settings.json của Javis (trên volume
-# /data), còn gemini_oauth.ghi_creds_cho_cli() dựng lại file credential của CLI trước mỗi lượt
-# chạy. Đăng nhập một lần ở trang Models là sống qua mọi lần cập nhật container.
-RUN (npm install -g @google/gemini-cli && npm cache clean --force && gemini --version) \
-    || echo "[build] gemini-cli cài KHÔNG thành công - bộ não Gemini CLI sẽ không dùng được (các provider khác vẫn chạy)."
+# Engine vẫn còn trong repo vì hai diện Google GIỮ NGUYÊN: giấy phép Code Assist doanh nghiệp
+# và chạy bằng API key. Ai thuộc hai diện đó tự cài một dòng `npm i -g @google/gemini-cli` là
+# thẻ hiện lại. Đường Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`).
 
 WORKDIR /app
 

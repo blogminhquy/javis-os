@@ -86,16 +86,15 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 ok "Claude CLI $(claude --version 2>/dev/null || echo installed)"
 
-# --- 4b. Hai engine CLI còn lại: Codex (gói ChatGPT) + Gemini CLI (đăng nhập Google) ---
-#
-# Javis có ba bộ não chạy bằng GÓI ĐANG ĐĂNG NHẬP thay vì API key trả tiền theo lượt, nhưng
-# trước đây script chỉ cài Claude. Hai cái kia người dùng phải tự mò `npm i -g`, mà trang
-# Models thì chỉ báo "chưa cài" chứ không cài hộ được. Nay cài luôn cả ba: việc đăng nhập của
-# cả ba đều bấm được trên dashboard, binary là thứ duy nhất phải có sẵn từ lúc cài.
+# --- 4b. Codex CLI (gói ChatGPT) ---
 #
 # BEST-EFFORT, cố ý khác Claude ở trên: thiếu Claude thì Javis không còn bộ não mặc định nào
-# để chạy, còn thiếu hai cái này chỉ mất đúng một engine trong chín. Nên lỗi ở đây chỉ cảnh
-# báo chứ không cho `set -e` giết cả lần cài.
+# để chạy, còn thiếu cái này chỉ mất đúng một engine. Nên lỗi ở đây chỉ cảnh báo chứ không cho
+# `set -e` giết cả lần cài.
+#
+# Bộ não Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`), KHÔNG cài ở đây:
+# trình cài của Google là một script tải về chạy thẳng, để chủ máy tự quyết. Trang Models có
+# sẵn lệnh cài trên thẻ.
 cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
   command -v "$2" >/dev/null 2>&1 && return 0
   log "Installing $3 globally via npm (best-effort)..."
@@ -105,8 +104,11 @@ cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
     warn "Chua cai duoc $3 - engine do se khong hien o trang Models. Cai tay: npm i -g $1"
   fi
 }
+# CỐ Ý không cài @google/gemini-cli ở đây nữa (bỏ ở 0.29.1): Google đã ngừng phục vụ nó cho
+# mọi tài khoản cá nhân từ 18/06/2026, nên với gần như mọi người đây là tải về một CLI không
+# dùng được. Ai có giấy phép Code Assist doanh nghiệp hoặc chạy bằng API key thì tự cài một
+# dòng là thẻ ở trang Models hiện lại.
 cai_them_cli @openai/codex codex "Codex CLI"
-cai_them_cli @google/gemini-cli gemini "Gemini CLI"
 
 # --- 5. venv + python deps ---
 log "Creating virtualenv (.venv)..."
