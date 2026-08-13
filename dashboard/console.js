@@ -3069,15 +3069,35 @@
   }
 
   // ---- Card Claude Code: status + login/logout (giống OpenAI OAuth) ----
-  async function refreshClaudeCard(el) {
+  async function refreshClaudeCard(el, ep) {
     const st = el.querySelector("#cliStatus"), act = el.querySelector("#cliAction");
     if (!st || !act) return;
     let d;
-    try { d = await (await fetch("/claude/status")).json(); }
+    try { d = await (await fetch("/claude/status" + (ep ? "?refresh=1" : ""))).json(); }
     catch (e) { st.textContent = "không kiểm tra được"; return; }
+    // KHÔNG hỏi được KHÁC hẳn "chưa đăng nhập", và trước bản này hai thứ đó vẽ y như nhau: một
+    // lần hết giờ (hay gặp lúc đổi Main Model, khi trang cùng lúc gọi mấy tiến trình con) là
+    // thẻ bày ra nút Đăng nhập, người dùng tưởng mất tài khoản rồi đi nối lại - trong khi
+    // chẳng có gì mất cả (chủ repo báo 2026-08-13). Chưa biết thì nói là chưa biết.
+    if (!d.connected && d.unknown) {
+      st.className = "prov-status";
+      st.textContent = "◐ Chưa kiểm được trạng thái" + (d.error ? " · " + d.error : "");
+      act.innerHTML = `
+        <button class="gcard-btn ghost" id="cliRecheck">↻ Kiểm tra lại</button>
+        <button class="gcard-btn ghost" id="cliLogin">Đăng nhập Claude</button>
+        <span id="cliMsg" class="gcard-meta" style="margin-left:10px;flex:1"></span>
+        <div class="prov-note" style="margin-top:8px;line-height:1.6">
+          Chưa hỏi được Claude Code lần này (thường là máy đang bận). <b>Không có nghĩa là bạn bị
+          đăng xuất</b> - bấm Kiểm tra lại trước khi nghĩ tới chuyện đăng nhập lại.
+        </div>`;
+      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
+      el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
+      return;
+    }
     if (d.connected) {
       st.className = "prov-status on";
-      st.textContent = "● Đã kết nối" + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "");
+      st.textContent = "● Đã kết nối" + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
+        + (d.stale ? " · (chưa hỏi lại được, đang hiện trạng thái lần trước)" : "");
       act.innerHTML = `<button class="gcard-btn ghost" id="cliLogout">Ngắt</button>`;
       el.querySelector("#cliLogout").onclick = async () => {
         const b = el.querySelector("#cliLogout"); b.disabled = true; b.textContent = "Đang ngắt…";
@@ -3096,7 +3116,7 @@
           Chạy được cả trên VPS. (Hoặc terminal: <code>claude auth login --claudeai</code>.)
         </div>`;
       el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
-      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el);
+      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
     }
   }
 

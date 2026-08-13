@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.31.0] - 2026-08-13
+### Sửa lỗi
+- **Đổi model xong không còn bị đòi đăng nhập lại Claude.** Trước đây chỉ cần một lần Javis hỏi không kịp là thẻ Claude hiện "chưa đăng nhập" kèm nút đăng nhập, dù tài khoản chẳng mất gì. Giờ nó nói rõ "chưa kiểm được, không phải bạn bị đăng xuất", và nhớ trạng thái nên đỡ hỏi lại liên tục.
+- **Bộ não Antigravity CLI dùng được trở lại.** Javis đọc nhầm danh sách model của bản `agy` mới nên gửi sai tên model, lượt chat nào cũng lỗi; và khi chạy được thì bong bóng trả lời lại rỗng. Cả hai đã sửa, kèm dòng "Fetching available models..." không còn hiện như một model trong trình chọn.
+- **Máy nhân Linux đời cũ (NAS, VPS cũ) chat được bằng Claude Code.** Trước đây mọi lượt chết ngay vì Javis chạy nhầm bản Claude đóng gói sẵn, giờ nó dùng đúng bản đã cài trên máy.
+- Trên Windows, hội thoại quá dài cho Antigravity giờ báo rõ và mách hai cách đi tiếp, thay cho một lỗi khó hiểu về "tên tệp quá dài".
+
+Cảm ơn người dùng đã gửi báo cáo rất kỹ kèm log và bản vá cho bốn lỗi trên.
+
 ## [0.30.3] - 2026-08-13
 ### Sửa lỗi
 - **Đăng nhập Antigravity CLI chạy thật rồi.** Bản trước đứng im vì `agy` hỏi "chọn cách đăng nhập" trước khi đưa link, mà Javis lại ngồi chờ link. Giờ Javis tự chọn giúp đúng mục **Google OAuth** rồi mới lấy link ra cho bạn.

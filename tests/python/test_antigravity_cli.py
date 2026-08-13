@@ -180,15 +180,40 @@ for ten, ra, mong in [
     check(f"bóc được model từ {ten}", antigravity_cli.list_models() == mong,
           antigravity_cli.list_models())
 
-_c_chu, _ = _gia([], help_text=_HELP_CU, models_out="Gemini 3.6 Flash (High)\nClaude Opus 4.6\n")
+_c_chu, _ = _gia([], help_text=_HELP_CU, models_out="gemini-3-pro  Gemini 3 Pro\nclaude-opus-4-6  Claude Opus 4.6\n")
 _reset_cache()
 antigravity_cli.find_antigravity_cli = lambda: _c_chu
 check("bản cũ in chữ thuần cũng bóc được",
-      antigravity_cli.list_models() == ["Gemini 3.6 Flash (High)", "Claude Opus 4.6"],
+      antigravity_cli.list_models() == ["gemini-3-pro", "claude-opus-4-6"],
       antigravity_cli.list_models())
 
+# ---- Định dạng THẬT của `agy models` 1.1.12 (người dùng gửi kèm `cat -A`) ----
+# Đây là ca đã làm provider Antigravity KHÔNG DÙNG ĐƯỢC Ở ĐÂU CẢ: cột phân tách bằng TAB, mà
+# `\s{2,}` không khớp một tab đơn, nên cả dòng "gemini-3.6-flash-high\tGemini 3.6 Flash (High)"
+# bị lấy làm mã model rồi truyền vào `--model` -> `agy` thoát mã 1 ở MỌI lượt chat.
+_THAT = ("Fetching available models...\n"
+         "gemini-3.6-flash-high\tGemini 3.6 Flash (High)\n"
+         "gemini-3.5-flash-high\tGemini 3.5 Flash (High)\n"
+         "claude-sonnet-4-6\tClaude Sonnet 4.6 (Thinking)\n")
+_c_tab, _ = _gia([], help_text=_HELP_CU, models_out=_THAT)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: _c_tab
+_ds_tab = antigravity_cli.list_models()
+check("CANARY: cột phân tách bằng TAB -> lấy ĐÚNG mã model, không dính tên hiển thị",
+      _ds_tab == ["gemini-3.6-flash-high", "gemini-3.5-flash-high", "claude-sonnet-4-6"], _ds_tab)
+check("CANARY: dòng thông báo 'Fetching available models...' KHÔNG lọt vào trình chọn",
+      not any("Fetching" in m for m in (_ds_tab or [])), _ds_tab)
+check("và không mã nào dính khoảng trắng (mã model là slug, câu thông báo thì luôn có)",
+      all(" " not in m for m in (_ds_tab or [])), _ds_tab)
+
+# Soi phần CODE thôi, bỏ chú thích ra: điều cần cấm là một BẢNG model chép tay dùng làm dữ
+# liệu, chứ không phải việc trích tên model vào chú thích. Bản đầu soi cả file nên chỉ cần dán
+# một dòng `agy models` thật vào comment để giải thích là test đỏ - đo sai thứ.
+_src_agy = (ROOT / "server" / "antigravity_cli.py").read_text(encoding="utf-8")
+_code_agy = "\n".join(l for l in _src_agy.splitlines() if not l.strip().startswith("#"))
+_code_agy = _code_agy.split('"""', 2)[-1]      # bỏ luôn docstring đầu module
 check("CANARY: KHÔNG có bảng model chép tay trong module (Google đổi tên là sai lặng lẽ)",
-      "gemini-3" not in (ROOT / "server" / "antigravity_cli.py").read_text(encoding="utf-8"))
+      "gemini-3" not in _code_agy)
 
 antigravity_cli.find_antigravity_cli = lambda: None
 _reset_cache()
@@ -197,6 +222,46 @@ check("chưa cài CLI -> list_models trả None để phía trên biết mà nó
 check("và auth_status nói cách cài",
       "install.sh" in antigravity_cli.auth_status()["error"]
       or "install.ps1" in antigravity_cli.auth_status()["error"])
+
+
+# ============================================================
+# 3b. Hình dạng sự kiện THẬT của agy 1.1.12 (người dùng đo và gửi kèm)
+# ============================================================
+# `agy` gói payload LỒNG dưới đúng tên sự kiện, và chữ trả lời nằm ở khoá `text_delta`. Bản đầu
+# chỉ đọc tầng ngoài cùng nên `agy` chạy thành công mà bong bóng trả lời RỖNG.
+_LONG = [
+    json.dumps({"event": "init", "conversation_id": "hoi-thoai-1",
+                "init": {"model": "gemini-3.6-flash-high", "cwd": "/app"}}),
+    json.dumps({"event": "step_update",
+                "step_update": {"step_type": "agent_response", "text_delta": "Xin ",
+                                "usage": {"input_tokens": 10, "output_tokens": 2}}}),
+    json.dumps({"event": "step_update",
+                "step_update": {"step_type": "agent_response", "text_delta": "chào!"}}),
+    json.dumps({"event": "result",
+                "result": {"status": "SUCCESS", "response": "Xin chào!",
+                           "usage": {"input_tokens": 120, "output_tokens": 8}}}),
+]
+_evsl, _gl, _ = _chay_gia(_LONG, help_text=_HELP_MOI)
+_final = [e for e in _evsl if e["type"] == "final"]
+check("CANARY: sự kiện LỒNG + khoá text_delta -> vẫn ra câu trả lời (bản đầu trả bong bóng rỗng)",
+      len(_final) == 1 and _final[0]["content"] == "Xin chào!", _evsl)
+check("CANARY: câu trả lời KHÔNG bị gom hai lần (một lần từ text_delta, một lần từ result.response)",
+      len(_final) == 1 and _final[0]["content"].count("Xin chào") == 1, _final)
+check("id hội thoại lấy ở TẦNG NGOÀI, không bị payload lồng đè mất",
+      _gl.session_id == "hoi-thoai-1", _gl.session_id)
+check("đọc được token từ usage lồng bên trong result",
+      any(e["type"] == "usage" and e["input_tokens"] == 120 for e in _evsl), _evsl)
+
+# Ca NGƯỢC LẠI, và đây là chỗ patch của người dùng còn hở: lượt trả lời NGẮN có bản chỉ phát
+# mỗi `result`, không có text_delta nào. `return ra` vô điều kiện ở nhánh result là câu trả lời
+# biến mất sạch. Nên chỉ bỏ qua khi ĐÃ gom được chữ.
+_CHI_RESULT = [
+    json.dumps({"event": "init", "conversation_id": "x"}),
+    json.dumps({"event": "result", "result": {"status": "SUCCESS", "response": "Chỉ mỗi result."}}),
+]
+_evsr, _, _ = _chay_gia(_CHI_RESULT, help_text=_HELP_MOI)
+check("CANARY: chỉ có `result`, không có text_delta -> VẪN lấy được câu trả lời",
+      any(e["type"] == "final" and e["content"] == "Chỉ mỗi result." for e in _evsr), _evsr)
 
 
 # ============================================================
@@ -300,6 +365,53 @@ check("card chỉ đúng lệnh cài", "data-agycheck" in _console)
 check("thẻ Models có nút đăng nhập ngay trên trang (0.30.0)", "data-agylogin" in _console)
 check("và nút đó gọi đúng luồng lái CLI, không phải một vòng OAuth Javis tự dựng",
       "/antigravity/login-start" in _console)
+
+# ============================================================
+# 8. Windows: dòng lệnh quá dài phải báo tử tế, không nổ WinError 206
+# ============================================================
+# Người dùng báo 2026-08-13 (Windows 10, agy 1.1.12): hội thoại dài ~648k token ngữ cảnh thì
+# mọi lượt chat qua Antigravity chết vì CreateProcess chặn tổng dòng lệnh ở 32767 ký tự.
+# Họ đã ĐO: bản này không nhận prompt qua stdin, không đọc AGENTS.md, không đọc GEMINI.md, và
+# --help không có cờ nào nhận prompt từ file. Nên không có đường vòng - việc duy nhất làm đúng
+# được là nói thẳng thay vì để nổ một câu không ai đoán ra.
+_cli_win, _ = _gia([], help_text=_HELP_CU)     # _HELP_CU không nhắc stdin -> buộc đi argv
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: _cli_win
+_g_win = antigravity_cli.AntigravityCLI(cwd="/tmp")
+_g_win.cli_path = _cli_win
+_g_win.instructions = "x" * 40000
+_ten_that = os.name
+try:
+    os.name = "nt"
+    _evs_win = chay(_gom(_g_win))
+finally:
+    os.name = _ten_that
+check("CANARY: Windows + prompt quá dài -> báo tử tế, KHÔNG để nổ WinError 206",
+      len(_evs_win) == 1 and _evs_win[0]["type"] == "error"
+      and "quá dài" in _evs_win[0]["content"], _evs_win)
+check("và nói đúng hai việc làm được ngay",
+      "hội thoại mới" in _evs_win[0]["content"] and "Models" in _evs_win[0]["content"])
+check("CANARY: Linux KHÔNG bị chặn nhầm (không có trần 32767)",
+      any(e["type"] in ("final", "error") for e in chay(_gom(_g_win)))
+      and "quá dài" not in str(chay(_gom(_g_win))))
+
+
+# ============================================================
+# 9. Kernel cũ: SDK phải chạy binary `claude` của máy, không phải bản Bun đóng gói
+# ============================================================
+# Người dùng chạy NAS Synology DS916+ (kernel 3.10.108) báo kèm log: `_bundled/claude` build
+# bằng Bun, Bun đòi syscall getrandom (kernel >= 3.17), thiếu thì panic `errno 38` rồi abort ->
+# SDK ném "Command failed with exit code -6" - trong khi `claude` bản Node cùng container chạy
+# hoàn hảo. Dính mọi kernel < 3.17.
+_sdk = (ROOT / "server" / "claude_sdk_engine.py").read_text(encoding="utf-8")
+check("CANARY: đặt cli_path cho SDK (không thì SDK tự chọn bản Bun đóng gói)",
+      '"cli_path" in fields' in _sdk and 'kw["cli_path"]' in _sdk)
+check("dùng tim_binary chứ không shutil.which (tiến trình nền trên macOS có PATH tối giản)",
+      "tim_binary" in _sdk.split('"cli_path" in fields')[1][:800])
+check("CANARY: chặn PATH trỏ nhầm về chính binary đóng gói",
+      '"_bundled" not in' in _sdk)
+check("có cửa thoát JAVIS_CLAUDE_CLI cho máy cài chỗ lạ", "JAVIS_CLAUDE_CLI" in _sdk)
+
 
 print()
 if _fails:

@@ -168,19 +168,58 @@ def _empty_mcp_file() -> Optional[str]:
         return None
 
 
-def auth_status():
-    """Trạng thái đăng nhập Claude Code: {connected, email, plan, org}."""
+# Trạng thái đăng nhập Claude lần hỏi gần nhất CÒN DÙNG ĐƯỢC, nhớ trong RAM.
+#
+# Vì sao cần: mỗi lần mở trang Models là một lần đẻ tiến trình Node (`claude auth status`), mất
+# cỡ một giây khi máy rảnh. Đổi Main Model sang Antigravity thì trang vẽ lại và CÙNG LÚC còn
+# `agy models` + /provider/models cũng đang đẻ tiến trình con - trên VPS nhỏ, lượt hỏi này hết
+# 25 giây rồi ném TimeoutExpired. Trước bản này lỗi đó trả `connected: False`, mà thẻ thì vẽ
+# `connected False` y hệt "chưa đăng nhập" kèm nút đăng nhập - nên chủ repo đổi model xong lại
+# tưởng mình bị đăng xuất và phải nối lại Claude (báo 2026-08-13).
+_AUTH_CACHE = {"ts": 0.0, "val": None}
+_AUTH_TTL = 90.0
+
+
+def auth_status(bo_qua_cache: bool = False):
+    """Trạng thái đăng nhập Claude Code: {connected, email, plan, org}.
+
+    Hai thứ KHÁC NHAU mà bản cũ trộn làm một, nay tách bằng cờ `unknown`:
+
+    - `connected: False` = chính CLI nói chưa đăng nhập. Bày nút đăng nhập là đúng.
+    - `unknown: True`    = KHÔNG hỏi được (hết giờ, CLI lỗi, JSON hỏng). Không biết gì hết,
+      nên tuyệt đối đừng nói "chưa đăng nhập" - đó là dựng chuyện, và người dùng sẽ đi đăng
+      nhập lại một tài khoản vốn chưa hề mất.
+
+    Hỏi hỏng mà trước đó từng hỏi được thì trả lại bản nhớ kèm `stale: True`: trạng thái cũ vài
+    chục giây gần sự thật hơn nhiều so với một câu đoán bừa.
+    """
     cli = find_claude_cli()
     if not cli:
         return {"connected": False, "error": "Claude CLI chưa cài"}
+    now = time.time()
+    if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
+        return dict(_AUTH_CACHE["val"])
     try:
         r = subprocess.run([cli, "auth", "status", "--json"], capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=25, creationflags=_no_window())
         d = json.loads((r.stdout or "").strip() or "{}")
-        return {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
-                "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", "")}
+        ra = {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
+              "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", "")}
+        _AUTH_CACHE.update(ts=now, val=dict(ra))
+        return ra
     except Exception as e:
-        return {"connected": False, "error": f"{type(e).__name__}: {e}"}
+        cu = _AUTH_CACHE["val"]
+        if cu:
+            ra = dict(cu)
+            ra["stale"] = True
+            ra["error"] = f"{type(e).__name__}: {e}"
+            return ra
+        return {"connected": False, "unknown": True, "error": f"{type(e).__name__}: {e}"}
+
+
+def auth_quen_cache():
+    """Xoá bản nhớ - gọi sau khi đăng nhập/ngắt để thẻ hiện trạng thái mới ngay."""
+    _AUTH_CACHE.update(ts=0.0, val=None)
 
 
 def auth_logout():
@@ -189,6 +228,7 @@ def auth_logout():
         return {"ok": False, "error": "Claude CLI chưa cài"}
     try:
         subprocess.run([cli, "auth", "logout"], capture_output=True, text=True, timeout=25, creationflags=_no_window())
+        auth_quen_cache()   # ngắt xong thẻ phải đổi NGAY, không chờ hết 90 giây nhớ
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -282,6 +322,7 @@ def auth_login_ui_code(code):
         return {"ok": False, "error": f"Không gửi được code: {e}"}
     for _ in range(120):   # ~24s
         if _LOGIN["done"]:
+            auth_quen_cache()   # đăng nhập xong thẻ phải xanh NGAY, không chờ hết hạn nhớ
             return {"ok": True}
         if _LOGIN["error"]:
             return {"ok": False, "error": _LOGIN["error"]}

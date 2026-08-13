@@ -370,6 +370,34 @@ class ClaudeSDK:
         from claude_agent_sdk import ClaudeAgentOptions
         fields = getattr(ClaudeAgentOptions, "__dataclass_fields__", {})
         kw = {"cwd": self.cwd}
+        # CHẠY BẰNG BINARY NÀO: bản Node cài trên máy, hay binary Bun đóng gói trong SDK.
+        #
+        # `_find_cli()` của SDK ưu tiên `_bundled/claude` TRƯỚC khi ngó PATH. Binary đó build
+        # bằng Bun, mà Bun đòi syscall `getrandom` (kernel >= 3.17). Trên máy nhân cũ syscall đó
+        # KHÔNG tồn tại: Bun panic `getrandom failed: errno 38` (ENOSYS) rồi abort -> SIGABRT ->
+        # SDK ném "Command failed with exit code -6", trong khi `claude` bản Node NGAY TRONG
+        # CÙNG container chạy hoàn hảo. Người dùng chạy NAS Synology DS916+ (kernel 3.10.108)
+        # báo kèm log đầy đủ 2026-08-13; cùng ca đó dính mọi kernel < 3.17: NAS đời cũ, VPS nhân
+        # cổ, vài môi trường CI.
+        #
+        # Nên ưu tiên NGƯỢC LẠI SDK. Điều này cũng hợp với phần còn lại của Javis: mọi chỗ khác
+        # (auth, MCP native, kiểm tra trạng thái) đều gọi đúng binary `claude` của máy, để bản
+        # đóng gói làm dự phòng cho máy chưa cài CLI.
+        #
+        # Dùng `tim_binary` chứ không `shutil.which`: tiến trình nền trên macOS nhận PATH tối
+        # giản nên `claude` cài bằng Homebrew/nvm không nằm trong đó (xem chú thích dài ở
+        # claude_cli._THU_MUC_BIN_THEM). Chặn "_bundled" để một PATH trỏ nhầm về chính binary
+        # Bun không lọt qua cửa này.
+        if "cli_path" in fields:
+            _cli = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip()
+            if not _cli:
+                try:
+                    from claude_cli import tim_binary as _tim
+                    _cli = _tim("claude") or ""
+                except Exception:
+                    _cli = ""
+            if _cli and "_bundled" not in _cli.replace("\\", "/"):
+                kw["cli_path"] = _cli
         # System prompt đẩy qua FILE (--append-system-prompt-file) thay vì nhét vào THAM SỐ dòng lệnh.
         # Trên Windows tổng dòng lệnh > 32767 ký tự thì CreateProcess CHẾT: Python báo FileNotFoundError,
         # SDK dán nhãn nhầm "Claude Code not found at ...\\_bundled\\claude.exe". System prompt của Javis

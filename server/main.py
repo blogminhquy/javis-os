@@ -2521,8 +2521,13 @@ def oauth_openai_status():
 
 # ---- Claude Code auth (provider anthropic-cli) - connect/disconnect như OAuth ----
 @app.get("/claude/status")
-def claude_status():
-    return claude_auth_status()
+def claude_status(refresh: bool = False):
+    """Trạng thái đăng nhập Claude Code. `refresh=1` = bỏ qua bản nhớ, hỏi lại CLI.
+
+    Nút "Kiểm tra lại" trên thẻ truyền refresh=1; còn lúc vẽ trang thì đọc bản nhớ, khỏi đẻ một
+    tiến trình Node mỗi lần mở trang Models.
+    """
+    return claude_auth_status(bo_qua_cache=bool(refresh))
 
 
 @app.get("/gemini-cli/status")

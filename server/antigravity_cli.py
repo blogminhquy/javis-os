@@ -240,14 +240,32 @@ def list_models() -> Optional[list]:
         return []
     if r.returncode != 0:
         return []
-    # In chữ thuần: mỗi dòng một model, có thể kèm dấu chọn hoặc mô tả sau khoảng trắng đôi.
+    # In chữ thuần. Đo trên `agy models` 1.1.12 (người dùng gửi kèm `cat -A`):
+    #
+    #     Fetching available models...
+    #     gemini-3.6-flash-high^IGemini 3.6 Flash (High)$
+    #     claude-sonnet-4-6^IClaude Sonnet 4.6 (Thinking)$
+    #
+    # Hai chỗ bản đầu làm sai, và cả hai đều hỏng LẶNG LẼ:
+    #
+    # 1. Cắt cột bằng `\s{2,}` - biểu thức đó KHÔNG khớp một tab đơn. Nên cả dòng
+    #    "gemini-3.6-flash-high\tGemini 3.6 Flash (High)" bị lấy làm mã model, rồi truyền nguyên
+    #    vào `--model`. `agy` không có model tên như vậy nên thoát mã 1 ở MỌI lượt chat - tức
+    #    provider này không dùng được ở bất kỳ máy nào.
+    # 2. Dòng thông báo "Fetching available models..." không bị lọc nên hiện như một model
+    #    trong trình chọn.
+    #
+    # Lọc theo khoảng trắng là đủ và đúng bản chất: mã model là một slug, không bao giờ có
+    # khoảng trắng; còn mọi câu thông báo thì luôn có.
     ra: list[str] = []
     for dong in (r.stdout or "").splitlines():
         d = dong.strip().lstrip("*->•").strip()
         if not d or d.endswith(":"):
             continue
-        d = re.split(r"\s{2,}", d)[0].strip()
-        if d and d not in ra:
+        d = re.split(r"\t|\s{2,}", d)[0].strip()
+        if not d or " " in d:
+            continue
+        if d not in ra:
             ra.append(d)
     return ra
 
@@ -410,6 +428,27 @@ class AntigravityCLI:
             return
         full = (self.instructions.strip() + "\n\n" + prompt) if self.instructions else prompt
         qua_stdin = nhan_prompt_qua_stdin()
+        # Windows chặn TỔNG dòng lệnh ở 32767 ký tự (CreateProcess). Hội thoại dài thì
+        # instructions (system prompt Javis + CLAUDE.md của brain + ngữ cảnh) vượt ngưỡng và
+        # Python ném `WinError 206: The filename or extension is too long` - một câu không ai
+        # đoán ra là do hội thoại dài (người dùng báo 2026-08-13, Javis 0.30.3, agy 1.1.12).
+        #
+        # Không tự cắt bớt ngữ cảnh: cắt là câu trả lời sai một cách âm thầm, tệ hơn hẳn. Cũng
+        # chưa có đường vòng - người dùng đã ĐO trên máy thật rằng bản 1.1.12 không nhận prompt
+        # qua stdin, không đọc AGENTS.md, không đọc GEMINI.md, và `--help` không có cờ nào nhận
+        # prompt từ file. Nên nói thẳng, kèm hai việc làm được ngay.
+        #
+        # Ngày nào Google thêm cờ nhận prompt qua stdin thì `nhan_prompt_qua_stdin()` tự bắt
+        # được và nhánh này thôi chạm tới.
+        if (not qua_stdin and os.name == "nt"
+                and len(full) + sum(len(a) + 3 for a in self._build_args("")) > 30000):
+            yield {"type": "error",
+                   "content": "Hội thoại này đã quá dài để gửi cho Antigravity CLI trên Windows "
+                              "(Windows chặn độ dài dòng lệnh, mà bản `agy` hiện tại chưa nhận "
+                              "prompt qua đường khác).\n\nHai cách đi tiếp: **mở hội thoại mới**, "
+                              "hoặc **đổi sang bộ não khác** ở trang Models cho hội thoại này. "
+                              "Bản chạy bằng Docker/Linux không dính giới hạn này."}
+            return
         args = self._build_args(None if qua_stdin else full)
         loop = asyncio.get_running_loop()
         hang: asyncio.Queue = asyncio.Queue()
@@ -511,6 +550,22 @@ class AntigravityCLI:
 
         t = str(ev.get("type") or ev.get("event") or "").lower()
 
+        # `agy` gói payload LỒNG dưới đúng tên sự kiện, đo trên 1.1.12:
+        #
+        #   {"event":"init","conversation_id":"...","init":{"model":"...","cwd":"/app"}}
+        #   {"event":"step_update","step_update":{"step_type":"agent_response",
+        #                                        "text_delta":"Xin chào!","usage":{...}}}
+        #   {"event":"result","result":{"status":"SUCCESS","response":"Xin chào!","usage":{...}}}
+        #
+        # Bản đầu chỉ đọc tầng NGOÀI CÙNG nên không thấy gì - `agy` chạy thành công mà bong bóng
+        # trả lời rỗng. Trải phẳng một tầng để phần dưới đọc như mọi stream phẳng khác. Giữ khoá
+        # tầng ngoài khi trùng tên là cố ý: `conversation_id` nằm ở ngoài chứ không ở trong.
+        _sub = ev.get(t)
+        if isinstance(_sub, dict):
+            _gop = dict(_sub)
+            _gop.update({k: v for k, v in ev.items() if k != t})
+            ev = _gop
+
         # Mở mạch: nhặt id hội thoại để lượt sau nối lại được.
         if t in ("init", "session", "conversation", "start", "system"):
             for k in ("conversation_id", "session_id", "conversationId", "sessionId", "id"):
@@ -556,11 +611,19 @@ class AntigravityCLI:
                 ra.append({"type": "error",
                            "content": tin[:1500] or "Antigravity CLI kết thúc với lỗi."})
                 return ra
+            # Sự kiện kết thúc mang LẠI TOÀN VĂN câu trả lời trong `response`, trong khi các
+            # `text_delta` trước đó đã gom đủ rồi -> gom tiếp là câu trả lời hiện HAI LẦN.
+            #
+            # Nhưng cũng KHÔNG được bỏ hẳn: lượt trả lời ngắn có bản chỉ phát mỗi `result`,
+            # không có delta nào. Nên chỉ lấy khi tay trắng - đúng một lần, và không bao giờ
+            # rỗng vì lý do "đã bỏ qua chỗ duy nhất có chữ".
+            if cac_manh:
+                return ra
 
         # Còn lại: mọi thứ trông như chữ của trợ lý đều gom vào câu trả lời. Đây là chỗ hứng
         # những hình dạng chưa đo được, nên viết rộng có chủ đích.
         if str(ev.get("role") or "assistant").lower() in ("assistant", "model", "agent", ""):
-            for k in ("content", "text", "delta", "message", "response", "output"):
+            for k in ("text_delta", "content", "text", "delta", "message", "response", "output"):
                 v = ev.get(k)
                 if isinstance(v, str) and v:
                     cac_manh.append(v)
