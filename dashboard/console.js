@@ -2781,14 +2781,19 @@
             bản Google chỉ định thay cho Gemini CLI, và cho chọn <b>đúng dàn model của
             Antigravity IDE</b> - gồm cả model không phải của Google.</div>
           ${p.cli_found ? "" : `<div class="prov-steps">
-            <div><b>1)</b> Cài một lần trên máy chạy Javis:<br><code>${esc(p.cai_lenh || "")}</code></div>
-            <div><b>2)</b> Gõ <code>agy</code> một lần để đăng nhập Google. Qua SSH thì nó in ra
-              một link, mở link đó trên máy anh là xong.</div>
+            <div>Chưa thấy CLI trên máy. Cài một lần trên máy chạy Javis:<br><code>${esc(p.cai_lenh || "")}</code></div>
+            <div>Cài xong tải lại trang này rồi bấm <b>Đăng nhập Google</b>.</div>
           </div>`}
+          ${(p.cli_found && !on && !p.login_ui && p.login_ly_do) ? `<div class="prov-steps">
+            <div>${esc(p.login_ly_do)}</div>
+          </div>` : ""}
           <div class="prov-action" style="flex-wrap:wrap">
+            ${(!on && p.cli_found && p.login_ui)
+              ? `<button class="gcard-btn" data-agylogin="1">Đăng nhập Google</button>` : ""}
             <button class="gcard-btn ghost" data-agycheck="1">Kiểm tra lại</button>
             <span id="agyMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
           </div>
+          <div id="agyLogin"></div>
         </div>`;
       }
       if (p.id === "gemini-cli") {
@@ -2842,11 +2847,16 @@
           <div class="prov-action" id="cliAction"></div>
           <div class="prov-auth">
             <div class="prov-auth-title">Chạy bằng</div>
+            <div class="prov-auth-note">Ô này chỉ đổi <b>ai trả tiền</b>. Cả hai đều chạy qua
+              Claude Code nên <b>giữ nguyên lệnh máy, WebFetch, MCP native và nối phiên cũ</b> -
+              khác hẳn thẻ "Anthropic (API)" bên dưới, thẻ đó gọi API thẳng nên không chạy được
+              lệnh máy.</div>
             <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="subscription" ${byKey ? "" : "checked"}>
-              <span><b>Gói đang đăng nhập</b> - không tốn thêm tiền. Hợp với một người dùng cá nhân.</span></label>
+              <span><b>Gói đang đăng nhập</b> - không tốn thêm tiền. Hợp với một người dùng cá nhân ngồi gõ.</span></label>
             <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="api_key" ${byKey ? "checked" : ""}>
-              <span><b>API key Anthropic</b> - trả theo lượt dùng, hợp cho việc nền và nhiều người dùng chung.
-              ${p.auth_api_key_set ? "" : ` <i>Chưa có key: dán ở thẻ "${esc("Anthropic (API)")}" bên dưới.</i>`}</span></label>
+              <span><b>API key Anthropic</b> - trả theo lượt dùng. Đây là cách duy nhất để việc nền
+              (loop, nhắc hẹn, Kanban) chạy <b>vừa hợp lệ vừa còn lệnh máy</b>.
+              ${p.auth_api_key_set ? "" : ` <i>Chưa có key: dán ở thẻ "${esc("Anthropic (API)")}" bên dưới - dán xong quay lại đây chọn ô này.</i>`}</span></label>
             ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}
           </div>
         </div>`;
@@ -2976,6 +2986,8 @@
         setTimeout(() => renderModels(el), 700);
       } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
     };
+    const agl = el.querySelector("[data-agylogin]");
+    if (agl) agl.onclick = () => startAgyLogin(el);
     const agk = el.querySelector("[data-agycheck]");
     if (agk) agk.onclick = async () => {
       const msg = el.querySelector("#agyMsg");
@@ -3150,6 +3162,63 @@
       if (!d.ok) { if (m2) m2.innerHTML = Icons.warn(d.error || "Chưa được, thử lại."); return; }
       if (m2) m2.innerHTML = OK_ICON + " Đã kết nối" + (d.email ? " · " + esc(d.email) : "") + ".";
       _daHoiModel.delete("gemini-cli");
+      setTimeout(() => renderModels(el), 900);
+    };
+  }
+
+  // ---- Antigravity CLI: Javis LÁI luồng đăng nhập của chính `agy` ----
+  // Khác Gemini CLI ở chỗ Javis không tự chạy OAuth rồi ghi file credential (agy cất token
+  // trong keyring, không có file để ghi). Nó mở `agy` trong một terminal giả, bắt cái link
+  // CLI in ra đưa lên đây, rồi bơm ngược mã người dùng dán vào xuống tiến trình đó.
+  async function startAgyLogin(el) {
+    const hop = el.querySelector("#agyLogin");
+    const msg = el.querySelector("#agyMsg");
+    if (msg) msg.textContent = "Đang mở luồng đăng nhập của agy… (lần đầu có thể mất vài chục giây)";
+    let r;
+    try { r = await (await fetch("/antigravity/login-start", { method: "POST" })).json(); }
+    catch (e) { if (msg) msg.textContent = "Lỗi mạng."; return; }
+    if (!r.ok || !r.url) {
+      if (msg) msg.innerHTML = Icons.warn(r.error || "Không bắt đầu được đăng nhập.");
+      // Giữ nguyên thứ CLI thật sự in ra: luồng đăng nhập của Google hay đổi, mà một câu lỗi
+      // của Javis thì không giúp gì cho việc đoán xem nó vừa hỏi gì.
+      if (hop && r.log) hop.innerHTML = `<div class="prov-steps"><div>CLI in ra:</div>
+        <pre class="agy-log">${esc(r.log)}</pre></div>`;
+      return;
+    }
+    if (msg) msg.textContent = "";
+    try { window.open(r.url, "_blank"); } catch (e) {}
+    if (hop) hop.innerHTML = `
+      <div class="prov-steps">
+        <div><b>1)</b> Mở link này rồi đăng nhập bằng tài khoản Google của anh:<br>
+          <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener"
+             style="color:var(--link-ink);word-break:break-all">${esc(r.url.slice(0, 90))}…</a></div>
+        <div><b>2)</b> Đồng ý xong, Google hiện ra <b>một mã</b>. Chép mã đó dán vào đây:</div>
+        <div class="gcli-code-row">
+          <input class="js-input" id="agyCode" placeholder="Dán mã Google vừa hiện" autocomplete="off"
+                 spellcheck="false">
+          <button class="gcard-btn" id="agyCodeBtn">Xong</button>
+        </div>
+        <div id="agyCodeMsg" class="gcard-meta" style="margin-top:4px"></div>
+      </div>`;
+    const btn = el.querySelector("#agyCodeBtn");
+    if (btn) btn.onclick = async () => {
+      const m2 = el.querySelector("#agyCodeMsg");
+      const code = (el.querySelector("#agyCode").value || "").trim();
+      if (!code) { if (m2) m2.textContent = "Dán mã vào đã."; return; }
+      btn.disabled = true; if (m2) m2.textContent = "Đang xác nhận…";
+      let d;
+      try {
+        const fd = new FormData(); fd.append("code", code);
+        d = await (await fetch("/antigravity/login-code", { method: "POST", body: fd })).json();
+      } catch (e) { d = { ok: false, error: "Lỗi mạng." }; }
+      btn.disabled = false;
+      if (!d.ok) {
+        if (m2) m2.innerHTML = Icons.warn(d.error || "Chưa được, thử lại.")
+          + (d.log ? `<pre class="agy-log">${esc(d.log)}</pre>` : "");
+        return;
+      }
+      if (m2) m2.innerHTML = OK_ICON + " Đã đăng nhập.";
+      _daHoiModel.delete("antigravity-cli");
       setTimeout(() => renderModels(el), 900);
     };
   }

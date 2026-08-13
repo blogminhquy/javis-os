@@ -291,8 +291,15 @@ _console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("thẻ Models có card riêng", 'p.id === "antigravity-cli"' in _console)
 check("card chỉ đúng lệnh cài", "data-agycheck" in _console)
 
-check("CANARY: không hứa nút đăng nhập trên dashboard (token nằm trong keyring, "
-      "Javis không bắc cầu được)", "data-agylogin" not in _console)
+# Canary này TRƯỚC 0.30.0 khẳng định ngược lại: "không hứa nút đăng nhập trên dashboard".
+# Lý do hồi đó đúng - `agy` cất token trong keyring nên Javis không GHI credential hộ được như
+# với Gemini CLI. Nhưng kết luận rút ra từ đó thì sai: không ghi hộ được không có nghĩa là
+# không đăng nhập trên dashboard được. 0.30.0 đi đường khác - LÁI luồng đăng nhập của chính
+# CLI qua một terminal giả (xem antigravity_login.py). Giữ lại đoạn này làm ghi chú vì đây là
+# ca "canary canh đúng hiện trạng nhưng chốt sai khả năng", dễ lặp lại.
+check("thẻ Models có nút đăng nhập ngay trên trang (0.30.0)", "data-agylogin" in _console)
+check("và nút đó gọi đúng luồng lái CLI, không phải một vòng OAuth Javis tự dựng",
+      "/antigravity/login-start" in _console)
 
 print()
 if _fails:

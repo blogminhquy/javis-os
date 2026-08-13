@@ -165,6 +165,13 @@ body.in-console .hud-actions { display: none; }
    nuốt cả hàng flex, ô nhập mã teo còn vài chục pixel và người dùng KHÔNG gõ nổi mã vào.
    - min-width:0 để ô nhập co được thật (input có kích thước nội tại chặn co lại trong flex).
    - flex-wrap + basis 180px: màn hẹp thì nút rơi xuống dòng dưới thay vì bóp ô nhập. */
+/* Nguyên văn thứ `agy` in ra khi luồng đăng nhập không đi như dự tính. Hiện ra chứ không nuốt:
+   Google đổi luồng lúc nào không báo, và câu CLI nói mới là manh mối, không phải câu Javis
+   đoán hộ. Giới hạn chiều cao để nó không đẩy cả trang xuống. */
+.agy-log { margin-top: 6px; max-height: 180px; overflow: auto; white-space: pre-wrap;
+  word-break: break-word; font-size: 12px; line-height: 1.5; color: var(--text3);
+  background: var(--sunken); border: 1px solid var(--glass-brd); border-radius: 8px;
+  padding: 8px 10px; }
 .gcli-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   max-width: 520px; margin-top: 6px; }
 .gcli-code-row .js-input { flex: 1 1 180px; min-width: 0; margin-bottom: 0; }
@@ -173,6 +180,10 @@ body.in-console .hud-actions { display: none; }
 /* Nguồn xác thực của gói Claude Code (subscription / API key) */
 .prov-auth { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--glass-brd); }
 .prov-auth-title { font-family: var(--font); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+/* Một dòng nói TRƯỚC cái mà hai lựa chọn bên dưới KHÔNG đổi. Thiếu nó thì người đọc thấy
+   "API key Anthropic" ở đây và thẻ "Anthropic (API)" bên dưới, tưởng trùng nhau rồi hỏi làm
+   thêm nút này chi (chủ repo hỏi đúng câu đó 2026-08-13). */
+.prov-auth-note { font-size: 12.5px; line-height: 1.6; color: var(--text2); margin-bottom: 10px; }
 .prov-auth-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 6px; cursor: pointer; }
 .prov-auth-opt input { margin-top: 3px; flex: 0 0 auto; }
 .prov-auth-opt b { color: var(--text); font-weight: 600; }
