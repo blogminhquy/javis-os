@@ -142,10 +142,17 @@
   }
   // Thuoc tinh <a> mo trang Tep tin dung vi tri file/thu muc. Giu href deep-link (#open=..) de
   // Ctrl/giua chuot mo tab trinh duyet moi cung nhay dung cho; bam thuong -> mo trong app.
+  // Duoi file MO RA SUA DUOC. Giu khop voi VT_TEXT_EXTS trong console.js - danh sach nay chi
+  // dung de dat CHU cho dung, con quyet dinh mo o dau thi console.js lo.
+  var EDIT_EXT_RE = /\.(?:md|txt|json|ya?ml|csv|js|ts|py|html?|css|toml|ini|log|sh|bat|xml|svg|env)$/i;
   function vaultLoc(rawpath, extraCls) {
     var clean = String(rawpath || "").replace(/^\.?\//, "");
+    // Noi dung chuot dung viec cu bam do LAM: file sua duoc thi mo trinh sua, thu muc thi ve
+    // trang Tep tin. Chu cu ghi "Mo vi tri trong Tep tin" cho MOI thu, nen bam vao mot file
+    // .html roi thay trinh sua bung ra la mot bat ngo - dung huong nhung sai loi hua.
+    var tit = EDIT_EXT_RE.test(clean.split(/[?#]/)[0]) ? "Mở ra sửa" : "Mở vị trí trong Tệp tin";
     return 'href="#open=' + esc(encodeURIComponent(clean)) + '" data-vault-path="' + esc(clean) +
-      '" class="jv-floc' + (extraCls ? " " + extraCls : "") + '" title="Mo vi tri trong Tep tin"';
+      '" class="jv-floc' + (extraCls ? " " + extraCls : "") + '" title="' + tit + '"';
   }
   function vaultLink(rawpath, extraCls, brainOverride) {
     return isDownloadFile(rawpath)
@@ -748,6 +755,11 @@
   }
 
   function moFileVault(rel) {
+    // Duong CHINH: console.js quyet dinh (file sua duoc -> trinh sua, con lai -> trang Tep tin).
+    // Gom ve mot cho vi deep-link `#open=` cung goi dung ham do; hai ban sao luat se lech nhau,
+    // ma trieu chung cua lech la "cung mot file luc thi sua duoc luc thi ve thu muc".
+    if (typeof window.JavisOpenVaultPath === "function") { window.JavisOpenVaultPath(rel); return; }
+    // Duoi day la duong lui cho ban console.js cu chua co ham do.
     var hep = false;
     try { hep = window.matchMedia("(max-width: 860px)").matches; } catch (e) {}
     if (!hep && typeof window.JavisOpenNote === "function") { window.JavisOpenNote(rel); return; }

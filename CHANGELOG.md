@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.30.2] - 2026-08-13
+### Sửa lỗi
+- **Bấm vào link file trong chat giờ mở thẳng ra sửa, không còn lúc được lúc không.** File .html Javis vừa xuất ra, file .md, .css, .json... bấm phát là vào trình sửa; trước đây có lúc lại quăng bạn về thư mục trong trang Tệp tin.
+- Lý do cũ: cùng một link có hai đường đi (bấm thường, và mở tab mới hoặc F5) mà hai đường lại xử khác nhau. Nay đi chung một luật.
+- Chữ hiện khi rê chuột cũng nói đúng việc: **Mở ra sửa** với file, **Mở vị trí trong Tệp tin** với thư mục. Ảnh, PDF, file nén vẫn là tải về như cũ.
+
 ## [0.30.1] - 2026-08-13
 ### Sửa lỗi
 - **Danh sách mốc hội thoại đọc được trở lại khi chat đã dài.** Từ khoảng 60 câu hỏi, các dòng trong danh sách bị bóp bẹp lại thành một mớ vệt mờ; giờ mỗi dòng giữ nguyên chiều cao và danh sách tự cuộn như bình thường.

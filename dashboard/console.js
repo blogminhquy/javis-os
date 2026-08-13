@@ -266,6 +266,32 @@
     else navigateTo("files");
   }
   if (typeof window !== "undefined") window.JavisOpenFiles = openFilesAt;
+  // Bấm một đường dẫn vault: file SỬA ĐƯỢC thì mở thẳng TRÌNH SỬA, còn lại mới về trang Tệp tin.
+  //
+  // Vì sao gom vào một hàm: cùng một link trong chat có HAI đường đi tới đây - cú bấm thường
+  // (chat-render.js bắt được, gọi moFileVault) và deep-link `#open=` (Ctrl/chuột giữa mở tab
+  // mới, hoặc tải lại trang khi hash còn đó). Trước bản này đường thứ hai đổ thẳng vào
+  // openFilesAt, nên cùng một file .html lúc thì mở ra sửa được lúc thì quăng người dùng về
+  // thư mục - đúng cái "thi thoảng nó vẫn bị gửi về folder" chủ repo báo (2026-08-13). Một
+  // quyết định, mọi người gọi chung.
+  function openVaultPath(fullPath) {
+    const raw = String(fullPath == null ? "" : fullPath);
+    const clean = raw.replace(/^\.?\//, "").replace(/\/+$/, "");
+    const base = clean.split("/").pop();
+    // Không có dấu chấm trong tên = thư mục, cùng luật với openFilesAt và chat-render.js.
+    const laThuMuc = /\/$/.test(raw) || !base || base.indexOf(".") < 0;
+    const duoi = base.indexOf(".") >= 0 ? "." + base.split(".").pop().toLowerCase() : "";
+    if (!laThuMuc && VT_TEXT_EXTS.includes(duoi)) {
+      // Màn rộng: trình sửa đính bên cây. Màn hẹp: modal của file-editor.js - ở đây người dùng
+      // bấm ĐÚNG một file nên đừng chặn như nhánh node đồ thị.
+      if (!isNarrow() && typeof window.JavisOpenNote === "function") {
+        window.JavisOpenNote(clean); return;
+      }
+      if (typeof window.JavisEditFile === "function") { window.JavisEditFile(clean); return; }
+    }
+    openFilesAt(fullPath);
+  }
+  if (typeof window !== "undefined") window.JavisOpenVaultPath = openVaultPath;
   // Mở note trong editor cây từ đường dẫn TƯƠNG ĐỐI GỐC BRAIN (như openNodePopup). Người gọi: click node
   // đồ thị (app.js onGraphNodeClick) VÀ wikilink [[..]] trong chat-render.js - đều truyền MỘT chuỗi path.
   // ĐỪNG gán đè hàm này bằng openNote thô: mất bước suy tên/đuôi file → note .md rơi nhánh "hãy tải về"
@@ -5953,10 +5979,12 @@
       // sẵn ô chat, chỉ khác là không vẽ khoang não. Bản trước tự đẩy sang trang Trò chuyện,
       // hoá ra rối hơn - mỗi lần tải lại là mỗi lần rơi vào một trang khác.
       recomputeGraph();
-      // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault> → mở thẳng Tệp tin đúng vị trí
+      // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault>.
+      // Đi qua openVaultPath chứ KHÔNG phải openFilesAt: file sửa được thì mở thẳng trình sửa,
+      // đúng như cú bấm thường. Trước bản này hai đường cho ra hai kết quả khác nhau.
       try {
         const m = /^#open=(.+)$/.exec(location.hash || "");
-        if (m) openFilesAt(decodeURIComponent(m[1]));
+        if (m) openVaultPath(decodeURIComponent(m[1]));
       } catch (e) {}
     });
   }

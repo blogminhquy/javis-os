@@ -38,8 +38,12 @@ check("mở app là vào màn Javis, không tự nhảy trang khác",
       'active: "home"' in CONSOLE
       and 'navigateTo("chat")' not in boot_block
       and 'navigateTo("overview")' not in CONSOLE)
+# Điều cần canh là deep-link CÒN ĐƯỢC XỬ sau khi vào màn Javis, chứ không phải nó gọi đúng
+# hàm nào. Từ 0.30.2 nó gọi openVaultPath: file sửa được thì mở thẳng trình sửa, thư mục mới về
+# trang Tệp tin - trước đó thả tất vào thư mục, nên cùng một file .html bấm ở chat thì sửa được
+# mà mở tab mới lại không.
 check("deep-link file vẫn được ưu tiên sau khi vào Javis",
-      'const m = /^#open=(.+)$/' in boot_block and "openFilesAt(decodeURIComponent(m[1]))" in boot_block)
+      'const m = /^#open=(.+)$/' in boot_block and "openVaultPath(decodeURIComponent(m[1]))" in boot_block)
 # Soi "wireUpdateManager(el" chứ KHÔNG soi "wireUpdateManager(el)": điều cần canh là trang Cập
 # nhật có gọi bộ máy đó hay không, chứ không phải nó truyền mấy tham số. Khoá cả dấu đóng ngoặc
 # thì thêm một tham số là test đỏ dù hợp đồng thật không đổi - đúng chuyện xảy ra ở 0.28.1 khi

@@ -69,8 +69,18 @@ check("CSS đó chừa ảnh ra (ảnh vẫn để sửa)", /:not\(:has\(img\)\)
 // 5. Mở file = khung sửa DÍNH, popup chỉ là đường lui
 // ============================================================
 check("có hàm mở file dùng chung", /function moFileVault\(rel\)/.test(CR));
-const mo = CR.slice(CR.indexOf("function moFileVault(rel)"), CR.indexOf("function moFileVault(rel)") + 700);
-check("CANARY: ưu tiên JavisOpenNote (khung dính) chứ không phải popup",
+// Cắt rộng tay: từ 0.30.2 thân hàm dài thêm vì có nhánh chính mới + khối chú thích giải thích
+// vì sao. Cắt 700 ký tự như trước là hai indexOf dưới đây cùng ra -1 rồi "-1 < -1" thành sai -
+// test đỏ trong khi hợp đồng không hề đổi.
+const mo = CR.slice(CR.indexOf("function moFileVault(rel)"), CR.indexOf("function moFileVault(rel)") + 1600);
+// 0.30.2 dời QUYẾT ĐỊNH sang console.js (openVaultPath) để deep-link `#open=` và cú bấm thường
+// dùng chung một luật - trước đó hai đường xử khác nhau nên cùng một file .html lúc mở ra sửa
+// được lúc thì bị quăng về thư mục. Chuỗi rơi cũ giữ nguyên bên dưới làm đường lui cho bản
+// console.js cũ, nên hai check kế tiếp vẫn còn nguyên giá trị.
+check("CANARY: quyết định mở ở đâu nằm ở MỘT chỗ dùng chung, không phải bản sao trong chat-render",
+  mo.indexOf("window.JavisOpenVaultPath(rel)") >= 0
+  && mo.indexOf("window.JavisOpenVaultPath(rel)") < mo.indexOf("window.JavisOpenNote(rel)"));
+check("CANARY: đường lui vẫn ưu tiên JavisOpenNote (khung dính) chứ không phải popup",
   mo.indexOf("window.JavisOpenNote(rel)") < mo.indexOf("window.JavisEditFile(rel)"));
 check("màn hẹp thì vẫn dùng popup (không đủ chỗ cho khung dính)",
   /matchMedia\("\(max-width: 860px\)"\)/.test(mo));
