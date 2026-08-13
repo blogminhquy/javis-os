@@ -55,7 +55,8 @@ def _gia(dong_ra, ma=0, stderr="", help_text="", models_out=""):
         f"if '--help' in a:\n    sys.stdout.write({help_text!r}); sys.exit(0)\n"
         f"if a and a[0] == 'models':\n    sys.stdout.write({models_out!r}); sys.exit(0)\n"
         "sys.stdout.write(open('/dev/null').read()) if False else None\n"
-        "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
+        "try:\n    _sd = sys.stdin.read()\nexcept Exception:\n    _sd = ''\n"
+        f"open({str(d / 'stdin.txt')!r}, 'w').write(_sd or '')\n"
         f"open({str(d / 'argv.txt')!r}, 'w').write('\\x00'.join(a))\n"
         f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
         f"sys.stderr.write({stderr!r})\n"
@@ -311,6 +312,17 @@ _files = list((_brain / ".antigravity").glob("*.json"))
 check("ghi cấu hình MCP vào TRONG brain, không vào HOME", len(_files) >= 1, _files)
 _doc = json.loads(_files[0].read_text(encoding="utf-8"))
 check("entry hub tên 'javis'", (_doc.get("mcpServers") or {}).get("javis") == _hub, _doc)
+# CANARY của một lỗi ĐÃ XẢY RA và im lặng suốt: hai đường dẫn `.antigravity/*` là bản ĐOÁN của
+# 0.30.0, và cả hai đều sai. Chỗ đúng ở tầng workspace là `.agents/mcp_config.json` (ba driver
+# `agy` thật của bên thứ ba dùng đường này, cộng CHANGELOG 1.0.5 của Google nhắc đích danh tên
+# file). Sai đường dẫn thì `agy` chạy bình thường nhưng KHÔNG có tool nào của Javis - không
+# Kanban, không MCP, không skill - mà chẳng có câu lỗi nào để lần ra.
+_p_moi = _brain / ".agents" / "mcp_config.json"
+check("CANARY: ghi cả đường dẫn ĐÚNG `.agents/mcp_config.json`", _p_moi.is_file(), _p_moi)
+check("và entry hub ở đó cũng đúng",
+      (json.loads(_p_moi.read_text(encoding="utf-8")).get("mcpServers") or {}).get("javis") == _hub)
+check("CANARY: có neo `.antigravitycli/` để agy nhận đúng brain làm gốc project",
+      (_brain / ".antigravitycli").is_dir())
 
 # Giữ nguyên phần người dùng đã tự thêm.
 _p0 = _brain / ".antigravity" / "mcp.json"
@@ -373,17 +385,45 @@ check("server cấp hướng dẫn đó cho trang Models",
       "antigravity_cli.login_huong_dan()" in _main_src)
 
 # ============================================================
-# 8. Windows: dòng lệnh quá dài phải báo tử tế, không nổ WinError 206
+# 8. Prompt dài hơn trần dòng lệnh: phải ĐI VÒNG, không phải bỏ cuộc
 # ============================================================
-# Người dùng báo 2026-08-13 (Windows 10, agy 1.1.12): hội thoại dài ~648k token ngữ cảnh thì
-# mọi lượt chat qua Antigravity chết vì CreateProcess chặn tổng dòng lệnh ở 32767 ký tự.
-# Họ đã ĐO: bản này không nhận prompt qua stdin, không đọc AGENTS.md, không đọc GEMINI.md, và
-# --help không có cờ nào nhận prompt từ file. Nên không có đường vòng - việc duy nhất làm đúng
-# được là nói thẳng thay vì để nổ một câu không ai đoán ra.
-_cli_win, _ = _gia([], help_text=_HELP_CU)     # _HELP_CU không nhắc stdin -> buộc đi argv
+# Ca này đã hiểu sai một lần, và cái giá là bộ não Antigravity chết hẳn trên Windows suốt
+# 0.31.x-0.32.x mà không ai biết.
+#
+# Người dùng báo 2026-08-13 kèm ảnh: mọi lượt chat qua Antigravity trên Windows đều trả về "Hội
+# thoại này đã quá dài", KỂ CẢ tin nhắn "hi em" trong một hội thoại mới tinh. Đo lại thì rõ vì
+# sao: system prompt của Javis trên brain TRỐNG đã 36.045 ký tự (CLAUDE.md 27.172 + lớp agentic +
+# chỉ mục năng lực + khối kênh 5.838), trong khi CreateProcess của Windows chặn tổng dòng lệnh ở
+# 32767. Phần vượt trần là phần CỐ ĐỊNH chứ không phải phần hội thoại - nên lời khuyên "mở hội
+# thoại mới" của bản cũ không bao giờ cứu được ai, và mỗi lần người dùng làm theo lại càng tin
+# là mình làm sai chứ không phải Javis hỏng.
+#
+# Nay có ba đường, và phải ĐO chứ không đoán: argv (khi vừa), stdin (khi CLI chịu), file ngữ
+# cảnh (khi không còn cách nào). Test tách làm hai nửa vì một lý do rất cụ thể: giả `os.name =
+# "nt"` trên Linux làm `pathlib.Path()` dựng WindowsPath rồi ném NotImplementedError, nên nửa
+# QUYẾT ĐỊNH (chọn đường nào) giả Windows nhưng chặn mọi thao tác pathlib, còn nửa CƠ CHẾ (file
+# ngữ cảnh chạy ra sao) ép đường bằng biến môi trường và chạy thật trên Linux.
+_no_window_that = antigravity_cli._no_window
+antigravity_cli._no_window = lambda: 0     # os.name giả sẽ làm _no_window() nổ trên Linux
+
+
+# ---- Nửa 1: trên Windows, prompt dài phải đi STDIN, và prompt phải TỚI NƠI nguyên vẹn ----
+# Đường đúng là stdin, và đây là bằng chứng chính chủ chứ không phải phỏng đoán. CHANGELOG của
+# `agy`, hai dòng:
+#   1.1.1 "Fixed `agy -p` hanging when run inside a shell script or subprocess by no longer
+#          reading stdin when a prompt is provided via a flag."
+#   1.1.2 "... when stdin is consumed by a piped prompt."
+# Tức nó ĐỌC stdin, với đúng một điều kiện: prompt không cấp qua cờ. `--print ""` (giá trị rỗng)
+# rồi bơm stdin là công thức đúng, và `_build_args()` đã làm sẵn như vậy từ đầu.
+#
+# Vì sao bản trước không bao giờ đi vào đường này: `nhan_prompt_qua_stdin()` quyết định bằng
+# cách tìm chữ "stdin" trong `agy --help`, mà KHÔNG bản help nào có chữ đó. Hàm trả False vĩnh
+# viễn, mọi lượt rơi xuống argv rồi đâm vào trần 32767 của Windows.
+_cli_win, _d_win = _gia([json.dumps({"role": "assistant", "content": "Chào anh."})],
+                        help_text=_HELP_CU)   # _HELP_CU không nhắc stdin: đúng như bản thật
 _reset_cache()
 antigravity_cli.find_antigravity_cli = lambda: _cli_win
-_g_win = antigravity_cli.AntigravityCLI(cwd="/tmp")
+_g_win = antigravity_cli.AntigravityCLI(cwd=str(_d_win))
 _g_win.cli_path = _cli_win
 _g_win.instructions = "x" * 40000
 _ten_that = os.name
@@ -392,14 +432,245 @@ try:
     _evs_win = chay(_gom(_g_win))
 finally:
     os.name = _ten_that
-check("CANARY: Windows + prompt quá dài -> báo tử tế, KHÔNG để nổ WinError 206",
-      len(_evs_win) == 1 and _evs_win[0]["type"] == "error"
-      and "quá dài" in _evs_win[0]["content"], _evs_win)
-check("và nói đúng hai việc làm được ngay",
-      "hội thoại mới" in _evs_win[0]["content"] and "Models" in _evs_win[0]["content"])
-check("CANARY: Linux KHÔNG bị chặn nhầm (không có trần 32767)",
-      any(e["type"] in ("final", "error") for e in chay(_gom(_g_win)))
-      and "quá dài" not in str(chay(_gom(_g_win))))
+
+
+def _doc(d, ten):
+    try:
+        return (d / ten).read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+_argv_win, _stdin_win = _doc(_d_win, "argv.txt"), _doc(_d_win, "stdin.txt")
+
+check("CANARY: Windows + prompt dài hơn trần -> VẪN CHẠY, không bỏ cuộc",
+      any(e["type"] == "final" for e in _evs_win)
+      and not any("quá dài" in str(e.get("content") or "") for e in _evs_win), _evs_win)
+check("CANARY: dòng lệnh gửi đi nằm dưới trần 32767 của Windows",
+      bool(_argv_win) and len(_argv_win) < 32767, len(_argv_win))
+check("CANARY: prompt tới nơi NGUYÊN VẸN qua stdin (không cắt, không tóm tắt)",
+      "x" * 40000 in _stdin_win and "hỏi gì đó" in _stdin_win, len(_stdin_win))
+check("và `-p` truyền giá trị RỖNG - đúng công thức agy mới chịu đọc stdin",
+      _argv_win.split("\x00")[-2:] == ["-p", ""], _argv_win.split("\x00")[-3:])
+check("CANARY: không dựng file ngữ cảnh khi stdin đã đủ (đường trung thực hơn thì ưu tiên)",
+      not (_d_win / ".javis-agy").exists())
+
+# `-p` PHẢI là cờ CUỐI CÙNG. `agy` bỏ qua mọi cờ đứng sau nó, nên chèn thêm gì ở dưới là
+# `--output-format stream-json` rơi mất, CLI in chữ thuần, bộ đọc stream không hiểu, và người
+# dùng nhận một bong bóng rỗng. Hỏng lặng lẽ, không có câu lỗi nào để lần ra - đúng loại bug
+# đắt nhất, nên khoá lại bằng canary.
+_dsach = _argv_win.split("\x00")
+check("CANARY: `-p` nằm CUỐI dòng lệnh (cờ đứng sau nó bị agy bỏ qua)",
+      len(_dsach) >= 2 and _dsach[-2] == "-p", _dsach[-4:])
+
+check("CANARY: Linux vẫn đi argv như cũ (trần 128KB cho một tham số, chưa chạm)",
+      antigravity_cli._tran_argv() == 120000)
+try:
+    os.name = "nt"
+    check("và Windows lấy đúng trần chặt hơn", antigravity_cli._tran_argv() == 30000)
+finally:
+    os.name = _ten_that
+
+
+# ---- Nửa 1b: bản CLI nào KHÔNG chịu đọc stdin thì tự chuyển sang file ngay trong lượt đó ----
+# Một bản `agy` đủ cũ (trước 1.1.1) hoặc một ngày Google đổi luật thì stdin thành ngõ cụt. Dấu
+# hiệu là: chạy xong, không lỗi, mà cũng không có lấy một chữ. Bắt người dùng nhìn bong bóng
+# rỗng rồi tự đoán là đúng cái sai mà file engine này viết ra để tránh.
+_HELP_MOI_KHONG_STDIN = _HELP_MOI.replace(". Appended to input on stdin", "")
+_d_bo = Path(tempfile.mkdtemp(prefix="javis-fakeagy-boqua-"))
+_cli_bo = _d_bo / "agy"
+_cli_bo.write_text(
+    "#!/usr/bin/env python3\nimport sys, json\n"
+    "a = sys.argv[1:]\n"
+    f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI_KHONG_STDIN!r}); sys.exit(0)\n"
+    "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
+    "v = a[a.index('-p') + 1] if '-p' in a and a.index('-p') + 1 < len(a) else ''\n"
+    "# Bỏ QUA stdin: prompt rỗng thì im lặng, y như bản agy cũ.\n"
+    "if not v:\n    sys.exit(0)\n"
+    "print(json.dumps({'role': 'assistant', 'content': 'Chào anh.'}), flush=True)\n",
+    encoding="utf-8")
+_cli_bo.chmod(_cli_bo.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: str(_cli_bo)
+_g_bo = antigravity_cli.AntigravityCLI(cwd=str(_d_bo))
+_g_bo.cli_path = str(_cli_bo)
+_g_bo.instructions = "x" * 40000
+os.environ["JAVIS_AGY_PROMPT_DAI"] = "stdin"
+try:
+    _evs_bo = chay(_gom(_g_bo))
+finally:
+    os.environ.pop("JAVIS_AGY_PROMPT_DAI", None)
+check("CANARY: CLI bỏ qua stdin -> tự thử lại bằng file ngữ cảnh, người dùng vẫn có câu trả lời",
+      any(e["type"] == "final" and "Chào anh." in str(e.get("content") or "")
+          for e in _evs_bo), _evs_bo)
+check("và chỉ trả về MỘT câu trả lời, không phải hai (lượt hỏng không được phát final)",
+      len([e for e in _evs_bo if e["type"] == "final"]) == 1, _evs_bo)
+check("CANARY: và lượt đi đường file đó nói rõ là model chưa đọc file ngữ cảnh",
+      any("file ngữ cảnh" in str(e.get("content") or "")
+          for e in _evs_bo if e.get("type") == "final"), _evs_bo)
+
+
+# ---- Nửa 2: cơ chế file ngữ cảnh, chạy thật (ép đường bằng biến môi trường) ----
+_STATE = Path(os.environ["JAVIS_STATE_DIR"])
+
+
+def _tep_ngu_canh():
+    d = _STATE / ".javis-agy"
+    return sorted(d.glob("ngu-canh-*.md")) if d.is_dir() else []
+
+
+def _chay_ep_file(dong_ra, giu=False, help_text=_HELP_MOI):
+    cli, d = _gia(dong_ra, help_text=help_text)
+    _reset_cache()
+    antigravity_cli.find_antigravity_cli = lambda: cli
+    g = antigravity_cli.AntigravityCLI(cwd=str(d))
+    g.cli_path = cli
+    g.instructions = "x" * 40000
+    os.environ["JAVIS_AGY_PROMPT_DAI"] = "file"
+    if giu:
+        os.environ["JAVIS_AGY_GIU_NGU_CANH"] = "1"
+    try:
+        evs = chay(_gom(g))
+    finally:
+        os.environ.pop("JAVIS_AGY_PROMPT_DAI", None)
+        os.environ.pop("JAVIS_AGY_GIU_NGU_CANH", None)
+    argv = ""
+    try:
+        argv = (d / "argv.txt").read_text(encoding="utf-8")
+    except Exception:
+        pass
+    return evs, d, argv.split("\x00")
+
+
+for _f in _tep_ngu_canh():
+    _f.unlink()
+_evs_f, _d_f, _argv_f = _chay_ep_file([json.dumps({"role": "assistant", "content": "ok"})],
+                                      giu=True)
+_tep_nc = _tep_ngu_canh()
+# CANARY của một lỗ hổng suýt ship: file ngữ cảnh là BẢN SAO của system prompt + MEMORY.md +
+# toàn bộ lịch sử hội thoại. Bản đầu ghi nó vào trong brain, mà đường sao lưu git của brain
+# (`git_brain._backup_skip`) chỉ chặn theo danh sách cố định rồi cho qua mọi file .md - tức một
+# lượt đồng bộ chạy trúng lúc `agy` đang chạy là nguyên gói đó được commit và push lên remote
+# của người dùng, và git giữ blob vĩnh viễn. Ngay cạnh đó, `Memory/conversations/` bị chặn khỏi
+# backup CÓ CHỦ ĐÍCH vì "có thể chứa secret".
+check("CANARY: file ngữ cảnh nằm NGOÀI brain (không lọt vào git backup của người dùng)",
+      len(_tep_nc) == 1 and not str(_tep_nc[0]).startswith(str(_d_f)), _tep_nc)
+check("và chứa nguyên vẹn system prompt",
+      bool(_tep_nc) and "x" * 40000 in _tep_nc[0].read_text(encoding="utf-8"))
+check("CANARY: mở quyền đọc thư mục đó bằng --add-dir (file không còn nằm trong cwd)",
+      "--add-dir" in _argv_f
+      and str(_tep_nc[0].parent) in _argv_f, _argv_f[:8])
+# Hai lớp nữa cho cùng một rủi ro, phòng khi có ai đó đổi chỗ ghi file về lại trong brain.
+_gb = (ROOT / "server" / "git_brain.py").read_text(encoding="utf-8")
+check("CANARY: git backup chặn thư mục .javis-agy", "/.javis-agy/" in _gb)
+check("và .gitignore của brain cũng chặn", '".javis-agy/"' in _gb)
+
+for _f in _tep_ngu_canh():
+    _f.unlink()
+_evs_f2, _d_f2, _ = _chay_ep_file([json.dumps({"role": "assistant", "content": "ok"})])
+check("CANARY: dọn sạch file ngữ cảnh sau khi chạy (không để lại bản sao ký ức)",
+      not _tep_ngu_canh(), _tep_ngu_canh())
+
+# Dọn cả file MỒ CÔI: kill -9 hay mất điện giữa lượt thì không `finally` nào chạy, mà thứ nằm
+# lại là bản sao ký ức của người dùng chứ không phải file tạm vô hại.
+_mo_coi = _STATE / ".javis-agy" / "ngu-canh-mocoi000000.md"
+_mo_coi.parent.mkdir(parents=True, exist_ok=True)
+_mo_coi.write_text("rác cũ", encoding="utf-8")
+os.utime(_mo_coi, (0, 0))
+antigravity_cli._don_ngu_canh_cu(_mo_coi.parent)
+check("CANARY: file ngữ cảnh mồ côi quá hạn bị dọn", not _mo_coi.exists())
+
+
+def _chay_file_voi_su_kien(dong_ra_fn, help_text=_HELP_MOI):
+    """Chạy đường file với CLI giả biết nhắc ĐÚNG tên file ngữ cảnh mà lượt đó sinh ra."""
+    cli, d = _gia([], help_text=help_text)
+    _reset_cache()
+    antigravity_cli.find_antigravity_cli = lambda: cli
+    g = antigravity_cli.AntigravityCLI(cwd=str(d))
+    g.cli_path = cli
+    g.instructions = "x" * 40000
+    that = antigravity_cli._viet_file_ngu_canh
+
+    def _viet_roi_dung_cli(cwd, nd):
+        p, duong = that(cwd, nd)
+        Path(cli).write_text(
+            "#!/usr/bin/env python3\nimport sys, json\n"
+            "a = sys.argv[1:]\n"
+            "if '--help' in a:\n    sys.stdout.write(%r); sys.exit(0)\n"
+            "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
+            "%s\n"
+            % (help_text, "\n".join(
+                "print(%r, flush=True)" % l for l in dong_ra_fn(duong))),
+            encoding="utf-8")
+        return p, duong
+
+    antigravity_cli._viet_file_ngu_canh = _viet_roi_dung_cli
+    os.environ["JAVIS_AGY_PROMPT_DAI"] = "file"
+    try:
+        return chay(_gom(g))
+    finally:
+        antigravity_cli._viet_file_ngu_canh = that
+        os.environ.pop("JAVIS_AGY_PROMPT_DAI", None)
+
+
+def _co_canh_bao(evs):
+    return any("file ngữ cảnh" in str(e.get("content") or "")
+               for e in evs if e.get("type") == "final")
+
+
+# Đọc ĐƯỢC: có kết quả tool không lỗi nhắc đúng tên file -> tuyệt đối không cảnh báo.
+_evs_doc = _chay_file_voi_su_kien(lambda duong: [
+    json.dumps({"type": "tool_use", "tool_name": "read_file", "tool_id": "t1",
+                "parameters": {"path": duong}}),
+    json.dumps({"type": "tool_result", "tool_id": "t1", "status": "success",
+                "output": f"nội dung của {duong}"}),
+    json.dumps({"role": "assistant", "content": "Chào anh."}),
+])
+check("CANARY: model ĐỌC ĐƯỢC file thì KHÔNG dán cảnh báo oan",
+      any(e["type"] == "final" for e in _evs_doc) and not _co_canh_bao(_evs_doc), _evs_doc)
+
+# Đọc HỎNG: có gọi tool nhưng kết quả báo lỗi (sandbox/quyền chặn). Bản đầu tính ca này là "đã
+# đọc" vì chỉ dò tên file trong bất kỳ sự kiện nào - tức lưới an toàn mù đúng lúc cần nhất.
+_evs_hong = _chay_file_voi_su_kien(lambda duong: [
+    json.dumps({"type": "tool_use", "tool_name": "read_file", "tool_id": "t1",
+                "parameters": {"path": duong}}),
+    json.dumps({"type": "tool_result", "tool_id": "t1", "status": "error",
+                "output": "permission denied"}),
+    json.dumps({"role": "assistant", "content": "Chào anh."}),
+])
+check("CANARY: gọi tool nhưng đọc HỎNG (sandbox/quyền) -> phải nói ra, không tính là đã đọc",
+      _co_canh_bao(_evs_hong), _evs_hong)
+
+# Không đụng tới file: cảnh báo, và là câu khác (chưa thử vs thử mà hỏng).
+_evs_lo = _chay_file_voi_su_kien(lambda duong: [
+    json.dumps({"role": "assistant", "content": "Chào anh."}),
+])
+check("CANARY: model lờ file ngữ cảnh -> cũng phải nói ra", _co_canh_bao(_evs_lo), _evs_lo)
+
+# Bản CLI cũ không có --output-format: stdout là chữ thuần, KHÔNG có sự kiện cấu trúc nào để đo.
+# Không biết mà vẫn dán cảnh báo thì mọi lượt đều bị dán oan - cũng là một kiểu nói sai.
+_evs_mu = _chay_file_voi_su_kien(lambda duong: ["Chào anh."], help_text=_HELP_CU)
+check("CANARY: bản CLI không có stream-json -> KHÔNG đo được thì KHÔNG dán cảnh báo oan",
+      any(e["type"] == "final" for e in _evs_mu) and not _co_canh_bao(_evs_mu), _evs_mu)
+
+# Bản CLI nhận stdin thì phải đi stdin và KHÔNG đụng tới file: stdin giữ prompt nguyên vẹn, còn
+# file thì phụ thuộc model chịu mở ra đọc.
+_cli_sd, _d_sd = _gia([json.dumps({"role": "assistant", "content": "ok"})], help_text=_HELP_MOI)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: _cli_sd
+_g_sd = antigravity_cli.AntigravityCLI(cwd=str(_d_sd))
+_g_sd.cli_path = _cli_sd
+_g_sd.instructions = "y" * 40000
+try:
+    os.name = "nt"
+    _evs_sd = chay(_gom(_g_sd))
+finally:
+    os.name = _ten_that
+check("CANARY: bản CLI nhận stdin thì đi stdin, không dựng file ngữ cảnh",
+      not (_d_sd / ".javis-agy").exists() and any(e["type"] == "final" for e in _evs_sd),
+      _evs_sd)
+
+antigravity_cli._no_window = _no_window_that
 
 
 # ============================================================

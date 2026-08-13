@@ -135,11 +135,28 @@ def co_co(*ten_co: str) -> bool:
 
 
 def nhan_prompt_qua_stdin() -> bool:
-    """CLI có đọc prompt từ stdin không.
+    """`--help` của bản này có TỰ KHAI là đọc prompt từ stdin không.
 
-    Quan trọng với Javis: system prompt kèm ngữ cảnh brain thường vài chục nghìn ký tự, mà
-    Windows chặn dòng lệnh ở 32767 - nhét qua argv là gãy. Gemini CLI giải bằng `-p ""` rồi bơm
-    stdin; `agy` CHƯA ĐO được nên hỏi `--help` xem có nhắc stdin không, có thì đi đường đó.
+    ĐỌC KỸ TRƯỚC KHI DÙNG LẠI HÀM NÀY. Nó từng là chốt chặn quyết định đường đi của prompt, và
+    đó là một bug im lặng suốt 0.30.0-0.32.2: `agy --help` KHÔNG hề có chữ "stdin" ở bất kỳ bản
+    nào (đã đối chiếu hai bản dump help thật), nên hàm này trả False trên mọi máy, mọi phiên
+    bản, vĩnh viễn. Nhánh stdin trong `query()` chưa từng chạy một lần nào, mọi lượt rơi hết
+    xuống argv rồi đâm vào trần dòng lệnh của Windows.
+
+    Sự thật, theo CHANGELOG CHÍNH CHỦ của `agy` (nguồn cấp 1, không phải suy đoán):
+    - 1.1.1: "Fixed `agy -p` hanging when run inside a shell script or subprocess by no longer
+      reading stdin when a prompt is provided via a flag."
+    - 1.1.2: "... when stdin is consumed by a piped prompt."
+    Tức `agy` ĐỌC stdin, với đúng một điều kiện: prompt KHÔNG được cấp qua cờ. Truyền
+    `--print ""` (giá trị RỖNG) rồi bơm prompt qua stdin là công thức đúng - `_build_args()` đã
+    làm sẵn như vậy từ đầu.
+
+    Vì sao nhiều người đo ra "không nhận stdin": `agy` dùng Go stdlib `flag`, ở đó `--print` là
+    cờ chuỗi, nên gõ `agy -p` trần rồi pipe vào sẽ thoát ngay với "flag needs an argument: -p".
+    Đo trúng câu lỗi đó rồi kết luận nhầm là CLI không hỗ trợ stdin.
+
+    Nay hàm này chỉ còn là một GỢI Ý cộng thêm, không phải chốt chặn: bản nào tự khai stdin thì
+    khỏi cần lưới an toàn ở `query()` nữa.
     """
     txt = (_help_text() or "").lower()
     return "stdin" in txt
@@ -147,6 +164,193 @@ def nhan_prompt_qua_stdin() -> bool:
 
 def phien_moi() -> str:
     return str(uuid.uuid4())
+
+
+# ---------------------------------------------------------------------------
+# Prompt DÀI: trần dòng lệnh của hệ điều hành, và đường vòng khi argv không đủ chỗ
+# ---------------------------------------------------------------------------
+# ĐO ngày 2026-08-13, và con số này đảo ngược cả cách hiểu vấn đề: system prompt của Javis trên
+# một brain TRỐNG (chưa ký ức, chưa lịch sử) đã là 36.045 ký tự - riêng CLAUDE.md 27.172, cộng
+# lớp agentic, chỉ mục năng lực, router skill và khối kênh. Windows chặn TỔNG dòng lệnh của tiến
+# trình con ở 32767 (CreateProcess), nên trên Windows đường argv KHÔNG BAO GIỜ đủ chỗ, kể cả khi
+# người dùng chỉ gõ "hi em".
+#
+# Bản 0.31.0 đọc nhầm triệu chứng thành "hội thoại quá dài" rồi dựng một câu báo lỗi khuyên mở
+# hội thoại mới. Mở bao nhiêu hội thoại mới cũng vẫn dính, vì phần vượt trần là phần CỐ ĐỊNH.
+# Tức bộ não này chết hẳn trên Windows suốt từ đó, mà lời báo lỗi lại chỉ sai hướng.
+#
+# Linux/macOS không có trần tổng, nhưng có trần cho MỘT tham số: MAX_ARG_STRLEN = 32 trang = 128KB.
+# Hội thoại thật sự dài vẫn chạm được, nên chừa luôn.
+def _tran_argv() -> int:
+    """Quá bao nhiêu ký tự thì phải bỏ đường argv. Đọc `os.name` lúc gọi, không phải lúc import."""
+    if os.name == "nt":
+        return 30000        # trần thật 32767, chừa chỗ cho đường dẫn binary và các cờ
+    return 120000           # Linux: MAX_ARG_STRLEN 131072 cho MỘT tham số
+
+
+_NHO_DUONG = "antigravity-duong-prompt.json"
+
+
+def _tep_nho_duong() -> Path:
+    """File nhớ đường gửi prompt đã đo được. Nhớ ra ĐĨA vì kết quả đo tốn một lượt gọi model."""
+    try:
+        import config
+        base = Path(config.STATE_DIR)
+    except Exception:
+        base = Path(os.environ.get("JAVIS_STATE_DIR") or Path(__file__).parent)
+    return base / _NHO_DUONG
+
+
+def _chu_ky_cli(cli: str) -> str:
+    """Vân tay của binary. Nâng cấp `agy` là chữ ký đổi -> tự đo lại thay vì tin bản nhớ cũ."""
+    try:
+        st = os.stat(cli)
+        return f"{cli}|{int(st.st_mtime)}|{st.st_size}"
+    except Exception:
+        return cli or ""
+
+
+def _doc_nho_duong() -> dict:
+    try:
+        return json.loads(_tep_nho_duong().read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _ghi_nho_duong(d: dict):
+    try:
+        p = _tep_nho_duong()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[antigravity duong prompt] {e}", file=sys.stderr)
+
+
+def duong_prompt_dai(cli: Optional[str] = None) -> str:
+    """Prompt không nhét vừa argv thì đi đường nào: "stdin" hay "file".
+
+    Mặc định là STDIN, và mặc định đó dựa trên tài liệu chính chủ chứ không phải phỏng đoán (xem
+    `nhan_prompt_qua_stdin`). Nó cũng là đường trung thực nhất: prompt tới model NGUYÊN VẸN,
+    đúng thứ Javis gửi. Đường file phải nhờ chính model chịu mở file ra đọc, tức có xác suất
+    trượt, nên chỉ dùng khi stdin đã chứng minh là không ăn trên máy này.
+
+    "Đã chứng minh" nghĩa là: một lượt đi stdin chạy xong mà không có lấy một chữ trả về, không
+    kèm lỗi nào - dấu hiệu kinh điển của prompt không tới nơi. Lúc đó `query()` ghi lại "file"
+    cho đúng bản binary này rồi thử lại ngay trong cùng lượt, nên người dùng không mất gì.
+
+    Bản nhớ khoá theo vân tay binary, nên nâng cấp `agy` là tự đo lại từ đầu.
+    Cửa thoát: JAVIS_AGY_PROMPT_DAI=stdin|file|argv.
+    """
+    ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
+    if ep in ("stdin", "file", "argv"):
+        return ep
+    cli = cli or find_antigravity_cli()
+    if not cli:
+        return "stdin"
+    nho = _doc_nho_duong()
+    if nho.get("chu_ky") == _chu_ky_cli(cli) and nho.get("duong") in ("stdin", "file"):
+        return nho["duong"]
+    return "stdin"
+
+
+def nho_duong(cli: Optional[str], duong: str, vi_sao: str = ""):
+    """Ghi lại đường đã dùng được cho đúng bản binary này."""
+    cli = cli or find_antigravity_cli()
+    if not cli:
+        return
+    _ghi_nho_duong({"chu_ky": _chu_ky_cli(cli), "duong": duong, "vi_sao": vi_sao,
+                    "ts": time.time()})
+
+
+_THU_MUC_NGU_CANH = ".javis-agy"
+_HAN_NGU_CANH = 3600.0      # file mồ côi quá một giờ thì dọn
+
+
+def _don_ngu_canh_cu(thu_muc: Path):
+    """Xoá file ngữ cảnh mồ côi. Bình thường mỗi lượt tự dọn file của mình trong `finally`, nhưng
+    `kill -9`, mất điện, hay restart container giữa lượt thì không có `finally` nào chạy - mà thứ
+    nằm lại là bản sao ký ức của người dùng, không phải một file tạm vô hại."""
+    try:
+        gio = time.time()
+        for f in thu_muc.glob("ngu-canh-*.md"):
+            try:
+                if gio - f.stat().st_mtime > _HAN_NGU_CANH:
+                    f.unlink()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _viet_file_ngu_canh(cwd: str, noi_dung: str) -> tuple[str, str]:
+    """Ghi cả gói (system prompt + hội thoại + câu hỏi) ra file, trả (đường tuyệt đối, đường nhắc).
+
+    Ghi vào STATE_DIR của Javis chứ KHÔNG vào brain, và đây là chỗ đã suýt sai một cách đắt giá.
+    Đặt trong brain thì tiện hơn (agent luôn đọc được file trong cwd của nó), nhưng file này là
+    bản sao của system prompt + MEMORY.md + toàn bộ lịch sử hội thoại, mà đường sao lưu git của
+    brain (`git_brain._backup_skip`) chỉ chặn theo danh sách cố định rồi cho qua mọi file .md.
+    Một lượt đồng bộ chạy trúng lúc `agy` đang chạy là nguyên gói đó được commit và push lên
+    remote của người dùng, và git giữ blob vĩnh viễn. Ngay bên cạnh, `Memory/conversations/` bị
+    chặn khỏi backup CÓ CHỦ ĐÍCH vì "có thể chứa secret" - đi vòng qua đúng cái rào đó bằng cửa
+    sau thì không phải là đánh đổi, mà là lỗi.
+
+    STATE_DIR cũng chữa luôn ca cwd không ghi được: đường fast path gọi engine này với
+    `cwd = os.getcwd()`, tức `/app` trong Docker - thư mục của root trong khi tiến trình chạy
+    bằng user `javis`.
+
+    Đổi lại phải cho `agy` quyền đọc thư mục đó bằng `--add-dir`, việc của người gọi.
+    """
+    try:
+        import config
+        goc = Path(config.STATE_DIR)
+    except Exception:
+        goc = Path(os.environ.get("JAVIS_STATE_DIR") or Path(__file__).parent)
+    thu_muc = goc / _THU_MUC_NGU_CANH
+    thu_muc.mkdir(parents=True, exist_ok=True)
+    _don_ngu_canh_cu(thu_muc)
+    ten = f"ngu-canh-{uuid.uuid4().hex[:12]}.md"
+    p = thu_muc / ten
+    p.write_text(noi_dung, encoding="utf-8")
+    try:
+        os.chmod(p, 0o600)      # có thể chứa ký ức riêng của người dùng
+    except Exception:
+        pass
+    # Nhắc bằng đường TUYỆT ĐỐI vì file không còn nằm trong cwd nữa.
+    return str(p), str(p)
+
+
+def _loi_nhac_file(duong_dan: str, cau_hoi: str) -> str:
+    """Prompt NGẮN thay cho cả gói: bảo model tự mở file ngữ cảnh ra đọc.
+
+    Câu hỏi thật vẫn được nhắc lại ở đây (cắt ngắn) chứ không chỉ nằm trong file. Đó là lưới an
+    toàn: bản CLI nào bướng không chịu đọc file thì ít ra vẫn trả lời đúng câu người dùng hỏi,
+    chỉ thiếu luật riêng của Javis, chứ không trả lời trống trơn.
+    """
+    hoi = (cau_hoi or "").strip()
+    if len(hoi) > 1500:
+        hoi = hoi[:1500] + " [...]"
+    return (
+        f"BẮT BUỘC LÀM TRƯỚC: mở và đọc HẾT file `{duong_dan}`.\n"
+        "File đó chứa toàn bộ chỉ dẫn hệ thống, bộ nhớ và lịch sử hội thoại của bạn. Đọc xong "
+        "thì hành xử đúng theo nó và trả lời tin nhắn mới nhất của người dùng (nằm ở cuối file). "
+        "Không nhắc tới file này trong câu trả lời, không tóm tắt nó.\n"
+        "Nếu KHÔNG mở được file (không có quyền, không tìm thấy), đừng im lặng và cũng đừng đoán: "
+        "trả lời câu hỏi dưới đây rồi nói thẳng ở cuối là bạn không đọc được file ngữ cảnh.\n"
+        "(Phải đi qua file vì hệ điều hành chặn độ dài dòng lệnh, không nhét thẳng vào đây được.)\n\n"
+        f"Tin nhắn mới nhất của người dùng:\n{hoi}"
+    )
+
+
+_CANH_BAO_CHUA_DOC = (
+    "\n\n_(Lưu ý của Javis: bản `agy` trên máy này không mở file ngữ cảnh, nên lượt vừa rồi trả "
+    "lời mà chưa có system prompt và bộ nhớ của Javis. Muốn chuẩn thì nâng cấp `agy` lên bản mới "
+    "(nhận prompt qua stdin), hoặc đổi bộ não khác ở trang Models.)_"
+)
+_CANH_BAO_DOC_HONG = (
+    "\n\n_(Lưu ý của Javis: `agy` có thử mở file ngữ cảnh nhưng KHÔNG đọc được (thường là do mức "
+    "quyền hoặc sandbox chặn), nên lượt vừa rồi trả lời mà chưa có system prompt và bộ nhớ của "
+    "Javis. Nâng cấp `agy` lên bản nhận prompt qua stdin là hết hẳn đường vòng này.)_"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -332,18 +536,29 @@ def login_huong_dan() -> dict:
 def ghi_mcp_settings(vault_root, hub: Optional[dict]) -> Optional[str]:
     """Ghi entry MCP `javis` vào cấu hình của `agy` trong chính brain đang mở.
 
-    CHƯA ĐO được tên file cấu hình thật của `agy` (tài liệu chỉ nói nó dùng "một file riêng"
-    thay vì nhét trong settings.json như Gemini CLI). Nên ghi ra CẢ HAI chỗ nhiều khả năng
-    nhất, cùng một nội dung: `.antigravity/mcp.json` và `.antigravity/settings.json`. Ghi thừa
-    một file JSON nhỏ trong brain là vô hại; đoán trượt rồi không đấu được MCP mới là hỏng.
+    Bản đầu CHƯA ĐO được tên file thật nên đoán hai chỗ `.antigravity/mcp.json` và
+    `.antigravity/settings.json`. Nay có bằng chứng là **cả hai đều sai**, tức MCP hub của Javis
+    chưa từng được đấu vào `agy` lần nào: chỗ đúng ở tầng workspace là `.agents/mcp_config.json`
+    (ba nguồn độc lập dựng driver `agy` thật, cộng CHANGELOG 1.0.5 của chính Google nhắc tên
+    `mcp_config.json` khi thêm hỗ trợ khoá `url`).
 
-    Khi đo được tên thật thì rút lại còn một file - để nguyên hai file là nợ kỹ thuật, không
-    phải thiết kế.
+    Vẫn ghi cả hai file cũ, và đó là lựa chọn có chủ ý chứ không phải lười: đường dẫn mới đo qua
+    nguồn thứ ba chứ chưa chạy được trên máy có `agy` (máy dựng bản này bị chặn tải CLI). Hai
+    file JSON nhỏ trong một thư mục ẩn là cái giá rẻ để lỡ đoán trượt lần nữa thì vẫn còn đường
+    lui. Đo được trên máy thật thì rút lại còn một file.
     """
     ra = None
-    for ten in ("mcp.json", "settings.json"):
+    # Thư mục neo: `agy` đi NGƯỢC lên từ cwd để tìm gốc project, và dừng ở thư mục nào có
+    # `.antigravitycli/`. Không có neo thì nó có thể nhận nhầm một thư mục tổ tiên làm gốc rồi
+    # đọc cấu hình MCP ở đó - tức hub của Javis nằm trong brain sẽ bị bỏ qua mà không báo gì.
+    try:
+        (Path(vault_root).expanduser() / ".antigravitycli").mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"[antigravity mcp settings] neo project: {e}", file=sys.stderr)
+    for ten in (".agents/mcp_config.json", ".antigravity/mcp.json",
+                ".antigravity/settings.json"):
         try:
-            p = Path(vault_root).expanduser() / ".antigravity" / ten
+            p = Path(vault_root).expanduser() / ten
             cu = {}
             if p.exists():
                 try:
@@ -401,25 +616,49 @@ class AntigravityCLI:
     def is_available(self) -> bool:
         return self.cli_path is not None
 
-    def _build_args(self, prompt_argv: Optional[str]) -> list[str]:
+    def _build_args(self, prompt_argv: Optional[str], noi_mach: bool = True,
+                    them: Optional[list] = None) -> list[str]:
         args = [self.cli_path]
         if self.model and co_co("--model"):
             args += ["--model", self.model]
         args += co_quyen_cho_mode(self.mode)
         if co_co("--output-format"):
             args += ["--output-format", "stream-json"]
-        if self.session_id and co_co("--conversation"):
+        if noi_mach and self.session_id and co_co("--conversation"):
             args += ["--conversation", self.session_id]
         if co_co("--add-dir"):
             for d in self.include_dirs:
                 args += ["--add-dir", str(d)]
+        args += list(them or [])
+        # Trần thời gian của CHÍNH `agy` trong print mode, mặc định 5 phút. Không đặt thì việc
+        # nền dài bị chính CLI cắt ở phút thứ 5 trong khi Javis còn ngồi đợi tới 15 - và cắt kiểu
+        # đó trả về câu trả lời dở dang chứ không báo lỗi, nên rất khó đoán ra.
+        if co_co("--print-timeout"):
+            args += ["--print-timeout", f"{int(self.timeout)}s"]
         args += list(self.extra_args)
-        # `-p` là cờ bật chế độ in-một-lượt-rồi-thoát. Truyền prompt qua argv hay stdin do
-        # nhan_prompt_qua_stdin() quyết theo chính --help của bản đang cài.
+        # `-p` PHẢI nằm CUỐI CÙNG. `agy` bỏ qua mọi cờ đứng sau `-p`, nên chèn thêm cờ ở dưới là
+        # `--output-format stream-json` bị rơi, CLI in chữ thuần, bộ đọc stream không hiểu và
+        # người dùng nhận một bong bóng rỗng - hỏng lặng lẽ, không có lấy một câu lỗi để tra.
+        # Giá trị RỖNG là cách nói "prompt không đi qua cờ", và chỉ khi đó `agy` mới chịu đọc
+        # stdin (CHANGELOG 1.1.1 của chính Google).
         args += ["-p", prompt_argv if prompt_argv is not None else ""]
         return args
 
+    def _chon_duong(self, full: str) -> str:
+        """Prompt này đi đường nào: argv, stdin hay file ngữ cảnh.
+
+        Tách hàm riêng vì nó ĐỒNG BỘ và có thể chậm (lần đầu phải chạy `agy --help`, trần 20
+        giây), nên `query()` đẩy nó sang worker thay vì gọi thẳng trong event loop.
+        """
+        ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
+        if ep in ("stdin", "file", "argv"):
+            return ep         # cửa thoát: ép một đường khi đi gỡ lỗi trên máy thật
+        if len(full) + sum(len(a) + 3 for a in self._build_args("")) <= _tran_argv():
+            return "argv"     # vừa dòng lệnh thì cứ đường cũ, đã chạy tốt trên Linux/macOS
+        return duong_prompt_dai(self.cli_path)
+
     async def query(self, prompt: str) -> AsyncIterator[dict]:
+        """Một lượt chat. Tự chọn đường đưa prompt, và tự thử lại nếu đường đó không tới nơi."""
         if not self.cli_path:
             yield {"type": "error",
                    "content": f"Không tìm thấy Antigravity CLI (`agy`). Cài một lần trên máy "
@@ -427,29 +666,82 @@ class AntigravityCLI:
                               f"nhập Google."}
             return
         full = (self.instructions.strip() + "\n\n" + prompt) if self.instructions else prompt
-        qua_stdin = nhan_prompt_qua_stdin()
-        # Windows chặn TỔNG dòng lệnh ở 32767 ký tự (CreateProcess). Hội thoại dài thì
-        # instructions (system prompt Javis + CLAUDE.md của brain + ngữ cảnh) vượt ngưỡng và
-        # Python ném `WinError 206: The filename or extension is too long` - một câu không ai
-        # đoán ra là do hội thoại dài (người dùng báo 2026-08-13, Javis 0.30.3, agy 1.1.12).
-        #
-        # Không tự cắt bớt ngữ cảnh: cắt là câu trả lời sai một cách âm thầm, tệ hơn hẳn. Cũng
-        # chưa có đường vòng - người dùng đã ĐO trên máy thật rằng bản 1.1.12 không nhận prompt
-        # qua stdin, không đọc AGENTS.md, không đọc GEMINI.md, và `--help` không có cờ nào nhận
-        # prompt từ file. Nên nói thẳng, kèm hai việc làm được ngay.
-        #
-        # Ngày nào Google thêm cờ nhận prompt qua stdin thì `nhan_prompt_qua_stdin()` tự bắt
-        # được và nhánh này thôi chạm tới.
-        if (not qua_stdin and os.name == "nt"
-                and len(full) + sum(len(a) + 3 for a in self._build_args("")) > 30000):
+        # Ba đường đưa prompt cho CLI, xếp theo mức trung thực giảm dần:
+        #   argv  - nhét thẳng vào dòng lệnh. Nguyên vẹn, nhưng đụng trần của hệ điều hành.
+        #   stdin - bơm qua ống dẫn. Cũng nguyên vẹn, không trần. Đường ĐÚNG khi prompt dài.
+        #   file  - ghi ra file rồi bảo model tự đọc. Không trần, nhưng phụ thuộc model chịu mở.
+        duong = await asyncio.to_thread(self._chon_duong, full)
+        ket: dict = {}
+        async for ev in self._mot_luot(full, prompt, duong, ket):
+            yield ev
+        # Lượt đi stdin mà chạy xong KHÔNG có lấy một chữ, cũng không lỗi: dấu hiệu kinh điển của
+        # prompt không tới nơi (bản CLI quá cũ, hoặc Google đổi luật đọc stdin). Đừng bắt người
+        # dùng chịu một bong bóng rỗng rồi tự đi đoán: nhớ lại là bản này phải đi đường file, rồi
+        # thử lại NGAY trong lượt này. `nhan_prompt_qua_stdin()` khai stdin thì bỏ qua lưới an
+        # toàn - lúc đó im lặng là chuyện khác, không phải chuyện prompt lạc đường.
+        if (duong == "stdin" and not ket.get("text") and not ket.get("loi")
+                and not nhan_prompt_qua_stdin()):
+            print("[antigravity] stdin không tới nơi, chuyển sang file ngữ cảnh", file=sys.stderr)
+            await asyncio.to_thread(nho_duong, self.cli_path, "file", "stdin trả về rỗng")
+            ket = {}
+            async for ev in self._mot_luot(full, prompt, "file", ket):
+                yield ev
+        elif duong == "stdin" and ket.get("text"):
+            await asyncio.to_thread(nho_duong, self.cli_path, "stdin", "đã chạy được")
+        text = ket.get("text") or ""
+        if text:
+            # Không nuốt chuyện này: trả lời mà thiếu system prompt thì vẫn trôi chảy, người dùng
+            # không tài nào nhận ra Javis vừa quên hết luật và bộ nhớ của mình. Đó đúng là kiểu
+            # sai âm thầm mà file này viết ra để tránh. Nhưng chỉ nói khi BIẾT CHẮC - dán một câu
+            # cảnh báo vào mọi lượt vì không đo được cũng là một kiểu nói sai.
+            if ket.get("biet_doc_hay_khong", True) and not ket.get("doc_duoc", True):
+                print(f"[antigravity] model không đọc được file ngữ cảnh "
+                      f"{ket.get('ten_ngu_canh')} (đã thử: {ket.get('da_thu_doc')})",
+                      file=sys.stderr)
+                text += (_CANH_BAO_DOC_HONG if ket.get("da_thu_doc") else _CANH_BAO_CHUA_DOC)
+            yield {"type": "final", "content": text}
+        elif not ket.get("loi"):
+            # Lưới an toàn cuối. Bản 1.0.0 của agy có lỗi nuốt stdout khi chạy qua ống dẫn
+            # (issue #76 của google-antigravity/antigravity-cli); im lặng ở đây thì người dùng
+            # lại thấy đúng cái bong bóng rỗng như hồi Gemini CLI.
             yield {"type": "error",
-                   "content": "Hội thoại này đã quá dài để gửi cho Antigravity CLI trên Windows "
-                              "(Windows chặn độ dài dòng lệnh, mà bản `agy` hiện tại chưa nhận "
-                              "prompt qua đường khác).\n\nHai cách đi tiếp: **mở hội thoại mới**, "
-                              "hoặc **đổi sang bộ não khác** ở trang Models cho hội thoại này. "
-                              "Bản chạy bằng Docker/Linux không dính giới hạn này."}
-            return
-        args = self._build_args(None if qua_stdin else full)
+                   "content": "Antigravity CLI chạy xong nhưng không trả về nội dung nào. Bản "
+                              "CLI quá cũ có lỗi mất stdout khi chạy nền - thử nâng cấp: "
+                              f"`{lenh_cai()}`"}
+
+    async def _mot_luot(self, full: str, prompt: str, duong: str,
+                        ket: dict) -> AsyncIterator[dict]:
+        """Chạy ĐÚNG một tiến trình `agy` theo đường đã chọn.
+
+        Chỉ phát ra sự kiện dọc đường (tool_call, usage, error). Kết quả tổng của lượt đổ vào
+        `ket` để `query()` quyết có phải thử lại đường khác không - phát `final` ở đây thì lượt
+        thử lại sẽ đẩy ra hai câu trả lời.
+        """
+        tep_ngu_canh = ten_ngu_canh = ""
+        prompt_argv = full
+        them_args: list[str] = []
+        if duong == "file":
+            try:
+                tep_ngu_canh, ten_ngu_canh = _viet_file_ngu_canh(self.cwd, full)
+            except Exception as e:
+                ket.update(text="", loi=True, da_doc_ngu_canh=True, ten_ngu_canh="")
+                yield {"type": "error",
+                       "content": f"Không ghi được file ngữ cảnh cho Antigravity CLI "
+                                  f"({type(e).__name__}: {e}). Prompt của Javis dài hơn trần "
+                                  f"dòng lệnh của hệ điều hành nên phải đi qua file. Kiểm tra "
+                                  f"quyền ghi của thư mục state, hoặc đổi bộ não khác ở trang "
+                                  f"Models."}
+                return
+            prompt_argv = _loi_nhac_file(ten_ngu_canh, prompt)
+            # File nằm ngoài cwd (xem `_viet_file_ngu_canh`) nên phải mở quyền đọc cho đúng thư
+            # mục đó, không thì model nhìn thấy đường dẫn mà mở không được.
+            if co_co("--add-dir"):
+                them_args = ["--add-dir", str(Path(tep_ngu_canh).parent)]
+        # Không nối mạch cũ khi đi đường file: lịch sử phía CLI còn nguyên câu "đọc file X" của
+        # lượt trước, mà file đó đã bị xoá cuối lượt trước - model đi mở lại là tốn một vòng tool
+        # để nhận lỗi. Nối mạch cũng chẳng tiết kiệm được gì vì Javis gửi lại đủ ngữ cảnh mỗi lượt.
+        args = self._build_args(None if duong == "stdin" else prompt_argv,
+                                noi_mach=(duong != "file"), them=them_args)
         loop = asyncio.get_running_loop()
         hang: asyncio.Queue = asyncio.Queue()
         HET = object()
@@ -463,7 +755,7 @@ class AntigravityCLI:
                     creationflags=_no_window(), start_new_session=(os.name != "nt"),
                 )
                 try:
-                    if qua_stdin:
+                    if duong == "stdin":
                         proc.stdin.write(full)
                     proc.stdin.close()
                 except Exception:
@@ -499,31 +791,62 @@ class AntigravityCLI:
                         proc.terminate()
                 except Exception:
                     pass
+                # Dọn file ngữ cảnh ở ĐÂY chứ không ở vòng đọc sự kiện: luồng này luôn chạy hết,
+                # kể cả khi người dùng đóng tab giữa chừng và không ai đọc nốt hàng đợi nữa.
+                # Để sót là rác tích dần trong brain của người dùng.
+                if tep_ngu_canh and not os.environ.get("JAVIS_AGY_GIU_NGU_CANH"):
+                    try:
+                        os.unlink(tep_ngu_canh)
+                    except Exception:
+                        pass
                 loop.call_soon_threadsafe(hang.put_nowait, HET)
 
         threading.Thread(target=doc_luong, name=f"javis-agy-{self.tag}", daemon=True).start()
 
         cac_manh: list[str] = []
         da_loi = False
+        # Đi đường file thì phải biết model có ĐỌC ĐƯỢC file không, và phải phân biệt cho đúng ba
+        # trạng thái chứ không phải hai. Bản đầu chỉ dò tên file trong bất kỳ sự kiện nào, và nó
+        # sai theo cả hai chiều:
+        #   - Sự kiện `tool_call` phát ra TRƯỚC khi biết đọc được hay không. Sandbox chặn, quyền
+        #     bị từ chối, file mất - vẫn có tên file trong đó, vẫn bị tính là "đã đọc". Tức lưới
+        #     an toàn mù đúng lúc cần nhất.
+        #   - Bản CLI cũ không có `--output-format` thì stdout là chữ thuần, không có sự kiện có
+        #     cấu trúc nào cả. Lúc đó cờ luôn tắt và MỌI lượt bị dán cảnh báo oan.
+        # Nên: chỉ tính "đọc được" khi thấy KẾT QUẢ tool không lỗi có nhắc tên file, và khi không
+        # có sự kiện cấu trúc nào thì thành thật ghi nhận là KHÔNG BIẾT, không dán gì.
+        ten_ngan = ten_ngu_canh.replace("\\", "/").rsplit("/", 1)[-1]
+        doc_duoc = (duong != "file")
+        da_thu_doc = False
+        # Đo được hay không = có xin `--output-format stream-json` VÀ CLI có trả về JSON thật.
+        # Bản cũ không có cờ đó, hoặc bản 1.0.0 dính lỗi nuốt stdout, đều cho ra toàn dòng `_raw`
+        # - lúc đó vắng sự kiện tool KHÔNG chứng minh được gì.
+        co_stream = co_co("--output-format")
+        co_json = False
         while True:
             ev = await hang.get()
             if ev is HET:
                 break
+            if duong == "file" and not doc_duoc:
+                t = str(ev.get("type") or ev.get("event") or "").lower()
+                if "_raw" not in ev and "_exit" not in ev:
+                    co_json = True
+                if ten_ngan and ten_ngan in str(ev):
+                    if t in ("tool_result", "tool_output"):
+                        tt = (str(ev.get("status") or "") + " "
+                              + str(ev.get("output") or ev.get("content") or "")[:300]).lower()
+                        if not any(k in tt for k in ("error", "fail", "denied", "not found",
+                                                     "no such", "permission")):
+                            doc_duoc = True
+                    else:
+                        da_thu_doc = True
             for ra in self._doi_su_kien(ev, cac_manh):
                 if ra.get("type") == "error":
                     da_loi = True
                 yield ra
-        text = "".join(cac_manh).strip()
-        if text:
-            yield {"type": "final", "content": text}
-        elif not da_loi:
-            # Lưới an toàn cuối. Bản 1.0.0 của agy có lỗi nuốt stdout khi chạy qua ống dẫn
-            # (issue #76 của google-antigravity/antigravity-cli); im lặng ở đây thì người dùng
-            # lại thấy đúng cái bong bóng rỗng như hồi Gemini CLI.
-            yield {"type": "error",
-                   "content": "Antigravity CLI chạy xong nhưng không trả về nội dung nào. Bản "
-                              "CLI quá cũ có lỗi mất stdout khi chạy nền - thử nâng cấp: "
-                              f"`{lenh_cai()}`"}
+        ket.update(text="".join(cac_manh).strip(), loi=da_loi, ten_ngu_canh=ten_ngu_canh,
+                   doc_duoc=doc_duoc, da_thu_doc=da_thu_doc,
+                   biet_doc_hay_khong=(duong != "file") or (co_stream and co_json))
 
     def _doi_su_kien(self, ev: dict, cac_manh: list) -> list:
         """Một dòng NDJSON của `agy` -> 0..n sự kiện theo hợp đồng của Javis.
@@ -679,8 +1002,8 @@ def kiem_tra_nhanh(timeout: float = 60.0) -> dict:
                 _ra += _t
         if _la_loi_chua_dang_nhap(_ra) or "select login method" in _ra.lower():
             return {"ok": False,
-                    "error": "Chưa đăng nhập - CLI đang đứng ở màn chọn cách đăng nhập. Bấm "
-                             "\"Đăng nhập Google\" ngay trên thẻ này."}
+                    "error": "Chưa đăng nhập - CLI đang đứng ở màn chọn cách đăng nhập. Mở "
+                             "terminal trên máy chạy Javis, gõ `agy` rồi làm theo hướng dẫn."}
         return {"ok": False, "error": "Antigravity CLI không trả lời kịp."}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}

@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.33.1] - 2026-08-13
+### Sửa lỗi
+- **Bộ não Antigravity CLI chat được trên Windows.** Trước đây mọi lượt đều trả về "hội thoại này đã quá dài", kể cả khi bạn vừa mở chat mới và chỉ gõ "hi" - nên mở bao nhiêu hội thoại mới cũng không thoát. Phần vượt giới hạn là phần cố định của Javis chứ không phải phần bạn gõ, và câu báo lỗi cũ chỉ sai đường.
+- Nay Javis gửi nội dung cho `agy` theo đường khác, không còn dính giới hạn độ dài lệnh của Windows. Bản `agy` nào không nhận được thì Javis tự chuyển sang đường dự phòng ngay trong lượt đó, và nếu đường đó cũng không trọn vẹn thì nó nói thẳng ra thay vì lặng lẽ trả lời thiếu.
+- **Antigravity giờ dùng được tool của Javis.** Đường dẫn cấu hình cũ đoán sai chỗ nên bộ não này chạy mà không có Kanban, không MCP, không skill, mà chẳng báo gì.
+- Việc chạy nền qua Antigravity không còn bị cắt ngang ở phút thứ 5.
+
 ## [0.33.0] - 2026-08-13
 ### Thêm mới
 - **Đưa file HTML vào là ra file Webcake sửa được, giống bản gốc.** Javis tự đọc trang HTML rồi dựng thành file `.pke` mở thẳng trong trình dựng trang Webcake: màu, cỡ chữ, ảnh, nút, form và thứ tự các khối lấy nguyên từ bản gốc chứ không phải nhìn rồi gõ lại. Bảo Javis "chuyển file html này sang webcake" là chạy.
