@@ -1103,14 +1103,13 @@
       "isolate_home": true,
       "auth": {
         "type": "apikey",
+        "_fields_doc": "KHÔNG có ô hồ sơ (NOTEBOOKLM_PROFILE) và ĐỪNG thêm lại: thư viện hễ thấy biến đó là BỎ QUA NOTEBOOKLM_AUTH_JSON, đi tìm file storage_state.json của hồ sơ trong HOME cô lập (trống trơn vì isolate_home) rồi chết FileNotFoundError, user chỉ thấy 'process đóng stdout'. Tái hiện cả hai chiều 14/08/2026. Đa tài khoản đã phân biệt sẵn bằng isolate_home: mỗi kết nối một HOME riêng theo slug.",
         "fields": [
           { "key": "auth_json", "label": "Phiên đăng nhập (dán toàn bộ nội dung storage_state.json)",
             "placeholder": "Ví dụ: {\"cookies\":[{\"name\":\"SID\",\"value\":\"...\"}],\"origins\":[]}",
-            "env": "NOTEBOOKLM_AUTH_JSON" },
-          { "key": "profile", "label": "Tên hồ sơ (bỏ trống nếu chỉ đấu 1 tài khoản)",
-            "placeholder": "Ví dụ: cong-viec", "optional": true, "env": "NOTEBOOKLM_PROFILE" }
+            "env": "NOTEBOOKLM_AUTH_JSON" }
         ],
-        "guide": "NotebookLM chưa có API chính thức, nên Javis phải mượn PHIÊN ĐĂNG NHẬP trình duyệt của bạn.\n\nCẢNH BÁO: chuỗi dán vào đây là cookie phiên Google, tương đương đang đăng nhập tài khoản Google, KHÔNG phải OAuth giới hạn phạm vi. Chỉ làm trên máy bạn tin tưởng.\n\nLàm 1 lần, TRÊN MÁY CÁ NHÂN có trình duyệt (không làm được trên VPS):\n1. Cài uv nếu chưa có.\n2. Chạy: uvx --from \"notebooklm-py[browser]\" notebooklm login\n   Trình duyệt mở ra, đăng nhập Google rồi vào notebooklm.google.com một lần.\n3. Mở file vừa sinh ra: ~/.notebooklm/profiles/default/storage_state.json (Windows: %USERPROFILE%\\.notebooklm\\profiles\\default\\storage_state.json). Copy TOÀN BỘ nội dung.\n4. Dán vào ô trên rồi bấm Kết nối.\n\nPhiên Google hết hạn thì chạy lại bước 2 và dán chuỗi mới. Muốn đấu nhiều tài khoản thì thêm kết nối nữa, mỗi cái đặt một tên hồ sơ khác nhau.",
+        "guide": "NotebookLM chưa có API chính thức, nên Javis phải mượn PHIÊN ĐĂNG NHẬP trình duyệt của bạn.\n\nCẢNH BÁO: chuỗi dán vào đây là cookie phiên Google, tương đương đang đăng nhập tài khoản Google, KHÔNG phải OAuth giới hạn phạm vi. Chỉ làm trên máy bạn tin tưởng.\n\nLàm 1 lần, TRÊN MÁY CÁ NHÂN có trình duyệt (không làm được trên VPS):\n1. Cài uv nếu chưa có.\n2. Chạy: uvx --from \"notebooklm-py[browser]\" notebooklm login\n   Trình duyệt mở ra, đăng nhập Google rồi vào notebooklm.google.com một lần.\n3. Mở file vừa sinh ra: ~/.notebooklm/profiles/default/storage_state.json (Windows: %USERPROFILE%\\.notebooklm\\profiles\\default\\storage_state.json). Copy TOÀN BỘ nội dung.\n4. Dán vào ô trên rồi bấm Kết nối.\n\nPhiên Google hết hạn thì chạy lại bước 2 và dán chuỗi mới. Muốn đấu nhiều tài khoản thì thêm kết nối nữa rồi dán phiên của tài khoản đó - mỗi kết nối tự có chỗ chứa phiên riêng.",
         "guide_url": "https://github.com/teng-lin/notebooklm-py#readme",
         "setup": {
           "links": [
