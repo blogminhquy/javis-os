@@ -106,10 +106,38 @@ async def pick_openrouter_free(key: str = "") -> str:
 
 def read_spec(settings: dict = None) -> dict:
     """{'provider','model'} của model việc nền. Cấu hình cũ chỉ có 'model' (luôn là alias
-    Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ."""
+    Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ.
+
+    PHANH NGÂN SÁCH: nếu tháng này đã tiêu quá trần tiền người dùng đặt VÀ họ đã bật tự
+    phanh, việc nền không được tiêu thêm tiền mặt nữa. Nó không dừng lại - nó chuyển sang
+    đường KHÔNG tính tiền theo token: gói thuê bao đang đăng nhập, hoặc model free của
+    OpenRouter. Chat của người dùng KHÔNG bị đụng tới; chỉ việc chạy nền bị hạ, vì đó là
+    phần tiêu tiền lúc người ta không ngồi nhìn.
+    """
     s = settings if settings is not None else cfgmod.read_settings()
     aux = (s.get("model", {}) or {}).get("auxiliary") or {}
-    return {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    spec = {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    if spec["provider"] not in API_PROVIDERS:
+        return spec                      # gói thuê bao: không tính tiền theo token, kệ phanh
+    try:
+        import usage_saving
+        if not usage_saving.dang_phanh().get("bat"):
+            return spec
+    except Exception:                    # noqa: BLE001 - thiếu module thì cứ chạy như cũ
+        return spec
+    return _spec_ne_tien(s, spec)
+
+
+def _spec_ne_tien(s: dict, spec: dict) -> dict:
+    """Đường thay thế khi phanh: ưu tiên gói thuê bao đã đăng nhập, cuối cùng là OpenRouter free."""
+    for prov in (CLAUDE, CODEX):
+        ok, _ly_do = availability({"provider": prov}, s)
+        if ok:
+            return {"provider": prov, "model": ""}
+    if api_key_for("openrouter", s):
+        # model "" trên OpenRouter = tự chọn model FREE mạnh nhất lúc chạy (_ApiAuxEngine.query).
+        return {"provider": "openrouter", "model": ""}
+    return spec                          # không có đường nào rẻ hơn -> giữ nguyên, đừng làm chết việc nền
 
 
 def is_claude(spec: dict) -> bool:

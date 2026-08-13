@@ -1,11 +1,33 @@
 {
-  "_note": "Gia USD tren 1 TRIEU token. UOC TINH de quy doi 'neu tinh theo API thi ton bao nhieu' - voi goi subscription day KHONG phai tien that. Cap nhat TAY khi doi gia. Khop model theo tien to DAI NHAT (vd 'claude-opus-4-8' -> 'claude-opus'). Model khong khop -> chi phi 0.",
+  "_note": "Gia USD tren 1 TRIEU token. UOC TINH de quy doi 'neu tinh theo API thi ton bao nhieu' - voi goi subscription day KHONG phai tien that, voi API key thi day la tien that (xap xi). Cap nhat TAY khi doi gia. Khop model theo tien to DAI NHAT, thu ca nguyen van lan phan sau dau '/' (OpenRouter dat ten '<hang>/<model>'). Model khong khop -> chi phi 0.",
   "prices": {
     "claude-opus": {"in": 15.0, "out": 75.0, "cache_read": 1.5, "cache_write": 18.75},
     "claude-sonnet": {"in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write": 3.75},
     "claude-haiku": {"in": 0.8, "out": 4.0, "cache_read": 0.08, "cache_write": 1.0},
     "claude-fable": {"in": 1.0, "out": 5.0, "cache_read": 0.1, "cache_write": 1.25},
+    "claude-3-5-sonnet": {"in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write": 3.75},
+    "claude-3-5-haiku": {"in": 0.8, "out": 4.0, "cache_read": 0.08, "cache_write": 1.0},
+    "gpt-5-mini": {"in": 0.25, "out": 2.0, "cache_read": 0.025, "cache_write": 0.0},
     "gpt-5": {"in": 1.25, "out": 10.0, "cache_read": 0.125, "cache_write": 0.0},
-    "gpt-4o": {"in": 2.5, "out": 10.0, "cache_read": 1.25, "cache_write": 0.0}
+    "gpt-4o-mini": {"in": 0.15, "out": 0.6, "cache_read": 0.075, "cache_write": 0.0},
+    "gpt-4o": {"in": 2.5, "out": 10.0, "cache_read": 1.25, "cache_write": 0.0},
+    "gpt-4.1-mini": {"in": 0.4, "out": 1.6, "cache_read": 0.1, "cache_write": 0.0},
+    "gpt-4.1": {"in": 2.0, "out": 8.0, "cache_read": 0.5, "cache_write": 0.0},
+    "o3-mini": {"in": 1.1, "out": 4.4, "cache_read": 0.55, "cache_write": 0.0},
+    "o3": {"in": 2.0, "out": 8.0, "cache_read": 0.5, "cache_write": 0.0},
+    "gemini-2.5-pro": {"in": 1.25, "out": 10.0, "cache_read": 0.31, "cache_write": 0.0},
+    "gemini-2.5-flash-lite": {"in": 0.1, "out": 0.4, "cache_read": 0.025, "cache_write": 0.0},
+    "gemini-2.5-flash": {"in": 0.3, "out": 2.5, "cache_read": 0.075, "cache_write": 0.0},
+    "gemini-3": {"in": 2.0, "out": 12.0, "cache_read": 0.5, "cache_write": 0.0},
+    "gemini": {"in": 0.3, "out": 2.5, "cache_read": 0.075, "cache_write": 0.0},
+    "deepseek-r1": {"in": 0.55, "out": 2.19, "cache_read": 0.14, "cache_write": 0.0},
+    "deepseek": {"in": 0.27, "out": 1.1, "cache_read": 0.07, "cache_write": 0.0},
+    "llama-3.3": {"in": 0.1, "out": 0.28, "cache_read": 0.0, "cache_write": 0.0},
+    "llama": {"in": 0.1, "out": 0.3, "cache_read": 0.0, "cache_write": 0.0},
+    "qwen": {"in": 0.2, "out": 0.6, "cache_read": 0.0, "cache_write": 0.0},
+    "mistral": {"in": 0.2, "out": 0.6, "cache_read": 0.0, "cache_write": 0.0},
+    "grok": {"in": 2.0, "out": 10.0, "cache_read": 0.5, "cache_write": 0.0},
+    "kimi": {"in": 0.6, "out": 2.5, "cache_read": 0.15, "cache_write": 0.0},
+    "glm": {"in": 0.6, "out": 2.2, "cache_read": 0.11, "cache_write": 0.0}
   }
 }

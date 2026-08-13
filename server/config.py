@@ -53,6 +53,23 @@ _DEFAULT = {
         # Model phụ cho việc NỀN (loop/metrics/ingest) - alias Claude qua CLI. "" = dùng mặc định
         # (không đổi). Đặt model rẻ (vd haiku) để tiết kiệm khi chạy nền nhiều.
         "auxiliary": {"model": ""},
+        # --- Tiền bạc: những gì Javis KHÔNG tự biết được và phải hỏi người dùng ---
+        # Nhà cung cấp không cho lấy giá gói hay hạn mức gói qua API, nên bốn số này là do
+        # người dùng khai. Để 0 = chưa khai, và trang Mức dùng phải nói "chưa khai" chứ đừng
+        # đoán bừa rồi hiện một con số trông như thật.
+        #   gia_goi_thang_usd: tiền gói thuê bao trả mỗi tháng (Claude Max, ChatGPT Plus...).
+        #                      Có nó mới tính được gói đang lời hay lỗ so với giá API.
+        #   ngan_sach_thang_usd: trần TIỀN MẶT mỗi tháng cho các nhánh dùng API key.
+        #   tu_phanh: chạm trần thì tự đẩy VIỆC NỀN sang đường không tốn tiền (xem aux_engine).
+        #             Mặc định tắt - tự đổi model sau lưng người dùng là việc phải xin phép.
+        #   tran_5h: hạn mức token của một cửa sổ 5 giờ, nếu người dùng biết số của gói mình.
+        "gia_goi_thang_usd": 0,
+        "ngan_sach_thang_usd": 0,
+        "tu_phanh": False,
+        "tran_5h": 0,
+        # Báo cáo token hàng tuần tự đẩy về chat (thứ Hai 8h sáng). "" = tắt; "auto" = gửi về
+        # kênh mặc định; hoặc ghi thẳng nơi nhận ("web:<sid>", chat_id Telegram, "zalo:<id>").
+        "bao_cao_tuan": "",
         # Độ sâu suy nghĩ (reasoning/thinking) khi trả lời chat: off | low | medium | high.
         # Anthropic API/OpenRouter → adaptive thinking + effort; OpenAI → reasoning_effort (chỉ o-series);
         # Claude Code CLI → chèn từ khoá think/ultrathink vào prompt. off = trả lời nhanh như cũ.

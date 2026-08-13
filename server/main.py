@@ -75,6 +75,8 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
+import usage_parsers as up_parsers   # bảng giá + khớp model, dùng chung với indexer
+import usage_saving   # tiết kiệm đối chứng ngược, mốc sự kiện, dự báo, ngân sách
 import context_runtime   # Phase 0-8: trace + Registry/Resolver/Compiler + canary paths
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
@@ -1110,6 +1112,14 @@ def _providers_view(cfg):
 def _set_main_model(cfg, provider, model):
     """Đặt model chính + ĐỒNG BỘ field legacy (engine/claude_model/openrouter_model) để chat/Telegram cũ chạy."""
     m = cfg["model"]
+    # Đóng mốc vào nhật ký trước khi ghi đè. Đổi bộ não là thứ làm đường token gãy khúc rõ
+    # nhất trên biểu đồ, và không có mốc thì tháng sau nhìn lại chỉ thấy một cái bậc thang
+    # không ai giải thích được. Đây là choke point DUY NHẤT của việc đổi model chính.
+    _cu = m.get("main") or {}
+    if (_cu.get("provider"), _cu.get("model")) != (provider, model):
+        usage_saving.ghi_moc("model", f"{provider}/{model}",
+                             f"{_cu.get('provider') or ''}/{_cu.get('model') or ''}",
+                             f"Đổi bộ não sang {model or provider}")
     m["main"] = {"provider": provider, "model": model}
     if provider == "openrouter":
         m["engine"] = "openrouter"; m["openrouter_model"] = model
@@ -5236,36 +5246,58 @@ async def usage_stats():
     nếu có key (provider duy nhất lộ số dư qua API); các provider còn lại API không cho lấy hạn mức."""
     out = usage_store.summary()
     out["daily"] = usage_store.daily(14)   # chuỗi 14 ngày cho đồ thị trang Mức dùng
-    orb = None
     try:
-        key = (cfgmod.read_settings().get("model", {}) or {}).get("openrouter_key")
-        if key:
-            import httpx
-            async with httpx.AsyncClient(timeout=8) as client:
-                r = await client.get("https://openrouter.ai/api/v1/credits",
-                                     headers={"Authorization": f"Bearer {key}"})
-            if r.status_code == 200:
-                d = (r.json() or {}).get("data") or {}
-                tc, tu = d.get("total_credits"), d.get("total_usage")
-                if tc is not None and tu is not None:
-                    orb = {"total": round(float(tc), 4), "used": round(float(tu), 4),
-                           "remaining": round(float(tc) - float(tu), 4)}
+        out["openrouter"] = await _openrouter_credits(cfgmod.read_settings().get("model", {}) or {})
     except Exception:
-        orb = None
-    out["openrouter"] = orb
+        out["openrouter"] = None
     return out
 
 
+async def _openrouter_credits(mcfg: dict):
+    """Số dư THẬT của OpenRouter, hoặc None. Provider duy nhất lộ số dư qua API.
+
+    Tách ra làm hàm riêng vì cả `/usage` lẫn `/usage/tong-quan` đều cần: đây là con số tiền
+    mặt duy nhất trên cả trang không phải ước lượng từ bảng giá.
+    """
+    key = (mcfg or {}).get("openrouter_key")
+    if not key:
+        return None
+    import httpx
+    async with httpx.AsyncClient(timeout=8) as client:
+        r = await client.get("https://openrouter.ai/api/v1/credits",
+                             headers={"Authorization": f"Bearer {key}"})
+    if r.status_code != 200:
+        return None
+    d = (r.json() or {}).get("data") or {}
+    tc, tu = d.get("total_credits"), d.get("total_usage")
+    if tc is None or tu is None:
+        return None
+    return {"total": round(float(tc), 4), "used": round(float(tu), 4),
+            "remaining": round(float(tc) - float(tu), 4)}
+
+
 # ---- Dashboard Token (index log thô Claude + Codex + nhánh API) -----------------------
+# Một khoá cho MỌI lượt quét. refresh() xoá sạch dòng cũ của từng file rồi chèn lại, nên hai
+# lượt quét chạy chồng nhau là chèn trùng - và trang báo gấp đôi số token. Mở hai tab, hay
+# một tab gọi cả /usage/summary lẫn /usage/tong-quan song song, là đủ để dính.
+_USAGE_REFRESH_LOCK = asyncio.Lock()
+
+
+async def _usage_refresh_once() -> dict:
+    """Quét tăng dần, tuần tự hoá. Lỗi thì nuốt: số liệu cũ vẫn hơn một trang lỗi."""
+    try:
+        async with _USAGE_REFRESH_LOCK:
+            return await asyncio.to_thread(usage_index.refresh)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 @app.get("/usage/summary")
 async def usage_summary(period: str = "this_month", provider: str = "", project: str = "", refresh: int = 1):
     """Báo cáo token theo kỳ: KPI + breakdown + timeseries, kèm so kỳ trước. refresh=1 (mặc
     định) quét tăng dần trước khi trả (rẻ khi index đã ấm)."""
     if refresh:
-        try:
-            await asyncio.to_thread(usage_index.refresh)
-        except Exception:
-            pass
+        await _usage_refresh_once()
     try:
         # to_thread như refresh ngay trên: summary() truy vấn sqlite, đo được 46,7ms. Chạy
         # thẳng trên event loop là chặn MỌI request khác, kể cả healthcheck 4 giây của Docker.
@@ -5279,10 +5311,7 @@ async def usage_summary(period: str = "this_month", provider: str = "", project:
 async def usage_insights(period: str = "this_month", refresh: int = 0):
     """Danh sách đề xuất hành động cho kỳ. Mặc định KHÔNG refresh (UI đã refresh ở /usage/summary)."""
     if refresh:
-        try:
-            await asyncio.to_thread(usage_index.refresh)
-        except Exception:
-            pass
+        await _usage_refresh_once()
     try:
         return {"items": await asyncio.to_thread(usage_index.insights, period=period)}
     except ValueError as e:
@@ -5292,10 +5321,393 @@ async def usage_insights(period: str = "this_month", refresh: int = 0):
 @app.post("/usage/refresh")
 async def usage_refresh():
     """Quét tăng dần 3 nguồn, trả số file/event xử lý lần này."""
+    return await _usage_refresh_once()
+
+
+# ---- Trang Mức dùng: khối trả lời "tôi tốn bao nhiêu, và có đáng không" ---------------
+# Chi phí cố định mỗi lượt của từng mức tiết kiệm. Đo bằng prompt THẬT nên tốn ~20ms cộng một
+# vòng quét kho tool - rẻ với một lần mở trang, nhưng vòng lặp nền hỏi mỗi 10 phút thì không.
+# Nhớ đệm theo brain, hết hạn sau 10 phút để brain to dần lên thì con số cũng đi theo.
+_PHI_MUC_CACHE: dict = {}
+_PHI_MUC_TTL = 600.0
+
+
+async def _phi_moi_muc(brain: str = "brain") -> dict:
+    """{muc_id: token_co_dinh_moi_luot}. Rỗng nếu chưa đo được (đừng bịa)."""
+    khoa = str(brain or "brain")
+    o = _PHI_MUC_CACHE.get(khoa)
+    if o and time.time() - o[0] < _PHI_MUC_TTL:
+        return o[1]
     try:
-        return await asyncio.to_thread(usage_index.refresh)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        uoc = await _uoc_tinh_tiet_kiem(khoa)
+    except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
+        return (o[1] if o else {})
+    phi = {k: int((v or {}).get("token_moi_request") or 0)
+           for k, v in ((uoc or {}).get("muc") or {}).items()}
+    _PHI_MUC_CACHE[khoa] = (time.time(), phi)
+    return phi
+
+
+def _tien_cache(by_model: list, prices: dict) -> float:
+    """Nhờ cache, đã KHÔNG phải trả bao nhiêu USD.
+
+    Token đọc lại từ cache vẫn bị tính tiền, nhưng rẻ hơn token vào bình thường nhiều lần.
+    Phần chênh đó là tiền thật không phải trả. Tính theo ĐÚNG bảng giá của từng model rồi
+    cộng lại, chứ không lấy một giá bình quân - opus và haiku chênh nhau gần 20 lần.
+
+    Đây là cách nói lại "cache hit 80%" bằng đơn vị người ta quan tâm. Phần trăm là ngôn ngữ
+    của người viết code; tiền là ngôn ngữ của người trả tiền.
+    """
+    tong = 0.0
+    for x in by_model or []:
+        cr = int(x.get("cache_read") or 0)
+        if cr <= 0:
+            continue
+        khoa = up_parsers._khoa_gia(str(x.get("key") or ""), prices)
+        if not khoa:
+            continue
+        p = prices[khoa]
+        chenh = max(0.0, float(p.get("in") or 0) - float(p.get("cache_read") or 0))
+        tong += cr * chenh / 1_000_000.0
+    return round(tong, 4)
+
+
+def _cau_mo_dau(d: dict) -> str:
+    """Một câu tiếng người tóm tắt cả trang. Không bảng, không phần trăm trần trụi.
+
+    Vì sao câu này đáng có: sáu ô số ngang hàng nhau bắt người đọc tự ghép nghĩa, và con số
+    to nhất trên trang ("chi phí quy đổi") lại là con số KHÔNG phải tiền thật - đọc lướt thì
+    y như một hoá đơn. Một câu nói thẳng ai trả gì cho cái gì thì không đọc nhầm được.
+    """
+    t = d.get("tien") or {}
+    goi = t.get("goi") or {}
+    that = float((t.get("that") or {}).get("usd") or 0)
+    quy = float((t.get("quy_doi") or {}).get("usd") or 0)
+    ky = d.get("ten_ky") or "Kỳ này"
+    ve = []
+    if goi.get("gia_thang_usd"):
+        lan = goi.get("roi_lan") or 0
+        ve.append(f"{ky} anh trả ${goi['gia_thang_usd']:g} tiền gói, "
+                  f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}"
+                  + (f", tức gói đang lời {lan:g} lần." if lan >= 1 else "."))
+    elif quy > 0:
+        ve.append(f"{ky} lượng việc đã chạy quy theo giá API là khoảng ${quy:,.2f}.")
+    if that > 0:
+        ve.append(f"Tiền mặt thật đã tiêu: ${that:,.2f}.")
+    else:
+        ve.append("Chưa có nhánh nào tính tiền theo token, nên tiền mặt thật là 0đ.")
+    tk = d.get("tiet_kiem") or {}
+    if tk.get("token"):
+        ve.append(f"Chế độ tiết kiệm đã tránh được {_fmt_tok_vn(tk['token'])} token.")
+    return " ".join(ve)
+
+
+def _fmt_tok_vn(n) -> str:
+    n = int(n or 0)
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.1f} tỉ"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f} triệu"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f} nghìn"
+    return str(n)
+
+
+_TEN_KY = {"today": "Hôm nay", "yesterday": "Hôm qua", "this_week": "Tuần này",
+           "last_week": "Tuần trước", "this_month": "Tháng này", "last_month": "Tháng trước",
+           "last_3_months": "3 tháng qua", "this_year": "Năm nay"}
+
+
+@app.get("/usage/tong-quan")
+async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refresh: int = 0):
+    """Khối ĐẦU trang Mức dùng: tiền thật vs tiền quy đổi, trần gói, tiết kiệm, dự báo.
+
+    Tách khỏi `/usage/summary` có chủ ý. Endpoint kia là số liệu thô theo chiều (model, dự
+    án, provider) - đúng thứ cần khi đã biết mình muốn soi gì. Còn đây trả lời ba câu hỏi
+    người ta mở trang ra để hỏi: tháng này tốn bao nhiêu tiền THẬT, gói có đáng tiền không,
+    và sắp chạm trần chưa. Trộn hai thứ vào một endpoint thì mỗi lần đổi chip kỳ lại kéo theo
+    một vòng đo prompt và hai truy vấn cửa sổ trượt.
+    """
+    if refresh:
+        await _usage_refresh_once()
+    try:
+        s = await asyncio.to_thread(usage_index.summary, period=period)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    k = s.get("kpi") or {}
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    prices = up_parsers.load_prices()
+
+    # --- Tiền: TÁCH BẠCH tiền mặt và tiền quy đổi. Đây là chỗ dễ nói dối nhất của cả trang.
+    # Nhánh API key thì mỗi token là tiền mặt ra khỏi ví. Gói thuê bao thì đã trả trọn gói,
+    # token không sinh thêm hoá đơn nào - con số quy đổi chỉ để biết gói có đáng tiền không.
+    theo_prov = {x["key"]: x for x in (s.get("by_provider") or [])}
+    tien_that = round(float((theo_prov.get("api") or {}).get("cost") or 0), 4)
+    tien_quy_doi = round(sum(float(v.get("cost") or 0)
+                             for kk, v in theo_prov.items() if kk != "api"), 2)
+    gia_goi = float(mcfg.get("gia_goi_thang_usd") or 0)
+    goi = {"gia_thang_usd": gia_goi,
+           "roi_lan": round(tien_quy_doi / gia_goi, 1) if gia_goi > 0 else 0}
+
+    orb = None
+    try:
+        orb = await _openrouter_credits(mcfg)
+    except Exception:  # noqa: BLE001
+        orb = None
+
+    # --- Cửa sổ trượt 5 giờ. Nhà cung cấp gói tính hạn mức theo cửa sổ vài giờ chứ không
+    # theo ngày, nên "hôm nay dùng bao nhiêu" không trả lời được câu "tôi sắp bị chặn chưa".
+    try:
+        cs5 = await asyncio.to_thread(usage_index.cua_so, 5.0)
+        dinh5 = await asyncio.to_thread(usage_index.dinh_cua_so, 5.0)
+    except Exception:  # noqa: BLE001
+        cs5, dinh5 = {}, {}
+    tran_5h = int(mcfg.get("tran_5h") or 0)
+    # Chưa khai trần thì so với ĐỈNH của chính người dùng: mức cao nhất từng chạm mà chưa bị
+    # chặn là một cận dưới THẬT của hạn mức, và nó riêng cho từng tài khoản. Kém chính xác
+    # hơn một con số chính thức, nhưng có thật - hơn hẳn việc bịa một hạn mức mặc định.
+    moc_so = tran_5h or int(dinh5.get("tokens") or 0)
+    cua_so = {**cs5, "dinh": int(dinh5.get("tokens") or 0), "dinh_luc": dinh5.get("hour") or "",
+              "tran_khai": tran_5h,
+              "moc_so_sanh": moc_so,
+              "ty_le": round(int(cs5.get("tokens") or 0) / moc_so, 4) if moc_so > 0 else 0}
+
+    # --- Tiết kiệm: đối chứng ngược, chạy được cho MỌI kỳ (xem usage_saving).
+    phi = await _phi_moi_muc(brain)
+    muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
+    gia_1m, nguon_gia = _gia_input_1m(str(mcfg.get("model") or ""), mcfg)
+    tk = usage_saving.tiet_kiem(s.get("timeseries") or [], phi, muc_nay,
+                                gia_1m_usd=gia_1m, ty_gia=VND_MOI_USD)
+    tk["nguon_gia"] = nguon_gia
+    tk["nhan_muc"] = (RUNTIME_PRESETS.get(muc_nay) or {}).get("nhan") or muc_nay
+
+    # --- Ngân sách + dự báo
+    db = usage_saving.du_bao(k.get("tokens") or 0, tien_that,
+                             (s.get("range") or ["", ""])[0], (s.get("range") or ["", ""])[1],
+                             period)
+    ns = usage_saving.ngan_sach(tien_that, float(mcfg.get("ngan_sach_thang_usd") or 0),
+                                float(db.get("cost") or 0) if db.get("co") else 0.0)
+    ns["tu_phanh"] = bool(mcfg.get("tu_phanh"))
+    ns["dang_phanh"] = usage_saving.dang_phanh()
+
+    usd_cache = _tien_cache(s.get("by_model") or [], prices)
+    d = {
+        "period": period, "ten_ky": _TEN_KY.get(period, "Kỳ này"), "range": s.get("range"),
+        "engine": _engine_runtime_view(cfgmod.read_settings().get("context_runtime") or {}),
+        "tien": {
+            "that": {"usd": tien_that, "vnd": round(tien_that * VND_MOI_USD),
+                     "openrouter": orb},
+            "quy_doi": {"usd": tien_quy_doi, "vnd": round(tien_quy_doi * VND_MOI_USD)},
+            "goi": goi, "ty_gia": VND_MOI_USD,
+        },
+        "ngan_sach": ns,
+        "tiet_kiem": tk,
+        "cua_so": cua_so,
+        "cache": {"ty_le": k.get("cache_hit") or 0, "token": k.get("cache_read") or 0,
+                  "usd": usd_cache, "vnd": round(usd_cache * VND_MOI_USD)},
+        "du_bao": db,
+        "luot": {"so_luot": k.get("turns") or 0, "moi_luot": k.get("avg_per_turn") or 0},
+        "nhip_engine": await asyncio.to_thread(usage_index.nhip_engine, period),
+        "moc": usage_saving.doc_moc((s.get("range") or ["", ""])[0],
+                                    (s.get("range") or ["", ""])[1]),
+    }
+    d["cau"] = _cau_mo_dau(d)
+    return d
+
+
+@app.post("/usage/ngan-sach")
+async def usage_ngan_sach(gia_goi_thang_usd: str = Form(""), ngan_sach_thang_usd: str = Form(""),
+                          tran_5h: str = Form(""), tu_phanh: str = Form(""),
+                          bao_cao_tuan: str = Form("")):
+    """Bốn con số Javis KHÔNG tự biết được: giá gói, trần tiền tháng, trần cửa sổ 5h, tự phanh.
+
+    Trường bỏ trống = giữ nguyên. Gửi "0" mới là xoá. Phân biệt hai cái đó quan trọng: giao
+    diện chỉ gửi ô người dùng vừa sửa, gửi thiếu mà bị hiểu là 0 thì bấm lưu một ô là mất ba
+    ô kia.
+    """
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    truoc = float(m.get("ngan_sach_thang_usd") or 0)
+
+    def _chu(x) -> str:
+        # Gọi thẳng hàm endpoint (test, hoặc code khác trong server) thì tham số mặc định vẫn
+        # là object Form(...) chứ không phải chuỗi. Không chặn ở đây là ghi nguyên cái repr
+        # của nó vào settings.json.
+        return x.strip() if isinstance(x, str) else ""
+
+    def _so(raw, cu, kieu=float):
+        raw = _chu(raw).replace(",", "")
+        if not raw:
+            return cu
+        try:
+            return max(kieu(0), kieu(float(raw)))
+        except (TypeError, ValueError):
+            return cu
+
+    m["gia_goi_thang_usd"] = _so(gia_goi_thang_usd, float(m.get("gia_goi_thang_usd") or 0))
+    m["ngan_sach_thang_usd"] = _so(ngan_sach_thang_usd, float(m.get("ngan_sach_thang_usd") or 0))
+    m["tran_5h"] = _so(tran_5h, int(m.get("tran_5h") or 0), int)
+    if _chu(tu_phanh):
+        m["tu_phanh"] = _chu(tu_phanh).lower() in ("1", "true", "on", "yes", "co", "có")
+    if _chu(bao_cao_tuan):
+        v = _chu(bao_cao_tuan)
+        m["bao_cao_tuan"] = "" if v.lower() in ("0", "off", "tat", "tắt", "khong", "không") else v
+    cfgmod.write_settings(cfg)
+    if m["ngan_sach_thang_usd"] != truoc:
+        usage_saving.ghi_moc("ngan_sach", f"${m['ngan_sach_thang_usd']:g}", f"${truoc:g}",
+                             "Đổi trần tiền tháng")
+    await _kiem_ngan_sach(nhac=False)     # đặt lại phanh ngay, đừng đợi vòng lặp nền
+    return {"ok": True, "gia_goi_thang_usd": m["gia_goi_thang_usd"],
+            "ngan_sach_thang_usd": m["ngan_sach_thang_usd"], "tran_5h": m["tran_5h"],
+            "tu_phanh": bool(m.get("tu_phanh")), "bao_cao_tuan": m.get("bao_cao_tuan") or "",
+            "dang_phanh": usage_saving.dang_phanh()}
+
+
+@app.get("/usage/bao-cao")
+async def usage_bao_cao(period: str = "this_week"):
+    """Báo cáo token dạng CHỮ, đọc được trên Telegram/Zalo. Dùng cho bản đẩy hàng tuần."""
+    return {"text": await _bao_cao_token(period)}
+
+
+async def _tien_that_thang() -> float:
+    """USD tiền MẶT đã tiêu tháng này (chỉ nhánh dùng API key). Lỗi -> 0, không chặn."""
+    try:
+        s = await asyncio.to_thread(usage_index.summary, period="this_month")
+    except Exception:  # noqa: BLE001
+        return 0.0
+    for x in s.get("by_provider") or []:
+        if x.get("key") == "api":
+            return round(float(x.get("cost") or 0), 4)
+    return 0.0
+
+
+async def _kiem_ngan_sach(nhac: bool = True) -> dict:
+    """Đối chiếu tiền mặt tháng này với trần người dùng đặt: bật/tắt phanh, và nhắc một lần.
+
+    Gọi từ hai chỗ: vòng lặp nền (mỗi 10 phút) và ngay sau khi người dùng đổi trần. `nhac`
+    tắt ở lần thứ hai vì đổi trần xong mà bị nhắn ngay một tin cảnh báo thì như bị mắng.
+
+    Nhắc ĐÚNG MỘT LẦN mỗi mốc mỗi tháng (dấu lưu trong nhật ký mốc). Nhắc lại mỗi 10 phút
+    suốt nửa tháng cuối là cách nhanh nhất để người ta tắt thông báo, và tắt rồi thì lần
+    sau thật sự vượt trần cũng không ai biết.
+    """
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    tran = float(mcfg.get("ngan_sach_thang_usd") or 0)
+    if tran <= 0:
+        usage_saving.dat_phanh(False, "")
+        return {"co": False}
+    da = await _tien_that_thang()
+    ns = usage_saving.ngan_sach(da, tran)
+    bat_phanh = bool(mcfg.get("tu_phanh")) and ns.get("muc_do") == "het"
+    usage_saving.dat_phanh(bat_phanh,
+                           f"đã tiêu ${da:.2f} trên trần ${tran:.2f} tháng này" if bat_phanh else "")
+    if nhac and ns.get("muc_do") in ("sap_het", "het"):
+        khoa = f"{ns['muc_do']}"
+        if not usage_saving.da_nhac_chua(khoa):
+            usage_saving.ghi_moc("ngan_sach", khoa, "", f"Nhắc ngân sách: {khoa}")
+            if ns["muc_do"] == "het":
+                tin = (f"Ngân sách API tháng này đã hết: tiêu ${da:.2f} trên trần ${tran:.2f}.\n"
+                       + ("Javis đã tự chuyển việc nền sang đường không tốn tiền."
+                          if bat_phanh else
+                          "Tự phanh đang tắt nên việc nền vẫn tiêu tiền như thường."))
+            else:
+                tin = (f"Ngân sách API tháng này đã dùng {ns['ty_le'] * 100:.0f}%: "
+                       f"${da:.2f} trên trần ${tran:.2f}. Còn ${ns['con']:.2f}.")
+            try:
+                await _notify_owner("", tin)
+            except Exception:  # noqa: BLE001 - không gửi được thì thôi, đừng làm hỏng vòng lặp
+                pass
+    return ns
+
+
+_NGAN_SACH_LAST = [0.0]        # mốc lần kiểm ngân sách gần nhất (nhịp riêng 10 phút)
+
+
+async def _bao_cao_tuan_neu_toi_gio() -> bool:
+    """Sáng thứ Hai thì đẩy báo cáo token tuần trước về đúng người. Tắt mặc định.
+
+    Vì sao đẩy chứ không đợi người ta mở trang: trang Mức dùng chỉ hữu ích khi có người nhớ
+    mở nó ra, mà thứ người ta cần biết ("tuần rồi tiêu gấp đôi vì một cái loop") lại đúng là
+    thứ không ai nghĩ tới việc đi kiểm. Javis đã có sẵn đường nhắn chủ động, dùng nó.
+
+    Dấu đã-gửi lưu trong nhật ký mốc theo tuần ISO, nên máy khởi động lại giữa sáng thứ Hai
+    cũng không gửi hai lần.
+    """
+    from datetime import datetime, timedelta, timezone
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    dich = str(mcfg.get("bao_cao_tuan") or "").strip()
+    if not dich:
+        return False
+    gio = datetime.now(timezone(timedelta(hours=7)))
+    if gio.weekday() != 0 or gio.hour < 8:
+        return False
+    tuan = f"tuan-{gio.isocalendar()[0]}-{gio.isocalendar()[1]}"
+    if usage_saving.da_nhac_chua(tuan, gio):
+        return False
+    usage_saving.ghi_moc("ngan_sach", tuan, "", "Đã gửi báo cáo token tuần")
+    try:
+        await _notify_owner("" if dich == "auto" else dich, await _bao_cao_token("last_week"))
+    except Exception as e:  # noqa: BLE001 - gửi hỏng thì thôi, đừng giết vòng lặp nền
+        print(f"[bao cao tuan] {type(e).__name__}: {e}", file=sys.stderr)
+    return True
+
+
+async def _bao_cao_token(period: str = "this_week") -> str:
+    """Báo cáo token bằng VĂN NÓI, cho kênh chữ thuần (Telegram/Zalo).
+
+    Không bảng, không markdown nặng: kênh nhận là chỗ chữ chạy một cột. Nội dung chọn theo
+    đúng thứ hành động được - tiêu bao nhiêu tiền thật, cái gì ngốn nhất, có gì bất thường -
+    chứ không đổ hết mọi chiều số liệu ra.
+    """
+    try:
+        s = await asyncio.to_thread(usage_index.summary, period=period)
+    except Exception as e:  # noqa: BLE001
+        return f"Chưa dựng được báo cáo token: {type(e).__name__}."
+    k = s.get("kpi") or {}
+    ten = _TEN_KY.get(period, "Kỳ này")
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    theo_prov = {x["key"]: x for x in (s.get("by_provider") or [])}
+    that = float((theo_prov.get("api") or {}).get("cost") or 0)
+    quy = sum(float(v.get("cost") or 0) for kk, v in theo_prov.items() if kk != "api")
+
+    d = [f"BÁO CÁO TOKEN - {ten.lower()}",
+         f"Tổng {_fmt_tok_vn(k.get('tokens'))} token qua {k.get('turns') or 0} lượt."]
+    if k.get("delta_pct") is not None:
+        chieu = "tăng" if k["delta_pct"] >= 0 else "giảm"
+        d.append(f"So kỳ trước {chieu} {abs(k['delta_pct']):.0f}%.")
+    d.append(f"Tiền mặt thật: ${that:,.2f}."
+             + (f" Quy theo giá API thì phần gói thuê bao đáng ${quy:,.0f}." if quy > 0 else ""))
+
+    tran = float(mcfg.get("ngan_sach_thang_usd") or 0)
+    if tran > 0:
+        da = await _tien_that_thang()
+        d.append(f"Ngân sách tháng: đã dùng ${da:,.2f} trên ${tran:,.2f}.")
+
+    phi = await _phi_moi_muc("brain")
+    muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
+    tk = usage_saving.tiet_kiem(s.get("timeseries") or [], phi, muc_nay)
+    if tk.get("token"):
+        d.append(f"Chế độ tiết kiệm tránh được {_fmt_tok_vn(tk['token'])} token "
+                 f"({tk.get('phan_tram') or 0}% mỗi lượt).")
+
+    top_m = (s.get("by_model") or [])[:1]
+    top_p = (s.get("by_project") or [])[:1]
+    if top_m:
+        d.append(f"Model ngốn nhất: {top_m[0]['key']} ({_fmt_tok_vn(top_m[0]['tokens'])}).")
+    if top_p:
+        d.append(f"Nơi ngốn nhất: {top_p[0]['key']} ({_fmt_tok_vn(top_p[0]['tokens'])}).")
+    nen = next((x["tokens"] for x in (s.get("by_activity") or []) if x["key"] == "background"), 0)
+    if nen and k.get("tokens"):
+        d.append(f"Việc chạy nền chiếm {nen / k['tokens'] * 100:.0f}% token.")
+
+    try:
+        cho = await asyncio.to_thread(usage_index.insights, period=period)
+    except Exception:  # noqa: BLE001
+        cho = []
+    for i in (cho or [])[:2]:
+        d.append(f"- {i.get('title')}: {i.get('detail')}")
+    return "\n".join(d)
 
 
 # Engine của workflow chỉ chạy được CLI (Claude hoặc Codex). Router có thể khai model
@@ -6828,6 +7240,16 @@ async def _start_scheduler():
                     await reminders_feature.tick()
                 except Exception as rte:
                     print(f"[reminders tick] {type(rte).__name__}: {rte}", file=__import__('sys').stderr)
+                # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
+                #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
+                #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
+                try:
+                    if time.time() - _NGAN_SACH_LAST[0] >= 600:
+                        _NGAN_SACH_LAST[0] = time.time()
+                        await _kiem_ngan_sach(nhac=True)
+                        await _bao_cao_tuan_neu_toi_gio()
+                except Exception as nse:
+                    print(f"[ngan sach tick] {type(nse).__name__}: {nse}", file=__import__('sys').stderr)
                 # 4) Đồng bộ GitHub tự động (2 CHIỀU): đủ interval → kéo về + hoà nhập + đẩy lên
                 try:
                     bcfg = cfgmod.read_settings().get("backup", {}) or {}
@@ -9640,6 +10062,14 @@ async def runtime_preset_set(level: str = Form(...)):
                              "hop_le": list(RUNTIME_PRESETS)}, status_code=400)
     cfg = cfgmod.read_settings()
     runtime_cfg = cfg.setdefault("context_runtime", {})
+    # Đóng mốc TRƯỚC khi đổi, để còn biết mức cũ là gì. Nhật ký mốc là thứ duy nhất cho phép
+    # tính đúng tiết kiệm của một kỳ có đổi mức giữa chừng: không có nó thì phải lấy mức hôm
+    # nay áp ngược cho cả tháng, và người vừa bật tiết kiệm hôm qua sẽ được khoe một con số
+    # tiết kiệm của cả tháng mà họ chưa từng nhận.
+    _muc_cu = current_preset(runtime_cfg)
+    if _muc_cu != key:
+        usage_saving.ghi_moc("muc", key, _muc_cu,
+                             f"Đổi chế độ tiết kiệm sang {preset['nhan']}")
     runtime_cfg["mode"] = preset["mode"]
     # Ký tên TRƯỚC khi ghi: từ đây trở đi mức này là quyết định của người dùng, không bản
     # cập nhật nào được nâng nó lên sau lưng.

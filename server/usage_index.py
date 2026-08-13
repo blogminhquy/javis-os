@@ -74,9 +74,27 @@ def _connect() -> sqlite3.Connection:
                  "path TEXT PRIMARY KEY, size INTEGER, mtime REAL, offset INTEGER DEFAULT 0)")
     conn.execute("CREATE TABLE IF NOT EXISTS file_daily("
                  "path TEXT, day TEXT, provider TEXT, source TEXT, activity TEXT, model TEXT, project TEXT,"
-                 "input INTEGER, output INTEGER, cache_read INTEGER, cache_create INTEGER)")
+                 "input INTEGER, output INTEGER, cache_read INTEGER, cache_create INTEGER,"
+                 "turns INTEGER DEFAULT 0)")
+    # Grain GIO, tach bang rieng. Vi sao khong nhet 'hour' vao file_daily: _insert_events gom
+    # theo (day,provider,source,activity,model,project) nen them mot chieu nua la nhan so dong
+    # len ~24 lan cho MOI to hop - trong khi cua so truot chi can (gio, provider). Bang rieng
+    # giu file_daily nguyen kich thuoc va cau truy van cua so khong phai loc qua 6 chieu.
+    conn.execute("CREATE TABLE IF NOT EXISTS file_hourly("
+                 "path TEXT, hour TEXT, provider TEXT, tokens INTEGER, turns INTEGER)")
+    # ALTER cho DB da ton tai: CREATE TABLE IF NOT EXISTS im lang bo qua bang cu, nen khong co
+    # khoi nay thi moi INSERT co liet ke 'turns' se nem "no such column" tren may da cai lau.
+    # Xem sessions.py:262-289 cho cung mot idiom (va luu y: CREATE INDEX phai chay SAU ALTER).
+    try:
+        co = {r[1] for r in conn.execute("PRAGMA table_info(file_daily)")}
+        if "turns" not in co:
+            conn.execute("ALTER TABLE file_daily ADD COLUMN turns INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fd_day ON file_daily(day)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fd_path ON file_daily(path)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_fh_hour ON file_hourly(hour)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_fh_path ON file_hourly(path)")
     return conn
 
 
@@ -113,23 +131,48 @@ def _mark(conn, path, size, mtime, offset=0) -> None:
 
 def _clear_file(conn, path) -> None:
     conn.execute("DELETE FROM file_daily WHERE path=?", (path,))
+    conn.execute("DELETE FROM file_hourly WHERE path=?", (path,))
+
+
+def _gio(ev) -> str:
+    """Moc gio dia phuong 'YYYY-MM-DDTHH' cua mot su kien. Khong co ts -> '' (bo qua)."""
+    ts = int(ev.get("ts") or 0)
+    if ts <= 0:
+        return ""
+    return datetime.fromtimestamp(ts, _TZ).strftime("%Y-%m-%dT%H")
 
 
 def _insert_events(conn, path, events) -> None:
-    """Gop events cua 1 file theo khoa (day,provider,source,activity,model,project) roi insert."""
+    """Gop events cua 1 file theo khoa (day,provider,source,activity,model,project) roi insert.
+
+    Gop THEM mot lan nua theo (gio, provider) vao file_hourly. Hai bang, hai grain, cung mot
+    lan doc file - cua so truot 5 gio khong the dung file_daily vi grain nho nhat cua no la
+    NGAY, ma "toi con bao nhieu trong cua so nay" thi ngay la vo nghia.
+    """
     groups = {}
+    theo_gio = {}
     for ev in events:
         k = (ev.get("day") or "", ev["provider"], ev["source"], ev["activity"], ev["model"], ev["project"])
-        g = groups.setdefault(k, [0, 0, 0, 0])
+        g = groups.setdefault(k, [0, 0, 0, 0, 0])
         g[0] += ev["input"]
         g[1] += ev["output"]
         g[2] += ev["cache_read"]
         g[3] += ev["cache_create"]
+        g[4] += int(ev.get("turns") or 0)
+        gio = _gio(ev)
+        if gio:
+            h = theo_gio.setdefault((gio, ev["provider"]), [0, 0])
+            h[0] += ev["input"] + ev["output"] + ev["cache_read"] + ev["cache_create"]
+            h[1] += int(ev.get("turns") or 0)
     if groups:
         conn.executemany(
-            "INSERT INTO file_daily(path,day,provider,source,activity,model,project,input,output,cache_read,cache_create)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO file_daily(path,day,provider,source,activity,model,project,input,output,cache_read,cache_create,turns)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
             [(path,) + k + tuple(g) for k, g in groups.items()])
+    if theo_gio:
+        conn.executemany(
+            "INSERT INTO file_hourly(path,hour,provider,tokens,turns) VALUES(?,?,?,?,?)",
+            [(path,) + k + tuple(v) for k, v in theo_gio.items()])
 
 
 def _scan_claude(conn, chat, brains) -> int:
@@ -236,22 +279,23 @@ def _ingest_events(conn) -> int:
         if tin + tout <= 0:
             continue
         day, model = e.get("day") or "", e.get("model") or "?"
+        # Moi dong = mot lan usage_store.record() = mot lan goi model, va no mang theo ts thuc.
+        # Do la thu log tho khong cho voi nhanh API, nen cung la nguon duy nhat dung duoc cho
+        # "so luot" va "cua so truot" cua nhung nhanh do.
+        chung = {"day": day, "ts": int(e.get("ts") or 0), "model": model,
+                 "input": tin, "output": tout, "cache_read": 0, "cache_create": 0, "turns": 1}
         if prov in _API_PROVIDERS:
-            events.append({"day": day, "provider": "api", "source": "javis", "activity": "chat",
-                           "model": model, "project": "(api)",
-                           "input": tin, "output": tout, "cache_read": 0, "cache_create": 0})
+            events.append({**chung, "provider": "api", "source": "javis", "activity": "chat",
+                           "project": "(api)"})
         elif prov in _EVENT_CLAUDE:
-            events.append({"day": day, "provider": "claude", "source": "javis", "activity": "chat",
-                           "model": model, "project": "(events)",
-                           "input": tin, "output": tout, "cache_read": 0, "cache_create": 0})
+            events.append({**chung, "provider": "claude", "source": "javis", "activity": "chat",
+                           "project": "(events)"})
         elif prov in _EVENT_CODEX:
-            events.append({"day": day, "provider": "codex", "source": "javis", "activity": "chat",
-                           "model": model, "project": "(events)",
-                           "input": tin, "output": tout, "cache_read": 0, "cache_create": 0})
+            events.append({**chung, "provider": "codex", "source": "javis", "activity": "chat",
+                           "project": "(events)"})
         elif prov in _EVENT_GEMINI_CLI:
-            events.append({"day": day, "provider": "gemini-cli", "source": "javis",
-                           "activity": "chat", "model": model, "project": "(events)",
-                           "input": tin, "output": tout, "cache_read": 0, "cache_create": 0})
+            events.append({**chung, "provider": "gemini-cli", "source": "javis",
+                           "activity": "chat", "project": "(events)"})
     if events:
         _insert_events(conn, path, events)
     conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,?,?,?) "
@@ -290,11 +334,36 @@ def _migrate_events_once(conn) -> None:
                  "ON CONFLICT(path) DO NOTHING", (_EVENTS_MIGRATE_MARK,))
 
 
+# Ban truoc khong co cot `turns` va khong co bang theo gio. Cot moi mac dinh 0, va _unchanged()
+# bo qua moi file da quet - nghia la neu chi them cot roi thoi thi so luot se dung 0 mai mai
+# cho toan bo lich su, va trang bao "0 luot" trong khi 560 trieu token nam so so ra do. Nen
+# doi schema thi phai QUET LAI: xoa sach dau vet da-quet mot lan duy nhat, refresh ke tiep tu
+# dung lai het. Ton mot lan (vai giay toi vai chuc giay tuy so file), sau do lai tang dan.
+_SCHEMA_MARK = "__schema_v3_turns__"
+
+
+def _migrate_schema_once(conn) -> bool:
+    """Doi grain -> quet lai toan bo mot lan. Tra True neu vua don dep (de log biet)."""
+    row = conn.execute("SELECT offset FROM files_seen WHERE path=?", (_SCHEMA_MARK,)).fetchone()
+    if row:
+        return False
+    conn.execute("DELETE FROM file_daily")
+    conn.execute("DELETE FROM file_hourly")
+    conn.execute("DELETE FROM files_seen")
+    conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,0,0,1)", (_SCHEMA_MARK,))
+    # Xoa sach files_seen cung xoa luon dau migrate v2 o tren; ghi lai ngay de lan refresh sau
+    # no khong nap lai usage-events.jsonl tu dau lan nua (se dem trung voi lan quet nay).
+    conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,0,0,1) "
+                 "ON CONFLICT(path) DO NOTHING", (_EVENTS_MIGRATE_MARK,))
+    return True
+
+
 def refresh() -> dict:
     """Quet tang dan ca 3 nguon. Tra so file/event thuc su xu ly lan nay."""
-    res = {"claude_files": 0, "codex_files": 0, "api_events": 0}
+    res = {"claude_files": 0, "codex_files": 0, "api_events": 0, "quet_lai": False}
     conn = _connect()
     try:
+        res["quet_lai"] = _migrate_schema_once(conn)   # 1 lan khi doi schema: quet lai tat ca
         _migrate_events_once(conn)                  # 1 lan: backfill cli/codex tu events cu
         chat = _chat_sessions()
         brains = session_brain.mapping()   # phien nao thuoc brain nao -> nhan du an dung
@@ -368,8 +437,11 @@ def resolve_period(period: str, today: date = None):
     raise ValueError("period khong hop le: %s" % period)
 
 
-_ROW_COLS = "day,provider,source,activity,model,project,input,output,cache_read,cache_create,path"
+# Cot moi NOI VAO CUOI, sau 'path'. _tot() va _group() doc bang chi so vi tri (r[6]..r[10]),
+# nen chen vao giua la lam lech im lang moi con so cua trang.
+_ROW_COLS = "day,provider,source,activity,model,project,input,output,cache_read,cache_create,path,turns"
 _DIM_IDX = {"day": 0, "provider": 1, "source": 2, "activity": 3, "model": 4, "project": 5}
+_I_TURNS = 11
 
 
 def _tot(r) -> int:
@@ -408,12 +480,14 @@ def _group(rows, dim, prices):
     for r in rows:
         key = r[idx] or "(?)"
         e = agg.setdefault(key, {"key": key, "tokens": 0, "input": 0, "output": 0,
-                                 "cache_read": 0, "cache_create": 0, "cost": 0.0, "_paths": set()})
+                                 "cache_read": 0, "cache_create": 0, "cost": 0.0,
+                                 "turns": 0, "_paths": set()})
         e["tokens"] += _tot(r)
         e["input"] += r[6] or 0
         e["output"] += r[7] or 0
         e["cache_read"] += r[8] or 0
         e["cache_create"] += r[9] or 0
+        e["turns"] += r[_I_TURNS] or 0
         e["cost"] += up.estimate_cost({"model": r[4], "input": r[6] or 0, "output": r[7] or 0,
                                         "cache_read": r[8] or 0, "cache_create": r[9] or 0}, prices)
         e["_paths"].add(r[10])
@@ -444,6 +518,7 @@ def summary(period: str = "this_month", provider: str = None, project: str = Non
     cread = sum(r[8] or 0 for r in rows)
     ccreate = sum(r[9] or 0 for r in rows)
     billable_in = inp + cread + ccreate
+    turns = sum(r[_I_TURNS] or 0 for r in rows)
     sessions = len({r[10] for r in rows})
     cost = round(sum(up.estimate_cost({"model": r[4], "input": r[6] or 0, "output": r[7] or 0,
                                        "cache_read": r[8] or 0, "cache_create": r[9] or 0}, prices) for r in rows), 4)
@@ -456,7 +531,8 @@ def summary(period: str = "this_month", provider: str = None, project: str = Non
     series = {}
     dd = cs
     while dd <= ce:
-        series[dd.isoformat()] = {"day": dd.isoformat(), "claude": 0, "codex": 0, "api": 0, "total": 0}
+        series[dd.isoformat()] = {"day": dd.isoformat(), "claude": 0, "codex": 0, "api": 0,
+                                  "total": 0, "turns": 0}
         dd += timedelta(days=1)
     for r in rows:
         cell = series.get(r[0])
@@ -465,6 +541,7 @@ def summary(period: str = "this_month", provider: str = None, project: str = Non
         prov = r[1] if r[1] in ("claude", "codex", "api") else "api"
         cell[prov] += _tot(r)
         cell["total"] += _tot(r)
+        cell["turns"] += r[_I_TURNS] or 0
 
     return {
         "period": period, "range": [cs_s, ce_s], "range_prev": [ps_s, pe_s],
@@ -473,6 +550,10 @@ def summary(period: str = "this_month", provider: str = None, project: str = Non
             "tokens": tokens, "tokens_prev": tokens_prev, "delta_pct": delta,
             "per_day_avg": round(tokens / n_days, 1) if n_days else 0,
             "sessions": sessions,
+            # So LUOT goi model trong ky, va token trung binh moi luot. Day la mau so cua moi
+            # phep tinh tiet kiem: phan ngu canh tiet kiem duoc la thu tra theo TUNG LUOT.
+            "turns": turns,
+            "avg_per_turn": round(tokens / turns) if turns else 0,
             "avg_per_session": round(tokens / sessions) if sessions else 0,
             "cache_hit": round(cread / billable_in, 4) if billable_in else 0,
             "out_in_ratio": round(out / inp, 3) if inp else None,
@@ -548,6 +629,113 @@ def insights(period: str = "this_month", today: date = None) -> list:
 
     out.sort(key=lambda x: 0 if x["level"] == "warn" else 1)
     return out
+
+
+def nhip_engine(period: str = "this_month", today: date = None) -> list:
+    """Token MOI LUOT cua tung provider, tach theo loai hoat dong. Sap xep dat -> re.
+
+    Cau hoi no tra loi: "cung mot loai viec, bo nao nao dat hon?". Tong token khong tra loi
+    duoc vi bo nao chay nhieu viec hon thi dĩ nhien ton nhieu hon; phai chia cho SO LUOT moi
+    so sanh duoc. Va phai tach theo hoat dong vi mot luot chat va mot luot chay nen la hai
+    thu khac han ve co ngu canh.
+    """
+    (cs, ce), _prev = resolve_period(period, today)
+    prices = up.load_prices()
+    conn = _connect()
+    try:
+        rows = _fetch_rows(conn, cs.isoformat(), ce.isoformat())
+    finally:
+        conn.close()
+    agg = {}
+    for r in rows:
+        k = (r[1] or "?", r[3] or "?")          # (provider, activity)
+        e = agg.setdefault(k, {"provider": k[0], "activity": k[1], "tokens": 0,
+                               "turns": 0, "cost": 0.0})
+        e["tokens"] += _tot(r)
+        e["turns"] += r[_I_TURNS] or 0
+        e["cost"] += up.estimate_cost({"model": r[4], "input": r[6] or 0, "output": r[7] or 0,
+                                       "cache_read": r[8] or 0, "cache_create": r[9] or 0}, prices)
+    out = []
+    for e in agg.values():
+        if e["turns"] <= 0:
+            continue                            # khong co mau so thi khong so sanh duoc
+        e["moi_luot"] = round(e["tokens"] / e["turns"])
+        e["cost_moi_luot"] = round(e["cost"] / e["turns"], 6)
+        e["cost"] = round(e["cost"], 4)
+        out.append(e)
+    out.sort(key=lambda x: -x["moi_luot"])
+    return out
+
+
+def cua_so(gio: float = 5.0, provider: str = None, now: datetime = None) -> dict:
+    """Muc dung trong CUA SO TRUOT `gio` gio gan nhat: {tokens, turns, gio, tu, den}.
+
+    Vi sao khong dung file_daily: hoi "toi con bao nhieu trong cua so nay" ma tra loi theo
+    NGAY thi 8 gio sang mung 1 se bao gan bang 0 du 5 gio truoc do vua dot het han muc. Gia
+    goi Claude/ChatGPT deu tinh theo cua so truot vai gio, nen day moi la don vi dung.
+
+    Grain la GIO nen bien cua so lam tron len dau gio - tuc con so nay hoi ROI RONG hon thuc
+    te (om them phan dau gio cu). Tha bao dang dung nhieu hon thuc te con hon nguoc lai.
+    """
+    gio = max(1.0, min(float(gio or 5.0), 24 * 7.0))
+    now = now or datetime.now(_TZ)
+    tu = now - timedelta(hours=gio)
+    h_tu, h_den = tu.strftime("%Y-%m-%dT%H"), now.strftime("%Y-%m-%dT%H")
+    where, args = ["hour BETWEEN ? AND ?"], [h_tu, h_den]
+    if provider:
+        where.append("provider=?")
+        args.append(provider)
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(tokens),0), COALESCE(SUM(turns),0) FROM file_hourly WHERE "
+            + " AND ".join(where), args).fetchone()
+    finally:
+        conn.close()
+    return {"tokens": row[0] or 0, "turns": row[1] or 0, "gio": gio,
+            "tu": h_tu, "den": h_den, "moc_reset": (tu + timedelta(hours=gio)).isoformat()}
+
+
+def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) -> dict:
+    """Cua so `gio` gio NANG NHAT tung do duoc trong `ngay_gan_day` ngay. Tra {tokens, hour}.
+
+    Day la cach duy nhat noi duoc "anh dang o dau so voi chinh minh" khi nha cung cap KHONG
+    cong bo han muc bang so. Muc cao nhat tung cham ma chua bi chan la mot can duoi that -
+    kem chinh xac hon mot con so chinh thuc, nhung that va rieng cua tung nguoi.
+    """
+    gio = max(1.0, min(float(gio or 5.0), 24 * 7.0))
+    now = now or datetime.now(_TZ)
+    tu = (now - timedelta(days=max(1, int(ngay_gan_day)))).strftime("%Y-%m-%dT%H")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT hour, SUM(tokens) FROM file_hourly WHERE hour>=? GROUP BY hour ORDER BY hour",
+            (tu,)).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return {"tokens": 0, "hour": "", "gio": gio}
+    # Cua so truot tren chuoi gio LIEN TUC: chuoi tu DB co lo hong (gio khong dung thi khong
+    # co dong), nen phai lap day truoc, khong thi "5 gio" thanh 5 gio-co-hoat-dong rai rac
+    # ca tuan va con dinh do bi thoi len vo ly.
+    theo_gio = {r[0]: (r[1] or 0) for r in rows}
+    moc = datetime.strptime(rows[0][0], "%Y-%m-%dT%H").replace(tzinfo=_TZ)
+    het = datetime.strptime(rows[-1][0], "%Y-%m-%dT%H").replace(tzinfo=_TZ)
+    day, nhan = [], []
+    while moc <= het:
+        k = moc.strftime("%Y-%m-%dT%H")
+        day.append(theo_gio.get(k, 0))
+        nhan.append(k)
+        moc += timedelta(hours=1)
+    n = max(1, int(round(gio)))
+    tong, dinh, dinh_moc = 0, 0, ""
+    for i, v in enumerate(day):
+        tong += v
+        if i >= n:
+            tong -= day[i - n]
+        if tong > dinh:
+            dinh, dinh_moc = tong, nhan[i]
+    return {"tokens": dinh, "hour": dinh_moc, "gio": gio}
 
 
 def totals_by(dim: str, provider: str = None) -> dict:
