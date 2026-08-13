@@ -5404,7 +5404,7 @@ def _cau_mo_dau(d: dict) -> str:
     if that > 0:
         ve.append(f"Tiền mặt thật đã tiêu: ${that:,.2f}.")
     else:
-        ve.append("Chưa có nhánh nào tính tiền theo token, nên tiền mặt thật là 0đ.")
+        ve.append("Chưa có nhánh nào tính tiền theo token, nên tiền mặt thật là $0.")
     tk = d.get("tiet_kiem") or {}
     if tk.get("token"):
         ve.append(f"Chế độ tiết kiệm đã tránh được {_fmt_tok_vn(tk['token'])} token.")
@@ -5492,8 +5492,7 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
     muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
     gia_1m, nguon_gia = _gia_input_1m(_ten_model_chinh(mcfg), mcfg)
     luot_javis = await asyncio.to_thread(usage_index.luot_theo_ngay, period)
-    tk = usage_saving.tiet_kiem(luot_javis, phi, muc_nay,
-                                gia_1m_usd=gia_1m, ty_gia=VND_MOI_USD)
+    tk = usage_saving.tiet_kiem(luot_javis, phi, muc_nay, gia_1m_usd=gia_1m)
     tk["nguon_gia"] = nguon_gia
     tk["nhan_muc"] = (RUNTIME_PRESETS.get(muc_nay) or {}).get("nhan") or muc_nay
 
@@ -5516,16 +5515,15 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
         "period": period, "ten_ky": _TEN_KY.get(period, "Kỳ này"), "range": s.get("range"),
         "engine": _engine_runtime_view(cfgmod.read_settings().get("context_runtime") or {}),
         "tien": {
-            "that": {"usd": tien_that, "vnd": round(tien_that * VND_MOI_USD),
-                     "usd_thang": tien_that_thang, "openrouter": orb},
-            "quy_doi": {"usd": tien_quy_doi, "vnd": round(tien_quy_doi * VND_MOI_USD)},
-            "goi": goi, "ty_gia": VND_MOI_USD,
+            "that": {"usd": tien_that, "usd_thang": tien_that_thang, "openrouter": orb},
+            "quy_doi": {"usd": tien_quy_doi},
+            "goi": goi,
         },
         "ngan_sach": ns,
         "tiet_kiem": tk,
         "cua_so": cua_so,
         "cache": {"ty_le": k.get("cache_hit") or 0, "token": k.get("cache_read") or 0,
-                  "usd": usd_cache, "vnd": round(usd_cache * VND_MOI_USD)},
+                  "usd": usd_cache},
         "du_bao": db,
         "luot": {"so_luot": k.get("turns") or 0, "moi_luot": k.get("avg_per_turn") or 0},
         "nhip_engine": await asyncio.to_thread(usage_index.nhip_engine, period),
@@ -9621,7 +9619,9 @@ _GIA_INPUT_1M = {
     "deepseek": 0.30, "llama": 0.10, "qwen": 0.20, "mistral": 0.20, "grok": 2.0,
 }
 _GIA_INPUT_MAC_DINH = 3.0     # không đoán được model thì lấy mức phổ biến tầm trung
-VND_MOI_USD = 26_000          # tạm tính; giao diện ghi rõ tỉ giá đang dùng
+# Mọi con số tiền trên trang Mức dùng đều để nguyên USD. Trước đây có thêm một lớp quy đổi ra
+# đồng bằng tỉ giá gõ cứng, và lớp đó chỉ tạo ra một con số thứ ba để sai: giá của mọi nhà
+# cung cấp đều niêm yết bằng USD, còn tỉ giá thì trôi và không ai đi cập nhật hằng số đó.
 
 
 def _ten_model_chinh(mcfg: dict) -> str:
@@ -9633,10 +9633,29 @@ def _ten_model_chinh(mcfg: dict) -> str:
     (15$) hay Haiku (1$). Sai im lặng: con số vẫn hiện ra, chỉ là sai vài lần.
     """
     m = mcfg or {}
+    # Thứ tự có chủ ý:
+    #   1. `main.model` - chỗ trang Models ghi vào, đúng nhất khi có.
+    #   2. khoá `model` phẳng - KHÔNG tồn tại trong settings thật, nhưng vài chỗ trong server
+    #      gọi hàm này với một dict tự dựng kiểu {"model": "..."} để hỏi giá của một model cụ
+    #      thể. Bỏ qua nó là lặng lẽ trả lời về một model khác với model được hỏi.
+    #   3. `_chat_provider` - bộ giải mà chính đường chat dùng, hiểu cả cấu hình cũ (`engine`).
+    #   4. các khoá cũ, chỉ khi ba bước trên đều câm.
+    # Bước 4 phải nằm SAU bước 3: `openrouter_model` có sẵn giá trị "openai/gpt-4o-mini" ngay
+    # trong cấu hình xuất xưởng, kể cả khi engine đang là anthropic-cli chạy Opus. Dò tay
+    # trước là lấy $0,15 thay cho $15 - lệch 100 lần, theo hướng khai thấp phần tiết kiệm.
     ten = ((m.get("main") or {}).get("model") or "").strip()
     if ten:
         return ten
-    for khoa in ("claude_model", "openrouter_model", "model"):
+    ten = str(m.get("model") or "").strip()
+    if ten:
+        return ten
+    try:
+        _prov, _kind, _key, model = _chat_provider(m)
+        if str(model or "").strip():
+            return str(model).strip()
+    except Exception:  # noqa: BLE001 - phần thông tin, rơi về cách dò tay bên dưới
+        pass
+    for khoa in ("claude_model", "openrouter_model"):
         v = str(m.get(khoa) or "").strip()
         if v:
             return v
@@ -9698,10 +9717,9 @@ def _do_duoc_tiet_kiem(tasks: list, window_hours: float = 24.0,
     out["token_thang"] = round(out["token_tiet_kiem"] * (24 * 30 / gio))
     gia, nguon = _gia_input_1m(_ten_model_chinh(settings_model or {}), settings_model)
     out["tien"] = {
-        "gia_1m_usd": gia, "nguon_gia": nguon, "ty_gia": VND_MOI_USD,
+        "gia_1m_usd": gia, "nguon_gia": nguon,
         "usd": round(out["token_tiet_kiem"] / 1_000_000 * gia, 4),
         "usd_thang": round(out["token_thang"] / 1_000_000 * gia, 2),
-        "vnd_thang": round(out["token_thang"] / 1_000_000 * gia * VND_MOI_USD),
     }
     return out
 

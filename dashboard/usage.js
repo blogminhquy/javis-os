@@ -50,8 +50,13 @@
     if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k";
     return "" + n;
   }
-  function fCost(c) { c = +c || 0; return "$" + (c >= 100 ? c.toFixed(0) : c.toFixed(2)); }
-  function fVnd(v) { return (Math.round(+v || 0)).toLocaleString("vi-VN") + "đ"; }
+  // Mọi con số tiền trên trang này đều là USD. Giá của các nhà cung cấp đều niêm yết bằng
+  // USD, nên quy đổi thêm một lần nữa bằng tỉ giá gõ cứng chỉ tạo ra một chỗ để sai.
+  function fCost(c) {
+    c = +c || 0;
+    if (c > 0 && c < 0.01) return "<$0.01";     // làm tròn thành $0.00 thì đọc như bằng không
+    return "$" + (c >= 1000 ? Math.round(c).toLocaleString("en-US") : c.toFixed(2));
+  }
   function model(m) { return String(m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26); }
   function pct(x) { return Math.round((+x || 0) * 100) + "%"; }
 
@@ -292,7 +297,7 @@
     if (!dod.token_tiet_kiem) return "";
     var eng = d.engine || {};
     var thueBao = eng.loai === "Gói thuê bao";
-    var vnd = (t.vnd_thang || 0).toLocaleString("vi-VN");
+    var usdThang = fCost(t.usd_thang || 0);
     var cachTinh = t.nguon_gia === "tay"
       ? "theo đơn giá bạn tự đặt"
       : (t.nguon_gia === "bang"
@@ -304,13 +309,12 @@
       + '</div><div class="s">token, trong ' + (dod.gio_do || 24) + ' giờ qua</div></div>'
       + '<div><div class="k">Theo nhịp này</div><div class="v">' + fTok(dod.token_thang)
       + '</div><div class="s">token mỗi tháng</div></div>'
-      + '<div class="tien"><div class="k">Quy ra tiền</div><div class="v">~' + vnd + 'đ</div>'
-      + '<div class="s">mỗi tháng (~$' + (t.usd_thang || 0) + ')</div></div>'
+      + '<div class="tien"><div class="k">Quy ra tiền</div><div class="v">~' + usdThang + "</div>"
+      + '<div class="s">mỗi tháng, theo giá API</div></div>'
       + "</div>"
       + '<div class="tk-tien-note">Số token là <b>đo được</b>; phần mỗi tháng là phép chiếu'
       + ' theo đúng nhịp dùng của ' + (dod.gio_do || 24) + ' giờ vừa rồi. Tiền là <b>ước lượng</b> '
-      + esc(cachTinh) + ' (' + (t.gia_1m_usd || 0) + '$ cho 1 triệu token vào, tỉ giá '
-      + (t.ty_gia || 0).toLocaleString("vi-VN") + 'đ/$).'
+      + esc(cachTinh) + ' ($' + (t.gia_1m_usd || 0) + ' cho 1 triệu token vào).'
       + (thueBao
         ? ' Bạn đang dùng <b>gói thuê bao</b> nên không trả theo token: con số này là mức tiết kiệm'
         + ' quy đổi nếu tính theo giá API, và trên thực tế nó thể hiện thành việc lâu chạm trần gói hơn.'
@@ -521,7 +525,7 @@
       + '<div class="s">token không phải gửi, qua ' + (k.so_luot || 0) + " lượt của Javis. "
       + "Chế độ <b>" + esc(k.nhan_muc || "") + "</b> cắt " + (k.phan_tram || 0)
       + "% chi phí cố định mỗi lượt.</div>"
-      + '<div class="s">Quy theo giá API khoảng <b>' + fVnd(ti.vnd) + "</b>.</div></div>";
+      + '<div class="s">Quy theo giá API khoảng <b>' + fCost(ti.usd) + "</b>.</div></div>";
   }
 
   function nganSachHtml() {
@@ -665,7 +669,7 @@
     var cards = '<div class="tk-cards">'
       + card("Tổng token", fTok(k.tokens), deltaHtml, true)
       + card("Số lượt", (k.turns || 0).toLocaleString("vi-VN"), fTok(k.avg_per_turn) + " token mỗi lượt")
-      + card("Cache đỡ cho", fVnd(cache.vnd), "nhờ dùng lại ngữ cảnh (" + pct(cache.ty_le) + ")")
+      + card("Cache đỡ cho", fCost(cache.usd), "nhờ dùng lại ngữ cảnh (" + pct(cache.ty_le) + ")")
       + card("Phiên", (k.sessions || 0), "tb " + fTok(k.avg_per_session) + "/phiên")
       + (db.co ? card("Hết kỳ ước chừng", fTok(db.tokens), "còn " + (db.con_ngay || 0) + " ngày nữa") : "")
       + "</div>";

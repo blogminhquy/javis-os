@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.32.1] - 2026-08-13
+### Cải thiện
+- **Trang Mức dùng chỉ hiện tiền đô, bỏ hẳn phần quy đổi sang đồng.** Giá của các nhà cung cấp đều niêm yết bằng USD, còn tỉ giá thì trôi mà con số trong máy thì đứng yên - quy đổi thêm một lần chỉ tạo ra một chỗ nữa để sai.
+- Khoản tiền nhỏ hơn một xu giờ ghi là `<$0.01` thay vì làm tròn thành `$0.00` trông như bằng không.
+
+### Sửa lỗi
+- **Đơn giá quy đổi lấy đúng model đang chạy.** Trước đây với cấu hình mặc định nó nhặt nhầm tên model trong một ô cũ, nên tính giá $0,15 cho một lượt Opus giá $15 - lệch 100 lần, và lệch theo hướng khai thấp phần tiết kiệm xuống.
+
 ## [0.32.0] - 2026-08-13
 ### Thêm mới
 - **Trang Mức dùng làm lại từ đầu.** Mở ra là một câu tiếng người nói thẳng tháng này ai trả gì cho cái gì, rồi tới ba ô bấm được: tiền mặt so với ngân sách, cửa sổ 5 giờ còn bao nhiêu, và đã tiết kiệm được bao nhiêu token.

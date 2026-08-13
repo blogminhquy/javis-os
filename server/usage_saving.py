@@ -129,11 +129,11 @@ def out_rong(goc: int = 0, so_luot: int = 0) -> dict:
     return {"token": 0, "so_luot": so_luot, "moi_luot": 0, "phi_goc": goc, "phi_dang_chay": goc,
             "muc_chinh": "", "phan_tram": 0, "theo_ngay": [], "suy_doan": False,
             "du_du_lieu": False, "khong_do_duoc": False,
-            "tien": {"usd": 0.0, "vnd": 0, "gia_1m_usd": 0.0, "ty_gia": 0}}
+            "tien": {"usd": 0.0, "gia_1m_usd": 0.0}}
 
 
 def tiet_kiem(theo_ngay: list, phi_moi_muc: dict, muc_hien_tai: str,
-              gia_1m_usd: float = 3.0, ty_gia: int = 26_000) -> dict:
+              gia_1m_usd: float = 3.0) -> dict:
     """Token tiet kiem duoc trong ky, bang doi chung voi che do Tat.
 
     `theo_ngay`: [{day, turns}] - lay thang tu `usage_index.summary()["timeseries"]`.
@@ -189,8 +189,9 @@ def tiet_kiem(theo_ngay: list, phi_moi_muc: dict, muc_hien_tai: str,
         "suy_doan": not co_moc,
         "du_du_lieu": bool(goc and tong_luot),
         "khong_do_duoc": False,
-        "tien": {"usd": round(usd, 4), "vnd": round(usd * ty_gia),
-                 "gia_1m_usd": float(gia_1m_usd or 0), "ty_gia": ty_gia},
+        # Chi USD. Gia model deu niem yet bang USD, nen quy doi tiep sang mot don vi khac
+        # bang mot ti gia go cung chi them mot cho de sai ma khong them thong tin nao.
+        "tien": {"usd": round(usd, 4), "gia_1m_usd": float(gia_1m_usd or 0)},
     }
 
 

@@ -198,8 +198,12 @@ check("chưa có lượt nào thì KHÔNG bịa ra số",
       and us.tiet_kiem([], _PHI, "max")["du_du_lieu"] is False)
 check("mức Tắt thì không tiết kiệm gì, và nói đúng vậy",
       us.tiet_kiem([{"day": "2026-08-12", "turns": 10}], _PHI, "off")["token"] == 0)
-check("có quy ra tiền", us.tiet_kiem([{"day": "2026-08-12", "turns": 100}], _PHI, "max",
-                                     gia_1m_usd=3.0)["tien"]["vnd"] > 0)
+_tien_tk = us.tiet_kiem([{"day": "2026-08-12", "turns": 100}], _PHI, "max",
+                        gia_1m_usd=3.0)["tien"]
+check("có quy ra tiền", _tien_tk["usd"] > 0)
+# Chủ repo chốt: chỉ USD. Giá nhà cung cấp niêm yết bằng USD, thêm một lớp quy đổi bằng tỉ giá
+# gõ cứng là thêm một con số nữa để sai mà không thêm thông tin nào.
+check("CANARY: không quy đổi sang đồng", "vnd" not in _tien_tk and "ty_gia" not in _tien_tk)
 # Chưa có nhật ký mốc thì ta đang GIẢ ĐỊNH cả kỳ chạy cùng một mức. Đó là một giả định, và
 # giao diện phải nói ra thay vì trình bày nó như số đo.
 check("CANARY: chưa có mốc thì tự khai là suy đoán", _tk["suy_doan"] is True)
@@ -345,7 +349,16 @@ check("đặt được ngân sách ngay trên trang",
       "function nganSachHtml(" in _USAGE and '"/usage/ngan-sach"' in _USAGE)
 # "Cache hit 80%" là ngôn ngữ của người viết code. Người trả tiền hỏi nó đáng bao nhiêu.
 check("CANARY: cache được dịch ra TIỀN chứ không chỉ phần trăm",
-      "Cache đỡ cho" in _USAGE and "cache.vnd" in _USAGE)
+      "Cache đỡ cho" in _USAGE and "cache.usd" in _USAGE)
+check("CANARY: và tiền nhỏ hơn một xu không bị làm tròn thành 0", "<$0.01" in _USAGE)
+# Chủ repo chốt: chỉ USD, không quy đổi sang đồng ở bất cứ đâu. Soi cả hai phía, vì một chuỗi
+# "0đ" gõ cứng trong câu mở đầu ở server cũng đủ làm lời hứa đó sai trên màn hình.
+import re as _re  # noqa: E402
+_ky_hieu_dong = _re.compile(r"\d\s*(?:đ|VNĐ|VND)\b")
+check("CANARY: giao diện không còn ký hiệu tiền đồng nào",
+      not _ky_hieu_dong.search(_USAGE) and "vi-VN\") + \"đ\"" not in _USAGE)
+check("CANARY: câu mở đầu do server dựng cũng không có tiền đồng",
+      not _ky_hieu_dong.search(_tq["cau"]))
 check("biểu đồ có hàng mốc sự kiện", "tk-mrow" in _USAGE and "mocTheoNgay" in _USAGE)
 check("có CSS cho hàng mốc", ".tk-mrow{" in _USAGE and ".tk-m{" in _USAGE)
 check("bảng ngốn nhất có nút hành động", "data-goto=" in _USAGE and "tk-go" in _USAGE)
@@ -392,6 +405,14 @@ check("cấu hình cũ (claude_model) vẫn đọc được",
 check("CANARY: và giá đi theo đúng model đó, không rơi về mặc định",
       main._gia_input_1m(main._ten_model_chinh(
           {"main": {"model": "claude-opus-5"}}), {}) == (15.0, "bang"))
+# Dò tay từng khoá thì cấu hình MẶC ĐỊNH đã sai: `openrouter_model` có sẵn giá trị
+# "openai/gpt-4o-mini" kể cả khi engine đang là anthropic-cli chạy Opus. Lấy nhầm là $0,15
+# thay cho $15 - lệch 100 lần, và lệch theo hướng khai thấp phần tiết kiệm xuống.
+_mac_dinh = main.cfgmod.read_settings().get("model") or {}
+check("CANARY: cấu hình mặc định vẫn ra đúng model của engine đang chạy",
+      main._ten_model_chinh(_mac_dinh) == main._chat_provider(_mac_dinh)[3])
+check("và giá của nó không phải mức mặc định",
+      main._gia_input_1m(main._ten_model_chinh(_mac_dinh), _mac_dinh)[1] == "bang")
 
 # Model free của OpenRouter có hậu tố ':free' và giá bằng 0. Tính tiền cho nó là bịa ra một
 # hoá đơn không tồn tại, và hoá đơn đó chảy thẳng vào phanh ngân sách.
