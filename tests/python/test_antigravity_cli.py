@@ -44,7 +44,7 @@ def chay(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
 
 
-def _gia(dong_ra, ma=0, stderr="", help_text="", models_out=""):
+def _gia(dong_ra, ma=0, stderr="", help_text="", models_out="", vong_stdin=False):
     """Dựng một `agy` giả: trả `--help` / `models` / lượt chat theo ý mình."""
     d = Path(tempfile.mkdtemp(prefix="javis-fakeagy-"))
     p = d / "agy"
@@ -58,7 +58,8 @@ def _gia(dong_ra, ma=0, stderr="", help_text="", models_out=""):
         "try:\n    _sd = sys.stdin.read()\nexcept Exception:\n    _sd = ''\n"
         f"open({str(d / 'stdin.txt')!r}, 'w').write(_sd or '')\n"
         f"open({str(d / 'argv.txt')!r}, 'w').write('\\x00'.join(a))\n"
-        f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
+        + ("print(_sd, flush=True)\n" if vong_stdin else "")
+        + f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
         f"sys.stderr.write({stderr!r})\n"
         f"sys.exit({ma})\n",
         encoding="utf-8")
@@ -420,7 +421,8 @@ antigravity_cli._no_window = lambda: 0     # os.name giả sẽ làm _no_window(
 # cách tìm chữ "stdin" trong `agy --help`, mà KHÔNG bản help nào có chữ đó. Hàm trả False vĩnh
 # viễn, mọi lượt rơi xuống argv rồi đâm vào trần 32767 của Windows.
 _cli_win, _d_win = _gia([json.dumps({"role": "assistant", "content": "Chào anh."})],
-                        help_text=_HELP_CU)   # _HELP_CU không nhắc stdin: đúng như bản thật
+                        help_text=_HELP_CU,   # _HELP_CU không nhắc stdin: đúng như bản thật
+                        vong_stdin=True)      # ...nhưng CÓ đọc stdin, để phép đo thấy được
 _reset_cache()
 antigravity_cli.find_antigravity_cli = lambda: _cli_win
 _g_win = antigravity_cli.AntigravityCLI(cwd=str(_d_win))
@@ -447,11 +449,12 @@ check("CANARY: Windows + prompt dài hơn trần -> VẪN CHẠY, không bỏ cu
       any(e["type"] == "final" for e in _evs_win)
       and not any("quá dài" in str(e.get("content") or "") for e in _evs_win), _evs_win)
 check("CANARY: dòng lệnh gửi đi nằm dưới trần 32767 của Windows",
-      bool(_argv_win) and len(_argv_win) < 32767, len(_argv_win))
+      len(_argv_win) < 32767 and "x" * 1000 not in _argv_win, len(_argv_win))
 check("CANARY: prompt tới nơi NGUYÊN VẸN qua stdin (không cắt, không tóm tắt)",
       "x" * 40000 in _stdin_win and "hỏi gì đó" in _stdin_win, len(_stdin_win))
-check("và `-p` truyền giá trị RỖNG - đúng công thức agy mới chịu đọc stdin",
-      _argv_win.split("\x00")[-2:] == ["-p", ""], _argv_win.split("\x00")[-3:])
+check("CANARY: công thức stdin là thứ ĐO được trên máy, không phải hằng số chép tay",
+      antigravity_cli.duong_prompt_dai(_cli_win).startswith("stdin"),
+      antigravity_cli.duong_prompt_dai(_cli_win))
 check("CANARY: không dựng file ngữ cảnh khi stdin đã đủ (đường trung thực hơn thì ưu tiên)",
       not (_d_win / ".javis-agy").exists())
 
@@ -459,9 +462,15 @@ check("CANARY: không dựng file ngữ cảnh khi stdin đã đủ (đường t
 # `--output-format stream-json` rơi mất, CLI in chữ thuần, bộ đọc stream không hiểu, và người
 # dùng nhận một bong bóng rỗng. Hỏng lặng lẽ, không có câu lỗi nào để lần ra - đúng loại bug
 # đắt nhất, nên khoá lại bằng canary.
-_dsach = _argv_win.split("\x00")
-check("CANARY: `-p` nằm CUỐI dòng lệnh (cờ đứng sau nó bị agy bỏ qua)",
-      len(_dsach) >= 2 and _dsach[-2] == "-p", _dsach[-4:])
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: _cli_moi
+_g_co = antigravity_cli.AntigravityCLI(cwd="/tmp")
+_g_co.cli_path = _cli_moi
+_g_co.session_id = "abc"
+_g_co.include_dirs = ["/tmp"]
+_args_co = _g_co._build_args("câu hỏi")
+check("CANARY: khi prompt đi qua dòng lệnh thì `-p` nằm CUỐI (cờ sau nó bị agy bỏ qua)",
+      _args_co[-2] == "-p" and _args_co[-1] == "câu hỏi", _args_co[-5:])
 
 check("CANARY: Linux vẫn đi argv như cũ (trần 128KB cho một tham số, chưa chạm)",
       antigravity_cli._tran_argv() == 120000)
@@ -472,11 +481,52 @@ finally:
     os.name = _ten_that
 
 
+_HELP_MOI_KHONG_STDIN = _HELP_MOI.replace(". Appended to input on stdin", "")
+
+# ---- Nửa 1a: TÁI HIỆN đúng lỗi chủ repo gặp trên máy Windows (2026-08-13, ảnh chụp) ----
+# Bản `agy` của họ CHỐI công thức `--print ""`:
+#     Error: empty prompt. Usage: agy --print "your prompt here"
+#     Antigravity CLI thoát với mã 1.
+# Hai bong bóng đỏ đó hiện lên rồi hết, không có câu trả lời nào. Hai chỗ sai của bản 0.33.1:
+#   1. Nó TIN tài liệu (CHANGELOG 1.1.1 nói agy đọc stdin khi prompt không cấp qua cờ) rồi suy ra
+#      cú pháp `--print ""`. Tài liệu đúng về NGUYÊN LÝ, sai về CÚ PHÁP - mà bản này kiểm giá trị
+#      cờ trước khi ngó tới stdin.
+#   2. Lượt hỏng thoát CÓ LỖI nên rơi vào nhánh "có lỗi" và không kích hoạt đường dự phòng. Lưới
+#      an toàn chỉ giăng cho ca "im lặng", đúng nửa số cách hỏng.
+_d_choi = Path(tempfile.mkdtemp(prefix="javis-fakeagy-choi-"))
+_cli_choi = _d_choi / "agy"
+_cli_choi.write_text(
+    "#!/usr/bin/env python3\nimport sys, json\n"
+    "a = sys.argv[1:]\n"
+    f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI_KHONG_STDIN!r}); sys.exit(0)\n"
+    "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
+    "v = a[a.index('-p') + 1] if '-p' in a and a.index('-p') + 1 < len(a) else ''\n"
+    "# Y hệt bản thật: kiểm giá trị cờ TRƯỚC, không thèm ngó stdin.\n"
+    "if not v or v == '-':\n"
+    "    sys.stderr.write('Error: empty prompt. Usage: agy --print \"your prompt here\"')\n"
+    "    sys.exit(1)\n"
+    "print(json.dumps({'role': 'assistant', 'content': 'Chào anh.'}), flush=True)\n",
+    encoding="utf-8")
+_cli_choi.chmod(_cli_choi.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: str(_cli_choi)
+_g_choi = antigravity_cli.AntigravityCLI(cwd=str(_d_choi))
+_g_choi.cli_path = str(_cli_choi)
+_g_choi.instructions = "x" * 40000
+_evs_choi = chay(_gom(_g_choi))
+check("CANARY: CLI chối mọi công thức stdin -> VẪN có câu trả lời (đi đường file)",
+      any(e["type"] == "final" and "Chào anh." in str(e.get("content") or "")
+          for e in _evs_choi), _evs_choi)
+check("CANARY: không ném câu 'empty prompt' của CLI vào mặt người dùng khi đã tự xử xong",
+      not any("empty prompt" in str(e.get("content") or "") for e in _evs_choi), _evs_choi)
+check("và nhớ lại để lượt sau khỏi đâm đầu vào công thức đã biết là hỏng",
+      antigravity_cli.duong_prompt_dai(str(_cli_choi)) == "file")
+
+
 # ---- Nửa 1b: bản CLI nào KHÔNG chịu đọc stdin thì tự chuyển sang file ngay trong lượt đó ----
 # Một bản `agy` đủ cũ (trước 1.1.1) hoặc một ngày Google đổi luật thì stdin thành ngõ cụt. Dấu
 # hiệu là: chạy xong, không lỗi, mà cũng không có lấy một chữ. Bắt người dùng nhìn bong bóng
 # rỗng rồi tự đoán là đúng cái sai mà file engine này viết ra để tránh.
-_HELP_MOI_KHONG_STDIN = _HELP_MOI.replace(". Appended to input on stdin", "")
 _d_bo = Path(tempfile.mkdtemp(prefix="javis-fakeagy-boqua-"))
 _cli_bo = _d_bo / "agy"
 _cli_bo.write_text(
@@ -514,7 +564,7 @@ check("CANARY: và lượt đi đường file đó nói rõ là model chưa đ�
 # nhớ vĩnh viễn; "stdin trả rỗng" có thể chỉ là một lượt model im lặng hay một lúc mạng lỗi, nhớ
 # vĩnh viễn theo chiều đó là đóng đinh cả máy vào đường kém trung thực hơn vì đúng một lượt xui,
 # mà chữ ký binary chỉ đổi khi nâng cấp `agy` nên không có gì gỡ ra được.
-_cli_nho, _d_nho = _gia([], help_text=_HELP_CU)
+_cli_nho, _d_nho = _gia([], help_text=_HELP_CU, vong_stdin=True)
 _reset_cache()
 antigravity_cli.find_antigravity_cli = lambda: _cli_nho
 antigravity_cli.nho_duong(_cli_nho, "file", "stdin trả về rỗng")
@@ -523,14 +573,14 @@ check("nhớ được là bản này phải đi đường file",
 _nho = antigravity_cli._doc_nho_duong()
 _nho["ts"] = _nho["ts"] - antigravity_cli._HAN_NHO_AM - 10
 antigravity_cli._ghi_nho_duong(_nho)
-check("CANARY: kết quả ÂM TÍNH hết hạn sau 24h -> thử lại stdin, không đóng đinh vĩnh viễn",
-      antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin")
-antigravity_cli.nho_duong(_cli_nho, "stdin", "đã chạy được")
+check("CANARY: kết quả ÂM TÍNH hết hạn sau 24h -> đo lại, không đóng đinh vĩnh viễn",
+      antigravity_cli.duong_prompt_dai(_cli_nho).startswith("stdin"))
+antigravity_cli.nho_duong(_cli_nho, "stdin:trong", "đã chạy được")
 _nho2 = antigravity_cli._doc_nho_duong()
 _nho2["ts"] = 0.0
 antigravity_cli._ghi_nho_duong(_nho2)
 check("còn kết quả DƯƠNG TÍNH thì nhớ mãi (bằng chứng chắc chắn, không cần đo lại)",
-      antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin")
+      antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin:trong")
 
 
 # ---- Nửa 2: cơ chế file ngữ cảnh, chạy thật (ép đường bằng biến môi trường) ----
@@ -678,7 +728,8 @@ check("CANARY: bản CLI không có stream-json -> KHÔNG đo được thì KHÔ
 
 # Bản CLI nhận stdin thì phải đi stdin và KHÔNG đụng tới file: stdin giữ prompt nguyên vẹn, còn
 # file thì phụ thuộc model chịu mở ra đọc.
-_cli_sd, _d_sd = _gia([json.dumps({"role": "assistant", "content": "ok"})], help_text=_HELP_MOI)
+_cli_sd, _d_sd = _gia([json.dumps({"role": "assistant", "content": "ok"})],
+                      help_text=_HELP_MOI, vong_stdin=True)
 _reset_cache()
 antigravity_cli.find_antigravity_cli = lambda: _cli_sd
 _g_sd = antigravity_cli.AntigravityCLI(cwd=str(_d_sd))

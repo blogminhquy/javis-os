@@ -134,15 +134,10 @@ Vài chỗ khác với Gemini CLI, nói trước cho khỏi hiểu nhầm:
 - **Mức Chỉ đọc ở đây nhẹ hơn.** Bên Gemini CLI, mức `suggest` xuống thẳng `--approval-mode plan` nên chính CLI chặn. `agy` không có nấc tương đương, nên Javis siết bằng `--sandbox` cộng với lời dặn trong system prompt. Rào tiền/đơn/đăng bài vẫn nằm ở MCP Hub như mọi engine.
 - **Chưa nối lại mạch hội thoại của CLI.** Mỗi lượt mở mạch mới rồi mồi lại bằng lịch sử đã lưu, nên **không mất ngữ cảnh** nhưng tốn token hơn.
 - Javis không tự cài `agy` lúc cài đặt (khác ba engine npm): trình cài của Google là một script tải về chạy thẳng, nên để bạn tự chạy khi muốn.
-- **Trên Windows, prompt đi qua stdin chứ không qua dòng lệnh** (từ 0.33.1). Windows chặn tổng dòng lệnh ở 32767 ký tự, mà riêng system prompt của Javis trên một brain trống đã hơn 36.000 - tức bộ não này từng chết hẳn trên Windows, và câu báo lỗi lại đổ cho "hội thoại quá dài" nên mở chat mới bao nhiêu lần cũng không thoát. `agy` nhận prompt qua stdin khi `--print` được truyền giá trị rỗng (CHANGELOG 1.1.1 của chính Google), đó là đường Javis dùng bây giờ. Bản `agy` quá cũ không nhận thì Javis tự lui về đường file ngữ cảnh ngay trong lượt đó, và nếu model không đọc được file thì nó nói thẳng ra chứ không lặng lẽ trả lời thiếu luật.
+- **Trên Windows, prompt không đi qua dòng lệnh nữa** (từ 0.33.1, sửa tiếp ở 0.33.2). Windows chặn tổng dòng lệnh ở 32767 ký tự, mà riêng system prompt của Javis trên một brain trống đã hơn 36.000 - tức bộ não này từng chết hẳn trên Windows, và câu báo lỗi lại đổ cho "hội thoại quá dài" nên mở chat mới bao nhiêu lần cũng không thoát.
+- **Javis ĐO xem bản `agy` của bạn nhận prompt kiểu gì, không đoán.** Đây là bài học phải trả giá hai lần: bản 0.33.1 suy cú pháp từ tài liệu chính chủ (CHANGELOG 1.1.1 nói `agy` đọc stdin khi prompt không cấp qua cờ) rồi gửi `--print ""`, và bản `agy` thật trả lại `Error: empty prompt` vì nó kiểm giá trị cờ trước khi ngó tới stdin. Tài liệu đúng về nguyên lý, sai về cú pháp. Nay lần chạy đầu tiên Javis thử ba cách bơm stdin bằng một prompt tí hon có mã riêng, cách nào vọng mã về thì dùng cách đó, rồi nhớ lại cho những lần sau. Không cách nào ăn thì nó ghi ngữ cảnh ra file và bảo model tự đọc; model không đọc được thì nó nói thẳng chứ không lặng lẽ trả lời thiếu luật.
 
-**Nếu bạn vẫn gặp lỗi trên Windows**, chạy đúng một lệnh này trong PowerShell để biết bản `agy` của bạn có nhận stdin không:
-
-```powershell
-python -c "print('x'*40000)" | agy --print "" --output-format stream-json
-```
-
-Có chữ trả về là stdin chạy tốt. Không có gì thì đặt biến môi trường `JAVIS_AGY_PROMPT_DAI=file` để ép Javis đi thẳng đường dự phòng, và báo lại giúp.
+**Nếu vẫn gặp lỗi trên Windows**, đặt biến môi trường `JAVIS_AGY_PROMPT_DAI=file` để ép đi thẳng đường file, rồi báo lại giúp kèm câu lỗi `agy` in ra.
 
 ### B2. Gemini CLI - Google đã ngắt với tài khoản cá nhân (18/06/2026)
 

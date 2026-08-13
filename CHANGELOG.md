@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.33.2] - 2026-08-13
+### Sửa lỗi
+- **Antigravity trên Windows: sửa nốt.** Bản 0.33.1 gửi nội dung cho `agy` theo một cú pháp suy ra từ tài liệu, và bản `agy` thật trả lại `Error: empty prompt` rồi thôi. Giờ Javis tự thử vài cách ngay lần chạy đầu, cách nào ăn thì dùng và nhớ luôn; không cách nào ăn thì tự chuyển sang đường dự phòng thay vì ném câu lỗi tiếng Anh cho bạn.
+
 ## [0.33.1] - 2026-08-13
 ### Sửa lỗi
 - **Bộ não Antigravity CLI chat được trên Windows.** Trước đây mọi lượt đều trả về "hội thoại này đã quá dài", kể cả khi bạn vừa mở chat mới và chỉ gõ "hi" - nên mở bao nhiêu hội thoại mới cũng không thoát. Phần vượt giới hạn là phần cố định của Javis chứ không phải phần bạn gõ, và câu báo lỗi cũ chỉ sai đường.

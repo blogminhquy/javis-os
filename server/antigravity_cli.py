@@ -227,43 +227,89 @@ def _ghi_nho_duong(d: dict):
         print(f"[antigravity duong prompt] {e}", file=sys.stderr)
 
 
+# Ba công thức bơm prompt qua stdin, và không công thức nào chắc chắn đúng cho mọi bản `agy`.
+# CHANGELOG 1.1.1 của Google nói nó đọc stdin "khi prompt không được cấp qua cờ", nhưng KHÔNG nói
+# cú pháp. Ba cách hiểu câu đó, xếp theo mức sát nghĩa:
+#   trong - không truyền `-p` gì cả, để CLI tự nhận ra stdin là ống dẫn chứ không phải bàn phím.
+#   gach  - `-p -`, dấu gạch là quy ước "đọc stdin" của Unix (dpd-db dùng cách này với agy).
+#   rong  - `-p ""`, cách agy2api dùng để chữa đúng lỗi WinError 206.
+# Chủ repo ĐO trên máy Windows 2026-08-13: bản của họ CHỐI công thức `rong` bằng
+# "Error: empty prompt. Usage: agy --print \"your prompt here\"" rồi thoát mã 1 - tức nó kiểm tra
+# giá trị cờ TRƯỚC khi ngó tới stdin. Bài học không phải "đổi sang công thức khác" mà là: chuyện
+# này không suy luận từ tài liệu được, phải hỏi thẳng binary trên máy đó. Nên thử lần lượt bằng
+# một prompt tí hon có mã canary, cái nào vọng lại canary thì cái đó đúng.
+_CT_STDIN = (("trong", []), ("gach", ["-p", "-"]), ("rong", ["-p", ""]))
+_MA_CANARY = "JAVIS-STDIN-OK-7413"
+
+
+def _do_stdin(cli: str, timeout: float = 75.0) -> str:
+    """Hỏi thẳng binary: công thức stdin nào ăn. Trả tên công thức, hoặc "" nếu không cái nào.
+
+    Công thức sai thường thoát ngay lập tức với một câu usage (không tốn lượt gọi model nào), nên
+    phép đo này rẻ. Chỉ công thức ĐÚNG mới tốn đúng một lượt tí hon, và chỉ tốn một lần cho mỗi
+    bản CLI vì kết quả nhớ ra đĩa.
+    """
+    for ten, co in _CT_STDIN:
+        try:
+            r = subprocess.run(
+                [cli] + co,
+                input=f"Trả lời đúng một dòng, chỉ gồm mã này, không thêm chữ nào: {_MA_CANARY}",
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=timeout, creationflags=_no_window())
+        except Exception:
+            continue
+        if _MA_CANARY in ((r.stdout or "") + (r.stderr or "")):
+            print(f"[antigravity] công thức stdin dùng được: {ten}", file=sys.stderr)
+            return ten
+    return ""
+
+
+# Dấu hiệu "prompt không tới nơi" trong thứ CLI in ra. Nhận ra thì phải đổi đường ngay chứ không
+# được đưa nguyên câu tiếng Anh cho người dùng rồi bỏ mặc - họ không sửa được gì với nó.
+def _la_loi_thieu_prompt(loi: str) -> bool:
+    l = (loi or "").lower()
+    return (("empty prompt" in l) or ("no prompt" in l)
+            or ("prompt" in l and ("usage:" in l or "required" in l or "missing" in l))
+            or ("flag needs an argument" in l))
+
+
 def duong_prompt_dai(cli: Optional[str] = None) -> str:
-    """Prompt không nhét vừa argv thì đi đường nào: "stdin" hay "file".
+    """Prompt không nhét vừa argv thì đi đường nào: "stdin:<công thức>" hay "file".
 
-    Mặc định là STDIN, và mặc định đó dựa trên tài liệu chính chủ chứ không phải phỏng đoán (xem
-    `nhan_prompt_qua_stdin`). Nó cũng là đường trung thực nhất: prompt tới model NGUYÊN VẸN,
-    đúng thứ Javis gửi. Đường file phải nhờ chính model chịu mở file ra đọc, tức có xác suất
-    trượt, nên chỉ dùng khi stdin đã chứng minh là không ăn trên máy này.
+    Ưu tiên stdin vì nó là đường TRUNG THỰC: prompt tới model nguyên vẹn, đúng thứ Javis gửi.
+    Đường file phải nhờ chính model chịu mở file ra đọc, tức có xác suất trượt. Nhưng "ưu tiên"
+    không có nghĩa là "mặc định tin": bản 0.33.1 mặc định stdin theo tài liệu và chủ repo lĩnh
+    trọn "Error: empty prompt" ngay lượt đầu. Nên ở đây HỎI BINARY (xem `_do_stdin`), và chỉ khi
+    không công thức nào ăn mới xuống đường file.
 
-    "Đã chứng minh" nghĩa là: một lượt đi stdin chạy xong mà không có lấy một chữ trả về, không
-    kèm lỗi nào - dấu hiệu kinh điển của prompt không tới nơi. Lúc đó `query()` ghi lại "file"
-    cho đúng bản binary này rồi thử lại ngay trong cùng lượt, nên người dùng không mất gì.
-
-    Bản nhớ khoá theo vân tay binary, nên nâng cấp `agy` là tự đo lại từ đầu.
-    Cửa thoát: JAVIS_AGY_PROMPT_DAI=stdin|file|argv.
+    Nhớ ra đĩa theo vân tay binary. Bất đối xứng có chủ ý: kết quả dương tính nhớ mãi, âm tính
+    chỉ nhớ 24 giờ. Cửa thoát: JAVIS_AGY_PROMPT_DAI=stdin|file|argv.
     """
     ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
-    if ep in ("stdin", "file", "argv"):
+    if ep in ("file", "argv"):
         return ep
+    if ep == "stdin":
+        return "stdin:rong"
     cli = cli or find_antigravity_cli()
     if not cli:
-        return "stdin"
-    nho = _doc_nho_duong()
-    if nho.get("chu_ky") != _chu_ky_cli(cli):
-        return "stdin"
-    duong = nho.get("duong")
-    if duong == "stdin":
-        return "stdin"
-    if duong == "file":
-        # Kết quả ÂM TÍNH có hạn, kết quả dương tính thì không. Bất đối xứng này là cố ý: "stdin
-        # chạy được" là bằng chứng chắc chắn, còn "stdin trả rỗng" có thể chỉ là một lượt model
-        # im lặng, một lúc mạng lỗi, hay một trạng thái tạm thời nào đó. Nhớ vĩnh viễn theo chiều
-        # âm là đóng đinh cả máy vào đường kém trung thực hơn vì đúng một lượt xui, và chữ ký
-        # binary chỉ đổi khi nâng cấp `agy` nên không có gì gỡ ra được.
-        if time.time() - float(nho.get("ts") or 0) > _HAN_NHO_AM:
-            return "stdin"
         return "file"
-    return "stdin"
+    nho = _doc_nho_duong()
+    if nho.get("chu_ky") == _chu_ky_cli(cli):
+        duong = str(nho.get("duong") or "")
+        if duong.startswith("stdin"):
+            return duong        # dương tính: nhớ mãi, bằng chứng chắc chắn rồi
+        # Kết quả ÂM TÍNH có hạn, kết quả dương tính thì không. Bất đối xứng này là cố ý: "stdin
+        # chạy được" là bằng chứng chắc chắn, còn "không công thức nào ăn" có thể chỉ là một lúc
+        # chưa đăng nhập, mạng lỗi, hay quota hết. Nhớ vĩnh viễn theo chiều âm là đóng đinh cả
+        # máy vào đường kém trung thực hơn vì đúng một lượt xui, mà chữ ký binary chỉ đổi khi
+        # nâng cấp `agy` nên không có gì gỡ ra được.
+        if duong == "file" and time.time() - float(nho.get("ts") or 0) <= _HAN_NHO_AM:
+            return "file"
+    ten = _do_stdin(cli)
+    duong = f"stdin:{ten}" if ten else "file"
+    _ghi_nho_duong({"chu_ky": _chu_ky_cli(cli), "duong": duong,
+                    "vi_sao": "đo bằng mã canary", "ts": time.time()})
+    return duong
 
 
 def nho_duong(cli: Optional[str], duong: str, vi_sao: str = ""):
@@ -630,7 +676,7 @@ class AntigravityCLI:
         return self.cli_path is not None
 
     def _build_args(self, prompt_argv: Optional[str], noi_mach: bool = True,
-                    them: Optional[list] = None) -> list[str]:
+                    them: Optional[list] = None, ct_stdin: str = "") -> list[str]:
         args = [self.cli_path]
         if self.model and co_co("--model"):
             args += ["--model", self.model]
@@ -649,12 +695,15 @@ class AntigravityCLI:
         if co_co("--print-timeout"):
             args += ["--print-timeout", f"{int(self.timeout)}s"]
         args += list(self.extra_args)
-        # `-p` PHẢI nằm CUỐI CÙNG. `agy` bỏ qua mọi cờ đứng sau `-p`, nên chèn thêm cờ ở dưới là
-        # `--output-format stream-json` bị rơi, CLI in chữ thuần, bộ đọc stream không hiểu và
-        # người dùng nhận một bong bóng rỗng - hỏng lặng lẽ, không có lấy một câu lỗi để tra.
-        # Giá trị RỖNG là cách nói "prompt không đi qua cờ", và chỉ khi đó `agy` mới chịu đọc
-        # stdin (CHANGELOG 1.1.1 của chính Google).
-        args += ["-p", prompt_argv if prompt_argv is not None else ""]
+        # Cờ prompt PHẢI nằm CUỐI CÙNG. `agy` bỏ qua mọi cờ đứng sau `-p`, nên chèn thêm cờ ở
+        # dưới là `--output-format stream-json` bị rơi, CLI in chữ thuần, bộ đọc stream không
+        # hiểu và người dùng nhận một bong bóng rỗng - hỏng lặng lẽ, không có lấy một câu lỗi.
+        if prompt_argv is not None:
+            args += ["-p", prompt_argv]
+        else:
+            # Đi stdin: cú pháp lấy từ công thức đã ĐO được trên chính máy này, không phải công
+            # thức đoán. Xem `_CT_STDIN` và `_do_stdin`.
+            args += list(dict(_CT_STDIN).get(ct_stdin or "rong", ["-p", ""]))
         return args
 
     def _chon_duong(self, full: str) -> str:
@@ -665,7 +714,7 @@ class AntigravityCLI:
         """
         ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
         if ep in ("stdin", "file", "argv"):
-            return ep         # cửa thoát: ép một đường khi đi gỡ lỗi trên máy thật
+            return duong_prompt_dai(self.cli_path) if ep == "stdin" else ep
         if len(full) + sum(len(a) + 3 for a in self._build_args("")) <= _tran_argv():
             return "argv"     # vừa dòng lệnh thì cứ đường cũ, đã chạy tốt trên Linux/macOS
         return duong_prompt_dai(self.cli_path)
@@ -685,22 +734,35 @@ class AntigravityCLI:
         #   file  - ghi ra file rồi bảo model tự đọc. Không trần, nhưng phụ thuộc model chịu mở.
         duong = await asyncio.to_thread(self._chon_duong, full)
         ket: dict = {}
-        async for ev in self._mot_luot(full, prompt, duong, ket):
+        # Lượt đi stdin là lượt CÓ THỂ HỎNG rồi thử lại, nên giữ lỗi của nó lại thay vì bắn ngay
+        # ra màn hình. Chủ repo đã thấy đúng cảnh ngược lại: hai bong bóng đỏ "Error: empty
+        # prompt" và "thoát với mã 1" hiện lên, rồi mới tới câu trả lời - người dùng không có
+        # cách nào biết cái đỏ đó Javis đã tự xử xong.
+        async for ev in self._mot_luot(full, prompt, duong, ket,
+                                       giu_loi=duong.startswith("stdin")):
             yield ev
-        # Lượt đi stdin mà chạy xong KHÔNG có lấy một chữ, cũng không lỗi: dấu hiệu kinh điển của
-        # prompt không tới nơi (bản CLI quá cũ, hoặc Google đổi luật đọc stdin). Đừng bắt người
-        # dùng chịu một bong bóng rỗng rồi tự đi đoán: nhớ lại là bản này phải đi đường file, rồi
-        # thử lại NGAY trong lượt này. `nhan_prompt_qua_stdin()` khai stdin thì bỏ qua lưới an
-        # toàn - lúc đó im lặng là chuyện khác, không phải chuyện prompt lạc đường.
-        if (duong == "stdin" and not ket.get("text") and not ket.get("loi")
-                and not nhan_prompt_qua_stdin()):
+        # Prompt KHÔNG TỚI NƠI có hai hình dạng, và bản trước chỉ bắt được một:
+        #   - chạy xong, không lỗi, không lấy một chữ (bản CLI nuốt stdin);
+        #   - thoát mã 1 kèm "Error: empty prompt. Usage: agy --print ..." (bản CLI kiểm giá trị
+        #     cờ TRƯỚC khi ngó tới stdin - chính là bản của chủ repo, đo 2026-08-13).
+        # Ca thứ hai rơi vào nhánh "có lỗi" nên bản trước bỏ mặc, và người dùng lĩnh trọn câu
+        # tiếng Anh mà họ không sửa được gì với nó. Cả hai nay đều đổi sang đường file NGAY trong
+        # lượt này.
+        _loi_thieu_prompt = any(_la_loi_thieu_prompt(x) for x in ket.get("cac_loi") or [])
+        if duong.startswith("stdin") and not ket.get("text") and (
+                _loi_thieu_prompt or not ket.get("loi")):
             print("[antigravity] stdin không tới nơi, chuyển sang file ngữ cảnh", file=sys.stderr)
-            await asyncio.to_thread(nho_duong, self.cli_path, "file", "stdin trả về rỗng")
+            await asyncio.to_thread(nho_duong, self.cli_path, "file",
+                                    "công thức stdin bị CLI từ chối" if _loi_thieu_prompt
+                                    else "stdin trả về rỗng")
             ket = {}
             async for ev in self._mot_luot(full, prompt, "file", ket):
                 yield ev
-        elif duong == "stdin" and ket.get("text"):
-            await asyncio.to_thread(nho_duong, self.cli_path, "stdin", "đã chạy được")
+        elif duong.startswith("stdin") and ket.get("text"):
+            await asyncio.to_thread(nho_duong, self.cli_path, duong, "đã chạy được")
+        else:
+            for _l in ket.get("cac_loi") or []:      # không thử lại thì phải đưa lỗi ra
+                yield {"type": "error", "content": _l}
         text = ket.get("text") or ""
         if text:
             # Không nuốt chuyện này: trả lời mà thiếu system prompt thì vẫn trôi chảy, người dùng
@@ -722,13 +784,17 @@ class AntigravityCLI:
                               "CLI quá cũ có lỗi mất stdout khi chạy nền - thử nâng cấp: "
                               f"`{lenh_cai()}`"}
 
-    async def _mot_luot(self, full: str, prompt: str, duong: str,
-                        ket: dict) -> AsyncIterator[dict]:
+    async def _mot_luot(self, full: str, prompt: str, duong: str, ket: dict,
+                        giu_loi: bool = False) -> AsyncIterator[dict]:
         """Chạy ĐÚNG một tiến trình `agy` theo đường đã chọn.
 
         Chỉ phát ra sự kiện dọc đường (tool_call, usage, error). Kết quả tổng của lượt đổ vào
         `ket` để `query()` quyết có phải thử lại đường khác không - phát `final` ở đây thì lượt
         thử lại sẽ đẩy ra hai câu trả lời.
+
+        `giu_loi=True` thì lỗi được gom vào `ket["cac_loi"]` thay vì bắn ra ngay: lượt này còn có
+        thể được thử lại bằng đường khác, mà một câu lỗi tiếng Anh hiện lên rồi câu trả lời hiện
+        sau chỉ làm người dùng hoang mang.
         """
         tep_ngu_canh = ten_ngu_canh = ""
         prompt_argv = full
@@ -737,7 +803,8 @@ class AntigravityCLI:
             try:
                 tep_ngu_canh, ten_ngu_canh = _viet_file_ngu_canh(self.cwd, full)
             except Exception as e:
-                ket.update(text="", loi=True, da_doc_ngu_canh=True, ten_ngu_canh="")
+                ket.update(text="", loi=True, doc_duoc=True, ten_ngu_canh="",
+                           cac_loi=[])
                 yield {"type": "error",
                        "content": f"Không ghi được file ngữ cảnh cho Antigravity CLI "
                                   f"({type(e).__name__}: {e}). Prompt của Javis dài hơn trần "
@@ -753,8 +820,10 @@ class AntigravityCLI:
         # Không nối mạch cũ khi đi đường file: lịch sử phía CLI còn nguyên câu "đọc file X" của
         # lượt trước, mà file đó đã bị xoá cuối lượt trước - model đi mở lại là tốn một vòng tool
         # để nhận lỗi. Nối mạch cũng chẳng tiết kiệm được gì vì Javis gửi lại đủ ngữ cảnh mỗi lượt.
-        args = self._build_args(None if duong == "stdin" else prompt_argv,
-                                noi_mach=(duong != "file"), them=them_args)
+        qua_stdin = duong.startswith("stdin")
+        args = self._build_args(None if qua_stdin else prompt_argv,
+                                noi_mach=(duong != "file"), them=them_args,
+                                ct_stdin=duong.partition(":")[2])
         loop = asyncio.get_running_loop()
         hang: asyncio.Queue = asyncio.Queue()
         HET = object()
@@ -768,7 +837,7 @@ class AntigravityCLI:
                     creationflags=_no_window(), start_new_session=(os.name != "nt"),
                 )
                 try:
-                    if duong == "stdin":
+                    if qua_stdin:
                         proc.stdin.write(full)
                     proc.stdin.close()
                 except Exception:
@@ -817,6 +886,7 @@ class AntigravityCLI:
         threading.Thread(target=doc_luong, name=f"javis-agy-{self.tag}", daemon=True).start()
 
         cac_manh: list[str] = []
+        cac_loi: list[str] = []
         da_loi = False
         # Đi đường file thì phải biết model có ĐỌC ĐƯỢC file không, và phải phân biệt cho đúng ba
         # trạng thái chứ không phải hai. Bản đầu chỉ dò tên file trong bất kỳ sự kiện nào, và nó
@@ -856,8 +926,12 @@ class AntigravityCLI:
             for ra in self._doi_su_kien(ev, cac_manh):
                 if ra.get("type") == "error":
                     da_loi = True
+                    cac_loi.append(str(ra.get("content") or ""))
+                    if giu_loi:
+                        continue      # lượt này còn có thể thử lại bằng đường khác
                 yield ra
-        ket.update(text="".join(cac_manh).strip(), loi=da_loi, ten_ngu_canh=ten_ngu_canh,
+        ket.update(text="".join(cac_manh).strip(), loi=da_loi, cac_loi=cac_loi,
+                   ten_ngu_canh=ten_ngu_canh,
                    doc_duoc=doc_duoc, da_thu_doc=da_thu_doc,
                    biet_doc_hay_khong=(duong != "file") or (co_stream and co_json))
 
