@@ -583,6 +583,101 @@ check("còn kết quả DƯƠNG TÍNH thì nhớ mãi (bằng chứng chắc ch�
       antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin:trong")
 
 
+# ---- Nửa 1c: dấu tiếng Việt không được hỏng dọc đường ----
+# Chủ repo báo 2026-08-13 kèm ảnh: chat qua Antigravity ra chữ hỏng kiểu "gm", "hn" -
+# mỗi ký tự tiếng Việt 3 byte hoá đúng 3 dấu hỏi kim cương (U+FFFD). Đó là chữ ký của một bên
+# đọc gọi `buffer.toString("utf8")` trên TỪNG MẨU ống dẫn thay vì dùng bộ giải mã tăng dần.
+#
+# Việc ĐẦU TIÊN phải làm là đo xem bên hỏng có phải Javis không, chứ không sửa mò. Đo rồi: KHÔNG
+# phải. Test dưới đây cắt byte ngay giữa một ký tự 3 byte, chữ vẫn ghép lại nguyên vẹn - vì
+# `io.TextIOWrapper` dùng bộ giải mã tăng dần đúng chuẩn. Giữ canary này để lần sau ai đó "tối
+# ưu" sang đọc thô rồi decode từng mẩu thì đỏ ngay.
+_d_cat = Path(tempfile.mkdtemp(prefix="javis-fakeagy-cat-"))
+_cli_cat = _d_cat / "agy"
+_cli_cat.write_text(
+    "#!/usr/bin/env python3\nimport sys, time, json\n"
+    f"if '--help' in sys.argv[1:]:\n    sys.stdout.write({_HELP_MOI!r}); sys.exit(0)\n"
+    "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
+    "d = json.dumps({'role': 'assistant', 'content': 'gồm hạn từng đồng bộ'},"
+    " ensure_ascii=False) + '\\n'\n"
+    "b = d.encode('utf-8')\n"
+    "cut = next(i for i in range(1, len(b)) if b[i] & 0xC0 == 0x80)\n"
+    "sys.stdout.buffer.write(b[:cut]); sys.stdout.buffer.flush()\n"
+    "time.sleep(0.2)\n"
+    "sys.stdout.buffer.write(b[cut:]); sys.stdout.buffer.flush()\n",
+    encoding="utf-8")
+_cli_cat.chmod(_cli_cat.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: str(_cli_cat)
+_g_cat = antigravity_cli.AntigravityCLI(cwd=str(_d_cat))
+_g_cat.cli_path = str(_cli_cat)
+_evs_cat = chay(_gom(_g_cat))
+_txt_cat = "".join(e.get("content", "") for e in _evs_cat if e.get("type") == "final")
+check("CANARY: byte bị cắt GIỮA ký tự tiếng Việt -> Javis vẫn ghép lại nguyên vẹn",
+      "gồm hạn từng đồng bộ" in _txt_cat and "\ufffd" not in _txt_cat, repr(_txt_cat[:80]))
+
+# Phía Javis GHI vào stdin cũng không được cắt giữa ký tự: bên đọc của `agy` cắt ẩu thì mình
+# chỉnh được chỗ mình đặt ranh giới. Mọi mẩu phải kết thúc đúng biên ký tự.
+class _StdinGia:
+    def __init__(self):
+        self.mau = []
+
+    def write(self, b):
+        self.mau.append(b)
+
+    def flush(self):
+        pass
+
+
+class _ProcGia:
+    def __init__(self):
+        self.stdin = type("F", (), {"buffer": _StdinGia(), "mode": "w"})()
+
+
+_pg = _ProcGia()
+_dai = ("Javis nhắc anh: báo cáo gồm doanh thu, hạn chót từng kênh, đồng bộ lịch. " * 400)
+antigravity_cli._ghi_stdin(_pg, _dai)
+_mau = _pg.stdin.buffer.mau
+def _tu_giai_ma_duoc(m):
+    """Mẩu này tự nó có phải UTF-8 hợp lệ không - đúng thứ bên đọc ẩu sẽ decode riêng lẻ."""
+    try:
+        m.decode("utf-8")
+        return True
+    except UnicodeDecodeError:
+        return False
+
+
+check("CANARY: mọi mẩu stdin TỰ NÓ là UTF-8 hợp lệ (bên đọc cắt ẩu cũng không hỏng được)",
+      all(_tu_giai_ma_duoc(m) for m in _mau), len(_mau))
+check("và ghép lại thì đúng nguyên văn prompt (không mất, không thừa)",
+      b"".join(_mau).decode("utf-8") == _dai)
+check("chia thành nhiều mẩu thật (prompt dài hơn một mẩu)", len(_mau) > 1, len(_mau))
+
+# Câu trả lời về mà CÓ ký tự hỏng: phải tự đổi đường thử lại, và nếu vẫn hỏng thì NÓI RA.
+_d_hong = Path(tempfile.mkdtemp(prefix="javis-fakeagy-hong-"))
+_cli_hong = _d_hong / "agy"
+_cli_hong.write_text(
+    "#!/usr/bin/env python3\nimport sys, json\n"
+    f"if '--help' in sys.argv[1:]:\n    sys.stdout.write({_HELP_MOI_KHONG_STDIN!r}); sys.exit(0)\n"
+    "try:\n    sys.stdin.read()\nexcept Exception:\n    pass\n"
+    "print(json.dumps({'role': 'assistant', 'content': 'b\\ufffd\\ufffdo c\\ufffd\\ufffdo'},"
+    " ensure_ascii=False), flush=True)\n",
+    encoding="utf-8")
+_cli_hong.chmod(_cli_hong.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: str(_cli_hong)
+_g_hong = antigravity_cli.AntigravityCLI(cwd=str(_d_hong))
+_g_hong.cli_path = str(_cli_hong)
+_g_hong.instructions = "x" * 40000
+_evs_hong = chay(_gom(_g_hong))
+_txt_hong = "".join(e.get("content", "") for e in _evs_hong if e.get("type") == "final")
+check("CANARY: chữ về hỏng dấu -> tự đổi sang đường file rồi thử lại",
+      antigravity_cli.duong_prompt_dai(str(_cli_hong)) == "file",
+      antigravity_cli.duong_prompt_dai(str(_cli_hong)))
+check("CANARY: đổi đường vẫn hỏng -> NÓI THẲNG là lỗi nằm trong CLI, không im lặng",
+      "hỏng dấu tiếng Việt" in _txt_hong, repr(_txt_hong[:120]))
+
+
 # ---- Nửa 2: cơ chế file ngữ cảnh, chạy thật (ép đường bằng biến môi trường) ----
 _STATE = Path(os.environ["JAVIS_STATE_DIR"])
 

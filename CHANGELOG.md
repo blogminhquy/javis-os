@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.33.6] - 2026-08-13
+### Sửa lỗi
+- **Chat qua Antigravity hết vỡ dấu tiếng Việt.** Chữ như "gồm", "hạn" hiện thành ô vuông hỏi chấm. Đo ra thì Javis đọc chữ về không hề sai - chỗ vỡ nằm ở lúc `agy` nhận nội dung, nên giờ Javis gửi theo từng mẩu cắt đúng chỗ để bên kia có đọc kiểu gì cũng không vỡ.
+- Nếu chữ vẫn vỡ, Javis tự đổi cách gửi rồi hỏi lại một lần nữa; vẫn vỡ thì nó nói thẳng là lỗi nằm trong `agy` chứ không im lặng trả về chữ sai.
+
 ## [0.33.5] - 2026-08-13
 ### Sửa lỗi
 - **Javis tự chữa mấy note .md đã hỏng từ bản cũ.** Vào trang Tệp tin, nếu còn file dính lỗi ở bản trước 0.33.4 (khối thuộc tính đầu note biến thành `* * *`, chữ bị dồn dấu gạch chéo) thì Javis hiện danh sách và bạn bấm một nút là chữa hết. Không file nào hỏng thì không hiện gì cả.

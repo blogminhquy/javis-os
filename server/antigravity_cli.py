@@ -405,6 +405,54 @@ _CANH_BAO_CHUA_DOC = (
     "lời mà chưa có system prompt và bộ nhớ của Javis. Muốn chuẩn thì nâng cấp `agy` lên bản mới "
     "(nhận prompt qua stdin), hoặc đổi bộ não khác ở trang Models.)_"
 )
+# Bơm stdin theo mẩu bao nhiêu byte. 4096 là kích thước một trang ống dẫn: đủ nhỏ để bên đọc
+# nhận từng mẩu rời, đủ lớn để không tốn hàng chục nghìn lời gọi ghi.
+_MAU_STDIN = 4096
+
+
+def _ghi_stdin(proc, s: str) -> None:
+    """Bơm prompt vào stdin, KHÔNG BAO GIỜ cắt giữa một ký tự UTF-8.
+
+    Vì sao phải cẩn thận tới mức này (chủ repo báo 2026-08-13, kèm ảnh): chat qua Antigravity
+    trên Windows ra chữ hỏng kiểu "gm", "hn", "tng" - mỗi ký tự tiếng Việt 3 byte
+    biến thành đúng 3 dấu hỏi kim cương (U+FFFD). Đó là chữ ký của một bên đọc gọi
+    `buffer.toString("utf8")` trên TỪNG MẨU ống dẫn thay vì dùng bộ giải mã tăng dần: mẩu nào
+    kết thúc giữa một ký tự thì mấy byte lẻ thành U+FFFD hết.
+
+    ĐÃ ĐO trên máy này: lớp đọc của Javis KHÔNG dính lỗi đó (test `_gia` cắt byte giữa ký tự,
+    chữ vẫn ghép lại nguyên vẹn - `io.TextIOWrapper` dùng bộ giải mã tăng dần đúng chuẩn). Và
+    các chữ hỏng chủ repo gửi ("gồm", "hạn", "từng", "đồng bộ") đều là từ trong system prompt
+    của Javis, tức chúng hỏng trên đường VÀO chứ không phải đường ra. Nên bên cắt nhầm là bộ
+    đọc stdin của `agy`.
+
+    Javis không sửa được `agy`, nhưng chỉnh được chỗ mình ĐẶT ranh giới: ghi từng mẩu kết thúc
+    đúng biên ký tự rồi flush. Bên kia đọc bao nhiêu mẩu cũng được, ranh giới nào cũng rơi vào
+    giữa hai ký tự trọn vẹn. Ghi thẳng dạng BYTE còn tránh luôn chuyện `\\n` bị dịch thành
+    `\\r\\n` trên Windows (chế độ text làm vậy) - prompt tới nơi đúng nguyên văn.
+    """
+    b = s.encode("utf-8")
+    f = getattr(proc.stdin, "buffer", None) or proc.stdin
+    nhi_phan = f is not proc.stdin or "b" in getattr(proc.stdin, "mode", "")
+    i = 0
+    while i < len(b):
+        j = min(i + _MAU_STDIN, len(b))
+        # Lùi về biên ký tự: byte 10xxxxxx là byte NỐI, không được đứng đầu một mẩu.
+        while j < len(b) and (b[j] & 0xC0) == 0x80:
+            j -= 1
+        mau = b[i:j]
+        f.write(mau if nhi_phan else mau.decode("utf-8"))
+        try:
+            f.flush()
+        except Exception:
+            pass
+        i = j
+
+
+_CANH_BAO_HONG_DAU = (
+    "\n\n_(Lưu ý của Javis: bản `agy` trên máy này làm hỏng dấu tiếng Việt khi nhận prompt dài "
+    "(chữ biến thành `�`), và đổi đường gửi cũng không cứu được. Lỗi nằm trong chính CLI, "
+    "Javis không vá được - nâng cấp `agy` lên bản mới, hoặc đổi bộ não khác ở trang Models.)_"
+)
 _CANH_BAO_DOC_HONG = (
     "\n\n_(Lưu ý của Javis: `agy` có thử mở file ngữ cảnh nhưng KHÔNG đọc được (thường là do mức "
     "quyền hoặc sandbox chặn), nên lượt vừa rồi trả lời mà chưa có system prompt và bộ nhớ của "
@@ -749,15 +797,29 @@ class AntigravityCLI:
         # tiếng Anh mà họ không sửa được gì với nó. Cả hai nay đều đổi sang đường file NGAY trong
         # lượt này.
         _loi_thieu_prompt = any(_la_loi_thieu_prompt(x) for x in ket.get("cac_loi") or [])
-        if duong.startswith("stdin") and not ket.get("text") and (
-                _loi_thieu_prompt or not ket.get("loi")):
-            print("[antigravity] stdin không tới nơi, chuyển sang file ngữ cảnh", file=sys.stderr)
-            await asyncio.to_thread(nho_duong, self.cli_path, "file",
-                                    "công thức stdin bị CLI từ chối" if _loi_thieu_prompt
-                                    else "stdin trả về rỗng")
+        # Hình dạng thứ BA của "prompt không tới nơi", tinh vi hơn hai cái trên vì nó vẫn trả lời
+        # trôi chảy: prompt tới nơi nhưng HỎNG DẤU. Chủ repo báo 2026-08-13 kèm ảnh - chữ trong
+        # câu trả lời thành "gm", "hn", mỗi ký tự tiếng Việt 3 byte hoá 3 dấu U+FFFD.
+        # Đó là bên đọc cắt mẩu ống dẫn giữa một ký tự rồi giải mã từng mẩu rời. Javis không sửa
+        # được `agy`, nhưng phát hiện được: U+FFFD gần như không bao giờ xuất hiện trong câu trả
+        # lời lành lặn.
+        _hong_dau = "�" in (ket.get("text") or "")
+        _thu_lai = duong.startswith("stdin") and (
+            _hong_dau or (not ket.get("text") and (_loi_thieu_prompt or not ket.get("loi"))))
+        if _thu_lai:
+            _vi_sao = ("stdin làm hỏng dấu tiếng Việt" if _hong_dau
+                       else "công thức stdin bị CLI từ chối" if _loi_thieu_prompt
+                       else "stdin trả về rỗng")
+            print(f"[antigravity] {_vi_sao}, chuyển sang file ngữ cảnh", file=sys.stderr)
+            await asyncio.to_thread(nho_duong, self.cli_path, "file", _vi_sao)
+            _ket_cu = ket
             ket = {}
             async for ev in self._mot_luot(full, prompt, "file", ket):
                 yield ev
+            # Đường file cũng hỏng dấu, mà lượt stdin thì có chữ: giữ lượt nào cũng vậy thôi,
+            # lấy lượt sau cho nhất quán rồi nói thẳng là lỗi nằm trong CLI.
+            if _hong_dau and not ket.get("text"):
+                ket = _ket_cu
         elif duong.startswith("stdin") and ket.get("text"):
             await asyncio.to_thread(nho_duong, self.cli_path, duong, "đã chạy được")
         else:
@@ -774,6 +836,12 @@ class AntigravityCLI:
                       f"{ket.get('ten_ngu_canh')} (đã thử: {ket.get('da_thu_doc')})",
                       file=sys.stderr)
                 text += (_CANH_BAO_DOC_HONG if ket.get("da_thu_doc") else _CANH_BAO_CHUA_DOC)
+            # Đổi đường rồi mà chữ vẫn hỏng dấu: hết cách trong tầm Javis. Nói thẳng, đừng để
+            # người dùng ngồi đoán xem mình gõ sai hay máy hỏng.
+            elif "�" in text:
+                print("[antigravity] câu trả lời vẫn còn ký tự hỏng sau khi đổi đường",
+                      file=sys.stderr)
+                text += _CANH_BAO_HONG_DAU
             yield {"type": "final", "content": text}
         elif not ket.get("loi"):
             # Lưới an toàn cuối. Bản 1.0.0 của agy có lỗi nuốt stdout khi chạy qua ống dẫn
@@ -838,7 +906,7 @@ class AntigravityCLI:
                 )
                 try:
                     if qua_stdin:
-                        proc.stdin.write(full)
+                        _ghi_stdin(proc, full)
                     proc.stdin.close()
                 except Exception:
                     pass
