@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.32.2] - 2026-08-13
+### Cải thiện
+- **Antigravity CLI: đăng nhập giờ làm trong terminal, thẻ trên trang Models không còn nút đăng nhập.** Nút cũ mở ra một ô terminal nhỏ ngay trên trang mà bấm vào không ăn, nên rốt cuộc vẫn phải mở terminal thật; trên Windows thì nó chưa bao giờ chạy được.
+- Thẻ giờ đưa thẳng lệnh cần gõ (`agy`) kèm một câu giải thích: qua SSH nó tự in ra link để bạn mở trên máy mình. Gõ xong bấm **Kiểm tra lại** là thẻ đổi sang đã đăng nhập.
+
 ## [0.32.1] - 2026-08-13
 ### Cải thiện
 - **Trang Mức dùng chỉ hiện tiền đô, bỏ hẳn phần quy đổi sang đồng.** Giá của các nhà cung cấp đều niêm yết bằng USD, còn tỉ giá thì trôi mà con số trong máy thì đứng yên - quy đổi thêm một lần chỉ tạo ra một chỗ nữa để sai.

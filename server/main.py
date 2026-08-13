@@ -51,7 +51,6 @@ import openai_oauth
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
 import gemini_cli      # bộ não thứ 9: Gemini CLI (Google đã ngắt hạng cá nhân 18/06/2026)
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
-import antigravity_login # đăng nhập Google cho `agy` ngay trên dashboard (lái CLI qua PTY)
 import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
@@ -1093,12 +1092,10 @@ def _providers_view(cfg):
             # Không có nút Ngắt: token nằm trong keyring của hệ điều hành, Javis không giữ nên
             # cũng không gỡ hộ được. Dựng nút rồi bên dưới không làm gì mới là dối.
             item["auth_by_javis"] = False
-            # Nút "Đăng nhập Google" CHỈ hiện khi máy này lái được luồng đăng nhập của CLI
-            # (cần pseudo-terminal, tức Linux/macOS). Windows nhận đúng lý do thay vì một cái
-            # nút bấm vào không ra gì.
-            _dn_duoc, _dn_vi_sao = antigravity_login.kha_dung()
-            item["login_ui"] = _dn_duoc
-            item["login_ly_do"] = _dn_vi_sao
+            # Đăng nhập làm trong TERMINAL, không phải trên dashboard - xem
+            # `antigravity_cli.login_huong_dan()` để biết vì sao. Thẻ Models chỉ đưa lại đúng
+            # lệnh cần gõ.
+            item["dang_nhap"] = antigravity_cli.login_huong_dan()
         if p["id"] == "anthropic-cli":
             # Gói Claude Code chạy bằng gì, và có đang gánh việc nền không. Trang Models vẽ ô
             # chọn + cảnh báo từ ba field này. Cảnh báo đi kèm DỮ LIỆU chứ không hardcode ở
@@ -2602,27 +2599,11 @@ async def antigravity_check():
     return await asyncio.to_thread(antigravity_cli.kiem_tra_nhanh)
 
 
-@app.post("/antigravity/login-start")
-async def antigravity_login_start():
-    """Mở luồng đăng nhập của `agy` rồi trả về link authorize cho dashboard.
-
-    Chạy ở worker: nó mở một tiến trình con và CHỜ tới lúc link hiện ra, có thể vài chục giây
-    ở lần chạy đầu. Để trong event loop là cả app đứng hình.
-    """
-    return await asyncio.to_thread(antigravity_login.bat_dau)
-
-
-@app.post("/antigravity/login-code")
-async def antigravity_login_code(code: str = Form("")):
-    """Bơm mã Google vừa cấp xuống tiến trình `agy` đang chờ."""
-    return await asyncio.to_thread(antigravity_login.gui_ma, code)
-
-
-@app.post("/antigravity/login-cancel")
-async def antigravity_login_cancel():
-    """Bỏ phiên đăng nhập dang dở (đóng luôn tiến trình con đang chờ)."""
-    await asyncio.to_thread(antigravity_login.huy)
-    return {"ok": True}
+# Không có endpoint đăng nhập cho `agy`, và đó là quyết định có lý do (0.32.2). Bản trước lái
+# luồng đăng nhập của CLI qua một pseudo-terminal: chạy được trên Linux nhưng đẻ ra một ô
+# terminal nhỏ trên trang mà bấm vào không ăn, còn Windows thì không có PTY nên luôn tắc. Người
+# dùng `agy` đều là dân code sẵn terminal trong tay, nên gõ một lệnh gọn hơn hẳn một luồng UI
+# nửa vời. Thẻ Models chỉ đưa lệnh và nút Kiểm tra lại.
 
 
 @app.post("/claude/login")

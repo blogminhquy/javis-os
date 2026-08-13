@@ -57,7 +57,7 @@ Khối **Providers** liệt kê 10 nhà cung cấp. **Cái nào đã kết nối
 |---|---|---|
 | **Anthropic OAuth (Claude Code)** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
 | **OpenAI OAuth (ChatGPT)** | Device code (đăng nhập gói ChatGPT) | Chạy qua Codex, đấu kho Kết nối qua hub + dùng skill qua router |
-| **Google Antigravity CLI** | Đăng nhập Google **ngay trên dashboard**, không cần key | Bản Google chỉ định thay Gemini CLI. Chạy qua binary `agy`. Đầy đủ MCP/skill/tool máy, và chọn được **đúng dàn model của Antigravity IDE** (có cả model không phải của Google) |
+| **Google Antigravity CLI** | Gõ `agy` **một lần trong terminal**, không cần key | Bản Google chỉ định thay Gemini CLI. Chạy qua binary `agy`. Đầy đủ MCP/skill/tool máy, và chọn được **đúng dàn model của Antigravity IDE** (có cả model không phải của Google) |
 | **Google Gemini CLI** | Đăng nhập Google, hoặc `GEMINI_API_KEY` | ⛔ Google đã **ngắt mọi tài khoản cá nhân** từ 18/06/2026 (miễn phí, AI Pro, Ultra). Chỉ còn chạy được với giấy phép Code Assist doanh nghiệp hoặc API key - xem [B2](#b2-gemini-cli---google-đã-ngắt-với-tài-khoản-cá-nhân-18062026) |
 | **OpenRouter** | Dán API key | Nhiều model 1 chỗ, MCP + tool file + skill qua hub |
 | **Anthropic (API)** | Dán API key | MCP + tool file + skill qua hub (từ 0.9) |
@@ -122,17 +122,15 @@ Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn �
 1. Cài CLI một lần trên máy chạy Javis:
    - Linux/macOS: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
    - Windows PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`
-2. Vào **Models**, thẻ **Google Antigravity CLI**, bấm **Đăng nhập Google**. Javis hiện ra một đường link; mở link đó, đăng nhập, Google trả về **một mã** - dán mã vào ô rồi bấm **Xong**.
-3. Thẻ đổi sang **● Đã đăng nhập**. Muốn chắc thì bấm **Kiểm tra lại** (nó chạy thử một lượt chat thật).
+2. Gõ `agy` một lần **trong terminal của máy chạy Javis**. Máy có màn hình thì nó tự mở trình duyệt; qua SSH thì nó in ra một đường link - mở link đó trên máy bạn rồi đăng nhập Google. Phiên lưu trong keyring của hệ điều hành nên chỉ phải làm một lần.
+3. Quay lại **Models**, thẻ **Google Antigravity CLI**, bấm **Kiểm tra lại** (nó chạy thử một lượt chat thật). Thẻ đổi sang **● Đã đăng nhập**.
 4. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này rồi chọn model.
 
 Danh sách model **hỏi thẳng `agy models`** chứ Javis không giữ bảng chép tay, nên tài khoản bạn được cấp model nào là thấy đúng model đó, và Google đổi tên model cũng không làm picker lạc hậu.
 
 Vài chỗ khác với Gemini CLI, nói trước cho khỏi hiểu nhầm:
 
-- **Đăng nhập bấm ngay trên dashboard, không cần mở terminal** (từ 0.30.0). Cách làm khác Gemini CLI: `agy` giữ phiên trong keyring của hệ điều hành chứ không phải file, nên Javis không ghi token hộ được. Thay vào đó nó **lái chính luồng đăng nhập của CLI** - mở `agy` trong một terminal giả, bắt link nó in ra đưa lên trang, rồi bơm ngược mã bạn dán vào. Javis vẫn không cầm token của ai.
-  - Tiện thể chữa luôn một lỗi của CLI: qua SSH, link authorize hay bị ngắt dòng chèn dấu cách vào giữa nên dán sang trình duyệt là hỏng ([issue #315](https://github.com/google-antigravity/antigravity-cli/issues/315)). Javis là bên cấp terminal nên đặt bề rộng rất lớn, link không gãy nữa.
-  - Chỉ chạy trên **Linux/macOS** (Windows không có pseudo-terminal). Trên Windows thẻ nói thẳng là phải gõ `agy` một lần trong PowerShell, chứ không bày một cái nút bấm vào không ra gì.
+- **Đăng nhập làm trong terminal, dashboard không có nút** (từ 0.32.2). Bản 0.30.0 từng dựng một luồng đăng nhập ngay trên trang: Javis mở `agy` trong một terminal giả rồi làm người đưa thư giữa nó và trình duyệt của bạn. Nó chạy được trên Linux, nhưng cái hiện ra trên trang là một ô terminal bấm vào không ăn nên rốt cuộc vẫn phải mở terminal thật, còn Windows thì không có pseudo-terminal nên chưa bao giờ dùng được. Người dùng `agy` đều là dân code sẵn terminal trong tay, nên gõ một lệnh gọn hơn hẳn một luồng UI nửa vời. Đổi lại, Javis không cầm token của ai - nó nằm trong keyring hệ điều hành.
 - **Mức Chỉ đọc ở đây nhẹ hơn.** Bên Gemini CLI, mức `suggest` xuống thẳng `--approval-mode plan` nên chính CLI chặn. `agy` không có nấc tương đương, nên Javis siết bằng `--sandbox` cộng với lời dặn trong system prompt. Rào tiền/đơn/đăng bài vẫn nằm ở MCP Hub như mọi engine.
 - **Chưa nối lại mạch hội thoại của CLI.** Mỗi lượt mở mạch mới rồi mồi lại bằng lịch sử đã lưu, nên **không mất ngữ cảnh** nhưng tốn token hơn.
 - Javis không tự cài `agy` lúc cài đặt (khác ba engine npm): trình cài của Google là một script tải về chạy thẳng, nên để bạn tự chạy khi muốn.

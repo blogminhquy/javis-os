@@ -356,15 +356,21 @@ _console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("thẻ Models có card riêng", 'p.id === "antigravity-cli"' in _console)
 check("card chỉ đúng lệnh cài", "data-agycheck" in _console)
 
-# Canary này TRƯỚC 0.30.0 khẳng định ngược lại: "không hứa nút đăng nhập trên dashboard".
-# Lý do hồi đó đúng - `agy` cất token trong keyring nên Javis không GHI credential hộ được như
-# với Gemini CLI. Nhưng kết luận rút ra từ đó thì sai: không ghi hộ được không có nghĩa là
-# không đăng nhập trên dashboard được. 0.30.0 đi đường khác - LÁI luồng đăng nhập của chính
-# CLI qua một terminal giả (xem antigravity_login.py). Giữ lại đoạn này làm ghi chú vì đây là
-# ca "canary canh đúng hiện trạng nhưng chốt sai khả năng", dễ lặp lại.
-check("thẻ Models có nút đăng nhập ngay trên trang (0.30.0)", "data-agylogin" in _console)
-check("và nút đó gọi đúng luồng lái CLI, không phải một vòng OAuth Javis tự dựng",
-      "/antigravity/login-start" in _console)
+# Canary này đảo chiều hai lần, nên ghi lại cả hai để đừng đảo lần thứ ba mà không có dữ liệu
+# mới. Trước 0.30.0: "không hứa nút đăng nhập trên dashboard" (đúng hiện trạng, nhưng chốt sai
+# khả năng - không ghi credential hộ được KHÔNG có nghĩa là không đăng nhập trên trang được).
+# 0.30.0 đi đường LÁI luồng đăng nhập của chính CLI qua một pseudo-terminal, và nó chạy thật
+# trên Linux. 0.32.2 gỡ hẳn, lần này vì TRẢI NGHIỆM chứ không phải vì bất khả: luồng đó hiện ra
+# một ô terminal trên trang mà bấm vào không ăn nên người dùng vẫn phải mở terminal, còn Windows
+# không có PTY nên chưa bao giờ dùng được. Người dùng `agy` đều là dân code sẵn terminal - một
+# lệnh `agy` gọn hơn hẳn một luồng UI nửa vời. Muốn dựng lại thì phải là terminal tương tác
+# thật, không phải bản chỉ-đọc.
+check("thẻ Models KHÔNG dựng nút đăng nhập trên trang (0.32.2)", "data-agylogin" not in _console)
+check("và không còn gọi endpoint đăng nhập đã gỡ",
+      "/antigravity/login-start" not in _console and "/antigravity/login-start" not in _main_src)
+check("thay vào đó đưa đúng lệnh cần gõ trong terminal", "p.dang_nhap" in _console)
+check("server cấp hướng dẫn đó cho trang Models",
+      "antigravity_cli.login_huong_dan()" in _main_src)
 
 # ============================================================
 # 8. Windows: dòng lệnh quá dài phải báo tử tế, không nổ WinError 206
