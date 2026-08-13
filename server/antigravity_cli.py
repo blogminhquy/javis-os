@@ -574,9 +574,16 @@ class AntigravityCLI:
 
 
 def _la_loi_chua_dang_nhap(loi: str) -> bool:
+    """Câu này có phải chuyện chưa đăng nhập không.
+
+    "select login method" nằm trong danh sách vì bản `agy` chưa có phiên KHÔNG báo lỗi - nó mở
+    thẳng menu chọn cách đăng nhập rồi ngồi chờ bàn phím (ảnh chủ repo 2026-08-13). Với một
+    lượt chạy nền thì đó chính là "chưa đăng nhập", chỉ khác cách nói.
+    """
     l = (loi or "").lower()
     return any(k in l for k in ("not signed in", "not logged in", "sign in", "login required",
-                                "unauthenticated", "no active session", "authentication"))
+                                "unauthenticated", "no active session", "authentication",
+                                "select login method"))
 
 
 def kiem_tra_nhanh(timeout: float = 60.0) -> dict:
@@ -595,7 +602,22 @@ def kiem_tra_nhanh(timeout: float = 60.0) -> dict:
     try:
         r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=timeout, creationflags=_no_window())
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
+        # Hết giờ ở đây gần như LUÔN là "chưa đăng nhập" chứ không phải máy chậm: chưa có phiên
+        # thì `agy` mở menu "Select login method" rồi ngồi chờ bàn phím, mà ở đây không có ai
+        # gõ. Câu "không trả lời kịp" đúng về mặt kỹ thuật nhưng chỉ sai đường - chủ repo bấm
+        # Kiểm tra lại và ngồi nhìn "Đang thử..." mà không biết việc phải làm là đăng nhập
+        # (ảnh 2026-08-13). Soi thứ nó kịp in ra để nói cho đúng.
+        _ra = ""
+        for _t in (getattr(e, "stdout", None), getattr(e, "stderr", None), getattr(e, "output", None)):
+            if isinstance(_t, bytes):
+                _t = _t.decode("utf-8", "replace")
+            if _t:
+                _ra += _t
+        if _la_loi_chua_dang_nhap(_ra) or "select login method" in _ra.lower():
+            return {"ok": False,
+                    "error": "Chưa đăng nhập - CLI đang đứng ở màn chọn cách đăng nhập. Bấm "
+                             "\"Đăng nhập Google\" ngay trên thẻ này."}
         return {"ok": False, "error": "Antigravity CLI không trả lời kịp."}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}

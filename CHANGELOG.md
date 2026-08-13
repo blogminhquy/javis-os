@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.30.3] - 2026-08-13
+### Sửa lỗi
+- **Đăng nhập Antigravity CLI chạy thật rồi.** Bản trước đứng im vì `agy` hỏi "chọn cách đăng nhập" trước khi đưa link, mà Javis lại ngồi chờ link. Giờ Javis tự chọn giúp đúng mục **Google OAuth** rồi mới lấy link ra cho bạn.
+- Nút **Kiểm tra lại** khi chưa đăng nhập cũng nói đúng việc phải làm, thay vì báo "không trả lời kịp" rồi để bạn ngồi đoán.
+
 ## [0.30.2] - 2026-08-13
 ### Sửa lỗi
 - **Bấm vào link file trong chat giờ mở thẳng ra sửa, không còn lúc được lúc không.** File .html Javis vừa xuất ra, file .md, .css, .json... bấm phát là vào trình sửa; trước đây có lúc lại quăng bạn về thư mục trong trang Tệp tin.

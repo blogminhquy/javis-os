@@ -130,6 +130,62 @@ def tim_url(log: str) -> str:
     return ""
 
 
+# --------------------------------------------------------------------------
+# Tự trả lời menu chọn cách đăng nhập
+#
+# Chủ repo gửi ảnh 2026-08-13: `agy` chưa đăng nhập thì việc ĐẦU TIÊN nó làm KHÔNG phải in link,
+# mà là hỏi:
+#
+#     Welcome to the Antigravity CLI. You are currently not signed in.
+#     Select login method:
+#     > 1. Google OAuth
+#       2. Use a Google Cloud project
+#     [Use arrow keys to navigate, Enter to select]
+#
+# Bản trước ngồi chờ một cái link không bao giờ tới, rồi hết giờ. (Đường lui "hiện nguyên văn
+# thứ CLI in ra" chính là thứ chỉ ra chuyện này - giữ nó là đúng.)
+#
+# Nên Javis phải bấm hộ. KHÔNG bấm Enter mù: dấu `>` có thể đang đứng ở dòng khác, và mục thứ
+# hai là "Google Cloud project" - chọn nhầm là người dùng rơi vào luồng doanh nghiệp đòi
+# project ID. Đọc xem con trỏ đang ở mục nào, đếm số bước tới mục OAuth, đi đúng bấy nhiêu
+# phím mũi tên rồi mới Enter.
+_MENU_RE = re.compile(r"select\s+login\s+method", re.I)
+_MUC_RE = re.compile(r"^(?P<con_tro>[>❯›»*]?)\s*(?P<so>\d+)[.)]\s+(?P<ten>.+?)\s*$", re.M)
+_XUONG = b"\x1b[B"
+_LEN = b"\x1b[A"
+
+
+def _phim_cho_menu(sach: str):
+    """Cần bấm phím gì cho menu đang hiện. None = chưa thấy menu nào cần trả lời.
+
+    `sach` là log ĐÃ bỏ mã màu. Chỉ đọc phần CUỐI vì giao diện vẽ lại cả màn mỗi lần con trỏ
+    nhích - phần đầu log là những khung đã cũ, đọc nhầm vào đó là đếm sai vị trí con trỏ.
+    """
+    if not _MENU_RE.search(sach):
+        return None
+    khuc = sach[sach.lower().rindex("select login method"):]
+    muc = list(_MUC_RE.finditer(khuc))
+    if not muc:
+        return None
+    hien_tai = dich = None
+    for i, m in enumerate(muc):
+        if m.group("con_tro"):
+            hien_tai = i
+        ten = m.group("ten").lower()
+        # "Google OAuth" là đường cá nhân. Loại thẳng mục nhắc tới cloud/project/enterprise:
+        # đó là luồng doanh nghiệp, chọn vào là đòi project ID rồi tắc.
+        if "oauth" in ten and not any(k in ten for k in ("cloud", "project", "enterprise")):
+            dich = i
+    if dich is None:
+        return None
+    if hien_tai is None:
+        hien_tai = 0        # chưa thấy con trỏ: menu mặc định luôn đứng ở mục đầu
+    if dich == hien_tai:
+        return b"\r"
+    buoc = abs(dich - hien_tai)
+    return (_XUONG if dich > hien_tai else _LEN) * buoc + b"\r"
+
+
 def _dong_phien(p: dict):
     try:
         if p.get("proc") and p["proc"].poll() is None:
@@ -225,13 +281,30 @@ def bat_dau(timeout: float = _CHO_LINK) -> dict:
 
     url = ""
     het = time.time() + timeout
+    da_tra_loi = 0          # số menu đã bấm hộ
+    menu_cu = ""            # chữ ký menu vừa trả lời, để không bấm đi bấm lại cùng một cái
     while time.time() < het:
         them = _doc(master, 0.4)
         if them:
             p["log"] = (p["log"] + them)[-20000:]
+        sach = _sach(p["log"])
         url = tim_url(p["log"])
         if url:
             break
+        # Chặn trên 3 lần là cố ý: gặp một màn hỏi lạ mà cứ bấm bừa thì tệ hơn hẳn dừng lại rồi
+        # đưa nguyên văn cho người dùng đọc.
+        if da_tra_loi < 3:
+            phim = _phim_cho_menu(sach)
+            if phim:
+                chu_ky = sach[-400:]
+                if chu_ky != menu_cu:
+                    try:
+                        os.write(master, phim)
+                        da_tra_loi += 1
+                        menu_cu = chu_ky
+                        time.sleep(0.4)   # để CLI kịp vẽ lại trước khi mình đọc tiếp
+                    except Exception:
+                        pass
         if proc.poll() is not None:
             break
 

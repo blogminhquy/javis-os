@@ -75,6 +75,61 @@ if {nhan_ma!r}:
     return str(p), d
 
 
+def _gia_agy_menu(*, con_tro_o=1, thu_tu=("Google OAuth", "Use a Google Cloud project")):
+    """`agy` giả có MENU chọn cách đăng nhập, đúng như bản thật (ảnh chủ repo 2026-08-13).
+
+    Chỉ in link sau khi nhận được Enter, và chỉ khi con trỏ đang đứng ở mục "Google OAuth".
+    Chọn nhầm mục Cloud project thì nó đi nhánh doanh nghiệp - dựng đúng như vậy để test bắt
+    được cả ca chọn sai, không chỉ ca "có bấm gì đó".
+    """
+    d = Path(tempfile.mkdtemp(prefix="javis-fakeagy-menu-"))
+    p = d / "agy"
+    p.write_text(f'''#!/usr/bin/env python3
+import sys
+if "--help" in sys.argv[1:]:
+    sys.stdout.write("Usage: agy [options]\\n  -p, --print\\n"); sys.exit(0)
+muc = {list(thu_tu)!r}
+cur = {con_tro_o - 1}
+def ve():
+    sys.stdout.write("\\n  Welcome to the Antigravity CLI. You are currently not signed in.\\n\\n")
+    sys.stdout.write("  Select login method:\\n")
+    for i, m in enumerate(muc):
+        sys.stdout.write(("> " if i == cur else "  ") + str(i + 1) + ". " + m + "\\n")
+    sys.stdout.write("\\n  [Use arrow keys to navigate, Enter to select]\\n")
+    sys.stdout.flush()
+ve()
+while True:
+    c = sys.stdin.read(1)
+    if not c:
+        break
+    if c == "\\x1b":
+        sys.stdin.read(1)                  # '['
+        h = sys.stdin.read(1)              # 'A' len / 'B' xuong
+        cur = max(0, cur - 1) if h == "A" else min(len(muc) - 1, cur + 1)
+        ve()
+    elif c in ("\\r", "\\n"):
+        chon = muc[cur]
+        open({str(d / "chon.txt")!r}, "w").write(chon)
+        if "oauth" in chon.lower() and "cloud" not in chon.lower():
+            sys.stdout.write("\\n  Visit this URL to authorize:\\n  " + {_LINK!r} + "\\n\\n  Paste code: ")
+        else:
+            sys.stdout.write("\\n  Enter your Google Cloud project ID: ")
+        sys.stdout.flush()
+        break
+ma = sys.stdin.readline().strip()
+open({str(d / "ma.txt")!r}, "w").write(ma)
+sys.stdout.write("\\nSigned in.\\n"); sys.stdout.flush()
+''', encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return str(p), d
+
+
+def _reset_cache():
+    """Quên `agy --help` và trạng thái đăng nhập đã nhớ - mỗi ca dựng một binary giả khác."""
+    antigravity_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
+    antigravity_cli._AUTH_CACHE.update(ts=0.0, val=None)
+
+
 _that_find = antigravity_cli.find_antigravity_cli
 
 if os.name == "nt":
@@ -136,6 +191,30 @@ else:
           _r3.get("ok") is False, _r3)
     check("và câu báo chỉ được việc phải làm tiếp",
           "Kiểm tra lại" in (_r3.get("error") or "") or "agy" in (_r3.get("error") or ""))
+
+    # ---- MENU chọn cách đăng nhập: Javis phải tự bấm hộ ----
+    # Ca THẬT (ảnh chủ repo 2026-08-13): bản `agy` chưa đăng nhập hiện menu trước, không in link
+    # ngay. Bản đầu ngồi chờ link nên treo tới hết giờ.
+    for _ten, _cur, _thu_tu in [
+        ("con trỏ sẵn ở Google OAuth -> chỉ cần Enter", 1,
+         ("Google OAuth", "Use a Google Cloud project")),
+        ("con trỏ ở mục khác -> phải đi phím mũi tên tới đúng mục", 2,
+         ("Google OAuth", "Use a Google Cloud project")),
+        ("OAuth nằm dưới -> đi xuống", 1,
+         ("Use a Google Cloud project", "Google OAuth")),
+    ]:
+        _c, _dm = _gia_agy_menu(con_tro_o=_cur, thu_tu=_thu_tu)
+        _reset_cache()
+        antigravity_cli.find_antigravity_cli = lambda c=_c: c
+        _rm = antigravity_login.bat_dau(timeout=25)
+        _da_chon = ""
+        try:
+            _da_chon = (_dm / "chon.txt").read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+        check(f"menu: {_ten}", _rm.get("ok") is True and _rm.get("url") == _LINK, _rm)
+        check("   và chọn ĐÚNG mục Google OAuth, không phải Cloud project",
+              _da_chon == "Google OAuth", _da_chon)
 
     # ---- Không có link trong thứ CLI in ra: giữ nguyên văn cho người dùng đọc ----
     _cli4, _ = _gia_agy(doi_tty=True, in_ra="Already signed in as ai@do.com\n")
