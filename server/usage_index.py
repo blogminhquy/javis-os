@@ -308,11 +308,26 @@ def _dedup_events_vs_raw(conn) -> None:
     """Log tho LUON thang: xoa cac dong nguon-event (path=usage-events.jsonl) cua claude/codex o
     nhung NGAY da co log tho phu (dong provider do nhung path KHAC file event). Chay moi refresh
     nen tu lanh du event den truoc hay log tho den truoc. Neu bao cao dang 0 vi log tho khong dong
-    gop dong nao -> khong co gi bi xoa -> event duoc giu, dung y do du phong."""
+    gop dong nao -> khong co gi bi xoa -> event duoc giu, dung y do du phong.
+
+    PHAI don CA HAI bang. file_hourly la nguon cua cua so truot, va mot luot Claude Code duoc ghi
+    HAI LAN: mot lan trong log tho (~/.claude/projects), mot lan trong usage-events.jsonl do
+    usage_store.record() ghi. Chi don file_daily thi bang ngay dung con cua so 5 gio bao GAP DOI -
+    va do la con so dung de doan xem sap cham tran gia chua, tuc la sai ve dung huong nguy hiem
+    nhat. Do duoc bang kich ban: 1 luot 1000 token -> file_daily 1000, file_hourly 2000.
+
+    Doi chieu theo NGAY (substr(hour,1,10)) chu khong theo gio: log tho va event ghi cung mot luot
+    o hai moc thoi gian hoi lech nhau (mot cai la timestamp cua dong assistant, mot cai la luc
+    record() chay), nen doi chieu theo gio se truot o cac luot vat qua ranh gioi gio.
+    """
     ev = str(_EVENTS_PATH)
     for prov in ("claude", "codex"):
         conn.execute(
             "DELETE FROM file_daily WHERE path=? AND provider=? AND day IN "
+            "(SELECT DISTINCT day FROM file_daily WHERE provider=? AND path<>?)",
+            (ev, prov, prov, ev))
+        conn.execute(
+            "DELETE FROM file_hourly WHERE path=? AND provider=? AND substr(hour,1,10) IN "
             "(SELECT DISTINCT day FROM file_daily WHERE provider=? AND path<>?)",
             (ev, prov, prov, ev))
 

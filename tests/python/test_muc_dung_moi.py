@@ -127,6 +127,62 @@ check("đo được đỉnh cửa sổ 5 giờ trong lịch sử", _dinh["tokens
 check("CANARY: đỉnh không cộng dồn những giờ cách xa nhau",
       _dinh["tokens"] < 550_000)
 
+# Một lượt Claude Code được ghi HAI LẦN: một lần trong log thô (~/.claude/projects), một lần
+# trong usage-events.jsonl do usage_store.record() ghi làm dự phòng. `_dedup_events_vs_raw` khử
+# trùng chuyện đó, và nó phải khử ở CẢ HAI bảng. Bản đầu chỉ khử ở bảng ngày, nên bảng ngày
+# đúng còn cửa sổ 5 giờ báo GẤP ĐÔI - sai đúng về hướng nguy hiểm nhất, vì đó là con số dùng
+# để đoán xem sắp chạm trần gói chưa.
+_D2 = tempfile.mkdtemp(prefix="javis-dup-")
+_CP2 = os.path.join(_D2, "cp")
+os.makedirs(_CP2, exist_ok=True)
+_now2 = datetime.now(_TZ)
+with open(os.path.join(_CP2, "a.jsonl"), "w", encoding="utf-8") as _fh:
+    _fh.write(json.dumps({
+        "type": "assistant", "timestamp": _now2.astimezone(timezone.utc).isoformat(),
+        "sessionId": "s-dup", "cwd": "/x",
+        "message": {"model": "claude-opus-5",
+                    "usage": {"input_tokens": 1000, "output_tokens": 0}}}) + "\n")
+with open(os.path.join(_D2, "usage-events.jsonl"), "w", encoding="utf-8") as _fh:
+    _fh.write(json.dumps({"ts": int(_now2.timestamp()), "day": _now2.strftime("%Y-%m-%d"),
+                          "provider": "cli", "model": "claude-opus-5",
+                          "in": 1000, "out": 0, "cost": 0}) + "\n")
+
+
+def _quet_rieng(state_dir, claude_dir):
+    """Chạy indexer trên một kho tạm khác, rồi trả (tokens_ngay, tokens_cua_so)."""
+    import importlib
+    import config as _cfg
+    cu = (os.environ.get("JAVIS_STATE_DIR"), os.environ.get("JAVIS_CLAUDE_PROJECTS_DIR"))
+    os.environ["JAVIS_STATE_DIR"] = state_dir
+    os.environ["JAVIS_CLAUDE_PROJECTS_DIR"] = claude_dir
+    try:
+        importlib.reload(_cfg)
+        importlib.reload(ui)
+        ui.refresh()
+        return ui.summary("today")["kpi"]["tokens"], ui.cua_so(5.0)["tokens"]
+    finally:
+        os.environ["JAVIS_STATE_DIR"], os.environ["JAVIS_CLAUDE_PROJECTS_DIR"] = cu
+        importlib.reload(_cfg)
+        importlib.reload(ui)
+
+
+_ngay, _cua = _quet_rieng(_D2, _CP2)
+check("CANARY: một lượt ghi hai nguồn thì cửa sổ trượt KHÔNG đếm đôi", _cua == 1000)
+check("và bảng theo ngày vẫn đúng như trước", _ngay == 1000)
+
+_D3 = tempfile.mkdtemp(prefix="javis-dp-")
+_CP3 = os.path.join(_D3, "cp")
+os.makedirs(_CP3, exist_ok=True)
+with open(os.path.join(_D3, "usage-events.jsonl"), "w", encoding="utf-8") as _fh:
+    _fh.write(json.dumps({"ts": int(_now2.timestamp()), "day": _now2.strftime("%Y-%m-%d"),
+                          "provider": "cli", "model": "claude-opus-5",
+                          "in": 1000, "out": 0, "cost": 0}) + "\n")
+_ngay3, _cua3 = _quet_rieng(_D3, _CP3)
+# Khử trùng mà khử luôn cả ca không có bản trùng thì bản Docker/VPS (không đọc được log thô)
+# sẽ báo 0 token, đúng cái mà nhánh dự phòng sinh ra để tránh.
+check("CANARY: không có log thô thì nhánh dự phòng vẫn được giữ", _cua3 == 1000 and _ngay3 == 1000)
+
+
 # ============================================================
 # 3. Tiết kiệm tính bằng ĐỐI CHỨNG NGƯỢC - có số ở mọi kỳ
 # ============================================================
