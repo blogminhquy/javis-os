@@ -129,15 +129,34 @@ def read_spec(settings: dict = None) -> dict:
 
 
 def _spec_ne_tien(s: dict, spec: dict) -> dict:
-    """Đường thay thế khi phanh: ưu tiên gói thuê bao đã đăng nhập, cuối cùng là OpenRouter free."""
+    """Đường thay thế khi phanh: ưu tiên gói thuê bao đã đăng nhập, cuối cùng là OpenRouter free.
+
+    `availability` trả True VÔ ĐIỀU KIỆN cho anthropic-cli (nó không kiểm binary `claude` có
+    trên máy hay không, khác hẳn nhánh Codex/Gemini). Nên nếu chỉ hỏi availability thì vòng
+    này luôn dừng ở mắt đầu, và trên máy KHÔNG cài Claude Code việc nền bị đẩy sang một engine
+    không chạy được - phanh biến thành cái làm chết việc nền. Phải hỏi thẳng binary.
+    """
     for prov in (CLAUDE, CODEX):
         ok, _ly_do = availability({"provider": prov}, s)
-        if ok:
+        if ok and _co_binary(prov):
             return {"provider": prov, "model": ""}
     if api_key_for("openrouter", s):
         # model "" trên OpenRouter = tự chọn model FREE mạnh nhất lúc chạy (_ApiAuxEngine.query).
         return {"provider": "openrouter", "model": ""}
     return spec                          # không có đường nào rẻ hơn -> giữ nguyên, đừng làm chết việc nền
+
+
+def _co_binary(prov: str) -> bool:
+    """Engine CLI đó có thật trên máy không. Lỗi/thiếu module -> False (đừng đoán là có)."""
+    try:
+        import claude_cli
+        if prov == CLAUDE:
+            return bool(claude_cli.find_claude_cli())
+        if prov == CODEX:
+            return bool(claude_cli.find_codex_cli())
+    except Exception:   # noqa: BLE001 - không dò được thì coi như không có, rồi thử mắt sau
+        return False
+    return False
 
 
 def is_claude(spec: dict) -> bool:
@@ -280,10 +299,31 @@ class _ApiAuxEngine:
             if t == "text":
                 buf.append(ev.get("content") or "")
             elif t in ("tool_call", "error", "usage"):
+                if t == "usage":
+                    self._ghi_muc_dung(ev)
                 yield ev
                 if t == "error":
                     return
         yield {"type": "final", "content": "".join(buf)}
+
+    def _ghi_muc_dung(self, ev: dict) -> None:
+        """Cộng lượt việc nền này vào sổ mức dùng.
+
+        Đây là chỗ DUY NHẤT việc nền chạy bằng API key đi qua. Trước đây không có nó: cả 12
+        chỗ gọi `usage_store.record` trong repo đều nằm trên đường CHAT, còn loop / việc
+        Kanban / nhắc hẹn / tự học đều chạy qua đây và không ghi gì. Hệ quả là trang Mức dùng
+        không thấy phần token nền của nhánh API, và tệ hơn: trần tiền tháng cùng cái phanh
+        ngân sách không nhìn thấy ĐÚNG khoản chi mà chúng sinh ra để chặn - việc nền tiêu tiền
+        lúc không ai ngồi nhìn.
+
+        Best-effort: hỏng thì nuốt, một cái sổ đếm không được phép làm chết việc nền.
+        """
+        try:
+            import usage_store
+            usage_store.record(self.provider, self.model,
+                               ev.get("input", 0), ev.get("output", 0), ev.get("cost", 0) or 0)
+        except Exception as e:  # noqa: BLE001
+            print(f"[aux usage] {type(e).__name__}: {e}", file=sys.stderr)
 
 
 class _FallbackChain:

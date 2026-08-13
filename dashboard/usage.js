@@ -34,7 +34,8 @@
 
   var state = {
     period: "this_month", provider: "", el: null, busy: false,
-    muc: null, tq: null, viec: null, toast: "", nsToast: "", moMuc: false, moNganSach: false,
+    muc: null, tq: null, viec: null, toast: "", nsToast: "", nsForm: null,
+    moMuc: false, moNganSach: false,
   };
 
   function esc(s) {
@@ -209,21 +210,61 @@
       .catch(function () { return state.viec || null; });
   }
 
+  // fetch KHÔNG reject với status 4xx/5xx, mà middleware đăng nhập của Javis lại trả 401 kèm
+  // một THÂN JSON. Nên `.then(r => r.json())` trơn sẽ resolve ngon lành với {error:...}, khối
+  // .catch không bao giờ chạy, và trang vẽ ra "0 token / $0.00 / Chưa có dữ liệu" ở mọi ô -
+  // trông y hệt một tháng chưa dùng gì. Phiên hết hạn mà báo là "anh chưa tiêu đồng nào" là
+  // kiểu sai tệ nhất: nó không giống lỗi.
+  function jsonOk(r) {
+    if (!r.ok) {
+      var e = new Error(r.status === 401 || r.status === 403
+        ? "Phiên đăng nhập đã hết hạn. Tải lại trang để đăng nhập lại."
+        : "Máy chủ trả lỗi " + r.status + ".");
+      e.httpStatus = r.status;
+      throw e;
+    }
+    return r.json();
+  }
+
+  function loi(msg) {
+    if (!state.el) return;
+    state.el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder">'
+      + '<div class="ph-ico">' + ic("chart-column", { cls: "ic-xl ic-dim" }) + "</div>"
+      + "<div>" + esc(msg || "Không tải được số liệu token.") + "</div>"
+      + '<button class="tk-mini" data-act="thu-lai" style="margin:12px auto 0">Thử lại</button>'
+      + "</div></div>";
+    var b = state.el.querySelector('[data-act="thu-lai"]');
+    if (b) b.onclick = function () { render(state.el); };
+  }
+
+  // Mọi thao tác trên trang đều kết thúc bằng load() -> paint() -> gán đè innerHTML, nên form
+  // ngân sách bị dựng lại từ đầu và số người dùng đang gõ dở biến mất. Nhặt lại trước khi vẽ.
+  function nhoForm() {
+    var el = state.el; if (!el) return;
+    var o = el.querySelector("#tk-ns-goi");
+    if (!o) return;                       // form đang đóng, không có gì để nhớ
+    function v(id) { var e = el.querySelector("#" + id); return e ? e.value : ""; }
+    function c(id) { var e = el.querySelector("#" + id); return !!(e && e.checked); }
+    state.nsForm = { goi: v("tk-ns-goi"), tran: v("tk-ns-tran"), h5: v("tk-ns-5h"),
+                     phanh: c("tk-ns-phanh"), tuan: c("tk-ns-tuan") };
+  }
+
   function load(doRefresh) {
+    nhoForm();
     var q = "?period=" + encodeURIComponent(state.period)
       + (state.provider ? "&provider=" + state.provider : "")
       + "&refresh=" + (doRefresh ? 1 : 0);
     Promise.all([
-      fetch("/usage/summary" + q).then(function (r) { return r.json(); }),
-      fetch("/usage/insights?period=" + encodeURIComponent(state.period)).then(function (r) { return r.json(); }).catch(function () { return { items: [] }; }),
-      fetch("/usage/tong-quan?period=" + encodeURIComponent(state.period)).then(function (r) { return r.json(); }).catch(function () { return null; }),
+      fetch("/usage/summary" + q).then(jsonOk),
+      fetch("/usage/insights?period=" + encodeURIComponent(state.period)).then(jsonOk).catch(function () { return { items: [] }; }),
+      fetch("/usage/tong-quan?period=" + encodeURIComponent(state.period)).then(jsonOk).catch(function () { return null; }),
       loadMuc(false),
       loadViec(false),
     ]).then(function (res) {
       state.tq = res[2] || null;
       paint(res[0] || {}, (res[1] || {}).items || []);
-    }).catch(function () {
-      if (state.el) state.el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder"><div class="ph-ico">' + ic("chart-column", { cls: "ic-xl ic-dim" }) + '</div><div>Không tải được số liệu token.</div></div></div>';
+    }).catch(function (e) {
+      loi(e && e.message ? e.message : "");
     });
   }
 
@@ -398,8 +439,12 @@
         + '<div class="s">trên trần ' + fCost(ns.tran) + " tháng này, còn " + fCost(ns.con)
         + (ns.du_bao_vuot ? ". Theo nhịp này sẽ vượt trần." : "") + "</div>";
     } else {
+      // Chưa đặt trần thì ô này nói về ĐÚNG kỳ đang chọn, nên phải gọi tên kỳ ra. Đặt trần
+      // rồi thì nó chuyển sang nói về THÁNG, vì trần là trần tháng - hai nghĩa khác nhau
+      // trong cùng một ô, không nói rõ là người đọc so nhầm.
       body = '<div class="big">' + fCost(that.usd) + "</div>"
-        + '<div class="s">tiền mặt thật đã tiêu' + (that.usd ? " (nhánh dùng API key)" : ", chưa đặt trần tháng") + "</div>";
+        + '<div class="s">' + esc((t.ten_ky || "Kỳ này").toLowerCase()) + ", tiền mặt thật"
+        + (that.usd ? " (nhánh dùng API key)" : ", chưa đặt trần tháng") + "</div>";
     }
     if (orb && orb.remaining != null) {
       body += '<div class="s">OpenRouter còn <b style="color:var(--green)">' + fCost(orb.remaining) + "</b></div>";
@@ -460,13 +505,20 @@
     var t = state.tq; if (!t) return "";
     var k = t.tiet_kiem || {};
     if (!k.du_du_lieu) {
+      // Hai lý do khác hẳn nhau, và gộp làm một là nói dối theo hướng làm người ta tắt chế độ
+      // tiết kiệm đi: "chưa chạy lượt nào" với "anh đang chỉnh tay nên Javis không biết cấu
+      // hình đó tốn bao nhiêu".
       return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + "Đã tiết kiệm</div>"
-        + '<div class="big">-</div><div class="s">Chưa có lượt nào trong kỳ này để tính.</div></div>';
+        + '<div class="big">-</div><div class="s">'
+        + (k.khong_do_duoc
+          ? "Anh đang tự chỉnh tay từng đường nên Javis không biết cấu hình này tốn bao nhiêu mỗi lượt. Chọn một mức có sẵn là đo được."
+          : "Chưa có lượt nào của Javis trong kỳ này để tính.")
+        + "</div></div>";
     }
     var ti = k.tien || {};
     return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + "Đã tiết kiệm</div>"
       + '<div class="big warn">' + fTok(k.token) + "</div>"
-      + '<div class="s">token không phải gửi, qua ' + (k.so_luot || 0) + " lượt. "
+      + '<div class="s">token không phải gửi, qua ' + (k.so_luot || 0) + " lượt của Javis. "
       + "Chế độ <b>" + esc(k.nhan_muc || "") + "</b> cắt " + (k.phan_tram || 0)
       + "% chi phí cố định mỗi lượt.</div>"
       + '<div class="s">Quy theo giá API khoảng <b>' + fVnd(ti.vnd) + "</b>.</div></div>";
@@ -478,17 +530,22 @@
     var ns = t.ngan_sach || {};
     var g = ((t.tien || {}).goi || {});
     var c = t.cua_so || {};
+    // Giá trị đang gõ dở thắng giá trị đã lưu: người dùng vừa gõ 30 rồi bấm chip kỳ mà thấy ô
+    // trắng lại thì lần sau họ không tin cái form nữa.
+    var f = state.nsForm || {};
+    function val(dangGo, daLuu) { return dangGo != null && dangGo !== "" ? dangGo : (daLuu || ""); }
+    var tick = function (k, mac_dinh) { return (f[k] != null ? f[k] : mac_dinh) ? " checked" : ""; };
     return '<div class="tk-ns"><div class="row">'
       + '<div><label>Giá gói mỗi tháng (USD)</label><input id="tk-ns-goi" type="number" min="0" step="1" value="'
-      + (g.gia_thang_usd || "") + '" placeholder="Ví dụ 200"></div>'
+      + esc(val(f.goi, g.gia_thang_usd)) + '" placeholder="Ví dụ 200"></div>'
       + '<div><label>Trần tiền API mỗi tháng (USD)</label><input id="tk-ns-tran" type="number" min="0" step="1" value="'
-      + (ns.tran || "") + '" placeholder="Ví dụ 30"></div>'
+      + esc(val(f.tran, ns.tran)) + '" placeholder="Ví dụ 30"></div>'
       + '<div><label>Trần token cửa sổ 5 giờ</label><input id="tk-ns-5h" type="number" min="0" step="1000" value="'
-      + (c.tran_khai || "") + '" placeholder="Để trống thì Javis tự đo"></div>'
+      + esc(val(f.h5, c.tran_khai)) + '" placeholder="Để trống thì Javis tự đo"></div>'
       + "</div>"
-      + '<label class="chk"><input id="tk-ns-phanh" type="checkbox"' + (ns.tu_phanh ? " checked" : "") + ">"
+      + '<label class="chk"><input id="tk-ns-phanh" type="checkbox"' + tick("phanh", ns.tu_phanh) + ">"
       + "Chạm trần thì tự đẩy việc nền sang đường không tốn tiền</label>"
-      + '<label class="chk"><input id="tk-ns-tuan" type="checkbox"' + (t.bao_cao_tuan ? " checked" : "") + ">"
+      + '<label class="chk"><input id="tk-ns-tuan" type="checkbox"' + tick("tuan", !!t.bao_cao_tuan) + ">"
       + "Gửi báo cáo token về chat mỗi sáng thứ Hai</label>"
       + '<div class="acts"><button class="save" data-act="ns-luu">Lưu</button>'
       + '<button class="tk-mini" data-act="ns">Huỷ</button></div>'
@@ -668,6 +725,11 @@
     var note = '<div class="tk-note">Số "Tổng token" gồm cả token đọc-cache, nên rất lớn - phần lớn là đọc lại ngữ cảnh đã có, rẻ hơn token mới nhiều lần, xem ô "Cache đỡ cho". Tiền chia làm hai loại và trang này không trộn chúng: <b>tiền mặt</b> chỉ phát sinh ở nhánh dùng API key, còn với gói thuê bao thì mọi con số tiền chỉ là <b>quy đổi</b> theo bảng giá tham khảo để biết gói có đáng không. Nguồn Claude và Codex dựng từ log thật (có lịch sử); nhánh API chỉ có số từ khi bật ghi log.</div>';
 
     el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + heroHtml() + act + cards + chart + grid + tables + loopHtml() + engineHtml() + insHtml + note + "</div>";
+    // Thông báo đã hiện xong thì thôi. Không xoá ở đây thì câu "Đã chuyển sang mức Tối ưu"
+    // bám vào trang qua mọi lần đổi chip kỳ, mọi lần Làm mới, cho tới khi người dùng F5 -
+    // và một thông báo nói về việc xảy ra mười phút trước thì chỉ gây hiểu nhầm.
+    state.toast = "";
+    state.nsToast = "";
     bind();
     bindMuc();
   }
@@ -687,7 +749,11 @@
     });
     var nsBtns = el.querySelectorAll('[data-act="ns"]');
     nsBtns.forEach(function (b) {
-      b.onclick = function () { state.moNganSach = !state.moNganSach; load(false); };
+      b.onclick = function () {
+        state.moNganSach = !state.moNganSach;
+        if (!state.moNganSach) state.nsForm = null;   // đóng form là bỏ luôn số gõ dở
+        load(false);
+      };
     });
     var luu = el.querySelector('[data-act="ns-luu"]');
     if (luu) luu.onclick = function () {
@@ -703,16 +769,33 @@
       fd.append("tu_phanh", chk("tk-ns-phanh"));
       fd.append("bao_cao_tuan", chk("tk-ns-tuan") === "1" ? "auto" : "off");
       fetch("/usage/ngan-sach", { method: "POST", body: fd })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j || {} }; }); })
+        .then(function (res) {
+          // Đóng form lại rồi im lặng khi server từ chối là kiểu hỏng tệ nhất: người dùng
+          // tưởng đã đặt xong trần tiền, và cái trần đó không tồn tại. Phiên hết hạn trả 401
+          // kèm thân JSON nên `r.json()` vẫn resolve - phải soi `r.ok` chứ không soi mỗi body.
+          if (!res.ok || res.j.ok === false) {
+            state.nsToast = '<div class="tk-muc-toast err">Chưa lưu được: '
+              + esc(res.j.error || "máy chủ từ chối. Thử tải lại trang rồi đăng nhập lại.")
+              + "</div>";
+            luu.disabled = false;
+            load(false);
+            return;
+          }
           // Server trả về những thứ sẽ KHÔNG chạy được như người dùng tưởng (chưa đấu kênh
           // báo, tự phanh đang tắt). Nuốt mất là để họ yên tâm về một cái không chạy.
-          var cb = ((j || {}).canh_bao || []).join(" ");
+          var cb = (res.j.canh_bao || []).join(" ");
           state.nsToast = cb ? '<div class="tk-muc-toast">' + esc(cb) + "</div>" : "";
           state.moNganSach = false;
+          state.nsForm = null;
           load(false);
         })
-        .catch(function () { luu.disabled = false; });
+        .catch(function (e) {
+          state.nsToast = '<div class="tk-muc-toast err">Chưa lưu được: '
+            + esc(e && e.message ? e.message : e) + "</div>";
+          luu.disabled = false;
+          load(false);
+        });
     };
     el.querySelectorAll("[data-loop]").forEach(function (b) {
       b.onclick = function () {

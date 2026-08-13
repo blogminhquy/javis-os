@@ -59,6 +59,13 @@ def _khoa_gia(model: str, prices: dict) -> str:
     memo = _KHOA_GIA_MEMO["map"]
     if model in memo:
         return memo[model]
+    # Model FREE cua OpenRouter co hau to ':free' va gia bang 0. Khong loai no ra thi
+    # 'deepseek/deepseek-r1:free' khop khoa 'deepseek-r1' roi bi tinh 0,55$ moi trieu token -
+    # tien BIA hoan toan, va no chay thang vao o "tien mat thang nay" va vao phanh ngan sach.
+    # Nghia la Javis co the tu phanh viec nen vi mot hoa don khong ton tai.
+    if ":free" in str(model or ""):
+        memo[model] = ""
+        return ""
     ung_vien = [model]
     if "/" in str(model or ""):
         ung_vien.append(str(model).rsplit("/", 1)[-1])

@@ -42,7 +42,12 @@ _EVENTS_PATH = STATE_DIR / "usage-events.jsonl"
 
 _DIMS = {"provider", "source", "activity", "model", "project", "day"}
 # provider API (chi nhung nay lay tu usage-events.jsonl; claude/codex lay tu log tho)
-_API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth", "ollama"}
+# Provider API = nhung duong TRA TIEN THEO TOKEN. Danh sach nay phai khop PROVIDER_DEFS ben
+# main.py; thieu mot ten la moi dong cua provider do bi VUT IM LANG (chuoi if/elif ben duoi
+# khong co else), va o "tien mat thang nay" bao 0 trong khi vi van voi di. 'groq' va 'gemini'
+# tung thieu dung nhu vay.
+_API_PROVIDERS = {"openrouter", "openai", "anthropic", "anthropic-api", "oauth", "ollama",
+                  "groq", "gemini"}
 
 
 def _claude_dir() -> str:
@@ -261,7 +266,10 @@ def _ingest_events(conn) -> int:
     row = conn.execute("SELECT offset FROM files_seen WHERE path=?", (path,)).fetchone()
     start = row[0] if row else 0
     if start > complete:                    # file bi cat/xoay -> nap lai tu dau
-        conn.execute("DELETE FROM file_daily WHERE path=?", (path,))
+        # Phai don CA HAI bang. Don moi file_daily roi doc lai tu dong 0 thi file_hourly giu
+        # nguyen dong cu VA nhan them dong moi -> cua so 5 gio va dinh phong len vinh vien,
+        # khong co gi xoa chung nua.
+        _clear_file(conn, path)
         start = 0
 
     events = []
@@ -362,12 +370,21 @@ def _migrate_schema_once(conn) -> bool:
     row = conn.execute("SELECT offset FROM files_seen WHERE path=?", (_SCHEMA_MARK,)).fetchone()
     if row:
         return False
-    conn.execute("DELETE FROM file_daily")
-    conn.execute("DELETE FROM file_hourly")
+    # KHONG xoa file_daily. Claude Code tu don transcript trong ~/.claude/projects sau
+    # `cleanupPeriodDays` (mac dinh 30 ngay), nen dong nao co file goc da bi don thi xoa di la
+    # MAT VINH VIEN - quet lai khong dung lai duoc. Chi xoa dau vet DA-QUET (files_seen) de
+    # moi file CON TREN DIA duoc parse lai; luc parse lai, _clear_file tu xoa dong cu cua
+    # chinh file do nen khong dem trung. Dong mo coi (file goc khong con) o lai voi turns=0:
+    # thieu so luot cua ky cu con hon mat sach token cua ky cu.
+    ev = str(_EVENTS_PATH)
+    conn.execute("DELETE FROM file_daily WHERE path=?", (ev,))
+    conn.execute("DELETE FROM file_hourly WHERE path=?", (ev,))
     conn.execute("DELETE FROM files_seen")
     conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,0,0,1)", (_SCHEMA_MARK,))
     # Xoa sach files_seen cung xoa luon dau migrate v2 o tren; ghi lai ngay de lan refresh sau
     # no khong nap lai usage-events.jsonl tu dau lan nua (se dem trung voi lan quet nay).
+    # Rieng file event thi offset da ve 0 va dong cu cua no vua bi xoa o tren, nen no duoc nap
+    # lai tron ven mot lan - dung y do, vi day la nguon DUY NHAT cua nhanh API.
     conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,0,0,1) "
                  "ON CONFLICT(path) DO NOTHING", (_EVENTS_MIGRATE_MARK,))
     return True
@@ -694,7 +711,12 @@ def cua_so(gio: float = 5.0, provider: str = None, now: datetime = None) -> dict
     """
     gio = max(1.0, min(float(gio or 5.0), 24 * 7.0))
     now = now or datetime.now(_TZ)
-    tu = now - timedelta(hours=gio)
+    # Dem dung `n` MOC GIO, khop y het `dinh_cua_so`. Truoc day ham nay lay now-5h roi BETWEEN
+    # tron ca hai dau -> 6 moc, trong khi dinh truot dung 5 moc. Chia hai so do cho nhau (main
+    # lam dung vay de ra ty_le) thi ty le luon phong ~20%, va tren mot nhip dung deu no bao
+    # "120% muc cao nhat" - mot con so khong the dung.
+    n = max(1, int(round(gio)))
+    tu = now - timedelta(hours=n - 1)
     h_tu, h_den = tu.strftime("%Y-%m-%dT%H"), now.strftime("%Y-%m-%dT%H")
     where, args = ["hour BETWEEN ? AND ?"], [h_tu, h_den]
     if provider:
@@ -708,7 +730,39 @@ def cua_so(gio: float = 5.0, provider: str = None, now: datetime = None) -> dict
     finally:
         conn.close()
     return {"tokens": row[0] or 0, "turns": row[1] or 0, "gio": gio,
-            "tu": h_tu, "den": h_den, "moc_reset": (tu + timedelta(hours=gio)).isoformat()}
+            "tu": h_tu, "den": h_den, "moc_reset": (tu + timedelta(hours=n)).isoformat()}
+
+
+def luot_theo_ngay(period: str = "this_month", nguon: tuple = ("javis",),
+                   bo_subagent: bool = True, today: date = None) -> list:
+    """[{day, turns}] cua rieng nhung luot DO JAVIS chay. Dung lam mau so tinh tiet kiem.
+
+    Vi sao khong dung thang `summary()["timeseries"]["turns"]`: no cong turns cua MOI dong,
+    trong do co source='manual' - la nhung phien nguoi dung tu mo `claude` trong terminal o
+    bat ky repo nao tren cung may. Nhung luot do KHONG di qua prompt cua Javis, nen che do
+    tiet kiem cua Javis khong he lam chung re di. Nhan chung vao la thoi phong con so tiet
+    kiem len nhieu lan, va tren mot may vua dung Javis vua dung Claude Code tay thi phan thoi
+    phong con lon hon phan that.
+
+    Bo luon 'subagent': agent con do engine tu de ra mang prompt rieng cua no, khong phai goi
+    ngu canh ma muc tiet kiem cua Javis cat. Tha dem thieu con hon khoe thua.
+    """
+    (cs, ce), _prev = resolve_period(period, today)
+    where = ["day BETWEEN ? AND ?"]
+    args = [cs.isoformat(), ce.isoformat()]
+    if nguon:
+        where.append("source IN (%s)" % ",".join("?" for _ in nguon))
+        args.extend(list(nguon))
+    if bo_subagent:
+        where.append("activity<>'subagent'")
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT day, COALESCE(SUM(turns),0) FROM file_daily WHERE %s GROUP BY day ORDER BY day"
+            % " AND ".join(where), args).fetchall()
+    finally:
+        conn.close()
+    return [{"day": r[0], "turns": r[1] or 0} for r in rows]
 
 
 def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) -> dict:

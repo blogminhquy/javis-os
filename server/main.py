@@ -5385,7 +5385,7 @@ def _cau_mo_dau(d: dict) -> str:
     quy = float((t.get("quy_doi") or {}).get("usd") or 0)
     ky = d.get("ten_ky") or "Kỳ này"
     ve = []
-    if goi.get("gia_thang_usd"):
+    if goi.get("so_duoc"):
         lan = goi.get("roi_lan") or 0
         # Nói đủ cả ba ca. Chỉ khoe khi thật sự lời, và dám nói khi gói đang đắt hơn API -
         # một trang chỉ biết khen thì lần sau không ai tin nó nữa.
@@ -5455,9 +5455,14 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
     tien_that = round(float((theo_prov.get("api") or {}).get("cost") or 0), 4)
     tien_quy_doi = round(sum(float(v.get("cost") or 0)
                              for kk, v in theo_prov.items() if kk != "api"), 2)
+    # Gia goi la tien MOT THANG, nen chi so sanh duoc voi so lieu CUA MOT THANG. Bam chip
+    # "Hom nay" roi lay chi phi mot ngay chia cho tien goi ca thang thi ra "goi dang lo 10
+    # lan" - va do la dong chu to nhat tren trang, doc dau tien. Ky khong phai thang thi
+    # khong so, chu khong so bua.
     gia_goi = float(mcfg.get("gia_goi_thang_usd") or 0)
-    goi = {"gia_thang_usd": gia_goi,
-           "roi_lan": round(tien_quy_doi / gia_goi, 1) if gia_goi > 0 else 0}
+    ky_thang = period in ("this_month", "last_month")
+    goi = {"gia_thang_usd": gia_goi, "so_duoc": bool(gia_goi > 0 and ky_thang),
+           "roi_lan": round(tien_quy_doi / gia_goi, 1) if (gia_goi > 0 and ky_thang) else 0}
 
     orb = None
     try:
@@ -5485,18 +5490,24 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
     # --- Tiết kiệm: đối chứng ngược, chạy được cho MỌI kỳ (xem usage_saving).
     phi = await _phi_moi_muc(brain)
     muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
-    gia_1m, nguon_gia = _gia_input_1m(str(mcfg.get("model") or ""), mcfg)
-    tk = usage_saving.tiet_kiem(s.get("timeseries") or [], phi, muc_nay,
+    gia_1m, nguon_gia = _gia_input_1m(_ten_model_chinh(mcfg), mcfg)
+    luot_javis = await asyncio.to_thread(usage_index.luot_theo_ngay, period)
+    tk = usage_saving.tiet_kiem(luot_javis, phi, muc_nay,
                                 gia_1m_usd=gia_1m, ty_gia=VND_MOI_USD)
     tk["nguon_gia"] = nguon_gia
     tk["nhan_muc"] = (RUNTIME_PRESETS.get(muc_nay) or {}).get("nhan") or muc_nay
 
     # --- Ngân sách + dự báo
+    # Tran tien la tran THANG. Doi chieu no voi chi phi cua ky dang chon la so mot ngay voi
+    # tran mot thang: bam chip "Hom nay" thi o ngan sach bao "con nguyen 30$" du thang nay da
+    # tieu het. Nen o nay LUON doc so cua thang, khong theo chip.
+    tien_that_thang = await _tien_that_thang()
     db = usage_saving.du_bao(k.get("tokens") or 0, tien_that,
                              (s.get("range") or ["", ""])[0], (s.get("range") or ["", ""])[1],
                              period)
-    ns = usage_saving.ngan_sach(tien_that, float(mcfg.get("ngan_sach_thang_usd") or 0),
-                                float(db.get("cost") or 0) if db.get("co") else 0.0)
+    du_bao_thang = float(db.get("cost") or 0) if (period == "this_month" and db.get("co")) else 0.0
+    ns = usage_saving.ngan_sach(tien_that_thang, float(mcfg.get("ngan_sach_thang_usd") or 0),
+                                du_bao_thang)
     ns["tu_phanh"] = bool(mcfg.get("tu_phanh"))
     ns["dang_phanh"] = usage_saving.dang_phanh()
 
@@ -5506,7 +5517,7 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
         "engine": _engine_runtime_view(cfgmod.read_settings().get("context_runtime") or {}),
         "tien": {
             "that": {"usd": tien_that, "vnd": round(tien_that * VND_MOI_USD),
-                     "openrouter": orb},
+                     "usd_thang": tien_that_thang, "openrouter": orb},
             "quy_doi": {"usd": tien_quy_doi, "vnd": round(tien_quy_doi * VND_MOI_USD)},
             "goi": goi, "ty_gia": VND_MOI_USD,
         },
@@ -5708,7 +5719,8 @@ async def _bao_cao_token(period: str = "this_week") -> str:
 
     phi = await _phi_moi_muc("brain")
     muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
-    tk = usage_saving.tiet_kiem(s.get("timeseries") or [], phi, muc_nay)
+    tk = usage_saving.tiet_kiem(await asyncio.to_thread(usage_index.luot_theo_ngay, period),
+                                phi, muc_nay)
     if tk.get("token"):
         d.append(f"Chế độ tiết kiệm tránh được {_fmt_tok_vn(tk['token'])} token "
                  f"({tk.get('phan_tram') or 0}% mỗi lượt).")
@@ -9612,6 +9624,25 @@ _GIA_INPUT_MAC_DINH = 3.0     # không đoán được model thì lấy mức ph
 VND_MOI_USD = 26_000          # tạm tính; giao diện ghi rõ tỉ giá đang dùng
 
 
+def _ten_model_chinh(mcfg: dict) -> str:
+    """Tên model chính đang chạy, lấy từ ĐÚNG chỗ nó nằm.
+
+    `settings["model"]` KHÔNG có khoá `"model"` - tên model nằm ở `main.model`, và với cấu
+    hình cũ thì ở `claude_model` / `openrouter_model`. Đọc `mcfg.get("model")` luôn ra rỗng,
+    nên mọi phép quy đổi tiền rơi về đơn giá mặc định 3$ bất kể người dùng đang chạy Opus
+    (15$) hay Haiku (1$). Sai im lặng: con số vẫn hiện ra, chỉ là sai vài lần.
+    """
+    m = mcfg or {}
+    ten = ((m.get("main") or {}).get("model") or "").strip()
+    if ten:
+        return ten
+    for khoa in ("claude_model", "openrouter_model", "model"):
+        v = str(m.get(khoa) or "").strip()
+        if v:
+            return v
+    return ""
+
+
 def _gia_input_1m(model: str, settings_model: dict = None) -> tuple:
     """(giá USD cho 1 triệu token vào, nguồn của con số đó)."""
     try:
@@ -9665,7 +9696,7 @@ def _do_duoc_tiet_kiem(tasks: list, window_hours: float = 24.0,
     # xảy ra, nên giao diện phải gọi nó là "theo nhịp này" chứ đừng ghi như một hoá đơn.
     gio = max(1.0, float(out["gio_do"]))
     out["token_thang"] = round(out["token_tiet_kiem"] * (24 * 30 / gio))
-    gia, nguon = _gia_input_1m(str((settings_model or {}).get("model") or ""), settings_model)
+    gia, nguon = _gia_input_1m(_ten_model_chinh(settings_model or {}), settings_model)
     out["tien"] = {
         "gia_1m_usd": gia, "nguon_gia": nguon, "ty_gia": VND_MOI_USD,
         "usd": round(out["token_tiet_kiem"] / 1_000_000 * gia, 4),

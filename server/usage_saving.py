@@ -124,6 +124,14 @@ def muc_theo_ngay(ngay: list, muc_hien_tai: str) -> dict:
     return out
 
 
+def out_rong(goc: int = 0, so_luot: int = 0) -> dict:
+    """Khoi tiet kiem RONG, dung khi khong do duoc. Giu du khoa de giao dien khong phai dem null."""
+    return {"token": 0, "so_luot": so_luot, "moi_luot": 0, "phi_goc": goc, "phi_dang_chay": goc,
+            "muc_chinh": "", "phan_tram": 0, "theo_ngay": [], "suy_doan": False,
+            "du_du_lieu": False, "khong_do_duoc": False,
+            "tien": {"usd": 0.0, "vnd": 0, "gia_1m_usd": 0.0, "ty_gia": 0}}
+
+
 def tiet_kiem(theo_ngay: list, phi_moi_muc: dict, muc_hien_tai: str,
               gia_1m_usd: float = 3.0, ty_gia: int = 26_000) -> dict:
     """Token tiet kiem duoc trong ky, bang doi chung voi che do Tat.
@@ -161,6 +169,12 @@ def tiet_kiem(theo_ngay: list, phi_moi_muc: dict, muc_hien_tai: str,
     # bao nhieu" - lay muc chiem da so ma tra loi thi ra 0% ngay sau khi vua bat.
     muc_chinh = max(dem_muc, key=lambda k: dem_muc[k]) if dem_muc else str(muc_hien_tai or "off")
     nay = str(muc_hien_tai or "off")
+    # `current_preset` tra ve "custom" khi nguoi dung tu chinh tay tung duong (endpoint
+    # /runtime/canary). Luc do ta KHONG biet chi phi co dinh moi luot cua cau hinh do, nen moi
+    # ngay ra chenh 0 va tong ra 0 token. Bao "du_du_lieu: True" kem so 0 la noi "che do tiet
+    # kiem cua anh khong dang gi" - sai, va sai theo huong lam nguoi ta tat no di.
+    if nay not in phi:
+        return {**out_rong(goc, tong_luot), "muc_chinh": muc_chinh, "khong_do_duoc": True}
     usd = tong_token / 1_000_000.0 * float(gia_1m_usd or 0)
     return {
         "token": tong_token,
@@ -174,6 +188,7 @@ def tiet_kiem(theo_ngay: list, phi_moi_muc: dict, muc_hien_tai: str,
         # Chua co moc nao thi ta dang GIA DINH ca ky chay cung mot muc. Noi ra, dung im.
         "suy_doan": not co_moc,
         "du_du_lieu": bool(goc and tong_luot),
+        "khong_do_duoc": False,
         "tien": {"usd": round(usd, 4), "vnd": round(usd * ty_gia),
                  "gia_1m_usd": float(gia_1m_usd or 0), "ty_gia": ty_gia},
     }

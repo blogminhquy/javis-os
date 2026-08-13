@@ -97,14 +97,14 @@ _now = datetime.now(_TZ)
 
 
 def _seed(hour_dt, tokens, turns, provider="claude", path="p1", day=None, activity="chat",
-          model="claude-opus-5", inp=None):
+          model="claude-opus-5", inp=None, source="javis"):
     c = ui._connect()
     try:
         c.execute("INSERT INTO file_hourly(path,hour,provider,tokens,turns) VALUES(?,?,?,?,?)",
                   (path, hour_dt.strftime("%Y-%m-%dT%H"), provider, tokens, turns))
         c.execute("INSERT INTO file_daily(path,day,provider,source,activity,model,project,"
                   "input,output,cache_read,cache_create,turns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                  (path, day or hour_dt.strftime("%Y-%m-%d"), provider, "javis", activity,
+                  (path, day or hour_dt.strftime("%Y-%m-%d"), provider, source, activity,
                    model, "brainX", inp if inp is not None else tokens, 0, 0, 0, turns))
         c.commit()
     finally:
@@ -374,6 +374,125 @@ check("đổi bộ não cũng đóng mốc", 'usage_saving.ghi_moc("model"' in _
 # trùng, và trang báo gấp đôi số token.
 check("CANARY: quét index được tuần tự hoá",
       "_USAGE_REFRESH_LOCK" in _MAIN and "async with _USAGE_REFRESH_LOCK" in _MAIN)
+
+# ============================================================
+# 11. Những chỗ "sai im lặng" - số vẫn hiện ra, chỉ là sai
+# ============================================================
+# Không cái nào trong mục này làm app đổ. Chúng chỉ trả ra một con số trông bình thường mà
+# sai, và đó là loại lỗi sống lâu nhất trên một trang báo cáo.
+
+# settings["model"] KHÔNG có khoá "model" - tên model nằm ở main.model / claude_model.
+# Đọc nhầm thì mọi phép quy đổi tiền rơi về đơn giá mặc định 3$ bất kể đang chạy Opus (15$)
+# hay Haiku (1$), tức sai 5 lần theo cả hai chiều.
+check("CANARY: lấy đúng tên model chính từ main.model",
+      main._ten_model_chinh({"main": {"provider": "anthropic-cli", "model": "claude-opus-5"}})
+      == "claude-opus-5")
+check("cấu hình cũ (claude_model) vẫn đọc được",
+      main._ten_model_chinh({"claude_model": "haiku"}) == "haiku")
+check("CANARY: và giá đi theo đúng model đó, không rơi về mặc định",
+      main._gia_input_1m(main._ten_model_chinh(
+          {"main": {"model": "claude-opus-5"}}), {}) == (15.0, "bang"))
+
+# Model free của OpenRouter có hậu tố ':free' và giá bằng 0. Tính tiền cho nó là bịa ra một
+# hoá đơn không tồn tại, và hoá đơn đó chảy thẳng vào phanh ngân sách.
+check("CANARY: model ':free' không bị tính tiền",
+      up._khoa_gia("deepseek/deepseek-r1:free", _p) == ""
+      and up.estimate_cost({"model": "deepseek/deepseek-r1:free", "input": 10_000_000,
+                            "output": 0, "cache_read": 0, "cache_create": 0}, _p) == 0.0)
+check("bản trả phí cùng họ thì vẫn tính tiền",
+      up.estimate_cost({"model": "deepseek/deepseek-r1", "input": 10_000_000,
+                        "output": 0, "cache_read": 0, "cache_create": 0}, _p) > 0)
+
+# Cửa sổ hiện tại và đỉnh đối chiếu phải đếm CÙNG số mốc giờ. Lệch một mốc là tỉ lệ phồng
+# ~20% trên một nhịp dùng đều, và ô đó hiện "100%" trong khi thực tế mới dùng 80%.
+_D4 = tempfile.mkdtemp(prefix="javis-cs-")
+_dem = {"cua_so": 0, "dinh": 0}
+
+
+def _do_moc():
+    import importlib
+    import config as _cfg
+    cu = os.environ.get("JAVIS_STATE_DIR")
+    os.environ["JAVIS_STATE_DIR"] = _D4
+    try:
+        importlib.reload(_cfg)
+        importlib.reload(ui)
+        moc = datetime(2026, 8, 13, 14, 30, tzinfo=_TZ)
+        c = ui._connect()
+        try:
+            for i in range(48):
+                g = (moc - timedelta(hours=i)).strftime("%Y-%m-%dT%H")
+                c.execute("INSERT INTO file_hourly(path,hour,provider,tokens,turns) "
+                          "VALUES('p','%s','claude',1000,1)" % g)
+            c.commit()
+        finally:
+            c.close()
+        return ui.cua_so(5.0, now=moc)["tokens"], ui.dinh_cua_so(5.0, 60, now=moc)["tokens"]
+    finally:
+        os.environ["JAVIS_STATE_DIR"] = cu
+        importlib.reload(_cfg)
+        importlib.reload(ui)
+
+
+_cs4, _dinh4 = _do_moc()
+check("CANARY: cửa sổ hiện tại và đỉnh đếm cùng số mốc giờ", _cs4 == _dinh4 == 5000)
+
+# Provider API nào thiếu trong danh sách là mọi dòng của nó bị vứt im lặng (chuỗi if/elif
+# không có else), và ô tiền mặt báo 0 trong khi ví vẫn vơi đi.
+for _pv in ("groq", "gemini", "openrouter", "openai", "anthropic-api", "ollama"):
+    check(f"nhánh API '{_pv}' được indexer nhận", _pv in ui._API_PROVIDERS)
+
+# Mẫu số của tiết kiệm phải là lượt CỦA JAVIS. Lượt người dùng tự gõ `claude` trong terminal
+# không đi qua prompt của Javis nên chế độ tiết kiệm không làm chúng rẻ đi.
+_seed(_now, 5000, 100, provider="claude", path="p-manual", activity="manual", source="manual")
+_luot = ui.luot_theo_ngay("today")
+_tong_moi = sum(x["turns"] for x in _luot)
+_tong_tat = sum(x["turns"] for x in ui.summary("today")["timeseries"])
+check("CANARY: lượt người dùng tự gõ KHÔNG được tính vào tiết kiệm", _tong_moi < _tong_tat)
+check("và lượt của Javis thì vẫn được tính", _tong_moi > 0)
+
+# Người tự chỉnh tay từng đường (preset 'custom'): Javis không biết cấu hình đó tốn bao nhiêu
+# mỗi lượt. Báo "tiết kiệm 0" kèm du_du_lieu=True là nói "chế độ của anh chẳng đáng gì".
+_tk_custom = us.tiet_kiem([{"day": "2026-08-12", "turns": 10}], _PHI, "custom")
+check("CANARY: cấu hình tự chỉnh thì nói KHÔNG ĐO ĐƯỢC, không nói tiết kiệm 0",
+      _tk_custom["du_du_lieu"] is False and _tk_custom["khong_do_duoc"] is True)
+
+# Giá gói là tiền MỘT THÁNG. Chia nó cho chi phí của một ngày thì ra "gói đang lỗ 10 lần",
+# mà đó là dòng chữ to nhất trên trang.
+asyncio.run(main.usage_ngan_sach(gia_goi_thang_usd="200"))
+_tq_ngay = asyncio.run(main.usage_tong_quan(period="today", brain="brain"))
+_tq_thang = asyncio.run(main.usage_tong_quan(period="this_month", brain="brain"))
+check("CANARY: kỳ không phải tháng thì KHÔNG so với giá gói",
+      _tq_ngay["tien"]["goi"]["so_duoc"] is False and _tq_ngay["tien"]["goi"]["roi_lan"] == 0)
+check("kỳ tháng thì so được", _tq_thang["tien"]["goi"]["so_duoc"] is True)
+check("và câu mở đầu của kỳ ngày không nhắc tiền gói",
+      "tiền gói" not in _tq_ngay["cau"])
+
+# Trần tiền là trần THÁNG. Bấm chip "Hôm nay" mà ô ngân sách đọc chi phí một ngày thì nó báo
+# "còn nguyên" dù tháng này đã tiêu hết.
+asyncio.run(main.usage_ngan_sach(ngan_sach_thang_usd="30"))
+_a = asyncio.run(main.usage_tong_quan(period="today", brain="brain"))["ngan_sach"]
+_b = asyncio.run(main.usage_tong_quan(period="this_year", brain="brain"))["ngan_sach"]
+check("CANARY: ô ngân sách luôn đọc số của THÁNG, không đổi theo chip kỳ",
+      _a["da_tieu"] == _b["da_tieu"])
+
+# Giao diện
+check("giao diện soi r.ok chứ không chỉ đọc thân JSON",
+      "function jsonOk(" in _USAGE and "if (!r.ok)" in _USAGE)
+check("phiên hết hạn thì nói ra, không vẽ trang 0 đồng", "hết hạn" in _USAGE)
+check("nút lưu ngân sách báo lỗi khi server từ chối", "Chưa lưu được" in _USAGE)
+check("CANARY: thông báo tan sau khi hiện, không dính lại mãi",
+      'state.toast = "";' in _USAGE and 'state.nsToast = "";' in _USAGE)
+check("số đang gõ dở trong form không bị xoá khi trang vẽ lại",
+      "function nhoForm(" in _USAGE and "state.nsForm" in _USAGE)
+check("nói rõ chỉ đếm lượt của Javis", "lượt của Javis" in _USAGE)
+
+# Việc nền chạy bằng API key phải ghi mức dùng, không thì trần tiền không thấy chính khoản
+# chi mà nó sinh ra để chặn.
+_AUX = (ROOT / "server" / "aux_engine.py").read_text(encoding="utf-8")
+check("CANARY: việc nền đường API có ghi vào sổ mức dùng",
+      "usage_store.record(" in _AUX and "_ghi_muc_dung" in _AUX)
+check("phanh có kiểm binary CLI thật sự tồn tại", "_co_binary(" in _AUX)
 
 print()
 if _fails:
