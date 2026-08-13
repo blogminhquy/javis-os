@@ -101,6 +101,8 @@ _DEFAULT = {
             "openai-oauth": [],
             # Gemini CLI: model do chinh CLI khai (xem gemini_cli.MODELS_MAC_DINH).
             "gemini-cli": [],
+            # Antigravity CLI: model hoi thang `agy models`, KHONG chep tay bang nao o day.
+            "antigravity-cli": [],
             "openrouter": ["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"],
         },
     },

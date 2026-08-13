@@ -49,7 +49,8 @@ import git_brain
 import engine
 import openai_oauth
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
-import gemini_cli      # bộ não thứ 9: Gemini CLI chạy bằng đăng nhập Google, không cần API key
+import gemini_cli      # bộ não thứ 9: Gemini CLI (Google đã ngắt hạng cá nhân 18/06/2026)
+import antigravity_cli # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
 import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
@@ -980,7 +981,14 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # Gemini CLI: đăng nhập bằng TÀI KHOẢN GOOGLE, không cần mua API key - cùng backend Code
     # Assist mà Antigravity dùng, nhưng qua CLI chính chủ Google có hỗ trợ bên thứ ba.
     # Khác hẳn provider `gemini` bên dưới (kind=api, trả tiền theo lượt gọi bằng API key).
-    {"id": "gemini-cli",    "label": "Google Gemini CLI (đăng nhập Google)", "kind": "cli", "key_field": None,
+    # Antigravity CLI (binary `agy`) - bản Google chỉ định thay cho Gemini CLI sau khi họ ngắt
+    # hạng cá nhân 18/06/2026. Đặt TRƯỚC thẻ Gemini CLI vì đây mới là đường còn sống cho người
+    # dùng cá nhân, và cho chọn đúng dàn model của Antigravity IDE (có cả Claude).
+    # default_models để RỖNG là cố ý: danh sách hỏi thẳng `agy models` chứ không chép tay - tên
+    # model của Google đổi liên tục, mà bảng chép tay thì sai lặng lẽ.
+    {"id": "antigravity-cli", "label": "Google Antigravity CLI", "kind": "cli", "key_field": None,
+     "catalog_key": "antigravity-cli", "default_models": []},
+    {"id": "gemini-cli",    "label": "Google Gemini CLI (cá nhân đã bị Google ngắt)", "kind": "cli", "key_field": None,
      "catalog_key": "gemini-cli", "default_models": list(gemini_cli.MODELS_MAC_DINH)},
     {"id": "openrouter",    "label": "OpenRouter",              "kind": "api", "key_field": "openrouter_key",    "catalog_key": "openrouter",
      "default_models": ["openai/gpt-4o-mini"]},
@@ -1032,6 +1040,11 @@ def _providers_view(cfg):
             # Không dùng lối "key_field rỗng nên coi như xong" của anthropic-cli: Gemini CLI có
             # thể chưa cài, hoặc cài rồi mà chưa đăng nhập Google. Cả hai đều đọc từ file, rẻ.
             configured = bool(gemini_cli.auth_status().get("connected"))
+        elif p["id"] == "antigravity-cli":
+            # `agy` giữ phiên trong keyring của hệ điều hành nên không có file nào để soi -
+            # auth_status() phải hỏi chính CLI, và nó tự nhớ kết quả một phút để mở trang Models
+            # không đẻ tiến trình mỗi lần.
+            configured = bool(antigravity_cli.auth_status().get("connected"))
         elif p["key_field"] is None:
             configured = True
         else:
@@ -1055,6 +1068,15 @@ def _providers_view(cfg):
             # Đăng nhập qua dashboard thì Javis giữ token nên NGẮT được; đăng nhập bằng
             # terminal thì token là của CLI, Javis không có quyền gỡ hộ.
             item["auth_by_javis"] = gemini_oauth.connected()
+        if p["id"] == "antigravity-cli":
+            _a = antigravity_cli.auth_status()
+            item["cli_found"] = bool(antigravity_cli.find_antigravity_cli())
+            item["auth_method"] = _a.get("method", "")
+            item["auth_error"] = _a.get("error", "")
+            item["cai_lenh"] = antigravity_cli.lenh_cai()
+            # Không có nút Ngắt: token nằm trong keyring của hệ điều hành, Javis không giữ nên
+            # cũng không gỡ hộ được. Dựng nút rồi bên dưới không làm gì mới là dối.
+            item["auth_by_javis"] = False
         if p["id"] == "anthropic-cli":
             # Gói Claude Code chạy bằng gì, và có đang gánh việc nền không. Trang Models vẽ ô
             # chọn + cảnh báo từ ba field này. Cảnh báo đi kèm DỮ LIỆU chứ không hardcode ở
@@ -1081,6 +1103,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "gemini"
     elif provider == "gemini-cli":
         m["engine"] = "gemini-cli"
+    elif provider == "antigravity-cli":
+        m["engine"] = "antigravity-cli"
     elif provider == "groq":
         m["engine"] = "groq"
     elif provider == "ollama":
@@ -1277,8 +1301,27 @@ def _gemini_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
     return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
 
 
+def _antigravity_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                            mode="suggest"):
+    """Gói Google qua Antigravity CLI cho đường CHAT-THUẦN của `_api_stream`.
+
+    Cùng lý do tồn tại với `_gemini_sub_stream`: provider nào không có nhánh ở `_api_stream` sẽ
+    rơi xuống `engine.anthropic_stream(key="")` và hỏng câm. KHÔNG phải `async def` - xem chú
+    thích dài ở `_gemini_sub_stream`.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    g = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain) if brain else None, tag=tag,
+                                       model=model or None, instructions=sys_txt)
+    g.mode = mode or "suggest"
+    if brain:
+        _apply_antigravity_hub(g, _brain_root(brain), mode=mode)
+    # Dùng chung bộ dịch sự kiện với Gemini CLI: hai engine đã phát cùng một hợp đồng
+    # {tool_call, final, usage, error}, viết lại là hai bản dễ lệch nhau.
+    return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
+
+
 async def _gemini_sub_doc(g, prompt, model):
-    """Một lượt Gemini CLI -> đúng hợp đồng sự kiện của `_api_stream`."""
+    """Một lượt engine CLI (Gemini hoặc Antigravity) -> hợp đồng sự kiện của `_api_stream`."""
     yield {"type": "meta", "model": model}
     async for ev in g.query(prompt):
         et = ev.get("type")
@@ -1358,6 +1401,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         # Gói Google đi qua chính binary `gemini`, cùng lý do với anthropic-cli ngay dưới:
         # Javis không cầm token của ai, CLI tự lo đăng nhập.
         return _gemini_sub_stream(model, messages, reasoning)
+    if prov == "antigravity-cli":
+        return _antigravity_sub_stream(model, messages, reasoning)
     if prov == "anthropic-cli":
         # Gói Claude Code đi qua chính binary `claude`, KHÔNG tự dựng request tới
         # api.anthropic.com bằng token của người dùng nữa (xem claude_auth.py). Vẫn không có
@@ -2333,6 +2378,30 @@ def _apply_gemini_hub(cli, vault_root=None, mode="full"):
     return cli
 
 
+def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
+    """Gắn MCP hub của Javis vào tiến trình `agy`, cùng khuôn với _apply_gemini_hub.
+
+    Header y hệt ba engine kia (`Bearer hub_token` + X-Javis-Mode + X-Javis-Vault) nên hub áp
+    đúng một bộ luật quyền cho cả bốn. Chỗ khác duy nhất nằm trong
+    `antigravity_cli.ghi_mcp_settings`: chưa đo được tên file cấu hình thật của `agy` nên nó
+    ghi ra cả hai ứng viên.
+    """
+    root = vault_root or getattr(cli, "cwd", None)
+    if not root:
+        return cli
+    hub = None
+    if _hub_enabled():
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        try:
+            headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
+        except Exception:
+            headers["X-Javis-Vault"] = str(root)
+        hub = {"httpUrl": mcp_hub.hub_url(), "headers": headers,
+               "trust": True, "timeout": 20000}
+    antigravity_cli.ghi_mcp_settings(root, hub)
+    return cli
+
+
 def _apply_codex_hub(cli, vault_root=None):
     """Gắn profile MCP và brain hiện tại vào riêng tiến trình Codex."""
     cli.profile = _write_codex_profile()
@@ -2475,6 +2544,27 @@ async def gemini_cli_check():
     thì file vẫn nguyên). Trang Models cần câu trả lời dứt khoát, và đây là cách duy nhất có nó.
     """
     return await asyncio.to_thread(gemini_cli.kiem_tra_nhanh)
+
+
+@app.get("/antigravity/status")
+def antigravity_status():
+    """Trạng thái Antigravity CLI cho trang Models."""
+    d = antigravity_cli.auth_status()
+    d["cli_path"] = antigravity_cli.find_antigravity_cli() or ""
+    d["cai_lenh"] = antigravity_cli.lenh_cai()
+    d["huong_dan"] = antigravity_cli.login_huong_dan()
+    return d
+
+
+@app.post("/antigravity/check")
+async def antigravity_check():
+    """Chạy thử MỘT lượt thật.
+
+    Không dùng lại kết quả `agy models` đã nhớ trong RAM: nó chỉ nói tài khoản còn sống, chưa
+    nói luồng chat có chạy không - mà đúng chỗ đó là chỗ Gemini CLI gãy hồi Google ngắt hạng
+    cá nhân. Nút này phải trả lời được câu "chat được chưa", nên chạy thật một lượt.
+    """
+    return await asyncio.to_thread(antigravity_cli.kiem_tra_nhanh)
 
 
 @app.post("/claude/login")
@@ -3249,6 +3339,10 @@ async def _fetch_provider_models(provider, m):
         return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
     if provider == "gemini-cli":
         return gemini_cli.list_models()
+    if provider == "antigravity-cli":
+        # `agy models` là NGUỒN CHÂN LÝ, không có bảng chép tay nào để rơi về - chạy ở worker
+        # vì nó đẻ tiến trình con và có thể mất vài giây.
+        return await asyncio.to_thread(antigravity_cli.list_models)
     if provider == "anthropic-cli":
         # Provider này chạy bằng đăng nhập OAuth của Claude Code → mượn chính token đó hỏi
         # /v1/models, nên Anthropic ra bản mới là picker thấy ngay (trước kẹt ở 4 alias tĩnh).
@@ -8024,6 +8118,64 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text, "engine": "gemini-cli",
                         "model": actual_model, "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
+            elif prov == "antigravity-cli":
+                # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
+                #
+                # CỐ Ý chưa nối lại mạch hội thoại của CLI như nhánh Gemini/Codex ngay trên.
+                # `agy` có `--conversation <uuid>`, nhưng chưa ai đo được nó trên máy thật, mà
+                # lưu một id sai vào SQLite thì lượt sau nối vào mạch không tồn tại và hỏng câm.
+                # Nên mỗi lượt mở mạch mới và mồi lại bằng transcript đã lưu - tốn token hơn
+                # nhưng KHÔNG mất ngữ cảnh. Đo được cờ đó rồi thì nâng lên đúng khuôn Gemini.
+                actual_model = api_model or None
+                sysprompt, _sub_plan = await _subscription_system_prompt(
+                    "antigravity-cli", actual_model or "", kind)
+                acli = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain), model=actual_model,
+                                                      tag=turn_tag, instructions=sysprompt)
+                acli.mode = "full"
+                _apply_antigravity_hub(acli, _brain_root(brain))
+                if not acli.is_available():
+                    final_text = ("⚠ Chưa cài Antigravity CLI trên máy này. Cài một lần:\n\n"
+                                  f"`{antigravity_cli.lenh_cai()}`\n\n"
+                                  "Rồi gõ `agy` một lần để đăng nhập Google (qua SSH thì nó in "
+                                  "ra một link để mở trên máy anh).")
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "antigravity-cli",
+                        "model": actual_model or "", "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                else:
+                    _a_cur = _cli_think(reasoning, user_message)
+                    _a_raw = [{"role": _m["role"], "content": _m["content"]}
+                              for _m in store.get_messages(conv_sid)[:-1]
+                              if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    _a_prompt = compaction.bootstrap_prompt(
+                        _a_raw, _a_cur, summary=_row0.get("compact_summary") or "")
+                    _CONTEXT_RUNTIME.observe_payload(
+                        runtime_trace,
+                        [{"role": "system", "content": sysprompt},
+                         {"role": "user", "content": _a_prompt}],
+                        provider="antigravity-cli", model=actual_model or "")
+                    async for ev in acli.query(_a_prompt):
+                        et = ev.get("type")
+                        if et == "tool_call":
+                            await ws.send_text(json.dumps({
+                                "type": "tool_call", "tool": ev.get("name", ""),
+                                "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
+                        elif et == "final":
+                            final_text = ev.get("content") or ""
+                        elif et == "usage":
+                            store.set_last_input_tokens(
+                                conv_sid, int(ev.get("input_tokens") or 0))
+                        elif et == "error":
+                            _noi = _subscription_limit_message(ev.get("content") or "",
+                                                               "antigravity-cli")
+                            if _noi:
+                                final_text = final_text or _noi
+                            await ws.send_text(json.dumps({
+                                "type": "error", "content": _noi or ev.get("content", "")}))
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "antigravity-cli",
+                        "model": actual_model or "", "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
@@ -8625,6 +8777,7 @@ async def websocket_endpoint(ws: WebSocket):
             prov, kind, api_key, api_model = _chat_provider(mcfg)
             engine_label = ("codex" if prov == "openai-oauth"
                             else "gemini-cli" if prov == "gemini-cli"
+                            else "antigravity-cli" if prov == "antigravity-cli"
                             else prov if ((kind == "api" and api_key) or kind == "oauth")
                             else "cli")
             conv_sid = store.get_or_create(
@@ -9902,6 +10055,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
     engine_label = ("codex" if prov == "openai-oauth"
                     else "gemini-cli" if prov == "gemini-cli"
+                    else "antigravity-cli" if prov == "antigravity-cli"
                     else prov if ((kind == "api" and api_key) or kind == "oauth")
                     else "cli")
 
@@ -10449,6 +10603,40 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         if not out and loi:
             _noi = _subscription_limit_message(loi[0], "gemini-cli")
             return _noi or ("⚠ Gemini CLI lỗi: " + loi[0][:400])
+        return out or "(không có nội dung)"
+
+    if prov == "antigravity-cli":
+        # Cùng khuôn nhánh Gemini CLI ngay trên: giữ object engine trong `sess` để mạch hội
+        # thoại nối tiếp qua các tin nhắn mà không phải đụng SQLite.
+        actual_model = api_model or None
+        acli = sess.get("antigravity")
+        if acli is None:
+            acli = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain), model=actual_model,
+                                                  tag=f"telegram:{chat_id}",
+                                                  instructions=sysprompt)
+            sess["antigravity"] = acli
+        else:
+            acli.cwd = _brain_root(brain)
+            acli.model = actual_model
+            acli.instructions = sysprompt
+        acli.mode = "full"
+        _apply_antigravity_hub(acli, _brain_root(brain))
+        if not acli.is_available():
+            return ("⚠ Chưa cài Antigravity CLI trên máy chạy Javis. Cài một lần:\n"
+                    f"`{antigravity_cli.lenh_cai()}`\n"
+                    "Rồi gõ `agy` một lần để đăng nhập Google.")
+        out, loi = "", []
+        async for ev in acli.query(text):
+            et = ev.get("type")
+            if et == "tool_call":
+                await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
+            elif et == "final":
+                out = ev.get("content") or ""
+            elif et == "error":
+                loi.append(str(ev.get("content") or ""))
+        if not out and loi:
+            _noi = _subscription_limit_message(loi[0], "antigravity-cli")
+            return _noi or ("⚠ Antigravity CLI lỗi: " + loi[0][:400])
         return out or "(không có nội dung)"
 
     if prov == "openai-oauth":

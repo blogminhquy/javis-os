@@ -2766,6 +2766,31 @@
           </div>
         </div>`;
       }
+      if (p.id === "antigravity-cli") {
+        // Bộ não thứ 10. Không có nút "Đăng nhập" ở đây và đó là quyết định có lý do: `agy`
+        // giữ token trong keyring của hệ điều hành chứ không phải file, nên Javis không bắc
+        // cầu token hộ được như đã làm cho Gemini CLI. Dựng nút rồi bên dưới không làm gì
+        // được thì tệ hơn là nói thẳng phải gõ một lệnh.
+        const st = on
+          ? "● Đã đăng nhập" + (p.auth_method ? " · " + esc(p.auth_method) : "")
+            + " · " + p.models.length + " model"
+          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Antigravity CLI");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP/skill", st)}
+          <div class="prov-note">Dùng <b>gói Google của anh</b>, không cần mua API key. Đây là
+            bản Google chỉ định thay cho Gemini CLI, và cho chọn <b>đúng dàn model của
+            Antigravity IDE</b> - gồm cả model không phải của Google.</div>
+          ${p.cli_found ? "" : `<div class="prov-steps">
+            <div><b>1)</b> Cài một lần trên máy chạy Javis:<br><code>${esc(p.cai_lenh || "")}</code></div>
+            <div><b>2)</b> Gõ <code>agy</code> một lần để đăng nhập Google. Qua SSH thì nó in ra
+              một link, mở link đó trên máy anh là xong.</div>
+          </div>`}
+          <div class="prov-action" style="flex-wrap:wrap">
+            <button class="gcard-btn ghost" data-agycheck="1">Kiểm tra lại</button>
+            <span id="agyMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
+          </div>
+        </div>`;
+      }
       if (p.id === "gemini-cli") {
         // Gemini CLI: đăng nhập bằng tài khoản Google, KHÔNG cần mua API key. Không có nút
         // "Đăng nhập" ở đây là cố ý - luồng đăng nhập của nó là giao diện bàn phím trong
@@ -2948,6 +2973,21 @@
       if (r && r.ok) {
         if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
         _daHoiModel.delete("gemini-cli");
+        setTimeout(() => renderModels(el), 700);
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
+    };
+    const agk = el.querySelector("[data-agycheck]");
+    if (agk) agk.onclick = async () => {
+      const msg = el.querySelector("#agyMsg");
+      agk.disabled = true; const cu2 = agk.textContent; agk.textContent = "Đang thử…";
+      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
+      let r = null;
+      try { r = await (await fetch("/antigravity/check", { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      agk.disabled = false; agk.textContent = cu2;
+      if (r && r.ok) {
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
+        _daHoiModel.delete("antigravity-cli");
         setTimeout(() => renderModels(el), 700);
       } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
     };
