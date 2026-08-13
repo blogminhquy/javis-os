@@ -189,6 +189,7 @@ def _tran_argv() -> int:
 
 
 _NHO_DUONG = "antigravity-duong-prompt.json"
+_HAN_NHO_AM = 86400.0     # "stdin không ăn" chỉ nhớ 24 giờ, xem `duong_prompt_dai`
 
 
 def _tep_nho_duong() -> Path:
@@ -248,8 +249,20 @@ def duong_prompt_dai(cli: Optional[str] = None) -> str:
     if not cli:
         return "stdin"
     nho = _doc_nho_duong()
-    if nho.get("chu_ky") == _chu_ky_cli(cli) and nho.get("duong") in ("stdin", "file"):
-        return nho["duong"]
+    if nho.get("chu_ky") != _chu_ky_cli(cli):
+        return "stdin"
+    duong = nho.get("duong")
+    if duong == "stdin":
+        return "stdin"
+    if duong == "file":
+        # Kết quả ÂM TÍNH có hạn, kết quả dương tính thì không. Bất đối xứng này là cố ý: "stdin
+        # chạy được" là bằng chứng chắc chắn, còn "stdin trả rỗng" có thể chỉ là một lượt model
+        # im lặng, một lúc mạng lỗi, hay một trạng thái tạm thời nào đó. Nhớ vĩnh viễn theo chiều
+        # âm là đóng đinh cả máy vào đường kém trung thực hơn vì đúng một lượt xui, và chữ ký
+        # binary chỉ đổi khi nâng cấp `agy` nên không có gì gỡ ra được.
+        if time.time() - float(nho.get("ts") or 0) > _HAN_NHO_AM:
+            return "stdin"
+        return "file"
     return "stdin"
 
 

@@ -510,6 +510,29 @@ check("CANARY: và lượt đi đường file đó nói rõ là model chưa đ�
           for e in _evs_bo if e.get("type") == "final"), _evs_bo)
 
 
+# Bộ nhớ "đường nào chạy được" phải BẤT ĐỐI XỨNG. "stdin chạy được" là bằng chứng chắc chắn nên
+# nhớ vĩnh viễn; "stdin trả rỗng" có thể chỉ là một lượt model im lặng hay một lúc mạng lỗi, nhớ
+# vĩnh viễn theo chiều đó là đóng đinh cả máy vào đường kém trung thực hơn vì đúng một lượt xui,
+# mà chữ ký binary chỉ đổi khi nâng cấp `agy` nên không có gì gỡ ra được.
+_cli_nho, _d_nho = _gia([], help_text=_HELP_CU)
+_reset_cache()
+antigravity_cli.find_antigravity_cli = lambda: _cli_nho
+antigravity_cli.nho_duong(_cli_nho, "file", "stdin trả về rỗng")
+check("nhớ được là bản này phải đi đường file",
+      antigravity_cli.duong_prompt_dai(_cli_nho) == "file")
+_nho = antigravity_cli._doc_nho_duong()
+_nho["ts"] = _nho["ts"] - antigravity_cli._HAN_NHO_AM - 10
+antigravity_cli._ghi_nho_duong(_nho)
+check("CANARY: kết quả ÂM TÍNH hết hạn sau 24h -> thử lại stdin, không đóng đinh vĩnh viễn",
+      antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin")
+antigravity_cli.nho_duong(_cli_nho, "stdin", "đã chạy được")
+_nho2 = antigravity_cli._doc_nho_duong()
+_nho2["ts"] = 0.0
+antigravity_cli._ghi_nho_duong(_nho2)
+check("còn kết quả DƯƠNG TÍNH thì nhớ mãi (bằng chứng chắc chắn, không cần đo lại)",
+      antigravity_cli.duong_prompt_dai(_cli_nho) == "stdin")
+
+
 # ---- Nửa 2: cơ chế file ngữ cảnh, chạy thật (ép đường bằng biến môi trường) ----
 _STATE = Path(os.environ["JAVIS_STATE_DIR"])
 
