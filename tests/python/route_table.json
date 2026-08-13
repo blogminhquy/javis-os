@@ -1818,6 +1818,31 @@
  {
   "order": 202,
   "type": "APIRoute",
+  "path": "/terminal/status",
+  "name": "terminal_status",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 203,
+  "type": "APIRoute",
+  "path": "/terminal/close",
+  "name": "terminal_close",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 204,
+  "type": "APIWebSocketRoute",
+  "path": "/ws/terminal",
+  "name": "terminal_ws",
+  "methods": []
+ },
+ {
+  "order": 205,
+  "type": "APIRoute",
   "path": "/sessions",
   "name": "sessions_list",
   "methods": [
@@ -1825,7 +1850,7 @@
   ]
  },
  {
-  "order": 203,
+  "order": 206,
   "type": "APIRoute",
   "path": "/sessions/search",
   "name": "sessions_search",
@@ -1834,7 +1859,7 @@
   ]
  },
  {
-  "order": 204,
+  "order": 207,
   "type": "APIRoute",
   "path": "/sessions/{session_id}",
   "name": "sessions_get",
@@ -1843,7 +1868,7 @@
   ]
  },
  {
-  "order": 205,
+  "order": 208,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/rename",
   "name": "sessions_rename",
@@ -1852,7 +1877,7 @@
   ]
  },
  {
-  "order": 206,
+  "order": 209,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/delete",
   "name": "sessions_delete",
@@ -1861,7 +1886,7 @@
   ]
  },
  {
-  "order": 207,
+  "order": 210,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/pin",
   "name": "sessions_pin",
@@ -1870,7 +1895,7 @@
   ]
  },
  {
-  "order": 208,
+  "order": 211,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/project",
   "name": "sessions_set_project",
@@ -1879,7 +1904,7 @@
   ]
  },
  {
-  "order": 209,
+  "order": 212,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_list",
@@ -1888,7 +1913,7 @@
   ]
  },
  {
-  "order": 210,
+  "order": 213,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_create",
@@ -1897,7 +1922,7 @@
   ]
  },
  {
-  "order": 211,
+  "order": 214,
   "type": "APIRoute",
   "path": "/projects/{project_id}/update",
   "name": "projects_update",
@@ -1906,7 +1931,7 @@
   ]
  },
  {
-  "order": 212,
+  "order": 215,
   "type": "APIRoute",
   "path": "/projects/{project_id}/delete",
   "name": "projects_delete",
@@ -1915,7 +1940,7 @@
   ]
  },
  {
-  "order": 213,
+  "order": 216,
   "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
@@ -1924,7 +1949,7 @@
   ]
  },
  {
-  "order": 214,
+  "order": 217,
   "type": "APIRoute",
   "path": "/runtime/muc",
   "name": "runtime_muc",
@@ -1933,7 +1958,7 @@
   ]
  },
  {
-  "order": 215,
+  "order": 218,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -1942,7 +1967,7 @@
   ]
  },
  {
-  "order": 216,
+  "order": 219,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -1951,7 +1976,7 @@
   ]
  },
  {
-  "order": 217,
+  "order": 220,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -1960,7 +1985,7 @@
   ]
  },
  {
-  "order": 218,
+  "order": 221,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -1969,7 +1994,7 @@
   ]
  },
  {
-  "order": 219,
+  "order": 222,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -1978,7 +2003,7 @@
   ]
  },
  {
-  "order": 220,
+  "order": 223,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -1987,7 +2012,7 @@
   ]
  },
  {
-  "order": 221,
+  "order": 224,
   "type": "APIRoute",
   "path": "/zalo-bot/status",
   "name": "zalo_bot_status",
@@ -1996,7 +2021,7 @@
   ]
  },
  {
-  "order": 222,
+  "order": 225,
   "type": "APIRoute",
   "path": "/zalo-bot/restart",
   "name": "zalo_bot_restart",
@@ -2005,7 +2030,7 @@
   ]
  },
  {
-  "order": 223,
+  "order": 226,
   "type": "APIRoute",
   "path": "/zalo-bot/allow",
   "name": "zalo_bot_allow",
@@ -2014,7 +2039,7 @@
   ]
  },
  {
-  "order": 224,
+  "order": 227,
   "type": "APIRoute",
   "path": "/zalo-bot/test",
   "name": "zalo_bot_test",
@@ -2023,7 +2048,7 @@
   ]
  },
  {
-  "order": 225,
+  "order": 228,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -2032,7 +2057,7 @@
   ]
  },
  {
-  "order": 226,
+  "order": 229,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -2041,7 +2066,7 @@
   ]
  },
  {
-  "order": 227,
+  "order": 230,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_list",
@@ -2050,7 +2075,7 @@
   ]
  },
  {
-  "order": 228,
+  "order": 231,
   "type": "APIRoute",
   "path": "/chatbots/verify-token",
   "name": "chatbots_verify_token",
@@ -2059,7 +2084,7 @@
   ]
  },
  {
-  "order": 229,
+  "order": 232,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_create",
@@ -2068,7 +2093,7 @@
   ]
  },
  {
-  "order": 230,
+  "order": 233,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/update",
   "name": "chatbots_update",
@@ -2077,7 +2102,7 @@
   ]
  },
  {
-  "order": 231,
+  "order": 234,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/enable",
   "name": "chatbots_enable",
@@ -2086,7 +2111,7 @@
   ]
  },
  {
-  "order": 232,
+  "order": 235,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/groups",
   "name": "chatbots_groups",
@@ -2095,7 +2120,7 @@
   ]
  },
  {
-  "order": 233,
+  "order": 236,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/log",
   "name": "chatbots_log",
@@ -2104,7 +2129,7 @@
   ]
  },
  {
-  "order": 234,
+  "order": 237,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/delete",
   "name": "chatbots_delete",
@@ -2113,7 +2138,7 @@
   ]
  },
  {
-  "order": 235,
+  "order": 238,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -2122,7 +2147,7 @@
   ]
  },
  {
-  "order": 236,
+  "order": 239,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -2131,7 +2156,7 @@
   ]
  },
  {
-  "order": 237,
+  "order": 240,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -2140,7 +2165,7 @@
   ]
  },
  {
-  "order": 238,
+  "order": 241,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

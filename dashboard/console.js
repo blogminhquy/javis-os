@@ -30,6 +30,7 @@
     selfimprove: "repeat",
     learn: "brain",
     kanban: "square-kanban",
+    code: "terminal",
     models: "cpu",
     channels: "send",
     mcp: "plug",
@@ -78,6 +79,7 @@
     { id: "skills",      icon: ICON.skills,      label: "Skills" },
     { id: "chatbots",    icon: ICON.chatbots,    label: "Chatbot" },
     { id: "files",       icon: ICON.files,       label: "Tệp tin" },
+    { id: "code",        icon: ICON.code,        label: "Code" },
     { id: "selfimprove", icon: ICON.selfimprove, label: "Việc định kỳ" },
     { id: "learn",       icon: ICON.learn,       label: "Tự học" },
     { id: "kanban",      icon: ICON.kanban,      label: "Việc" },
@@ -95,7 +97,10 @@
   // Thứ tự & thành viên đổi ở đây; RAIL_ITEMS vẫn là nguồn icon/label + tra cứu cho go().
   const RAIL_GROUPS = [
     { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
-    { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
+    // "Code" đứng cạnh "Tệp tin" chứ không thành nhóm riêng: rail là accordion một-nhóm-mở,
+    // nên nhóm chỉ có một mục là bắt người dùng bấm thêm một nhát mỗi lần vào. Và nó đúng chỗ
+    // thật - terminal mở sẵn ở GỐC BRAIN, tức cùng thư mục mà trang Tệp tin đang duyệt.
+    { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "code", "learn"] },
     { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
@@ -132,6 +137,7 @@
     agents:      { icon: VIEW_ICON.agents, label: "Agents", sub: "Trợ lý chuyên biệt" },
     skills:      { icon: VIEW_ICON.skills, label: "Skills", sub: "Kỹ năng khả dụng" },
     files:       { icon: VIEW_ICON.files, label: "Tệp tin", sub: "Duyệt · sửa · tải file trong brain" },
+    code:        { icon: VIEW_ICON.code, label: "Code", sub: "Terminal chạy thẳng trên máy đang chạy Javis" },
     selfimprove: { icon: VIEW_ICON.selfimprove, label: "Việc định kỳ", sub: "Việc định kỳ + nhắc hẹn đang chờ" },
     chatbots:    { icon: VIEW_ICON.chatbots, label: "Chatbot", sub: "Bot chuyên trách trả lời khách qua Telegram" },
     learn:       { icon: VIEW_ICON.learn, label: "Tự học", sub: "Rewire Memory · Wiki · Skill (an toàn, undo được)" },
@@ -369,6 +375,7 @@
     if (id === "channels") return renderChannels(el);
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
+    if (id === "code")     return renderCode(el);
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "chatbots") return renderChatbots(el);
     if (id === "learn")    return renderLearn(el);
@@ -384,6 +391,24 @@
     const fn = window.JavisStudio && window.JavisStudio[id];
     if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); } }
     else el.innerHTML = placeholder(id, "studio.js chưa sẵn sàng.");
+  }
+
+  // Trang Code do code-term.js dựng (uỷ quyền như trang Chatbot). Trang này KHÁC mọi trang
+  // khác ở hai chỗ, nên có thêm mấy dòng dưới đây:
+  //   - nó chiếm trọn khung và tự cuộn bên trong (terminal cần chiều cao thật để tính số
+  //     dòng), nên cviewBody phải bỏ padding + bỏ cuộn: lớp .cview-flush;
+  //   - nó giữ một WebSocket + một ResizeObserver, phải dọn TRƯỚC khi cviewBody bị ghi đè,
+  //     nếu không thì mỗi lần ghé qua tab Code lại bỏ lại một socket sống.
+  // _pageLeave lo cả hai. (Lớp .cview-flush phải gỡ bằng tay: renderPage clone lại cviewBody
+  // bằng cloneNode(false), mà clone đó GIỮ NGUYÊN class - để lại thì trang sau mất padding.)
+  function renderCode(el) {
+    const fn = window.JavisCode && window.JavisCode.render;
+    if (!fn) { el.innerHTML = placeholder("code", "code-term.js chưa sẵn sàng."); return; }
+    _pageLeave = () => {
+      el.classList.remove("cview-flush");
+      try { window.JavisCode.roi(); } catch (e) {}
+    };
+    try { fn(el); } catch (e) { el.innerHTML = placeholder("code", "Lỗi nạp: " + e.message); }
   }
 
   // Trang Chatbot do chatbots.js dựng - uỷ quyền y như renderStudioPage uỷ cho studio.js,

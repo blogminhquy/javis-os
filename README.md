@@ -151,18 +151,20 @@ Mở Javis → bộ cài đặt sẽ dẫn bạn qua:
 
 > 📚 **Tài liệu chi tiết:** xem thư mục **[docs/](docs/README.md)** - hướng dẫn từng chức năng (mở ở đâu, bấm gì, dùng thế nào). Bảng dưới là bản đồ nhanh; cột **Chi tiết** dẫn tới trang hướng dẫn tương ứng.
 
-Thanh điều hướng bên trái gom **17 trang** thành **6 nhóm** (bấm tên nhóm để mở):
+Thanh điều hướng bên trái gom **19 trang** thành **6 nhóm** (bấm tên nhóm để mở):
 
 | Nhóm | Mục | Làm gì | Chi tiết |
 |---|---|---|---|
 | **Trợ lý** | **Javis** | Màn chính: trò chuyện (gõ hoặc nói), đồ thị tri thức, cây thư mục brain bên trái. | [Trò chuyện & giọng nói](docs/02-tro-chuyen-va-giong-noi.md) · [Đồ thị tri thức](docs/03-do-thi-tri-thuc.md) |
 | | **Trò chuyện** | Khung chat rộng toàn màn hình kèm cột lịch sử hội thoại. | [Phiên hội thoại](docs/04-phien-hoi-thoai.md) |
 | **Bộ não** | **Tệp tin** | Duyệt brain, **sửa `.md`/`.txt` trực tiếp**, tìm file theo tên/nội dung, tải lên/về. | [Quản lý tệp tin](docs/05-quan-ly-tep-tin.md) |
+| | **Code** | **Terminal thật** của máy chạy Javis, mở ngay trong trình duyệt - khỏi mở SSH. | [Tab Code: Terminal](docs/27-tab-code-terminal.md) |
 | | **Tự học** | Javis tự rút ký ức, đúc Wiki, kỹ năng sau mỗi hội thoại; hoàn tác được. | [Tự học](docs/22-tu-hoc.md) |
 | **Năng lực** | **Agents** | Tạo trợ lý chuyên biệt (vai trò + skill + bộ nhớ riêng). | [Agents & Workflows](docs/07-agents-va-workflows.md) |
 | | **Skills** | Gom nhóm + tìm kiếm + **bật/tắt** + thêm/sửa/xoá + nhập/xuất skill. | [Skills](docs/06-skills.md) |
 | | **Workflows** | Tạo/chạy chuỗi tự động (agent → agent), có bước kiểm chứng. | [Agents & Workflows](docs/07-agents-va-workflows.md) |
 | | **Plugins** | Thêm tool/hook native cho mọi engine bằng một thư mục Python. | [Plugins](docs/20-plugins.md) |
+| | **Chatbot** | Đem Agent ra trả lời khách qua bot Telegram/Zalo riêng, brain riêng. | [Chatbot](docs/25-chatbot.md) |
 | **Việc** | **Việc** | Hàng đợi task nền do AI tự đặc tả và tự chạy; bạn chỉ xử lý ngoại lệ. | [Việc (Kanban)](docs/21-viec-kanban.md) |
 | | **Việc định kỳ** | Nhiều vòng lặp chạy nền + nhắc hẹn theo giờ hoặc cron. | [Việc định kỳ & Nhắc hẹn](docs/08-viec-dinh-ky.md) |
 | **Kết nối** | **Kết nối** | Kho dịch vụ ngoài, đa tài khoản cùng một dịch vụ, phân quyền 3 mức. | [Kết nối & số liệu](docs/09-mcp-va-so-lieu.md) |

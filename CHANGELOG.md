@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.34.0] - 2026-08-13
+### Thêm mới
+- **Có tab Code, mở ra là một terminal thật.** Nằm cạnh Tệp tin trong nhóm Bộ não, mở sẵn ở thư mục brain. Gõ lệnh thẳng trên máy đang chạy Javis - `git pull`, xem log, cài CLI, đăng nhập `agy` - khỏi phải mở SSH ở cửa sổ khác. Chạy được cả `vim` và `htop`, có màu, có gợi ý Tab, Ctrl+C giết đúng lệnh đang chạy chứ không văng cả phiên.
+- **Bấm sang trang khác không làm chết lệnh đang chạy.** Đang `npm install` mà đi xem chat rồi quay lại thì màn hình còn nguyên, chạy tới đâu hiện tới đó. F5 hay rớt mạng cũng vậy. Bỏ quên 30 phút thì Javis mới đóng phiên.
+- Chỉ trình duyệt **đã đăng nhập** mới mở được terminal, token API không vào được. Muốn khoá hẳn thì đặt `JAVIS_TERMINAL=0` rồi khởi động lại.
+- Windows chạy bản rút gọn: gõ một dòng rồi Enter, không có gợi ý Tab, không chạy được `vim`. Đó là giới hạn của hệ điều hành và giao diện nói thẳng điều đó ngay trên khung, không để bạn ngồi đoán.
+
 ## [0.33.7] - 2026-08-13
 ### Cải thiện
 - **Đổi model Antigravity ngay trên Telegram.** Bảng nút của `/model` giờ hiện đủ nhà cung cấp như trang Models trên dashboard, chứ không còn kẹt ở năm cái cũ - nên bộ não Antigravity đổi được từ điện thoại. Nhà nào chưa liệt kê được model nào (hay gặp: cài rồi nhưng chưa đăng nhập) thì ẩn cho gọn.

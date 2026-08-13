@@ -52,6 +52,7 @@ import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi b�
 import gemini_cli      # bộ não thứ 9: Gemini CLI (Google đã ngắt hạng cá nhân 18/06/2026)
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
 import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
+import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
 import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
@@ -9396,6 +9397,135 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 # ============================================================
+# Tab Code - Terminal
+#
+# Cửa duy nhất vào terminal là WebSocket dưới đây, và nó đòi ĐÚNG cookie phiên đăng nhập như
+# /ws. Cố ý KHÔNG mở cho token API: token `full` sinh ra để script gọi REST, còn đây là chạy
+# lệnh tuỳ ý trên máy chủ - mở rộng cửa đó thì mỗi token dán nhầm chỗ thành một shell.
+# Toàn bộ phần khó (pty, tiến trình, bộ đệm màn hình) nằm trong server/terminal.py.
+# ============================================================
+def _terminal_cwd(brain: str) -> str:
+    """Thư mục shell mở ra. Mặc định là GỐC BRAIN đang chọn - chỗ chứa skill, plugin, note của
+    người dùng, và trong Docker đó cũng là volume ghi được (code app thì chỉ-đọc). Máy nào muốn
+    khác thì đặt JAVIS_TERMINAL_CWD."""
+    rieng = str(os.getenv("JAVIS_TERMINAL_CWD", "")).strip()
+    if rieng and os.path.isdir(rieng):
+        return rieng
+    try:
+        goc = _brain_root(brain)
+        if os.path.isdir(goc):
+            return goc
+    except Exception:
+        pass
+    return CLAUDE_CWD
+
+
+@app.get("/terminal/status")
+async def terminal_status(brain: str = Query("brain")):
+    return terminal.trang_thai(_terminal_cwd(brain))
+
+
+@app.post("/terminal/close")
+async def terminal_close(session: str = Form(...)):
+    """Đóng hẳn một phiên (nút 'Phiên mới' trên giao diện). Khác với đóng tab: đóng tab chỉ là
+    thôi xem, shell vẫn chạy tiếp."""
+    return {"ok": terminal.KHO.dong(session)}
+
+
+@app.websocket("/ws/terminal")
+async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Query("brain"),
+                      cols: int = Query(80), rows: int = Query(24)):
+    if cfgmod.gate_active() and not cfgmod.valid_session(ws.cookies.get("javis_session", "")):
+        await ws.close(code=1008)
+        return
+    await ws.accept()
+
+    async def bao_loi(msg: str):
+        try:
+            await ws.send_text(json.dumps({"type": "error", "error": msg}))
+        except Exception:
+            pass
+        await ws.close()
+
+    if not terminal.bat():
+        await bao_loi("Terminal đang tắt trên máy này (biến môi trường JAVIS_TERMINAL=0).")
+        return
+    try:
+        phien = terminal.KHO.mo(session, _terminal_cwd(brain), cols, rows, asyncio.get_running_loop())
+    except RuntimeError as e:
+        await bao_loi(str(e))
+        return
+    except Exception as e:
+        await bao_loi(f"Không mở được terminal: {type(e).__name__}: {e}")
+        return
+
+    q = phien.gan()
+    await ws.send_text(json.dumps({
+        "type": "hello", "session": phien.id, "che_do": phien.che_do,
+        "shell": Path(phien.argv[0]).name if phien.argv else "", "cwd": phien.cwd,
+        "song": phien.song(),
+    }))
+
+    async def bom_ra():
+        """Một chiều: hàng đợi của phiên -> trình duyệt.
+
+        GOM gói trước khi gửi. Lệnh in nhanh (`cat` file to, `npm install`) đẩy ra hàng nghìn
+        mẩu nhỏ; gửi mỗi mẩu một khung WebSocket thì trình duyệt nhận đúng chỗ nghẽn. Gom lại
+        thành một khung là cùng bấy nhiêu chữ nhưng ít hơn hẳn số vòng.
+        """
+        while True:
+            goi = await q.get()
+            if goi.get("type") == "out":
+                gom = [goi["data"]]
+                do_dai = len(goi["data"])
+                while do_dai < 256_000:
+                    try:
+                        tiep = q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    if tiep.get("type") != "out":
+                        q.put_nowait(tiep)      # gói khác loại (exit): trả lại, gửi ở vòng sau
+                        break
+                    gom.append(tiep["data"])
+                    do_dai += len(tiep["data"])
+                goi = {"type": "out", "data": "".join(gom)}
+            await ws.send_text(json.dumps(goi))
+
+    async def bom_ra_an_toan():
+        # Trình duyệt đóng giữa chừng thì send_text ném; nuốt ở đây để asyncio khỏi kêu
+        # "Task exception was never retrieved" - vòng nhận tin bên dưới sẽ tự thấy và thoát.
+        try:
+            await bom_ra()
+        except Exception:
+            pass
+
+    bom = asyncio.create_task(bom_ra_an_toan())
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                m = json.loads(raw)
+            except Exception:
+                continue
+            t = m.get("type")
+            if t == "in":
+                phien.go(str(m.get("data") or ""))
+            elif t == "resize":
+                phien.doi_co(m.get("cols"), m.get("rows"))
+            elif t == "sig" and m.get("name") == "int":
+                phien.ngat()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        bom.cancel()
+        # CHỈ gỡ người xem: shell chạy tiếp để đổi trang/F5 không giết mất việc đang chạy.
+        # Không ai quay lại trong terminal.REAP_GIAY thì vòng dọn sẽ đóng nó.
+        phien.go_ra(q)
+
+
+# ============================================================
 # Phiên hội thoại - list / view / search / rename / delete (sqlite + fts5)
 # /sessions/search KHAI BÁO TRƯỚC /sessions/{id} để không bị nuốt làm path param.
 # ============================================================
@@ -12601,6 +12731,12 @@ async def _shutdown_mcp_pool():
         print(f"[kanban shutdown] {e}", file=__import__('sys').stderr)
     try:
         await mcp_client.pool.close_all()
+    except Exception:
+        pass
+    # Shell của tab Code chạy trong process group RIÊNG (setsid), nên nó KHÔNG chết theo server
+    # - tắt Javis mà bỏ quên là để lại một đàn shell mồ côi giữ cổng và file.
+    try:
+        terminal.KHO.dong_het()
     except Exception:
         pass
 
