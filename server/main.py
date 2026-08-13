@@ -50,6 +50,7 @@ import engine
 import openai_oauth
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
 import gemini_cli      # bộ não thứ 9: Gemini CLI (Google đã ngắt hạng cá nhân 18/06/2026)
+import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
 import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
@@ -2818,7 +2819,8 @@ async def connect_substack_resolve_uid(q: str = Query("")):
     try:
         proc = await asyncio.create_subprocess_exec(
             curl, "-s", "--max-time", "12", "-A", "Mozilla/5.0", "-H", "accept: application/json", url,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            **winproc.kwargs_no_window())
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
     except Exception as e:
         return {"ok": False, "error": f"Không gọi được Substack ({type(e).__name__}). Dùng Cách B (Console) nếu vẫn lỗi."}
@@ -7479,7 +7481,8 @@ def _is_git_checkout(root: str) -> bool:
     try:
         import subprocess
         r = subprocess.run(["git", "-C", root, "rev-parse", "--is-inside-work-tree"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, timeout=10,
+                           creationflags=winproc.no_window())
         return r.returncode == 0 and "true" in (r.stdout or "").lower()
     except Exception:
         return False
@@ -7594,7 +7597,8 @@ def _git_head(root: str) -> str:
     try:
         import subprocess
         r = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, timeout=10,
+                           creationflags=winproc.no_window())
         return (r.stdout or "").strip() if r.returncode == 0 else ""
     except Exception:
         return ""

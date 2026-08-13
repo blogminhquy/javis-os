@@ -21,6 +21,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "server"))
 import update_state as us  # noqa: E402
+import winproc  # noqa: E402
+
+# Updater được server spawn DETACHED, tức nó chạy KHÔNG CÓ console. Trên Windows, một tiến trình
+# không console mà gọi chương trình console (git, pip, systemctl...) thì hệ điều hành tự cấp cho
+# đứa con một cửa sổ mới - người dùng thấy màn hình nháy đen liên tục suốt lượt cập nhật. Nên
+# mọi lời gọi dưới đây đều truyền cờ này. Hai chỗ CỐ Ý không truyền là lúc khởi động lại Javis,
+# vì tiến trình đó phải sống lâu hơn updater.
+_CAM = winproc.no_window()
 
 
 def _now():
@@ -39,7 +47,8 @@ def log(msg):
 
 def run(cmd):
     log("$ " + " ".join(cmd))
-    r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True,
+                       creationflags=_CAM)
     if r.returncode != 0:
         log(f"  (rc={r.returncode}) " + (r.stderr or r.stdout or "").strip()[:500])
     return r
@@ -52,7 +61,8 @@ def venv_python():
 
 def has_systemd():
     try:
-        r = subprocess.run(["systemctl", "list-unit-files"], capture_output=True, text=True)
+        r = subprocess.run(["systemctl", "list-unit-files"], capture_output=True, text=True,
+                           creationflags=_CAM)
         return r.returncode == 0 and "javis.service" in (r.stdout or "")
     except Exception:
         return False
@@ -97,7 +107,8 @@ def _kill_pid(pid, timeout_s=15):
 def _pids_on_port(port):
     """PID đang giữ cổng (lsof có sẵn trên Mac lẫn đa số Linux). Fallback khi thiếu --server-pid."""
     try:
-        r = subprocess.run(["lsof", "-ti", f"tcp:{port}"], capture_output=True, text=True)
+        r = subprocess.run(["lsof", "-ti", f"tcp:{port}"], capture_output=True, text=True,
+                           creationflags=_CAM)
         return [int(x) for x in (r.stdout or "").split() if x.strip().isdigit()]
     except Exception:
         return []
@@ -107,7 +118,8 @@ def stop_server(mode, server_pid=0, port=""):
     if mode == "windows":
         run(["cmd", "/c", str(ROOT / "stop-javis.bat")])
     elif mode == "systemd":
-        subprocess.run(["systemctl", "stop", "javis"], capture_output=True, text=True)
+        subprocess.run(["systemctl", "stop", "javis"], capture_output=True, text=True,
+                       creationflags=_CAM)
     else:  # nohup: kill đúng PID server (mình là session riêng nên không chết theo)
         pids = [server_pid] if server_pid else []
         pids += [p for p in _pids_on_port(port) if p not in pids and p != os.getpid()]
@@ -123,11 +135,12 @@ def start_server(mode, port=""):
         subprocess.Popen(["wscript.exe", "//nologo", str(ROOT / "start-javis.vbs")],
                          cwd=str(ROOT), creationflags=0x00000008)  # DETACHED_PROCESS
     elif mode == "systemd":
-        subprocess.run(["systemctl", "start", "javis"], capture_output=True, text=True)
+        subprocess.run(["systemctl", "start", "javis"], capture_output=True, text=True,
+                       creationflags=_CAM)
     else:  # nohup: chạy lại uvicorn nền y như install.sh (fallback không systemd)
         host = os.getenv("JAVIS_HOST", "127.0.0.1")
         logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")
-        subprocess.Popen(
+        subprocess.Popen(   # noqa: JAVIS_CONSOLE - server mới phải sống lâu hơn updater
             [venv_python(), "-m", "uvicorn", "main:app", "--host", host, "--port", str(port or "7777")],
             cwd=str(ROOT / "server"), stdout=logf, stderr=subprocess.STDOUT,
             start_new_session=True,

@@ -25,6 +25,7 @@ import asyncio
 import json
 import re
 import shutil
+import winproc         # lệnh con câm lặng trên Windows
 from urllib.parse import quote
 
 # LƯU Ý: gọi API Substack qua CURL, KHÔNG dùng httpx/requests. Substack đứng sau Cloudflare,
@@ -244,7 +245,8 @@ async def _req(method, url, headers, body=None, params=None):
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, stdin=asyncio.subprocess.PIPE if stdin_data is not None else None,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            **winproc.kwargs_no_window())
         out, errb = await asyncio.wait_for(proc.communicate(stdin_data), timeout=55)
     except FileNotFoundError:
         raise RuntimeError("máy chạy Javis thiếu 'curl' - cần cài curl để gọi Substack")

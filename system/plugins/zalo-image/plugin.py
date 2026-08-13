@@ -19,6 +19,7 @@ lại, để một nguồn sự thật duy nhất về "phiên Zalo nằm ở đ
 from __future__ import annotations
 
 import asyncio
+import subprocess
 import json
 import os
 import shutil
@@ -101,7 +102,9 @@ async def _chay(argv, home):
     env["USERPROFILE"] = home
     kwargs = {}
     if os.name == "nt":
-        kwargs["creationflags"] = getattr(asyncio.subprocess, "CREATE_NO_WINDOW", 0)
+        # `asyncio.subprocess` KHÔNG export cờ này - lấy ở đó thì luôn ra 0, tức lời gọi
+        # trông như đã bảo vệ mà thật ra không có gì. Phải lấy từ `subprocess`.
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     proc = await asyncio.create_subprocess_exec(
         *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         stdin=asyncio.subprocess.DEVNULL, env=env, **kwargs)

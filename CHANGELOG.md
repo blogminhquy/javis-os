@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.33.3] - 2026-08-13
+### Sửa lỗi
+- **Hết nháy cửa sổ đen trên Windows.** Thi thoảng đang dùng, một khung terminal đen chớp lên giữa màn hình rồi tắt - do Javis chạy nền không có cửa sổ nên mỗi lệnh phụ nó gọi lại được Windows cấp cho một cửa sổ mới. Đã bịt toàn bộ, và có bài kiểm tự động canh để đừng lọt lại lần nữa.
+- Lượt cập nhật trên Windows cũng thôi nháy liên tục vì cùng nguyên nhân.
+
 ## [0.33.2] - 2026-08-13
 ### Sửa lỗi
 - **Antigravity trên Windows: sửa nốt.** Bản 0.33.1 gửi nội dung cho `agy` theo một cú pháp suy ra từ tài liệu, và bản `agy` thật trả lại `Error: empty prompt` rồi thôi. Giờ Javis tự thử vài cách ngay lần chạy đầu, cách nào ăn thì dùng và nhớ luôn; không cách nào ăn thì tự chuyển sang đường dự phòng thay vì ném câu lỗi tiếng Anh cho bạn.

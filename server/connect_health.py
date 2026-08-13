@@ -215,9 +215,10 @@ def _mac_keychain_creds() -> tuple[dict | None, bool]:
     import json as _json
     import subprocess
     try:
+        import winproc
         r = subprocess.run(
             ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-            capture_output=True, text=True, timeout=5)
+            capture_output=True, text=True, timeout=5, creationflags=winproc.no_window())
     except Exception:
         return None, False
     if r.returncode != 0:
