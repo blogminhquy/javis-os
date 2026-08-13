@@ -153,9 +153,18 @@ async def _phien_that():
     check("nối lại thì vẽ lại màn hình cũ", dau["type"] == "out" and "KQ=42" in dau["data"])
 
     # Trần số phiên: mở thêm cho đủ rồi đòi một cái nữa.
+    #
+    # Vòng ĐẾM chứ không phải `while chưa đủ phiên sống`: nếu shell trên máy đang chạy test
+    # chết ngay khi mở (thiếu bash, /tmp không ghi được), vòng theo điều kiện sẽ đẻ và dọn
+    # phiên chết vô hạn - test không đỏ mà TREO, kiểu hỏng tệ nhất trên CI.
     them = []
-    while len([x for x in terminal.KHO._phien.values() if x.song()]) < terminal.MAX_PHIEN:
-        them.append(terminal.KHO.mo("", "/tmp", 80, 24, asyncio.get_running_loop()))
+    for _ in range(terminal.MAX_PHIEN + 2):
+        if len([x for x in terminal.KHO._phien.values() if x.song()]) >= terminal.MAX_PHIEN:
+            break
+        try:
+            them.append(terminal.KHO.mo("", "/tmp", 80, 24, asyncio.get_running_loop()))
+        except RuntimeError:
+            break
     tran = False
     try:
         terminal.KHO.mo("", "/tmp", 80, 24, asyncio.get_running_loop())
