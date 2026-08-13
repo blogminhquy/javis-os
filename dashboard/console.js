@@ -30,7 +30,7 @@
     selfimprove: "repeat",
     learn: "brain",
     kanban: "square-kanban",
-    code: "terminal",
+    terminal: "terminal",
     models: "cpu",
     channels: "send",
     mcp: "plug",
@@ -49,6 +49,7 @@
   const GICON = {
     "Trợ lý": ic("sparkles"),
     "Bộ não": ic("brain"),
+    "Code": ic("file-code"),
     "Năng lực": ic("lightbulb"),
     "Việc": ic("clipboard-check"),
     "Kết nối": ic("link"),
@@ -79,7 +80,7 @@
     { id: "skills",      icon: ICON.skills,      label: "Skills" },
     { id: "chatbots",    icon: ICON.chatbots,    label: "Chatbot" },
     { id: "files",       icon: ICON.files,       label: "Tệp tin" },
-    { id: "code",        icon: ICON.code,        label: "Code" },
+    { id: "terminal",    icon: ICON.terminal,    label: "Terminal" },
     { id: "selfimprove", icon: ICON.selfimprove, label: "Việc định kỳ" },
     { id: "learn",       icon: ICON.learn,       label: "Tự học" },
     { id: "kanban",      icon: ICON.kanban,      label: "Việc" },
@@ -97,10 +98,13 @@
   // Thứ tự & thành viên đổi ở đây; RAIL_ITEMS vẫn là nguồn icon/label + tra cứu cho go().
   const RAIL_GROUPS = [
     { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
-    // "Code" đứng cạnh "Tệp tin" chứ không thành nhóm riêng: rail là accordion một-nhóm-mở,
-    // nên nhóm chỉ có một mục là bắt người dùng bấm thêm một nhát mỗi lần vào. Và nó đúng chỗ
-    // thật - terminal mở sẵn ở GỐC BRAIN, tức cùng thư mục mà trang Tệp tin đang duyệt.
-    { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "code", "learn"] },
+    { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
+    // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
+    // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
+    // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
+    // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
+    // CHUC_NANG của dashboard/code-term.js.
+    { label: "Code",        icon: GICON["Code"],     ids: ["terminal"] },
     { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
@@ -137,7 +141,7 @@
     agents:      { icon: VIEW_ICON.agents, label: "Agents", sub: "Trợ lý chuyên biệt" },
     skills:      { icon: VIEW_ICON.skills, label: "Skills", sub: "Kỹ năng khả dụng" },
     files:       { icon: VIEW_ICON.files, label: "Tệp tin", sub: "Duyệt · sửa · tải file trong brain" },
-    code:        { icon: VIEW_ICON.code, label: "Code", sub: "Terminal chạy thẳng trên máy đang chạy Javis" },
+    terminal:    { icon: VIEW_ICON.terminal, label: "Terminal", sub: "Dòng lệnh chạy thẳng trên máy đang chạy Javis" },
     selfimprove: { icon: VIEW_ICON.selfimprove, label: "Việc định kỳ", sub: "Việc định kỳ + nhắc hẹn đang chờ" },
     chatbots:    { icon: VIEW_ICON.chatbots, label: "Chatbot", sub: "Bot chuyên trách trả lời khách qua Telegram" },
     learn:       { icon: VIEW_ICON.learn, label: "Tự học", sub: "Rewire Memory · Wiki · Skill (an toàn, undo được)" },
@@ -375,7 +379,7 @@
     if (id === "channels") return renderChannels(el);
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
-    if (id === "code")     return renderCode(el);
+    if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "chatbots") return renderChatbots(el);
     if (id === "learn")    return renderLearn(el);
@@ -393,22 +397,26 @@
     else el.innerHTML = placeholder(id, "studio.js chưa sẵn sàng.");
   }
 
+  // Các trang thuộc nhóm Code, đều do code-term.js dựng. Thêm chức năng Code mới thì thêm id
+  // vào đây (và vào RAIL_ITEMS + RAIL_GROUPS + VIEW_META + CHUC_NANG bên code-term.js).
+  const CODE_PAGES = ["terminal"];
+
   // Trang Code do code-term.js dựng (uỷ quyền như trang Chatbot). Trang này KHÁC mọi trang
   // khác ở hai chỗ, nên có thêm mấy dòng dưới đây:
   //   - nó chiếm trọn khung và tự cuộn bên trong (terminal cần chiều cao thật để tính số
   //     dòng), nên cviewBody phải bỏ padding + bỏ cuộn: lớp .cview-flush;
   //   - nó giữ một WebSocket + một ResizeObserver, phải dọn TRƯỚC khi cviewBody bị ghi đè,
-  //     nếu không thì mỗi lần ghé qua tab Code lại bỏ lại một socket sống.
+  //     nếu không thì mỗi lần ghé qua lại bỏ lại một socket sống.
   // _pageLeave lo cả hai. (Lớp .cview-flush phải gỡ bằng tay: renderPage clone lại cviewBody
   // bằng cloneNode(false), mà clone đó GIỮ NGUYÊN class - để lại thì trang sau mất padding.)
-  function renderCode(el) {
+  function renderCode(el, id) {
     const fn = window.JavisCode && window.JavisCode.render;
-    if (!fn) { el.innerHTML = placeholder("code", "code-term.js chưa sẵn sàng."); return; }
+    if (!fn) { el.innerHTML = placeholder(id, "code-term.js chưa sẵn sàng."); return; }
     _pageLeave = () => {
       el.classList.remove("cview-flush");
       try { window.JavisCode.roi(); } catch (e) {}
     };
-    try { fn(el); } catch (e) { el.innerHTML = placeholder("code", "Lỗi nạp: " + e.message); }
+    try { fn(el, id); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); }
   }
 
   // Trang Chatbot do chatbots.js dựng - uỷ quyền y như renderStudioPage uỷ cho studio.js,

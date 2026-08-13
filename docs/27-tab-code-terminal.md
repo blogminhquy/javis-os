@@ -1,6 +1,6 @@
-# Tab Code: Terminal ngay trong dashboard
+# Nhóm Code: Terminal ngay trong dashboard
 
-Tab **Code** là khu vực làm việc kiểu lập trình viên của Javis. Chức năng đầu tiên của nó là **Terminal**: một dòng lệnh thật, chạy trên đúng máy đang chạy Javis, mở ngay trong trình duyệt. Không cần mở SSH ở cửa sổ khác nữa.
+**Code** là một nhóm riêng trên thanh điều hướng - khu vực làm việc kiểu lập trình viên của Javis. Mục đầu tiên trong nhóm là **Terminal**: một dòng lệnh thật, chạy trên đúng máy đang chạy Javis, mở ngay trong trình duyệt. Không cần mở SSH ở cửa sổ khác nữa.
 
 ## Tính năng này là gì
 
@@ -11,15 +11,15 @@ Terminal ở đây là **pseudo-terminal thật của hệ điều hành**, khô
 - Có màu, có gợi ý Tab, có lịch sử lệnh (mũi tên lên/xuống), có `Ctrl+C` giết đúng lệnh đang chạy chứ không giết cả phiên.
 - Đổi cỡ cửa sổ thì shell biết ngay, nên chữ không bị gãy dòng lung tung.
 
-Tab Code dựng sẵn theo hướng còn mở rộng: hôm nay có một dải tab với đúng mục **Terminal**, các chức năng sau sẽ thêm vào chính dải đó.
+Nhóm Code dựng sẵn theo hướng còn mở rộng: hôm nay trong nhóm mới có đúng mục **Terminal**, các công cụ lập trình khác sẽ thành các mục kế tiếp trong cùng nhóm đó.
 
 ## Mở ở đâu trong Javis
 
 1. Mở dashboard Javis (mặc định cổng 7777).
-2. Rail điều hướng bên trái, mở nhóm **Bộ não**, bấm mục **Code**.
+2. Rail điều hướng bên trái, mở nhóm **Code**, bấm mục **Terminal**.
 3. Terminal tự mở và tự nối. Bấm vào khung đen rồi gõ như terminal bình thường.
 
-Terminal nằm cạnh **Tệp tin** vì hai trang này làm việc trên cùng một thư mục: shell mở sẵn ở **gốc brain đang chọn**, đúng thư mục mà trang Tệp tin đang duyệt.
+Shell mở sẵn ở **gốc brain đang chọn** - đúng thư mục mà trang Tệp tin đang duyệt, nên hai chỗ nhìn cùng một đống file.
 
 ## Thanh trên cùng
 
@@ -71,7 +71,7 @@ Chi tiết cách đặt biến xem [Cấu hình .env](16-cau-hinh-env.md).
 
 ## Sự cố thường gặp
 
-**Vào tab Code thấy "Terminal đang tắt trên máy này".** Máy chủ có `JAVIS_TERMINAL=0`. Bỏ biến đó trong `.env` rồi khởi động lại Javis.
+**Vào mục Terminal thấy "Terminal đang tắt trên máy này".** Máy chủ có `JAVIS_TERMINAL=0`. Bỏ biến đó trong `.env` rồi khởi động lại Javis.
 
 **Báo "Đang mở 4 phiên terminal rồi".** Có phiên cũ còn sống ở tab trình duyệt khác. Bấm **Phiên mới** ở tab đó, hoặc chờ 30 phút để Javis tự dọn.
 
@@ -85,5 +85,5 @@ Chi tiết cách đặt biến xem [Cấu hình .env](16-cau-hinh-env.md).
 
 - [05 - Quản lý tệp tin](05-quan-ly-tep-tin.md) - duyệt và sửa cùng thư mục đó bằng giao diện.
 - [24 - Javis CLI (terminal)](24-cli-terminal.md) - chiều ngược lại: gõ `javis "..."` từ terminal của máy bạn.
-- [14 - Bảo mật & tài khoản](14-bao-mat-tai-khoan.md) - hàng rào đăng nhập che tab Code.
+- [14 - Bảo mật & tài khoản](14-bao-mat-tai-khoan.md) - hàng rào đăng nhập che nhóm Code.
 - [16 - Cấu hình .env](16-cau-hinh-env.md) - mọi biến môi trường.

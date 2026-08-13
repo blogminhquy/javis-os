@@ -158,8 +158,8 @@ Thanh điều hướng bên trái gom **19 trang** thành **6 nhóm** (bấm tê
 | **Trợ lý** | **Javis** | Màn chính: trò chuyện (gõ hoặc nói), đồ thị tri thức, cây thư mục brain bên trái. | [Trò chuyện & giọng nói](docs/02-tro-chuyen-va-giong-noi.md) · [Đồ thị tri thức](docs/03-do-thi-tri-thuc.md) |
 | | **Trò chuyện** | Khung chat rộng toàn màn hình kèm cột lịch sử hội thoại. | [Phiên hội thoại](docs/04-phien-hoi-thoai.md) |
 | **Bộ não** | **Tệp tin** | Duyệt brain, **sửa `.md`/`.txt` trực tiếp**, tìm file theo tên/nội dung, tải lên/về. | [Quản lý tệp tin](docs/05-quan-ly-tep-tin.md) |
-| | **Code** | **Terminal thật** của máy chạy Javis, mở ngay trong trình duyệt - khỏi mở SSH. | [Tab Code: Terminal](docs/27-tab-code-terminal.md) |
 | | **Tự học** | Javis tự rút ký ức, đúc Wiki, kỹ năng sau mỗi hội thoại; hoàn tác được. | [Tự học](docs/22-tu-hoc.md) |
+| **Code** | **Terminal** | **Dòng lệnh thật** của máy chạy Javis, mở ngay trong trình duyệt - khỏi mở SSH. | [Nhóm Code: Terminal](docs/27-tab-code-terminal.md) |
 | **Năng lực** | **Agents** | Tạo trợ lý chuyên biệt (vai trò + skill + bộ nhớ riêng). | [Agents & Workflows](docs/07-agents-va-workflows.md) |
 | | **Skills** | Gom nhóm + tìm kiếm + **bật/tắt** + thêm/sửa/xoá + nhập/xuất skill. | [Skills](docs/06-skills.md) |
 | | **Workflows** | Tạo/chạy chuỗi tự động (agent → agent), có bước kiểm chứng. | [Agents & Workflows](docs/07-agents-va-workflows.md) |

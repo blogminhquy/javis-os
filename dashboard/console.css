@@ -479,29 +479,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cview-body .stab-panel { max-width: 1100px; margin: 0; }
 
 /* ============================================
-   TRANG CODE (dải tab + khoang chức năng; hôm nay có Terminal)
+   NHÓM CODE trên rail (hôm nay có Terminal)
    ============================================ */
 /* Trang duy nhất chiếm TRỌN khung: terminal đo chiều cao thật để tính ra số dòng, nên khung
    phải cao cố định và tự cuộn bên trong chứ không để cả trang trôi. console.js gắn/gỡ lớp này. */
 .cview-body.cview-flush { padding: 0; overflow: hidden; }
 .code-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.code-tabs {
-  display: flex; gap: 4px; padding: 8px 16px 0;
-  border-bottom: 1px solid var(--glass-brd); flex: 0 0 auto;
-}
-.code-tab {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border: 1px solid transparent; border-bottom: none;
-  border-radius: 10px 10px 0 0; background: transparent; cursor: pointer;
-  font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--text3);
-  margin-bottom: -1px;
-}
-.code-tab:hover { color: var(--text2); background: var(--surface-1); }
-.code-tab.on {
-  color: var(--text); background: var(--glass);
-  border-color: var(--glass-brd); border-bottom-color: var(--glass);
-}
-.code-tab svg { width: 15px; height: 15px; }
 .code-panel { flex: 1; min-height: 0; display: flex; }
 .code-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -552,7 +535,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .term-host .xterm-viewport { scrollbar-width: thin; }
 
 @media (max-width: 860px) {
-  .code-tabs { padding: 6px 10px 0; }
   .term-bar { padding: 7px 10px; gap: 8px; flex-wrap: wrap; }
   .term-cwd { display: none; }          /* màn hẹp: nhường chỗ cho hai cái nút */
   .term-host { padding: 6px 2px 6px 8px; }

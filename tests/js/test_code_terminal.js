@@ -1,4 +1,4 @@
-/* Tab Code + Terminal: khung trang, đường nạp, và mấy chỗ dễ đứt khi sửa sau này.
+/* Nhóm Code trên rail + Terminal: cấu trúc điều hướng, đường nạp, và mấy chỗ dễ đứt khi sửa.
 
        node tests/js/test_code_terminal.js
 
@@ -8,11 +8,15 @@
    thiếu rail thì không có lối vào, thiếu VIEW_META thì tiêu đề trang trống trơn, thiếu case
    trong renderPage thì bấm vào ra khung "đang phát triển".
 
-   Ba thứ nữa được canh vì chúng là lý do người ta sẽ chửi chứ không phải lý do code xấu:
+   Bốn thứ nữa được canh vì chúng là lý do người ta sẽ chửi chứ không phải lý do code xấu:
+     - "Code" phải là NHÓM RIÊNG trên rail, không phải một mục nhét vào "Bộ não". Bản 0.34.0
+       xếp nhầm và chủ repo báo ngay: Code là khu vực sẽ dày lên, không phải chức năng của
+       Second Brain;
+     - convertEol phải bật ở chế độ ống - thiếu nó thì output Windows trôi thành bậc thang;
      - xterm.js (285KB) KHÔNG được nằm trong index.html: nó phải nạp lười, không thì mọi lượt
-       mở dashboard đều gánh nó dù chín trên mười lượt không vào tab Code;
-     - rời tab phải dọn WebSocket + ResizeObserver, không thì mỗi lần ghé qua bỏ lại một socket;
-     - rời tab KHÔNG được đóng phiên shell - đang `npm install` mà bấm sang tab khác là mất. */
+       mở dashboard đều gánh nó dù chín trên mười lượt không vào nhóm Code;
+     - rời trang phải dọn WebSocket + ResizeObserver nhưng KHÔNG được đóng phiên shell - đang
+       `npm install` mà bấm sang trang khác là mất. */
 const fs = require("fs");
 const path = require("path");
 
@@ -33,17 +37,27 @@ const CON_CODE = khongComment(CON);
 const CODE_CODE = khongComment(CODE);
 
 // ============================================================
-// 1. Trang Code khai đủ sáu chỗ trong console.js
+// 1. "Code" là NHÓM RIÊNG trên rail, Terminal là một mục trong đó
 // ============================================================
-check("VIEW_ICON có mục 'code'", /\bcode:\s*"terminal"/.test(CON_CODE));
-check("RAIL_ITEMS có mục Code", /id:\s*"code".*label:\s*"Code"/.test(CON_CODE));
-check("Code nằm trong một nhóm của rail (không rơi vào nhóm 'Khác')",
-      /ids:\s*\[[^\]]*"code"[^\]]*\]/.test(CON_CODE));
-check("VIEW_META có tiêu đề + phụ đề cho trang Code",
-      /code:\s*\{\s*icon:\s*VIEW_ICON\.code[^}]*label:\s*"Code"[^}]*sub:/.test(CON_CODE));
-check("renderPage định tuyến id 'code'", /if \(id === "code"\)\s+return renderCode\(el\)/.test(CON_CODE));
+const nhomCode = /\{\s*label:\s*"Code",[^}]*ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
+check("rail có nhóm riêng tên 'Code'", !!nhomCode);
+check("Terminal là một mục trong nhóm Code", !!nhomCode && /"terminal"/.test(nhomCode[1]));
+// Bản 0.34.0 nhét "Code" thành một mục của nhóm Bộ não. Chủ repo báo ngay (2026-08-14):
+// "ở sidebar sai rồi... chứ không phải chức năng trong bộ não".
+const nhomBoNao = /\{\s*label:\s*"Bộ não",[^}]*ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
+check("CANARY: nhóm Bộ não KHÔNG chứa Code/Terminal",
+      !!nhomBoNao && !/"code"|"terminal"/.test(nhomBoNao[1]));
+check("nhóm Code có icon riêng ở tầng nhãn nhóm", /"Code":\s*ic\(/.test(CON_CODE));
+
+check("VIEW_ICON có mục 'terminal'", /\bterminal:\s*"terminal"/.test(CON_CODE));
+check("RAIL_ITEMS có mục Terminal", /id:\s*"terminal".*label:\s*"Terminal"/.test(CON_CODE));
+check("VIEW_META có tiêu đề + phụ đề cho trang Terminal",
+      /terminal:\s*\{\s*icon:\s*VIEW_ICON\.terminal[^}]*label:\s*"Terminal"[^}]*sub:/.test(CON_CODE));
+check("renderPage định tuyến mọi trang thuộc nhóm Code",
+      /CODE_PAGES\.includes\(id\)\)\s*return renderCode\(el, id\)/.test(CON_CODE)
+      && /const CODE_PAGES = \[[^\]]*"terminal"/.test(CON_CODE));
 check("có hàm renderCode uỷ quyền cho code-term.js",
-      /function renderCode\(el\)/.test(CON_CODE) && /window\.JavisCode/.test(CON_CODE));
+      /function renderCode\(el, id\)/.test(CON_CODE) && /window\.JavisCode/.test(CON_CODE));
 
 // ============================================================
 // 2. Nạp lười: xterm KHÔNG được nằm trong đường khởi động
@@ -92,6 +106,13 @@ check("mất kết nối thì tự nối lại (shell vẫn sống ở server)",
 // 4. Chế độ ống (Windows): phải nói thật + tự lo phần việc của tty
 // ============================================================
 check("có nhận biết chế độ ống", /st\.che_do === "ong"/.test(CODE_CODE));
+// Lỗi thật, đã ra tới tay chủ repo ở 0.34.0 kèm ảnh: cả màn `git help` trôi xiên sang phải.
+// Chế độ ống không có tty driver đổi "\n" thành "\r\n", mà với xterm "\n" chỉ xuống dòng chứ
+// KHÔNG về đầu dòng - nên mỗi dòng bắt đầu ở chỗ dòng trước kết thúc.
+check("CANARY: convertEol bật ở chế độ ống (không thì output Windows thành bậc thang)",
+      /convertEol:\s*ong\b/.test(CODE_CODE));
+check("CANARY: convertEol KHÔNG bật cứng (bật ở pty là cướp mất '\\n' trần của chương trình TUI)",
+      !/convertEol:\s*true/.test(CODE_CODE));
 check("chế độ ống hiện lời cảnh báo cho người dùng, không im lặng",
       /Chế độ đơn giản \(Windows\)/.test(CODE));
 check("chế độ ống tự hiện chữ vừa gõ + Backspace + gom dòng rồi mới gửi",
@@ -100,13 +121,16 @@ check("Ctrl-C ở chế độ ống đi bằng gói tín hiệu riêng",
       /type: "sig", name: "int"/.test(CODE_CODE));
 
 // ============================================================
-// 5. Khung trang mở rộng được + CSS
+// 5. Khung mở rộng được + CSS
 // ============================================================
 check("danh sách chức năng khai thành mảng (thêm chức năng sau = thêm một dòng)",
       /var CHUC_NANG = \[/.test(CODE_CODE));
 check("Terminal là chức năng đầu tiên", /\{ id: "terminal"/.test(CODE_CODE));
-check("có dải tab để cắm chức năng sau", /class="code-tabs"/.test(CODE));
-check("nhớ tab con đang xem giữa các lần vào", /KHOA_TAB/.test(CODE_CODE));
+check("render nhận id để biết mở chức năng nào", /function render\(el, id\)/.test(CODE_CODE));
+// Mỗi chức năng Code giờ là MỘT MỤC trên rail, nên dải tab trong trang là thừa - hai tầng
+// điều hướng cho cùng một thứ chỉ làm người dùng phải nhớ chức năng nằm ở tầng nào.
+check("CANARY: không còn dải tab trong trang (điều hướng nằm ở rail)",
+      !/code-tabs/.test(CODE_CODE) && !/code-tabs/.test(CSS));
 check("CSS có khung trang Code + terminal",
       /\.cview-body\.cview-flush/.test(CSS) && /\.code-page/.test(CSS) && /\.term-host/.test(CSS));
 check("terminal chiếm hết chiều cao khung (không thì xterm tính hụt số dòng)",

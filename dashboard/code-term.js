@@ -1,23 +1,25 @@
 // ============================================================
-// JAVIS OS - Trang Code
+// JAVIS OS - Nhóm Code trên rail
 //
-// console.js gọi window.JavisCode.render(el) khi vào tab, và window.JavisCode.roi() khi rời.
+// console.js gọi window.JavisCode.render(el, id) khi vào một trang thuộc nhóm Code, và
+// window.JavisCode.roi() khi rời.
 //
-// Trang này dựng theo hướng NHIỀU CHỨC NĂNG ngay từ đầu dù hôm nay mới có Terminal: một dải
-// tab ở trên, một khoang nội dung ở dưới. Thêm chức năng sau (trình sửa code, git, chạy test)
-// = thêm MỘT dòng vào mảng CHUC_NANG bên dưới, không phải dựng lại khung.
+// "Code" là một KHU VỰC trên rail chứ không phải một trang: mỗi chức năng là MỘT MỤC trong
+// nhóm đó. Hôm nay có Terminal; thêm chức năng sau (trình sửa code, git, chạy test) = thêm
+// một dòng vào CHUC_NANG bên dưới + khai id ở console.js (RAIL_ITEMS, RAIL_GROUPS, VIEW_META,
+// CODE_PAGES). Không phải dựng lại khung.
 //
 // xterm.js nạp LƯỜI: 285KB không nên nằm trong đường khởi động của dashboard khi phần lớn lượt
-// mở không đụng tới tab Code. Lần đầu vào tab mới tải, các lần sau dùng lại.
+// mở không đụng tới nhóm Code. Lần đầu vào mới tải, các lần sau dùng lại.
 // ============================================================
 (function () {
   "use strict";
 
   var WS_GOC = (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host;
-  var KHOA_TAB = "javis.code.tab";        // tab con đang xem, nhớ giữa các lần vào
   var KHOA_PHIEN = "javis.code.phien";    // id phiên terminal của TAB TRÌNH DUYỆT này
 
-  // ---- Các chức năng của trang Code. Thêm chức năng mới = thêm một dòng ở đây. ----
+  // ---- Các chức năng của nhóm Code. Thêm chức năng mới = thêm một dòng ở đây. ----
+  // `id` phải khớp id mục trên rail (console.js RAIL_ITEMS + CODE_PAGES).
   var CHUC_NANG = [
     { id: "terminal", nhan: "Terminal", icon: "terminal", ve: veTerminal },
   ];
@@ -35,43 +37,24 @@
   function xoaNho(k) { try { sessionStorage.removeItem(k); } catch (e) {} }
 
   // ============================================================
-  // Khung trang: dải tab + khoang nội dung
+  // Khung trang
   // ============================================================
   var _dangChay = null;     // { huy: fn } của chức năng đang mở, để dọn khi rời trang
 
-  function render(el) {
-    // Trang Code chiếm TRỌN khung nhìn và tự cuộn bên trong (terminal cần chiều cao thật để
-    // tính số dòng). Lớp này do console.js gỡ ra khi rời trang.
+  function render(el, id) {
+    // Trang nhóm Code chiếm TRỌN khung nhìn và tự cuộn bên trong (terminal cần chiều cao thật
+    // để tính số dòng). Lớp này do console.js gỡ ra khi rời trang.
     el.classList.add("cview-flush");
-    var dang = nho(KHOA_TAB) || CHUC_NANG[0].id;
-    if (!CHUC_NANG.some(function (c) { return c.id === dang; })) dang = CHUC_NANG[0].id;
-    el.innerHTML =
-      '<div class="code-page">' +
-        '<div class="code-tabs" role="tablist">' +
-          CHUC_NANG.map(function (c) {
-            return '<button class="code-tab' + (c.id === dang ? " on" : "") + '" role="tab" data-ct="' +
-              esc(c.id) + '">' + ic(c.icon) + " " + esc(c.nhan) + "</button>";
-          }).join("") +
-        "</div>" +
-        '<div class="code-panel" id="codePanel"></div>' +
-      "</div>";
-    el.querySelectorAll("[data-ct]").forEach(function (b) {
-      b.onclick = function () {
-        if (b.classList.contains("on")) return;
-        el.querySelectorAll(".code-tab").forEach(function (x) { x.classList.remove("on"); });
-        b.classList.add("on");
-        nho(KHOA_TAB, b.dataset.ct);
-        moChucNang(el, b.dataset.ct);
-      };
-    });
-    moChucNang(el, dang);
+    el.innerHTML = '<div class="code-page"><div class="code-panel" id="codePanel"></div></div>';
+    moChucNang(el, id || CHUC_NANG[0].id);
   }
 
   function moChucNang(el, id) {
     dongChucNang();
     var panel = el.querySelector("#codePanel");
     var cn = CHUC_NANG.filter(function (c) { return c.id === id; })[0];
-    if (!panel || !cn) return;
+    if (!panel) return;
+    if (!cn) { panel.innerHTML = '<div class="code-empty">Chức năng "' + esc(id) + '" chưa có.</div>'; return; }
     try { _dangChay = cn.ve(panel) || null; }
     catch (e) { panel.innerHTML = '<div class="code-empty">Lỗi nạp: ' + esc(e.message) + "</div>"; }
   }
@@ -197,6 +180,19 @@
       cursorBlink: true,
       scrollback: 5000,
       theme: bangMau(),
+      // XUỐNG DÒNG là chỗ hai chế độ khác nhau THẬT, và sai là vỡ ngay trước mắt.
+      //
+      // Chế độ pty: tty driver của hệ điều hành tự đổi "\n" thành "\r\n" (cờ ONLCR) trước khi
+      // chữ ra khỏi shell, nên xterm nhận đủ cả về-đầu-dòng lẫn xuống-dòng.
+      //
+      // Chế độ ống (Windows): KHÔNG có tty driver nào ở giữa, output tới thẳng còn nguyên
+      // "\n" trơ. Với xterm, "\n" chỉ là XUỐNG MỘT DÒNG - con trỏ giữ nguyên cột. Nên mỗi
+      // dòng mới bắt đầu ở chỗ dòng trước kết thúc, và cả màn hình trôi thành bậc thang xiên
+      // sang phải (chủ repo báo 2026-08-14, kèm ảnh `git help` chữ bay tứ tung).
+      //
+      // convertEol bảo xterm coi "\n" là "\r\n". CHỈ bật ở chế độ ống: bật luôn ở pty là cướp
+      // mất khả năng dùng "\n" trần để dời con trỏ của chương trình toàn màn hình.
+      convertEol: ong,
       // Chuột lăn cuộn màn hình chứ không gửi xuống shell trừ khi chương trình xin.
       macOptionIsMeta: true,
     });

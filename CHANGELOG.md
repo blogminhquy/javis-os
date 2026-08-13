@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.34.1] - 2026-08-14
+### Sửa lỗi
+- **Chữ trong Terminal trên Windows hết trôi thành bậc thang.** Chạy `git help` là cả màn hình xiên dần sang phải, mỗi dòng bắt đầu ở chỗ dòng trước kết thúc. Windows không có tầng nào lo việc "về đầu dòng" hộ nên Javis phải tự làm, giờ đã làm.
+
+### Cải thiện
+- **Code thành một nhóm riêng trên thanh bên, không còn nằm trong Bộ não.** Mở nhóm **Code** là thấy mục **Terminal**; các công cụ lập trình thêm sau sẽ nằm cùng chỗ đó. Bỏ luôn dải tab thừa bên trong trang - điều hướng gom về một tầng.
+
 ## [0.34.0] - 2026-08-13
 ### Thêm mới
 - **Có tab Code, mở ra là một terminal thật.** Nằm cạnh Tệp tin trong nhóm Bộ não, mở sẵn ở thư mục brain. Gõ lệnh thẳng trên máy đang chạy Javis - `git pull`, xem log, cài CLI, đăng nhập `agy` - khỏi phải mở SSH ở cửa sổ khác. Chạy được cả `vim` và `htop`, có màu, có gợi ý Tab, Ctrl+C giết đúng lệnh đang chạy chứ không văng cả phiên.
