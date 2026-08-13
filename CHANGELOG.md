@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.33.0] - 2026-08-13
+### Thêm mới
+- **Đưa file HTML vào là ra file Webcake sửa được, giống bản gốc.** Javis tự đọc trang HTML rồi dựng thành file `.pke` mở thẳng trong trình dựng trang Webcake: màu, cỡ chữ, ảnh, nút, form và thứ tự các khối lấy nguyên từ bản gốc chứ không phải nhìn rồi gõ lại. Bảo Javis "chuyển file html này sang webcake" là chạy.
+- **Javis soi giúp trước khi giao.** Trang dựng xong được kiểm tự động: chữ đè lên nhau, khối tràn ra ngoài, và **chữ chìm vào nền** - lỗi hay gặp nhất khi bê màu từ HTML sang mà mắt thường khó thấy.
+
+### Sửa lỗi
+- **Kỹ năng có kèm công cụ giờ mới thật sự dùng được.** Trước đây Javis chỉ chép mỗi phần hướng dẫn của kỹ năng xuống bộ não, bỏ lại toàn bộ thư mục công cụ đi kèm - nên kỹ năng nào cần chạy công cụ là hỏng ở mọi bộ não. Đây chính là lý do "HTML sang Webcake" từng bị gỡ hẳn ở bản 0.9.291; nay sửa gốc và đưa nó trở lại.
+
 ## [0.32.2] - 2026-08-13
 ### Cải thiện
 - **Antigravity CLI: đăng nhập giờ làm trong terminal, thẻ trên trang Models không còn nút đăng nhập.** Nút cũ mở ra một ô terminal nhỏ ngay trên trang mà bấm vào không ăn, nên rốt cuộc vẫn phải mở terminal thật; trên Windows thì nó chưa bao giờ chạy được.

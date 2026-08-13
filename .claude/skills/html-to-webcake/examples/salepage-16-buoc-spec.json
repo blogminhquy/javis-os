@@ -1,0 +1,260 @@
+{
+  "name": "Salepage Tạo Sản Phẩm Số Bằng AI",
+  "title": "Tạo Sản Phẩm Số Bằng AI - Ebook 7 Ngày Thực Chiến",
+  "description": "Sau đúng 7 ngày, bạn cầm trong tay sản phẩm số đầu tiên của riêng mình. Không cần chuyên gia, không cần code, không cần vốn. Chỉ 147.000đ.",
+  "font": "Montserrat",
+  "extraScript": "(function(){var els=document.querySelectorAll('.pke-countdown');if(!els.length)return;var end=Date.now()+(23*3600+59*60+47)*1000;function pad(n){return n<10?'0'+n:n}function tick(){var d=Math.max(0,end-Date.now());var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000),s=Math.floor(d%60000/1000);var t=pad(h)+' : '+pad(m)+' : '+pad(s);for(var i=0;i<els.length;i++){els[i].textContent=t;}}tick();setInterval(tick,1000);})();",
+  "theme": {
+    "colors": {
+      "bg0": "rgba(7,6,11,1)",
+      "bg1": "rgba(13,12,22,1)",
+      "ink": "rgba(242,240,232,1)",
+      "soft": "rgba(181,177,162,1)",
+      "mute": "rgba(110,106,92,1)",
+      "amber": "rgba(232,168,92,1)",
+      "gold": "rgba(212,168,98,1)",
+      "red": "rgba(217,119,87,1)",
+      "green": "rgba(111,186,111,1)",
+      "cardBg": "linear-gradient(150deg, rgba(21,19,31,1), rgba(13,12,22,1))",
+      "cta": "linear-gradient(135deg, rgba(232,168,92,1) 0%, rgba(184,111,44,1) 100%)",
+      "line": "rgba(232,168,92,0.2)"
+    },
+    "text": { "color": "$soft", "size": 16 },
+    "heading": { "color": "$ink" },
+    "badge": { "color": "$amber", "bg": "rgba(232,168,92,0.08)", "borderColor": "rgba(232,168,92,0.35)" },
+    "card": { "bg": "$cardBg", "borderColor": "$line", "radius": 16, "titleColor": "$ink", "textColor": "$soft", "titleSize": 17 },
+    "button": { "bg": "$cta", "color": "$bg0", "radius": 99, "size": 17 },
+    "testimonial": { "starColor": "$gold", "authorColor": "$amber", "borderColor": "rgba(212,168,98,0.3)" },
+    "priceTable": { "titleColor": "$amber", "priceColor": "$ink", "totalColor": "$amber", "borderColor": "rgba(232,168,92,0.25)", "strikeColor": "$mute" },
+    "guarantee": { "bg": "$cardBg", "titleColor": "$green", "borderColor": "rgba(111,186,111,0.35)" },
+    "progress": { "trackColor": "rgba(7,6,11,0.6)", "fillColor": "$cta", "labelColor": "$mute" },
+    "ctaBlock": { "subColor": "$mute", "arrowColor": "$amber" }
+  },
+  "sections": [
+    {
+      "name": "hero",
+      "background": "radial-gradient(ellipse at 50% 0%, rgba(184,111,44,0.22) 0%, rgba(7,6,11,1) 62%)",
+      "padTop": 32, "gap": 20, "padBottom": 52,
+      "elements": [
+        { "kind": "text", "html": "⚠️ Cảnh báo: Giá ưu đãi 147k sẽ tăng lên 497k sau khi 100 đơn đầu được bán hết", "size": 13, "color": "$amber", "bold": true },
+        { "kind": "image", "src": "https://statics.pancake.vn/web-media-262/1e/4c/ac/5a/b90a37dd4ceeb6946dd57f1d1e4fd08a2afaf610a4b6a807125873ed-w:1672-h:941-l:1553997-t:image/png.png", "ratio": 1.78, "width": 1, "radius": 18 },
+        { "kind": "text", "html": "★ Dành cho người đã chán cảnh “biết nhiều mà không bán được gì” ★", "size": 13 },
+        { "kind": "heading", "tag": "h1", "size": 42, "text": "Sau Đúng 7 Ngày Nữa,<br>Bạn Sẽ Cầm Trong Tay<br><span style='color:${amber};'>Sản Phẩm Số Đầu Tiên</span><br>Của Riêng Mình" },
+        { "kind": "text", "size": 18, "html": "<i>Không cần là chuyên gia. Không cần biết code. Không cần vốn.<br>Chỉ cần <span style='font-weight:700;color:${ink};'>2 giờ mỗi tối</span> và một chiếc laptop có kết nối AI.</i>" }
+      ]
+    },
+    {
+      "name": "san-pham",
+      "background": "$bg1",
+      "padTop": 52, "gap": 16, "padBottom": 52,
+      "elements": [
+        { "kind": "hero", "side": "right", "mediaW": 0.4, "gap": 44,
+          "media": { "kind": "image", "src": "https://statics.pancake.vn/web-media-262/84/06/c2/69/c2647c333d8461d3383b93f2dcb9f654da537b698b018d426c44776f-w:1024-h:1536-l:1547285-t:image/png.png", "ratio": 0.667, "width": 0.8, "widthMobile": 0.52, "radius": 12, "boxShadow": "0px 30px 70px rgba(0,0,0,0.7)" },
+          "items": [
+            { "kind": "badge", "text": "EBOOK MỚI 2026", "align": "left", "bg": "$cta", "color": "$bg0", "borderColor": "rgba(232,168,92,0.5)" },
+            { "kind": "heading", "size": 27, "align": "left", "text": "📘 TẠO SẢN PHẨM SỐ BẰNG AI" },
+            { "kind": "text", "size": 14, "align": "left", "color": "$mute", "html": "<i>50 trang • 7 ngày thực chiến • 2 bonus đi kèm</i>" },
+            { "kind": "text", "size": 22, "align": "left", "color": "$amber", "bold": true, "html": "CHỈ 147.000đ" },
+            { "kind": "text", "size": 14.5, "align": "left", "html": "Nhận file qua email trong vòng 5 phút sau thanh toán." }
+          ] },
+        { "kind": "spacer", "height": 20 },
+        { "kind": "text", "size": 12, "bold": true, "html": "🔥 ƯU ĐÃI MỞ BÁN KẾT THÚC SAU" },
+        { "kind": "heading", "tag": "h3", "size": 34, "color": "$amber", "text": "<span class='pke-countdown'>23 : 59 : 47</span>" },
+        { "kind": "progress", "value": 0.47, "width": 0.5, "glow": true, "label": "Đã có 47/100 người đăng ký giá ưu đãi 147k" }
+      ]
+    },
+    {
+      "name": "van-de",
+      "background": "$bg0",
+      "padTop": 56, "gap": 14, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "01", "size": 31, "text": "Bạn Có Đang Mắc Kẹt Ở Đây Không?" },
+        { "kind": "card", "icon": "✕", "accent": "$red", "title": "“Tôi biết nhiều thứ, nhưng tôi không biết bán cái gì cả”", "text": "Bạn có 5 năm kinh nghiệm trong nghề, nhưng vẫn cảm thấy “chưa đủ giỏi” để dạy ai." },
+        { "kind": "card", "icon": "✕", "accent": "$red", "title": "Đã mua ít nhất 3 khóa MMO / ebook AI trong 12 tháng qua", "text": "Tất cả đang nằm yên trong ổ cứng. Chưa có sản phẩm nào ra đời." },
+        { "kind": "card", "icon": "✕", "accent": "$red", "title": "Lương trần. Lạm phát. AI đang đe dọa công việc của bạn", "text": "Bạn biết phải làm gì đó, nhưng không biết bắt đầu từ đâu." },
+        { "kind": "card", "icon": "✕", "accent": "$red", "title": "Lướt Facebook thấy người cùng tuổi khoe đơn hàng AI", "text": "Một cảm giác khó tả dâng lên. Bạn không nói ra với ai." },
+        { "kind": "card", "icon": "✕", "accent": "$red", "title": "“Thôi để tháng sau bắt đầu”", "text": "Tháng sau, lại tháng sau nữa. Đã hai năm rồi." },
+        { "kind": "spacer", "height": 10 },
+        { "kind": "text", "html": "<i>Nếu bạn gật đầu dù chỉ <span style='font-weight:700;color:${ink};'>1 trong 5 điều trên</span>, hãy đọc tiếp. Trang này được viết riêng cho bạn.</i>" }
+      ]
+    },
+    {
+      "name": "uy-tin",
+      "background": "$bg1",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "02", "size": 31, "text": "Tôi Là Ai Và Vì Sao Bạn Nên Đọc Tiếp" },
+        { "kind": "text", "align": "left", "html": "Tôi từng đứng đúng vị trí của bạn. Một nhân viên marketing thuê, làm chatbot, chạy ADS, dựng landing page cho người khác. Mỗi mảnh ghép một ít. Không có mảnh nào đủ to để gọi là “chuyên gia”.<br><br>Suốt 3 năm, tôi <span style='font-weight:700;color:${ink};'>thử bán nhiều thứ, đều èo uột</span>. Có những đêm tôi nằm thao thức tự hỏi: “Có lẽ mình không phù hợp với con đường này thật”.<br><br>Đến khi AI bùng nổ và tôi bắt đầu kết hợp những mảnh ghép kỹ năng nhỏ của mình với AI, mọi thứ thay đổi. Tôi không đột nhiên thông minh hơn. Tôi chỉ có công cụ phù hợp.<br><br>Hôm nay, tôi đã đóng gói lại con đường ngắn nhất, đơn giản nhất, đi từ chỗ <span style='font-weight:700;color:${amber};'>chưa có gì để bán</span> đến chỗ có một sản phẩm số thực sự, vào một cuốn ebook 50 trang. Đó là thứ tôi ước có ai đó đã đưa cho tôi 3 năm trước." }
+      ]
+    },
+    {
+      "name": "cau-chuyen",
+      "background": "$bg0",
+      "padTop": 56, "gap": 22, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "03", "size": 31, "text": "Khoảnh Khắc Tôi Hiểu Ra Mình Đang Bán Cái Gì" },
+        { "kind": "card", "accent": "$amber", "pad": 30, "textSize": 15, "text": "Tháng 6 năm ngoái. Tôi gặp một cô em họ vừa ra trường, làm kế toán năm đầu. Cô bé than: “Em đang loay hoay với Excel, mỗi lần làm báo cáo cuối tháng là mất nguyên một đêm. Có ai dạy nhanh cho em không chị?”<br><br>Tôi giật mình.<br><br>Bởi vì cách đây 5 năm, <span style='font-weight:700;color:${ink};'>tôi cũng từng là cô bé đó</span>. Mất một năm trời mò mẫm với pivot table, vlookup, conditional format. Không có ai chỉ. Tự đào trên Google. Có những kiến thức tôi mất 3 tháng mới hiểu, mà bây giờ giảng lại trong 10 phút là xong.<br><br>Tối đó về, tôi mở laptop và làm một bài thử. Tôi gõ vào Claude: <i style='color:${amber};'>“Hãy giúp tôi đóng gói 5 năm kinh nghiệm Excel kế toán của tôi thành một ebook 30 trang dành cho người mới vào nghề”</i>.<br><br>Trong vòng 4 giờ, tôi có bản nháp. Trong 3 ngày tiếp theo, tôi chỉnh sửa, thêm câu chuyện cá nhân, thêm checklist. Ngày thứ 7, ebook hoàn thành. Tôi bán cho cô em họ với giá 99k để cảm ơn cô đã cho tôi ý tưởng.<br><br>Hai tuần sau, cô nhắn tin: <span style='font-weight:700;color:${ink};'>“Chị ơi em chỉ cần 2 tuần là làm được báo cáo trong 2 tiếng, không phải 8 tiếng nữa. Em chia sẻ ebook của chị cho 3 đứa bạn cùng phòng, các bạn ấy cũng muốn mua. Chị bán không?”</span><br><br>Tôi nhìn vào màn hình rất lâu.<br><br>Tôi nhận ra một điều mà <span style='font-weight:700;color:${amber};'>5 năm cày làm thuê không dạy được cho tôi</span>: Tôi không phải đang bán hàng. Tôi đang đóng gói cái mà tôi đã từng vấp, để người đến sau bớt mất một năm như tôi đã mất.<br><br>Cái mà bạn coi là “tôi không có gì đặc biệt” thực ra là <span style='font-weight:700;color:${ink};'>tài sản của bạn</span>. Có một ai đó ngoài kia, hôm nay, đang ngồi trước Google tìm cách giải quyết đúng cái vấn đề mà bạn đã vượt qua từ 3 năm trước. Họ đang trả giá bằng thời gian, bằng nước mắt, bằng cảm giác bất lực.<br><br>Câu hỏi không phải “tôi có đủ giỏi để dạy không”. Câu hỏi là: <span style='font-weight:700;color:${ink};'>“Tôi có để họ tự mò 5 năm như tôi đã từng, hay tôi đóng gói nó lại cho họ?”</span><br><br><i style='color:${amber};'>Đó là khoảnh khắc cuốn ebook này ra đời.</i>" },
+        { "kind": "divider", "width": 0.3, "color": "rgba(232,168,92,0.3)" },
+        { "kind": "text", "size": 21, "color": "$ink", "html": "<i>“Có một sinh viên năm nhất đang tìm câu trả lời cho cái bạn đã giải quyết xong 5 năm trước.<br>Vấn đề là bạn có chịu đóng gói lại không.”</i>" }
+      ]
+    },
+    {
+      "name": "loi-ich",
+      "background": "$bg1",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "04", "size": 31, "text": "Sau 7 Ngày Đi Theo Lộ Trình Này, Bạn Sẽ Có" },
+        { "kind": "cardsRow", "gap": 18, "cards": [
+          { "icon": "🎯", "iconTop": true, "title": "Sản phẩm số hoàn chỉnh", "text": "Không phải kiến thức. Không phải ý tưởng. Một file PDF thật, sẵn sàng có người trả tiền để nhận." },
+          { "icon": "🔁", "iconTop": true, "title": "Quy trình lặp lại được", "text": "Tạo tiếp sản phẩm số thứ 2, thứ 3, thứ 4. Bạn không học một sản phẩm, bạn học một kỹ năng cả đời." },
+          { "icon": "🤖", "iconTop": true, "title": "Thành thạo Claude và AI", "text": "Tự viết, tự thiết kế layout, tự tạo bonus. Không cần thuê designer, không cần thuê copywriter." }
+        ] },
+        { "kind": "cardsRow", "gap": 18, "cards": [
+          { "icon": "📋", "iconTop": true, "title": "3 prompt AI bản quyền", "text": "Tinh chỉnh sẵn để viết 3 phần Tư duy, Chiến lược, Hành động. Copy, dán, chỉnh sửa. Xong." },
+          { "icon": "💪", "iconTop": true, "title": "Niềm tin “tôi có giá trị”", "text": "Phần 1 của ebook đập tan hội chứng kẻ giả mạo. Bạn sẽ không còn mặc cảm bản thân nữa." },
+          { "icon": "🗺️", "iconTop": true, "title": "Lộ trình tiếp theo", "text": "Chiến thuật 3 khách đầu tiên (bán tay trước, ADS sau) và hướng đi xây hệ thống bán hàng tự động." }
+        ] }
+      ]
+    },
+    {
+      "name": "tuong-tuong",
+      "background": "$bg0",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "05", "size": 31, "text": "Tưởng Tượng 8 Ngày Nữa" },
+        { "kind": "text", "align": "left", "html": "Tối thứ Bảy, tuần sau nữa. Bạn ngồi xuống bàn làm việc quen thuộc. Mở email.<br><br>Có một dòng tiêu đề mới: <i style='color:${amber};'>“Thanh toán thành công 147.000đ từ [Tên người mua]”</i>.<br><br>Đó không phải số tiền lớn. Bạn biết. Đó là <span style='font-weight:700;color:${ink};'>một cái gì đó lớn hơn nhiều so với 147k</span>.<br><br>Đó là bằng chứng vật lý. Bằng chứng rằng kinh nghiệm 5 năm của bạn có giá. Bằng chứng rằng bạn không phải “an phận”. Bằng chứng rằng bạn vừa bước qua một ngưỡng tâm lý mà bạn đã chần chừ suốt 2 năm.<br><br>Bạn xuống phòng khách. Vợ bạn (hoặc chồng, hoặc mẹ) đang xem TV. Bạn không khoe gì cả. Bạn chỉ nói nhẹ: <i>“Hôm nay anh/em bán được cái đầu tiên rồi nhé”</i>. Họ ngẩng lên nhìn bạn khác đi một chút.<br><br>Bạn quay lên phòng. Mở Google Doc trống. <span style='font-weight:700;color:${ink};'>Bắt đầu nghĩ tới sản phẩm số thứ hai.</span><br><br>Đó là <span style='font-weight:700;color:${amber};'>khoảnh khắc breakthrough</span> mà cuốn ebook này được thiết kế để đưa bạn tới. Đúng 7 ngày." }
+      ]
+    },
+    {
+      "name": "cu-the",
+      "background": "$bg1",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "06", "size": 31, "text": "Cụ Thể Bạn Sẽ Nhận Được Gì" },
+        { "kind": "card", "pad": 28, "textSize": 15, "text": "<span style='font-weight:700;color:${amber};'>01. Ebook PDF 50 trang</span>, hỗ trợ tiếng Việt có dấu đầy đủ, đọc được trên cả điện thoại và laptop.<br><br><span style='font-weight:700;color:${amber};'>02. Phần 1 (Tư duy)</span>: Phá vỡ niềm tin “tôi không có gì để bán” bằng phép tính 2 cuốn sách + 4 câu hỏi tìm ngách.<br><br><span style='font-weight:700;color:${amber};'>03. Phần 2 (Chiến lược)</span>: Hệ thống 3 bước (Điểm A→B, Ba vòng tròn tìm ngách, 5 loại sản phẩm số). Bao gồm công thức D×V×F lớn hơn R.<br><br><span style='font-weight:700;color:${amber};'>04. Phần 3 (Hành động)</span>: Lộ trình 7 ngày cụ thể từng ngày, mỗi ngày 2 đến 3 giờ. Có tiêu chí hoàn thành rõ ràng.<br><br><span style='font-weight:700;color:${amber};'>05. 3 prompt AI bản quyền</span> dùng Claude/ChatGPT viết 3 phần nội dung. Copy thẳng vào AI là chạy được.<br><br><span style='font-weight:700;color:${amber};'>06. Hướng dẫn dùng Claude tạo layout PDF</span> thay cho Canva. Không cần học design.<br><br><span style='font-weight:700;color:${amber};'>07. Checklist 8 mục</span> kiểm tra trước khi ra hàng. Đảm bảo sản phẩm chuyên nghiệp.<br><br><span style='font-weight:700;color:${amber};'>08. Chiến thuật 3 khách đầu tiên</span>: bán tay trước, ADS sau. Tỷ lệ chuyển đổi cao hơn nhiều so với chạy quảng cáo từ ngày 1." }
+      ]
+    },
+    {
+      "name": "gia-tri",
+      "background": "$bg0",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "07", "size": 31, "text": "Bạn Đang Trả Tiền Cho Cái Gì?" },
+        { "kind": "text", "html": "Tôi xin được rõ ràng. Nếu bạn tách lẻ từng phần của bộ này ra ngoài thị trường, đây là giá thị trường thực tế:" },
+        { "kind": "priceTable", "title": "BẢNG GIÁ TRỊ TỪNG PHẦN",
+          "rows": [
+            { "label": "Ebook 50 trang (kiến thức và lộ trình)", "price": "497.000đ" },
+            { "label": "3 prompt AI bản quyền (3 phần nội dung)", "price": "300.000đ" },
+            { "label": "Hướng dẫn Claude tạo layout PDF", "price": "400.000đ" },
+            { "label": "Checklist 8 mục trước khi ra hàng", "price": "100.000đ" },
+            { "label": "Chiến thuật 3 khách đầu (mẫu lời nhắn)", "price": "200.000đ" },
+            { "label": "Bộ template khung sản phẩm (tái sử dụng)", "price": "300.000đ" }
+          ],
+          "total": { "label": "TỔNG GIÁ TRỊ:", "price": "1.797.000đ" },
+          "strike": "1.797.000đ",
+          "today": "Hôm nay bạn chỉ trả: <span style='font-weight:700;font-size:22px;color:${amber};'>147.000đ</span>" },
+        { "kind": "text", "size": 20, "color": "$ink", "html": "<i>Chỉ cần bán được 1 đơn ebook đầu tiên với giá 147k là bạn đã hoàn vốn.<br>Đơn thứ 2 trở đi: lời.</i>" }
+      ]
+    },
+    {
+      "name": "tu-choi",
+      "background": "$bg1",
+      "padTop": 56, "gap": 14, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "08", "size": 31, "text": "Có Thể Bạn Đang Nghĩ..." },
+        { "kind": "heading", "tag": "h3", "size": 19, "align": "left", "text": "“147k cũng không nhỏ. Tôi đang cần tiết kiệm.”" },
+        { "kind": "text", "size": 15.5, "align": "left", "html": "Tôi hiểu. 147k bằng 2 ly cà phê Highlands, bằng một bữa trưa với đồng nghiệp. Nhưng đây là khoản đầu tư mà chỉ cần bạn bán được 1 đơn ebook đầu tiên là đã hoàn vốn. Mỗi đơn từ đó trở đi là lời 100%. Quan trọng hơn, bạn đang trả tiền cho một <span style='font-weight:700;color:${ink};'>kỹ năng dùng cả đời</span>, không phải một sản phẩm tiêu thụ một lần." },
+        { "kind": "heading", "tag": "h3", "size": 19, "align": "left", "text": "“Tôi không có thời gian, công việc đang quá tải.”" },
+        { "kind": "text", "size": 15.5, "align": "left", "html": "Đây chính xác là lý do lộ trình được thiết kế <span style='font-weight:700;color:${ink};'>2 đến 3 giờ mỗi ngày trong 7 ngày</span>. Tổng khoảng 14 đến 21 giờ. Bạn có thể làm vào buổi tối hoặc cuối tuần. Nếu vẫn quá bận, kéo dài thành 14 ngày. Vấn đề không phải có nhiều thời gian, vấn đề là có hệ thống để dùng đúng thời gian nhỏ mà bạn có." },
+        { "kind": "heading", "tag": "h3", "size": 19, "align": "left", "text": "“Tôi không có gì đặc biệt để bán.”" },
+        { "kind": "text", "size": 15.5, "align": "left", "html": "Đây chính là <span style='font-weight:700;color:${ink};'>niềm tin sai số 1</span> mà Phần 1 của ebook xử lý trực diện. Bạn không cần là chuyên gia hàng đầu thế giới. Bạn chỉ cần đi trước người mới 1 bước. Trong 30 phút làm bài tập 4 câu hỏi, bạn sẽ tìm ra ít nhất 2 đến 3 ý tưởng sản phẩm khả thi." },
+        { "kind": "heading", "tag": "h3", "size": 19, "align": "left", "text": "“Tôi đã thử nhiều khóa MMO rồi, đều thất bại.”" },
+        { "kind": "text", "size": 15.5, "align": "left", "html": "Khác biệt ở đây là <span style='font-weight:700;color:${ink};'>không có gì để học thuộc</span>. Bạn không đọc xong rồi thôi. Bạn đọc từng ngày một và làm theo từng ngày một. Ngày 7 đóng cuốn ebook lại, bạn có một sản phẩm thật trong tay. Đây là sản phẩm số duy nhất cam kết: nếu sau 7 ngày bạn làm theo đúng mà không có sản phẩm, hoàn 100% tiền không hỏi lý do." },
+        { "kind": "heading", "tag": "h3", "size": 19, "align": "left", "text": "“Tôi không biết code, làm sao tạo PDF chuyên nghiệp?”" },
+        { "kind": "text", "size": 15.5, "align": "left", "html": "Ebook hướng dẫn bạn dùng <span style='font-weight:700;color:${ink};'>Claude tạo code Python thay cho bạn</span>. Bạn chỉ cần copy code vào Google Colab miễn phí, chạy 1 lần là ra file PDF. Có hướng dẫn từng bước từ A đến Z cho người chưa từng chạm code." },
+        { "kind": "spacer", "height": 14 },
+        { "kind": "guarantee", "icon": "🛡️", "title": "CAM KẾT HOÀN 100% TIỀN TRONG 7 NGÀY", "text": "Nếu sau 7 ngày bạn làm theo đúng lộ trình mà không có sản phẩm số trong tay, bạn nhắn cho tôi 1 tin. Tôi hoàn lại 147.000đ. Không câu hỏi, không tranh cãi. Rủi ro tôi chịu, bạn không mất gì." }
+      ]
+    },
+    {
+      "name": "gia",
+      "background": "radial-gradient(ellipse at 50% 30%, rgba(232,168,92,0.10) 0%, rgba(7,6,11,1) 70%)",
+      "padTop": 56, "gap": 16, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "09", "size": 31, "text": "Vì Sao Giá Hôm Nay Chỉ 147.000đ?" },
+        { "kind": "text", "align": "left", "html": "Giá chính thức của bộ sản phẩm này là <span style='font-weight:700;color:${ink};'>497.000đ</span> (tương đương các mini course cùng phân khúc trên thị trường, hoặc một buổi coaching 1-1 ngắn).<br><br>Hôm nay tôi mở bán với giá <span style='font-weight:700;color:${ink};'>147.000đ</span>, giảm 70%, vì 2 lý do duy nhất:" },
+        { "kind": "cardsRow", "gap": 18, "cards": [
+          { "icon": "📊", "title": "Lý do 1: Cần 100 case study đầu tiên", "titleSize": 16, "text": "Tôi muốn thu thập kết quả thật từ 100 học viên đầu để minh chứng hệ thống. Đợt này chỉ có 100 suất." },
+          { "icon": "⚡", "title": "Lý do 2: AI đang thay đổi từng tháng", "titleSize": 16, "text": "Chậm 1 tháng đồng nghĩa với thua 1 năm. Tôi muốn càng nhiều người bắt đầu sớm càng tốt, kể cả phải hy sinh biên lợi nhuận ban đầu." }
+        ] },
+        { "kind": "spacer", "height": 12 },
+        { "kind": "text", "color": "$mute", "html": "Giá gốc: <span style='text-decoration:line-through;'>497.000đ</span>" },
+        { "kind": "text", "size": 12, "color": "$amber", "bold": true, "html": "⚡ HÔM NAY CHỈ CÒN ⚡" },
+        { "kind": "heading", "tag": "h3", "size": 56, "color": "$amber", "text": "147.000đ" },
+        { "kind": "text", "size": 13, "color": "$mute", "html": "<i>Giá này không kéo dài. Sau 100 đơn đầu tiên (hoặc hết 24h), giá tự động về 497k.</i>" },
+        { "kind": "text", "html": "<span style='font-weight:700;color:${ink};'>Tính ra: 147k chia cho 7 ngày = chưa đến 21.000đ mỗi ngày.</span><br>Một ly trà sữa size M. Đổi lấy quy trình tạo sản phẩm số bạn dùng đến hết đời." }
+      ]
+    },
+    {
+      "name": "bonus",
+      "background": "$bg1",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "10", "size": 31, "text": "2 Bonus Đi Kèm (Chỉ Trong 24h)" },
+        { "kind": "cardsRow", "gap": 20, "cards": [
+          { "icon": "🎓", "iconTop": true, "title": "Bonus #1: Group Zalo Private", "borderColor": "rgba(232,168,92,0.3)", "text": "Vào group riêng trên Zalo với tôi và những học viên cùng đợt. Hỏi đáp trực tiếp khi bạn vướng. Cộng đồng cam kết hành động cùng nhau trong 7 ngày.<br><br><span style='font-weight:700;color:${amber};'><i>Trị giá: 500.000đ</i></span>" },
+          { "icon": "🤖", "iconTop": true, "title": "Bonus #2: 30 Prompt AI Tạo Sản Phẩm Số", "borderColor": "rgba(232,168,92,0.3)", "text": "Bộ 30 prompt sẵn sàng dùng để tạo nội dung, layout, mô tả sản phẩm, viết bài bán hàng. Tinh chỉnh riêng cho người mới, không cần biết kỹ thuật prompt.<br><br><span style='font-weight:700;color:${amber};'><i>Trị giá: 300.000đ</i></span>" }
+        ] },
+        { "kind": "text", "size": 17, "html": "Tổng bonus: <span style='font-weight:700;color:${amber};'>800.000đ</span>. Bạn nhận tất cả + ebook với chỉ <span style='font-weight:700;color:${amber};'>147.000đ</span>." }
+      ]
+    },
+    {
+      "name": "urgency-cta",
+      "background": "$bg0",
+      "padTop": 56, "gap": 20, "padBottom": 56,
+      "elements": [
+        { "kind": "card", "icon": "⚠️", "title": "ĐỌC KỸ TRƯỚC KHI BẤM ĐĂNG KÝ", "titleColor": "$red", "titleSize": 16, "accent": "$red",
+          "bg": "linear-gradient(150deg, rgba(217,119,87,0.10), rgba(184,111,44,0.06))", "borderColor": "rgba(217,119,87,0.4)", "textSize": 15,
+          "text": "Đợt mở bán này có <span style='font-weight:700;color:${ink};'>2 giới hạn cứng</span> đồng thời:<br><br>🔴 Giá 147k chỉ áp dụng cho <span style='font-weight:700;color:${ink};'>100 đơn đầu tiên</span> (đã có 47 người mua, còn 53 suất).<br>🔴 Toàn bộ ưu đãi kết thúc sau <span style='font-weight:700;color:${ink};'>24 giờ</span> kể từ thời điểm bạn đọc trang này.<br><br>Cái nào hết trước thì kết thúc trước. Không kéo dài, không xin gia hạn." },
+        { "kind": "ctaBlock", "text": "✅ TÔI MUỐN NHẬN EBOOK NGAY 147K", "href": "https://www.phamquangdai.com/payment-ai-digital-product", "width": 0.62, "height": 62,
+          "sub": "⚡ <span style='font-weight:700;color:${amber};'>CÒN 53 SUẤT GIÁ ƯU ĐÃI</span> ⚡ NHẬN FILE TRONG VÒNG 5 PHÚT SAU THANH TOÁN" }
+      ]
+    },
+    {
+      "name": "testimonials",
+      "background": "$bg1",
+      "padTop": 56, "gap": 16, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "11", "size": 31, "text": "Những Học Viên Đầu Tiên Đã Nói Gì" },
+        { "kind": "testimonial", "quote": "Em là mẹ bỉm 1 năm rồi, tưởng không còn cách nào kiếm thêm tại nhà. Em đi theo lộ trình 7 ngày, ngày 6 đã có ebook về cách chăm con sơ sinh cho mẹ đi làm. Hôm qua bán được 4 đơn đầu tiên cho các chị cùng group bà mẹ. Cảm ơn anh đã viết cuốn ebook này, đặc biệt phần tư duy đập tan cái mặc cảm ‘tôi chỉ là mẹ bỉm’.", "author": "Chị Hoa Nguyễn, 32 tuổi, Hà Nội" },
+        { "kind": "testimonial", "quote": "Tôi làm kế toán 8 năm, định nghỉ việc nhưng sợ. Đọc xong Phần 1 thì tôi đã hiểu mình có cái gì để bán. Làm theo lộ trình 7 ngày, ngày 7 tôi có ebook ‘Excel cho người mới vào nghề kế toán’ bán giá 197k. Sau 3 tuần đã có 11 đơn. Quan trọng hơn, tôi không còn cảm giác bất lực nữa.", "author": "Anh Tuấn Phạm, 35 tuổi, TP.HCM" },
+        { "kind": "testimonial", "quote": "Tôi đã mua hơn 10 khóa MMO trong 2 năm. Cuốn ebook này là cái đầu tiên tôi đọc XONG và LÀM XONG. Bí mật là lộ trình 7 ngày cứng, không có chỗ để lười. Đến ngày 7 tôi nhìn cuốn PDF của mình mà rơm rớm nước mắt. Lần đầu tiên trong đời tôi có cái gì đó là của mình thực sự.", "author": "Em Linh Trần, 28 tuổi, Đà Nẵng" },
+        { "kind": "text", "size": 11, "color": "$mute", "html": "(TÊN ĐÃ ĐƯỢC RÚT GỌN THEO YÊU CẦU CỦA HỌC VIÊN)" }
+      ]
+    },
+    {
+      "name": "quyet-dinh-cta",
+      "background": "radial-gradient(ellipse at 50% 20%, rgba(184,111,44,0.16) 0%, rgba(7,6,11,1) 65%)",
+      "padTop": 56, "gap": 18, "padBottom": 56,
+      "elements": [
+        { "kind": "heading", "kicker": "12", "size": 31, "text": "Bây Giờ Là Lúc Quyết Định" },
+        { "kind": "text", "align": "left", "html": "Có hai bạn của ngày mai đang đứng trước bạn.<br><br><span style='font-weight:700;color:${ink};'>Bạn thứ nhất</span>: Đóng tab này lại, nói “để sau”. Một tuần sau, một tháng sau, một năm sau, vẫn là người biết nhiều mà không bán được gì. Vẫn lương trần. Vẫn FOMO khi nhìn bạn bè thành công.<br><br><span style='font-weight:700;color:${ink};'>Bạn thứ hai</span>: Bấm nút bên dưới. 147k. 7 ngày. Một sản phẩm số thực sự. Một cô em họ ngoài kia, một sinh viên năm nhất ngoài kia, một người mới vào nghề ngoài kia, đang chờ kinh nghiệm của bạn được đóng gói lại để họ đỡ vấp.<br><br><span style='font-weight:700;color:${ink};'>Câu hỏi duy nhất là</span>: Bạn của tuần sau sẽ là ai?" },
+        { "kind": "ctaBlock", "text": "🚀 ĐĂNG KÝ NGAY 147K + 2 BONUS", "href": "https://www.phamquangdai.com/payment-ai-digital-product", "width": 0.6, "height": 62,
+          "sub": "🔒 THANH TOÁN AN TOÀN • 🛡️ CAM KẾT HOÀN TIỀN 7 NGÀY • ⏰ GIÁ TĂNG SAU KHI HẾT 100 SUẤT" }
+      ]
+    },
+    {
+      "name": "ps-footer",
+      "background": "$bg0",
+      "padTop": 56, "gap": 20, "padBottom": 40,
+      "elements": [
+        { "kind": "card", "title": "P.S.", "titleColor": "$amber", "titleSize": 15, "pad": 28, "textSize": 14.5,
+          "text": "Nếu bạn còn đang phân vân, đây là 3 điều bạn cần biết:<br><br><span style='font-weight:700;color:${ink};'>1.</span> Đây không phải là khóa học làm giàu nhanh. Đây là lộ trình tạo sản phẩm số đầu tiên trong 7 ngày. Kết quả tài chính sau đó phụ thuộc vào cách bạn bán hàng (ebook có hướng dẫn 3 khách đầu, nhưng quy mô lớn cần hệ thống tiếp theo).<br><br><span style='font-weight:700;color:${ink};'>2.</span> Nếu bạn không sẵn sàng dành 2 đến 3 giờ mỗi ngày trong 7 ngày tới, đừng mua. Không có sản phẩm số nào tự xuất hiện.<br><br><span style='font-weight:700;color:${ink};'>3.</span> Giá 147k là <span style='font-weight:700;color:${amber};'>giá thấp nhất mà ebook này sẽ có</span>. Sau khi hết 100 suất đầu, giá về 497k và không quay lại. Tôi đã viết rõ điều này. Nếu bạn quay lại tuần sau và giá là 497k, đừng nhắn tin xin lại 147k. Tôi sẽ không phá lệ cho ai.<br><br><span style='font-weight:700;color:${ink};'>P.P.S.</span> Tôi viết cuốn ebook này không phải để khoe thành quả. Tôi viết để chia sẻ với bạn cái mà tôi ước có ai đó đã chia sẻ với tôi vài năm trước. Nếu nó giúp được cả người mua lẫn người mà người mua sẽ phục vụ, đó là vòng tròn đẹp nhất mà một sản phẩm có thể tạo ra." },
+        { "kind": "ctaBlock", "arrow": false, "text": "✅ ĐĂNG KÝ NGAY VỚI 147K", "href": "https://www.phamquangdai.com/payment-ai-digital-product", "width": 0.55, "height": 58,
+          "sub": "<span style='font-weight:700;color:${amber};'>53 SUẤT CUỐI</span> VỚI GIÁ ƯU ĐÃI NÀY" },
+        { "kind": "divider", "width": 0.85, "color": "rgba(255,255,255,0.08)" },
+        { "kind": "text", "size": 11, "color": "$mute", "html": "© 2026 PHAMQUANGDAI.COM • SẢN PHẨM SỐ ĐƯỢC PHÂN PHỐI QUA EMAIL TỰ ĐỘNG SAU KHI THANH TOÁN<br>LIÊN HỆ: MAIL@PHAMQUANGDAI.COM" }
+      ]
+    }
+  ]
+}

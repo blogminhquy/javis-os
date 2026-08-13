@@ -70,6 +70,7 @@ Javis chia skill làm 2 loại:
   | `query-wiki` | Khai thác tri thức trong Second Brain, trả lời có trích dẫn |
   | `lint-wiki` | Rà soát sức khoẻ wiki, trả về danh sách vấn đề |
   | `notes` | Lưu tin nhắn hiện tại nguyên văn vào `sources/` (kèm ảnh), tự chưng cất lên wiki nếu note đáng |
+  | `html-to-webcake` | Chuyển một trang HTML thành file `.pke` mở được trong trình dựng trang Webcake |
 
   Bản gốc nằm trong thư mục cài đặt của app (không nằm trong brain), nên chúng **có mặt ở mọi brain** và **tự cập nhật khi bạn cập nhật Javis OS** lên phiên bản mới. Loại này không xoá được từ dashboard (lỡ xoá file thủ công thì lần khởi động sau tự cài lại); muốn ngừng dùng thì **tắt** như skill thường - trạng thái tắt được giữ nguyên qua mọi lần cập nhật.
 - **Skill của bạn**: tạo qua nút + Skill, qua chat, nhập từ gói `.zip`, hoặc do trang Tự học đề xuất. Đây là dữ liệu của brain - đổi brain thì bộ skill đổi theo, cập nhật app không đụng tới.

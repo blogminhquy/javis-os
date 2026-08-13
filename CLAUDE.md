@@ -127,7 +127,7 @@ sau vào CUỐI câu trả lời (vô hình với user, dashboard tự vẽ thà
 
 Khi user muốn thêm năng lực cho Javis, dùng skill **`javis-builder`** (trong `skills/`) - nó có đủ mẫu file chuẩn + luật chống trùng + rào an toàn. Nguyên tắc cốt lõi: chọn loại nhỏ nhất đủ dùng, kiểm tra trùng trước khi tạo, loop mới luôn `enabled: false`+`suggest`, không tự tạo năng lực làm hành động tiền/đơn/đăng bài.
 
-Lưu ý kiến trúc: các skill HỆ THỐNG (`javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`) là chức năng mặc định của Javis OS - bản gốc đi theo app (tự cập nhật theo phiên bản), tự có ở MỌI brain. ĐỪNG tạo lại hay nhân bản chúng trong brain; chỉ sửa khi user yêu cầu rõ (bản đã sửa thành bản riêng của user, app không tự cập nhật đè nữa).
+Lưu ý kiến trúc: các skill HỆ THỐNG (`javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`, `notes`, `html-to-webcake`) là chức năng mặc định của Javis OS - bản gốc đi theo app (tự cập nhật theo phiên bản), tự có ở MỌI brain. ĐỪNG tạo lại hay nhân bản chúng trong brain; chỉ sửa khi user yêu cầu rõ (bản đã sửa thành bản riêng của user, app không tự cập nhật đè nữa).
 
 ## Nguyên tắc phản hồi
 1. **Luôn dùng số liệu thật** từ MCP - không bịa, không giả định
