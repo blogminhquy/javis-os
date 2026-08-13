@@ -5387,9 +5387,18 @@ def _cau_mo_dau(d: dict) -> str:
     ve = []
     if goi.get("gia_thang_usd"):
         lan = goi.get("roi_lan") or 0
+        # Nói đủ cả ba ca. Chỉ khoe khi thật sự lời, và dám nói khi gói đang đắt hơn API -
+        # một trang chỉ biết khen thì lần sau không ai tin nó nữa.
+        if lan >= 1.2:
+            ket = f", tức gói đang lời {lan:g} lần."
+        elif lan >= 0.8:
+            ket = ", tức gói đang hoà vốn so với giá API."
+        elif lan > 0:
+            ket = ", tức với nhịp dùng này thì gói đang đắt hơn trả theo API."
+        else:
+            ket = "."
         ve.append(f"{ky} anh trả ${goi['gia_thang_usd']:g} tiền gói, "
-                  f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}"
-                  + (f", tức gói đang lời {lan:g} lần." if lan >= 1 else "."))
+                  f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}" + ket)
     elif quy > 0:
         ve.append(f"{ky} lượng việc đã chạy quy theo giá API là khoảng ${quy:,.2f}.")
     if that > 0:
@@ -5509,6 +5518,7 @@ async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refr
         "du_bao": db,
         "luot": {"so_luot": k.get("turns") or 0, "moi_luot": k.get("avg_per_turn") or 0},
         "nhip_engine": await asyncio.to_thread(usage_index.nhip_engine, period),
+        "bao_cao_tuan": mcfg.get("bao_cao_tuan") or "",
         "moc": usage_saving.doc_moc((s.get("range") or ["", ""])[0],
                                     (s.get("range") or ["", ""])[1]),
     }
@@ -5557,11 +5567,23 @@ async def usage_ngan_sach(gia_goi_thang_usd: str = Form(""), ngan_sach_thang_usd
     if m["ngan_sach_thang_usd"] != truoc:
         usage_saving.ghi_moc("ngan_sach", f"${m['ngan_sach_thang_usd']:g}", f"${truoc:g}",
                              "Đổi trần tiền tháng")
+
+    # ĐỦ ĐIỀU KIỆN MỚI HẸN LỊCH. Hai thứ vừa bật đều hẹn giờ báo về cho người dùng: cảnh báo
+    # ngân sách và báo cáo tuần. Chưa đấu kênh nào thì tới giờ chúng chạy xong rồi rơi vào hư
+    # không, và người dùng tưởng Javis quên. Không chặn (họ có thể sắp đấu), nhưng phải NÓI.
+    canh_bao = []
+    san_sang, ly_do = _notify_ready()
+    if not san_sang and (m.get("bao_cao_tuan") or m["ngan_sach_thang_usd"] > 0):
+        canh_bao.append(ly_do or "Chưa đấu kênh báo nào (Telegram hoặc Zalo) nên báo cáo và "
+                                 "cảnh báo ngân sách sẽ không tới được ai.")
+    if m["ngan_sach_thang_usd"] > 0 and not m.get("tu_phanh"):
+        canh_bao.append("Tự phanh đang tắt, nên chạm trần Javis chỉ nhắc chứ không dừng tiêu tiền.")
+
     await _kiem_ngan_sach(nhac=False)     # đặt lại phanh ngay, đừng đợi vòng lặp nền
     return {"ok": True, "gia_goi_thang_usd": m["gia_goi_thang_usd"],
             "ngan_sach_thang_usd": m["ngan_sach_thang_usd"], "tran_5h": m["tran_5h"],
             "tu_phanh": bool(m.get("tu_phanh")), "bao_cao_tuan": m.get("bao_cao_tuan") or "",
-            "dang_phanh": usage_saving.dang_phanh()}
+            "canh_bao": canh_bao, "dang_phanh": usage_saving.dang_phanh()}
 
 
 @app.get("/usage/bao-cao")

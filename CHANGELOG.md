@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.32.0] - 2026-08-13
+### Thêm mới
+- **Trang Mức dùng làm lại từ đầu.** Mở ra là một câu tiếng người nói thẳng tháng này ai trả gì cho cái gì, rồi tới ba ô bấm được: tiền mặt so với ngân sách, cửa sổ 5 giờ còn bao nhiêu, và đã tiết kiệm được bao nhiêu token.
+- **Đặt ngân sách tiền API mỗi tháng ngay trên trang.** Chạm 80% Javis nhắn, chạm trần thì (nếu bạn bật) tự đẩy việc chạy nền sang đường không tốn tiền - chat của bạn không bị đụng tới. Kèm ô khai giá gói để biết gói đang lời hay lỗ so với giá API.
+- **Báo cáo token tự gửi về chat sáng thứ Hai**, bật bằng một ô tick. Biểu đồ theo ngày giờ có gạch mốc ngày bạn đổi chế độ hay đổi bộ não, nhìn phát hiểu vì sao cột tụt.
+
+### Sửa lỗi
+- **Token tiết kiệm được hiện lại rồi, và hiện ở mọi kỳ.** Trước đây khối này biến mất đúng lúc chế độ tiết kiệm chạy tốt nhất, vì nó cần cả lượt cũ lẫn lượt mới trong 24 giờ mới có số - bật rồi để yên một ngày là mất hút.
+- **Model OpenRouter hết bị tính chi phí bằng 0.** Đây đúng là nhánh duy nhất bạn trả tiền mặt thật, nên ô tiền cũ luôn hiện $0.00 dù ví có vơi đi.
+
 ## [0.31.0] - 2026-08-13
 ### Sửa lỗi
 - **Đổi model xong không còn bị đòi đăng nhập lại Claude.** Trước đây chỉ cần một lần Javis hỏi không kịp là thẻ Claude hiện "chưa đăng nhập" kèm nút đăng nhập, dù tài khoản chẳng mất gì. Giờ nó nói rõ "chưa kiểm được, không phải bạn bị đăng xuất", và nhớ trạng thái nên đỡ hỏi lại liên tục.

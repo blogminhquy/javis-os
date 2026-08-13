@@ -1,0 +1,326 @@
+"""Trang Mức dùng phải trả lời được ba câu người ta mở nó ra để hỏi, và phải nói THẬT.
+
+    python tests/run.py muc_dung_moi
+
+Ba câu đó: tháng này tốn bao nhiêu TIỀN MẶT, gói thuê bao có đáng tiền không, và sắp chạm
+trần chưa. Bản trước không trả lời được câu nào: nó bày sáu ô số ngang hàng nhau, trong đó ô
+to nhất ("chi phí quy đổi") lại KHÔNG phải tiền thật mà đứng ngay cạnh số dư OpenRouter là
+tiền thật.
+
+Lỗi nặng nhất được sửa ở đây, và là lý do file test này tồn tại: khối "đã tiết kiệm bao nhiêu
+token" BIẾN MẤT đúng lúc chế độ tiết kiệm chạy tốt nhất. Phép đo cũ so trung bình token giữa
+lượt đi đường đầy đủ và lượt đi đường tiết kiệm trong cùng 24 giờ, nên nó chỉ có số trong vài
+giờ chuyển giao ngay sau khi đổi mức. Bật tiết kiệm rồi để yên một ngày là mọi lượt đều đi
+đường mới, không còn lượt đối chứng, `du_du_lieu` thành False, và cả khối tắt ngóm. Chủ repo
+báo đúng chuyện đó: "ở phần mức dùng không hiển thị token tiết kiệm thật".
+"""
+from _paths import ROOT, SERVER  # noqa: E402,F401
+import asyncio
+import json
+import os
+import sqlite3
+import sys
+import tempfile
+from datetime import date, datetime, timedelta, timezone
+
+_TMP = tempfile.mkdtemp(prefix="javis-mdm-")
+os.environ["JAVIS_STATE_DIR"] = _TMP
+os.environ["JAVIS_CLAUDE_PROJECTS_DIR"] = os.path.join(_TMP, "claude-projects")
+os.environ["JAVIS_CODEX_SESSIONS_DIR"] = os.path.join(_TMP, "codex-sessions")
+os.makedirs(os.environ["JAVIS_CLAUDE_PROJECTS_DIR"], exist_ok=True)
+os.makedirs(os.environ["JAVIS_CODEX_SESSIONS_DIR"], exist_ok=True)
+
+import aux_engine  # noqa: E402
+import usage_index as ui  # noqa: E402
+import usage_parsers as up  # noqa: E402
+import usage_saving as us  # noqa: E402
+
+_fails = []
+_TZ = timezone(timedelta(hours=7))
+
+
+def check(name, cond):
+    print(("ok   " if cond else "FAIL ") + name)
+    if not cond:
+        _fails.append(name)
+
+
+_USAGE = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
+_MAIN = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+
+# ============================================================
+# 1. Đếm được SỐ LƯỢT - mẫu số của mọi phép tính tiết kiệm
+# ============================================================
+# Không có số lượt thì không có cách nào nhân "mỗi lượt rẻ đi bao nhiêu" thành một con số
+# tổng. Trang cũ chỉ có `sessions` = số FILE phân biệt, không phải số lượt gọi model.
+_ev = up.parse_claude_line(
+    {"type": "assistant", "timestamp": "2026-08-10T03:00:00Z", "sessionId": "s1",
+     "message": {"model": "claude-opus-5", "usage": {"input_tokens": 100, "output_tokens": 20}}},
+    set(), {})
+check("mỗi dòng assistant của Claude là MỘT lượt", (_ev or {}).get("turns") == 1)
+check("và mang theo mốc thời gian để dựng cửa sổ trượt", (_ev or {}).get("ts", 0) > 0)
+
+_rollout = os.path.join(os.environ["JAVIS_CODEX_SESSIONS_DIR"], "rollout-test.jsonl")
+with open(_rollout, "w", encoding="utf-8") as fh:
+    fh.write(json.dumps({"type": "session_meta", "payload": {"cwd": "/x/duan"}}) + "\n")
+    for i, tot in enumerate((100, 400, 900)):
+        fh.write(json.dumps({
+            "timestamp": "2026-08-10T0%d:00:00Z" % (i + 1), "model": "gpt-5",
+            "payload": {"type": "token_count", "info": {"total_token_usage": {
+                "total_tokens": tot, "input_tokens": tot - 10, "output_tokens": 10,
+                "cached_input_tokens": 0}}}}) + "\n")
+_cx = up.parse_codex_file(_rollout)
+# Trước bản này một phiên Codex 200 lượt và một phiên 2 lượt đều được đếm là MỘT, nên
+# "token mỗi lượt" của Codex sai cả trăm lần - và nó là mẫu số của cả phép so engine.
+check("CANARY: phiên Codex đếm đúng số lần gọi model, không gộp thành 1",
+      (_cx or {}).get("turns") == 3)
+check("và vẫn lấy đúng tổng token của trạng thái cuối", (_cx or {}).get("input") == 890)
+
+# ============================================================
+# 2. Kho số liệu giữ được số lượt và giữ được GIỜ
+# ============================================================
+_conn = ui._connect()
+try:
+    _cols = {r[1] for r in _conn.execute("PRAGMA table_info(file_daily)")}
+    _bang = {r[0] for r in _conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+finally:
+    _conn.close()
+check("bảng theo ngày có cột số lượt", "turns" in _cols)
+check("có bảng grain GIỜ cho cửa sổ trượt", "file_hourly" in _bang)
+# file_daily gom theo ngày TRƯỚC khi ghi, nên giờ bị mất ngay tại chỗ. Hỏi "tôi còn bao nhiêu
+# trong cửa sổ 5 tiếng" mà trả lời theo ngày thì 8 giờ sáng mùng 1 sẽ báo gần bằng 0 dù 5 giờ
+# trước vừa đốt sạch hạn mức.
+check("CANARY: bảng giờ tách riêng, không nhét thêm chiều vào bảng ngày",
+      "hour" not in _cols)
+
+_now = datetime.now(_TZ)
+
+
+def _seed(hour_dt, tokens, turns, provider="claude", path="p1", day=None, activity="chat",
+          model="claude-opus-5", inp=None):
+    c = ui._connect()
+    try:
+        c.execute("INSERT INTO file_hourly(path,hour,provider,tokens,turns) VALUES(?,?,?,?,?)",
+                  (path, hour_dt.strftime("%Y-%m-%dT%H"), provider, tokens, turns))
+        c.execute("INSERT INTO file_daily(path,day,provider,source,activity,model,project,"
+                  "input,output,cache_read,cache_create,turns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (path, day or hour_dt.strftime("%Y-%m-%d"), provider, "javis", activity,
+                   model, "brainX", inp if inp is not None else tokens, 0, 0, 0, turns))
+        c.commit()
+    finally:
+        c.close()
+
+
+_seed(_now - timedelta(hours=1), 30_000, 3)
+_seed(_now - timedelta(hours=4), 20_000, 2)
+_seed(_now - timedelta(hours=30), 500_000, 40)     # ngoài cửa sổ 5 giờ
+_cs = ui.cua_so(5.0, now=_now)
+check("cửa sổ 5 giờ chỉ cộng phần trong cửa sổ", _cs["tokens"] == 50_000)
+check("và đếm cả số lượt trong đó", _cs["turns"] == 5)
+check("CANARY: token cũ hơn cửa sổ không bị kéo vào", _cs["tokens"] < 500_000)
+
+# Đỉnh dùng để trả lời "tôi đang ở đâu so với chính mình" khi nhà cung cấp không công bố hạn
+# mức bằng số. Nó phải trượt trên chuỗi giờ LIÊN TỤC: DB không có dòng cho giờ rảnh, nên nếu
+# không lấp lỗ hổng thì "5 giờ" thành 5 giờ-có-hoạt-động rải rác cả tuần và đỉnh bị thổi lên.
+_dinh = ui.dinh_cua_so(5.0, 60, now=_now)
+check("đo được đỉnh cửa sổ 5 giờ trong lịch sử", _dinh["tokens"] >= 500_000)
+check("CANARY: đỉnh không cộng dồn những giờ cách xa nhau",
+      _dinh["tokens"] < 550_000)
+
+# ============================================================
+# 3. Tiết kiệm tính bằng ĐỐI CHỨNG NGƯỢC - có số ở mọi kỳ
+# ============================================================
+_PHI = {"off": 13779, "saving": 1508, "max": 574}
+_tk = us.tiet_kiem([{"day": "2026-08-12", "turns": 10}], _PHI, "max")
+check("CANARY: không cần lượt đối chứng nào vẫn ra số",
+      _tk["token"] == (13779 - 574) * 10)
+check("nói rõ mỗi lượt rẻ đi bao nhiêu", _tk["moi_luot"] == 13779 - 574)
+check("và bao nhiêu phần trăm", _tk["phan_tram"] == 96)
+check("đủ dữ liệu thì khai là đủ", _tk["du_du_lieu"] is True)
+check("chưa có lượt nào thì KHÔNG bịa ra số",
+      us.tiet_kiem([], _PHI, "max")["token"] == 0
+      and us.tiet_kiem([], _PHI, "max")["du_du_lieu"] is False)
+check("mức Tắt thì không tiết kiệm gì, và nói đúng vậy",
+      us.tiet_kiem([{"day": "2026-08-12", "turns": 10}], _PHI, "off")["token"] == 0)
+check("có quy ra tiền", us.tiet_kiem([{"day": "2026-08-12", "turns": 100}], _PHI, "max",
+                                     gia_1m_usd=3.0)["tien"]["vnd"] > 0)
+# Chưa có nhật ký mốc thì ta đang GIẢ ĐỊNH cả kỳ chạy cùng một mức. Đó là một giả định, và
+# giao diện phải nói ra thay vì trình bày nó như số đo.
+check("CANARY: chưa có mốc thì tự khai là suy đoán", _tk["suy_doan"] is True)
+
+# ============================================================
+# 4. Nhật ký mốc: kỳ có ĐỔI MỨC giữa chừng phải tính đúng
+# ============================================================
+us.ghi_moc("muc", "max", "off", "Đổi chế độ tiết kiệm sang Siêu tiết kiệm",
+           now=datetime(2026, 8, 13, 9, 0, tzinfo=_TZ))
+_ban_do = us.muc_theo_ngay(["2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14"], "max")
+check("ngày sau mốc chạy mức mới", _ban_do["2026-08-13"] == "max" and _ban_do["2026-08-14"] == "max")
+check("CANARY: ngày TRƯỚC mốc chạy mức cũ, không bị áp ngược mức hôm nay",
+      _ban_do["2026-08-11"] == "off" and _ban_do["2026-08-12"] == "off")
+_tk2 = us.tiet_kiem([{"day": "2026-08-12", "turns": 10}, {"day": "2026-08-13", "turns": 5}],
+                    _PHI, "max")
+# Không có nhật ký thì người vừa bật tiết kiệm hôm qua sẽ được khoe con số tiết kiệm của cả
+# tháng mà họ chưa từng nhận - tức là trang nói dối theo hướng có lợi cho chính nó.
+check("CANARY: chỉ tính tiết kiệm cho những ngày THẬT SỰ đã bật",
+      _tk2["token"] == (13779 - 574) * 5)
+check("có mốc rồi thì thôi khai suy đoán", _tk2["suy_doan"] is False)
+check("phần trăm bám mức ĐANG CHẠY, không bám mức chiếm đa số lượt",
+      _tk2["phan_tram"] == 96 and _tk2["muc_chinh"] == "off")
+check("đọc lại được mốc theo khoảng ngày",
+      len(us.doc_moc("2026-08-13", "2026-08-13", "muc")) == 1
+      and len(us.doc_moc("2026-08-01", "2026-08-12", "muc")) == 0)
+
+# ============================================================
+# 5. Ngân sách + dự báo + phanh
+# ============================================================
+check("chưa đặt trần thì không vẽ thanh tiến độ", us.ngan_sach(5, 0)["co"] is False)
+check("dưới 80% là bình thường", us.ngan_sach(5, 30)["muc_do"] == "ok")
+check("từ 80% là sắp hết", us.ngan_sach(24, 30)["muc_do"] == "sap_het")
+check("chạm trần là hết", us.ngan_sach(30, 30)["muc_do"] == "het")
+check("báo trước nếu theo nhịp này sẽ vượt", us.ngan_sach(10, 30, 45)["du_bao_vuot"] is True)
+
+_db = us.du_bao(100, 10.0, "2026-08-01", "2026-08-10", "this_month",
+                today=date(2026, 8, 10))
+check("kỳ đang chạy thì chiếu ra cuối kỳ", _db["co"] is True and _db["tokens"] > 100)
+# Kỳ đã chốt mà vẽ thêm một con số "dự báo" thì người đọc tưởng nó chưa xong.
+check("CANARY: kỳ đã đóng thì KHÔNG dự báo gì",
+      us.du_bao(100, 10.0, "2026-07-01", "2026-07-31", "last_month")["co"] is False)
+
+us.dat_phanh(False)
+check("mặc định không phanh", us.dang_phanh()["bat"] is False)
+_spec_goc = {"provider": "openrouter", "model": "openai/gpt-5"}
+_st = {"model": {"auxiliary": dict(_spec_goc), "openrouter_key": "k"}}
+check("chưa phanh thì việc nền chạy đúng model người dùng chọn",
+      aux_engine.read_spec(_st)["model"] == "openai/gpt-5")
+us.dat_phanh(True, "vượt trần")
+_sp = aux_engine.read_spec(_st)
+check("CANARY: phanh rồi thì việc nền hết tiêu tiền theo token",
+      _sp["provider"] != "openrouter" or _sp["model"] == "")
+_st_goi = {"model": {"auxiliary": {"provider": aux_engine.CLAUDE, "model": "opus"}}}
+# Phanh sinh ra để chặn TIỀN MẶT. Gói thuê bao đã trả trọn gói nên hạ nó xuống không tiết
+# kiệm được đồng nào, chỉ làm việc nền tệ đi.
+check("CANARY: gói thuê bao KHÔNG bị phanh đụng vào",
+      aux_engine.read_spec(_st_goi)["provider"] == aux_engine.CLAUDE)
+us.dat_phanh(False)
+
+# ============================================================
+# 6. Bảng giá: model OpenRouter hết ra chi phí 0
+# ============================================================
+# Đây đúng là nhánh DUY NHẤT người dùng trả tiền mặt, mà lại là nhánh bị tính thành 0 - nên
+# ô "tiền mặt tháng này" luôn hiện $0.00 dù ví có vơi đi thật.
+_p = up.load_prices()
+check("CANARY: model OpenRouter khớp được bảng giá",
+      up._khoa_gia("anthropic/claude-opus-4", _p) == "claude-opus")
+check("và khớp bản CỤ THỂ chứ không rơi về tên hãng",
+      up._khoa_gia("deepseek/deepseek-r1", _p) == "deepseek-r1")
+check("tên nguyên văn vẫn khớp như cũ", up._khoa_gia("claude-opus-5", _p) == "claude-opus")
+check("model lạ vẫn trả 0, không đoán bừa", up._khoa_gia("mo-hinh-la-hoac", _p) == "")
+
+# ============================================================
+# 7. So nhịp giữa các engine
+# ============================================================
+_seed(_now - timedelta(hours=2), 90_000, 3, provider="api", path="p2",
+      activity="background", model="openai/gpt-5")
+_nhip = ui.nhip_engine("today")
+check("có bảng so nhịp engine", isinstance(_nhip, list) and len(_nhip) >= 1)
+check("so bằng TOKEN MỖI LƯỢT chứ không phải tổng",
+      all("moi_luot" in x for x in _nhip))
+# Engine chạy nhiều việc hơn thì đương nhiên tốn nhiều token hơn; so tổng là so khối lượng
+# việc, không phải so giá.
+check("CANARY: engine không có lượt nào thì bị loại, không chia cho 0",
+      all(x["turns"] > 0 for x in _nhip))
+
+# ============================================================
+# 8. Endpoint: nói THẬT về tiền
+# ============================================================
+import main  # noqa: E402
+
+_tq = asyncio.run(main.usage_tong_quan(period="this_month", brain="brain"))
+check("endpoint tổng quan trả về dict", isinstance(_tq, dict))
+for _f in ("tien", "ngan_sach", "tiet_kiem", "cua_so", "cache", "du_bao", "cau", "moc",
+           "nhip_engine", "luot"):
+    check(f"có khối '{_f}'", _f in _tq)
+# Nhập nhèm hai loại tiền là cả trang mất tin cậy: người dùng gói thuê bao nhìn "$1.700" rồi
+# tưởng mình vừa bị trừ tiền.
+check("CANARY: tiền MẶT và tiền QUY ĐỔI là hai khối tách hẳn nhau",
+      "that" in _tq["tien"] and "quy_doi" in _tq["tien"])
+check("có câu mở đầu bằng tiếng người", len(_tq["cau"]) > 20)
+check("câu đó nói rõ đâu là tiền mặt",
+      "tiền mặt" in _tq["cau"].lower() or "tiền gói" in _tq["cau"].lower())
+check("chưa khai giá gói thì không bịa ra tỉ lệ lời lãi",
+      _tq["tien"]["goi"]["roi_lan"] == 0)
+
+_luu = asyncio.run(main.usage_ngan_sach(ngan_sach_thang_usd="30", gia_goi_thang_usd="200",
+                                        tran_5h="5000000", tu_phanh="1"))
+check("lưu được ngân sách", _luu["ok"] is True and _luu["ngan_sach_thang_usd"] == 30.0)
+check("lưu được giá gói", _luu["gia_goi_thang_usd"] == 200.0)
+check("lưu được trần cửa sổ 5 giờ", _luu["tran_5h"] == 5_000_000)
+check("lưu được cờ tự phanh", _luu["tu_phanh"] is True)
+# Giao diện chỉ gửi ô người dùng vừa sửa. Hiểu ô trống là 0 thì bấm lưu một ô là mất ba ô kia.
+_luu2 = asyncio.run(main.usage_ngan_sach(gia_goi_thang_usd="300"))
+check("CANARY: trường bỏ trống thì GIỮ NGUYÊN, không xoá về 0",
+      _luu2["ngan_sach_thang_usd"] == 30.0 and _luu2["tran_5h"] == 5_000_000)
+check("và trường có gửi thì đổi", _luu2["gia_goi_thang_usd"] == 300.0)
+# Gọi thẳng hàm endpoint thì tham số mặc định là object Form(...), không phải chuỗi.
+check("CANARY: giá trị mặc định của Form không lọt vào settings.json",
+      isinstance(_luu2["bao_cao_tuan"], str) and "annotation=" not in _luu2["bao_cao_tuan"])
+
+_tq2 = asyncio.run(main.usage_tong_quan(period="this_month", brain="brain"))
+check("khai giá gói rồi thì tính được gói lời hay lỗ",
+      _tq2["tien"]["goi"]["gia_thang_usd"] == 300.0)
+check("khai trần 5 giờ thì lấy trần đó làm mốc, không lấy đỉnh đo được",
+      _tq2["cua_so"]["moc_so_sanh"] == 5_000_000)
+
+_bc = asyncio.run(main.usage_bao_cao(period="this_month"))
+check("dựng được báo cáo dạng chữ", isinstance(_bc.get("text"), str) and len(_bc["text"]) > 40)
+check("báo cáo là văn nói, không phải bảng markdown", "|---" not in _bc["text"])
+check("báo cáo nói cả tiền mặt", "Tiền mặt thật" in _bc["text"])
+
+# ============================================================
+# 9. Giao diện phải VẼ những thứ đó ra
+# ============================================================
+check("gọi endpoint tổng quan", '"/usage/tong-quan?period="' in _USAGE)
+check("vẽ câu mở đầu", "function heroHtml(" in _USAGE and "t.cau" in _USAGE)
+check("có ba ô hành động", all(f"function {f}(" in _USAGE for f in ("oTien", "oTran", "oTietKiem")))
+check("ô tiền đọc đúng khối tiền mặt", "t.ngan_sach" in _USAGE and ".openrouter" in _USAGE)
+check("ô trần đọc cửa sổ trượt", "t.cua_so" in _USAGE)
+check("ô tiết kiệm đọc khối tiết kiệm", "t.tiet_kiem" in _USAGE)
+check("đặt được ngân sách ngay trên trang",
+      "function nganSachHtml(" in _USAGE and '"/usage/ngan-sach"' in _USAGE)
+# "Cache hit 80%" là ngôn ngữ của người viết code. Người trả tiền hỏi nó đáng bao nhiêu.
+check("CANARY: cache được dịch ra TIỀN chứ không chỉ phần trăm",
+      "Cache đỡ cho" in _USAGE and "cache.vnd" in _USAGE)
+check("biểu đồ có hàng mốc sự kiện", "tk-mrow" in _USAGE and "mocTheoNgay" in _USAGE)
+check("có CSS cho hàng mốc", ".tk-mrow{" in _USAGE and ".tk-m{" in _USAGE)
+check("bảng ngốn nhất có nút hành động", "data-goto=" in _USAGE and "tk-go" in _USAGE)
+check("liệt kê loop nền kèm nút tắt",
+      "function loopHtml(" in _USAGE and '"/loops/toggle"' in _USAGE and "data-loop=" in _USAGE)
+check("có bảng so nhịp engine", "function engineHtml(" in _USAGE and "nhip_engine" in _USAGE)
+check("dải chế độ tiết kiệm thu gọn một dòng, bấm mới bung",
+      "tk-muc-strip" in _USAGE and "state.moMuc" in _USAGE)
+# Chủ repo đã chốt khối chọn mức nằm ĐẦU trang. Thu gọn nó là để đỡ chiếm màn hình, không
+# phải để đẩy nó xuống dưới hoá đơn.
+check("CANARY: và nó vẫn nằm TRƯỚC mọi con số", "mucHtml(state.muc) + bar1" in _USAGE)
+check("nói rõ dự báo là ước chừng, không phải hoá đơn", "ước chừng" in _USAGE)
+check("nói rõ phanh chỉ đụng việc nền", "việc chạy nền" in _USAGE)
+
+# ============================================================
+# 10. Vòng lặp nền có thật sự gọi tới
+# ============================================================
+# Viết hàm mà quên nối vào vòng lặp là lỗi im lặng: không có gì báo, ngân sách chỉ đơn giản
+# không bao giờ được kiểm.
+check("vòng lặp nền có kiểm ngân sách", "_kiem_ngan_sach(nhac=True)" in _MAIN)
+check("và có đẩy báo cáo tuần", "_bao_cao_tuan_neu_toi_gio()" in _MAIN)
+check("nhịp riêng chứ không chạy mỗi 30 giây", "_NGAN_SACH_LAST" in _MAIN and ">= 600" in _MAIN)
+check("đổi mức tiết kiệm thì đóng mốc", 'usage_saving.ghi_moc("muc"' in _MAIN)
+check("đổi bộ não cũng đóng mốc", 'usage_saving.ghi_moc("model"' in _MAIN)
+# refresh() xoá sạch dòng cũ của từng file rồi chèn lại. Hai lượt quét chồng nhau là chèn
+# trùng, và trang báo gấp đôi số token.
+check("CANARY: quét index được tuần tự hoá",
+      "_USAGE_REFRESH_LOCK" in _MAIN and "async with _USAGE_REFRESH_LOCK" in _MAIN)
+
+print()
+if _fails:
+    print(f"THẤT BẠI {len(_fails)}: {_fails}")
+    sys.exit(1)
+print("OK - test_muc_dung_moi: tất cả pass")
