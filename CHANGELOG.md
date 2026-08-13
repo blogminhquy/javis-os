@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.33.7] - 2026-08-13
+### Cải thiện
+- **Đổi model Antigravity ngay trên Telegram.** Bảng nút của `/model` giờ hiện đủ nhà cung cấp như trang Models trên dashboard, chứ không còn kẹt ở năm cái cũ - nên bộ não Antigravity đổi được từ điện thoại. Nhà nào chưa liệt kê được model nào (hay gặp: cài rồi nhưng chưa đăng nhập) thì ẩn cho gọn.
+- **Gõ thẳng `/model <tên model>` không còn chọn nhầm nhà.** Javis dò tên đó trong danh sách thật rồi chuyển đúng nơi; tên trùng ở nhiều nhà thì nó hỏi lại thay vì đoán.
+
 ## [0.33.6] - 2026-08-13
 ### Sửa lỗi
 - **Chat qua Antigravity hết vỡ dấu tiếng Việt.** Chữ như "gồm", "hạn" hiện thành ô vuông hỏi chấm. Đo ra thì Javis đọc chữ về không hề sai - chỗ vỡ nằm ở lúc `agy` nhận nội dung, nên giờ Javis gửi theo từng mẩu cắt đúng chỗ để bên kia có đọc kiểu gì cũng không vỡ.

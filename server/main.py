@@ -11512,7 +11512,7 @@ async def _tg_help_text(brain):
         "/skills - liệt kê skill\n"
         "/agents - liệt kê agent + việc đang chạy\n"
         "/workflows - liệt kê workflow\n"
-        "/model - xem/đổi model (opus|sonnet|haiku|fable|<claude-id> hoặc <provider/id> cho OpenRouter)\n"
+        "/model - xem/đổi model: gõ /model để chọn bằng nút (mọi nhà cung cấp đã kết nối), hoặc /model <tên model>\n"
         "/brain - xem/đổi brain (vault) cho riêng phiên của bạn (vd /brain hoặc /brain <tên>)\n"
         "/cli - engine Claude (có MCP/skill)\n"
         "/or - engine OpenRouter (chat + MCP đa-model)\n"
@@ -11540,19 +11540,41 @@ async def _tg_skills_text(brain):
 #      (đánh dấu ✓ + số model) → lưới model 2 cột PHÂN TRANG ◀ 1/N ▶.
 #      Danh sách model lấy LIVE qua provider_models() (OpenRouter đầy đủ, ChatGPT,
 #      Claude API...), fallback catalog trong settings khi provider không list được. ----
-_TG_PROVIDERS = [   # (id provider, nhãn nút ngắn)
-    ("anthropic-cli", "Claude Code"),
-    ("openai-oauth", "ChatGPT"),
-    ("openrouter", "OpenRouter"),
-    ("anthropic-api", "Claude API"),
-    ("openai", "OpenAI API"),
-]
+# Nhãn NGẮN cho nút Telegram. Nhãn trong PROVIDER_DEFS viết cho dashboard nên dài ("Google
+# Antigravity CLI", "Google Gemini CLI (cá nhân đã bị Google ngắt)"), mà nút Telegram còn phải
+# chứa cả dấu ✓ lẫn số model. Id nào không có ở đây thì cắt ngắn nhãn gốc.
+_TG_NHAN_NGAN = {
+    "anthropic-cli": "Claude Code",
+    "openai-oauth": "ChatGPT",
+    "antigravity-cli": "Antigravity",
+    "gemini-cli": "Gemini CLI",
+    "openrouter": "OpenRouter",
+    "anthropic-api": "Claude API",
+    "openai": "OpenAI API",
+    "gemini": "Gemini API",
+    "groq": "Groq",
+    "ollama": "Ollama",
+}
 _TG_MODEL_LISTS = {}   # provider -> list model id ĐÃ render (index nút ổn định khi bấm)
 _TG_PAGE = 8           # model mỗi trang (lưới 2 cột x 4 hàng)
 
 
+def _tg_providers():
+    """Provider cho menu Telegram, lấy từ ĐÚNG danh sách của app.
+
+    Trước 0.33.7 đây là một bảng chép tay 5 dòng, và nó lệch dần khỏi thực tế đúng như mọi bảng
+    chép tay: dashboard lên 10 provider thì Telegram vẫn 5, nên bộ não Antigravity (đường Google
+    còn sống cho tài khoản cá nhân) không đổi model được từ điện thoại, mà cũng chẳng có câu nào
+    nói vì sao. Đọc thẳng PROVIDER_DEFS thì thêm provider mới vào app là Telegram tự có.
+    """
+    return [(p["id"], _tg_prov_label(p["id"])) for p in PROVIDER_DEFS]
+
+
 def _tg_prov_label(pid):
-    return dict(_TG_PROVIDERS).get(pid, pid)
+    if pid in _TG_NHAN_NGAN:
+        return _TG_NHAN_NGAN[pid]
+    nhan = (_provider_def(pid) or {}).get("label") or pid
+    return nhan.split("(")[0].strip()[:20] or pid
 
 
 def _tg_prov_ready(pid, m):
@@ -11564,6 +11586,31 @@ def _tg_prov_ready(pid, m):
         return bool(o.get("access_token") or o.get("refresh_token"))
     kf = d.get("key_field")
     return True if kf is None else bool(m.get(kf))
+
+
+async def _tg_provider_cho_model(mid, m):
+    """Model id này thuộc nhà cung cấp nào. Trả (provider chốt được, danh sách ứng viên).
+
+    Ưu tiên provider ĐANG DÙNG khi nó cũng có id đó: `/model sonnet` lúc đang ở Claude Code thì
+    ý người dùng là đổi model trong cùng nhà cung cấp, không phải nhảy sang Claude API. Nhiều
+    nhà cùng có mà không nhà nào đang dùng thì KHÔNG đoán - trả danh sách để hỏi lại, vì đoán
+    trượt ở đây là âm thầm đổi cả đường tiền (gói thuê bao so với API tính theo lượt gọi).
+    """
+    cur_prov, _ = _model_current()
+    ung_vien = []
+    for pid, _lb in _tg_providers():
+        if not _tg_prov_ready(pid, m):
+            continue
+        ids = _TG_MODEL_LISTS.get(pid)
+        if ids is None:
+            ids = await _tg_models_for(pid)
+        if mid in ids:
+            ung_vien.append(pid)
+    if cur_prov in ung_vien:
+        return cur_prov, ung_vien
+    if len(ung_vien) == 1:
+        return ung_vien[0], ung_vien
+    return None, ung_vien
 
 
 async def _tg_models_for(pid):
@@ -11586,10 +11633,15 @@ def _model_current():
 async def _model_provider_kb():
     m = cfgmod.read_settings().get("model", {})
     cur_prov, _ = _model_current()
-    ready = [(pid, lb) for pid, lb in _TG_PROVIDERS if _tg_prov_ready(pid, m)]
+    ready = [(pid, lb) for pid, lb in _tg_providers() if _tg_prov_ready(pid, m)]
     lists = await asyncio.gather(*(_tg_models_for(pid) for pid, _ in ready))
     rows, row = [], []
     for (pid, lb), ids in zip(ready, lists):
+        # Provider không liệt kê nổi model nào thì bấm vào cũng chỉ ra một trang trống. Hay gặp
+        # nhất là CLI đã cài nhưng chưa đăng nhập (`agy models` phải có tài khoản mới trả danh
+        # sách). Giấu đi cho gọn, TRỪ provider đang dùng - luôn phải thấy mình đang đứng ở đâu.
+        if not ids and pid != cur_prov:
+            continue
         mark = "✓ " if pid == cur_prov else ""
         row.append({"text": f"{mark}{lb} ({len(ids)})", "callback_data": f"mp:{pid}"})
         if len(row) == 2:
@@ -11696,7 +11748,7 @@ async def _tg_callback(data, chat=None):
         return {"text": _model_header(), "reply_markup": await _model_provider_kb()}
     if data.startswith("mp:"):
         pid = data.split(":", 1)[1]
-        if pid not in dict(_TG_PROVIDERS):
+        if pid not in dict(_tg_providers()):
             return {"alert": "Provider không hợp lệ - gõ /model lại"}
         if not _tg_prov_ready(pid, cfgmod.read_settings().get("model", {})):
             return {"alert": f"{_tg_prov_label(pid)} chưa kết nối - vào dashboard trang Models"}
@@ -11785,8 +11837,20 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
         s = cfgmod.read_settings(); m = s["model"]
         a = arg.strip()
         if a:
-            # Không whitelist cứng → model mới dùng ngay. id chứa "/" = OpenRouter;
-            # gpt*/*-codex = ChatGPT (Codex, cần đã kết nối); còn lại = alias/id Claude.
+            # HỎI DANH SÁCH THẬT TRƯỚC, đoán sau. Mấy luật đoán bên dưới ra đời khi Telegram chỉ
+            # biết 3 provider, và giờ chúng gán nhầm một cách im lặng: gõ tên model của
+            # Antigravity (vd `gemini-3-flash-high`) thì rơi vào nhánh cuối rồi bị đặt làm model
+            # CLAUDE, lượt chat sau mới báo lỗi mà chẳng ai hiểu vì sao.
+            _pid, _ung_vien = await _tg_provider_cho_model(a, m)
+            if _pid:
+                _set_main_model(s, _pid, a); cfgmod.write_settings(s)
+                return {"reply": f"✅ {_tg_prov_label(_pid)}: {a}."}
+            if len(_ung_vien) > 1:
+                _ten = ", ".join(_tg_prov_label(p) for p in _ung_vien)
+                return {"reply": f"⚠ '{a}' có ở nhiều nhà cung cấp ({_ten}) nên không đoán "
+                                 f"được ý anh. Gõ /model rồi chọn bằng nút cho chắc."}
+            # Không provider nào khai model này (danh sách hỏng, hoặc tên mới tinh) → về mấy
+            # luật đoán cũ: id chứa "/" = OpenRouter; gpt*/*-codex = ChatGPT; còn lại = Claude.
             if "/" in a:
                 _set_main_model(s, "openrouter", a); cfgmod.write_settings(s)
                 return {"reply": f"✅ OpenRouter model: {a}."}
