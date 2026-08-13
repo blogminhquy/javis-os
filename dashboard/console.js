@@ -2777,11 +2777,18 @@
           : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Gemini CLI");
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           ${provHead(p, on, "MCP/skill", st)}
-          <div class="prov-note">Dùng gói <b>đăng nhập tài khoản Google</b> - không cần mua API key.
-            Khác thẻ "Google Gemini (API)" bên dưới: thẻ đó trả tiền theo lượt gọi.</div>
+          <div class="prov-note warn"><b>Google đã ngắt đường này với tài khoản cá nhân từ 18/06/2026</b>
+            - cả gói miễn phí, Google AI Pro lẫn Ultra. Đăng nhập vẫn xong nhưng lúc chat sẽ báo
+            <code>IneligibleTierError</code>. Chặn từ phía Google, không sửa được bên Javis.
+            Thẻ này giờ chỉ còn dùng được với <b>giấy phép Code Assist doanh nghiệp</b> hoặc khi
+            chạy CLI bằng API key.</div>
+          <div class="prov-steps">
+            <div><b>Muốn dùng model Gemini thì đi đường khác:</b> thẻ <b>OpenRouter</b> (nhiều model
+              một chỗ, có cả Gemini lẫn Claude - gần nhất với trình chọn model của Antigravity),
+              hoặc thẻ <b>Google Gemini (API)</b> bên dưới.</div>
+          </div>
           ${p.cli_found ? "" : `<div class="prov-steps">
-            <div>Chưa thấy CLI trên máy. Bản cài mới của Javis đã kèm sẵn - <b>cập nhật Javis</b> là có.
-              Cài tay cũng được: <code>npm install -g @google/gemini-cli</code></div>
+            <div>Chưa thấy CLI trên máy. Cài tay: <code>npm install -g @google/gemini-cli</code></div>
           </div>`}
           <div class="prov-action" style="flex-wrap:wrap">
             ${on

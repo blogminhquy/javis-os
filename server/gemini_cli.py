@@ -55,6 +55,42 @@ MODEL_MAC_DINH = "gemini-2.5-pro"
 # mức quyền Javis -> --approval-mode của Gemini CLI
 _APPROVAL = {"suggest": "plan", "auto": "auto_edit", "full": "yolo"}
 
+# ---------------------------------------------------------------------------
+# Google đã NGẮT Gemini CLI với tài khoản cá nhân (18/06/2026)
+#
+# Đây không phải lỗi cấu hình bên Javis và không patch được: Google chặn ở phía máy chủ. CLI
+# trả về `IneligibleTierError` với `reasonCode: UNSUPPORTED_CLIENT` cho CẢ BA hạng cá nhân -
+# free tier, Google AI Pro và Google AI Ultra. Chỉ còn hai đường sống: giấy phép Gemini Code
+# Assist doanh nghiệp, hoặc chạy CLI bằng API key (GEMINI_API_KEY).
+#
+# Vì vậy lời hứa cũ của thẻ này - "dùng gói đăng nhập tài khoản Google, không cần mua API key"
+# - nay SAI. Không dịch câu lỗi thì người dùng chỉ thấy "không có nội dung trả về" rồi ngồi
+# thử lại mãi, nên bắt đúng nó và nói thẳng chuyện gì đã xảy ra.
+LOI_HET_CUA = (
+    "Google đã ngắt Gemini CLI với tài khoản cá nhân từ 18/06/2026 (cả gói miễn phí, "
+    "Google AI Pro lẫn Ultra). Đây là chặn từ phía Google, đăng nhập lại hay đổi model đều "
+    "không cứu được.\n\n"
+    "Ba đường đi tiếp, chọn một:\n"
+    "- **OpenRouter** - gần nhất với trình chọn model của Antigravity: nhiều model một chỗ, "
+    "có cả Gemini lẫn Claude, chỉ cần một API key.\n"
+    "- **Google Gemini (API)** - vẫn đúng model Gemini, lấy key ở aistudio.google.com, "
+    "trả tiền theo lượt gọi.\n"
+    "- **Antigravity CLI** - bản thay thế chính chủ của Google (binary `agy`). Javis chưa đấu "
+    "engine này; nhắn nếu anh muốn thêm."
+)
+
+
+def _la_loi_het_cua(loi: str) -> bool:
+    """Câu lỗi của CLI có phải chuyện Google ngắt hạng cá nhân không.
+
+    Bắt bằng NHIỀU dấu hiệu vì Google đã đổi câu chữ một lần: `IneligibleTierError` là tên
+    lớp lỗi, `UNSUPPORTED_CLIENT` là mã lý do trong `ineligibleTiers`, còn câu "no longer
+    supported" là phần người đọc thấy.
+    """
+    l = (loi or "").lower()
+    return ("ineligibletiererror" in l or "unsupported_client" in l
+            or "no longer supported for gemini code assist" in l)
+
 
 def approval_cho_mode(mode: Optional[str]) -> str:
     """Mức quyền của Javis -> nấc duyệt của Gemini CLI. Giá trị lạ về nấc CHẶT NHẤT.
@@ -374,6 +410,8 @@ class GeminiCLI:
             loi = str(ev.get("_err") or "").strip()
             if ev.get("_exit") == 0 and not loi:
                 return []
+            if _la_loi_het_cua(loi):
+                return [{"type": "error", "content": LOI_HET_CUA}]
             # Chưa đăng nhập là ca thường nhất, và CLI báo bằng một câu dài loằng ngoằng về
             # biến môi trường. Dịch sang việc phải làm.
             if "set an Auth method" in loi or "GEMINI_API_KEY" in loi:
@@ -402,11 +440,17 @@ class GeminiCLI:
                      "status": str(ev.get("status") or ""),
                      "content": str(ev.get("output") or "")[:2000]}]
         if t == "error":
+            tin = str(ev.get("message") or "")
+            # Chuyện Google ngắt hạng cá nhân đi qua ĐÂY chứ không chỉ qua stderr, và CLI gắn
+            # severity=warning cho nó ở vài bản - lọc theo severity trước là nuốt mất, người
+            # dùng lại thấy "không có nội dung trả về" trơ trọi. Nên xét nó TRƯỚC.
+            if _la_loi_het_cua(tin):
+                return [{"type": "error", "content": LOI_HET_CUA}]
             # severity=warning KHÔNG phải lỗi lượt: CLI dùng nó cho mấy chuyện lặt vặt (thiếu
             # extension, quota gần hết). Đẩy lên thành error là lượt nào cũng đỏ.
             if str(ev.get("severity") or "error") == "warning":
                 return []
-            return [{"type": "error", "content": str(ev.get("message") or "Gemini CLI lỗi.")}]
+            return [{"type": "error", "content": tin or "Gemini CLI lỗi."}]
         if t == "result":
             ra = []
             st = ev.get("stats") or {}
@@ -418,8 +462,10 @@ class GeminiCLI:
                            "cached": int(st.get("cached") or 0)})
             if str(ev.get("status")) == "error":
                 e = ev.get("error") or {}
+                tin = str(e.get("message") or "")
                 ra.append({"type": "error",
-                           "content": str(e.get("message") or "Gemini CLI kết thúc với lỗi.")})
+                           "content": LOI_HET_CUA if _la_loi_het_cua(tin)
+                           else (tin or "Gemini CLI kết thúc với lỗi.")})
             return ra
         return []
 
@@ -450,6 +496,11 @@ def kiem_tra_nhanh(timeout: float = 20.0) -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if r.returncode != 0:
         loi = (r.stderr or r.stdout or "").strip()
+        # Nút "Kiểm tra lại" là chỗ ĐẦU TIÊN người dùng bấm khi thấy chat không ra gì, nên nó
+        # phải nói được chuyện Google ngắt hạng cá nhân - đừng để họ đọc nguyên cái stack
+        # trace tiếng Anh rồi tưởng máy mình hỏng.
+        if _la_loi_het_cua(loi):
+            return {"ok": False, "het_cua": True, "error": LOI_HET_CUA}
         if "set an Auth method" in loi:
             loi = "Chưa đăng nhập. Chạy `gemini` rồi chọn \"Login with Google\"."
         return {"ok": False, "error": loi[:400] or f"Thoát mã {r.returncode}"}
@@ -458,5 +509,8 @@ def kiem_tra_nhanh(timeout: float = 20.0) -> dict:
     except json.JSONDecodeError:
         return {"ok": True, "reply": (r.stdout or "").strip()[:200]}
     if d.get("error"):
-        return {"ok": False, "error": str((d["error"] or {}).get("message") or "")[:400]}
+        tin = str((d["error"] or {}).get("message") or "")
+        if _la_loi_het_cua(tin):
+            return {"ok": False, "het_cua": True, "error": LOI_HET_CUA}
+        return {"ok": False, "error": tin[:400]}
     return {"ok": True, "reply": str(d.get("response") or "")[:200]}

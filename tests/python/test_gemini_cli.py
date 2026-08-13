@@ -184,6 +184,38 @@ _evs5, _ = _chay_gia([], ma=3, stderr="một lỗi lạ nào đó")
 check("lỗi lạ thì giữ nguyên văn để còn tra được",
       any("một lỗi lạ nào đó" in e.get("content", "") for e in _evs5))
 
+# --- Google ngắt hạng cá nhân (18/06/2026) -----------------------------------
+# Chủ repo gặp thật 2026-08-13: chat ra "(không có nội dung trả về)" trong khi log đầy
+# IneligibleTierError. Ba đường lỗi khác nhau đều phải về CÙNG một câu tiếng Việt, vì cả ba
+# đều gặp trong thực tế tuỳ bản CLI: stderr + exit khác 0, sự kiện `error`, và `result` với
+# status=error.
+_LOI_TIER = ("Error authenticating: IneligibleTierError: This client is no longer supported "
+             "for Gemini Code Assist for individuals. To continue using Gemini, please migrate "
+             "to the Antigravity suite of products: https://antigravity.google")
+
+_evs_t1, _ = _chay_gia([], ma=1, stderr=_LOI_TIER)
+_l1 = next((e for e in _evs_t1 if e["type"] == "error"), None)
+check("CANARY: IneligibleTierError qua stderr -> nói thẳng Google đã ngắt, không dán stack trace",
+      _l1 is not None and "18/06/2026" in _l1["content"] and "IneligibleTierError" not in _l1["content"],
+      _l1)
+check("và chỉ sang đường còn dùng được",
+      _l1 is not None and "OpenRouter" in _l1["content"] and "Antigravity CLI" in _l1["content"])
+
+_evs_t2, _ = _chay_gia([json.dumps({"type": "error", "severity": "warning",
+                                    "message": _LOI_TIER})])
+check("CANARY: cùng lỗi đó gắn severity=warning vẫn PHẢI hiện - lọc warning trước là nuốt mất",
+      any(e["type"] == "error" and "18/06/2026" in e.get("content", "") for e in _evs_t2), _evs_t2)
+
+_evs_t3, _ = _chay_gia([json.dumps({"type": "result", "status": "error",
+                                    "error": {"message": _LOI_TIER}, "stats": {}})])
+check("và qua result.status=error cũng ra đúng câu đó",
+      any(e["type"] == "error" and "18/06/2026" in e.get("content", "") for e in _evs_t3))
+
+check("nhận diện được cả mã lý do UNSUPPORTED_CLIENT",
+      gemini_cli._la_loi_het_cua("reasonCode: 'UNSUPPORTED_CLIENT'") is True)
+check("CANARY: lỗi thường KHÔNG bị nhận nhầm thành 'Google đã ngắt'",
+      gemini_cli._la_loi_het_cua("ECONNRESET khi gọi API") is False)
+
 # Chạy xong sạch sẽ nhưng câm - phải nói ra chứ không trả bong bóng rỗng.
 _evs6, _ = _chay_gia([json.dumps({"type": "result", "status": "success", "stats": {}})])
 check("chạy xong mà không có nội dung -> báo lỗi, không im lặng",

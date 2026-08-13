@@ -17,7 +17,7 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 |---|---|---|---|
 | Qua **Claude Code** | Anthropic OAuth (Claude Code) | Có - MCP native + skill native | **Có** |
 | Qua **Codex** | OpenAI OAuth (ChatGPT) | Có - MCP qua hub (cả kết nối local như Zalo/Webcake) + kho MCP GỐC của Codex (server bạn tự `codex mcp add`) + skill qua router (`javis_use_skill` / đọc file `skills/`) | **Có** |
-| Qua **Gemini CLI** | Google Gemini CLI (đăng nhập Google) | Có - MCP qua hub (ghi vào `.gemini/settings.json` trong chính brain đang mở) + skill qua router | **Có** |
+| Qua **Gemini CLI** ⛔ | Google Gemini CLI (cá nhân đã bị Google cắt 18/06/2026) | Có - MCP qua hub (ghi vào `.gemini/settings.json` trong chính brain đang mở) + skill qua router | **Có** |
 | **Gọi API thẳng** | OpenRouter | Có - MCP qua hub + tool file vault + skill qua router | Không |
 | **Gọi API thẳng** | OpenAI (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Anthropic (API) | Có - như trên | Không |
@@ -56,7 +56,7 @@ Khối **Providers** liệt kê 9 nhà cung cấp. **Cái nào đã kết nối 
 |---|---|---|
 | **Anthropic OAuth (Claude Code)** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
 | **OpenAI OAuth (ChatGPT)** | Device code (đăng nhập gói ChatGPT) | Chạy qua Codex, đấu kho Kết nối qua hub + dùng skill qua router |
-| **Google Gemini CLI (đăng nhập Google)** | Đăng nhập tài khoản Google trong terminal, không cần key | Chạy qua binary `gemini`. Đầy đủ MCP/skill/tool máy. **Khác hẳn** thẻ "Google Gemini (API)" bên dưới: thẻ đó trả tiền theo lượt gọi |
+| **Google Gemini CLI** | Đăng nhập Google, hoặc `GEMINI_API_KEY` | ⛔ Google đã **ngắt mọi tài khoản cá nhân** từ 18/06/2026 (miễn phí, AI Pro, Ultra). Chỉ còn chạy được với giấy phép Code Assist doanh nghiệp hoặc API key - xem [B2](#b2-gemini-cli---google-đã-ngắt-với-tài-khoản-cá-nhân-18062026) |
 | **OpenRouter** | Dán API key | Nhiều model 1 chỗ, MCP + tool file + skill qua hub |
 | **Anthropic (API)** | Dán API key | MCP + tool file + skill qua hub (từ 0.9) |
 | **OpenAI (ChatGPT API)** | Dán API key | MCP + tool file + skill qua hub |
@@ -113,9 +113,17 @@ Muốn ngắt: bấm **Ngắt** trên card này. Nếu ChatGPT đang là Main Mo
 
 Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn định tối đa, dùng Claude Code hoặc OpenRouter.
 
-### B2. Kết nối Gemini CLI bằng tài khoản Google (không cần mua API key)
+### B2. Gemini CLI - Google đã ngắt với tài khoản cá nhân (18/06/2026)
 
-Đây là đường dùng **gói miễn phí của Google**: đăng nhập bằng tài khoản Google thường, hạn mức do Google đặt, không phải mua API key. Cùng cơ chế mà app Antigravity dùng, nhưng đi qua CLI chính chủ nên ổn định và không phải đào token trong máy.
+> ⛔ **Đọc trước khi làm theo mục này.** Ngày 18/06/2026 Google ngừng phục vụ Gemini CLI cho **mọi tài khoản cá nhân** - gói miễn phí, Google AI Pro và Google AI Ultra đều bị cắt. Đăng nhập vẫn xong, nhưng tới lúc chat thì CLI trả về `IneligibleTierError` kèm `reasonCode: UNSUPPORTED_CLIENT`. Đây là chặn ở phía máy chủ Google, **không phải lỗi cấu hình và Javis không vá được**.
+>
+> Còn dùng được nếu bạn có **giấy phép Gemini Code Assist doanh nghiệp**, hoặc chạy CLI bằng **API key** (`GEMINI_API_KEY`) - nhưng đã trả tiền theo lượt gọi thì thẻ **Google Gemini (API)** ở mục C gọn hơn.
+>
+> **Muốn model Gemini, hoặc muốn một trình chọn model nhiều như Antigravity:** dùng **OpenRouter** (nhiều model một chỗ, có cả Gemini lẫn Claude, một API key) hoặc **Google Gemini (API)**.
+>
+> Bản thay thế chính chủ của Google là **Antigravity CLI** (binary `agy`, cài bằng `curl -fsSL https://antigravity.google/cli/install.sh | bash`). Javis **chưa** đấu engine này.
+
+Phần dưới giữ lại cho ai còn thuộc diện dùng được (doanh nghiệp / API key).
 
 1. Kiểm CLI đã có chưa. Bản cài bằng Docker và bằng `install.sh` **đã cài sẵn** `@google/gemini-cli`, nên thường bỏ qua được bước này. Chỉ khi thẻ báo *"Chưa cài Gemini CLI"* mới cài tay trên máy chạy Javis: `npm install -g @google/gemini-cli`
 2. Vào **Models**, thẻ **Google Gemini CLI (đăng nhập Google)**, bấm **Đăng nhập Google**.
