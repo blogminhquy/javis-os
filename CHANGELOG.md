@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.30.1] - 2026-08-13
+### Sửa lỗi
+- **Danh sách mốc hội thoại đọc được trở lại khi chat đã dài.** Từ khoảng 60 câu hỏi, các dòng trong danh sách bị bóp bẹp lại thành một mớ vệt mờ; giờ mỗi dòng giữ nguyên chiều cao và danh sách tự cuộn như bình thường.
+
 ## [0.30.0] - 2026-08-13
 ### Thêm mới
 - **Đăng nhập Google cho Antigravity CLI ngay trên trang Models, không phải mở terminal nữa.** Bấm **Đăng nhập Google**, mở link, đăng nhập, dán mã Google đưa lại là xong - giống hệt cách đăng nhập Claude Code và ChatGPT đang có.

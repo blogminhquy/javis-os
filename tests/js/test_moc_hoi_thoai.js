@@ -113,6 +113,17 @@ check("CANARY: đếm vạch theo lớp, không theo ray.children",
 check("khoảng cách vạch nén dần khi nhiều câu hỏi", /CACH_TOI_THIEU/.test(JS) && /CACH_TOI_DA/.test(JS));
 check("danh sách có thanh cuộn riêng", /\.cm-hop \{[^}]*overflow-y: auto/.test(CSS));
 check("chữ dài trong danh sách cắt bằng dấu ba chấm", /\.cm-muc \{[^}]*text-overflow: ellipsis/.test(CSS));
+// CANARY cho một lỗi ĐÃ RA TỚI TAY người dùng (chủ repo báo kèm ảnh 2026-08-13): hội thoại dài
+// thì danh sách thành một mớ vệt mờ không đọc được. .cm-hop là flex column có max-height, con
+// của flex mặc định co lại được, nên nhiều mốc hơn chỗ chứa là mọi dòng bị bóp thay vì hộp
+// cuộn. Đo trong Chromium thật: 5 câu mỗi dòng 30.8px, 60 câu còn 12px (đúng bằng phần đệm,
+// chữ cắt còn 0); thêm flex:none thì 30.8px ở mọi độ dài.
+//
+// Bài học đáng giữ hơn cả cái luật CSS: dòng mô tả đầu file này vẫn ghi "60 câu hỏi không tràn
+// khung" và điều đó ĐÚNG - hộp không hề tràn, vì các dòng đã bị bóp cho vừa. Đo đúng thứ nhưng
+// sai chỗ đau, nên lỗi lọt qua cả một lượt kiểm bằng trình duyệt thật.
+check("CANARY: dòng trong danh sách KHÔNG được co (hội thoại dài là chữ bị bóp mất)",
+      /\.cm-muc \{[^}]*flex: none/.test(CSS));
 
 // ============================================================
 // 6. Điện thoại: chế độ KHÁC HẲN, không phải dãy vạch thu nhỏ

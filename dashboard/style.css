@@ -969,7 +969,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   background: var(--panel-solid); border: 1px solid var(--border); border-radius: 12px;
   box-shadow: var(--shadow-2); }
 .cm-hop[hidden] { display: none; }
-.cm-muc { text-align: left; padding: 6px 9px; border: 0; border-radius: 7px; cursor: pointer;
+/* flex: none KHÔNG phải trang trí - thiếu nó là hội thoại dài thì danh sách không đọc được.
+   .cm-hop là flex column có max-height, mà con của flex mặc định flex-shrink:1. Nhiều mốc hơn
+   chỗ chứa thì trình duyệt KHÔNG cho hộp cuộn, nó ép mọi dòng bé lại theo tỉ lệ: đo trong
+   Chromium thật, 5 câu mỗi dòng cao 30.8px (đọc được), 60 câu tụt còn 12px - đúng bằng phần
+   đệm trên dưới, tức chữ bị cắt còn 0. Nhìn ra màn hình là một mớ vệt mờ (chủ repo báo kèm ảnh
+   2026-08-13). .cm-vach ngay trên đã có flex:none vì đúng lý do này, chỗ đây bị sót.
+   Test cũ có câu "60 câu hỏi không tràn khung" nên tưởng đã phủ - nhưng nó đo TRÀN, mà bệnh
+   này thì không tràn: hộp vừa khít vì các dòng bị bóp. Đo sai thứ nên lọt. */
+.cm-muc { flex: none; text-align: left; padding: 6px 9px; border: 0; border-radius: 7px;
+  cursor: pointer;
   background: transparent; color: var(--text2); font-family: var(--font); font-size: 13px;
   line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cm-muc:hover { background: var(--surface-2); color: var(--text); }

@@ -194,8 +194,22 @@ print(f"     (mỗi lần ghi mất {nguong:.0f} ms | độ trễ nhịp tim: qu
 # phải vì code đúng.
 check(f"phép đo có răng: gọi thẳng trên loop khoá loop >= {nguong:.0f} ms ({tre_sync:.0f} ms)",
       tre_sync >= nguong)
-check(f"đường thật KHÔNG khoá loop dù mỗi lần ghi mất {nguong:.0f} ms ({tre_async:.0f} ms)",
-      tre_async < nguong / 2)
+# Ngưỡng đo THEO ĐƯỜNG ĐỒNG BỘ chứ không phải một con số cứng, và đây là chỗ test này đã đỏ
+# oan hai lần theo hai hướng ngược nhau:
+#
+#   - Ngưỡng tương đối mà KHÔNG ép sleep: runner nhanh nên snapshot chỉ mất 20ms, hai đường
+#     gần bằng nhau, phép đo không phân biệt được gì. (Đã chữa bằng DO_TRE_GIA ở trên.)
+#   - Ngưỡng CỨNG 75ms: máy đang chạy cả bộ test thì nhịp tim của event loop trễ vì TRANH CPU,
+#     không phải vì bị khoá. Đo được 133ms rồi đỏ, trong khi code không có gì sai - CI đã đỏ
+#     oan đúng kiểu này một lần (2026-08-13).
+#
+# So với `tre_sync` thì cả hai bệnh cùng hết: sleep ép sẵn bảo đảm có biên để so, còn khi máy
+# tải nặng thì HAI con số cùng phình lên nên tỉ lệ giữa chúng vẫn nói đúng một chuyện - đường
+# thật có nhả event loop ra hay không. Điều kiện "có răng" ngay trên đã chốt tre_sync >= 150ms
+# nên phép chia này không bao giờ rỗng nghĩa.
+check(f"đường thật KHÔNG khoá loop dù mỗi lần ghi mất {nguong:.0f} ms "
+      f"({tre_async:.0f} ms, phải dưới nửa đường đồng bộ {tre_sync / 2:.0f} ms)",
+      tre_async < tre_sync / 2)
 
 # ---- 7. Snapshot song song phải NỐI TIẾP, không ghi đè ngược ----
 # Không có khoá thì lần chạy CŨ có thể hạ cánh sau lần MỚI và để lại mirror thiu.
