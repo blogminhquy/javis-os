@@ -153,7 +153,7 @@ check("nghe được -> khối mở đầu bằng marker thoại", out.startswit
 check("nghe được -> có câu vừa nói", "doanh thu hôm nay bao nhiêu" in out)
 check("nghe được -> KHÔNG báo 'đã tải về path' như file thường", "đã tải về" not in out)
 check("nghe được -> dặn xác nhận trước khi làm việc có tác động ra ngoài",
-      "Em nghe:" in out and "xác nhận" in out)
+      "Mình nghe:" in out and "xác nhận" in out)
 
 # --- caption thường thì ghép vào cuối; caption LỆNH thì để _caption_command_text lo ---
 out_cap = chay(_bot(_stt_ok)._ingest_attachment(None, _voice_msg("gấp nhé")))

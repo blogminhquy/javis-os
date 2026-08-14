@@ -1665,7 +1665,7 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
                 f"Trạng thái hiện tại: {registered.get('invocation_status')}.")
     elif status == "locked":
         text = ("Đang có một hành động ghi khác trên cùng tài nguyên chưa kết thúc. "
-                "Javis dừng để tránh ghi chồng; anh xử lý xong việc kia rồi nhắn lại.")
+                "Javis dừng để tránh ghi chồng; bạn xử lý xong việc kia rồi nhắn lại.")
     elif status != "prepared":
         text = ("Không ghi được ý định vào sổ nên Javis dừng trước khi gọi tool. "
                 "Chưa có gì thay đổi.")
@@ -1695,7 +1695,7 @@ async def _execute_write_proposal(plan, provider: str, api_key: str, model: str,
             f"Javis chuẩn bị chạy hành động ghi: {lease.capability_name}.\n"
             f"Tham số: {summary}\n\n"
             f"Việc này thay đổi dữ liệu thật và không tự hoàn tác được, nên Javis "
-            f"CHƯA chạy. Anh bấm nút duyệt bên dưới, hoặc nhắn lại đúng câu: "
+            f"CHƯA chạy. Bạn bấm nút duyệt bên dưới, hoặc nhắn lại đúng câu: "
             f"XAC NHAN {code}\n"
             f"Không muốn nữa thì nhắn: huỷ\n"
             f"<!-- JAVIS_ASK: {ask} -->"
@@ -1758,7 +1758,7 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
             str(invocation.get("lease_id") or ""), "FAILED_FINAL",
             error_code="approved_arguments_unavailable")
         text = ("Javis không còn giữ tham số đã được duyệt (tiến trình đã khởi động lại), "
-                "nên không chạy hành động ghi này. Anh nhắn lại yêu cầu để Javis đề xuất mới.")
+                "nên không chạy hành động ghi này. Bạn nhắn lại yêu cầu để Javis đề xuất mới.")
         await ws.send_text(json.dumps({
             "type": "response", "content": text, "engine": "javis-gateway",
             "model": model, "session_id": session_id,
@@ -1805,11 +1805,11 @@ async def _execute_write_confirmation(plan, ws, session_id: str, runtime_trace,
                     "lệnh đọc: hành động ĐÃ được thực hiện. Javis không chạy lại.")
         elif reconciled.get("status") == "FAILED_FINAL":
             text = ("Kết nối bị gián đoạn, Javis kiểm chứng lại bằng lệnh đọc và thấy hành "
-                    "động CHƯA được thực hiện. Anh nhắn lại nếu muốn Javis làm lại.")
+                    "động CHƯA được thực hiện. Bạn nhắn lại nếu muốn Javis làm lại.")
         else:
             text = ("Kết nối bị gián đoạn và Javis KHÔNG kiểm chứng được là hành động đã "
                     "chạy hay chưa. Javis tuyệt đối không chạy lại để tránh làm hai lần. "
-                    "Anh kiểm tra trực tiếp bên hệ thống đích rồi báo lại giúp em.")
+                    "Bạn kiểm tra trực tiếp bên hệ thống đích rồi báo lại giúp mình.")
     elif status == "SUCCEEDED":
         evidence = outcome.get("evidence")
         text = "Đã thực hiện xong hành động ghi."
@@ -2213,7 +2213,7 @@ async def _execute_readonly_path(plan, provider: str, api_key: str, model: str,
         )
         final_text = (
             "Đã đọc dữ liệu và lưu evidence nhưng capsule tổng hợp vượt policy hiện tại. "
-            f"Anh có thể dùng lại nguồn này: {evidence.ref}"
+            f"Bạn có thể dùng lại nguồn này: {evidence.ref}"
         )
         _CONTEXT_RUNTIME.record_runtime_event(runtime_trace, "readonly_path.failed", {
             "stage": "final_compile", "error_code": compiled.status,
@@ -2323,8 +2323,8 @@ def _schedule_cancel_reply(action: dict) -> str:
         return str(action.get("list_result") or "Không có lịch đang chạy để xoá.")
     if action.get("needs_choice"):
         return (
-            "Em đã đọc danh sách lịch thật nhưng có nhiều mục gần giống nhau nên chưa xoá để tránh nhầm. "
-            "Anh nói đúng tên hoặc ID cần xoá:\n\n" + str(action.get("list_result") or "")
+            "Mình đã đọc danh sách lịch thật nhưng có nhiều mục gần giống nhau nên chưa xoá để tránh nhầm. "
+            "Bạn nói đúng tên hoặc ID cần xoá:\n\n" + str(action.get("list_result") or "")
         )
     return "⚠ " + str(action.get("error") or "Không thể thao tác lịch.")
 
@@ -5528,7 +5528,7 @@ def _cau_mo_dau(d: dict) -> str:
             ket = ", tức với nhịp dùng này thì gói đang đắt hơn trả theo API."
         else:
             ket = "."
-        ve.append(f"{ky} anh trả ${goi['gia_thang_usd']:g} tiền gói, "
+        ve.append(f"{ky} bạn trả ${goi['gia_thang_usd']:g} tiền gói, "
                   f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}" + ket)
     elif quy > 0:
         ve.append(f"{ky} lượng việc đã chạy quy theo giá API là khoảng ${quy:,.2f}.")
@@ -6239,7 +6239,7 @@ async def execute_workflow(brain, slug, input="", tools=None, session_id=""):
             # Báo lỗi và dừng, để người dùng quyết định chạy lại.
             yield {"type": "error",
                    "content": "Workflow dừng giữa chừng ở đường mới. Không tự chạy lại "
-                              "để tránh làm hai lần; anh chạy lại nếu cần."}
+                              "để tránh làm hai lần; bạn chạy lại nếu cần."}
             return
     meta, _ = _read_md(wf_file)
     steps = meta.get("steps", []) or []
@@ -8801,7 +8801,7 @@ async def websocket_endpoint(ws: WebSocket):
                     final_text = ("⚠ Chưa cài Antigravity CLI trên máy này. Cài một lần:\n\n"
                                   f"`{antigravity_cli.lenh_cai()}`\n\n"
                                   "Rồi gõ `agy` một lần để đăng nhập Google (qua SSH thì nó in "
-                                  "ra một link để mở trên máy anh).")
+                                  "ra một link để mở trên máy bạn).")
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
                         "model": actual_model or "", "session_id": conv_sid,
@@ -10151,7 +10151,7 @@ def _limit_autoshrink_message(provider: str, model: str, hit: dict) -> str:
         loi = f'\n\n{provider} nói nguyên văn: "{raw}"' if raw else ""
         if remedy == "wait" and cho:
             return (f"{provider} đang chặn nhịp gọi, bảo chờ {cho:.0f} giây. "
-                    f"Anh hỏi lại sau chừng đó là được.{loi}")
+                    f"Bạn hỏi lại sau chừng đó là được.{loi}")
         return (f"{provider} từ chối lượt này vì hạn mức, nhưng không nói rõ hạn mức nào nên "
                 f"Javis chưa biết phải làm gì để qua.{loi}")
 
@@ -12078,7 +12078,7 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
             if len(_ung_vien) > 1:
                 _ten = ", ".join(_tg_prov_label(p) for p in _ung_vien)
                 return {"reply": f"⚠ '{a}' có ở nhiều nhà cung cấp ({_ten}) nên không đoán "
-                                 f"được ý anh. Gõ /model rồi chọn bằng nút cho chắc."}
+                                 f"được ý bạn. Gõ /model rồi chọn bằng nút cho chắc."}
             # Không provider nào khai model này (danh sách hỏng, hoặc tên mới tinh) → về mấy
             # luật đoán cũ: id chứa "/" = OpenRouter; gpt*/*-codex = ChatGPT; còn lại = Claude.
             if "/" in a:

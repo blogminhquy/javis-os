@@ -514,7 +514,7 @@
     var k = t.tiet_kiem || {};
     if (!k.du_du_lieu) {
       // Hai lý do khác hẳn nhau, và gộp làm một là nói dối theo hướng làm người ta tắt chế độ
-      // tiết kiệm đi: "chưa chạy lượt nào" với "anh đang chỉnh tay nên Javis không biết cấu
+      // tiết kiệm đi: "chưa chạy lượt nào" với "bạn đang chỉnh tay nên Javis không biết cấu
       // hình đó tốn bao nhiêu".
       return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + "Đã tiết kiệm</div>"
         + '<div class="big">-</div><div class="s">'

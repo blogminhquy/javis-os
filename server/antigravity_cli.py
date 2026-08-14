@@ -632,7 +632,7 @@ def login_huong_dan() -> dict:
         "dang_nhap": "agy",
         "ghi_chu": ("Chạy `agy` một lần trong terminal của máy chạy Javis. Máy có màn hình thì "
                     "nó tự mở trình duyệt; qua SSH thì nó in ra một đường link, mở link đó trên "
-                    "máy của anh rồi đăng nhập Google là xong. Đăng nhập lưu trong keyring của "
+                    "máy của bạn rồi đăng nhập Google là xong. Đăng nhập lưu trong keyring của "
                     "hệ điều hành nên chỉ phải làm một lần."),
     }
 
@@ -1021,7 +1021,7 @@ class AntigravityCLI:
                 return [{"type": "error",
                          "content": "Antigravity CLI chưa đăng nhập. Mở terminal trên máy chạy "
                                     "Javis, gõ `agy` rồi làm theo hướng dẫn (qua SSH thì nó in "
-                                    "ra một link để mở trên máy anh)."}]
+                                    "ra một link để mở trên máy bạn)."}]
             if not loi:
                 loi = f"Antigravity CLI thoát với mã {ev.get('_exit')}."
             return [{"type": "error", "content": loi[:1500]}]

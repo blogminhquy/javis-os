@@ -780,7 +780,7 @@ def luot_theo_ngay(period: str = "this_month", nguon: tuple = ("javis",),
 def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) -> dict:
     """Cua so `gio` gio NANG NHAT tung do duoc trong `ngay_gan_day` ngay. Tra {tokens, hour}.
 
-    Day la cach duy nhat noi duoc "anh dang o dau so voi chinh minh" khi nha cung cap KHONG
+    Day la cach duy nhat noi duoc "ban dang o dau so voi chinh minh" khi nha cung cap KHONG
     cong bo han muc bang so. Muc cao nhat tung cham ma chua bi chan la mot can duoi that -
     kem chinh xac hon mot con so chinh thuc, nhung that va rieng cua tung nguoi.
     """

@@ -114,17 +114,17 @@ def promise_note(orchestration: str = "") -> str:
     Viết ở ngôi Javis, bằng lời nói, không bảng và không em dash (luật CLAUDE.md).
     """
     lines = [
-        "⚠ Javis tự kiểm: lượt vừa rồi em có hứa sẽ báo lại, nhưng em KHÔNG tạo việc nền nào "
-        "nên sẽ không có báo cáo nào tự về đây. Lượt trả lời của em đóng lại ngay khi em nói "
-        "xong, không có ai đánh thức em dậy để làm nốt.",
-        "Bạn nhắn lại một câu là em làm ngay trong lượt sau, hoặc bảo em \"giao thành việc "
-        "nền\" để em đẩy vào hàng đợi và kết quả tự rơi về khung chat này.",
+        "⚠ Javis tự kiểm: lượt vừa rồi mình có hứa sẽ báo lại, nhưng mình KHÔNG tạo việc nền "
+        "nào nên sẽ không có báo cáo nào tự về đây. Lượt trả lời của mình đóng lại ngay khi "
+        "mình nói xong, không có ai đánh thức mình dậy để làm nốt.",
+        "Bạn nhắn lại một câu là mình làm ngay trong lượt sau, hoặc bảo mình \"giao thành việc "
+        "nền\" để mình đẩy vào hàng đợi và kết quả tự rơi về khung chat này.",
     ]
     if orchestration and orchestration != "auto":
         lines.append(
             "Nói thêm cho rõ: điều phối việc nền của brain này đang ở mức "
             f"\"{orchestration}\", nghĩa là việc giao vào cũng chỉ nằm xếp hàng chứ chưa tự "
-            "chạy. Bật \"AI tự vận hành\" ở trang Việc nếu anh muốn nó chạy một mình."
+            "chạy. Bật \"AI tự vận hành\" ở trang Việc nếu bạn muốn nó chạy một mình."
         )
     return "\n\n".join(lines)
 

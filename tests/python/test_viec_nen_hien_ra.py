@@ -185,8 +185,12 @@ BLOCK_WEB = channel_context.build_channel_block("dashboard", {"session_id": "s1"
 BLOCK_TG = channel_context.build_channel_block("telegram", {"chat_id": "42"})
 BLOCK_CLI = channel_context.build_channel_block("cli", {})
 for ten, blk in (("web", BLOCK_WEB), ("telegram", BLOCK_TG), ("cli", BLOCK_CLI)):
-    check(f"{ten}: prompt cấm hứa 'có kết quả em báo ngay'",
-          "có kết quả em báo ngay" in blk and "KHÔNG HỨA THỨ MÌNH KHÔNG LÀM ĐƯỢC" in blk)
+    # Câu mẫu trong prompt viết theo giọng xưng hô HIỆN TẠI của Javis ("mình"), còn bộ dò ở
+    # mục 1 vẫn phải bắt được mọi biến thể (em/anh/chị/tôi) vì máy đang chạy có thể còn giọng cũ.
+    check(f"{ten}: prompt cấm hứa 'có kết quả mình báo ngay'",
+          "có kết quả mình báo ngay" in blk and "KHÔNG HỨA THỨ MÌNH KHÔNG LÀM ĐƯỢC" in blk)
+    check(f"{ten}: prompt nói rõ luật áp cho MỌI biến thể xưng hô",
+          "biến thể xưng hô" in blk)
     check(f"{ten}: prompt bắt thuật đúng kết quả tool khi điều phối tắt",
           "điều phối đang TẮT" in blk)
 check("web: prompt nói rõ server tự kiểm lời hứa",

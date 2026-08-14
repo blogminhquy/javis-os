@@ -779,7 +779,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         labels = {
             "review": "đã làm xong, cần duyệt ngoại lệ",
             "done": "đã hoàn thành",
-            "blocked": "bị chặn, cần anh xem",
+            "blocked": "bị chặn, cần bạn xem",
         }
         icon = "✅" if status in ("review", "done") else "⚠"
         parts = [f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}."]

@@ -51,7 +51,7 @@ def khoi_thoai(nghe, kenh):
     dan = (MARK_THOAI + f" qua {kenh}. Javis đã nghe thành chữ (có thể nhầm vài từ) - câu ở "
            "dưới. Cứ làm theo như user gõ tay. Nếu việc sắp làm có tác động RA NGOÀI (gửi "
            "tin, đăng bài, đặt lịch, tiêu tiền, sửa file) thì mở đầu bằng một dòng "
-           "\"Em nghe: ...\" rồi hỏi xác nhận trước khi làm.]")
+           "\"Mình nghe: ...\" rồi hỏi xác nhận trước khi làm.]")
     return dan + "\n" + str(nghe or "").strip()
 
 

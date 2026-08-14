@@ -396,7 +396,7 @@ class ReadonlyPathCanary:
             return self._plan(
                 "reject", admission.reason, policy, bucket, "readonly",
                 "Model hiện tại không còn đủ ngân sách token cho hai vòng kiểm soát. "
-                "Javis chưa gửi request; anh chờ hết cửa sổ quota hoặc đổi model/provider.",
+                "Javis chưa gửi request; bạn chờ hết cửa sổ quota hoặc đổi model/provider.",
             )
         lease = self.executor.issue_lease(
             trace, actor_id, brain, capability, profile

@@ -548,7 +548,7 @@ class RemindersFeature:
                 else:
                     msg = clean[:SCRIPT_OUT_CAP]
         else:   # notify
-            msg = "⏰ Nhắc anh: " + text
+            msg = "⏰ Nhắc bạn: " + text
 
         ok, send_err = True, ""
         if deliver:

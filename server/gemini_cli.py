@@ -76,7 +76,7 @@ LOI_HET_CUA = (
     "- **Google Gemini (API)** - vẫn đúng model Gemini, lấy key ở aistudio.google.com, "
     "trả tiền theo lượt gọi.\n"
     "- **Antigravity CLI** - bản thay thế chính chủ của Google (binary `agy`). Javis chưa đấu "
-    "engine này; nhắn nếu anh muốn thêm."
+    "engine này; nhắn nếu bạn muốn thêm."
 )
 
 

@@ -92,7 +92,7 @@ async def run():
         "text": "Uống thuốc",
         "chat_id": "123",
     })
-    check("notify thường vẫn gửi nguyên nội dung nhắc", sent[-1][1] == "⏰ Nhắc anh: Uống thuốc")
+    check("notify thường vẫn gửi nguyên nội dung nhắc", sent[-1][1] == "⏰ Nhắc bạn: Uống thuốc")
 
 
 asyncio.run(run())
