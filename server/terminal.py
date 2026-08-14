@@ -43,6 +43,7 @@ import asyncio
 import codecs
 import os
 import queue
+import select
 import shutil
 import signal
 import subprocess
@@ -193,6 +194,13 @@ class Phien:
                 **winproc.kwargs_no_window(),
             )
             os.close(slave)            # phía server chỉ giữ master
+            # O_NONBLOCK cho master: KHÔNG một cú đọc/ghi nào được ngủ trong kernel. Cờ này
+            # per-file-description nên ảnh hưởng CẢ HAI thread đọc và ghi cùng fd - cả hai đã
+            # được dạy chờ bằng select thay vì chờ trong read/write (xem _vong_doc, _vong_go).
+            # Lý do sống còn: một cú write đang ngủ vì bộ đệm input của slave đầy sẽ KHÔNG
+            # được Linux đánh thức kể cả khi shell chết và fd bị đóng - thread đó kẹt vĩnh
+            # viễn (đo được bằng test). Không ngủ thì không có gì để phải đánh thức.
+            os.set_blocking(master, False)
             self._fd = master
             self._dat_co(self.cols, self.rows)
         else:
@@ -248,6 +256,15 @@ class Phien:
         while fd >= 0:
             try:
                 b = os.read(fd, 65536)
+            except BlockingIOError:
+                # Master để O_NONBLOCK (vì đường ghi, xem _mo). Chưa có chữ thì chờ bằng
+                # select rồi đọc lại; shell chết thì fd báo đọc-được (hangup) nên vẫn tỉnh
+                # dậy đúng lúc. Timeout chỉ là lưới đỡ cho ca fd bị đóng sau lưng select.
+                try:
+                    select.select([fd], [], [], 30)
+                except (OSError, ValueError):
+                    break
+                continue
             except (OSError, ValueError):
                 break                  # shell thoát -> master bị đóng/EIO
             if not b:
@@ -291,11 +308,10 @@ class Phien:
 
         Bản cũ os.write(master) ngay tại đây - tức trên event loop. Ghi vào pty master sẽ CHẶN
         khi bộ đệm input của slave đầy mà tiến trình foreground không đọc stdin (dán một khối
-        chữ lớn vào lệnh đang bận là đủ), và loop bị giữ tới khi tiến trình chịu đọc. Anh em
-        cùng lớp với vụ os.close 14/08/2026. Giờ mọi cú ghi thật nằm ở thread _vong_go.
-
-        KHÔNG dùng O_NONBLOCK thay cho thread: cờ đó là per-file-description, bật lên là
-        os.read của thread đọc cùng fd cũng thành non-blocking và vòng đọc quay tít.
+        chữ NHIỀU DÒNG vào lệnh đang bận là đủ), và loop bị giữ tới khi tiến trình chịu đọc.
+        Anh em cùng lớp với vụ os.close 14/08/2026. Giờ mọi cú ghi thật nằm ở thread _vong_go,
+        và master chạy O_NONBLOCK (xem _mo) nên kể cả thread đó cũng không bao giờ ngủ trong
+        kernel - nó chờ bằng select có hạn, thứ luôn thoát ra được khi phiên đóng.
         """
         if not data or not self.song():
             return
@@ -309,12 +325,18 @@ class Phien:
             pass
 
     def _vong_go(self):
-        """Thread ghi riêng của phiên: hút hàng đợi, ghi xuống shell, chặn thì chỉ mình nó chờ.
+        """Thread ghi riêng của phiên: hút hàng đợi, ghi xuống shell, phải chờ thì chỉ mình
+        nó chờ - và chờ bằng select có hạn chứ không ngủ trong write.
 
-        Thoát khi nhận sentinel None (đường đóng phiên đẩy vào qua _dung_go) hoặc khi cú ghi
-        báo lỗi - shell chết thì slave đóng, cú ghi đang chặn được đánh thức bằng EIO/EPIPE.
-        Vì thế đường đóng phiên phải GIẾT TIẾN TRÌNH TRƯỚC rồi mới đóng fd (trật tự đã chốt ở
-        vụ 14/08/2026), không thì trên macOS os.close sẽ ngủ chờ đúng cú ghi đang kẹt này.
+        Master để O_NONBLOCK nên os.write hoặc nhận ngay phần vừa chỗ trống, hoặc ném
+        BlockingIOError - không bao giờ ngủ trong kernel. Điều đó quan trọng vì Linux KHÔNG
+        đánh thức một cú write đang ngủ trên master kể cả khi shell chết và fd bị đóng: bản
+        ghi-chặn sẽ rò một thread kẹt vĩnh viễn mỗi lần dán to vào lệnh đang bận rồi đóng
+        phiên. Thoát theo ba đường: sentinel None (từ _dung_go), cú ghi/select báo lỗi, hoặc
+        thấy self._fd đã bị xoá giữa hai nhịp chờ.
+
+        Nhánh ống (Windows) giữ ghi chặn: pipe được POSIX/Windows bảo đảm đánh thức người ghi
+        bằng EPIPE/BrokenPipeError khi đầu đọc đóng, không có ca kẹt vĩnh viễn như pty.
         """
         fd = self._fd                  # chụp một lần; _dong_fd() xoá self._fd về -1 khi đóng
         while True:
@@ -323,11 +345,16 @@ class Phien:
                 break
             try:
                 if CO_PTY:
-                    while b:           # os.write lên master có thể ghi thiếu, ghi cho hết
+                    while b:           # ghi được phần nào cắt phần đó, ghi cho hết gói
                         if self._fd != fd:
                             return     # phiên đã đóng: _dong_fd xoá _fd TRƯỚC khi close, nên
                                        # còn thấy số cũ ở đây nghĩa là số đó chưa bị tái cấp
-                        b = b[os.write(fd, b):]
+                        try:
+                            b = b[os.write(fd, b):]
+                        except BlockingIOError:
+                            # Bộ đệm input của slave đầy (shell chưa đọc). Chờ có chỗ trống,
+                            # timeout ngắn để vòng ngoài kịp thấy phiên đóng mà tự thoát.
+                            select.select([], [fd], [], 0.2)
                 elif self.proc and self.proc.stdin:
                     self.proc.stdin.write(b)
                     self.proc.stdin.flush()

@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.34.3] - 2026-08-14
 ### Sửa lỗi
-- **Dán một khối chữ lớn vào terminal khi lệnh đang bận không còn nguy cơ làm treo cả trang.** Phím gõ và chữ dán giờ xếp hàng rồi được ghi xuống shell ở một đường riêng; server không phải đứng chờ lệnh chịu đọc nữa. Cùng họ với vụ treo đã chặn ở 0.34.2, lần này bịt nốt phía ghi.
+- **Dán một khối chữ lớn vào terminal khi lệnh đang bận không còn nguy cơ làm treo cả trang.** Phím gõ và chữ dán giờ xếp hàng rồi được ghi xuống shell ở một đường riêng, và đường đó không bao giờ nằm chờ trong hệ điều hành; server không phải đứng chờ lệnh chịu đọc nữa. Cùng họ với vụ treo đã chặn ở 0.34.2, lần này bịt nốt phía ghi.
 - **Shell thoát kiểu dở dang (đóng ống mà chưa chết hẳn) cũng không giữ server lại một giây như trước.**
 
 ## [0.34.2] - 2026-08-14

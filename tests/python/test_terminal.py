@@ -277,10 +277,13 @@ async def _go_khong_chan_loop():
     await _doc(q, lambda b: "N1337" in b)
     await asyncio.sleep(0.3)           # cho exec kịp thay shell bằng sleep
 
-    # (1) Dán 300k khi không ai đọc stdin: bộ đệm input của tty đầy sau vài KB, bản lỗi đứng
-    # ở os.write vô hạn. Gọi qua thread phụ + join có hạn để nếu tái phát thì test ĐỎ chứ
-    # không TREO - kiểu hỏng tệ nhất trên CI.
-    dan = "x" * 300_000 + "\n"
+    # (1) Dán 300k NHIỀU DÒNG khi không ai đọc stdin: các dòng trọn vẹn dồn đầy bộ đệm
+    # canonical của tty (4KB) là os.write lên master bị chặn - bản lỗi đứng ở đó vô hạn.
+    # PHẢI nhiều dòng: một dòng đơn dài quá 4095 thì n_tty VỨT BỚT ký tự chứ không chặn
+    # (đã thử, bản lỗi vẫn xanh với một dòng), tức là không tái hiện được bug. Gọi qua
+    # thread phụ + join có hạn để nếu tái phát thì test ĐỎ chứ không TREO - kiểu hỏng tệ
+    # nhất trên CI.
+    dan = ("x" * 50 + "\n") * 6000
     t = threading.Thread(target=lambda: p.go(dan), daemon=True)
     t.start()
     t.join(2.0)
