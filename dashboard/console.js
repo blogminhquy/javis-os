@@ -4809,6 +4809,24 @@
     const currentModel = model.main?.model || (mainProviderId === "openrouter" ? model.openrouter_model : model.claude_model) || "Mặc định";
     const opt = (val, label, cur) => `<option value="${esc(val)}"${val === cur ? " selected" : ""}>${esc(label)}</option>`;
     const oaVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
+    // NGÔN NGỮ TRẢ LỜI. Danh sách lấy từ /lang/list (sổ đăng ký phía server) chứ KHÔNG khai
+    // lại ở đây: khai hai nơi thì thêm ngôn ngữ mới lại phải nhớ sửa cả hai, và chỗ bị quên
+    // là chỗ hỏng trong im lặng.
+    const lc = s.locale || {};
+    const langs = (s.lang_list || []);
+    const replyLang = lc.reply_lang || "auto";
+    const langHtml = `
+      <div class="qs-block">
+        <div class="popover-label">NGÔN NGỮ TRẢ LỜI</div>
+        <select class="js-input" id="vpReplyLang">
+          ${opt("auto", "Tự động theo người nhắn", replyLang)}
+          ${langs.map(l => opt(l.ma, l.ten, replyLang)).join("")}
+        </select>
+        <div class="qs-hint">Chọn "Tự động" thì Javis trả lời đúng thứ tiếng anh đang gõ.
+          Ghim một ngôn ngữ thì Javis luôn trả lời bằng ngôn ngữ đó, dù anh gõ tiếng gì.
+          Chatbot chăm khách có ô ngôn ngữ RIÊNG ở trang Chatbot.</div>
+      </div>`;
+
     // Nhà cung cấp giọng đọc - gộp NGAY trong nhóm giọng nói (render vào #ttsProviderHost), không tách section riêng.
     const provHtml = `
       <div class="qs-block">
@@ -4910,6 +4928,15 @@
     // không hiện ra, và nút Lưu tưởng là chưa có tài khoản nên bấm không ăn.
     if (window.__javisRefreshAuthRow) { try { await window.__javisRefreshAuthRow(); } catch (e) {} }
     if (window.__javisRefreshExtras) { try { window.__javisRefreshExtras(); } catch (e) {} }  // nạp lại avatar/tên miền
+    const langHost = document.getElementById("replyLangHost");
+    if (langHost) {
+      langHost.innerHTML = langHtml;
+      const sel = document.getElementById("vpReplyLang");
+      if (sel) sel.onchange = async () => {
+        const r = await saveSetting("locale", { reply_lang: sel.value });
+        toast(r && r.ok ? "Đã đổi ngôn ngữ trả lời" : "Lưu không được", !(r && r.ok));
+      };
+    }
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
     if (provHost) provHost.innerHTML = provHtml;
 

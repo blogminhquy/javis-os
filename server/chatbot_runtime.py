@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
+
+import lang_registry
 import time
 from collections import deque
 from pathlib import Path
@@ -163,6 +165,22 @@ def build_bot_prompt(bot: dict) -> str:
     vai = str(meta.get("role") or "")
 
     phan = [f"Bạn là **{ten}**." + (f" {vai}" if vai else "")]
+
+    # NGÔN NGỮ của bot, và đây là hòn đảo prompt tách hẳn: nó không nối CLAUDE.md, không đi
+    # qua ContextCompiler, không đi qua build_system_prompt. Bỏ sót chỗ này thì đúng ca dùng
+    # đáng tiền nhất (chủ shop Việt, bot đối ngoại phục vụ khách Nhật/Hàn) không có một dòng
+    # chỉ dẫn ngôn ngữ nào.
+    #
+    # Một câu ngắn chứ không phải khối đầy đủ như prompt chính: prompt bot vốn chỉ vài chục
+    # token, nhét 60 token luật ngôn ngữ vào là làm lệch hẳn tỉ trọng so với file Agent của
+    # chủ - mà file đó mới là thứ quyết định bot nói gì.
+    _ma = lang_registry.chuan_hoa((bot or {}).get("ngon_ngu") or "")
+    if _ma:
+        _l = lang_registry.get(_ma)
+        phan.append(f"\nNGÔN NGỮ: luôn trả lời khách bằng {_l.lang_directive}, "
+                    f"kể cả khi khách nhắn bằng tiếng khác. {_l.nudge}")
+    else:
+        phan.append("\nNGÔN NGỮ: trả lời bằng ĐÚNG ngôn ngữ khách đang nhắn.")
     if than.strip():
         phan.append("\n" + than.strip())
     if not meta:

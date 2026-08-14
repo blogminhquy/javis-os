@@ -24,6 +24,8 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+import lang_registry   # sổ đăng ký ngôn ngữ: hợp lệ hoá trường ngon_ngu của bot
+
 import secrets_store
 from config import STATE_DIR
 
@@ -229,6 +231,22 @@ def _clean_kenh(v: Any) -> str:
     return s if s in KENH else KENH_DEFAULT
 
 
+def _clean_ngon_ngu(v: Any) -> str:
+    """Ngôn ngữ bot trả lời khách: "auto" hoặc một mã trong sổ đăng ký.
+
+    Mặc định "auto" (bám theo ngôn ngữ khách nhắn) chứ KHÔNG bám ngôn ngữ của chủ shop. Đây
+    là cả lý do trường này tồn tại: bot phục vụ NGƯỜI LẠ, và chủ người Việt bán hàng cho khách
+    Nhật thì ngôn ngữ của chủ là thông tin sai để suy ra ngôn ngữ của bot.
+
+    Mã lạ rơi về "auto" chứ không lưu nguyên, cùng lý do với `_clean_kenh`: một mã không có
+    trong sổ đăng ký làm bot nói sai ngôn ngữ với khách thật mà không báo lỗi gì.
+    """
+    s_ = str(v or "").strip().lower()
+    if s_ in ("", "auto"):
+        return "auto"
+    return lang_registry.chuan_hoa(s_) or "auto"
+
+
 def _clean_rate(v: Any) -> int:
     try:
         n = int(v)
@@ -251,6 +269,8 @@ def _public(b: dict) -> dict:
     out.setdefault("muc_quyen", MUC_QUYEN_DEFAULT)
     # Cùng lý do: bot tạo trước 0.26.5 luôn là bot Telegram, và trường này lúc đó ghim cứng.
     out["channel"] = _clean_kenh(out.get("channel"))
+    # Cùng lý do: bot tạo trước bản đa ngôn ngữ không có khoá này.
+    out["ngon_ngu"] = _clean_ngon_ngu(out.get("ngon_ngu"))
     return out
 
 
@@ -372,6 +392,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "nguon_tra_loi": (data.get("nguon_tra_loi") if data.get("nguon_tra_loi") in NGUON
                               else NGUON_DEFAULT),
             "muc_quyen": _clean_muc(data.get("muc_quyen")) or MUC_QUYEN_DEFAULT,
+            "ngon_ngu": _clean_ngon_ngu(data.get("ngon_ngu")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "rate_limit": _clean_rate(data.get("rate_limit")),
             "created_at": _now(),
@@ -389,7 +410,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
 # thêm trường mới vào bản ghi mà quên loại khỏi danh sách đen là mở một đường ghi không ai ngờ.
 _PATCHABLE = ("name", "icon", "groups", "reply_when", "handoff_to", "rate_limit",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
-              "nguon_tra_loi", "muc_quyen")
+              "nguon_tra_loi", "muc_quyen", "ngon_ngu")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -440,6 +461,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     nv = _clean_muc(v)
                     if nv:
                         b["muc_quyen"] = nv
+                elif k == "ngon_ngu":
+                    b["ngon_ngu"] = _clean_ngon_ngu(v)
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
                 elif k == "rate_limit":

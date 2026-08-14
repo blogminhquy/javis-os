@@ -253,10 +253,17 @@ def test_vietnamese_deny_signals_are_not_lost_to_unicode_normalization():
 
 
 def test_write_intent_with_diacritics_stays_on_legacy():
-    assert readonly_path_runtime._WRITE_INTENT.search(
-        readonly_path_runtime._norm("Đặt lịch họp ngày mai"))
-    assert readonly_path_runtime._WRITE_INTENT.search(
-        readonly_path_runtime._norm("Đăng bài lên trang"))
+    # `_WRITE_INTENT` đã dời sang server/lexicon/<mã>.py (một bộ mỗi ngôn ngữ), nên test bám
+    # vào HÀNH VI của cổng chứ không vào một hằng private. Ý nghĩa giữ nguyên: bẫy chữ "đ"
+    # không phân rã qua NFKD, thiếu map tay là mọi mẫu ASCII chứa "d" trượt trong im lặng.
+    for cau in ("Đặt lịch họp ngày mai", "Đăng bài lên trang"):
+        assert readonly_path_runtime._cong_chi_doc(
+            readonly_path_runtime._norm(cau), cau) == "write_intent", cau
+
+    # Và bản tiếng Anh cùng ý phải bị chặn y như vậy - đây là chỗ trước đây hở.
+    for cau in ("Schedule a meeting for tomorrow", "Post this to the page"):
+        assert readonly_path_runtime._cong_chi_doc(
+            readonly_path_runtime._norm(cau), cau) == "write_intent", cau
 
 
 def test_quota_rule_matching_is_case_insensitive():

@@ -17,6 +17,8 @@ import sys
 import httpx
 
 GROQ_STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+STT_MAC_DINH = "vi"   # gợi ý khi chỗ gọi không chốt gì; "" ở chỗ gọi = để Whisper tự dò
+
 # Model rẻ và nhanh nhất trong họ Whisper của Groq, tiếng Việt nghe được. Đổi được qua tham số.
 STT_MODEL_MAC_DINH = "whisper-large-v3-turbo"
 MAX_STT_MB = 24          # Groq chặn ở 25MB; chừa biên cho phần multipart bọc ngoài
@@ -73,14 +75,19 @@ def loi_thanh_dong(ly_do, chi_tiet=""):
             ". Nhờ họ gõ chữ, và báo là chỗ nghe giọng đang trục trặc.]")
 
 
-async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu="vi"):
+async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None):
     """Chuyển bytes âm thanh thành chữ. Trả dict:
 
         {"ok": True,  "text": "...", "model": "..."}
         {"ok": False, "ly_do": "thieu_key|rong|qua_lon|khong_nghe_ro|loi", "noi_voi_javis": "..."}
 
-    `ngon_ngu` gợi ý cho Whisper (mặc định "vi"): không gợi ý thì câu tiếng Việt ngắn hay bị
-    đoán nhầm sang tiếng khác rồi dịch luôn, ra một câu không ai gõ bao giờ.
+    `ngon_ngu` gợi ý cho Whisper. Ba giá trị có ý nghĩa KHÁC NHAU, đừng gộp:
+      None  -> chưa ai chốt, lấy `STT_MAC_DINH` ("vi"). Giữ hành vi cũ cho mọi chỗ gọi chưa
+               truyền gì: câu tiếng Việt ngắn không có gợi ý hay bị Whisper đoán nhầm sang
+               tiếng khác rồi DỊCH luôn, ra một câu không ai gõ bao giờ.
+      ""    -> cố ý KHÔNG gợi ý, để Whisper tự dò. Dùng khi ngôn ngữ trả lời đang là "auto"
+               và chưa có căn cứ nào - ép "vi" lúc đó là chủ động làm hỏng tiếng nước ngoài.
+      "en"  -> gợi ý đích danh.
     """
     if not api_key:
         return {"ok": False, "ly_do": "thieu_key", "noi_voi_javis": loi_thanh_dong("thieu_key")}
@@ -92,8 +99,9 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu="vi"):
 
     mdl = model or STT_MODEL_MAC_DINH
     form = {"model": mdl, "response_format": "json"}
-    if ngon_ngu:
-        form["language"] = ngon_ngu
+    goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
+    if goi_y:
+        form["language"] = goi_y
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(STT_TIMEOUT)) as c:
             r = await c.post(GROQ_STT_URL,

@@ -3,7 +3,12 @@
 > Bản spec dev, viết 2026-08-10 trên nền v0.26.16. Mục tiêu: Javis nói được nhiều thứ tiếng
 > mà **thêm ngôn ngữ thứ N+1 là thêm DỮ LIỆU, không phải sửa mã**.
 >
-> **Trạng thái: CHƯA VIẾT MÃ.** Toàn bộ phần khảo sát dưới đây đã soi mã thật, có số dòng.
+> **Trạng thái: ĐỢT 1 ĐÃ TRIỂN KHAI** (2026-08-14, trên nền v0.34.1) cho hai ngôn ngữ
+> **vi** và **en**. Xem mục 6 để biết đúng cái gì đã làm và cái gì chưa.
+>
+> Phần khảo sát dưới đây viết trên nền v0.26.16 nên SỐ DÒNG đã lệch. Bốn chỗ spec nói
+> SAI hoặc nói QUÁ đã được đính chính tại chỗ, đánh dấu **[ĐÍNH CHÍNH]** - đọc chúng
+> trước khi lấy spec này ra xếp ưu tiên.
 
 ## 1. Quyết định cốt lõi và vì sao
 
@@ -125,7 +130,7 @@ Mỗi mục đều đọc mã, có số dòng.
 | Bộ dò lời hứa suông | `background_status.py:60-85` - `_PROMISE` | Luật "KHÔNG hứa em sẽ báo lại" trong `CLAUDE.md` mất hiệu lực im lặng |
 | Cổng thao tác lịch | `engine.py:1143-1220` - danh sách từ khoá `hom nay`, `nhac hen`, `dat lich tu van`... | Vừa bỏ sót lệnh thật, vừa nổ nhầm khi khách chỉ nói chuyện phiếm |
 | Tìm kiếm cho chatbot khách | `chatbot_grounding.py:70-115` - bỏ dấu tiếng Việt, danh sách từ đụng nhau soạn tay | Chatbot phục vụ khách nước ngoài tra tài liệu kém hẳn |
-| **Cò ghi ký ức** | `learn.py:313` - `_REMEMBER_RE` bắt `ghi nhớ`, `nhớ giúp`, `lưu lại`, `remember this` | **Javis không học gì cả.** Người nói *"remember I prefer short answers"* thì khớp, nhưng *"save this"*, *"note that"*, *"keep in mind"* thì không - và không có lỗi nào báo là ký ức đã trượt |
+| Cò ưu tiên ghi ký ức **[ĐÍNH CHÍNH]** | `learn.py:313` - `_REMEMBER_RE` | Bản đầu của spec viết *"Javis không học gì cả"*. **Sai mức độ.** Đọc lại mã: mẫu này chỉ bật cờ `urgent` (dòng 341) để `_should_fire` nổ sau 30 giây thay vì chờ đủ 3 lượt. Cổng quyết định HỌC HAY KHÔNG là `_classify_turn` trả `"low"`, và cổng đó độc lập ngôn ngữ. Sự thật: người dùng tiếng Anh học **CHẬM HƠN**, không phải không học. Bù lại tìm ra một lỗ spec không thấy: mẫu không bỏ dấu nên `"ghi nho gium anh"` (tiếng Việt KHÔNG DẤU) cũng trượt |
 | **Dò bot bí** | `chatbot_runtime.py:497` - `_DAU_BI` gồm `chưa có thông tin`, `chuyển nhân viên`, `em chưa rõ`... | **Thuần tiếng Việt, không một chữ tiếng Anh.** Bot chăm khách nước ngoài không bao giờ được tính là bí, tab "Bot bí" rỗng, chủ nhìn vào tưởng bot chạy hoàn hảo |
 | Rút trạng thái hội thoại | `conversation_state.py:26-29` - `_GOAL_RE`, `_DECISION_RE`, `_CONSTRAINT_RE`, `_DONE_RE` | Mục tiêu, quyết định, ràng buộc và việc đã xong không được mang sang lượt sau |
 | Gợi ý tra bộ nhớ | `memory_index.py:28` - `_MEMORY_HINT_RE` | Không kích hoạt tra ký ức khi đáng tra |
@@ -136,7 +141,21 @@ Mười ba chỗ, không phải chín như bản khảo sát đầu. Bốn chỗ
 ra trước, vì hai trong số đó đánh vào chính hai thứ làm Javis là Javis: **nó có học được từ
 người dùng không**, và **chủ có biết bot của mình đang bí không**.
 
-**Và đây là chỗ dễ đọc sai nhất của cả spec: nhỏ KHÔNG có nghĩa là ít rủi ro.** Mười ba chỗ này
+**[ĐÍNH CHÍNH] Nguy hiểm nằm ở NỬA bộ từ vựng, không phải ở việc thiếu bộ từ vựng.** Bản
+đầu của spec viết rằng ngôn ngữ lạ làm các cổng hỏng trong im lặng. Đo lại trên mã thật thì
+KHÔNG phải vậy, và sự thật còn đáng chú ý hơn:
+
+    "tóm tắt đơn hàng"    -> bị chặn đúng (mẫu `don hang` khớp)
+    "summarize my orders" -> LỌT qua đường tắt, model bịa số đơn hàng
+    "สรุปยอดขายวันนี้"     -> không khớp gì cả -> `intent_uncertain` -> đường đầy đủ, AN TOÀN
+
+Tiếng Thái an toàn **vì nó không khớp gì hết**; bộ phân loại vốn đã mặc định từ chối. Tiếng
+Anh nguy hiểm **vì nó khớp một nửa**: `summarize` khớp ALLOW, còn DENY tiếng Anh lại thiếu
+`orders`. Nói cách khác, ngôn ngữ càng được phục vụ dở dang thì càng nguy hiểm, và ngôn ngữ
+sắp thêm vào (tiếng Anh) đúng là ngôn ngữ dở dang đó. Luật suy biến ở mục 4.3 vì vậy vẫn cần,
+nhưng lý do thật của nó là **chặn cái nửa vời**, không phải chặn cái chưa có.
+
+**Nhỏ KHÔNG có nghĩa là ít rủi ro.** Mười ba chỗ này
 cộng lại chưa tới 60 dòng mã trên tổng số 49.000, nên nhìn bảng dễ kết luận "khoanh vùng được,
 không đáng lo". Sai. Chúng nhỏ **chính vì chúng là cổng**: một cái cổng ba dòng điều khiển toàn
 bộ thứ chạy sau nó. Thước đo đúng là **bán kính vụ nổ**, không phải số dòng.
@@ -155,7 +174,7 @@ là tiếng Anh hôm nay được phục vụ **một nửa** - đủ để tư�
   `system_sync.py:67`, `main.py:555`, `main.py:3470`, `context_compiler._bay_gio`.
 - **Plugin `datetime-vn`** (`system/plugins/datetime-vn/plugin.yaml`) cấp tool `javis_now` và
   `javis_date_add` cho MỌI bộ não, mô tả ghi thẳng "theo múi giờ Việt Nam (UTC+7)".
-- **Tiền tệ VND**: `usage.js:181-199` quy đổi ra `đ` với `ty_gia` cố định.
+- **Tiền tệ VND [ĐÍNH CHÍNH]**: đã XONG SẴN ở thượng nguồn. Commit `5c59de7` (0.32.1) gỡ hết phần quy đổi USD sang đồng khỏi trang Mức dùng. Hạng mục này rơi khỏi phạm vi. Phần ĐỊNH DẠNG SỐ thì chưa: `toLocaleString("vi-VN")` vẫn còn ở `usage.js`.
 - **Định dạng số/ngày**: `toLocaleString("vi-VN")` ở `usage.js`, `console.js:1245,4045`,
   `sessions-ui.js:20`, `chatbots.js:368`, `studio.js:595`; `localeCompare(..., "vi")` ở
   `dataview.js:365`, `studio.js:442`.
@@ -563,6 +582,36 @@ một lần là tò mò chứ chưa phải nhu cầu.
 Chạm ngưỡng thì đi tiếp Phase 2 và 3. Không chạm thì dừng ở đây, và cái đã làm vẫn không phí:
 luật suy biến ở bước 3 là một rào an toàn có giá trị tự thân, kể cả khi Javis mãi mãi chỉ nói
 tiếng Việt.
+
+### 6.5. ĐÃ TRIỂN KHAI (2026-08-14, trên v0.34.1)
+
+Đợt 1 đã viết mã và xanh 226/226 test. Ghi lại đúng cái gì có và cái gì chưa, để không ai đọc
+spec rồi tưởng phần chưa làm đã làm.
+
+**Có:**
+
+| Thứ | Ở đâu |
+|-----|-------|
+| Sổ đăng ký ngôn ngữ (vi, en) | `server/lang_registry.py` |
+| Dò ngôn ngữ + chốt 8 mức ưu tiên + quán tính theo phiên | `server/lang.py` |
+| Bộ từ vựng theo ngôn ngữ | `server/lexicon/{__init__,vi,en}.py` |
+| Khối NGÔN NGỮ, **ba** điểm chèn | `main.build_system_prompt`, `context_compiler._output_contract_text`, `chatbot_runtime.build_bot_prompt` |
+| Cổng đường tắt + hai cổng chỉ đọc tra bộ từ vựng | `fast_path_runtime`, `readonly_path_runtime`, `readonly_orchestrator` |
+| Đồng hồ theo ngôn ngữ | `context_compiler.dong_ho(lang=)` |
+| Trường `ngon_ngu` cho chatbot + ô chọn | `chatbot_store`, `chatbots.js` |
+| Ô "Ngôn ngữ trả lời" ở Cài đặt | `console.js`, `POST /settings` nhánh `locale` |
+| STT ba trạng thái, TTS lọc giọng theo ngôn ngữ | `stt.py`, `GET /tts/voices?lang=` |
+| Test hành vi + test bất biến chống thoái lui | `test_da_ngon_ngu.py`, `test_lang_bat_bien.py` |
+
+**Ba điểm chèn, không phải một.** Đây là chỗ bản spec đầu thiếu. Đường TIẾT KIỆM TOKEN không
+đi qua `build_system_prompt`, và prompt của chatbot chuyên trách không đi qua cả hai đường kia.
+Chỉ sửa `build_system_prompt` thì hai vùng còn lại mất khối NGÔN NGỮ trong im lặng - mà vùng
+thứ ba đúng là ca dùng đáng tiền nhất ở mục 6.3.
+
+**Chưa làm, cố ý:** i18n giao diện (3.520 chuỗi, mục 7 Phase 3), mã lỗi cho 182 chuỗi lỗi
+server, locale (múi giờ/định dạng số), `description` skill theo ngôn ngữ, và bộ từ vựng cho
+các cổng BẮT LỖI (`FALSE_ACTION`, `PROMISE` đã khai trong lexicon nhưng hai cổng đó chưa đấu
+vào - chúng vẫn dùng mẫu cũ, vốn đã có sẵn phần tiếng Anh).
 
 ## 7. Sáu giai đoạn
 

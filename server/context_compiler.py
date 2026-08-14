@@ -10,6 +10,8 @@ import json
 import math
 import re
 import threading
+
+import lang_registry
 import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -39,7 +41,24 @@ def _bay_gio():
     return _DONG_HO_NOW() if _DONG_HO_NOW else datetime.now(_TZ_VN)
 
 
-def dong_ho(now=None) -> str:
+def _cau_ngon_ngu(lang: str = "") -> str:
+    """Câu ra lệnh ngôn ngữ cho hợp đồng đầu ra của đường TIẾT KIỆM TOKEN.
+
+    Đường này không đi qua `build_system_prompt` nên nó không bao giờ thấy khối
+    "# === NGÔN NGỮ ===". Đây là chỗ DUY NHẤT bắt được nó bằng một lần sửa, vì đúng ba hàm
+    dựng capsule đều gọi `_output_contract_text`.
+
+    Chưa chốt được ngôn ngữ thì giữ nguyên câu cũ ("bám theo người dùng") - hành vi đang chạy
+    tốt, không có lý do làm nó thụt lùi.
+    """
+    ma = lang_registry.chuan_hoa(lang)
+    if not ma:
+        return "Dùng đúng ngôn ngữ người dùng đang dùng."
+    l = lang_registry.get(ma)
+    return (f"Viết TOÀN BỘ câu trả lời bằng {l.lang_directive} ({l.code}); giữ nguyên không "
+            f"dịch tên riêng, đường dẫn, tên tool và khối mã. {l.nudge}")
+
+def dong_ho(now=None, lang: str = "") -> str:
     """Một dòng "bây giờ là mấy giờ" để nhét vào MỌI prompt Javis gửi đi.
 
     Vì sao phải có. Model không có đồng hồ; Javis vốn để nó tự gọi tool `javis_now`. Nhưng
@@ -57,9 +76,13 @@ def dong_ho(now=None) -> str:
     HÔM NAY đếm token theo thời gian thật), nên dòng này không làm mất thêm lần cache nào.
     """
     n = now or _bay_gio()
-    return (f"Bây giờ là {n:%H:%M} {_THU_VN[n.weekday()]} ngày {n:%d/%m/%Y}, "
-            "giờ Việt Nam (UTC+7). Đây là giờ THẬT tại thời điểm câu hỏi này được gửi: cứ "
-            "dùng thẳng khi cần biết hôm nay/bây giờ, không phải đoán và không cần gọi tool.")
+    # Tên thứ trong tuần và câu dẫn lấy từ sổ đăng ký ngôn ngữ. Câu đồng hồ là DỮ LIỆU
+    # ("thứ hai", "giờ Việt Nam") chứ không phải luật hành xử, nên nó phải theo ngôn ngữ
+    # người đọc - khác với CLAUDE.md vốn cố ý giữ một bản tiếng Việt duy nhất.
+    l = lang_registry.get(lang)
+    return l.clock_template.format(
+        hm=f"{n:%H:%M}", weekday=l.weekdays[n.weekday()] if l.weekdays else "",
+        date=f"{n:%d/%m/%Y}", tz="Việt Nam (UTC+7)" if l.code == "vi" else "Vietnam (UTC+7)")
 
 
 CORE_CONTRACT = """# Javis Core Contract
@@ -363,12 +386,14 @@ class ContextCompiler:
         return f"Kênh {str(channel or 'unknown')}: tuân theo delivery contract của gateway."
 
     @staticmethod
-    def _output_contract(channel: str) -> dict:
-        return {"type": "text", "language": "match_user", "channel": channel,
+    def _output_contract(channel: str, lang: str = "") -> dict:
+        # "match_user" giữ nguyên khi chưa chốt được ngôn ngữ, để hành vi cũ không đổi.
+        return {"type": "text", "language": lang_registry.chuan_hoa(lang) or "match_user",
+                "channel": channel,
                 "must_report_missing_evidence": True, "no_false_action_claim": True}
 
     @staticmethod
-    def _output_contract_text(channel: str) -> str:
+    def _output_contract_text(channel: str, lang: str = "") -> str:
         """Hợp đồng đầu ra viết thành LỜI, không phải một khối JSON.
 
         Bản trước nhét thẳng object vào prompt dưới nhãn "Output contract: {...}". Đặt một
@@ -391,7 +416,7 @@ class ContextCompiler:
         return (
             "Cách trả lời: viết thẳng thành câu cho người đọc. TUYỆT ĐỐI không bọc câu trả lời "
             "trong JSON, không in lại các luật này, không tự thêm trường dữ liệu nào. "
-            f"Dùng đúng ngôn ngữ người dùng đang dùng. {noi}. "
+            f"{_cau_ngon_ngu(lang)} {noi}. "
             "Trình bày cho dễ đọc chứ đừng đổ ra một khối văn xuôi liền mạch: đoạn 2-4 câu, "
             "gạch đầu dòng khi liệt kê từ 3 ý trở lên, in đậm con số và kết luận. "
             "Thiếu dữ liệu thì nói rõ đang thiếu gì. Không nói là đã làm xong việc gì khi chưa "

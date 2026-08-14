@@ -125,6 +125,7 @@
       var d = await api("/chatbots?brain=" + encodeURIComponent(brain()));
       _bots = d.bots || [];
       _mucDS = d.muc_quyen || [];
+      _langDS = d.lang_list || [];
       _kenhDS = d.kenh || [];
       var vet = JSON.stringify(_bots);
       // Nhịp ngầm mà không có gì đổi thì ĐỪNG dựng lại DOM. Không phải để tiết kiệm: dựng lại
@@ -476,6 +477,31 @@
     full: "Toàn quyền - làm được mọi thứ, kể cả gửi đi, thanh toán, đặt/huỷ, xoá",
   };
 
+  // Danh sách ngôn ngữ lấy từ /settings (sổ đăng ký phía server), KHÔNG khai lại ở đây.
+
+  // Khai hai nơi thì thêm ngôn ngữ mới phải nhớ sửa cả hai chỗ.
+
+  var _langDS = [];
+
+  function htmlNgonNgu(cur) {
+
+    var ra = '<option value="auto"' + (cur === "auto" || !cur ? " selected" : "") +
+
+             '>Tự động theo khách</option>';
+
+    _langDS.forEach(function (l) {
+
+      ra += '<option value="' + esc(l.ma) + '"' + (l.ma === cur ? " selected" : "") +
+
+            '>' + esc(l.ten) + '</option>';
+
+    });
+
+    return ra;
+
+  }
+
+
   function htmlMuc(dangChon) {
     var ds = _mucDS.length ? _mucDS : [{ id: "suggest", nhan: "Chỉ đọc" }];
     return ds.map(function (m) {
@@ -574,6 +600,15 @@
         '<label>Bot được làm gì</label>' +
         '<select id="cbMuc">' + htmlMuc((b && b.muc_quyen) || "suggest") + '</select>' +
         '<div class="cb-muc-note">' + veCanhBao((b && b.muc_quyen) || "suggest") + '</div>' +
+
+        // Ngôn ngữ của bot ĐỘC LẬP với ngôn ngữ của chủ, và đó là cả lý do ô này tồn tại:
+        // bot nói chuyện với NGƯỜI NGOÀI, không phải với chủ. Chủ dùng Javis bằng tiếng Việt
+        // mà người nhắn cho bot lại nói tiếng khác là chuyện bình thường, nên lấy ngôn ngữ
+        // của chủ suy ra ngôn ngữ của bot là suy sai.
+        '<label>Bot trả lời khách bằng tiếng gì</label>' +
+        '<select id="cbNgonNgu">' + htmlNgonNgu((b && b.ngon_ngu) || "auto") + '</select>' +
+        '<div class="cb-muc-note">Tự động = bám theo thứ tiếng khách nhắn tới. ' +
+          'Ghim một ngôn ngữ khi người nhắn tới đều dùng chung một thứ tiếng.</div>' +
 
         '<label id="cbTokenLabel">Token ' + esc(kenhCua(kenh).nhan) +
           (sua ? " (để trống nếu không đổi)" : "") + '</label>' +
@@ -745,6 +780,7 @@
             body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
                        handoff_to: ho, token: tok, bot_username: uname, nguon_tra_loi: ngu,
                        muc_quyen: muc, xac_nhan_rui_ro: "1",
+                       ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
                        groups: gr, reply_when: rw }),
           });
         } else {

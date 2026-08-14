@@ -89,7 +89,9 @@ check("có tiêu đề dễ thấy cho khối đó", "BÂY GIỜ" in _full)
 _goc_dong_ho = cc.dong_ho
 try:
     _truoc = asyncio.run(main._uoc_tinh_tiet_kiem("brain"))
-    cc.dong_ho = lambda now=None: "X" * 30000
+    # `lang` thêm vào khi đồng hồ nói được nhiều thứ tiếng; stub phải nhận nó,
+    # không thì lời gọi thật ném TypeError và test đo nhầm sang nhánh lỗi.
+    cc.dong_ho = lambda now=None, lang="": "X" * 30000
     _sau = asyncio.run(main._uoc_tinh_tiet_kiem("brain"))
 finally:
     cc.dong_ho = _goc_dong_ho

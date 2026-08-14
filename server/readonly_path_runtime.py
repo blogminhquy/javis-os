@@ -16,6 +16,9 @@ from typing import Any, Awaitable, Callable, Optional
 import capability_resolver
 import context_compiler
 import context_runtime
+import lang as lang_mod
+import lang_registry
+import lexicon
 import fast_path_runtime
 from capability_executor import CapabilityExecutor, CapabilityLease
 
@@ -39,14 +42,25 @@ def _norm(value: str) -> str:
     return " ".join("".join(c for c in raw if not unicodedata.combining(c)).split())
 
 
-_STATE_REF = re.compile(
-    r"\b(truoc day|lan truoc|vua roi|cai do|cai nay|nhu cu|tiep tuc|nho khong|"
-    r"previously|earlier|last time|remember|that one|same as before)\b"
-)
-_WRITE_INTENT = re.compile(
-    r"\b(gui|send|xoa|delete|remove|huy|cancel|tao|create|cap nhat|update|sua|edit|"
-    r"dang bai|publish|upload|dat lich|book)\b"
-)
+# _STATE_REF và _WRITE_INTENT đã dời sang server/lexicon/<mã>.py (một bộ mỗi ngôn ngữ).
+def _cong_chi_doc(normalized: str, raw: str, lang: str = "") -> str:
+    """Lý do phải rơi về đường đầy đủ, hoặc "" nếu qua được cả hai cổng.
+
+    Cùng luật suy biến với `fast_path_runtime.FastIntentClassifier`: đây là cổng MỞ RỘNG
+    QUYỀN nên chưa biết chắc ngôn ngữ thì chạy mẫu của MỌI bộ từ vựng đang có (hướng an
+    toàn), và không bao giờ lặng lẽ cho qua vì "không mẫu nào khớp".
+    """
+    ma = lang_registry.chuan_hoa(lang) or lang_mod.detect(raw)[0]
+    lex = lexicon.get(ma)
+    bo = [lex] if lex is not None else [lexicon.get(m) for m in lexicon.ma_list()]
+    for mod in bo:
+        if mod is None:
+            continue
+        if mod.STATE_REF.search(normalized):
+            return "conversation_state_required"
+        if mod.WRITE_INTENT.search(normalized):
+            return "write_intent"
+    return ""
 
 
 @dataclass(frozen=True)
@@ -236,7 +250,7 @@ class ReadonlyPathCanary:
     async def prepare(self, trace: context_runtime.TurnTrace | None, objective: str,
                       brain: str, channel: str, provider: str, model: str,
                       provider_kind: str, actor_id: str,
-                      has_attachments: bool = False) -> ReadonlyPathPlan:
+                      has_attachments: bool = False, lang: str = "") -> ReadonlyPathPlan:
         try:
             policy = ReadonlyPolicy.from_settings(self.settings_reader() or {})
         except Exception:
@@ -253,10 +267,9 @@ class ReadonlyPathCanary:
         if has_attachments:
             return self._legacy(trace, policy, bucket, "attachment_present")
         normalized = _norm(objective)
-        if _STATE_REF.search(normalized):
-            return self._legacy(trace, policy, bucket, "conversation_state_required")
-        if _WRITE_INTENT.search(normalized):
-            return self._legacy(trace, policy, bucket, "write_intent")
+        _ly_do = _cong_chi_doc(normalized, objective, lang)
+        if _ly_do:
+            return self._legacy(trace, policy, bucket, _ly_do)
         rule = policy.quota_policy.quota_rule(provider, model)
         if rule is None:
             return self._legacy(trace, policy, bucket, "hard_quota_unknown")

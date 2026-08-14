@@ -76,7 +76,7 @@ Source: `type: source`, `source_kind: article|book|podcast|video|own-note|screen
 ## 8. Tiến hoá theo người dùng
 - Nhóm chủ đề trong `wiki/` MỌC DẦN theo source thực tế (tạo subfolder khi một chủ đề đủ dày), không định sẵn theo ngành.
 - Cần bộ khung sẵn (vd Bullet Journal, nghiên cứu, đọc sách) -> người dùng áp "gói mẫu" (opt-in), không seed mặc định.
-- Tiếng Việt là ngôn ngữ chính; code/tag/frontmatter key dùng tiếng Anh. Tone thực tế, ngắn gọn. KHÔNG dùng ký tự em dash.
+- Viết bằng ngôn ngữ ghi ở khối `# === NGÔN NGỮ ===` của prompt (mặc định tiếng Việt); code/tag/frontmatter key luôn dùng tiếng Anh. Tone thực tế, ngắn gọn. KHÔNG dùng ký tự em dash.
 """
 
 _WIKI_INDEX = """# Wiki Index

@@ -17,6 +17,9 @@ from typing import Callable, Optional
 import capability_resolver
 import context_compiler
 import context_runtime
+import lang as lang_mod
+import lang_registry
+import lexicon
 
 
 CANARY_POLICY_VERSION = "fast-path-canary-v1"
@@ -51,55 +54,12 @@ class IntentDecision:
 class FastIntentClassifier:
     """Gate cố ý bảo thủ: false-negative đi legacy, false-positive mới là nguy hiểm."""
 
-    _DENY = (
-        ("attachment", re.compile(
-            r"\b(tep|file|attachment|attached|dinh kem|hinh anh|anh nay|tai lieu|"
-            r"uploaded|the document i|i uploaded)\b"
-        )),
-        ("url_reference", re.compile(r"(https?://|www\.)")),
-        ("live_data", re.compile(
-            r"\b(hom nay|hom qua|bay gio|hien tai|moi nhat|thoi tiet|tin tuc|ty gia|gia vang|"
-            r"gia co phieu|lich hom|thang nay|tuan nay|quy nay|thang truoc|tuan truoc|"
-            r"doanh thu|don hang|email moi|email cua|hop thu|check email|"
-            r"current|latest|today|yesterday|now|this week|this month|last week|last month|"
-            r"weather|news|stock price|exchange rate|revenue|my email|my inbox)\b"
-        )),
-        ("external_source", re.compile(
-            r"\b(web|internet|google|drive|gmail|calendar|github|repository|repo|database|"
-            r"api|mcp|tool|vault|obsidian|slack|notion|airtable|facebook|tiktok|zalo|telegram)\b"
-        )),
-        ("side_effect", re.compile(
-            r"\b(gui email|gui tin|xoa|delete|remove|tao lich|dat lich|nhac toi|upload|"
-            r"publish|dang bai|dang len|cap nhat file|sua file|luu vao|write to|send email|"
-            r"create event|post to|schedule)\b"
-        )),
-        ("conversation_state", re.compile(
-            r"\b(truoc day|lan truoc|vua roi|luc nay|anh da|chung ta da|nho khong|memory|"
-            r"cuoc tro chuyen|tin nhan truoc|doan chat|(nhung gi|cai) (anh|em|ban) (noi|viet)|"
-            r"(em|anh|ban) vua (noi|viet)|viet tiep|previously|earlier|last time|we discussed|"
-            r"do you remember|my last message|this conversation|cai nay|do nay|no)\b"
-        )),
-        ("agentic", re.compile(
-            r"\b(hay lam giup|thuc hien|kiem tra giup|tim giup|doc giup|mo giup|"
-            r"execute|run|check my|look up|search for|fetch|open my)\b"
-        )),
-    )
-    _ALLOW = (
-        ("conversation", re.compile(r"^(xin chao|chao|hello|hi|cam on|thank you)\b")),
-        ("explanation", re.compile(
-            r"\b(la gi|giai thich|tai sao|vi sao|khai niem|phan biet|what is|explain|why|difference)\b"
-        )),
-        ("writing", re.compile(
-            r"\b(viet|viet lai|dat ten|tieu de|y tuong|brainstorm|rewrite|draft|headline|ideas|outline)\b"
-        )),
-        ("transform", re.compile(r"\b(dich|tom tat|rut gon|translate|summarize|shorten)\b")),
-        ("reasoning", re.compile(
-            r"\b(tinh|giai bai|phan tich logic|compare|calculate|solve|pros and cons|uu nhuoc diem)\b"
-        )),
-    )
+    # Mẫu DENY/ALLOW ĐÃ DỜI sang `server/lexicon/<mã>.py`, một bộ cho mỗi ngôn ngữ.
+    # Cố ý KHÔNG để lại bản sao ở đây: hai bản của cùng một luật an toàn thì sớm muộn
+    # cũng trôi lệch, và bản bị quên là bản im lặng cho lọt.
 
     def classify(self, objective: str, has_attachments: bool = False,
-                 max_chars: int = 12_000) -> IntentDecision:
+                 max_chars: int = 12_000, lang: str = "") -> IntentDecision:
         text = str(objective or "").strip()
         if not text:
             return IntentDecision(False, "empty", "empty_objective", 1.0)
@@ -107,11 +67,39 @@ class FastIntentClassifier:
             return IntentDecision(False, "attachment", "attachment_present", 1.0)
         if len(text) > max(1, int(max_chars or 12_000)):
             return IntentDecision(False, "oversized", "objective_too_large", 1.0)
+
+        # Bộ từ vựng theo ĐÚNG ngôn ngữ người dùng đang viết, không phải ngôn ngữ Javis được
+        # lệnh trả lời: cổng này đọc câu HỎI, nên nó phải hiểu ngôn ngữ của câu hỏi.
+        # `lang` do nơi gọi truyền xuống (đã có ngữ cảnh phiên) được tin hơn là tự dò.
+        ma = lang_registry.chuan_hoa(lang) or lang_mod.detect(text)[0]
+        lex = lexicon.get(ma)
         normalized = _norm(text)
-        for intent_class, pattern in self._DENY:
+
+        if lex is None:
+            # Chưa biết chắc ngôn ngữ. Hai lý do dẫn tới đây và cả hai đều có thật: người dùng
+            # viết thứ tiếng ta chưa có bộ từ vựng ("สรุปยอดขายวันนี้"), hoặc câu quá ngắn để
+            # dò ("summarize my orders" không chứa hư từ nào).
+            #
+            # Vẫn chạy DENY của MỌI bộ từ vựng đang có. DENY là hướng AN TOÀN: bắt nhầm thì
+            # chỉ tốn token đi đường đầy đủ, còn bỏ sót thì model bịa số liệu. Chạy hợp của
+            # vài chục mẫu regex đã biên dịch sẵn là chuyện micro giây, rẻ hơn nhiều so với
+            # một lượt trả lời sai.
+            #
+            # Nhưng KHÔNG chạy ALLOW: cho một câu đi tắt đòi phải HIỂU nó tự chứa, mà chưa
+            # biết ngôn ngữ thì không thể tự nhận là hiểu.
+            for ma_lex in lexicon.ma_list():
+                mod = lexicon.get(ma_lex)
+                for intent_class, pattern in (mod.DENY if mod else ()):
+                    if pattern.search(normalized):
+                        return IntentDecision(False, intent_class,
+                                              f"requires_{intent_class}_via_{ma_lex}", 0.95)
+            return IntentDecision(False, "lang_unknown",
+                                  f"no_lexicon_for_{ma or 'undetected'}", 0.9)
+
+        for intent_class, pattern in lex.DENY:
             if pattern.search(normalized):
                 return IntentDecision(False, intent_class, f"requires_{intent_class}", 0.98)
-        for intent_class, pattern in self._ALLOW:
+        for intent_class, pattern in lex.ALLOW:
             if pattern.search(normalized):
                 return IntentDecision(True, intent_class, "self_contained_chat", 0.92)
         return IntentDecision(False, "uncertain", "intent_uncertain", 0.65)
@@ -269,7 +257,7 @@ class FastPathCanary:
 
     def prepare(self, trace: context_runtime.TurnTrace | None, objective: str, brain: str,
                 channel: str, provider: str, model: str, provider_kind: str,
-                has_attachments: bool = False) -> FastPathPlan:
+                has_attachments: bool = False, lang: str = "") -> FastPathPlan:
         try:
             policy = CanaryPolicy.from_settings(self.settings_reader() or {})
         except Exception:
@@ -293,7 +281,7 @@ class FastPathCanary:
 
         intent = self.classifier.classify(
             objective, has_attachments=has_attachments,
-            max_chars=policy.max_objective_chars,
+            max_chars=policy.max_objective_chars, lang=lang,
         )
         if not intent.eligible:
             return self._legacy(trace, policy, bucket, intent.reason)

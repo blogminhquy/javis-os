@@ -52,7 +52,10 @@ def test_websocket_disconnect_does_not_cancel_turn(monkeypatch, tmp_path):
             lambda _cfg: ("openrouter", "api", "test-key", "test-model"),
         )
         monkeypatch.setattr(main, "_reasoning_level", lambda _cfg: "off")
-        monkeypatch.setattr(main, "build_system_prompt", lambda _brain: "system")
+        # `**_kw` bắt buộc: build_system_prompt nay nhận thêm `lang` (khối NGÔN NGỮ).
+        # Stub một tham số làm lời gọi thật ném TypeError, và lượt chat chết câm giữa
+        # chừng - test đo nhầm sang nhánh lỗi thay vì nhánh đang muốn kiểm.
+        monkeypatch.setattr(main, "build_system_prompt", lambda _brain, **_kw: "system")
         monkeypatch.setattr(main.channel_context, "build_channel_block", lambda *a, **k: "")
         monkeypatch.setattr(
             main, "claude_engine",

@@ -36,6 +36,18 @@ _DEFAULT = {
     "branding": {"logo_ext": "", "logo_v": 0},
     # Tên miền riêng cho HTTPS tự động (Caddy On-Demand TLS hỏi /tls-check trước khi xin cert).
     "domain": {"custom": ""},
+    # Ngôn ngữ và locale. TÁCH BA BIẾN có chủ ý (spec đa ngôn ngữ mục 4.1):
+    #   ui_lang     chữ trên màn hình      - chưa dùng tới, dành cho lượt i18n giao diện
+    #   reply_lang  Javis trả lời          - "auto" = bám theo ngôn ngữ người dùng đang viết
+    #   tz/currency locale, KHÁC ngôn ngữ  - người dùng tiếng Anh ở VN vẫn xài UTC+7 và VND
+    # Gộp ba cái làm một là chặn đứng ca dùng đáng tiền nhất: chủ Việt, giao diện Việt, brain
+    # Việt, nhưng chatbot đối ngoại trả lời tiếng Nhật.
+    "locale": {
+        "ui_lang": "vi",
+        "reply_lang": "auto",              # auto | vi | en
+        "tz": "Asia/Ho_Chi_Minh",
+        "currency": "VND",
+    },
     # Nhà cung cấp giọng đọc (TTS). edge = Edge TTS miễn phí (mặc định, dự phòng).
     # openai = OpenAI TTS (dùng model.openai_api_key). elevenlabs = ElevenLabs (key riêng).
     "voice": {
