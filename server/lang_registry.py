@@ -76,6 +76,19 @@ LANGS: Dict[str, Lang] = {
             # không dấu - người Việt gõ kiểu này rất nhiều, thiếu là dò trượt
             "va", "cua", "la", "khong", "duoc", "cho", "voi", "nay", "nhung", "cac",
             "mot", "co", "de", "thi", "da", "se", "anh", "em", "toi", "minh",
+            # Bổ sung sau khi ĐO: chỉ 13/17 câu tiếng Việt gõ thật dò ra được, và phần trượt
+            # toàn là câu KHÔNG DẤU ngắn ("gui bao cao qua telegram", "kiem tra ton kho con
+            # bao nhieu"). Nhóm này đưa lên 16/17, tiếng Anh không đổi, không câu Âu châu nào
+            # bị nhận nhầm.
+            #
+            # CỐ Ý bỏ "sao"/"nào": không dấu thành "nao", trùng "não" tiếng Bồ Đào Nha gõ
+            # thiếu dấu, và đo được "eu nao quero o relatorio agora" bị chấm thành tiếng Việt
+            # vì đúng chữ đó. Cũng bỏ "cần"/"thế": không dấu thành "can"/"the", trùng đúng
+            # hai hư từ tiếng Anh nên cộng điểm cho cả hai bên rồi hoà, mất luôn kết quả.
+            "bị", "bi", "hôm", "hom", "qua", "còn", "con", "cũng", "cung", "rất", "rat",
+            "đang", "dang", "phải", "phai", "muốn", "muon", "giúp", "giup", "khi",
+            "nếu", "neu", "hoặc", "hoac", "mới", "moi", "luôn", "luon", "nữa", "nua",
+            "rồi", "roi", "tại", "tai", "bởi", "boi",
         ),
         request_words=("tieng viet", "tiếng việt", "vietnamese", "viet ngu", "việt ngữ"),
         stt="vi",
@@ -105,9 +118,31 @@ LANGS: Dict[str, Lang] = {
         native="English",
         english="English",
         script="latin",
+        # Danh sách này là BẰNG CHỨNG để `lang.detect` chấm điểm, nên nó phải phủ được câu
+        # người ta gõ THẬT, không phải câu văn viết. Bản đầu chỉ có 20 chữ và thiếu đúng nhóm
+        # hư từ hay gặp nhất trong câu lệnh ngắn (my, from, we, will, show, give...): đo trên
+        # 18 câu hỏi kinh doanh tiếng Anh thường gặp thì chỉ nhận ra 5, tức người dùng tiếng
+        # Anh gõ "show me my revenue" vẫn bị trả lời bằng tiếng Việt. Với danh sách này là
+        # 17/18, và tiếng Việt không mất câu nào.
+        #
+        # CỐ Ý bỏ qua các chữ tiếng Anh trùng chữ tiếng Việt viết không dấu: to (to), so (số),
+        # no (nó), do (đo), it (ít), me (mẹ), an (ăn), in (in), on (ơn), at (át), am (âm),
+        # one (ơn). Thêm chúng là cộng điểm tiếng Anh cho câu tiếng Việt không dấu, mà câu
+        # tiếng Việt không dấu NGẮN chỉ trúng một hư từ - đủ để hoà rồi mất luôn kết quả.
+        #
+        # Cũng CỐ Ý chỉ lấy HƯ TỪ, không lấy danh từ hay gặp (week, month, report, total...).
+        # Danh từ đi xuyên ngôn ngữ: bản thử có "week" và "report" nên "ik wil het rapport van
+        # deze week zien" (tiếng Hà Lan) bị chấm thành tiếng Anh.
         stopwords=(
             "the", "and", "of", "is", "are", "not", "for", "with", "this", "that",
             "you", "your", "have", "can", "please", "what", "how", "why", "when", "i",
+            "my", "from", "about", "all", "any", "some", "more", "most", "than", "then",
+            "there", "these", "those", "which", "who", "where", "but", "just", "only",
+            "also", "get", "give", "show", "make", "need", "want", "was", "were", "been",
+            "will", "would", "could", "should", "did", "does", "has", "had", "we", "us",
+            "our", "they", "them", "their", "his", "her", "she",
+            "each", "every", "other", "into", "over", "under", "between", "before",
+            "after", "out", "here", "now",
         ),
         request_words=("english", "tieng anh", "tiếng anh", "in english", "anh ngu", "anh ngữ"),
         stt="en",

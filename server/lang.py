@@ -102,11 +102,60 @@ _KHOANG_CHU = (
 
 _TU = re.compile(r"[^\W_]+", re.UNICODE)
 
-# Hai lớp bằng chứng NGƯỢC, và phải tách bạch vì chúng chắc chắn khác nhau.
+# Ba lớp bằng chứng NGƯỢC, và phải tách bạch vì chúng chắc chắn khác nhau.
 #
 # `_CHU_NGOAI`: ký tự tiếng Việt KHÔNG BAO GIỜ dùng. Thấy một chữ là chắc chắn không phải
 # tiếng Việt. Chú ý â ê ô KHÔNG có ở đây vì tiếng Việt dùng cả ba.
 _CHU_NGOAI = re.compile(r"[ñçüäößåæøœîûëï¿¡]", re.I)
+
+# `_TU_NGOAI`: hư từ của các thứ tiếng Latin khác, những chữ tiếng Việt không có.
+#
+# Vì sao cần lớp này dù đã có `_CHU_NGOAI`. Người ta gõ thiếu dấu, và câu Âu châu gõ thiếu
+# dấu thì KHÔNG còn ký tự nào lạ để mà bắt. Đo được: "les ventes du mois de juin sont bonnes"
+# bị chấm là tiếng Việt (0.67) chỉ vì đúng một chữ "de", và "je voudrais le rapport de la
+# semaine" cũng vậy nhờ "de" với "la". Danh sách hư từ tiếng Việt viết không dấu đầy những
+# chữ hai ký tự trùng hư từ tiếng Âu, nên một câu tiếng Pháp bất kỳ gần như luôn trúng vài
+# chữ - còn tiếng Pháp thì không có bộ từ vựng, nên nhận nhầm sang tiếng Việt là ĐEM BỘ TỪ
+# VỰNG TIẾNG VIỆT ra chấm một câu tiếng Pháp. Đó đúng là kiểu hỏng mà cả tầng này sinh ra
+# để chặn: nửa bộ từ vựng nguy hiểm hơn không có bộ nào.
+#
+# Chỉ nhặt chữ KHÔNG phải tiếng Việt không dấu. Cố ý bỏ qua: que (quê), con, hay, sao, nao
+# (não), den (đến), dem (đêm), le (lê), no (nó) - mỗi chữ trong số đó là một chữ tiếng Việt
+# có thật, và bắt chúng là làm hỏng đúng nhóm người dùng đông nhất.
+_TU_NGOAI = frozenset((
+    # Pháp
+    "les", "des", "une", "sont", "est", "vous", "nous", "dans", "avec", "pour", "cette",
+    "mais", "tous", "leur", "elle", "ils", "sur", "aux", "être", "etre", "voudrais",
+    # Tây Ban Nha / Bồ Đào Nha
+    "las", "los", "una", "unos", "unas", "por", "para", "del", "esta", "este", "como",
+    "pero", "sus", "muy", "quiero", "tambien", "dos", "das", "uma", "foram", "deste",
+    # Ý
+    "della", "delle", "questo", "questa", "gli", "molto", "sono", "sul",
+    # Đức
+    "und", "ich", "nicht", "sind", "von", "mit", "auch", "sehr", "eine", "einen",
+    # Hà Lan. KHÔNG lấy "het": nó là "hết" tiếng Việt viết không dấu, và bản đầu có nó nên
+    # "xoa het don hang cua toi" bị loại khỏi cuộc chấm điểm rồi trả về rỗng.
+    "deze", "niet", "een", "wil", "zien",
+))
+# Bao nhiêu chữ lạ thì kết luận. MỘT là đủ: những chữ trên không xuất hiện trong tiếng Việt,
+# kể cả không dấu, nên một chữ đã là bằng chứng chắc. Đòi hai thì "quiero ver las ventas de
+# este mes" (trúng quiero, las, este) qua được nhưng câu ngắn hơn thì không.
+_TU_NGOAI_TOI_THIEU = 1
+
+
+def _tu_ngoai_trong(s: str) -> set:
+    """Các chữ lạ có trong câu, CHỈ tính khi văn bản gốc viết thường.
+
+    Vì sao phải xét chữ hoa. Hư từ của một thứ tiếng luôn nằm giữa câu và viết thường; còn
+    những chỗ chữ lạ tình cờ trùng thì gần như luôn viết hoa vì chúng là MÃ hoặc TÊN RIÊNG.
+    Đo được hai ca thật trong ngữ cảnh tiếng Việt: "tim don hang co ma DES-2024" (mã đơn trùng
+    `des` tiếng Pháp) và "san pham nay ban o Los Angeles" (địa danh trùng `los` tiếng Tây Ban
+    Nha) - cả hai bị loại khỏi cuộc chấm điểm rồi trả về rỗng.
+
+    Câu tiếng Pháp mở đầu bằng "Les" viết hoa vẫn bắt được, vì phần còn lại của câu còn hư từ
+    viết thường ("sont", "de", "voudrais").
+    """
+    return {w for w in _TU.findall(str(s or "")) if w.islower()} & _TU_NGOAI
 
 # `_DAU_CHUNG`: dấu sắc/huyền/hỏi trên nguyên âm trần. Tiếng Việt DÙNG chúng ("cá", "bà"),
 # nhưng tiếng Pháp, Tây Ban Nha, Bồ Đào Nha, Ý cũng vậy - nên một mình nó không kết luận
@@ -185,7 +234,11 @@ def detect(text: str) -> tuple[str, float]:
     # Không có bước này thì một chữ "de" trong "les ventes du mois de juin" đủ để cả câu tiếng
     # Pháp bị chấm thành tiếng Việt, vì danh sách hư từ tiếng Việt viết không dấu chứa nhiều
     # chữ rất ngắn trùng với hư từ của tiếng Pháp, Tây Ban Nha, Bồ Đào Nha, Ý.
-    loai = {"vi"} if _CHU_NGOAI.search(s) else set()
+    # Hai đường loại tiếng Việt khỏi cuộc chấm điểm: ký tự lạ (câu có dấu), hoặc hư từ lạ
+    # (câu gõ thiếu dấu, lúc đó không còn ký tự nào để mà bắt).
+    loai = set()
+    if _CHU_NGOAI.search(s) or len(_tu_ngoai_trong(s)) >= _TU_NGOAI_TOI_THIEU:
+        loai.add("vi")
 
     diem: dict[str, int] = {}
     for code in lang_registry.ma_list():

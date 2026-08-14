@@ -33,8 +33,13 @@ DENY = (
         # Danh từ kinh doanh phải đi kèm SỞ HỮU hoặc MẠO TỪ XÁC ĐỊNH thì mới là hỏi số liệu
         # thật. Để trần thì "what is a sales funnel" (câu hỏi khái niệm thuần tuý) bị chặn
         # oan, trong khi bản tiếng Việt cùng ý lại đi tắt được - một sự lệch không có lý do.
-        r"(?:my|our|the|this|last|total)\s+(?:revenue|sales|orders?|invoices?|refunds?|"
-        r"inventory|stock|profit|margin|expenses|spend|customers?)\b|"
+        # Cho phép MỘT chữ chen giữa sở hữu và danh từ ("my pending orders", "our monthly
+        # revenue", "the unpaid invoices"). Thiếu nấc này thì chỉ cần một tính từ là thoát
+        # cổng: "what are my orders" bị chặn đúng, còn "what are my pending orders" thì lọt.
+        # Giữ đúng MỘT chữ, không nới thành hai: "the difference between revenue and profit"
+        # là câu hỏi khái niệm thuần tuý, nới rộng hơn là chặn oan chính nó.
+        r"(?:my|our|the|this|last|total)\s+(?:\w+\s+)?(?:revenue|sales|orders?|invoices?|"
+        r"refunds?|inventory|stock|profit|margin|expenses|spend|customers?)\b|"
         r"\border count\b|\bin stock\b|\bout of stock\b|\bstock level\b|"
         r"how much did|how many did|how much have|how many have|"
         # nguồn ngoài
@@ -70,8 +75,17 @@ ALLOW = (
     # được trả lời bằng số bịa. Chỉ nhận dạng hỏi KHÁI NIỆM: "what is a/an/the <khái niệm>",
     # định nghĩa, so sánh. Câu "what is my/our ..." rơi ra ngoài và đi đường đầy đủ - đúng
     # chỗ nó cần tới.
+    # `what is` KHÔNG còn đòi mạo từ đi kèm. Bản đầu bắt buộc "what is a/an/the" nên
+    # "what is entropy in information theory" hay "what is machine learning" - câu tự chứa
+    # hoàn toàn, hỏi rất nhiều - đều rơi vào `intent_uncertain` rồi mất đường tắt tiết kiệm
+    # token, trong khi câu tiếng Việt cùng nghĩa ("... là gì") thì đi tắt được. Đó là một
+    # chênh lệch theo NGÔN NGỮ chứ không theo nội dung.
+    #
+    # Nới ra vẫn an toàn vì DENY chạy TRƯỚC ALLOW (xem fast_path_runtime.classify): câu cần
+    # dữ liệu sống như "what is my current revenue" hay "what is in my inbox" đã bị nhóm
+    # live_data / external_source chặn trước khi tới đây. Đã đo lại cả hai chiều.
     ("explanation", re.compile(
-        r"\b(what is (?:a|an|the)\b|what are (?:the|these)\b|what does .{0,30}\bmean\b|"
+        r"\b(what is\b|what are\b|what'?s\b|what does .{0,30}\bmean\b|"
         r"explain|why is|why do|why does|how does|definition|concept|"
         r"difference between|meaning of|stands for)\b"
     )),
@@ -105,12 +119,23 @@ ACTION_VERBS = (
     r"saved|save|emailed|email|messaged|message|added|add|cancelled|canceled|cancel)"
 )
 
+# Trợ động từ và trạng từ chen giữa chủ ngữ và động từ. Phải cho phép LẶP, không phải chọn
+# một: bản đầu viết `(?:have\s+|just\s+|already\s+)?` tức đúng MỘT ô, nên "I have created" và
+# "I already sent" đều bắt được nhưng "I have already sent the report" thì LỌT - mà đó lại là
+# cách nói tự nhiên nhất trong tiếng Anh.
+#
+# Đây là cổng bắt Javis KHAI MAN đã làm một việc nó chưa làm, nên bỏ sót là rào chắn mất tác
+# dụng trong im lặng. Bản tiếng Việt không dính vì tiếng Việt hiếm khi xếp chồng ("đã vừa
+# gửi" không ai nói), nên lỗi này chỉ có ở một ngôn ngữ - đúng kiểu lệch mà tầng đa ngôn ngữ
+# phải đi tìm chứ không đợi nó tự lộ.
+_TRO_DONG_TU = r"(?:(?:have|has|had|just|already|now|successfully)\s+){0,3}"
+
 FALSE_ACTION = re.compile(
     r"(?i)(?:"
-    r"\bi\s+(?:have\s+|just\s+|already\s+)?" + ACTION_VERBS + r"\b"
-    r"|\bi've\s+(?:just\s+|already\s+)?" + ACTION_VERBS + r"\b"
-    r"|\bwe\s+(?:have\s+|just\s+)?" + ACTION_VERBS + r"\b"
-    r"|\bjavis\s+(?:has\s+|just\s+)?" + ACTION_VERBS + r"\b"
+    r"\bi\s+" + _TRO_DONG_TU + ACTION_VERBS + r"\b"
+    r"|\bi've\s+" + _TRO_DONG_TU + ACTION_VERBS + r"\b"
+    r"|\bwe\s+" + _TRO_DONG_TU + ACTION_VERBS + r"\b"
+    r"|\bjavis\s+" + _TRO_DONG_TU + ACTION_VERBS + r"\b"
     r"|\bsuccessfully\s+" + ACTION_VERBS + r"\b"
     r"|\b(?:was|were|has been|have been)\s+(?:sent|deleted|removed|created|updated|"
     r"published|posted|booked|scheduled|uploaded|saved|cancelled|canceled)\b"

@@ -763,6 +763,69 @@ chỗ thứ ba để lệch.
 skill không bị đụng) và `test_tai_lieu_song_ngu.py` (link nội bộ, dòng chuyển ngôn ngữ, số
 liệu khớp mã nguồn, không em dash ở bản tiếng Anh).
 
+### 6.9. LƯỢT RÀ TRƯỚC KHI MERGE (2026-08-14). Ba lỗi mà 231 test không bắt được.
+
+Trước khi đưa lên `main`, chạy một lượt kiểm CHỨC NĂNG độc lập với bộ test: ném câu hỏi kinh
+doanh thật vào từng tầng rồi xem có chỗ nào cư xử vô lý không. Ra ba lỗi, **cả ba đều không
+làm test nào đỏ**, và lỗi đầu tiên hỏng đúng tính năng đầu bài của cả spec này.
+
+**Lỗi 1: người dùng tiếng Anh vẫn bị trả lời bằng tiếng Việt.** Danh sách hư từ tiếng Anh chỉ
+có 20 chữ và thiếu đúng nhóm hay gặp nhất trong câu lệnh ngắn (`my`, `from`, `we`, `will`,
+`show`, `give`). Đo trên 18 câu hỏi kinh doanh tiếng Anh thường gặp: **dò ra 5**. `show me my
+revenue`, `list my pending tasks`, `check my inbox` đều về rỗng, tức phiên giữ nguyên tiếng
+Việt. Sau khi bổ sung: **16/18**.
+
+Vì sao cả bộ test không thấy: mọi ca mẫu trong `test_da_ngon_ngu.py` đều là câu văn viết đầy
+đủ (`Can you show me the revenue breakdown by channel?`) - loại câu luôn chứa vài hư từ. Người
+dùng thì gõ câu cụt. Bộ test khoá HÀNH VI đúng, nhưng không ai đo ĐỘ PHỦ.
+
+**Lỗi 2: câu tiếng Pháp/Tây Ban Nha gõ thiếu dấu bị nhận là tiếng Việt.** `_CHU_NGOAI` chỉ bắt
+được ký tự lạ, mà câu Âu châu thiếu dấu thì không còn ký tự nào lạ; hư từ tiếng Việt không dấu
+lại đầy chữ hai ký tự trùng tiếng Âu, nên `les ventes du mois de juin sont bonnes` bị chấm là
+tiếng Việt chỉ nhờ một chữ `de`. Đây là kiểu hỏng NẶNG chứ không phải chuyện lịch sự: nhận nhầm
+sang tiếng Việt nghĩa là đem bộ từ vựng tiếng Việt ra chấm một câu tiếng Pháp ở các cổng an
+toàn - đúng thứ mà mục 1 gọi là "nửa bộ từ vựng nguy hiểm hơn không có bộ nào".
+
+Sửa bằng lớp bằng chứng ngược THỨ BA: `lang._TU_NGOAI`, hư từ của các thứ tiếng Latin khác.
+Một chữ là đủ loại tiếng Việt khỏi cuộc chấm điểm.
+
+**Lỗi 3: câu khái niệm tiếng Anh không đi tắt được, câu tiếng Việt cùng nghĩa thì được.** Mẫu
+`explanation` của `lexicon/en.py` đòi mạo từ (`what is a/an/the`), nên `what is entropy in
+information theory` rơi vào `intent_uncertain`. Một chênh lệch theo NGÔN NGỮ chứ không theo
+nội dung: cùng một câu hỏi, hỏi bằng tiếng Việt thì rẻ, hỏi bằng tiếng Anh thì đắt.
+
+**Ba cái bẫy gặp khi sửa, đều tự gây ra rồi tự bắt bằng cách đo lại:**
+
+| Thêm gì | Hỏng gì | Vì sao |
+|---------|---------|--------|
+| `het` vào `_TU_NGOAI` | `xoa het don hang cua toi` mất kết quả | `het` là "hết" tiếng Việt không dấu |
+| `week`, `report` vào hư từ EN | câu Hà Lan thành tiếng Anh | danh từ đi xuyên ngôn ngữ, chỉ hư từ mới phân biệt được |
+| `nào` vào hư từ VI | câu Bồ Đào Nha thành tiếng Việt | `nao` là "não" gõ thiếu dấu |
+| nới `what is` bỏ mạo từ | `what are my pending orders` LỌT cổng | `my orders` bị chặn, `my pending orders` thì không - một tính từ chen vào là thoát |
+
+Cái thứ tư là cái nguy hiểm nhất vì nó lọt theo hướng sai: một câu cần dữ liệu sống được cho
+đi tắt. Vá bằng cách cho phép ĐÚNG MỘT chữ chen giữa sở hữu và danh từ trong mẫu `live_data`.
+Không nới thành hai: `the difference between revenue and profit` là câu hỏi khái niệm thuần
+tuý, nới rộng hơn là chặn oan chính nó.
+
+**Lỗi 4, tìm ra sau cùng và nặng nhất: cổng bắt KHAI MAN bỏ sót cách nói tự nhiên nhất của
+tiếng Anh.** Mẫu `FALSE_ACTION` cho ĐÚNG MỘT ô trợ động từ (`have` HOẶC `just` HOẶC `already`),
+nên `I have created the order` bắt được mà `I have **already** sent the report` thì lọt. Đây là
+cổng chặn Javis khai đã làm một việc mà đường chỉ-đọc không cho phép làm, nên bỏ sót ở đây là
+rào chắn mất tác dụng trong im lặng.
+
+Bản tiếng Việt không dính vì tiếng Việt hiếm khi xếp chồng trợ từ ("đã vừa gửi" không ai nói).
+Tức lỗi chỉ tồn tại ở MỘT ngôn ngữ - đúng kiểu lệch mà tầng đa ngôn ngữ phải chủ động đi tìm,
+vì nó không bao giờ tự lộ ra ở ngôn ngữ gốc.
+
+**Còn lại, đã biết và chấp nhận:** câu tiếng Việt không dấu rất ngắn mà không chứa hư từ nào
+(`so sanh doanh thu 3 kenh`) vẫn về rỗng. Sai theo hướng AN TOÀN - phiên giữ nguyên ngôn ngữ
+đang dùng, mà mặc định vốn là tiếng Việt, nên người dùng không thấy gì khác.
+
+**Chốt chặn:** `test_do_chinh_xac_ngon_ngu.py`. Khác `test_da_ngon_ngu.py` ở chỗ nó đo ĐỘ PHỦ
+trên một rổ câu thật thay vì khoá hành vi trên vài ca mẫu, và rổ đó **giữ nguyên cả những câu
+đang trượt** - bỏ câu khó ra cho đủ điểm là tự đo mình bằng một cái thước đã uốn.
+
 ## 7. Sáu giai đoạn
 
 Mục này là kế hoạch ĐẦY ĐỦ, chạy sau khi bản nhỏ nhất ở mục 6 đã chạm ngưỡng. Bản nhỏ nhất
