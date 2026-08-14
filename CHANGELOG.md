@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.34.2] - 2026-08-14
+### Sửa lỗi
+- **Hết vụ server treo cứng sau khi đóng phiên terminal trên Mac.** Đóng một phiên terminal (hoặc bỏ quên 30 phút để Javis tự dọn) có thể làm cả server đứng hình: trang web không mở được, tắt cũng không nghe, phải diệt bằng tay. Lỗi nằm ở thứ tự đóng phiên và đã sửa tận gốc, kèm test canh không cho tái phát.
+- **Cập nhật trên Mac không còn cảnh hai tiến trình giành nhau cổng.** Nếu Javis chạy dưới launchd, lượt cập nhật giờ nhờ chính launchd đổi ca (kickstart) thay vì tự tắt tự bật - hết lỗi "address already in use" trong log sau mỗi lần update.
+
+### Thêm mới
+- **Chó canh cửa cho Mac: `./watchdog.sh install`.** Cứ mỗi phút nó gõ cửa server một lần; server còn sống mà không trả lời 3 lần liên tiếp thì tự khởi động lại hộ. Từ nay có treo kiểu gì cũng chỉ mất vài phút thay vì đứng im tới khi có người phát hiện.
+
 ## [0.34.1] - 2026-08-14
 ### Sửa lỗi
 - **Chữ trong Terminal trên Windows hết trôi thành bậc thang.** Chạy `git help` là cả màn hình xiên dần sang phải, mỗi dòng bắt đầu ở chỗ dòng trước kết thúc. Windows không có tầng nào lo việc "về đầu dòng" hộ nên Javis phải tự làm, giờ đã làm.

@@ -136,7 +136,9 @@ async def _phien_that():
     if terminal.CO_PTY:
         p.go("tty; stty size\n")
         buf = await _doc(q, lambda b: "30 100" in b)
-        check("là pty THẬT (có /dev/pts) chứ không phải ống", "/dev/pts" in buf, repr(buf[-160:]))
+        # Linux đặt tên pty là /dev/pts/N, macOS là /dev/ttysNNN - cả hai đều là pty thật.
+        check("là pty THẬT (có /dev/pts hoặc /dev/ttys) chứ không phải ống",
+              "/dev/pts" in buf or "/dev/ttys" in buf, repr(buf[-160:]))
         check("khổ giấy truyền đúng xuống shell (30 dòng x 100 cột)", "30 100" in buf, repr(buf[-160:]))
         p.doi_co(140, 45)
         p.go("stty size\n")
@@ -208,7 +210,53 @@ asyncio.run(_phien_that())
 
 
 # ============================================================
-# 5. Nhánh ỐNG (Windows) - ép chạy trên mọi hệ, vì không ai ngồi Linux thử được nhánh này
+# 5. Chống deadlock close-vs-read (vụ treo 14/08/2026)
+# ============================================================
+async def _dong_khong_treo_loop():
+    """Vụ treo 14/08/2026: dong() từng os.close(master) ngay trên event loop trong khi thread
+    đọc còn kẹt os.read cùng fd. Trên macOS, close() một fd đang có read dở sẽ ngủ chờ read
+    xong → loop đứng vĩnh viễn, server phớt SIGTERM, phải kill -9. Linux không treo kiểu đó
+    nên không tái hiện được trên CI - thay vào đó chốt hai BẤT BIẾN mà bản lỗi vi phạm ở mọi
+    hệ: (1) dong() trả về ngay, không làm việc chặn nào trên loop; (2) mọi cú os.close(master)
+    chỉ xảy ra khi shell ĐÃ CHẾT hoặc thread đọc ĐÃ THOÁT."""
+    loop = asyncio.get_running_loop()
+    p = terminal.Phien("test-dong-an-toan", "/tmp", 80, 24, loop)
+    q = p.gan()
+    p.go("echo SAN_SANG=1\n")
+    await _doc(q, lambda b: "SAN_SANG=1" in b)  # shell ở prompt -> thread đọc đang kẹt os.read
+
+    ghi = []
+    goc = p._dong_fd
+
+    def _theo_doi():
+        ghi.append({
+            "proc_chet": p.proc.poll() is not None,
+            "doc_thoat": not (p._doc_thread and p._doc_thread.is_alive()),
+        })
+        goc()
+
+    p._dong_fd = _theo_doi
+    t0 = time.time()
+    p.dong()
+    tre = time.time() - t0
+    check("dong() trả về ngay, không giữ event loop", tre < 0.5, f"{tre:.2f}s")
+
+    het = time.time() + 8
+    while time.time() < het and (p._fd >= 0 or p.song()):
+        await asyncio.sleep(0.1)
+    check("sau dong(): shell chết thật và fd master đã đóng", not p.song() and p._fd < 0,
+          f"song={p.song()} fd={p._fd}")
+    check("os.close(master) chỉ chạy khi shell đã chết hoặc thread đọc đã thoát "
+          "(bất biến chống deadlock close-vs-read)",
+          bool(ghi) and all(g["proc_chet"] or g["doc_thoat"] for g in ghi), ghi)
+
+
+if terminal.CO_PTY:
+    asyncio.run(_dong_khong_treo_loop())
+
+
+# ============================================================
+# 6. Nhánh ỐNG (Windows) - ép chạy trên mọi hệ, vì không ai ngồi Linux thử được nhánh này
 # ============================================================
 async def _nhanh_ong():
     that = terminal.CO_PTY

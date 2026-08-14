@@ -164,6 +164,8 @@ class Phien:
         self._khach: list[asyncio.Queue] = []
         self._giai_ma = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self._fd = -1
+        self._fd_khoa = threading.Lock()   # ai lấy được fd thì người đó đóng, không đóng trùng
+        self._doc_thread: threading.Thread | None = None
         self.proc: subprocess.Popen | None = None
         self._mo()
 
@@ -208,7 +210,9 @@ class Phien:
                 start_new_session=True,      # POSIX: nhóm riêng để đóng phiên không đụng nhóm của server
                 **creationflags_windows,
             )
-        threading.Thread(target=self._vong_doc, name=f"term-{self.id[:6]}", daemon=True).start()
+        self._doc_thread = threading.Thread(target=self._vong_doc, name=f"term-{self.id[:6]}",
+                                            daemon=True)
+        self._doc_thread.start()
         moi = _lenh_moi_dau()
         if moi:
             self.go(moi + "\n")
@@ -332,13 +336,21 @@ class Phien:
 
     # ---- đóng ----
     def dong(self):
-        """Đóng shell. SIGHUP trước (cho shell kịp dọn), SIGKILL sau nếu lì - chạy trong thread
-        riêng để không giữ event loop lại một giây."""
-        p = self.proc
+        """Đóng shell: giết tiến trình TRƯỚC, đóng fd SAU, tất cả trong thread nền.
+
+        Thứ tự là điều sống còn chứ không phải thẩm mỹ (vụ treo 14/08/2026): bản cũ
+        os.close(master) ngay tại đây - tức trên event loop - trong khi thread đọc còn kẹt
+        trong os.read cùng fd. Trên macOS, close() một fd đang có read dở sẽ NGỦ CHỜ read
+        xong; read thì chờ shell nhả chữ mà shell đang im. Event loop đứng vĩnh viễn, server
+        phớt luôn SIGTERM (uvloop xử lý tín hiệu bằng callback trên loop). Giết shell trước
+        thì read nhận EIO tự thoát và close hết đường kẹt; lỡ vẫn kẹt (tiến trình cháu tự
+        setsid giữ slave) thì chỉ thread nền nằm lại, loop vô can."""
+        threading.Thread(target=self._giet_va_dong, args=(self.proc,), daemon=True).start()
+
+    def _giet_va_dong(self, p: subprocess.Popen | None):
+        if p is not None and p.poll() is None:
+            self._giet(p)
         self._dong_fd()
-        if not p or p.poll() is not None:
-            return
-        threading.Thread(target=self._giet, args=(p,), daemon=True).start()
 
     def _la_nhom_truong(self, p: subprocess.Popen) -> bool:
         """Shell có phải TRƯỞNG của process group riêng không.
@@ -376,12 +388,16 @@ class Phien:
                 pass
 
     def _dong_fd(self):
-        if self._fd >= 0:
+        # Hai đường cùng dẫn tới đây (thread giết của dong() và _het() trên loop khi shell tự
+        # thoát). Lấy-rồi-xoá fd trong khoá để chỉ MỘT bên đóng: close hai lần cùng số fd mà
+        # giữa chừng hệ thống đã tái cấp số đó cho việc khác là đóng nhầm fd của người ta.
+        with self._fd_khoa:
+            fd, self._fd = self._fd, -1
+        if fd >= 0:
             try:
-                os.close(self._fd)
+                os.close(fd)
             except OSError:
                 pass
-            self._fd = -1
 
 
 class Kho:

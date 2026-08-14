@@ -48,6 +48,14 @@ else
   if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q "^$NAME\.service"; then
     $SUDO systemctl restart "$NAME"
     echo "==> Đã restart. Theo dõi:  journalctl -u $NAME -f"
+  elif [ "$(uname)" = "Darwin" ] && \
+       launchctl print "gui/$(id -u)/${JAVIS_LAUNCHD_LABEL:-com.javis.os}" >/dev/null 2>&1; then
+    # Mac chạy dưới launchd (KeepAlive): kill PID rồi tự chạy nohup là đua bind cổng với bản
+    # launchd respawn ([Errno 48], vụ 14/08/2026). Để launchd tự đổi ca bằng kickstart -k.
+    TARGET="gui/$(id -u)/${JAVIS_LAUNCHD_LABEL:-com.javis.os}"
+    echo "==> Phát hiện launchd ($TARGET) → kickstart -k..."
+    launchctl kickstart -k "$TARGET"
+    echo "==> Đã yêu cầu launchd khởi động lại. Theo dõi: server/javis.log"
   else
     # Mac / Linux không systemd: kill tiến trình đang giữ cổng rồi chạy lại nền (như install.sh)
     PORT="${JAVIS_PORT:-7777}"
