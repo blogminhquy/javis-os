@@ -215,9 +215,10 @@ def _mac_keychain_creds() -> tuple[dict | None, bool]:
     import json as _json
     import subprocess
     try:
+        import winproc
         r = subprocess.run(
             ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-            capture_output=True, text=True, timeout=5)
+            capture_output=True, text=True, timeout=5, creationflags=winproc.no_window())
     except Exception:
         return None, False
     if r.returncode != 0:
@@ -267,7 +268,7 @@ def probe_claude_credentials(path=None) -> tuple[bool, str]:
 # Provider nào có "phiên đăng nhập CLI" để mà mất. Các provider API (openrouter, openai,
 # anthropic-api, gemini) chạy bằng API key: key sai thì lượt chạy báo lỗi ngay tại chỗ,
 # không có phiên nào hết hạn ngầm, nên chúng KHÔNG có đèn báo não.
-_PROVIDER_ENGINE = {"anthropic-cli": "claude", "openai-oauth": "codex"}
+_PROVIDER_ENGINE = {"anthropic-cli": "claude", "openai-oauth": "codex", "gemini-cli": "gemini-cli"}
 
 
 def engines_in_use() -> set:

@@ -124,6 +124,101 @@ Không cần đặt `DOMAIN` lúc chạy nữa - bật Caddy một lần rồi k
 
 ---
 
+## 🏢 Chạy NHIỀU bản Javis trên cùng một VPS (mỗi bản một link riêng)
+
+Một VPS chạy được bao nhiêu bản Javis cũng được - mỗi bản một tên miền phụ, một kho dữ liệu
+riêng, không bản nào thấy brain hay tài khoản của bản nào.
+
+**Ba thứ phải KHÁC NHAU giữa các bản.** Trùng cái nào là hỏng đúng cái đó:
+
+| Biến | Vì sao phải khác | Trùng thì bị gì |
+|---|---|---|
+| `JAVIS_NAME` | Docker đặt tên container theo phạm vi cả máy | `name is already in use`, bản sau không lên |
+| `JAVIS_HOST_PORT` | Một cổng máy chủ chỉ một container giữ được | `port is already allocated` |
+| `DOMAIN_NAME` | Mỗi link phải trỏ về đúng một bản | Hai bản giành nhau một link |
+
+Bỏ trống cả ba = `javis` + cổng `7777`, tức **y hệt cách cài cũ** - đang chạy một bản thì không
+phải sửa gì.
+
+### Trên Hostinger Docker Manager
+
+Deploy `docker-compose.hostinger.yml` **thêm một lần nữa** thành stack mới, điền Environment:
+
+```
+Stack 1:  DOMAIN_NAME=shop.srv1782015.hstgr.cloud     (JAVIS_NAME, JAVIS_HOST_PORT bỏ trống)
+Stack 2:  DOMAIN_NAME=canhan.srv1782015.hstgr.cloud   JAVIS_NAME=javis-canhan   JAVIS_HOST_PORT=7778
+```
+
+Wildcard DNS `*.hstgr.cloud` có sẵn nên tên miền phụ nào cũng trỏ được ngay, Traefik tự cấp SSL.
+
+### Trên VPS tự quản (Docker + proxy dùng chung)
+
+Một máy chỉ có **một cổng 443**, nên Caddy phải đứng NGOÀI mọi bản. Chạy proxy **một lần cho cả
+máy**:
+
+```bash
+docker network create javis-web
+curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.proxy.yml
+docker compose -f docker-compose.proxy.yml -p javis-proxy up -d
+```
+
+Rồi mỗi bản một **thư mục riêng**:
+
+```bash
+mkdir -p ~/javis-shop && cd ~/javis-shop
+curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.multi.yml
+cat > .env <<'EOF'
+JAVIS_NAME=javis-shop
+JAVIS_HOST_PORT=7777
+JAVIS_BIND=127.0.0.1
+DOMAIN_NAME=shop.tencuaban.com
+JAVIS_ADMIN_USER=admin
+JAVIS_ADMIN_PASSWORD=matkhau-manh-cua-ban
+EOF
+chmod 600 .env
+
+CF="-f docker-compose.yml -f docker-compose.multi.yml"
+docker compose $CF run --rm javis claude auth login --claudeai   # đăng nhập Claude cho BẢN NÀY
+docker compose $CF up -d
+```
+
+Bản thứ hai làm y hệt ở `~/javis-canhan`, đổi `.env` thành `javis-canhan` / `7778` /
+`canhan.tencuaban.com`. Trỏ DNS bản ghi A cho từng tên miền phụ về IP VPS là xong - proxy **tự
+phát hiện bản mới qua nhãn Docker**, không phải sửa gì ở proxy, cũng không phải restart nó.
+
+> Mỗi bản là một tài khoản admin riêng, nên đặt `JAVIS_ADMIN_*` cho **từng** `.env` (mật khẩu
+> khác nhau). Bỏ trống thì bản đó rơi về đường cũ: phải `docker compose logs` đọc MÃ THIẾT LẬP.
+
+> `JAVIS_BIND=127.0.0.1` thu cổng về loopback vì đã có proxy lo HTTPS. Vẫn vào gỡ rối được bằng
+> `ssh -L 7777:localhost:7777 user@<ip-vps>` khi DNS chưa lan tới.
+
+**Cập nhật** vẫn là `./update.sh` trong từng thư mục - script đọc `.env` của thư mục đang đứng
+nên chỉ đụng đúng bản đó. Bản đầu tiên đang chạy `docker-compose.https.yml` (Caddy nằm trong
+project) thì chuyển nó sang `docker-compose.multi.yml` trước khi dựng bản thứ hai, không thì hai
+Caddy tranh cổng 443.
+
+### Cài native (không Docker)
+
+Clone vào thư mục khác rồi đặt hai biến trước khi chạy:
+
+```bash
+JAVIS_NAME=javis-shop JAVIS_PORT=7778 ./install.sh
+```
+
+Dịch vụ systemd sẽ là `javis-shop.service` (`journalctl -u javis-shop -f`) thay vì ghi đè
+`javis.service` của bản trước. Phần HTTPS tự lo bằng nginx/Caddy sẵn có trên máy.
+
+### Cái gì dùng chung, cái gì riêng
+
+**Riêng từng bản:** brain, ghi chú, cài đặt, tài khoản admin, kết nối MCP, việc nền, và **token
+đăng nhập Claude/ChatGPT** (mỗi bản phải `claude auth login` một lần).
+
+**Dùng chung:** không có gì. Muốn hai bản xài chung một lần đăng nhập Claude thì trỏ chung
+volume `claude-auth` - làm được nhưng tự chịu trách nhiệm, vì hai bản sẽ cùng đốt một hạn mức.
+
+---
+
 ### 🌐 Truy cập từ xa (Hostinger / VPS bất kỳ) - Cloudflare Tunnel
 
 Mở giao diện Javis từ máy khác mà KHÔNG cần mở port / không cần tên miền:
@@ -177,9 +272,14 @@ Dừng bằng `stop-javis.bat`. Mở http://localhost:7777
 > **Nhanh nhất - bấm ngay trong app:** mở **Cập nhật** (rail trái) → khung **Javis OS** hiện
 > phiên bản đang chạy + tự kiểm tra bản mới trên GitHub. Có bản mới → bấm **⬆ Cập nhật ngay**,
 > app tự kéo bản mới + khởi động lại (~20-40s), khỏi vào terminal.
-> - **Docker/VPS:** cần service **watchtower** (đã có sẵn trong `docker-compose.yml`). Chỉ Watchtower
->   được cấp quyền Docker (socket); app Javis KHÔNG → an toàn. Không muốn thì xoá service đó,
->   nút sẽ chỉ *báo có bản mới* + hướng dẫn.
+> - **Docker/VPS:** cần service **watchtower**. Nó CÓ trong `docker-compose.yml` nhưng nằm trong
+>   `profiles: ["update"]`, tức là **`docker compose up -d` không bật nó**. Đó là lý do phổ biến
+>   nhất khiến máy này có nút mà máy kia không. Bật một lần:
+>   ```bash
+>   docker compose --profile update up -d
+>   ```
+>   Chỉ Watchtower được cấp quyền Docker (socket); app Javis KHÔNG → an toàn. Không bật cũng
+>   được, khung sẽ chỉ *báo có bản mới* + chỉ cách cập nhật tay.
 > - **Native/Windows:** nút chạy `update.sh` (git pull + restart) giúp bạn.
 
 Repo & image GHCR đều **Public** → `git clone`/`pull` và `docker pull` không cần đăng nhập.

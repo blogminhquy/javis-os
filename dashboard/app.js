@@ -370,7 +370,13 @@ async function openStoredSession(id) {
     chatArea.innerHTML = "";
     (sess.messages || []).forEach(m => {
       const ts = m.ts ? Math.round(m.ts * 1000) : 0;   // server lưu epoch giây (sessions.py)
-      if (m.role === "user") { appendUserMessage(m.content || "", [], ts); convo.push({ role: "user", text: m.content || "", atts: [], ts }); }
+      // convo là thứ được ghi xuống localStorage rồi dựng lại ở lần F5 sau. Nhét bản CÒN khối
+      // vào đây là lỗi sống dai qua mọi lần tải lại, dù bong bóng lượt này đã sạch.
+      if (m.role === "user") {
+        const _sach = chuNguoiGo(m.content || "");
+        appendUserMessage(_sach, [], ts);
+        convo.push({ role: "user", text: _sach, atts: [], ts });
+      }
       // sess.brain: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
       // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
       // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
@@ -431,7 +437,38 @@ function lastUserText() {
 }
 // ts === undefined nghĩa là tin VỪA xảy ra; còn khôi phục tin cũ thì truyền ts thật
 // (hoặc 0 nếu tin lưu từ trước bản này chưa có mốc giờ, khi đó phần giờ được ẩn).
+// Khối ngữ cảnh do CHÍNH dashboard chèn vào ĐẦU tin trước khi gửi: file đang ghim trong trình
+// sửa, đường dẫn file đính kèm. Chúng là chỉ dẫn cho model, không phải câu người dùng gõ.
+const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm"];
+
+// Gỡ mấy khối đó ra để lấy lại ĐÚNG câu người dùng đã gõ.
+//
+// Vì sao cần: lúc gõ, `appendUserMessage` nhận chữ sạch nên bong bóng đúng. Nhưng mở lại hội
+// thoại cũ (F5, bấm vào một cuộc trong danh sách) thì `loadSession` dựng bong bóng từ chữ
+// SERVER LƯU - tức là bản đã kèm khối. Và khối "file đang ghim" được gửi lại MỖI LƯỢT, nên
+// hội thoại càng dài thì càng nhiều bong bóng chỉ toàn chữ máy, còn thanh mốc hội thoại thành
+// một dãy dòng giống hệt nhau "[FILE ĐANG MỞ trong trình sửa..." - không nhìn ra câu nào với
+// câu nào. Đó đúng là cảnh chủ repo chụp lại (2026-08-12).
+//
+// Cắt ở ĐÂY chứ không ở từng nơi gọi: hàm này là cửa duy nhất dựng bong bóng người dùng, nên
+// mọi đường (gõ mới, F5, mở hội thoại cũ) đi qua cùng một chỗ. Và vì `dataset.text` cũng sạch
+// theo, ba thứ đọc ké nó được sửa luôn: thanh mốc hội thoại, nút gửi lại, nút sửa câu hỏi -
+// trước đây "gửi lại" một câu cũ là gửi kèm nguyên khối rồi bị chèn thêm khối mới lần nữa.
+function chuNguoiGo(text) {
+  let s = String(text == null ? "" : text);
+  for (let vong = 0; vong < 4; vong++) {   // ghim + đính kèm có thể lồng nhau
+    const t = s.replace(/^\s+/, "");
+    if (!_KHOI_NGU_CANH.some(k => t.startsWith(k))) break;
+    const i = t.indexOf("]\n\n");
+    if (i < 0) break;   // không thấy chỗ kết thúc → thà giữ nguyên còn hơn cắt mất câu hỏi
+    s = t.slice(i + 3);
+  }
+  return s;
+}
+window.JavisChuNguoiGo = chuNguoiGo;   // console.js dùng lại khi dựng bản xem trước hội thoại
+
 function appendUserMessage(text, attachments, ts) {
+  text = chuNguoiGo(text);
   const div = document.createElement("div");
   div.className = "msg msg-user";
   div.dataset.text = text || "";   // giữ nguyên văn để gửi lại / sửa lại đúng chữ gốc
@@ -1762,6 +1799,9 @@ const ENGINE_LABEL = {
   "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
   "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
   "ollama": "Ollama",
+  // Nhãn phải TÁCH khỏi "Gemini" ở trên: cùng model nhưng khác đường và khác hoá đơn
+  // (đăng nhập Google miễn phí, so với API key trả theo lượt gọi).
+  "gemini-cli": "Gemini CLI",
 };
 // Một dòng nhỏ dưới câu trả lời: lượt này chạy ở chế độ nào, và tốn bao nhiêu
 // token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn
@@ -1812,6 +1852,9 @@ async function refreshTgStatus() {
     if (!s.enabled) el.innerHTML = ic("circle", { cls: "ic-fill ic-dim" }) + " Tắt";
     else if (!s.token_set) el.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Đã bật nhưng chưa có token";
     else el.innerHTML = s.running ? ic("circle", { cls: "ic-fill ic-ok" }) + " Đang chạy" + (s.chat_id ? " · chỉ chat_id " + s.chat_id : " · MỌI người (nên đặt chat_id)") : ic("loader") + " Chưa chạy (lưu lại)";
+    // Menu lệnh "/" đặt hụt: bot vẫn chạy nên mọi thứ ở trên vẫn xanh, chỉ là gõ "/" trong
+    // Telegram không sổ ra danh sách lệnh. Không nói ra thì không ai đoán được vì sao.
+    if (s.loi_menu_lenh) el.innerHTML += '<div class="set-note">' + ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(s.loi_menu_lenh) + "</div>";
   } catch (e) { el.textContent = ""; }
 }
 // Xuất ra window: console.js gọi lại sau khi đổi model để badge engine không bị cũ.
@@ -1964,18 +2007,30 @@ async function initAuthGate() {
   }
 }
 document.getElementById("authSubmit").addEventListener("click", async () => {
+  const codeWrap = document.getElementById("authCodeWrap");
+  const codeInp = document.getElementById("authCode");
   const fd = new FormData();
   fd.append("username", document.getElementById("authUser").value.trim());
   fd.append("password", document.getElementById("authPass").value);
+  if (codeInp && codeInp.value.trim()) fd.append("code", codeInp.value.trim());
   const err = document.getElementById("authErr"); err.textContent = "";
   try {
     const r = await fetch("/auth/login", { method: "POST", body: fd });
     const d = await r.json();
-    if (d.ok) location.reload();
-    else err.textContent = d.error || "Đăng nhập thất bại";
+    if (d.ok) { location.reload(); return; }
+    // needs_2fa = mật khẩu ĐÚNG rồi, chỉ còn thiếu mã. Hiện ô mã và đưa con trỏ vào đó luôn,
+    // đừng bắt người ta tự nhận ra là có thêm một ô mới xuất hiện bên dưới.
+    if (d.needs_2fa && codeWrap) {
+      codeWrap.style.display = "";
+      if (codeInp) { codeInp.value = ""; codeInp.focus(); }
+    }
+    err.textContent = d.error || "Đăng nhập thất bại";
   } catch (e) { err.textContent = "Lỗi mạng"; }
 });
-document.getElementById("authPass").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("authSubmit").click(); });
+["authPass", "authCode"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("authSubmit").click(); });
+});
 
 // ---- Settings ----
 async function openSettings() {
@@ -1992,11 +2047,33 @@ async function openSettings() {
     document.getElementById("setTgChat").value = (s.telegram && s.telegram.chat_id) || "";
     document.getElementById("setTgHint").textContent = (s.telegram && s.telegram.token_set) ? "(đã lưu " + s.telegram.token + ")" : "(chưa có)";
     refreshTgStatus();
-    document.getElementById("setAuthUser").value = (s.auth && s.auth.username) || "";
-    document.getElementById("setAuthState").innerHTML = (s.auth && s.auth.has_password)
-      ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu - đăng nhập bắt buộc." : ic("triangle-alert", { cls: "ic-warn" }) + " Chưa đặt mật khẩu - ai mở trang cũng dùng được. Đặt mật khẩu trước khi lên VPS.";
+    await refreshAuthRow();
   } catch (e) {}
 }
+// Đổ trạng thái tài khoản vào khối #quickSet. Đọc /auth/status chứ không dựa vào _settingsCache:
+// khối này còn được NHÚNG sang trang Cài đặt của console (console.js renderSettings) mà đường đó
+// KHÔNG đi qua openSettings(), nên cache rỗng - và cache rỗng thì nút Lưu tưởng là "chưa có tài
+// khoản" rồi đi nhầm sang /auth/setup, nhận 400 "Đã có tài khoản". Đó đúng là lỗi bấm-Lưu-không-ăn.
+async function refreshAuthRow() {
+  const st = document.getElementById("setAuthState");
+  if (!st) return false;
+  let a = {};
+  try { a = await (await fetch("/auth/status")).json(); } catch (e) { return false; }
+  const co = !a.needs_setup;
+  st.innerHTML = co
+    ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu - đăng nhập bắt buộc."
+    : ic("triangle-alert", { cls: "ic-warn" }) + " Chưa đặt mật khẩu - ai mở trang cũng dùng được. Đặt mật khẩu trước khi lên VPS.";
+  const u = document.getElementById("setAuthUser");
+  if (u && a.username) u.value = a.username;
+  const cur = document.getElementById("setAuthCur");
+  const curLbl = document.getElementById("setAuthCurLbl");
+  if (cur) { cur.hidden = !co; if (!co) cur.value = ""; }
+  if (curLbl) curLbl.hidden = !co;
+  const p = document.getElementById("setAuthPass");
+  if (p) p.placeholder = co ? "Mật khẩu mới (để trống nếu chỉ đổi tên)" : "Đặt mật khẩu (tối thiểu 8 ký tự)";
+  return co;
+}
+window.__javisRefreshAuthRow = refreshAuthRow;
 function _saveSetting(section, dataObj, btn) {
   const fd = new FormData();
   fd.append("section", section);
@@ -2058,19 +2135,48 @@ if (document.getElementById("settingsBtn")) {
   document.getElementById("savePassword").addEventListener("click", async (e) => {
     const user = document.getElementById("setAuthUser").value.trim();
     const pass = document.getElementById("setAuthPass").value;
-    const hasPw = _settingsCache && _settingsCache.auth && _settingsCache.auth.has_password;
+    const curEl = document.getElementById("setAuthCur");
+    const btn = e.target; const old = btn.textContent;
+    const bao = (ok, msg) => {
+      btn.innerHTML = (ok ? ic("check", { cls: "ic-ok" }) : ic("triangle-alert", { cls: "ic-warn" })) + " " + escapeHtml(msg);
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = old; }, 3000);
+    };
+    // Hỏi trạng thái TƯƠI ngay lúc bấm. Trang Cài đặt của console nhúng khối này mà không gọi
+    // openSettings(), nên tin vào _settingsCache là đi nhầm nhánh và bấm Lưu không ăn.
+    let hasPw = false;
+    try { hasPw = !(await (await fetch("/auth/status")).json()).needs_setup; }
+    catch (err) { bao(false, "Không đọc được trạng thái đăng nhập."); return; }
+    btn.disabled = true; btn.textContent = "Đang lưu...";
     if (!hasPw) {
       // Lần đầu đặt mật khẩu → /auth/setup (cấp cookie luôn)
-      if (!pass) { alert("Nhập mật khẩu để đặt lần đầu."); return; }
+      if (!pass || pass.length < 8) { bao(false, "Mật khẩu tối thiểu 8 ký tự."); return; }
       const fd = new FormData(); fd.append("username", user || "admin"); fd.append("password", pass);
-      const btn = e.target; btn.disabled = true; const old = btn.textContent; btn.textContent = "Đang đặt...";
-      const d = await (await fetch("/auth/setup", { method: "POST", body: fd })).json();
-      btn.innerHTML = d.ok ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu" : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || "lỗi")); btn.disabled = false;
-      if (d.ok) { document.getElementById("setAuthPass").value = ""; openSettings(); }
-    } else {
-      const data = { username: user }; if (pass) data.new_password = pass;
-      _saveSetting("password", data, e.target).then(() => { document.getElementById("setAuthPass").value = ""; });
+      try {
+        const d = await (await fetch("/auth/setup", { method: "POST", body: fd })).json();
+        bao(!!d.ok, d.ok ? "Đã đặt mật khẩu" : (d.error || "lỗi"));
+        if (d.ok) { document.getElementById("setAuthPass").value = ""; openSettings(); }
+      } catch (err) { bao(false, "lỗi mạng"); }
+      return;
     }
+    // Đã có tài khoản → ĐỔI qua /auth/password (đòi mật khẩu hiện tại). /auth/setup là đường
+    // lần-đầu, gọi nó ở đây chỉ nhận về "Đã có tài khoản - hãy đăng nhập".
+    const cur = curEl ? curEl.value : "";
+    if (!cur) { bao(false, "Nhập mật khẩu hiện tại."); return; }
+    if (pass && pass.length < 8) { bao(false, "Mật khẩu mới tối thiểu 8 ký tự."); return; }
+    if (!pass && !user) { bao(false, "Chưa đổi gì cả."); return; }
+    const fd = new FormData();
+    fd.append("current_password", cur); fd.append("username", user);
+    if (pass) fd.append("password", pass);
+    try {
+      const d = await (await fetch("/auth/password", { method: "POST", body: fd })).json();
+      bao(!!d.ok, d.ok ? (pass ? "Đã đổi mật khẩu" : "Đã đổi tên đăng nhập") : (d.error || "lỗi"));
+      if (d.ok) {
+        document.getElementById("setAuthPass").value = "";
+        if (curEl) curEl.value = "";
+        refreshAuthRow();
+      }
+    } catch (err) { bao(false, "lỗi mạng"); }
   });
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/auth/logout", { method: "POST" }); location.reload();

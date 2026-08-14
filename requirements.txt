@@ -23,6 +23,10 @@ python-multipart==0.0.18
 pyyaml>=6.0
 cryptography>=42.0
 jsonschema>=4.20,<5
+# segno: vẽ mã QR cho việc bật xác thực 2 lớp (2FA). Thuần Python, KHÔNG kéo theo dependency
+# nào - chọn nó thay vì `qrcode` (cần Pillow) vì Pillow là một khối biên dịch nặng chỉ để vẽ
+# một ô vuông đen trắng. Thiếu segno thì màn bật 2FA lui về cho nhập tay secret, không vỡ.
+segno>=1.6,<2
 # uv: KHÔNG phải thư viện app import, mà là runner cho các connector MCP khai `command: uvx`
 # trong system/mcp-catalog.json (google-keep, google-sheets, google-search-console, google-ads,
 # tiktok-ads). Cài qua đây là đủ cho cả Docker lẫn máy cá nhân - `pip install uv` sinh ra sẵn

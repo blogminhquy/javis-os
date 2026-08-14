@@ -194,7 +194,6 @@ check("lỗi không mang dấu -> không chạy lại", len(_dem) == 1)
 import main  # noqa: E402
 
 main.openai_oauth.valid_creds = lambda: {"access_token": "tok", "account_id": "acc"}
-main.claude_models.oauth_token = lambda: "tok-claude"
 
 _lan = {}
 
@@ -215,6 +214,15 @@ def _lam_engine(ten):
 for _ten in ("openrouter_stream", "openai_stream", "gemini_stream", "groq_stream",
              "ollama_stream", "openai_responses_stream", "anthropic_stream"):
     setattr(main.engine, _ten, _lam_engine(_ten))
+# Gói Claude Code KHÔNG đi qua engine.* nữa: từ 0.26.17 nó chạy binary `claude` (đường mượn
+# token OAuth đã gỡ, xem claude_auth.py). Nó vẫn phải nằm TRONG vòng thử lại - đó chính là
+# điều canary này canh - nên chỉ đổi chỗ cắm giả, không nới điều kiện.
+main._claude_sub_stream = _lam_engine("_claude_sub_stream")
+# Gemini CLI (bộ não thứ 9) cùng cảnh: chạy binary `gemini` chứ không qua engine.*, nhưng vẫn
+# phải nằm trong vòng thử lại như mọi bộ não khác.
+main._gemini_sub_stream = _lam_engine("_gemini_sub_stream")
+# Antigravity CLI (bộ não thứ 10) cùng cảnh: chạy binary `agy`, không qua engine.*.
+main._antigravity_sub_stream = _lam_engine("_antigravity_sub_stream")
 
 _bo_sot = []
 for _p in [d["id"] for d in main.PROVIDER_DEFS]:

@@ -161,7 +161,17 @@ Không, nếu chạy bằng Docker. Mọi ghi chú, brain, settings và cả tok
 
 Mở **Cập nhật** (nhóm **Hệ thống**); thẻ **Javis OS** hiện phiên bản đang chạy và tự kiểm tra bản mới trên GitHub. Nếu có bản mới, dòng trạng thái hiện **🆕 Có bản mới** kèm khung **Bản mới có gì**, và nút **⬆ Cập nhật ngay** xuất hiện khi môi trường hỗ trợ. Bấm nút, xác nhận, app chạy qua 6 bước hiện trên thanh tiến trình (Chuẩn bị, Tải code, Cài thư viện, Khởi động lại, Kiểm tra sức khoẻ, Xong) rồi tự tải lại trang. Nếu bản mới lỗi, Javis **tự quay về bản cũ** và báo **↩ Bản mới lỗi, đã tự quay về bản cũ**. Bên dưới thẻ là timeline nhật ký cập nhật của các bản đã ra.
 
-Bản cài trực tiếp trên máy (Windows, Linux, macOS) luôn tự cập nhật được. Bản Docker chỉ tự cập nhật tại chỗ khi container **Watchtower** (profile `update`) đang chạy; không có thì khung bỏ nút và hướng dẫn **Redeploy** bằng `docker compose up -d --pull always` hoặc Docker Manager của Hostinger.
+Bản cài trực tiếp trên máy (Windows, Linux, macOS) luôn tự cập nhật được. Bản Docker chỉ tự cập nhật tại chỗ khi container **Watchtower** đang chạy.
+
+Watchtower nằm trong `profiles: ["update"]`, nên `docker compose up -d` **không** bật nó - đó là lý do phổ biến nhất khiến máy này có nút mà máy kia không. Bật một lần bằng `docker compose --profile update up -d` rồi tải lại trang. Stack Hostinger cố tình không kèm Watchtower (không đụng được Docker socket), máy đó cập nhật bằng **Redeploy**. Khung Cập nhật tự nói máy bạn rơi vào trường hợp nào.
+
+**Gõ lệnh compose mà báo `not found`** - ba kiểu, ba nguyên nhân khác hẳn:
+
+| Báo lỗi | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `no configuration file provided: not found` | Đứng sai thư mục. Tên thư mục tuỳ lúc clone: `javis` nếu theo đúng lệnh trong DEPLOY.md, `javis-os` nếu clone thẳng không đổi tên | `cd` vào đúng thư mục chứa `docker-compose.yml`. Không nhớ nó đâu thì hỏi Docker: `docker ps --format '{{.Names}}\t{{.Label "com.docker.compose.project.working_dir"}}'` |
+| `docker: command not found` | Đang gõ **bên trong** container Javis (terminal của app) chứ không phải trên máy chủ | SSH vào VPS rồi gõ |
+| `docker: 'compose' is not a docker command` | Compose bản cũ (v1) | Viết có gạch nối: `docker-compose --profile update up -d` |
 
 ### Chạy nhiều brain (second brain) được không?
 

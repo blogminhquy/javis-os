@@ -151,6 +151,37 @@ body.in-console .hud-actions { display: none; }
 .prov-action .js-input { margin-bottom: 0; flex: 1; }
 .prov-action .gcard-btn { width: auto; flex: 0 0 auto; }
 .prov-note { font-size: 13px; color: var(--text3); margin-top: 8px; opacity: 0.7; }
+/* Cảnh báo trên thẻ provider (vd Google đã ngắt Gemini CLI với tài khoản cá nhân). Bỏ luôn
+   opacity 0.7 của .prov-note: đây là thứ người dùng PHẢI đọc, làm mờ đi là phản tác dụng. */
+.prov-note.warn { color: var(--yellow); opacity: 1; }
+.prov-note.warn code { background: var(--bg3); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+/* Ba bước cài + đăng nhập Gemini CLI. Có <code> nên cần dễ đọc hơn .prov-note một chút. */
+.prov-steps { font-size: 13px; color: var(--text2); margin-top: 8px; line-height: 1.75; }
+.prov-steps code { background: var(--bg3); padding: 1px 6px; border-radius: 5px;
+  font-size: 12.5px; word-break: break-all; }
+/* Hàng dán mã đăng nhập Google (#gcliLogin). Cần luật riêng vì khối này nằm NGOÀI
+   .prov-action, nên không hưởng hai dòng width:auto/flex ở trên - mà luật gốc .gcard-btn cuối
+   file đặt `width:100%` + `margin-top:14px`. Kết quả trước khi có rule này: nút "Xong" giãn ra
+   nuốt cả hàng flex, ô nhập mã teo còn vài chục pixel và người dùng KHÔNG gõ nổi mã vào.
+   - min-width:0 để ô nhập co được thật (input có kích thước nội tại chặn co lại trong flex).
+   - flex-wrap + basis 180px: màn hẹp thì nút rơi xuống dòng dưới thay vì bóp ô nhập. */
+.gcli-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  max-width: 520px; margin-top: 6px; }
+.gcli-code-row .js-input { flex: 1 1 180px; min-width: 0; margin-bottom: 0; }
+.gcli-code-row .gcard-btn { flex: 0 0 auto; width: auto; margin-top: 0; }
+
+/* Nguồn xác thực của gói Claude Code (subscription / API key) */
+.prov-auth { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--glass-brd); }
+.prov-auth-title { font-family: var(--font); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+/* Một dòng nói TRƯỚC cái mà hai lựa chọn bên dưới KHÔNG đổi. Thiếu nó thì người đọc thấy
+   "API key Anthropic" ở đây và thẻ "Anthropic (API)" bên dưới, tưởng trùng nhau rồi hỏi làm
+   thêm nút này chi (chủ repo hỏi đúng câu đó 2026-08-13). */
+.prov-auth-note { font-size: 12.5px; line-height: 1.6; color: var(--text2); margin-bottom: 10px; }
+.prov-auth-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 6px; cursor: pointer; }
+.prov-auth-opt input { margin-top: 3px; flex: 0 0 auto; }
+.prov-auth-opt b { color: var(--text); font-weight: 600; }
+.prov-auth-opt i { color: var(--text3); }
+.prov-auth-warn { font-size: 13px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
 
 /* Auxiliary model chips */
 .aux-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -356,6 +387,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 1px solid var(--glass-brd); font-size: 13px; word-break: break-all;
   user-select: all;
 }
+/* Token mà không có tài liệu thì người dùng cầm chuỗi jvs_ trong tay mà không biết dán vào đâu.
+   Link đặt ngay dưới thẻ, và lặp lại lúc token vừa hiện ra - đúng lúc cần bước kế tiếp nhất. */
+.tk-docs {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--surface-3);
+}
+.tk-docs a, .tk-doclink { font-size: 12.5px; color: var(--link-ink); text-decoration: none; }
+.tk-docs a:hover, .tk-doclink:hover { text-decoration: underline; }
 .gcard-btn {
   margin-top: 14px; width: 100%; padding: 9px; border-radius: 10px; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--glass-brd); color: var(--text);
@@ -438,6 +477,68 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .hud-top #settingsBtn { display: none; }
 /* Studio panels render trong cview: bỏ căn giữa cứng cho hợp khung trang */
 .cview-body .stab-panel { max-width: 1100px; margin: 0; }
+
+/* ============================================
+   NHÓM CODE trên rail (hôm nay có Terminal)
+   ============================================ */
+/* Trang duy nhất chiếm TRỌN khung: terminal đo chiều cao thật để tính ra số dòng, nên khung
+   phải cao cố định và tự cuộn bên trong chứ không để cả trang trôi. console.js gắn/gỡ lớp này. */
+.cview-body.cview-flush { padding: 0; overflow: hidden; }
+.code-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.code-panel { flex: 1; min-height: 0; display: flex; }
+.code-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center; color: var(--text2); padding: 24px;
+}
+.code-empty svg { color: var(--text3); }
+.code-dim { font-size: 13px; color: var(--text3); max-width: 460px; line-height: 1.6; }
+.code-dim code, .term-note code {
+  background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-family: var(--mono);
+}
+
+/* ---- Terminal ---- */
+.term-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.term-bar {
+  display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
+  padding: 8px 16px; border-bottom: 1px solid var(--glass-brd);
+  font-size: 12.5px; color: var(--text2);
+}
+.term-sp { flex: 1; }
+.term-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); flex: 0 0 auto; }
+.term-dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.term-dot.err { background: var(--red); }
+.term-dot.off { background: var(--text3); }
+.term-st { font-weight: 600; color: var(--text); }
+/* Đường dẫn dài thì cắt ở GIỮA dải chứ không đẩy hai cái nút ra khỏi màn hình. */
+.term-cwd {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--mono); font-size: 12px; color: var(--text3);
+}
+.term-cwd svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.term-btn {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  padding: 5px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--glass-brd); background: var(--surface-1);
+  color: var(--text2); font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+}
+.term-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent-line); }
+.term-btn svg { width: 13px; height: 13px; }
+.term-note {
+  flex: 0 0 auto; padding: 8px 16px; font-size: 12.5px; line-height: 1.55;
+  color: var(--text2); background: var(--accent-wash); border-bottom: 1px solid var(--glass-brd);
+}
+.term-note svg { width: 14px; height: 14px; vertical-align: -2px; }
+/* Khung xterm: nền riêng (bảng màu do JS truyền vào canvas) nên không ăn nền kính của cview. */
+.term-host { flex: 1; min-height: 0; min-width: 0; padding: 8px 4px 8px 12px; overflow: hidden; }
+.term-host .xterm { height: 100%; }
+.term-host .xterm-viewport { scrollbar-width: thin; }
+
+@media (max-width: 860px) {
+  .term-bar { padding: 7px 10px; gap: 8px; flex-wrap: wrap; }
+  .term-cwd { display: none; }          /* màn hẹp: nhường chỗ cho hai cái nút */
+  .term-host { padding: 6px 2px 6px 8px; }
+}
 
 /* ============================================
    RESPONSIVE - điện thoại: rail → thanh đáy
@@ -580,7 +681,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     margin-bottom: 4px;
     font-size: 10px;
     letter-spacing: 1.2px;
+    /* Dồn tên model + nút phóng to về SÁT TRÁI, ngay cạnh chữ HỘI THOẠI. Mặc định là
+       space-between: trên màn rộng thì đẹp, nhưng trên điện thoại nó ném hai thứ đó ra tận mép
+       phải, cách chữ HỘI THOẠI một khoảng trống to - mắt phải quét ngang cả màn mới đọc được
+       đang chạy model nào (chủ repo báo 2026-08-12). */
+    justify-content: flex-start;
+    gap: 8px;
   }
+  /* max-width: 60% mặc định tính theo khối bọc, mà khối đó lại co theo nội dung nên tên model
+     dài là nó đẩy nút phóng to đi. Trên màn hẹp neo theo BỀ NGANG MÀN HÌNH mới chặn được. */
+  .hud-right .panel-label .engine-badge { max-width: 58vw; }
   .hud-right .transcript {
     flex: 1 1 auto;
     min-height: 0;
@@ -778,3 +888,27 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .aud-ts { opacity: .55; font-size: 12px; margin-right: 6px; }
 .aud-err { font-size: 12px; opacity: .8; margin-top: 2px; }
 
+
+/* Xác thực 2 lớp (trang Tài khoản) */
+.tfa-card .tfa-warn { color: var(--warn-ink); font-weight: 600; }
+.tfa-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.tfa-step { font-size: 13px; line-height: 1.55; color: var(--text2); }
+.tfa-step b { color: var(--text); }
+.tfa-qr { align-self: flex-start; background: #fff; padding: 10px; border-radius: 10px; border: 1px solid var(--glass-brd); }
+/* KHÔNG ép kích thước: để SVG ra đúng cỡ tự nhiên mà server đã tính (8px mỗi ô).
+   Ép xuống 200px là nén 49 ô vào 200px = 3,7px mỗi ô, và camera điện thoại soi màn hình
+   ở cỡ đó thì quét không ra - đúng lỗi ở 0.26.20. max-width giữ cho nó không tràn thẻ
+   trên màn hình hẹp; height:auto để tỉ lệ vuông không bị méo khi bị thu. */
+.tfa-qr svg { display: block; width: auto; max-width: 100%; height: auto; }
+.tfa-secret { display: inline-block; font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 1px; background: var(--surface-2); border: 1px solid var(--glass-brd); border-radius: 6px; padding: 3px 8px; margin-left: 4px; user-select: all; word-break: break-all; }
+.tfa-rec { margin-top: 10px; }
+.tfa-rec-note { font-size: 13px; line-height: 1.55; color: var(--warn-ink); background: var(--warn-wash); border: 1px solid var(--warn-line); border-radius: 8px; padding: 9px 11px; margin-bottom: 10px; }
+.tfa-rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 7px; margin-bottom: 12px; }
+.tfa-rec-grid code { font-family: var(--font-mono, monospace); font-size: 13px; letter-spacing: 1px; text-align: center; background: var(--surface-2); border: 1px solid var(--glass-brd); border-radius: 6px; padding: 6px 4px; user-select: all; }
+
+/* Dòng trạng thái 2FA trong khối "Tài khoản đăng nhập" cũ (#quickSet nhúng ở trang Cài đặt) */
+.set-tfa { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; line-height: 1.55; color: var(--text2); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-brd); }
+.set-tfa .tfa-on { color: var(--green); }
+.set-tfa .tfa-off { color: var(--text); }
+.set-tfa .tfa-low { color: var(--warn-ink); }
+.set-tfa button { margin-left: auto; flex: 0 0 auto; }

@@ -223,7 +223,12 @@ check("cửa sổ ngắn hơn thì phép chiếu lớn hơn tương ứng",
       main._do_duoc_tiet_kiem(_tasks, 12.0)["token_thang"] == _thang * 2)
 
 _tien = main._do_duoc_tiet_kiem(_tasks, 24.0, {"model": "claude-opus-5"})["tien"]
-check("có quy đổi ra tiền", _tien.get("vnd_thang", 0) > 0 and _tien.get("usd_thang", 0) > 0)
+# Chủ repo chốt (2026-08-13): mọi con số tiền để nguyên USD, bỏ hẳn lớp quy đổi sang đồng.
+# Giá của các nhà cung cấp đều niêm yết bằng USD, còn tỉ giá thì trôi mà hằng số trong code
+# thì không ai đi cập nhật - lớp quy đổi đó chỉ tạo thêm một chỗ để sai.
+check("có quy đổi ra tiền", _tien.get("usd_thang", 0) > 0)
+check("CANARY: không còn quy đổi sang đồng",
+      "vnd_thang" not in _tien and "ty_gia" not in _tien)
 check("giá lấy theo ĐÚNG model đang dùng, không phải một số cố định",
       _tien["gia_1m_usd"] == main._GIA_INPUT_1M["opus"] and _tien["nguon_gia"] == "bang")
 check("model rẻ hơn thì tiền quy đổi nhỏ hơn",
@@ -242,11 +247,12 @@ check("chưa đủ dữ liệu thì không bịa ra tiền",
 # Giao diện phải VẼ RA, và phải nói đúng mức tin cậy của từng con số.
 check("giao diện vẽ khối quy đổi tiền", "tk-tien" in _USAGE and "function tienHtml(" in _USAGE)
 check("giao diện đọc đủ ba trường mới",
-      "token_tiet_kiem" in _USAGE and "token_thang" in _USAGE and "vnd_thang" in _USAGE)
+      "token_tiet_kiem" in _USAGE and "token_thang" in _USAGE and "usd_thang" in _USAGE)
 check("giao diện gọi đúng tên: đo được / phép chiếu / ước lượng",
       "đo được" in _USAGE and "phép chiếu" in _USAGE and "ước lượng" in _USAGE)
-check("giao diện ghi rõ đơn giá và tỉ giá đang dùng",
-      "1 triệu token vào" in _USAGE and "ty_gia" in _USAGE)
+check("giao diện ghi rõ đơn giá đang dùng", "1 triệu token vào" in _USAGE)
+check("CANARY: giao diện không còn vẽ tiền đồng",
+      "ty_gia" not in _USAGE and "fVnd" not in _USAGE and "đ/$" not in _USAGE)
 # Người dùng gói thuê bao KHÔNG trả theo token: với họ đây là mức quy đổi, không phải tiền
 # mặt tiết kiệm được. Nhập nhèm chỗ này là cả trang mất tin cậy.
 check("nói đúng với người dùng gói thuê bao",

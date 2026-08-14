@@ -248,6 +248,10 @@
     // chạy, không có gì đỏ - nên nếu không có dòng này thì không ai đoán ra được.
     var loiTen = st.loi_danh_tinh
       ? '<div class="cb-err">' + ic("triangle-alert") + ' ' + esc(st.loi_danh_tinh) + '</div>' : "";
+    // Cùng loại hỏng-âm-thầm: menu lệnh "/" đặt hụt thì khách gõ "/" không thấy gì để bấm,
+    // trong khi thẻ vẫn xanh và bot vẫn trả lời bình thường.
+    if (st.loi_menu_lenh)
+      loiTen += '<div class="cb-err">' + ic("triangle-alert") + ' ' + esc(st.loi_menu_lenh) + '</div>';
     // Chế độ riêng tư của Telegram chặn Ở PHÍA TELEGRAM, trước khi Javis nhìn thấy tin nào.
     // Hiện cho MỌI bot có dùng nhóm, không riêng bot đặt "trả lời mọi tin": nó là nguyên nhân
     // số một của "nhắn riêng thì được, trong nhóm tag tên thì im re", và người dùng không có

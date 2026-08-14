@@ -16,8 +16,11 @@ function check(name, cond) {
 // ---- console.js phai co dung co che nay ----
 check("renderModels hoi /claude/status de biet Claude co dang nhap that khong",
   /claudeOn = !!\(await \(await fetch\("\/claude\/status"\)\)\.json\(\)\)\.connected/.test(CONSOLE_JS));
-check("provOn: provider cli lay theo claudeOn, con lai lay theo configured",
-  /const provOn = \(p\) => \(p\.kind === "cli" \? claudeOn : !!p\.configured\)/.test(CONSOLE_JS));
+// Luat doi tu 0.28.5: kind "cli" nay co HAI bo nao (Claude Code, Gemini CLI). /claude/status
+// chi noi ve Claude, nen lay no cho ca hai la the Gemini bao "chua ket noi" du da dang nhap
+// Google - hoac nguoc lai. So theo ID chu khong theo kind.
+check("provOn: rieng anthropic-cli lay theo claudeOn, con lai lay theo configured",
+  /const provOn = \(p\) => \(p\.id === "anthropic-cli" \? claudeOn : !!p\.configured\)/.test(CONSOLE_JS));
 check("sort co tiebreak theo chi so goc (on dinh, khong phu thuoc engine)",
   /\.sort\(\(a, b\) => \(provOn\(b\.p\) - provOn\(a\.p\)\) \|\| \(a\.i - b\.i\)\)/.test(CONSOLE_JS));
 check("danh sach card dung ban da sap xep", CONSOLE_JS.includes("${provList.map(provCard).join(\"\")}"));
@@ -32,7 +35,7 @@ check("KHONG con cho nao render thang mang providers chua sap",
 
 // ---- Hanh vi sort (ban sao dung nguyen bieu thuc tren) ----
 function order(list, claudeOn) {
-  const provOn = (p) => (p.kind === "cli" ? claudeOn : !!p.configured);
+  const provOn = (p) => (p.id === "anthropic-cli" ? claudeOn : !!p.configured);
   return list.map((p, i) => ({ p, i }))
     .sort((a, b) => (provOn(b.p) - provOn(a.p)) || (a.i - b.i))
     .map((x) => x.p.id);
@@ -40,6 +43,9 @@ function order(list, claudeOn) {
 const DEFS = [
   { id: "anthropic-cli", kind: "cli", configured: true },   // server LUON tra true (khong co key_field)
   { id: "openai-oauth", kind: "oauth", configured: false },
+  // Cung kind "cli" nhung KHONG phai Claude: server da tinh `configured` that (doc file dang
+  // nhap Google), nen no khong duoc dinh theo claudeOn.
+  { id: "gemini-cli", kind: "cli", configured: true },
   { id: "openrouter", kind: "api", configured: false },
   { id: "anthropic-api", kind: "api", configured: false },
   { id: "openai", kind: "api", configured: false },
@@ -49,14 +55,20 @@ const DEFS = [
 
 check("da ket noi len dau, giu thu tu goc trong tung nhom",
   JSON.stringify(order(DEFS, true)) === JSON.stringify(
-    ["anthropic-cli", "gemini", "groq", "openai-oauth", "openrouter", "anthropic-api", "openai"]));
+    ["anthropic-cli", "gemini-cli", "gemini", "groq",
+     "openai-oauth", "openrouter", "anthropic-api", "openai"]));
 
 // Day la ly do phai hoi /claude/status: tin theo configured thi Claude chua dang nhap van
 // nam chem che tren cung.
 check("Claude CHUA dang nhap thi tut xuong nhom duoi",
   JSON.stringify(order(DEFS, false)) === JSON.stringify(
-    ["gemini", "groq", "openai-oauth", "openrouter", "anthropic-api", "openai"].slice(0, 2)
-      .concat(["anthropic-cli", "openai-oauth", "openrouter", "anthropic-api", "openai"])));
+    ["gemini-cli", "gemini", "groq",
+     "anthropic-cli", "openai-oauth", "openrouter", "anthropic-api", "openai"]));
+
+// CANARY cua chinh bug vua sua: Gemini CLI da dang nhap thi phai o nhom TREN, ke ca khi Claude
+// chua dang nhap. Lay claudeOn cho ca kind "cli" la no bi day xuong duoi oan.
+check("CANARY: Gemini CLI da dang nhap van len dau du Claude chua dang nhap",
+  order(DEFS, false)[0] === "gemini-cli");
 
 check("chua ket noi cai nao thi giu nguyen thu tu goc",
   JSON.stringify(order(DEFS.map((p) => ({ ...p, configured: false })), false))

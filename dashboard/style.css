@@ -699,6 +699,20 @@ input.md-cb { cursor: pointer; accent-color: var(--accent); margin-right: 6px; v
 li.task-item { list-style: none; margin-left: -16px; }
 li.task-done > .dv-ttext, li.task-done { color: var(--text3); }
 li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color: var(--text3); }
+/* Frontmatter YAML của note (--- ... --- ở đầu file): khối metadata, KHÔNG phải văn bản để soạn.
+   Hiện ra cho thấy, khoá lại để không sửa nhầm - và nhờ vậy lưu lại vẫn nguyên vẹn từng ký tự. */
+.jv-fm {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);
+  margin: 0 0 12px; overflow: hidden; user-select: none;
+}
+.jv-fm .jv-fm-head {
+  font-size: 12px; letter-spacing: .4px; color: var(--text3); padding: 5px 12px 4px;
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px;
+}
+.jv-fm .jv-fm-body {
+  margin: 0; padding: 8px 12px; font: 12.5px/1.6 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text2); white-space: pre-wrap; word-break: break-word; background: none;
+}
 .jv-dataview {
   border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);
   margin: 10px 0; overflow: hidden;
@@ -933,6 +947,116 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   border-color: var(--accent); color: var(--accent); }
 #newMsgBtn.show { display: inline-flex; }
 #newMsgBtn:hover { background: var(--accent-wash-2); color: var(--accent); border-color: var(--accent); }
+
+/* ===== THANH MỐC HỘI THOẠI (chat-marks.js) =====
+   Mỗi vạch là một câu mình đã hỏi; rê vào hiện danh sách để nhảy về prompt cũ.
+
+   height:0 + align-self:flex-end là cặp quan trọng: .transcript là flex DỌC, nên một flex item
+   bình thường sẽ chiếm một hàng ngang và đẩy tin nhắn xuống. Cao 0 thì nó không chiếm hàng nào,
+   còn phần nhìn thấy được là .cm-ray định vị tuyệt đối bên trong. sticky top:0 giữ nó dính mép
+   trên vùng cuộn, và chiều cao thật của ray do JS đo theo clientHeight của khung. */
+#chatMarks { position: sticky; top: 0; height: 0; z-index: 4; flex: none;
+  align-self: flex-end; width: 0; overflow: visible; }
+.cm-ray { position: absolute; top: 0; right: 2px; width: 22px;
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+  gap: calc(var(--cm-cach, 11px) - 2px); pointer-events: auto; }
+.cm-vach { flex: none; width: 13px; height: 2px; padding: 0; border: 0; border-radius: 2px;
+  background: var(--text3); opacity: .38; cursor: pointer;
+  transition: width .14s, opacity .14s, background .14s; }
+.cm-vach:hover { width: 20px; opacity: .85; }
+/* Vạch đang đọc: dài hơn VÀ đậm hơn. Chỉ đổi màu thôi thì trên dãy vạch mờ nhìn lướt không
+   thấy, mà mục đích của nó là biết mình đang ở đâu trong hội thoại chỉ bằng một cái liếc. */
+.cm-vach.active { width: 20px; opacity: 1; background: var(--accent); }
+#chatMarks:hover .cm-vach { opacity: .62; }
+#chatMarks:hover .cm-vach.active { opacity: 1; }
+
+/* Danh sách prompt - mở khi rê vào. Nằm bên TRÁI dãy vạch vì dãy đã sát mép phải khung.
+   right:100% = mép phải hộp DÍNH vào mép trái dãy vạch, không chừa khe nào. Chủ repo báo bản
+   đầu "hover thì nó hiện hơi xa trỏ nên không trỏ được": hộp neo ở đỉnh khung trong khi vạch
+   nằm giữa, giữa hai thứ là một vùng không thuộc hover, chuột đi chéo qua là hộp tắt.
+   top:50% ăn theo .cm-ray (cao thật, JS đặt bằng clientHeight của khung) chứ không ăn theo
+   #chatMarks vốn cao 0 - phần trăm trên số 0 luôn ra 0. max-height cũng vậy: 100% ở đây là
+   chiều cao khung chat, nên hộp không bao giờ tràn ra ngoài khung dù hội thoại dài tới đâu. */
+.cm-hop { position: absolute; top: 50%; right: 100%; transform: translateY(-50%); z-index: 5;
+  display: flex; flex-direction: column; gap: 1px; padding: 6px;
+  width: min(320px, 52vw); max-height: min(420px, calc(100% - 16px)); overflow-y: auto;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-2); }
+.cm-hop[hidden] { display: none; }
+/* flex: none KHÔNG phải trang trí - thiếu nó là hội thoại dài thì danh sách không đọc được.
+   .cm-hop là flex column có max-height, mà con của flex mặc định flex-shrink:1. Nhiều mốc hơn
+   chỗ chứa thì trình duyệt KHÔNG cho hộp cuộn, nó ép mọi dòng bé lại theo tỉ lệ: đo trong
+   Chromium thật, 5 câu mỗi dòng cao 30.8px (đọc được), 60 câu tụt còn 12px - đúng bằng phần
+   đệm trên dưới, tức chữ bị cắt còn 0. Nhìn ra màn hình là một mớ vệt mờ (chủ repo báo kèm ảnh
+   2026-08-13). .cm-vach ngay trên đã có flex:none vì đúng lý do này, chỗ đây bị sót.
+   Test cũ có câu "60 câu hỏi không tràn khung" nên tưởng đã phủ - nhưng nó đo TRÀN, mà bệnh
+   này thì không tràn: hộp vừa khít vì các dòng bị bóp. Đo sai thứ nên lọt. */
+.cm-muc { flex: none; text-align: left; padding: 6px 9px; border: 0; border-radius: 7px;
+  cursor: pointer;
+  background: transparent; color: var(--text2); font-family: var(--font); font-size: 13px;
+  line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-muc:hover { background: var(--surface-2); color: var(--text); }
+.cm-muc.active { background: var(--accent-wash-2); color: var(--text); font-weight: 600; }
+
+/* Nhảy xong thì nháy nhẹ vào đúng bong bóng vừa tới. Không có nhát này thì màn hình vừa
+   trượt một đoạn dài xong người đọc phải tự dò xem mình đang đứng ở câu nào. */
+.msg-user.cm-vua-nhay .bubble { animation: cmNhay 1.2s ease; }
+@keyframes cmNhay {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  22% { box-shadow: 0 0 0 3px var(--accent-line); }
+}
+
+/* ===== CHẾ ĐỘ ĐIỆN THOẠI =====
+   Không phải dãy vạch thu nhỏ, mà là thứ khác hẳn: một nút ở góc trên, chạm vào thì mở tấm
+   trượt lên từ đáy. Dãy vạch sống bằng rê chuột (ngón tay không rê được) và bằng một dải sát
+   mép phải (giành mất cú vuốt để cuộn) - bỏ hai thứ đó đi thì nó chẳng còn là gì. */
+.cm-nut { position: absolute; top: 8px; right: 8px; display: none;
+  align-items: center; gap: 5px; padding: 5px 10px 5px 8px; border-radius: 16px;
+  background: var(--panel-solid); border: 1px solid var(--border); color: var(--text2);
+  font-family: var(--font); font-size: 12px; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow-1); opacity: .9; }
+/* Ba gạch vẽ bằng CSS, không nhét SVG: nút này nằm trong khối do JS dựng bằng chuỗi HTML, mà
+   bộ icon của app nạp theo cách khác - thêm một đường phụ thuộc cho ba cái gạch là không đáng. */
+.cm-nut-ic { width: 12px; height: 9px; flex: none;
+  border-top: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  position: relative; }
+.cm-nut-ic::after { content: ""; position: absolute; left: 0; right: 0; top: 3px;
+  border-top: 2px solid currentColor; }
+.cm-nut-so { font-variant-numeric: tabular-nums; }
+.cm-nut:active { background: var(--surface-2); }
+
+/* Tấm trượt: gắn ở body nên neo theo MÀN HÌNH, không cuộn theo khung chat. */
+.cm-tam-lop { position: fixed; inset: 0; z-index: 120; background: var(--scrim);
+  display: flex; align-items: flex-end; }
+.cm-tam { width: 100%; max-height: 68vh; display: flex; flex-direction: column;
+  background: var(--panel-solid); border-top-left-radius: 18px; border-top-right-radius: 18px;
+  box-shadow: 0 -8px 40px var(--shadow-veil); animation: cmTruot .18s ease-out; }
+@keyframes cmTruot { from { transform: translateY(18px); opacity: .6; } to { transform: none; opacity: 1; } }
+.cm-tam-dau { display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px; font-family: var(--font); font-size: 15px; color: var(--text);
+  border-bottom: 1px solid var(--border); flex: none; }
+.cm-tam-dong { background: none; border: 0; color: var(--text3); font-size: 17px;
+  padding: 4px 8px; cursor: pointer; }
+/* Vùng an toàn dưới đáy: iPhone có thanh gạt Home đè lên mục cuối nếu không chừa. */
+.cm-tam-ds { overflow-y: auto; padding: 6px 8px calc(10px + env(safe-area-inset-bottom, 0px)); }
+/* Mục trong tấm trượt là ĐÍCH CHẠM, không phải dòng chữ: cao tối thiểu 44px theo cỡ ngón tay,
+   và cho xuống 2 dòng vì màn dọc có bề ngang chứ không thiếu như cột bên máy tính. */
+.cm-tam .cm-muc { width: 100%; min-height: 44px; padding: 11px 12px; border-radius: 10px;
+  font-size: 14px; white-space: normal; text-overflow: clip;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cm-so { color: var(--text3); font-variant-numeric: tabular-nums; margin-right: 8px; }
+.cm-tam .cm-muc.active .cm-so { color: var(--accent); }
+/* Bên máy tính số thứ tự là thừa: dãy vạch đã nói vị trí bằng hình rồi. */
+#chatMarks .cm-so { display: none; }
+
+@media (max-width: 860px) {
+  .cm-ray { display: none; }
+  .cm-nut { display: inline-flex; }
+}
+@media (min-width: 861px) { .cm-tam-lop { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .msg-user.cm-vua-nhay .bubble { animation: none; }
+}
 
 /* Chip hoạt động trong transcript - "đang suy nghĩ / gọi tool / soạn trả lời"
    (thay .tool-bar cũ nằm ngoài #chatArea nên biến mất khi phóng to chat workspace) */
@@ -1512,7 +1636,13 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    Không có cây thứ hai: tab "Thư mục" mượn đúng .hud-left của màn chính. Nó vốn là một cột
    của lưới HUD nên mang theo bề rộng và viền riêng; ở đây phải gỡ những thứ đó ra, nếu không
    cột chat bị đội rộng và có hai đường viền chồng nhau. */
-.cside-pane > .hud-left { width: auto; max-width: none; min-width: 0; flex: 1 1 auto;
+/* display:flex KHÔNG thừa. Trên điện thoại console.css ẩn hẳn .hud-left (`display: none`) vì
+   ở màn chính cột đó không có chỗ. Nhưng tab "Thư mục" MƯỢN đúng node ấy, nên luật kia đi
+   theo sang đây và cả tab thành một khoảng trắng - bấm vào không thấy gì, không lỗi, không
+   báo. Chủ repo báo đúng triệu chứng đó (2026-08-12). Chọn hai lớp nên thắng luật một lớp
+   trong media query mà không cần !important; pane đang tắt vẫn display:none nên cây chỉ hiện
+   khi thật sự mở tab. */
+.cside-pane > .hud-left { display: flex; width: auto; max-width: none; min-width: 0; flex: 1 1 auto;
   min-height: 0; padding: 0; border: 0; background: transparent; }
 /* Nút "Vị trí" ở kết quả tìm kiếm: xổ cây tới đúng thư mục đang chứa file. Nằm bên phải tên
    file, chỉ hiện rõ khi rê chuột để không tranh chỗ với chính cái tên. */
@@ -1946,6 +2076,13 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .ne-nav button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent-line); }
 .ne-nav button:disabled { opacity: 0.35; cursor: default; }
 .ne-actions { display: flex; gap: 5px; flex: none; align-items: center; }
+/* Màn hẹp: tên file xuống hẳn một dòng riêng. Thanh nút có tới 8 nút, để chung một dòng thì tên
+   file bị bóp còn 0px - mở file ra mà không biết đang mở file nào. */
+@media (max-width: 700px) {
+  .ne-bar { flex-wrap: wrap; padding: 8px 10px; }
+  .ne-title { order: -1; flex: 1 0 100%; }
+  .ne-actions { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+}
 .ne-actions button { background: var(--surface-1); border: 1px solid var(--border); color: var(--text2);
   cursor: pointer; font-size: 13px; padding: 4px 10px; border-radius: 6px; white-space: nowrap; }
 .ne-actions button:hover { color: var(--text); border-color: var(--info-line); }
@@ -1977,10 +2114,18 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .ne-body.mode-preview .ne-prev { border-left: none; }
 .ne-img { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 16px; }
 .ne-img img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+/* .pdf xem tại chỗ (nền trắng vì trình xem PDF của trình duyệt tự vẽ trên nền của nó) */
+.ne-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
 .ne-dl { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   color: var(--text2); padding: 24px; text-align: center; }
 .ne-dl .ne-dl-ico { font-size: 46px; }
 .ne-dl a { color: var(--text); }
+/* Gợi ý "có lẽ là file này" khi link trỏ hụt - bấm một phát là mở đúng file */
+.ne-hits { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; max-width: 620px; }
+.ne-hits .dim { width: 100%; color: var(--text3); font-size: 13px; }
+.ne-hits button { background: var(--surface-1); border: 1px solid var(--border); color: var(--text2);
+  cursor: pointer; font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+.ne-hits button:hover { color: var(--text); border-color: var(--accent-line); }
 /* markdown trong preview */
 .ne-prev h1, .ne-prev h2, .ne-prev h3, .ne-prev h4 { color: var(--text); margin: .6em 0 .3em; line-height: 1.3; }
 .ne-prev h1 { font-size: 1.5em; } .ne-prev h2 { font-size: 1.28em; } .ne-prev h3 { font-size: 1.12em; }

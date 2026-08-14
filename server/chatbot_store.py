@@ -34,7 +34,17 @@ _lock = threading.Lock()
 # Bot trả lời KHÁCH LẠ nên mọi thứ nhận từ giao diện đều phải kẹp. Trần rộng rãi nhưng hữu hạn.
 NAME_MAX = 60
 _ICON_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")     # tên icon Lucide, như projects.icon
-_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+# Slug Agent = TÊN FILE `<brain>/Javis/agents/<slug>.md`, và tên file đó do người dùng đặt.
+# `main._slugify` giữ nguyên chữ có dấu (nó lọc theo `\w` Unicode), nên Agent tên "Tư vấn sản
+# phẩm" ra slug "tư-vấn-sản-phẩm" - một slug HOÀN TOÀN hợp lệ, đang nằm sẵn trong ô chọn ở trang
+# Chatbot. Khuôn cũ `^[a-z0-9][a-z0-9-]{0,63}$` chỉ nhận ASCII nên nó đá bay đúng những Agent
+# đặt tên tiếng Việt, mà lại đá bằng câu "Thiếu Agent" - chủ đang nhìn thấy Agent mình vừa chọn
+# trong ô, và không có cách nào đoán ra chuyện dấu tiếng Việt.
+#
+# Nên ở đây KHÔNG canh hình dạng nữa, chỉ canh đúng thứ thật sự nguy hiểm: slug đi thẳng vào
+# đường dẫn file, nên phải chặn tách đường dẫn và '..' (cùng lối với `skill_router._slug_ok`).
+SLUG_MAX = 64
+_SLUG_CAM = re.compile(r"[/\\\x00-\x1f\x7f]")           # tách đường dẫn + ký tự điều khiển
 # id nhóm Telegram là số ÂM; id cuộc chat Zalo là chuỗi HEX (vd "6ede9afa66b88fe6d6a9"). Một
 # khuôn cho cả hai, vì bản ghi bot chỉ có một trường `groups` và kênh nào cũng đổ vào đó.
 _CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|[0-9a-fA-F]{8,40})$")
@@ -173,6 +183,18 @@ def _slugify(name: str) -> str:
     return (s or "bot")[:60]
 
 
+def _agent_slug_ok(v: Any) -> bool:
+    """Slug Agent có AN TOÀN để ghép vào `Javis/agents/<slug>.md` không.
+
+    Nhận mọi tên file người dùng đặt được (kể cả tiếng Việt có dấu, hoa/thường, khoảng trắng,
+    gạch dưới); chỉ từ chối thứ trèo ra khỏi thư mục agents hoặc phá đường dẫn.
+    """
+    s = str(v or "").strip()
+    if not s or len(s) > SLUG_MAX:
+        return False
+    return not (_SLUG_CAM.search(s) or ".." in s or s.startswith("."))
+
+
 def _clean_name(v: Any) -> str:
     return str(v or "").strip()[:NAME_MAX]
 
@@ -298,6 +320,12 @@ def token_owner(username: str, exclude_id: str = "", channel: str = "") -> Optio
 # tạo bot, script của chủ). Rào ở kho thì đường nào cũng đi qua nó.
 LOI_CHUA_XAC_NHAN = ("Mức quyền này cho bot làm việc THẬT ra ngoài, do người lạ điều khiển. "
                      "Phải xác nhận đã đọc cảnh báo rủi ro (xac_nhan_rui_ro) mới đặt được.")
+# Hai câu RIÊNG cho hai chuyện khác nhau. Gộp làm một là cách cũ, và nó nói sai với chủ: người
+# đã chọn Agent trong ô mà đọc "Thiếu Agent" thì không có đường nào lần ra lỗi thật.
+LOI_KHONG_CO_BOT = "Không có bot nào id đó"
+LOI_THIEU_AGENT = "Thiếu Agent cho bot (bot không có bộ não thì không trả lời được gì)"
+LOI_SLUG_AGENT = ("Tên Agent không dùng được: phải là tên file trong Javis/agents, dài tối đa "
+                  f"{SLUG_MAX} ký tự, không chứa '/', '\\' hay '..'.")
 
 
 def can_xac_nhan(muc: Any, xac_nhan: Any) -> bool:
@@ -316,8 +344,10 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
     if not name:
         return None, "Thiếu tên bot"
     agent_slug = str(data.get("agent_slug") or "").strip()
-    if not _SLUG_RE.match(agent_slug):
-        return None, "Thiếu Agent cho bot (bot không có bộ não thì không trả lời được gì)"
+    if not agent_slug:
+        return None, LOI_THIEU_AGENT
+    if not _agent_slug_ok(agent_slug):
+        return None, LOI_SLUG_AGENT
     brain = str(data.get("brain") or "").strip()
     if not brain:
         return None, "Thiếu brain riêng của bot"
@@ -371,6 +401,15 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
     # rồi một hôm được nâng lên. Thiếu rào ở đây thì cả cái gate lúc tạo thành trang trí.
     if "muc_quyen" in patch and can_xac_nhan(patch.get("muc_quyen"), patch.get("xac_nhan_rui_ro")):
         return False, LOI_CHUA_XAC_NHAN
+    # Slug Agent hỏng thì TỪ CHỐI cả bản vá, đừng lặng lẽ bỏ qua một trường. Bỏ qua nghĩa là
+    # form Sửa báo "đã lưu" trong khi bot vẫn trỏ về Agent cũ, và chủ chỉ biết khi khách nhận
+    # được câu trả lời của một vai mà mình tưởng đã đổi.
+    if "agent_slug" in patch:
+        s = str(patch.get("agent_slug") or "").strip()
+        if not s:
+            return False, LOI_THIEU_AGENT
+        if not _agent_slug_ok(s):
+            return False, LOI_SLUG_AGENT
     with _lock:
         d = _load()
         for b in d["bots"]:
@@ -406,8 +445,8 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                 elif k == "rate_limit":
                     b["rate_limit"] = _clean_rate(v)
                 elif k == "agent_slug":
-                    if _SLUG_RE.match(str(v or "").strip()):
-                        b.setdefault("agent", {})["slug"] = str(v).strip()
+                    # Đã kiểm ở đầu hàm, tới đây chắc chắn hợp lệ.
+                    b.setdefault("agent", {})["slug"] = str(v).strip()
                 elif k == "agent_brain":
                     b.setdefault("agent", {})["brain"] = str(v or "brain").strip() or "brain"
                 elif k == "brain":
@@ -424,7 +463,7 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             b["updated_at"] = _now()
             _save(d)
             return True, ""
-    return False, "Không có bot nào id đó"
+    return False, LOI_KHONG_CO_BOT
 
 
 def set_enabled(bot_id: str, on: bool) -> tuple[bool, str]:
@@ -441,7 +480,7 @@ def set_enabled(bot_id: str, on: bool) -> tuple[bool, str]:
             b["updated_at"] = _now()
             _save(d)
             return True, ""
-    return False, "Không có bot nào id đó"
+    return False, LOI_KHONG_CO_BOT
 
 
 def delete_bot(bot_id: str) -> tuple[bool, str]:
@@ -456,7 +495,7 @@ def delete_bot(bot_id: str) -> tuple[bool, str]:
         n = len(d["bots"])
         d["bots"] = [b for b in d["bots"] if b.get("id") != bot_id]
         if len(d["bots"]) == n:
-            return False, "Không có bot nào id đó"
+            return False, LOI_KHONG_CO_BOT
         _save(d)
         return True, ""
 

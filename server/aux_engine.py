@@ -16,6 +16,9 @@ Ba loại engine, khác nhau ở CÔNG CỤ có được - đây là chỗ phả
 - openai-oauth: Codex CLI, cũng là agent thật (đọc/ghi file + MCP qua profile javis).
   Sandbox của Codex ánh xạ theo mode: suggest -> read-only, auto -> workspace-write,
   full -> toàn quyền. KHÔNG có allowlist per-call như Claude nên chỉ chặn ở tầng sandbox.
+- gemini-cli: Gemini CLI chạy bằng đăng nhập Google. Cũng agent thật (tool file + MCP hub qua
+  .gemini/settings.json trong brain). Mức quyền ánh xạ thẳng vào --approval-mode của nó:
+  suggest -> plan (chỉ đọc), auto -> auto_edit, full -> yolo.
 - api (openrouter/openai/gemini/anthropic-api): KHÔNG có tool native. Bù lại hub cấp
   javis_read_file / javis_list_dir / javis_write_file / javis_use_skill + tool MCP, và
   javis_write_file tự chặn khi mode là suggest (mcp_hub._builtin_tools). Không có Bash,
@@ -36,6 +39,7 @@ import config as cfgmod
 
 CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
+GEMINI_CLI = "gemini-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api")
 
 # provider -> tên trường chứa API key trong settings["model"]
@@ -102,10 +106,57 @@ async def pick_openrouter_free(key: str = "") -> str:
 
 def read_spec(settings: dict = None) -> dict:
     """{'provider','model'} của model việc nền. Cấu hình cũ chỉ có 'model' (luôn là alias
-    Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ."""
+    Claude) nên thiếu provider = anthropic-cli - giữ nguyên hành vi bản cũ.
+
+    PHANH NGÂN SÁCH: nếu tháng này đã tiêu quá trần tiền người dùng đặt VÀ họ đã bật tự
+    phanh, việc nền không được tiêu thêm tiền mặt nữa. Nó không dừng lại - nó chuyển sang
+    đường KHÔNG tính tiền theo token: gói thuê bao đang đăng nhập, hoặc model free của
+    OpenRouter. Chat của người dùng KHÔNG bị đụng tới; chỉ việc chạy nền bị hạ, vì đó là
+    phần tiêu tiền lúc người ta không ngồi nhìn.
+    """
     s = settings if settings is not None else cfgmod.read_settings()
     aux = (s.get("model", {}) or {}).get("auxiliary") or {}
-    return {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    spec = {"provider": (aux.get("provider") or CLAUDE), "model": (aux.get("model") or "")}
+    if spec["provider"] not in API_PROVIDERS:
+        return spec                      # gói thuê bao: không tính tiền theo token, kệ phanh
+    try:
+        import usage_saving
+        if not usage_saving.dang_phanh().get("bat"):
+            return spec
+    except Exception:                    # noqa: BLE001 - thiếu module thì cứ chạy như cũ
+        return spec
+    return _spec_ne_tien(s, spec)
+
+
+def _spec_ne_tien(s: dict, spec: dict) -> dict:
+    """Đường thay thế khi phanh: ưu tiên gói thuê bao đã đăng nhập, cuối cùng là OpenRouter free.
+
+    `availability` trả True VÔ ĐIỀU KIỆN cho anthropic-cli (nó không kiểm binary `claude` có
+    trên máy hay không, khác hẳn nhánh Codex/Gemini). Nên nếu chỉ hỏi availability thì vòng
+    này luôn dừng ở mắt đầu, và trên máy KHÔNG cài Claude Code việc nền bị đẩy sang một engine
+    không chạy được - phanh biến thành cái làm chết việc nền. Phải hỏi thẳng binary.
+    """
+    for prov in (CLAUDE, CODEX):
+        ok, _ly_do = availability({"provider": prov}, s)
+        if ok and _co_binary(prov):
+            return {"provider": prov, "model": ""}
+    if api_key_for("openrouter", s):
+        # model "" trên OpenRouter = tự chọn model FREE mạnh nhất lúc chạy (_ApiAuxEngine.query).
+        return {"provider": "openrouter", "model": ""}
+    return spec                          # không có đường nào rẻ hơn -> giữ nguyên, đừng làm chết việc nền
+
+
+def _co_binary(prov: str) -> bool:
+    """Engine CLI đó có thật trên máy không. Lỗi/thiếu module -> False (đừng đoán là có)."""
+    try:
+        import claude_cli
+        if prov == CLAUDE:
+            return bool(claude_cli.find_claude_cli())
+        if prov == CODEX:
+            return bool(claude_cli.find_codex_cli())
+    except Exception:   # noqa: BLE001 - không dò được thì coi như không có, rồi thử mắt sau
+        return False
+    return False
 
 
 def is_claude(spec: dict) -> bool:
@@ -133,6 +184,15 @@ def availability(spec: dict, settings: dict = None) -> tuple:
                 return False, "Chưa cài Codex CLI (cần đăng nhập gói ChatGPT)."
         except Exception:
             return False, "Không kiểm tra được Codex CLI."
+        return True, ""
+    if prov == GEMINI_CLI:
+        try:
+            import gemini_cli as _g
+            st = _g.auth_status()
+            if not st.get("connected"):
+                return False, st.get("error") or "Gemini CLI chưa sẵn sàng."
+        except Exception:
+            return False, "Không kiểm tra được Gemini CLI."
         return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
@@ -199,8 +259,25 @@ class _ApiAuxEngine:
             print(f"[aux discover] {e}", file=sys.stderr)
 
         messages = []
-        if self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
+        sysprompt = self.system_prompt or ""
+        # Khai THẬT năng lực của engine này. Không có dòng này, model chỉ thấy "gọi tool X
+        # không được" rồi tự dựng một lý do nghe hợp lý mà sai - hay gặp nhất là đổ cho quyền
+        # ("phiên này bị chặn quyền"), khiến chủ đi sửa mức quyền trong khi mức quyền không hề
+        # sai. Nói rõ THIẾU GÌ và VÌ SAO thì câu báo về mới dẫn đúng tới việc cần làm.
+        sysprompt += (
+            "\n\n[Sự thật hệ thống - năng lực của phiên này] Bạn đang chạy bằng engine API "
+            f"'{self.provider}', KHÔNG phải Claude Code. Bạn có: các tool qua MCP Hub của Javis "
+            "(gồm tool đọc/ghi file trong vault và mọi MCP người dùng đã đấu vào Javis). "
+            "Bạn KHÔNG có: lệnh máy (Bash), tự mở URL (WebFetch/WebSearch), và KHÔNG có các "
+            "connector gắn thẳng vào TÀI KHOẢN Claude - Gmail, Google Drive, Google Calendar "
+            "gọi bằng tool native `mcp__<tên>__*` chỉ tồn tại trên engine Claude Code. "
+            "Nếu việc được giao cần một trong những thứ đó, hãy nói THẲNG là engine hiện tại "
+            "không có công cụ ấy và chủ cần đổi model việc nền sang Claude Code. TUYỆT ĐỐI "
+            "không mô tả chuyện này là bị chặn quyền hay thiếu quyền: mức quyền không liên "
+            "quan, đây là chuyện engine nào có tool nào."
+        )
+        if sysprompt.strip():
+            messages.append({"role": "system", "content": sysprompt})
         messages.append({"role": "user", "content": prompt})
 
         if tools:
@@ -222,10 +299,31 @@ class _ApiAuxEngine:
             if t == "text":
                 buf.append(ev.get("content") or "")
             elif t in ("tool_call", "error", "usage"):
+                if t == "usage":
+                    self._ghi_muc_dung(ev)
                 yield ev
                 if t == "error":
                     return
         yield {"type": "final", "content": "".join(buf)}
+
+    def _ghi_muc_dung(self, ev: dict) -> None:
+        """Cộng lượt việc nền này vào sổ mức dùng.
+
+        Đây là chỗ DUY NHẤT việc nền chạy bằng API key đi qua. Trước đây không có nó: cả 12
+        chỗ gọi `usage_store.record` trong repo đều nằm trên đường CHAT, còn loop / việc
+        Kanban / nhắc hẹn / tự học đều chạy qua đây và không ghi gì. Hệ quả là trang Mức dùng
+        không thấy phần token nền của nhánh API, và tệ hơn: trần tiền tháng cùng cái phanh
+        ngân sách không nhìn thấy ĐÚNG khoản chi mà chúng sinh ra để chặn - việc nền tiêu tiền
+        lúc không ai ngồi nhìn.
+
+        Best-effort: hỏng thì nuốt, một cái sổ đếm không được phép làm chết việc nền.
+        """
+        try:
+            import usage_store
+            usage_store.record(self.provider, self.model,
+                               ev.get("input", 0), ev.get("output", 0), ev.get("cost", 0) or 0)
+        except Exception as e:  # noqa: BLE001
+            print(f"[aux usage] {type(e).__name__}: {e}", file=sys.stderr)
 
 
 class _FallbackChain:
@@ -335,6 +433,36 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
     return cc
 
 
+def _build_gemini(spec, claude_cli_obj, mode, tag):
+    """Engine việc nền chạy bằng Gemini CLI.
+
+    Mức quyền của Javis đi thẳng vào `--approval-mode` của CLI chứ không phải một lời hứa
+    trong prompt: `plan` là chế độ CHỈ ĐỌC do chính CLI cưỡng chế. Cùng vai với sandbox của
+    Codex - lớp chặn thật sự duy nhất, vì Gemini CLI cũng không có allowlist per-call.
+    """
+    import gemini_cli as _g
+    muc = mode or getattr(claude_cli_obj, "javis_mode", None) or "full"
+    gc = _g.GeminiCLI(cwd=getattr(claude_cli_obj, "cwd", None),
+                      tag=tag or getattr(claude_cli_obj, "tag", "aux"),
+                      model=spec.get("model") or None,
+                      instructions=getattr(claude_cli_obj, "system_prompt", None))
+    gc.approval_mode = _g.approval_cho_mode(muc)
+    vault = getattr(claude_cli_obj, "javis_vault", None) or getattr(claude_cli_obj, "cwd", None)
+    if vault:
+        try:
+            import mcp_hub
+            hub = None
+            if bool(cfgmod.read_settings().get("mcp", {}).get("hub", True)):
+                hub = {"httpUrl": mcp_hub.hub_url(),
+                       "headers": {"Authorization": f"Bearer {mcp_hub.hub_token()}",
+                                   "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)},
+                       "trust": True, "timeout": 20000}
+            _g.ghi_mcp_settings(vault, hub)
+        except Exception as e:
+            print(f"[aux gemini mcp] {e}", file=sys.stderr)
+    return gc
+
+
 def apply(deps, cli, mode: str = None, tag: str = None):
     """Dùng ở các nơi chạy nền sau khi đã dựng xong engine Claude.
 
@@ -377,6 +505,33 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     try:
         sp = spec if spec is not None else read_spec(settings)
         prov = sp.get("provider", CLAUDE)
+        # MỨC FULL KHÔNG CÓ CHUỖI DỰ PHÒNG. Đây là quyết định có chủ ý, không phải bỏ sót.
+        #
+        # Việc ở mức full thường là hành động RA NGOÀI: đăng bài, gửi tin, tạo đơn, đặt lịch.
+        # Ba lý do khiến rơi engine ở đây tệ hơn là chết hẳn:
+        #   1. Engine dự phòng (API) không có tool NATIVE, nên không gọi được connector ambient
+        #      của tài khoản Claude. Việc cần Google Drive/Gmail sẽ dừng giữa chừng.
+        #   2. Model không biết mình vừa bị đổi engine, nên nó suy ra một lý do nghe hợp lý mà
+        #      sai - ca thật: nhắc hẹn đăng Fanpage báo "phiên này bị chặn quyền" trong khi
+        #      user đã bật Toàn quyền, làm người ta đi tìm nhầm chỗ.
+        #   3. Mắt trước có thể đã làm xong MỘT PHẦN việc (đăng được 1 trong 3 bài) rồi mới
+        #      gãy. Chạy lại nguyên prompt bằng engine khác là đăng lại từ đầu.
+        # Thà dừng và nói đúng "Claude gãy vì X" để chủ xử lý, hơn là làm nửa vời trong im lặng.
+        if str(mode or "").strip().lower() == "full":
+            if prov == CLAUDE:
+                cli.model = sp.get("model") or None
+                return cli
+            ok, why = availability(sp, settings)
+            if not ok:
+                print(f"[aux] {why} → việc full tạm dùng lại Claude.", file=sys.stderr)
+                return cli
+            if prov == CODEX:
+                return _build_codex(sp, cli, mode, tag, codex_profile)
+            if prov == GEMINI_CLI:
+                return _build_gemini(sp, cli, mode, tag)
+            if prov in API_PROVIDERS:
+                return _build_api(sp, cli, mode, tag)
+            return cli
         if prov == CLAUDE:
             cli.model = sp.get("model") or None
             or_free = _openrouter_free_engine(cli, mode, tag, settings)
@@ -387,6 +542,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             return cli
         if prov == CODEX:
             primary = _build_codex(sp, cli, mode, tag, codex_profile)
+        elif prov == GEMINI_CLI:
+            primary = _build_gemini(sp, cli, mode, tag)
         elif prov in API_PROVIDERS:
             primary = _build_api(sp, cli, mode, tag)
         else:

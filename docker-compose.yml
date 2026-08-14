@@ -14,19 +14,42 @@
 #    / ĐĂNG NHẬP, không ai vào điều khiển Claude được khi chưa có mật khẩu.
 #
 # Muốn build từ source thay vì pull image:  docker compose -f docker-compose.build.yml up -d --build
+#
+# NHIỀU BẢN JAVIS TRÊN CÙNG MỘT VPS (mỗi bản một tên miền riêng): xem
+#   docker-compose.multi.yml + docker-compose.proxy.yml (và mục "Nhiều bản" trong DEPLOY.md).
+#   Tóm tắt: mỗi bản chạy ở THƯ MỤC RIÊNG với .env riêng đặt JAVIS_NAME + JAVIS_HOST_PORT khác nhau.
 # ============================================================================
 services:
   javis:
     image: ghcr.io/blogminhquy/javis-os:latest
-    container_name: javis
+    # Tên container LẤY TỪ BIẾN, không đóng cứng: hai bản Javis trên cùng một VPS mà cùng tên
+    # container là con thứ hai chết ngay lúc `up` ("name is already in use"), kể cả khi đã chạy ở
+    # thư mục khác - Docker đặt tên container theo phạm vi TOÀN MÁY chứ không theo project.
+    container_name: ${JAVIS_NAME:-javis}
     restart: unless-stopped
     pull_policy: always
     environment:
       # Các mặc định cổng/state/brain đã nằm trong Docker image; compose chỉ giữ
       # token thật sự cần chia sẻ giữa app và Watchtower.
       WATCHTOWER_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}   # để nút "Cập nhật" gọi được Watchtower
+      # Tài khoản quản trị đặt SẴN lúc deploy. Điền hai dòng này vào file `.env` nằm cạnh
+      # compose là xong: server boot lên đã có admin, nên KHÔNG bao giờ hỏi MÃ THIẾT LẬP.
+      # Bỏ trống thì rơi về đường cũ - phải đọc mã trong log container rồi dán vào trình duyệt
+      # (`docker compose logs javis`). Đường cũ vẫn còn làm lưới, nhưng đừng dùng làm mặc định.
+      JAVIS_ADMIN_USER: ${JAVIS_ADMIN_USER:-}
+      JAVIS_ADMIN_PASSWORD: ${JAVIS_ADMIN_PASSWORD:-}
     ports:
-      - "7777:7777"                 # Hostinger proxy / VPS map vào cổng này → cấp URL công khai
+      # Cổng MÁY CHỦ lấy từ biến (trong container vẫn luôn là 7777). Bản thứ hai đặt
+      # JAVIS_HOST_PORT=7778 là hết đụng cổng.
+      #
+      # JAVIS_BIND = địa chỉ nghe trên máy chủ. Mặc định 0.0.0.0 (y như trước: mở ra Internet, vào
+      # được bằng http://<ip>:<cổng>). Chạy sau proxy chung thì đặt JAVIS_BIND=127.0.0.1 để chỉ
+      # proxy vào được, còn cổng này thành lối gỡ rối qua SSH tunnel.
+      #
+      # Vì sao là BIẾN chứ không phải một dòng ports trong file override: compose NỐI CHỒNG danh
+      # sách ports của các file -f chứ không thay thế, nên khai lại ở override là ra hai binding
+      # cùng một cổng và Docker báo "port is already allocated".
+      - "${JAVIS_BIND:-0.0.0.0}:${JAVIS_HOST_PORT:-7777}:7777"
     volumes:
       - javis-data:/data                       # state: settings/mật khẩu/sessions/loop (có secret → KHÔNG git)
       - javis-brains:/brains                   # MỌI second brain (kiến thức của bạn) - bền qua mọi update
@@ -47,11 +70,13 @@ services:
   #   docker compose --profile tunnel up -d  &&  docker compose logs tunnel | grep trycloudflare
   tunnel:
     image: cloudflare/cloudflared:latest
-    container_name: javis-tunnel
+    container_name: ${JAVIS_NAME:-javis}-tunnel
     restart: unless-stopped
     profiles: ["tunnel"]
     depends_on:
       - javis
+    # `javis` ở đây là TÊN SERVICE trong compose, không phải tên container - mỗi project có mạng
+    # riêng nên tên này không đụng nhau giữa các bản, giữ nguyên là đúng.
     command: tunnel --no-autoupdate --url http://javis:7777
     # URL cố định: tạo named tunnel ở Cloudflare Zero Trust → TUNNEL_TOKEN env → đổi command thành:
     #   command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
@@ -62,7 +87,7 @@ services:
   # (Hostinger: dùng docker-compose.hostinger.yml + Redeploy để cập nhật, KHÔNG cần Watchtower.)
   watchtower:
     image: containrrr/watchtower
-    container_name: javis-watchtower
+    container_name: ${JAVIS_NAME:-javis}-watchtower
     restart: unless-stopped
     profiles: ["update"]
     volumes:
@@ -71,7 +96,9 @@ services:
       WATCHTOWER_HTTP_API_UPDATE: "true"                    # chỉ cập nhật khi có HTTP trigger (không tự polling)
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}
       WATCHTOWER_CLEANUP: "true"                            # dọn image cũ sau khi update
-    command: javis                                         # chỉ theo dõi/cập nhật container javis
+    # Theo dõi ĐÚNG container của bản này. Để trống hay ghi cứng "javis" thì trên VPS nhiều bản,
+    # Watchtower của bản này sẽ đi cập nhật (và restart) container của bản khác.
+    command: ${JAVIS_NAME:-javis}
 
 volumes:
   javis-data:

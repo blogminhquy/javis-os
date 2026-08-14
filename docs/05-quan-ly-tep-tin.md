@@ -8,7 +8,7 @@ Mỗi brain của Javis thực chất là một thư mục trên máy/VPS chứa
 
 - Tìm file trong toàn brain theo **tên** hoặc theo **nội dung**.
 - Duyệt cây thư mục (nhấp vào thư mục để đi sâu vào, có breadcrumb để quay lại).
-- Mở file để đọc: file chữ hiện ô soạn thảo, ảnh và PDF hiện ngay trong cửa sổ xem trước.
+- Mở file để đọc: trình sửa mở **ngay trong trang**, chiếm chỗ danh sách file (không phải cửa sổ bật lên). Đúng trình sửa mà bạn dùng ở khung chat, nên .md có soạn thảo trực quan, thanh định dạng, Lùi/Tiến giữa các note; ảnh và PDF xem tại chỗ.
 - Sửa file dạng chữ (.md, .txt, .json...) rồi bấm lưu.
 - Tải file từ máy bạn lên brain, hoặc tải file trong brain về máy (mọi loại file, không riêng .md).
 - Tải cả một thư mục về máy: Javis nén thành .zip rồi mới gửi.
@@ -108,15 +108,18 @@ Vài điều nên biết về tìm kiếm:
 
 1. Bấm vào **tên thư mục** (dòng có biểu tượng 📁) để đi vào trong.
 2. Dùng breadcrumb ở trên, nút **↑ Lên**, hoặc nút **⌂ Brain** để quay ra.
-3. Bấm vào **tên file** (hoặc biểu tượng của nó) cũng mở file luôn: file chữ và ảnh/PDF mở cửa sổ xem trước ngay tại chỗ, các loại còn lại mở ở tab mới.
+3. Bấm vào **tên file** (hoặc biểu tượng của nó) cũng mở file luôn: file chữ, ảnh và PDF mở trong trình sửa ngay tại trang, các loại còn lại mở ở tab mới.
 4. Thư mục trống thì danh sách hiện "Thư mục trống."
 
 ### Mở và sửa file văn bản
 
 1. Rê chuột vào dòng file, bấm nút **Sửa**. (Hoặc bấm thẳng vào tên file.)
-2. Một cửa sổ hiện lên. Với file dạng chữ (.md, .txt, .json, .yaml, .yml, .csv, .js, .ts, .py, .html, .css, .toml, .ini, .log, .sh, .bat, .xml, .svg, .env), Javis hiện ô soạn thảo để bạn chỉnh trực tiếp.
-3. Sửa xong bấm **💾 Lưu**. Khi lưu thành công, nút đổi thành **✓ Đã lưu** rồi trở lại như cũ.
-4. Bấm **✕** ở góc trên cửa sổ để đóng. Bạn cũng có thể bấm ra vùng tối bên ngoài cửa sổ để đóng.
+2. Trình sửa mở **ngay trong trang**, thế chỗ danh sách file - không phải cửa sổ bật lên đè lên màn hình. Đây đúng là trình sửa bạn vẫn dùng khi mở file từ khung chat, nên mọi thứ giống hệt: với file dạng chữ (.md, .txt, .json, .yaml, .yml, .csv, .js, .ts, .py, .html, .css, .toml, .ini, .log, .sh, .bat, .xml, .svg, .env) có ô soạn thảo, và riêng .md có thêm hai chế độ **Sửa** (soạn trực quan như Word) / **Nguồn** (markdown thô) cùng thanh định dạng.
+3. Sửa xong bấm **💾 Lưu** (hoặc `Ctrl` + `S`). Khi lưu thành công, nút đổi thành **✓ Đã lưu** rồi trở lại như cũ.
+4. Bấm **✕** (hoặc phím `Esc`) để đóng và quay lại danh sách file. Danh sách tự nạp lại, nên file bạn vừa đổi tên hay xoá ngay trong trình sửa hiện đúng trạng thái mới.
+5. Thanh trên trình sửa còn có: đổi tên, xoá, **↗** mở tab mới, **⤓ Tải** về máy, và nút phóng to toàn màn hình.
+
+**Khối "Thuộc tính" ở đầu note .md.** Nếu file mở đầu bằng khối `---` (frontmatter: `type`, `status`, `created`...), Javis hiện nó thành một khối riêng, **khoá lại không cho sửa** trong chế độ Sửa. Đó là metadata chứ không phải văn bản, và khoá lại chính là thứ giữ cho nó nguyên vẹn từng ký tự sau mỗi lần lưu. Muốn sửa metadata thì chuyển sang chế độ **Nguồn**.
 
 ### Lùi về / Tiến lên giữa các note
 
@@ -143,13 +146,33 @@ Bỏ ghim bằng cách bấm **✕** trên thẻ. Ghim cũng tự bỏ khi bạn
 Lưu ý:
 - Nút **Sửa** chỉ xuất hiện với các loại file văn bản nêu trên.
 - File lớn hơn 2MB sẽ không mở để xem trong trình duyệt. Javis báo bạn tải về thay vì mở.
-- Nếu file là dạng nhị phân (không phải văn bản), cửa sổ sẽ đề nghị **⤓ Tải** về thay vì hiển thị ô soạn thảo.
+- Nếu file là dạng nhị phân (không phải văn bản), trình sửa đề nghị **⤓ Tải** về thay vì hiển thị ô soạn thảo.
+
+### Chữa file .md hỏng từ bản cũ
+
+Bản Javis **trước 0.33.4** có một lỗi âm thầm: mở note `.md` trong trình sửa trực quan rồi bấm Lưu là khối `---` ở đầu note (frontmatter: `type`, `status`, `created`...) bị biến thành `* * *`, và mỗi lần mở ra sửa lại thêm một lớp dấu gạch chéo vào chữ (`1.` → `1\.` → `1\\.`). File vẫn mở được, nhưng metadata coi như mất - Javis, dataview và Obsidian đều đọc trượt từ đó.
+
+Bản này đã bịt đường đó. Với file lỡ hỏng rồi:
+
+1. Vào trang **Tệp tin**. Javis tự soi cả brain một lượt ngay khi bạn vào. **Không có file nào hỏng thì không hiện gì cả** - im lặng là tin tốt.
+2. Có thì hiện một khung vàng ở đầu trang, kèm danh sách file và hỏng ở chỗ nào.
+3. Bấm **Chữa hết N file**. Javis dựng lại khối thuộc tính và gỡ dấu gạch chéo thừa, rồi báo lại số file đã chữa.
+
+Javis chỉ sửa thứ mà **chỉ lỗi đó mới tạo ra được**: khối `* * *` ở ngay đầu file kẹp giữa toàn dòng trông như metadata, và chuỗi từ hai dấu gạch chéo trở lên. Đường kẻ ngang giữa bài, file có frontmatter còn lành, hay một dấu gạch chéo lẻ bạn cố ý gõ - đều không bị đụng tới.
+
+### Khi link trỏ trượt: Javis đi tìm hộ
+
+Đường dẫn trong chat có lúc lệch tên file trên đĩa - hay gặp nhất là chat ghi có dấu ("Kế hoạch...") còn file lưu không dấu ("Ke Hoach..."). Trước đây bấm vào là rơi vào một trang trống ghi "Không phải thư mục". Nay:
+
+- Đường dẫn trỏ vào **một file** (dù trông như tên thư mục) thì Javis mở thẳng file đó ra sửa.
+- Đường dẫn **không có gì ở đó** thì Javis mở thư mục gần nhất còn tồn tại, nói rõ đã tìm cái gì, rồi **tự dò cả brain theo tên** (không phân biệt dấu tiếng Việt) và bày ra danh sách file tên gần giống - bấm một phát là mở.
+- Mở file trực tiếp trong trình sửa mà không thấy file cũng vậy: trình sửa gợi ý luôn các file tên gần giống thay vì báo lỗi rồi thôi.
 
 ### Xem ảnh và PDF ngay trong dashboard
 
 1. Rê chuột vào dòng file ảnh (.png, .jpg, .jpeg, .gif, .webp, .bmp, .ico) hoặc .pdf, bấm nút **Xem** (chú thích: "Xem trước"). Bấm thẳng vào tên file cũng ra kết quả y hệt.
-2. Ảnh hiện luôn trong cửa sổ; PDF nhúng vào khung đọc ngay tại chỗ.
-3. Trên đầu cửa sổ có thêm hai nút: **↗ Tab mới** để mở file ở tab riêng, và **⤓ Tải** để tải về máy. Bấm **✕** để đóng.
+2. Ảnh hiện luôn trong trình sửa; PDF nhúng vào khung đọc ngay tại chỗ.
+3. Trên thanh còn có **↗** để mở file ở tab riêng và **⤓ Tải** để tải về máy. Bấm **✕** (hoặc `Esc`) để quay lại danh sách.
 
 Các loại file còn lại (video, file nén, file dữ liệu...) không có nút Sửa cũng không có nút Xem, mà có nút **Mở** (chú thích: "Mở trong tab mới"). Nói cách khác, mỗi dòng file luôn có đúng một nút xem/mở, chỉ khác tên tuỳ loại.
 

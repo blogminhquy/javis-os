@@ -9,6 +9,7 @@ Quyền: mcp_catalog.allowed(connector, perm_connection, mode_lượt_chạy, to
 Mode đến từ header X-Javis-Mode (Claude/Codex) hoặc tham số (engine API).
 """
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -905,19 +906,40 @@ def _has_connections():
         return False
 
 
-def claude_config_path(mode="full"):
+def claude_config_path(mode="full", vault_root=None):
     """Ghi file --mcp-config 1 entry 'javis'. 0 connection bật → None (giữ hành vi cũ:
-    không config → Claude dùng MCP sẵn của máy)."""
+    không config → Claude dùng MCP sẵn của máy).
+
+    `vault_root` gắn thêm header X-Javis-Vault, tức hub cấp CẢ nhóm tool file
+    (javis_read_file/javis_write_file/javis_use_skill) và khoá chúng vào đúng brain đó qua
+    `_safe_path`. Mặc định KHÔNG gắn, và đó là chủ ý: engine Claude bình thường đã có Read/
+    Write native nên thêm nhóm này chỉ tạo hai bộ tool trùng chức năng.
+
+    Chỗ cần nó là đường Claude bị CHẶN tool native - bot chuyên trách ở mức Được ghi/Toàn
+    quyền. Bot không được chạm Read/Write của Claude Code (nó nhận đường dẫn tuyệt đối, trèo
+    ra khỏi brain được), nên tool file phải đi qua hub để `_safe_path` chặn.
+
+    File tách riêng theo brain (hậu tố băm) vì đây là file DÙNG CHUNG cho mọi phiên: hai bot
+    hai brain chạy cùng lúc mà ghi chung một file là brain nọ đọc header của brain kia.
+    """
     mode = (mode or "full").strip().lower()
     if not _has_connections():
         return None
-    p = STATE_DIR / f".mcp_hub_{mode}.json"
+    headers = {"Authorization": f"Bearer {hub_token()}", "X-Javis-Mode": mode,
+               "X-Javis-Engine": "claude"}
+    hau_to = ""
+    if vault_root:
+        try:
+            vault = str(Path(vault_root).expanduser().resolve())
+        except Exception:
+            vault = str(vault_root)
+        headers["X-Javis-Vault"] = vault
+        hau_to = "_" + hashlib.sha1(vault.encode("utf-8")).hexdigest()[:10]
+    p = STATE_DIR / f".mcp_hub_{mode}{hau_to}.json"
     # X-Javis-Engine=claude: báo hub đây là engine Claude (có tool native mcp__* của connector
     # tài khoản Claude) → javis_connections/lazy search kèm gợi ý ambient. Codex/engine API không gắn.
     p.write_text(json.dumps({"mcpServers": {"javis": {
-        "type": "http", "url": hub_url(),
-        "headers": {"Authorization": f"Bearer {hub_token()}", "X-Javis-Mode": mode,
-                    "X-Javis-Engine": "claude"},
+        "type": "http", "url": hub_url(), "headers": headers,
     }}}, ensure_ascii=False), encoding="utf-8")
     try:
         os.chmod(p, 0o600)   # file chứa hub token - siết như .hub_token
@@ -930,9 +952,28 @@ def _toml_str(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def codex_profile_name():
+    """Tên profile Codex của BẢN NÀY (file `~/.codex/<tên>.config.toml`).
+
+    Vì sao không phải hằng số "javis": nhiều bản Javis cài native trên cùng một VPS chạy chung
+    một user, tức chung `$HOME`. Tên cố định là bản khởi động sau ghi đè profile của bản trước,
+    mà profile đó chứa URL + token của hub, nên Codex của bản A quay sang gọi hub của bản B - sai
+    im lặng, không lỗi nào hiện ra. Gắn cổng vào tên là hết đụng (Docker thì mỗi container một
+    HOME nên vốn đã không dính).
+
+    Cổng mặc định giữ nguyên tên "javis" để máy đang chạy không phải sinh file mới.
+    """
+    p = hub_port()
+    return "javis" if p == 7777 else f"javis-{p}"
+
+
+def codex_profile_path():
+    return Path.home() / ".codex" / f"{codex_profile_name()}.config.toml"
+
+
 def codex_profile(mode="full"):
-    """Ghi ~/.codex/javis.config.toml 1 entry hub → `codex exec -p javis` thấy MỌI MCP của Javis."""
-    path = Path.home() / ".codex" / "javis.config.toml"
+    """Ghi ~/.codex/<profile>.config.toml 1 entry hub → `codex exec -p <profile>` thấy MỌI MCP của Javis."""
+    path = codex_profile_path()
     try:
         # Hub còn cung cấp plugin nội bộ (javis_schedule, datetime-vn...) ngay cả khi user chưa
         # đấu connector ngoài. Không được xoá profile chỉ vì mcp_store đang rỗng.
@@ -948,7 +989,7 @@ def codex_profile(mode="full"):
             os.chmod(path, 0o600)   # chứa hub token
         except Exception:
             pass
-        return "javis"
+        return codex_profile_name()
     except Exception as e:
         print(f"[hub codex profile] {e}", file=sys.stderr)
         return None

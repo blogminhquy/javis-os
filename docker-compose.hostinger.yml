@@ -10,6 +10,8 @@
 #      https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
 #   2) Ô Environment chỉ còn 3 trường hữu ích:
 #        DOMAIN_NAME, JAVIS_ADMIN_USER, JAVIS_ADMIN_PASSWORD.
+#      (Thêm 2 trường CHỈ CẦN KHI cài bản Javis THỨ HAI trở đi trên cùng VPS - xem cuối file:
+#        JAVIS_NAME, JAVIS_HOST_PORT. Cài bản đầu thì bỏ trống cả hai.)
 #      Đặt DOMAIN_NAME để có HTTPS:
 #        - Link miễn phí (KHÔNG cần mua tên miền):  DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud
 #          (hostname xem ở hPanel > VPS, vd: DOMAIN_NAME=javis.srv1782015.hstgr.cloud)
@@ -28,7 +30,10 @@
 services:
   javis:
     image: ghcr.io/blogminhquy/javis-os:latest
-    container_name: javis
+    # Tên container + tên router/service Traefik đều lấy từ JAVIS_NAME. Bỏ trống = "javis" như cũ.
+    # Cài bản THỨ HAI trên cùng VPS thì đặt tên khác (vd javis-shop), nếu không Docker báo tên đã
+    # dùng và Traefik có hai router trùng tên nên chỉ lái được về một bản.
+    container_name: ${JAVIS_NAME:-javis}
     restart: unless-stopped
     pull_policy: always
     # Gắn target Hostinger bên trong lệnh chạy để KHÔNG biến nó thành một trường rác
@@ -41,20 +46,25 @@ services:
       JAVIS_ADMIN_USER: ${JAVIS_ADMIN_USER:-admin}
       JAVIS_ADMIN_PASSWORD: ${JAVIS_ADMIN_PASSWORD:-}
     ports:
-      - "7777:7777"                 # đường vào dự phòng (nút Open / http://<ip>:7777)
+      # Đường vào dự phòng (nút Open / http://<ip>:7777). Bản thứ hai PHẢI đổi cổng này
+      # (JAVIS_HOST_PORT=7778) vì một cổng máy chủ chỉ một container giữ được.
+      - "${JAVIS_HOST_PORT:-7777}:7777"
     labels:
       # Guide (Documentation / Quick start) trong Docker Manager - trỏ docs GitHub.
       - org.opencontainers.image.documentation=https://github.com/blogminhquy/javis-os/blob/main/docs/README.md
       - org.opencontainers.image.source=https://github.com/blogminhquy/javis-os
       - com.hostinger.documentation=https://github.com/blogminhquy/javis-os/blob/main/docs/README.md
       - com.hostinger.quickstart=https://github.com/blogminhquy/javis-os/blob/main/QUICKSTART.md
-      # Router/service dùng tên cố định vì container này cũng cố định là "javis".
+      # Router/service mang TÊN CỦA BẢN (JAVIS_NAME) chứ không đóng cứng "javis": Traefik đặt tên
+      # router theo phạm vi toàn máy, hai bản cùng tên router là bản sau đè bản trước và một
+      # trong hai tên miền chết. Bỏ trống JAVIS_NAME thì vẫn ra "javis" y như trước.
       # Host = ${DOMAIN_NAME}; chưa đặt thì mặc định "localhost" (deploy vẫn chạy, chỉ chưa có domain/HTTPS).
       - traefik.enable=true
-      - traefik.http.routers.javis.rule=Host(`${DOMAIN_NAME:-localhost}`)
-      - traefik.http.routers.javis.entrypoints=websecure
-      - traefik.http.routers.javis.tls.certresolver=letsencrypt
-      - traefik.http.services.javis.loadbalancer.server.port=7777
+      - traefik.http.routers.${JAVIS_NAME:-javis}.rule=Host(`${DOMAIN_NAME:-localhost}`)
+      - traefik.http.routers.${JAVIS_NAME:-javis}.entrypoints=websecure
+      - traefik.http.routers.${JAVIS_NAME:-javis}.tls.certresolver=letsencrypt
+      - traefik.http.routers.${JAVIS_NAME:-javis}.service=${JAVIS_NAME:-javis}
+      - traefik.http.services.${JAVIS_NAME:-javis}.loadbalancer.server.port=7777
     volumes:
       - javis-data:/data
       - javis-brains:/brains
@@ -66,6 +76,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 25s
+
+# ============================================================================
+# NHIỀU BẢN JAVIS TRÊN CÙNG MỘT VPS HOSTINGER
+#
+# Deploy compose này THÊM MỘT LẦN NỮA (stack mới trong Docker Manager), đổi CẢ BA:
+#   Stack 1:  DOMAIN_NAME=shop.srv1782015.hstgr.cloud    JAVIS_NAME=(trống)     JAVIS_HOST_PORT=(trống)
+#   Stack 2:  DOMAIN_NAME=canhan.srv1782015.hstgr.cloud  JAVIS_NAME=javis-canhan  JAVIS_HOST_PORT=7778
+#
+# Cả ba giá trị phải khác nhau giữa các stack. Trùng JAVIS_NAME -> Docker báo tên container đã
+# dùng; trùng JAVIS_HOST_PORT -> báo cổng đã bị chiếm; trùng DOMAIN_NAME -> hai bản giành nhau
+# một link. Wildcard DNS *.hstgr.cloud của Hostinger có sẵn nên tên miền phụ nào cũng trỏ được ngay.
+#
+# Mỗi stack có volume riêng, nên state / brain / tài khoản admin / token đăng nhập Claude đều
+# TÁCH BẠCH. Đăng nhập Claude phải làm lại một lần cho mỗi bản (App terminal của stack đó).
+# ============================================================================
 
 # GHI CHÚ: bản Hostinger CỐ TÌNH không kèm Watchtower. Đã thử (2026-07-18): trên Hostinger Docker
 # Manager, container Watchtower bị Restarting liên tục (không đụng được Docker socket), nên nút

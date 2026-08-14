@@ -26,7 +26,12 @@ BRANDING_DIR = STATE_DIR / "branding"
 _DEFAULT = {
     "workspace_name": "Javis OS",
     "setup_done": False,                       # đã qua bộ cài đặt lần đầu chưa
-    "auth": {"username": "", "password_hash": "", "salt": ""},
+    # totp = xác thực 2 lớp. secret rỗng / enabled=false → cổng đăng nhập giữ nguyên như cũ.
+    # `recovery` giữ BẢN BĂM của mã khôi phục (cùng cách băm mật khẩu), nên không có đường nào
+    # đọc lại mã thô - chúng chỉ hiện đúng một lần lúc sinh ra.
+    # `last_step` là bước thời gian TOTP đã dùng lần gần nhất: chống dùng lại một mã còn hạn.
+    "auth": {"username": "", "password_hash": "", "salt": "",
+             "totp": {"enabled": False, "secret": "", "recovery": [], "last_step": 0}},
     # Logo/avatar hiển thị (góc trên, thanh bên, màn đăng nhập). logo_ext rỗng = dùng ảnh mặc định.
     "branding": {"logo_ext": "", "logo_v": 0},
     # Tên miền riêng cho HTTPS tự động (Caddy On-Demand TLS hỏi /tls-check trước khi xin cert).
@@ -48,11 +53,37 @@ _DEFAULT = {
         # Model phụ cho việc NỀN (loop/metrics/ingest) - alias Claude qua CLI. "" = dùng mặc định
         # (không đổi). Đặt model rẻ (vd haiku) để tiết kiệm khi chạy nền nhiều.
         "auxiliary": {"model": ""},
+        # --- Tiền bạc: những gì Javis KHÔNG tự biết được và phải hỏi người dùng ---
+        # Nhà cung cấp không cho lấy giá gói hay hạn mức gói qua API, nên bốn số này là do
+        # người dùng khai. Để 0 = chưa khai, và trang Mức dùng phải nói "chưa khai" chứ đừng
+        # đoán bừa rồi hiện một con số trông như thật.
+        #   gia_goi_thang_usd: tiền gói thuê bao trả mỗi tháng (Claude Max, ChatGPT Plus...).
+        #                      Có nó mới tính được gói đang lời hay lỗ so với giá API.
+        #   ngan_sach_thang_usd: trần TIỀN MẶT mỗi tháng cho các nhánh dùng API key.
+        #   tu_phanh: chạm trần thì tự đẩy VIỆC NỀN sang đường không tốn tiền (xem aux_engine).
+        #             Mặc định tắt - tự đổi model sau lưng người dùng là việc phải xin phép.
+        #   tran_5h: hạn mức token của một cửa sổ 5 giờ, nếu người dùng biết số của gói mình.
+        "gia_goi_thang_usd": 0,
+        "ngan_sach_thang_usd": 0,
+        "tu_phanh": False,
+        "tran_5h": 0,
+        # Báo cáo token hàng tuần tự đẩy về chat (thứ Hai 8h sáng). "" = tắt; "auto" = gửi về
+        # kênh mặc định; hoặc ghi thẳng nơi nhận ("web:<sid>", chat_id Telegram, "zalo:<id>").
+        "bao_cao_tuan": "",
         # Độ sâu suy nghĩ (reasoning/thinking) khi trả lời chat: off | low | medium | high.
         # Anthropic API/OpenRouter → adaptive thinking + effort; OpenAI → reasoning_effort (chỉ o-series);
         # Claude Code CLI → chèn từ khoá think/ultrathink vào prompt. off = trả lời nhanh như cũ.
         "reasoning": "off",
         # --- Credentials theo provider ---
+        # Gói Claude Code (provider 'anthropic-cli') xác thực bằng CÁI GÌ:
+        #   "subscription" (mặc định) - phiên đăng nhập của chính Claude Code, tức gói Pro/Max
+        #       người dùng đang trả. Javis KHÔNG đọc token đó nữa; nó chỉ chạy binary `claude`
+        #       và để chính sản phẩm của Anthropic lo đăng nhập.
+        #   "api_key" - truyền `anthropic_api_key` xuống cho binary `claude` qua biến môi
+        #       trường, tức trả tiền theo lượt dùng qua Claude Console. Đây là đường Anthropic
+        #       chỉ định cho sản phẩm bên thứ ba (xem claude_auth.CANH_BAO_SUBSCRIPTION).
+        # Đổi ở trang Models. Cả hai đều giữ NGUYÊN năng lực: Bash, WebFetch, MCP, nối phiên cũ.
+        "claude_auth": "subscription",
         "openrouter_key": "",
         "anthropic_api_key": "",               # provider Anthropic API (P2)
         "openai_api_key": "",                  # provider OpenAI (ChatGPT API)
@@ -65,14 +96,18 @@ _DEFAULT = {
         "ollama_key": "",
         # Provider 'openai-oauth' - đăng nhập ChatGPT Plus/Pro qua device-code (xem openai_oauth.py).
         "openai_oauth": {"access_token": "", "refresh_token": "", "id_token": "", "account_id": "", "plan": "", "expires_at": 0},
+        # Provider 'gemini-cli' - đăng nhập tài khoản Google ngay trên dashboard (xem gemini_oauth.py).
+        "gemini_oauth": {"access_token": "", "refresh_token": "", "email": "", "expires_at": 0},
         # --- Legacy: giữ đồng bộ với main để engine cũ không vỡ (engine/claude_model/openrouter_model) ---
         "engine": "cli",                       # cli (Claude Code, đủ MCP) | openrouter | anthropic-api
         "claude_model": "",                    # "" = mặc định CLI; hoặc opus/sonnet/haiku/fable
         "openrouter_model": "openai/gpt-4o-mini",
         # Catalog model theo provider (Telegram /model dùng key 'claude'+'openrouter'; picker dùng cả 3).
         "catalog": {
-            # anthropic-cli: chỉ là mồi lúc cài mới. /provider/models hỏi API Anthropic bằng token
-            # OAuth của Claude Code rồi ghi đè danh sách THẬT vào đây (xem claude_models.py).
+            # anthropic-cli: danh sách nền, LUÔN dùng được kể cả khi máy không có API key.
+            # /provider/models hỏi API Anthropic bằng `anthropic_api_key` (nếu có) rồi ghi đè
+            # danh sách THẬT vào đây. Không có key thì giữ nguyên các alias dưới đây - chúng
+            # luôn trỏ tới bản mới nhất của từng dòng nên không bao giờ lạc hậu.
             "claude": ["opus", "sonnet", "haiku", "fable"],
             "anthropic-api": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
@@ -81,6 +116,10 @@ _DEFAULT = {
             # Không ghim model Codex: /provider/models lấy catalog LIVE bằng
             # codex app-server model/list và nhớ lại lần thành công gần nhất.
             "openai-oauth": [],
+            # Gemini CLI: model do chinh CLI khai (xem gemini_cli.MODELS_MAC_DINH).
+            "gemini-cli": [],
+            # Antigravity CLI: model hoi thang `agy models`, KHONG chep tay bang nao o day.
+            "antigravity-cli": [],
             "openrouter": ["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"],
         },
     },
@@ -386,7 +425,13 @@ _SECRET_PATHS = (
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.ollama_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
+    # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
+    # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
+    "model.gemini_oauth.access_token", "model.gemini_oauth.refresh_token",
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
+    # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
+    # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.
+    "auth.totp.secret",
 )
 
 
@@ -688,6 +733,98 @@ def verify_password(password, cfg=None):
         return False
     h, _ = hash_password(password, a.get("salt"))
     return secrets.compare_digest(h, a["password_hash"])
+
+
+# ---- Xác thực 2 lớp (TOTP). Toán nằm ở totp.py, đây chỉ là chỗ CẤT ----
+def _totp_conf(cfg=None):
+    a = (cfg or read_settings()).get("auth", {}) or {}
+    t = a.get("totp") or {}
+    return t if isinstance(t, dict) else {}
+
+
+def totp_enabled(cfg=None):
+    """2FA đã BẬT THẬT chưa. Có secret mà chưa xác nhận bằng một mã đúng thì vẫn là CHƯA -
+    bật trước khi người dùng chứng minh app của họ sinh đúng mã là tự khoá mình ra ngoài."""
+    t = _totp_conf(cfg)
+    return bool(t.get("enabled")) and bool(t.get("secret"))
+
+
+def totp_secret(cfg=None):
+    return str(_totp_conf(cfg).get("secret") or "")
+
+
+def totp_last_step(cfg=None):
+    try:
+        return int(_totp_conf(cfg).get("last_step") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def totp_recovery_left(cfg=None):
+    r = _totp_conf(cfg).get("recovery")
+    return len(r) if isinstance(r, list) else 0
+
+
+def totp_set(secret="", enabled=None, recovery=None, last_step=None):
+    """Ghi cấu hình 2FA. Tham số nào để None thì giữ nguyên giá trị cũ."""
+    cfg = read_settings()
+    a = cfg.setdefault("auth", {})
+    t = a.get("totp")
+    if not isinstance(t, dict):
+        t = {"enabled": False, "secret": "", "recovery": [], "last_step": 0}
+    if secret is not None:
+        t["secret"] = secret
+    if enabled is not None:
+        t["enabled"] = bool(enabled)
+    if recovery is not None:
+        # Băm bằng chính hàm băm mật khẩu: mã khôi phục là credential, không phải mã dùng-rồi-thôi.
+        t["recovery"] = [dict(zip(("hash", "salt"), hash_password(m))) for m in recovery]
+    if last_step is not None:
+        t["last_step"] = int(last_step)
+    a["totp"] = t
+    write_settings(cfg)
+    return t
+
+
+def totp_tat():
+    """Tắt hẳn 2FA: xoá secret, xoá mã khôi phục, xoá dấu bước đã dùng."""
+    cfg = read_settings()
+    cfg.setdefault("auth", {})["totp"] = {"enabled": False, "secret": "", "recovery": [],
+                                          "last_step": 0}
+    write_settings(cfg)
+
+
+def totp_ghi_buoc(buoc):
+    """Ghi lại bước TOTP vừa dùng → mã đó không xài lại được nữa dù còn trong 30 giây."""
+    totp_set(secret=None, last_step=int(buoc))
+
+
+def totp_dung_ma_khoi_phuc(ma):
+    """Tiêu một mã khôi phục. True nếu khớp (và mã đó bị XOÁ khỏi danh sách).
+
+    Xoá ngay khi dùng là điều kiện để "mã dùng một lần" đúng nghĩa: giữ lại thì một tờ giấy
+    chụp lén còn mở được cửa mãi mãi.
+    """
+    import totp as _t
+    can = _t.chuan_hoa_ma_khoi_phuc(ma)
+    if not can:
+        return False
+    cfg = read_settings()
+    t = (cfg.get("auth", {}) or {}).get("totp") or {}
+    ds = t.get("recovery")
+    if not isinstance(ds, list):
+        return False
+    for i, m in enumerate(ds):
+        if not isinstance(m, dict):
+            continue
+        h, _ = hash_password(can, m.get("salt"))
+        if secrets.compare_digest(h, str(m.get("hash") or "")):
+            ds.pop(i)
+            t["recovery"] = ds
+            cfg["auth"]["totp"] = t
+            write_settings(cfg)
+            return True
+    return False
 
 
 # ---- Session (lưu ra file → restart KHÔNG bị đăng xuất) ----

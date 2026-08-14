@@ -148,10 +148,12 @@ def blocked_hint(provider: str, model: str, needed_tokens: int,
     return " ".join(parts)
 
 
-# Nhãn người-đọc-được cho hai engine chạy bằng gói thuê bao.
+# Nhãn người-đọc-được cho các engine chạy bằng gói thuê bao.
 SUBSCRIPTION_LABEL = {
     "claude-code": "gói Claude (Claude Code)",
     "codex": "gói ChatGPT (Codex)",
+    "antigravity-cli": "gói Google (Antigravity CLI)",
+    "gemini-cli": "gói Google (Gemini CLI)",
 }
 
 

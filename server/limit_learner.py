@@ -297,6 +297,15 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
      re.compile(r"(you'?ve\s+)?(hit|reached)\s+your\s+(usage|plan|weekly)\s+limit", re.I)),
     ("codex_quota", "codex", "",
      re.compile(r"usage\s+limit\s+reached|quota\s+exceeded\s+for\s+your\s+plan", re.I)),
+    # Gemini CLI. Câu chữ lấy từ chính bundle @google/gemini-cli và từ lỗi backend Google trả
+    # về ("Quota exceeded for quota metric...", RESOURCE_EXHAUSTED). Gói đăng nhập Google có
+    # hạn mức theo NGÀY, nên nói được "hết lượt hôm nay" là đúng chuyện đang xảy ra.
+    ("gemini_daily", "gemini-cli", "ngày",
+     re.compile(r"exhausted\s+your\s+daily\s+quota|daily\s+(?:quota|limit)\s+(?:limit\s+)?"
+                r"(?:reached|exceeded)", re.I)),
+    ("gemini_quota", "gemini-cli", "",
+     re.compile(r"quota\s+exceeded\s+for\s+quota\s+metric|resource[_\s]has[_\s]been[_\s]exhausted"
+                r"|RESOURCE_EXHAUSTED", re.I)),
 )
 
 # "resets at 3pm", "resets in 2 hours 15 minutes", "try again in 45 minutes"

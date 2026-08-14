@@ -4,6 +4,344 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.34.1] - 2026-08-14
+### Sửa lỗi
+- **Chữ trong Terminal trên Windows hết trôi thành bậc thang.** Chạy `git help` là cả màn hình xiên dần sang phải, mỗi dòng bắt đầu ở chỗ dòng trước kết thúc. Windows không có tầng nào lo việc "về đầu dòng" hộ nên Javis phải tự làm, giờ đã làm.
+
+### Cải thiện
+- **Code thành một nhóm riêng trên thanh bên, không còn nằm trong Bộ não.** Mở nhóm **Code** là thấy mục **Terminal**; các công cụ lập trình thêm sau sẽ nằm cùng chỗ đó. Bỏ luôn dải tab thừa bên trong trang - điều hướng gom về một tầng.
+
+## [0.34.0] - 2026-08-13
+### Thêm mới
+- **Có tab Code, mở ra là một terminal thật.** Nằm cạnh Tệp tin trong nhóm Bộ não, mở sẵn ở thư mục brain. Gõ lệnh thẳng trên máy đang chạy Javis - `git pull`, xem log, cài CLI, đăng nhập `agy` - khỏi phải mở SSH ở cửa sổ khác. Chạy được cả `vim` và `htop`, có màu, có gợi ý Tab, Ctrl+C giết đúng lệnh đang chạy chứ không văng cả phiên.
+- **Bấm sang trang khác không làm chết lệnh đang chạy.** Đang `npm install` mà đi xem chat rồi quay lại thì màn hình còn nguyên, chạy tới đâu hiện tới đó. F5 hay rớt mạng cũng vậy. Bỏ quên 30 phút thì Javis mới đóng phiên.
+- Chỉ trình duyệt **đã đăng nhập** mới mở được terminal, token API không vào được. Muốn khoá hẳn thì đặt `JAVIS_TERMINAL=0` rồi khởi động lại.
+- Windows chạy bản rút gọn: gõ một dòng rồi Enter, không có gợi ý Tab, không chạy được `vim`. Đó là giới hạn của hệ điều hành và giao diện nói thẳng điều đó ngay trên khung, không để bạn ngồi đoán.
+
+## [0.33.7] - 2026-08-13
+### Cải thiện
+- **Đổi model Antigravity ngay trên Telegram.** Bảng nút của `/model` giờ hiện đủ nhà cung cấp như trang Models trên dashboard, chứ không còn kẹt ở năm cái cũ - nên bộ não Antigravity đổi được từ điện thoại. Nhà nào chưa liệt kê được model nào (hay gặp: cài rồi nhưng chưa đăng nhập) thì ẩn cho gọn.
+- **Gõ thẳng `/model <tên model>` không còn chọn nhầm nhà.** Javis dò tên đó trong danh sách thật rồi chuyển đúng nơi; tên trùng ở nhiều nhà thì nó hỏi lại thay vì đoán.
+
+## [0.33.6] - 2026-08-13
+### Sửa lỗi
+- **Chat qua Antigravity hết vỡ dấu tiếng Việt.** Chữ như "gồm", "hạn" hiện thành ô vuông hỏi chấm. Đo ra thì Javis đọc chữ về không hề sai - chỗ vỡ nằm ở lúc `agy` nhận nội dung, nên giờ Javis gửi theo từng mẩu cắt đúng chỗ để bên kia có đọc kiểu gì cũng không vỡ.
+- Nếu chữ vẫn vỡ, Javis tự đổi cách gửi rồi hỏi lại một lần nữa; vẫn vỡ thì nó nói thẳng là lỗi nằm trong `agy` chứ không im lặng trả về chữ sai.
+
+## [0.33.5] - 2026-08-13
+### Sửa lỗi
+- **Javis tự chữa mấy note .md đã hỏng từ bản cũ.** Vào trang Tệp tin, nếu còn file dính lỗi ở bản trước 0.33.4 (khối thuộc tính đầu note biến thành `* * *`, chữ bị dồn dấu gạch chéo) thì Javis hiện danh sách và bạn bấm một nút là chữa hết. Không file nào hỏng thì không hiện gì cả.
+- Javis chỉ đụng vào đúng dấu vết của lỗi đó, nên đường kẻ ngang giữa bài hay note còn lành đều giữ nguyên.
+
+## [0.33.4] - 2026-08-13
+### Sửa lỗi
+- **Mở file trong trang Tệp tin giờ dùng đúng trình sửa của khung chat.** Không còn ô soạn thảo trần bật lên giữa màn hình: file .md, .txt, .html mở **ngay trong trang**, có soạn thảo trực quan, thanh định dạng, Lùi/Tiến, đổi tên, xoá, phóng to. Bấm **✕** hoặc `Esc` là về lại danh sách.
+- **Lưu note .md không còn làm hỏng file.** Khối `---` đầu note (status, type, created...) trước đây bị biến thành `* * *` ngay lần lưu đầu, và mỗi lần mở ra sửa lại thêm một lớp dấu gạch chéo vào tiêu đề. Nay khối đó hiện thành mục **Thuộc tính** khoá lại, giữ nguyên từng ký tự. File đã lỡ hỏng thì sửa tay lại một lần là xong.
+- **Bấm link file trong chat không còn rơi vào trang trắng "Không phải thư mục".** Link trỏ vào file thì mở thẳng ra sửa; link trỏ trượt (hay gặp: chat ghi tên có dấu còn file lưu không dấu) thì Javis tự dò cả brain theo tên rồi bày ra file tên gần giống, bấm một phát là mở.
+
+## [0.33.3] - 2026-08-13
+### Sửa lỗi
+- **Hết nháy cửa sổ đen trên Windows.** Thi thoảng đang dùng, một khung terminal đen chớp lên giữa màn hình rồi tắt - do Javis chạy nền không có cửa sổ nên mỗi lệnh phụ nó gọi lại được Windows cấp cho một cửa sổ mới. Đã bịt toàn bộ, và có bài kiểm tự động canh để đừng lọt lại lần nữa.
+- Lượt cập nhật trên Windows cũng thôi nháy liên tục vì cùng nguyên nhân.
+
+## [0.33.2] - 2026-08-13
+### Sửa lỗi
+- **Antigravity trên Windows: sửa nốt.** Bản 0.33.1 gửi nội dung cho `agy` theo một cú pháp suy ra từ tài liệu, và bản `agy` thật trả lại `Error: empty prompt` rồi thôi. Giờ Javis tự thử vài cách ngay lần chạy đầu, cách nào ăn thì dùng và nhớ luôn; không cách nào ăn thì tự chuyển sang đường dự phòng thay vì ném câu lỗi tiếng Anh cho bạn.
+
+## [0.33.1] - 2026-08-13
+### Sửa lỗi
+- **Bộ não Antigravity CLI chat được trên Windows.** Trước đây mọi lượt đều trả về "hội thoại này đã quá dài", kể cả khi bạn vừa mở chat mới và chỉ gõ "hi" - nên mở bao nhiêu hội thoại mới cũng không thoát. Phần vượt giới hạn là phần cố định của Javis chứ không phải phần bạn gõ, và câu báo lỗi cũ chỉ sai đường.
+- Nay Javis gửi nội dung cho `agy` theo đường khác, không còn dính giới hạn độ dài lệnh của Windows. Bản `agy` nào không nhận được thì Javis tự chuyển sang đường dự phòng ngay trong lượt đó, và nếu đường đó cũng không trọn vẹn thì nó nói thẳng ra thay vì lặng lẽ trả lời thiếu.
+- **Antigravity giờ dùng được tool của Javis.** Đường dẫn cấu hình cũ đoán sai chỗ nên bộ não này chạy mà không có Kanban, không MCP, không skill, mà chẳng báo gì.
+- Việc chạy nền qua Antigravity không còn bị cắt ngang ở phút thứ 5.
+
+## [0.33.0] - 2026-08-13
+### Thêm mới
+- **Đưa file HTML vào là ra file Webcake sửa được, giống bản gốc.** Javis tự đọc trang HTML rồi dựng thành file `.pke` mở thẳng trong trình dựng trang Webcake: màu, cỡ chữ, ảnh, nút, form và thứ tự các khối lấy nguyên từ bản gốc chứ không phải nhìn rồi gõ lại. Bảo Javis "chuyển file html này sang webcake" là chạy.
+- **Javis soi giúp trước khi giao.** Trang dựng xong được kiểm tự động: chữ đè lên nhau, khối tràn ra ngoài, và **chữ chìm vào nền** - lỗi hay gặp nhất khi bê màu từ HTML sang mà mắt thường khó thấy.
+
+### Sửa lỗi
+- **Kỹ năng có kèm công cụ giờ mới thật sự dùng được.** Trước đây Javis chỉ chép mỗi phần hướng dẫn của kỹ năng xuống bộ não, bỏ lại toàn bộ thư mục công cụ đi kèm - nên kỹ năng nào cần chạy công cụ là hỏng ở mọi bộ não. Đây chính là lý do "HTML sang Webcake" từng bị gỡ hẳn ở bản 0.9.291; nay sửa gốc và đưa nó trở lại.
+
+## [0.32.2] - 2026-08-13
+### Cải thiện
+- **Antigravity CLI: đăng nhập giờ làm trong terminal, thẻ trên trang Models không còn nút đăng nhập.** Nút cũ mở ra một ô terminal nhỏ ngay trên trang mà bấm vào không ăn, nên rốt cuộc vẫn phải mở terminal thật; trên Windows thì nó chưa bao giờ chạy được.
+- Thẻ giờ đưa thẳng lệnh cần gõ (`agy`) kèm một câu giải thích: qua SSH nó tự in ra link để bạn mở trên máy mình. Gõ xong bấm **Kiểm tra lại** là thẻ đổi sang đã đăng nhập.
+
+## [0.32.1] - 2026-08-13
+### Cải thiện
+- **Trang Mức dùng chỉ hiện tiền đô, bỏ hẳn phần quy đổi sang đồng.** Giá của các nhà cung cấp đều niêm yết bằng USD, còn tỉ giá thì trôi mà con số trong máy thì đứng yên - quy đổi thêm một lần chỉ tạo ra một chỗ nữa để sai.
+- Khoản tiền nhỏ hơn một xu giờ ghi là `<$0.01` thay vì làm tròn thành `$0.00` trông như bằng không.
+
+### Sửa lỗi
+- **Đơn giá quy đổi lấy đúng model đang chạy.** Trước đây với cấu hình mặc định nó nhặt nhầm tên model trong một ô cũ, nên tính giá $0,15 cho một lượt Opus giá $15 - lệch 100 lần, và lệch theo hướng khai thấp phần tiết kiệm xuống.
+
+## [0.32.0] - 2026-08-13
+### Thêm mới
+- **Trang Mức dùng làm lại từ đầu.** Mở ra là một câu tiếng người nói thẳng tháng này ai trả gì cho cái gì, rồi tới ba ô bấm được: tiền mặt so với ngân sách, cửa sổ 5 giờ còn bao nhiêu, và đã tiết kiệm được bao nhiêu token.
+- **Đặt ngân sách tiền API mỗi tháng ngay trên trang.** Chạm 80% Javis nhắn, chạm trần thì (nếu bạn bật) tự đẩy việc chạy nền sang đường không tốn tiền - chat của bạn không bị đụng tới. Kèm ô khai giá gói để biết gói đang lời hay lỗ so với giá API.
+- **Báo cáo token tự gửi về chat sáng thứ Hai**, bật bằng một ô tick. Biểu đồ theo ngày giờ có gạch mốc ngày bạn đổi chế độ hay đổi bộ não, nhìn phát hiểu vì sao cột tụt.
+
+### Sửa lỗi
+- **Token tiết kiệm được hiện lại rồi, và hiện ở mọi kỳ.** Trước đây khối này biến mất đúng lúc chế độ tiết kiệm chạy tốt nhất, vì nó cần cả lượt cũ lẫn lượt mới trong 24 giờ mới có số - bật rồi để yên một ngày là mất hút.
+- **Model OpenRouter hết bị tính chi phí bằng 0.** Đây đúng là nhánh duy nhất bạn trả tiền mặt thật, nên ô tiền cũ luôn hiện $0.00 dù ví có vơi đi.
+
+## [0.31.0] - 2026-08-13
+### Sửa lỗi
+- **Đổi model xong không còn bị đòi đăng nhập lại Claude.** Trước đây chỉ cần một lần Javis hỏi không kịp là thẻ Claude hiện "chưa đăng nhập" kèm nút đăng nhập, dù tài khoản chẳng mất gì. Giờ nó nói rõ "chưa kiểm được, không phải bạn bị đăng xuất", và nhớ trạng thái nên đỡ hỏi lại liên tục.
+- **Bộ não Antigravity CLI dùng được trở lại.** Javis đọc nhầm danh sách model của bản `agy` mới nên gửi sai tên model, lượt chat nào cũng lỗi; và khi chạy được thì bong bóng trả lời lại rỗng. Cả hai đã sửa, kèm dòng "Fetching available models..." không còn hiện như một model trong trình chọn.
+- **Máy nhân Linux đời cũ (NAS, VPS cũ) chat được bằng Claude Code.** Trước đây mọi lượt chết ngay vì Javis chạy nhầm bản Claude đóng gói sẵn, giờ nó dùng đúng bản đã cài trên máy.
+- Trên Windows, hội thoại quá dài cho Antigravity giờ báo rõ và mách hai cách đi tiếp, thay cho một lỗi khó hiểu về "tên tệp quá dài".
+
+Cảm ơn người dùng đã gửi báo cáo rất kỹ kèm log và bản vá cho bốn lỗi trên.
+
+## [0.30.3] - 2026-08-13
+### Sửa lỗi
+- **Đăng nhập Antigravity CLI chạy thật rồi.** Bản trước đứng im vì `agy` hỏi "chọn cách đăng nhập" trước khi đưa link, mà Javis lại ngồi chờ link. Giờ Javis tự chọn giúp đúng mục **Google OAuth** rồi mới lấy link ra cho bạn.
+- Nút **Kiểm tra lại** khi chưa đăng nhập cũng nói đúng việc phải làm, thay vì báo "không trả lời kịp" rồi để bạn ngồi đoán.
+
+## [0.30.2] - 2026-08-13
+### Sửa lỗi
+- **Bấm vào link file trong chat giờ mở thẳng ra sửa, không còn lúc được lúc không.** File .html Javis vừa xuất ra, file .md, .css, .json... bấm phát là vào trình sửa; trước đây có lúc lại quăng bạn về thư mục trong trang Tệp tin.
+- Lý do cũ: cùng một link có hai đường đi (bấm thường, và mở tab mới hoặc F5) mà hai đường lại xử khác nhau. Nay đi chung một luật.
+- Chữ hiện khi rê chuột cũng nói đúng việc: **Mở ra sửa** với file, **Mở vị trí trong Tệp tin** với thư mục. Ảnh, PDF, file nén vẫn là tải về như cũ.
+
+## [0.30.1] - 2026-08-13
+### Sửa lỗi
+- **Danh sách mốc hội thoại đọc được trở lại khi chat đã dài.** Từ khoảng 60 câu hỏi, các dòng trong danh sách bị bóp bẹp lại thành một mớ vệt mờ; giờ mỗi dòng giữ nguyên chiều cao và danh sách tự cuộn như bình thường.
+
+## [0.30.0] - 2026-08-13
+### Thêm mới
+- **Đăng nhập Google cho Antigravity CLI ngay trên trang Models, không phải mở terminal nữa.** Bấm **Đăng nhập Google**, mở link, đăng nhập, dán mã Google đưa lại là xong - giống hệt cách đăng nhập Claude Code và ChatGPT đang có.
+- Chạy được cả khi Javis nằm trên VPS: Javis tự lo phần terminal. Tiện thể chữa luôn một lỗi của CLI làm đường link bị đứt đoạn khi đăng nhập qua SSH, dán sang trình duyệt là báo lỗi.
+- Trên Windows thẻ nói thẳng là phải gõ `agy` một lần trong PowerShell, chứ không bày ra một cái nút bấm vào không chạy.
+
+### Cải thiện
+- Ô **Chạy bằng** ở thẻ Claude Code nói rõ hơn: nó chỉ đổi **ai trả tiền**, còn lệnh máy và MCP thì cả hai lựa chọn đều giữ nguyên - khác thẻ "Anthropic (API)" bên dưới. Trước đây hai chỗ nhìn như trùng nhau.
+
+## [0.29.1] - 2026-08-13
+### Cải thiện
+- **Thẻ Google Gemini CLI tự ẩn đi nếu máy bạn không có nó**, nên sẽ không còn ai vấp vào một lựa chọn Google đã ngắt rồi loay hoay đăng nhập. Ai đang đặt nó làm bộ não chính thì vẫn thấy thẻ để còn đổi sang cái khác.
+- **Javis thôi tự cài Gemini CLI lúc cài đặt.** Bản cài nhẹ hơn và nhanh hơn một chút. Vẫn dùng được nếu bạn có giấy phép doanh nghiệp hoặc chạy bằng API key: tự cài `npm i -g @google/gemini-cli` là thẻ hiện lại.
+- Bộ não Google cho tài khoản cá nhân giờ là **Antigravity CLI** (bản 0.29.0).
+
+## [0.29.0] - 2026-08-13
+### Thêm mới
+- **Bộ não thứ 10: Antigravity CLI - dùng gói Google của bạn, và chọn được đúng dàn model như trong Antigravity IDE**, gồm cả model không phải của Google. Đây là đường Google chỉ định sau khi họ ngắt Gemini CLI với tài khoản cá nhân.
+- Cài một lần trên máy chạy Javis rồi gõ `agy` để đăng nhập Google, vào trang **Models** bấm **Kiểm tra lại** là xong. Chạy trên VPS cũng được: nó tự in ra một đường link cho bạn mở trên máy mình.
+- Danh sách model **hỏi thẳng CLI** chứ Javis không giữ bảng chép tay, nên tài khoản bạn được cấp model nào là thấy đúng model đó.
+- Ngang hàng Claude Code và ChatGPT: chạy được lệnh máy, gọi được mọi kết nối đã đấu, dùng skill, nhận việc nền và trả lời qua Telegram.
+
+## [0.28.9] - 2026-08-13
+### Sửa lỗi
+- **Google đã ngắt Gemini CLI với mọi tài khoản cá nhân từ 18/06/2026** - gói miễn phí, AI Pro lẫn Ultra. Trước bản này chat bằng nó chỉ ra dòng trống khó hiểu; giờ Javis nói thẳng chuyện gì đã xảy ra và chỉ sang đường còn dùng được. Đây là chặn từ phía Google, không phải lỗi máy bạn.
+- Thẻ **Google Gemini CLI** ở trang Models hết mời đăng nhập như thể vẫn dùng được. Muốn model Gemini thì dùng **OpenRouter** (nhiều model một chỗ, có cả Gemini lẫn Claude) hoặc **Google Gemini (API)**.
+
+## [0.28.8] - 2026-08-12
+### Sửa lỗi
+- **Ô dán mã khi đăng nhập Google đã gõ được.** Nút "Xong" bị giãn ra chiếm hết hàng làm ô nhập teo lại còn vài chục pixel, không dán nổi mã vào. Màn hình hẹp thì nút tự rơi xuống dòng dưới cho ô nhập đủ rộng.
+
+### Cải thiện
+- **Cài Javis là có sẵn cả ba bộ não chạy bằng gói đăng nhập: Claude Code, ChatGPT (Codex) và Gemini CLI.** Không phải tự mở terminal gõ `npm i -g` từng cái nữa, mở trang Models ra là chỉ còn việc đăng nhập.
+- Áp cho cả ba đường cài: Docker, `install.sh` trên VPS, và `setup.bat` trên Windows (trước đây file này không cài bộ não nào).
+- Bản đang chạy thì **cập nhật Javis** một lần là có. Cái nào cài lỗi cũng không sao: các bộ não còn lại vẫn chạy như thường, thẻ ở trang Models chỉ báo cách cài tay.
+
+## [0.28.7] - 2026-08-12
+### Sửa lỗi
+- **Mở lại hội thoại cũ không còn thấy một đống chữ máy trong bong bóng câu hỏi của mình.** Khi bạn đang mở một file trong trình sửa, Javis kèm một khối hướng dẫn vào tin nhắn để nó biết đang làm việc trên file nào. Khối đó lẽ ra chỉ dành cho máy đọc, nhưng lúc tải lại trang thì nó hiện ra thay cho câu bạn đã gõ.
+- **Thanh mốc hội thoại đọc được trở lại.** Trước đây hội thoại càng dài thì danh sách càng toàn những dòng giống hệt nhau, vì dòng nào cũng là khối hướng dẫn đó - không nhìn ra câu nào với câu nào.
+- **Tên hội thoại trong Lịch sử cũng hết bị đặt theo khối đó.** Nút gửi lại và sửa câu hỏi giờ dùng đúng câu bạn gõ, không kèm rác.
+
+## [0.28.6] - 2026-08-12
+### Thêm mới
+- **Đăng nhập Google cho Gemini CLI ngay trên trang Models, không phải mở terminal nữa.** Bấm **Đăng nhập Google**, đăng nhập, Google hiện ra một mã, dán mã đó lại là xong - giống hệt cách đăng nhập Claude Code và ChatGPT đang có.
+- Chạy được cả khi Javis nằm trên VPS còn trình duyệt ở máy bạn, vì không có localhost nào ở giữa. Màn hình đồng ý của Google ghi đúng tên **Gemini CLI**.
+- Có nút **Ngắt** để gỡ tài khoản Google khỏi Javis. Ai thích đăng nhập bằng terminal thì vẫn dùng được như cũ.
+
+## [0.28.5] - 2026-08-12
+### Thêm mới
+- **Bộ não thứ 9: Gemini CLI, chạy bằng tài khoản Google của bạn - không cần mua API key.** Ngang hàng Claude Code và ChatGPT: chạy được lệnh máy, gọi được mọi kết nối đã đấu, dùng skill, nhận việc nền. Cài `npm install -g @google/gemini-cli`, chạy `gemini` một lần để đăng nhập Google, rồi vào trang Models bấm **Kiểm tra lại**.
+- Thẻ mới nằm riêng, không lẫn với **Google Gemini (API)** cũ: thẻ cũ trả tiền theo lượt gọi, thẻ mới dùng gói miễn phí gắn với tài khoản Google.
+- Việc chạy nền giao cho nó cũng được, và ba mức quyền của Javis xuống thẳng chế độ duyệt của CLI - mức **Chỉ đọc** là do chính Gemini CLI chặn, không phải một lời dặn trong prompt.
+
+### Cải thiện
+- Hết lượt gói Google giờ báo bằng tiếng Việt kèm mốc dùng lại được, thay cho câu tiếng Anh của Google.
+
+## [0.28.4] - 2026-08-12
+### Sửa lỗi
+- **Kết nối ChatGPT xong không còn đứng ở "0 model".** Danh sách model của gói ChatGPT do Codex cấp, mà trước đây không ai đi hỏi cho tới khi bạn tự mở hộp chọn model. Nay đăng nhập xong là trang Models tự hỏi và điền con số thật. Máy mới cài (hay máy Mac vừa dựng) là chỗ lộ rõ nhất vì chưa có danh sách cũ để hiện tạm.
+- **Không lấy được model thì nói rõ vì sao.** Thay cho câu chung chung "provider chưa kết nối hoặc không có model", giờ là câu chỉ đúng việc phải làm: chưa đăng nhập, chưa cài Codex CLI, hay thiếu API key.
+- **Trên máy Mac, Javis tự tìm thấy `claude` và `codex` cài bằng Homebrew hoặc nvm.** Chạy nền thì hệ điều hành chỉ đưa cho Javis một danh sách thư mục rất ngắn, nên hai lệnh này gõ trong Terminal vẫn chạy mà Javis lại báo chưa cài.
+
+### Cải thiện
+- **Gõ `/` trong Telegram sổ ra danh sách lệnh đáng tin hơn.** Javis đặt menu cho cả chat riêng lẫn nhóm, và nếu Telegram từ chối thì báo hẳn lý do ở trang Cài đặt thay vì im lặng như trước.
+
+## [0.28.3] - 2026-08-12
+### Sửa lỗi
+- **Đổi mật khẩu quản trị nay lưu được thật.** Trước đây điền tên đăng nhập với mật khẩu mới rồi bấm Lưu là không có gì xảy ra: app gửi nhầm sang đường dành cho lần đầu tạo tài khoản, mà đường đó luôn từ chối khi máy đã có chủ. Cả trang Tài khoản lẫn khối tài khoản trong trang Cài đặt đều dính, nay cả hai đều chạy.
+- Form hỏi thêm **mật khẩu hiện tại** trước khi đổi, và báo ngay tại chỗ nếu mật khẩu mới dưới 8 ký tự thay vì để bấm xong mới biết.
+
+### Bảo mật
+- Đổi mật khẩu xong thì **mọi máy khác đang đăng nhập bị đăng xuất**, riêng máy bạn vừa thao tác ở lại. Xác thực 2 lớp giữ nguyên, không phải quét lại mã QR.
+- Bịt đường đổi mật khẩu cũ: nó không hỏi mật khẩu hiện tại và token API gọi được, nên một token lộ ra là đủ để chiếm tài khoản rồi khoá chính chủ ra ngoài.
+
+## [0.28.2] - 2026-08-12
+### Sửa lỗi
+- **Chuông thông báo hết nhắc bản mà bạn đã cài rồi.** Trước đây đọc hết thông báo, nâng cấp xong là con số lại hiện ra - vì các bản ra sau lần bấm "Đọc tất cả" vẫn nằm trong hàng chưa đọc dù chính chúng vừa được cài. Nay cài xong là hết nhắc, còn bản chưa cài thì vẫn báo bình thường.
+
+### Cải thiện
+- **Khung chat trên điện thoại: tên model và nút phóng to nay nằm sát bên trái**, ngay cạnh chữ HỘI THOẠI. Trước đây hai thứ đó bị đẩy ra tận mép phải nên phải quét mắt ngang cả màn mới đọc được đang chạy model nào.
+- Tên model dài cũng không còn đẩy nút phóng to lệch ra ngoài.
+
+## [0.28.1] - 2026-08-12
+### Sửa lỗi
+- **Nút "Kiểm tra lại" ở trang Cập nhật nay làm mới cả danh sách phiên bản.** Trước đây nó chỉ làm mới cái khung trên, còn danh sách bên dưới chỉ nạp một lần lúc mở trang - nên bấm bao nhiêu lần cũng không thấy bản mới hiện ra, phải rời trang rồi quay lại hoặc tải lại trang.
+- Danh sách cũng không còn ăn bản cũ trong bộ nhớ đệm trình duyệt. Đây là chỗ duy nhất ở trang này còn thiếu, và đúng chỗ hiển thị các phiên bản.
+
+## [0.28.0] - 2026-08-12
+### Thêm mới
+- **Thanh mốc hội thoại nay có trên điện thoại.** Không phải dãy vạch thu nhỏ mà là một nút nhỏ ở góc trên khung chat, chạm vào thì danh sách câu hỏi trượt lên từ đáy, chạm một câu là nhảy tới.
+- Nút hiện luôn **đang ở câu mấy trên tổng mấy**, thay cho việc nhìn vạch sáng bên máy tính.
+- Đóng bằng cách chạm ra ngoài, bấm dấu X, hoặc phím Esc. Xoay máy sang ngang thì tự đổi về dãy vạch như trên máy tính.
+
+## [0.27.2] - 2026-08-12
+### Sửa lỗi
+- **Tạo bot Zalo hay Telegram báo "Thiếu Agent" trong khi đã chọn Agent hẳn hoi.** Lỗi rơi vào đúng những Agent bạn đặt tên tiếng Việt: tên file của chúng có dấu, mà chỗ lưu bot lại chỉ nhận chữ không dấu. Nay chọn Agent nào cũng lưu được, kể cả "Tư vấn sản phẩm" hay "Chăm sóc khách hàng".
+- Câu báo lỗi cũng tách làm hai cho đúng việc: chưa chọn Agent là một chuyện, tên Agent không dùng được là chuyện khác.
+- **Đổi Agent ở form Sửa bot giờ báo thật khi không lưu được.** Trước đây gặp tên lạ nó lặng lẽ bỏ qua rồi vẫn hiện "đã lưu", nên bot vẫn trả lời bằng vai cũ mà không ai biết.
+
+## [0.27.1] - 2026-08-12
+### Sửa lỗi
+- **Mở hội thoại cũ nay rơi thẳng vào cuối, không phải câu hỏi đầu tiên.** App vẫn cuộn xuống đáy đàng hoàng, nhưng ngay sau đó khung chat bị dời sang trang Trò chuyện, mà dời một khung đang cuộn thì trình duyệt tự kéo về đầu. Nay giữ đúng chỗ đang đọc ở cả hai chiều đi và về.
+- **Danh sách của thanh mốc hội thoại nay trỏ tới được.** Bản trước nó hiện ở đỉnh khung trong khi dãy vạch nằm giữa, chuột đi tới nửa đường là nó tắt. Nay hộp nằm ngang hàng với dãy vạch và dính liền, thêm một nhịp trễ nhỏ để lỡ tay đưa chuột ra ngoài vẫn kịp quay lại.
+
+## [0.27.0] - 2026-08-12
+### Thêm mới
+- **Thanh mốc hội thoại ở khung chat.** Mép phải khung chat giờ có một dãy vạch nhỏ, mỗi vạch là một câu bạn đã hỏi. Rê chuột vào thì hiện danh sách các câu hỏi, bấm một câu là nhảy thẳng về chỗ đó. Hội thoại càng dài càng đỡ phải kéo tay đi tìm.
+- Vạch của câu đang đọc sáng lên theo vị trí cuộn, nên liếc một cái là biết mình đang ở đâu trong cuộc trò chuyện.
+- Ý tưởng từ **Trưng Minh** góp qua nhóm. Cảm ơn bạn.
+- Thanh chỉ hiện trên máy tính. Trên điện thoại thao tác chính của nó là rê chuột, mà chạm sát mép phải lại giành mất cú vuốt để cuộn.
+
+## [0.26.28] - 2026-08-12
+### Cải thiện
+- **Khung Cập nhật chỉ luôn cách tìm thư mục compose.** Bản trước bảo "chạy ở thư mục chứa file compose" nhưng không nói cách tìm, nên gõ xong hay lãnh `no configuration file provided: not found` - tên thư mục tuỳ lúc tải về, có máy là `javis`, có máy là `javis-os`.
+- Tài liệu Khắc phục sự cố thêm bảng phân biệt ba kiểu báo `not found` khi gõ lệnh Docker, mỗi kiểu một cách xử lý.
+
+## [0.26.27] - 2026-08-12
+### Sửa lỗi
+- **Trang Cập nhật nay nói rõ vì sao máy này không có nút "Cập nhật ngay".** Trước đây mọi máy thiếu nút đều nhận chung một câu, nên không có cách nào biết máy mình thiếu gì.
+- Nếu là **VPS tự quản**: nút cần Watchtower, mà lệnh `docker compose up -d` quen tay không bật nó. Khung giờ đưa thẳng lệnh cần chạy một lần: `docker compose --profile update up -d`. Đây là lý do phổ biến nhất khiến máy này có nút mà máy kia không.
+- Nếu là **Hostinger**: bản đó cố tình không kèm Watchtower, khung nói luôn là cập nhật bằng Redeploy chứ không có gì để bật.
+
+## [0.26.26] - 2026-08-12
+### Sửa lỗi
+- **Trên điện thoại, tab "Thư mục" ở trang Trò chuyện bấm vào chỉ thấy khoảng trắng.** Tab này dùng chung cây thư mục với màn chính, mà cây đó lại đang bị ẩn trên màn hẹp nên nó ẩn theo. Nay mở tab là thấy cây.
+- **Trang Nhật ký cập nhật hiện nguyên dấu sao và dấu huyền** quanh chữ in đậm và tên file. Nay chữ đậm ra chữ đậm, tên file ra khung mã, và đường dẫn dài tự xuống dòng thay vì đẩy ngang cả trang.
+
+### Cải thiện
+- **Nhật ký cập nhật từ nay viết ngắn cho người đọc trên điện thoại**: mỗi bản vài dòng, nói cái người dùng thấy khác chứ không kể tên hàm và đường dẫn file. Chi tiết kỹ thuật chuyển hết vào commit và pull request.
+
+## [0.26.25] - 2026-08-12
+### Sửa lỗi
+- **Bấm vào link trong file .md không mở ra gì cả.** Đường dẫn có khoảng trắng bị mã hoá thành `%20`, dashboard đem nguyên chuỗi đó đi tìm file nên không bao giờ thấy. Nay mở đúng file.
+- **Ảnh có khoảng trắng trong tên bị thành ô xám**, cùng một nguyên nhân. Nay hiện bình thường.
+- **Bấm trượt nay nói rõ là không tìm thấy file**, kèm đường dẫn đã thử. Trước đây nó báo nhầm thành "loại file này không xem trực tiếp - hãy tải về".
+
+## [0.26.24] - 2026-08-12
+### Cải thiện
+- **Thẻ Token API có link sang tài liệu.** Trước đây tạo token xong là hết đường: cầm chuỗi `jvs_...` trong tay mà không biết dùng ở đâu. Nay có link hướng dẫn ngay dưới thẻ và trong khối token vừa tạo, kèm câu lệnh cài Javis CLI.
+
+## [0.26.23] - 2026-08-12
+### Sửa lỗi
+- **Mã QR của xác thực 2 lớp quét không ra.** Chủ repo bật 2FA, QR hiện ra đàng hoàng, điện thoại soi vào thì chịu. Ba lỗi cộng dồn, và cả ba đều KHÔNG nhìn thấy được bằng mắt vì cái QR trông vẫn bình thường.
+- **Vùng trắng viền chỉ có 2 ô, chuẩn QR đòi 4.** Thiếu vùng đó thì máy quét không tách được mã ra khỏi nền xung quanh.
+- **Chuỗi otpauth nhét thừa `algorithm=SHA1&digits=6&period=30`** - cả ba đều là giá trị MẶC ĐỊNH mà mọi app Authenticator tự hiểu. 34 ký tự thừa đẩy QR từ phiên bản 6 (41x41 ô) lên phiên bản 8 (49x49 ô) trong cùng một khung hình. Nay chỉ khai khi hằng số thật sự khác mặc định.
+- **CSS ép ảnh QR xuống 200px trong khi ảnh gốc 265px**, tức mỗi ô còn 3,77 pixel. Đây là thủ phạm nặng nhất: người dùng soi điện thoại vào MÀN HÌNH máy tính chứ không phải tờ giấy, nên cỡ mỗi ô quyết định tất cả. Nay để ảnh ra đúng cỡ server tính (8 pixel mỗi ô, hơn gấp đôi).
+- **Tên workspace dài làm QR phình lại.** Tên nằm HAI chỗ trong chuỗi otpauth nên mỗi ký tự tốn gấp đôi; đo thật thì tên 48 ký tự đẩy QR lên phiên bản 11 (69 ô). Nay cắt tên ở 24 ký tự, nên đặt tên kiểu gì QR cũng giữ được 8 pixel mỗi ô.
+- **Nền QR nay là trắng thật**, không còn trong suốt dựa vào màu nền của thẻ bọc - ai dùng tông tối trước đây sẽ thấy mã đen nằm trên nền tối.
+- **Tên trong app Authenticator lấy theo workspace và theo NGƯỜI.** Trước đây hiện "Javis OS: admin" - đúng về kỹ thuật nhưng vô nghĩa khi nằm giữa chục tài khoản 2FA trên điện thoại. Nay lấy tên workspace thật cộng tên người dùng (`USER_NAME`), rơi về tên đăng nhập khi chưa đặt: "Javis OS: Minh Quý".
+- **Nhãn GIỮ nguyên dấu tiếng Việt.** Bản đầu bóc sạch dấu ("Minh Quý" thành "Minh Quy") vì sợ app hiện chuỗi hỏng; nỗi sợ đó lỗi thời - Key Uri Format cho phép nhãn UTF-8 phần trăm-mã-hoá và các app phổ biến đọc đúng từ lâu. Chỉ còn bỏ ký tự điều khiển và dấu ':' (nó là dấu ngăn giữa tên workspace và tên tài khoản, lọt vào là vỡ nhãn). Đã đo: kể cả tên có dấu dài hết mức thì QR vẫn giữ 8 pixel mỗi ô.
+- Thêm canary đo bằng SỐ chứ không đọc chữ: mỗi ô phải >= 7 pixel ở cỡ tự nhiên, viền phải 4 ô, nền không được trong suốt, và CSS không được ép ảnh về một cỡ pixel cố định. Vế cuối là cách âm thầm nhất để phá lại mọi thứ ở trên - server trả ảnh đúng cỡ, trình duyệt nén lại, và không test phía server nào thấy được.
+
+## [0.26.22] - 2026-08-12
+### Thêm mới
+- **Cài được NHIỀU bản Javis trên cùng một VPS, mỗi bản một link riêng.** Trước bản này thì không: bản thứ hai dựng lên là chết ngay. Bản thân app đã đa-bản-được từ lâu (`JAVIS_PORT`, `JAVIS_STATE_DIR` đều đọc từ biến môi trường); chỗ chặn nằm hết ở file cài đặt, và đều là cùng một loại lỗi - một cái tên bị đóng cứng ở nơi Docker/Traefik/systemd định danh theo phạm vi TOÀN MÁY. Năm cái tên đó: `container_name: javis`, cổng máy chủ `7777`, tên router/service Traefik `javis`, `/etc/systemd/system/javis.service`, và `~/.codex/javis.config.toml`.
+- **Ba biến là đủ để tách một bản:** `JAVIS_NAME` (tên container + tên router Traefik + tên dịch vụ systemd), `JAVIS_HOST_PORT` (cổng máy chủ), `DOMAIN_NAME` (link). Bỏ trống cả ba = `javis` + cổng `7777`, tức **y hệt cách cài cũ** - ai đang chạy một bản không phải sửa gì.
+- **Proxy dùng chung cho VPS tự quản** (`docker-compose.proxy.yml` + `docker-compose.multi.yml`). Một máy chỉ có một cổng 443, nên Caddy phải đứng NGOÀI mọi bản: chạy proxy một lần cho cả máy, rồi mỗi bản một thư mục riêng. Proxy tự phát hiện bản mới qua nhãn Docker và tự xin Let's Encrypt, nên thêm hay bớt một bản KHÔNG phải sửa gì ở proxy, cũng không phải khởi động lại nó. Đúng cách Traefik của Hostinger đang làm. Socket Docker chỉ mount `:ro`.
+- **Hostinger:** deploy `docker-compose.hostinger.yml` thành stack thứ hai rồi điền ba ô đó. Ô Environment vì vậy có thêm hai trường `JAVIS_NAME` + `JAVIS_HOST_PORT`; cả hai đều có mặc định nên người cài bản đầu vẫn bỏ trống. Không có cách nào suy chúng ra từ ba trường cũ vì Traefik và Docker đều định danh theo phạm vi toàn máy.
+- **Native:** `JAVIS_NAME=javis-shop JAVIS_PORT=7778 ./install.sh` cho ra `javis-shop.service` thay vì ghi đè `javis.service` của bản trước. `install.sh` chặn tên có ký tự lạ trước khi ghi vào `/etc/systemd`.
+
+### Sửa lỗi
+- **Hai bản Javis native chạy chung một user ghi đè profile Codex của nhau.** `~/.codex/javis.config.toml` là tên cố định, mà file đó chứa URL + token của hub, nên bản khởi động sau đè bản trước và Codex của bản A quay sang gọi hub của bản B - sai im lặng, không lỗi nào hiện ra ở đâu. Nay tên profile gắn cổng khi cổng khác mặc định (`javis-7778.config.toml`); cổng 7777 giữ nguyên tên `javis` nên máy đang chạy không phải sinh file mới. Hai nơi ghi profile (hub bật / hub tắt) nay dùng chung một hàm đặt tên.
+- **`update.sh` của bản này đi restart bản khác.** Script dò container và dịch vụ bằng tên `javis` đóng cứng. Nay nó đọc `JAVIS_NAME` từ `.env` của đúng thư mục đang đứng, và giữ nguyên override `docker-compose.multi.yml` khi phát hiện proxy dùng chung - thiếu chỗ này thì một lượt cập nhật là gỡ mất nhãn Caddy và bản đó rơi khỏi proxy.
+- **Watchtower theo dõi đúng container của bản mình** thay vì luôn nhắm vào container tên `javis`.
+
+### Cải thiện
+- `JAVIS_BIND` cho phép thu cổng về `127.0.0.1` khi đã có proxy đứng trước. Làm bằng biến chứ không phải một dòng `ports` trong file override, vì compose NỐI CHỒNG danh sách `ports` giữa các file `-f` chứ không thay thế - khai lại là ra hai binding cùng một cổng và Docker báo `port is already allocated`.
+- Thêm `test_nhieu_ban_mot_vps.py` khoá cả năm cái tên toàn cục, khoá luôn điều kiện quan trọng nhất là bỏ trống mọi biến thì mọi file phải render ra y hệt trước đây. Test tự bung `${VAR:-mặc định}` như compose làm nên chạy được ở CI không có Docker.
+- DEPLOY.md có mục riêng cho việc này, kèm bảng nói rõ trùng biến nào thì hỏng ra làm sao, và nói thẳng cái gì dùng chung cái gì riêng (không có gì dùng chung - mỗi bản phải đăng nhập Claude một lần).
+
+## [0.26.21] - 2026-08-11
+### Sửa lỗi
+- **Xác thực 2 lớp không tìm thấy được từ trang Cài đặt.** Javis có HAI bề mặt cài đặt tài khoản - trang **Tài khoản** (đủ thứ, gồm luồng bật 2FA có QR) và khối "Tài khoản đăng nhập" cũ nhúng trong trang **Cài đặt** (chỉ đổi mật khẩu). 0.26.20 thêm 2FA vào chỗ đầu mà quên chỗ sau. Hậu quả không phải "thiếu một nút": người dùng mở trang Cài đặt, thấy khối tài khoản không nhắc gì tới 2FA, rồi kết luận Javis chưa có tính năng đó - trong khi nó đã chạy được cả ngày. Một tính năng bảo mật mà người ta không tìm ra thì bằng không.
+- Nay khối đó có thêm một dòng trạng thái: chưa bật thì mời bật, đang bật thì khoe còn mấy mã khôi phục (kèm cảnh báo khi sắp hết), chưa đặt mật khẩu thì nói thẳng phải đặt mật khẩu trước chứ không đưa ra một nút bấm vào không ăn.
+- **Cố ý chỉ là lối đi, không nhân đôi luồng bật.** Màn quét QR vẫn nằm đúng một chỗ ở trang Tài khoản; nút ở đây dùng chung đường chuyển trang sẵn có. Hai bản sao của một luồng bảo mật là hai chỗ phải sửa mỗi lần đổi, và chỗ nào quên sửa thì chỗ đó thành lỗ - `test_2fa_loi_vao.js` có canary cấm nhân đôi.
+
+## [0.26.20] - 2026-08-11
+### Thêm mới
+- **Xác thực 2 lớp (2FA) bằng app Authenticator.** Bật ở Dashboard → Tài khoản: quét QR bằng Google Authenticator / Microsoft Authenticator / 1Password / Bitwarden (cái nào cũng được), nhập một mã 6 số để xác nhận, xong. Từ đó mỗi lần đăng nhập hỏi thêm mã. Javis chạy full quyền và có Bash, nên mật khẩu lộ ra ngoài mà vẫn vào được là một rủi ro không nên chấp nhận.
+- **10 mã khôi phục, hiện đúng một lần lúc bật.** Không có chúng thì bật 2FA là tự đặt bẫy: mất điện thoại là mất luôn đường vào, và lối ra duy nhất là SSH vào server sửa tay `settings.json` - đúng thứ người ta bật 2FA để khỏi phải làm. Mã dùng một lần rồi tiêu; sinh lại bộ mới được (bộ cũ hết hiệu lực ngay).
+- **`install.sh` hỏi có bật 2FA không.** Cố ý KHÔNG làm trọn trong terminal: vẽ QR ra terminal thì nửa số máy hiện sai và người dùng phải soi điện thoại vào cửa sổ SSH, trong khi vài giây nữa họ sẽ mở trình duyệt - chỗ hiện QR đúng đắn. Nên bước này chỉ ghi ý định vào `.env`, còn Dashboard mở sẵn màn quét QR ở trang Tài khoản.
+
+### Bảo mật
+- **Chống dùng lại mã.** Một mã TOTP sống 30 giây, cộng cửa sổ bù lệch đồng hồ là tới 90. Javis ghi lại bước thời gian của lần đăng nhập thành công gần nhất và từ chối mọi bước nhỏ hơn hoặc bằng, nên một mã bị nhìn trộm qua vai cũng không xài lại được. Đây là lỗ mà phần lớn bản TOTP tự viết mắc phải, vì nó không lộ ra trong lúc dùng thử.
+- **Chỉ bật SAU khi người dùng chứng minh app sinh đúng mã.** Secret mới nằm trong RAM cho tới lúc xác nhận, không ghi vào cấu hình. Bật trước là tự khoá chính chủ ra ngoài khi app lệch giờ hoặc quét hụt.
+- **Mật khẩu kiểm TRƯỚC, mã kiểm SAU.** Đảo lại là biến ô mã thành máy dò xem tài khoản nào đã bật 2FA, cho người còn chưa biết mật khẩu. Sai mật khẩu thì phản hồi không hề nhắc tới 2FA.
+- **Secret TOTP và mã khôi phục không nằm nguyên văn trên đĩa.** Secret đi vào danh sách trường được mã hoá at rest như API key; mã khôi phục lưu dạng băm PBKDF2 như mật khẩu, nên không có đường nào đọc lại chúng.
+- **Tắt 2FA đòi CẢ mật khẩu lẫn một mã đúng.** Ai đó mượn được máy đang mở sẵn dashboard mà tắt được lớp thứ hai bằng một cú bấm thì lớp đó coi như không có. Mọi endpoint 2FA đều đòi session trình duyệt, không nhận token API.
+- Tự viết TOTP (RFC 6238) thay vì thêm thư viện: nó là HMAC-SHA1 trên một bộ đếm 30 giây, đúng 20 dòng thật sự, và đã đứng yên từ 2011. Thêm dependency cho ngần đó code là đổi một thứ đọc hết được lấy một thứ không kiểm soát, ngay tại cổng đăng nhập. Chỉ thêm `segno` để vẽ QR (thuần Python, không kéo theo gì); thiếu nó thì màn bật lui về nhập tay khoá.
+
+## [0.26.19] - 2026-08-11
+### Cải thiện
+- **Cài xong là đăng nhập được luôn, hết cảnh đi đọc MÃ THIẾT LẬP trong log.** Trước bản này, mở Javis ra công khai mà chưa có tài khoản thì server sinh một chuỗi ngẫu nhiên và chỉ in nó vào log lúc khởi động; người dùng phải SSH vào máy, `docker compose logs javis`, chép mã, dán vào trình duyệt. Cái mã đó chặn người lạ chỉ-có-URL chiếm quyền admin trước chủ máy nên nó có lý do tồn tại, nhưng bắt người ta đọc log là trải nghiệm tệ, và tệ đúng lúc họ vừa cài xong và chưa quen gì cả. Nay `install.sh` hỏi thẳng tên đăng nhập và mật khẩu rồi ghi vào `.env`: người đang chạy script vốn đã ngồi trên máy chủ, nên hỏi một câu KHÔNG thêm bước nào, mà server boot lên đã có admin nên mã thiết lập không bao giờ hiện ra.
+- **Enter một cái là có mật khẩu mạnh.** Bỏ trống ô mật khẩu thì script tự sinh 20 ký tự chữ-số và in ra ĐÚNG MỘT LẦN ở cuối màn hình cài. Chạy không có bàn phím (`curl | bash`, CI) cũng tự sinh chứ không bỏ trống, vì bỏ trống là đẩy người dùng về đúng cái màn đọc-log vừa xoá đi.
+- **Chạy lại `install.sh` không đổi mật khẩu đang dùng.** Đã có trong `.env` thì giữ nguyên và nói rõ là giữ nguyên. Cài lại hoặc chạy lại script là chuyện thường, không được biến nó thành lần đổi mật khẩu ngoài ý muốn.
+- **`docker-compose.yml` nhận `JAVIS_ADMIN_USER` / `JAVIS_ADMIN_PASSWORD`.** Bản Hostinger đã có hai trường này từ lâu, riêng compose thường thì không, nên ai deploy bằng nó LUÔN phải đi đọc log - không có đường nào khác. Nay điền hai dòng vào `.env` cạnh compose là xong.
+- Mật khẩu ghi vào `.env` bằng Python chứ không bằng `sed`: mật khẩu người ta tự gõ có thể chứa `|`, `&`, `\`, `"`, `'` và mọi ký tự đó đều làm vỡ một lệnh `sed` viết theo lối thường gặp. Có test ghi rồi đọc lại một mật khẩu chứa đủ cả sáu ký tự đó.
+
+### Bảo mật
+- **Cơ chế MÃ THIẾT LẬP KHÔNG bị bỏ**, chỉ thôi làm đường chính. Nó vẫn là lưới cho người deploy bằng cách khác (compose tay, image trần). Bỏ hẳn là mở toang `/auth/setup` cho bất kỳ ai gõ trúng URL trước chủ máy, mà thứ họ chiếm được là một máy có Bash, chạy full quyền, cắm sẵn vào POS/quảng cáo/email của chủ. Có canary trong `test_install_admin.py` giữ cơ chế này khỏi bị gỡ nhầm về sau.
+
+## [0.26.18] - 2026-08-11
+### Sửa lỗi
+- **Chat chạy rất lâu rồi chết bằng `Control request timeout: initialize`.** Chủ repo gõ một câu nhờ tạo 2 trang checkout trên Webcake, ngồi chờ, rồi nhận đúng hai dòng: một chuỗi lỗi tiếng Anh trần trụi và "(không có nội dung trả về)". Nguyên nhân nằm ở chỗ không ai nghĩ tới - danh sách tool của MCP nằm trên ĐƯỜNG GĂNG của mọi lượt chat. Lúc khởi động, `claude` phải đấu xong mọi MCP server rồi mới nhận việc; nó đấu vào hub Javis; hub trả tool bằng cách **dò tuần tự từng nguồn**, mỗi nguồn được chờ hết trần riêng của transport (http 60s, stdio 90s lúc init). Máy đấu chục connector mà có một nguồn chết là tổng thời gian tính bằng phút, trong khi Agent SDK chỉ chờ đúng 60 giây rồi bỏ cuộc. Cả lượt chat mất trắng vì một nguồn không liên quan.
+- **Dò MCP nay chạy song song, mỗi nguồn có trần riêng 20 giây.** Tổng thời gian xấp xỉ nguồn chậm nhất chứ không còn là tổng của mọi nguồn, và một nguồn treo bị bỏ qua ở vòng đó thay vì kéo cả lượt chờ theo (cache hub hết hạn sau 60s là dò lại, nên không mất gì lâu dài). Phiên bị cắt giữa chừng bị vứt hẳn chứ không tái dùng - cắt ngang một request NDJSON là ống stdio lệch pha vĩnh viễn. Chỉnh bằng `JAVIS_MCP_DISCOVER_TIMEOUT=<giây>`, đặt 0 để bỏ trần.
+- **Trần chờ `claude` khởi động nới từ 60 lên 300 giây.** Agent SDK chỉ nhận trần này qua biến môi trường `CLAUDE_CODE_STREAM_CLOSE_TIMEOUT` chứ không có tham số nào trong options, nên Javis tự đặt hộ; ai đã tự đặt biến đó thì Javis không đè. Chỉnh bằng `JAVIS_CLAUDE_INIT_TIMEOUT=<giây>` (sàn cứng 60s là của SDK).
+- **Lỗi hết giờ khởi động nay nói ra việc phải làm.** Thay cho `SDK engine: Exception: Control request timeout: initialize`, người dùng đọc được rằng thủ phạm gần như luôn là một nguồn dữ liệu chết, và mở trang Kết nối bấm Kiểm tra để tìm nó. Lỗi nào không khớp mẫu thì vẫn giữ nguyên chuỗi gốc - đoán bừa nguyên nhân còn tệ hơn tiếng Anh trần.
+- Thêm `test_khoi_dong_cham.py` khoá cả ba chỗ: dò song song có trần từng nguồn, nới trần khởi động, và câu báo lỗi chỉ được chỗ bấm.
+
+## [0.26.17] - 2026-08-11
+### Bảo mật
+- **Javis không còn tự đọc token đăng nhập Claude Code của bạn.** Từ 0.18.2 tới bản này, Javis mở `~/.claude/.credentials.json` (hoặc Keychain trên macOS), lấy access token OAuth ra rồi gửi thẳng `Authorization: Bearer <token>` tới `api.anthropic.com/v1/messages`. Anthropic cấm đúng việc đó: token của gói Free/Pro/Max chỉ được dùng trong Claude Code và Claude.ai, họ nói rõ chuyện này trong tài liệu Legal & compliance từ tháng 2/2026 và chặn hẳn các công cụ bên thứ ba từ 04/04/2026. Cách họ phát hiện là soi dấu vân tay request - thiếu telemetry và heartbeat mà CLI chính chủ mới phát - mà request Javis tự dựng thì không có gì trong số đó. Có người dùng Javis đã bị khoá tài khoản.
+- **Ba chỗ moi token đều đã gỡ**, và mỗi chỗ có một canary chống hồi quy: đường chat tiết kiệm (`main._api_stream_goc`), vòng gọi tool của bot chuyên trách (`main._bot_stream_co_tool`), và danh sách model live (`claude_models`). Hai tham số `oauth_token` trong `engine.py` gỡ theo. Module `claude_models` nay chỉ còn hai hàm và không đụng vào file nào của người dùng.
+- **Không mất tính năng nào.** Cả ba đường chạy lại qua đúng binary `claude`, tức để chính sản phẩm của Anthropic lo phần đăng nhập. Mức Siêu tiết kiệm giữ nguyên phần tiết kiệm nhờ gửi system prompt trần thay vì preset của Claude Code - để preset vào là nó tự nhét lại prompt đầy đủ và ăn sạch phần tiết kiệm. Danh sách model live nay hỏi bằng API key nếu máy có; không có key thì giữ bốn alias `opus/sonnet/haiku/fable`, mà alias thì luôn trỏ bản mới nhất nên không lạc hậu.
+
+### Thêm mới
+- **Trang Models có ô "Chạy bằng" cho Claude Code**: giữ gói đang đăng nhập, hoặc dùng API key Anthropic. Hai lựa chọn giữ NGUYÊN năng lực - Bash, WebFetch, MCP, nối lại phiên cũ - chỉ khác ai trả tiền và ai chịu rủi ro. Chọn API key thì Javis truyền `ANTHROPIC_API_KEY` xuống tiến trình `claude`; chọn API key mà bỏ trống ô key thì lui về phiên đăng nhập sẵn có chứ không làm chết lượt chat.
+- **Cảnh báo hiện đúng lúc đáng lo**, không phải lúc nào cũng nhá: chỉ khi máy đang để gói subscription gánh việc nền (model việc nền trỏ vào Claude Code) thì thẻ Claude Code mới hiện dải vàng nói rõ rủi ro và hai lối ra. Server tự ghép hai điều kiện đó rồi trả kèm dữ liệu, dashboard không tự đoán.
+- **Việc nền chạy bằng gói subscription vẫn là một LỰA CHỌN, không bị tắt cứng.** Chủ máy tự cân rủi ro, Javis chỉ bảo đảm họ cân khi đã biết. README, trang web và system prompt đều nói thẳng chuyện này thay vì chỉ quảng cáo "0đ tiền API".
+
+### Sửa lỗi
+- **Mức Toàn quyền của việc Kanban chưa từng là toàn quyền.** `_lane_tools` đọc `execution_mode` rồi vứt đi: mọi việc đều bị rào allowlist, kể cả việc chủ đã chủ động đặt Toàn quyền. Hậu quả không phải "hơi chặt hơn" mà là mất hẳn một lớp công cụ. Gmail, Google Drive, Google Calendar đấu vào TÀI KHOẢN Claude chứ không nằm trong registry MCP của Javis, nên chúng chỉ gọi được bằng tool native `mcp__<tên>__*` - mà tool native chỉ tồn tại khi phiên chạy KHÔNG có allowlist. Nay `full` trả về allowlist rỗng thật, giống hệt nhánh full của loop và nhắc hẹn. Ba mức dưới giữ nguyên rào.
+- **Bật `mcp.strict` là âm thầm khoá cửa sau của mức Toàn quyền.** Cờ này nghĩa là "chỉ dùng MCP của Javis", mà connector ambient thì nằm ngoài registry của Javis, nên ở mức full nó mở allowlist ra rồi lại chặn đúng nhóm vừa mở. Nay `full` bỏ qua cờ này. Người bật strict muốn siết mấy mức DƯỚI; ai đã chọn Toàn quyền cho một việc thì việc đó phải thật sự toàn quyền, không thì "Toàn quyền" là một cái nhãn nói dối.
+- **Việc nền mức Toàn quyền thôi tự rơi sang engine dự phòng.** Chuỗi *engine phụ → Claude → OpenRouter free* đúng cho việc nhẹ, nhưng sai hẳn ở mức full vì ba lý do: engine API không có tool native nên việc cần Google Drive dừng giữa chừng; model không biết mình vừa bị đổi engine nên tự dựng một lý do nghe hợp lý mà sai; và mắt trước có thể đã làm xong MỘT PHẦN việc (đăng được 1 trong 3 bài) rồi mới gãy, chạy lại nguyên prompt là đăng lại từ đầu. Nay mức full dừng hẳn và báo lý do thật. Mức auto/suggest giữ nguyên chuỗi dự phòng.
+- **Engine API khai thật là nó thiếu tool gì.** Không có lời khai này thì model chỉ thấy "gọi tool không được" rồi đổ cho quyền - đúng cái đã xảy ra: một nhắc hẹn đăng Fanpage báo về Telegram "phiên này bị chặn quyền" trong khi chủ đã bật Toàn quyền, làm người ta đi sửa nhầm chỗ suốt buổi sáng. Nay system prompt của engine API nói rõ nó không có Bash, không có WebFetch, không có connector của tài khoản Claude, và cấm thẳng chuyện mô tả điều đó là thiếu quyền.
+
+### Cải thiện
+- **Bot chuyên trách chạy trên gói Claude Code giờ dựng rào an toàn tường minh.** Tới bản trước, "bot không bao giờ có tool native" là hệ quả miễn phí của một sự thật kiến trúc: không engine nào của bot mở CLI. Bản này phải bỏ sự thật đó, nên chỗ tựa được dựng lại bằng bốn lớp và cả bốn đều có canary: allowlist chỉ có hub (cổng `can_use_tool` từ chối mọi tool khác từng lần gọi), danh sách chặn thẳng nhóm native, config hub mang brain CỦA BOT nên tool file bị `_safe_path` khoá đúng brain đó, và `mcp_strict` để bot không thấy connector của chủ.
+- `mcp_hub.claude_config_path` nhận thêm `vault_root`. Cần cho đúng ca trên: engine Claude bình thường có Read/Write native nên hub cố ý không cấp nhóm tool file, nhưng bot bị chặn native nên không có nó là mất luôn khả năng ghi. File config tách theo brain nên hai bot hai brain chạy song song không đè header của nhau.
+- Thêm `test_full_quyen_ungated.py` canh luật **"full ⇒ ungated"** ở cả bốn đường nền. Bốn đường cố ý không chia chung một hàm dựng engine (rào của chúng khác nhau thật), nên luật này phải được canh ở từng đường một - đó chính là lý do `tasks.py` lệch suốt nhiều bản mà không ai thấy.
+
 ## [0.26.16] - 2026-08-10
 ### Thêm mới
 - **Nút Lùi / Tiến giữa các note trong trình sửa.** Đọc wiki là đi theo chuỗi `[[wikilink]]`: bấm một cái là rời khỏi note đang đọc, mà trước bản này KHÔNG có đường về - phải đi tìm lại file cũ trong cây. Nghĩa là mỗi cú bấm link là một quyết định một chiều, đúng thứ làm người ta ngại bấm link trong chính vault của mình.

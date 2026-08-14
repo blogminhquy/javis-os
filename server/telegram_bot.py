@@ -230,9 +230,50 @@ class TelegramBot(HangLuot):
         # `last_error` sau mỗi lượt poll thành công, còn lỗi này thì vẫn còn nguyên đó.
         self.loi_danh_tinh = ""
         self._lan_hoi_danh_tinh = 0.0
+        # Menu lệnh "/" đẩy lên Telegram hỏng thì cũng phải có chỗ nói ra. Xem `_day_menu_lenh`.
+        self.loi_menu_lenh = ""
 
     def _url(self, method):
         return TG_API.format(token=self.token, method=method)
+
+    async def _day_menu_lenh(self, client):
+        """Đẩy menu lệnh `/` lên Telegram - có KIỂM kết quả và đặt cho TỪNG PHẠM VI.
+
+        Hai chỗ hỏng âm thầm mà bản cũ (`client.post(...)` trần trong try/except) không thấy:
+
+        1. **Không đọc `ok`.** Telegram từ chối là trả HTTP 200 kèm `{"ok": false, "description":
+           ...}` chứ không ném lỗi mạng, nên `except` không bắt được gì và code đi tiếp như đã
+           đặt xong. Bot vẫn chạy hoàn hảo, chỉ là gõ `/` không sổ ra gì - đúng triệu chứng
+           người dùng báo, và không để lại một dòng log nào.
+
+        2. **Chỉ đặt phạm vi MẶC ĐỊNH.** Telegram chọn menu theo phạm vi HẸP nhất đang có, nên
+           một danh sách cũ từng đặt cho `all_private_chats` (BotFather, hay một app khác từng
+           dùng chung token này) sẽ CHE danh sách mặc định vĩnh viễn. Ghi đè thẳng vào hai
+           phạm vi hẹp là chạm đúng chỗ đang che.
+
+        Hỏng thì giữ lý do trong `loi_menu_lenh` (không dùng `last_error` vì vòng poll xoá nó
+        sau mỗi lượt thành công) để trang Chatbot / trạng thái Telegram nói ra được.
+        """
+        loi = []
+        for scope in (None, {"type": "all_private_chats"}, {"type": "all_group_chats"}):
+            payload = {"commands": self.commands}
+            if scope:
+                payload["scope"] = scope
+            ten = scope["type"] if scope else "default"
+            try:
+                r = await client.post(self._url("setMyCommands"), json=payload)
+                d = r.json() or {}
+                if not d.get("ok"):
+                    loi.append(f"{ten}: {d.get('description') or f'HTTP {r.status_code}'}")
+            except Exception as e:
+                loi.append(f"{ten}: {type(e).__name__}: {e}")
+        if loi:
+            self.loi_menu_lenh = (
+                "Không đặt được menu lệnh / trên Telegram (" + "; ".join(loi) + "). "
+                "Bot vẫn hiểu lệnh khi gõ tay, chỉ là danh sách không tự sổ ra.")
+            print(f"[telegram setMyCommands] {'; '.join(loi)}", file=sys.stderr)
+        else:
+            self.loi_menu_lenh = ""
 
     async def _send(self, client, chat, text, reply_markup=None):
         # "(không có nội dung)" là một dòng gỡ lỗi. Ở chế độ người thật thì thà không nói gì
@@ -435,9 +476,8 @@ class TelegramBot(HangLuot):
     async def _hoi_danh_tinh(self, client, lan=3):
         """getMe: bot phải biết @username và id của CHÍNH NÓ. Hỏng cái này là điếc trong nhóm.
 
-        Vì sao đáng một hàm riêng có thử lại, trong khi mấy lời gọi khởi động khác thì không:
-        `deleteWebhook` hay `setMyCommands` hỏng thì hậu quả nhìn thấy được ngay. Còn getMe
-        hỏng thì bot vẫn poll, vẫn trả lời tin nhắn riêng hoàn hảo, chỉ **im trong mọi nhóm** -
+        Vì sao đáng một hàm riêng có thử lại: getMe hỏng thì bot vẫn poll, vẫn trả lời tin
+        nhắn riêng hoàn hảo, chỉ **im trong mọi nhóm** -
         vì `_co_nhac_ten` không có gì để so nên trả False cho mọi tin. Triệu chứng đó (riêng
         thì được, nhóm im re) trùng khít với chế độ riêng tư của Telegram, nên đứng ngoài nhìn
         không thể phân biệt được hai nguyên nhân, và cả hai đều không để lại dấu vết nào.
@@ -717,10 +757,7 @@ class TelegramBot(HangLuot):
             except Exception as e:
                 print(f"[telegram deleteWebhook] {e}", file=sys.stderr)
             await self._hoi_danh_tinh(client)
-            try:
-                await client.post(self._url("setMyCommands"), json={"commands": self.commands})
-            except Exception as e:
-                print(f"[telegram setMyCommands] {e}", file=sys.stderr)
+            await self._day_menu_lenh(client)
             print(f"[telegram] bot started (chat_id={','.join(self.chat_ids) or 'mọi người'})", file=sys.stderr)
             self.status = "polling"
             while not self._stop:

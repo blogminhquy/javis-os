@@ -51,18 +51,42 @@ check(
     "Hostinger không tạo thêm trường COMPOSE_PROJECT_NAME",
     "${COMPOSE_PROJECT_NAME" not in (ROOT / "docker-compose.hostinger.yml").read_text(encoding="utf-8"),
 )
-hostinger_vars = set(
-    re.findall(
-        r"\$\{([A-Z0-9_]+)",
-        (ROOT / "docker-compose.hostinger.yml").read_text(encoding="utf-8"),
-    )
+hostinger_src = (ROOT / "docker-compose.hostinger.yml").read_text(encoding="utf-8")
+hostinger_vars = set(re.findall(r"\$\{([A-Z0-9_]+)", hostinger_src))
+# Từ 0.26.22 có thêm HAI núm deploy để cài được nhiều bản Javis trên cùng một VPS: JAVIS_NAME
+# (tên container + tên router/service Traefik) và JAVIS_HOST_PORT (cổng máy chủ). Chúng KHÔNG
+# phải biến của app - app không đọc chúng - nên không nằm trong khối `environment`, nhưng Docker
+# Manager vẫn hiện thành ô nhập vì có `${...}` trong file.
+#
+# Đây là đánh đổi có chủ ý và là mức tối thiểu: cả hai thứ này Traefik/Docker định danh theo
+# phạm vi TOÀN MÁY, nên không có cách nào suy chúng ra từ ba trường cũ. Bù lại cả hai đều có
+# mặc định, nên người cài bản ĐẦU TIÊN vẫn bỏ trống cả hai và mọi thứ y như trước.
+deploy_knobs = {"JAVIS_NAME", "JAVIS_HOST_PORT"}
+check(
+    "Hostinger chỉ tham chiếu ba biến nhập liệu + hai núm cài nhiều bản",
+    hostinger_vars == hostinger_env | deploy_knobs,
 )
-check("Hostinger chỉ tham chiếu đúng ba biến nhập liệu", hostinger_vars == hostinger_env)
+for knob, mac_dinh in (("JAVIS_NAME", "javis"), ("JAVIS_HOST_PORT", "7777")):
+    check(
+        f"{knob} có mặc định ({mac_dinh}) → cài bản đầu bỏ trống vẫn chạy y như trước",
+        f"${{{knob}:-{mac_dinh}}}" in hostinger_src,
+    )
 
 vps = compose("docker-compose.yml")["services"]["javis"]
+vps_env = set((vps.get("environment") or {}).keys())
+# Trước 0.26.18 khối này CHỈ có WATCHTOWER_TOKEN, và hệ quả là người deploy bằng compose thường
+# không có đường nào đặt sẵn admin: họ luôn phải `docker compose logs javis` đọc MÃ THIẾT LẬP
+# rồi dán vào trình duyệt. Hai biến admin là ĐẦU VÀO CỦA NGƯỜI DÙNG, cùng loại với ba trường
+# của Hostinger, không phải mặc định kỹ thuật của image - nên chúng thuộc về đây.
 check(
-    "VPS production chỉ giữ token Watchtower cần chia sẻ",
-    set((vps.get("environment") or {}).keys()) == {"WATCHTOWER_TOKEN"},
+    "VPS production giữ token Watchtower + hai trường tài khoản quản trị",
+    vps_env == {"WATCHTOWER_TOKEN", "JAVIS_ADMIN_USER", "JAVIS_ADMIN_PASSWORD"},
+)
+check("VPS production vẫn không lặp lại biến kỹ thuật của image", not (vps_env & internal))
+check(
+    "và hai trường admin đọc từ .env cạnh compose, có mặc định rỗng",
+    "${JAVIS_ADMIN_USER:-}" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    and "${JAVIS_ADMIN_PASSWORD:-}" in (ROOT / "docker-compose.yml").read_text(encoding="utf-8"),
 )
 
 build = compose("docker-compose.build.yml")["services"]["javis"]

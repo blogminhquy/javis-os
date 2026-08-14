@@ -48,7 +48,15 @@ _update_outcome = update_state.update_outcome
 import git_brain
 import engine
 import openai_oauth
-import claude_models   # model Claude LIVE cho provider anthropic-cli (mượn token OAuth của Claude Code)
+import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
+import gemini_cli      # bộ não thứ 9: Gemini CLI (Google đã ngắt hạng cá nhân 18/06/2026)
+import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
+import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
+import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
+import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
+import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
+import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
+import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
 import aux_engine   # engine việc nền: Claude / Codex / API rẻ
 import mcp_store
 import mcp_client
@@ -69,6 +77,8 @@ import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
+import usage_parsers as up_parsers   # bảng giá + khớp model, dùng chung với indexer
+import usage_saving   # tiết kiệm đối chứng ngược, mốc sự kiện, dự báo, ngân sách
 import context_runtime   # Phase 0-8: trace + Registry/Resolver/Compiler + canary paths
 import capability_registry   # Phase 2: registry dẫn xuất, không phải nguồn sự thật
 import capability_resolver   # Phase 3: resolver deterministic chỉ chạy shadow
@@ -646,6 +656,11 @@ def _session_cookie(resp, token, request=None):
     return resp
 
 
+def _env_bat(ten: str) -> bool:
+    """Biến môi trường có đang bật không (1/true/yes/on). Dùng cho cờ gợi ý, không phải rào."""
+    return (os.getenv(ten, "") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 @app.get("/auth/status")
 async def auth_status(request: Request):
     cfg = cfgmod.read_settings()
@@ -656,6 +671,14 @@ async def auth_status(request: Request):
     authed = has_session or (not enabled and not require)
     return {"needs_setup": not enabled, "auth_required": enabled or require,
             "require_login": require, "authed": authed,
+            # 2FA lộ ra ở đây là CỐ Ý và không phải rò rỉ: màn đăng nhập cần biết có hỏi ô mã
+            # hay không, mà việc "tài khoản này có 2FA" thì kẻ tấn công cũng biết ngay sau lần
+            # nhập mật khẩu đầu tiên. Số mã khôi phục còn lại thì chỉ trả khi ĐÃ đăng nhập.
+            "totp_enabled": cfgmod.totp_enabled(cfg),
+            "totp_recovery_left": (cfgmod.totp_recovery_left(cfg) if authed else None),
+            # install.sh có thể ghi JAVIS_SETUP_2FA=1 vào .env khi người cài chọn bật 2FA.
+            # Đây chỉ là LỜI NHẮC cho giao diện mở sẵn màn bật, không phải một cơ chế bảo mật.
+            "totp_suggested": (_env_bat("JAVIS_SETUP_2FA") and not cfgmod.totp_enabled(cfg)),
             "username": (cfg.get("auth", {}).get("username", "") if authed else "")}
 
 
@@ -698,7 +721,13 @@ def _login_fail(ip):
 
 
 @app.post("/auth/login")
-async def auth_login(request: Request, username: str = Form(...), password: str = Form(...)):
+async def auth_login(request: Request, username: str = Form(...), password: str = Form(...),
+                     code: str = Form("")):
+    """Đăng nhập. `code` chỉ cần khi đã bật 2FA - nhận CẢ mã 6 số lẫn mã khôi phục.
+
+    Thứ tự kiểm CÓ CHỦ Ý: mật khẩu trước, mã sau. Đảo lại là biến ô mã thành một máy dò xem
+    tài khoản nào đã bật 2FA, cho người còn chưa biết mật khẩu.
+    """
     ip = request.client.host if request.client else "?"
     if _login_locked(ip):
         return JSONResponse({"ok": False, "error": "Quá nhiều lần sai - thử lại sau ít phút."}, status_code=429)
@@ -709,8 +738,184 @@ async def auth_login(request: Request, username: str = Form(...), password: str 
         _login_fail(ip)
         await asyncio.sleep(0.5)   # làm chậm brute-force online
         return JSONResponse({"ok": False, "error": "Sai tài khoản hoặc mật khẩu"}, status_code=401)
+    if cfgmod.totp_enabled(cfg):
+        ma = (code or "").strip()
+        if not ma:
+            # 401 kèm needs_2fa để giao diện hiện ô mã. KHÔNG tính là một lần sai: người dùng
+            # chưa gõ gì cả, tính vào hạn mức là tự khoá chính chủ sau vài lần mở màn đăng nhập.
+            return JSONResponse({"ok": False, "needs_2fa": True,
+                                 "error": "Nhập mã xác thực 2 lớp."}, status_code=401)
+        buoc = totp.kiem(cfgmod.totp_secret(cfg), ma,
+                         buoc_da_dung=cfgmod.totp_last_step(cfg))
+        if buoc is not None:
+            cfgmod.totp_ghi_buoc(buoc)
+        elif cfgmod.totp_dung_ma_khoi_phuc(ma):
+            con = cfgmod.totp_recovery_left()
+            print(f"[auth] đăng nhập bằng MÃ KHÔI PHỤC, còn {con} mã", file=__import__('sys').stderr)
+        else:
+            _login_fail(ip)
+            await asyncio.sleep(0.5)
+            return JSONResponse({"ok": False, "needs_2fa": True,
+                                 "error": "Mã xác thực không đúng hoặc đã dùng rồi."},
+                                status_code=401)
     _LOGIN_FAILS.pop(ip, None)
     return _session_cookie(JSONResponse({"ok": True}), cfgmod.new_session(), request)
+
+
+# ---- Xác thực 2 lớp: bật / xác nhận / tắt ----
+# MỌI endpoint dưới đây đòi SESSION trình duyệt, không nhận token API. Cùng lý do với
+# /auth/tokens: cho token đổi được cách đăng nhập thì một token rò ra là kẻ cầm nó tự gắn 2FA
+# của mình vào rồi khoá chính chủ ra ngoài.
+def _doi_phien_that(request: Request):
+    if cfgmod.gate_active() and not cfgmod.valid_session(request.cookies.get("javis_session", "")):
+        return JSONResponse({"ok": False, "error": "Thao tác này phải đăng nhập bằng trình duyệt."},
+                            status_code=403)
+    return None
+
+
+def _ten_hien_thi(cfg=None) -> str:
+    """Tên NGƯỜI để hiện trong app Authenticator, sau tên workspace: "Javis OS: Minh Quý".
+
+    Thứ tự ưu tiên có lý do: `USER_NAME` là tên người dùng tự đặt cho chính mình, còn
+    `auth.username` là tên ĐĂNG NHẬP - thường là "admin", đúng về kỹ thuật nhưng vô nghĩa khi
+    nằm trong danh sách chục tài khoản 2FA trên điện thoại.
+
+    Bỏ qua giá trị mặc định "Bạn" của env: nó là chỗ giữ chỗ, không phải tên ai cả.
+    """
+    cfg = cfg if cfg is not None else cfgmod.read_settings()
+    ten = (os.getenv("USER_NAME", "") or "").strip()
+    if ten and ten.lower() not in ("bạn", "ban", "you", "user"):
+        return ten
+    return (cfg.get("auth", {}) or {}).get("username") or "admin"
+
+
+# Secret ĐANG CHỜ xác nhận, giữ trong RAM chứ không ghi settings. Ghi xuống đĩa trước khi
+# người dùng chứng minh app của họ sinh đúng mã là để lại một secret nửa vời trong file cấu
+# hình; restart giữa chừng thì nó nằm đó mãi mà chẳng ai dùng.
+_TOTP_CHO = {}          # {"secret": str, "ts": float}
+_TOTP_CHO_TTL = 15 * 60
+
+
+@app.post("/auth/2fa/start")
+async def auth_2fa_start(request: Request):
+    """Sinh secret MỚI (chưa bật) + QR để quét. Gọi lại là sinh cái khác, cái cũ bỏ đi."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if cfgmod.totp_enabled(cfg):
+        return JSONResponse({"ok": False, "error": "2FA đang bật rồi - tắt trước nếu muốn đổi."},
+                            status_code=400)
+    secret = totp.sinh_secret()
+    _TOTP_CHO.clear()
+    _TOTP_CHO.update(secret=secret, ts=time.time())
+    uri = totp.otpauth_uri(secret, _ten_hien_thi(cfg),
+                           cfg.get("workspace_name") or "Javis OS")
+    return {"ok": True, "secret": secret, "uri": uri, "qr_svg": totp.qr_svg(uri)}
+
+
+@app.post("/auth/2fa/enable")
+async def auth_2fa_enable(request: Request, code: str = Form(...)):
+    """Xác nhận bằng một mã đúng rồi mới BẬT. Trả mã khôi phục đúng MỘT lần."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cho = dict(_TOTP_CHO)
+    if not cho.get("secret") or time.time() - float(cho.get("ts") or 0) > _TOTP_CHO_TTL:
+        return JSONResponse({"ok": False, "error": "Phiên bật 2FA đã hết hạn - bấm Bật lại."},
+                            status_code=400)
+    buoc = totp.kiem(cho["secret"], code)
+    if buoc is None:
+        return JSONResponse({"ok": False, "error": "Mã không đúng. Kiểm tra giờ trên điện thoại "
+                                                   "rồi nhập mã đang hiện."}, status_code=400)
+    ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
+    cfgmod.totp_set(secret=cho["secret"], enabled=True, recovery=ma_khoi_phuc, last_step=buoc)
+    _TOTP_CHO.clear()
+    return {"ok": True, "recovery": ma_khoi_phuc}
+
+
+@app.post("/auth/2fa/disable")
+async def auth_2fa_disable(request: Request, password: str = Form(...), code: str = Form("")):
+    """Tắt 2FA. Đòi mật khẩu VÀ một mã đúng (hoặc mã khôi phục).
+
+    Đòi cả hai vì đây là thao tác HẠ bảo mật: ai đó mượn được máy đang mở sẵn dashboard mà tắt
+    được 2FA chỉ bằng một cú bấm thì lớp thứ hai coi như không có.
+    """
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if not cfgmod.totp_enabled(cfg):
+        return {"ok": True, "note": "2FA vốn đã tắt"}
+    if not cfgmod.verify_password(password, cfg):
+        return JSONResponse({"ok": False, "error": "Sai mật khẩu."}, status_code=401)
+    ma = (code or "").strip()
+    if totp.kiem(cfgmod.totp_secret(cfg), ma, buoc_da_dung=cfgmod.totp_last_step(cfg)) is None \
+            and not cfgmod.totp_dung_ma_khoi_phuc(ma):
+        return JSONResponse({"ok": False, "error": "Mã xác thực không đúng."}, status_code=401)
+    cfgmod.totp_tat()
+    return {"ok": True}
+
+
+@app.post("/auth/2fa/recovery")
+async def auth_2fa_recovery(request: Request, password: str = Form(...)):
+    """Sinh LẠI bộ mã khôi phục (bộ cũ hết hiệu lực ngay). Dùng khi lỡ mất tờ giấy cũ."""
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if not cfgmod.totp_enabled(cfg):
+        return JSONResponse({"ok": False, "error": "2FA chưa bật."}, status_code=400)
+    if not cfgmod.verify_password(password, cfg):
+        return JSONResponse({"ok": False, "error": "Sai mật khẩu."}, status_code=401)
+    ma_khoi_phuc = totp.sinh_ma_khoi_phuc()
+    cfgmod.totp_set(secret=None, recovery=ma_khoi_phuc)
+    return {"ok": True, "recovery": ma_khoi_phuc}
+
+
+@app.post("/auth/password")
+async def auth_password(request: Request, current_password: str = Form(""),
+                        password: str = Form(""), username: str = Form("")):
+    """ĐỔI mật khẩu / tên đăng nhập của tài khoản ĐANG CÓ.
+
+    Vì sao không dùng lại /auth/setup: đó là đường CÔNG KHAI cho lần đầu tạo admin, nên nó
+    buộc phải từ chối khi đã có tài khoản - không thì ai gõ trúng URL cũng chiếm được quyền
+    trước chủ máy. Dashboard trước đây gọi nhầm sang đó để đổi mật khẩu và nhận đúng cái từ
+    chối ấy, nên bấm Lưu là không có gì xảy ra.
+
+    Đòi MẬT KHẨU HIỆN TẠI dù đã đăng nhập, cùng lý do với /auth/2fa/disable: một phiên bị mượn
+    (máy mở sẵn dashboard) không được phép biến thành "đổi mật khẩu rồi khoá chính chủ ra ngoài".
+
+    Để trống `password` = chỉ đổi tên đăng nhập; vẫn phải nhập mật khẩu hiện tại vì đổi tên
+    đăng nhập cũng là đổi credential vào máy.
+    """
+    if (loi := _doi_phien_that(request)) is not None:
+        return loi
+    cfg = cfgmod.read_settings()
+    if not cfgmod.auth_enabled(cfg):
+        return JSONResponse({"ok": False, "error": "Chưa có tài khoản nào - đặt mật khẩu lần đầu đã."},
+                            status_code=400)
+    if not cfgmod.verify_password(current_password, cfg):
+        await asyncio.sleep(0.5)   # cùng nhịp làm chậm với /auth/login
+        return JSONResponse({"ok": False, "error": "Sai mật khẩu hiện tại."}, status_code=401)
+    ten = (username or "").strip()
+    if password and len(password) < 8:
+        return JSONResponse({"ok": False, "error": "Mật khẩu tối thiểu 8 ký tự"}, status_code=400)
+    if not password and not ten:
+        return JSONResponse({"ok": False, "error": "Không có gì để đổi."}, status_code=400)
+    # GHI ĐÈ TỪNG KHOÁ, không thay cả object `auth`: 2FA cũng nằm trong đó, gán đè nguyên cục
+    # là lặng lẽ tắt xác thực 2 lớp của người ta ngay lúc họ vừa đổi mật khẩu.
+    a = dict(cfg.get("auth") or {})
+    if ten:
+        a["username"] = ten
+    if password:
+        a["password_hash"], a["salt"] = cfgmod.hash_password(password)
+    cfg["auth"] = a
+    cfgmod.write_settings(cfg)
+    if not password:
+        return {"ok": True, "username": a.get("username", "")}
+    # Đổi mật khẩu = hạ MỌI phiên cũ (máy khác, trình duyệt khác) rồi cấp lại phiên cho chính
+    # máy này. Thiếu bước này thì cái phiên mà người ta đổi mật khẩu để đuổi đi vẫn sống thêm
+    # 30 ngày, và việc đổi coi như không có tác dụng.
+    cfgmod.clear_sessions()
+    return _session_cookie(JSONResponse({"ok": True, "username": a.get("username", "")}),
+                           cfgmod.new_session(), request)
 
 
 @app.get("/auth/tokens")
@@ -762,16 +967,34 @@ async def auth_disable():
 # ============================================================
 # Providers - nhà cung cấp model. MỌI kind đều được cấp MCP Javis + tool file brain + skill;
 # khác nhau ở ĐƯỜNG đi và ở việc chạy được lệnh máy hay không:
-#   kind=cli   (Claude Code)      - MCP native + Bash, chạy lệnh máy
+#   kind=cli   (Claude Code, Gemini CLI) - MCP native + Bash, chạy lệnh máy
 #   kind=oauth (ChatGPT qua Codex) - MCP native + kho MCP gốc Codex, chạy lệnh máy
 #   kind=api   (OpenRouter/OpenAI/Anthropic/Gemini) - MCP qua hub trong vòng gọi tool
 #              (_api_stream_mcp), đọc/ghi brain bằng tool vault, KHÔNG chạy lệnh máy
+#
+# `gemini-cli` để kind="cli" là CỐ Ý, không phải tiện tay: `kind` phân loại NĂNG LỰC chứ không
+# phải nhà cung cấp. Mọi chỗ hỏi "đây có phải bộ não gói thuê bao có tool thật không" đều viết
+# `kind in ("cli","oauth")` - đường tắt fast-path, ngân sách ngữ cảnh, nhãn thuê bao. Đặt nó
+# một kind riêng là phải sửa đúng 17 chỗ đó và chắc chắn sót. Chỗ nào cần biết ĐÚNG engine nào
+# thì so bằng `prov`, như nhánh chat vẫn làm với openai-oauth.
 # ============================================================
 PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "anthropic-cli", "label": "Anthropic OAuth (Claude Code)", "kind": "cli", "key_field": None,          "catalog_key": "claude",
      "default_models": ["opus", "sonnet", "haiku", "fable"]},
     {"id": "openai-oauth",  "label": "OpenAI OAuth (ChatGPT)",  "kind": "oauth", "key_field": None,             "catalog_key": "openai-oauth",
      "default_models": []},  # model/list của Codex app-server là nguồn chân lý; không ghim version ở đây
+    # Gemini CLI: đăng nhập bằng TÀI KHOẢN GOOGLE, không cần mua API key - cùng backend Code
+    # Assist mà Antigravity dùng, nhưng qua CLI chính chủ Google có hỗ trợ bên thứ ba.
+    # Khác hẳn provider `gemini` bên dưới (kind=api, trả tiền theo lượt gọi bằng API key).
+    # Antigravity CLI (binary `agy`) - bản Google chỉ định thay cho Gemini CLI sau khi họ ngắt
+    # hạng cá nhân 18/06/2026. Đặt TRƯỚC thẻ Gemini CLI vì đây mới là đường còn sống cho người
+    # dùng cá nhân, và cho chọn đúng dàn model của Antigravity IDE (có cả Claude).
+    # default_models để RỖNG là cố ý: danh sách hỏi thẳng `agy models` chứ không chép tay - tên
+    # model của Google đổi liên tục, mà bảng chép tay thì sai lặng lẽ.
+    {"id": "antigravity-cli", "label": "Google Antigravity CLI", "kind": "cli", "key_field": None,
+     "catalog_key": "antigravity-cli", "default_models": []},
+    {"id": "gemini-cli",    "label": "Google Gemini CLI (cá nhân đã bị Google ngắt)", "kind": "cli", "key_field": None,
+     "catalog_key": "gemini-cli", "default_models": list(gemini_cli.MODELS_MAC_DINH)},
     {"id": "openrouter",    "label": "OpenRouter",              "kind": "api", "key_field": "openrouter_key",    "catalog_key": "openrouter",
      "default_models": ["openai/gpt-4o-mini"]},
     {"id": "anthropic-api", "label": "Anthropic (API)",         "kind": "api", "key_field": "anthropic_api_key", "catalog_key": "anthropic-api",
@@ -815,9 +1038,31 @@ def _providers_view(cfg):
     oauth_on = bool(oauth.get("access_token") or oauth.get("refresh_token"))
     out = []
     for p in PROVIDER_DEFS:
+        # Gemini CLI: ẨN thẻ khi máy không có binary `gemini` (0.29.1).
+        #
+        # Google ngừng phục vụ nó cho MỌI tài khoản cá nhân từ 18/06/2026, nên với gần như mọi
+        # người đây là một lựa chọn chết - bày ra chỉ để họ đăng nhập xong rồi đâm vào tường.
+        # Nhưng KHÔNG xoá engine: hai diện Google giữ nguyên là giấy phép Code Assist doanh
+        # nghiệp và chạy bằng API key, mà máy của họ thì luôn có sẵn binary. Nên "có binary hay
+        # không" vừa đúng là ranh giới giữa hai nhóm, vừa không cần thêm nút bật/tắt nào.
+        #
+        # Ngoại lệ `is_main`: ai đang ĐẶT nó làm Main Model thì phải thấy thẻ, không thì họ mất
+        # đường đổi sang engine khác ngay trên trang này.
+        if (p["id"] == "gemini-cli" and not gemini_cli.find_gemini_cli()
+                and main.get("provider") != p["id"]):
+            continue
         models = cat.get(p["catalog_key"]) or p.get("default_models", [])
         if p["kind"] == "oauth":
             configured = oauth_on
+        elif p["id"] == "gemini-cli":
+            # Không dùng lối "key_field rỗng nên coi như xong" của anthropic-cli: Gemini CLI có
+            # thể chưa cài, hoặc cài rồi mà chưa đăng nhập Google. Cả hai đều đọc từ file, rẻ.
+            configured = bool(gemini_cli.auth_status().get("connected"))
+        elif p["id"] == "antigravity-cli":
+            # `agy` giữ phiên trong keyring của hệ điều hành nên không có file nào để soi -
+            # auth_status() phải hỏi chính CLI, và nó tự nhớ kết quả một phút để mở trang Models
+            # không đẻ tiến trình mỗi lần.
+            configured = bool(antigravity_cli.auth_status().get("connected"))
         elif p["key_field"] is None:
             configured = True
         else:
@@ -832,12 +1077,49 @@ def _providers_view(cfg):
         if p["kind"] == "oauth":
             item["account"] = oauth.get("account_id", "")
             item["plan"] = oauth.get("plan", "")
+        if p["id"] == "gemini-cli":
+            _g = gemini_cli.auth_status()
+            item["cli_found"] = bool(gemini_cli.find_gemini_cli())
+            item["auth_method"] = _g.get("method", "")
+            item["account"] = _g.get("email", "")
+            item["auth_error"] = _g.get("error", "")
+            # Đăng nhập qua dashboard thì Javis giữ token nên NGẮT được; đăng nhập bằng
+            # terminal thì token là của CLI, Javis không có quyền gỡ hộ.
+            item["auth_by_javis"] = gemini_oauth.connected()
+        if p["id"] == "antigravity-cli":
+            _a = antigravity_cli.auth_status()
+            item["cli_found"] = bool(antigravity_cli.find_antigravity_cli())
+            item["auth_method"] = _a.get("method", "")
+            item["auth_error"] = _a.get("error", "")
+            item["cai_lenh"] = antigravity_cli.lenh_cai()
+            # Không có nút Ngắt: token nằm trong keyring của hệ điều hành, Javis không giữ nên
+            # cũng không gỡ hộ được. Dựng nút rồi bên dưới không làm gì mới là dối.
+            item["auth_by_javis"] = False
+            # Đăng nhập làm trong TERMINAL, không phải trên dashboard - xem
+            # `antigravity_cli.login_huong_dan()` để biết vì sao. Thẻ Models chỉ đưa lại đúng
+            # lệnh cần gõ.
+            item["dang_nhap"] = antigravity_cli.login_huong_dan()
+        if p["id"] == "anthropic-cli":
+            # Gói Claude Code chạy bằng gì, và có đang gánh việc nền không. Trang Models vẽ ô
+            # chọn + cảnh báo từ ba field này. Cảnh báo đi kèm DỮ LIỆU chứ không hardcode ở
+            # dashboard: chỉ server mới biết model việc nền đang trỏ vào đâu.
+            item["auth_mode"] = claude_auth.che_do(cfg)
+            item["auth_api_key_set"] = bool(claude_auth.api_key(cfg))
+            item["auth_warning"] = claude_auth.canh_bao_neu_can(cfg)
         out.append(item)
     return out
 
 def _set_main_model(cfg, provider, model):
     """Đặt model chính + ĐỒNG BỘ field legacy (engine/claude_model/openrouter_model) để chat/Telegram cũ chạy."""
     m = cfg["model"]
+    # Đóng mốc vào nhật ký trước khi ghi đè. Đổi bộ não là thứ làm đường token gãy khúc rõ
+    # nhất trên biểu đồ, và không có mốc thì tháng sau nhìn lại chỉ thấy một cái bậc thang
+    # không ai giải thích được. Đây là choke point DUY NHẤT của việc đổi model chính.
+    _cu = m.get("main") or {}
+    if (_cu.get("provider"), _cu.get("model")) != (provider, model):
+        usage_saving.ghi_moc("model", f"{provider}/{model}",
+                             f"{_cu.get('provider') or ''}/{_cu.get('model') or ''}",
+                             f"Đổi bộ não sang {model or provider}")
     m["main"] = {"provider": provider, "model": model}
     if provider == "openrouter":
         m["engine"] = "openrouter"; m["openrouter_model"] = model
@@ -849,6 +1131,10 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "openai-oauth"
     elif provider == "gemini":
         m["engine"] = "gemini"
+    elif provider == "gemini-cli":
+        m["engine"] = "gemini-cli"
+    elif provider == "antigravity-cli":
+        m["engine"] = "antigravity-cli"
     elif provider == "groq":
         m["engine"] = "groq"
     elif provider == "ollama":
@@ -945,6 +1231,186 @@ def _api_stream(prov, key, model, messages, reasoning="off"):
         nhan=f"{prov}/{model or 'mặc định'}")
 
 
+# Allowlist rỗng-thật cho engine Claude Code: bật cổng `can_use_tool` mà không tool nào khớp,
+# nên MỌI tool bị từ chối per-call. Danh sách rỗng [] KHÔNG dùng được - nó falsy nên engine rơi
+# vào nhánh bypassPermissions, tức mở toang đúng cái ta đang muốn đóng.
+CLAUDE_SUB_KHONG_TOOL = ["__javis_claude_sub_khong_tool__"]
+
+
+def _claude_sub_tach(messages):
+    """messages kiểu API -> (system, prompt) cho engine Claude Code.
+
+    Engine Claude Code nhận MỘT prompt chứ không nhận mảng messages, nên lịch sử được gói lại
+    bằng chính `compaction.bootstrap_prompt` mà nhánh Codex và nhánh xoay-mạch vẫn dùng.
+    """
+    sys_txt = "\n\n".join((m.get("content") or "") for m in messages
+                          if m.get("role") == "system").strip()
+    conv = [{"role": m["role"], "content": m.get("content") or ""}
+            for m in messages
+            if m.get("role") in ("user", "assistant") and (m.get("content") or "").strip()]
+    if not conv:
+        return sys_txt, "(tiếp tục)"
+    if conv[-1]["role"] == "user":
+        return sys_txt, compaction.bootstrap_prompt(conv[:-1], conv[-1]["content"])
+    return sys_txt, compaction.bootstrap_prompt(conv, "(tiếp tục)")
+
+
+async def _claude_sub_doc(cli, prompt, model):
+    """Đọc một lượt engine Claude Code -> đúng hợp đồng sự kiện của `_api_stream`.
+
+    `final` mang TOÀN VĂN câu trả lời, còn `text` là từng mảnh của chính văn bản đó - phát cả
+    hai là người dùng đọc câu trả lời hai lần. Nên `final` chỉ được phát chữ khi chưa mảnh nào
+    đi qua (lượt không stream), và luôn là chỗ chốt usage.
+    """
+    yield {"type": "meta", "model": model}
+    da_co_chu = False
+    async for ev in cli.query(prompt):
+        et = ev.get("type")
+        if et == "text":
+            txt = ev.get("content") or ""
+            if txt:
+                da_co_chu = True
+                yield {"type": "text", "content": txt}
+        elif et == "tool_call":
+            yield {"type": "tool_call", "tool": ev.get("name") or "",
+                   "content": f"⚙ {ev.get('name') or 'tool'}"}
+        elif et == "final":
+            txt = ev.get("content") or ""
+            if txt and not da_co_chu:
+                yield {"type": "text", "content": txt}
+            ti = int(ev.get("tokens_in") or 0)
+            to = int(ev.get("tokens_out") or 0)
+            if ti or to:
+                yield {"type": "usage", "input": ti, "output": to}
+        elif et == "error":
+            yield {"type": "error", "content": str(ev.get("content") or "lỗi không rõ")}
+
+
+def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                       tiet_kiem=False):
+    """Gói Claude Code, KHÔNG tool - thay cho đường gọi thẳng /v1/messages bằng token OAuth.
+
+    Đường cũ tự đọc `~/.claude/.credentials.json` rồi gửi `Authorization: Bearer <token>` tới
+    api.anthropic.com. Anthropic cấm đúng việc đó (xem claude_auth.py), và cách họ bắt là soi
+    dấu vân tay request - thứ mà request Javis tự dựng chắc chắn không có. Nay lượt này chạy
+    qua chính binary `claude`, nên ai đăng nhập và ai trả tiền là chuyện của Claude Code.
+
+    `tiet_kiem=True` cho đường Siêu tiết kiệm: gửi system prompt TRẦN thay vì preset
+    claude_code, giữ nguyên phần tiết kiệm token vốn là toàn bộ lý do tồn tại của nó.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    cli = claude_engine(system_prompt=sys_txt, cwd=_brain_root(brain) if brain else None,
+                        tag=tag, allowed_tools=CLAUDE_SUB_KHONG_TOOL,
+                        model=_claude_api_model(model) or None)
+    cli.system_prompt_raw = bool(tiet_kiem)
+    return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
+
+
+def _gemini_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                       mode="suggest"):
+    """Gói Google (Gemini CLI) cho đường CHAT-THUẦN của `_api_stream`.
+
+    Vì sao phải có: `_api_stream` là đường DÙNG CHUNG của bot chuyên trách, tóm tắt, đặt tiêu
+    đề - những chỗ chỉ cần một lượt chữ. Provider nào không có nhánh ở đó thì rơi xuống dòng
+    cuối `engine.anthropic_stream(key, ...)` với key rỗng, tức là hỏng câm. Đúng khuôn
+    `_claude_sub_stream` đã dựng cho gói Claude Code.
+
+    `mode="suggest"` mặc định là CỐ Ý: đường này không phải chỗ để một bot đang nói chuyện với
+    người lạ ghi file. Nơi cần quyền cao hơn thì truyền vào tường minh.
+
+    KHÔNG phải `async def`, y như `_claude_sub_stream`: nơi gọi làm `async for ev in
+    _api_stream(...)`, nên hàm phải TRẢ VỀ async generator chứ không phải là coroutine sinh ra
+    nó. Viết `async def` ở đây thì `async for` nhận một coroutine và ném TypeError giữa lượt.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    g = gemini_cli.GeminiCLI(cwd=_brain_root(brain) if brain else None, tag=tag,
+                             model=model or gemini_cli.MODEL_MAC_DINH, instructions=sys_txt)
+    g.approval_mode = gemini_cli.approval_cho_mode(mode)
+    if brain:
+        _apply_gemini_hub(g, _brain_root(brain), mode=mode)
+    return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
+
+
+def _antigravity_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                            mode="suggest"):
+    """Gói Google qua Antigravity CLI cho đường CHAT-THUẦN của `_api_stream`.
+
+    Cùng lý do tồn tại với `_gemini_sub_stream`: provider nào không có nhánh ở `_api_stream` sẽ
+    rơi xuống `engine.anthropic_stream(key="")` và hỏng câm. KHÔNG phải `async def` - xem chú
+    thích dài ở `_gemini_sub_stream`.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    g = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain) if brain else None, tag=tag,
+                                       model=model or None, instructions=sys_txt)
+    g.mode = mode or "suggest"
+    if brain:
+        _apply_antigravity_hub(g, _brain_root(brain), mode=mode)
+    # Dùng chung bộ dịch sự kiện với Gemini CLI: hai engine đã phát cùng một hợp đồng
+    # {tool_call, final, usage, error}, viết lại là hai bản dễ lệch nhau.
+    return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
+
+
+async def _gemini_sub_doc(g, prompt, model):
+    """Một lượt engine CLI (Gemini hoặc Antigravity) -> hợp đồng sự kiện của `_api_stream`."""
+    yield {"type": "meta", "model": model}
+    async for ev in g.query(prompt):
+        et = ev.get("type")
+        if et == "final":
+            txt = ev.get("content") or ""
+            if txt:
+                yield {"type": "text", "content": txt}
+        elif et == "tool_call":
+            yield {"type": "tool_call", "tool": ev.get("name") or "",
+                   "content": f"⚙ {ev.get('name') or 'tool'}"}
+        elif et == "usage":
+            yield {"type": "usage", "input": int(ev.get("input_tokens") or 0),
+                   "output": int(ev.get("output_tokens") or 0)}
+        elif et == "error":
+            yield {"type": "error", "content": str(ev.get("content") or "lỗi không rõ")}
+
+
+# Tool NATIVE của Claude Code mà bot chuyên trách TUYỆT ĐỐI không được chạm, ở mọi mức quyền.
+# Bot phục vụ người lạ nhắn tới, nên "chạy được lệnh máy" là một hạng rủi ro khác hẳn phần còn
+# lại của Javis. Allowlist bên dưới đã đủ chặn (mọi tool ngoài list bị `can_use_tool` từ chối
+# per-call); danh sách này là lớp thứ hai, để một hôm nào đó allowlist bị nới thì đây vẫn giữ.
+BOT_CAM_NATIVE = ["Bash", "BashOutput", "KillShell", "WebFetch", "WebSearch", "Task",
+                  "Write", "Edit", "NotebookEdit", "Read", "Glob", "Grep"]
+
+
+def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, tag="bot",
+                            mode="full"):
+    """Gói Claude Code CÓ tool, cho bot chuyên trách - thay `anthropic_chat_with_mcp(oauth_token=)`.
+
+    Đường cũ an toàn nhờ MỘT sự thật kiến trúc: không engine nào của bot mở CLI, nên không con
+    nào có tool native, nên không con nào trèo ra khỏi brain của bot được. Mở engine Claude
+    Code là MẤT sự thật đó. Nó được dựng lại ở đây bằng bốn lớp tường minh, và cả bốn đều cần:
+
+    1. `allowed_tools` chỉ có `mcp__javis` → cổng `can_use_tool` TỪ CHỐI mọi tool khác từng lần
+       gọi, kể cả Bash/Read/Write builtin của Claude Code.
+    2. `BOT_CAM_NATIVE` chặn thẳng nhóm native, phòng khi lớp 1 bị nới sau này.
+    3. Config hub mang X-Javis-Vault = brain CỦA BOT → tool file đi qua `_safe_path` của đúng
+       brain đó. Thiếu nó thì hub không cấp nhóm tool file (mặc định của đường Claude), và bot
+       mức Được ghi mất khả năng ghi - vì lớp 1 đã chặn Write native rồi.
+    4. `mcp_strict` → không nạp MCP ambient của máy chủ, tức bot không thấy connector của chủ.
+
+    Cố ý KHÔNG dùng `_apply_mcp`: hàm đó gắn config hub DÙNG CHUNG không mang brain, đúng cho
+    chat của chủ (Claude có tool file native nên hub bỏ nhóm file đi cho khỏi trùng) nhưng sai
+    cho ca này. Đây là chỗ duy nhất cần cấu hình riêng, nên nó viết thẳng ra chứ không nới hàm
+    dùng chung của mọi đường Claude.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    vault = _brain_root(brain) if brain else None
+    cli = claude_engine(system_prompt=sys_txt, cwd=vault, tag=tag,
+                        allowed_tools=list(mcp_hub.allow_patterns()),
+                        model=_claude_api_model(model) or None)
+    cli.javis_mode = mode
+    cli.javis_vault = vault
+    cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault)
+    cli.mcp_strict = cli.mcp_config is not None
+    cli.disallowed_tools = list(BOT_CAM_NATIVE)
+    return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
+
+
 def _api_stream_goc(prov, key, model, messages, reasoning="off"):
     """Chọn generator stream theo provider api-kind. reasoning=off|low|medium|high."""
     if prov == "openrouter":
@@ -961,13 +1427,17 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
                                               _codex_safe_model(model), messages, reasoning)
+    if prov == "gemini-cli":
+        # Gói Google đi qua chính binary `gemini`, cùng lý do với anthropic-cli ngay dưới:
+        # Javis không cầm token của ai, CLI tự lo đăng nhập.
+        return _gemini_sub_stream(model, messages, reasoning)
+    if prov == "antigravity-cli":
+        return _antigravity_sub_stream(model, messages, reasoning)
     if prov == "anthropic-cli":
-        # Gói Claude Code không có API key. Mượn access token OAuth mà chính CLI đã lưu -
-        # đúng cách claude_models vẫn hỏi /v1/models bằng token đó, chỉ khác endpoint. Đây là
-        # đường gọi thẳng DUY NHẤT của gói này, và cũng là thứ mở được mức Siêu tiết kiệm cho
-        # nó. Không có token thì trả về đường cũ để lỗi nói đúng chuyện thiếu đăng nhập.
-        return engine.anthropic_stream(key, _claude_api_model(model), messages, reasoning,
-                                       oauth_token=claude_models.oauth_token())
+        # Gói Claude Code đi qua chính binary `claude`, KHÔNG tự dựng request tới
+        # api.anthropic.com bằng token của người dùng nữa (xem claude_auth.py). Vẫn không có
+        # tool nào ở đường này, đúng hợp đồng cũ. `tiet_kiem` giữ được mức Siêu tiết kiệm.
+        return _claude_sub_stream(model, messages, reasoning, tiet_kiem=True)
     return engine.anthropic_stream(key, model, messages, reasoning)
 
 
@@ -1874,12 +2344,15 @@ def _toml_str(s):
 
 
 def _write_codex_profile():
-    """Ghi ~/.codex/javis.config.toml → `codex exec -p javis` thấy MCP của Javis.
+    """Ghi ~/.codex/<profile>.config.toml → `codex exec -p <profile>` thấy MCP của Javis.
     Hub bật (mặc định): 1 entry hub - Codex dùng được MỌI transport (cả stdio/internal) + đa tài
-    khoản + quyền. Hub tắt: per-server http như cũ. Trả 'javis' nếu có server, None nếu rỗng."""
+    khoản + quyền. Hub tắt: per-server http như cũ. Trả tên profile nếu có server, None nếu rỗng.
+
+    Tên profile lấy từ `mcp_hub.codex_profile_name()` (gắn cổng khi cổng khác mặc định) để nhiều
+    bản Javis chạy chung một $HOME không ghi đè profile của nhau - xem chú thích ở hàm đó."""
     if _hub_enabled():
         return mcp_hub.codex_profile("full")
-    path = Path.home() / ".codex" / "javis.config.toml"
+    path = mcp_hub.codex_profile_path()
     lines, seen = [], set()
     for s in mcp_store.servers_for_client():
         name = re.sub(r"[^A-Za-z0-9_]", "_", (s.get("name") or "").strip())
@@ -1900,12 +2373,63 @@ def _write_codex_profile():
         if seen:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("\n".join(lines), encoding="utf-8")
-            return "javis"
+            return mcp_hub.codex_profile_name()
         if path.exists():
             path.unlink()
     except Exception as e:
         print(f"[codex profile] {e}", file=__import__('sys').stderr)
     return None
+
+
+def _apply_gemini_hub(cli, vault_root=None, mode="full"):
+    """Gắn MCP hub của Javis vào tiến trình Gemini CLI, khoá theo đúng brain đang mở.
+
+    Gemini CLI đọc `mcpServers` từ `.gemini/settings.json` của THƯ MỤC LÀM VIỆC, và Javis luôn
+    chạy nó với cwd = gốc brain - nên ghi file ngay trong brain vừa đúng chỗ vừa cô lập sẵn
+    từng brain. Không đụng `~/.gemini/settings.json` của người dùng: đó là cấu hình cá nhân họ
+    dùng cho mọi thứ chạy bằng `gemini`, và nhiều brain thì brain nọ sẽ đọc header brain kia.
+
+    Header giống hệt đường Claude/Codex (`Bearer hub_token` + X-Javis-Mode + X-Javis-Vault) nên
+    hub áp đúng một bộ luật quyền cho cả ba engine.
+    """
+    root = vault_root or getattr(cli, "cwd", None)
+    if not root:
+        return cli
+    hub = None
+    if _hub_enabled():
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        try:
+            headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
+        except Exception:
+            headers["X-Javis-Vault"] = str(root)
+        hub = {"httpUrl": mcp_hub.hub_url(), "headers": headers,
+               "trust": True, "timeout": 20000}
+    gemini_cli.ghi_mcp_settings(root, hub)
+    return cli
+
+
+def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
+    """Gắn MCP hub của Javis vào tiến trình `agy`, cùng khuôn với _apply_gemini_hub.
+
+    Header y hệt ba engine kia (`Bearer hub_token` + X-Javis-Mode + X-Javis-Vault) nên hub áp
+    đúng một bộ luật quyền cho cả bốn. Chỗ khác duy nhất nằm trong
+    `antigravity_cli.ghi_mcp_settings`: chưa đo được tên file cấu hình thật của `agy` nên nó
+    ghi ra cả hai ứng viên.
+    """
+    root = vault_root or getattr(cli, "cwd", None)
+    if not root:
+        return cli
+    hub = None
+    if _hub_enabled():
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        try:
+            headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
+        except Exception:
+            headers["X-Javis-Vault"] = str(root)
+        hub = {"httpUrl": mcp_hub.hub_url(), "headers": headers,
+               "trust": True, "timeout": 20000}
+    antigravity_cli.ghi_mcp_settings(root, hub)
+    return cli
 
 
 def _apply_codex_hub(cli, vault_root=None):
@@ -1930,7 +2454,15 @@ def _apply_mcp(cli, mode="full", brain=None):
         cli.javis_vault = _brain_root(brain) if brain else None
         if _hub_enabled():
             cli.mcp_config = mcp_hub.claude_config_path(mode)
-            cli.mcp_strict = bool(cfgmod.read_settings().get("mcp", {}).get("strict")) and cli.mcp_config is not None
+            # `strict` = chỉ dùng MCP của Javis, bỏ qua config MCP sẵn có của máy. Ở mức FULL
+            # thì cờ này bị bỏ qua, cố ý: connector ambient của tài khoản Claude (Gmail, Google
+            # Drive, Lịch) nằm ngoài registry của Javis và chỉ gọi được bằng tool native, nên
+            # strict ở mức full là mở allowlist ra rồi lại khoá cửa sau. Người bật strict muốn
+            # siết mấy mức DƯỚI; ai đã chủ động chọn Toàn quyền cho một việc thì việc đó phải
+            # thật sự toàn quyền, không thì "Toàn quyền" là một cái nhãn nói dối.
+            cli.mcp_strict = (mode != "full"
+                              and bool(cfgmod.read_settings().get("mcp", {}).get("strict"))
+                              and cli.mcp_config is not None)
         else:
             cli.mcp_config = mcp_store.config_path()
             cli.mcp_strict = bool(cfgmod.read_settings().get("mcp", {}).get("strict")) and cli.mcp_config is not None
@@ -1999,8 +2531,82 @@ def oauth_openai_status():
 
 # ---- Claude Code auth (provider anthropic-cli) - connect/disconnect như OAuth ----
 @app.get("/claude/status")
-def claude_status():
-    return claude_auth_status()
+def claude_status(refresh: bool = False):
+    """Trạng thái đăng nhập Claude Code. `refresh=1` = bỏ qua bản nhớ, hỏi lại CLI.
+
+    Nút "Kiểm tra lại" trên thẻ truyền refresh=1; còn lúc vẽ trang thì đọc bản nhớ, khỏi đẻ một
+    tiến trình Node mỗi lần mở trang Models.
+    """
+    return claude_auth_status(bo_qua_cache=bool(refresh))
+
+
+@app.get("/gemini-cli/status")
+def gemini_cli_status():
+    """Trạng thái bộ não Gemini CLI: đã cài chưa, đã đăng nhập Google chưa, đăng nhập kiểu gì."""
+    d = gemini_cli.auth_status()
+    d["cli_path"] = gemini_cli.find_gemini_cli() or ""
+    d["huong_dan"] = gemini_cli.login_huong_dan()
+    return d
+
+
+@app.post("/gemini-cli/login-start")
+def gemini_cli_login_start():
+    """Bước 1: trả link đồng ý của Google để người dùng mở.
+
+    Đòi session trình duyệt: đây là thao tác GẮN một tài khoản Google vào máy này, ngang hàng
+    với /auth/tokens - không cho token API tự làm."""
+    return gemini_oauth.start_login()
+
+
+@app.post("/gemini-cli/login-code")
+async def gemini_cli_login_code(code: str = Form("")):
+    """Bước 2: nhận mã Google hiện ra, đổi lấy token, bắc cầu sang Gemini CLI."""
+    return await asyncio.to_thread(gemini_oauth.finish_login, code)
+
+
+@app.post("/gemini-cli/logout")
+def gemini_cli_logout():
+    """Ngắt tài khoản Google khỏi Javis (không đụng tới đăng nhập bằng `gemini` trong terminal)."""
+    gemini_oauth.disconnect()
+    return {"ok": True}
+
+
+@app.post("/gemini-cli/check")
+async def gemini_cli_check():
+    """Chạy thử MỘT lượt thật để biết chắc gói đang dùng được.
+
+    File credential còn nằm đó không có nghĩa là còn dùng được (token hết hạn mà refresh hỏng
+    thì file vẫn nguyên). Trang Models cần câu trả lời dứt khoát, và đây là cách duy nhất có nó.
+    """
+    return await asyncio.to_thread(gemini_cli.kiem_tra_nhanh)
+
+
+@app.get("/antigravity/status")
+def antigravity_status():
+    """Trạng thái Antigravity CLI cho trang Models."""
+    d = antigravity_cli.auth_status()
+    d["cli_path"] = antigravity_cli.find_antigravity_cli() or ""
+    d["cai_lenh"] = antigravity_cli.lenh_cai()
+    d["huong_dan"] = antigravity_cli.login_huong_dan()
+    return d
+
+
+@app.post("/antigravity/check")
+async def antigravity_check():
+    """Chạy thử MỘT lượt thật.
+
+    Không dùng lại kết quả `agy models` đã nhớ trong RAM: nó chỉ nói tài khoản còn sống, chưa
+    nói luồng chat có chạy không - mà đúng chỗ đó là chỗ Gemini CLI gãy hồi Google ngắt hạng
+    cá nhân. Nút này phải trả lời được câu "chat được chưa", nên chạy thật một lượt.
+    """
+    return await asyncio.to_thread(antigravity_cli.kiem_tra_nhanh)
+
+
+# Không có endpoint đăng nhập cho `agy`, và đó là quyết định có lý do (0.32.2). Bản trước lái
+# luồng đăng nhập của CLI qua một pseudo-terminal: chạy được trên Linux nhưng đẻ ra một ô
+# terminal nhỏ trên trang mà bấm vào không ăn, còn Windows thì không có PTY nên luôn tắc. Người
+# dùng `agy` đều là dân code sẵn terminal trong tay, nên gõ một lệnh gọn hơn hẳn một luồng UI
+# nửa vời. Thẻ Models chỉ đưa lệnh và nút Kiểm tra lại.
 
 
 @app.post("/claude/login")
@@ -2215,7 +2821,8 @@ async def connect_substack_resolve_uid(q: str = Query("")):
     try:
         proc = await asyncio.create_subprocess_exec(
             curl, "-s", "--max-time", "12", "-A", "Mozilla/5.0", "-H", "accept: application/json", url,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            **winproc.kwargs_no_window())
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
     except Exception as e:
         return {"ok": False, "error": f"Không gọi được Substack ({type(e).__name__}). Dùng Cách B (Console) nếu vẫn lỗi."}
@@ -2464,6 +3071,13 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 m[d["key_field"]] = ""
                 if _effective_main(cfg).get("provider") == patch["clear_key"]:
                     _set_main_model(cfg, "anthropic-cli", m.get("claude_model") or "opus")
+        # Gói Claude Code xác thực bằng gì: phiên subscription sẵn có, hay API key riêng.
+        # Giá trị lạ về "subscription" thay vì báo lỗi - đây là ô hai lựa chọn, gõ sai thì lui
+        # về cái không tốn tiền của người dùng chứ không làm chết đường chat.
+        if "claude_auth" in patch:
+            m["claude_auth"] = (claude_auth.API_KEY
+                                if str(patch["claude_auth"] or "").strip().lower() == claude_auth.API_KEY
+                                else claude_auth.SUBSCRIPTION)
         if "auxiliary" in patch:   # model phụ cho việc nền (provider + model)
             aux_patch = patch["auxiliary"] or {}
             aux = m.setdefault("auxiliary", {})
@@ -2520,14 +3134,13 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         if patch.get("elevenlabs_key") and not patch["elevenlabs_key"].strip().startswith("••••"):
             v["elevenlabs_key"] = patch["elevenlabs_key"].strip()
     elif section == "password":
-        if patch.get("new_password"):
-            if len(patch["new_password"]) < 4:
-                return JSONResponse({"ok": False, "error": "Mật khẩu quá ngắn"}, status_code=400)
-            h, salt = cfgmod.hash_password(patch["new_password"])
-            cfg["auth"]["password_hash"] = h
-            cfg["auth"]["salt"] = salt
-        if patch.get("username"):
-            cfg["auth"]["username"] = patch["username"].strip()
+        # Đổi mật khẩu KHÔNG đi qua đây nữa - xem /auth/password. Đường này không đòi mật khẩu
+        # hiện tại VÀ nhận cả token API scope `full`, nghĩa là một token rò ra là đổi được mật
+        # khẩu chủ máy rồi khoá chính chủ ra ngoài. Nó cũng nhận mật khẩu 4 ký tự trong khi mọi
+        # đường khác đòi 8.
+        return JSONResponse({"ok": False, "error": "Đổi mật khẩu chuyển sang trang Tài khoản "
+                                                   "(phải nhập mật khẩu hiện tại). Tải lại trang "
+                                                   "nếu vẫn thấy form cũ."}, status_code=400)
     else:
         return JSONResponse({"ok": False, "error": "section không hợp lệ"}, status_code=400)
 
@@ -2767,6 +3380,12 @@ async def _fetch_provider_models(provider, m):
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
         return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
+    if provider == "gemini-cli":
+        return gemini_cli.list_models()
+    if provider == "antigravity-cli":
+        # `agy models` là NGUỒN CHÂN LÝ, không có bảng chép tay nào để rơi về - chạy ở worker
+        # vì nó đẻ tiến trình con và có thể mất vài giây.
+        return await asyncio.to_thread(antigravity_cli.list_models)
     if provider == "anthropic-cli":
         # Provider này chạy bằng đăng nhập OAuth của Claude Code → mượn chính token đó hỏi
         # /v1/models, nên Anthropic ra bản mới là picker thấy ngay (trước kẹt ở 4 alias tĩnh).
@@ -2795,6 +3414,37 @@ def _remember_catalog(cfg, d, ids):
         print(f"[models] không ghi được catalog {key}: {e}", file=sys.stderr)
 
 
+def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
+    """Vì sao provider này không trả về model nào - viết cho NGƯỜI ĐỌC, không phải log.
+
+    Hầu hết đường lấy model hỏng theo kiểu IM LẶNG: hàm trả None chứ không ném lỗi, nên phía
+    trên chỉ còn một danh sách rỗng và giao diện đành nói "không có model" - đúng nhưng vô
+    dụng. ChatGPT là ca nặng nhất vì nó KHÔNG có catalog dự phòng (danh sách model do Codex
+    quyết, Javis cố ý không ghim version), nên hỏng là thẻ hiện đúng "0 model" ngay sau khi
+    người dùng vừa đăng nhập xong - trông y như đăng nhập hỏng.
+    """
+    d = _provider_def(provider) or {}
+    if provider == "openai-oauth":
+        if not (openai_oauth.valid_creds() or {}).get("access_token"):
+            return ("Chưa kết nối ChatGPT (hoặc phiên đăng nhập đã hết hạn) - "
+                    "đăng nhập lại ở thẻ ChatGPT.")
+        if not find_codex_cli():
+            return ("Không thấy Codex CLI trên máy - danh sách model của gói ChatGPT do chính "
+                    "Codex cấp. Cài bằng `npm i -g @openai/codex` (macOS có thể dùng "
+                    "`brew install codex`) rồi bấm lại. Cài ở chỗ lạ thì trỏ thẳng bằng biến "
+                    "môi trường JAVIS_CODEX_BIN.")
+        return ("Có Codex CLI nhưng nó chưa trả được danh sách model. Thường là bản Codex quá "
+                "cũ (`npm i -g @openai/codex@latest`), hoặc máy chưa chạy `codex login` lần nào.")
+    if provider == "gemini-cli":
+        return (gemini_cli.auth_status().get("error")
+                or "Không đọc được danh sách model của Gemini CLI.")
+    if provider == "ollama":
+        return "Không gọi được Ollama. Kiểm tra máy chủ Ollama còn chạy và key còn hạn."
+    if d.get("key_field") and not m.get(d["key_field"]):
+        return "Chưa có API key cho nhà cung cấp này."
+    return ""
+
+
 async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     """Lõi thuần của GET /provider/models. Dùng chung với Telegram (menu chọn model)."""
     cfg = cfgmod.read_settings()
@@ -2817,7 +3467,8 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
         _PROV_MODELS_CACHE[provider] = {"ids": ids, "ts": now}
         _remember_catalog(cfg, d, ids)
         return {"models": ids, "live": True}
-    return {"models": fallback, "live": False, "error": last_err}
+    return {"models": fallback, "live": False,
+            "error": last_err or _vi_sao_khong_co_model(provider, m)}
 
 
 @app.get("/provider/models")
@@ -3792,12 +4443,32 @@ async def files_list(brain: str = Query("brain"), path: str = Query(None)):
     root = _files_root(brain)
     broot = Path(_brain_root(brain)).resolve()
     try:
-        # path VẮNG (None) = điểm vào mặc định = BRAIN; path="" = trần (ổ đĩa); còn lại = tương đối trần
-        d = broot if path is None else _safe_path(brain, path)
+        # path VẮNG (None) = điểm vào mặc định = BRAIN; path="" = trần (ổ đĩa); còn lại = tương đối trần.
+        # Dùng _safe_serve_path (chỉ-đọc) nên chấp CẢ quy ước tương đối GỐC BRAIN - link trong chat
+        # do AI ghi theo lối đó, trước đây rơi hết vào nhánh lỗi bên dưới.
+        d = broot if path is None else _safe_serve_path(brain, path)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    # Trỏ trúng một FILE, hoặc trúng chỗ KHÔNG CÓ GÌ, thì đừng trả về một câu lỗi trên nền rỗng.
+    # Người dùng vừa bấm một link trong chat: đích của họ ở đây chứ không phải chữ "Không phải thư
+    # mục" giữa màn hình trắng (chủ repo báo 2026-08-13). Mở thư mục CHA - hoặc tổ tiên gần nhất
+    # còn tồn tại - rồi nói rõ đích là gì:
+    #   focus   = tên file mà đường dẫn trỏ trúng (client soi sáng + mở thẳng ra sửa)
+    #   missing = đường dẫn đã hỏi nhưng không có (client tự đi tìm theo tên, không dấu cũng khớp)
+    focus, missing = "", ""
     if not d.is_dir():
-        return JSONResponse({"error": "Không phải thư mục"}, status_code=400)
+        if d.is_file():
+            focus, d = d.name, d.parent
+        else:
+            missing = (path or "").replace("\\", "/").strip("/")
+            leo = d.parent
+            while not leo.is_dir() and root in leo.parents:
+                leo = leo.parent
+            # Leo hết đường mà chỉ tới TRẦN (trên localhost trần là cả ổ đĩa) thì về nhà brain:
+            # đổ nguyên ổ đĩa ra vì một link gõ sai là câu trả lời tệ hơn cả câu lỗi cũ.
+            if not leo.is_dir() or (leo == root and root != broot):
+                leo = broot if broot.is_dir() else root
+            d = leo
     items = []
     for p in sorted(d.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
         try:
@@ -3810,6 +4481,7 @@ async def files_list(brain: str = Query("brain"), path: str = Query(None)):
     return {"root": root.name or str(root), "path": _files_rel(root, d),
             "home": _files_rel(root, broot),                       # brain = 'nhà' (nút ⌂)
             "parent": None if d == root else _files_rel(root, d.parent),   # None = đã ở trần → ẩn Lên
+            "focus": focus, "missing": missing,
             "items": items}
 
 
@@ -3882,6 +4554,84 @@ async def files_search(brain: str = Query("brain"), q: str = Query(""), limit: i
 
     items = await run_in_threadpool(_walk)
     return {"items": items, "q": q, "mode": mode}
+
+
+# --- Chữa file .md bị bản cũ làm hỏng ------------------------------------------------------
+# Bản <= 0.33.3 lưu note .md qua trình sửa trực quan là phá frontmatter (`---` thành `* * *`)
+# và dồn dấu gạch chéo (`1.` -> `1\.` -> `1\\.`). 0.33.4 bịt đường đó, nhưng file đã hỏng thì
+# phải chữa. Luật nhận dạng nằm trong md_repair.py - chỉ sửa thứ mà CHỈ lỗi đó tạo ra được.
+_MD_HONG_MAX_FILE = 1_000_000        # cùng ngưỡng với tìm theo nội dung
+_MD_HONG_MAX_HIT = 500               # đủ để một brain rất to vẫn liệt được, không phình vô hạn
+
+
+def _quet_md_hong(brain: str, chi_path: set = None):
+    """Đi khắp GỐC BRAIN tìm file .md hỏng. Trả về [{path, name, van_de, mo_ta}] (path theo TRẦN,
+    giống /files/list). chi_path (tương đối trần) = chỉ soi đúng mấy file đó."""
+    root = _files_root(brain)
+    broot = Path(_brain_root(brain)).resolve()
+    SKIP_DIRS = {".git", "node_modules", "__pycache__", ".obsidian", ".trash", ".venv", ".pytest_cache"}
+    out = []
+    for dirpath, dirnames, filenames in os.walk(broot):
+        dirnames[:] = [dn for dn in dirnames if not dn.startswith(".") and dn not in SKIP_DIRS]
+        for fn in sorted(filenames):
+            if not fn.lower().endswith(".md") or len(out) >= _MD_HONG_MAX_HIT:
+                continue
+            p = Path(dirpath) / fn
+            try:
+                rel = _files_rel(root, p)
+            except ValueError:
+                continue
+            if chi_path is not None and rel not in chi_path:
+                continue
+            try:
+                if p.stat().st_size > _MD_HONG_MAX_FILE:
+                    continue
+                txt = p.read_text(encoding="utf-8")
+            except (OSError, ValueError, UnicodeDecodeError):
+                continue
+            van_de = md_repair.tim_van_de(txt)
+            if van_de:
+                out.append({"path": rel, "name": fn, "van_de": van_de,
+                            "mo_ta": md_repair.mo_ta_van_de(van_de)})
+    return out
+
+
+@app.get("/files/md-hong")
+async def files_md_hong(brain: str = Query("brain")):
+    """CHỈ SOI, không ghi gì: liệt kê file .md còn dấu vết hỏng của bản cũ."""
+    from starlette.concurrency import run_in_threadpool
+    items = await run_in_threadpool(_quet_md_hong, brain)
+    return {"items": items, "cham_nguong": len(items) >= _MD_HONG_MAX_HIT}
+
+
+@app.post("/files/md-hong/sua")
+async def files_md_hong_sua(brain: str = Form("brain"), paths: str = Form("")):
+    """Chữa thật. `paths` = JSON list đường dẫn (theo trần); bỏ trống = chữa mọi file soi thấy.
+
+    Ghi bằng _atomic_write_text nên không có cảnh file bị cắt nửa chừng. Brain có bật sao lưu
+    git thì mọi thay đổi vẫn lần lại được như mọi lần sửa khác."""
+    from starlette.concurrency import run_in_threadpool
+    chi = None
+    if (paths or "").strip():
+        try:
+            chi = {str(x).replace("\\", "/").strip("/") for x in json.loads(paths)}
+        except (ValueError, TypeError):
+            return JSONResponse({"error": "Danh sách đường dẫn không đọc được"}, status_code=400)
+
+    def _lam():
+        da_sua, loi = [], []
+        for it in _quet_md_hong(brain, chi):
+            try:
+                f = _safe_path(brain, it["path"])
+                moi, van_de = md_repair.sua(f.read_text(encoding="utf-8"))
+                _atomic_write_text(f, moi)
+                da_sua.append({"path": it["path"], "name": it["name"], "van_de": van_de})
+            except (OSError, ValueError, UnicodeDecodeError) as e:
+                loi.append({"path": it["path"], "name": it["name"], "loi": str(e)})
+        return da_sua, loi
+
+    da_sua, loi = await run_in_threadpool(_lam)
+    return {"ok": True, "da_sua": da_sua, "loi": loi}
 
 
 @app.get("/files/read")
@@ -4580,36 +5330,58 @@ async def usage_stats():
     nếu có key (provider duy nhất lộ số dư qua API); các provider còn lại API không cho lấy hạn mức."""
     out = usage_store.summary()
     out["daily"] = usage_store.daily(14)   # chuỗi 14 ngày cho đồ thị trang Mức dùng
-    orb = None
     try:
-        key = (cfgmod.read_settings().get("model", {}) or {}).get("openrouter_key")
-        if key:
-            import httpx
-            async with httpx.AsyncClient(timeout=8) as client:
-                r = await client.get("https://openrouter.ai/api/v1/credits",
-                                     headers={"Authorization": f"Bearer {key}"})
-            if r.status_code == 200:
-                d = (r.json() or {}).get("data") or {}
-                tc, tu = d.get("total_credits"), d.get("total_usage")
-                if tc is not None and tu is not None:
-                    orb = {"total": round(float(tc), 4), "used": round(float(tu), 4),
-                           "remaining": round(float(tc) - float(tu), 4)}
+        out["openrouter"] = await _openrouter_credits(cfgmod.read_settings().get("model", {}) or {})
     except Exception:
-        orb = None
-    out["openrouter"] = orb
+        out["openrouter"] = None
     return out
 
 
+async def _openrouter_credits(mcfg: dict):
+    """Số dư THẬT của OpenRouter, hoặc None. Provider duy nhất lộ số dư qua API.
+
+    Tách ra làm hàm riêng vì cả `/usage` lẫn `/usage/tong-quan` đều cần: đây là con số tiền
+    mặt duy nhất trên cả trang không phải ước lượng từ bảng giá.
+    """
+    key = (mcfg or {}).get("openrouter_key")
+    if not key:
+        return None
+    import httpx
+    async with httpx.AsyncClient(timeout=8) as client:
+        r = await client.get("https://openrouter.ai/api/v1/credits",
+                             headers={"Authorization": f"Bearer {key}"})
+    if r.status_code != 200:
+        return None
+    d = (r.json() or {}).get("data") or {}
+    tc, tu = d.get("total_credits"), d.get("total_usage")
+    if tc is None or tu is None:
+        return None
+    return {"total": round(float(tc), 4), "used": round(float(tu), 4),
+            "remaining": round(float(tc) - float(tu), 4)}
+
+
 # ---- Dashboard Token (index log thô Claude + Codex + nhánh API) -----------------------
+# Một khoá cho MỌI lượt quét. refresh() xoá sạch dòng cũ của từng file rồi chèn lại, nên hai
+# lượt quét chạy chồng nhau là chèn trùng - và trang báo gấp đôi số token. Mở hai tab, hay
+# một tab gọi cả /usage/summary lẫn /usage/tong-quan song song, là đủ để dính.
+_USAGE_REFRESH_LOCK = asyncio.Lock()
+
+
+async def _usage_refresh_once() -> dict:
+    """Quét tăng dần, tuần tự hoá. Lỗi thì nuốt: số liệu cũ vẫn hơn một trang lỗi."""
+    try:
+        async with _USAGE_REFRESH_LOCK:
+            return await asyncio.to_thread(usage_index.refresh)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 @app.get("/usage/summary")
 async def usage_summary(period: str = "this_month", provider: str = "", project: str = "", refresh: int = 1):
     """Báo cáo token theo kỳ: KPI + breakdown + timeseries, kèm so kỳ trước. refresh=1 (mặc
     định) quét tăng dần trước khi trả (rẻ khi index đã ấm)."""
     if refresh:
-        try:
-            await asyncio.to_thread(usage_index.refresh)
-        except Exception:
-            pass
+        await _usage_refresh_once()
     try:
         # to_thread như refresh ngay trên: summary() truy vấn sqlite, đo được 46,7ms. Chạy
         # thẳng trên event loop là chặn MỌI request khác, kể cả healthcheck 4 giây của Docker.
@@ -4623,10 +5395,7 @@ async def usage_summary(period: str = "this_month", provider: str = "", project:
 async def usage_insights(period: str = "this_month", refresh: int = 0):
     """Danh sách đề xuất hành động cho kỳ. Mặc định KHÔNG refresh (UI đã refresh ở /usage/summary)."""
     if refresh:
-        try:
-            await asyncio.to_thread(usage_index.refresh)
-        except Exception:
-            pass
+        await _usage_refresh_once()
     try:
         return {"items": await asyncio.to_thread(usage_index.insights, period=period)}
     except ValueError as e:
@@ -4636,10 +5405,425 @@ async def usage_insights(period: str = "this_month", refresh: int = 0):
 @app.post("/usage/refresh")
 async def usage_refresh():
     """Quét tăng dần 3 nguồn, trả số file/event xử lý lần này."""
+    return await _usage_refresh_once()
+
+
+# ---- Trang Mức dùng: khối trả lời "tôi tốn bao nhiêu, và có đáng không" ---------------
+# Chi phí cố định mỗi lượt của từng mức tiết kiệm. Đo bằng prompt THẬT nên tốn ~20ms cộng một
+# vòng quét kho tool - rẻ với một lần mở trang, nhưng vòng lặp nền hỏi mỗi 10 phút thì không.
+# Nhớ đệm theo brain, hết hạn sau 10 phút để brain to dần lên thì con số cũng đi theo.
+_PHI_MUC_CACHE: dict = {}
+_PHI_MUC_TTL = 600.0
+
+
+async def _phi_moi_muc(brain: str = "brain") -> dict:
+    """{muc_id: token_co_dinh_moi_luot}. Rỗng nếu chưa đo được (đừng bịa)."""
+    khoa = str(brain or "brain")
+    o = _PHI_MUC_CACHE.get(khoa)
+    if o and time.time() - o[0] < _PHI_MUC_TTL:
+        return o[1]
     try:
-        return await asyncio.to_thread(usage_index.refresh)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        uoc = await _uoc_tinh_tiet_kiem(khoa)
+    except Exception:  # noqa: BLE001 - phần thông tin, không được làm sập trang
+        return (o[1] if o else {})
+    phi = {k: int((v or {}).get("token_moi_request") or 0)
+           for k, v in ((uoc or {}).get("muc") or {}).items()}
+    _PHI_MUC_CACHE[khoa] = (time.time(), phi)
+    return phi
+
+
+def _tien_cache(by_model: list, prices: dict) -> float:
+    """Nhờ cache, đã KHÔNG phải trả bao nhiêu USD.
+
+    Token đọc lại từ cache vẫn bị tính tiền, nhưng rẻ hơn token vào bình thường nhiều lần.
+    Phần chênh đó là tiền thật không phải trả. Tính theo ĐÚNG bảng giá của từng model rồi
+    cộng lại, chứ không lấy một giá bình quân - opus và haiku chênh nhau gần 20 lần.
+
+    Đây là cách nói lại "cache hit 80%" bằng đơn vị người ta quan tâm. Phần trăm là ngôn ngữ
+    của người viết code; tiền là ngôn ngữ của người trả tiền.
+    """
+    tong = 0.0
+    for x in by_model or []:
+        cr = int(x.get("cache_read") or 0)
+        if cr <= 0:
+            continue
+        khoa = up_parsers._khoa_gia(str(x.get("key") or ""), prices)
+        if not khoa:
+            continue
+        p = prices[khoa]
+        chenh = max(0.0, float(p.get("in") or 0) - float(p.get("cache_read") or 0))
+        tong += cr * chenh / 1_000_000.0
+    return round(tong, 4)
+
+
+def _cau_mo_dau(d: dict) -> str:
+    """Một câu tiếng người tóm tắt cả trang. Không bảng, không phần trăm trần trụi.
+
+    Vì sao câu này đáng có: sáu ô số ngang hàng nhau bắt người đọc tự ghép nghĩa, và con số
+    to nhất trên trang ("chi phí quy đổi") lại là con số KHÔNG phải tiền thật - đọc lướt thì
+    y như một hoá đơn. Một câu nói thẳng ai trả gì cho cái gì thì không đọc nhầm được.
+    """
+    t = d.get("tien") or {}
+    goi = t.get("goi") or {}
+    that = float((t.get("that") or {}).get("usd") or 0)
+    quy = float((t.get("quy_doi") or {}).get("usd") or 0)
+    ky = d.get("ten_ky") or "Kỳ này"
+    ve = []
+    if goi.get("so_duoc"):
+        lan = goi.get("roi_lan") or 0
+        # Nói đủ cả ba ca. Chỉ khoe khi thật sự lời, và dám nói khi gói đang đắt hơn API -
+        # một trang chỉ biết khen thì lần sau không ai tin nó nữa.
+        if lan >= 1.2:
+            ket = f", tức gói đang lời {lan:g} lần."
+        elif lan >= 0.8:
+            ket = ", tức gói đang hoà vốn so với giá API."
+        elif lan > 0:
+            ket = ", tức với nhịp dùng này thì gói đang đắt hơn trả theo API."
+        else:
+            ket = "."
+        ve.append(f"{ky} anh trả ${goi['gia_thang_usd']:g} tiền gói, "
+                  f"lượng việc đã chạy nếu tính theo giá API đáng ${quy:,.0f}" + ket)
+    elif quy > 0:
+        ve.append(f"{ky} lượng việc đã chạy quy theo giá API là khoảng ${quy:,.2f}.")
+    if that > 0:
+        ve.append(f"Tiền mặt thật đã tiêu: ${that:,.2f}.")
+    else:
+        ve.append("Chưa có nhánh nào tính tiền theo token, nên tiền mặt thật là $0.")
+    tk = d.get("tiet_kiem") or {}
+    if tk.get("token"):
+        ve.append(f"Chế độ tiết kiệm đã tránh được {_fmt_tok_vn(tk['token'])} token.")
+    return " ".join(ve)
+
+
+def _fmt_tok_vn(n) -> str:
+    n = int(n or 0)
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.1f} tỉ"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f} triệu"
+    if n >= 1_000:
+        return f"{n / 1_000:.0f} nghìn"
+    return str(n)
+
+
+_TEN_KY = {"today": "Hôm nay", "yesterday": "Hôm qua", "this_week": "Tuần này",
+           "last_week": "Tuần trước", "this_month": "Tháng này", "last_month": "Tháng trước",
+           "last_3_months": "3 tháng qua", "this_year": "Năm nay"}
+
+
+@app.get("/usage/tong-quan")
+async def usage_tong_quan(period: str = "this_month", brain: str = "brain", refresh: int = 0):
+    """Khối ĐẦU trang Mức dùng: tiền thật vs tiền quy đổi, trần gói, tiết kiệm, dự báo.
+
+    Tách khỏi `/usage/summary` có chủ ý. Endpoint kia là số liệu thô theo chiều (model, dự
+    án, provider) - đúng thứ cần khi đã biết mình muốn soi gì. Còn đây trả lời ba câu hỏi
+    người ta mở trang ra để hỏi: tháng này tốn bao nhiêu tiền THẬT, gói có đáng tiền không,
+    và sắp chạm trần chưa. Trộn hai thứ vào một endpoint thì mỗi lần đổi chip kỳ lại kéo theo
+    một vòng đo prompt và hai truy vấn cửa sổ trượt.
+    """
+    if refresh:
+        await _usage_refresh_once()
+    try:
+        s = await asyncio.to_thread(usage_index.summary, period=period)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+    k = s.get("kpi") or {}
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    prices = up_parsers.load_prices()
+
+    # --- Tiền: TÁCH BẠCH tiền mặt và tiền quy đổi. Đây là chỗ dễ nói dối nhất của cả trang.
+    # Nhánh API key thì mỗi token là tiền mặt ra khỏi ví. Gói thuê bao thì đã trả trọn gói,
+    # token không sinh thêm hoá đơn nào - con số quy đổi chỉ để biết gói có đáng tiền không.
+    theo_prov = {x["key"]: x for x in (s.get("by_provider") or [])}
+    tien_that = round(float((theo_prov.get("api") or {}).get("cost") or 0), 4)
+    tien_quy_doi = round(sum(float(v.get("cost") or 0)
+                             for kk, v in theo_prov.items() if kk != "api"), 2)
+    # Gia goi la tien MOT THANG, nen chi so sanh duoc voi so lieu CUA MOT THANG. Bam chip
+    # "Hom nay" roi lay chi phi mot ngay chia cho tien goi ca thang thi ra "goi dang lo 10
+    # lan" - va do la dong chu to nhat tren trang, doc dau tien. Ky khong phai thang thi
+    # khong so, chu khong so bua.
+    gia_goi = float(mcfg.get("gia_goi_thang_usd") or 0)
+    ky_thang = period in ("this_month", "last_month")
+    goi = {"gia_thang_usd": gia_goi, "so_duoc": bool(gia_goi > 0 and ky_thang),
+           "roi_lan": round(tien_quy_doi / gia_goi, 1) if (gia_goi > 0 and ky_thang) else 0}
+
+    orb = None
+    try:
+        orb = await _openrouter_credits(mcfg)
+    except Exception:  # noqa: BLE001
+        orb = None
+
+    # --- Cửa sổ trượt 5 giờ. Nhà cung cấp gói tính hạn mức theo cửa sổ vài giờ chứ không
+    # theo ngày, nên "hôm nay dùng bao nhiêu" không trả lời được câu "tôi sắp bị chặn chưa".
+    try:
+        cs5 = await asyncio.to_thread(usage_index.cua_so, 5.0)
+        dinh5 = await asyncio.to_thread(usage_index.dinh_cua_so, 5.0)
+    except Exception:  # noqa: BLE001
+        cs5, dinh5 = {}, {}
+    tran_5h = int(mcfg.get("tran_5h") or 0)
+    # Chưa khai trần thì so với ĐỈNH của chính người dùng: mức cao nhất từng chạm mà chưa bị
+    # chặn là một cận dưới THẬT của hạn mức, và nó riêng cho từng tài khoản. Kém chính xác
+    # hơn một con số chính thức, nhưng có thật - hơn hẳn việc bịa một hạn mức mặc định.
+    moc_so = tran_5h or int(dinh5.get("tokens") or 0)
+    cua_so = {**cs5, "dinh": int(dinh5.get("tokens") or 0), "dinh_luc": dinh5.get("hour") or "",
+              "tran_khai": tran_5h,
+              "moc_so_sanh": moc_so,
+              "ty_le": round(int(cs5.get("tokens") or 0) / moc_so, 4) if moc_so > 0 else 0}
+
+    # --- Tiết kiệm: đối chứng ngược, chạy được cho MỌI kỳ (xem usage_saving).
+    phi = await _phi_moi_muc(brain)
+    muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
+    gia_1m, nguon_gia = _gia_input_1m(_ten_model_chinh(mcfg), mcfg)
+    luot_javis = await asyncio.to_thread(usage_index.luot_theo_ngay, period)
+    tk = usage_saving.tiet_kiem(luot_javis, phi, muc_nay, gia_1m_usd=gia_1m)
+    tk["nguon_gia"] = nguon_gia
+    tk["nhan_muc"] = (RUNTIME_PRESETS.get(muc_nay) or {}).get("nhan") or muc_nay
+
+    # --- Ngân sách + dự báo
+    # Tran tien la tran THANG. Doi chieu no voi chi phi cua ky dang chon la so mot ngay voi
+    # tran mot thang: bam chip "Hom nay" thi o ngan sach bao "con nguyen 30$" du thang nay da
+    # tieu het. Nen o nay LUON doc so cua thang, khong theo chip.
+    tien_that_thang = await _tien_that_thang()
+    db = usage_saving.du_bao(k.get("tokens") or 0, tien_that,
+                             (s.get("range") or ["", ""])[0], (s.get("range") or ["", ""])[1],
+                             period)
+    du_bao_thang = float(db.get("cost") or 0) if (period == "this_month" and db.get("co")) else 0.0
+    ns = usage_saving.ngan_sach(tien_that_thang, float(mcfg.get("ngan_sach_thang_usd") or 0),
+                                du_bao_thang)
+    ns["tu_phanh"] = bool(mcfg.get("tu_phanh"))
+    ns["dang_phanh"] = usage_saving.dang_phanh()
+
+    usd_cache = _tien_cache(s.get("by_model") or [], prices)
+    d = {
+        "period": period, "ten_ky": _TEN_KY.get(period, "Kỳ này"), "range": s.get("range"),
+        "engine": _engine_runtime_view(cfgmod.read_settings().get("context_runtime") or {}),
+        "tien": {
+            "that": {"usd": tien_that, "usd_thang": tien_that_thang, "openrouter": orb},
+            "quy_doi": {"usd": tien_quy_doi},
+            "goi": goi,
+        },
+        "ngan_sach": ns,
+        "tiet_kiem": tk,
+        "cua_so": cua_so,
+        "cache": {"ty_le": k.get("cache_hit") or 0, "token": k.get("cache_read") or 0,
+                  "usd": usd_cache},
+        "du_bao": db,
+        "luot": {"so_luot": k.get("turns") or 0, "moi_luot": k.get("avg_per_turn") or 0},
+        "nhip_engine": await asyncio.to_thread(usage_index.nhip_engine, period),
+        "bao_cao_tuan": mcfg.get("bao_cao_tuan") or "",
+        "moc": usage_saving.doc_moc((s.get("range") or ["", ""])[0],
+                                    (s.get("range") or ["", ""])[1]),
+    }
+    d["cau"] = _cau_mo_dau(d)
+    return d
+
+
+@app.post("/usage/ngan-sach")
+async def usage_ngan_sach(gia_goi_thang_usd: str = Form(""), ngan_sach_thang_usd: str = Form(""),
+                          tran_5h: str = Form(""), tu_phanh: str = Form(""),
+                          bao_cao_tuan: str = Form("")):
+    """Bốn con số Javis KHÔNG tự biết được: giá gói, trần tiền tháng, trần cửa sổ 5h, tự phanh.
+
+    Trường bỏ trống = giữ nguyên. Gửi "0" mới là xoá. Phân biệt hai cái đó quan trọng: giao
+    diện chỉ gửi ô người dùng vừa sửa, gửi thiếu mà bị hiểu là 0 thì bấm lưu một ô là mất ba
+    ô kia.
+    """
+    cfg = cfgmod.read_settings()
+    m = cfg.setdefault("model", {})
+    truoc = float(m.get("ngan_sach_thang_usd") or 0)
+
+    def _chu(x) -> str:
+        # Gọi thẳng hàm endpoint (test, hoặc code khác trong server) thì tham số mặc định vẫn
+        # là object Form(...) chứ không phải chuỗi. Không chặn ở đây là ghi nguyên cái repr
+        # của nó vào settings.json.
+        return x.strip() if isinstance(x, str) else ""
+
+    def _so(raw, cu, kieu=float):
+        raw = _chu(raw).replace(",", "")
+        if not raw:
+            return cu
+        try:
+            return max(kieu(0), kieu(float(raw)))
+        except (TypeError, ValueError):
+            return cu
+
+    m["gia_goi_thang_usd"] = _so(gia_goi_thang_usd, float(m.get("gia_goi_thang_usd") or 0))
+    m["ngan_sach_thang_usd"] = _so(ngan_sach_thang_usd, float(m.get("ngan_sach_thang_usd") or 0))
+    m["tran_5h"] = _so(tran_5h, int(m.get("tran_5h") or 0), int)
+    if _chu(tu_phanh):
+        m["tu_phanh"] = _chu(tu_phanh).lower() in ("1", "true", "on", "yes", "co", "có")
+    if _chu(bao_cao_tuan):
+        v = _chu(bao_cao_tuan)
+        m["bao_cao_tuan"] = "" if v.lower() in ("0", "off", "tat", "tắt", "khong", "không") else v
+    cfgmod.write_settings(cfg)
+    if m["ngan_sach_thang_usd"] != truoc:
+        usage_saving.ghi_moc("ngan_sach", f"${m['ngan_sach_thang_usd']:g}", f"${truoc:g}",
+                             "Đổi trần tiền tháng")
+
+    # ĐỦ ĐIỀU KIỆN MỚI HẸN LỊCH. Hai thứ vừa bật đều hẹn giờ báo về cho người dùng: cảnh báo
+    # ngân sách và báo cáo tuần. Chưa đấu kênh nào thì tới giờ chúng chạy xong rồi rơi vào hư
+    # không, và người dùng tưởng Javis quên. Không chặn (họ có thể sắp đấu), nhưng phải NÓI.
+    canh_bao = []
+    san_sang, ly_do = _notify_ready()
+    if not san_sang and (m.get("bao_cao_tuan") or m["ngan_sach_thang_usd"] > 0):
+        canh_bao.append(ly_do or "Chưa đấu kênh báo nào (Telegram hoặc Zalo) nên báo cáo và "
+                                 "cảnh báo ngân sách sẽ không tới được ai.")
+    if m["ngan_sach_thang_usd"] > 0 and not m.get("tu_phanh"):
+        canh_bao.append("Tự phanh đang tắt, nên chạm trần Javis chỉ nhắc chứ không dừng tiêu tiền.")
+
+    await _kiem_ngan_sach(nhac=False)     # đặt lại phanh ngay, đừng đợi vòng lặp nền
+    return {"ok": True, "gia_goi_thang_usd": m["gia_goi_thang_usd"],
+            "ngan_sach_thang_usd": m["ngan_sach_thang_usd"], "tran_5h": m["tran_5h"],
+            "tu_phanh": bool(m.get("tu_phanh")), "bao_cao_tuan": m.get("bao_cao_tuan") or "",
+            "canh_bao": canh_bao, "dang_phanh": usage_saving.dang_phanh()}
+
+
+@app.get("/usage/bao-cao")
+async def usage_bao_cao(period: str = "this_week"):
+    """Báo cáo token dạng CHỮ, đọc được trên Telegram/Zalo. Dùng cho bản đẩy hàng tuần."""
+    return {"text": await _bao_cao_token(period)}
+
+
+async def _tien_that_thang() -> float:
+    """USD tiền MẶT đã tiêu tháng này (chỉ nhánh dùng API key). Lỗi -> 0, không chặn."""
+    try:
+        s = await asyncio.to_thread(usage_index.summary, period="this_month")
+    except Exception:  # noqa: BLE001
+        return 0.0
+    for x in s.get("by_provider") or []:
+        if x.get("key") == "api":
+            return round(float(x.get("cost") or 0), 4)
+    return 0.0
+
+
+async def _kiem_ngan_sach(nhac: bool = True) -> dict:
+    """Đối chiếu tiền mặt tháng này với trần người dùng đặt: bật/tắt phanh, và nhắc một lần.
+
+    Gọi từ hai chỗ: vòng lặp nền (mỗi 10 phút) và ngay sau khi người dùng đổi trần. `nhac`
+    tắt ở lần thứ hai vì đổi trần xong mà bị nhắn ngay một tin cảnh báo thì như bị mắng.
+
+    Nhắc ĐÚNG MỘT LẦN mỗi mốc mỗi tháng (dấu lưu trong nhật ký mốc). Nhắc lại mỗi 10 phút
+    suốt nửa tháng cuối là cách nhanh nhất để người ta tắt thông báo, và tắt rồi thì lần
+    sau thật sự vượt trần cũng không ai biết.
+    """
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    tran = float(mcfg.get("ngan_sach_thang_usd") or 0)
+    if tran <= 0:
+        usage_saving.dat_phanh(False, "")
+        return {"co": False}
+    da = await _tien_that_thang()
+    ns = usage_saving.ngan_sach(da, tran)
+    bat_phanh = bool(mcfg.get("tu_phanh")) and ns.get("muc_do") == "het"
+    usage_saving.dat_phanh(bat_phanh,
+                           f"đã tiêu ${da:.2f} trên trần ${tran:.2f} tháng này" if bat_phanh else "")
+    if nhac and ns.get("muc_do") in ("sap_het", "het"):
+        khoa = f"{ns['muc_do']}"
+        if not usage_saving.da_nhac_chua(khoa):
+            usage_saving.ghi_moc("ngan_sach", khoa, "", f"Nhắc ngân sách: {khoa}")
+            if ns["muc_do"] == "het":
+                tin = (f"Ngân sách API tháng này đã hết: tiêu ${da:.2f} trên trần ${tran:.2f}.\n"
+                       + ("Javis đã tự chuyển việc nền sang đường không tốn tiền."
+                          if bat_phanh else
+                          "Tự phanh đang tắt nên việc nền vẫn tiêu tiền như thường."))
+            else:
+                tin = (f"Ngân sách API tháng này đã dùng {ns['ty_le'] * 100:.0f}%: "
+                       f"${da:.2f} trên trần ${tran:.2f}. Còn ${ns['con']:.2f}.")
+            try:
+                await _notify_owner("", tin)
+            except Exception:  # noqa: BLE001 - không gửi được thì thôi, đừng làm hỏng vòng lặp
+                pass
+    return ns
+
+
+_NGAN_SACH_LAST = [0.0]        # mốc lần kiểm ngân sách gần nhất (nhịp riêng 10 phút)
+
+
+async def _bao_cao_tuan_neu_toi_gio() -> bool:
+    """Sáng thứ Hai thì đẩy báo cáo token tuần trước về đúng người. Tắt mặc định.
+
+    Vì sao đẩy chứ không đợi người ta mở trang: trang Mức dùng chỉ hữu ích khi có người nhớ
+    mở nó ra, mà thứ người ta cần biết ("tuần rồi tiêu gấp đôi vì một cái loop") lại đúng là
+    thứ không ai nghĩ tới việc đi kiểm. Javis đã có sẵn đường nhắn chủ động, dùng nó.
+
+    Dấu đã-gửi lưu trong nhật ký mốc theo tuần ISO, nên máy khởi động lại giữa sáng thứ Hai
+    cũng không gửi hai lần.
+    """
+    from datetime import datetime, timedelta, timezone
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    dich = str(mcfg.get("bao_cao_tuan") or "").strip()
+    if not dich:
+        return False
+    gio = datetime.now(timezone(timedelta(hours=7)))
+    if gio.weekday() != 0 or gio.hour < 8:
+        return False
+    tuan = f"tuan-{gio.isocalendar()[0]}-{gio.isocalendar()[1]}"
+    if usage_saving.da_nhac_chua(tuan, gio):
+        return False
+    usage_saving.ghi_moc("ngan_sach", tuan, "", "Đã gửi báo cáo token tuần")
+    try:
+        await _notify_owner("" if dich == "auto" else dich, await _bao_cao_token("last_week"))
+    except Exception as e:  # noqa: BLE001 - gửi hỏng thì thôi, đừng giết vòng lặp nền
+        print(f"[bao cao tuan] {type(e).__name__}: {e}", file=sys.stderr)
+    return True
+
+
+async def _bao_cao_token(period: str = "this_week") -> str:
+    """Báo cáo token bằng VĂN NÓI, cho kênh chữ thuần (Telegram/Zalo).
+
+    Không bảng, không markdown nặng: kênh nhận là chỗ chữ chạy một cột. Nội dung chọn theo
+    đúng thứ hành động được - tiêu bao nhiêu tiền thật, cái gì ngốn nhất, có gì bất thường -
+    chứ không đổ hết mọi chiều số liệu ra.
+    """
+    try:
+        s = await asyncio.to_thread(usage_index.summary, period=period)
+    except Exception as e:  # noqa: BLE001
+        return f"Chưa dựng được báo cáo token: {type(e).__name__}."
+    k = s.get("kpi") or {}
+    ten = _TEN_KY.get(period, "Kỳ này")
+    mcfg = cfgmod.read_settings().get("model", {}) or {}
+    theo_prov = {x["key"]: x for x in (s.get("by_provider") or [])}
+    that = float((theo_prov.get("api") or {}).get("cost") or 0)
+    quy = sum(float(v.get("cost") or 0) for kk, v in theo_prov.items() if kk != "api")
+
+    d = [f"BÁO CÁO TOKEN - {ten.lower()}",
+         f"Tổng {_fmt_tok_vn(k.get('tokens'))} token qua {k.get('turns') or 0} lượt."]
+    if k.get("delta_pct") is not None:
+        chieu = "tăng" if k["delta_pct"] >= 0 else "giảm"
+        d.append(f"So kỳ trước {chieu} {abs(k['delta_pct']):.0f}%.")
+    d.append(f"Tiền mặt thật: ${that:,.2f}."
+             + (f" Quy theo giá API thì phần gói thuê bao đáng ${quy:,.0f}." if quy > 0 else ""))
+
+    tran = float(mcfg.get("ngan_sach_thang_usd") or 0)
+    if tran > 0:
+        da = await _tien_that_thang()
+        d.append(f"Ngân sách tháng: đã dùng ${da:,.2f} trên ${tran:,.2f}.")
+
+    phi = await _phi_moi_muc("brain")
+    muc_nay = current_preset(cfgmod.read_settings().get("context_runtime") or {})
+    tk = usage_saving.tiet_kiem(await asyncio.to_thread(usage_index.luot_theo_ngay, period),
+                                phi, muc_nay)
+    if tk.get("token"):
+        d.append(f"Chế độ tiết kiệm tránh được {_fmt_tok_vn(tk['token'])} token "
+                 f"({tk.get('phan_tram') or 0}% mỗi lượt).")
+
+    top_m = (s.get("by_model") or [])[:1]
+    top_p = (s.get("by_project") or [])[:1]
+    if top_m:
+        d.append(f"Model ngốn nhất: {top_m[0]['key']} ({_fmt_tok_vn(top_m[0]['tokens'])}).")
+    if top_p:
+        d.append(f"Nơi ngốn nhất: {top_p[0]['key']} ({_fmt_tok_vn(top_p[0]['tokens'])}).")
+    nen = next((x["tokens"] for x in (s.get("by_activity") or []) if x["key"] == "background"), 0)
+    if nen and k.get("tokens"):
+        d.append(f"Việc chạy nền chiếm {nen / k['tokens'] * 100:.0f}% token.")
+
+    try:
+        cho = await asyncio.to_thread(usage_index.insights, period=period)
+    except Exception:  # noqa: BLE001
+        cho = []
+    for i in (cho or [])[:2]:
+        d.append(f"- {i.get('title')}: {i.get('detail')}")
+    return "\n".join(d)
 
 
 # Engine của workflow chỉ chạy được CLI (Claude hoặc Codex). Router có thể khai model
@@ -6172,6 +7356,16 @@ async def _start_scheduler():
                     await reminders_feature.tick()
                 except Exception as rte:
                     print(f"[reminders tick] {type(rte).__name__}: {rte}", file=__import__('sys').stderr)
+                # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
+                #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
+                #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.
+                try:
+                    if time.time() - _NGAN_SACH_LAST[0] >= 600:
+                        _NGAN_SACH_LAST[0] = time.time()
+                        await _kiem_ngan_sach(nhac=True)
+                        await _bao_cao_tuan_neu_toi_gio()
+                except Exception as nse:
+                    print(f"[ngan sach tick] {type(nse).__name__}: {nse}", file=__import__('sys').stderr)
                 # 4) Đồng bộ GitHub tự động (2 CHIỀU): đủ interval → kéo về + hoà nhập + đẩy lên
                 try:
                     bcfg = cfgmod.read_settings().get("backup", {}) or {}
@@ -6388,7 +7582,8 @@ def _is_git_checkout(root: str) -> bool:
     try:
         import subprocess
         r = subprocess.run(["git", "-C", root, "rev-parse", "--is-inside-work-tree"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, timeout=10,
+                           creationflags=winproc.no_window())
         return r.returncode == 0 and "true" in (r.stdout or "").lower()
     except Exception:
         return False
@@ -6400,16 +7595,35 @@ async def _watchtower_reachable() -> bool:
     WATCHTOWER_TOKEN luôn được set sẵn trong compose nên KHÔNG đủ để kết luận - phải dò thật.
     Dò bằng cách MỞ KẾT NỐI TCP tới cổng, TUYỆT ĐỐI không gửi HTTP: endpoint /v1/update của
     Watchtower bị kích hoạt update kể cả với GET, nên một request 'thăm dò' sẽ trigger nhầm."""
+    return await _watchtower_ly_do() == ""
+
+
+async def _watchtower_ly_do() -> str:
+    """"" = Watchtower đang chạy, tự cập nhật được. Khác rỗng = MÃ LÝ DO vì sao không.
+
+    Vì sao cần mã lý do chứ không chỉ True/False: chủ repo báo (2026-08-12) rằng "một số máy
+    VPS không có nút update, không hiểu vì sao". Cả hai lý do dưới đây đều là HÀNH VI ĐÚNG
+    theo thiết kế, nhưng app trước nay gộp chúng vào một câu chung chung nên nhìn hệt như máy
+    hỏng - và không có cách nào tự biết máy mình thiếu gì.
+
+    - no_token: WATCHTOWER_TOKEN không được set. Đây là stack Hostinger, nơi CỐ TÌNH không
+      kèm Watchtower (nó không đụng được Docker socket, bị Restarting liên tục). Đường cập
+      nhật ở đây là Redeploy, không có gì để bật thêm.
+    - watchtower_off: token có (docker-compose.yml luôn đặt sẵn) nhưng không nối được tới
+      container. Gần như luôn là vì Watchtower nằm trong `profiles: ["update"]`, tức là
+      `docker compose up -d` KHÔNG bật nó. Đây mới là trường hợp bật được, và bật bằng đúng
+      một lệnh - nên phải nói ra lệnh đó.
+    """
     if not os.getenv("WATCHTOWER_TOKEN", ""):
-        return False
+        return "no_token"
     import asyncio
     writer = None
     try:
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection("watchtower", 8080), timeout=4)
-        return True   # bắt tay TCP xong = container Watchtower đang lắng nghe
+        return ""     # bắt tay TCP xong = container Watchtower đang lắng nghe
     except Exception:
-        return False  # không phân giải host / connection refused = Watchtower không chạy
+        return "watchtower_off"   # không phân giải host / connection refused = không chạy
     finally:
         if writer is not None:
             try:
@@ -6437,11 +7651,14 @@ async def version_info():
     avail = _ver_newer(latest, cur)
     # docker: chỉ tự cập nhật tại chỗ được nếu Watchtower ĐANG chạy (ping thật). Không có →
     # frontend chuyển sang hướng dẫn REDEPLOY. native/windows: git pull tự lo.
-    can = mode in ("native", "windows") or (mode == "docker" and await _watchtower_reachable())
+    ly_do = await _watchtower_ly_do() if mode == "docker" else ""
+    can = mode in ("native", "windows") or (mode == "docker" and ly_do == "")
     st = _read_update_state()
+    # self_update_off: mã lý do để UI nói ĐÚNG máy này thiếu gì thay vì một câu chung chung.
+    # Rỗng khi tự cập nhật được - frontend chỉ đọc nó ở nhánh không có nút.
     return {"current": cur, "latest": latest, "update_available": avail,
             "mode": mode, "platform": _host_platform(), "can_self_update": can, "error": err,
-            "previous_version": st.get("previous_version")}
+            "self_update_off": ly_do, "previous_version": st.get("previous_version")}
 
 
 @app.get("/update/status")
@@ -6481,7 +7698,8 @@ def _git_head(root: str) -> str:
     try:
         import subprocess
         r = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, timeout=10,
+                           creationflags=winproc.no_window())
         return (r.stdout or "").strip() if r.returncode == 0 else ""
     except Exception:
         return ""
@@ -7382,6 +8600,7 @@ async def websocket_endpoint(ws: WebSocket):
                     # mâu thuẫn. Bỏ liên kết mạch để lượt sau dựng lại từ SQLite - nơi lượt
                     # này ĐÃ được lưu. Bản mồi lại có trần ký tự nên còn rẻ hơn mạch cũ.
                     store.clear_codex_thread_id(conv_sid)
+                    store.clear_gemini_session_id(conv_sid)
                     store.set_cli_session_id(conv_sid, "")
                 else:
                     # Đường tắt về tay không. Với gói Claude Code đây là ca THẬT SỰ có thể
@@ -7403,6 +8622,148 @@ async def websocket_endpoint(ws: WebSocket):
             _da_tra_loi = bool(_schedule_action) or used_fast_path
             if _da_tra_loi:
                 pass
+            elif prov == "gemini-cli":
+                # ===== Gói Google (đăng nhập tài khoản) qua GEMINI CLI - tool native + MCP hub =====
+                actual_model = api_model or gemini_cli.MODEL_MAC_DINH
+                sysprompt, _sub_plan = await _subscription_system_prompt(
+                    "gemini-cli", actual_model, kind)
+                gcli = gemini_cli.GeminiCLI(cwd=_brain_root(brain), model=actual_model,
+                                            tag=turn_tag, instructions=sysprompt)
+                _apply_gemini_hub(gcli, _brain_root(brain))
+                if not gcli.is_available():
+                    final_text = ("⚠ Chưa cài Gemini CLI trên máy này. Cài bằng "
+                                  "`npm i -g @google/gemini-cli` rồi chạy `gemini` một lần để "
+                                  "đăng nhập Google.")
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "gemini-cli",
+                        "model": actual_model, "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                else:
+                    # Mạch cũ: nối lại nếu có và chưa phình quá ngưỡng. Cùng luật với Codex và
+                    # Claude Code - Javis không nhìn được vào mạch của CLI, chỉ có token vào của
+                    # lượt trước làm dấu hiệu.
+                    _g_mach = (_row0.get("gemini_session_id") or "").strip()
+                    if _g_mach and compaction.nen_mach_thue_bao(
+                            _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                            rotated_at=_row0.get("thread_rotated_msg")):
+                        _g_mach = ""
+                        store.clear_gemini_session_id(conv_sid)
+                        store.mark_thread_rotated(conv_sid)
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "thread.rotated",
+                            {"engine": "gemini-cli",
+                             "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                             "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                        await ws.send_text(json.dumps({
+                            "type": "tool_call", "tool": "javis_nen_mach",
+                            "content": "⚙ Mạch hội thoại đã dài, Javis mở mạch mới."}))
+                    gcli.session_id = _g_mach or None
+                    # Mạch mới thì mồi lại bằng transcript đã lưu, y như Codex: không có bước
+                    # này là mở mạch mới = mất sạch ngữ cảnh cuộc đang nói dở.
+                    _g_cur = _cli_think(reasoning, user_message)
+                    _g_raw = [{"role": _m["role"], "content": _m["content"]}
+                              for _m in store.get_messages(conv_sid)[:-1]
+                              if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    _g_prompt = (_g_cur if _g_mach else compaction.bootstrap_prompt(
+                        _g_raw, _g_cur, summary=_row0.get("compact_summary") or ""))
+
+                    async def _nuot_gemini(prompt):
+                        nonlocal final_text
+                        _CONTEXT_RUNTIME.observe_payload(
+                            runtime_trace,
+                            [{"role": "system", "content": sysprompt},
+                             {"role": "user", "content": prompt}],
+                            provider="gemini-cli", model=actual_model)
+                        async for ev in gcli.query(prompt):
+                            et = ev.get("type")
+                            if et == "tool_call":
+                                await ws.send_text(json.dumps({
+                                    "type": "tool_call", "tool": ev.get("name", ""),
+                                    "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
+                            elif et == "final":
+                                final_text = ev.get("content") or ""
+                            elif et == "usage":
+                                # Token VÀO của lượt là dấu hiệu DUY NHẤT để biết mạch đã phình
+                                # tới đâu (CLI tự quản mạch, Javis không nhìn vào được).
+                                store.set_last_input_tokens(
+                                    conv_sid, int(ev.get("input_tokens") or 0))
+                            elif et == "error":
+                                _noi = _subscription_limit_message(ev.get("content") or "",
+                                                                   "gemini-cli")
+                                if _noi:
+                                    _CONTEXT_RUNTIME.record_runtime_event(
+                                        runtime_trace, "subscription.limit_reached",
+                                        {"engine": "gemini-cli", "model": actual_model})
+                                    final_text = final_text or _noi
+                                await ws.send_text(json.dumps({
+                                    "type": "error", "content": _noi or ev.get("content", "")}))
+
+                    await _nuot_gemini(_g_prompt)
+                    # CLI cấp UUID mạch ở sự kiện `init`; lưu lại để lượt sau --resume.
+                    if gcli.session_id:
+                        store.set_gemini_session_id(conv_sid, gcli.session_id)
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "gemini-cli",
+                        "model": actual_model, "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
+            elif prov == "antigravity-cli":
+                # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
+                #
+                # CỐ Ý chưa nối lại mạch hội thoại của CLI như nhánh Gemini/Codex ngay trên.
+                # `agy` có `--conversation <uuid>`, nhưng chưa ai đo được nó trên máy thật, mà
+                # lưu một id sai vào SQLite thì lượt sau nối vào mạch không tồn tại và hỏng câm.
+                # Nên mỗi lượt mở mạch mới và mồi lại bằng transcript đã lưu - tốn token hơn
+                # nhưng KHÔNG mất ngữ cảnh. Đo được cờ đó rồi thì nâng lên đúng khuôn Gemini.
+                actual_model = api_model or None
+                sysprompt, _sub_plan = await _subscription_system_prompt(
+                    "antigravity-cli", actual_model or "", kind)
+                acli = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain), model=actual_model,
+                                                      tag=turn_tag, instructions=sysprompt)
+                acli.mode = "full"
+                _apply_antigravity_hub(acli, _brain_root(brain))
+                if not acli.is_available():
+                    final_text = ("⚠ Chưa cài Antigravity CLI trên máy này. Cài một lần:\n\n"
+                                  f"`{antigravity_cli.lenh_cai()}`\n\n"
+                                  "Rồi gõ `agy` một lần để đăng nhập Google (qua SSH thì nó in "
+                                  "ra một link để mở trên máy anh).")
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "antigravity-cli",
+                        "model": actual_model or "", "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                else:
+                    _a_cur = _cli_think(reasoning, user_message)
+                    _a_raw = [{"role": _m["role"], "content": _m["content"]}
+                              for _m in store.get_messages(conv_sid)[:-1]
+                              if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    _a_prompt = compaction.bootstrap_prompt(
+                        _a_raw, _a_cur, summary=_row0.get("compact_summary") or "")
+                    _CONTEXT_RUNTIME.observe_payload(
+                        runtime_trace,
+                        [{"role": "system", "content": sysprompt},
+                         {"role": "user", "content": _a_prompt}],
+                        provider="antigravity-cli", model=actual_model or "")
+                    async for ev in acli.query(_a_prompt):
+                        et = ev.get("type")
+                        if et == "tool_call":
+                            await ws.send_text(json.dumps({
+                                "type": "tool_call", "tool": ev.get("name", ""),
+                                "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
+                        elif et == "final":
+                            final_text = ev.get("content") or ""
+                        elif et == "usage":
+                            store.set_last_input_tokens(
+                                conv_sid, int(ev.get("input_tokens") or 0))
+                        elif et == "error":
+                            _noi = _subscription_limit_message(ev.get("content") or "",
+                                                               "antigravity-cli")
+                            if _noi:
+                                final_text = final_text or _noi
+                            await ws.send_text(json.dumps({
+                                "type": "error", "content": _noi or ev.get("content", "")}))
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "antigravity-cli",
+                        "model": actual_model or "", "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "openai-oauth":
                 # ===== ChatGPT subscription qua CODEX CLI - MCP/tool NATIVE (như Hermes, dùng codex của máy) =====
                 actual_model = _codex_safe_model(api_model)   # gpt-5-mini/gpt-4o... → coerce về model Codex hợp lệ
@@ -8003,6 +9364,8 @@ async def websocket_endpoint(ws: WebSocket):
             mcfg = cfgmod.read_settings().get("model", {})
             prov, kind, api_key, api_model = _chat_provider(mcfg)
             engine_label = ("codex" if prov == "openai-oauth"
+                            else "gemini-cli" if prov == "gemini-cli"
+                            else "antigravity-cli" if prov == "antigravity-cli"
                             else prov if ((kind == "api" and api_key) or kind == "oauth")
                             else "cli")
             conv_sid = store.get_or_create(
@@ -8031,6 +9394,135 @@ async def websocket_endpoint(ws: WebSocket):
     finally:
         # Chỉ bỏ subscriber; job server tiếp tục chạy và tự lưu kết quả.
         _CHAT_RUNTIME.remove_client(client_id)
+
+
+# ============================================================
+# Tab Code - Terminal
+#
+# Cửa duy nhất vào terminal là WebSocket dưới đây, và nó đòi ĐÚNG cookie phiên đăng nhập như
+# /ws. Cố ý KHÔNG mở cho token API: token `full` sinh ra để script gọi REST, còn đây là chạy
+# lệnh tuỳ ý trên máy chủ - mở rộng cửa đó thì mỗi token dán nhầm chỗ thành một shell.
+# Toàn bộ phần khó (pty, tiến trình, bộ đệm màn hình) nằm trong server/terminal.py.
+# ============================================================
+def _terminal_cwd(brain: str) -> str:
+    """Thư mục shell mở ra. Mặc định là GỐC BRAIN đang chọn - chỗ chứa skill, plugin, note của
+    người dùng, và trong Docker đó cũng là volume ghi được (code app thì chỉ-đọc). Máy nào muốn
+    khác thì đặt JAVIS_TERMINAL_CWD."""
+    rieng = str(os.getenv("JAVIS_TERMINAL_CWD", "")).strip()
+    if rieng and os.path.isdir(rieng):
+        return rieng
+    try:
+        goc = _brain_root(brain)
+        if os.path.isdir(goc):
+            return goc
+    except Exception:
+        pass
+    return CLAUDE_CWD
+
+
+@app.get("/terminal/status")
+async def terminal_status(brain: str = Query("brain")):
+    return terminal.trang_thai(_terminal_cwd(brain))
+
+
+@app.post("/terminal/close")
+async def terminal_close(session: str = Form(...)):
+    """Đóng hẳn một phiên (nút 'Phiên mới' trên giao diện). Khác với đóng tab: đóng tab chỉ là
+    thôi xem, shell vẫn chạy tiếp."""
+    return {"ok": terminal.KHO.dong(session)}
+
+
+@app.websocket("/ws/terminal")
+async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Query("brain"),
+                      cols: int = Query(80), rows: int = Query(24)):
+    if cfgmod.gate_active() and not cfgmod.valid_session(ws.cookies.get("javis_session", "")):
+        await ws.close(code=1008)
+        return
+    await ws.accept()
+
+    async def bao_loi(msg: str):
+        try:
+            await ws.send_text(json.dumps({"type": "error", "error": msg}))
+        except Exception:
+            pass
+        await ws.close()
+
+    if not terminal.bat():
+        await bao_loi("Terminal đang tắt trên máy này (biến môi trường JAVIS_TERMINAL=0).")
+        return
+    try:
+        phien = terminal.KHO.mo(session, _terminal_cwd(brain), cols, rows, asyncio.get_running_loop())
+    except RuntimeError as e:
+        await bao_loi(str(e))
+        return
+    except Exception as e:
+        await bao_loi(f"Không mở được terminal: {type(e).__name__}: {e}")
+        return
+
+    q = phien.gan()
+    await ws.send_text(json.dumps({
+        "type": "hello", "session": phien.id, "che_do": phien.che_do,
+        "shell": Path(phien.argv[0]).name if phien.argv else "", "cwd": phien.cwd,
+        "song": phien.song(),
+    }))
+
+    async def bom_ra():
+        """Một chiều: hàng đợi của phiên -> trình duyệt.
+
+        GOM gói trước khi gửi. Lệnh in nhanh (`cat` file to, `npm install`) đẩy ra hàng nghìn
+        mẩu nhỏ; gửi mỗi mẩu một khung WebSocket thì trình duyệt nhận đúng chỗ nghẽn. Gom lại
+        thành một khung là cùng bấy nhiêu chữ nhưng ít hơn hẳn số vòng.
+        """
+        while True:
+            goi = await q.get()
+            if goi.get("type") == "out":
+                gom = [goi["data"]]
+                do_dai = len(goi["data"])
+                while do_dai < 256_000:
+                    try:
+                        tiep = q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    if tiep.get("type") != "out":
+                        q.put_nowait(tiep)      # gói khác loại (exit): trả lại, gửi ở vòng sau
+                        break
+                    gom.append(tiep["data"])
+                    do_dai += len(tiep["data"])
+                goi = {"type": "out", "data": "".join(gom)}
+            await ws.send_text(json.dumps(goi))
+
+    async def bom_ra_an_toan():
+        # Trình duyệt đóng giữa chừng thì send_text ném; nuốt ở đây để asyncio khỏi kêu
+        # "Task exception was never retrieved" - vòng nhận tin bên dưới sẽ tự thấy và thoát.
+        try:
+            await bom_ra()
+        except Exception:
+            pass
+
+    bom = asyncio.create_task(bom_ra_an_toan())
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                m = json.loads(raw)
+            except Exception:
+                continue
+            t = m.get("type")
+            if t == "in":
+                phien.go(str(m.get("data") or ""))
+            elif t == "resize":
+                phien.doi_co(m.get("cols"), m.get("rows"))
+            elif t == "sig" and m.get("name") == "int":
+                phien.ngat()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        bom.cancel()
+        # CHỈ gỡ người xem: shell chạy tiếp để đổi trang/F5 không giết mất việc đang chạy.
+        # Không ai quay lại trong terminal.REAP_GIAY thì vòng dọn sẽ đóng nó.
+        phien.go_ra(q)
 
 
 # ============================================================
@@ -8342,7 +9834,47 @@ _GIA_INPUT_1M = {
     "deepseek": 0.30, "llama": 0.10, "qwen": 0.20, "mistral": 0.20, "grok": 2.0,
 }
 _GIA_INPUT_MAC_DINH = 3.0     # không đoán được model thì lấy mức phổ biến tầm trung
-VND_MOI_USD = 26_000          # tạm tính; giao diện ghi rõ tỉ giá đang dùng
+# Mọi con số tiền trên trang Mức dùng đều để nguyên USD. Trước đây có thêm một lớp quy đổi ra
+# đồng bằng tỉ giá gõ cứng, và lớp đó chỉ tạo ra một con số thứ ba để sai: giá của mọi nhà
+# cung cấp đều niêm yết bằng USD, còn tỉ giá thì trôi và không ai đi cập nhật hằng số đó.
+
+
+def _ten_model_chinh(mcfg: dict) -> str:
+    """Tên model chính đang chạy, lấy từ ĐÚNG chỗ nó nằm.
+
+    `settings["model"]` KHÔNG có khoá `"model"` - tên model nằm ở `main.model`, và với cấu
+    hình cũ thì ở `claude_model` / `openrouter_model`. Đọc `mcfg.get("model")` luôn ra rỗng,
+    nên mọi phép quy đổi tiền rơi về đơn giá mặc định 3$ bất kể người dùng đang chạy Opus
+    (15$) hay Haiku (1$). Sai im lặng: con số vẫn hiện ra, chỉ là sai vài lần.
+    """
+    m = mcfg or {}
+    # Thứ tự có chủ ý:
+    #   1. `main.model` - chỗ trang Models ghi vào, đúng nhất khi có.
+    #   2. khoá `model` phẳng - KHÔNG tồn tại trong settings thật, nhưng vài chỗ trong server
+    #      gọi hàm này với một dict tự dựng kiểu {"model": "..."} để hỏi giá của một model cụ
+    #      thể. Bỏ qua nó là lặng lẽ trả lời về một model khác với model được hỏi.
+    #   3. `_chat_provider` - bộ giải mà chính đường chat dùng, hiểu cả cấu hình cũ (`engine`).
+    #   4. các khoá cũ, chỉ khi ba bước trên đều câm.
+    # Bước 4 phải nằm SAU bước 3: `openrouter_model` có sẵn giá trị "openai/gpt-4o-mini" ngay
+    # trong cấu hình xuất xưởng, kể cả khi engine đang là anthropic-cli chạy Opus. Dò tay
+    # trước là lấy $0,15 thay cho $15 - lệch 100 lần, theo hướng khai thấp phần tiết kiệm.
+    ten = ((m.get("main") or {}).get("model") or "").strip()
+    if ten:
+        return ten
+    ten = str(m.get("model") or "").strip()
+    if ten:
+        return ten
+    try:
+        _prov, _kind, _key, model = _chat_provider(m)
+        if str(model or "").strip():
+            return str(model).strip()
+    except Exception:  # noqa: BLE001 - phần thông tin, rơi về cách dò tay bên dưới
+        pass
+    for khoa in ("claude_model", "openrouter_model"):
+        v = str(m.get(khoa) or "").strip()
+        if v:
+            return v
+    return ""
 
 
 def _gia_input_1m(model: str, settings_model: dict = None) -> tuple:
@@ -8398,12 +9930,11 @@ def _do_duoc_tiet_kiem(tasks: list, window_hours: float = 24.0,
     # xảy ra, nên giao diện phải gọi nó là "theo nhịp này" chứ đừng ghi như một hoá đơn.
     gio = max(1.0, float(out["gio_do"]))
     out["token_thang"] = round(out["token_tiet_kiem"] * (24 * 30 / gio))
-    gia, nguon = _gia_input_1m(str((settings_model or {}).get("model") or ""), settings_model)
+    gia, nguon = _gia_input_1m(_ten_model_chinh(settings_model or {}), settings_model)
     out["tien"] = {
-        "gia_1m_usd": gia, "nguon_gia": nguon, "ty_gia": VND_MOI_USD,
+        "gia_1m_usd": gia, "nguon_gia": nguon,
         "usd": round(out["token_tiet_kiem"] / 1_000_000 * gia, 4),
         "usd_thang": round(out["token_thang"] / 1_000_000 * gia, 2),
-        "vnd_thang": round(out["token_thang"] / 1_000_000 * gia * VND_MOI_USD),
     }
     return out
 
@@ -8817,6 +10348,14 @@ async def runtime_preset_set(level: str = Form(...)):
                              "hop_le": list(RUNTIME_PRESETS)}, status_code=400)
     cfg = cfgmod.read_settings()
     runtime_cfg = cfg.setdefault("context_runtime", {})
+    # Đóng mốc TRƯỚC khi đổi, để còn biết mức cũ là gì. Nhật ký mốc là thứ duy nhất cho phép
+    # tính đúng tiết kiệm của một kỳ có đổi mức giữa chừng: không có nó thì phải lấy mức hôm
+    # nay áp ngược cho cả tháng, và người vừa bật tiết kiệm hôm qua sẽ được khoe một con số
+    # tiết kiệm của cả tháng mà họ chưa từng nhận.
+    _muc_cu = current_preset(runtime_cfg)
+    if _muc_cu != key:
+        usage_saving.ghi_moc("muc", key, _muc_cu,
+                             f"Đổi chế độ tiết kiệm sang {preset['nhan']}")
     runtime_cfg["mode"] = preset["mode"]
     # Ký tên TRƯỚC khi ghi: từ đây trở đi mức này là quyết định của người dùng, không bản
     # cập nhật nào được nâng nó lên sau lưng.
@@ -9279,8 +10818,18 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
     engine_label = ("codex" if prov == "openai-oauth"
+                    else "gemini-cli" if prov == "gemini-cli"
+                    else "antigravity-cli" if prov == "antigravity-cli"
                     else prov if ((kind == "api" and api_key) or kind == "oauth")
                     else "cli")
+
+    if engine_label != "gemini-cli" and sess.get("gemini") is not None:
+        # Cùng lý do với khối Codex ngay dưới: provider khác vừa chen một lượt nên mạch Gemini
+        # cũ KHÔNG chứa lượt đó; resume tiếp là nó mù đúng đoạn ở giữa.
+        try:
+            sess["gemini"].session_id = None
+        except Exception:
+            sess["gemini"] = None
 
     if engine_label != "codex" and sess.get("codex") is not None:
         # Bản tương ứng của `store.clear_codex_thread_id` bên dashboard: provider khác vừa chen
@@ -9448,38 +10997,9 @@ def _bot_ket(out, lich_su):
     return {"text": channel_context.strip_control_blocks(out), "files": []}
 
 
-async def _bot_cli_du_phong(sysprompt, text, *, sess, brain, chat_id, model, progress):
-    """Đường dự phòng cho gói Claude Code khi gọi thẳng API hỏng (hay gặp nhất: không đọc được
-    token OAuth mà CLI đã lưu, nên /v1/messages trả 401 và LƯỢT NÀO CŨNG hỏng).
-
-    Vẫn giữ nguyên hợp đồng của bot: cùng prompt, cùng tài liệu, cùng lịch sử, và KHÔNG tool.
-    Chỉ khác đường truyền. Không tool ở đây là thật chứ không phải lời hứa - `allowed_tools`
-    bật cổng `can_use_tool` của engine, và mọi tool đều rớt khỏi danh sách nên bị từ chối.
-
-    Không có bản tương ứng cho Codex: Codex không có cổng duyệt per-call, nên chạy nó không
-    tool là bất khả. Codex hỏng thì báo thẳng, xem chỗ gọi.
-    """
-    cli = sess.get("botcli")
-    if cli is None:
-        cli = claude_engine(system_prompt=sysprompt, cwd=_brain_root(brain),
-                            tag=f"bot:{chat_id}", allowed_tools=BOT_KHONG_TOOL)
-        sess["botcli"] = cli
-    cli.system_prompt = sysprompt      # tài liệu đổi theo từng câu hỏi
-    cli.model = model or None
-    out, loi = "", []
-    async for ev in cli.query(text):
-        et = ev.get("type")
-        if et == "final":
-            out = ev.get("content") or out
-            usage_store.record("cli", cli.model or "mặc định",
-                               ev.get("tokens_in", 0), ev.get("tokens_out", 0),
-                               ev.get("cost_usd") or 0)
-        elif et == "text":
-            out += ev.get("content") or ""
-            await progress("✍ Đang soạn câu trả lời…")
-        elif et == "error":
-            loi.append(str(ev.get("content") or "lỗi không rõ"))
-    return out, loi
+# `_bot_cli_du_phong` đã gỡ ở 0.26.17. Nó là đường LUI cho ca "đọc không ra token OAuth nên
+# /v1/messages trả 401". Nay không còn token nào để đọc: gói Claude Code chạy thẳng qua binary
+# `claude` ngay từ `_api_stream`, nên một đường lui cũng dẫn tới đúng engine ấy là vô nghĩa.
 
 
 async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reasoning,
@@ -9504,9 +11024,10 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     `sysprompt`, nên bỏ tool không làm bot mất khả năng đọc brain - chỉ bỏ khả năng đi lang
     thang trong đó.
 
-    `_api_stream` phục vụ đủ tám provider, kể cả hai gói subscription: ChatGPT OAuth đi
-    `openai_responses_stream`, Claude Code đi `anthropic_stream` với token OAuth mà chính CLI
-    đã lưu. Không con nào phải mở CLI, nên cũng không con nào tốn thời gian khởi động CLI.
+    `_api_stream` phục vụ sáu provider API cộng gói ChatGPT (đi `openai_responses_stream`).
+    Gói Claude Code là ngoại lệ DUY NHẤT: nó rẽ sang `_bot_cli_du_phong` ngay dưới đây, tức
+    chạy qua binary `claude`. Đắt hơn một nhịp khởi động tiến trình, đổi lại không phải mượn
+    token đăng nhập của ai - thứ Anthropic cấm và có khoá tài khoản thật (xem claude_auth.py).
 
     Đây là đường của mức **Chỉ đọc** - mức mặc định. Bot đặt ở mức Được ghi / Toàn quyền đi
     `_bot_tra_loi_co_tool`. Hai đường tách hẳn nhau CÓ CHỦ Ý: đường này phải soi được bằng mắt
@@ -9525,24 +11046,6 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
         _api_stream(prov, api_key, api_model, messages, reasoning),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
-    # Gói Claude Code: gọi thẳng /v1/messages cần token OAuth mà CLI đã lưu. Đọc không ra (hoặc
-    # Anthropic không nhận) là LƯỢT NÀO CŨNG hỏng, và người dùng chỉ thấy một câu xin lỗi lặp
-    # đi lặp lại. Rơi về chính CLI của gói đó - vẫn không tool, nên vẫn đúng hợp đồng của bot.
-    if not out and prov == "anthropic-cli" and brain:
-        print(f"[bot {prov}] gọi thẳng hỏng ({loi[0] if loi else '?'}), thử lại qua CLI",
-              file=__import__('sys').stderr)
-        try:
-            out, loi2 = await _bot_cli_du_phong(sysprompt, text, sess=sess, brain=brain,
-                                                chat_id=chat_id, model=api_model,
-                                                progress=progress)
-            if out:
-                loi = []
-            else:
-                loi += loi2
-        except Exception as e:
-            print(f"[bot {prov}] CLI dự phòng cũng hỏng: {e}", file=__import__('sys').stderr)
-            loi.append(str(e))
-
     if not out:
         lich_su.pop()   # lượt hỏng thì đừng để câu hỏi treo lơ lửng không có câu trả lời
         if prov == "openai-oauth" and not (openai_oauth.valid_creds() or {}).get("access_token"):
@@ -9559,13 +11062,17 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
 # ============================================================
 # Bot ở mức Được ghi / Toàn quyền - CÓ tool
 # ============================================================
-def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route):
+def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
+                        *, brain=None, tag_bot="bot", muc_quyen="full"):
     """Vòng gọi tool cho một lượt bot, đủ CẢ TÁM bộ não.
 
     Vẫn giữ nguyên lời hứa gốc: đổi bộ não thì trải nghiệm không đổi. Nên hai gói thuê bao
-    không bị bỏ lại - ChatGPT đi `responses_with_mcp`, Claude Code đi `anthropic_chat_with_mcp`
-    với chính token OAuth mà CLI đã lưu. KHÔNG con nào mở CLI, nên không con nào chạm được vào
-    tool NATIVE (Bash, Read, WebFetch) - và đó là chỗ tựa của cả rào an toàn bên dưới.
+    không bị bỏ lại - ChatGPT đi `responses_with_mcp`, Claude Code đi engine Claude Code thật
+    (`_claude_sub_stream_tools`) thay cho đường mượn token OAuth đã gỡ ở 0.26.17.
+
+    Điều đó có một hệ quả PHẢI biết: nhánh Claude Code nay CÓ tool native (Bash, Read,
+    WebFetch), khác hẳn sáu nhánh kia. Rào an toàn vì thế không còn tựa vào "không engine nào
+    mở CLI" được nữa, mà tựa vào allowlist per-call của `can_use_tool` - xem `_bot_allowlist`.
 
     `tools` rỗng (hub tắt, hoặc chưa đấu nguồn nào) → rơi về stream không tool. Bot vẫn trả lời
     được thay vì im; chỗ gọi báo cho chủ biết là lượt đó không có công cụ nào.
@@ -9589,8 +11096,12 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route):
             return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
                                              _codex_safe_model(model), messages, reasoning, tools, route)
         if prov == "anthropic-cli":
-            return engine.anthropic_chat_with_mcp(key, _claude_api_model(model), messages, reasoning,
-                                                  tools, route, oauth_token=claude_models.oauth_token())
+            # Gói Claude Code: qua binary `claude` + hub, không mượn token đăng nhập của ai.
+            # `tools` chỉ dùng để BIẾT lượt này có công cụ hay không - engine tự đấu hub bằng
+            # config riêng mang brain của bot, nên không phải chuyển danh sách schema sang.
+            # Bốn lớp rào giữ đúng hợp đồng cách ly: xem `_claude_sub_stream_tools`.
+            return _claude_sub_stream_tools(model, messages, reasoning, brain=brain,
+                                            tag=tag_bot, mode=muc_quyen)
         return engine.anthropic_chat_with_mcp(key, model, messages, reasoning, tools, route)
 
     # Nhà cung cấp gãy tạm thời thì thử lại - nhưng dừng ngay khi tool đầu tiên đã chạy, vì từ
@@ -9644,7 +11155,8 @@ async def _bot_tra_loi_co_tool(text, *, sess, sysprompt, prov, api_key, api_mode
     _bot_ghim_duong(runtime_trace, prov, api_model, messages, tools)
 
     out, loi = await _bot_doc_stream(
-        _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route),
+        _bot_stream_co_tool(prov, api_key, api_model, messages, reasoning, tools, route,
+                            brain=brain, tag_bot=f"bot:{chat_id}", muc_quyen=muc_quyen),
         progress=progress, runtime_trace=runtime_trace, prov=prov, api_model=api_model)
 
     # Engine KHÔNG chạy nổi vòng tool: trả lời lại lượt này mà bỏ tool đi.
@@ -9824,6 +11336,72 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             # xuống engine đầy đủ bên dưới, người dùng vẫn có câu trả lời.
             if _txt.strip():
                 return {"text": channel_context.strip_control_blocks(_txt), "files": []}
+
+    if prov == "gemini-cli":
+        # Cùng engine với dashboard: Gemini CLI + tool native + MCP hub, chỉ khác chỗ giữ mạch.
+        # Phiên Telegram giữ luôn object engine trong `sess` (như Codex), nên mạch hội thoại
+        # nối tiếp qua các tin nhắn mà không phải đụng SQLite.
+        actual_model = api_model or gemini_cli.MODEL_MAC_DINH
+        gcli = sess.get("gemini")
+        if gcli is None:
+            gcli = gemini_cli.GeminiCLI(cwd=_brain_root(brain), model=actual_model,
+                                        tag=f"telegram:{chat_id}", instructions=sysprompt)
+            sess["gemini"] = gcli
+        else:
+            gcli.cwd = _brain_root(brain)
+            gcli.model = actual_model
+            gcli.instructions = sysprompt
+        _apply_gemini_hub(gcli, _brain_root(brain))
+        if not gcli.is_available():
+            return ("⚠ Chưa cài Gemini CLI trên máy chạy Javis. Cài bằng "
+                    "`npm i -g @google/gemini-cli` rồi chạy `gemini` một lần để đăng nhập Google.")
+        out, loi = "", []
+        async for ev in gcli.query(text):
+            et = ev.get("type")
+            if et == "tool_call":
+                await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
+            elif et == "final":
+                out = ev.get("content") or ""
+            elif et == "error":
+                loi.append(str(ev.get("content") or ""))
+        if not out and loi:
+            _noi = _subscription_limit_message(loi[0], "gemini-cli")
+            return _noi or ("⚠ Gemini CLI lỗi: " + loi[0][:400])
+        return out or "(không có nội dung)"
+
+    if prov == "antigravity-cli":
+        # Cùng khuôn nhánh Gemini CLI ngay trên: giữ object engine trong `sess` để mạch hội
+        # thoại nối tiếp qua các tin nhắn mà không phải đụng SQLite.
+        actual_model = api_model or None
+        acli = sess.get("antigravity")
+        if acli is None:
+            acli = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain), model=actual_model,
+                                                  tag=f"telegram:{chat_id}",
+                                                  instructions=sysprompt)
+            sess["antigravity"] = acli
+        else:
+            acli.cwd = _brain_root(brain)
+            acli.model = actual_model
+            acli.instructions = sysprompt
+        acli.mode = "full"
+        _apply_antigravity_hub(acli, _brain_root(brain))
+        if not acli.is_available():
+            return ("⚠ Chưa cài Antigravity CLI trên máy chạy Javis. Cài một lần:\n"
+                    f"`{antigravity_cli.lenh_cai()}`\n"
+                    "Rồi gõ `agy` một lần để đăng nhập Google.")
+        out, loi = "", []
+        async for ev in acli.query(text):
+            et = ev.get("type")
+            if et == "tool_call":
+                await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
+            elif et == "final":
+                out = ev.get("content") or ""
+            elif et == "error":
+                loi.append(str(ev.get("content") or ""))
+        if not out and loi:
+            _noi = _subscription_limit_message(loi[0], "antigravity-cli")
+            return _noi or ("⚠ Antigravity CLI lỗi: " + loi[0][:400])
+        return out or "(không có nội dung)"
 
     if prov == "openai-oauth":
         # Telegram dùng cùng Codex CLI + MCP native như dashboard. Trước đây nhánh OAuth
@@ -10064,7 +11642,7 @@ async def _tg_help_text(brain):
         "/skills - liệt kê skill\n"
         "/agents - liệt kê agent + việc đang chạy\n"
         "/workflows - liệt kê workflow\n"
-        "/model - xem/đổi model (opus|sonnet|haiku|fable|<claude-id> hoặc <provider/id> cho OpenRouter)\n"
+        "/model - xem/đổi model: gõ /model để chọn bằng nút (mọi nhà cung cấp đã kết nối), hoặc /model <tên model>\n"
         "/brain - xem/đổi brain (vault) cho riêng phiên của bạn (vd /brain hoặc /brain <tên>)\n"
         "/cli - engine Claude (có MCP/skill)\n"
         "/or - engine OpenRouter (chat + MCP đa-model)\n"
@@ -10092,19 +11670,41 @@ async def _tg_skills_text(brain):
 #      (đánh dấu ✓ + số model) → lưới model 2 cột PHÂN TRANG ◀ 1/N ▶.
 #      Danh sách model lấy LIVE qua provider_models() (OpenRouter đầy đủ, ChatGPT,
 #      Claude API...), fallback catalog trong settings khi provider không list được. ----
-_TG_PROVIDERS = [   # (id provider, nhãn nút ngắn)
-    ("anthropic-cli", "Claude Code"),
-    ("openai-oauth", "ChatGPT"),
-    ("openrouter", "OpenRouter"),
-    ("anthropic-api", "Claude API"),
-    ("openai", "OpenAI API"),
-]
+# Nhãn NGẮN cho nút Telegram. Nhãn trong PROVIDER_DEFS viết cho dashboard nên dài ("Google
+# Antigravity CLI", "Google Gemini CLI (cá nhân đã bị Google ngắt)"), mà nút Telegram còn phải
+# chứa cả dấu ✓ lẫn số model. Id nào không có ở đây thì cắt ngắn nhãn gốc.
+_TG_NHAN_NGAN = {
+    "anthropic-cli": "Claude Code",
+    "openai-oauth": "ChatGPT",
+    "antigravity-cli": "Antigravity",
+    "gemini-cli": "Gemini CLI",
+    "openrouter": "OpenRouter",
+    "anthropic-api": "Claude API",
+    "openai": "OpenAI API",
+    "gemini": "Gemini API",
+    "groq": "Groq",
+    "ollama": "Ollama",
+}
 _TG_MODEL_LISTS = {}   # provider -> list model id ĐÃ render (index nút ổn định khi bấm)
 _TG_PAGE = 8           # model mỗi trang (lưới 2 cột x 4 hàng)
 
 
+def _tg_providers():
+    """Provider cho menu Telegram, lấy từ ĐÚNG danh sách của app.
+
+    Trước 0.33.7 đây là một bảng chép tay 5 dòng, và nó lệch dần khỏi thực tế đúng như mọi bảng
+    chép tay: dashboard lên 10 provider thì Telegram vẫn 5, nên bộ não Antigravity (đường Google
+    còn sống cho tài khoản cá nhân) không đổi model được từ điện thoại, mà cũng chẳng có câu nào
+    nói vì sao. Đọc thẳng PROVIDER_DEFS thì thêm provider mới vào app là Telegram tự có.
+    """
+    return [(p["id"], _tg_prov_label(p["id"])) for p in PROVIDER_DEFS]
+
+
 def _tg_prov_label(pid):
-    return dict(_TG_PROVIDERS).get(pid, pid)
+    if pid in _TG_NHAN_NGAN:
+        return _TG_NHAN_NGAN[pid]
+    nhan = (_provider_def(pid) or {}).get("label") or pid
+    return nhan.split("(")[0].strip()[:20] or pid
 
 
 def _tg_prov_ready(pid, m):
@@ -10116,6 +11716,31 @@ def _tg_prov_ready(pid, m):
         return bool(o.get("access_token") or o.get("refresh_token"))
     kf = d.get("key_field")
     return True if kf is None else bool(m.get(kf))
+
+
+async def _tg_provider_cho_model(mid, m):
+    """Model id này thuộc nhà cung cấp nào. Trả (provider chốt được, danh sách ứng viên).
+
+    Ưu tiên provider ĐANG DÙNG khi nó cũng có id đó: `/model sonnet` lúc đang ở Claude Code thì
+    ý người dùng là đổi model trong cùng nhà cung cấp, không phải nhảy sang Claude API. Nhiều
+    nhà cùng có mà không nhà nào đang dùng thì KHÔNG đoán - trả danh sách để hỏi lại, vì đoán
+    trượt ở đây là âm thầm đổi cả đường tiền (gói thuê bao so với API tính theo lượt gọi).
+    """
+    cur_prov, _ = _model_current()
+    ung_vien = []
+    for pid, _lb in _tg_providers():
+        if not _tg_prov_ready(pid, m):
+            continue
+        ids = _TG_MODEL_LISTS.get(pid)
+        if ids is None:
+            ids = await _tg_models_for(pid)
+        if mid in ids:
+            ung_vien.append(pid)
+    if cur_prov in ung_vien:
+        return cur_prov, ung_vien
+    if len(ung_vien) == 1:
+        return ung_vien[0], ung_vien
+    return None, ung_vien
 
 
 async def _tg_models_for(pid):
@@ -10138,10 +11763,15 @@ def _model_current():
 async def _model_provider_kb():
     m = cfgmod.read_settings().get("model", {})
     cur_prov, _ = _model_current()
-    ready = [(pid, lb) for pid, lb in _TG_PROVIDERS if _tg_prov_ready(pid, m)]
+    ready = [(pid, lb) for pid, lb in _tg_providers() if _tg_prov_ready(pid, m)]
     lists = await asyncio.gather(*(_tg_models_for(pid) for pid, _ in ready))
     rows, row = [], []
     for (pid, lb), ids in zip(ready, lists):
+        # Provider không liệt kê nổi model nào thì bấm vào cũng chỉ ra một trang trống. Hay gặp
+        # nhất là CLI đã cài nhưng chưa đăng nhập (`agy models` phải có tài khoản mới trả danh
+        # sách). Giấu đi cho gọn, TRỪ provider đang dùng - luôn phải thấy mình đang đứng ở đâu.
+        if not ids and pid != cur_prov:
+            continue
         mark = "✓ " if pid == cur_prov else ""
         row.append({"text": f"{mark}{lb} ({len(ids)})", "callback_data": f"mp:{pid}"})
         if len(row) == 2:
@@ -10248,7 +11878,7 @@ async def _tg_callback(data, chat=None):
         return {"text": _model_header(), "reply_markup": await _model_provider_kb()}
     if data.startswith("mp:"):
         pid = data.split(":", 1)[1]
-        if pid not in dict(_TG_PROVIDERS):
+        if pid not in dict(_tg_providers()):
             return {"alert": "Provider không hợp lệ - gõ /model lại"}
         if not _tg_prov_ready(pid, cfgmod.read_settings().get("model", {})):
             return {"alert": f"{_tg_prov_label(pid)} chưa kết nối - vào dashboard trang Models"}
@@ -10337,8 +11967,20 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
         s = cfgmod.read_settings(); m = s["model"]
         a = arg.strip()
         if a:
-            # Không whitelist cứng → model mới dùng ngay. id chứa "/" = OpenRouter;
-            # gpt*/*-codex = ChatGPT (Codex, cần đã kết nối); còn lại = alias/id Claude.
+            # HỎI DANH SÁCH THẬT TRƯỚC, đoán sau. Mấy luật đoán bên dưới ra đời khi Telegram chỉ
+            # biết 3 provider, và giờ chúng gán nhầm một cách im lặng: gõ tên model của
+            # Antigravity (vd `gemini-3-flash-high`) thì rơi vào nhánh cuối rồi bị đặt làm model
+            # CLAUDE, lượt chat sau mới báo lỗi mà chẳng ai hiểu vì sao.
+            _pid, _ung_vien = await _tg_provider_cho_model(a, m)
+            if _pid:
+                _set_main_model(s, _pid, a); cfgmod.write_settings(s)
+                return {"reply": f"✅ {_tg_prov_label(_pid)}: {a}."}
+            if len(_ung_vien) > 1:
+                _ten = ", ".join(_tg_prov_label(p) for p in _ung_vien)
+                return {"reply": f"⚠ '{a}' có ở nhiều nhà cung cấp ({_ten}) nên không đoán "
+                                 f"được ý anh. Gõ /model rồi chọn bằng nút cho chắc."}
+            # Không provider nào khai model này (danh sách hỏng, hoặc tên mới tinh) → về mấy
+            # luật đoán cũ: id chứa "/" = OpenRouter; gpt*/*-codex = ChatGPT; còn lại = Claude.
             if "/" in a:
                 _set_main_model(s, "openrouter", a); cfgmod.write_settings(s)
                 return {"reply": f"✅ OpenRouter model: {a}."}
@@ -10621,7 +12263,10 @@ async def telegram_status():
             "chat_id": t.get("chat_id", ""), "chat_ids": tg_parse_ids(t.get("chat_id")),
             "running": running,
             "status": (_TG_BOT.status if _TG_BOT else "off"),
-            "last_error": (_TG_BOT.last_error if _TG_BOT else "")}
+            "last_error": (_TG_BOT.last_error if _TG_BOT else ""),
+            # Menu lệnh "/" đặt hụt: bot vẫn chạy, chỉ là gõ "/" không sổ ra danh sách. Tách
+            # khỏi last_error vì vòng poll xoá last_error sau mỗi lượt thành công.
+            "loi_menu_lenh": (getattr(_TG_BOT, "loi_menu_lenh", "") if _TG_BOT else "")}
 
 
 @app.post("/telegram/restart")
@@ -10800,9 +12445,12 @@ async def chatbots_update(bot_id: str, request: Request):
             return chan
     ok, err = chatbot_store.update_bot(bot_id, form)
     if not ok:
-        # 404 là "không có bot nào id đó"; rào xác nhận rủi ro là 400 (yêu cầu sai, bot có thật).
+        # 404 CHỈ khi thật sự không có bot nào id đó; mọi lý do còn lại (xác nhận rủi ro, slug
+        # Agent hỏng) là 400 - bot có thật, chỉ yêu cầu sai. Bản trước liệt kê ngược lại: mặc
+        # định 404 rồi trừ ra một trường hợp, nên mỗi lý do từ chối mới thêm vào kho lại đi ra
+        # ngoài dưới dạng "không tìm thấy bot", đọc xong không lần được ra lỗi thật.
         return JSONResponse({"ok": False, "error": err},
-                            status_code=400 if err == chatbot_store.LOI_CHUA_XAC_NHAN else 404)
+                            status_code=404 if err == chatbot_store.LOI_KHONG_CO_BOT else 400)
     # Đang chạy mà đổi token/agent/brain thì phải khởi động lại mới ăn. Khởi động lại luôn cho
     # chắc thay vì đoán trường nào cần: sai ở đây là bot chạy bằng cấu hình cũ mà không ai biết.
     if bot_id in chatbot_runtime._RUNNING:
@@ -11083,6 +12731,12 @@ async def _shutdown_mcp_pool():
         print(f"[kanban shutdown] {e}", file=__import__('sys').stderr)
     try:
         await mcp_client.pool.close_all()
+    except Exception:
+        pass
+    # Shell của tab Code chạy trong process group RIÊNG (setsid), nên nó KHÔNG chết theo server
+    # - tắt Javis mà bỏ quên là để lại một đàn shell mồ côi giữ cổng và file.
+    try:
+        terminal.KHO.dong_het()
     except Exception:
         pass
 

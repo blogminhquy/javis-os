@@ -13,8 +13,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=62">
-  <link rel="stylesheet" href="/static/console.css?v=41">
+  <link rel="stylesheet" href="/static/style.css?v=63">
+  <link rel="stylesheet" href="/static/console.css?v=46">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -602,6 +602,15 @@
       <div class="auth-body">
         <input id="authUser" placeholder="Tài khoản" autocomplete="username">
         <input id="authPass" type="password" placeholder="Mật khẩu" autocomplete="current-password">
+        <!-- Ô mã 2 lớp: ẩn cho tới khi server trả needs_2fa. Hiện sẵn từ đầu thì người CHƯA bật
+             2FA phải nhìn một ô họ không hiểu, mỗi lần đăng nhập. inputmode=numeric để điện
+             thoại bật bàn phím số; autocomplete=one-time-code để iOS/Android tự điền từ SMS/app. -->
+        <div id="authCodeWrap" style="display:none">
+          <input id="authCode" inputmode="numeric" autocomplete="one-time-code"
+                 placeholder="Mã 6 số, hoặc mã khôi phục">
+          <div class="auth-hint">Mở app Authenticator và nhập mã đang hiện. Mất điện thoại thì
+            nhập một mã khôi phục đã lưu lúc bật.</div>
+        </div>
         <button class="fm-use" id="authSubmit">Đăng nhập</button>
         <div class="auth-err" id="authErr"></div>
         <div class="auth-help"><span id="authForgot">Quên mật khẩu?</span></div>
@@ -662,13 +671,22 @@
           <h4>Tài khoản đăng nhập</h4>
           <div class="set-note" id="setAuthState"></div>
           <label>Tài khoản</label><input id="setAuthUser" placeholder="Ví dụ: admin">
-          <label>Mật khẩu</label><input id="setAuthPass" type="password" placeholder="Đặt mật khẩu (để trống nếu không đổi)">
+          <!-- Mật khẩu hiện tại: chỉ hiện khi ĐÃ có tài khoản (app.js refreshAuthRow bật lên).
+               Server đòi nó để một phiên bị mượn không đổi được mật khẩu rồi khoá chính chủ. -->
+          <label id="setAuthCurLbl" hidden>Mật khẩu hiện tại</label>
+          <input id="setAuthCur" type="password" autocomplete="current-password" placeholder="Mật khẩu đang dùng" hidden>
+          <label>Mật khẩu</label><input id="setAuthPass" type="password" autocomplete="new-password" placeholder="Đặt mật khẩu (để trống nếu không đổi)">
           <div class="set-actions">
             <button class="s-btn" id="savePassword">Lưu tài khoản</button>
             <button class="s-btn-ghost" id="logoutBtn">Đăng xuất</button>
             <button class="s-btn-ghost" id="disableAuthBtn">Tắt đăng nhập</button>
           </div>
           <div class="set-note">Đặt mật khẩu để chặn người lạ khi đưa Javis lên VPS. Lưu ý: trên VPS nên chạy sau HTTPS (reverse proxy).</div>
+          <!-- Xác thực 2 lớp: CỐ Ý chỉ là dòng trạng thái + lối đi, không phải luồng bật đầy đủ.
+               Màn quét QR nằm ở trang Tài khoản. Bê nguyên luồng đó sang đây là có hai bản sao
+               của một tính năng bảo mật, và chỗ nào quên sửa thì chỗ đó thành lỗ.
+               Nội dung do console.js đổ vào (renderTfaRow) vì nó cần hỏi /auth/status. -->
+          <div class="set-tfa" id="setTfaRow" hidden></div>
         </div>
         <div class="set-note" style="opacity:.7">Ảnh đại diện, tên miền, giọng nói &amp; tốc độ nằm trong trang <b>Cài đặt</b>.</div>
       </div>
@@ -690,7 +708,7 @@
   <script src="/static/theme.js?v=1"></script>
   <script src="/static/voice.js?v=14"></script>
   <script src="/static/graph.js?v=16"></script>
-  <script src="/static/chat-render.js?v=8"></script>
+  <script src="/static/chat-render.js?v=9"></script>
   <script src="/static/code-hl.js?v=1"></script>
   <script src="/static/dataview.js?v=1"></script>
   <script src="/static/task-suggest.js?v=1"></script>
@@ -701,7 +719,8 @@
   <script src="/static/chat-ask.js?v=1"></script>
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
-  <script src="/static/app.js?v=81"></script>
+  <script src="/static/chat-marks.js?v=1"></script>
+  <script src="/static/app.js?v=85"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=3"></script>
@@ -711,11 +730,14 @@
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=12"></script>
   <script src="/static/studio.js?v=27"></script>
-  <script src="/static/chatbots.js?v=9"></script>
+  <script src="/static/chatbots.js?v=10"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>
+  <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có
+       phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
+  <script src="/static/code-term.js?v=2"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=98"></script>
+  <script src="/static/console.js?v=107"></script>
   <script src="/static/mobile-chat.js?v=5"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>

@@ -41,6 +41,7 @@ import os
 import re
 import shutil
 import sys
+import winproc         # lệnh con câm lặng trên Windows
 import time
 import uuid
 from dataclasses import dataclass
@@ -598,7 +599,8 @@ class RemindersFeature:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv, cwd=self.deps.brain_root(brain), env=env,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                **winproc.kwargs_no_window())
         except Exception as e:
             return "", f"không chạy được script: {type(e).__name__}: {e}", -1
         try:

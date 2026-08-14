@@ -179,9 +179,19 @@ Nút **⬆ Cập nhật ngay** chỉ hiện khi Javis tự cập nhật tại ch
 | Windows | Có |
 | Linux / macOS chạy trực tiếp | Có |
 | Docker và Watchtower đang chạy | Có |
-| Docker mà không có Watchtower | Không, khung hiện hướng dẫn Redeploy |
+| Docker mà không có Watchtower | Không, khung nói rõ vì sao và cách bật |
 
-Khi không tự cập nhật được, khung ghi: "↻ Cập nhật bằng **Redeploy**: Hostinger dùng Docker Manager; VPS chạy `docker compose up -d --pull always`." Bản chạy trên Hostinger vẫn bật được Watchtower (cùng mạng compose) để lấy nút một chạm.
+**Vì sao máy này có nút mà máy kia không.** Gần như luôn là vì Watchtower nằm trong `profiles: ["update"]` của `docker-compose.yml`, nên lệnh `docker compose up -d` quen tay **không bật nó**. Bật một lần, ở thư mục chứa file compose:
+
+```bash
+docker compose --profile update up -d
+```
+
+Tải lại trang là nút hiện ra. Không muốn bật thì cập nhật tay vẫn được: `docker compose up -d --pull always`.
+
+Riêng **stack Hostinger** (`docker-compose.hostinger.yml`) cố tình không kèm Watchtower - trên đó nó không đụng được Docker socket nên chạy là lỗi vòng lặp. Máy Hostinger cập nhật bằng **Redeploy** trong Docker Manager, không có gì để bật thêm.
+
+Khung Cập nhật tự phân biệt hai trường hợp này và ghi đúng cách xử lý cho máy bạn.
 
 ### Thanh tiến trình 6 bước
 
@@ -255,7 +265,7 @@ Sau khi có mã, dán vào ô **Mã thiết lập** trong wizard rồi bấm **B
 - **Quên mật khẩu admin:** ở màn đăng nhập bấm "Quên mật khẩu?" để xem hướng dẫn. Cách xử lý là mở file `server/settings.json`, xóa khối `"auth"` (hoặc đặt rỗng), rồi khởi động lại server; mở lại app sẽ về wizard để tạo tài khoản mới. Xem thêm [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 - **Sai quá nhiều lần khi đăng nhập, bị báo "Quá nhiều lần sai":** Javis khóa tạm để chống dò mật khẩu. Đợi ít phút rồi thử lại.
 - **Bấm cập nhật nhưng báo "Đang cập nhật rồi, chờ chút.":** một lần cập nhật khác đang chạy. Chờ tiến trình chạy xong rồi thử lại.
-- **Không thấy nút "⬆ Cập nhật ngay":** bạn đang chạy Docker mà không có Watchtower. Dùng Redeploy theo hướng dẫn ngay trong khung, hoặc bật Watchtower cùng mạng compose để có nút một chạm.
+- **Không thấy nút "⬆ Cập nhật ngay":** bạn đang chạy Docker mà Watchtower chưa chạy. Khung Cập nhật nói rõ máy bạn thiếu gì. Trên VPS tự quản, chạy `docker compose --profile update up -d` một lần rồi tải lại trang - `docker compose up -d` thường lệ KHÔNG bật Watchtower vì nó nằm trong profile riêng. Trên Hostinger thì không bật được, dùng Redeploy.
 - **Mở đúng cổng nhưng không thấy app:** kiểm tra địa chỉ có đúng `http://localhost:7777` (hoặc IP VPS kèm cổng 7777) không. Nếu vừa sửa code, khởi động lại server rồi thử lại.
 
 Còn vướng, xem thêm [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).

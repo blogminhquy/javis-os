@@ -54,6 +54,17 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}" \
 RUN (npm install -g @openai/codex && npm cache clean --force && codex --version) \
     || echo "[build] codex cài KHÔNG thành công - provider ChatGPT subscription sẽ không dùng được (các provider khác vẫn chạy)."
 
+# Gemini CLI KHÔNG còn được cài sẵn (bỏ ở 0.29.1).
+#
+# 0.28.8 có cài, nhưng lúc đó chưa ai biết Google đã ngừng phục vụ Gemini CLI cho MỌI tài khoản
+# cá nhân từ 18/06/2026 (miễn phí, AI Pro, Ultra - mã UNSUPPORTED_CLIENT). Với gần như mọi
+# người cài Javis, gói đó nay tải về một CLI không dùng được: phình image, chậm build, và tệ
+# hơn là làm thẻ đã chết trông như đã sẵn sàng.
+#
+# Engine vẫn còn trong repo vì hai diện Google GIỮ NGUYÊN: giấy phép Code Assist doanh nghiệp
+# và chạy bằng API key. Ai thuộc hai diện đó tự cài một dòng `npm i -g @google/gemini-cli` là
+# thẻ hiện lại. Đường Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`).
+
 WORKDIR /app
 
 # Layer-cached Python deps (copy requirements first so app changes don't re-pip).

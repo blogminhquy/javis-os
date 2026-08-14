@@ -6,9 +6,14 @@ UsageEvent = {
   ts:int(epoch), day:'YYYY-MM-DD'(gio dia phuong UTC+7), provider:'claude'|'codex'|'api',
   engine:str, model:str, project:str, session_id:str,
   source:'javis'|'manual', activity:'chat'|'background'|'subagent'|'manual',
-  input:int, output:int, cache_read:int, cache_create:int,
+  input:int, output:int, cache_read:int, cache_create:int, turns:int,
 }
 billable_in = input + cache_read + cache_create.
+
+`turns` = SO LAN GOI MODEL ma su kien nay gom lai. Voi Claude moi dong assistant la mot lan
+goi nen turns=1; voi Codex mot file rollout gom ca phien nen turns = so ban ghi token_count.
+Day KHONG phai "so cau nguoi dung hoi" (mot cau co goi tool sinh ra nhieu lan goi) - no la
+mau so dung de tinh "token moi luot", tuc dung thu ma phan tiet kiem ngu canh tac dong vao.
 """
 from __future__ import annotations
 
@@ -41,17 +46,37 @@ _KHOA_GIA_MEMO = {"prices": None, "map": {}}
 
 
 def _khoa_gia(model: str, prices: dict) -> str:
-    """Khoa bang gia co tien to DAI NHAT khop model ('' neu khong khop). Ket qua nho dem."""
+    """Khoa bang gia co tien to DAI NHAT khop model ('' neu khong khop). Ket qua nho dem.
+
+    Thu HAI dang ten: nguyen van ('claude-opus-5'), va phan sau dau '/' ('anthropic/claude-
+    opus-4' -> 'claude-opus-4'). OpenRouter luon dat ten kieu '<hang>/<model>', nen neu chi
+    khop tien to nguyen van thi MOI model OpenRouter deu khong khop bang gia va ra chi phi 0
+    - dung nhanh duy nhat ma nguoi dung tra tien MAT that.
+    """
     if _KHOA_GIA_MEMO["prices"] is not prices:
         _KHOA_GIA_MEMO["prices"] = prices
         _KHOA_GIA_MEMO["map"] = {}
     memo = _KHOA_GIA_MEMO["map"]
     if model in memo:
         return memo[model]
+    # Model FREE cua OpenRouter co hau to ':free' va gia bang 0. Khong loai no ra thi
+    # 'deepseek/deepseek-r1:free' khop khoa 'deepseek-r1' roi bi tinh 0,55$ moi trieu token -
+    # tien BIA hoan toan, va no chay thang vao o "tien mat thang nay" va vao phanh ngan sach.
+    # Nghia la Javis co the tu phanh viec nen vi mot hoa don khong ton tai.
+    if ":free" in str(model or ""):
+        memo[model] = ""
+        return ""
+    ung_vien = [model]
+    if "/" in str(model or ""):
+        ung_vien.append(str(model).rsplit("/", 1)[-1])
+    # Xet CA HAI dang roi lay khoa DAI NHAT, khong dung lai o dang dau tien co khop. Neu dung
+    # lai som thi 'deepseek/deepseek-r1' an khoa 'deepseek' (ten hang khop tien to nguyen van)
+    # va khong bao gio thu toi 'deepseek-r1' - tra ve gia cua model re hon.
     best_key = ""
-    for key in prices:
-        if model.startswith(key) and len(key) > len(best_key):
-            best_key = key
+    for ten in ung_vien:
+        for key in prices:
+            if ten.startswith(key) and len(key) > len(best_key):
+                best_key = key
     memo[model] = best_key
     return best_key
 
@@ -141,6 +166,7 @@ def parse_claude_line(obj: dict, chat_sessions: set, session_brains: dict = None
         "project": project, "session_id": session_id,
         "source": source, "activity": activity,
         "input": inp, "output": out, "cache_read": cread, "cache_create": ccreate,
+        "turns": 1,
     }
 
 
@@ -151,9 +177,15 @@ def parse_codex_file(path: str) -> dict | None:
     total_token_usage la CONG DON theo phien: lay ban ghi co total_tokens LON NHAT
     (= trang thai cuoi) lam tong. input_tokens da GOM cached, nen input moi = input - cached.
     Codex la engine phu: source='javis', activity='chat' (best-effort, chua tach nen).
+
+    `turns` = so ban ghi token_count trong file. Moi lan Codex goi model xong no ghi mot ban
+    ghi nhu vay, nen day la so lan goi that cua ca phien. Truoc day ham nay chi tra ve tong
+    token, nen mot phien Codex 200 luot va mot phien 2 luot deu duoc dem la MOT - va "token
+    moi luot" cua Codex sai ca tram lan.
     """
     cwd = ""
     model = "codex"
+    turns = 0
     best = None            # (total_tokens, info_dict, ts_line)
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -177,8 +209,10 @@ def parse_codex_file(path: str) -> dict | None:
                     info = payload.get("info") or {}
                     ttu = info.get("total_token_usage") or {}
                     tot = int(ttu.get("total_tokens") or 0)
-                    if ttu and (best is None or tot >= best[0]):
-                        best = (tot, ttu, obj.get("timestamp"))
+                    if ttu:
+                        turns += 1
+                        if best is None or tot >= best[0]:
+                            best = (tot, ttu, obj.get("timestamp"))
     except Exception:
         return None
     if best is None:
@@ -199,4 +233,5 @@ def parse_codex_file(path: str) -> dict | None:
         "project": _basename(cwd), "session_id": session_id,
         "source": "javis", "activity": "chat",
         "input": inp, "output": out, "cache_read": cread, "cache_create": 0,
+        "turns": max(1, turns),
     }

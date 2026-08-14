@@ -17,6 +17,8 @@ Javis có thể chạy trên nhiều "engine" (nhà cung cấp AI) khác nhau. B
 |---|---|---|---|
 | Qua **Claude Code** | Anthropic OAuth (Claude Code) | Có - MCP native + skill native | **Có** |
 | Qua **Codex** | OpenAI OAuth (ChatGPT) | Có - MCP qua hub (cả kết nối local như Zalo/Webcake) + kho MCP GỐC của Codex (server bạn tự `codex mcp add`) + skill qua router (`javis_use_skill` / đọc file `skills/`) | **Có** |
+| Qua **Antigravity CLI** | Google Antigravity CLI (`agy`) | Có - MCP qua hub (ghi vào `.antigravity/` trong chính brain đang mở) + skill qua router | **Có** |
+| Qua **Gemini CLI** ⛔ | Google Gemini CLI (cá nhân đã bị Google cắt 18/06/2026) | Có - MCP qua hub (ghi vào `.gemini/settings.json` trong chính brain đang mở) + skill qua router | **Có** |
 | **Gọi API thẳng** | OpenRouter | Có - MCP qua hub + tool file vault + skill qua router | Không |
 | **Gọi API thẳng** | OpenAI (API) | Có - như trên | Không |
 | **Gọi API thẳng** | Anthropic (API) | Có - như trên | Không |
@@ -39,7 +41,7 @@ Ngoài từng ấy, mọi năng lực còn lại là như nhau. Cụ thể là: 
 
 > **Giao việc Kanban từ engine API có từ 0.17.1.** Trước đó đường duy nhất là `POST /kanban/task`, mà gọi được nó thì phải có Bash và curl - nên chỉ Claude Code với Codex làm được, dù tài liệu vẫn hứa mọi bộ não đều làm được. Nay có tool `javis_task` đi qua hub nên lời hứa đó thành đúng.
 
-Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai engine CLI (**Claude Code** với gói Claude, **Codex** với gói ChatGPT) tận dụng chính gói subscription bạn đang trả và chạy thêm được lệnh máy; sáu provider API chỉ cần một API key và làm được mọi thứ còn lại - kể cả điều phối việc, tạo loop, chạy skill. Agent trong Workflow cũng chọn được model theo nhà cung cấp - xem [Agents & Workflows](07-agents-va-workflows.md).
+Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Ba engine CLI (**Claude Code** với gói Claude, **Codex** với gói ChatGPT, **Antigravity CLI** với gói Google) tận dụng chính gói subscription bạn đang trả và chạy thêm được lệnh máy; sáu provider API chỉ cần một API key và làm được mọi thứ còn lại - kể cả điều phối việc, tạo loop, chạy skill. Agent trong Workflow cũng chọn được model theo nhà cung cấp - xem [Agents & Workflows](07-agents-va-workflows.md).
 
 ## Mở ở đâu trong Javis
 
@@ -47,14 +49,16 @@ Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Hai 
 2. Ở thanh bên trái, mở nhóm **Kết nối**, rồi bấm mục **Models**.
 3. Trang Models hiện 4 khối theo thứ tự: **◆ Main Model** ("model chính cho hội thoại"), **◆ Providers** ("đăng nhập / kết nối nhà cung cấp model"), **◆ Model việc nền** ("loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn"), **◆ Suy nghĩ** ("độ sâu reasoning khi trả lời").
 
-## Bảy provider có sẵn
+## Mười provider có sẵn
 
-Khối **Providers** liệt kê 7 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
+Khối **Providers** liệt kê 10 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
 
 | Provider (nhãn trên màn hình) | Kiểu kết nối | Ghi chú |
 |---|---|---|
 | **Anthropic OAuth (Claude Code)** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
 | **OpenAI OAuth (ChatGPT)** | Device code (đăng nhập gói ChatGPT) | Chạy qua Codex, đấu kho Kết nối qua hub + dùng skill qua router |
+| **Google Antigravity CLI** | Gõ `agy` **một lần trong terminal**, không cần key | Bản Google chỉ định thay Gemini CLI. Chạy qua binary `agy`. Đầy đủ MCP/skill/tool máy, và chọn được **đúng dàn model của Antigravity IDE** (có cả model không phải của Google) |
+| **Google Gemini CLI** | Đăng nhập Google, hoặc `GEMINI_API_KEY` | ⛔ Google đã **ngắt mọi tài khoản cá nhân** từ 18/06/2026 (miễn phí, AI Pro, Ultra). Chỉ còn chạy được với giấy phép Code Assist doanh nghiệp hoặc API key - xem [B2](#b2-gemini-cli---google-đã-ngắt-với-tài-khoản-cá-nhân-18062026) |
 | **OpenRouter** | Dán API key | Nhiều model 1 chỗ, MCP + tool file + skill qua hub |
 | **Anthropic (API)** | Dán API key | MCP + tool file + skill qua hub (từ 0.9) |
 | **OpenAI (ChatGPT API)** | Dán API key | MCP + tool file + skill qua hub |
@@ -110,6 +114,64 @@ Vì chỉ cần dán lại đường dẫn nên đường này cũng chạy đư
 Muốn ngắt: bấm **Ngắt** trên card này. Nếu ChatGPT đang là Main Model khi bạn ngắt, Javis tự chuyển Main Model về Claude Code để chat không bị gãy.
 
 Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn định tối đa, dùng Claude Code hoặc OpenRouter.
+
+### B1b. Kết nối Antigravity CLI (dùng gói Google của bạn)
+
+Đây là đường **Google chỉ định** sau khi họ ngắt Gemini CLI với tài khoản cá nhân. Ưu điểm lớn nhất: bạn chọn được **đúng dàn model hiện trong Antigravity IDE**, gồm cả model không phải của Google.
+
+1. Cài CLI một lần trên máy chạy Javis:
+   - Linux/macOS: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
+   - Windows PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`
+2. Gõ `agy` một lần **trong terminal của máy chạy Javis**. Máy có màn hình thì nó tự mở trình duyệt; qua SSH thì nó in ra một đường link - mở link đó trên máy bạn rồi đăng nhập Google. Phiên lưu trong keyring của hệ điều hành nên chỉ phải làm một lần.
+3. Quay lại **Models**, thẻ **Google Antigravity CLI**, bấm **Kiểm tra lại** (nó chạy thử một lượt chat thật). Thẻ đổi sang **● Đã đăng nhập**.
+4. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này rồi chọn model.
+
+Danh sách model **hỏi thẳng `agy models`** chứ Javis không giữ bảng chép tay, nên tài khoản bạn được cấp model nào là thấy đúng model đó, và Google đổi tên model cũng không làm picker lạc hậu.
+
+Vài chỗ khác với Gemini CLI, nói trước cho khỏi hiểu nhầm:
+
+- **Đăng nhập làm trong terminal, dashboard không có nút** (từ 0.32.2). Bản 0.30.0 từng dựng một luồng đăng nhập ngay trên trang: Javis mở `agy` trong một terminal giả rồi làm người đưa thư giữa nó và trình duyệt của bạn. Nó chạy được trên Linux, nhưng cái hiện ra trên trang là một ô terminal bấm vào không ăn nên rốt cuộc vẫn phải mở terminal thật, còn Windows thì không có pseudo-terminal nên chưa bao giờ dùng được. Người dùng `agy` đều là dân code sẵn terminal trong tay, nên gõ một lệnh gọn hơn hẳn một luồng UI nửa vời. Đổi lại, Javis không cầm token của ai - nó nằm trong keyring hệ điều hành.
+- **Mức Chỉ đọc ở đây nhẹ hơn.** Bên Gemini CLI, mức `suggest` xuống thẳng `--approval-mode plan` nên chính CLI chặn. `agy` không có nấc tương đương, nên Javis siết bằng `--sandbox` cộng với lời dặn trong system prompt. Rào tiền/đơn/đăng bài vẫn nằm ở MCP Hub như mọi engine.
+- **Chưa nối lại mạch hội thoại của CLI.** Mỗi lượt mở mạch mới rồi mồi lại bằng lịch sử đã lưu, nên **không mất ngữ cảnh** nhưng tốn token hơn.
+- Javis không tự cài `agy` lúc cài đặt (khác ba engine npm): trình cài của Google là một script tải về chạy thẳng, nên để bạn tự chạy khi muốn.
+- **Trên Windows, prompt không đi qua dòng lệnh nữa** (từ 0.33.1, sửa tiếp ở 0.33.2). Windows chặn tổng dòng lệnh ở 32767 ký tự, mà riêng system prompt của Javis trên một brain trống đã hơn 36.000 - tức bộ não này từng chết hẳn trên Windows, và câu báo lỗi lại đổ cho "hội thoại quá dài" nên mở chat mới bao nhiêu lần cũng không thoát.
+- **Javis ĐO xem bản `agy` của bạn nhận prompt kiểu gì, không đoán.** Đây là bài học phải trả giá hai lần: bản 0.33.1 suy cú pháp từ tài liệu chính chủ (CHANGELOG 1.1.1 nói `agy` đọc stdin khi prompt không cấp qua cờ) rồi gửi `--print ""`, và bản `agy` thật trả lại `Error: empty prompt` vì nó kiểm giá trị cờ trước khi ngó tới stdin. Tài liệu đúng về nguyên lý, sai về cú pháp. Nay lần chạy đầu tiên Javis thử ba cách bơm stdin bằng một prompt tí hon có mã riêng, cách nào vọng mã về thì dùng cách đó, rồi nhớ lại cho những lần sau. Không cách nào ăn thì nó ghi ngữ cảnh ra file và bảo model tự đọc; model không đọc được thì nó nói thẳng chứ không lặng lẽ trả lời thiếu luật.
+
+- **Dấu tiếng Việt không vỡ dọc đường** (từ 0.33.6). Triệu chứng cũ: chữ "gồm" thành `g<?><?>m`, mỗi ký tự tiếng Việt 3 byte hoá đúng 3 dấu `<?>`. Đó là chữ ký của một bên đọc cắt mẩu ống dẫn giữa một ký tự rồi giải mã từng mẩu rời. Đã đo và loại trừ phía Javis (bộ đọc của nó dùng giải mã tăng dần, cắt byte giữa ký tự vẫn ghép lại đúng), nên chỗ vỡ nằm ở bộ đọc của `agy`. Javis không vá được CLI, nhưng chỉnh được chỗ mình đặt ranh giới: nay nó bơm prompt theo từng mẩu kết thúc đúng biên ký tự, nên bên kia đọc kiểu gì cũng không vỡ. Chữ về mà vẫn có ký tự hỏng thì Javis tự đổi sang đường file rồi hỏi lại một lần; vẫn hỏng thì nó nói thẳng là lỗi nằm trong CLI.
+
+**Nếu vẫn gặp lỗi trên Windows**, đặt biến môi trường `JAVIS_AGY_PROMPT_DAI=file` để ép đi thẳng đường file, rồi báo lại giúp kèm câu lỗi `agy` in ra.
+
+### B2. Gemini CLI - Google đã ngắt với tài khoản cá nhân (18/06/2026)
+
+> ⛔ **Đọc trước khi làm theo mục này.** Ngày 18/06/2026 Google ngừng phục vụ Gemini CLI cho **mọi tài khoản cá nhân** - gói miễn phí, Google AI Pro và Google AI Ultra đều bị cắt. Đăng nhập vẫn xong, nhưng tới lúc chat thì CLI trả về `IneligibleTierError` kèm `reasonCode: UNSUPPORTED_CLIENT`. Đây là chặn ở phía máy chủ Google, **không phải lỗi cấu hình và Javis không vá được**.
+>
+> Còn dùng được nếu bạn có **giấy phép Gemini Code Assist doanh nghiệp**, hoặc chạy CLI bằng **API key** (`GEMINI_API_KEY`) - nhưng đã trả tiền theo lượt gọi thì thẻ **Google Gemini (API)** ở mục C gọn hơn.
+>
+> **Muốn model Gemini, hoặc muốn một trình chọn model nhiều như Antigravity:** dùng **OpenRouter** (nhiều model một chỗ, có cả Gemini lẫn Claude, một API key) hoặc **Google Gemini (API)**.
+>
+> Bản thay thế chính chủ của Google là **Antigravity CLI** (binary `agy`, cài bằng `curl -fsSL https://antigravity.google/cli/install.sh | bash`). Javis **chưa** đấu engine này.
+
+> **Từ 0.29.1 thẻ này TỰ ẨN** ở trang Models khi máy không có binary `gemini` - tức là gần như mọi người sẽ không thấy nó nữa, khỏi vấp vào một lựa chọn đã chết. Máy nào có cài `gemini` (thường là máy dùng giấy phép doanh nghiệp hoặc chạy bằng API key) thì thẻ hiện lại như cũ, và ai đang ĐẶT nó làm Main Model cũng vẫn thấy để còn đổi sang engine khác. Javis cũng thôi cài sẵn `@google/gemini-cli` lúc cài đặt; cần thì tự cài một dòng `npm i -g @google/gemini-cli`.
+
+Phần dưới giữ lại cho ai còn thuộc diện dùng được (doanh nghiệp / API key).
+
+1. Kiểm CLI đã có chưa. Bản cài bằng Docker và bằng `install.sh` **đã cài sẵn** `@google/gemini-cli`, nên thường bỏ qua được bước này. Chỉ khi thẻ báo *"Chưa cài Gemini CLI"* mới cài tay trên máy chạy Javis: `npm install -g @google/gemini-cli`
+2. Vào **Models**, thẻ **Google Gemini CLI (đăng nhập Google)**, bấm **Đăng nhập Google**.
+3. Javis mở trang đồng ý của Google (hiện đúng tên ứng dụng **Gemini CLI**). Đăng nhập bằng tài khoản Google của bạn, đồng ý xong Google hiện ra **một mã**.
+4. Chép mã đó dán vào ô trong Javis, bấm **Xong**. Thẻ đổi sang **● Đã đăng nhập Google** kèm email.
+5. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này và một model (mặc định `gemini-2.5-pro`).
+
+Không có localhost nào ở giữa nên cách này chạy được **cả khi Javis nằm trên VPS còn trình duyệt ở máy bạn** - giống hệt luồng đăng nhập Claude Code. Javis dùng đúng client OAuth công khai của Gemini CLI, nên màn hình đồng ý của Google ghi tên **Gemini CLI**, đúng cái sẽ dùng token.
+
+Đăng nhập xong Javis giữ refresh token (mã hoá trong `settings.json`) và **dựng lại file credential cho CLI trước mỗi lượt chạy** - cần vậy vì bản Gemini CLI mới nạp file đó vào keychain rồi xoá đi.
+
+Bấm **Ngắt** để gỡ tài khoản Google khỏi Javis. Nút này chỉ hiện khi bạn đăng nhập qua dashboard; ai đã tự chạy `gemini` trong terminal thì token là của CLI, Javis không gỡ hộ.
+
+Vẫn đăng nhập bằng terminal được nếu thích: chạy `gemini` rồi chọn **Login with Google**. Javis nhận ra cả tài khoản kiểu đó.
+
+Cài ở chỗ lạ mà Javis không tìm ra binary thì đặt biến môi trường `JAVIS_GEMINI_BIN` trỏ thẳng vào nó rồi khởi động lại.
+
+**Vì sao không nối thẳng vào Antigravity:** app đó là Electron thuần, không có cổng dòng lệnh nào để gọi ngầm, và token của nó nằm trong Keychain đã mã hoá. Kể cả moi ra được thì đó là API nội bộ Google không cam kết hỗ trợ bên thứ ba, hỏng lúc nào không biết. Gemini CLI cho đúng cái gói đó bằng đường Google công khai.
 
 ### C. Kết nối provider bằng API key (OpenRouter / Anthropic API / OpenAI API / Gemini / Groq)
 
@@ -247,7 +309,7 @@ Bạn không cần rời trang Models để đổi model: bấm **Đổi model �
 
 - **Banner đỏ "⚠ Bộ não claude mất đăng nhập" trên máy chưa từng cài Claude**: sửa ở 0.9.270. Đèn báo não giữ trạng thái trong RAM và không ai dọn, nên đèn đỏ thắp hồi Claude còn là Main Model treo mãi sau khi bạn đổi sang OpenRouter. Giờ đèn chỉ tính những bộ não bạn THẬT SỰ chọn (Main Model + model việc nền khi đặt rõ provider), và tự tắt ngay khi bạn đổi sang nhà cung cấp khác - không phải chờ vòng quét 10 phút.
 - **Bấm Ngắt provider đang là Main**: Javis tự chuyển Main về Claude Code để chat không gãy. Đây là hành vi cố ý, không phải lỗi.
-- **ChatGPT OAuth báo chưa cài Codex CLI**: kênh này cần Codex CLI trên máy. Nếu chưa có, dùng Claude Code hoặc OpenRouter cho ổn định.
+- **ChatGPT OAuth báo chưa cài Codex CLI**: kênh này cần Codex CLI trên máy. Từ 0.28.8 cả ba engine CLI (Claude Code, Codex, Gemini CLI) đều được cài sẵn lúc cài Javis - bản Docker, `install.sh` lẫn `setup.bat` - nên báo thiếu thường là bản cài cũ, **cập nhật Javis** một lần là có. Cài tay cũng được: `npm i -g @openai/codex`.
 
 ## Liên quan
 

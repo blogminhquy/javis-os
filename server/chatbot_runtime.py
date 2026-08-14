@@ -704,6 +704,9 @@ def status(bot_id: str) -> dict:
         # dòng riêng chứ không gộp vào `last_error` - vòng lặp xoá `last_error` sau mỗi lượt
         # poll thành công, và lượt nào cũng thành công nên nó không bao giờ hiện ra.
         "loi_danh_tinh": getattr(tb, "loi_danh_tinh", "") or "",
+        # Cùng loại với trên: menu lệnh "/" đặt hụt thì bot vẫn trả lời, chỉ là khách gõ "/"
+        # không thấy gì để bấm.
+        "loi_menu_lenh": getattr(tb, "loi_menu_lenh", "") or "",
     }
 
 

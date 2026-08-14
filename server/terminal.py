@@ -1,0 +1,514 @@
+# -*- coding: utf-8 -*-
+"""Terminal thật cho tab Code của dashboard.
+
+Vì sao có file này
+------------------
+Javis chạy phần lớn trên VPS. Rất nhiều việc vặt của chủ máy (kéo code mới, xem log, chạy
+`agy` để đăng nhập Antigravity, cài một CLI) vẫn phải mở SSH ở một cửa sổ khác. Tab Code đưa
+đúng cái terminal đó vào trong dashboard.
+
+Đây KHÔNG phải cái "terminal giả" đã bị gỡ ở 0.32.2. Bản đó dựng một ô chữ rồi cố đoán xem
+chương trình muốn vẽ gì; lần này là pseudo-terminal THẬT của hệ điều hành, nên `htop`, `vim`,
+Ctrl-C, màu, và mọi thứ hỏi phím đều chạy y như SSH.
+
+Hai chế độ, nói thẳng chứ không giấu
+------------------------------------
+- **pty** (Linux, macOS, Docker): pseudo-terminal đầy đủ. Shell có controlling terminal riêng
+  nên Ctrl-C giết đúng lệnh đang chạy chứ không giết shell.
+- **ống** (Windows): Python trên Windows KHÔNG có module `pty`. ConPTY thì phải gọi tay qua
+  ctypes kèm `STARTUPINFOEX` - một khối code khó mà `subprocess` không mở đường vào. Nên
+  Windows chạy chế độ ống: gõ nguyên một dòng rồi Enter, lệnh chạy và output chảy về. Không có
+  gợi ý Tab, không chạy được `vim`. Giao diện tự nói rõ điều này thay vì để người dùng gõ Tab
+  rồi tự hỏi máy hỏng ở đâu.
+
+Bảo mật
+-------
+Đây là chạy lệnh tuỳ ý trên máy chủ, tức là quyền cao nhất mà dashboard có thể cấp. Ba hàng
+rào: WebSocket đòi đúng session đăng nhập như `/ws` (không nhận token API - terminal chỉ dành
+cho trình duyệt đã đăng nhập), `JAVIS_TERMINAL=0` tắt hẳn tính năng, và số phiên mở cùng lúc
+bị chặn ở `MAX_PHIEN`. Shell thừa kế env của server (trong đó có API key trong .env) - đúng
+như mọi terminal khác của chủ máy, nhưng cần biết là nó ở đó.
+
+Phiên sống lâu hơn tab
+----------------------
+Đổi trang trong dashboard là DOM bị xoá, WebSocket đứt. Nếu shell chết theo thì đang `npm
+install` mà lỡ bấm sang tab khác là mất. Nên phiên nằm trong kho ở đây, WebSocket chỉ là người
+xem: đứt kết nối thì shell chạy tiếp, quay lại thì nối vào phiên cũ và vẽ lại màn hình từ bộ
+đệm. Không ai xem quá `REAP_GIAY` thì phiên mới bị dọn.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import codecs
+import os
+import shutil
+import signal
+import subprocess
+import threading
+import time
+import uuid
+from pathlib import Path
+
+import winproc
+
+IS_WINDOWS = os.name == "nt"
+
+try:                                   # pty/termios chỉ có trên POSIX
+    import fcntl
+    import pty
+    import struct
+    import termios
+    CO_PTY = not IS_WINDOWS
+except ImportError:                    # pragma: no cover - chỉ xảy ra trên Windows
+    CO_PTY = False
+
+# Bộ đệm màn hình giữ lại để vẽ lại khi người dùng quay lại tab. 200k ký tự ~ vài nghìn dòng:
+# đủ để không mất mạch việc, không đủ để thành chỗ rò bộ nhớ.
+MAN_TOI_DA = 200_000
+MAX_PHIEN = 4                          # mở cùng lúc; đủ cho một người, chặn vòng lặp tạo phiên
+REAP_GIAY = 30 * 60                    # không ai xem quá lâu -> đóng shell
+HANG_DOI_TOI_DA = 4000                 # gói chờ gửi cho một người xem; đầy thì bỏ gói cũ nhất
+
+
+def bat() -> bool:
+    """Tính năng terminal có bật không. `JAVIS_TERMINAL=0` (hoặc off/false/no) là tắt hẳn."""
+    v = str(os.getenv("JAVIS_TERMINAL", "")).strip().lower()
+    return v not in ("0", "off", "false", "no")
+
+
+def shell_argv() -> list[str]:
+    """Shell sẽ chạy. `JAVIS_TERMINAL_SHELL` ghi đè; còn lại theo nếp của từng hệ."""
+    rieng = str(os.getenv("JAVIS_TERMINAL_SHELL", "")).strip()
+    if rieng:
+        return [rieng]
+    if IS_WINDOWS:
+        for ten in ("powershell.exe", "cmd.exe"):
+            p = shutil.which(ten)
+            if p:
+                return [p]
+        return ["cmd.exe"]
+    # KHÔNG thêm cờ -i: bash/zsh nối vào pty tự nhận ra mình là phiên tương tác. Thêm -i vào
+    # mấy shell không hiểu cờ đó (dash) là hỏng ngay từ dòng đầu.
+    sh = str(os.getenv("SHELL", "")).strip()
+    if sh and Path(sh).exists():
+        return [sh]
+    for ten in ("bash", "sh"):
+        p = shutil.which(ten)
+        if p:
+            return [p]
+    return ["/bin/sh"]
+
+
+def _env() -> dict:
+    e = dict(os.environ)
+    # xterm-256color: cho lệnh biết terminal này vẽ được màu và di được con trỏ.
+    e["TERM"] = "xterm-256color"
+    e.setdefault("COLORTERM", "truecolor")
+    # Container thường không đặt LANG, và thiếu nó thì `ls` trong brain tiếng Việt ra một mớ
+    # dấu hỏi. Chỉ setdefault - máy nào đã khai locale riêng thì giữ nguyên.
+    if not IS_WINDOWS:
+        e.setdefault("LANG", "C.UTF-8")
+    # Dấu để script biết mình đang chạy trong terminal của Javis (vd muốn né tự cập nhật).
+    e["JAVIS_IN_TERMINAL"] = "1"
+    return e
+
+
+def che_do() -> str:
+    return "pty" if CO_PTY else "ong"
+
+
+def _lenh_moi_dau() -> str:
+    """Lệnh gõ hộ ngay khi shell vừa mở. Rỗng ở mọi nơi trừ Windows.
+
+    Windows mặc định trả output theo codepage OEM của máy (tiếng Việt hay là cp1258/cp437),
+    trong khi ở đây output được giải mã bằng UTF-8. Không bảo nó đổi thì mọi dòng có dấu về
+    tới trình duyệt là một mớ ký tự lạ - hỏng lặng lẽ, và hỏng đúng với người dùng chính của
+    Javis. Một dòng lệnh chữa được, nên chữa.
+
+    Chưa chạy thử được trên Windows từ môi trường này. Nếu bản PowerShell nào không nuốt được
+    câu lệnh, người dùng thấy MỘT dòng lỗi ở đầu màn hình rồi mọi thứ chạy tiếp - lộ ra chứ
+    không âm thầm, đúng hướng đánh đổi cần chọn ở đây.
+    """
+    if not IS_WINDOWS:
+        return ""
+    ten = Path(shell_argv()[0]).name.lower()
+    if "powershell" in ten or "pwsh" in ten:
+        return ("[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+                "$OutputEncoding=[Text.Encoding]::UTF8")
+    if "cmd" in ten:
+        return "chcp 65001 > nul"
+    return ""
+
+
+class Phien:
+    """Một phiên terminal: tiến trình shell + ống đọc/ghi + bộ đệm màn hình.
+
+    Luồng đọc là một THREAD chứ không phải `loop.add_reader`: chế độ ống trên Windows đọc từ
+    pipe (add_reader không nhận pipe trên Windows), và một thread cho mỗi phiên với tối đa 4
+    phiên là cái giá rẻ hơn nhiều so với hai đường đọc khác nhau cho hai hệ điều hành.
+    """
+
+    def __init__(self, sid: str, cwd: str, cols: int, rows: int, loop):
+        self.id = sid
+        self.cwd = str(cwd)
+        self.cols = _gioi_han(cols, 20, 500, 80)
+        self.rows = _gioi_han(rows, 5, 200, 24)
+        self.che_do = che_do()
+        self.tao_luc = time.time()
+        self.roi_luc = 0.0             # lúc người xem cuối rời đi; 0 = đang có người xem
+        self.ma_thoat: int | None = None
+        self.man = ""                  # bộ đệm màn hình (đã giải mã)
+        self.argv = shell_argv()
+        self._loop = loop
+        self._khach: list[asyncio.Queue] = []
+        self._giai_ma = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._fd = -1
+        self.proc: subprocess.Popen | None = None
+        self._mo()
+
+    # ---- khởi động ----
+    def _mo(self):
+        env = _env()
+        if CO_PTY:
+            master, slave = pty.openpty()
+
+            def _con():
+                # Chạy TRONG tiến trình con, ngay trước exec. setsid() tách khỏi phiên của
+                # server, TIOCSCTTY nhận pty làm controlling terminal - thiếu nhát thứ hai thì
+                # shell không có tty điều khiển, và Ctrl-C sẽ không giết được lệnh đang chạy.
+                os.setsid()
+                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+
+            self.proc = subprocess.Popen(
+                self.argv, cwd=self.cwd, env=env,
+                stdin=slave, stdout=slave, stderr=slave,
+                preexec_fn=_con, close_fds=True,
+                **winproc.kwargs_no_window(),
+            )
+            os.close(slave)            # phía server chỉ giữ master
+            self._fd = master
+            self._dat_co(self.cols, self.rows)
+        else:
+            # Windows: không có pty -> ống. stderr gộp vào stdout để thứ tự dòng đúng như khi
+            # nhìn trên console thật. bufsize=0 để output hiện ngay, không đợi đầy đệm.
+            #
+            # Cờ dựng CÓ ĐIỀU KIỆN chứ không truyền thẳng: `creationflags` là tham số chỉ có
+            # trên Windows, POSIX nhận vào là ném ValueError ngay - và nhánh này còn được test
+            # chạy trên Linux (ép CO_PTY=False), vì không ai ngồi Linux thử được nó bằng tay.
+            # CREATE_NEW_PROCESS_GROUP là điều kiện để gửi được Ctrl-Break xuống shell sau này.
+            creationflags_windows = (
+                {"creationflags": winproc.no_window() | winproc.CREATE_NEW_PROCESS_GROUP}
+                if IS_WINDOWS else {}
+            )
+            self.proc = subprocess.Popen(
+                self.argv, cwd=self.cwd, env=env,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                bufsize=0, close_fds=True,
+                start_new_session=True,      # POSIX: nhóm riêng để đóng phiên không đụng nhóm của server
+                **creationflags_windows,
+            )
+        threading.Thread(target=self._vong_doc, name=f"term-{self.id[:6]}", daemon=True).start()
+        moi = _lenh_moi_dau()
+        if moi:
+            self.go(moi + "\n")
+
+    # ---- trạng thái ----
+    def song(self) -> bool:
+        return bool(self.proc) and self.proc.poll() is None
+
+    def so_nguoi_xem(self) -> int:
+        return len(self._khach)
+
+    def tom_tat(self) -> dict:
+        return {
+            "id": self.id,
+            "cwd": self.cwd,
+            "che_do": self.che_do,
+            "song": self.song(),
+            "nguoi_xem": self.so_nguoi_xem(),
+            "tao_luc": self.tao_luc,
+            "ma_thoat": self.ma_thoat,
+        }
+
+    # ---- đọc từ shell ----
+    def _vong_doc(self):
+        fd = self._fd if CO_PTY else (self.proc.stdout.fileno() if self.proc and self.proc.stdout else -1)
+        while fd >= 0:
+            try:
+                b = os.read(fd, 65536)
+            except (OSError, ValueError):
+                break                  # shell thoát -> master bị đóng/EIO
+            if not b:
+                break
+            txt = self._giai_ma.decode(b)
+            if txt:
+                # Thread khác đang chạy: mọi thứ chạm vào hàng đợi asyncio phải quay về loop.
+                try:
+                    self._loop.call_soon_threadsafe(self._phat, txt)
+                except RuntimeError:
+                    break              # loop đã đóng (server đang tắt)
+        try:
+            self._loop.call_soon_threadsafe(self._het)
+        except RuntimeError:
+            pass
+
+    def _phat(self, txt: str):
+        self.man = _cat_dem(self.man + txt)
+        for q in list(self._khach):
+            _day(q, {"type": "out", "data": txt})
+
+    def _het(self):
+        if self.ma_thoat is None and self.proc:
+            try:
+                self.ma_thoat = self.proc.wait(timeout=1)
+            except Exception:
+                self.ma_thoat = -1
+        for q in list(self._khach):
+            _day(q, {"type": "exit", "code": self.ma_thoat})
+        self._dong_fd()
+
+    # ---- ghi xuống shell ----
+    def go(self, data: str):
+        if not data or not self.song():
+            return
+        b = data.encode("utf-8", "ignore")
+        try:
+            if CO_PTY:
+                os.write(self._fd, b)
+            elif self.proc and self.proc.stdin:
+                self.proc.stdin.write(b)
+                self.proc.stdin.flush()
+        except (OSError, ValueError, BrokenPipeError):
+            pass
+
+    def ngat(self):
+        """Ctrl-C. Chế độ pty thì ký tự \\x03 đã đi thẳng qua `go()`; đây là đường cho chế độ
+        ống, nơi không có tty driver nào dịch phím thành tín hiệu."""
+        if not self.song():
+            return
+        try:
+            if CO_PTY:
+                self.go("\x03")
+            elif IS_WINDOWS:
+                self.proc.send_signal(signal.CTRL_BREAK_EVENT)   # type: ignore[attr-defined]
+            else:
+                self.proc.send_signal(signal.SIGINT)             # nhánh ống trên POSIX: chỉ test đi qua
+        except Exception:
+            pass
+
+    def doi_co(self, cols: int, rows: int):
+        self.cols = _gioi_han(cols, 20, 500, self.cols)
+        self.rows = _gioi_han(rows, 5, 200, self.rows)
+        self._dat_co(self.cols, self.rows)
+
+    def _dat_co(self, cols: int, rows: int):
+        if not CO_PTY or self._fd < 0:
+            return                     # chế độ ống không có khổ giấy để báo
+        try:
+            fcntl.ioctl(self._fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        except OSError:
+            pass
+
+    # ---- người xem ----
+    def gan(self) -> asyncio.Queue:
+        """Nối một người xem. Trả hàng đợi đã có sẵn màn hình cũ để vẽ lại ngay."""
+        q: asyncio.Queue = asyncio.Queue(maxsize=HANG_DOI_TOI_DA)
+        self._khach.append(q)
+        self.roi_luc = 0.0
+        if self.man:
+            q.put_nowait({"type": "out", "data": self.man})
+        if not self.song():
+            q.put_nowait({"type": "exit", "code": self.ma_thoat})
+        return q
+
+    def go_ra(self, q: asyncio.Queue):
+        try:
+            self._khach.remove(q)
+        except ValueError:
+            pass
+        if not self._khach:
+            self.roi_luc = time.time()
+
+    # ---- đóng ----
+    def dong(self):
+        """Đóng shell. SIGHUP trước (cho shell kịp dọn), SIGKILL sau nếu lì - chạy trong thread
+        riêng để không giữ event loop lại một giây."""
+        p = self.proc
+        self._dong_fd()
+        if not p or p.poll() is not None:
+            return
+        threading.Thread(target=self._giet, args=(p,), daemon=True).start()
+
+    def _la_nhom_truong(self, p: subprocess.Popen) -> bool:
+        """Shell có phải TRƯỞNG của process group riêng không.
+
+        Đây là câu hỏi phải hỏi trước mỗi `killpg`, và nó không thừa: lúc viết test cho nhánh
+        ống trên Linux, `killpg` đã bắn SIGHUP vào nhóm của chính tiến trình gọi và giết luôn
+        cả lượt chạy test. Trong Javis thật thì nhánh POSIX luôn setsid nên chuyện đó không
+        tới được - nhưng "không tới được" mà sai thì mất cả server, nên chốt bằng điều kiện
+        chứ không bằng niềm tin."""
+        try:
+            return os.getpgid(p.pid) == p.pid
+        except (OSError, AttributeError):
+            return False
+
+    def _giet(self, p: subprocess.Popen):
+        # Giết cả NHÓM khi giết được: setsid cho shell một process group riêng, nên lệnh con nó
+        # đẻ ra (npm, python...) cũng nằm trong đó. Giết mỗi shell là bỏ lại một đàn mồ côi.
+        nhom = not IS_WINDOWS and self._la_nhom_truong(p)
+        try:
+            if nhom:
+                os.killpg(p.pid, signal.SIGHUP)
+            else:
+                p.terminate()
+        except (OSError, ProcessLookupError):
+            return
+        try:
+            p.wait(timeout=3)
+        except Exception:
+            try:
+                if nhom:
+                    os.killpg(p.pid, signal.SIGKILL)
+                else:
+                    p.kill()
+            except (OSError, ProcessLookupError):
+                pass
+
+    def _dong_fd(self):
+        if self._fd >= 0:
+            try:
+                os.close(self._fd)
+            except OSError:
+                pass
+            self._fd = -1
+
+
+class Kho:
+    """Kho phiên đang mở. Một bản dùng chung cho cả server (biến `KHO` bên dưới)."""
+
+    def __init__(self):
+        self._phien: dict[str, Phien] = {}
+        self._don_task = None
+
+    def danh_sach(self) -> list[dict]:
+        return [p.tom_tat() for p in self._phien.values()]
+
+    def lay(self, sid: str) -> Phien | None:
+        return self._phien.get(sid or "")
+
+    def mo(self, sid: str, cwd: str, cols: int, rows: int, loop) -> Phien:
+        """Nối lại phiên `sid` nếu còn sống, không thì mở phiên mới.
+
+        Ném RuntimeError khi đã chạm trần số phiên - người gọi báo lỗi đó ra màn hình chứ đừng
+        lặng lẽ mở thêm.
+        """
+        self.don()
+        cu = self._phien.get(sid or "")
+        if cu is not None and cu.song():
+            cu.doi_co(cols, rows)
+            return cu
+        if cu is not None:
+            self._bo(cu)
+        song = [p for p in self._phien.values() if p.song()]
+        if len(song) >= MAX_PHIEN:
+            raise RuntimeError(f"Đang mở {len(song)} phiên terminal rồi (tối đa {MAX_PHIEN}). "
+                               "Đóng bớt một phiên rồi thử lại.")
+        p = Phien(uuid.uuid4().hex[:12], cwd, cols, rows, loop)
+        self._phien[p.id] = p
+        self._bat_don(loop)
+        return p
+
+    def dong(self, sid: str) -> bool:
+        p = self._phien.get(sid or "")
+        if not p:
+            return False
+        self._bo(p)
+        return True
+
+    def dong_het(self):
+        for p in list(self._phien.values()):
+            self._bo(p)
+
+    def don(self):
+        """Dọn phiên đã chết và phiên không ai xem quá lâu."""
+        for p in list(self._phien.values()):
+            if not p.song() and not p._khach:
+                self._bo(p)
+            elif p.roi_luc and (time.time() - p.roi_luc) > REAP_GIAY:
+                self._bo(p)
+
+    def _bo(self, p: Phien):
+        self._phien.pop(p.id, None)
+        p.dong()
+
+    def _bat_don(self, loop):
+        if self._don_task is not None and not self._don_task.done():
+            return
+        try:
+            self._don_task = loop.create_task(self._vong_don())
+        except RuntimeError:
+            self._don_task = None
+
+    async def _vong_don(self):
+        while self._phien:
+            await asyncio.sleep(60)
+            try:
+                self.don()
+            except Exception:
+                pass
+        self._don_task = None
+
+
+KHO = Kho()
+
+
+def trang_thai(cwd: str) -> dict:
+    """Dữ liệu cho GET /terminal/status - đủ để giao diện nói thật về chế độ đang chạy."""
+    argv = shell_argv()
+    return {
+        "bat": bat(),
+        "che_do": che_do(),
+        "shell": Path(argv[0]).name if argv else "",
+        "cwd": str(cwd),
+        "phien": KHO.danh_sach(),
+        "max_phien": MAX_PHIEN,
+        "reap_phut": REAP_GIAY // 60,
+    }
+
+
+# ---- tiện ích nhỏ ----
+def _gioi_han(v, thap: int, cao: int, mac_dinh: int) -> int:
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        return mac_dinh
+    return max(thap, min(cao, n))
+
+
+def _cat_dem(s: str) -> str:
+    """Giữ đuôi bộ đệm trong hạn mức, cắt ở đầu dòng gần nhất.
+
+    Cắt giữa một chuỗi thoát ANSI thì lần vẽ lại đầu tiên sẽ ra một mẩu rác kiểu `[38;5;`.
+    Lùi tới newline gần nhất là đủ để chuyện đó gần như không xảy ra.
+    """
+    if len(s) <= MAN_TOI_DA:
+        return s
+    s = s[-MAN_TOI_DA:]
+    i = s.find("\n")
+    return s[i + 1:] if 0 <= i < 4096 else s
+
+
+def _day(q: asyncio.Queue, goi: dict):
+    """Đẩy gói cho người xem; hàng đợi đầy thì bỏ gói CŨ nhất.
+
+    Người xem chậm (tab bị treo, mạng kém) không được phép làm nghẽn shell - thà mất mấy dòng
+    cũ còn hơn để cả phiên đứng lại."""
+    try:
+        q.put_nowait(goi)
+    except asyncio.QueueFull:
+        try:
+            q.get_nowait()
+            q.put_nowait(goi)
+        except Exception:
+            pass

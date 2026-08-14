@@ -459,9 +459,9 @@ check("CANARY: mấy mã hay gặp nhất vẫn được sinh ra",
 # 8. Đường tắt cho GÓI CLAUDE CODE, và lưới an toàn khi token hỏng
 # ============================================================
 # 0.14.0 chặn cứng gói Claude Code khỏi đường tắt vì lúc đó không có đường gọi thẳng nào
-# không cần API key. Nhưng claude_models vẫn hỏi /v1/models bằng chính access token OAuth mà
-# CLI đã lưu, nên cùng token đó gọi /v1/messages được - đó là cách chính Claude Code chạy.
-# Mở ra thì cả ba loại bộ não đều ăn mức Siêu tiết kiệm.
+# không cần API key. 0.18.2 mở ra bằng cách mượn token OAuth của CLI; 0.26.17 gỡ đường mượn
+# token đó (Anthropic cấm) và thay bằng chính binary `claude`. Kết quả với người dùng không
+# đổi qua cả ba bản: cả ba loại bộ não đều ăn được mức Siêu tiết kiệm.
 check("CANARY: đường tắt mở cho cả ba loại bộ não",
       set((cfg._DEFAULT["context_runtime"]["canary"]["provider_kinds"]))
       >= {"api", "oauth", "cli"})
@@ -469,10 +469,24 @@ check("CANARY: rào cứng chặn 'cli' đã gỡ",
       'cli_khong_co_duong_goi_thang' not in
       (SERVER / "fast_path_runtime.py").read_text(encoding="utf-8"))
 _src_eng2 = (SERVER / "engine.py").read_text(encoding="utf-8")
-check("đường gọi thẳng của gói Claude dùng token OAuth, không đòi API key",
-      'oauth_token=""' in _src_eng2 and 'Bearer {oauth_token}' in _src_eng2)
-check("và main nối nó vào provider anthropic-cli",
-      'oauth_token=claude_models.oauth_token()' in _src_main)
+# 0.26.17 đổi CÁCH gói Claude đi đường tắt, không đổi VIỆC nó đi được. Trước đây nó tự đọc
+# access token OAuth của Claude Code rồi gọi thẳng /v1/messages - Anthropic cấm đúng việc đó
+# (xem server/claude_auth.py). Nay đường tắt chạy qua binary `claude`, vẫn không cần API key,
+# và vẫn giữ được phần tiết kiệm nhờ system prompt TRẦN (`tiet_kiem=True` bỏ preset claude_code
+# - để preset vào là Claude Code tự nhét lại prompt đầy đủ và ăn sạch phần tiết kiệm).
+# Soi token MÃ chứ không soi chữ: hai docstring trong engine.py có nhắc tên tham số cũ để kể
+# lại vì sao nó bị gỡ. Bắt chữ trần là canary đỏ vì chính đoạn giải thích.
+# `Bearer {` KHÔNG nằm trong danh sách cấm: OpenRouter/Groq/Gemini đều xác thực bằng
+# `Bearer <api_key>` một cách hoàn toàn hợp lệ. Dấu hiệu riêng của đường vi phạm là header beta
+# `oauth-2025-04-20` - chỉ token đăng nhập gói Pro/Max mới cần nó.
+check("CANARY: engine.py không còn đường gửi token đăng nhập tới api.anthropic.com",
+      "oauth_token=" not in _src_eng2 and '"oauth-2025-04-20"' not in _src_eng2)
+check("CANARY: main không còn moi token OAuth của Claude Code",
+      "claude_models.oauth_token" not in _src_main)
+check("gói Claude đi đường tắt qua engine chính chủ, vẫn không đòi API key",
+      "_claude_sub_stream(model, messages, reasoning, tiet_kiem=True)" in _src_main)
+check("và đường tắt đó giữ nguyên phần tiết kiệm (system prompt trần)",
+      "system_prompt_raw" in (SERVER / "claude_sdk_engine.py").read_text(encoding="utf-8"))
 
 # Alias của Claude Code (haiku/opus) KHÔNG phải model id mà API nhận - gửi thẳng là 404.
 _cfg_tmp = cfg.read_settings()

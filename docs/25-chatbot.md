@@ -292,7 +292,7 @@ Thẻ bot nào được nâng quyền đều có một dải màu ghi rõ mức 
 
 ### Engine nào chạy được mức nâng quyền
 
-Mức **Chỉ đọc** chạy giống hệt nhau trên cả tám bộ não, không có ngoại lệ.
+Mức **Chỉ đọc** chạy giống hệt nhau trên cả chín bộ não, không có ngoại lệ.
 
 Hai mức nâng quyền cần engine gọi được công cụ. Sáu engine API (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) và gói Claude Code dùng đường đã chạy thật lâu nay. Riêng **gói ChatGPT** đi qua một đường của backend Codex mà nhà cung cấp chưa công bố ổn định, nên có thể không gọi được công cụ.
 
@@ -302,7 +302,7 @@ Thấy dải vàng đó thì chọn một trong hai: đổi engine ở trang **M
 
 ### Đổi bộ não không đổi trải nghiệm
 
-Bot chạy giống hệt nhau trên **cả tám bộ não**: Claude Code, ChatGPT, OpenRouter, OpenAI API, Anthropic API, Gemini, Groq, Ollama. Đổi model ở trang Models thì bot đổi theo, nhưng cách nó làm việc không đổi. Khi công cụ gọi được thì mọi engine cầm **đúng một bộ công cụ** - xem lưu ý ở mục trên về gói ChatGPT.
+Bot chạy giống hệt nhau trên **cả chín bộ não**: Claude Code, ChatGPT, Gemini CLI, OpenRouter, OpenAI API, Anthropic API, Gemini, Groq, Ollama. Đổi model ở trang Models thì bot đổi theo, nhưng cách nó làm việc không đổi. Khi công cụ gọi được thì mọi engine cầm **đúng một bộ công cụ** - xem lưu ý ở mục trên về gói ChatGPT.
 
 Làm được vì lượt của bot đi một đường riêng, chung cho mọi engine: cùng đầu bài từ Agent, cùng tài liệu tra sẵn, cùng lịch sử hội thoại, và công cụ (nếu có) lấy từ cùng một chỗ. Khác biệt còn lại đúng bằng khác biệt giữa các model, không phải giữa các đường ống.
 

@@ -142,21 +142,44 @@ def is_system_skill(slug: str) -> bool:
 
 
 def _system_items():
-    """Danh sách item hệ thống: (key, kind, slug, nội dung ĐÃ RENDER)."""
+    """Danh sách item hệ thống: (key, kind, slug, nội dung ĐÃ RENDER, đường dẫn con trong skill).
+
+    Skill là một PACKAGE, không phải một file: `html-to-webcake` ship kèm `tools/*.js` mà thân
+    skill bảo agent chạy. Trước 0.33.0 hàm này chỉ đọc mỗi `SKILL.md`, nên cây con KHÔNG BAO GIỜ
+    tới brain nào - skill đó hỏng ở mọi brain từ ngày ship và cuối cùng bị gỡ hẳn ở 0.9.291 thay
+    vì được vá. Giờ mọi file trong thư mục skill đều được ship.
+
+    Khoá manifest của SKILL.md GIỮ NGUYÊN `skills/<slug>` (không đổi thành `skills/<slug>/SKILL.md`):
+    mọi brain đang chạy đã ghi khoá cũ, đổi khoá là chúng thấy "chưa có mục này" rồi đóng dấu
+    user-modified cho một file mà người dùng chưa hề đụng vào - kể từ đó skill hệ thống ngừng
+    cập nhật trong im lặng. File con dùng khoá `skills/<slug>/<đường dẫn con>`.
+    """
     items = []
     try:
         if SYSTEM_SKILLS_DIR.is_dir():
             for p in sorted(SYSTEM_SKILLS_DIR.iterdir()):
                 f = p / "SKILL.md"
-                if p.is_dir() and not p.name.startswith(".") and f.is_file():
-                    items.append((f"skills/{p.name}", "skill", p.name, f.read_text(encoding="utf-8")))
+                if not (p.is_dir() and not p.name.startswith(".") and f.is_file()):
+                    continue
+                items.append((f"skills/{p.name}", "skill", p.name, f.read_text(encoding="utf-8"), "SKILL.md"))
+                for extra in sorted(x for x in p.rglob("*") if x.is_file()):
+                    rel = extra.relative_to(p).as_posix()
+                    # bỏ mọi thứ ẩn ở BẤT KỲ tầng nào (.DS_Store, tools/.cache/…), không chỉ tầng đầu
+                    if rel == "SKILL.md" or any(part.startswith(".") for part in rel.split("/")):
+                        continue
+                    try:
+                        body = extra.read_text(encoding="utf-8")
+                    except (UnicodeDecodeError, OSError) as e:
+                        print(f"[system sync] bỏ qua {extra}: {type(e).__name__}", file=sys.stderr)
+                        continue
+                    items.append((f"skills/{p.name}/{rel}", "skill", p.name, body, rel))
     except Exception as e:
         print(f"[system sync] đọc skills hệ thống lỗi: {e}", file=sys.stderr)
     try:
         if SYSTEM_LOOPS_DIR.is_dir():
             for f in sorted(SYSTEM_LOOPS_DIR.glob("*.md")):
                 content = f.read_text(encoding="utf-8").replace("{today}", _today())
-                items.append((f"loops/{f.stem}", "loop", f.stem, content))
+                items.append((f"loops/{f.stem}", "loop", f.stem, content, f"{f.stem}.md"))
     except Exception as e:
         print(f"[system sync] đọc loops hệ thống lỗi: {e}", file=sys.stderr)
     return items
@@ -196,12 +219,13 @@ def _write_manifest(root: Path, data: dict) -> None:
 
 # ────────────────────────── sync ──────────────────────────
 
-def _skill_paths(root: Path, slug: str):
-    """(path đang BẬT, path đang TẮT) của 1 skill trong brain.
+def _skill_paths(root: Path, slug: str, rel: str = "SKILL.md"):
+    """(path đang BẬT, path đang TẮT) của 1 file trong skill.
     CANONICAL = <root>/skills (phẳng, cùng hướng agents/workflows/memory). Skill hệ thống được
-    cài vào đây; mirror_skills() copy sang <root>/.claude/skills cho Claude Code native."""
+    cài vào đây; mirror_skills() copy sang <root>/.claude/skills cho Claude Code native.
+    `rel` là đường dẫn con trong thư mục skill (mặc định SKILL.md, còn lại là tools/…)."""
     base = root / "skills"
-    return base / slug / "SKILL.md", base / ".disabled" / slug / "SKILL.md"
+    return base / slug / rel, base / ".disabled" / slug / rel
 
 
 def migrate_brain(root) -> None:
@@ -523,13 +547,17 @@ def sync_brain(brain_root) -> dict:
         manifest = _read_manifest(root)
         files = manifest["files"]
         changed = False
-        for key, kind, slug, content in items:
+        for key, kind, slug, content, rel in items:
             try:
                 hasher = skill_hash if kind == "skill" else loop_hash
                 new_hash = hasher(content)
                 if kind == "skill":
-                    enabled_p, disabled_p = _skill_paths(root, slug)
-                    dst = enabled_p if enabled_p.exists() else (disabled_p if disabled_p.exists() else enabled_p)
+                    # File con đi THEO thư mục skill: skill đang TẮT thì mọi file của nó nằm trong
+                    # .disabled, không phải chỉ mình SKILL.md. Quyết định bật/tắt đọc từ SKILL.md.
+                    md_enabled, md_disabled = _skill_paths(root, slug)
+                    off = (not md_enabled.exists()) and md_disabled.exists()
+                    enabled_p, disabled_p = _skill_paths(root, slug, rel)
+                    dst = disabled_p if off else enabled_p
                 else:
                     dst = root / "Javis" / "loops" / f"{slug}.md"
 
@@ -634,6 +662,6 @@ LEGACY_HASHES.update({
 if __name__ == "__main__" and "--hash" in sys.argv:
     # In hash chuẩn hoá của bộ file hệ thống HIỆN TẠI - chạy TRƯỚC khi sửa nội dung
     # để thêm vào LEGACY_HASHES của bản sau.
-    for key, kind, slug, content in _system_items():
+    for key, kind, slug, content, rel in _system_items():
         h = (skill_hash if kind == "skill" else loop_hash)(content)
         print(f"{key}: {h}")

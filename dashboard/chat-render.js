@@ -65,6 +65,21 @@
     try { return decodeURIComponent(String(s || "").replace(/\+/g, " ")); }
     catch (e) { return ""; }
   }
+  // Duong dan trong link/anh markdown la URL-ish: Obsidian, VS Code va ca AI deu ma hoa phan
+  // tram khi ghi ra, nen "07 - Wiki/LLM Wiki.md" thanh "07%20-%20Wiki/LLM%20Wiki.md". Ten THAT
+  // tren dia khong he co %20. Khong go o day thi ta di hoi server mot file ten "07%20-%20Wiki",
+  // khong bao gio co, va cu bam chet IM - dung trieu chung chu repo bao: bam vao link khong
+  // mo ra gi ca. Con anh thi te hon mot bac: fileUrl() ma hoa THEM lan nua (%2520) nen server
+  // nhan lai dung chuoi %20 sau khi giai ma mot lan, ra 404, o anh thanh o xam.
+  //
+  // KHONG doi "+" thanh khoang trang: do la luat cua query string, con "+" la ky tu hop le
+  // trong ten file. Chuoi khong co %hh thi tra ve nguyen ven, va decodeURIComponent nem loi
+  // voi thu nhu "100%.md" - bat lai roi giu nguyen, vi ten that co the co dau % that.
+  function decodeVaultPath(s) {
+    s = String(s == null ? "" : s);
+    if (!/%[0-9a-f]{2}/i.test(s)) return s;
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
   function currentBrainMatches(name) {
     var b = String(brainPath() || "").replace(/\\/g, "/").replace(/\/+$/, "");
     var base = b === "brain" ? "Brain Default" : b.split("/").pop();
@@ -127,10 +142,17 @@
   }
   // Thuoc tinh <a> mo trang Tep tin dung vi tri file/thu muc. Giu href deep-link (#open=..) de
   // Ctrl/giua chuot mo tab trinh duyet moi cung nhay dung cho; bam thuong -> mo trong app.
+  // Duoi file MO RA SUA DUOC. Giu khop voi VT_TEXT_EXTS trong console.js - danh sach nay chi
+  // dung de dat CHU cho dung, con quyet dinh mo o dau thi console.js lo.
+  var EDIT_EXT_RE = /\.(?:md|txt|json|ya?ml|csv|js|ts|py|html?|css|toml|ini|log|sh|bat|xml|svg|env)$/i;
   function vaultLoc(rawpath, extraCls) {
     var clean = String(rawpath || "").replace(/^\.?\//, "");
+    // Noi dung chuot dung viec cu bam do LAM: file sua duoc thi mo trinh sua, thu muc thi ve
+    // trang Tep tin. Chu cu ghi "Mo vi tri trong Tep tin" cho MOI thu, nen bam vao mot file
+    // .html roi thay trinh sua bung ra la mot bat ngo - dung huong nhung sai loi hua.
+    var tit = EDIT_EXT_RE.test(clean.split(/[?#]/)[0]) ? "Mở ra sửa" : "Mở vị trí trong Tệp tin";
     return 'href="#open=' + esc(encodeURIComponent(clean)) + '" data-vault-path="' + esc(clean) +
-      '" class="jv-floc' + (extraCls ? " " + extraCls : "") + '" title="Mo vi tri trong Tep tin"';
+      '" class="jv-floc' + (extraCls ? " " + extraCls : "") + '" title="' + tit + '"';
   }
   function vaultLink(rawpath, extraCls, brainOverride) {
     return isDownloadFile(rawpath)
@@ -287,6 +309,25 @@
     return '<a class="jv-img-link" href="' + esc(h) + '"' + vp +
       ' target="_blank" rel="noopener" title="Bấm để xem phóng to">' + img + "</a>";
   }
+  // ---------------------------------------------------------------- frontmatter YAML
+  // Khoi `---\n...\n---` o DAU mot file .md la METADATA (type, status, created...), khong phai
+  // van ban de soan. Truoc ban nay no roi vao luat "--- = duong ke ngang", nen mo mot note trong
+  // trinh sua WYSIWYG roi bam Luu la frontmatter bien thanh "* * *" cong may dong chu roi: file
+  // hong that su, va moi thu doc metadata (Javis, dataview, Obsidian) doc truot tu do. Chu repo
+  // gap dung canh nay 2026-08-13 ("mot so file .md dang khong doc duoc").
+  //
+  // Cach chua: cat ra thanh MOT khoi rieng, contenteditable=false, va giu NGUYEN VAN trong
+  // data-fm. Luat turndown "jvfrontmatter" (console.js) tra lai dung chuoi do khi luu - cung co
+  // che ma khoi dataview / code block da dung.
+  var FRONTMATTER_RE = /^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
+  function frontmatterHtml(block) {
+    var than = String(block)
+      .replace(/^\uFEFF?---[ \t]*\r?\n/, "")
+      .replace(/\r?\n---[ \t]*\r?\n?$/, "");
+    return '<div class="jv-fm" contenteditable="false" data-fm="' + esc(encodeURIComponent(block)) + '">' +
+      '<div class="jv-fm-head">' + ic("tag") + " Thuộc tính</div>" +
+      '<pre class="jv-fm-body">' + esc(than) + "</pre></div>";
+  }
   function tableHtml(tbl) {
     var rows = tbl.trim().split("\n").filter(function (r) { return r.trim(); });
     var cells = function (r) { return r.replace(/^\||\|$/g, "").split("|").map(function (c) { return c.trim(); }); };
@@ -307,7 +348,15 @@
       .replace(/~~([^~]+)~~/g, "<del>$1</del>")
       .replace(/\b_([^_\n]+)_\b/g, "<em>$1</em>")
       .replace(/\n/g, "<br>");
-    return s;
+    // Go dau \ thoat cua markdown (CUOI CUNG, sau khi da bat nhan manh - go truoc thi "\*" lai
+    // thanh in nghieng, dung y nghia nguoc lai). Hai cai duoc cung mot nhat:
+    //   - Dung chuan markdown: "\*" hien ra dau sao, khong hien ca dau gach cheo.
+    //   - CHONG DON BACKSLASH trong trinh sua. Turndown thoat "1." dau dong thanh "1\.", ma neu
+    //     o day khong go ra thi lan luu sau turndown lai thoat chinh dau gach do -> "1\\.", roi
+    //     "1\\\." - moi lan mo file ra sua la file ban them mot lop (do trong file chu repo gui
+    //     2026-08-13). Go ra thi vong lap dung yen: "1." -> "1\." -> "1." -> "1\.".
+    // Code (fence lan inline) da nam trong placeholder tu truoc nen KHONG dinh nhat nay.
+    return s.replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g, "$1");
   }
 
   // ---------------------------------------------------------------- block parse (line-based, ben hon regex)
@@ -401,6 +450,9 @@
     var ph = [];
     function put(html) { ph.push(html); return OPEN + (ph.length - 1) + CLOSE; }
 
+    // 0) frontmatter YAML o DAU file .md -> khoi rieng, KHONG cho sua, giu nguyen van de luu lai
+    //    dung tung ky tu. Xem frontmatterHtml ben duoi de biet vi sao day la mot loi mat du lieu.
+    raw = raw.replace(FRONTMATTER_RE, function (m) { return put(frontmatterHtml(m)) + "\n"; });
     // 1) code fence hoan chinh (phai xu ly truoc moi thu)
     raw = raw.replace(/```([^\n]*)\n([\s\S]*?)```/g, function (_m, info, code) {
       return "\n" + put(renderFence(info, code, false)) + "\n";
@@ -430,6 +482,7 @@
     // Bat ca cap ngoac can bang 1 tang, roi cat title markdown tuy chon o duoi ( "tieu de" / 'tieu de').
     raw = raw.replace(/!\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, function (_m, alt, src) {
       src = src.replace(/\s+(["']).*\1\s*$/, "").trim();
+      if (isVaultRel(src)) src = decodeVaultPath(src);   // %20 -> khoang trang; xem decodeVaultPath
       return put(imgHtml(resolveSrc(src), alt, src));
     });
     // 4) link []() : URL ngoai -> tab moi; file/thu muc vault -> mo dung vi tri trong Tep tin; con lai giu cu
@@ -438,7 +491,9 @@
       var appRef = appFileRef(href);
       if (appRef) return put('<a ' + vaultLink(appRef.path, "", appRef.brain) + ">" + esc(t) + "</a>");
       if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
-      if (isVaultRel(href)) return put('<a ' + vaultLink(href) + ">" + esc(t) + "</a>");
+      // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
+      // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
+      if (isVaultRel(href)) return put('<a ' + vaultLink(decodeVaultPath(href)) + ">" + esc(t) + "</a>");
       return put('<a href="' + esc(resolveSrc(href)) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
     });
     // 4b) URL tran (AI go thang, khong boc markdown) -> tu thanh link mo tab moi. Chay SAU khi link/anh/
@@ -689,6 +744,10 @@
     var tgt = wl.getAttribute("data-vault-path") || "";
     if (!tgt) return;
     wl.classList.add("jv-wl-busy");
+    // Nhanh .catch KHONG phai trang tri: lop 'jv-wl-busy' chan moi cu bam sau do, nen mot loi
+    // duy nhat khong ai bat la link do CHET HAN cho toi khi ve lai ca bai - dung trieu chung
+    // "thi thoang bam khong mo duoc file tiep theo". Go lop bận ra roi bao truot nhu khi khong
+    // tim thay: bam lai duoc, va thay ro la vua that bai.
     wkResolve(tgt).then(function (hit) {
       wl.classList.remove("jv-wl-busy");
       if (!hit) {
@@ -698,6 +757,11 @@
         return;
       }
       moFileVault(hit.rel);
+    }).catch(function () {
+      wl.classList.remove("jv-wl-busy");
+      wl.classList.add("jv-wl-miss");
+      wl.title = "Không mở được note này - thử lại";
+      setTimeout(function () { wl.classList.remove("jv-wl-miss"); }, 1500);
     });
   }
 
@@ -721,6 +785,11 @@
   }
 
   function moFileVault(rel) {
+    // Duong CHINH: console.js quyet dinh (file sua duoc -> trinh sua, con lai -> trang Tep tin).
+    // Gom ve mot cho vi deep-link `#open=` cung goi dung ham do; hai ban sao luat se lech nhau,
+    // ma trieu chung cua lech la "cung mot file luc thi sua duoc luc thi ve thu muc".
+    if (typeof window.JavisOpenVaultPath === "function") { window.JavisOpenVaultPath(rel); return; }
+    // Duoi day la duong lui cho ban console.js cu chua co ham do.
     var hep = false;
     try { hep = window.matchMedia("(max-width: 860px)").matches; } catch (e) {}
     if (!hep && typeof window.JavisOpenNote === "function") { window.JavisOpenNote(rel); return; }

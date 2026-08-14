@@ -1,0 +1,55 @@
+# ============================================================================
+# Javis OS - override để chạy NHIỀU BẢN trên cùng một VPS, mỗi bản một tên miền riêng.
+#
+# Dùng KÈM docker-compose.yml, và cần proxy dùng chung đã chạy trước
+# (docker-compose.proxy.yml - làm một lần cho cả máy).
+#
+# CÁCH DÙNG - mỗi bản một THƯ MỤC RIÊNG:
+#
+#   mkdir -p ~/javis-shop && cd ~/javis-shop
+#   curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
+#   curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.multi.yml
+#   cat > .env <<'EOF'
+#   JAVIS_NAME=javis-shop
+#   JAVIS_HOST_PORT=7777
+#   JAVIS_BIND=127.0.0.1
+#   DOMAIN_NAME=shop.tencuaban.com
+#   JAVIS_ADMIN_USER=admin
+#   JAVIS_ADMIN_PASSWORD=mat-khau-manh-rieng-cho-ban-nay
+#   EOF
+#   chmod 600 .env
+#   docker compose -f docker-compose.yml -f docker-compose.multi.yml run --rm javis claude auth login --claudeai
+#   docker compose -f docker-compose.yml -f docker-compose.multi.yml up -d
+#
+# Bản thứ hai làm y hệt ở thư mục khác, đổi CẢ BA giá trị trong .env:
+#   JAVIS_NAME=javis-ca-nhan   JAVIS_HOST_PORT=7778   DOMAIN_NAME=canhan.tencuaban.com
+#
+# BA GIÁ TRỊ ĐÓ PHẢI KHÁC NHAU GIỮA CÁC BẢN. Trùng JAVIS_NAME thì Docker báo tên container đã
+# dùng; trùng JAVIS_HOST_PORT thì báo cổng đã bị chiếm; trùng DOMAIN_NAME thì hai bản giành nhau
+# một tên miền và proxy chỉ lái được về một bản.
+#
+# MỖI BẢN LÀ MỘT JAVIS ĐỘC LẬP HOÀN TOÀN: thư mục khác nhau -> tên project khác nhau -> volume
+# khác nhau, nên state, brain, tài khoản admin, token đăng nhập Claude/ChatGPT đều riêng. Muốn
+# hai bản DÙNG CHUNG một lần đăng nhập Claude thì trỏ chung volume claude-auth (nâng cao, tự lo).
+#
+# KHÁC docker-compose.https.yml: file kia dựng Caddy NẰM TRONG project của Javis, đúng cho máy
+# chỉ chạy MỘT bản (tên miền nhập trong app, on-demand TLS). Nhiều bản thì Caddy phải đứng ngoài,
+# nên tên miền chuyển sang khai ở .env - giống hệt cách bản Hostinger đang làm.
+# ============================================================================
+services:
+  javis:
+    # CỐ Ý KHÔNG khai `ports` ở đây: compose NỐI CHỒNG danh sách ports giữa các file -f chứ không
+    # thay thế, nên khai lại là ra hai binding cùng một cổng và Docker báo "port is already
+    # allocated". Việc thu cổng về loopback làm bằng JAVIS_BIND=127.0.0.1 trong .env (xem đầu file).
+    networks:
+      - default        # phải liệt kê lại: khai networks ở service là THAY danh sách, không cộng thêm
+      - javis-web
+    labels:
+      # Proxy dùng chung đọc đúng hai nhãn này rồi tự dựng site + xin chứng chỉ.
+      caddy: ${DOMAIN_NAME:?DOMAIN_NAME chưa đặt - thêm DOMAIN_NAME=ten-mien-cua-ban vào .env}
+      caddy.reverse_proxy: "{{upstreams 7777}}"
+
+networks:
+  javis-web:
+    external: true
+    name: javis-web

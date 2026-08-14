@@ -8,7 +8,11 @@ Engine Claude qua claude-agent-sdk CHÍNH CHỦ (Phase 1-2 của docs/dev/2026-0
   - cancel_all(tag) interrupt theo họ tag (claude_cli.cancel_all gọi hộ)
 
 Bật bằng env JAVIS_CLAUDE_ENGINE=sdk (mặc định cli - qua factory claude_cli.claude_engine).
-Auth kế thừa đăng nhập Claude Code CLI (subscription) - không cần API key.
+
+Auth: engine KHÔNG bao giờ đọc token của ai. Nó chạy binary `claude` và để chính sản phẩm
+của Anthropic lo đăng nhập - mặc định là phiên Claude Code sẵn có (gói subscription). Người
+dùng chọn `api_key` ở trang Models thì `claude_auth.env_cho_cli` đưa ANTHROPIC_API_KEY xuống
+tiến trình con. Hai lối cùng năng lực; khác nhau ở chỗ ai trả tiền. Xem claude_auth.py.
 
 Nâng cấp so với CLI Popen: khi có allowed_tools (fork nền an toàn của loop/workflow),
 quyền enforce PER-CALL bằng callback can_use_tool - tool ngoài whitelist bị TỪ CHỐI THẬT
@@ -96,6 +100,53 @@ def tran_watchdog(bien: str, mac_dinh: str):
     return v if v > 0 else None
 
 
+_INIT_MAC_DINH = "300"    # giây - trần chờ `claude` khởi động xong (SDK mặc định chỉ 60)
+
+
+def ap_tran_khoi_dong():
+    """Nới trần chờ control request `initialize` của SDK. Trả số giây đang áp dụng (None = giữ
+    nguyên biến người dùng tự đặt).
+
+    Vì sao cần: lúc initialize, `claude` phải đấu XONG mọi MCP server rồi mới nhận việc, mà SDK
+    chờ đúng 60 giây rồi ném `Control request timeout: initialize`. Máy đấu nhiều nguồn (hub
+    Javis + connector tài khoản Claude) vượt 60s là chuyện thường, và người dùng nhận về một
+    dòng tiếng Anh trần trụi sau khi ngồi chờ - đúng ca báo ngày 2026-08-11.
+
+    SDK chỉ đọc trần này qua env `CLAUDE_CODE_STREAM_CLOSE_TIMEOUT` (mili giây, sàn cứng 60s)
+    chứ KHÔNG có tham số nào trong options, nên phải đặt env của chính tiến trình server. Ai đã
+    tự đặt biến của SDK thì tôn trọng, không đè.
+    """
+    raw = os.getenv("JAVIS_CLAUDE_INIT_TIMEOUT")
+    if raw is None and os.getenv("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"):
+        return None
+    try:
+        giay = float(raw if raw is not None else _INIT_MAC_DINH)
+    except (TypeError, ValueError):
+        giay = float(_INIT_MAC_DINH)
+    giay = max(giay, 60.0)   # SDK có sàn 60s; đặt thấp hơn chỉ là tự lừa mình
+    os.environ["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = str(int(giay * 1000))
+    return giay
+
+
+def loi_de_hieu(e, tran_init=None):
+    """Đổi exception của SDK thành câu người dùng ĐỌC RA ĐƯỢC VIỆC PHẢI LÀM.
+
+    Mẫu nào không khớp thì giữ nguyên chuỗi gốc: đoán bừa nguyên nhân còn tệ hơn tiếng Anh trần.
+    """
+    raw = str(e)
+    if "Control request timeout: initialize" in raw:
+        n = f"{int(tran_init)}s" if tran_init else "trần cho phép"
+        return ("Claude Code không khởi động xong trong " + n + " nên lượt này bị huỷ. Gần như "
+                "luôn là do NGUỒN DỮ LIỆU (MCP): lúc khởi động, Claude phải kết nối xong mọi "
+                "nguồn rồi mới nhận việc, nên một nguồn chết hoặc chậm là kéo cả lượt chờ theo "
+                "rồi hết giờ. Mở trang Kết nối, bấm Kiểm tra để tìm nguồn đang đỏ rồi tắt nó đi "
+                "và gửi lại tin nhắn. (JAVIS_CLAUDE_INIT_TIMEOUT=<giây> để nới thêm trần này)")
+    if "Control request timeout:" in raw:
+        return (f"Claude Code không phản hồi lệnh điều khiển ({raw}). Gửi lại tin nhắn; còn lặp "
+                "lại thì mở hội thoại mới.")
+    return f"SDK engine: {type(e).__name__}: {e}"
+
+
 def map_message(msg):
     """Map 1 message SDK → (list event dict 'hợp đồng ClaudeCLI', session_id|None).
     PURE - test offline được, không cần CLI/auth."""
@@ -170,6 +221,10 @@ class ClaudeSDK:
         self.max_wall_s = None
         self.javis_mode = None    # _apply_mcp đặt (suggest|auto|full) - enforce min_mode plugin in-process
         self.javis_vault = None   # _apply_mcp đặt - brain đang làm việc, cho ctx của plugin
+        # True = gửi system_prompt TRẦN, bỏ preset claude_code. Đường tiết kiệm token dùng cái
+        # này: cả giá trị của nó nằm ở chỗ system prompt chỉ còn vài trăm token, mà preset
+        # claude_code thì tự nhét lại prompt đầy đủ của Claude Code và ăn sạch phần tiết kiệm.
+        self.system_prompt_raw = False
         self._tmp_files = []      # file tạm (system prompt) dọn sau mỗi query
 
     def is_available(self) -> bool:
@@ -315,12 +370,44 @@ class ClaudeSDK:
         from claude_agent_sdk import ClaudeAgentOptions
         fields = getattr(ClaudeAgentOptions, "__dataclass_fields__", {})
         kw = {"cwd": self.cwd}
+        # CHẠY BẰNG BINARY NÀO: bản Node cài trên máy, hay binary Bun đóng gói trong SDK.
+        #
+        # `_find_cli()` của SDK ưu tiên `_bundled/claude` TRƯỚC khi ngó PATH. Binary đó build
+        # bằng Bun, mà Bun đòi syscall `getrandom` (kernel >= 3.17). Trên máy nhân cũ syscall đó
+        # KHÔNG tồn tại: Bun panic `getrandom failed: errno 38` (ENOSYS) rồi abort -> SIGABRT ->
+        # SDK ném "Command failed with exit code -6", trong khi `claude` bản Node NGAY TRONG
+        # CÙNG container chạy hoàn hảo. Người dùng chạy NAS Synology DS916+ (kernel 3.10.108)
+        # báo kèm log đầy đủ 2026-08-13; cùng ca đó dính mọi kernel < 3.17: NAS đời cũ, VPS nhân
+        # cổ, vài môi trường CI.
+        #
+        # Nên ưu tiên NGƯỢC LẠI SDK. Điều này cũng hợp với phần còn lại của Javis: mọi chỗ khác
+        # (auth, MCP native, kiểm tra trạng thái) đều gọi đúng binary `claude` của máy, để bản
+        # đóng gói làm dự phòng cho máy chưa cài CLI.
+        #
+        # Dùng `tim_binary` chứ không `shutil.which`: tiến trình nền trên macOS nhận PATH tối
+        # giản nên `claude` cài bằng Homebrew/nvm không nằm trong đó (xem chú thích dài ở
+        # claude_cli._THU_MUC_BIN_THEM). Chặn "_bundled" để một PATH trỏ nhầm về chính binary
+        # Bun không lọt qua cửa này.
+        if "cli_path" in fields:
+            _cli = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip()
+            if not _cli:
+                try:
+                    from claude_cli import tim_binary as _tim
+                    _cli = _tim("claude") or ""
+                except Exception:
+                    _cli = ""
+            if _cli and "_bundled" not in _cli.replace("\\", "/"):
+                kw["cli_path"] = _cli
         # System prompt đẩy qua FILE (--append-system-prompt-file) thay vì nhét vào THAM SỐ dòng lệnh.
         # Trên Windows tổng dòng lệnh > 32767 ký tự thì CreateProcess CHẾT: Python báo FileNotFoundError,
         # SDK dán nhãn nhầm "Claude Code not found at ...\\_bundled\\claude.exe". System prompt của Javis
         # (CLAUDE.md + bộ nhớ brain nhiều note) dễ vượt ngưỡng -> đây là gốc lỗi đó. Đọc qua file thì
         # không còn giới hạn độ dài. SDK cũ không có extra_args thì fallback nhét inline (chỉ hợp prompt ngắn).
-        if self.system_prompt and "extra_args" in fields:
+        if self.system_prompt and self.system_prompt_raw:
+            # Trần: KHÔNG preset. Đây là đường tiết kiệm token - thêm preset vào là mất sạch
+            # phần tiết kiệm. Vẫn đi qua binary `claude` nên vẫn là đường chính chủ.
+            kw["system_prompt"] = self.system_prompt
+        elif self.system_prompt and "extra_args" in fields:
             _p = self._write_sysprompt_file(self.system_prompt)
             kw["system_prompt"] = {"type": "preset", "preset": "claude_code"}
             kw["extra_args"] = {"append-system-prompt-file": _p}
@@ -332,6 +419,17 @@ class ClaudeSDK:
         # ảnh chụp màn hình) vượt ngưỡng này là vỡ buffer -> SDKJSONDecodeError.
         if "max_buffer_size" in getattr(ClaudeAgentOptions, "__dataclass_fields__", {}):
             kw["max_buffer_size"] = 32 * 1024 * 1024
+        # Chế độ API key: đưa ANTHROPIC_API_KEY xuống tiến trình `claude`. Phải MERGE với
+        # os.environ chứ không thay thế - SDK truyền thẳng dict này cho tiến trình con, và một
+        # env chỉ có mỗi API key là mất PATH, mất HOME, tiến trình chết trước khi kịp chào.
+        try:
+            import claude_auth
+            _env = claude_auth.env_cho_cli()
+        except Exception as e:   # noqa: BLE001 - đọc cấu hình hỏng không được phá lượt chat
+            print(f"[sdk engine] không đọc được chế độ auth: {type(e).__name__}: {e}", file=sys.stderr)
+            _env = {}
+        if _env and "env" in fields:
+            kw["env"] = {**os.environ, **_env}
         if self.model:
             kw["model"] = self.model
         if self.session_id:
@@ -374,6 +472,8 @@ class ClaudeSDK:
         # nén lịch sử), nên cũng để không giới hạn.
         FIRST_IDLE = tran_watchdog("JAVIS_CLAUDE_FIRST_TIMEOUT", "0")
         self._sweep_stale_tmp()   # dọn file prompt tạm sót từ lượt trước bị crash/kill
+        # Nới trần `initialize` TRƯỚC khi dựng client: SDK đọc env ngay trong connect().
+        tran_init = ap_tran_khoi_dong()
         loop = asyncio.get_running_loop()
         client = ClaudeSDKClient(options=self._options())
         started = time.time()
@@ -447,7 +547,7 @@ class ClaudeSDK:
                 if isinstance(msg, ResultMessage):
                     break
         except Exception as e:
-            yield {"type": "error", "content": f"SDK engine: {type(e).__name__}: {e}"}
+            yield {"type": "error", "content": loi_de_hieu(e, tran_init)}
         finally:
             with _LOCK:
                 _ACTIVE.pop(client, None)

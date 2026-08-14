@@ -30,6 +30,7 @@
     selfimprove: "repeat",
     learn: "brain",
     kanban: "square-kanban",
+    terminal: "terminal",
     models: "cpu",
     channels: "send",
     mcp: "plug",
@@ -48,6 +49,7 @@
   const GICON = {
     "Trợ lý": ic("sparkles"),
     "Bộ não": ic("brain"),
+    "Code": ic("file-code"),
     "Năng lực": ic("lightbulb"),
     "Việc": ic("clipboard-check"),
     "Kết nối": ic("link"),
@@ -78,6 +80,7 @@
     { id: "skills",      icon: ICON.skills,      label: "Skills" },
     { id: "chatbots",    icon: ICON.chatbots,    label: "Chatbot" },
     { id: "files",       icon: ICON.files,       label: "Tệp tin" },
+    { id: "terminal",    icon: ICON.terminal,    label: "Terminal" },
     { id: "selfimprove", icon: ICON.selfimprove, label: "Việc định kỳ" },
     { id: "learn",       icon: ICON.learn,       label: "Tự học" },
     { id: "kanban",      icon: ICON.kanban,      label: "Việc" },
@@ -96,6 +99,12 @@
   const RAIL_GROUPS = [
     { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
     { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
+    // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
+    // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
+    // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
+    // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
+    // CHUC_NANG của dashboard/code-term.js.
+    { label: "Code",        icon: GICON["Code"],     ids: ["terminal"] },
     { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
@@ -132,6 +141,7 @@
     agents:      { icon: VIEW_ICON.agents, label: "Agents", sub: "Trợ lý chuyên biệt" },
     skills:      { icon: VIEW_ICON.skills, label: "Skills", sub: "Kỹ năng khả dụng" },
     files:       { icon: VIEW_ICON.files, label: "Tệp tin", sub: "Duyệt · sửa · tải file trong brain" },
+    terminal:    { icon: VIEW_ICON.terminal, label: "Terminal", sub: "Dòng lệnh chạy thẳng trên máy đang chạy Javis" },
     selfimprove: { icon: VIEW_ICON.selfimprove, label: "Việc định kỳ", sub: "Việc định kỳ + nhắc hẹn đang chờ" },
     chatbots:    { icon: VIEW_ICON.chatbots, label: "Chatbot", sub: "Bot chuyên trách trả lời khách qua Telegram" },
     learn:       { icon: VIEW_ICON.learn, label: "Tự học", sub: "Rewire Memory · Wiki · Skill (an toàn, undo được)" },
@@ -151,6 +161,7 @@
   let _settings = null;
   let _renderGen = 0;         // token chống race: mỗi lần đổi trang tăng 1; render async cũ tự bỏ
   let _fmPending = null;       // { dir, file } - vị trí mở sẵn cho trang Tệp tin (khi bấm link file/thư mục trong chat)
+  let _fmSauKhiDong = null;    // việc trang Tệp tin cần làm khi đóng trình sửa (nạp lại danh sách)
   let graphEnabled = true;
   const isNarrow = () => window.matchMedia("(max-width: 860px)").matches;
   const liteMode = () => !graphEnabled || isNarrow();
@@ -266,6 +277,32 @@
     else navigateTo("files");
   }
   if (typeof window !== "undefined") window.JavisOpenFiles = openFilesAt;
+  // Bấm một đường dẫn vault: file SỬA ĐƯỢC thì mở thẳng TRÌNH SỬA, còn lại mới về trang Tệp tin.
+  //
+  // Vì sao gom vào một hàm: cùng một link trong chat có HAI đường đi tới đây - cú bấm thường
+  // (chat-render.js bắt được, gọi moFileVault) và deep-link `#open=` (Ctrl/chuột giữa mở tab
+  // mới, hoặc tải lại trang khi hash còn đó). Trước bản này đường thứ hai đổ thẳng vào
+  // openFilesAt, nên cùng một file .html lúc thì mở ra sửa được lúc thì quăng người dùng về
+  // thư mục - đúng cái "thi thoảng nó vẫn bị gửi về folder" chủ repo báo (2026-08-13). Một
+  // quyết định, mọi người gọi chung.
+  function openVaultPath(fullPath) {
+    const raw = String(fullPath == null ? "" : fullPath);
+    const clean = raw.replace(/^\.?\//, "").replace(/\/+$/, "");
+    const base = clean.split("/").pop();
+    // Không có dấu chấm trong tên = thư mục, cùng luật với openFilesAt và chat-render.js.
+    const laThuMuc = /\/$/.test(raw) || !base || base.indexOf(".") < 0;
+    const duoi = base.indexOf(".") >= 0 ? "." + base.split(".").pop().toLowerCase() : "";
+    if (!laThuMuc && VT_TEXT_EXTS.includes(duoi)) {
+      // Màn rộng: trình sửa đính bên cây. Màn hẹp: modal của file-editor.js - ở đây người dùng
+      // bấm ĐÚNG một file nên đừng chặn như nhánh node đồ thị.
+      if (!isNarrow() && typeof window.JavisOpenNote === "function") {
+        window.JavisOpenNote(clean); return;
+      }
+      if (typeof window.JavisEditFile === "function") { window.JavisEditFile(clean); return; }
+    }
+    openFilesAt(fullPath);
+  }
+  if (typeof window !== "undefined") window.JavisOpenVaultPath = openVaultPath;
   // Mở note trong editor cây từ đường dẫn TƯƠNG ĐỐI GỐC BRAIN (như openNodePopup). Người gọi: click node
   // đồ thị (app.js onGraphNodeClick) VÀ wikilink [[..]] trong chat-render.js - đều truyền MỘT chuỗi path.
   // ĐỪNG gán đè hàm này bằng openNote thô: mất bước suy tên/đuôi file → note .md rơi nhánh "hãy tải về"
@@ -342,6 +379,7 @@
     if (id === "channels") return renderChannels(el);
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
+    if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "chatbots") return renderChatbots(el);
     if (id === "learn")    return renderLearn(el);
@@ -357,6 +395,28 @@
     const fn = window.JavisStudio && window.JavisStudio[id];
     if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); } }
     else el.innerHTML = placeholder(id, "studio.js chưa sẵn sàng.");
+  }
+
+  // Các trang thuộc nhóm Code, đều do code-term.js dựng. Thêm chức năng Code mới thì thêm id
+  // vào đây (và vào RAIL_ITEMS + RAIL_GROUPS + VIEW_META + CHUC_NANG bên code-term.js).
+  const CODE_PAGES = ["terminal"];
+
+  // Trang Code do code-term.js dựng (uỷ quyền như trang Chatbot). Trang này KHÁC mọi trang
+  // khác ở hai chỗ, nên có thêm mấy dòng dưới đây:
+  //   - nó chiếm trọn khung và tự cuộn bên trong (terminal cần chiều cao thật để tính số
+  //     dòng), nên cviewBody phải bỏ padding + bỏ cuộn: lớp .cview-flush;
+  //   - nó giữ một WebSocket + một ResizeObserver, phải dọn TRƯỚC khi cviewBody bị ghi đè,
+  //     nếu không thì mỗi lần ghé qua lại bỏ lại một socket sống.
+  // _pageLeave lo cả hai. (Lớp .cview-flush phải gỡ bằng tay: renderPage clone lại cviewBody
+  // bằng cloneNode(false), mà clone đó GIỮ NGUYÊN class - để lại thì trang sau mất padding.)
+  function renderCode(el, id) {
+    const fn = window.JavisCode && window.JavisCode.render;
+    if (!fn) { el.innerHTML = placeholder(id, "code-term.js chưa sẵn sàng."); return; }
+    _pageLeave = () => {
+      el.classList.remove("cview-flush");
+      try { window.JavisCode.roi(); } catch (e) {}
+    };
+    try { fn(el, id); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); }
   }
 
   // Trang Chatbot do chatbots.js dựng - uỷ quyền y như renderStudioPage uỷ cho studio.js,
@@ -472,6 +532,16 @@
     .upd-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .upd-name{font-family:var(--font);font-size:17px;font-weight:700;color:var(--text)}
     .upd-changes{display:none;margin:10px 0;padding:10px 12px;border-left:3px solid var(--accent);background:rgba(120,140,160,.08);border-radius:7px;font-size:13px;line-height:1.55}
+    /* Lý do máy này không có nút cập nhật. Có lệnh để copy nên phải cho ngắt dòng và cho bôi
+       đen cả cụm - dòng lệnh mà đứt mất một chữ là chạy ra lỗi khó hiểu hơn cả lúc chưa có. */
+    .upd-why{margin-top:8px;line-height:1.6;font-size:13.5px}
+    /* Cách gỡ khi lệnh trên báo lỗi: cần có mặt, nhưng phải nhạt hơn lệnh chính để mắt đi đúng
+       thứ tự - làm trước, chỉ đọc phần này khi vấp. */
+    .upd-why-sub{margin-top:8px;padding-top:8px;border-top:1px solid var(--surface-3);
+      font-size:12.5px;color:var(--text2)}
+    .upd-why code{display:inline-block;margin:3px 0;padding:2px 7px;border-radius:6px;
+      background:var(--surface-2);border:1px solid var(--glass-brd);user-select:all;
+      overflow-wrap:anywhere;word-break:break-word}
     .upd-progress{display:none;margin-top:10px}
     .upd-rollback{display:none;margin-top:10px;padding:10px;border:1px solid var(--red);border-radius:8px;background:rgba(200,80,80,.08);font-size:13px;line-height:1.6}
     .cl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
@@ -496,6 +566,12 @@
     .cl-sec h4{margin:8px 0 5px;font-size:14px;color:var(--text3);font-weight:600}
     .cl-sec ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
     .cl-sec li{font-size:14.5px;color:var(--text);line-height:1.5;padding-left:24px;position:relative}
+    /* Đoạn mã trong dòng nhật ký thường là đường dẫn dài (07%20-%20Wiki/...). Không cho ngắt
+       thì trên điện thoại nó đẩy ngang cả trang, mà trang đọc chữ thì tuyệt đối không được
+       cuộn ngang. */
+    .cl-sec li code,.upd-changes code{background:var(--surface-2);padding:1px 5px;border-radius:5px;
+      font-size:.9em;overflow-wrap:anywhere;word-break:break-word}
+    .cl-sec li strong{font-weight:650}
     .cl-sec li:before{position:absolute;left:0;top:0}
     .cl-sec li:before{content:"";display:inline-block;width:1em;height:1em;vertical-align:-.14em;background-color:currentColor;mask-position:center;mask-size:contain;mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:contain;-webkit-mask-repeat:no-repeat}
     .cl-sec.feat li:before{mask-image:var(--ic-sparkles);-webkit-mask-image:var(--ic-sparkles)}
@@ -525,12 +601,28 @@
   let _clData = null;              // cache /changelog để đổi trang không phải gọi lại mạng
   const CL_PAGE_SIZE = 20;         // số phiên bản hiển thị mỗi trang
 
+  // CHANGELOG.md là markdown, nhưng trang này in bằng esc() nên người dùng đọc thấy nguyên
+  // `**Bấm vào link...**` kèm dấu sao và dấu huyền quanh mỗi tên file. Trên điện thoại thì
+  // nặng hẳn: dòng ngắn, dấu nhiều, mắt phải tự lọc (chủ repo báo 2026-08-12).
+  //
+  // KHÔNG dùng mdToHtml: hàm đó là bộ dựng khối, nó bọc <p>, và tệ hơn là biến mọi đường dẫn
+  // trông giống file trong vault thành link bấm mở - ở đây `dashboard/console.js` chỉ là tên
+  // file được nhắc tới, bấm vào chỉ tổ 404.
+  //
+  // esc() chạy TRƯỚC rồi mới dựng thẻ, nên dù CHANGELOG.md có chứa HTML cũng không có đường
+  // nào chèn vào trang. Một lượt quét với hai luật thay vì hai lượt: dấu sao nằm TRONG một
+  // đoạn mã bị nhánh code nuốt trước nên còn nguyên là dấu sao, khỏi cần chỗ giữ tạm.
+  function _clInline(s) {
+    return esc(String(s == null ? "" : s)).replace(
+      /`([^`]+)`|\*\*([^*]+)\*\*/g,
+      (_m, ma, dam) => ma != null ? "<code>" + ma + "</code>" : "<strong>" + dam + "</strong>");
+  }
   function _clRelHtml(rel) {
     const cls = rel.is_current ? "cur" : (rel.installed ? "" : "new");
     const tag = rel.is_current ? `<span class="cl-tag cur">đang dùng</span>`
       : (!rel.installed ? `<span class="cl-tag new">bản mới</span>` : "");
     const secs = (rel.sections || []).map(s => {
-      const items = (s.items || []).map(it => `<li>${esc(it)}</li>`).join("");
+      const items = (s.items || []).map(it => `<li>${_clInline(it)}</li>`).join("");
       return `<div class="cl-sec ${_clSecClass(s.title)}"><h4>${esc(s.title)}</h4><ul>${items}</ul></div>`;
     }).join("");
     return `<div class="cl-rel ${cls}">
@@ -596,10 +688,18 @@
       </section>
       <div id="clTimeline"><div class="cl-note">Đang tải nhật ký cập nhật...</div></div>
     </div>`;
-    wireUpdateManager(el);
+    // Nút "Kiểm tra lại" PHẢI làm mới cả danh sách bên dưới, không chỉ khung trên.
+    wireUpdateManager(el, napTimeline);
+    await napTimeline();
+
+    async function napTimeline() {
     let d;
     try {
-      const r = await fetch("/changelog");
+      // cache: "no-store" - KHÔNG phải đề phòng suông. Mọi lời gọi khác ở trang này đều đã
+      // no-store; riêng dòng nạp danh sách phiên bản thì quên, nên nó là chỗ duy nhất có thể
+      // ăn bản cũ trong bộ nhớ đệm trình duyệt. Triệu chứng đúng như chủ repo báo (2026-08-12):
+      // khung trên báo có bản mới, mà danh sách bên dưới không thấy bản đó đâu.
+      const r = await fetch("/changelog", { cache: "no-store" });
       d = await r.json();
     } catch (e) {
       if (myGen !== _renderGen) return;
@@ -611,6 +711,7 @@
     _clData = d;
     const timeline = el.querySelector("#clTimeline");
     if (timeline) _clRenderPage(timeline, 0);
+    }
   }
 
   const UPDATE_STEPS = [
@@ -622,7 +723,38 @@
     : j.mode === "windows" ? "Windows"
     : (j.platform === "mac" ? "macOS" : "Linux");
 
-  function wireUpdateManager(root) {
+  // Vì sao máy này không có nút "Cập nhật ngay". Chủ repo báo (2026-08-12): "một số máy VPS
+  // không có nút update, anh không hiểu vì sao". Cả hai lý do đều ĐÚNG THIẾT KẾ, nhưng app gộp
+  // chúng vào một câu chung chung nên nhìn hệt như máy hỏng.
+  //
+  // Khác nhau ở chỗ QUAN TRỌNG NHẤT: một cái bật được bằng đúng một lệnh, một cái thì không.
+  // Gộp lại là cướp mất của người dùng thông tin duy nhất họ cần.
+  function _updVimSaoKhongCoNut(maLyDo) {
+    if (maLyDo === "watchtower_off") {
+      return "Máy này <b>chưa bật Watchtower</b> - đó là thứ nhận lệnh cập nhật từ nút bấm, và nó "
+        + "nằm ngoài luồng <code>docker compose up -d</code> thường lệ. Bật một lần, ở thư mục chứa "
+        + "file compose:<br><code>docker compose --profile update up -d</code><br>"
+        + "Xong tải lại trang là nút hiện ra. Không muốn bật thì vẫn cập nhật tay được: "
+        + "<code>docker compose up -d --pull always</code>."
+        // Chủ repo gõ lệnh trên rồi lãnh "no configuration file provided: not found" - đứng sai
+        // thư mục, vì tên thư mục tuỳ lúc clone (javis hay javis-os). Câu "ở thư mục chứa file
+        // compose" đúng nhưng vô dụng khi người ta KHÔNG BIẾT nó nằm đâu. Docker biết, nên hỏi nó.
+        + "<div class=\"upd-why-sub\">Báo <code>no configuration file provided: not found</code> "
+        + "là đang đứng sai thư mục. Hỏi Docker xem nó nằm đâu:<br>"
+        + "<code>docker ps --format '{{.Names}}\\t{{.Label \"com.docker.compose.project.working_dir\"}}'</code>"
+        + "</div>";
+    }
+    if (maLyDo === "no_token") {
+      return "Bản cài này <b>không kèm Watchtower</b> (stack Hostinger cố tình bỏ - trên đó nó không "
+        + "đụng được Docker socket nên chạy là lỗi vòng lặp). Cập nhật bằng <b>Redeploy</b> trong "
+        + "Hostinger Docker Manager.";
+    }
+    // Rơi vào đây là mode lạ hoặc server cũ chưa trả mã lý do - giữ nguyên câu cũ, đừng đoán bừa.
+    return "↻ Cập nhật bằng <b>Redeploy</b>: Hostinger dùng Docker Manager; VPS chạy "
+      + "<code>docker compose up -d --pull always</code>.";
+  }
+
+  function wireUpdateManager(root, napLai) {
     const q = (id) => root.querySelector("#" + id);
     const progress = (phase, extra) => {
       const box = q("updVerProgress"); if (!box) return;
@@ -641,7 +773,7 @@
       box.style.display = "";
       box.innerHTML = "<b>Bản mới có gì:</b>" + fresh.map(r => {
         const items = (r.sections || []).flatMap(s => s.items || []).slice(0, 3);
-        return `<div style="margin-top:5px">v${esc(r.version)}${r.date ? " · " + esc(r.date) : ""}</div><ul style="margin:2px 0 0 16px;padding:0">${items.map(it => `<li>${esc(it)}</li>`).join("")}</ul>`;
+        return `<div style="margin-top:5px">v${esc(r.version)}${r.date ? " · " + esc(r.date) : ""}</div><ul style="margin:2px 0 0 16px;padding:0">${items.map(it => `<li>${_clInline(it)}</li>`).join("")}</ul>`;
       }).join("");
     };
     const loadVersion = async () => {
@@ -660,7 +792,7 @@
         const base = `🆕 Có bản mới <b>v${esc(j.latest)}</b> (đang chạy v${esc(j.current)}) · ${esc(mode)}`;
         if (j.can_self_update) { meta.innerHTML = base; update.style.display = ""; }
         else {
-          meta.innerHTML = base + '<div style="margin-top:8px;line-height:1.55">↻ Cập nhật bằng <b>Redeploy</b>: Hostinger dùng Docker Manager; VPS chạy <code>docker compose up -d --pull always</code>.</div>';
+          meta.innerHTML = base + '<div class="upd-why">' + _updVimSaoKhongCoNut(j.self_update_off) + "</div>";
           update.style.display = "none";
         }
         loadChanges();
@@ -669,7 +801,15 @@
         update.style.display = "none";
       }
     };
-    const check = q("updVerCheck"); if (check) check.onclick = loadVersion;
+    // Trước bản này nút chỉ gọi loadVersion, tức chỉ vẽ lại KHUNG TRÊN. Danh sách phiên bản
+    // bên dưới chỉ được nạp ĐÚNG MỘT LẦN lúc mở trang, nên bấm "Kiểm tra lại" bao nhiêu lần
+    // cũng không thấy bản mới hiện ra - phải rời trang rồi quay lại, hoặc F5. Chủ repo báo
+    // đúng triệu chứng đó (2026-08-12): "trên bản update anh chưa thấy bản 28".
+    const check = q("updVerCheck");
+    if (check) check.onclick = async () => {
+      await loadVersion();
+      if (typeof napLai === "function") await napLai();
+    };
     const update = q("updVerUpdate");
     if (update) update.onclick = async () => {
       if (!confirm("Cập nhật Javis lên bản mới nhất?\nApp sẽ tự khởi động lại; nếu lỗi hệ thống sẽ thử quay về bản cũ.")) return;
@@ -803,14 +943,29 @@
     @media(hover:none){.fm-row-act{opacity:1}}
     .fm-row-act button{background:var(--surface-2);border:1px solid var(--hairline);color:var(--text3);cursor:pointer;font-size:13px;padding:3px 9px;border-radius:6px;white-space:nowrap} .fm-row-act button:hover{color:var(--text-hi);border-color:rgba(120,180,255,.5)}
     .fm-row-act button.danger:hover{color:var(--red);border-color:rgba(255,120,120,.5)}
-    .fm-modal{position:fixed;inset:0;z-index:9999;display:none;background:rgba(4,8,18,.62);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:24px}
-    .fm-modal.open{display:flex}
-    .fm-modal-card{width:min(920px,94vw);max-height:86vh;display:flex;flex-direction:column;background:var(--panel-solid);border:1px solid rgba(120,180,255,.3);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);overflow:hidden}
-    .fm-vhead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--hairline);color:var(--text);font-size:16px}
-    .fm-vhead b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .fm-vhead button{background:none;border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:6px;cursor:pointer;padding:4px 10px;margin-left:6px} .fm-vhead button:hover{border-color:rgba(120,180,255,.6)}
-    .fm-modal-card textarea{width:100%;flex:1;min-height:56vh;background:var(--field-bg);color:var(--text);border:none;outline:none;padding:14px;font:15px/1.55 ui-monospace,Consolas,monospace;resize:none}
-    .fm-readbox{padding:16px;color:var(--text3);overflow:auto;max-height:70vh}
+    /* Mở file trong trang Tệp tin: trình sửa DÍNH vào đúng khung của trang, không popup nữa.
+       Cùng một node #noteEditor mà trang Trò chuyện vẫn mượn - một trình sửa, một trải nghiệm. */
+    .fm-edit{display:none;position:relative;min-height:0}
+    .fm-page.edit-on{display:flex;flex-direction:column;height:100%}
+    .fm-page.edit-on>.fm-browse{display:none}
+    .fm-page.edit-on>.fm-edit{display:flex;flex:1 1 auto}
+    .fm-edit>.note-editor:not(.ne-full){position:static;inset:auto;z-index:auto;flex:1 1 auto;min-height:0;border:1px solid var(--hairline);border-radius:12px;overflow:hidden}
+    .fm-miss{margin-bottom:12px;padding:11px 13px;border:1px solid rgba(224,160,74,.45);border-radius:10px;background:rgba(224,160,74,.08);color:var(--warn-ink);font-size:13px;line-height:1.55}
+    .fm-miss b{color:var(--text)}
+    .fm-miss-hits{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .fm-miss-hits button{background:var(--surface-2);border:1px solid var(--hairline);color:var(--text2);cursor:pointer;font-size:12.5px;padding:4px 9px;border-radius:6px}
+    .fm-miss-hits button:hover{color:var(--text-hi);border-color:var(--link-ink)}
+    .fm-fix{margin-bottom:12px;padding:12px 14px;border:1px solid rgba(224,160,74,.45);border-radius:10px;background:rgba(224,160,74,.08);color:var(--text2);font-size:13px;line-height:1.6}
+    .fm-fix.xong{border-color:rgba(63,220,134,.45);background:rgba(63,220,134,.08)}
+    .fm-fix b{color:var(--text)}
+    .fm-fix code{background:var(--surface-2);border-radius:4px;padding:1px 5px;font-size:12px}
+    .fm-fix-list{margin:9px 0 2px;max-height:190px;overflow:auto;border:1px solid var(--hairline);border-radius:8px}
+    .fm-fix-row{display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--surface-2);font-size:12.5px;color:var(--text3)}
+    .fm-fix-row:last-child{border-bottom:none}
+    .fm-fix-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
+    .fm-fix-row em{flex:none;font-style:normal;font-size:11.5px;opacity:.8}
+    .fm-fix-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    @media(max-width:700px){.fm-fix-row em{display:none}}
     .si-grid{display:flex;flex-direction:column;gap:14px;max-width:640px}
     .si-field label{display:block;font-size:14px;color:var(--text3);margin-bottom:5px}
     .si-field select,.si-field input,.si-field textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--hairline);background:var(--field-bg);color:var(--text);font-size:15px;outline:none}
@@ -845,10 +1000,25 @@
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
 
+  // Rời trang Tệp tin: TRẢ trình sửa về khoang não trước khi #cviewBody bị ghi đè, y như trang
+  // Trò chuyện vẫn làm. Không trả là mất luôn node #noteEditor, và lần sau mở file ra trắng trơn.
+  function _fmRoiTrang() {
+    document.body.classList.remove("on-files");
+    _fmSauKhiDong = null;
+    _returnNoteEditor();
+  }
+
   async function renderFiles(el) {
     _injectExtraCss();
     let cur = "";
-    el.innerHTML = `<div class="cview-section">
+    // Vào LẠI trang này trong khi trình sửa đang mượn khung của bản render cũ (openFilesAt gọi
+    // thẳng renderPage("files") nên _pageLeave không chạy) → trả node về trước, kẻo el.innerHTML
+    // bên dưới xoá luôn cả trình sửa.
+    if (document.getElementById("fmEdit")) _fmRoiTrang();
+    document.body.classList.add("on-files");
+    _pageLeave = _fmRoiTrang;
+    el.innerHTML = `<div class="fm-page">
+      <div class="cview-section fm-browse">
       <div class="fm-search-tools">
         <div class="vault-search fm-search">
           <span class="vs-ico">${ic("search")}</span>
@@ -873,20 +1043,22 @@
           <button class="s-btn-ghost" id="fmRefresh">↻</button>
         </div>
       </div>
+      <div id="fmFix"></div>
+      <div id="fmMiss"></div>
       <div id="fmList" class="fm-list">Đang tải...</div>
-    </div>
-    <div id="fmModal" class="fm-modal"><div class="fm-modal-card" id="fmModalCard"></div></div>`;
+      </div>
+      <div class="fm-edit" id="fmEdit"></div>
+    </div>`;
     const listEl = el.querySelector("#fmList"), crumbEl = el.querySelector("#fmCrumb");
     const searchInput = el.querySelector("#fmSearch"), searchClear = el.querySelector("#fmSearchClear");
-    const searchMeta = el.querySelector("#fmSearchMeta");
-    const modal = el.querySelector("#fmModal"), card = el.querySelector("#fmModalCard");
-    const closeModal = () => modal.classList.remove("open");
-    modal.onclick = (e) => { if (e.target === modal) closeModal(); };
-    const TEXT_EDIT_EXTS = [".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".js", ".ts", ".py", ".html", ".css", ".toml", ".ini", ".log", ".sh", ".bat", ".xml", ".svg", ".env"];
+    const searchMeta = el.querySelector("#fmSearchMeta"), missEl = el.querySelector("#fmMiss");
+    const fixEl = el.querySelector("#fmFix");
+    const TEXT_EDIT_EXTS = VT_TEXT_EXTS;   // một danh sách duy nhất với trình sửa - hai bản sao là hai luật lệch nhau
     const IMG_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico"];   // .svg = sửa text
     // URL tĩnh phục vụ file inline (ảnh hiện, pdf mở tab). dl=1 → ép tải về.
     const rawUrl = (rel, dl) => `/files/raw?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}${dl ? "&dl=1" : ""}`;
     let searchMode = "name", searchTimer = null, searchSeq = 0;
+    let homeRel = "";   // tiền tố nhà brain (server trả trong /files/list) - để cắt cho gọn khi hiện đường dẫn
 
     function resetSearchUi() {
       if (searchTimer) clearTimeout(searchTimer);
@@ -901,24 +1073,127 @@
     async function load(path) {
       // path === undefined → điểm vào mặc định (brain); "" = trần (ổ đĩa); chuỗi = tương đối trần
       resetSearchUi();
+      missEl.innerHTML = "";
       listEl.innerHTML = "Đang tải...";
       const qp = (path === undefined || path === null) ? "" : `&path=${encodeURIComponent(path)}`;
       let resp, d;
       try { resp = await fetch(`/files/list?brain=${encodeURIComponent(fbrain())}${qp}`); d = await resp.json().catch(() => ({})); }
-      catch (e) { listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">Lỗi kết nối: ${esc(e.message)}</div>`; return; }
+      catch (e) { listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">Lỗi kết nối: ${esc(e.message)}</div>`; return null; }
       if (!resp.ok || d.error) {
         const msg = d.error || (resp.status === 404
           ? "Máy chủ Javis chưa có chức năng Tệp tin - hãy KHỞI ĐỘNG LẠI server (stop-javis.bat → start-javis.vbs) rồi tải lại trang."
           : resp.status === 401 ? "Phiên đăng nhập hết hạn - tải lại trang & đăng nhập."
           : "Lỗi máy chủ (" + resp.status + ").");
-        listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${WARN_ICON} ${esc(msg)}</div>`; return;
+        listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${WARN_ICON} ${esc(msg)}</div>`;
+        // Server cũ trả 400 "Không phải thư mục" khi path trỏ vào FILE. Đừng để người dùng đứng
+        // trước một trang trống: lùi về thư mục cha rồi soi sáng đúng file đó.
+        const lui = String(path || "");
+        if (resp.status === 400 && lui.includes("/")) {
+          const ten = lui.split("/").pop();
+          const d2 = await load(lui.slice(0, lui.lastIndexOf("/")));
+          if (d2) revealFile(ten);
+          return d2;
+        }
+        return null;
       }
-      cur = d.path || ""; upTarget = d.parent;
+      cur = d.path || ""; upTarget = d.parent; homeRel = d.home || homeRel;
       const upBtn = el.querySelector("#fmUp"); if (upBtn) upBtn.style.display = (upTarget === null || upTarget === undefined) ? "none" : "";
       crumb(d.root);
       const items = d.items || [];
-      if (!items.length) { listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">Thư mục trống.</div>`; return; }
-      listEl.innerHTML = ""; items.forEach(it => listEl.appendChild(row(it)));
+      if (!items.length) listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">Thư mục trống.</div>`;
+      else { listEl.innerHTML = ""; items.forEach(it => listEl.appendChild(row(it))); }
+      // Link trỏ vào chỗ không có gì: nói rõ đã tìm cái gì, đang đứng ở đâu, rồi tự đi tìm theo
+      // TÊN (server khớp cả khi lệch dấu tiếng Việt) - tên trong chat hay khác tên trên đĩa.
+      if (d.missing) khongThayFile(d.missing, d.home);
+      return d;
+    }
+    // Đi tìm file mà một đường dẫn hụt đang nhắm tới, rồi bày ra cho bấm một phát là mở.
+    // Đường dẫn hiện cho người đọc luôn cắt tiền tố nhà brain: "06 - Sources/x.md" là thứ họ
+    // thấy trong chat, còn "home/user/.../brains/Brain Default/06 - Sources/x.md" chỉ tổ rối mắt.
+    const trongBrain = (p, home) => {
+      const h = String(home || "").replace(/\/+$/, "");
+      const s = String(p || "");
+      return h && s.indexOf(h + "/") === 0 ? s.slice(h.length + 1) : s;
+    };
+    async function khongThayFile(missing, home) {
+      const ten = String(missing).split("/").pop() || missing;
+      missEl.innerHTML = `<div class="fm-miss">${WARN_ICON} Không có <b>${esc(trongBrain(missing, home))}</b> trong brain này.
+        Đang mở thư mục gần nhất còn tồn tại. <span id="fmMissWait">Đang tìm file tên giống…</span>
+        <div class="fm-miss-hits" id="fmMissHits"></div></div>`;
+      let items = [];
+      try {
+        const r = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}&q=${encodeURIComponent(ten)}&mode=name&limit=8`);
+        items = ((await r.json()) || {}).items || [];
+      } catch (e) {}
+      const wait = missEl.querySelector("#fmMissWait"), hits = missEl.querySelector("#fmMissHits");
+      if (!wait || !hits) return;
+      if (!items.length) { wait.textContent = "Không tìm thấy file nào tên gần giống."; return; }
+      wait.textContent = items.length === 1 ? "Có lẽ là file này:" : "Có lẽ là một trong các file này:";
+      items.forEach(it => {
+        const b = document.createElement("button");
+        b.innerHTML = `${_fileIcon(it.ext || "")} ${esc(trongBrain(it.path, home) || it.name)}`;
+        b.onclick = () => moTrongTrang(it.path, { name: it.name, ext: it.ext || "", type: "file" });
+        hits.appendChild(b);
+      });
+    }
+    // ---- Chữa file .md bị bản cũ (<= 0.33.3) làm hỏng ----------------------------------
+    // Lưu note qua trình sửa trực quan hồi đó phá khối `---` đầu note và dồn dấu gạch chéo.
+    // Người dùng KHÔNG có cách nào tự biết là file mình hỏng, và cũng không có lý do gì phải
+    // đi tìm một nút "sửa" mà họ không biết là tồn tại. Nên: tự soi một lần khi vào trang, im
+    // lặng nếu mọi thứ lành, và chỉ lên tiếng khi có thứ thật sự cần chữa.
+    async function soiMdHong() {
+      let items = [];
+      try {
+        const r = await fetch(`/files/md-hong?brain=${encodeURIComponent(fbrain())}`);
+        if (!r.ok) return;                                  // server cũ chưa có -> im lặng
+        items = ((await r.json()) || {}).items || [];
+      } catch (e) { return; }
+      if (!items.length || !fixEl.isConnected) return;
+      veBangSua(items);
+    }
+    function veBangSua(items) {
+      const n = items.length;
+      fixEl.innerHTML = `<div class="fm-fix">${WARN_ICON}
+        <b>${n} file .md còn dấu vết hỏng từ bản cũ.</b>
+        Bản Javis trước 0.33.4 lưu note qua trình sửa trực quan là làm hỏng khối thuộc tính
+        (<code>---</code> đầu note thành <code>* * *</code>) và dồn dấu gạch chéo vào chữ.
+        Bản này đã bịt đường đó; mấy file lỡ hỏng thì chữa lại một lần là xong.
+        <div class="fm-fix-list" id="fmFixList"></div>
+        <div class="fm-fix-act">
+          <button class="s-btn" id="fmFixGo">Chữa hết ${n} file</button>
+          <button class="s-btn-ghost" id="fmFixNo">Để sau</button>
+        </div></div>`;
+      const ds = fixEl.querySelector("#fmFixList");
+      items.slice(0, 12).forEach(it => {
+        const d = document.createElement("div");
+        d.className = "fm-fix-row";
+        d.innerHTML = `${_fileIcon(".md")} <span>${esc(trongBrain(it.path, homeRel))}</span><em>${esc(it.mo_ta || "")}</em>`;
+        ds.appendChild(d);
+      });
+      if (n > 12) {
+        const d = document.createElement("div");
+        d.className = "fm-fix-row"; d.textContent = `… và ${n - 12} file nữa`;
+        ds.appendChild(d);
+      }
+      fixEl.querySelector("#fmFixNo").onclick = () => { fixEl.innerHTML = ""; };
+      fixEl.querySelector("#fmFixGo").onclick = async (ev) => {
+        const b = ev.currentTarget; b.disabled = true; b.textContent = "Đang chữa…";
+        let d = {};
+        try {
+          const fd = new FormData();
+          fd.append("brain", fbrain());
+          fd.append("paths", JSON.stringify(items.map(x => x.path)));
+          d = await (await fetch("/files/md-hong/sua", { method: "POST", body: fd })).json();
+        } catch (e) { d = { error: e.message }; }
+        const xong = (d.da_sua || []).length, hong = (d.loi || []).length;
+        // Nói đúng số thật, kể cả khi có file chữa không xong - im lặng nuốt phần hỏng là
+        // để người dùng tưởng đã sạch trong khi chưa.
+        fixEl.innerHTML = `<div class="fm-fix${hong || d.error ? "" : " xong"}">${hong || d.error ? WARN_ICON : CHECK_ICON}
+          ${d.error ? `Không chữa được: ${esc(d.error)}`
+            : `Đã chữa <b>${xong} file</b>.${hong ? ` Còn <b>${hong} file</b> không ghi được - xem quyền ghi của thư mục brain.` : " Mở lại note là thấy khối thuộc tính về đúng chỗ."}`}
+        </div>`;
+        if (xong) load(cur);
+      };
     }
     function crumb(rootName) {
       const parts = cur ? cur.split("/") : []; let acc = "";
@@ -996,7 +1271,7 @@
         <span class="fm-search-kind">${esc(match)}</span>
         <span class="fm-row-act"><button data-act="open">Mở</button><button data-act="dl" title="Tải file về máy">⤓ Tải</button><button data-act="loc">Vị trí</button></span>`;
       const openHit = () => {
-        if (editable || viewable) openFile(it.path, target);
+        if (editable || viewable) moTrongTrang(it.path, target);
         else window.open(rawUrl(it.path), "_blank");
       };
       div.querySelector(".fm-search-main").onclick = openHit;
@@ -1033,12 +1308,12 @@
         <span class="fm-row-act">${acts}</span>`;
       // Click TÊN: thư mục → mở vào; ảnh/pdf/text → xem trước; file khác → mở tab mới.
       const nameGo = it.type === "dir" ? () => load(rel)
-        : (editable || viewable) ? () => openFile(rel, it)
+        : (editable || viewable) ? () => moTrongTrang(rel, it)
         : () => window.open(rawUrl(rel), "_blank");
       div.querySelector(".fm-name").onclick = nameGo; div.querySelector(".fm-ico").onclick = nameGo;
       div.querySelectorAll("[data-act]").forEach(b => b.onclick = (e) => {
         e.stopPropagation(); const a = b.dataset.act;
-        if (a === "edit" || a === "view") openFile(rel, it);
+        if (a === "edit" || a === "view") moTrongTrang(rel, it);
         else if (a === "open") window.open(rawUrl(rel), "_blank");
         else if (a === "dl") _dlFile(rel);
         else if (a === "zip") _dlFolder(rel, it.name);
@@ -1047,45 +1322,22 @@
       });
       return div;
     }
-    async function openFile(rel, it) {
-      modal.classList.add("open");
-      const _raw = rawUrl(rel), _ext = it.ext || "";
-      const _vhead = `<div class="fm-vhead"><b>${esc(it.name)}</b><span><a href="${_raw}" target="_blank"><button>↗ Tab mới</button></a> <a href="${rawUrl(rel, 1)}"><button title="Tải file về máy">⤓ Tải</button></a> <button id="fmVClose">${X_ICON}</button></span></div>`;
-      // Ảnh / PDF: xem trước ngay qua /files/raw (không cần đọc dạng text).
-      if (IMG_EXTS.includes(_ext)) {
-        card.innerHTML = _vhead + `<div class="fm-readbox" style="text-align:center;overflow:auto"><img src="${_raw}" alt="${esc(it.name)}" style="max-width:100%;height:auto;border-radius:8px"></div>`;
-        card.querySelector("#fmVClose").onclick = closeModal; return;
-      }
-      if (_ext === ".pdf") {
-        card.innerHTML = _vhead + `<iframe src="${_raw}" style="width:100%;height:72vh;border:0;background:#fff"></iframe>`;
-        card.querySelector("#fmVClose").onclick = closeModal; return;
-      }
-      card.innerHTML = `<div class="fm-vhead"><b>${esc(it.name)}</b><button id="fmVClose">${X_ICON}</button></div><div class="fm-readbox">Đang mở...</div>`;
-      card.querySelector("#fmVClose").onclick = closeModal;
-      let resp, d;
-      try { resp = await fetch(`/files/read?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}`); d = await resp.json().catch(() => ({})); }
-      catch (e) { card.querySelector(".fm-readbox").innerHTML = `<span style="color:var(--red)">Lỗi: ${esc(e.message)}</span>`; return; }
-      const dlUrl = `/files/download?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}`;
-      if (!resp.ok || d.error) {
-        const m = d.error || (resp.status === 404 ? "Server chưa có chức năng Tệp tin - khởi động lại server Javis."
-          : resp.status === 401 ? "Hết phiên đăng nhập - tải lại trang." : "Lỗi (" + resp.status + ")");
-        card.querySelector(".fm-readbox").innerHTML = `<span>${esc(m)} - <a href="${_raw}" target="_blank" style="color:var(--link-ink)">Mở trong tab mới</a> · <a href="${rawUrl(rel, 1)}" style="color:var(--link-ink)">Tải về</a></span>`;
-        return;
-      }
-      // Nút Tải luôn có, kể cả file đang sửa được (.md...) - trước đây file sửa được chỉ có nút Lưu.
-      const dlBtn = `<a href="${dlUrl}"><button title="Tải file về máy">⤓ Tải</button></a>`;
-      const head = `<div class="fm-vhead"><b>${esc(d.name)}</b><span>${d.editable ? '<button id="fmSave">' + SAVE_ICON + ' Lưu</button>' : ""}${dlBtn}<button id="fmVClose">${X_ICON}</button></span></div>`;
-      if (d.editable) {
-        card.innerHTML = head + `<textarea id="fmText" spellcheck="false">${esc(d.content)}</textarea>`;
-        card.querySelector("#fmSave").onclick = async () => {
-          const f = new FormData(); f.append("brain", fbrain()); f.append("path", rel); f.append("content", card.querySelector("#fmText").value);
-          const r = await (await fetch("/files/write", { method: "POST", body: f })).json();
-          const b = card.querySelector("#fmSave"); b.innerHTML = r.ok ? CHECK_ICON + " Đã lưu" : WARN_ICON + " Lỗi"; setTimeout(() => b.innerHTML = SAVE_ICON + " Lưu", 1500);
-        };
-      } else {
-        card.innerHTML = head + `<div class="fm-readbox"><pre style="white-space:pre-wrap;margin:0;color:var(--text)">${esc(d.content || "")}</pre></div>`;
-      }
-      card.querySelector("#fmVClose").onclick = closeModal;
+    // Mở file NGAY TRONG TRANG, bằng ĐÚNG trình sửa của khung chat (#noteEditor) - không popup nữa.
+    //
+    // Popup cũ (.fm-modal) là một trình sửa thứ hai, nghèo hơn hẳn: một ô textarea trần, không
+    // WYSIWYG, không thanh định dạng, không Lùi/Tiến, không đổi tên/xoá, không phóng to. Mở cùng
+    // MỘT file .md từ chat và từ trang Tệp tin lại ra hai trải nghiệm khác hẳn nhau (chủ repo báo
+    // 2026-08-13). Nay mượn chính node trình sửa kia, y như cách trang Trò chuyện vẫn mượn.
+    function moTrongTrang(rel, it) {
+      const slot = el.querySelector("#fmEdit");
+      if (!slot) { window.open(rawUrl(rel), "_blank"); return; }
+      const ten = (it && it.name) || String(rel).split("/").pop();
+      // Đuôi file suy từ TÊN khi người gọi không đưa: openNote chọn nhánh (soạn thảo / xem ảnh /
+      // tải về) theo đuôi, thiếu đuôi là file .md cũng rơi vào cửa "hãy tải về".
+      const duoi = (it && it.ext) || (ten.includes(".") ? "." + ten.split(".").pop().toLowerCase() : "");
+      _fmSauKhiDong = () => { load(cur); };   // đóng trình sửa → danh sách khớp lại (file có thể vừa đổi tên/xoá)
+      _borrowNoteEditor(slot);
+      openNote(rel, { name: ten, ext: duoi, type: "file" });
     }
     async function doRename(rel, oldname) {
       const nn = prompt("Tên mới:", oldname); if (!nn || nn === oldname) return;
@@ -1154,12 +1406,20 @@
       try { const d = await (await fetch(`/files/list?brain=${encodeURIComponent(fbrain())}`)).json(); home = d.home || ""; }
       catch (e) {}
       const full = brainRelDir ? (home ? home + "/" + brainRelDir : brainRelDir) : (home || undefined);
-      await load(full);
-      if (fileName) revealFile(fileName);
+      const d = await load(full);
+      // Đường dẫn hoá ra trỏ vào một FILE (server trả `focus` kèm thư mục cha): đó là thứ người
+      // dùng nhắm tới, nên MỞ THẲNG ra sửa. Đây chính là cú bấm "tưởng là thư mục" - trước đây
+      // nó rơi vào một trang trống ghi "Không phải thư mục".
+      if (d && d.focus) { revealFile(d.focus); moTrongTrang(cur ? cur + "/" + d.focus : d.focus, { name: d.focus }); return; }
+      if (!fileName) return;
+      revealFile(fileName);
+      // Có tên file mà thư mục này không chứa nó → cũng là một link trỏ hụt, đi tìm cho ra.
+      if (!listEl.querySelector(".fm-row.fm-target")) khongThayFile(brainRelDir ? brainRelDir + "/" + fileName : fileName);
     }
     const pend = _fmPending; _fmPending = null;
     if (pend) openVaultTarget(pend.dir, pend.file);
     else load();   // undefined → điểm vào mặc định = brain (dù trần duyệt có thể là cả ổ đĩa)
+    soiMdHong();   // chạy nền: im lặng nếu không có file nào hỏng
   }
 
   // ============================================
@@ -2633,7 +2893,9 @@
     // nằm chễm chệ trên cùng. Một request cục bộ, rẻ.
     let claudeOn = false;
     try { claudeOn = !!(await (await fetch("/claude/status")).json()).connected; } catch (e) {}
-    const provOn = (p) => (p.kind === "cli" ? claudeOn : !!p.configured);
+    // kind "cli" nay có HAI bộ não (Claude Code, Gemini CLI). Chỉ Claude mới phải hỏi
+    // /claude/status; Gemini CLI đã có `configured` thật từ server (đọc file đăng nhập).
+    const provOn = (p) => (p.id === "anthropic-cli" ? claudeOn : !!p.configured);
     const provList = providers.map((p, i) => ({ p, i }))
       .sort((a, b) => (provOn(b.p) - provOn(a.p)) || (a.i - b.i))
       .map(x => x.p);
@@ -2684,7 +2946,76 @@
           </div>
         </div>`;
       }
+      if (p.id === "antigravity-cli") {
+        // Bộ não thứ 10. Không có nút "Đăng nhập" ở đây và đó là quyết định có lý do: đăng nhập
+        // của `agy` là một giao diện bàn phím trong terminal, token thì nằm trong keyring hệ
+        // điều hành chứ không phải file. Bản 0.30-0.32.1 có thử lái luồng đó qua một terminal
+        // giả - chạy được trên Linux nhưng trên trang hiện ra một ô terminal bấm không ăn, còn
+        // Windows không có pseudo-terminal nên luôn tắc. Người dùng `agy` vốn là dân code, gõ
+        // một lệnh nhanh hơn hẳn. Nên thẻ này chỉ đưa đúng lệnh cần gõ.
+        const dn = p.dang_nhap || {};
+        const st = on
+          ? "● Đã đăng nhập" + (p.auth_method ? " · " + esc(p.auth_method) : "")
+            + " · " + p.models.length + " model"
+          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Antigravity CLI");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP/skill", st)}
+          <div class="prov-note">Dùng <b>gói Google của anh</b>, không cần mua API key. Đây là
+            bản Google chỉ định thay cho Gemini CLI, và cho chọn <b>đúng dàn model của
+            Antigravity IDE</b> - gồm cả model không phải của Google.</div>
+          ${p.cli_found ? "" : `<div class="prov-steps">
+            <div>Chưa thấy CLI trên máy. Cài một lần trên máy chạy Javis:<br><code>${esc(p.cai_lenh || "")}</code></div>
+          </div>`}
+          ${on ? "" : `<div class="prov-steps">
+            <div><b>Đăng nhập trong terminal của máy chạy Javis:</b> <code>${esc(dn.dang_nhap || "agy")}</code></div>
+            <div>${esc(dn.ghi_chu || "")}</div>
+            <div>Xong rồi bấm <b>Kiểm tra lại</b> ở dưới.</div>
+          </div>`}
+          <div class="prov-action" style="flex-wrap:wrap">
+            <button class="gcard-btn ghost" data-agycheck="1">Kiểm tra lại</button>
+            <span id="agyMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
+          </div>
+        </div>`;
+      }
+      if (p.id === "gemini-cli") {
+        // Gemini CLI: đăng nhập bằng tài khoản Google, KHÔNG cần mua API key. Không có nút
+        // "Đăng nhập" ở đây là cố ý - luồng đăng nhập của nó là giao diện bàn phím trong
+        // terminal rồi mở trình duyệt, không có cờ headless nào để bọc cho tử tế. Dựng một
+        // cái nút chỉ chạy được trên máy có màn hình thì trên VPS nó là nút chết.
+        const st = on
+          ? "● Đã đăng nhập Google" + (p.account ? " · " + esc(p.account) : "")
+            + (p.auth_method ? " · " + esc(p.auth_method) : "") + " · " + p.models.length + " model"
+          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Gemini CLI");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP/skill", st)}
+          <div class="prov-note warn"><b>Google đã ngắt đường này với tài khoản cá nhân từ 18/06/2026</b>
+            - cả gói miễn phí, Google AI Pro lẫn Ultra. Đăng nhập vẫn xong nhưng lúc chat sẽ báo
+            <code>IneligibleTierError</code>. Chặn từ phía Google, không sửa được bên Javis.
+            Thẻ này giờ chỉ còn dùng được với <b>giấy phép Code Assist doanh nghiệp</b> hoặc khi
+            chạy CLI bằng API key.</div>
+          <div class="prov-steps">
+            <div><b>Muốn dùng model Gemini thì đi đường khác:</b> thẻ <b>OpenRouter</b> (nhiều model
+              một chỗ, có cả Gemini lẫn Claude - gần nhất với trình chọn model của Antigravity),
+              hoặc thẻ <b>Google Gemini (API)</b> bên dưới.</div>
+          </div>
+          ${p.cli_found ? "" : `<div class="prov-steps">
+            <div>Chưa thấy CLI trên máy. Cài tay: <code>npm install -g @google/gemini-cli</code></div>
+          </div>`}
+          <div class="prov-action" style="flex-wrap:wrap">
+            ${on
+              ? (p.auth_by_javis ? `<button class="gcard-btn ghost" data-glogout="1">Ngắt</button>` : "")
+              : `<button class="gcard-btn" data-glogin="1">Đăng nhập Google</button>`}
+            <button class="gcard-btn ghost" data-gcheck="1">Kiểm tra lại</button>
+            <span id="gcliMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
+          </div>
+          <div id="gcliLogin"></div>
+        </div>`;
+      }
       if (p.kind === "cli") {   // Claude Code - trạng thái + login/logout nạp động qua /claude/status
+        // Ô chọn nguồn xác thực. Cả hai lựa chọn giữ NGUYÊN năng lực (Bash, WebFetch, MCP, nối
+        // phiên cũ); khác nhau ở chỗ ai trả tiền và ai chịu rủi ro. Javis cố ý không tắt cứng
+        // đường subscription - chủ máy tự cân, nhưng phải cân khi đã BIẾT, nên có cảnh báo.
+        const byKey = p.auth_mode === "api_key";
         return `<div class="prov-card ${p.is_main ? "main" : ""}">
           <div class="prov-head">
             <span class="prov-shield on">${_shield(true)}</span>
@@ -2695,6 +3026,20 @@
             ${p.is_main ? '<span class="prov-badge">MAIN</span>' : ""}
           </div>
           <div class="prov-action" id="cliAction"></div>
+          <div class="prov-auth">
+            <div class="prov-auth-title">Chạy bằng</div>
+            <div class="prov-auth-note">Ô này chỉ đổi <b>ai trả tiền</b>. Cả hai đều chạy qua
+              Claude Code nên <b>giữ nguyên lệnh máy, WebFetch, MCP native và nối phiên cũ</b> -
+              khác hẳn thẻ "Anthropic (API)" bên dưới, thẻ đó gọi API thẳng nên không chạy được
+              lệnh máy.</div>
+            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="subscription" ${byKey ? "" : "checked"}>
+              <span><b>Gói đang đăng nhập</b> - không tốn thêm tiền. Hợp với một người dùng cá nhân ngồi gõ.</span></label>
+            <label class="prov-auth-opt"><input type="radio" name="claudeAuth" value="api_key" ${byKey ? "checked" : ""}>
+              <span><b>API key Anthropic</b> - trả theo lượt dùng. Đây là cách duy nhất để việc nền
+              (loop, nhắc hẹn, Kanban) chạy <b>vừa hợp lệ vừa còn lệnh máy</b>.
+              ${p.auth_api_key_set ? "" : ` <i>Chưa có key: dán ở thẻ "${esc("Anthropic (API)")}" bên dưới - dán xong quay lại đây chọn ô này.</i>`}</span></label>
+            ${p.auth_warning ? `<div class="prov-auth-warn">${WARN_ICON} ${esc(p.auth_warning)}</div>` : ""}
+          </div>
         </div>`;
       }
       const masked = (m[KEYFIELD[p.id]] || "").slice(-4);
@@ -2711,7 +3056,8 @@
         <h3>◆ Main Model <span style="opacity:.5">model chính cho hội thoại</span></h3>
         <div class="gcard current" style="max-width:540px">
           <div class="gcard-top"><span class="gcard-name">${esc(main.model || "-")}</span><span class="gcard-tag">${esc(mainP.label || main.provider || "")}</span></div>
-          <div class="gcard-meta">${mainP.kind === "cli" ? "Qua Claude Code - MCP Javis + skill + loop + chạy lệnh máy"
+          <div class="gcard-meta">${mainP.id === "gemini-cli" ? "Qua Gemini CLI - MCP Javis + skill + loop + chạy lệnh máy (đăng nhập Google)"
+            : mainP.kind === "cli" ? "Qua Claude Code - MCP Javis + skill + loop + chạy lệnh máy"
             : mainP.kind === "oauth" ? "Qua Codex - MCP Javis + skill + loop + chạy lệnh máy"
             : mainP.kind === "api" ? "Gọi API thẳng - MCP Javis + skill + loop (không chạy lệnh máy)" : ""}</div>
           <button class="gcard-btn" id="mdChange">Đổi model ▾</button>
@@ -2750,6 +3096,15 @@
 
     const chg = document.getElementById("mdChange");
     if (chg) chg.onclick = () => openModelPicker(provList, main, () => renderModels(el));
+    // Nguồn xác thực của gói Claude Code. Vẽ lại cả trang sau khi lưu vì cảnh báo phụ thuộc
+    // cả lựa chọn này LẪN model việc nền - chỉ server mới ghép được hai thứ đó.
+    el.querySelectorAll('input[name="claudeAuth"]').forEach((r) => {
+      r.onchange = async () => {
+        if (!r.checked) return;
+        await saveSetting("model", { claude_auth: r.value });
+        renderModels(el);
+      };
+    });
     const auxChg = document.getElementById("auxChange");
     if (auxChg) auxChg.onclick = () => openModelPicker(provList, { provider: auxProv, model: aux }, () => renderModels(el), {
       title: "MODEL VIỆC NỀN",
@@ -2787,25 +3142,115 @@
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");
     if (ob) ob.onclick = () => startOauthBrowser(el);
+    const gl = el.querySelector("[data-glogin]");
+    if (gl) gl.onclick = () => startGeminiLogin(el);
+    const glo = el.querySelector("[data-glogout]");
+    if (glo) glo.onclick = async () => {
+      if (!confirm("Ngắt tài khoản Google khỏi Javis?")) return;
+      glo.disabled = true; glo.textContent = "Đang ngắt...";
+      try { await fetch("/gemini-cli/logout", { method: "POST" }); } catch (e) {}
+      _daHoiModel.delete("gemini-cli");
+      renderModels(el);
+    };
+    const gk = el.querySelector("[data-gcheck]");
+    if (gk) gk.onclick = async () => {
+      const msg = el.querySelector("#gcliMsg");
+      gk.disabled = true; const cu = gk.textContent; gk.textContent = "Đang thử…";
+      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
+      let r = null;
+      try { r = await (await fetch("/gemini-cli/check", { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      gk.disabled = false; gk.textContent = cu;
+      if (r && r.ok) {
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
+        _daHoiModel.delete("gemini-cli");
+        setTimeout(() => renderModels(el), 700);
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
+    };
+    const agk = el.querySelector("[data-agycheck]");
+    if (agk) agk.onclick = async () => {
+      const msg = el.querySelector("#agyMsg");
+      agk.disabled = true; const cu2 = agk.textContent; agk.textContent = "Đang thử…";
+      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
+      let r = null;
+      try { r = await (await fetch("/antigravity/check", { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      agk.disabled = false; agk.textContent = cu2;
+      if (r && r.ok) {
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
+        _daHoiModel.delete("antigravity-cli");
+        setTimeout(() => renderModels(el), 700);
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
+    };
     const od = el.querySelector("[data-oauth-disc]");
     if (od) od.onclick = async () => {
       od.disabled = true; od.textContent = "Đang ngắt...";
       try { await fetch("/oauth/openai/disconnect", { method: "POST" }); } catch (e) {}
+      _daHoiModel.delete("openai-oauth");
       renderModels(el);
     };
     refreshClaudeCard(el);   // nạp trạng thái đăng nhập Claude Code (bất đồng bộ)
+    hoiModelConNo(el, provList);   // thẻ "0 model" của provider đã kết nối: hỏi danh sách thật
+  }
+
+  // Provider nào ĐÃ kết nối mà thẻ vẫn hiện "0 model" thì đi hỏi danh sách thật ngay tại đây.
+  //
+  // Vì sao cần: con số trên thẻ đọc từ `model.catalog` trong settings, mà catalog chỉ được ghi
+  // SAU một lần lấy live thành công. ChatGPT không có catalog mặc định (danh sách model do
+  // Codex quyết, Javis cố ý không ghim version), nên trên máy mới đăng nhập xong là thẻ hiện
+  // "● Đã kết nối · 0 model" và nằm im như vậy cho tới khi ai đó mở hộp chọn model - trông y
+  // hệt đăng nhập hỏng. Máy cũ không thấy lỗi này chỉ vì catalog đã có sẵn từ lần trước.
+  const _daHoiModel = new Set();   // hỏi HỤT thì thôi, không quay vòng vô tận
+  async function hoiModelConNo(el, provList) {
+    const rong = (provList || []).filter(p => p.configured && !(p.models || []).length
+                                              && !_daHoiModel.has(p.id));
+    if (!rong.length) return;
+    let coThem = false;
+    for (const p of rong) {
+      _daHoiModel.add(p.id);
+      try {
+        const r = await (await fetch("/provider/models?provider=" + encodeURIComponent(p.id) + "&refresh=1")).json();
+        // `live` = vừa lấy được thật và server đã ghi vào catalog → vẽ lại là con số đúng.
+        if (r && r.live && r.models && r.models.length) coThem = true;
+        else if (r && r.error) {
+          const box = el.querySelector("#oauthMsg");
+          if (box && p.kind === "oauth" && !box.textContent.trim()) box.innerHTML = Icons.warn(r.error);
+        }
+      } catch (e) {}
+    }
+    if (coThem && el.isConnected) renderModels(el);
   }
 
   // ---- Card Claude Code: status + login/logout (giống OpenAI OAuth) ----
-  async function refreshClaudeCard(el) {
+  async function refreshClaudeCard(el, ep) {
     const st = el.querySelector("#cliStatus"), act = el.querySelector("#cliAction");
     if (!st || !act) return;
     let d;
-    try { d = await (await fetch("/claude/status")).json(); }
+    try { d = await (await fetch("/claude/status" + (ep ? "?refresh=1" : ""))).json(); }
     catch (e) { st.textContent = "không kiểm tra được"; return; }
+    // KHÔNG hỏi được KHÁC hẳn "chưa đăng nhập", và trước bản này hai thứ đó vẽ y như nhau: một
+    // lần hết giờ (hay gặp lúc đổi Main Model, khi trang cùng lúc gọi mấy tiến trình con) là
+    // thẻ bày ra nút Đăng nhập, người dùng tưởng mất tài khoản rồi đi nối lại - trong khi
+    // chẳng có gì mất cả (chủ repo báo 2026-08-13). Chưa biết thì nói là chưa biết.
+    if (!d.connected && d.unknown) {
+      st.className = "prov-status";
+      st.textContent = "◐ Chưa kiểm được trạng thái" + (d.error ? " · " + d.error : "");
+      act.innerHTML = `
+        <button class="gcard-btn ghost" id="cliRecheck">↻ Kiểm tra lại</button>
+        <button class="gcard-btn ghost" id="cliLogin">Đăng nhập Claude</button>
+        <span id="cliMsg" class="gcard-meta" style="margin-left:10px;flex:1"></span>
+        <div class="prov-note" style="margin-top:8px;line-height:1.6">
+          Chưa hỏi được Claude Code lần này (thường là máy đang bận). <b>Không có nghĩa là bạn bị
+          đăng xuất</b> - bấm Kiểm tra lại trước khi nghĩ tới chuyện đăng nhập lại.
+        </div>`;
+      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
+      el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
+      return;
+    }
     if (d.connected) {
       st.className = "prov-status on";
-      st.textContent = "● Đã kết nối" + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "");
+      st.textContent = "● Đã kết nối" + (d.email ? " · " + d.email : "") + (d.plan ? " · " + d.plan : "")
+        + (d.stale ? " · (chưa hỏi lại được, đang hiện trạng thái lần trước)" : "");
       act.innerHTML = `<button class="gcard-btn ghost" id="cliLogout">Ngắt</button>`;
       el.querySelector("#cliLogout").onclick = async () => {
         const b = el.querySelector("#cliLogout"); b.disabled = true; b.textContent = "Đang ngắt…";
@@ -2824,7 +3269,7 @@
           Chạy được cả trên VPS. (Hoặc terminal: <code>claude auth login --claudeai</code>.)
         </div>`;
       el.querySelector("#cliLogin").onclick = () => startClaudeLogin(el);
-      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el);
+      el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
     }
   }
 
@@ -2871,6 +3316,55 @@
     };
   }
 
+  // ---- Gemini CLI: đăng nhập Google ngay trên trang, không phải mở terminal ----
+  // Dùng đúng đường "mã dán" của chính Gemini CLI: Google redirect về trang codeassist của họ,
+  // trang đó HIỆN RA một mã cho người dùng chép. Không có localhost nào ở giữa nên chạy được
+  // cả khi Javis nằm trên VPS còn trình duyệt ở máy người dùng - y như đăng nhập Claude Code.
+  async function startGeminiLogin(el) {
+    const hop = el.querySelector("#gcliLogin");
+    const msg = el.querySelector("#gcliMsg");
+    if (msg) msg.textContent = "Đang lấy link đăng nhập…";
+    let r;
+    try { r = await (await fetch("/gemini-cli/login-start", { method: "POST" })).json(); }
+    catch (e) { if (msg) msg.textContent = "Lỗi mạng."; return; }
+    if (!r.ok || !r.authorize_url) {
+      if (msg) msg.innerHTML = Icons.warn(r.error || "Không bắt đầu được đăng nhập.");
+      return;
+    }
+    if (msg) msg.textContent = "";
+    try { window.open(r.authorize_url, "_blank"); } catch (e) {}
+    if (hop) hop.innerHTML = `
+      <div class="prov-steps">
+        <div><b>1)</b> Mở link này rồi đăng nhập bằng tài khoản Google của anh:<br>
+          <a href="${esc(safeHref(r.authorize_url))}" target="_blank" rel="noopener"
+             style="color:var(--link-ink);word-break:break-all">${esc(r.authorize_url.slice(0, 90))}…</a></div>
+        <div><b>2)</b> Đồng ý xong, Google hiện ra <b>một mã</b>. Chép mã đó dán vào đây:</div>
+        <div class="gcli-code-row">
+          <input class="js-input" id="gcliCode" placeholder="Dán mã Google vừa hiện" autocomplete="off"
+                 spellcheck="false">
+          <button class="gcard-btn" id="gcliCodeBtn">Xong</button>
+        </div>
+        <div id="gcliCodeMsg" class="gcard-meta" style="margin-top:4px"></div>
+      </div>`;
+    const btn = el.querySelector("#gcliCodeBtn");
+    if (btn) btn.onclick = async () => {
+      const m2 = el.querySelector("#gcliCodeMsg");
+      const code = (el.querySelector("#gcliCode").value || "").trim();
+      if (!code) { if (m2) m2.textContent = "Dán mã vào đã."; return; }
+      btn.disabled = true; if (m2) m2.textContent = "Đang xác nhận…";
+      let d;
+      try {
+        const fd = new FormData(); fd.append("code", code);
+        d = await (await fetch("/gemini-cli/login-code", { method: "POST", body: fd })).json();
+      } catch (e) { d = { ok: false, error: "Lỗi mạng." }; }
+      btn.disabled = false;
+      if (!d.ok) { if (m2) m2.innerHTML = Icons.warn(d.error || "Chưa được, thử lại."); return; }
+      if (m2) m2.innerHTML = OK_ICON + " Đã kết nối" + (d.email ? " · " + esc(d.email) : "") + ".";
+      _daHoiModel.delete("gemini-cli");
+      setTimeout(() => renderModels(el), 900);
+    };
+  }
+
   // ---- ChatGPT OAuth device-code: lấy mã → mở link → poll tới khi kết nối ----
   async function startOauthLogin(el) {
     const msg = el.querySelector("#oauthMsg");
@@ -2888,7 +3382,11 @@
       let p;
       try { p = await (await fetch("/oauth/openai/poll", { method: "POST" })).json(); }
       catch (e) { setTimeout(poll, iv); return; }
-      if (p.status === "connected") { if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối!"; renderModels(el); return; }
+      if (p.status === "connected") {
+        if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối! Đang hỏi Codex xem gói này có model nào…";
+        _daHoiModel.delete("openai-oauth");   // vừa đăng nhập xong: cho phép hỏi lại danh sách
+        renderModels(el); return;
+      }
       if (p.status === "error") { if (msg) msg.textContent = "Lỗi: " + (p.error || ""); return; }
       setTimeout(poll, iv);
     };
@@ -2926,7 +3424,11 @@
           body: JSON.stringify({ callback: cb }),
         })).json();
       } catch (e) { if (m2) m2.textContent = "Lỗi mạng."; btn.disabled = false; return; }
-      if (p.status === "connected") { if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối!"; renderModels(el); return; }
+      if (p.status === "connected") {
+        if (msg) msg.innerHTML = CHECK_ICON + " Đã kết nối! Đang hỏi Codex xem gói này có model nào…";
+        _daHoiModel.delete("openai-oauth");
+        renderModels(el); return;
+      }
       if (m2) m2.innerHTML = Icons.warn(p.error || "Chưa được, thử lại.");
       btn.disabled = false;
     };
@@ -2965,7 +3467,10 @@
       } catch (e) {}
       const stat = (providers.find(x => x.id === pid) || {}).models || [];
       liveCache[pid] = (res && res.models && res.models.length)
-        ? { models: res.models, live: !!res.live } : { models: stat, live: false };
+        ? { models: res.models, live: !!res.live }
+        // Rỗng thì GIỮ LẠI lý do server nói. Trước đây nuốt mất nên hộp chọn chỉ còn một câu
+        // chung chung "chưa kết nối hoặc không có model", đọc xong vẫn không biết phải làm gì.
+        : { models: stat, live: false, error: (res && res.error) || "" };
       if (loadingProv === pid) loadingProv = null;
       if (pid === selProv) {   // model đang chọn không còn trong list mới → reset
         const ms = liveCache[pid].models;
@@ -2992,7 +3497,9 @@
               </button>`).join("")}</div>
             <div class="mp-models">${models.length ? models.map(mod => `
               <button class="mp-model ${mod === selModel ? "sel" : ""}" data-mod="${esc(mod)}">${esc(mod)}${(selProv === main.provider && mod === main.model) ? ' <span class="mp-cur">ĐANG DÙNG</span>' : ""}</button>`).join("")
-                : (loadingProv === selProv ? '<div class="mp-empty">Đang tải model…</div>' : '<div class="mp-empty">Provider chưa kết nối hoặc không có model. Kết nối ở Providers (hoặc thêm vào settings.json → model.catalog).</div>')}</div>
+                : (loadingProv === selProv ? '<div class="mp-empty">Đang tải model…</div>'
+                    : '<div class="mp-empty">' + esc((liveCache[selProv] && liveCache[selProv].error)
+                        || "Provider chưa kết nối hoặc không có model. Kết nối ở Providers (hoặc thêm vào settings.json → model.catalog).") + '</div>')}</div>
           </div>
           <div class="mp-foot">
             <span class="mp-note">${esc(opts.note || "Model load động theo provider · lưu cho phiên mới")}</span>
@@ -3946,9 +4453,10 @@
       <div class="cview-section">
         <h3>Tài khoản đăng nhập</h3>
         <div class="gcard" style="max-width:560px">
-          <div class="gcard-meta">${auth.has_password ? ic("lock") + " Đã đặt mật khẩu · tài khoản: <b>" + esc(auth.username || "admin") + "</b>" : "Chưa đặt mật khẩu - ai mở dashboard cũng dùng được. Đặt mật khẩu nếu đưa lên VPS."}</div>
+          <div class="gcard-meta" id="acAuthMeta">${auth.has_password ? ic("lock") + " Đã đặt mật khẩu · tài khoản: <b>" + esc(auth.username || "admin") + "</b>" : "Chưa đặt mật khẩu - ai mở dashboard cũng dùng được. Đặt mật khẩu nếu đưa lên VPS."}</div>
           <label class="js-lbl">Tài khoản</label><input class="js-input" id="acUser" value="${esc(auth.username || "")}" placeholder="Ví dụ: admin">
-          <label class="js-lbl">Mật khẩu</label><input class="js-input" id="acPass" type="password" placeholder="${auth.has_password ? "Đổi mật khẩu" : "Đặt mật khẩu"}">
+          ${auth.has_password ? '<label class="js-lbl">Mật khẩu hiện tại</label><input class="js-input" id="acCur" type="password" placeholder="Mật khẩu đang dùng" autocomplete="current-password">' : ""}
+          <label class="js-lbl">${auth.has_password ? "Mật khẩu mới" : "Mật khẩu"}</label><input class="js-input" id="acPass" type="password" autocomplete="new-password" placeholder="${auth.has_password ? "Tối thiểu 8 ký tự - để trống nếu chỉ đổi tên đăng nhập" : "Đặt mật khẩu (tối thiểu 8 ký tự)"}">
           <div class="js-actions">
             <button class="gcard-btn" id="acSave">${auth.has_password ? "Đổi mật khẩu" : "Đặt mật khẩu"}</button>
             ${auth.has_password ? '<button class="gcard-btn ghost" id="acLogout">Đăng xuất</button><button class="gcard-btn ghost" id="acDisable">Tắt đăng nhập</button>' : ""}
@@ -3956,6 +4464,15 @@
           <div class="gcard-meta" id="acStatus"></div>
         </div>
       </div>
+      ${auth.has_password ? `
+      <div class="cview-section">
+        <h3>Xác thực 2 lớp <span style="opacity:.5">mã 6 số từ app Authenticator</span></h3>
+        <div class="gcard tfa-card" style="max-width:560px" id="tfaCard">
+          <div class="gcard-meta" id="tfaHead">Đang kiểm tra...</div>
+          <div id="tfaBody"></div>
+          <div class="gcard-meta" id="tfaStatus"></div>
+        </div>
+      </div>` : ""}
       <div class="cview-section">
         <h3>Token API (cho CLI)</h3>
         <div class="gcard" style="max-width:560px">
@@ -3971,6 +4488,10 @@
           <div class="gcard-meta" id="tkStatus"></div>
           <div id="tkNew"></div>
           <div id="tkList" class="tk-list"></div>
+          <div class="tk-docs">
+            <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/24-cli-terminal.md" target="_blank" rel="noopener">Hướng dẫn Javis CLI ↗</a>
+            <a href="https://github.com/blogminhquy/javis-os/blob/main/docs/14-bao-mat-tai-khoan.md" target="_blank" rel="noopener">Bảo mật &amp; tài khoản ↗</a>
+          </div>
         </div>
       </div>`;
     renderTokens();
@@ -3997,6 +4518,7 @@
             <button class="gcard-btn ghost" id="tkHide">Ẩn đi</button>
           </div>
           <div class="gcard-meta">Dán vào máy kia: <code>javis login ${esc(location.origin)} --token &lt;token&gt;</code></div>
+          <div class="gcard-meta">Chưa cài CLI? <code>pip install javis-cli</code> · <a class="tk-doclink" href="https://github.com/blogminhquy/javis-os/blob/main/docs/24-cli-terminal.md" target="_blank" rel="noopener">xem hướng dẫn ↗</a></div>
         </div>`;
       document.getElementById("tkCopy").onclick = () => {
         const c = document.getElementById("tkCopy");
@@ -4014,20 +4536,159 @@
       const wn = document.getElementById("workspaceName"); if (wn) wn.textContent = document.getElementById("acWs").value.trim() || "Javis OS";
     };
     const acStatus = document.getElementById("acStatus");
+    // HAI đường, đừng gộp: /auth/setup là đường CÔNG KHAI cho lần đầu tạo admin và nó TỪ CHỐI
+    // khi đã có tài khoản, nên gọi nó để đổi mật khẩu là bấm Lưu mà không có gì xảy ra (lỗi
+    // 0.28.2 trở về trước). Đã có tài khoản thì đi /auth/password, kèm mật khẩu hiện tại.
     document.getElementById("acSave").onclick = async () => {
       const user = document.getElementById("acUser").value.trim() || "admin";
       const pass = document.getElementById("acPass").value;
-      if (!pass || pass.length < 4) { acStatus.innerHTML = WARN_ICON + " Mật khẩu tối thiểu 4 ký tự."; return; }
+      const curEl = document.getElementById("acCur");
+      if (auth.has_password) {
+        const cur = curEl ? curEl.value : "";
+        if (!cur) { acStatus.innerHTML = WARN_ICON + " Nhập mật khẩu hiện tại để xác nhận."; return; }
+        if (pass && pass.length < 8) { acStatus.innerHTML = WARN_ICON + " Mật khẩu mới tối thiểu 8 ký tự."; return; }
+        if (!pass && user === (auth.username || "")) { acStatus.innerHTML = WARN_ICON + " Chưa đổi gì cả - nhập mật khẩu mới hoặc tên đăng nhập mới."; return; }
+        acStatus.textContent = "Đang lưu...";
+        const fd = new FormData();
+        fd.append("current_password", cur); fd.append("username", user);
+        if (pass) fd.append("password", pass);
+        try {
+          const r = await (await fetch("/auth/password", { method: "POST", body: fd })).json();
+          if (!r.ok) { acStatus.innerHTML = Icons.warn(r.error || "Lỗi."); return; }
+          // KHÔNG vẽ lại cả trang: vẽ lại là xoá mất câu báo vừa hiện, mà đây đúng là lúc người
+          // ta cần đọc nó (các máy khác vừa bị đăng xuất).
+          auth.username = r.username || user;
+          if (curEl) curEl.value = "";
+          document.getElementById("acPass").value = "";
+          document.getElementById("acUser").value = auth.username;
+          const meta = document.getElementById("acAuthMeta");
+          if (meta) meta.innerHTML = ic("lock") + " Đã đặt mật khẩu · tài khoản: <b>" + esc(auth.username) + "</b>";
+          acStatus.innerHTML = OK_ICON + (pass
+            ? " Đã đổi mật khẩu. Máy khác đang đăng nhập sẽ phải đăng nhập lại."
+            : " Đã đổi tên đăng nhập.");
+        } catch (e) { acStatus.innerHTML = WARN_ICON + " Lỗi mạng."; }
+        return;
+      }
+      if (!pass || pass.length < 8) { acStatus.innerHTML = WARN_ICON + " Mật khẩu tối thiểu 8 ký tự."; return; }
       acStatus.textContent = "Đang lưu...";
       // /auth/setup cấp cookie ngay → tránh tự khoá khi bật auth lần đầu
       const fd = new FormData(); fd.append("username", user); fd.append("password", pass);
-      try { const r = await (await fetch("/auth/setup", { method: "POST", body: fd })).json(); acStatus.innerHTML = r.ok ? OK_ICON + " Đã lưu tài khoản." : Icons.warn(r.error || "Lỗi."); renderAccount(el); }
+      try { const r = await (await fetch("/auth/setup", { method: "POST", body: fd })).json(); acStatus.innerHTML = r.ok ? OK_ICON + " Đã lưu tài khoản." : Icons.warn(r.error || "Lỗi."); if (r.ok) renderAccount(el); }
       catch (e) { acStatus.innerHTML = WARN_ICON + " Lỗi mạng."; }
     };
     const lo = document.getElementById("acLogout");
     if (lo) lo.onclick = async () => { await fetch("/auth/logout", { method: "POST" }); location.reload(); };
     const dis = document.getElementById("acDisable");
     if (dis) dis.onclick = async () => { if (confirm("Tắt đăng nhập? Ai mở dashboard cũng dùng được.")) { await fetch("/auth/disable", { method: "POST" }); renderAccount(el); } };
+    renderTfa(el);
+  }
+
+  // ---- Xác thực 2 lớp (TOTP) ----
+  // Ba trạng thái: TẮT (mời bật), ĐANG BẬT (quét QR + nhập mã xác nhận), ĐÃ BẬT (quản lý).
+  // Vẽ lại cả thẻ theo trạng thái thay vì ẩn/hiện từng mảnh: luồng này người ta đi đúng một
+  // lần rồi thôi, nên rõ ràng quan trọng hơn mượt.
+  async function renderTfa(rootEl) {
+    const head = document.getElementById("tfaHead");
+    const body = document.getElementById("tfaBody");
+    const st = document.getElementById("tfaStatus");
+    if (!head || !body) return;
+    let a = {};
+    try { a = await (await fetch("/auth/status")).json(); } catch (e) {
+      head.innerHTML = WARN_ICON + " Không đọc được trạng thái."; return;
+    }
+    const bao = (m, loi) => { if (st) st.innerHTML = (loi ? WARN_ICON : OK_ICON) + " " + esc(m); };
+
+    if (a.totp_enabled) {
+      const con = Number(a.totp_recovery_left || 0);
+      head.innerHTML = ic("shield") + " <b>Đang bật.</b> Mỗi lần đăng nhập sẽ hỏi thêm mã 6 số."
+        + ` Còn <b>${con}</b> mã khôi phục.`
+        + (con <= 2 ? ' <span class="tfa-warn">Sắp hết - nên tạo bộ mới.</span>' : "");
+      body.innerHTML = `
+        <label class="js-lbl">Mật khẩu (xác nhận là chính anh)</label>
+        <input class="js-input" id="tfaPw" type="password" placeholder="Mật khẩu đang dùng">
+        <label class="js-lbl">Mã 6 số (chỉ cần khi TẮT)</label>
+        <input class="js-input" id="tfaCode" inputmode="numeric" placeholder="Mã đang hiện, hoặc mã khôi phục">
+        <div class="js-actions">
+          <button class="gcard-btn" id="tfaRegen">Tạo bộ mã khôi phục mới</button>
+          <button class="gcard-btn ghost" id="tfaOff">Tắt 2 lớp</button>
+        </div>`;
+      document.getElementById("tfaRegen").onclick = async () => {
+        const pw = document.getElementById("tfaPw").value;
+        if (!pw) { bao("Nhập mật khẩu trước.", true); return; }
+        const fd = new FormData(); fd.append("password", pw);
+        const r = await (await fetch("/auth/2fa/recovery", { method: "POST", body: fd })).json();
+        if (!r.ok) { bao(r.error || "Lỗi.", true); return; }
+        hienMaKhoiPhuc(body, r.recovery, "Bộ mã CŨ vừa hết hiệu lực. Đây là bộ mới:");
+        bao("Đã tạo bộ mã khôi phục mới.");
+      };
+      document.getElementById("tfaOff").onclick = async () => {
+        if (!confirm("Tắt xác thực 2 lớp? Từ đó chỉ còn mật khẩu bảo vệ Javis.")) return;
+        const fd = new FormData();
+        fd.append("password", document.getElementById("tfaPw").value);
+        fd.append("code", document.getElementById("tfaCode").value.trim());
+        const r = await (await fetch("/auth/2fa/disable", { method: "POST", body: fd })).json();
+        if (!r.ok) { bao(r.error || "Lỗi.", true); return; }
+        renderTfa(rootEl);
+      };
+      return;
+    }
+
+    // Chưa bật. `totp_suggested` = lúc cài người dùng đã CHỌN bật 2FA (install.sh ghi cờ vào
+    // .env), nên nói rõ ra thay vì để họ tự nhớ mình đã chọn gì mấy phút trước.
+    head.innerHTML = a.totp_suggested
+      ? ic("shield") + " <b>Anh đã chọn bật 2 lớp lúc cài.</b> Bấm Bật để quét QR và hoàn tất."
+      : ic("shield") + " Chưa bật. Bật thì mật khẩu lộ ra ngoài cũng chưa đủ để vào được Javis.";
+    body.innerHTML = `<div class="js-actions"><button class="gcard-btn" id="tfaOn">Bật xác thực 2 lớp</button></div>`;
+    document.getElementById("tfaOn").onclick = async () => {
+      const r = await (await fetch("/auth/2fa/start", { method: "POST" })).json();
+      if (!r.ok) { bao(r.error || "Không bắt đầu được.", true); return; }
+      body.innerHTML = `
+        <div class="tfa-steps">
+          <div class="tfa-step"><b>1.</b> Mở app Authenticator (Google Authenticator, Microsoft
+            Authenticator, 1Password, Bitwarden... cái nào cũng được) rồi quét mã dưới đây.</div>
+          <div class="tfa-qr">${r.qr_svg || '<div class="gcard-meta">Máy chủ chưa cài segno nên không vẽ được QR - nhập tay khoá bên dưới.</div>'}</div>
+          <div class="tfa-step"><b>2.</b> Quét không được thì nhập tay khoá này:
+            <code class="tfa-secret">${esc(r.secret)}</code></div>
+          <div class="tfa-step"><b>3.</b> Nhập mã 6 số đang hiện trong app để xác nhận:</div>
+          <input class="js-input" id="tfaVerify" inputmode="numeric" placeholder="Mã 6 số">
+          <div class="js-actions">
+            <button class="gcard-btn" id="tfaConfirm">Xác nhận và bật</button>
+            <button class="gcard-btn ghost" id="tfaCancel">Huỷ</button>
+          </div>
+        </div>`;
+      const inp = document.getElementById("tfaVerify");
+      inp.focus();
+      const xacNhan = async () => {
+        const fd = new FormData(); fd.append("code", inp.value.trim());
+        const d = await (await fetch("/auth/2fa/enable", { method: "POST", body: fd })).json();
+        if (!d.ok) { bao(d.error || "Mã không đúng.", true); inp.select(); return; }
+        // Mã khôi phục chỉ hiện ĐÚNG LÚC NÀY. Server giữ bản băm nên không có đường nào xem lại.
+        hienMaKhoiPhuc(body, d.recovery,
+          "Đã bật. Chép 10 mã khôi phục dưới đây ra chỗ an toàn NGAY - chúng chỉ hiện một lần, "
+          + "và là đường vào duy nhất nếu anh mất điện thoại:");
+        bao("Đã bật xác thực 2 lớp.");
+      };
+      document.getElementById("tfaConfirm").onclick = xacNhan;
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") xacNhan(); });
+      document.getElementById("tfaCancel").onclick = () => renderTfa(rootEl);
+    };
+  }
+
+  function hienMaKhoiPhuc(body, ds, loiNhan) {
+    body.innerHTML = `
+      <div class="tfa-rec">
+        <div class="tfa-rec-note">${esc(loiNhan)}</div>
+        <div class="tfa-rec-grid">${(ds || []).map(m => `<code>${esc(m)}</code>`).join("")}</div>
+        <div class="js-actions">
+          <button class="gcard-btn" id="tfaCopy">Chép tất cả</button>
+          <button class="gcard-btn ghost" id="tfaDone">Tôi đã lưu xong</button>
+        </div>
+      </div>`;
+    document.getElementById("tfaCopy").onclick = async () => {
+      try { await navigator.clipboard.writeText((ds || []).join("\n")); } catch (e) {}
+      document.getElementById("tfaCopy").textContent = "Đã chép";
+    };
+    document.getElementById("tfaDone").onclick = () => location.reload();
   }
 
   // Danh sách token. Chỉ có tiền tố + tên: máy chủ không giữ bản thô nên UI cũng không có gì
@@ -4095,6 +4756,38 @@
   }
 
   // ---- Trang Cài đặt: nhúng #quickSet + bộ chọn nhà cung cấp giọng đọc ----
+  // Dòng trạng thái 2FA trong khối "Tài khoản đăng nhập" cũ (#quickSet, index.html).
+  //
+  // Vì sao cần: Javis có HAI bề mặt cài đặt tài khoản - trang Tài khoản (đủ thứ, gồm cả 2FA)
+  // và khối cũ này nhúng trong trang Cài đặt (chỉ đổi mật khẩu). Ai mở Cài đặt trước sẽ thấy
+  // một khối tài khoản không nhắc gì tới 2FA và kết luận Javis không có, rồi thôi.
+  //
+  // Đây CHỈ là trạng thái + lối đi. Nút bấm mang data-settings-go="account" nên nó dùng chung
+  // đúng đường chuyển trang với mấy nút còn lại, không tự gọi navigateTo.
+  async function renderTfaRow() {
+    const row = document.getElementById("setTfaRow");
+    if (!row) return;                     // index.html bản cũ (cache) → bỏ qua, không làm sập trang
+    let a = {};
+    try { a = await (await fetch("/auth/status")).json(); } catch (e) { row.hidden = true; return; }
+    // Chưa đặt mật khẩu thì chưa có gì để chồng lớp thứ hai lên. Nói thẳng thứ tự phải làm,
+    // thay vì hiện một nút bấm vào rồi mới biết là chưa tới lượt.
+    if (a.needs_setup) {
+      row.hidden = false;
+      row.innerHTML = `${ic("shield")} Xác thực 2 lớp: <b>đặt mật khẩu trước đã</b> - xong mới bật được.`;
+      return;
+    }
+    const con = Number(a.totp_recovery_left || 0);
+    row.hidden = false;
+    row.innerHTML = a.totp_enabled
+      ? `${ic("shield")} Xác thực 2 lớp: <b class="tfa-on">đang bật</b>`
+        + ` · còn ${con} mã khôi phục`
+        + (con <= 2 ? ` <b class="tfa-low">(sắp hết)</b>` : "")
+        + ` <button class="s-btn-ghost" data-settings-go="account">Quản lý</button>`
+      : `${ic("shield")} Xác thực 2 lớp: <b class="tfa-off">chưa bật</b>`
+        + ` - bật thì mật khẩu lộ ra ngoài cũng chưa đủ để vào được Javis.`
+        + ` <button class="s-btn" data-settings-go="account">Bật ngay</button>`;
+  }
+
   async function renderSettings(el) {
     const gen = _renderGen;               // chốt token: nếu user đổi trang trong lúc await → bỏ render này
     parkQuickSet();                       // giữ #quickSet an toàn TRƯỚC khi ghi đè cviewBody
@@ -4209,6 +4902,13 @@
     const host = el.querySelector(".cs-host");
     const qs = document.getElementById("quickSet");
     if (qs && host) host.appendChild(qs);         // nhúng bộ điều khiển cũ vào trang (giữ handler)
+    // Phải chạy TRƯỚC vòng nối [data-settings-go] bên dưới: nút "Bật ngay" nằm trong khối vừa
+    // nhúng, và nó dựa vào chính vòng đó để nối hành động chuyển trang.
+    await renderTfaRow();
+    // Khối tài khoản vừa nhúng do app.js nuôi, và đường vào trang này KHÔNG đi qua
+    // openSettings() - không gọi cái này thì ô "Tài khoản" trống trơn, ô mật khẩu hiện tại
+    // không hiện ra, và nút Lưu tưởng là chưa có tài khoản nên bấm không ăn.
+    if (window.__javisRefreshAuthRow) { try { await window.__javisRefreshAuthRow(); } catch (e) {} }
     if (window.__javisRefreshExtras) { try { window.__javisRefreshExtras(); } catch (e) {} }  // nạp lại avatar/tên miền
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
     if (provHost) provHost.innerHTML = provHtml;
@@ -4385,7 +5085,44 @@
     const st = document.createElement("style"); st.id = "cp-css"; st.textContent = css; document.head.appendChild(st);
   }
 
+  // DỜI một node đang cuộn thì trình duyệt ĐẶT LẠI scrollTop về 0. Đây là lý do chủ repo báo
+  // (2026-08-12) "mở hội thoại cũ thì luôn bắt đầu từ câu hỏi đầu tiên": bấm một phiên ở cột
+  // Lịch sử → app.js nạp tin rồi cuộn xuống đáy → NGAY SAU ĐÓ trang Trò chuyện mượn #chatArea,
+  // và cú dời node xoá sạch vị trí vừa đặt. Không lỗi nào hiện ra, chỉ là mỗi lần mở đều rơi
+  // về đầu một hội thoại có khi dài hàng trăm tin.
+  //
+  // Nhớ theo PIXEL là sai: cột chat ở màn chính hẹp hơn khung ở trang Trò chuyện, nên cùng nội
+  // dung mà xuống dòng khác đi và scrollHeight đổi hẳn. Phải neo vào MỘT TIN NHẮN cụ thể rồi
+  // đặt lại đúng tin đó về đúng chỗ cũ trên màn hình.
+  function _neoCuon() {
+    const ca = document.getElementById("chatArea");
+    if (!ca) return null;
+    // Đang ở đáy thì neo là "đáy" chứ không phải một tin cụ thể: có tin mới tới trong lúc
+    // chuyển trang thì vẫn phải nằm ở đáy, đó mới là chỗ người dùng muốn về.
+    if (ca.scrollHeight - ca.scrollTop - ca.clientHeight < 90) return { day: true };
+    const tren = ca.getBoundingClientRect().top;
+    for (let i = 0; i < ca.children.length; i++) {
+      const n = ca.children[i], r = n.getBoundingClientRect();
+      if (r.bottom > tren) return { day: false, node: n, lech: r.top - tren };
+    }
+    return { day: true };
+  }
+  function _thaCuon(neo) {
+    if (!neo) return;
+    const dat = () => {
+      const ca = document.getElementById("chatArea");
+      if (!ca) return;
+      if (neo.day || !neo.node || !neo.node.isConnected) { ca.scrollTop = ca.scrollHeight; return; }
+      ca.scrollTop += neo.node.getBoundingClientRect().top - ca.getBoundingClientRect().top - neo.lech;
+    };
+    dat();
+    // Lần hai ở khung hình sau: lúc gọi dat() lần đầu, trang mới vừa dựng xong DOM nhưng bề
+    // rộng cuối cùng chưa chốt, nên đo được một con số rồi nó lệch đi ngay sau đó.
+    try { requestAnimationFrame(dat); } catch (e) {}
+  }
+
   function _borrowChatNodes(into) {
+    const neo = _neoCuon();
     _chatSlots = [];
     CHAT_NODE_IDS.forEach(id => {
       const n = document.getElementById(id);
@@ -4393,6 +5130,7 @@
       _chatSlots.push({ node: n, parent: n.parentNode, next: n.nextSibling });
       into.appendChild(n);
     });
+    _thaCuon(neo);
   }
   // ===== Cho tab "Thư mục" của khung chat MƯỢN chính panel Vault =====
   // Không dựng lại cây thứ hai. Bản đầu của tính năng này viết hẳn một module cây riêng, và
@@ -4405,10 +5143,13 @@
   // trang Trò chuyện thì phía dưới là khung chat đang có nội dung; đè lên nó vừa chật vừa
   // rối. Yêu cầu của chủ repo: mở file thì khung chat biến mất hẳn, chỉ còn trình sửa.
   // Vẫn MƯỢN chính #noteEditor chứ không dựng trình sửa thứ hai - cùng lý do với cây Vault.
+  // `into` = khung sẽ mượn trình sửa. Bỏ trống = khung của trang Trò chuyện (#chatPageEdit).
+  // Từ 0.33.4 trang Tệp tin cũng mượn chính node này (#fmEdit) thay vì bật popup riêng - một
+  // trình sửa duy nhất cho cả app, không có bản nghèo hơn ở góc nào nữa.
   let _neSlot = null;
-  function _borrowNoteEditor() {
+  function _borrowNoteEditor(into) {
     const ed = document.getElementById("noteEditor");
-    const into = document.getElementById("chatPageEdit");
+    into = into || document.getElementById("chatPageEdit");
     if (!ed || !into) return false;
     if (!_neSlot) _neSlot = { node: ed, parent: ed.parentNode, next: ed.nextSibling };
     into.appendChild(ed);
@@ -4418,7 +5159,9 @@
   }
   function _returnNoteEditor() {
     const s = _neSlot; if (!s || !s.parent) return;
-    const into = document.getElementById("chatPageEdit");
+    // Khung đang mượn = CHA hiện tại của node, không tra cứng #chatPageEdit: giờ có hai trang
+    // cùng mượn được, tra cứng một cái là trang kia không bao giờ bỏ được lớp .edit-on.
+    const into = s.node.parentNode;
     const main = into && into.parentNode;
     if (main && main.classList) main.classList.remove("edit-on");
     if (s.next && s.next.parentNode === s.parent) s.parent.insertBefore(s.node, s.next);
@@ -4457,6 +5200,7 @@
     // khung sắp bị xoá, không trả về là mất luôn node và mở file ở màn chính sẽ trắng trơn.
     _returnNoteEditor();
     _returnVaultPanel();
+    const neo = _neoCuon();   // đường VỀ cũng dời node, cũng mất chỗ đọc - xem _neoCuon
     for (let i = _chatSlots.length - 1; i >= 0; i--) {
       const s = _chatSlots[i];
       if (!s.parent) continue;
@@ -4465,6 +5209,7 @@
     }
     _chatSlots = [];
     document.body.classList.remove("on-chat");
+    _thaCuon(neo);
   }
 
   function renderChat(el) {
@@ -4558,6 +5303,7 @@
   // KHÔNG đụng renderFiles/openVaultTarget (deep-link chat) - openNote là luồng riêng, additive.
   // ============================================================
   const VT_IMG_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico"];
+  const VT_FRAME_EXTS = [".pdf"];   // trình duyệt tự hiện được -> xem tại chỗ, không mời tải về
   const VT_TEXT_EXTS = [".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".js", ".ts", ".py",
     ".html", ".css", ".toml", ".ini", ".log", ".sh", ".bat", ".xml", ".svg", ".env"];
   let _vtHome = "";            // đường dẫn (theo trần duyệt) của gốc brain
@@ -4899,6 +5645,9 @@
     // lại là luồng thường gặp nhất, xoá vệt ở đây là bắt người ta đi lại từ đầu.
     document.removeEventListener("keydown", _neKeyHandler, true);
     _vtMarkActive(null);
+    // Trang Tệp tin vừa mượn trình sửa: đóng ra thì danh sách file phải khớp lại - ngay trong
+    // trình sửa có nút đổi tên và xoá, quay về mà vẫn thấy tên cũ là nhìn vào một danh sách sai.
+    if (typeof _fmSauKhiDong === "function") { const f = _fmSauKhiDong; _fmSauKhiDong = null; try { f(); } catch (e) {} }
     try { recomputeGraph(); } catch (e) {}   // chạy lại não (đã gate active===home + không lite + studio đóng)
   }
   // Đổi tên file đang mở: lưu nội dung hiện tại trước (giữ chữ đã gõ), đổi tên, rồi mở lại ở tên mới.
@@ -4953,6 +5702,54 @@
       + `<div><a href="${_vtRaw(rel, 1)}">⤓ Tải về</a> &nbsp;·&nbsp; <a href="${_vtRaw(rel)}" target="_blank">↗ Mở tab mới</a></div></div>`;
     _neCommonBtns(actions, rel, it);
   }
+  // File KHÔNG TỒN TẠI là chuyện khác hẳn file không xem trực tiếp được, nhưng trước bản này cả
+  // hai rơi chung một cửa và người dùng nhận đúng một câu: "loại file này không xem trực tiếp -
+  // hãy tải về". Câu đó sai sự thật khi link trỏ trượt, lại còn mời tải một thứ không có, nên
+  // người dùng đi nghi ngờ loại file thay vì nghi ngờ cái link. Nói thẳng đường dẫn đã thử là
+  // biến một cú bấm chết thành một báo lỗi sửa được.
+  function _neRenderMissing(body, actions, rel, it, loi) {
+    body.className = "ne-body";
+    body.innerHTML = `<div class="ne-dl"><div class="ne-dl-ico">${_fileIcon(it.ext)}</div>`
+      + `<div><b>${esc(loi || "Không tìm thấy file")}</b><br>`
+      + `Link trỏ tới <code>${esc(rel)}</code> nhưng chỗ đó không có gì.<br>`
+      + `File có thể đã đổi tên, bị xoá, hoặc link ghi sai đường dẫn.</div>`
+      + `<div class="ne-hits" id="neMissHits"><span class="dim">Đang tìm file tên gần giống…</span></div></div>`;
+    const ed = document.getElementById("noteEditor");
+    actions.innerHTML = "";
+    const b = document.createElement("button");
+    b.innerHTML = X_ICON; b.title = "Đóng (Esc)"; b.onclick = closeNote;
+    actions.appendChild(b);
+    if (ed) ed.classList.remove("ne-full");
+    _neTimFileGan(String(rel).split("/").pop(), body.querySelector("#neMissHits"));
+  }
+  // Link hụt thường KHÔNG phải file đã mất - chỉ là tên trong chat lệch tên trên đĩa (hay gặp
+  // nhất: chat ghi có dấu tiếng Việt còn file lưu không dấu). /files/search?mode=name khớp cả hai
+  // chiều dấu, nên đi tìm hộ rồi bày ra cho bấm một phát là mở, thay vì bỏ người dùng ở ngõ cụt.
+  async function _neTimFileGan(ten, host) {
+    if (!host || !ten) return;
+    let items = [];
+    try {
+      const r = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}&q=${encodeURIComponent(ten)}&mode=name&limit=8`);
+      items = ((await r.json()) || {}).items || [];
+    } catch (e) {}
+    if (!host.isConnected) return;
+    if (!items.length) { host.innerHTML = `<span class="dim">Tìm cả brain cũng không có file nào tên gần giống.</span>`; return; }
+    host.innerHTML = `<span class="dim">${items.length === 1 ? "Có lẽ là file này:" : "Có lẽ là một trong các file này:"}</span>`;
+    items.forEach(hit => {
+      const b = document.createElement("button");
+      b.type = "button";
+      // Cắt tiền tố nhà brain cho dễ đọc: người dùng nghĩ theo "06 - Sources/x.md", không phải
+      // theo đường dẫn đầy đủ trên đĩa.
+      const nhan = (_vtHome && String(hit.path || "").indexOf(_vtHome + "/") === 0)
+        ? hit.path.slice(_vtHome.length + 1) : (hit.path || hit.name);
+      b.innerHTML = `${_fileIcon(hit.ext || "")} ${esc(nhan)}`;
+      b.onclick = () => {
+        openNote(hit.path, { name: hit.name, ext: hit.ext || "", type: "file" });
+        try { _vtRevealInTree(hit.path); } catch (e) {}
+      };
+      host.appendChild(b);
+    });
+  }
 
   // Nạp turndown (HTML→markdown) LAZY, chỉ khi cần lưu bản WYSIWYG. + plugin GFM (bảng).
   let _tdPromise = null, _td = null;
@@ -4986,6 +5783,14 @@
         replacement: (c, n) => "![[" + n.getAttribute("data-vault-path") + "]]" });
       // Các khối render đặc biệt của mdToHtml phải TRẢ VỀ đúng fence gốc khi lưu bản WYSIWYG,
       // nếu không nội dung note bị phá (mất truy vấn dataview, mất code). Round-trip:
+      // Frontmatter: trả lại NGUYÊN VĂN khối `---...---`. Thiếu luật này thì mỗi lần lưu một
+      // note có frontmatter là hỏng metadata (`---` thành `* * *`) - lỗi mất dữ liệu thật.
+      _td.addRule("jvfrontmatter", { filter: (n) => n.nodeName === "DIV" && n.classList.contains("jv-fm"),
+        replacement: (c, n) => {
+          let t = n.getAttribute("data-fm") || "";
+          try { t = decodeURIComponent(t); } catch (e) {}
+          return t.replace(/\s+$/, "");   // turndown tự chèn dòng trống ngăn cách khối
+        } });
       _td.addRule("jvdataview", { filter: (n) => n.nodeName === "DIV" && n.classList.contains("jv-dataview"),
         replacement: (c, n) => {
           let q = n.getAttribute("data-dv-q") || "";
@@ -5139,8 +5944,9 @@
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
-    // (thứ không hề hiện ở trang này).
+    // (thứ không hề hiện ở trang này). Trang Tệp tin cũng vậy: chiếm chỗ danh sách file.
     if (document.body.classList.contains("on-chat")) _borrowNoteEditor();
+    else if (document.body.classList.contains("on-files")) _borrowNoteEditor(document.getElementById("fmEdit"));
     document.removeEventListener("keydown", _neKeyHandler, true);
     document.addEventListener("keydown", _neKeyHandler, true);
     try { if (window.__javisGraph && window.__javisGraph.pause) window.__javisGraph.pause(); } catch (e) {}
@@ -5152,11 +5958,20 @@
       body.innerHTML = `<div class="ne-img"><img src="${_vtRaw(rel)}" alt="${esc(it.name || "")}"></div>`;
       _neCommonBtns(actions, rel, it); _vtMarkActive(null); return;
     }
+    // .pdf: trình duyệt tự đọc được, nên xem NGAY tại chỗ thay vì mời tải về. Popup cũ của trang
+    // Tệp tin có sẵn khung xem này; bỏ popup mà không mang theo là mất một thứ đang chạy tốt.
+    if (VT_FRAME_EXTS.includes(ext)) {
+      body.innerHTML = `<iframe class="ne-frame" src="${_vtRaw(rel)}"></iframe>`;
+      _neCommonBtns(actions, rel, it); _vtMarkActive(null); return;
+    }
     if (VT_TEXT_EXTS.includes(ext)) {
       body.innerHTML = `<div class="vt-info" style="padding:16px">Đang mở…</div>`;
       let resp, d = {};
       try { resp = await fetch(`/files/read?brain=${encodeURIComponent(fbrain())}&path=${encodeURIComponent(rel)}`); d = await resp.json().catch(() => ({})); }
       catch (e) { _neRenderDownload(body, actions, rel, it); return; }
+      // 404 = không có file ở đường dẫn đó (server trả rõ như vậy). Mọi lỗi còn lại - nhị phân,
+      // quá to - vẫn là file CÓ THẬT nên đường tải về mới có nghĩa.
+      if (resp.status === 404) { _neRenderMissing(body, actions, rel, it, d.error); return; }
       if (!resp.ok || d.error || d.content == null) { _neRenderDownload(body, actions, rel, it); return; }
       // Mở file để sửa = GHIM nó vào khung chat làm file đầu vào. Mở file khác thì thay chỗ,
       // nên chỉ cần gọi set() ở đây, không phải dọn ghim cũ. Đóng trình sửa KHÔNG bỏ ghim:
@@ -5334,10 +6149,12 @@
       // sẵn ô chat, chỉ khác là không vẽ khoang não. Bản trước tự đẩy sang trang Trò chuyện,
       // hoá ra rối hơn - mỗi lần tải lại là mỗi lần rơi vào một trang khác.
       recomputeGraph();
-      // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault> → mở thẳng Tệp tin đúng vị trí
+      // Deep-link mở tab mới từ link file trong chat: #open=<đường-dẫn-vault>.
+      // Đi qua openVaultPath chứ KHÔNG phải openFilesAt: file sửa được thì mở thẳng trình sửa,
+      // đúng như cú bấm thường. Trước bản này hai đường cho ra hai kết quả khác nhau.
       try {
         const m = /^#open=(.+)$/.exec(location.hash || "");
-        if (m) openFilesAt(decodeURIComponent(m[1]));
+        if (m) openVaultPath(decodeURIComponent(m[1]));
       } catch (e) {}
     });
   }

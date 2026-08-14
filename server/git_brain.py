@@ -142,6 +142,7 @@ _GITIGNORE_BODY = (
        "Javis/skill-usage.json",
        "memory/conversations/",
        "Memory/conversations/",
+       ".javis-agy/",
        "*.tmp",
        "# Vùng cache media: ảnh sinh ra + file user gửi lên. Là NGUYÊN LIỆU đi qua, không phải",
        "# tri thức, và media_gc.py tự dọn theo hạn. Bốn dòng attachments vì tên thư mục có thể",
@@ -487,7 +488,16 @@ def remote_reachable(repo_url: str, token: str, timeout: int = 30) -> dict:
 _BACKUP_SKIP_DIRS = {".git"}
 _BACKUP_SKIP_SUBSTR = ("/memory/conversations/", "/Memory/conversations/",
                        "/Javis/loop-log/", "/Javis/learn-log/", "/Javis/learn-staging/",
-                       "/Javis/skill-usage.json/")
+                       "/Javis/skill-usage.json/",
+                       # File ngữ cảnh Javis ghi tạm cho Antigravity CLI khi prompt dài hơn trần
+                       # dòng lệnh. Nó là BẢN SAO của system prompt + MEMORY.md + toàn bộ lịch
+                       # sử hội thoại, đuôi .md, nên nếu không chặn ở đây thì nó vừa được chép
+                       # sang mirror vừa lọt qua .gitignore (khối 2 mở lại mọi file .md) rồi
+                       # được commit và push lên remote sao lưu của người dùng - đúng thứ mà
+                       # dòng chặn `Memory/conversations/` ngay trên kia sinh ra để ngăn. Bình
+                       # thường file bị xoá ngay cuối lượt, nhưng chỉ cần một lượt đồng bộ chạy
+                       # trúng lúc `agy` đang chạy là dính, và git thì giữ blob vĩnh viễn.
+                       "/.javis-agy/")
 
 
 def _backup_skip(rel: str) -> bool:
