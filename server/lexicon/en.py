@@ -30,8 +30,12 @@ DENY = (
         r"this week|this month|this quarter|this year|last week|last month|last quarter|"
         r"so far|to date|year to date|ytd|mtd|"
         # số liệu kinh doanh - chỗ bản cũ hụt nhiều nhất
-        r"revenue|sales|orders|order count|invoice|invoices|refund|refunds|"
-        r"inventory|stock level|in stock|out of stock|profit|margin|expenses|spend|"
+        # Danh từ kinh doanh phải đi kèm SỞ HỮU hoặc MẠO TỪ XÁC ĐỊNH thì mới là hỏi số liệu
+        # thật. Để trần thì "what is a sales funnel" (câu hỏi khái niệm thuần tuý) bị chặn
+        # oan, trong khi bản tiếng Việt cùng ý lại đi tắt được - một sự lệch không có lý do.
+        r"(?:my|our|the|this|last|total)\s+(?:revenue|sales|orders?|invoices?|refunds?|"
+        r"inventory|stock|profit|margin|expenses|spend|customers?)\b|"
+        r"\border count\b|\bin stock\b|\bout of stock\b|\bstock level\b|"
         r"how much did|how many did|how much have|how many have|"
         # nguồn ngoài
         r"weather|news|stock price|share price|exchange rate|gold price|"
@@ -50,8 +54,8 @@ DENY = (
     )),
     ("conversation_state", re.compile(
         r"\b(previously|earlier|last time|before|we discussed|you said|i said|you told me|"
-        r"do you remember|my last message|this conversation|as i mentioned|like i said|"
-        r"that one|the same|continue|carry on|go on|keep going)\b"
+        r"do you remember|remember|memory|my last message|this conversation|as i mentioned|"
+        r"like i said|that one|the same|continue|carry on|go on|keep going)\b"
     )),
     ("agentic", re.compile(
         r"\b(execute|run|check my|check the|look up|search for|find my|find the|fetch|"
@@ -61,15 +65,24 @@ DENY = (
 
 ALLOW = (
     ("conversation", re.compile(r"^(hello|hi|hey|thanks|thank you|good morning|good evening)\b")),
+    # "what is" TRẦN là cách mở câu hỏi mặc định của tiếng Anh, nên nó bắt luôn cả câu cần
+    # dữ liệu thật: "what is my best selling product" từng lọt vào đây rồi đi đường tắt và
+    # được trả lời bằng số bịa. Chỉ nhận dạng hỏi KHÁI NIỆM: "what is a/an/the <khái niệm>",
+    # định nghĩa, so sánh. Câu "what is my/our ..." rơi ra ngoài và đi đường đầy đủ - đúng
+    # chỗ nó cần tới.
     ("explanation", re.compile(
-        r"\b(what is|what are|explain|why is|why do|why does|how does|definition|concept|"
+        r"\b(what is (?:a|an|the)\b|what are (?:the|these)\b|what does .{0,30}\bmean\b|"
+        r"explain|why is|why do|why does|how does|definition|concept|"
         r"difference between|meaning of|stands for)\b"
     )),
     ("writing", re.compile(
         r"\b(rewrite|reword|draft|headline|tagline|brainstorm|outline|name ideas|"
         r"come up with|suggest some|give me ideas)\b"
     )),
-    ("transform", re.compile(r"\b(translate|paraphrase|shorten|make it shorter|simplify)\b")),
+    # "paraphrase"/"simplify" CỐ Ý không có ở đây: hai động từ đó gần như luôn trỏ ngược về
+    # nội dung của lượt TRƯỚC ("paraphrase that for me"), mà đường tắt thì không đọc lịch sử.
+    # Để chúng trong ALLOW là mời đúng loại câu cần ngữ cảnh đi vào đường không có ngữ cảnh.
+    ("transform", re.compile(r"\b(translate|shorten|make it shorter)\b")),
     ("reasoning", re.compile(
         r"\b(calculate|compute|solve|pros and cons|trade[- ]?offs?|compare these|"
         r"which is better)\b"

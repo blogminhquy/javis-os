@@ -49,6 +49,33 @@ class LangDecision:
     has_lexicon: bool    # có bộ từ vựng cho ngôn ngữ này không (xem server/lexicon/)
     detected: str = ""   # ngôn ngữ dò được từ lượt này, kể cả khi không được dùng
 
+    @property
+    def lang_cau_hoi(self) -> str:
+        """Ngôn ngữ của CÂU HỎI, dành cho các CỔNG CHẶN. Có thể là "" (chưa dò ra).
+
+        KHÁC `self.lang`, và phân biệt được hai cái là chuyện sống còn:
+
+      - `lang`        = Javis TRẢ LỜI bằng tiếng gì. Không bao giờ rỗng (rơi về mặc định).
+      - `lang_cau_hoi` = người dùng đang VIẾT tiếng gì. Rỗng nghĩa là chưa biết.
+
+        Cổng chặn đọc CÂU HỎI, nên nó phải dùng cái thứ hai. Đưa nhầm `lang` xuống cổng là
+        đúng con bệnh đã đo được: user ghim trả lời tiếng Anh rồi hỏi tiếng Việt thì cổng
+        chấm câu tiếng Việt bằng bộ từ vựng tiếng Anh, và ngược lại. Tệ hơn nữa, `lang`
+        không bao giờ rỗng nên nhánh an toàn "chưa biết ngôn ngữ thì chạy DENY của mọi bộ
+        từ vựng" thành mã chết - cổng luôn tưởng mình biết chắc.
+        """
+        # Dò được từ chính lượt này thì lấy luôn, chắc nhất.
+        if self.detected:
+            return self.detected
+        # Không dò được (câu quá ngắn: "ok thanks", "cho anh xem") thì mượn ngôn ngữ của
+        # PHIÊN - nhưng CHỈ khi ngôn ngữ đó đến từ việc QUAN SÁT người dùng viết, tức là
+        # `detect` hoặc `session`. Nếu nó đến từ một cái GHIM (`setting`, `chatbot`, `brain`,
+        # `channel`, `ui`, `default`) thì nó nói về ngôn ngữ Javis phải TRẢ LỜI, không nói gì
+        # về ngôn ngữ người dùng đang VIẾT - và mượn nhầm nó là quay lại đúng con bệnh cũ.
+        if self.source in ("detect", "session"):
+            return self.lang
+        return ""
+
     def as_trace(self) -> dict:
         return {"lang": self.lang, "lang_source": self.source,
                 "lang_confidence": round(float(self.confidence), 3),
@@ -75,8 +102,32 @@ _KHOANG_CHU = (
 
 _TU = re.compile(r"[^\W_]+", re.UNICODE)
 
-# Dấu tiếng Việt là tín hiệu rất mạnh: không thứ tiếng nào khác dùng bộ dấu này.
-_DAU_VIET = re.compile(r"[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]", re.I)
+# Hai lớp bằng chứng NGƯỢC, và phải tách bạch vì chúng chắc chắn khác nhau.
+#
+# `_CHU_NGOAI`: ký tự tiếng Việt KHÔNG BAO GIỜ dùng. Thấy một chữ là chắc chắn không phải
+# tiếng Việt. Chú ý â ê ô KHÔNG có ở đây vì tiếng Việt dùng cả ba.
+_CHU_NGOAI = re.compile(r"[ñçüäößåæøœîûëï¿¡]", re.I)
+
+# `_DAU_CHUNG`: dấu sắc/huyền/hỏi trên nguyên âm trần. Tiếng Việt DÙNG chúng ("cá", "bà"),
+# nhưng tiếng Pháp, Tây Ban Nha, Bồ Đào Nha, Ý cũng vậy - nên một mình nó không kết luận
+# được gì. Nó chỉ dùng để SIẾT ngưỡng, xem chỗ chấm điểm bên dưới.
+_DAU_CHUNG = re.compile(r"[éáíóúàèìòù]", re.I)
+
+# Dấu RIÊNG của tiếng Việt. Cố ý KHÔNG lấy cả bộ dấu: à á è é ì í ò ó ù ú â ê ô dùng chung
+# với tiếng Pháp, Tây Ban Nha, Bồ Đào Nha, Ý. Bản đầu vơ hết vào đây, nên
+# "Peux-tu me résumer les ventes du mois de juin ?" bị nhận là tiếng Việt với độ tin 0.97
+# chỉ vì một chữ "é", rồi Javis được lệnh trả lời người Pháp bằng tiếng Việt.
+#
+# Còn lại đây là những ký tự gần như chỉ tiếng Việt dùng: ă đ ơ ư, cùng các tổ hợp dấu hỏi,
+# ngã, nặng. Một ký tự trong nhóm này là đủ chắc.
+_DAU_VIET = re.compile(
+    r"[ăđơư"
+    r"ảãạằắẳẵặầấẩẫậ"
+    r"ẻẽẹềếểễệ"
+    r"ỉĩị"
+    r"ỏõọồốổỗộờớởỡợ"
+    r"ủũụừứửữự"
+    r"ỳỷỹỵ]", re.I)
 
 
 def _he_chu(text: str) -> str:
@@ -130,8 +181,16 @@ def detect(text: str) -> tuple[str, float]:
     if not tu:
         return "", 0.0
 
+    # Loại thẳng tiếng Việt khỏi cuộc chấm điểm khi câu mang dấu của thứ tiếng Latin khác.
+    # Không có bước này thì một chữ "de" trong "les ventes du mois de juin" đủ để cả câu tiếng
+    # Pháp bị chấm thành tiếng Việt, vì danh sách hư từ tiếng Việt viết không dấu chứa nhiều
+    # chữ rất ngắn trùng với hư từ của tiếng Pháp, Tây Ban Nha, Bồ Đào Nha, Ý.
+    loai = {"vi"} if _CHU_NGOAI.search(s) else set()
+
     diem: dict[str, int] = {}
     for code in lang_registry.ma_list():
+        if code in loai:
+            continue
         hu_tu = {_bo_dau(w) for w in lang_registry.get(code).stopwords}
         diem[code] = len(tu & hu_tu)
 
@@ -144,6 +203,20 @@ def detect(text: str) -> tuple[str, float]:
     # Trúng nhiều hư từ VÀ bỏ xa đối thủ thì mới dám chắc. Hai ngôn ngữ hoà nhau nghĩa là
     # câu đó trộn tiếng, và ép nó về một bên là đoán bừa.
     if cach_biet <= 0:
+        return "", 0.0
+    # Ngưỡng hư từ: bình thường MỘT là đủ, nhưng siết lên HAI khi câu có dấu sắc/huyền trên
+    # nguyên âm trần mà KHÔNG có một chữ riêng nào của tiếng Việt.
+    #
+    # Vì sao phải phân biệt tinh đến vậy. Đòi hai hư từ ở mọi trường hợp thì phá đúng nhóm
+    # người dùng đông nhất: tiếng Việt viết KHÔNG DẤU và ngắn ("entropy la gi") chỉ trúng một
+    # chữ, mất sạch đường tắt tiết kiệm token. Còn để một hư từ ở mọi trường hợp thì một chữ
+    # "de" trong "les ventes du mois de juin" đủ biến câu tiếng Pháp thành tiếng Việt, vì danh
+    # sách hư từ tiếng Việt không dấu đầy những chữ hai ký tự trùng với tiếng Âu.
+    #
+    # Câu tiếng Việt CÓ DẤU thật gần như luôn mang ít nhất một chữ riêng (ă đ ơ ư hoặc dấu
+    # hỏi/ngã/nặng), nên nó không rơi vào nhánh siết.
+    nguong = 2 if (_DAU_CHUNG.search(s) and not _DAU_VIET.search(s)) else 1
+    if nhi[0] < nguong:
         return "", 0.0
     tin = min(0.95, 0.55 + 0.12 * cach_biet)
     return tot_nhat, tin
@@ -172,16 +245,26 @@ def _yeu_cau_thang(text: str) -> str:
     if _DONG_TU_DICH.search(s):
         return ""
 
-    dong_tu = (r"tra loi|noi|viet|dung|chuyen sang|doi sang|answer|reply|speak|write|respond|"
-               r"switch to|use")
+    # Động từ phải nói về việc TRẢ LỜI. Bản đầu nhận cả "dung", "viet", "write", "use" - quá
+    # rộng, nên "anh dùng app học tiếng Anh nào tốt" bị hiểu là lệnh đổi ngôn ngữ, và nó còn
+    # đè lên cả lựa chọn user đã ghim ở Cài đặt (mức 1 đứng trên mức 3).
+    dong_tu = (r"tra loi|tra loi bang|noi|noi bang|chuyen sang|doi sang|"
+               r"answer|reply|respond|speak|switch to")
     for code in lang_registry.ma_list():
         for tu in lang_registry.get(code).request_words:
             t = re.escape(_bo_dau(tu))
             if re.search(rf"\b({dong_tu})\b[^.!?\n]{{0,24}}?\b{t}\b", s):
                 return code
-            # dạng đảo: "in English please", "bang tieng Anh nhe"
-            if re.search(rf"\b(bang|in|sang)\s+{t}\b", s):
-                return code
+    # Dạng đảo ("in English please", "bang tieng Anh nhe") CHỈ tính khi cả tin nhắn là một
+    # câu ra lệnh ngắn. Câu dài chỉ NHẮC TỚI một ngôn ngữ thì không phải lệnh: "File hợp đồng
+    # bằng tiếng Anh nằm ở đâu trong brain" là một câu hỏi về vị trí file, không phải yêu cầu
+    # Javis đổi sang tiếng Anh - mà bản đầu hiểu đúng thành lệnh và đổi cả cuộc trò chuyện.
+    if len(s) <= 40:
+        for code in lang_registry.ma_list():
+            for tu in lang_registry.get(code).request_words:
+                t = re.escape(_bo_dau(tu))
+                if re.search(rf"\b(bang|in|sang)\s+{t}\b", s):
+                    return code
     return ""
 
 

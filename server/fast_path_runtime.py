@@ -256,8 +256,13 @@ class FastPathCanary:
                             policy_version=policy.version)
 
     def prepare(self, trace: context_runtime.TurnTrace | None, objective: str, brain: str,
+                # `lang`        = ngôn ngữ của CÂU HỎI, dùng để chọn bộ từ vựng cho cổng.
+                # `lang_tra_loi` = ngôn ngữ Javis phải TRẢ LỜI, đi vào hợp đồng đầu ra.
+                # Hai cái này KHÁC nhau khi user ghim ngôn ngữ trả lời, và lẫn chúng chính là
+                # con bệnh đã đo được: cổng chấm câu tiếng Việt bằng bộ từ vựng tiếng Anh.
                 channel: str, provider: str, model: str, provider_kind: str,
-                has_attachments: bool = False, lang: str = "") -> FastPathPlan:
+                has_attachments: bool = False, lang: str = "",
+                lang_tra_loi: str = "") -> FastPathPlan:
         try:
             policy = CanaryPolicy.from_settings(self.settings_reader() or {})
         except Exception:
@@ -341,6 +346,7 @@ class FastPathCanary:
         compile_resolution["miss_class"] = ""
         compiled = self.compiler.compile_canary(
             context_compiler.CompileRequest(
+                lang=lang_tra_loi,
                 task_id=trace.task_id, step_id=trace.step_id, objective=objective,
                 brain=brain, channel=channel, provider=provider, model=model,
                 model_kind=provider_kind, rolling_tpm_remaining=rule.rolling_tpm,

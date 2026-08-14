@@ -158,6 +158,13 @@ class CompileRequest:
     # same budget/source-map path as tools. Empty by default so Phase 4-7 contracts
     # and provider adapters remain byte-for-byte compatible.
     context_items: tuple[ContextItem, ...] = ()
+    # Ngôn ngữ Javis phải TRẢ LỜI cho lượt này. "" = chưa chốt, giữ nguyên câu "bám theo
+    # người dùng" như trước. Có trường này thì hợp đồng đầu ra của ĐƯỜNG TIẾT KIỆM TOKEN mới
+    # nói được đích danh ngôn ngữ - đường đó không đi qua build_system_prompt nên nó không
+    # bao giờ thấy khối "# === NGÔN NGỮ ===".
+    #
+    # Mặc định "" giữ mọi hợp đồng Phase 4-7 và mọi adapter nhà cung cấp giống hệt từng byte.
+    lang: str = ""
 
 
 @dataclass(frozen=True)
@@ -451,14 +458,14 @@ class ContextCompiler:
         tokenizer = self.tokenizer_factory(request)
         budget = self.budget_resolver.resolve(request, profile)
         channel_text = self._channel_contract(request.channel)
-        output_contract = self._output_contract(request.channel)
+        output_contract = self._output_contract(request.channel, request.lang)
         provider = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.provider or "unknown"))[:120]
         model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.model or "unknown"))[:180]
         identity_text = (
             f"Runtime identity: provider={provider}; model={model}. "
             "Khi được hỏi danh tính model, phải trả lời đúng hai giá trị này."
         )
-        output_text = self._output_contract_text(request.channel)
+        output_text = self._output_contract_text(request.channel, request.lang)
         planner_text = ""
         if request.execution_mode == "canary" and (resolution.get("selected") or []):
             planner_text = (
@@ -467,7 +474,7 @@ class ContextCompiler:
             )
         # Đồng hồ đi cùng capsule và là món BẮT BUỘC: đường tắt không phát tool nào, nên
         # thiếu dòng này là model không có cách nào biết bây giờ mấy giờ.
-        time_text = dong_ho()
+        time_text = dong_ho(lang=request.lang)
         base_system = (CORE_CONTRACT.rstrip() + "\n" + identity_text + "\n" + channel_text +
                   "\n" + time_text + "\n" + output_text +
                   ("\n" + planner_text if planner_text else ""))
@@ -877,14 +884,14 @@ class ContextCompiler:
         provider = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.provider or "unknown"))[:120]
         model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.model or "unknown"))[:180]
         channel_text = self._channel_contract(request.channel)
-        output_contract = self._output_contract(request.channel)
+        output_contract = self._output_contract(request.channel, request.lang)
         system = (
             CORE_CONTRACT.rstrip() + "\n"
             f"Runtime identity: provider={provider}; model={model}.\n" + channel_text + "\n"
             "Đây là vòng tổng hợp cuối của một capability read-only. Không gọi tool, không lập kế hoạch "
             "mới, không tuyên bố đã ghi, gửi, xoá hay thay đổi dữ liệu. Chỉ dùng evidence được gateway "
             "cung cấp và phải ghi nguyên evidence_ref trong câu trả lời.\n"
-            + self._output_contract_text(request.channel)
+            + self._output_contract_text(request.channel, request.lang)
         )
         safe_evidence = {
             "evidence_ref": evidence_ref,
@@ -1002,7 +1009,7 @@ class ContextCompiler:
         budget = self.budget_resolver.resolve(request, profile)
         provider = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.provider or "unknown"))[:120]
         model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", str(request.model or "unknown"))[:180]
-        output_contract = self._output_contract(request.channel)
+        output_contract = self._output_contract(request.channel, request.lang)
         system = (
             CORE_CONTRACT.rstrip() + "\n"
             f"Runtime identity: provider={provider}; model={model}.\n"
@@ -1011,7 +1018,7 @@ class ContextCompiler:
             "không tuyên bố write. Chỉ dùng bundle evidence gateway đã xác minh. Mọi fact live quan "
             "trọng phải dẫn ít nhất một evidence_ref nguyên văn. Nếu evidence xung đột hoặc thiếu, "
             "nói rõ giới hạn thay vì suy đoán.\n"
-            + self._output_contract_text(request.channel)
+            + self._output_contract_text(request.channel, request.lang)
         )
         user = (
             "Mục tiêu hiện tại:\n" + str(request.objective or "") +

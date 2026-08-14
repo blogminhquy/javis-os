@@ -117,7 +117,36 @@ for vi_cau, en_cau in _cap:
     check(f"VI và EN cùng kết cục: {en_cau[:30]}", v == e is False)
 
 check("EN tự chứa vẫn đi tắt được", _gate.classify("explain what entropy is").eligible)
-check("EN tính toán vẫn đi tắt được", _gate.classify("calculate 15 percent of 2400").eligible)
+check("EN tính toán vẫn đi tắt được khi biết ngôn ngữ",
+      _gate.classify("calculate 15 percent of 2400", lang="en").eligible)
+# Chưa dò ra ngôn ngữ thì cổng TỪ CHỐI, KỂ CẢ khi câu có một chữ trông rất "tự chứa". Cho đi
+# tắt là tự nhận mình hiểu một câu mình chưa đọc được ngôn ngữ; cái giá của việc từ chối chỉ
+# là token, và đó là cái giá phải trả.
+check("chưa rõ ngôn ngữ thì không đi tắt, dù câu có chữ hợp lệ của ALLOW",
+      not _gate.classify("translate zbcd qwerty mnop vlkx").eligible)
+
+# Tiếng Việt CÓ DẤU và tiếng Âu có dấu phải tách được nhau ra: một chữ "de" trong câu tiếng
+# Pháp từng đủ để cả câu bị chấm thành tiếng Việt, rồi Javis trả lời người Pháp bằng tiếng Việt.
+check("tiếng Pháp KHÔNG bị nhận thành tiếng Việt",
+      lang_mod.detect("Peux-tu me résumer les ventes du mois de juin ?")[0] != "vi")
+check("tiếng Tây Ban Nha cũng vậy",
+      lang_mod.detect("¿Cuánto vendimos este mes en la tienda?")[0] != "vi")
+check("nhưng tiếng Việt KHÔNG DẤU viết ngắn vẫn phải dò ra",
+      lang_mod.detect("entropy la gi")[0] == "vi")
+
+lang_mod.quen_phien()
+for _c in ("please show me the cost breakdown in detail",
+           "and also the revenue by channel for this month"):
+    lang_mod.resolve(turn_text=_c, session_id="tq")
+_dq = lang_mod.resolve(turn_text="calculate 15 percent of 2400", session_id="tq")
+check("giữa một phiên tiếng Anh, câu ngắn mượn được ngôn ngữ phiên",
+      _dq.lang_cau_hoi == "en" and _gate.classify("calculate 15 percent of 2400",
+                                                  lang=_dq.lang_cau_hoi).eligible)
+# Nhưng ngôn ngữ GHIM thì KHÔNG được mượn: nó nói Javis trả lời tiếng gì, không nói người
+# dùng đang viết tiếng gì.
+check("ngôn ngữ ghim KHÔNG rò xuống cổng",
+      lang_mod.resolve(turn_text="cho anh xem", session_id="tq2",
+                       reply_pref="en").lang_cau_hoi == "")
 
 
 # ============================================================

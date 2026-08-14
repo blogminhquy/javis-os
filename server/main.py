@@ -8616,7 +8616,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "dashboard", prov,
                         _codex_safe_model(api_model) if kind == "oauth"
                         else (api_model or mcfg.get("claude_model") or "mặc định"),
-                        kind, bool(has_attachments), _lang_qd.lang,
+                        kind, bool(has_attachments), _lang_qd.lang_cau_hoi, _lang_qd.lang,
                     )
                     # Chỉ nhận "execute". "reject" của đường tắt là lời từ chối dựa trên
                     # TRẦN TỰ KHAI của gói thuê bao, không phải hạn mức nhà cung cấp nói ra -
@@ -9037,7 +9037,7 @@ async def websocket_endpoint(ws: WebSocket):
                                     _FAST_PATH.prepare, runtime_trace, user_message,
                                     _brain_root(brain), "dashboard", prov,
                                     api_model or "?", kind, bool(has_attachments),
-                                    _lang_qd.lang,
+                                    _lang_qd.lang_cau_hoi, _lang_qd.lang,
                                 )
                             except Exception as _exc:
                                 fast_plan = None
@@ -11406,7 +11406,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             _fp = await asyncio.to_thread(
                 _FAST_PATH.prepare, runtime_trace, text, _brain_root(brain), channel, prov,
                 api_model or mcfg.get("claude_model") or "mặc định", kind, False,
-                _lang_qd.lang)
+                _lang_qd.lang_cau_hoi, _lang_qd.lang)
         except Exception as _e:
             _fp = None
             _CONTEXT_RUNTIME.record_runtime_event(
@@ -12142,8 +12142,16 @@ async def _stt_nghe(data, ten=""):
     # Gợi ý ngôn ngữ theo cấu hình. reply_lang="auto" -> truyền "" để Whisper TỰ DÒ, thay vì
     # ép "vi" như trước: người nói tiếng Anh vào một Javis đang để "auto" thì cái ép đó biến
     # câu của họ thành một câu tiếng Việt sai nghĩa.
-    _rl = (_cfg.get("locale") or {}).get("reply_lang") or "auto"
-    _ma = lang_registry.chuan_hoa(_rl)
+    _lc2 = _cfg.get("locale") or {}
+    # Thứ tự: ngôn ngữ trả lời đã GHIM -> ngôn ngữ giao diện -> để Whisper tự dò.
+    #
+    # `ui_lang` ở giữa là để CHỮA MỘT HỒI QUY chứ không phải cho đẹp: `reply_lang` mặc định
+    # là "auto", nên nếu chỉ đọc mỗi nó thì mọi máy đang chạy đột nhiên mất gợi ý "vi" mà chủ
+    # máy không đổi cài đặt gì. Whisper không có gợi ý thì câu tiếng Việt NGẮN hay bị đoán
+    # nhầm sang tiếng khác rồi dịch luôn, ra một câu không ai gõ bao giờ - đúng lý do gợi ý
+    # này tồn tại từ đầu.
+    _ma = (lang_registry.chuan_hoa(_lc2.get("reply_lang") or "")
+           or lang_registry.chuan_hoa(_lc2.get("ui_lang") or ""))
     return await stt.groq_nghe(data, ten, key,
                                ngon_ngu=(lang_registry.get(_ma).stt if _ma else ""))
 

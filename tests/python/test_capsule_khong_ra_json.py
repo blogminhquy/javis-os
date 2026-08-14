@@ -52,8 +52,11 @@ check("CANARY: không còn nhãn 'Output contract: ' kèm JSON trong prompt",
 check("và không còn json.dumps(output_contract) ở chỗ dựng prompt",
       "json.dumps(output_contract" not in _SRC)
 check("có hàm viết hợp đồng thành LỜI", "_output_contract_text" in _SRC)
+# Đếm theo tiền tố, không theo cả lời gọi: hàm nay nhận thêm `request.lang` (ngôn ngữ trả
+# lời cho đường tiết kiệm token), và sẽ còn nhận thêm tham số nữa. Khoá cứng cả chuỗi thì mỗi
+# lần thêm tham số là test đỏ vì một lý do chẳng liên quan gì tới thứ nó canh.
 check("cả ba chỗ dựng prompt đều dùng hàm đó",
-      _SRC.count("self._output_contract_text(request.channel)") >= 3)
+      _SRC.count("self._output_contract_text(request.channel") >= 3)
 
 # ============================================================
 # 2. Lời dặn phải CẤM ĐÍCH DANH việc bọc JSON
