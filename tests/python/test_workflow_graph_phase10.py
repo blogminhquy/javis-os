@@ -674,7 +674,9 @@ def test_paused_workflow_is_not_shown_as_a_crash():
         encoding="utf-8")
     block = studio.split('d.type === "wait_user"', 1)[1].split("} else if", 1)[0]
     assert "es.close()" in block and "endRun()" in block
-    assert "chờ anh duyệt" in block
+    # Xưng hô đổi sang "bạn" (2026-08-14): Javis phục vụ nhiều người, xưng "anh" là đoán
+    # giới tính và quan hệ. Test bám vào Ý ("đang chờ duyệt") chứ không bám vào đại từ.
+    assert "chờ bạn duyệt" in block
 
 
 def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):

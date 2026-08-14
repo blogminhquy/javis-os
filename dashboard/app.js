@@ -115,7 +115,7 @@ const voice = new JavisVoice({
   onError: (err) => {
     voiceBtn.classList.remove("recording");
     setOrbState("", "SẴN SÀNG");
-    if (err === "not-allowed") alert("Anh cần cấp quyền microphone cho trang này.");
+    if (err === "not-allowed") alert("Bạn cần cấp quyền microphone cho trang này.");
     else if (err === "not-supported") alert("Trình duyệt không hỗ trợ nhận giọng. Dùng Chrome/Edge.");
   }
 });
@@ -1774,7 +1774,7 @@ document.querySelectorAll('input[name="recognitionLang"]').forEach(r => r.addEve
 rateSlider.addEventListener("input", () => { const r = parseFloat(rateSlider.value); rateLabel.textContent = r.toFixed(2) + "×"; voice.setRate(rateToPct(r)); localStorage.setItem("javis.rate", r.toString()); });
 document.getElementById("testVoiceBtn").addEventListener("click", () => {
   const v = document.querySelector('input[name="voice"]:checked').value;
-  voice.speak(v.includes("HoaiMy") ? "Xin chào, em là HoaiMy, trợ lý của anh." : "Xin chào, tôi là NamMinh, trợ lý của bạn.");
+  voice.speak(v.includes("HoaiMy") ? "Xin chào, em là HoaiMy, trợ lý của bạn." : "Xin chào, tôi là NamMinh, trợ lý của bạn.");
 });
 ttsToggle.addEventListener("click", () => {
   const enabled = voice.toggleTTS();

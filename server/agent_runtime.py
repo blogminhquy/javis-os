@@ -314,7 +314,7 @@ class AgentRunner:
                     return AgentRunResult(
                         "ESCALATED", text, "repeated_failure_signature",
                         result.task_id, rounds, tuple(added),
-                        "Agent gặp lại đúng một lỗi nhiều lần nên dừng để anh xem.",
+                        "Agent gặp lại đúng một lỗi nhiều lần nên dừng để bạn xem.",
                         events, from_node)
 
             if rounds >= policy.max_replan_rounds:

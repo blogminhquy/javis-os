@@ -66,6 +66,24 @@ const chuaDich = Object.entries(en).filter(([, v]) => DAU_VIET.test(String(v)));
 check("en.json không còn chuỗi tiếng Việt", chuaDich.length === 0,
       chuaDich.map(([k]) => k).slice(0, 6).join(", "));
 
+// ---- 6. XƯNG HÔ: dùng "bạn", không dùng "anh" ----
+// Javis phục vụ NHIỀU NGƯỜI, không phải một người. Xưng "anh" với người dùng là đoán giới
+// tính và đoán quan hệ, và đoán sai với phần lớn người đọc. Chủ repo nói rõ điều này
+// (2026-08-14) sau khi thấy chữ "anh" trong chính mấy chuỗi vừa thêm.
+//
+// Chỉ bắt "anh" đứng RIÊNG làm đại từ. "tiếng Anh", "nước Anh", "giọng Anh" là tên ngôn ngữ
+// và quốc gia, hoàn toàn hợp lệ - bắt cả chúng thì test thành thứ phải đi vòng qua.
+const XUNG_HO_SAI = /(?<![\p{L}])[Aa]nh(?![\p{L}])/u;
+const NGOAI_LE = /(tiếng|nước|người|giọng)\s+[Aa]nh|[Aa]nh\s+ngữ|toàn\s+Anh/iu;
+for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
+  const xau = Object.entries(o).filter(([, v]) => {
+    const chuoi = String(v);
+    return XUNG_HO_SAI.test(chuoi.replace(NGOAI_LE, ""));
+  });
+  check(`${ten} xưng "bạn" chứ không xưng "anh" với người dùng`, xau.length === 0,
+        xau.map(([k]) => k).join(", "));
+}
+
 // ---- 6. CHỐT CHẶN THOÁI LUI ----
 // File nào đã dọn xong thì tên nó vào đây. Từ đó trở đi, nhúng một chuỗi tiếng Việt vào file
 // đó là test đỏ ngay. Dọn thêm file nào thì thêm tên vào danh sách này.

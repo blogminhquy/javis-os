@@ -61,7 +61,7 @@
 
   "settings.lang.title": "NGÔN NGỮ TRẢ LỜI",
   "settings.lang.auto": "Tự động theo người nhắn",
-  "settings.lang.hint": "Chọn \"Tự động\" thì Javis trả lời đúng thứ tiếng anh đang gõ. Ghim một ngôn ngữ thì Javis luôn trả lời bằng ngôn ngữ đó, dù anh gõ tiếng gì. Chatbot chăm khách có ô ngôn ngữ RIÊNG ở trang Chatbot.",
+  "settings.lang.hint": "Chọn \"Tự động\" thì Javis trả lời đúng thứ tiếng bạn đang gõ. Ghim một ngôn ngữ thì Javis luôn trả lời bằng ngôn ngữ đó, dù bạn gõ tiếng gì. Chatbot chăm khách có ô ngôn ngữ RIÊNG ở trang Chatbot.",
   "settings.lang.saved": "Đã đổi ngôn ngữ trả lời",
   "settings.ui_lang.title": "NGÔN NGỮ GIAO DIỆN",
   "settings.ui_lang.hint": "Chữ trên nút và nhãn. Khác với ngôn ngữ trả lời: giao diện tiếng Việt mà Javis trả lời tiếng Anh là một lựa chọn hợp lệ.",

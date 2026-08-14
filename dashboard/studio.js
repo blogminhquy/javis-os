@@ -204,7 +204,7 @@
         const canApprove = d.code && d.task_id;
         stepsEl.insertAdjacentHTML("beforeend",
           `<div class="run-info wf-wait">${ic("triangle-alert", { cls: "ic-warn" })} ` +
-          `Workflow dừng chờ anh duyệt bước "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}` +
+          `Workflow dừng chờ bạn duyệt bước "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}` +
           (canApprove
             ? `<div class="wf-wait-act"><button type="button" class="wf-approve" ` +
               `data-task="${esc(d.task_id)}" data-node="${esc(d.node || "")}" ` +
@@ -214,7 +214,7 @@
           `</div>`);
         stepsEl.scrollTop = stepsEl.scrollHeight;
       } else if (d.type === "escalation") {
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Agent dừng và chuyển lại cho anh: ${esc(d.reason || "")}</div>`);
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Agent dừng và chuyển lại cho bạn: ${esc(d.reason || "")}</div>`);
       } else if (d.type === "error") {
         es.close();
         endRun();

@@ -117,7 +117,7 @@ def promise_note(orchestration: str = "") -> str:
         "⚠ Javis tự kiểm: lượt vừa rồi em có hứa sẽ báo lại, nhưng em KHÔNG tạo việc nền nào "
         "nên sẽ không có báo cáo nào tự về đây. Lượt trả lời của em đóng lại ngay khi em nói "
         "xong, không có ai đánh thức em dậy để làm nốt.",
-        "Anh nhắn lại một câu là em làm ngay trong lượt sau, hoặc bảo em \"giao thành việc "
+        "Bạn nhắn lại một câu là em làm ngay trong lượt sau, hoặc bảo em \"giao thành việc "
         "nền\" để em đẩy vào hàng đợi và kết quả tự rơi về khung chat này.",
     ]
     if orchestration and orchestration != "auto":

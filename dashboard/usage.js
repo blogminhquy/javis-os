@@ -218,7 +218,7 @@
   // fetch KHÔNG reject với status 4xx/5xx, mà middleware đăng nhập của Javis lại trả 401 kèm
   // một THÂN JSON. Nên `.then(r => r.json())` trơn sẽ resolve ngon lành với {error:...}, khối
   // .catch không bao giờ chạy, và trang vẽ ra "0 token / $0.00 / Chưa có dữ liệu" ở mọi ô -
-  // trông y hệt một tháng chưa dùng gì. Phiên hết hạn mà báo là "anh chưa tiêu đồng nào" là
+  // trông y hệt một tháng chưa dùng gì. Phiên hết hạn mà báo là "bạn chưa tiêu đồng nào" là
   // kiểu sai tệ nhất: nó không giống lỗi.
   function jsonOk(r) {
     if (!r.ok) {
@@ -481,7 +481,7 @@
       var cls = tl >= 0.9 ? "bad" : (tl >= 0.7 ? "warn" : "ok");
       body = '<div class="big ' + cls + '">' + pct(tl) + "</div>"
         + '<div class="track"><div class="fill ' + cls + '" style="width:' + Math.round(tl * 100) + '%"></div></div>'
-        + '<div class="s">' + fTok(c.tokens) + " token trong 5 giờ qua, trên trần anh khai "
+        + '<div class="s">' + fTok(c.tokens) + " token trong 5 giờ qua, trên trần bạn khai "
         + fTok(c.tran_khai) + ".</div>";
     } else {
       body = '<div class="big">' + fTok(c.tokens) + "</div>";
@@ -490,16 +490,16 @@
         body += '<div class="track"><div class="fill" style="width:' + Math.round(tl2 * 100) + '%"></div></div>'
           + '<div class="s">token trong 5 giờ qua. '
           + (tl2 >= 0.99
-            ? "Đây đang là 5 giờ bận nhất của anh từ trước tới nay."
-            : "Bằng " + pct(tl2) + " mức cao nhất anh từng chạm (" + fTok(c.dinh) + ").")
+            ? "Đây đang là 5 giờ bận nhất của bạn từ trước tới nay."
+            : "Bằng " + pct(tl2) + " mức cao nhất bạn từng chạm (" + fTok(c.dinh) + ").")
           + "</div>";
       } else {
-        body += '<div class="s">token trong 5 giờ qua. Chưa đủ lịch sử để biết mốc của anh ở đâu.</div>';
+        body += '<div class="s">token trong 5 giờ qua. Chưa đủ lịch sử để biết mốc của bạn ở đâu.</div>';
       }
       body += '<div class="s">Khai trần gói ở ô Tiền mặt thì Javis báo được lúc sắp bị chặn.</div>';
     }
     if (!thueBao) {
-      body += '<div class="s">Anh đang dùng API key nên không có trần gói; số này chỉ để thấy nhịp dùng.</div>';
+      body += '<div class="s">Bạn đang dùng API key nên không có trần gói; số này chỉ để thấy nhịp dùng.</div>';
     }
     return '<div class="tk-a"><div class="h">' + ic("chart-column", { cls: "ic-sm" }) + "Cửa sổ 5 giờ</div>"
       + body + "</div>";
@@ -515,7 +515,7 @@
       return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + "Đã tiết kiệm</div>"
         + '<div class="big">-</div><div class="s">'
         + (k.khong_do_duoc
-          ? "Anh đang tự chỉnh tay từng đường nên Javis không biết cấu hình này tốn bao nhiêu mỗi lượt. Chọn một mức có sẵn là đo được."
+          ? "Bạn đang tự chỉnh tay từng đường nên Javis không biết cấu hình này tốn bao nhiêu mỗi lượt. Chọn một mức có sẵn là đo được."
           : "Chưa có lượt nào của Javis trong kỳ này để tính.")
         + "</div></div>";
     }
@@ -555,7 +555,7 @@
       + '<button class="tk-mini" data-act="ns">Huỷ</button></div>'
       + '<div class="hint">Bốn con số này Javis không tự biết được: nhà cung cấp không cho lấy giá gói'
       + " hay hạn mức gói qua API. Để trống thì trang chỉ nói được cái nó đo được."
-      + " Tự phanh chỉ đụng tới <b>việc chạy nền</b>, chat của anh không bị hạ model.</div></div>";
+      + " Tự phanh chỉ đụng tới <b>việc chạy nền</b>, chat của bạn không bị hạ model.</div></div>";
   }
 
   function card(k, v, sub, accent) {

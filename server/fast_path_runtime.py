@@ -376,7 +376,7 @@ class FastPathCanary:
                 policy_version=policy.version,
                 rejection_message=(
                     "Request này vượt ngân sách context đã xác minh của model hiện tại. "
-                    "Javis chưa gửi request; anh hãy rút gọn nội dung hoặc đổi model/provider."
+                    "Javis chưa gửi request; bạn hãy rút gọn nội dung hoặc đổi model/provider."
                 ),
             )
         if report.get("path") != "fast" or report.get("preflight_decision") != "would_allow":
@@ -402,7 +402,7 @@ class FastPathCanary:
                 policy_version=policy.version,
                 rejection_message=(
                     "Request này quá sát hard limit của model sau khi cộng biên an toàn. "
-                    "Javis chưa gửi request; anh hãy rút gọn nội dung hoặc đổi model/provider."
+                    "Javis chưa gửi request; bạn hãy rút gọn nội dung hoặc đổi model/provider."
                 ),
             )
         admission = self.runtime.admit_quota(
@@ -417,7 +417,7 @@ class FastPathCanary:
                 policy_version=policy.version,
                 rejection_message=(
                     "Model hiện tại đã hết ngân sách token trong cửa sổ quota. "
-                    "Javis chưa gửi request; anh chờ hết cửa sổ hoặc đổi model/provider."
+                    "Javis chưa gửi request; bạn chờ hết cửa sổ hoặc đổi model/provider."
                 ),
             )
         rendered = compiled.capsule.rendered_request
