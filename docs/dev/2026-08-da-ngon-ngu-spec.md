@@ -490,6 +490,14 @@ dùng không đụng tới.
 **Không sửa file nào khác. Phải sửa chỗ khác nghĩa là spec này đã hỏng - sửa spec trước, đừng
 sửa lén.**
 
+Hai bước TUỲ CHỌN, làm sau lúc nào cũng được vì cả hai đều có đường rơi-về:
+
+5. `description_<mã>` trong frontmatter của skill (thiếu thì rơi về mô tả gốc).
+6. Tài liệu người dùng, dịch tay (`README.en.md`, `docs/en/*`).
+
+Bản việc-cần-làm đầy đủ, kèm mục "những gì KHÔNG phải làm":
+**[docs/dev/them-mot-ngon-ngu.md](them-mot-ngon-ngu.md)**.
+
 ## 6. Bản nhỏ nhất đo được nhu cầu
 
 Trước khi bỏ hai tuần, có một câu hỏi hợp lý: **có nhu cầu thật không, hay đây là tính năng tự
@@ -690,6 +698,70 @@ slug là bắt mọi brain đang chạy di trú, đổi lấy đúng một cái 
 
 **Chốt chặn:** `test_locale.py` quét mã và báo đỏ nếu ai đó ghim lại `timezone(timedelta(hours=7))`
 ngoài ba chỗ được miễn trừ (nơi khai mặc định và hai plugin có thể chạy ngoài tiến trình server).
+
+### 6.8. ĐỢT 5 - SKILL VÀ TÀI LIỆU (2026-08-14). Đóng lộ trình vi+en.
+
+**Mô tả skill theo ngôn ngữ.** Frontmatter nhận thêm `description_<mã>` và `name_<mã>`; sáu
+skill hệ thống đã có bản `_en`. Đây không phải chuyện thẩm mỹ: mô tả skill là **bề mặt đối
+chiếu** giữa câu người dùng vừa gõ và danh sách skill mà router bơm vào system prompt của mọi
+engine, nên cùng thứ tiếng thì chọn sắc hơn.
+
+Luật quan trọng nhất là luật **rơi về**: thiếu bản dịch thì lấy bản gốc, KHÔNG lấy rỗng. Mô tả
+tiếng Việt vẫn định tuyến được cho người hỏi tiếng Anh (model đọc được cả hai), còn mô tả rỗng
+thì skill biến mất khỏi router. Nhờ luật này, dịch mô tả skill là bước **tuỳ chọn** khi thêm
+ngôn ngữ, và sổ tay ghi đúng như vậy.
+
+Ba chỗ phải sửa kèm, đều là chỗ hỏng thầm nếu bỏ qua:
+
+- `system_sync._cap_desc` giờ cắt **mọi** khoá mô tả, không riêng khoá gốc. Bản dịch đi vào
+  đúng chỗ bản gốc đi vào (phần đầu cố định của mọi lượt chat) nên phải chịu đúng cái trần
+  150 ký tự đó; miễn cho nó là mở lại đúng cái lỗ 61% token mà trần này bịt. Đổi lại, việc quét
+  nhiều khoá bắt buộc phải chặn trong phạm vi frontmatter - bản một-khoá cũ né được chuyện sửa
+  nhầm thân skill chỉ nhờ nó lấy match đầu tiên.
+- `POST /skills` đọc frontmatter cũ trước khi ghi đè. Form của trang Kỹ năng chỉ gửi lên
+  `{name, description, group}`, nên ghi đè trắng là mỗi lần bấm Lưu lại xoá sạch bản dịch mà
+  không ai thấy.
+- Khoá cache của `mcp_hub.discover_all` có thêm ngôn ngữ. Danh sách tool dùng chung cho mọi
+  lượt nên nó đọc ngôn ngữ từ CẤU HÌNH chứ không nhận từ lượt chat; thiếu ngôn ngữ trong khoá
+  thì đổi ngôn ngữ xong vẫn nhận danh sách skill của thứ tiếng cũ cho tới khi cache hết hạn.
+
+**Chỗ ngôn ngữ đổi HÀNH VI, không chỉ đổi chữ: `LazySkillSource._score` của Phase 8.** Router
+trong system prompt đưa cả danh sách cho model đọc, nên mô tả lệch tiếng vẫn chọn đúng skill.
+Bộ chấm điểm của Phase 8 thì không có model nào cả - nó đếm TỪ CHUNG giữa câu hỏi và mô tả. Đo
+được trên một skill có cả hai bản: câu `save a note fast` chấm **0.65** trên mô tả tiếng Anh và
+**0.17** trên mô tả tiếng Việt, trong khi ngưỡng chọn là 0.24. Tức là trước đợt này, người dùng
+tiếng Anh KHÔNG BAO GIỜ được Phase 8 chọn skill; nó lặng lẽ rơi về router đầy đủ - đúng kết quả,
+nhưng mất sạch phần token mà cả Phase 8 sinh ra để tiết kiệm.
+
+`refresh()` và `resolve()` nhận `lang`, và `lang` nằm TRONG khoá cache. Ngôn ngữ ở đây lấy từ
+cấu hình chứ KHÔNG từ ngôn ngữ dò được của từng lượt, có chủ ý: cấu hình là một giá trị duy
+nhất cho cả tiến trình, còn ngôn ngữ theo lượt sẽ làm bộ manifest và sổ đăng ký năng lực dựng
+lại theo từng câu. Chọn nhầm ngôn ngữ chỉ làm skill không đủ điểm rồi rơi về router - mất
+token, không sai kết quả.
+
+**Nhãn mốc trong prompt giữ nguyên tiếng Việt, có chủ ý.** `# === SKILL KHẢ DỤNG`,
+`# === BÂY GIỜ ===` và các nhãn cùng loại là **mốc đo**: `context_runtime` đếm token theo đúng
+chuỗi đó, và `tests/fixtures/context_compiler_contract.json` chốt chúng. Dịch nhãn theo ngôn
+ngữ là làm phép đo im lặng ngừng chạy cho đúng nhóm người dùng vừa thêm vào. Chỉ **nội dung**
+đi theo ngôn ngữ, không phải khung.
+
+**Tài liệu.** `README.en.md`, `QUICKSTART.en.md`, `docs/en/01-getting-started.md`,
+`docs/en/README.md`. Dịch tay, không qua từ điển - tài liệu không có cơ chế rơi-về nên bản
+dịch lệch là lệch im lặng. `docs/en/README.md` nói thẳng trang nào đã dịch và trang nào chưa,
+thay vì để người đọc tự phát hiện.
+
+`docs/dev/them-mot-ngon-ngu.md` là bản việc-cần-làm rút từ mục 5: bốn bước bắt buộc, hai bước
+tuỳ chọn, và một mục "những gì KHÔNG phải làm" - viết ra vì đó là chỗ người ta hay đi thừa.
+
+**Số liệu đã lạc hậu trong tài liệu, sửa luôn thay vì nhân đôi.** Bản tiếng Việt còn ghi 7 bộ
+não (thật ra 10), 6 nhóm rail (thật ra 7), 23-24 trang docs (thật ra 27). Dịch nguyên là đúc
+thêm một bản sai nữa, nên đã sửa cả hai bên. `test_tai_lieu_song_ngu.py` đọc con số thẳng từ
+`PROVIDER_DEFS` và `RAIL_GROUPS` rồi đối chiếu với cả hai bản - chép con số vào test là tạo ra
+chỗ thứ ba để lệch.
+
+**Chốt chặn:** `test_skill_da_ngon_ngu.py` (26 mục, gồm canary bản dịch bị cắt và canary thân
+skill không bị đụng) và `test_tai_lieu_song_ngu.py` (link nội bộ, dòng chuyển ngôn ngữ, số
+liệu khớp mã nguồn, không em dash ở bản tiếng Anh).
 
 ## 7. Sáu giai đoạn
 

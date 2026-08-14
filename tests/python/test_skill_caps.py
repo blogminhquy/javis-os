@@ -75,7 +75,7 @@ def _region(path, start_marker, end_marker):
     return text[i:j]
 
 
-hub = _region("mcp_hub.py", "metas = skill_router.list_enabled_meta(vault_root)",
+hub = _region("mcp_hub.py", "metas = skill_router.list_enabled_meta(vault_root",
               'add("javis_use_skill"')
 check("mcp_hub không còn literal [:60]", "[:60]" not in hub)
 check("mcp_hub không còn literal 20", "20" not in hub)

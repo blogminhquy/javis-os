@@ -259,22 +259,28 @@ def migrate_brain(root) -> None:
             print(f"[skill migrate] {src_base}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-_DESC_RE = re.compile(r"^(description\s*:\s*)(.*)$", re.MULTILINE)
+# `description:` và cả bản dịch `description_en:` / `description_th:` - mô tả tiếng Anh cũng
+# đi vào đúng phần đầu cố định của mọi lượt chat, nên nó phải chịu đúng cái trần đó.
+_DESC_RE = re.compile(r"^(description(?:_[a-z]{2})?\s*:\s*)(.*)$", re.MULTILINE)
 
 
-def _cap_desc(text: str, cap: int) -> Optional[str]:
-    """Rút `description` trong frontmatter xuống <= cap ký tự. None = không cần/không sửa được.
+def _het_frontmatter(text: str) -> int:
+    """Vị trí kết thúc khối frontmatter. 0 = file không có frontmatter.
 
-    Vì sao chỉ sửa BẢN MIRROR: Claude Code nạp native đọc frontmatter ở `.claude/skills`, và
-    danh sách skill đó đi vào phần đầu CỐ ĐỊNH của MỌI lượt chat. Đo trên brain thật: 14/30
-    skill vượt trần 150 ký tự của chính dự án (dài nhất 1.018), tổng mô tả 10.095 ký tự nạp
-    mỗi phiên; ép đúng trần còn 3.892, giảm 61%. Bản canonical trong `skills/` GIỮ NGUYÊN chữ
-    của người dùng - mirror vốn là bản phái sinh. Không mất năng lực: mô tả chỉ để định tuyến,
-    thân skill vẫn nạp đủ khi được gọi, và router của Javis xưa nay đã cắt đúng ở 150 rồi.
+    Có mốc này thì việc cắt mới dám quét NHIỀU khoá: quét cả file mà gặp một dòng
+    `description:` nằm trong thân skill (ví dụ đoạn mẫu YAML trong tài liệu của chính skill đó)
+    là sẽ sửa nhầm nội dung hướng dẫn. Bản một-khoá cũ né được chuyện này chỉ nhờ ăn may - nó
+    lấy match ĐẦU TIÊN, mà frontmatter luôn ở trên cùng.
     """
-    m = _DESC_RE.search(text or "")
-    if not m:
-        return None
+    if not (text or "").startswith("---"):
+        return 0
+    end = text.find("\n---", 3)
+    return (end + 4) if end >= 0 else 0
+
+
+def _cap_mot(text: str, m, cap: int) -> Optional[tuple]:
+    """Cắt một khoá mô tả. None = khoá này không cần/không sửa được.
+    Trả (text mới, vị trí quét tiếp)."""
     raw = m.group(2).strip()
     end = m.end()          # hết dòng `description:` - scalar nhiều dòng sẽ đẩy mốc này xuống
     if raw.startswith((">", "|")):
@@ -314,7 +320,37 @@ def _cap_desc(text: str, cap: int) -> Optional[str]:
     sp = cut.rfind(" ")
     if sp > cap * 0.6:
         cut = cut[:sp].rstrip()      # cắt ở ranh giới từ cho đỡ cụt giữa chữ
-    return text[:m.start(2)] + json.dumps(cut + "…", ensure_ascii=False) + text[end:]
+    thay = json.dumps(cut + "…", ensure_ascii=False)
+    return text[:m.start(2)] + thay + text[end:], m.start(2) + len(thay)
+
+
+def _cap_desc(text: str, cap: int) -> Optional[str]:
+    """Rút mọi khoá mô tả trong frontmatter xuống <= cap ký tự. None = không có gì phải sửa.
+
+    Vì sao chỉ sửa BẢN MIRROR: Claude Code nạp native đọc frontmatter ở `.claude/skills`, và
+    danh sách skill đó đi vào phần đầu CỐ ĐỊNH của MỌI lượt chat. Đo trên brain thật: 14/30
+    skill vượt trần 150 ký tự của chính dự án (dài nhất 1.018), tổng mô tả 10.095 ký tự nạp
+    mỗi phiên; ép đúng trần còn 3.892, giảm 61%. Bản canonical trong `skills/` GIỮ NGUYÊN chữ
+    của người dùng - mirror vốn là bản phái sinh. Không mất năng lực: mô tả chỉ để định tuyến,
+    thân skill vẫn nạp đủ khi được gọi, và router của Javis xưa nay đã cắt đúng ở 150 rồi.
+    """
+    out = text or ""
+    tran = _het_frontmatter(out)
+    if not tran:
+        return None
+    pos, doi = 0, False
+    while pos < tran:
+        m = _DESC_RE.search(out, pos, tran)
+        if not m:
+            break
+        r = _cap_mot(out, m, cap)
+        if r is None:
+            pos = m.end()
+            continue
+        moi, pos = r
+        tran += len(moi) - len(out)   # cắt bớt chữ ⇒ mốc hết frontmatter lùi lên
+        out, doi = moi, True
+    return out if doi else None
 
 
 def _copy_skill_md_capped(src: Path, dst: Path) -> None:

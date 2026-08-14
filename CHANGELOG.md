@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.35.0] - 2026-08-14
+### Thêm mới
+- **Javis nói được tiếng Anh.** Hỏi bằng tiếng Anh thì Javis trả lời tiếng Anh, không cần đổi cài đặt gì - nó tự bám theo thứ tiếng bạn đang gõ, và chèn một câu tiếng Anh giữa cuộc trò chuyện tiếng Việt sẽ không làm nó đổi hẳn. Muốn ghim cứng một thứ tiếng thì vào **Cài đặt**, mục ngôn ngữ.
+- **Giao diện có bản tiếng Anh.** Chọn ở **Cài đặt**; phần đã dịch hiện tiếng Anh, phần chưa dịch giữ nguyên tiếng Việt chứ không để trống ô nào. Chữ trên màn hình và ngôn ngữ Javis trả lời là hai lựa chọn riêng.
+- **Múi giờ và tiền tệ tách khỏi ngôn ngữ.** Trước đây Javis luôn tính giờ Việt Nam dù bạn ngồi ở đâu, nên nhắc hẹn "7h sáng" kêu lệch vài tiếng cho người ở múi giờ khác. Giờ nó theo đúng múi giờ bạn đặt.
+
+### Cải thiện
+- **Bản tiếng Anh cho README và trang hướng dẫn đầu tiên.** Các trang còn lại vẫn tiếng Việt; `docs/en/` nói rõ trang nào đã dịch để bạn khỏi đoán.
+
 ## [0.34.1] - 2026-08-14
 ### Sửa lỗi
 - **Chữ trong Terminal trên Windows hết trôi thành bậc thang.** Chạy `git help` là cả màn hình xiên dần sang phải, mỗi dòng bắt đầu ở chỗ dòng trước kết thúc. Windows không có tầng nào lo việc "về đầu dòng" hộ nên Javis phải tự làm, giờ đã làm.

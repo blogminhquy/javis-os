@@ -32,6 +32,10 @@ import fastyaml
 # slug 1 đoạn an toàn (không '/', không '..') → chống path traversal khi join base/slug
 _SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
+# Khoá frontmatter theo ngôn ngữ: `description_en`, `name_en`, ... Chỉ 2 ký tự mã ngôn ngữ,
+# cùng dạng chuẩn hoá với lang_registry.chuan_hoa (vi/en/th...).
+_KHOA_NGON_NGU_RE = re.compile(r"^(name|description)_([a-z]{2})$")
+
 # Thứ tự ưu tiên đọc: canonical trước, rồi các fallback (canonical "thắng" khi trùng slug).
 _READ_BASES = ("skills", ".claude/skills", ".agents")
 
@@ -72,6 +76,46 @@ def validate_description(desc) -> Optional[str]:
                 "đều mở như vậy nên nó đốt ngân sách mà không phân biệt gì. Nêu thẳng "
                 "năng lực, vd 'Tóm tắt biên bản họp thành danh sách việc cần làm.'")
     return None
+
+
+def theo_ngon_ngu(meta: dict, khoa: str, lang: str = "") -> str:
+    """Giá trị của `khoa` trong frontmatter, ưu tiên bản đúng ngôn ngữ.
+
+    `description_en` khi đang trả lời tiếng Anh, ngược lại `description` gốc. Thiếu bản dịch
+    thì RƠI VỀ bản gốc chứ không rơi về rỗng: mô tả tiếng Việt vẫn định tuyến được (model đọc
+    được cả hai), còn mô tả rỗng thì skill BIẾN MẤT khỏi router - hỏng nặng hơn hẳn.
+
+    Đây cũng là lý do bản dịch mô tả skill là bước TUỲ CHỌN khi thêm một ngôn ngữ mới: thiếu
+    nó Javis vẫn chạy đúng, chỉ là danh sách skill hiện chữ Việt.
+    """
+    if not isinstance(meta, dict):
+        return ""
+    lang = str(lang or "").strip().lower()[:2]
+    if lang:
+        v = meta.get(f"{khoa}_{lang}")
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    v = meta.get(khoa)
+    return v.strip() if isinstance(v, str) else ""
+
+
+def la_khoa_ngon_ngu(khoa) -> bool:
+    """True nếu đây là khoá bản dịch (`description_en`, `name_th`...). Dùng ở chỗ GHI để giữ
+    lại key mà form không gửi lên."""
+    return bool(_KHOA_NGON_NGU_RE.match(str(khoa or "")))
+
+
+def ban_dich(meta: dict, khoa: str = "description") -> dict:
+    """{mã ngôn ngữ: giá trị} của mọi bản dịch có trong frontmatter. Dùng cho test canary và
+    cho chỗ GHI (giữ lại key phụ thay vì xoá trắng)."""
+    out = {}
+    if not isinstance(meta, dict):
+        return out
+    for k, v in meta.items():
+        m = _KHOA_NGON_NGU_RE.match(str(k))
+        if m and m.group(1) == khoa and isinstance(v, str) and v.strip():
+            out[m.group(2)] = v.strip()
+    return out
 
 
 def skills_base(root, canonical: bool = True) -> Path:
@@ -144,16 +188,18 @@ def read_frontmatter_only(smd: Path, max_bytes: int = 16384) -> tuple[dict, str]
     ).hexdigest()
 
 
-def _meta_of(smd: Path) -> dict:
-    """Bóc {name, description, group} từ 1 file SKILL.md (description rỗng → lấy dòng đầu body)."""
+def _meta_of(smd: Path, lang: str = "") -> dict:
+    """Bóc {name, description, group} từ 1 file SKILL.md (description rỗng → lấy dòng đầu body).
+    lang: chọn bản `description_<lang>` / `name_<lang>` nếu skill có, rơi về bản gốc nếu không."""
     try:
         text = smd.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return {"name": smd.parent.name, "description": "", "group": "Chung"}
     meta, body = split_frontmatter(text)
     body = (body or "").strip()
-    desc = meta.get("description", "") or (body.split("\n")[0][:SKILL_DESC_MAX] if body else "")
-    return {"name": meta.get("name") or smd.parent.name,
+    desc = theo_ngon_ngu(meta, "description", lang) or (
+        body.split("\n")[0][:SKILL_DESC_MAX] if body else "")
+    return {"name": theo_ngon_ngu(meta, "name", lang) or smd.parent.name,
             "description": desc,
             "group": meta.get("group") or "Chung"}
 
@@ -168,9 +214,10 @@ def _iter_skill_dirs(base: Path):
         return
 
 
-def list_skills(root) -> list:
+def list_skills(root, lang: str = "") -> list:
     """Mọi skill trong brain (bật + tắt), de-dup theo slug (canonical thắng - kể cả trạng thái
-    bật/tắt). Mỗi item: {slug, name, description, group, enabled, source, path}."""
+    bật/tắt). Mỗi item: {slug, name, description, group, enabled, source, path}.
+    lang: ngôn ngữ hiển thị/định tuyến (xem theo_ngon_ngu). Rỗng = bản gốc trong file."""
     root = Path(root)
     out, seen = [], set()
 
@@ -179,7 +226,7 @@ def list_skills(root) -> list:
         if slug in seen:
             return
         seen.add(slug)
-        m = _meta_of(d / "SKILL.md")
+        m = _meta_of(d / "SKILL.md", lang)
         out.append({"slug": slug, "name": m["name"], "description": m["description"],
                     "group": m["group"], "enabled": enabled, "source": source,
                     "path": str(d / "SKILL.md")})
@@ -204,12 +251,12 @@ def list_skills(root) -> list:
     return out
 
 
-def list_enabled_meta(root) -> list:
+def list_enabled_meta(root, lang: str = "") -> list:
     """Chỉ các skill đang BẬT (dùng để bơm router vào system prompt + mô tả tool javis_use_skill)."""
-    return [s for s in list_skills(root) if s.get("enabled")]
+    return [s for s in list_skills(root, lang) if s.get("enabled")]
 
 
-def list_skill_manifests(root) -> list:
+def list_skill_manifests(root, lang: str = "") -> list:
     """Enabled SkillSource manifests. Only frontmatter and relative path are exposed."""
     root = Path(root)
     out, seen = [], set()
@@ -235,8 +282,8 @@ def list_skill_manifests(root) -> list:
                 continue
             out.append({
                 "slug": slug,
-                "name": str(meta.get("name") or slug),
-                "description": str(meta.get("description") or "")[:SKILL_DESC_MAX],
+                "name": theo_ngon_ngu(meta, "name", lang) or slug,
+                "description": theo_ngon_ngu(meta, "description", lang)[:SKILL_DESC_MAX],
                 "group": str(meta.get("group") or "Chung"),
                 "relative_path": relative,
                 "frontmatter_hash": fm_hash,

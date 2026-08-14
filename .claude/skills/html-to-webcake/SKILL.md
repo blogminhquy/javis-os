@@ -1,6 +1,8 @@
 ---
 name: HTML sang Webcake
 description: Chuyển trang HTML thành file .pke mở được trong trình dựng Webcake, giữ đúng màu, cỡ chữ, ảnh và bố cục của bản gốc.
+name_en: "HTML to Webcake"
+description_en: "Turn an HTML page into a .pke file the Webcake builder can open, keeping the original colours, type sizes, images and layout."
 group: Marketing
 ---
 

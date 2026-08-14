@@ -382,8 +382,20 @@ class AdaptiveContextCanary:
 
         if assigned["skill"]:
             try:
+                # Ngôn ngữ đọc từ CẤU HÌNH chứ không từ câu vừa gõ. Chấm điểm skill là so
+                # trùng từ, nên nó cần mô tả cùng thứ tiếng với câu hỏi; nhưng lấy ngôn ngữ
+                # dò được của TỪNG lượt thì bộ manifest đổi theo từng câu, và cả cache lẫn
+                # sổ đăng ký năng lực dựng lại liên tục. Cấu hình là một giá trị duy nhất cho
+                # cả tiến trình nên không có chuyện đó. Chọn nhầm ngôn ngữ chỉ làm skill
+                # không đủ điểm rồi rơi về router đầy đủ - mất token, không sai kết quả.
+                try:
+                    import localefmt
+                    _lang_skill = localefmt.ngon_ngu_tra_loi()
+                except Exception:  # noqa: BLE001 - thiếu ngôn ngữ thì dùng mô tả gốc
+                    _lang_skill = ""
                 selected = self.skills.resolve(
-                    brain, objective, max_body_chars=policies["skill"].max_body_chars
+                    brain, objective, max_body_chars=policies["skill"].max_body_chars,
+                    lang=_lang_skill,
                 )
                 status["skill"].update({
                     "reason": selected.reason, "score": selected.score,

@@ -1,10 +1,12 @@
 # Bắt đầu & thiết lập lần đầu
 
+***Tiếng Việt** · [English](en/01-getting-started.md)*
+
 Trang này hướng dẫn bạn từ lúc mở Javis lần đầu tiên cho tới khi Javis sẵn sàng trò chuyện: tạo tài khoản admin, chọn nhà cung cấp AI làm "bộ não", chọn model, và kiểm tra trạng thái hệ thống ở trang Cài đặt.
 
 ## Tính năng này là gì
 
-Javis OS là một lớp điều hành AI chạy trên máy hoặc VPS của bạn. Bộ não là nhà cung cấp AI mà bạn đấu vào: Claude Code, ChatGPT (qua Codex), OpenRouter, OpenAI API, Anthropic API, Google Gemini hoặc Groq. Bộ cài đặt lần đầu **chọn sẵn** Claude Code vì đó là lựa chọn được khuyên dùng, chứ Javis không bị khoá vào một nhà cung cấp nào.
+Javis OS là một lớp điều hành AI chạy trên máy hoặc VPS của bạn. Bộ não là nhà cung cấp AI mà bạn đấu vào: Claude Code, ChatGPT (qua Codex), Antigravity CLI, OpenRouter, OpenAI API, Anthropic API, Google Gemini, Groq hoặc Ollama Cloud. Bộ cài đặt lần đầu **chọn sẵn** Claude Code vì đó là lựa chọn được khuyên dùng, chứ Javis không bị khoá vào một nhà cung cấp nào.
 
 Trước khi dùng được, Javis cần 3 thứ:
 
@@ -19,7 +21,7 @@ Lần đầu mở app, một bộ cài đặt (wizard) sẽ hiện ra và dẫn 
 - Trên máy cá nhân, mở trình duyệt và vào `http://localhost:7777` (cổng mặc định là 7777).
 - Trên VPS hoặc Docker, dùng địa chỉ mà nhà cung cấp cấp cho bạn, ví dụ `http://<ip-vps>:7777` hoặc link HTTPS dạng `https://<app>.<vps>.hstgr.cloud`.
 
-Sau khi thiết lập xong, các mục liên quan nằm trên rail điều hướng bên trái. Rail gom thành 6 nhóm, **phải bấm mở nhóm mới thấy mục con**:
+Sau khi thiết lập xong, các mục liên quan nằm trên rail điều hướng bên trái. Rail gom thành 7 nhóm, **phải bấm mở nhóm mới thấy mục con**:
 
 | Nhóm | Mục | Dùng để |
 |---|---|---|
@@ -60,7 +62,7 @@ Trên máy cá nhân, nếu bạn để trống mật khẩu thì Javis không �
 | **💬 ChatGPT (gói subscription)** | "Đăng nhập ChatGPT Plus/Pro (qua Codex) → vẫn dùng được MCP của Javis." | Đăng nhập ChatGPT ở trang Models |
 | **🌐 OpenRouter** | "Nhiều model giá rẻ một chỗ, vẫn đủ MCP Javis + skill + đọc/ghi file brain. Chỉ cần API key - không cần đăng nhập." | Dán API key OpenRouter (dán ngay hoặc để sau ở Models) |
 
-Chọn cái nào cũng ra một Javis đủ chức năng: cả ba đều gọi được kho Kết nối (MCP), đọc/ghi file trong brain, chạy skill, giao việc và tạo loop. Khác biệt duy nhất là **chạy lệnh máy**, thứ chỉ hai engine CLI (Claude Code, Codex) làm được. Wizard chỉ hiện 3 thẻ cho gọn; vào trang **Models** còn OpenAI API, Google Gemini, Anthropic API và Groq, đổi lúc nào cũng được.
+Chọn cái nào cũng ra một Javis đủ chức năng: cả ba đều gọi được kho Kết nối (MCP), đọc/ghi file trong brain, chạy skill, giao việc và tạo loop. Khác biệt duy nhất là **chạy lệnh máy**, thứ chỉ các engine CLI (Claude Code, Codex, Antigravity CLI) làm được. Wizard chỉ hiện 3 thẻ cho gọn; vào trang **Models** còn Antigravity CLI, OpenAI API, Google Gemini, Anthropic API, Groq và Ollama, đổi lúc nào cũng được.
 
 Nếu chọn **OpenRouter**, một ô nhập **OpenRouter API key** sẽ hiện ra, bạn có thể dán key ngay hoặc để trống rồi dán sau ở trang Models. Dưới danh sách còn một dòng gợi ý thay đổi theo thẻ bạn chọn, ví dụ chọn ChatGPT thì gợi ý "Sau khi vào: mục **Models** → đăng nhập ChatGPT".
 
@@ -88,7 +90,7 @@ Engine Claude của Javis chạy qua **Claude Agent SDK**, nhưng SDK vẫn gọ
 Sau khi đã đăng nhập, kiểm tra và chọn model ở trang **Models**:
 
 - Phần **◆ Main Model** hiển thị model đang dùng cho hội thoại. Bấm **Đổi model ▾** để chọn model khác.
-- Phần **◆ Providers** liệt kê **bảy** nhà cung cấp: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API). Thẻ nào cần key thì có ô dán key và nút **Kết nối** / **Đổi key** / **Ngắt**.
+- Phần **◆ Providers** liệt kê **mười** nhà cung cấp: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), Google Antigravity CLI, Google Gemini CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API), Ollama Cloud. Thẻ nào cần key thì có ô dán key và nút **Kết nối** / **Đổi key** / **Ngắt**.
 - Phần **◆ Model việc nền** (phụ đề "loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn") cho phép chọn một model rẻ cho các việc chạy nền để đỡ hạn mức. Chưa đổi thì dòng trạng thái ghi "Mặc định của Claude Code". Bấm **Đổi model ▾** để chọn, bấm **Về mặc định** để trả lại. Nếu bạn chọn nhà cung cấp chưa kết nối, thẻ cảnh báo "⚠ nhà cung cấp này chưa kết nối - việc nền sẽ tự dùng lại Claude".
 - Phần **◆ Suy nghĩ** (reasoning) đặt độ sâu suy nghĩ khi trả lời: **Tắt**, **Thấp**, **Vừa**, **Cao**. Mặc định là Tắt (trả lời nhanh).
 
@@ -273,7 +275,7 @@ Còn vướng, xem thêm [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
 ## Liên quan
 
 - [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md) - việc đầu tiên nên làm sau khi thiết lập xong.
-- [Models & engine](10-models-va-engine.md) - chi tiết bảy nhà cung cấp và cách đổi model.
+- [Models & engine](10-models-va-engine.md) - chi tiết từng nhà cung cấp và cách đổi model.
 - [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - đấu nguồn dữ liệu vào trang **Kết nối**.
 - [Plugins](20-plugins.md) - thêm công cụ native cho mọi engine.
 - [Việc / Kanban](21-viec-kanban.md) - giao việc chạy nền một lần.

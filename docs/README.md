@@ -1,10 +1,12 @@
 # 📚 Tài liệu Javis OS
 
+***Tiếng Việt** · [English](en/README.md)*
+
 Hướng dẫn sử dụng chi tiết từng chức năng của Javis OS. Mỗi trang là một how-to độc lập: mở ở đâu, bấm gì, dùng thế nào.
 
 > Mới bắt đầu? Đọc [Cài đặt trong README](../README.md#-cài-đặt) trước, rồi qua [01 - Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md).
 
-Thanh điều hướng của dashboard gom **18 trang** thành **6 nhóm**: Trợ lý · Bộ não · Năng lực · Việc · Kết nối · Hệ thống. Mục lục dưới đây xếp theo cùng logic đó.
+Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Trợ lý · Bộ não · Code · Năng lực · Việc · Kết nối · Hệ thống. Mục lục dưới đây xếp theo cùng logic đó.
 
 ## Mục lục
 
@@ -33,7 +35,7 @@ Thanh điều hướng của dashboard gom **18 trang** thành **6 nhóm**: Tr�
 
 ### Kết nối & kênh (nhóm Kết nối)
 - [09 - Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md) - kho dịch vụ ngoài đa tài khoản, phân quyền, báo cáo số thật.
-- [10 - Models & engine](10-models-va-engine.md) - đổi bộ não giữa Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Gemini, Anthropic mà không mất chức năng; mức suy nghĩ, model việc nền.
+- [10 - Models & engine](10-models-va-engine.md) - đổi bộ não giữa Claude Code, ChatGPT/Codex, Antigravity CLI, OpenRouter, OpenAI, Gemini, Anthropic, Groq, Ollama mà không mất chức năng; mức suy nghĩ, model việc nền.
 - [11 - Kênh Telegram](11-telegram.md) - hỏi Javis qua điện thoại, gửi và nhận file.
 - [26 - Kênh Zalo Bot](26-kenh-zalo-bot.md) - hỏi Javis trên Zalo bằng API chính thức, ghép nối bằng một cú bấm.
 - [12 - Zalo Agent MCP](12-zalo.md) - đăng nhập QR, đọc/tìm lịch sử và gửi tin qua MCP chuẩn.
@@ -52,6 +54,14 @@ Thanh điều hướng của dashboard gom **18 trang** thành **6 nhóm**: Tr�
 
 ### Khi có sự cố
 - [17 - Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md) - lỗi thường gặp và cách xử lý.
+
+---
+
+## Bản tiếng Anh
+
+Tài liệu đang dịch dần từng trang, không dịch một lượt. [docs/en/](en/README.md) nói rõ trang
+nào đã có tiếng Anh và trang nào còn nguyên tiếng Việt - xem ở đó thay vì đoán. Thêm một ngôn
+ngữ vào chính Javis (không phải tài liệu) thì theo [sổ tay thêm ngôn ngữ](dev/them-mot-ngon-ngu.md).
 
 ---
 

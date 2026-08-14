@@ -36,16 +36,20 @@ class SkillSelection:
 class LazySkillSource:
     def __init__(self, registry: CapabilityRegistry):
         self.registry = registry
-        self._refresh_cache: dict[str, tuple[tuple, dict]] = {}
-        self._incomplete: dict[str, int] = {}
+        self._refresh_cache: dict[tuple, tuple[tuple, dict]] = {}
+        self._incomplete: dict[tuple, int] = {}
 
-    def refresh(self, brain: str | Path) -> dict:
-        key = str(Path(brain).resolve()).casefold()
+    def refresh(self, brain: str | Path, lang: str = "") -> dict:
+        # `lang` nằm TRONG khoá cache, không chỉ trong lời gọi. Chấm điểm ở `_score` là so
+        # TRÙNG TỪ giữa câu người dùng và mô tả skill, nên mô tả phải cùng thứ tiếng với câu
+        # hỏi thì mới có điểm; đổi ngôn ngữ mà vẫn trả bộ manifest cũ là im lặng vô hiệu hoá
+        # đúng cái vừa sửa. Thiếu bản dịch thì skill_router tự rơi về mô tả gốc.
+        key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
         signature = skill_router.skill_manifest_signature(brain)
         cached = self._refresh_cache.get(key)
         if cached and cached[0] == signature:
             return dict(cached[1])
-        manifests = skill_router.list_skill_manifests(brain)
+        manifests = skill_router.list_skill_manifests(brain, lang)
         result = self.registry.refresh_skills(brain, manifests)
         result["manifest_count"] = len(manifests)
         result["body_loaded_count"] = 0
@@ -73,9 +77,10 @@ class LazySkillSource:
                    (0.13 if phrase else 0) + (0.25 if explicit else 0))
 
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
-                ambiguity_margin: float = 0.08, max_body_chars: int = 12000) -> SkillSelection:
-        self.refresh(brain)
-        key = str(Path(brain).resolve()).casefold()
+                ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
+                lang: str = "") -> SkillSelection:
+        self.refresh(brain, lang)
+        key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
         if self._incomplete.get(key, 0):
             return SkillSelection(
                 "fallback", "manifest_incomplete", registry_revision=self.registry.revision(brain)

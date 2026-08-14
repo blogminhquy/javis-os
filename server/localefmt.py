@@ -54,6 +54,27 @@ def _cau_hinh() -> dict:
         return {}
 
 
+def ngon_ngu_giao_dien() -> str:
+    """Ngôn ngữ CHỮ TRÊN MÀN HÌNH. Dùng cho danh sách skill, nhãn nút, thông báo lỗi."""
+    return lang_registry.chuan_hoa(_cau_hinh().get("ui_lang") or "") or lang_registry.MAC_DINH
+
+
+def ngon_ngu_tra_loi() -> str:
+    """Ngôn ngữ Javis TRẢ LỜI, theo cấu hình - KHÔNG tính phần dò từ câu người dùng vừa gõ.
+
+    `reply_lang` mặc định là "auto" (bám theo người viết), và "auto" không phải một ngôn ngữ,
+    nên rơi tiếp xuống `ui_lang`. Bỏ nấc đó thì máy để giao diện tiếng Anh, `reply_lang` để
+    auto, mà những chỗ chỉ có cấu hình chứ không có câu người dùng (mô tả tool, giọng đọc) lại
+    quay về tiếng Việt.
+
+    Chỗ nào có văn bản của lượt chat thì dùng `lang.resolve()` - nó chính xác hơn hàm này.
+    """
+    c = _cau_hinh()
+    return (lang_registry.chuan_hoa(c.get("reply_lang") or "")
+            or lang_registry.chuan_hoa(c.get("ui_lang") or "")
+            or lang_registry.MAC_DINH)
+
+
 def ten_tz() -> str:
     return str(_cau_hinh().get("tz") or TEN_TZ_MAC_DINH)
 

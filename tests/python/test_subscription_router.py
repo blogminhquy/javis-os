@@ -174,8 +174,8 @@ check("CANARY: mirror KHÔNG nằm trong nhánh if include_skills",
 # Chỉ mục năng lực vẫn phải nói ĐÚNG số skill, kể cả khi bỏ khối router: đưa cho nó danh sách
 # rỗng là Javis tự khai mình không có skill nào rồi đi tạo lại thứ đã có.
 check("CANARY: quét skill không phụ thuộc include_skills (chỉ mục phải nói thật)",
-      "skill_router.list_skills(root) if include_skills else []" not in _bsp
-      and "_skills = skill_router.list_skills(root)" in _bsp)
+      "if include_skills" not in _bsp[:_bsp.find("_skills = skill_router.list_skills(root")]
+      and "_skills = skill_router.list_skills(root" in _bsp)
 check("khối ROUTER SKILL dài mới là thứ bị gập lại",
       "if include_skills:\n            base += _skill_router_block(" in _bsp)
 

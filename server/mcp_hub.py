@@ -297,7 +297,7 @@ def _list_skills(vault_root):
     return skill_router.enabled_slugs(vault_root)
 
 
-def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None):
+def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
@@ -394,7 +394,7 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None):
     # Mô tả tool = router thu nhỏ: liệt kê slug + mô tả ngắn để engine biết KHI NÀO gọi skill nào.
     # Trần lấy từ skill_router (CHUNG với system prompt) - trước đây hub tự cắt 60, system prompt
     # cắt 100 - người viết skill không biết mình bị chấm theo thước nào.
-    metas = skill_router.list_enabled_meta(vault_root)
+    metas = skill_router.list_enabled_meta(vault_root, lang)
     _cap = skill_router.SKILL_LIST_MAX
     listing = "; ".join(f"{s['slug']}: {(s['description'] or '')[:skill_router.SKILL_DESC_MAX]}"
                         for s in metas[:_cap])
@@ -706,7 +706,17 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     engine, KHÔNG qua hub, hub chỉ mách chỗ cho model. Engine API (in-process) để False (không có
     tool native để mà chỉ tới)."""
     mode = (mode or "full").strip().lower()
-    key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient), bool(force_lazy))
+    # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
+    # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
+    # phải nằm TRONG khoá cache - thiếu nó thì đổi ngôn ngữ ở trang Cài đặt xong vẫn nhận danh
+    # sách skill của thứ tiếng cũ cho tới khi cache hết hạn, mà lỗi kiểu đó không ai truy ra.
+    try:
+        import localefmt
+        lang = localefmt.ngon_ngu_tra_loi()
+    except Exception:
+        lang = ""
+    key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
+           bool(force_lazy), lang)
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < _CACHE_TTL
@@ -748,7 +758,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             "health": "healthy",
         }
 
-    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden)
+    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang)
     tools_spec += b_tools
     route.update(b_route)
 

@@ -1,6 +1,7 @@
 ---
 name: Lint Wiki
 description: Rà soát sức khoẻ wiki của Second Brain, trả về danh sách vấn đề. Không tự sửa hàng loạt.
+description_en: "Audit the health of the Second Brain wiki and hand back a list of problems. Never mass-edits on its own."
 group: AI
 ---
 

@@ -73,9 +73,13 @@ _that = skill_router.list_skills
 dem = {"n": 0}
 
 
-def _dem_list_skills(r):
+def _dem_list_skills(r, lang=""):
+    # `lang` phải có mặt: build_system_prompt quét cây skill theo ngôn ngữ của lượt (mô tả
+    # skill có bản dịch). Stub thiếu tham số thì ném TypeError, mà build_system_prompt nuốt
+    # lỗi quét để không làm hỏng cả prompt - hỏng sẽ lộ ra ở phép so nội dung bên dưới chứ
+    # không phải ở đây.
     dem["n"] += 1
-    return _that(r)
+    return _that(r, lang)
 
 
 try:

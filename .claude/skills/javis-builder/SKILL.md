@@ -1,6 +1,7 @@
 ---
 name: Javis Builder
 description: "Tạo hoặc sửa năng lực của Javis: agent, skill, workflow, loop, plugin. Kèm mẫu file chuẩn và luật chống trùng."
+description_en: "Create or edit a Javis capability: agent, skill, workflow, loop, plugin. Ships file templates and the rules against duplicates."
 group: AI
 ---
 

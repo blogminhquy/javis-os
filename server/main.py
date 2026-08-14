@@ -369,6 +369,11 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
                         lang: "lang_mod.LangDecision | str | None" = None) -> str:
     """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh."""
     base = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else ""
+    # Chốt ngôn ngữ NGAY đầu hàm: khối NGÔN NGỮ ở cuối cần nó, mà danh sách skill ở giữa cũng
+    # cần (mô tả skill là bề mặt ĐỐI CHIẾU với câu người dùng vừa gõ, nên nó phải cùng thứ
+    # tiếng với câu đó thì định tuyến mới sắc).
+    _lq = lang if isinstance(lang, lang_mod.LangDecision) else None
+    _lma = (_lq.lang if _lq else lang_registry.chuan_hoa(lang or "")) or lang_registry.MAC_DINH
     idx = _brain_memory_dir(brain) / "MEMORY.md"
     mem = ""
     try:
@@ -416,7 +421,7 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # danh sách rỗng thì Javis sẽ tự khai là mình không có skill nào - một câu SAI, và sai theo
     # hướng khiến nó đi tạo lại thứ đã có.
     try:
-        _skills = skill_router.list_skills(root)
+        _skills = skill_router.list_skills(root, _lma)
     except Exception:
         _skills = None
     try:
@@ -434,8 +439,6 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     # Khối NGÔN NGỮ + đồng hồ đi CÙNG NHAU và đi CUỐI, sát chỗ model bắt đầu trả lời.
     # Ngôn ngữ đặt ở cuối vì luật càng gần chỗ sinh chữ thì model càng ít trôi; đồng hồ
     # đi kèm vì tên thứ trong tuần cũng phải theo ngôn ngữ đó.
-    _lq = lang if isinstance(lang, lang_mod.LangDecision) else None
-    _lma = (_lq.lang if _lq else lang_registry.chuan_hoa(lang or "")) or lang_registry.MAC_DINH
     base += "\n\n# === BÂY GIỜ ===\n" + context_compiler.dong_ho(lang=_lma)
     base += lang_mod.khoi_ngon_ngu(_lq or lang_mod.LangDecision(_lma, "default", 1.0, True))
     try:
@@ -4218,8 +4221,11 @@ def skills_index(brain: str) -> list:
         except OSError:
             return None
 
+    # Danh sách trên trang Kỹ năng đi theo NGÔN NGỮ GIAO DIỆN, không theo ngôn ngữ trả lời:
+    # đây là chữ trên màn hình. Skill nào chưa có bản dịch thì hiện nguyên bản gốc.
+    _ui = localefmt.ngon_ngu_giao_dien()
     out = []
-    for s in skill_router.list_skills(root):
+    for s in skill_router.list_skills(root, _ui):
         rec = usage.get(s["slug"])
         if not isinstance(rec, dict):   # sidecar tay-sửa hỏng dạng: {"slug": "khong-phai-dict"}
             rec = {}
@@ -4339,6 +4345,13 @@ async def save_skill(name: str = Form(...), description: str = Form(""), group: 
     d = disabled_dir if disabled_dir.is_dir() else (sk / slug)
     d.mkdir(parents=True, exist_ok=True)
     meta = {"name": name, "description": description, "group": (group or "Chung").strip()}
+    # GIỮ LẠI các bản dịch (`description_en`, `name_en`...) của skill đang có. Form chỉ gửi lên
+    # bản gốc, nên ghi đè trắng meta là mỗi lần user bấm Lưu lại xoá sạch bản dịch mà không ai
+    # thấy - skill hệ thống sẽ tụt về mô tả tiếng Việt cho người dùng tiếng Anh.
+    cu, _ = _read_md(d / "SKILL.md")
+    for k, v in (cu or {}).items():
+        if skill_router.la_khoa_ngon_ngu(k) and k not in meta:
+            meta[k] = v
     _write_md(d / "SKILL.md", meta, body or f"# {name}\n\n{description}")
     try:
         system_sync.mirror_skills(root)   # bật → cập nhật mirror; tắt (.disabled) → mirror bỏ qua
@@ -8399,11 +8412,7 @@ async def tts_voices(lang: str = Query("")):
     nghe như máy hỏng. Danh sách ngôn ngữ lấy từ sổ đăng ký chứ không khai lại ở đây.
     """
     import edge_tts   # lazy - xem ghi chú ở đầu file
-    _lc = cfgmod.read_settings().get("locale") or {}
-    ma = (lang_registry.chuan_hoa(lang)
-          or lang_registry.chuan_hoa(_lc.get("reply_lang") or "")
-          or lang_registry.chuan_hoa(_lc.get("ui_lang") or "")
-          or lang_registry.MAC_DINH)
+    ma = lang_registry.chuan_hoa(lang) or localefmt.ngon_ngu_tra_loi()
     # Tiền tố locale suy từ giọng mặc định của ngôn ngữ đó ("vi-VN-HoaiMyNeural" -> "vi-VN"),
     # để thêm ngôn ngữ vẫn chỉ là thêm một dòng trong sổ đăng ký.
     giong_mac_dinh = lang_registry.giong_tts(ma, "edge")
