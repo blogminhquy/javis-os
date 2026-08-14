@@ -21,6 +21,8 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..", "..");
+// Nhãn rail/trang nay nằm trong từ điển i18n, không còn viết cứng trong console.js.
+const VI_JSON = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard/i18n/vi.json"), "utf8"));
 const D = (f) => fs.readFileSync(path.join(ROOT, "dashboard", f), "utf8");
 const CON = D("console.js");
 const CODE = D("code-term.js");
@@ -39,20 +41,25 @@ const CODE_CODE = khongComment(CODE);
 // ============================================================
 // 1. "Code" là NHÓM RIÊNG trên rail, Terminal là một mục trong đó
 // ============================================================
-const nhomCode = /\{\s*label:\s*"Code",[^}]*ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
+// Nhãn nhóm rail nay là getter đọc từ điển (`t("nav.group.code")`) chứ không phải chuỗi
+// viết cứng, nên bám vào KHOÁ thay vì bám vào chữ hiển thị. Bám chữ hiển thị thì mỗi lần
+// đổi cách viết một nhãn là test đỏ vì lý do chẳng liên quan.
+const nhomCode = /nav\.group\.code"\)[\s\S]{0,140}?ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
 check("rail có nhóm riêng tên 'Code'", !!nhomCode);
 check("Terminal là một mục trong nhóm Code", !!nhomCode && /"terminal"/.test(nhomCode[1]));
 // Bản 0.34.0 nhét "Code" thành một mục của nhóm Bộ não. Chủ repo báo ngay (2026-08-14):
 // "ở sidebar sai rồi... chứ không phải chức năng trong bộ não".
-const nhomBoNao = /\{\s*label:\s*"Bộ não",[^}]*ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
+const nhomBoNao = /nav\.group\.bo_nao"\)[\s\S]{0,140}?ids:\s*\[([^\]]*)\]/.exec(CON_CODE);
 check("CANARY: nhóm Bộ não KHÔNG chứa Code/Terminal",
       !!nhomBoNao && !/"code"|"terminal"/.test(nhomBoNao[1]));
 check("nhóm Code có icon riêng ở tầng nhãn nhóm", /"Code":\s*ic\(/.test(CON_CODE));
 
 check("VIEW_ICON có mục 'terminal'", /\bterminal:\s*"terminal"/.test(CON_CODE));
-check("RAIL_ITEMS có mục Terminal", /id:\s*"terminal".*label:\s*"Terminal"/.test(CON_CODE));
+// RAIL_ITEMS nay là danh sách ID; nhãn lấy từ dashboard/i18n/*.json qua t().
+check("RAIL_ITEMS có mục Terminal", /"terminal"/.test(CON_CODE));
+check("và nhãn Terminal có trong từ điển", !!VI_JSON["page.terminal.label"]);
 check("VIEW_META có tiêu đề + phụ đề cho trang Terminal",
-      /terminal:\s*\{\s*icon:\s*VIEW_ICON\.terminal[^}]*label:\s*"Terminal"[^}]*sub:/.test(CON_CODE));
+      !!VI_JSON["page.terminal.label"] && !!VI_JSON["page.terminal.sub"]);
 check("renderPage định tuyến mọi trang thuộc nhóm Code",
       /CODE_PAGES\.includes\(id\)\)\s*return renderCode\(el, id\)/.test(CON_CODE)
       && /const CODE_PAGES = \[[^\]]*"terminal"/.test(CON_CODE));

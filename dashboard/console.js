@@ -71,44 +71,30 @@
   const SAVE_ICON = ic("save");
   const X_ICON = ic("x");
 
+  // Nhãn rail lấy từ TỪ ĐIỂN (thư mục dashboard/i18n) chứ không viết cứng. `t()` suy biến về
+  // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
-    { id: "home",        icon: ICON.home,        label: "Javis" },
-    { id: "chat",        icon: ICON.chat,        label: "Trò chuyện" },
-    { id: "settings",    icon: ICON.settings,    label: "Cài đặt" },
-    { id: "workflows",   icon: ICON.workflows,   label: "Workflows" },
-    { id: "agents",      icon: ICON.agents,      label: "Agents" },
-    { id: "skills",      icon: ICON.skills,      label: "Skills" },
-    { id: "chatbots",    icon: ICON.chatbots,    label: "Chatbot" },
-    { id: "files",       icon: ICON.files,       label: "Tệp tin" },
-    { id: "terminal",    icon: ICON.terminal,    label: "Terminal" },
-    { id: "selfimprove", icon: ICON.selfimprove, label: "Việc định kỳ" },
-    { id: "learn",       icon: ICON.learn,       label: "Tự học" },
-    { id: "kanban",      icon: ICON.kanban,      label: "Việc" },
-    { id: "models",      icon: ICON.models,      label: "Models" },
-    { id: "channels",    icon: ICON.channels,    label: "Kênh" },
-    { id: "mcp",         icon: ICON.mcp,         label: "Kết nối" },
-    { id: "plugins",     icon: ICON.plugins,     label: "Plugins" },
-    { id: "logs",        icon: ICON.logs,        label: "Cập nhật" },
-    { id: "account",     icon: ICON.account,     label: "Tài khoản" },
-    { id: "usage",       icon: ICON.usage,       label: "Mức dùng" },
-  ];
+    "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
+    "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "logs", "account", "usage",
+  ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
   // Nhóm cuối (foot:true) được ghim xuống ĐÁY rail; các nhóm còn lại cuộn ở giữa.
   // Thứ tự & thành viên đổi ở đây; RAIL_ITEMS vẫn là nguồn icon/label + tra cứu cho go().
   const RAIL_GROUPS = [
-    { label: "Trợ lý",      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
-    { label: "Bộ não",      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
+    { get label() { return t("nav.group.tro_ly"); },      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
+    { get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
     // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
     // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
     // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
-    { label: "Code",        icon: GICON["Code"],     ids: ["terminal"] },
-    { label: "Năng lực",    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
-    { label: "Việc",        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
-    { label: "Kết nối",     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
-    { label: "Hệ thống",    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
+    { get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
+    { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
+    { get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
+    { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
+    { get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
@@ -133,27 +119,22 @@
 
   // icon lấy từ VIEW_ICON ở đầu file - đừng khai icon riêng ở đây, hai bảng
   // lệch nhau là lỗi đã xảy ra một lần rồi.
-  const VIEW_META = {
-    home:        { icon: VIEW_ICON.home, label: "Javis OS", sub: "" },
-    chat:        { icon: VIEW_ICON.chat, label: "Trò chuyện", sub: "Khung chat rộng · lịch sử hội thoại" },
-    settings:    { icon: VIEW_ICON.settings, label: "Cài đặt", sub: "Hệ thống · giao diện · giọng nói · truy cập" },
-    workflows:   { icon: VIEW_ICON.workflows, label: "Workflows", sub: "Chuỗi agent tự động" },
-    agents:      { icon: VIEW_ICON.agents, label: "Agents", sub: "Trợ lý chuyên biệt" },
-    skills:      { icon: VIEW_ICON.skills, label: "Skills", sub: "Kỹ năng khả dụng" },
-    files:       { icon: VIEW_ICON.files, label: "Tệp tin", sub: "Duyệt · sửa · tải file trong brain" },
-    terminal:    { icon: VIEW_ICON.terminal, label: "Terminal", sub: "Dòng lệnh chạy thẳng trên máy đang chạy Javis" },
-    selfimprove: { icon: VIEW_ICON.selfimprove, label: "Việc định kỳ", sub: "Việc định kỳ + nhắc hẹn đang chờ" },
-    chatbots:    { icon: VIEW_ICON.chatbots, label: "Chatbot", sub: "Bot chuyên trách trả lời khách qua Telegram" },
-    learn:       { icon: VIEW_ICON.learn, label: "Tự học", sub: "Rewire Memory · Wiki · Skill (an toàn, undo được)" },
-    kanban:      { icon: VIEW_ICON.kanban, label: "Việc (Kanban)", sub: "AI tự đặc tả, điều phối và chạy task nền" },
-    models:      { icon: VIEW_ICON.models, label: "Models", sub: "Main model & providers" },
-    channels:    { icon: VIEW_ICON.channels, label: "Kênh kết nối", sub: "Telegram & hơn nữa" },
-    mcp:         { icon: VIEW_ICON.mcp, label: "Kết nối", sub: "Nguồn dữ liệu & công cụ" },
-    plugins:     { icon: VIEW_ICON.plugins, label: "Plugins", sub: "Tool/hook native cho mọi engine" },
-    logs:        { icon: VIEW_ICON.logs, label: "Nhật ký cập nhật", sub: "Phiên bản & tính năng mới" },
-    account:     { icon: VIEW_ICON.account, label: "Tài khoản", sub: "Đăng nhập, workspace, token API" },
-    usage:       { icon: VIEW_ICON.usage, label: "Mức dùng", sub: "Mức tiết kiệm token, và token đã tiêu theo ngày" },
-  };
+  // Tiêu đề + phụ đề của mỗi trang, lấy từ TỪ ĐIỂN. Dùng getter chứ không đọc `t()` một lần
+  // lúc nạp: từ điển về bất đồng bộ, và đọc sớm thì mọi nhãn đóng băng ở giá trị lúc chưa có.
+  //
+  // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
+  // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "logs", "account", "usage"].map(id => [id, {
+    icon: VIEW_ICON[id],
+    get label() {
+      const rieng = t(`page.${id}.title`);
+      return rieng === `page.${id}.title` ? t(`page.${id}.label`) : rieng;
+    },
+    get sub() {
+      const v = t(`page.${id}.sub`);
+      return v === `page.${id}.sub` ? "" : v;
+    },
+  }]));
 
   // 4 trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).
   const STUDIO_PAGES = ["workflows", "agents", "skills"];
@@ -4815,16 +4796,23 @@
     const lc = s.locale || {};
     const langs = (s.lang_list || []);
     const replyLang = lc.reply_lang || "auto";
+    const uiLang = (window.JavisI18n && JavisI18n.lang()) || "vi";
     const langHtml = `
       <div class="qs-block">
-        <div class="popover-label">NGÔN NGỮ TRẢ LỜI</div>
+        <div class="popover-label">${esc(t("settings.ui_lang.title"))}</div>
+        <select class="js-input" id="vpUiLang">
+          ${langs.map(l => opt(l.ma, l.ten, uiLang)).join("")}
+        </select>
+        <div class="qs-hint">${esc(t("settings.ui_lang.hint"))}
+          <b>${esc(t("settings.ui_lang.beta"))}</b></div>
+      </div>
+      <div class="qs-block">
+        <div class="popover-label">${esc(t("settings.lang.title"))}</div>
         <select class="js-input" id="vpReplyLang">
-          ${opt("auto", "Tự động theo người nhắn", replyLang)}
+          ${opt("auto", t("settings.lang.auto"), replyLang)}
           ${langs.map(l => opt(l.ma, l.ten, replyLang)).join("")}
         </select>
-        <div class="qs-hint">Chọn "Tự động" thì Javis trả lời đúng thứ tiếng anh đang gõ.
-          Ghim một ngôn ngữ thì Javis luôn trả lời bằng ngôn ngữ đó, dù anh gõ tiếng gì.
-          Chatbot chăm khách có ô ngôn ngữ RIÊNG ở trang Chatbot.</div>
+        <div class="qs-hint">${esc(t("settings.lang.hint"))}</div>
       </div>`;
 
     // Nhà cung cấp giọng đọc - gộp NGAY trong nhóm giọng nói (render vào #ttsProviderHost), không tách section riêng.
@@ -4934,7 +4922,15 @@
       const sel = document.getElementById("vpReplyLang");
       if (sel) sel.onchange = async () => {
         const r = await saveSetting("locale", { reply_lang: sel.value });
-        toast(r && r.ok ? "Đã đổi ngôn ngữ trả lời" : "Lưu không được", !(r && r.ok));
+        toast(r && r.ok ? t("settings.lang.saved") : t("settings.save_failed"), !(r && r.ok));
+      };
+      const selUi = document.getElementById("vpUiLang");
+      if (selUi) selUi.onchange = async () => {
+        // Đổi NGAY trên máy này trước, rồi mới lưu lên server. Ngôn ngữ giao diện là lựa chọn
+        // THEO THIẾT BỊ (người dùng mở Javis từ nhiều máy), nên trải nghiệm phải tức thì và
+        // không được phụ thuộc vào việc gọi mạng có thành công hay không.
+        try { await JavisI18n.setLang(selUi.value); } catch (e) { /* noop */ }
+        await saveSetting("locale", { ui_lang: selUi.value });
       };
     }
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
@@ -5307,8 +5303,12 @@
       openGroup: groupLabelOf("home"),   // accordion 2 tầng: nhóm đang mở (mặc định nhóm chứa trang đầu)
       collapsed: (() => { try { return localStorage.getItem("javis_rail_collapsed") === "1"; } catch (e) { return false; } })(),
       collapseIcon: COLLAPSE_ICON,
-      get groups() { return railGroups(); },
-      get meta() { return VIEW_META[this.active] || VIEW_META.home; },
+      // Alpine không biết từ điển i18n đổi (nó là object thuần), nên phải có một biến
+      // ĐẾM phản ứng để đá vào getter. Thiếu nó thì đổi ngôn ngữ xong rail vẫn chữ cũ
+      // cho tới khi F5 - một kiểu hỏng nhìn như "lưu không ăn".
+      i18nTick: 0,
+      get groups() { void this.i18nTick; return railGroups(); },
+      get meta() { void this.i18nTick; return VIEW_META[this.active] || VIEW_META.home; },
       isOpen(label) { return this.openGroup === label; },
       toggleGroup(label) { this.openGroup = (this.openGroup === label) ? null : label; },   // 1 nhóm mở 1 lúc; bấm lại để đóng
       toggleCollapsed() {   // thu/mở sidebar: thu → chỉ còn icon; mở → đầy chữ. Nhớ lựa chọn qua localStorage.
@@ -6079,6 +6079,16 @@
   }
 
   // Tooltip NHANH cho rail khi thu gọn (native title trễ ~500ms). 1 node body-level, thoát mọi overflow clip.
+  // Từ điển i18n về (hoặc user đổi ngôn ngữ giao diện): đá biến đếm cho Alpine vẽ lại rail
+  // và tiêu đề trang, rồi quét lại các nhãn tĩnh trong index.html.
+  window.addEventListener("javis:i18n", () => {
+    try {
+      const st = window.Alpine && Alpine.store("nav");
+      if (st) st.i18nTick++;
+    } catch (e) { /* Alpine chưa dựng xong - lát nữa nó đọc từ điển đã đầy rồi */ }
+    try { window.JavisI18n && JavisI18n.applyDom(); } catch (e) { /* noop */ }
+  });
+
   function initRailTooltip() {
     const nav = document.querySelector(".rail-nav"); if (!nav) return;
     let tip = document.getElementById("railTip");

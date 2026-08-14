@@ -11,7 +11,9 @@ import math
 import re
 import threading
 
+import lang as lang_mod
 import lang_registry
+import lexicon
 import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -1144,10 +1146,43 @@ class DeterministicQualityGate:
     def evaluate(self, objective: str, response: str, channel: str,
                  had_error: bool = False, compiler_report: dict | None = None,
                  expected_evidence_ref: str = "", read_only: bool = False,
-                 expected_evidence_refs: tuple[str, ...] = ()) -> QualityDecision:
+                 expected_evidence_refs: tuple[str, ...] = (),
+                 lang: str = "") -> QualityDecision:
         text = str(response or "")
         reasons = []
         status = "pass"
+
+        # Bộ mẫu theo ngôn ngữ của CÂU TRẢ LỜI (khác cổng đường tắt: cổng kia đọc câu hỏi).
+        #
+        # Đây là cổng BẮT LỖI, nên luật suy biến khác hẳn cổng mở rộng quyền: không có bộ từ
+        # vựng thì KHÔNG được lặng lẽ cho qua. Hai việc phải làm:
+        #   1. chạy mẫu của MỌI bộ từ vựng đang có - bắt nhầm một câu vô hại chỉ khiến Javis
+        #      soát lại, còn bỏ sót một câu khai man "đã gửi xong" là rào chắn mất tác dụng;
+        #   2. đánh dấu `lang_unverified` để trace nói rõ lượt này KHÔNG kiểm được, thay vì
+        #      im lặng để người đọc trace tưởng đã kiểm và thấy sạch.
+        # `lang` rỗng thì DÒ THẲNG TỪ CÂU TRẢ LỜI. Đây không phải đường tắt cho lười: cổng này
+        # kiểm thứ model THẬT SỰ đã viết ra, nên ngôn ngữ của chính văn bản đó là căn cứ đúng
+        # hơn ngôn ngữ ta đã YÊU CẦU nó dùng - model vẫn có thể trả lời sai ngôn ngữ, và lúc
+        # ấy ta muốn kiểm bằng bộ từ vựng khớp với cái nó viết.
+        _ma = lang_registry.chuan_hoa(lang) or lang_mod.detect(text)[0]
+        _lex = lexicon.get(_ma)
+        _bo = [_lex] if _lex is not None else [lexicon.get(m) for m in lexicon.ma_list()]
+        _bo = [m for m in _bo if m is not None]
+
+        def _khop(ten_tap: str) -> bool:
+            for mod in _bo:
+                mau = getattr(mod, ten_tap, None)
+                if mau is not None and mau.search(text):
+                    return True
+            return False
+
+        def _chua_cum(ten_tap: str) -> bool:
+            low = text.casefold()
+            for mod in _bo:
+                for cum in getattr(mod, ten_tap, ()) or ():
+                    if cum in low:
+                        return True
+            return False
         if not text.strip():
             return QualityDecision("fail", ("empty_response",), 1.0, 0)
         if self._CONTROL.search(text):
@@ -1170,23 +1205,28 @@ class DeterministicQualityGate:
         # dùng hành động theo, nên nói số mà không có nguồn là dạng bịa nguy hiểm
         # nhất. Chỉ soát khi bước này ĐÁNG LẼ phải có evidence (có expected ref),
         # tránh bắt nhầm câu trả lời giải thích thuần tuý.
-        if (expected_evidence_ref or expected_evidence_refs) and self._QUANTITATIVE.search(text):
+        if (expected_evidence_ref or expected_evidence_refs) and _khop("QUANTITATIVE"):
             has_ref = (expected_evidence_ref and expected_evidence_ref in text) or any(
                 ref in text for ref in required_refs)
             if not has_ref:
                 reasons.append("quantitative_fact_without_evidence")
                 status = "revise"
-        if read_only and self._FALSE_ACTION.search(text):
+        if read_only and _khop("FALSE_ACTION"):
             reasons.append("false_action_claim")
             status = "revise"
         if int(report.get("selected_count") or 0) > 0:
-            low = text.casefold()
-            if any(phrase in low for phrase in self._CAPABILITY_DENIAL):
+            if _chua_cum("CAPABILITY_DENIAL"):
                 reasons.append("capability_denial_conflict")
                 status = "gather_more"
         if channel == "telegram" and len(text) > 8000:
             reasons.append("telegram_response_too_long")
             status = "revise"
+        if _lex is None and _ma:
+            # Ngôn ngữ trả lời không có bộ từ vựng: đã chạy hợp mọi bộ ở trên nhưng vẫn phải
+            # nói ra rằng lượt này CHƯA được kiểm đúng ngôn ngữ của nó. KHÔNG đổi `status`:
+            # đánh trượt mọi câu trả lời tiếng Nhật chỉ vì chưa có lexicon tiếng Nhật là phạt
+            # người dùng vì một thiếu sót của chúng ta.
+            reasons.append("lang_unverified")
         return QualityDecision(status, tuple(reasons), 0.9 if not reasons else 0.75, len(text))
 
 

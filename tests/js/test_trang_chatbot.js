@@ -43,7 +43,8 @@ check("index.html có nạp module trang Chatbot", /chatbots\.js\?v=/.test(HTML)
 check("nạp TRƯỚC console.js (console gọi window.JavisChatbots)",
   HTML.indexOf('src="/static/chatbots.js') < HTML.indexOf('src="/static/console.js'));
 check("module phơi ra đúng một cửa vào", /window\.JavisChatbots\s*=\s*\{\s*render:\s*render\s*\}/.test(CB));
-check("console có mục Chatbot trên thanh bên", /id:\s*"chatbots"/.test(CON));
+// RAIL_ITEMS nay là danh sách ID phẳng (nhãn lấy từ từ điển i18n).
+check("console có mục Chatbot trên thanh bên", /"chatbots"/.test(CON));
 check("console định tuyến sang trang Chatbot",
   /if \(id === "chatbots"\) return renderChatbots\(el\)/.test(CON));
 check("console uỷ quyền cho module chứ không tự vẽ lại",

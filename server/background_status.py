@@ -26,6 +26,9 @@ Nguyên tắc: file này KHÔNG chặn, KHÔNG sửa câu trả lời của mode
 """
 from __future__ import annotations
 
+import lang as lang_mod
+import lang_registry
+import lexicon   # mẫu lời hứa theo ngôn ngữ
 import re
 import time
 import unicodedata
@@ -65,54 +68,30 @@ _INLINE_CODE = re.compile(r"`[^`\n]*`")
 
 # Mẫu lời hứa "sẽ báo lại sau". Cố ý viết hẹp: bắt nhầm một câu vô hại thì Javis tự dán một
 # dòng cảnh báo thừa dưới câu trả lời đúng - phiền, và làm người dùng mất tin vào dòng đó.
-_PROMISE = (
-    # "có kết quả em báo ngay" / "khi nào xong em gửi anh"
-    ("co_ket_qua", re.compile(
-        r"\b(co|khi co|khi nao co|neu co)\s+ket qua\b[^.!?]{0,40}?\b(em|minh|toi)\b[^.!?]{0,25}?"
-        r"\b(bao|gui|cap nhat|tra loi|noi)\b"
-    )),
-    # "em sẽ báo lại", "em báo anh ngay", "em sẽ cập nhật lại cho anh"
-    ("se_bao_lai", re.compile(
-        r"\b(em|minh|toi)\s+(se\s+|xin\s+)?"
-        r"(bao lai|bao ngay|bao anh|bao chi|bao ban|bao sau|bao lien|"
-        r"cap nhat lai|cap nhat cho|thong bao lai|thong bao cho|"
-        r"gui lai ket qua|quay lai bao|quay lai voi)\b"
-    )),
-    # "xong em báo", "làm xong em gửi anh"
-    ("xong_em_bao", re.compile(
-        r"\bxong\s+(roi\s+|thi\s+)?(em|minh|toi)\s+(se\s+)?(bao|gui|noi|cap nhat)\b"
-    )),
-    # "anh chờ em chút", "đợi em một lát"
-    ("cho_em", re.compile(
-        r"\b(cho|doi)\s+(em|minh)\s+(mot\s+)?(chut|ti|lat|xiu|it phut|vai phut)\b"
-    )),
-    # Mẫu cũ đã có luật cấm trong prompt: "em sẽ đợi ... rồi tổng hợp"
-    ("doi_roi_tong_hop", re.compile(
-        r"\b(em|minh|toi)\s+se\s+(doi|cho|theo doi)\b[^.!?]{0,60}?"
-        r"\b(roi|xong|sau do)\b[^.!?]{0,30}?\b(tong hop|bao|gui|cap nhat)\b"
-    )),
-    # Đúng câu chủ repo chụp được: "Em đang dò code ... có kết quả em báo ngay".
-    # Bắt cả trường hợp vế sau không có chữ "kết quả": "em đang kiểm tra, xong em nói anh".
-    ("dang_lam_se_bao", re.compile(
-        r"\b(em|minh|toi)\s+(dang|se)\s+"
-        r"(do|kiem tra|ra soat|ra lai|tra|tra cuu|tim|chay|lam|phan tich|xu ly|xem lai|doc lai)\b"
-        r"[^.!?]{0,90}?\b(bao|gui|cap nhat|thong bao)\b"
-    )),
-    # "để em chạy thử rồi cập nhật cho anh sau" - cùng kiểu hẹn, chỉ khác chủ ngữ đứng sau "để".
-    ("de_em_lam", re.compile(
-        r"\b(de|cho)\s+(em|minh|toi)\s+"
-        r"(do|kiem tra|ra soat|tra|tra cuu|tim|chay|lam|thu|xem|doc|phan tich|xu ly)\b"
-        r"[^.!?]{0,80}?\b(roi|xong|sau do)\b[^.!?]{0,30}?"
-        r"\b(bao|gui|cap nhat|thong bao|noi lai|tra loi)\b"
-    )),
-    ("english", re.compile(
-        r"\b(i(?:'| wi)?ll|i will|we(?:'| wi)?ll|we will)\s+"
-        r"(get back to you|report back|update you|let you know|keep you posted)\b"
-    )),
-)
+# Mẫu lời hứa ĐÃ DỜI sang server/lexicon/<mã>.py (tập PROMISE), một bộ mỗi ngôn ngữ.
+# Cùng lý do với các cổng khác: một luật an toàn có hai bản thì bản bị quên là bản
+# im lặng cho lọt.
 
 
-def detect_promise(text: str) -> str:
+def _mau_loi_hua(lang: str = "", _text_goc: str = ""):
+    """Mẫu lời hứa cho ngôn ngữ của CÂU TRẢ LỜI.
+
+    Không có bộ từ vựng thì trả HỢP của mọi bộ đang có, chứ không trả rỗng. Đây là cổng BẮT
+    LỖI: bắt nhầm thì Javis tự dán thừa một dòng đính chính (phiền), còn bỏ sót thì luật
+    "KHÔNG hứa em sẽ báo lại" trong CLAUDE.md mất hiệu lực mà không ai biết.
+    """
+    lex = lexicon.get(lang_registry.chuan_hoa(lang) or lang_mod.detect(_text_goc or "")[0])
+    if lex is not None:
+        return lex.PROMISE
+    ra = []
+    for ma in lexicon.ma_list():
+        mod = lexicon.get(ma)
+        if mod is not None:
+            ra.extend(mod.PROMISE)
+    return tuple(ra)
+
+
+def detect_promise(text: str, lang: str = "") -> str:
     """Tên mẫu lời hứa "sẽ báo lại sau" trong câu trả lời, hoặc "" nếu không có.
 
     Trả về TÊN mẫu (không phải bool) để log/trace nói được là bắt bằng mẫu nào - lúc cần nới
@@ -123,7 +102,7 @@ def detect_promise(text: str) -> str:
         return ""
     raw = _INLINE_CODE.sub(" ", _CODE_FENCE.sub(" ", raw))
     norm = _norm(raw)
-    for name, pattern in _PROMISE:
+    for name, pattern in _mau_loi_hua(lang, text):
         if pattern.search(norm):
             return name
     return ""

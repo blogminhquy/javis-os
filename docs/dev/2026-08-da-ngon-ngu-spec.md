@@ -608,10 +608,42 @@ spec rồi tưởng phần chưa làm đã làm.
 Chỉ sửa `build_system_prompt` thì hai vùng còn lại mất khối NGÔN NGỮ trong im lặng - mà vùng
 thứ ba đúng là ca dùng đáng tiền nhất ở mục 6.3.
 
-**Chưa làm, cố ý:** i18n giao diện (3.520 chuỗi, mục 7 Phase 3), mã lỗi cho 182 chuỗi lỗi
-server, locale (múi giờ/định dạng số), `description` skill theo ngôn ngữ, và bộ từ vựng cho
-các cổng BẮT LỖI (`FALSE_ACTION`, `PROMISE` đã khai trong lexicon nhưng hai cổng đó chưa đấu
-vào - chúng vẫn dùng mẫu cũ, vốn đã có sẵn phần tiếng Anh).
+### 6.6. ĐỢT 2 VÀ NỀN CỦA ĐỢT 3 (2026-08-14)
+
+**Đợt 2 khép lại: hai cổng BẮT LỖI đã đấu vào bộ từ vựng.**
+
+| Cổng | Ở đâu | Suy biến khi thiếu bộ từ vựng |
+|------|-------|-------------------------------|
+| Bắt khai man hành động | `context_compiler.DeterministicQualityGate.evaluate` | chạy HỢP mẫu của mọi bộ, rồi đánh dấu `lang_unverified` vào trace |
+| Dò lời hứa suông | `background_status.detect_promise` | như trên |
+
+Một chi tiết đáng ghi lại vì nó tiết kiệm cả một vòng luồn tham số: hai cổng này **tự dò ngôn
+ngữ từ chính câu trả lời** thay vì nhận tham số từ nơi gọi. Chúng kiểm thứ model THẬT SỰ đã
+viết ra, nên ngôn ngữ của văn bản đó là căn cứ đúng hơn ngôn ngữ ta đã YÊU CẦU - model vẫn có
+thể trả lời sai ngôn ngữ, và đúng lúc ấy ta muốn kiểm bằng bộ từ vựng khớp với cái nó viết.
+Nhờ vậy năm nơi gọi `evaluate()` không phải sửa một dòng nào.
+
+Và `lang_unverified` KHÔNG đổi `status`: đánh trượt mọi câu trả lời tiếng Nhật chỉ vì chưa có
+lexicon tiếng Nhật là phạt người dùng vì một thiếu sót của chúng ta.
+
+**Nền của Đợt 3 đã dựng, giao diện chưa dịch xong.**
+
+- `dashboard/i18n/index.js` - `t()`, suy biến `<đã chọn> -> vi -> key`, quét DOM qua
+  `data-i18n*`, số nhiều bằng `.one`/`.other`, tự nạp lúc khởi động rồi phát `javis:i18n`.
+- `dashboard/i18n/{vi,en}.json` - tầng điều hướng (rail, tiêu đề trang) và ô cài đặt ngôn ngữ.
+- `console.js` - `RAIL_ITEMS`, `RAIL_GROUPS`, `VIEW_META` lấy nhãn từ từ điển qua getter, cộng
+  biến đếm `i18nTick` để Alpine vẽ lại khi từ điển về hoặc khi user đổi ngôn ngữ.
+- Ô **Ngôn ngữ giao diện** ở trang Cài đặt, đổi là ăn ngay không cần F5.
+- `tests/js/test_i18n.mjs` - khớp key hai chiều, cấm HTML trong từ điển, cấm em dash, bắt
+  trường hợp "chép nguyên tiếng Việt sang en.json", và **`I18N_MIGRATED`** là chốt chặn thoái
+  lui: file đã dọn mà lấm lại chữ tiếng Việt trong mã chạy thì test đỏ ngay.
+
+Một cái bẫy đáng ghi vì nó tốn thời gian một cách ngớ ngẩn: viết `dashboard/i18n/*.json` trong
+một chú thích `//` làm hàm bóc chú thích của test hiểu `/*` là mở khối chú thích, và nó nuốt
+luôn 20 dòng mã phía sau. Ba test đỏ vì một dấu sao trong câu văn.
+
+**Chưa làm, cố ý:** phần lớn 3.520 chuỗi giao diện (mới dịch tầng điều hướng), mã lỗi cho 182
+chuỗi lỗi server, locale (múi giờ, định dạng số), và `description` skill theo ngôn ngữ.
 
 ## 7. Sáu giai đoạn
 

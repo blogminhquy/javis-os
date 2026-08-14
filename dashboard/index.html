@@ -25,7 +25,7 @@
     <!-- ===== TOP BAR ===== -->
     <header class="hud-top">
       <!-- Mobile-only: mở ngăn kéo điều hướng -->
-      <button class="hud-icon-btn nav-toggle-btn" id="navToggle" title="Menu" aria-label="Mở menu">
+      <button class="hud-icon-btn nav-toggle-btn" id="navToggle" title="Menu" aria-label="Mở menu" data-i18n-title="top.menu" data-i18n-aria="top.menu_open">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
         </svg>
@@ -35,13 +35,13 @@
         <div class="brand"><span class="brand-icon"><img src="/brand-logo" alt="" style="width:22px;height:22px;border-radius:5px;vertical-align:middle;object-fit:cover"></span> <span class="brand-text">JAVIS OS</span></div>
         <!-- Select Brain: dời từ góc graph lên navbar -->
         <div class="orb-graph-ctl navbar-brain">
-          <i data-ic="brain" class="brain-select-ico" data-ic-title="Bộ não đang chọn"></i>
+          <i data-ic="brain" class="brain-select-ico" data-ic-title="Bộ não đang chọn" data-i18n-title="top.brain_current"></i>
           <select id="graphSource" class="graph-select">
             <option value="brain">Brain Default</option>
           </select>
-          <button class="graph-folder-btn" id="newBrainBtn" title="Tạo brain mới trong thư mục brains"><i data-ic="plus"></i></button>
-          <button class="graph-folder-btn" id="delBrainBtn" title="Xoá brain đang chọn (xác nhận gõ đúng tên)"><i data-ic="trash-2"></i></button>
-          <button class="graph-folder-btn" id="pickFolderBtn" title="Chọn brain từ folder ngoài bất kỳ"><i data-ic="folder-open"></i></button>
+          <button class="graph-folder-btn" id="newBrainBtn" title="Tạo brain mới trong thư mục brains" data-i18n-title="top.brain_new"><i data-ic="plus"></i></button>
+          <button class="graph-folder-btn" id="delBrainBtn" title="Xoá brain đang chọn (xác nhận gõ đúng tên)" data-i18n-title="top.brain_delete"><i data-ic="trash-2"></i></button>
+          <button class="graph-folder-btn" id="pickFolderBtn" title="Chọn brain từ folder ngoài bất kỳ" data-i18n-title="top.brain_pick"><i data-ic="folder-open"></i></button>
           <span class="graph-stats" id="graphStats">-</span>
         </div>
       </div>
@@ -55,7 +55,7 @@
       <!-- NHÓM PHẢI: chuông Thông báo + nút đổi tông (LUÔN hiện) + cụm nút cockpit (ẩn ở trang quản lý) -->
       <div class="hud-top-right">
         <button class="notification-trigger" id="notificationTrigger" type="button"
-                aria-haspopup="dialog" aria-expanded="false" title="Mở hộp thư Thông báo">
+                aria-haspopup="dialog" aria-expanded="false" title="Mở hộp thư Thông báo" data-i18n-title="top.notifications">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
             <path d="M10 21h4"></path>
@@ -703,6 +703,9 @@
   <!-- Bộ icon nạp ĐẦU TIÊN: mọi file dưới đây gọi ic() lúc render, thiếu nó thì
        icon ra rỗng. lucide-icons.js chỉ định nghĩa dữ liệu nên phải đứng trước
        icons.js (file dựng hàm ic / Icons). Cả hai đều không phụ thuộc DOM. -->
+  <!-- i18n phải nạp TRƯỚC mọi script vẽ giao diện: console.js dựng nhãn rail ngay lúc
+       nạp, nên từ điển chưa sẵn sàng là rail hiện ra key trần rồi mới nháy sang chữ. -->
+  <script src="/static/i18n/index.js?v=1"></script>
   <script src="/static/vendor/lucide-icons.js?v=3"></script>
   <script src="/static/icons.js?v=2"></script>
 

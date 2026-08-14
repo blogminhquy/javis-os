@@ -24,11 +24,14 @@ def check(name: str, condition: bool) -> None:
 
 
 rail_block = CONSOLE.split("const RAIL_ITEMS = [", 1)[1].split("];", 1)[0]
-meta_block = CONSOLE.split("const VIEW_META = {", 1)[1].split("};", 1)[0]
+# VIEW_META nay dựng từ DANH SÁCH ID (nhãn lấy từ từ điển i18n) chứ không còn là object
+# literal kê từng trang. Thứ test này canh - "không còn trang Tổng quan" - vẫn kiểm được, chỉ
+# là kiểm trên danh sách id thay vì trên khối object.
+meta_block = CONSOLE.split("const VIEW_META = Object.fromEntries(", 1)[1].split("]));", 1)[0]
 router_block = CONSOLE.split("function renderPage(id)", 1)[1].split("// Trang Studio", 1)[0]
 
-check("rail không còn tab Tổng quan", 'id: "overview"' not in rail_block and 'label: "Tổng quan"' not in rail_block)
-check("metadata không còn trang Tổng quan", "overview:" not in meta_block)
+check("rail không còn tab Tổng quan", '"overview"' not in rail_block)
+check("metadata không còn trang Tổng quan", '"overview"' not in meta_block)
 check("router không còn render Tổng quan", 'id === "overview"' not in router_block)
 boot_block = CONSOLE.split("function boot()", 1)[1]
 # Hợp đồng (chủ chốt, 0.9.260): MỞ APP LÀ VÀO MÀN JAVIS, mọi khổ màn hình. 0.9.182 từng cho
