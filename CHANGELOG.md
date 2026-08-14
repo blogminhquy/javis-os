@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.34.3] - 2026-08-14
+### Sửa lỗi
+- **Dán một khối chữ lớn vào terminal khi lệnh đang bận không còn nguy cơ làm treo cả trang.** Phím gõ và chữ dán giờ xếp hàng rồi được ghi xuống shell ở một đường riêng; server không phải đứng chờ lệnh chịu đọc nữa. Cùng họ với vụ treo đã chặn ở 0.34.2, lần này bịt nốt phía ghi.
+- **Shell thoát kiểu dở dang (đóng ống mà chưa chết hẳn) cũng không giữ server lại một giây như trước.**
+
 ## [0.34.2] - 2026-08-14
 ### Sửa lỗi
 - **Hết vụ server treo cứng sau khi đóng phiên terminal trên Mac.** Đóng một phiên terminal (hoặc bỏ quên 30 phút để Javis tự dọn) có thể làm cả server đứng hình: trang web không mở được, tắt cũng không nghe, phải diệt bằng tay. Lỗi nằm ở thứ tự đóng phiên và đã sửa tận gốc, kèm test canh không cho tái phát.

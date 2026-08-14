@@ -42,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import codecs
 import os
+import queue
 import shutil
 import signal
 import subprocess
@@ -69,6 +70,7 @@ MAN_TOI_DA = 200_000
 MAX_PHIEN = 4                          # mở cùng lúc; đủ cho một người, chặn vòng lặp tạo phiên
 REAP_GIAY = 30 * 60                    # không ai xem quá lâu -> đóng shell
 HANG_DOI_TOI_DA = 4000                 # gói chờ gửi cho một người xem; đầy thì bỏ gói cũ nhất
+HANG_GO_TOI_DA = 2000                  # gói chờ ghi xuống shell; đầy nghĩa là shell không đọc stdin
 
 
 def bat() -> bool:
@@ -166,6 +168,8 @@ class Phien:
         self._fd = -1
         self._fd_khoa = threading.Lock()   # ai lấy được fd thì người đó đóng, không đóng trùng
         self._doc_thread: threading.Thread | None = None
+        self._go_doi: queue.Queue = queue.Queue(maxsize=HANG_GO_TOI_DA)
+        self._go_thread: threading.Thread | None = None
         self.proc: subprocess.Popen | None = None
         self._mo()
 
@@ -213,6 +217,9 @@ class Phien:
         self._doc_thread = threading.Thread(target=self._vong_doc, name=f"term-{self.id[:6]}",
                                             daemon=True)
         self._doc_thread.start()
+        self._go_thread = threading.Thread(target=self._vong_go, name=f"term-go-{self.id[:6]}",
+                                           daemon=True)
+        self._go_thread.start()
         moi = _lenh_moi_dau()
         if moi:
             self.go(moi + "\n")
@@ -252,8 +259,17 @@ class Phien:
                     self._loop.call_soon_threadsafe(self._phat, txt)
                 except RuntimeError:
                     break              # loop đã đóng (server đang tắt)
+        # Lấy mã thoát Ở ĐÂY, trong thread đọc, chứ không phải trong _het() trên loop: shell
+        # có thể đóng ống rồi mà chưa chết hẳn, và wait(timeout=1) lúc đó là giữ cả server
+        # đứng một giây. Cùng lớp với vụ os.close 14/08/2026, chỉ nhẹ hơn.
+        ma = -1
+        if self.proc:
+            try:
+                ma = self.proc.wait(timeout=1)
+            except Exception:
+                ma = -1
         try:
-            self._loop.call_soon_threadsafe(self._het)
+            self._loop.call_soon_threadsafe(self._het, ma)
         except RuntimeError:
             pass
 
@@ -262,29 +278,76 @@ class Phien:
         for q in list(self._khach):
             _day(q, {"type": "out", "data": txt})
 
-    def _het(self):
-        if self.ma_thoat is None and self.proc:
-            try:
-                self.ma_thoat = self.proc.wait(timeout=1)
-            except Exception:
-                self.ma_thoat = -1
+    def _het(self, ma: int = -1):
+        if self.ma_thoat is None:
+            self.ma_thoat = ma
         for q in list(self._khach):
             _day(q, {"type": "exit", "code": self.ma_thoat})
         self._dong_fd()
 
     # ---- ghi xuống shell ----
     def go(self, data: str):
+        """Nhận phím/chữ dán từ trình duyệt. CHỈ xếp vào hàng, không chạm ống.
+
+        Bản cũ os.write(master) ngay tại đây - tức trên event loop. Ghi vào pty master sẽ CHẶN
+        khi bộ đệm input của slave đầy mà tiến trình foreground không đọc stdin (dán một khối
+        chữ lớn vào lệnh đang bận là đủ), và loop bị giữ tới khi tiến trình chịu đọc. Anh em
+        cùng lớp với vụ os.close 14/08/2026. Giờ mọi cú ghi thật nằm ở thread _vong_go.
+
+        KHÔNG dùng O_NONBLOCK thay cho thread: cờ đó là per-file-description, bật lên là
+        os.read của thread đọc cùng fd cũng thành non-blocking và vòng đọc quay tít.
+        """
         if not data or not self.song():
             return
         b = data.encode("utf-8", "ignore")
         try:
-            if CO_PTY:
-                os.write(self._fd, b)
-            elif self.proc and self.proc.stdin:
-                self.proc.stdin.write(b)
-                self.proc.stdin.flush()
-        except (OSError, ValueError, BrokenPipeError):
+            self._go_doi.put_nowait(b)
+        except queue.Full:
+            # Shell không chịu đọc stdin mà người dùng vẫn đổ chữ vào. Bỏ gói MỚI chứ không bỏ
+            # gói cũ (ngược với _day cho người xem): input mà rút mất khúc giữa thì lệnh gõ dở
+            # thành lệnh khác; cắt ở đuôi ít nhất còn giữ nguyên những gì đã xếp hàng.
             pass
+
+    def _vong_go(self):
+        """Thread ghi riêng của phiên: hút hàng đợi, ghi xuống shell, chặn thì chỉ mình nó chờ.
+
+        Thoát khi nhận sentinel None (đường đóng phiên đẩy vào qua _dung_go) hoặc khi cú ghi
+        báo lỗi - shell chết thì slave đóng, cú ghi đang chặn được đánh thức bằng EIO/EPIPE.
+        Vì thế đường đóng phiên phải GIẾT TIẾN TRÌNH TRƯỚC rồi mới đóng fd (trật tự đã chốt ở
+        vụ 14/08/2026), không thì trên macOS os.close sẽ ngủ chờ đúng cú ghi đang kẹt này.
+        """
+        fd = self._fd                  # chụp một lần; _dong_fd() xoá self._fd về -1 khi đóng
+        while True:
+            b = self._go_doi.get()
+            if b is None:
+                break
+            try:
+                if CO_PTY:
+                    while b:           # os.write lên master có thể ghi thiếu, ghi cho hết
+                        if self._fd != fd:
+                            return     # phiên đã đóng: _dong_fd xoá _fd TRƯỚC khi close, nên
+                                       # còn thấy số cũ ở đây nghĩa là số đó chưa bị tái cấp
+                        b = b[os.write(fd, b):]
+                elif self.proc and self.proc.stdin:
+                    self.proc.stdin.write(b)
+                    self.proc.stdin.flush()
+                else:
+                    break
+            except (OSError, ValueError, BrokenPipeError):
+                break
+
+    def _dung_go(self):
+        """Đánh thức thread ghi để nó thoát. Hàng đầy thì vứt bớt gói chờ - đằng nào phiên
+        cũng đang đóng, chữ chưa ghi được không còn nơi đến."""
+        while True:
+            try:
+                self._go_doi.put_nowait(None)
+                return
+            except queue.Full:
+                try:
+                    self._go_doi.get_nowait()
+                except queue.Empty:
+                    pass               # thread ghi vừa hút sạch giữa hai nhịp; vòng sau sẽ vào
 
     def ngat(self):
         """Ctrl-C. Chế độ pty thì ký tự \\x03 đã đi thẳng qua `go()`; đây là đường cho chế độ
@@ -398,6 +461,7 @@ class Phien:
                 os.close(fd)
             except OSError:
                 pass
+        self._dung_go()                # mọi đường đóng đều qua đây -> thread ghi cũng về theo
 
 
 class Kho:
