@@ -87,7 +87,7 @@ def has_launchd_job():
         return False
     try:
         r = subprocess.run(["launchctl", "print", _launchd_target()],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, creationflags=_CAM)
         return r.returncode == 0
     except Exception:
         return False
