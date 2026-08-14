@@ -6,7 +6,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.35.0] - 2026-08-14
 ### Thêm mới
-- **Javis nói được tiếng Anh.** Hỏi bằng tiếng Anh thì Javis trả lời tiếng Anh, không cần đổi cài đặt gì - nó tự bám theo thứ tiếng bạn đang gõ, và chèn một câu tiếng Anh giữa cuộc trò chuyện tiếng Việt sẽ không làm nó đổi hẳn. Muốn ghim cứng một thứ tiếng thì vào **Cài đặt**, mục ngôn ngữ.
+- **Javis trả lời bằng đúng thứ tiếng bạn gõ.** Không chỉ tiếng Việt với tiếng Anh - gõ tiếng Nhật, Thái, Pháp hay bất kỳ thứ tiếng nào thì Javis đáp lại bằng chính thứ tiếng đó, không phải cài gì. Muốn ghim cứng một thứ tiếng thì vào **Cài đặt**, mục ngôn ngữ.
 - **Giao diện có bản tiếng Anh.** Chọn ở **Cài đặt**; phần đã dịch hiện tiếng Anh, phần chưa dịch giữ nguyên tiếng Việt chứ không để trống ô nào. Chữ trên màn hình và ngôn ngữ Javis trả lời là hai lựa chọn riêng.
 - **Múi giờ và tiền tệ tách khỏi ngôn ngữ.** Trước đây Javis luôn tính giờ Việt Nam dù bạn ngồi ở đâu, nên nhắc hẹn "7h sáng" kêu lệch vài tiếng cho người ở múi giờ khác. Giờ nó theo đúng múi giờ bạn đặt.
 

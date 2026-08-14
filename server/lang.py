@@ -1,12 +1,28 @@
-"""Quyết định Javis trả lời bằng ngôn ngữ nào, và dò ngôn ngữ người dùng đang viết.
+"""Ngôn ngữ của một lượt chat: phần con người GHIM, và phần bộ dò phục vụ các cổng chặn.
 
-Đây là hàm DUY NHẤT trả lời câu hỏi "lượt này nói tiếng gì". Mọi chỗ cần biết ngôn ngữ đều
-gọi vào đây thay vì tự đoán, để câu trả lời, giọng đọc, cổng chặn và prompt không bao giờ
-lệch nhau trong cùng một lượt.
+AI QUYẾT ĐỊNH NGÔN NGỮ TRẢ LỜI. Từ 0.35.0 câu trả lời là: **model**, không phải file này.
+Không ai ghim gì thì prompt bảo model "trả lời bằng đúng thứ tiếng người dùng vừa viết", và
+thế là xong - nó bám đúng cho MỌI thứ tiếng.
+
+Đây là một bước LÙI có chủ ý của module này, và lý do là số liệu đo được từ chính bản trước:
+
+  - bộ dò tự chốt ngôn ngữ trả lời, và dò tiếng Anh trên câu hỏi thật chỉ đạt 16/18 - tức vẫn
+    có câu người ta gõ tiếng Anh mà Javis đáp tiếng Việt;
+  - người viết tiếng Thái, Nhật, Pháp, Tây Ban Nha thì LUÔN bị đáp tiếng Việt, kể cả khi bộ
+    dò nhận ra đúng, vì các thứ tiếng đó không có trong sổ đăng ký nên rơi hết về mặc định.
+
+Nói cách khác: mình đã tự dựng một bản kém hơn của thứ model vốn làm miễn phí. Nay `resolve()`
+chỉ còn lo phần con người ghim (bot chuyên trách, lựa chọn ở Cài đặt, lệnh thẳng trong lượt),
+và phần việc chạy nền - nơi không có lượt người dùng nào để mà bám.
+
+BỘ DÒ VẪN CÒN, và vẫn cần, ở những chỗ KHÔNG CÓ MODEL trong vòng lặp:
+  - cổng chặn đọc câu HỎI (chọn bộ từ vựng), chạy trước model;
+  - cổng bắt khai man đọc câu TRẢ LỜI, chạy sau model;
+  - giọng đọc TTS, chọn bằng mã ngôn ngữ trong code.
 
 Ba biến ngôn ngữ tách rời (spec mục 4.1), đừng nhập một:
   ui_lang       chữ trên màn hình      - user chọn, lưu theo thiết bị
-  reply_lang    Javis trả lời          - mặc định "auto" = bám theo người dùng
+  reply_lang    Javis trả lời          - mặc định "auto" = để model bám theo người dùng
   content_lang  nội dung trong brain   - của user, Javis không đụng
 
 Dò ngôn ngữ KHÔNG dùng thư viện ngoài. Chỉ cần phân biệt giữa các ngôn ngữ ĐÃ ĐĂNG KÝ, nên
@@ -17,37 +33,27 @@ Nga), rồi chấm điểm hư từ cho các thứ tiếng chữ Latin. Cả hai
 from __future__ import annotations
 
 import re
-import threading
 import unicodedata
 from dataclasses import dataclass
 
 import lang_registry
 
 
-# Ngưỡng tin cậy để ĐỔI ngôn ngữ của một phiên đang chạy. Cố ý cao: người Việt chèn một câu
-# tiếng Anh giữa cuộc trò chuyện là chuyện thường ngày, và Javis đổi hẳn sang tiếng Anh vì
-# một câu như thế thì khó chịu hơn hẳn so với việc trả lời chậm đổi một lượt.
-NGUONG_DOI = 0.80
-
-# Số lượt LIÊN TIẾP phải cùng dò ra ngôn ngữ mới thì mới đổi. Một lượt là chưa đủ: xem trên.
-SO_LUOT_DE_DOI = 2
-
 # Văn bản ngắn hơn ngần này thì không đủ căn cứ để dò ("ok", "cảm ơn", "yes"). Trả về ngôn
-# ngữ rỗng để nơi gọi giữ nguyên ngôn ngữ đang dùng.
+# ngữ rỗng - nơi gọi PHẢI hiểu đó là "chưa biết", không phải "tiếng Việt".
 DO_DAI_TOI_THIEU = 12
-
-# Trần số phiên nhớ trong RAM. Ngôn ngữ phiên là thứ rẻ tiền, mất thì dò lại, nên không đáng
-# đẩy xuống đĩa; nhưng để dict lớn vô hạn trên tiến trình chạy nhiều tháng thì là rò rỉ.
-TRAN_PHIEN = 2000
 
 
 @dataclass(frozen=True)
 class LangDecision:
-    lang: str            # ngôn ngữ CHỐT cho lượt này
-    source: str          # turn | chatbot | brain | channel | session | detect | ui | default
+    lang: str            # ngôn ngữ để NÊU TÊN khi cần nêu (đồng hồ, danh sách skill, giọng đọc)
+    source: str          # turn | chatbot | brain | channel | detect | ui | default
     confidence: float
     has_lexicon: bool    # có bộ từ vựng cho ngôn ngữ này không (xem server/lexicon/)
     detected: str = ""   # ngôn ngữ dò được từ lượt này, kể cả khi không được dùng
+    # True = KHÔNG ai ghim gì, cứ để model bám theo thứ tiếng người dùng vừa viết.
+    # False = có lựa chọn rõ ràng của con người (hoặc không có lượt người dùng nào để bám).
+    theo_nguoi_dung: bool = False
 
     @property
     def lang_cau_hoi(self) -> str:
@@ -64,23 +70,23 @@ class LangDecision:
         không bao giờ rỗng nên nhánh an toàn "chưa biết ngôn ngữ thì chạy DENY của mọi bộ
         từ vựng" thành mã chết - cổng luôn tưởng mình biết chắc.
         """
-        # Dò được từ chính lượt này thì lấy luôn, chắc nhất.
-        if self.detected:
-            return self.detected
-        # Không dò được (câu quá ngắn: "ok thanks", "cho anh xem") thì mượn ngôn ngữ của
-        # PHIÊN - nhưng CHỈ khi ngôn ngữ đó đến từ việc QUAN SÁT người dùng viết, tức là
-        # `detect` hoặc `session`. Nếu nó đến từ một cái GHIM (`setting`, `chatbot`, `brain`,
-        # `channel`, `ui`, `default`) thì nó nói về ngôn ngữ Javis phải TRẢ LỜI, không nói gì
-        # về ngôn ngữ người dùng đang VIẾT - và mượn nhầm nó là quay lại đúng con bệnh cũ.
-        if self.source in ("detect", "session"):
-            return self.lang
-        return ""
+        # Chỉ có một câu trả lời đúng: thứ dò được từ CHÍNH lượt này. Không dò được (câu quá
+        # ngắn: "ok thanks", "cho anh xem") thì trả rỗng, và cổng chặn phải suy biến an toàn.
+        #
+        # TUYỆT ĐỐI không mượn `self.lang` khi nó đến từ một cái GHIM: cái ghim nói Javis phải
+        # TRẢ LỜI bằng tiếng gì, nó không nói gì về ngôn ngữ người dùng đang VIẾT. Mượn nhầm
+        # là đúng con bệnh đã đo được - user ghim trả lời tiếng Anh rồi hỏi tiếng Việt thì
+        # cổng đem bộ từ vựng tiếng Anh ra chấm một câu tiếng Việt.
+        return self.detected
 
     def as_trace(self) -> dict:
         return {"lang": self.lang, "lang_source": self.source,
                 "lang_confidence": round(float(self.confidence), 3),
                 "lang_has_lexicon": self.has_lexicon,
-                "lang_detected": self.detected}
+                "lang_detected": self.detected,
+                # Đọc trace mà không có cờ này thì `lang` gây hiểu nhầm: nó là ngôn ngữ để
+                # NÊU TÊN ở vài chỗ trong prompt, không phải ngôn ngữ Javis đã trả lời.
+                "lang_theo_nguoi_dung": self.theo_nguoi_dung}
 
 
 # ---------------------------------------------------------------- dò ngôn ngữ
@@ -321,43 +327,6 @@ def _yeu_cau_thang(text: str) -> str:
     return ""
 
 
-# ---------------------------------------------------------------- ngôn ngữ dính theo phiên
-
-_PHIEN: dict[str, dict] = {}
-_KHOA = threading.RLock()
-
-
-def _phien_doc(session_id: str) -> dict:
-    with _KHOA:
-        return dict(_PHIEN.get(str(session_id or ""), {}))
-
-
-def _phien_ghi(session_id: str, lang: str, streak_lang: str = "", streak: int = 0,
-               streak_best: float = 0.0) -> None:
-    sid = str(session_id or "")
-    if not sid:
-        return
-    with _KHOA:
-        if len(_PHIEN) >= TRAN_PHIEN and sid not in _PHIEN:
-            # Bỏ mục cũ nhất. dict của Python giữ thứ tự chèn nên đây là FIFO, đủ tốt cho
-            # một bộ nhớ tạm mất cũng không sao.
-            try:
-                _PHIEN.pop(next(iter(_PHIEN)))
-            except StopIteration:
-                pass
-        _PHIEN[sid] = {"lang": lang, "streak_lang": streak_lang, "streak": streak,
-                       "streak_best": streak_best}
-
-
-def quen_phien(session_id: str = "") -> None:
-    """Xoá ngôn ngữ đã nhớ. Không truyền gì = xoá sạch (dùng trong test)."""
-    with _KHOA:
-        if session_id:
-            _PHIEN.pop(str(session_id), None)
-        else:
-            _PHIEN.clear()
-
-
 # ---------------------------------------------------------------- bộ từ vựng
 
 def co_lexicon(code: str) -> bool:
@@ -375,35 +344,48 @@ def co_lexicon(code: str) -> bool:
 
 # ---------------------------------------------------------------- quyết định
 
-def resolve(*, turn_text: str = "", session_id: str = "", reply_pref: str = "auto",
-            chatbot_pin: str = "", brain_pin: str = "", channel_default: str = "",
-            ui_lang: str = "") -> LangDecision:
-    """Chốt ngôn ngữ trả lời cho một lượt, theo thứ tự ưu tiên ở spec mục 4.1.
+def resolve(*, turn_text: str = "", reply_pref: str = "auto", chatbot_pin: str = "",
+            brain_pin: str = "", channel_default: str = "", ui_lang: str = "") -> LangDecision:
+    """Chốt xem lượt này Javis trả lời bằng tiếng gì.
 
-    Thứ tự, cao xuống thấp:
-      1. user ra lệnh thẳng trong lượt này
+    NGUYÊN TẮC (đổi ở 0.35.0, sau khi đo): **model tự bám theo ngôn ngữ người dùng, hàm này
+    chỉ lo phần con người đã GHIM.**
+
+    Vì sao đổi. Bản trước tự dò rồi tự chốt ngôn ngữ trả lời, và mình đã đo được nó làm việc
+    đó tệ hơn hẳn thứ model làm miễn phí:
+
+      - dò tiếng Anh trên câu hỏi thật: 16/18, tức vẫn có câu người ta gõ tiếng Anh mà bị trả
+        lời tiếng Việt;
+      - người viết tiếng Thái, Nhật, Pháp, Tây Ban Nha thì LUÔN bị trả lời tiếng Việt, vì các
+        thứ tiếng đó không có trong sổ đăng ký nên rơi hết về mặc định.
+
+    Model thì bám đúng ngôn ngữ người dùng cho MỌI thứ tiếng, không cần ai khai gì. Nên việc
+    của hàm này rút lại còn: có ai ghim không? Có thì nêu tên ngôn ngữ đó. Không thì bảo model
+    tự bám (`theo_nguoi_dung=True`).
+
+    Thứ tự GHIM, cao xuống thấp:
+      1. user ra lệnh thẳng trong lượt này ("trả lời bằng tiếng Anh")
       2. ngôn ngữ ghim của chatbot (bot phục vụ khách lạ, không theo ngôn ngữ của chủ)
       3. `reply_pref` khác "auto" - user đã ghim ở Cài đặt
       4. ngôn ngữ ghim của brain
       5. mặc định của kênh (Zalo là nền tảng Việt Nam)
-      6. dò từ tin nhắn, có luật dính theo phiên
-      7. ui_lang
-      8. mặc định
 
-    `turn_text` LUÔN được dò, kể cả khi kết quả không được dùng, vì các cổng chặn cần biết
-    người dùng đang THẬT SỰ viết tiếng gì để suy biến cho đúng - khác với ngôn ngữ Javis
-    được lệnh phải trả lời.
+    Không ghim gì mà CÓ chữ người dùng gõ -> để model bám. Không ghim và cũng KHÔNG có chữ
+    nào (việc chạy nền: loop, nhắc hẹn, Kanban, tự học) -> không có gì để bám, phải nêu tên
+    một ngôn ngữ, lấy từ `ui_lang` rồi tới mặc định.
+
+    `turn_text` LUÔN được dò, kể cả khi ngôn ngữ trả lời do model tự lo, vì các CỔNG CHẶN cần
+    biết người dùng đang thật sự viết tiếng gì để chọn đúng bộ từ vựng. Đó là chỗ không có
+    model nào trong vòng lặp, nên vẫn phải tự dò.
     """
     do_duoc, tin = detect(turn_text)
 
-    def _xong(lang: str, source: str, conf: float) -> LangDecision:
+    def _xong(lang: str, source: str, conf: float, theo=False) -> LangDecision:
         ma = lang_registry.chuan_hoa(lang) or lang_registry.MAC_DINH
-        return LangDecision(ma, source, conf, co_lexicon(ma), do_duoc)
+        return LangDecision(ma, source, conf, co_lexicon(ma), do_duoc, theo)
 
     thang = _yeu_cau_thang(turn_text)
     if thang:
-        if session_id:
-            _phien_ghi(session_id, thang)
         return _xong(thang, "turn", 0.99)
 
     if lang_registry.chuan_hoa(chatbot_pin):
@@ -419,40 +401,14 @@ def resolve(*, turn_text: str = "", session_id: str = "", reply_pref: str = "aut
     if lang_registry.chuan_hoa(channel_default):
         return _xong(channel_default, "channel", 0.9)
 
-    # --- dò, có quán tính ---
-    truoc = _phien_doc(session_id)
-    dang_dung = truoc.get("lang") or ""
+    if str(turn_text or "").strip():
+        # Có chữ của người dùng: model bám theo. `lang` ở đây KHÔNG phải ngôn ngữ trả lời,
+        # nó chỉ là ngôn ngữ để nêu tên ở những chỗ buộc phải nêu (đồng hồ trong prompt, danh
+        # sách skill, giọng đọc dự phòng) - lấy ngôn ngữ dò được nếu có, không thì cấu hình.
+        neu_ten = (do_duoc if lang_registry.duoc_ho_tro(do_duoc) else "") or ui_lang
+        return _xong(neu_ten, "detect" if do_duoc else "ui", max(tin, 0.5), theo=True)
 
-    if do_duoc and lang_registry.duoc_ho_tro(do_duoc):
-        if not dang_dung:
-            _phien_ghi(session_id, do_duoc)
-            return _xong(do_duoc, "detect", tin)
-        if do_duoc == dang_dung:
-            # Quay lại ngôn ngữ đang dùng thì xoá luôn chuỗi lượt đang tích cho ngôn ngữ kia:
-            # đó không còn là một chuỗi LIÊN TIẾP nữa.
-            _phien_ghi(session_id, dang_dung)
-            return _xong(dang_dung, "session", max(tin, 0.9))
-
-        # Dò ra ngôn ngữ KHÁC. Tích luỹ bằng chứng qua nhiều lượt thay vì đòi mỗi lượt phải
-        # tự mình đủ tin.
-        #
-        # Bản đầu đòi `tin >= NGUONG_DOI` mới được cộng chuỗi, và nó KHÔNG BAO GIỜ đổi được
-        # ngôn ngữ trong thực tế: một người chuyển hẳn sang tiếng Anh vẫn có những lượt chỉ
-        # trúng hai hư từ (tin 0.79), và mỗi lượt như thế lại xoá sạch chuỗi vừa tích. Nay
-        # chuỗi cộng theo mọi lượt cùng trỏ về một ngôn ngữ, còn ngưỡng tin áp lên ĐỘ TIN
-        # CAO NHẤT từng thấy trong chuỗi đó.
-        streak = (truoc.get("streak", 0) + 1) if truoc.get("streak_lang") == do_duoc else 1
-        best = max(float(truoc.get("streak_best", 0.0)) if truoc.get("streak_lang") == do_duoc
-                   else 0.0, tin)
-        if streak >= SO_LUOT_DE_DOI and best >= NGUONG_DOI:
-            _phien_ghi(session_id, do_duoc)
-            return _xong(do_duoc, "detect", best)
-        _phien_ghi(session_id, dang_dung, streak_lang=do_duoc, streak=streak, streak_best=best)
-        return _xong(dang_dung, "session", 0.85)
-
-    if dang_dung:
-        return _xong(dang_dung, "session", 0.75)
-
+    # Việc chạy nền: không có lượt người dùng nào để mà bám.
     if lang_registry.chuan_hoa(ui_lang):
         return _xong(ui_lang, "ui", 0.7)
 
@@ -470,6 +426,30 @@ def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
     nhỏ vốn trôi theo ngôn ngữ của prompt.
     """
     l = lang_registry.get(quyet_dinh.lang)
+    chung = [
+        "Giữ nguyên KHÔNG dịch: tên riêng, đường dẫn file, tên tool, tên brain, khối mã, và "
+        "đoạn trích nguyên văn từ brain hoặc từ kết quả tool.",
+        "Nội dung trong brain viết bằng ngôn ngữ khác thì cứ đọc bình thường, chỉ TRẢ LỜI "
+        "theo luật trên.",
+    ]
+
+    if quyet_dinh.theo_nguoi_dung:
+        # Không ai ghim gì: để model bám. Nó làm việc này tốt hơn bộ dò của mình, và làm được
+        # với MỌI thứ tiếng chứ không riêng hai thứ có trong sổ đăng ký.
+        return "\n".join([
+            "",
+            "",
+            "# === NGÔN NGỮ ===",
+            "Trả lời bằng ĐÚNG thứ tiếng người dùng vừa viết trong tin nhắn cuối cùng. Họ gõ "
+            "tiếng Việt thì trả lời tiếng Việt, gõ tiếng Anh thì trả lời tiếng Anh, gõ thứ "
+            "tiếng nào khác thì trả lời bằng chính thứ tiếng đó.",
+            "Viết TOÀN BỘ câu trả lời bằng ngôn ngữ ấy, kể cả tiêu đề, nhãn, đơn vị và câu "
+            "cảnh báo. Đừng trộn hai thứ tiếng trong một câu trả lời.",
+            "Tin nhắn quá ngắn để đoán (\"ok\", \"thanks\") thì giữ nguyên thứ tiếng đang dùng "
+            "trong cuộc trò chuyện này.",
+            *chung,
+        ])
+
     dong = [
         "",
         "",
@@ -481,10 +461,7 @@ def khoi_ngon_ngu(quyet_dinh: LangDecision) -> str:
                     f"{l.lang_directive} theo lựa chọn đã ghim.)")
     dong += [
         "Viết TOÀN BỘ câu trả lời bằng ngôn ngữ này, kể cả tiêu đề, nhãn, đơn vị và câu cảnh báo.",
-        "Giữ nguyên KHÔNG dịch: tên riêng, đường dẫn file, tên tool, tên brain, khối mã, và "
-        "đoạn trích nguyên văn từ brain hoặc từ kết quả tool.",
-        "Nội dung trong brain viết bằng ngôn ngữ khác thì cứ đọc bình thường, chỉ TRẢ LỜI "
-        "bằng ngôn ngữ trên.",
+        *chung,
         l.nudge,
     ]
     return "\n".join(dong)

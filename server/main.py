@@ -8523,11 +8523,11 @@ async def websocket_endpoint(ws: WebSocket):
             mcfg = _cfg_all.get("model", {})
             # NGÔN NGỮ chốt MỘT LẦN cho cả lượt, ngay đây. Chốt sớm và chốt một chỗ là để câu
             # trả lời, giọng đọc và các cổng chặn không bao giờ hiểu khác nhau trong cùng một
-            # lượt. `session_id=conv_sid` cho luật dính theo phiên hoạt động (chèn một câu
-            # tiếng Anh giữa cuộc tiếng Việt thì KHÔNG đổi ngôn ngữ).
+            # lượt. Không ai ghim gì thì `resolve` trả `theo_nguoi_dung=True` và chính MODEL
+            # bám theo thứ tiếng người dùng vừa viết - xem đầu file lang.py.
             _lc = _cfg_all.get("locale") or {}
             _lang_qd = lang_mod.resolve(
-                turn_text=user_message, session_id=conv_sid,
+                turn_text=user_message,
                 reply_pref=_lc.get("reply_lang") or "auto",
                 ui_lang=_lc.get("ui_lang") or "",
             )
@@ -11310,7 +11310,6 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     _lc_kenh = cfgmod.read_settings().get("locale") or {}
     _lang_qd = lang_mod.resolve(
         turn_text=text,
-        session_id=f"{channel}:{chat_id}",
         chatbot_pin=(bot or {}).get("ngon_ngu") or "",
         reply_pref=("" if bot else (_lc_kenh.get("reply_lang") or "auto")),
         channel_default=("vi" if channel == "zalo" and not bot else ""),

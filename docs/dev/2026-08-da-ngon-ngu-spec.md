@@ -601,7 +601,7 @@ spec rồi tưởng phần chưa làm đã làm.
 | Thứ | Ở đâu |
 |-----|-------|
 | Sổ đăng ký ngôn ngữ (vi, en) | `server/lang_registry.py` |
-| Dò ngôn ngữ + chốt 8 mức ưu tiên + quán tính theo phiên | `server/lang.py` |
+| Dò ngôn ngữ + chốt phần con người GHIM | `server/lang.py` (**[ĐÍNH CHÍNH 6.10]** bản đầu ghi "8 mức ưu tiên + quán tính theo phiên"; tầng phiên đã bỏ, ngôn ngữ trả lời do model lo) |
 | Bộ từ vựng theo ngôn ngữ | `server/lexicon/{__init__,vi,en}.py` |
 | Khối NGÔN NGỮ, **ba** điểm chèn | `main.build_system_prompt`, `context_compiler._output_contract_text`, `chatbot_runtime.build_bot_prompt` |
 | Cổng đường tắt + hai cổng chỉ đọc tra bộ từ vựng | `fast_path_runtime`, `readonly_path_runtime`, `readonly_orchestrator` |
@@ -826,6 +826,49 @@ vì nó không bao giờ tự lộ ra ở ngôn ngữ gốc.
 trên một rổ câu thật thay vì khoá hành vi trên vài ca mẫu, và rổ đó **giữ nguyên cả những câu
 đang trượt** - bỏ câu khó ra cho đủ điểm là tự đo mình bằng một cái thước đã uốn.
 
+### 6.10. LÀM GỌN (2026-08-14). Trả ngôn ngữ trả lời về cho model.
+
+Chủ repo đặt câu hỏi đúng ngay sau lượt rà: nếu người dùng gõ tiếng gì thì trả lời tiếng đó,
+sao phải tự dò? Model làm việc đó sẵn rồi. Đo lại thì thấy chủ repo đúng, và bằng chứng nằm
+ngay trong số liệu của chính mục 6.9:
+
+| | Bộ dò của mình | Model |
+|---|---|---|
+| Tiếng Anh, câu hỏi thật | 16/18 | bám đúng |
+| Tiếng Thái, Nhật, Pháp, Tây Ban Nha | **luôn trả lời tiếng Việt** | bám đúng |
+| Thêm một ngôn ngữ | sửa sổ đăng ký + đo lại | không phải làm gì |
+
+Dòng thứ hai là dòng quyết định. Bộ dò NHẬN RA tiếng Thái (0.97) rồi vẫn trả lời tiếng Việt,
+vì `th` không có trong sổ đăng ký nên `chuan_hoa` trả rỗng và cả chuỗi rơi về mặc định. Nói
+cách khác mình đã tự dựng một bản kém hơn của thứ vốn có sẵn miễn phí.
+
+**Thiết kế mới, và nó nhỏ hơn hẳn.** `resolve()` chỉ còn lo phần con người GHIM:
+
+- có ghim (lệnh trong lượt, chatbot, Cài đặt, brain, mặc định kênh) → nêu tên ngôn ngữ đó;
+- không ghim mà CÓ chữ người dùng → `theo_nguoi_dung=True`, prompt bảo model tự bám;
+- không ghim và KHÔNG có chữ nào (loop, nhắc hẹn, Kanban, tự học) → không có gì để bám, phải
+  nêu tên, lấy từ `ui_lang` rồi tới mặc định.
+
+**Cái bị xoá:** toàn bộ tầng dính-theo-phiên - kho phiên trong RAM, khoá, trần 2000 phiên,
+đếm chuỗi lượt liên tiếp, `streak_best`, `NGUONG_DOI`, `SO_LUOT_DE_DOI`, và nấc `session`
+trong chuỗi ưu tiên. Tất cả chỉ tồn tại để làm bộ dò đủ ổn định mà cầm lái ngôn ngữ trả lời.
+Model cầm lái thì không có gì để mà nhảy, nên cả cơ chế thành thừa.
+
+**Cái KHÔNG xoá, và vì sao.** Bộ dò vẫn cần ở đúng những chỗ **không có model trong vòng lặp**:
+cổng chặn đọc câu HỎI (chạy trước model, phải tự chọn bộ từ vựng), cổng bắt khai man đọc câu
+TRẢ LỜI (chạy sau model), và giọng đọc TTS (chọn bằng mã ngôn ngữ trong code). Bốn lỗi ở mục
+6.9 vì vậy vẫn đáng sửa - chỉ khác là chúng tụt từ "hỏng tính năng đầu bài" xuống "tốn thêm
+token" và "chọn nhầm giọng đọc".
+
+`lang_cau_hoi` cũng gọn theo: nó chỉ còn nhận thứ dò được từ CHÍNH lượt này, thôi mượn ngôn
+ngữ phiên khi câu quá ngắn. Mượn tức là đoán, mà cổng chặn đoán sai thì đem nhầm bộ từ vựng
+ra chấm - thà trả rỗng rồi suy biến an toàn.
+
+**Một xác nhận đáng ghi:** hòn đảo prompt của chatbot (`chatbot_runtime.build_bot_prompt`) đã
+làm đúng thiết kế này từ đầu - ghim thì nêu tên, không ghim thì "trả lời bằng ĐÚNG ngôn ngữ
+khách đang nhắn". Nó nhỏ nên không ai nghĩ tới chuyện dựng tầng dò cho nó, và chính vì thế nó
+tránh được cả cái tầng đó. Đường chính nay đi theo.
+
 ## 7. Sáu giai đoạn
 
 Mục này là kế hoạch ĐẦY ĐỦ, chạy sau khi bản nhỏ nhất ở mục 6 đã chạm ngưỡng. Bản nhỏ nhất
@@ -866,6 +909,9 @@ khoảng hai tuần làm tập trung.
 Bộ test hiện có nằm ở `tests/python`, `tests/js`, chạy qua `tests/run.py`. Thêm:
 
 - `test_lang_resolve.py` - đủ 7 mức ưu tiên, chống nhảy qua nhảy lại, dính theo phiên.
+  **[ĐÍNH CHÍNH 6.10]** Thực tế gộp vào `test_da_ngon_ngu.py`, và phần "chống nhảy qua nhảy
+  lại / dính theo phiên" không còn: model bám theo người dùng thì không có gì để mà nhảy.
+  Thay vào đó test khoá hai chuyện - có ghim thì nêu tên, không ghim thì bảo model tự bám.
 - `test_lang_registry_invariant.py` - **quét mã tìm `lang == "vi"` hay `"vi-VN"` viết cứng ngoài
   sổ đăng ký, thấy là báo đỏ.** Đây là cái chốt giữ cho tính mở rộng không mục dần.
 - `test_lexicon_parity.py` - mọi tên tập trong `lexicon/vi.py` phải có mặt ở mọi lexicon khác.

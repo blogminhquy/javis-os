@@ -57,37 +57,62 @@ check("câu quá ngắn thì KHÔNG đoán bừa", lang_mod.detect("ok")[0] == "
 
 
 # ============================================================
-# 2. Chốt ngôn ngữ: ưu tiên và quán tính
+# 2. Chốt ngôn ngữ: ai GHIM, và khi không ai ghim thì ai lo
 # ============================================================
-lang_mod.quen_phien()
-_d = lang_mod.resolve(turn_text="trả lời bằng tiếng Anh từ giờ nhé", session_id="t1")
-check("lệnh thẳng trong lượt thắng tất cả", _d.lang == "en" and _d.source == "turn")
+# Đổi ở 0.35.0: `resolve` KHÔNG còn tự chốt ngôn ngữ trả lời khi không có ai ghim. Nó trả
+# `theo_nguoi_dung=True` và prompt bảo model bám theo thứ tiếng người dùng vừa viết.
+#
+# Vì sao bỏ: bản trước tự dò tự chốt, và đo được nó làm tệ hơn model - dò tiếng Anh 16/18,
+# còn người viết tiếng Thái/Nhật/Pháp/Tây Ban Nha thì LUÔN bị trả lời tiếng Việt vì mấy thứ
+# tiếng đó không có trong sổ đăng ký. Model bám đúng cho mọi thứ tiếng, miễn phí.
+_d = lang_mod.resolve(turn_text="trả lời bằng tiếng Anh từ giờ nhé")
+check("lệnh thẳng trong lượt thắng tất cả",
+      _d.lang == "en" and _d.source == "turn" and not _d.theo_nguoi_dung)
 
-check("'dịch bài này sang tiếng Anh' KHÔNG phải lệnh đổi ngôn ngữ",
-      lang_mod.resolve(turn_text="dịch bài này sang tiếng Anh giúp anh",
-                       session_id="t2").lang == "vi")
+_d = lang_mod.resolve(turn_text="dịch bài này sang tiếng Anh giúp anh")
+check("'dịch bài này sang tiếng Anh' KHÔNG phải lệnh đổi ngôn ngữ", _d.source != "turn")
 
 check("chatbot ghim thắng cài đặt của chủ",
       lang_mod.resolve(turn_text="anh muốn xem doanh thu tháng này",
-                       chatbot_pin="en", reply_pref="vi", session_id="t3").lang == "en")
+                       chatbot_pin="en", reply_pref="vi").lang == "en")
 
-# Quán tính: một câu tiếng Anh lẻ giữa cuộc tiếng Việt KHÔNG được đổi ngôn ngữ.
-lang_mod.quen_phien()
-for cau in ("anh muốn xem doanh thu tháng này thế nào",
-            "thanks that is very helpful information",
-            "cho anh xem thêm phần chi phí quảng cáo"):
-    _d = lang_mod.resolve(turn_text=cau, session_id="t4")
-check("chèn một câu tiếng Anh lẻ thì KHÔNG đổi ngôn ngữ", _d.lang == "vi")
+# KHÔNG ai ghim gì -> để model bám. Đây là đường đi của gần như mọi lượt chat.
+for _c in ("anh muốn xem doanh thu tháng này thế nào",
+           "please show me the cost breakdown in detail",
+           "สรุปยอดขายวันนี้ให้หน่อยครับ",
+           "今日の売上はいくらですか",
+           "les ventes du mois de juin sont bonnes"):
+    _d = lang_mod.resolve(turn_text=_c)
+    check(f"không ghim -> model tự bám: {_c[:32]}", _d.theo_nguoi_dung)
 
-# Nhưng chuyển HẲN sang tiếng Anh thì phải đổi được, nếu không thì luật quán tính thành cái
-# khoá vĩnh viễn. Bản đầu mắc đúng lỗi này: một lượt tin cậy trung bình xoá sạch chuỗi đang
-# tích, nên không bao giờ đủ hai lượt liên tiếp.
-lang_mod.quen_phien()
-for cau in ("anh muốn xem doanh thu tháng này thế nào",
-            "please show me the cost breakdown in detail",
-            "and also the revenue by channel for this month"):
-    _d = lang_mod.resolve(turn_text=cau, session_id="t5")
-check("chuyển hẳn sang tiếng Anh thì đổi được sau 2 lượt", _d.lang == "en")
+# Ghim thì phải NÊU TÊN, và cờ bám phải TẮT - nếu không thì cái ghim vô nghĩa.
+for _kw, _mong in ((dict(reply_pref="en"), "en"),
+                   (dict(chatbot_pin="vi"), "vi"),
+                   (dict(brain_pin="en"), "en"),
+                   (dict(channel_default="vi"), "vi")):
+    _d = lang_mod.resolve(turn_text="anh muốn xem doanh thu", **_kw)
+    check(f"ghim {list(_kw)[0]} -> nêu tên {_mong}, không bám",
+          _d.lang == _mong and not _d.theo_nguoi_dung)
+
+# Việc chạy nền KHÔNG có lượt người dùng nào để bám -> buộc phải nêu tên một ngôn ngữ.
+_d = lang_mod.resolve(turn_text="", ui_lang="en")
+check("việc nền (không có chữ người dùng) thì nêu tên, không bám",
+      _d.lang == "en" and not _d.theo_nguoi_dung)
+_d = lang_mod.resolve(turn_text="")
+check("việc nền không cấu hình gì thì về mặc định",
+      _d.lang == lang_registry.MAC_DINH and not _d.theo_nguoi_dung)
+
+# Khối prompt phải nói ĐÚNG một trong hai chuyện, không được nói cả hai.
+_khoi_bam = lang_mod.khoi_ngon_ngu(lang_mod.resolve(turn_text="show me the revenue by channel"))
+_khoi_ghim = lang_mod.khoi_ngon_ngu(lang_mod.resolve(turn_text="cho anh xem", reply_pref="en"))
+check("khối BÁM bảo model theo người dùng, không nêu tên ngôn ngữ nào",
+      "thứ tiếng người dùng vừa viết" in _khoi_bam
+      and "Ngôn ngữ trả lời:" not in _khoi_bam)
+check("khối GHIM nêu đúng tên ngôn ngữ",
+      "Ngôn ngữ trả lời: English (en)." in _khoi_ghim
+      and "thứ tiếng người dùng vừa viết" not in _khoi_ghim)
+check("khối BÁM vẫn dặn giữ nguyên tên riêng, đường dẫn, khối mã",
+      "KHÔNG dịch" in _khoi_bam)
 
 
 # ============================================================
@@ -134,19 +159,22 @@ check("tiếng Tây Ban Nha cũng vậy",
 check("nhưng tiếng Việt KHÔNG DẤU viết ngắn vẫn phải dò ra",
       lang_mod.detect("entropy la gi")[0] == "vi")
 
-lang_mod.quen_phien()
-for _c in ("please show me the cost breakdown in detail",
-           "and also the revenue by channel for this month"):
-    lang_mod.resolve(turn_text=_c, session_id="tq")
-_dq = lang_mod.resolve(turn_text="calculate 15 percent of 2400", session_id="tq")
-check("giữa một phiên tiếng Anh, câu ngắn mượn được ngôn ngữ phiên",
+# `lang_cau_hoi` chỉ nhận thứ dò được từ CHÍNH lượt này. Bản trước còn mượn ngôn ngữ của
+# phiên khi câu quá ngắn; bỏ luôn cùng với tầng phiên, và bỏ là ĐÚNG hướng: mượn tức là đoán,
+# mà cổng chặn đoán sai thì đem nhầm bộ từ vựng ra chấm.
+_dq = lang_mod.resolve(turn_text="calculate 15 percent of 2400")
+check("dò được từ chính lượt thì cổng dùng luôn",
       _dq.lang_cau_hoi == "en" and _gate.classify("calculate 15 percent of 2400",
                                                   lang=_dq.lang_cau_hoi).eligible)
-# Nhưng ngôn ngữ GHIM thì KHÔNG được mượn: nó nói Javis trả lời tiếng gì, không nói người
+check("câu quá ngắn thì cổng KHÔNG có ngôn ngữ, và phải suy biến an toàn",
+      lang_mod.resolve(turn_text="cho anh xem").lang_cau_hoi == "")
+# Ngôn ngữ GHIM tuyệt đối không rò xuống cổng: nó nói Javis trả lời tiếng gì, không nói người
 # dùng đang viết tiếng gì.
 check("ngôn ngữ ghim KHÔNG rò xuống cổng",
-      lang_mod.resolve(turn_text="cho anh xem", session_id="tq2",
-                       reply_pref="en").lang_cau_hoi == "")
+      lang_mod.resolve(turn_text="cho anh xem", reply_pref="en").lang_cau_hoi == "")
+check("và ghim cũng không che mất ngôn ngữ THẬT của câu hỏi",
+      lang_mod.resolve(turn_text="anh muốn xem doanh thu tháng này",
+                       reply_pref="en").lang_cau_hoi == "vi")
 
 
 # ============================================================

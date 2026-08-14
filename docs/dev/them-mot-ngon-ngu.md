@@ -10,11 +10,31 @@ Ví dụ xuyên suốt: thêm **tiếng Thái (`th`)**.
 
 ---
 
+## ĐỌC TRƯỚC: Javis đã trả lời được tiếng Thái rồi
+
+Không đăng ký gì cả, người dùng gõ tiếng Thái thì Javis vẫn đáp tiếng Thái. Từ 0.35.0, ngôn
+ngữ TRẢ LỜI do **model** lo: prompt bảo nó bám theo thứ tiếng người dùng vừa viết, và nó làm
+được với mọi thứ tiếng.
+
+Vậy đăng ký để được gì. Đúng bốn thứ, đều là chỗ **không có model trong vòng lặp**:
+
+| Được gì | Không đăng ký thì sao |
+|---------|-----------------------|
+| Chữ trên màn hình dịch được | giao diện vẫn tiếng Việt |
+| Giọng đọc TTS đúng tiếng | đọc bằng giọng Việt, nghe như máy hỏng |
+| Múi giờ, tiền tệ, định dạng số mặc định | dùng của Việt Nam cho tới khi user tự đổi |
+| Đường tắt tiết kiệm token bật được | vẫn chạy, chỉ tốn hơn |
+
+Nói cách khác đây là việc **nên** làm, không phải việc **phải** làm để Javis nói được thứ
+tiếng đó. Đừng để ai chờ hết bốn bước dưới rồi mới dám mời người dùng Thái vào.
+
+---
+
 ## Bốn bước bắt buộc
 
 ### 1. Khai ngôn ngữ trong sổ đăng ký
 
-`server/lang_registry.py`, thêm một mục vào `_SO`:
+`server/lang_registry.py`, thêm một mục vào `LANGS`:
 
 ```python
 "th": Lang(
@@ -31,9 +51,12 @@ Ví dụ xuyên suốt: thêm **tiếng Thái (`th`)**.
 
 Hai trường hay bị làm ẩu:
 
-- **`stopwords`** là bằng chứng để `lang.detect()` chấm điểm. Chọn hư từ **thường gặp và
-  riêng** của thứ tiếng đó. Từ dùng chung với ngôn ngữ khác làm bộ dò lẫn lộn, và lẫn lộn ở
-  đây không kêu lên thành lỗi - nó chỉ trả lời sai thứ tiếng.
+- **`stopwords`** là bằng chứng để `lang.detect()` chấm điểm, và bộ dò nay chỉ phục vụ CỔNG
+  CHẶN với GIỌNG ĐỌC chứ không quyết định ngôn ngữ trả lời nữa. Chọn hư từ **thường gặp và
+  riêng** của thứ tiếng đó, và **chỉ hư từ, đừng lấy danh từ** - danh từ đi xuyên ngôn ngữ
+  (bản thử từng thêm "week" với "report" vào tiếng Anh, thế là câu tiếng Hà Lan thành tiếng
+  Anh). Cũng đừng lấy chữ trùng tiếng Việt viết không dấu; xem `lang._TU_NGOAI` để biết danh
+  sách những chữ đã bị loại và vì sao.
 - **`weekdays`** theo `datetime.weekday()`, tức **0 = thứ hai**. Cron dùng 0 = chủ nhật.
   `cron_util._ten_thu()` đã bù lệch này; đừng bù lần thứ hai.
 
@@ -128,7 +151,10 @@ Liệt kê ra đây vì đây là chỗ người ta hay đi thừa:
 
 ---
 
-## Ngôn ngữ đang có
+## Ngôn ngữ ĐÃ ĐĂNG KÝ
+
+Nhắc lại: đây KHÔNG phải danh sách thứ tiếng Javis nói được. Javis trả lời được mọi thứ tiếng.
+Đây là danh sách thứ tiếng đã có giao diện, giọng đọc và cổng chặn riêng.
 
 | Mã | Tên | Từ điển giao diện | Bộ từ vựng cổng | Mô tả skill |
 |----|-----|-------------------|-----------------|-------------|
