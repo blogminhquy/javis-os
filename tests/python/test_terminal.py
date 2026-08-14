@@ -321,28 +321,32 @@ if terminal.CO_PTY:
 
 
 # ============================================================
-# 7. Mã thoát lấy trong thread đọc, không phải trên event loop
+# 7. Mã thoát tính xong TRƯỚC khi lên event loop
 # ============================================================
 async def _ma_thoat_khong_tren_loop():
-    """_het() từng proc.wait(timeout=1) ngay trên event loop: shell đóng ống mà chưa chết hẳn
-    là loop đứng trọn một giây. Giờ wait chạy trong thread đọc. Chốt bằng cách ghi lại THREAD
-    nào gọi wait thay vì đo thời gian - đo giờ trên CI là mời flaky vào nhà."""
+    """_het() từng tự chờ tiến trình (proc.wait(timeout=1)) ngay trên event loop: shell đóng
+    ống mà chưa chết hẳn là loop đứng trọn một giây. Giờ việc chờ nằm trong thread đọc và mã
+    thoát được TRUYỀN SANG _het.
+
+    Đo bằng chữ ký lời gọi chứ không đo giờ: _het phải nhận mã thoát qua tham số. Bản lỗi gọi
+    _het() rỗng - tức là nó còn phải tự đi chờ trên loop. Đo giờ trên CI là mời flaky vào
+    nhà, còn bất biến cấu trúc này thì đúng ở mọi tốc độ máy."""
     loop = asyncio.get_running_loop()
     p = terminal.Phien("test-wait-thread", "/tmp", 80, 24, loop)
     q = p.gan()
-    goc = p.proc.wait
-    goi_tu = []
+    goc = p._het
+    goi = []
 
-    def _wait_theo_doi(timeout=None):
-        goi_tu.append(threading.get_ident())
-        return goc(timeout=timeout)
+    def _het_theo_doi(*a, **kw):
+        goi.append({"args": a, "tren_loop": threading.get_ident()})
+        return goc(*a, **kw)
 
-    p.proc.wait = _wait_theo_doi
+    p._het = _het_theo_doi
     p.go("exit 5\n")
     await _doc(q, lambda b: "<exit" in b)
     check("mã thoát vẫn về đúng qua đường mới", p.ma_thoat == 5, p.ma_thoat)
-    check("proc.wait KHÔNG chạy trên thread của event loop",
-          bool(goi_tu) and all(t != threading.get_ident() for t in goi_tu), goi_tu)
+    check("_het nhận sẵn mã thoát qua tham số (việc chờ tiến trình đã xong ngoài loop)",
+          bool(goi) and all(g["args"] and g["args"][0] == 5 for g in goi), goi)
     p.go_ra(q)
     p.dong()
 

@@ -277,14 +277,21 @@ class Phien:
                 except RuntimeError:
                     break              # loop đã đóng (server đang tắt)
         # Lấy mã thoát Ở ĐÂY, trong thread đọc, chứ không phải trong _het() trên loop: shell
-        # có thể đóng ống rồi mà chưa chết hẳn, và wait(timeout=1) lúc đó là giữ cả server
-        # đứng một giây. Cùng lớp với vụ os.close 14/08/2026, chỉ nhẹ hơn.
+        # có thể đóng ống rồi mà chưa chết hẳn, và chờ ở đó là giữ cả server đứng một giây.
+        # Cùng lớp với vụ os.close 14/08/2026, chỉ nhẹ hơn.
+        #
+        # Chờ bằng vòng poll() chứ KHÔNG bằng wait(timeout=1): đóng phiên thì thread _giet
+        # cũng đang wait() trên cùng tiến trình, và wait() của Popen tranh nhau một khoá nội
+        # bộ - kẻ thua ném TimeoutExpired dù tiến trình đã chết ngon lành, thành ra mã thoát
+        # báo -1 sai (đo được: cứ vài lượt test lại lệch một lần). poll() không tranh khoá đó
+        # và đọc được returncode ngay khi bên kia reap xong.
         ma = -1
-        if self.proc:
-            try:
-                ma = self.proc.wait(timeout=1)
-            except Exception:
-                ma = -1
+        for _ in range(20):
+            r = self.proc.poll() if self.proc else None
+            if r is not None:
+                ma = r
+                break
+            time.sleep(0.05)
         try:
             self._loop.call_soon_threadsafe(self._het, ma)
         except RuntimeError:
