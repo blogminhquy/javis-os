@@ -17,11 +17,23 @@ mau so dung de tinh "token moi luot", tuc dung thu ma phan tiet kiem ngu canh ta
 """
 from __future__ import annotations
 
+import localefmt
 import json
 import os
 from datetime import datetime, timezone, timedelta
 
-_TZ = timezone(timedelta(hours=7))  # Asia/Ho_Chi_Minh
+# Múi giờ để cắt NGÀY của thống kê. Đọc từ cấu hình qua `localefmt`, KHÔNG còn là hằng số.
+#
+# Đổi múi giờ là DỊCH RANH GIỚI NGÀY, nên phải nói rõ hợp đồng: dữ liệu đã ghi giữ nguyên
+# chuỗi ngày của nó, chỉ dữ liệu MỚI mới theo múi giờ mới. Không viết lại lịch sử - một bản
+# ghi "2026-08-14" được tạo ra dưới UTC+7 vẫn là ngày đó, kể cả sau khi người dùng chuyển
+# sang UTC+9. Đổi lại, ngay lúc chuyển sẽ có một chỗ gợn trong chuỗi ngày; đó là hệ quả không
+# tránh được của việc đổi múi giờ, và viết lại lịch sử để làm nó phẳng còn tệ hơn nhiều.
+#
+# Là HÀM chứ không phải hằng: người dùng đổi múi giờ ở trang Cài đặt là ăn ngay, không phải
+# khởi động lại server.
+def _tz():
+    return localefmt.tz()
 
 
 _PRICING_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "usage_pricing.json")
@@ -104,7 +116,7 @@ def _parse_ts(s: str):
         dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return int(dt.timestamp()), dt.astimezone(_TZ).strftime("%Y-%m-%d")
+        return int(dt.timestamp()), dt.astimezone(_tz()).strftime("%Y-%m-%d")
     except Exception:
         return None
 

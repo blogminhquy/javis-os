@@ -19,6 +19,7 @@ Module KHÔNG import main (tránh vòng): mọi helper của main tiêm qua Lear
 """
 from __future__ import annotations
 
+import localefmt
 import asyncio
 import json
 import re
@@ -38,7 +39,7 @@ import skill_router
 
 
 def _now_vn() -> datetime:
-    return datetime.now(timezone(timedelta(hours=7)))
+    return localefmt.now()
 
 
 def _today() -> str:

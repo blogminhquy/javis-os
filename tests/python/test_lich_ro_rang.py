@@ -42,7 +42,12 @@ def atomic_write(path, text):
 # ── 1. Đọc cron thành lời ────────────────────────────────────────────────────
 check("cron mỗi ngày đọc ra giờ cụ thể", cron_util.describe_cron("0 7 * * *") == "7:00 mỗi ngày")
 check("cron bước phút đọc ra chu kỳ", cron_util.describe_cron("*/30 * * * *") == "mỗi 30 phút")
-check("cron theo thứ nói rõ thứ", "thứ hai" in cron_util.describe_cron("0 9 * * 1"))
+# Tên thứ nay lấy từ sổ đăng ký ngôn ngữ nên viết hoa ("Thứ Hai"), thống nhất với câu đồng
+# hồ. So không phân biệt hoa thường: thứ test này canh là "có nói rõ thứ mấy", không phải
+# cách viết hoa.
+check("cron theo thứ nói rõ thứ", "thứ hai" in cron_util.describe_cron("0 9 * * 1").lower())
+check("và cron đọc được sang tiếng Anh",
+      "monday" in cron_util.describe_cron("0 9 * * 1", "en").lower())
 check("cron theo ngày trong tháng nói rõ ngày", "ngày 1" in cron_util.describe_cron("0 0 1 * *"))
 check("macro @daily cũng đọc được", cron_util.describe_cron("@daily") == "0:00 mỗi ngày")
 check("nhiều mốc giờ trong ngày liệt kê đủ",

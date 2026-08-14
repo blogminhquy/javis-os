@@ -14,6 +14,7 @@ parse lai (idempotent, khong can offset). Rieng usage-events.jsonl la append-onl
 """
 from __future__ import annotations
 
+import localefmt
 import glob
 import json
 import os
@@ -25,7 +26,18 @@ from config import STATE_DIR
 import session_brain   # {session_id: brain} - nhan du an dung cho phien Javis (cwd luon la goc project)
 import usage_parsers as up
 
-_TZ = timezone(timedelta(hours=7))
+# Múi giờ để cắt NGÀY của thống kê. Đọc từ cấu hình qua `localefmt`, KHÔNG còn là hằng số.
+#
+# Đổi múi giờ là DỊCH RANH GIỚI NGÀY, nên phải nói rõ hợp đồng: dữ liệu đã ghi giữ nguyên
+# chuỗi ngày của nó, chỉ dữ liệu MỚI mới theo múi giờ mới. Không viết lại lịch sử - một bản
+# ghi "2026-08-14" được tạo ra dưới UTC+7 vẫn là ngày đó, kể cả sau khi người dùng chuyển
+# sang UTC+9. Đổi lại, ngay lúc chuyển sẽ có một chỗ gợn trong chuỗi ngày; đó là hệ quả không
+# tránh được của việc đổi múi giờ, và viết lại lịch sử để làm nó phẳng còn tệ hơn nhiều.
+#
+# Là HÀM chứ không phải hằng: người dùng đổi múi giờ ở trang Cài đặt là ăn ngay, không phải
+# khởi động lại server.
+def _tz():
+    return localefmt.tz()
 PERIODS = ("today", "yesterday", "this_week", "last_week",
            "this_month", "last_month", "last_3_months", "this_year")
 
@@ -144,7 +156,7 @@ def _gio(ev) -> str:
     ts = int(ev.get("ts") or 0)
     if ts <= 0:
         return ""
-    return datetime.fromtimestamp(ts, _TZ).strftime("%Y-%m-%dT%H")
+    return datetime.fromtimestamp(ts, _tz()).strftime("%Y-%m-%dT%H")
 
 
 def _insert_events(conn, path, events) -> None:
@@ -413,7 +425,7 @@ def refresh() -> dict:
 # Truy van: giai ky + so sanh + summary (Task 6)
 # ============================================================
 def _today_local() -> date:
-    return datetime.now(_TZ).date()
+    return datetime.now(_tz()).date()
 
 
 def _month_first(d: date) -> date:
@@ -710,7 +722,7 @@ def cua_so(gio: float = 5.0, provider: str = None, now: datetime = None) -> dict
     te (om them phan dau gio cu). Tha bao dang dung nhieu hon thuc te con hon nguoc lai.
     """
     gio = max(1.0, min(float(gio or 5.0), 24 * 7.0))
-    now = now or datetime.now(_TZ)
+    now = now or datetime.now(_tz())
     # Dem dung `n` MOC GIO, khop y het `dinh_cua_so`. Truoc day ham nay lay now-5h roi BETWEEN
     # tron ca hai dau -> 6 moc, trong khi dinh truot dung 5 moc. Chia hai so do cho nhau (main
     # lam dung vay de ra ty_le) thi ty le luon phong ~20%, va tren mot nhip dung deu no bao
@@ -773,7 +785,7 @@ def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) 
     kem chinh xac hon mot con so chinh thuc, nhung that va rieng cua tung nguoi.
     """
     gio = max(1.0, min(float(gio or 5.0), 24 * 7.0))
-    now = now or datetime.now(_TZ)
+    now = now or datetime.now(_tz())
     tu = (now - timedelta(days=max(1, int(ngay_gan_day)))).strftime("%Y-%m-%dT%H")
     conn = _connect()
     try:
@@ -788,8 +800,8 @@ def dinh_cua_so(gio: float = 5.0, ngay_gan_day: int = 60, now: datetime = None) 
     # co dong), nen phai lap day truoc, khong thi "5 gio" thanh 5 gio-co-hoat-dong rai rac
     # ca tuan va con dinh do bi thoi len vo ly.
     theo_gio = {r[0]: (r[1] or 0) for r in rows}
-    moc = datetime.strptime(rows[0][0], "%Y-%m-%dT%H").replace(tzinfo=_TZ)
-    het = datetime.strptime(rows[-1][0], "%Y-%m-%dT%H").replace(tzinfo=_TZ)
+    moc = datetime.strptime(rows[0][0], "%Y-%m-%dT%H").replace(tzinfo=_tz())
+    het = datetime.strptime(rows[-1][0], "%Y-%m-%dT%H").replace(tzinfo=_tz())
     day, nhan = [], []
     while moc <= het:
         k = moc.strftime("%Y-%m-%dT%H")

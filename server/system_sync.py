@@ -36,6 +36,7 @@ Manifest lo phần còn lại cho mọi brain đã sync ít nhất một lần.
 """
 from __future__ import annotations
 
+import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import hashlib
 import json
 import os
@@ -64,7 +65,7 @@ _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def _today() -> str:
-    return datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+    return localefmt.now().strftime("%Y-%m-%d")
 
 
 def _app_version() -> str:
@@ -213,7 +214,7 @@ def _atomic_write(path: Path, content: str) -> None:
 
 def _write_manifest(root: Path, data: dict) -> None:
     data["app_version"] = _app_version()
-    data["synced_at"] = datetime.now(timezone(timedelta(hours=7))).isoformat(timespec="seconds")
+    data["synced_at"] = localefmt.now().isoformat(timespec="seconds")
     _atomic_write(_manifest_path(root), json.dumps(data, ensure_ascii=False, indent=2))
 
 

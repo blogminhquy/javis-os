@@ -10,6 +10,10 @@
 (function () {
   "use strict";
 
+  // Locale để định dạng số/ngày. Lấy từ i18n chứ KHÔNG khoá "vi-VN": người dùng đổi
+  // ngôn ngữ giao diện thì ngày giờ phải đổi theo, nếu không thì nửa màn hình tiếng Anh
+  // mà ngày vẫn dd/mm/yyyy kiểu Việt.
+  const LOC = () => (window.JavisI18n && JavisI18n.locale()) || "vi-VN";
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -370,7 +374,7 @@
 
   function gio(ts) {
     if (!ts) return "";
-    try { return new Date(ts * 1000).toLocaleString("vi-VN"); } catch (e) { return ""; }
+    try { return new Date(ts * 1000).toLocaleString(LOC()); } catch (e) { return ""; }
   }
 
   function veLoHong(gaps, tt) {

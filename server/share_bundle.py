@@ -22,6 +22,7 @@ Module CHỈ thao tác file trong các thư mục được truyền vào; không
 """
 from __future__ import annotations
 
+import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import io
 import json
 import re
@@ -135,7 +136,7 @@ def build_bundle(kind, slug, *, agents_dir, workflows_dir, skills_root,
         "format": "javis-bundle", "version": 1, "kind": kind,
         "primary": {"type": kind, "slug": slug, "name": (prim or {}).get("name", slug)},
         "items": items, "app_version": app_version,
-        "created": datetime.now(timezone(timedelta(hours=7))).isoformat(timespec="seconds"),
+        "created": localefmt.now().isoformat(timespec="seconds"),
     }
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:

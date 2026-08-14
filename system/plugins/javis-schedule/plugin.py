@@ -36,7 +36,13 @@ import httpx
 import json
 import yaml
 
-VN_TZ = timezone(timedelta(hours=7))
+# Múi giờ đọc từ cấu hình; rơi về UTC+7 khi plugin chạy ngoài tiến trình server.
+def _tz():
+    try:
+        import localefmt
+        return localefmt.tz()
+    except Exception:
+        return timezone(timedelta(hours=7))
 
 # Frontmatter loop: ---\n<yaml>\n---\n<body> (khớp _FM_RE của self_improve.py)
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
@@ -77,7 +83,7 @@ def _port() -> int:
 
 
 def _today() -> str:
-    return datetime.now(VN_TZ).strftime("%Y-%m-%d")
+    return datetime.now(_tz()).strftime("%Y-%m-%d")
 
 
 def _strip_diacritics(s: str) -> str:

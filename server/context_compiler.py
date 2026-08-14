@@ -13,6 +13,7 @@ import threading
 
 import lang as lang_mod
 import lang_registry
+import localefmt
 import lexicon
 import time
 from dataclasses import dataclass, field, replace
@@ -27,8 +28,7 @@ CORE_CONTRACT_VERSION = "javis-core-contract-v1"
 TOKENIZER_POLICY_VERSION = "tokenizer-observe-v1"
 THOI_GIAN_POLICY_VERSION = "dong-ho-vn-v1"
 
-# Việt Nam không có giờ mùa hè nên UTC+7 là hằng số - không phụ thuộc tzdata của máy chủ.
-_TZ_VN = timezone(timedelta(hours=7))
+# Múi giờ đã dời sang `localefmt` (đọc từ cấu hình). Hằng cũ gỡ đi để không còn hai nguồn.
 _THU_VN = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"]
 
 
@@ -40,7 +40,7 @@ _DONG_HO_NOW = None
 
 
 def _bay_gio():
-    return _DONG_HO_NOW() if _DONG_HO_NOW else datetime.now(_TZ_VN)
+    return _DONG_HO_NOW() if _DONG_HO_NOW else localefmt.now()
 
 
 def _cau_ngon_ngu(lang: str = "") -> str:
@@ -59,6 +59,26 @@ def _cau_ngon_ngu(lang: str = "") -> str:
     l = lang_registry.get(ma)
     return (f"Viết TOÀN BỘ câu trả lời bằng {l.lang_directive} ({l.code}); giữ nguyên không "
             f"dịch tên riêng, đường dẫn, tên tool và khối mã. {l.nudge}")
+
+def _nhan_mui_gio(n) -> str:
+    """Nhãn múi giờ cho câu đồng hồ, vd "Asia/Ho_Chi_Minh (UTC+7)".
+
+    Trước đây ghim cứng "Việt Nam (UTC+7)", nên người dùng đổi múi giờ xong vẫn thấy Javis
+    khai giờ Việt Nam - sai một cách rất khó ngờ vì con số giờ thì đã đúng.
+    """
+    try:
+        ten = localefmt.ten_tz()
+    except Exception:
+        ten = "Asia/Ho_Chi_Minh"
+    try:
+        phut = int(n.utcoffset().total_seconds() // 60)
+        dau = "+" if phut >= 0 else "-"
+        gio, du = divmod(abs(phut), 60)
+        lech = f"UTC{dau}{gio}" + (f":{du:02d}" if du else "")
+    except Exception:
+        lech = "UTC+7"
+    return f"{ten} ({lech})"
+
 
 def dong_ho(now=None, lang: str = "") -> str:
     """Một dòng "bây giờ là mấy giờ" để nhét vào MỌI prompt Javis gửi đi.
@@ -84,7 +104,7 @@ def dong_ho(now=None, lang: str = "") -> str:
     l = lang_registry.get(lang)
     return l.clock_template.format(
         hm=f"{n:%H:%M}", weekday=l.weekdays[n.weekday()] if l.weekdays else "",
-        date=f"{n:%d/%m/%Y}", tz="Việt Nam (UTC+7)" if l.code == "vi" else "Vietnam (UTC+7)")
+        date=f"{n:%d/%m/%Y}", tz=_nhan_mui_gio(n))
 
 
 CORE_CONTRACT = """# Javis Core Contract

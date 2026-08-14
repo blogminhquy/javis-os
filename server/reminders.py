@@ -35,6 +35,7 @@ Module KHÔNG import main (tránh vòng lặp import): mọi helper tiêm qua Re
 """
 from __future__ import annotations
 
+import localefmt
 import asyncio
 import json
 import os
@@ -56,7 +57,16 @@ import channel_context   # bóc khối JAVIS_* trước khi gửi Telegram - kê
 from claude_cli import claude_engine, _empty_mcp_file
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
 
-VN_TZ = timezone(timedelta(hours=7))
+# Múi giờ để tính giờ nhắc hẹn. Đọc từ cấu hình, KHÔNG còn ghim Việt Nam.
+#
+# Đây là chỗ đổi múi giờ có hệ quả THẤY NGAY: "7h sáng" phải là 7h sáng ở nơi người dùng ngồi,
+# không phải 7h sáng ở Hà Nội. Ghim cứng thì người dùng ở múi giờ khác bị đánh thức lệch vài
+# tiếng mỗi ngày, và không có gì trên màn hình nói cho họ biết vì sao.
+#
+# Giữ tên `VN_TZ` để không phải sửa 9 chỗ gọi, nhưng nó là HÀM chứ không phải hằng - đổi múi
+# giờ ở trang Cài đặt là các lịch chờ tính lại theo múi mới ngay lượt quét sau.
+def VN_TZ():
+    return localefmt.tz()
 VALID_MODE = {"notify", "task", "script"}
 
 # Mức quyền của nhắc hẹn kiểu "task". Cùng bộ từ với loop để người dùng chỉ phải học một lần.
@@ -137,12 +147,12 @@ def _now() -> float:
 
 
 def _vnow() -> datetime:
-    return datetime.now(VN_TZ)
+    return datetime.now(VN_TZ())
 
 
 def _fmt_vn(ts) -> str:
     try:
-        return datetime.fromtimestamp(float(ts), VN_TZ).strftime("%H:%M %d/%m/%Y")
+        return datetime.fromtimestamp(float(ts), VN_TZ()).strftime("%H:%M %d/%m/%Y")
     except Exception:
         return "?"
 
@@ -157,12 +167,12 @@ def _parse_iso_vn(s: str) -> Optional[datetime]:
     for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M",
                 "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
         try:
-            return datetime.strptime(s, fmt).replace(tzinfo=VN_TZ)
+            return datetime.strptime(s, fmt).replace(tzinfo=VN_TZ())
         except ValueError:
             continue
     try:
         dt = datetime.fromisoformat(s)
-        return dt.replace(tzinfo=VN_TZ) if dt.tzinfo is None else dt
+        return dt.replace(tzinfo=VN_TZ()) if dt.tzinfo is None else dt
     except Exception:
         return None
 
@@ -197,7 +207,7 @@ def resolve_due(delay_min=None, delay_sec=None, at=None, due_at=None) -> float:
         if m:
             y, mo, da, hh, mm = (int(x) for x in m.groups())
             try:
-                return datetime(y, mo, da, hh, mm, tzinfo=VN_TZ).timestamp()
+                return datetime(y, mo, da, hh, mm, tzinfo=VN_TZ()).timestamp()
             except ValueError as e:
                 raise ValueError(f"ngày giờ sai: {at}") from e
         hh = mm = None
@@ -325,7 +335,7 @@ class RemindersFeature:
         cron_expr = (str(cron).strip() if cron not in (None, "") else "")
         if cron_expr:
             cron_expr = cron_util.validate_cron(cron_expr)     # chuẩn hoá + bắt lỗi
-            due = cron_util.cron_next(cron_expr, _now(), VN_TZ)
+            due = cron_util.cron_next(cron_expr, _now(), VN_TZ())
             rep = 0                                            # cron thay cho repeat_min
         else:
             due = resolve_due(delay_min=delay_min, at=at, due_at=due_at)
@@ -410,7 +420,7 @@ class RemindersFeature:
                     expr = cron_util.validate_cron(str(cron))
                     cur["cron"] = expr
                     cur["repeat_min"] = 0
-                    cur["due_at"] = cron_util.cron_next(expr, _now(), VN_TZ)
+                    cur["due_at"] = cron_util.cron_next(expr, _now(), VN_TZ())
                 else:
                     due = resolve_due(delay_min=delay_min, at=at, due_at=due_at)
                     if due > _now() + MAX_DELAY_DAYS * 86400:
@@ -563,7 +573,7 @@ class RemindersFeature:
                 rep = int(cur.get("repeat_min") or 0)
                 if cron:
                     try:
-                        cur["due_at"] = cron_util.cron_next(cron, _now(), VN_TZ)
+                        cur["due_at"] = cron_util.cron_next(cron, _now(), VN_TZ())
                         cur["status"] = "pending"
                     except Exception as ce:
                         cur["status"] = "failed"

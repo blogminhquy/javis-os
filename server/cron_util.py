@@ -18,6 +18,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Optional, Set, Tuple
 
+import lang_registry   # tên thứ trong tuần theo ngôn ngữ
+
 _MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
 _DOWS = {d: i for i, d in enumerate(
@@ -160,8 +162,37 @@ def cron_next(expr: str, after_epoch: float, tz: tzinfo) -> float:
 # ── Đọc cron thành lời ────────────────────────────────────────────────────────
 # "0 7 * * *" là thứ chỉ dân kỹ thuật đọc được. Người dùng nhìn thẻ việc mà không biết nó chạy
 # lúc nào thì coi như lịch đó vô hình - nên mọi chỗ hiện cron PHẢI kèm câu tiếng Việt này.
-_DOW_VN = {0: "chủ nhật", 1: "thứ hai", 2: "thứ ba", 3: "thứ tư",
-           4: "thứ năm", 5: "thứ sáu", 6: "thứ bảy"}
+# Chữ để đọc cron thành lời, theo ngôn ngữ. Tên thứ lấy từ sổ đăng ký ngôn ngữ (nó đã có
+# `weekdays` cho đồng hồ), chỉ các cụm nối là riêng của cron nên khai ở đây.
+#
+# Cron dùng 0 = CHỦ NHẬT, còn `weekdays` của sổ đăng ký theo `datetime.weekday()` tức 0 = THỨ
+# HAI. Lệch một vòng, và quên đổi thì mọi lịch "thứ hai hằng tuần" hiện thành "chủ nhật" - sai
+# im lặng, người dùng chỉ phát hiện khi việc chạy nhầm ngày.
+_CHU_CRON = {
+    "vi": {"moi_ngay": "mỗi ngày", "hang_tuan": "{d} hằng tuần",
+           "hang_thang": "ngày {d} hằng tháng", "trong_thang": " trong tháng ",
+           "moi_phut": "mỗi phút", "moi_phut_trong_gio": "mỗi phút trong giờ {h}",
+           "moi_n_phut": "mỗi {n} phút", "phut_moi_gio": "phút {m:02d} mỗi giờ",
+           "moi_n_gio": "mỗi {n} giờ (phút {m:02d})"},
+    "en": {"moi_ngay": "every day", "hang_tuan": "every {d}",
+           "hang_thang": "day {d} of each month", "trong_thang": " in month ",
+           "moi_phut": "every minute", "moi_phut_trong_gio": "every minute during hour {h}",
+           "moi_n_phut": "every {n} minutes", "phut_moi_gio": "at minute {m:02d} of every hour",
+           "moi_n_gio": "every {n} hours (at minute {m:02d})"},
+}
+
+
+def _chu(lang: str) -> dict:
+    return _CHU_CRON.get(lang_registry.chuan_hoa(lang) or lang_registry.MAC_DINH,
+                         _CHU_CRON[lang_registry.MAC_DINH])
+
+
+def _ten_thu(d: int, lang: str) -> str:
+    """Tên thứ cho MÃ CRON (0 = chủ nhật). Xem ghi chú về lệch một vòng ở trên."""
+    tuan = lang_registry.get(lang).weekdays
+    if not tuan or len(tuan) != 7:
+        return str(d)
+    return tuan[6 if d == 0 else d - 1]
 
 
 def _is_step(vals: Set[int], lo: int, hi: int) -> Optional[int]:
@@ -181,10 +212,14 @@ def _hhmm(h: int, m: int) -> str:
     return f"{h}:{m:02d}"
 
 
-def describe_cron(expr: str) -> str:
+def describe_cron(expr: str, lang: str = "") -> str:
     """Biểu thức cron → câu tiếng Việt ngắn ("7:00 mỗi ngày", "mỗi 30 phút", "9:00 thứ hai
     hằng tuần"). Dạng lạ/phức tạp thì trả lại chính biểu thức - thà thô còn hơn nói sai giờ.
-    Không bao giờ ném lỗi: đây là chuỗi hiển thị, cron sai đã bị validate_cron bắt từ lúc tạo."""
+    Không bao giờ ném lỗi: đây là chuỗi hiển thị, cron sai đã bị validate_cron bắt từ lúc tạo.
+
+    Ngôn ngữ chưa có bộ chữ cron thì rơi về tiếng Việt chứ KHÔNG rơi về biểu thức thô: một câu
+    sai ngôn ngữ vẫn đọc được giờ, còn "0 7 * * *" thì không đọc được."""
+    C = _chu(lang)
     try:
         ce = CronExpr(expr)
     except Exception:
@@ -192,33 +227,34 @@ def describe_cron(expr: str) -> str:
 
     # Phạm vi NGÀY: mỗi ngày / các thứ trong tuần / ngày trong tháng.
     if ce.dom_star and ce.dow_star:
-        scope = "mỗi ngày"
+        scope = C["moi_ngay"]
     elif ce.dom_star:
-        days = ", ".join(_DOW_VN[d] for d in sorted(ce.dows))
-        scope = f"{days} hằng tuần"
+        days = ", ".join(_ten_thu(d, lang) for d in sorted(ce.dows))
+        scope = C["hang_tuan"].format(d=days)
     elif ce.dow_star:
         days = ", ".join(str(d) for d in sorted(ce.doms))
-        scope = f"ngày {days} hằng tháng"
+        scope = C["hang_thang"].format(d=days)
     else:
         return ce.raw          # vừa giới hạn thứ vừa giới hạn ngày (ngữ nghĩa OR) - đừng diễn giải
     if len(ce.months) != 12:
-        scope += " trong tháng " + ", ".join(str(m) for m in sorted(ce.months))
+        scope += C["trong_thang"] + ", ".join(str(m) for m in sorted(ce.months))
 
     # Phạm vi GIỜ/PHÚT.
     every_min = len(ce.minutes) == 60
     every_hour = len(ce.hours) == 24
     if every_min:
-        return "mỗi phút" if every_hour else f"mỗi phút trong giờ {', '.join(str(h) for h in sorted(ce.hours))}"
+        return C["moi_phut"] if every_hour else C["moi_phut_trong_gio"].format(
+            h=", ".join(str(h) for h in sorted(ce.hours)))
     min_step = _is_step(ce.minutes, 0, 59)
     if min_step and every_hour:
-        return f"mỗi {min_step} phút"
+        return C["moi_n_phut"].format(n=min_step)
     if len(ce.minutes) == 1:
         mm = next(iter(ce.minutes))
         if every_hour:
-            return f"phút {mm:02d} mỗi giờ"
+            return C["phut_moi_gio"].format(m=mm)
         hour_step = _is_step(ce.hours, 0, 23)
         if hour_step:
-            return f"mỗi {hour_step} giờ (phút {mm:02d})"
+            return C["moi_n_gio"].format(n=hour_step, m=mm)
         times = ", ".join(_hhmm(h, mm) for h in sorted(ce.hours))
         return f"{times} {scope}"
     if len(ce.hours) == 1:

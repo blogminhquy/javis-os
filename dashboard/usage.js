@@ -19,6 +19,10 @@
 (function () {
   "use strict";
 
+  // Locale để định dạng số/ngày. Lấy từ i18n chứ KHÔNG khoá "vi-VN": người dùng đổi
+  // ngôn ngữ giao diện thì ngày giờ phải đổi theo, nếu không thì nửa màn hình tiếng Anh
+  // mà ngày vẫn dd/mm/yyyy kiểu Việt.
+  const LOC = () => (window.JavisI18n && JavisI18n.locale()) || "vi-VN";
   var PERIODS = [
     ["today", "Hôm nay"], ["yesterday", "Hôm qua"],
     ["this_week", "Tuần này"], ["last_week", "Tuần trước"],
@@ -335,7 +339,7 @@
       var pct = (p.id !== "off" && m.phan_tram)
         ? '<span class="tk-muc-pct">-' + (+m.phan_tram || 0) + "% token</span>" : "";
       var tok = m.token_moi_request != null
-        ? '<span class="tk-muc-tok">' + (+m.token_moi_request || 0).toLocaleString("vi-VN") + " token mỗi lượt</span>" : "";
+        ? '<span class="tk-muc-tok">' + (+m.token_moi_request || 0).toLocaleString(LOC()) + " token mỗi lượt</span>" : "";
       // Bộ não đang chạy không ăn được mức này thì phải nói NGAY trên nút. Khoe một con số
       // không bao giờ tới là dạy người dùng thôi tin cả trang.
       var na = m.ap_dung === false ? '<span class="tk-muc-na">không áp cho bộ não đang dùng</span>' : "";
@@ -366,7 +370,7 @@
       + "<span>Chế độ tiết kiệm token: <b>" + esc((dangDung && dangDung.nhan) || d.muc || "?") + "</b>"
       + (mm.phan_tram ? ' <span class="pc">-' + (+mm.phan_tram || 0) + "%</span>" : "")
       + (mm.token_moi_request != null
-        ? " · " + (+mm.token_moi_request || 0).toLocaleString("vi-VN") + " token mỗi lượt" : "")
+        ? " · " + (+mm.token_moi_request || 0).toLocaleString(LOC()) + " token mỗi lượt" : "")
       + "</span>"
       + '<span class="sp">' + (state.moMuc ? "Thu lại" : "Đổi")
       + ic(state.moMuc ? "chevron-up" : "chevron-down", { cls: "ic-sm" }) + "</span></button>";
@@ -668,7 +672,7 @@
     var db = t.du_bao || {};
     var cards = '<div class="tk-cards">'
       + card("Tổng token", fTok(k.tokens), deltaHtml, true)
-      + card("Số lượt", (k.turns || 0).toLocaleString("vi-VN"), fTok(k.avg_per_turn) + " token mỗi lượt")
+      + card("Số lượt", (k.turns || 0).toLocaleString(LOC()), fTok(k.avg_per_turn) + " token mỗi lượt")
       + card("Cache đỡ cho", fCost(cache.usd), "nhờ dùng lại ngữ cảnh (" + pct(cache.ty_le) + ")")
       + card("Phiên", (k.sessions || 0), "tb " + fTok(k.avg_per_session) + "/phiên")
       + (db.co ? card("Hết kỳ ước chừng", fTok(db.tokens), "còn " + (db.con_ngay || 0) + " ngày nữa") : "")

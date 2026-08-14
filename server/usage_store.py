@@ -13,6 +13,7 @@ Lưu STATE_DIR/usage.json: { "days": { "YYYY-MM-DD": { "<provider>|<model>": {in
 """
 from __future__ import annotations
 
+import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import json
 import threading
 from datetime import datetime, timezone, timedelta
@@ -27,7 +28,7 @@ _KEEP_DAYS = 30
 
 
 def _today() -> str:
-    return datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+    return localefmt.now().strftime("%Y-%m-%d")
 
 
 def _append_event(provider: str, model: str, tin: int, tout: int, cost: float) -> None:
@@ -112,7 +113,7 @@ def daily(n: int = 14) -> list:
     [{day, in, out, cost, turns}]."""
     d = _load()
     days = d.get("days", {})
-    tz = timezone(timedelta(hours=7))
+    tz = localefmt.tz()
     today = datetime.now(tz).date()
     out = []
     for i in range(n - 1, -1, -1):

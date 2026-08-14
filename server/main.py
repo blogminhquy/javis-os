@@ -5,6 +5,7 @@ Kiến trúc: Voice (browser) ⇄ FastAPI WebSocket ⇄ Claude Code CLI subproce
 Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling đi qua
 `claude` CLI đã cài trên máy → tự kế thừa MCP, skills, auth.
 """
+import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import os
 import json
 import math
@@ -571,7 +572,7 @@ def log_conversation(brain: str, user_msg: str, javis_msg: str):
     """Ghi log hội thoại vào Memory của vault đang chọn (nguyên liệu để học)."""
     try:
         from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone(timedelta(hours=7)))
+        now = localefmt.now()
         conv = _brain_memory_dir(brain) / "conversations"
         f = conv / f"{now.strftime('%Y-%m-%d')}.md"
         u = _clip_for_log(_redact_secrets(user_msg))
@@ -3028,6 +3029,9 @@ async def settings_get():
     # Nguồn duy nhất là sổ đăng ký phía server: dashboard KHÔNG khai lại danh sách, nếu không
     # thì thêm ngôn ngữ mới phải nhớ sửa hai chỗ và chỗ bị quên hỏng trong im lặng.
     safe["lang_list"] = lang_registry.cho_giao_dien()
+    # Gói locale (múi giờ, tiền tệ, locale định dạng số). Dashboard KHÔNG tự suy nó từ ngôn
+    # ngữ: hai thứ đó tách rời, người dùng đọc tiếng Anh mà vẫn ngồi ở UTC+7 là bình thường.
+    safe["locale_fmt"] = localefmt.cho_giao_dien()
     for kf in ("openrouter_key", "anthropic_api_key", "openai_api_key", "gemini_api_key", "groq_api_key"):
         k = cfg["model"].get(kf, "")
         safe["model"][kf] = ("••••" + k[-4:]) if k else ""
@@ -4148,7 +4152,7 @@ def _log_agent_run(brain, slug, task, out):
         d = _brain_memory_dir(brain) / "agents" / slug / "runs"
         d.mkdir(parents=True, exist_ok=True)
         from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone(timedelta(hours=7)))
+        now = localefmt.now()
         with open(d / f"{now.strftime('%Y-%m-%d')}.md", "a", encoding="utf-8") as fh:
             fh.write(f"\n## {now.strftime('%H:%M')}\n**Task:** {task}\n\n**Kết quả:** {out[:1500]}\n")
     except Exception:
@@ -5784,7 +5788,7 @@ async def _bao_cao_tuan_neu_toi_gio() -> bool:
     dich = str(mcfg.get("bao_cao_tuan") or "").strip()
     if not dich:
         return False
-    gio = datetime.now(timezone(timedelta(hours=7)))
+    gio = localefmt.now()
     if gio.weekday() != 0 or gio.hour < 8:
         return False
     tuan = f"tuan-{gio.isocalendar()[0]}-{gio.isocalendar()[1]}"

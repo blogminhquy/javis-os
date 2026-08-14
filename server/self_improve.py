@@ -47,6 +47,7 @@ Thiết kế "register(app, deps)" + LoopDeps: module KHÔNG import main.py (tr�
 """
 from __future__ import annotations
 
+import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import asyncio
 import json
 import re
@@ -92,7 +93,7 @@ _MCP_FULL = (
 
 
 def _now_vn() -> datetime:
-    return datetime.now(timezone(timedelta(hours=7)))
+    return localefmt.now()
 
 
 def _today() -> str:

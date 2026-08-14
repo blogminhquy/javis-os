@@ -645,6 +645,52 @@ luôn 20 dòng mã phía sau. Ba test đỏ vì một dấu sao trong câu văn.
 **Chưa làm, cố ý:** phần lớn 3.520 chuỗi giao diện (mới dịch tầng điều hướng), mã lỗi cho 182
 chuỗi lỗi server, locale (múi giờ, định dạng số), và `description` skill theo ngôn ngữ.
 
+### 6.7. ĐỢT 4 - LOCALE (2026-08-14)
+
+**Locale tách hẳn khỏi ngôn ngữ.** Đây là điểm của cả đợt: một người đọc giao diện tiếng Anh,
+bảo Javis trả lời tiếng Anh, mà vẫn ngồi ở Việt Nam nên vẫn xài UTC+7 và VND. Gộp hai thứ là
+ép họ chọn giữa "hiểu được chữ" và "xem đúng giờ".
+
+`server/localefmt.py` là nguồn duy nhất: `now()`, `tz()`, `today_str()`, `fmt_tien()`,
+`cho_giao_dien()`.
+
+**Tên file KHÔNG được là `server/locale.py`.** Module trong `server/` nạp phẳng, nên một file
+tên đó che `locale` của thư viện chuẩn với mọi thứ import nó, và hỏng theo kiểu rất khó truy.
+Bẫy này đã ghi trong spec từ mục 4.6 và lần này tránh được.
+
+**16 chỗ ghim cứng UTC+7 đã dọn**, chia hai nhóm theo mức hệ quả:
+
+| Nhóm | Ở đâu | Hệ quả khi đổi múi giờ |
+|------|-------|------------------------|
+| Chỉ cần "bây giờ mấy giờ" | main, system_sync, self_improve, share_bundle, usage_store, learn, context_compiler | đổi thẳng, không có hệ quả gì |
+| **Cắt ranh giới NGÀY** | usage_index, usage_parsers, usage_saving | dữ liệu đã ghi GIỮ NGUYÊN chuỗi ngày; chỉ dữ liệu mới theo múi mới |
+| **Giờ nhắc hẹn** | reminders, plugin javis-schedule | "7h sáng" thành 7h sáng ở nơi người dùng ngồi |
+
+Chỗ `reminders` là chỗ thấy hiệu lực rõ nhất: trước đó người dùng ở múi giờ khác bị đánh thức
+lệch vài tiếng mỗi ngày, và không có gì trên màn hình nói cho họ biết vì sao.
+
+**Không viết lại lịch sử.** Một bản ghi "2026-08-14" tạo ra dưới UTC+7 vẫn là ngày đó sau khi
+chuyển sang UTC+9. Ngay lúc chuyển sẽ có một chỗ gợn trong chuỗi ngày; đó là hệ quả không
+tránh được của việc đổi múi giờ, và viết lại lịch sử để làm nó phẳng còn tệ hơn nhiều.
+
+**Tiền tệ: định dạng, KHÔNG quy đổi.** `fmt_tien()` chỉ đặt ký hiệu đúng chỗ theo đồng tiền
+(VND sau số, USD trước số). Quy đổi cần tỉ giá THẬT cập nhật theo ngày, và phần quy đổi cũ
+bằng tỉ giá viết cứng đã bị gỡ ở thượng nguồn (`5c59de7`) đúng vì con số nó hiện ra không khớp
+thực tế người dùng trả. Có một test canh chuyện này không quay lại.
+
+**Cron đọc thành lời theo ngôn ngữ**, tên thứ lấy từ sổ đăng ký. Một bẫy đáng ghi: cron dùng
+`0 = chủ nhật` còn `weekdays` của sổ đăng ký theo `datetime.weekday()` tức `0 = thứ hai`. Lệch
+một vòng, và quên đổi thì mọi lịch "thứ hai hằng tuần" hiện thành "chủ nhật" - sai im lặng,
+người dùng chỉ phát hiện khi việc chạy nhầm ngày. Có hai test canh đúng hai đầu.
+
+**Dashboard** thôi khoá `toLocaleString("vi-VN")` ở 10 chỗ; locale lấy từ `JavisI18n.locale()`.
+
+**Plugin `datetime-vn`** đọc múi giờ và tên thứ từ cấu hình. Slug và tên tool giữ nguyên: đổi
+slug là bắt mọi brain đang chạy di trú, đổi lấy đúng một cái tên đẹp hơn.
+
+**Chốt chặn:** `test_locale.py` quét mã và báo đỏ nếu ai đó ghim lại `timezone(timedelta(hours=7))`
+ngoài ba chỗ được miễn trừ (nơi khai mặc định và hai plugin có thể chạy ngoài tiến trình server).
+
 ## 7. Sáu giai đoạn
 
 Mục này là kế hoạch ĐẦY ĐỦ, chạy sau khi bản nhỏ nhất ở mục 6 đã chạm ngưỡng. Bản nhỏ nhất

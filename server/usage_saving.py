@@ -31,6 +31,7 @@ thanh gach moc tren bieu do theo ngay - nhin phat thay cot tut xuong dung hom ba
 """
 from __future__ import annotations
 
+import localefmt
 import json
 import os
 import threading
@@ -38,7 +39,18 @@ from datetime import date, datetime, timedelta, timezone
 
 from config import STATE_DIR
 
-_TZ = timezone(timedelta(hours=7))
+# Múi giờ để cắt NGÀY của thống kê. Đọc từ cấu hình qua `localefmt`, KHÔNG còn là hằng số.
+#
+# Đổi múi giờ là DỊCH RANH GIỚI NGÀY, nên phải nói rõ hợp đồng: dữ liệu đã ghi giữ nguyên
+# chuỗi ngày của nó, chỉ dữ liệu MỚI mới theo múi giờ mới. Không viết lại lịch sử - một bản
+# ghi "2026-08-14" được tạo ra dưới UTC+7 vẫn là ngày đó, kể cả sau khi người dùng chuyển
+# sang UTC+9. Đổi lại, ngay lúc chuyển sẽ có một chỗ gợn trong chuỗi ngày; đó là hệ quả không
+# tránh được của việc đổi múi giờ, và viết lại lịch sử để làm nó phẳng còn tệ hơn nhiều.
+#
+# Là HÀM chứ không phải hằng: người dùng đổi múi giờ ở trang Cài đặt là ăn ngay, không phải
+# khởi động lại server.
+def _tz():
+    return localefmt.tz()
 MOC_PATH = STATE_DIR / "usage-marks.jsonl"
 _LOCK = threading.Lock()
 
@@ -55,8 +67,8 @@ def ghi_moc(loai: str, den: str, tu: str = "", nhan: str = "", now: datetime = N
     `loai`: 'muc' (doi che do tiet kiem) | 'model' (doi bo nao) | 'ngan_sach' (doi tran tien).
     `tu`/`den`: gia tri truoc va sau. `nhan`: chu de hien tren bieu do.
     """
-    now = now or datetime.now(_TZ)
-    moc = {"ts": int(now.timestamp()), "day": now.astimezone(_TZ).strftime("%Y-%m-%d"),
+    now = now or datetime.now(_tz())
+    moc = {"ts": int(now.timestamp()), "day": now.astimezone(_tz()).strftime("%Y-%m-%d"),
            "loai": str(loai or "")[:20], "tu": str(tu or "")[:80],
            "den": str(den or "")[:80], "nhan": str(nhan or "")[:120]}
     try:
@@ -213,7 +225,7 @@ def du_bao(tokens: int, cost_est: float, tu_ngay: str, den_ngay: str,
         ce = date.fromisoformat(den_ngay)
     except (TypeError, ValueError):
         return {"co": False}
-    d = today or datetime.now(_TZ).date()
+    d = today or datetime.now(_tz()).date()
     da_qua = (ce - cs).days + 1
     if period == "this_month":
         nxt = (ce.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -273,7 +285,7 @@ _PHANH = {"bat": False, "ly_do": "", "ts": 0}
 def dat_phanh(bat: bool, ly_do: str = "") -> None:
     _PHANH["bat"] = bool(bat)
     _PHANH["ly_do"] = str(ly_do or "")
-    _PHANH["ts"] = int(datetime.now(_TZ).timestamp())
+    _PHANH["ts"] = int(datetime.now(_tz()).timestamp())
 
 
 def dang_phanh() -> dict:
@@ -287,7 +299,7 @@ def da_nhac_chua(khoa: str, now: datetime = None) -> bool:
     Dau nhac luu ngay trong chinh nhat ky moc (loai 'ngan_sach') de khong de them mot file
     trang thai nua. Tra True neu THANG NAY da nhac khoa do roi.
     """
-    now = now or datetime.now(_TZ)
+    now = now or datetime.now(_tz())
     thang = now.strftime("%Y-%m")
     for m in doc_moc(loai="ngan_sach"):
         if str(m.get("den") or "") == khoa and str(m.get("day") or "").startswith(thang):

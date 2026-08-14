@@ -7,6 +7,10 @@
 (function () {
   "use strict";
 
+  // Locale để định dạng số/ngày. Lấy từ i18n chứ KHÔNG khoá "vi-VN": người dùng đổi
+  // ngôn ngữ giao diện thì ngày giờ phải đổi theo, nếu không thì nửa màn hình tiếng Anh
+  // mà ngày vẫn dd/mm/yyyy kiểu Việt.
+  const LOC = () => (window.JavisI18n && JavisI18n.locale()) || "vi-VN";
   // ---- Khai báo các mục trên rail (mở rộng = thêm dòng ở đây) ----
   // type 'view' = render trong cview ; có launch() = nút mở overlay/modal sẵn có.
   const APP_VERSION = "0.4.3";   // fallback hiển thị tức thời; nguồn thật là /version (file VERSION)
@@ -1483,13 +1487,13 @@
     let pollTimer = null;       // 1 chuỗi poll duy nhất (clearTimeout trước khi đặt lại)
     el.innerHTML = `<div class="cview-section"><div class="empty">Đang tải...</div></div>`;
     const GNAME = { business: "Kinh doanh", brain: "Bộ não", product: "Cải thiện Javis", custom: "Tự định nghĩa" };
-    const fmtT = ts => ts ? new Date(ts * 1000).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "-";
+    const fmtT = ts => ts ? new Date(ts * 1000).toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" }) : "-";
     // Giờ TRẦN (chỉ "07:00") không cho biết là hôm nay, mai hay tuần sau - nhìn thẻ việc vẫn
     // không biết bao giờ nó chạy. fmtWhen luôn nói rõ NGÀY khi không phải hôm nay.
     function fmtWhen(ts) {
       if (!ts) return "-";
       const d = new Date(ts * 1000), now = new Date();
-      const hm = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+      const hm = d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
       const day = x => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
       const tomorrow = new Date(now.getTime() + 86400000);
       if (day(d) === day(now)) return `hôm nay ${hm}`;
@@ -4684,7 +4688,7 @@
     if (!ds.length) { box.innerHTML = '<div class="gcard-meta">Chưa có token nào.</div>'; return; }
     box.innerHTML = ds.map(t => {
       const dung = Number(t.last_used_at) > 0
-        ? "dùng lần cuối " + new Date(Number(t.last_used_at) * 1000).toLocaleString("vi-VN")
+        ? "dùng lần cuối " + new Date(Number(t.last_used_at) * 1000).toLocaleString(LOC())
         : "chưa dùng lần nào";
       const pv = t.scope === "chat" ? "chỉ chat" : "toàn quyền";
       return `<div class="tk-row">

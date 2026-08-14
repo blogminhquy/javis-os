@@ -41,6 +41,7 @@ check("có giờ và phút", "21:34" in _d)
 check("có thứ trong tuần bằng tiếng Việt", "Thứ Hai" in _d)
 check("có ngày tháng năm kiểu Việt Nam", "03/08/2026" in _d)
 check("nói rõ múi giờ", "UTC+7" in _d)
+check("và nêu tên múi giờ đang cấu hình", "Asia/Ho_Chi_Minh" in _d)
 check("không dùng em dash", "—" not in _d)
 # Nói thẳng là không cần gọi tool, nếu không model vẫn đi tìm tool rồi báo không có.
 check("nói rõ khỏi cần gọi tool", "không cần gọi tool" in _d)
@@ -72,7 +73,10 @@ _kq = cc.ContextCompiler(_reg).compile_shadow(_req, {"selected": []})
 check("biên soạn được capsule", _kq.status == "compiled")
 check("capsule đi đường tắt", _kq.capsule.path == "fast")
 _sys = _kq.capsule.rendered_request["messages"][0]["content"]
-check("CANARY: capsule đường tắt CÓ mang theo giờ", "giờ Việt Nam (UTC+7)" in _sys)
+# Nhãn múi giờ nay đọc từ cấu hình (vd "Asia/Ho_Chi_Minh (UTC+7)") thay vì ghim "Việt Nam":
+# người dùng đổi múi giờ mà Javis vẫn khai giờ Việt Nam là sai một cách rất khó ngờ, vì
+# con số giờ thì đã đúng. Test bám vào ĐỘ LỆCH, thứ luôn có mặt.
+check("CANARY: capsule đường tắt CÓ mang theo giờ", "UTC+7" in _sys)
 check("giờ là món BẮT BUỘC, có tên riêng trong sổ nguồn",
       "time" in (_kq.capsule.source_map or {}))
 # Đường tắt không phát tool - đúng thiết kế. Chính vì vậy giờ mới phải nằm sẵn trong capsule.
@@ -80,7 +84,7 @@ check("và đúng là không có tool nào để mà gọi", _kq.capsule.capabil
 
 # ---- 3. Đường ĐẦY ĐỦ cũng phải có, nếu không thì bật/tắt tiết kiệm lại ra hai hành vi ----
 _full = main.build_system_prompt("brain")
-check("prompt đầy đủ cũng mang theo giờ", "giờ Việt Nam (UTC+7)" in _full)
+check("prompt đầy đủ cũng mang theo giờ", "UTC+7" in _full)
 check("có tiêu đề dễ thấy cho khối đó", "BÂY GIỜ" in _full)
 
 # ---- 4. Bảng ước tính phải ĐẾM cả dòng giờ ----

@@ -1,7 +1,7 @@
-name: Thời gian & ngày (VN)
+name: Thời gian & ngày
 slug: datetime-vn
 version: 1.0.0
-description: Xem ngày giờ hiện tại theo múi giờ Việt Nam (UTC+7) và tính ngày tương đối (mai, mốt, N ngày nữa, tuần trước). Thuần stdlib, chỉ đọc, không cần mạng.
+description: Xem ngày giờ hiện tại theo múi giờ đã cấu hình và tính ngày tương đối (mai, mốt, N ngày nữa, tuần trước). Thuần stdlib, chỉ đọc, không cần mạng.
 author: Javis (bundled)
 enabled: true
 min_mode: readonly
