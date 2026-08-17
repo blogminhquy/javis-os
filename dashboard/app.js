@@ -1988,14 +1988,32 @@ async function initAuth() {
   } catch (e) {}
 }
 
+// Gọi /auth/status với vài lần thử lại - app "Thêm vào màn hình chính" trên iPhone khởi
+// động NGUỘI mỗi lần mở lại (tiến trình mạng mới tinh, không như tab Safari giữ ấm), nên
+// lần gọi đầu hay timeout/lỗi trong lúc mạng chưa kịp lên. Trả về null (KHÔNG PHẢI {})
+// khi hỏi mãi vẫn không được, để bên gọi phân biệt "chưa rõ" với "chắc chắn chưa đăng nhập".
+async function _fetchAuthStatus(retries = 3, delayMs = 500) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch("/auth/status");
+      if (r.ok) return await r.json();
+    } catch (e) {}
+    if (i < retries - 1) await new Promise((res) => setTimeout(res, delayMs));
+  }
+  return null;
+}
+
 // Cổng đăng nhập THỐNG NHẤT (thay initSetup+initAuth ở boot):
 // - đã đăng nhập (hoặc local không bắt buộc) → onboarding tùy chọn.
 // - public/đã đặt mật khẩu mà CHƯA có tài khoản → ÉP wizard tạo tài khoản (mật khẩu bắt buộc).
 // - đã có tài khoản mà chưa đăng nhập → màn đăng nhập.
 let _wizardMandatory = false;
 async function initAuthGate() {
-  let s = {};
-  try { s = await (await fetch("/auth/status")).json(); } catch (e) {}
+  const s = await _fetchAuthStatus();
+  // null = hỏi server thất bại hẳn (mất mạng thật) - ĐỪNG ép màn đăng nhập lên trong lúc
+  // cookie phiên rất có thể vẫn còn hợp lệ, chỉ là chưa hỏi được. Cứ để nguyên UI, mọi lệnh
+  // gọi API thật sự (chat, file...) tự lộ ra nếu phiên đã hết hạn thật.
+  if (!s) return;
   if (s.authed) { initSetup(); return; }
   if (s.needs_setup) {
     _wizardMandatory = !!s.require_login;
