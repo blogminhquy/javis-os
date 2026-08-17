@@ -219,6 +219,14 @@
   --brain-ink-hot: #c2410c;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html {
+  /* Lớp chặn zoom thứ hai: viewport meta user-scalable=no đủ khi chạy dạng app màn hình
+     chính, nhưng ở tab Safari thường iOS 10+ lờ user-scalable vì lý do accessibility -
+     touch-action chặn được cả pinch lẫn double-tap zoom mà vẫn để pan-x/pan-y cuộn bình
+     thường. "pan-x pan-y" (không có pinch-zoom) là cú pháp tắt zoom, khác "manipulation"
+     (vẫn cho pinch-zoom). */
+  touch-action: pan-x pan-y;
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -227,6 +235,7 @@ body {
   line-height: 1.5;
   height: 100vh;
   overflow: hidden;
+  touch-action: pan-x pan-y;
 }
 
 /* ===== HUD shell ===== */

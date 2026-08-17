@@ -2,11 +2,26 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- maximum-scale=1 + user-scalable=no: tắt pinch/double-tap zoom trên mobile theo yêu cầu
+       chủ. Chỉ chặn TUYỆT ĐỐI khi chạy dạng app màn hình chính (xem cụm apple-mobile-web-app-*
+       dưới); ở tab Safari thường iOS 10+ vẫn cho zoom bằng tay vì lý do accessibility, nên còn
+       chặn thêm bằng touch-action trong style.css làm lớp thứ hai. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Javis OS</title>
   <!-- Favicon = logo hiện tại (/brand-logo): mặc định theo logo.png, và tự đổi theo ảnh user tải lên. -->
   <link rel="icon" href="/brand-logo?v=5">
   <link rel="apple-touch-icon" href="/brand-logo?v=5">
+  <!-- Thêm vào màn hình chính iPhone = KHÔNG thanh địa chỉ: iOS chỉ mở app "standalone"
+       (ẩn chrome Safari) khi có ĐỦ cụm apple-mobile-web-app-* này VÀ manifest.json bên dưới -
+       thiếu một trong hai là một số bản iOS vẫn hiện thanh địa chỉ dù bản khác thì không.
+       Icon đã thêm TRƯỚC khi có đủ cụm này vẫn giữ hành vi cũ - phải xoá khỏi màn hình chính
+       rồi "Thêm vào MH chính" lại thì iOS mới đọc lại và chạy standalone. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Javis OS">
+  <meta name="theme-color" content="#0e0e16">
+  <link rel="manifest" href="/static/manifest.json?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">

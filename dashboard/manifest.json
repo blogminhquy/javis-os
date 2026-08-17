@@ -1,0 +1,14 @@
+{
+  "name": "Javis OS",
+  "short_name": "Javis",
+  "description": "Javis - trợ lý AI cá nhân báo cáo kinh doanh và cuộc sống",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0e16",
+  "theme_color": "#0e0e16",
+  "icons": [
+    { "src": "/brand-logo?v=5", "sizes": "any" }
+  ]
+}
