@@ -1,13 +1,14 @@
 #!/usr/bin/env python
-"""Updater tách rời của Javis cho bản GIT checkout (Windows + Linux systemd + Mac/nohup).
+"""Updater tách rời của Javis cho bản GIT checkout (Windows + systemd + launchd + nohup).
 Server spawn DETACHED:
 
     python updater.py --old-sha <sha> --old-version <v> --target <v> --port <p> --server-pid <pid>
 
 Chuỗi: stop server -> git pull (stash nếu cây bẩn) -> pip install -> start -> chờ /health ~90s.
 /health không lên → git reset --hard <old-sha> -> pip -> start (rollback tự động).
-3 chế độ restart (service_mode): windows (bat/vbs), systemd (systemctl), nohup (Mac hoặc
-Linux không systemd: kill PID server cũ rồi tự chạy lại uvicorn nền như install.sh).
+4 chế độ restart (service_mode): windows (bat/vbs), systemd (systemctl), launchd (Mac có
+job KeepAlive: KHÔNG kill PID mà `launchctl kickstart -k` - xem has_launchd_job), nohup
+(Mac không launchd hoặc Linux không systemd: kill PID rồi tự chạy lại uvicorn nền).
 Chỉ dùng stdlib (chạy được cả khi bản mới hỏng dependency)."""
 import argparse
 import datetime
@@ -68,12 +69,40 @@ def has_systemd():
         return False
 
 
-def service_mode(osname=None, systemd=None):
-    """windows | systemd | nohup - cách stop/start server theo nền tảng. Mac không có
-    systemctl (và Linux cài không systemd) chạy kiểu nohup: kill PID + tự chạy lại uvicorn."""
+LAUNCHD_LABEL = os.getenv("JAVIS_LAUNCHD_LABEL", "com.javis.os")
+
+
+def _launchd_target():
+    return f"gui/{os.getuid()}/{LAUNCHD_LABEL}"
+
+
+def has_launchd_job():
+    """Mac chạy Javis dưới launchd (job KeepAlive) thì restart PHẢI qua launchd.
+
+    Bài học 14/08/2026: updater kill PID server -> launchd KeepAlive respawn ngay tức thì,
+    trong khi updater cũng Popen một bản uvicorn của riêng nó -> hai tiến trình giành cổng
+    7777, javis.log đầy "[Errno 48] address already in use". Nhãn job đổi được qua env
+    JAVIS_LAUNCHD_LABEL (mặc định com.javis.os)."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        r = subprocess.run(["launchctl", "print", _launchd_target()],
+                           capture_output=True, text=True, creationflags=_CAM)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def service_mode(osname=None, systemd=None, launchd=None):
+    """windows | systemd | launchd | nohup - cách stop/start server theo nền tảng. Mac không
+    có launchd job (và Linux không systemd) chạy kiểu nohup: kill PID + tự chạy lại uvicorn."""
     osname = osname or os.name
     if osname == "nt":
         return "windows"
+    if launchd is None:
+        launchd = has_launchd_job()
+    if launchd:
+        return "launchd"
     if systemd is None:
         systemd = has_systemd()
     return "systemd" if systemd else "nohup"
@@ -120,6 +149,12 @@ def stop_server(mode, server_pid=0, port=""):
     elif mode == "systemd":
         subprocess.run(["systemctl", "stop", "javis"], capture_output=True, text=True,
                        creationflags=_CAM)
+    elif mode == "launchd":
+        # CỐ Ý không dừng gì: kill lúc này thì KeepAlive respawn ngay và bản respawn đó sẽ
+        # giành cổng với bản mình bật sau. Server cũ cứ phục vụ tiếp trong lúc pull + pip
+        # (git không đụng tiến trình đang chạy); cú đổi ca duy nhất là kickstart -k ở bước start.
+        log(f"launchd đang giữ job {_launchd_target()} → bỏ qua bước dừng, "
+            "đổi ca bằng launchctl kickstart -k ở bước khởi động.")
     else:  # nohup: kill đúng PID server (mình là session riêng nên không chết theo)
         pids = [server_pid] if server_pid else []
         pids += [p for p in _pids_on_port(port) if p not in pids and p != os.getpid()]
@@ -137,6 +172,10 @@ def start_server(mode, port=""):
     elif mode == "systemd":
         subprocess.run(["systemctl", "start", "javis"], capture_output=True, text=True,
                        creationflags=_CAM)
+    elif mode == "launchd":
+        # kickstart -k: launchd tự hạ bản đang chạy rồi bật bản mới - MỘT người điều phối,
+        # không còn cửa cho hai tiến trình cùng bind cổng.
+        run(["launchctl", "kickstart", "-k", _launchd_target()])
     else:  # nohup: chạy lại uvicorn nền y như install.sh (fallback không systemd)
         host = os.getenv("JAVIS_HOST", "127.0.0.1")
         logf = open(us.STATE_DIR / "javis.log", "a", encoding="utf-8")

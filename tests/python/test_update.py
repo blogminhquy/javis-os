@@ -149,14 +149,23 @@ _p = _sp.run([sys.executable, _upd, "--dry-run", "--port", "7777", "--server-pid
 check("updater --dry-run (kèm --server-pid) thoát 0", _p.returncode == 0)
 check("updater --dry-run in PLAN", "PLAN:" in (_p.stdout or ""))
 
-# --- updater: 3 chế độ restart (bug thật: Mac không có systemd bị chặn cứng không update được) ---
+# --- updater: 4 chế độ restart (bug thật: Mac không có systemd bị chặn cứng không update được;
+# rồi 14/08/2026 Mac CÓ launchd mà updater kill PID + nohup → launchd respawn giành cổng 7777) ---
 import updater as _updmod  # noqa: E402
 check("service_mode: Windows -> windows", _updmod.service_mode("nt") == "windows")
-check("service_mode: Linux có systemd -> systemd", _updmod.service_mode("posix", systemd=True) == "systemd")
-check("service_mode: Mac/không systemd -> nohup (KHÔNG bail lỗi)",
-      _updmod.service_mode("posix", systemd=False) == "nohup")
+check("service_mode: Linux có systemd -> systemd",
+      _updmod.service_mode("posix", systemd=True, launchd=False) == "systemd")
+check("service_mode: Mac/không launchd, không systemd -> nohup (KHÔNG bail lỗi)",
+      _updmod.service_mode("posix", systemd=False, launchd=False) == "nohup")
+check("service_mode: Mac có launchd job -> launchd (ưu tiên trước cả systemd)",
+      _updmod.service_mode("posix", systemd=True, launchd=True) == "launchd")
+_upd_src = open(_upd, encoding="utf-8").read()
 check("updater không còn nhánh chặn 'Không có systemd service'",
-      "Không có systemd service" not in open(_upd, encoding="utf-8").read())
+      "Không có systemd service" not in _upd_src)
+check("chế độ launchd đổi ca bằng kickstart -k, KHÔNG kill PID + nohup (hết đua bind cổng)",
+      "kickstart" in _upd_src and 'mode == "launchd"' in _upd_src)
+check("has_launchd_job không bao giờ bật ngoài Mac (Linux CI không được gọi launchctl)",
+      sys.platform == "darwin" or _updmod.has_launchd_job() is False)
 
 # --- /version báo platform để UI ghi đúng nhãn (Mac từng bị dán 'Linux (systemd)') ---
 _v2 = asyncio.run(main.version_info())

@@ -20,8 +20,10 @@ Linux chạy thử được.
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
 import asyncio
 import os
+import queue
 import re
 import sys
+import threading
 import time
 
 import terminal  # noqa: E402
@@ -136,7 +138,9 @@ async def _phien_that():
     if terminal.CO_PTY:
         p.go("tty; stty size\n")
         buf = await _doc(q, lambda b: "30 100" in b)
-        check("là pty THẬT (có /dev/pts) chứ không phải ống", "/dev/pts" in buf, repr(buf[-160:]))
+        # Linux đặt tên pty là /dev/pts/N, macOS là /dev/ttysNNN - cả hai đều là pty thật.
+        check("là pty THẬT (có /dev/pts hoặc /dev/ttys) chứ không phải ống",
+              "/dev/pts" in buf or "/dev/ttys" in buf, repr(buf[-160:]))
         check("khổ giấy truyền đúng xuống shell (30 dòng x 100 cột)", "30 100" in buf, repr(buf[-160:]))
         p.doi_co(140, 45)
         p.go("stty size\n")
@@ -208,7 +212,150 @@ asyncio.run(_phien_that())
 
 
 # ============================================================
-# 5. Nhánh ỐNG (Windows) - ép chạy trên mọi hệ, vì không ai ngồi Linux thử được nhánh này
+# 5. Chống deadlock close-vs-read (vụ treo 14/08/2026)
+# ============================================================
+async def _dong_khong_treo_loop():
+    """Vụ treo 14/08/2026: dong() từng os.close(master) ngay trên event loop trong khi thread
+    đọc còn kẹt os.read cùng fd. Trên macOS, close() một fd đang có read dở sẽ ngủ chờ read
+    xong → loop đứng vĩnh viễn, server phớt SIGTERM, phải kill -9. Linux không treo kiểu đó
+    nên không tái hiện được trên CI - thay vào đó chốt hai BẤT BIẾN mà bản lỗi vi phạm ở mọi
+    hệ: (1) dong() trả về ngay, không làm việc chặn nào trên loop; (2) mọi cú os.close(master)
+    chỉ xảy ra khi shell ĐÃ CHẾT hoặc thread đọc ĐÃ THOÁT."""
+    loop = asyncio.get_running_loop()
+    p = terminal.Phien("test-dong-an-toan", "/tmp", 80, 24, loop)
+    q = p.gan()
+    p.go("echo SAN_SANG=1\n")
+    await _doc(q, lambda b: "SAN_SANG=1" in b)  # shell ở prompt -> thread đọc đang kẹt os.read
+
+    ghi = []
+    goc = p._dong_fd
+
+    def _theo_doi():
+        ghi.append({
+            "proc_chet": p.proc.poll() is not None,
+            "doc_thoat": not (p._doc_thread and p._doc_thread.is_alive()),
+            "go_thoat": not (p._go_thread and p._go_thread.is_alive()),
+        })
+        goc()
+
+    p._dong_fd = _theo_doi
+    t0 = time.time()
+    p.dong()
+    tre = time.time() - t0
+    check("dong() trả về ngay, không giữ event loop", tre < 0.5, f"{tre:.2f}s")
+
+    het = time.time() + 8
+    while time.time() < het and (p._fd >= 0 or p.song()):
+        await asyncio.sleep(0.1)
+    check("sau dong(): shell chết thật và fd master đã đóng", not p.song() and p._fd < 0,
+          f"song={p.song()} fd={p._fd}")
+    check("os.close(master) chỉ chạy khi shell đã chết hoặc cả hai thread đọc/ghi đã thoát "
+          "(bất biến chống deadlock close-vs-read và close-vs-write)",
+          bool(ghi) and all(g["proc_chet"] or (g["doc_thoat"] and g["go_thoat"]) for g in ghi),
+          ghi)
+
+
+if terminal.CO_PTY:
+    asyncio.run(_dong_khong_treo_loop())
+
+
+# ============================================================
+# 6. Ghi xuống shell không được chặn loop (anh em của vụ 14/08/2026, phía GHI)
+# ============================================================
+async def _go_khong_chan_loop():
+    """go() từng os.write(master) ngay trên event loop. Ghi vào pty master CHẶN khi bộ đệm
+    input của slave đầy mà tiến trình foreground không đọc stdin - dán một khối chữ lớn vào
+    lệnh đang bận là đủ - và loop bị giữ tới khi tiến trình chịu đọc. Ba bất biến chốt ở đây:
+    (1) go() trả về ngay cả khi shell không đọc stdin; (2) hàng ghi đầy thì go() bỏ gói chứ
+    không chặn; (3) đóng phiên đang kẹt ghi thì thread ghi tự thoát, không rò thread."""
+    loop = asyncio.get_running_loop()
+    p = terminal.Phien("test-go-an-toan", "/tmp", 80, 24, loop)
+    q = p.gan()
+    # Biến foreground thành tiến trình KHÔNG BAO GIỜ đọc stdin. Marker viết dạng tính toán
+    # (N$((...)) -> N1337) để không khớp nhầm với dòng tty echo lại chính lệnh vừa gõ.
+    p.go("echo N$((1000+337)); exec sleep 300\n")
+    await _doc(q, lambda b: "N1337" in b)
+    await asyncio.sleep(0.3)           # cho exec kịp thay shell bằng sleep
+
+    # (1) Dán 300k NHIỀU DÒNG khi không ai đọc stdin: các dòng trọn vẹn dồn đầy bộ đệm
+    # canonical của tty (4KB) là os.write lên master bị chặn - bản lỗi đứng ở đó vô hạn.
+    # PHẢI nhiều dòng: một dòng đơn dài quá 4095 thì n_tty VỨT BỚT ký tự chứ không chặn
+    # (đã thử, bản lỗi vẫn xanh với một dòng), tức là không tái hiện được bug. Gọi qua
+    # thread phụ + join có hạn để nếu tái phát thì test ĐỎ chứ không TREO - kiểu hỏng tệ
+    # nhất trên CI.
+    dan = ("x" * 50 + "\n") * 6000
+    t = threading.Thread(target=lambda: p.go(dan), daemon=True)
+    t.start()
+    t.join(2.0)
+    check("go() với khối dán lớn khi shell không đọc stdin: trả về ngay, không chặn",
+          not t.is_alive())
+
+    # (2) Nhét hàng ghi cho đầy hẳn rồi go() thêm: phải về ngay (bỏ gói mới), không chặn.
+    while True:
+        try:
+            p._go_doi.put_nowait(b"x")
+        except queue.Full:
+            break
+    t0 = time.time()
+    p.go("y")
+    tre = time.time() - t0
+    check("hàng ghi đầy -> go() bỏ gói mới ngay, không chặn", tre < 0.5, f"{tre:.2f}s")
+
+    # (3) Đóng phiên khi thread ghi đang kẹt giữa cú os.write: giết shell trước (trật tự đã
+    # chốt ở vụ 14/08/2026) làm cú ghi nhận EIO, thread ghi phải tự thoát - không để lại một
+    # thread kẹt vĩnh viễn sau mỗi phiên kiểu này.
+    p.dong()
+    het = time.time() + 8
+    while time.time() < het and (p.song() or p._fd >= 0
+                                 or (p._go_thread and p._go_thread.is_alive())):
+        await asyncio.sleep(0.1)
+    check("đóng phiên đang kẹt ghi: shell chết thật và fd master đã đóng",
+          not p.song() and p._fd < 0, f"song={p.song()} fd={p._fd}")
+    check("thread ghi tự thoát sau khi đóng phiên (không rò thread kẹt)",
+          not (p._go_thread and p._go_thread.is_alive()))
+    p.go_ra(q)
+
+
+if terminal.CO_PTY:
+    asyncio.run(_go_khong_chan_loop())
+
+
+# ============================================================
+# 7. Mã thoát tính xong TRƯỚC khi lên event loop
+# ============================================================
+async def _ma_thoat_khong_tren_loop():
+    """_het() từng tự chờ tiến trình (proc.wait(timeout=1)) ngay trên event loop: shell đóng
+    ống mà chưa chết hẳn là loop đứng trọn một giây. Giờ việc chờ nằm trong thread đọc và mã
+    thoát được TRUYỀN SANG _het.
+
+    Đo bằng chữ ký lời gọi chứ không đo giờ: _het phải nhận mã thoát qua tham số. Bản lỗi gọi
+    _het() rỗng - tức là nó còn phải tự đi chờ trên loop. Đo giờ trên CI là mời flaky vào
+    nhà, còn bất biến cấu trúc này thì đúng ở mọi tốc độ máy."""
+    loop = asyncio.get_running_loop()
+    p = terminal.Phien("test-wait-thread", "/tmp", 80, 24, loop)
+    q = p.gan()
+    goc = p._het
+    goi = []
+
+    def _het_theo_doi(*a, **kw):
+        goi.append({"args": a, "tren_loop": threading.get_ident()})
+        return goc(*a, **kw)
+
+    p._het = _het_theo_doi
+    p.go("exit 5\n")
+    await _doc(q, lambda b: "<exit" in b)
+    check("mã thoát vẫn về đúng qua đường mới", p.ma_thoat == 5, p.ma_thoat)
+    check("_het nhận sẵn mã thoát qua tham số (việc chờ tiến trình đã xong ngoài loop)",
+          bool(goi) and all(g["args"] and g["args"][0] == 5 for g in goi), goi)
+    p.go_ra(q)
+    p.dong()
+
+
+asyncio.run(_ma_thoat_khong_tren_loop())
+
+
+# ============================================================
+# 8. Nhánh ỐNG (Windows) - ép chạy trên mọi hệ, vì không ai ngồi Linux thử được nhánh này
 # ============================================================
 async def _nhanh_ong():
     that = terminal.CO_PTY
