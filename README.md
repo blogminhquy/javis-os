@@ -317,6 +317,12 @@ javis-os/
 
 ---
 
+## 📄 Giấy phép
+
+Mã nguồn mở theo giấy phép **MIT** - dùng, sửa, phân phối tự do, chỉ cần giữ dòng ghi công. Xem [LICENSE](LICENSE).
+
+---
+
 ## ☕ Ủng hộ Javis OS
 
 Javis OS mã nguồn mở, dùng miễn phí, và mình vẫn đang một mình vừa code vừa gánh chi phí server chạy thử mỗi ngày. Nếu Javis đang giúp được gì cho công việc hay cuộc sống của bạn, một chút ủng hộ sẽ giúp mình có thêm thời gian ngồi sửa bug, viết tính năng mới, thay vì lo tiền server.

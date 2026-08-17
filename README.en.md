@@ -318,6 +318,12 @@ javis-os/
 
 ---
 
+## 📄 License
+
+Open source under the **MIT License** - use, modify and distribute freely, just keep the copyright notice. See [LICENSE](LICENSE).
+
+---
+
 ## ☕ Support Javis OS
 
 Javis OS is open-source and free to use, and it's still just one person (me) writing the code and covering the test server bills every day. If Javis has been useful for your work or your life, a small donation buys me more time to fix bugs and ship new features instead of worrying about server costs.
