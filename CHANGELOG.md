@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.37.0] - 2026-08-18
+### Thêm mới
+- **Windows mở Javis như một app.** Double-click `JAVIS OS.bat` là server tự chạy nền rồi dashboard tự mở thành cửa sổ riêng - không thanh địa chỉ, có ô riêng trên taskbar, không cửa sổ đen. Đang chạy rồi thì bấm lại chỉ mở cửa sổ, không khởi động lại.
+- **Tự chạy khi đăng nhập máy Windows**: `javis-autostart.bat install` (gỡ bằng `uninstall`). Không cần quyền admin.
+
 ## [0.36.1] - 2026-08-18
 ### Sửa lỗi
 - **Chat trên điện thoại giờ xuống dòng được.** Bấm Enter/nhập trên bàn phím điện thoại là xuống dòng như mọi app nhắn tin, muốn gửi thì bấm nút Gửi. Trên máy tính giữ nguyên lối cũ: Enter gửi, Shift+Enter xuống dòng.

@@ -122,6 +122,8 @@ The script installs Python + Node + both CLI engines (Claude Code, Codex), creat
 4. To stop: stop-javis.bat
 ```
 
+> 🪟 **Windows - open it like an app:** after the first `setup.bat` run, from then on just double-click **`JAVIS OS.bat`** - the server starts in the background (no black window) and the dashboard opens as its **own window** with no address bar and its own taskbar entry. Start at login: `javis-autostart.bat install` (remove: `uninstall`).
+
 ### Several Javis instances on one VPS (each with its own link)
 
 Run as many as you like - brains, settings and accounts are fully separate per instance.
