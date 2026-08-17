@@ -18,6 +18,12 @@ sai mà không ai thấy, nên ba thứ sau phải có test canh:
      chia sẻ nhầm là đã lộ - gỡ lại được cũng không rút lại được việc người ta đã đọc.
   3. KHÔNG XẾP VÀO NHÓM GOOGLE. Nhóm đó là các connector đi chung MỘT key OAuth client;
      NotebookLM mượn cookie phiên trình duyệt, cách đăng nhập và rủi ro khác hẳn.
+  4. KHÔNG CÓ Ô HỒ SƠ (NOTEBOOKLM_PROFILE). Thư viện hễ thấy biến đó là BỎ QUA
+     NOTEBOOKLM_AUTH_JSON: đi tìm file storage_state.json của hồ sơ trong HOME cô lập
+     (trống trơn vì isolate_home) rồi chết FileNotFoundError, user chỉ thấy "process
+     đóng stdout". Tái hiện cả hai chiều 14/08/2026. Đa tài khoản đã phân biệt sẵn
+     bằng isolate_home (mỗi kết nối một HOME riêng theo slug) nên ô này vừa thừa
+     vừa là bẫy.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
 import sys
@@ -57,13 +63,21 @@ fields = {f["key"]: f for f in ((con.get("auth") or {}).get("fields") or [])}
 check("có ô dán phiên đăng nhập", "auth_json" in fields)
 check("ô đó map sang đúng biến môi trường thư viện đọc",
       fields.get("auth_json", {}).get("env") == "NOTEBOOKLM_AUTH_JSON")
-check("ô hồ sơ là tuỳ chọn (đa số chỉ đấu 1 tài khoản)",
-      fields.get("profile", {}).get("optional") is True)
-check("hồ sơ map sang NOTEBOOKLM_PROFILE",
-      fields.get("profile", {}).get("env") == "NOTEBOOKLM_PROFILE")
+check("CANARY: không có ô hồ sơ (NOTEBOOKLM_PROFILE đè chết phiên dán, xem docstring mục 4)",
+      "profile" not in fields)
+check("CANARY: không field nào map sang NOTEBOOKLM_PROFILE",
+      all(f.get("env") != "NOTEBOOKLM_PROFILE" for f in fields.values()))
+# Kiểm qua chính build_env: kết nối CŨ còn secret 'profile' trong store cũng không được
+# rò thành env - build_env chỉ map field còn khai trong catalog, test này canh đúng điều đó.
+env = mc.build_env(con, {"auth_json": '{"cookies":[]}', "profile": "cong-viec"})
+check("build_env phát NOTEBOOKLM_AUTH_JSON từ phiên dán",
+      env.get("NOTEBOOKLM_AUTH_JSON") == '{"cookies":[]}')
+check("CANARY: build_env không phát NOTEBOOKLM_PROFILE kể cả khi store còn secret cũ",
+      "NOTEBOOKLM_PROFILE" not in env, env)
 guide = (con.get("auth") or {}).get("guide", "")
 check("hướng dẫn nêu rõ đây là cookie phiên, không phải OAuth", "cookie phiên" in guide.lower())
 check("hướng dẫn có lệnh login thật để chạy", "notebooklm login" in guide)
+check("hướng dẫn không còn bảo đặt tên hồ sơ", "tên hồ sơ" not in guide.lower())
 
 # ---- 3. Phân loại quyền ----
 tm = con.get("tool_meta") or {}
