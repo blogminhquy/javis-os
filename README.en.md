@@ -318,6 +318,20 @@ javis-os/
 
 ---
 
+## ☕ Support Javis OS
+
+Javis OS is open-source and free to use, and it's still just one person (me) writing the code and covering the test server bills every day. If Javis has been useful for your work or your life, a small donation buys me more time to fix bugs and ship new features instead of worrying about server costs.
+
+No obligation, no perks attached - just a thank-you sent as money to someone quietly coding at night.
+
+- 🏦 **MB Bank** (Vietnam): `6636966369`
+- 📱 **MoMo wallet** (Vietnam): `0372752740`
+- 🌍 **PayPal**: [paypal.me/quy01](https://paypal.me/quy01)
+
+Can't donate? No worries - using Javis, sending feedback, or opening a Pull Request counts as support too.
+
+---
+
 <div align="center">
 
 Made with ☕ by **[Minh Quý](https://minhquy.vn)** · Repo: `github.com/blogminhquy/javis-os`

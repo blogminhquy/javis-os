@@ -315,6 +315,20 @@ javis-os/
 
 ---
 
+## ☕ Ủng hộ Javis OS
+
+Javis OS mã nguồn mở, dùng miễn phí, và mình vẫn đang một mình vừa code vừa gánh chi phí server chạy thử mỗi ngày. Nếu Javis đang giúp được gì cho công việc hay cuộc sống của bạn, một chút ủng hộ sẽ giúp mình có thêm thời gian ngồi sửa bug, viết tính năng mới, thay vì lo tiền server.
+
+Không bắt buộc, không đổi lấy quyền lợi gì cả - đơn giản là một lời cảm ơn gửi bằng tiền cho người đang âm thầm code buổi tối.
+
+- 🏦 **MB Bank**: `6636966369`
+- 📱 **Ví MoMo**: `0372752740`
+- 🌍 **PayPal**: [paypal.me/quy01](https://paypal.me/quy01)
+
+Không tiện donate cũng không sao - dùng Javis, góp ý, hay gửi một Pull Request cũng đã là ủng hộ rồi.
+
+---
+
 <div align="center">
 
 Made with ☕ by **[Minh Quý](https://minhquy.vn)** · Repo: `github.com/blogminhquy/javis-os`
