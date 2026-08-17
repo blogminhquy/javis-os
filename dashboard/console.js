@@ -3797,8 +3797,16 @@
       if (missing) { err.textContent = "Thiếu: " + missing; return; }
       go.disabled = true; go.textContent = "Đang kiểm tra key…"; err.textContent = "";
       const r = await postJson("/connect/add", { connector_id: con.id, fields: fieldsVal,
-        label: m.querySelector("#cLabel").value.trim(), reuse_from: m._reuseFrom || "" });
-      if (!r.ok) { err.textContent = r.error || "Lỗi"; go.disabled = false; go.textContent = "Kết nối"; return; }
+        label: m.querySelector("#cLabel").value.trim(), reuse_from: m._reuseFrom || "",
+        force: !!m._forceAdd });
+      if (!r.ok) {
+        err.textContent = r.error || "Lỗi";
+        // can_force = server chặn có lý do (vd connector cần trình duyệt trên máy chạy Javis
+        // mà đang mở qua domain public - issue #112). Bấm lần nữa là xác nhận vẫn muốn đấu.
+        if (r.can_force) { m._forceAdd = true; go.textContent = "Tôi hiểu, vẫn kết nối"; }
+        else { go.textContent = "Kết nối"; }
+        go.disabled = false; return;
+      }
       m.querySelector(".conn-form").innerHTML = '<div class="conn-ok">' + CHECK_ICON + ' Đã kết nối: <b>' + esc(r.label || con.name) + '</b> (' + (r.tools || 0) + ' công cụ)'
         + (isFirst ? '<div class="conn-hint">Sang trang Javis hỏi thử: "Hôm nay bán được bao nhiêu?"</div>' : "") + '</div>';
       go.style.display = "none";

@@ -84,6 +84,24 @@ def _is_ip(h: str) -> bool:
         return False
 
 
+def host_kieu_local(h: str) -> bool:
+    """Host NHƯ NGƯỜI DÙNG THẤY có vẻ là máy gần họ không: loopback, hoặc IP private/link-local
+    (nhà/LAN). Dùng cho cảnh báo connector cần trình duyệt TRÊN MÁY CHẠY JAVIS (vd
+    workspace-mcp với callback localhost:8000): domain public thì luồng đăng nhập đó chắc chắn
+    đứt, còn LAN thì máy chạy Javis thường là desktop có màn hình nên vẫn đi được.
+
+    CHỈ dùng cho cảnh báo/UX - đây là suy đoán từ header client gửi lên, không phải căn cứ
+    cấp quyền (quyết định quyền vẫn phải theo request.client.host thật, xem external_base)."""
+    h = host_only(h)
+    if h in _LOCALHOST or h.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    except ValueError:
+        return False
+
+
 def _compute_hosts() -> set:
     hosts = set(_LOCALHOST)
     try:

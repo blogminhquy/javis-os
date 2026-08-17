@@ -2813,6 +2813,22 @@ async def connect_add(request: Request):
     tự lấy tên shop làm label) → key sai thì xoá, không lưu rác."""
     data = await request.json()
     con_id = (data.get("connector_id") or "").strip()
+    # Connector cần trình duyệt TRÊN MÁY CHẠY JAVIS (workspace-mcp: OAuth callback cứng
+    # localhost:8000) mà user đang mở dashboard qua domain public → luồng đăng nhập Google
+    # chắc chắn đứt ở ERR_CONNECTION_REFUSED (issue #112). Chặn kèm lời giải thích + đường
+    # thay thế; can_force để ca đặc biệt (đấu sẵn từ xa, sang máy bấm đồng ý sau) vẫn đi được.
+    if (mcp_catalog.get(con_id) or {}).get("needs_local_browser") and not data.get("force"):
+        host_thay = web_security.external_base(
+            request.url.scheme, request.url.netloc,
+            request.headers.get("x-forwarded-proto", ""),
+            request.headers.get("x-forwarded-host", ""))
+        if not web_security.host_kieu_local(host_thay):
+            return {"ok": False, "can_force": True, "error":
+                    "Kết nối này chạy OAuth trên CHÍNH MÁY cài Javis (Google sẽ chuyển về "
+                    "localhost:8000), mà bạn đang mở Javis qua domain public - đăng nhập Google "
+                    "sẽ đứt giữa chừng với lỗi không kết nối được. Trên VPS hãy dùng thẻ Lịch "
+                    "và Gmail riêng (hai thẻ đó đăng nhập ngay trong dashboard). Nếu máy chạy "
+                    "Javis có màn hình và bạn sẽ bấm đồng ý trên đó, bấm Kết nối lần nữa."}
     # Dùng lại key OAuth client của connection khác (vd Gmail dùng lại key đã tạo cho
     # Calendar) - copy server-side, secrets không bao giờ về browser.
     fields_in = mcp_store.reuse_client_fields(
