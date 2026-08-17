@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.36.0] - 2026-08-18
+Bản này gộp 6 đóng góp từ cộng đồng - cảm ơn @japanvip115 và @mrcong2909-web.
+### Thêm mới
+- **macOS mở Javis như một app.** Double-click `JAVIS OS.app` trong Finder là server tự chạy và dashboard tự mở, kèm lựa chọn tự khởi động khi đăng nhập máy. Không cần Docker, không cần gõ lệnh.
+- **Chó canh cửa cho Mac** (`./watchdog.sh install`): server sống mà đơ không trả lời 3 phút liên tiếp thì tự được khởi động lại, không phải chờ ai phát hiện.
+### Sửa lỗi
+- **Terminal hết làm treo cả server trên Mac.** Đóng phiên terminal, hoặc dán một khối chữ lớn khi lệnh đang bận, đều có thể làm cả trang đứng hình phải khởi động lại bằng tay - đã sửa tận gốc cả hai đường, kèm test canh không cho tái phát. Cập nhật trên Mac cũng hết cảnh hai tiến trình giành nhau cổng.
+- **Gõ tiếng Việt hết sót chữ cuối khi bấm Enter gửi tin.** Bộ gõ đang ghép vần mà Enter thì trước đây ký tự cuối rơi rớt hoặc lọt sang tin sau.
+- **Kết nối Google NotebookLM hết chết ngay khi vừa đấu** (ô "Tên hồ sơ" cũ đè mất phiên đăng nhập vừa dán - đã bỏ hẳn ô đó, kết nối cũ tự hết lỗi).
+- **Đấu Google Workspace từ VPS giờ được nói thẳng vì sao không đăng nhập được** thay vì chết im với lỗi "localhost từ chối kết nối" - kèm chỉ đường sang thẻ Lịch và Gmail riêng vốn chạy tốt trên VPS. Cài đặt trên Mac cũng hết chọn nhầm Python cũ rồi báo lỗi khó hiểu.
+
 ## [0.35.12] - 2026-08-17
 ### Sửa lỗi
 - **App "Thêm vào màn hình chính" trên iPhone hết cảnh cứ đóng lại là bị đăng nhập lại.** Mỗi lần mở app từ icon là một lần khởi động nguội (khác tab Safari giữ ấm sẵn), nên câu hỏi "đã đăng nhập chưa" gửi đi lúc mạng chưa kịp lên hay bị lỗi - và trước đây hễ lỗi là Javis coi luôn như chưa đăng nhập, bắt gõ lại mật khẩu dù phiên vẫn còn hạn. Giờ hỏi lại vài lần trước khi kết luận, và có lỗi mạng thật thì để nguyên màn hình thay vì ép hiện màn đăng nhập oan.
