@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.36.1] - 2026-08-18
+### Sửa lỗi
+- **Chat trên điện thoại giờ xuống dòng được.** Bấm Enter/nhập trên bàn phím điện thoại là xuống dòng như mọi app nhắn tin, muốn gửi thì bấm nút Gửi. Trên máy tính giữ nguyên lối cũ: Enter gửi, Shift+Enter xuống dòng.
+- **App "Thêm vào màn hình chính" hết cảnh mở lại thấy hội thoại cũ đứng im.** iPhone đóng băng app khi xuống nền nên tin nhắn đến trong lúc đó bị lỡ, mà app dạng này lại không có nút tải lại để tự cứu. Giờ mở app lên là Javis tự nối lại kết nối và tự kéo phần hội thoại đã lỡ về, không phải làm gì cả.
+
 ## [0.36.0] - 2026-08-18
 Bản này gộp 6 đóng góp từ cộng đồng - cảm ơn @japanvip115 và @mrcong2909-web.
 ### Thêm mới

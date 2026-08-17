@@ -124,11 +124,38 @@ const voice = new JavisVoice({
 // WebSocket
 // ============================================
 function connect() {
+  // Chống nối trùng: connect() giờ được gọi từ HAI đường (chuỗi retry 3s của onclose, và
+  // bộ hồi sức sau khi app màn hình chính bị iOS đóng băng nền). Hai đường cùng chạy mà
+  // không có chốt này là hai socket song song, mọi tin nhắn về gấp đôi.
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   ws = new WebSocket(WS_URL);
   ws.onopen = () => updateSysStatus("active");
   ws.onclose = () => { updateSysStatus("error"); setTimeout(connect, 3000); };
   ws.onerror = () => updateSysStatus("error");
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+}
+
+// ---- Hồi sức sau giấc ngủ nền (app "Thêm vào màn hình chính" trên iPhone) ----
+// iOS đóng băng toàn bộ JS khi app xuống nền: socket chết, tin nhắn đến trong lúc ngủ
+// không bao giờ tới luồng live. Tab Safari thường thì user vuốt F5 là xong; app standalone
+// KHÔNG có nút reload nào cả - nên phải tự hồi sức: nối lại socket ngay (không đợi chuỗi
+// retry 3s bắt kịp) và kéo lại hội thoại đang xem từ server để bù tin đã lỡ.
+let _hiddenAt = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { _hiddenAt = Date.now(); return; }
+  _resumeSauNgu(false);
+});
+// bfcache trả trang về từ bộ nhớ (persisted): trạng thái là ảnh chụp cũ, luôn hồi sức.
+window.addEventListener("pageshow", (e) => { if (e.persisted) _resumeSauNgu(true); });
+function _resumeSauNgu(force) {
+  // Ngủ dưới 20 giây (chuyển app qua lại) thì socket thường còn sống, đừng kéo lại hội
+  // thoại một cách ồn ào - trừ khi bfcache (force) vì khi đó không biết đã ngủ bao lâu.
+  if (!force && (!_hiddenAt || Date.now() - _hiddenAt < 20000)) return;
+  _hiddenAt = 0;
+  try { connect(); } catch (e) {}   // đã có chốt chống trùng, gọi thừa vô hại
+  // Phiên đang xem có lưu DB thì dựng lại từ server - openStoredSession tự gắn lại bong
+  // bóng sống nếu phiên đang generate nền, nên gọi giữa chừng không mất gì.
+  if (savedSessionId) { try { openStoredSession(savedSessionId); } catch (e) {} }
 }
 
 function handleMessage(data) {
@@ -1709,6 +1736,11 @@ chatInput.addEventListener("compositionstart", () => { chatInputComposing = true
 chatInput.addEventListener("compositionend", () => { chatInputComposing = false; });
 chatInput.addEventListener("keydown", (e) => {
   if (chatInputComposing || e.isComposing || e.keyCode === 229) return;
+  // Máy chạm (điện thoại/tablet): Enter là XUỐNG DÒNG như mọi app nhắn tin, gửi bằng nút
+  // Gửi. Bàn phím ảo không có Shift+Enter nên giữ lối desktop là user không cách nào viết
+  // tin nhiều dòng. Đo bằng pointer: coarse (con trỏ CHÍNH là ngón tay) chứ không đo bề
+  // rộng màn hình - laptop cảm ứng có chuột vẫn giữ Enter-gửi như cũ.
+  if (window.matchMedia("(pointer: coarse)").matches) return;
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 sendBtn.addEventListener("click", () => sendMessage());
