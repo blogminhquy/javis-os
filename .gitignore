@@ -9,6 +9,7 @@ __pycache__/
 
 # Runtime / temp
 .staging/
+server/*.pid
 *.mp3
 test_output*.mp3
 server/*.log

@@ -1,0 +1,6 @@
+#!/bin/bash
+# App bundle entrypoint -> delegates to bin/javis-start.sh.
+# Resolves the repo root relative to this bundle, so keep "JAVIS OS.app"
+# inside the repo folder (repo/JAVIS OS.app/Contents/MacOS/javis).
+DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+exec "${DIR}/bin/javis-start.sh"
