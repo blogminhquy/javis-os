@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.37.2] - 2026-08-18
+### Sửa lỗi
+- **Việc chạy nền dài không còn bị chặt ngang ở 5 phút.** Lịch hẹn, việc Kanban và bước workflow trước đây bị giới hạn 5-10 phút mỗi việc, nên việc thật (như quét quảng cáo nhiều phân mục rồi ghi Google Sheet) chết giữa chừng với lỗi "Fork vượt trần 300s". Giờ trần chung là **1 giờ**, và ai cần hơn nữa thì đặt biến môi trường `JAVIS_BG_MAX_WALL_S` (giây) rồi khởi động lại - không phải sửa code.
+
 ## [0.37.1] - 2026-08-18
 ### Sửa lỗi
 - **Hết cảnh Javis (bộ não Claude Code) đột nhiên quên sạch cuộc đang nói dở.** Đang trao đổi thì bỗng nhiên Javis hỏi lại "bạn muốn nói về cái gì?" như người lạ - xảy ra sau khi một lượt đi đường tắt Tức thì, sau khi một lượt bị lỗi giữa chừng, hoặc sau khi máy chủ cập nhật. Nguyên nhân: ba ca đó làm đứt mạch hội thoại của engine mà chỉ ca "mạch quá dài" mới được khôi phục lịch sử; giờ mạch đứt vì lý do gì cũng được tự nối lại từ hội thoại đã lưu.

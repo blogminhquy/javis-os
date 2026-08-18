@@ -470,7 +470,9 @@ class TasksFeature:
                 cli.mcp_strict = True
         cli = aux_engine.apply(self.deps, cli, mode=mode, tag=cli.tag)
         try:
-            cli.max_wall_s = 600
+            # Trần chung cho fork nền (mặc định 1 giờ, env JAVIS_BG_MAX_WALL_S) - việc Kanban
+            # thật có thể chạy 30-60 phút, 600s cũ chặt ngang giữa chừng.
+            cli.max_wall_s = aux_engine.bg_max_wall_s()
         except Exception:
             pass
         return cli

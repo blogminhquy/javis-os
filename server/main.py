@@ -6175,7 +6175,9 @@ def _workflow_agent_helpers(brain, tools):
                 c.mcp_config = _mcpf
                 c.mcp_strict = True
             c.disallowed_tools = ["Bash", "WebFetch", "WebSearch", "Task"]
-            c.max_wall_s = 300
+            # Trần chung cho fork nền (mặc định 1 giờ, env JAVIS_BG_MAX_WALL_S): một bước
+            # workflow quét dữ liệu thật cũng có thể chạy quá 300s như việc lịch/Kanban.
+            c.max_wall_s = aux_engine.bg_max_wall_s()
         else:
             c.javis_vault = vault_root
         return c

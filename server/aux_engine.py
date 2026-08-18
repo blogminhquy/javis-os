@@ -30,6 +30,7 @@ Hợp đồng sự kiện giữ y như ClaudeSDK để nơi gọi không phải 
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 import time
@@ -54,6 +55,26 @@ _KEY_FIELD = {
 # mode của Javis -> sandbox của Codex CLI. Bản đồ thật nằm ở `claude_cli.codex_sandbox_cho_mode`
 # (nó còn đọc cờ JAVIS_CODEX_SANDBOX); giữ dict này để mã cũ đọc tên mức vẫn chạy.
 _CODEX_SANDBOX = {"suggest": "read-only", "auto": "workspace-write", "full": None}
+
+# ── Trần wall-clock cho fork NỀN (nhắc hẹn/cron, việc Kanban, bước workflow) ──────────────
+# Mặc định 3600s (1 giờ). Trước đây mỗi nơi ghim một số cứng (nhắc hẹn 300, workflow 300,
+# Kanban 600) và 300s giết chết việc nền THẬT của người dùng: quét 11 phân mục Meta Ads +
+# ghi Google Sheet + gửi Telegram bị chặt ngang lúc đang ghi dở, result rỗng (báo 18/08).
+# Trần này là LƯỚI ĐỠ chống fork treo vô hạn, không phải công cụ quản chi phí - fork đơ
+# thật thì watchdog idle-timeout của engine bắt sớm hơn nhiều, nên đặt trần theo việc nền
+# DÀI NHẤT hợp lệ chứ không theo việc trung bình. Chỉnh qua env JAVIS_BG_MAX_WALL_S
+# (giây; giá trị rác hoặc <= 0 thì về mặc định).
+BG_MAX_WALL_S_DEFAULT = 3600
+
+
+def bg_max_wall_s() -> int:
+    try:
+        v = int(os.getenv("JAVIS_BG_MAX_WALL_S", "") or 0)
+        if v > 0:
+            return v
+    except (TypeError, ValueError):
+        pass
+    return BG_MAX_WALL_S_DEFAULT
 
 # ── Chọn model FREE mạnh nhất trên OpenRouter (mắt xích cuối của router việc nền) ──
 # Xếp hạng theo HỌ model (đầu danh sách = mạnh nhất) rồi tới cỡ tham số trong id, rồi context.
