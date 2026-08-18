@@ -498,6 +498,37 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 /* ---- Terminal ---- */
 .term-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+/* Dải tab PHIÊN của terminal (mỗi tab một shell riêng) - không phải điều hướng chức năng,
+   thứ đó nằm trên rail. Tràn ngang thì cuộn, không xuống dòng. */
+.term-tabs {
+  display: flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  padding: 8px 12px 0; overflow-x: auto; scrollbar-width: thin;
+}
+.term-tab {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding: 5px 5px 5px 10px; border-radius: 8px 8px 0 0; cursor: pointer;
+  border: 1px solid var(--glass-brd); border-bottom: none;
+  background: var(--surface-1); color: var(--text2);
+  font-size: 12px; font-weight: 600; white-space: nowrap; user-select: none;
+}
+.term-tab:hover { color: var(--text); border-color: var(--accent-line); }
+.term-tab.act { background: var(--surface-2); color: var(--text); border-color: var(--accent-line); }
+.term-tab svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.term-tab-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: none; color: var(--text3); cursor: pointer;
+  padding: 2px; border-radius: 5px;
+}
+.term-tab-x:hover { color: var(--red); background: var(--surface-1); }
+.term-tab-x svg { width: 11px; height: 11px; }
+.term-tab-add {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 26px; height: 26px; border-radius: 8px; cursor: pointer;
+  border: 1px dashed var(--glass-brd); background: none; color: var(--text2);
+}
+.term-tab-add:hover { color: var(--text); border-color: var(--accent-line); }
+.term-tab-add:disabled { opacity: 0.45; cursor: not-allowed; }
+.term-tab-add svg { width: 14px; height: 14px; }
 .term-bar {
   display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
   padding: 8px 16px; border-bottom: 1px solid var(--glass-brd);
@@ -533,10 +564,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .term-host { flex: 1; min-height: 0; min-width: 0; padding: 8px 4px 8px 12px; overflow: hidden; }
 .term-host .xterm { height: 100%; }
 .term-host .xterm-viewport { scrollbar-width: thin; }
+/* Nhiều tab: các khung xterm CHỒNG lên nhau, chỉ tab đang xem hiện ra. Ẩn bằng visibility
+   chứ không display:none - khung ẩn vẫn phải CÓ KÍCH THƯỚC để xterm đo được số cột/dòng. */
+.term-hosts { flex: 1; min-height: 0; min-width: 0; position: relative; }
+.term-hosts .term-host { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+.term-hosts .term-host:not(.act) { visibility: hidden; }
 
 @media (max-width: 860px) {
   .term-bar { padding: 7px 10px; gap: 8px; flex-wrap: wrap; }
   .term-cwd { display: none; }          /* màn hẹp: nhường chỗ cho hai cái nút */
+  .term-tabs { padding: 6px 8px 0; }
   .term-host { padding: 6px 2px 6px 8px; }
 }
 

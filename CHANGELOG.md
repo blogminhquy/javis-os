@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.38.0] - 2026-08-18
+### Thêm mới
+- **Terminal mở được nhiều tab.** Ngay trên khung terminal có dải tab như trình duyệt: bấm **+** mở thêm shell riêng (tối đa 4), bấm tên tab để chuyển, bấm **x** để đóng hẳn phiên đó. Tab đang khuất vẫn chạy lệnh bình thường, F5 quay lại còn nguyên dàn tab.
+- Nút "Phiên mới" đổi tên thành **Khởi động lại** cho rõ nghĩa: nó làm mới shell của tab đang xem, còn muốn thêm shell thì bấm **+** trên dải tab.
+
 ## [0.37.2] - 2026-08-18
 ### Sửa lỗi
 - **Việc chạy nền dài không còn bị chặt ngang ở 5 phút.** Lịch hẹn, việc Kanban và bước workflow trước đây bị giới hạn 5-10 phút mỗi việc, nên việc thật (như quét quảng cáo nhiều phân mục rồi ghi Google Sheet) chết giữa chừng với lỗi "Fork vượt trần 300s". Giờ trần chung là **1 giờ**, và ai cần hơn nữa thì đặt biến môi trường `JAVIS_BG_MAX_WALL_S` (giây) rồi khởi động lại - không phải sửa code.

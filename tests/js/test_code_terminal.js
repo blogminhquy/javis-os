@@ -93,21 +93,22 @@ check("rời trang Code có gọi dọn (JavisCode.roi)", /_pageLeave = \(\) =>/
       && /JavisCode\.roi\(\)/.test(renderCode));
 check("rời trang Code gỡ lại lớp .cview-flush (cloneNode giữ class -> trang sau mất padding)",
       /classList\.remove\("cview-flush"\)/.test(renderCode));
-check("huy() đóng WebSocket và ngắt ResizeObserver",
-      /huy: function[\s\S]{0,400}ngatWs\(\)/.test(CODE_CODE) && /ro\.disconnect\(\)/.test(CODE_CODE));
+check("huy() đóng WebSocket của MỌI tab và ngắt ResizeObserver",
+      /huy: function[\s\S]{0,400}ngatWs\(tb\)/.test(CODE_CODE) && /ro\.disconnect\(\)/.test(CODE_CODE));
 // Gỡ handler TRƯỚC khi close, nếu không thì onclose (hàm tự-nối-lại) vẫn nổ sau đó và đẻ ra
 // một socket thứ hai - hai shell ghi chung một màn hình.
 check("ngatWs() gỡ handler rồi mới đóng (chống hai socket cùng chạy)",
-      /function ngatWs\(\)[\s\S]{0,220}ws\.onclose = null[\s\S]{0,160}ws\.close\(\)/.test(CODE_CODE));
+      /function ngatWs\(tb\)[\s\S]{0,260}ws\.onclose = null[\s\S]{0,160}ws\.close\(\)/.test(CODE_CODE));
 check("huy() gỡ luôn listener đổi tông (không thì mỗi lần vào tab lại chồng một cái)",
       /removeEventListener\("javis-theme-change"/.test(CODE_CODE));
 // lastIndexOf, không phải indexOf: "huy: function" xuất hiện mấy lần (veTerminal có một cái
 // tạm), cái CUỐI mới là hàm dọn thật của dungTerminal.
-check("CANARY: rời tab KHÔNG gọi /terminal/close (shell phải chạy tiếp)",
+check("CANARY: rời trang KHÔNG gọi /terminal/close (shell mọi tab phải chạy tiếp)",
       !/\/terminal\/close/.test(CODE_CODE.slice(CODE_CODE.lastIndexOf("huy: function"))));
-check("chỉ nút 'Phiên mới' mới đóng hẳn phiên", /termNew[\s\S]{0,600}\/terminal\/close/.test(CODE_CODE));
+check("nút 'Khởi động lại' (termNew) đóng hẳn phiên của tab đang xem",
+      /termNew[\s\S]{0,700}\/terminal\/close/.test(CODE_CODE));
 check("mất kết nối thì tự nối lại (shell vẫn sống ở server)",
-      /onclose[\s\S]{0,300}setTimeout\(noi/.test(CODE_CODE));
+      /onclose[\s\S]{0,320}noi\(tb\)/.test(CODE_CODE));
 
 // ============================================================
 // 4. Chế độ ống (Windows): phải nói thật + tự lo phần việc của tty
@@ -128,15 +129,39 @@ check("Ctrl-C ở chế độ ống đi bằng gói tín hiệu riêng",
       /type: "sig", name: "int"/.test(CODE_CODE));
 
 // ============================================================
-// 5. Khung mở rộng được + CSS
+// 5. Nhiều tab phiên: mỗi tab một shell riêng, F5 không mất
+// ============================================================
+check("có dải tab phiên (term-tabs) và nút mở thêm tab",
+      /term-tabs/.test(CODE_CODE) && /termTabAdd/.test(CODE_CODE) && /\.term-tabs/.test(CSS));
+check("trần số tab lấy từ server (max_phien), không viết cứng",
+      /st\.max_phien/.test(CODE_CODE));
+check("chạm trần thì nút '+' bị khoá chứ không lặng lẽ mở thêm",
+      /tabs\.length >= maxTab/.test(CODE_CODE) && /disabled/.test(CODE_CODE));
+check("danh sách tab lưu ở sessionStorage để F5/đổi trang quay lại còn nguyên",
+      /javis\.code\.tabs/.test(CODE_CODE) && /function ghiTabs\(\)/.test(CODE_CODE));
+check("di cư được khoá một-phiên cũ (javis.code.phien) sang tab đầu tiên",
+      /javis\.code\.phien/.test(CODE_CODE) && /function docTabs\(\)/.test(CODE_CODE));
+// Đóng TAB (dấu x) là chủ ý "xong việc với shell này" nên phải đóng hẳn phiên ở server -
+// khác với rời trang (chỉ thôi xem). Không đóng thì shell mồ côi chiếm suất trong trần 4 phiên.
+check("đóng tab (dấu x) gọi /terminal/close để giết shell của tab đó",
+      /function dongTab\(i\)[\s\S]{0,700}\/terminal\/close/.test(CODE_CODE));
+check("đóng tab cuối cùng thì tự mở tab mới (luôn còn ít nhất một tab)",
+      /if \(!tabs\.length\) \{ themTab\(\); return; \}/.test(CODE_CODE));
+// Khung ẩn phải CÓ kích thước để xterm đo được cột/dòng: ẩn bằng visibility, cấm display:none.
+check("tab khuất ẩn bằng visibility (xterm cần khung có kích thước để đo)",
+      /\.term-hosts \.term-host:not\(\.act\) \{ visibility: hidden; \}/.test(CSS));
+
+// ============================================================
+// 6. Khung mở rộng được + CSS
 // ============================================================
 check("danh sách chức năng khai thành mảng (thêm chức năng sau = thêm một dòng)",
       /var CHUC_NANG = \[/.test(CODE_CODE));
 check("Terminal là chức năng đầu tiên", /\{ id: "terminal"/.test(CODE_CODE));
 check("render nhận id để biết mở chức năng nào", /function render\(el, id\)/.test(CODE_CODE));
-// Mỗi chức năng Code giờ là MỘT MỤC trên rail, nên dải tab trong trang là thừa - hai tầng
-// điều hướng cho cùng một thứ chỉ làm người dùng phải nhớ chức năng nằm ở tầng nào.
-check("CANARY: không còn dải tab trong trang (điều hướng nằm ở rail)",
+// Mỗi chức năng Code là MỘT MỤC trên rail, nên dải tab ĐIỀU HƯỚNG trong trang là thừa - hai
+// tầng điều hướng cho cùng một thứ chỉ làm người dùng phải nhớ chức năng nằm ở tầng nào.
+// (term-tabs ở mục 5 là chuyện khác: đó là tab PHIÊN của riêng terminal, không phải điều hướng.)
+check("CANARY: không còn dải tab điều hướng trong trang (điều hướng nằm ở rail)",
       !/code-tabs/.test(CODE_CODE) && !/code-tabs/.test(CSS));
 check("CSS có khung trang Code + terminal",
       /\.cview-body\.cview-flush/.test(CSS) && /\.code-page/.test(CSS) && /\.term-host/.test(CSS));

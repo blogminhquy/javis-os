@@ -21,25 +21,35 @@ Nhóm Code dựng sẵn theo hướng còn mở rộng: hôm nay trong nhóm m�
 
 Shell mở sẵn ở **thư mục HOME của user đang chạy Javis** - đúng như một terminal bình thường của máy, hợp nhất cho việc chính của tab này: cài và đăng nhập CLI (`agy`, `codex login`...). Cần vào brain thì gõ `cd "$JAVIS_BRAIN"` - biến này luôn trỏ về gốc brain đang chọn.
 
+## Nhiều tab, mỗi tab một shell riêng
+
+Ngay trên khung terminal có một dải tab, giống tab của trình duyệt:
+
+- Bấm nút **+** để mở thêm tab - mỗi tab là một shell hoàn toàn riêng, việc tab này không đụng tab kia. Tiện khi vừa `tail -f` log ở một tab, vừa gõ lệnh ở tab khác.
+- Bấm vào tên tab để chuyển qua lại. Tab đang khuất vẫn chạy bình thường: lệnh không dừng, output không mất.
+- Bấm dấu **x** trên tab là đóng hẳn phiên đó (giết shell). Đóng tab cuối cùng thì Javis tự mở một tab sạch thay vào.
+- Tối đa **4 tab** (đúng trần số phiên của server, tính chung mọi cửa sổ trình duyệt). Chạm trần thì nút **+** tự khoá.
+- F5 hay đổi trang rồi quay lại: nguyên dàn tab được mở lại, tab nào đang xem vẫn đang xem.
+
 ## Thanh trên cùng
 
 | Thứ | Ý nghĩa |
 |---|---|
-| Chấm tròn + chữ trạng thái | Xanh = đang chạy. Đỏ = mất kết nối (Javis tự nối lại). Xám = shell đã thoát. |
+| Chấm tròn + chữ trạng thái | Của tab đang xem. Xanh = đang chạy. Đỏ = mất kết nối (Javis tự nối lại). Xám = shell đã thoát. |
 | Đường dẫn | Thư mục shell đang đứng lúc mở. Màn hình hẹp thì ẩn đi để nhường chỗ cho nút. |
-| **Xoá** | Xoá màn hình, giống lệnh `clear`. |
-| **Phiên mới** | Đóng hẳn phiên hiện tại (giết shell) rồi mở một phiên sạch. Dùng khi shell treo hoặc muốn bắt đầu lại. |
+| **Xoá** | Xoá màn hình của tab đang xem, giống lệnh `clear`. |
+| **Khởi động lại** | Đóng hẳn phiên của tab đang xem (giết shell) rồi mở một phiên sạch trong cùng tab. Dùng khi shell treo hoặc muốn bắt đầu lại. |
 
 ## Phiên chạy tiếp khi bạn rời tab
 
 Đây là điểm quan trọng nhất khi dùng hằng ngày: **đổi trang hay tải lại trang KHÔNG giết shell.**
 
-- Đang `npm install` mà bấm sang trang Trò chuyện: lệnh vẫn chạy. Quay lại tab Code là thấy nguyên màn hình cũ, chạy tới đâu hiện tới đó.
-- Mất mạng, đóng máy, F5: Javis tự nối lại vào đúng phiên đó.
+- Đang `npm install` mà bấm sang trang Trò chuyện: lệnh vẫn chạy - ở MỌI tab, không riêng tab đang xem. Quay lại tab Code là thấy nguyên dàn tab cũ, chạy tới đâu hiện tới đó.
+- Mất mạng, đóng máy, F5: Javis tự nối lại vào đúng các phiên đó.
 - Không ai quay lại trong **30 phút** thì Javis mới đóng phiên để khỏi bỏ quên tiến trình chạy hoài.
-- Muốn đóng ngay thì bấm **Phiên mới**, hoặc gõ `exit`.
+- Muốn đóng ngay thì bấm dấu **x** trên tab, bấm **Khởi động lại**, hoặc gõ `exit`.
 
-Mở tối đa **4 phiên** cùng lúc. Chạm trần thì Javis báo rõ thay vì im lặng mở thêm.
+Mở tối đa **4 phiên** cùng lúc (tính chung mọi cửa sổ trình duyệt). Chạm trần thì Javis báo rõ thay vì im lặng mở thêm.
 
 ## Chế độ đơn giản trên Windows
 
@@ -73,7 +83,7 @@ Chi tiết cách đặt biến xem [Cấu hình .env](16-cau-hinh-env.md).
 
 **Vào mục Terminal thấy "Terminal đang tắt trên máy này".** Máy chủ có `JAVIS_TERMINAL=0`. Bỏ biến đó trong `.env` rồi khởi động lại Javis.
 
-**Báo "Đang mở 4 phiên terminal rồi".** Có phiên cũ còn sống ở tab trình duyệt khác. Bấm **Phiên mới** ở tab đó, hoặc chờ 30 phút để Javis tự dọn.
+**Báo "Đang mở 4 phiên terminal rồi".** Trần 4 phiên tính chung mọi cửa sổ trình duyệt. Đóng bớt một tab (dấu **x**) ở cửa sổ đang mở nó, hoặc chờ 30 phút để Javis tự dọn phiên không ai xem.
 
 **Chữ gãy dòng, viền bảng lệch.** Bấm vào khung terminal rồi đổi cỡ cửa sổ trình duyệt một nhát để nó đo lại. Nếu vẫn lệch, gõ `clear`.
 
