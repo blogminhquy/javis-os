@@ -9467,11 +9467,22 @@ async def websocket_endpoint(ws: WebSocket):
                 _cli_sid = None
                 _cost = None
                 _cli_prompt = _cli_think(reasoning, user_message)
-                if _cli_xoay_mach:
+                if not cli.session_id:
                     # Bỏ --resume là Claude Code mất sạch mạch cũ. Mở mạch mới mà không mang
                     # theo gì thì đó không phải tiết kiệm, đó là làm hỏng hội thoại: người
                     # dùng hỏi tiếp "cái đó" và Javis không còn biết "cái đó" là gì. Mồi lại
-                    # từ transcript SQLite, đúng cách nhánh Codex vẫn làm.
+                    # từ transcript SQLite, đúng cách nhánh Codex/Gemini vẫn làm.
+                    #
+                    # Điều kiện là KHÔNG CÓ MẠCH chứ không phải "vừa xoay mạch" như bản cũ.
+                    # Mạch trống còn xảy ra ở ba ca khác ngoài xoay chủ động: đường tắt
+                    # (fast path) vừa dọn liên kết mạch và TIN rằng lượt sau mồi lại từ
+                    # SQLite (xem comment ở set_cli_session_id(conv_sid, "")); lượt trước
+                    # đứt trước sự kiện `final` nên chưa kịp lưu id; và update/restart làm
+                    # rollout cũ biến mất. Bản cũ chỉ mồi khi xoay nên cả ba ca kia đều mở
+                    # mạch tay không - Javis quên sạch cuộc đang nói dở (người dùng báo
+                    # 18/08: hỏi tiếp "ok tra và so sánh giúp anh" và Javis hỏi lại "so
+                    # sánh gì?"). Phiên MỚI thật sự thì get_messages rỗng và
+                    # bootstrap_prompt tự trả về nguyên prompt, không tốn gì.
                     _cli_raw = [{"role": _m["role"], "content": _m["content"]}
                                 for _m in store.get_messages(conv_sid)[:-1]
                                 if _m["role"] in ("user", "assistant") and _m.get("content")]

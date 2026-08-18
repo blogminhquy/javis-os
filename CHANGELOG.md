@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.37.1] - 2026-08-18
+### Sửa lỗi
+- **Hết cảnh Javis (bộ não Claude Code) đột nhiên quên sạch cuộc đang nói dở.** Đang trao đổi thì bỗng nhiên Javis hỏi lại "bạn muốn nói về cái gì?" như người lạ - xảy ra sau khi một lượt đi đường tắt Tức thì, sau khi một lượt bị lỗi giữa chừng, hoặc sau khi máy chủ cập nhật. Nguyên nhân: ba ca đó làm đứt mạch hội thoại của engine mà chỉ ca "mạch quá dài" mới được khôi phục lịch sử; giờ mạch đứt vì lý do gì cũng được tự nối lại từ hội thoại đã lưu.
+
 ## [0.37.0] - 2026-08-18
 ### Thêm mới
 - **Windows mở Javis như một app.** Double-click `JAVIS OS.bat` là server tự chạy nền rồi dashboard tự mở thành cửa sổ riêng - không thanh địa chỉ, có ô riêng trên taskbar, không cửa sổ đen. Đang chạy rồi thì bấm lại chỉ mở cửa sổ, không khởi động lại.
