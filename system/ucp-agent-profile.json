@@ -1,0 +1,20 @@
+{
+  "_doc": "Hồ sơ agent UCP của Javis OS. Shopify (và mọi cửa hàng nói UCP) BẮT BUỘC mỗi lời gọi tool phải kèm meta['ucp-agent'].profile = một URL HTTPS công khai trỏ về đúng file này, để phía cửa hàng tải về và thương lượng năng lực (capability negotiation). Vì cửa hàng phải TỰ TẢI được file, nó không thể nằm trên máy chạy Javis (thường là localhost/LAN) - bản chuẩn được phục vụ qua GitHub raw, xem trường agent_profile của connector shopify trong system/mcp-catalog.json. Javis KHÔNG khai năng lực thanh toán (dev.ucp.shopping.checkout): Javis dừng ở giỏ hàng rồi đưa link cho người thật bấm.",
+  "ucp": {
+    "version": "2026-04-08"
+  },
+  "capabilities": [
+    {
+      "name": "dev.ucp.shopping.catalog",
+      "version": "2026-04-08",
+      "spec": "https://ucp.dev/specification/catalog",
+      "schema": "https://ucp.dev/schemas/shopping/catalog.json"
+    },
+    {
+      "name": "dev.ucp.shopping.cart",
+      "version": "2026-04-08",
+      "spec": "https://ucp.dev/specification/cart",
+      "schema": "https://ucp.dev/schemas/shopping/cart.json"
+    }
+  ]
+}

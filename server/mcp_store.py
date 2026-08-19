@@ -490,6 +490,9 @@ def resolved(enabled_only=True):
             "command": c.get("command", ""), "args": args,
             "headers": headers, "env": env,
             "internal": (con or {}).get("internal") or "",
+            # Tham số kỹ thuật connector tự chèn vào MỌI tool call (vd meta['ucp-agent'] của
+            # Shopify/UCP). Dựng lại ở ĐÂY chứ không lưu cứng lúc thêm, để user sửa ô là đi theo.
+            "inject_args": mcp_catalog.build_inject_args(con, secrets),
             "secrets": secrets if (con or {}).get("internal") else {},
             "config": c.get("config") or {},
             "perm": c.get("perm") or "full", "deny_tools": c.get("deny_tools") or [],

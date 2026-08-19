@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.39.0] - 2026-08-19
+### Thêm mới
+- **Đấu được cửa hàng Shopify.** Thẻ **Shopify** trong Kho kết nối chỉ hỏi địa chỉ cửa hàng - không API key, không cài app, không cần bạn là chủ shop. Đấu xong là hỏi được sản phẩm, giá, tồn kho, và nhờ Javis dựng sẵn giỏ hàng rồi đưa link cho bạn bấm thanh toán.
+- Mặc định ở mức Chỉ đọc nên Javis chỉ tra cứu. Muốn nó dựng giỏ hàng thật trên shop thì nâng lên Ghi nháp; Javis không bao giờ tự thanh toán được.
+- **Ô nhập kỹ thuật giờ điền sẵn giùm bạn.** Vài kết nối đòi một giá trị mà người thường không thể tự biết; nay Javis điền sẵn, bạn cứ bấm Kết nối, và vẫn sửa được nếu muốn.
+
 ## [0.38.0] - 2026-08-18
 ### Thêm mới
 - **Terminal mở được nhiều tab.** Ngay trên khung terminal có dải tab như trình duyệt: bấm **+** mở thêm shell riêng (tối đa 4), bấm tên tab để chuyển, bấm **x** để đóng hẳn phiên đó. Tab đang khuất vẫn chạy lệnh bình thường, F5 quay lại còn nguyên dàn tab.

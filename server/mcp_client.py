@@ -462,8 +462,21 @@ class SessionPool:
         return await self._retry(spec, lambda s: s.list_tools(), idempotent=True)
 
     async def call_tool(self, spec, tool, arguments):
+        # Chèn tham số kỹ thuật BẮT BUỘC của connector (catalog `inject_args`) vào đây - đây là
+        # chốt DUY NHẤT mọi đường gọi đi qua: hub `_guard`, nút Test ở `validate_connection`,
+        # meta-tool `run` của lớp lazy, và cả route legacy. Đặt ở `_guard` thôi là nút Test đi
+        # đường vòng rồi báo đỏ trong khi kết nối vẫn tốt. Model đưa gì thì giữ nguyên cái đó.
+        args = arguments or {}
+        inject = spec.get("inject_args") or {}
+        if inject:
+            try:
+                import mcp_catalog
+                args = mcp_catalog.merge_inject_args(args, inject)
+            except Exception as e:
+                print(f"[mcp] inject_args {spec.get('label')}: {type(e).__name__}: {e}",
+                      file=sys.stderr)
         try:
-            return await self._retry(spec, lambda s: s.call_tool(tool, arguments), idempotent=False)
+            return await self._retry(spec, lambda s: s.call_tool(tool, args), idempotent=False)
         except Exception as e:
             return f"ERROR: gọi tool lỗi: {type(e).__name__}: {e}"
 
@@ -485,6 +498,7 @@ def _conn_spec(conn):
             "command": conn.get("command"), "args": conn.get("args") or [],
             "env": conn.get("env") or {}, "internal": conn.get("internal") or "",
             "secrets": conn.get("secrets") or {}, "config": conn.get("config") or {},
+            "inject_args": conn.get("inject_args") or {},
             "label": conn.get("label", "")}
 
 

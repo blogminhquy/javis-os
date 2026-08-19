@@ -77,6 +77,66 @@
       "default_perm": "readonly"
     },
     {
+      "id": "shopify",
+      "name": "Shopify",
+      "icon": "/static/logos/shopify.svg",
+      "category": "Bán hàng",
+      "description": "Tra cứu sản phẩm, giá, tồn kho và dựng sẵn giỏ hàng của MỘT cửa hàng Shopify qua MCP chính chủ (chuẩn UCP). Không cần API key, không cần cài app, không cần là chủ shop - chỉ cần địa chỉ cửa hàng.",
+      "status": "beta",
+      "transport": "http",
+      "url_template": "{shop_domain}/api/ucp/mcp",
+      "auth": {
+        "type": "none",
+        "fields": [
+          {
+            "key": "shop_domain",
+            "label": "Địa chỉ cửa hàng Shopify",
+            "placeholder": "Ví dụ: cua-hang.myshopify.com",
+            "url_base": true
+          },
+          {
+            "key": "agent_profile",
+            "label": "URL hồ sơ agent UCP (nâng cao - không rõ thì để nguyên)",
+            "placeholder": "Ví dụ: https://trang-cua-ban.com/ucp-agent-profile.json",
+            "optional": true,
+            "default": "https://raw.githubusercontent.com/blogminhquy/javis-os/main/system/ucp-agent-profile.json"
+          }
+        ],
+        "guide": "Chỉ cần địa chỉ cửa hàng, KHÔNG cần API key và không cần bạn là chủ shop - endpoint này công khai.\n\n1. Lấy địa chỉ cửa hàng: tên miền riêng (vd shop-cua-ban.com) hoặc dạng ...myshopify.com đều được.\n2. Dán vào ô dưới rồi bấm Kết nối. Gõ kiểu nào cũng được (thiếu https://, thừa gạch chéo, dán nguyên URL đang mở) - Javis tự cắt về đúng tên miền.\n\nÔ thứ hai đã điền sẵn, cứ để nguyên. Đó là hồ sơ khai báo Javis biết làm gì, phía Shopify tải về để thoả thuận năng lực; mỗi lời gọi Javis tự đính kèm, bạn không phải làm gì.\n\nLƯU Ý: cửa hàng phải bật kênh bán cho agent (Shopify bật sẵn cho phần lớn shop). Shop nào tắt thì Test sẽ báo không kết nối được - đó là thiết lập bên Shopify, không phải lỗi Javis.",
+        "guide_url": "https://shopify.dev/docs/agents/carts-and-checkout/cart-mcp",
+        "steps": [
+          {
+            "text": "Lấy địa chỉ cửa hàng Shopify muốn tra - tên miền riêng hay dạng ...myshopify.com đều được."
+          },
+          {
+            "text": "Dán vào ô Địa chỉ cửa hàng. Không cần API key, không cần đăng nhập, không cần là chủ shop."
+          },
+          {
+            "text": "Ô hồ sơ agent UCP đã điền sẵn - để nguyên. Đó là tờ khai Javis làm được những gì, phía Shopify tải về để thoả thuận năng lực; Javis tự đính kèm ở mọi lời gọi.",
+            "link": "https://shopify.dev/docs/agents/profiles",
+            "link_label": "Hồ sơ agent là gì"
+          },
+          {
+            "text": "Bấm Kết nối. Javis gọi thử cửa hàng ngay để chắc chắn đấu được. Báo đỏ thì thường là shop đó chưa bật kênh bán cho agent - đó là thiết lập bên Shopify, không phải lỗi Javis."
+          }
+        ]
+      },
+      "inject_args": {
+        "meta": {
+          "ucp-agent": {
+            "profile": "{agent_profile}"
+          }
+        }
+      },
+      "tool_meta": {
+        "read": ["search_catalog", "lookup_catalog", "get_product", "get_cart"],
+        "write": ["create_cart", "update_cart"],
+        "danger": ["cancel_cart", "*checkout*", "*payment*", "*order*"]
+      },
+      "default_perm": "readonly",
+      "risk": "Mức Chỉ đọc (mặc định) chỉ TRA CỨU sản phẩm, giá, tồn kho của cửa hàng. Không tiêu tiền, không tạo gì cả.\n\nMức Ghi nháp thêm quyền DỰNG GIỎ HÀNG trên shop thật.\nGiỏ hàng CHƯA phải đơn hàng và chưa trừ tiền: Shopify trả về một đường link để người thật bấm vào thanh toán.\nJavis KHÔNG khai năng lực thanh toán nên không tự trả tiền được.\n\nMức Toàn quyền thêm quyền HUỶ giỏ hàng đã dựng.\n\nĐây là kết nối tới cửa hàng công khai, ai biết địa chỉ shop cũng đấu được.\nNó KHÔNG cho xem doanh thu, đơn hàng hay khách hàng của shop - muốn số liệu quản trị đó thì cần kết nối quản trị viên riêng, không phải kênh này."
+    },
+    {
       "id": "zalo",
       "name": "Zalo Agent MCP",
       "icon": "/static/logos/zalo.png",

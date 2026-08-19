@@ -3563,7 +3563,9 @@
     full: { label: "Toàn quyền", color: "var(--red)" },
   };
   // Nhãn cách đăng nhập bằng tiếng người - dân thường không cần biết OAuth là gì
-  const AUTH_BADGE = { apikey: "Dán key", qr: "Quét QR", oauth: "Đăng nhập tài khoản", none: "Bấm là xong" };
+  // "none" = connector KHÔNG cần thông tin đăng nhập nào (vd Shopify: endpoint công khai,
+  // chỉ cần biết địa chỉ cửa hàng). Nhãn phải nói đúng chuyện đó, đừng để user đi tìm key.
+  const AUTH_BADGE = { apikey: "Dán key", qr: "Quét QR", oauth: "Đăng nhập tài khoản", none: "Không cần key" };
   let _connPoll = null;
 
   function closeConnModal() {
@@ -3766,14 +3768,21 @@
     openApikeyFlow(el, con, isFirst, ctx);
   }
 
-  function openApikeyFlow(el, con, isFirst, ctx) {
-    const hasSteps = con.steps && con.steps.length;
-    const fields = (con.fields || []).map(f =>
+  // Ô đăng nhập của connector. `default` điền SẴN vào ô: có connector đòi một giá trị kỹ
+  // thuật mà người thường không thể tự biết (vd URL hồ sơ agent UCP của Shopify) - để trống
+  // thì họ đứng hình, mà ghi cứng trong code thì hết đổi được. Điền sẵn + cho sửa là vừa.
+  function fieldsHtml(con, rows) {
+    return (con.fields || []).map(f =>
       '<label class="mcp-lb">' + esc(f.label || f.key)
       + (f.multiline
-        ? '<textarea class="js-input" data-f="' + esc(f.key) + '" rows="5" placeholder="' + esc(f.placeholder || "") + '"></textarea>'
-        : '<input class="js-input" data-f="' + esc(f.key) + '" placeholder="' + esc(f.placeholder || "") + '">')
+        ? '<textarea class="js-input" data-f="' + esc(f.key) + '" rows="' + rows + '" placeholder="' + esc(f.placeholder || "") + '">' + esc(f.default || "") + '</textarea>'
+        : '<input class="js-input" data-f="' + esc(f.key) + '" placeholder="' + esc(f.placeholder || "") + '" value="' + esc(f.default || "") + '">')
       + '</label>').join("");
+  }
+
+  function openApikeyFlow(el, con, isFirst, ctx) {
+    const hasSteps = con.steps && con.steps.length;
+    const fields = fieldsHtml(con, 5);
     const m = connModal(mHead("KẾT NỐI " + esc((con.name || "").toUpperCase()))
       + '<div class="conn-form">'
       // Cảnh báo rủi ro phải hiện NGAY LÚC QUYẾT ĐỊNH, không đợi tới hộp thoại đổi quyền.
@@ -4001,12 +4010,7 @@
     // Có ô multiline (vd google-ads cho dán sẵn file ADC làm đường lui) nên render y như luồng
     // apikey, đừng ép hết thành input 1 dòng.
     const hasSteps = con.steps && con.steps.length;
-    const fields = (con.fields || []).map(f =>
-      '<label class="mcp-lb">' + esc(f.label || f.key)
-      + (f.multiline
-        ? '<textarea class="js-input" data-f="' + esc(f.key) + '" rows="4" placeholder="' + esc(f.placeholder || "") + '"></textarea>'
-        : '<input class="js-input" data-f="' + esc(f.key) + '" placeholder="' + esc(f.placeholder || "") + '">')
-      + '</label>').join("");
+    const fields = fieldsHtml(con, 4);
     const m = connModal(mHead("KẾT NỐI " + esc((con.name || "").toUpperCase()))
       + '<div class="conn-form">'
       // Cảnh báo rủi ro phải hiện NGAY LÚC QUYẾT ĐỊNH, không đợi tới hộp thoại đổi quyền.

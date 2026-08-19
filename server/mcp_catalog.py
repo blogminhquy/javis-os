@@ -64,8 +64,12 @@ def public_catalog():
             "category": c.get("category", "Khác"), "description": c.get("description", ""),
             "status": c.get("status", "ready"), "transport": c.get("transport", "http"),
             "auth_type": auth.get("type", "apikey"),
+            # `default`: giá trị dựng sẵn cho ô KỸ THUẬT mà người thường không tự biết điền
+            # (vd URL hồ sơ agent UCP của Shopify). Form điền sẵn để user cứ bấm Kết nối là
+            # xong, nhưng vẫn sửa được khi cần trỏ sang hồ sơ riêng.
             "fields": [{"key": f.get("key"), "label": f.get("label", f.get("key")),
                         "placeholder": f.get("placeholder", ""), "optional": bool(f.get("optional")),
+                        "default": str(f.get("default", "") or ""),
                         "multiline": bool(f.get("multiline") or f.get("file"))}
                        for f in (auth.get("fields") or [])],
             "guide": auth.get("guide", ""), "guide_url": auth.get("guide_url", ""),
@@ -168,6 +172,82 @@ def normalize_base_url(raw):
     if not re.fullmatch(r"[A-Za-z0-9._\-\[\]:%]+", p.netloc):
         return ""
     return f"{p.scheme}://{p.netloc.lower()}"
+
+
+def _fill_tpl(node, vals):
+    """Thay {key} trong MỌI chuỗi của một cây dict/list. Trả (cây_mới, thiếu_ô_nào)."""
+    thieu = []
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            sub, t = _fill_tpl(v, vals)
+            thieu += t
+            if sub is not None:
+                out[k] = sub
+        return (out or None), thieu
+    if isinstance(node, list):
+        out = []
+        for v in node:
+            sub, t = _fill_tpl(v, vals)
+            thieu += t
+            if sub is not None:
+                out.append(sub)
+        return (out or None), thieu
+    if not isinstance(node, str):
+        return node, thieu
+    out = node
+    for key in re.findall(r"\{([A-Za-z0-9_]+)\}", node):
+        val = str(vals.get(key, "") or "").strip()
+        if not val:
+            thieu.append(key)
+            return None, thieu      # thiếu ô nguồn thì BỎ HẲN nhánh, đừng gửi "{profile}" thô
+        out = out.replace("{" + key + "}", val)
+    return out, thieu
+
+
+def build_inject_args(connector, secrets):
+    """Tham số MẶC ĐỊNH connector tự chèn vào MỌI tools/call (catalog khai `inject_args`).
+
+    Vì sao cần: đa số MCP nhận tham số thuần từ model. Nhưng có giao thức bắt MỖI lời gọi
+    phải kèm một khối kỹ thuật CỐ ĐỊNH mà model không có cách nào biết - Shopify/UCP đòi
+    `meta["ucp-agent"].profile` là URL hồ sơ agent, thiếu là 400 ở mọi tool. Bắt model tự
+    điền thì (a) nó không biết điền gì, (b) sai một lần là hỏng cả phiên, (c) tốn token lặp
+    lại ở từng lời gọi. Khai một lần trong catalog rồi để tầng client ghép vào thì mọi bộ
+    não - Claude Code, Codex, engine API - đều gọi được mà không phải biết chuyện này.
+
+    Giá trị lấy từ ô đăng nhập user gõ; ô để trống thì rơi về `default` khai trong catalog.
+    Placeholder không có nguồn -> BỎ nhánh đó (đừng gửi "{...}" thô cho server).
+    """
+    tpl = (connector or {}).get("inject_args") or {}
+    if not tpl:
+        return {}
+    vals = {}
+    for f in ((connector or {}).get("auth") or {}).get("fields", []):
+        key = f.get("key")
+        if not key:
+            continue
+        vals[key] = (str((secrets or {}).get(key, "") or "").strip()
+                     or str(f.get("default", "") or "").strip())
+    out, _ = _fill_tpl(tpl, vals)
+    return out or {}
+
+
+def merge_inject_args(base, extra):
+    """Ghép `extra` (mặc định của connector) XUỐNG DƯỚI `base` (model đưa) - base luôn thắng.
+
+    Deep-merge theo dict để model ghi đè được đúng một nhánh con (vd tự đặt meta khác) mà
+    không xoá mất phần còn lại. Không đụng list: thay cả list là ý định rõ ràng của model.
+    """
+    if not isinstance(extra, dict):
+        return base
+    out = dict(base or {})
+    for k, v in extra.items():
+        if k in out:
+            if isinstance(out[k], dict) and isinstance(v, dict):
+                out[k] = merge_inject_args(out[k], v)
+            continue                    # model đã đưa giá trị -> giữ nguyên
+        out[k] = v
+    return out
 
 
 def build_env(connector, secrets):
