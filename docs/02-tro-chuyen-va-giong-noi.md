@@ -222,6 +222,22 @@ Vài điều cần biết:
 - Ảnh do AI sinh ra mang sẵn dấu nguồn gốc (Content Credentials). Trong **Cài đặt → Giao diện & Brain → Dấu nguồn gốc ảnh AI** có hai nút **Giữ dấu** / **Gỡ dấu**; mặc định là giữ.
 - Ngoài chat, còn gọi trực tiếp được qua `POST /image/generate` với các trường `prompt`, `aspect_ratio`, `quality`, `brain`.
 
+## Tóm tắt video YouTube
+
+Dán link video vào ô chat rồi nói bạn muốn gì, ví dụ "tóm tắt video này giúp mình" hoặc "video này có nói gì về giá không". Javis đọc **phụ đề** của video rồi trả lời dựa trên lời thoại thật, kèm mốc thời gian cho từng ý chính.
+
+Nhận mọi kiểu link: `youtube.com/watch?v=...`, `youtu.be/...`, Shorts, link phát trực tiếp, link có kèm danh sách phát hay mốc thời gian, và cả link nằm lẫn trong câu bạn gõ.
+
+Bên dưới, Javis gọi tool `javis_youtube_read` (plugin đi kèm app `youtube-read`). Đây là thao tác **chỉ đọc** nên việc nền ở chế độ chỉ-đọc cũng tóm tắt được video, và nó chạy trên **mọi engine** - kể cả sáu engine API vốn không tự mở được trang web.
+
+Vài điều cần biết:
+
+- **Video không có phụ đề thì không tóm tắt được.** Javis sẽ nói thẳng như vậy chứ không đoán nội dung từ tiêu đề. Phần lớn video tiếng Việt và tiếng Anh đều có phụ đề máy nghe, nhưng video vừa đăng vài phút thì phụ đề chưa kịp chạy xong.
+- **Video riêng tư, giới hạn tuổi hoặc chặn theo vùng** cũng không đọc được, và Javis nói rõ lý do nào trong số đó.
+- **Video dài bị cắt bớt.** Một lần đọc lấy tối đa khoảng 40 nghìn ký tự lời thoại (đủ cho video 60-90 phút). Dài hơn thì Javis báo đã đọc tới phút mấy; bạn bảo "đọc tiếp" là nó đọc khúc sau.
+- **Muốn phụ đề tiếng khác** thì nói ra, ví dụ "đọc bản tiếng Anh". Mặc định Javis ưu tiên phụ đề theo ngôn ngữ giao diện, sau đó tới tiếng Anh, và luôn chuộng bản do người làm hơn bản máy nghe vì bản người có dấu câu nên tóm tắt chuẩn hơn.
+- Bản chép lời do máy nghe hay sai tên riêng và số liệu. Con số quan trọng thì nên mở video kiểm lại ở đúng mốc thời gian Javis dẫn.
+
 ## Hàng nút dưới mỗi tin nhắn
 
 Rê chuột vào một tin nhắn (của bạn hay của Javis đều được) sẽ thấy một hàng nút nhỏ hiện ra bên dưới. Trên điện thoại thì **chạm** vào tin để hiện.

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.40.0] - 2026-08-20
+### Thêm mới
+- **Dán link YouTube là Javis tóm tắt được video.** Trước đây gửi link vào chat thì Javis luôn báo không đọc được; giờ nó đọc phụ đề của video rồi tóm tắt theo lời thoại thật, kèm mốc thời gian cho từng ý để bạn tua lại đúng chỗ. Nhận cả link youtu.be, Shorts, link phát trực tiếp và link dán lẫn trong câu.
+- Chạy được ở **mọi bộ não** (kể cả các bộ não chỉ có API key), không cần khoá API YouTube và không cần đăng nhập.
+- Video không có phụ đề, video riêng tư hay bị chặn thì Javis nói thẳng lý do chứ không đoán nội dung theo tiêu đề. Video dài quá thì nó báo đã đọc tới phút mấy, bạn bảo "đọc tiếp" là nó đọc khúc sau.
+
 ## [0.39.0] - 2026-08-19
 ### Thêm mới
 - **Đấu được cửa hàng Shopify.** Thẻ **Shopify** trong Kho kết nối chỉ hỏi địa chỉ cửa hàng - không API key, không cài app, không cần bạn là chủ shop. Đấu xong là hỏi được sản phẩm, giá, tồn kho, và nhờ Javis dựng sẵn giỏ hàng rồi đưa link cho bạn bấm thanh toán.

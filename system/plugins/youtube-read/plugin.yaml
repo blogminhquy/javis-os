@@ -1,0 +1,10 @@
+name: Đọc video YouTube
+slug: youtube-read
+version: 1.0.0
+description: Đọc lời thoại (phụ đề) của video YouTube từ link để tóm tắt. Chạy trên MỌI engine, kể cả engine API không có WebFetch. Chỉ đọc, không cần API key.
+author: Javis (bundled)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_youtube_read
+hooks: []
