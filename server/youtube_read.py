@@ -31,11 +31,13 @@ GIỚI HẠN phải nói thẳng với người dùng khi gặp, đừng hứa s
 """
 from __future__ import annotations
 
+import asyncio
 import html as _html
 import json
 import re
+import time
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 import httpx
 
@@ -44,6 +46,11 @@ import httpx
 # video 60-90 phút nói liên tục; dài hơn thì cắt và chỉ đường đọc tiếp bằng `start_min`.
 MAX_CHARS_DEFAULT = 40_000
 MAX_CHARS_CEILING = 120_000
+
+# Trần thời gian cho TOÀN BỘ một lần đọc. Không có nó thì ca xấu nhất (mạng ra ngoài bị nuốt
+# gói im lặng) là sáu client nhân timeout, cộng trang watch, cộng yt-dlp - đủ để một lượt chat
+# treo vài phút rồi mới báo lỗi. Hết giờ thì dừng thử tiếp và báo bằng đúng lý do đã thu được.
+TONG_TIMEOUT_S = 90.0
 
 # Gom lời thoại thành khối ~45 giây rồi mới gắn mốc thời gian. Gắn mốc cho từng dòng phụ đề
 # (2-3 giây một dòng) làm phình văn bản gấp rưỡi mà chẳng thêm thông tin gì.
@@ -57,6 +64,15 @@ INNERTUBE_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
 _UA_WEB = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
            "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 _UA_ANDROID = "com.google.android.youtube/20.10.38 (Linux; U; Android 12) gzip"
+_UA_IOS = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X)"
+_UA_TV = ("Mozilla/5.0 (PlayStation; PlayStation 4/12.00) AppleWebKit/605.1.15 "
+          "(KHTML, like Gecko) Version/13.0 Safari/605.1.15")
+_UA_MWEB = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 "
+            "(KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1")
+
+# Thứ tự client yt-dlp thử khi tới lượt nó. Cùng tinh thần với danh sách trên: đường ít bị
+# hỏi "có phải robot không" nhất đứng trước.
+_YTDLP_CLIENTS = ["tv_embedded", "ios", "mweb", "web_safari", "android_vr"]
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 # Bắt link YouTube nằm LẪN trong câu văn ("tóm tắt hộ mình video này https://... nhé").
@@ -122,33 +138,46 @@ def parse_video_id(raw: Any) -> Optional[str]:
 # ============================================================
 # playerResponse: InnerTube trước, cào HTML sau
 # ============================================================
+# Sáu "client" InnerTube, xếp theo mức chịu đòn khi YouTube siết. Vì sao phải nhiều đến vậy:
+# YouTube không chặn hay mở đồng loạt mà siết từng client một, nên client hôm nay chết thì
+# client khác thường vẫn chạy. Đây đúng là mẹo mà yt-dlp và các trang tải phụ đề dùng để sống
+# sót qua từng đợt siết.
+#   - tv_embedded, ios: hai đường ÍT bị đòi "xác nhận không phải robot" nhất, và tv_embedded
+#     còn qua được kha khá video giới hạn tuổi. Thử trước.
+#   - android: nhanh, nhưng ngày càng hay bị đòi token chứng thực khi gọi từ IP máy chủ.
+#   - mweb, web_embedded, web: đường trình duyệt, dễ dính màn hỏi robot nhất nên để cuối.
+_CLIENT_SPECS = [
+    # (tên ngắn, clientName, clientVersion, mã số client, trường bổ sung, User-Agent, có nhúng?)
+    ("tv_embedded", "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "2.0", "85",
+     {"clientScreen": "EMBED"}, _UA_TV, True),
+    ("ios", "IOS", "20.10.4", "5",
+     {"deviceMake": "Apple", "deviceModel": "iPhone16,2", "osName": "iPhone",
+      "osVersion": "18.3.2.22D82"}, _UA_IOS, False),
+    ("android", "ANDROID", "20.10.38", "3", {"androidSdkVersion": 31}, _UA_ANDROID, False),
+    ("mweb", "MWEB", "2.20250726.00.00", "2", {}, _UA_MWEB, False),
+    ("web_embedded", "WEB_EMBEDDED_PLAYER", "1.20250726.00.00", "56", {}, _UA_WEB, True),
+    ("web", "WEB", "2.20250726.00.00", "1", {}, _UA_WEB, False),
+]
+
+
 def _clients(hl: str, gl: str) -> List[Tuple[str, dict, dict]]:
     """(tên, payload, headers) của từng client InnerTube, xếp theo thứ tự đáng thử."""
-    return [
-        ("android", {
-            "videoId": "", "contentCheckOk": True, "racyCheckOk": True,
-            "context": {"client": {
-                "clientName": "ANDROID", "clientVersion": "20.10.38",
-                "androidSdkVersion": 31, "hl": hl, "gl": gl,
-                "userAgent": _UA_ANDROID,
-            }},
-        }, {
-            "User-Agent": _UA_ANDROID, "Content-Type": "application/json",
-            "X-YouTube-Client-Name": "3", "X-YouTube-Client-Version": "20.10.38",
+    ra: List[Tuple[str, dict, dict]] = []
+    for ten, cname, cver, cnum, them, ua, nhung in _CLIENT_SPECS:
+        ctx: Dict[str, Any] = {"clientName": cname, "clientVersion": cver,
+                               "hl": hl, "gl": gl, "userAgent": ua}
+        ctx.update(them)
+        payload: Dict[str, Any] = {"videoId": "", "contentCheckOk": True, "racyCheckOk": True,
+                                   "context": {"client": ctx}}
+        if nhung:
+            # Client nhúng phải khai trang chứa video, thiếu nó YouTube trả về "không nhúng được".
+            payload["context"]["thirdParty"] = {"embedUrl": "https://www.youtube.com"}
+        ra.append((ten, payload, {
+            "User-Agent": ua, "Content-Type": "application/json",
+            "X-YouTube-Client-Name": cnum, "X-YouTube-Client-Version": cver,
             "Origin": "https://www.youtube.com",
-        }),
-        ("web", {
-            "videoId": "", "contentCheckOk": True, "racyCheckOk": True,
-            "context": {"client": {
-                "clientName": "WEB", "clientVersion": "2.20240726.00.00",
-                "hl": hl, "gl": gl,
-            }},
-        }, {
-            "User-Agent": _UA_WEB, "Content-Type": "application/json",
-            "X-YouTube-Client-Name": "1", "X-YouTube-Client-Version": "2.20240726.00.00",
-            "Origin": "https://www.youtube.com",
-        }),
-    ]
+        }))
+    return ra
 
 
 def _cat_json(txt: str, start: int) -> Optional[dict]:
@@ -178,10 +207,42 @@ def _cat_json(txt: str, start: int) -> Optional[dict]:
     return None
 
 
+def _tracks_of(player: Any) -> List[dict]:
+    """Danh sách đường phụ đề trong một playerResponse (rỗng nếu video không có phụ đề)."""
+    try:
+        tr = player["captions"]["playerCaptionsTracklistRenderer"]["captionTracks"]
+    except Exception:
+        return []
+    return [t for t in tr if isinstance(t, dict) and t.get("baseUrl")]
+
+
+def _dich_duoc(player: Any) -> List[str]:
+    """Các thứ tiếng YouTube nhận dịch phụ đề sang (tham số tlang)."""
+    try:
+        ds = player["captions"]["playerCaptionsTracklistRenderer"]["translationLanguages"]
+    except Exception:
+        return []
+    return [str(d.get("languageCode") or "") for d in ds if isinstance(d, dict)]
+
+
 async def _player_response(client: httpx.AsyncClient, vid: str, hl: str, gl: str,
-                           notes: List[str]) -> Optional[dict]:
-    """playerResponse của video, thử lần lượt các client InnerTube rồi mới cào HTML."""
+                           notes: List[str], chan_doan: List[Tuple[str, str]],
+                           han: float = 0.0) -> Tuple[Optional[dict], str]:
+    """(playerResponse DÙNG ĐƯỢC, tên nguồn), hoặc (None, "") khi mọi đường đều thua.
+
+    ĐIỂM QUAN TRỌNG, và cũng là chỗ bản đầu tiên sai: một client trả về "phải đăng nhập"
+    KHÔNG được kết thúc cuộc tìm. Phần lớn ca đó là YouTube nghi IP máy chủ là robot chứ
+    video không hề riêng tư, và client khác (nhất là tv_embedded) thường vẫn lấy được như
+    thường. Bản đầu dừng ngay ở client đầu tiên nên chết đúng ca hay gặp nhất trên VPS.
+
+    Chỉ nhận một playerResponse khi nó VỪA xem được VỪA có phụ đề. Mọi lý do từ chối được
+    cất vào `chan_doan` để nếu cuối cùng không đường nào chạy thì còn cái mà báo cho đúng.
+    """
+    du_phong: Tuple[Optional[dict], str] = (None, "")
     for ten, payload, headers in _clients(hl, gl):
+        if han and time.monotonic() > han:
+            notes.append(f"dừng ở {ten}: hết thời gian cho phép")
+            return du_phong
         payload = dict(payload, videoId=vid)
         try:
             r = await client.post(f"{INNERTUBE_URL}?key={INNERTUBE_KEY}",
@@ -190,11 +251,27 @@ async def _player_response(client: httpx.AsyncClient, vid: str, hl: str, gl: str
                 notes.append(f"innertube/{ten}: HTTP {r.status_code}")
                 continue
             data = r.json()
-            if isinstance(data, dict) and (data.get("captions") or data.get("videoDetails")):
-                return data
-            notes.append(f"innertube/{ten}: trả về thiếu captions/videoDetails")
+            if not isinstance(data, dict) or not (data.get("captions") or data.get("videoDetails")):
+                notes.append(f"innertube/{ten}: trả về thiếu captions/videoDetails")
+                continue
+            ma, ly_do = _khong_xem_duoc(data)
+            if ma:
+                notes.append(f"innertube/{ten}: {ma}")
+                chan_doan.append((ma, ly_do))
+                continue
+            if _tracks_of(data):
+                return data, f"innertube/{ten}"
+            # Xem được nhưng không khai phụ đề: có thể client này bị cắt bớt phần captions,
+            # nên vẫn thử client sau. Giữ lại làm dự phòng để còn tiêu đề mà báo cho người dùng.
+            notes.append(f"innertube/{ten}: xem được nhưng không khai phụ đề")
+            if du_phong[0] is None:
+                du_phong = (data, f"innertube/{ten}")
         except Exception as e:
             notes.append(f"innertube/{ten}: {type(e).__name__}: {e}")
+
+    if han and time.monotonic() > han:
+        notes.append("bỏ qua trang watch: hết thời gian cho phép")
+        return du_phong
 
     # Dự phòng: cào trang watch. Cookie CONSENT né màn hỏi đồng ý cookie ở châu Âu, cái đó
     # trả về một trang trung gian không có playerResponse.
@@ -205,23 +282,164 @@ async def _player_response(client: httpx.AsyncClient, vid: str, hl: str, gl: str
                      "Cookie": "CONSENT=YES+cb"})
         if r.status_code != 200:
             notes.append(f"watch-page: HTTP {r.status_code}")
-            return None
-        txt = r.text
-        for mark in _PLAYER_MARKERS:
-            i = txt.find(mark)
-            if i < 0:
-                continue
-            j = txt.find("{", i + len(mark) - 1)
-            if j < 0:                    # _cat_json(-1) sẽ quét lại từ đầu file và cắt nhầm object
-                continue
-            data = _cat_json(txt, j)
-            if isinstance(data, dict):
-                return data
-        notes.append("watch-page: không thấy ytInitialPlayerResponse (nhiều khả năng YouTube "
-                     "đang chặn IP máy chủ này)")
+        else:
+            txt = r.text
+            for mark in _PLAYER_MARKERS:
+                i = txt.find(mark)
+                if i < 0:
+                    continue
+                j = txt.find("{", i + len(mark) - 1)
+                if j < 0:            # _cat_json(-1) sẽ quét lại từ đầu file và cắt nhầm object
+                    continue
+                data = _cat_json(txt, j)
+                if not isinstance(data, dict):
+                    continue
+                ma, ly_do = _khong_xem_duoc(data)
+                if ma:
+                    notes.append(f"watch-page: {ma}")
+                    chan_doan.append((ma, ly_do))
+                    break
+                if _tracks_of(data):
+                    return data, "watch-page"
+                notes.append("watch-page: xem được nhưng không khai phụ đề")
+                if du_phong[0] is None:
+                    du_phong = (data, "watch-page")
+                break
+            else:
+                notes.append("watch-page: không thấy ytInitialPlayerResponse")
     except Exception as e:
         notes.append(f"watch-page: {type(e).__name__}: {e}")
-    return None
+    return du_phong
+
+
+# ============================================================
+# yt-dlp: quân dự bị khi mọi đường tự viết đều bị chặn
+# ============================================================
+# Vì sao vẫn cần dù đã có sáu client ở trên: yt-dlp được cập nhật gần như hằng tuần theo đúng
+# từng đợt YouTube siết, còn code ở đây thì không. Nó cũng biết nhiều mẹo mà mình không chép
+# lại hết được. Đổi lại nó chậm hơn (một lần trích xuất đầy đủ), nên chỉ chạy khi đường nhanh
+# đã thua - video bình thường không phải trả cái giá đó.
+#
+# KHÔNG dùng cookie đăng nhập, có chủ ý: video thật sự riêng tư hay bắt đăng nhập theo tài
+# khoản thì vẫn bó tay, nhưng đổi lại Javis không phải giữ phiên YouTube của người dùng trên
+# máy chủ - thứ mà lộ ra là mất luôn tài khoản.
+def _bo_fmt(url: str) -> str:
+    """Bỏ tham số fmt= khỏi URL phụ đề: chỗ gọi tự thêm fmt=json3 rồi mới lui về XML."""
+    try:
+        u = urlsplit(url)
+        q = [(k, v) for k, v in parse_qsl(u.query, keep_blank_values=True) if k != "fmt"]
+        return urlunsplit((u.scheme, u.netloc, u.path, urlencode(q), u.fragment))
+    except Exception:
+        return url
+
+
+def _them_tham_so(url: str, **kw: str) -> str:
+    """Thêm tham số vào URL mà không phá phần đã có. Tham số rỗng thì bỏ qua."""
+    try:
+        u = urlsplit(url)
+        q = parse_qsl(u.query, keep_blank_values=True) + [(k, v) for k, v in kw.items() if v]
+        return urlunsplit((u.scheme, u.netloc, u.path, urlencode(q), u.fragment))
+    except Exception:
+        return url
+
+
+class _LangCam:
+    """Nuốt mọi thứ yt-dlp định in ra.
+
+    `quiet: True` của yt-dlp KHÔNG chặn dòng error: một video bị chặn làm nó xả năm dòng
+    ERROR kèm lời mời đi mở issue trên GitHub vào log máy chủ, cho một việc mà Javis đã có
+    đường xử lý tử tế rồi. Lý do thật vẫn được giữ: nó nằm trong exception mà `_ytdlp` bắt
+    và ghi vào `notes`.
+    """
+
+    def debug(self, msg): pass
+
+    def info(self, msg): pass
+
+    def warning(self, msg): pass
+
+    def error(self, msg): pass
+
+
+def _tu_ytdlp_info(info: Any) -> dict:
+    """Đổi info của yt-dlp sang đúng khuôn captionTracks mà phần còn lại của file đang dùng.
+
+    Tách riêng khỏi phần gọi mạng có chủ ý: đây là chỗ dễ sai (khoá ngôn ngữ lạ, định dạng
+    lạ, thiếu url) và là chỗ đáng test nhất, mà test thì không được chạm mạng.
+    """
+    info = info if isinstance(info, dict) else {}
+    tracks: List[dict] = []
+    for kho, la_asr in ((info.get("subtitles") or {}, False),
+                        (info.get("automatic_captions") or {}, True)):
+        for ma, ds in (kho or {}).items():
+            ma = str(ma)
+            if not ds or ma.startswith("live_chat"):
+                continue
+            # Ưu tiên định dạng lấy thẳng từ đường timedtext để hai bộ đọc sẵn có dùng lại
+            # được. vtt/ttml cũng cùng nội dung nhưng khác khuôn; bỏ tham số fmt đi là YouTube
+            # trả về đúng json3/XML như thường.
+            uu = [d for d in ds if isinstance(d, dict)
+                  and str(d.get("ext") or "") in ("json3", "srv3", "srv1")]
+            if not uu:
+                uu = [d for d in ds if isinstance(d, dict) and d.get("url")]
+            if not uu or not uu[0].get("url"):
+                continue
+            chon = uu[0]
+            tracks.append({
+                "baseUrl": _bo_fmt(str(chon["url"])), "languageCode": ma,
+                "kind": "asr" if la_asr else "",
+                "vssId": ("a." if la_asr else ".") + ma,
+                "name": {"simpleText": str(chon.get("name") or ma)},
+            })
+    try:
+        dur = int(float(info.get("duration") or 0))
+    except Exception:
+        dur = 0
+    return {
+        "tracks": tracks,
+        "translations": [str(m) for m in (info.get("automatic_captions") or {})],
+        "meta": {
+            "title": str(info.get("title") or "").strip(),
+            "author": str(info.get("uploader") or info.get("channel") or "").strip(),
+            "duration_s": dur,
+            "description": str(info.get("description") or "").strip(),
+            "is_live": bool(info.get("is_live")),
+        },
+    }
+
+
+def _ytdlp_sync(url: str) -> dict:
+    """CHẠY CHẶN (gọi qua asyncio.to_thread). Trả {tracks, meta, translations}, hoặc ném lỗi."""
+    import yt_dlp
+
+    opts = {
+        "quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True,
+        "socket_timeout": 20, "retries": 1, "extractor_retries": 1, "cachedir": False,
+        "logger": _LangCam(), "noprogress": True,
+        "extractor_args": {"youtube": {"player_client": _YTDLP_CLIENTS}},
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        return _tu_ytdlp_info(ydl.extract_info(url, download=False))
+
+
+async def _ytdlp(url: str, notes: List[str], timeout_s: float = 75.0) -> Optional[dict]:
+    """Nhánh yt-dlp, đã bọc kín: thiếu thư viện hay lỗi gì cũng chỉ ghi note rồi trả None."""
+    try:
+        import yt_dlp  # noqa: F401
+    except Exception:
+        notes.append("yt-dlp: chưa cài trên máy này (chạy lại pip install -r requirements.txt)")
+        return None
+    try:
+        kq = await asyncio.wait_for(asyncio.to_thread(_ytdlp_sync, url), timeout=timeout_s)
+    except asyncio.TimeoutError:
+        notes.append(f"yt-dlp: quá {int(timeout_s)}s không xong")
+        return None
+    except Exception as e:
+        notes.append(f"yt-dlp: {type(e).__name__}: {str(e)[:200]}")
+        return None
+    if not kq.get("tracks"):
+        notes.append("yt-dlp: vào được video nhưng không có phụ đề nào")
+    return kq
 
 
 # ============================================================
@@ -275,14 +493,10 @@ def track_label(track: dict) -> str:
     return f"{nhan or ma} ({ma}, {kieu})"
 
 
-def can_translate(player: dict, lang: str) -> bool:
-    """YouTube có dịch được phụ đề sang `lang` không (tham số tlang)."""
+def can_translate(codes: List[str], lang: str) -> bool:
+    """YouTube có nhận dịch phụ đề sang `lang` không (tham số tlang)."""
     ma = str(lang or "").split("-")[0].lower()
-    try:
-        ds = player["captions"]["playerCaptionsTracklistRenderer"].get("translationLanguages") or []
-    except Exception:
-        return False
-    return any(str(d.get("languageCode") or "").split("-")[0].lower() == ma for d in ds)
+    return any(str(c or "").split("-")[0].lower() == ma for c in (codes or []))
 
 
 # ============================================================
@@ -420,29 +634,91 @@ def _meta(player: dict) -> dict:
     }
 
 
-def _khong_xem_duoc(player: dict) -> Optional[str]:
-    """Lý do (tiếng Việt) nếu YouTube từ chối phát video, None nếu bình thường."""
+# Dấu hiệu trong `reason` của YouTube. Phải tách bạch vì HAI CA RẤT KHÁC NHAU cùng trả về
+# status LOGIN_REQUIRED, mà cách xử và lời báo cho người dùng thì trái ngược:
+#   - "nghi robot": YouTube nghi IP MÁY CHỦ chứ video công khai bình thường. Đổi client hoặc
+#     để yt-dlp làm là qua. Báo "video riêng tư" ở ca này là báo SAI, người dùng sẽ đi mở
+#     quyền một video vốn đã công khai sẵn.
+#   - "giới hạn tuổi": chặn theo NỘI DUNG. tv_embedded qua được kha khá ca, nhưng không phải tất cả.
+_DAU_ROBOT = ("not a bot", "unusual traffic", "confirm you're not a bot",
+              "confirm you are not a bot")
+_DAU_TUOI = ("confirm your age", "age-restricted", "inappropriate for some users",
+             "may be inappropriate")
+
+
+def _khong_xem_duoc(player: dict) -> Tuple[str, str]:
+    """(mã lý do, câu tiếng Việt). ("", "") khi video xem được bình thường.
+
+    Mã: robot | tuoi | rieng_tu | da_go | khac.
+    """
     ps = (player or {}).get("playabilityStatus") or {}
     tt = str(ps.get("status") or "").upper()
     if tt in ("", "OK"):
-        return None
+        return "", ""
     ly_do = str(ps.get("reason") or "").strip()
+    thap = ly_do.lower()
+    duoi = f" YouTube nói: {ly_do}" if ly_do else ""
+
+    if any(d in thap for d in _DAU_ROBOT):
+        return "robot", ("YouTube đang nghi máy chủ này là robot nên bắt đăng nhập. Video "
+                         "không hề riêng tư, chỉ là IP máy chủ bị nghi." + duoi)
+    if any(d in thap for d in _DAU_TUOI):
+        return "tuoi", ("video bị giới hạn tuổi nên YouTube bắt đăng nhập mới xem được." + duoi)
+    if "private" in thap:
+        return "rieng_tu", "video này để ở chế độ riêng tư." + duoi
     if tt == "LOGIN_REQUIRED":
-        return ("video này đòi đăng nhập (riêng tư, hoặc giới hạn tuổi). Javis đọc bằng đường "
-                "công khai nên không vào được." + (f" YouTube nói: {ly_do}" if ly_do else ""))
+        return "rieng_tu", ("video này đòi đăng nhập mới xem được. Javis đọc bằng đường công "
+                            "khai nên không vào được." + duoi)
     if tt == "ERROR":
-        return "video không tồn tại hoặc đã bị gỡ." + (f" YouTube nói: {ly_do}" if ly_do else "")
+        return "da_go", "video không tồn tại hoặc đã bị gỡ." + duoi
     if tt == "UNPLAYABLE":
-        return "video không phát được ở đây" + (f": {ly_do}" if ly_do else
-                                                " (có thể bị chặn theo vùng hoặc chỉ cho hội viên).")
-    return f"YouTube từ chối ({tt})" + (f": {ly_do}" if ly_do else "")
+        return "khac", ("video không phát được ở đây" +
+                        (f": {ly_do}" if ly_do else
+                         " (có thể bị chặn theo vùng, hoặc chỉ dành cho hội viên)."))
+    return "khac", f"YouTube từ chối ({tt})" + duoi
+
+
+# Lý do nào đáng tin hơn khi nhiều client nói nhiều kiểu. Video ĐÃ GỠ hay RIÊNG TƯ là sự thật
+# về chính video nên thắng; còn "nghi robot" chỉ là chuyện của IP máy chủ nên xếp cuối.
+_UU_TIEN_LY_DO = ["da_go", "rieng_tu", "tuoi", "khac", "robot"]
+
+
+def _ly_do_chinh(chan_doan: List[Tuple[str, str]]) -> Tuple[str, str]:
+    for ma in _UU_TIEN_LY_DO:
+        for m, ly_do in chan_doan:
+            if m == ma:
+                return m, ly_do
+    return "", ""
+
+
+async def _tai_loi_thoai(client: httpx.AsyncClient, base: str, tlang: str, hl: str,
+                         notes: List[str]) -> List[Tuple[float, str]]:
+    """Tải một đường phụ đề: thử json3 trước, hỏng thì lui về XML cũ."""
+    for fmt in ("json3", ""):
+        u = _them_tham_so(base, fmt=fmt, tlang=tlang)
+        try:
+            r = await client.get(u, headers={"User-Agent": _UA_WEB,
+                                             "Accept-Language": f"{hl},en;q=0.8"})
+            if r.status_code != 200:
+                notes.append(f"timedtext({fmt or 'xml'}): HTTP {r.status_code}")
+                continue
+            lines = parse_json3(r.json()) if fmt else parse_xml(r.text)
+            if lines:
+                return lines
+            notes.append(f"timedtext({fmt or 'xml'}): rỗng")
+        except Exception as e:
+            notes.append(f"timedtext({fmt or 'xml'}): {type(e).__name__}: {e}")
+    return []
 
 
 async def read(url: str, lang: Optional[str] = None, timestamps: bool = True,
                start_min: float = 0.0, max_chars: int = MAX_CHARS_DEFAULT,
-               timeout_s: float = 25.0,
+               timeout_s: float = 25.0, cho_phep_ytdlp: bool = True,
                client: Optional[httpx.AsyncClient] = None) -> Dict[str, Any]:
     """Đọc phụ đề một video YouTube. Không ném lỗi ra ngoài - luôn trả dict có `ok` và `code`.
+
+    Thứ tự các đường, nhanh trước chậm sau: sáu client InnerTube -> cào trang watch -> yt-dlp.
+    Video bình thường xong ngay ở đường đầu, không phải trả giá cho hai đường sau.
 
     `client` chỉ để test bơm httpx.MockTransport vào; chạy thật thì để None.
     """
@@ -465,60 +741,76 @@ async def read(url: str, lang: Optional[str] = None, timestamps: bool = True,
     hl = (str(lang).split("-")[0].lower() if lang else _ngon_ngu_ui()) or "vi"
     gl = "VN" if hl == "vi" else "US"
     notes: List[str] = []
+    chan_doan: List[Tuple[str, str]] = []
+    canonical = f"https://www.youtube.com/watch?v={vid}"
+    han = time.monotonic() + TONG_TIMEOUT_S
     tu_tao = client is None
     if tu_tao:
         client = httpx.AsyncClient(timeout=httpx.Timeout(timeout_s, connect=10.0),
                                    follow_redirects=True)
-    goc = {"ok": False, "code": "fetch_failed", "video_id": vid,
-           "url": f"https://www.youtube.com/watch?v={vid}", "notes": notes}
+    goc: Dict[str, Any] = {"ok": False, "code": "fetch_failed", "video_id": vid,
+                           "url": canonical, "notes": notes}
     try:
-        player = await _player_response(client, vid, hl, gl, notes)
-        if not player:
-            goc["code"] = "blocked"
-            goc["error"] = ("không lấy được dữ liệu trình phát của video (YouTube có thể đang "
-                            "chặn máy chủ này, hoặc mạng ra ngoài đang hỏng).")
+        player, nguon = await _player_response(client, vid, hl, gl, notes, chan_doan, han)
+        tracks = _tracks_of(player) if player else []
+        dich_duoc = _dich_duoc(player) if player else []
+        if player:
+            goc.update(_meta(player))
+
+        # Đường nhanh thua (bị chặn, hoặc vào được mà không thấy phụ đề) thì tới lượt yt-dlp.
+        con_lai = han - time.monotonic()
+        if not tracks and cho_phep_ytdlp and con_lai < 5:
+            notes.append("bỏ qua yt-dlp: hết thời gian cho phép")
+        elif not tracks and cho_phep_ytdlp:
+            yt = await _ytdlp(canonical, notes, timeout_s=min(75.0, con_lai))
+            if yt and yt.get("tracks"):
+                tracks = yt["tracks"]
+                dich_duoc = yt.get("translations") or []
+                nguon = "yt-dlp"
+                # Metadata của yt-dlp đầy đủ hơn; chỉ đắp vào chỗ đường nhanh còn trống.
+                for k, v in (yt.get("meta") or {}).items():
+                    if v and not goc.get(k):
+                        goc[k] = v
+            elif yt:
+                for k, v in (yt.get("meta") or {}).items():
+                    if v and not goc.get(k):
+                        goc[k] = v
+
+        goc["source"] = nguon
+        if not tracks:
+            ma, ly_do = _ly_do_chinh(chan_doan)
+            if ma == "robot":
+                goc["code"] = "blocked"
+                goc["error"] = ly_do
+            elif ma:
+                goc["code"] = "unavailable"
+                goc["error"] = ly_do
+            elif goc.get("title"):
+                # Vào được video, đọc được tiêu đề, mà không đường nào khai phụ đề: video
+                # thật sự không có phụ đề chứ không phải bị chặn.
+                goc["code"] = "no_captions"
+                goc["error"] = ("video này KHÔNG có phụ đề nào (kể cả phụ đề máy nghe), nên "
+                                "không có lời thoại để đọc.")
+            else:
+                goc["code"] = "blocked"
+                goc["error"] = ("không lấy được dữ liệu trình phát của video. Mọi đường đều bị "
+                                "từ chối: YouTube nhiều khả năng đang chặn máy chủ này, hoặc "
+                                "mạng ra ngoài đang hỏng.")
             return goc
 
-        goc.update(_meta(player))
-        ly_do = _khong_xem_duoc(player)
-        if ly_do:
-            goc["code"] = "unavailable"
-            goc["error"] = ly_do
-            return goc
-
-        try:
-            tracks = player["captions"]["playerCaptionsTracklistRenderer"]["captionTracks"]
-        except Exception:
-            tracks = []
         track = pick_track(tracks, lang)
         if not track:
             goc["code"] = "no_captions"
-            goc["error"] = ("video này KHÔNG có phụ đề nào (kể cả phụ đề máy nghe), nên không "
-                            "có lời thoại để đọc.")
+            goc["error"] = "không chọn được đường phụ đề nào dùng được."
             return goc
 
         # Xin YouTube dịch sẵn khi user đòi một thứ tiếng mà video không có sẵn phụ đề.
-        base = str(track.get("baseUrl") or "")
         tlang = ""
-        if lang and _lang_of(track) != str(lang).split("-")[0].lower() and can_translate(player, lang):
+        if lang and _lang_of(track) != str(lang).split("-")[0].lower() \
+                and can_translate(dich_duoc, lang):
             tlang = str(lang).split("-")[0].lower()
 
-        lines: List[Tuple[float, str]] = []
-        for fmt in ("json3", ""):
-            u = base + ("&fmt=json3" if fmt else "") + (f"&tlang={tlang}" if tlang else "")
-            try:
-                r = await client.get(u, headers={"User-Agent": _UA_WEB,
-                                                 "Accept-Language": f"{hl},en;q=0.8"})
-                if r.status_code != 200:
-                    notes.append(f"timedtext({fmt or 'xml'}): HTTP {r.status_code}")
-                    continue
-                lines = parse_json3(r.json()) if fmt else parse_xml(r.text)
-                if lines:
-                    break
-                notes.append(f"timedtext({fmt or 'xml'}): rỗng")
-            except Exception as e:
-                notes.append(f"timedtext({fmt or 'xml'}): {type(e).__name__}: {e}")
-
+        lines = await _tai_loi_thoai(client, str(track.get("baseUrl") or ""), tlang, hl, notes)
         if not lines:
             goc["code"] = "no_captions"
             goc["error"] = ("YouTube có khai báo phụ đề nhưng trả về rỗng khi tải. Thường gặp "
@@ -577,8 +869,10 @@ def render(res: Dict[str, Any]) -> str:
                             "tóm tắt được nội dung, ĐỪNG bịa nội dung từ tiêu đề. Nếu có mô tả "
                             "bên dưới thì chỉ được tóm tắt phần mô tả và nói rõ đó là mô tả."),
             "unavailable": "Nói rõ lý do này cho người dùng, đừng đoán nội dung video.",
-            "blocked": ("Nói rõ là YouTube đang chặn máy chủ, không phải link hỏng. Người dùng "
-                        "có thể thử lại sau, hoặc dán thẳng bản chép lời vào chat."),
+            "blocked": ("Nói rõ là YOUTUBE ĐANG CHẶN MÁY CHỦ chứ link không hỏng và video "
+                        "không riêng tư - Javis đã thử đủ sáu kiểu trình phát lẫn yt-dlp đều bị "
+                        "từ chối. Người dùng thử lại sau thường là được, hoặc dán thẳng bản "
+                        "chép lời vào chat."),
             "bad_url": "Xin người dùng gửi lại link video cho đúng.",
         }.get(str(res.get("code") or ""), "Nói rõ lỗi này cho người dùng, đừng bịa nội dung video.")
         phan = ["KHÔNG đọc được nội dung video: " + loi, "", "\n".join(dau), "", khuyen]
@@ -594,6 +888,8 @@ def render(res: Dict[str, Any]) -> str:
     if res.get("code") == "exhausted":
         return ("\n".join(dau) + f"\n\nKhông còn lời thoại nào từ phút {res.get('from_min')} trở đi: "
                 "đã đọc HẾT video này rồi. Nói với người dùng là đã đọc trọn vẹn, đừng gọi lại tool.")
+    if res.get("source"):
+        dau.append(f"Đọc được qua: {res['source']}")
     dau.append(f"Phụ đề dùng để đọc: {res.get('track') or res.get('lang') or ''}"
                + (f", đã nhờ YouTube dịch sang '{res['translated_to']}'" if res.get("translated_to") else ""))
     duoi = ""

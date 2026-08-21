@@ -10,6 +10,11 @@ cào trang watch). Vì sao là plugin bundled chứ không phải để engine t
 
 min_mode=readonly: thuần đọc, không ghi file, không tiêu tiền, không đụng tài khoản. Nhờ vậy
 loop/agent ở chế độ chỉ-đọc vẫn tóm tắt được video.
+
+KHÔNG dùng cookie đăng nhập YouTube, có chủ ý: đổi lại là chịu thua video thật sự riêng tư,
+nhưng Javis không phải giữ phiên đăng nhập của người dùng trên máy chủ - thứ mà lộ ra là
+mất luôn tài khoản. Ca hay gặp trên VPS ("nghi máy chủ là robot") thì đã có sáu kiểu trình
+phát và yt-dlp lo, không cần tới cookie.
 """
 from __future__ import annotations
 
@@ -46,7 +51,8 @@ def register(ctx):
             "trang đó không chứa lời thoại. Tham số: url (bắt buộc), lang (mã ngôn ngữ phụ đề "
             "muốn ưu tiên, vd 'vi'/'en'), start_min (đọc tiếp từ phút thứ mấy, cho video dài bị "
             "cắt bớt), timestamps (mặc định true), max_chars. Video không có phụ đề thì tool "
-            "báo rõ - khi đó ĐỪNG bịa nội dung."),
+            "báo rõ - khi đó ĐỪNG bịa nội dung. Tool tự đổi qua nhiều kiểu trình phát rồi tới "
+            "yt-dlp khi YouTube chặn máy chủ, nên link hỏng thật mới trả về lỗi."),
         handler=_read, min_mode="readonly", emoji="🎬",
         schema={"type": "object", "properties": {
             "url": {"type": "string",

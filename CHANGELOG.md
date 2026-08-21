@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.41.0] - 2026-08-20
+### Sửa lỗi
+- **Đọc được nhiều video YouTube hơn hẳn.** Bản trước hay báo "video đòi đăng nhập" rồi bỏ cuộc, kể cả với video công khai bình thường. Thủ phạm là YouTube nghi địa chỉ máy chủ là robot, hay gặp khi Javis chạy trên VPS. Giờ nó tự đổi lần lượt qua sáu kiểu trình phát rồi mới nhờ tới yt-dlp, nên phần lớn ca đó tự vượt được.
+- **Báo đúng bệnh.** "Máy chủ bị nghi là robot" không còn bị nói nhầm thành "video riêng tư" nữa, nên bạn khỏi mất công đi mở quyền một video vốn đã công khai sẵn.
+
 ## [0.40.0] - 2026-08-20
 ### Thêm mới
 - **Dán link YouTube là Javis tóm tắt được video.** Trước đây gửi link vào chat thì Javis luôn báo không đọc được; giờ nó đọc phụ đề của video rồi tóm tắt theo lời thoại thật, kèm mốc thời gian cho từng ý để bạn tua lại đúng chỗ. Nhận cả link youtu.be, Shorts, link phát trực tiếp và link dán lẫn trong câu.
