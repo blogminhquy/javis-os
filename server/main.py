@@ -23,6 +23,7 @@ import re
 import secrets
 import shutil
 import time
+import types as _types   # object tạm cho _apply_antigravity_hub ở endpoint kiểm tra
 import yaml
 import fastyaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Form, Request, Body, Header
@@ -2472,12 +2473,19 @@ def _apply_gemini_hub(cli, vault_root=None, mode="full"):
 
 
 def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
-    """Gắn MCP hub của Javis vào tiến trình `agy`, cùng khuôn với _apply_gemini_hub.
+    """Gắn MCP hub của Javis vào tiến trình `agy`.
 
     Header y hệt ba engine kia (`Bearer hub_token` + X-Javis-Mode + X-Javis-Vault) nên hub áp
-    đúng một bộ luật quyền cho cả bốn. Chỗ khác duy nhất nằm trong
-    `antigravity_cli.ghi_mcp_settings`: chưa đo được tên file cấu hình thật của `agy` nên nó
-    ghi ra cả hai ứng viên.
+    đúng một bộ luật quyền cho cả bốn. Hai chỗ KHÁC hẳn `_apply_gemini_hub`, và cả hai là lý do
+    bộ não này chạy suốt mấy bản mà không có lấy một tool nào của Javis:
+
+    - **Hình dạng entry** dựng bằng `antigravity_cli.hub_entry()` chứ không viết tay ở đây.
+      `agy` đọc khoá `serverUrl`; `httpUrl` (khoá của Gemini CLI) bị nó bỏ qua không một tiếng
+      động. Để hình dạng entry trong module engine là để nó không trôi theo file Gemini lần nữa.
+    - **Chỗ đặt file** là cấu hình HOME của `agy`, không phải trong brain - xem khối chú thích ở
+      `antigravity_cli.ghi_mcp_settings`. Đổi lại là file dùng chung, nên khi bản CLI có cờ nhận
+      file cấu hình riêng thì gắn thêm một file per-brain để hai brain chạy cùng lúc không giẫm
+      lên header của nhau (đối xứng `mcp_hub.codex_vault_override` bên Codex).
     """
     root = vault_root or getattr(cli, "cwd", None)
     if not root:
@@ -2489,9 +2497,12 @@ def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
             headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
         except Exception:
             headers["X-Javis-Vault"] = str(root)
-        hub = {"httpUrl": mcp_hub.hub_url(), "headers": headers,
-               "trust": True, "timeout": 20000}
+        hub = antigravity_cli.hub_entry(mcp_hub.hub_url(), headers)
     antigravity_cli.ghi_mcp_settings(root, hub)
+    try:
+        cli.mcp_config = mcp_hub.antigravity_config_path(mode, root) if hub else None
+    except Exception as e:
+        print(f"[antigravity hub] config riêng: {e}", file=__import__('sys').stderr)
     return cli
 
 
@@ -2655,14 +2666,30 @@ def antigravity_status():
 
 
 @app.post("/antigravity/check")
-async def antigravity_check():
-    """Chạy thử MỘT lượt thật.
+async def antigravity_check(brain: str = "brain"):
+    """Chạy thử MỘT lượt thật, VÀ soát lại xem hub MCP đã vào cấu hình của `agy` chưa.
 
     Không dùng lại kết quả `agy models` đã nhớ trong RAM: nó chỉ nói tài khoản còn sống, chưa
     nói luồng chat có chạy không - mà đúng chỗ đó là chỗ Gemini CLI gãy hồi Google ngắt hạng
     cá nhân. Nút này phải trả lời được câu "chat được chưa", nên chạy thật một lượt.
+
+    Phần `mcp` thêm vào (0.43.0) canh đúng hạng lỗi đã ba lần lọt lưới: cấu hình ghi thành công
+    nhưng SAI CHỖ hoặc SAI KHOÁ, `agy` chạy trơn tru mà không có lấy một tool nào của Javis, và
+    không ở đâu có một câu lỗi để lần ra. Ghi lại cấu hình rồi ĐỌC LẠI chính file đó.
     """
-    return await asyncio.to_thread(antigravity_cli.kiem_tra_nhanh)
+    root = _brain_root(brain)
+    try:
+        _apply_antigravity_hub(_types.SimpleNamespace(cwd=root), root)
+    except Exception as e:
+        print(f"[antigravity check] ghi cấu hình MCP: {e}", file=__import__('sys').stderr)
+    d = await asyncio.to_thread(antigravity_cli.kiem_tra_nhanh)
+    try:
+        mcp = antigravity_cli.trang_thai_mcp(root)
+        mcp["hub_bat"] = _hub_enabled()
+        d["mcp"] = mcp
+    except Exception as e:
+        d["mcp"] = {"ok": False, "files": [], "thieu": [], "loi": f"{type(e).__name__}: {e}"}
+    return d
 
 
 # Không có endpoint đăng nhập cho `agy`, và đó là quyết định có lý do (0.32.2). Bản trước lái

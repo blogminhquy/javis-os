@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.43.0] - 2026-08-22
+### Sửa lỗi
+- **Bộ não Antigravity giờ dùng được tool của Javis thật.** Bấy lâu nay nó chat trôi chảy nhưng không gọi được MCP, không giao được việc Kanban, không chạy được skill - mà chẳng báo lỗi gì nên rất khó nhận ra. Javis ghi cấu hình sai chỗ và sai tên trường, tức `agy` chưa từng nhìn thấy trung tâm kết nối lần nào.
+- **Nút Kiểm tra lại ở trang Models nói rõ hai chuyện.** Trước chỉ báo "Dùng được", nghĩa là chat được. Giờ nó nói thêm tool của Javis đã đấu vào chưa - đúng chỗ đã hỏng lặng lẽ suốt mấy bản.
+- **Bản Docker: kết nối MCP của Antigravity sống qua cập nhật.** Trước đây cứ cập nhật là mất, phải khai báo lại từ đầu.
+
+### Bảo mật
+- **Khoá kết nối nội bộ không còn lọt vào bản sao lưu Git của bộ não.** Các tệp cấu hình Javis ghi cho hai bộ não Google nằm ngay trong thư mục brain và có chứa khoá. Từ bản này chúng bị loại khỏi sao lưu, và mấy tệp thừa của bản cũ được tự xoá.
+
 ## [0.42.1] - 2026-08-22
 ### Sửa lỗi
 - **Đổi model giữa chừng không còn làm Javis quên cuộc đang nói.** Trước đây đổi sang model khác rồi quay lại Claude Code hoặc Gemini CLI thì nó trả lời như chưa hề có mấy lượt ở giữa, có khi lạc đề hẳn. Giờ đổi qua đổi lại bao nhiêu lần cũng liền mạch.

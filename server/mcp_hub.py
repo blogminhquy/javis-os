@@ -841,6 +841,15 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
         return None
     if method == "ping":
         return {"jsonrpc": "2.0", "id": mid, "result": {}}
+    # Hub chỉ khai năng lực `tools`, nên theo đúng spec thì client KHÔNG được hỏi resources/
+    # prompts. Nhiều client vẫn hỏi, và trả -32601 cho chúng là cách nhanh nhất để bị coi là
+    # "server không tuân thủ" rồi bị đóng kết nối - đúng hạng lỗi issue #71 của antigravity-cli
+    # mô tả (tool thấy đủ nhưng gọi thì báo "not enabled for server"). Trả danh sách RỖNG vừa
+    # đúng sự thật vừa không cho ai cái cớ đóng kết nối.
+    if method in ("resources/list", "resources/templates/list", "prompts/list"):
+        khoa = {"resources/list": "resources", "resources/templates/list": "resourceTemplates",
+                "prompts/list": "prompts"}[method]
+        return {"jsonrpc": "2.0", "id": mid, "result": {khoa: []}}
     if method == "tools/list":
         tools, _ = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient)   # Claude/Codex có tool file native → không builtin file
@@ -953,6 +962,42 @@ def claude_config_path(mode="full", vault_root=None):
     }}}, ensure_ascii=False), encoding="utf-8")
     try:
         os.chmod(p, 0o600)   # file chứa hub token - siết như .hub_token
+    except Exception:
+        pass
+    return str(p)
+
+
+def antigravity_config_path(mode="full", vault_root=None):
+    """File mcp_config RIÊNG cho một lượt `agy`, tách theo brain (hậu tố băm như Claude).
+
+    Chỉ có tác dụng nếu bản `agy` trên máy khai một cờ nhận file cấu hình - `AntigravityCLI.
+    _build_args` hỏi `co_co()` rồi mới truyền. Vì sao vẫn ghi dù chưa chắc dùng được: cấu hình
+    HOME mà `agy` thật sự nạp là file DÙNG CHUNG, nên hai brain chạy đồng thời sẽ ghi đè header
+    X-Javis-Vault của nhau. Bên Codex chỗ này chữa bằng override argv; ở đây file per-brain là
+    thứ tương đương, và nó nằm sẵn đó cho ngày cờ kia có thật.
+
+    Hình dạng entry lấy từ `antigravity_cli.hub_entry` - KHÔNG viết tay `httpUrl` như bên Gemini.
+    """
+    mode = (mode or "full").strip().lower()
+    headers = {"Authorization": f"Bearer {hub_token()}", "X-Javis-Mode": mode}
+    hau_to = ""
+    if vault_root:
+        try:
+            vault = str(Path(vault_root).expanduser().resolve())
+        except Exception:
+            vault = str(vault_root)
+        headers["X-Javis-Vault"] = vault
+        hau_to = "_" + hashlib.sha1(vault.encode("utf-8")).hexdigest()[:10]
+    try:
+        import antigravity_cli
+        entry = antigravity_cli.hub_entry(hub_url(), headers)
+    except Exception:
+        entry = {"serverUrl": hub_url(), "url": hub_url(), "headers": headers, "disabled": False}
+    p = STATE_DIR / f".mcp_agy_{mode}{hau_to}.json"
+    p.write_text(json.dumps({"mcpServers": {"javis": entry}}, ensure_ascii=False),
+                 encoding="utf-8")
+    try:
+        os.chmod(p, 0o600)   # chứa hub token
     except Exception:
         pass
     return str(p)

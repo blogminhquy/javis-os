@@ -61,7 +61,10 @@ else:
         r = chay_ep(home, persist)
         check("entrypoint exec lệnh chính (server vẫn lên)", r.returncode == 0
               and "DA_CHAY" in r.stdout)
-        for d in (".local", ".antigravity", ".config"):
+        # `.gemini` vào danh sách từ 0.43.0: `agy` để cấu hình MCP ở
+        # ~/.gemini/config/mcp_config.json (chỗ Javis đấu hub vào) và token OAuth của MCP
+        # ở đó. Thiếu nó thì cập nhật xong là mất sạch kết nối MCP người dùng tự thêm.
+        for d in (".local", ".antigravity", ".config", ".gemini"):
             check(f"CANARY: ~/{d} thành symlink vào volume",
                   (home / d).is_symlink()
                   and str((home / d).resolve()).startswith(str(persist.resolve())))

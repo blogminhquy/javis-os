@@ -148,6 +148,11 @@ _GITIGNORE_BODY = (
        "memory/agents/*/runs/",
        "Memory/agents/*/runs/",
        ".javis-agy/",
+       "# Cấu hình MCP của hai engine CLI Google - chứa hub token của Javis, không phải tri thức.",
+       ".agents/mcp_config.json",
+       ".antigravity/",
+       ".antigravitycli/",
+       ".gemini/",
        "*.tmp",
        "# Vùng cache media: ảnh sinh ra + file user gửi lên. Là NGUYÊN LIỆU đi qua, không phải",
        "# tri thức, và media_gc.py tự dọn theo hạn. Bốn dòng attachments vì tên thư mục có thể",
@@ -502,7 +507,15 @@ _BACKUP_SKIP_SUBSTR = ("/memory/conversations/", "/Memory/conversations/",
                        # dòng chặn `Memory/conversations/` ngay trên kia sinh ra để ngăn. Bình
                        # thường file bị xoá ngay cuối lượt, nhưng chỉ cần một lượt đồng bộ chạy
                        # trúng lúc `agy` đang chạy là dính, và git thì giữ blob vĩnh viễn.
-                       "/.javis-agy/")
+                       "/.javis-agy/",
+                       # Cấu hình MCP Javis ghi vào brain cho hai engine CLI của Google. Chúng
+                       # chứa `Authorization: Bearer <hub token>` và đuôi .json, mà khối 2 của
+                       # .gitignore mở lại mọi .json - nên không chặn ở đây là token đi thẳng
+                       # lên remote sao lưu của người dùng, và git giữ blob vĩnh viễn. Chặn
+                       # ĐÚNG file mcp_config.json chứ không chặn cả `.agents/`: thư mục đó
+                       # còn là một trong các chỗ chứa skill của brain, phải được sao lưu.
+                       "/.agents/mcp_config.json/",
+                       "/.antigravity/", "/.antigravitycli/", "/.gemini/")
 
 
 def _backup_skip(rel: str) -> bool:

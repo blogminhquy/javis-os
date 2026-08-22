@@ -647,61 +647,192 @@ def login_huong_dan() -> dict:
 # ---------------------------------------------------------------------------
 # MCP: đấu hub của Javis vào CLI
 # ---------------------------------------------------------------------------
+# ĐO NGÀY 2026-08-22, bằng nguồn cấp 1 chứ không phải suy từ tài liệu bên thứ ba: tài liệu MCP
+# chính chủ của Antigravity, tài liệu di trú Gemini CLI → Antigravity của Google, và hai issue
+# trên chính repo `google-antigravity/antigravity-cli` (#60 và #71, cái sau dán nguyên một cấu
+# hình CHẠY ĐƯỢC). Vẫn KHÔNG phải đo trên binary: máy dựng bản này bị chặn mạng nên `agy` không
+# tải về được - chỗ nào còn phải đoán thì có cửa thoát bằng biến môi trường, ghi rõ ở dưới.
+#
+# Kết quả lật ngược cả hai bản trước. Bản 0.30.0 đoán
+# `.antigravity/mcp.json` + `.antigravity/settings.json`; bản 0.33.x thêm `.agents/mcp_config.json`
+# rồi ghi vào CHANGELOG là "Antigravity giờ dùng được tool của Javis". Cả ba lần đều KHÔNG chạy,
+# vì có tới hai chỗ sai chồng lên nhau và cả hai đều hỏng lặng lẽ:
+#
+# 1. SAI TÊN KHOÁ. Javis ghi `{"httpUrl": ...}` - đó là schema của **Gemini CLI**, chép nguyên từ
+#    `_apply_gemini_hub`. `agy` đọc khoá `serverUrl` (tài liệu chính chủ, và issue #71 của
+#    google-antigravity/antigravity-cli dán đúng cấu hình chạy được). Tài liệu di trú Gemini →
+#    Antigravity nói thẳng: `url` được ĐỔI TÊN thành `serverUrl`. Entry không có khoá nào `agy`
+#    hiểu = server không có địa chỉ = không bao giờ được khởi động, và không có câu lỗi nào.
+#
+# 2. SAI CHỖ ĐẶT. `agy` nạp MCP từ cấu hình tầng HOME:
+#       ~/.gemini/config/mcp_config.json          (hiện hành, dùng chung với Antigravity 2.0/IDE)
+#       ~/.gemini/antigravity-cli/mcp_config.json (đường cũ trước lần dọn thư mục)
+#    Tầng workspace `<project>/.agents/mcp_config.json` là đường CÓ THẬT trong tài liệu, nhưng
+#    issue #60 ghi nhận `agy` tìm thấy cấu hình project rồi BỎ QUA `mcpServers` trong đó - chỉ
+#    tầng HOME mới thật sự dựng server. Nên phải ghi CẢ HAI tầng: HOME để chạy được ngay hôm nay,
+#    workspace để bản nào vá xong issue đó thì tự có luôn cách ly theo brain.
+#
+# Đánh đổi của việc phải ghi vào HOME, nói thẳng ra chứ không giấu: file đó là của NGƯỜI DÙNG và
+# dùng chung với Antigravity IDE, nên (a) IDE cũng sẽ nhìn thấy tool của Javis, (b) hai brain
+# chạy `agy` cùng lúc thì brain sau ghi đè header `X-Javis-Vault` của brain trước. Bên Codex chỗ
+# này chữa bằng override argv (`mcp_hub.codex_vault_override`); ở đây chưa đo được `agy` có cờ
+# tương đương nên `_build_args` hỏi `co_co("--mcp-config")` rồi mới truyền - có thì hết race,
+# không có thì vẫn chạy như cũ. Ai không muốn Javis đụng HOME thì đặt JAVIS_AGY_MCP_HOME=0.
+
+# Hai đường ĐOÁN của các bản trước. Không còn ghi vào nữa, nhưng phải DỌN: chúng chứa hub token
+# và nằm trong brain, mà brain thì có đường sao lưu git đẩy lên remote của người dùng.
+_MCP_DUONG_BO = (".antigravity/mcp.json", ".antigravity/settings.json")
+
+
+def hub_entry(url: str, headers: Optional[dict] = None) -> dict:
+    """Một entry `mcpServers` theo ĐÚNG schema của `agy` (không phải của Gemini CLI).
+
+    `serverUrl` là khoá chính chủ: tài liệu hiện hành dùng nó, và issue #71 của
+    google-antigravity/antigravity-cli dán một cấu hình chạy được chỉ gồm `serverUrl` + `headers`.
+    `url` ghi kèm làm bí danh cho các bản 1.0.x còn nhận tên cũ - JSON thừa khoá thì bộ đọc bỏ
+    qua, còn thiếu khoá thì server câm luôn, nên chọn phía thừa.
+
+    KHÔNG có `httpUrl`/`trust`/`timeout`: cả ba là của Gemini CLI, và chính `httpUrl` là thứ đã
+    làm bộ não này chạy suốt mấy bản mà không có lấy một tool nào của Javis.
+
+    Cửa thoát `JAVIS_AGY_MCP_KEY=serverUrl|url` cho ai gặp một bản `agy` khó tính từ chối entry
+    có khoá lạ. Đây là chỗ KHÔNG đo được trên máy dựng bản này (mạng bị chặn không tải nổi
+    binary), nên phải có một cái lẫy thay vì bắt người dùng chờ bản sau - file cấu hình bị Javis
+    ghi đè mỗi lượt chat, sửa tay không giữ được.
+    """
+    khoa = (os.environ.get("JAVIS_AGY_MCP_KEY") or "").strip()
+    if khoa == "serverUrl":
+        e: dict = {"serverUrl": url}
+    elif khoa == "url":
+        e = {"url": url}
+    else:
+        e = {"serverUrl": url, "url": url}
+    if headers:
+        e["headers"] = dict(headers)
+    e["disabled"] = False
+    return e
+
+
+def _duong_mcp_home() -> list[Path]:
+    """Cấu hình MCP tầng HOME mà `agy` thật sự nạp. Rỗng nếu người dùng tắt bằng env."""
+    if (os.environ.get("JAVIS_AGY_MCP_HOME") or "").strip() in ("0", "false", "no"):
+        return []
+    rieng = (os.environ.get("JAVIS_AGY_MCP_CONFIG") or "").strip()
+    if rieng:
+        return [Path(rieng).expanduser()]
+    h = _home_dir()
+    return [h / ".gemini" / "config" / "mcp_config.json",
+            h / ".gemini" / "antigravity-cli" / "mcp_config.json"]
+
+
+def duong_mcp(vault_root=None) -> list[Path]:
+    """Mọi file cấu hình MCP Javis ghi cho `agy`, HOME trước rồi tới workspace."""
+    ds = _duong_mcp_home()
+    if vault_root:
+        try:
+            ds.append(Path(vault_root).expanduser() / ".agents" / "mcp_config.json")
+        except Exception:
+            pass
+    return ds
+
+
+def _ghi_mot_mcp(p: Path, hub: Optional[dict], xoa_khi_rong: bool = False) -> bool:
+    """Đặt/gỡ entry `javis` trong MỘT file mcp_config, giữ nguyên phần của người dùng."""
+    cu: dict = {}
+    if p.exists():
+        try:
+            cu = json.loads(p.read_text(encoding="utf-8")) or {}
+        except Exception:
+            cu = {}
+    if not isinstance(cu, dict):
+        cu = {}
+    servers = cu.get("mcpServers")
+    if not isinstance(servers, dict):
+        servers = {}
+    if hub:
+        servers["javis"] = hub
+    else:
+        servers.pop("javis", None)
+    if servers:
+        cu["mcpServers"] = servers
+    else:
+        cu.pop("mcpServers", None)
+    # Chỉ xoá file khi ĐÓ LÀ FILE CỦA JAVIS (hai đường đoán cũ) và không còn gì trong đó. File
+    # HOME là của người dùng, không bao giờ xoá - cùng lắm để lại `{}`, vẫn là JSON hợp lệ.
+    if xoa_khi_rong and not cu:
+        try:
+            if p.exists():
+                p.unlink()
+        except Exception:
+            return False
+        return True
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(cu, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        os.chmod(p, 0o600)   # chứa hub token
+    except Exception:
+        pass
+    return True
+
+
 def ghi_mcp_settings(vault_root, hub: Optional[dict]) -> Optional[str]:
-    """Ghi entry MCP `javis` vào cấu hình của `agy` trong chính brain đang mở.
+    """Đấu hub của Javis vào `agy`: ghi entry `javis` vào cấu hình HOME + workspace.
 
-    Bản đầu CHƯA ĐO được tên file thật nên đoán hai chỗ `.antigravity/mcp.json` và
-    `.antigravity/settings.json`. Nay có bằng chứng là **cả hai đều sai**, tức MCP hub của Javis
-    chưa từng được đấu vào `agy` lần nào: chỗ đúng ở tầng workspace là `.agents/mcp_config.json`
-    (ba nguồn độc lập dựng driver `agy` thật, cộng CHANGELOG 1.0.5 của chính Google nhắc tên
-    `mcp_config.json` khi thêm hỗ trợ khoá `url`).
-
-    Vẫn ghi cả hai file cũ, và đó là lựa chọn có chủ ý chứ không phải lười: đường dẫn mới đo qua
-    nguồn thứ ba chứ chưa chạy được trên máy có `agy` (máy dựng bản này bị chặn tải CLI). Hai
-    file JSON nhỏ trong một thư mục ẩn là cái giá rẻ để lỡ đoán trượt lần nữa thì vẫn còn đường
-    lui. Đo được trên máy thật thì rút lại còn một file.
+    `hub=None` (hub tắt) → GỠ entry `javis` khỏi mọi chỗ, giữ nguyên MCP người dùng tự thêm.
+    Trả về đường dẫn file ĐẦU TIÊN ghi được (file HOME - chỗ `agy` thật sự nạp), None nếu không
+    ghi được chỗ nào. Lý do chọn từng đường dẫn: xem khối chú thích dài ngay trên.
     """
     ra = None
-    # Thư mục neo: `agy` đi NGƯỢC lên từ cwd để tìm gốc project, và dừng ở thư mục nào có
-    # `.antigravitycli/`. Không có neo thì nó có thể nhận nhầm một thư mục tổ tiên làm gốc rồi
-    # đọc cấu hình MCP ở đó - tức hub của Javis nằm trong brain sẽ bị bỏ qua mà không báo gì.
-    try:
-        (Path(vault_root).expanduser() / ".antigravitycli").mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        print(f"[antigravity mcp settings] neo project: {e}", file=sys.stderr)
-    for ten in (".agents/mcp_config.json", ".antigravity/mcp.json",
-                ".antigravity/settings.json"):
+    # Thư mục neo: `agy` đi ngược lên từ cwd để tìm gốc project và dừng ở thư mục có
+    # `.antigravitycli/`. Không có neo thì nó nhận nhầm một thư mục tổ tiên làm gốc, và
+    # `.agents/mcp_config.json` của brain nằm ngoài tầm. Chỉ tạo THƯ MỤC rỗng, không tạo file:
+    # `.antigravitycli/mcp_config.json` chính là đường project-local bị bỏ qua ở issue #60, còn
+    # file mcp_config rỗng thì làm bộ đọc của bản 1.x nổ (issue #252).
+    if vault_root:
         try:
-            p = Path(vault_root).expanduser() / ten
-            cu = {}
-            if p.exists():
-                try:
-                    cu = json.loads(p.read_text(encoding="utf-8")) or {}
-                except Exception:
-                    cu = {}
-            if not isinstance(cu, dict):
-                cu = {}
-            servers = cu.get("mcpServers")
-            if not isinstance(servers, dict):
-                servers = {}
-            if hub:
-                servers["javis"] = hub
-            else:
-                servers.pop("javis", None)
-            if servers:
-                cu["mcpServers"] = servers
-            else:
-                cu.pop("mcpServers", None)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(json.dumps(cu, ensure_ascii=False, indent=2), encoding="utf-8")
-            try:
-                os.chmod(p, 0o600)   # chứa hub token
-            except Exception:
-                pass
-            ra = str(p)
+            (Path(vault_root).expanduser() / ".antigravitycli").mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            print(f"[antigravity mcp settings] {ten}: {e}", file=sys.stderr)
+            print(f"[antigravity mcp settings] neo project: {e}", file=sys.stderr)
+    for p in duong_mcp(vault_root):
+        try:
+            if _ghi_mot_mcp(p, hub) and ra is None:
+                ra = str(p)
+        except Exception as e:
+            print(f"[antigravity mcp settings] {p}: {e}", file=sys.stderr)
+    # Dọn hai đường ĐOÁN của các bản trước. Không chỉ vì gọn: chúng giữ hub token trong brain.
+    if vault_root:
+        for ten in _MCP_DUONG_BO:
+            try:
+                p = Path(vault_root).expanduser() / ten
+                if p.exists():
+                    _ghi_mot_mcp(p, None, xoa_khi_rong=True)
+            except Exception as e:
+                print(f"[antigravity mcp settings] dọn {ten}: {e}", file=sys.stderr)
     return ra
+
+
+def trang_thai_mcp(vault_root=None) -> dict:
+    """Hub đã thật sự nằm trong cấu hình `agy` chưa - để trang Models nói được sự thật.
+
+    Đọc lại chính file vừa ghi thay vì tin là đã ghi xong. Đây là lớp canh cho đúng hạng lỗi đã
+    xảy ra ba lần liên tiếp ở khối trên: file ghi thành công, đường dẫn sai hoặc khoá sai, `agy`
+    chạy ngon lành mà không có tool nào, và không ai biết.
+    """
+    ds, thieu = [], []
+    for p in duong_mcp(vault_root):
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        except Exception:
+            doc = {}
+        e = ((doc or {}).get("mcpServers") or {}).get("javis") or {}
+        # Nhận cả hai tên khoá: JAVIS_AGY_MCP_KEY=url thì entry chỉ có `url`, soi mỗi
+        # `serverUrl` là báo "chưa đấu" cho một cấu hình hoàn toàn đúng.
+        dia_chi = str(e.get("serverUrl") or e.get("url") or "")
+        ds.append({"path": str(p), "co_javis": bool(dia_chi), "url": dia_chi})
+        co = bool(dia_chi)
+        if not co:
+            thieu.append(str(p))
+    return {"ok": any(d["co_javis"] for d in ds), "files": ds, "thieu": thieu}
 
 
 # ---------------------------------------------------------------------------
@@ -720,6 +851,10 @@ class AntigravityCLI:
         self.session_id = None          # có giá trị -> nối lại mạch cũ
         self._session_moi = None
         self.mode = "suggest"
+        # File mcp_config riêng cho ĐÚNG lượt này. Chỉ dùng được nếu bản `agy` trên máy có cờ
+        # nhận file cấu hình (hỏi `co_co` trước khi truyền). Có thì hết cảnh hai brain chạy cùng
+        # lúc ghi đè header X-Javis-Vault của nhau trong file HOME dùng chung.
+        self.mcp_config: Optional[str] = None
         self.extra_args: list[str] = []
         self.include_dirs: list[str] = []
         # Trần thời gian một lượt. Gemini CLI không cần vì `--approval-mode` chặn mọi câu hỏi;
@@ -736,6 +871,8 @@ class AntigravityCLI:
         if self.model and co_co("--model"):
             args += ["--model", self.model]
         args += co_quyen_cho_mode(self.mode)
+        if self.mcp_config and co_co("--mcp-config", "--mcp-config-file"):
+            args += ["--mcp-config", self.mcp_config]
         if co_co("--output-format"):
             args += ["--output-format", "stream-json"]
         if noi_mach and self.session_id and co_co("--conversation"):

@@ -3169,14 +3169,26 @@
       agk.disabled = true; const cu2 = agk.textContent; agk.textContent = "Đang thử…";
       if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
       let r = null;
-      try { r = await (await fetch("/antigravity/check", { method: "POST" })).json(); }
+      // Gửi kèm brain đang mở: phần `mcp` của câu trả lời soi cấu hình theo ĐÚNG brain đó
+      // (header X-Javis-Vault khoá tool file/lịch vào một brain), nên hỏi trống là soi nhầm.
+      const _br = window.currentBrainPath ? currentBrainPath() : "brain";
+      try { r = await (await fetch(`/antigravity/check?brain=${encodeURIComponent(_br)}`,
+                                   { method: "POST" })).json(); }
       catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
       agk.disabled = false; agk.textContent = cu2;
+      // Nói RIÊNG chuyện tool của Javis. "Chat được" và "gọi được tool của Javis" là hai
+      // chuyện khác nhau, và suốt các bản 0.30-0.42 cái thứ hai luôn hỏng trong khi cái thứ
+      // nhất vẫn xanh - nên thẻ này chỉ báo "Dùng được" là báo thiếu đúng chỗ đau.
+      const mcpTxt = (r && r.mcp)
+        ? (r.mcp.ok ? " · tool của Javis đã đấu"
+           : (r.mcp.hub_bat === false ? " · trung tâm kết nối đang tắt"
+              : " · <b>chưa đấu được tool của Javis</b>"))
+        : "";
       if (r && r.ok) {
-        if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được." + mcpTxt;
         _daHoiModel.delete("antigravity-cli");
         setTimeout(() => renderModels(el), 700);
-      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt;
     };
     const od = el.querySelector("[data-oauth-disc]");
     if (od) od.onclick = async () => {

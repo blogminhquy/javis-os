@@ -3,12 +3,12 @@
 # rồi mới chạy lệnh chính (uvicorn).
 #
 # Vì sao tồn tại (báo cáo 16/08): Antigravity CLI (`agy`) do người dùng tự cài vào
-# ~/.local/bin và giữ đăng nhập trong ~/.antigravity / ~/.config - tất cả nằm trong
+# ~/.local/bin và giữ đăng nhập trong ~/.antigravity / ~/.config / ~/.gemini - tất cả nằm trong
 # HOME của container, mà HOME KHÔNG nằm trên volume nào (chỉ /data, /brains, ~/.claude,
 # ~/.codex được persist). Mỗi lần cập nhật image là container mới, HOME mới tinh: bay
 # cả binary lẫn đăng nhập, người dùng phải cài + đăng nhập lại từ đầu, mãi mãi.
 #
-# Cách chữa: mỗi lần boot, link ~/.local, ~/.antigravity, ~/.config vào /data/home/
+# Cách chữa: mỗi lần boot, link ~/.local, ~/.antigravity, ~/.config, ~/.gemini vào /data/home/
 # (volume /data sẵn có nên KHÔNG cần người dùng sửa docker-compose - chỉ cần image mới).
 # Lần đầu sau khi có bản này, nội dung đang có trong HOME được dọn sang volume trước
 # khi link, nên ai đã lỡ cài agy trong container hiện tại cũng không mất gì.
@@ -19,7 +19,10 @@ set -u
 
 PERSIST_ROOT="${JAVIS_HOME_PERSIST:-/data/home}"
 
-for d in .local .antigravity .config; do
+# ~/.gemini: `agy` để cấu hình MCP (~/.gemini/config/mcp_config.json - chỗ Javis đấu hub
+# vào) và token OAuth của MCP ở đó. Thiếu nó thì mỗi lần cập nhật là mất hết kết nối MCP
+# người dùng tự thêm, dù đăng nhập Google vẫn còn.
+for d in .local .antigravity .config .gemini; do
     src="$HOME/$d"
     dst="$PERSIST_ROOT/$d"
     # Đã là symlink (boot thứ hai trở đi) → xong từ lâu.
