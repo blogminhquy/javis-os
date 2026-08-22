@@ -217,7 +217,8 @@ async def main():
         r = await yt.read("dQw4w9WgXcQ", client=c, cho_phep_ytdlp=False)
     assert r["ok"] is False and r["code"] == "blocked", r
     assert any("403" in str(n) for n in r["notes"]), r["notes"]
-    assert "chặn" in yt.render(r)
+    assert "CHẶN MÁY CHỦ" in yt.render(r)
+    assert r["da_ket_noi"] > 0, "YouTube CÓ trả lời (403), không được coi là mạng hỏng"
 
     # 10) link rác: trả lỗi tử tế chứ không nổ
     r = await yt.read("https://example.com/abc", cho_phep_ytdlp=False)
@@ -553,6 +554,111 @@ async def main():
     hai = [{"baseUrl": "https://t/a?exp=xpv", "languageCode": "vi"},
            {"baseUrl": "https://t/b", "languageCode": "vi"}]
     assert yt.pick_track(hai)["baseUrl"] == "https://t/b", "phải né track đòi token"
+
+    # ============================================================
+    # Nhóm chống-tự-tin-sai (0.42.0, vòng hai). Do workflow điều tra dựng repro tìm ra,
+    # trong đó có MỘT REGRESSION do chính vòng sửa trước gây ra.
+    # ============================================================
+    # 36) REGRESSION: metadata do yt-dlp đắp vào KHÔNG phải bằng chứng "có client xem được".
+    #     Ca thật: cả 8 client bị nghi robot, yt-dlp vào được nhưng chỉ lấy được tiêu đề.
+    #     Bản trước xét goc["title"] nên đi tuyên bố "video này KHÔNG có phụ đề nào" - sai TỰ
+    #     TIN HƠN cả bug gốc, vì nó đẩy người dùng đi mở quyền một video vốn công khai.
+    async def _yt_chi_meta(url, notes, timeout_s=75.0):
+        notes.append("yt-dlp: (giả lập) vào được nhưng không có track")
+        return {"tracks": [], "translations": [],
+                "meta": {"title": "Video công khai bình thường", "author": "K", "duration_s": 60}}
+
+    yt._ytdlp = _yt_chi_meta
+    try:
+        async with httpx.AsyncClient(transport=_transport(theo_client={"*": _bot()})) as c:
+            r = await yt.read("dQw4w9WgXcQ", client=c)
+    finally:
+        yt._ytdlp = goc_ytdlp
+    assert r["code"] == "blocked", f'{r["code"]}: {r.get("error")}'
+    assert "KHÔNG có phụ đề" not in (r.get("error") or ""), r["error"]
+    assert "robot" in r["error"], r["error"]
+
+    # 37) mạng máy chủ hỏng KHÔNG được đổ cho YouTube: người dùng sẽ đi thuê proxy dân cư
+    #     để chữa một sợi cáp đứt.
+    def _chet(req):
+        raise httpx.ConnectError("khong noi duoc")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(_chet)) as c:
+        r = await yt.read("dQw4w9WgXcQ", client=c, cho_phep_ytdlp=False)
+    assert r["code"] == "network", f'{r["code"]}: {r.get("error")}'
+    assert r["da_ket_noi"] == 0
+    ra = yt.render(r)
+    assert "MẠNG RA NGOÀI" in r["error"] and "ĐANG CHẶN MÁY CHỦ" not in ra, ra
+
+    # 38) notes phải giữ NGUYÊN VĂN chuỗi reason - bằng chứng đắt nhất của người sửa mù
+    async with httpx.AsyncClient(transport=_transport(theo_client={"*": _bot()})) as c:
+        r = await yt.read("dQw4w9WgXcQ", client=c, cho_phep_ytdlp=False)
+    assert any("Sign in to confirm you\'re not a bot" in str(n) for n in r["notes"]), r["notes"]
+    assert any("status=LOGIN_REQUIRED" in str(n) for n in r["notes"]), r["notes"]
+
+    # 39) tự kiểm: gãy giữa chừng thì VẪN phải trả về phần đã thu thập, không mất trắng
+    dem = {"n": 0}
+
+    def _gay_giua(req: httpx.Request) -> httpx.Response:
+        if "youtubei" in str(req.url):
+            dem["n"] += 1
+            if dem["n"] >= 2:
+                raise KeyboardInterrupt("nguoi dung bam Ctrl-C")
+            return httpx.Response(200, json=_player())
+        return httpx.Response(200, text="x")
+
+    yt._ytdlp = _yt_kiem
+    try:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_gay_giua)) as c:
+            bc = await yt.tu_kiem("https://youtu.be/dQw4w9WgXcQ", client=c)
+    finally:
+        yt._ytdlp = goc_ytdlp
+    assert isinstance(bc, str), "tu_kiem không được ném lỗi ra ngoài"
+    assert "DUNG GIUA CHUNG" in bc and "visionos" in bc, bc[-600:]
+    assert "KET_LUAN=" in bc
+
+    # 40) tự kiểm: reason in NGUYÊN VĂN, không cắt; và có dòng kết luận máy đọc được
+    dai = "Sign in to confirm you're not a bot. This helps protect our community. Learn more"
+    pl_dai = _player(captions=False, status="LOGIN_REQUIRED", reason=dai)
+    yt._ytdlp = _yt_kiem
+    try:
+        async with httpx.AsyncClient(transport=_transport(theo_client={"*": pl_dai})) as c:
+            bc = await yt.tu_kiem("https://youtu.be/dQw4w9WgXcQ", client=c)
+    finally:
+        yt._ytdlp = goc_ytdlp
+    assert dai in bc, "chuỗi reason bị cắt mất đúng chỗ đáng giá nhất"
+    assert "KET_LUAN=CHAN_MAY_CHU" in bc, bc[-500:]
+
+    # 41) video đối chứng xem được -> KHÔNG được kết luận máy chủ bị chặn.
+    #     Và phải xét bằng playabilityStatus chứ không bằng số phụ đề, kẻo video đối chứng
+    #     tình cờ không có phụ đề là đi vu oan cho cả máy chủ.
+    def _rieng_video(req: httpx.Request) -> httpx.Response:
+        u = str(req.url)
+        if "youtubei" in u:
+            body = json.loads(req.content.decode("utf-8"))
+            if body.get("videoId") == yt.VIDEO_DOI_CHUNG:
+                return httpx.Response(200, json=_player(captions=False))   # xem được, 0 phụ đề
+            return httpx.Response(200, json=_player(captions=False, status="ERROR"))
+        if "/watch" in u:
+            return httpx.Response(200, text="<html></html>")
+        return httpx.Response(200, text='{"visitorData":"abc123456789"}')
+
+    yt._ytdlp = _yt_kiem
+    try:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_rieng_video)) as c:
+            bc = await yt.tu_kiem("https://youtu.be/OHu1FY1R-x0", client=c)
+    finally:
+        yt._ytdlp = goc_ytdlp
+    assert "KET_LUAN=LOI_O_VIDEO" in bc, bc[-700:]
+
+    # 42) không kết nối được đường nào -> kết luận là MẠNG HỎNG, không phải YouTube chặn
+    yt._ytdlp = _yt_kiem
+    try:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(_chet)) as c:
+            bc = await yt.tu_kiem("https://youtu.be/dQw4w9WgXcQ", client=c)
+    finally:
+        yt._ytdlp = goc_ytdlp
+    assert "KET_LUAN=MANG_HONG" in bc, bc[-500:]
 
     print("OK - test_youtube_read: tất cả assertion pass")
 

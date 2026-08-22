@@ -41,6 +41,8 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
+from pathlib import Path
+
 import httpx
 
 # Trần mặc định cho một lần đọc. Video 2 tiếng có thể ra hơn 150 nghìn ký tự - đổ hết vào
@@ -343,7 +345,9 @@ def _dich_duoc(player: Any) -> List[str]:
 
 async def _player_response(client: httpx.AsyncClient, vid: str,
                            notes: List[str], chan_doan: List[Tuple[str, str]],
-                           han: float = 0.0) -> Tuple[Optional[dict], str]:
+                           han: float = 0.0,
+                           thong_ke: Optional[Dict[str, int]] = None
+                           ) -> Tuple[Optional[dict], str]:
     """(playerResponse DÙNG ĐƯỢC, tên nguồn), hoặc (None, "") khi mọi đường đều thua.
 
     ĐIỂM QUAN TRỌNG, và cũng là chỗ bản đầu tiên sai: một client trả về "phải đăng nhập"
@@ -355,6 +359,8 @@ async def _player_response(client: httpx.AsyncClient, vid: str,
     cất vào `chan_doan` để nếu cuối cùng không đường nào chạy thì còn cái mà báo cho đúng.
     """
     du_phong: Tuple[Optional[dict], str] = (None, "")
+    tk = thong_ke if thong_ke is not None else {}
+    tk.setdefault("da_ket_noi", 0)
     visitor = await _visitor_data(client, notes)
     for ten, payload, headers in _clients(visitor):
         if han and time.monotonic() > han:
@@ -364,6 +370,7 @@ async def _player_response(client: httpx.AsyncClient, vid: str,
         try:
             r = await client.post(f"{INNERTUBE_URL}?prettyPrint=false",
                                   json=payload, headers=headers)
+            tk["da_ket_noi"] += 1   # có phản hồi = YouTube CÓ trả lời, dù là trả lời từ chối
             if r.status_code != 200:
                 notes.append(f"innertube/{ten}: HTTP {r.status_code}")
                 continue
@@ -379,8 +386,14 @@ async def _player_response(client: httpx.AsyncClient, vid: str,
             # tiếng Anh trước đó không với tới được: chuỗi reason không bao giờ được đọc.
             ma, ly_do = _khong_xem_duoc(data)
             if ma:
-                notes.append(f"innertube/{ten}: {ma}"
-                             + (f" ({ly_do[:80]})" if ma in ("khac", "dang_nhap") else ""))
+                # Ghi ĐỦ và KHÔNG CẮT: status thô cộng nguyên văn chuỗi reason của YouTube.
+                # Đây là bằng chứng đắt nhất mà người sửa lỗi (vốn không mở được YouTube) có
+                # trong tay. Bản trước chỉ ghi mỗi mã phân loại cho ca `robot`, tức vứt đúng
+                # chuỗi đã gây ra cả sự cố 22/08.
+                tt_tho = str(((data.get("playabilityStatus") or {}).get("status") or "?"))
+                ly_tho = str((data.get("playabilityStatus") or {}).get("reason") or "")
+                notes.append(f"innertube/{ten}: status={tt_tho} -> {ma}"
+                             + (f' | reason="{ly_tho}"' if ly_tho else ""))
                 chan_doan.append((ma, ly_do))
                 continue
             if not (data.get("captions") or data.get("videoDetails")):
@@ -407,6 +420,7 @@ async def _player_response(client: httpx.AsyncClient, vid: str,
             f"https://www.youtube.com/watch?v={vid}&bpctr=9999999999&has_verified=1",
             headers={"User-Agent": _UA_WEB, "Accept-Language": "en-US,en;q=0.9",
                      "Cookie": "CONSENT=YES+cb"})
+        tk["da_ket_noi"] += 1
         if r.status_code != 200:
             notes.append(f"watch-page: HTTP {r.status_code}")
         else:
@@ -966,7 +980,9 @@ async def read(url: str, lang: Optional[str] = None, timestamps: bool = True,
     goc: Dict[str, Any] = {"ok": False, "code": "fetch_failed", "video_id": vid,
                            "url": canonical, "notes": notes}
     try:
-        player, nguon = await _player_response(client, vid, notes, chan_doan, han)
+        thong_ke: Dict[str, int] = {}
+        player, nguon = await _player_response(client, vid, notes, chan_doan, han, thong_ke)
+        goc["da_ket_noi"] = thong_ke.get("da_ket_noi", 0)
         tracks = _tracks_of(player) if player else []
         dich_duoc = _dich_duoc(player) if player else []
         if player:
@@ -1004,8 +1020,14 @@ async def read(url: str, lang: Optional[str] = None, timestamps: bool = True,
             # khác không còn là chẩn đoán đúng nữa: video rõ ràng không bị chặn, nó chỉ không
             # có phụ đề. Bản trước xét chan_doan trước nên đi báo "đang chặn máy chủ" trong
             # khi chính nó vừa đọc được tên video - vô lý ngay trước mắt người dùng.
-            if goc.get("title") and ma:
-                notes.append(f"bỏ qua chẩn đoán '{ma}' vì đã có client xem được video")
+            # PHẢI xét `player`, TUYỆT ĐỐI không xét `title`. Hai thứ này khác hẳn nhau về
+            # giá trị chứng cứ: `player` khác None nghĩa là có một client THẬT SỰ xem được
+            # video; còn `title` có thể do yt-dlp đắp vào từ metadata trong khi KHÔNG client
+            # nào vào nổi. Bản trước xét `title` nên đúng ca thật (mọi client bị nghi robot,
+            # yt-dlp lấy được mỗi tiêu đề) lại đi tuyên bố "video này KHÔNG có phụ đề nào" -
+            # sai tự tin hơn cả bug gốc, và đẩy người dùng đi mở quyền một video công khai.
+            if player is not None and ma:
+                notes.append(f"bỏ qua chẩn đoán '{ma}' vì đã có client THẬT SỰ xem được video")
                 ma, ly_do = "", ""
             if ma == "robot":
                 goc["code"] = "blocked"
@@ -1019,11 +1041,17 @@ async def read(url: str, lang: Optional[str] = None, timestamps: bool = True,
                 goc["code"] = "no_captions"
                 goc["error"] = ("video này KHÔNG có phụ đề nào (kể cả phụ đề máy nghe), nên "
                                 "không có lời thoại để đọc.")
+            elif not goc.get("da_ket_noi"):
+                # KHÔNG một request nào tới được YouTube. Đổ cho YouTube ở đây là chẩn đoán
+                # sai hướng hoàn toàn: người dùng sẽ đi thuê proxy dân cư để chữa một sợi cáp
+                # đứt. Chỉ được nói "YouTube chặn" khi YouTube CÓ trả lời.
+                goc["code"] = "network"
+                goc["error"] = ("máy chủ không mở được kết nối nào tới youtube.com. Đây là lỗi "
+                                "MẠNG RA NGOÀI của máy chủ, không phải YouTube chặn.")
             else:
                 goc["code"] = "blocked"
-                goc["error"] = ("không lấy được dữ liệu trình phát của video. Mọi đường đều bị "
-                                "từ chối: YouTube nhiều khả năng đang chặn máy chủ này, hoặc "
-                                "mạng ra ngoài đang hỏng.")
+                goc["error"] = ("không lấy được dữ liệu trình phát của video. YouTube có trả "
+                                "lời nhưng mọi đường đều bị từ chối.")
             return goc
 
         track = pick_track(tracks, lang)
@@ -1132,6 +1160,9 @@ def render(res: Dict[str, Any]) -> str:
             "blocked": ("Nói rõ là YOUTUBE ĐANG CHẶN MÁY CHỦ chứ link không hỏng và video "
                         "không riêng tư. " + _cau_ytdlp(res)),
             "bad_url": "Xin người dùng gửi lại link video cho đúng.",
+            "network": ("Nói rõ đây là MÁY CHỦ KHÔNG RA ĐƯỢC INTERNET chứ KHÔNG phải YouTube "
+                        "chặn - đừng để người dùng đi thuê proxy để chữa một sợi cáp đứt. Bảo "
+                        "họ kiểm tra mạng của máy chủ, tường lửa, hoặc biến môi trường proxy."),
         }.get(str(res.get("code") or ""), "Nói rõ lỗi này cho người dùng, đừng bịa nội dung video.")
         phan = ["KHÔNG đọc được nội dung video: " + loi, "", "\n".join(dau), "", khuyen]
         mo_ta = str(res.get("description") or "").strip()
@@ -1186,122 +1217,194 @@ def render(res: Dict[str, Any]) -> str:
 #
 #     python server/youtube_read.py <link youtube>
 #     .venv/bin/python server/youtube_read.py <link youtube>     (nếu dùng venv của app)
-async def tu_kiem(url: str, client: Optional[httpx.AsyncClient] = None) -> str:
+TU_KIEM_TIMEOUT_S = 120.0
+VIDEO_DOI_CHUNG = "dQw4w9WgXcQ"   # video công khai, tồn tại lâu năm, dùng làm mốc so sánh
+
+
+async def _thu_mot_client(client: httpx.AsyncClient, vid: str, ten: str, payload: dict,
+                          headers: dict) -> dict:
+    """Thử một client, trả về dữ kiện thô để in ra. Không ném lỗi."""
+    t0 = time.monotonic()
+    kq: Dict[str, Any] = {"ten": ten, "ms": 0, "http": 0, "status": "", "reason": "",
+                          "tracks": 0, "phan_loai": "", "loi": "", "data": None}
+    try:
+        r = await client.post(f"{INNERTUBE_URL}?prettyPrint=false", json=payload, headers=headers)
+        kq["http"] = r.status_code
+        if r.status_code == 200:
+            data = r.json()
+            ps = (data or {}).get("playabilityStatus") or {}
+            kq["status"] = str(ps.get("status") or "?")
+            kq["reason"] = str(ps.get("reason") or "")
+            kq["tracks"] = len(_tracks_of(data))
+            kq["phan_loai"] = _khong_xem_duoc(data)[0] or "OK"
+            kq["data"] = data
+    except Exception as e:
+        kq["loi"] = f"{type(e).__name__}: {str(e)[:120]}"
+    kq["ms"] = int((time.monotonic() - t0) * 1000)
+    return kq
+
+
+async def tu_kiem(url: str, client: Optional[httpx.AsyncClient] = None,
+                  in_dan: bool = False) -> str:
     """Thử TỪNG đường một rồi in kết quả từng đường, không dừng ở đường đầu tiên hỏng.
 
     `client` chỉ để test bơm httpx.MockTransport vào; chạy thật thì để None.
+    `in_dan` = in ngay từng dòng khi chạy từ dòng lệnh, để treo giữa chừng vẫn còn bằng chứng.
     """
     d: List[str] = []
+
+    def p(s: str = "") -> None:
+        d.append(s)
+        if in_dan:
+            print(s, flush=True)
+
+    han = time.monotonic() + TU_KIEM_TIMEOUT_S
     vid = parse_video_id(url)
-    d.append("=" * 72)
-    d.append("JAVIS - TU KIEM DOC PHU DE YOUTUBE")
-    d.append("=" * 72)
-    d.append(f"Link      : {url}")
-    d.append(f"Ma video  : {vid or '(KHONG TACH DUOC - link sai?)'}")
-    d.append(f"Python    : {sys.version.split()[0]}")
+    nguon_track: List[dict] = []
+    ket = "KHONG_RO"
+    da_ket_noi = 0
+    doi_chung_ok: Optional[bool] = None
+
+    p("=" * 72)
+    p("JAVIS - TU KIEM DOC PHU DE YOUTUBE")
+    p("=" * 72)
+    p(f"Link      : {url}")
+    p(f"Ma video  : {vid or '(KHONG TACH DUOC - link sai?)'}")
+    p(f"Python    : {sys.version.split()[0]}")
     try:
         import yt_dlp
-        d.append(f"yt-dlp    : {yt_dlp.version.__version__}")
+        p(f"yt-dlp    : {yt_dlp.version.__version__}")
     except Exception as e:
-        d.append(f"yt-dlp    : CHUA CAI ({type(e).__name__}) -> chay: pip install -r requirements.txt")
+        p(f"yt-dlp    : CHUA CAI ({type(e).__name__}) -> chay: pip install -U yt-dlp")
     if not vid:
+        p("")
+        p("KET_LUAN=LINK_SAI")
         return "\n".join(d)
 
     tu_tao = client is None
     if tu_tao:
-        client = httpx.AsyncClient(timeout=httpx.Timeout(25.0, connect=10.0),
+        client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=8.0),
                                    follow_redirects=True, proxy=_proxy() or None)
     try:
-        try:                              # IP ra ngoài: biết ngay có phải IP trung tâm dữ liệu
-            r = await client.get("https://api.ipify.org", timeout=8.0)
-            d.append(f"IP ra ngoai: {r.text.strip()[:40]}")
+        p(f"Proxy rieng: {_proxy() or '(khong dat JAVIS_YOUTUBE_PROXY)'}")
+        try:
+            r = await client.get("https://ipinfo.io/json", timeout=8.0)
+            j = r.json() if r.status_code == 200 else {}
+            p(f"IP ra ngoai: {j.get('ip', '?')}  |  nha mang: {j.get('org', '?')}")
         except Exception as e:
-            d.append(f"IP ra ngoai: khong lay duoc ({type(e).__name__})")
-
-        d.append(f"Proxy rieng: {_proxy() or '(khong dat JAVIS_YOUTUBE_PROXY)'}")
+            p(f"IP ra ngoai: khong lay duoc ({type(e).__name__})")
         visitor = await _visitor_data(client, [])
-        d.append(f"visitorData: {'CO (' + visitor[:18] + '...)' if visitor else 'KHONG LAY DUOC'}")
-        d.append("")
-        d.append(f"--- {len(_CLIENT_SPECS)} client InnerTube (hoi bang hl={HL_HOI}) ---")
-        song: List[dict] = []
-        for ten, payload, headers in _clients(visitor):
-            payload = dict(payload, videoId=vid)
-            try:
-                r = await client.post(f"{INNERTUBE_URL}?prettyPrint=false",
-                                      json=payload, headers=headers)
-                if r.status_code != 200:
-                    d.append(f"  {ten:<14} HTTP {r.status_code}")
-                    continue
-                data = r.json()
-                ps = (data or {}).get("playabilityStatus") or {}
-                tt = str(ps.get("status") or "?")
-                ly_do = str(ps.get("reason") or "")
-                n = len(_tracks_of(data))
-                ma, _ = _khong_xem_duoc(data)
-                d.append(f"  {ten:<14} HTTP 200  status={tt:<16} tracks={n:<3} "
-                         f"phan_loai={ma or 'OK':<10} reason={ly_do[:60]!r}")
-                if n:
-                    song.append(data)
-            except Exception as e:
-                d.append(f"  {ten:<14} LOI {type(e).__name__}: {str(e)[:80]}")
+        p(f"visitorData: {'CO (' + visitor[:18] + '...)' if visitor else 'KHONG LAY DUOC'}")
+        p("")
 
-        d.append("")
-        d.append("--- Trang watch ---")
+        p(f"--- {len(_CLIENT_SPECS)} client InnerTube (hoi bang hl={HL_HOI}) ---")
+        for ten, payload, headers in _clients(visitor):
+            if time.monotonic() > han:
+                p("  (het thoi gian cho phep, dung thu tiep)")
+                break
+            kq = await _thu_mot_client(client, vid, ten, dict(payload, videoId=vid), headers)
+            if kq["loi"]:
+                p(f"  {kq['ten']:<14} {kq['ms']:>6}ms  LOI {kq['loi']}")
+                continue
+            da_ket_noi += 1
+            if kq["http"] != 200:
+                p(f"  {kq['ten']:<14} {kq['ms']:>6}ms  HTTP {kq['http']}")
+                continue
+            p(f"  {kq['ten']:<14} {kq['ms']:>6}ms  HTTP 200  status={kq['status']:<18} "
+              f"tracks={kq['tracks']:<3} phan_loai={kq['phan_loai']}")
+            if kq["reason"]:                      # NGUYEN VAN, khong cat - day la bang chung
+                p(f"                 reason: {kq['reason']}")
+            if kq["tracks"]:
+                nguon_track = _tracks_of(kq["data"])
+
+        p("")
+        p("--- Trang watch ---")
+        t0 = time.monotonic()
         try:
             r = await client.get(
                 f"https://www.youtube.com/watch?v={vid}&bpctr=9999999999&has_verified=1",
                 headers={"User-Agent": _UA_WEB, "Accept-Language": "en-US,en;q=0.9",
                          "Cookie": "CONSENT=YES+cb"})
-            d.append(f"  HTTP {r.status_code}, dai {len(r.text)} ky tu")
+            da_ket_noi += 1
+            p(f"  {int((time.monotonic() - t0) * 1000)}ms  HTTP {r.status_code}, "
+              f"dai {len(r.text)} ky tu")
             thay = False
             for mark in _PLAYER_MARKERS:
-                i = r.text.find(mark)
-                if i < 0:
+                k = r.text.find(mark)
+                if k < 0:
                     continue
-                j = r.text.find("{", i + len(mark) - 1)
-                data = _cat_json(r.text, j) if j >= 0 else None
+                m = r.text.find("{", k + len(mark) - 1)
+                data = _cat_json(r.text, m) if m >= 0 else None
                 if isinstance(data, dict):
                     thay = True
                     ma, _ = _khong_xem_duoc(data)
-                    d.append(f"  ytInitialPlayerResponse: CO, tracks={len(_tracks_of(data))}, "
-                             f"phan_loai={ma or 'OK'}")
-                    if _tracks_of(data):
-                        song.append(data)
+                    n = len(_tracks_of(data))
+                    p(f"  ytInitialPlayerResponse: CO, tracks={n}, phan_loai={ma or 'OK'}")
+                    if n and not nguon_track:
+                        nguon_track = _tracks_of(data)
                     break
             if not thay:
-                d.append("  ytInitialPlayerResponse: KHONG THAY "
-                         "(dau hieu bi chan hoac bi doi xac minh)")
+                p("  ytInitialPlayerResponse: KHONG THAY (dau hieu bi chan hoac bi doi xac minh)")
         except Exception as e:
-            d.append(f"  LOI {type(e).__name__}: {str(e)[:120]}")
+            p(f"  LOI {type(e).__name__}: {str(e)[:120]}")
 
-        d.append("")
-        d.append("--- yt-dlp ---")
-        ghi_chu: List[str] = []
-        t0 = time.monotonic()
-        yt = await _ytdlp(f"https://www.youtube.com/watch?v={vid}", ghi_chu)
-        mat = time.monotonic() - t0
-        if yt and yt.get("tracks"):
-            d.append(f"  CHAY DUOC sau {mat:.1f}s -> {len(yt['tracks'])} track, "
-                     f"tieu de: {yt['meta'].get('title', '')[:50]!r}")
+        p("")
+        p("--- yt-dlp ---")
+        if time.monotonic() > han:
+            p("  (bo qua: het thoi gian cho phep)")
+            yt = None
         else:
-            d.append(f"  THUA sau {mat:.1f}s")
-        for g in ghi_chu:
-            d.append(f"    {g}")
+            ghi_chu: List[str] = []
+            t0 = time.monotonic()
+            yt = await _ytdlp(f"https://www.youtube.com/watch?v={vid}", ghi_chu,
+                              timeout_s=max(10.0, min(60.0, han - time.monotonic())))
+            mat = time.monotonic() - t0
+            if yt and yt.get("tracks"):
+                p(f"  CHAY DUOC sau {mat:.1f}s -> {len(yt['tracks'])} track, "
+                  f"tieu de: {yt['meta'].get('title', '')[:50]!r}")
+                if not nguon_track:
+                    nguon_track = yt["tracks"]
+            else:
+                p(f"  THUA sau {mat:.1f}s")
+            for g in ghi_chu:
+                p(f"    {g}")
 
-        d.append("")
-        d.append("--- Tai thu loi thoai ---")
-        nguon_track = (_tracks_of(song[0]) if song else []) or (yt or {}).get("tracks") or []
+        p("")
+        p("--- Tai thu loi thoai ---")
         tr = pick_track(nguon_track)
         if not tr:
-            d.append("  Khong co duong phu de nao de thu.")
+            p("  Khong co duong phu de nao de thu.")
         else:
             ghi2: List[str] = []
-            lines = await _tai_loi_thoai(client, str(tr.get("baseUrl") or ""), "", HL_HOI, ghi2)
-            d.append(f"  track {track_label(tr)} -> {len(lines)} dong")
+            lines = await _tai_loi_thoai(client, _bo_fmt(str(tr.get("baseUrl") or "")),
+                                         "", HL_HOI, ghi2)
+            p(f"  track {track_label(tr)} -> {len(lines)} dong"
+              + ("  (track nay doi PO token)" if _can_pot(str(tr.get("baseUrl") or "")) else ""))
             for g in ghi2:
-                d.append(f"    {g}")
+                p(f"    {g}")
             if lines:
-                d.append(f"  Thu dong dau: {lines[0][1][:70]!r}")
+                p(f"  Thu dong dau: {lines[0][1][:70]!r}")
+
+        # Video đối chứng: phân biệt "RIÊNG video này có vấn đề" với "cả máy chủ bị chặn".
+        # XÉT BẰNG playabilityStatus, KHÔNG xét bằng số phụ đề: video đối chứng tình cờ không
+        # có phụ đề mà lại đi kết luận máy chủ bị chặn thì là vu oan.
+        if vid != VIDEO_DOI_CHUNG and time.monotonic() < han:
+            p("")
+            p(f"--- Video doi chung ({VIDEO_DOI_CHUNG}) ---")
+            ten, payload, headers = _clients(visitor)[0]
+            kq = await _thu_mot_client(client, VIDEO_DOI_CHUNG, ten,
+                                       dict(payload, videoId=VIDEO_DOI_CHUNG), headers)
+            if kq["loi"] or kq["http"] != 200:
+                p(f"  {ten}: khong hoi duoc ({kq['loi'] or 'HTTP ' + str(kq['http'])})")
+            else:
+                doi_chung_ok = kq["phan_loai"] == "OK"
+                p(f"  {ten}: status={kq['status']} phan_loai={kq['phan_loai']}"
+                  f" -> {'XEM DUOC' if doi_chung_ok else 'CUNG BI CHAN'}")
+    except BaseException as e:
+        # Kể cả Ctrl-C. Một công cụ chẩn đoán chạy vài phút mà mất trắng báo cáo đã thu thập
+        # thì tệ hơn là không có nó: người dùng phải chạy lại từ đầu.
+        p("")
+        p(f"!! DUNG GIUA CHUNG: {type(e).__name__}: {str(e)[:200]}")
     finally:
         if tu_tao:
             try:
@@ -1309,28 +1412,51 @@ async def tu_kiem(url: str, client: Optional[httpx.AsyncClient] = None) -> str:
             except Exception:
                 pass
 
-    d.append("")
-    d.append("=" * 72)
+    p("")
+    p("=" * 72)
     if nguon_track:
-        d.append("KET LUAN: LAY DUOC phu de. Neu Javis van bao loi thi van de nam o tang tren,")
-        d.append("          khong phai o duong mang - gui ca bao cao nay cho nguoi sua.")
+        ket = "OK"
+        p("KET LUAN: LAY DUOC phu de. Neu Javis van bao loi thi van de nam o tang tren,")
+        p("          khong phai o duong mang.")
+    elif da_ket_noi == 0:
+        ket = "MANG_HONG"
+        p("KET LUAN: KHONG mo duoc ket noi nao toi YouTube. Day la loi MANG RA NGOAI cua may")
+        p("          chu (tuong lua, DNS, proxy sai), KHONG phai YouTube chan.")
+    elif doi_chung_ok is True:
+        ket = "LOI_O_VIDEO"
+        p("KET LUAN: May chu VAN xem duoc video khac binh thuong, nen may chu KHONG bi chan.")
+        p("          Van de nam o RIENG video nay (rieng tu, gioi han tuoi, hoac khong co phu de).")
     else:
-        d.append("KET LUAN: KHONG duong nao lay duoc phu de. Doc cot reason o tren:")
-        d.append("  - 'not a bot' / 'khong phai robot'  -> IP may chu bi nghi la robot.")
-        d.append("  - 'confirm your age'                -> video gioi han tuoi.")
-        d.append("  - 'private'                         -> video rieng tu that.")
-        d.append("  - tat ca HTTP != 200 hoac loi mang  -> may chu khong ra duoc Internet.")
-        d.append("")
-        d.append("Neu la 'not a bot': goc re la IP may chu bi danh dau, khong phai loi cau hinh.")
-        d.append("Cach dut diem: dat JAVIS_YOUTUBE_PROXY=http://user:pass@host:port (proxy dan")
-        d.append("cu) roi khoi dong lai Javis. Chi rieng luu luong YouTube di qua do.")
-    d.append("Gui NGUYEN KHOI bao cao nay cho nguoi sua loi.")
-    d.append("=" * 72)
-    return "\n".join(d)
+        ket = "CHAN_MAY_CHU"
+        p("KET LUAN: KHONG duong nao lay duoc phu de, va video doi chung cung bi chan.")
+        p("          Nhieu kha nang IP may chu bi YouTube danh dau. Doc cot reason o tren de chac.")
+        p("")
+        p("Cach dut diem: dat JAVIS_YOUTUBE_PROXY=http://user:pass@host:port (proxy dan cu)")
+        p("roi khoi dong lai Javis. Chi rieng luu luong YouTube di qua do.")
+    p("")
+    p(f"KET_LUAN={ket}")
+    p("Gui NGUYEN KHOI bao cao nay cho nguoi sua loi.")
+    p("=" * 72)
+
+    bao_cao = "\n".join(d)
+    if in_dan:                      # ghi ra file: gui file de hon boi den terminal tren dien thoai
+        try:
+            try:
+                from config import STATE_DIR
+                thu_muc = Path(STATE_DIR) / "logs"
+            except Exception:
+                thu_muc = Path.cwd()
+            thu_muc.mkdir(parents=True, exist_ok=True)
+            f = thu_muc / f"youtube-tukiem-{vid}.txt"
+            f.write_text(bao_cao, encoding="utf-8")
+            print(f"\n(da luu bao cao vao: {f})", flush=True)
+        except Exception as e:
+            print(f"\n(khong luu duoc file bao cao: {type(e).__name__})", flush=True)
+    return bao_cao
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Dung: python server/youtube_read.py <link youtube>")
         raise SystemExit(2)
-    print(asyncio.run(tu_kiem(sys.argv[1])))
+    asyncio.run(tu_kiem(sys.argv[1], in_dan=True))
