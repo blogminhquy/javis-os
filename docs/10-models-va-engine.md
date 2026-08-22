@@ -271,6 +271,19 @@ Mở trang là thấy ngay khối **Bộ não đang dùng**: nó nói bộ não 
 
 Bạn không cần rời trang Models để đổi model: bấm **Đổi model ▾** ở khối Main Model là mở ngay bảng **SET MAIN MODEL**, chọn provider + model rồi **Switch**. Thao tác này lưu lại và áp dụng cho phiên chat mới. Khối **◆ Model việc nền** có nút **Đổi model ▾** riêng của nó (mở bảng **MODEL VIỆC NỀN**), còn các nút mức ở khối **◆ Suy nghĩ** áp dụng ngay khi bấm.
 
+## Đổi model giữa chừng một cuộc trò chuyện
+
+Đổi model ngay trong lúc đang chat thì **cuộc trò chuyện đi tiếp liền mạch**: model mới đọc được toàn bộ những gì đã nói trước đó và trả lời tiếp, không hỏi lại từ đầu. Bạn đổi bao nhiêu lần trong một cuộc cũng được.
+
+Bên dưới, Javis làm việc này theo hai cách tuỳ loại bộ não:
+
+- **Bộ não dùng API key** (OpenRouter, OpenAI, Anthropic, Gemini, Groq, Ollama) vốn không tự nhớ gì, nên mỗi lượt Javis gửi lại lịch sử hội thoại cho chúng.
+- **Bộ não chạy bằng gói thuê bao** (Claude Code, ChatGPT/Codex, Gemini CLI) thì tự giữ mạch hội thoại của riêng chúng, và Javis nối lại đúng mạch đó cho rẻ. Nhưng ngay khi một lượt do bộ não khác trả lời, mạch cũ đó **thiếu đúng lượt vừa rồi**. Javis vì vậy bỏ liên kết mạch của mọi bộ não khác sau mỗi lượt; lần bạn quay lại bộ não đó, nó dựng lại ngữ cảnh từ lịch sử đã lưu thay vì nối tiếp một mạch khuyết.
+
+Nói ngắn: đổi qua đổi lại vẫn liền mạch, chỉ là lượt đầu tiên sau khi đổi tốn thêm một chút vì phải gửi lại lịch sử.
+
+Từ 0.42.1 trở về trước có lỗi ở đúng chỗ này: chỉ mạch của ChatGPT/Codex được bỏ liên kết, còn Claude Code và Gemini CLI thì không, nên quay lại một trong hai bộ não đó là chúng nói như chưa hề có mấy lượt ở giữa.
+
 ## Bảng tra nhanh nút và trạng thái
 
 | Nút / dòng chữ | Ở đâu | Nghĩa là gì |

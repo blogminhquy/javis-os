@@ -630,6 +630,13 @@ class SessionStore:
         ))
 
     def set_cli_session_id(self, session_id: str, cli_session_id: str) -> None:
+        """Gắn mạch native của Claude Code. Truyền rỗng KHÔNG xoá - dùng clear_cli_session_id().
+
+        Cái bẫy này đã cắn thật: `set_cli_session_id(sid, "")` được gọi ở đường tắt với ý
+        định XOÁ mạch, và cả một comment dài bên đó giải thích vì sao phải xoá. Nhưng dòng
+        `if not ...: return` ngay dưới làm nó thành lệnh rỗng, im lặng. Hệ quả: lượt Claude
+        kế tiếp nối lại đúng cái mạch KHÔNG chứa lượt vừa rồi.
+        """
         if not cli_session_id:
             return
         self._write(lambda c: c.execute(
@@ -653,6 +660,14 @@ class SessionStore:
             (session_id,),
         ))
 
+    def clear_cli_session_id(self, session_id: str) -> None:
+        """Mạch Claude Code thành stale khi engine khác chen một lượt vào cùng hội thoại."""
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET cli_session_id = NULL "
+            "WHERE id = ? AND cli_session_id IS NOT NULL",
+            (session_id,),
+        ))
+
     def set_gemini_session_id(self, session_id: str, gemini_id: str) -> None:
         """Gắn mạch native của Gemini CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
         if not gemini_id:
@@ -668,6 +683,39 @@ class SessionStore:
             "WHERE id = ? AND gemini_session_id IS NOT NULL",
             (session_id,),
         ))
+
+    # ── mạch native của các engine giữ phiên ──
+    #
+    # Nhãn engine -> cột giữ mạch. Engine KHÔNG có mặt ở bảng này (Antigravity CLI và mọi
+    # engine API) không giữ mạch riêng: chúng dựng lại ngữ cảnh từ transcript ở MỌI lượt nên
+    # không bao giờ stale. Thêm engine giữ phiên mới thì thêm một dòng ở đây, đừng rải thêm
+    # một lệnh clear nữa vào main.py - đó chính là cách bảng này bị bỏ sót hai engine.
+    _MACH_NATIVE = {"cli": "cli_session_id",
+                    "codex": "codex_thread_id",
+                    "gemini-cli": "gemini_session_id"}
+
+    def clear_native_threads(self, session_id: str, keep: str = "") -> List[str]:
+        """Vô hiệu mạch native của MỌI engine, TRỪ engine `keep` đang chạy lượt này.
+
+        BẤT BIẾN: một mạch native chỉ còn đúng khi nó chứa TOÀN BỘ hội thoại. Ngay khi một
+        lượt được engine khác xử lý, mạch của mọi engine còn lại thiếu đúng lượt đó. Nối tiếp
+        một mạch như vậy là engine trả lời với bản ghi khuyết - người dùng thấy nó "quên"
+        đoạn giữa rồi nói lạc đề.
+
+        Trả về tên các cột vừa dọn, để chỗ gọi ghi vào nhật ký chạy mà lần sau còn soi được.
+        """
+        da_don: List[str] = []
+        cot_giu = self._MACH_NATIVE.get(str(keep or ""), "")
+        row = self.get_session(session_id) or {}
+        for nhan, cot in self._MACH_NATIVE.items():
+            if cot == cot_giu or not (row.get(cot) or ""):
+                continue
+            self._write(lambda c, _cot=cot: c.execute(
+                f"UPDATE sessions SET {_cot} = NULL WHERE id = ? AND {_cot} IS NOT NULL",
+                (session_id,),
+            ))
+            da_don.append(nhan)
+        return da_don
 
     # ── auto-title ──
 

@@ -8848,9 +8848,11 @@ async def websocket_endpoint(ws: WebSocket):
                     # ghi THIẾU: không thấy câu vừa hỏi lẫn câu vừa đáp, rồi nói lại hoặc nói
                     # mâu thuẫn. Bỏ liên kết mạch để lượt sau dựng lại từ SQLite - nơi lượt
                     # này ĐÃ được lưu. Bản mồi lại có trần ký tự nên còn rẻ hơn mạch cũ.
-                    store.clear_codex_thread_id(conv_sid)
-                    store.clear_gemini_session_id(conv_sid)
-                    store.set_cli_session_id(conv_sid, "")
+                    # Trước đây chỗ này gọi set_cli_session_id với chuỗi RỖNG để xoá mạch
+                    # Claude Code, và nó KHÔNG xoá gì: hàm đó return ngay khi giá trị rỗng.
+                    # Tức mạch Claude vẫn trỏ mạch cũ, đúng cái mà đoạn trên vừa giải thích
+                    # là phải bỏ. Nay dọn cả ba mạch bằng một lệnh có kiểm chứng bằng test.
+                    store.clear_native_threads(conv_sid)
                 else:
                     # Đường tắt về tay không. Với gói Claude Code đây là ca THẬT SỰ có thể
                     # xảy ra: nó gọi Messages API bằng access token của CLI, mà token đó có
@@ -9478,7 +9480,7 @@ async def websocket_endpoint(ws: WebSocket):
                     # Điều kiện là KHÔNG CÓ MẠCH chứ không phải "vừa xoay mạch" như bản cũ.
                     # Mạch trống còn xảy ra ở ba ca khác ngoài xoay chủ động: đường tắt
                     # (fast path) vừa dọn liên kết mạch và TIN rằng lượt sau mồi lại từ
-                    # SQLite (xem comment ở set_cli_session_id(conv_sid, "")); lượt trước
+                    # SQLite (xem `clear_native_threads` ở nhánh đường tắt); lượt trước
                     # đứt trước sự kiện `final` nên chưa kịp lưu id; và update/restart làm
                     # rollout cũ biến mất. Bản cũ chỉ mồi khi xoay nên cả ba ca kia đều mở
                     # mạch tay không - Javis quên sạch cuộc đang nói dở (người dùng báo
@@ -9649,10 +9651,18 @@ async def websocket_endpoint(ws: WebSocket):
                     store.set_pinned_model(conv_sid, prov, api_model or "")
                 except Exception:
                     pass
-            if engine_label != "codex":
-                # Provider khác vừa chen một lượt: thread Codex cũ không chứa lượt này nữa.
-                # Xoá liên kết để lần quay lại Codex bootstrap từ SQLite thay vì resume mạch stale.
-                store.clear_codex_thread_id(conv_sid)
+            # Đổi bộ não giữa chừng: mạch native của MỌI engine khác engine đang chạy lượt
+            # này lập tức thành stale, vì nó không chứa lượt sắp diễn ra. Quay lại engine đó
+            # mà cứ nối tiếp mạch cũ là nó mù đúng đoạn ở giữa, rồi trả lời lạc đề - đúng
+            # điều người dùng báo 22/08.
+            #
+            # Bản trước chỉ dọn Codex, bỏ sót Claude Code và Gemini CLI. Nay hỏi thẳng kho
+            # phiên để luật nằm ở MỘT chỗ: thêm engine giữ phiên mới thì sửa bảng trong
+            # sessions.py, không phải nhớ thêm một lệnh clear ở đây.
+            _da_don_mach = store.clear_native_threads(conv_sid, keep=engine_label)
+            if _da_don_mach:
+                print(f"[chat] đổi engine sang {engine_label!r}, dọn mạch stale: "
+                      f"{', '.join(_da_don_mach)}", file=sys.stderr)
             if _CHAT_RUNTIME.get_job(conv_sid):
                 await send_raw({"type": "error", "content": "Phiên này đang trả lời - đợi lượt hiện tại xong đã.", "session_id": conv_sid})
                 continue
@@ -11150,23 +11160,25 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                     else prov if ((kind == "api" and api_key) or kind == "oauth")
                     else "cli")
 
-    if engine_label != "gemini-cli" and sess.get("gemini") is not None:
-        # Cùng lý do với khối Codex ngay dưới: provider khác vừa chen một lượt nên mạch Gemini
-        # cũ KHÔNG chứa lượt đó; resume tiếp là nó mù đúng đoạn ở giữa.
+    # Bản tương ứng của `store.clear_native_threads` bên dashboard, cho ba engine giữ phiên.
+    # Cùng một bất biến: engine khác vừa chen một lượt thì mạch của MỌI engine còn lại không
+    # chứa lượt đó, nối tiếp là mù đúng đoạn ở giữa. Xoá liên kết thôi, giữ nguyên đối tượng
+    # (cwd/instructions vẫn dùng lại được); lượt sau của engine đó bootstrap từ kho phiên.
+    #
+    # Claude Code (`sess["cli"]`) trước đây BỊ BỎ SÓT ở đây, dù nó là engine hay dùng nhất.
+    for _nhan, _khoa in (("gemini-cli", "gemini"), ("codex", "codex"), ("cli", "cli")):
+        if engine_label == _nhan or sess.get(_khoa) is None:
+            continue
         try:
-            sess["gemini"].session_id = None
+            _obj = sess[_khoa]
+            # Dùng API công khai khi engine có (Claude Code), rơi về gán thẳng cho engine
+            # chưa có - khỏi phải rẽ nhánh theo tên engine ở đây.
+            if hasattr(_obj, "reset_session"):
+                _obj.reset_session()
+            else:
+                _obj.session_id = None
         except Exception:
-            sess["gemini"] = None
-
-    if engine_label != "codex" and sess.get("codex") is not None:
-        # Bản tương ứng của `store.clear_codex_thread_id` bên dashboard: provider khác vừa chen
-        # một lượt, thread Codex cũ KHÔNG chứa lượt đó. Quay lại Codex mà cứ resume thread cũ là
-        # nó mù các lượt ở giữa. Xoá liên kết thôi, giữ nguyên đối tượng (cwd/instructions vẫn
-        # dùng lại được); lượt Codex kế tiếp sẽ bootstrap từ kho phiên.
-        try:
-            sess["codex"].session_id = None
-        except Exception:
-            sess["codex"] = None
+            sess[_khoa] = None
 
     store = get_store()
     conv_sid = ""
