@@ -42,4 +42,8 @@ gpsoauth>=1.0
 # vì yt-dlp cập nhật theo từng đợt siết còn code trong repo thì không. Thuần Python, không
 # biên dịch, không kéo theo dependency nào đụng tới pin fastapi/starlette ở trên (đã kiểm
 # bằng pip install). Thiếu nó app VẪN chạy: nhánh yt-dlp tự tắt và chỉ ghi một dòng note.
-yt-dlp>=2025.9
+# SÀN PHIÊN BẢN QUAN TRỌNG: yt-dlp giữ danh sách client InnerTube và phải theo kịp từng đợt
+# YouTube siết. Bản 2025.x không biết client `visionos` (mặc định số một của 2026) và còn ghim
+# `tv_embedded` - cái tên đã bị xoá. Cài bản cũ thì quân dự bị coi như không có. Máy nào cập
+# nhật Javis từ trước 0.41.1 nên chạy thẳng: pip install -U yt-dlp
+yt-dlp>=2026.8.19

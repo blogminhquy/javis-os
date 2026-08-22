@@ -233,7 +233,15 @@ Bên dưới, Javis gọi tool `javis_youtube_read` (plugin đi kèm app `youtub
 Vài điều cần biết:
 
 - **Video không có phụ đề thì không tóm tắt được.** Javis sẽ nói thẳng như vậy chứ không đoán nội dung từ tiêu đề. Phần lớn video tiếng Việt và tiếng Anh đều có phụ đề máy nghe, nhưng video vừa đăng vài phút thì phụ đề chưa kịp chạy xong.
-- **Video riêng tư, giới hạn tuổi hoặc chặn theo vùng** cũng không đọc được, và Javis nói rõ lý do nào trong số đó. Riêng câu "YouTube nghi máy chủ này là robot" thì **không phải** video của bạn có vấn đề: đó là YouTube nghi địa chỉ máy chủ, hay gặp khi chạy trên VPS. Javis tự đổi qua sáu kiểu trình phát rồi mới tới yt-dlp nên phần lớn ca đó tự vượt được; gặp câu đó nghĩa là cả bảy đường đều bị từ chối, thử lại sau thường là xong.
+- **Video riêng tư, giới hạn tuổi hoặc chặn theo vùng** cũng không đọc được, và Javis nói rõ lý do nào trong số đó.
+- **Câu "YouTube nghi máy chủ này là robot" không phải lỗi video của bạn.** Gốc rễ là **danh tiếng địa chỉ IP**: YouTube đánh dấu dải IP của các nhà cung cấp máy chủ, nên cùng một video mở ở nhà thì được mà chạy trên VPS thì bị hỏi giấy. Javis tự đổi lần lượt qua tám kiểu trình phát rồi mới nhờ tới yt-dlp, nên phần lớn ca đó tự vượt. Gặp câu đó nghĩa là cả chín đường đều bị từ chối.
+  - Thử lại sau vài phút thường là xong, vì YouTube siết theo đợt.
+  - Lặp lại nhiều lần thì IP máy chủ đang bị đánh dấu nặng. Cách dứt điểm là đặt biến môi trường `JAVIS_YOUTUBE_PROXY` trỏ qua một proxy dân cư rồi khởi động lại, xem [Cấu hình .env](16-cau-hinh-env.md). Chỉ riêng lưu lượng YouTube đi qua đó.
+- **Muốn biết chính xác đường nào hỏng** thì chạy ngay trên máy chủ:
+  ```
+  python server/youtube_read.py <link video>
+  ```
+  Nó thử từng đường một rồi in ra bảng: đường nào sống, đường nào chết, YouTube trả lý do gì, yt-dlp đã cài chưa. Một lần chạy là đủ để biết bệnh, khỏi đoán.
 - **Video dài bị cắt bớt.** Một lần đọc lấy tối đa khoảng 40 nghìn ký tự lời thoại (đủ cho video 60-90 phút). Dài hơn thì Javis báo đã đọc tới phút mấy; bạn bảo "đọc tiếp" là nó đọc khúc sau.
 - **Muốn phụ đề tiếng khác** thì nói ra, ví dụ "đọc bản tiếng Anh". Mặc định Javis ưu tiên phụ đề theo ngôn ngữ giao diện, sau đó tới tiếng Anh, và luôn chuộng bản do người làm hơn bản máy nghe vì bản người có dấu câu nên tóm tắt chuẩn hơn.
 - Bản chép lời do máy nghe hay sai tên riêng và số liệu. Con số quan trọng thì nên mở video kiểm lại ở đúng mốc thời gian Javis dẫn.

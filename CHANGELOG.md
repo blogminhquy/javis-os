@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.42.0] - 2026-08-22
+### Sửa lỗi
+- **Đọc video YouTube: vá ba lỗi khiến bản trước gần như luôn thất bại trên máy chủ.** Danh sách trình phát đã cũ cả năm và còn chứa một cái YouTube đã bỏ; quân dự bị yt-dlp thì bị lỗi cấu hình nên chưa từng chạy được lần nào; và câu từ chối của YouTube bị đọc nhầm nên Javis báo "video riêng tư" cho một video vốn công khai.
+- **Báo đúng bệnh.** Giờ Javis phân biệt rõ "máy chủ bị nghi là robot" với "video riêng tư", "giới hạn tuổi" và "video đã bị gỡ". Khi không chắc thì nói thẳng là không chắc, kèm cách tự kiểm trong một phút, thay vì đoán bừa.
+
+### Thêm mới
+- **Lệnh tự kiểm khi video không đọc được**: chạy `python server/youtube_read.py <link>` ngay trên máy chủ, nó in ra bảng từng đường thử: đường nào sống, đường nào chết, YouTube trả lý do gì. Một lần chạy là đủ biết bệnh.
+- **Đổi đường mạng riêng cho YouTube**: nếu máy chủ của bạn bị YouTube đánh dấu, đặt `JAVIS_YOUTUBE_PROXY` là xong, và chỉ mình lưu lượng YouTube đi qua đó chứ không phải cả Javis.
+
 ## [0.41.0] - 2026-08-20
 ### Sửa lỗi
 - **Đọc được nhiều video YouTube hơn hẳn.** Bản trước hay báo "video đòi đăng nhập" rồi bỏ cuộc, kể cả với video công khai bình thường. Thủ phạm là YouTube nghi địa chỉ máy chủ là robot, hay gặp khi Javis chạy trên VPS. Giờ nó tự đổi lần lượt qua sáu kiểu trình phát rồi mới nhờ tới yt-dlp, nên phần lớn ca đó tự vượt được.
