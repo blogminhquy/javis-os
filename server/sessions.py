@@ -36,6 +36,28 @@ _DEFAULT_DB = _STATE_DIR / "conversations.db"
 DB_PATH = Path(os.getenv("JAVIS_SESSIONS_DB", str(_DEFAULT_DB)))
 
 
+def loc_brain(brain, cot: str = "s.brain"):
+    """(mệnh_đề_WHERE, params) cho bộ lọc brain. ("", []) nghĩa là không lọc.
+
+    `brain` nhận MỘT chuỗi hoặc DANH SÁCH chuỗi cùng trỏ về một brain, vì cột `brain` giữ
+    nguyên văn thứ mà chỗ tạo phiên truyền vào và các kênh không viết giống nhau: dashboard
+    gửi tên gọi tắt "brain" cho brain mặc định, còn Telegram (`/brain`) và loop lưu ĐƯỜNG DẪN
+    TUYỆT ĐỐI của đúng brain đó. So bằng một chuỗi duy nhất thì hai bên không bao giờ gặp
+    nhau - hội thoại Telegram vẫn lưu đủ nhưng biến mất khỏi thanh bên lẫn ô tìm kiếm, và
+    người dùng thấy đúng như "Javis không lưu phiên chat từ Telegram" (báo 23/08).
+    Bên gọi dựng danh sách bí danh (main.py::_brain_keys); ở đây chỉ lo phần SQL.
+    """
+    if not brain:
+        return "", []
+    keys = brain if isinstance(brain, (list, tuple, set)) else [brain]
+    keys = list(dict.fromkeys(str(k) for k in keys if k))
+    if not keys:
+        return "", []
+    if len(keys) == 1:
+        return f"{cot} = ?", keys
+    return f"{cot} IN ({','.join('?' * len(keys))})", keys
+
+
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sessions (
     id             TEXT PRIMARY KEY,
@@ -419,7 +441,7 @@ class SessionStore:
             out.append(d)
         return out
 
-    def list_sessions(self, limit: int = 50, brain: Optional[str] = None,
+    def list_sessions(self, limit: int = 50, brain: Any = None,
                       include_archived: bool = False,
                       project: Optional[str] = None) -> List[Dict[str, Any]]:
         """Danh sách hội thoại, MỤC GHIM luôn nằm trên đầu.
@@ -427,12 +449,16 @@ class SessionStore:
         `project`: bỏ trống = tất cả; "none" = các cuộc chưa xếp vào project nào;
         còn lại = đúng project đó. Giá trị "none" là chuỗi cố định chứ không phải id thật -
         id project là uuid hex nên không bao giờ đụng.
+
+        `brain`: một chuỗi, hoặc DANH SÁCH các cách viết cùng trỏ về một brain (xem
+        `loc_brain`).
         """
         where = []
         params: list = []
-        if brain:
-            where.append("s.brain = ?")
-            params.append(brain)
+        cond, bparams = loc_brain(brain)
+        if cond:
+            where.append(cond)
+            params += bparams
         if not include_archived:
             where.append("s.archived = 0")
         if project == "none":
@@ -745,13 +771,16 @@ class SessionStore:
         return q.strip()
 
     def search(self, query: str, limit: int = 30,
-               brain: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Full-text search nội dung mọi hội thoại. FTS5 nếu có, fallback LIKE."""
+               brain: Any = None) -> List[Dict[str, Any]]:
+        """Full-text search nội dung mọi hội thoại. FTS5 nếu có, fallback LIKE.
+
+        `brain` nhận cả danh sách bí danh, cùng luật với `list_sessions`."""
         q = (query or "").strip()
         if not q:
             return []
 
-        brain_clause = " AND s.brain = ?" if brain else ""
+        _bcond, _bparams = loc_brain(brain)
+        brain_clause = (" AND " + _bcond) if _bcond else ""
         if self._fts_enabled:
             fts_q = self._sanitize_fts(q)
             if fts_q:
@@ -766,7 +795,7 @@ class SessionStore:
                     ORDER BY rank
                     LIMIT ?
                 """
-                params = [fts_q] + ([brain] if brain else []) + [limit]
+                params = [fts_q] + list(_bparams) + [limit]
                 try:
                     return [dict(r) for r in self._read(sql, tuple(params))]
                 except sqlite3.OperationalError:
@@ -784,7 +813,7 @@ class SessionStore:
             ORDER BY m.ts DESC
             LIMIT ?
         """
-        params = [q, like] + ([brain] if brain else []) + [limit]
+        params = [q, like] + list(_bparams) + [limit]
         return [dict(r) for r in self._read(sql, tuple(params))]
 
     def close(self) -> None:

@@ -37,7 +37,9 @@ Trước 0.17.1 trang này ghi "khác biệt **duy nhất** là chạy được 
 
 Thêm hai giới hạn thực dụng của engine API: mỗi lượt tối đa **8 vòng gọi tool** (quá thì dừng và báo), và khi lượt **có gọi tool** thì câu trả lời hiện một cục ở cuối chứ không chạy dần từng chữ (mỗi vòng là một request riêng).
 
-Ngoài từng ấy, mọi năng lực còn lại là như nhau. Cụ thể là: gọi mọi MCP đã đấu, đọc và ghi file trong brain, chạy skill, giao việc Kanban, tạo loop và nhắc hẹn, tạo agent/workflow/skill (chúng chỉ là file `.md` trong vault), tạo ảnh, dùng tool của plugin.
+Ngoài từng ấy, mọi năng lực còn lại là như nhau. Cụ thể là: gọi mọi MCP đã đấu, đọc và ghi file trong brain, đọc file bạn vừa đính kèm hoặc dán vào khung chat, chạy skill, giao việc Kanban, tạo loop và nhắc hẹn, tạo agent/workflow/skill (chúng chỉ là file `.md` trong vault), tạo ảnh, dùng tool của plugin.
+
+> **Đọc file đính kèm trên engine API có từ 0.43.1.** Trước đó `javis_read_file` chỉ nhìn thấy bên trong brain, trong khi file bạn kéo-thả hay dán vào khung chat lại rơi xuống `.staging` ở ngoài - nên engine API báo lỗi rồi bảo bạn tự chép file vào thư mục Brain. Nay tool đó nhận cả đường dẫn file vừa đính kèm. Vẫn CHỈ đúng thư mục nhận file đó và CHỈ để đọc: ghi vẫn khoá trong brain, và chatbot nói chuyện với khách của bạn thì không thấy mấy file này.
 
 > **Giao việc Kanban từ engine API có từ 0.17.1.** Trước đó đường duy nhất là `POST /kanban/task`, mà gọi được nó thì phải có Bash và curl - nên chỉ Claude Code với Codex làm được, dù tài liệu vẫn hứa mọi bộ não đều làm được. Nay có tool `javis_task` đi qua hub nên lời hứa đó thành đúng.
 

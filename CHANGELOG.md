@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.43.1] - 2026-08-23
+### Sửa lỗi
+- **Hội thoại từ Telegram hiện lại ở thanh bên.** Chúng vẫn được lưu đủ từ trước tới nay, chỉ là bị lọc mất khỏi danh sách và khỏi ô tìm kiếm khi bạn đã từng gõ `/brain` trên Telegram. Giờ mở dashboard là thấy, kể cả những cuộc cũ.
+- **File bạn dán hoặc kéo vào khung chat thì Javis đọc thẳng, khỏi phải chép vào thư mục Brain.** Trước đây với các bộ não chạy bằng API key, dán một đoạn văn dài vào chat xong Javis lại bảo bạn tự chuyển file qua Brain rồi mới đọc được. Bộ não Claude Code không dính lỗi này.
+- Vẫn đúng ranh giới cũ: Javis chỉ đọc thêm file bạn vừa đưa vào khung chat, không đọc lung tung trên máy, không ghi ra ngoài bộ não, và chatbot nói chuyện với khách thì không thấy mấy file đó.
+
 ## [0.43.0] - 2026-08-22
 ### Sửa lỗi
 - **Bộ não Antigravity giờ dùng được tool của Javis thật.** Bấy lâu nay nó chat trôi chảy nhưng không gọi được MCP, không giao được việc Kanban, không chạy được skill - mà chẳng báo lỗi gì nên rất khó nhận ra. Javis ghi cấu hình sai chỗ và sai tên trường, tức `agy` chưa từng nhìn thấy trung tâm kết nối lần nào.

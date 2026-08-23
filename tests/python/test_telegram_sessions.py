@@ -136,7 +136,10 @@ s1 = _lay(sess)
 check("lượt đầu tạo được phiên", bool(s1))
 check("phiên nhớ vào sess['sid'] để lượt sau nối tiếp", sess["sid"] == s1)
 check("phiên Telegram gắn channel='telegram'", rot.get_session(s1)["channel"] == "telegram")
-check("phiên ghi đúng brain", rot.get_session(s1)["brain"] == BRAIN)
+# Cột brain giữ KHOÁ CHUẨN (đường dẫn tuyệt đối) chứ không phải nguyên văn "brain" như
+# trước - xem main.py::_brain_key và test_phien_telegram_hien_o_thanh_ben.py.
+check("phiên ghi brain ở dạng khoá chuẩn",
+      rot.get_session(s1)["brain"] == main._brain_key(BRAIN))
 check("chat đang nóng thì DÙNG LẠI phiên cũ", _lay(sess) == s1)
 
 # ---- Xoay theo NGHỈ LÂU ----

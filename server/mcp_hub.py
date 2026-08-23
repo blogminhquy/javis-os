@@ -258,6 +258,61 @@ def _safe_path(vault_root, p):
     return target
 
 
+def _vung_nhan_file():
+    """`STATE_DIR/.staging` - vùng NHẬN FILE của khung chat, đã resolve. None nếu không có.
+
+    Mọi file người dùng đưa vào khung chat dashboard đều rơi xuống đây trước khi engine đọc:
+    kéo-thả, dán ảnh, và cả dán một đoạn văn dài (app.js tự cắt thành `van-ban-dan-*.txt`).
+    Thư mục này nằm NGOÀI vault, nên nó vô hình với `_safe_path`.
+    """
+    try:
+        return (Path(STATE_DIR) / ".staging").resolve()
+    except Exception:
+        return None
+
+
+def _safe_read_path(vault_root, p, cho_phep_staging=False):
+    """Như `_safe_path` nhưng cho ĐỌC, và biết thêm vùng nhận file của khung chat.
+
+    Vì sao phải có: dashboard chèn vào câu hỏi khối "[File đính kèm để ĐỌC (đường dẫn): …]"
+    với ĐƯỜNG DẪN TUYỆT ĐỐI trong `.staging` rồi dặn model "đọc thẳng file rồi trả lời".
+    Sáu engine API không có tool đọc file nào ngoài `javis_read_file`, mà tool đó khoá trong
+    vault - nên lượt nào đính kèm file cũng nổ `ValueError: nằm ngoài vault`, và model đọc
+    lỗi đó xong quay ra bảo người dùng "chuyển file vào thư mục Brain đi rồi tôi đọc". Người
+    dùng báo đúng cảnh này 23/08 với một đoạn văn dán dài.
+
+    Nới ĐÚNG một thư mục và CHỈ cho đọc: file trong đó là file chính chủ vừa gửi lên ở lượt
+    này, cùng mức tin cậy với file trong vault. Ghi vẫn khoá trong vault như cũ. Và phải xin
+    tường minh (`cho_phep_staging`) chứ không mặc định - bot chuyên trách nói chuyện với
+    người lạ cũng gọi hub bằng chính nhóm tool này, mở sẵn cho nó là biến tài liệu chủ vừa
+    dán thành thứ khách đoán tên file là đọc được.
+    """
+    trong_vault, loi = None, None
+    try:
+        trong_vault = _safe_path(vault_root, p)
+        if trong_vault.exists():
+            return trong_vault          # vault LUÔN thắng: không để staging che file thật
+    except ValueError as e:
+        loi = e
+    if cho_phep_staging:
+        stage = _vung_nhan_file()
+        raw = str(p or "").strip().replace("\\", "/")
+        if stage and raw:
+            q = Path(raw)
+            # Đường dẫn tuyệt đối của CHÍNH máy này (ca thường gặp), rồi tới tên file trần -
+            # đủ cho ca engine cầm đường dẫn của một máy khác (Docker) mà tên file vẫn đúng.
+            for ung_vien in ([q] if q.is_absolute() else [stage / q]) + [stage / q.name]:
+                try:
+                    t = ung_vien.resolve()
+                except OSError:
+                    continue
+                if (t == stage or stage in t.parents) and t.is_file():
+                    return t
+    if loi:
+        raise loi
+    return trong_vault                  # trong vault nhưng không tồn tại: để chỗ gọi báo
+
+
 def _connections_json(include_ambient=False, hidden=None):
     hidden = hidden or {}
     out = []
@@ -297,13 +352,15 @@ def _list_skills(vault_root):
     return skill_router.enabled_slugs(vault_root)
 
 
-def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""):
+def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang="", staging=False):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
     Claude (Drive/Gmail...) để model biết chúng tồn tại (gọi qua tool native mcp__*, không qua hub).
     hidden: {conn_id: {perm, tools}} tool bị mức quyền lọc khỏi danh sách - kể ra trong
-    javis_connections để model biết mà nói đúng lý do thay vì tưởng nguồn thiếu năng lực."""
+    javis_connections để model biết mà nói đúng lý do thay vì tưởng nguồn thiếu năng lực.
+    staging=True: `javis_read_file` đọc được thêm file trong vùng nhận file của khung chat
+    (xem `_safe_read_path`). CHỈ đường chat của CHỦ bật; bot chuyên trách để nguyên False."""
     tools, route = [], {}
 
     def add(name, description, props, required, call, effect="read"):
@@ -331,9 +388,19 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         return tools, route
 
     async def _read(args):
-        p = _safe_path(vault_root, (args or {}).get("path"))
+        rel = (args or {}).get("path")
+        try:
+            p = _safe_read_path(vault_root, rel, cho_phep_staging=staging)
+        except ValueError:
+            # Nói THẲNG đây là ranh giới brain, kèm việc-cần-làm. Bản cũ để ValueError rơi ra
+            # nguyên văn "nằm ngoài vault", model đọc xong tự dựng một lời khuyên sai (bảo
+            # người dùng tự chép file vào thư mục Brain rồi mới đọc được).
+            return (f"ERROR: '{rel}' nằm ngoài bộ não đang làm việc nên tool này không đọc "
+                    f"được. Javis khoá tool file trong brain để một lượt chat không đọc lung "
+                    f"tung trên máy. Đọc được: đường dẫn tương đối trong brain, và file người "
+                    f"dùng vừa đính kèm vào khung chat.")
         if not p.is_file():
-            return f"ERROR: không có file '{(args or {}).get('path')}'"
+            return f"ERROR: không có file '{rel}'"
         text = p.read_text(encoding="utf-8", errors="replace")
         return text[:100_000] + (f"\n… [cắt, file dài {len(text):,} ký tự]" if len(text) > 100_000 else "")
 
@@ -383,7 +450,8 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         await asyncio.to_thread(skill_usage.bump, vault_root, f.parent.name)
         return text
 
-    add("javis_read_file", "Đọc 1 file trong vault (Second Brain). path tương đối so với gốc vault.",
+    add("javis_read_file", "Đọc 1 file trong vault (Second Brain). path tương đối so với gốc vault; "
+        "nhận CẢ đường dẫn tuyệt đối của file người dùng vừa đính kèm/dán vào khung chat.",
         {"path": {"type": "string"}}, ["path"], _read)
     add("javis_list_dir", "Liệt kê file/thư mục trong vault. path tương đối, bỏ trống = gốc vault.",
         {"path": {"type": "string"}}, [], _ls)
@@ -697,14 +765,16 @@ def _store_mtime():
 
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
-                       force_refresh=False, force_lazy=False):
+                       force_refresh=False, force_lazy=False, staging=False):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
     include_ambient=True (đường engine Claude, header X-Javis-Engine=claude): javis_connections +
     lazy search kèm connector tài khoản Claude (Drive/Gmail...) - chúng là tool native mcp__* của
     engine, KHÔNG qua hub, hub chỉ mách chỗ cho model. Engine API (in-process) để False (không có
-    tool native để mà chỉ tới)."""
+    tool native để mà chỉ tới).
+    staging=True: cho `javis_read_file` đọc thêm vùng nhận file của khung chat - CHỈ đường chat
+    của chủ truyền vào (xem `_safe_read_path`)."""
     mode = (mode or "full").strip().lower()
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
     # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
@@ -716,7 +786,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     except Exception:
         lang = ""
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
-           bool(force_lazy), lang)
+           bool(force_lazy), lang, bool(staging))
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < _CACHE_TTL
@@ -758,7 +828,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             "health": "healthy",
         }
 
-    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang)
+    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging)
     tools_spec += b_tools
     route.update(b_route)
 
@@ -799,10 +869,10 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
 
 
 def registry_inventory(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
-                       force_lazy=False):
+                       force_lazy=False, staging=False):
     """Trả snapshot pre-lazy đã cache; không discover I/O và không lộ ra model."""
     key = ((mode or "full").strip().lower(), str(vault_root or ""),
-           bool(include_plugins), bool(include_ambient), bool(force_lazy))
+           bool(include_plugins), bool(include_ambient), bool(force_lazy), bool(staging))
     ent = _cache.get(key) or {}
     return list(ent.get("inventory_tools") or ent.get("tools") or []), dict(
         ent.get("inventory_route") or ent.get("route") or {}

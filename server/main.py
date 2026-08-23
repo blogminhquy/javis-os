@@ -1527,11 +1527,17 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
         try:
             if _hub_enabled():
                 vault_root = _brain_root(brain) if brain else None
+                # staging=True: đây là đường chat của CHỦ (dashboard + Telegram của chủ), tức
+                # đúng nơi người dùng đính kèm/dán file. Cho javis_read_file với tới vùng nhận
+                # file của khung chat, nếu không thì khối "[File đính kèm để ĐỌC…]" mà chính
+                # dashboard chèn vào câu hỏi là một lời hứa engine API không giữ nổi. Bot
+                # chuyên trách dựng tool ở chỗ khác và KHÔNG truyền cờ này - khách lạ vẫn chỉ
+                # thấy brain của bot.
                 tools, route = await mcp_hub.discover_all(
-                    mode, vault_root=vault_root, force_lazy=force_lazy
+                    mode, vault_root=vault_root, force_lazy=force_lazy, staging=True
                 )
                 inventory_tools, inventory_route = mcp_hub.registry_inventory(
-                    mode, vault_root=vault_root, force_lazy=force_lazy)
+                    mode, vault_root=vault_root, force_lazy=force_lazy, staging=True)
             else:
                 servers = mcp_store.servers_for_client()
                 if servers:
@@ -3703,6 +3709,49 @@ def _brain_root(brain: str) -> str:
     if not brain or brain == "brain":
         return str(_default_brain_dir())
     return brain if os.path.isdir(brain) else str(_default_brain_dir())
+
+
+def _brain_key(brain) -> str:
+    """Giá trị CHUẨN của một brain để GHI vào kho phiên: đường dẫn tuyệt đối đã resolve.
+
+    Cột `sessions.brain` trước đây lưu nguyên văn thứ chỗ tạo phiên truyền vào, mà mỗi kênh
+    viết một kiểu cho CÙNG một brain: dashboard gửi tên gọi tắt "brain" (app.js::
+    currentBrainPath), Telegram `/brain` và loop lưu đường dẫn tuyệt đối. Ghi chuẩn hoá thì
+    phiên mới của mọi kênh nằm chung một khoá; phiên CŨ đã lệch thì `_brain_keys` lo lúc đọc.
+    """
+    root = _brain_root(str(brain or ""))
+    try:
+        return str(Path(root).resolve())
+    except OSError:
+        return str(root)
+
+
+def _brain_keys(brain) -> list:
+    """Mọi cách viết cùng trỏ về brain này, để LỌC kho phiên. [] = không lọc.
+
+    Có cả bản chuẩn (`_brain_key`) lẫn các bản cũ còn nằm trong DB: chuỗi người gọi đưa vào,
+    đường dẫn chưa resolve, và tên gọi tắt "brain" khi đây đúng là brain mặc định. Nhờ vậy
+    hội thoại lưu từ trước bản vá vẫn hiện lên mà không phải chạy migration nào.
+    """
+    raw = str(brain or "").strip()
+    if not raw:
+        return []
+    root = _brain_root(raw)
+    try:
+        chuan = str(Path(root).resolve())
+    except OSError:
+        chuan = str(root)
+    keys = [raw]
+    for v in (str(root), chuan):
+        if v and v not in keys:
+            keys.append(v)
+    try:
+        if chuan == str(_default_brain_dir().resolve()) and "brain" not in keys:
+            keys.append("brain")
+    except OSError:
+        pass
+    return keys
+
 
 def _brain_sub(root, new_name: str, old_rel: str) -> Path:
     """Subfolder trong brain theo cấu trúc CHUẨN MỚI (phẳng <root>/<new_name>).
@@ -9663,7 +9712,7 @@ async def websocket_endpoint(ws: WebSocket):
                             else prov if ((kind == "api" and api_key) or kind == "oauth")
                             else "cli")
             conv_sid = store.get_or_create(
-                payload.get("session_id"), brain=brain, engine=engine_label,
+                payload.get("session_id"), brain=_brain_key(brain), engine=engine_label,
                 model=(api_model or mcfg.get("claude_model")))
             # ĐÓNG DẤU model từ tin đầu (chủ chốt 16/08): mỗi lượt bảo đảm ghim của
             # phiên == model ĐANG CHẠY THẬT của lượt này. Phủ một lúc ba ca:
@@ -9859,13 +9908,13 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 async def sessions_list(brain: str = Query(None), limit: int = Query(50),
                         project: str = Query("")):
     """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project."""
-    return {"sessions": get_store().list_sessions(limit=limit, brain=brain,
+    return {"sessions": get_store().list_sessions(limit=limit, brain=_brain_keys(brain),
                                                   project=project or None)}
 
 
 @app.get("/sessions/search")
 async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = Query(30)):
-    return {"results": get_store().search(q, limit=limit, brain=brain)}
+    return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain))}
 
 
 @app.get("/sessions/{session_id}")
@@ -11133,9 +11182,12 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
                 sid = None      # nghỉ lâu / đã dài → sang khúc mới
     if sid:
         # Còn dùng tiếp: đồng bộ engine/model vì người dùng có thể vừa đổi bằng /model.
-        sess["sid"] = store.get_or_create(sid, brain=brain, engine=engine_label, model=model)
+        sess["sid"] = store.get_or_create(sid, brain=_brain_key(brain), engine=engine_label,
+                                          model=model)
         return sess["sid"]
-    sess["sid"] = store.create_session(brain=brain, engine=engine_label, model=model,
+    # `_brain_key`: Telegram cầm ĐƯỜNG DẪN brain, dashboard gửi tên gọi tắt "brain" - ghi
+    # nguyên văn thì hai bên lệch khoá và thanh bên không thấy hội thoại Telegram đâu.
+    sess["sid"] = store.create_session(brain=_brain_key(brain), engine=engine_label, model=model,
                                        channel="telegram")
     # Dọn theo nhịp XOAY (hiếm, cỡ vài ngày một lần) chứ không mỗi lượt - đủ để thanh bên
     # không ngập dần vì các khúc cũ.
