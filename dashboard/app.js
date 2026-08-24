@@ -606,6 +606,13 @@ function escapeHtml(t) { return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").rep
 //      biến mất khi phóng to chat). Chip là 1 "bong bóng" 3 chấm nhún + dòng trạng thái
 //      + đồng hồ đếm giây, luôn nằm CUỐI khung chat, đi theo cả chế độ zoom. ----
 let activityEl = null, activityT0 = 0, activityTimer = null;
+// Thời lượng đọc được cho task dài: "45s" → "1m 56s" → "1h 30m 40s". Chủ repo báo (2026-08-24)
+// việc nền chạy hàng chục phút mà đồng hồ đếm "1856s" thì không ai nhẩm ra là bao lâu.
+function fmtElapsed(s) {
+  if (s < 60) return s + "s";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), giay = s % 60;
+  return (h ? h + "h " + m + "m " : m + "m ") + giay + "s";
+}
 // Chip hoạt động cuối khung chat. THAM SỐ LÀ HTML, không phải chữ thuần: nhiều chỗ
 // gọi kèm icon (Icons.msg) nên textContent sẽ in nguyên thẻ <svg ...> ra màn hình.
 // Chữ từ server BẮT BUỘC đi qua escapeHtml trước khi truyền vào đây.
@@ -621,7 +628,7 @@ function showActivity(html) {
       if (!activityEl) return;
       const s = Math.floor((Date.now() - activityT0) / 1000);
       // 3s đầu khỏi hiện số cho đỡ rối; câu chậm (CLI/MCP) thì thấy rõ đã đợi bao lâu
-      activityEl.querySelector(".act-time").textContent = s >= 3 ? s + "s" : "";
+      activityEl.querySelector(".act-time").textContent = s >= 3 ? fmtElapsed(s) : "";
     }, 1000);
   }
   activityEl.querySelector(".act-text").innerHTML = html || "Đang xử lý...";
