@@ -1208,6 +1208,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   margin: 0 20px 8px; padding: 8px 12px; border-radius: 12px;
   border: 1px solid var(--border); background: var(--bg3);
   font-size: 13px; color: var(--text2); max-height: 132px; overflow-y: auto;
+  /* flex: none vì dải sống trong các cột flex (.chatpage-slot, cột chat mobile): thiếu nó thì
+     khung chat đầy tin là dải bị bóp còn nửa dòng đầu (ảnh chủ repo 2026-08-24). Trần cao đã
+     có max-height ở trên lo, không cần nhờ flex co. */
+  flex: none;
 }
 .bg-strip[hidden] { display: none; }
 .bg-run { border-color: var(--ok-line); background: var(--ok-wash); }
