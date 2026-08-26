@@ -61,8 +61,13 @@ def plan_deletions(entries, now, max_age_days, max_mb, keep_md=True):
 _ATTACH_RE = r"^(\d+\s*[-_.]\s*)?attachments$"
 
 
-def media_dirs(brain_root):
-    """Các thư mục VÙNG CACHE cấp 1 của brain: attachments (mọi biến thể tên) + inbox."""
+def media_dirs(brain_root, attachments=True):
+    """Các thư mục VÙNG CACHE cấp 1 của brain: attachments (mọi biến thể tên) + inbox.
+
+    attachments=False: CHỈ inbox. Dùng khi bật đồng bộ ảnh lên GitHub (backup.sync_images) -
+    lúc đó attachments/ không còn là cache dùng-xong-vứt nữa mà là thứ người dùng muốn GIỮ:
+    để máy dọn xoá ảnh quá hạn thì lượt sync sau ghi nhận "đã xoá" rồi lan sang mọi máy,
+    ảnh backup tự biến mất đúng hạn. inbox thì vẫn dọn - nó không bao giờ được sync."""
     ra = []
     try:
         with os.scandir(brain_root) as it:
@@ -73,7 +78,9 @@ def media_dirs(brain_root):
                 except OSError:
                     continue
                 ten = d.name.strip()
-                if ten.lower() == "inbox" or re.match(_ATTACH_RE, ten, re.IGNORECASE):
+                if ten.lower() == "inbox":
+                    ra.append(d.path)
+                elif attachments and re.match(_ATTACH_RE, ten, re.IGNORECASE):
                     ra.append(d.path)
     except OSError:
         pass
@@ -122,12 +129,13 @@ def _xoa(can_xoa, kich_thuoc):
     return {"files": n, "bytes": b}
 
 
-def sweep(brain_root, max_age_days=30, max_mb=300, now=None):
+def sweep(brain_root, max_age_days=30, max_mb=300, now=None, attachments=True):
     """Dọn vùng cache của MỘT brain. CHẶN vì đụng đĩa - phải gọi qua asyncio.to_thread.
 
+    attachments=False (đang bật đồng bộ ảnh): chỉ dọn inbox, xem media_dirs.
     Trả {"files": số file đã xoá, "bytes": tổng byte đã giải phóng}.
     """
-    entries = scan(media_dirs(brain_root))
+    entries = scan(media_dirs(brain_root, attachments=attachments))
     can_xoa = plan_deletions(entries, float(now if now is not None else time.time()),
                              max_age_days, max_mb)
     return _xoa(can_xoa, {t[0]: t[1] for t in entries})

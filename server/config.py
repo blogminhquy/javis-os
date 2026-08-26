@@ -159,8 +159,14 @@ _DEFAULT = {
     "zalo_bot": {"enabled": False, "token": "", "chat_id": ""},
     # Backup brain lên GitHub (repo RIÊNG TƯ). token = GitHub PAT (fine-grained, quyền Contents).
     # Lưu trong settings.json (đã gitignored) - KHÔNG bao giờ đẩy lên brain repo.
+    # sync_images: đồng bộ CẢ ẢNH (jpg/png/gif/webp, mỗi ảnh <= trần ~10MB) lên repo backup.
+    # MẶC ĐỊNH TẮT vì git nhớ mãi mãi - bật là ảnh nằm vĩnh viễn trong lịch sử repo, tắt sau
+    # không đòi lại dung lượng. Dùng nhiều máy chung repo thì bật trên MỌI máy (dù đã có rào
+    # chống máy tắt xoá chéo ảnh của máy bật - xem git_brain._sync_mirror). Khi bật, máy dọn
+    # media tự BỎ QUA attachments/ để ảnh vừa backup không bị dọn rồi lệnh xoá lan đi các máy.
     "backup": {"enabled": False, "repo_url": "", "token": "", "branch": "main",
-               "interval_hours": 6, "last_backup": 0.0, "last_status": ""},
+               "interval_hours": 6, "sync_images": False,
+               "last_backup": 0.0, "last_status": ""},
     "dashboard": {
         # graph_enabled=False → vào thẳng Console, KHÔNG dựng đồ thị (nhẹ cho VPS/điện thoại).
         # Frontend cũng tự ép lite-mode khi màn hình hẹp dù cờ này bật.

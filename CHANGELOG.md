@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.46.0] - 2026-08-26
+### Thêm mới
+- **Công tắc "Đồng bộ cả ảnh" trong khối đồng bộ GitHub** (trang Tự học, mặc định tắt). Bật lên thì ảnh jpg/png/gif/webp trong brain (mỗi ảnh tối đa 10MB) cũng lên repo và theo bạn sang máy khác; video và file nặng vẫn không bao giờ lên.
+- Bật đồng bộ ảnh thì Javis ngừng tự dọn ảnh cũ trong attachments, để ảnh đã backup không tự biến mất theo hạn dọn rồi lan lệnh xoá sang máy khác.
+- An toàn khi các máy lệch cấu hình: máy chưa bật không đẩy, không nhận, và không xoá ảnh máy khác đã đưa lên. UI nói thẳng đánh đổi trước khi bật: git nhớ mãi mãi, tắt sau không lấy lại dung lượng.
+
 ## [0.45.0] - 2026-08-26
 ### Thêm mới
 - **Javis sửa thẳng vai và chuỗi bước đã có, thay vì đẻ bản sao.** Trước đây tự học chỉ biết tạo mới, nên mỗi lần một workflow cần cải tiến lại có thêm một bản gần giống nằm cạnh. Giờ nó sửa đúng file đó: thiếu bước thì thêm, thừa thì bỏ, sai thứ tự thì xếp lại.
