@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import yaml
+import fastyaml   # bộ nạp YAML dùng libyaml, tự rơi về bộ nạp Python khi thiếu
 from fastapi import APIRouter, Form, Query
 
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
@@ -107,7 +108,7 @@ def read_md(path) -> Tuple[dict, str]:
     if not m:
         return {}, text.strip()
     try:
-        fm = yaml.safe_load(m.group(1))
+        fm = fastyaml.safe_load(m.group(1))
     except Exception:
         fm = None
     return (fm if isinstance(fm, dict) else {}), (m.group(2) or "").strip()
