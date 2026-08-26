@@ -15,7 +15,7 @@ Sau vài lượt chat, Javis mở một **tiến trình học riêng** để đ�
 
 Trước khi ghi, code còn quét thêm hai lớp: **quét lộ khoá bí mật** (API key, token Telegram, JWT, chuỗi kết nối cơ sở dữ liệu, dòng có nhãn "mật khẩu"/"password") và **quét câu chèn lệnh** kiểu "bỏ qua mọi chỉ dẫn trước đó". Cái nào dính là bị chặn, không ghi, và lý do được ghi vào nhật ký. Ngược chiều cũng vậy: nội dung hội thoại đưa cho tiến trình học đọc đã được vô hiệu hoá các câu mệnh lệnh, để một tin nhắn khách gửi vào không điều khiển được vòng học.
 
-Cuối cùng, Javis chỉ cho phép ghi vào đúng các thư mục `memory/`, `Memory/`, `Wiki/`, `skills/`, `.claude/skills/`, `Javis/` của brain. Đường dẫn nào lọt ra ngoài danh sách này sẽ bị khôi phục lại ngay.
+Cuối cùng, Javis chỉ cho phép ghi vào đúng các thư mục `memory/`, `Memory/`, `Wiki/`, `skills/`, `.claude/skills/`, `agents/`, `workflows/`, `Javis/` của brain. Đường dẫn nào lọt ra ngoài danh sách này sẽ bị khôi phục lại ngay.
 
 ## Mở ở đâu trong Javis
 
@@ -54,20 +54,22 @@ Bấm nút một lần nữa để tắt. Lúc tắt, Javis lưu ngay trạng th
 
 ### Bước 3: Chọn học cái gì
 
-Ô **Học cái gì** có bốn công tắc. Chấm tròn đặc `●` là đang bật, chấm rỗng `○` là đang tắt. Bấm để đảo trạng thái.
+Ô **Học cái gì** có sáu công tắc. Chấm tròn đặc `●` là đang bật, chấm rỗng `○` là đang tắt. Bấm để đảo trạng thái.
 
 | Công tắc | Mặc định | Học ra cái gì |
 | --- | --- | --- |
 | **Ký ức (Memory)** | Bật | Sự thật bền vững về chính bạn và doanh nghiệp bạn, ghi thành file trong `memory/facts/` và thêm một dòng vào `MEMORY.md` |
 | **Tri thức (Wiki)** | Bật | Khái niệm, framework, quy trình tái dùng được, ghi thành note trong thư mục Wiki của brain |
 | **Kỹ năng (Skill)** | Bật | Quy trình nhiều bước Javis vừa tự làm và thấy lặp lại được, ghi thành `skills/<slug>/SKILL.md` |
+| **Vai (Agent)** | **Tắt** | Vai chuyên môn bạn nhờ đi nhờ lại trong hội thoại, ghi thành `agents/<slug>.md` - tạo mới, không ghi đè vai đã có |
+| **Chuỗi bước (Workflow)** | **Tắt** | Chuỗi từ 2 bước nhiều vai bạn đã làm lặp lại, ghi thành `workflows/<slug>.md` ở trạng thái tắt để bạn xem trước rồi tự bật |
 | **Việc (Kanban)** | **Tắt** | Đề xuất việc nền, đẩy vào bảng ở trang **Việc** |
 
-Dòng gợi ý dưới bốn nút ghi: "Wiki/Skill nên bật sau khi đã quen với Ký ức (lộ trình Phase 2/3). Việc = học xong đề xuất task nền vào bảng Việc (Kanban) - chỉ tạo thật ở chế độ Tự ghi, và task luôn chờ bạn duyệt."
+Dòng gợi ý dưới các nút ghi: "Wiki/Skill nên bật sau khi đã quen với Ký ức (lộ trình Phase 2/3). Việc = học xong đề xuất task nền vào bảng Việc (Kanban) - chỉ tạo thật ở chế độ Tự ghi, và task luôn chờ bạn duyệt."
 
 Về công tắc **Việc**: nó mặc định tắt và Javis **chủ động tắt lại một lần** cho những máy đã bật từ trước. Lý do rất thực tế: khi soi bảng việc thật, gần như toàn bộ việc trong đó là do máy tự nghĩ ra, mà phần lớn worker nền không làm nổi (cần đăng nhập, cần gửi tin ra ngoài, cần chờ người khác duyệt, cần đụng mã nguồn ngoài brain). Kể từ đó, việc chỉ sinh ra khi bạn **bảo thẳng** trong chat. Công tắc vẫn còn ở đây cho ai muốn bật lại.
 
-**Lộ trình bật dần được khuyên dùng:** bật riêng Ký ức trước, chạy vài ngày rồi mở `MEMORY.md` xem Javis nhớ đúng chưa. Ổn thì bật thêm Tri thức Wiki. Quen tay nữa mới bật Kỹ năng, vì skill sai làm lệch cả cách Javis xử lý về sau. Công tắc Việc để cuối cùng, và chỉ khi bạn thật sự muốn Javis tự đẻ việc nền.
+**Lộ trình bật dần được khuyên dùng:** bật riêng Ký ức trước, chạy vài ngày rồi mở `MEMORY.md` xem Javis nhớ đúng chưa. Ổn thì bật thêm Tri thức Wiki. Quen tay nữa mới bật Kỹ năng, vì skill sai làm lệch cả cách Javis xử lý về sau. Hai công tắc Vai (Agent) và Chuỗi bước (Workflow) cũng mặc định tắt vì chúng tạo thứ hiện thẳng trong Studio: chỉ bật khi bạn muốn Javis tự đóng vai/chuỗi từ những việc bạn nhờ lặp lại, và cũng như skill, chúng đi qua một lượt kiểm tra thứ hai độc lập trước khi ghi, workflow luôn tạo ở trạng thái tắt. Công tắc Việc để cuối cùng, và chỉ khi bạn thật sự muốn Javis tự đẻ việc nền.
 
 ### Bước 4: Bật Curator nếu muốn dọn dẹp định kỳ
 
@@ -171,7 +173,7 @@ Muốn chạy ngay một vòng, bấm **🧹 Curator ngay**. Nút hiện "Đang 
 | --- | --- | --- |
 | `● Đang bật` / `○ Đang tắt` | Ô Bật tự học | Bật lần đầu thì git-init brain rồi lưu ngay. Tắt cũng lưu ngay |
 | `Chạy thử` / `Đề xuất` / `Tự ghi` | Ô Chế độ ghi | Chọn mức ghi. Chỉ Tự ghi mới tạo file |
-| `● Ký ức (Memory)` … `○ Việc (Kanban)` | Ô Học cái gì | Bốn công tắc loại tri thức được học |
+| `● Ký ức (Memory)` … `○ Việc (Kanban)` | Ô Học cái gì | Sáu công tắc loại tri thức được học |
 | `● Bật` / `○ Tắt` | Ô Curator | Bật vòng bảo trì 24 giờ |
 | **💾 Lưu cấu hình** | Hàng nút | Lưu chế độ + công tắc + Curator. Hiện "Đang lưu..." rồi "✓ Đã lưu" |
 | **▶ Học ngay** | Hàng nút | Lưu cấu hình rồi chạy một mẻ học trên brain đang chọn |
@@ -270,7 +272,7 @@ Trang này làm việc trên brain đang chọn ở đầu màn hình. Đổi đ
 Nó chạy 24 giờ một lần, và bỏ qua brain đã im lặng quá 14 ngày. Ngoài ra khi Wiki không đổi note nào thì nó bỏ hẳn vòng đó cho đỡ tốn, nhật ký sẽ ghi lý do "wiki không đổi note nào". Muốn thấy ngay thì bấm **🧹 Curator ngay**.
 
 **Sợ tự học làm hỏng ghi chú viết tay.**
-Tiến trình học không có quyền ghi. Code ghi thì không đè file ký ức đã có, không đè note Wiki đã có, không đè skill đã có, không xoá gì, và chỉ được động vào các thư mục `memory/`, `Wiki/`, `skills/`, `Javis/`. Đường dẫn nào lọt ra ngoài bị khôi phục lại ngay.
+Tiến trình học không có quyền ghi. Code ghi thì không đè file ký ức đã có, không đè note Wiki đã có, không đè skill đã có, không đè agent/workflow đã có, không xoá gì, và chỉ được động vào các thư mục `memory/`, `Wiki/`, `skills/`, `agents/`, `workflows/`, `Javis/`. Đường dẫn nào lọt ra ngoài bị khôi phục lại ngay.
 
 ## Liên quan
 
