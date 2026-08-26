@@ -56,6 +56,30 @@ _KEY_FIELD = {
 # (nó còn đọc cờ JAVIS_CODEX_SANDBOX); giữ dict này để mã cũ đọc tên mức vẫn chạy.
 _CODEX_SANDBOX = {"suggest": "read-only", "auto": "workspace-write", "full": None}
 
+# ── Final "mất đăng nhập" phải bị coi là engine CHẾT, không phải kết quả ──────────────────
+# Claude Code chưa đăng nhập KHÔNG trả event error: ResultMessage lỗi vẫn có chữ nên
+# claude_sdk_engine map thành một FINAL ngắn "Not logged in · Please run /login".
+# _FallbackChain mà tin final đó là thành công thì mắt sau không bao giờ được thử.
+# Ca thật 26/08: máy chỉ đăng nhập Gemini, việc nền mặc định Claude → vòng tự học nào
+# cũng chết với đúng câu này, nhật ký chỉ ghi "không parse được manifest" khó hiểu.
+# Danh sách mẫu đồng bộ TAY với connect_health._ENGINE_AUTH_PATTERNS (không import -
+# module này phải test đứng một mình được, xem tests/python/test_aux_fallback.py).
+_AUTH_FINAL_PATTERNS = ("please run /login", "not logged in", "invalid api key",
+                        "api key not found", "failed to authenticate",
+                        "oauth session expired", "oauth token has expired",
+                        "could not be refreshed", "refresh token was already used",
+                        "log out and sign in again")
+_AUTH_FINAL_MAX = 400   # câu lỗi đăng nhập luôn ngắn; final dài là nội dung thật, đừng nghi oan
+
+
+def final_loi_dang_nhap(text: str) -> bool:
+    """Final này có phải câu báo mất đăng nhập của engine CLI không."""
+    t = (text or "").strip()
+    if not t or len(t) > _AUTH_FINAL_MAX:
+        return False
+    low = t.lower()
+    return any(p in low for p in _AUTH_FINAL_PATTERNS)
+
 # ── Trần wall-clock cho fork NỀN (nhắc hẹn/cron, việc Kanban, bước workflow) ──────────────
 # Mặc định 3600s (1 giờ). Trước đây mỗi nơi ghim một số cứng (nhắc hẹn 300, workflow 300,
 # Kanban 600) và 300s giết chết việc nền THẬT của người dùng: quét 11 phân mục Meta Ads +
@@ -178,6 +202,27 @@ def _co_binary(prov: str) -> bool:
     except Exception:   # noqa: BLE001 - không dò được thì coi như không có, rồi thử mắt sau
         return False
     return False
+
+
+def main_spec(settings: dict = None) -> dict:
+    """{'provider','model'} của MAIN MODEL (bộ não người dùng chọn ở trang Models).
+
+    Bản rút của main._effective_main - chép lại thay vì import main (module này không được
+    import main, tránh vòng). Dùng làm MẮT DỰ PHÒNG cho việc nền: người để trống model phụ
+    thì aux mặc định Claude, nhưng máy chỉ đăng nhập Gemini/OpenAI... thì Claude chết và
+    việc nền chết theo dù bộ não CHÍNH vẫn chạy ngon - chuỗi fallback phải biết tới nó.
+    """
+    s = settings if settings is not None else cfgmod.read_settings()
+    m = s.get("model", {}) or {}
+    main = m.get("main") or {}
+    if main.get("provider"):
+        return {"provider": main["provider"], "model": main.get("model") or ""}
+    eng = m.get("engine")
+    if eng == "openrouter":
+        return {"provider": "openrouter", "model": m.get("openrouter_model") or ""}
+    if eng == "anthropic-api":
+        return {"provider": "anthropic-api", "model": m.get("claude_model") or ""}
+    return {"provider": CLAUDE, "model": m.get("claude_model") or ""}
 
 
 def is_claude(spec: dict) -> bool:
@@ -402,11 +447,20 @@ class _FallbackChain:
                     continue
                 got_final, got_error = False, None
                 async for ev in e.query(prompt):
-                    if (ev or {}).get("type") == "error":
+                    t = (ev or {}).get("type")
+                    if t == "error":
                         got_error = ev.get("content") or f"{self._name(e)} trả error"
                         break
+                    # Engine CLI chưa đăng nhập trả một FINAL ngắn kiểu "Not logged in ·
+                    # Please run /login" chứ không phải error - nuốt nó lại và coi là mắt
+                    # chết, kẻo chuỗi dự phòng tưởng thành công rồi dừng (xem chú thích
+                    # ở _AUTH_FINAL_PATTERNS).
+                    if t == "final" and final_loi_dang_nhap(ev.get("content")):
+                        got_error = (f"{self._name(e)} mất đăng nhập: "
+                                     + (ev.get("content") or "").strip()[:200])
+                        break
                     yield ev
-                    if (ev or {}).get("type") == "final":
+                    if t == "final":
                         got_final = True
                 if got_final:
                     return                                       # mắt này chạy ngon → xong
@@ -499,6 +553,39 @@ def apply(deps, cli, mode: str = None, tag: str = None):
     return cli
 
 
+def _main_fallback_engine(cli, mode, tag, settings, exclude, codex_profile=None):
+    """Mắt dự phòng dựng từ BỘ NÃO CHÍNH của người dùng, hoặc None nếu không dựng được.
+
+    exclude = tập provider đã có mặt trong chuỗi (aux + Claude) - trùng thì khỏi thêm.
+    Provider không có builder nền (ollama, antigravity-cli) trả None, chuỗi còn lại lo.
+    """
+    sp = main_spec(settings)
+    prov = sp.get("provider") or ""
+    if not prov or prov == CLAUDE or prov in (exclude or set()):
+        return None
+    ok, _why = availability(sp, settings)
+    if not ok:
+        return None
+    t = (tag or getattr(cli, "tag", "aux")) + "-main"
+    try:
+        if prov == CODEX:
+            return _build_codex(sp, cli, mode, t, codex_profile)
+        if prov == GEMINI_CLI:
+            return _build_gemini(sp, cli, mode, t)
+        if prov in API_PROVIDERS:
+            return _build_api(sp, cli, mode, t)
+    except Exception as e:
+        print(f"[aux router] không dựng được mắt não-chính ({prov}): {e}", file=sys.stderr)
+    return None
+
+
+def _co_mat_orfree(chain) -> bool:
+    """Chuỗi đã chứa một mắt OpenRouter model trống (= tự chọn free) chưa - có rồi thì
+    mắt or_free cuối trùng hệt, khỏi thêm."""
+    return any(getattr(e, "provider", "") == "openrouter"
+               and not (getattr(e, "model", "") or "").strip() for e in chain)
+
+
 def _openrouter_free_engine(cli, mode, tag, settings):
     """Mắt xích CUỐI của router: OpenRouter model free (model '' = tự chọn free mạnh nhất
     lúc chạy, xem _ApiAuxEngine.query). Chưa có key OpenRouter thì không có mắt này."""
@@ -519,9 +606,12 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
     """Engine Claude đã dựng -> ROUTER việc nền theo model phụ người dùng chọn.
 
     Chuỗi fallback (mắt trước chết lúc chạy thì mắt sau tiếp quản, xem _FallbackChain):
-      engine phụ user chọn → Claude → OpenRouter model free mạnh nhất (nếu có key).
-    Mặc định Claude + không có key OpenRouter thì trả NGUYÊN engine Claude như xưa;
-    hỏng cấu hình kiểu gì việc nền cũng phải chạy được chứ không chết.
+      engine phụ user chọn → Claude → BỘ NÃO CHÍNH đang chat (nếu khác hai mắt trước)
+      → OpenRouter model free mạnh nhất (nếu có key).
+    Mắt não-chính là để máy KHÔNG đăng nhập Claude (chỉ chạy Gemini/OpenAI/Groq...) vẫn
+    tự học và chạy việc nền được bằng đúng bộ não người dùng đang dùng, thay vì chết lặng
+    với "Not logged in". Mặc định Claude + không dựng được mắt nào khác thì trả NGUYÊN
+    engine Claude như xưa; hỏng cấu hình kiểu gì việc nền cũng phải chạy được chứ không chết.
     """
     try:
         sp = spec if spec is not None else read_spec(settings)
@@ -555,8 +645,16 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             return cli
         if prov == CLAUDE:
             cli.model = sp.get("model") or None
+            # Máy có thể CHƯA đăng nhập Claude (người dùng chỉ chạy Gemini/OpenAI...):
+            # thêm bộ não CHÍNH làm mắt kế để việc nền đi theo đúng bộ não đang sống.
+            chain = [cli]
+            mn = _main_fallback_engine(cli, mode, tag, settings, {CLAUDE}, codex_profile)
+            if mn:
+                chain.append(mn)
             or_free = _openrouter_free_engine(cli, mode, tag, settings)
-            return _FallbackChain([cli, or_free]) if or_free else cli
+            if or_free and not _co_mat_orfree(chain):
+                chain.append(or_free)
+            return _FallbackChain(chain) if len(chain) > 1 else cli
         ok, why = availability(sp, settings)
         if not ok:
             print(f"[aux] {why} → việc nền tạm dùng lại Claude.", file=sys.stderr)
@@ -570,9 +668,12 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
         else:
             return cli
         chain = [primary, cli]
+        mn = _main_fallback_engine(cli, mode, tag, settings, {CLAUDE, prov}, codex_profile)
+        if mn:
+            chain.append(mn)
         or_free = _openrouter_free_engine(cli, mode, tag, settings)
-        # Phụ ĐANG là openrouter với model trống thì mắt or_free trùng hệt → khỏi thêm.
-        if or_free and not (prov == "openrouter" and not (sp.get("model") or "").strip()):
+        # Chuỗi đã có mắt openrouter model trống (tự chọn free) thì or_free trùng hệt → khỏi thêm.
+        if or_free and not _co_mat_orfree(chain):
             chain.append(or_free)
         return _FallbackChain(chain)
     except Exception as e:

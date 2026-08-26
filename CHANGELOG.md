@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.43.3] - 2026-08-26
+### Sửa lỗi
+- **Tự học chạy được cả khi máy chưa đăng nhập Claude.** Trước đây ai dùng bộ não Gemini, OpenAI hay Groq mà bỏ trống model việc nền thì vòng tự học nào cũng chết lặng, nhật ký chỉ ghi "không parse được manifest" kèm câu "Not logged in". Giờ việc nền tự chuyển sang đúng bộ não bạn đang chat khi Claude không sẵn sàng.
+- **Câu "Not logged in / Please run /login" không còn bị tưởng là kết quả.** Việc nền (tự học, loop, việc Kanban) coi nó là bộ não chết và thử bộ não dự phòng kế tiếp; hết đường mới báo lỗi, và báo đúng là mất đăng nhập chứ không phải lỗi khó hiểu.
+
 ## [0.43.2] - 2026-08-24
 ### Sửa lỗi
 - **Dải "việc đang chạy ngầm" không còn bị cắt mất nửa.** Trước đây khi khung chat đầy tin nhắn, dải này bị bóp bẹp chỉ còn ló nửa dòng đầu, phải cuộn bên trong mới đọc được.

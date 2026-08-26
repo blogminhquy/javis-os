@@ -82,6 +82,21 @@ check("mắt unavailable: nhảy thẳng mắt sau, không chạy mắt chết",
 evs = run(collect(FB([FakeEngine([ERR("quota")]), FakeEngine(available=False)])))
 check("cả chuỗi chết: lộ error để nơi gọi báo user", evs[-1]["type"] == "error")
 
+# --- final "Not logged in" (Claude CLI chưa đăng nhập) = mắt CHẾT, không phải kết quả ---
+# Ca thật 26/08: máy chỉ đăng nhập Gemini, việc nền mặc định Claude → learn vòng nào cũng
+# nhận final "Not logged in · Please run /login" và tưởng đó là manifest.
+dead = FakeEngine([FINAL("Not logged in · Please run /login")])
+backup = FakeEngine([FINAL("nao chinh cuu")])
+evs = run(collect(FB([dead, backup])))
+check("final mất đăng nhập: mắt sau cứu", evs[-1]["content"] == "nao chinh cuu")
+check("final mất đăng nhập: KHÔNG lọt ra ngoài",
+      all("Not logged in" not in (e.get("content") or "") for e in evs))
+long_final = "x" * 500 + " please run /login"
+evs = run(collect(FB([FakeEngine([FINAL(long_final)]), FakeEngine([FINAL("khong duoc dung toi")])])))
+check("final DÀI nhắc chữ login vẫn là nội dung thật", evs[-1]["content"] == long_final)
+evs = run(collect(FB([FakeEngine([FINAL("Invalid API key · Please run /login")])])))
+check("cả chuỗi mất đăng nhập → lộ error", evs[-1]["type"] == "error")
+
 # --- hợp đồng attr: gán → MỌI mắt, đọc → mắt đầu; is_available OR cả chuỗi ---
 a, b, c = FakeEngine(), FakeEngine(), FakeEngine()
 w = FB([a, b, c])
@@ -121,6 +136,40 @@ check("swap Claude CÓ key OpenRouter → bọc chuỗi [Claude, OR-free]",
 out = aux_engine.swap(FakeEngine(), spec={"provider": "openrouter", "model": ""}, settings=S_KEY)
 check("phụ = openrouter model trống → không nhân đôi mắt or-free",
       type(out).__name__ == "_FallbackChain" and len(out._all()) == 2)
+
+# --- bộ não CHÍNH làm mắt dự phòng khi việc nền mặc định Claude (máy chỉ đăng nhập Gemini) ---
+S_MAIN_GEMINI = {"model": {"gemini_api_key": "g-key", "auxiliary": {},
+                           "main": {"provider": "gemini", "model": "gemini-2.5-flash-lite"}}}
+out = aux_engine.swap(FakeEngine(), spec={"provider": "anthropic-cli", "model": ""},
+                      settings=S_MAIN_GEMINI)
+check("aux mặc định Claude + main Gemini → chuỗi [Claude, não chính Gemini]",
+      type(out).__name__ == "_FallbackChain" and len(out._all()) == 2
+      and getattr(out._all()[1], "provider", "") == "gemini"
+      and getattr(out._all()[1], "model", "") == "gemini-2.5-flash-lite")
+check("main_spec đọc đúng bộ não chính", aux_engine.main_spec(S_MAIN_GEMINI)
+      == {"provider": "gemini", "model": "gemini-2.5-flash-lite"})
+# main = Claude (mặc định) → không thêm mắt nào, hành vi cũ giữ nguyên (đã test ở trên).
+# main TRÙNG provider phụ → không nhân đôi mắt.
+S_BOTH_GEMINI = {"model": {"gemini_api_key": "g-key",
+                           "auxiliary": {"provider": "gemini", "model": "m1"},
+                           "main": {"provider": "gemini", "model": "m2"}}}
+out = aux_engine.swap(FakeEngine(), settings=S_BOTH_GEMINI)
+check("main trùng provider phụ → chuỗi chỉ [Gemini, Claude], không nhân đôi",
+      type(out).__name__ == "_FallbackChain" and len(out._all()) == 2)
+# main = provider không có builder nền (antigravity-cli) → bỏ qua êm, không nổ.
+S_MAIN_AGY = {"model": {"auxiliary": {}, "main": {"provider": "antigravity-cli", "model": "x"}}}
+base_agy = FakeEngine()
+check("main không có builder nền → giữ nguyên engine Claude",
+      aux_engine.swap(base_agy, spec={"provider": "anthropic-cli", "model": ""},
+                      settings=S_MAIN_AGY) is base_agy)
+
+# --- final_loi_dang_nhap: nhận đúng mẫu, không nghi oan ---
+check("bắt câu Not logged in", aux_engine.final_loi_dang_nhap("Not logged in · Please run /login"))
+check("bắt câu OAuth hết hạn", aux_engine.final_loi_dang_nhap(
+    "Failed to authenticate: OAuth session expired and could not be refreshed"))
+check("final rỗng không phải lỗi auth", not aux_engine.final_loi_dang_nhap(""))
+check("nội dung dài không bị nghi oan",
+      not aux_engine.final_loi_dang_nhap("bao cao " * 100 + "please run /login"))
 
 print()
 if _fails:
