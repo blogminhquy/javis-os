@@ -68,11 +68,11 @@ check("mirror vẫn bỏ file nhạy cảm dù là chữ",
       and G._backup_skip("brain/x.tmp"))
 SRC = (SERVER / "git_brain.py").read_text(encoding="utf-8")
 check("_backup_skip gọi đúng hàm chung, không chép lại danh sách đuôi",
-      "return not la_file_chu(name)" in SRC)
+      "if la_file_chu(name):" in SRC and "sync_images and la_anh(name)" in SRC)
 # Cùng một predicate lọc CẢ hai chiều: nhờ vậy khi mirror dọn media đi và đẩy việc xoá đó lên
 # repo, máy khác kéo về cũng KHÔNG xoá media thật trên đĩa của nó.
 check("áp-về cũng lọc bằng chính predicate đó (máy khác không bị xoá mất media thật)",
-      "todo = [p for p in sorted(changed) if p and not _backup_skip(p)]" in SRC)
+      "todo = [p for p in sorted(changed) if p and not _backup_skip(p, sync_images)]" in SRC)
 
 
 # ---- 3. .gitignore sinh ra: đúng nội dung và ĐÚNG THỨ TỰ ----
@@ -152,7 +152,7 @@ check("báo cáo đồng bộ có chỗ đếm media bỏ qua",
 check("_sync_mirror trả về con số đó chứ không nuốt", 'return {"media_bo_qua"' in SRC)
 JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("giao diện đồng bộ nói rõ chỉ lưu thông tin, không lưu media",
-      "Chỉ đồng bộ THÔNG TIN, không đồng bộ media" in JS)
+      "Mặc định chỉ đồng bộ THÔNG TIN, không đồng bộ media" in JS)
 check("giao diện nói media vẫn nằm trên máy, không phải bị xoá",
       "vẫn nằm nguyên trên máy" in JS)
 check("giao diện chỉ chỗ sao lưu media thay thế", "Drive" in JS)

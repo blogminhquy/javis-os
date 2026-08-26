@@ -103,6 +103,33 @@ TEXT_EXTS = {
 # File không có đuôi nhưng vẫn là chữ và vẫn cần giữ.
 TEXT_NAMES = {".gitignore", ".gitattributes", "LICENSE", "README", "CNAME", "Makefile"}
 
+# ── Tuỳ chọn "đồng bộ CẢ ẢNH" (backup.sync_images, mặc định TẮT) ──────────────────────────
+# Luật cứng phía trên nói git không giữ media, và với video thì vẫn vậy. Nhưng có người cần
+# ảnh trong brain (chụp màn hình, ảnh sản phẩm vài trăm KB) đi theo tri thức sang máy khác.
+# Nên mở đúng một khe: ẢNH raster, mỗi file dưới trần, và người dùng phải TỰ BẬT sau khi đọc
+# cảnh báo (bật là ảnh nằm vĩnh viễn trong lịch sử repo, tắt sau không đòi lại dung lượng).
+# Video/âm thanh/file nặng vẫn không bao giờ lên - đó mới là thứ phá repo nhanh nhất.
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+ANH_MAX_MB_DEFAULT = 10   # trần MỖI ảnh; GitHub chặn cứng 100MB, 10MB đủ cho ảnh thật
+
+
+def anh_max_bytes() -> int:
+    """Trần dung lượng một ảnh được sync (byte). Chỉnh qua env JAVIS_SYNC_ANH_MAX_MB."""
+    try:
+        v = int(os.getenv("JAVIS_SYNC_ANH_MAX_MB", "") or 0)
+        if v > 0:
+            return v * 1024 * 1024
+    except (TypeError, ValueError):
+        pass
+    return ANH_MAX_MB_DEFAULT * 1024 * 1024
+
+
+def la_anh(rel_or_name: str) -> bool:
+    """File này có phải ảnh thuộc diện sync-được (khi bật tuỳ chọn) không."""
+    name = str(rel_or_name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    i = name.rfind(".")
+    return i > 0 and name[i:].lower() in IMAGE_EXTS
+
 
 def la_file_chu(rel_or_name: str) -> bool:
     """File này có được vào git không. Dùng chung cho .gitignore lẫn bước chụp sang mirror,
@@ -518,7 +545,7 @@ _BACKUP_SKIP_SUBSTR = ("/memory/conversations/", "/Memory/conversations/",
                        "/.antigravity/", "/.antigravitycli/", "/.gemini/")
 
 
-def _backup_skip(rel: str) -> bool:
+def _backup_skip(rel: str, sync_images: bool = False) -> bool:
     r = "/" + rel.replace("\\", "/") + "/"
     if any(s in r for s in _BACKUP_SKIP_SUBSTR):
         return True
@@ -529,24 +556,36 @@ def _backup_skip(rel: str) -> bool:
     # khác nhau: .gitignore quyết định git COMMIT gì, còn chỗ này quyết định có CHÉP file sang
     # thư mục mirror hay không. Không chặn thì mỗi lượt đồng bộ nhân đôi vài trăm MB media trên
     # đĩa để rồi git bỏ qua hết - tốn chỗ, tốn thời gian chụp, không được gì.
-    return not la_file_chu(name)
+    # Ngoại lệ DUY NHẤT: bật sync_images thì ẢNH (IMAGE_EXTS) cũng qua cửa - trần dung lượng
+    # từng ảnh soát ở bước chép (_sync_mirror), vì chiều nhận về không có size để mà soát.
+    if la_file_chu(name):
+        return False
+    # inbox/ vẫn LOẠI kể cả khi sync ảnh: chỗ trung chuyển một lượt chat, không phải tri
+    # thức. Trước giờ ảnh trong đó bị loại NHỜ đuôi file, nên mở cửa cho ảnh là phải tự
+    # chặn lại theo đường dẫn.
+    if sync_images and la_anh(name) and "/inbox/" not in r.lower():
+        return False
+    return True
 
 
-def _sync_mirror(src: str, mirror: str) -> dict:
+def _sync_mirror(src: str, mirror: str, sync_images: bool = False) -> dict:
     """Đồng bộ src -> mirror: chép file mới/đổi (bỏ .git nested + file nhạy cảm/tạm), xoá file
     thừa trong mirror. Mirror KHÔNG có .git nested nào -> git add -A ở mirror chạy sạch.
 
     Trả về số file media đã bỏ qua + tổng dung lượng, để chỗ gọi NÓI RA cho người dùng. Bỏ qua
-    lặng lẽ thì có ngày ai đó tưởng ảnh của mình đã được sao lưu."""
+    lặng lẽ thì có ngày ai đó tưởng ảnh của mình đã được sao lưu. sync_images bật thì trả kèm
+    anh_rels - danh sách ảnh đã chép, để bước commit force-add (xem _sync_brains_locked)."""
     src, mirror = Path(src), Path(mirror)
     keep = set()
     bo_qua, bo_qua_bytes = 0, 0
+    anh_rels: List[str] = []
+    tran_anh = anh_max_bytes()
     for dirpath, dirnames, filenames in os.walk(src):
         dirnames[:] = [d for d in dirnames if d not in _BACKUP_SKIP_DIRS]
         for fn in filenames:
             full = Path(dirpath) / fn
             rel = str(full.relative_to(src))
-            if _backup_skip(rel):
+            if _backup_skip(rel, sync_images):
                 if not la_file_chu(fn):
                     bo_qua += 1
                     try:
@@ -554,7 +593,20 @@ def _sync_mirror(src: str, mirror: str) -> dict:
                     except OSError:
                         pass
                 continue
+            la_anh_sync = sync_images and la_anh(fn) and not la_file_chu(fn)
+            if la_anh_sync:
+                # Trần MỖI ảnh soát ở đây (chiều đẩy) vì chỉ ở đây mới có size. Quá trần thì
+                # đối xử như media thường: bỏ qua + đếm, để UI nói thẳng.
+                try:
+                    if full.stat().st_size > tran_anh:
+                        bo_qua += 1
+                        bo_qua_bytes += full.stat().st_size
+                        continue
+                except OSError:
+                    continue
             keep.add(rel.replace("\\", "/"))
+            if la_anh_sync:
+                anh_rels.append(rel.replace("\\", "/"))
             dst = mirror / rel
             try:
                 if dst.exists() and dst.stat().st_size == full.stat().st_size and \
@@ -564,19 +616,34 @@ def _sync_mirror(src: str, mirror: str) -> dict:
                 shutil.copy2(full, dst)
             except Exception as e:
                 print(f"[backup sync copy] {rel}: {e}", file=__import__('sys').stderr)
-    # prune: xoá file trong mirror (trừ .git của mirror) mà src không còn
+    # prune: xoá file trong mirror (trừ .git của mirror) mà src không còn.
+    #
+    # RIÊNG ẢNH có luật chặt hơn, vì công tắc sync_images nằm trong settings TỪNG MÁY nên
+    # các máy dùng chung repo có thể lệch cấu hình:
+    #   - Máy TẮT coi ảnh là NGOÀI PHẠM VI: không chép và cũng KHÔNG XOÁ. Thiếu luật này thì
+    #     máy tắt sẽ thấy "mirror có ảnh mà mình không đưa" rồi xoá sạch ảnh máy bật vừa đẩy
+    #     lên - mất dữ liệu thật chứ không phải lý thuyết.
+    #   - Máy BẬT chỉ xoá ảnh khỏi mirror khi file THẬT SỰ không còn trên đĩa (xoá có chủ
+    #     đích, cần lan sang máy khác). Ảnh còn trên đĩa mà vắng khỏi keep (quá trần, lỗi
+    #     chép) thì để yên - đừng biến một lần đổi trần thành lệnh xoá hàng loạt.
     for dirpath, dirnames, filenames in os.walk(mirror):
         if ".git" in Path(dirpath).parts:
             continue
         for fn in filenames:
             full = Path(dirpath) / fn
             rel = str(full.relative_to(mirror)).replace("\\", "/")
-            if rel not in keep:
-                try:
-                    full.unlink()
-                except Exception:
-                    pass
-    return {"media_bo_qua": bo_qua, "media_bytes": bo_qua_bytes}
+            if rel in keep:
+                continue
+            if la_anh(fn) and not la_file_chu(fn):
+                if not sync_images:
+                    continue
+                if (src / rel).exists():
+                    continue
+            try:
+                full.unlink()
+            except Exception:
+                pass
+    return {"media_bo_qua": bo_qua, "media_bytes": bo_qua_bytes, "image_rels": anh_rels}
 
 
 # ============================================================
@@ -723,7 +790,8 @@ def _changed_by_integration(root: str, pre_head: Optional[str]) -> set:
     return set(_git_lines_z(root, "diff", "--name-only", "-z", pre_head, "HEAD"))
 
 
-def _apply_back(mirror: str, brains_dir: str, changed: set, sync_start: float) -> dict:
+def _apply_back(mirror: str, brains_dir: str, changed: set, sync_start: float,
+                sync_images: bool = False) -> dict:
     """Áp các path `changed` (kết quả hoà nhập remote) từ mirror về brains_dir.
     - Copy nguyên tử (tmp + os.replace). File local vừa đổi TRONG lúc sync (mtime >= sync_start)
       thì không đè/không xoá - local thắng, vòng sau tự hoà tiếp.
@@ -731,7 +799,10 @@ def _apply_back(mirror: str, brains_dir: str, changed: set, sync_start: float) -
       trong 30s vẫn áp (lock học chỉ giữ vài giây - kẹt lâu nghĩa là tiến trình chết)."""
     mirror, brains = Path(mirror), Path(brains_dir)
     rep = {"applied": 0, "deleted": 0, "failed": [], "applied_sample": [], "deleted_sample": []}
-    todo = [p for p in sorted(changed) if p and not _backup_skip(p)]
+    # Máy TẮT sync ảnh thì cũng không NHẬN ảnh về (_backup_skip lọc) - ảnh là ngoài phạm vi
+    # với máy đó, cả hai chiều. Trần dung lượng KHÔNG soát ở chiều nhận: máy khác đã đẩy lên
+    # được thì cứ nhận, trần chỉ là van tiết kiệm ở chiều đẩy.
+    todo = [p for p in sorted(changed) if p and not _backup_skip(p, sync_images)]
     if not todo:
         return rep
     locks = []
@@ -896,8 +967,17 @@ def _apply_tombstones(brains_dir: str, mirror_dir: str, trash_dir: str,
     return rep
 
 
+def _force_add_anh(mirror_dir: str, rels: List[str], chunk: int = 100) -> None:
+    """`git add -f` ĐÚNG danh sách ảnh đã chép sang mirror, chia lô để không vượt trần độ dài
+    dòng lệnh (Windows ~32k ký tự). -f vì .gitignore của brain (chép sang mirror) ignore ảnh;
+    ép đích danh từng file an toàn hơn hẳn nới .gitignore - luật chặn log thô giữ nguyên."""
+    for i in range(0, len(rels), chunk):
+        _git(mirror_dir, "add", "-f", "--", *rels[i:i + chunk], timeout=120)
+
+
 def sync_brains(brains_dir: str, mirror_dir: str, repo_url: str, token: str, branch: str = "main",
-                trash_dir: Optional[str] = None, protected_names=None) -> dict:
+                trash_dir: Optional[str] = None, protected_names=None,
+                sync_images: bool = False) -> dict:
     """Đồng bộ 2 CHIỀU toàn bộ thư mục brains với repo GitHub. Trả
     {ok, pushed, committed, merged, restored, conflicts, applied, deleted, error?}."""
     if not has_git():
@@ -910,7 +990,7 @@ def sync_brains(brains_dir: str, mirror_dir: str, repo_url: str, token: str, bra
         return {"ok": False, "error": "Đang có phiên đồng bộ khác chạy - thử lại sau"}
     try:
         return _sync_brains_locked(str(brains_dir), str(mirror_dir), repo_url, token, branch,
-                                   trash_dir, protected_names)
+                                   trash_dir, protected_names, sync_images)
     except Exception as e:
         return {"ok": False, "error": _redact(f"{type(e).__name__}: {e}", token)}
     finally:
@@ -918,7 +998,8 @@ def sync_brains(brains_dir: str, mirror_dir: str, repo_url: str, token: str, bra
 
 
 def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: str, branch: str,
-                        trash_dir: Optional[str] = None, protected_names=None) -> dict:
+                        trash_dir: Optional[str] = None, protected_names=None,
+                        sync_images: bool = False) -> dict:
     rep = {"ok": False, "pushed": False, "committed": False, "merged": False,
            "restored": False, "conflicts": [], "applied": 0, "deleted": 0,
            "applied_sample": [], "deleted_sample": [], "brains_deleted": [],
@@ -947,8 +1028,16 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
 
     sync_start = time.time()
     if _brains_has_content(brains_dir):
-        rep.update(_sync_mirror(brains_dir, mirror_dir))
+        snap = _sync_mirror(brains_dir, mirror_dir, sync_images)
+        anh_rels = snap.pop("image_rels", [])
+        rep.update(snap)
         _git(mirror_dir, "add", "-A")
+        # .gitignore của từng brain (khối allowlist chỉ-chữ) cũng được chép sang mirror và git
+        # TÔN TRỌNG nó lồng theo thư mục, nên `add -A` bỏ qua ảnh vừa chép. Force-add ĐÚNG danh
+        # sách ảnh mình chủ đích chép (không phải -f cả cây - làm thế thì log thô bị ignore ở
+        # khối 3 cũng bị cuốn vào). Xoá ảnh thì `add -A` tự ghi nhận, ignore không cản.
+        if sync_images and anh_rels:
+            _force_add_anh(mirror_dir, anh_rels)
         c = _git(mirror_dir, "commit", "-m",
                  f"backup: {time.strftime('%Y-%m-%d %H:%M:%S')} ({_host_tag()})")
         rep["committed"] = c.returncode == 0
@@ -987,10 +1076,10 @@ def _sync_brains_locked(brains_dir: str, mirror_dir: str, repo_url: str, token: 
         # file thiếu, không bao giờ xoá (xoá chỉ đi qua diff của bước hoà nhập).
         if _git(mirror_dir, "rev-parse", "-q", "--verify", "HEAD").returncode == 0:
             for rel in _git_lines_z(mirror_dir, "ls-tree", "-r", "--name-only", "-z", "HEAD"):
-                if not _backup_skip(rel) and not (Path(brains_dir) / rel).exists():
+                if not _backup_skip(rel, sync_images) and not (Path(brains_dir) / rel).exists():
                     changed.add(rel)
         if changed:
-            ab = _apply_back(mirror_dir, brains_dir, changed, sync_start)
+            ab = _apply_back(mirror_dir, brains_dir, changed, sync_start, sync_images)
             rep["applied"] += ab["applied"]
             rep["deleted"] += ab["deleted"]
             rep["applied_sample"] = (rep["applied_sample"] + ab["applied_sample"])[:20]

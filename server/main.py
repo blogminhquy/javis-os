@@ -3312,7 +3312,8 @@ def _do_backup(brain: str = "") -> dict:
     mirror = str(cfgmod.STATE_DIR / "brains-backup")   # repo mirror riêng (tránh nested git từng brain)
     res = git_brain.sync_brains(BRAINS_DIR, mirror, b["repo_url"], b["token"], b.get("branch") or "main",
                                 trash_dir=str(cfgmod.STATE_DIR / "brain-trash"),
-                                protected_names={_default_brain_dir().name})
+                                protected_names={_default_brain_dir().name},
+                                sync_images=bool(b.get("sync_images")))
     # Ghi lại trạng thái (đọc lại cfg mới nhất để không đè thay đổi song song)
     cfg = cfgmod.read_settings()
     cfg.setdefault("backup", {})
@@ -3355,6 +3356,7 @@ async def backup_status(brain: str = Query("brain")):
         "repo_url": b.get("repo_url", ""),
         "branch": b.get("branch", "main"),
         "interval_hours": b.get("interval_hours", 6),
+        "sync_images": bool(b.get("sync_images")),
         "token_set": bool(b.get("token")),
         "last_backup": b.get("last_backup", 0.0),
         "last_status": b.get("last_status", ""),
@@ -3369,6 +3371,7 @@ async def backup_status(brain: str = Query("brain")):
 async def backup_config(
     repo_url: str = Form(None), token: str = Form(None), branch: str = Form(None),
     enabled: str = Form(None), interval_hours: str = Form(None),
+    sync_images: str = Form(None),
 ):
     cfg = cfgmod.read_settings()
     b = cfg.setdefault("backup", {})
@@ -3380,6 +3383,8 @@ async def backup_config(
         b["branch"] = branch.strip() or "main"
     if enabled is not None:
         b["enabled"] = enabled in ("1", "true", "True", "on")
+    if sync_images is not None:
+        b["sync_images"] = sync_images in ("1", "true", "True", "on")
     if interval_hours is not None:
         try:
             b["interval_hours"] = max(1, int(interval_hours))
@@ -7684,12 +7689,18 @@ async def _start_scheduler():
                 try:
                     if time.time() - _MEDIA_GC_LAST[0] >= 6 * 3600:
                         _MEDIA_GC_LAST[0] = time.time()
-                        mcfg = cfgmod.read_settings().get("media", {}) or {}
+                        _scfg = cfgmod.read_settings()
+                        mcfg = _scfg.get("media", {}) or {}
                         if mcfg.get("enabled", True):
                             tuoi = int(mcfg.get("max_age_days", 30))
                             tran = int(mcfg.get("max_mb", 300))
+                            # Bật đồng bộ ảnh -> KHÔNG dọn attachments nữa (ảnh giờ là thứ
+                            # người dùng muốn GIỮ; dọn xong lệnh xoá lan sang mọi máy qua
+                            # sync). inbox vẫn dọn - nó không bao giờ được sync.
+                            _giu_anh = bool((_scfg.get("backup", {}) or {}).get("sync_images"))
                             for _mb in loop_feature.scheduler_brains():
-                                kq = await asyncio.to_thread(media_gc.sweep, _mb, tuoi, tran)
+                                kq = await asyncio.to_thread(media_gc.sweep, _mb, tuoi, tran,
+                                                             None, not _giu_anh)
                                 if kq.get("files"):
                                     print(f"[media gc] {_mb}: dọn {kq['files']} tệp, "
                                           f"{kq['bytes'] // (1024 * 1024)}MB")

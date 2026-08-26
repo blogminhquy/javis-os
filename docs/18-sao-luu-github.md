@@ -106,9 +106,22 @@ Dùng thứ lưu theo **trạng thái hiện tại**: Google Drive, OneDrive, �
 
 Sau mỗi lần bấm **⇅ Đồng bộ ngay**, nếu có media bị bỏ qua thì Javis ghi rõ ngay dưới dòng trạng thái: bao nhiêu file, tổng bao nhiêu MB. Bỏ qua lặng lẽ thì có ngày bạn tưởng ảnh của mình cũng đã được sao lưu, tới lúc mất máy mới biết là không.
 
+### Muốn ảnh cũng đi theo: công tắc "Đồng bộ cả ảnh"
+
+Có người thật sự cần ảnh trong brain (chụp màn hình, ảnh sản phẩm vài trăm KB) đi theo tri thức sang máy khác. Từ bản 0.46.0, trong khối đồng bộ có thêm công tắc **Đồng bộ cả ảnh** (mặc định tắt). Bật lên thì:
+
+- Ảnh **jpg / png / gif / webp**, mỗi ảnh tối đa **10 MB** (đổi bằng biến môi trường `JAVIS_SYNC_ANH_MAX_MB`), cũng lên repo và đồng bộ 2 chiều như file chữ. Video, âm thanh, PDF và ảnh quá trần vẫn không bao giờ lên; `inbox/` cũng không - đó là chỗ trung chuyển một lượt chat.
+- Javis **ngừng tự dọn `attachments/`** trên máy đó (vẫn dọn `inbox/`): ảnh đã backup mà máy dọn xoá theo hạn thì lệnh xoá lan sang mọi máy, ảnh backup tự biến mất - nên hai thứ này phải đi cùng nhau.
+
+Ba điều cần cân nhắc TRƯỚC khi bật:
+
+1. **Git nhớ mãi mãi.** Ảnh đã đẩy lên nằm vĩnh viễn trong lịch sử repo; tắt công tắc sau này không lấy lại dung lượng. Repo Private GitHub thoải mái ở mức vài trăm MB - đủ cho ảnh làm việc, không đủ cho kho ảnh gia đình.
+2. **Dùng nhiều máy chung repo thì bật trên MỌI máy.** Máy chưa bật coi ảnh là "ngoài phạm vi": không đẩy, không nhận, và cũng không xoá ảnh máy khác đã đưa lên - nên lệch cấu hình không làm mất ảnh, chỉ làm máy đó không thấy ảnh.
+3. **Video và file nặng vẫn theo lời khuyên cũ**: Drive, ổ ngoài, NAS.
+
 ### Media trong brain vẫn tự hết hạn như cũ
 
-Javis coi `attachments/` và `inbox/` là vùng cache: cứ 6 tiếng một lần, file quá **30 ngày** bị xoá, và nếu tổng vượt trần **300 MB** thì xoá từ cũ tới mới cho tới khi xuống dưới trần. Luật này không liên quan tới đồng bộ, nhưng cần biết vì nó là lý do ảnh cũ tự biến mất khỏi máy. Muốn giữ lâu dài thì rút nội dung ra note `.md`, chuyển file sang thư mục khác của brain, hoặc nới/tắt luật dọn (khoá `media` trong `settings.json`). Chi tiết cách tắt ở [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
+Khi KHÔNG bật "Đồng bộ cả ảnh", Javis coi `attachments/` và `inbox/` là vùng cache: cứ 6 tiếng một lần, file quá **30 ngày** bị xoá, và nếu tổng vượt trần **300 MB** thì xoá từ cũ tới mới cho tới khi xuống dưới trần. Luật này không liên quan tới đồng bộ, nhưng cần biết vì nó là lý do ảnh cũ tự biến mất khỏi máy. Muốn giữ lâu dài thì rút nội dung ra note `.md`, chuyển file sang thư mục khác của brain, hoặc nới/tắt luật dọn (khoá `media` trong `settings.json`). Chi tiết cách tắt ở [Khắc phục sự cố & FAQ](17-khac-phuc-su-co.md).
 
 ## Khôi phục brain trên máy mới
 
@@ -138,8 +151,8 @@ Khi hai máy sửa cùng một file giữa hai lần đồng bộ, bạn sẽ th
 | "push liên tục bị vượt" | Nhiều máy đồng bộ cùng lúc liên tục. Bấm lại sau ít phút - cơ chế tự hoà sẽ khớp. |
 | "Áp bản đồng bộ về máy lỗi N file" | Có file đang bị khoá/không ghi được trên máy (vd đang mở trong app khác). Lần này KHÔNG đẩy gì lên (an toàn), đóng app đang giữ file rồi đồng bộ lại. |
 | Thấy nhiều file `.conflict-*` | Hai máy hay sửa cùng file giữa hai lần đồng bộ. Rút ngắn chu kỳ Tự động, hoặc chia việc mỗi máy một mảng; xử lý file conflict theo mục ở trên. |
-| Repo backup phình rất nhanh | Ảnh trong `attachments/`/`inbox/` cũng được đẩy lên. Xem mục "Ảnh và file đính kèm" ở trên; cân nhắc để luật dọn media chạy thay vì tắt nó. |
-| Ảnh cũ biến mất khỏi repo | Đúng thiết kế: media quá 30 ngày bị dọn trên máy rồi lan lên repo. Lấy lại từ lịch sử commit, hoặc nới `media.max_age_days` trong `settings.json`. |
+| Repo backup phình rất nhanh | Thường do bật "Đồng bộ cả ảnh" với brain nhiều ảnh. Dung lượng đã vào lịch sử thì không rút ra được; từ giờ hạn chế ảnh mới hoặc tắt công tắc (ảnh cũ vẫn nằm trong lịch sử). |
+| Bật "Đồng bộ cả ảnh" mà máy khác không thấy ảnh | Máy đó chưa bật công tắc - nó không nhận ảnh về. Bật trên mọi máy dùng chung repo. |
 | Muốn ngừng tự động | Tắt công tắc Tự động rồi Lưu cấu hình. Vẫn bấm "Đồng bộ ngay" thủ công được. |
 
 ---
