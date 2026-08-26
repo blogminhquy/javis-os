@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.44.0] - 2026-08-26
+### Thêm mới
+- **Tự học thêm được Vai (Agent) và Chuỗi bước (Workflow).** Trang Tự học có thêm 2 công tắc: bật lên thì khi bạn nhờ một vai hay một chuỗi việc lặp đi lặp lại trong chat, Javis tự đóng thành agent/workflow mới trong Studio.
+- An toàn như học skill: mặc định tắt, có vòng kiểm tra thứ hai trước khi ghi, chỉ tạo mới không ghi đè cái đã có, và workflow luôn tạo ở trạng thái tắt để bạn xem trước rồi tự bật.
+
 ## [0.43.3] - 2026-08-26
 ### Sửa lỗi
 - **Tự học chạy được cả khi máy chưa đăng nhập Claude.** Trước đây ai dùng bộ não Gemini, OpenAI hay Groq mà bỏ trống model việc nền thì vòng tự học nào cũng chết lặng, nhật ký chỉ ghi "không parse được manifest" kèm câu "Not logged in". Giờ việc nền tự chuyển sang đúng bộ não bạn đang chat khi Claude không sẵn sàng.
