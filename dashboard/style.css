@@ -2544,3 +2544,35 @@ body.ne-full-on .cview { z-index: 250; }
         white-space: pre-wrap; }
 .cb-src { font-size: 11.5px; color: var(--text3); margin-top: 5px;
           display: inline-flex; align-items: center; gap: 4px; }
+
+/* ===== Nhắc thêm Javis vào Màn hình chính (install-nudge.js) =====
+   Bảng trượt từ đáy chứ không phải hộp giữa màn: trên điện thoại đáy là chỗ ngón cái với
+   tới, và nó không che mất nội dung người ta đang đọc ở nửa trên. */
+.inud-wrap { position: fixed; inset: 0; z-index: 3400; display: flex; align-items: flex-end; }
+.inud-nen { position: absolute; inset: 0; background: var(--scrim); }
+.inud-hop {
+  position: relative; width: 100%; max-width: 520px; margin: 0 auto;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 18px 18px 0 0; padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-3); animation: inudLen .22s ease;
+}
+@keyframes inudLen { from { transform: translateY(18px); opacity: .4; } to { transform: none; opacity: 1; } }
+.inud-dau { display: flex; gap: 12px; align-items: flex-start; }
+.inud-icon { width: 44px; height: 44px; border-radius: 11px; flex: none; }
+.inud-tieude { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.inud-tieude b { color: var(--text); font-size: 15px; }
+.inud-tieude span { color: var(--text2); font-size: 12.5px; line-height: 1.5; }
+.inud-buoc { margin: 14px 0 4px; padding-left: 20px; color: var(--text2); font-size: 13px; line-height: 1.8; }
+.inud-buoc b { color: var(--text); }
+.inud-mo { margin: 14px 0 4px; color: var(--text2); font-size: 13px; line-height: 1.6; }
+.inud-nut { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.inud-day { flex: 1 1 auto; }
+.inud-nut button {
+  border-radius: 9px; font: 600 13px var(--font); cursor: pointer; padding: 9px 14px;
+  border: 1px solid var(--border); background: none; color: var(--text2);
+}
+.inud-tat { font-weight: 500 !important; color: var(--text3) !important; border-color: transparent !important; padding-left: 0 !important; }
+.inud-tat:hover { color: var(--text2) !important; }
+.inud-sau:hover { color: var(--text); border-color: var(--info-line); }
+.inud-cai { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+.inud-cai:disabled { opacity: .6; cursor: default; }

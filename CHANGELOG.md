@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.49.1] - 2026-08-27
+### Thêm mới
+- **Nhắc thêm Javis vào Màn hình chính trên điện thoại, mỗi ngày một lần.** Không phải để quảng cáo cài app: trên iPhone, Javis **chỉ gửi được thông báo đẩy khi đã thêm vào Màn hình chính**, nên mở bằng Safari thường là không bao giờ nhận được kết quả việc chạy nền. Popup chỉ ra từng bước đúng theo trình duyệt bạn đang dùng, và có nút **Đừng nhắc nữa** nếu bạn đã quyết định không cài.
+
 ## [0.49.0] - 2026-08-27
 ### Thêm mới
 - **Hòm thư trên chuông Thông báo.** Giao việc cho Javis xong không phải ngồi canh nữa: mỗi kết quả chạy nền, báo cáo định kỳ và nhắc hẹn đều để lại một mẩu thư. Bấm vào là **quay về đúng hội thoại đã hỏi**, không mở thread mới. Panel chia hai tab: Của tôi và Tin tức.

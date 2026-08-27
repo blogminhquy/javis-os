@@ -2424,4 +2424,20 @@ window.refreshEngineBadge = refreshEngineBadge;
     btn.hidden = true;   // từ chối thì trình duyệt sẽ bắn lại event ở phiên sau, nút tự hiện lại
   });
   window.addEventListener("appinstalled", () => { deferredPrompt = null; btn.hidden = true; });
+  // Mở cho install-nudge.js dùng chung ĐÚNG một event beforeinstallprompt này. Trình duyệt
+  // chỉ bắn nó MỘT lần mỗi phiên và chỉ dùng lại được một lần, nên hai nơi cùng bắt là một
+  // nơi mất - phải đi qua cùng một chỗ giữ.
+  window.JavisInstall = {
+    daLaApp: daLaApp,
+    coHopCai: () => !!deferredPrompt,
+    moHopCai: async () => {
+      if (!deferredPrompt) return false;
+      deferredPrompt.prompt();
+      let ket = null;
+      try { ket = await deferredPrompt.userChoice; } catch (e) {}
+      deferredPrompt = null;
+      btn.hidden = true;
+      return !!(ket && ket.outcome === "accepted");
+    },
+  };
 })();
