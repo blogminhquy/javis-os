@@ -12,6 +12,10 @@ Hai gốc rễ, test này canh cả hai:
      thêm là sẽ NGỒI ĐỢI rồi tổng hợp - điều nó không làm được: lượt trả lời đóng lại ngay
      sau khi nó nói xong, không ai đánh thức nó dậy.
 
+Cập nhật 0.49.0: hòm thư (inbox.py) trở thành kênh mặc định và LUÔN có, nên `_notify_owner`
+đổi nghĩa - nó trả True khi tin đã tới được người dùng, kể cả khi Telegram tắt. Phần "gửi
+qua kênh nào, hỏng vì sao" tách xuống `_gui_qua_kenh`, và mấy ca dưới đo ở đúng tầng đó.
+
 Chạy:
     .venv/Scripts/python.exe tests/python/test_bao_viec_ve_chat_web.py
 """
@@ -69,18 +73,30 @@ async def _run():
     check("kết quả lưu vào kho phiên (F5 vẫn còn)",
           bool(msgs) and msgs[-1]["role"] == "assistant" and "So sánh skill" in msgs[-1]["content"])
 
-    # Không được bịa thành công khi chẳng có kênh nào.
-    ok2, err2 = await main._notify_owner("", "báo linh tinh")
-    check("không rõ người nhận + Telegram tắt -> vẫn báo thất bại có lý do",
+    # HỢP ĐỒNG ĐỔI Ở 0.49.0. Trước đây "không có kênh" = mất tin, nên `_notify_owner` phải
+    # trả False để chỗ gọi còn biết mà kêu. Từ khi có HÒM THƯ thì tin không mất nữa: nó nằm
+    # ở server, mở dashboard là thấy. Vì vậy `_notify_owner` giờ trả True (đã tới được người
+    # dùng), còn phần "kênh nào hỏng vì sao" chuyển xuống `_gui_qua_kenh`.
+    #
+    # Ý ĐỊNH GỐC của mấy ca dưới vẫn được canh nguyên vẹn, chỉ đo ở đúng tầng của nó: tầng
+    # KÊNH không được bịa thành công khi chẳng gửi đi đâu cả.
+    ok2, err2 = await main._gui_qua_kenh("", "báo linh tinh")
+    check("kênh: không rõ người nhận + Telegram tắt -> thất bại có lý do",
           ok2 is False and "Telegram" in err2)
-    ok3, err3 = await main._notify_owner(main.WEB_CHAT_PREFIX, "rỗng")
-    check("tiền tố web: nhưng thiếu mã phiên -> thất bại, không im lặng",
+    ok3, err3 = await main._gui_qua_kenh(main.WEB_CHAT_PREFIX, "rỗng")
+    check("kênh: tiền tố web: nhưng thiếu mã phiên -> thất bại, không im lặng",
           ok3 is False and "phiên chat web" in err3)
 
     # Telegram vẫn là đường riêng: chat_id thường KHÔNG được coi là phiên web.
-    ok4, err4 = await main._notify_owner("123456789", "gửi telegram")
-    check("chat_id Telegram vẫn đi nhánh Telegram như cũ",
+    ok4, err4 = await main._gui_qua_kenh("123456789", "gửi telegram")
+    check("kênh: chat_id Telegram vẫn đi nhánh Telegram như cũ",
           ok4 is False and "Telegram" in err4)
+
+    # Và đây là điều MỚI phải giữ: kênh hỏng nhưng hòm thư nhận được thì lượt báo vẫn tính
+    # là đã tới. Thiếu luật này thì nhắc hẹn trên máy chưa đấu Telegram bị ghi "failed"
+    # trong khi nội dung đang nằm sẵn trong hòm - vô lý với người dùng.
+    ok5, err5 = await main._notify_owner("", "hòm thư đỡ")
+    check("hòm thư đỡ được lượt báo khi không có kênh nào", ok5 is True and err5 == "")
 
 
 asyncio.run(_run())

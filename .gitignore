@@ -64,6 +64,12 @@ server/_selfupdate.bat
 # chúng. Cả hai là dữ liệu chạy trong STATE_DIR (chatbot_store.py, chatbot_log.py) và
 # chatbots.json còn chứa token bot.
 server/chatbots.json
+# Hòm thư + Web Push: state chạy thật (STATE_DIR mặc định là chính server/ khi chưa
+# đặt JAVIS_STATE_DIR). vapid.json chứa KHOÁ RIÊNG - lọt vào repo là ai cũng đẩy được
+# thông báo giả tới trình duyệt đã đăng ký.
+server/inbox.json
+server/vapid.json
+server/push_subs.json
 server/chatbot-logs/
 # Video làm bằng HyperFrames (rất nặng, không thuộc mã nguồn)
 videos/

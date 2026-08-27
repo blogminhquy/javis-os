@@ -1721,6 +1721,78 @@
  {
   "order": 191,
   "type": "APIRoute",
+  "path": "/inbox",
+  "name": "inbox_list",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 192,
+  "type": "APIRoute",
+  "path": "/inbox/read",
+  "name": "inbox_read",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 193,
+  "type": "APIRoute",
+  "path": "/inbox/delete",
+  "name": "inbox_delete",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 194,
+  "type": "APIRoute",
+  "path": "/push/key",
+  "name": "push_key",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 195,
+  "type": "APIRoute",
+  "path": "/push/subscribe",
+  "name": "push_subscribe",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 196,
+  "type": "APIRoute",
+  "path": "/push/unsubscribe",
+  "name": "push_unsubscribe",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 197,
+  "type": "APIRoute",
+  "path": "/push/test",
+  "name": "push_test",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 198,
+  "type": "APIRoute",
+  "path": "/sw.js",
+  "name": "service_worker",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 199,
+  "type": "APIRoute",
   "path": "/brand-logo",
   "name": "brand_logo",
   "methods": [
@@ -1728,7 +1800,7 @@
   ]
  },
  {
-  "order": 192,
+  "order": 200,
   "type": "APIRoute",
   "path": "/favicon.ico",
   "name": "favicon_ico",
@@ -1737,7 +1809,7 @@
   ]
  },
  {
-  "order": 193,
+  "order": 201,
   "type": "APIRoute",
   "path": "/branding/logo",
   "name": "branding_logo_set",
@@ -1746,7 +1818,7 @@
   ]
  },
  {
-  "order": 194,
+  "order": 202,
   "type": "APIRoute",
   "path": "/branding/logo/reset",
   "name": "branding_logo_reset",
@@ -1755,7 +1827,7 @@
   ]
  },
  {
-  "order": 195,
+  "order": 203,
   "type": "APIRoute",
   "path": "/tls-check",
   "name": "tls_check",
@@ -1764,7 +1836,7 @@
   ]
  },
  {
-  "order": 196,
+  "order": 204,
   "type": "APIRoute",
   "path": "/domain",
   "name": "domain_set",
@@ -1773,7 +1845,7 @@
   ]
  },
  {
-  "order": 197,
+  "order": 205,
   "type": "APIRoute",
   "path": "/domain/status",
   "name": "domain_status",
@@ -1782,7 +1854,7 @@
   ]
  },
  {
-  "order": 198,
+  "order": 206,
   "type": "APIRoute",
   "path": "/domain/ssl",
   "name": "domain_ssl",
@@ -1791,7 +1863,7 @@
   ]
  },
  {
-  "order": 199,
+  "order": 207,
   "type": "APIRoute",
   "path": "/tts",
   "name": "tts",
@@ -1800,7 +1872,7 @@
   ]
  },
  {
-  "order": 200,
+  "order": 208,
   "type": "APIRoute",
   "path": "/tts/voices",
   "name": "tts_voices",
@@ -1809,14 +1881,14 @@
   ]
  },
  {
-  "order": 201,
+  "order": 209,
   "type": "APIWebSocketRoute",
   "path": "/ws",
   "name": "websocket_endpoint",
   "methods": []
  },
  {
-  "order": 202,
+  "order": 210,
   "type": "APIRoute",
   "path": "/terminal/status",
   "name": "terminal_status",
@@ -1825,7 +1897,7 @@
   ]
  },
  {
-  "order": 203,
+  "order": 211,
   "type": "APIRoute",
   "path": "/terminal/close",
   "name": "terminal_close",
@@ -1834,14 +1906,14 @@
   ]
  },
  {
-  "order": 204,
+  "order": 212,
   "type": "APIWebSocketRoute",
   "path": "/ws/terminal",
   "name": "terminal_ws",
   "methods": []
  },
  {
-  "order": 205,
+  "order": 213,
   "type": "APIRoute",
   "path": "/sessions",
   "name": "sessions_list",
@@ -1850,7 +1922,7 @@
   ]
  },
  {
-  "order": 206,
+  "order": 214,
   "type": "APIRoute",
   "path": "/sessions/search",
   "name": "sessions_search",
@@ -1859,7 +1931,7 @@
   ]
  },
  {
-  "order": 207,
+  "order": 215,
   "type": "APIRoute",
   "path": "/sessions/{session_id}",
   "name": "sessions_get",
@@ -1868,7 +1940,7 @@
   ]
  },
  {
-  "order": 208,
+  "order": 216,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/rename",
   "name": "sessions_rename",
@@ -1877,7 +1949,7 @@
   ]
  },
  {
-  "order": 209,
+  "order": 217,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/delete",
   "name": "sessions_delete",
@@ -1886,7 +1958,7 @@
   ]
  },
  {
-  "order": 210,
+  "order": 218,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/pin",
   "name": "sessions_pin",
@@ -1895,7 +1967,7 @@
   ]
  },
  {
-  "order": 211,
+  "order": 219,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/meta",
   "name": "sessions_meta",
@@ -1904,7 +1976,7 @@
   ]
  },
  {
-  "order": 212,
+  "order": 220,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/model",
   "name": "sessions_set_model",
@@ -1913,7 +1985,7 @@
   ]
  },
  {
-  "order": 213,
+  "order": 221,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/project",
   "name": "sessions_set_project",
@@ -1922,7 +1994,7 @@
   ]
  },
  {
-  "order": 214,
+  "order": 222,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_list",
@@ -1931,7 +2003,7 @@
   ]
  },
  {
-  "order": 215,
+  "order": 223,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_create",
@@ -1940,7 +2012,7 @@
   ]
  },
  {
-  "order": 216,
+  "order": 224,
   "type": "APIRoute",
   "path": "/projects/{project_id}/update",
   "name": "projects_update",
@@ -1949,7 +2021,7 @@
   ]
  },
  {
-  "order": 217,
+  "order": 225,
   "type": "APIRoute",
   "path": "/projects/{project_id}/delete",
   "name": "projects_delete",
@@ -1958,7 +2030,7 @@
   ]
  },
  {
-  "order": 218,
+  "order": 226,
   "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
@@ -1967,7 +2039,7 @@
   ]
  },
  {
-  "order": 219,
+  "order": 227,
   "type": "APIRoute",
   "path": "/runtime/muc",
   "name": "runtime_muc",
@@ -1976,7 +2048,7 @@
   ]
  },
  {
-  "order": 220,
+  "order": 228,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -1985,7 +2057,7 @@
   ]
  },
  {
-  "order": 221,
+  "order": 229,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -1994,7 +2066,7 @@
   ]
  },
  {
-  "order": 222,
+  "order": 230,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -2003,7 +2075,7 @@
   ]
  },
  {
-  "order": 223,
+  "order": 231,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -2012,7 +2084,7 @@
   ]
  },
  {
-  "order": 224,
+  "order": 232,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -2021,7 +2093,7 @@
   ]
  },
  {
-  "order": 225,
+  "order": 233,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -2030,7 +2102,7 @@
   ]
  },
  {
-  "order": 226,
+  "order": 234,
   "type": "APIRoute",
   "path": "/zalo-bot/status",
   "name": "zalo_bot_status",
@@ -2039,7 +2111,7 @@
   ]
  },
  {
-  "order": 227,
+  "order": 235,
   "type": "APIRoute",
   "path": "/zalo-bot/restart",
   "name": "zalo_bot_restart",
@@ -2048,7 +2120,7 @@
   ]
  },
  {
-  "order": 228,
+  "order": 236,
   "type": "APIRoute",
   "path": "/zalo-bot/allow",
   "name": "zalo_bot_allow",
@@ -2057,7 +2129,7 @@
   ]
  },
  {
-  "order": 229,
+  "order": 237,
   "type": "APIRoute",
   "path": "/zalo-bot/test",
   "name": "zalo_bot_test",
@@ -2066,7 +2138,7 @@
   ]
  },
  {
-  "order": 230,
+  "order": 238,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -2075,7 +2147,7 @@
   ]
  },
  {
-  "order": 231,
+  "order": 239,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -2084,7 +2156,7 @@
   ]
  },
  {
-  "order": 232,
+  "order": 240,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_list",
@@ -2093,7 +2165,7 @@
   ]
  },
  {
-  "order": 233,
+  "order": 241,
   "type": "APIRoute",
   "path": "/chatbots/verify-token",
   "name": "chatbots_verify_token",
@@ -2102,7 +2174,7 @@
   ]
  },
  {
-  "order": 234,
+  "order": 242,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_create",
@@ -2111,7 +2183,7 @@
   ]
  },
  {
-  "order": 235,
+  "order": 243,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/update",
   "name": "chatbots_update",
@@ -2120,7 +2192,7 @@
   ]
  },
  {
-  "order": 236,
+  "order": 244,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/enable",
   "name": "chatbots_enable",
@@ -2129,7 +2201,7 @@
   ]
  },
  {
-  "order": 237,
+  "order": 245,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/groups",
   "name": "chatbots_groups",
@@ -2138,7 +2210,7 @@
   ]
  },
  {
-  "order": 238,
+  "order": 246,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/log",
   "name": "chatbots_log",
@@ -2147,7 +2219,7 @@
   ]
  },
  {
-  "order": 239,
+  "order": 247,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/delete",
   "name": "chatbots_delete",
@@ -2156,7 +2228,7 @@
   ]
  },
  {
-  "order": 240,
+  "order": 248,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -2165,7 +2237,7 @@
   ]
  },
  {
-  "order": 241,
+  "order": 249,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -2174,7 +2246,7 @@
   ]
  },
  {
-  "order": 242,
+  "order": 250,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -2183,7 +2255,7 @@
   ]
  },
  {
-  "order": 243,
+  "order": 251,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

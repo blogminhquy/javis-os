@@ -70,6 +70,8 @@ import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm to
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
 import image_gen      # tạo ảnh bằng gói ChatGPT (OAuth) - Codex Responses + tool image_generation
 import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo hạn tuổi + trần dung lượng
+import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
+import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
 import zalo_login
 import oauth_mcp
@@ -5998,10 +6000,11 @@ async def usage_ngan_sach(gia_goi_thang_usd: str = Form(""), ngan_sach_thang_usd
     # ngân sách và báo cáo tuần. Chưa đấu kênh nào thì tới giờ chúng chạy xong rồi rơi vào hư
     # không, và người dùng tưởng Javis quên. Không chặn (họ có thể sắp đấu), nhưng phải NÓI.
     canh_bao = []
-    san_sang, ly_do = _notify_ready()
-    if not san_sang and (m.get("bao_cao_tuan") or m["ngan_sach_thang_usd"] > 0):
-        canh_bao.append(ly_do or "Chưa đấu kênh báo nào (Telegram hoặc Zalo) nên báo cáo và "
-                                 "cảnh báo ngân sách sẽ không tới được ai.")
+    co_ngoai, ly_do = _kenh_con_thieu()
+    if not co_ngoai and (m.get("bao_cao_tuan") or m["ngan_sach_thang_usd"] > 0):
+        canh_bao.append("Chưa đấu Telegram hoặc Zalo (" + (ly_do or "chưa bật kênh nào") +
+                        ") nên báo cáo và cảnh báo ngân sách chỉ nằm trong hòm thư trên "
+                        "dashboard, không tới được điện thoại.")
     if m["ngan_sach_thang_usd"] > 0 and not m.get("tu_phanh"):
         canh_bao.append("Tự phanh đang tắt, nên chạm trần Javis chỉ nhắc chứ không dừng tiêu tiền.")
 
@@ -6962,7 +6965,52 @@ async def _zalo_send_to(chat_id, text) -> tuple:
     return ok_any, "; ".join(errs)[:200]
 
 
-async def _notify_owner(owner_chat, text) -> tuple:
+_PUSH_TASKS = set()   # giữ tham chiếu task đẩy đang bay (xem chú thích trong _bo_vao_hom_thu)
+
+
+async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="") -> bool:
+    """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
+
+    Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
+    loop, việc Kanban và nhắc hẹn đều đi qua để nói chuyện lại với người dùng. Móc một chỗ
+    này là cả ba có hòm thư, không phải sửa dòng nào bên trong chúng - và nơi nào sau này
+    thêm vào cũng tự có, khỏi nhớ.
+
+    Hòm thư ghi BẤT KỂ tin đi bằng kênh nào: kênh (chat web / Telegram / Zalo / push) là
+    chuông cửa, hụt cũng không sao; hòm thư là bản ghi bền. Đó cũng là lý do hàm này nuốt
+    mọi lỗi - hòm thư hỏng thì cùng lắm mất một mẩu thư, không được phép làm hỏng việc BÁO.
+    """
+    try:
+        cid = str(owner_chat or "").strip()
+        sid = cid[len(WEB_CHAT_PREFIX):] if cid.startswith(WEB_CHAT_PREFIX) else ""
+        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label)
+    except Exception as e:
+        print(f"[inbox] bỏ thư lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+        return False
+    try:
+        # Ai đang mở dashboard thì chấm đỏ trên chuông phải nhảy NGAY, không đợi lần
+        # tải lại trang sau. Đi chung đường WebSocket sẵn có của khung chat.
+        await _CHAT_RUNTIME.publish({"type": "inbox", "session_id": item["session_id"]})
+    except Exception as e:
+        print(f"[inbox] bắn WebSocket lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    try:
+        # Bấm vào thông báo đẩy phải về ĐÚNG chỗ nội dung nằm: hội thoại đã hỏi nếu có,
+        # còn không thì mở hòm thư. Không có tham số này thì push chỉ mở trang chủ, và
+        # người dùng lại phải tự đi tìm - đúng cái phiền mà hòm thư sinh ra để bỏ.
+        url = f"/?mo_thu={item['id']}"
+        # KHÔNG await: mỗi đăng ký chết là một request chờ tới 15 giây, mà việc rung chuông
+        # không được phép giữ chân cái đã xong. Hòm thư đã ghi rồi - push chỉ là chuông cửa.
+        # Giữ tham chiếu tới task, không thì bộ dọn rác có thể nuốt nó giữa chừng.
+        t = asyncio.create_task(
+            webpush.gui_het(item["title"], item["body"][:200], url, tag=f"javis-{item['id']}"))
+        _PUSH_TASKS.add(t)
+        t.add_done_callback(_PUSH_TASKS.discard)
+    except Exception as e:
+        print(f"[webpush] đẩy lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    return True
+
+
+async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="") -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -6975,7 +7023,29 @@ async def _notify_owner(owner_chat, text) -> tuple:
     (đã xuyên suốt enqueue → DB → _report) thay vì thêm cột: một việc chỉ sinh ra từ MỘT
     kênh nên không bao giờ cần mang cả hai.
 
-    Im lặng (trả (False, lý do)) nếu bot chưa bật / chưa có chat_id. Trả (ok, error)."""
+    Từ 0.49.0 mọi lượt báo đều để lại một mẩu thư trong HÒM THƯ trước khi thử gửi. Nhờ đó
+    kết quả không còn phụ thuộc vào chuyện người dùng có đang mở đúng hội thoại đó không,
+    hay có đấu Telegram hay không.
+
+    Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
+    server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
+    Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
+    vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source)
+    ok, err = await _gui_qua_kenh(owner_chat, text)
+    if ok or not vao_hom:
+        return ok, ("" if ok else err)
+    # Kênh hỏng nhưng hòm thư đã giữ tin: với NGƯỜI DÙNG đây là thành công, nên đừng trả lỗi
+    # lên (nhắc hẹn sẽ bị ghi "failed" trong khi nội dung nằm sẵn trong hòm). Lý do kênh hỏng
+    # vẫn phải còn dấu vết để còn dò được, nên ghi log - và trang Việc đã nói riêng chuyện
+    # "chưa đấu Telegram/Zalo" qua `_kenh_con_thieu`.
+    if err:
+        print(f"[notify] hòm thư đã giữ tin, nhưng kênh ngoài hỏng: {err}", file=sys.stderr)
+    return True, ""
+
+
+async def _gui_qua_kenh(owner_chat, text) -> tuple:
+    """Gửi qua ĐÚNG kênh đã giao việc. Tách khỏi `_notify_owner` để chỗ đó chỉ còn lo việc
+    ghép hai đường (hòm thư + kênh), không lẫn với chi tiết của từng nhà."""
     cid = str(owner_chat or "").strip()
     if cid.startswith(WEB_CHAT_PREFIX):
         sid = cid[len(WEB_CHAT_PREFIX):]
@@ -7137,7 +7207,18 @@ def _notify_ready() -> tuple:
     ĐỦ MỘT kênh là đủ. Từ 0.26.8 Zalo cũng tính: người dùng chỉ đấu Zalo mà bị chặn tạo nhắc
     hẹn với lý do "bot Telegram chưa bật" là một câu vừa sai vừa không sửa được, và nó đẩy họ
     đi cài một app họ không cần.
+
+    Từ 0.49.0 HÒM THƯ là kênh mặc định và nó luôn có, nên rào này gần như không còn chặn ai:
+    kết quả bao giờ cũng có chỗ đậu ở server, mở dashboard là thấy. Vẫn giữ hàm (và vẫn liệt
+    kê kênh còn thiếu) vì Telegram/Zalo mới là đường tới được ĐIỆN THOẠI lúc không mở
+    dashboard - thiếu chúng không phải lỗi, nhưng là điều đáng nói ra ở trang Việc.
     """
+    return True, ""
+
+
+def _kenh_con_thieu() -> tuple:
+    """(có_kênh_ngoài, mô_tả_thiếu) - phần soi Telegram/Zalo tách ra khỏi `_notify_ready`.
+    Dùng để HIỂN THỊ chứ không để chặn."""
     try:
         cfg = cfgmod.read_settings()
     except Exception:
@@ -7171,10 +7252,19 @@ def _notify_live_warn() -> str:
         return ""
 
 
+async def _bao_nhac_hen(chat_id, text) -> tuple:
+    """Đường BÁO của nhắc hẹn. Cùng chữ ký (chat_id, text) -> (ok, err) như `_tg_send_to` cũ,
+    nhưng đi qua `_notify_owner` nên nhắc hẹn được đúng ba thứ mà trước đây nó không có:
+    hòm thư ở server, đẩy về khung chat web khi chat_id là "web:<sid>", và thông báo đẩy.
+    Trước bản này nhắc hẹn là thứ DUY NHẤT còn gọi thẳng Telegram - đó cũng là lý do
+    reminders.py phải chặn không cho tạo khi chưa đấu bot."""
+    return await _notify_owner(chat_id, text, kind="report", source="reminder")
+
+
 reminders_feature = reminders_mod.register(app, reminders_mod.RemindersDeps(
     brain_root=_brain_root,
     atomic_write_text=_atomic_write_text,
-    send_telegram=_tg_send_to,
+    send_telegram=_bao_nhac_hen,
     notify_ready=_notify_ready,
     build_system_prompt=build_system_prompt,
     aux_model=_aux_model,
@@ -7269,13 +7359,17 @@ async def viec_all():
             out.append(v)
 
     ready, why = reminders_feature.notify_status()
+    co_ngoai, thieu = _kenh_con_thieu()
     return {"brains": out, "running": loop_feature.lock.locked(),
             "running_slug": loop_feature._running[1] if loop_feature._running else "",
-            # Trang Việc cảnh báo ngay đầu trang khi chưa có kênh báo: việc vẫn chạy nhưng không
-            # ai nhận được kết quả, mà đó là thứ người dùng KHÔNG tự đoán ra được. "warn" là
-            # trường hợp KHÁC: cấu hình đủ nhưng bot đang lỗi thật (token bị thu hồi, 409...) -
-            # không chặn tạo việc (lỗi có thể chỉ thoáng qua) nhưng phải nói ra.
-            "notify": {"ok": ready, "error": why, "warn": _notify_live_warn()}}
+            # "ok" từ 0.49.0 gần như luôn true: hòm thư là kênh mặc định và nó luôn có, nên
+            # kết quả không còn rơi vào hư không. Cái CÒN đáng nói là chưa đấu Telegram/Zalo -
+            # lúc đó kết quả vẫn về hòm thư, chỉ là không tới được ĐIỆN THOẠI khi không mở
+            # dashboard. Đó là một ghi chú, không phải báo động, nên tách hẳn khỏi "error".
+            # "warn" là trường hợp KHÁC nữa: cấu hình đủ nhưng bot đang lỗi thật (token bị thu
+            # hồi, 409...) - không chặn tạo việc (lỗi có thể thoáng qua) nhưng phải nói ra.
+            "notify": {"ok": ready, "error": why, "warn": _notify_live_warn(),
+                       "kenh_ngoai": bool(co_ngoai), "thieu_kenh_ngoai": thieu}}
 
 
 # ============================================================
@@ -8578,6 +8672,87 @@ async def notifications_info():
     }
     _NOTIFICATION_CACHE.update({"at": now, "data": data})
     return data
+
+
+# ============================================
+# HÒM THƯ + THÔNG BÁO ĐẨY
+#
+# Hòm thư (inbox.py) là bản ghi BỀN của mọi kết quả chạy nền; push (webpush.py) chỉ là cái
+# chuông cửa trỏ vào một mẩu thư. Tách hai tầng như vậy để push hụt (đóng trình duyệt, từ
+# chối quyền, iOS chưa cài PWA) không bao giờ làm MẤT nội dung - thứ tệ nhất một hệ thống
+# thông báo có thể làm.
+#
+# Đã-đọc nằm ở SERVER chứ không phải localStorage như chuông "Thông báo" cũ: thư riêng phải
+# đếm giống nhau giữa điện thoại và máy tính, và không được bay mất khi xoá dữ liệu duyệt web.
+# ============================================
+@app.get("/inbox")
+async def inbox_list(limit: int = 50):
+    return {"items": inbox.danh_sach(limit), "unread": inbox.so_chua_doc(),
+            "push": {"supported": True, "subs": webpush.so_sub()}}
+
+
+@app.post("/inbox/read")
+async def inbox_read(payload: dict = Body(None)):
+    """Đánh dấu đã đọc. `id` một mẩu, `session_id` cả hội thoại, `all` toàn bộ."""
+    p = payload or {}
+    if p.get("all"):
+        return {"ok": True, "changed": inbox.doc_het(), "unread": inbox.so_chua_doc()}
+    if p.get("session_id"):
+        return {"ok": True, "changed": inbox.doc_theo_phien(str(p["session_id"])),
+                "unread": inbox.so_chua_doc()}
+    ok = inbox.danh_dau_doc(str(p.get("id") or ""))
+    return {"ok": ok, "unread": inbox.so_chua_doc()}
+
+
+@app.post("/inbox/delete")
+async def inbox_delete(payload: dict = Body(None)):
+    ok = inbox.xoa(str((payload or {}).get("id") or ""))
+    return {"ok": ok, "unread": inbox.so_chua_doc()}
+
+
+@app.get("/push/key")
+async def push_key():
+    """Khoá công khai VAPID để trình duyệt đăng ký. Sinh ở lần gọi đầu rồi giữ nguyên mãi."""
+    return {"key": webpush.khoa_cong_khai(), "subs": webpush.so_sub()}
+
+
+@app.post("/push/subscribe")
+async def push_subscribe(payload: dict = Body(None)):
+    p = payload or {}
+    ok, err = webpush.dang_ky(p.get("subscription") or p, str(p.get("nhan") or ""))
+    return {"ok": ok, "error": err, "subs": webpush.so_sub()}
+
+
+@app.post("/push/unsubscribe")
+async def push_unsubscribe(payload: dict = Body(None)):
+    ep = str((payload or {}).get("endpoint") or "")
+    return {"ok": webpush.huy_dang_ky(ep), "subs": webpush.so_sub()}
+
+
+@app.post("/push/test")
+async def push_test():
+    """Gửi thử một thông báo. Không có nút này thì người dùng bật quyền xong vẫn không biết
+    nó có chạy thật hay không, mà lần "thật" đầu tiên có khi phải đợi tới sáng hôm sau."""
+    ok, don = await webpush.gui_het("Javis", "Thông báo đẩy đã chạy. Từ giờ có kết quả là "
+                                             "Javis báo ngay cả khi bạn không mở dashboard.",
+                                    "/?mo_thu=test", tag="javis-test")
+    return {"ok": ok > 0, "sent": ok, "cleaned": don, "subs": webpush.so_sub()}
+
+
+@app.get("/sw.js")
+async def service_worker():
+    """Service worker PHẢI phục vụ từ gốc site.
+
+    Phạm vi (scope) mặc định của một service worker là thư mục chứa nó, nên đặt ở
+    /static/sw.js thì nó chỉ điều khiển được /static/* - tức là không nhận được push cho
+    trang chủ, và bấm vào thông báo không tìm thấy tab nào để focus. Trả thẳng ở "/" là
+    cách gọn nhất, khỏi phải thêm header Service-Worker-Allowed.
+    """
+    f = DASHBOARD_PATH / "sw.js"
+    if not f.exists():
+        return Response("// no sw", media_type="application/javascript")
+    return FileResponse(f, media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
 
 
 # ============================================

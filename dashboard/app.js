@@ -207,6 +207,18 @@ function handleMessage(data) {
     try { if (window.JavisBackground) window.JavisBackground.refresh(); } catch (e) {}
     return;
   }
+  if (data.type === "inbox") {
+    // Việc nền vừa để lại một mẩu thư → chấm đỏ trên chuông nhảy NGAY, không đợi tải lại
+    // trang. Nếu thư thuộc đúng hội thoại đang mở thì coi như đã đọc luôn: người dùng đang
+    // nhìn thẳng vào nội dung, bắt họ bấm thêm một lần nữa trong hòm là đếm hai lần.
+    try {
+      if (window.JavisInbox) {
+        if (sid && sid === savedSessionId) window.JavisInbox.docPhien(sid);
+        else window.JavisInbox.refresh();
+      }
+    } catch (e) {}
+    return;
+  }
   if (data.type === "status") {
     if (t) t.running = true;
     setSessionRunning(sid, true);
@@ -413,6 +425,7 @@ async function openStoredSession(id) {
       else if (m.role === "assistant") { appendJavisMessage(m.content || "", ts, sess.brain); convo.push({ role: "javis", text: m.content || "", atts: [], ts, brain: sess.brain }); }
     });
     savedSessionId = id;          // lượt gửi tiếp theo → server resume đúng phiên này
+    try { if (window.JavisInbox) window.JavisInbox.docPhien(id); } catch (e) {}
     // Phiên này đang generate NỀN → gắn bong bóng SỐNG (kèm phần đã stream) để xem tiếp trực tiếp.
     const t = turns[id];
     if (t && t.running) {
