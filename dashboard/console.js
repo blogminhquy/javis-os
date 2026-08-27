@@ -5335,6 +5335,9 @@
     if (s.next && s.next.parentNode === s.parent) s.parent.insertBefore(s.node, s.next);
     else s.parent.appendChild(s.node);
     _neSlot = null;
+    // Rời trang trong khi đang phóng to: trình sửa về lại khung cũ nên lớp ne-full-on phải
+    // tắt theo, không thì .cview còn đứng trên rail dù chẳng còn gì phóng to.
+    _neSyncFull();
   }
 
   let _vaultSlot = null;
@@ -5854,9 +5857,19 @@
     if (e.button === 3) { e.preventDefault(); _neDiLichSu(-1); }
     else if (e.button === 4) { e.preventDefault(); _neDiLichSu(1); }
   });
+  // Body có lớp `ne-full-on` khi trình sửa đang phóng to. style.css dựa vào đó để nâng
+  // stacking context .cview lên trên rail - không có nó thì phóng to xong rail vẫn phủ
+  // lên mép trái bài viết (chữ bị lẹm). SUY RA từ DOM thật chứ không bật/tắt theo từng
+  // đường: quên một nhánh là lớp treo lại, mà lúc đó .cview đứng trên rail vĩnh viễn.
+  function _neSyncFull() {
+    const ed = document.getElementById("noteEditor");
+    document.body.classList.toggle("ne-full-on",
+      !!(ed && !ed.hidden && ed.classList.contains("ne-full")));
+  }
+
   function closeNote() {
     const ed = document.getElementById("noteEditor"); if (!ed) return;
-    ed.hidden = true; ed.classList.remove("ne-full");
+    ed.hidden = true; ed.classList.remove("ne-full"); _neSyncFull();
     // Đóng trình sửa ở trang Trò chuyện = trả chỗ lại cho khung chat. Không trả thì khung chat
     // vẫn bị ẩn và người dùng nhìn vào một trang trống, tưởng chat hỏng.
     _returnNoteEditor();
@@ -5915,7 +5928,7 @@
     actions.appendChild(mk(ic("trash-2"), "Xoá file", () => _neDeleteCur(rel, it)));
     actions.appendChild(mk("↗", "Mở tab mới", () => window.open(_vtRaw(rel), "_blank")));
     actions.appendChild(mk("⤓ Tải", "Tải file về máy", () => _dlFile(rel)));
-    actions.appendChild(mk(ic("maximize"), "Phóng to / thu nhỏ", () => ed.classList.toggle("ne-full")));
+    actions.appendChild(mk(ic("maximize"), "Phóng to / thu nhỏ", () => { ed.classList.toggle("ne-full"); _neSyncFull(); }));
     actions.appendChild(mk(X_ICON, "Đóng (Esc)", closeNote));
   }
   function _neRenderDownload(body, actions, rel, it) {
@@ -5943,6 +5956,7 @@
     b.innerHTML = X_ICON; b.title = "Đóng (Esc)"; b.onclick = closeNote;
     actions.appendChild(b);
     if (ed) ed.classList.remove("ne-full");
+    _neSyncFull();
     _neTimFileGan(String(rel).split("/").pop(), body.querySelector("#neMissHits"));
   }
   // Link hụt thường KHÔNG phải file đã mất - chỉ là tên trong chat lệch tên trên đĩa (hay gặp
@@ -6163,7 +6177,7 @@
     _neDangDiLichSu = false;
     if (!laLichSu) _neDayLichSu(rel, it);
     _neVeNutLui();
-    ed.hidden = false; ed.classList.remove("ne-full");
+    ed.hidden = false; ed.classList.remove("ne-full"); _neSyncFull();
     _neOpenRel = rel || "";     // để chip "file đang mở" biết có cần nạp lại hay chỉ cần đưa mắt về
     _neLayNoiDung = null; _neGocText = null;   // file mới: mốc so sánh dựng lại ở dưới
     // Đang ở trang Trò chuyện thì trình sửa chiếm chỗ khung chat thay vì đè lên visual não
