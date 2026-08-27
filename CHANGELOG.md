@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.48.2] - 2026-08-27
+### Sửa lỗi
+- **Mở file .md ở trang Trò chuyện không còn làm vỡ khung hội thoại bên phải.** Trình sửa phình rộng hơn cột của nó rồi nằm đè lên khung chat, nên chữ bên phải bị cắt mất mép trái, đọc không ra câu. Giờ trình sửa co đúng bằng cột trái, hội thoại hiện đủ như thiết kế.
+- Thanh nút của trình sửa (Sửa, Nguồn, Lưu, Tải...) tự **xuống dòng khi khung hẹp** thay vì bám một hàng rồi đẩy rộng cả trình sửa. Tên file dài thì cắt bằng ba chấm.
+
 ## [0.48.1] - 2026-08-27
 ### Thêm mới
 - **Đấu được Hostinger vào Javis.** Trang Kết nối có thêm connector chính chủ của Hostinger: hỏi ngay trong chat là ra danh sách tên miền, ngày hết hạn, bản ghi DNS, website WordPress, VPS, hộp thư và hoá đơn. Dán API token lấy từ hPanel là xong.
