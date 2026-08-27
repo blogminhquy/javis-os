@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.7] - 2026-08-27
+### Sửa lỗi
+- **Hết cảnh khối code nằm giữa file .md thành một cái thẻ chết.** Trước đây mở file ra sửa mà trong đó có đoạn code dài thì nó bị thu thành thẻ "Mã TEXT · 30 dòng", bấm không mở, nội dung không xem được. Giờ trong trình sửa, đoạn code hiện đầy đủ ngay tại chỗ và sửa được như phần còn lại của file.
+- Thẻ sơ đồ, ảnh SVG và trang HTML vẫn giữ dạng thẻ xem trước, nhưng nay **bấm được ngay trong trình sửa** để mở khung xem.
+
 ## [0.47.6] - 2026-08-27
 ### Sửa lỗi
 - **Ô nhập chat trải dài toàn bề rộng khi đang sửa file ở trang Trò chuyện.** Bản trước nhét cả cụm nhập vào cột hội thoại 340px nên chật cứng. Giờ đúng như màn Javis: hội thoại đứng cột phải, còn file đang mở + thanh model + ô nhập vắt ngang dưới cùng. Thu cột hội thoại thì ô nhập vẫn nguyên chỗ.
