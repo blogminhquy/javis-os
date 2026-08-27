@@ -49,12 +49,9 @@ check("mọi nhà trong AGENT_PROVIDERS đều có bộ dựng engine ở aux_en
 check("có đủ cả CLI lẫn API (không còn chỉ Claude + ChatGPT)",
       len(main.AGENT_PROVIDERS) >= 7, len(main.AGENT_PROVIDERS))
 for p in ("anthropic-cli", "openai-oauth", "gemini-cli", "antigravity-cli", "openrouter",
-          "anthropic-api", "openai", "gemini", "groq"):
+          "anthropic-api", "openai", "gemini", "groq", "ollama"):
     check(f"có nhà {p}", p in main.AGENT_PROVIDERS)
-# Ollama: aux_engine CHƯA dựng được engine (không có trong API_PROVIDERS lẫn bộ dựng CLI).
-# Bày ra là agent lặng lẽ chạy Claude - đúng thứ file này sinh ra để chặn.
-check("KHÔNG bày ollama (aux_engine chưa dựng được engine cho nó)",
-      "ollama" not in main.AGENT_PROVIDERS)
+check("đủ cả 10 nhà ở trang Models", len(main.AGENT_PROVIDERS) == 10, len(main.AGENT_PROVIDERS))
 
 # Giao diện Studio lọc theo cờ này, nên nó phải nói đúng AGENT_PROVIDERS.
 view = {p["id"]: p for p in main._providers_view(main.cfgmod.read_settings())}
@@ -106,6 +103,10 @@ try:
     nhan.clear()
     mk("x", "claude-sonnet-4-5", "antigravity-cli")
     check("Antigravity CLI cũng đi qua aux_engine", nhan.get("provider") == "antigravity-cli", nhan)
+
+    nhan.clear()
+    mk("x", "qwen3-coder", "ollama")
+    check("Ollama Cloud cũng đi qua aux_engine", nhan.get("provider") == "ollama", nhan)
 
     nhan.clear()
     cli2 = mk("x", "opus", "anthropic-cli")

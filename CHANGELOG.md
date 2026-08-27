@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.48.1] - 2026-08-27
+### Thêm mới
+- **Đấu được Hostinger vào Javis.** Trang Kết nối có thêm connector chính chủ của Hostinger: hỏi ngay trong chat là ra danh sách tên miền, ngày hết hạn, bản ghi DNS, website WordPress, VPS, hộp thư và hoá đơn. Dán API token lấy từ hPanel là xong.
+- Kết nối này mặc định để mức **Chỉ đọc** vì nó là chìa khoá vào hạ tầng website. Muốn Javis tự sửa DNS hay tạo website thì nâng lên Ghi nháp; các việc xoá, dừng VPS, mua hay gia hạn tên miền chỉ chạy ở mức Toàn quyền.
+- **Agent chọn được thêm Ollama**, đủ 10 nhà cung cấp y như trang Models.
+
 ## [0.48.0] - 2026-08-27
 ### Thêm mới
 - **Gửi thẳng ảnh cho ChatGPT xem khi tạo ảnh.** Trước đây Javis chỉ tả lại ảnh của bạn bằng lời rồi để AI vẽ theo, nên sản phẩm, nhãn hay khuôn mặt không bao giờ giống bản gốc. Giờ đưa ảnh rồi bảo "dựng theo ảnh này" là ChatGPT nhìn thấy chính tấm ảnh đó (tối đa 4 ảnh một lượt).
