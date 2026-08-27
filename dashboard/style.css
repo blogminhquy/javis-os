@@ -455,6 +455,24 @@ body {
 .hud-center { min-width: 0; }
 .hud-left { border-right: 1px solid var(--border); }
 .hud-right { border-left: 1px solid var(--border); }
+/* ===== Thu gọn panel Vault (cột trái màn chính) - cùng lối với thu gọn sidebar =====
+   Chỉ áp lên .hud-left khi nó là CON TRỰC TIẾP của .hud-body: tab "Thư mục" của trang
+   Trò chuyện mượn đúng node này (nằm trong .cside-pane) và ở đó không có gì để thu -
+   selector con trực tiếp giữ cho trạng thái thu không đi lạc theo node. */
+.vault-expand { display: none; }
+body.vault-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) 320px; }
+body.vault-thu .hud-body > .hud-left { padding: 12px 6px; align-items: center; overflow: hidden; }
+body.vault-thu .hud-body > .hud-left > :not(.vault-expand) { display: none; }
+body.vault-thu .hud-body > .hud-left > .vault-expand {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex: none; border-radius: 8px;
+  border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer;
+}
+body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent); border-color: var(--accent); }
+/* Node được mượn sang tab Thư mục của trang Trò chuyện: giấu cả nút thu (cột đó là của
+   trang chat, có nút riêng) lẫn nút mở lại. */
+.cside-pane .vault-tools #vtCollapse, .cside-pane > .hud-left > .vault-expand { display: none; }
+
 .hud-left::-webkit-scrollbar, .hud-right::-webkit-scrollbar, .transcript::-webkit-scrollbar { width: 4px; }
 .hud-left::-webkit-scrollbar-thumb, .hud-right::-webkit-scrollbar-thumb, .transcript::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
