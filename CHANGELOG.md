@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.6] - 2026-08-27
+### Sửa lỗi
+- **Ô nhập chat trải dài toàn bề rộng khi đang sửa file ở trang Trò chuyện.** Bản trước nhét cả cụm nhập vào cột hội thoại 340px nên chật cứng. Giờ đúng như màn Javis: hội thoại đứng cột phải, còn file đang mở + thanh model + ô nhập vắt ngang dưới cùng. Thu cột hội thoại thì ô nhập vẫn nguyên chỗ.
+
 ## [0.47.5] - 2026-08-27
 ### Sửa lỗi
 - **Mở file .md ở trang Trò chuyện: bố cục đúng như màn Javis.** Bản trước để khung chat nằm phía TRÊN trình sửa, nhìn ngược. Giờ trình sửa bên trái, hội thoại thành cột bên phải và ô nhập ở dưới đáy cột - y như khi xem file ở màn hình brain.

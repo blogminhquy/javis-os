@@ -26,26 +26,32 @@ const b = cjs.indexOf("function _neoCuon", a);
 const CSS = cjs.slice(a, b);
 check("tìm thấy _injectChatCss", a !== -1 && b > a);
 
-// ---- 1. Bố cục desktop: trình sửa trái, chat thành cột phải ----
-check("edit-on desktop chuyển sang grid 2 cột (trình sửa + cột chat phải)",
-  /\.chatpage-main\.edit-on\{ display:grid;[\s\S]{0,120}grid-template-columns:minmax\(0,1fr\) 340px/.test(CSS));
+// ---- 1. Bố cục desktop: trình sửa trái, HỘI THOẠI cột phải, Ô NHẬP trải dài dưới ----
+check("edit-on desktop chuyển sang grid 2 cột (trình sửa + cột hội thoại phải)",
+  /\.chatpage-main\.edit-on\{ display:grid;[\s\S]{0,160}grid-template-columns:minmax\(0,1fr\) 340px/.test(CSS));
 check("trình sửa nằm cột TRÁI", CSS.indexOf(".chatpage-main.edit-on > .chatpage-edit{ grid-row:2; grid-column:1") !== -1);
-check("khung chat nằm cột PHẢI (grid đặt chỗ, thứ tự DOM hết quyết định vị trí)",
-  CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot{ grid-row:2; grid-column:2") !== -1);
-check("hội thoại chiếm phần trên của cột (ô nhập tự về đáy)",
-  CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; }") !== -1);
-check("bỏ trần 900px của slot trong cột hẹp",
+check("slot tan vào lưới (display:contents) để từng con nhận ô riêng",
+  CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot{ display:contents; }") !== -1);
+check("HỘI THOẠI đứng cột phải",
+  CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot > .transcript{ grid-row:2; grid-column:2") !== -1);
+check("Ô NHẬP trải dài TOÀN BỀ RỘNG dưới cùng (không nhét vào cột 340px - chủ chỉnh 0.47.5)",
+  CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot > .hud-voice{ grid-row:6; grid-column:1 / -1; }") !== -1);
+check("thanh model + file chip + bg-strip cũng vắt ngang đáy như màn Javis",
+  CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot > .model-bar{ grid-row:5; grid-column:1 / -1; }") !== -1
+  && CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot > .attach-bar{ grid-row:4; grid-column:1 / -1; }") !== -1
+  && CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot > .bg-strip{ grid-row:3; grid-column:1 / -1; }") !== -1);
+check("bỏ trần 900px của slot trong chế độ này",
   CSS.indexOf(".chatpage-main.edit-on > .chatpage-slot > *{ max-width:none; }") !== -1);
 check("thanh tiêu đề vắt ngang cả hai cột",
-  CSS.indexOf(".chatpage-main.edit-on > .chatpage-bar{ grid-column:1 / -1; }") !== -1);
+  CSS.indexOf(".chatpage-main.edit-on > .chatpage-bar{ grid-row:1; grid-column:1 / -1; }") !== -1);
 
-// ---- 2. Nút thu khung chat phải (co vào bên phải, có nhớ) ----
+// ---- 2. Nút thu khung hội thoại phải (co vào bên phải, có nhớ) ----
 check("có nút thu .cedit-thu-btn và nút mở lại .cedit-expand trong CSS",
   CSS.indexOf(".cedit-thu-btn") !== -1 && CSS.indexOf(".cedit-expand") !== -1);
-check("trạng thái thu: cột phải còn dải 44px",
+check("trạng thái thu: cột hội thoại còn dải 44px",
   CSS.indexOf(".chatpage-main.edit-on.echat-thu{ grid-template-columns:minmax(0,1fr) 44px; }") !== -1);
-check("thu xong chỉ còn nút mở lại",
-  CSS.indexOf(".chatpage-main.edit-on.echat-thu > .chatpage-slot > :not(.cedit-expand){ display:none; }") !== -1);
+check("thu chỉ ẩn CỘT HỘI THOẠI - ô nhập vẫn trải dài (không display:none cả slot)",
+  /\.chatpage-main\.edit-on\.echat-thu > \.chatpage-slot > \.transcript,\s*\.chatpage-main\.edit-on\.echat-thu > \.chatpage-slot > \.cedit-thu-btn\{ display:none; \}/.test(CSS));
 check("icon lật gương thành panel-right (bộ icon chưa có panel-right)",
   /\.cedit-thu-btn svg, \.cedit-expand svg\{ transform:scaleX\(-1\); \}/.test(CSS));
 check("JS gắn nút + nhớ localStorage javis_editchat_thu",
