@@ -174,6 +174,15 @@ def _set_engine(name, ok, message="", source="probe"):
         rec["notified"] = False   # hồi sinh → lần chết sau lại được báo
     _engines[name] = rec
     if not ok and not rec["notified"] and on_engine_down:
+        # Chỉ báo Telegram khi bộ não này ĐANG là Main Model. Đèn của bộ não khác (vd lượt
+        # chạy việc nền bằng Claude phát hiện mất đăng nhập trên máy Main Codex) vẫn được
+        # ghi lại, nhưng câu "Javis chưa dùng được" là SAI với người dùng đó - việc nền đã
+        # tự chạy tiếp bằng bộ não chat (_FallbackChain, 0.43.3).
+        try:
+            if name not in engines_in_use():
+                return
+        except Exception:
+            pass
         rec["notified"] = True
         try:
             # Nói theo góc NGƯỜI DÙNG: với họ chỉ có một sự thật là chưa dùng được Javis,
@@ -272,29 +281,23 @@ _PROVIDER_ENGINE = {"anthropic-cli": "claude", "openai-oauth": "codex", "gemini-
 
 
 def engines_in_use() -> set:
-    """Tên đèn của những bộ não người dùng THẬT SỰ chọn: Main Model + model việc nền.
+    """Tên đèn của bộ não MAIN MODEL - thứ DUY NHẤT banner 'Chưa kết nối Model AI' nói về.
 
-    Model việc nền chỉ tính khi người dùng đặt provider RÕ RÀNG. Bỏ trống thì aux_engine
-    rơi về Claude, nhưng đó là mặc định của code chứ không phải lựa chọn của người dùng -
-    và việc nền đã có _FallbackChain đỡ (Claude chết thì sang OpenRouter free). Tính cái
-    mặc định ngầm đó vào đây là máy chưa từng cài Claude vẫn bị nagging suốt ngày
-    'bộ não claude mất đăng nhập' dù đang chạy OpenRouter ngon lành.
-
-    Chú ý: UI lưu việc nền LUÔN kèm provider (nút "Về mặc định" ghi anthropic-cli + model
-    rỗng), nên "provider anthropic-cli + model rỗng" chính là trạng thái mặc định đội lốt
-    lựa chọn. Không lọc ca này thì máy Main Model là Codex/OpenRouter vẫn bị banner đỏ
-    'chưa kết nối Model AI' chỉ vì chưa đăng nhập Claude - đúng lỗi khách báo 27/08."""
+    Model việc nền KHÔNG soi ở đây nữa (0.47.4). Từ 0.43.3 việc nền có _FallbackChain:
+    Claude không sẵn sàng thì nó tự chạy bằng chính bộ não chat - tức 'model việc nền
+    chưa đăng nhập' KHÔNG còn nghĩa là 'Javis chưa dùng được'. Trong khi đó banner đọc
+    đúng nghĩa đen như vậy, và trong một ngày (27/08) đã hai lần bắt oan máy Main Model
+    Codex chỉ vì cấu hình việc nền còn trỏ một model Claude (bản đầu lọc mỗi ca
+    'anthropic-cli + model rỗng' của nút Về mặc định - vẫn sót ca chọn hẳn haiku theo
+    gợi ý 'model rẻ đỡ hạn mức' của chính UI). Sức khoẻ việc nền có chỗ riêng của nó:
+    thẻ Model việc nền ở trang Models."""
     try:
         import config as _cfg
         m = (_cfg.read_settings().get("model") or {})
     except Exception:
         return {"claude"}
-    provs = [(m.get("main") or {}).get("provider") or "anthropic-cli"]
-    aux_rec = (m.get("auxiliary") or {})
-    aux = aux_rec.get("provider")
-    if aux and not (aux == "anthropic-cli" and not (aux_rec.get("model") or "").strip()):
-        provs.append(aux)
-    return {_PROVIDER_ENGINE[p] for p in provs if p in _PROVIDER_ENGINE}
+    prov = (m.get("main") or {}).get("provider") or "anthropic-cli"
+    return {_PROVIDER_ENGINE[prov]} if prov in _PROVIDER_ENGINE else set()
 
 
 def probe_engines() -> None:
@@ -309,6 +312,20 @@ def probe_engines() -> None:
     live = engines_in_use()
     for name in [n for n in _engines if n not in live]:
         _engines.pop(name, None)
+    # Đèn Codex (Main Model là gói ChatGPT): trước 0.47.4 đèn này KHÔNG TỒN TẠI - không
+    # probe, và flag_engine_auth_error("codex") không có ai gọi - nên ngắt ChatGPT thật
+    # cũng không banner nào báo. Probe rẻ: status() chỉ đọc settings (có token hay không),
+    # không gọi mạng, nên không có ca báo đỏ oan vì mạng chập chờn.
+    if "codex" in live:
+        try:
+            import openai_oauth
+            ok = bool(openai_oauth.status().get("connected"))
+            cur = _engines.get("codex") or {}
+            if not (ok and cur.get("source") == "run" and not cur.get("ok")):
+                _set_engine("codex", ok,
+                            "" if ok else "Chưa kết nối ChatGPT (OAuth).", "probe")
+        except Exception:
+            pass
     if "claude" not in live:
         return
     # Gói Claude Code chạy bằng API KEY (chọn ở trang Models) thì không có "phiên đăng nhập
