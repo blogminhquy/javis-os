@@ -2,12 +2,19 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    # `claude/**` là các nhánh phiên Claude Code làm việc trên repo này. Chúng luôn đẩy commit
+    # lên TRƯỚC rồi mới mở PR, mà lúc đó chưa có PR nên `pull_request` không bắt được, và mở
+    # PR sau đó có lúc GitHub không sinh run cho commit đã nằm sẵn ở nhánh. Kết quả: nhiều lần
+    # phải vào tab Actions bấm chạy tay, dễ sót. Nghe `push` trên đúng tiền tố này thì commit
+    # vừa lên là CI chạy ngay.
+    # Nhánh có PR mở sẽ chạy hai lần (một do push, một do pull_request). Chấp nhận: repo public
+    # nên Actions không tính phút, và hai run xanh đọc rõ hơn là một run bị huỷ giữa chừng.
+    branches: [ main, 'claude/**' ]
+  # BẮT BUỘC giữ: PR từ fork KHÔNG sinh sự kiện `push` ở repo này, chỉ `pull_request` mới bắt
+  # được. Repo đang có hơn 100 fork nên bỏ dòng này là đóng CI với mọi đóng góp bên ngoài.
   pull_request:
-  # Chạy tay từ tab Actions. Cần vì có một khe hở thật: đẩy commit lên một nhánh CHƯA có PR mở
-  # thì không sự kiện nào bắt (push chỉ nghe `main`), và mở PR sau đó có lúc GitHub không sinh
-  # run cho commit đã nằm sẵn ở đó. Lúc ấy không có cách nào bắt CI chạy ngoài việc đẩy thêm
-  # một commit rác. Có nút chạy tay thì hết phải làm vậy.
+  # Chạy tay từ tab Actions. Vẫn giữ làm lối thoát cho nhánh không mang tiền tố `claude/`, và
+  # cho việc chạy lại một commit cũ mà không phải đẩy thêm commit rác.
   workflow_dispatch:
 
 jobs:
