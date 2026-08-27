@@ -176,12 +176,20 @@ webpush.dang_ky(sub2)
 _GiaClient.ma_tra = {sub2["endpoint"]: 410}      # 410 = đăng ký đã chết
 httpx.AsyncClient = _GiaClient
 try:
-    da_gui, da_don = asyncio.new_event_loop().run_until_complete(
+    da_gui, da_don, chi_tiet = asyncio.new_event_loop().run_until_complete(
         webpush.gui_het("Javis", "Doanh thu hôm nay 12 đơn", "/?mo_thu=abc", tag="javis-abc"))
 finally:
     httpx.AsyncClient = that_client
 
 check("gửi tới mọi đăng ký còn sống", da_gui == 1, da_gui)
+# Đây là lỗi chủ repo gặp 27/08: bấm Gửi thử trên điện thoại, máy tính hiện, điện thoại im -
+# mà API vẫn trả "đã gửi" vì CÓ máy nhận được. Kết quả phải tách theo TỪNG thiết bị.
+check("CANARY: trả kết quả theo TỪNG thiết bị, không chỉ một con số tổng",
+      len(chi_tiet) == 2, len(chi_tiet))
+check("mỗi mục nêu tên dịch vụ đẩy để nhận ra máy nào",
+      all(m.get("dich_vu") for m in chi_tiet), chi_tiet)
+check("máy hỏng bị đánh dấu ok=False kèm lý do",
+      any((not m["ok"]) and m["loi"] for m in chi_tiet), chi_tiet)
 check("CANARY: 410 thì DỌN đăng ký chết, không giữ lại để hỏng mãi",
       da_don == 1 and webpush.so_sub() == 1, (da_don, webpush.so_sub()))
 
@@ -199,6 +207,27 @@ check("CANARY: trình duyệt giải mã ra ĐÚNG nội dung đã gửi",
 # Không có url thì bấm vào thông báo chỉ mở trang chủ, người dùng lại phải tự đi tìm.
 check("gói mang theo đường về đúng mẩu thư", mo["url"] == "/?mo_thu=abc", mo.get("url"))
 check("gói mang tag để tin mới ĐÈ tin cũ, không xếp chồng", mo["tag"] == "javis-abc")
+
+
+# ─────────── 6. Claim `sub` của VAPID phải LIÊN HỆ ĐƯỢC ───────────
+# Google/Mozilla nhận gần như mọi chuỗi, nhưng Apple soi thật và trả 400 BadJwtToken cho
+# địa chỉ không ra hồn. Hệ quả đúng như chủ repo gặp: Chrome trên máy tính nhận thông báo
+# bình thường, iPhone thì im lặng tuyệt đối mà không có lỗi nào hiện ra.
+lh = webpush.lien_he()
+check("CANARY: sub KHÔNG được trỏ localhost", "localhost" not in lh, lh)
+check("sub là mailto: hoặc https: theo RFC 8292",
+      lh.startswith("mailto:") or lh.startswith("https://"), lh)
+claims_lh = json.loads(webpush.b64u_giai(webpush._jwt_vapid("https://web.push.apple.com/x").split(".")[1]))
+check("JWT gửi đi mang đúng địa chỉ đó", claims_lh["sub"] == lh, claims_lh.get("sub"))
+os.environ["JAVIS_PUSH_CONTACT"] = "mailto:toi@congty.vn"
+check("đổi được bằng JAVIS_PUSH_CONTACT", webpush.lien_he() == "mailto:toi@congty.vn")
+os.environ["JAVIS_PUSH_CONTACT"] = "khong-phai-url"
+check("giá trị rác thì rơi về mặc định hợp lệ, không gửi rác cho Apple",
+      webpush.lien_he().startswith("mailto:"), webpush.lien_he())
+os.environ.pop("JAVIS_PUSH_CONTACT", None)
+
+check("nhận ra dịch vụ đẩy của Apple", "Apple" in webpush.ten_dich_vu("https://web.push.apple.com/x"))
+check("nhận ra dịch vụ đẩy của Google", "Google" in webpush.ten_dich_vu("https://fcm.googleapis.com/x"))
 
 if fails:
     print(f"\nFAIL - test_webpush: {len(fails)} lỗi: {', '.join(fails)}")

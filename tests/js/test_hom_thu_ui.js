@@ -82,6 +82,18 @@ check("ẩn nút + nói lý do khi không phải secure context (http trần)",
 check("nút hỏng thì GIỮ lý do trên màn hình, không vẽ đè bằng ghi chú mặc định",
   /veNutPush\(r\.ok \? "" : \(r\.error/.test(noti) && /async function veNutPush\(loi\)/.test(noti));
 
+// ---- 5b. Đẩy tới MỌI thiết bị, và nói rõ máy nào hỏng ----
+// Lỗi thật chủ repo báo 27/08: bấm Gửi thử trên điện thoại thì máy tính hiện thông báo còn
+// điện thoại không - mà màn hình vẫn báo "đã gửi" vì CÓ máy nhận được.
+check("CANARY: Gửi thử đọc kết quả theo TỪNG thiết bị, không chỉ cờ ok chung",
+  /d\.devices \|\| \[\]/.test(push) && /hong\[0\]|hong\.length/.test(push));
+check("báo đủ mấy máy nhận được chứ không nói 'đã gửi' chung chung",
+  /Đã gửi tới " \+ \(r\.so/.test(noti));
+check("nêu ĐÍCH DANH dịch vụ đẩy đang hỏng", /mot\.dich_vu \+ " không nhận được"/.test(push));
+check("ô công tắc nói số thiết bị đang nhận", /JavisPush\.thietBi\(\)/.test(noti));
+check("server trả danh sách thiết bị kèm lỗi lần gửi gần nhất",
+  main.indexOf('"loi_lan_cuoi"') !== -1 && main.indexOf('"devices": chi_tiet') !== -1);
+
 // ---- 6. Service worker phục vụ từ GỐC site ----
 check("CANARY: server có route /sw.js riêng (không để ở /static/)",
   /@app\.get\("\/sw\.js"\)/.test(main));
@@ -105,7 +117,7 @@ check("có style cho tab và ô công tắc push",
 check("nhãn loại thư có màu riêng", css.indexOf(".noti-kind.report") !== -1);
 const v = (f) => Number((html.match(new RegExp(f.replace(/[.\-]/g, "\\$&") + "\\?v=(\\d+)")) || [])[1] || 0);
 check("push.js được nạp", html.indexOf("/static/push.js?v=") !== -1);
-check("notifications.js đã bump ?v= (>= 2)", v("notifications.js") >= 2, v("notifications.js"));
+check("notifications.js đã bump ?v= (>= 3)", v("notifications.js") >= 3, v("notifications.js"));
 check("app.js đã bump ?v= (>= 95)", v("app.js") >= 95, v("app.js"));
 check("style.css đã bump ?v= (>= 71)", v("style.css") >= 71, v("style.css"));
 

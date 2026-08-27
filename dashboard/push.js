@@ -100,11 +100,27 @@
     } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
   }
 
+  // Trả về kết quả theo TỪNG thiết bị. Bản đầu chỉ hỏi "có gửi được không" nên máy tính
+  // nhận được là coi như xong, còn điện thoại hỏng thì im lặng - đúng lỗi chủ repo gặp.
   async function thu() {
     try {
       var d = await (await fetch("/push/test", { method: "POST" })).json();
-      return d.ok ? { ok: true } : { ok: false, error: "Chưa có trình duyệt nào đăng ký nhận." };
+      var tb = d.devices || [];
+      if (!tb.length) return { ok: false, error: "Chưa có thiết bị nào đăng ký nhận." };
+      var hong = tb.filter(function (x) { return !x.ok; });
+      if (!hong.length) return { ok: true, so: tb.length };
+      var mot = hong[0];
+      return { ok: false, so: tb.length, soHong: hong.length,
+               error: mot.dich_vu + " không nhận được"
+                 + (mot.ma ? " (HTTP " + mot.ma + ")" : "")
+                 + (mot.loi ? ": " + String(mot.loi).slice(0, 90) : "") };
     } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  }
+
+  // Danh sách thiết bị đang nhận (theo máy chủ), để màn hình nói được "2 thiết bị".
+  async function thietBi() {
+    try { return (await (await fetch("/push/key")).json()).devices || []; }
+    catch (e) { return []; }
   }
 
   // Bấm vào thông báo khi Javis đang mở: service worker focus đúng tab này rồi nhắn sang.
@@ -126,5 +142,6 @@
   else tuNoiLai();
 
   window.JavisPush = { batDuoc: function () { return coHoTro() && antoan(); },
-                       lyDo: vichLyDo, dangBat: dangBat, bat: bat, tat: tat, thu: thu };
+                       lyDo: vichLyDo, dangBat: dangBat, bat: bat, tat: tat, thu: thu,
+                       thietBi: thietBi };
 })();

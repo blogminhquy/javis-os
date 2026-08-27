@@ -323,6 +323,21 @@
       ? "Đang bật trên trình duyệt này"
       : "Báo cả khi bạn không mở Javis");
     if (ghi) ghi.classList.toggle("loi", !!loi);
+    if (loi || !on) return;
+    // Bật/tắt là việc của TỪNG máy, nên "đang bật ở đây" chưa trả lời được "máy kia có nhận
+    // không". Nói luôn số thiết bị máy chủ đang đẩy tới, và nêu đích danh máy nào đang hỏng.
+    var tb = await JavisPush.thietBi();
+    if (!ghi || !tb.length) return;
+    var hong = tb.filter(function (x) { return x.lan_cuoi && !x.ok_lan_cuoi; });
+    if (hong.length) {
+      ghi.textContent = tb.length + " thiết bị · " + hong[0].dich_vu + " đang lỗi: "
+        + String(hong[0].loi_lan_cuoi || "").slice(0, 80);
+      ghi.classList.add("loi");
+    } else {
+      ghi.textContent = "Đang bật · đẩy tới " + tb.length
+        + (tb.length > 1 ? " thiết bị" : " thiết bị");
+      ghi.classList.remove("loi");
+    }
   }
   function gaNutPush() {
     var nut = byId("notificationPushToggle"), ghi = byId("notificationPushNote");
@@ -339,7 +354,13 @@
       thu.disabled = true;
       var r = await JavisPush.thu();
       thu.disabled = false;
-      if (ghi) ghi.textContent = r.ok ? "Đã gửi thử - kiểm tra thông báo của máy." : (r.error || "Gửi thử hỏng.");
+      if (!ghi) return;
+      // Nói rõ ĐỦ MẤY MÁY nhận được, chứ không phải "đã gửi" chung chung: gửi thử trên điện
+      // thoại mà chỉ máy tính kêu thì câu "đã gửi" là một câu đúng-nhưng-vô-dụng.
+      ghi.textContent = r.ok
+        ? "Đã gửi tới " + (r.so || 1) + " thiết bị - kiểm tra thông báo của máy."
+        : (r.error || "Gửi thử hỏng.");
+      ghi.classList.toggle("loi", !r.ok);
     });
   }
 

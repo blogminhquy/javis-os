@@ -8712,8 +8712,17 @@ async def inbox_delete(payload: dict = Body(None)):
 
 @app.get("/push/key")
 async def push_key():
-    """Khoá công khai VAPID để trình duyệt đăng ký. Sinh ở lần gọi đầu rồi giữ nguyên mãi."""
-    return {"key": webpush.khoa_cong_khai(), "subs": webpush.so_sub()}
+    """Khoá công khai VAPID + danh sách thiết bị đã đăng ký.
+
+    Kèm thiết bị vì "bật hay chưa" là câu hỏi của TỪNG máy, còn "ai đang nhận" là câu hỏi
+    của cả nhà - thiếu vế sau thì bật trên điện thoại xong vẫn không biết máy chủ có ghi
+    nhận hay không, và lỗi gửi của riêng một máy thì mất hút.
+    """
+    tb = [{"dich_vu": webpush.ten_dich_vu(x.get("endpoint", "")),
+           "nhan": x.get("nhan", ""), "lan_cuoi": x.get("lan_cuoi", 0),
+           "ok_lan_cuoi": bool(x.get("ok_lan_cuoi")), "loi_lan_cuoi": x.get("loi_lan_cuoi", "")}
+          for x in webpush.danh_sach_sub()]
+    return {"key": webpush.khoa_cong_khai(), "subs": len(tb), "devices": tb}
 
 
 @app.post("/push/subscribe")
@@ -8733,10 +8742,14 @@ async def push_unsubscribe(payload: dict = Body(None)):
 async def push_test():
     """Gửi thử một thông báo. Không có nút này thì người dùng bật quyền xong vẫn không biết
     nó có chạy thật hay không, mà lần "thật" đầu tiên có khi phải đợi tới sáng hôm sau."""
-    ok, don = await webpush.gui_het("Javis", "Thông báo đẩy đã chạy. Từ giờ có kết quả là "
-                                             "Javis báo ngay cả khi bạn không mở dashboard.",
-                                    "/?mo_thu=test", tag="javis-test")
-    return {"ok": ok > 0, "sent": ok, "cleaned": don, "subs": webpush.so_sub()}
+    ok, don, chi_tiet = await webpush.gui_het(
+        "Javis", "Thông báo đẩy đã chạy. Từ giờ có kết quả là Javis báo ngay cả khi bạn "
+                 "không mở dashboard.", "/?mo_thu=test", tag="javis-test")
+    # Trả CHI TIẾT theo từng thiết bị, không chỉ một con số. Bản đầu trả ok=true khi có BẤT KỲ
+    # thiết bị nào nhận được, nên máy tính nhận còn điện thoại hỏng thì màn hình vẫn báo
+    # "đã gửi" - người dùng không có đường nào lần ra. Đây đúng là lỗi chủ repo gặp 27/08.
+    return {"ok": ok > 0, "sent": ok, "cleaned": don, "subs": webpush.so_sub(),
+            "all_ok": ok == len(chi_tiet) and ok > 0, "devices": chi_tiet}
 
 
 @app.get("/sw.js")
