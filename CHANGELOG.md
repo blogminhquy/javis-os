@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.8] - 2026-08-27
+### Sửa lỗi
+- **Phóng to file .md giờ phủ kín màn hình thật.** Trước đây thanh điều hướng bên trái vẫn nằm đè lên, ăn mất mép trái bài viết (tiêu đề "AGENTS.md" hiện thành "ENTS.md"). Bấm phóng to là toàn bộ màn hình dành cho nội dung; thu nhỏ lại thì thanh bên trở về như cũ.
+
 ## [0.47.7] - 2026-08-27
 ### Sửa lỗi
 - **Hết cảnh khối code nằm giữa file .md thành một cái thẻ chết.** Trước đây mở file ra sửa mà trong đó có đoạn code dài thì nó bị thu thành thẻ "Mã TEXT · 30 dòng", bấm không mở, nội dung không xem được. Giờ trong trình sửa, đoạn code hiện đầy đủ ngay tại chỗ và sửa được như phần còn lại của file.

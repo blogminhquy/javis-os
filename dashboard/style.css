@@ -2134,6 +2134,17 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
   background: var(--panel-solid); }
 .note-editor[hidden] { display: none; }
 .note-editor.ne-full { position: fixed; inset: 0; z-index: 1000; }
+/* Phóng to = phủ KÍN màn hình, kể cả rail bên trái.
+   Vì sao phải thêm luật cho .cview: nó là position:fixed + z-index:40 nên TẠO MỘT
+   STACKING CONTEXT. Trình sửa nằm trong đó (trang Trò chuyện, trang Tệp tin), nên
+   z-index:1000 của .ne-full chỉ có giá trị BÊN TRONG .cview - rail (z-index 60, tầng
+   gốc) vẫn phủ lên trên và ăn mất mép trái bài viết: bấm phóng to mà chữ bị lẹm
+   (chủ repo báo 27/08, ảnh chụp 'AGENTS.md' còn 'ENTS.md'). Nâng cả stacking context
+   lên trong lúc phóng to là đủ, và 250 vẫn THẤP HƠN thông báo/panel artifact/modal
+   (350, 390, 3200+) nên các lớp đó vẫn nổi lên trên đúng như trước.
+   Màn Javis (.hud) không cần luật này: .hud không có z-index nên .ne-full nằm thẳng
+   ở tầng gốc và vốn đã phủ được rail. */
+body.ne-full-on .cview { z-index: 250; }
 .ne-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px;
   border-bottom: 1px solid var(--border); background: var(--bg2); }
 .ne-title { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
