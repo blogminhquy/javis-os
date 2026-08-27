@@ -2617,7 +2617,12 @@ def claude_status(refresh: bool = False):
     Nút "Kiểm tra lại" trên thẻ truyền refresh=1; còn lúc vẽ trang thì đọc bản nhớ, khỏi đẻ một
     tiến trình Node mỗi lần mở trang Models.
     """
-    return claude_auth_status(bo_qua_cache=bool(refresh))
+    d = claude_auth_status(bo_qua_cache=bool(refresh))
+    # "Kiểm tra lại" xác nhận CLI đang đăng nhập → tắt ngay đèn 'chưa kết nối Model AI'
+    # (kể cả đèn đỏ do lượt chạy cũ bật), đừng bắt người dùng chờ vòng probe 10 phút.
+    if refresh and d.get("connected"):
+        connect_health.engine_reconnected("claude")
+    return d
 
 
 @app.get("/gemini-cli/status")
@@ -2719,12 +2724,22 @@ def claude_login_start():
 @app.post("/claude/login-code")
 def claude_login_code(code: str = Form("")):
     """Nhận code user dán sau khi mở link đăng nhập."""
-    return auth_login_ui_code(code)
+    d = auth_login_ui_code(code)
+    if d.get("ok"):
+        # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
+        # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
+        connect_health.engine_reconnected("claude")
+    return d
 
 
 @app.post("/claude/logout")
 def claude_logout():
-    return claude_auth_logout()
+    d = claude_auth_logout()
+    try:
+        connect_health.probe_engines()   # ngắt chủ động → đèn phải đổi ngay, khỏi chờ vòng quét
+    except Exception:
+        pass
+    return d
 
 
 # ---- MCP do Javis quản lý (engine Claude Code) ----
@@ -3281,6 +3296,18 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         return JSONResponse({"ok": False, "error": "section không hợp lệ"}, status_code=400)
 
     cfgmod.write_settings(cfg)
+    if section == "model":
+        # Đổi Main Model / model việc nền / nguồn xác thực Claude xong thì đèn báo não phải
+        # phản ánh cấu hình MỚI ngay lượt poll kế (90s), không chờ vòng probe 10 phút.
+        # Đổi claude_auth là đổi hẳn cách xác thực → bằng chứng lỗi cũ (kể cả đèn đỏ do lượt
+        # chạy bật) lỗi thời, xoá rồi probe lại; các thay đổi khác chỉ cần probe thường.
+        try:
+            if "claude_auth" in patch:
+                connect_health.engine_reconnected("claude")
+            else:
+                connect_health.probe_engines()
+        except Exception as e:
+            print(f"[engine health] probe sau đổi model lỗi: {e}", file=__import__('sys').stderr)
     if section == "telegram":
         try:
             restart_telegram()   # áp cấu hình bot ngay

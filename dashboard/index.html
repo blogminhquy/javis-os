@@ -21,14 +21,18 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Javis OS">
   <meta name="theme-color" content="#0e0e16">
-  <link rel="manifest" href="/static/manifest.json?v=1">
+  <!-- manifest.json khai icon PNG vuông 192/512 có sizes rõ ràng: đó là điều kiện để
+       Chrome/Edge DESKTOP coi trang là cài được (icon "any" trên PNG bị coi là không hợp lệ
+       nên trước đây chỉ mobile chạy dạng app, desktop không bao giờ có nút cài). Nút
+       "Mở như app" trên thanh trạng thái + icon cài trong thanh địa chỉ ăn theo file này. -->
+  <link rel="manifest" href="/static/manifest.json?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=64">
+  <link rel="stylesheet" href="/static/style.css?v=65">
   <link rel="stylesheet" href="/static/console.css?v=46">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -77,6 +81,19 @@
           </svg>
           <span class="notification-trigger-label">Thông báo</span>
           <span class="notification-badge" id="notificationBadge" hidden>0</span>
+        </button>
+        <!-- Cài Javis như app riêng (PWA). Ẩn mặc định: app.js chỉ hiện khi trình duyệt
+             bắn beforeinstallprompt (Chrome/Edge desktop + Android) và chưa chạy standalone.
+             Safari/iOS không có event này - bên đó vẫn là Share → Thêm vào MH chính. -->
+        <button class="install-app-btn" id="installAppBtn" type="button" hidden
+                title="Cài Javis thành app riêng - mở từ Desktop/Dock, không lẫn giữa các tab"
+                aria-label="Cài Javis thành app riêng">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+            <path d="M12 6v6M9.5 9.5 12 12l2.5-2.5"/>
+          </svg>
+          <span class="install-app-label">Mở như app</span>
         </button>
         <button class="hud-icon-btn theme-toggle" id="themeToggle" type="button" aria-pressed="false"
                 title="Đang dùng tông tối - bấm để chuyển sang tông sáng"
@@ -742,7 +759,7 @@
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
   <script src="/static/chat-marks.js?v=1"></script>
-  <script src="/static/app.js?v=91"></script>
+  <script src="/static/app.js?v=92"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=6"></script>

@@ -415,6 +415,20 @@ body {
 }
 .hud-icon-btn:hover { color: var(--accent); border-color: var(--accent); }
 .hud-icon-btn.muted { opacity: 0.4; }
+/* Nút "Mở như app" (cài PWA): chỉ hiện khi trình duyệt báo cài được (app.js gỡ hidden).
+   Trên desktop có chữ cho dễ hiểu; màn hẹp rút về viên icon 34px như các nút bên cạnh. */
+.install-app-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  height: 34px; padding: 0 10px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  font: 600 11.5px var(--font); white-space: nowrap; transition: all 0.2s;
+}
+.install-app-btn:hover { color: var(--accent); border-color: var(--accent); }
+.install-app-btn[hidden] { display: none; }
+@media (max-width: 1180px) {
+  .install-app-label { display: none; }
+  .install-app-btn { width: 34px; padding: 0; justify-content: center; }
+}
 /* Nút đổi tông: trăng khi đang tối, mặt trời khi đang sáng - báo TÔNG HIỆN TẠI
    (không phải tông sẽ chuyển sang), khớp với tooltip do theme.js đặt. */
 .theme-toggle .ic-sun { display: none; }
