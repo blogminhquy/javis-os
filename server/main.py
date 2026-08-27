@@ -1238,7 +1238,7 @@ def _chat_provider(mcfg):
 # chạy bằng Claude mà không ai biết. Trang Studio đọc chính danh sách này để vẽ ô chọn, nên
 # thêm provider mới ở aux_engine thì thêm tên vào đây là giao diện có ngay.
 AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "gemini-cli", "antigravity-cli",
-                   "openrouter", "anthropic-api", "openai", "gemini", "groq")
+                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama")
 
 
 def _agent_model_provider(model: str, provider: str = "") -> str:
