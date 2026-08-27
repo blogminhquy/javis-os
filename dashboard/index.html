@@ -440,16 +440,13 @@
         <span class="mb-caret">▾</span>
       </button>
       <div class="mb-pop" id="mbPop" hidden></div>
-      <!-- HỆ THỐNG + MCP ĐANG DÙNG: dời từ cột phải xuống đây, nằm ngang bên phải ô chọn model. -->
+      <!-- 0.49.3: dải này BỎ hai đèn "HỆ THỐNG" (Claude Code CLI / Voice) - chúng gần như
+           luôn xanh nên không nói thêm được gì, mà trạng thái thật đã có chỗ tử tế hơn:
+           banner đỏ trên navbar khi mất model, trang Kết nối cho MCP. Chỗ trống dành cho
+           thứ THAY ĐỔI theo từng lượt: BA tool Javis vừa gọi, mới nhất đứng đầu. -->
       <div class="sysbar" id="sysBar">
-        <span class="sysbar-label">HỆ THỐNG</span>
-        <div class="sys-status">
-          <div class="mcp-item" id="claudeStatus"><i data-ic="circle" class="ic-fill ic-sm"></i> Claude Code CLI</div>
-          <div class="mcp-item" id="ttsStatus"><i data-ic="circle" class="ic-fill ic-sm"></i> Voice (Edge TTS)</div>
-        </div>
-        <span class="sysbar-sep"></span>
-        <span class="sysbar-label">MCP</span>
-        <div id="mcpList" class="mcp-list"><div class="mcp-item dim">Chưa có hoạt động</div></div>
+        <span class="sysbar-label">VỪA GỌI</span>
+        <div id="mcpList" class="mcp-list"><div class="mcp-item dim">Chưa gọi tool nào</div></div>
       </div>
     </div>
 
@@ -784,7 +781,7 @@
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
   <script src="/static/chat-marks.js?v=1"></script>
-  <script src="/static/app.js?v=96"></script>
+  <script src="/static/app.js?v=97"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=6"></script>
