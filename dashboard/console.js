@@ -5148,11 +5148,26 @@
       padding:4px 10px; cursor:pointer; font-size:14px; line-height:1; }
     .cp-ico-btn:hover{ color:var(--accent); border-color:var(--accent); }
     .cp-ico-btn .ic{ vertical-align:-2px; }
-    /* Nút Ẩn/hiện cột lịch sử: desktop thu gọn tại chỗ (.side-thu, có nhớ), màn hẹp
-       mở/đóng drawer như cũ. Trước 0.47.2 nút chỉ hiện ở màn hẹp - chủ muốn desktop
-       cũng thu được như sidebar (27/08). */
+    /* Thu gọn cột Hội thoại/Thư mục như sidebar (chủ yêu cầu 27/08): desktop thu về dải
+       hẹp chỉ còn nút mở lại (.side-thu, có nhớ), màn hẹp giữ drawer như cũ. Nút thu nằm
+       ngay góc panel (cùng icon panel-left với nút thu rail); nút lịch sử trên thanh tiêu
+       đề cũng toggle được cùng trạng thái. */
     .cp-side-toggle{ display:inline-block; }
-    @media (min-width:861px){ .chatpage.side-thu .chatpage-side{ display:none; } }
+    .cside-thu-btn, .cside-expand{ display:none; }
+    @media (min-width:861px){
+      .chatpage-side{ position:relative; }
+      .chatpage-side .cside-tabs{ padding-right:34px; }
+      .cside-thu-btn{ display:flex; align-items:center; justify-content:center;
+        position:absolute; top:16px; right:10px; width:27px; height:27px; border-radius:7px;
+        border:1px solid var(--border); background:none; color:var(--text3); cursor:pointer; }
+      .cside-thu-btn:hover{ color:var(--accent); border-color:var(--accent); }
+      .chatpage.side-thu .chatpage-side{ width:46px; padding:14px 8px; align-items:center; overflow:hidden; }
+      .chatpage.side-thu .chatpage-side > :not(.cside-expand){ display:none; }
+      .chatpage.side-thu .chatpage-side > .cside-expand{ display:flex; align-items:center;
+        justify-content:center; width:30px; height:30px; flex:none; border-radius:8px;
+        border:1px solid var(--border); background:none; color:var(--text2); cursor:pointer; }
+      .chatpage.side-thu .chatpage-side > .cside-expand:hover{ color:var(--accent); border-color:var(--accent); }
+    }
     .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
     /* Mở file từ tab Thư mục: trình sửa CHIẾM CHỖ khung chat, không đè lên nó. Khung chat chỉ
@@ -5359,15 +5374,30 @@
       try { _chatEngObs = new MutationObserver(sync); _chatEngObs.observe(eb, { childList: true, characterData: true, subtree: true }); } catch (e) {}
     }
 
-    // Nút lịch sử: màn hẹp mở/đóng drawer như cũ; desktop THU GỌN cột lịch sử tại chỗ
-    // (như thu sidebar) và nhớ lựa chọn qua localStorage.
+    // Thu gọn cột Hội thoại/Thư mục: màn hẹp giữ drawer như cũ; desktop thu về dải hẹp
+    // và nhớ lựa chọn. Nút thu/mở gắn SAU khi JavisChatSide.mount vì mount ghi đè innerHTML
+    // của panel - gắn trước là nút biến mất.
     const isNar = () => window.matchMedia("(max-width: 860px)").matches;
-    try { if (localStorage.getItem("javis_chatside_thu") === "1") page.classList.add("side-thu"); } catch (e) {}
-    el.querySelector(".cp-side-toggle").onclick = () => {
-      if (isNar()) { page.classList.toggle("side-open"); return; }
-      const thu = !page.classList.contains("side-thu");
+    const sideEl = el.querySelector("#chatPageSide");
+    const datSideThu = (thu) => {
       page.classList.toggle("side-thu", thu);
       try { localStorage.setItem("javis_chatside_thu", thu ? "1" : "0"); } catch (e) {}
+    };
+    try { if (localStorage.getItem("javis_chatside_thu") === "1") page.classList.add("side-thu"); } catch (e) {}
+    if (sideEl) {
+      const thuBtn = document.createElement("button");
+      thuBtn.className = "cside-thu-btn"; thuBtn.type = "button";
+      thuBtn.title = "Thu gọn cột này (như sidebar)"; thuBtn.innerHTML = ic("panel-left");
+      thuBtn.onclick = () => datSideThu(true);
+      const moBtn = document.createElement("button");
+      moBtn.className = "cside-expand"; moBtn.type = "button";
+      moBtn.title = "Mở lại cột Hội thoại / Thư mục"; moBtn.innerHTML = ic("panel-left");
+      moBtn.onclick = () => datSideThu(false);
+      sideEl.appendChild(thuBtn); sideEl.appendChild(moBtn);
+    }
+    el.querySelector(".cp-side-toggle").onclick = () => {
+      if (isNar()) { page.classList.toggle("side-open"); return; }
+      datSideThu(!page.classList.contains("side-thu"));
     };
     // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
     // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.

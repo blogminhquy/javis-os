@@ -1730,9 +1730,12 @@ window.addEventListener("drop", (e) => {
 // ============================================
 chatInput.addEventListener("input", () => {
   chatInput.style.height = "auto";
-  // Ở trang Trò chuyện (body.on-chat) cho ô nhập cao hơn để gõ dài dễ hơn. Trước đây mốc là
-  // .chat-zoomed của lớp phóng to; lớp đó đã bỏ, phóng to giờ là chuyển hẳn sang trang chat.
-  const _cap = document.body.classList.contains("on-chat") ? 220 : 90;
+  // Ô nhập NỞ THEO CHỮ như claude.ai (chủ yêu cầu 27/08): xuống dòng là thấy toàn bộ văn
+  // bản, không phải cuộn trong một ô 3 dòng. Trần ở trang Trò chuyện là 40% màn hình
+  // (đo lúc gõ nên đổi cỡ cửa sổ vẫn đúng); màn chính ô nhập nằm trong cột phải hẹp hơn
+  // nên trần 200px, quá nữa mới cuộn trong ô. CSS chỉ giữ lưới đỡ 45vh, không chặn nữa.
+  const _cap = document.body.classList.contains("on-chat")
+    ? Math.round(window.innerHeight * 0.4) : 200;
   chatInput.style.height = Math.min(chatInput.scrollHeight, _cap) + "px";
 });
 // Bộ gõ tiếng Việt/IME có thể phát keydown Enter trước compositionend. Nếu gửi và xoá

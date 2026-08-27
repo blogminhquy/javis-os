@@ -41,11 +41,17 @@ check("console.js gắn handler thu/mở và lưu localStorage",
 check("boot() áp lại trạng thái đã lưu (không nháy to rồi mới thu)",
   /function boot\(\) \{[\s\S]{0,600}javis_vault_thu/.test(cjs));
 
-// ---- 2. Cột lịch sử trang Trò chuyện ----
+// ---- 2. Cột Hội thoại/Thư mục trang Trò chuyện ----
 check("nút lịch sử hiện cả desktop (không còn display:none mặc định)",
   cjs.indexOf(".cp-side-toggle{ display:inline-block; }") !== -1);
-check("desktop thu tại chỗ bằng .side-thu, khoá trong media min-width",
-  /@media \(min-width:861px\)\{ \.chatpage\.side-thu \.chatpage-side\{ display:none; \} \}/.test(cjs));
+check("thu xong còn dải hẹp có nút mở lại (không ẩn hẳn mất đường về)",
+  /\.chatpage\.side-thu \.chatpage-side\{ width:46px/.test(cjs)
+  && cjs.indexOf(".chatpage.side-thu .chatpage-side > .cside-expand{ display:flex") !== -1);
+check("có nút thu ngay trên panel (cside-thu-btn), gắn SAU JavisChatSide.mount",
+  cjs.indexOf("cside-thu-btn") !== -1
+  && cjs.indexOf("JavisChatSide.mount") < cjs.indexOf('thuBtn.className = "cside-thu-btn"'));
+check("luật thu khoá trong media min-width (không đụng drawer mobile)",
+  /@media \(min-width:861px\)\{[\s\S]*?\.chatpage\.side-thu \.chatpage-side\{ width:46px/.test(cjs));
 check("màn hẹp vẫn là drawer (side-open giữ nguyên)",
   cjs.indexOf('page.classList.toggle("side-open")') !== -1);
 check("trạng thái thu cột lịch sử có nhớ qua localStorage",

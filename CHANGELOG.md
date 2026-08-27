@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.3] - 2026-08-27
+### Cải thiện
+- **Ô chat nở theo chữ như claude.ai.** Gõ dài hay xuống dòng là ô nhập tự cao lên cho thấy toàn bộ văn bản (tới 40% màn hình ở trang Trò chuyện), gửi xong tự xẹp về một dòng. Trước đây nó bị chặn cứng ở khoảng 3 dòng.
+- **Cột Hội thoại / Thư mục ở trang Trò chuyện thu gọn đẹp hơn**: có nút thu ngay góc panel, thu xong còn một dải hẹp với nút mở lại (giống panel Vault), thay vì biến mất hẳn.
+
 ## [0.47.2] - 2026-08-27
 ### Thêm mới
 - **Thu gọn được hai panel như sidebar.** Panel Vault ở màn chính có nút thu ngay cạnh nút làm mới - thu xong chỉ còn một dải hẹp với nút mở lại. Cột lịch sử hội thoại ở trang Trò chuyện cũng thu được trên máy tính bằng đúng nút lịch sử trên thanh tiêu đề.
