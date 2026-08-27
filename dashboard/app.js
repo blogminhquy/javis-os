@@ -128,9 +128,7 @@ function connect() {
   // không có chốt này là hai socket song song, mọi tin nhắn về gấp đôi.
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   ws = new WebSocket(WS_URL);
-  ws.onopen = () => updateSysStatus("active");
-  ws.onclose = () => { updateSysStatus("error"); setTimeout(connect, 3000); };
-  ws.onerror = () => updateSysStatus("error");
+  ws.onclose = () => { setTimeout(connect, 3000); };
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
 }
 
@@ -780,12 +778,6 @@ chatArea.addEventListener("click", (e) => {
   chatArea.querySelectorAll(".msg.acts-on").forEach(m => { if (m !== msgEl) m.classList.remove("acts-on"); });
   if (msgEl) msgEl.classList.toggle("acts-on");
 });
-function updateSysStatus(s) {
-  document.getElementById("claudeStatus").className = "mcp-item " + s;
-  document.getElementById("ttsStatus").className = "mcp-item " + s;
-}
-
-const usedMCPs = new Map();
 function compactToolLabel(toolName) {
   const raw = String(toolName || "").trim();
   let label = raw || "Tool", cat = "Tool";
@@ -810,34 +802,51 @@ function compactToolLabel(toolName) {
   if (label.length > 48) label = label.slice(0, 47) + "…";
   return { label, cat };
 }
-function trackMCP(toolName) {
+// BA tool VỪA GỌI, mới nhất đứng đầu (0.49.3, chủ repo chốt).
+//
+// Bản cũ giữ tối đa 4 loại theo thứ tự LẦN ĐẦU thấy, nên tool gọi từ đầu phiên nằm lì ở đầu
+// dải còn tool vừa chạy xong thì nấp ở cuối - đúng chỗ mắt ít nhìn nhất. Với một dải chỉ để
+// LIẾC thì thứ tự phải là mới-nhất-trước, và ba mục là đủ: dải nằm ngang cạnh ô chọn model,
+// thêm mục thứ tư là bắt đầu cắt chữ.
+//
+// Dựng lại cả danh sách từ mảng thay vì xáo DOM tại chỗ: cách này ngắn hơn và không có
+// đường nào để thứ tự trên màn hình lệch khỏi thứ tự trong mảng.
+const TRAN_TOOL_GAN_NHAT = 3;
+let toolGanNhat = [];   // [{label, cat, raw}] - phần tử 0 là mới nhất
+function veToolGanNhat(vuaGoi) {
   const list = document.getElementById("mcpList");
   if (!list) return;
-  const { label, cat } = compactToolLabel(toolName);
-  if (!usedMCPs.has(label)) {
-    if (list.querySelector(".dim")) list.innerHTML = "";
+  list.innerHTML = "";
+  if (!toolGanNhat.length) {
+    const em = document.createElement("div");
+    em.className = "mcp-item dim";
+    em.textContent = "Chưa gọi tool nào";
+    list.appendChild(em);
+    return;
+  }
+  toolGanNhat.forEach((t, i) => {
     const div = document.createElement("div");
-    div.className = "mcp-item active";
-    div.title = String(toolName || label);
-    div.insertAdjacentHTML("beforeend", `${ic("circle", { cls: "ic-fill ic-sm" })} ${escapeHtml(label)} `);
+    // Chỉ mục vừa gọi mới nháy vàng rồi về xanh - nhìn là biết ngay cái nào vừa chạy.
+    div.className = "mcp-item " + (i === 0 && t.label === vuaGoi ? "loading" : "active");
+    div.title = t.raw;
+    div.insertAdjacentHTML("beforeend", `${ic("circle", { cls: "ic-fill ic-sm" })} ${escapeHtml(t.label)} `);
     const meta = document.createElement("span");
     meta.className = "mcp-kind";
-    meta.textContent = `· ${cat}`;
+    meta.textContent = `· ${t.cat}`;
     div.appendChild(meta);
-    list.appendChild(div); usedMCPs.set(label, div);
-    // Đây là trạng thái gần đây, không phải nhật ký. Giữ tối đa 4 loại để DOM/dải ngang
-    // không phình mãi trong một phiên chat dài.
-    while (usedMCPs.size > 4) {
-      const oldest = usedMCPs.keys().next().value;
-      const oldEl = usedMCPs.get(oldest);
-      if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
-      usedMCPs.delete(oldest);
+    list.appendChild(div);
+    if (div.classList.contains("loading")) {
+      setTimeout(() => div.classList.replace("loading", "active"), 600);
     }
-  } else {
-    const el = usedMCPs.get(label);
-    el.classList.add("loading");
-    setTimeout(() => el.classList.replace("loading", "active"), 600);
-  }
+  });
+}
+function trackMCP(toolName) {
+  const { label, cat } = compactToolLabel(toolName);
+  // Gọi lại tool cũ = nó VỪA chạy, phải nhảy lên đầu chứ không giữ chỗ cũ.
+  toolGanNhat = [{ label, cat, raw: String(toolName || label) }]
+    .concat(toolGanNhat.filter((t) => t.label !== label))
+    .slice(0, TRAN_TOOL_GAN_NHAT);
+  veToolGanNhat(label);
 }
 
 // ============================================
