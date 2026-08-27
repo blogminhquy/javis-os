@@ -5176,7 +5176,13 @@
        đặt chỗ theo ô nên thứ tự DOM không còn quyết định vị trí. Màn hẹp giữ lối cũ:
        trình sửa chiếm chỗ (luật display:none nằm trong khối @media 860px bên dưới),
        node chat còn nguyên nên đóng trình sửa là chat về đủ. */
-    .chatpage-edit{ display:none; position:relative; flex:1 1 auto; min-height:0; }
+    /* flex-direction COLUMN chứ không để mặc định row: trình sửa là MỘT khối xếp dọc trong
+       khung này. Để row thì nó thành item của một hàng ngang, và item hàng ngang có
+       min-width:auto = min-content -> nó TỪ CHỐI co lại, tràn sang phải đè lên cột hội thoại
+       (lỗi chủ repo báo 27/08: chữ bên phải bị cắt mất mép trái). min-width:0 ở cả hai tầng
+       là chốt thật của chuyện đó. */
+    .chatpage-edit{ display:none; position:relative; flex:1 1 auto; min-height:0;
+      flex-direction:column; min-width:0; }
     .chatpage-main.edit-on > .chatpage-edit{ display:flex; }
     .cedit-thu-btn, .cedit-expand{ display:none; }
     /* Icon panel-left lật gương = panel-right: bộ icon chưa đóng gói panel-right, và thêm
@@ -5223,7 +5229,7 @@
        (.ne-full) - lúc đó nó cố ý phủ kín màn hình, và :not() giữ cho khối CSS này không
        vô hiệu hoá nút phóng to (hai selector cùng độ ưu tiên, khối này nạp sau nên thắng). */
     .chatpage-edit > .note-editor:not(.ne-full){ position:static; inset:auto; z-index:auto;
-      flex:1 1 auto; min-height:0; border-radius:12px; }
+      flex:1 1 auto; min-height:0; min-width:0; border-radius:12px; }
     .chatpage-slot > *{ width:100%; max-width:900px; margin-left:auto; margin-right:auto; }
     .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; background:transparent; }
     /* Khung nhập giữ NGUYÊN bộ mặt của thanh nhập ở màn Javis (--bg2 + bo 18px). Trước đây
