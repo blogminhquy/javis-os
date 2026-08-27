@@ -112,12 +112,31 @@ def khoa_cong_khai() -> str:
     return khoa_vapid()["public"]
 
 
-def _jwt_vapid(endpoint: str, sub_lien_he: str = "mailto:javis@localhost") -> str:
+def lien_he() -> str:
+    """Địa chỉ liên hệ đặt vào claim `sub` của JWT VAPID (RFC 8292).
+
+    KHÔNG được để "localhost". RFC nói `sub` phải là mailto: hoặc https: mà nhà cung cấp
+    dịch vụ đẩy LIÊN HỆ ĐƯỢC với chủ máy chủ. Google và Mozilla dễ tính, nhận gần như mọi
+    chuỗi; **Apple thì soi thật** và trả 400 BadJwtToken cho địa chỉ không ra hồn - nghĩa là
+    máy tính (Chrome/FCM) nhận thông báo bình thường còn iPhone thì im lặng tuyệt đối. Đúng
+    lỗi chủ repo báo 27/08: bấm Gửi thử trên điện thoại thì máy tính hiện, điện thoại không.
+
+    Đổi được bằng biến môi trường JAVIS_PUSH_CONTACT (mailto:... hoặc https://...) cho ai
+    muốn để địa chỉ thật của mình.
+    """
+    v = str(os.getenv("JAVIS_PUSH_CONTACT") or "").strip()
+    if v.startswith("mailto:") or v.startswith("https://"):
+        return v
+    return "mailto:javis-os@users.noreply.github.com"
+
+
+def _jwt_vapid(endpoint: str, sub_lien_he: str = None) -> str:
     """JWT ES256 tự giới thiệu với dịch vụ đẩy (RFC 8292).
 
     Chữ ký PHẢI là r||s thô 64 byte. `cryptography` ký ra DER, nên có bước đổi ở dưới -
     quên bước này thì mọi dịch vụ đẩy trả 401 mà không nói vì sao.
     """
+    sub_lien_he = sub_lien_he or lien_he()
     d = khoa_vapid()
     pk = serialization.load_pem_private_key(d["private_pem"].encode("ascii"), password=None)
     p = urlsplit(endpoint)
@@ -264,37 +283,84 @@ def so_sub() -> int:
     return len(danh_sach_sub())
 
 
+def _ghi_ket_qua(ep: str, ok: bool, loi: str) -> None:
+    """Ghi kết quả lần gửi gần nhất lên chính đăng ký đó.
+
+    Vì sao cần: trước bản này lỗi gửi chỉ in ra stderr, mà không ai đọc log server của máy
+    mình. Chủ repo bấm Gửi thử trên điện thoại, máy tính hiện thông báo còn điện thoại im -
+    và không có cách nào biết vì sao, vì API vẫn trả ok=true (máy tính gửi được là đủ tính).
+    Giữ kết quả theo TỪNG thiết bị thì màn hình nói thẳng được "iPhone: 400 BadJwtToken".
+    """
+    with _LOCK:
+        d = _load_subs()
+        for s in d["subs"]:
+            if s.get("endpoint") == ep:
+                s["lan_cuoi"] = time.time()
+                s["ok_lan_cuoi"] = bool(ok)
+                s["loi_lan_cuoi"] = str(loi or "")[:200]
+                _save_subs(d)
+                return
+
+
+def ten_dich_vu(endpoint: str) -> str:
+    """Tên dễ đọc của dịch vụ đẩy, để người dùng nhận ra máy nào là máy nào."""
+    host = urlsplit(str(endpoint or "")).netloc.lower()
+    if "apple" in host:
+        return "Apple (iPhone/iPad/Mac)"
+    if "google" in host or "fcm" in host:
+        return "Google (Chrome/Android)"
+    if "mozilla" in host:
+        return "Mozilla (Firefox)"
+    if "microsoft" in host or "windows" in host:
+        return "Microsoft (Edge)"
+    return host or "?"
+
+
 async def gui_het(tieu_de: str, than: str, url: str = "/", tag: str = "javis") -> tuple:
-    """Đẩy MỘT thông báo tới mọi trình duyệt đã đăng ký. Trả (số_gửi_được, số_bị_dọn).
+    """Đẩy MỘT thông báo tới MỌI trình duyệt đã đăng ký. Trả (số_gửi_được, số_bị_dọn, chi_tiết).
+
+    Gửi cho tất cả là cố ý: bật/tắt là việc của từng thiết bị, nên đã bật ở đâu thì ở đó phải
+    nhận - bấm Gửi thử trên điện thoại mà chỉ máy tính kêu là sai.
 
     Dịch vụ đẩy trả 404/410 nghĩa là đăng ký ĐÃ CHẾT (người dùng gỡ app, xoá dữ liệu site).
     Dọn ngay tại chỗ, không thì danh sách phình mãi và mỗi lần báo lại tốn thêm một request
-    chắc chắn hỏng.
+    chắc chắn hỏng. Mọi mã lỗi KHÁC đều được giữ lại trên đăng ký để màn hình nói ra được.
     """
     subs = danh_sach_sub()
     if not subs:
-        return 0, 0
+        return 0, 0, []
     payload = json.dumps({"title": tieu_de, "body": than, "url": url, "tag": tag},
                          ensure_ascii=False).encode("utf-8")
     import httpx
-    ok, don = 0, []
+    ok, don, chi_tiet = 0, [], []
     async with httpx.AsyncClient(timeout=15) as c:
         for s in subs:
+            ep = s["endpoint"]
+            muc = {"dich_vu": ten_dich_vu(ep), "nhan": s.get("nhan", ""), "ok": False,
+                   "ma": 0, "loi": ""}
             try:
                 body = ma_hoa(payload, s["p256dh"], s["auth"])
-                h = header_vapid(s["endpoint"])
+                h = header_vapid(ep)
                 h.update({"Content-Encoding": "aes128gcm", "TTL": str(TTL_GIAY),
                           "Content-Type": "application/octet-stream", "Urgency": "normal"})
-                r = await c.post(s["endpoint"], content=body, headers=h)
+                r = await c.post(ep, content=body, headers=h)
+                muc["ma"] = r.status_code
                 if r.status_code in (404, 410):
-                    don.append(s["endpoint"])
+                    don.append(ep)
+                    muc["loi"] = "đăng ký đã hết hiệu lực - đã dọn"
                 elif 200 <= r.status_code < 300:
                     ok += 1
+                    muc["ok"] = True
                 else:
-                    print(f"[webpush] {r.status_code} từ {urlsplit(s['endpoint']).netloc}: "
-                          f"{r.text[:160]}", file=sys.stderr)
+                    muc["loi"] = (r.text or "").strip()[:200] or f"HTTP {r.status_code}"
+                    print(f"[webpush] {r.status_code} từ {urlsplit(ep).netloc}: "
+                          f"{muc['loi']}", file=sys.stderr)
             except Exception as e:
-                print(f"[webpush] gửi lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+                muc["loi"] = f"{type(e).__name__}: {e}"[:200]
+                print(f"[webpush] gửi lỗi: {muc['loi']}", file=sys.stderr)
+            chi_tiet.append(muc)
+            if ep not in don:
+                _ghi_ket_qua(ep, muc["ok"], muc["loi"])
     for ep in don:
         huy_dang_ky(ep)
-    return ok, len(don)
+    return ok, len(don), chi_tiet
