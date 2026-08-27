@@ -5183,28 +5183,39 @@
        icon mới cần chạy gen_icons (tải mạng) - lật CSS rẻ hơn mà cùng nghĩa. */
     .cedit-thu-btn svg, .cedit-expand svg{ transform:scaleX(-1); }
     @media (min-width:861px){
+      /* Bản 0.47.5 nhét CẢ cụm nhập (file chip + thanh model + ô nhập) vào cột phải 340px
+         nên chật cứng - chủ chỉnh lại: y như màn Javis, các thanh đó phải TRẢI DÀI TOÀN BỀ
+         RỘNG dưới cùng (ở màn Javis chúng nằm NGOÀI .hud-body, vắt ngang đáy), chỉ có
+         HỘI THOẠI đứng cột phải. Slot tan vào lưới bằng display:contents để từng con của
+         nó tự nhận ô grid riêng. */
       .chatpage-main.edit-on{ display:grid; column-gap:14px;
-        grid-template-columns:minmax(0,1fr) 340px; grid-template-rows:auto minmax(0,1fr); }
-      .chatpage-main.edit-on > .chatpage-bar{ grid-column:1 / -1; }
+        grid-template-columns:minmax(0,1fr) 340px;
+        grid-template-rows:auto minmax(0,1fr) auto auto auto auto; }
+      .chatpage-main.edit-on > .chatpage-bar{ grid-row:1; grid-column:1 / -1; }
       .chatpage-main.edit-on > .chatpage-edit{ grid-row:2; grid-column:1; min-width:0; }
-      .chatpage-main.edit-on > .chatpage-slot{ grid-row:2; grid-column:2; position:relative;
-        display:flex; min-height:0; max-height:none; border-left:1px solid var(--border);
-        padding-left:12px; }
+      .chatpage-main.edit-on > .chatpage-slot{ display:contents; }
       .chatpage-main.edit-on > .chatpage-slot > *{ max-width:none; }
-      .chatpage-main.edit-on > .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; }
-      /* Nút thu khung chat phải - co VÀO BÊN PHẢI như thu sidebar, có nhớ. */
-      .chatpage-main.edit-on > .chatpage-slot > .cedit-thu-btn{ display:flex; position:absolute;
-        top:0; right:0; z-index:3; align-items:center; justify-content:center; width:26px;
-        height:26px; border-radius:7px; border:1px solid var(--border); background:var(--bg2);
-        color:var(--text3); cursor:pointer; }
+      .chatpage-main.edit-on > .chatpage-slot > .transcript{ grid-row:2; grid-column:2;
+        min-height:0; overflow-y:auto; border-left:1px solid var(--border); padding-left:12px; }
+      .chatpage-main.edit-on > .chatpage-slot > .bg-strip{ grid-row:3; grid-column:1 / -1; }
+      .chatpage-main.edit-on > .chatpage-slot > .attach-bar{ grid-row:4; grid-column:1 / -1; }
+      .chatpage-main.edit-on > .chatpage-slot > .model-bar{ grid-row:5; grid-column:1 / -1; }
+      .chatpage-main.edit-on > .chatpage-slot > .hud-voice{ grid-row:6; grid-column:1 / -1; }
+      /* Nút thu khung hội thoại phải - đè lên góc trên-phải cột hội thoại (grid cho phép
+         hai item cùng ô; slot display:contents nên không dùng position:absolute được). */
+      .chatpage-main.edit-on > .chatpage-slot > .cedit-thu-btn{ display:flex; grid-row:2;
+        grid-column:2; justify-self:end; align-self:start; z-index:3; margin:2px 2px 0 0;
+        align-items:center; justify-content:center; width:26px; height:26px; border-radius:7px;
+        border:1px solid var(--border); background:var(--bg2); color:var(--text3); cursor:pointer; }
       .chatpage-main.edit-on > .chatpage-slot > .cedit-thu-btn:hover{ color:var(--accent); border-color:var(--accent); }
+      /* Thu: chỉ CỘT HỘI THOẠI co vào phải - ô nhập vẫn trải dài dưới cùng. */
       .chatpage-main.edit-on.echat-thu{ grid-template-columns:minmax(0,1fr) 44px; }
-      .chatpage-main.edit-on.echat-thu > .chatpage-slot{ padding-left:6px; align-items:center; }
-      .chatpage-main.edit-on.echat-thu > .chatpage-slot > :not(.cedit-expand){ display:none; }
-      .chatpage-main.edit-on.echat-thu > .chatpage-slot > .cedit-expand{ display:flex;
-        align-items:center; justify-content:center; width:30px; height:30px; flex:none;
-        border-radius:8px; border:1px solid var(--border); background:none; color:var(--text2);
-        cursor:pointer; }
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot > .transcript,
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot > .cedit-thu-btn{ display:none; }
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot > .cedit-expand{ display:flex; grid-row:2;
+        grid-column:2; justify-self:center; align-self:start; align-items:center;
+        justify-content:center; width:30px; height:30px; border-radius:8px;
+        border:1px solid var(--border); background:none; color:var(--text2); cursor:pointer; }
       .chatpage-main.edit-on.echat-thu > .chatpage-slot > .cedit-expand:hover{ color:var(--accent); border-color:var(--accent); }
     }
     /* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của
