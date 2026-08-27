@@ -92,8 +92,10 @@ check("mốc màn hẹp khớp trang Trò chuyện (860px)",
 
 // ---- 7. Ô nhập cao hơn: mốc phải chuyển sang trang chat ----
 // Trước đây nó bám .chat-zoomed. Bỏ lớp nổi mà quên đổi mốc là mất luôn tính năng gõ dài.
-check("CANARY: ô nhập cao 220px bám body.on-chat (không phải .chat-zoomed)",
-      /classList\.contains\("on-chat"\) \? 220/.test(APP)
+// 0.47.3: trần trang chat đổi từ 220px cứng sang 40% màn hình (nở theo chữ kiểu claude.ai)
+// - canary giữ đúng Ý ĐỊNH gốc: mốc phân biệt là body.on-chat, không phải .chat-zoomed.
+check("CANARY: ô nhập trang chat cao hơn, mốc bám body.on-chat (không phải .chat-zoomed)",
+      /classList\.contains\("on-chat"\)\s*\?\s*Math\.round\(window\.innerHeight \* 0\.4\)/.test(APP)
       && APP.indexOf('classList.contains("chat-zoomed")') === -1);
 
 // ---- 8. Trình duyệt phải nạp lại file tĩnh đã sửa ----
