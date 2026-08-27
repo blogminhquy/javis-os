@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.48.3] - 2026-08-27
+### Cải thiện
+- **Bỏ nút loa trên thanh tiêu đề.** Cùng một công tắc giọng mà có tới ba chỗ bấm, giờ giữ đúng nút loa ngay trên thanh nhập chat - nơi tay bạn đang ở sẵn. Công tắc trong Cài đặt nhanh vẫn còn và vẫn đồng bộ.
+
 ## [0.48.2] - 2026-08-27
 ### Sửa lỗi
 - **Mở file .md ở trang Trò chuyện không còn làm vỡ khung hội thoại bên phải.** Trình sửa phình rộng hơn cột của nó rồi nằm đè lên khung chat, nên chữ bên phải bị cắt mất mép trái, đọc không ra câu. Giờ trình sửa co đúng bằng cột trái, hội thoại hiện đủ như thiết kế.
