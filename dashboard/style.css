@@ -473,6 +473,27 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
    trang chat, có nút riêng) lẫn nút mở lại. */
 .cside-pane .vault-tools #vtCollapse, .cside-pane > .hud-left > .vault-expand { display: none; }
 
+/* ===== Thu khung HỘI THOẠI (cột phải màn chính) - co VÀO BÊN PHẢI, cùng lối với thu
+   sidebar/Vault. CHỈ desktop: trên điện thoại cột này chính là khung chat, thu là mất app
+   (console.css bố trí mobile riêng), nên mọi luật nằm trong media min-width và nút thu
+   cũng ẩn ở màn hẹp. Icon panel-left lật gương = panel-right (bộ icon chưa đóng gói
+   panel-right, thêm icon mới phải chạy gen_icons tải mạng - lật CSS rẻ hơn, cùng nghĩa). */
+.chatcol-expand { display: none; }
+.chatcol-thu-btn svg, .chatcol-expand svg { transform: scaleX(-1); }
+@media (max-width: 860px) { .chatcol-thu-btn { display: none; } }
+@media (min-width: 861px) {
+  body.chatcol-thu .hud-body { grid-template-columns: 260px minmax(0, 1fr) 44px; }
+  body.vault-thu.chatcol-thu .hud-body { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  body.chatcol-thu .hud-body > .hud-right { padding: 12px 6px; align-items: center; overflow: hidden; }
+  body.chatcol-thu .hud-body > .hud-right > :not(.chatcol-expand) { display: none; }
+  body.chatcol-thu .hud-body > .hud-right > .chatcol-expand {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; flex: none; border-radius: 8px;
+    border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer;
+  }
+  body.chatcol-thu .hud-body > .hud-right > .chatcol-expand:hover { color: var(--accent); border-color: var(--accent); }
+}
+
 .hud-left::-webkit-scrollbar, .hud-right::-webkit-scrollbar, .transcript::-webkit-scrollbar { width: 4px; }
 .hud-left::-webkit-scrollbar-thumb, .hud-right::-webkit-scrollbar-thumb, .transcript::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 

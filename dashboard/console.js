@@ -5170,16 +5170,42 @@
     }
     .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
-    /* Mở file từ tab Thư mục: trình sửa đứng TRÊN, khung chat VẪN Ở DƯỚI (chủ yêu cầu
-       27/08) - vừa sửa file vừa nhắn Javis được, không phải đóng trình sửa. Hội thoại
-       đang xem rút còn tối đa ~24vh (cuộn được), ô nhập giữ nguyên; câu trả lời mới vẫn
-       hiện ngay dưới. Màn hẹp không đủ chỗ xếp chồng nên giữ lối cũ: trình sửa chiếm
-       chỗ, khung chat chỉ display:none - node còn nguyên, đóng trình sửa là chat về đủ. */
+    /* Mở file từ tab Thư mục (desktop): trình sửa bên TRÁI, khung chat co thành CỘT PHẢI
+       y như màn Javis - hội thoại ở trên, ô nhập dưới đáy cột (chủ chỉnh 27/08: bản xếp
+       chồng dọc trước đó để chat nằm TRÊN trình sửa theo thứ tự DOM, nhìn ngược). Grid
+       đặt chỗ theo ô nên thứ tự DOM không còn quyết định vị trí. Màn hẹp giữ lối cũ:
+       trình sửa chiếm chỗ (luật display:none nằm trong khối @media 860px bên dưới),
+       node chat còn nguyên nên đóng trình sửa là chat về đủ. */
     .chatpage-edit{ display:none; position:relative; flex:1 1 auto; min-height:0; }
     .chatpage-main.edit-on > .chatpage-edit{ display:flex; }
+    .cedit-thu-btn, .cedit-expand{ display:none; }
+    /* Icon panel-left lật gương = panel-right: bộ icon chưa đóng gói panel-right, và thêm
+       icon mới cần chạy gen_icons (tải mạng) - lật CSS rẻ hơn mà cùng nghĩa. */
+    .cedit-thu-btn svg, .cedit-expand svg{ transform:scaleX(-1); }
     @media (min-width:861px){
-      .chatpage-main.edit-on > .chatpage-slot{ flex:0 0 auto; min-height:0; max-height:45vh; }
-      .chatpage-main.edit-on > .chatpage-slot .transcript{ flex:0 1 auto; min-height:0; max-height:24vh; }
+      .chatpage-main.edit-on{ display:grid; column-gap:14px;
+        grid-template-columns:minmax(0,1fr) 340px; grid-template-rows:auto minmax(0,1fr); }
+      .chatpage-main.edit-on > .chatpage-bar{ grid-column:1 / -1; }
+      .chatpage-main.edit-on > .chatpage-edit{ grid-row:2; grid-column:1; min-width:0; }
+      .chatpage-main.edit-on > .chatpage-slot{ grid-row:2; grid-column:2; position:relative;
+        display:flex; min-height:0; max-height:none; border-left:1px solid var(--border);
+        padding-left:12px; }
+      .chatpage-main.edit-on > .chatpage-slot > *{ max-width:none; }
+      .chatpage-main.edit-on > .chatpage-slot .transcript{ flex:1 1 auto; min-height:0; max-height:none; }
+      /* Nút thu khung chat phải - co VÀO BÊN PHẢI như thu sidebar, có nhớ. */
+      .chatpage-main.edit-on > .chatpage-slot > .cedit-thu-btn{ display:flex; position:absolute;
+        top:0; right:0; z-index:3; align-items:center; justify-content:center; width:26px;
+        height:26px; border-radius:7px; border:1px solid var(--border); background:var(--bg2);
+        color:var(--text3); cursor:pointer; }
+      .chatpage-main.edit-on > .chatpage-slot > .cedit-thu-btn:hover{ color:var(--accent); border-color:var(--accent); }
+      .chatpage-main.edit-on.echat-thu{ grid-template-columns:minmax(0,1fr) 44px; }
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot{ padding-left:6px; align-items:center; }
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot > :not(.cedit-expand){ display:none; }
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot > .cedit-expand{ display:flex;
+        align-items:center; justify-content:center; width:30px; height:30px; flex:none;
+        border-radius:8px; border:1px solid var(--border); background:none; color:var(--text2);
+        cursor:pointer; }
+      .chatpage-main.edit-on.echat-thu > .chatpage-slot > .cedit-expand:hover{ color:var(--accent); border-color:var(--accent); }
     }
     /* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của
        cột chat, nên gỡ inset/z-index đi kẻo nó bung ra ngoài khung. TRỪ khi đang phóng to
@@ -5408,6 +5434,25 @@
       if (isNar()) { page.classList.toggle("side-open"); return; }
       datSideThu(!page.classList.contains("side-thu"));
     };
+    // Khung chat PHẢI khi đang sửa file (.edit-on): nút thu co vào bên phải + nhớ trạng
+    // thái. Nút gắn vào slot SAU khi mượn node chat nên không bị _borrowChatNodes chen chỗ.
+    const mainEl = el.querySelector(".chatpage-main");
+    if (mainEl && slot) {
+      const datEditThu = (thu) => {
+        mainEl.classList.toggle("echat-thu", thu);
+        try { localStorage.setItem("javis_editchat_thu", thu ? "1" : "0"); } catch (e) {}
+      };
+      try { if (localStorage.getItem("javis_editchat_thu") === "1") mainEl.classList.add("echat-thu"); } catch (e) {}
+      const et = document.createElement("button");
+      et.className = "cedit-thu-btn"; et.type = "button";
+      et.title = "Thu khung hội thoại sang phải"; et.innerHTML = ic("panel-left");
+      et.onclick = () => datEditThu(true);
+      const em = document.createElement("button");
+      em.className = "cedit-expand"; em.type = "button";
+      em.title = "Mở lại khung hội thoại"; em.innerHTML = ic("panel-left");
+      em.onclick = () => datEditThu(false);
+      slot.appendChild(et); slot.appendChild(em);
+    }
     // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
     // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
     el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
@@ -6290,6 +6335,16 @@
     // Áp lại trạng thái thu gọn panel Vault ĐÃ LƯU ngay lúc tải trang (nút bấm gắn trong
     // _vtWire, nhưng chờ tới đó mới áp thì panel nháy to rồi mới thu).
     try { if (localStorage.getItem("javis_vault_thu") === "1") document.body.classList.add("vault-thu"); } catch (e) {}
+    // Thu khung HỘI THOẠI (cột phải màn chính) - co vào bên phải, có nhớ. CSS đã tự vô
+    // hiệu ở màn hẹp (cột đó chính là khung chat mobile) nên chỉ cần gắn handler + áp lại.
+    const cct = document.getElementById("chatColThu"), ccm = document.getElementById("chatColMo");
+    const datChatColThu = (thu) => {
+      document.body.classList.toggle("chatcol-thu", thu);
+      try { localStorage.setItem("javis_chatcol_thu", thu ? "1" : "0"); } catch (e) {}
+    };
+    if (cct) cct.onclick = () => datChatColThu(true);
+    if (ccm) ccm.onclick = () => datChatColThu(false);
+    try { if (localStorage.getItem("javis_chatcol_thu") === "1") document.body.classList.add("chatcol-thu"); } catch (e) {}
     refreshEngineBanner();
     setInterval(refreshEngineBanner, 90000);
     // Báo "chưa kết nối" mà không đưa được người ta tới chỗ kết nối thì chỉ là than phiền.

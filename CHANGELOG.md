@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.5] - 2026-08-27
+### Sửa lỗi
+- **Mở file .md ở trang Trò chuyện: bố cục đúng như màn Javis.** Bản trước để khung chat nằm phía TRÊN trình sửa, nhìn ngược. Giờ trình sửa bên trái, hội thoại thành cột bên phải và ô nhập ở dưới đáy cột - y như khi xem file ở màn hình brain.
+### Thêm mới
+- **Khung hội thoại bên phải thu gọn được** ở cả màn Javis lẫn trang Trò chuyện (khi đang sửa file): bấm nút thu là cột co vào bên phải còn một dải hẹp với nút mở lại, và nhớ trạng thái qua F5.
+
 ## [0.47.4] - 2026-08-27
 ### Sửa lỗi
 - **Dứt điểm banner "Chưa kết nối Model AI" đỏ oan.** Banner giờ chỉ nói về đúng model chính bạn đang chat: model việc nền chưa đăng nhập không làm banner đỏ nữa (việc nền đã tự chạy bằng bộ não chat khi cần từ 0.43.3). Đổi lại, dùng gói ChatGPT mà mất kết nối thật thì banner giờ báo được - trước đây ca này im lặng.
