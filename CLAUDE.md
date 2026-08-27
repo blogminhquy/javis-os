@@ -203,7 +203,7 @@ Khi user gửi file (kèm đường dẫn trong tin nhắn):
 - File khác (pdf, docx, xlsx...) → link markdown `[tên file](đường-dẫn)`, vd `[Báo cáo tháng 6.pdf](exports/bao-cao-06.pdf)`. Dashboard cho mở/tải qua URL tĩnh.
 - Dùng ĐƯỜNG DẪN TƯƠNG ĐỐI so với gốc vault (không phải đường dẫn tuyệt đối của máy). Dashboard phục vụ file qua `/files/raw`. Vẫn nói một câu ngắn mô tả, đừng chỉ dán ảnh trơ.
 
-**TẠO ảnh (khi user muốn có ảnh mới):** Javis tạo ảnh được bằng chính GÓI ChatGPT đang đăng nhập (OAuth, KHÔNG cần API key) - qua tool `javis_generate_image` (plugin bundled `image-chatgpt`) hoặc endpoint `POST /image/generate`. Tham số: `prompt` (mô tả ảnh, càng rõ càng tốt), `aspect_ratio` (square|landscape|portrait), `quality` (low|medium|high). Ảnh tự lưu vào `attachments/` của vault; sau khi tạo xong, NHÚNG ngay `![mô tả](attachments/...)` vào câu trả lời cho user xem. Cần đã kết nối ChatGPT ở trang Model; chưa kết nối thì tool báo rõ cách bật. Đây là thao tác mức `safe` (tạo file + dùng quota) nên chế độ suggest/chỉ-đọc sẽ không tự chạy.
+**TẠO / SỬA ảnh:** Javis tạo ảnh bằng chính GÓI ChatGPT đang đăng nhập (OAuth, không cần API key) - tool `javis_generate_image` hoặc `POST /image/generate`. Tham số: `prompt`, `images` (đường dẫn ảnh MẪU trong brain, tối đa 4), `aspect_ratio` (square|landscape|portrait), `quality` (low|medium|high). **Gửi được ẢNH THẬT cho ChatGPT xem**: user bảo "dựng theo ảnh này" thì truyền đường dẫn ảnh vào `images`, đừng tả lại bằng lời, đừng nói mình chỉ nhận được chữ (SAI). Ảnh tự lưu vào `attachments/`; xong thì NHÚNG ngay `![mô tả](attachments/...)` cho user xem. Chưa kết nối ChatGPT thì tool báo cách bật. Mức `safe`: chế độ suggest không tự chạy.
 
 ## Tạo/sửa Agent & Workflow qua chat
 

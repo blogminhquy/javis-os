@@ -41,6 +41,7 @@ import config as cfgmod
 CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
 GEMINI_CLI = "gemini-cli"
+ANTIGRAVITY = "antigravity-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api")
 
 # provider -> tên trường chứa API key trong settings["model"]
@@ -259,6 +260,17 @@ def availability(spec: dict, settings: dict = None) -> tuple:
                 return False, st.get("error") or "Gemini CLI chưa sẵn sàng."
         except Exception:
             return False, "Không kiểm tra được Gemini CLI."
+        return True, ""
+    if prov == ANTIGRAVITY:
+        try:
+            import antigravity_cli as _a
+            if not _a.find_antigravity_cli():
+                return False, "Chưa cài Antigravity CLI (`agy`) trên máy chạy Javis."
+            st = _a.auth_status()
+            if not st.get("connected"):
+                return False, st.get("error") or "Antigravity CLI chưa đăng nhập Google."
+        except Exception:
+            return False, "Không kiểm tra được Antigravity CLI."
         return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
@@ -538,6 +550,42 @@ def _build_gemini(spec, claude_cli_obj, mode, tag):
     return gc
 
 
+def _build_antigravity(spec, claude_cli_obj, mode, tag):
+    """Engine việc nền/agent chạy bằng Antigravity CLI (`agy`).
+
+    Khác `_build_gemini` ở hai chỗ, và cả hai đều là lý do phải viết riêng thay vì dùng chung:
+
+    - **Mức quyền yếu hơn thật.** `agy` KHÔNG có nấc chỉ-đọc do CLI cưỡng chế (Gemini có
+      `--approval-mode plan`); `suggest` ở đây chỉ được siết bằng `--sandbox` cộng lời dặn
+      trong prompt. Xem `antigravity_cli.co_quyen_cho_mode` - nó nói thẳng chuyện này, và
+      rào tiền/đơn/đăng bài vẫn nằm ở MCP Hub chứ không ở CLI.
+    - **Hình dạng entry MCP khác hẳn.** `agy` đọc khoá `serverUrl`; `httpUrl` (khoá của Gemini
+      CLI) bị nó bỏ qua không một tiếng động - đúng thứ đã làm bộ não này chạy mấy bản liền mà
+      không có lấy một tool nào của Javis. Nên dựng entry bằng `antigravity_cli.hub_entry()`
+      chứ không viết tay.
+    """
+    import antigravity_cli as _a
+    muc = mode or getattr(claude_cli_obj, "javis_mode", None) or "full"
+    ac = _a.AntigravityCLI(cwd=getattr(claude_cli_obj, "cwd", None),
+                           tag=tag or getattr(claude_cli_obj, "tag", "aux"),
+                           model=spec.get("model") or None,
+                           instructions=getattr(claude_cli_obj, "system_prompt", None))
+    ac.mode = muc
+    vault = getattr(claude_cli_obj, "javis_vault", None) or getattr(claude_cli_obj, "cwd", None)
+    if vault:
+        try:
+            import mcp_hub
+            hub = None
+            if bool(cfgmod.read_settings().get("mcp", {}).get("hub", True)):
+                hub = _a.hub_entry(mcp_hub.hub_url(),
+                                   {"Authorization": f"Bearer {mcp_hub.hub_token()}",
+                                    "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)})
+            _a.ghi_mcp_settings(vault, hub)
+        except Exception as e:
+            print(f"[aux antigravity mcp] {e}", file=sys.stderr)
+    return ac
+
+
 def apply(deps, cli, mode: str = None, tag: str = None):
     """Dùng ở các nơi chạy nền sau khi đã dựng xong engine Claude.
 
@@ -640,6 +688,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
                 return _build_codex(sp, cli, mode, tag, codex_profile)
             if prov == GEMINI_CLI:
                 return _build_gemini(sp, cli, mode, tag)
+            if prov == ANTIGRAVITY:
+                return _build_antigravity(sp, cli, mode, tag)
             if prov in API_PROVIDERS:
                 return _build_api(sp, cli, mode, tag)
             return cli
@@ -663,6 +713,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             primary = _build_codex(sp, cli, mode, tag, codex_profile)
         elif prov == GEMINI_CLI:
             primary = _build_gemini(sp, cli, mode, tag)
+        elif prov == ANTIGRAVITY:
+            primary = _build_antigravity(sp, cli, mode, tag)
         elif prov in API_PROVIDERS:
             primary = _build_api(sp, cli, mode, tag)
         else:
