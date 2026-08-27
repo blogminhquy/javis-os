@@ -278,15 +278,21 @@ def engines_in_use() -> set:
     rơi về Claude, nhưng đó là mặc định của code chứ không phải lựa chọn của người dùng -
     và việc nền đã có _FallbackChain đỡ (Claude chết thì sang OpenRouter free). Tính cái
     mặc định ngầm đó vào đây là máy chưa từng cài Claude vẫn bị nagging suốt ngày
-    'bộ não claude mất đăng nhập' dù đang chạy OpenRouter ngon lành."""
+    'bộ não claude mất đăng nhập' dù đang chạy OpenRouter ngon lành.
+
+    Chú ý: UI lưu việc nền LUÔN kèm provider (nút "Về mặc định" ghi anthropic-cli + model
+    rỗng), nên "provider anthropic-cli + model rỗng" chính là trạng thái mặc định đội lốt
+    lựa chọn. Không lọc ca này thì máy Main Model là Codex/OpenRouter vẫn bị banner đỏ
+    'chưa kết nối Model AI' chỉ vì chưa đăng nhập Claude - đúng lỗi khách báo 27/08."""
     try:
         import config as _cfg
         m = (_cfg.read_settings().get("model") or {})
     except Exception:
         return {"claude"}
     provs = [(m.get("main") or {}).get("provider") or "anthropic-cli"]
-    aux = (m.get("auxiliary") or {}).get("provider")
-    if aux:
+    aux_rec = (m.get("auxiliary") or {})
+    aux = aux_rec.get("provider")
+    if aux and not (aux == "anthropic-cli" and not (aux_rec.get("model") or "").strip()):
         provs.append(aux)
     return {_PROVIDER_ENGINE[p] for p in provs if p in _PROVIDER_ENGINE}
 
@@ -305,11 +311,36 @@ def probe_engines() -> None:
         _engines.pop(name, None)
     if "claude" not in live:
         return
-    ok, msg = probe_claude_credentials()
+    # Gói Claude Code chạy bằng API KEY (chọn ở trang Models) thì không có "phiên đăng nhập
+    # CLI" nào để mà mất - probe file token lúc này là soi nhầm chỗ, và nó từng làm banner
+    # 'chưa kết nối' treo mãi trên máy đã dán key đầy đủ. Key sai thì lượt chạy báo tại chỗ
+    # (flag_engine_auth_error có mẫu "invalid api key"), giống mọi provider API khác.
+    try:
+        import claude_auth
+        if claude_auth.che_do() == claude_auth.API_KEY and claude_auth.api_key():
+            ok, msg = True, ""
+        else:
+            ok, msg = probe_claude_credentials()
+    except Exception:
+        ok, msg = probe_claude_credentials()
     cur = _engines.get("claude") or {}
     if ok and cur.get("source") == "run" and not cur.get("ok"):
         return   # đèn đỏ do lượt chạy thật - chờ engine_run_ok tắt, probe không đè
     _set_engine("claude", ok, msg, "probe")
+
+
+def engine_reconnected(name) -> None:
+    """Người dùng vừa đăng nhập lại / đổi cấu hình bộ não này ở trang Models: mọi bằng
+    chứng cũ (kể cả đèn đỏ do lượt chạy bật) đã lỗi thời, xoá đi rồi probe lại ngay.
+
+    Không có hàm này thì banner 'chưa kết nối Model AI' treo thêm tới 10 phút sau khi
+    người dùng ĐÃ kết nối xong (probe chỉ chạy mỗi HEALTH_INTERVAL), và đèn đỏ
+    source=run còn treo vô hạn vì probe không được đè nó."""
+    _engines.pop(name, None)
+    try:
+        probe_engines()
+    except Exception as e:
+        print(f"[engine health] probe sau kết nối lỗi: {e}", file=sys.stderr)
 
 
 def engines_snapshot() -> dict:

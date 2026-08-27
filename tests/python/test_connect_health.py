@@ -226,6 +226,53 @@ def test_probe_khong_de_den_do_do_luot_chay(monkeypatch):
     _reset_engines()
 
 
+def test_probe_api_key_khong_doi_phien_dang_nhap(monkeypatch):
+    """Chọn chạy Claude bằng API KEY thì không có 'phiên đăng nhập CLI' nào để mất - probe
+    không được báo đỏ 'Chưa đăng nhập' dù máy chưa từng đăng nhập Claude Code.
+    Vụ 27/08: user kết nối đủ ở trang Models mà banner 'Chưa kết nối Model AI' vẫn treo."""
+    _reset_engines()
+    import config as _cfg
+    monkeypatch.setattr(_cfg, "read_settings", lambda: {"model": {
+        "main": {"provider": "anthropic-cli"},
+        "claude_auth": "api_key", "anthropic_api_key": "sk-test"}})
+    monkeypatch.setattr(connect_health, "probe_claude_credentials",
+                        lambda path=None: (False, "Chưa đăng nhập Claude Code trên máy này."))
+    connect_health.probe_engines()
+    assert connect_health.engines_snapshot()["claude"]["ok"] is True
+    _reset_engines()
+
+
+def test_aux_mac_dinh_khong_soi_den_claude(monkeypatch):
+    """Nút 'Về mặc định' của model việc nền ghi provider anthropic-cli + model RỖNG - đó là
+    trạng thái mặc định đội lốt lựa chọn. Máy Main Model là Codex không được vì thế mà bị
+    banner đỏ 'chưa kết nối Model AI' chỉ vì chưa đăng nhập Claude (vụ 27/08)."""
+    import config as _cfg
+    monkeypatch.setattr(_cfg, "read_settings", lambda: {"model": {
+        "main": {"provider": "openai-oauth", "model": "gpt-5.6-terra"},
+        "auxiliary": {"provider": "anthropic-cli", "model": ""}}})
+    assert connect_health.engines_in_use() == {"codex"}
+    # Chọn model Claude CỤ THỂ cho việc nền thì là lựa chọn thật → vẫn soi đèn claude.
+    monkeypatch.setattr(_cfg, "read_settings", lambda: {"model": {
+        "main": {"provider": "openai-oauth", "model": "gpt-5.6-terra"},
+        "auxiliary": {"provider": "anthropic-cli", "model": "haiku"}}})
+    assert connect_health.engines_in_use() == {"codex", "claude"}
+
+
+def test_engine_reconnected_xoa_ca_den_do_do_luot_chay(monkeypatch):
+    """Vừa đăng nhập lại / đổi cấu hình ở trang Models thì bằng chứng lỗi cũ (kể cả đèn đỏ
+    source=run) đã lỗi thời: đèn phải xanh NGAY, không chờ vòng probe 10 phút."""
+    _reset_engines()
+    import config as _cfg
+    monkeypatch.setattr(_cfg, "read_settings",
+                        lambda: {"model": {"main": {"provider": "anthropic-cli"}}})
+    monkeypatch.setattr(connect_health, "probe_claude_credentials", lambda path=None: (True, ""))
+    connect_health.flag_engine_auth_error("claude", "failed to authenticate")
+    assert connect_health.engines_snapshot()["claude"]["ok"] is False
+    connect_health.engine_reconnected("claude")
+    assert connect_health.engines_snapshot()["claude"]["ok"] is True
+    _reset_engines()
+
+
 def test_probe_claude_credentials_cac_nhanh(tmp_path, monkeypatch):
     import json as _json
     import time as _time

@@ -2380,3 +2380,35 @@ renderChips();
 
 // Đồng bộ badge engine từ module khác (console.js sau khi đổi model).
 window.refreshEngineBadge = refreshEngineBadge;
+
+// ============================================
+// "Mở như app" (cài PWA) - desktop lẫn Android, không chỉ mobile.
+// Chrome/Edge bắn beforeinstallprompt khi manifest đủ điều kiện cài (icon PNG vuông có
+// sizes - xem manifest.json). Giữ event lại rồi hiện nút trên thanh trạng thái; bấm nút
+// mới bung hộp cài của trình duyệt. Safari/Firefox không có event → nút không hiện,
+// iOS vẫn đi đường Share → Thêm vào màn hình chính như cũ.
+// ============================================
+(() => {
+  const btn = document.getElementById("installAppBtn");
+  if (!btn) return;
+  let deferredPrompt = null;
+  const daLaApp = () => {
+    try {
+      return window.matchMedia("(display-mode: standalone)").matches
+        || window.navigator.standalone === true;   // iOS standalone cũ
+    } catch (e) { return false; }
+  };
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();   // chặn mini-infobar tự bung trên Android, để nút của mình chủ động
+    deferredPrompt = e;
+    if (!daLaApp()) btn.hidden = false;
+  });
+  btn.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (e) {}
+    deferredPrompt = null;
+    btn.hidden = true;   // từ chối thì trình duyệt sẽ bắn lại event ở phiên sau, nút tự hiện lại
+  });
+  window.addEventListener("appinstalled", () => { deferredPrompt = null; btn.hidden = true; });
+})();
