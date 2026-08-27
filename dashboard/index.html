@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=65">
+  <link rel="stylesheet" href="/static/style.css?v=66">
   <link rel="stylesheet" href="/static/console.css?v=46">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -169,12 +169,16 @@
 
       <!-- LEFT: Vault explorer (cây thư mục kiểu Obsidian + tìm note). Thay cho panel số liệu KD cũ. -->
       <aside class="hud-left">
+        <!-- Nút mở lại khi panel đang thu gọn (body.vault-thu). Ẩn mặc định bằng CSS;
+             chỉ hiện ở màn chính, không theo node sang tab "Thư mục" của trang Trò chuyện. -->
+        <button class="vault-expand" id="vtExpand" title="Mở lại panel Vault" aria-label="Mở lại panel Vault"><i data-ic="panel-left"></i></button>
         <div class="vault-head">
           <span class="vault-title">VAULT</span>
           <span class="vault-tools">
             <button class="mini-btn" id="vtNewFile" title="Tạo file mới ở gốc brain">＋</button>
             <button class="mini-btn" id="vtNewDir" title="Tạo thư mục mới ở gốc brain"><i data-ic="folder-plus"></i></button>
             <button class="mini-btn" id="vtRefresh" title="Làm mới cây">⟳</button>
+            <button class="mini-btn" id="vtCollapse" title="Thu gọn panel Vault (như sidebar)"><i data-ic="panel-left"></i></button>
           </span>
         </div>
         <div class="vault-search">
@@ -776,7 +780,7 @@
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=2"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=110"></script>
+  <script src="/static/console.js?v=111"></script>
   <script src="/static/mobile-chat.js?v=5"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/notifications.js?v=1"></script>

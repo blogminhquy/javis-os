@@ -5148,7 +5148,11 @@
       padding:4px 10px; cursor:pointer; font-size:14px; line-height:1; }
     .cp-ico-btn:hover{ color:var(--accent); border-color:var(--accent); }
     .cp-ico-btn .ic{ vertical-align:-2px; }
-    .cp-side-toggle{ display:none; }
+    /* Nút Ẩn/hiện cột lịch sử: desktop thu gọn tại chỗ (.side-thu, có nhớ), màn hẹp
+       mở/đóng drawer như cũ. Trước 0.47.2 nút chỉ hiện ở màn hẹp - chủ muốn desktop
+       cũng thu được như sidebar (27/08). */
+    .cp-side-toggle{ display:inline-block; }
+    @media (min-width:861px){ .chatpage.side-thu .chatpage-side{ display:none; } }
     .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
     /* Mở file từ tab Thư mục: trình sửa CHIẾM CHỖ khung chat, không đè lên nó. Khung chat chỉ
@@ -5355,9 +5359,16 @@
       try { _chatEngObs = new MutationObserver(sync); _chatEngObs.observe(eb, { childList: true, characterData: true, subtree: true }); } catch (e) {}
     }
 
-    // Mobile: nút lịch sử mở/đóng drawer lịch sử; bấm vào vùng chat thì đóng drawer
+    // Nút lịch sử: màn hẹp mở/đóng drawer như cũ; desktop THU GỌN cột lịch sử tại chỗ
+    // (như thu sidebar) và nhớ lựa chọn qua localStorage.
     const isNar = () => window.matchMedia("(max-width: 860px)").matches;
-    el.querySelector(".cp-side-toggle").onclick = () => page.classList.toggle("side-open");
+    try { if (localStorage.getItem("javis_chatside_thu") === "1") page.classList.add("side-thu"); } catch (e) {}
+    el.querySelector(".cp-side-toggle").onclick = () => {
+      if (isNar()) { page.classList.toggle("side-open"); return; }
+      const thu = !page.classList.contains("side-thu");
+      page.classList.toggle("side-thu", thu);
+      try { localStorage.setItem("javis_chatside_thu", thu ? "1" : "0"); } catch (e) {}
+    };
     // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
     // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
     el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
@@ -5689,6 +5700,16 @@
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", _vtHome || ""); fd.append("name", n);
       await fetch("/files/mkdir", { method: "POST", body: fd }); _vtCache.clear(); renderVaultTree();
     };
+    // Thu gọn panel Vault như sidebar (yêu cầu chủ 27/08): thu → cột trái chỉ còn một nút
+    // mở lại; nhớ lựa chọn qua localStorage (boot() áp lại lúc tải trang). Trạng thái chỉ
+    // có nghĩa ở màn chính - CSS đã tự vô hiệu khi node bị mượn sang tab Thư mục.
+    const vc = document.getElementById("vtCollapse"), ve = document.getElementById("vtExpand");
+    const datVaultThu = (thu) => {
+      document.body.classList.toggle("vault-thu", thu);
+      try { localStorage.setItem("javis_vault_thu", thu ? "1" : "0"); } catch (e) {}
+    };
+    if (vc) vc.onclick = () => datVaultThu(true);
+    if (ve) ve.onclick = () => datVaultThu(false);
   }
 
   async function renderVaultTree() {
@@ -6227,6 +6248,9 @@
 
   function boot() {
     document.body.classList.add("has-rail");
+    // Áp lại trạng thái thu gọn panel Vault ĐÃ LƯU ngay lúc tải trang (nút bấm gắn trong
+    // _vtWire, nhưng chờ tới đó mới áp thì panel nháy to rồi mới thu).
+    try { if (localStorage.getItem("javis_vault_thu") === "1") document.body.classList.add("vault-thu"); } catch (e) {}
     refreshEngineBanner();
     setInterval(refreshEngineBanner, 90000);
     // Báo "chưa kết nối" mà không đưa được người ta tới chỗ kết nối thì chỉ là than phiền.

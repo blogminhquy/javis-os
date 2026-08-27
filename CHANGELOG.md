@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.2] - 2026-08-27
+### Thêm mới
+- **Thu gọn được hai panel như sidebar.** Panel Vault ở màn chính có nút thu ngay cạnh nút làm mới - thu xong chỉ còn một dải hẹp với nút mở lại. Cột lịch sử hội thoại ở trang Trò chuyện cũng thu được trên máy tính bằng đúng nút lịch sử trên thanh tiêu đề.
+- Cả hai đều nhớ lựa chọn: F5 hay mở lại app vẫn giữ nguyên trạng thái thu/mở như bạn để.
+
 ## [0.47.1] - 2026-08-27
 ### Cải thiện
 - **Hết cảnh câu trả lời dừng giữa chừng vì "đã chạy hết 8 vòng gọi tool".** Trần vòng gọi tool của các bộ não API nâng từ 8 lên 30 (chỉnh được tới 120), đủ cho việc nhiều bước mà không phải chia nhỏ câu hỏi hay đi sửa biến môi trường.
