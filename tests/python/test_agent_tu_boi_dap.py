@@ -46,7 +46,9 @@ with tempfile.TemporaryDirectory() as td:
     _mk, _sysprompt, _log, _learn = main._workflow_agent_helpers(brain, tools=None)
     check("helpers trả 4 giá trị (log_run + learn)", callable(_log) and callable(_learn))
 
-    name, sp, model = _sysprompt("chuyen-vien-test")
+    # 0.47.9: _agent_sysprompt trả thêm NHÀ của model (agent chạy được mọi provider,
+    # không chỉ Claude/Codex) - xem tests/python/test_agent_model_da_nha.py.
+    name, sp, model, prov = _sysprompt("chuyen-vien-test")
     check("CANARY: agent CHƯA có ký ức vẫn thấy khối bộ nhớ (hết con gà - quả trứng)",
           "# Bộ nhớ của bạn" in sp and "chưa có ký ức" in sp)
     check("prompt chỉ rõ ĐƯỜNG DẪN file MEMORY.md", "MEMORY.md" in sp)
@@ -61,7 +63,7 @@ with tempfile.TemporaryDirectory() as td:
     memf.mkdir(parents=True)
     (memf / "MEMORY.md").write_text(
         "# Ghi chú của chủ\n- Khách quen tên Ba.\n", encoding="utf-8")
-    _, sp2, _ = _sysprompt("chuyen-vien-test")
+    _, sp2, _, _ = _sysprompt("chuyen-vien-test")
     check("có ký ức thì ký ức vào prompt", "Khách quen tên Ba" in sp2)
 
     # ---- Vòng "model đề xuất, code ghi" chạy THẬT qua closure _learn ----
