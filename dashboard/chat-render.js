@@ -216,6 +216,7 @@
 
   // ---------------------------------------------------------------- artifact registry + phat hien
   var registry = {};   // id -> { type, lang, code }
+  var _choTrinhSua = false;   // dang render cho trinh sua .md (xem mdToHtml)
   function fenceType(lang, code) {
     lang = (lang || "").trim().toLowerCase();
     var head = code.slice(0, 400).replace(/^\s+/, "").toLowerCase();
@@ -269,7 +270,13 @@
     if (streaming) return codeBlockHtml(lang, code, true);   // fence chua dong: khoi code song, chua thanh artifact
     if (/^(dataview(js)?|tasks)$/i.test(lang)) return dataviewHtml(lang.toLowerCase(), code);
     var type = fenceType(lang, code);
-    if (type) return artifactCard(type, lang, code);
+    // Trong TRINH SUA: khoi code dai (type "code") giu nguyen hinh khoi code de con doc va
+    // sua duoc tai cho. Thu no thanh the artifact la noi dung "bien mat" giua file - dung
+    // canh chu repo bao 27/08 (mot the "Ma TEXT · 30 dong" nam giua .md). Turndown da co
+    // luat jvcodewrap nen luu van tra ve dung fence ``` goc.
+    // mermaid/svg/html VAN la the: chung co ban xem truoc that su, va tu 0.47.7 bam duoc
+    // ca trong trinh sua (xem chot .jv-art trong handler click).
+    if (type && !(_choTrinhSua && type === "code")) return artifactCard(type, lang, code);
     return codeBlockHtml(lang, code, false);
   }
 
@@ -436,11 +443,16 @@
   // brain (tuy chon): brain cua HOI THOAI chua tin nhan nay. Bo trong = brain dang chon.
   // Dat quanh phan than de moi duong dan tuong doi trong tin nhan (anh, link file, wikilink)
   // deu phan giai theo dung brain do. mdToHtml chay dong bo nen bien module nay khong dan xen.
-  function mdToHtml(raw, brain) {
-    var truoc = _brainForRender;
+  // opts.trinhSua = true: dang render cho TRINH SUA .md chu khong phai bong bong chat.
+  // Khac biet duy nhat: khoi code dai giu nguyen hinh khoi code thay vi thu thanh the
+  // artifact (xem renderFence) - trong mot trinh sua thi noi dung phai NHIN THAY va sua
+  // duoc, khong phai nam sau mot cai the.
+  function mdToHtml(raw, brain, opts) {
+    var truoc = _brainForRender, truocTS = _choTrinhSua;
     _brainForRender = (brain == null || brain === "") ? null : String(brain);
+    _choTrinhSua = !!(opts && opts.trinhSua);
     try { return _mdToHtmlThan(raw); }
-    finally { _brainForRender = truoc; }
+    finally { _brainForRender = truoc; _choTrinhSua = truocTS; }
   }
   function _mdToHtmlThan(raw) {
     raw = String(raw == null ? "" : raw);
@@ -944,11 +956,16 @@
         window.open(ext.getAttribute("href"), "_blank", "noopener");
         return;
       }
+      // The artifact (mermaid/svg/html, hay khoi code dai): bam = MO PANEL XEM. Panel chi
+      // de XEM (preview + code + copy), khong phai mot editor long nhau, nen nhanh nay phai
+      // dung TRUOC chot trongTrinhSua ben duoi. Truoc 0.47.7 no dung SAU, nen trong trinh
+      // sua .md the nay chet han: bam khong ra gi ma noi dung thi da bi thu vao the -
+      // "khong mo duoc cung khong xem duoc" (chu repo bao 27/08).
+      var card = e.target.closest ? e.target.closest(".jv-art") : null;
+      if (card && card.dataset.art) { e.preventDefault(); openArtifact(card.dataset.art); return; }
       // Dang SOAN trong editor (contenteditable/.ne-wys) hoac trong khung sua file -> khong mo gi ca,
       // de nguoi dung bam anh ma sua binh thuong (tranh bung editor long nhau).
       if (trongTrinhSua(e.target)) return;
-      var card = e.target.closest ? e.target.closest(".jv-art") : null;
-      if (card && card.dataset.art) { e.preventDefault(); openArtifact(card.dataset.art); }
     });
     document.addEventListener("keydown", function (e) {
       if ((e.key === "Enter" || e.key === " ") && document.activeElement &&
