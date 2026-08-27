@@ -57,6 +57,25 @@ check("màn hẹp vẫn là drawer (side-open giữ nguyên)",
 check("trạng thái thu cột lịch sử có nhớ qua localStorage",
   cjs.indexOf('"javis_chatside_thu"') !== -1);
 
+// ---- 3. Khung HỘI THOẠI (cột phải màn chính) - thu co VÀO BÊN PHẢI ----
+check("index.html có nút thu #chatColThu và nút mở lại #chatColMo",
+  html.indexOf('id="chatColThu"') !== -1 && html.indexOf('id="chatColMo"') !== -1);
+check("CSS thu cột phải khoá vào con trực tiếp .hud-body (node chat hay bị mượn đi)",
+  css.indexOf("body.chatcol-thu .hud-body > .hud-right") !== -1);
+check("thu xong cột phải còn dải 44px",
+  /body\.chatcol-thu \.hud-body \{ grid-template-columns: 260px minmax\(0, 1fr\) 44px; \}/.test(css));
+check("thu CẢ HAI panel cùng lúc vẫn đúng lưới (44px hai bên)",
+  /body\.vault-thu\.chatcol-thu \.hud-body \{ grid-template-columns: 44px minmax\(0, 1fr\) 44px; \}/.test(css));
+check("mọi luật chatcol-thu nằm trong media min-width (mobile cột này chính là khung chat)",
+  /@media \(min-width: 861px\) \{[\s\S]*?body\.chatcol-thu \.hud-body \{/.test(css));
+check("nút thu ẩn ở màn hẹp",
+  /@media \(max-width: 860px\) \{ \.chatcol-thu-btn \{ display: none; \} \}/.test(css));
+check("icon lật gương thành panel-right",
+  css.indexOf(".chatcol-thu-btn svg, .chatcol-expand svg { transform: scaleX(-1); }") !== -1);
+check("console.js gắn handler + nhớ localStorage javis_chatcol_thu",
+  cjs.indexOf('"javis_chatcol_thu"') !== -1 && cjs.indexOf("chatColThu") !== -1
+  && cjs.indexOf("chatColMo") !== -1);
+
 // ---- cache-bust ----
 check("style.css đã bump ?v= (>= 66)",
   Number((html.match(/style\.css\?v=(\d+)/) || [])[1] || 0) >= 66);
