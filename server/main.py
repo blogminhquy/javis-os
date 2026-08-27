@@ -2572,7 +2572,11 @@ def oauth_openai_start():
 
 @app.post("/oauth/openai/poll")
 def oauth_openai_poll():
-    return openai_oauth.poll()
+    d = openai_oauth.poll()
+    if d.get("status") == "connected":
+        # Vừa đăng nhập ChatGPT xong: đèn báo não phải xanh NGAY, không chờ vòng probe.
+        connect_health.engine_reconnected("codex")
+    return d
 
 
 # Browser OAuth (Authorization Code + PKCE) - cho Workspace chặn device-code.
@@ -2591,7 +2595,10 @@ async def oauth_openai_browser_finish(request: Request):
     except Exception:
         body = {}
     callback = (body or {}).get("callback") or (body or {}).get("url") or ""
-    return openai_oauth.finish_browser(callback)
+    d = openai_oauth.finish_browser(callback)
+    if d.get("status") == "connected":
+        connect_health.engine_reconnected("codex")   # đăng nhập xong đèn xanh ngay
+    return d
 
 
 @app.post("/oauth/openai/disconnect")
@@ -2601,6 +2608,10 @@ def oauth_openai_disconnect():
         _set_main_model(cfg, "anthropic-cli", cfg["model"].get("claude_model") or "opus")
         cfgmod.write_settings(cfg)
     openai_oauth.disconnect()
+    try:
+        connect_health.probe_engines()   # ngắt chủ động → đèn đổi ngay theo Main Model mới
+    except Exception:
+        pass
     return {"ok": True}
 
 

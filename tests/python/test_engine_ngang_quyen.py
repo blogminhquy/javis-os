@@ -51,9 +51,13 @@ try:
     check("Main = OpenRouter, việc nền để trống → KHÔNG có đèn nào",
           connect_health.engines_in_use() == set())
 
+    # 0.47.4: việc nền KHÔNG còn được soi đèn, kể cả khi đặt rõ là Claude. Từ 0.43.3 việc
+    # nền có _FallbackChain (Claude chết thì tự chạy bằng bộ não chat) nên "việc nền chưa
+    # đăng nhập" không còn nghĩa là "Javis chưa dùng được" - mà banner đọc đúng nghĩa đen
+    # như vậy, và đã hai lần bắt oan máy Main Codex trong một ngày (27/08).
     _fake_settings("openrouter", "anthropic-cli")
-    check("Việc nền đặt RÕ là Claude → đèn claude sống lại",
-          connect_health.engines_in_use() == {"claude"})
+    check("Việc nền đặt rõ là Claude → vẫn KHÔNG soi đèn (banner chỉ nói về Main Model)",
+          connect_health.engines_in_use() == set())
 
     _fake_settings("openai-oauth", "openrouter")
     check("Main = ChatGPT → đèn codex; provider API không có đèn",

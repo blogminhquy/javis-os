@@ -5170,11 +5170,17 @@
     }
     .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
     .chatpage-slot{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
-    /* Mở file từ tab Thư mục: trình sửa CHIẾM CHỖ khung chat, không đè lên nó. Khung chat chỉ
-       bị display:none - node vẫn nguyên nên đóng trình sửa ra là còn đủ đoạn chat đang dở. */
+    /* Mở file từ tab Thư mục: trình sửa đứng TRÊN, khung chat VẪN Ở DƯỚI (chủ yêu cầu
+       27/08) - vừa sửa file vừa nhắn Javis được, không phải đóng trình sửa. Hội thoại
+       đang xem rút còn tối đa ~24vh (cuộn được), ô nhập giữ nguyên; câu trả lời mới vẫn
+       hiện ngay dưới. Màn hẹp không đủ chỗ xếp chồng nên giữ lối cũ: trình sửa chiếm
+       chỗ, khung chat chỉ display:none - node còn nguyên, đóng trình sửa là chat về đủ. */
     .chatpage-edit{ display:none; position:relative; flex:1 1 auto; min-height:0; }
-    .chatpage-main.edit-on > .chatpage-slot{ display:none; }
     .chatpage-main.edit-on > .chatpage-edit{ display:flex; }
+    @media (min-width:861px){
+      .chatpage-main.edit-on > .chatpage-slot{ flex:0 0 auto; min-height:0; max-height:45vh; }
+      .chatpage-main.edit-on > .chatpage-slot .transcript{ flex:0 1 auto; min-height:0; max-height:24vh; }
+    }
     /* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của
        cột chat, nên gỡ inset/z-index đi kẻo nó bung ra ngoài khung. TRỪ khi đang phóng to
        (.ne-full) - lúc đó nó cố ý phủ kín màn hình, và :not() giữ cho khối CSS này không
@@ -5192,6 +5198,8 @@
        chụp lại đúng cảnh đó. Ba việc: nút chỉ còn icon, tiêu đề cấm xuống dòng và tự cắt,
        nhãn engine nhường chỗ trước vì nó là thứ ít cần nhất trong ba. */
     @media (max-width:860px){
+      /* Màn hẹp không đủ chỗ xếp chồng trình sửa + chat → trình sửa chiếm chỗ như cũ. */
+      .chatpage-main.edit-on > .chatpage-slot{ display:none; }
       .chatpage-bar{ gap:6px; min-width:0; }
       .cp-min span{ display:none; }
       .cp-min{ padding:4px 8px; }
@@ -5260,10 +5268,11 @@
   // Đúng - cây Vault đã có sẵn tìm theo tên/nội dung, tạo file, tạo thư mục, làm mới, tô sáng
   // file đang mở. Dựng bản thứ hai là chép lại từng đó thứ rồi để hai bản trôi lệch nhau.
   // Mượn node y như cách trang này vẫn mượn #chatArea: cùng một cây, chỉ đổi chỗ đứng.
-  // ===== Trình sửa file CHIẾM CHỖ khung chat khi mở file từ tab Thư mục =====
+  // ===== Trình sửa file đứng TRÊN khung chat khi mở file từ tab Thư mục =====
   // Ở màn chính, trình sửa là lớp nổi đè lên visual não - chỗ đó rỗng nên đè là hợp lý. Ở
-  // trang Trò chuyện thì phía dưới là khung chat đang có nội dung; đè lên nó vừa chật vừa
-  // rối. Yêu cầu của chủ repo: mở file thì khung chat biến mất hẳn, chỉ còn trình sửa.
+  // trang Trò chuyện, desktop XẾP CHỒNG: trình sửa trên, khung chat rút gọn ở dưới - chủ
+  // repo đổi ý 27/08 (trước đó muốn ẩn hẳn): vừa sửa file vừa nhắn Javis về file đó.
+  // Màn hẹp vẫn ẩn hẳn khung chat vì không đủ chỗ. Xem khối CSS .chatpage-main.edit-on.
   // Vẫn MƯỢN chính #noteEditor chứ không dựng trình sửa thứ hai - cùng lý do với cây Vault.
   // `into` = khung sẽ mượn trình sửa. Bỏ trống = khung của trang Trò chuyện (#chatPageEdit).
   // Từ 0.33.4 trang Tệp tin cũng mượn chính node này (#fmEdit) thay vì bật popup riêng - một
