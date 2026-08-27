@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.47.9] - 2026-08-27
+### Thêm mới
+- **Agent chọn được model của mọi nhà cung cấp bạn đã kết nối**, không còn kẹt ở Claude và ChatGPT: thêm Gemini CLI, OpenRouter, Anthropic API, OpenAI, Google Gemini, Groq. Danh sách lấy thẳng từ trang Models nên kết nối thêm nhà là có thêm lựa chọn ngay.
+- Agent giờ chạy **đúng nhà bạn chọn** - trước đây chọn nhà khác Claude/ChatGPT thì nó vẫn lặng lẽ chạy bằng Claude. Nhà đang chọn trục trặc giữa chừng thì Javis tự lùi sang bộ não khác thay vì để agent chết lặng.
+
 ## [0.47.8] - 2026-08-27
 ### Sửa lỗi
 - **Phóng to file .md giờ phủ kín màn hình thật.** Trước đây thanh điều hướng bên trái vẫn nằm đè lên, ăn mất mép trái bài viết (tiêu đề "AGENTS.md" hiện thành "ENTS.md"). Bấm phóng to là toàn bộ màn hình dành cho nội dung; thu nhỏ lại thì thanh bên trở về như cũ.

@@ -397,21 +397,39 @@
     });
   }
 
+  // Giá trị một dòng trong ô chọn model của agent: "<provider>::<model>". Phải mang theo
+  // NHÀ chứ không chỉ tên model, vì cùng một tên có ở hai nhà (gemini-2.5-pro: Gemini CLI
+  // lẫn Gemini API; claude-*: Claude Code lẫn Anthropic API) - lưu mỗi tên là server phải
+  // đoán, mà đoán sai thì chạy nhầm nhà và nhầm cả hoá đơn.
+  const MODEL_SEP = "::";
+
   async function editAgent(a) {
-    const [sd, claudeData, codexData] = await Promise.all([
+    const [sd, st] = await Promise.all([
       api(`/skills?brain=${encodeURIComponent(brain())}`),
-      api("/provider/models?provider=anthropic-cli"),
-      api("/provider/models?provider=openai-oauth&refresh=1"),
+      api("/settings"),
     ]);
     const skills = sd.skills || [];
     const uniq = (xs) => [...new Set((xs || []).filter(Boolean))];
-    const claudeModels = uniq(claudeData.models);
-    const codexModels = uniq(codexData.models);
-    const knownModels = claudeModels.concat(codexModels);
-    const currentOnly = a && a.model && !knownModels.includes(a.model)
-      ? `<optgroup label="Model đang lưu"><option value="${esc(a.model)}">${esc(a.model)} (đang lưu)</option></optgroup>` : "";
-    const modelOptions = (label, models) => models.length
-      ? `<optgroup label="${esc(label)}">${models.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</optgroup>` : "";
+    // CÙNG nguồn với trình chọn model chính (/settings → model.providers), nên thêm nhà mới
+    // ở trang Models là ô này có ngay. Lọc `agent_ok`: server chỉ dựng nổi engine agent cho
+    // một số nhà (xem AGENT_PROVIDERS), bày thêm là hứa suông. Lọc `configured`: chưa cắm
+    // key thì chọn vào cũng không chạy.
+    const provs = ((st.model || {}).providers || []).filter(p => p.agent_ok && p.configured);
+    // Danh sách LIVE cho nhà có catalog rỗng/đổi liên tục (Codex, Gemini CLI, Groq...).
+    // Hỏng một nhà thì chỉ nhà đó rơi về catalog, không kéo cả ô chọn chết theo.
+    const live = await Promise.all(provs.map(p =>
+      api(`/provider/models?provider=${encodeURIComponent(p.id)}` + (p.id === "openai-oauth" ? "&refresh=1" : ""))
+        .then(d => uniq(d.models)).catch(() => [])));
+    const nhom = provs.map((p, i) => ({ id: p.id, label: p.label, models: uniq(live[i].concat(p.models || [])) }))
+                      .filter(g => g.models.length);
+    const val = (pid, m) => pid + MODEL_SEP + m;
+    // Agent đang lưu một model không còn trong danh sách nào (nhà đã ngắt key, model bị gỡ):
+    // vẫn bày ra để mở form lên KHÔNG âm thầm đổi model của agent thành "Mặc định".
+    const dangCo = a && a.model && !nhom.some(g => (!a.model_provider || g.id === a.model_provider) && g.models.includes(a.model));
+    const currentOnly = dangCo
+      ? `<optgroup label="Model đang lưu"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} (đang lưu)</option></optgroup>` : "";
+    const modelOptions = (g) =>
+      `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
     const box = document.getElementById("editorBox");
     box.innerHTML = `<h3>${a ? "Sửa" : "Tạo"} Agent</h3>
       <label>Tên</label><input id="agName" value="${esc(a ? a.name : "")}">
@@ -425,14 +443,24 @@
         <div class="sp-groups" id="skillPick"></div>
       </div>` : '<div class="skill-pick"><span class="dim">Vault chưa có skill trong skills/ - vẫn tạo agent được, gán skill sau.</span></div>'}
       <label>Model</label><select id="agModel">
-        <option value="">Mặc định (theo CLI)</option>
+        <option value="">Mặc định (theo model việc nền)</option>
         ${currentOnly}
-        ${modelOptions("Claude (Claude Code)", claudeModels)}
-        ${modelOptions("ChatGPT (Codex - danh sách live)", codexModels)}
+        ${nhom.map(modelOptions).join("")}
       </select>
-      <div class="dim" style="font-size:12px;margin-top:4px">Agent chạy qua CLI của nhà cung cấp. Model ChatGPT được lấy trực tiếp từ Codex nên bản mới sẽ tự xuất hiện; chọn Mặc định để Codex tự dùng model mặc định mới nhất. Cả hai đều đọc/ghi file vault + dùng MCP.</div>
+      <div class="dim" style="font-size:12px;margin-top:4px">${nhom.length
+        ? "Danh sách lấy từ chính các nhà cung cấp bạn đã kết nối ở trang Models, nên kết nối thêm là có thêm lựa chọn ở đây. Model nào cũng đọc/ghi file vault và dùng MCP; riêng Claude Code và ChatGPT (Codex) có thêm lệnh máy và tự mở web. Nhà đã chọn trục trặc lúc chạy thì Javis tự lùi sang bộ não khác thay vì để agent chết lặng."
+        : "Chưa kết nối nhà cung cấp nào chạy được agent - vào trang Models kết nối trước, rồi quay lại đây chọn model."}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">Huỷ</button><button class="s-btn" id="saveAg">Lưu</button></div>`;
-    if (a && a.model) box.querySelector("#agModel").value = a.model;
+    if (a && a.model) {
+      const sel = box.querySelector("#agModel");
+      sel.value = val(a.model_provider || "", a.model);
+      // Agent CŨ lưu mỗi tên model (chưa có trường nhà): dò dòng đầu tiên trùng tên để form
+      // mở lên vẫn hiện đúng model đang chạy, thay vì nhảy về "Mặc định" rồi bấm Lưu là mất.
+      if (!sel.value) {
+        const hit = [...sel.options].find(o => o.value.split(MODEL_SEP).slice(1).join(MODEL_SEP) === a.model);
+        if (hit) sel.value = hit.value;
+      }
+    }
     // Trạng thái chọn giữ trong Set, DOM chỉ là HÌNH CHIẾU của nó. Đây là chỗ dễ hỏng nhất của
     // khung có bộ lọc: vẽ lại theo bộ lọc rồi lúc lưu mới đi đọc DOM thì mọi skill đang bị lọc
     // ra khỏi màn hình sẽ mất tick, im lặng, và người dùng chỉ phát hiện sau khi agent chạy sai.
@@ -442,7 +470,11 @@
     box.querySelector("#saveAg").onclick = async () => {
       const name = box.querySelector("#agName").value.trim(); if (!name) return alert("Nhập tên");
       const sk = [...chosen].join(",");
-      await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value, prompt: box.querySelector("#agPrompt").value, skills: sk, model: box.querySelector("#agModel").value, slug: a ? a.slug : "", brain: brain() }) });
+      const raw = box.querySelector("#agModel").value;
+      const cut = raw.indexOf(MODEL_SEP);
+      const mProv = cut === -1 ? "" : raw.slice(0, cut);
+      const mName = cut === -1 ? raw : raw.slice(cut + MODEL_SEP.length);
+      await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value, prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv, slug: a ? a.slug : "", brain: brain() }) });
       editor.classList.remove("open"); loadAgents();
     };
     editor.classList.add("open");
