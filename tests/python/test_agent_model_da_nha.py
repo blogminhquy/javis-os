@@ -41,19 +41,20 @@ def check(name: str, condition: bool, extra=None) -> None:
 # Đây là luật chống hứa suông. Thêm nhà vào AGENT_PROVIDERS mà aux_engine chưa dựng nổi
 # engine cho nó thì test này đỏ NGAY, thay vì để người dùng phát hiện bằng một agent chạy
 # sai nhà trong im lặng.
-dung_duoc = {aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.GEMINI_CLI} | set(aux_engine.API_PROVIDERS)
+dung_duoc = {aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.GEMINI_CLI,
+             aux_engine.ANTIGRAVITY} | set(aux_engine.API_PROVIDERS)
 check("mọi nhà trong AGENT_PROVIDERS đều có bộ dựng engine ở aux_engine",
       set(main.AGENT_PROVIDERS) <= dung_duoc,
       sorted(set(main.AGENT_PROVIDERS) - dung_duoc))
 check("có đủ cả CLI lẫn API (không còn chỉ Claude + ChatGPT)",
       len(main.AGENT_PROVIDERS) >= 7, len(main.AGENT_PROVIDERS))
-for p in ("anthropic-cli", "openai-oauth", "gemini-cli", "openrouter",
+for p in ("anthropic-cli", "openai-oauth", "gemini-cli", "antigravity-cli", "openrouter",
           "anthropic-api", "openai", "gemini", "groq"):
     check(f"có nhà {p}", p in main.AGENT_PROVIDERS)
-# Hai nhà aux_engine CHƯA dựng được: bày ra là agent lặng lẽ chạy Claude.
-for p in ("antigravity-cli", "ollama"):
-    check(f"KHÔNG bày {p} (aux_engine chưa dựng được engine cho nó)",
-          p not in main.AGENT_PROVIDERS)
+# Ollama: aux_engine CHƯA dựng được engine (không có trong API_PROVIDERS lẫn bộ dựng CLI).
+# Bày ra là agent lặng lẽ chạy Claude - đúng thứ file này sinh ra để chặn.
+check("KHÔNG bày ollama (aux_engine chưa dựng được engine cho nó)",
+      "ollama" not in main.AGENT_PROVIDERS)
 
 # Giao diện Studio lọc theo cờ này, nên nó phải nói đúng AGENT_PROVIDERS.
 view = {p["id"]: p for p in main._providers_view(main.cfgmod.read_settings())}
@@ -101,6 +102,10 @@ try:
     nhan.clear()
     mk("x", "gemini-2.5-pro", "gemini-cli")
     check("Gemini CLI cũng đi qua aux_engine", nhan.get("provider") == "gemini-cli", nhan)
+
+    nhan.clear()
+    mk("x", "claude-sonnet-4-5", "antigravity-cli")
+    check("Antigravity CLI cũng đi qua aux_engine", nhan.get("provider") == "antigravity-cli", nhan)
 
     nhan.clear()
     cli2 = mk("x", "opus", "anthropic-cli")

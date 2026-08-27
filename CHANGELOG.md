@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.48.0] - 2026-08-27
+### Thêm mới
+- **Gửi thẳng ảnh cho ChatGPT xem khi tạo ảnh.** Trước đây Javis chỉ tả lại ảnh của bạn bằng lời rồi để AI vẽ theo, nên sản phẩm, nhãn hay khuôn mặt không bao giờ giống bản gốc. Giờ đưa ảnh rồi bảo "dựng theo ảnh này" là ChatGPT nhìn thấy chính tấm ảnh đó (tối đa 4 ảnh một lượt).
+- **Agent chọn được thêm Antigravity CLI**, đủ 9 nhà cung cấp.
+
 ## [0.47.9] - 2026-08-27
 ### Thêm mới
 - **Agent chọn được model của mọi nhà cung cấp bạn đã kết nối**, không còn kẹt ở Claude và ChatGPT: thêm Gemini CLI, OpenRouter, Anthropic API, OpenAI, Google Gemini, Groq. Danh sách lấy thẳng từ trang Models nên kết nối thêm nhà là có thêm lựa chọn ngay.

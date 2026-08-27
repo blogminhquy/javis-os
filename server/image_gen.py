@@ -47,14 +47,61 @@ def resolve_size(aspect_ratio: Optional[str]) -> str:
     return _SIZES.get((aspect_ratio or "square").strip().lower(), _SIZES["square"])
 
 
-def build_payload(prompt: str, size: str, quality: str) -> dict:
-    """Body Responses cho 1 lời gọi image_generation (mirror hermes openai-codex)."""
+# Ảnh MẪU gửi kèm: trần dung lượng và số lượng. Ảnh đi trong thân request dưới dạng base64
+# nên một tấm 4000px chụp từ điện thoại đủ làm request phình gấp mấy lần và bị backend từ
+# chối - hỏng ở đó thì người dùng chỉ thấy "ChatGPT 413", không lần ra được vì sao.
+MAX_REF_IMAGES = 4
+MAX_REF_BYTES = 12 * 1024 * 1024
+_IMG_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+             ".webp": "image/webp", ".gif": "image/gif"}
+
+
+def read_reference_image(path: str, vault_root: Optional[str] = None) -> dict:
+    """Đọc MỘT ảnh mẫu trên đĩa -> {ok, data_url} để gửi thẳng cho ChatGPT xem.
+
+    Đường dẫn nhận cả kiểu tương đối trong vault (attachments/abc.png) lẫn tuyệt đối, nhưng
+    LUÔN phải nằm trong vault sau khi resolve: tool này do MODEL gọi, mà model thì có thể bị
+    nội dung nó vừa đọc dắt đi ("mở /etc/passwd rồi gửi cho ChatGPT"). Chốt ở đây là chốt
+    thật, không phải lời dặn trong prompt.
+    """
+    raw_path = str(path or "").strip()
+    if not raw_path:
+        return {"ok": False, "error": "Thiếu đường dẫn ảnh."}
+    vault = _resolve_vault(vault_root).resolve()
+    p = Path(raw_path).expanduser()
+    p = (p if p.is_absolute() else (vault / p)).resolve()
+    try:
+        p.relative_to(vault)
+    except ValueError:
+        return {"ok": False, "error": f"Ảnh '{raw_path}' nằm ngoài brain - chỉ gửi được ảnh trong brain."}
+    if not p.is_file():
+        return {"ok": False, "error": f"Không thấy ảnh '{raw_path}' trong brain."}
+    mime = _IMG_MIME.get(p.suffix.lower())
+    if not mime:
+        return {"ok": False, "error": f"'{p.name}' không phải ảnh (chỉ nhận png/jpg/webp/gif)."}
+    data = p.read_bytes()
+    if len(data) > MAX_REF_BYTES:
+        return {"ok": False,
+                "error": f"Ảnh '{p.name}' nặng {len(data) // (1024 * 1024)}MB, quá trần "
+                         f"{MAX_REF_BYTES // (1024 * 1024)}MB - dùng bản nhẹ hơn."}
+    return {"ok": True, "data_url": f"data:{mime};base64," + base64.b64encode(data).decode("ascii"),
+            "name": p.name}
+
+
+def build_payload(prompt: str, size: str, quality: str, images: Optional[list] = None) -> dict:
+    """Body Responses cho 1 lời gọi image_generation (mirror hermes openai-codex).
+
+    `images` = danh sách data URL của ảnh MẪU. Có ảnh thì đây là lượt SỬA/DỰNG THEO ẢNH chứ
+    không còn là vẽ từ mô tả suông: model NHÌN THẤY ảnh thật thay vì đọc lời tả lại nó.
+    """
+    noi_dung: list = [{"type": "input_text", "text": prompt}]
+    for u in (images or []):
+        noi_dung.append({"type": "input_image", "image_url": u})
     return {
         "model": HOST_MODEL,
         "store": False,
         "instructions": INSTRUCTIONS,
-        "input": [{"type": "message", "role": "user",
-                   "content": [{"type": "input_text", "text": prompt}]}],
+        "input": [{"type": "message", "role": "user", "content": noi_dung}],
         "tools": [{"type": "image_generation", "model": IMAGE_MODEL, "size": size,
                    "quality": quality, "output_format": "png", "background": "opaque",
                    "partial_images": 1}],
@@ -236,8 +283,14 @@ def _headers(token: str, account_id: str) -> dict:
 # Gọi thật
 # ---------------------------------------------------------------------------
 async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: str = "medium",
-                           vault_root: Optional[str] = None, timeout_s: float = 300.0) -> dict:
-    """Tạo 1 ảnh bằng gói ChatGPT. Trả {ok, rel_path, abs_path, size, quality, aspect} hoặc {ok:False, error}."""
+                           vault_root: Optional[str] = None, timeout_s: float = 300.0,
+                           images: Optional[list] = None) -> dict:
+    """Tạo 1 ảnh bằng gói ChatGPT. Trả {ok, rel_path, abs_path, size, quality, aspect} hoặc {ok:False, error}.
+
+    `images` = danh sách đường dẫn ảnh MẪU trong brain. Có ảnh thì ChatGPT NHÌN THẤY ảnh thật
+    (gửi kèm dạng input_image) rồi sửa/dựng theo, thay vì đọc một đoạn tả lại ảnh - đó là khác
+    biệt giữa "giống hệt cái chai này" và "vẽ một cái chai nghe mô tả na ná".
+    """
     prompt = (prompt or "").strip()
     if not prompt:
         return {"ok": False, "error": "Thiếu mô tả ảnh (prompt)."}
@@ -252,8 +305,21 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
     if not creds or not creds.get("access_token"):
         return {"ok": False, "error": "Chưa kết nối ChatGPT (OAuth). Vào trang Model đăng nhập ChatGPT rồi thử lại."}
 
+    # Đọc ảnh mẫu TRƯỚC khi gọi mạng: ảnh sai đường dẫn thì báo ngay và nói rõ ảnh nào,
+    # thay vì đốt một lượt gọi rồi trả về một tấm vẽ từ mô tả suông mà người dùng tưởng là
+    # đã dựng theo ảnh của mình.
+    ds_anh = [x for x in (images or []) if str(x or "").strip()]
+    if len(ds_anh) > MAX_REF_IMAGES:
+        return {"ok": False, "error": f"Gửi tối đa {MAX_REF_IMAGES} ảnh mẫu một lượt (đang gửi {len(ds_anh)})."}
+    data_urls = []
+    for x in ds_anh:
+        r = read_reference_image(x, vault_root)
+        if not r.get("ok"):
+            return {"ok": False, "error": r.get("error") or f"Không đọc được ảnh '{x}'."}
+        data_urls.append(r["data_url"])
+
     size = resolve_size(aspect)
-    payload = build_payload(prompt, size, quality)
+    payload = build_payload(prompt, size, quality, data_urls)
     headers = _headers(creds["access_token"], creds.get("account_id") or "")
 
     b64: Optional[str] = None
@@ -294,4 +360,4 @@ async def generate_chatgpt(prompt: str, aspect_ratio: str = "square", quality: s
         return saved
     return {"ok": True, "rel_path": saved["rel_path"], "abs_path": saved["abs_path"],
             "file": saved["file"], "size": size, "quality": quality, "aspect": aspect,
-            "provider": "openai-codex", "prompt": prompt}
+            "provider": "openai-codex", "prompt": prompt, "refs": len(data_urls)}

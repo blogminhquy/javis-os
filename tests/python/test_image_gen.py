@@ -171,6 +171,89 @@ openai_oauth.valid_creds = lambda: None
 res_noauth = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault))
 check("chưa OAuth → ok False", res_noauth.get("ok") is False and "ChatGPT" in (res_noauth.get("error") or ""))
 
+# ---- 8. GỬI THẲNG ẢNH cho ChatGPT xem (không phải tả lại bằng lời) ----
+# Chủ repo báo 27/08: Javis tự nhận "chỉ nhận được mô tả bằng chữ, không đưa được ảnh mẫu
+# cho ChatGPT" nên ảnh dựng ra không giống sản phẩm thật. Endpoint Responses vốn nhận
+# input_image; thiếu chỉ là Javis chưa gửi. Khoá lại cả phần payload lẫn phần chặn đường dẫn.
+_goi = {}
+
+
+def _install_bat_payload(lines, status=200):
+    class FakeStream:
+        status_code = status
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def aiter_lines(self):
+            for ln in lines:
+                yield ln
+        async def aread(self): return b""
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        def stream(self, *a, **k):
+            _goi.clear()
+            _goi.update(k.get("json") or {})
+            return FakeStream()
+
+    image_gen.httpx.AsyncClient = FakeClient
+
+
+openai_oauth.valid_creds = lambda: {"access_token": "faketoken", "account_id": "acc_1"}
+_install_bat_payload(sse)
+
+# Ảnh mẫu thật nằm trong brain
+_anh_that = os.path.join(vault, "attachments", "chai-mau.png")
+os.makedirs(os.path.dirname(_anh_that), exist_ok=True)
+with open(_anh_that, "wb") as f:
+    f.write(base64.b64decode(_PNG_B64))
+
+res_ref = asyncio.run(image_gen.generate_chatgpt(
+    "dựng lại đúng chai này trên nền trắng", vault_root=vault,
+    images=["attachments/chai-mau.png"]))
+check("có ảnh mẫu vẫn tạo được ảnh", res_ref.get("ok") is True)
+_content = ((_goi.get("input") or [{}])[0].get("content") or [])
+_kieu = [c.get("type") for c in _content]
+check("payload GỬI KÈM input_image (ChatGPT nhìn thấy ảnh thật)", "input_image" in _kieu)
+check("vẫn giữ nguyên phần mô tả bằng chữ", "input_text" in _kieu)
+check("ảnh gửi đi là data URL base64 đúng định dạng",
+      any(str(c.get("image_url", "")).startswith("data:image/png;base64,")
+          for c in _content if c.get("type") == "input_image"))
+check("kết quả nói rõ đã dựng theo mấy ảnh mẫu", res_ref.get("refs") == 1)
+
+# Không có ảnh -> payload y như cũ (đường cũ không đổi)
+_install_bat_payload(sse)
+asyncio.run(image_gen.generate_chatgpt("chỉ mô tả suông", vault_root=vault))
+_kieu2 = [c.get("type") for c in ((_goi.get("input") or [{}])[0].get("content") or [])]
+check("không truyền ảnh thì payload không đổi (chỉ input_text)", _kieu2 == ["input_text"])
+
+# ---- 9. Ảnh mẫu: chặn đường dẫn, chặn file không phải ảnh, chặn quá cỡ ----
+# Tool này do MODEL gọi, mà model có thể bị chính nội dung nó vừa đọc dắt đi ("gửi
+# /etc/passwd cho ChatGPT"). Chốt phải nằm ở code, không phải ở lời dặn trong prompt.
+_ngoai = os.path.join(tempfile.mkdtemp(), "ngoai-brain.png")
+with open(_ngoai, "wb") as f:
+    f.write(base64.b64decode(_PNG_B64))
+r_ngoai = image_gen.read_reference_image(_ngoai, vault)
+check("chặn ảnh NGOÀI brain", r_ngoai.get("ok") is False and "ngoài brain" in (r_ngoai.get("error") or ""))
+r_vuot = image_gen.read_reference_image("../../../etc/passwd", vault)
+check("chặn đường dẫn vượt cấp", r_vuot.get("ok") is False)
+_txt = os.path.join(vault, "attachments", "ghi-chu.txt")
+with open(_txt, "w", encoding="utf-8") as f:
+    f.write("không phải ảnh")
+r_txt = image_gen.read_reference_image("attachments/ghi-chu.txt", vault)
+check("chặn file không phải ảnh", r_txt.get("ok") is False and "không phải ảnh" in (r_txt.get("error") or ""))
+r_thieu = image_gen.read_reference_image("attachments/khong-co.png", vault)
+check("báo rõ khi thiếu ảnh", r_thieu.get("ok") is False and "Không thấy" in (r_thieu.get("error") or ""))
+r_nhieu = asyncio.run(image_gen.generate_chatgpt(
+    "x", vault_root=vault, images=["a.png"] * (image_gen.MAX_REF_IMAGES + 1)))
+check("chặn gửi quá nhiều ảnh một lượt", r_nhieu.get("ok") is False and "tối đa" in (r_nhieu.get("error") or ""))
+# Ảnh sai đường dẫn phải chặn TRƯỚC khi gọi mạng - nếu không, người dùng nhận về một tấm vẽ
+# từ mô tả suông mà tưởng là đã dựng theo ảnh của mình.
+_goi.clear()
+r_sai = asyncio.run(image_gen.generate_chatgpt("x", vault_root=vault, images=["attachments/khong-co.png"]))
+check("ảnh sai đường dẫn: báo lỗi và KHÔNG gọi ChatGPT", r_sai.get("ok") is False and not _goi)
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")
