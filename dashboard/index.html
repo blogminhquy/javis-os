@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=70">
+  <link rel="stylesheet" href="/static/style.css?v=71">
   <link rel="stylesheet" href="/static/console.css?v=46">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -152,8 +152,28 @@
           <button class="noti-close" id="notificationClose" type="button" aria-label="Đóng">×</button>
         </div>
       </div>
+      <!-- Hai tab: thư RIÊNG của người dùng và tin PHÁT CHUNG. Gộp một danh sách thì kết quả
+           công việc thật bị chôn dưới mấy dòng changelog, mà đó mới là thứ cần đọc ngay. -->
+      <div class="noti-tabs" role="tablist">
+        <button class="noti-tab active" id="notiTabMine" type="button" role="tab" aria-selected="true">
+          Của tôi<span class="noti-tab-count" id="notiTabMineCount" hidden>0</span>
+        </button>
+        <button class="noti-tab" id="notiTabNews" type="button" role="tab" aria-selected="false">
+          Tin tức<span class="noti-tab-count" id="notiTabNewsCount" hidden>0</span>
+        </button>
+      </div>
       <div class="noti-list" id="notificationList">
         <div class="noti-loading">Đang tải thông báo…</div>
+      </div>
+      <!-- Công tắc thông báo đẩy. Ẩn khi trình duyệt/ngữ cảnh không cho (http trần, iOS chưa
+           cài PWA) và nói LÝ DO thay vì để một cái nút bấm không lên. -->
+      <div class="noti-push" id="notificationPush" hidden>
+        <div class="noti-push-main">
+          <span class="noti-push-title">Thông báo đẩy</span>
+          <span class="noti-push-note" id="notificationPushNote">Báo cả khi bạn không mở Javis</span>
+        </div>
+        <button class="noti-text-btn" id="notificationPushTest" type="button" hidden>Gửi thử</button>
+        <button class="noti-text-btn primary" id="notificationPushToggle" type="button">Bật</button>
       </div>
       <div class="noti-foot">
         <button class="noti-text-btn" id="notificationRefresh" type="button">↻ Làm mới</button>
@@ -764,7 +784,7 @@
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=1"></script>
   <script src="/static/chat-marks.js?v=1"></script>
-  <script src="/static/app.js?v=94"></script>
+  <script src="/static/app.js?v=95"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=6"></script>
@@ -784,7 +804,8 @@
   <script src="/static/console.js?v=118"></script>
   <script src="/static/mobile-chat.js?v=6"></script>
   <script src="/static/brain-view.js?v=1"></script>
-  <script src="/static/notifications.js?v=1"></script>
+  <script src="/static/push.js?v=1"></script>
+  <script src="/static/notifications.js?v=2"></script>
   <!-- (Nút đổi tông TỐI ↔ SÁNG: theme.js đã nạp ở đầu khối script phía trên) -->
   <!-- Alpine self-host (dashboard/vendor): bản unpkg đo được 2.1s lúc first load + chết khi offline -->
   <script defer src="/static/vendor/alpinejs-3.14.1.min.js?v=1"></script>

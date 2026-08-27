@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.49.0] - 2026-08-27
+### Thêm mới
+- **Hòm thư trên chuông Thông báo.** Giao việc cho Javis xong không phải ngồi canh nữa: mỗi kết quả chạy nền, báo cáo định kỳ và nhắc hẹn đều để lại một mẩu thư. Bấm vào là **quay về đúng hội thoại đã hỏi**, không mở thread mới. Panel chia hai tab: Của tôi và Tin tức.
+- **Thông báo đẩy trên trình duyệt.** Bật một lần trong hòm thư, sau đó có kết quả là máy báo ngay cả khi bạn đã đóng Javis. Bấm vào thông báo là mở thẳng mẩu thư đó. Cần https (hoặc localhost); trên iPhone phải thêm Javis vào Màn hình chính trước.
+- **Nhắc hẹn không còn bắt buộc phải có Telegram.** Trước đây chưa đấu bot thì Javis chặn không cho tạo, vì kết quả sẽ rơi vào hư không. Giờ hòm thư luôn nhận nên cứ tạo thoải mái; đấu Telegram giờ chỉ để nhận thêm trên điện thoại.
+
 ## [0.48.3] - 2026-08-27
 ### Cải thiện
 - **Bỏ nút loa trên thanh tiêu đề.** Cùng một công tắc giọng mà có tới ba chỗ bấm, giờ giữ đúng nút loa ngay trên thanh nhập chat - nơi tay bạn đang ở sẵn. Công tắc trong Cài đặt nhanh vẫn còn và vẫn đồng bộ.
