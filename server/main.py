@@ -11465,7 +11465,7 @@ async def _bot_tra_loi(text, *, sess, sysprompt, prov, api_key, api_model, reaso
     Vì sao không đi theo bốn nhánh engine như đường chat của chủ:
 
     1. **Để đổi bộ não không đổi trải nghiệm.** Đó là lời hứa gốc của Javis. Đi bốn nhánh thì
-       Claude Code có Bash, Codex có kho MCP riêng, engine API bị trần 8 vòng gọi tool - ba
+       Claude Code có Bash, Codex có kho MCP riêng, engine API bị trần vòng gọi tool - ba
        kiểu hành xử khác nhau cho cùng một con bot, và chủ đổi model là khách thấy khác ngay.
        Ở đây mọi engine nhận CÙNG system prompt, CÙNG tài liệu, CÙNG lịch sử, và đều không có
        tool. Khác biệt còn lại đúng bằng khác biệt giữa các model, không phải giữa các đường ống.
