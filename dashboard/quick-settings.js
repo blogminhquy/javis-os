@@ -1,6 +1,7 @@
 /* quick-settings.js - công tắc BẬT/TẮT đọc trả lời bằng giọng (nhớ qua reload).
-   Đồng bộ 3 chiều: nút loa header (#ttsToggle) ↔ công tắc sidebar (#qsTts) ↔ nút loa trên
-   khung chat (#ttsToggleBar). Tách riêng để không đụng app.js. */
+   Đồng bộ 2 chiều: công tắc trong Cài đặt nhanh (#qsTts) ↔ nút loa trên thanh nhập chat
+   (#ttsToggleBar). Tách riêng để không đụng app.js.
+   Nút loa ở header (#ttsToggle) đã bỏ ở 0.48.3 - ba chỗ bấm cho cùng một công tắc là thừa. */
 (function () {
   "use strict";
   function $(id) { return document.getElementById(id); }
@@ -9,10 +10,9 @@
   function isOff() { return localStorage.getItem("javis.ttsEnabled") !== "1"; }
   function persist(on) { try { localStorage.setItem("javis.ttsEnabled", on ? "1" : "0"); } catch (e) {} }
 
-  // Cập nhật MỌI chỗ hiển thị trạng thái đọc-giọng (header + sidebar + nút trên khung chat).
+  // Cập nhật MỌI chỗ hiển thị trạng thái đọc-giọng (Cài đặt nhanh + nút trên thanh nhập).
   function reflect(on) {
     var qs = $("qsTts"); if (qs) qs.checked = on;
-    var hdr = $("ttsToggle"); if (hdr) hdr.classList.toggle("muted", !on);
     var bar = $("ttsToggleBar");
     if (bar) { bar.classList.toggle("muted", !on); bar.title = on ? "Tắt giọng đọc" : "Bật giọng đọc"; }
   }
@@ -33,15 +33,6 @@
     // Nút loa trên khung chat: bấm là bật/tắt luôn (đi qua khung chat / màn Javis đều thấy).
     var bar = $("ttsToggleBar");
     if (bar) bar.addEventListener("click", function () { applyState(isOff()); });   // đang OFF → bật, đang ON → tắt
-
-    // Nút loa header: app.js đã tự flip voice.ttsEnabled + class muted → ta chỉ đồng bộ lại + lưu.
-    var hdr = $("ttsToggle");
-    if (hdr) hdr.addEventListener("click", function () {
-      setTimeout(function () {
-        var nowOn = !hdr.classList.contains("muted");
-        persist(nowOn); reflect(nowOn);
-      }, 0);
-    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);

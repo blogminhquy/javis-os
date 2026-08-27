@@ -78,7 +78,8 @@
         if (!moved.length) {
           moveEl(document.querySelector(".navbar-brain"), false);
           moveEl(document.getElementById("themeToggle"), true);
-          moveEl(document.getElementById("ttsToggle"), true);
+          // Nút loa header đã bỏ (0.48.3) - trên màn hẹp giọng bật/tắt bằng nút loa ngay
+          // trên thanh nhập chat (#ttsToggleBar), gần tay hơn hẳn nhóm "Hệ thống" trong rail.
           moveEl(document.getElementById("sysBar"), false);
         }
       } else if (moved.length) {
