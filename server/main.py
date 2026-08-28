@@ -11349,6 +11349,92 @@ _TG_SESS = {}
 # resolve tên -> path. Ghi STATE_DIR/tg_brain.json (server state, gitignored, xuyên brain).
 _TG_BRAIN_PATH = cfgmod.STATE_DIR / "tg_brain.json"
 
+# Map BỀN chat_id -> id phiên hội thoại, sống sót qua restart. Cùng lý do tồn tại với
+# _TG_BRAIN_MAP ngay trên, và chữa một lỗi người dùng báo thẳng (28/08/2026):
+#
+#   "mỗi lần update bản mới bấm nút update thì bên telegram nó mất hết ký ức, quên sạch mọi
+#    thứ, từ cách xưng hô tới quy trình đặt tên file. Còn ở localhost thì bình thường."
+#
+# Đúng như vậy, và đây là chỗ hỏng: `sess["sid"]` chỉ sống trong `_TG_SESS` (RAM), nên restart
+# là mất liên kết chat -> hội thoại, lượt kế đẻ một phiên TRỐNG. Bản ghi cũ vẫn nằm nguyên
+# trong SQLite, chỉ là không còn ai nối vào. Dashboard không dính vì trình duyệt giữ
+# `session_id` và gửi kèm mỗi request; Telegram thì không có ai giữ hộ.
+#
+# Lý do cũ ghi trong docstring `_tg_conv_sid` ("restart là mạch ngữ cảnh đã mất rồi") chỉ đúng
+# với MẠCH NATIVE của engine CLI. Nó KHÔNG đúng với bản ghi hội thoại: transcript nằm trong
+# SQLite, sống sót qua restart, và đó mới là thứ dựng lại ngữ cảnh - đúng cách dashboard vẫn
+# làm cho cả engine CLI lẫn engine API.
+_TG_SID_PATH = cfgmod.STATE_DIR / "tg_sid.json"
+
+
+def _tg_load_sid_map() -> dict:
+    try:
+        if _TG_SID_PATH.exists():
+            d = json.loads(_TG_SID_PATH.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return {str(k): str(v) for k, v in d.items()}
+    except Exception:
+        pass
+    return {}
+
+
+_TG_SID_MAP = _tg_load_sid_map()
+
+
+def _tg_save_sid_map() -> None:
+    try:
+        _atomic_write_text(_TG_SID_PATH, json.dumps(_TG_SID_MAP, ensure_ascii=False, indent=2))
+    except Exception as e:
+        import sys
+        print(f"[tg sid map write] {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _tg_nho_sid(sess, sid: str) -> None:
+    """Ghi nhớ chat này đang ở phiên nào, để restart xong còn nối lại."""
+    key = str(sess.get("key") or "")
+    if not key or not sid or _TG_SID_MAP.get(key) == sid:
+        return
+    _TG_SID_MAP[key] = sid
+    _tg_save_sid_map()
+
+
+def _tg_quen_sid(sess) -> None:
+    """Bỏ liên kết bền (đổi brain, /reset). Không xoá bản ghi hội thoại, chỉ thôi nối vào nó."""
+    key = str(sess.get("key") or "")
+    if key and _TG_SID_MAP.pop(key, None) is not None:
+        _tg_save_sid_map()
+
+
+# Bốn engine tự giữ mạch hội thoại trong đối tượng nằm ở `sess`. Gom thành MỘT bảng vì mỗi
+# chỗ tự liệt kê tay là có ngày sót một cái: nhánh đổi provider đã sót `cli` một thời gian, và
+# `antigravity` thì sót ở cả ba chỗ.
+_TG_ENGINE_MACH = (("cli", "cli"), ("codex", "codex"), ("grok-cli", "grok"),
+                   ("antigravity-cli", "antigravity"))
+
+
+def _tg_ngat_mach(sess, tru=None):
+    """Cắt liên kết mạch native của các engine trong phiên, GIỮ nguyên đối tượng engine.
+
+    `tru` = nhãn engine được tha (dùng khi engine khác vừa chen một lượt: engine ĐANG chạy
+    không việc gì phải mất mạch). Không truyền thì cắt sạch - đúng ý /reset và đổi brain.
+
+    Giữ đối tượng lại vì cwd/instructions vẫn dùng được; lượt sau của engine đó tự mồi lại từ
+    kho phiên (xem `_tg_lich_su_kho`).
+    """
+    for nhan, khoa in _TG_ENGINE_MACH:
+        if nhan == tru or sess.get(khoa) is None:
+            continue
+        try:
+            obj = sess[khoa]
+            # Dùng API công khai khi engine có (Claude Code), rơi về gán thẳng cho engine
+            # chưa có - khỏi phải rẽ nhánh theo tên engine ở đây.
+            if hasattr(obj, "reset_session"):
+                obj.reset_session()
+            else:
+                obj.session_id = None
+        except Exception:
+            sess[khoa] = None
+
 
 def _tg_load_brain_map() -> dict:
     try:
@@ -11380,6 +11466,10 @@ def _tg_session(chat_id):
         s = {
             "cli": None, "codex": None, "or": None,
             "last": None, "sent": set(), "brain": None,
+            # Khoá của chính phiên này. `_tg_conv_sid` cần nó để đọc/ghi map BỀN chat -> sid
+            # mà không phải đổi chữ ký ở mọi chỗ gọi (khoá có thể là chat_id, hoặc
+            # "bot:<id>:<chat>" với bot chuyên trách).
+            "key": key,
         }
         _TG_SESS[key] = s
     return s
@@ -11414,12 +11504,11 @@ def _tg_set_brain(chat_id, brain_path):
         _tg_save_brain_map()
     except Exception:
         pass
-    if sess.get("cli"):
-        sess["cli"].reset_session()
-    sess["codex"] = None
+    _tg_ngat_mach(sess)    # cả bốn engine, không riêng Claude Code + Codex như bản cũ
     sess["or"] = None
     sess["last"] = None
     sess["sid"] = None     # brain khác = hội thoại khác → mở phiên mới trong kho, đừng trộn
+    _tg_quen_sid(sess)     # ...và cắt cả liên kết BỀN, kẻo restart xong lại nối về brain cũ
 
 
 def _tg_chat_busy(chat) -> bool:
@@ -11492,15 +11581,32 @@ _TG_CONV_ARCHIVE_DAYS = 30       # phiên Telegram nguội quá ngần này → 
 def _tg_conv_sid(store, sess, brain, engine_label, model):
     """Phiên kho cho lượt Telegram này, tự xoay theo hai ngưỡng trên.
 
-    sess['sid'] sống theo RAM giống sess['cli']/['or']/['codex'] - restart server là mạch ngữ
-    cảnh đã mất rồi, nên mở phiên mới mới đúng, chứ không nối tiếp phiên cụt. Đổi brain và
-    /reset đã tự đặt sess['sid'] = None ở chỗ khác nên ở đây không phải xét lại.
+    sess['sid'] chỉ sống trong RAM, nên sau restart phải hỏi lại map BỀN `_TG_SID_MAP` (lý do
+    đầy đủ ở chú thích `_TG_SID_PATH`) mới nối được vào đúng bản ghi cũ. Trước 0.50.1 chỗ này
+    CỐ Ý mở phiên mới sau restart với lý do "restart là mạch ngữ cảnh đã mất rồi" - lý do đó
+    chỉ đúng với MẠCH NATIVE của engine CLI; bản ghi hội thoại thì nằm trong SQLite và còn
+    nguyên, nên người dùng Telegram đang trả giá bằng việc mất sạch ngữ cảnh mỗi lần cập nhật.
+
+    Nối lại xong vẫn đi qua ĐÚNG hai ngưỡng xoay bên dưới: sid khôi phục mà đã nguội quá 12
+    tiếng hoặc đã dài quá 200 tin thì vẫn sang khúc mới. Khôi phục không phải là được miễn
+    luật xoay. Đổi brain và /reset gọi `_tg_quen_sid` nên xoá luôn cả liên kết bền.
     """
-    sid = sess.get("sid")
+    sid = sess.get("sid") or _TG_SID_MAP.get(str(sess.get("key") or ""))
     if sid:
         row = store.get_session(sid)
         if not row:
             sid = None      # user đã xoá hội thoại đó trên dashboard → đừng hồi sinh id cũ
+        elif (row.get("brain") or "") and row["brain"] not in _brain_keys(brain):
+            # Brain đổi lúc server tắt (Settings, hoặc brain bị đổi tên). Nối tiếp thì
+            # `get_or_create` lặng lẽ ghi đè cột brain của bản ghi cũ, tức trộn hội thoại của
+            # hai bộ não vào một chỗ. Thà mở khúc mới.
+            #
+            # `_brain_keys` chứ không `_brain_key`: cột này từng được mỗi kênh ghi một kiểu cho
+            # CÙNG một brain (xem docstring của nó), nên so bằng dấu bằng là mọi phiên Telegram
+            # có từ trước bản chuẩn hoá đều bị coi là "khác brain" và bị bỏ - MỖI LƯỢT một
+            # phiên mới, đúng cái hỏng mà khối ngay dưới đang canh. Cột rỗng cũng tha, vì rỗng
+            # là không biết chứ không phải là khác.
+            sid = None
         else:
             # Chỉ xoay khi có BẰNG CHỨNG phiên đã cũ/đã dài. Thiếu số liệu thì giữ nguyên,
             # kẻo một cột rỗng bất ngờ làm mỗi lượt đẻ một phiên.
@@ -11511,11 +11617,13 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
         # Còn dùng tiếp: đồng bộ engine/model vì người dùng có thể vừa đổi bằng /model.
         sess["sid"] = store.get_or_create(sid, brain=_brain_key(brain), engine=engine_label,
                                           model=model)
+        _tg_nho_sid(sess, sess["sid"])
         return sess["sid"]
     # `_brain_key`: Telegram cầm ĐƯỜNG DẪN brain, dashboard gửi tên gọi tắt "brain" - ghi
     # nguyên văn thì hai bên lệch khoá và thanh bên không thấy hội thoại Telegram đâu.
     sess["sid"] = store.create_session(brain=_brain_key(brain), engine=engine_label, model=model,
                                        channel="telegram")
+    _tg_nho_sid(sess, sess["sid"])
     # Dọn theo nhịp XOAY (hiếm, cỡ vài ngày một lần) chứ không mỗi lượt - đủ để thanh bên
     # không ngập dần vì các khúc cũ.
     try:
@@ -11526,6 +11634,47 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
     except Exception as e:
         print(f"[telegram archive] {type(e).__name__}: {e}", file=__import__('sys').stderr)
     return sess["sid"]
+
+
+# Số TIN (không phải lượt) mồi lại tối đa khi dựng lịch sử từ transcript. Bằng
+# BOT_LICH_SU_MAX bên dưới cho dễ nhớ: ~10 lượt hỏi-đáp, đủ để "cái đó", "như lần trước" còn
+# nghĩa, mà không thổi phồng lượt đầu sau mỗi lần restart.
+_TG_MOI_LAI_MAX = 20
+
+
+def _tg_lich_su_kho(store, conv_sid, text):
+    """Transcript đã lưu của phiên này, để MỒI LẠI ngữ cảnh sau restart.
+
+    Vì sao cần: mọi mạch hội thoại của Telegram sống trong RAM - `sess['or']` của engine API,
+    `session_id` của Claude Code / Codex / Grok / Antigravity. Restart server (bấm nút cập
+    nhật là restart) xoá sạch chúng, nên lượt kế mở mạch TAY KHÔNG dù bản ghi vẫn còn nguyên
+    trong SQLite. Người dùng báo đúng triệu chứng đó ngày 28/08/2026: mỗi lần cập nhật là
+    phải dạy lại từ cách xưng hô tới quy ước đặt tên file, trong khi localhost:7777 không sao
+    (trình duyệt giữ `session_id` và dashboard đọc lại transcript mỗi lượt).
+
+    Trả về `(danh sách tin, tóm tắt đã nén)`. Bỏ lượt user ĐANG hỏi - `_tg_answer` đã ghi nó
+    vào kho trước khi gọi engine, gửi lại là hỏi hai lần. So khớp nội dung chứ không cắt cứng
+    phần tử cuối: lệnh ghi kia nằm trong try/except, hụt một cái mà vẫn cắt là ăn mất một tin
+    thật.
+    """
+    if store is None or not conv_sid:
+        return [], ""
+    try:
+        raw = store.get_messages(conv_sid)
+    except Exception as e:
+        print(f"[telegram mồi lại] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+        return [], ""
+    msgs = [{"role": m["role"], "content": m["content"]} for m in raw
+            if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)
+            and m["content"].strip()]
+    if msgs and msgs[-1]["role"] == "user" and msgs[-1]["content"] == text:
+        msgs.pop()
+    tom_tat = ""
+    try:
+        tom_tat = (store.get_session(conv_sid) or {}).get("compact_summary") or ""
+    except Exception:
+        pass
+    return msgs, tom_tat
 
 
 async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None):
@@ -11566,25 +11715,14 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                     else prov if ((kind == "api" and api_key) or kind == "oauth")
                     else "cli")
 
-    # Bản tương ứng của `store.clear_native_threads` bên dashboard, cho ba engine giữ phiên.
+    # Bản tương ứng của `store.clear_native_threads` bên dashboard, cho bốn engine giữ phiên.
     # Cùng một bất biến: engine khác vừa chen một lượt thì mạch của MỌI engine còn lại không
-    # chứa lượt đó, nối tiếp là mù đúng đoạn ở giữa. Xoá liên kết thôi, giữ nguyên đối tượng
-    # (cwd/instructions vẫn dùng lại được); lượt sau của engine đó bootstrap từ kho phiên.
+    # chứa lượt đó, nối tiếp là mù đúng đoạn ở giữa. Xoá liên kết thôi, giữ nguyên đối tượng;
+    # lượt sau của engine đó bootstrap từ kho phiên.
     #
-    # Claude Code (`sess["cli"]`) trước đây BỊ BỎ SÓT ở đây, dù nó là engine hay dùng nhất.
-    for _nhan, _khoa in (("grok-cli", "grok"), ("codex", "codex"), ("cli", "cli")):
-        if engine_label == _nhan or sess.get(_khoa) is None:
-            continue
-        try:
-            _obj = sess[_khoa]
-            # Dùng API công khai khi engine có (Claude Code), rơi về gán thẳng cho engine
-            # chưa có - khỏi phải rẽ nhánh theo tên engine ở đây.
-            if hasattr(_obj, "reset_session"):
-                _obj.reset_session()
-            else:
-                _obj.session_id = None
-        except Exception:
-            sess[_khoa] = None
+    # Câu "bootstrap từ kho phiên" đó mãi tới 0.50.1 mới đúng với cả bốn: trước đó chỉ Codex
+    # làm thật, ba engine còn lại mở mạch tay không nên đoạn ở giữa vẫn mất.
+    _tg_ngat_mach(sess, tru=engine_label)
 
     store = get_store()
     conv_sid = ""
@@ -12124,8 +12262,15 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             return ("⚠ Chưa cài Grok Build CLI trên máy chạy Javis. Cài một lần:\n"
                     f"`{grok_cli.lenh_cai()}`\n"
                     "Rồi đăng nhập ở thẻ Grok trên trang Models.")
+        _hoi = text
+        if not getattr(kcli, "session_id", None):
+            # Chưa có mạch native (phiên mới, hoặc vừa restart nên object engine dựng lại từ
+            # đầu) thì mồi transcript đã lưu vào ĐÚNG MỘT lượt, y như dashboard vẫn làm. Có mạch
+            # rồi thì engine tự nhớ, gửi lại là tốn token vô ích.
+            _raw_cu, _tom_cu = _tg_lich_su_kho(store, conv_sid, text)
+            _hoi = compaction.bootstrap_prompt(_raw_cu, _hoi, summary=_tom_cu)
         out, loi = "", []
-        async for ev in kcli.query(text):
+        async for ev in kcli.query(_hoi):
             et = ev.get("type")
             if et == "tool_call":
                 await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
@@ -12158,8 +12303,15 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             return ("⚠ Chưa cài Antigravity CLI trên máy chạy Javis. Cài một lần:\n"
                     f"`{antigravity_cli.lenh_cai()}`\n"
                     "Rồi gõ `agy` một lần để đăng nhập Google.")
+        _hoi = text
+        if not getattr(acli, "session_id", None):
+            # Chưa có mạch native (phiên mới, hoặc vừa restart nên object engine dựng lại từ
+            # đầu) thì mồi transcript đã lưu vào ĐÚNG MỘT lượt, y như dashboard vẫn làm. Có mạch
+            # rồi thì engine tự nhớ, gửi lại là tốn token vô ích.
+            _raw_cu, _tom_cu = _tg_lich_su_kho(store, conv_sid, text)
+            _hoi = compaction.bootstrap_prompt(_raw_cu, _hoi, summary=_tom_cu)
         out, loi = "", []
-        async for ev in acli.query(text):
+        async for ev in acli.query(_hoi):
             et = ev.get("type")
             if et == "tool_call":
                 await _p(f"⚙ Đang gọi: {ev.get('name', '')}")
@@ -12292,6 +12444,17 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             ident = (f"\n\n[Sự thật hệ thống: bạn chạy qua {label}, model '{api_model}'. "
                      f"Hỏi model nào thì khai đúng tên này, KHÔNG nhận là model khác.]")
             sess["or"] = [{"role": "system", "content": sysprompt + ident}]
+            # Lịch sử này chỉ sống trong RAM, nên restart là mất. Dựng lại từ transcript đã
+            # lưu (xem `_tg_lich_su_kho`) - đây là nửa THẬT SỰ quan trọng với người dùng chạy
+            # engine API: nối lại được id phiên mà lịch sử vẫn rỗng thì Javis vẫn quên sạch.
+            #
+            # Chỉ chạy khi `sess["or"]` rỗng, tức phiên vừa dựng: đang chat liên tục thì khối
+            # này không đụng tới. /reset và đổi brain xoá cả sid lẫn liên kết bền nên
+            # `conv_sid` khi đó là phiên mới tinh, mồi lại ra rỗng - đúng ý người dùng.
+            _cu, _tom = _tg_lich_su_kho(store, conv_sid, text)
+            if _tom:
+                sess["or"].append({"role": "system", "content": compaction.SUMMARY_HEADER + _tom})
+            sess["or"] += _cu[-_TG_MOI_LAI_MAX:]
         sess["or"].append({"role": "user", "content": text})
         t0 = time.time()
         out = ""
@@ -12353,6 +12516,12 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         loi = []
         _pinged = False
         _cli_prompt = _cli_think(reasoning, text)
+        if not getattr(cli, "session_id", None):
+            # Chưa có mạch native (phiên mới, hoặc vừa restart nên object engine dựng lại từ
+            # đầu) thì mồi transcript đã lưu vào ĐÚNG MỘT lượt, y như dashboard vẫn làm. Có mạch
+            # rồi thì engine tự nhớ, gửi lại là tốn token vô ích.
+            _raw_cu, _tom_cu = _tg_lich_su_kho(store, conv_sid, text)
+            _cli_prompt = compaction.bootstrap_prompt(_raw_cu, _cli_prompt, summary=_tom_cu)
         _CONTEXT_RUNTIME.observe_payload(
             runtime_trace,
             [{"role": "system", "content": sysprompt},
@@ -12698,14 +12867,18 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
         cancel_all(f"telegram:{chat_key}")
         return {"reply": "⏹ Đã dừng lệnh đang chạy."}
     if cmd in ("reset", "new", "clear"):
-        sess = _TG_SESS.get(chat_key)
-        if sess:
-            if sess.get("cli"):
-                sess["cli"].reset_session()
-            sess["codex"] = None
-            sess["or"] = None
-            sess["last"] = None
-            sess["sid"] = None     # hội thoại mới → phiên mới trong kho, khỏi nối vào mạch cũ
+        # `_tg_session` chứ không `_TG_SESS.get`: sau restart phiên RAM chưa tồn tại nhưng liên
+        # kết BỀN chat -> sid thì còn, và /reset phải cắt được đúng cái đó. Tạo phiên rỗng ở đây
+        # không tốn gì - lượt kế cũng tạo.
+        sess = _tg_session(chat_key)
+        # Cắt mạch của CẢ BỐN engine. Trước đây chỉ Claude Code được reset và Codex bị vứt đối
+        # tượng, còn Grok/Antigravity giữ nguyên mạch native - /reset xong Javis vẫn nhớ y
+        # nguyên, đúng thứ người dùng gõ lệnh này để thoát khỏi.
+        _tg_ngat_mach(sess)
+        sess["or"] = None
+        sess["last"] = None
+        sess["sid"] = None     # hội thoại mới → phiên mới trong kho, khỏi nối vào mạch cũ
+        _tg_quen_sid(sess)
         return {"reply": "🔄 Đã reset hội thoại (chỉ phiên của bạn)."}
     if cmd in ("cli", "claude"):
         s = cfgmod.read_settings()
