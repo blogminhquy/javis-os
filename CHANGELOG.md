@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.0] - 2026-08-28
+### Thêm mới
+- **Bộ não mới: Grok Build của xAI.** Dùng chính gói **SuperGrok** hoặc **X Premium+** bạn đang trả tiền, không phải mua API key. Vào **Models**, thẻ **xAI Grok Build CLI**, bấm **Đăng nhập** là xong. Nó hiện một link và một mã để mở trên điện thoại hay máy tính của bạn, nên **đăng nhập được cả khi Javis chạy trên VPS** - thẻ CLI đầu tiên làm được việc này.
+- Grok **nhớ được mạch hội thoại** giữa các lượt, chạy được ở chat, Telegram, agent và việc nền, và gọi được đầy đủ tool của Javis (MCP, skill, việc Kanban). Bấm **Kiểm tra lại** ở thẻ để biết chắc tool đã đấu chưa.
+
+### Cải thiện
+- **Bỏ hẳn thẻ Google Gemini CLI.** Google đã ngắt nó với mọi tài khoản cá nhân từ 18/06/2026, nên nó chỉ còn là một lựa chọn bấm vào rồi đâm vào tường. Muốn model Gemini thì dùng **Antigravity CLI** (gói Google bạn đang có), **OpenRouter** hoặc thẻ **Google Gemini (API)** - cả ba đều còn nguyên.
+- **Ai đang đặt Gemini CLI làm model chính thì Javis tự chuyển về mặc định khi cập nhật**, và ghi một dòng vào nhật ký máy chủ nói rõ đã chuyển. Không có bước này thì trang Models không thẻ nào sáng nhãn MAIN và câu trả lời ra lạ mà không báo lỗi gì. Mở trang **Models** chọn lại bộ não bạn muốn là xong.
+- **Bản hướng dẫn nội bộ của Javis giờ viết bằng tiếng Anh.** Không có gì đổi với bạn: Javis vẫn trả lời bằng đúng thứ tiếng bạn nhắn, vẫn xưng "bạn/mình" như cũ. Đổi để model hiểu luật rõ hơn và ít hiểu lệch hơn.
+
 ## [0.49.3] - 2026-08-27
 ### Cải thiện
 - **Dải cạnh ô chọn model giờ cho biết Javis vừa gọi tool gì.** Hai đèn "Claude Code CLI" và "Voice" đã bỏ - chúng gần như luôn xanh nên chẳng nói thêm được gì. Thay vào đó là **ba tool vừa gọi, mới nhất đứng đầu**, cái vừa chạy nháy lên một nhịp.

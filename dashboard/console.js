@@ -2888,8 +2888,8 @@
     // nằm chễm chệ trên cùng. Một request cục bộ, rẻ.
     let claudeOn = false;
     try { claudeOn = !!(await (await fetch("/claude/status")).json()).connected; } catch (e) {}
-    // kind "cli" nay có HAI bộ não (Claude Code, Gemini CLI). Chỉ Claude mới phải hỏi
-    // /claude/status; Gemini CLI đã có `configured` thật từ server (đọc file đăng nhập).
+    // kind "cli" nay có ba bộ não (Claude Code, Grok Build, Antigravity). Chỉ Claude mới phải
+    // hỏi /claude/status; hai cái kia đã có `configured` thật từ server (đọc file đăng nhập).
     const provOn = (p) => (p.id === "anthropic-cli" ? claudeOn : !!p.configured);
     const provList = providers.map((p, i) => ({ p, i }))
       .sort((a, b) => (provOn(b.p) - provOn(a.p)) || (a.i - b.i))
@@ -2951,6 +2951,35 @@
           </div>
         </div>`;
       }
+      if (p.id === "grok-cli") {
+        // Bộ não thứ 11. Đây là thẻ CLI DUY NHẤT có nút "Đăng nhập" thật sự bấm được trên VPS:
+        // `grok login --device-auth` in ra một link và một mã rồi tự đứng hỏi máy chủ, nên
+        // Javis chỉ cần bóc link + mã đưa lên đây, không phải giả lập terminal như bản `agy`
+        // 0.30-0.32.1 từng thử (và tắc trên Windows vì không có pseudo-terminal).
+        const dn = p.dang_nhap || {};
+        const st = on
+          ? "● Đã đăng nhập" + (p.account ? " · " + esc(p.account) : "")
+            + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Grok Build CLI");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP/skill", st)}
+          <div class="prov-note">Dùng <b>gói SuperGrok hoặc X Premium+ của bạn</b>, không cần mua
+            API key. Đăng nhập được ngay tại đây <b>kể cả khi Javis chạy trên VPS</b>.</div>
+          ${cliWarn("grok")}
+          ${p.cli_found ? "" : `<div class="prov-steps">
+            <div>Chưa thấy CLI trên máy. Cài một lần trên máy chạy Javis:<br><code>${esc(p.cai_lenh || "")}</code></div>
+          </div>`}
+          <div id="grokBox" class="prov-steps" style="display:none"></div>
+          <div class="prov-action" style="flex-wrap:wrap">
+            ${on
+              ? `<button class="gcard-btn ghost" data-grokcheck="1">Kiểm tra lại</button>
+                 <button class="gcard-btn ghost" data-grokdisc="1">Ngắt</button>`
+              : `<button class="gcard-btn" data-groklogin="1">Đăng nhập</button>
+                 <button class="gcard-btn ghost" data-grokcheck="1">Kiểm tra lại</button>`}
+            <span id="grokMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
+          </div>
+        </div>`;
+      }
       if (p.id === "antigravity-cli") {
         // Bộ não thứ 10. Không có nút "Đăng nhập" ở đây và đó là quyết định có lý do: đăng nhập
         // của `agy` là một giao diện bàn phím trong terminal, token thì nằm trong keyring hệ
@@ -2980,40 +3009,6 @@
             <button class="gcard-btn ghost" data-agycheck="1">Kiểm tra lại</button>
             <span id="agyMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
           </div>
-        </div>`;
-      }
-      if (p.id === "gemini-cli") {
-        // Gemini CLI: đăng nhập bằng tài khoản Google, KHÔNG cần mua API key. Không có nút
-        // "Đăng nhập" ở đây là cố ý - luồng đăng nhập của nó là giao diện bàn phím trong
-        // terminal rồi mở trình duyệt, không có cờ headless nào để bọc cho tử tế. Dựng một
-        // cái nút chỉ chạy được trên máy có màn hình thì trên VPS nó là nút chết.
-        const st = on
-          ? "● Đã đăng nhập Google" + (p.account ? " · " + esc(p.account) : "")
-            + (p.auth_method ? " · " + esc(p.auth_method) : "") + " · " + p.models.length + " model"
-          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Gemini CLI");
-        return `<div class="prov-card ${p.is_main ? "main" : ""}">
-          ${provHead(p, on, "MCP/skill", st)}
-          <div class="prov-note warn"><b>Google đã ngắt đường này với tài khoản cá nhân từ 18/06/2026</b>
-            - cả gói miễn phí, Google AI Pro lẫn Ultra. Đăng nhập vẫn xong nhưng lúc chat sẽ báo
-            <code>IneligibleTierError</code>. Chặn từ phía Google, không sửa được bên Javis.
-            Thẻ này giờ chỉ còn dùng được với <b>giấy phép Code Assist doanh nghiệp</b> hoặc khi
-            chạy CLI bằng API key.</div>
-          <div class="prov-steps">
-            <div><b>Muốn dùng model Gemini thì đi đường khác:</b> thẻ <b>OpenRouter</b> (nhiều model
-              một chỗ, có cả Gemini lẫn Claude - gần nhất với trình chọn model của Antigravity),
-              hoặc thẻ <b>Google Gemini (API)</b> bên dưới.</div>
-          </div>
-          ${p.cli_found ? "" : `<div class="prov-steps">
-            <div>Chưa thấy CLI trên máy. Cài tay: <code>npm install -g @google/gemini-cli</code></div>
-          </div>`}
-          <div class="prov-action" style="flex-wrap:wrap">
-            ${on
-              ? (p.auth_by_javis ? `<button class="gcard-btn ghost" data-glogout="1">Ngắt</button>` : "")
-              : `<button class="gcard-btn" data-glogin="1">Đăng nhập Google</button>`}
-            <button class="gcard-btn ghost" data-gcheck="1">Kiểm tra lại</button>
-            <span id="gcliMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
-          </div>
-          <div id="gcliLogin"></div>
         </div>`;
       }
       if (p.kind === "cli") {   // Claude Code - trạng thái + login/logout nạp động qua /claude/status
@@ -3062,7 +3057,8 @@
         <h3>◆ Main Model <span style="opacity:.5">model chính cho hội thoại</span></h3>
         <div class="gcard current" style="max-width:540px">
           <div class="gcard-top"><span class="gcard-name">${esc(main.model || "-")}</span><span class="gcard-tag">${esc(mainP.label || main.provider || "")}</span></div>
-          <div class="gcard-meta">${mainP.id === "gemini-cli" ? "Qua Gemini CLI - MCP Javis + skill + loop + chạy lệnh máy (đăng nhập Google)"
+          <div class="gcard-meta">${mainP.id === "grok-cli" ? "Qua Grok Build CLI - MCP Javis + skill + loop + chạy lệnh máy (gói SuperGrok / X Premium+)"
+            : mainP.id === "antigravity-cli" ? "Qua Antigravity CLI - MCP Javis + skill + loop + chạy lệnh máy (gói Google)"
             : mainP.kind === "cli" ? "Qua Claude Code - MCP Javis + skill + loop + chạy lệnh máy"
             : mainP.kind === "oauth" ? "Qua Codex - MCP Javis + skill + loop + chạy lệnh máy"
             : mainP.kind === "api" ? "Gọi API thẳng - MCP Javis + skill + loop (không chạy lệnh máy)" : ""}</div>
@@ -3148,31 +3144,6 @@
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");
     if (ob) ob.onclick = () => startOauthBrowser(el);
-    const gl = el.querySelector("[data-glogin]");
-    if (gl) gl.onclick = () => startGeminiLogin(el);
-    const glo = el.querySelector("[data-glogout]");
-    if (glo) glo.onclick = async () => {
-      if (!confirm("Ngắt tài khoản Google khỏi Javis?")) return;
-      glo.disabled = true; glo.textContent = "Đang ngắt...";
-      try { await fetch("/gemini-cli/logout", { method: "POST" }); } catch (e) {}
-      _daHoiModel.delete("gemini-cli");
-      renderModels(el);
-    };
-    const gk = el.querySelector("[data-gcheck]");
-    if (gk) gk.onclick = async () => {
-      const msg = el.querySelector("#gcliMsg");
-      gk.disabled = true; const cu = gk.textContent; gk.textContent = "Đang thử…";
-      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
-      let r = null;
-      try { r = await (await fetch("/gemini-cli/check", { method: "POST" })).json(); }
-      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
-      gk.disabled = false; gk.textContent = cu;
-      if (r && r.ok) {
-        if (msg) msg.innerHTML = OK_ICON + " Dùng được.";
-        _daHoiModel.delete("gemini-cli");
-        setTimeout(() => renderModels(el), 700);
-      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.");
-    };
     const agk = el.querySelector("[data-agycheck]");
     if (agk) agk.onclick = async () => {
       const msg = el.querySelector("#agyMsg");
@@ -3199,6 +3170,73 @@
         _daHoiModel.delete("antigravity-cli");
         setTimeout(() => renderModels(el), 700);
       } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt;
+    };
+    // ---- Grok Build CLI: đăng nhập device code ngay trên trang ----
+    const gkl = el.querySelector("[data-groklogin]");
+    if (gkl) gkl.onclick = async () => {
+      const msg = el.querySelector("#grokMsg"), box = el.querySelector("#grokBox");
+      gkl.disabled = true; const cu = gkl.textContent; gkl.textContent = "Đang mở…";
+      if (msg) msg.textContent = "Đang hỏi Grok CLI lấy link đăng nhập…";
+      let r = null;
+      try { r = await (await fetch("/grok/login-start", { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      gkl.disabled = false; gkl.textContent = cu;
+      if (!r || !r.ok) { if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Không mở được."); return; }
+      if (r.xong) { renderModels(el); return; }
+      // Link + mã hiện ra để người dùng mở trên MÁY CỦA HỌ - đây là cả lý do tồn tại của
+      // đường device code: máy chạy Javis (VPS) không cần có trình duyệt.
+      if (box) {
+        box.style.display = "";
+        box.innerHTML = `<div>Mở link này trên máy của bạn:<br><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></div>`
+          + (r.code ? `<div>Rồi nhập mã: <code>${esc(r.code)}</code></div>` : "")
+          + `<div>Xong thì quay lại đây, thẻ tự chuyển sang đã đăng nhập.</div>`;
+      }
+      if (msg) msg.textContent = "Đang chờ bạn xác nhận trên trình duyệt…";
+      // Hỏi lại tới khi CLI báo xong. Trần 5 phút cho khớp vòng device code của xAI; hết giờ
+      // thì nói thẳng là hết giờ chứ không quay mãi.
+      const han = Date.now() + 300000;
+      const quay = async () => {
+        if (Date.now() > han) { if (msg) msg.innerHTML = Icons.warn("Hết giờ chờ. Bấm Đăng nhập lại."); return; }
+        let d = null;
+        try { d = await (await fetch("/grok/login-poll")).json(); } catch (e) {}
+        if (d && d.connected) { _daHoiModel.delete("grok-cli"); renderModels(el); return; }
+        if (d && !d.dang_cho) { if (msg) msg.innerHTML = Icons.warn(d.error || "Đăng nhập chưa xong."); return; }
+        setTimeout(quay, 2000);
+      };
+      setTimeout(quay, 2000);
+    };
+    const gkd = el.querySelector("[data-grokdisc]");
+    if (gkd) gkd.onclick = async () => {
+      gkd.disabled = true; gkd.textContent = "Đang ngắt…";
+      try { await fetch("/grok/logout", { method: "POST" }); } catch (e) {}
+      _daHoiModel.delete("grok-cli");
+      renderModels(el);
+    };
+    const gkc = el.querySelector("[data-grokcheck]");
+    if (gkc) gkc.onclick = async () => {
+      const msg = el.querySelector("#grokMsg");
+      gkc.disabled = true; const cu3 = gkc.textContent; gkc.textContent = "Đang thử…";
+      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
+      let r = null;
+      // Gửi kèm brain đang mở, cùng lý do với nút của `agy`: phần `mcp` soi cấu hình theo
+      // ĐÚNG brain đó, hỏi trống là soi nhầm chỗ.
+      const _br2 = window.currentBrainPath ? currentBrainPath() : "brain";
+      try { r = await (await fetch(`/grok/check?brain=${encodeURIComponent(_br2)}`,
+                                   { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      gkc.disabled = false; gkc.textContent = cu3;
+      // Nói RIÊNG chuyện tool của Javis: "chat được" và "gọi được tool của Javis" là hai
+      // chuyện khác nhau, và cái thứ hai mới là chỗ đã ba lần hỏng câm với `agy`.
+      const mcpTxt2 = (r && r.mcp)
+        ? (r.mcp.co_javis ? " · tool của Javis đã đấu"
+           : (r.mcp.hub_bat === false ? " · trung tâm kết nối đang tắt"
+              : " · <b>chưa đấu được tool của Javis</b>"))
+        : "";
+      if (r && r.ok) {
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được." + mcpTxt2;
+        _daHoiModel.delete("grok-cli");
+        setTimeout(() => renderModels(el), 700);
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt2;
     };
     const od = el.querySelector("[data-oauth-disc]");
     if (od) od.onclick = async () => {
@@ -3331,55 +3369,6 @@
       catch (e) { if (m2) m2.textContent = "Lỗi mạng."; return; }
       if (rr.ok) { stopped = true; refreshClaudeCard(el); }
       else if (m2) m2.innerHTML = Icons.warn(rr.error || "Code sai, thử lại.");
-    };
-  }
-
-  // ---- Gemini CLI: đăng nhập Google ngay trên trang, không phải mở terminal ----
-  // Dùng đúng đường "mã dán" của chính Gemini CLI: Google redirect về trang codeassist của họ,
-  // trang đó HIỆN RA một mã cho người dùng chép. Không có localhost nào ở giữa nên chạy được
-  // cả khi Javis nằm trên VPS còn trình duyệt ở máy người dùng - y như đăng nhập Claude Code.
-  async function startGeminiLogin(el) {
-    const hop = el.querySelector("#gcliLogin");
-    const msg = el.querySelector("#gcliMsg");
-    if (msg) msg.textContent = "Đang lấy link đăng nhập…";
-    let r;
-    try { r = await (await fetch("/gemini-cli/login-start", { method: "POST" })).json(); }
-    catch (e) { if (msg) msg.textContent = "Lỗi mạng."; return; }
-    if (!r.ok || !r.authorize_url) {
-      if (msg) msg.innerHTML = Icons.warn(r.error || "Không bắt đầu được đăng nhập.");
-      return;
-    }
-    if (msg) msg.textContent = "";
-    try { window.open(r.authorize_url, "_blank"); } catch (e) {}
-    if (hop) hop.innerHTML = `
-      <div class="prov-steps">
-        <div><b>1)</b> Mở link này rồi đăng nhập bằng tài khoản Google của bạn:<br>
-          <a href="${esc(safeHref(r.authorize_url))}" target="_blank" rel="noopener"
-             style="color:var(--link-ink);word-break:break-all">${esc(r.authorize_url.slice(0, 90))}…</a></div>
-        <div><b>2)</b> Đồng ý xong, Google hiện ra <b>một mã</b>. Chép mã đó dán vào đây:</div>
-        <div class="gcli-code-row">
-          <input class="js-input" id="gcliCode" placeholder="Dán mã Google vừa hiện" autocomplete="off"
-                 spellcheck="false">
-          <button class="gcard-btn" id="gcliCodeBtn">Xong</button>
-        </div>
-        <div id="gcliCodeMsg" class="gcard-meta" style="margin-top:4px"></div>
-      </div>`;
-    const btn = el.querySelector("#gcliCodeBtn");
-    if (btn) btn.onclick = async () => {
-      const m2 = el.querySelector("#gcliCodeMsg");
-      const code = (el.querySelector("#gcliCode").value || "").trim();
-      if (!code) { if (m2) m2.textContent = "Dán mã vào đã."; return; }
-      btn.disabled = true; if (m2) m2.textContent = "Đang xác nhận…";
-      let d;
-      try {
-        const fd = new FormData(); fd.append("code", code);
-        d = await (await fetch("/gemini-cli/login-code", { method: "POST", body: fd })).json();
-      } catch (e) { d = { ok: false, error: "Lỗi mạng." }; }
-      btn.disabled = false;
-      if (!d.ok) { if (m2) m2.innerHTML = Icons.warn(d.error || "Chưa được, thử lại."); return; }
-      if (m2) m2.innerHTML = OK_ICON + " Đã kết nối" + (d.email ? " · " + esc(d.email) : "") + ".";
-      _daHoiModel.delete("gemini-cli");
-      setTimeout(() => renderModels(el), 900);
     };
   }
 

@@ -61,9 +61,9 @@ check("doc nêu đủ bảy tool và link upstream",
       all(name in doc for name in expected_read | {"zalo_mark_read", "zalo_send_message"})
       and "https://github.com/PhucMPham/zalo-agent-cli" in doc)
 check("prompt cho gửi trực tiếp, không phụ thuộc listener/tool cũ",
-      "KHÔNG đòi bật listener" in prompt
-      and "KHÔNG kiểm tra “danh sách đang nghe”" in prompt
-      and "KHÔNG dùng tool cũ `javis_zalo_send`" in prompt)
+      "do NOT demand a listener be" in prompt
+      and 'do NOT check any "currently listening"' in prompt
+      and "do NOT use the old `javis_zalo_send` tool" in prompt)
 
 if fails:
     raise SystemExit(f"{len(fails)} kiểm tra lỗi: {', '.join(fails)}")

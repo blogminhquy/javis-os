@@ -257,14 +257,14 @@ check("CANARY: nhánh Claude Code dùng câu đã dịch",
       '_subscription_limit_message(event.get("content") or "", "claude-code")' in _MAIN_SRC)
 check("CANARY: nhánh Codex dùng câu đã dịch",
       '_subscription_limit_message(ev.get("content") or "", "codex")' in _MAIN_SRC)
-# Bộ não thứ 9 (Gemini CLI) cũng là gói thuê bao, nên cũng phải đi qua đúng cái dịch này -
-# không thì nó là engine DUY NHẤT dội nguyên văn tiếng Anh của Google vào mặt người dùng.
-check("CANARY: nhánh Gemini CLI dùng câu đã dịch",
-      '"gemini-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 4)
-# Bộ não thứ 10 (Antigravity CLI) cũng chạy bằng gói Google nên cùng luật: hết lượt phải ra
+# Antigravity CLI cũng chạy bằng gói Google nên cùng luật: hết lượt phải ra
 # câu tiếng Việt, không phải nguyên văn của Google.
 check("CANARY: nhánh Antigravity CLI dùng câu đã dịch",
-      '"antigravity-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 6)
+      '"antigravity-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 5)
+# Bộ não thứ 11 (Grok Build CLI) chạy bằng gói SuperGrok / X Premium+ nên cùng luật: hết lượt
+# phải ra câu tiếng Việt, không phải nguyên văn của xAI.
+check("CANARY: nhánh Grok Build CLI dùng câu đã dịch",
+      '"grok-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 7)
 check("không nhận ra thì vẫn trả nguyên văn lỗi gốc, không nuốt mất",
       _MAIN_SRC.count('"content": _noi or ') == 4)
 check("hàm dịch nuốt mọi lỗi của chính nó (câu báo lỗi không được tự nổ)",

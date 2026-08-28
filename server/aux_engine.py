@@ -16,9 +16,9 @@ Ba loại engine, khác nhau ở CÔNG CỤ có được - đây là chỗ phả
 - openai-oauth: Codex CLI, cũng là agent thật (đọc/ghi file + MCP qua profile javis).
   Sandbox của Codex ánh xạ theo mode: suggest -> read-only, auto -> workspace-write,
   full -> toàn quyền. KHÔNG có allowlist per-call như Claude nên chỉ chặn ở tầng sandbox.
-- gemini-cli: Gemini CLI chạy bằng đăng nhập Google. Cũng agent thật (tool file + MCP hub qua
-  .gemini/settings.json trong brain). Mức quyền ánh xạ thẳng vào --approval-mode của nó:
-  suggest -> plan (chỉ đọc), auto -> auto_edit, full -> yolo.
+- grok-cli: Grok Build CLI chạy bằng gói SuperGrok / X Premium+. Cũng agent thật (tool file +
+  MCP hub qua .grok/config.toml trong brain). Mức quyền xuống thẳng cờ chặn của CLI:
+  suggest -> chặn Write/Edit/Bash, auto -> chặn Bash, full -> không chặn ở tầng CLI.
 - api (openrouter/openai/gemini/anthropic-api): KHÔNG có tool native. Bù lại hub cấp
   javis_read_file / javis_list_dir / javis_write_file / javis_use_skill + tool MCP, và
   javis_write_file tự chặn khi mode là suggest (mcp_hub._builtin_tools). Không có Bash,
@@ -40,7 +40,7 @@ import config as cfgmod
 
 CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
-GEMINI_CLI = "gemini-cli"
+GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api", "ollama")
 
@@ -256,14 +256,14 @@ def availability(spec: dict, settings: dict = None) -> tuple:
         except Exception:
             return False, "Không kiểm tra được Codex CLI."
         return True, ""
-    if prov == GEMINI_CLI:
+    if prov == GROK_CLI:
         try:
-            import gemini_cli as _g
+            import grok_cli as _g
             st = _g.auth_status()
             if not st.get("connected"):
-                return False, st.get("error") or "Gemini CLI chưa sẵn sàng."
+                return False, st.get("error") or "Grok Build CLI chưa sẵn sàng."
         except Exception:
-            return False, "Không kiểm tra được Gemini CLI."
+            return False, "Không kiểm tra được Grok Build CLI."
         return True, ""
     if prov == ANTIGRAVITY:
         try:
@@ -526,48 +526,51 @@ def _build_codex(spec, claude_cli_obj, mode, tag, codex_profile=None):
     return cc
 
 
-def _build_gemini(spec, claude_cli_obj, mode, tag):
-    """Engine việc nền chạy bằng Gemini CLI.
+def _build_grok(spec, claude_cli_obj, mode, tag):
+    """Engine việc nền/agent chạy bằng Grok Build CLI (`grok`).
 
-    Mức quyền của Javis đi thẳng vào `--approval-mode` của CLI chứ không phải một lời hứa
-    trong prompt: `plan` là chế độ CHỈ ĐỌC do chính CLI cưỡng chế. Cùng vai với sandbox của
-    Codex - lớp chặn thật sự duy nhất, vì Gemini CLI cũng không có allowlist per-call.
+    Mức quyền xuống thẳng cờ `--deny` của CLI chứ không phải một lời hứa trong prompt, và
+    `grok_cli.permission_cho_mode` fail-closed (mode lạ về nấc chặt nhất). Cùng vai với sandbox
+    của Codex - lớp chặn tool NATIVE, còn rào tiền/đơn/đăng bài vẫn nằm ở MCP Hub.
+
+    Entry MCP dựng bằng `grok_cli.hub_entry()` chứ KHÔNG viết tay: Grok đọc khoá `url`, còn
+    `agy` đọc `serverUrl`. Chép nhầm khoá giữa hai engine là không có lấy một tool nào của
+    Javis mà không một câu lỗi nào - đúng thứ đã xảy ra với `agy` mấy bản liền.
     """
-    import gemini_cli as _g
+    import grok_cli as _g
     muc = mode or getattr(claude_cli_obj, "javis_mode", None) or "full"
-    gc = _g.GeminiCLI(cwd=getattr(claude_cli_obj, "cwd", None),
-                      tag=tag or getattr(claude_cli_obj, "tag", "aux"),
-                      model=spec.get("model") or None,
-                      instructions=getattr(claude_cli_obj, "system_prompt", None))
-    gc.approval_mode = _g.approval_cho_mode(muc)
+    gc = _g.GrokCLI(cwd=getattr(claude_cli_obj, "cwd", None),
+                    tag=tag or getattr(claude_cli_obj, "tag", "aux"),
+                    model=spec.get("model") or None,
+                    instructions=getattr(claude_cli_obj, "system_prompt", None))
+    gc.mode = muc
     vault = getattr(claude_cli_obj, "javis_vault", None) or getattr(claude_cli_obj, "cwd", None)
     if vault:
         try:
             import mcp_hub
             hub = None
             if bool(cfgmod.read_settings().get("mcp", {}).get("hub", True)):
-                hub = {"httpUrl": mcp_hub.hub_url(),
-                       "headers": {"Authorization": f"Bearer {mcp_hub.hub_token()}",
-                                   "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)},
-                       "trust": True, "timeout": 20000}
+                hub = _g.hub_entry(mcp_hub.hub_url(),
+                                   {"Authorization": f"Bearer {mcp_hub.hub_token()}",
+                                    "X-Javis-Mode": muc, "X-Javis-Vault": str(vault)})
             _g.ghi_mcp_settings(vault, hub)
         except Exception as e:
-            print(f"[aux gemini mcp] {e}", file=sys.stderr)
+            print(f"[aux grok mcp] {e}", file=sys.stderr)
     return gc
 
 
 def _build_antigravity(spec, claude_cli_obj, mode, tag):
     """Engine việc nền/agent chạy bằng Antigravity CLI (`agy`).
 
-    Khác `_build_gemini` ở hai chỗ, và cả hai đều là lý do phải viết riêng thay vì dùng chung:
+    Khác `_build_grok` ở hai chỗ, và cả hai đều là lý do phải viết riêng thay vì dùng chung:
 
-    - **Mức quyền yếu hơn thật.** `agy` KHÔNG có nấc chỉ-đọc do CLI cưỡng chế (Gemini có
-      `--approval-mode plan`); `suggest` ở đây chỉ được siết bằng `--sandbox` cộng lời dặn
-      trong prompt. Xem `antigravity_cli.co_quyen_cho_mode` - nó nói thẳng chuyện này, và
-      rào tiền/đơn/đăng bài vẫn nằm ở MCP Hub chứ không ở CLI.
-    - **Hình dạng entry MCP khác hẳn.** `agy` đọc khoá `serverUrl`; `httpUrl` (khoá của Gemini
-      CLI) bị nó bỏ qua không một tiếng động - đúng thứ đã làm bộ não này chạy mấy bản liền mà
-      không có lấy một tool nào của Javis. Nên dựng entry bằng `antigravity_cli.hub_entry()`
+    - **Mức quyền yếu hơn thật.** `agy` KHÔNG có cờ chặn per-tool như `--deny` của Grok;
+      `suggest` ở đây chỉ được siết bằng `--sandbox` cộng lời dặn trong prompt. Xem
+      `antigravity_cli.co_quyen_cho_mode` - nó nói thẳng chuyện này, và rào tiền/đơn/đăng bài
+      vẫn nằm ở MCP Hub chứ không ở CLI.
+    - **Hình dạng entry MCP khác hẳn.** `agy` đọc khoá `serverUrl`, Grok đọc `url`. Chép nhầm
+      khoá là engine chạy trơn tru mà không có lấy một tool nào của Javis, không một tiếng
+      động - đúng thứ đã xảy ra mấy bản liền. Nên dựng entry bằng `antigravity_cli.hub_entry()`
       chứ không viết tay.
     """
     import antigravity_cli as _a
@@ -624,8 +627,8 @@ def _main_fallback_engine(cli, mode, tag, settings, exclude, codex_profile=None)
     try:
         if prov == CODEX:
             return _build_codex(sp, cli, mode, t, codex_profile)
-        if prov == GEMINI_CLI:
-            return _build_gemini(sp, cli, mode, t)
+        if prov == GROK_CLI:
+            return _build_grok(sp, cli, mode, t)
         if prov in API_PROVIDERS:
             return _build_api(sp, cli, mode, t)
     except Exception as e:
@@ -692,8 +695,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
                 return cli
             if prov == CODEX:
                 return _build_codex(sp, cli, mode, tag, codex_profile)
-            if prov == GEMINI_CLI:
-                return _build_gemini(sp, cli, mode, tag)
+            if prov == GROK_CLI:
+                return _build_grok(sp, cli, mode, tag)
             if prov == ANTIGRAVITY:
                 return _build_antigravity(sp, cli, mode, tag)
             if prov in API_PROVIDERS:
@@ -717,8 +720,8 @@ def swap(cli, mode: str = None, tag: str = None, spec: dict = None,
             return cli
         if prov == CODEX:
             primary = _build_codex(sp, cli, mode, tag, codex_profile)
-        elif prov == GEMINI_CLI:
-            primary = _build_gemini(sp, cli, mode, tag)
+        elif prov == GROK_CLI:
+            primary = _build_grok(sp, cli, mode, tag)
         elif prov == ANTIGRAVITY:
             primary = _build_antigravity(sp, cli, mode, tag)
         elif prov in API_PROVIDERS:

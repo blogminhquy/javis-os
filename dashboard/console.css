@@ -159,17 +159,6 @@ body.in-console .hud-actions { display: none; }
 .prov-steps { font-size: 13px; color: var(--text2); margin-top: 8px; line-height: 1.75; }
 .prov-steps code { background: var(--bg3); padding: 1px 6px; border-radius: 5px;
   font-size: 12.5px; word-break: break-all; }
-/* Hàng dán mã đăng nhập Google (#gcliLogin). Cần luật riêng vì khối này nằm NGOÀI
-   .prov-action, nên không hưởng hai dòng width:auto/flex ở trên - mà luật gốc .gcard-btn cuối
-   file đặt `width:100%` + `margin-top:14px`. Kết quả trước khi có rule này: nút "Xong" giãn ra
-   nuốt cả hàng flex, ô nhập mã teo còn vài chục pixel và người dùng KHÔNG gõ nổi mã vào.
-   - min-width:0 để ô nhập co được thật (input có kích thước nội tại chặn co lại trong flex).
-   - flex-wrap + basis 180px: màn hẹp thì nút rơi xuống dòng dưới thay vì bóp ô nhập. */
-.gcli-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  max-width: 520px; margin-top: 6px; }
-.gcli-code-row .js-input { flex: 1 1 180px; min-width: 0; margin-bottom: 0; }
-.gcli-code-row .gcard-btn { flex: 0 0 auto; width: auto; margin-top: 0; }
-
 /* Nguồn xác thực của gói Claude Code (subscription / API key) */
 .prov-auth { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--glass-brd); }
 .prov-auth-title { font-family: var(--font); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }

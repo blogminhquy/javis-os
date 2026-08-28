@@ -128,8 +128,8 @@ check("chip ghim trông như bấm được (con trỏ tay + viền nhấn khi r
       and ".attach-chip.pinned:hover {" in STYLE
       and ".attach-chip.pinned .chip-edit {" in STYLE)
 check("system prompt dạy Javis xử lý khối FILE ĐANG MỞ",
-      "## File đang mở (khối FILE ĐANG MỞ)" in CLAUDE_MD
-      and "ghi thẳng vào chính file này" in CLAUDE_MD)
+      "## The open file (the FILE ĐANG MỞ block)" in CLAUDE_MD
+      and "write straight into this file" in CLAUDE_MD)
 check("doc Quản lý tệp tin mô tả tính năng ghim",
       "đang mở - bấm để sửa tiếp" in DOC05)
 check("doc Quản lý tệp tin dạy cách bấm thẻ để sửa tiếp",

@@ -130,7 +130,8 @@ check("da go mau frontmatter agent/workflow", "type: workflow\nname: <Tên>" not
 check("co tro toi javis-builder", "javis-builder" in md)
 
 for luat in ("mode: suggest", "enabled: false", "JAVIS_ENABLE_USER_PLUGINS",
-             "TỐI ĐA 150", "TUYỆT ĐỐI không để trống", "owner_chat", "notify: false",
+             "AT MOST 150 characters", "NEVER leave `group` empty", "owner_chat",
+             "notify: false",
              "em dash"):
     check(f"GIU luat: {luat}", luat in md)
 

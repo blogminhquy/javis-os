@@ -90,7 +90,7 @@ The Javis Claude engine runs through the **Claude Agent SDK**, but the SDK still
 Once signed in, check and choose models on the **Models** page:
 
 - **◆ Main Model** shows the model used for conversations. Press **Change model ▾** to pick another.
-- **◆ Providers** lists all providers: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), Google Antigravity CLI, Google Gemini CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API) and Ollama Cloud. Cards that need a key have a key box and **Connect** / **Change key** / **Disconnect** buttons.
+- **◆ Providers** lists all providers: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), xAI Grok Build CLI, Google Antigravity CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API) and Ollama Cloud. Cards that need a key have a key box and **Connect** / **Change key** / **Disconnect** buttons.
 - **◆ Background-work model** (subtitled "loops · Kanban work · reminders · self-learning · source ingestion") lets you pick a cheap model for background work to spare your quota. Until you change it, the status line reads "Claude Code default". Press **Change model ▾** to pick, **Reset to default** to undo. Choosing a provider that is not connected shows "⚠ this provider is not connected - background work will fall back to Claude".
 - **◆ Reasoning** sets how deeply it thinks before answering: **Off**, **Low**, **Medium**, **High**. The default is Off (fast answers).
 

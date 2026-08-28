@@ -153,7 +153,7 @@ SUBSCRIPTION_LABEL = {
     "claude-code": "gói Claude (Claude Code)",
     "codex": "gói ChatGPT (Codex)",
     "antigravity-cli": "gói Google (Antigravity CLI)",
-    "gemini-cli": "gói Google (Gemini CLI)",
+    "grok-cli": "gói xAI (SuperGrok / X Premium+)",
 }
 
 

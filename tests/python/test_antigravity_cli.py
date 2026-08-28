@@ -2,7 +2,7 @@
 
     python tests/run.py antigravity_cli      (KHÔNG mạng, KHÔNG cần cài agy)
 
-File engine này viết trong hoàn cảnh KHÁC hẳn `gemini_cli.py`: máy dựng bản đó có binary trong
+File engine này viết trong hoàn cảnh KHÁC hẳn một driver CLI thường: máy dựng bản đó có binary trong
 tay để đọc `--help` thật, còn ở đây thì không (máy build bị chặn mạng). Nên thiết kế của nó là
 "đo lúc chạy chứ không đoán" - và ĐÚNG CÁI ĐÓ là thứ test này phải canh, vì nó là chỗ duy nhất
 có thể sai lặng lẽ:
@@ -426,8 +426,8 @@ antigravity_cli.find_antigravity_cli = _that_find
 _main_src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("có trong danh sách provider của trang Models",
       '"id": "antigravity-cli"' in _main_src)
-check("CANARY: xếp TRƯỚC thẻ Gemini CLI (đường Gemini cá nhân đã chết)",
-      _main_src.index('"id": "antigravity-cli"') < _main_src.index('"id": "gemini-cli"'))
+check("CANARY: thẻ Gemini CLI đã gỡ hẳn (Google ngắt tài khoản cá nhân 18/06/2026)",
+      '"id": "gemini-cli"' not in _main_src)
 check("có nhánh chat riêng", 'elif prov == "antigravity-cli":' in _main_src)
 check("Telegram cũng có nhánh đó", 'if prov == "antigravity-cli":' in _main_src)
 check("đường chat-thuần (_api_stream) có nhánh, không rơi xuống anthropic key rỗng",

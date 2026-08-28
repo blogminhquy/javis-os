@@ -65,9 +65,9 @@ RUN npm install -g @openai/codex && npm cache clean --force && codex --version
 # người cài Javis, gói đó nay tải về một CLI không dùng được: phình image, chậm build, và tệ
 # hơn là làm thẻ đã chết trông như đã sẵn sàng.
 #
-# Engine vẫn còn trong repo vì hai diện Google GIỮ NGUYÊN: giấy phép Code Assist doanh nghiệp
-# và chạy bằng API key. Ai thuộc hai diện đó tự cài một dòng `npm i -g @google/gemini-cli` là
-# thẻ hiện lại. Đường Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`).
+# Engine đó đã GỠ HẲN khỏi repo ở 0.50.0. Đường Google cho tài khoản cá nhân hiện nay là
+# Antigravity CLI (`agy`); đường xAI dùng gói SuperGrok / X Premium+ là Grok Build (`grok`).
+# Cả hai đều là script tải về chạy thẳng, không cài qua npm nên không nằm trong image.
 
 WORKDIR /app
 

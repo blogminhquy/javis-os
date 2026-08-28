@@ -137,11 +137,13 @@ check("đang xem phiên khác thì vẫn làm tươi Lịch sử để phiên đ
 
 # ─────────── 4. System prompt ───────────
 check("system prompt nêu 3 kênh nhận báo theo nơi giao việc",
-      '"web:<mã phiên chat>"' in CLAUDE_MD and "chat_id của người đang nói" in CLAUDE_MD)
+      '"web:<chat session id>"' in CLAUDE_MD
+      and "chat_id of the person speaking" in CLAUDE_MD)
 check("system prompt cảnh báo bỏ trống là mất hút khi chưa đấu Telegram",
-      "mất hút" in CLAUDE_MD)
+      "nothing goes missing" in CLAUDE_MD)
 check("system prompt cấm hứa ngồi đợi tổng hợp",
-      re.search(r"KHÔNG hứa .*đợi việc chạy xong rồi tổng hợp", CLAUDE_MD) is not None)
+      re.search(r"NEVER promise .*wait for the job to finish and then summarize", CLAUDE_MD)
+      is not None)
 
 
 if fails:

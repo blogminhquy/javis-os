@@ -53,11 +53,11 @@ check("xoay mạch đặt cli.session_id = None (rơi vào gate mạch trống)"
 check("transcript mồi bỏ message user hiện tại", "store.get_messages(conv_sid)[:-1]" in vung)
 check("mang theo compact_summary khi mồi", 'summary=_row0.get("compact_summary")' in vung)
 
-# 4. Đối chiếu ba nhánh: Codex và Gemini vốn đã mồi khi không có mạch - giữ nguyên.
+# 4. Đối chiếu ba nhánh: Codex và Grok vốn đã mồi khi không có mạch - giữ nguyên.
 check("Codex vẫn mồi khi không có thread",
       re.search(r"_codex_current if stored_codex_thread else\s*\n\s*compaction\.bootstrap_prompt", src))
-check("Gemini vẫn mồi khi không có mạch",
-      re.search(r"_g_cur if _g_mach else compaction\.bootstrap_prompt", src))
+check("Grok vẫn mồi khi không có mạch",
+      re.search(r"_k_cur if _k_mach else compaction\.bootstrap_prompt", src))
 
 # 5. bootstrap_prompt với phiên MỚI (chưa có lịch sử) phải trả nguyên prompt - gate mới
 #    chạy cho cả lượt đầu tiên nên ca này thành đường nóng, hỏng là mọi phiên mới hỏng.

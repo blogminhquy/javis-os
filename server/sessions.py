@@ -307,6 +307,11 @@ class SessionStore:
                               # nhưng phải là cột RIÊNG: đổi bộ não giữa chừng mà dùng chung một
                               # cột là lượt sau đưa UUID của engine này cho engine kia resume.
                               ("gemini_session_id", "TEXT"),
+                              # Mạch native của Grok Build CLI. Cột RIÊNG, cùng lý do như
+                              # gemini_session_id ngay trên: đổi bộ não giữa chừng mà dùng
+                              # chung một cột là lượt sau đưa id của engine này cho engine kia
+                              # resume, và nó nối vào một mạch không tồn tại rồi hỏng câm.
+                              ("grok_session_id", "TEXT"),
                               # Model GHIM RIÊNG của phiên. Hai nguồn ghi: user đổi model ngay
                               # trong phiên, và từ 0.35.5 server tự ĐÓNG DẤU model đang chạy ở
                               # lượt dashboard đầu tiên - nên đổi mặc định chung không bao giờ
@@ -710,6 +715,22 @@ class SessionStore:
             (session_id,),
         ))
 
+    def set_grok_session_id(self, session_id: str, grok_id: str) -> None:
+        """Gắn mạch native của Grok Build CLI vào hội thoại để lượt sau `--resume` đúng chỗ."""
+        if not grok_id:
+            return
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET grok_session_id = ?, updated_at = ? WHERE id = ?",
+            (grok_id, time.time(), session_id),
+        ))
+
+    def clear_grok_session_id(self, session_id: str) -> None:
+        self._write(lambda c: c.execute(
+            "UPDATE sessions SET grok_session_id = NULL "
+            "WHERE id = ? AND grok_session_id IS NOT NULL",
+            (session_id,),
+        ))
+
     # ── mạch native của các engine giữ phiên ──
     #
     # Nhãn engine -> cột giữ mạch. Engine KHÔNG có mặt ở bảng này (Antigravity CLI và mọi
@@ -718,7 +739,7 @@ class SessionStore:
     # một lệnh clear nữa vào main.py - đó chính là cách bảng này bị bỏ sót hai engine.
     _MACH_NATIVE = {"cli": "cli_session_id",
                     "codex": "codex_thread_id",
-                    "gemini-cli": "gemini_session_id"}
+                    "grok-cli": "grok_session_id"}
 
     def clear_native_threads(self, session_id: str, keep: str = "") -> List[str]:
         """Vô hiệu mạch native của MỌI engine, TRỪ engine `keep` đang chạy lượt này.

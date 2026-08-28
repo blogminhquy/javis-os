@@ -11,7 +11,7 @@ làm được thật, không phải hứa.
 
 **KỶ LUẬT CỦA FILE NÀY: ĐO, KHÔNG ĐOÁN.**
 
-`gemini_cli.py` viết được chắc tay vì tác giả có binary trong tay và đọc `--help` thật. Ở đây
+Một driver CLI viết được chắc tay khi tác giả có binary trong tay và đọc `--help` thật. Ở đây
 KHÔNG có: máy dựng bản này bị chặn mạng nên không tải được `agy`, mà cờ dòng lệnh thì mỗi bản
 một khác (xem CHANGELOG của chính nó: `--model` có từ 1.0.5, slug ổn định từ 1.1.5,
 `--output-format` cho print mode từ 1.1.8, cho `models`/`agents` từ 1.1.12). Đoán cờ rồi ship
@@ -594,7 +594,7 @@ def auth_status(bo_qua_cache: bool = False) -> dict:
     Khác Gemini CLI ở một điểm quyết định cách viết hàm này: `agy` giữ phiên trong KEYRING của
     hệ điều hành, không có file credential nào để soi. Nên không có đường nào rẻ hơn là hỏi
     chính CLI - và vì trang Models gọi hàm này mỗi lần mở, phải nhớ kết quả một phút, đúng lý
-    do mà `gemini_cli.auth_status()` cố tránh đẻ tiến trình.
+    do mà một `auth_status()` đọc-file cố tránh đẻ tiến trình.
 
     Dùng `models` làm phép thử vì nó cần tài khoản mới trả được danh sách, lại rẻ hơn nhiều so
     với chạy hẳn một lượt chat.
@@ -627,7 +627,7 @@ def login_huong_dan() -> dict:
     """Hướng dẫn đăng nhập. KHÔNG có nút bấm trên dashboard, và đó là quyết định có lý do.
 
     `agy` giữ token trong keyring hệ điều hành chứ không phải file, nên Javis không bắc cầu
-    token hộ được như đã làm với Gemini CLI (`gemini_oauth.ghi_creds_cho_cli`). Dựng một nút
+    token hộ được như Javis từng làm với Gemini CLI (đường đó đã gỡ). Dựng một nút
     "Đăng nhập" rồi bên dưới không làm gì được thì tệ hơn là nói thẳng phải gõ một lệnh.
 
     Điểm sáng cho người chạy VPS: `agy` tự nhận biết phiên SSH và IN RA một đường link để mở

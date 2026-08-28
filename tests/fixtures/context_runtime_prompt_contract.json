@@ -1,12 +1,58 @@
 {
-  "version": "legacy-baseline-v1",
+  "version": "legacy-baseline-v2",
   "source": "CLAUDE.md",
   "contracts": [
-    {"id": "identity", "any_of": ["AI agentic ĐỔI ĐƯỢC BỘ NÃO", "năng lực của Javis KHÔNG đổi theo model"]},
-    {"id": "no-fabrication", "any_of": ["không bịa", "Không bịa số"]},
-    {"id": "real-data", "any_of": ["Luôn dùng số liệu thật", "dữ liệu thật qua MCP"]},
-    {"id": "write-safety", "any_of": ["Chỉ gửi khi user yêu cầu rõ ràng", "BẮT BUỘC cảnh báo lại rủi ro"]},
-    {"id": "brain-memory", "any_of": ["Javis có bộ nhớ sống", "MEMORY.md"]},
-    {"id": "style-no-em-dash", "any_of": ["TUYỆT ĐỐI không dùng ký tự em dash"]}
-  ]
+    {
+      "id": "identity",
+      "any_of": [
+        "AI agentic ĐỔI ĐƯỢC BỘ NÃO",
+        "năng lực của Javis KHÔNG đổi theo model",
+        "SWAPPABLE BRAIN",
+        "capabilities do NOT change with the model"
+      ]
+    },
+    {
+      "id": "no-fabrication",
+      "any_of": [
+        "không bịa",
+        "Không bịa số",
+        "Do not invent numbers",
+        "do not invent"
+      ]
+    },
+    {
+      "id": "real-data",
+      "any_of": [
+        "Luôn dùng số liệu thật",
+        "dữ liệu thật qua MCP",
+        "Always use real numbers",
+        "read real data through MCP"
+      ]
+    },
+    {
+      "id": "write-safety",
+      "any_of": [
+        "Chỉ gửi khi user yêu cầu rõ ràng",
+        "BẮT BUỘC cảnh báo lại rủi ro",
+        "Only send when the user explicitly asks",
+        "restate the risk in words"
+      ]
+    },
+    {
+      "id": "brain-memory",
+      "any_of": [
+        "Javis có bộ nhớ sống",
+        "MEMORY.md",
+        "living memory"
+      ]
+    },
+    {
+      "id": "style-no-em-dash",
+      "any_of": [
+        "TUYỆT ĐỐI không dùng ký tự em dash",
+        "NEVER use the em dash character"
+      ]
+    }
+  ],
+  "_ghi_chu": "CLAUDE.md chuyển sang tiếng Anh ở 0.50.0. `any_of` giữ CẢ hai thứ tiếng chứ không thay thế: mỗi contract vẫn đòi prompt phải nói ra đúng bảo đảm đó, chỉ là chấp nhận nó viết bằng tiếng Việt (bản cũ, và các brain có CLAUDE.md riêng) hay tiếng Anh (bản đi theo app). Đừng rút gọn còn một thứ tiếng."
 }

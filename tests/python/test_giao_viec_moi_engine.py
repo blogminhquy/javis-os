@@ -258,7 +258,7 @@ else:
 _CL = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 _DOC = (ROOT / "docs" / "10-models-va-engine.md").read_text(encoding="utf-8")
 
-check("CLAUDE.md vẫn hứa mọi bộ não giao được việc Kanban", "giao việc Kanban" in _CL)
+check("CLAUDE.md vẫn hứa mọi bộ não giao được việc Kanban", "queue Kanban work" in _CL)
 check("CANARY: CLAUDE.md không còn nói khác biệt DUY NHẤT là lệnh máy",
       "Khác biệt DUY NHẤT" not in _CL)
 check("CANARY: CLAUDE.md kể cả WebFetch/WebSearch là của riêng engine CLI",

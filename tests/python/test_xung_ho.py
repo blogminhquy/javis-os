@@ -116,19 +116,19 @@ check(f"không chuỗi nào đoán giới người dùng ({_so_file} file)", not
 # Prompt là nơi DUY NHẤT luật này có hiệu lực với mọi bộ não. Ghi vào đây rồi thì Claude Code,
 # Codex hay engine API đều theo như nhau; quên ghi thì nó chỉ đúng trong đúng phiên vừa nói.
 _cm = (R / "CLAUDE.md").read_text(encoding="utf-8")
-check("CLAUDE.md có luật xưng hô", "Xưng hô" in _cm)
+check("CLAUDE.md có luật xưng hô", "Address forms (Vietnamese)" in _cm)
 check("và nêu mặc định bạn/mình", '"bạn"' in _cm and '"mình"' in _cm)
 check("và nói rõ chỉ đổi khi ĐÃ BIẾT CHẮC giới tính",
-      "BIẾT CHẮC" in _cm and "giới tính" in _cm)
+      "KNOW the speaker's gender for certain" in _cm)
 # Suy giới tính từ tên riêng là cái bẫy dễ sa nhất, vì nó có vẻ như một suy luận hợp lý.
 check("CANARY: cấm suy giới tính từ tên riêng",
-      "tên riêng là KHÔNG đủ căn cứ" in _cm)
+      "Inferring from a given name is NOT sufficient evidence" in _cm)
 # Luật mới phải nói rõ nó thắng ký ức cũ, nếu không thì bộ nhớ dài hạn của máy đang chạy
 # (còn ghi "thích xưng anh/em" từ thời một người dùng) sẽ lặng lẽ kéo giọng về như cũ.
 check("CANARY: luật mới thắng ký ức cũ trong bộ nhớ dài hạn",
-      "ký ức cũ" in _cm and "thắng ký ức đó" in _cm)
+      "an old memory" in _cm and "beats that memory" in _cm)
 check("và nói rõ chatbot với KHÁCH vẫn giữ lối anh chị",
-      "anh chị" in _cm and "chatbot" in _cm)
+      "anh chị" in _cm and "chatbot" in _cm)   # hai cụm này VẪN là tiếng Việt: đó là đại từ thật
 
 
 # ============================================================
