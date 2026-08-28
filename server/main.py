@@ -1055,7 +1055,12 @@ def _effective_main(cfg):
     (để config cũ chưa có 'main' vẫn route đúng provider)."""
     m = cfg.get("model", {})
     main = m.get("main") or {}
-    if main.get("provider"):
+    # Lớp phòng vệ THỨ HAI cho provider đã gỡ. `config._nan_provider_da_go` đã nắn lúc đọc
+    # settings, nhưng hàm này cũng nhận cfg do nơi khác dựng (test, bot chuyên trách, cfg sửa
+    # tay), nên vẫn phải tự kiểm. Provider không còn trong PROVIDER_DEFS thì coi như chưa đặt
+    # và rơi xuống mặc định bên dưới - thà chạy bằng bộ não mặc định còn hơn đưa tên model của
+    # nhà này cho engine của nhà kia rồi hỏng câm.
+    if main.get("provider") and _provider_def(main["provider"]):
         return {"provider": main["provider"], "model": main.get("model") or ""}
     eng = m.get("engine")
     if eng == "openrouter":

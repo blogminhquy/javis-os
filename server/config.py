@@ -594,6 +594,51 @@ def _ap_muc_mac_dinh(cfg: dict) -> bool:
     return doi
 
 
+# Provider đã GỠ khỏi app. Cấu hình của người dùng vẫn trỏ vào đây sau khi cập nhật, nên phải
+# NẮN LẠI lúc đọc - không nắn thì hỏng theo kiểu khó lần nhất: `_provider_def()` trả None, thẻ
+# Models không cái nào mang nhãn MAIN, và lượt chat rơi vào nhánh mặc định `kind="cli"` rồi
+# đưa một tên model của nhà khác cho Claude Code. Không có câu lỗi nào, chỉ có câu trả lời lạ.
+#
+# Nắn ở ĐÂY chứ không ở main.py vì `aux_engine` đọc thẳng settings, không đi qua main.
+_PROVIDER_DA_GO = {
+    # 0.50.0: Google ngắt Gemini CLI với MỌI tài khoản cá nhân từ 18/06/2026.
+    "gemini-cli": "Gemini CLI (Google đã ngắt tài khoản cá nhân)",
+}
+_DA_BAO_GO = set()      # chỉ in cảnh báo MỘT lần mỗi tiến trình: read_settings gọi liên tục
+
+
+def _nan_provider_da_go(cfg: dict) -> None:
+    """Đưa mọi tham chiếu tới provider đã gỡ về mặc định của app, và NÓI RA.
+
+    Về mặc định `anthropic-cli` chứ không về provider thay thế (Grok Build): thay thế thì cần
+    cài binary và đăng nhập, mà người dùng chưa làm - đẩy họ sang một thẻ chưa sẵn sàng chỉ đổi
+    một kiểu hỏng lấy một kiểu hỏng khác. Về mặc định thì chat chạy được ngay, rồi họ tự chọn
+    lại trên trang Models.
+    """
+    m = cfg.get("model") or {}
+    main = m.get("main") or {}
+    da_nan = []
+    if main.get("provider") in _PROVIDER_DA_GO:
+        da_nan.append(("model chính", main["provider"]))
+        m["main"] = {"provider": "", "model": ""}
+    aux = m.get("auxiliary") or {}
+    if aux.get("provider") in _PROVIDER_DA_GO:
+        da_nan.append(("model việc nền", aux["provider"]))
+        m["auxiliary"] = {**aux, "provider": "", "model": ""}
+    # Trường legacy `engine`: bỏ sót nó là `_effective_main` suy ngược ra provider vừa gỡ.
+    if m.get("engine") in _PROVIDER_DA_GO:
+        da_nan.append(("engine (legacy)", m["engine"]))
+        m["engine"] = "cli"
+    for cho, prov in da_nan:
+        khoa = (cho, prov)
+        if khoa in _DA_BAO_GO:
+            continue
+        _DA_BAO_GO.add(khoa)
+        print(f"[config] {cho} đang trỏ vào provider đã gỡ '{prov}' "
+              f"({_PROVIDER_DA_GO[prov]}) - đã đưa về mặc định. Chọn lại ở trang Models.",
+              file=__import__("sys").stderr)
+
+
 def _no_rong_pham_vi_bo_nao(cfg: dict) -> bool:
     """Nới `provider_kinds` của các mảng tiết kiệm về ÍT NHẤT bằng mặc định hiện tại.
 
@@ -653,6 +698,7 @@ def read_settings():
             _deep_merge(cfg, data or {})
     except Exception:
         pass
+    _nan_provider_da_go(cfg)
     _no_rong_pham_vi_bo_nao(cfg)
     _ap_muc_mac_dinh(cfg)
     try:
