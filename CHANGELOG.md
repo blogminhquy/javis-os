@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.3] - 2026-08-28
+### Sửa lỗi
+- **Chat với Grok chỉ nhận lại ô trống.** Đăng nhập xong, gõ một câu, và Javis trả lời "Grok CLI chạy xong nhưng không trả về nội dung nào". Javis đưa câu hỏi cho Grok qua một đường mà bản CLI này không nhận, nên nó chạy rồi thoát mà không nói gì. Giờ Javis tự thử lại đường thứ hai và lượt chat có câu trả lời.
+- **Grok trả lời kiểu Javis chưa biết thì vẫn đọc ra được.** Trước đây Javis chỉ hiểu đúng vài dạng dữ liệu; gặp dạng khác là bỏ qua sạch và bạn thấy ô trống. Nay nó vớt lấy phần chữ ở bất kỳ dạng nào.
+- **Và nếu vẫn không ra, câu báo lỗi nói rõ vì sao**: Grok đã in ra mấy dòng, dạng gì, mã thoát bao nhiêu, kèm lệnh để bạn tự chạy thử trên máy chủ. Nội dung câu hỏi của bạn không bao giờ bị đưa vào đó.
+
 ## [0.50.2] - 2026-08-28
 ### Sửa lỗi
 - **Đăng nhập Grok xong mà thẻ vẫn báo chưa đăng nhập.** Bấm **Đăng nhập**, mở link, trang xAI báo "Device Authorized" - nhưng thẻ trên trang **Models** cứ quay "đang chờ bạn xác nhận" mãi. Javis đọc file phiên của Grok theo một khuôn đoán trước, nên file thật viết khác một chút là nó không thấy token đâu. Nay nó đọc được mọi cách viết.
