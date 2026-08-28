@@ -117,6 +117,23 @@ def lenh_cai() -> str:
     return LENH_CAI_WIN if os.name == "nt" else LENH_CAI
 
 
+def _moi_truong() -> dict:
+    """Môi trường cho một lượt chạy `grok`: kế thừa của server, tắt bộ tự cập nhật.
+
+    Vì sao phải tắt: Javis chạy `grok` headless trên VPS và trong container. Bộ tự cập nhật của
+    CLI có thể xen vào giữa lượt - tải bản mới, ghi vào chỗ chỉ đọc, hoặc in thêm chữ vào
+    stdout làm hỏng dòng NDJSON đang đọc. Tài liệu chính chủ khuyên đúng điều này cho container.
+
+    Đặt CẢ biến môi trường lẫn cờ `--no-auto-update` (xem `_build_args`) là có chủ ý, không
+    phải thừa: cờ đi qua `co_co()` nên bản CLI chưa khai nó thì không được truyền, còn biến môi
+    trường thì bản nào cũng nhận hoặc lặng lẽ bỏ qua - không bao giờ làm CLI thoát lỗi. Hai lớp
+    phủ cho nhau.
+    """
+    env = dict(os.environ)
+    env.setdefault("GROK_DISABLE_AUTOUPDATER", "1")
+    return env
+
+
 # ---------------------------------------------------------------------------
 # Dò cờ: hỏi `--help` trước, đừng đoán
 # ---------------------------------------------------------------------------
@@ -136,7 +153,8 @@ def _help_text() -> str:
         return _HELP_CACHE["text"]
     try:
         r = subprocess.run([cli, "--help"], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=20, creationflags=_no_window())
+                           errors="replace", timeout=20, creationflags=_no_window(),
+                           env=_moi_truong())
         txt = (r.stdout or "") + "\n" + (r.stderr or "")
     except Exception:
         txt = ""
@@ -474,7 +492,7 @@ def login_start(cho_giay: float = 30.0) -> dict:
         proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8",
                                 errors="replace", bufsize=1, creationflags=_no_window(),
-                                start_new_session=(os.name != "nt"))
+                                env=_moi_truong(), start_new_session=(os.name != "nt"))
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     _LOGIN.update(proc=proc, url="", code="", loi="", bat_dau=time.time())
@@ -536,7 +554,8 @@ def logout() -> dict:
         return {"ok": False, "error": "Chưa cài Grok CLI."}
     try:
         r = subprocess.run([cli, "logout"], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=30, creationflags=_no_window())
+                           errors="replace", timeout=30, creationflags=_no_window(),
+                           env=_moi_truong())
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if r.returncode != 0:
@@ -560,7 +579,7 @@ def list_models() -> Optional[list]:
         try:
             r = subprocess.run([cli, "models", "--json"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=20,
-                               creationflags=_no_window())
+                               creationflags=_no_window(), env=_moi_truong())
             if r.returncode == 0:
                 d = json.loads((r.stdout or "").strip() or "[]")
                 if isinstance(d, dict):
@@ -618,6 +637,8 @@ class GrokCLI:
             args += ["--max-turns", str(int(self.max_turns))]
         if co_co("--output-format"):
             args += ["--output-format", "streaming-json"]
+        if co_co("--no-auto-update"):
+            args.append("--no-auto-update")
         # Mạch cũ thì nối lại; mạch mới thì KHÔNG tự cấp id.
         #
         # `-s/--session-id` có tồn tại, nhưng tài liệu nói id Grok tự sinh là UUIDv7 còn Javis
@@ -667,7 +688,7 @@ class GrokCLI:
                     args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE, cwd=self.cwd, text=True, encoding="utf-8",
                     errors="replace", bufsize=1, creationflags=_no_window(),
-                    start_new_session=(os.name != "nt"),
+                    env=_moi_truong(), start_new_session=(os.name != "nt"),
                 )
 
                 def cat():
@@ -864,11 +885,13 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
     args += permission_cho_mode("suggest")
     if co_co("--output-format"):
         args += ["--output-format", "json"]
+    if co_co("--no-auto-update"):
+        args.append("--no-auto-update")
     args += ["-p", "Trả lời đúng một chữ: ok"]
     try:
         r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=timeout, creationflags=_no_window(),
-                           cwd=str(Path.home()))
+                           env=_moi_truong(), cwd=str(Path.home()))
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "Grok CLI không trả lời kịp."}
     except Exception as e:

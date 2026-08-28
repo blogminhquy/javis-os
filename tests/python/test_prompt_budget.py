@@ -47,17 +47,25 @@ def _tok(chars):
 # tiếng Anh rõ nghĩa hơn cho model). Bản tiếng Việt 30.016 ký tự dịch ra 33.369 ký tự tiếng Anh
 # sau hai lượt gọt; cắt tiếp là phải bỏ luật thật, nên nâng trần thay vì cắt.
 #
-# ĐIỀU PHẢI BIẾT KHI ĐỌC CON SỐ NÀY: trần tính bằng KÝ TỰ chỉ là biến thế cho TOKEN, và tỉ lệ
-# 3.5 ký tự/token ở `_tok()` được cân cho tiếng Việt. Tiếng Anh mã hoá tốt hơn hẳn (khoảng 4
-# ký tự/token, trong khi tiếng Việt có dấu thường chỉ 2-2.5), nên nhiều ký tự hơn ở đây gần
-# như chắc chắn là ÍT TOKEN HƠN bản tiếng Việt cũ. "Gần như chắc chắn" chứ không phải "đã đo":
-# máy dựng bản này không tải được bảng BPE (egress bị chặn) nên KHÔNG đo được token thật.
+# ĐÃ ĐO THẬT (chủ repo chạy trên máy có mạng, 28/08/2026): 33.369 ký tự = **6.555 token** theo
+# `cl100k_base`, tức 5,09 ký tự/token. Ba điều rút ra:
 #
-# Muốn đo cho chắc, chạy trên máy có mạng:
-#     pip install tiktoken
-#     python -c "import tiktoken;print(len(tiktoken.get_encoding('cl100k_base').encode(open('CLAUDE.md',encoding='utf-8').read())))"
-# Ra dưới ~8.600 token là bản tiếng Anh RẺ HƠN bản tiếng Việt cũ, và trần này còn rộng rãi.
-# Ra cao hơn nhiều thì phải cắt thật hoặc đẩy một mục sang skill, đừng nâng số này lần nữa.
+#   1. Nhiều ký tự hơn nhưng ÍT TOKEN HƠN bản tiếng Việt cũ - đúng như dự đoán, và nay là số đo
+#      chứ không phải suy luận. Bản cũ ăn khoảng 8.576 token theo chính thước đo của file này
+#      (30.016 / 3.5), nên đổi ngôn ngữ TIẾT KIỆM chứ không tốn thêm.
+#   2. Tỉ lệ 3.5 ở `_tok()` được cân cho tiếng Việt nên nó ĐÁNH GIÁ CAO chi phí của văn bản
+#      tiếng Anh chừng 45%. Trần 33.600 ký tự vì vậy tương đương chỉ ~6.600 token thật, thoải
+#      mái hơn con số nhìn vào tưởng. KHÔNG sửa `_tok()` thành hai hệ số theo ngôn ngữ: nó còn
+#      đo mấy nguồn khác trong file này, đổi một chỗ là lệch cả bảng.
+#   3. `cl100k_base` là bộ tách token của OpenAI, KHÔNG phải của Claude, nên 6.555 là ước lượng
+#      chứ không phải con số Anthropic tính tiền. Nó vẫn dùng được cho việc ở đây vì thứ cần
+#      biết là SO SÁNH giữa hai bản, và cùng một thước thì so được.
+#
+# Đo lại khi cần (chú ý `python -m pip` để chắc chắn cài vào đúng Python đang chạy):
+#     python -m pip install tiktoken
+#     python -c "import tiktoken; print(len(tiktoken.get_encoding('cl100k_base').encode(open('CLAUDE.md', encoding='utf-8').read())))"
+#
+# Lần chạm trần TIẾP THEO thì cắt thật hoặc đẩy một mục sang skill, đừng nâng số này nữa.
 CLAUDE_MD_MAX_CHARS = 33_600
 
 _claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")

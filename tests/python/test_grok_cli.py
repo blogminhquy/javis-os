@@ -58,6 +58,7 @@ _HELP = """Usage: grok [OPTIONS] [COMMAND]
       --allow <RULE>
       --deny <RULE>
       --max-turns <N>
+      --no-auto-update
       --device-auth
 """
 
@@ -123,6 +124,24 @@ check("CANARY: prompt đi qua FILE, KHÔNG nằm trong argv "
 check("lượt đầu KHÔNG tự cấp id mạch (Grok sinh UUIDv7, Javis chỉ có uuid4)",
       "--session-id" not in _argv and "--resume" not in _argv)
 
+# Tắt bộ tự cập nhật: Javis chạy `grok` headless trên VPS/container, để nó tự tải bản mới giữa
+# lượt là in thêm chữ vào stdout (hỏng dòng NDJSON đang đọc) hoặc ghi vào chỗ chỉ đọc.
+check("có --no-auto-update (bộ tự cập nhật xen vào giữa lượt là hỏng dòng NDJSON)",
+      "--no-auto-update" in _argv)
+_env = grok_cli._moi_truong()
+check("và ĐỒNG THỜI đặt biến GROK_DISABLE_AUTOUPDATER - hai lớp phủ cho nhau",
+      _env.get("GROK_DISABLE_AUTOUPDATER") == "1")
+check("CANARY: môi trường vẫn KẾ THỪA của server (mất PATH là không tìm nổi binary nào)",
+      bool(_env.get("PATH")))
+_cu_env = os.environ.get("GROK_DISABLE_AUTOUPDATER")
+os.environ["GROK_DISABLE_AUTOUPDATER"] = "0"
+check("người dùng tự đặt khác thì TÔN TRỌNG, không đè (setdefault chứ không phải gán)",
+      grok_cli._moi_truong().get("GROK_DISABLE_AUTOUPDATER") == "0")
+if _cu_env is None:
+    os.environ.pop("GROK_DISABLE_AUTOUPDATER", None)
+else:
+    os.environ["GROK_DISABLE_AUTOUPDATER"] = _cu_env
+
 _g.session_id = "0195abcd-1111-7222-8333-444455556666"
 _argv2 = _g._build_args(prompt_file="/tmp/p.txt")
 check("có mạch cũ thì --resume đúng id",
@@ -135,6 +154,9 @@ check("bản CLI thiếu --prompt-file thì lùi về -p, không truyền cờ n
       "--prompt-file" not in _argv3 and _argv3[-2:] == ["-p", "chào"])
 check("và cũng không truyền --output-format mà bản đó không khai",
       "--output-format" not in _argv3)
+check("CANARY: bản CLI cũ cũng KHÔNG bị truyền --no-auto-update "
+      "(biến môi trường vẫn phủ được ca này, cờ thì không)",
+      "--no-auto-update" not in _argv3)
 _nap_help()
 
 
