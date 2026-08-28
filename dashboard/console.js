@@ -3192,15 +3192,41 @@
           + `<div>Xong thì quay lại đây, thẻ tự chuyển sang đã đăng nhập.</div>`;
       }
       if (msg) msg.textContent = "Đang chờ bạn xác nhận trên trình duyệt…";
+      // Vẽ lại phần "CLI đang nói gì" dưới link. Bản 0.50.0 chỉ có một dòng "đang chờ" quay
+      // mãi, nên người dùng xác nhận xong trên accounts.x.ai mà thẻ vẫn im thì không ai biết
+      // `grok login` đang kẹt ở đâu - đúng lỗi báo ngày 28/08/2026.
+      const veLog = (d, xong) => {
+        if (!box || !d || !d.nhat_ky || !d.nhat_ky.length) return;
+        const dong = d.nhat_ky.filter(x => !/^\[/.test(x));
+        const cuoi = dong.length ? dong[dong.length - 1] : "";
+        let h = box.querySelector("#grokLog");
+        if (!h) {
+          h = document.createElement("div");
+          h.id = "grokLog"; h.className = "gcard-meta"; h.style.marginTop = "6px";
+          box.appendChild(h);
+        }
+        h.innerHTML = xong
+          ? `Grok CLI vừa in ra:<br><code style="white-space:pre-wrap">${esc(d.nhat_ky.slice(-8).join("\n"))}</code>`
+          : (cuoi ? `Grok CLI: <code>${esc(cuoi.slice(0, 160))}</code>` : "");
+      };
       // Hỏi lại tới khi CLI báo xong. Trần 5 phút cho khớp vòng device code của xAI; hết giờ
       // thì nói thẳng là hết giờ chứ không quay mãi.
       const han = Date.now() + 300000;
       const quay = async () => {
-        if (Date.now() > han) { if (msg) msg.innerHTML = Icons.warn("Hết giờ chờ. Bấm Đăng nhập lại."); return; }
         let d = null;
         try { d = await (await fetch("/grok/login-poll")).json(); } catch (e) {}
         if (d && d.connected) { _daHoiModel.delete("grok-cli"); renderModels(el); return; }
-        if (d && !d.dang_cho) { if (msg) msg.innerHTML = Icons.warn(d.error || "Đăng nhập chưa xong."); return; }
+        if (Date.now() > han) {
+          if (msg) msg.innerHTML = Icons.warn("Hết giờ chờ. Bấm Đăng nhập lại.");
+          veLog(d, true);
+          return;
+        }
+        if (d && !d.dang_cho) {
+          if (msg) msg.innerHTML = Icons.warn(d.error || "Đăng nhập chưa xong.");
+          veLog(d, true);
+          return;
+        }
+        veLog(d, false);
         setTimeout(quay, 2000);
       };
       setTimeout(quay, 2000);
@@ -3236,7 +3262,26 @@
         if (msg) msg.innerHTML = OK_ICON + " Dùng được." + mcpTxt2;
         _daHoiModel.delete("grok-cli");
         setTimeout(() => renderModels(el), 700);
-      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt2;
+      } else if (msg) {
+        msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt2;
+        // Chưa dùng được thì hiện luôn chỗ Javis đã nhìn: binary nào, thư mục nào, trong đó
+        // có file gì. Chỉ TÊN file và TÊN khoá - giá trị trong auth.json là token thật.
+        const cd = r && r.chan_doan, box2 = el.querySelector("#grokBox");
+        if (cd && box2) {
+          box2.style.display = "";
+          const fs = (cd.files || []).map(x => x.ten).join(", ") || "(trống)";
+          box2.innerHTML = `<div class="gcard-meta">Javis đã nhìn vào:<br>`
+            + `binary <code>${esc(cd.cli_path || "(không thấy)")}</code><br>`
+            + `thư mục <code>${esc(cd.home || "")}</code> - ${cd.home_ton_tai ? "có" : "KHÔNG có"}<br>`
+            + `file trong đó: <code>${esc(fs)}</code><br>`
+            + `nhận ra token đăng nhập: <b>${cd.co_token ? "có" : "KHÔNG"}</b>`
+            + (cd.khoa_cap_cao && cd.khoa_cap_cao.length
+               ? `<br>khoá trong file: <code>${esc(cd.khoa_cap_cao.slice(0, 20).join(", "))}</code>` : "")
+            + (cd.nhat_ky && cd.nhat_ky.length
+               ? `<br>lần đăng nhập gần nhất:<br><code style="white-space:pre-wrap">${esc(cd.nhat_ky.slice(-8).join("\n"))}</code>` : "")
+            + `</div>`;
+        }
+      }
     };
     const od = el.querySelector("[data-oauth-disc]");
     if (od) od.onclick = async () => {

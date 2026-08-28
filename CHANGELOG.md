@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.2] - 2026-08-28
+### Sửa lỗi
+- **Đăng nhập Grok xong mà thẻ vẫn báo chưa đăng nhập.** Bấm **Đăng nhập**, mở link, trang xAI báo "Device Authorized" - nhưng thẻ trên trang **Models** cứ quay "đang chờ bạn xác nhận" mãi. Javis đọc file phiên của Grok theo một khuôn đoán trước, nên file thật viết khác một chút là nó không thấy token đâu. Nay nó đọc được mọi cách viết.
+- **Thẻ hiện luôn Grok đang nói gì.** Trước đây chỉ có một dòng "đang chờ" quay không có tin tức gì, giờ dòng cuối Grok in ra hiện ngay dưới link, và khi hỏng thì nút **Kiểm tra lại** cho biết Javis đã nhìn vào thư mục nào, thấy file gì. Token không bao giờ hiện ra.
+- **Mã đăng nhập hiện ra đầy đủ** kể cả khi nó nằm sẵn trong link, và Javis bắt được link cả khi Grok in đè lên một dòng thay vì xuống dòng mới.
+
 ## [0.50.1] - 2026-08-28
 ### Sửa lỗi
 - **Telegram không còn quên sạch mỗi lần cập nhật.** Trước đây bấm nút cập nhật (hay khởi động lại máy chủ) là cuộc trò chuyện trên Telegram coi như mất trắng: phải dạy lại từ cách xưng hô tới quy ước đặt tên file, trong khi mở `localhost:7777` thì vẫn bình thường. Lý do: trình duyệt tự nhớ hộ bạn đang ở cuộc nào, còn Telegram thì không ai nhớ hộ. Giờ Javis tự ghi lại, khởi động xong nối tiếp đúng cuộc đang dở.

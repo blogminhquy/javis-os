@@ -389,6 +389,104 @@ def trang_thai_mcp(vault_root) -> dict:
 # ---------------------------------------------------------------------------
 # Đăng nhập
 # ---------------------------------------------------------------------------
+# Tên trường bên trong `auth.json` KHÔNG được xAI tài liệu hoá, và bản 0.50.0 đã đoán sai một
+# lần: nó đòi `access_token` hoặc `refresh_token` nằm ngay TẦNG CAO NHẤT. File thật lồng token
+# sâu hơn (hoặc gọi tên khác) là Javis báo "chưa đăng nhập" vĩnh viễn dù người dùng đã bấm
+# xác nhận xong xuôi trên accounts.x.ai - đúng lỗi người dùng báo ngày 28/08/2026.
+#
+# Nên đọc theo HÌNH DẠNG, không theo một sơ đồ đoán trước: đi khắp cây JSON tìm một khoá nào
+# đó nghe như token, có giá trị chuỗi đủ dài. Sai hướng này chỉ làm Javis dễ tính hơn với một
+# file rác; sai hướng kia làm người dùng không đăng nhập được và không hiểu vì sao.
+_KHOA_TOKEN = ("access_token", "accesstoken", "refresh_token", "refreshtoken", "id_token",
+               "idtoken", "session_token", "sessiontoken", "token", "api_key", "apikey",
+               "credential", "credentials", "bearer", "jwt")
+# Ngưỡng độ dài chỉ để loại RÁC HIỂN NHIÊN (trường rỗng, "none", "Bearer"), không phải để
+# đoán token thật dài bao nhiêu. Cố ý để THẤP: hai chiều sai ở đây không ngang giá nhau - quá
+# lỏng thì thẻ xanh mà lượt chat đỏ, và nút "Kiểm tra lại" chạy một lượt thật sẽ bắt được;
+# quá chặt thì người dùng đăng nhập xong vẫn không vào được và chẳng có gì chỉ ra vì sao,
+# đúng lỗi đã xảy ra ở 0.50.0.
+_TOKEN_DAI_TOI_THIEU = 8
+
+# Tên file phiên, thử theo thứ tự. `auth.json` là cái tài liệu nhắc tới; số còn lại là những
+# tên mà CLI cùng loại hay dùng - rẻ để thử, và thử hụt thì không mất gì.
+_FILE_PHIEN = ("auth.json", "credentials.json", "session.json", "tokens.json", "oauth.json")
+
+
+def _tim_token(o, sau: int = 0):
+    """Trong cây JSON này có token nào không. Trả tên khoá tìm thấy, hoặc "".
+
+    Chỉ trả TÊN khoá, không bao giờ trả giá trị: hàm này phục vụ cả phần chẩn đoán hiện ra
+    màn hình, mà giá trị ở đây đúng là thứ đăng nhập được vào tài khoản người dùng.
+    """
+    if sau > 6:
+        return ""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            kl = str(k).lower().replace("-", "_")
+            if (kl in _KHOA_TOKEN and isinstance(v, str)
+                    and len(v.strip()) >= _TOKEN_DAI_TOI_THIEU):
+                return str(k)
+            trong = _tim_token(v, sau + 1)
+            if trong:
+                return trong
+    elif isinstance(o, list):
+        for v in o[:20]:
+            trong = _tim_token(v, sau + 1)
+            if trong:
+                return trong
+    return ""
+
+
+def _tim_chuoi(o, ten, sau: int = 0) -> str:
+    """Giá trị chuỗi đầu tiên của một trong các khoá `ten`, tìm ở mọi tầng. "" nếu không có."""
+    if sau > 6:
+        return ""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if str(k).lower() in ten and isinstance(v, str) and v.strip():
+                return v.strip()
+        for v in o.values():
+            trong = _tim_chuoi(v, ten, sau + 1)
+            if trong:
+                return trong
+    elif isinstance(o, list):
+        for v in o[:20]:
+            trong = _tim_chuoi(v, ten, sau + 1)
+            if trong:
+                return trong
+    return ""
+
+
+def _doc_phien() -> tuple:
+    """Tìm file phiên đăng nhập trong thư mục của `grok`. Trả (path|None, dict|None).
+
+    Quét `_FILE_PHIEN` trước, rồi mới tới mọi `*.json` còn lại trong thư mục - CLI đổi tên file
+    là chuyện xảy ra, và Javis không nên chết vì một cái tên.
+    """
+    home = _grok_home()
+    ten_da_thu = set()
+    ds = []
+    for ten in _FILE_PHIEN:
+        ten_da_thu.add(ten)
+        ds.append(home / ten)
+    try:
+        for f in sorted(home.glob("*.json"))[:20]:
+            if f.name not in ten_da_thu:
+                ds.append(f)
+    except Exception:
+        pass
+    for f in ds:
+        try:
+            if not f.is_file() or f.stat().st_size > 4_000_000:
+                continue
+        except Exception:
+            continue
+        d = _doc_json(f)
+        if isinstance(d, (dict, list)) and _tim_token(d):
+            return f, d
+    return None, None
+
+
 def auth_status() -> dict:
     """Đã đăng nhập chưa: {connected, method, account, plan, error}.
 
@@ -396,39 +494,85 @@ def auth_status() -> dict:
     một câu trả lời nằm sẵn trên đĩa.
 
     Thứ tự xét bám đúng "Auth Precedence" trong tài liệu chính chủ: phiên đăng nhập trong
-    `~/.grok/auth.json` thắng, `XAI_API_KEY` là đường lùi khi không có phiên nào.
+    thư mục `~/.grok` thắng, `XAI_API_KEY` là đường lùi khi không có phiên nào.
     """
     cli = find_grok_cli()
     if not cli:
         return {"connected": False, "method": "", "account": "", "plan": "",
                 "error": f"Chưa cài Grok CLI ({lenh_cai()})."}
-    auth = _doc_json(_grok_home() / "auth.json") or {}
-    if isinstance(auth, dict) and (auth.get("access_token") or auth.get("refresh_token")):
-        # Tên trường trong auth.json chưa được tài liệu hoá, nên dò vài tên hợp lý rồi thôi -
-        # thiếu tên tài khoản chỉ làm thẻ bớt đẹp, không làm sai trạng thái kết nối.
-        acc = ""
-        for k in ("email", "account", "username", "handle", "user"):
-            v = auth.get(k)
-            if isinstance(v, str) and v.strip():
-                acc = v.strip()
-                break
-            if isinstance(v, dict):
-                acc = str(v.get("email") or v.get("name") or "").strip()
-                if acc:
-                    break
-        plan = ""
-        for k in ("plan", "subscription", "tier"):
-            v = auth.get(k)
-            if isinstance(v, str) and v.strip():
-                plan = v.strip()
-                break
-        return {"connected": True, "method": str(auth.get("issuer") or "oauth"),
-                "account": acc, "plan": plan, "error": ""}
+    f, auth = _doc_phien()
+    if auth is not None:
+        acc = _tim_chuoi(auth, ("email", "account", "username", "handle", "user", "name"))
+        plan = _tim_chuoi(auth, ("plan", "subscription", "tier"))
+        pt = _tim_chuoi(auth, ("issuer", "method", "provider")) or "oauth"
+        return {"connected": True, "method": pt, "account": acc, "plan": plan,
+                "error": "", "file": str(f)}
     if (os.environ.get("XAI_API_KEY") or "").strip():
         return {"connected": True, "method": "xai-api-key", "account": "", "plan": "",
                 "error": ""}
+    # Có file mà không nhận ra token thì phải NÓI RA, đừng gộp chung với "chưa đăng nhập bao
+    # giờ": hai ca này cần hai hành động khác hẳn nhau, và gộp lại chính là cái đã làm người
+    # dùng ngồi bấm Đăng nhập lại nhiều lần vô ích.
+    co_file = [x["ten"] for x in _liet_ke_home()]
+    if co_file:
+        return {"connected": False, "method": "", "account": "", "plan": "",
+                "error": ("Thư mục " + str(_grok_home()) + " đã có file (" + ", ".join(co_file[:6])
+                          + ") nhưng Javis không nhận ra token đăng nhập trong đó. "
+                            "Bấm \"Kiểm tra lại\" để xem chi tiết.")}
     return {"connected": False, "method": "", "account": "", "plan": "",
             "error": "Đã cài Grok CLI nhưng chưa đăng nhập. Bấm \"Đăng nhập\" ngay trên thẻ này."}
+
+
+def _liet_ke_home() -> list:
+    """Tên + cỡ các file trong thư mục cấu hình của `grok`. Không đọc nội dung."""
+    ra = []
+    try:
+        for f in sorted(_grok_home().iterdir())[:40]:
+            try:
+                ra.append({"ten": f.name, "bytes": f.stat().st_size if f.is_file() else -1})
+            except Exception:
+                ra.append({"ten": f.name, "bytes": -1})
+    except Exception:
+        pass
+    return ra
+
+
+def chan_doan() -> dict:
+    """Mọi thứ cần để trả lời "vì sao thẻ Grok vẫn báo chưa đăng nhập", KHÔNG lộ token.
+
+    Bản 0.50.0 vứt sạch những gì `grok login` in ra, nên khi người dùng báo "đã bấm xác nhận
+    trên trình duyệt mà thẻ vẫn quay" thì không còn một mẩu bằng chứng nào để lần. Đây là chỗ
+    giữ lại: đường dẫn binary, thư mục cấu hình, TÊN các file trong đó, TÊN các khoá cấp cao
+    của file phiên, và những dòng CLI vừa in ra.
+
+    Chỉ tên khoá, không bao giờ có giá trị - giá trị ở đây chính là token đăng nhập.
+    """
+    home = _grok_home()
+    ra = {"cli_path": find_grok_cli() or "", "home": str(home), "home_ton_tai": False,
+          "files": [], "file_phien": "", "khoa_cap_cao": [], "co_token": False,
+          "khoa_token": "", "xai_api_key": bool((os.environ.get("XAI_API_KEY") or "").strip()),
+          "nhat_ky": nhat_ky_dang_nhap()}
+    try:
+        ra["home_ton_tai"] = home.is_dir()
+    except Exception:
+        pass
+    ra["files"] = _liet_ke_home()
+    f, d = _doc_phien()
+    if f is not None:
+        ra["file_phien"] = str(f)
+        ra["co_token"] = True
+        ra["khoa_token"] = _tim_token(d)
+        if isinstance(d, dict):
+            ra["khoa_cap_cao"] = [str(k) for k in list(d.keys())[:40]]
+        return ra
+    # Không tìm ra token: vẫn kể tên khoá cấp cao của từng file json để biết CLI ghi kiểu gì.
+    for x in ra["files"]:
+        if not x["ten"].endswith(".json"):
+            continue
+        d2 = _doc_json(home / x["ten"])
+        if isinstance(d2, dict):
+            ra["khoa_cap_cao"] += [x["ten"] + ":" + str(k) for k in list(d2.keys())[:20]]
+    return ra
 
 
 def login_huong_dan() -> dict:
@@ -451,8 +595,48 @@ def login_huong_dan() -> dict:
 #
 # Đây là chỗ Grok làm được thứ Antigravity không làm được: đăng nhập ngay trên dashboard, kể cả
 # khi Javis đang chạy trên VPS không có trình duyệt.
-_LOGIN: dict = {"proc": None, "url": "", "code": "", "loi": "", "bat_dau": 0.0}
+_LOGIN: dict = {"proc": None, "url": "", "code": "", "loi": "", "bat_dau": 0.0,
+                "log": None, "ma_thoat": None}
 _URL_RE = None
+_BIMAT_RE = None
+NHAT_KY_TOI_DA = 60      # số dòng CLI giữ lại; đủ để đọc hiểu, không thành bãi rác trong RAM
+
+
+def _che_bi_mat(dong: str) -> str:
+    """Che những chuỗi dài trông như token trước khi cho vào nhật ký.
+
+    Nhật ký này HIỆN RA MÀN HÌNH và đi vào ảnh chụp người dùng gửi đi. `grok login` in ra link
+    device code (phải giữ nguyên, người dùng cần bấm) nhưng cũng có thể in ra token sau khi
+    đổi xong - cái đó lộ là mất tài khoản.
+    """
+    global _BIMAT_RE
+    if _BIMAT_RE is None:
+        import re
+        # Chuỗi dài không khoảng trắng, không phải URL, không phải mã device (có gạch nối ngắn).
+        _BIMAT_RE = re.compile(r"\b(?![A-Z0-9]{4,}-)[A-Za-z0-9_\-]{32,}\b")
+    if "://" in dong:
+        return dong          # link đăng nhập: người dùng cần nguyên vẹn để bấm
+    return _BIMAT_RE.sub("[đã che]", dong)
+
+
+def _ghi_nhat_ky(dong: str) -> None:
+    if _LOGIN.get("log") is None:
+        return
+    d = _che_bi_mat(dong.strip())
+    if d:
+        _LOGIN["log"].append(d)
+
+
+def nhat_ky_dang_nhap() -> list:
+    """Những dòng `grok login` vừa in ra, đã che token. [] nếu chưa chạy lần nào.
+
+    Bản 0.50.0 đọc xong là VỨT: chỉ moi link với mã rồi bỏ phần còn lại. Nên khi người dùng
+    báo "đã bấm xác nhận trên accounts.x.ai mà thẻ vẫn quay mãi" (28/08/2026) thì không còn
+    một mẩu bằng chứng nào để biết CLI đang kẹt ở đâu. Giữ lại là rẻ, và là thứ duy nhất trả
+    lời được câu hỏi đó.
+    """
+    log = _LOGIN.get("log")
+    return list(log) if log else []
 
 
 def _bat_url_code(dong: str) -> None:
@@ -467,12 +651,48 @@ def _bat_url_code(dong: str) -> None:
             _LOGIN["url"] = m.group(0).rstrip(".,);")
     if not _LOGIN["code"]:
         # Mã device code thường là chữ-số viết hoa có gạch nối (ABCD-EFGH). Tìm token dạng đó,
-        # và chỉ nhận khi nó KHÔNG nằm trong link vừa bắt được.
+        # kể cả khi nó nằm TRONG link (`...?user_code=N3FJ-B2J7`) - link đã mang sẵn mã thì
+        # người dùng không phải gõ, nhưng hiện ra vẫn hơn: có bản CLI hỏi lại mã trên web.
         import re
         for tok in re.findall(r"\b[A-Z0-9]{4,}(?:-[A-Z0-9]{4,})+\b", dong):
-            if tok not in (_LOGIN["url"] or ""):
-                _LOGIN["code"] = tok
+            _LOGIN["code"] = tok
+            break
+
+
+def _doc_luong(proc) -> None:
+    """Đọc stdout của tiến trình login, cắt dòng theo CẢ `\n` LẪN `\r`.
+
+    Đọc từng ký tự chứ không `readline`: CLI loại này hay vẽ spinner bằng `\r` không xuống
+    dòng, mà `readline` thì đứng chờ `\n` - dòng chứa link có thể nằm kẹt trong bộ đệm tới
+    khi hết giờ. Lượng chữ của một lượt đăng nhập nhỏ xíu nên đọc từng ký tự không tốn gì.
+    """
+    buf = ""
+    try:
+        while True:
+            ch = proc.stdout.read(1)
+            if not ch:
                 break
+            if ch in "\r\n":
+                if buf.strip():
+                    _bat_url_code(buf)
+                    _ghi_nhat_ky(buf)
+                buf = ""
+            else:
+                buf += ch
+                if len(buf) > 4000:      # dòng không xuống dòng bao giờ: cắt, đừng phình RAM
+                    _bat_url_code(buf)
+                    _ghi_nhat_ky(buf)
+                    buf = ""
+    except Exception as e:
+        _ghi_nhat_ky(f"[Javis đọc output lỗi] {type(e).__name__}: {e}")
+    if buf.strip():
+        _bat_url_code(buf)
+        _ghi_nhat_ky(buf)
+    try:
+        _LOGIN["ma_thoat"] = proc.wait(timeout=5)
+        _ghi_nhat_ky(f"[grok login kết thúc, mã thoát {_LOGIN['ma_thoat']}]")
+    except Exception:
+        pass
 
 
 def login_start(cho_giay: float = 30.0) -> dict:
@@ -495,16 +715,14 @@ def login_start(cho_giay: float = 30.0) -> dict:
                                 env=_moi_truong(), start_new_session=(os.name != "nt"))
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    _LOGIN.update(proc=proc, url="", code="", loi="", bat_dau=time.time())
-
-    def doc():
-        try:
-            for dong in iter(proc.stdout.readline, ""):
-                _bat_url_code(dong.strip())
-        except Exception:
-            pass
-
-    threading.Thread(target=doc, name="javis-grok-login", daemon=True).start()
+    from collections import deque
+    _LOGIN.update(proc=proc, url="", code="", loi="", bat_dau=time.time(),
+                  log=deque(maxlen=NHAT_KY_TOI_DA), ma_thoat=None)
+    # Ghi luôn lệnh đã chạy: bản CLI không khai `--device-auth` thì Javis chạy `grok login`
+    # trần, và hai đường đó hỏng theo hai kiểu khác nhau. Không ghi lại thì đoán mò.
+    _ghi_nhat_ky("[Javis chạy] " + " ".join(args[1:]))
+    threading.Thread(target=_doc_luong, args=(proc,), name="javis-grok-login",
+                     daemon=True).start()
     han = time.time() + cho_giay
     while time.time() < han:
         if _LOGIN["url"]:
@@ -517,19 +735,41 @@ def login_start(cho_giay: float = 30.0) -> dict:
             return {"ok": True, "xong": True, "url": "", "code": ""}
         return {"ok": False,
                 "error": ("Grok CLI không in ra link đăng nhập trong " f"{int(cho_giay)}s. "
-                          "Thử chạy `grok login --device-auth` trong terminal của máy chủ.")}
-    return {"ok": True, "xong": False, "url": _LOGIN["url"], "code": _LOGIN["code"]}
+                          "Thử chạy `grok login --device-auth` trong terminal của máy chủ."),
+                "nhat_ky": nhat_ky_dang_nhap()}
+    return {"ok": True, "xong": False, "url": _LOGIN["url"], "code": _LOGIN["code"],
+            "nhat_ky": nhat_ky_dang_nhap()}
 
 
 def login_trang_thai() -> dict:
-    """Vòng đăng nhập đang tới đâu. Giao diện gọi lặp lại cái này sau `login_start`."""
+    """Vòng đăng nhập đang tới đâu. Giao diện gọi lặp lại cái này sau `login_start`.
+
+    Kèm `nhat_ky` - những dòng CLI vừa in ra. Đây là điểm khác bản 0.50.0 và là lý do bản đó
+    không chẩn được lỗi người dùng gặp: vòng quay chỉ biết "xong / chưa xong", nên khi CLI
+    đứng im hay chết lặng thì màn hình chỉ có một dòng "đang chờ" quay mãi.
+    """
     proc = _LOGIN.get("proc")
     d = auth_status()
     dang_chay = bool(proc and proc.poll() is None)
+    if not d.get("connected") and proc is not None and not dang_chay:
+        # Tiến trình vừa thoát. File phiên có thể còn đang được ghi - hỏi lại một nhịp trước
+        # khi kết luận là hỏng, kẻo báo lỗi ngay lúc nó sắp thành công.
+        time.sleep(0.6)
+        d = auth_status()
+    loi = ""
+    if not d.get("connected") and not dang_chay:
+        ma = _LOGIN.get("ma_thoat")
+        cuoi = [x for x in nhat_ky_dang_nhap() if not x.startswith("[")]
+        loi = (d.get("error") or "Đăng nhập chưa xong.")
+        if ma not in (None, 0):
+            loi = f"`grok login` thoát với mã {ma}. " + loi
+        if cuoi:
+            loi += " CLI nói: " + cuoi[-1][:200]
     return {"connected": bool(d.get("connected")), "dang_cho": dang_chay,
             "url": _LOGIN.get("url", ""), "code": _LOGIN.get("code", ""),
             "account": d.get("account", ""), "plan": d.get("plan", ""),
-            "error": "" if (d.get("connected") or dang_chay) else d.get("error", "")}
+            "ma_thoat": _LOGIN.get("ma_thoat"), "nhat_ky": nhat_ky_dang_nhap(),
+            "error": loi}
 
 
 def logout_huy_tien_trinh() -> None:
