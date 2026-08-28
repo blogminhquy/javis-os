@@ -2706,11 +2706,19 @@ async def antigravity_check(brain: str = "brain"):
 
 @app.get("/grok/status")
 def grok_status():
-    """Trạng thái bộ não Grok Build cho trang Models."""
+    """Trạng thái bộ não Grok Build cho trang Models, kèm phần chẩn đoán.
+
+    `chan_doan` chỉ có TÊN file và TÊN khoá, không bao giờ có giá trị - giá trị trong
+    `~/.grok/auth.json` chính là thứ đăng nhập được vào tài khoản xAI của người dùng.
+    """
     d = grok_cli.auth_status()
     d["cli_path"] = grok_cli.find_grok_cli() or ""
     d["cai_lenh"] = grok_cli.lenh_cai()
     d["huong_dan"] = grok_cli.login_huong_dan()
+    try:
+        d["chan_doan"] = grok_cli.chan_doan()
+    except Exception as e:
+        d["chan_doan"] = {"loi": f"{type(e).__name__}: {e}"}
     return d
 
 
@@ -2766,6 +2774,12 @@ async def grok_check(brain: str = "brain"):
         d["mcp"] = mcp
     except Exception as e:
         d["mcp"] = {"co_javis": False, "loi": f"{type(e).__name__}: {e}"}
+    # Kèm chẩn đoán: câu lỗi của `auth_status` bảo người dùng "bấm Kiểm tra lại để xem chi
+    # tiết", nên nút đó phải THẬT SỰ có chi tiết, không thì lại là một vòng bấm vô ích nữa.
+    try:
+        d["chan_doan"] = grok_cli.chan_doan()
+    except Exception as e:
+        d["chan_doan"] = {"loi": f"{type(e).__name__}: {e}"}
     return d
 
 

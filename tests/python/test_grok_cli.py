@@ -295,7 +295,8 @@ check("có XAI_API_KEY thì coi như đã cấu hình (đường lùi cho CI)",
       grok_cli.auth_status()["method"] == "xai-api-key")
 os.environ.pop("XAI_API_KEY", None)
 Path(os.environ["GROK_HOME"], "auth.json").write_text(
-    json.dumps({"access_token": "t", "email": "ai@x.ai", "plan": "SuperGrok"}), encoding="utf-8")
+    json.dumps({"access_token": "xai-oat-" + "t" * 32, "email": "ai@x.ai",
+                "plan": "SuperGrok"}), encoding="utf-8")
 _a2 = grok_cli.auth_status()
 check("có auth.json thì đọc ra cả tài khoản và gói",
       _a2["connected"] and _a2["account"] == "ai@x.ai" and _a2["plan"] == "SuperGrok", _a2)
@@ -408,6 +409,187 @@ check("CANARY: thẻ CÓ nút Đăng nhập - đây là engine CLI duy nhất đ
       "data-groklogin" in _CONSOLE and "/grok/login-start" in _CONSOLE)
 check("thẻ có nút Kiểm tra lại và nút Ngắt",
       "data-grokcheck" in _CONSOLE and "data-grokdisc" in _CONSOLE)
+
+# ============================================================
+# 7. ĐỌC TRẠNG THÁI ĐĂNG NHẬP - chỗ đã hỏng thật ở 0.50.0
+# ============================================================
+# Người dùng báo 28/08/2026: bấm Đăng nhập trên thẻ, mở link, accounts.x.ai hiện "Device
+# Authorized" - mà thẻ vẫn quay "đang chờ bạn xác nhận" mãi không đổi.
+#
+# Nguyên nhân hạng gốc: `auth_status` của 0.50.0 ĐOÁN sơ đồ `auth.json` (đòi `access_token`
+# hoặc `refresh_token` nằm ngay tầng cao nhất) trong khi xAI KHÔNG tài liệu hoá trường nào
+# cả - Giai đoạn 0 của kế hoạch có ghi rõ phải đo trước, và bước đó đã bị bỏ qua vì máy chưa
+# cài `grok`. Đoán sai một tầng là Javis báo "chưa đăng nhập" vĩnh viễn dù đăng nhập đã xong.
+#
+# Nên nhóm test này canh HÌNH DẠNG, không canh một sơ đồ: token lồng ở đâu cũng phải nhận ra.
+_HOME_CU = os.environ.get("GROK_HOME")
+_TIM_CU = grok_cli.find_grok_cli
+grok_cli.find_grok_cli = lambda: "/gia/grok"      # bỏ qua bước "đã cài chưa"
+
+
+def _dat_auth(noi_dung, ten="auth.json"):
+    d = tempfile.mkdtemp(prefix="javis-grokhome-")
+    if noi_dung is not None:
+        Path(d, ten).write_text(json.dumps(noi_dung, ensure_ascii=False), encoding="utf-8")
+    os.environ["GROK_HOME"] = d
+    return d
+
+
+# Bốn hình dạng: phẳng (bản cũ đã đỡ được), lồng một tầng, tên khoá kiểu camelCase, và tên
+# file khác. Ba cái sau là ba cách bản 0.50.0 hỏng câm.
+for _ten, _shape in (
+    ("phẳng như bản cũ vẫn đỡ được", {"access_token": "a" * 40, "email": "q@x.ai"}),
+    ("token LỒNG một tầng", {"oauth": {"accessToken": "b" * 40}, "user": {"email": "q@x.ai"}}),
+    ("chỉ có refresh token, viết camelCase", {"refreshToken": "c" * 40}),
+    ("khoá tên trống trơn là `token`", {"session": {"token": "d" * 40}}),
+):
+    _dat_auth(_shape)
+    check(f"nhận ra đã đăng nhập: {_ten}", grok_cli.auth_status().get("connected") is True,
+          grok_cli.auth_status())
+
+_dat_auth({"accessToken": "e" * 40}, ten="credentials.json")
+check("CLI đổi tên file phiên thì vẫn nhận ra",
+      grok_cli.auth_status().get("connected") is True, grok_cli.auth_status())
+
+check("lấy được email để hiện lên thẻ",
+      (_dat_auth({"oauth": {"access_token": "f" * 40}, "user": {"email": "q@x.ai"}}) and
+       grok_cli.auth_status().get("account")) == "q@x.ai")
+
+# Chiều ngược lại quan trọng ngang: đừng gật bừa.
+_dat_auth({"token_type": "Bearer", "expires_in": 3600})
+_d = grok_cli.auth_status()
+check("CANARY: `token_type: Bearer` KHÔNG được tính là đã đăng nhập "
+      "(gật bừa thì thẻ xanh mà chat lượt nào cũng đỏ)", _d.get("connected") is False, _d)
+check("CANARY: và câu lỗi phải NÓI RA là có file mà không đọc được token - gộp chung với "
+      "'chưa đăng nhập bao giờ' đúng là cái đã bắt người dùng bấm Đăng nhập lại vô ích",
+      "không nhận ra token" in (_d.get("error") or ""), _d.get("error"))
+
+_dat_auth({"token": "x"})
+check("CANARY: chuỗi rác quá ngắn không phải token",
+      grok_cli.auth_status().get("connected") is False)
+# Ngưỡng độ dài phải ĐỦ THẤP để không chặn nhầm một token thật. Chặn nhầm ở đây là người dùng
+# đăng nhập xong vẫn không vào được - đúng lỗi bản này đang chữa, nên đừng siết nó lên.
+check("CANARY: ngưỡng độ dài token để THẤP, chỉ lọc rác chứ không đoán token dài bao nhiêu",
+      grok_cli._TOKEN_DAI_TOI_THIEU <= 8, grok_cli._TOKEN_DAI_TOI_THIEU)
+
+_dat_auth(None)
+_moi = grok_cli.auth_status()
+check("thư mục trống: báo chưa đăng nhập và chỉ đúng nút phải bấm",
+      _moi.get("connected") is False and "Đăng nhập" in (_moi.get("error") or ""), _moi)
+
+# Chẩn đoán: phải đủ để lần ra lỗi, và TUYỆT ĐỐI không lộ token.
+_bi_mat = "g" * 40
+_dat_auth({"oauth": {"access_token": _bi_mat}, "email": "q@x.ai"})
+_cd = grok_cli.chan_doan()
+check("chẩn đoán kể được thư mục và tên file",
+      _cd["home_ton_tai"] and any(x["ten"] == "auth.json" for x in _cd["files"]), _cd)
+check("chẩn đoán nói rõ có nhận ra token không", _cd["co_token"] is True, _cd)
+check("CANARY: chẩn đoán KHÔNG chứa giá trị token - phần này hiện lên màn hình và đi vào "
+      "ảnh chụp người dùng gửi đi",
+      _bi_mat not in json.dumps(_cd, ensure_ascii=False), "LỘ TOKEN")
+
+if _HOME_CU is None:
+    os.environ.pop("GROK_HOME", None)
+else:
+    os.environ["GROK_HOME"] = _HOME_CU
+grok_cli.find_grok_cli = _TIM_CU
+
+
+# ============================================================
+# 8. Bóc link/mã và giữ lại nhật ký của `grok login`
+# ============================================================
+grok_cli._LOGIN.update(url="", code="", log=None)
+grok_cli._bat_url_code("Open https://accounts.x.ai/oauth2/device?user_code=N3FJ-B2J7 to continue")
+check("bóc đúng link đăng nhập",
+      grok_cli._LOGIN["url"] == "https://accounts.x.ai/oauth2/device?user_code=N3FJ-B2J7",
+      grok_cli._LOGIN["url"])
+check("CANARY: bóc được mã NẰM TRONG link - bản cũ cố ý bỏ qua ca này nên thẻ chỉ hiện link "
+      "trần, đúng thứ ảnh chụp của người dùng cho thấy",
+      grok_cli._LOGIN["code"] == "N3FJ-B2J7", grok_cli._LOGIN["code"])
+
+check("link giữ nguyên trong nhật ký (người dùng còn phải bấm vào)",
+      "accounts.x.ai" in grok_cli._che_bi_mat("Open https://accounts.x.ai/oauth2/device?a=1"))
+check("CANARY: chuỗi dài trông như token thì CHE trước khi hiện ra màn hình",
+      "h" * 45 not in grok_cli._che_bi_mat("saved token " + "h" * 45))
+check("mã device code ngắn không bị che nhầm",
+      "N3FJ-B2J7" in grok_cli._che_bi_mat("code: N3FJ-B2J7"))
+
+from collections import deque as _dq      # noqa: E402
+grok_cli._LOGIN["log"] = _dq(maxlen=grok_cli.NHAT_KY_TOI_DA)
+for _i in range(grok_cli.NHAT_KY_TOI_DA + 25):
+    grok_cli._ghi_nhat_ky(f"dòng {_i}")
+check("nhật ký có TRẦN, không phình vô hạn trong RAM",
+      len(grok_cli.nhat_ky_dang_nhap()) == grok_cli.NHAT_KY_TOI_DA,
+      len(grok_cli.nhat_ky_dang_nhap()))
+
+_CONSOLE_LOG = Path(ROOT, "dashboard", "console.js").read_text(encoding="utf-8")
+check("CANARY: màn hình có hiện lại lời CLI khi chờ - bản cũ chỉ có một dòng 'đang chờ' quay "
+      "mãi, nên không ai biết `grok login` kẹt ở đâu",
+      "nhat_ky" in _CONSOLE_LOG and "grokLog" in _CONSOLE_LOG)
+check("và vòng quay kiểm `connected` TRƯỚC khi kêu hết giờ",
+      _CONSOLE_LOG.find("d.connected") < _CONSOLE_LOG.find("Hết giờ chờ"))
+
+
+# ============================================================
+# 9. CHẠY THẬT một vòng đăng nhập, đúng kịch bản người dùng gặp
+# ============================================================
+# Mấy mục trên kiểm từng mảnh. Mục này ghép lại: dựng một `grok login` GIẢ hành xử y như bản
+# thật theo ảnh chụp của người dùng - in link kèm mã bằng `\r` (spinner, KHÔNG xuống dòng),
+# đứng chờ, rồi mới ghi file phiên với token LỒNG trong `oauth`. Bản 0.50.0 hỏng ở cả hai chỗ
+# đó, và không mục nào ở trên một mình chứng minh được cả chuỗi chạy thông.
+_login_home = tempfile.mkdtemp(prefix="javis-grokhome-live-")
+_d = Path(tempfile.mkdtemp(prefix="javis-fakelogin-"))
+_p = _d / "grok"
+_p.write_text(
+    "#!/usr/bin/env python3\n"
+    "import sys, json, time, os, pathlib\n"
+    # spinner dùng \r: `readline` của bản cũ đứng chờ \n nên dòng này kẹt trong bộ đệm
+    "sys.stdout.write('Waiting for browser...\\r')\n"
+    "sys.stdout.write('Open https://accounts.x.ai/oauth2/device?user_code=N3FJ-B2J7\\r')\n"
+    "sys.stdout.flush()\n"
+    "time.sleep(1.2)\n"
+    "h = pathlib.Path(os.environ['GROK_HOME']); h.mkdir(parents=True, exist_ok=True)\n"
+    "(h/'auth.json').write_text(json.dumps({'oauth': {'accessToken': 'x'*40}},\n"
+    "                                      ensure_ascii=False))\n"
+    "print('Logged in as ai@x.ai')\n",
+    encoding="utf-8")
+_p.chmod(_p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+_HOME_CU2 = os.environ.get("GROK_HOME")
+os.environ["GROK_HOME"] = _login_home
+# Trỏ thẳng vào binary giả, và nhét sẵn `--help` vào cache thay vì để `co_co()` tự chạy nó:
+# script giả này bỏ qua mọi tham số, nên gọi nó với `--help` là nó ghi luôn file phiên và
+# lượt đo sau đó không còn nghĩa gì.
+_nap_help(path=str(_p))
+
+_r = grok_cli.login_start(cho_giay=8.0)
+check("mở được vòng đăng nhập", _r.get("ok") is True, _r)
+check("CANARY: bắt được link dù CLI in bằng `\\r` không xuống dòng - `readline` của bản cũ "
+      "đứng chờ `\\n` nên dòng này kẹt lại tới lúc hết giờ",
+      "accounts.x.ai" in (_r.get("url") or ""), _r)
+check("và hiện luôn mã cho người dùng", _r.get("code") == "N3FJ-B2J7", _r.get("code"))
+
+_t0b = __import__("time").time()
+_tt = {}
+while __import__("time").time() - _t0b < 15:
+    _tt = grok_cli.login_trang_thai()
+    if _tt.get("connected"):
+        break
+    __import__("time").sleep(0.3)
+check("CANARY: người dùng xác nhận xong -> thẻ TỰ chuyển sang đã đăng nhập. "
+      "Đây đúng là thứ đã không xảy ra, dù accounts.x.ai đã báo Device Authorized",
+      _tt.get("connected") is True, _tt)
+check("và vòng quay có mang theo lời CLI để màn hình nói được điều gì đó",
+      any("Logged in" in x or "accounts.x.ai" in x for x in _tt.get("nhat_ky") or []),
+      _tt.get("nhat_ky"))
+
+grok_cli.logout_huy_tien_trinh()
+if _HOME_CU2 is None:
+    os.environ.pop("GROK_HOME", None)
+else:
+    os.environ["GROK_HOME"] = _HOME_CU2
+grok_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
+
 
 _CLAUDEMD = Path(ROOT, "CLAUDE.md").read_text(encoding="utf-8")
 check("CANARY: CLAUDE.md đã kể tên bộ não mới "
