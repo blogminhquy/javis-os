@@ -839,6 +839,44 @@ def list_models() -> Optional[list]:
     return ids
 
 
+# Số dòng stdout giữ lại để chẩn đoán một lượt. Chỉ dùng khi lượt ra rỗng; đủ để nhìn ra
+# CLI đang nói kiểu gì mà không giữ cả một câu trả lời dài trong RAM.
+_CHAN_DONG_TOI_DA = 40
+
+
+# Cờ mà giá trị đi sau nó là NỘI DUNG NGƯỜI DÙNG, không bao giờ được hiện ra.
+_CO_MANG_PROMPT = ("-p", "--single", "--prompt", "--prompt-file")
+
+
+def _cat_args(args: list) -> list:
+    """Danh sách CỜ đã truyền, để hiện lên khi lượt chạy hụt. KHÔNG kèm nội dung prompt.
+
+    Prompt của Javis là cả system prompt cộng ngữ cảnh brain - vài chục nghìn ký tự, và là
+    nội dung riêng của người dùng. Nó tuyệt đối không được lọt vào một câu báo lỗi. Nên chỉ
+    giữ token bắt đầu bằng `-`, cộng giá trị NGẮN đi ngay sau một cờ.
+    """
+    ra = []
+    truoc = ""
+    for a in [str(x) for x in args[1:]]:
+        if a.startswith("-"):
+            ra.append(a)
+            truoc = a
+            continue
+        # Giá trị đi sau một cờ MANG PROMPT thì bỏ hẳn, không xét độ dài: prompt ngắn vẫn là
+        # prompt. (Test bắt được đúng chỗ này - một câu 33 ký tự đã lọt qua ngưỡng độ dài.)
+        if truoc in _CO_MANG_PROMPT:
+            ra.append("<prompt>")
+        elif truoc and len(a) <= 40 and "\n" not in a and not a.startswith(("/", "\\")):
+            ra.append(a)
+        truoc = ""
+    return ra[:16]
+
+
+def _chan_moi() -> dict:
+    return {"raw": [], "loai": [], "ma_thoat": None, "stderr": "", "args": [],
+            "qua_file": False, "lan_hai": False}
+
+
 # ---------------------------------------------------------------------------
 class GrokCLI:
     """Một lượt chạy `grok` headless. Cùng hợp đồng sự kiện với ClaudeSDK/CodexCLI/GeminiCLI.
@@ -914,6 +952,61 @@ class GrokCLI:
         except Exception:
             tep = None
         args = self._build_args(prompt_file=tep, prompt_argv=full)
+        chan = _chan_moi()
+        chan["qua_file"] = bool(tep and "--prompt-file" in args)
+        cac_manh: list = []
+        da_loi = False
+        async for ra in self._mot_lan(args, cac_manh, chan, xoa_tep=tep):
+            if ra.get("type") == "error":
+                da_loi = True
+            yield ra
+        text = "".join(cac_manh).strip()
+
+        # ---- Không ra chữ nào: đừng bỏ cuộc bằng một câu trống rỗng ----
+        # Người dùng báo 28/08/2026: đăng nhập xong, chat "chào grok" thì chỉ nhận được
+        # "Grok CLI chạy xong nhưng không trả về nội dung nào." Câu đó không nói được điều gì
+        # và không có đường nào đi tiếp. Hai ca hoàn toàn khác nhau nấp sau nó:
+        #
+        #   a) CLI CÓ in JSON, nhưng toàn loại sự kiện Javis chưa biết -> `_doi_su_kien` bỏ
+        #      im lặng. Sơ đồ `streaming-json` là ĐOÁN từ tài liệu, chưa từng đo trên máy thật
+        #      (Giai đoạn 0 bước 2), nên đây là ca rất dễ xảy ra. Chữa: vớt chữ ở mọi tầng.
+        #   b) CLI in ra ĐÚNG KHÔNG GÌ CẢ và thoát 0. Nhiều CLI loại này coi `-p/--single` là
+        #      cờ BẬT chế độ headless, còn `--prompt-file` chỉ là chỗ lấy nội dung - thiếu `-p`
+        #      thì nó vào chế độ tương tác, gặp stdin rỗng, thoát ngay không nói gì. Chữa:
+        #      thử lại đúng một lần với prompt đưa thẳng qua argv.
+        if not text and not da_loi:
+            text = self._vot_chu(chan)
+        if not text and not da_loi and chan["qua_file"] and not chan["raw"]:
+            args2 = self._build_args(prompt_file=None, prompt_argv=full)
+            chan2 = _chan_moi()
+            chan2["lan_hai"] = True
+            manh2: list = []
+            async for ra in self._mot_lan(args2, manh2, chan2):
+                if ra.get("type") == "error":
+                    da_loi = True
+                yield ra
+            text = "".join(manh2).strip() or self._vot_chu(chan2)
+            if text:
+                # Ghi lại để còn biết mà bỏ hẳn đường `--prompt-file` nếu nó luôn hụt.
+                print("[grok] `--prompt-file` không ra nội dung, prompt qua argv thì được. "
+                      "Bản CLI này có lẽ cần `-p` để vào chế độ headless.", file=sys.stderr)
+            chan = chan2
+
+        if text:
+            yield {"type": "final", "content": text}
+        elif not da_loi:
+            yield {"type": "error", "content": self._loi_trong(chan)}
+
+    async def _mot_lan(self, args: list, cac_manh: list, chan: dict,
+                       xoa_tep: Optional[str] = None) -> AsyncIterator[dict]:
+        """Chạy MỘT tiến trình `grok` và sinh sự kiện theo hợp đồng chung.
+
+        Tách khỏi `query` để chạy được lần hai với bộ tham số khác mà không chép lại cả khối
+        quản tiến trình. `chan` được điền dần: dòng thô, loại sự kiện đã thấy, mã thoát,
+        stderr - đó là những gì `_loi_trong` cần để nói ra sự thật thay vì một câu chung chung.
+        """
+        tep = xoa_tep
+        chan["args"] = _cat_args(args)
         loop = asyncio.get_running_loop()
         hang: asyncio.Queue = asyncio.Queue()
         HET = object()
@@ -952,6 +1045,8 @@ class GrokCLI:
                     line = line.strip()
                     if not line:
                         continue
+                    if len(chan["raw"]) < _CHAN_DONG_TOI_DA:
+                        chan["raw"].append(line[:1000])
                     try:
                         loop.call_soon_threadsafe(hang.put_nowait, json.loads(line))
                     except json.JSONDecodeError:
@@ -964,6 +1059,8 @@ class GrokCLI:
                 except Exception:
                     pass
                 ma = proc.wait()
+                chan["ma_thoat"] = ma
+                chan["stderr"] = err[:1000]
                 if qua_gio.is_set():
                     loop.call_soon_threadsafe(
                         hang.put_nowait,
@@ -1001,22 +1098,82 @@ class GrokCLI:
 
         threading.Thread(target=doc_luong, name=f"javis-grok-{self.tag}", daemon=True).start()
 
-        cac_manh: list = []
-        da_loi = False
         while True:
             ev = await hang.get()
             if ev is HET:
                 break
-            for ra in self._doi_su_kien(ev, cac_manh):
-                if ra.get("type") == "error":
-                    da_loi = True
+            for ra in self._doi_su_kien(ev, cac_manh, chan):
                 yield ra
-        text = "".join(cac_manh).strip()
-        if text:
-            yield {"type": "final", "content": text}
-        elif not da_loi:
-            yield {"type": "error",
-                   "content": "Grok CLI chạy xong nhưng không trả về nội dung nào."}
+
+    # -- khi lượt chạy KHÔNG ra chữ nào -------------------------------------
+    @staticmethod
+    def _vot_chu(chan: dict) -> str:
+        """Vớt chữ từ những dòng JSON mà `_doi_su_kien` không nhận ra loại.
+
+        Chạy CHỈ khi đường chính đã ra rỗng, nên không có nguy cơ đếm chữ hai lần: lượt bình
+        thường không bao giờ vào đây. Cái giá của hai hướng sai rất lệch nhau - vớt nhầm một
+        dòng log thì người dùng thấy một câu lạ và biết ngay là lạ; bỏ sót thì họ thấy một ô
+        trống và không có đường nào đi tiếp.
+        """
+        ra = []
+
+        def di(o, sau=0):
+            if sau > 6 or len(ra) > 40:
+                return
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    kl = str(k).lower()
+                    if isinstance(v, str) and v.strip() and kl in (
+                            "text", "content", "delta", "response", "output", "answer",
+                            "message", "reply"):
+                        ra.append(v)
+                    else:
+                        di(v, sau + 1)
+            elif isinstance(o, list):
+                for v in o[:20]:
+                    di(v, sau + 1)
+
+        for dong in chan.get("raw") or []:
+            try:
+                d = json.loads(dong)
+            except Exception:
+                continue
+            if str((d or {}).get("type") or "") in ("thought", "usage"):
+                continue      # lập luận nội bộ và số token KHÔNG phải câu trả lời
+            di(d)
+        return "\n".join(ra).strip()
+
+    @staticmethod
+    def _loi_trong(chan: dict) -> str:
+        """Câu báo lỗi cho lượt không ra chữ nào - NÓI RA thứ Javis thật sự thấy.
+
+        Bản 0.50.2 chỉ có đúng một câu "Grok CLI chạy xong nhưng không trả về nội dung nào",
+        không phân biệt "CLI im hoàn toàn" với "CLI nói cả tràng bằng thứ Javis chưa hiểu".
+        Hai ca đó cần hai cách chữa khác nhau, mà câu kia thì không dẫn tới cách nào cả.
+        """
+        loai = [x for x in (chan.get("loai") or []) if x]
+        n = len(chan.get("raw") or [])
+        if not n:
+            noi = ("Grok CLI chạy xong (mã thoát "
+                   f"{chan.get('ma_thoat')}) nhưng KHÔNG in ra gì cả")
+            if chan.get("lan_hai"):
+                noi += ", kể cả khi thử lại với prompt đưa thẳng qua dòng lệnh"
+            noi += (". Thử chạy tay trên máy chủ để xem nó nói gì:\n"
+                    "`grok -p \"chào\" --output-format streaming-json`")
+        else:
+            noi = (f"Grok CLI in ra {n} dòng nhưng Javis không nhận ra loại sự kiện nào là "
+                   "câu trả lời")
+            if loai:
+                noi += " (thấy: " + ", ".join(sorted(set(loai))[:8]) + ")"
+            noi += "."
+            dong1 = (chan.get("raw") or [""])[0]
+            if dong1:
+                noi += " Dòng đầu CLI in ra: " + dong1[:300]
+        if chan.get("stderr"):
+            noi += "\nCLI báo ở stderr: " + chan["stderr"][:300]
+        if chan.get("args"):
+            noi += "\nCờ đã truyền: " + " ".join(chan["args"])
+        return noi
 
     # -- dịch sự kiện -------------------------------------------------------
     @staticmethod
@@ -1034,7 +1191,7 @@ class GrokCLI:
                 return v
         return mac_dinh
 
-    def _doi_su_kien(self, ev: dict, cac_manh: list) -> list:
+    def _doi_su_kien(self, ev: dict, cac_manh: list, chan: Optional[dict] = None) -> list:
         """Một dòng NDJSON của Grok -> 0..n sự kiện theo hợp đồng của Javis."""
         if "_raw" in ev:
             cac_manh.append(str(ev["_raw"]))
@@ -1053,6 +1210,8 @@ class GrokCLI:
             return [{"type": "error", "content": loi[:1500]}]
 
         t = str(ev.get("type") or "")
+        if chan is not None and t and len(chan.setdefault("loai", [])) < 30:
+            chan["loai"].append(t)
         # Id phiên có thể đi kèm nhiều loại sự kiện; nhặt ở đâu thấy cũng được, vì lượt sau chỉ
         # cần đúng một id để `--resume`.
         sid = str(self._lay(ev, "sessionId", "session_id") or "").strip()
@@ -1097,6 +1256,9 @@ class GrokCLI:
         if t == "error":
             tin = str(self._lay(ev, "message", "error", "content"))
             return [{"type": "error", "content": tin or "Grok CLI lỗi."}]
+        # Loại KHÔNG BIẾT. Vẫn bỏ qua ở đường chính (đoán bừa một loại lạ là câu trả lời thì
+        # lượt nào cũng dính rác), nhưng GHI TÊN lại: nếu hết lượt mà không ra chữ nào thì
+        # đúng danh sách này là thứ nói cho biết sơ đồ sự kiện đã đổi ở đâu.
         return []
 
     @staticmethod
@@ -1146,8 +1308,22 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
             loi = ("Tài khoản đăng nhập không có quyền dùng Grok Build. Nó đi kèm gói SuperGrok "
                    "hoặc X Premium+, không phải cứ có API key là chạy được.")
         return {"ok": False, "error": loi[:400] or f"Thoát mã {r.returncode}"}
+    tho = (r.stdout or "").strip()
     try:
-        d = json.loads((r.stdout or "").strip() or "{}")
+        d = json.loads(tho or "{}")
     except json.JSONDecodeError:
-        return {"ok": True, "reply": (r.stdout or "").strip()[:200]}
-    return {"ok": True, "reply": str(d.get("text") or d.get("response") or "")[:200]}
+        # Không phải JSON nhưng CÓ chữ: bản CLI cũ chưa có `--output-format`. Vẫn là chạy được.
+        return {"ok": True, "reply": tho[:200]} if tho else {
+            "ok": False,
+            "error": ("Grok CLI thoát 0 nhưng không in ra gì cả. Thử chạy tay trên máy chủ: "
+                      "`grok -p \"chào\" --output-format json`")}
+    tra = str(d.get("text") or d.get("response") or "").strip()
+    if not tra:
+        # Sơ đồ JSON khác cái Javis đoán. Vớt ở mọi tầng đã, rồi mới chịu thua - và nếu chịu
+        # thua thì NÓI RA nguyên văn, đừng báo "dùng được" trong khi chat vẫn ra ô trống.
+        tra = GrokCLI._vot_chu({"raw": [tho]}).strip()
+    if tra:
+        return {"ok": True, "reply": tra[:200]}
+    return {"ok": False,
+            "error": ("Grok CLI chạy xong nhưng Javis không đọc ra câu trả lời trong thứ nó "
+                      "in ra. Nguyên văn: " + tho[:300])}

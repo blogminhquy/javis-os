@@ -591,6 +591,112 @@ else:
 grok_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
 
 
+# ============================================================
+# 10. LƯỢT CHAT KHÔNG RA CHỮ - chỗ hỏng thứ hai người dùng gặp
+# ============================================================
+# Đăng nhập xong, gõ "chào grok", và nhận lại đúng một câu:
+#
+#     "Grok CLI chạy xong nhưng không trả về nội dung nào."
+#
+# Câu đó không nói được gì và không dẫn tới đâu. Nấp sau nó là HAI ca khác hẳn nhau, mà bản
+# 0.50.2 gộp làm một:
+#
+#   a) CLI in ra JSON nhưng toàn loại sự kiện Javis chưa biết. Sơ đồ `streaming-json` là ĐOÁN
+#      từ tài liệu, chưa từng đo trên máy thật - cùng hạng lỗi với `auth.json` ở 0.50.2.
+#   b) CLI in ra ĐÚNG KHÔNG GÌ CẢ rồi thoát 0. Nhiều CLI coi `-p` là cờ BẬT chế độ headless,
+#      còn `--prompt-file` chỉ là chỗ lấy nội dung.
+#
+# Hai ca cần hai cách chữa, nên test này canh riêng từng ca.
+def _gia_kich_ban(than: str):
+    """Dựng `grok` giả với thân hàm tự viết, và trỏ cả `co_co` vào nó."""
+    d = Path(tempfile.mkdtemp(prefix="javis-grokq-"))
+    q = d / "grok"
+    q.write_text("#!/usr/bin/env python3\nimport sys, json\n" + than, encoding="utf-8")
+    q.chmod(q.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return str(q)
+
+
+def _chay(cli_path, prompt="chào grok"):
+    g = grok_cli.GrokCLI(cwd="/tmp")
+    g.cli_path = cli_path
+
+    async def _go():
+        return [e async for e in g.query(prompt)]
+    return asyncio.run(_go()), g
+
+
+# --- ca (a): JSON toàn loại lạ ---
+_la = _gia_kich_ban(
+    "print(json.dumps({'type': 'assistant_message', 'message': {'content': 'Chào bạn!'}}))\n"
+    "print(json.dumps({'type': 'result_v2', 'sessionId': 'abc-123'}))\n")
+_nap_help(path=_la)
+_evs, _g = _chay(_la)
+_fin = [e for e in _evs if e["type"] == "final"]
+check("CANARY: sự kiện toàn loại LẠ nhưng có chữ -> vẫn vớt ra được câu trả lời, "
+      "không trả về ô trống", _fin and "Chào bạn!" in _fin[0]["content"], _evs)
+
+# --- ca (a2): loại lạ mà KHÔNG có chữ nào -> phải kể tên loại đã thấy ---
+_la2 = _gia_kich_ban("print(json.dumps({'type': 'ping'}))\n"
+                     "print(json.dumps({'type': 'heartbeat'}))\n")
+_nap_help(path=_la2)
+_evs2, _ = _chay(_la2)
+_er = [e for e in _evs2 if e["type"] == "error"]
+check("không vớt được chữ thì báo lỗi", bool(_er), _evs2)
+check("CANARY: câu lỗi KỂ TÊN loại sự kiện đã thấy - đó là thứ duy nhất chỉ ra sơ đồ đã "
+      "đổi ở đâu",
+      _er and "ping" in _er[0]["content"] and "heartbeat" in _er[0]["content"],
+      _er and _er[0]["content"])
+check("và nói luôn nó in ra mấy dòng, kèm dòng đầu",
+      _er and "2 dòng" in _er[0]["content"], _er and _er[0]["content"])
+
+# --- ca (b): im hoàn toàn, thoát 0. Đúng thứ ảnh chụp người dùng cho thấy ---
+# `--prompt-file` thì im, `-p` thì trả lời - mô phỏng CLI coi `-p` là cờ bật headless.
+_im = _gia_kich_ban(
+    "a = sys.argv[1:]\n"
+    "if '-p' in a:\n"
+    "    print(json.dumps({'type': 'text', 'text': 'chào anh'}))\n"
+    "sys.exit(0)\n")
+_nap_help(path=_im)
+_evs3, _ = _chay(_im)
+_fin3 = [e for e in _evs3 if e["type"] == "final"]
+check("CANARY: `--prompt-file` ra rỗng thì THỬ LẠI bằng `-p` trên dòng lệnh, và lượt chat "
+      "vẫn có câu trả lời thay vì một ô trống",
+      _fin3 and "chào anh" in _fin3[0]["content"], _evs3)
+
+# --- ca (b2): im hoàn toàn ở CẢ HAI đường -> câu lỗi phải dùng được ---
+_im2 = _gia_kich_ban("sys.exit(0)\n")
+_nap_help(path=_im2)
+_evs4, _ = _chay(_im2)
+_er4 = [e for e in _evs4 if e["type"] == "error"]
+check("im ở cả hai đường thì báo lỗi", bool(_er4), _evs4)
+_t4 = _er4[0]["content"] if _er4 else ""
+check("CANARY: câu lỗi nói rõ CLI không in ra gì và mã thoát là bao nhiêu",
+      "KHÔNG in ra gì" in _t4 and "mã thoát 0" in _t4, _t4)
+check("và đưa lệnh chạy tay để người dùng tự soi", "grok -p" in _t4, _t4)
+check("kể cả cờ đã truyền", "--output-format" in _t4, _t4)
+
+# Prompt TUYỆT ĐỐI không được lọt vào câu lỗi: nó là system prompt + ngữ cảnh brain.
+_evs5, _ = _chay(_im2, prompt="BÍ MẬT CỦA NGƯỜI DÙNG cần giữ kín")
+_t5 = "".join(e.get("content") or "" for e in _evs5)
+check("CANARY: câu lỗi KHÔNG chứa nội dung prompt (system prompt + ngữ cảnh brain nằm trong "
+      "đó, và câu lỗi thì hiện lên màn hình rồi vào ảnh chụp)",
+      "BÍ MẬT CỦA NGƯỜI DÙNG" not in _t5, _t5[:200])
+
+# Đường bình thường KHÔNG được đi qua phần vớt: vớt hai lần là chữ nhân đôi.
+_thuong = _gia_kich_ban(
+    "print(json.dumps({'type': 'text', 'text': 'một hai '}))\n"
+    "print(json.dumps({'type': 'text', 'text': 'ba'}))\n"
+    "print(json.dumps({'type': 'end', 'stopReason': 'stop'}))\n")
+_nap_help(path=_thuong)
+_evs6, _ = _chay(_thuong)
+_fin6 = [e for e in _evs6 if e["type"] == "final"]
+check("CANARY: lượt bình thường trả về ĐÚNG một lần chữ, không nhân đôi vì phần vớt",
+      _fin6 and _fin6[0]["content"] == "một hai ba", _fin6)
+
+grok_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
+grok_cli.find_grok_cli = _that_find
+
+
 _CLAUDEMD = Path(ROOT, "CLAUDE.md").read_text(encoding="utf-8")
 check("CANARY: CLAUDE.md đã kể tên bộ não mới "
       "(câu này vào system prompt MỖI LƯỢT CHAT, sai là Javis nói sai với mọi người dùng)",
