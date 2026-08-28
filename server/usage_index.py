@@ -249,6 +249,9 @@ _EVENT_CODEX = {"codex", "openai-oauth", "chatgpt", "oauth"}
 # Gemini CLI (goi dang nhap Google). Cot rieng chu KHONG gom vao 'api': provider 'gemini' o cot
 # api la duong TRA TIEN bang API key, hai thu khac hoan toan ve hoa don du cung ten model.
 _EVENT_GEMINI_CLI = {"gemini-cli", "gemini_cli"}
+# Grok Build CLI (goi SuperGrok / X Premium+). Cot rieng, cung ly do nhu Gemini CLI o tren:
+# day la duong THUE BAO, khong phai tra tien theo luot goi nhu mot API key xAI.
+_EVENT_GROK_CLI = {"grok-cli", "grok_cli", "grok"}
 
 
 def _ingest_events(conn) -> int:
@@ -315,6 +318,9 @@ def _ingest_events(conn) -> int:
                            "project": "(events)"})
         elif prov in _EVENT_GEMINI_CLI:
             events.append({**chung, "provider": "gemini-cli", "source": "javis",
+                           "activity": "chat", "project": "(events)"})
+        elif prov in _EVENT_GROK_CLI:
+            events.append({**chung, "provider": "grok-cli", "source": "javis",
                            "activity": "chat", "project": "(events)"})
     if events:
         _insert_events(conn, path, events)

@@ -2951,6 +2951,35 @@
           </div>
         </div>`;
       }
+      if (p.id === "grok-cli") {
+        // Bộ não thứ 11. Đây là thẻ CLI DUY NHẤT có nút "Đăng nhập" thật sự bấm được trên VPS:
+        // `grok login --device-auth` in ra một link và một mã rồi tự đứng hỏi máy chủ, nên
+        // Javis chỉ cần bóc link + mã đưa lên đây, không phải giả lập terminal như bản `agy`
+        // 0.30-0.32.1 từng thử (và tắc trên Windows vì không có pseudo-terminal).
+        const dn = p.dang_nhap || {};
+        const st = on
+          ? "● Đã đăng nhập" + (p.account ? " · " + esc(p.account) : "")
+            + (p.plan ? " · " + esc(p.plan) : "") + " · " + p.models.length + " model"
+          : (p.cli_found ? "○ Đã cài CLI, chưa đăng nhập" : "○ Chưa cài Grok Build CLI");
+        return `<div class="prov-card ${p.is_main ? "main" : ""}">
+          ${provHead(p, on, "MCP/skill", st)}
+          <div class="prov-note">Dùng <b>gói SuperGrok hoặc X Premium+ của bạn</b>, không cần mua
+            API key. Đăng nhập được ngay tại đây <b>kể cả khi Javis chạy trên VPS</b>.</div>
+          ${cliWarn("grok")}
+          ${p.cli_found ? "" : `<div class="prov-steps">
+            <div>Chưa thấy CLI trên máy. Cài một lần trên máy chạy Javis:<br><code>${esc(p.cai_lenh || "")}</code></div>
+          </div>`}
+          <div id="grokBox" class="prov-steps" style="display:none"></div>
+          <div class="prov-action" style="flex-wrap:wrap">
+            ${on
+              ? `<button class="gcard-btn ghost" data-grokcheck="1">Kiểm tra lại</button>
+                 <button class="gcard-btn ghost" data-grokdisc="1">Ngắt</button>`
+              : `<button class="gcard-btn" data-groklogin="1">Đăng nhập</button>
+                 <button class="gcard-btn ghost" data-grokcheck="1">Kiểm tra lại</button>`}
+            <span id="grokMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:200px">${on ? "" : esc(p.auth_error || "")}</span>
+          </div>
+        </div>`;
+      }
       if (p.id === "antigravity-cli") {
         // Bộ não thứ 10. Không có nút "Đăng nhập" ở đây và đó là quyết định có lý do: đăng nhập
         // của `agy` là một giao diện bàn phím trong terminal, token thì nằm trong keyring hệ
@@ -3199,6 +3228,73 @@
         _daHoiModel.delete("antigravity-cli");
         setTimeout(() => renderModels(el), 700);
       } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt;
+    };
+    // ---- Grok Build CLI: đăng nhập device code ngay trên trang ----
+    const gkl = el.querySelector("[data-groklogin]");
+    if (gkl) gkl.onclick = async () => {
+      const msg = el.querySelector("#grokMsg"), box = el.querySelector("#grokBox");
+      gkl.disabled = true; const cu = gkl.textContent; gkl.textContent = "Đang mở…";
+      if (msg) msg.textContent = "Đang hỏi Grok CLI lấy link đăng nhập…";
+      let r = null;
+      try { r = await (await fetch("/grok/login-start", { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      gkl.disabled = false; gkl.textContent = cu;
+      if (!r || !r.ok) { if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Không mở được."); return; }
+      if (r.xong) { renderModels(el); return; }
+      // Link + mã hiện ra để người dùng mở trên MÁY CỦA HỌ - đây là cả lý do tồn tại của
+      // đường device code: máy chạy Javis (VPS) không cần có trình duyệt.
+      if (box) {
+        box.style.display = "";
+        box.innerHTML = `<div>Mở link này trên máy của bạn:<br><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></div>`
+          + (r.code ? `<div>Rồi nhập mã: <code>${esc(r.code)}</code></div>` : "")
+          + `<div>Xong thì quay lại đây, thẻ tự chuyển sang đã đăng nhập.</div>`;
+      }
+      if (msg) msg.textContent = "Đang chờ bạn xác nhận trên trình duyệt…";
+      // Hỏi lại tới khi CLI báo xong. Trần 5 phút cho khớp vòng device code của xAI; hết giờ
+      // thì nói thẳng là hết giờ chứ không quay mãi.
+      const han = Date.now() + 300000;
+      const quay = async () => {
+        if (Date.now() > han) { if (msg) msg.innerHTML = Icons.warn("Hết giờ chờ. Bấm Đăng nhập lại."); return; }
+        let d = null;
+        try { d = await (await fetch("/grok/login-poll")).json(); } catch (e) {}
+        if (d && d.connected) { _daHoiModel.delete("grok-cli"); renderModels(el); return; }
+        if (d && !d.dang_cho) { if (msg) msg.innerHTML = Icons.warn(d.error || "Đăng nhập chưa xong."); return; }
+        setTimeout(quay, 2000);
+      };
+      setTimeout(quay, 2000);
+    };
+    const gkd = el.querySelector("[data-grokdisc]");
+    if (gkd) gkd.onclick = async () => {
+      gkd.disabled = true; gkd.textContent = "Đang ngắt…";
+      try { await fetch("/grok/logout", { method: "POST" }); } catch (e) {}
+      _daHoiModel.delete("grok-cli");
+      renderModels(el);
+    };
+    const gkc = el.querySelector("[data-grokcheck]");
+    if (gkc) gkc.onclick = async () => {
+      const msg = el.querySelector("#grokMsg");
+      gkc.disabled = true; const cu3 = gkc.textContent; gkc.textContent = "Đang thử…";
+      if (msg) msg.textContent = "Đang chạy thử một lượt thật…";
+      let r = null;
+      // Gửi kèm brain đang mở, cùng lý do với nút của `agy`: phần `mcp` soi cấu hình theo
+      // ĐÚNG brain đó, hỏi trống là soi nhầm chỗ.
+      const _br2 = window.currentBrainPath ? currentBrainPath() : "brain";
+      try { r = await (await fetch(`/grok/check?brain=${encodeURIComponent(_br2)}`,
+                                   { method: "POST" })).json(); }
+      catch (e) { r = { ok: false, error: "Lỗi mạng." }; }
+      gkc.disabled = false; gkc.textContent = cu3;
+      // Nói RIÊNG chuyện tool của Javis: "chat được" và "gọi được tool của Javis" là hai
+      // chuyện khác nhau, và cái thứ hai mới là chỗ đã ba lần hỏng câm với `agy`.
+      const mcpTxt2 = (r && r.mcp)
+        ? (r.mcp.co_javis ? " · tool của Javis đã đấu"
+           : (r.mcp.hub_bat === false ? " · trung tâm kết nối đang tắt"
+              : " · <b>chưa đấu được tool của Javis</b>"))
+        : "";
+      if (r && r.ok) {
+        if (msg) msg.innerHTML = OK_ICON + " Dùng được." + mcpTxt2;
+        _daHoiModel.delete("grok-cli");
+        setTimeout(() => renderModels(el), 700);
+      } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || "Chưa dùng được.") + mcpTxt2;
     };
     const od = el.querySelector("[data-oauth-disc]");
     if (od) od.onclick = async () => {

@@ -223,6 +223,8 @@ main._claude_sub_stream = _lam_engine("_claude_sub_stream")
 main._gemini_sub_stream = _lam_engine("_gemini_sub_stream")
 # Antigravity CLI (bộ não thứ 10) cùng cảnh: chạy binary `agy`, không qua engine.*.
 main._antigravity_sub_stream = _lam_engine("_antigravity_sub_stream")
+# Grok Build CLI (bộ não thứ 11) cùng cảnh: chạy binary `grok`, không qua engine.*.
+main._grok_sub_stream = _lam_engine("_grok_sub_stream")
 
 _bo_sot = []
 for _p in [d["id"] for d in main.PROVIDER_DEFS]:

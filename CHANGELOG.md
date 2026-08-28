@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.0] - 2026-08-28
+### Thêm mới
+- **Thêm bộ não thứ 11: Grok Build của xAI.** Dùng chính gói **SuperGrok** hoặc **X Premium+** bạn đang trả tiền, không phải mua API key. Vào **Models**, thẻ **xAI Grok Build CLI**, bấm **Đăng nhập** là xong.
+- **Đây là thẻ CLI đầu tiên đăng nhập được khi Javis chạy trên VPS.** Nó hiện ra một link và một mã để bạn mở trên điện thoại hay máy tính của mình, không bắt mở terminal như hai thẻ của Google.
+- Grok **nhớ được mạch hội thoại** giữa các lượt, và gọi được đầy đủ tool của Javis (MCP, skill, việc Kanban). Bấm **Kiểm tra lại** ở thẻ để biết chắc tool đã đấu chưa.
+
 ## [0.49.3] - 2026-08-27
 ### Cải thiện
 - **Dải cạnh ô chọn model giờ cho biết Javis vừa gọi tool gì.** Hai đèn "Claude Code CLI" và "Voice" đã bỏ - chúng gần như luôn xanh nên chẳng nói thêm được gì. Thay vào đó là **ba tool vừa gọi, mới nhất đứng đầu**, cái vừa chạy nháy lên một nhịp.

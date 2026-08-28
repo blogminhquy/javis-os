@@ -43,7 +43,14 @@ def _tok(chars):
 # Nâng trần này KHÔNG bị cấm, nhưng phải là một quyết định CÓ Ý THỨC: mỗi 3.500 ký tự thêm
 # vào là khoảng 1.000 token nhân với mọi lượt chat của mọi model. Nếu thấy chạm trần, cân
 # nhắc chuyển phần đó thành skill (chỉ nạp khi cần) thay vì nhồi tiếp vào prompt lõi.
-CLAUDE_MD_MAX_CHARS = 30_000
+# 30.200 (0.50.0): nâng 200 ký tự khi đấu bộ não thứ 11 (Grok Build CLI). Đây là quyết định
+# CÓ Ý THỨC đúng như đoạn trên đòi, không phải nới cho qua test: câu liệt kê các bộ não nằm
+# trong system prompt MỖI LƯỢT CHAT, nên thêm một bộ não thì BẮT BUỘC phải kể tên nó ở đó -
+# không kể là Javis nói sai với mọi người dùng về chính năng lực của mình. Chi phí thật của
+# lần này là 30 ký tự (~9 token/lượt); phần dôi ra là chỗ thở cho bộ não thứ 12, không phải
+# giấy phép nhồi thêm văn xuôi. File đã sát trần từ trước (29.986/30.000), nên lần chạm trần
+# TIẾP THEO là lúc phải cắt bớt thật hoặc đẩy một mục sang skill, đừng nâng số này lần nữa.
+CLAUDE_MD_MAX_CHARS = 30_200
 
 _claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 check(

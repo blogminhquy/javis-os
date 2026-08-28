@@ -30,7 +30,7 @@
     ["last_3_months", "3 tháng"], ["this_year", "Năm nay"],
   ];
   var PROVS = [["", "Tất cả"], ["claude", "Claude Code"], ["codex", "ChatGPT"], ["api", "API"]];
-  var PROV_LABEL = { claude: "Claude Code", codex: "ChatGPT/Codex", api: "API (OpenRouter...)", "gemini-cli": "Gemini CLI" };
+  var PROV_LABEL = { claude: "Claude Code", codex: "ChatGPT/Codex", api: "API (OpenRouter...)", "gemini-cli": "Gemini CLI", "grok-cli": "Grok Build" };
   var SRC_LABEL = { manual: "Bạn gõ tay", javis: "Javis (tự chạy)" };
   var ACT_LABEL = { chat: "Chat", background: "Nền (loop/lịch)", subagent: "Subagent", manual: "Thủ công" };
   var PROV_COLOR = { claude: "var(--accent)", codex: "var(--green)", api: "var(--link-ink)" };

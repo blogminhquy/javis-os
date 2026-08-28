@@ -75,8 +75,10 @@ LOI_HET_CUA = (
     "có cả Gemini lẫn Claude, chỉ cần một API key.\n"
     "- **Google Gemini (API)** - vẫn đúng model Gemini, lấy key ở aistudio.google.com, "
     "trả tiền theo lượt gọi.\n"
-    "- **Antigravity CLI** - bản thay thế chính chủ của Google (binary `agy`). Javis chưa đấu "
-    "engine này; nhắn nếu bạn muốn thêm."
+    "- **Antigravity CLI** - bản thay thế chính chủ của Google (binary `agy`), dùng đúng gói "
+    "Google bạn đang có.\n"
+    "- **Grok Build CLI** - nếu bạn có gói SuperGrok hoặc X Premium+, đây là đường dùng gói "
+    "sẵn có và đăng nhập được ngay trên trang Models."
 )
 
 

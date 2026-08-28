@@ -26,7 +26,7 @@ Bạn đấu các **kết nối** của riêng mình vào (bán hàng/POS, quả
 
 | | Chatbot thường | **Javis OS** |
 |---|---|---|
-| Bộ não | Khoá cứng 1 model, API gọi rời từng câu | **Đổi được**: 10 nhà cung cấp, cái nào cũng đủ tool, MCP, skill, session |
+| Bộ não | Khoá cứng 1 model, API gọi rời từng câu | **Đổi được**: 11 nhà cung cấp, cái nào cũng đủ tool, MCP, skill, session |
 | Trí nhớ | Quên sau mỗi phiên | **Second Brain sống** - nhớ bạn, dày lên qua từng hội thoại |
 | Dữ liệu | Bịa hoặc không có | **Số liệu thật** từ kết nối bạn đấu vào (POS, Ads, Lịch, Zalo…) |
 | Tự cải thiện | Không | **Vòng lặp tự chạy nền** + hàng đợi việc do AI tự vận hành |

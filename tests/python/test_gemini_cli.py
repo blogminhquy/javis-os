@@ -624,7 +624,8 @@ try:
     check("CANARY: máy KHÔNG có binary `gemini` -> thẻ Gemini CLI biến mất khỏi trang Models",
           "gemini-cli" not in _ids, _ids)
     check("và các thẻ khác không bị ảnh hưởng",
-          "antigravity-cli" in _ids and "anthropic-cli" in _ids and len(_ids) == 9, _ids)
+          "antigravity-cli" in _ids and "anthropic-cli" in _ids
+          and len(_ids) == len(main.PROVIDER_DEFS) - 1, _ids)
 
     gemini_cli.find_gemini_cli = lambda: "/usr/bin/gemini"
     check("máy CÓ binary (doanh nghiệp / chạy bằng API key) -> thẻ hiện lại",

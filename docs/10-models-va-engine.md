@@ -51,14 +51,15 @@ Nói ngắn gọn: **năng lực nằm ở Javis, không nằm ở model.** Ba e
 2. Ở thanh bên trái, mở nhóm **Kết nối**, rồi bấm mục **Models**.
 3. Trang Models hiện 4 khối theo thứ tự: **◆ Main Model** ("model chính cho hội thoại"), **◆ Providers** ("đăng nhập / kết nối nhà cung cấp model"), **◆ Model việc nền** ("loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn"), **◆ Suy nghĩ** ("độ sâu reasoning khi trả lời").
 
-## Mười provider có sẵn
+## Mười một provider có sẵn
 
-Khối **Providers** liệt kê 10 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
+Khối **Providers** liệt kê 11 nhà cung cấp. **Cái nào đã kết nối được xếp lên đầu**, chưa kết nối dồn xuống dưới; trong mỗi nhóm giữ nguyên thứ tự gốc bên dưới. Nhờ vậy máy đã đấu vài nhà cung cấp thì mở trang ra là thấy ngay chúng, khỏi cuộn tìm.
 
 | Provider (nhãn trên màn hình) | Kiểu kết nối | Ghi chú |
 |---|---|---|
 | **Anthropic OAuth (Claude Code)** | Đăng nhập Claude Code, không cần key | Đầy đủ MCP/skill/tool máy. Là Main Model mặc định |
 | **OpenAI OAuth (ChatGPT)** | Device code (đăng nhập gói ChatGPT) | Chạy qua Codex, đấu kho Kết nối qua hub + dùng skill qua router |
+| **xAI Grok Build CLI** | Đăng nhập **ngay trên trang Models** (device code), không cần key | Dùng gói **SuperGrok / X Premium+** sẵn có. Chạy qua binary `grok`. Đầy đủ MCP/skill/tool máy, nối lại được mạch hội thoại. Là thẻ CLI **duy nhất đăng nhập được khi Javis chạy trên VPS** - xem [B1a](#b1a-kết-nối-grok-build-cli-dùng-gói-supergrok--x-premium) |
 | **Google Antigravity CLI** | Gõ `agy` **một lần trong terminal**, không cần key | Bản Google chỉ định thay Gemini CLI. Chạy qua binary `agy`. Đầy đủ MCP/skill/tool máy, và chọn được **đúng dàn model của Antigravity IDE** (có cả model không phải của Google) |
 | **Google Gemini CLI** | Đăng nhập Google, hoặc `GEMINI_API_KEY` | ⛔ Google đã **ngắt mọi tài khoản cá nhân** từ 18/06/2026 (miễn phí, AI Pro, Ultra). Chỉ còn chạy được với giấy phép Code Assist doanh nghiệp hoặc API key - xem [B2](#b2-gemini-cli---google-đã-ngắt-với-tài-khoản-cá-nhân-18062026) |
 | **OpenRouter** | Dán API key | Nhiều model 1 chỗ, MCP + tool file + skill qua hub |
@@ -116,6 +117,30 @@ Vì chỉ cần dán lại đường dẫn nên đường này cũng chạy đư
 Muốn ngắt: bấm **Ngắt** trên card này. Nếu ChatGPT đang là Main Model khi bạn ngắt, Javis tự chuyển Main Model về Claude Code để chat không bị gãy.
 
 Lưu ý: đây là kênh thử nghiệm (chạy nền Codex). Nếu cần ổn định tối đa, dùng Claude Code hoặc OpenRouter.
+
+### B1a. Kết nối Grok Build CLI (dùng gói SuperGrok / X Premium+)
+
+Đây là đường **xAI** dùng gói bạn đang trả tiền, không phải mua API key riêng. Điểm khác biệt lớn nhất so với hai thẻ CLI của Google: **đăng nhập xong ngay trên trang Models**, kể cả khi Javis chạy trên VPS không có trình duyệt.
+
+1. Cài CLI một lần trên máy chạy Javis:
+   - Linux/macOS: `curl -fsSL https://x.ai/cli/install.sh | bash`
+   - Windows PowerShell: `irm https://x.ai/cli/install.ps1 | iex`
+2. Vào **Models**, thẻ **xAI Grok Build CLI**, bấm **Đăng nhập**. Nó hiện ra một đường link và một mã. Mở link đó trên máy bạn (điện thoại cũng được), nhập mã, xác nhận. Thẻ tự chuyển sang **● Đã đăng nhập**, không phải bấm gì thêm.
+3. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này rồi chọn model.
+
+**Cần gói gì:** Grok Build đi kèm **SuperGrok** hoặc **X Premium+**. Có mỗi API key `XAI_API_KEY` thì CLI vẫn chạy được về mặt kỹ thuật, nhưng quyền dùng Grok Build gắn vào GÓI chứ không vào key - nên nếu thẻ báo *"Tài khoản đăng nhập không có quyền dùng Grok Build"* thì đó là chuyện gói, không phải lỗi cấu hình. Bấm **Kiểm tra lại** là biết chắc: nút đó chạy thử một lượt chat thật chứ không chỉ soi file.
+
+**Chạy nền 24/7 bằng gói cá nhân:** xAI chưa nói rõ chuyện này, nên rủi ro giống hệt cảnh báo đã ghi cho gói Anthropic - muốn yên tâm thì trỏ model việc nền sang một provider API.
+
+Vài chỗ đáng biết:
+
+- **Tool của Javis đấu vào `<brain>/.grok/config.toml`**, mục `[mcp_servers.javis]`. Grok đọc cấu hình theo **thư mục làm việc**, mà Javis luôn chạy nó với thư mục làm việc là gốc brain - nên mỗi brain một hub riêng, và Javis **không đụng vào `~/.grok/config.toml`** cá nhân của bạn. Kiểm trong 10 giây: bấm **Kiểm tra lại** ở thẻ, nó ghi lại cấu hình rồi **đọc lại chính file đó** và báo *tool của Javis đã đấu* / *chưa đấu được tool của Javis* / *trung tâm kết nối đang tắt*.
+- **File `config.toml` của bạn không bị đè hỏng.** Javis giữ nguyên mọi mục khác trong file (`[models]`, `[tools]`...). Và nếu file đang có lỗi cú pháp khiến Javis không đọc nổi, nó **không ghi đè** - thà chạy thiếu tool còn hơn xoá mất cấu hình của bạn; khi đó thẻ báo "chưa đấu được tool của Javis" chứ không báo xanh giả.
+- **Có nối lại mạch hội thoại của CLI** (khác thẻ Antigravity). `grok` tự sinh id phiên rồi phát ra trong dòng sự kiện, Javis chỉ đọc lại id đó chứ không tự bịa - nên không có chuyện lưu nhầm rồi lượt sau nối vào một mạch không tồn tại. Mạch dài quá ngưỡng thì Javis tự mở mạch mới và mồi lại bằng lịch sử đã lưu.
+- **Javis ĐO cờ của bản CLI đang cài, không đoán.** Trước mỗi lượt nó hỏi `grok --help` (nhớ 5 phút) rồi chỉ truyền những cờ mà binary tự khai. Bản cũ thiếu một cờ thì mất đúng tính năng đó, không làm hỏng cả lượt chat vì "unknown flag".
+- **Prompt đi qua file, không qua dòng lệnh** (`--prompt-file`), cùng lý do với thẻ Antigravity: Windows chặn tổng dòng lệnh ở 32767 ký tự mà system prompt của Javis đã hơn 36.000.
+- Danh sách model hỏi CLI chứ Javis không giữ bảng chép tay, nên xAI đổi tên model cũng không làm picker lạc hậu.
+- Lượt chạy quá lâu thì bị cắt ở **900 giây**; đổi bằng biến môi trường `JAVIS_GROK_TIMEOUT`. Binary nằm chỗ lạ thì trỏ bằng `JAVIS_GROK_BIN`.
 
 ### B1b. Kết nối Antigravity CLI (dùng gói Google của bạn)
 

@@ -132,6 +132,8 @@ _DEFAULT = {
             "gemini-cli": [],
             # Antigravity CLI: model hoi thang `agy models`, KHONG chep tay bang nao o day.
             "antigravity-cli": [],
+            # Grok Build CLI: cung ly do, /provider/models hoi CLI roi nho lai.
+            "grok-cli": [],
             "openrouter": ["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-chat"],
         },
     },

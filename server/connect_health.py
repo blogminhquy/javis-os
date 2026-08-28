@@ -277,7 +277,8 @@ def probe_claude_credentials(path=None) -> tuple[bool, str]:
 # Provider nào có "phiên đăng nhập CLI" để mà mất. Các provider API (openrouter, openai,
 # anthropic-api, gemini) chạy bằng API key: key sai thì lượt chạy báo lỗi ngay tại chỗ,
 # không có phiên nào hết hạn ngầm, nên chúng KHÔNG có đèn báo não.
-_PROVIDER_ENGINE = {"anthropic-cli": "claude", "openai-oauth": "codex", "gemini-cli": "gemini-cli"}
+_PROVIDER_ENGINE = {"anthropic-cli": "claude", "openai-oauth": "codex",
+                    "gemini-cli": "gemini-cli", "grok-cli": "grok-cli"}
 
 
 def engines_in_use() -> set:

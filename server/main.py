@@ -56,6 +56,7 @@ import winproc         # chạy lệnh con câm lặng trên Windows (không nh�
 import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
 import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
+import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói SuperGrok / X Premium+
 import gemini_oauth    # đăng nhập Google ngay trên dashboard rồi bắc cầu token sang Gemini CLI
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
 import claude_auth     # gói Claude Code xác thực bằng gì: phiên subscription hay API key
@@ -1023,6 +1024,15 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # dùng cá nhân, và cho chọn đúng dàn model của Antigravity IDE (có cả Claude).
     # default_models để RỖNG là cố ý: danh sách hỏi thẳng `agy models` chứ không chép tay - tên
     # model của Google đổi liên tục, mà bảng chép tay thì sai lặng lẽ.
+    # Grok Build (binary `grok`) - đường xAI dùng GÓI SuperGrok / X Premium+ sẵn có, không phải
+    # mua API key riêng. Đặt ngay sau ChatGPT vì đây cũng là một đường "gói cá nhân" còn sống.
+    # Nó khác hai thẻ Google bên dưới ở một điểm người dùng thấy ngay: đăng nhập được TỪ
+    # DASHBOARD kể cả trên VPS (`grok login --device-auth` in ra link + mã), nên thẻ này có nút
+    # Đăng nhập thật chứ không phải bảo người ta mở terminal.
+    # default_models để RỖNG là cố ý, đúng bài học của `agy`: tên model của xAI đổi liên tục,
+    # bảng chép tay thì sai lặng lẽ - /provider/models hỏi CLI rồi nhớ lại.
+    {"id": "grok-cli", "label": "xAI Grok Build CLI", "kind": "cli", "key_field": None,
+     "catalog_key": "grok-cli", "default_models": []},
     {"id": "antigravity-cli", "label": "Google Antigravity CLI", "kind": "cli", "key_field": None,
      "catalog_key": "antigravity-cli", "default_models": []},
     {"id": "gemini-cli",    "label": "Google Gemini CLI (cá nhân đã bị Google ngắt)", "kind": "cli", "key_field": None,
@@ -1090,6 +1100,10 @@ def _providers_view(cfg):
             # Không dùng lối "key_field rỗng nên coi như xong" của anthropic-cli: Gemini CLI có
             # thể chưa cài, hoặc cài rồi mà chưa đăng nhập Google. Cả hai đều đọc từ file, rẻ.
             configured = bool(gemini_cli.auth_status().get("connected"))
+        elif p["id"] == "grok-cli":
+            # Đọc `~/.grok/auth.json` - file thật, quyền 0600. Rẻ như nhánh Gemini CLI, và đây
+            # chính là chỗ Grok dễ hơn `agy`: có file để soi nên không phải hỏi CLI.
+            configured = bool(grok_cli.auth_status().get("connected"))
         elif p["id"] == "antigravity-cli":
             # `agy` giữ phiên trong keyring của hệ điều hành nên không có file nào để soi -
             # auth_status() phải hỏi chính CLI, và nó tự nhớ kết quả một phút để mở trang Models
@@ -1127,6 +1141,18 @@ def _providers_view(cfg):
             # Đăng nhập qua dashboard thì Javis giữ token nên NGẮT được; đăng nhập bằng
             # terminal thì token là của CLI, Javis không có quyền gỡ hộ.
             item["auth_by_javis"] = gemini_oauth.connected()
+        if p["id"] == "grok-cli":
+            _k = grok_cli.auth_status()
+            item["cli_found"] = bool(grok_cli.find_grok_cli())
+            item["auth_method"] = _k.get("method", "")
+            item["account"] = _k.get("account", "")
+            item["plan"] = _k.get("plan", "")
+            item["auth_error"] = _k.get("error", "")
+            item["cai_lenh"] = grok_cli.lenh_cai()
+            item["dang_nhap"] = grok_cli.login_huong_dan()
+            # Phiên nằm trong `~/.grok/auth.json` do chính CLI giữ, Javis không sở hữu nó -
+            # nhưng `grok logout` thì gọi được, nên thẻ CÓ nút Ngắt (khác `agy`).
+            item["auth_by_javis"] = False
         if p["id"] == "antigravity-cli":
             _a = antigravity_cli.auth_status()
             item["cli_found"] = bool(antigravity_cli.find_antigravity_cli())
@@ -1180,6 +1206,8 @@ def _set_main_model(cfg, provider, model):
         m["engine"] = "gemini-cli"
     elif provider == "antigravity-cli":
         m["engine"] = "antigravity-cli"
+    elif provider == "grok-cli":
+        m["engine"] = "grok-cli"
     elif provider == "groq":
         m["engine"] = "groq"
     elif provider == "ollama":
@@ -1442,8 +1470,27 @@ def _antigravity_sub_stream(model, messages, reasoning="off", *, brain=None, tag
     return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
 
 
+def _grok_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
+                     mode="suggest"):
+    """Gói SuperGrok / X Premium+ (Grok Build CLI) cho đường CHAT-THUẦN của `_api_stream`.
+
+    Cùng lý do tồn tại với `_gemini_sub_stream`: provider nào không có nhánh ở `_api_stream` sẽ
+    rơi xuống `engine.anthropic_stream(key="")` và hỏng câm. KHÔNG phải `async def` - xem chú
+    thích dài ở `_gemini_sub_stream`.
+    """
+    sys_txt, prompt = _claude_sub_tach(messages)
+    g = grok_cli.GrokCLI(cwd=_brain_root(brain) if brain else None, tag=tag,
+                         model=model or None, instructions=sys_txt)
+    g.mode = mode or "suggest"
+    if brain:
+        _apply_grok_hub(g, _brain_root(brain), mode=mode)
+    # Dùng chung bộ dịch sự kiện với Gemini/Antigravity: ba engine đã phát cùng một hợp đồng
+    # {tool_call, final, usage, error}, viết lại là ba bản dễ lệch nhau.
+    return _gemini_sub_doc(g, _cli_think(reasoning, prompt), model)
+
+
 async def _gemini_sub_doc(g, prompt, model):
-    """Một lượt engine CLI (Gemini hoặc Antigravity) -> hợp đồng sự kiện của `_api_stream`."""
+    """Một lượt engine CLI (Gemini, Antigravity hoặc Grok) -> hợp đồng sự kiện của `_api_stream`."""
     yield {"type": "meta", "model": model}
     async for ev in g.query(prompt):
         et = ev.get("type")
@@ -1525,6 +1572,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return _gemini_sub_stream(model, messages, reasoning)
     if prov == "antigravity-cli":
         return _antigravity_sub_stream(model, messages, reasoning)
+    if prov == "grok-cli":
+        return _grok_sub_stream(model, messages, reasoning)
     if prov == "anthropic-cli":
         # Gói Claude Code đi qua chính binary `claude`, KHÔNG tự dựng request tới
         # api.anthropic.com bằng token của người dùng nữa (xem claude_auth.py). Vẫn không có
@@ -2506,6 +2555,36 @@ def _apply_gemini_hub(cli, vault_root=None, mode="full"):
     return cli
 
 
+def _apply_grok_hub(cli, vault_root=None, mode="full"):
+    """Gắn MCP hub của Javis vào tiến trình `grok`, khoá theo đúng brain đang mở.
+
+    Cùng khuôn `_apply_gemini_hub` ngay trên, và cùng lý do: Grok đọc `[mcp_servers.*]` từ
+    `config.toml` của THƯ MỤC LÀM VIỆC, mà Javis luôn chạy nó với cwd = gốc brain - nên ghi
+    file ngay trong brain vừa đúng chỗ vừa cô lập sẵn từng brain. Không đụng
+    `~/.grok/config.toml`: đó là cấu hình cá nhân người dùng dùng cho mọi thứ chạy bằng `grok`.
+
+    Header y hệt bốn engine kia (`Bearer hub_token` + X-Javis-Mode + X-Javis-Vault) nên hub áp
+    đúng một bộ luật quyền cho cả năm.
+
+    Hình dạng entry lấy từ `grok_cli.hub_entry` chứ KHÔNG viết tay ở đây - Grok dùng khoá `url`,
+    Gemini CLI dùng `httpUrl`, `agy` dùng `serverUrl`. Ba engine ba khoá khác nhau, và lần
+    trước chép nhầm khoá giữa hai file là bộ não chạy mấy bản mà không có lấy một tool nào.
+    """
+    root = vault_root or getattr(cli, "cwd", None)
+    if not root:
+        return cli
+    hub = None
+    if _hub_enabled():
+        headers = {"Authorization": f"Bearer {mcp_hub.hub_token()}", "X-Javis-Mode": mode}
+        try:
+            headers["X-Javis-Vault"] = str(Path(root).expanduser().resolve())
+        except Exception:
+            headers["X-Javis-Vault"] = str(root)
+        hub = grok_cli.hub_entry(mcp_hub.hub_url(), headers)
+    grok_cli.ghi_mcp_settings(root, hub)
+    return cli
+
+
 def _apply_antigravity_hub(cli, vault_root=None, mode="full"):
     """Gắn MCP hub của Javis vào tiến trình `agy`.
 
@@ -2739,6 +2818,71 @@ async def antigravity_check(brain: str = "brain"):
         d["mcp"] = mcp
     except Exception as e:
         d["mcp"] = {"ok": False, "files": [], "thieu": [], "loi": f"{type(e).__name__}: {e}"}
+    return d
+
+
+@app.get("/grok/status")
+def grok_status():
+    """Trạng thái bộ não Grok Build cho trang Models."""
+    d = grok_cli.auth_status()
+    d["cli_path"] = grok_cli.find_grok_cli() or ""
+    d["cai_lenh"] = grok_cli.lenh_cai()
+    d["huong_dan"] = grok_cli.login_huong_dan()
+    return d
+
+
+@app.post("/grok/login-start")
+async def grok_login_start():
+    """Bước 1: mở vòng device code, trả link + mã để người dùng mở trên máy của họ.
+
+    Chỉ có MỘT bước, không có `login-code` đối xứng như Gemini: `grok login --device-auth` tự
+    đứng hỏi máy chủ tới khi người dùng bấm xong trên web, nên Javis không nhận lại mã nào cả.
+    Giao diện gọi tiếp `/grok/login-poll` để biết đã xong chưa.
+    """
+    return await asyncio.to_thread(grok_cli.login_start)
+
+
+@app.get("/grok/login-poll")
+def grok_login_poll():
+    """Bước 2: vòng đăng nhập tới đâu rồi. Giao diện hỏi lặp lại cái này sau login-start."""
+    return grok_cli.login_trang_thai()
+
+
+@app.post("/grok/logout")
+async def grok_logout():
+    """Ngắt tài khoản xAI khỏi máy này (`grok logout`).
+
+    Khác thẻ `agy` - ở đó không có nút Ngắt vì token nằm trong keyring không đụng tới được.
+    Grok có lệnh đăng xuất chính chủ nên nút này làm đúng việc nó hứa.
+    """
+    return await asyncio.to_thread(grok_cli.logout)
+
+
+@app.post("/grok/check")
+async def grok_check(brain: str = "brain"):
+    """Chạy thử MỘT lượt thật, VÀ soát lại xem hub MCP đã vào cấu hình của `grok` chưa.
+
+    Cùng lý do với `/antigravity/check`: `auth.json` còn nằm đó không có nghĩa là còn dùng
+    được, và quyền dùng Grok Build gắn vào GÓI (SuperGrok / X Premium+) chứ không vào binary -
+    đúng hạng chuyện đã làm Gemini CLI chết lặng khi Google ngắt hạng cá nhân. Câu hỏi "chat
+    được chưa" chỉ trả lời được bằng cách chat thật một lượt.
+
+    Phần `mcp` ghi lại cấu hình rồi ĐỌC LẠI chính file đó, canh hạng lỗi đã ba lần lọt lưới với
+    `agy`: ghi thành công nhưng sai chỗ hoặc sai khoá thì CLI chạy trơn tru mà không có lấy một
+    tool nào của Javis, và không ở đâu có một câu lỗi để lần ra.
+    """
+    root = _brain_root(brain)
+    try:
+        _apply_grok_hub(_types.SimpleNamespace(cwd=root), root)
+    except Exception as e:
+        print(f"[grok check] ghi cấu hình MCP: {e}", file=__import__('sys').stderr)
+    d = await asyncio.to_thread(grok_cli.kiem_tra_nhanh)
+    try:
+        mcp = grok_cli.trang_thai_mcp(root)
+        mcp["hub_bat"] = _hub_enabled()
+        d["mcp"] = mcp
+    except Exception as e:
+        d["mcp"] = {"co_javis": False, "loi": f"{type(e).__name__}: {e}"}
     return d
 
 
@@ -3589,6 +3733,10 @@ async def _fetch_provider_models(provider, m):
         return await asyncio.to_thread(openai_oauth.list_models, openai_oauth.valid_creds())
     if provider == "gemini-cli":
         return gemini_cli.list_models()
+    if provider == "grok-cli":
+        # Chạy ở worker: `list_models` có thể đẻ tiến trình con (`grok --help` để dò cờ, rồi
+        # `grok models` nếu bản này có) và mất vài giây.
+        return await asyncio.to_thread(grok_cli.list_models)
     if provider == "antigravity-cli":
         # `agy models` là NGUỒN CHÂN LÝ, không có bảng chép tay nào để rơi về - chạy ở worker
         # vì nó đẻ tiến trình con và có thể mất vài giây.
@@ -9335,6 +9483,89 @@ async def websocket_endpoint(ws: WebSocket):
                         "type": "response", "content": final_text, "engine": "gemini-cli",
                         "model": actual_model, "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
+            elif prov == "grok-cli":
+                # ===== Gói SuperGrok / X Premium+ qua GROK BUILD CLI - tool native + MCP hub =====
+                #
+                # CÓ nối lại mạch như nhánh Gemini/Codex, khác nhánh `agy` ngay dưới: `grok`
+                # tự sinh id phiên rồi phát ra trong dòng sự kiện, nên Javis chỉ ĐỌC LẠI id đó
+                # chứ không tự bịa ra một cái. Không có chuyện lưu nhầm một id sai dạng rồi
+                # lượt sau nối vào mạch không tồn tại - lý do khiến `agy` phải bỏ resume.
+                actual_model = api_model or None
+                sysprompt, _sub_plan = await _subscription_system_prompt(
+                    "grok-cli", actual_model or "", kind)
+                kcli = grok_cli.GrokCLI(cwd=_brain_root(brain), model=actual_model,
+                                        tag=turn_tag, instructions=sysprompt)
+                kcli.mode = "full"
+                _apply_grok_hub(kcli, _brain_root(brain))
+                if not kcli.is_available():
+                    final_text = ("⚠ Chưa cài Grok Build CLI trên máy này. Cài một lần:\n\n"
+                                  f"`{grok_cli.lenh_cai()}`\n\n"
+                                  "Rồi bấm \"Đăng nhập\" ở thẻ Grok trên trang Models (chạy "
+                                  "trên VPS cũng được, nó in ra một link và một mã).")
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "grok-cli",
+                        "model": actual_model or "", "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
+                else:
+                    _k_mach = (_row0.get("grok_session_id") or "").strip()
+                    if _k_mach and compaction.nen_mach_thue_bao(
+                            _row0.get("last_input_tokens"), msg_count=_row0.get("msg_count"),
+                            rotated_at=_row0.get("thread_rotated_msg")):
+                        _k_mach = ""
+                        store.clear_grok_session_id(conv_sid)
+                        store.mark_thread_rotated(conv_sid)
+                        _CONTEXT_RUNTIME.record_runtime_event(
+                            runtime_trace, "thread.rotated",
+                            {"engine": "grok-cli",
+                             "last_input_tokens": int(_row0.get("last_input_tokens") or 0),
+                             "threshold": compaction.SUBSCRIPTION_THREAD_MAX_TOKENS})
+                        await ws.send_text(json.dumps({
+                            "type": "tool_call", "tool": "javis_nen_mach",
+                            "content": "⚙ Mạch hội thoại đã dài, Javis mở mạch mới."}))
+                    kcli.session_id = _k_mach or None
+                    # Mạch mới thì mồi lại bằng transcript đã lưu, y như Codex/Gemini: không có
+                    # bước này là mở mạch mới = mất sạch ngữ cảnh cuộc đang nói dở.
+                    _k_cur = _cli_think(reasoning, user_message)
+                    _k_raw = [{"role": _m["role"], "content": _m["content"]}
+                              for _m in store.get_messages(conv_sid)[:-1]
+                              if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    _k_prompt = (_k_cur if _k_mach else compaction.bootstrap_prompt(
+                        _k_raw, _k_cur, summary=_row0.get("compact_summary") or ""))
+                    _CONTEXT_RUNTIME.observe_payload(
+                        runtime_trace,
+                        [{"role": "system", "content": sysprompt},
+                         {"role": "user", "content": _k_prompt}],
+                        provider="grok-cli", model=actual_model or "")
+                    async for ev in kcli.query(_k_prompt):
+                        et = ev.get("type")
+                        if et == "tool_call":
+                            await ws.send_text(json.dumps({
+                                "type": "tool_call", "tool": ev.get("name", ""),
+                                "content": f"⚙ Đang gọi: {ev.get('name', '')}"}))
+                        elif et == "final":
+                            final_text = ev.get("content") or ""
+                        elif et == "usage":
+                            # Token VÀO của lượt là dấu hiệu DUY NHẤT để biết mạch đã phình tới
+                            # đâu (CLI tự quản mạch, Javis không nhìn vào được).
+                            store.set_last_input_tokens(
+                                conv_sid, int(ev.get("input_tokens") or 0))
+                        elif et == "error":
+                            _noi = _subscription_limit_message(ev.get("content") or "",
+                                                               "grok-cli")
+                            if _noi:
+                                _CONTEXT_RUNTIME.record_runtime_event(
+                                    runtime_trace, "subscription.limit_reached",
+                                    {"engine": "grok-cli", "model": actual_model or ""})
+                                final_text = final_text or _noi
+                            await ws.send_text(json.dumps({
+                                "type": "error", "content": _noi or ev.get("content", "")}))
+                    # CLI phát id mạch trong dòng sự kiện; lưu lại để lượt sau `--resume`.
+                    if kcli.session_id:
+                        store.set_grok_session_id(conv_sid, kcli.session_id)
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "engine": "grok-cli",
+                        "model": actual_model or "", "session_id": conv_sid,
+                        **_ctx_frame(runtime_trace, _ctx_in)}))
             elif prov == "antigravity-cli":
                 # ===== Gói Google qua ANTIGRAVITY CLI (`agy`) - tool native + MCP hub =====
                 #
@@ -12418,6 +12649,7 @@ async def _tg_skills_text(brain):
 _TG_NHAN_NGAN = {
     "anthropic-cli": "Claude Code",
     "openai-oauth": "ChatGPT",
+    "grok-cli": "Grok Build",
     "antigravity-cli": "Antigravity",
     "gemini-cli": "Gemini CLI",
     "openrouter": "OpenRouter",

@@ -265,8 +265,12 @@ check("CANARY: nhánh Gemini CLI dùng câu đã dịch",
 # câu tiếng Việt, không phải nguyên văn của Google.
 check("CANARY: nhánh Antigravity CLI dùng câu đã dịch",
       '"antigravity-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 6)
+# Bộ não thứ 11 (Grok Build CLI) chạy bằng gói SuperGrok / X Premium+ nên cùng luật: hết lượt
+# phải ra câu tiếng Việt, không phải nguyên văn của xAI.
+check("CANARY: nhánh Grok Build CLI dùng câu đã dịch",
+      '"grok-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 7)
 check("không nhận ra thì vẫn trả nguyên văn lỗi gốc, không nuốt mất",
-      _MAIN_SRC.count('"content": _noi or ') == 4)
+      _MAIN_SRC.count('"content": _noi or ') == 5)
 check("hàm dịch nuốt mọi lỗi của chính nó (câu báo lỗi không được tự nổ)",
       main._subscription_limit_message(None, "claude-code") == ""
       and main._subscription_limit_message(12345, "codex") == "")
