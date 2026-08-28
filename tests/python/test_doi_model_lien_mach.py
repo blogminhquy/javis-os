@@ -114,13 +114,21 @@ check("đường tắt dọn CẢ BA mạch bằng một lệnh",
 check("không còn ai gọi set_cli_session_id với chuỗi rỗng để XOÁ",
       'set_cli_session_id(conv_sid, "")' not in code)
 
-# Khối đổi engine bên Telegram phải phủ đủ ba engine, trong đó có Claude Code.
-i = code.find('for _nhan, _khoa in (("grok-cli", "grok")')
-check("telegram: có vòng dọn mạch chung cho mọi engine", i > 0)
+# Bên Telegram cũng vậy: MỘT chỗ dọn cho mọi engine, không rải lệnh theo từng nhánh.
+#
+# 0.50.1 gom vòng lặp cũ thành `_tg_ngat_mach` + bảng `_TG_ENGINE_MACH`, vì cùng danh sách
+# engine đó phải đúng ở BA chỗ (đổi provider, /reset, đổi brain) và liệt tay ba lần thì có
+# ngày sót: `cli` từng sót ở chỗ đổi provider, `antigravity` sót ở cả ba.
+i = code.find("_TG_ENGINE_MACH = (")
+check("telegram: có BẢNG engine giữ mạch dùng chung", i > 0)
 if i > 0:
-    vung = code[i:i + 900]
-    for nhan in ('"grok-cli"', '"codex"', '"cli"'):
-        check(f"telegram: vòng dọn có phủ {nhan}", nhan in vung)
+    vung = code[i:i + 400]
+    for nhan in ('"cli"', '"codex"', '"grok-cli"', '"antigravity-cli"'):
+        check(f"telegram: bảng có phủ {nhan}", nhan in vung)
+check("telegram: đổi provider thì tha engine ĐANG chạy, dọn phần còn lại",
+      "_tg_ngat_mach(sess, tru=engine_label)" in code)
+check("telegram: /reset và đổi brain dọn SẠCH (không tha ai)",
+      code.count("_tg_ngat_mach(sess)") >= 2, code.count("_tg_ngat_mach(sess)"))
 
 # Nhánh nào của dashboard cũng phải đi qua một lệnh dọn, không được có nhánh tự dọn lẻ
 check("dashboard không còn nhánh dọn lẻ chỉ mỗi Codex khi đổi engine",

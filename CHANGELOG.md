@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.1] - 2026-08-28
+### Sửa lỗi
+- **Telegram không còn quên sạch mỗi lần cập nhật.** Trước đây bấm nút cập nhật (hay khởi động lại máy chủ) là cuộc trò chuyện trên Telegram coi như mất trắng: phải dạy lại từ cách xưng hô tới quy ước đặt tên file, trong khi mở `localhost:7777` thì vẫn bình thường. Lý do: trình duyệt tự nhớ hộ bạn đang ở cuộc nào, còn Telegram thì không ai nhớ hộ. Giờ Javis tự ghi lại, khởi động xong nối tiếp đúng cuộc đang dở.
+- **Và nhớ cả nội dung đã nói, không chỉ nối đúng cuộc.** Sau khi khởi động lại, Javis đọc lại đoạn chat gần nhất đã lưu rồi mới trả lời, nên bạn nhắn tiếp "cái đó làm giúp anh" là nó vẫn hiểu. Đúng với mọi bộ não: Claude Code, ChatGPT, Grok, Antigravity và các model dùng API key.
+- **Lệnh `/reset` giờ reset thật.** Với bộ não Grok và Antigravity, gõ `/reset` xong Javis vẫn nhớ y nguyên cuộc cũ. Nay cả bốn bộ não đều cắt sạch, và lệnh này cũng dùng được ngay sau khi máy chủ vừa khởi động lại.
+
 ## [0.50.0] - 2026-08-28
 ### Thêm mới
 - **Bộ não mới: Grok Build của xAI.** Dùng chính gói **SuperGrok** hoặc **X Premium+** bạn đang trả tiền, không phải mua API key. Vào **Models**, thẻ **xAI Grok Build CLI**, bấm **Đăng nhập** là xong. Nó hiện một link và một mã để mở trên điện thoại hay máy tính của bạn, nên **đăng nhập được cả khi Javis chạy trên VPS** - thẻ CLI đầu tiên làm được việc này.
