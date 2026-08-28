@@ -43,14 +43,22 @@ def _tok(chars):
 # Nâng trần này KHÔNG bị cấm, nhưng phải là một quyết định CÓ Ý THỨC: mỗi 3.500 ký tự thêm
 # vào là khoảng 1.000 token nhân với mọi lượt chat của mọi model. Nếu thấy chạm trần, cân
 # nhắc chuyển phần đó thành skill (chỉ nạp khi cần) thay vì nhồi tiếp vào prompt lõi.
-# 30.200 (0.50.0): nâng 200 ký tự khi đấu bộ não thứ 11 (Grok Build CLI). Đây là quyết định
-# CÓ Ý THỨC đúng như đoạn trên đòi, không phải nới cho qua test: câu liệt kê các bộ não nằm
-# trong system prompt MỖI LƯỢT CHAT, nên thêm một bộ não thì BẮT BUỘC phải kể tên nó ở đó -
-# không kể là Javis nói sai với mọi người dùng về chính năng lực của mình. Chi phí thật của
-# lần này là 30 ký tự (~9 token/lượt); phần dôi ra là chỗ thở cho bộ não thứ 12, không phải
-# giấy phép nhồi thêm văn xuôi. File đã sát trần từ trước (29.986/30.000), nên lần chạm trần
-# TIẾP THEO là lúc phải cắt bớt thật hoặc đẩy một mục sang skill, đừng nâng số này lần nữa.
-CLAUDE_MD_MAX_CHARS = 30_200
+# 33.600 (0.50.0): CLAUDE.md đổi sang TIẾNG ANH theo yêu cầu của chủ repo (system prompt bằng
+# tiếng Anh rõ nghĩa hơn cho model). Bản tiếng Việt 30.016 ký tự dịch ra 33.369 ký tự tiếng Anh
+# sau hai lượt gọt; cắt tiếp là phải bỏ luật thật, nên nâng trần thay vì cắt.
+#
+# ĐIỀU PHẢI BIẾT KHI ĐỌC CON SỐ NÀY: trần tính bằng KÝ TỰ chỉ là biến thế cho TOKEN, và tỉ lệ
+# 3.5 ký tự/token ở `_tok()` được cân cho tiếng Việt. Tiếng Anh mã hoá tốt hơn hẳn (khoảng 4
+# ký tự/token, trong khi tiếng Việt có dấu thường chỉ 2-2.5), nên nhiều ký tự hơn ở đây gần
+# như chắc chắn là ÍT TOKEN HƠN bản tiếng Việt cũ. "Gần như chắc chắn" chứ không phải "đã đo":
+# máy dựng bản này không tải được bảng BPE (egress bị chặn) nên KHÔNG đo được token thật.
+#
+# Muốn đo cho chắc, chạy trên máy có mạng:
+#     pip install tiktoken
+#     python -c "import tiktoken;print(len(tiktoken.get_encoding('cl100k_base').encode(open('CLAUDE.md',encoding='utf-8').read())))"
+# Ra dưới ~8.600 token là bản tiếng Anh RẺ HƠN bản tiếng Việt cũ, và trần này còn rộng rãi.
+# Ra cao hơn nhiều thì phải cắt thật hoặc đẩy một mục sang skill, đừng nâng số này lần nữa.
+CLAUDE_MD_MAX_CHARS = 33_600
 
 _claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 check(

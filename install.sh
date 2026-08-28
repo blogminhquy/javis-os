@@ -138,10 +138,11 @@ cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
     warn "Chua cai duoc $3 - engine do se khong hien o trang Models. Cai tay: npm i -g $1"
   fi
 }
-# CỐ Ý không cài @google/gemini-cli ở đây nữa (bỏ ở 0.29.1): Google đã ngừng phục vụ nó cho
-# mọi tài khoản cá nhân từ 18/06/2026, nên với gần như mọi người đây là tải về một CLI không
-# dùng được. Ai có giấy phép Code Assist doanh nghiệp hoặc chạy bằng API key thì tự cài một
-# dòng là thẻ ở trang Models hiện lại.
+# Engine Gemini CLI đã GỠ HẲN ở 0.50.0 (Google ngắt mọi tài khoản cá nhân từ 18/06/2026).
+# Hai engine CLI còn lại KHÔNG cài bằng npm nên không nằm ở đây: `grok` và `agy` đều là script
+# tải về chạy thẳng của nhà cung cấp, để người dùng tự chạy một dòng khi muốn (xem trang
+# Models). Đường Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`); đường xAI
+# là Grok Build (`grok`).
 cai_them_cli @openai/codex codex "Codex CLI"
 
 # --- 5. venv + python deps ---

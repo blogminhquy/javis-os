@@ -41,17 +41,18 @@ def check(name: str, condition: bool, extra=None) -> None:
 # Đây là luật chống hứa suông. Thêm nhà vào AGENT_PROVIDERS mà aux_engine chưa dựng nổi
 # engine cho nó thì test này đỏ NGAY, thay vì để người dùng phát hiện bằng một agent chạy
 # sai nhà trong im lặng.
-dung_duoc = {aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.GEMINI_CLI,
+dung_duoc = {aux_engine.CLAUDE, aux_engine.CODEX, aux_engine.GROK_CLI,
              aux_engine.ANTIGRAVITY} | set(aux_engine.API_PROVIDERS)
 check("mọi nhà trong AGENT_PROVIDERS đều có bộ dựng engine ở aux_engine",
       set(main.AGENT_PROVIDERS) <= dung_duoc,
       sorted(set(main.AGENT_PROVIDERS) - dung_duoc))
 check("có đủ cả CLI lẫn API (không còn chỉ Claude + ChatGPT)",
       len(main.AGENT_PROVIDERS) >= 7, len(main.AGENT_PROVIDERS))
-for p in ("anthropic-cli", "openai-oauth", "gemini-cli", "antigravity-cli", "openrouter",
+for p in ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli", "openrouter",
           "anthropic-api", "openai", "gemini", "groq", "ollama"):
     check(f"có nhà {p}", p in main.AGENT_PROVIDERS)
-check("đủ cả 10 nhà ở trang Models", len(main.AGENT_PROVIDERS) == 10, len(main.AGENT_PROVIDERS))
+check("đủ mọi nhà ở trang Models",
+      len(main.AGENT_PROVIDERS) == len(main.PROVIDER_DEFS), len(main.AGENT_PROVIDERS))
 
 # Giao diện Studio lọc theo cờ này, nên nó phải nói đúng AGENT_PROVIDERS.
 view = {p["id"]: p for p in main._providers_view(main.cfgmod.read_settings())}
@@ -65,7 +66,7 @@ check("nhà lưu sẵn thắng phép suy",
       main._agent_model_provider("gpt-5-codex", "openrouter") == "openrouter")
 check("cùng tên model, khác nhà -> theo đúng nhà đã lưu",
       main._agent_model_provider("gemini-2.5-pro", "gemini") == "gemini"
-      and main._agent_model_provider("gemini-2.5-pro", "gemini-cli") == "gemini-cli")
+      and main._agent_model_provider("gemini-2.5-pro", "openrouter") == "openrouter")
 check("agent CŨ (chưa lưu nhà): gpt* vẫn ra Codex như trước",
       main._agent_model_provider("gpt-5-codex", "") == "openai-oauth")
 check("agent CŨ: model Claude vẫn ra Claude Code như trước",
@@ -97,8 +98,8 @@ try:
           getattr(cli, "model", None) != "openai/gpt-4o-mini", getattr(cli, "model", None))
 
     nhan.clear()
-    mk("x", "gemini-2.5-pro", "gemini-cli")
-    check("Gemini CLI cũng đi qua aux_engine", nhan.get("provider") == "gemini-cli", nhan)
+    mk("x", "grok-4.6", "grok-cli")
+    check("Grok Build CLI cũng đi qua aux_engine", nhan.get("provider") == "grok-cli", nhan)
 
     nhan.clear()
     mk("x", "claude-sonnet-4-5", "antigravity-cli")

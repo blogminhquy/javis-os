@@ -1872,9 +1872,9 @@ const ENGINE_LABEL = {
   "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
   "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
   "ollama": "Ollama",
-  // Nhãn phải TÁCH khỏi "Gemini" ở trên: cùng model nhưng khác đường và khác hoá đơn
-  // (đăng nhập Google miễn phí, so với API key trả theo lượt gọi).
-  "gemini-cli": "Gemini CLI",
+  // Hai engine CLI gói thuê bao. Nhãn phải TÁCH khỏi nhà cung cấp API cùng tên: khác đường
+  // và khác hoá đơn (gói đã trả, so với API key trả theo lượt gọi).
+  "grok-cli": "Grok Build", "antigravity-cli": "Antigravity",
 };
 // Một dòng nhỏ dưới câu trả lời: lượt này chạy ở chế độ nào, và tốn bao nhiêu
 // token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn

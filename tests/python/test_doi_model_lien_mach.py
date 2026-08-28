@@ -9,7 +9,7 @@ Lỗi thật (người dùng báo 22/08/2026): đang chat, đổi sang model kh�
 Nguyên nhân, hai lỗi chồng nhau, đều nằm ở chỗ VÔ HIỆU MẠCH NATIVE:
 
   1. Ba engine giữ mạch riêng của mình (Claude Code `cli_session_id`, Codex
-     `codex_thread_id`, Gemini CLI `gemini_session_id`), nhưng chỗ đổi engine trên dashboard
+     `codex_thread_id`, Grok Build `grok_session_id`), nhưng chỗ đổi engine trên dashboard
      chỉ dọn ĐÚNG MỘT cái là Codex. Nên đổi Claude Code -> model khác -> quay lại Claude Code
      là nó `--resume` đúng cái mạch KHÔNG chứa mấy lượt ở giữa, rồi nói như chưa hề có chúng.
 
@@ -48,19 +48,19 @@ def _kho():
 def _dat_ca_ba(s, sid):
     s.set_cli_session_id(sid, "claude-mach")
     s.set_codex_thread_id(sid, "codex-thread")
-    s.set_gemini_session_id(sid, "gemini-mach")
+    s.set_grok_session_id(sid, "grok-mach")
 
 
 def _doc(s, sid):
     r = s.get_session(sid) or {}
     return (r.get("cli_session_id") or "", r.get("codex_thread_id") or "",
-            r.get("gemini_session_id") or "")
+            r.get("grok_session_id") or "")
 
 
 # ============================================================
 # 1. Kho phiên: giữ đúng mạch của engine đang chạy, dọn sạch phần còn lại
 # ============================================================
-for nhan, giu in (("cli", 0), ("codex", 1), ("gemini-cli", 2)):
+for nhan, giu in (("cli", 0), ("codex", 1), ("grok-cli", 2)):
     s = _kho()
     sid = s.get_or_create(None, brain="brain", engine=nhan, model="m")
     _dat_ca_ba(s, sid)
@@ -115,11 +115,11 @@ check("không còn ai gọi set_cli_session_id với chuỗi rỗng để XOÁ",
       'set_cli_session_id(conv_sid, "")' not in code)
 
 # Khối đổi engine bên Telegram phải phủ đủ ba engine, trong đó có Claude Code.
-i = code.find('for _nhan, _khoa in (("gemini-cli", "gemini")')
+i = code.find('for _nhan, _khoa in (("grok-cli", "grok")')
 check("telegram: có vòng dọn mạch chung cho mọi engine", i > 0)
 if i > 0:
     vung = code[i:i + 900]
-    for nhan in ('"gemini-cli"', '"codex"', '"cli"'):
+    for nhan in ('"grok-cli"', '"codex"', '"cli"'):
         check(f"telegram: vòng dọn có phủ {nhan}", nhan in vung)
 
 # Nhánh nào của dashboard cũng phải đi qua một lệnh dọn, không được có nhánh tự dọn lẻ

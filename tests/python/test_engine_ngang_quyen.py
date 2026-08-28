@@ -120,6 +120,8 @@ for name, text in (("system prompt (CLAUDE.md)", CLAUDE_MD),
                    ("dashboard/index.html", INDEX)):
     check(f'{name} không còn nhãn "chat thuần"', "chat thuần" not in text)
     check(f'{name} không còn nhãn "không MCP"', "không MCP" not in text)
+    # CLAUDE.md nay là tiếng Anh (0.50.0) nên canh thêm biến thể tiếng Anh của cùng nhãn.
+    check(f'{name} không còn nhãn "chat-only"', "chat-only" not in text.lower())
 
 check("nhãn kiểu của provider API là 'MCP Javis', không phải 'chat'",
       '"MCP Javis"' in CONSOLE_JS and re.search(r'p\.kind === "cli" \? "MCP/skill" : "chat"', CONSOLE_JS) is None)
@@ -145,13 +147,13 @@ check(f"CANARY: UI liệt kê ĐÚNG danh sách của server + Claude Code "
 
 # System prompt: Javis phải tự biết mình đổi được bộ não và không được tự hạ thấp.
 check("system prompt gọi Javis là AI agentic đổi được bộ não",
-      "ĐỔI ĐƯỢC BỘ NÃO" in CLAUDE_MD)
+      "SWAPPABLE BRAIN" in CLAUDE_MD)
 check("system prompt nói rõ MỌI bộ não dùng chung một bộ đồ nghề",
-      "MỌI bộ não đều được cấp cùng một bộ đồ nghề" in CLAUDE_MD)
+      "EVERY brain gets the same toolkit" in CLAUDE_MD)
 check("system prompt cấm Javis tự nhận 'chỉ chat được'",
-      "chỉ chat được" in CLAUDE_MD and "sai sự thật" in CLAUDE_MD)
+      "can only chat" in CLAUDE_MD and "factually wrong" in CLAUDE_MD)
 check("system prompt nêu đúng khác biệt duy nhất là lệnh máy",
-      "lệnh máy" in CLAUDE_MD)
+      "shell commands" in CLAUDE_MD)
 
 # Tài liệu giới thiệu: bán "đổi được model", không bán "chạy trên Claude".
 check("README mở đầu bằng AI agentic đổi được bộ não",

@@ -2,7 +2,7 @@
 
     python tests/run.py grok_cli        (KHÔNG mạng, KHÔNG cần cài grok)
 
-Cùng bốn chỗ dễ hỏng mà `test_gemini_cli.py` canh, cộng hai chỗ riêng của engine này:
+Bốn chỗ dễ hỏng của mọi driver CLI, cộng hai chỗ riêng của engine này:
 
 1. **Dịch sự kiện.** `--output-format streaming-json` phát NDJSON riêng (thought/tool_call/
    tool_call_update/text/usage/end). Dịch sai một loại là mất câu trả lời, mất mạch hội thoại,
@@ -390,8 +390,10 @@ check("thẻ có nút Kiểm tra lại và nút Ngắt",
 _CLAUDEMD = Path(ROOT, "CLAUDE.md").read_text(encoding="utf-8")
 check("CANARY: CLAUDE.md đã kể tên bộ não mới "
       "(câu này vào system prompt MỖI LƯỢT CHAT, sai là Javis nói sai với mọi người dùng)",
-      "Grok Build" in _CLAUDEMD and "Mười một bộ não" in _CLAUDEMD)
-check("và đã đếm lại số engine CLI", "bốn engine CLI" in _CLAUDEMD)
+      "Grok Build" in _CLAUDEMD and "Ten brains" in _CLAUDEMD)
+check("và đã đếm lại số engine CLI", "three CLI engines" in _CLAUDEMD)
+check("CANARY: Gemini CLI đã gỡ khỏi system prompt (đường đó đã chết)",
+      "Gemini CLI was removed" in _CLAUDEMD)
 
 
 print()

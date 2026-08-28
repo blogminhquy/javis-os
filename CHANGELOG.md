@@ -6,9 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.50.0] - 2026-08-28
 ### Thêm mới
-- **Thêm bộ não thứ 11: Grok Build của xAI.** Dùng chính gói **SuperGrok** hoặc **X Premium+** bạn đang trả tiền, không phải mua API key. Vào **Models**, thẻ **xAI Grok Build CLI**, bấm **Đăng nhập** là xong.
-- **Đây là thẻ CLI đầu tiên đăng nhập được khi Javis chạy trên VPS.** Nó hiện ra một link và một mã để bạn mở trên điện thoại hay máy tính của mình, không bắt mở terminal như hai thẻ của Google.
-- Grok **nhớ được mạch hội thoại** giữa các lượt, và gọi được đầy đủ tool của Javis (MCP, skill, việc Kanban). Bấm **Kiểm tra lại** ở thẻ để biết chắc tool đã đấu chưa.
+- **Bộ não mới: Grok Build của xAI.** Dùng chính gói **SuperGrok** hoặc **X Premium+** bạn đang trả tiền, không phải mua API key. Vào **Models**, thẻ **xAI Grok Build CLI**, bấm **Đăng nhập** là xong. Nó hiện một link và một mã để mở trên điện thoại hay máy tính của bạn, nên **đăng nhập được cả khi Javis chạy trên VPS** - thẻ CLI đầu tiên làm được việc này.
+- Grok **nhớ được mạch hội thoại** giữa các lượt, chạy được ở chat, Telegram, agent và việc nền, và gọi được đầy đủ tool của Javis (MCP, skill, việc Kanban). Bấm **Kiểm tra lại** ở thẻ để biết chắc tool đã đấu chưa.
+
+### Cải thiện
+- **Bỏ hẳn thẻ Google Gemini CLI.** Google đã ngắt nó với mọi tài khoản cá nhân từ 18/06/2026, nên nó chỉ còn là một lựa chọn bấm vào rồi đâm vào tường. Muốn model Gemini thì dùng **Antigravity CLI** (gói Google bạn đang có), **OpenRouter** hoặc thẻ **Google Gemini (API)** - cả ba đều còn nguyên.
+- **Bản hướng dẫn nội bộ của Javis giờ viết bằng tiếng Anh.** Không có gì đổi với bạn: Javis vẫn trả lời bằng đúng thứ tiếng bạn nhắn, vẫn xưng "bạn/mình" như cũ. Đổi để model hiểu luật rõ hơn và ít hiểu lệch hơn.
 
 ## [0.49.3] - 2026-08-27
 ### Cải thiện

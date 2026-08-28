@@ -739,7 +739,6 @@ class SessionStore:
     # một lệnh clear nữa vào main.py - đó chính là cách bảng này bị bỏ sót hai engine.
     _MACH_NATIVE = {"cli": "cli_session_id",
                     "codex": "codex_thread_id",
-                    "gemini-cli": "gemini_session_id",
                     "grok-cli": "grok_session_id"}
 
     def clear_native_threads(self, session_id: str, keep: str = "") -> List[str]:

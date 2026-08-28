@@ -3,8 +3,8 @@
 Đối xứng với `GeminiCLI` và `CodexCLI`: Javis không giữ token của ai cả, nó gọi đúng binary
 `grok` của máy và mượn phiên đăng nhập mà chính CLI đó giữ trong `~/.grok/auth.json`.
 
-**Vì sao module này chép khuôn `gemini_cli.py` chứ không phải `antigravity_cli.py`** - hai chỗ
-đau nhất của `agy` đều không có ở đây:
+**Vì sao module này KHÔNG chép khuôn `antigravity_cli.py`** - hai chỗ đau nhất của `agy` đều
+không có ở đây:
 
 - Trạng thái đăng nhập nằm trong FILE ĐỌC ĐƯỢC (`~/.grok/auth.json`, quyền 0600), không phải
   keyring của hệ điều hành. Nên `auth_status()` đọc đĩa, không phải đẻ một tiến trình mỗi lần
@@ -163,7 +163,7 @@ def phien_moi() -> str:
 def permission_cho_mode(mode: Optional[str]) -> list:
     """Mức quyền của Javis -> cờ quyền của Grok. Giá trị lạ về nấc CHẶT NHẤT.
 
-    Fail-closed cố ý, y như `gemini_cli.approval_cho_mode()`: một chuỗi mode gõ sai không được
+    Fail-closed cố ý: một chuỗi mode gõ sai không được
     phép biến thành toàn quyền ghi file và chạy lệnh máy.
 
     HÀNG RÀO THẬT nằm ở header `X-Javis-Mode` mà MCP hub áp cho mọi tool đi qua nó - cái đó

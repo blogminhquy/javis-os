@@ -28,7 +28,7 @@ You wire in **your own connections** (POS/sales, ads, calendar, email, Zalo, not
 
 | | An ordinary chatbot | **Javis OS** |
 |---|---|---|
-| Brain | Hard-wired to one model, one stateless API call per message | **Swappable**: 11 providers, each with the full set of tools, MCP, skills and sessions |
+| Brain | Hard-wired to one model, one stateless API call per message | **Swappable**: 10 providers, each with the full set of tools, MCP, skills and sessions |
 | Memory | Forgets after every session | **A living Second Brain** - remembers you, thickens with every conversation |
 | Data | Made up, or absent | **Real numbers** from the connections you wire in (POS, Ads, Calendar, Zalo…) |
 | Self-improvement | None | **Background loops** + an AI-run work queue |

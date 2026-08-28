@@ -108,8 +108,6 @@ _DEFAULT = {
         "ollama_key": "",
         # Provider 'openai-oauth' - đăng nhập ChatGPT Plus/Pro qua device-code (xem openai_oauth.py).
         "openai_oauth": {"access_token": "", "refresh_token": "", "id_token": "", "account_id": "", "plan": "", "expires_at": 0},
-        # Provider 'gemini-cli' - đăng nhập tài khoản Google ngay trên dashboard (xem gemini_oauth.py).
-        "gemini_oauth": {"access_token": "", "refresh_token": "", "email": "", "expires_at": 0},
         # --- Legacy: giữ đồng bộ với main để engine cũ không vỡ (engine/claude_model/openrouter_model) ---
         "engine": "cli",                       # cli (Claude Code, đủ MCP) | openrouter | anthropic-api
         "claude_model": "",                    # "" = mặc định CLI; hoặc opus/sonnet/haiku/fable
@@ -128,8 +126,6 @@ _DEFAULT = {
             # Không ghim model Codex: /provider/models lấy catalog LIVE bằng
             # codex app-server model/list và nhớ lại lần thành công gần nhất.
             "openai-oauth": [],
-            # Gemini CLI: model do chinh CLI khai (xem gemini_cli.MODELS_MAC_DINH).
-            "gemini-cli": [],
             # Antigravity CLI: model hoi thang `agy models`, KHONG chep tay bang nao o day.
             "antigravity-cli": [],
             # Grok Build CLI: cung ly do, /provider/models hoi CLI roi nho lai.
@@ -447,7 +443,6 @@ _SECRET_PATHS = (
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
     # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.
-    "model.gemini_oauth.access_token", "model.gemini_oauth.refresh_token",
     "telegram.token", "zalo_bot.token", "backup.token", "voice.elevenlabs_key",
     # Secret TOTP là thứ SINH RA mã đăng nhập, nên nó ngang hàng mật khẩu chứ không phải một
     # tuỳ chọn. Ai đọc được nó thì tự sinh mã 2FA mãi mãi, và chủ máy không hề hay biết.

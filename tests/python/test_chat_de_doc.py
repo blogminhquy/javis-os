@@ -60,20 +60,21 @@ check("CANARY: câu cấm cũ đã biến khỏi CLAUDE.md",
       "KHÔNG dùng bảng markdown, dấu gạch ngang dày, hay header khi báo cáo trong chat"
       not in _CLAUDE_MD)
 
-for tu in ("gạch đầu dòng", "In đậm", "###", "Đoạn ngắn"):
+# CLAUDE.md nay là TIẾNG ANH (0.50.0) - soi câu tiếng Anh tương đương. Luật thì không đổi.
+for tu in ("bullets", "Bold what people scan for", "###", "Short paragraphs"):
     check(f"CLAUDE.md dạy dùng '{tu}'", tu in _CLAUDE_MD)
 check("CLAUDE.md nói rõ TTS tự bóc markdown (hết cớ viết xấu vì sợ voice)",
-      "TTS" in _CLAUDE_MD and "bóc markdown" in _CLAUDE_MD)
+      "TTS" in _CLAUDE_MD and "strips markdown" in _CLAUDE_MD)
 # Nới không phải là xổ toẹt: một câu hỏi nhỏ vẫn phải được trả lời bằng một câu.
 check("CLAUDE.md vẫn chặn thói bẻ ý nhỏ thành báo cáo",
-      "Cấu trúc phục vụ độ dài" in _CLAUDE_MD)
+      "Structure serves length" in _CLAUDE_MD)
 # Ký ức cũ "không thích bảng markdown" được nạp vào MỌI lượt và sẽ lặng lẽ kéo hành vi về cũ
 # nếu luật mới không nói thẳng ai thắng ai.
 check("CLAUDE.md xử lý ký ức cũ về định dạng (luật mới thắng)",
-      "ký ức" in _CLAUDE_MD and "thắng ký ức" in _CLAUDE_MD)
+      "memory" in _CLAUDE_MD and "beats that memory" in _CLAUDE_MD)
 # Luật em dash là luật riêng, không được cuốn theo lúc dọn luật trình bày.
 check("luật cấm em dash còn nguyên",
-      "TUYỆT ĐỐI không dùng ký tự em dash" in _CLAUDE_MD)
+      "NEVER use the em dash character" in _CLAUDE_MD)
 check("chính CLAUDE.md không chứa em dash", "—" not in _CLAUDE_MD)
 
 

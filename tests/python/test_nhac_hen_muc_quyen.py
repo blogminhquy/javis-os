@@ -173,7 +173,7 @@ check("tool nhận tham số muc_quyen", '"muc_quyen"' in PLUGIN)
 
 CLAUDEMD = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 check("CLAUDE.md dặn đọc lại nguyên văn cảnh báo",
-      "ĐỌC LẠI NGUYÊN VĂN" in CLAUDEMD and "muc_quyen" in CLAUDEMD)
+      "read it back VERBATIM" in CLAUDEMD and "muc_quyen" in CLAUDEMD)
 
 
 # ---- 4. Giao diện: mức quyền phải hiện ra, và cảnh báo phải nổi ----

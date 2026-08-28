@@ -90,7 +90,7 @@ Engine Claude của Javis chạy qua **Claude Agent SDK**, nhưng SDK vẫn gọ
 Sau khi đã đăng nhập, kiểm tra và chọn model ở trang **Models**:
 
 - Phần **◆ Main Model** hiển thị model đang dùng cho hội thoại. Bấm **Đổi model ▾** để chọn model khác.
-- Phần **◆ Providers** liệt kê **mười** nhà cung cấp: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), Google Antigravity CLI, Google Gemini CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API), Ollama Cloud. Thẻ nào cần key thì có ô dán key và nút **Kết nối** / **Đổi key** / **Ngắt**.
+- Phần **◆ Providers** liệt kê **mười** nhà cung cấp: Anthropic OAuth (Claude Code), OpenAI OAuth (ChatGPT), xAI Grok Build CLI, Google Antigravity CLI, OpenRouter, Anthropic (API), OpenAI (ChatGPT API), Google Gemini (API), Groq (API), Ollama Cloud. Thẻ nào cần key thì có ô dán key và nút **Kết nối** / **Đổi key** / **Ngắt**.
 - Phần **◆ Model việc nền** (phụ đề "loop · việc Kanban · nhắc hẹn · tự học · tiêu hoá nguồn") cho phép chọn một model rẻ cho các việc chạy nền để đỡ hạn mức. Chưa đổi thì dòng trạng thái ghi "Mặc định của Claude Code". Bấm **Đổi model ▾** để chọn, bấm **Về mặc định** để trả lại. Nếu bạn chọn nhà cung cấp chưa kết nối, thẻ cảnh báo "⚠ nhà cung cấp này chưa kết nối - việc nền sẽ tự dùng lại Claude".
 - Phần **◆ Suy nghĩ** (reasoning) đặt độ sâu suy nghĩ khi trả lời: **Tắt**, **Thấp**, **Vừa**, **Cao**. Mặc định là Tắt (trả lời nhanh).
 
