@@ -21,12 +21,36 @@ và đổi cờ liên tục; truyền một cờ nó chưa có là nó thoát ng
 chat chỉ vì một tuỳ chọn phụ. Hỏi `--help` trước rồi mới truyền thì bản cũ vẫn chạy, chỉ mất
 tính năng. MỌI cờ dưới đây đều đi qua `co_co()`, không có ngoại lệ.
 
-Những gì đọc từ tài liệu chính chủ (`xai-org/grok-build`, user-guide) và VẪN PHẢI ĐO trên máy
-thật trước khi tin - xem `docs/dev/2026-08-grok-cli.md`:
+**SƠ ĐỒ SỰ KIỆN ĐÃ ĐO THẬT (29/08/2026), đừng đoán lại.** Bốn bản vá 0.50.2 tới 0.50.5 đi
+vòng quanh đúng chỗ này chỉ vì nó được ĐOÁN từ tài liệu chứ chưa ai chạy một lượt. Nguyên văn
+`grok -p "chào" --output-format streaming-json | tail -5` trên máy người dùng:
+
+    {"type":"text","data":" nay"}
+    {"type":"text","data":"?"}
+    {"type":"available_commands","tools":[...],"commands":[...]}
+    {"type":"usage","usage":{"input_tokens":9028,"output_tokens":54,
+                             "cache_read_input_tokens":4352,"reasoning_tokens":32},
+                    "signature":"..."}
+    {"type":"end","stopReason":"end_turn","sessionId":"01a04b69-...","usage":{...,
+                  "total_tokens":13434},"num_turns":1,"total_cost_usd":0.020556}
+
+Ba chỗ lệch so với bảng đoán, ghi lại để không ai mắc lại:
+
+- Chữ nằm ở khoá **`data`**, không phải `text`. Đây là gốc rễ của "không trả về nội dung nào":
+  lượt chạy đúng, model trả lời đúng, mà Javis gom được toàn chuỗi rỗng.
+- Sự kiện `usage` **bọc** số liệu trong khoá `usage`, và tên khoá là `input_tokens` /
+  `output_tokens` / `cache_read_input_tokens`.
+- Có loại `available_commands` (bảng khai báo tool, xuất hiện ở CẢ đầu lẫn cuối luồng) không
+  hề nằm trong tài liệu. Nó KHÔNG phải câu trả lời - xem `_LOAI_KHONG_PHAI_TRA_LOI`.
+
+Mẫu vàng này nằm trong `tests/python/test_grok_cli.py` mục 12; sửa phần dịch sự kiện thì chạy
+nó trước.
+
+Những gì còn lại đọc từ tài liệu chính chủ (`xai-org/grok-build`, user-guide) và VẪN PHẢI ĐO
+trên máy thật trước khi tin - xem `docs/dev/2026-08-grok-cli.md`:
 
 - `-p/--single <PROMPT>` chạy headless, `--prompt-file <PATH>` đọc prompt từ file.
-- `--output-format streaming-json` phát NDJSON: `thought`, `tool_call`, `tool_call_update`,
-  `text`, `usage`, `end`. `--output-format json` trả một cục có `text`/`sessionId`/`usage`.
+- `--output-format json` trả một cục có `text`/`sessionId`/`usage`.
 - Phiên: `-s/--session-id <ID>` mở mới với id tự cấp, `-r/--resume <ID>` nối lại,
   `-c/--continue` nối phiên gần nhất của thư mục.
 - Quyền: `--permission-mode bypassPermissions|defaultMode`, `--allow`/`--deny` theo luật
@@ -889,8 +913,8 @@ def _chan_moi() -> dict:
 
 # Khoá mang chữ người đọc được. `message` và `content` nằm đây vì nhiều CLI bọc câu trả lời
 # trong đó; `tools`, `commands`, `name` thì KHÔNG - đó là khai báo tool, không phải câu trả lời.
-_KHOA_CHU = ("text", "content", "delta", "response", "output", "answer", "message", "reply",
-             "result", "completion")
+_KHOA_CHU = ("data", "text", "content", "delta", "response", "output", "answer", "message",
+             "reply", "result", "completion")
 
 # Loại sự kiện KHÔNG BAO GIỜ là câu trả lời, kể cả khi đi vớt. `thought` là lập luận nội bộ;
 # `available_commands` là bảng khai báo tool (thấy trong luồng thật ngày 29/08) - vớt nó ra là
@@ -1297,7 +1321,16 @@ class GrokCLI:
             self.session_id = sid
 
         if t == "text":
-            cac_manh.append(str(self._lay(ev, "text", "content", "delta")))
+            # `data` ĐỨNG ĐẦU vì đó là khoá THẬT, đo trên máy người dùng ngày 29/08:
+            #
+            #     {"type":"text","data":" nay"}
+            #     {"type":"text","data":"?"}
+            #
+            # Bản 0.50.0 tới 0.50.5 chỉ dò `text`/`content`/`delta` nên mọi sự kiện text trả
+            # về chuỗi rỗng: lượt chạy đúng, model trả lời đúng, mà người dùng thấy một ô
+            # trống. Đây là gốc rễ thật của "không trả về nội dung nào", và ba bản vá trước
+            # đều đi vòng quanh nó vì chưa ai đo luồng thật.
+            cac_manh.append(str(self._lay(ev, "data", "text", "content", "delta", "value")))
             return []
         if t == "thought":
             return []          # lập luận nội bộ, KHÔNG phải câu trả lời - không gộp vào final
@@ -1315,7 +1348,11 @@ class GrokCLI:
                      "status": tt,
                      "content": str(self._lay(ev, "output", "result", "content"))[:2000]}]
         if t == "usage":
-            return [self._usage(ev)]
+            # Luồng thật bọc số liệu trong khoá `usage`, không để phẳng ở tầng ngoài:
+            #   {"type":"usage","usage":{"input_tokens":9028,...},"signature":"..."}
+            # Đọc tầng ngoài là mọi lượt Grok vào bảng Mức dùng với 0 token.
+            u = ev.get("usage")
+            return [self._usage(u if isinstance(u, dict) else ev)]
         if t == "end":
             ra: list = []
             u = ev.get("usage")
@@ -1348,11 +1385,18 @@ class GrokCLI:
 
     @staticmethod
     def _usage(u: dict) -> dict:
-        vao = int(u.get("input") or u.get("input_tokens") or u.get("inputTokens") or 0)
-        ra = int(u.get("output") or u.get("output_tokens") or u.get("outputTokens") or 0)
-        cache = int(u.get("cache_read") or u.get("cacheRead") or u.get("cached") or 0)
+        """Số token của một lượt. Tên khoá lấy từ luồng THẬT (đo 29/08), giữ cả tên đoán cũ.
+
+        Mẫu thật:
+            {"input_tokens":9028,"output_tokens":54,"cache_read_input_tokens":4352,
+             "cache_creation_input_tokens":0,"reasoning_tokens":32,"total_tokens":13434}
+        """
+        vao = int(u.get("input_tokens") or u.get("input") or u.get("inputTokens") or 0)
+        ra = int(u.get("output_tokens") or u.get("output") or u.get("outputTokens") or 0)
+        cache = int(u.get("cache_read_input_tokens") or u.get("cache_read")
+                    or u.get("cacheRead") or u.get("cached") or 0)
         return {"type": "usage", "input_tokens": vao, "output_tokens": ra,
-                "total_tokens": int(u.get("total") or u.get("total_tokens") or (vao + ra)),
+                "total_tokens": int(u.get("total_tokens") or u.get("total") or (vao + ra)),
                 "cached": cache}
 
 

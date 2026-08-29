@@ -786,6 +786,67 @@ check("giữ cả đầu lẫn đuôi, có dấu cắt ở giữa",
 check("và KHÔNG phình vô hạn",
       len(_d) <= grok_cli._CHAN_DAU_TOI_DA + grok_cli._CHAN_DUOI_TOI_DA + 1, len(_d))
 
+# ============================================================
+# 12. MẪU VÀNG: luồng streaming-json THẬT, dán nguyên từ máy người dùng
+# ============================================================
+# Đây là thứ đáng lẽ phải có từ Giai đoạn 0 của kế hoạch, và việc thiếu nó đã đẻ ra bốn bản
+# vá đi vòng quanh. Người dùng chạy trên VPS ngày 29/08:
+#
+#     $ grok -p "chào" --output-format streaming-json | tail -5
+#     {"type":"text","data":" nay"}
+#     {"type":"text","data":"?"}
+#     {"type":"available_commands","tools":[...],"commands":[...]}
+#     {"type":"usage","usage":{"input_tokens":9028,...},"signature":"..."}
+#     {"type":"end","stopReason":"end_turn","sessionId":"01a04b69-...","usage":{...}}
+#
+# Ba chỗ lệch so với bảng Javis ĐOÁN, và cái đầu tiên là gốc rễ của cả chuỗi lỗi:
+#
+#   1. Chữ nằm ở khoá `data`, KHÔNG phải `text`. Javis dò `text`/`content`/`delta` nên mọi sự
+#      kiện text trả về chuỗi rỗng - lượt chạy đúng, model trả lời đúng, người dùng thấy ô
+#      trống. Bản 0.50.5 vẫn hỏng y nguyên vì `text` là loại ĐÃ BIẾT nên không đi qua đường vớt.
+#   2. Sự kiện `usage` BỌC số liệu trong khoá `usage`; đọc tầng ngoài là mọi lượt vào bảng Mức
+#      dùng với 0 token.
+#   3. Tên khoá token là `input_tokens` / `cache_read_input_tokens`.
+_MAU_VANG = [
+    "{\"type\":\"text\",\"data\":\"Chào\"}",
+    "{\"type\":\"text\",\"data\":\" anh,\"}",
+    "{\"type\":\"text\",\"data\":\" khỏe không\"}",
+    "{\"type\":\"text\",\"data\":\" nay\"}",
+    "{\"type\":\"text\",\"data\":\"?\"}",
+    "{\"type\":\"available_commands\",\"tools\":[\"run_terminal_command\",\"read_file\",\"search_replace\",\"list_dir\",\"grep\",\"web_search\",\"image_gen\",\"write\"],\"commands\":[\"compact\",\"context\",\"review\"]}",
+    "{\"type\":\"usage\",\"usage\":{\"input_tokens\":9028,\"output_tokens\":54,\"cache_read_input_tokens\":4352,\"cache_creation_input_tokens\":0,\"reasoning_tokens\":32},\"signature\":\"3+dBOy9tPOFi4\"}",
+    "{\"type\":\"end\",\"stopReason\":\"end_turn\",\"sessionId\":\"01a04b69-8bcc-71c3-8cab-4c2320bd28c2\",\"requestId\":\"8ffd587e\",\"usage\":{\"input_tokens\":9028,\"cache_read_input_tokens\":4352,\"cache_creation_input_tokens\":0,\"output_tokens\":54,\"reasoning_tokens\":32,\"total_tokens\":13434},\"num_turns\":1,\"total_cost_usd\":0.020556}"
+]
+
+_vang = _gia_kich_ban(
+    "for l in " + repr(_MAU_VANG) + ":\n"
+    "    print(l)\n")
+_nap_help(path=_vang)
+_evs_v, _g_v = _chay(_vang, "chào")
+_fin_v = [e for e in _evs_v if e["type"] == "final"]
+check("CANARY: luồng THẬT ra đúng câu trả lời - khoá chữ là `data`, và bốn bản trước dò "
+      "`text`/`content`/`delta` nên lượt nào cũng ra ô trống",
+      _fin_v and _fin_v[0]["content"] == "Chào anh, khỏe không nay?", _fin_v)
+check("CANARY: bảng `available_commands` ở CUỐI luồng không lọt vào câu trả lời",
+      _fin_v and "run_terminal_command" not in _fin_v[0]["content"], _fin_v)
+
+_us = [e for e in _evs_v if e["type"] == "usage"]
+check("có sự kiện Mức dùng", bool(_us), _evs_v)
+check("CANARY: đọc đúng token dù số liệu BỌC trong khoá `usage` (đọc tầng ngoài là mọi lượt "
+      "Grok vào bảng Mức dùng với 0 token)",
+      _us and _us[0]["input_tokens"] == 9028 and _us[0]["output_tokens"] == 54,
+      _us[:1])
+check("đọc đúng token đọc-từ-cache (`cache_read_input_tokens`)",
+      _us and any(e.get("cached") == 4352 for e in _us), _us)
+check("tổng token lấy từ `total_tokens` của sự kiện end",
+      any(e.get("total_tokens") == 13434 for e in _us), _us)
+
+check("CANARY: nhặt được sessionId từ `end` để lượt sau `--resume` nối đúng mạch",
+      _g_v.session_id == "01a04b69-8bcc-71c3-8cab-4c2320bd28c2", _g_v.session_id)
+
+# Và KHÔNG được thử lại lần hai: lượt này ra chữ rồi, chạy thêm là tốn một lượt model.
+check("CANARY: lượt ra chữ thì KHÔNG chạy lại lần hai", len(_fin_v) == 1, _evs_v)
+
 grok_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
 grok_cli.find_grok_cli = _that_find
 
