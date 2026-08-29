@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.5] - 2026-08-29
+### Sửa lỗi
+- **Chat với Grok vẫn ra ô trống - lần này chữa đúng chỗ.** Grok trả lời bằng một kiểu dữ liệu khác hẳn thứ Javis đang chờ, và câu trả lời nằm ở **cuối** luồng, sau một tràng dòng suy nghĩ. Javis nay đọc phần cuối đó, và nếu vẫn không ra thì tự hỏi lại Grok theo một cách khác.
+- **Phần báo lỗi ở bản trước nhìn nhầm chỗ.** Nó chỉ giữ 40 dòng đầu, mà dòng đầu luôn là bảng liệt kê công cụ - nên nó tả đúng phần mở đầu và mù đúng phần cần nhìn. Nay giữ cả đầu lẫn cuối, và kể đủ các kiểu dữ liệu đã gặp.
+
 ## [0.50.4] - 2026-08-29
 ### Sửa lỗi
 - **Cập nhật bản mới là Grok bị đăng xuất.** Phiên đăng nhập xAI nằm trong thư mục chỉ tồn tại bên trong container, nên mỗi lần đổi sang bản mới là nó biến mất - trong khi bản thân Grok CLI vẫn còn nên thẻ vẫn báo "Đã cài CLI", làm nó trông như lỗi đăng nhập chứ không phải lỗi lưu trữ. Nay phiên được cất cùng chỗ với đăng nhập Claude và ChatGPT.

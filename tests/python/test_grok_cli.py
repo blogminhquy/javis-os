@@ -693,6 +693,99 @@ _fin6 = [e for e in _evs6 if e["type"] == "final"]
 check("CANARY: lượt bình thường trả về ĐÚNG một lần chữ, không nhân đôi vì phần vớt",
       _fin6 and _fin6[0]["content"] == "một hai ba", _fin6)
 
+# ============================================================
+# 11. LUỒNG THẬT của Grok, đo từ máy người dùng ngày 29/08
+# ============================================================
+# Phần chẩn đoán thêm ở 0.50.3 đã làm đúng việc của nó và trả về nguyên văn:
+#
+#   "Grok CLI in ra 40 dòng nhưng Javis không nhận ra loại sự kiện nào là câu trả lời
+#    (thấy: available_commands, thought). Dòng đầu CLI in ra:
+#    {"type":"available_commands","tools":["run_terminal_command","read_file",...]}"
+#
+# Hai điều rút ra, và cả hai đều là lỗi của chính phần chẩn đoán:
+#
+#   1. Sơ đồ sự kiện thật KHÔNG giống bảng Javis đoán. `available_commands` và `thought` không
+#      hề có trong tài liệu Javis dựa vào.
+#   2. Trần 40 dòng chỉ giữ phần ĐẦU, mà câu trả lời của model luôn nằm ở CUỐI - sau bảng khai
+#      báo tool và một tràng `thought`. Nên nó chẩn được phần mở đầu và mù đúng phần cần nhìn.
+#      Trần 30 sự kiện cho danh sách LOẠI cũng vậy: 40 dòng `thought` ăn hết chỗ.
+_DAU = json.dumps({"type": "available_commands",
+                   "tools": ["run_terminal_command", "read_file", "grep", "todo_write"]})
+_NGHI = json.dumps({"type": "thought", "text": "đang nghĩ"})
+
+
+def _luong_that(cuoi_json, so_nghi=40):
+    """`grok` giả phát đúng khuôn luồng thật: khai báo tool -> một tràng thought -> kết."""
+    return _gia_kich_ban(
+        f"print({_DAU!r})\n"
+        f"for _ in range({so_nghi}):\n"
+        f"    print({_NGHI!r})\n"
+        f"print({cuoi_json!r})\n")
+
+
+# --- Câu trả lời nằm ở CUỐI, dưới một loại Javis chưa biết ---
+_cuoi = json.dumps({"type": "assistant_turn_complete",
+                    "message": {"content": "Chào anh, em nghe đây."}})
+_cli = _luong_that(_cuoi)
+_nap_help(path=_cli)
+_evs, _ = _chay(_cli, "hello em")
+_fin = [e for e in _evs if e["type"] == "final"]
+check("CANARY: câu trả lời ở CUỐI luồng vẫn ra được - trần cũ giữ 40 dòng ĐẦU nên đúng chỗ "
+      "này bị cắt mất (ảnh chụp người dùng 29/08)",
+      _fin and "Chào anh, em nghe đây." in _fin[0]["content"], _evs[-3:])
+check("CANARY: bảng khai báo tool KHÔNG bị vớt nhầm thành câu trả lời",
+      _fin and "run_terminal_command" not in _fin[0]["content"], _fin)
+check("CANARY: và `thought` cũng không - đó là lập luận nội bộ, không phải câu trả lời",
+      _fin and "đang nghĩ" not in _fin[0]["content"], _fin)
+
+# --- Không có câu trả lời: câu lỗi phải kể được DÒNG CUỐI và ĐỦ loại ---
+_cli2 = _luong_that(json.dumps({"type": "stream_closed", "reason": "done"}))
+_nap_help(path=_cli2)
+_evs2, _ = _chay(_cli2, "hello em")
+_er = [e for e in _evs2 if e["type"] == "error"]
+_t = _er[0]["content"] if _er else ""
+check("không có câu trả lời thì vẫn báo lỗi", bool(_er), _evs2)
+check("CANARY: câu lỗi kể được DÒNG CUỐI (bản cũ chỉ in dòng đầu, mà dòng đầu luôn là "
+      "bảng khai báo tool nên dẫn sai hướng)", "stream_closed" in _t, _t)
+check("CANARY: danh sách loại không bị `thought` chiếm hết chỗ - loại là TẬP, không phải "
+      "30 sự kiện đầu tiên",
+      "available_commands" in _t and "stream_closed" in _t and "thought" in _t, _t)
+check("có nói bao nhiêu dòng, và số đó là số THẬT chứ không phải trần",
+      f"{2 + 40} dòng" in _t, _t)
+
+# --- Lượt hai: streaming-json hụt thì đổi sang `--output-format json` ---
+# Bản 0.50.3 chỉ thử lại khi stdout RỖNG, nên ca thật ở trên (40 dòng, không chữ) không hề
+# chạm tới đường này. Điều kiện đúng là "chưa ra chữ", không phải "chưa in gì".
+_hai_duong = _gia_kich_ban(
+    "a = sys.argv[1:]\n"
+    "if 'json' in a:\n"
+    "    print(json.dumps({'text': 'Chào anh (đường json).'}))\n"
+    "else:\n"
+    f"    print({_DAU!r})\n"
+    f"    print({_NGHI!r})\n"
+    "sys.exit(0)\n")
+_nap_help(path=_hai_duong)
+_evs3, _ = _chay(_hai_duong, "hello em")
+_fin3 = [e for e in _evs3 if e["type"] == "final"]
+check("CANARY: streaming-json in ra dòng mà không ra chữ -> thử lại bằng `--output-format "
+      "json`, và lượt chat có câu trả lời",
+      _fin3 and "đường json" in _fin3[0]["content"], _evs3)
+
+# --- Trần bộ đệm vẫn phải có, kẻo một câu trả lời dài nằm hết trong RAM ---
+check("bộ đệm chẩn đoán có trần cả hai đầu",
+      grok_cli._CHAN_DAU_TOI_DA > 0 and grok_cli._CHAN_DUOI_TOI_DA > 0)
+_chan = grok_cli._chan_moi()
+_chan["so_dong"] = 500
+for _i in range(grok_cli._CHAN_DAU_TOI_DA):
+    _chan["raw"].append(f"đầu {_i}")
+for _i in range(300):
+    _chan["duoi"].append(f"đuôi {_i}")
+_d = grok_cli._chan_dong(_chan)
+check("giữ cả đầu lẫn đuôi, có dấu cắt ở giữa",
+      _d[0] == "đầu 0" and _d[-1] == "đuôi 299" and any("lược" in x for x in _d), _d[:3])
+check("và KHÔNG phình vô hạn",
+      len(_d) <= grok_cli._CHAN_DAU_TOI_DA + grok_cli._CHAN_DUOI_TOI_DA + 1, len(_d))
+
 grok_cli._HELP_CACHE.update(path=None, text="", ts=0.0)
 grok_cli.find_grok_cli = _that_find
 
