@@ -57,6 +57,10 @@ else:
         (home / ".local" / "bin" / "agy").write_text("#!/bin/sh\necho agy\n")
         (home / ".antigravity").mkdir()
         (home / ".antigravity" / "auth.db").write_text("token-cu")
+        # ...và đã đăng nhập Grok Build (báo cáo 29/08, xem khối dưới).
+        (home / ".local" / "bin" / "grok").write_text("#!/bin/sh\necho grok\n")
+        (home / ".grok").mkdir()
+        (home / ".grok" / "auth.json").write_text('{"oauth": {"accessToken": "xai-cu"}}')
 
         r = chay_ep(home, persist)
         check("entrypoint exec lệnh chính (server vẫn lên)", r.returncode == 0
@@ -64,7 +68,11 @@ else:
         # `.gemini` vào danh sách từ 0.43.0: `agy` để cấu hình MCP ở
         # ~/.gemini/config/mcp_config.json (chỗ Javis đấu hub vào) và token OAuth của MCP
         # ở đó. Thiếu nó thì cập nhật xong là mất sạch kết nối MCP người dùng tự thêm.
-        for d in (".local", ".antigravity", ".config", ".gemini"):
+        # `.grok` vào danh sách từ 0.50.4. Người dùng báo 29/08: "mỗi lần nâng cấp bản mới
+        # là grok lại bị logout". Đúng hạng lỗi của `agy` hồi 16/08, chỉ khó thấy hơn một
+        # bậc - binary `grok` nằm ở ~/.local/bin nên VẪN CÒN sau update, thẻ Models vẫn báo
+        # "Đã cài CLI", nên trông như một lỗi đăng nhập chứ không phải lỗi ổ đĩa.
+        for d in (".local", ".antigravity", ".config", ".gemini", ".grok"):
             check(f"CANARY: ~/{d} thành symlink vào volume",
                   (home / d).is_symlink()
                   and str((home / d).resolve()).startswith(str(persist.resolve())))
@@ -73,6 +81,8 @@ else:
               and (home / ".local" / "bin" / "agy").is_file())
         check("đăng nhập cũ đi theo", (persist / ".antigravity" / "auth.db").read_text()
               == "token-cu")
+        check("đăng nhập Grok cũng được dọn sang volume",
+              (persist / ".grok" / "auth.json").read_text() == '{"oauth": {"accessToken": "xai-cu"}}')
 
         # Update kế tiếp: container MỚI, HOME mới tinh, volume còn nguyên.
         home2 = Path(td) / "home2"
@@ -81,6 +91,11 @@ else:
         check("CANARY: sau 'update' (HOME mới) agy + đăng nhập VẪN CÒN",
               r2.returncode == 0 and (home2 / ".local" / "bin" / "agy").is_file()
               and (home2 / ".antigravity" / "auth.db").read_text() == "token-cu")
+        check("CANARY: và Grok KHÔNG bị logout sau update - đúng lỗi người dùng báo 29/08",
+              (home2 / ".grok" / "auth.json").read_text()
+              == '{"oauth": {"accessToken": "xai-cu"}}')
+        check("binary grok cũng còn (nó vốn đã còn - đó là lý do lỗi này khó thấy)",
+              (home2 / ".local" / "bin" / "grok").is_file())
 
         # Bản trên volume là bản SỐNG QUA UPDATE - nội dung mới tinh trong HOME không đè nó.
         home3 = Path(td) / "home3"
@@ -106,6 +121,14 @@ check("CANARY: cài codex KHÔNG còn nuốt lỗi (thiếu codex là build đ�
       dong_codex != "" and "||" not in dong_codex)
 check("codex --version vẫn là cổng kiểm sau cài", "codex --version" in df)
 check("ENTRYPOINT chạy qua entrypoint.sh", "/app/docker/entrypoint.sh" in df)
+
+# Danh sách thư mục nằm trong MỘT dòng `for` của entrypoint. Canh thẳng vào đó: thêm một
+# engine CLI mới mà quên dòng này là người dùng bị đăng xuất mỗi lần cập nhật, im lặng, và
+# triệu chứng trông giống hệt lỗi đăng nhập nên đi lần nhầm hướng (đã xảy ra hai lần).
+_ep = EP.read_text(encoding="utf-8")
+_dong_for = next((l for l in _ep.splitlines() if l.startswith("for d in ")), "")
+for _d in (".local", ".antigravity", ".config", ".gemini", ".grok"):
+    check(f"CANARY: entrypoint còn giữ {_d} trong danh sách", _d in _dong_for)
 
 # ---- Trang Models nói thật khi thiếu binary ----
 src = (SERVER / "main.py").read_text(encoding="utf-8")
