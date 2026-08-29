@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.4] - 2026-08-29
+### Sửa lỗi
+- **Cập nhật bản mới là Grok bị đăng xuất.** Phiên đăng nhập xAI nằm trong thư mục chỉ tồn tại bên trong container, nên mỗi lần đổi sang bản mới là nó biến mất - trong khi bản thân Grok CLI vẫn còn nên thẻ vẫn báo "Đã cài CLI", làm nó trông như lỗi đăng nhập chứ không phải lỗi lưu trữ. Nay phiên được cất cùng chỗ với đăng nhập Claude và ChatGPT.
+- Bạn **không cần sửa gì trong `docker-compose`**, chỉ cần cập nhật như bình thường. Riêng lần cập nhật này vẫn phải đăng nhập Grok lại một lần cuối - từ lần sau trở đi thì giữ nguyên.
+
 ## [0.50.3] - 2026-08-28
 ### Sửa lỗi
 - **Chat với Grok chỉ nhận lại ô trống.** Đăng nhập xong, gõ một câu, và Javis trả lời "Grok CLI chạy xong nhưng không trả về nội dung nào". Javis đưa câu hỏi cho Grok qua một đường mà bản CLI này không nhận, nên nó chạy rồi thoát mà không nói gì. Giờ Javis tự thử lại đường thứ hai và lượt chat có câu trả lời.
