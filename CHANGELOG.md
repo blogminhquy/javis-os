@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.50.6] - 2026-08-29
+### Sửa lỗi
+- **Chat với Grok đã trả lời được.** Grok gửi câu trả lời về dưới một cái tên khác thứ Javis chờ, nên Javis nhận đủ chữ mà gom ra rỗng - lượt chạy đúng, model trả lời đúng, bạn thấy ô trống. Nay đọc đúng.
+- **Bảng Mức dùng đếm đúng token của Grok.** Trước đây mọi lượt Grok đều vào bảng với 0 token vì số liệu nằm sâu hơn một tầng so với chỗ Javis đọc.
+- **Grok nhớ được mạch hội thoại giữa các lượt** - mã phiên nay được nhận đúng, nên hỏi tiếp "cái đó" là nó vẫn hiểu.
+
 ## [0.50.5] - 2026-08-29
 ### Sửa lỗi
 - **Chat với Grok vẫn ra ô trống - lần này chữa đúng chỗ.** Grok trả lời bằng một kiểu dữ liệu khác hẳn thứ Javis đang chờ, và câu trả lời nằm ở **cuối** luồng, sau một tràng dòng suy nghĩ. Javis nay đọc phần cuối đó, và nếu vẫn không ra thì tự hỏi lại Grok theo một cách khác.
