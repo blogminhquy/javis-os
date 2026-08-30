@@ -101,6 +101,9 @@ def find_antigravity_cli() -> Optional[str]:
 _HELP_CACHE: dict = {"path": None, "text": "", "ts": 0.0}
 _HELP_TTL = 300.0     # 5 phút: đủ để một phiên chat không đẻ tiến trình mỗi lượt, mà nâng cấp
                       # bản CLI xong cũng không phải khởi động lại Javis mới nhận cờ mới.
+_HELP_TTL_LOI = 120.0  # kết quả RỖNG cũng phải nhớ: binary hỏng mà cứ chạy lại `--help` 20s
+                       # mỗi lượt gọi là tự biến một CLI hỏng thành cả app đơ (khách báo
+                       # 2026-08-30: mọi trang cùng đứng hình khi `agy` treo).
 
 
 def _help_text() -> str:
@@ -109,12 +112,17 @@ def _help_text() -> str:
     if not cli:
         return ""
     now = time.time()
-    if (_HELP_CACHE["path"] == cli and _HELP_CACHE["text"]
-            and now - _HELP_CACHE["ts"] < _HELP_TTL):
+    # Cache CẢ kết quả rỗng (TTL ngắn hơn): điều kiện cũ đòi text khác rỗng nên một binary
+    # hỏng là `--help` chạy lại đủ 20s ở MỌI lượt gọi - đúng lỗ đã góp phần treo cả dashboard.
+    if _HELP_CACHE["path"] == cli and now - _HELP_CACHE["ts"] < (
+            _HELP_TTL if _HELP_CACHE["text"] else _HELP_TTL_LOI):
         return _HELP_CACHE["text"]
     try:
+        # stdin=DEVNULL: `agy` chưa đăng nhập (hoặc lần chạy đầu) là mở menu tương tác rồi
+        # ngồi chờ bàn phím - cắt stdin thì nó thoát ngay thay vì ăn trọn timeout.
         r = subprocess.run([cli, "--help"], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=20, creationflags=_no_window())
+                           errors="replace", timeout=20, creationflags=_no_window(),
+                           stdin=subprocess.DEVNULL)
         txt = (r.stdout or "") + "\n" + (r.stderr or "")
     except Exception:
         txt = ""
@@ -537,7 +545,7 @@ def list_models() -> Optional[list]:
         try:
             r = subprocess.run([cli, "models", "--output-format", "json"], capture_output=True,
                                text=True, encoding="utf-8", errors="replace", timeout=30,
-                               creationflags=_no_window())
+                               creationflags=_no_window(), stdin=subprocess.DEVNULL)
             if r.returncode == 0 and (r.stdout or "").strip():
                 ds = _tach_model(json.loads(r.stdout))
                 if ds:
@@ -545,8 +553,11 @@ def list_models() -> Optional[list]:
         except Exception:
             pass
     try:
+        # stdin=DEVNULL cùng lý do với _help_text: chưa đăng nhập là `agy` mở menu chờ bàn
+        # phím; cắt stdin cho nó thoát nhanh thay vì ngồi đủ 30 giây.
         r = subprocess.run([cli, "models"], capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=30, creationflags=_no_window())
+                           errors="replace", timeout=30, creationflags=_no_window(),
+                           stdin=subprocess.DEVNULL)
     except Exception:
         return []
     if r.returncode != 0:
@@ -621,6 +632,50 @@ def auth_status(bo_qua_cache: bool = False) -> dict:
                       "(vd root) đăng nhập xong Javis vẫn không thấy."}
     _AUTH_CACHE.update(ts=now, val=dict(d))
     return d
+
+
+_AUTH_LAM_MOI = {"dang_chay": False}   # single-flight: một thread làm mới là đủ
+
+
+def auth_status_nen() -> dict:
+    """Trạng thái đăng nhập cho HOT PATH (/settings, /providers): trả NGAY từ cache, KHÔNG
+    bao giờ đẻ tiến trình trong luồng gọi. Cache hết hạn thì đá một thread nền làm mới
+    (single-flight), kết quả dùng cho lượt hỏi sau.
+
+    Vì sao phải có bản riêng thay vì gọi auth_status(): auth_status hỏi chính `agy` (một
+    `--help` 20s + hai lượt `models` 30s khi binary treo), mà _providers_view chạy NGAY TRONG
+    handler async của GET /settings - tức trên event loop. Một `agy` hỏng là MỌI trang của
+    dashboard cùng đứng hình theo: nút xám hết, không đổi được model, trang Cập nhật báo
+    "không kiểm tra được phiên bản", và cài đè source mới cũng không hết vì binary hỏng vẫn
+    nằm trên PATH (khách báo đúng nguyên văn cảnh này, 2026-08-30).
+
+    Đánh đổi nói thẳng: lần hỏi ĐẦU TIÊN sau khi khởi động trả "chưa rõ, đang kiểm" thay vì
+    chặn để chờ câu trả lời thật - thẻ Models có thể hiện "chưa kết nối" vài giây rồi tự đúng
+    lại ở lượt vẽ sau. Đó là cái giá đúng để đổi lấy việc app không bao giờ chết theo CLI.
+    """
+    cli = find_antigravity_cli()
+    if not cli:
+        return {"connected": False, "method": "", "email": "",
+                "error": f"Chưa cài Antigravity CLI. Cài một lần: {lenh_cai()}"}
+    now = time.time()
+    cu = _AUTH_CACHE["val"]
+    if cu and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
+        return dict(cu)
+    if not _AUTH_LAM_MOI["dang_chay"]:
+        _AUTH_LAM_MOI["dang_chay"] = True
+
+        def _lam_moi():
+            try:
+                auth_status(bo_qua_cache=True)
+            except Exception as e:   # không để thread nền chết câm mang theo cờ single-flight
+                print(f"[antigravity] làm mới auth_status lỗi: {e}", file=sys.stderr)
+            finally:
+                _AUTH_LAM_MOI["dang_chay"] = False
+
+        threading.Thread(target=_lam_moi, daemon=True, name="agy-auth-refresh").start()
+    if cu:
+        return dict(cu)   # cache cũ còn hơn chặn cả app: sai lệch tối đa một vòng làm mới
+    return {"connected": False, "method": "", "email": "", "error": "", "dang_kiem": True}
 
 
 def login_huong_dan() -> dict:
@@ -1285,8 +1340,11 @@ def kiem_tra_nhanh(timeout: float = 60.0) -> dict:
         args += ["--output-format", "json"]
     args += ["-p", "Trả lời đúng một chữ: ok"]
     try:
+        # stdin=DEVNULL: chưa đăng nhập thì `agy` mở menu "Select login method" chờ bàn phím
+        # (xem chú thích dưới) - cắt stdin để nó thoát ngay với mã lỗi thay vì treo đủ timeout.
         r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=timeout, creationflags=_no_window())
+                           errors="replace", timeout=timeout, creationflags=_no_window(),
+                           stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired as e:
         # Hết giờ ở đây gần như LUÔN là "chưa đăng nhập" chứ không phải máy chậm: chưa có phiên
         # thì `agy` mở menu "Select login method" rồi ngồi chờ bàn phím, mà ở đây không có ai
