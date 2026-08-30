@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.3] - 2026-08-30
+### Sửa lỗi
+- **Chat dài bằng tiếng Việt qua Antigravity CLI không còn báo "Argument list too long".** Javis đo độ dài câu hỏi bằng số chữ, trong khi hệ điều hành đếm theo byte - mà tiếng Việt tốn nhiều byte hơn tiếng Anh, nên hội thoại dài bằng tiếng Việt bị chặn còn tiếng Anh thì không. Nay đo đúng.
+- Nếu vẫn chạm trần vì lý do khác, Javis **tự chuyển sang đường gửi khác và trả lời bình thường**, thay vì ném một câu lỗi kỹ thuật rồi bỏ mất lượt chat.
+- Grok CLI bản cũ gặp cùng tình huống cũng được báo bằng câu dễ hiểu kèm cách xử lý.
+
 ## [0.52.2] - 2026-08-30
 ### Sửa lỗi
 - **Hết cảnh chữ trên màn hình biến thành mã khoá** kiểu `models.st_connected` sau khi cập nhật. Nguyên nhân: trình duyệt giữ file từ điển ngôn ngữ bản cũ qua bản mới. Nay từ điển luôn được kiểm tra bản mới mỗi lần mở trang.
