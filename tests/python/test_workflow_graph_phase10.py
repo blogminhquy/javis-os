@@ -674,9 +674,12 @@ def test_paused_workflow_is_not_shown_as_a_crash():
         encoding="utf-8")
     block = studio.split('d.type === "wait_user"', 1)[1].split("} else if", 1)[0]
     assert "es.close()" in block and "endRun()" in block
-    # Xưng hô đổi sang "bạn" (2026-08-14): Javis phục vụ nhiều người, xưng "anh" là đoán
-    # giới tính và quan hệ. Test bám vào Ý ("đang chờ duyệt") chứ không bám vào đại từ.
-    assert "chờ bạn duyệt" in block
+    # Xưng hô đổi sang "bạn" (2026-08-14); 0.52.0 câu dời vào từ điển i18n. Test bám vào Ý
+    # ("đang chờ duyệt"): khối phải nhắc khoá, và giá trị tiếng Việt của khoá phải còn nguyên ý.
+    assert 't("studio.wait1")' in block
+    vi = (Path(__file__).resolve().parents[2] / "dashboard" / "i18n" / "vi.json").read_text(
+        encoding="utf-8")
+    assert "chờ bạn duyệt" in vi
 
 
 def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
@@ -741,8 +744,8 @@ def test_studio_offers_an_approve_button_carrying_the_code():
         encoding="utf-8")
     block = studio.split('d.type === "wait_user"', 1)[1].split("} else if", 1)[0]
     assert "wf-approve" in block
-    assert "Duyệt ${esc(d.code)}" in block, "nhãn nút phải mang mã"
-    assert "không hoàn tác" in block, "phải cảnh báo trước khi bấm"
+    assert '${esc(t("studio.approve"))} ${esc(d.code)}' in block, "nhãn nút phải mang mã"
+    assert 't("studio.wait_warn")' in block, "phải cảnh báo trước khi bấm"
     # Và cú bấm gửi đủ ba thứ định danh, không đoán bên server.
     handler = studio.split("wf-approve", 2)[2]
     for field in ("task_id", "node", "code"):
