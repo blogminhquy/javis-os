@@ -84,6 +84,49 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
         xau.map(([k]) => k).join(", "));
 }
 
+// ---- 6b. index.html: chữ tiếng Việt tĩnh PHẢI mang data-i18n ----
+// Quét xong 0.51.0 thì mọi text node / thuộc tính title-placeholder-aria có dấu Việt trong
+// index.html đều đã gắn khoá từ điển. Chốt lại để một dòng HTML thêm sau không lặng lẽ
+// đứng ngoài bản dịch. Ngoại lệ là TÊN RIÊNG và chỗ JS tự quản (nút đổi tông do theme.js
+// đặt title theo trạng thái sáng/tối - một khoá tĩnh sẽ ghi đè sai một nửa thời gian).
+{
+  const html = fs.readFileSync(path.join(ROOT, "dashboard", "index.html"), "utf8")
+    .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, "");
+  const NGOAI_LE_TEXT = ["Ngọc Thu", "by Minh Quý", "1.10×"];
+  const chuaGan = [];
+  for (const m of html.matchAll(/<([a-zA-Z0-9]+)((?:[^<>"]|"[^"]*")*)>([^<>]*)/g)) {
+    const [, , attrs, text] = m;
+    if (DAU_VIET.test(text) && !attrs.includes("data-i18n")
+        && !NGOAI_LE_TEXT.some((x) => text.includes(x))) {
+      chuaGan.push(text.trim().slice(0, 50));
+    }
+  }
+  check("index.html: text node tiếng Việt nào cũng có data-i18n", chuaGan.length === 0,
+        chuaGan.slice(0, 5).join(" | "));
+
+  const attrChuaGan = [];
+  for (const m of html.matchAll(/<[a-zA-Z0-9]+((?:[^<>"]|"[^"]*")*)>/g)) {
+    const a = m[1];
+    if (a.includes('id="themeToggle"')) continue;   // theme.js tự đặt title theo tông
+    for (const [att, can] of [["title", "data-i18n-title"], ["placeholder", "data-i18n-ph"],
+                              ["aria-label", "data-i18n-aria"]]) {
+      const mm = a.match(new RegExp('(?<![-\\w])' + att + '="([^"]*)"'));
+      if (mm && DAU_VIET.test(mm[1]) && !a.includes(can)) attrChuaGan.push(`${att}=${mm[1].slice(0, 40)}`);
+    }
+  }
+  check("index.html: title/placeholder/aria tiếng Việt nào cũng có data-i18n-*",
+        attrChuaGan.length === 0, attrChuaGan.slice(0, 5).join(" | "));
+
+  // Khoá nhắc trong HTML phải TỒN TẠI trong vi.json - gõ sai tên khoá là chữ trên màn hình
+  // bị applyDom thay bằng chính cái khoá sai đó, và không test nào khác nhìn thấy.
+  const khoaThieu = [];
+  for (const m of html.matchAll(/data-i18n(?:-title|-ph|-aria)?="([^"]+)"/g)) {
+    if (!(m[1] in vi)) khoaThieu.push(m[1]);
+  }
+  check("mọi khoá data-i18n trong index.html đều có trong vi.json", khoaThieu.length === 0,
+        khoaThieu.slice(0, 6).join(", "));
+}
+
 // ---- 6. CHỐT CHẶN THOÁI LUI ----
 // File nào đã dọn xong thì tên nó vào đây. Từ đó trở đi, nhúng một chuỗi tiếng Việt vào file
 // đó là test đỏ ngay. Dọn thêm file nào thì thêm tên vào danh sách này.

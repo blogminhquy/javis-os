@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.51.0] - 2026-08-30
+### Thêm mới
+- **Ô đổi ngôn ngữ ngay dưới thanh bên trái**, cạnh số phiên bản. Chọn English là chữ trên nút, nhãn và menu đổi ngay, không cần vào Cài đặt, không cần tải lại trang.
+- **Toàn bộ màn hình chính đã có bản tiếng Anh**: thanh trên, hộp Thông báo, cây Vault, Cài đặt nhanh, khung chat, màn đăng nhập và bộ cài đặt lần đầu. Trang Cài đặt (tiêu đề nhóm, thẻ, nút) cũng đổi theo.
+- Đổi ngôn ngữ ở đâu thì ô chọn ở chỗ kia tự nhảy theo, hai nơi luôn chỉ cùng một thứ tiếng.
+
 ## [0.50.6] - 2026-08-29
 ### Sửa lỗi
 - **Chat với Grok đã trả lời được.** Grok gửi câu trả lời về dưới một cái tên khác thứ Javis chờ, nên Javis nhận đủ chữ mà gom ra rỗng - lượt chạy đúng, model trả lời đúng, bạn thấy ô trống. Nay đọc đúng.
