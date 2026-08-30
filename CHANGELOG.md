@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.1] - 2026-08-30
+### Sửa lỗi
+- **Antigravity CLI hỏng/treo không còn kéo cả app đứng hình.** Trước đây mỗi lần mở trang, Javis hỏi thẳng `agy` ngay trên luồng chính - `agy` chưa đăng nhập thì ngồi chờ bàn phím tới 80 giây, thế là mọi nút xám hết, không đổi được model, trang Cập nhật cũng chết. Nay Javis hỏi ở nền, giao diện trả lời ngay.
+- CLI nào rơi vào màn hỏi tương tác (menu đăng nhập, hộp thoại lần đầu chạy) giờ thoát ngay thay vì treo chờ một bàn phím không tồn tại.
+- Binary CLI hỏng chỉ bị thử lại sau vài phút, không thử lại mỗi lượt bấm.
+
 ## [0.52.0] - 2026-08-30
 ### Cải thiện
 - **Ba trang lớn nói được tiếng Anh: Models, Việc và Studio.** Chọn English là thẻ nhà cung cấp, bảng Việc, danh sách workflow/agent/skill cùng mọi nút và thông báo trên ba trang này đổi theo.

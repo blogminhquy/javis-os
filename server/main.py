@@ -1086,9 +1086,12 @@ def _providers_view(cfg):
             configured = bool(grok_cli.auth_status().get("connected"))
         elif p["id"] == "antigravity-cli":
             # `agy` giữ phiên trong keyring của hệ điều hành nên không có file nào để soi -
-            # auth_status() phải hỏi chính CLI, và nó tự nhớ kết quả một phút để mở trang Models
-            # không đẻ tiến trình mỗi lần.
-            configured = bool(antigravity_cli.auth_status().get("connected"))
+            # phải hỏi chính CLI. Nhưng TUYỆT ĐỐI không hỏi trong luồng này: _providers_view
+            # chạy ngay trong handler async của GET /settings, một `agy` treo (chưa đăng nhập
+            # là nó mở menu chờ bàn phím) từng làm CẢ dashboard đứng hình - mọi nút xám, không
+            # đổi được model, trang Cập nhật chết (khách báo 2026-08-30). auth_status_nen trả
+            # cache ngay và tự làm mới ở thread nền.
+            configured = bool(antigravity_cli.auth_status_nen().get("connected"))
         elif p["key_field"] is None:
             configured = True
         else:
@@ -1125,7 +1128,7 @@ def _providers_view(cfg):
             # nhưng `grok logout` thì gọi được, nên thẻ CÓ nút Ngắt (khác `agy`).
             item["auth_by_javis"] = False
         if p["id"] == "antigravity-cli":
-            _a = antigravity_cli.auth_status()
+            _a = antigravity_cli.auth_status_nen()   # cùng lý do nhánh `configured` ở trên
             item["cli_found"] = bool(antigravity_cli.find_antigravity_cli())
             item["auth_method"] = _a.get("method", "")
             item["auth_error"] = _a.get("error", "")

@@ -164,6 +164,8 @@ def _moi_truong() -> dict:
 _HELP_CACHE: dict = {"path": None, "text": "", "ts": 0.0}
 _HELP_TTL = 300.0     # 5 phút: một phiên chat không đẻ tiến trình mỗi lượt, mà nâng cấp bản
                       # CLI xong cũng không phải khởi động lại Javis mới nhận cờ mới.
+_HELP_TTL_LOI = 120.0  # kết quả RỖNG cũng nhớ (TTL ngắn hơn): binary hỏng mà chạy lại `--help`
+                       # 20s mỗi lượt là biến một CLI hỏng thành cả app chậm theo.
 
 
 def _help_text() -> str:
@@ -172,13 +174,15 @@ def _help_text() -> str:
     if not cli:
         return ""
     now = time.time()
-    if (_HELP_CACHE["path"] == cli and _HELP_CACHE["text"]
-            and now - _HELP_CACHE["ts"] < _HELP_TTL):
+    if _HELP_CACHE["path"] == cli and now - _HELP_CACHE["ts"] < (
+            _HELP_TTL if _HELP_CACHE["text"] else _HELP_TTL_LOI):
         return _HELP_CACHE["text"]
     try:
+        # stdin=DEVNULL: CLI nào rơi vào màn hỏi tương tác cũng thoát ngay thay vì ngồi chờ
+        # bàn phím vô hình ăn trọn timeout (cùng bài học với `agy`, 2026-08-30).
         r = subprocess.run([cli, "--help"], capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=20, creationflags=_no_window(),
-                           env=_moi_truong())
+                           env=_moi_truong(), stdin=subprocess.DEVNULL)
         txt = (r.stdout or "") + "\n" + (r.stderr or "")
     except Exception:
         txt = ""
@@ -819,7 +823,7 @@ def logout() -> dict:
     try:
         r = subprocess.run([cli, "logout"], capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=30, creationflags=_no_window(),
-                           env=_moi_truong())
+                           env=_moi_truong(), stdin=subprocess.DEVNULL)
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if r.returncode != 0:
@@ -843,7 +847,8 @@ def list_models() -> Optional[list]:
         try:
             r = subprocess.run([cli, "models", "--json"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=20,
-                               creationflags=_no_window(), env=_moi_truong())
+                               creationflags=_no_window(), env=_moi_truong(),
+                               stdin=subprocess.DEVNULL)
             if r.returncode == 0:
                 d = json.loads((r.stdout or "").strip() or "[]")
                 if isinstance(d, dict):
@@ -1422,7 +1427,8 @@ def kiem_tra_nhanh(timeout: float = 30.0) -> dict:
     try:
         r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=timeout, creationflags=_no_window(),
-                           env=_moi_truong(), cwd=str(Path.home()))
+                           env=_moi_truong(), cwd=str(Path.home()),
+                           stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "Grok CLI không trả lời kịp."}
     except Exception as e:
