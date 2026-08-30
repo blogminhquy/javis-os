@@ -2592,7 +2592,7 @@
 
   // ---- Trang Tổng quan ----
   async function renderOverview(el) {
-    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     const m = s.model || {};
     // Đọc từ model.main + model.providers (nguồn thật của trang Models), KHÔNG từ m.engine -
@@ -2876,7 +2876,7 @@
 
   // ---- Trang Models: (A) Main Model + (B) Providers ----
   async function renderModels(el) {
-    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     const m = s.model || {};
     const providers = m.providers || [];
@@ -4206,7 +4206,7 @@
     </div>`;
   }
   async function renderConnect(el) {
-    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     let d;
     try { d = await (await fetch("/connect/catalog")).json(); } catch (e) { el.innerHTML = placeholder("mcp", "Không tải được."); return; }
     const cat = d.catalog || [];
@@ -4361,7 +4361,7 @@
 
   // ---- Trang Kênh (Telegram) - form đầy đủ ----
   async function renderChannels(el) {
-    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     const tg = s.telegram || {};
     const zl = s.zalo_bot || {};
@@ -4501,7 +4501,7 @@
 
   // ---- Trang Tài khoản: workspace + đăng nhập ----
   async function renderAccount(el) {
-    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     const auth = s.auth || {};
     el.innerHTML = `
@@ -4886,7 +4886,7 @@
   async function renderSettings(el) {
     const gen = _renderGen;               // chốt token: nếu user đổi trang trong lúc await → bỏ render này
     parkQuickSet();                       // giữ #quickSet an toàn TRƯỚC khi ghi đè cviewBody
-    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>Đang tải...</div></div>`;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     if (gen !== _renderGen) return;       // đã sang trang khác → KHÔNG ghi đè trang mới bằng nội dung cũ
     const v = s.voice || {};
@@ -4901,7 +4901,7 @@
     const mainProviderId = model.main?.provider || (model.engine === "openrouter" ? "openrouter" : "anthropic-cli");
     const mainProvider = (model.providers || []).find(p => p.id === mainProviderId);
     const engine = mainProvider?.label || ({ "openrouter": "OpenRouter", "openai": "OpenAI API", "openai-oauth": "ChatGPT OAuth", "anthropic-cli": "Claude CLI" }[mainProviderId] || mainProviderId);
-    const currentModel = model.main?.model || (mainProviderId === "openrouter" ? model.openrouter_model : model.claude_model) || "Mặc định";
+    const currentModel = model.main?.model || (mainProviderId === "openrouter" ? model.openrouter_model : model.claude_model) || t("common.default");
     const opt = (val, label, cur) => `<option value="${esc(val)}"${val === cur ? " selected" : ""}>${esc(label)}</option>`;
     const oaVoices = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"];
     // NGÔN NGỮ TRẢ LỜI. Danh sách lấy từ /lang/list (sổ đăng ký phía server) chứ KHÔNG khai
@@ -4932,87 +4932,87 @@
     // Nhà cung cấp giọng đọc - gộp NGAY trong nhóm giọng nói (render vào #ttsProviderHost), không tách section riêng.
     const provHtml = `
       <div class="qs-block">
-        <div class="popover-label">NHÀ CUNG CẤP GIỌNG ĐỌC</div>
+        <div class="popover-label">${esc(t("settings.tts_provider"))}</div>
         <select class="js-input" id="vpProvider">
-          ${opt("edge", "Edge TTS - miễn phí (mặc định)", prov)}
-          ${opt("openai", "OpenAI - mượt, đa ngôn ngữ", prov)}
-          ${opt("elevenlabs", "ElevenLabs - tự nhiên nhất", prov)}
+          ${opt("edge", t("settings.tts_edge"), prov)}
+          ${opt("openai", t("settings.tts_openai"), prov)}
+          ${opt("elevenlabs", t("settings.tts_eleven"), prov)}
         </select>
         <div id="vpOpenai" style="display:none">
-          <label class="js-lbl">OpenAI API key ${oaSet ? '<span class="dim">(đã có - để trống nếu không đổi)</span>' : ""}</label>
-          <input class="js-input" id="vpOaKey" type="password" placeholder="Ví dụ: sk-...">
-          <label class="js-lbl">Giọng OpenAI</label>
+          <label class="js-lbl">OpenAI API key ${oaSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
+          <input class="js-input" id="vpOaKey" type="password" placeholder="${esc(t("settings.oa_key_ph"))}">
+          <label class="js-lbl">${esc(t("settings.tts_openai_voice"))}</label>
           <select class="js-input" id="vpOaVoice">${oaVoices.map(x => opt(x, x, v.openai_tts_voice || "alloy")).join("")}</select>
         </div>
         <div id="vpEleven" style="display:none">
-          <label class="js-lbl">ElevenLabs API key ${elSet ? '<span class="dim">(đã có - để trống nếu không đổi)</span>' : ""}</label>
-          <input class="js-input" id="vpElKey" type="password" placeholder="Dán API key ElevenLabs">
-          <label class="js-lbl">Voice ID <span class="dim">(lấy ở ElevenLabs → Voices)</span></label>
-          <input class="js-input" id="vpElVoice" value="${esc(v.elevenlabs_voice || "")}" placeholder="Ví dụ: 21m00Tcm4TlvDq8ikWAM (Rachel)">
+          <label class="js-lbl">ElevenLabs API key ${elSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
+          <input class="js-input" id="vpElKey" type="password" placeholder="${esc(t("settings.eleven_ph"))}">
+          <label class="js-lbl">Voice ID <span class="dim">${esc(t("settings.voice_id_hint"))}</span></label>
+          <input class="js-input" id="vpElVoice" value="${esc(v.elevenlabs_voice || "")}" placeholder="${esc(t("settings.eleven_voice_ph"))}">
         </div>
-        <div class="js-actions"><button class="gcard-btn" id="vpSave">Lưu nhà cung cấp</button></div>
-        <div class="gcard-meta" id="vpStatus">Đang dùng: <b>${esc(prov)}</b>. Provider trả phí lỗi sẽ tự về Edge. Bấm ▶ Nghe thử ở dưới để nghe.</div>
+        <div class="js-actions"><button class="gcard-btn" id="vpSave">${esc(t("settings.save_provider"))}</button></div>
+        <div class="gcard-meta" id="vpStatus">${esc(t("settings.tts_using"))} <b>${esc(prov)}</b>. ${esc(t("settings.tts_note"))}</div>
       </div>`;
     el.innerHTML = `<div class="settings-page">
       <details class="settings-group" open>
-        <summary><span><b>Hệ thống</b><small>Trạng thái hiện tại và lối tắt tới các nhóm chuyên sâu</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
+        <summary><span><b>${esc(t("settings.grp_system"))}</b><small>${esc(t("settings.grp_system_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body">
           <div class="settings-status-grid">
             <div><span>Engine</span><b>${esc(engine)}</b></div>
             <div><span>Model</span><b>${esc(currentModel)}</b></div>
             <div><span>Workspace</span><b>${esc(s.workspace_name || "Javis OS")}</b></div>
-            <div><span>Telegram</span><b>${telegram.enabled ? "Đang bật" : "Đang tắt"}</b></div>
+            <div><span>Telegram</span><b>${esc(telegram.enabled ? t("settings.on") : t("settings.off"))}</b></div>
           </div>
           <div class="settings-links">
-            <button data-settings-go="models"><span>◈</span><b>Models</b><small>Model và nhà cung cấp</small></button>
-            <button data-settings-go="channels"><span>${ic("send")}</span><b>Kênh</b><small>Telegram và kết nối chat</small></button>
-            <button data-settings-go="account"><span>${ic("circle-user")}</span><b>Tài khoản</b><small>Đăng nhập, workspace, token API cho CLI</small></button>
-            <button data-settings-go="logs"><span>${ic("scroll-text")}</span><b>Cập nhật</b><small>Phiên bản và nhật ký mới</small></button>
+            <button data-settings-go="models"><span>◈</span><b>${esc(t("page.models.label"))}</b><small>${esc(t("settings.link_models_sub"))}</small></button>
+            <button data-settings-go="channels"><span>${ic("send")}</span><b>${esc(t("page.channels.label"))}</b><small>${esc(t("settings.link_channels_sub"))}</small></button>
+            <button data-settings-go="account"><span>${ic("circle-user")}</span><b>${esc(t("page.account.label"))}</b><small>${esc(t("settings.link_account_sub"))}</small></button>
+            <button data-settings-go="logs"><span>${ic("scroll-text")}</span><b>${esc(t("page.logs.label"))}</b><small>${esc(t("settings.link_logs_sub"))}</small></button>
           </div>
         </div>
       </details>
 
       <details class="settings-group" open>
-        <summary><span><b>Giao diện &amp; Brain</b><small>Hiệu năng đồ thị và cấu trúc dữ liệu</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
+        <summary><span><b>${esc(t("settings.grp_ui"))}</b><small>${esc(t("settings.grp_ui_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body settings-two-col">
           <div class="settings-card">
-            <div class="settings-card-head"><b>Đồ thị não</b><span class="gcard-tag">${graphOn ? "Bật" : "Tắt"}</span></div>
-            <p>Đồ thị canvas nhẹ, không dùng WebGL. Mobile luôn ưu tiên chế độ nhẹ.</p>
+            <div class="settings-card-head"><b>${esc(t("settings.graph"))}</b><span class="gcard-tag">${esc(graphOn ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
+            <p>${esc(t("settings.graph_desc"))}</p>
             <div class="js-actions">
-              <button class="gcard-btn ${graphOn ? "ghost" : ""}" id="setGraphToggle">${graphOn ? "Tắt đồ thị" : "Bật đồ thị"}</button>
+              <button class="gcard-btn ${graphOn ? "ghost" : ""}" id="setGraphToggle">${esc(graphOn ? t("settings.graph_off") : t("settings.graph_on"))}</button>
             </div>
           </div>
           <div class="settings-card">
-            <div class="settings-card-head"><b>Chuẩn hóa brain</b></div>
-            <p>Gom agents, workflows, memory và skills về cấu trúc phẳng đồng nhất. Chỉ di chuyển khi đích chưa tồn tại.</p>
-            <button class="gcard-btn ghost" id="setBrainMigrate">Chuẩn hóa brain đang chọn</button>
+            <div class="settings-card-head"><b>${esc(t("settings.migrate"))}</b></div>
+            <p>${esc(t("settings.migrate_desc"))}</p>
+            <button class="gcard-btn ghost" id="setBrainMigrate">${esc(t("settings.migrate_btn"))}</button>
             <div class="gcard-meta" id="setBrainMigrateResult"></div>
           </div>
           <div class="settings-card">
-            <div class="settings-card-head"><b>Dấu nguồn gốc ảnh AI</b><span class="gcard-tag">${stripC2pa ? "Đang gỡ" : "Đang giữ"}</span></div>
-            <p>Ảnh Javis tạo ra mang sẵn dấu nguồn gốc (Content Credentials) ghi rằng ảnh do AI sinh ra. Facebook đọc dấu này để gắn nhãn "Nội dung do AI tạo" lên bài. Gỡ dấu đi thì nhãn thường không hiện nữa, nhưng bạn vẫn phải tự chịu trách nhiệm công bố nội dung AI theo luật và điều khoản của nền tảng nơi bạn đăng. Nhãn tác giả javisos.com luôn được giữ dù bật hay tắt.</p>
+            <div class="settings-card-head"><b>${esc(t("settings.c2pa"))}</b><span class="gcard-tag">${esc(stripC2pa ? t("settings.c2pa_stripping") : t("settings.c2pa_keeping"))}</span></div>
+            <p>${esc(t("settings.c2pa_desc"))}</p>
             <div class="js-actions">
-              <button class="gcard-btn ${stripC2pa ? "ghost" : ""}" id="setC2paKeep">Giữ dấu</button>
-              <button class="gcard-btn ${stripC2pa ? "" : "ghost"}" id="setC2paStrip">Gỡ dấu</button>
+              <button class="gcard-btn ${stripC2pa ? "ghost" : ""}" id="setC2paKeep">${esc(t("settings.c2pa_keep"))}</button>
+              <button class="gcard-btn ${stripC2pa ? "" : "ghost"}" id="setC2paStrip">${esc(t("settings.c2pa_strip"))}</button>
             </div>
-            <div class="gcard-meta" id="setC2paMeta">${stripC2pa
-              ? "Đang GỠ dấu nguồn gốc khỏi ảnh mới tạo. Ảnh đã tạo trước đó không đổi."
-              : "Mặc định: giữ nguyên dấu nguồn gốc."}</div>
+            <div class="gcard-meta" id="setC2paMeta">${esc(stripC2pa
+              ? t("settings.c2pa_meta_strip")
+              : t("settings.c2pa_meta_keep"))}</div>
           </div>
         </div>
       </details>
 
       <details class="settings-group" open>
-        <summary><span><b>Giọng nói, thương hiệu &amp; truy cập</b><small>TTS, avatar và tên miền riêng</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
+        <summary><span><b>${esc(t("settings.grp_voice"))}</b><small>${esc(t("settings.grp_voice_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body cs-host"></div>
       </details>
 
       <details class="settings-group" id="setAutostartSec" style="display:none">
-        <summary><span><b>Khởi động cùng Windows</b><small>Tự chạy Javis ở nền khi đăng nhập</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
+        <summary><span><b>${esc(t("settings.grp_autostart"))}</b><small>${esc(t("settings.grp_autostart_sub"))}</small></span><span class="settings-caret">${ic("chevron-down")}</span></summary>
         <div class="settings-group-body">
           <div class="settings-card compact">
-            <div class="settings-card-head"><b>Tự bật Javis</b><span class="gcard-tag" id="setAutoTag">…</span></div>
-            <p id="setAutoMeta">Đang kiểm tra…</p>
+            <div class="settings-card-head"><b>${esc(t("settings.autostart"))}</b><span class="gcard-tag" id="setAutoTag">…</span></div>
+            <p id="setAutoMeta">${esc(t("settings.checking"))}</p>
             <button class="gcard-btn ghost" id="setAutoToggle" style="display:none"></button>
             <div class="gcard-meta" id="setAutoStatus"></div>
           </div>
@@ -5045,6 +5045,9 @@
         // không được phụ thuộc vào việc gọi mạng có thành công hay không.
         try { await JavisI18n.setLang(selUi.value); } catch (e) { /* noop */ }
         await saveSetting("locale", { ui_lang: selUi.value });
+        // Vẽ lại trang Cài đặt bằng từ điển mới - không thì phần khung (tiêu đề nhóm, thẻ,
+        // nút) vẫn tiếng cũ tới lần mở sau, nhìn như đổi ngôn ngữ "không ăn".
+        refreshSettings();
       };
     }
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
@@ -5066,7 +5069,7 @@
 
       const st = document.getElementById("vpStatus");
       document.getElementById("vpSave").onclick = async () => {
-        st.textContent = "Đang lưu...";
+        st.textContent = t("settings.saving");
         const data = {
           tts_provider: provSel.value,
           openai_tts_voice: document.getElementById("vpOaVoice").value,
@@ -6339,6 +6342,14 @@
       if (st) st.i18nTick++;
     } catch (e) { /* Alpine chưa dựng xong - lát nữa nó đọc từ điển đã đầy rồi */ }
     try { window.JavisI18n && JavisI18n.applyDom(); } catch (e) { /* noop */ }
+    // Hai ô chọn ngôn ngữ (đáy rail + trang Cài đặt) phải chỉ cùng một giá trị: đổi ở đâu
+    // thì ô kia tự nhảy theo, không cần F5.
+    try {
+      for (const id of ["railLang", "vpUiLang"]) {
+        const sel = document.getElementById(id);
+        if (sel && window.JavisI18n && sel.value !== JavisI18n.lang()) sel.value = JavisI18n.lang();
+      }
+    } catch (e) { /* noop */ }
   });
 
   function initRailTooltip() {
@@ -6446,6 +6457,26 @@
     initRailTooltip();   // tooltip nhanh cho rail thu gọn
 
     freshSettings().then(s => {
+      // Ô đổi ngôn ngữ giao diện dưới đáy rail. Danh sách từ sổ đăng ký phía server
+      // (s.lang_list) - cùng nguồn với trang Cài đặt, không khai lại ở client. Chỉ hiện khi
+      // có từ 2 ngôn ngữ: một ngôn ngữ thì ô chọn là đồ trang trí.
+      try {
+        const wrap = document.getElementById("railLangWrap");
+        const sel = document.getElementById("railLang");
+        const langs = s.lang_list || [];
+        if (wrap && sel && langs.length > 1) {
+          const cur = (window.JavisI18n && JavisI18n.lang()) || "vi";
+          sel.innerHTML = langs.map(l =>
+            `<option value="${esc(l.ma)}"${l.ma === cur ? " selected" : ""}>${esc(l.ten)}</option>`).join("");
+          sel.onchange = async () => {
+            // Đổi NGAY trên máy này trước rồi mới lưu lên server - ngôn ngữ giao diện là lựa
+            // chọn theo thiết bị, trải nghiệm không được chờ mạng (giống ô ở trang Cài đặt).
+            try { await JavisI18n.setLang(sel.value); } catch (e) { /* noop */ }
+            saveSetting("locale", { ui_lang: sel.value });
+          };
+          wrap.hidden = false;
+        }
+      } catch (e) { /* thiếu ô thì rail vẫn sống */ }
       graphEnabled = !(s.dashboard && s.dashboard.graph_enabled === false);
       // MỞ APP LÀ VÀO MÀN JAVIS, kể cả lite-mode (cờ graph tắt hoặc màn hẹp): màn Javis đã có
       // sẵn ô chat, chỉ khác là không vẽ khoang não. Bản trước tự đẩy sang trang Trò chuyện,

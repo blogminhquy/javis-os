@@ -38,10 +38,20 @@
     var b = document.getElementById("themeToggle");
     if (!b) return;
     b.setAttribute("aria-pressed", light ? "true" : "false");
-    b.title = light ? "Đang dùng tông sáng - bấm để chuyển sang tông tối"
-                    : "Đang dùng tông tối - bấm để chuyển sang tông sáng";
+    // Tooltip lấy từ từ điển i18n khi nó đã nạp; chưa nạp (theme.js chạy rất sớm) thì dùng
+    // tiếng Việt tại chỗ - và nghe "javis:i18n" bên dưới để tự sửa lại ngay khi từ điển về.
+    var key = light ? "top.theme_light" : "top.theme_dark";
+    var txt = window.t ? window.t(key) : key;
+    if (txt === key) {
+      txt = light ? "Đang dùng tông sáng - bấm để chuyển sang tông tối"
+                  : "Đang dùng tông tối - bấm để chuyển sang tông sáng";
+    }
+    b.title = txt;
     b.setAttribute("aria-label", b.title);
   }
+  window.addEventListener("javis:i18n", function () {
+    syncButton(root.getAttribute("data-theme") === "light");
+  });
 
   function apply(light, persist) {
     if (light) root.setAttribute("data-theme", "light");

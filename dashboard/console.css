@@ -268,6 +268,18 @@ body.in-console .hud-actions { display: none; }
 .sk-group-head .dim { color: var(--text3); font-weight: 400; margin-left: 6px; }
 
 .rail-spacer { flex: 1; }
+.rail-lang {                                           /* ô đổi ngôn ngữ giao diện, ngay trên hàng version */
+  display: flex; align-items: center; gap: 6px; padding: 8px 6px 0;
+  border-top: 1px solid var(--glass-brd); color: var(--text3);
+}
+.rail-lang svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.rail-lang-sel {
+  flex: 1; min-width: 0; background: transparent; color: var(--text2);
+  border: 1px solid var(--glass-brd); border-radius: 8px;
+  font-family: var(--font-ui); font-size: 12px; padding: 4px 6px; cursor: pointer;
+}
+.rail-lang-sel:hover { color: var(--text); background: var(--surface-2); }
+.rail-lang-sel option { background: var(--panel-solid); color: var(--text); }
 .rail-foot {                                           /* version/tác giả bên TRÁI, nút thu/mở bên PHẢI */
   font-family: var(--font); line-height: 1.35; padding: 8px 6px 0;
   border-top: 1px solid var(--glass-brd);
@@ -312,6 +324,7 @@ body.in-console .hud-actions { display: none; }
   .rail.collapsed .rail-item { justify-content: center; padding: 9px 0; gap: 0; }
   .rail.collapsed .rail-item .rail-lbl { display: none; }       /* giấu chữ, chỉ còn icon */
   .rail.collapsed .rf-meta { display: none; }                   /* giấu version/tác giả cho vừa bề ngang hẹp, chỉ còn nút */
+  .rail.collapsed .rail-lang { display: none; }                 /* ô ngôn ngữ cũng không vừa bề ngang thu gọn */
   .rail.collapsed .rail-foot { justify-content: center; }       /* thu: chỉ còn nút, căn giữa */
 }
 
