@@ -50,8 +50,10 @@ check("tách bằng chỉ số ký tự đầu tiên (tên model có thể chứ
 // ---- 4. Không làm hỏng agent cũ / model đã lưu ----
 check("agent CŨ chỉ lưu tên model vẫn dò được đúng dòng (không nhảy về Mặc định)",
   /const hit = \[\.\.\.sel\.options\]\.find\(/.test(FN));
-check("model đã lưu mà nhà đã ngắt vẫn hiện 'đang lưu'", FN.indexOf("Model đang lưu") !== -1);
-check("vẫn còn lựa chọn Mặc định", /<option value="">Mặc định/.test(FN));
+check("model đã lưu mà nhà đã ngắt vẫn hiện 'đang lưu' (khoá i18n studio.model_saved)",
+  FN.indexOf('t("studio.model_saved")') !== -1);
+check("vẫn còn lựa chọn Mặc định (khoá i18n studio.model_default)",
+  FN.indexOf('<option value="">${esc(t("studio.model_default"))}</option>') !== -1);
 
 // ---- 5. Một nhà lỗi không được kéo cả ô chọn chết ----
 check("mỗi lần hỏi model live đều có nhánh dự phòng",
@@ -60,7 +62,8 @@ check("Codex vẫn ép lấy danh sách live (catalog của nó vốn rỗng)",
   FN.indexOf('p.id === "openai-oauth" ? "&refresh=1"') !== -1);
 
 // ---- 6. Chưa kết nối nhà nào thì nói thẳng, không để ô trống khó hiểu ----
-check("có câu dẫn khi chưa kết nối nhà nào", FN.indexOf("Chưa kết nối nhà cung cấp nào") !== -1);
+check("có câu dẫn khi chưa kết nối nhà nào (khoá i18n studio.model_none)",
+  FN.indexOf('t("studio.model_none")') !== -1);
 
 console.log();
 if (fails.length) {

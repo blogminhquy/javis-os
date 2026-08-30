@@ -207,7 +207,8 @@ check("UI: o loc giu chu qua moi lan ve lai",
       'value="${esc(filterQ)}"' in console and "applyFilter();   //" in console)
 # is_main do server tính cho MODEL CHÍNH - dùng nó ở chế độ model nền là đánh dấu nhầm.
 check("UI: nhan 'dang dung' theo lua chon truyen vao, khong theo is_main",
-      'p.id === main.provider ? " · ĐANG DÙNG"' in console)
+      # 0.52.0: chữ dời vào từ điển i18n - vẫn phải bám theo main.provider truyền vào.
+      'p.id === main.provider ? " · " + esc(t("models.mp_using"))' in console)
 
 print()
 if fails:

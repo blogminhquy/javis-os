@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.0] - 2026-08-30
+### Cải thiện
+- **Ba trang lớn nói được tiếng Anh: Models, Việc và Studio.** Chọn English là thẻ nhà cung cấp, bảng Việc, danh sách workflow/agent/skill cùng mọi nút và thông báo trên ba trang này đổi theo.
+- Cả luồng đăng nhập nhà cung cấp (Claude, ChatGPT, Grok, Antigravity) và hộp chọn model cũng đã có bản dịch, kể cả các dòng báo lỗi.
+- Từ điển giao diện lên gần 600 mục cho mỗi ngôn ngữ.
+
 ## [0.51.0] - 2026-08-30
 ### Thêm mới
 - **Ô đổi ngôn ngữ ngay dưới thanh bên trái**, cạnh số phiên bản. Chọn English là chữ trên nút, nhãn và menu đổi ngay, không cần vào Cài đặt, không cần tải lại trang.

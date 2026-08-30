@@ -36,7 +36,7 @@
     if (!b) return;
     const n = _sel[kind].size;
     b.disabled = !n;
-    b.textContent = "⤓ Tải đã chọn" + (n ? ` (${n})` : "");
+    b.textContent = t("studio.dl_sel") + (n ? ` (${n})` : "");
   }
   // Tick một thẻ. `boxCls` là class của ô tick để Chọn tất cả gom được cả trang.
   function noiSel(kind, btnId, el, slug) {
@@ -55,16 +55,16 @@
     inp.type = "file"; inp.accept = ".zip,.md,.skill,application/zip";
     inp.onchange = async () => {
       if (!inp.files || !inp.files.length) return;
-      const ow = confirm("Nếu đã có agent/skill/workflow TRÙNG TÊN thì GHI ĐÈ bằng bản mới?\n\nOK = ghi đè · Huỷ = giữ bản cũ (chỉ nhập cái chưa có).");
+      const ow = confirm(t("studio.import_confirm"));
       const f = new FormData();
       f.append("file", inp.files[0]); f.append("brain", brain()); f.append("overwrite", ow ? "1" : "0");
       let r;
       try { r = await (await fetch("/import", { method: "POST", body: f })).json(); }
-      catch (e) { alert("Lỗi tải lên: " + e.message); return; }
-      if (r && r.error) { alert("Nhập thất bại: " + r.error); return; }
-      const show = (a) => (a && a.length) ? a.join(", ") : "(không)";
-      alert(`Nhập xong.\n• Đã nhập: ${show(r.imported)}\n• Bỏ qua (đã có): ${show(r.skipped)}`
-        + ((r.errors && r.errors.length) ? `\n• Lỗi: ${r.errors.join("; ")}` : ""));
+      catch (e) { alert(t("studio.upload_err") + " " + e.message); return; }
+      if (r && r.error) { alert(t("studio.import_fail") + " " + r.error); return; }
+      const show = (a) => (a && a.length) ? a.join(", ") : t("studio.none");
+      alert(`${t("studio.import_done")}\n• ${t("studio.imported")} ${show(r.imported)}\n• ${t("studio.skipped")} ${show(r.skipped)}`
+        + ((r.errors && r.errors.length) ? `\n• ${t("studio.errors")} ${r.errors.join("; ")}` : ""));
       if (reload) reload();
     };
     inp.click();
@@ -92,10 +92,10 @@
   // ===== Workflows =====
   // Biến workflow đọc thành lời cho ô bước: thay "…" (cũ) vì "Nhận …, tạo project folder"
   // đọc lên cụt nghĩa. Biến lạ thì hiện thẳng tên biến, đừng nuốt thành dấu ba chấm.
-  const WF_VARS = { input: "đầu vào", prev: "kết quả bước trước" };
+  const WF_VARS = { input: "studio.var_input", prev: "studio.var_prev" };   // tên KHOÁ i18n, tra lúc vẽ
   function renderPipeline(steps) {
     return (steps || []).map((s, i) => {
-      const task = (s.task || "").replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (m, v) => WF_VARS[v] || v);
+      const task = (s.task || "").replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (m, v) => (WF_VARS[v] ? t(WF_VARS[v]) : v));
       return `<div class="wf-pstep" data-i="${i}">
           <div class="wps-num">${String(i + 1).padStart(2, "0")}</div>
           ${task ? `<div class="wps-task" title="${esc(task)}">${esc(task)}</div>` : ''}
@@ -106,7 +106,7 @@
 
   async function loadWorkflows() {
     const panel = document.getElementById("panel-workflows");
-    panel.innerHTML = `<div class="panel-bar"><h3>Workflows</h3><div class="pb-actions"><button class="s-btn-ghost" id="wfSelAll" title="Chọn / bỏ chọn toàn bộ workflow">Chọn tất cả</button><button class="s-btn-ghost" id="wfDl" disabled title="Tải các workflow đã tick về MỘT gói .zip (kèm agent + skill phụ thuộc)">⤓ Tải đã chọn</button><button class="s-btn-ghost" id="wfImport">⤒ Nhập</button><button class="s-btn-ghost" id="seedBtn">Tạo mẫu</button><button class="s-btn" id="newWf">+ Workflow</button></div></div><div class="wf-list" id="wfCards">Đang tải...</div>`;
+    panel.innerHTML = `<div class="panel-bar"><h3>Workflows</h3><div class="pb-actions"><button class="s-btn-ghost" id="wfSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="wfDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="wfImport">${esc(t("studio.import"))}</button><button class="s-btn-ghost" id="seedBtn">${esc(t("studio.seed"))}</button><button class="s-btn" id="newWf">+ Workflow</button></div></div><div class="wf-list" id="wfCards">${esc(t("common.loading"))}</div>`;
     document.getElementById("newWf").onclick = () => editWorkflow(null);
     document.getElementById("wfImport").onclick = () => importItems(loadWorkflows);
     document.getElementById("seedBtn").onclick = async () => { await api("/studio/seed", { method: "POST", body: fd({ brain: brain() }) }); loadWorkflows(); };
@@ -117,7 +117,7 @@
     document.getElementById("wfSelAll").onclick = () => chonTatCa("workflow", "wfDl", "wf-sel", wfs.map(w => w.slug));
     refreshStats();
     const cards = document.getElementById("wfCards");
-    if (!wfs.length) { cards.innerHTML = `<div class="empty">Chưa có workflow. Bấm <b>Tạo mẫu</b> để có ví dụ Research → Write, hoặc <b>+ Workflow</b>.</div>`; return; }
+    if (!wfs.length) { cards.innerHTML = `<div class="empty">${esc(t("studio.wf_empty"))}</div>`; return; }
     cards.innerHTML = "";
     wfs.forEach(w => {
       const active = w.status === "active";
@@ -126,17 +126,17 @@
       div.dataset.slug = w.slug;
       div.innerHTML = `
         <div class="wf-header">
-          <input type="checkbox" class="wf-sel" data-slug="${esc(w.slug)}" title="Chọn workflow này để tải về chung một gói">
+          <input type="checkbox" class="wf-sel" data-slug="${esc(w.slug)}" title="${esc(t("studio.sel_one"))}">
           <div class="wf-name">${esc(w.name)}</div>
-          <span class="wf-badge ${active ? "ready" : "off"}">${active ? "● Sẵn sàng" : "Lưu trữ"}</span>
-          <span class="wf-count">${(w.steps || []).length} bước</span>
+          <span class="wf-badge ${active ? "ready" : "off"}">${esc(active ? t("studio.ready") : t("studio.archived"))}</span>
+          <span class="wf-count">${(w.steps || []).length} ${esc(t("studio.steps"))}</span>
           <div class="wf-spacer"></div>
           <div class="wf-actions">
-            <button class="s-btn run" ${active ? "" : "disabled"}>▶ Chạy</button>
-            <button class="s-btn-ghost edit">Sửa</button>
-            <button class="s-btn-ghost archive">${active ? "Lưu trữ" : "Kích hoạt"}</button>
-            <button class="s-btn-ghost exp" title="Xuất gói .zip (kèm agent + skill phụ thuộc) để chia sẻ">⤓ Xuất</button>
-            <button class="s-btn-ghost del">Xoá</button>
+            <button class="s-btn run" ${active ? "" : "disabled"}>▶ ${esc(t("studio.run"))}</button>
+            <button class="s-btn-ghost edit">${esc(t("common.edit"))}</button>
+            <button class="s-btn-ghost archive">${esc(active ? t("studio.archived") : t("studio.activate"))}</button>
+            <button class="s-btn-ghost exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button>
+            <button class="s-btn-ghost del">${esc(t("common.delete"))}</button>
           </div>
         </div>
         ${w.description ? `<div class="wf-desc">${esc(w.description)}</div>` : ''}
@@ -146,31 +146,31 @@
       div.querySelector(".archive").onclick = async () => { await api("/workflows/toggle", { method: "POST", body: fd({ slug: w.slug, brain: brain() }) }); loadWorkflows(); };
       div.querySelector(".run").onclick = () => runWorkflow(w, div);
       div.querySelector(".edit").onclick = () => editWorkflow(w);
-      div.querySelector(".del").onclick = async () => { if (confirm(`Xoá workflow "${w.name}"?`)) { await api("/workflows/delete", { method: "POST", body: fd({ slug: w.slug, brain: brain() }) }); loadWorkflows(); } };
+      div.querySelector(".del").onclick = async () => { if (confirm(t("studio.del_wf", { ten: w.name }))) { await api("/workflows/delete", { method: "POST", body: fd({ slug: w.slug, brain: brain() }) }); loadWorkflows(); } };
       cards.appendChild(div);
     });
   }
 
   // ===== Run workflow (SSE) =====
   function runWorkflow(w, card) {
-    const input = prompt(`Đầu vào cho "${w.name}" (vd: chủ đề bài viết):`, "");
+    const input = prompt(t("studio.run_input", { ten: w.name }), "");
     if (input === null) return;
 
     // Card chuyển sang trạng thái running
     const badge = card && card.querySelector(".wf-badge");
     if (card) { card.classList.add("running"); }
-    if (badge) { badge.className = "wf-badge running"; badge.innerHTML = ic("loader", { cls: "ic-spin" }) + " Đang chạy..."; }
+    if (badge) { badge.className = "wf-badge running"; badge.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + esc(t("studio.running")); }
 
     const endRun = () => {
       if (card) { card.classList.remove("running"); }
-      if (badge) { badge.className = "wf-badge ready"; badge.textContent = "● Sẵn sàng"; }
+      if (badge) { badge.className = "wf-badge ready"; badge.textContent = t("studio.ready"); }
       card && card.querySelectorAll(".wf-pstep").forEach(el => el.classList.remove("active"));
     };
 
     const drawer = document.getElementById("runDrawer");
     const stepsEl = document.getElementById("runSteps");
     document.getElementById("runTitle").textContent = `▶ ${w.name}`;
-    stepsEl.innerHTML = `<div class="run-info">Đang khởi động...</div>`;
+    stepsEl.innerHTML = `<div class="run-info">${esc(t("studio.starting"))}</div>`;
     drawer.classList.add("open");
     const url = `/workflows/run?slug=${encodeURIComponent(w.slug)}&brain=${encodeURIComponent(brain())}&input=${encodeURIComponent(input)}`;
     const es = new EventSource(url);
@@ -178,14 +178,14 @@
     es.onmessage = (e) => {
       const d = JSON.parse(e.data);
       if (d.type === "start") {
-        stepsEl.innerHTML = `<div class="run-info">${d.steps} bước · workflow ${esc(d.workflow)}</div>`;
+        stepsEl.innerHTML = `<div class="run-info">${d.steps} ${esc(t("studio.steps"))} · workflow ${esc(d.workflow)}</div>`;
       } else if (d.type === "step_start") {
         // Pipeline card: sáng bước đang chạy
         if (card) {
           card.querySelectorAll(".wf-pstep").forEach(el => el.classList.remove("active"));
           const ps = card.querySelector(`.wf-pstep[data-i="${d.i}"]`);
           if (ps) ps.classList.add("active");
-          if (badge) badge.innerHTML = `${ic("loader", { cls: "ic-spin" })} Bước ${d.i + 1}/${w.steps.length}`;
+          if (badge) badge.innerHTML = `${ic("loader", { cls: "ic-spin" })} ${esc(t("studio.step_n", { a: d.i + 1, b: w.steps.length }))}`;
         }
         const div = document.createElement("div");
         div.className = "run-step";
@@ -201,13 +201,13 @@
       } else if (d.type === "step_verify") {
         const div = stepDivs[d.i];
         if (div) div.querySelector(".rs-head").insertAdjacentHTML("beforeend",
-          `<span class="rs-verify" id="rs-vf-${d.i}">${ic("search")} ${esc(d.agent)} đang kiểm chứng${d.attempt ? ` (lần ${d.attempt + 1})` : ""}...</span>`);
+          `<span class="rs-verify" id="rs-vf-${d.i}">${ic("search")} ${esc(d.agent)} ${esc(t("studio.verifying"))}${d.attempt ? ` ${esc(t("studio.attempt_n", { n: d.attempt + 1 }))}` : ""}...</span>`);
       } else if (d.type === "step_verify_result") {
         const vf = document.getElementById(`rs-vf-${d.i}`);
-        if (vf) { vf.className = "rs-verify " + (d.passed ? "ok" : "fail"); vf.innerHTML = (d.passed ? ic("check", { cls: "ic-ok" }) + " Đạt" : ic("circle-x", { cls: "ic-err" }) + " Chưa đạt") + (d.reason ? ": " + esc(d.reason) : ""); vf.removeAttribute("id"); }
+        if (vf) { vf.className = "rs-verify " + (d.passed ? "ok" : "fail"); vf.innerHTML = (d.passed ? ic("check", { cls: "ic-ok" }) + " " + esc(t("studio.pass")) : ic("circle-x", { cls: "ic-err" }) + " " + esc(t("studio.fail"))) + (d.reason ? ": " + esc(d.reason) : ""); vf.removeAttribute("id"); }
       } else if (d.type === "step_retry") {
         const out = document.getElementById(`rs-out-${d.i}`);
-        if (out) out.insertAdjacentHTML("beforebegin", `<div class="rs-retry">↻ Sửa lại lần ${d.attempt}...</div>`);
+        if (out) out.insertAdjacentHTML("beforebegin", `<div class="rs-retry">↻ ${esc(t("studio.retry_n", { n: d.attempt }))}...</div>`);
       } else if (d.type === "step_done") {
         // Pipeline card: bước xong → xanh
         if (card) {
@@ -218,7 +218,7 @@
         if (div) {
           div.classList.add("done");
           const sp = div.querySelector(".rs-spin"); if (sp) sp.outerHTML = `<span class="rs-ok">${ic("check", { cls: "ic-ok" })}</span>`;
-          if (d.verified === false) div.insertAdjacentHTML("beforeend", `<div class="rs-warn">${ic("triangle-alert", { cls: "ic-warn" })} Chưa đạt kiểm chứng sau số lần thử - xem lại kết quả</div>`);
+          if (d.verified === false) div.insertAdjacentHTML("beforeend", `<div class="rs-warn">${ic("triangle-alert", { cls: "ic-warn" })} ${esc(t("studio.verify_fail"))}</div>`);
           const out = document.getElementById(`rs-out-${d.i}`); if (out && !out.textContent.trim()) out.textContent = d.output;
         }
       } else if (d.type === "step_error") {
@@ -229,9 +229,9 @@
         if (div) div.querySelector(".rs-head").insertAdjacentHTML("beforeend",
           `<span class="rs-tool">${ic("settings")} model: ${esc(d.model)}</span>`);
       } else if (d.type === "resume") {
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("loader")} Chạy tiếp, giữ lại ${d.reused} bước đã xong</div>`);
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("loader")} ${esc(t("studio.resume", { n: d.reused }))}</div>`);
       } else if (d.type === "replan") {
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("search")} Agent lập thêm ${(d.added || []).length} bước (vòng ${d.round})</div>`);
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("search")} ${esc(t("studio.replan", { n: (d.added || []).length, r: d.round }))}</div>`);
       } else if (d.type === "wait_user") {
         // Dừng chờ duyệt KHÔNG được trông giống bị sập: phải nói rõ đang chờ gì,
         // và nếu duyệt được thì cho bấm ngay tại đây.
@@ -240,26 +240,26 @@
         const canApprove = d.code && d.task_id;
         stepsEl.insertAdjacentHTML("beforeend",
           `<div class="run-info wf-wait">${ic("triangle-alert", { cls: "ic-warn" })} ` +
-          `Workflow dừng chờ bạn duyệt bước "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}` +
+          `${esc(t("studio.wait1"))} "${esc(d.node || "")}"${d.prompt ? ": " + esc(d.prompt) : ""}` +
           (canApprove
             ? `<div class="wf-wait-act"><button type="button" class="wf-approve" ` +
               `data-task="${esc(d.task_id)}" data-node="${esc(d.node || "")}" ` +
-              `data-code="${esc(d.code)}">Duyệt ${esc(d.code)}</button>` +
-              `<span class="dim">Việc này chạy thật, không hoàn tác được.</span></div>`
+              `data-code="${esc(d.code)}">${esc(t("studio.approve"))} ${esc(d.code)}</button>` +
+              `<span class="dim">${esc(t("studio.wait_warn"))}</span></div>`
             : "") +
           `</div>`);
         stepsEl.scrollTop = stepsEl.scrollHeight;
       } else if (d.type === "escalation") {
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} Agent dừng và chuyển lại cho bạn: ${esc(d.reason || "")}</div>`);
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("triangle-alert", { cls: "ic-warn" })} ${esc(t("studio.escalation"))} ${esc(d.reason || "")}</div>`);
       } else if (d.type === "error") {
         es.close();
         endRun();
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("circle-x", { cls: "ic-err" })} ${esc(d.content || "Workflow dừng vì lỗi")}</div>`);
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info">${ic("circle-x", { cls: "ic-err" })} ${esc(d.content || t("studio.err_stop"))}</div>`);
         stepsEl.scrollTop = stepsEl.scrollHeight;
       } else if (d.type === "done") {
         es.close();
         endRun();
-        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info done">${ic("check", { cls: "ic-ok" })} Workflow hoàn tất</div>`);
+        stepsEl.insertAdjacentHTML("beforeend", `<div class="run-info done">${ic("check", { cls: "ic-ok" })} ${esc(t("studio.done"))}</div>`);
         stepsEl.scrollTop = stepsEl.scrollHeight;
       }
     };
@@ -269,7 +269,7 @@
       const btn = ev.target.closest ? ev.target.closest(".wf-approve") : null;
       if (!btn || btn.disabled) return;
       btn.disabled = true;
-      btn.textContent = "Đang chạy...";
+      btn.textContent = t("studio.running");
       const q = new URLSearchParams({
         task_id: btn.dataset.task, node: btn.dataset.node, code: btn.dataset.code,
         slug: w.slug, brain: brain(),
@@ -286,11 +286,11 @@
   async function editWorkflow(w) {
     const ad = await api(`/agents?brain=${encodeURIComponent(brain())}`);
     agentsCache = ad.agents || [];
-    if (!agentsCache.length) { alert("Chưa có agent nào. Hãy tạo Agent trước (tab Agents) hoặc bấm Tạo mẫu."); return; }
+    if (!agentsCache.length) { alert(t("studio.no_agents")); return; }
     const box = document.getElementById("editorBox");
     const steps = w ? JSON.parse(JSON.stringify(w.steps || [])) : [{ agent: agentsCache[0].slug, task: "" }];
     const opts = (sel) => agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
-    const optsV = (sel) => `<option value="">- không kiểm chứng -</option>` + agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
+    const optsV = (sel) => `<option value="">${esc(t("studio.no_verify"))}</option>` + agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
     const agentName = (slug) => { const a = agentsCache.find(x => x.slug === slug); return a ? a.name : (slug || "?"); };
     // Bước gập lại để thấy toàn cảnh; bấm vào bước nào thì mở bước đó ra sửa. Workflow mới
     // chỉ có 1 bước nên mở sẵn. Các ô input VẪN nằm trong DOM khi gập (chỉ ẩn bằng CSS) -
@@ -306,13 +306,13 @@
     }
     function render() {
       box.innerHTML = `
-        <h3>${w ? "Sửa" : "Tạo"} Workflow</h3>
-        <label>Tên</label><input id="wfName" value="${esc(w ? w.name : "")}">
-        <label>Mô tả</label><input id="wfDesc" value="${esc(w ? w.description : "")}">
-        <label>Các bước (mỗi bước = 1 agent · dùng {{input}} và {{prev}})</label>
+        <h3>${esc(w ? t("studio.edit") : t("studio.create"))} Workflow</h3>
+        <label>${esc(t("studio.name"))}</label><input id="wfName" value="${esc(w ? w.name : "")}">
+        <label>${esc(t("studio.desc"))}</label><input id="wfDesc" value="${esc(w ? w.description : "")}">
+        <label>${esc(t("studio.steps_label"))}</label>
         <div id="stepList"></div>
-        <button class="s-btn-ghost" id="addStep">+ Bước</button>
-        <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">Huỷ</button><button class="s-btn" id="saveWf">Lưu</button></div>`;
+        <button class="s-btn-ghost" id="addStep">${esc(t("studio.add_step"))}</button>
+        <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">${esc(t("common.cancel"))}</button><button class="s-btn" id="saveWf">${esc(t("common.save"))}</button></div>`;
       const sl = box.querySelector("#stepList"); sl.innerHTML = "";
       steps.forEach((st, i) => {
         const open = i === openIdx;
@@ -323,17 +323,17 @@
             <span class="step-num">${i + 1}</span>
             <span class="step-sum">${esc(agentName(st.agent))}${sum ? ` · ${esc(sum)}` : ""}</span>
             <select class="st-agent">${opts(st.agent)}</select>
-            <button class="st-move" data-d="-1" title="Lên" ${i === 0 ? "disabled" : ""}>↑</button>
-            <button class="st-move" data-d="1" title="Xuống" ${i === steps.length - 1 ? "disabled" : ""}>↓</button>
-            <button class="st-del" title="Xoá bước">${ic("x")}</button>
+            <button class="st-move" data-d="-1" title="${esc(t("studio.up"))}" ${i === 0 ? "disabled" : ""}>↑</button>
+            <button class="st-move" data-d="1" title="${esc(t("studio.down"))}" ${i === steps.length - 1 ? "disabled" : ""}>↓</button>
+            <button class="st-del" title="${esc(t("studio.del_step"))}">${ic("x")}</button>
           </div>
           <div class="step-body">
-            <textarea class="st-task" rows="3" placeholder="Nhiệm vụ... dùng {{input}} = đầu vào, {{prev}} = kết quả bước trước">${esc(st.task)}</textarea>
+            <textarea class="st-task" rows="3" placeholder="${esc(t("studio.task_ph"))}">${esc(st.task)}</textarea>
             <div class="st-verify">
-              <span class="stv-lbl">Kiểm chứng:</span>
+              <span class="stv-lbl">${esc(t("studio.verify_lbl"))}</span>
               <select class="st-verify-agent">${optsV(st.verify_agent || "")}</select>
               <input class="st-retries" type="number" min="0" max="5" value="${st.max_retries != null ? st.max_retries : 1}">
-              <span class="stv-lbl">lần</span>
+              <span class="stv-lbl">${esc(t("studio.times"))}</span>
             </div>
           </div>`;
         row.querySelector(".step-header").onclick = (e) => {
@@ -355,7 +355,7 @@
       box.querySelector("#addStep").onclick = () => { captureSteps(); steps.push({ agent: agentsCache[0].slug, task: "" }); openIdx = steps.length - 1; render(); };
       box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
       box.querySelector("#saveWf").onclick = async () => {
-        const name = box.querySelector("#wfName").value.trim(); if (!name) return alert("Nhập tên");
+        const name = box.querySelector("#wfName").value.trim(); if (!name) return alert(t("studio.need_name"));
         captureSteps();
         await api("/workflows", { method: "POST", body: fd({ name, description: box.querySelector("#wfDesc").value, steps: JSON.stringify(steps), status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
         editor.classList.remove("open"); loadWorkflows();
@@ -374,7 +374,7 @@
   // ===== Agents =====
   async function loadAgents() {
     const panel = document.getElementById("panel-agents");
-    panel.innerHTML = `<div class="panel-bar"><h3>Agents</h3><div class="pb-actions"><button class="s-btn-ghost" id="agSelAll" title="Chọn / bỏ chọn toàn bộ agent">Chọn tất cả</button><button class="s-btn-ghost" id="agDl" disabled title="Tải các agent đã tick về MỘT gói .zip (kèm skill của chúng)">⤓ Tải đã chọn</button><button class="s-btn-ghost" id="agImport">⤒ Nhập</button><button class="s-btn" id="newAgent">+ Agent</button></div></div><div class="cards" id="agCards">Đang tải...</div>`;
+    panel.innerHTML = `<div class="panel-bar"><h3>Agents</h3><div class="pb-actions"><button class="s-btn-ghost" id="agSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="agDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="agImport">${esc(t("studio.import"))}</button><button class="s-btn" id="newAgent">+ Agent</button></div></div><div class="cards" id="agCards">${esc(t("common.loading"))}</div>`;
     document.getElementById("newAgent").onclick = () => editAgent(null);
     document.getElementById("agImport").onclick = () => importItems(loadAgents);
     document.getElementById("agDl").onclick = () => taiDaChon("agent");
@@ -384,15 +384,15 @@
       chonTatCa("agent", "agDl", "ag-sel", (d.agents || []).map(a => a.slug));
     refreshStats();
     const cards = document.getElementById("agCards");
-    if (!(d.agents || []).length) { cards.innerHTML = `<div class="empty">Chưa có agent. Bấm <b>+ Agent</b> để tạo (vai trò + skills + bộ nhớ riêng).</div>`; return; }
+    if (!(d.agents || []).length) { cards.innerHTML = `<div class="empty">${esc(t("studio.ag_empty"))}</div>`; return; }
     cards.innerHTML = "";
     d.agents.forEach(a => {
       const div = document.createElement("div"); div.className = "ag-card";
-      div.innerHTML = `<div class="ag-name"><input type="checkbox" class="ag-sel" data-slug="${esc(a.slug)}" title="Chọn agent này để tải về chung một gói"> ${ic("bot")} ${esc(a.name)} <span class="ag-model">${esc(a.model || "")}</span></div><div class="ag-role">${esc(a.role)}</div><div class="ag-skills">${(a.skills || []).map(s => `<span class="chip-skill">${esc(s)}</span>`).join("") || '<span class="dim">chưa gán skill</span>'}</div><div class="wf-actions"><button class="s-btn-ghost edit">Sửa</button><button class="s-btn-ghost exp" title="Xuất gói .zip (kèm skill) để chia sẻ">⤓ Xuất</button><button class="s-btn-ghost del">Xoá</button></div>`;
+      div.innerHTML = `<div class="ag-name"><input type="checkbox" class="ag-sel" data-slug="${esc(a.slug)}" title="${esc(t("studio.sel_one"))}"> ${ic("bot")} ${esc(a.name)} <span class="ag-model">${esc(a.model || "")}</span></div><div class="ag-role">${esc(a.role)}</div><div class="ag-skills">${(a.skills || []).map(s => `<span class="chip-skill">${esc(s)}</span>`).join("") || `<span class="dim">${esc(t("studio.no_skills"))}</span>`}</div><div class="wf-actions"><button class="s-btn-ghost edit">${esc(t("common.edit"))}</button><button class="s-btn-ghost exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="s-btn-ghost del">${esc(t("common.delete"))}</button></div>`;
       noiSel("agent", "agDl", div.querySelector(".ag-sel"), a.slug);
       div.querySelector(".exp").onclick = () => exportItem("agent", a.slug);
       div.querySelector(".edit").onclick = () => editAgent(a);
-      div.querySelector(".del").onclick = async () => { if (confirm(`Xoá agent "${a.name}"?`)) { await api("/agents/delete", { method: "POST", body: fd({ slug: a.slug, brain: brain() }) }); loadAgents(); } };
+      div.querySelector(".del").onclick = async () => { if (confirm(t("studio.del_ag", { ten: a.name }))) { await api("/agents/delete", { method: "POST", body: fd({ slug: a.slug, brain: brain() }) }); loadAgents(); } };
       cards.appendChild(div);
     });
   }
@@ -427,30 +427,30 @@
     // vẫn bày ra để mở form lên KHÔNG âm thầm đổi model của agent thành "Mặc định".
     const dangCo = a && a.model && !nhom.some(g => (!a.model_provider || g.id === a.model_provider) && g.models.includes(a.model));
     const currentOnly = dangCo
-      ? `<optgroup label="Model đang lưu"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} (đang lưu)</option></optgroup>` : "";
+      ? `<optgroup label="${esc(t("studio.model_saved"))}"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} ${esc(t("studio.saved_suffix"))}</option></optgroup>` : "";
     const modelOptions = (g) =>
       `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
     const box = document.getElementById("editorBox");
-    box.innerHTML = `<h3>${a ? "Sửa" : "Tạo"} Agent</h3>
-      <label>Tên</label><input id="agName" value="${esc(a ? a.name : "")}">
-      <label>Vai trò (mô tả ngắn)</label><input id="agRole" value="${esc(a ? a.role : "")}">
-      <label>System prompt (cách làm việc chi tiết)</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
+    box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
+      <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
+      <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
+      <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
-        <div class="sp-bar"><input id="spSearch" placeholder="Tìm skill theo tên, nhóm hoặc mô tả…">
+        <div class="sp-bar"><input id="spSearch" placeholder="${esc(t("studio.sp_search_ph"))}">
           <span class="sp-count" id="spCount"></span>
-          <button type="button" class="s-btn-ghost sp-clear" id="spClear">Bỏ chọn hết</button></div>
+          <button type="button" class="s-btn-ghost sp-clear" id="spClear">${esc(t("studio.sp_clear"))}</button></div>
         <div class="sp-groups" id="skillPick"></div>
-      </div>` : '<div class="skill-pick"><span class="dim">Vault chưa có skill trong skills/ - vẫn tạo agent được, gán skill sau.</span></div>'}
+      </div>` : `<div class="skill-pick"><span class="dim">${esc(t("studio.sp_none"))}</span></div>`}
       <label>Model</label><select id="agModel">
-        <option value="">Mặc định (theo model việc nền)</option>
+        <option value="">${esc(t("studio.model_default"))}</option>
         ${currentOnly}
         ${nhom.map(modelOptions).join("")}
       </select>
-      <div class="dim" style="font-size:12px;margin-top:4px">${nhom.length
-        ? "Danh sách lấy từ chính các nhà cung cấp bạn đã kết nối ở trang Models, nên kết nối thêm là có thêm lựa chọn ở đây. Model nào cũng đọc/ghi file vault và dùng MCP; riêng Claude Code và ChatGPT (Codex) có thêm lệnh máy và tự mở web. Nhà đã chọn trục trặc lúc chạy thì Javis tự lùi sang bộ não khác thay vì để agent chết lặng."
-        : "Chưa kết nối nhà cung cấp nào chạy được agent - vào trang Models kết nối trước, rồi quay lại đây chọn model."}</div>
-      <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">Huỷ</button><button class="s-btn" id="saveAg">Lưu</button></div>`;
+      <div class="dim" style="font-size:12px;margin-top:4px">${esc(nhom.length
+        ? t("studio.model_hint")
+        : t("studio.model_none"))}</div>
+      <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
     if (a && a.model) {
       const sel = box.querySelector("#agModel");
       sel.value = val(a.model_provider || "", a.model);
@@ -468,7 +468,7 @@
     renderSkillPick(box, skills, chosen);
     box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
     box.querySelector("#saveAg").onclick = async () => {
-      const name = box.querySelector("#agName").value.trim(); if (!name) return alert("Nhập tên");
+      const name = box.querySelector("#agName").value.trim(); if (!name) return alert(t("studio.need_name"));
       const sk = [...chosen].join(",");
       const raw = box.querySelector("#agModel").value;
       const cut = raw.indexOf(MODEL_SEP);
@@ -509,8 +509,8 @@
         if (!groups.has(g)) groups.set(g, []);
         groups.get(g).push(s);
       });
-      if (countEl) countEl.textContent = `đã chọn ${chosen.size}/${skills.length}`;
-      if (!groups.size) { host.innerHTML = `<div class="dim sp-empty">Không có skill nào khớp "${esc(q)}".</div>`; return; }
+      if (countEl) countEl.textContent = t("studio.sp_count", { a: chosen.size, b: skills.length });
+      if (!groups.size) { host.innerHTML = `<div class="dim sp-empty">${esc(t("studio.sp_empty", { q }))}</div>`; return; }
       host.innerHTML = "";
       [...groups.keys()].sort((x, y) => x.localeCompare(y, LOC())).forEach(g => {
         const list = groups.get(g);
@@ -609,8 +609,8 @@
   async function loadSkills() {
     _injectSkillCss();
     const panel = document.getElementById("panel-skills");
-    panel.innerHTML = `<div class="empty">Đang tải...</div>`;
-    let d; try { d = await api(`/skills?brain=${encodeURIComponent(brain())}`); } catch (e) { panel.innerHTML = `<div class="empty">Lỗi tải skill.</div>`; return; }
+    panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    let d; try { d = await api(`/skills?brain=${encodeURIComponent(brain())}`); } catch (e) { panel.innerHTML = `<div class="empty">${esc(t("studio.sk_load_err"))}</div>`; return; }
     refreshStats();
     _skState.skills = d.skills || [];
     _sel.skill.clear();   // nạp lại là làm mới lựa chọn (danh sách có thể đã đổi)
@@ -632,18 +632,18 @@
     all.forEach(s => { const g = s.group || "Chung"; groups[g] = (groups[g] || 0) + 1; });
     const enabledN = all.filter(s => s.enabled !== false).length;
     const cats = ["ALL"].concat(Object.keys(groups).sort());
-    const catHtml = cats.map(c => `<div class="cat ${_skState.cat === c ? "sel" : ""}" data-cat="${esc(c)}"><span>${c === "ALL" ? "Tất cả" : esc(c)}</span><span class="n">${c === "ALL" ? all.length : groups[c]}</span></div>`).join("");
+    const catHtml = cats.map(c => `<div class="cat ${_skState.cat === c ? "sel" : ""}" data-cat="${esc(c)}"><span>${c === "ALL" ? esc(t("studio.all")) : esc(c)}</span><span class="n">${c === "ALL" ? all.length : groups[c]}</span></div>`).join("");
     panel.innerHTML = `
-      <div class="panel-bar"><h3>Skills <span class="dim">${enabledN}/${all.length} bật · nguồn <code>skills/</code></span></h3>
-        <div class="pb-actions"><button class="s-btn-ghost" id="skSelAll" title="Chọn / bỏ chọn toàn bộ skill ĐANG HIỆN (theo nhóm + ô tìm). Skill hệ thống không cần tải - brain nào cũng có sẵn.">Chọn tất cả</button><button class="s-btn-ghost" id="skDl" disabled title="Tải các skill đã tick về MỘT gói .zip">⤓ Tải đã chọn</button><button class="s-btn-ghost" id="skImport">⤒ Nhập</button><button class="s-btn" id="skNew">+ Skill</button></div></div>
+      <div class="panel-bar"><h3>Skills <span class="dim">${enabledN}/${all.length} ${esc(t("studio.on_count"))} · ${esc(t("studio.source"))} <code>skills/</code></span></h3>
+        <div class="pb-actions"><button class="s-btn-ghost" id="skSelAll" title="${esc(t("studio.selall_sk_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="skDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="skImport">${esc(t("studio.import"))}</button><button class="s-btn" id="skNew">+ Skill</button></div></div>
       ${all.length ? `<div class="sk2">
-        <div class="sk2-side"><div class="sec">Nhóm</div>${catHtml}</div>
+        <div class="sk2-side"><div class="sec">${esc(t("studio.groups"))}</div>${catHtml}</div>
         <div class="sk2-main">
-          <div class="sk2-bar"><h4>${_skState.cat === "ALL" ? "Tất cả" : esc(_skState.cat)}</h4><span class="cnt"></span>
-            <input id="skSearch" placeholder="Tìm skill…" value="${esc(_skState.q)}"></div>
+          <div class="sk2-bar"><h4>${_skState.cat === "ALL" ? esc(t("studio.all")) : esc(_skState.cat)}</h4><span class="cnt"></span>
+            <input id="skSearch" placeholder="${esc(t("studio.sk_search_ph"))}" value="${esc(_skState.q)}"></div>
           <div class="sk2-list" id="skList"></div>
         </div></div>`
-      : `<div class="empty">Brain chưa có skill. Bấm <b>+ Skill</b> để tạo (tự lưu vào <code>skills/</code> + xếp nhóm).</div>`}`;
+      : `<div class="empty">${esc(t("studio.sk_empty"))}</div>`}`;
     document.getElementById("skNew").onclick = () => openSkillForm(null);
     document.getElementById("skImport").onclick = () => importItems(loadSkills);
     document.getElementById("skDl").onclick = () => taiDaChon("skill");
@@ -663,24 +663,24 @@
     const box = document.getElementById("skList"); if (!box) return;
     const list = _skFiltered();
     const cntEl = document.querySelector(".sk2-bar .cnt"); if (cntEl) cntEl.textContent = list.length + " skill";
-    if (!list.length) { box.innerHTML = `<div class="empty">Không có skill khớp.</div>`; return; }
+    if (!list.length) { box.innerHTML = `<div class="empty">${esc(t("studio.sk_no_match"))}</div>`; return; }
     box.innerHTML = "";
     list.forEach(s => {
       const on = s.enabled !== false;
       const div = document.createElement("div"); div.className = "sk2-card" + (on ? "" : " off");
-      const sysBadge = s.system ? ` <span class="sysb" title="Skill hệ thống Javis OS - có ở mọi brain, tự cập nhật theo phiên bản app. Sửa nội dung thì giữ bản của bạn (ngừng tự cập nhật). Không xoá được - chỉ tắt.">hệ thống</span>` : "";
+      const sysBadge = s.system ? ` <span class="sysb" title="${esc(t("studio.sys_title"))}">${esc(t("studio.sys"))}</span>` : "";
       // Telemetry: use_count là tín hiệu DƯƠNG một chiều. Skill nạp native qua .claude/skills
       // không đi qua bộ đếm, nên "chưa thấy dùng" là tham khảo, KHÔNG phải phán quyết.
       let usageHtml = "";
       if (s.use_count > 0) {
         const when = s.last_used_at ? new Date(s.last_used_at * 1000).toLocaleDateString(LOC()) : "";
-        usageHtml = ` · <span class="sk-usage">đã dùng ${s.use_count} lần${when ? ", gần nhất " + when : ""}</span>`;
+        usageHtml = ` · <span class="sk-usage">${esc(t("studio.used", { n: s.use_count }))}${when ? ", " + esc(t("studio.last_used")) + " " + when : ""}</span>`;
       } else if (s.stale) {
-        usageHtml = ` · <span class="sk-usage sk-stale" title="Javis chỉ đếm được skill nạp qua tool javis_use_skill. Claude Code nạp native qua .claude/skills thì không đếm được, nên đây chỉ là tham khảo - không có nghĩa skill vô dụng.">chưa thấy dùng</span>`;
+        usageHtml = ` · <span class="sk-usage sk-stale" title="${esc(t("studio.unused_title"))}">${esc(t("studio.unused"))}</span>`;
       }
-      div.innerHTML = `<input type="checkbox" class="sk2-tog" ${on ? "checked" : ""} title="${on ? "Đang bật - bấm để tắt" : "Đang tắt - bấm để bật"}">
+      div.innerHTML = `<input type="checkbox" class="sk2-tog" ${on ? "checked" : ""} title="${esc(on ? t("studio.tog_on") : t("studio.tog_off"))}">
         <div class="sk2-info"><div class="nm">${ic("puzzle")} ${esc(s.name)}${sysBadge}</div><div class="ds">${esc(s.description || "")}</div><div class="gp">${ic("folder-open")} ${esc(s.group || "Chung")} · ${esc(s.slug)}${s.source === ".agents" ? " · .agents" : ""}${usageHtml}</div></div>
-        <div class="sk2-act">${s.system ? "" : `<label class="sk2-selwrap" title="Chọn skill này để tải về chung một gói"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"> chọn</label>`}<button class="edit">Sửa</button>${s.system ? "" : `<button class="exp" title="Xuất gói .zip để chia sẻ">⤓ Xuất</button><button class="del danger">Xoá</button>`}</div>`;
+        <div class="sk2-act">${s.system ? "" : `<label class="sk2-selwrap" title="${esc(t("studio.sel_one"))}"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"> ${esc(t("studio.pick"))}</label>`}<button class="edit">${esc(t("common.edit"))}</button>${s.system ? "" : `<button class="exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="del danger">${esc(t("common.delete"))}</button>`}</div>`;
       div.querySelector(".sk2-tog").onchange = (e) => toggleSkill(s, e.target.checked);
       const selBox = div.querySelector(".sk2-sel");
       if (selBox) noiSel("skill", "skDl", selBox, s.slug);
@@ -695,7 +695,7 @@
 
   async function toggleSkill(s, enabled) {
     const r = await api("/skills/toggle", { method: "POST", body: fd({ slug: s.slug, enabled: enabled ? "1" : "0", brain: brain() }) });
-    if (r && r.error) { alert("Không đổi được trạng thái: " + r.error); }
+    if (r && r.error) { alert(t("studio.toggle_err") + " " + r.error); }
     s.enabled = enabled;
     renderSkillUI(); refreshStats();
   }
@@ -705,20 +705,20 @@
     let sk = { slug: "", name: "", group: "Chung", description: "", body: "" };
     if (slug) { try { sk = await api(`/skills/get?slug=${encodeURIComponent(slug)}&brain=${encodeURIComponent(brain())}`); } catch (e) {} }
     const groupOpts = [...new Set(_skState.skills.map(s => s.group || "Chung"))].map(g => `<option value="${esc(g)}">`).join("");
-    panel.innerHTML = `<div class="panel-bar"><h3>${slug ? "Sửa skill" : "Skill mới"}</h3></div>
+    panel.innerHTML = `<div class="panel-bar"><h3>${esc(slug ? t("studio.sk_edit") : t("studio.sk_new"))}</h3></div>
       <div style="display:flex;flex-direction:column;gap:12px;max-width:660px">
-        <div><label>Tên skill</label><input id="skName" class="js-input" value="${esc(sk.name)}" placeholder="Ví dụ: Viết email bán hàng"></div>
-        <div><label>Nhóm</label><input id="skGroup" class="js-input" list="skGroupList" value="${esc(sk.group || "Chung")}" placeholder="Ví dụ: Marketing">
+        <div><label>${esc(t("studio.sk_name"))}</label><input id="skName" class="js-input" value="${esc(sk.name)}" placeholder="${esc(t("studio.sk_name_ph"))}"></div>
+        <div><label>${esc(t("studio.groups"))}</label><input id="skGroup" class="js-input" list="skGroupList" value="${esc(sk.group || "Chung")}" placeholder="${esc(t("studio.sk_group_ph"))}">
           <datalist id="skGroupList">${groupOpts}</datalist></div>
-        <div><label>Mô tả (description - quyết định khi nào skill kích hoạt)</label><textarea id="skDesc" class="js-input" style="min-height:60px">${esc(sk.description || "")}</textarea></div>
-        <div><label>Nội dung (SKILL.md - hướng dẫn cho AI)</label><textarea id="skBody" class="js-input" style="min-height:200px;font-family:ui-monospace,monospace">${esc(sk.body || "")}</textarea></div>
-        <div style="display:flex;gap:10px"><button class="s-btn" id="skSave">${ic("save")} Lưu</button><button class="s-btn-ghost" id="skCancel">Huỷ</button></div>
+        <div><label>${esc(t("studio.sk_desc"))}</label><textarea id="skDesc" class="js-input" style="min-height:60px">${esc(sk.description || "")}</textarea></div>
+        <div><label>${esc(t("studio.sk_body"))}</label><textarea id="skBody" class="js-input" style="min-height:200px;font-family:ui-monospace,monospace">${esc(sk.body || "")}</textarea></div>
+        <div style="display:flex;gap:10px"><button class="s-btn" id="skSave">${ic("save")} ${esc(t("common.save"))}</button><button class="s-btn-ghost" id="skCancel">${esc(t("common.cancel"))}</button></div>
       </div>`;
     panel.querySelector("#skCancel").onclick = () => loadSkills();
     panel.querySelector("#skSave").onclick = async () => {
       const name = panel.querySelector("#skName").value.trim();
-      if (!name) { alert("Nhập tên skill"); return; }
-      const b = panel.querySelector("#skSave"); b.disabled = true; b.textContent = "Đang lưu...";
+      if (!name) { alert(t("studio.need_sk_name")); return; }
+      const b = panel.querySelector("#skSave"); b.disabled = true; b.textContent = t("settings.saving");
       await api("/skills", { method: "POST", body: fd({
         name, group: panel.querySelector("#skGroup").value.trim() || "Chung",
         description: panel.querySelector("#skDesc").value, body: panel.querySelector("#skBody").value,
@@ -728,7 +728,7 @@
   }
 
   async function deleteSkill(slug, name) {
-    if (!confirm(`Xoá skill "${name}"? Sẽ xoá cả thư mục skills/${slug}.`)) return;
+    if (!confirm(t("studio.del_sk", { ten: name, slug }))) return;
     await api("/skills/delete", { method: "POST", body: fd({ slug, brain: brain() }) });
     loadSkills();
   }

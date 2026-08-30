@@ -124,10 +124,12 @@ check("ngắt xong quên bản nhớ ngay",
       "auth_quen_cache()" in (ROOT / "server" / "claude_cli.py").read_text(encoding="utf-8"))
 
 _console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+_vi_i18n = (ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8")
 check("CANARY: thẻ vẽ RIÊNG trạng thái chưa kiểm được, không gộp vào 'chưa đăng nhập'",
-      "d.unknown" in _console and "Chưa kiểm được trạng thái" in _console)
+      "d.unknown" in _console and 't("models.st_unknown")' in _console
+      and "Chưa kiểm được trạng thái" in _vi_i18n)
 check("và nói thẳng là KHÔNG có nghĩa bị đăng xuất",
-      "Không có nghĩa là bạn bị" in _console)
+      't("models.cli_unk2")' in _console and "Không có nghĩa là bạn bị" in _vi_i18n)
 check("nút Kiểm tra lại ép hỏi lại CLI chứ không đọc bản nhớ",
       "refreshClaudeCard(el, true)" in _console)
 check("đang kết nối mà hỏi lại hỏng thì thẻ nói rõ đang hiện trạng thái cũ",

@@ -527,7 +527,7 @@ check("CANARY: màn hình có hiện lại lời CLI khi chờ - bản cũ chỉ
       "mãi, nên không ai biết `grok login` kẹt ở đâu",
       "nhat_ky" in _CONSOLE_LOG and "grokLog" in _CONSOLE_LOG)
 check("và vòng quay kiểm `connected` TRƯỚC khi kêu hết giờ",
-      _CONSOLE_LOG.find("d.connected") < _CONSOLE_LOG.find("Hết giờ chờ"))
+      0 < _CONSOLE_LOG.find("d.connected") < _CONSOLE_LOG.find('t("models.timeout_login")'))
 
 
 # ============================================================
