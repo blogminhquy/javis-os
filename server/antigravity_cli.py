@@ -31,6 +31,7 @@ Chỗ nào chưa đo được thì ghi thẳng "CHƯA ĐO" trong chú thích tha
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
 import re
@@ -190,10 +191,32 @@ def phien_moi() -> str:
 # Linux/macOS không có trần tổng, nhưng có trần cho MỘT tham số: MAX_ARG_STRLEN = 32 trang = 128KB.
 # Hội thoại thật sự dài vẫn chạm được, nên chừa luôn.
 def _tran_argv() -> int:
-    """Quá bao nhiêu ký tự thì phải bỏ đường argv. Đọc `os.name` lúc gọi, không phải lúc import."""
+    """Quá bao nhiêu ĐƠN VỊ thì phải bỏ đường argv. Đọc `os.name` lúc gọi, không phải lúc import.
+
+    Đơn vị ở đây KHÔNG phải ký tự Python - xem `_do_dai_argv`.
+    """
     if os.name == "nt":
-        return 30000        # trần thật 32767, chừa chỗ cho đường dẫn binary và các cờ
-    return 120000           # Linux: MAX_ARG_STRLEN 131072 cho MỘT tham số
+        return 30000        # trần thật 32767 (đơn vị UTF-16), chừa chỗ cho binary và các cờ
+    return 120000           # Linux: MAX_ARG_STRLEN 131072 BYTE cho MỘT tham số
+
+
+def _do_dai_argv(s: str) -> int:
+    """Độ dài của một tham số theo ĐÚNG đơn vị hệ điều hành đếm khi áp trần.
+
+    Vì sao không dùng thẳng `len()`: `len()` đếm KÝ TỰ Unicode, còn nhân Linux áp
+    MAX_ARG_STRLEN theo BYTE của chuỗi đã mã hoá UTF-8. Tiếng Việt tốn ~1.3 byte mỗi ký tự
+    (dấu tổ hợp còn hơn), nên một prompt 120.000 ký tự tiếng Việt là ~156.000 byte - vượt
+    131.072 mà phép đo cũ vẫn kết luận "vừa argv", rồi Popen nổ
+    `OSError: [Errno 7] Argument list too long`. Đúng lỗi người dùng báo 2026-08-30 khi chat
+    dài bằng tiếng Việt; hội thoại tiếng Anh cùng độ dài thì lọt, nên nó trông như ngẫu nhiên.
+
+    Windows đếm theo đơn vị mã UTF-16 của dòng lệnh, không phải byte UTF-8 - đo đúng thứ nó
+    đếm thay vì quy đổi gần đúng.
+    """
+    s = str(s or "")
+    if os.name == "nt":
+        return len(s.encode("utf-16-le", errors="replace")) // 2
+    return len(s.encode("utf-8", errors="replace"))
 
 
 _NHO_DUONG = "antigravity-duong-prompt.json"
@@ -962,7 +985,10 @@ class AntigravityCLI:
         ep = (os.environ.get("JAVIS_AGY_PROMPT_DAI") or "").strip().lower()
         if ep in ("stdin", "file", "argv"):
             return duong_prompt_dai(self.cli_path) if ep == "stdin" else ep
-        if len(full) + sum(len(a) + 3 for a in self._build_args("")) <= _tran_argv():
+        # Đo bằng _do_dai_argv chứ KHÔNG bằng len(): trần của hệ điều hành tính theo byte
+        # (Linux) hoặc đơn vị UTF-16 (Windows), mà tiếng Việt tốn ~1.3 byte mỗi ký tự.
+        do_dai = _do_dai_argv(full) + sum(_do_dai_argv(a) + 3 for a in self._build_args(""))
+        if do_dai <= _tran_argv():
             return "argv"     # vừa dòng lệnh thì cứ đường cũ, đã chạy tốt trên Linux/macOS
         return duong_prompt_dai(self.cli_path)
 
@@ -986,8 +1012,22 @@ class AntigravityCLI:
         # prompt" và "thoát với mã 1" hiện lên, rồi mới tới câu trả lời - người dùng không có
         # cách nào biết cái đỏ đó Javis đã tự xử xong.
         async for ev in self._mot_luot(full, prompt, duong, ket,
-                                       giu_loi=duong.startswith("stdin")):
+                                       giu_loi=(duong != "file")):
             yield ev
+        # Vượt trần dòng lệnh: chạy lại NGAY bằng đường không có trần. Không có nhánh này thì
+        # người dùng nhận nguyên "OSError: [Errno 7] Argument list too long" - một câu họ không
+        # sửa được gì, và lượt chat coi như mất trắng (báo 2026-08-30, chat dài tiếng Việt).
+        if ket.get("qua_tran_argv"):
+            _duong_lui = await asyncio.to_thread(duong_prompt_dai, self.cli_path)
+            if _duong_lui == "argv":      # cửa thoát env đang ép argv, mà argv vừa nổ
+                _duong_lui = "file"
+            print(f"[antigravity] prompt vượt trần dòng lệnh, chuyển sang {_duong_lui}",
+                  file=sys.stderr)
+            ket = {}
+            async for ev in self._mot_luot(full, prompt, _duong_lui, ket,
+                                           giu_loi=(_duong_lui != "file")):
+                yield ev
+            duong = _duong_lui
         # Prompt KHÔNG TỚI NƠI có hai hình dạng, và bản trước chỉ bắt được một:
         #   - chạy xong, không lỗi, không lấy một chữ (bản CLI nuốt stdin);
         #   - thoát mã 1 kèm "Error: empty prompt. Usage: agy --print ..." (bản CLI kiểm giá trị
@@ -1131,6 +1171,16 @@ class AntigravityCLI:
                     {"_exit": -1, "_err": f"Antigravity CLI chạy quá {int(self.timeout)}s nên bị "
                                           f"cắt. Nếu việc thật sự dài thì nâng biến môi trường "
                                           f"JAVIS_AGY_TIMEOUT."})
+            except OSError as e:
+                # E2BIG = prompt vượt trần dòng lệnh của hệ điều hành. Phép đo ở `_chon_duong`
+                # có thể vẫn hụt (biến môi trường to chiếm chỗ trong ARG_MAX chung, hoặc bản
+                # `agy` nào đó tự nối thêm), nên đây là lưới an toàn CUỐI: đánh dấu để `query()`
+                # chạy lại bằng stdin/file thay vì ném "OSError: [Errno 7] Argument list too
+                # long" thẳng vào mặt người dùng - câu đó họ không sửa được gì (báo 2026-08-30).
+                qua_tran = getattr(e, "errno", None) in (errno.E2BIG, errno.ENAMETOOLONG)
+                loop.call_soon_threadsafe(
+                    hang.put_nowait,
+                    {"_exit": -1, "_err": f"{type(e).__name__}: {e}", "_qua_tran": qua_tran})
             except Exception as e:
                 loop.call_soon_threadsafe(hang.put_nowait,
                                           {"_exit": -1, "_err": f"{type(e).__name__}: {e}"})
@@ -1173,10 +1223,13 @@ class AntigravityCLI:
         # - lúc đó vắng sự kiện tool KHÔNG chứng minh được gì.
         co_stream = co_co("--output-format")
         co_json = False
+        qua_tran_argv = False
         while True:
             ev = await hang.get()
             if ev is HET:
                 break
+            if ev.get("_qua_tran"):
+                qua_tran_argv = True      # query() sẽ chạy lại bằng stdin/file
             if duong == "file" and not doc_duoc:
                 t = str(ev.get("type") or ev.get("event") or "").lower()
                 if "_raw" not in ev and "_exit" not in ev:
@@ -1198,7 +1251,7 @@ class AntigravityCLI:
                         continue      # lượt này còn có thể thử lại bằng đường khác
                 yield ra
         ket.update(text="".join(cac_manh).strip(), loi=da_loi, cac_loi=cac_loi,
-                   ten_ngu_canh=ten_ngu_canh,
+                   ten_ngu_canh=ten_ngu_canh, qua_tran_argv=qua_tran_argv,
                    doc_duoc=doc_duoc, da_thu_doc=da_thu_doc,
                    biet_doc_hay_khong=(duong != "file") or (co_stream and co_json))
 

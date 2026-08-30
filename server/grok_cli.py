@@ -60,6 +60,7 @@ trên máy thật trước khi tin - xem `docs/dev/2026-08-grok-cli.md`:
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
 import subprocess
@@ -1184,6 +1185,19 @@ class GrokCLI:
                     # là mỗi lượt lại có vài dòng. Coi đó là lỗi thì lượt nào cũng đỏ trong khi
                     # câu trả lời vẫn về đủ. Giữ lại ở nhật ký máy chủ để còn lần ra khi cần.
                     print(f"[grok stderr] {err[:2000]}", file=sys.stderr)
+            except OSError as e:
+                # E2BIG: prompt vượt trần dòng lệnh. Grok thường đi `--prompt-file` nên hiếm
+                # gặp, nhưng bản CLI cũ thiếu cờ đó thì prompt rơi vào argv và nổ - lúc đó
+                # KHÔNG có đường lùi nào khác, nên nói thẳng bằng câu người dùng làm theo được
+                # thay vì ném "OSError: [Errno 7] Argument list too long" ra màn hình.
+                if getattr(e, "errno", None) in (errno.E2BIG, errno.ENAMETOOLONG):
+                    _t = ("Hội thoại đã quá dài so với trần dòng lệnh của hệ điều hành, mà bản "
+                          "Grok CLI trên máy này chưa có `--prompt-file` để đi đường khác. "
+                          "Nâng cấp Grok CLI (" + lenh_cai() + ") hoặc mở một hội thoại mới.")
+                    loop.call_soon_threadsafe(hang.put_nowait, {"_exit": -1, "_err": _t})
+                else:
+                    loop.call_soon_threadsafe(
+                        hang.put_nowait, {"_exit": -1, "_err": f"{type(e).__name__}: {e}"})
             except Exception as e:
                 loop.call_soon_threadsafe(hang.put_nowait,
                                           {"_exit": -1, "_err": f"{type(e).__name__}: {e}"})
