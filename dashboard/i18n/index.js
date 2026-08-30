@@ -67,24 +67,37 @@
    * Cố ý dùng textContent chứ không innerHTML: xem luật 3 ở đầu file. */
   function applyDom(goc) {
     var root = goc || document;
+    // t() trả về CHÍNH cái khoá khi cả từ điển gốc cũng thiếu nó. Lúc đó ĐỪNG ghi đè: chữ
+    // tiếng Việt có sẵn trong HTML còn đọc được, còn ghi đè là màn hình đầy `bar.input_ph`.
+    // Ca này có thật chứ không phải phòng hờ: từ điển cũ bị cache qua bản cập nhật (0.52.1).
+    var tra = function (el, attr) {
+      var v = t(el.getAttribute(attr));
+      return v === el.getAttribute(attr) ? null : v;
+    };
     root.querySelectorAll("[data-i18n]").forEach(function (el) {
-      el.textContent = t(el.getAttribute("data-i18n"));
+      var v = tra(el, "data-i18n");
+      if (v !== null) el.textContent = v;
     });
     root.querySelectorAll("[data-i18n-title]").forEach(function (el) {
-      el.setAttribute("title", t(el.getAttribute("data-i18n-title")));
+      var v = tra(el, "data-i18n-title");
+      if (v !== null) el.setAttribute("title", v);
     });
     root.querySelectorAll("[data-i18n-aria]").forEach(function (el) {
-      el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria")));
+      var v = tra(el, "data-i18n-aria");
+      if (v !== null) el.setAttribute("aria-label", v);
     });
     root.querySelectorAll("[data-i18n-ph]").forEach(function (el) {
-      el.setAttribute("placeholder", t(el.getAttribute("data-i18n-ph")));
+      var v = tra(el, "data-i18n-ph");
+      if (v !== null) el.setAttribute("placeholder", v);
     });
   }
 
   function _tai(ma) {
-    // `?v=` đi theo phiên bản app (main.py tự đóng dấu cho tài nguyên tĩnh), nên đổi bản là
-    // trình duyệt lấy từ điển mới chứ không ăn bản cũ trong cache.
-    return fetch("/static/i18n/" + ma + ".json")
+    // cache: "no-cache" = LUÔN hỏi lại server (304 nếu chưa đổi, rẻ). URL này không có `?v=`
+    // nên thiếu nó là trình duyệt cache theo heuristic và giữ từ điển CŨ qua cả bản cập nhật -
+    // code mới gọi khoá mới, từ điển cũ không có, cả trang in nguyên mã khoá kiểu
+    // `models.st_connected` (khách báo 2026-08-30, bản 0.52.1).
+    return fetch("/static/i18n/" + ma + ".json", { cache: "no-cache" })
       .then(function (r) { return r.ok ? r.json() : {}; })
       .catch(function () { return {}; });
   }

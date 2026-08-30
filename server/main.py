@@ -239,7 +239,13 @@ async def _static_cache_headers(request: Request, call_next):
     Không có ?v= thì giữ nguyên (ETag/Last-Modified của StaticFiles vẫn lo revalidate).
     Thiếu header này trình duyệt phải hỏi lại ~27 file JS/CSS mỗi lần mở trang."""
     resp = await call_next(request)
-    if request.url.path.startswith("/static/") and request.query_params.get("v"):
+    if request.url.path.startswith("/static/i18n/") and request.url.path.endswith(".json"):
+        # Từ điển i18n được fetch KHÔNG có ?v= (i18n/index.js nạp trước khi biết phiên bản).
+        # Không đóng dấu gì là trình duyệt cache theo heuristic và giữ từ điển CŨ qua cả bản
+        # cập nhật - code mới gọi khoá mới, màn hình in nguyên mã khoá (khách báo 2026-08-30).
+        # no-cache = được cache nhưng PHẢI hỏi lại mỗi lần (ETag/304 của StaticFiles lo phần rẻ).
+        resp.headers["Cache-Control"] = "no-cache"
+    elif request.url.path.startswith("/static/") and request.query_params.get("v"):
         resp.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
     return resp
 
