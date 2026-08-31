@@ -167,6 +167,34 @@ check("CANARY: chữ câu hỏi được escape trước khi dựng danh sách",
   /escHtml\(moc\[i\]\.text\)/.test(JS));
 check("có tôn trọng prefers-reduced-motion", /prefers-reduced-motion/.test(CSS));
 
+// ============================================================
+// 8. KHÔNG được cản việc bôi đen để copy chữ (người dùng báo 2026-08-31)
+// ============================================================
+// Dải mốc nằm đè lên mép phải vùng chữ: quét chuột để copy một câu cũ là đi vào dải, danh sách
+// bung ra che mất và cắt ngang thao tác. Ba tầng chắn, mỗi tầng một canary - bỏ tầng nào lỗi
+// cũng quay lại ở một hình dạng hơi khác.
+check("dải mốc sát mép phải, không lùi vào đè lên chữ",
+  /\.cm-ray \{[^}]*right: 0;/.test(CSS));
+check("và rộng đúng bằng vạch dài nhất (20px), không phải 22px như bản đầu",
+  /\.cm-ray \{[^}]*width: 20px;/.test(CSS));
+check("khung chat chừa lề phải cho dải mốc, nên hai vùng không chồng nhau",
+  /\.transcript\.cm-co-thanh \{ padding-right: \d+px; \}/.test(CSS));
+check("CANARY: đang giữ chuột kéo thì dải mốc trong suốt với chuột",
+  /\.transcript\.cm-dang-chon \.cm-ray[^{]*\{[^}]*pointer-events: none/.test(CSS));
+check("CANARY: mở danh sách phải xét đang-bôi-đen trước",
+  /function moHop\(e\) \{[\s\S]{0,80}if \(dangBoiDen\(e\)\) return;/.test(JS));
+check("nhận ra đang bôi đen qua nút chuột đang giữ", /e\.buttons !== 0/.test(JS));
+check("và qua vùng chọn chữ chưa rỗng", /sel && !sel\.isCollapsed/.test(JS));
+// Nghe hẹp ở chatArea thì cú quét ra ngoài khung không bao giờ nhả class -> dải chết hẳn.
+check("CANARY: theo dõi cú kéo ở DOCUMENT, không phải chỉ trong khung chat",
+  /document\.addEventListener\("mouseup"/.test(JS));
+check("bấm vào chính dải mốc KHÔNG bị tính là bôi đen (còn nhảy về câu cũ được)",
+  /boc\.contains\(e\.target\)\) return;/.test(JS));
+// Gỡ dải mà quên gỡ lề là khung chat chừa chỗ cho một thứ không còn ở đó.
+check("tháo dải thì gỡ luôn lề phải", /classList\.remove\("cm-co-thanh"\)/.test(JS));
+check("điện thoại KHÔNG chừa lề (chế độ nút, không có dải)",
+  /toggle\("cm-co-thanh", !hepQua\(\)\)/.test(JS));
+
 console.log("");
 if (fails.length) { console.log("THẤT BẠI " + fails.length + ": " + fails.join(", ")); process.exit(1); }
 console.log("OK - test_moc_hoi_thoai: tất cả pass");

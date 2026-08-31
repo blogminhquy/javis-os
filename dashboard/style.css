@@ -1048,9 +1048,22 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    trên vùng cuộn, và chiều cao thật của ray do JS đo theo clientHeight của khung. */
 #chatMarks { position: sticky; top: 0; height: 0; z-index: 4; flex: none;
   align-self: flex-end; width: 0; overflow: visible; }
-.cm-ray { position: absolute; top: 0; right: 2px; width: 22px;
+/* Sát mép PHẢI và chỉ rộng bằng đúng vạch dài nhất (20px lúc hover/active).
+   Bản đầu rộng 22px + lùi vào 2px, tức chiếm 24px ĐÈ LÊN vùng chữ của bong bóng - bôi đen để
+   copy một câu cũ mà quét tới mép phải là chuột đi vào dải này, danh sách bung ra che mất và
+   cắt ngang thao tác (người dùng báo 2026-08-31). Cặp với .transcript.cm-co-thanh bên dưới:
+   một bên thu hẹp vùng bắt chuột, một bên chừa hẳn chỗ cho nó - hai vùng không còn chồng. */
+.cm-ray { position: absolute; top: 0; right: 0; width: 20px;
   display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
   gap: calc(var(--cm-cach, 11px) - 2px); pointer-events: auto; }
+/* Khung chat chừa lề phải đúng bằng dải mốc, và CHỈ khi dải đang hiện (JS gắn class). Không
+   chừa thì bong bóng chạy tới sát mép, nằm ngay dưới dải - mà chữ nằm dưới một vùng bắt chuột
+   thì không cách nào bôi đen sạch được. */
+.transcript.cm-co-thanh { padding-right: 22px; }
+/* Đang giữ chuột kéo (bôi đen) thì dải mốc TRONG SUỐT với chuột. Hai cái trên đã tách vùng,
+   nhưng người ta hay quét lố ra ngoài mép chữ một chút - đây là lớp cuối, và cũng là lớp duy
+   nhất đúng cho cả trường hợp quét từ trong ra ngoài khung. */
+.transcript.cm-dang-chon .cm-ray, .transcript.cm-dang-chon .cm-hop { pointer-events: none; }
 .cm-vach { flex: none; width: 13px; height: 2px; padding: 0; border: 0; border-radius: 2px;
   background: var(--text3); opacity: .38; cursor: pointer;
   transition: width .14s, opacity .14s, background .14s; }

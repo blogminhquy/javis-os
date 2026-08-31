@@ -87,8 +87,22 @@
     return boc;
   }
 
-  function moHop() {
+  // Đang bôi đen chữ thì ĐỪNG mở danh sách. Hai dấu hiệu, phải xét cả hai:
+  //   - `e.buttons` khác 0: chuột đang giữ, tức cú quét còn đang diễn ra.
+  //   - vùng chọn hiện có không rỗng: quét xong rồi, người ta đang rê tới nút Copy hoặc chuẩn
+  //     bị Ctrl+C; bung một hộp che ngang lúc đó cũng phá đúng thao tác đó.
+  // Thiếu bước này thì mọi lần copy một câu cũ đều bị danh sách nhảy ra chắn (báo 2026-08-31).
+  function dangBoiDen(e) {
+    if (e && typeof e.buttons === "number" && e.buttons !== 0) return true;
+    try {
+      var sel = window.getSelection();
+      return !!(sel && !sel.isCollapsed && String(sel).trim());
+    } catch (err) { return false; }
+  }
+
+  function moHop(e) {
     clearTimeout(choDong);
+    if (dangBoiDen(e)) return;
     if (!hop || !moc.length) return;
     hop.hidden = false;
     // Đưa mục đang đọc vào tầm mắt: hội thoại dài thì danh sách tự cuộn, mở ra mà nó nằm ở
@@ -211,6 +225,9 @@
     // Chèn LÊN ĐẦU: app.js chèn tin mới vào trước #newMsgBtn nên nó luôn ở cuối; để thanh
     // ở đầu thì hai bên không giành chỗ. Sticky vẫn bám đúng vì phần tử neo theo cả vùng cuộn.
     if (!daGan) chatArea.insertBefore(boc, chatArea.firstChild);
+    // Khung chat chừa lề phải cho dải mốc - chỉ khi dải THẬT SỰ đang hiện, và chỉ ở chế độ
+    // máy tính (điện thoại là một nút góc trên, không có dải nào để né).
+    try { chatArea.classList.toggle("cm-co-thanh", !hepQua()); } catch (e) {}
     doCao();
     capNhatDangDoc();
   }
@@ -261,6 +278,8 @@
   function thaoRa() {
     dongTam();
     if (boc && boc.parentNode) boc.parentNode.removeChild(boc);
+    // Gỡ luôn lề phải: giữ lại là khung chat chừa một khoảng trắng cho một dải không còn ở đó.
+    try { if (chatArea) chatArea.classList.remove("cm-co-thanh"); } catch (e) {}
     vanTruoc = "";
     moc = [];
   }
@@ -289,6 +308,19 @@
       choScroll = requestAnimationFrame(function () { choScroll = 0; capNhatDangDoc(); });
     }, { passive: true });
     window.addEventListener("resize", hen);
+    // Trong lúc giữ chuột kéo, dải mốc trong suốt với chuột (xem .cm-dang-chon trong CSS).
+    // Nghe ở DOCUMENT chứ không ở chatArea: cú quét thường bắt đầu trong bong bóng rồi đi ra
+    // ngoài khung, mà `mouseup` lúc đó rơi ngoài chatArea - nghe hẹp thì class không bao giờ
+    // được gỡ và dải mốc chết hẳn, không bấm được nữa.
+    document.addEventListener("mousedown", function (e) {
+      if (e.button !== 0 || !chatArea) return;
+      // Bấm vào chính dải mốc thì KHÔNG phải bôi đen - đó là cú bấm để nhảy về câu cũ.
+      if (boc && e.target && boc.contains(e.target)) return;
+      chatArea.classList.add("cm-dang-chon");
+    }, true);
+    document.addEventListener("mouseup", function () {
+      if (chatArea) chatArea.classList.remove("cm-dang-chon");
+    }, true);
     // Esc đóng tấm trượt. Máy tính bảng có bàn phím rời cũng rơi vào cỡ màn hẹp này, và một
     // lớp phủ toàn màn hình mà không thoát được bằng Esc thì thành cái bẫy.
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && tam) dongTam(); });
