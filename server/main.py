@@ -13723,7 +13723,21 @@ async def _soat_secret_hong():
 @app.on_event("startup")
 async def _warm_mcp_hub():
     """Làm nóng hub sau khi boot: mở sẵn session MCP (stdio npx lần đầu phải tải package)
-    để tin nhắn/tool call đầu tiên không phải chờ."""
+    để tin nhắn/tool call đầu tiên không phải chờ.
+
+    Bản đầu chỉ gọi thẳng `discover_all("full")`, và chính chỗ đó là bệnh (báo cáo 31/08:
+    "khi update rất hay bị mất kết nối với các MCP của Javis, đặc biệt là Pancake POS").
+    `discover_all` đi qua vòng dò của LƯỢT CHAT, tức trần 20 giây mỗi nguồn - đúng con số
+    sinh ra để bảo vệ người đang ngồi chờ, nhưng ở đây không có ai chờ cả. Sau một lần cập
+    nhật thì pool rỗng, và với bản Docker cache npm/uv cũng mất theo ảnh cũ, nên nguồn nguội
+    nào cần hơn 20 giây là rơi khỏi vòng đó. Danh sách tool THIẾU ấy được cache, rồi lượt
+    chat đầu tiên (người ta vừa cập nhật xong thì mở app gõ ngay) nhận đúng bản thiếu - mà
+    CLI engine chỉ đọc danh sách MỘT LẦN lúc mở phiên, nên cả phiên chat đó không có nguồn
+    kia. Nhìn từ ngoài: cập nhật xong là mất kết nối, lát sau tự khỏi.
+
+    Nay làm nóng POOL trước bằng trần rộng (`mcp_client.warm_pool`), dò xong mới cache; nguồn
+    nào vẫn nguội thì hẹn lại 2 lượt nữa rồi làm mới cache, chứ không bỏ mặc bản thiếu.
+    """
     async def _w():
         try:
             await asyncio.to_thread(_EVIDENCE_STORE.cleanup)
@@ -13735,8 +13749,28 @@ async def _warm_mcp_hub():
                 print(f"[write ledger] {len(stale)} write chuyển UNKNOWN sau restart",
                       file=__import__('sys').stderr)
             await asyncio.sleep(3)
-            if _hub_enabled():
-                await mcp_hub.discover_all("full")
+            if not _hub_enabled():
+                return
+            conns = await asyncio.to_thread(mcp_store.resolved, True)
+            _, lanh = await mcp_client.warm_pool(conns)
+            await mcp_hub.discover_all("full", force_refresh=True)
+            # Nguồn còn nguội: thường là npx/uvx đang tải package hoặc dịch vụ ngoài đang
+            # chập. Chỉ làm nóng lại ĐÚNG mấy nguồn đó (nguồn đã nóng chỉ tốn một vòng gọi),
+            # rồi làm mới cache để chúng hiện trở lại trong hộp công cụ mà không cần ai gõ
+            # lại câu nào.
+            for cho in (20, 60):
+                if not lanh:
+                    return
+                await asyncio.sleep(cho)
+                con_lai = [c for c in await asyncio.to_thread(mcp_store.resolved, True)
+                           if c["id"] in set(lanh)]
+                if not con_lai:
+                    return
+                _, lanh = await mcp_client.warm_pool(con_lai)
+                await mcp_hub.discover_all("full", force_refresh=True)
+            if lanh:
+                print(f"[hub warmup] {len(lanh)} nguồn MCP vẫn chưa nóng sau 3 lượt - "
+                      "vòng kiểm sức khoẻ sẽ thử tiếp", file=__import__('sys').stderr)
         except Exception as e:
             print(f"[hub warmup] {e}", file=__import__('sys').stderr)
     asyncio.create_task(_w())
