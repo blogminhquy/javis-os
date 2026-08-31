@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.4] - 2026-08-31
+### Sửa lỗi
+- **Copy chữ trong khung chat không còn bị dải mốc hội thoại chắn ngang.** Dải vạch bên phải nằm đè lên mép chữ, nên mỗi lần bôi đen một câu cũ là danh sách lịch sử bung ra che mất. Nay dải nằm hẳn ra lề riêng, và trong lúc bạn đang quét chuột thì nó không phản ứng nữa.
+
 ## [0.52.3] - 2026-08-30
 ### Sửa lỗi
 - **Chat dài bằng tiếng Việt qua Antigravity CLI không còn báo "Argument list too long".** Javis đo độ dài câu hỏi bằng số chữ, trong khi hệ điều hành đếm theo byte - mà tiếng Việt tốn nhiều byte hơn tiếng Anh, nên hội thoại dài bằng tiếng Việt bị chặn còn tiếng Anh thì không. Nay đo đúng.
