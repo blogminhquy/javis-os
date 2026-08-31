@@ -34,6 +34,12 @@ from config import STATE_DIR
 _TOKEN_PATH = STATE_DIR / ".hub_token"
 _AUDIT_PATH = STATE_DIR / "mcp_audit.jsonl"
 _CACHE_TTL = 60
+# Vòng dò có nguồn bị BỎ QUA (quá hạn/lỗi) thì danh sách tool là bản THIẾU. Cache nó đủ 60
+# giây là đóng băng cái thiếu đó: mọi lượt chat mở trong cửa sổ ấy nhận một hộp công cụ vắng
+# nguồn, mà CLI engine chỉ đọc danh sách MỘT LẦN lúc mở phiên nên cả phiên chat đó coi như
+# mất nguồn. Bản thiếu vẫn phải cache (không thì một nguồn chết là mỗi lượt lại đi dò lại từ
+# đầu), chỉ là cache NGẮN để lượt sau còn cơ hội thấy nguồn đã hồi.
+_CACHE_TTL_THIEU = 10
 _cache = {}          # (mode, vault_root) -> {"tools", "route", "ts", "mtime"}
 _rate = {}           # conn_id -> deque[timestamps]
 
@@ -789,12 +795,13 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
            bool(force_lazy), lang, bool(staging))
     ent = _cache.get(key)
     mt = _store_mtime()
-    if (not force_refresh and ent and time.time() - ent["ts"] < _CACHE_TTL
+    if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
             and ent["mtime"] == mt):
         return ent["tools"], ent["route"]
 
     conns = mcp_store.resolved(enabled_only=True)
-    raw_tools, raw_route = await mcp_client.discover_resolved(conns)
+    bo_qua = set()
+    raw_tools, raw_route = await mcp_client.discover_resolved(conns, bo_qua=bo_qua)
 
     tools_spec, route = [], {}
     hidden = {}          # conn_id -> {"perm", "ns", "tools"} - tool CÓ THẬT nhưng bị quyền lọc
@@ -864,6 +871,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # được vì _run đóng gói route đầy đủ). Đổi setting → làm mới theo TTL cache (60s) hoặc invalidate.
     tools_spec, route = _apply_lazy(tools_spec, route, include_ambient, hidden, force=force_lazy)
     _cache[key] = {"tools": tools_spec, "route": route, "ts": time.time(), "mtime": mt,
+                   "ttl": _CACHE_TTL_THIEU if bo_qua else _CACHE_TTL,
                    "inventory_tools": inventory_tools, "inventory_route": inventory_route}
     return tools_spec, route
 

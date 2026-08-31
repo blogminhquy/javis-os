@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.5] - 2026-08-31
+### Sửa lỗi
+- **Cập nhật xong không còn mất kết nối MCP.** Hay gặp nhất với Pancake POS: vừa cập nhật vào chat hỏi thì Javis bảo chưa có POS, lát sau lại có. Kết nối không hỏng - nó chỉ chưa kịp mở lại phiên trong lúc Javis đã đi hỏi tool, mà mỗi nguồn chỉ được chờ 20 giây.
+- Nay ngay khi khởi động, Javis **mở sẵn phiên cho mọi nguồn đã đấu** và chờ chúng thoải mái, vì lúc đó chưa có ai ngồi chờ. Nguồn nào còn chậm sẽ được gọi lại thêm hai lần nữa và tự hiện lại trong hộp công cụ.
+- Trường hợp một nguồn vẫn lỡ nhịp, danh sách công cụ thiếu đó **chỉ giữ vài giây thay vì một phút**, nên câu hỏi kế tiếp là thấy đủ.
+
 ## [0.52.4] - 2026-08-31
 ### Sửa lỗi
 - **Copy chữ trong khung chat không còn bị dải mốc hội thoại chắn ngang.** Dải vạch bên phải nằm đè lên mép chữ, nên mỗi lần bôi đen một câu cũ là danh sách lịch sử bung ra che mất. Nay dải nằm hẳn ra lề riêng, và trong lúc bạn đang quét chuột thì nó không phản ứng nữa.
