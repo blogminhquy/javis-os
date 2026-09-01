@@ -191,6 +191,10 @@ def register(ctx):
     ctx.register_tool(
         "javis_task",
         "Giao việc nền vào hàng đợi Kanban, hoặc xem việc đang chạy tới đâu. "
+        "CHỈ op=add khi NGƯỜI DÙNG bảo làm một việc cụ thể mà lượt này không làm xong được. "
+        "KHÔNG giao việc cho kế hoạch hay 'bước tiếp theo' do chính bạn vừa nghĩ ra và user chưa "
+        "gật (vd 'áp dụng kế hoạch vừa trình bày', 'cập nhật timeline', 'theo dõi rồi nhắc lại'): "
+        "mỗi việc đều bắn thông báo về chuông và về khung chat khi nó xong hoặc kẹt. "
         "op=add: cần title; nên kèm chat_id (lấy từ khối KÊNH HỘI THOẠI HIỆN TẠI) để kết quả về "
         "đúng người, và intent nếu cần mô tả kỹ hơn tiêu đề. mode=suggest (mặc định, chỉ đọc và "
         "đề xuất) hoặc auto (được ghi file nháp trong brain); mode full BỊ TỪ CHỐI, người dùng "

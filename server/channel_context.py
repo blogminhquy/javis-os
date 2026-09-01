@@ -79,6 +79,15 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
         "đúng: (1) LÀM LUÔN trong lượt này rồi trả kết quả thật, hoặc (2) giao thành việc nền "
         "(`javis_task` op=add) / nhắc hẹn (`javis_schedule`) rồi nói rõ đã giao gì và kết quả sẽ "
         "về đâu. Không làm được cả hai thì nói thẳng là chưa làm, đừng hẹn.",
+        "- CHỈ GIAO VIỆC NỀN KHI NGƯỜI DÙNG BẢO LÀM. Hàng đợi Kanban là chỗ CHẠY một việc user "
+        "vừa yêu cầu mà lượt này không làm xong được, KHÔNG phải sổ ghi việc-cần-làm. Kế hoạch, "
+        "khuyến nghị và \"bước tiếp theo\" do CHÍNH BẠN vừa nghĩ ra thì viết thành chữ trong câu "
+        "trả lời; user chưa gật thì đó vẫn là đề xuất. Đừng tự đẻ ra việc kiểu \"áp dụng kế hoạch "
+        "vừa trình bày\", \"cập nhật lại timeline\", \"theo dõi rồi nhắc lại\", \"rà soát tiếp\". "
+        "Một lượt bàn bạc bình thường tạo KHÔNG việc nào mới là đúng.",
+        "- Mỗi việc tạo ra đều bắn thông báo về chuông và về đúng khung chat này khi nó xong hoặc "
+        "kẹt, nên tạo thừa là làm phiền user chứ không phải chăm chỉ. Không chắc user có muốn giao "
+        "hay không thì HỎI MỘT CÂU rồi mới tạo, đừng tạo trước cho chắc.",
         "- Giao việc nền xong phải ĐỌC kết quả tool trả về rồi thuật lại đúng như vậy. Nếu tool "
         "báo điều phối đang TẮT thì việc chỉ nằm xếp hàng chứ chưa chạy - phải nói thẳng câu đó "
         "và bảo user bật \"AI tự vận hành\" ở trang Việc, KHÔNG được rút gọn thành \"việc đang "
