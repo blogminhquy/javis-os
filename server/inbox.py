@@ -102,11 +102,18 @@ def _tieu_de(text: str) -> str:
 
 
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",
-        source: str = "", label: str = "", title: str = "") -> dict:
+        source: str = "", label: str = "", title: str = "", read: bool = False) -> dict:
     """Bỏ MỘT mẩu thư vào hòm. Trả về thư vừa tạo.
 
     `text` là nguyên văn nội dung đã gửi cho người dùng; hòm thư chỉ giữ bản cắt ngắn để
     xem trước, còn bản đầy đủ nằm trong hội thoại mà `session_id` trỏ tới.
+
+    `read=True` bỏ thư vào hòm nhưng KHÔNG tính vào số chưa đọc, tức là không nổi chấm đỏ
+    trên chuông. Dùng cho tin đáng LƯU nhưng không đáng gọi người dùng dậy: việc nền chạy
+    xong trót lọt (kết quả đã rơi thẳng vào khung chat rồi). Chủ repo chốt 01/09/2026 sau
+    khi chuông kêu liên hồi giữa lúc đang chat: chỉ việc BỊ CHẶN hoặc CHỜ DUYỆT mới đáng
+    kêu, vì đó là thứ cần anh ra tay. Thư vẫn nằm nguyên trong danh sách chuông để mở ra
+    xem lại được.
     """
     item = {
         "id": uuid.uuid4().hex[:12],
@@ -114,7 +121,7 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
         "title": (str(title).strip()[:MAX_TITLE] or _tieu_de(text)) if title else _tieu_de(text),
         "body": str(text or "").strip()[:MAX_BODY],
         "ts": time.time(),
-        "read": False,
+        "read": bool(read),
         "session_id": str(session_id or ""),
         "brain": str(brain or ""),
         "source": str(source or ""),

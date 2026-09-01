@@ -96,8 +96,17 @@ async def check_one(conn, pool=None) -> dict:
         tools = await asyncio.wait_for(pool.list_tools(spec), timeout=_CHECK_TIMEOUT)
         rec.update(ok=True, tools=len(tools))
     except Exception as e:
-        kind, msg = classify_error(f"{type(e).__name__}: {e}")
-        rec.update(kind=kind, message=msg)
+        # Quá hạn TRONG LÚC phiên đang chạy dở một tool call thật (lên đơn POS, gửi tin): ping
+        # chỉ đang xếp hàng chờ khoá chứ nguồn không hề hỏng. Báo đỏ ở đây là trang Kết nối nói
+        # dối đúng lúc nguồn đang LÀM VIỆC, rồi người dùng đi sửa một thứ không hỏng.
+        ban = (isinstance(e, (asyncio.TimeoutError, TimeoutError))
+               and pool.dang_goi_tool(spec))
+        if ban:
+            rec.update(ok=True, kind="ban",
+                       message="Đang chạy tool nên chưa ping được - không phải lỗi kết nối.")
+        else:
+            kind, msg = classify_error(f"{type(e).__name__}: {e}")
+            rec.update(kind=kind, message=msg)
     _state[conn["id"]] = rec
     return rec
 

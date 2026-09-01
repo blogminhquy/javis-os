@@ -4973,11 +4973,53 @@ def _quet_md_hong(brain: str, chi_path: set = None):
     return out
 
 
+# Dấu "brain này đã soi xong và sạch" - xem `files_md_hong` để biết vì sao phải nhớ.
+_MD_HONG_DAU = cfgmod.STATE_DIR / "md_hong_da_soi.json"
+
+
+def _md_hong_da_sach(broot: str) -> bool:
+    try:
+        d = json.loads(_MD_HONG_DAU.read_text(encoding="utf-8"))
+        return bool((d or {}).get(str(broot), {}).get("sach"))
+    except (OSError, ValueError):
+        return False
+
+
+def _md_hong_ghi_sach(broot: str, sach: bool) -> None:
+    try:
+        d = {}
+        try:
+            d = json.loads(_MD_HONG_DAU.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError):
+            d = {}
+        if not isinstance(d, dict):
+            d = {}
+        d[str(broot)] = {"sach": bool(sach), "ts": time.time()}
+        _atomic_write_text(_MD_HONG_DAU, json.dumps(d, ensure_ascii=False, indent=1))
+    except Exception as e:
+        print(f"[md-hong] không ghi được dấu đã soi: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 @app.get("/files/md-hong")
-async def files_md_hong(brain: str = Query("brain")):
-    """CHỈ SOI, không ghi gì: liệt kê file .md còn dấu vết hỏng của bản cũ."""
+async def files_md_hong(brain: str = Query("brain"), force: str = Query("")):
+    """CHỈ SOI, không ghi gì: liệt kê file .md còn dấu vết hỏng của bản cũ.
+
+    SOI ĐÚNG MỘT LẦN cho mỗi brain. Vòng soi này ĐỌC TOÀN BỘ file .md của brain, mà dashboard
+    gọi nó mỗi lần mở trang Tệp tin - brain vài nghìn note trên ổ đĩa VPS là hàng chục MB đọc
+    lại từ đầu mỗi lần mở, tranh cả đĩa lẫn thread với cái tìm kiếm người dùng vừa gõ. Đó là
+    lý do chủ repo báo 01/09/2026 "cây thư mục load rất lâu và chậm".
+
+    Soi xong mà SẠCH thì ghi dấu và thôi hẳn: thứ nó đi tìm là vết hỏng do bản <= 0.33.3 để
+    lại, mà bản đó không còn tồn tại, nên brain đã sạch một lần thì không thể tự bẩn lại. Còn
+    vết hỏng thì KHÔNG ghi dấu - lần mở sau vẫn mời chữa, đúng như cũ.
+
+    `force=1` soi lại từ đầu (chép vault cũ từ máy khác vào thì dùng đường này)."""
     from starlette.concurrency import run_in_threadpool
+    broot = str(Path(_brain_root(brain)).resolve())
+    if str(force or "").strip() not in ("1", "true", "on") and _md_hong_da_sach(broot):
+        return {"items": [], "cham_nguong": False, "bo_qua": "da-soi-sach"}
     items = await run_in_threadpool(_quet_md_hong, brain)
+    _md_hong_ghi_sach(broot, not items)
     return {"items": items, "cham_nguong": len(items) >= _MD_HONG_MAX_HIT}
 
 
@@ -7017,7 +7059,8 @@ async def _zalo_send_to(chat_id, text) -> tuple:
 _PUSH_TASKS = set()   # giữ tham chiếu task đẩy đang bay (xem chú thích trong _bo_vao_hom_thu)
 
 
-async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="") -> bool:
+async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
+                          quiet=False) -> bool:
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -7032,7 +7075,8 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     try:
         cid = str(owner_chat or "").strip()
         sid = cid[len(WEB_CHAT_PREFIX):] if cid.startswith(WEB_CHAT_PREFIX) else ""
-        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label)
+        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label,
+                         read=bool(quiet))
     except Exception as e:
         print(f"[inbox] bỏ thư lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         return False
@@ -7042,6 +7086,12 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         await _CHAT_RUNTIME.publish({"type": "inbox", "session_id": item["session_id"]})
     except Exception as e:
         print(f"[inbox] bắn WebSocket lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    if quiet:
+        # Tin lặng: đã vào hòm ở dạng ĐÃ ĐỌC nên chuông không nổi chấm đỏ, và cũng không
+        # rung thông báo đẩy. Nội dung thì người dùng đã thấy rồi - nó vừa rơi thẳng vào
+        # khung chat đã giao việc. Vẫn bắn WebSocket ở trên để danh sách chuông đang mở
+        # hiện thêm mẩu này ngay, chỉ là không kêu.
+        return True
     try:
         # Bấm vào thông báo đẩy phải về ĐÚNG chỗ nội dung nằm: hội thoại đã hỏi nếu có,
         # còn không thì mở hòm thư. Không có tham số này thì push chỉ mở trang chủ, và
@@ -7059,7 +7109,8 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     return True
 
 
-async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="") -> tuple:
+async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
+                        quiet=False) -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -7076,10 +7127,15 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="")
     kết quả không còn phụ thuộc vào chuyện người dùng có đang mở đúng hội thoại đó không,
     hay có đấu Telegram hay không.
 
+    `quiet=True` vẫn gửi qua kênh như thường (kết quả vẫn rơi vào khung chat đã giao việc),
+    chỉ bỏ hai thứ GỌI người dùng dậy: chấm đỏ trên chuông và thông báo đẩy của trình duyệt.
+    Dành cho tin đáng lưu mà không đáng làm phiền - xem `_bo_vao_hom_thu` và `TaskRunner._report`.
+
     Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
     server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
-    vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source)
+    vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source,
+                                    quiet=quiet)
     ok, err = await _gui_qua_kenh(owner_chat, text)
     if ok or not vao_hom:
         return ok, ("" if ok else err)

@@ -371,8 +371,8 @@ def test_report_ngan_va_khong_lap_lai(tmp_path):
     """Thông báo Telegram: 1 dòng tiêu đề + lý do gọn. Không dán result rồi dán lại y hệt."""
     sent = []
 
-    async def capture(chat_id, text):
-        sent.append(text)
+    async def capture(chat_id, text, **kw):
+        sent.append((text, kw))
 
     feature = _feature(tmp_path, [tmp_path / "Brain"])
     feature.deps.report = capture
@@ -388,7 +388,7 @@ def test_report_ngan_va_khong_lap_lai(tmp_path):
             }
         )
     )
-    msg = sent[0]
+    msg, kw = sent[0]
     assert len(msg) <= 400, f"thông báo dài {len(msg)} ký tự"
     assert "Thiết kế credit bonus" in msg
     assert "Cần anh chốt bonus cộng theo gói nào." in msg
@@ -396,14 +396,17 @@ def test_report_ngan_va_khong_lap_lai(tmp_path):
     assert "Tôi sẽ lần theo" not in msg
     # lý do chỉ xuất hiện đúng một lần
     assert msg.count("Cần anh chốt bonus") == 1
+    # Việc KẸT thì phải KÊU: đây là thứ cần người dùng ra tay, nên vẫn nổi chấm đỏ trên
+    # chuông và vẫn rung thông báo đẩy.
+    assert kw.get("quiet") is False, kw
 
 
 def test_report_done_bao_ngan_gon(tmp_path):
     """Việc xong: báo tiêu đề + tóm tắt ngắn, không đổ nguyên bản kết quả."""
     sent = []
 
-    async def capture(chat_id, text):
-        sent.append(text)
+    async def capture(chat_id, text, **kw):
+        sent.append((text, kw))
 
     feature = _feature(tmp_path, [tmp_path / "Brain"])
     feature.deps.report = capture
@@ -417,10 +420,13 @@ def test_report_done_bao_ngan_gon(tmp_path):
             }
         )
     )
-    msg = sent[0]
+    msg, kw = sent[0]
     assert len(msg) <= 400
     assert "Lấy bảng giá Submagic" in msg
     assert "Đã lấy xong bảng giá." in msg
+    # Việc xong TRÓT LỌT thì báo LẶNG: kết quả vẫn đi qua kênh (rơi vào khung chat đã giao
+    # việc) và vẫn vào hòm thư, nhưng không nổi chấm đỏ và không rung thông báo đẩy.
+    assert kw.get("quiet") is True, kw
 
 
 if __name__ == "__main__":

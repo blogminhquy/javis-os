@@ -396,7 +396,11 @@ class SessionPool:
 
     def _sweep(self):
         now = time.time()
-        for key in [k for k, v in self._sessions.items() if now - v["last"] > _IDLE_TTL]:
+        # `not v.get("ban")`: phiên đang chạy dở một tool call thì TUYỆT ĐỐI không đóng. Đóng
+        # phiên stdio là SIGKILL cả cây tiến trình (xem `McpStdioSession.close`), tức là giết
+        # luôn cái đơn/tin đang gửi dở. Một tool call dài hơn _IDLE_TTL là hiếm nhưng có thật.
+        for key in [k for k, v in self._sessions.items()
+                    if now - v["last"] > _IDLE_TTL and not v.get("ban")]:
             ent = self._sessions.pop(key, None)
             if ent:
                 self._close_later(ent["obj"])
@@ -425,6 +429,25 @@ class SessionPool:
         ent["last"] = time.time()
         return key, ent["obj"]
 
+    def _danh_dau_ban(self, key, delta):
+        ent = self._sessions.get(key)
+        if ent is not None:
+            ent["ban"] = max(0, int(ent.get("ban", 0)) + delta)
+            ent["last"] = time.time()
+
+    def dang_goi_tool(self, spec) -> bool:
+        """Phiên của spec này có đang chạy dở một tool call không.
+
+        Dùng ở chỗ DÒ TOOL: `tools/list` quá hạn trong lúc phiên đang bận nghĩa là nó mới chỉ
+        XẾP HÀNG chờ khoá chứ chưa gửi đi byte nào - khác hẳn "server treo giữa request"."""
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        return bool(ent and ent.get("ban"))
+
+    def tool_da_biet(self, spec):
+        """Danh sách tool của lần dò gần nhất trên phiên này (None nếu chưa dò được lần nào)."""
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        return (ent or {}).get("tools")
+
     def invalidate(self, key):
         ent = self._sessions.pop(key, None)
         if ent:
@@ -444,23 +467,40 @@ class SessionPool:
         """Lỗi CHẮC CHẮN xảy ra trước khi request chạm server → retry không gây side-effect đôi."""
         return isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout, ConnectionError))
 
-    async def _retry(self, spec, op, idempotent=True):
+    async def _retry(self, spec, op, idempotent=True, ban=False):
         """Chạy op(session); lỗi → dựng session mới, thử lại ĐÚNG 1 lần.
         Tool KHÔNG idempotent (tools/call - có thể là gửi tin/tạo đơn): CHỈ retry khi lỗi
         thuộc pha kết nối (chưa gửi được request) - timeout giữa chừng KHÔNG gọi lại,
-        tránh người thật nhận tin 2 lần / tạo đơn trùng."""
+        tránh người thật nhận tin 2 lần / tạo đơn trùng.
+
+        `ban=True` bật cờ "phiên đang chạy tool" suốt lúc op chạy, để vòng dò tool và vòng
+        quét phiên rảnh biết mà TRÁNH giết phiên này."""
         key, sess = self._get(spec)
         try:
-            return await op(sess)
+            return await self._chay(key, sess, op, ban)
         except Exception as e:
             self.invalidate(key)
             if not (idempotent or self._pre_send_error(e)):
                 raise
             key, sess = self._get(spec)
-            return await op(sess)   # lần 2 lỗi thì raise cho caller xử lý
+            return await self._chay(key, sess, op, ban)   # lần 2 lỗi thì raise cho caller
+
+    async def _chay(self, key, sess, op, ban):
+        if not ban:
+            return await op(sess)
+        self._danh_dau_ban(key, 1)
+        try:
+            return await op(sess)
+        finally:
+            self._danh_dau_ban(key, -1)
 
     async def list_tools(self, spec):
-        return await self._retry(spec, lambda s: s.list_tools(), idempotent=True)
+        tools = await self._retry(spec, lambda s: s.list_tools(), idempotent=True)
+        # Nhớ lại để vòng dò sau còn thứ mà dùng khi phiên đang bận (xem `tool_da_biet`).
+        ent = self._sessions.get(spec.get("key") or _spec_hash(spec))
+        if ent is not None and tools:
+            ent["tools"] = tools
+        return tools
 
     async def call_tool(self, spec, tool, arguments):
         # Chèn tham số kỹ thuật BẮT BUỘC của connector (catalog `inject_args`) vào đây - đây là
@@ -477,7 +517,8 @@ class SessionPool:
                 print(f"[mcp] inject_args {spec.get('label')}: {type(e).__name__}: {e}",
                       file=sys.stderr)
         try:
-            return await self._retry(spec, lambda s: s.call_tool(tool, args), idempotent=False)
+            return await self._retry(spec, lambda s: s.call_tool(tool, args), idempotent=False,
+                                     ban=True)
         except Exception as e:
             return f"ERROR: gọi tool lỗi: {type(e).__name__}: {e}"
 
@@ -640,9 +681,15 @@ async def warm_pool(conns):
                 return
             except (asyncio.TimeoutError, TimeoutError):
                 # Cùng lý do như `discover_resolved`: huỷ từ ngoài giữa một request NDJSON là
-                # ống stdio lệch pha vĩnh viễn - vứt phiên chứ đừng tái dùng.
-                pool.invalidate(spec.get("key") or _spec_hash(spec))
-                print(f"[mcp warm] {conn.get('label')}: quá hạn làm nóng", file=sys.stderr)
+                # ống stdio lệch pha vĩnh viễn - vứt phiên chứ đừng tái dùng. TRỪ khi phiên
+                # đang chạy dở một tool call: lúc đó `tools/list` mới chỉ chờ khoá, chưa gửi
+                # gì, mà giết phiên là giết luôn việc đang chạy.
+                if pool.dang_goi_tool(spec):
+                    print(f"[mcp warm] {conn.get('label')}: đang chạy tool - để nguyên phiên",
+                          file=sys.stderr)
+                else:
+                    pool.invalidate(spec.get("key") or _spec_hash(spec))
+                    print(f"[mcp warm] {conn.get('label')}: quá hạn làm nóng", file=sys.stderr)
             except Exception as e:
                 print(f"[mcp warm] {conn.get('label')}: {type(e).__name__}: {e}", file=sys.stderr)
         con_lanh.append(conn["id"])
@@ -688,11 +735,28 @@ async def discover_resolved(conns, bo_qua=None):
                     return spec, await _lay()
                 return spec, await asyncio.wait_for(_lay(), timeout=tran)
             except (asyncio.TimeoutError, TimeoutError):
-                # Huỷ từ NGOÀI cắt ngang giữa một request NDJSON: phiên stdio còn nửa câu trả
-                # lời nằm trong ống, lần sau đọc là lệch pha vĩnh viễn. Vứt phiên, đừng tái dùng.
-                pool.invalidate(spec.get("key") or _spec_hash(spec))
-                print(f"[mcp discover] {conn.get('label')}: quá hạn dò tool - bỏ qua vòng này",
-                      file=sys.stderr)
+                # Quá hạn ở đây có HAI nghĩa khác hẳn nhau, và trước 0.52.8 cả hai bị xử như một.
+                #
+                # (a) Phiên ĐANG CHẠY DỞ một tool call thật (tạo đơn POS, gửi tin...). Khoá
+                #     phiên đang bị cái đó giữ, nên `tools/list` mới chỉ XẾP HÀNG chứ chưa gửi
+                #     đi byte nào: ống stdio không hề lệch pha. Giết phiên lúc này là SIGKILL cả
+                #     cây tiến trình, tức là giết luôn cái đơn đang lên dở - đúng lỗi "lên đơn
+                #     thứ 2 là rớt kết nối" khách của chủ repo báo 01/09/2026. Giữ phiên, và trả
+                #     lại danh sách tool lần dò trước để nguồn KHÔNG biến mất khỏi hộp công cụ
+                #     chỉ vì nó đang bận (biến mất là Javis nói "chưa đấu POS", cũng sai nốt).
+                # (b) Server thật sự treo giữa một request: huỷ từ ngoài để lại nửa câu trả lời
+                #     trong ống, lần sau đọc là lệch pha vĩnh viễn - vứt phiên, đừng tái dùng.
+                if pool.dang_goi_tool(spec):
+                    cu = pool.tool_da_biet(spec)
+                    print(f"[mcp discover] {conn.get('label')}: đang chạy tool - giữ phiên, "
+                          f"dùng lại danh sách tool lần trước ({len(cu or [])} tool)",
+                          file=sys.stderr)
+                    if cu:
+                        return spec, cu
+                else:
+                    pool.invalidate(spec.get("key") or _spec_hash(spec))
+                    print(f"[mcp discover] {conn.get('label')}: quá hạn dò tool - bỏ qua vòng này",
+                          file=sys.stderr)
             except Exception as e:
                 print(f"[mcp discover] {conn.get('label')}: {type(e).__name__}: {e}", file=sys.stderr)
         if bo_qua is not None:

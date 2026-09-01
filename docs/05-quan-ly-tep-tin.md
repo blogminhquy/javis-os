@@ -158,6 +158,8 @@ Bản này đã bịt đường đó. Với file lỡ hỏng rồi:
 2. Có thì hiện một khung vàng ở đầu trang, kèm danh sách file và hỏng ở chỗ nào.
 3. Bấm **Chữa hết N file**. Javis dựng lại khối thuộc tính và gỡ dấu gạch chéo thừa, rồi báo lại số file đã chữa.
 
+Từ 0.52.8, brain nào soi ra **sạch** thì Javis nhớ và **thôi soi lại** ở những lần mở trang sau. Vòng soi này đọc toàn bộ file `.md` của brain, nên với brain vài nghìn note nó làm trang Tệp tin mở chậm hẳn và cả ô tìm kiếm cũng ì theo. Vết hỏng thì do một bản không còn tồn tại gây ra, nên sạch một lần là sạch hẳn. Brain còn file hỏng thì vẫn soi lại mỗi lần vào, tới khi bạn bấm chữa. Chép một vault cũ từ máy khác vào và muốn soi lại thì mở `/files/md-hong?force=1`.
+
 Javis chỉ sửa thứ mà **chỉ lỗi đó mới tạo ra được**: khối `* * *` ở ngay đầu file kẹp giữa toàn dòng trông như metadata, và chuỗi từ hai dấu gạch chéo trở lên. Đường kẻ ngang giữa bài, file có frontmatter còn lành, hay một dấu gạch chéo lẻ bạn cố ý gõ - đều không bị đụng tới.
 
 ### Khi link trỏ trượt: Javis đi tìm hộ

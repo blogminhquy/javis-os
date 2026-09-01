@@ -217,7 +217,10 @@ with tempfile.TemporaryDirectory() as tmp:
 
     phien = PhienGia()
 
-    async def _retry_gia(spec, fn, idempotent=False):
+    # `**kw` chứ không liệt kê tay: `_retry` thật còn nhận `ban=` (cờ "phiên đang chạy tool",
+    # thêm ở 0.52.8). Stub thiếu tham số là `call_tool` nuốt TypeError thành chuỗi ERROR, rồi
+    # test đỏ ở một chỗ chẳng liên quan gì tới Shopify.
+    async def _retry_gia(spec, fn, idempotent=False, **kw):
         return await fn(phien)
 
     that = mcp_client.pool._retry

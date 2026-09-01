@@ -4,6 +4,24 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.8] - 2026-09-01
+### Sửa lỗi
+- **POS thôi rớt giữa lúc đang lên đơn.** Mỗi lượt chat Javis hỏi lại danh sách công cụ của từng nguồn, mà lượt hỏi đó phải xếp hàng sau cái đơn đang chạy. Chờ quá 20 giây là bản cũ **giết cả phiên kết nối**, tức là giết luôn cái đơn đang lên dở, rồi lượt sau báo "chưa đấu POS". Nay nguồn đang chạy việc được để yên và vẫn giữ nguyên danh sách công cụ, nên đơn thứ hai không còn bị cắt ngang.
+- Trang Kết nối cũng thôi bật đèn đỏ oan cho nguồn đang bận chạy việc.
+- **Trang Tệp tin mở nhanh trở lại.** Mỗi lần vào trang, Javis đọc lại toàn bộ file `.md` của brain để dò một lỗi cũ từ bản 0.33.3; brain vài nghìn note là chậm hẳn cả trang lẫn ô tìm kiếm. Nay brain nào sạch thì Javis nhớ và thôi dò lại.
+
+## [0.52.7] - 2026-09-01
+### Sửa lỗi
+- **Javis thôi tự đẻ việc trong lúc bàn kế hoạch.** Đang trò chuyện bình thường mà nó tự giao mấy việc kiểu "áp dụng kế hoạch vừa trình bày" hay "cập nhật lại timeline", rồi mỗi việc lúc xong hoặc lúc kẹt lại bắn một thông báo về chuông và về đúng khung chat đang nói. Việc thì không ai yêu cầu, mà tiếng ồn thì thật.
+- Nay hàng đợi việc chỉ dành cho **việc bạn bảo làm**. Kế hoạch hay bước tiếp theo do Javis tự nghĩ ra thì nó viết ra cho bạn đọc, không tự giao. Không chắc bạn có muốn giao hay không thì nó **hỏi một câu** rồi mới tạo.
+- **Chuông chỉ kêu cho việc cần bạn ra tay.** Việc bị chặn hay chờ bạn duyệt thì nổi chấm đỏ như cũ. Việc chạy xong trót lọt thì thôi kêu: kết quả vẫn rơi vào đúng khung chat đã giao việc và vẫn nằm trong danh sách chuông để mở ra xem lại. Đổi lại, lúc bạn đi vắng thì việc xong sẽ không có gì nhắc, phải tự mở chuông xem.
+
+## [0.52.6] - 2026-09-01
+### Sửa lỗi
+- **Khung chat không còn tự mọc ra một câu bạn chưa từng gõ.** Thủ phạm là mic: bấm rồi thả phím Cách thật nhanh thì lệnh tắt rơi vào lúc mic chưa kịp mở xong, nên mic ở lại nghe âm thầm. Nghe được tiếng nhạc hay TV trong phòng là nó chép thành chữ rồi gửi đi như tin của bạn.
+- **Javis đang đọc thành tiếng cũng thôi tự bật mic.** Trước đây chỉ cần bạn từng nói một lần trong phiên là mỗi lần Javis đọc, một tiếng động đủ to sẽ mở mic trở lại. Nay chỉ chen ngang được khi mic đang thật sự mở.
+- Nhắc bạn cho yên tâm: việc chạy nền, nhắc hẹn và loop luôn trả lời ở bong bóng bên trái. Không có đường nào để Javis tự gõ vào ô chat thay bạn.
+
 ## [0.52.5] - 2026-08-31
 ### Sửa lỗi
 - **Cập nhật xong không còn mất kết nối MCP.** Hay gặp nhất với Pancake POS: vừa cập nhật vào chat hỏi thì Javis bảo chưa có POS, lát sau lại có. Kết nối không hỏng - nó chỉ chưa kịp mở lại phiên trong lúc Javis đã đi hỏi tool, mà mỗi nguồn chỉ được chờ 20 giây.
