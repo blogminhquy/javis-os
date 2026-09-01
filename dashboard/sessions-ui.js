@@ -485,16 +485,17 @@
   }
 
   // ── Tab File ─────────────────────────────────────────────────────────────────
+  // Trả về TÊN icon, không phải chuỗi <svg>: chỗ gọi lo dữ liệu, chỗ vẽ mới gọi ic().
   function icoFile(ten) {
     var e = (String(ten).split(".").pop() || "").toLowerCase();
-    if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].indexOf(e) >= 0) return ic("image");
-    if (["md", "txt", "csv", "json", "yaml", "yml", "log"].indexOf(e) >= 0) return ic("file-text");
-    return ic("file");
+    if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].indexOf(e) >= 0) return "image";
+    if (["md", "txt", "csv", "json", "yaml", "yml", "log"].indexOf(e) >= 0) return "file-text";
+    return "file";
   }
 
   function hangMuc(o) {
     return '<div class="pd-row" data-id="' + esc(o.id) + '">' +
-        '<span class="pd-row-ico">' + o.icoHtml + "</span>" +
+        '<span class="pd-row-ico">' + ic(o.icon) + "</span>" +
         '<span class="pd-row-body">' +
           '<span class="pd-row-name">' + esc(o.ten) + "</span>" +
           '<span class="pd-row-sub">' + (o.subHtml || esc(o.sub || "")) + "</span>" +
@@ -512,7 +513,7 @@
     var thuong = fs.filter(function (f) { return !f.pinned; });
     var ve = function (f) {
       return hangMuc({ id: f.id, ten: f.name || f.path, sub: f.path,
-                       icoHtml: icoFile(f.name || f.path), pinned: !!f.pinned,
+                       icon: icoFile(f.name || f.path), pinned: !!f.pinned,
                        ghimTitle: pdT("proj.pin_on") });
     };
     var ds = "";
@@ -599,7 +600,7 @@
     (projChiTiet.files || []).forEach(function (f) { daCo[f.path] = true; });
     box.innerHTML = items.map(function (it) {
       return '<div class="pd-res" data-path="' + esc(it.path) + '" data-name="' + esc(it.name) + '">' +
-        '<span class="pd-res-ico">' + icoFile(it.name) + "</span>" +
+        '<span class="pd-res-ico">' + ic(icoFile(it.name)) + "</span>" +
         '<span class="pd-res-n"><b>' + esc(it.name) + "</b><i>" + esc(it.path) + "</i></span>" +
         '<button class="pd-res-add" type="button"' + (daCo[it.path] ? " disabled" : "") + ">" +
           esc(daCo[it.path] ? pdT("proj.added") : pdT("proj.add")) + "</button></div>";
@@ -676,7 +677,7 @@
   function paneLink(p) {
     var ls = p.links || [];
     var ve = function (l) {
-      return hangMuc({ id: l.id, ten: l.label || l.url, icoHtml: ic("link"), pinned: !!l.pinned,
+      return hangMuc({ id: l.id, ten: l.label || l.url, icon: "link", pinned: !!l.pinned,
                        ghimTitle: pdT("proj.pin_link_on"),
                        subHtml: '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' +
                                 esc(l.url) + "</a>" });
