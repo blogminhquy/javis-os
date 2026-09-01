@@ -109,6 +109,7 @@ import background_status  # việc nền còn sống của một khung chat + b�
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
+import sessions                  # PROJECT_INSTRUCTIONS_MAX cho khối project trong system prompt
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
 import compaction   # nén hội thoại dài cho engine API (tóm tắt phần cũ thay vì cắt bỏ)
 from chat_runtime import ChatRuntime
@@ -372,10 +373,109 @@ def _fit_memory_index(mem: str, cap: int = None) -> str:
         "Đọc Memory/MEMORY.md để xem đủ danh sách, và Memory/facts/ để xem chi tiết.)")
 
 
+# ── Khối PROJECT ghép vào system prompt ──────────────────────────────────────
+#
+# Đây là thứ biến "Project" từ một cái nhãn lọc giao diện thành thứ THỰC SỰ đổi hành xử.
+#
+# Trần: khối này cộng vào MỌI lượt chat trong project đó, y như CLAUDE.md và MEMORY.md - chi
+# phí LẶP LẠI, không phải chi phí một lần. Nên mọi con số dưới đây là trần cứng, đừng gỡ.
+PROJECT_FILES_LIET_KE = 15      # số file/link LIỆT KÊ tên trong prompt
+PROJECT_GHIM_FILE_MAX = 2000    # ký tự nạp cho MỘT file được ghim
+PROJECT_GHIM_TONG_MAX = 6000    # tổng ký tự nạp cho TẤT CẢ file ghim của một project
+
+# Đuôi file NẠP THẲNG được. Ngoài danh sách này (xlsx, ảnh, pdf, zip...) thì nội dung là nhị
+# phân - nhét vào prompt chỉ ra một đống ký tự vô nghĩa vừa tốn token vừa làm model đoán bừa.
+PROJECT_GHIM_DUOI = {".md", ".txt", ".csv", ".json", ".yaml", ".yml", ".toml", ".ini",
+                     ".py", ".js", ".ts", ".html", ".css", ".sql", ".sh", ".log"}
+
+
+def _project_block(project_id: str, chi_huong_dan: bool = False) -> str:
+    """Khối hướng dẫn + tài liệu của project, để ghép vào system prompt. "" nếu không có gì.
+
+    `chi_huong_dan=True`: CHỈ lấy phần hướng dẫn, bỏ danh sách tài liệu. Dùng cho đường tiết
+    kiệm (Phase 8). Vì sao tách đôi chứ không bỏ cả khối như spec đề nghị: hướng dẫn là HỢP
+    ĐỒNG HÀNH XỬ ("luôn trả lời bằng tiếng Anh", "tránh màu xanh dương"), còn danh sách tài
+    liệu là dữ liệu TRA CỨU. Bỏ dữ liệu tra cứu lúc siết ngân sách thì model cùng lắm phải hỏi
+    lại; bỏ hợp đồng hành xử thì cùng một project, cùng một câu hỏi, lượt này tuân luật lượt
+    kia không - và người dùng không có cách nào biết vì sao, chỉ thấy Javis bướng.
+
+    GHIM FILE = NẠP NỘI DUNG. Spec ban đầu chỉ liệt kê tên và thêm chữ "(ghim)", tức là ghim
+    chỉ đổi thứ tự danh sách. Nhưng người dùng ghim bảng giá vào project thì họ nghĩ Javis đã
+    BIẾT bảng giá, chứ không phải biết TÊN nó. Nạp nội dung mới làm cái nút ghim thành công
+    tắc thật, và trần ở trên để chính họ cầm cán cân token.
+    """
+    try:
+        p = get_store().get_project_full(project_id)
+    except Exception:
+        return ""
+    if not p:
+        return ""
+    ra = ""
+    hd = (p.get("instructions") or "").strip()
+    if hd:
+        ra += (f"\n\n# === HƯỚNG DẪN RIÊNG CỦA PROJECT: {p.get('name') or ''} ===\n"
+               f"{hd[:sessions.PROJECT_INSTRUCTIONS_MAX]}")
+    if chi_huong_dan:
+        return ra
+
+    files = p.get("files") or []
+    links = p.get("links") or []
+    if not files and not links:
+        return ra
+
+    brain = p.get("brain") or "brain"
+    dong, da_nap, con_lai = [], [], PROJECT_GHIM_TONG_MAX
+    for f in files[:PROJECT_FILES_LIET_KE]:
+        ten, duong = f.get("name") or "", f.get("path") or ""
+        if not f.get("pinned"):
+            dong.append(f"- [file] {ten} - {duong}")
+            continue
+        duoi = os.path.splitext(duong)[1].lower()
+        if duoi not in PROJECT_GHIM_DUOI:
+            # Nói THẲNG là ghim nhưng không nạp được, kèm lý do. Im lặng bỏ qua thì người dùng
+            # ghim xong tưởng Javis đã đọc, rồi ngạc nhiên vì nó trả lời như chưa thấy gì.
+            dong.append(f"- [file, đã ghim nhưng là tệp nhị phân - tự mở khi cần] {ten} - {duong}")
+            continue
+        try:
+            # `_safe_serve_path` chứ không phải `_safe_path`: đây là đường ĐỌC, và trần duyệt
+            # có thể nằm CAO hơn gốc brain (vd localhost duyệt tới cả ổ đĩa). Lúc đó một đường
+            # dẫn lưu theo gốc brain sẽ không resolve được từ trần, và ngược lại - hàm serve
+            # thử cả hai quy ước, cả hai đều bị khoá trong trần. Nhánh THÊM file thì vẫn dùng
+            # `_safe_path` (chặt hơn): ở đó người dùng chọn từ trình duyệt file nên đường dẫn
+            # chắc chắn theo trần, và ghi vào kho thì phải chặt.
+            noi_dung = _safe_serve_path(brain, duong).read_text(
+                encoding="utf-8", errors="replace")
+        except Exception:
+            dong.append(f"- [file, đã ghim nhưng đọc không được] {ten} - {duong}")
+            continue
+        cat = noi_dung[:min(PROJECT_GHIM_FILE_MAX, max(0, con_lai))]
+        if not cat:
+            dong.append(f"- [file, đã ghim nhưng hết chỗ nạp trong lượt này] {ten} - {duong}")
+            continue
+        con_lai -= len(cat)
+        thieu = " (đã cắt bớt)" if len(cat) < len(noi_dung) else ""
+        da_nap.append(f"\n## {ten} - {duong}{thieu}\n{cat}")
+    for l in links[:PROJECT_FILES_LIET_KE]:
+        dong.append(f"- [link] {l.get('label') or l.get('url')} - {l.get('url')}"
+                    + (" (ghim)" if l.get("pinned") else ""))
+    if dong:
+        ra += ("\n\n# === TÀI LIỆU & LINK CỦA PROJECT ===\n"
+               "Đây là DANH SÁCH, không phải nội dung: mở file bằng tool đọc file khi cần, "
+               "đừng đoán nội dung từ cái tên. Link chỉ mở được nếu lượt này có tool duyệt web; "
+               "không có thì nói thẳng chứ đừng đoán nội dung trang.\n" + "\n".join(dong))
+    if da_nap:
+        ra += ("\n\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap))
+    return ra
+
+
 def build_system_prompt(brain: str = "brain", include_memory: bool = True,
                         include_skills: bool = True,
-                        lang: "lang_mod.LangDecision | str | None" = None) -> str:
-    """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh."""
+                        lang: "lang_mod.LangDecision | str | None" = None,
+                        project_id: str = "") -> str:
+    """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh.
+
+    `project_id`: hội thoại đang nằm trong project nào. Có thì ghép thêm hướng dẫn riêng +
+    danh sách tài liệu của project đó (xem `_project_block`)."""
     base = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else ""
     # Chốt ngôn ngữ NGAY đầu hàm: khối NGÔN NGỮ ở cuối cần nó, mà danh sách skill ở giữa cũng
     # cần (mô tả skill là bề mặt ĐỐI CHIẾU với câu người dùng vừa gõ, nên nó phải cùng thứ
@@ -391,6 +491,13 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
         mem = ""
     if include_memory and mem.strip():
         base += "\n\n# === BỘ NHỚ DÀI HẠN (nạp sẵn) ===\n" + _fit_memory_index(mem)
+    # Ngay sau bộ nhớ, TRƯỚC lớp agentic: hướng dẫn project là luật hành xử, phải đứng cùng
+    # khu với CLAUDE.md và MEMORY.md chứ không lẫn vào khối đường dẫn kỹ thuật bên dưới.
+    if project_id:
+        try:
+            base += _project_block(project_id)
+        except Exception:
+            pass
     # Đường dẫn lớp Agentic của vault đang làm việc (để Javis tạo agent/workflow/loop qua chat)
     root = _brain_root(brain)
     system_sync.ensure_synced(root)   # brain nào cũng có đủ năng lực hệ thống (1 lần/process, rẻ)
@@ -9270,7 +9377,9 @@ async def websocket_endpoint(ws: WebSocket):
             def _legacy_system_prompt():
                 nonlocal sysprompt
                 if sysprompt is None:
-                    sysprompt = build_system_prompt(brain, lang=_lang_qd) + channel_context.build_channel_block(
+                    sysprompt = build_system_prompt(
+                        brain, lang=_lang_qd, project_id=_row0.get("project_id") or ""
+                    ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
                     )
@@ -9294,7 +9403,7 @@ async def websocket_endpoint(ws: WebSocket):
                 def _base(include_memory: bool, include_skills: bool) -> str:
                     return build_system_prompt(
                         brain, include_memory=include_memory, include_skills=include_skills,
-                        lang=_lang_qd,
+                        lang=_lang_qd, project_id=_row0.get("project_id") or "",
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
@@ -12403,9 +12512,29 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # gói thuê bao). Đưa thêm transcript vào system prompt là gửi lịch sử HAI LẦN.
     sysprompt = ""
 
+    # Project của phiên này (Telegram cũng gán project được, nên không loại trừ kênh nào).
+    # Đọc MỘT lần: dùng cho cả nhánh Phase 8 lẫn nhánh prompt đầy đủ bên dưới.
+    _pid = ""
+    try:
+        if store is not None and conv_sid:
+            _pid = (store.get_session(conv_sid) or {}).get("project_id") or ""
+    except Exception:
+        _pid = ""
+
     def _nen_goc(include_memory: bool, include_skills: bool) -> str:
-        return build_adaptive_source_prompt(
+        # HƯỚNG DẪN project đi cả vào đường tiết kiệm; danh sách tài liệu thì không.
+        # Hướng dẫn là hợp đồng hành xử ("luôn trả lời bằng tiếng Anh"), vài trăm ký tự, và bỏ
+        # nó đi nghĩa là cùng một project cùng một câu hỏi mà lượt này tuân luật lượt kia
+        # không - người dùng không có cách nào biết vì sao, chỉ thấy Javis bướng. Danh sách
+        # tài liệu là dữ liệu tra cứu, bỏ thì cùng lắm model phải hỏi lại.
+        _n = build_adaptive_source_prompt(
             brain, include_memory=include_memory, include_skills=include_skills)
+        if _pid:
+            try:
+                _n += _project_block(_pid, chi_huong_dan=True)
+            except Exception:
+                pass
+        return _n
 
     try:
         _p8 = await asyncio.to_thread(
@@ -12422,7 +12551,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # dashboard (bản đầy đủ còn TO HƠN cái vừa bị từ chối vì quá to), nhưng ở kênh này ta chưa
     # có đường nào khác để đi, nên cứ chạy tiếp và để nhà cung cấp nói nếu thật sự quá hạn mức.
     if not sysprompt:
-        sysprompt = build_system_prompt(brain, lang=_lang_qd)
+        sysprompt = build_system_prompt(brain, lang=_lang_qd, project_id=_pid)
     sysprompt += channel_context.build_channel_block(
         channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
         brain_root=_brain_root(brain))
