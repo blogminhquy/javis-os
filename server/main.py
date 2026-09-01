@@ -4973,11 +4973,53 @@ def _quet_md_hong(brain: str, chi_path: set = None):
     return out
 
 
+# Dấu "brain này đã soi xong và sạch" - xem `files_md_hong` để biết vì sao phải nhớ.
+_MD_HONG_DAU = cfgmod.STATE_DIR / "md_hong_da_soi.json"
+
+
+def _md_hong_da_sach(broot: str) -> bool:
+    try:
+        d = json.loads(_MD_HONG_DAU.read_text(encoding="utf-8"))
+        return bool((d or {}).get(str(broot), {}).get("sach"))
+    except (OSError, ValueError):
+        return False
+
+
+def _md_hong_ghi_sach(broot: str, sach: bool) -> None:
+    try:
+        d = {}
+        try:
+            d = json.loads(_MD_HONG_DAU.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError):
+            d = {}
+        if not isinstance(d, dict):
+            d = {}
+        d[str(broot)] = {"sach": bool(sach), "ts": time.time()}
+        _atomic_write_text(_MD_HONG_DAU, json.dumps(d, ensure_ascii=False, indent=1))
+    except Exception as e:
+        print(f"[md-hong] không ghi được dấu đã soi: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 @app.get("/files/md-hong")
-async def files_md_hong(brain: str = Query("brain")):
-    """CHỈ SOI, không ghi gì: liệt kê file .md còn dấu vết hỏng của bản cũ."""
+async def files_md_hong(brain: str = Query("brain"), force: str = Query("")):
+    """CHỈ SOI, không ghi gì: liệt kê file .md còn dấu vết hỏng của bản cũ.
+
+    SOI ĐÚNG MỘT LẦN cho mỗi brain. Vòng soi này ĐỌC TOÀN BỘ file .md của brain, mà dashboard
+    gọi nó mỗi lần mở trang Tệp tin - brain vài nghìn note trên ổ đĩa VPS là hàng chục MB đọc
+    lại từ đầu mỗi lần mở, tranh cả đĩa lẫn thread với cái tìm kiếm người dùng vừa gõ. Đó là
+    lý do chủ repo báo 01/09/2026 "cây thư mục load rất lâu và chậm".
+
+    Soi xong mà SẠCH thì ghi dấu và thôi hẳn: thứ nó đi tìm là vết hỏng do bản <= 0.33.3 để
+    lại, mà bản đó không còn tồn tại, nên brain đã sạch một lần thì không thể tự bẩn lại. Còn
+    vết hỏng thì KHÔNG ghi dấu - lần mở sau vẫn mời chữa, đúng như cũ.
+
+    `force=1` soi lại từ đầu (chép vault cũ từ máy khác vào thì dùng đường này)."""
     from starlette.concurrency import run_in_threadpool
+    broot = str(Path(_brain_root(brain)).resolve())
+    if str(force or "").strip() not in ("1", "true", "on") and _md_hong_da_sach(broot):
+        return {"items": [], "cham_nguong": False, "bo_qua": "da-soi-sach"}
     items = await run_in_threadpool(_quet_md_hong, brain)
+    _md_hong_ghi_sach(broot, not items)
     return {"items": items, "cham_nguong": len(items) >= _MD_HONG_MAX_HIT}
 
 
