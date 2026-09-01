@@ -5481,6 +5481,9 @@
               'title="Thu nhỏ về màn Javis" aria-label="Thu nhỏ về màn Javis">' +
               ic("chevron-left") + '<span>Thu nhỏ</span></button>' +
             '<span class="cp-title">Trò chuyện với Javis</span>' +
+            // Chip project (sessions-ui.js vẽ vào). Trang này là nơi người dùng chat lâu
+            // nhất, nên chip phải có mặt ở đây chứ không chỉ ở màn Javis.
+            '<span class="proj-chip-host"></span>' +
           '</div>' +
           '<div class="chatpage-slot" id="chatPageSlot"></div>' +
           // Chỗ đứng cho TRÌNH SỬA khi mở file từ tab Thư mục. Rỗng và ẩn cho tới lúc đó.
@@ -5493,6 +5496,8 @@
 
     // Sidebar lịch sử hội thoại (dùng lại module chung của chat workspace)
     try { if (window.JavisChatSide) window.JavisChatSide.mount(el.querySelector("#chatPageSide")); } catch (e) {}
+    // Thanh tiêu đề vừa dựng lại từ đầu nên chip project trong đó đang trống.
+    try { if (window.JavisChatSide) window.JavisChatSide.chip(); } catch (e) {}
 
     // Thu gọn cột Hội thoại/Thư mục: màn hẹp giữ drawer như cũ; desktop thu về dải hẹp
     // và nhớ lựa chọn. Nút thu/mở gắn SAU khi JavisChatSide.mount vì mount ghi đè innerHTML

@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.53.0] - 2026-09-01
+### Thêm mới
+- **Project giờ có bộ nhớ riêng.** Bấm cái chip tên project ở đầu khung chat để mở khung **Hướng dẫn - File - Link**. Mọi hội thoại trong project đó sẽ mang theo những gì bạn đặt ở đây.
+- **Hướng dẫn** là câu dặn riêng cho project, ví dụ "luôn trả lời bằng tiếng Anh" hay "tông xanh rừng, tránh xanh dương". Gõ tới đâu tự lưu tới đó, không có nút Lưu.
+- **File ghim thì Javis đọc sẵn nội dung**, không phải chỉ biết tên rồi tự đi mở. Ghim bảng giá vào project là Javis biết bảng giá ngay từ câu hỏi đầu tiên. File không ghim vẫn nằm trong danh sách để Javis tự mở khi cần.
+- Thêm file bằng cách **tìm trong brain hoặc kéo thả từ máy**; thêm link bằng cách dán URL. Gỡ khỏi project không xoá file trong brain.
+
 ## [0.52.13] - 2026-09-01
 ### Sửa lỗi
 - **Chữ "Hệ thống" cỡ lớn không còn hiện lơ lửng ở đáy thanh bên** khi bên dưới chẳng có gì. Nó là phần dành cho màn hình hẹp, thu về màn rộng thì cái nhãn bị bỏ quên ở lại.
