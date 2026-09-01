@@ -35,7 +35,13 @@ def check(name, cond, them=""):
         fails.append(name)
 
 
-broot = Path(main._brain_root("brain"))
+# Brain RIÊNG trong thư mục tạm, không dùng brain mặc định. `_brain_root` trả về chính
+# chuỗi truyền vào khi đó là một thư mục có thật, nên đây là lối cô lập mà API vốn đã mở.
+# Ghi vào brain mặc định thì test này rải file thật vào `brains/` của người chạy lẫn của CI,
+# và bất kỳ test nào sau đó soi brain mặc định cũng có thể đỏ tuỳ thứ tự chạy - đúng loại
+# lỗi chập chờn khó truy nhất.
+BRAIN = tempfile.mkdtemp(prefix="javis-brain-taisan-")
+broot = Path(BRAIN)
 (broot / "05 - Projects").mkdir(parents=True, exist_ok=True)
 (broot / "attachments").mkdir(parents=True, exist_ok=True)
 (broot / "05 - Projects" / "ke-hoach.md").write_text("# Kế hoạch", encoding="utf-8")
@@ -44,7 +50,7 @@ broot = Path(main._brain_root("brain"))
 
 st = get_store()
 SID = "cuoc-dai"
-st.get_or_create(SID, brain="brain", engine="cli", model="x")
+st.get_or_create(SID, brain=BRAIN, engine="cli", model="x")
 st.append_message(SID, "user", "Tham khảo giúp mình https://moc-viet.vn/bang-gia nhé")
 st.append_message(SID, "assistant",
                   "Xong rồi anh:\n"
@@ -78,12 +84,12 @@ check("đường dẫn ngoài brain bị bỏ", "passwd" not in files)
 # GIỚI HẠN CÓ THẬT, ghi ra để người sau khỏi tưởng là bug: đường dẫn tuyệt đối KHÔNG bọc
 # nháy/backtick mà có KHOẢNG TRẮNG thì bị cắt cụt ở chỗ khoảng trắng đầu tiên - regex đường
 # dẫn trần của channel_context cấm khoảng trắng, vì không cấm thì nó nuốt cả câu văn phía sau.
-# Chỗ này gần như luôn dính: gốc brain mặc định tên là "Brain Default", tự nó đã có khoảng
-# trắng. Nên nhánh đường dẫn trần chỉ ăn với brain đặt ở đường không dấu cách (VPS kiểu
-# /opt/javis/brain), còn lối chính vẫn là link markdown - thứ CLAUDE.md đã dặn Javis nhúng
-# mỗi khi đưa file cho người dùng, và bắt được kể cả tên có khoảng trắng.
-check("CANARY: gốc brain mặc định có khoảng trắng nên nhánh trần khó ăn",
-      " " in str(broot), broot)
+# Chỗ này gần như luôn dính trong đời thật: brain mặc định tên là "Brain Default", tự nó đã
+# có khoảng trắng. Nên nhánh đường dẫn trần chỉ ăn với brain đặt ở đường không dấu cách (VPS
+# kiểu /opt/javis/brain), còn lối chính vẫn là link markdown - thứ CLAUDE.md đã dặn Javis
+# nhúng mỗi khi đưa file cho người dùng, và bắt được kể cả tên có khoảng trắng.
+check("CANARY: brain mặc định có khoảng trắng nên nhánh đường dẫn trần khó ăn",
+      " " in str(main._default_brain_dir()), main._default_brain_dir())
 
 # ---- 2. Nhãn và đường dẫn ----------------------------------------------------
 check("giữ nhãn người dùng đọc được, không chỉ tên file",
@@ -92,7 +98,7 @@ check("có đường dẫn theo GỐC BRAIN để hiện cho người đọc",
       files.get("ke-hoach.md", {}).get("brain_path") == "05 - Projects/ke-hoach.md")
 # `path` phải theo TRẦN duyệt vì giao diện đưa thẳng cho JavisOpenNoteAt - hàm đó nhận path
 # trần. Trần có thể cao hơn gốc brain nên hai đường dẫn này KHÔNG phải lúc nào cũng giống nhau.
-_ceil = main._files_root("brain")
+_ceil = main._files_root(BRAIN)
 check("và đường dẫn theo TRẦN để giao diện mở thẳng được",
       files.get("ke-hoach.md", {}).get("path")
       == main._files_rel(_ceil, broot / "05 - Projects" / "ke-hoach.md"))
@@ -109,7 +115,7 @@ check("cắt dấu câu dính đuôi URL", all(not u.endswith(".") for u in link
 
 # ---- 4. Ca biên ---------------------------------------------------------------
 check("phiên không tồn tại trả 404", c.get("/sessions/khong-co-that/assets").status_code == 404)
-st.get_or_create("cuoc-trong", brain="brain", engine="cli", model="x")
+st.get_or_create("cuoc-trong", brain=BRAIN, engine="cli", model="x")
 d2 = c.get("/sessions/cuoc-trong/assets").json()
 check("cuộc chưa có tin nhắn thì hai danh sách rỗng, không lỗi",
       d2.get("ok") and d2.get("files") == [] and d2.get("links") == [])
