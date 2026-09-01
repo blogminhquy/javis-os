@@ -106,6 +106,18 @@ _DEFAULT = {
         # trong khi phần đông người dùng Javis chạy nó trên VPS, nơi "localhost" là chính cái
         # container chứ không phải máy họ.
         "ollama_key": "",
+        # --- Ollama chạy trên MÁY NHÀ (provider 'ollama-local') ---
+        # Ca đặc biệt mà khối chú thích ngay trên vừa từ chối, nay mở ra nhưng KHÔNG bằng cách
+        # giả định "localhost là máy người dùng". Cái Javis lưu là một ĐỊA CHỈ người dùng tự
+        # khai: có thể là máy đang chạy Javis (bản native), có thể là một máy khác trong nhà.
+        # Nhờ vậy bản Docker/VPS cũng dùng được - trỏ sang máy để bàn ở nhà là xong.
+        "ollama_local_endpoint": "",           # vd http://127.0.0.1:11434 hoặc http://192.168.1.20:11434
+        "ollama_local_key": "",                # chỉ cần khi Ollama nấp sau reverse proxy có auth
+        # Cấu hình máy CHẠY OLLAMA, để gợi ý model vừa sức. `source`:
+        #   auto    - Javis tự đọc được (chỉ khi endpoint là localhost VÀ Javis chạy native)
+        #   manual  - người dùng tự khai (mọi trường hợp còn lại)
+        #   unknown - chưa biết, gợi ý ở mức an toàn
+        "ollama_local_specs": {"source": "unknown", "ram_gb": 0, "has_gpu": False, "vram_gb": 0},
         # Provider 'openai-oauth' - đăng nhập ChatGPT Plus/Pro qua device-code (xem openai_oauth.py).
         "openai_oauth": {"access_token": "", "refresh_token": "", "id_token": "", "account_id": "", "plan": "", "expires_at": 0},
         # --- Legacy: giữ đồng bộ với main để engine cũ không vỡ (engine/claude_model/openrouter_model) ---
@@ -439,7 +451,7 @@ _DEFAULT = {
 # Mất file .secret_key → decrypt trả "" (nhập lại key) - đánh đổi giống MCP secret, an toàn hơn lộ key.
 _SECRET_PATHS = (
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
-    "model.groq_api_key", "model.ollama_key",
+    "model.groq_api_key", "model.ollama_key", "model.ollama_local_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
     # Gemini CLI (đăng nhập Google ngay trên dashboard). Refresh token ở đây mở được cả gói
     # Code Assist của tài khoản Google, nên nó ngang hàng mọi secret khác trong danh sách.

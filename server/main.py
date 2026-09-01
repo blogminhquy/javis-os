@@ -109,6 +109,9 @@ import background_status  # việc nền còn sống của một khung chat + b�
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
+import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
+import ollama_catalog           # danh mục model để gợi ý + tìm kiếm
+import ollama_local             # dò/tải/gỡ model trên máy chạy Ollama
 import sessions                  # PROJECT_INSTRUCTIONS_MAX cho khối project trong system prompt
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
 import compaction   # nén hội thoại dài cho engine API (tóm tắt phần cũ thay vì cắt bỏ)
@@ -1158,6 +1161,12 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # default_models RỖNG: danh sách model của Ollama đổi luôn, /provider/models nạp bản LIVE.
     {"id": "ollama",        "label": "Ollama Cloud",            "kind": "api", "key_field": "ollama_key",
      "catalog_key": "ollama", "default_models": []},
+    # Ollama chạy trên MÁY NHÀ. `key_field` None vì thứ xác thực nó là một ĐỊA CHỈ, không phải
+    # một khoá - địa chỉ lưu riêng ở `model.ollama_local_endpoint`. Card của nó cũng không dùng
+    # khuôn card chung (giống grok-cli/antigravity-cli đã có khuôn riêng): nó sống ở tab Local
+    # Model của trang Models, không chen vào lưới Providers bên tab Cloud.
+    {"id": "ollama-local",  "label": "Ollama (máy nhà)",        "kind": "api", "key_field": None,
+     "catalog_key": "ollama-local", "default_models": []},
 ]
 
 def _provider_def(pid):
@@ -1353,7 +1362,11 @@ def _chat_provider(mcfg):
 # chạy bằng Claude mà không ai biết. Trang Studio đọc chính danh sách này để vẽ ô chọn, nên
 # thêm provider mới ở aux_engine thì thêm tên vào đây là giao diện có ngay.
 AGENT_PROVIDERS = ("anthropic-cli", "openai-oauth", "grok-cli", "antigravity-cli",
-                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama")
+                   "openrouter", "anthropic-api", "openai", "gemini", "groq", "ollama",
+                   # Model chạy máy nhà cũng giao được việc nền cho agent. Bỏ nó ra khỏi đây
+                   # là tính năng nửa vời: cài model về rồi mà chỉ chat tay được, không giao
+                   # cho agent hay workflow nào chạy.
+                   "ollama-local")
 
 
 def _agent_model_provider(model: str, provider: str = "") -> str:
@@ -1633,6 +1646,8 @@ def _api_stream_goc(prov, key, model, messages, reasoning="off"):
         return engine.groq_stream(key, model, messages, reasoning)
     if prov == "ollama":
         return engine.ollama_stream(key, model, messages, reasoning)
+    if prov == "ollama-local":
+        return engine.ollama_local_stream(key, model, messages, reasoning)
     if prov == "openai-oauth":
         creds = openai_oauth.valid_creds() or {}
         return engine.openai_responses_stream(creds.get("access_token", ""), creds.get("account_id", ""),
@@ -1716,6 +1731,8 @@ async def _api_stream_mcp(prov, key, model, messages, reasoning="off", brain=Non
             if prov == "groq":
                 return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "ollama-local":
+            return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
 
         if prov in ("openrouter", "openai", "anthropic-api", "gemini", "groq", "ollama"):
             return engine.thu_lai_khi_tam_thoi(_vong_tool, nhan=f"{prov}/{model or 'mặc định'}+tool")
@@ -8322,22 +8339,18 @@ def _read_version() -> str:
     return "0.0.0"
 
 
+# Hai hàm này đã DỜI sang server/deploy_info.py để ollama_local.py dùng được mà không tạo
+# vòng import với main.py. Giữ lại tên cũ làm vỏ mỏng: hàng chục chỗ gọi trong file này và
+# trong updater không phải sửa theo.
 def _deploy_mode() -> str:
     """docker | windows | native - quyết định cách cập nhật."""
-    if os.path.exists("/.dockerenv") or os.getenv("JAVIS_STATE_DIR", "").startswith("/data"):
-        return "docker"
-    if os.name == "nt":
-        return "windows"
-    return "native"
+    return deploy_info.deploy_mode()
 
 
 def _host_platform() -> str:
     """windows | mac | linux - nền tảng thật của máy (để UI ghi đúng nhãn, vd Mac
     cũng là mode 'native' nhưng không có systemd)."""
-    import sys as _s
-    if os.name == "nt":
-        return "windows"
-    return "mac" if _s.platform == "darwin" else "linux"
+    return deploy_info.host_platform()
 
 
 def _is_git_checkout(root: str) -> bool:
@@ -10818,6 +10831,189 @@ async def projects_delete(project_id: str):
     return {"ok": True, "detached": store.delete_project(project_id)}
 
 
+# ============================================================
+# OLLAMA TRÊN MÁY NHÀ
+# ============================================================
+# Mọi endpoint ở đây đọc địa chỉ/khoá TỪ SETTINGS chứ không nhận qua query: địa chỉ nội bộ
+# nằm trong URL là nó nằm luôn trong log truy cập của mọi proxy trên đường đi.
+
+def _ol_cfg():
+    m = cfgmod.read_settings().get("model", {}) or {}
+    return (m.get("ollama_local_endpoint") or "").strip(), (m.get("ollama_local_key") or "").strip()
+
+
+def _ol_luu(patch: dict):
+    """Ghi vài trường vào settings.model. Kho này không có hàm merge sẵn, mọi chỗ đều theo
+    lối đọc - sửa - ghi, nên gói lại một chỗ cho ba endpoint dưới khỏi lặp."""
+    cfg = cfgmod.read_settings()
+    m = dict(cfg.get("model") or {})
+    m.update(patch)
+    cfg["model"] = m
+    cfgmod.write_settings(cfg)
+
+
+def _ol_specs_luu():
+    m = cfgmod.read_settings().get("model", {}) or {}
+    d = m.get("ollama_local_specs") or {}
+    return dict(d) if isinstance(d, dict) else {}
+
+
+def _ol_specs_hien_dung(endpoint: str) -> dict:
+    """Cấu hình máy để gợi ý model.
+
+    Thứ tự: KHAI TAY trước, rồi mới tới tự dò. Người dùng khai tay là họ biết một điều bộ dò
+    không biết - máy bị giới hạn trong container, hay họ muốn chừa RAM cho việc khác. Để auto
+    đè lên khai tay thì ô nhập kia thành ô trang trí: gõ vào rồi không thấy gì đổi.
+
+    Tự dò chỉ chạy khi CHẮC CHẮN cùng máy (xem ollama_local.same_host). Ollama không có
+    endpoint nào trả RAM/GPU của máy nó đang chạy, nên với một địa chỉ ở xa thì ngoài hỏi
+    người dùng ra không còn đường nào.
+    """
+    d = _ol_specs_luu()
+    if d.get("source") == "manual" and (d.get("ram_gb") or 0) > 0:
+        return d
+    if ollama_local.same_host(endpoint):
+        return ollama_local.detect_specs()
+    return {"source": "unknown", "ram_gb": 0, "has_gpu": False, "vram_gb": 0}
+
+
+@app.get("/ollama-local/status")
+async def ollama_local_status():
+    ep, key = _ol_cfg()
+    ra = {"endpoint": ep, "deploy_mode": _deploy_mode(), "host_platform": _host_platform(),
+          "same_host": ollama_local.same_host(ep), "goi_y_endpoint": ollama_local.GOI_Y_ENDPOINT,
+          "reachable": False, "error": None, "installed_count": 0}
+    if not ep:
+        return ra
+    p = await ollama_local.probe(ep, key)
+    ra.update({"reachable": p["reachable"], "error": p["error"],
+               "installed_count": len(p["models"])})
+    return ra
+
+
+@app.post("/ollama-local/endpoint")
+async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(None)):
+    """Lưu địa chỉ rồi dò luôn. Chuỗi rỗng = gỡ kết nối."""
+    ep = (endpoint or "").strip()
+    if not ep:
+        _ol_luu({"ollama_local_endpoint": "", "ollama_local_key": ""})
+        return {"ok": True, "endpoint": "", "reachable": False}
+    try:
+        ep = ollama_local.chuan_hoa_endpoint(ep)
+    except ollama_local.LoiEndpoint as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    patch = {"ollama_local_endpoint": ep}
+    if key is not None:
+        patch["ollama_local_key"] = key.strip()
+    _ol_luu(patch)
+    p = await ollama_local.probe(ep, (key or "").strip() or _ol_cfg()[1])
+    return {"ok": True, "endpoint": ep, "reachable": p["reachable"], "error": p["error"]}
+
+
+@app.get("/ollama-local/specs")
+async def ollama_local_get_specs():
+    ep, _ = _ol_cfg()
+    return {"specs": _ol_specs_hien_dung(ep), "same_host": ollama_local.same_host(ep)}
+
+
+@app.post("/ollama-local/specs")
+async def ollama_local_set_specs(ram_gb: float = Form(0), has_gpu: str = Form("0"),
+                                 vram_gb: float = Form(0)):
+    d = {"source": "manual", "ram_gb": max(0.0, float(ram_gb or 0)),
+         "has_gpu": str(has_gpu).strip() in ("1", "true", "True", "on"),
+         "vram_gb": max(0.0, float(vram_gb or 0))}
+    _ol_luu({"ollama_local_specs": d})
+    return {"ok": True, "specs": d}
+
+
+@app.get("/ollama-local/installed")
+async def ollama_local_installed():
+    ep, key = _ol_cfg()
+    if not ep:
+        return {"ok": False, "models": [], "error": "Chưa đặt địa chỉ Ollama"}
+    p = await ollama_local.probe(ep, key)
+    if not p["reachable"]:
+        return {"ok": False, "models": [], "error": p["error"]}
+    dang_nap = {(m.get("name") or "") for m in await ollama_local.running_models(ep, key)}
+    ra = []
+    for m in p["models"]:
+        ten = m.get("name") or m.get("model") or ""
+        ra.append({"name": ten,
+                   "size_gb": round(float(m.get("size") or 0) / (1024 ** 3), 1),
+                   "modified_at": m.get("modified_at") or "",
+                   "loaded": ten in dang_nap})
+    ra.sort(key=lambda x: x["name"])
+    return {"ok": True, "models": ra}
+
+
+@app.get("/ollama-local/recommended")
+async def ollama_local_recommended():
+    ep, key = _ol_cfg()
+    specs = _ol_specs_hien_dung(ep)
+    da_cai = set()
+    if ep:
+        p = await ollama_local.probe(ep, key)
+        da_cai = {(m.get("name") or "") for m in p["models"]}
+    ds = ollama_catalog.goi_y(specs)
+    for m in ds:
+        m["installed"] = m["name"] in da_cai
+    tv = ollama_catalog.thu_vien()
+    return {"ok": True, "specs": specs, "models": ds,
+            "catalog_source": tv.get("source"), "fetched_at": tv.get("fetched_at")}
+
+
+@app.get("/ollama-local/search")
+async def ollama_local_search(q: str = Query(""), capability: str = Query(""),
+                              sort: str = Query("pho-bien"), limit: int = Query(40)):
+    ep, key = _ol_cfg()
+    da_cai = set()
+    if ep:
+        p = await ollama_local.probe(ep, key)
+        da_cai = {(m.get("name") or "") for m in p["models"]}
+    ds = [dict(m) for m in ollama_catalog.tim(q, capability, sort)][:max(1, min(int(limit), 200))]
+    for m in ds:
+        m["installed"] = m["name"] in da_cai
+    tv = ollama_catalog.thu_vien()
+    return {"ok": True, "models": ds, "catalog_source": tv.get("source"),
+            "fetched_at": tv.get("fetched_at")}
+
+
+@app.post("/ollama-local/pull")
+async def ollama_local_pull(model: str = Form(...)):
+    """Tải model, đẩy tiến độ về dashboard bằng SSE.
+
+    HUỶ TẢI = dashboard đóng EventSource. Ollama không có endpoint huỷ, và tài liệu ghi lần
+    pull sau tiếp tục từ chỗ dở theo digest - nên không có gì phải dọn, cũng không mất phần đã
+    tải. Vì vậy KHÔNG có endpoint /pull/cancel như spec phác: một endpoint không làm gì cả
+    là một lời hứa suông trong API.
+    """
+    ep, key = _ol_cfg()
+    ten = (model or "").strip()
+    if not ep or not ten:
+        return JSONResponse({"error": "Thiếu địa chỉ Ollama hoặc tên model"}, status_code=400)
+
+    async def phat():
+        try:
+            async for mo in ollama_local.pull_stream(ep, ten, key):
+                yield "data: " + json.dumps(mo, ensure_ascii=False) + "\n\n"
+        except Exception as e:
+            yield "data: " + json.dumps({"status": "error", "error": str(e)[:200]},
+                                        ensure_ascii=False) + "\n\n"
+        yield "data: " + json.dumps({"status": "__done__"}) + "\n\n"
+
+    return StreamingResponse(phat(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.post("/ollama-local/delete")
+async def ollama_local_delete(model: str = Form(...)):
+    ep, key = _ol_cfg()
+    if not ep:
+        return JSONResponse({"error": "Chưa đặt địa chỉ Ollama"}, status_code=400)
+    r = await ollama_local.delete_model(ep, (model or "").strip(), key)
+    return r if r.get("ok") else JSONResponse(r, status_code=502)
+
+
 @app.get("/runtime/diagnostics")
 async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200),
                               brain: str = Query("brain")):
@@ -12423,6 +12619,8 @@ def _bot_stream_co_tool(prov, key, model, messages, reasoning, tools, route,
             return engine.groq_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "ollama":
             return engine.ollama_chat_with_mcp(key, model, messages, reasoning, tools, route)
+        if prov == "ollama-local":
+            return engine.ollama_local_chat_with_mcp(key, model, messages, reasoning, tools, route)
         if prov == "openai-oauth":
             creds = openai_oauth.valid_creds() or {}
             return engine.responses_with_mcp(creds.get("access_token", ""), creds.get("account_id", ""),
