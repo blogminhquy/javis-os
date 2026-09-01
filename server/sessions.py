@@ -99,10 +99,37 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at REAL NOT NULL
 );
 
+-- Tài liệu và link gắn vào một project. KHÔNG có cột `brain`: project đã thuộc đúng một
+-- brain (`projects.brain`), và đường dẫn file chỉ có nghĩa TRONG brain đó. Lưu brain lần nữa
+-- ở đây là mở cửa cho một project trỏ sang file của brain khác - phá đúng cái rào `_safe_path`
+-- đang giữ, mà lại phá bằng dữ liệu chứ không phải bằng lỗi code, nên không rào nào bắt được.
+-- Cùng lý do như `sessions.project_id`: không khai REFERENCES (SQLite không ALTER kèm khoá
+-- ngoại), ràng buộc giữ ở tầng code - `delete_project` xoá kèm trong CÙNG transaction.
+CREATE TABLE IF NOT EXISTS project_files (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    pinned     INTEGER NOT NULL DEFAULT 0,
+    added_at   REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_links (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    label      TEXT,
+    pinned     INTEGER NOT NULL DEFAULT 0,
+    added_at   REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_brain   ON sessions(brain, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, ts);
 CREATE INDEX IF NOT EXISTS idx_projects_brain   ON projects(brain, updated_at DESC);
+-- Thứ tự index khớp ĐÚNG thứ tự đọc ra (ghim lên đầu, mới nhất trước) để khỏi sort lại.
+CREATE INDEX IF NOT EXISTS idx_pf_project ON project_files(project_id, pinned DESC, added_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pl_project ON project_links(project_id, pinned DESC, added_at DESC);
 """
 
 # FTS5 mirror giữ đồng bộ qua trigger (shape port từ hermes_state.py:738-761).
@@ -212,6 +239,12 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
         return "File đính kèm"
     return ""
 
+
+# Trần hướng dẫn của một project. Khối này ghép vào system prompt của MỌI lượt chat trong
+# project đó, y như CLAUDE.md và MEMORY.md - nên nó là chi phí LẶP LẠI, không phải chi phí một
+# lần. 4000 ký tự đủ cho một bản brief tông giọng/màu sắc/luật riêng, và đủ hẹp để một project
+# không âm thầm nuốt ngân sách token của mọi câu hỏi trong đó.
+PROJECT_INSTRUCTIONS_MAX = 4000
 
 # Tên icon Lucide: chữ thường, số và gạch nối (vd "message-circle"). Cột `projects.icon` lưu
 # TÊN icon chứ không phải ký tự emoji: icon Lucide tự đổi màu theo tông sáng/tối và vẽ giống
@@ -328,6 +361,13 @@ class SessionStore:
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_sessions_project "
                 "ON sessions(project_id, updated_at DESC)")
+            # Hướng dẫn riêng của project, ghép vào system prompt mỗi lượt chat trong đó.
+            cols_p = {r[1] for r in self._conn.execute(
+                "PRAGMA table_info(projects)").fetchall()}
+            for name, ddl in (("instructions", "TEXT"),):
+                if name not in cols_p:
+                    self._conn.execute(
+                        f"ALTER TABLE projects ADD COLUMN {name} {ddl}")
             if self._probe_fts5():
                 try:
                     self._conn.executescript(_FTS_SQL)
@@ -560,7 +600,12 @@ class SessionStore:
         rows = self._read(
             f"""
             SELECT p.id, p.name, p.icon, p.brain, p.created_at, p.updated_at,
-                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS session_count
+                   (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS session_count,
+                   (SELECT COUNT(*) FROM project_files f WHERE f.project_id = p.id) AS file_count,
+                   (SELECT COUNT(*) FROM project_links l WHERE l.project_id = p.id) AS link_count,
+                   -- Chỉ CÓ hay KHÔNG, không kéo cả 4000 ký tự về cho một danh sách bên trái.
+                   (CASE WHEN COALESCE(TRIM(p.instructions), '') <> '' THEN 1 ELSE 0 END)
+                       AS has_instructions
             FROM projects p
             {where_sql}
             ORDER BY p.updated_at DESC
@@ -573,9 +618,28 @@ class SessionStore:
         rows = self._read("SELECT * FROM projects WHERE id = ?", (project_id,))
         return dict(rows[0]) if rows else None
 
+    def get_project_full(self, project_id: str) -> Optional[Dict[str, Any]]:
+        """Project kèm hướng dẫn + danh sách file + link. Chỉ dùng khi MỞ khung project.
+
+        Tách khỏi `list_projects` là cố ý: danh sách ở cột bên trái vẽ lại mỗi lần đổi brain,
+        đổi bộ lọc, tạo hội thoại - kéo theo hướng dẫn 4000 ký tự của từng project mỗi lượt là
+        trả giá cho thứ không ai nhìn. Ở đó chỉ cần hai con số đếm.
+        """
+        p = self.get_project(project_id)
+        if not p:
+            return None
+        p["files"] = [dict(r) for r in self._read(
+            "SELECT id, path, name, pinned, added_at FROM project_files "
+            "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC", (project_id,))]
+        p["links"] = [dict(r) for r in self._read(
+            "SELECT id, url, label, pinned, added_at FROM project_links "
+            "WHERE project_id = ? ORDER BY pinned DESC, added_at DESC", (project_id,))]
+        return p
+
     def update_project(self, project_id: str, *, name: Optional[str] = None,
-                       icon: Optional[str] = None) -> None:
-        """Đổi tên và/hoặc icon. Tham số None = không đụng tới; icon = "" là GỠ icon."""
+                       icon: Optional[str] = None,
+                       instructions: Optional[str] = None) -> None:
+        """Đổi tên, icon và/hoặc hướng dẫn. Tham số None = không đụng tới; "" là GỠ."""
         sets, params = [], []
         if name is not None:
             n = (name or "").strip()[:80]
@@ -585,6 +649,12 @@ class SessionStore:
         if icon is not None:
             sets.append("icon = ?")
             params.append(_sach_icon(icon))
+        if instructions is not None:
+            # Cắt NGAY LÚC LƯU, không chỉ lúc dựng prompt. Trần ở tầng prompt một mình thì kho
+            # vẫn phình theo mỗi lần gõ, và người dùng thấy chữ mình lưu được nhưng Javis lặng
+            # lẽ chỉ đọc một phần - kiểu hỏng không ai truy ra.
+            sets.append("instructions = ?")
+            params.append((instructions or "").strip()[:PROJECT_INSTRUCTIONS_MAX])
         if not sets:
             return
         sets.append("updated_at = ?")
@@ -603,9 +673,76 @@ class SessionStore:
             cur = conn.execute("UPDATE sessions SET project_id = NULL WHERE project_id = ?",
                                (project_id,))
             n = cur.rowcount or 0
+            # Tài liệu và link đi theo project (khác hội thoại - hội thoại chỉ bị gỡ nhãn).
+            # Chúng KHÔNG có nghĩa gì ngoài project, để lại là rác mồ côi. Xoá ở đây, trong
+            # CÙNG transaction, chứ không phải một lượt dọn riêng có thể không bao giờ chạy.
+            conn.execute("DELETE FROM project_files WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM project_links WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             return n
         return self._write(_do)
+
+    # ── tài liệu & link của project ──
+    #
+    # Xoá ở đây là GỠ KHỎI PROJECT, không đụng file trên đĩa. File nằm trong brain và có đời
+    # sống riêng; gỡ nhãn mà xoá luôn file thì một cú bấm nhầm mất dữ liệu thật.
+
+    def add_project_file(self, project_id: str, path: str, name: str = "") -> Optional[str]:
+        """Gắn một file có sẵn trong brain vào project. Trùng đường dẫn thì KHÔNG thêm lần hai.
+
+        Đường dẫn phải được caller kiểm bằng rào path của brain TRƯỚC khi gọi (xem
+        `main._safe_path`): kho này không biết brain nào, và không được đoán.
+        """
+        rel = (path or "").strip()
+        if not rel:
+            return None
+        cu = self._read("SELECT id FROM project_files WHERE project_id = ? AND path = ?",
+                        (project_id, rel))
+        if cu:
+            return str(cu[0]["id"])
+        fid = uuid.uuid4().hex
+        ten = (name or "").strip() or rel.replace("\\", "/").split("/")[-1]
+        self._write(lambda c: c.execute(
+            "INSERT INTO project_files (id, project_id, path, name, pinned, added_at) "
+            "VALUES (?, ?, ?, ?, 0, ?)", (fid, project_id, rel, ten[:160], time.time())))
+        return fid
+
+    def remove_project_file(self, project_id: str, file_id: str) -> bool:
+        # Kèm project_id trong WHERE: id là uuid nên khó đụng, nhưng một route nhận id từ
+        # client thì không được phép xoá bản ghi của project khác chỉ vì đoán trúng id.
+        return bool(self._write(lambda c: c.execute(
+            "DELETE FROM project_files WHERE id = ? AND project_id = ?",
+            (file_id, project_id))).rowcount)
+
+    def set_project_file_pinned(self, project_id: str, file_id: str, pinned: bool) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "UPDATE project_files SET pinned = ? WHERE id = ? AND project_id = ?",
+            (1 if pinned else 0, file_id, project_id))).rowcount)
+
+    def add_project_link(self, project_id: str, url: str, label: str = "") -> Optional[str]:
+        u = (url or "").strip()
+        if not u:
+            return None
+        cu = self._read("SELECT id FROM project_links WHERE project_id = ? AND url = ?",
+                        (project_id, u))
+        if cu:
+            return str(cu[0]["id"])
+        lid = uuid.uuid4().hex
+        self._write(lambda c: c.execute(
+            "INSERT INTO project_links (id, project_id, url, label, pinned, added_at) "
+            "VALUES (?, ?, ?, ?, 0, ?)",
+            (lid, project_id, u[:2000], (label or "").strip()[:160], time.time())))
+        return lid
+
+    def remove_project_link(self, project_id: str, link_id: str) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "DELETE FROM project_links WHERE id = ? AND project_id = ?",
+            (link_id, project_id))).rowcount)
+
+    def set_project_link_pinned(self, project_id: str, link_id: str, pinned: bool) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "UPDATE project_links SET pinned = ? WHERE id = ? AND project_id = ?",
+            (1 if pinned else 0, link_id, project_id))).rowcount)
 
     def rename(self, session_id: str, title: str) -> None:
         self._write(lambda c: c.execute(

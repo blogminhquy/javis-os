@@ -10478,13 +10478,108 @@ async def projects_create(name: str = Form(...), icon: str = Form(""),
     return {"ok": True, "id": pid}
 
 
+@app.get("/projects/{project_id}")
+async def projects_get(project_id: str):
+    """Project ĐẦY ĐỦ: hướng dẫn + danh sách file + link. Chỉ gọi khi mở khung project.
+
+    Route riêng chứ không nhồi vào `GET /projects`: danh sách bên trái vẽ lại mỗi lần đổi
+    brain/bộ lọc/tạo hội thoại, kéo theo hướng dẫn của từng project mỗi lượt là trả giá cho
+    thứ không ai nhìn. Ở đó chỉ cần `file_count`/`link_count`/`has_instructions`.
+    """
+    p = get_store().get_project_full(project_id)
+    if not p:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"ok": True, "project": p}
+
+
 @app.post("/projects/{project_id}/update")
-async def projects_update(project_id: str, name: str = Form(None), icon: str = Form(None)):
+async def projects_update(project_id: str, name: str = Form(None), icon: str = Form(None),
+                          instructions: str = Form(None)):
     store = get_store()
     if not store.get_project(project_id):
         return JSONResponse({"error": "not found"}, status_code=404)
-    store.update_project(project_id, name=name, icon=icon)
+    store.update_project(project_id, name=name, icon=icon, instructions=instructions)
     return {"ok": True}
+
+
+# ── Tài liệu & link của project ───────────────────────────────────────────────
+#
+# Brain LẤY TỪ PROJECT (`p["brain"]`), tuyệt đối không nhận từ client. Project thuộc đúng một
+# brain, và đường dẫn file chỉ có nghĩa trong brain đó; cho client khai brain là mở đường cho
+# một project trỏ sang file của brain khác - phá đúng cái rào `_safe_path` đang giữ.
+
+def _proj_or_404(project_id: str):
+    p = get_store().get_project(project_id)
+    return p, (None if p else JSONResponse({"error": "not found"}, status_code=404))
+
+
+@app.post("/projects/{project_id}/files")
+async def projects_add_file(project_id: str, path: str = Form(...), name: str = Form("")):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    try:
+        # Kiểm đường dẫn TRƯỚC khi ghi DB. Kho không biết brain nào nên không tự kiểm được;
+        # bỏ bước này là lưu được một path trèo ra ngoài brain rồi mới vỡ lúc đọc.
+        alo = _safe_path(p.get("brain") or "brain", path)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if not alo.exists():
+        return JSONResponse({"error": "Không tìm thấy file trong brain này"}, status_code=404)
+    fid = get_store().add_project_file(project_id, path, name or alo.name)
+    if not fid:
+        return JSONResponse({"error": "thiếu đường dẫn"}, status_code=400)
+    return {"ok": True, "id": fid}
+
+
+@app.post("/projects/{project_id}/files/{file_id}/delete")
+async def projects_del_file(project_id: str, file_id: str):
+    """GỠ KHỎI PROJECT, KHÔNG xoá file trên đĩa. File nằm trong brain và có đời sống riêng."""
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    return {"ok": get_store().remove_project_file(project_id, file_id)}
+
+
+@app.post("/projects/{project_id}/files/{file_id}/pin")
+async def projects_pin_file(project_id: str, file_id: str, pinned: str = Form("1")):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    return {"ok": get_store().set_project_file_pinned(project_id, file_id, on), "pinned": on}
+
+
+@app.post("/projects/{project_id}/links")
+async def projects_add_link(project_id: str, url: str = Form(...), label: str = Form("")):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    u = (url or "").strip()
+    # Chỉ nhận http/https. Không rào thì `javascript:` hay `file:` lọt vào danh sách rồi hiện
+    # thành liên kết bấm được ngay trong giao diện.
+    if not re.match(r"^https?://", u, re.I):
+        return JSONResponse({"error": "URL phải bắt đầu bằng http:// hoặc https://"},
+                            status_code=400)
+    lid = get_store().add_project_link(project_id, u, label)
+    return {"ok": True, "id": lid}
+
+
+@app.post("/projects/{project_id}/links/{link_id}/delete")
+async def projects_del_link(project_id: str, link_id: str):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    return {"ok": get_store().remove_project_link(project_id, link_id)}
+
+
+@app.post("/projects/{project_id}/links/{link_id}/pin")
+async def projects_pin_link(project_id: str, link_id: str, pinned: str = Form("1")):
+    p, err = _proj_or_404(project_id)
+    if err:
+        return err
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    return {"ok": get_store().set_project_link_pinned(project_id, link_id, on), "pinned": on}
 
 
 @app.post("/projects/{project_id}/delete")
