@@ -201,6 +201,113 @@ check("lý do chặn nói rõ VIỆC PHẢI LÀM chứ không nói 'mode=full'",
 check("và nói luôn lối thoát thứ hai: xoá nếu đã xử lý trong chat",
       "xoá khỏi bảng" in tasks_mod.LY_DO_CAN_QUYEN.lower())
 
+# ============================================================
+# 4. Gom chuông: một chùm việc kẹt = MỘT tin, không phải năm tiếng chuông
+# ============================================================
+# Điều phối lấy việc ra chạy theo lô nên việc kẹt hay kẹt thành chùm trong cùng một phút. Mỗi
+# việc một tiếng chuông là kể lại cùng một sự kiện năm lần, và người đang chat bị ngắt năm lần
+# (chủ repo báo 01/09, kèm ảnh hòm thư đầy chữ "bị chặn, cần bạn xem").
+_da_bao = []
+
+
+async def _bao_ghi(chat_id, text, quiet=False):
+    _da_bao.append({"chat": chat_id, "text": text, "quiet": quiet})
+    return True
+
+
+feat.deps.report = _bao_ghi
+tasks_mod.BAO_GOM_GIAY = 0.15      # rút cho test; đời thật là 120 giây
+
+
+def _kep(t, chat_id):
+    """Bản ghi việc kẹt tối thiểu, đúng hình dạng `_report` nhận."""
+    return {"id": "x", "title": t, "status": "blocked", "chat_id": chat_id,
+            "block_reason": "Việc này cần thao tác THẬT ra ngoài", "block_kind": "capability"}
+
+
+async def _thu_gom():
+    _da_bao.clear()
+    await feat._report(_kep("Gửi báo cáo", "web:abc"))
+    await feat._report(_kep("Đăng bài Facebook", "web:abc"))
+    await feat._report(_kep("Tạo đơn hàng", "web:abc"))
+    ngay = list(_da_bao)
+    await asyncio.sleep(0.4)
+    return ngay, list(_da_bao)
+
+
+_ngay, _sau = asyncio.new_event_loop().run_until_complete(_thu_gom())
+check("ba việc kẹt liền nhau KHÔNG bắn ngay ba tin", _ngay == [], _ngay)
+check("mà gộp thành ĐÚNG MỘT tin", len(_sau) == 1, _sau)
+check("tin đó đếm đúng số việc", "3 việc đang chờ bạn xử lý" in _sau[0]["text"], _sau[0]["text"])
+check("và kể tên cả ba để biết là việc nào",
+      all(x in _sau[0]["text"] for x in ("Gửi báo cáo", "Đăng bài Facebook", "Tạo đơn hàng")),
+      _sau[0]["text"])
+check("tin gộp vẫn KÊU (đây là thứ cần người ra tay)", _sau[0]["quiet"] is False)
+
+
+async def _thu_mot():
+    _da_bao.clear()
+    await feat._report(_kep("Chỉ một việc", "web:abc"))
+    await asyncio.sleep(0.4)
+    return list(_da_bao)
+
+
+_mot = asyncio.new_event_loop().run_until_complete(_thu_mot())
+# Một việc mà cũng in ra "1 việc đang chờ bạn xử lý:" rồi gạch đầu dòng là làm câu văn xấu đi
+# để phục vụ một cái khung không cần thiết.
+check("chỉ MỘT việc kẹt thì giữ nguyên câu cũ, không biến thành danh sách",
+      len(_mot) == 1 and _mot[0]["text"].startswith("⚠ Việc 'Chỉ một việc' bị chặn"), _mot)
+check("và vẫn nói lý do", "Lý do:" in _mot[0]["text"], _mot[0]["text"])
+
+
+async def _thu_hai_kenh():
+    _da_bao.clear()
+    await feat._report(_kep("Của người A", "web:aaa"))
+    await feat._report(_kep("Của người B", "web:bbb"))
+    await asyncio.sleep(0.4)
+    return list(_da_bao)
+
+
+_hai = asyncio.new_event_loop().run_until_complete(_thu_hai_kenh())
+check("hai người nhận khác nhau KHÔNG bị trộn vào một tin", len(_hai) == 2, _hai)
+_map = {b["chat"]: b["text"] for b in _hai}
+check("mỗi người chỉ nhận việc của mình",
+      "Của người A" in _map.get("web:aaa", "") and "Của người A" not in _map.get("web:bbb", ""),
+      _map)
+
+
+async def _thu_khac_trang_thai():
+    _da_bao.clear()
+    await feat._report({"id": "y", "title": "Xong rồi", "status": "done", "chat_id": "web:abc",
+                        "result": "kết quả"})
+    await feat._report({"id": "z", "title": "Chờ duyệt", "status": "review", "chat_id": "web:abc",
+                        "result": "kết quả"})
+    return list(_da_bao)
+
+
+_khac = asyncio.new_event_loop().run_until_complete(_thu_khac_trang_thai())
+check("việc XONG vẫn báo ngay và báo lặng", any(b["quiet"] and "Xong rồi" in b["text"] for b in _khac),
+      _khac)
+# `review` mang theo KẾT QUẢ người dùng cần đọc; nhét vào danh sách gạch đầu dòng là làm hỏng
+# đúng thứ đáng đọc. Nên nó cố ý KHÔNG đi đường gom.
+check("việc CHỜ DUYỆT vẫn báo ngay, không bị gom",
+      any(not b["quiet"] and "Chờ duyệt" in b["text"] for b in _khac), _khac)
+
+
+async def _thu_tat_may():
+    _da_bao.clear()
+    await feat._report(_kep("Kẹt lúc sắp tắt", "web:abc"))
+    await feat.xa_het_bao()          # tắt server trước khi hẹn giờ kịp nổ
+    return list(_da_bao)
+
+
+_tat = asyncio.new_event_loop().run_until_complete(_thu_tat_may())
+check("tắt server thì rổ còn treo được bắn nốt, không nuốt mất",
+      len(_tat) == 1 and "Kẹt lúc sắp tắt" in _tat[0]["text"], _tat)
+
+check("CANARY: cửa gom nằm ở nhánh blocked của _report",
+      'if status == "blocked":\n            await self._gom_bao(task)' in _src)
+
 print()
 if _fails:
     print(f"FAIL {len(_fails)}: " + "; ".join(_fails))
