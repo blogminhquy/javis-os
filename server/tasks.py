@@ -18,6 +18,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -798,13 +799,23 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             if head:
                 parts.append(head)
         parts.append("Xem chi tiết ở trang Việc.")
+        # Việc chạy xong TRÓT LỌT thì báo LẶNG: kết quả vẫn rơi vào khung chat đã giao việc và
+        # vẫn vào hòm thư, nhưng không nổi chấm đỏ trên chuông và không rung thông báo đẩy.
+        # Chỉ `blocked` (kẹt, cần gỡ) và `review` (chờ duyệt) mới kêu, vì đó là thứ CẦN người
+        # dùng ra tay. Chủ repo chốt 01/09/2026: đang chat mà chuông kêu liên hồi vì mấy việc
+        # nền tự chạy xong là phiền, trong khi anh đã thấy kết quả ngay trong khung chat rồi.
         try:
             await self.deps.report(
                 task.get("chat_id", ""),
                 channel_context.strip_control_blocks("\n\n".join(parts)),
+                quiet=(status == "done"),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            # KHÔNG nuốt im: đây là đường DUY NHẤT để kết quả việc nền quay về với người dùng,
+            # nuốt lỗi ở đây là việc chạy xong mà không ai biết - đúng lỗi mà hòm thư sinh ra
+            # để chấm dứt. Vẫn không ném lên (một cái báo hỏng không được kéo theo cả worker).
+            print(f"[kanban] báo kết quả việc {task.get('id', '')} lỗi: "
+                  f"{type(e).__name__}: {e}", file=sys.stderr)
 
     # ------------------------------------------------------------------
     # Views and operator API

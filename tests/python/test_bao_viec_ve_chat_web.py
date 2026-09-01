@@ -98,6 +98,31 @@ async def _run():
     ok5, err5 = await main._notify_owner("", "hòm thư đỡ")
     check("hòm thư đỡ được lượt báo khi không có kênh nào", ok5 is True and err5 == "")
 
+    # ─── Báo LẶNG (0.52.7): việc chạy xong trót lọt thì đừng gọi người dùng dậy ───
+    # Chủ repo chốt 01/09/2026 sau khi chuông kêu liên hồi giữa lúc đang chat. Ranh giới:
+    # chỉ việc BỊ CHẶN / CHỜ DUYỆT mới kêu, vì đó là thứ cần anh ra tay. Việc xong thì kết
+    # quả vẫn phải đi qua kênh và vẫn phải vào hòm - chỉ là vào ở dạng ĐÃ ĐỌC.
+    import inbox as inbox_mod
+
+    truoc = inbox_mod.so_chua_doc()
+    ok6, _ = await main._notify_owner(main.WEB_CHAT_PREFIX + SID, "✅ Việc 'Lấy bảng giá' đã xong.",
+                                      quiet=True)
+    check("báo lặng vẫn tính là đã tới người dùng", ok6 is True)
+    check("báo lặng KHÔNG cộng thêm số chưa đọc (chuông không nổi chấm đỏ)",
+          inbox_mod.so_chua_doc() == truoc)
+    thu = inbox_mod.danh_sach(5)
+    check("nhưng thư VẪN nằm trong hòm để mở ra xem lại",
+          bool(thu) and "Lấy bảng giá" in (thu[0].get("body") or ""))
+    check("và thư đó được đánh dấu đã đọc sẵn", bool(thu) and thu[0].get("read") is True)
+    check("nội dung vẫn rơi vào ĐÚNG khung chat đã giao việc",
+          any("Lấy bảng giá" in (m.get("content") or "") for m in store.get_messages(SID)))
+
+    # Ngược lại: mặc định (việc kẹt / chờ duyệt) phải KÊU như cũ. Đây là vế dễ mất nhất khi
+    # ai đó sau này đổi mặc định của `quiet` cho gọn.
+    truoc2 = inbox_mod.so_chua_doc()
+    await main._notify_owner(main.WEB_CHAT_PREFIX + SID, "⚠ Việc 'Ramp ngân sách' bị chặn.")
+    check("việc kẹt VẪN cộng số chưa đọc (vẫn kêu)", inbox_mod.so_chua_doc() == truoc2 + 1)
+
 
 asyncio.run(_run())
 

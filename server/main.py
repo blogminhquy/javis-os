@@ -7017,7 +7017,8 @@ async def _zalo_send_to(chat_id, text) -> tuple:
 _PUSH_TASKS = set()   # giữ tham chiếu task đẩy đang bay (xem chú thích trong _bo_vao_hom_thu)
 
 
-async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="") -> bool:
+async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
+                          quiet=False) -> bool:
     """Để lại MỘT mẩu thư cho mọi kết quả chạy nền, rồi rung chuông đẩy nếu có đăng ký.
 
     Vì sao đặt ở đây chứ không ở từng nơi sinh việc: `_notify_owner` là CỬA DUY NHẤT mà
@@ -7032,7 +7033,8 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     try:
         cid = str(owner_chat or "").strip()
         sid = cid[len(WEB_CHAT_PREFIX):] if cid.startswith(WEB_CHAT_PREFIX) else ""
-        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label)
+        item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label,
+                         read=bool(quiet))
     except Exception as e:
         print(f"[inbox] bỏ thư lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         return False
@@ -7042,6 +7044,12 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
         await _CHAT_RUNTIME.publish({"type": "inbox", "session_id": item["session_id"]})
     except Exception as e:
         print(f"[inbox] bắn WebSocket lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+    if quiet:
+        # Tin lặng: đã vào hòm ở dạng ĐÃ ĐỌC nên chuông không nổi chấm đỏ, và cũng không
+        # rung thông báo đẩy. Nội dung thì người dùng đã thấy rồi - nó vừa rơi thẳng vào
+        # khung chat đã giao việc. Vẫn bắn WebSocket ở trên để danh sách chuông đang mở
+        # hiện thêm mẩu này ngay, chỉ là không kêu.
+        return True
     try:
         # Bấm vào thông báo đẩy phải về ĐÚNG chỗ nội dung nằm: hội thoại đã hỏi nếu có,
         # còn không thì mở hòm thư. Không có tham số này thì push chỉ mở trang chủ, và
@@ -7059,7 +7067,8 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     return True
 
 
-async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="") -> tuple:
+async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
+                        quiet=False) -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -7076,10 +7085,15 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="")
     kết quả không còn phụ thuộc vào chuyện người dùng có đang mở đúng hội thoại đó không,
     hay có đấu Telegram hay không.
 
+    `quiet=True` vẫn gửi qua kênh như thường (kết quả vẫn rơi vào khung chat đã giao việc),
+    chỉ bỏ hai thứ GỌI người dùng dậy: chấm đỏ trên chuông và thông báo đẩy của trình duyệt.
+    Dành cho tin đáng lưu mà không đáng làm phiền - xem `_bo_vao_hom_thu` và `TaskRunner._report`.
+
     Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
     server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
-    vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source)
+    vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source,
+                                    quiet=quiet)
     ok, err = await _gui_qua_kenh(owner_chat, text)
     if ok or not vao_hom:
         return ok, ("" if ok else err)
