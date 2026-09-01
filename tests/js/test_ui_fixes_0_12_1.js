@@ -56,11 +56,9 @@ check("thanh nut xuong dong duoc thay vi tran ra ngoai",
 // ---- 3. Doi model phai dong bo moi cho hien thi ----
 check("co ham lam moi dung chung", CONSOLE.indexOf("function refreshModelUi()") !== -1);
 check("lam moi thanh chon model", CONSOLE.indexOf("window.initModelBar") !== -1);
-check("lam moi badge engine", CONSOLE.indexOf("window.refreshEngineBadge") !== -1);
-// Goi tu console.js chi chay neu app.js CO xuat ra window - thieu buoc nay la truot im lang,
-// dung ho loi "code dung ma khong noi duoc" da lap lai nhieu lan.
-check("app.js THAT SU xuat refreshEngineBadge ra window",
-  APP.indexOf("window.refreshEngineBadge = refreshEngineBadge") !== -1);
+// Phep thu "lam moi badge engine" DA BO o 0.52.13 cung luc bo badge engine+model o dau khung
+// hoi thoai. Doi model van phai dong bo hai cho con lai (thanh chon model + trang Models); mot
+// canary tro vao ham da xoa thi khong canh gi ca, chi do cho vui.
 
 const saveStart = CONSOLE.indexOf("async function saveSetting(section, dataObj)");
 const saveEnd = CONSOLE.indexOf("\n  // Đồng bộ mọi chỗ", saveStart);

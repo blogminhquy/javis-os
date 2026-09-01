@@ -1918,6 +1918,54 @@ document.addEventListener("click", resumeAudio, { once: true });
 document.addEventListener("keydown", resumeAudio, { once: true });
 
 
+// Một dòng nhỏ dưới câu trả lời: lượt này chạy ở chế độ nào, và tốn bao nhiêu
+// token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn
+// mức, tức là đã muộn. Thấy được thì người dùng tự biết mức vừa bật có ăn thật hay không.
+// Tên NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người viết
+// code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn khi
+// bấm "Tắt" - gọi nó là "cũ" vừa nghe như đang xin lỗi, vừa làm người ta tưởng máy đang hỏng.
+// Tên ở đây khớp tên nút bên trang Mức dùng để nhìn một dòng là biết mình đang ở đâu.
+const CTX_PATH_LABEL = {
+  legacy: "Đầy đủ", sources: "Tối ưu", fast: "Tức thì",
+  readonly: "Tra cứu", orchestrator: "Tra cứu sâu", write: "Thực thi",
+  workflow: "Quy trình",
+  // Bot chuyên trách vốn nhẹ hơn cả mức Siêu tiết kiệm (không CLAUDE.md, không MEMORY.md,
+  // không đặc tả tool) nên nó có tên riêng - gộp vào "Đầy đủ" là nói ngược hẳn sự thật.
+  bot: "Bot chuyên trách",
+};
+function _renderCtxLine(msgEl, data) {
+  if (!msgEl || !data || !data.ctx_path) return;
+  const cu = data.ctx_path === "legacy";
+  const ten = CTX_PATH_LABEL[data.ctx_path] || data.ctx_path;
+  const tok = Number(data.ctx_in) || 0;
+  const old = msgEl.querySelector(".msg-ctx");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.className = "msg-ctx" + (cu ? "" : " saved");
+  // Bấm vào là sang trang Mức dùng, nơi có khối chọn mức ngay đầu trang - thấy chế độ đang
+  // chạy mà không biết chỉnh ở đâu thì thông tin đó cũng chỉ để bực mình.
+  el.dataset.usageGoto = "usage";
+  el.title = cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
+                : "Đang tiết kiệm token. Bấm để xem chi tiết.";
+  el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token" : "");
+  msgEl.appendChild(el);
+}
+
+async function refreshTgStatus() {
+  const el = document.getElementById("setTgStatus");
+  if (!el) return;
+  try {
+    const s = await (await fetch("/telegram/status")).json();
+    if (!s.enabled) el.innerHTML = ic("circle", { cls: "ic-fill ic-dim" }) + " Tắt";
+    else if (!s.token_set) el.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Đã bật nhưng chưa có token";
+    else el.innerHTML = s.running ? ic("circle", { cls: "ic-fill ic-ok" }) + " Đang chạy" + (s.chat_id ? " · chỉ chat_id " + s.chat_id : " · MỌI người (nên đặt chat_id)") : ic("loader") + " Chưa chạy (lưu lại)";
+    // Menu lệnh "/" đặt hụt: bot vẫn chạy nên mọi thứ ở trên vẫn xanh, chỉ là gõ "/" trong
+    // Telegram không sổ ra danh sách lệnh. Không nói ra thì không ai đoán được vì sao.
+    if (s.loi_menu_lenh) el.innerHTML += '<div class="set-note">' + ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(s.loi_menu_lenh) + "</div>";
+  } catch (e) { el.textContent = ""; }
+}
+
+
 // ============================================
 // Mức dùng (token Javis tự đo, đa nhà cung cấp) - panel sidebar
 // ============================================
