@@ -43,6 +43,13 @@ WORKER_TIMEOUT_SECONDS = 900
 ARCHIVE_TERMINAL_AFTER_DAYS = 3.0
 CAPABILITIES = {"auto", "files", "research", "mcp-read", "code", "external-write"}
 EXECUTION_MODES = {"suggest", "auto", "full"}
+# Gom thông báo việc KẸT: chờ ngần này giây kể từ việc kẹt đầu tiên rồi mới bắn MỘT tin cho
+# cả chùm. Điều phối lấy việc ra chạy theo lô nên việc kẹt hay kẹt thành chùm trong cùng một
+# phút; mỗi việc một tiếng chuông là kể lại cùng một sự kiện năm lần. 120 giây đủ rộng để hứng
+# trọn một lô, và vẫn đủ hẹp để việc kẹt lúc 9h không bị dính chung tin với việc kẹt lúc 15h.
+BAO_GOM_GIAY = 120
+BAO_GOM_LIET_KE = 5      # số việc liệt kê tên trong tin gộp, phần còn lại đếm gọn
+
 # Thang quyền từ nhẹ tới nặng. Có thứ tự mới KẸP TRẦN được: specifier chỉ được HẠ mức, không
 # bao giờ được nâng lên trên mức đã chốt lúc tạo việc. Xem `_kep_quyen`.
 MODE_RANK = ("suggest", "auto", "full")
@@ -87,6 +94,9 @@ class TasksFeature:
         self._wake = asyncio.Event()
         self._closing = False
         self._snap_locks: dict[str, asyncio.Lock] = {}
+        # Rổ gom thông báo việc KẸT, theo TỪNG người nhận (xem `_gom_bao`).
+        self._ro_bao: dict[str, list[dict]] = {}
+        self._hen_bao: dict[str, asyncio.Task] = {}
         self.router = self._make_router()
 
     # ------------------------------------------------------------------
@@ -230,6 +240,10 @@ class TasksFeature:
     async def shutdown(self) -> None:
         self._closing = True
         self._wake.set()
+        try:
+            await self.xa_het_bao()   # việc kẹt còn treo trong rổ: bắn nốt, đừng nuốt
+        except Exception as e:
+            print(f"[kanban] xả rổ báo lúc tắt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         if self._dispatcher_task:
             self._dispatcher_task.cancel()
         for task in list(self._workers.values()):
@@ -817,10 +831,79 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                     continue
         return artifacts[:50]
 
+    async def _gom_bao(self, task: dict) -> None:
+        """Xếp một việc BỊ CHẶN vào rổ chờ, rồi hẹn giờ bắn MỘT tin cho cả rổ.
+
+        Vì sao gom (chủ repo báo 01/09, kèm ảnh hòm thư đầy chữ "bị chặn, cần bạn xem"): điều
+        phối lấy việc ra chạy theo lô, nên việc kẹt hay kẹt thành CHÙM - vài việc liền nhau
+        trong cùng một phút. Mỗi việc một tiếng chuông thì cùng một sự kiện ("hàng đợi đang
+        kẹt") bị kể lại năm lần, và người đang chat bị ngắt năm lần.
+
+        Cố ý CHỈ gom nhánh `blocked`. `review` là việc đã làm xong đang chờ duyệt, tin của nó
+        mang theo kết quả người dùng cần đọc; nhét vào một danh sách gạch đầu dòng là làm hỏng
+        đúng thứ đáng đọc. `done` thì vốn đã báo lặng từ trước.
+
+        Gom theo TỪNG người nhận: hai việc của hai kênh khác nhau không được trộn vào một tin.
+        """
+        chat_id = str(task.get("chat_id") or "")
+        self._ro_bao.setdefault(chat_id, []).append({
+            "title": str(task.get("title") or ""),
+            "reason": str(task.get("block_reason") or task.get("block_kind") or "").strip(),
+        })
+        cu = self._hen_bao.get(chat_id)
+        if cu and not cu.done():
+            return       # đã có hẹn cho rổ này - việc vừa rơi vào sẽ đi chung chuyến đó
+        self._hen_bao[chat_id] = asyncio.ensure_future(self._xa_bao_sau(chat_id))
+
+    async def _xa_bao_sau(self, chat_id: str) -> None:
+        try:
+            await asyncio.sleep(BAO_GOM_GIAY)
+        except asyncio.CancelledError:
+            pass
+        await self._xa_bao(chat_id)
+
+    async def _xa_bao(self, chat_id: str) -> None:
+        """Bắn rổ đã gom. MỘT việc thì giữ nguyên câu cũ - đừng biến nó thành danh sách một dòng."""
+        items = self._ro_bao.pop(chat_id, [])
+        self._hen_bao.pop(chat_id, None)
+        if not items or not self.deps.report:
+            return
+        if len(items) == 1:
+            parts = [f"⚠ Việc '{items[0]['title']}' bị chặn, cần bạn xem.",
+                     "Lý do: " + (items[0]["reason"][:240] or "không rõ"),
+                     "Xem chi tiết ở trang Việc."]
+        else:
+            dong = [f"⚠ {len(items)} việc đang chờ bạn xử lý:"]
+            for it in items[:BAO_GOM_LIET_KE]:
+                dong.append(f"- {it['title']}: " + (it["reason"][:120] or "không rõ lý do"))
+            con = len(items) - BAO_GOM_LIET_KE
+            if con > 0:
+                dong.append(f"…và {con} việc nữa.")
+            dong.append("Xem chi tiết ở trang Việc.")
+            parts = dong
+        try:
+            await self.deps.report(
+                chat_id, channel_context.strip_control_blocks("\n\n".join(parts)), quiet=False)
+        except Exception as e:
+            print(f"[kanban] báo gộp việc kẹt lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+    async def xa_het_bao(self) -> None:
+        """Bắn hết mọi rổ còn treo. Gọi lúc tắt server - hẹn giờ chết theo tiến trình, không
+        xả ở đây là mấy việc kẹt cuối cùng im lặng biến mất."""
+        for cid in list(self._ro_bao):
+            hen = self._hen_bao.get(cid)
+            if hen and not hen.done():
+                hen.cancel()
+            self._hen_bao.pop(cid, None)
+            await self._xa_bao(cid)
+
     async def _report(self, task: dict) -> None:
         if not self.deps.report:
             return
         status = str(task.get("status") or "")
+        if status == "blocked":
+            await self._gom_bao(task)
+            return
         labels = {
             "review": "đã làm xong, cần duyệt ngoại lệ",
             "done": "đã hoàn thành",

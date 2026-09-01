@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.12] - 2026-09-01
+### Sửa lỗi
+- **Điện thoại: mở file để sửa không còn bị kẹt cứng cột Hội thoại/Thư mục.** Cột đó phủ kín màn hình mà không cách nào đóng, vì cả ba đường đóng cũ đều tắt đúng lúc đó. Nay có nền mờ, chạm ra ngoài là đóng, và mở file thì nó tự thu lại.
+
+### Cải thiện
+- **Nhiều việc kẹt cùng lúc chỉ báo MỘT tin**, kiểu "3 việc đang chờ bạn xử lý" kèm tên từng việc, thay vì rung chuông từng cái một. Việc kẹt lẻ tẻ vẫn báo như cũ.
+
 ## [0.52.11] - 2026-09-01
 ### Sửa lỗi
 - **Việc nền kẹt vì "cần thao tác ra ngoài" nay có lối ra.** Trước đây loại việc này bị chặn vĩnh viễn, bấm Thử lại thì chặn lại y hệt và kêu thêm một tiếng chuông. Giờ có nút **Cho phép chạy thật** ngay trên thẻ việc, và câu báo nói rõ bạn cần bấm gì.

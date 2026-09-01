@@ -5316,6 +5316,15 @@
       .chatpage-side{ position:absolute; left:0; top:0; bottom:0; z-index:6; width:min(84vw,300px);
         transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px var(--shadow-veil); background:var(--bg); }
       .chatpage.side-open .chatpage-side{ transform:none; }
+      /* NỀN MỜ. Ngăn kéo này trước đây mở ra mà không có nền, và đóng lại được đúng ba đường -
+         cả ba đều TẮT khi mở một file để sửa: nút bật/tắt nằm trên thanh tiêu đề thì bị chính
+         ngăn kéo (84vw) che, chạm vào khung chat thì khung chat đang bị ẩn nhường chỗ cho
+         trình sửa, còn chạm một dòng hội thoại thì đang ở tab Thư mục làm gì có dòng nào.
+         Kết quả: ngăn kéo dính cứng giữa màn hình, không cách nào đóng (chủ repo báo 01/09).
+         Nền mờ vừa nói cho mắt biết "chạm ra ngoài là đóng", vừa là chỗ hứng cú chạm đó.
+         z-index 5: trên nội dung, dưới chính ngăn kéo (6). */
+      .chatpage.side-open::before{ content:""; position:absolute; inset:0; z-index:5;
+        background:var(--scrim); }
       .chatpage-main{ padding:10px 12px 12px; }
     }`;
     const st = document.createElement("style"); st.id = "cp-css"; st.textContent = css; document.head.appendChild(st);
@@ -5392,6 +5401,13 @@
     into.appendChild(ed);
     const main = into.parentNode;
     if (main && main.classList) main.classList.add("edit-on");
+    // Màn hẹp: trình sửa vừa chiếm chỗ khung chat, mà ngăn kéo Hội thoại/Thư mục thì vẫn đang
+    // mở đè lên nó. Đóng ngay tại ĐÂY vì đây là chỗ MỌI đường mở file đi qua (bấm file trong
+    // cây, bấm [[wikilink]], bấm chip file đang ghim) - gắn ở từng handler là sót đường.
+    try {
+      const _cp = document.getElementById("chatPage");
+      if (_cp && window.matchMedia("(max-width: 860px)").matches) _cp.classList.remove("side-open");
+    } catch (e) {}
     return true;
   }
   function _returnNoteEditor() {
@@ -5540,6 +5556,11 @@
     // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
     el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
     slot.addEventListener("click", () => { if (isNar() && page.classList.contains("side-open")) page.classList.remove("side-open"); });
+    // Chạm NỀN MỜ (pseudo-element của chính .chatpage nên cú chạm rơi vào page) = đóng ngăn kéo.
+    // Đây là đường đóng DUY NHẤT còn sống khi trình sửa đang chiếm chỗ khung chat.
+    page.addEventListener("click", (e) => {
+      if (isNar() && e.target === page && page.classList.contains("side-open")) page.classList.remove("side-open");
+    });
     el.querySelector("#chatPageSide").addEventListener("click", (e) => {
       if (isNar() && e.target.closest(".cside-item")) page.classList.remove("side-open");
     });
