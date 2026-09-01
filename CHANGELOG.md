@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.0] - 2026-09-02
+### Thêm mới
+- **Chạy model AI ngay trên máy bạn.** Trang Models tách làm hai tab: **Cloud Model** như cũ, và **Model chạy trên máy** mới. Cài Ollama, điền địa chỉ, rồi tải model về dùng miễn phí và ngoại tuyến.
+- **Máy chạy Ollama không cần là máy chạy Javis.** Javis trên VPS mà Ollama ở máy để bàn nhà bạn vẫn dùng được - chỉ cần điền địa chỉ máy đó.
+- **Javis gợi ý tối đa 6 model vừa sức máy**, kèm lý do từng cái ("chạy trọn trong GPU, nhanh nhất" hay "phải bù bằng RAM nên chậm hơn"). Máy mạnh được mời model lớn, máy nhẹ chỉ thấy model chạy nổi.
+- Tải model có thanh tiến độ, huỷ giữa chừng được, và bấm tải lại là chạy tiếp từ chỗ dở chứ không tải lại từ đầu.
+
 ## [0.54.1] - 2026-09-01
 ### Sửa lỗi
 - **Nút xem file và link của đoạn chat giờ mới thật sự hiện ra.** Bản 0.54.0 vẽ nút xong rồi ghi đè mất nó ngay khi cuộc trò chuyện thuộc một project, mà đó lại là lúc hay dùng nhất.
