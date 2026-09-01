@@ -613,5 +613,11 @@
 
   "chat.att_zoom": "Bấm để xem phóng to",
   "chat.att_gone": "không còn xem lại được",
-  "chat.att_gone_hint": "File tạm đã được dọn sau vài ngày. Lúc gửi thì Javis vẫn đọc được ảnh, chỉ là ảnh không lưu lại lâu dài."
+  "chat.att_gone_hint": "File tạm đã được dọn sau vài ngày. Lúc gửi thì Javis vẫn đọc được ảnh, chỉ là ảnh không lưu lại lâu dài.",
+
+  "kanban.wipe": "Xoá tất cả",
+  "kanban.act_grant": "Cho phép chạy thật",
+  "kanban.confirm_grant": "Cấp toàn quyền cho việc này? Nó sẽ tự thao tác THẬT ra ngoài (gửi tin, đăng bài, tạo đơn, đổi dữ liệu ở dịch vụ khác) và những thao tác đó KHÔNG hoàn tác được.",
+  "kanban.confirm_wipe_attention": "Xoá tất cả việc đang chờ bạn xử lý khỏi bảng? Việc vẫn tra lại được, chỉ là không còn nằm ở đây nữa.",
+  "kanban.confirm_wipe_history": "Xoá hẳn toàn bộ lịch sử việc đã xong và đã huỷ? Không hoàn tác được."
 }

@@ -566,6 +566,77 @@ class TaskStore:
                 self._db.rollback()
                 raise
 
+    def archive_by_status(self, brain_root: str, statuses: tuple) -> int:
+        """Đẩy MỌI việc đang ở các trạng thái này sang `archived`. Trả số việc đã dọn.
+
+        Dùng cho nút "Xoá tất cả" của bảng Cần bạn xử lý. Cố ý ARCHIVE chứ không xoá hẳn -
+        giống hệt nút "Xoá khỏi bảng" của từng dòng, nên hai lối cùng một hậu quả và việc vẫn
+        tra lại được. Việc đang chạy KHÔNG bị đụng: xoá task trong lúc worker còn cầm là để
+        lại một worker mồ côi ghi vào bản ghi không còn tồn tại.
+        """
+        allowed = tuple(s for s in statuses if s in VALID_STATUS and s != "running")
+        if not allowed:
+            return 0
+        marks = ",".join("?" for _ in allowed)
+        with self._lock:
+            self._tx()
+            try:
+                rows = self._db.execute(
+                    f"SELECT id FROM tasks WHERE brain_root=? AND status IN ({marks})",
+                    (brain_root, *allowed),
+                ).fetchall()
+                ids = [str(r["id"]) for r in rows]
+                ts = now()
+                for tid in ids:
+                    self._db.execute(
+                        """UPDATE tasks SET status='archived', block_kind='', block_reason='',
+                           claimed_by='', claim_expires_at=0, current_run_id='', updated_at=?
+                           WHERE id=?""",
+                        (ts, tid),
+                    )
+                    self._event(tid, "operator_move", "-> archived: xoá tất cả")
+                self._db.commit()
+                return len(ids)
+            except Exception:
+                self._db.rollback()
+                raise
+
+    def grant_full(self, task_id: str, reason: str = "operator grant") -> bool:
+        """Chủ CẤP QUYỀN toàn quyền cho một việc rồi đưa nó chạy lại. Trả False nếu không được.
+
+        Đây là nửa còn thiếu của thiết kế cũ. Specifier được dặn thẳng trong prompt là gặp việc
+        cần thao tác ra ngoài thì "để kernel chặn và xin quyền" - nhưng chưa từng có đường nào
+        để XIN, nên việc nằm mãi ở cột Cần bạn xử lý với một câu tiếng máy, còn nút Thử lại thì
+        chạy lại đúng nhánh chặn ấy rồi chặn lại y hệt.
+
+        Ghi một sự kiện riêng (`operator_grant`) chứ không dùng chung `operator_move`: đây là
+        lần một con người mở khoá cho việc tự thao tác thật ra ngoài, thứ không hoàn tác được,
+        nên nó phải đọc ra được trong nhật ký vòng đời.
+        """
+        with self._lock:
+            self._tx()
+            try:
+                row = self._db.execute(
+                    "SELECT status FROM tasks WHERE id=?", (task_id,)
+                ).fetchone()
+                if not row or row["status"] == "running":
+                    self._db.rollback()
+                    return False
+                self._db.execute(
+                    """UPDATE tasks SET status='ready', execution_mode='full',
+                       block_kind='', block_reason='', attempts=0,
+                       claimed_by='', claim_expires_at=0, current_run_id='', updated_at=?
+                       WHERE id=?""",
+                    (now(), task_id),
+                )
+                self._event(task_id, "operator_grant",
+                            f"{row['status']} -> ready, mức quyền = full: {reason}")
+                self._db.commit()
+                return True
+            except Exception:
+                self._db.rollback()
+                raise
+
     def next_candidate(self, brain_root: str) -> Optional[dict]:
         with self._lock:
             row = self._db.execute(

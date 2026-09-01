@@ -613,5 +613,11 @@
 
   "chat.att_zoom": "Click to enlarge",
   "chat.att_gone": "no longer viewable",
-  "chat.att_gone_hint": "The temporary file was cleaned up after a few days. Javis did read the image when you sent it; it just is not kept long term."
+  "chat.att_gone_hint": "The temporary file was cleaned up after a few days. Javis did read the image when you sent it; it just is not kept long term.",
+
+  "kanban.wipe": "Clear all",
+  "kanban.act_grant": "Allow it to act",
+  "kanban.confirm_grant": "Grant this task full permission? It will take REAL actions outside (send messages, publish, create orders, change data in other services), and those cannot be undone.",
+  "kanban.confirm_wipe_attention": "Clear every task waiting on you from the board? They stay searchable, they just leave this panel.",
+  "kanban.confirm_wipe_history": "Permanently delete the whole history of finished and cancelled tasks? This cannot be undone."
 }

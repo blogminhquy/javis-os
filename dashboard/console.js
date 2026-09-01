@@ -964,10 +964,18 @@
     .kn-health{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:16px 0}
     .kn-kpi{padding:13px 14px;border:1px solid var(--hairline);border-radius:11px;background:var(--surface-1)}
     .kn-kpi b{display:block;font-size:22px;color:var(--text);margin-top:4px}.kn-kpi span{font-size:12px;color:var(--text3)}
-    .kn-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:14px;align-items:start}
+    /* MỘT cột. Trước đây là lưới 2 cột, và nó chống lại chính thứ nó bày ra: khu Cần bạn xử
+       lý nằm cột phải bị bóp còn ~1/3 bề ngang, nên mỗi việc kẹt phải cuộn trong một ô hẹp để
+       đọc hết lý do - trong khi hai khu bên trái thường trống trơn. Xếp dọc thì mọi khu đều
+       được cả bề ngang, và thứ tự đọc đúng thứ tự cần làm. */
+    .kn-layout{display:flex;flex-direction:column;gap:14px;align-items:stretch}
     .kn-panel{border:1px solid var(--hairline);border-radius:12px;background:rgba(255,255,255,.018);overflow:hidden}
     .kn-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
     .kn-panel-head b{font-size:14px;color:var(--text)}.kn-panel-head span{font-size:12px;color:var(--text3)}
+    .kn-panel-head .kn-head-right{display:flex;align-items:center;gap:10px}
+    .kn-wipe{background:none;border:none;padding:2px 4px;font:inherit;font-size:12px;color:var(--text3);
+      cursor:pointer;border-radius:6px;text-decoration:underline;text-underline-offset:2px}
+    .kn-wipe:hover{color:var(--red)}.kn-wipe[disabled]{opacity:.45;cursor:default;text-decoration:none}
     .kn-list{max-height:440px;overflow:auto}.kn-empty{padding:22px;text-align:center;color:var(--text3);font-size:13px}
     .kn-task{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.055);cursor:pointer;transition:.15s}
     .kn-task:last-child{border-bottom:none}.kn-task:hover{background:rgba(127,176,255,.055)}
@@ -981,7 +989,7 @@
     .kn-drawer{position:fixed;z-index:10001;top:0;right:0;width:min(520px,94vw);height:100vh;height:100dvh;background:var(--bg2);border-left:1px solid rgba(127,176,255,.25);box-shadow:-20px 0 60px rgba(0,0,0,.45);transform:translateX(105%);transition:transform .2s;display:flex;flex-direction:column}
     .kn-drawer.open{transform:translateX(0)}.kn-drawer-head{position:sticky;top:0;z-index:2;padding:12px 12px 12px 17px;border-bottom:1px solid var(--hairline);background:var(--bg2);display:flex;align-items:center;gap:10px}.kn-drawer-head b{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kn-drawer-head button{width:36px;height:36px;display:grid;place-items:center;background:rgba(255,255,255,.035);border:1px solid var(--hairline);border-radius:8px;color:var(--text2);font-size:22px;line-height:1;cursor:pointer}.kn-drawer-head button:hover{border-color:var(--link-ink);color:var(--text-hi)}
     .kn-drawer-body{padding:16px 17px;overflow:auto;color:var(--text2);font-size:13px;line-height:1.5}.kn-detail-block{margin-top:16px}.kn-detail-block h4{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:0 0 7px}.kn-event{padding:8px 0;border-bottom:1px solid var(--surface-2)}
-    @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-layout{grid-template-columns:1fr}.kn-list{max-height:none}}`;
+    @media(max-width:850px){.fm-search-tools{align-items:stretch}.fm-search{flex-basis:100%;max-width:none}.fm-search-meta{width:100%;min-width:0}.fm-search-kind{display:none}.kn-health{grid-template-columns:repeat(2,1fr)}.kn-list{max-height:none}}`;
     const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   }
 
@@ -2389,14 +2397,14 @@
         <div class="si-actions"><button class="s-btn" id="knSave">${esc(t("kanban.save"))}</button><button class="s-btn-ghost" id="knCancel">${esc(t("common.cancel"))}</button></div>
       </div>
       <div class="kn-layout" id="knOps">
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_active"))}</b><span id="knActiveCount">0 worker</span></div><div class="kn-list" id="knActive"></div></section>
-          <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_queue"))}</b><span id="knQueueCount">0 task</span></div><div class="kn-list" id="knQueue"></div></section>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <section class="kn-panel"><div class="kn-panel-head"><b style="color:var(--accent-ink)">${esc(t("kanban.kpi_attention"))}</b><span id="knAttentionCount">0 ${esc(t("kanban.exceptions"))}</span></div><div class="kn-list" id="knAttention"></div></section>
-          <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_history"))}</b><span>${esc(t("kanban.p_history_sub"))}</span></div><div class="kn-list" id="knHistory"></div></section>
-        </div>
+        <section class="kn-panel"><div class="kn-panel-head"><b style="color:var(--accent-ink)">${esc(t("kanban.kpi_attention"))}</b>
+          <span class="kn-head-right"><span id="knAttentionCount">0 ${esc(t("kanban.exceptions"))}</span>
+          <button class="kn-wipe" id="knWipeAttention" data-panel="attention">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knAttention"></div></section>
+        <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_active"))}</b><span id="knActiveCount">0 worker</span></div><div class="kn-list" id="knActive"></div></section>
+        <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_queue"))}</b><span id="knQueueCount">0 task</span></div><div class="kn-list" id="knQueue"></div></section>
+        <section class="kn-panel"><div class="kn-panel-head"><b>${esc(t("kanban.p_history"))}</b>
+          <span class="kn-head-right"><span>${esc(t("kanban.p_history_sub"))}</span>
+          <button class="kn-wipe" id="knWipeHistory" data-panel="history">${esc(t("kanban.wipe"))}</button></span></div><div class="kn-list" id="knHistory"></div></section>
       </div>
     </div>`;
 
@@ -2473,8 +2481,13 @@
 
     function taskActions(t) {
       const acts = [];
+      // Việc dừng lại vì CHƯA ĐƯỢC CẤP QUYỀN thao tác ra ngoài: nút đầu tiên phải là nút cấp
+      // quyền, và "Thử lại" thì BỎ ĐI. Thử lại ở đây chạy lại đúng nhánh chặn rồi chặn lại y
+      // hệt, kèm một tiếng chuông nữa - bày ra một cái nút không bao giờ dẫn tới đâu.
+      const canQuyen = t.status === "blocked" && t.block_kind === "capability";
+      if (canQuyen) acts.push(`<button data-act="grant" data-id="${esc(t.id)}">${esc(window.t("kanban.act_grant"))}</button>`);
       if (t.status === "review") acts.push(`<button data-act="done" data-id="${esc(t.id)}">${CHECK_ICON} ${esc(window.t("kanban.act_approve"))}</button>`);
-      if (t.status === "blocked" || t.status === "review") acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ ${esc(window.t("kanban.act_retry"))}</button>`);
+      if (!canQuyen && (t.status === "blocked" || t.status === "review")) acts.push(`<button data-act="retry" data-id="${esc(t.id)}">↻ ${esc(window.t("kanban.act_retry"))}</button>`);
       if (t.status === "running") acts.push(`<button data-act="cancel" data-id="${esc(t.id)}">${esc(window.t("kanban.act_stop"))}</button>`);
       if (t.status !== "running") acts.push(`<button class="danger" data-act="archive" data-id="${esc(t.id)}">${esc(window.t("kanban.act_archive"))}</button>`);
       return acts;
@@ -2498,8 +2511,12 @@
 
     async function doTaskAction(id, act) {
       if (act === "archive" && !confirm(t("kanban.confirm_archive"))) return false;
+      // Cấp toàn quyền là cho việc TỰ THAO TÁC THẬT ra ngoài và không hoàn tác được, nên phải
+      // hỏi lại bằng đúng chữ nói ra hậu quả, không phải một câu "bạn chắc chứ".
+      if (act === "grant" && !confirm(t("kanban.confirm_grant"))) return false;
       let result;
       if (act === "retry") result = await post("/kanban/task/retry", { id });
+      else if (act === "grant") result = await post("/kanban/task/grant", { id });
       else if (act === "cancel") result = await post("/kanban/task/cancel", { id });
       else if (act === "archive") result = await post("/kanban/task/delete", { id });
       else result = await post("/kanban/task/move", { id, status: act });
@@ -2525,6 +2542,18 @@
       el.querySelectorAll(".kn-task[data-task]").forEach(row => row.onclick = () => showTask(row.dataset.task));
       bindActionButtons(el);
     }
+
+    // Xoá tất cả của một khu. Hai khu hai hậu quả khác nhau nên hỏi bằng hai câu khác nhau:
+    // khu Cần bạn xử lý chỉ dọn khỏi bảng (vẫn tra lại được), khu Lịch sử là xoá hẳn.
+    el.querySelectorAll(".kn-wipe").forEach(b => b.onclick = async () => {
+      const khu = b.dataset.panel;
+      if (!confirm(t(khu === "attention" ? "kanban.confirm_wipe_attention" : "kanban.confirm_wipe_history"))) return;
+      b.disabled = true;
+      const r = await post("/kanban/panel/clear", { panel: khu });
+      b.disabled = false;
+      if (!r || !r.ok) { alert((r && r.error) || t("kanban.cant_update")); return; }
+      await load();
+    });
 
     async function showTask(id) {
       openDrawer();
@@ -2568,6 +2597,10 @@
       fillList(el.querySelector("#knQueue"), queue, "queue");
       fillList(el.querySelector("#knAttention"), attention, "attention");
       fillList(el.querySelector("#knHistory"), history.slice(0, 20), "history");
+      // Khu rỗng thì nút Xoá tất cả xám đi: bấm được một nút không xoá gì cả chỉ làm người ta
+      // nghi ngờ là nó có chạy hay không.
+      el.querySelector("#knWipeAttention").disabled = !attention.length;
+      el.querySelector("#knWipeHistory").disabled = !history.length;
       bindActions();
     }
     load();
