@@ -2911,7 +2911,308 @@
   }
 
   // ---- Trang Models: (A) Main Model + (B) Providers ----
+  // ===== Trang Models: hai tab =====
+  // Cloud (nhà cung cấp gọi qua mạng) và Local (Ollama chạy trên máy). Tách vì hai bên trả
+  // lời hai câu hỏi khác nhau - "dùng khoá của ai" với "máy nào chạy, model nào vừa sức" -
+  // và nhồi chung một trang thì phần Local bị đẩy xuống dưới mười cái card không liên quan.
+  // Tab đang chọn giữ trong biến module: nó là chỗ đứng trên MỘT máy, không phải cấu hình.
+  let _modelTab = "cloud";
+
   async function renderModels(el) {
+    const tab = (k, ico, nhan) =>
+      `<button class="mtab${_modelTab === k ? " act" : ""}" data-mtab="${k}" type="button">` +
+      ic(ico) + " " + esc(nhan) + "</button>";
+    el.innerHTML =
+      '<div class="mtabs">' +
+        tab("cloud", "globe", t("models.tab_cloud")) +
+        tab("local", "cpu", t("models.tab_local")) +
+      '</div><div class="mtab-pane" id="mTabPane"></div>';
+    el.querySelectorAll(".mtab").forEach((b) => {
+      b.onclick = () => { _modelTab = b.dataset.mtab; renderModels(el); };
+    });
+    const pane = el.querySelector("#mTabPane");
+    if (_modelTab === "local") await renderModelsLocalTab(pane);
+    else await renderModelsCloudTab(pane);
+  }
+
+  // ===== Tab Local Model (Ollama chạy trên máy) =====
+  // HAI trạng thái chứ không ba như bản demo. Demo có "đang cài Ollama" vì nó giả định Javis
+  // tự chạy được lệnh cài trên máy người dùng - chỉ đúng khi Javis chạy native. Bản Docker/VPS
+  // không có quyền, cũng không có đường, chạy lệnh trên máy vật lý của người ta. Nên ở đây
+  // chỉ còn: CHƯA NỐI (hiện lệnh cài để người dùng tự chạy trong terminal máy thật) và ĐÃ NỐI.
+  const OL_LENH = {
+    linux: "curl -fsSL https://ollama.com/install.sh | sh",
+    mac: "brew install ollama   # hoặc tải bản .dmg ở ollama.com/download",
+    windows: "winget install Ollama.Ollama",
+  };
+
+  function olGb(n) { return (Math.round((n || 0) * 10) / 10) + " GB"; }
+
+  async function renderModelsLocalTab(el) {
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
+    let st = {};
+    try { st = await (await fetch("/ollama-local/status")).json(); } catch (e) { st = {}; }
+    if (!st.reachable) return olVeChuaNoi(el, st);
+    return olVeDaNoi(el, st);
+  }
+
+  function olVeChuaNoi(el, st) {
+    const lenh = OL_LENH[st.host_platform] || OL_LENH.linux;
+    // Docker/VPS: máy chạy Javis KHÔNG phải máy người dùng, nên câu hướng dẫn phải khác hẳn -
+    // bảo họ chạy lệnh "trên máy này" là bảo họ cài Ollama vào trong container.
+    const xa = st.deploy_mode === "docker";
+    el.innerHTML =
+      '<div class="gcard ol-empty">' +
+        '<div class="ol-empty-ico">' + ic("cpu", { cls: "ic-xl" }) + "</div>" +
+        '<div class="ol-empty-title">' + esc(t("ol.title")) + "</div>" +
+        '<div class="ol-empty-desc">' + esc(t("ol.desc")) + "</div>" +
+        (xa ? '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_docker")) + "</span></div>"
+            : '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_native")) + "</span></div>") +
+        '<div class="ol-step">1. ' + esc(t("ol.step_install")) + "</div>" +
+        '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
+          '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
+        '<div class="ol-step">2. ' + esc(t("ol.step_endpoint")) + "</div>" +
+        '<div class="ol-row">' +
+          '<input class="ol-in ol-ep" placeholder="' + esc(st.goi_y_endpoint || "http://127.0.0.1:11434") + '"' +
+            (st.same_host ? ' value="' + esc(st.goi_y_endpoint || "") + '"' : "") + ">" +
+          '<button class="gcard-btn primary ol-noi" type="button">' + esc(t("ol.connect")) + "</button>" +
+        "</div>" +
+        (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span></div>" : "") +
+      "</div>";
+    const inp = el.querySelector(".ol-ep");
+    const noi = async () => {
+      const v = (inp.value || inp.placeholder || "").trim();
+      if (!v) return;
+      const b = el.querySelector(".ol-noi");
+      b.disabled = true; b.textContent = t("ol.connecting");
+      const fd = new FormData(); fd.append("endpoint", v);
+      let r = {};
+      try { r = await (await fetch("/ollama-local/endpoint", { method: "POST", body: fd })).json(); }
+      catch (e) { r = { error: String(e) }; }
+      if (r.reachable) return renderModelsLocalTab(el);
+      b.disabled = false; b.textContent = t("ol.connect");
+      const box = el.querySelector(".ol-err") || el.querySelector(".gcard");
+      alert((r.error || t("ol.err_connect")));
+    };
+    el.querySelector(".ol-noi").onclick = noi;
+    inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); noi(); } };
+    el.querySelector(".ol-copy").onclick = () => {
+      try { navigator.clipboard.writeText(lenh); } catch (e) {}
+    };
+  }
+
+  async function olVeDaNoi(el, st) {
+    el.innerHTML =
+      '<div class="gcard ol-conn">' +
+        '<span class="ol-dot on"></span>' +
+        '<div class="grow"><div class="ol-conn-name">' + esc(t("ol.connected")) + "</div>" +
+          '<div class="ol-conn-ep">' + esc(st.endpoint) + "</div></div>" +
+        '<button class="gcard-btn ol-doi" type="button">' + esc(t("ol.change_ep")) + "</button>" +
+      "</div>" +
+      '<div class="ol-sect" id="olSpecs"></div>' +
+      '<div class="ol-sect" id="olRec"></div>' +
+      '<div class="ol-sect" id="olInst"></div>' +
+      '<div class="ol-sect" id="olSearch"></div>';
+    el.querySelector(".ol-doi").onclick = async () => {
+      if (!confirm(t("ol.confirm_change"))) return;
+      const fd = new FormData(); fd.append("endpoint", "");
+      try { await fetch("/ollama-local/endpoint", { method: "POST", body: fd }); } catch (e) {}
+      renderModelsLocalTab(el);
+    };
+    await Promise.all([olVeSpecs(el), olVeGoiY(el), olVeDaCai(el)]);
+    olVeTimKiem(el);
+  }
+
+  async function olVeSpecs(el) {
+    const host = el.querySelector("#olSpecs");
+    let d = {};
+    try { d = await (await fetch("/ollama-local/specs")).json(); } catch (e) { return; }
+    const sp = d.specs || {};
+    const tu = sp.source === "auto";
+    const chip = (ico, nhan) => '<span class="ol-chip">' + ic(ico) + esc(nhan) + "</span>";
+    let than = "";
+    if (sp.source === "unknown") {
+      // Không đoán bừa: nói thẳng là chưa biết, và vì sao lại chưa biết được.
+      than = '<div class="ol-note">' + ic("triangle-alert") + "<span>" + esc(t("ol.specs_unknown")) + "</span></div>";
+    } else {
+      than = '<div class="ol-chips">' +
+        chip("cpu", t("ol.ram") + ": " + olGb(sp.ram_gb)) +
+        (sp.has_gpu ? chip("zap", "GPU" + (sp.vram_gb ? " " + olGb(sp.vram_gb) : "")) 
+                    : chip("circle", t("ol.no_gpu"))) +
+        chip(tu ? "circle-check" : "pencil", tu ? t("ol.specs_auto") : t("ol.specs_manual")) +
+        "</div>";
+    }
+    host.innerHTML = '<h3 class="ol-h">' + ic("cpu") + " " + esc(t("ol.specs_title")) + "</h3>" + than +
+      '<div class="ol-row ol-specs-form">' +
+        '<input class="ol-in ol-ram" type="number" min="0" step="1" placeholder="' + esc(t("ol.ram_ph")) + '" value="' + (sp.ram_gb || "") + '">' +
+        '<input class="ol-in ol-vram" type="number" min="0" step="1" placeholder="' + esc(t("ol.vram_ph")) + '" value="' + (sp.vram_gb || "") + '">' +
+        '<button class="gcard-btn ol-luu-specs" type="button">' + esc(t("ol.save_specs")) + "</button>" +
+      "</div>" +
+      '<div class="ol-hint">' + esc(t("ol.specs_hint")) + "</div>";
+    host.querySelector(".ol-luu-specs").onclick = async () => {
+      const ram = parseFloat(host.querySelector(".ol-ram").value || "0");
+      const vram = parseFloat(host.querySelector(".ol-vram").value || "0");
+      const fd = new FormData();
+      fd.append("ram_gb", ram); fd.append("vram_gb", vram);
+      fd.append("has_gpu", vram > 0 ? "1" : "0");
+      try { await fetch("/ollama-local/specs", { method: "POST", body: fd }); } catch (e) {}
+      await olVeSpecs(el);
+      await olVeGoiY(el);           // gợi ý ăn theo cấu hình, đổi specs mà không vẽ lại là nói dối
+    };
+  }
+
+  function olTheModel(m, ctx) {
+    const nut = m.installed
+      ? '<span class="ol-done">' + ic("circle-check") + " " + esc(t("ol.installed")) + "</span>"
+      : '<button class="gcard-btn primary ol-tai" type="button" data-model="' + esc(m.name) + '">' +
+        ic("download") + " " + esc(t("ol.pull")) + "</button>";
+    return '<div class="ol-card" data-model="' + esc(m.name) + '">' +
+      '<div class="ol-card-top"><span class="ol-card-name">' + esc(m.name) + "</span>" +
+        '<span class="ol-card-size">' + olGb(m.size_gb) + "</span></div>" +
+      '<div class="ol-card-desc">' + esc(m.description || "") + "</div>" +
+      (m.note ? '<div class="ol-card-note">' + esc(m.note) + "</div>" : "") +
+      '<div class="ol-tags">' + (m.tags || []).map(x => '<span class="ol-tag">' + esc(x) + "</span>").join("") + "</div>" +
+      '<div class="ol-card-act">' + nut + "</div>" +
+      "</div>";
+  }
+
+  function olNoiNutTai(host, xong) {
+    host.querySelectorAll(".ol-tai").forEach((b) => {
+      b.onclick = () => olTai(b, xong);
+    });
+  }
+
+  /** Tải một model, đổ tiến độ ngay trên thẻ đó. Huỷ = đóng luồng; Ollama tự tiếp tục từ chỗ
+   *  dở ở lần tải sau nên không mất phần đã tải, và không có gì phải dọn. */
+  function olTai(btn, xong) {
+    const the = btn.closest(".ol-card") || btn.parentElement;
+    const model = btn.dataset.model;
+    const act = btn.parentElement;
+    act.innerHTML =
+      '<div class="ol-prog"><div class="ol-prog-track"><div class="ol-prog-fill"></div></div>' +
+      '<div class="ol-prog-lbl"><span class="ol-prog-txt">' + esc(t("ol.pulling")) + "</span>" +
+      '<button class="gcard-btn ol-huy" type="button">' + esc(t("ol.cancel")) + "</button></div></div>";
+    const fill = act.querySelector(".ol-prog-fill");
+    const txt = act.querySelector(".ol-prog-txt");
+    const ctrl = new AbortController();
+    act.querySelector(".ol-huy").onclick = () => { ctrl.abort(); };
+
+    const fd = new FormData(); fd.append("model", model);
+    fetch("/ollama-local/pull", { method: "POST", body: fd, signal: ctrl.signal })
+      .then(async (r) => {
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let dem = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          dem += dec.decode(value, { stream: true });
+          const dong = dem.split("\n");
+          dem = dong.pop();
+          for (const d of dong) {
+            if (!d.startsWith("data: ")) continue;
+            let mo = {};
+            try { mo = JSON.parse(d.slice(6)); } catch (e) { continue; }
+            if (mo.status === "__done__") continue;
+            if (mo.status === "error") { txt.textContent = mo.error || t("ol.err_pull"); continue; }
+            if (mo.total) {
+              const pc = Math.round((mo.completed || 0) / mo.total * 100);
+              fill.style.width = pc + "%";
+              txt.textContent = t("ol.pulling") + " " + pc + "%";
+            } else if (mo.status) {
+              txt.textContent = mo.status;
+            }
+          }
+        }
+        if (typeof xong === "function") xong();
+      })
+      .catch(() => {
+        // Huỷ tay cũng rơi vào đây. Trả thẻ về nút Tải: người dùng bấm lại là Ollama tiếp tục
+        // từ chỗ dở, không tải lại từ đầu.
+        act.innerHTML = '<button class="gcard-btn primary ol-tai" type="button" data-model="' +
+          esc(model) + '">' + ic("download") + " " + esc(t("ol.pull")) + "</button>";
+        olNoiNutTai(act, xong);
+      });
+  }
+
+  async function olVeGoiY(el) {
+    const host = el.querySelector("#olRec");
+    if (!host) return;
+    let d = {};
+    try { d = await (await fetch("/ollama-local/recommended")).json(); } catch (e) { return; }
+    const ds = d.models || [];
+    host.innerHTML = '<h3 class="ol-h">' + ic("sparkles") + " " + esc(t("ol.rec_title")) +
+      '<span class="ol-h-sub">' + esc(t("ol.rec_sub")) + "</span></h3>" +
+      (ds.length ? '<div class="ol-grid">' + ds.map(m => olTheModel(m)).join("") + "</div>"
+                 : '<div class="ol-empty-line">' + esc(t("ol.rec_none")) + "</div>") +
+      (d.catalog_source === "builtin"
+        ? '<div class="ol-hint">' + esc(t("ol.catalog_builtin")) + "</div>" : "");
+    olNoiNutTai(host, () => { olVeGoiY(el); olVeDaCai(el); });
+  }
+
+  async function olVeDaCai(el) {
+    const host = el.querySelector("#olInst");
+    if (!host) return;
+    let d = {};
+    try { d = await (await fetch("/ollama-local/installed")).json(); } catch (e) { return; }
+    const ds = d.models || [];
+    host.innerHTML = '<h3 class="ol-h">' + ic("database") + " " + esc(t("ol.inst_title")) +
+      '<span class="ol-h-sub">' + ds.length + "</span></h3>" +
+      (ds.length ? '<div class="ol-list">' + ds.map(m =>
+          '<div class="ol-row-item">' +
+            '<span class="ol-row-ico">' + ic("cpu") + "</span>" +
+            '<span class="grow"><span class="ol-row-name">' + esc(m.name) +
+              (m.loaded ? '<span class="ol-badge">' + esc(t("ol.loaded")) + "</span>" : "") + "</span>" +
+              '<span class="ol-row-meta">' + olGb(m.size_gb) + "</span></span>" +
+            '<button class="gcard-btn ol-go" type="button" data-model="' + esc(m.name) + '">' +
+              ic("trash-2") + " " + esc(t("ol.remove")) + "</button>" +
+          "</div>").join("") + "</div>"
+        : '<div class="ol-empty-line">' + esc(t("ol.inst_none")) + "</div>");
+    host.querySelectorAll(".ol-go").forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm(t("ol.confirm_remove", { ten: b.dataset.model }))) return;
+        const fd = new FormData(); fd.append("model", b.dataset.model);
+        try { await fetch("/ollama-local/delete", { method: "POST", body: fd }); } catch (e) {}
+        olVeDaCai(el); olVeGoiY(el);
+      };
+    });
+  }
+
+  function olVeTimKiem(el) {
+    const host = el.querySelector("#olSearch");
+    if (!host) return;
+    const chip = (k, nhan) => '<button class="ol-fchip" data-cap="' + k + '" type="button">' + esc(nhan) + "</button>";
+    host.innerHTML = '<h3 class="ol-h">' + ic("search") + " " + esc(t("ol.find_title")) + "</h3>" +
+      '<div class="ol-row"><input class="ol-in ol-q" placeholder="' + esc(t("ol.find_ph")) + '"></div>' +
+      '<div class="ol-chips ol-filters">' + chip("", t("ol.cap_all")) + chip("tools", "tools") +
+        chip("thinking", "thinking") + chip("vision", "vision") + chip("embedding", "embedding") + "</div>" +
+      '<div class="ol-grid ol-kq"></div>';
+    const kq = host.querySelector(".ol-kq");
+    const o = host.querySelector(".ol-q");
+    let cap = "";
+    let timer = null;
+    const chay = async () => {
+      const p = new URLSearchParams({ q: o.value.trim(), capability: cap });
+      let d = {};
+      try { d = await (await fetch("/ollama-local/search?" + p)).json(); } catch (e) { return; }
+      const ds = d.models || [];
+      kq.innerHTML = ds.length ? ds.map(m => olTheModel(m)).join("")
+                               : '<div class="ol-empty-line">' + esc(t("ol.find_none")) + "</div>";
+      olNoiNutTai(kq, () => { olVeDaCai(el); chay(); });
+    };
+    o.oninput = () => { clearTimeout(timer); timer = setTimeout(chay, 300); };
+    host.querySelectorAll(".ol-fchip").forEach((b) => {
+      b.onclick = () => {
+        cap = b.dataset.cap;
+        host.querySelectorAll(".ol-fchip").forEach(x => x.classList.toggle("on", x === b));
+        chay();
+      };
+    });
+    host.querySelector('.ol-fchip[data-cap=""]').classList.add("on");
+    chay();
+  }
+
+  async function renderModelsCloudTab(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     const m = s.model || {};
@@ -3125,18 +3426,18 @@
       </div>`;
 
     const chg = document.getElementById("mdChange");
-    if (chg) chg.onclick = () => openModelPicker(provList, main, () => renderModels(el));
+    if (chg) chg.onclick = () => openModelPicker(provList, main, () => renderModelsCloudTab(el));
     // Nguồn xác thực của gói Claude Code. Vẽ lại cả trang sau khi lưu vì cảnh báo phụ thuộc
     // cả lựa chọn này LẪN model việc nền - chỉ server mới ghép được hai thứ đó.
     el.querySelectorAll('input[name="claudeAuth"]').forEach((r) => {
       r.onchange = async () => {
         if (!r.checked) return;
         await saveSetting("model", { claude_auth: r.value });
-        renderModels(el);
+        renderModelsCloudTab(el);
       };
     });
     const auxChg = document.getElementById("auxChange");
-    if (auxChg) auxChg.onclick = () => openModelPicker(provList, { provider: auxProv, model: aux }, () => renderModels(el), {
+    if (auxChg) auxChg.onclick = () => openModelPicker(provList, { provider: auxProv, model: aux }, () => renderModelsCloudTab(el), {
       title: t("models.aux_title"),
       note: t("models.aux_note2"),
       save: (prov, mod) => saveSetting("model", { auxiliary: { provider: prov, model: mod } }),
@@ -3144,11 +3445,11 @@
     const auxRst = document.getElementById("auxReset");
     if (auxRst) auxRst.onclick = async () => {
       await saveSetting("model", { auxiliary: { provider: "anthropic-cli", model: "" } });
-      renderModels(el);
+      renderModelsCloudTab(el);
     };
     el.querySelectorAll("[data-reason]").forEach(b => b.onclick = async () => {
       await saveSetting("model", { reasoning: b.dataset.reason });
-      renderModels(el);
+      renderModelsCloudTab(el);
     });
     el.querySelectorAll(".gcard-btn[data-pk]").forEach(b => {
       b.onclick = async () => {
@@ -3158,14 +3459,14 @@
         if (!val) { if (inp) inp.focus(); return; }
         b.disabled = true; b.textContent = t("settings.saving");
         await saveSetting("model", { [KEYFIELD[pid]]: val });
-        renderModels(el);
+        renderModelsCloudTab(el);
       };
     });
     el.querySelectorAll(".gcard-btn[data-disc]").forEach(b => {
       b.onclick = async () => {
         b.disabled = true; b.textContent = t("models.disconnecting");
         await saveSetting("model", { clear_key: b.dataset.disc });
-        renderModels(el);
+        renderModelsCloudTab(el);
       };
     });
     const ol = el.querySelector("[data-oauth-login]");
@@ -3196,7 +3497,7 @@
       if (r && r.ok) {
         if (msg) msg.innerHTML = OK_ICON + " " + esc(t("models.works")) + mcpTxt;
         _daHoiModel.delete("antigravity-cli");
-        setTimeout(() => renderModels(el), 700);
+        setTimeout(() => renderModelsCloudTab(el), 700);
       } else if (msg) msg.innerHTML = Icons.warn((r && r.error) || t("models.not_works")) + mcpTxt;
     };
     // ---- Grok Build CLI: đăng nhập device code ngay trên trang ----
@@ -3210,7 +3511,7 @@
       catch (e) { r = { ok: false, error: t("common.net_err") }; }
       gkl.disabled = false; gkl.textContent = cu;
       if (!r || !r.ok) { if (msg) msg.innerHTML = Icons.warn((r && r.error) || t("models.cant_open")); return; }
-      if (r.xong) { renderModels(el); return; }
+      if (r.xong) { renderModelsCloudTab(el); return; }
       // Link + mã hiện ra để người dùng mở trên MÁY CỦA HỌ - đây là cả lý do tồn tại của
       // đường device code: máy chạy Javis (VPS) không cần có trình duyệt.
       if (box) {
@@ -3243,7 +3544,7 @@
       const quay = async () => {
         let d = null;
         try { d = await (await fetch("/grok/login-poll")).json(); } catch (e) {}
-        if (d && d.connected) { _daHoiModel.delete("grok-cli"); renderModels(el); return; }
+        if (d && d.connected) { _daHoiModel.delete("grok-cli"); renderModelsCloudTab(el); return; }
         if (Date.now() > han) {
           if (msg) msg.innerHTML = Icons.warn(t("models.timeout_login"));
           veLog(d, true);
@@ -3264,7 +3565,7 @@
       gkd.disabled = true; gkd.textContent = t("models.disconnecting");
       try { await fetch("/grok/logout", { method: "POST" }); } catch (e) {}
       _daHoiModel.delete("grok-cli");
-      renderModels(el);
+      renderModelsCloudTab(el);
     };
     const gkc = el.querySelector("[data-grokcheck]");
     if (gkc) gkc.onclick = async () => {
@@ -3289,7 +3590,7 @@
       if (r && r.ok) {
         if (msg) msg.innerHTML = OK_ICON + " " + esc(t("models.works")) + mcpTxt2;
         _daHoiModel.delete("grok-cli");
-        setTimeout(() => renderModels(el), 700);
+        setTimeout(() => renderModelsCloudTab(el), 700);
       } else if (msg) {
         msg.innerHTML = Icons.warn((r && r.error) || t("models.not_works")) + mcpTxt2;
         // Chưa dùng được thì hiện luôn chỗ Javis đã nhìn: binary nào, thư mục nào, trong đó
@@ -3316,7 +3617,7 @@
       od.disabled = true; od.textContent = t("models.disconnecting");
       try { await fetch("/oauth/openai/disconnect", { method: "POST" }); } catch (e) {}
       _daHoiModel.delete("openai-oauth");
-      renderModels(el);
+      renderModelsCloudTab(el);
     };
     refreshClaudeCard(el);   // nạp trạng thái đăng nhập Claude Code (bất đồng bộ)
     hoiModelConNo(el, provList);   // thẻ "0 model" của provider đã kết nối: hỏi danh sách thật
@@ -3347,7 +3648,7 @@
         }
       } catch (e) {}
     }
-    if (coThem && el.isConnected) renderModels(el);
+    if (coThem && el.isConnected) renderModelsCloudTab(el);
   }
 
   // ---- Card Claude Code: status + login/logout (giống OpenAI OAuth) ----
@@ -3464,7 +3765,7 @@
       if (p.status === "connected") {
         if (msg) msg.innerHTML = CHECK_ICON + " " + esc(t("models.oauth_done"));
         _daHoiModel.delete("openai-oauth");   // vừa đăng nhập xong: cho phép hỏi lại danh sách
-        renderModels(el); return;
+        renderModelsCloudTab(el); return;
       }
       if (p.status === "error") { if (msg) msg.textContent = t("models.err") + " " + (p.error || ""); return; }
       setTimeout(poll, iv);
@@ -3505,7 +3806,7 @@
       if (p.status === "connected") {
         if (msg) msg.innerHTML = CHECK_ICON + " " + esc(t("models.oauth_done"));
         _daHoiModel.delete("openai-oauth");
-        renderModels(el); return;
+        renderModelsCloudTab(el); return;
       }
       if (m2) m2.innerHTML = Icons.warn(p.error || t("models.not_yet"));
       btn.disabled = false;

@@ -42,7 +42,8 @@ CLAUDE = "anthropic-cli"
 CODEX = "openai-oauth"
 GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
-API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api", "ollama")
+API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "anthropic-api", "ollama",
+                 "ollama-local")
 
 # provider -> tên trường chứa API key trong settings["model"]
 _KEY_FIELD = {
@@ -51,10 +52,12 @@ _KEY_FIELD = {
     "gemini": "gemini_api_key",
     "groq": "groq_api_key",
     "anthropic-api": "anthropic_api_key",
-    # Ollama ở đây là bản CLOUD (ollama.com) - có API key như mọi nhà API khác. Bản chạy
-    # máy nhà cố ý không đấu (xem chú thích `ollama` trong config.py): nó đòi thêm một ô
-    # địa chỉ, mà phần đông người dùng Javis chạy trên VPS nơi "localhost" là container.
     "ollama": "ollama_key",
+    # Bản chạy MÁY NHÀ. Trường này thường RỖNG - Ollama trần không có xác thực - và điều đó
+    # là bình thường chứ không phải "chưa cấu hình": thứ xác định nó dùng được hay không là
+    # ĐỊA CHỈ (`ollama_local_endpoint`), còn khoá chỉ cần khi ai đó đặt Ollama sau reverse
+    # proxy. Xem `_key_of` bên dưới, chỗ ollama-local được miễn kiểm khoá rỗng.
+    "ollama-local": "ollama_local_key",
 }
 
 # mode của Javis -> sandbox của Codex CLI. Bản đồ thật nằm ở `claude_cli.codex_sandbox_cho_mode`
@@ -276,6 +279,14 @@ def availability(spec: dict, settings: dict = None) -> tuple:
         except Exception:
             return False, "Không kiểm tra được Antigravity CLI."
         return True, ""
+    # Ollama máy nhà xét theo ĐỊA CHỈ, không theo khoá: Ollama trần không có xác thực nên
+    # khoá rỗng là trạng thái BÌNH THƯỜNG. Để nó rơi vào nhánh kiểm khoá bên dưới thì mọi
+    # agent dùng model local đều bị báo "chưa có API key" dù đang chạy ngon.
+    if prov == "ollama-local":
+        s = settings if settings is not None else cfgmod.read_settings()
+        if not (s.get("model", {}) or {}).get("ollama_local_endpoint"):
+            return False, "Chưa đặt địa chỉ Ollama - vào trang Models, tab Local Model."
+        return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
             return False, f"Chưa có API key cho {prov} - vào trang Model dán key trước."
@@ -367,13 +378,15 @@ class _ApiAuxEngine:
                   "openai": eng.openai_chat_with_mcp,
                   "gemini": eng.gemini_chat_with_mcp, "groq": eng.groq_chat_with_mcp,
                   "anthropic-api": eng.anthropic_chat_with_mcp,
-                  "ollama": eng.ollama_chat_with_mcp}[self.provider]
+                  "ollama": eng.ollama_chat_with_mcp,
+                  "ollama-local": eng.ollama_local_chat_with_mcp}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning, tools, route)
         else:
             fn = {"openrouter": eng.openrouter_stream, "openai": eng.openai_stream,
                   "gemini": eng.gemini_stream, "groq": eng.groq_stream,
                   "anthropic-api": eng.anthropic_stream,
-                  "ollama": eng.ollama_stream}[self.provider]
+                  "ollama": eng.ollama_stream,
+                  "ollama-local": eng.ollama_local_stream}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning)
 
         # Đường API sinh "text" theo mảnh; việc nền chỉ đọc "final" nên gom lại rồi phát MỘT lần.

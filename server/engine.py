@@ -475,6 +475,20 @@ GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 OLLAMA_BASE = "https://ollama.com"
 OLLAMA_URL = OLLAMA_BASE + "/v1/chat/completions"
 
+
+def ollama_local_url() -> str:
+    """URL chat của Ollama chạy trên MÁY NHÀ (provider 'ollama-local'). "" = chưa cấu hình.
+
+    Đây là chỗ hiện thực hoá điểm 2 ở khối chú thích trên: địa chỉ KHÔNG hằng số hoá được nên
+    phải dựng lúc chạy từ cấu hình. Còn điểm 1 (không có API key) thì không cần làm gì -
+    `_openai_compat_stream` vẫn gửi header Authorization và Ollama bỏ qua, nên dùng lại được
+    nguyên đường OpenAI-compat, không đẻ thêm nhánh nào.
+    """
+    import config as cfgmod
+    ep = (cfgmod.read_settings().get("model", {}).get("ollama_local_endpoint") or "").strip()
+    ep = ep.rstrip("/")
+    return (ep + "/v1/chat/completions") if ep else ""
+
 # Model Anthropic hỗ trợ adaptive thinking + output_config.effort (khỏi budget_tokens).
 _ADAPTIVE_THINKING = ("opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5", "sonnet-4-6", "fable-5", "mythos-5")
 
@@ -614,6 +628,31 @@ async def ollama_stream(api_key, model, messages, reasoning="off"):
     """
     async for ev in _openai_compat_stream(OLLAMA_URL, "Ollama", api_key, model,
                                           messages, reasoning, False):
+        yield ev
+
+
+async def ollama_local_stream(api_key, model, messages, reasoning="off"):
+    """Ollama trên máy nhà - nhánh KHÔNG tool. Cùng khuôn `ollama_stream`, chỉ khác URL."""
+    url = ollama_local_url()
+    if not url:
+        yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
+        return
+    async for ev in _openai_compat_stream(url, "Ollama (máy nhà)", api_key, model,
+                                          messages, reasoning, False):
+        yield ev
+
+
+async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_tools, mcp_route):
+    """Ollama máy nhà + vòng tool-calling MCP. Model local biết gọi tool (qwen3, mistral...)
+    thì có đủ đồ nghề của Javis y như mọi provider API khác."""
+    url = ollama_local_url()
+    if not url:
+        yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
+        return
+    headers = {"Authorization": f"Bearer {api_key or 'local'}", "Content-Type": "application/json"}
+    yield {"type": "meta", "model": model}
+    async for ev in _cc_tool_loop(url, headers, model, messages,
+                                  mcp_tools, mcp_route, {}, "Ollama (máy nhà)"):
         yield ev
 
 

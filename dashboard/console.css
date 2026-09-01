@@ -950,3 +950,98 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .set-tfa .tfa-off { color: var(--text); }
 .set-tfa .tfa-low { color: var(--warn-ink); }
 .set-tfa button { margin-left: auto; flex: 0 0 auto; }
+
+/* ===== Trang Models: thanh hai tab (Cloud / máy nhà) ===== */
+.mtabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--glass-brd); }
+.mtab { display: inline-flex; align-items: center; gap: 7px; padding: 11px 16px; cursor: pointer;
+  border: 0; background: none; color: var(--text3); font-family: var(--font);
+  font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.mtab:hover { color: var(--text2); }
+.mtab.act { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ===== Tab model chạy trên máy ===== */
+.ol-sect { margin-bottom: 26px; }
+.ol-h { display: flex; align-items: center; gap: 8px; font-size: 13px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text2); margin: 0 0 12px; font-weight: 700; }
+.ol-h-sub { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text3);
+  font-size: 12.5px; margin-left: auto; }
+.ol-hint { font-size: 12px; color: var(--text3); margin-top: 8px; line-height: 1.55; }
+.ol-empty-line { padding: 16px 4px; color: var(--text3); font-size: 13.5px; }
+
+/* Khung chưa nối: ba bước đọc từ trên xuống, không có nút "tự cài" nào - Javis trong container
+   không có quyền chạy lệnh trên máy vật lý của người dùng. */
+.ol-empty { text-align: center; max-width: 620px; margin: 10px auto; padding: 34px 26px; }
+.ol-empty-ico { color: var(--accent); margin-bottom: 12px; }
+.ol-empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.ol-empty-desc { font-size: 13.5px; color: var(--text2); line-height: 1.6; margin-bottom: 16px; }
+.ol-step { text-align: left; font-size: 13px; font-weight: 600; color: var(--text2);
+  margin: 16px 0 7px; }
+.ol-cmd { display: flex; align-items: center; gap: 8px; text-align: left;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+.ol-cmd code { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; color: var(--text2); }
+.ol-row { display: flex; gap: 8px; align-items: center; }
+.ol-in { flex: 1 1 auto; min-width: 0; padding: 9px 12px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--field-bg); color: var(--text);
+  font-family: var(--font); font-size: 13.5px; outline: none; }
+.ol-in:focus { border-color: var(--accent-line); }
+.ol-note, .ol-err { display: flex; align-items: flex-start; gap: 8px; text-align: left;
+  border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.55; }
+.ol-note { background: var(--info-wash); border: 1px solid var(--info-line); color: var(--text2); }
+.ol-err { background: var(--warn-wash); border: 1px solid var(--warn-line);
+  color: var(--warn-ink); margin-top: 12px; }
+.ol-note .ic, .ol-err .ic { flex: none; margin-top: 2px; }
+
+.ol-conn { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.ol-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--text3); }
+.ol-dot.on { background: var(--green); box-shadow: 0 0 0 3px var(--ok-wash); }
+.ol-conn-name { font-weight: 700; font-size: 14.5px; }
+.ol-conn-ep { font-size: 12.5px; color: var(--text3); margin-top: 2px;
+  font-family: var(--mono, ui-monospace, monospace); }
+
+.ol-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ol-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+  border-radius: 10px; background: var(--surface-2); border: 1px solid var(--glass-brd);
+  font-size: 12.5px; color: var(--text2); }
+.ol-chip .ic { color: var(--accent); }
+.ol-specs-form { margin-top: 10px; }
+
+.ol-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.ol-card { display: flex; flex-direction: column; gap: 8px; padding: 14px;
+  border-radius: 13px; background: var(--glass); border: 1px solid var(--glass-brd); }
+.ol-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ol-card-name { font-weight: 700; font-size: 14px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ol-card-size { flex: none; font-size: 11.5px; color: var(--text3); }
+.ol-card-desc { font-size: 12.5px; color: var(--text2); line-height: 1.5; flex: 1 1 auto; }
+/* Vì sao model này được gợi ý. Danh sách không nói lý do thì người dùng không có cơ sở nào
+   để tin nó - nhất là khi lý do đôi khi là "sẽ chạy chậm". */
+.ol-card-note { font-size: 11.5px; color: var(--accent-ink); }
+.ol-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.ol-tag { font-size: 10.5px; padding: 2px 7px; border-radius: 20px;
+  background: var(--surface-2); border: 1px solid var(--glass-brd); color: var(--text3); }
+.ol-card-act { display: flex; }
+.ol-card-act .gcard-btn { flex: 1 1 auto; justify-content: center; }
+.ol-done { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px;
+  color: var(--green); font-weight: 600; }
+
+.ol-prog { display: flex; flex-direction: column; gap: 5px; width: 100%; }
+.ol-prog-track { height: 6px; border-radius: 20px; background: var(--surface-3); overflow: hidden; }
+.ol-prog-fill { height: 100%; width: 0; background: var(--accent); border-radius: 20px;
+  transition: width .2s; }
+.ol-prog-lbl { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 11.5px; color: var(--text3); }
+
+.ol-list { display: flex; flex-direction: column; gap: 7px; }
+.ol-row-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 10px; background: var(--surface-2); border: 1px solid var(--glass-brd); }
+.ol-row-ico { flex: none; display: inline-flex; color: var(--text3); }
+.ol-row-name { display: block; font-weight: 600; font-size: 13.5px; }
+.ol-row-meta { display: block; font-size: 11.5px; color: var(--text3); margin-top: 2px; }
+.ol-badge { margin-left: 7px; font-size: 10.5px; padding: 1px 7px; border-radius: 20px;
+  background: var(--ok-wash); border: 1px solid var(--ok-line); color: var(--green);
+  font-weight: 600; }
+.ol-fchip { padding: 6px 13px; border-radius: 20px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text2);
+  font-family: var(--font); font-size: 12.5px; }
+.ol-fchip.on { border-color: var(--accent-line); color: var(--accent); background: var(--accent-wash); }
