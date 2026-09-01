@@ -120,7 +120,11 @@ check("CSS xếp icon cạnh chữ trong tab", /\.cside-tab \{[^}]*display: inli
 check("project chưa đặt icon vẫn có icon mặc định",
   /function projIcon\(p\) \{ return iconHtml\(\(p \|\| \{\}\)\.icon\) \|\| ic\("folder"\); \}/.test(SESS));
 check("hàng project trong menu dùng icon mặc định", /icon: p\.icon \|\| "folder"/.test(SESS));
-check("vẫn đổi được icon của project", /title: "Đổi icon", run: function \(\) \{ pickIcon\(/.test(SESS));
+// 0.54.1 dời bốn icon hover vào một hộp chức năng mở bằng nút ba chấm, nên chỗ này không
+// còn là `title:` một icon trần nữa mà là một hàng có NHÃN CHỮ. Khả năng thì vẫn nguyên -
+// đó mới là thứ mục này canh.
+check("vẫn đổi được icon của project",
+  /label: "Đổi icon", icon: "palette"/.test(SESS) && /pickIcon\(anchor, p\.icon \|\| ""/.test(SESS));
 // Ghim đổi THỨ TỰ danh sách, mà cache lại giữ thứ tự cũ -> phải bỏ cache rồi tải lại,
 // không thì bấm ghim xong nhìn như không có gì xảy ra.
 check("CANARY: ghim xong thì bỏ cache danh sách (nếu không thứ tự cũ còn nguyên trên màn hình)",

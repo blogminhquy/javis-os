@@ -145,21 +145,50 @@
         on: cur === p.id,
         run: function () { chonProject(p.id); },
         pinIcon: p.pinned ? "pin" : "",
-        acts: [
-          // Ghim GIỮ MENU MỞ (giuMo) rồi mở lại menu ngay sau khi danh sách nạp xong: xếp
-          // thứ tự mà mỗi lần bấm menu lại đóng thì phải mở lại 5 lần để xếp 5 project.
-          { icon: "pin", giuMo: true,
-            title: p.pinned ? "Bỏ ghim project" : "Ghim project lên đầu danh sách",
-            run: function () { ghimProject(p); } },
-          { icon: "palette", title: "Đổi icon", run: function () { pickIcon(anchor, p.icon || "", function (v) { post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects); }); } },
-          { icon: "pencil", title: "Đổi tên", run: function () { renameProject(p); } },
-          { icon: "trash-2", title: "Xoá project", run: function () { delProject(p); } },
-        ],
+        // MỘT nút ba chấm thay cho bốn icon hiện-khi-rê-chuột (chủ repo yêu cầu 01/09). Ba
+        // lý do, không chỉ chuyện gọn mắt:
+        //   - Bốn icon ăn ~100px trong một popover rộng 280px, nên tên project dài bị cắt
+        //     cụt đúng lúc người dùng cần đọc nó để chọn.
+        //   - Hover KHÔNG tồn tại trên màn cảm ứng, nên trên máy tính bảng bốn nút đó là
+        //     bốn chức năng không có đường nào bấm tới.
+        //   - Icon trần bắt người dùng đoán nghĩa; hộp chức năng ghi bằng CHỮ thì không.
+        acts: [{ icon: "ellipsis-vertical", title: "Chức năng của project",
+                 run: function () { openProjActs(anchor, p); } }],
       });
     });
     rows.push({ sep: true });
     rows.push({ label: "＋ Project mới", run: function () { newProject(); } });
     openMenu(anchor, rows);
+  }
+
+  /** Hộp chức năng của MỘT project. Đi sâu vào cùng một popover (có hàng quay lại) chứ không
+   *  bung popover thứ hai: hai lớp nổi chồng nhau thì phải tự lo đóng đúng thứ tự, mà bấm ra
+   *  ngoài lớp trong lại đóng nhầm cả hai. */
+  function openProjActs(anchor, p) {
+    openMenu(anchor, [
+      // Hàng đầu là TÊN project, cho XUỐNG DÒNG chứ không cắt ba chấm: đây là chỗ người dùng
+      // liếc để chắc mình đang thao tác lên đúng project, mà một cái tên cụt thì không chắc
+      // được. Hàng này không có số đếm cũng không có nút nên xuống dòng không phá bố cục.
+      { label: p.name, icon: p.icon || "folder", wrap: true,
+        run: function () { chonProject(p.id); } },
+      { sep: true },
+      { label: p.pinned ? "Bỏ ghim khỏi đầu danh sách" : "Ghim lên đầu danh sách",
+        icon: "pin", run: function () { ghimProject(p); } },
+      { label: "Mở khung Hướng dẫn / File / Link", icon: "sliders-horizontal",
+        run: function () { openProjDrawer(p.id); } },
+      { label: "Đổi icon", icon: "palette",
+        run: function () {
+          pickIcon(anchor, p.icon || "", function (v) {
+            post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects);
+          });
+        } },
+      { label: "Đổi tên project", icon: "pencil", run: function () { renameProject(p); } },
+      { sep: true },
+      { label: "Xoá project", icon: "trash-2", run: function () { delProject(p); } },
+      { sep: true },
+      { label: "Quay lại danh sách", icon: "chevron-left",
+        run: function () { openProjMenu(anchor); } },
+    ]);
   }
 
   async function ghimProject(p) {
@@ -169,6 +198,8 @@
     // Neo cũ đã bị renderProjBar() thay bằng node mới, nên phải hỏi lại chứ không giữ tham
     // chiếu: neo đã rời khỏi DOM thì menu sẽ được đặt vào một toạ độ vô nghĩa.
     var neo = projBar && projBar.querySelector(".cs-proj-cur");
+    // Về DANH SÁCH chứ không về hộp chức năng: ghim là thao tác về THỨ TỰ, nên thứ cần nhìn
+    // ngay sau đó là danh sách đã xếp lại.
     if (neo) openProjMenu(neo);
   }
 
@@ -289,7 +320,10 @@
       if (p.file_count) meta += '<span class="pc-n">' + ic("file-text") + (p.file_count) + '</span>';
       if (p.link_count) meta += '<span class="pc-n">' + ic("link") + (p.link_count) + '</span>';
       var coGi = !!(p.has_instructions || p.file_count || p.link_count);
-      html = '<button class="proj-chip' + (coGi ? " co-gi" : "") + '" type="button" title="' +
+      // CỘNG THÊM, không gán đè. Bản 0.54.0 viết `html =` ở đây nên hễ cuộc thuộc một project
+      // là nút "file & link của cuộc" bị xoá sạch - mà đó lại là trường hợp thường gặp nhất,
+      // nên nút coi như không tồn tại (chủ repo báo 01/09).
+      html += '<button class="proj-chip' + (coGi ? " co-gi" : "") + '" type="button" title="' +
                esc(pdT("proj.chip_title")) + '">' +
                '<span class="pc-ico">' + projIcon(p) + '</span>' +
                '<span class="pc-name">' + esc(p.name) + '</span>' +
@@ -972,7 +1006,7 @@
       var row = el('<div class="cs-menu-row' + (r.on ? " on" : "") + '">' +
         '<button class="cs-menu-main" type="button">' +
         (iHtml ? '<span class="cs-menu-ico">' + iHtml + '</span>' : '') +
-        '<span class="cs-menu-lbl">' + esc(r.label) + '</span>' +
+        '<span class="cs-menu-lbl' + (r.wrap ? " nhieu-dong" : "") + '">' + esc(r.label) + '</span>' +
         // Dấu ghim đứng ở phần luôn hiện, KHÔNG nằm trong hàng nút (hàng đó chỉ hiện khi rê
         // chuột). Ghim mà chỉ thấy được lúc rê chuột thì nhìn danh sách không biết vì sao
         // thứ tự lại như vậy.

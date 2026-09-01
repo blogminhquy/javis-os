@@ -48,14 +48,18 @@ check("module xuất hàm vẽ chip và hàm mở khung",
 // Khung vẫn vào được qua chip - chọn project rồi mở hội thoại là chip hiện ra - nên chỗ đó
 // không phải lối vào duy nhất, còn xếp thứ tự thì trước nay chưa có đường nào.
 check("menu project không còn nút mở khung", !/Mở khung project/.test(SU));
-check("mà là nút ghim", /icon: "pin", giuMo: true,/.test(SU));
+// 0.54.1 dời nút ghim VÀO hộp chức năng ba chấm (mục 11), nên nó không còn là một icon
+// hover ở hàng nữa. Cái phải còn lại ở hàng là DẤU ghim - thứ giải thích thứ tự danh sách.
+check("ghim nằm trong hộp chức năng", /icon: "pin", run: function \(\) \{ ghimProject\(p\); \}/.test(SU));
 check("ghim gọi đúng route project (không phải route ghim file/link)",
   /"\/projects\/" \+ encodeURIComponent\(p\.id\) \+ "\/pin",\s*\n\s*\{ pinned:/.test(SU));
-// Đóng menu sau mỗi lần bấm thì xếp 5 project phải mở menu 5 lần.
-check("bấm ghim GIỮ menu mở", /if \(!a\.giuMo\) closeMenu\(\);/.test(SU));
+// `giuMo` vẫn còn trong openMenu như một khả năng của khung, dù sau 0.54.1 chưa hàng nào
+// dùng tới (ghim đã dời vào hộp chức năng, bấm xong quay về danh sách đã xếp lại).
+check("openMenu vẫn cho phép một nút giữ menu mở", /if \(!a\.giuMo\) closeMenu\(\);/.test(SU));
 // renderProjBar() thay node neo bằng node mới, giữ tham chiếu cũ là menu rơi ra ngoài màn.
 check("và mở lại menu bằng neo HỎI LẠI chứ không giữ tham chiếu cũ",
-  /var neo = projBar && projBar\.querySelector\("\.cs-proj-cur"\);\s*\n\s*if \(neo\) openProjMenu\(neo\);/.test(SU));
+  /var neo = projBar && projBar\.querySelector\("\.cs-proj-cur"\);/.test(SU)
+  && /if \(neo\) openProjMenu\(neo\);/.test(SU));
 // Hàng nút trong menu chỉ hiện khi rê chuột, nên dấu ghim phải nằm NGOÀI hàng đó.
 check("dấu ghim nằm ngoài hàng nút hover", /pinIcon \? '<span class="cs-menu-pin">/.test(SU));
 const menuRow = (SU.match(/var row = el\('<div class="cs-menu-row[\s\S]*?cs-menu-acts[^;]*;/) || [""])[0];
@@ -241,6 +245,11 @@ check("thêm link xong cũng giữ form và dọn ô để dán tiếp",
 // 10. File và link của một CUỘC TRÒ CHUYỆN
 // ============================================================
 check("có nút mở khung đó ở thanh tiêu đề", /class="cts-btn"/.test(SU));
+// LỖI THẬT ở 0.54.0: chỗ này viết `html = '<button class="proj-chip...` nên hễ cuộc thuộc
+// một project là nút vừa dựng bị gán đè mất - mà đó là trường hợp thường gặp nhất, nên nút
+// coi như không tồn tại. Canh bằng dấu cộng, không phải bằng sự có mặt của chuỗi.
+check("chip CỘNG THÊM vào nút đó chứ không gán đè",
+  /html \+= '<button class="proj-chip/.test(SU) && !/html = '<button class="proj-chip/.test(SU));
 // Chat dài đẻ ra tài liệu ở MỌI cuộc, kể cả cuộc chưa xếp vào project nào.
 check("nút hiện theo phiên đã lưu, không phụ thuộc project",
   /var html = currentId\(\)\s*\n\s*\? '<button class="cts-btn"/.test(SU));
@@ -259,6 +268,40 @@ check("và nói rõ vì sao nó mờ", /đổi tên hoặc dời/i.test(VI["cts.
 check("nói thẳng giới hạn: chỉ gom file Javis có nhắc tên",
   /nhắc tên/.test(VI["cts.note"] || ""));
 check("ghi rõ link do ai gửi", !!VI["cts.from_you"] && !!VI["cts.from_javis"]);
+
+// ============================================================
+// 11. Phản hồi 01/09: nút ba chấm, tên project đủ chỗ, chip không phá thanh nhãn
+// ============================================================
+// Bốn icon hiện-khi-rê-chuột ăn ~100px trong popover 280px, và hover thì KHÔNG tồn tại trên
+// màn cảm ứng - ở đó chúng là bốn chức năng không có đường nào bấm tới.
+check("một nút ba chấm thay cho bốn icon hover",
+  /icon: "ellipsis-vertical", title: "Chức năng của project"/.test(SU)
+  && !/\{ icon: "palette", title: "Đổi icon"/.test(SU));
+check("icon ba chấm có thật trong bộ đã vendor",
+  /"ellipsis-vertical":/.test(fs.readFileSync(path.join(ROOT, "dashboard", "vendor", "lucide-icons.js"), "utf8")));
+check("và được khai trong manifest (để lần sinh lại còn giữ)",
+  JSON.stringify(JSON.parse(D("icons.manifest.json")).groups).includes("ellipsis-vertical"));
+check("hộp chức năng có đủ ghim, đổi icon, đổi tên, xoá, và lối quay lại",
+  /function openProjActs/.test(SU) && /Quay lại danh sách/.test(SU)
+  && /Đổi tên project/.test(SU) && /Xoá project/.test(SU));
+check("và có cả lối mở khung Hướng dẫn / File / Link", /Mở khung Hướng dẫn/.test(SU));
+// Đi sâu trong CÙNG một popover: hai lớp nổi chồng nhau thì bấm ra ngoài lớp trong đóng
+// nhầm cả hai.
+check("hộp đi sâu trong cùng popover, không bung lớp nổi thứ hai",
+  /function openProjActs\(anchor, p\) \{\s*\n\s*openMenu\(anchor, \[/.test(SU));
+check("nút chức năng không còn nấp sau hover",
+  /\.cs-menu-acts \{[^}]*opacity: \.55/.test(CSS));
+// Chỗ vừa lấy lại từ 4 icon phải về tay cái TÊN, không thì sửa xong vẫn cụt như cũ.
+check("popover rộng ra cho tên project", /\.cs-menu \{[^}]*max-width: 340px/.test(CSS));
+check("tên project ở đầu hộp hiện ĐỦ, xuống dòng thay vì cắt ba chấm",
+  /wrap: true,/.test(SU) && /\.cs-menu-lbl\.nhieu-dong \{[^}]*white-space: normal/.test(CSS));
+
+// Thanh nhãn cột hẹp: tên project dài đẩy chữ "HỘI THOẠI" vỡ thành hai dòng.
+check("chữ HỘI THOẠI không co, không vỡ dòng",
+  /\.panel-label > span:first-child \{ flex: none; white-space: nowrap; \}/.test(CSS));
+check("chip xuống hẳn dòng riêng ở cột hẹp để có trọn bề ngang",
+  /\.panel-label \.proj-chip-host \{ flex: 1 0 100%/.test(CSS)
+  && /\.panel-label \{[^}]*flex-wrap: wrap/.test(CSS));
 
 console.log("");
 if (fails.length) { console.log("ĐỎ " + fails.length + " mục"); process.exit(1); }
