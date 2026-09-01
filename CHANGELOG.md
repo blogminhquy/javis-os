@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.11] - 2026-09-01
+### Sửa lỗi
+- **Việc nền kẹt vì "cần thao tác ra ngoài" nay có lối ra.** Trước đây loại việc này bị chặn vĩnh viễn, bấm Thử lại thì chặn lại y hệt và kêu thêm một tiếng chuông. Giờ có nút **Cho phép chạy thật** ngay trên thẻ việc, và câu báo nói rõ bạn cần bấm gì.
+- **Việc chạy đúng mức quyền đã hứa.** Việc giao từ chat báo là "chỉ đọc và đề xuất" nhưng lại lặng lẽ chạy ở mức được ghi file, và phần chọn mức quyền tự động còn có thể tự cấp cho mình toàn quyền. Nay chỉ bạn mới nâng được mức quyền.
+
+### Cải thiện
+- **Trang Việc về một cột**, khu **Cần bạn xử lý** lên đầu. Trước đây khu này bị bóp vào cột phải hẹp nên đọc lý do phải cuộn, trong khi hai khu bên trái thường trống.
+- Thêm nút **Xoá tất cả** cho khu Cần bạn xử lý và khu Lịch sử, khỏi phải xoá từng việc một.
+
 ## [0.52.10] - 2026-09-01
 ### Sửa lỗi
 - **Ảnh gửi vào chat nay ở lại trong đoạn chat.** Trước đây gửi xong là ảnh biến mất, tải lại trang thì chỉ còn trơ cái tên file.
