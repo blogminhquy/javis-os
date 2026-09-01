@@ -762,13 +762,6 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
   border-radius: 7px; padding: 8px 10px; font-size: 15px; width: 100%;
 }
 .set-note { font-size: 13px; color: var(--text3); line-height: 1.5; }
-.engine-badge {
-  font-family: var(--font); font-size: 12px; letter-spacing: .3px; font-weight: 600;
-  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text2);
-  text-transform: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.engine-badge.or { color: var(--accent-ink); border-color: var(--accent-line); background: var(--accent-wash); }
-.engine-badge.cli { color: var(--accent2-ink); border-color: var(--accent2-line); background: var(--accent2-wash); }
 .set-mini { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 5px; font-size: 12px; padding: 1px 7px; cursor: pointer; margin-left: 6px; }
 .set-mini:hover { color: var(--accent); border-color: var(--accent); }
 .set-actions { display: flex; gap: 8px; }

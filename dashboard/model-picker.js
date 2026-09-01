@@ -169,7 +169,6 @@
         sessionPin = null;
       }
       await loadState(); renderBar(); close();
-      if (window.refreshEngineBadge) window.refreshEngineBadge();
       return;
     }
     const eff = e.target.closest(".mb-eff-btn");

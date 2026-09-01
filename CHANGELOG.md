@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.13] - 2026-09-01
+### Sửa lỗi
+- **Chữ "Hệ thống" cỡ lớn không còn hiện lơ lửng ở đáy thanh bên** khi bên dưới chẳng có gì. Nó là phần dành cho màn hình hẹp, thu về màn rộng thì cái nhãn bị bỏ quên ở lại.
+
+### Cải thiện
+- **Tên bộ não và model dời xuống dòng nhỏ dưới từng câu trả lời**, cạnh mức token. Đầu khung hội thoại được trả lại chỗ trống, và thông tin còn đúng hơn: mỗi câu ghi đúng model đã sinh ra nó, thay vì một dòng chung chỉ nói về lượt cuối.
+- **Bỏ nút chạy lại ở dưới câu trả lời của Javis.** Nó nằm ngay cạnh nút sao chép nên rất dễ bấm trượt, mà bấm trượt là Javis chạy lại cả lượt. Muốn hỏi lại thì bấm **Gửi lại câu này** ngay dưới câu hỏi của bạn.
+
 ## [0.52.12] - 2026-09-01
 ### Sửa lỗi
 - **Điện thoại: mở file để sửa không còn bị kẹt cứng cột Hội thoại/Thư mục.** Cột đó phủ kín màn hình mà không cách nào đóng, vì cả ba đường đóng cũ đều tắt đúng lúc đó. Nay có nền mờ, chạm ra ngoài là đóng, và mở file thì nó tự thu lại.

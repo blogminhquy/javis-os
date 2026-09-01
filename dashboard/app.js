@@ -252,7 +252,6 @@ function handleMessage(data) {
       if (!msgEl) msgEl = appendJavisMessage(shownText);
       else msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
       if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
-      if (data.engine) setEngineBadge(data.engine, data.model);   // sự thật engine+model của lượt này
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
       if (voice.ttsEnabled && t && !t.spoke && finalText) { setOrbState("speaking", "ĐANG NÓI"); voice.speak(finalText); }
@@ -790,9 +789,10 @@ function runMsgAct(btn) {
     if (b) copyText(b.innerText).then(() => flashCopied(btn, "⧉"));
     return;
   }
-  const text = window.JavisActs && window.JavisActs.isUserMsg(msgEl)
-    ? (msgEl.dataset.text || "")
-    : (window.JavisActs ? window.JavisActs.prevUserText(msgEl) : "");
+  // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.
+  // Truoc day con mot nhanh nguoc len tim tin nguoi dung gan nhat - do la duong cua nut "tra
+  // loi lai cau hoi phia tren" o tin Javis, da bo o 0.52.13.
+  const text = msgEl.dataset.text || "";
   if (!text) return;
   if (act === "edit") {
     // Chỉ đổ chữ vào ô nhập, KHÔNG tự gửi - để anh sửa xong tự bấm gửi.
@@ -1918,13 +1918,10 @@ function resumeAudio() {
 document.addEventListener("click", resumeAudio, { once: true });
 document.addEventListener("keydown", resumeAudio, { once: true });
 
-// ============================================
-// Badge engine+model (sự thật, không hỏi model)
-// ============================================
+
 // Nhãn hiển thị cho TỪNG provider. Trước đây chỉ có hai nhánh openrouter-hoặc-CLI, nên chọn
 // Groq/Gemini/OpenAI đều bị dán nhãn "CLI" - vừa sai, vừa phạm đúng luật trong CLAUDE.md là
-// phải trả lời ĐÚNG engine đang chạy. Chủ repo chụp lại cảnh badge ghi "CLI · openai/gpt-oss-120b"
-// trong khi thanh model ngay bên cạnh ghi "Groq".
+// phải trả lời ĐÚNG engine đang chạy.
 const ENGINE_LABEL = {
   "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
   "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
@@ -1933,13 +1930,19 @@ const ENGINE_LABEL = {
   // và khác hoá đơn (gói đã trả, so với API key trả theo lượt gọi).
   "grok-cli": "Grok Build", "antigravity-cli": "Antigravity",
 };
-// Một dòng nhỏ dưới câu trả lời: lượt này chạy ở chế độ nào, và tốn bao nhiêu
+// Một dòng nhỏ dưới câu trả lời: lượt này chạy BẰNG GÌ, ở chế độ nào, và tốn bao nhiêu
 // token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn
 // mức, tức là đã muộn. Thấy được thì người dùng tự biết mức vừa bật có ăn thật hay không.
 // Tên NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người viết
 // code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn khi
 // bấm "Tắt" - gọi nó là "cũ" vừa nghe như đang xin lỗi, vừa làm người ta tưởng máy đang hỏng.
 // Tên ở đây khớp tên nút bên trang Mức dùng để nhìn một dòng là biết mình đang ở đâu.
+//
+// Engine+model đứng ĐẦU dòng này từ 0.52.13. Trước đó nó là một badge riêng ở đầu khung hội
+// thoại, và badge ấy có hai vấn đề: nó chiếm chỗ để lặp lại thứ thanh model ngay dưới ô chat
+// đã nói, và nó chỉ nói về LƯỢT CUỐI - cuộn ngược lên một hội thoại từng đổi model, hay từng
+// bị đẩy sang model dự phòng lúc model chính quá tải, thì badge nói sai về mọi tin phía trên.
+// Gắn vào TỪNG TIN thì mỗi tin tự khai đúng bộ não đã sinh ra nó, và đầu khung được trả lại.
 const CTX_PATH_LABEL = {
   legacy: "Đầy đủ", sources: "Tối ưu", fast: "Tức thì",
   readonly: "Tra cứu", orchestrator: "Tra cứu sâu", write: "Thực thi",
@@ -1949,31 +1952,43 @@ const CTX_PATH_LABEL = {
   bot: "Bot chuyên trách",
 };
 function _renderCtxLine(msgEl, data) {
-  if (!msgEl || !data || !data.ctx_path) return;
+  // Có engine mà chưa có ctx_path thì VẪN vẽ: hai thứ đến từ hai chỗ khác nhau trong payload,
+  // và bỏ cả dòng chỉ vì thiếu một nửa là mất luôn nửa đang có.
+  if (!msgEl || !data || !(data.ctx_path || data.engine)) return;
   const cu = data.ctx_path === "legacy";
-  const ten = CTX_PATH_LABEL[data.ctx_path] || data.ctx_path;
   const tok = Number(data.ctx_in) || 0;
   const old = msgEl.querySelector(".msg-ctx");
   if (old) old.remove();
   const el = document.createElement("div");
-  el.className = "msg-ctx" + (cu ? "" : " saved");
+  // Lớp "saved" (tô khác) chỉ có nghĩa khi BIẾT lượt này đi đường tiết kiệm. Không có ctx_path
+  // thì đừng đoán - gắn bừa là nói dối bằng màu sắc.
+  el.className = "msg-ctx" + (data.ctx_path && !cu ? " saved" : "");
   // Bấm vào là sang trang Mức dùng, nơi có khối chọn mức ngay đầu trang - thấy chế độ đang
   // chạy mà không biết chỉnh ở đâu thì thông tin đó cũng chỉ để bực mình.
   el.dataset.usageGoto = "usage";
-  el.title = cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
-                : "Đang tiết kiệm token. Bấm để xem chi tiết.";
-  el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token" : "");
+  const phan = [];
+  if (data.engine) {
+    // Tên model cắt ngắn cho vừa dòng; tên đầy đủ nằm ở tooltip bên dưới.
+    phan.push((ENGINE_LABEL[data.engine] || data.engine)
+              + (data.model ? " · " + _shortModel(data.model) : ""));
+  }
+  if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] || data.ctx_path);
+  if (tok) phan.push(_fmtTok(tok) + " token");
+  el.textContent = phan.join(" · ");
+  const chuThich = [];
+  if (data.engine) {
+    chuThich.push("Bộ não THẬT đã chạy lượt này"
+                  + (data.model ? ": " + data.model : "")
+                  + " (máy chủ khai, không phải model tự nhận).");
+  }
+  if (data.ctx_path) {
+    chuThich.push(cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
+                     : "Đang tiết kiệm token. Bấm để xem chi tiết.");
+  }
+  el.title = chuThich.join("\n");
   msgEl.appendChild(el);
 }
 
-function setEngineBadge(engine, model) {
-  const el = document.getElementById("engineBadge");
-  if (!el) return;
-  const label = ENGINE_LABEL[engine] || engine || "Chưa rõ";
-  el.textContent = label + (model ? " · " + model : "");
-  // Chỉ còn hai lớp màu: giữ nguyên bộ mặt cũ, không đẻ thêm 7 biến thể CSS.
-  el.className = "engine-badge " + (engine === "openrouter" ? "or" : "cli");
-}
 async function refreshTgStatus() {
   const el = document.getElementById("setTgStatus");
   if (!el) return;
@@ -1987,24 +2002,7 @@ async function refreshTgStatus() {
     if (s.loi_menu_lenh) el.innerHTML += '<div class="set-note">' + ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(s.loi_menu_lenh) + "</div>";
   } catch (e) { el.textContent = ""; }
 }
-// Xuất ra window: console.js gọi lại sau khi đổi model để badge engine không bị cũ.
-// Model chính HIỆU LỰC, soi theo đúng thứ tự server dùng (_effective_main trong main.py):
-// model.main nếu đã đặt, không thì suy từ trường engine cũ. Đọc thiếu bước này là badge
-// đứng ì ở "CLI" cho mọi provider API.
-function _mainProviderModel(m) {
-  const main = m.main || {};
-  if (main.provider) return [main.provider, main.model || ""];
-  if (m.engine === "openrouter") return ["openrouter", m.openrouter_model || ""];
-  if (m.engine === "anthropic-api") return ["anthropic-api", m.claude_model || ""];
-  return ["anthropic-cli", m.claude_model || "mặc định"];
-}
-async function refreshEngineBadge() {
-  try {
-    const s = await (await fetch("/settings")).json();
-    const [prov, model] = _mainProviderModel(s.model || {});
-    setEngineBadge(prov, model || "mặc định");
-  } catch (e) {}
-}
+
 
 // ============================================
 // Mức dùng (token Javis tự đo, đa nhà cung cấp) - panel sidebar
@@ -2247,7 +2245,7 @@ if (document.getElementById("settingsBtn")) {
     const orModel = (sel.value === "__custom__") ? document.getElementById("setOrModel").value.trim() : sel.value;
     const d = { engine: document.getElementById("setEngine").value, claude_model: document.getElementById("setClaudeModel").value, openrouter_model: orModel };
     const k = document.getElementById("setOrKey").value.trim(); if (k) d.openrouter_key = k;
-    _saveSetting("model", d, e.target).then(() => { document.getElementById("setOrKey").value = ""; openSettings(); refreshEngineBadge(); });
+    _saveSetting("model", d, e.target).then(() => { document.getElementById("setOrKey").value = ""; openSettings(); });
   });
   // Dropdown model OpenRouter: chọn custom → hiện ô nhập tay
   document.getElementById("setOrModelSel").addEventListener("change", (e) => {
@@ -2436,7 +2434,6 @@ if (document.getElementById("wzFinish")) {
 // Boot
 // ============================================
 initAuthGate();
-refreshEngineBadge();
 refreshUsage();
 connect();
 initStarfield();
@@ -2456,9 +2453,6 @@ restoreSession();
 // mà khôi phục hội thoại ở trên sinh ra để tránh.
 _pinRestore();
 renderChips();
-
-// Đồng bộ badge engine từ module khác (console.js sau khi đổi model).
-window.refreshEngineBadge = refreshEngineBadge;
 
 // ============================================
 // "Mở như app" (cài PWA) - desktop lẫn Android, không chỉ mobile.

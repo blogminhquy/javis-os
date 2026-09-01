@@ -729,7 +729,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   }
   /* max-width: 60% mặc định tính theo khối bọc, mà khối đó lại co theo nội dung nên tên model
      dài là nó đẩy nút phóng to đi. Trên màn hẹp neo theo BỀ NGANG MÀN HÌNH mới chặn được. */
-  .hud-right .panel-label .engine-badge { max-width: 58vw; }
   .hud-right .transcript {
     flex: 1 1 auto;
     min-height: 0;

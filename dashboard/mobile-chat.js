@@ -73,6 +73,15 @@
       moved.push({ el: el, parent: el.parentElement, next: el.nextSibling });
       (toBtns ? sysBtns : sysHost).appendChild(el);
     }
+    // Gỡ hẳn khung "Hệ thống" khỏi rail. PHẢI có hàm này: `ensureSysHost` dựng khung một lần
+    // rồi giữ tham chiếu, còn `placeSystem` trước đây chỉ trả các nút về chỗ cũ mà KHÔNG dọn
+    // cái khung rỗng. Nên sau một lần đi qua màn hẹp là cái nhãn "Hệ thống" ở lại vĩnh viễn,
+    // đứng chình ình trên hàng version mà bên dưới chẳng còn gì (chủ repo báo 01/09: "thi
+    // thoảng chữ hệ thống to lại hiện ra trong khi chỗ đó đáng nhẽ là không có gì").
+    function boSysHost() {
+      if (sysHost && sysHost.parentElement) sysHost.parentElement.removeChild(sysHost);
+      sysHost = null; sysBtns = null;
+    }
     function placeSystem() {
       if (mq.matches) {
         if (!moved.length) {
@@ -82,12 +91,22 @@
           // trên thanh nhập chat (#ttsToggleBar), gần tay hơn hẳn nhóm "Hệ thống" trong rail.
           moveEl(document.getElementById("sysBar"), false);
         }
+        // Nhãn không được đứng một mình. Mấy nút mượn nằm trong HUD, mà HUD bị vẽ lại ở vài
+        // đường (đổi brain, đổi trang) - lúc đó chúng biến mất khỏi khung này và để lại đúng
+        // cái nhãn trơ ra. Còn nút thì giữ, hết nút thì dọn.
+        if (sysHost && !sysHost.querySelector(".navbar-brain, #themeToggle, #sysBar")) {
+          moved = [];
+          boSysHost();
+        }
       } else if (moved.length) {
         moved.forEach(function (m) {
           if (m.next && m.next.parentElement === m.parent) m.parent.insertBefore(m.el, m.next);
           else m.parent.appendChild(m.el);
         });
         moved = [];
+        boSysHost();   // trả nút về desktop rồi thì cái khung rỗng cũng phải đi theo
+      } else {
+        boSysHost();   // desktop mà vẫn còn khung (dựng hụt, hoặc nút bị vẽ lại mất) -> dọn
       }
     }
 

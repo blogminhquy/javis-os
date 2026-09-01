@@ -37,13 +37,18 @@ check("tin user: có nút sửa lại", has(h, 'data-act="edit"'));
 check("tin user: có nút copy", has(h, 'data-act="copy"'));
 check("tin user: nút không submit form", (h.match(/type="button"/g) || []).length === 3);
 
-// ---- 4. Tin Javis: KHÔNG có nút sửa ----
+// ---- 4. Tin Javis: CHỈ giờ + copy ----
+// Nút "Trả lời lại câu hỏi phía trên" bỏ ở 0.52.13 (chủ repo yêu cầu): nó nằm ngay cạnh nút
+// sao chép - thao tác hay dùng nhất dưới một câu trả lời - nên bấm trượt một ly là Javis chạy
+// lại cả lượt, tốn tiền và mất câu trả lời đang đọc.
 h = A.actsHtml("javis", TS);
 check("tin javis: có giờ", has(h, "msg-time"));
-check("tin javis: có gửi lại", has(h, 'data-act="retry"'));
+check("tin javis: KHÔNG còn nút chạy lại", !has(h, 'data-act="retry"'));
 check("tin javis: KHÔNG có nút sửa", !has(h, 'data-act="edit"'));
 check("tin javis: có copy", has(h, 'data-act="copy"'));
-check("tin javis: nhãn gửi lại nói về câu hỏi phía trên", has(h, "phía trên"));
+check("tin javis: chỉ còn đúng 1 nút", (h.match(/class="msg-act"/g) || []).length === 1);
+// Đường hỏi lại KHÔNG mất: nó nằm trên chính bong bóng câu hỏi của người dùng.
+check("gửi lại vẫn còn ở tin người dùng", has(A.actsHtml("user", TS), 'data-act="retry"'));
 
 // ---- 5. Chuỗi tiếng Việt hiển thị cho người dùng phải CÓ DẤU ----
 h = A.actsHtml("user", TS);
@@ -69,10 +74,9 @@ const u2 = node("msg msg-user", "câu hỏi hai");
 const j2 = node("msg msg-javis", "");
 chain([u1, j1, u2, j2]);
 
-check("tìm ngược: lấy đúng tin user liền trước", A.prevUserText(j2) === "câu hỏi hai");
-check("tìm ngược: bỏ qua tin Javis xen giữa", A.prevUserText(j1) === "câu hỏi một");
-check("tìm ngược: không có tin nào phía trên thì rỗng", A.prevUserText(u1) === "");
-check("tìm ngược: msgEl rỗng thì rỗng", A.prevUserText(null) === "");
+// prevUserText đã BỎ cùng nút "trả lời lại": nó sinh ra chỉ để ngược lên tìm câu hỏi cho nút
+// đó. Không còn nút thì không còn ai gọi, và giữ lại một hàm không ai gọi là để lại rác.
+check("prevUserText đã gỡ khỏi API", A.prevUserText === undefined);
 check("nhận diện tin user", A.isUserMsg(u1) === true && A.isUserMsg(j1) === false);
 check("nhận diện: node rỗng không nổ", A.isUserMsg(null) === false);
 

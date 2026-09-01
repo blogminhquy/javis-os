@@ -1,7 +1,7 @@
 /* chat-acts.js - hang nut duoi moi tin nhan trong khung chat Javis.
 
-   Moi bong bong (cua anh va cua Javis) co mot hang nho ben duoi: gio gui, gui lai,
-   sua lai (chi tin nguoi dung), sao chep. Hang nay AN san (opacity 0), chi hien khi
+   Moi bong bong co mot hang nho ben duoi. Tin cua NGUOI DUNG: gio gui, gui lai, sua lai,
+   sao chep. Tin cua JAVIS: chi gio gui + sao chep. Hang nay AN san (opacity 0), chi hien khi
    hover tren may tinh hoac khi cham vao tin tren dien thoai (.acts-on).
 
    File nay chi giu phan THUAN (khong dung tai lieu DOM that) de test bang node:
@@ -49,8 +49,13 @@
       "/" + d.getFullYear() + " " + fmtTime(ts);
   }
 
-  // role: "user" | "javis". Tin cua Javis khong co nut sua (sua cau tra loi cua may
-  // roi gui di thi khong con y nghia gi) - nut gui lai o do chay lai CAU HOI ngay tren no.
+  // role: "user" | "javis".
+  //
+  // Tin cua JAVIS chi con gio + sao chep. Nut "Tra loi lai cau hoi phia tren" da BO
+  // (chu repo yeu cau 01/09): no nam ngay canh nut sao chep, ma sao chep la thao tac
+  // hay dung nhat duoi mot cau tra loi - bam truot mot ly la Javis chay lai ca luot,
+  // ton tien va de mat cau tra loi dang doc. Ai muon hoi lai thi go lai cau hoi, hoac
+  // bam "Gui lai cau nay" ngay tren bong bong cau hoi cua chinh minh - van con day.
   //
   // canResend=false khi khong co CHU de gui lai (tin chi co anh, khong kem loi nhan).
   // Khi do bo han nut gui lai + sua lai thay vi de nut bam vao khong ra gi. Bo trong
@@ -61,12 +66,9 @@
       ? '<span class="msg-time" title="' + esc(fmtTimeFull(ts)) + '">' + esc(t) + "</span>"
       : "";
     var send = "";
-    if (canResend !== false) {
-      var retryTitle = role === "user" ? "Gửi lại câu này" : "Trả lời lại câu hỏi phía trên";
-      send = '<button class="msg-act" type="button" data-act="retry" title="' + esc(retryTitle) + '">↻</button>' +
-        (role === "user"
-          ? '<button class="msg-act" type="button" data-act="edit" title="Sửa lại rồi gửi">' + ic("pencil") + '</button>'
-          : "");
+    if (canResend !== false && role === "user") {
+      send = '<button class="msg-act" type="button" data-act="retry" title="Gửi lại câu này">↻</button>' +
+        '<button class="msg-act" type="button" data-act="edit" title="Sửa lại rồi gửi">' + ic("pencil") + '</button>';
     }
     return '<div class="msg-acts">' + time + send +
       '<button class="msg-act" type="button" data-act="copy" title="Sao chép nội dung">⧉</button>' +
@@ -77,23 +79,10 @@
     return !!(el && el.classList && el.classList.contains("msg-user"));
   }
 
-  // Nut "tra loi lai" o tin Javis: nguoc len tren tim tin nguoi dung gan nhat roi gui
-  // lai dung chu goc do (luu o dataset.text, khong lay tu DOM da render vi tin dai bi
-  // thu gon va tin Javis da thanh HTML).
-  function prevUserText(msgEl) {
-    var el = msgEl ? msgEl.previousElementSibling : null;
-    while (el) {
-      if (isUserMsg(el)) return (el.dataset && el.dataset.text) || "";
-      el = el.previousElementSibling;
-    }
-    return "";
-  }
-
   var API = {
     fmtTime: fmtTime,
     fmtTimeFull: fmtTimeFull,
     actsHtml: actsHtml,
-    prevUserText: prevUserText,
     isUserMsg: isUserMsg,
   };
 

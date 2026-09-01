@@ -132,7 +132,6 @@
 
   "chat.col_expand": "Reopen the conversation panel",
   "chat.panel": "CONVERSATION",
-  "chat.engine_badge": "The engine + model ACTUALLY running (from the server - not the model's self-reported name)",
   "chat.zoom": "Open the Chat page (full-screen chat)",
   "chat.col_collapse": "Collapse the conversation panel to the right (like the sidebar)",
 

@@ -137,10 +137,11 @@ check("khung chat dien thoai: don ten model + nut phong to ve sat trai",
   /\.hud-right \.panel-label \{[^}]*justify-content: flex-start/.test(CONSOLE_CSS));
 check("co khoang cach giua chu HOI THOAI va ten model",
   /\.hud-right \.panel-label \{[^}]*gap: 8px/.test(CONSOLE_CSS));
-// max-width:60% mac dinh tinh theo khoi boc, ma khoi do co theo noi dung nen ten model dai la
-// no day nut phong to di. Tren man hep phai neo theo BE NGANG MAN HINH.
-check("CANARY: ten model dai khong day nut phong to ra ngoai",
-  /\.hud-right \.panel-label \.engine-badge \{ max-width: 58vw; \}/.test(CONSOLE_CSS));
+// Phep thu "ten model dai khong day nut phong to ra ngoai" DA BO o 0.52.13: badge engine+model
+// o dau khung hoi thoai khong con (chu repo cho bo, model da hien o thanh ngay duoi o chat).
+// Khong con badge thi khong con thu de day nut di, va canh mot luat CSS cua mot phan tu da
+// bi xoa chi lam test do vi mot ly do sai. Hai phep thu tren van dung: hang tieu de van phai
+// neo trai va van phai co khoang cach.
 
 if (fails.length) {
   console.error("\nFAIL - test_nao_tren_dien_thoai: " + fails.length + " loi");
