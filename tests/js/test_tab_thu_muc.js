@@ -175,6 +175,10 @@ const sandbox = {
     createElement: fakeEl,
     getElementById: () => null,
     querySelector: () => null,
+    // Chip project (sessions-ui.js renderProjChip) tìm chỗ đứng của nó bằng hàm này. Thiếu
+    // nó thì module ném lỗi trong một microtask SAU khi test đã in "pass", và node chết -
+    // trông như test hỏng ngẫu nhiên chứ không chỉ ra được gì.
+    querySelectorAll: () => [],
     addEventListener() {},
     body: fakeEl("body"),
   },

@@ -102,6 +102,7 @@
     var cur = curProject();
     if (cur && cur !== "none" && !projById(cur)) setCurProject("");
     renderProjBar();
+    renderProjChip();
   }
 
   function renderProjBar() {
@@ -125,6 +126,7 @@
     shown = PAGE;
     cached = null;          // bộ lọc đổi thì cache của bộ lọc cũ không dùng lại được
     renderProjBar();
+    renderProjChip();
     loadList();
   }
 
@@ -143,6 +145,10 @@
         on: cur === p.id,
         run: function () { chonProject(p.id); },
         acts: [
+          // Chip ở khung chat chỉ hiện khi cuộc ĐANG MỞ thuộc project. Không có lối này thì
+          // muốn sửa hướng dẫn của một project khác phải mở một cuộc trong đó trước.
+          { icon: "sliders-horizontal", title: "Mở khung project",
+            run: function () { closeMenu(); openProjDrawer(p.id); } },
           { icon: "palette", title: "Đổi icon", run: function () { pickIcon(anchor, p.icon || "", function (v) { post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects); }); } },
           { icon: "pencil", title: "Đổi tên", run: function () { renameProject(p); } },
           { icon: "trash-2", title: "Xoá project", run: function () { delProject(p); } },
@@ -159,7 +165,15 @@
     if (name == null || !name.trim()) return;
     var r = await post("/projects", { name: name.trim(), brain: brain() });
     await loadProjects();
-    if (r && r.id) chonProject(r.id);
+    if (!r || !r.id) return;
+    chonProject(r.id);
+    // Mở sẵn một hội thoại trống: bộ lọc vừa trỏ vào project mới nên tin đầu tiên rơi đúng
+    // vào đó (JavisProjects.claim). Rồi mở luôn khung project kèm banner chào - một project
+    // rỗng thì chưa đổi được gì cho lượt chat nào, phải nói ra chỗ để đổ hướng dẫn vào.
+    try { if (window.JavisSessions) window.JavisSessions.new(); } catch (e) {}
+    quenPhienProj();
+    pdOnboard = true;
+    openProjDrawer(r.id);
   }
 
   async function renameProject(p) {
@@ -178,9 +192,561 @@
                  (n ? n + " hội thoại trong đó sẽ được gỡ khỏi nhóm chứ KHÔNG bị xoá."
                     : "Project này chưa có hội thoại nào."))) return;
     await post("/projects/" + encodeURIComponent(p.id) + "/delete", {});
+    if (projChiTiet && projChiTiet.id === p.id) { projChiTiet = null; closeProjDrawer(); }
+    quenPhienProj();
     if (curProject() === p.id) setCurProject("");
     await loadProjects();
     loadList();
+  }
+
+  // ============================================================
+  // Khung project: hướng dẫn + tài liệu + link
+  // ============================================================
+  // Chip nằm ở thanh tiêu đề khung chat, bấm vào mở ngăn kéo này. Cả hai sống trong CÙNG
+  // closure với danh sách project ở trên: một mảng `projects`, một chỗ biết brain nào đang
+  // mở, nên không có bản thứ hai để trôi lệch.
+  //
+  // Chip nói về project CỦA LƯỢT CHAT, không phải bộ lọc cột trái. Hai thứ đó khác nhau và
+  // server bơm hướng dẫn theo cái thứ nhất (`sessions.project_id`): mở lại một cuộc cũ thuộc
+  // project A trong khi cột trái đang lọc project B thì Javis vẫn nhận hướng dẫn của A. Chip
+  // mà đọc bộ lọc là nó nói dối đúng vào lúc người dùng cần tin nó nhất.
+
+  var PROJ_INSTR_MAX = 4000;       // gương của PROJECT_INSTRUCTIONS_MAX (server/sessions.py)
+  var projChiTiet = null;          // {id,name,icon,instructions,files,links} của project đang mở
+  var projTab = "instr";
+  var pdEl = null;                 // node ngăn kéo, dựng MỘT lần rồi gắn vào body
+  var pdLuuTimer = null;
+  var pdOnboard = false;           // banner chào chỉ hiện ngay sau khi tạo project
+  var pdFormFile = false, pdFileMode = "search", pdFormLink = false;
+  var pdHome = { brain: null, home: "" };   // gốc brain tính theo TRẦN duyệt, cho nhánh tải lên
+  var phienProj = { sid: "", pid: "" };     // cache "phiên đang mở thuộc project nào"
+
+  function pdT(k, bien) { return (window.t ? window.t(k, bien) : k); }
+
+  /** Project ĐANG CÓ HIỆU LỰC cho lượt chat hiện tại. */
+  async function duAnCuaLuot() {
+    var sid = currentId();
+    var loc = curProject();
+    var locThat = (loc && loc !== "none") ? loc : "";
+    // Chưa có phiên = khung chat trống. Tin sau sẽ được JavisProjects.claim() gắn vào đúng
+    // project đang lọc, nên chip báo trước điều đó là đúng chứ không phải đoán.
+    if (!sid) return locThat;
+    if (phienProj.sid === sid) return phienProj.pid;
+    var pid = "";
+    try {
+      var r = await fetch("/sessions/" + encodeURIComponent(sid) + "/meta");
+      if (r.ok) {
+        var d = await r.json();
+        pid = (d && d.project_id) || "";
+      } else {
+        // 404 = id đã mint ở client nhưng chưa gửi tin nào, hàng trong DB chưa tồn tại.
+        pid = locThat;
+      }
+    } catch (e) { return locThat; }   // mạng hỏng: đừng ghi cache một câu trả lời sai
+    phienProj = { sid: sid, pid: pid };
+    return pid;
+  }
+
+  function quenPhienProj() { phienProj = { sid: "", pid: "" }; }
+
+  // ── Chip ─────────────────────────────────────────────────────────────────────
+  async function renderProjChip() {
+    var hosts = document.querySelectorAll(".proj-chip-host");
+    if (!hosts.length) return;
+    var pid = await duAnCuaLuot();
+    var p = pid ? projById(pid) : null;
+    // Mở thẳng trang chat sau F5 thì `projects` có thể chưa nạp. Nạp rồi thôi, KHÔNG gọi
+    // loadProjects() ở đây (nó gọi ngược lại hàm này - vòng lặp vô tận).
+    if (pid && !p && !projects.length) {
+      try {
+        var d = await (await fetch("/projects?brain=" + encodeURIComponent(brain()))).json();
+        projects = d.projects || [];
+        p = projById(pid);
+      } catch (e) {}
+    }
+    var html = "";
+    if (p) {
+      var meta = "";
+      if (p.file_count) meta += '<span class="pc-n">' + ic("file-text") + (p.file_count) + '</span>';
+      if (p.link_count) meta += '<span class="pc-n">' + ic("link") + (p.link_count) + '</span>';
+      var coGi = !!(p.has_instructions || p.file_count || p.link_count);
+      html = '<button class="proj-chip' + (coGi ? " co-gi" : "") + '" type="button" title="' +
+               esc(pdT("proj.chip_title")) + '">' +
+               '<span class="pc-ico">' + projIcon(p) + '</span>' +
+               '<span class="pc-name">' + esc(p.name) + '</span>' +
+               (meta ? '<span class="pc-meta">' + meta + '</span>' : '') +
+               '<span class="pc-dot"></span>' +
+             '</button>';
+    }
+    hosts.forEach(function (h) {
+      h.innerHTML = html;
+      var b = h.querySelector(".proj-chip");
+      if (b) b.onclick = function () { openProjDrawer(pid); };
+    });
+  }
+
+  // ── Ngăn kéo ─────────────────────────────────────────────────────────────────
+  function pdDung() {
+    if (pdEl) return pdEl;
+    pdEl = el(
+      '<div class="pd-wrap" id="projDrawer">' +
+        '<div class="pd-scrim"></div>' +
+        '<div class="pd-panel" role="dialog" aria-modal="true">' +
+          '<div class="pd-grip"></div>' +
+          '<div class="pd-head">' +
+            '<span class="pd-ico"></span>' +
+            '<span class="pd-name"></span>' +
+            '<button class="pd-hbtn pd-pin" type="button"></button>' +
+            '<button class="pd-hbtn pd-ren" type="button"></button>' +
+            '<button class="pd-hbtn pd-x" type="button"></button>' +
+          '</div>' +
+          '<div class="pd-tabs">' +
+            '<button class="pd-tab" data-tab="instr" type="button"></button>' +
+            '<button class="pd-tab" data-tab="files" type="button"></button>' +
+            '<button class="pd-tab" data-tab="links" type="button"></button>' +
+          '</div>' +
+          '<div class="pd-body"></div>' +
+        '</div>' +
+      '</div>');
+    document.body.appendChild(pdEl);
+    pdEl.querySelector(".pd-scrim").onclick = closeProjDrawer;
+    pdEl.querySelector(".pd-x").onclick = closeProjDrawer;
+    pdEl.querySelector(".pd-x").innerHTML = ic("x");
+    pdEl.querySelector(".pd-x").title = pdT("proj.close");
+    pdEl.querySelector(".pd-ren").innerHTML = ic("pencil");
+    pdEl.querySelector(".pd-ren").title = pdT("proj.rename");
+    pdEl.querySelector(".pd-ren").onclick = function () {
+      if (!projChiTiet) return;
+      renameProject(projChiTiet).then(function () {
+        var p = projById(projChiTiet.id);
+        if (p) projChiTiet.name = p.name;
+        veDrawer();
+      });
+    };
+    pdEl.querySelectorAll(".pd-tab").forEach(function (b) {
+      b.onclick = function () { showProjTab(b.dataset.tab); };
+    });
+    return pdEl;
+  }
+
+  async function openProjDrawer(pid) {
+    var id = pid || (projChiTiet && projChiTiet.id) || "";
+    if (!id) return;
+    pdDung();
+    pdFormFile = false; pdFormLink = false; pdFileMode = "search";
+    pdEl.classList.add("on");
+    document.body.classList.add("pd-open");
+    projChiTiet = { id: id, name: (projById(id) || {}).name || "", icon: (projById(id) || {}).icon || "", files: [], links: [], instructions: "", dangTai: true };
+    veDrawer();
+    await napProjChiTiet(id);
+    veDrawer();
+  }
+
+  function closeProjDrawer() {
+    // Lưu ngay cái đang gõ dở. Debounce 800ms nghĩa là đóng nhanh tay là mất chữ vừa gõ,
+    // và người dùng không có cách nào biết đã mất.
+    xaLuuHuongDan();
+    if (pdEl) pdEl.classList.remove("on");
+    document.body.classList.remove("pd-open");
+    pdOnboard = false;
+  }
+
+  async function napProjChiTiet(id) {
+    try {
+      var r = await fetch("/projects/" + encodeURIComponent(id));
+      var d = await r.json();
+      if (d && d.project) { projChiTiet = d.project; return; }
+    } catch (e) {}
+    projChiTiet = { id: id, name: (projById(id) || {}).name || "", loi: true, files: [], links: [] };
+  }
+
+  function showProjTab(tab) {
+    xaLuuHuongDan();              // rời tab cũng là rời ô nhập
+    projTab = (tab === "files" || tab === "links") ? tab : "instr";
+    pdFormFile = false; pdFormLink = false;
+    veDrawer();
+  }
+
+  function veDrawer() {
+    if (!pdEl || !projChiTiet) return;
+    var p = projChiTiet;
+    pdEl.querySelector(".pd-ico").innerHTML = projIcon(projById(p.id) || p);
+    pdEl.querySelector(".pd-name").textContent = p.name || "";
+    var nf = (p.files || []).length, nl = (p.links || []).length;
+    var tabs = pdEl.querySelectorAll(".pd-tab");
+    var nhan = [pdT("proj.tab_instr"), pdT("proj.tab_files"), pdT("proj.tab_links")];
+    var dem = ["", nf ? String(nf) : "", nl ? String(nl) : ""];
+    tabs.forEach(function (b, i) {
+      b.innerHTML = esc(nhan[i]) + (dem[i] ? ' <span class="pd-tab-n">' + dem[i] + "</span>" : "");
+      b.classList.toggle("on", b.dataset.tab === projTab);
+    });
+    veNutGhimPhien();
+    var body = pdEl.querySelector(".pd-body");
+    if (p.dangTai) { body.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.loading")) + "…</div>"; return; }
+    if (p.loi) { body.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.err_load")) + "</div>"; return; }
+    body.innerHTML =
+      (pdOnboard
+        ? '<div class="pd-onboard">' + ic("sparkles") + "<span>" + esc(pdT("proj.onboard")) + "</span>" +
+          '<button class="pd-ob-x" type="button">' + esc(pdT("proj.onboard_close")) + "</button></div>"
+        : "") +
+      (projTab === "instr" ? paneHuongDan(p) : projTab === "files" ? paneFile(p) : paneLink(p));
+    var obx = body.querySelector(".pd-ob-x");
+    if (obx) obx.onclick = function () { pdOnboard = false; veDrawer(); };
+    if (projTab === "instr") noiHuongDan();
+    else if (projTab === "files") noiFile();
+    else noiLink();
+  }
+
+  // Nút ghim ở đầu ngăn kéo ghim HỘI THOẠI đang mở lên đầu danh sách - đó là chức năng ghim
+  // toàn cục đã có, chỉ bày lại ở đây. Không có phiên đã lưu thì không có gì để ghim, nên ẩn
+  // hẳn nút thay vì để nó bấm ra lỗi 404 im lặng.
+  function veNutGhimPhien() {
+    var b = pdEl.querySelector(".pd-pin");
+    var sid = currentId();
+    var s = null;
+    if (sid && cached && cached.items) {
+      for (var i = 0; i < cached.items.length; i++) if (cached.items[i].id === sid) s = cached.items[i];
+    }
+    if (!s) { b.style.display = "none"; return; }
+    b.style.display = "";
+    b.innerHTML = ic("pin");
+    b.classList.toggle("on", !!s.pinned);
+    b.title = pdT("proj.pin_session");
+    b.onclick = function () { togglePin(s); b.classList.toggle("on"); };
+  }
+
+  // ── Tab Hướng dẫn ────────────────────────────────────────────────────────────
+  function paneHuongDan(p) {
+    var txt = p.instructions || "";
+    return '<div class="pd-pane">' +
+      '<textarea class="pd-instr" maxlength="' + PROJ_INSTR_MAX + '" placeholder="' +
+        esc(pdT("proj.instr_ph")) + '">' + esc(txt) + "</textarea>" +
+      '<div class="pd-instr-foot">' +
+        '<span class="pd-hint">' + esc(pdT("proj.instr_hint")) + "</span>" +
+        '<span class="pd-save"></span>' +
+      "</div>" +
+      '<div class="pd-count"></div>' +
+      "</div>";
+  }
+
+  function noiHuongDan() {
+    var ta = pdEl.querySelector(".pd-instr");
+    if (!ta) return;
+    demChu();
+    ta.oninput = function () {
+      demChu();
+      datTrangThaiLuu("saving");
+      clearTimeout(pdLuuTimer);
+      pdLuuTimer = setTimeout(function () { luuHuongDan(ta.value); }, 800);
+    };
+    ta.onblur = function () { xaLuuHuongDan(); };
+  }
+
+  function demChu() {
+    var ta = pdEl && pdEl.querySelector(".pd-instr");
+    var box = pdEl && pdEl.querySelector(".pd-count");
+    if (!ta || !box) return;
+    var n = ta.value.length;
+    var day = n >= PROJ_INSTR_MAX;
+    box.className = "pd-count" + (day ? " day" : "");
+    box.textContent = day ? pdT("proj.instr_full") : n + "/" + PROJ_INSTR_MAX;
+  }
+
+  /** Đẩy ngay cái đang chờ debounce. Gọi khi đóng ngăn kéo / rời tab / rời ô nhập. */
+  function xaLuuHuongDan() {
+    if (!pdLuuTimer) return;
+    clearTimeout(pdLuuTimer); pdLuuTimer = null;
+    var ta = pdEl && pdEl.querySelector(".pd-instr");
+    if (ta) luuHuongDan(ta.value);
+  }
+
+  function datTrangThaiLuu(tt) {
+    var s = pdEl && pdEl.querySelector(".pd-save");
+    if (!s) return;
+    s.className = "pd-save " + tt;
+    s.textContent = tt === "saved" ? pdT("proj.instr_saved")
+                  : tt === "err" ? pdT("proj.instr_err")
+                  : pdT("proj.instr_saving") + "…";
+  }
+
+  async function luuHuongDan(v) {
+    pdLuuTimer = null;
+    if (!projChiTiet) return;
+    var r = await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/update",
+                       { instructions: v });
+    if (r && r.ok) {
+      projChiTiet.instructions = v;
+      datTrangThaiLuu("saved");
+      // Chip đọc `has_instructions` từ danh sách, nên phải nạp lại thì chấm báo mới đúng.
+      loadProjects();
+    } else {
+      datTrangThaiLuu("err");
+    }
+  }
+
+  // ── Tab File ─────────────────────────────────────────────────────────────────
+  // Trả về TÊN icon, không phải chuỗi <svg>: chỗ gọi lo dữ liệu, chỗ vẽ mới gọi ic().
+  function icoFile(ten) {
+    var e = (String(ten).split(".").pop() || "").toLowerCase();
+    if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].indexOf(e) >= 0) return "image";
+    if (["md", "txt", "csv", "json", "yaml", "yml", "log"].indexOf(e) >= 0) return "file-text";
+    return "file";
+  }
+
+  function hangMuc(o) {
+    return '<div class="pd-row" data-id="' + esc(o.id) + '">' +
+        '<span class="pd-row-ico">' + ic(o.icon) + "</span>" +
+        '<span class="pd-row-body">' +
+          '<span class="pd-row-name">' + esc(o.ten) + "</span>" +
+          '<span class="pd-row-sub">' + (o.subHtml || esc(o.sub || "")) + "</span>" +
+        "</span>" +
+        '<button class="pd-row-act pd-ghim' + (o.pinned ? " on" : "") + '" type="button" title="' +
+          esc(o.pinned ? pdT("proj.pin_off") : o.ghimTitle) + '">' + ic("pin") + "</button>" +
+        '<button class="pd-row-act pd-go" type="button" title="' + esc(pdT("proj.remove")) + '">' +
+          ic("x") + "</button>" +
+      "</div>";
+  }
+
+  function paneFile(p) {
+    var fs = p.files || [];
+    var ghim = fs.filter(function (f) { return f.pinned; });
+    var thuong = fs.filter(function (f) { return !f.pinned; });
+    var ve = function (f) {
+      return hangMuc({ id: f.id, ten: f.name || f.path, sub: f.path,
+                       icon: icoFile(f.name || f.path), pinned: !!f.pinned,
+                       ghimTitle: pdT("proj.pin_on") });
+    };
+    var ds = "";
+    if (!fs.length) ds = '<div class="pd-empty">' + esc(pdT("proj.files_empty")) + "</div>";
+    else {
+      if (ghim.length) ds += '<div class="pd-group">' + esc(pdT("proj.pinned_group")) + "</div>" + ghim.map(ve).join("");
+      if (thuong.length) ds += (ghim.length ? '<div class="pd-group">' + esc(pdT("proj.other_group")) + "</div>" : "") + thuong.map(ve).join("");
+    }
+    return '<div class="pd-pane" data-pane="files">' + ds +
+      '<button class="pd-add" type="button">' + ic("plus") + " " + esc(pdT("proj.add_file")) + "</button>" +
+      (pdFormFile ? formFile() : "") +
+      '<div class="pd-note">' + ic("info") + "<span>" + esc(pdT("proj.pin_note")) + "</span></div>" +
+      "</div>";
+  }
+
+  function formFile() {
+    return '<div class="pd-form">' +
+      '<div class="pd-modes">' +
+        '<button class="pd-mode' + (pdFileMode === "search" ? " on" : "") + '" data-mode="search" type="button">' +
+          ic("search") + " " + esc(pdT("proj.mode_search")) + "</button>" +
+        '<button class="pd-mode' + (pdFileMode === "upload" ? " on" : "") + '" data-mode="upload" type="button">' +
+          ic("upload-cloud") + " " + esc(pdT("proj.mode_upload")) + "</button>" +
+      "</div>" +
+      (pdFileMode === "search"
+        ? '<input class="pd-in pd-fsearch" placeholder="' + esc(pdT("proj.search_ph")) + '">' +
+          '<div class="pd-results"><div class="pd-empty">' + esc(pdT("proj.search_hint")) + "</div></div>"
+        : '<input type="file" class="pd-file" hidden>' +
+          '<button class="pd-drop" type="button">' + ic("upload-cloud") + " " + esc(pdT("proj.dropzone")) + "</button>" +
+          '<div class="pd-note pd-up-note">' + ic("info") + "<span>" + esc(pdT("proj.upload_dest")) + "</span></div>") +
+      "</div>";
+  }
+
+  function noiFile() {
+    var pane = pdEl.querySelector('[data-pane="files"]');
+    if (!pane) return;
+    pane.querySelector(".pd-add").onclick = function () { pdFormFile = !pdFormFile; veDrawer(); };
+    pane.querySelectorAll(".pd-row").forEach(function (row) {
+      var f = (projChiTiet.files || []).filter(function (x) { return x.id === row.dataset.id; })[0];
+      if (!f) return;
+      row.querySelector(".pd-ghim").onclick = function () { ghimFile(f); };
+      row.querySelector(".pd-go").onclick = function () { goFile(f); };
+    });
+    pane.querySelectorAll(".pd-mode").forEach(function (b) {
+      b.onclick = function () { pdFileMode = b.dataset.mode; veDrawer(); };
+    });
+    var o = pane.querySelector(".pd-fsearch");
+    if (o) {
+      o.focus();
+      var timer = null;
+      o.oninput = function () {
+        clearTimeout(timer);
+        var q = o.value.trim();
+        timer = setTimeout(function () { timFile(q, pane); }, 280);
+      };
+    }
+    var drop = pane.querySelector(".pd-drop");
+    var inp = pane.querySelector(".pd-file");
+    if (drop && inp) {
+      drop.onclick = function () { inp.click(); };
+      inp.onchange = function () { if (inp.files && inp.files[0]) taiLen(inp.files[0], drop); };
+      drop.ondragover = function (e) { e.preventDefault(); drop.classList.add("over"); };
+      drop.ondragleave = function () { drop.classList.remove("over"); };
+      drop.ondrop = function (e) {
+        e.preventDefault(); drop.classList.remove("over");
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) taiLen(f, drop);
+      };
+    }
+  }
+
+  async function timFile(q, pane) {
+    var box = pane.querySelector(".pd-results");
+    if (!box) return;
+    if (!q) { box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.search_hint")) + "</div>"; return; }
+    box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.searching")) + "…</div>";
+    var items = [];
+    try {
+      var d = await (await fetch("/files/search?brain=" + encodeURIComponent(brain()) +
+                                 "&mode=name&limit=20&q=" + encodeURIComponent(q))).json();
+      items = d.items || [];
+    } catch (e) {}
+    if (!items.length) { box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.search_none")) + "</div>"; return; }
+    var daCo = {};
+    (projChiTiet.files || []).forEach(function (f) { daCo[f.path] = true; });
+    box.innerHTML = items.map(function (it) {
+      return '<div class="pd-res" data-path="' + esc(it.path) + '" data-name="' + esc(it.name) + '">' +
+        '<span class="pd-res-ico">' + ic(icoFile(it.name)) + "</span>" +
+        '<span class="pd-res-n"><b>' + esc(it.name) + "</b><i>" + esc(it.path) + "</i></span>" +
+        '<button class="pd-res-add" type="button"' + (daCo[it.path] ? " disabled" : "") + ">" +
+          esc(daCo[it.path] ? pdT("proj.added") : pdT("proj.add")) + "</button></div>";
+    }).join("");
+    box.querySelectorAll(".pd-res").forEach(function (r) {
+      var b = r.querySelector(".pd-res-add");
+      if (b.disabled) return;
+      b.onclick = function () { themFile(r.dataset.path, r.dataset.name, b); };
+    });
+  }
+
+  async function themFile(duong, ten, nut) {
+    if (nut) { nut.disabled = true; nut.textContent = pdT("proj.added"); }
+    var r = await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/files",
+                       { path: duong, name: ten || "" });
+    if (!r || !r.ok) {
+      alert(pdT("proj.err_add_file") + ": " + ((r && r.error) || ""));
+      if (nut) { nut.disabled = false; nut.textContent = pdT("proj.add"); }
+      return;
+    }
+    await napProjChiTiet(projChiTiet.id);
+    loadProjects();
+    veDrawer();
+  }
+
+  /** Gốc brain tính theo TRẦN duyệt. Trần có thể cao hơn gốc brain (localhost duyệt cả ổ
+   *  đĩa), nên tải thẳng vào "attachments" là ghi ra ngoài brain. */
+  async function homeCuaBrain() {
+    var b = brain();
+    if (pdHome.brain === b) return pdHome.home;
+    var home = "";
+    try {
+      var d = await (await fetch("/files/list?brain=" + encodeURIComponent(b))).json();
+      home = d.home || "";
+    } catch (e) {}
+    pdHome = { brain: b, home: home };
+    return home;
+  }
+
+  async function taiLen(file, drop) {
+    var cu = drop.innerHTML;
+    drop.disabled = true;
+    drop.innerHTML = ic("loader") + " " + esc(pdT("proj.uploading")) + "…";
+    var home = await homeCuaBrain();
+    var thuMuc = (home ? home + "/" : "") + "attachments";
+    var up = null;
+    try {
+      var fd = new FormData();
+      fd.append("file", file); fd.append("brain", brain()); fd.append("path", thuMuc);
+      up = await (await fetch("/files/upload", { method: "POST", body: fd })).json();
+    } catch (e) {}
+    drop.disabled = false; drop.innerHTML = cu;
+    if (!up || !up.ok) { alert(pdT("proj.err_upload") + ": " + ((up && up.error) || "")); return; }
+    await themFile(thuMuc + "/" + up.name, up.name, null);
+  }
+
+  async function ghimFile(f) {
+    await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/files/" +
+               encodeURIComponent(f.id) + "/pin", { pinned: f.pinned ? "0" : "1" });
+    await napProjChiTiet(projChiTiet.id);
+    veDrawer();
+  }
+
+  async function goFile(f) {
+    if (!confirm(pdT("proj.confirm_remove_file", { ten: f.name || f.path }))) return;
+    await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/files/" +
+               encodeURIComponent(f.id) + "/delete", {});
+    await napProjChiTiet(projChiTiet.id);
+    loadProjects();
+    veDrawer();
+  }
+
+  // ── Tab Link ─────────────────────────────────────────────────────────────────
+  function paneLink(p) {
+    var ls = p.links || [];
+    var ve = function (l) {
+      return hangMuc({ id: l.id, ten: l.label || l.url, icon: "link", pinned: !!l.pinned,
+                       ghimTitle: pdT("proj.pin_link_on"),
+                       subHtml: '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+                                esc(l.url) + "</a>" });
+    };
+    var ds = ls.length ? ls.map(ve).join("")
+                       : '<div class="pd-empty">' + esc(pdT("proj.links_empty")) + "</div>";
+    return '<div class="pd-pane" data-pane="links">' + ds +
+      '<button class="pd-add" type="button">' + ic("plus") + " " + esc(pdT("proj.add_link")) + "</button>" +
+      (pdFormLink
+        ? '<div class="pd-form">' +
+            '<input class="pd-in pd-lurl" placeholder="' + esc(pdT("proj.link_url_ph")) + '">' +
+            '<input class="pd-in pd-llabel" placeholder="' + esc(pdT("proj.link_label_ph")) + '">' +
+            '<div class="pd-frow">' +
+              '<button class="pd-ok" type="button">' + esc(pdT("proj.add")) + "</button>" +
+              '<button class="pd-huy" type="button">' + esc(pdT("proj.cancel")) + "</button>" +
+            "</div></div>"
+        : "") +
+      '<div class="pd-note">' + ic("info") + "<span>" + esc(pdT("proj.link_note")) + "</span></div>" +
+      "</div>";
+  }
+
+  function noiLink() {
+    var pane = pdEl.querySelector('[data-pane="links"]');
+    if (!pane) return;
+    pane.querySelector(".pd-add").onclick = function () { pdFormLink = !pdFormLink; veDrawer(); };
+    pane.querySelectorAll(".pd-row").forEach(function (row) {
+      var l = (projChiTiet.links || []).filter(function (x) { return x.id === row.dataset.id; })[0];
+      if (!l) return;
+      row.querySelector(".pd-ghim").onclick = function () { ghimLink(l); };
+      row.querySelector(".pd-go").onclick = function () { goLink(l); };
+    });
+    var u = pane.querySelector(".pd-lurl");
+    if (!u) return;
+    u.focus();
+    var lb = pane.querySelector(".pd-llabel");
+    var them = function () { themLink(u.value, lb.value); };
+    pane.querySelector(".pd-ok").onclick = them;
+    pane.querySelector(".pd-huy").onclick = function () { pdFormLink = false; veDrawer(); };
+    [u, lb].forEach(function (o) {
+      o.onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); them(); } };
+    });
+  }
+
+  async function themLink(url, nhan) {
+    var u = (url || "").trim();
+    if (!u) return;
+    var r = await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/links",
+                       { url: u, label: (nhan || "").trim() });
+    if (!r || !r.ok) { alert(pdT("proj.err_add_link") + ": " + ((r && r.error) || "")); return; }
+    pdFormLink = false;
+    await napProjChiTiet(projChiTiet.id);
+    loadProjects();
+    veDrawer();
+  }
+
+  async function ghimLink(l) {
+    await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/links/" +
+               encodeURIComponent(l.id) + "/pin", { pinned: l.pinned ? "0" : "1" });
+    await napProjChiTiet(projChiTiet.id);
+    veDrawer();
+  }
+
+  async function goLink(l) {
+    if (!confirm(pdT("proj.confirm_remove_link", { ten: l.label || l.url }))) return;
+    await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/links/" +
+               encodeURIComponent(l.id) + "/delete", {});
+    await napProjChiTiet(projChiTiet.id);
+    loadProjects();
+    veDrawer();
   }
 
   // ===== Popover dùng chung cho menu project và bộ chọn icon =====
@@ -556,11 +1122,14 @@
     await post("/sessions/" + encodeURIComponent(s.id) + "/project",
                { project_id: pid, brain: brain() });
     await loadProjects();      // số hội thoại của project vừa đổi
+    quenPhienProj();
+    renderProjChip();
     cached = null;
     loadList();
   }
 
-  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab };
+  window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab,
+                           chip: renderProjChip, moKhung: openProjDrawer };
   // Cầu nối cho app.js: hội thoại VỪA được mint id trong lúc đang mở một project thì tự rơi
   // vào project đó. Phải gắn nhãn ngay tại lúc bấm gửi vì id sinh ở phía client, còn hàng
   // trong DB thì tới lượt server xử lý mới có - endpoint tự tạo hàng khi nhận kèm brain.
@@ -576,6 +1145,27 @@
 
   // Cập nhật khi có lượt chat mới / đổi phiên / đổi brain
   window.addEventListener("javis:sessions-changed", refresh);
+  // Chip phải tự sống KHÔNG phụ thuộc cột trái: refresh() thoát sớm khi chưa mount sidebar,
+  // mà chip còn đứng ở màn Javis nơi cột đó chưa bao giờ mount. Đổi phiên là đổi project có
+  // hiệu lực, nên bỏ cache rồi vẽ lại.
+  window.addEventListener("javis:sessions-changed", function () {
+    quenPhienProj();
+    renderProjChip();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && pdEl && pdEl.classList.contains("on")) closeProjDrawer();
+  });
+  // Đổi ngôn ngữ giao diện: phần khung dựng MỘT lần (nút đóng, nút đổi tên) không tự vẽ lại
+  // như thân khung, nên bỏ hẳn node đi để lần mở sau dựng lại bằng từ điển mới.
+  window.addEventListener("javis:i18n", function () {
+    var dangMo = !!(pdEl && pdEl.classList.contains("on"));
+    var id = projChiTiet && projChiTiet.id;
+    if (pdEl && pdEl.parentNode) pdEl.parentNode.removeChild(pdEl);
+    pdEl = null;
+    document.body.classList.remove("pd-open");
+    if (dangMo && id) openProjDrawer(id);
+    renderProjChip();
+  });
 
   function bindGlobal() {
     var gs = document.getElementById("graphSource");
@@ -586,8 +1176,13 @@
     btn.onclick = function () { if (window.JavisChatStage) window.JavisChatStage.showSide(); };
     var host = document.querySelector(".hud-actions");
     (host || document.body).appendChild(btn);
-    // Prefetch danh sách sau khi cockpit đã yên: bấm Lịch sử lần đầu là có sẵn dữ liệu
-    setTimeout(function () { fetchList().catch(function () {}); }, 1500);
+    // Prefetch danh sách sau khi cockpit đã yên: bấm Lịch sử lần đầu là có sẵn dữ liệu.
+    // Kèm danh sách project vì chip ở thanh tiêu đề khung chat cần tên + số file/link ngay,
+    // trong khi cột trái (nơi vẫn gọi loadProjects) chỉ mount khi mở trang Trò chuyện.
+    setTimeout(function () {
+      fetchList().catch(function () {});
+      loadProjects();
+    }, 1500);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindGlobal);
   else bindGlobal();
