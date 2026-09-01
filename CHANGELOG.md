@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.10] - 2026-09-01
+### Sửa lỗi
+- **Ảnh gửi vào chat nay ở lại trong đoạn chat.** Trước đây gửi xong là ảnh biến mất, tải lại trang thì chỉ còn trơ cái tên file.
+- **Bấm vào ảnh là phóng to được**, cả ảnh đã gửi lẫn ảnh vừa dán còn nằm ở thanh đính kèm.
+- Ảnh chỉ được giữ tạm vài ngày. Quá hạn thì chỗ đó hiện **một khung nói rõ là không xem lại được nữa**, thay vì một ô ảnh vỡ khiến bạn tưởng app hỏng.
+
 ## [0.52.9] - 2026-09-01
 ### Sửa lỗi
 - **Ô tìm note ở cột VAULT thôi ì.** Nó đang dò tên file bằng cách **bò cả vault từ trình duyệt**, mỗi thư mục một lượt hỏi máy chủ. Trên máy nhà thì không ai thấy, nhưng qua mạng tới VPS thì vault vài chục thư mục là chờ hàng chục giây. Nay nó hỏi máy chủ đúng một lần, y như ô tìm ở trang Tệp tin vốn vẫn nhanh.

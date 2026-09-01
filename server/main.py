@@ -3812,6 +3812,7 @@ IMG_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
 # vì trong container code tree /app là read-only + chạy user non-root → makedirs ném
 # PermissionError → HTTP 500 khi upload. (config.py cùng nguyên tắc cho settings/branding.)
 STAGING = cfgmod.STATE_DIR / ".staging"
+from urllib.parse import quote as urlquote   # dựng URL /upload/raw cho tên file có dấu
 
 def _default_brain_dir() -> Path:
     """Brain mặc định = <BRAINS_DIR>/Brain Default. BRAINS_DIR = thư mục CHA chứa mọi brain
@@ -3938,11 +3939,57 @@ async def upload(file: UploadFile = File(...), brain: str = Form("")):
         attachments = _resolve_subfolder(root, r"^(\d+\s*[-_.]\s*)?attachments$", "Attachments")
         return {"ok": True, "staged": staged, "name": os.path.basename(staged),
                 "kind": kind, "size": os.path.getsize(staged),
+                "url": "/upload/raw?name=" + urlquote(os.path.basename(staged)),
                 "sources": sources, "attachments": attachments}
     except Exception as e:
         import sys, traceback
         traceback.print_exc(file=sys.stderr)
         return {"ok": False, "error": f"Không lưu được file tạm: {e}"}
+
+
+def _duong_staging(name: str) -> Path:
+    """Tên file trong staging -> đường tuyệt đối. ValueError nếu tên không hợp lệ.
+
+    Chỉ nhận TÊN, không nhận đường dẫn: mọi dấu phân cách đều bị chặn thẳng, rồi vẫn resolve
+    và kiểm lại là còn nằm trong STAGING. Hai lớp vì lớp đầu là luật chuỗi (dễ sót một cách
+    viết lạ) còn lớp sau là sự thật của hệ thống tệp (symlink, "..", tên Windows)."""
+    ten = str(name or "").strip()
+    if not ten or ten in (".", "..") or "/" in ten or "\\" in ten or "\x00" in ten:
+        raise ValueError("Tên file không hợp lệ")
+    goc = Path(STAGING).resolve()
+    f = (goc / ten).resolve()
+    if f.parent != goc:      # symlink trỏ ra ngoài cũng rơi vào đây (resolve đã đi theo nó)
+        raise ValueError("Tên file không hợp lệ")
+    return f
+
+
+@app.get("/upload/raw")
+async def upload_raw(name: str = Query(...), dl: int = Query(0)):
+    """Phục vụ lại file VỪA DÁN / TẢI LÊN khung chat, đọc thẳng từ thư mục stage tạm.
+
+    Vì sao cần (chủ repo báo 01/09): bong bóng tin của người dùng hiện ảnh bằng
+    `URL.createObjectURL` - một URL chỉ sống trong tab đang mở và bị thu hồi ngay sau khi
+    gửi. Nên ảnh vừa gửi đã hỏng, F5 một cái là mất hẳn, chỉ còn trơ cái tên file, và cũng
+    không bấm phóng to được. Có đường này thì bong bóng trỏ vào chính file trên máy chủ:
+    xem lại được, phóng to được như mọi ảnh khác trong chat.
+
+    Staging là chỗ TRUNG CHUYỂN, không phải kho: `media_gc.sweep_staging` dọn sau
+    `staging_days` (mặc định 3 ngày). Lúc đó đường này trả 404 - đúng ý đồ, và dashboard vẽ
+    khung "ảnh không còn xem lại được" thay cho một ô ảnh vỡ không ai hiểu.
+    """
+    try:
+        f = _duong_staging(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if not f.is_file():
+        return JSONResponse({"error": "File tạm đã hết hạn hoặc đã được dọn"}, status_code=404)
+    if dl:
+        return FileResponse(str(f), filename=f.name)
+    mt, _ = mimetypes.guess_type(f.name)
+    resp = FileResponse(str(f), media_type=mt or "application/octet-stream")
+    resp.headers["Content-Disposition"] = "inline"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
 
 @app.post("/ingest-upload")
 async def ingest_upload(

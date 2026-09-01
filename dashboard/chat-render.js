@@ -820,7 +820,7 @@
     var a = document.createElement("a");
     // /files/raw?...&dl=1 la duong SERVER ep tai kem dung ten file (ke ca ten tieng Viet).
     // Anh ngoai vault khong co duong do -> dua thuoc tinh download, cung lam gi hon duoc.
-    a.href = /\/files\/raw\?/.test(_lbUrl) ? _lbUrl + "&dl=1" : _lbUrl;
+    a.href = /\/(files|upload)\/raw\?/.test(_lbUrl) ? _lbUrl + "&dl=1" : _lbUrl;
     a.download = _lbTen || "";
     a.rel = "noopener";
     document.body.appendChild(a);
@@ -892,7 +892,11 @@
       e.stopPropagation();
       var img = a.querySelector("img");
       var vp = a.getAttribute("data-vault-path") || "";
-      var ten = vp ? vp.split("/").pop() : (a.getAttribute("href") || "").split("/").pop().split("?")[0];
+      // `data-img-ten` la ten do NGUOI GUI dat, dung cho anh khong nam trong vault (vd file vua
+      // dan vao khung chat, phuc vu qua /upload/raw?name=...). Suy ten tu href o day ra chu
+      // "raw" - dung ten endpoint lam ten anh, vua sai vua kho hieu.
+      var ten = a.getAttribute("data-img-ten") || "";
+      if (!ten) ten = vp ? vp.split("/").pop() : (a.getAttribute("href") || "").split("/").pop().split("?")[0];
       moLightbox(a.getAttribute("href") || (img && img.src) || "", ten);
     }, true);
     // Checkbox task "- [ ]" (cam hung obsidian-tasks): trong editor (.ne-wys) tick duoc va tu luu

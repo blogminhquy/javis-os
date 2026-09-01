@@ -311,7 +311,9 @@ function sendMessage(text) {
   voice.stopSpeaking();
   window.JavisAsk.freezeAll();   // trả lời rồi thì chip của lượt trước hết bấm được
   appendUserMessage(msg, atts);
-  recordTurn("user", msg, atts.map(a => ({ name: a.name, kind: a.kind })));
+  // Lưu cả `url` (đường /upload/raw của file stage): thiếu nó thì F5 xong ảnh trong tin cũ
+  // không còn gì để trỏ tới, và bong bóng chỉ còn trơ cái tên file.
+  recordTurn("user", msg, atts.map(a => ({ name: a.name, kind: a.kind, url: a.url || "" })));
 
   // Soạn message gửi Javis (kèm đường dẫn file trong Sources)
   const _isSkill = _slash.type === "skill";
@@ -508,19 +510,64 @@ function chuNguoiGo(text) {
 }
 window.JavisChuNguoiGo = chuNguoiGo;   // console.js dùng lại khi dựng bản xem trước hội thoại
 
+// Ảnh/file đính kèm hiện NGAY TRONG bong bóng tin của người dùng.
+//
+// Trước đây ô này trỏ vào `URL.createObjectURL(file)` - một URL chỉ sống trong tab đang mở,
+// và `clearAttachments()` thu hồi nó ngay sau khi gửi. Nên ảnh vừa gửi đã hỏng, F5 một cái
+// là mất hẳn (lịch sử chỉ lưu tên + loại), và cũng không bấm phóng to được. Nay ảnh trỏ vào
+// `/upload/raw` - chính file trong thư mục stage tạm trên máy chủ - nên xem lại được sau khi
+// tải lại trang, và bọc trong `a.jv-img-link` để dùng chung lightbox với mọi ảnh khác.
+//
+// Staging là chỗ trung chuyển, bị dọn sau vài ngày. Ảnh 404 KHÔNG được để trơ thành ô vỡ:
+// `vaAnhHong` đổi nó thành một khung nói thẳng là không xem lại được nữa.
+function attachHtml(attachments) {
+  if (!attachments || !attachments.length) return "";
+  return `<div class="msg-attach">` + attachments.map(a => {
+    const url = a.url || a.preview || "";
+    if (a.kind === "image" && url) {
+      const _u = escapeHtml(url), _t = escapeHtml(a.name || "");
+      return `<a class="jv-img-link att-img" href="${_u}" data-img-ten="${_t}"`
+        + ` target="_blank" rel="noopener" data-i18n-title="chat.att_zoom"`
+        + ` title="${escapeHtml(t("chat.att_zoom"))}">`
+        + `<img src="${_u}" alt="${_t}" loading="lazy"></a>`;
+    }
+    // Ảnh KHÔNG còn URL nào (tin cũ lưu từ bản trước, chỉ có tên + loại): nói thẳng là hết
+    // xem lại được, chứ đừng giả vờ nó là một file đính kèm bình thường.
+    if (a.kind === "image") return anhHetHan(a.name);
+    return `<span class="file-tag">${ic("file-text")} ${escapeHtml(a.name || "")}</span>`;
+  }).join("") + `</div>`;
+}
+// `data-i18n*` đi KÈM chữ đã dịch sẵn, không thay nó: từ điển nạp bằng fetch nên tin dựng lại
+// lúc F5 có thể vẽ TRƯỚC khi từ điển về, và khi đó `t()` trả về chính cái khoá. Có thuộc tính
+// này thì lượt quét `applyDom()` lúc từ điển về sẽ chữa lại - đúng lưới đã dựng ở 0.52.2.
+function anhHetHan(ten) {
+  return `<span class="att-mat" data-i18n-title="chat.att_gone_hint"`
+    + ` title="${escapeHtml(t("chat.att_gone_hint"))}">`
+    + `${ic("image")}<span class="att-mat-ten">${escapeHtml(ten || "")}</span>`
+    + `<span class="att-mat-note" data-i18n="chat.att_gone">`
+    + `${escapeHtml(t("chat.att_gone"))}</span></span>`;
+}
+// File tạm đã bị dọn -> ảnh 404. Thay thẻ <img> bằng khung "không còn xem lại được" thay vì
+// để trình duyệt vẽ ô ảnh vỡ (người dùng đọc ô vỡ thành "app hỏng", không thành "hết hạn").
+function vaAnhHong(root) {
+  if (!root) return;
+  root.querySelectorAll(".msg-attach img").forEach(img => {
+    img.addEventListener("error", () => {
+      const link = img.closest("a.att-img") || img;
+      const ten = img.getAttribute("alt") || "";
+      const tam = document.createElement("span");
+      tam.innerHTML = anhHetHan(ten);
+      if (link.parentNode) link.replaceWith(tam.firstElementChild || tam);
+    }, { once: true });
+  });
+}
+
 function appendUserMessage(text, attachments, ts) {
   text = chuNguoiGo(text);
   const div = document.createElement("div");
   div.className = "msg msg-user";
   div.dataset.text = text || "";   // giữ nguyên văn để gửi lại / sửa lại đúng chữ gốc
-  let attHtml = "";
-  if (attachments && attachments.length) {
-    attHtml = `<div class="msg-attach">` + attachments.map(a =>
-      a.preview
-        ? `<img src="${a.preview}" alt="${escapeHtml(a.name)}">`
-        : `<span class="file-tag">${ic("file-text")} ${escapeHtml(a.name)}</span>`
-    ).join("") + `</div>`;
-  }
+  const attHtml = attachHtml(attachments);
   // Tin dài (>10 dòng hoặc >900 ký tự) thu gọn lại, bấm "Xem thêm" để mở
   const isLong = text && (text.split("\n").length > 10 || text.length > 900);
   const textHtml = text
@@ -529,6 +576,7 @@ function appendUserMessage(text, attachments, ts) {
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
     actsHtml("user", ts === undefined ? Date.now() : ts, !!(text || "").trim());
+  vaAnhHong(div);
   chatAppend(div); scrollBottom(true);
 }
 // brain (tuỳ chọn): brain của HỘI THOẠI chứa tin này. Bỏ trống = brain đang chọn (tin mới).
@@ -1595,8 +1643,16 @@ function renderChips() {
   pendingAttachments.forEach((a, i) => {
     const chip = document.createElement("div");
     chip.className = "attach-chip" + (a.uploading ? " uploading" : "");
-    const thumb = a.preview
-      ? `<img src="${a.preview}" alt="">`
+    // Ảnh vừa dán/chọn cũng phải BẤM PHÓNG TO được ngay ở thanh đính kèm - trước đây ô này
+    // là ảnh chết, muốn xem cho rõ phải gửi đi rồi mở lại. Ưu tiên URL trên máy chủ (tải xong),
+    // lúc còn đang tải thì tạm dùng blob để không phải chờ mới thấy hình.
+    const _tUrl = a.kind === "image" ? (a.url || a.preview || "") : "";
+    const thumb = _tUrl
+      ? `<a class="jv-img-link chip-thumb" href="${escapeHtml(_tUrl)}"`
+        + ` data-img-ten="${escapeHtml(a.name || "")}" target="_blank"`
+        + ` rel="noopener" data-i18n-title="chat.att_zoom"`
+        + ` title="${escapeHtml(t("chat.att_zoom"))}">`
+        + `<img src="${escapeHtml(_tUrl)}" alt=""></a>`
       : `<div class="chip-ico">${a.uploading ? ic("loader", { cls: "ic-spin" }) : ic("file-text")}</div>`;
     const meta = a.uploading
       ? (a.statusText || "đang xử lý...")
@@ -1687,6 +1743,7 @@ async function uploadFile(file) {
     const up = await resp.json();
     if (!up.ok) { att.uploading = false; att.statusText = up.error ? ("lỗi: " + up.error) : "lỗi upload"; renderChips(); return; }
     att.path = up.staged; att.name = up.name; att.size = up.size; att.kind = up.kind;
+    att.url = up.url || "";   // đường xem lại trên máy chủ (bong bóng chat dùng, không phải blob)
     att.sources = up.sources; att.attachments = up.attachments;
     att.uploading = false; att.statusText = "";
   } catch (e) {

@@ -609,5 +609,9 @@
   "studio.sk_name_ph": "e.g. Write sales emails",
   "studio.sk_group_ph": "e.g. Marketing",
   "studio.sk_desc": "Description (decides when the skill triggers)",
-  "studio.sk_body": "Content (SKILL.md - instructions for the AI)"
+  "studio.sk_body": "Content (SKILL.md - instructions for the AI)",
+
+  "chat.att_zoom": "Click to enlarge",
+  "chat.att_gone": "no longer viewable",
+  "chat.att_gone_hint": "The temporary file was cleaned up after a few days. Javis did read the image when you sent it; it just is not kept long term."
 }
