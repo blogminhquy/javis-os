@@ -103,6 +103,7 @@ Vài điều nên biết về tìm kiếm:
 - Tìm theo **nội dung** chỉ quét file dạng chữ (.md, .txt, .json, .yaml, .csv, .py, .js...), bỏ qua file nặng hơn 1MB, và bỏ qua các thư mục kỹ thuật `.git`, `node_modules`, `__pycache__`, `.obsidian`, `.trash`, `.venv` cùng mọi thư mục ẩn.
 - Chế độ **Nội dung** cần ít nhất 2 ký tự. Gõ 1 ký tự thì Javis nhắc "Nhập ít nhất 2 ký tự để tìm trong nội dung."
 - Không có kết quả thì hiện `Không tìm thấy file phù hợp với "<từ khoá>".`
+- Ô **Tìm note...** ở cột VAULT bên trái dùng chung đường tìm này từ bản **0.52.9**. Trước đó nó tự bò cả vault từ trình duyệt, mỗi thư mục một lượt hỏi máy chủ, nên qua mạng tới VPS thì chậm hẳn so với ô tìm ở trang này. Nay hai ô nhanh như nhau.
 
 ### Duyệt thư mục
 

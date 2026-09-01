@@ -5764,12 +5764,39 @@
     });
   }
 
+  // Tìm theo TÊN: hỏi server MỘT phát (`/files/search?mode=name`), y như trang Tệp tin vẫn làm.
+  //
+  // Trước 0.52.9 chỗ này gọi `_vtBuildIndex`, tức là BÒ CẢ VAULT TỪ TRÌNH DUYỆT: mỗi thư mục
+  // một request `/files/list`, và bò TUẦN TỰ. Trên máy mình thì không thấy gì vì round-trip
+  // gần bằng 0; trên VPS mỗi request mất cả trăm mili giây, vault trăm thư mục là hàng chục
+  // giây trắng màn hình. Đúng chỗ chủ repo báo 01/09/2026: "tìm ở panel này rất chậm, trong
+  // khi tìm trong Tệp tin thì file ra cực nhanh" - trang Tệp tin vốn đã hỏi server một phát.
+  //
+  // Đường bò cũ vẫn giữ làm DỰ PHÒNG, đúng lý do nó sinh ra: server cũ chưa có endpoint này
+  // (404) thì panel vẫn phải tìm được, không bắt người dùng khởi động lại mới dùng được.
   async function _vtNameSearch(q) {
     const box = document.getElementById("vaultResults"); if (!box) return;
     box.innerHTML = `<div class="vr-empty">Đang tìm…</div>`;
-    const idx = await _vtBuildIndex();
-    const nq = _vtNoAccent(q);
-    const hits = idx.filter(f => _vtNoAccent(f.name).includes(nq)).slice(0, 120);
+    let hits = null;
+    try {
+      const r = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}`
+        + `&q=${encodeURIComponent(q)}&mode=name&limit=120`);
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        // `path` của /files/search tính theo TRẦN DUYỆT - đúng quy ước openNote/_vtRevealInTree
+        // đang dùng, nên không phải đổi gì ở hai chỗ đó.
+        if (d && !d.error) hits = (d.items || []).map(it => ({
+          name: it.name, ext: it.ext, path: it.path,
+          dir: String(it.path || "").includes("/")
+            ? it.path.slice(0, it.path.lastIndexOf("/")) : "",
+        }));
+      }
+    } catch (e) { /* mất mạng chốc lát → thử đường bò bên dưới */ }
+    if (hits === null) {
+      const idx = await _vtBuildIndex();
+      const nq = _vtNoAccent(q);
+      hits = idx.filter(f => _vtNoAccent(f.name).includes(nq)).slice(0, 120);
+    }
     if (!hits.length) { box.innerHTML = `<div class="vr-empty">Không thấy note nào tên khớp "${esc(q)}".</div>`; return; }
     _vtRenderResults(box, hits, false);
   }

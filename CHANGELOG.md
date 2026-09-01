@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.52.9] - 2026-09-01
+### Sửa lỗi
+- **Ô tìm note ở cột VAULT thôi ì.** Nó đang dò tên file bằng cách **bò cả vault từ trình duyệt**, mỗi thư mục một lượt hỏi máy chủ. Trên máy nhà thì không ai thấy, nhưng qua mạng tới VPS thì vault vài chục thư mục là chờ hàng chục giây. Nay nó hỏi máy chủ đúng một lần, y như ô tìm ở trang Tệp tin vốn vẫn nhanh.
+
 ## [0.52.8] - 2026-09-01
 ### Sửa lỗi
 - **POS thôi rớt giữa lúc đang lên đơn.** Mỗi lượt chat Javis hỏi lại danh sách công cụ của từng nguồn, mà lượt hỏi đó phải xếp hàng sau cái đơn đang chạy. Chờ quá 20 giây là bản cũ **giết cả phiên kết nối**, tức là giết luôn cái đơn đang lên dở, rồi lượt sau báo "chưa đấu POS". Nay nguồn đang chạy việc được để yên và vẫn giữ nguyên danh sách công cụ, nên đơn thứ hai không còn bị cắt ngang.
