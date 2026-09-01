@@ -4,6 +4,23 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.54.0] - 2026-09-01
+### Thêm mới
+- **Xem lại mọi file và link của một đoạn chat.** Bấm biểu tượng tập tài liệu ở đầu khung chat: nó liệt kê những tài liệu Javis đã tạo trong cuộc đó và những link đã nhắc tới, mới nhất lên đầu. Khỏi phải cuộn ngược cả cuộc để tìm lại cái kế hoạch viết tuần trước. Chạy được với **cả các đoạn chat cũ**, không phải chờ tạo mới.
+- File đã bị đổi tên hoặc dời đi vẫn hiện trong danh sách, chỉ mờ đi và gạch ngang, để bạn biết nó từng ở đâu.
+
+### Cải thiện
+- **Bấm vào tên tài liệu trong khung project là mở ra đọc được luôn** (md, txt, pdf, ảnh...), thay vì chỉ nhìn thấy cái tên.
+- Thêm nút **xoá hẳn file khỏi brain** bên cạnh nút gỡ khỏi project. Hai việc khác nhau nên hỏi lại bằng hai câu khác nhau.
+- **Thêm file xong không mất màn hình tìm kiếm nữa**, thêm liền mấy file một lúc được. Thêm link cũng vậy.
+- Ba tab Hướng dẫn / File / Link có icon, liếc là biết đang ở đâu.
+
+## [0.53.1] - 2026-09-01
+### Cải thiện
+- **Ghim project để tự xếp thứ tự.** Rê chuột vào một project trong danh sách rồi bấm biểu tượng ghim, nó lên đầu và ở lại đó. Trước đây danh sách chỉ xếp theo lần đụng gần nhất, nên project quan trọng mà lâu lâu mới mở lại trôi xuống đáy.
+- **Điện thoại: chip project hiện đủ tên** thay vì thu về một biểu tượng thư mục nhỏ. Nhìn là biết đang chat trong project nào, khỏi phải bấm vào mới rõ.
+- **Bỏ dòng chữ "Trò chuyện với Javis"** ở đầu trang Trò chuyện. Nó nói lại đúng thứ thanh bên trái đang tô sáng, mà lại chiếm mất một hàng.
+
 ## [0.53.0] - 2026-09-01
 ### Thêm mới
 - **Project giờ có bộ nhớ riêng.** Bấm cái chip tên project ở đầu khung chat để mở khung **Hướng dẫn - File - Link**. Mọi hội thoại trong project đó sẽ mang theo những gì bạn đặt ở đây.

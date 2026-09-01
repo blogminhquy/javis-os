@@ -53,10 +53,10 @@ check("và không còn CSS .cp-engine", !/\.cp-engine\b/.test(CONSOLE));
 // MutationObserver rình một node đã bị xoá là rò rỉ im lặng: nó không nổ, chỉ không bao giờ
 // bắn, và người đọc code sau này tưởng badge vẫn đang được đồng bộ.
 check("không còn MutationObserver rình badge", !/_chatEngObs/.test(CONSOLE));
-// Tiêu đề trang trước đây phải co lại nhường chỗ cho badge - badge đi rồi thì trả bề ngang.
-check("tiêu đề trang Trò chuyện được trả lại bề ngang trên màn hẹp",
-  /\.cp-title\{[^}]*flex:1 1 auto/.test(CONSOLE),
-  (CONSOLE.match(/\.cp-title\{[^}]*\}/) || [])[0]);
+// Mục "tiêu đề được trả lại bề ngang" ĐÃ BỎ: 0.53.1 gỡ hẳn tiêu đề tĩnh "Trò chuyện với
+// Javis" khỏi thanh (chủ repo yêu cầu 01/09) nên không còn bề ngang nào để trả. Chỗ trống đó
+// giờ là của chip project - xem tests/js/test_khung_project.js.
+check("thanh tiêu đề trang Trò chuyện không còn tiêu đề tĩnh", !/cp-title/.test(CONSOLE));
 
 // ---- 4. Từ điển không giữ khoá mồ côi ----
 check("vi.json không còn khoá chat.engine_badge", VI["chat.engine_badge"] === undefined);

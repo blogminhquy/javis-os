@@ -95,6 +95,11 @@ CREATE TABLE IF NOT EXISTS projects (
     name       TEXT NOT NULL,
     icon       TEXT,
     brain      TEXT NOT NULL DEFAULT 'brain',
+    -- Ghim = người dùng TỰ xếp thứ tự. Mặc định danh sách xếp theo lần đụng gần nhất, hợp lý
+    -- cho phần lớn trường hợp nhưng sai đúng với project quan trọng mà lâu lâu mới mở: nó
+    -- trôi xuống đáy đúng lúc cần nhất. Ghim là đường duy nhất để người dùng nói "cái này
+    -- luôn ở trên", và nó KHÔNG đụng updated_at (ghim không phải một lượt làm việc).
+    pinned     INTEGER NOT NULL DEFAULT 0,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -364,7 +369,8 @@ class SessionStore:
             # Hướng dẫn riêng của project, ghép vào system prompt mỗi lượt chat trong đó.
             cols_p = {r[1] for r in self._conn.execute(
                 "PRAGMA table_info(projects)").fetchall()}
-            for name, ddl in (("instructions", "TEXT"),):
+            for name, ddl in (("instructions", "TEXT"),
+                              ("pinned", "INTEGER NOT NULL DEFAULT 0")):
                 if name not in cols_p:
                     self._conn.execute(
                         f"ALTER TABLE projects ADD COLUMN {name} {ddl}")
@@ -599,7 +605,7 @@ class SessionStore:
         where_sql, params = ("WHERE p.brain = ?", (brain,)) if brain else ("", ())
         rows = self._read(
             f"""
-            SELECT p.id, p.name, p.icon, p.brain, p.created_at, p.updated_at,
+            SELECT p.id, p.name, p.icon, p.brain, p.pinned, p.created_at, p.updated_at,
                    (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id) AS session_count,
                    (SELECT COUNT(*) FROM project_files f WHERE f.project_id = p.id) AS file_count,
                    (SELECT COUNT(*) FROM project_links l WHERE l.project_id = p.id) AS link_count,
@@ -608,7 +614,7 @@ class SessionStore:
                        AS has_instructions
             FROM projects p
             {where_sql}
-            ORDER BY p.updated_at DESC
+            ORDER BY p.pinned DESC, p.updated_at DESC
             """,
             params,
         )
@@ -617,6 +623,17 @@ class SessionStore:
     def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         rows = self._read("SELECT * FROM projects WHERE id = ?", (project_id,))
         return dict(rows[0]) if rows else None
+
+    def set_project_pinned(self, project_id: str, pinned: bool) -> bool:
+        """Ghim project lên đầu danh sách. CỐ Ý không chạm `updated_at`.
+
+        Đi qua `update_project` thì ghim sẽ bump updated_at, mà updated_at là khoá sắp xếp
+        của nhóm CHƯA ghim - bỏ ghim một project là nó nhảy lên đầu nhóm đó dù chẳng ai làm
+        gì trong đó. Ghim là ý muốn về thứ tự, không phải một lượt làm việc.
+        """
+        return bool(self._write(lambda c: c.execute(
+            "UPDATE projects SET pinned = ? WHERE id = ?",
+            (1 if pinned else 0, project_id))).rowcount)
 
     def get_project_full(self, project_id: str) -> Optional[Dict[str, Any]]:
         """Project kèm hướng dẫn + danh sách file + link. Chỉ dùng khi MỞ khung project.

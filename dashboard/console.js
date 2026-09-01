@@ -5203,7 +5203,9 @@
       min-height:0; padding:14px 12px; border-right:1px solid var(--glass-brd); background:var(--surface-1); }
     .chatpage-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 20px 16px; }
     .chatpage-bar{ display:flex; align-items:center; gap:10px; padding:0 4px 10px; flex:none; }
-    .cp-title{ font-family:var(--font); font-weight:700; letter-spacing:.5px; color:var(--text); }
+    /* Chip project lùi hẳn về mép phải: thanh này giờ chỉ còn hai nút bên trái, để chip
+       dính ngay sau chúng thì nó trông như nút thứ ba chứ không phải nhãn của cuộc chat. */
+    .chatpage-bar .proj-chip-host{ margin-left:auto; }
     .cp-ico-btn{ background:none; border:1px solid var(--border); color:var(--text2); border-radius:8px;
       padding:4px 10px; cursor:pointer; font-size:14px; line-height:1; }
     .cp-ico-btn:hover{ color:var(--accent); border-color:var(--accent); }
@@ -5298,16 +5300,14 @@
     .chatpage-slot .attach-bar{ flex:none; }
     /* Màn hẹp: cả hàng tiêu đề phải nằm gọn MỘT dòng. Trước đây tiêu đề "Trò chuyện với Javis"
        xuống bốn dòng và chữ "Thu nhỏ" xuống hai dòng, đẩy khung chat tụt hẳn xuống - chủ repo
-       chụp lại đúng cảnh đó. Ba việc: nút chỉ còn icon, tiêu đề cấm xuống dòng và tự cắt,
-       nhãn engine nhường chỗ trước vì nó là thứ ít cần nhất trong ba. */
+       chụp lại đúng cảnh đó. Nay hàng này nhẹ hẳn: tiêu đề tĩnh và nhãn engine đều đã bỏ, chỉ
+       còn hai nút (rút về icon) và chip project ở mép phải (tự cắt, xem style.css). */
     @media (max-width:860px){
       /* Màn hẹp không đủ chỗ xếp chồng trình sửa + chat → trình sửa chiếm chỗ như cũ. */
       .chatpage-main.edit-on > .chatpage-slot{ display:none; }
       .chatpage-bar{ gap:6px; min-width:0; }
       .cp-min span{ display:none; }
       .cp-min{ padding:4px 8px; }
-      .cp-title{ font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-        min-width:0; flex:1 1 auto; }
       .cp-side-toggle{ display:inline-block; }
       .chatpage-side{ position:absolute; left:0; top:0; bottom:0; z-index:6; width:min(84vw,300px);
         transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px var(--shadow-veil); background:var(--bg); }
@@ -5480,9 +5480,9 @@
             '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" ' +
               'title="Thu nhỏ về màn Javis" aria-label="Thu nhỏ về màn Javis">' +
               ic("chevron-left") + '<span>Thu nhỏ</span></button>' +
-            '<span class="cp-title">Trò chuyện với Javis</span>' +
-            // Chip project (sessions-ui.js vẽ vào). Trang này là nơi người dùng chat lâu
-            // nhất, nên chip phải có mặt ở đây chứ không chỉ ở màn Javis.
+            // Tiêu đề tĩnh "Trò chuyện với Javis" ĐÃ BỎ (chủ repo yêu cầu 01/09). Nó nói
+            // đúng một điều mà rail đang tô sáng và khung trống đã ghi bằng chữ in nghiêng
+            // ngay bên dưới, nên nó chỉ ăn chỗ. Chip project lùi về mép phải, chiếm chỗ đó.
             '<span class="proj-chip-host"></span>' +
           '</div>' +
           '<div class="chatpage-slot" id="chatPageSlot"></div>' +

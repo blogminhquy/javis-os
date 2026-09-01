@@ -1812,6 +1812,9 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   color: var(--text); font-size: 13.5px; font-family: inherit; text-align: left; }
 .cs-menu-lbl { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-menu-right { flex: none; color: var(--text3); font-size: 12px; }
+/* Dấu ghim của project. Nằm ngoài .cs-menu-acts nên LUÔN hiện, không đợi rê chuột: nó là
+   lời giải thích cho thứ tự danh sách, mà thứ tự thì nhìn thấy ngay cả khi không rê chuột. */
+.cs-menu-pin { flex: none; display: inline-flex; color: var(--accent); }
 .cs-menu-acts { flex: none; display: flex; gap: 1px; opacity: 0; transition: opacity .15s; }
 .cs-menu-row:hover .cs-menu-acts { opacity: 1; }
 .cs-menu-act { width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
@@ -2614,15 +2617,18 @@ body.ne-full-on .cview { z-index: 250; }
 .pc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .pc-meta { flex: none; display: inline-flex; gap: 7px; color: var(--text3); }
 .pc-n { display: inline-flex; align-items: center; gap: 3px; }
-/* Chấm báo "project này đã có nội dung" chỉ dùng ở bản hẹp, nơi tên và số đều bị giấu đi. */
+/* Chấm báo "project này đã có nội dung" chỉ dùng ở bản hẹp, chỗ hai con số bị giấu đi. */
 .pc-dot { display: none; }
+/* Bản hẹp KHÔNG thu chip về một cái thư mục tròn nữa (chủ repo yêu cầu 01/09). Thanh tiêu đề
+   vừa bỏ chữ "Trò chuyện với Javis" nên đã có đất, mà một icon không tên thì phải bấm vào mới
+   biết đang chat trong project nào - đúng câu hỏi chip sinh ra để trả lời. Chỉ bỏ hai con số
+   file/link và siết bề ngang lại, còn TÊN thì giữ. */
 @media (max-width: 860px) {
-  .proj-chip { max-width: none; padding: 4px; border-radius: 50%; position: relative; }
-  .proj-chip .pc-name, .proj-chip .pc-meta { display: none; }
+  .proj-chip { max-width: 45vw; }
+  .proj-chip .pc-meta { display: none; }
   .proj-chip.co-gi .pc-dot {
-    display: block; position: absolute; top: -1px; right: -1px;
-    width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
-    border: 1.5px solid var(--bg2);
+    display: block; flex: none; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--accent);
   }
 }
 
@@ -2688,7 +2694,11 @@ body.ne-full-on .cview { z-index: 250; }
 .pd-row { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--bg); }
 .pd-row-ico { flex: none; display: inline-flex; color: var(--text3); }
-.pd-row-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.pd-row-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
+  gap: 1px; padding: 0; border: 0; background: transparent;
+  font-family: inherit; text-align: left; }
+.pd-row-body.mo-duoc { cursor: pointer; }
+.pd-row-body.mo-duoc:hover .pd-row-name { color: var(--accent); }
 .pd-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text); font-size: 13.5px; }
 .pd-row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2701,6 +2711,10 @@ body.ne-full-on .cview { z-index: 250; }
 .pd-row-act:hover { color: var(--text-hi); background: var(--bg3); }
 .pd-ghim.on { color: var(--accent); }
 .pd-go:hover { color: var(--red); }
+.pd-xoa:hover { color: var(--red); background: var(--bg3); }
+/* Icon trên đầu mỗi tab: ba tab chỉ khác nhau bằng chữ thì liếc qua phải đọc mới biết đang
+   ở đâu, y như hai tab Hội thoại/Thư mục ở cột trái đã có icon. */
+.pd-tab .ic { vertical-align: -2px; margin-right: 2px; }
 
 .pd-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
   margin-top: 4px; padding: 7px 11px; border-radius: 8px; cursor: pointer;
@@ -2761,3 +2775,17 @@ body.ne-full-on .cview { z-index: 250; }
   .pd-head { padding: 8px 12px 12px; }
   .pd-instr { min-height: 160px; }
 }
+
+/* Nút mở khung "file & link của cuộc trò chuyện". Đứng cạnh chip project, cùng một góc phải
+   thanh tiêu đề - hai thứ đều trả lời câu "cuộc này dính tới cái gì". */
+.proj-chip-host { gap: 6px; align-items: center; }
+.cts-btn {
+  flex: none; width: 26px; height: 26px; border-radius: 7px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); background: transparent; color: var(--text3);
+}
+.cts-btn:hover { color: var(--accent); border-color: var(--accent-line); }
+/* File đã dời đi: vẫn liệt kê nhưng mờ và không bấm được. Bỏ hẳn nó thì người dùng tưởng
+   danh sách sót, trong khi sự thật là file còn đó dưới một cái tên khác. */
+.pd-row.mat { opacity: .55; }
+.pd-row.mat .pd-row-name { text-decoration: line-through; }
