@@ -104,11 +104,25 @@ class JavisVoice {
     this.userStopped = false;                 // user chủ động dừng?
     this.silenceMs = 1500;                    // im lặng bao lâu thì tự gửi
     this._silenceTimer = null;
+    this._starting = false;                   // đã gọi start() nhưng onstart chưa chạy
+    this._stopPending = false;                // có lệnh dừng tới trong lúc đang mở phiên
 
     this.recognition.onstart = () => {
+      this._starting = false;
       this.isListening = true;
       this.userStopped = false;
       this.accumulatedTranscript = "";
+      // Lệnh dừng tới TRƯỚC khi phiên kịp mở (bấm rồi thả Space thật nhanh, bấm nút mic hai
+      // lần liền): lúc đó isListening còn false nên stopListening() không dừng được gì, mic ở
+      // lại MỞ vĩnh viễn và onend còn tự khởi động lại. Người dùng tưởng đã tắt, thực ra Javis
+      // vẫn nghe: tiếng nhạc hay TV trong phòng được chép thành chữ rồi TỰ GỬI như tin của họ.
+      // Nợ đó trả ở đây - đóng phiên ngay khi nó vừa mở, không nhận chữ, không gửi gì.
+      if (this._stopPending) {
+        this._stopPending = false;
+        this.userStopped = true;             // chặn auto-restart trong onend
+        try { this.recognition.abort(); } catch (e) {}
+        return;
+      }
       this.onStart();
     };
 
@@ -135,6 +149,7 @@ class JavisVoice {
     };
 
     this.recognition.onerror = (event) => {
+      this._starting = false;
       // 'no-speech' không phải lỗi thật - auto-restart
       if (event.error === "no-speech" || event.error === "aborted") {
         return;
@@ -144,6 +159,7 @@ class JavisVoice {
     };
 
     this.recognition.onend = () => {
+      this._starting = false;
       // Nếu user chưa chủ động dừng → tự restart (giữ session sống khi user dừng nghĩ)
       if (!this.userStopped) {
         try {
@@ -191,8 +207,14 @@ class JavisVoice {
     this.stopSpeaking();
     this._startMicMeter();  // bật đo âm mic cho hiệu ứng phát sáng
     try {
+      this._stopPending = false;
+      this._starting = true;
       this.recognition.start();
     } catch (e) {
+      // "InvalidStateError" = phiên trước đã/đang mở (vòng lặp giữ mic của chế độ rảnh tay gọi
+      // lại trong lúc phiên đầu chưa kịp onstart). Phiên đó vẫn sắp mở, nên KHÔNG được hạ cờ
+      // _starting: hạ là lệnh dừng tới sau không có chỗ ghi nợ, và mic kẹt mở lần nữa.
+      if (!e || e.name !== "InvalidStateError") this._starting = false;
       this.onError("start-failed: " + e.message);
     }
   }
@@ -205,6 +227,10 @@ class JavisVoice {
     if (this.recognition && this.isListening) {
       this.userStopped = true;     // đánh dấu user chủ động dừng → không auto-restart
       this.recognition.stop();
+    } else if (this._starting) {
+      // Phiên đang mở dở (start() đã gọi, onstart chưa chạy) nên chưa có gì để dừng. Ghi nợ
+      // lại, onstart sẽ đóng ngay. Bỏ nhánh này là mic kẹt mở - xem chú thích ở onstart.
+      this._stopPending = true;
     }
   }
 
@@ -276,6 +302,11 @@ class JavisVoice {
     // luồng mic ĐÃ khử vọng - đúng độ TO thật, đáng tin hơn trung bình phổ (bị pha loãng bởi dải tần
     // cao im lặng nên giọng nói không bao giờ chạm ngưỡng). Tự HIỆU CHỈNH theo nền (echo + ồn) đo
     // trong ~600ms đầu để hợp mọi máy/môi trường, hạn chế tự-ngắt do nghe lại chính giọng TTS.
+    // CHỈ rình khi mic ĐANG mở và vừa bị tạm ngừng vì TTS (_resumeAfterTTS). Không có chốt này
+    // thì luồng mic mở từ lần nói trước còn sống suốt đời trang, nên MỌI lần Javis đọc đều rình:
+    // một tiếng động đủ to trong phòng (nhạc, TV, người khác nói) là mic tự mở, chép lại rồi tự
+    // gửi thành tin nhắn của người dùng. Mic đang tắt thì Javis không được phép tự nghe lại.
+    if (!this._resumeAfterTTS) return;
     if (this._bargeTimer || !this.micStream || !this.inAnalyser) return;
     const N = this.inAnalyser.fftSize || 128;
     if (!this._timeData || this._timeData.length !== N) this._timeData = new Uint8Array(N);

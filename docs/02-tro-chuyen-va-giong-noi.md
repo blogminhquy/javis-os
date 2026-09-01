@@ -80,6 +80,8 @@ Nút mic (hình micro to, bên trái thanh nhập) bật **chế độ luôn ngh
 
 Trong chế độ rảnh tay, khi bạn bắt đầu nói thì Javis tự ngắt phần nó đang đọc để lắng nghe, nên bạn có thể chen ngang bất cứ lúc nào. Cơ chế này đo độ to của giọng qua luồng mic đã khử vọng (nói liên tục khoảng 0,3 giây, to hơn hẳn nền), nên tiếng loa của chính Javis không tự làm nó ngắt lời.
 
+Chen ngang chỉ hoạt động khi **mic đang mở**. Mic đã tắt thì dù Javis đang đọc, một tiếng động trong phòng cũng không bật mic trở lại.
+
 ### Bước 4 - Nghe Javis trả lời bằng giọng
 
 Mặc định Javis **đọc thành tiếng** mọi câu trả lời bằng giọng Việt (Edge TTS chạy trên máy chủ). Đồ thị sáng theo nhịp giọng đọc.
@@ -412,6 +414,7 @@ Phím tắt:
 ## Sự cố thường gặp
 
 - **Giữ phím Cách không bật mic.** Con trỏ đang nằm trong ô gõ chữ hoặc một ô nhập khác. Bấm ra vùng trống của trang rồi giữ lại phím Cách.
+- **Trong chat hiện ra một câu bạn không hề gõ.** Gần như chắc chắn là mic nghe được tiếng trong phòng (nhạc, TV, người khác nói) rồi chép thành chữ và gửi luôn, vì câu nói xong là Javis gửi ngay chứ không hỏi lại. Nhìn dòng chữ giữa màn hình: còn **ĐANG NGHE** hay **ĐANG NGHE • LUÔN** nghĩa là mic vẫn mở, bấm nút mic hoặc **Esc** để tắt. Từ bản 0.52.6, mic không còn kẹt mở khi bạn bấm rồi thả phím Cách quá nhanh, và Javis đang đọc thành tiếng cũng không tự bật mic lại nữa. Xoá câu lạ đó thì bắt đầu một hội thoại mới; Javis không có cách nào tự gõ vào ô chat của bạn, mọi kết quả chạy nền đều hiện ở bong bóng bên trái.
 - **Trình duyệt không nghe được.** Javis báo "Trình duyệt không hỗ trợ giọng nói. Dùng Chrome/Edge." Hãy mở dashboard bằng Chrome hoặc Edge.
 - **Micro không hoạt động.** Trình duyệt chặn quyền micro. Vào phần quyền của trang trong trình duyệt và cho phép micro, rồi tải lại trang.
 - **Nhấn Esc mà Javis vẫn nói tiếp.** Đúng như thiết kế hiện tại: Esc không dừng lượt nữa. Bấm nút dừng (ô vuông) trên thanh nhập, hoặc bấm nút loa để tắt tiếng.
