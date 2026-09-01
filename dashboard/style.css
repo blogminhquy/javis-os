@@ -530,7 +530,16 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
   font-family: var(--font); font-size: 12px; letter-spacing: 2px;
   color: var(--text3); margin-bottom: 10px;
   display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; row-gap: 8px;
 }
+/* Chữ "HỘI THOẠI" KHÔNG được co: cột này hẹp, để nó co thì tên project dài đẩy nó vỡ thành
+   hai dòng ("HỘI" / "THOẠI") - đúng cảnh chủ repo chụp lại 01/09. */
+.panel-label > span:first-child { flex: none; white-space: nowrap; }
+/* Chip xuống HẲN dòng dưới ở cột này. Nhồi chung một dòng với nhãn và hai nút thì tên
+   project chỉ còn vài chục pixel, mà tên project là thứ chip sinh ra để nói. Dòng riêng thì
+   nó có trọn bề ngang cột. Ở trang Trò chuyện (thanh rộng) chip vẫn nằm ngang, xem console.js. */
+.panel-label .proj-chip-host { flex: 1 0 100%; min-width: 0; justify-content: flex-start; }
+.panel-label .proj-chip { max-width: 100%; }
 .mini-btn {
   background: none; border: 1px solid var(--border); color: var(--text2);
   width: 22px; height: 22px; border-radius: 5px; cursor: pointer; font-size: 14px;
@@ -1799,7 +1808,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* ===== Popover dùng chung: menu project + bộ chọn icon ===== */
 /* Neo vào body chứ không vào cột trái: cột đó có overflow riêng, để menu bên trong là nó bị
    cắt cụt ngay hàng thứ hai. */
-.cs-menu { position: fixed; z-index: 4000; min-width: 200px; max-width: 280px;
+.cs-menu { position: fixed; z-index: 4000; min-width: 240px; max-width: 340px;
   max-height: 60vh; overflow-y: auto; padding: 5px;
   background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, .45); }
@@ -1811,11 +1820,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   padding: 7px 8px; border: 0; background: transparent; cursor: pointer;
   color: var(--text); font-size: 13.5px; font-family: inherit; text-align: left; }
 .cs-menu-lbl { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Tên project ở đầu hộp chức năng: hiện ĐỦ, kể cả phải xuống dòng. Cắt ba chấm đúng chỗ
+   người dùng đang xác nhận mình bấm vào project nào là cắt mất câu trả lời. */
+.cs-menu-lbl.nhieu-dong { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
 .cs-menu-right { flex: none; color: var(--text3); font-size: 12px; }
 /* Dấu ghim của project. Nằm ngoài .cs-menu-acts nên LUÔN hiện, không đợi rê chuột: nó là
    lời giải thích cho thứ tự danh sách, mà thứ tự thì nhìn thấy ngay cả khi không rê chuột. */
 .cs-menu-pin { flex: none; display: inline-flex; color: var(--accent); }
-.cs-menu-acts { flex: none; display: flex; gap: 1px; opacity: 0; transition: opacity .15s; }
+/* LUÔN hiện, không còn nấp sau hover: trên màn cảm ứng không có hover, nên nút nấp ở đó
+   là một chức năng không có đường nào bấm tới. Chỉ nhạt đi cho khỏi tranh mắt với tên. */
+.cs-menu-acts { flex: none; display: flex; gap: 1px; opacity: .55; transition: opacity .15s; }
 .cs-menu-row:hover .cs-menu-acts { opacity: 1; }
 .cs-menu-act { width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;

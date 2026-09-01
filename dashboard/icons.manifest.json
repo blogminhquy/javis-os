@@ -42,7 +42,8 @@
       "square-kanban",
       "circle-user",
       "sliders-horizontal",
-      "clipboard-check", "headset"
+      "clipboard-check",
+      "headset"
     ],
     "hanh-dong": [
       "save",
@@ -62,7 +63,8 @@
       "square-pen",
       "log-out",
       "eraser",
-      "brush-cleaning"
+      "brush-cleaning",
+      "ellipsis-vertical"
     ],
     "dieu-huong": [
       "chevron-down",

@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.54.1] - 2026-09-01
+### Sửa lỗi
+- **Nút xem file và link của đoạn chat giờ mới thật sự hiện ra.** Bản 0.54.0 vẽ nút xong rồi ghi đè mất nó ngay khi cuộc trò chuyện thuộc một project, mà đó lại là lúc hay dùng nhất.
+- **Chữ "HỘI THOẠI" ở cột phải không còn bị vỡ thành hai dòng** khi tên project dài. Chip project nay xuống hẳn dòng dưới nên hiện được trọn tên.
+
+### Cải thiện
+- **Mỗi project trong danh sách có một nút ba chấm** mở ra hộp chức năng ghi bằng chữ (ghim, đổi icon, đổi tên, xoá, mở khung tài liệu), thay cho bốn biểu tượng chỉ hiện khi rê chuột. Tên project nhờ đó có thêm chỗ, và trên máy tính bảng thì các chức năng đó mới bấm được - rê chuột vốn không tồn tại trên màn cảm ứng.
+
 ## [0.54.0] - 2026-09-01
 ### Thêm mới
 - **Xem lại mọi file và link của một đoạn chat.** Bấm biểu tượng tập tài liệu ở đầu khung chat: nó liệt kê những tài liệu Javis đã tạo trong cuộc đó và những link đã nhắc tới, mới nhất lên đầu. Khỏi phải cuộn ngược cả cuộc để tìm lại cái kế hoạch viết tuần trước. Chạy được với **cả các đoạn chat cũ**, không phải chờ tạo mới.
