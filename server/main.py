@@ -10691,6 +10691,21 @@ async def projects_pin_link(project_id: str, link_id: str, pinned: str = Form("1
     return {"ok": get_store().set_project_link_pinned(project_id, link_id, on), "pinned": on}
 
 
+@app.post("/projects/{project_id}/pin")
+async def projects_pin(project_id: str, pinned: str = Form("1")):
+    """Ghim project lên đầu danh sách bên trái (pinned=0 để bỏ ghim).
+
+    Khác hai route ghim kia (`.../files/{id}/pin`, `.../links/{id}/pin`): hai cái đó quyết
+    định file/link có được NẠP SẴN vào prompt hay không, còn cái này thuần tuý là thứ tự
+    hiển thị, không đụng gì tới thứ Javis đọc.
+    """
+    store = get_store()
+    if not store.get_project(project_id):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    return {"ok": store.set_project_pinned(project_id, on), "pinned": on}
+
+
 @app.post("/projects/{project_id}/delete")
 async def projects_delete(project_id: str):
     store = get_store()

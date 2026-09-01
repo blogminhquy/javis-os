@@ -2113,6 +2113,15 @@
  {
   "order": 235,
   "type": "APIRoute",
+  "path": "/projects/{project_id}/pin",
+  "name": "projects_pin",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 236,
+  "type": "APIRoute",
   "path": "/projects/{project_id}/delete",
   "name": "projects_delete",
   "methods": [
@@ -2120,7 +2129,7 @@
   ]
  },
  {
-  "order": 236,
+  "order": 237,
   "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
@@ -2129,7 +2138,7 @@
   ]
  },
  {
-  "order": 237,
+  "order": 238,
   "type": "APIRoute",
   "path": "/runtime/muc",
   "name": "runtime_muc",
@@ -2138,7 +2147,7 @@
   ]
  },
  {
-  "order": 238,
+  "order": 239,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -2147,7 +2156,7 @@
   ]
  },
  {
-  "order": 239,
+  "order": 240,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -2156,7 +2165,7 @@
   ]
  },
  {
-  "order": 240,
+  "order": 241,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -2165,7 +2174,7 @@
   ]
  },
  {
-  "order": 241,
+  "order": 242,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -2174,7 +2183,7 @@
   ]
  },
  {
-  "order": 242,
+  "order": 243,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -2183,7 +2192,7 @@
   ]
  },
  {
-  "order": 243,
+  "order": 244,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -2192,7 +2201,7 @@
   ]
  },
  {
-  "order": 244,
+  "order": 245,
   "type": "APIRoute",
   "path": "/zalo-bot/status",
   "name": "zalo_bot_status",
@@ -2201,7 +2210,7 @@
   ]
  },
  {
-  "order": 245,
+  "order": 246,
   "type": "APIRoute",
   "path": "/zalo-bot/restart",
   "name": "zalo_bot_restart",
@@ -2210,7 +2219,7 @@
   ]
  },
  {
-  "order": 246,
+  "order": 247,
   "type": "APIRoute",
   "path": "/zalo-bot/allow",
   "name": "zalo_bot_allow",
@@ -2219,7 +2228,7 @@
   ]
  },
  {
-  "order": 247,
+  "order": 248,
   "type": "APIRoute",
   "path": "/zalo-bot/test",
   "name": "zalo_bot_test",
@@ -2228,7 +2237,7 @@
   ]
  },
  {
-  "order": 248,
+  "order": 249,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -2237,7 +2246,7 @@
   ]
  },
  {
-  "order": 249,
+  "order": 250,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -2246,7 +2255,7 @@
   ]
  },
  {
-  "order": 250,
+  "order": 251,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_list",
@@ -2255,7 +2264,7 @@
   ]
  },
  {
-  "order": 251,
+  "order": 252,
   "type": "APIRoute",
   "path": "/chatbots/verify-token",
   "name": "chatbots_verify_token",
@@ -2264,7 +2273,7 @@
   ]
  },
  {
-  "order": 252,
+  "order": 253,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_create",
@@ -2273,7 +2282,7 @@
   ]
  },
  {
-  "order": 253,
+  "order": 254,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/update",
   "name": "chatbots_update",
@@ -2282,7 +2291,7 @@
   ]
  },
  {
-  "order": 254,
+  "order": 255,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/enable",
   "name": "chatbots_enable",
@@ -2291,7 +2300,7 @@
   ]
  },
  {
-  "order": 255,
+  "order": 256,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/groups",
   "name": "chatbots_groups",
@@ -2300,7 +2309,7 @@
   ]
  },
  {
-  "order": 256,
+  "order": 257,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/log",
   "name": "chatbots_log",
@@ -2309,7 +2318,7 @@
   ]
  },
  {
-  "order": 257,
+  "order": 258,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/delete",
   "name": "chatbots_delete",
@@ -2318,7 +2327,7 @@
   ]
  },
  {
-  "order": 258,
+  "order": 259,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -2327,7 +2336,7 @@
   ]
  },
  {
-  "order": 259,
+  "order": 260,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -2336,7 +2345,7 @@
   ]
  },
  {
-  "order": 260,
+  "order": 261,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -2345,7 +2354,7 @@
   ]
  },
  {
-  "order": 261,
+  "order": 262,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

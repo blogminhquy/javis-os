@@ -621,7 +621,6 @@
   "kanban.confirm_wipe_history": "Xoá hẳn toàn bộ lịch sử việc đã xong và đã huỷ? Không hoàn tác được.",
 
   "proj.chip_title": "Khung project: hướng dẫn, tài liệu, link",
-  "proj.open": "Mở khung project",
   "proj.close": "Đóng",
   "proj.loading": "Đang tải",
   "proj.pin_session": "Ghim hội thoại này lên đầu danh sách",

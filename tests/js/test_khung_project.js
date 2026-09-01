@@ -21,6 +21,7 @@ const SU = D("sessions-ui.js");
 const CS = D("console.js");
 const HTML = D("index.html");
 const CSS = D("style.css");
+const PY = fs.readFileSync(path.join(ROOT, "server", "sessions.py"), "utf8");
 const VI = JSON.parse(D(path.join("i18n", "vi.json")));
 const EN = JSON.parse(D(path.join("i18n", "en.json")));
 
@@ -43,10 +44,55 @@ check("renderChat vẽ lại chip sau khi dựng thanh tiêu đề",
   /JavisChatSide\.chip\(\)/.test(CS));
 check("module xuất hàm vẽ chip và hàm mở khung",
   /chip: renderProjChip, moKhung: openProjDrawer/.test(SU));
-// Chip chỉ hiện khi cuộc ĐANG MỞ thuộc project, nên nếu đó là lối vào duy nhất thì muốn sửa
-// hướng dẫn của project khác phải mở một cuộc trong đó trước - một vòng vo không cần thiết.
-check("menu project cũng có lối mở khung",
-  /title: "Mở khung project",\s*\n\s*run: function \(\) \{ closeMenu\(\); openProjDrawer\(p\.id\); \} \}/.test(SU));
+// 0.53.1: nút "Mở khung project" trong menu ĐỔI thành nút GHIM (chủ repo yêu cầu 01/09).
+// Khung vẫn vào được qua chip - chọn project rồi mở hội thoại là chip hiện ra - nên chỗ đó
+// không phải lối vào duy nhất, còn xếp thứ tự thì trước nay chưa có đường nào.
+check("menu project không còn nút mở khung", !/Mở khung project/.test(SU));
+check("mà là nút ghim", /icon: "pin", giuMo: true,/.test(SU));
+check("ghim gọi đúng route project (không phải route ghim file/link)",
+  /"\/projects\/" \+ encodeURIComponent\(p\.id\) \+ "\/pin",\s*\n\s*\{ pinned:/.test(SU));
+// Đóng menu sau mỗi lần bấm thì xếp 5 project phải mở menu 5 lần.
+check("bấm ghim GIỮ menu mở", /if \(!a\.giuMo\) closeMenu\(\);/.test(SU));
+// renderProjBar() thay node neo bằng node mới, giữ tham chiếu cũ là menu rơi ra ngoài màn.
+check("và mở lại menu bằng neo HỎI LẠI chứ không giữ tham chiếu cũ",
+  /var neo = projBar && projBar\.querySelector\("\.cs-proj-cur"\);\s*\n\s*if \(neo\) openProjMenu\(neo\);/.test(SU));
+// Hàng nút trong menu chỉ hiện khi rê chuột, nên dấu ghim phải nằm NGOÀI hàng đó.
+check("dấu ghim nằm ngoài hàng nút hover", /pinIcon \? '<span class="cs-menu-pin">/.test(SU));
+const menuRow = (SU.match(/var row = el\('<div class="cs-menu-row[\s\S]*?cs-menu-acts[^;]*;/) || [""])[0];
+check("dấu ghim nằm TRONG nút chính (luôn hiện), trước hàng nút hover",
+  menuRow.indexOf("cs-menu-pin") > 0
+  && menuRow.indexOf("cs-menu-pin") < menuRow.indexOf("cs-menu-acts"),
+  menuRow.slice(0, 80));
+check("và CSS của nó không bị hạ opacity như hàng nút hover",
+  /\.cs-menu-pin \{[^}]*\}/.test(CSS)
+  && !/\.cs-menu-pin \{[^}]*opacity/.test(CSS));
+
+// Kho: ghim xếp lên đầu, và KHÔNG đụng updated_at.
+check("kho xếp project ghim lên đầu", /ORDER BY p\.pinned DESC, p\.updated_at DESC/.test(PY));
+check("ghim không bump updated_at (nếu không, bỏ ghim là nhảy lên đầu nhóm chưa ghim)",
+  /UPDATE projects SET pinned = \? WHERE id = \?/.test(PY));
+check("DB cũ được thêm cột pinned qua migration",
+  /\("pinned", "INTEGER NOT NULL DEFAULT 0"\)/.test(PY));
+
+// ============================================================
+// 1b. Thanh tiêu đề trang Trò chuyện: bỏ tiêu đề tĩnh, chip lùi về mép phải
+// ============================================================
+check("không còn thẻ tiêu đề tĩnh trong thanh", !/<span class="cp-title">/.test(CS));
+check("và không còn CSS .cp-title mồ côi", !/\.cp-title\{/.test(CS));
+check("chip lùi hẳn về mép phải thanh đó",
+  /\.chatpage-bar \.proj-chip-host\{ margin-left:auto; \}/.test(CS));
+
+// ============================================================
+// 1c. Bản hẹp: chip hiện ĐỦ TÊN project, không thu về icon tròn
+// ============================================================
+const mqChip = (CSS.match(/@media \(max-width: 860px\) \{\s*\n\s*\.proj-chip \{[\s\S]*?\n\}/) || [""])[0];
+check("tìm được khối bản hẹp của chip", !!mqChip);
+check("bản hẹp KHÔNG giấu tên project nữa", !/\.pc-name[^}]*display: none/.test(mqChip), mqChip.slice(0, 160));
+check("và không bóp chip thành hình tròn", !/border-radius: 50%;[^}]*\}/.test(mqChip.split(".pc-dot")[0]));
+check("chỉ giấu hai con số file/link cho đỡ chật",
+  /\.proj-chip \.pc-meta \{ display: none; \}/.test(mqChip));
+check("chip vẫn bị siết bề ngang để không đè nút bên cạnh",
+  /\.proj-chip \{ max-width: 45vw; \}/.test(mqChip));
 
 // ============================================================
 // 2. Chip đọc project CỦA PHIÊN, không đọc bộ lọc cột trái
@@ -80,7 +126,6 @@ check("đóng ngăn kéo thì xả", /function closeProjDrawer\(\) \{\s*\n(?:.*\
 check("rời tab thì xả", /function showProjTab\(tab\) \{\s*\n\s*xaLuuHuongDan\(\);/.test(SU));
 check("rời ô nhập thì xả", /ta\.onblur = function \(\) \{ xaLuuHuongDan\(\); \};/.test(SU));
 check("trần ký tự khớp server", /PROJ_INSTR_MAX = 4000/.test(SU));
-const PY = fs.readFileSync(path.join(ROOT, "server", "sessions.py"), "utf8");
 check("và 4000 đúng là trần server đang cắt", /PROJECT_INSTRUCTIONS_MAX = 4000/.test(PY));
 check("ô nhập tự chặn ở 4000 chứ không để gõ thừa rồi bị cắt lặng lẽ",
   /maxlength="' \+ PROJ_INSTR_MAX \+ '"/.test(SU));

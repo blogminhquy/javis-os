@@ -144,11 +144,13 @@
         right: String(p.session_count || 0),
         on: cur === p.id,
         run: function () { chonProject(p.id); },
+        pinIcon: p.pinned ? "pin" : "",
         acts: [
-          // Chip ở khung chat chỉ hiện khi cuộc ĐANG MỞ thuộc project. Không có lối này thì
-          // muốn sửa hướng dẫn của một project khác phải mở một cuộc trong đó trước.
-          { icon: "sliders-horizontal", title: "Mở khung project",
-            run: function () { closeMenu(); openProjDrawer(p.id); } },
+          // Ghim GIỮ MENU MỞ (giuMo) rồi mở lại menu ngay sau khi danh sách nạp xong: xếp
+          // thứ tự mà mỗi lần bấm menu lại đóng thì phải mở lại 5 lần để xếp 5 project.
+          { icon: "pin", giuMo: true,
+            title: p.pinned ? "Bỏ ghim project" : "Ghim project lên đầu danh sách",
+            run: function () { ghimProject(p); } },
           { icon: "palette", title: "Đổi icon", run: function () { pickIcon(anchor, p.icon || "", function (v) { post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects); }); } },
           { icon: "pencil", title: "Đổi tên", run: function () { renameProject(p); } },
           { icon: "trash-2", title: "Xoá project", run: function () { delProject(p); } },
@@ -158,6 +160,16 @@
     rows.push({ sep: true });
     rows.push({ label: "＋ Project mới", run: function () { newProject(); } });
     openMenu(anchor, rows);
+  }
+
+  async function ghimProject(p) {
+    await post("/projects/" + encodeURIComponent(p.id) + "/pin",
+               { pinned: p.pinned ? "0" : "1" });
+    await loadProjects();
+    // Neo cũ đã bị renderProjBar() thay bằng node mới, nên phải hỏi lại chứ không giữ tham
+    // chiếu: neo đã rời khỏi DOM thì menu sẽ được đặt vào một toạ độ vô nghĩa.
+    var neo = projBar && projBar.querySelector(".cs-proj-cur");
+    if (neo) openProjMenu(neo);
   }
 
   async function newProject() {
@@ -776,13 +788,17 @@
         '<button class="cs-menu-main" type="button">' +
         (iHtml ? '<span class="cs-menu-ico">' + iHtml + '</span>' : '') +
         '<span class="cs-menu-lbl">' + esc(r.label) + '</span>' +
+        // Dấu ghim đứng ở phần luôn hiện, KHÔNG nằm trong hàng nút (hàng đó chỉ hiện khi rê
+        // chuột). Ghim mà chỉ thấy được lúc rê chuột thì nhìn danh sách không biết vì sao
+        // thứ tự lại như vậy.
+        (r.pinIcon ? '<span class="cs-menu-pin">' + ic(r.pinIcon) + '</span>' : '') +
         (r.right ? '<span class="cs-menu-right">' + esc(r.right) + '</span>' : '') + '</button>' +
         '<span class="cs-menu-acts"></span></div>');
       row.querySelector(".cs-menu-main").onclick = function () { closeMenu(); r.run(); };
       var acts = row.querySelector(".cs-menu-acts");
       (r.acts || []).forEach(function (a) {
         var b = el('<button class="cs-menu-act" type="button" title="' + esc(a.title) + '">' + ic(a.icon) + '</button>');
-        b.onclick = function (ev) { ev.stopPropagation(); closeMenu(); a.run(); };
+        b.onclick = function (ev) { ev.stopPropagation(); if (!a.giuMo) closeMenu(); a.run(); };
         acts.appendChild(b);
       });
       menuEl.appendChild(row);

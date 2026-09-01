@@ -621,7 +621,6 @@
   "kanban.confirm_wipe_history": "Permanently delete the whole history of finished and cancelled tasks? This cannot be undone.",
 
   "proj.chip_title": "Project panel: instructions, files, links",
-  "proj.open": "Open project panel",
   "proj.close": "Close",
   "proj.loading": "Loading",
   "proj.pin_session": "Pin this conversation to the top of the list",
