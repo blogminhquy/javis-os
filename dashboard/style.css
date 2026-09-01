@@ -1425,10 +1425,25 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Attachment in chat message */
 .msg-attach { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .msg-attach img { max-width: 160px; max-height: 120px; border-radius: 8px; border: 1px solid var(--border); }
+.msg-attach .att-img { display: block; line-height: 0; cursor: zoom-in; }
 .msg-attach .file-tag {
   font-size: 13px; background: var(--bg); border: 1px solid var(--border);
   border-radius: 6px; padding: 4px 8px; font-family: var(--font); color: var(--text2);
 }
+/* Ảnh stage tạm đã bị dọn: một khung RỖNG nói thẳng là hết xem lại được. Viền đứt + icon mờ
+   để mắt đọc ngay ra "không còn nữa" thay vì tưởng ảnh đang tải hay app hỏng. */
+.msg-attach .att-mat {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 260px;
+  padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--border);
+  background: var(--bg); color: var(--text2); font-size: 12px; line-height: 1.35;
+}
+.msg-attach .att-mat svg { width: 18px; height: 18px; flex: none; opacity: .5; }
+.msg-attach .att-mat-ten {
+  font-family: var(--font); max-width: 120px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.msg-attach .att-mat-note { opacity: .75; }
+.attach-chip .chip-thumb { display: block; line-height: 0; cursor: zoom-in; }
 
 /* Voice picker popover */
 .voice-picker-wrap { position: relative; }
