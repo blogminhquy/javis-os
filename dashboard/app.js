@@ -789,9 +789,10 @@ function runMsgAct(btn) {
     if (b) copyText(b.innerText).then(() => flashCopied(btn, "⧉"));
     return;
   }
-  const text = window.JavisActs && window.JavisActs.isUserMsg(msgEl)
-    ? (msgEl.dataset.text || "")
-    : (window.JavisActs ? window.JavisActs.prevUserText(msgEl) : "");
+  // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.
+  // Truoc day con mot nhanh nguoc len tim tin nguoi dung gan nhat - do la duong cua nut "tra
+  // loi lai cau hoi phia tren" o tin Javis, da bo o 0.52.13.
+  const text = msgEl.dataset.text || "";
   if (!text) return;
   if (act === "edit") {
     // Chỉ đổ chữ vào ô nhập, KHÔNG tự gửi - để anh sửa xong tự bấm gửi.
@@ -1918,13 +1919,30 @@ document.addEventListener("click", resumeAudio, { once: true });
 document.addEventListener("keydown", resumeAudio, { once: true });
 
 
-// Một dòng nhỏ dưới câu trả lời: lượt này chạy ở chế độ nào, và tốn bao nhiêu
+// Nhãn hiển thị cho TỪNG provider. Trước đây chỉ có hai nhánh openrouter-hoặc-CLI, nên chọn
+// Groq/Gemini/OpenAI đều bị dán nhãn "CLI" - vừa sai, vừa phạm đúng luật trong CLAUDE.md là
+// phải trả lời ĐÚNG engine đang chạy.
+const ENGINE_LABEL = {
+  "anthropic-cli": "Claude Code", "openai-oauth": "ChatGPT", "openrouter": "OpenRouter",
+  "openai": "OpenAI", "anthropic-api": "Anthropic", "gemini": "Gemini", "groq": "Groq",
+  "ollama": "Ollama",
+  // Hai engine CLI gói thuê bao. Nhãn phải TÁCH khỏi nhà cung cấp API cùng tên: khác đường
+  // và khác hoá đơn (gói đã trả, so với API key trả theo lượt gọi).
+  "grok-cli": "Grok Build", "antigravity-cli": "Antigravity",
+};
+// Một dòng nhỏ dưới câu trả lời: lượt này chạy BẰNG GÌ, ở chế độ nào, và tốn bao nhiêu
 // token vào. Trước đây chuyện này hoàn toàn vô hình - chỉ lộ ra khi nhà cung cấp báo vượt hạn
 // mức, tức là đã muộn. Thấy được thì người dùng tự biết mức vừa bật có ăn thật hay không.
 // Tên NÓI ĐÚNG NÓ LÀM GÌ, không phải nó cũ hay mới. "Đường cũ" là góc nhìn của người viết
 // code; với người dùng đó là chế độ gửi đủ mọi thứ, an toàn nhất, và đúng là thứ họ chọn khi
 // bấm "Tắt" - gọi nó là "cũ" vừa nghe như đang xin lỗi, vừa làm người ta tưởng máy đang hỏng.
 // Tên ở đây khớp tên nút bên trang Mức dùng để nhìn một dòng là biết mình đang ở đâu.
+//
+// Engine+model đứng ĐẦU dòng này từ 0.52.13. Trước đó nó là một badge riêng ở đầu khung hội
+// thoại, và badge ấy có hai vấn đề: nó chiếm chỗ để lặp lại thứ thanh model ngay dưới ô chat
+// đã nói, và nó chỉ nói về LƯỢT CUỐI - cuộn ngược lên một hội thoại từng đổi model, hay từng
+// bị đẩy sang model dự phòng lúc model chính quá tải, thì badge nói sai về mọi tin phía trên.
+// Gắn vào TỪNG TIN thì mỗi tin tự khai đúng bộ não đã sinh ra nó, và đầu khung được trả lại.
 const CTX_PATH_LABEL = {
   legacy: "Đầy đủ", sources: "Tối ưu", fast: "Tức thì",
   readonly: "Tra cứu", orchestrator: "Tra cứu sâu", write: "Thực thi",
@@ -1934,20 +1952,40 @@ const CTX_PATH_LABEL = {
   bot: "Bot chuyên trách",
 };
 function _renderCtxLine(msgEl, data) {
-  if (!msgEl || !data || !data.ctx_path) return;
+  // Có engine mà chưa có ctx_path thì VẪN vẽ: hai thứ đến từ hai chỗ khác nhau trong payload,
+  // và bỏ cả dòng chỉ vì thiếu một nửa là mất luôn nửa đang có.
+  if (!msgEl || !data || !(data.ctx_path || data.engine)) return;
   const cu = data.ctx_path === "legacy";
-  const ten = CTX_PATH_LABEL[data.ctx_path] || data.ctx_path;
   const tok = Number(data.ctx_in) || 0;
   const old = msgEl.querySelector(".msg-ctx");
   if (old) old.remove();
   const el = document.createElement("div");
-  el.className = "msg-ctx" + (cu ? "" : " saved");
+  // Lớp "saved" (tô khác) chỉ có nghĩa khi BIẾT lượt này đi đường tiết kiệm. Không có ctx_path
+  // thì đừng đoán - gắn bừa là nói dối bằng màu sắc.
+  el.className = "msg-ctx" + (data.ctx_path && !cu ? " saved" : "");
   // Bấm vào là sang trang Mức dùng, nơi có khối chọn mức ngay đầu trang - thấy chế độ đang
   // chạy mà không biết chỉnh ở đâu thì thông tin đó cũng chỉ để bực mình.
   el.dataset.usageGoto = "usage";
-  el.title = cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
-                : "Đang tiết kiệm token. Bấm để xem chi tiết.";
-  el.textContent = ten + (tok ? " · " + _fmtTok(tok) + " token" : "");
+  const phan = [];
+  if (data.engine) {
+    // Tên model cắt ngắn cho vừa dòng; tên đầy đủ nằm ở tooltip bên dưới.
+    phan.push((ENGINE_LABEL[data.engine] || data.engine)
+              + (data.model ? " · " + _shortModel(data.model) : ""));
+  }
+  if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] || data.ctx_path);
+  if (tok) phan.push(_fmtTok(tok) + " token");
+  el.textContent = phan.join(" · ");
+  const chuThich = [];
+  if (data.engine) {
+    chuThich.push("Bộ não THẬT đã chạy lượt này"
+                  + (data.model ? ": " + data.model : "")
+                  + " (máy chủ khai, không phải model tự nhận).");
+  }
+  if (data.ctx_path) {
+    chuThich.push(cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
+                     : "Đang tiết kiệm token. Bấm để xem chi tiết.");
+  }
+  el.title = chuThich.join("\n");
   msgEl.appendChild(el);
 }
 
