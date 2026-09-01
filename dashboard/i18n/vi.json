@@ -132,7 +132,6 @@
 
   "chat.col_expand": "Mở lại khung hội thoại",
   "chat.panel": "HỘI THOẠI",
-  "chat.engine_badge": "Engine + model THẬT đang chạy (lấy từ server - không phải tên model tự nhận)",
   "chat.zoom": "Mở trang Trò chuyện (khung chat toàn màn)",
   "chat.col_collapse": "Thu khung hội thoại sang phải (như thu sidebar)",
 

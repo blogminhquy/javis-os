@@ -4858,7 +4858,6 @@
   // đầu hội thoại (badge trong trang chat soi gương từ badge HUD nên chỉ cần làm mới HUD).
   function refreshModelUi() {
     try { if (window.initModelBar) window.initModelBar(); } catch (e) {}
-    try { if (window.refreshEngineBadge) window.refreshEngineBadge(); } catch (e) {}
   }
   if (typeof window !== "undefined") window.JavisRefreshModelUi = refreshModelUi;
 
@@ -5189,7 +5188,6 @@
   // ============================================
   const CHAT_NODE_IDS = ["chatArea", "bgStrip", "attachBar", "modelBar", "hudVoice"];
   let _chatSlots = [];        // vị trí gốc từng node để trả về đúng chỗ trong HUD
-  let _chatEngObs = null;     // theo dõi engineBadge gốc để phản chiếu badge trong tab
 
   function _injectChatCss() {
     if (document.getElementById("cp-css")) return;
@@ -5206,7 +5204,6 @@
     .chatpage-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 20px 16px; }
     .chatpage-bar{ display:flex; align-items:center; gap:10px; padding:0 4px 10px; flex:none; }
     .cp-title{ font-family:var(--font); font-weight:700; letter-spacing:.5px; color:var(--text); }
-    .cp-engine{ margin-left:auto; font-size:12px; color:var(--text2); font-family:var(--font); white-space:nowrap; }
     .cp-ico-btn{ background:none; border:1px solid var(--border); color:var(--text2); border-radius:8px;
       padding:4px 10px; cursor:pointer; font-size:14px; line-height:1; }
     .cp-ico-btn:hover{ color:var(--accent); border-color:var(--accent); }
@@ -5310,8 +5307,7 @@
       .cp-min span{ display:none; }
       .cp-min{ padding:4px 8px; }
       .cp-title{ font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-        min-width:0; flex:0 1 auto; }
-      .cp-engine{ flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
+        min-width:0; flex:1 1 auto; }
       .cp-side-toggle{ display:inline-block; }
       .chatpage-side{ position:absolute; left:0; top:0; bottom:0; z-index:6; width:min(84vw,300px);
         transform:translateX(-105%); transition:transform .2s ease; box-shadow:10px 0 40px var(--shadow-veil); background:var(--bg); }
@@ -5450,7 +5446,6 @@
   }
 
   function _returnChatNodes() {
-    if (_chatEngObs) { try { _chatEngObs.disconnect(); } catch (e) {} _chatEngObs = null; }
     // Rời trang Trò chuyện thì trả cây Vault về cột trái màn chính, nếu không màn chính mất
     // hẳn panel Vault và người dùng tưởng app hỏng. Trình sửa cũng vậy - nó đang nằm trong
     // khung sắp bị xoá, không trả về là mất luôn node và mở file ở màn chính sẽ trắng trơn.
@@ -5486,7 +5481,6 @@
               'title="Thu nhỏ về màn Javis" aria-label="Thu nhỏ về màn Javis">' +
               ic("chevron-left") + '<span>Thu nhỏ</span></button>' +
             '<span class="cp-title">Trò chuyện với Javis</span>' +
-            '<span class="cp-engine" id="cpEngine"></span>' +
           '</div>' +
           '<div class="chatpage-slot" id="chatPageSlot"></div>' +
           // Chỗ đứng cho TRÌNH SỬA khi mở file từ tab Thư mục. Rỗng và ẩn cho tới lúc đó.
@@ -5499,14 +5493,6 @@
 
     // Sidebar lịch sử hội thoại (dùng lại module chung của chat workspace)
     try { if (window.JavisChatSide) window.JavisChatSide.mount(el.querySelector("#chatPageSide")); } catch (e) {}
-
-    // Badge engine: phản chiếu từ badge gốc trong HUD (không mượn node để khỏi phá HUD)
-    const eb = document.getElementById("engineBadge"), cpe = el.querySelector("#cpEngine");
-    if (eb && cpe) {
-      const sync = () => { cpe.textContent = (eb.textContent || "").trim(); };
-      sync();
-      try { _chatEngObs = new MutationObserver(sync); _chatEngObs.observe(eb, { childList: true, characterData: true, subtree: true }); } catch (e) {}
-    }
 
     // Thu gọn cột Hội thoại/Thư mục: màn hẹp giữ drawer như cũ; desktop thu về dải hẹp
     // và nhớ lựa chọn. Nút thu/mở gắn SAU khi JavisChatSide.mount vì mount ghi đè innerHTML
