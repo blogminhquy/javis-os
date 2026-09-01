@@ -370,6 +370,41 @@ def resolve_vault_relative(text: str, vault_root: str) -> list:
     return out
 
 
+# URL http/https trong text. Cắt đuôi bằng dấu câu vì model hay viết "xem tại https://a.vn."
+# và dấu chấm cuối câu không thuộc về địa chỉ. Dấu ) đóng cũng cắt: link trong markdown
+# `[tên](https://...)` sẽ nuốt luôn dấu đóng nếu không chặn.
+_URL_RE = re.compile(r"""https?://[^\s<>"'`\)\]}]+""")
+_URL_DUOI = ".,;:!?…\'\"`"
+
+
+def extract_urls(text: str) -> list:
+    """Mọi URL http/https trong text, giữ thứ tự xuất hiện, không lặp."""
+    seen, out = set(), []
+    for m in _URL_RE.finditer(text or ""):
+        u = m.group(0).rstrip(_URL_DUOI)
+        if len(u) < 11 or u in seen:      # "https://a.b" là ngắn nhất còn có nghĩa
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
+
+
+def markdown_targets(text: str) -> list:
+    """Target của mọi link/ảnh markdown trong text, kèm nhãn: [{"raw","nhan","hinh"}].
+
+    Khác `resolve_vault_relative` (chỉ trả path đã resolve được vào vault): ở đây giữ CẢ
+    target chưa resolve được, vì một file đã bị đổi tên hay dời đi vẫn là thứ người dùng
+    cần thấy - biết nó từng tồn tại còn hơn nó biến mất không dấu vết.
+    """
+    out = []
+    for m in _MD_LINK_RE.finditer(text or ""):
+        raw = _md_link_target(m)
+        if not raw:
+            continue
+        out.append({"raw": raw, "nhan": (m.group(2) or "").strip(), "hinh": m.group(1) == "!"})
+    return out
+
+
 def strip_attached_media(text: str, attached_paths: list, vault_root: str) -> str:
     """Bỏ ![alt](local-path) khỏi text nếu đúng file đó đã được xếp hàng gửi riêng.
 

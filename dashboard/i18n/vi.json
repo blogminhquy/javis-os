@@ -667,5 +667,19 @@
   "proj.err_add_link": "Không thêm được link",
   "proj.err_upload": "Tải lên hỏng",
   "proj.confirm_remove_file": "Gỡ \"{ten}\" khỏi project? File vẫn còn trong brain.",
-  "proj.confirm_remove_link": "Gỡ link \"{ten}\" khỏi project?"
+  "proj.confirm_remove_link": "Gỡ link \"{ten}\" khỏi project?",
+  "proj.open_file": "Mở ra đọc",
+  "proj.delete_file": "Xoá hẳn file khỏi brain",
+  "proj.confirm_delete_file": "Xoá VĨNH VIỄN \"{ten}\" khỏi brain? File biến mất khỏi ổ đĩa, không hoàn tác được. Chỉ muốn bỏ nó khỏi project thì bấm dấu X bên cạnh.",
+  "proj.err_delete_file": "Không xoá được file",
+
+  "cts.open": "File và link trong cuộc trò chuyện này",
+  "cts.title": "Trong cuộc trò chuyện này",
+  "cts.files_empty": "Cuộc này chưa tạo ra tài liệu nào.",
+  "cts.links_empty": "Cuộc này chưa nhắc tới link nào.",
+  "cts.file_gone": "Không còn ở đường dẫn cũ (đã đổi tên hoặc dời đi)",
+  "cts.from_you": "Bạn gửi",
+  "cts.from_javis": "Javis gửi",
+  "cts.note": "Gom từ các tài liệu Javis có nhắc tên trong cuộc này. File Javis ghi lặng lẽ giữa lượt thì không nằm ở đây.",
+  "cts.err_load": "Không đọc được cuộc trò chuyện này."
 }

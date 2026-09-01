@@ -667,5 +667,19 @@
   "proj.err_add_link": "Could not add the link",
   "proj.err_upload": "Upload failed",
   "proj.confirm_remove_file": "Remove \"{ten}\" from the project? The file stays in the brain.",
-  "proj.confirm_remove_link": "Remove the link \"{ten}\" from the project?"
+  "proj.confirm_remove_link": "Remove the link \"{ten}\" from the project?",
+  "proj.open_file": "Open to read",
+  "proj.delete_file": "Delete the file from the brain for good",
+  "proj.confirm_delete_file": "Delete \"{ten}\" from the brain PERMANENTLY? The file leaves the disk and this cannot be undone. To just take it out of the project, press the X next to it.",
+  "proj.err_delete_file": "Could not delete the file",
+
+  "cts.open": "Files and links in this conversation",
+  "cts.title": "In this conversation",
+  "cts.files_empty": "This conversation has not produced any documents yet.",
+  "cts.links_empty": "No links have come up in this conversation yet.",
+  "cts.file_gone": "Not at the old path any more (renamed or moved)",
+  "cts.from_you": "You shared it",
+  "cts.from_javis": "Javis shared it",
+  "cts.note": "Gathered from the documents Javis named in this conversation. A file written quietly mid-turn will not appear here.",
+  "cts.err_load": "Could not read this conversation."
 }

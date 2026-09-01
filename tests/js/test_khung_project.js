@@ -207,6 +207,59 @@ check("và trong en.json", thieuEn.length === 0, thieuEn.join(", "));
 check("không dùng emoji thay icon (mockup dùng emoji, app dùng Lucide)",
   !/[\u{1F300}-\u{1FAFF}]/u.test(SU.split("// ===== Khung project")[1] || ""));
 
+// ============================================================
+// 9. Phản hồi 01/09: mở file, xoá hẳn, icon tab, giữ form tìm
+// ============================================================
+// Bấm vào tên một tài liệu mà không mở được nó ra đọc là phản xạ bị phụ - danh sách này
+// chính là chỗ người ta đi tìm tài liệu.
+check("tên file là NÚT mở, dùng lại ba nấc của chip 'file đang mở'",
+  /JavisOpenNoteAt === "function" && window\.JavisOpenNoteAt\(f\.path, ten\)/.test(SU)
+  && /JavisEditFile === "function"/.test(SU) && /JavisOpenFiles === "function"/.test(SU));
+check("mở file thì đóng ngăn kéo (trình sửa hiện ra sau nó)",
+  /function moFile\(f\) \{[\s\S]*?closeProjDrawer\(\);/.test(SU));
+// <a> lồng trong <button> là HTML sai và trình duyệt nuốt cú bấm vào link.
+check("hàng LINK không bọc thẻ <a> trong <button>",
+  /: '<span class="pd-row-body">'\) \+/.test(SU));
+check("có nút xoá HẲN khỏi brain, tách khỏi nút gỡ khỏi project",
+  /class="pd-row-act pd-xoa"/.test(SU) && /post\("\/files\/delete"/.test(SU));
+// Hai hành động, hai hậu quả rất khác nhau, nên hai câu hỏi lại phải khác nhau rõ ràng.
+check("hai câu xác nhận khác nhau và câu xoá hẳn nói rõ không hoàn tác",
+  VI["proj.confirm_remove_file"] !== VI["proj.confirm_delete_file"]
+  && /không hoàn tác/i.test(VI["proj.confirm_delete_file"] || ""));
+check("xoá file xong thì gỡ luôn khỏi project, không để lại dòng trỏ vào hư không",
+  /function xoaHanFile[\s\S]*?\/files\/" \+\s*\n?\s*encodeURIComponent\(f\.id\) \+ "\/delete"/.test(SU));
+check("ba tab có icon", /icoTab|ico: "scroll-text"/.test(SU) && /\.pd-tab \.ic \{/.test(CSS));
+// Vẽ lại cả khung là form tìm kiếm dựng lại từ đầu: mất chữ đã gõ, mất kết quả, muốn thêm
+// file thứ hai phải gõ lại - đúng lỗi chủ repo báo.
+check("thêm file xong chỉ vẽ lại danh sách, KHÔNG vẽ lại cả khung",
+  /veLaiDanhSach\(\);\s*\/\/ KHÔNG veDrawer/.test(SU));
+check("danh sách nằm trong hộp riêng để vẽ lại được", /'<div class="pd-list">'/.test(SU));
+check("thêm link xong cũng giữ form và dọn ô để dán tiếp",
+  /u\.value = ""; u\.focus\(\);/.test(SU));
+
+// ============================================================
+// 10. File và link của một CUỘC TRÒ CHUYỆN
+// ============================================================
+check("có nút mở khung đó ở thanh tiêu đề", /class="cts-btn"/.test(SU));
+// Chat dài đẻ ra tài liệu ở MỌI cuộc, kể cả cuộc chưa xếp vào project nào.
+check("nút hiện theo phiên đã lưu, không phụ thuộc project",
+  /var html = currentId\(\)\s*\n\s*\? '<button class="cts-btn"/.test(SU));
+check("gọi endpoint tài sản của phiên", /"\/sessions\/" \+ encodeURIComponent\(sid\) \+ "\/assets\?brain="/.test(SU));
+// Dựng khung thứ hai cho hai danh sách trông giống nhau, hành xử giống nhau, chỉ khác nguồn
+// dữ liệu là nhân đôi số chỗ phải sửa về sau.
+check("dùng lại vỏ ngăn kéo của project chứ không dựng khung thứ hai",
+  (SU.match(/class="pd-panel"/g) || []).length === 1 && /pdCheDo = "cuoc"/.test(SU));
+check("thanh tab dựng động: chế độ cuộc chỉ có File và Link",
+  /if \(pdCheDo === "cuoc"\) return \[tabFile, tabLink\];/.test(SU));
+check("mở khung project thì trả chế độ về project", /pdDung\(\);\s*\n\s*pdCheDo = "project";/.test(SU));
+check("file đã dời vẫn hiện, mờ đi và gạch ngang",
+  /\.pd-row\.mat \{ opacity/.test(CSS) && /\.pd-row\.mat \.pd-row-name \{ text-decoration: line-through/.test(CSS));
+check("và nói rõ vì sao nó mờ", /đổi tên hoặc dời/i.test(VI["cts.file_gone"] || ""));
+// Người dùng phải biết danh sách này gom từ đâu, nếu không thiếu một file là mất lòng tin.
+check("nói thẳng giới hạn: chỉ gom file Javis có nhắc tên",
+  /nhắc tên/.test(VI["cts.note"] || ""));
+check("ghi rõ link do ai gửi", !!VI["cts.from_you"] && !!VI["cts.from_javis"]);
+
 console.log("");
 if (fails.length) { console.log("ĐỎ " + fails.length + " mục"); process.exit(1); }
 console.log("Tất cả xanh.");

@@ -10489,6 +10489,110 @@ async def sessions_get(session_id: str):
     return sess
 
 
+# ============================================================
+# TÀI SẢN CỦA MỘT CUỘC TRÒ CHUYỆN: file đã tạo + link đã nhắc
+# ============================================================
+# Chat dài đẻ ra hàng chục tài liệu (kế hoạch, landing, bài quảng cáo) rồi tìm lại phải cuộn
+# ngược cả cuộc - chủ repo báo 01/09. Ở đây SUY RA từ tin nhắn đã lưu chứ KHÔNG dựng bảng ghi
+# lúc tạo file, và đó là quyết định chính:
+#
+#   Bảng ghi chỉ đúng từ bản cập nhật trở đi. Chỗ đang đau lại là các cuộc chat CŨ - những
+#   cuộc đã dài, đã tạo xong tài liệu, và giờ mới cần tìm. Quét tin nhắn thì mở được ngay cả
+#   cuộc từ tháng trước, không phải chờ tích luỹ dữ liệu mới.
+#
+# Đổi lại: chỉ thấy được file mà Javis có NHẮC trong câu trả lời. CLAUDE.md đã dặn nhúng
+# `[tên](đường-dẫn)` mỗi khi tạo file cho người dùng, nên phần lớn rơi vào lưới; file ghi
+# lặng lẽ giữa lượt thì không.
+PHIEN_TS_MAX_FILE = 200        # trần một cuộc, đủ cho cuộc dài nhất mà không đổ ra vô hạn
+PHIEN_TS_MAX_LINK = 200
+
+
+def _ts_trong_brain(broot: Path, duong: Path):
+    """Path có nằm trong gốc brain và không thuộc thư mục rác không? Trả path đã chuẩn hoá."""
+    try:
+        rp = Path(os.path.normpath(os.path.abspath(str(duong))))
+    except (OSError, ValueError):
+        return None
+    try:
+        rp.relative_to(broot)
+    except ValueError:
+        return None
+    if any(part in channel_context._EXCLUDE_PARTS for part in rp.parts):
+        return None
+    return rp
+
+
+@app.get("/sessions/{session_id}/assets")
+async def sessions_assets(session_id: str, brain: str = Query("")):
+    """File Javis đã tạo và link đã nhắc trong CUỘC TRÒ CHUYỆN này.
+
+    Ứng viên file có hai nguồn, và luật giữ khác nhau vì độ tin cậy khác nhau:
+
+    - Link markdown `[tên](đường-dẫn)`: một cử chỉ CỐ Ý "đây là file của bạn", nên giữ cả khi
+      file không còn ở đó nữa (đánh dấu `con: false`). Đổi tên hay dời file mà danh sách im
+      lặng bỏ đi thì người dùng tưởng tính năng hỏng, trong khi sự thật là file đã dời.
+    - Đường dẫn trần trong văn xuôi: chỉ giữ khi file CÓ THẬT. Một đường dẫn giả định nêu
+      trong lời giải thích trông y hệt đường dẫn thật, nên nó phải tự chứng minh bằng cách
+      tồn tại.
+    """
+    store = get_store()
+    sess = store.get_session(session_id)
+    if not sess:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    b = (brain or sess.get("brain") or "brain").strip() or "brain"
+    broot = Path(_brain_root(b)).resolve()
+    ceil = _files_root(b)
+
+    files, links = {}, {}
+    for m in store.get_messages(session_id):
+        noi_dung = m.get("content") or ""
+        if not noi_dung:
+            continue
+        ts = m.get("ts") or 0
+        for tg in channel_context.markdown_targets(noi_dung):
+            raw = tg["raw"]
+            if "://" in raw or raw.startswith(("#", "mailto:", "data:", "tel:")):
+                continue
+            cand = channel_context._vault_markdown_candidate(raw, str(broot))
+            rp = _ts_trong_brain(broot, cand) if cand else None
+            if not rp:
+                continue
+            files.setdefault(os.path.normcase(str(rp)),
+                             {"p": rp, "nhan": tg["nhan"], "hinh": tg["hinh"], "ts": ts})["ts"] = ts
+        for raw in channel_context.extract_paths(noi_dung):
+            rp = _ts_trong_brain(broot, Path(raw))
+            if not rp or not rp.is_file():
+                continue
+            files.setdefault(os.path.normcase(str(rp)),
+                             {"p": rp, "nhan": "", "hinh": False, "ts": ts})["ts"] = ts
+        for u in channel_context.extract_urls(noi_dung):
+            links.setdefault(u, {"url": u, "ts": ts, "vai": m.get("role") or ""})
+
+    ra_file = []
+    for v in files.values():
+        rp = v["p"]
+        co = rp.is_file()
+        try:
+            st = rp.stat() if co else None
+        except OSError:
+            co, st = False, None
+        ra_file.append({
+            "path": _files_rel(ceil, rp),                 # theo TRẦN: đúng khuôn JavisOpenNoteAt nhận
+            "brain_path": _files_rel(broot, rp),          # theo GỐC BRAIN: để hiện cho người đọc
+            "name": rp.name,
+            "label": v["nhan"],
+            "image": v["hinh"],
+            "exists": co,
+            "size": st.st_size if st else 0,
+            "ts": v["ts"],
+        })
+    ra_file.sort(key=lambda x: x["ts"], reverse=True)
+    ra_link = sorted(links.values(), key=lambda x: x["ts"], reverse=True)
+    return {"ok": True, "brain": b,
+            "files": ra_file[:PHIEN_TS_MAX_FILE],
+            "links": ra_link[:PHIEN_TS_MAX_LINK]}
+
+
 @app.post("/sessions/{session_id}/rename")
 async def sessions_rename(session_id: str, title: str = Form(...)):
     get_store().rename(session_id, title)
