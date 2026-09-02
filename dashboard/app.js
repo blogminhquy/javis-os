@@ -1839,6 +1839,10 @@ voiceBtn.addEventListener("click", () => {
   if (!voice.isSupported()) { alert("Trình duyệt không hỗ trợ giọng nói. Dùng Chrome/Edge."); return; }
   handsFree = !handsFree;
   voiceBtn.classList.toggle("handsfree", handsFree);
+  // Loa đi theo mic (chủ repo yêu cầu 02/09): bật nghe là muốn NÓI CHUYỆN bằng giọng, nên
+  // Javis phải đáp bằng giọng; tắt nghe là quay về gõ chữ, Javis im. Điện thoại từng không
+  // có chỗ nào bật loa cả, nên gộp vào mic là một nút lo cả hai chiều.
+  try { if (window.JavisTts) window.JavisTts.set(handsFree); } catch (e) {}
   if (handsFree) {
     voice.startListening();
   } else {
@@ -1861,6 +1865,9 @@ document.addEventListener("keydown", (e) => {
   const _ae = document.activeElement;
   const _typing = _ae && (_ae.tagName === "INPUT" || _ae.tagName === "TEXTAREA" || _ae.tagName === "SELECT" || _ae.isContentEditable);
   if (e.code === "Space" && !handsFree && !spacePressed && !_typing) {
+    // Bấm-giữ Space cũng là mở mic -> bật loa. Thả phím là hết câu, không phải "tắt nghe",
+    // nên KHÔNG tắt loa ở keyup - tắt thì câu trả lời ngay sau đó bị câm.
+    try { if (window.JavisTts) window.JavisTts.set(true); } catch (e2) {}
     e.preventDefault(); spacePressed = true; voice.startListening();
   }
   if (e.code === "Escape") {
@@ -1868,6 +1875,7 @@ document.addEventListener("keydown", (e) => {
     // trả lời hay ngắt Javis đang nói (đã bỏ theo yêu cầu - đã có nút bật/tắt tiếng và nút Dừng).
     handsFree = false; voiceBtn.classList.remove("handsfree");
     voice.stopListening();
+    try { if (window.JavisTts) window.JavisTts.set(false); } catch (e2) {}   // Esc = thoát nói chuyện bằng giọng
     if (typeof closeNodePopup === "function") closeNodePopup();
   }
 });

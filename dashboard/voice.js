@@ -101,6 +101,7 @@ class JavisVoice {
     this.recognition.maxAlternatives = 1;
 
     this.accumulatedTranscript = "";
+    this._committed = "";                     // chữ đã nghe ở các phiên trước trong CÙNG một lượt nói
     this.userStopped = false;                 // user chủ động dừng?
     this.silenceMs = 1500;                    // im lặng bao lâu thì tự gửi
     this._silenceTimer = null;
@@ -131,15 +132,22 @@ class JavisVoice {
       // (SpeechRecognition thu riêng, KHÔNG được khử vọng như luồng đo mức âm), không phải
       // user nói. Không chặn thì giọng Javis bị chép vào khung chat rồi tự gửi đi.
       if (this.isSpeaking()) return;
+      // DỰNG LẠI từ TOÀN BỘ event.results mỗi lần, KHÔNG cộng dồn qua từng sự kiện.
+      // Bản cũ làm `accumulated += final` từ resultIndex trở đi. Chrome máy tính giao đúng
+      // từng mảnh một nên không sao; Chrome Android thì resultIndex thường đứng ở 0 và mỗi
+      // "final" lại chứa CẢ câu tới lúc đó, nên cộng dồn là chép câu ấy thêm một lần ở mỗi
+      // sự kiện: "Ok" + "Ok có" + "Ok có vẻ" + ... - đúng cái tin dài cả trang chủ repo gửi
+      // ảnh ngày 02/09. results là bức ảnh đầy đủ của phiên nên đọc lại từ 0 luôn đúng, và
+      // phần đã nghe ở phiên trước (Chrome tự đóng rồi ta mở lại) giữ ở _committed.
       let interim = "", final = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) final += transcript;
+      for (let i = 0; i < event.results.length; i++) {
+        const transcript = (event.results[i][0] || {}).transcript || "";
+        if (event.results[i].isFinal) final += transcript + " ";
         else interim += transcript;
       }
-      if (final) this.accumulatedTranscript += final + " ";
+      this.accumulatedTranscript = this._ghepChuyenBien(final.trim());
       // Show user toàn bộ tích lũy + đoạn đang nghe
-      const display = (this.accumulatedTranscript + interim).trim();
+      const display = (this.accumulatedTranscript + " " + interim).trim();
       if (display) {
         this.onInterim(display);
         // Reset đồng hồ im lặng - nói tiếp thì hoãn, im đủ lâu thì tự gửi
@@ -163,6 +171,9 @@ class JavisVoice {
       // Nếu user chưa chủ động dừng → tự restart (giữ session sống khi user dừng nghĩ)
       if (!this.userStopped) {
         try {
+          // Phiên mới thì event.results bắt đầu lại từ trống. Gói phần đã nghe vào
+          // _committed trước, không thì onstart xoá trắng và nửa câu đầu biến mất.
+          this._committed = this._ghepChuyenBien("");
           this.recognition.start();
           return;
         } catch (e) {
@@ -172,9 +183,23 @@ class JavisVoice {
       this.isListening = false;
       // Gửi toàn bộ text đã tích luỹ khi user dừng
       const finalText = this.accumulatedTranscript.trim();
+      this._committed = "";
       if (finalText) this.onTranscript(finalText);
       this.onEnd();
     };
+  }
+
+  // Ghép phần đã chốt ở phiên trước với phần final của phiên này. Android đôi khi giao một
+  // final là BẢN DÀI HƠN của final trước (cùng câu, thêm chữ), nên câu mới mà mở đầu bằng câu
+  // cũ thì lấy câu mới thay vì nối - đó chính là cách "Ok có vẻ" không thành "Ok Ok có vẻ".
+  _ghepChuyenBien(finalNay) {
+    const cu = (this._committed || "").trim();
+    const moi = (finalNay || "").trim();
+    if (!moi) return cu;
+    if (!cu) return moi;
+    if (moi.startsWith(cu)) return moi;
+    if (cu.endsWith(moi)) return cu;
+    return (cu + " " + moi).trim();
   }
 
   _loadVoices() {
@@ -202,6 +227,7 @@ class JavisVoice {
     // Mở nghe chủ động → huỷ mọi lịch tự-mở-lại còn treo
     this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
+    this._committed = "";                     // lượt nói MỚI, không kéo chữ của lượt trước sang
     // Stop TTS đang đọc nếu user bấm nói
     this.synth.cancel();
     this.stopSpeaking();
@@ -252,6 +278,10 @@ class JavisVoice {
     if (!this.ttsEnabled && !opts.force) return;
     const clean = this._cleanForTTS(text);
     if (!clean) return;
+    // Cùng một đoạn tới hai lần liền (socket nối lại giao trùng sự kiện, hay lượt cuối lặp
+    // lại đúng đoạn vừa stream) thì đọc một lần là đủ.
+    if (clean === this._lastQueued && !opts.force) return;
+    this._lastQueued = clean;
     this.speechQueue.push(clean);
     if (!this.isPlaying) this._pumpQueue();
   }
@@ -472,6 +502,7 @@ class JavisVoice {
     this.ttsChunks = null;
     this.ttsQueue = [];
     this.speechQueue = [];
+    this._lastQueued = "";
     this.isPlaying = false;
     this._resumeRecognitionIfNeeded();   // mic từng bị tạm ngừng vì TTS → mở nghe lại
   }

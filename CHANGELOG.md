@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.11] - 2026-09-02
+### Sửa lỗi
+- **Đọc bằng mic trên điện thoại không còn dán chồng câu** kiểu "Ok Ok Ok có Ok có vẻ...". Chrome trên Android giao lại cả câu ở mỗi nhịp nghe, và Javis cộng dồn nên chép câu ấy thêm một lần mỗi nhịp. Nay Javis dựng lại chữ từ đầu mỗi nhịp, và câu đang nói dở không mất khi trình duyệt tự mở lại phiên nghe.
+- **Loa đi theo mic.** Bấm mic để nghe là Javis tự đáp bằng giọng; tắt mic là Javis im. Điện thoại trước đây không có chỗ nào bật tắt giọng cả, nay nút loa cũng quay lại thanh nhập để thấy trạng thái và bấm ngược khi cần.
+- Javis không đọc lại cùng một đoạn hai lần khi kết nối chập chờn giao trùng tin.
+
 ## [0.55.10] - 2026-09-02
 ### Thêm mới
 - **Ghim được model riêng cho Telegram.** Mặc định Telegram vẫn theo model chính như cũ; ghim rồi thì đổi model trên web không kéo điện thoại theo, và gõ `/model` trên Telegram chỉ đổi cho Telegram. Ghim ngay trên Telegram bằng `/model ghim`, bỏ bằng `/model theo`; `/status` luôn nói đang ghim hay đang theo.

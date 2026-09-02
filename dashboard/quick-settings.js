@@ -35,6 +35,10 @@
     if (bar) bar.addEventListener("click", function () { applyState(isOff()); });   // đang OFF → bật, đang ON → tắt
   }
 
+  // Cho app.js gọi khi bật/tắt mic: loa đi theo mic (02/09). Đi qua applyState để nút loa,
+  // công tắc Cài đặt nhanh và localStorage cùng đổi - không có đường "đổi lén" nào.
+  window.JavisTts = { set: applyState, isOn: function () { return !isOff(); } };
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
   else bind();
 })();
