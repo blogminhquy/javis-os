@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.4] - 2026-09-02
+### Sửa lỗi
+- **Hai người dùng chung một Javis không còn đá nhau văng kết nối Claude.** Khi cả hai cùng chat đúng lúc phiên đăng nhập Claude hết hạn, hai lượt cùng đi làm mới, và người chậm hơn bị báo mất đăng nhập trong khi người kia vẫn chạy bình thường. Nay Javis xếp hàng đúng khoảnh khắc đó nên chỉ một lượt đi làm mới, lượt còn lại chờ vài giây rồi dùng phiên mới.
+- **Và nếu vẫn lỡ trúng, Javis nói đúng bệnh.** Trước đây nó báo mất đăng nhập rồi bảo bạn vào trang Models kết nối lại - lời khuyên sai, vì phiên chưa hề mất, mà bấm Ngắt còn xoá mất bản sao lưu phiên đăng nhập. Nay nó nói thẳng là gửi lại tin nhắn được ngay, và không bật đèn đỏ báo động nữa.
+
 ## [0.55.3] - 2026-09-02
 ### Sửa lỗi
 - **Địa chỉ nối tới Ollama nay Javis tự tìm và điền sẵn cho bạn**, chỉ việc bấm Kết nối. Bản trước ghi "điền địa chỉ này" nhưng lại để địa chỉ dưới dạng chữ mờ trong ô nhập, còn bị cắt cụt nên không đọc hết được.
