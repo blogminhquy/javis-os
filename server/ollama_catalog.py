@@ -32,10 +32,15 @@ from pathlib import Path
 
 # name, size_gb, ho (họ model), mô tả ngắn, các nhãn năng lực
 _NEN = [
-    ("qwen3:4b", 2.6, "qwen", "Nhỏ mà chắc tay, chạy được cả trên máy không có GPU rời.", ["tools"]),
-    ("qwen3:8b", 5.2, "qwen", "Cân bằng giữa chất lượng và tốc độ, hợp máy 16GB RAM.", ["tools"]),
-    ("qwen3:14b", 9.3, "qwen", "Khá hơn hẳn bản 8b khi viết dài và suy luận nhiều bước.", ["tools"]),
-    ("qwen3:32b", 20.0, "qwen", "Mạnh, cần GPU khá hoặc nhiều RAM.", ["tools"]),
+    # Qwen3 bản thường là model LAI: có thể suy nghĩ dài trước khi trả lời, và trên CPU thì
+    # phần suy nghĩ đó là thứ ăn hết thời gian. Vụ thật 02/09 trên VPS 2 vCPU: qwen3:4b nhận
+    # "Say hi in 3 words" rồi sinh gần 2.800 token suy nghĩ, quá giờ chờ; bản instruct trả lời
+    # gọn trong 23 giây. Nên gắn nhãn thinking cho đúng, và có sẵn bản instruct để gợi ý.
+    ("qwen3:4b-instruct", 2.5, "qwen", "Trả lời thẳng, không suy nghĩ dài dòng - hợp nhất cho máy không GPU.", ["tools"]),
+    ("qwen3:4b", 2.6, "qwen", "Nhỏ mà chắc tay, biết suy nghĩ trước khi trả lời.", ["tools", "thinking"]),
+    ("qwen3:8b", 5.2, "qwen", "Cân bằng giữa chất lượng và tốc độ, hợp máy 16GB RAM.", ["tools", "thinking"]),
+    ("qwen3:14b", 9.3, "qwen", "Khá hơn hẳn bản 8b khi viết dài và suy luận nhiều bước.", ["tools", "thinking"]),
+    ("qwen3:32b", 20.0, "qwen", "Mạnh, cần GPU khá hoặc nhiều RAM.", ["tools", "thinking"]),
     ("qwen3-coder:30b", 19.0, "qwen", "Chuyên viết và đọc code.", ["tools"]),
     ("llama3.1:8b", 4.9, "llama", "Bản phổ thông của Meta, tài liệu và ví dụ nhiều nhất.", ["tools"]),
     ("llama3.2:3b", 2.0, "llama", "Rất nhẹ, hợp máy yếu hoặc chạy nền.", ["tools"]),
@@ -176,6 +181,11 @@ def goi_y(specs: dict) -> list:
         if cd <= 0 or cd > tran:
             continue
         d = dict(m)
+        # Model suy nghĩ dài trên máy KHÔNG GPU là cái bẫy: phần suy nghĩ chạy bằng CPU ăn
+        # hết thời gian trước khi ra được chữ đầu tiên. Không cấm - vẫn nằm trong danh sách -
+        # nhưng phải nói thẳng và xếp SAU các bản trả lời thẳng.
+        cham_vi_nghi = (not co_gpu) and "thinking" in (m.get("tags") or [])
+        d["cham_vi_nghi"] = cham_vi_nghi
         if co_gpu and vram > 0 and cd <= vram:
             d["note"] = "Chạy trọn trong GPU, nhanh nhất"
             nhanh.append(d)
@@ -183,11 +193,14 @@ def goi_y(specs: dict) -> list:
             d["note"] = ("Vượt VRAM, phải bù bằng RAM nên chậm hơn" if (co_gpu and vram > 0)
                          else "Chưa đọc được cấu hình máy - đây là mức an toàn" if not biet
                          else "Chạy bằng CPU và RAM")
+            if cham_vi_nghi:
+                d["note"] += ". Model này suy nghĩ dài trước khi trả lời, trên CPU sẽ rất chậm - nên chọn bản instruct"
             lon.append(d)
 
     # Lớn trước trong cả hai rổ: cùng một hạng thì model to hơn gần như luôn trả lời khá hơn.
+    # Riêng rổ CPU thì bản suy nghĩ dài xuống cuối, kể cả khi nó to hơn.
     nhanh.sort(key=lambda m: -float(m.get("size_gb") or 0))
-    lon.sort(key=lambda m: -float(m.get("size_gb") or 0))
+    lon.sort(key=lambda m: (1 if m.get("cham_vi_nghi") else 0, -float(m.get("size_gb") or 0)))
 
     ra, da_ho = [], set()
 
@@ -221,5 +234,8 @@ def goi_y(specs: dict) -> list:
     # trải rộng đã xong ở trên nên sắp lại không làm mất model lớn nào, chỉ để mắt đọc xuôi -
     # không còn cảnh một model 70B nằm chen giữa mấy model chạy GPU.
     ra.sort(key=lambda m: (0 if m.get("note", "").startswith("Chạy trọn") else 1,
+                           1 if m.get("cham_vi_nghi") else 0,
                            -float(m.get("size_gb") or 0)))
+    for m in ra:
+        m.pop("cham_vi_nghi", None)       # cờ nội bộ để xếp, không phải dữ liệu cho giao diện
     return ra[:MAX_GOI_Y]

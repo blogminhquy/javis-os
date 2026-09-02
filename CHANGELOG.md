@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.7] - 2026-09-02
+### Sửa lỗi
+- **Đã nối Ollama mà ô chọn model vẫn báo "chưa kết nối hoặc không có model".** Tab Local liệt kê đủ model nhưng ô chọn model chính không hề hỏi Ollama, nên luôn trống. Nay nó lấy đúng danh sách đang cài (bỏ model embedding vì không chat được), và nhà Ollama chỉ hiện "đã kết nối" khi bạn đã đặt địa chỉ thật.
+### Cải thiện
+- **Tab đổi tên thành Local Model, nhà cung cấp thành Ollama (Local)**, hết chữ "máy nhà" và "chạy trên máy" gây hiểu nhầm.
+- **Tải model xong là bấm "Dùng làm model chính" ngay trong tab Local**, không phải mò sang tab Cloud tìm trong danh sách dài. Model đang là chính có nhãn riêng.
+- **Lệnh mở cổng cho bản Docker nay gắn Ollama vào đúng địa chỉ cầu nối Javis dò được**, chỉ container trên máy đó gọi tới, nên bỏ hẳn bước tường lửa dễ tự khoá SSH. Nối hỏng thì có sẵn một lệnh chẩn đoán kèm cách đọc kết quả.
+- **Máy không GPU được gợi ý bản Qwen3 instruct trước**, còn các bản suy nghĩ dài (qwen3 thường, deepseek-r1) ghi rõ là chạy CPU sẽ rất chậm. Trên VPS 2 nhân, bản thường sinh gần 2.800 chữ suy nghĩ cho một câu chào rồi quá giờ; bản instruct trả lời trong 23 giây.
+
 ## [0.55.6] - 2026-09-02
 ### Sửa lỗi
 - **Tài liệu bạn tải lên trong khung Project nay lưu vào Sources, không còn vào Attachments.** Attachments là vùng tạm bị dọn theo tuổi (mặc định 30 ngày) và theo dung lượng, nên tài liệu của project để ở đó là sẽ mất. Sources thì giữ lâu dài.

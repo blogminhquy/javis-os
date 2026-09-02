@@ -236,6 +236,22 @@ Mức này áp dụng khác nhau tuỳ engine:
 - **Gemini**: chỉ áp cho model 2.5 trở lên (và các model có chữ "thinking"). Model cũ hơn không được gửi tham số này để tránh lỗi.
 - **Claude Code**: chèn gợi ý suy nghĩ vào câu hỏi (từ mức think tới ultrathink theo độ sâu tăng dần).
 
+### G. Local Model - Ollama chạy trên máy bạn hoặc trên VPS
+
+Tab **Local Model** (cạnh tab Cloud Model trên trang Models) nối Javis với một Ollama do bạn tự chạy: model mã nguồn mở, ngoại tuyến, không tốn lượt. Provider tương ứng trong ô chọn model là **Ollama (Local)**, khác với **Ollama Cloud** ở tab Cloud (bản trả phí qua ollama.com).
+
+**Javis chạy thẳng trên máy (Windows/Mac/Linux):** cài Ollama bằng lệnh tab hiện sẵn, bấm Kết nối với địa chỉ `http://127.0.0.1:11434` đã điền sẵn. Xong.
+
+**Javis chạy trong Docker/VPS:** ba bước, làm bằng SSH trên máy chủ thật, không phải terminal trong Javis (terminal đó nằm trong container, không có quyền root, và mọi thứ cài vào đó mất sạch ở lần cập nhật kế).
+
+1. Cài Ollama trên máy chủ: `curl -fsSL https://ollama.com/install.sh | sh`.
+2. Cho Ollama nghe ở địa chỉ cầu nối Docker. Tab Local đã dò sẵn địa chỉ và sinh sẵn lệnh, chỉ việc chép. Nó ghi một file override cho systemd với `OLLAMA_HOST=<địa chỉ cầu nối>:11434` rồi restart. Gắn vào đúng địa chỉ này thì chỉ container trên máy đó gọi được, không lộ ra Internet, không cần tường lửa. Chỉ khi Javis dò không ra địa chỉ thì lệnh mới rơi về `0.0.0.0`, lúc đó bắt buộc chặn cổng 11434 ở tường lửa vì Ollama không có mật khẩu.
+3. Bấm **Kết nối** (địa chỉ đã điền sẵn).
+
+Không nối được sau ba bước? Trên máy chủ chạy `ss -ltnp | grep 11434`: không ra dòng nào là Ollama chưa chạy (`systemctl status ollama`); ra dòng có `127.0.0.1` là bước 2 chưa ăn.
+
+**Chọn model:** phần Khuyến nghị xếp theo cấu hình máy. Máy không GPU (VPS phổ thông) thì ưu tiên bản **instruct** (vd `qwen3:4b-instruct`): trả lời thẳng. Các bản suy nghĩ dài (qwen3 thường, deepseek-r1) trên CPU có thể mất nhiều phút chỉ để "nghĩ" trước khi ra chữ đầu tiên, tab ghi rõ ở từng thẻ. Tải xong bấm **Dùng làm model chính** ngay tại danh sách đã cài; ô chọn model dưới khung chat đổi theo luôn.
+
 ## Engine Claude chạy bằng gì bên dưới
 
 Từ bản 0.9.37, engine Claude của Javis chạy **duy nhất qua Claude Agent SDK** (bộ thư viện chính chủ của Anthropic). Nhánh cũ tự gọi lệnh `claude` như một tiến trình rời đã bị gỡ hẳn. Hai điều người dùng cần biết:

@@ -1165,7 +1165,7 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     # một khoá - địa chỉ lưu riêng ở `model.ollama_local_endpoint`. Card của nó cũng không dùng
     # khuôn card chung (giống grok-cli/antigravity-cli đã có khuôn riêng): nó sống ở tab Local
     # Model của trang Models, không chen vào lưới Providers bên tab Cloud.
-    {"id": "ollama-local",  "label": "Ollama (máy nhà)",        "kind": "api", "key_field": None,
+    {"id": "ollama-local",  "label": "Ollama (Local)",          "kind": "api", "key_field": None,
      "catalog_key": "ollama-local", "default_models": []},
 ]
 
@@ -1214,6 +1214,11 @@ def _providers_view(cfg):
             # đổi được model, trang Cập nhật chết (khách báo 2026-08-30). auth_status_nen trả
             # cache ngay và tự làm mới ở thread nền.
             configured = bool(antigravity_cli.auth_status_nen().get("connected"))
+        elif p["id"] == "ollama-local":
+            # Thứ xác thực nó là ĐỊA CHỈ. Để rơi vào nhánh key_field=None bên dưới là "đã kết
+            # nối" cho mọi máy, kể cả máy chưa hề đặt địa chỉ - ô chọn model liền bày một nhà
+            # "đã nối" mà bấm vào thì rỗng. Cùng cái bẫy đã dính với Claude/Codex (cli_found).
+            configured = bool((m.get("ollama_local_endpoint") or "").strip())
         elif p["key_field"] is None:
             configured = True
         else:
@@ -3757,6 +3762,20 @@ async def _fetch_provider_models(provider, m):
             data = r.json().get("models", [])
         # `name` là tên đầy đủ kèm tag (gpt-oss:120b-cloud) - đúng thứ phải gửi lại khi chat.
         return sorted(x.get("name") for x in data if x.get("name")) or None
+    if provider == "ollama-local":
+        # Vụ thật 02/09: đã nối Ollama, tab Local liệt kê đủ model, vậy mà ô chọn model chính
+        # vẫn báo "chưa kết nối hoặc không có model". Hàm này không có nhánh cho nhà đó nên
+        # trả None, và catalog của nó thì chưa bao giờ được ghi - hai lưới cùng thủng.
+        ep = (m.get("ollama_local_endpoint") or "").strip()
+        if not ep:
+            return None
+        p = await ollama_local.probe(ep, (m.get("ollama_local_key") or "").strip())
+        if not p["reachable"]:
+            return None
+        ids = sorted((x.get("name") or x.get("model") or "") for x in p["models"])
+        # Model embedding không chat được. Bày nó ra ô chọn là mời người dùng chọn một model
+        # câm: lượt chat đầu tiên trả lỗi mà không có gì trên màn hình nói vì sao.
+        return [i for i in ids if i and "embed" not in i.lower()] or None
     if provider == "openai-oauth":
         # app-server là subprocess đồng bộ; chạy ở worker để request FastAPI
         # khác không đứng hình trong lúc Codex nạp catalog.
@@ -3820,6 +3839,11 @@ def _vi_sao_khong_co_model(provider: str, m: dict) -> str:
                 "cũ (`npm i -g @openai/codex@latest`), hoặc máy chưa chạy `codex login` lần nào.")
     if provider == "ollama":
         return "Không gọi được Ollama. Kiểm tra máy chủ Ollama còn chạy và key còn hạn."
+    if provider == "ollama-local":
+        if not (m.get("ollama_local_endpoint") or "").strip():
+            return "Chưa đặt địa chỉ Ollama - vào trang Models, tab Local Model để kết nối."
+        return ("Không gọi được Ollama ở địa chỉ đã lưu. Mở trang Models, tab Local Model để "
+                "xem lỗi cụ thể.")
     if d.get("key_field") and not m.get(d["key_field"]):
         return "Chưa có API key cho nhà cung cấp này."
     return ""
@@ -10942,12 +10966,32 @@ async def ollama_local_status():
     return ra
 
 
+def _ol_quen_danh_sach(ca_catalog: bool):
+    """Quên danh sách model của máy Ollama vừa rời.
+
+    Ô chọn model nhớ danh sách live 10 phút (`_PROV_MODELS_CACHE`) và ghi bản gần nhất vào
+    catalog để lúc MẤT MẠNG tạm thời vẫn có gì đó mà chọn. Đổi hay gỡ địa chỉ thì không phải
+    mất mạng - đó là một máy khác, hoặc không còn máy nào. Giữ danh sách cũ là ô chọn bày
+    model của một máy không còn nối, chọn vào là chat chết. Đổi địa chỉ chỉ cần bỏ cache
+    (catalog sẽ bị đè ngay ở lần lấy sau); gỡ hẳn thì bỏ cả catalog.
+    """
+    _PROV_MODELS_CACHE.pop("ollama-local", None)
+    if not ca_catalog:
+        return
+    cfg = cfgmod.read_settings()
+    cat = (cfg.get("model") or {}).get("catalog") or {}
+    if "ollama-local" in cat:
+        cat.pop("ollama-local", None)
+        cfgmod.write_settings(cfg)
+
+
 @app.post("/ollama-local/endpoint")
 async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(None)):
     """Lưu địa chỉ rồi dò luôn. Chuỗi rỗng = gỡ kết nối."""
     ep = (endpoint or "").strip()
     if not ep:
         _ol_luu({"ollama_local_endpoint": "", "ollama_local_key": ""})
+        _ol_quen_danh_sach(ca_catalog=True)
         return {"ok": True, "endpoint": "", "reachable": False}
     try:
         ep = ollama_local.chuan_hoa_endpoint(ep)
@@ -10957,6 +11001,7 @@ async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(No
     if key is not None:
         patch["ollama_local_key"] = key.strip()
     _ol_luu(patch)
+    _ol_quen_danh_sach(ca_catalog=False)
     p = await ollama_local.probe(ep, (key or "").strip() or _ol_cfg()[1])
     # Ollama KHÔNG có mật khẩu. Trỏ sang một IP công khai là hợp lệ (máy khác qua Internet),
     # nhưng nó cũng có nghĩa cả Internet gọi được model đó, nên phải nói ngay lúc kết nối chứ

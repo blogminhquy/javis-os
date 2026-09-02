@@ -2951,8 +2951,17 @@
   // tường nữa: Ollama mặc định chỉ nghe 127.0.0.1 nên container không với tới, và không ai
   // đoán được phải điền địa chỉ cầu nối Docker. Thiếu một trong hai là "không nối được" mà
   // không hiểu vì sao.
-  const OL_LENH_NGHE = "sudo systemctl edit --full ollama   # thêm: Environment=\"OLLAMA_HOST=0.0.0.0\"\n" +
-                       "sudo systemctl restart ollama";
+  // Gắn vào ĐÚNG địa chỉ cầu nối Docker chứ không phải 0.0.0.0: chỉ container trên máy này gọi
+  // được, nên không cần bước tường lửa nào nữa. Vụ thật 02/09: Ollama trên VPS đã chạy sẵn,
+  // thiếu đúng bước này; mà hướng dẫn cũ bảo mở 0.0.0.0 rồi bật ufw - VPS đó ufw đang tắt,
+  // bật mù là có thể tự khoá luôn SSH. Dò không ra cổng thì mới rơi về 0.0.0.0, kèm cảnh báo.
+  // Ghi bằng file override thay vì lệnh sửa unit của systemd (mở trình soạn thảo, không dán được).
+  function olLenhNghe(st) {
+    const host = (st && st.docker_gateway ? st.docker_gateway : "0.0.0.0") + ":11434";
+    return "sudo mkdir -p /etc/systemd/system/ollama.service.d\n" +
+      "printf '[Service]\\nEnvironment=\"OLLAMA_HOST=" + host + "\"\\n' | sudo tee /etc/systemd/system/ollama.service.d/override.conf\n" +
+      "sudo systemctl daemon-reload && sudo systemctl restart ollama";
+  }
   // (Hằng OL_DIA_CHI_DOCKER = "http://172.17.0.1:11434" ĐÃ BỎ.) 172.17.0.1 là cổng của mạng
   // bridge MẶC ĐỊNH, chỉ đúng với `docker run` trần. Javis cài bằng compose thì nằm trên mạng
   // riêng của project (172.18.x trở đi), nên con số đó SAI với gần như mọi bản cài - điền
@@ -2975,6 +2984,7 @@
     // Docker/VPS: máy chạy Javis KHÔNG phải máy người dùng, nên câu hướng dẫn phải khác hẳn -
     // bảo họ chạy lệnh "trên máy này" là bảo họ cài Ollama vào trong container.
     const xa = st.deploy_mode === "docker";
+    const lenhNghe = olLenhNghe(st);
     el.innerHTML =
       '<div class="gcard ol-empty">' +
         '<div class="ol-empty-ico">' + ic("cpu", { cls: "ic-xl" }) + "</div>" +
@@ -2990,7 +3000,7 @@
             '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
               '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
             '<div class="ol-buoc">3. ' + esc(t("ol.dk_b3")) + "</div>" +
-            '<div class="ol-cmd"><code>' + esc(OL_LENH_NGHE) + "</code>" +
+            '<div class="ol-cmd"><code>' + esc(lenhNghe) + "</code>" +
               '<button class="gcard-btn ol-copy2" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
             '<div class="ol-note ol-warn">' + ic("shield") + "<span>" + esc(t("ol.dk_canh_bao")) + "</span></div>" +
             '<div class="ol-step">' + esc(t("ol.dk_b4")) + "</div>"
@@ -3017,6 +3027,10 @@
               esc(t("common.copy")) + "</button></div>"
           : "") +
         (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span></div>" : "") +
+        // Đã lưu địa chỉ mà vẫn không nối được thì từ trong container Javis không phân biệt
+        // nổi "chưa cài" với "đã chạy nhưng chỉ nghe 127.0.0.1". Máy chủ thì phân biệt được
+        // bằng đúng một lệnh - đưa lệnh đó và cách đọc kết quả, thay vì để người dùng đoán.
+        (st.error && xa ? '<div class="ol-note">' + ic("terminal") + "<span>" + esc(t("ol.dk_chan_doan")) + "</span></div>" : "") +
       "</div>";
     const cop3 = el.querySelector(".ol-copy3");
     if (cop3) cop3.onclick = () => {
@@ -3024,7 +3038,7 @@
     };
     const cop = el.querySelector(".ol-copy2");
     if (cop) cop.onclick = () => {
-      try { navigator.clipboard.writeText(OL_LENH_NGHE); } catch (e) {}
+      try { navigator.clipboard.writeText(lenhNghe); } catch (e) {}
     };
     const inp = el.querySelector(".ol-ep");
     const noi = async () => {
@@ -3045,6 +3059,8 @@
       }
       b.disabled = false; b.textContent = t("ol.connect");
       alert((r.error || t("ol.err_connect")));
+      // Địa chỉ đã được lưu dù chưa nối được; vẽ lại để /status trả lỗi kèm dòng chẩn đoán.
+      renderModelsLocalTab(el);
     };
     el.querySelector(".ol-noi").onclick = noi;
     inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); noi(); } };
@@ -3202,24 +3218,44 @@
     olNoiNutTai(host, () => { olVeGoiY(el); olVeDaCai(el); });
   }
 
-  async function olVeDaCai(el) {
+  async function olVeDaCai(el, vuaDat) {
     const host = el.querySelector("#olInst");
     if (!host) return;
     let d = {};
     try { d = await (await fetch("/ollama-local/installed")).json(); } catch (e) { return; }
     const ds = d.models || [];
+    // Tải model về xong mà vẫn phải mò sang tab Cloud, bấm Đặt Main Model, tìm nhà Ollama
+    // trong danh sách dài mới chọn được nó - là tính năng nửa vời. Đặt ngay tại đây.
+    let main = {};
+    try { main = ((await freshSettings()).model || {}).main || {}; } catch (e) {}
+    const laChinh = (ten) => main.provider === "ollama-local" && main.model === ten;
+    // Model embedding không chat được nên không có nút đặt làm model chính.
+    const chatDuoc = (ten) => !/embed/i.test(ten || "");
     host.innerHTML = '<h3 class="ol-h">' + ic("database") + " " + esc(t("ol.inst_title")) +
       '<span class="ol-h-sub">' + ds.length + "</span></h3>" +
+      (vuaDat ? '<div class="ol-hint ol-ok">' + esc(t("ol.set_main_ok", { ten: vuaDat })) + "</div>" : "") +
       (ds.length ? '<div class="ol-list">' + ds.map(m =>
           '<div class="ol-row-item">' +
             '<span class="ol-row-ico">' + ic("cpu") + "</span>" +
             '<span class="grow"><span class="ol-row-name">' + esc(m.name) +
+              (laChinh(m.name) ? '<span class="ol-badge ol-badge-main">' + esc(t("ol.is_main")) + "</span>" : "") +
               (m.loaded ? '<span class="ol-badge">' + esc(t("ol.loaded")) + "</span>" : "") + "</span>" +
               '<span class="ol-row-meta">' + olGb(m.size_gb) + "</span></span>" +
+            (chatDuoc(m.name) && !laChinh(m.name)
+              ? '<button class="gcard-btn primary ol-main" type="button" data-model="' + esc(m.name) + '">' +
+                  ic("star") + " " + esc(t("ol.use_main")) + "</button>"
+              : "") +
             '<button class="gcard-btn ol-go" type="button" data-model="' + esc(m.name) + '">' +
               ic("trash-2") + " " + esc(t("ol.remove")) + "</button>" +
           "</div>").join("") + "</div>"
         : '<div class="ol-empty-line">' + esc(t("ol.inst_none")) + "</div>");
+    host.querySelectorAll(".ol-main").forEach((b) => {
+      b.onclick = async () => {
+        b.disabled = true;
+        await saveSetting("model", { main: { provider: "ollama-local", model: b.dataset.model } });
+        olVeDaCai(el, b.dataset.model);
+      };
+    });
     host.querySelectorAll(".ol-go").forEach((b) => {
       b.onclick = async () => {
         if (!confirm(t("ol.confirm_remove", { ten: b.dataset.model }))) return;

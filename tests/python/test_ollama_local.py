@@ -57,6 +57,7 @@ class OllamaGia(BaseHTTPRequestHandler):
             return self._tra(200, {"models": [
                 {"name": "qwen3:8b", "size": 5_200_000_000, "modified_at": "2026-08-28T10:00:00Z"},
                 {"name": "gemma3:4b", "size": 3_300_000_000, "modified_at": "2026-08-20T10:00:00Z"},
+                {"name": "nomic-embed-text", "size": 274_000_000, "modified_at": "2026-08-20T10:00:00Z"},
             ]})
         if self.path == "/api/ps":
             return self._tra(200, {"models": [{"name": "qwen3:8b", "size_vram": 5_000_000_000}]})
@@ -157,7 +158,7 @@ check("địa chỉ sai bị từ chối kèm lý do",
 
 r = c.get("/ollama-local/installed").json()
 ten = [m["name"] for m in r["models"]]
-check("liệt kê được model đã cài", ten == ["gemma3:4b", "qwen3:8b"], ten)
+check("liệt kê được model đã cài", ten == ["gemma3:4b", "nomic-embed-text", "qwen3:8b"], ten)
 check("đổi byte sang GB cho người đọc",
       [m["size_gb"] for m in r["models"] if m["name"] == "qwen3:8b"] == [4.8])
 # /api/ps là thứ DUY NHẤT cho biết model nào đang chiếm RAM/VRAM lúc này.
@@ -239,8 +240,11 @@ check("và thật sự có model lớn trong đó",
       [(m["name"], m["size_gb"]) for m in manh["models"]])
 # Danh sách gợi ý không nói vì sao thì người dùng không có cơ sở nào để tin nó.
 check("mỗi gợi ý kèm lý do vì sao nó ở đây", all(m.get("note") for m in manh["models"]))
+# Ollama giả khai qwen3:8b và gemma3:4b đã cài; máy CPU xếp bản thinking (qwen3:8b) xuống
+# sau nên có thể rớt khỏi 6 suất - vậy soi cái nào còn trong danh sách cũng được, miễn có.
 check("model đã cài được đánh dấu, khỏi mời cài lại",
-      any(m["name"] == "qwen3:8b" and m["installed"] for m in yeu["models"]))
+      any(m["installed"] for m in yeu["models"] if m["name"] in ("qwen3:8b", "gemma3:4b")),
+      [(m["name"], m["installed"]) for m in yeu["models"]])
 # Một họ chiếm nhiều suất thì trông như nhiều lựa chọn mà thật ra chỉ có một.
 _ho = [m["family"] for m in manh["models"]]
 check("không để một họ model chiếm quá nửa danh sách",
@@ -321,6 +325,54 @@ check("chat dùng lại nguyên đường OpenAI-compat, chỉ đổi URL",
       callable(engine.ollama_local_stream) and callable(engine.ollama_local_chat_with_mcp))
 check("URL chat dựng từ cấu hình, không hằng số hoá",
       engine.ollama_local_url().startswith(EP.rsplit(":", 1)[0]) or engine.ollama_local_url() != "")
+
+# ---- 8. Ô chọn model phải THẤY model đã cài (vụ thật 02/09) --------------------
+# Đã nối Ollama, tab Local liệt kê đủ model, vậy mà ô chọn model chính vẫn báo "Provider chưa
+# kết nối hoặc không có model". _fetch_provider_models không có nhánh ollama-local nên luôn
+# trả None, và provider_models_index rơi về catalog - thứ chưa bao giờ được ghi cho nhà này.
+c.post("/ollama-local/endpoint", data={"endpoint": EP})
+_pm = _aio.run(main.provider_models_index("ollama-local", refresh=True))
+check("CANARY: ô chọn model lấy được danh sách LIVE từ Ollama", _pm.get("live") is True, _pm)
+check("và đó đúng là model đang cài trên máy đó", "qwen3:8b" in _pm.get("models", []), _pm.get("models"))
+# Model embedding không chat được; bày nó ra ô chọn là mời người dùng chọn một model chết.
+check("model embedding không chen vào ô chọn model chat",
+      "nomic-embed-text" not in _pm.get("models", []), _pm.get("models"))
+_pv = main._providers_view(cfgmod.read_settings())
+_ol = [p for p in _pv if p["id"] == "ollama-local"][0]
+check("đã đặt địa chỉ thì provider báo đã kết nối", _ol["configured"] is True)
+check("tên hiển thị là Local, không còn 'máy nhà'", _ol["label"] == "Ollama (Local)", _ol["label"])
+
+# Gỡ địa chỉ: provider phải về "chưa kết nối", và ô chọn model không được giữ danh sách của
+# máy cũ - key_field=None làm configured luôn True là cái bẫy đã dính với Claude/Codex.
+c.post("/ollama-local/endpoint", data={"endpoint": ""})
+_pv = main._providers_view(cfgmod.read_settings())
+check("chưa đặt địa chỉ thì KHÔNG báo bừa là đã kết nối",
+      [p for p in _pv if p["id"] == "ollama-local"][0]["configured"] is False)
+_pm = _aio.run(main.provider_models_index("ollama-local", refresh=True))
+check("chưa đặt địa chỉ thì không còn model nào và nói rõ vì sao",
+      not _pm.get("models") and "địa chỉ" in (_pm.get("error") or "").lower(), _pm)
+c.post("/ollama-local/endpoint", data={"endpoint": EP})
+
+# ---- 9. Máy không GPU: ưu tiên bản instruct, cảnh báo bản suy nghĩ dài ----------
+# Vụ thật 02/09 trên VPS 2 vCPU: qwen3:4b (bản thinking) nhận "Say hi in 3 words" rồi sinh
+# gần 2.800 token suy nghĩ trước khi trả lời, quá giờ chờ. qwen3:4b-instruct trả lời gọn
+# trong 23 giây. Gợi ý cho máy CPU mà đứng đầu là bản thinking là mời người ta vào đúng bẫy đó.
+_cpu = ollama_catalog.goi_y({"source": "manual", "ram_gb": 8, "has_gpu": False, "vram_gb": 0})
+_ten_cpu = [m["name"] for m in _cpu]
+check("máy không GPU được mời bản instruct của Qwen3", "qwen3:4b-instruct" in _ten_cpu, _ten_cpu)
+check("và gợi ý ĐẦU TIÊN cho máy CPU không phải model suy nghĩ dài",
+      _cpu and "thinking" not in (_cpu[0].get("tags") or []), _ten_cpu)
+check("model suy nghĩ dài trên máy CPU được nói thẳng là chậm",
+      all("chậm" in (m.get("note") or "").lower() for m in _cpu if "thinking" in (m.get("tags") or [])),
+      [(m["name"], m.get("note")) for m in _cpu])
+
+# ---- 10. Chữ trên giao diện: "Local", không còn "máy nhà" ------------------------
+_vi = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+_en = json.loads((ROOT / "dashboard" / "i18n" / "en.json").read_text(encoding="utf-8"))
+check("tab gọi là Local Model", _vi.get("models.tab_local") == "Local Model", _vi.get("models.tab_local"))
+check("không còn 'máy nhà' trong chuỗi giao diện tab Local",
+      not any("máy nhà" in v for k, v in _vi.items() if k.startswith("ol.")))
+check("có nút đặt làm model chính ngay trong tab Local", "ol.use_main" in _vi and "ol.use_main" in _en)
 
 srv.shutdown()
 print("")
