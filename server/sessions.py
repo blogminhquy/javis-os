@@ -724,6 +724,16 @@ class SessionStore:
             "VALUES (?, ?, ?, ?, 0, ?)", (fid, project_id, rel, ten[:160], time.time())))
         return fid
 
+    def all_project_file_paths(self) -> set:
+        """MỌI đường dẫn đang được một project trỏ tới (gộp mọi project).
+
+        Dùng cho media_gc: vùng cache media dọn theo tuổi, mà tài liệu gắn vào project thì
+        phải sống lâu bằng project. Trả đường dẫn NHƯ ĐÃ LƯU (tương đối) - caller tự ghép
+        với gốc của brain nó đang quét.
+        """
+        return {str(r["path"]) for r in self._read("SELECT DISTINCT path FROM project_files")
+                if (r["path"] or "").strip()}
+
     def remove_project_file(self, project_id: str, file_id: str) -> bool:
         # Kèm project_id trong WHERE: id là uuid nên khó đụng, nhưng một route nhận id từ
         # client thì không được phép xoá bản ghi của project khác chỉ vì đoán trúng id.

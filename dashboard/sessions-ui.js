@@ -262,7 +262,6 @@
   var pdOnboard = false;           // banner chào chỉ hiện ngay sau khi tạo project
   var pdFormFile = false, pdFileMode = "search", pdFormLink = false;
   var pdCheDo = "project";         // "project" = khung của project | "cuoc" = của cuộc trò chuyện
-  var pdHome = { brain: null, home: "" };   // gốc brain tính theo TRẦN duyệt, cho nhánh tải lên
   var phienProj = { sid: "", pid: "" };     // cache "phiên đang mở thuộc project nào"
 
   function pdT(k, bien) { return (window.t ? window.t(k, bien) : k); }
@@ -835,35 +834,28 @@
     veLaiDanhSach();          // KHÔNG veDrawer: form tìm kiếm phải sống để thêm file tiếp
   }
 
-  /** Gốc brain tính theo TRẦN duyệt. Trần có thể cao hơn gốc brain (localhost duyệt cả ổ
-   *  đĩa), nên tải thẳng vào "attachments" là ghi ra ngoài brain. */
-  async function homeCuaBrain() {
-    var b = brain();
-    if (pdHome.brain === b) return pdHome.home;
-    var home = "";
-    try {
-      var d = await (await fetch("/files/list?brain=" + encodeURIComponent(b))).json();
-      home = d.home || "";
-    } catch (e) {}
-    pdHome = { brain: b, home: home };
-    return home;
-  }
-
+  /** Tải file của project vào SOURCES, không phải attachments.
+   *
+   *  attachments/ là VÙNG CACHE: media_gc dọn nó theo tuổi (mặc định 30 ngày) và theo trần
+   *  dung lượng. Tài liệu của một project thì ngược lại - nó là thứ người dùng gắn vào để
+   *  dùng lâu dài, mất đi là project trỏ vào hư không. Chủ repo báo đúng chuyện này 02/09.
+   *
+   *  Tên thư mục do SERVER tìm (`folder: "sources"`), không đoán bằng chuỗi cứng: brain có
+   *  thể đặt "01 - Sources", và trần duyệt có thể cao hơn gốc brain. Server trả về đúng
+   *  đường dẫn đã dùng nên ở đây khỏi ghép lại. */
   async function taiLen(file, drop) {
     var cu = drop.innerHTML;
     drop.disabled = true;
     drop.innerHTML = ic("loader") + " " + esc(pdT("proj.uploading")) + "…";
-    var home = await homeCuaBrain();
-    var thuMuc = (home ? home + "/" : "") + "attachments";
     var up = null;
     try {
       var fd = new FormData();
-      fd.append("file", file); fd.append("brain", brain()); fd.append("path", thuMuc);
+      fd.append("file", file); fd.append("brain", brain()); fd.append("folder", "sources");
       up = await (await fetch("/files/upload", { method: "POST", body: fd })).json();
     } catch (e) {}
     drop.disabled = false; drop.innerHTML = cu;
     if (!up || !up.ok) { alert(pdT("proj.err_upload") + ": " + ((up && up.error) || "")); return; }
-    await themFile(thuMuc + "/" + up.name, up.name, null);
+    await themFile(up.path, up.name, null);
   }
 
   async function ghimFile(f) {

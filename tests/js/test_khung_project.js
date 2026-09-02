@@ -10,8 +10,10 @@
      mở nó ra để kiểm tra xem Javis đang nhận hướng dẫn nào.
    - Hướng dẫn lưu theo debounce, nên phải có đường XẢ khi đóng ngăn kéo / rời tab / rời ô
      nhập. Thiếu nhát đó thì gõ xong đóng nhanh tay là mất chữ, và mất im lặng.
-   - Tải file lên phải tính từ GỐC BRAIN. Trần duyệt trên localhost là cả ổ đĩa, gửi thẳng
-     "attachments" là ghi ra ngoài brain rồi ghi một đường dẫn vô nghĩa vào project. */
+   - Tài liệu tải lên phải vào SOURCES, và tên thư mục phải do SERVER tìm. Hai cái bẫy nằm
+     cạnh nhau: attachments là vùng cache bị media_gc dọn theo tuổi nên tài liệu để đó là hẹn
+     ngày mất, còn đoán tên thư mục bằng chuỗi cứng thì brain đặt "01 - Sources" là file đi
+     lạc vào một thư mục thứ hai trùng nghĩa. */
 const fs = require("fs");
 const path = require("path");
 
@@ -138,16 +140,23 @@ check("lưu hướng dẫn xong thì nạp lại danh sách để chấm báo tr
   /datTrangThaiLuu\("saved"\);\s*\n(?:.*\n)*?\s*loadProjects\(\);/.test(SU));
 
 // ============================================================
-// 4. Tải file lên: tính từ GỐC BRAIN, không phải trần duyệt
+// 4. Tải file lên: vào SOURCES, và để SERVER tìm tên thư mục
 // ============================================================
-const home = (SU.match(/async function homeCuaBrain\(\)[\s\S]*?\n  \}/) || [""])[0];
-check("có hàm hỏi gốc brain", !!home);
-check("lấy `home` của /files/list (gốc brain tính theo trần)",
-  /\/files\/list\?brain=/.test(home) && /d\.home/.test(home));
-check("và ghép vào trước attachments khi tải lên",
-  /var thuMuc = \(home \? home \+ "\/" : ""\) \+ "attachments";/.test(SU));
-check("đăng ký vào project đúng đường vừa tải lên",
-  /themFile\(thuMuc \+ "\/" \+ up\.name, up\.name, null\)/.test(SU));
+// 02/09: chủ repo báo file tải lên trong khung Project rơi vào attachments. attachments là
+// VÙNG CACHE - media_gc dọn nó theo tuổi (mặc định 30 ngày) và theo trần dung lượng - nên
+// tài liệu của một project để ở đó là hẹn ngày mất, và mất rồi thì project còn lại một hàng
+// trỏ vào hư không.
+const taiLen = (SU.match(/async function taiLen\([\s\S]*?\n  \}/) || [""])[0];
+check("có hàm tải file lên", !!taiLen);
+check("CANARY: tải vào sources, KHÔNG còn nhắc attachments",
+  /"folder", "sources"/.test(taiLen) && !/attachments/.test(taiLen));
+// Bản cũ đoán tên thư mục ở frontend bằng chuỗi cứng "attachments". Brain đặt "01 - Sources"
+// hay "05 - Attachments" là nó đẻ ra một thư mục thứ hai trùng nghĩa, file đi lạc khỏi chỗ
+// người dùng nhìn. Tên thư mục thật chỉ server mới biết.
+check("CANARY: không còn đoán tên thư mục ở frontend",
+  !/homeCuaBrain/.test(SU) && !/pdHome/.test(SU));
+check("đăng ký vào project đúng đường SERVER trả về",
+  /themFile\(up\.path, up\.name, null\)/.test(taiLen));
 check("tìm file trong brain dùng /files/search mode=name", /\/files\/search\?brain=[\s\S]{0,80}mode=name/.test(SU));
 check("file đã có trong project thì nút Thêm xám đi, không thêm trùng",
   /daCo\[it\.path\] \? " disabled" : ""/.test(SU));
