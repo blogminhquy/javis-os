@@ -1364,13 +1364,37 @@ def _is_codex_model(model: str) -> bool:
     cat = [c.lower() for c in (cfgmod.read_settings().get("model", {}).get("catalog", {}).get("openai-oauth") or [])]
     return m.startswith("gpt") or m.endswith("-codex") or m in cat
 
+def _provider_key(mcfg, d):
+    """Khoá xác thực dùng cho CHAT của một provider. "" nghĩa là nhà này chưa chạy được.
+
+    Ollama MÁY NHÀ là lý do hàm này tồn tại. `key_field` của nó là None vì thứ xác thực nó
+    là một ĐỊA CHỈ (`model.ollama_local_endpoint`), không phải một khoá - Ollama trần không
+    có xác thực, khoá rỗng là trạng thái BÌNH THƯỜNG. Nhưng mọi cổng định tuyến trong file
+    này đều hỏi `kind == "api" and api_key` để biết một nhà API có chạy được không, nên khoá
+    rỗng vĩnh viễn = lượt chat trượt hết các nhánh API rồi rơi xuống nhánh CLI cuối cùng,
+    tức chạy binary `claude` với tên model của Ollama và ăn đúng câu "There's an issue with
+    the selected model (qwen3:4b-instruct)" mà chủ repo gửi ảnh 02/09. `aux_engine` đã miễn
+    kiểm khoá rỗng cho nhà này từ lâu (xem `_kiem_provider`), chỉ đường chat bị bỏ quên.
+
+    Trả `ollama_local_key` khi người dùng có đặt (chỉ cần khi Ollama nấp sau reverse proxy có
+    auth), không thì "local" - đúng thứ `ollama_local_chat_with_mcp` vẫn tự điền, và Ollama
+    trần bỏ qua header Authorization. Chưa đặt địa chỉ thì trả "" thật, để ghim rơi về mặc
+    định chung thay vì chạy vào tường.
+    """
+    if d.get("id") == "ollama-local":
+        if not (mcfg.get("ollama_local_endpoint") or "").strip():
+            return ""
+        return (mcfg.get("ollama_local_key") or "").strip() or "local"
+    return mcfg.get(d["key_field"], "") if d.get("key_field") else ""
+
+
 def _chat_provider(mcfg):
     """Provider dùng cho chat (id, kind, key, model) - từ model chính hiệu lực."""
     em = _effective_main({"model": mcfg})
     prov, model = em["provider"], em["model"]
     d = _provider_def(prov) or {}
     kind = d.get("kind", "cli")
-    key = mcfg.get(d["key_field"], "") if d.get("key_field") else ""
+    key = _provider_key(mcfg, d)
     if prov == "openrouter":
         model = model or mcfg.get("openrouter_model")
     return prov, kind, key, model
@@ -1418,7 +1442,7 @@ def _chat_provider_for_session(mcfg, row):
     if not d:
         return _chat_provider(mcfg)
     kind = d.get("kind", "cli")
-    key = mcfg.get(d["key_field"], "") if d.get("key_field") else ""
+    key = _provider_key(mcfg, d)
     if kind == "api" and not key:
         return _chat_provider(mcfg)   # key đã bị gỡ sau khi ghim → đừng chạy vào tường
     model = ((row or {}).get("pinned_model") or "").strip()
@@ -10198,7 +10222,13 @@ async def websocket_endpoint(ws: WebSocket):
                         }))
             else:
                 # ===== PROVIDER anthropic-cli - qua Claude Code, đầy đủ MCP / skill / session =====
-                cli.model = api_model or mcfg.get("claude_model") or None   # alias opus/sonnet/haiku/fable
+                # CHỈ model của Claude Code mới được đưa cho binary `claude`. Nhánh này là chỗ
+                # rơi CUỐI CÙNG của mọi provider, nên một nhà API chưa chạy được (hết key,
+                # chưa đặt địa chỉ Ollama) rơi vào đây MANG THEO tên model của nhà đó -
+                # `claude --model qwen3:4b-instruct` rồi ăn "There's an issue with the selected
+                # model". Rơi về bộ não mặc định là có chủ ý, nhưng phải rơi cả MODEL theo nó.
+                cli.model = ((api_model if prov == "anthropic-cli" else "")
+                             or mcfg.get("claude_model") or None)   # alias opus/sonnet/haiku/fable
                 # Cùng luật với Codex: mạch phình quá ngưỡng thì thôi --resume, mở mạch mới.
                 # Claude Code cũng tự quản transcript nên Javis chỉ có đúng con số token vào
                 # của lượt trước làm dấu hiệu.
@@ -10751,7 +10781,10 @@ async def sessions_meta(session_id: str):
     if pp:
         d = _provider_def(pp)
         mcfg = cfgmod.read_settings().get("model", {})
-        key = mcfg.get(d["key_field"], "") if d and d.get("key_field") else ""
+        # Cùng cách giải nghĩa khoá với đường định tuyến (`_provider_key`), nếu không thì
+        # thanh model và server nói hai chuyện khác nhau: Ollama máy nhà chạy ngon mà nhãn
+        # vẫn kêu "ghim hỏng", đúng thứ trong ảnh chủ repo gửi 02/09.
+        key = _provider_key(mcfg, d) if d else ""
         sess["pin_ok"] = bool(d) and (d.get("kind") != "api" or bool(key))
     return sess
 
@@ -13324,7 +13357,9 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
             sess["cli"] = claude_engine(system_prompt=sysprompt, cwd=CLAUDE_CWD, tag=f"telegram:{chat_id}")
         cli = sess["cli"]
         cli.system_prompt = sysprompt
-        cli.model = api_model or mcfg.get("claude_model") or None
+        # Cùng luật với nhánh CLI của web: tên model nhà khác không đưa cho `claude`.
+        cli.model = ((api_model if prov == "anthropic-cli" else "")
+                     or mcfg.get("claude_model") or None)
         _apply_mcp(cli, brain=brain)
         t0 = time.time()
         written = []   # file agent ghi bằng tool Write trong lượt này (ứng viên auto-gửi)
