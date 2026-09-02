@@ -202,21 +202,42 @@ def _chay(cmd: list) -> str:
 
 
 def _ram_gb() -> float:
+    """Tổng RAM máy, tính GB. 0.0 = KHÔNG đọc được (người gọi phải hỏi người dùng).
+
+    psutil KHÔNG phải dependency của Javis, nên đừng trông vào nó: cả ba đường dưới đây đều
+    là thư viện chuẩn. Thiếu đường Windows là máy Windows luôn trả 0 - mà "máy cá nhân cài
+    Javis" thì Windows là trường hợp thường gặp nhất.
+    """
     try:
         import psutil
         return round(psutil.virtual_memory().total / (1024 ** 3), 1)
     except Exception:
         pass
-    # Không có psutil: Linux đọc thẳng /proc, Mac hỏi sysctl. Thà lấy được con số thô còn hơn
-    # bỏ trống rồi bắt người dùng tự khai trên chính máy Javis đang đứng.
-    try:
+    try:            # Linux
         with open("/proc/meminfo", encoding="utf-8") as f:
             for d in f:
                 if d.startswith("MemTotal:"):
                     return round(int(d.split()[1]) / (1024 ** 2), 1)
     except OSError:
         pass
-    out = _chay(["sysctl", "-n", "hw.memsize"])
+    if os.name == "nt":     # Windows - ctypes, không cần cài gì thêm
+        try:
+            import ctypes
+
+            class _Mem(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+            m = _Mem()
+            m.dwLength = ctypes.sizeof(_Mem)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+                return round(m.ullTotalPhys / (1024 ** 3), 1)
+        except Exception:
+            pass
+    out = _chay(["sysctl", "-n", "hw.memsize"])        # macOS
     try:
         return round(int(out.strip()) / (1024 ** 3), 1)
     except (TypeError, ValueError):
@@ -254,7 +275,15 @@ def _gpu() -> tuple:
 
 
 def detect_specs() -> dict:
-    """Cấu hình máy ĐANG CHẠY JAVIS. Người gọi phải tự kiểm same_host() trước."""
+    """Cấu hình máy ĐANG CHẠY JAVIS. Người gọi phải tự kiểm same_host() trước.
+
+    ĐỌC HỤT RAM THÌ source = "unknown", KHÔNG phải "auto". Khác biệt này quyết định: "auto"
+    nghĩa là con số đáng tin, nên phần gợi ý im lặng dùng nó. Máy 64GB mà đọc hụt thành 0 rồi
+    vẫn khai "auto" thì người dùng bị mời toàn model dưới 8GB, và không có dấu hiệu nào cho
+    thấy có gì sai - đúng kiểu hỏng lặng lẽ. Khai "unknown" thì giao diện hiện ô nhập tay và
+    phần gợi ý nói thẳng là đang đoán ở mức an toàn.
+    """
     ten, vram = _gpu()
-    return {"source": "auto", "ram_gb": _ram_gb(), "has_gpu": bool(ten),
-            "vram_gb": vram, "gpu_name": ten}
+    ram = _ram_gb()
+    return {"source": "auto" if ram > 0 else "unknown", "ram_gb": ram,
+            "has_gpu": bool(ten), "vram_gb": vram, "gpu_name": ten}

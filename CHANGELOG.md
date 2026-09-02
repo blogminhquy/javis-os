@@ -7,6 +7,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ## [0.55.1] - 2026-09-02
 ### Sửa lỗi
 - **Hướng dẫn cài Ollama cho bản chạy Docker nay nói đủ ba bước.** Bản trước chỉ bảo "cài trên máy thật rồi điền địa chỉ", thiếu mất hai chỗ mà không có thì chắc chắn không nối được: Ollama mặc định chỉ nghe trong máy nên container của Javis không với tới, và không ai đoán được phải điền địa chỉ nào. Nay có sẵn lệnh cho từng bước và ô địa chỉ gợi ý đúng.
+- **Máy Windows nay đọc được RAM.** Trước đây chỉ đọc được trên Linux và Mac, còn Windows thì trả về 0 nhưng vẫn báo là đọc thành công - hậu quả là máy 64GB chỉ được gợi ý model dưới 8GB mà không có dấu hiệu nào cho thấy sai. Đọc hụt thì nay nói thẳng là chưa biết và mời bạn tự khai.
 - Nói thẳng ngay trong hướng dẫn: **đừng dán lệnh cài vào terminal của Javis** (nó nằm trong container, không có quyền root, và mọi thứ cài vào đó mất sạch ở lần cập nhật kế tiếp), kèm cảnh báo tường lửa vì Ollama không có mật khẩu, và một câu nói trước rằng VPS không GPU thì model sẽ chạy rất chậm.
 
 ## [0.55.0] - 2026-09-02
