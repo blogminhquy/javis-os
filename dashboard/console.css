@@ -1041,6 +1041,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ol-badge { margin-left: 7px; font-size: 10.5px; padding: 1px 7px; border-radius: 20px;
   background: var(--ok-wash); border: 1px solid var(--ok-line); color: var(--green);
   font-weight: 600; }
+.ol-badge-main { background: var(--accent, #6d5dfc); color: #fff; }
+.ol-hint.ol-ok { color: var(--ok, #1a8f4a); }
 .ol-fchip { padding: 6px 13px; border-radius: 20px; cursor: pointer;
   border: 1px solid var(--border); background: transparent; color: var(--text2);
   font-family: var(--font); font-size: 12.5px; }

@@ -637,7 +637,7 @@ async def ollama_local_stream(api_key, model, messages, reasoning="off"):
     if not url:
         yield {"type": "error", "content": "Chưa đặt địa chỉ Ollama trong trang Models."}
         return
-    async for ev in _openai_compat_stream(url, "Ollama (máy nhà)", api_key, model,
+    async for ev in _openai_compat_stream(url, "Ollama (Local)", api_key, model,
                                           messages, reasoning, False):
         yield ev
 
@@ -652,7 +652,7 @@ async def ollama_local_chat_with_mcp(api_key, model, messages, reasoning, mcp_to
     headers = {"Authorization": f"Bearer {api_key or 'local'}", "Content-Type": "application/json"}
     yield {"type": "meta", "model": model}
     async for ev in _cc_tool_loop(url, headers, model, messages,
-                                  mcp_tools, mcp_route, {}, "Ollama (máy nhà)"):
+                                  mcp_tools, mcp_route, {}, "Ollama (Local)"):
         yield ev
 
 

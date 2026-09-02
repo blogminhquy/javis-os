@@ -70,9 +70,23 @@ check("bản Docker nói THẲNG là đừng dùng terminal của Javis",
   /terminal/i.test(VI["ol.dk_b1"] || "") && /root/i.test(VI["ol.dk_b1"] || ""));
 check("và nói rõ cài vào container thì mất sạch khi cập nhật",
   /cập nhật/i.test(VI["ol.dk_b1"] || ""));
-// Ollama mặc định chỉ nghe 127.0.0.1 - container không bao giờ với tới.
+// Ollama mặc định chỉ nghe 127.0.0.1 - container không bao giờ với tới. Vụ thật 02/09: Ollama
+// trên VPS đã chạy sẵn, thiếu đúng bước này. Bản 0.55.1 bảo mở 0.0.0.0 rồi bật ufw - mà VPS
+// đó ufw đang tắt, bật mù là tự khoá SSH. Gắn vào đúng địa chỉ cầu nối thì chỉ container
+// trên máy này gọi được, khỏi cần tường lửa; 0.0.0.0 chỉ còn là đường lui khi dò không ra.
 check("có bước cho Ollama nghe ra ngoài loopback",
-  /OLLAMA_HOST=0\.0\.0\.0/.test(OL) && !!VI["ol.dk_b3"]);
+  /function olLenhNghe\(st\)/.test(OL) && /OLLAMA_HOST=/.test(OL) && !!VI["ol.dk_b3"]);
+check("CANARY: lệnh nghe gắn vào địa chỉ cầu nối dò được, 0.0.0.0 chỉ là đường lui",
+  /st\.docker_gateway \? st\.docker_gateway : "0\.0\.0\.0"/.test(OL));
+check("và không còn bảo dùng systemctl edit (mở trình soạn thảo, không dán lệnh được)",
+  !/systemctl edit/.test(OL) && /override\.conf/.test(OL));
+// Lưu địa chỉ rồi mà vẫn không nối được: từ trong container không phân biệt nổi "chưa cài"
+// với "đã chạy nhưng chỉ nghe 127.0.0.1". Đưa đúng một lệnh chẩn đoán và cách đọc kết quả.
+check("nối hỏng thì có dòng chẩn đoán kèm lệnh ss",
+  /ol\.dk_chan_doan/.test(OL) && /ss -ltnp/.test(VI["ol.dk_chan_doan"] || "")
+  && /127\.0\.0\.1/.test(VI["ol.dk_chan_doan"] || ""));
+check("và nối hỏng thì vẽ lại tab để dòng đó hiện ra, không chỉ alert",
+  /alert\(\(r\.error \|\| t\("ol\.err_connect"\)\)\);[\s\S]{0,240}renderModelsLocalTab\(el\);/.test(OL));
 // Không ai đoán được địa chỉ cầu nối Docker, mà bản cũ lại ĐOÁN HỘ SAI: hằng
 // OL_DIA_CHI_DOCKER viết cứng 172.17.0.1, tức cổng của mạng bridge MẶC ĐỊNH (docker0). Javis
 // cài bằng docker-compose thì nằm trên mạng riêng của project, dải cấp từ 172.18.0.0/16 trở
@@ -97,6 +111,17 @@ check("dò không ra thì nói thẳng và đưa đúng một lệnh tự tìm",
 // họ vào chỗ hở một máy chủ model công khai.
 check("cảnh báo bảo mật khi mở 0.0.0.0, kèm lệnh tường lửa cụ thể",
   /mật khẩu/.test(VI["ol.dk_canh_bao"] || "") && /ufw/.test(VI["ol.dk_canh_bao"] || ""));
+check("nhưng nói rõ đường mặc định (cầu nối) KHÔNG cần tường lửa",
+  /không cần tường lửa/.test(VI["ol.dk_canh_bao"] || ""));
+// Tải model về xong mà phải mò sang tab Cloud, bấm Đặt Main Model rồi tìm nhà Ollama trong
+// danh sách dài mới chọn được - là tính năng nửa vời. Đặt ngay tại danh sách đã cài.
+check("danh sách đã cài có nút đặt làm model chính",
+  /ol-main/.test(OL) && /provider: "ollama-local", model: b\.dataset\.model/.test(OL)
+  && !!VI["ol.use_main"] && !!EN["ol.use_main"]);
+check("model embedding không có nút đó (không chat được)", /\/embed\/i\.test/.test(OL));
+check("và đánh dấu model nào đang là chính", /ol\.is_main/.test(OL) && /laChinh\(/.test(OL));
+check("tab gọi là Local Model, không còn 'máy nhà' / 'chạy trên máy'",
+  VI["models.tab_local"] === "Local Model" && EN["models.tab_local"] === "Local Model");
 // VPS phổ thông không GPU, ít RAM. Không nói trước là để người ta tải 5GB rồi mới thất vọng.
 check("nói thẳng VPS chạy model local sẽ chậm",
   /chậm/.test(VI["ol.dk_cham"] || "") && /GPU/.test(VI["ol.dk_cham"] || ""));
