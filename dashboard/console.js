@@ -3036,9 +3036,14 @@
       let r = {};
       try { r = await (await fetch("/ollama-local/endpoint", { method: "POST", body: fd })).json(); }
       catch (e) { r = { error: String(e) }; }
-      if (r.reachable) return renderModelsLocalTab(el);
+      if (r.reachable) {
+        // Nối được rồi mới cảnh báo: Ollama không có mật khẩu, nên một địa chỉ công khai
+        // nghĩa là cả Internet gọi được model đó. Nói lúc này thì người dùng còn nhớ mình
+        // vừa gõ gì; nói trong đoạn hướng dẫn phía trên thì ai cũng lướt qua.
+        if (r.canh_bao_cong_khai) alert(t("ol.canh_bao_cong_khai"));
+        return renderModelsLocalTab(el);
+      }
       b.disabled = false; b.textContent = t("ol.connect");
-      const box = el.querySelector(".ol-err") || el.querySelector(".gcard");
       alert((r.error || t("ol.err_connect")));
     };
     el.querySelector(".ol-noi").onclick = noi;

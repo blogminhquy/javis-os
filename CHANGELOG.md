@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.5] - 2026-09-02
+### Sửa lỗi
+- **Điền địa chỉ Ollama mà quên cổng thì Javis tự thêm `11434`.** Trước đây gõ mỗi địa chỉ máy chủ là Javis hiểu thành cổng 80, đi trúng trang web của chính máy đó rồi báo "Máy chủ trả lỗi 301" - một con số không nói lên điều gì và không có đường nào lần ra.
+- **Báo lỗi kết nối Ollama nay chỉ thẳng chỗ sai.** Trỏ nhầm vào một web server thì Javis nói rõ đó là web server chứ không phải Ollama và nhắc lại cổng cần dùng, thay vì đọc ra một mã lỗi trần.
+- **Cảnh báo khi bạn nối Ollama qua một địa chỉ công khai.** Ollama không có mật khẩu, nên địa chỉ Internet nghĩa là ai biết cũng gọi được model của bạn. Javis nói ngay lúc kết nối, kèm việc cần làm.
+
 ## [0.55.4] - 2026-09-02
 ### Sửa lỗi
 - **Hai người dùng chung một Javis không còn đá nhau văng kết nối Claude.** Khi cả hai cùng chat đúng lúc phiên đăng nhập Claude hết hạn, hai lượt cùng đi làm mới, và người chậm hơn bị báo mất đăng nhập trong khi người kia vẫn chạy bình thường. Nay Javis xếp hàng đúng khoảnh khắc đó nên chỉ một lượt đi làm mới, lượt còn lại chờ vài giây rồi dùng phiên mới.

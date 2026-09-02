@@ -1,7 +1,6 @@
 {
   "_meta.name": "English",
   "_meta.number_locale": "en-US",
-
   "nav.group.tro_ly": "Assistant",
   "nav.group.bo_nao": "Brain",
   "nav.group.code": "Code",
@@ -9,7 +8,6 @@
   "nav.group.viec": "Work",
   "nav.group.ket_noi": "Connections",
   "nav.group.he_thong": "System",
-
   "page.home.label": "Javis",
   "page.chat.label": "Chat",
   "page.chat.sub": "Wide chat view · conversation history",
@@ -50,7 +48,6 @@
   "page.account.sub": "Sign-in, workspace, API tokens",
   "page.usage.label": "Usage",
   "page.usage.sub": "Token savings level, and tokens spent per day",
-
   "top.menu": "Menu",
   "top.menu_open": "Open menu",
   "top.brain_current": "Current brain",
@@ -58,7 +55,6 @@
   "top.brain_delete": "Delete the selected brain (type its name to confirm)",
   "top.brain_pick": "Pick a brain from any folder",
   "top.notifications": "Open notifications",
-
   "settings.lang.title": "REPLY LANGUAGE",
   "settings.lang.auto": "Follow whoever is writing",
   "settings.lang.hint": "\"Follow\" means Javis answers in whatever language you type. Pin a language and Javis always answers in it, no matter what you type. Customer-facing chatbots have their OWN language setting on the Chatbots page.",
@@ -67,7 +63,6 @@
   "settings.ui_lang.hint": "Labels and buttons. Separate from the reply language: a Vietnamese interface with English replies is a valid choice.",
   "settings.ui_lang.beta": "Being translated. Anything not yet translated stays in Vietnamese.",
   "settings.save_failed": "Could not save",
-
   "common.loading": "Loading...",
   "common.save": "Save",
   "common.cancel": "Cancel",
@@ -76,7 +71,6 @@
   "common.edit": "Edit",
   "common.retry": "Retry",
   "common.none": "Nothing yet",
-
   "err.auth.bad_credentials": "Wrong username or password",
   "err.auth.exists": "An account already exists - please sign in.",
   "err.auth.password_short": "Password must be at least 8 characters",
@@ -84,7 +78,6 @@
   "common.account": "Username",
   "common.password": "Password",
   "common.default": "Default",
-
   "top.install_title": "Install Javis as its own app - open it from the Desktop/Dock, no more hunting through tabs",
   "top.install": "Install Javis as an app",
   "top.install_label": "Open as app",
@@ -93,7 +86,6 @@
   "top.studio_title": "Studio - Agents, Skills, Workflows",
   "top.reset": "Reset conversation",
   "top.new_chat": "New conversation",
-
   "noti.label": "Notifications",
   "noti.summary": "Updates and news from Javis OS",
   "noti.read_all": "Mark all read",
@@ -106,7 +98,6 @@
   "noti.push_on": "Turn on",
   "noti.refresh": "↻ Refresh",
   "noti.open_updates": "View changelog →",
-
   "vault.expand": "Reopen the Vault panel",
   "vault.new_file": "New file at the brain root",
   "vault.new_dir": "New folder at the brain root",
@@ -118,7 +109,6 @@
   "vault.mode_name_title": "Quick filter by name within the tree",
   "vault.mode_content": "Content",
   "vault.mode_content_title": "Deep search by content (scans the whole vault)",
-
   "orb.ready": "READY",
   "orb.overlay_aria": "Hide brain labels and stats",
   "orb.overlay_title": "Hide folder labels and the Agents / Skills / Workflows counters",
@@ -129,12 +119,10 @@
   "orb.stat_agents": "Open Studio · Agents",
   "orb.stat_skills": "Open Studio · Skills",
   "orb.stat_workflows": "Open Studio · Workflows",
-
   "chat.col_expand": "Reopen the conversation panel",
   "chat.panel": "CONVERSATION",
   "chat.zoom": "Open the Chat page (full-screen chat)",
   "chat.col_collapse": "Collapse the conversation panel to the right (like the sidebar)",
-
   "qs.title": "QUICK SETTINGS",
   "qs.tts": "Read replies aloud",
   "qs.rec_lang": "LISTENING LANGUAGE",
@@ -163,28 +151,23 @@
   "qs.recheck": "Check again",
   "qs.domain_docs": "Domain setup guide ↗",
   "qs.deploy_docs": "Deploy/SSL guide ↗",
-
   "mb.open": "Change model / provider / effort",
   "mb.recent": "JUST CALLED",
   "mb.no_tools": "No tools called yet",
-
   "bar.mic": "Click to talk (or hold Space)",
   "bar.attach": "Attach files (images, text, documents) → saved to Sources",
   "bar.tts_on": "Turn voice on",
   "bar.tts_off": "Turn voice off",
   "bar.input_ph": "Talk to Javis, type here, or drag/paste files in...",
   "bar.stop": "Stop command / stop reading (Esc)",
-
   "rail.expand": "Expand sidebar",
   "rail.collapse": "Collapse sidebar",
-
   "run.title": "Run workflow",
   "vbanner.text": "This vault is not structured for Javis yet.",
   "vbanner.init": "Set up structure",
   "drop.msg": "Drop files here → saved to Sources",
   "fm.title": "Pick a brain (a folder of .md notes)",
   "fm.use": "Use this folder",
-
   "wz.welcome": "Welcome to Javis",
   "wz.intro": "A few quick steps to get going. Everything can be changed later in",
   "wz.s1": "1. Workspace",
@@ -217,7 +200,6 @@
   "wz.or_key_later": "(you can paste it later in Models)",
   "wz.or_key_ph": "e.g. sk-or-v1-… (optional)",
   "wz.start": "Start using Javis →",
-
   "auth.title": "Sign in to Javis",
   "auth.code_ph": "6-digit code, or a recovery code",
   "auth.code_hint": "Open your Authenticator app and enter the current code. Lost your phone? Enter one of the recovery codes you saved when enabling it.",
@@ -227,7 +209,6 @@
   "auth.reset2": ", delete the block",
   "auth.reset3": "(or set it empty), then run",
   "auth.reset4": "Reopen and the setup wizard lets you create a new account.",
-
   "setm.title": "Javis Settings",
   "setm.general": "General",
   "setm.ws_name": "Workspace name",
@@ -306,7 +287,6 @@
   "setm.tg_chat_ph": "e.g. 123456789, 987654321",
   "common.net_err": "Network error.",
   "common.timeout": "The server did not respond after {s}s. Try again.",
-
   "models.cli_missing": "The machine running Javis is missing the command",
   "models.cli_missing2": "sign-in is done, but",
   "models.cli_missing3": "chatting with this card will fail until it is installed. Docker: update Javis to the latest version and it ships built in. Manual install: open Code > Terminal, run",
@@ -609,17 +589,14 @@
   "studio.sk_group_ph": "e.g. Marketing",
   "studio.sk_desc": "Description (decides when the skill triggers)",
   "studio.sk_body": "Content (SKILL.md - instructions for the AI)",
-
   "chat.att_zoom": "Click to enlarge",
   "chat.att_gone": "no longer viewable",
   "chat.att_gone_hint": "The temporary file was cleaned up after a few days. Javis did read the image when you sent it; it just is not kept long term.",
-
   "kanban.wipe": "Clear all",
   "kanban.act_grant": "Allow it to act",
   "kanban.confirm_grant": "Grant this task full permission? It will take REAL actions outside (send messages, publish, create orders, change data in other services), and those cannot be undone.",
   "kanban.confirm_wipe_attention": "Clear every task waiting on you from the board? They stay searchable, they just leave this panel.",
   "kanban.confirm_wipe_history": "Permanently delete the whole history of finished and cancelled tasks? This cannot be undone.",
-
   "proj.chip_title": "Project panel: instructions, files, links",
   "proj.close": "Close",
   "proj.loading": "Loading",
@@ -672,7 +649,6 @@
   "proj.delete_file": "Delete the file from the brain for good",
   "proj.confirm_delete_file": "Delete \"{ten}\" from the brain PERMANENTLY? The file leaves the disk and this cannot be undone. To just take it out of the project, press the X next to it.",
   "proj.err_delete_file": "Could not delete the file",
-
   "cts.open": "Files and links in this conversation",
   "cts.title": "In this conversation",
   "cts.files_empty": "This conversation has not produced any documents yet.",
@@ -682,7 +658,6 @@
   "cts.from_javis": "Javis shared it",
   "cts.note": "Gathered from the documents Javis named in this conversation. A file written quietly mid-turn will not appear here.",
   "cts.err_load": "Could not read this conversation.",
-
   "common.copy": "Copy",
   "models.tab_cloud": "Cloud models",
   "models.tab_local": "Models on your machine",
@@ -726,7 +701,6 @@
   "ol.find_ph": "Type a model name (qwen, llama, mistral...)",
   "ol.find_none": "No model matches.",
   "ol.cap_all": "All",
-
   "ol.dk_title": "Three steps, on the SERVER itself, not in Javis's terminal",
   "ol.dk_b1": "SSH into the VPS as root. Javis's own terminal will not do: it runs inside the container, has no root, and anything installed there is wiped on the next update.",
   "ol.dk_b2": "Install Ollama on that server:",
@@ -734,5 +708,6 @@
   "ol.dk_b4": "The address is already filled in below - just press Connect:",
   "ol.dk_canh_bao": "Binding to 0.0.0.0 means Ollama listens to the whole Internet, and it has NO password. Firewall it so only Javis can reach it: take the subnet from the address in the box below (172.18.0.1 gives the subnet 172.18.0.0/16), then run ufw allow from THAT-SUBNET to any port 11434 and ufw deny 11434.",
   "ol.dk_cham": "A VPS usually has no GPU and little RAM, so a CPU-bound model will be very slow. Your desktop at home (with a GPU, ideally) is the better host, at the cost of the VPS having to reach it.",
-  "ol.dk_khong_do_duoc": "Javis could not work out the host address. Run the command below on the host, then put the number that follows the word default into the box above, with :11434 after it."
+  "ol.dk_khong_do_duoc": "Javis could not work out the host address. Run the command below on the host, then put the number that follows the word default into the box above, with :11434 after it.",
+  "ol.canh_bao_cong_khai": "Connected, but this is a public Internet address and Ollama has NO password, so anyone who knows it can use your models. Firewall port 11434 so only the Javis server can reach it."
 }
