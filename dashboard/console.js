@@ -3336,6 +3336,15 @@
     // cột provider, tự nạp model live) - đúng cái đang dùng cho model chính ngay phía trên.
     const auxProvDef = providers.find(p => p.id === auxProv) || {};
     const auxReady = auxProv === "anthropic-cli" || auxProvDef.configured;
+    // Model RIÊNG cho Telegram. provider rỗng = theo model chính (mặc định). Ghim thì đổi
+    // model trên web không kéo Telegram theo - chủ repo đổi model liên tục để thử, mỗi lần
+    // thử là điện thoại của cả nhà bị kéo theo (02/09).
+    const tgCfg = m.telegram || {};
+    const tgPinned = !!tgCfg.provider;
+    const tgProv = tgCfg.provider || main.provider;
+    const tgModel = tgPinned ? (tgCfg.model || "") : (main.model || "");
+    const tgProvDef = providers.find(p => p.id === tgProv) || {};
+    const tgReady = !tgPinned || tgProv === "anthropic-cli" || tgProvDef.configured;
     const reasoning = m.reasoning || "off";
     // Thang này phải KHỚP engine.REASONING_LEVELS bên server và EFFORT trong model-picker.js.
     // Mỗi nấc kèm một dòng RẤT ngắn nói nó đánh đổi gì - đủ để chọn, không phải đọc bài.
@@ -3512,6 +3521,24 @@
         </div>
       </div>
       <div class="cview-section">
+        <h3>◆ ${esc(t("models.h_tg"))} <span style="opacity:.5">${esc(t("models.h_tg_sub"))}</span></h3>
+        <div class="gcard aux-card" id="tgCard">
+          <div class="gcard-meta">${esc(t("models.tg_meta"))}</div>
+          <div class="aux-now">
+            <div class="aux-now-txt">
+              <div class="aux-now-model">${tgPinned ? esc(tgModel || "-") : esc(t("models.tg_follow"))}</div>
+              <div class="aux-now-prov">${tgPinned ? esc(tgProvDef.label || tgProv) : esc(t("models.tg_follow_sub"))}</div>
+            </div>
+            <div class="aux-now-act">
+              ${tgPinned ? `<button class="gcard-btn ghost" id="tgReset">${esc(t("models.tg_reset"))}</button>` : ""}
+              <button class="gcard-btn" id="tgChange">${esc(tgPinned ? t("models.change_model") : t("models.tg_pin"))}</button>
+            </div>
+          </div>
+          ${tgReady ? "" : `<div class="aux-note warn">${WARN_ICON} ${esc(t("models.tg_warn"))}</div>`}
+          <div class="aux-note">${esc(t("models.tg_note"))}</div>
+        </div>
+      </div>
+      <div class="cview-section">
         <h3>◆ ${esc(t("models.h_reason"))} <span style="opacity:.5">${esc(t("models.h_reason_sub"))}</span></h3>
         <div class="gcard aux-card">
           <div class="gcard-meta">${esc(t("models.reason_meta"))}</div>
@@ -3540,6 +3567,17 @@
     const auxRst = document.getElementById("auxReset");
     if (auxRst) auxRst.onclick = async () => {
       await saveSetting("model", { auxiliary: { provider: "anthropic-cli", model: "" } });
+      renderModelsCloudTab(el);
+    };
+    const tgChg = document.getElementById("tgChange");
+    if (tgChg) tgChg.onclick = () => openModelPicker(provList, { provider: tgProv, model: tgModel }, () => renderModelsCloudTab(el), {
+      title: t("models.tg_title"),
+      note: t("models.tg_note2"),
+      save: (prov, mod) => saveSetting("model", { telegram: { provider: prov, model: mod } }),
+    });
+    const tgRst = document.getElementById("tgReset");
+    if (tgRst) tgRst.onclick = async () => {
+      await saveSetting("model", { telegram: { provider: "", model: "" } });
       renderModelsCloudTab(el);
     };
     el.querySelectorAll("[data-reason]").forEach(b => b.onclick = async () => {

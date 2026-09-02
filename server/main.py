@@ -1281,6 +1281,21 @@ def _providers_view(cfg):
         out.append(item)
     return out
 
+def _set_telegram_model(cfg, provider, model):
+    """Ghi model GHIM cho kênh Telegram. Không đụng model chính, không đụng field legacy."""
+    cfg["model"]["telegram"] = {"provider": provider, "model": model or ""}
+
+
+def _tg_dat_model(cfg, provider, model):
+    """Lệnh đổi model gõ TỪ Telegram ghi vào đâu: đang ghim thì vào ô Telegram, chưa ghim thì
+    vào model chính như trước (và web đổi theo - đó là hành vi cũ, giữ nguyên để ai không ghim
+    không thấy gì khác)."""
+    if _tg_ghim(cfg.get("model") or {}):
+        _set_telegram_model(cfg, provider, model)
+    else:
+        _set_main_model(cfg, provider, model)
+
+
 def _set_main_model(cfg, provider, model):
     """Đặt model chính + ĐỒNG BỘ field legacy (engine/claude_model/openrouter_model) để chat/Telegram cũ chạy."""
     m = cfg["model"]
@@ -1410,6 +1425,25 @@ def _chat_provider_for_session(mcfg, row):
     if pprov == "openrouter":
         model = model or mcfg.get("openrouter_model")
     return pprov, kind, key, model
+
+
+def _tg_ghim(mcfg) -> dict:
+    """{'provider','model'} đang GHIM cho kênh Telegram, hoặc {} nếu đang theo model chính."""
+    tg = (mcfg or {}).get("telegram") or {}
+    return {"provider": tg["provider"], "model": tg.get("model") or ""} if tg.get("provider") else {}
+
+
+def _chat_provider_kenh(mcfg, channel):
+    """Provider cho một lượt theo KÊNH: Telegram có ghim riêng thì theo ghim, còn lại theo
+    model chính. Dùng lại đúng luật rơi-về của ghim phiên web (`_chat_provider_for_session`):
+    provider đã gỡ hay key đã bị xoá thì lui về model chính chứ không chết lượt chat."""
+    if channel != "telegram":
+        return _chat_provider(mcfg)
+    g = _tg_ghim(mcfg)
+    if not g:
+        return _chat_provider(mcfg)
+    return _chat_provider_for_session(mcfg, {"pinned_provider": g["provider"],
+                                             "pinned_model": g["model"]})
 
 
 def _claude_api_model(model: str) -> str:
@@ -3454,6 +3488,12 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             # Thiếu provider (client cũ) = Claude, đúng hành vi trước khi mở nhiều provider.
             prov = aux_patch.get("provider") or aux_engine.CLAUDE
             aux["provider"] = prov if _provider_def(prov) else aux_engine.CLAUDE
+        if "telegram" in patch:   # model riêng cho kênh Telegram; provider rỗng = theo model chính
+            tg_patch = patch["telegram"] or {}
+            tg = m.setdefault("telegram", {})
+            prov = (tg_patch.get("provider") or "").strip()
+            tg["provider"] = prov if (prov and _provider_def(prov)) else ""
+            tg["model"] = (tg_patch.get("model") or "").strip() if tg["provider"] else ""
         # Độ sâu suy nghĩ. Danh sách nấc lấy từ engine.REASONING_LEVELS - đường LƯU này và
         # đường ĐỌC (_reasoning_level) phải soi CÙNG một nguồn, nếu không thêm nấc mới là
         # giao diện cho chọn mà server lặng lẽ hạ về "off".
@@ -12458,7 +12498,10 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         sess = _tg_session(chat_id)
         brain = _tg_brain(chat_id)   # brain riêng của phiên (đổi bằng /brain), mặc định theo Settings
     mcfg = cfgmod.read_settings().get("model", {})
-    prov, kind, api_key, api_model = _chat_provider(mcfg)
+    # Chủ chat trên Telegram thì theo ghim của kênh (nếu có). Bot chuyên trách KHÔNG: nó
+    # phục vụ khách, model của nó là chuyện cấu hình bot, không ăn theo ghim của chủ.
+    prov, kind, api_key, api_model = (_chat_provider(mcfg) if bot
+                                      else _chat_provider_kenh(mcfg, channel))
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
     engine_label = ("codex" if prov == "openai-oauth"
@@ -13355,6 +13398,7 @@ async def _tg_help_text(brain):
         "/agents - liệt kê agent + việc đang chạy\n"
         "/workflows - liệt kê workflow\n"
         "/model - xem/đổi model: gõ /model để chọn bằng nút (mọi nhà cung cấp đã kết nối), hoặc /model <tên model>\n"
+        "/model ghim - khoá Telegram vào model đang dùng (web đổi không kéo theo) · /model theo - bỏ ghim\n"
         "/brain - xem/đổi brain (vault) cho riêng phiên của bạn (vd /brain hoặc /brain <tên>)\n"
         "/cli - engine Claude (có MCP/skill)\n"
         "/or - engine OpenRouter (chat + MCP đa-model)\n"
@@ -13529,12 +13573,26 @@ def _tg_model_list_text(pid):
     return f"⚙️ {_tg_prov_label(pid)} - chọn model ({n}):{tip}"
 
 
-def _model_header():
+def _tg_model_hieu_luc():
+    """(provider, model, đang_ghim) mà kênh Telegram THẬT SỰ chạy. Điện thoại không có banner
+    như web, nên chỗ nào hiện model cho Telegram cũng phải nói được nó là ghim hay theo chính."""
+    m = cfgmod.read_settings().get("model", {})
+    g = _tg_ghim(m)
+    if g and _provider_def(g["provider"]):
+        return g["provider"], (g["model"] or "mặc định"), True
     prov, cur = _model_current()
+    return prov, cur, False
+
+
+def _model_header():
+    prov, cur, ghim = _tg_model_hieu_luc()
     return ("⚙️ Cấu hình model\n"
             f"Hiện tại: {cur}\n"
-            f"Provider: {_tg_prov_label(prov)}\n\n"
-            "Chọn provider (chỉ hiện provider đã kết nối):")
+            f"Provider: {_tg_prov_label(prov)}\n"
+            + ("📌 Telegram đang GHIM riêng (web đổi không ảnh hưởng). /model theo để bỏ ghim.\n\n"
+               if ghim else
+               "🔗 Telegram đang theo model chính. /model ghim để khoá riêng cho Telegram.\n\n")
+            + "Chọn provider (chỉ hiện provider đã kết nối):")
 
 
 # ---- Menu chọn brain cho PHIÊN Telegram (inline keyboard, giống menu model) ----
@@ -13621,7 +13679,7 @@ async def _tg_callback(data, chat=None):
             return {"alert": f"{_tg_prov_label(pid)} chưa kết nối - vào dashboard trang Models"}
         if pid == "anthropic-cli":
             mdl = mdl.lower()   # alias opus/sonnet/haiku/fable
-        _set_main_model(s, pid, mdl); cfgmod.write_settings(s)
+        _tg_dat_model(s, pid, mdl); cfgmod.write_settings(s)
         note = {"anthropic-cli": "Claude Code - đầy đủ MCP/skill",
                 "openai-oauth": "ChatGPT qua Codex CLI - có MCP",
                 "openrouter": "OpenRouter - chat + MCP đa-model",
@@ -13656,32 +13714,47 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
         return {"reply": "🔄 Đã reset hội thoại (chỉ phiên của bạn)."}
     if cmd in ("cli", "claude"):
         s = cfgmod.read_settings()
-        _set_main_model(s, "anthropic-cli", (s["model"].get("main") or {}).get("model") or s["model"].get("claude_model") or "opus")
+        _tg_dat_model(s, "anthropic-cli", (s["model"].get("main") or {}).get("model") or s["model"].get("claude_model") or "opus")
         cfgmod.write_settings(s)
         return {"reply": "✅ Provider: Anthropic (Claude Code) - đầy đủ MCP, hỏi POS/Ads/vault được."}
     if cmd in ("or", "openrouter"):
         s = cfgmod.read_settings()
         if not s["model"].get("openrouter_key"):
             return {"reply": "⚠ Chưa có OpenRouter key - đặt trong Models trên dashboard trước."}
-        _set_main_model(s, "openrouter", s["model"].get("openrouter_model")); cfgmod.write_settings(s)
+        _tg_dat_model(s, "openrouter", s["model"].get("openrouter_model")); cfgmod.write_settings(s)
         return {"reply": f"✅ Provider: OpenRouter ({s['model'].get('openrouter_model')}) - chat + MCP đa-model."}
     if cmd in ("help", "menu", "start"):
         return {"reply": await _tg_help_text(brain)}
     if cmd == "skills":
         return {"reply": await _tg_skills_text(brain)}
     if cmd == "status":
-        prov, model = _model_current()
+        prov, model, ghim = _tg_model_hieu_luc()
         busy = _tg_chat_busy(chat_key)
         bname = Path(_brain_root(brain)).name
         return {"reply": ("📊 Trạng thái Javis\n"
                           f"Provider: {prov}\n"
-                          f"Model: {model}\n"
+                          f"Model: {model}"
+                          + (" (📌 ghim riêng cho Telegram)" if ghim else " (theo model chính)") + "\n"
                           f"Brain: {bname} (đổi bằng /brain)\n"
                           f"Phiên: {chat_key} (ngữ cảnh riêng)\n"
                           f"Đang xử lý: {'có (gửi /stop để dừng)' if busy else 'rảnh'}")}
     if cmd == "model":
         s = cfgmod.read_settings(); m = s["model"]
         a = arg.strip()
+        # /model ghim: khoá Telegram vào model ĐANG DÙNG, từ đó web đổi gì cũng mặc.
+        # /model theo: bỏ ghim, Telegram lại đi theo model chính.
+        if a.lower() in ("ghim", "pin"):
+            em = _effective_main(s)
+            _set_telegram_model(s, em["provider"], em["model"]); cfgmod.write_settings(s)
+            return {"reply": (f"📌 Đã ghim Telegram vào {_tg_prov_label(em['provider'])}: "
+                              f"{em['model'] or 'mặc định'}.\nĐổi model trên web không còn kéo "
+                              "Telegram theo. Gõ /model <tên> để đổi riêng cho Telegram, "
+                              "/model theo để bỏ ghim.")}
+        if a.lower() in ("theo", "bo-ghim", "unpin"):
+            _set_telegram_model(s, "", ""); cfgmod.write_settings(s)
+            em = _effective_main(s)
+            return {"reply": (f"🔗 Đã bỏ ghim. Telegram theo model chính: "
+                              f"{_tg_prov_label(em['provider'])} {em['model'] or 'mặc định'}.")}
         if a:
             # HỎI DANH SÁCH THẬT TRƯỚC, đoán sau. Mấy luật đoán bên dưới ra đời khi Telegram chỉ
             # biết 3 provider, và giờ chúng gán nhầm một cách im lặng: gõ tên model của
@@ -13689,7 +13762,7 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
             # CLAUDE, lượt chat sau mới báo lỗi mà chẳng ai hiểu vì sao.
             _pid, _ung_vien = await _tg_provider_cho_model(a, m)
             if _pid:
-                _set_main_model(s, _pid, a); cfgmod.write_settings(s)
+                _tg_dat_model(s, _pid, a); cfgmod.write_settings(s)
                 return {"reply": f"✅ {_tg_prov_label(_pid)}: {a}."}
             if len(_ung_vien) > 1:
                 _ten = ", ".join(_tg_prov_label(p) for p in _ung_vien)
@@ -13698,14 +13771,14 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
             # Không provider nào khai model này (danh sách hỏng, hoặc tên mới tinh) → về mấy
             # luật đoán cũ: id chứa "/" = OpenRouter; gpt*/*-codex = ChatGPT; còn lại = Claude.
             if "/" in a:
-                _set_main_model(s, "openrouter", a); cfgmod.write_settings(s)
+                _tg_dat_model(s, "openrouter", a); cfgmod.write_settings(s)
                 return {"reply": f"✅ OpenRouter model: {a}."}
             if _is_codex_model(a):
                 if not _tg_prov_ready("openai-oauth", m):
                     return {"reply": "⚠ Chưa kết nối ChatGPT (OpenAI OAuth) - nối ở dashboard trang Models trước."}
-                _set_main_model(s, "openai-oauth", a); cfgmod.write_settings(s)
+                _tg_dat_model(s, "openai-oauth", a); cfgmod.write_settings(s)
                 return {"reply": f"✅ ChatGPT (Codex) model: {a}."}
-            _set_main_model(s, "anthropic-cli", a.lower()); cfgmod.write_settings(s)
+            _tg_dat_model(s, "anthropic-cli", a.lower()); cfgmod.write_settings(s)
             return {"reply": f"✅ Model Claude: {a.lower()}. Nếu CLI chưa hỗ trợ tên này, query sẽ báo lỗi."}
         # Không tham số → mở menu nút bấm (chọn provider → chọn model, phân trang)
         return {"reply": _model_header(), "reply_markup": await _model_provider_kb()}

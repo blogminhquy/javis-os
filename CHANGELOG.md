@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.10] - 2026-09-02
+### Thêm mới
+- **Ghim được model riêng cho Telegram.** Mặc định Telegram vẫn theo model chính như cũ; ghim rồi thì đổi model trên web không kéo điện thoại theo, và gõ `/model` trên Telegram chỉ đổi cho Telegram. Ghim ngay trên Telegram bằng `/model ghim`, bỏ bằng `/model theo`; `/status` luôn nói đang ghim hay đang theo.
+### Sửa lỗi
+- **Javis không còn bịa chuyện "nguồn chưa được gắn vào brain này".** Kết nối vốn dùng chung cho mọi brain. Khi một nguồn tắt hoặc đang hỏng, Javis nay nói đúng lý do đó và chỉ bạn tới nút Kiểm tra ở trang Kết nối, thay vì bảo bạn đi tìm một mục gắn nguồn không hề tồn tại.
+
 ## [0.55.9] - 2026-09-02
 ### Sửa lỗi
 - **Màn tạo tài khoản lần đầu nay chỉ thẳng vào ô đang trống.** Ô Mã thiết lập nằm ở giữa trang còn nút bấm ở cuối, nên bỏ trống rồi bấm thì bạn chỉ thấy một dòng đỏ ở đáy mà không biết ô nào thiếu. Giờ màn hình tự cuộn tới đúng ô đó và đặt con trỏ vào.

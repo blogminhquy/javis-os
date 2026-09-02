@@ -714,5 +714,16 @@
   "ol.is_main": "model chính",
   "ol.set_main_ok": "Đã đặt {ten} làm model chính. Ô chọn model dưới khung chat đã đổi theo.",
   "ol.canh_bao_cong_khai": "Đã nối được, nhưng đây là địa chỉ công khai trên Internet mà Ollama thì KHÔNG có mật khẩu - ai biết địa chỉ này cũng gọi được model của bạn. Hãy chặn tường lửa để chỉ máy chủ Javis vào được cổng 11434.",
-  "ol.embed_note": "Model embedding: sinh vector cho tìm kiếm, không trả lời được. Javis chưa dùng tới loại này."
+  "ol.embed_note": "Model embedding: sinh vector cho tìm kiếm, không trả lời được. Javis chưa dùng tới loại này.",
+  "models.h_tg": "Model Telegram",
+  "models.h_tg_sub": "riêng cho kênh Telegram",
+  "models.tg_meta": "Mặc định Telegram dùng đúng model chính. Ghim một model thì đổi model trên web không kéo Telegram theo, và /model gõ trên Telegram chỉ đổi cho Telegram.",
+  "models.tg_follow": "Theo model chính",
+  "models.tg_follow_sub": "đổi model chính là Telegram đổi theo",
+  "models.tg_pin": "Ghim model riêng ▾",
+  "models.tg_reset": "Bỏ ghim, theo model chính",
+  "models.tg_warn": "Nhà cung cấp này chưa kết nối - Telegram sẽ tự dùng model chính cho tới khi bạn kết nối.",
+  "models.tg_note": "Điện thoại không có banner báo lỗi như web. Gõ /status trên Telegram để thấy model đang chạy và có đang ghim không.",
+  "models.tg_title": "MODEL TELEGRAM",
+  "models.tg_note2": "Chỉ áp cho lượt chat của bạn trên Telegram. Bot chuyên trách và Zalo vẫn theo model chính."
 }
