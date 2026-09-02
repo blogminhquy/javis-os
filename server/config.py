@@ -1174,12 +1174,28 @@ def get_or_create_setup_token():
         return None
 
 
+def lam_sach_setup_token(raw):
+    """Gọt thứ người ta THẬT SỰ dán vào ô, về đúng chuỗi mã.
+
+    Mã in ra log nằm CÙNG DÒNG với nhãn: "      SETUP TOKEN:  abc123". Bôi đen một dòng trong
+    terminal là dính cả nhãn, và bản cũ so nguyên cục đó với mã thật rồi báo "sai mã" - đúng
+    thao tác tự nhiên nhất lại là thao tác hỏng. Gọt nhãn KHÔNG nới lỏng bảo mật: phần còn lại
+    vẫn phải khớp tuyệt đối, vẫn so bằng compare_digest.
+    """
+    t = (raw or "").strip()
+    for nhan in ("SETUP TOKEN:", "SETUP_TOKEN:", "setup token:", "MÃ THIẾT LẬP:"):
+        if t.upper().startswith(nhan.upper()):
+            t = t[len(nhan):].strip()
+            break
+    return t.strip().strip("'\"`").strip()
+
+
 def check_setup_token(provided):
     try:
         if not _SETUP_TOKEN_PATH.exists():
             return False
         real = _SETUP_TOKEN_PATH.read_text(encoding="utf-8").strip()
-        return bool(real) and secrets.compare_digest(real, (provided or "").strip())
+        return bool(real) and secrets.compare_digest(real, lam_sach_setup_token(provided))
     except Exception:
         return False
 
