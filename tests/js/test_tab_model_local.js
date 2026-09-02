@@ -63,6 +63,29 @@ check("Docker được nói RIÊNG, không dùng chung câu với native",
 check("và câu đó nói rõ container không phải máy bạn",
   /container/.test(VI["ol.note_docker"] || "") && /container/i.test(EN["ol.note_docker"] || ""));
 
+// 02/09: chủ repo dán thẳng lệnh cài vào TERMINAL CỦA JAVIS và ăn "requires superuser". Dễ
+// hiểu - nút copy nằm ngay cạnh mà app thì có sẵn một terminal. Nhưng kể cả cài đúng máy vẫn
+// còn hai bức tường nữa, và thiếu một trong hai là "không nối được" mà không hiểu vì sao.
+check("bản Docker nói THẲNG là đừng dùng terminal của Javis",
+  /terminal/i.test(VI["ol.dk_b1"] || "") && /root/i.test(VI["ol.dk_b1"] || ""));
+check("và nói rõ cài vào container thì mất sạch khi cập nhật",
+  /cập nhật/i.test(VI["ol.dk_b1"] || ""));
+// Ollama mặc định chỉ nghe 127.0.0.1 - container không bao giờ với tới.
+check("có bước cho Ollama nghe ra ngoài loopback",
+  /OLLAMA_HOST=0\.0\.0\.0/.test(OL) && !!VI["ol.dk_b3"]);
+// Không ai đoán được địa chỉ cầu nối Docker.
+check("gợi ý sẵn địa chỉ cầu nối Docker, không phải localhost",
+  /OL_DIA_CHI_DOCKER = "http:\/\/172\.17\.0\.1:11434"/.test(OL));
+check("và ô nhập dùng nó làm gợi ý khi chạy Docker",
+  /esc\(xa \? OL_DIA_CHI_DOCKER :/.test(OL));
+// Bảo người ta mở 0.0.0.0 mà không nói nó nghe cả từ Internet, và KHÔNG có mật khẩu, là đẩy
+// họ vào chỗ hở một máy chủ model công khai.
+check("cảnh báo bảo mật khi mở 0.0.0.0, kèm lệnh tường lửa cụ thể",
+  /mật khẩu/.test(VI["ol.dk_canh_bao"] || "") && /ufw/.test(VI["ol.dk_canh_bao"] || ""));
+// VPS phổ thông không GPU, ít RAM. Không nói trước là để người ta tải 5GB rồi mới thất vọng.
+check("nói thẳng VPS chạy model local sẽ chậm",
+  /chậm/.test(VI["ol.dk_cham"] || "") && /GPU/.test(VI["ol.dk_cham"] || ""));
+
 // ============================================================
 // 3. Nối đúng endpoint backend
 // ============================================================

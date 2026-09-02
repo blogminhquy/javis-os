@@ -1045,3 +1045,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 1px solid var(--border); background: transparent; color: var(--text2);
   font-family: var(--font); font-size: 12.5px; }
 .ol-fchip.on { border-color: var(--accent-line); color: var(--accent); background: var(--accent-wash); }
+
+/* Hướng dẫn cài Ollama cho bản Docker: ba bước đánh số, mỗi bước một dòng thở được. Dồn tất
+   vào một đoạn thì người đọc bỏ qua đúng bước 3 - bước mà thiếu nó là "không nối được". */
+.ol-buoc { font-size: 13.5px; color: var(--text2); line-height: 1.6; margin: 8px 0 4px; }
+.ol-note.ol-warn { border: 1px solid var(--warn-line); background: var(--warn-wash);
+  border-radius: 10px; padding: 9px 11px; margin: 10px 0; }
+.ol-note.ol-warn .ic { color: var(--warn-ink); }
