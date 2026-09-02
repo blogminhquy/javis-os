@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.12] - 2026-09-02
+### Cải thiện
+- **Mic là công tắc giọng duy nhất.** Bỏ hẳn nút loa trên thanh nhập: bấm mic là Javis đáp bằng giọng, tắt mic là im. Muốn tắt tiếng thủ công vẫn còn công tắc trong Cài đặt nhanh.
+- **Hàng nhãn HỘI THOẠI gọn lại** trên cả điện thoại lẫn máy tính: hai nút nằm cùng hàng với nhãn, chip project chỉ xuống hàng khi thật sự có, không còn dải trống phía trên khung chat.
+- **Điện thoại: nút "≡ 1/3" (nhảy về câu hỏi cũ) dời lên hàng nhãn**, cạnh nút phóng to. Trước nó dính góc khung chat và đè lên bong bóng tin nhắn của bạn khi cuộn.
+### Sửa lỗi
+- **iPhone: bấm mic không còn rơi vào chế độ ghi âm kéo dài**, nói xong một câu là gửi. **Giọng đọc trên iPhone hết ngập ngừng, ngắt giữa chừng**: Javis phát bằng một kênh âm thanh mở sẵn từ lúc bạn bấm mic thay vì tạo kênh mới cho từng đoạn (thứ iPhone chặn).
+
 ## [0.55.11] - 2026-09-02
 ### Sửa lỗi
 - **Đọc bằng mic trên điện thoại không còn dán chồng câu** kiểu "Ok Ok Ok có Ok có vẻ...". Chrome trên Android giao lại cả câu ở mỗi nhịp nghe, và Javis cộng dồn nên chép câu ấy thêm một lần mỗi nhịp. Nay Javis dựng lại chữ từ đầu mỗi nhịp, và câu đang nói dở không mất khi trình duyệt tự mở lại phiên nghe.

@@ -727,6 +727,9 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     justify-content: flex-start;
     gap: 8px;
   }
+  /* Cột hẹp: chip project CÓ nội dung thì xuống hàng riêng cho đủ bề ngang tên; rỗng thì
+     không chiếm hàng nào (style.css :empty). Hai nút vẫn ở hàng nhãn, sát mép phải. */
+  .hud-right .panel-label .proj-chip-host:not(:empty) { flex: 1 0 100%; order: 3; }
   /* max-width: 60% mặc định tính theo khối bọc, mà khối đó lại co theo nội dung nên tên model
      dài là nó đẩy nút phóng to đi. Trên màn hẹp neo theo BỀ NGANG MÀN HÌNH mới chặn được. */
   .hud-right .transcript {

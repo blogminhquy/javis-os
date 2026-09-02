@@ -535,11 +535,15 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 /* Chữ "HỘI THOẠI" KHÔNG được co: cột này hẹp, để nó co thì tên project dài đẩy nó vỡ thành
    hai dòng ("HỘI" / "THOẠI") - đúng cảnh chủ repo chụp lại 01/09. */
 .panel-label > span:first-child { flex: none; white-space: nowrap; }
-/* Chip xuống HẲN dòng dưới ở cột này. Nhồi chung một dòng với nhãn và hai nút thì tên
-   project chỉ còn vài chục pixel, mà tên project là thứ chip sinh ra để nói. Dòng riêng thì
-   nó có trọn bề ngang cột. Ở trang Trò chuyện (thanh rộng) chip vẫn nằm ngang, xem console.js. */
-.panel-label .proj-chip-host { flex: 1 0 100%; min-width: 0; justify-content: flex-start; }
+/* Chip project nằm CÙNG HÀNG với nhãn và hai nút, dài thì co bằng dấu ba chấm. Bản 0.53.1
+   cho nó chiếm trọn một hàng, nhưng flex: 1 0 100% ép hàng đó tồn tại cả khi chip RỖNG, nên
+   hai nút luôn rớt xuống hàng dưới và để lại một dải trống - đúng ba ảnh chủ repo chụp 02/09,
+   cả điện thoại lẫn máy tính. Cột hẹp có luật riêng ở console.css: chip CÓ nội dung mới
+   xuống hàng, để tên project vẫn có trọn bề ngang. */
+.panel-label .proj-chip-host { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+.panel-label .proj-chip-host:empty { display: none; }
 .panel-label .proj-chip { max-width: 100%; }
+.panel-label .panel-acts { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
 .mini-btn {
   background: none; border: 1px solid var(--border); color: var(--text2);
   width: 22px; height: 22px; border-radius: 5px; cursor: pointer; font-size: 14px;
@@ -1155,6 +1159,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 /* Bên máy tính số thứ tự là thừa: dãy vạch đã nói vị trí bằng hình rồi. */
 #chatMarks .cm-so { display: none; }
 
+/* Điện thoại: nút đứng TRÊN HÀNG NHÃN (JS cắm vào .panel-acts hoặc .chatpage-bar), không
+   còn là lớp dính trong khung cuộn - xem ngoại lệ ở đầu chat-marks.js. Ở đó khối bọc phải là
+   một ô bình thường trên hàng, và nút không được định vị tuyệt đối nữa. */
+.panel-acts > #chatMarks, .chatpage-bar > #chatMarks {
+  position: static; height: auto; width: auto; align-self: auto; display: inline-flex; }
+.panel-acts > #chatMarks .cm-nut, .chatpage-bar > #chatMarks .cm-nut {
+  position: static; box-shadow: none; opacity: 1; padding: 3px 8px 3px 7px; font-size: 11px; }
+
 @media (max-width: 860px) {
   .cm-ray { display: none; }
   .cm-nut { display: inline-flex; }
@@ -1265,11 +1277,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
     align-items: flex-end;
   }
-  /* Nút loa Ở LẠI thanh nhập trên màn hẹp. Bản 0.48.3 giấu nó "để dời vào ngăn kéo" rồi
-     ngăn kéo cũng bỏ nút loa - điện thoại rốt cuộc không còn chỗ nào bật/tắt giọng (chủ repo
-     báo 02/09). Loa giờ tự đi theo mic, nút này để THẤY trạng thái và bấm ngược khi cần. */
-  .hud-voice .tts-bar-btn { order: 3; width: 34px; height: 34px; border: none; background: transparent; }
-  .hud-voice .tts-bar-btn.muted::after { left: 8px; right: 8px; }
   .hud-voice .attach-btn { order: 1; width: 34px; height: 34px; border: none; background: transparent; }
   .hud-voice .voice-input {
     order: 2; border: none; background: transparent; border-radius: 0;
@@ -1295,13 +1302,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   display: flex; align-items: center; justify-content: center; transition: all 0.2s;
 }
 .attach-btn:hover { border-color: var(--accent); color: var(--accent); }
-/* Nút loa trên khung chat: khi TẮT giọng thì đỏ + gạch chéo cho thấy rõ đang tắt */
-.tts-bar-btn.muted { color: var(--red); border-color: var(--danger-line); position: relative; }
-.tts-bar-btn.muted:hover { color: var(--red); border-color: var(--red); }
-.tts-bar-btn.muted::after {
-  content: ""; position: absolute; left: 9px; right: 9px; top: 50%; height: 2px;
-  background: var(--red); border-radius: 2px; transform: rotate(-45deg);
-}
+/* Nút loa trên khung chat ĐÃ BỎ (02/09): loa đi theo mic, mic là công tắc duy nhất. */
 
 /* ===== Dải VIỆC NỀN ngay trên khung nhập (background-strip.js) =====
    Hai tông, đúng hai trạng thái đáng cắt ngang khung chat:

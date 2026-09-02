@@ -308,8 +308,18 @@ check("tên project ở đầu hộp hiện ĐỦ, xuống dòng thay vì cắt 
 // Thanh nhãn cột hẹp: tên project dài đẩy chữ "HỘI THOẠI" vỡ thành hai dòng.
 check("chữ HỘI THOẠI không co, không vỡ dòng",
   /\.panel-label > span:first-child \{ flex: none; white-space: nowrap; \}/.test(CSS));
-check("chip xuống hẳn dòng riêng ở cột hẹp để có trọn bề ngang",
-  /\.panel-label \.proj-chip-host \{ flex: 1 0 100%/.test(CSS)
+// 02/09: chủ repo chụp ba ảnh cho thấy hàng nhãn để lại dải trống: chip được ép chiếm trọn
+// một hàng CẢ KHI RỖNG (flex: 1 0 100%), nên hai nút luôn rớt xuống hàng dưới. Nay chip cùng
+// hàng và co bằng ba chấm; chip rỗng không chiếm chỗ; cột hẹp thì chip CÓ nội dung mới xuống
+// hàng riêng để tên project vẫn đủ bề ngang.
+const CCSS = D("console.css");
+check("chip cùng hàng với nhãn, co được (flex: 1 1 auto; min-width: 0)",
+  /\.panel-label \.proj-chip-host \{ flex: 1 1 auto; min-width: 0/.test(CSS));
+check("CANARY: chip RỖNG không chiếm hàng nào", /\.panel-label \.proj-chip-host:empty \{ display: none; \}/.test(CSS));
+check("hai nút dồn về mép phải cùng hàng nhãn", /\.panel-label \.panel-acts \{[^}]*margin-left: auto/.test(CSS)
+  && /<span class="panel-acts">/.test(HTML));
+check("cột hẹp: chip CÓ nội dung mới xuống hàng riêng",
+  /\.hud-right \.panel-label \.proj-chip-host:not\(:empty\) \{ flex: 1 0 100%; order: 3; \}/.test(CCSS)
   && /\.panel-label \{[^}]*flex-wrap: wrap/.test(CSS));
 
 console.log("");

@@ -156,8 +156,6 @@
   "mb.no_tools": "Chưa gọi tool nào",
   "bar.mic": "Bấm để nói (hoặc giữ Space)",
   "bar.attach": "Đính kèm file (ảnh, text, tài liệu) → lưu vào Sources",
-  "bar.tts_on": "Bật giọng đọc",
-  "bar.tts_off": "Tắt giọng đọc",
   "bar.input_ph": "Nói với Javis, gõ ở đây, hoặc kéo/dán file vào...",
   "bar.stop": "Ngắt lệnh / dừng đọc (Esc)",
   "rail.expand": "Mở rộng thanh bên",
