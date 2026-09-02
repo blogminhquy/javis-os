@@ -2945,6 +2945,15 @@
     mac: "brew install ollama   # hoặc tải bản .dmg ở ollama.com/download",
     windows: "winget install Ollama.Ollama",
   };
+  // Bản Docker cần NHIỀU HƠN một lệnh cài. Bản 0.55.0 chỉ nói "cài trên máy thật rồi điền địa
+  // chỉ", và chủ repo dán ngay lệnh đó vào terminal của Javis (02/09) - dễ hiểu, vì nút copy
+  // nằm ngay cạnh mà app thì có sẵn một cái terminal. Nhưng kể cả cài đúng chỗ vẫn còn hai bức
+  // tường nữa: Ollama mặc định chỉ nghe 127.0.0.1 nên container không với tới, và không ai
+  // đoán được phải điền địa chỉ cầu nối Docker. Thiếu một trong hai là "không nối được" mà
+  // không hiểu vì sao.
+  const OL_LENH_NGHE = "sudo systemctl edit --full ollama   # thêm: Environment=\"OLLAMA_HOST=0.0.0.0\"\n" +
+                       "sudo systemctl restart ollama";
+  const OL_DIA_CHI_DOCKER = "http://172.17.0.1:11434";
 
   function olGb(n) { return (Math.round((n || 0) * 10) / 10) + " GB"; }
 
@@ -2968,17 +2977,34 @@
         '<div class="ol-empty-desc">' + esc(t("ol.desc")) + "</div>" +
         (xa ? '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_docker")) + "</span></div>"
             : '<div class="ol-note">' + ic("info") + "<span>" + esc(t("ol.note_native")) + "</span></div>") +
-        '<div class="ol-step">1. ' + esc(t("ol.step_install")) + "</div>" +
-        '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
-          '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
-        '<div class="ol-step">2. ' + esc(t("ol.step_endpoint")) + "</div>" +
+        (xa
+          ? '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" + esc(t("ol.dk_cham")) + "</span></div>" +
+            '<div class="ol-step">' + esc(t("ol.dk_title")) + "</div>" +
+            '<div class="ol-buoc">1. ' + esc(t("ol.dk_b1")) + "</div>" +
+            '<div class="ol-buoc">2. ' + esc(t("ol.dk_b2")) + "</div>" +
+            '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
+              '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
+            '<div class="ol-buoc">3. ' + esc(t("ol.dk_b3")) + "</div>" +
+            '<div class="ol-cmd"><code>' + esc(OL_LENH_NGHE) + "</code>" +
+              '<button class="gcard-btn ol-copy2" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
+            '<div class="ol-note ol-warn">' + ic("shield") + "<span>" + esc(t("ol.dk_canh_bao")) + "</span></div>" +
+            '<div class="ol-step">' + esc(t("ol.dk_b4")) + "</div>"
+          : '<div class="ol-step">1. ' + esc(t("ol.step_install")) + "</div>" +
+            '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
+              '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
+            '<div class="ol-step">2. ' + esc(t("ol.step_endpoint")) + "</div>") +
         '<div class="ol-row">' +
-          '<input class="ol-in ol-ep" placeholder="' + esc(st.goi_y_endpoint || "http://127.0.0.1:11434") + '"' +
+          '<input class="ol-in ol-ep" placeholder="' +
+            esc(xa ? OL_DIA_CHI_DOCKER : (st.goi_y_endpoint || "http://127.0.0.1:11434")) + '"' +
             (st.same_host ? ' value="' + esc(st.goi_y_endpoint || "") + '"' : "") + ">" +
           '<button class="gcard-btn primary ol-noi" type="button">' + esc(t("ol.connect")) + "</button>" +
         "</div>" +
         (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span></div>" : "") +
       "</div>";
+    const cop = el.querySelector(".ol-copy2");
+    if (cop) cop.onclick = () => {
+      try { navigator.clipboard.writeText(OL_LENH_NGHE); } catch (e) {}
+    };
     const inp = el.querySelector(".ol-ep");
     const noi = async () => {
       const v = (inp.value || inp.placeholder || "").trim();

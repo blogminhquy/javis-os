@@ -725,5 +725,13 @@
   "ol.find_title": "Find other models",
   "ol.find_ph": "Type a model name (qwen, llama, mistral...)",
   "ol.find_none": "No model matches.",
-  "ol.cap_all": "All"
+  "ol.cap_all": "All",
+
+  "ol.dk_title": "Three steps, on the SERVER itself, not in Javis's terminal",
+  "ol.dk_b1": "SSH into the VPS as root. Javis's own terminal will not do: it runs inside the container, has no root, and anything installed there is wiped on the next update.",
+  "ol.dk_b2": "Install Ollama on that server:",
+  "ol.dk_b3": "Let Ollama listen beyond loopback, otherwise Javis's container cannot reach it:",
+  "ol.dk_b4": "Then enter this address below (the Docker bridge gateway):",
+  "ol.dk_canh_bao": "Binding 0.0.0.0 means Ollama also listens to the internet, and it has NO password. Firewall it so only Docker gets through, for example: ufw allow from 172.17.0.0/16 to any port 11434 and ufw deny 11434.",
+  "ol.dk_cham": "A VPS usually has no GPU and little RAM, so a CPU-bound model will be very slow. Your desktop at home (with a GPU, ideally) is the better host, at the cost of the VPS having to reach it."
 }

@@ -725,5 +725,13 @@
   "ol.find_title": "Tìm model khác",
   "ol.find_ph": "Gõ tên model (qwen, llama, mistral...)",
   "ol.find_none": "Không tìm thấy model nào khớp.",
-  "ol.cap_all": "Tất cả"
+  "ol.cap_all": "Tất cả",
+
+  "ol.dk_title": "Ba bước, làm trên MÁY CHỦ chứ không phải terminal của Javis",
+  "ol.dk_b1": "Mở SSH vào máy chủ VPS bằng tài khoản root. Terminal trong Javis KHÔNG dùng được: nó nằm trong container, không có quyền root, và mọi thứ cài vào đó sẽ mất sạch ở lần cập nhật kế tiếp.",
+  "ol.dk_b2": "Cài Ollama trên máy chủ đó:",
+  "ol.dk_b3": "Cho Ollama nghe ra ngoài loopback, nếu không container của Javis không với tới được:",
+  "ol.dk_b4": "Rồi điền địa chỉ này vào ô dưới (cổng cầu nối Docker):",
+  "ol.dk_canh_bao": "Mở 0.0.0.0 là Ollama nghe cả từ Internet, mà nó KHÔNG có mật khẩu. Chặn tường lửa để chỉ Docker vào được, ví dụ: ufw allow from 172.17.0.0/16 to any port 11434 và ufw deny 11434.",
+  "ol.dk_cham": "VPS thường không có GPU và ít RAM, nên model chạy bằng CPU sẽ rất chậm. Máy để bàn ở nhà bạn (có GPU thì càng tốt) là chỗ hợp hơn, đổi lại VPS phải với tới được máy đó."
 }

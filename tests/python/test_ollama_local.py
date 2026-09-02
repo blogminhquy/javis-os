@@ -183,6 +183,24 @@ _ho = [m["family"] for m in manh["models"]]
 check("không để một họ model chiếm quá nửa danh sách",
       max(_ho.count(h) for h in set(_ho)) <= 3, _ho)
 
+# ---- 5b. Đọc cấu hình máy: hụt thì phải NÓI là hụt ----------------------------
+# psutil KHÔNG phải dependency của Javis. Bản đầu chỉ có đường Linux (/proc) và Mac (sysctl),
+# nên máy Windows luôn trả 0 GB - mà "máy cá nhân cài Javis" thì Windows là ca thường gặp
+# nhất. Tệ hơn: nó vẫn khai source="auto", tức máy 64GB bị mời toàn model dưới 8GB mà không
+# có dấu hiệu nào cho thấy sai. Đó là hỏng lặng lẽ, loại khó phát hiện nhất.
+import unittest.mock as _mock  # noqa: E402
+with _mock.patch.object(ollama_local, "_ram_gb", lambda: 0.0):
+    _hut = ollama_local.detect_specs()
+check("CANARY: đọc hụt RAM thì KHÔNG được khai là 'auto'", _hut["source"] == "unknown", _hut)
+check("đọc được RAM thì mới khai auto", ollama_local.detect_specs()["source"] == "auto")
+check("có đường đọc RAM cho Windows, không trông vào psutil",
+      "GlobalMemoryStatusEx" in (ROOT / "server" / "ollama_local.py").read_text(encoding="utf-8"))
+# source='unknown' phải kéo theo gợi ý nói thẳng là đang đoán, chứ không im lặng.
+_goi_y_khi_hut = ollama_catalog.goi_y({"source": "unknown", "ram_gb": 0})
+check("và gợi ý lúc đó nói rõ là đang đoán ở mức an toàn",
+      all("chưa đọc được" in (m.get("note") or "").lower() for m in _goi_y_khi_hut),
+      [m.get("note") for m in _goi_y_khi_hut[:2]])
+
 # ---- 6. Tìm kiếm + danh mục nền ----------------------------------------------
 r = c.get("/ollama-local/search", params={"q": "coder"}).json()
 check("tìm theo tên chạy", any("coder" in m["name"] for m in r["models"]))
