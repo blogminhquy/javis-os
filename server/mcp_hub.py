@@ -319,15 +319,40 @@ def _safe_read_path(vault_root, p, cho_phep_staging=False):
     return trong_vault                  # trong vault nhưng không tồn tại: để chỗ gọi báo
 
 
-def _connections_json(include_ambient=False, hidden=None):
+def _connections_json(include_ambient=False, hidden=None, bo_qua=None):
     hidden = hidden or {}
-    out = []
+    bo_qua = set(bo_qua or ())
+    # Sức khoẻ từng nguồn (vòng check định kỳ). Import trong hàm: connect_health import
+    # mcp_client/mcp_store, kéo lên đầu file là thêm một cạnh nữa cho đồ thị import đã căng.
+    try:
+        import connect_health
+        suc_khoe = connect_health.snapshot()
+    except Exception:
+        suc_khoe = {}
+    # Vụ 02/09: một brain không thấy tool POS, model kết luận "nguồn chưa được gắn vào brain
+    # này" rồi còn ghi điều đó vào bộ nhớ dài hạn. KHÔNG có khái niệm ấy: hub dựng tool từ
+    # mcp_store.resolved() cho MỌI vault như nhau. Không thấy tool chỉ có hai lý do thật -
+    # nguồn đang tắt, hoặc nguồn đang hỏng lúc dò - và cả hai đều phải nói ra ở đây.
+    out = [{"ghi_chu": ("Kết nối là của CẢ Javis, dùng chung cho MỌI brain. Không có chuyện "
+                        "'gắn nguồn vào brain' - đừng bao giờ nói vậy. Nguồn có mặt ở danh sách "
+                        "này mà không thấy tool của nó thì xem trang_thai: đang TẮT (bật lại ở "
+                        "trang Kết nối) hoặc đang HỎNG lúc dò (bảo người dùng bấm Kiểm tra ở "
+                        "trang Kết nối). Sai ở nguồn, không phải ở brain.")}]
     for c in mcp_store.list_connections():
         con = mcp_catalog.get(c.get("connector_id")) or {}
         rec = {"connector": con.get("name") or c.get("connector_id"), "label": c.get("label"),
                "namespace": c.get("slug"), "perm": c.get("perm"), "enabled": c.get("enabled"),
                "is_default": c.get("is_default"), "transport": c.get("transport"),
                "source": "javis_hub"}
+        sk = suc_khoe.get(c.get("id")) or {}
+        if not c.get("enabled"):
+            rec["trang_thai"] = "ĐANG TẮT - bật lại ở trang Kết nối là mọi brain dùng được ngay."
+        elif c.get("id") in bo_qua:
+            rec["trang_thai"] = ("KHÔNG DÒ ĐƯỢC lúc này nên tool của nguồn này đang vắng. Nói "
+                                 "thẳng là nguồn đang hỏng/không nối được, bảo người dùng bấm "
+                                 "Kiểm tra ở trang Kết nối. " + (sk.get("message") or ""))
+        elif sk:
+            rec["trang_thai"] = "ổn" if sk.get("ok") else f"lỗi: {sk.get('message') or sk.get('kind')}"
         # Tool bị mức quyền GIẤU khỏi danh sách. Không kể ra thì model tưởng nguồn này không
         # làm được việc đó và đi đường vòng (vụ Lịch mức Chỉ đọc: create_event biến mất, model
         # loay hoay tìm tool tạo sự kiện rồi kết luận sai là kết nối hỏng).
@@ -358,7 +383,8 @@ def _list_skills(vault_root):
     return skill_router.enabled_slugs(vault_root)
 
 
-def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang="", staging=False):
+def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang="", staging=False,
+                   bo_qua=None):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
@@ -384,11 +410,12 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         }
 
     add("javis_connections", "Liệt kê các nguồn dữ liệu (connector/tài khoản MCP) đang đấu vào Javis, "
-        "kèm mức quyền và các tool đang bị mức quyền ẩn (tool_bi_an_do_quyen). Gồm cả connector đấu "
+        "kèm mức quyền, trạng thái sống/hỏng, và các tool đang bị mức quyền ẩn (tool_bi_an_do_quyen). "
+        "Kết nối DÙNG CHUNG cho mọi brain - không có khái niệm gắn nguồn vào brain. Gồm cả connector đấu "
         "vào TÀI KHOẢN Claude (Drive/Gmail/lịch...) - loại source='claude_account' gọi THẲNG qua "
         "tool native mcp__<tên>__*, KHÔNG qua javis_run_tool. Dùng khi cần biết đang có nguồn nào / "
         "tài khoản nào là mặc định, hoặc khi không tìm thấy tool tưởng phải có.",
-        {}, [], lambda args: _async_const(_connections_json(include_ambient, hidden)))
+        {}, [], lambda args: _async_const(_connections_json(include_ambient, hidden, bo_qua)))
 
     if not vault_root:
         return tools, route
@@ -835,7 +862,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             "health": "healthy",
         }
 
-    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging)
+    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging, bo_qua)
     tools_spec += b_tools
     route.update(b_route)
 

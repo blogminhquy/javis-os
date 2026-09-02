@@ -65,6 +65,12 @@ _DEFAULT = {
         # Model phụ cho việc NỀN (loop/metrics/ingest) - alias Claude qua CLI. "" = dùng mặc định
         # (không đổi). Đặt model rẻ (vd haiku) để tiết kiệm khi chạy nền nhiều.
         "auxiliary": {"model": ""},
+        # Model RIÊNG cho kênh Telegram. provider rỗng = THEO model chính (mặc định, không đổi
+        # gì cho người đang dùng). Đặt provider = GHIM: đổi model trên web không kéo Telegram
+        # theo nữa, và /model trên Telegram sửa ô này chứ không sửa model chính. Ra đời 02/09:
+        # chủ repo đổi model liên tục trên web để thử (cả model local chạy 2-8 chữ/giây), mỗi
+        # lần thử là điện thoại của cả nhà bị kéo theo.
+        "telegram": {"provider": "", "model": ""},
         # --- Tiền bạc: những gì Javis KHÔNG tự biết được và phải hỏi người dùng ---
         # Nhà cung cấp không cho lấy giá gói hay hạn mức gói qua API, nên bốn số này là do
         # người dùng khai. Để 0 = chưa khai, và trang Mức dùng phải nói "chưa khai" chứ đừng
@@ -637,6 +643,10 @@ def _nan_provider_da_go(cfg: dict) -> None:
     if aux.get("provider") in _PROVIDER_DA_GO:
         da_nan.append(("model việc nền", aux["provider"]))
         m["auxiliary"] = {**aux, "provider": "", "model": ""}
+    tg = m.get("telegram") or {}
+    if tg.get("provider") in _PROVIDER_DA_GO:
+        da_nan.append(("model Telegram", tg["provider"]))
+        m["telegram"] = {"provider": "", "model": ""}   # về "theo model chính", không chết kênh
     # Trường legacy `engine`: bỏ sót nó là `_effective_main` suy ngược ra provider vừa gỡ.
     if m.get("engine") in _PROVIDER_DA_GO:
         da_nan.append(("engine (legacy)", m["engine"]))

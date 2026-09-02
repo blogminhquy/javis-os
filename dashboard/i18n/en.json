@@ -714,5 +714,16 @@
   "ol.is_main": "main model",
   "ol.set_main_ok": "{ten} is now the main model. The model bar under the chat box has switched.",
   "ol.canh_bao_cong_khai": "Connected, but this is a public Internet address and Ollama has NO password, so anyone who knows it can use your models. Firewall port 11434 so only the Javis server can reach it.",
-  "ol.embed_note": "Embedding model: makes search vectors, cannot answer. Javis has no use for this type yet."
+  "ol.embed_note": "Embedding model: makes search vectors, cannot answer. Javis has no use for this type yet.",
+  "models.h_tg": "Telegram model",
+  "models.h_tg_sub": "for the Telegram channel only",
+  "models.tg_meta": "By default Telegram uses the main model. Pin a model and changing the main model on the web no longer drags Telegram along, and /model typed on Telegram changes Telegram only.",
+  "models.tg_follow": "Follows main model",
+  "models.tg_follow_sub": "changing the main model changes Telegram too",
+  "models.tg_pin": "Pin a separate model ▾",
+  "models.tg_reset": "Unpin, follow main model",
+  "models.tg_warn": "This provider is not connected - Telegram will fall back to the main model until you connect it.",
+  "models.tg_note": "Your phone has no error banner like the web. Type /status on Telegram to see the running model and whether it is pinned.",
+  "models.tg_title": "TELEGRAM MODEL",
+  "models.tg_note2": "Applies only to your own chats on Telegram. Dedicated bots and Zalo still follow the main model."
 }
