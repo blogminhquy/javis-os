@@ -713,5 +713,6 @@
   "ol.use_main": "Use as main model",
   "ol.is_main": "main model",
   "ol.set_main_ok": "{ten} is now the main model. The model bar under the chat box has switched.",
-  "ol.canh_bao_cong_khai": "Connected, but this is a public Internet address and Ollama has NO password, so anyone who knows it can use your models. Firewall port 11434 so only the Javis server can reach it."
+  "ol.canh_bao_cong_khai": "Connected, but this is a public Internet address and Ollama has NO password, so anyone who knows it can use your models. Firewall port 11434 so only the Javis server can reach it.",
+  "ol.embed_note": "Embedding model: makes search vectors, cannot answer. Javis has no use for this type yet."
 }

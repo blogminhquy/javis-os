@@ -66,6 +66,12 @@ class OllamaGia(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(n) or b"{}")
+        if self.path == "/api/show":
+            ten = body.get("model") or body.get("name") or ""
+            if not SHOW_CO_KHA_NANG[0]:
+                return self._tra(200, {"details": {}})      # bản Ollama cũ: không có trường này
+            kn = ["embedding"] if "embed" in ten or ten.startswith("bge-") else ["completion", "tools"]
+            return self._tra(200, {"capabilities": kn})
         if self.path == "/api/pull":
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson")
@@ -86,6 +92,7 @@ class OllamaGia(BaseHTTPRequestHandler):
         self._tra(200, {})
 
 
+SHOW_CO_KHA_NANG = [True]
 srv = HTTPServer(("127.0.0.1", 0), OllamaGia)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 EP = f"http://127.0.0.1:{srv.server_address[1]}"
@@ -164,6 +171,41 @@ check("đổi byte sang GB cho người đọc",
 # /api/ps là thứ DUY NHẤT cho biết model nào đang chiếm RAM/VRAM lúc này.
 check("biết model nào đang nạp sẵn trong bộ nhớ",
       [m["loaded"] for m in r["models"] if m["name"] == "qwen3:8b"] == [True])
+
+# ---- 3b. Model nào CHAT được: hỏi Ollama, không đoán qua tên -------------------
+# 02/09: chủ repo cài 2 model, một cái là embeddinggemma, và hỏi vì sao chỉ một cái đặt được
+# làm model chính. Câu trả lời đúng, nhưng phép lọc lúc đó chỉ dò chữ "embed" trong tên.
+import asyncio as _aio1  # noqa: E402
+
+check("Ollama nói embedding thì KHÔNG cho làm model chính",
+      not ollama_local.chat_duoc("bat-ky-ten-gi", ["embedding"]))
+check("Ollama nói completion thì cho", ollama_local.chat_duoc("qwen3:4b", ["completion", "tools"]))
+# Đây là cái hố của bản cũ: ba model embedding phổ biến NHẤT lại không có chữ "embed" trong
+# tên. Đặt nhầm một cái làm model chính là mọi lượt chat chết bằng câu lỗi khó hiểu.
+for _t in ("all-minilm", "bge-m3", "paraphrase-multilingual"):
+    check(f"CANARY: {_t} là model embedding dù tên không có chữ embed",
+          not ollama_local.chat_duoc(_t))
+check("model chat bình thường vẫn qua được", ollama_local.chat_duoc("qwen3:4b-instruct"))
+check("hỏi được capabilities thật qua /api/show",
+      _aio1.run(ollama_local.kha_nang(EP, "qwen3:8b")) == ["completion", "tools"])
+
+_r = c.get("/ollama-local/installed").json()
+_map = {m["name"]: m.get("chat_duoc") for m in _r["models"]}
+check("route trả cờ chat_duoc cho MỌI model", all(v is not None for v in _map.values()), _map)
+# Đúng cảnh chủ repo gặp: danh sách có cả model chat lẫn model embedding, và chỉ model chat
+# mới được mời đặt làm model chính.
+check("model chat được đánh dấu chat được",
+      _map.get("gemma3:4b") is True and _map.get("qwen3:8b") is True, _map)
+check("CANARY: model embedding trong danh sách bị đánh dấu KHÔNG chat được",
+      _map.get("nomic-embed-text") is False, _map)
+
+# Ollama cũ không có trường capabilities -> phải LUI VỀ đoán tên, không được coi mọi thứ là
+# chat được (đó là cách hỏng im lặng: nút hiện ra, bấm vào rồi chat mới chết).
+SHOW_CO_KHA_NANG[0] = False
+check("CANARY: bản Ollama cũ thì lui về đoán tên, không mặc định cho qua hết",
+      not ollama_local.chat_duoc("embeddinggemma:latest",
+                                 _aio1.run(ollama_local.kha_nang(EP, "embeddinggemma:latest"))))
+SHOW_CO_KHA_NANG[0] = True
 
 # ---- 4. Tải model: tiến độ phải chảy về qua SSE -------------------------------
 with c.stream("POST", "/ollama-local/pull", data={"model": "qwen3:4b"}) as resp:
