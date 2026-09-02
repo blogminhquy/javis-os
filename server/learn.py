@@ -48,6 +48,18 @@ def _today() -> str:
     return _now_vn().strftime("%Y-%m-%d")
 
 
+# Dấu thời gian ở đầu mỗi mục nhật ký học: "## [2026-08-31 06:13] learn — ...". Đọc ra để SẮP,
+# nên mục nào không đọc được phải rơi xuống ĐÁY (chuỗi rỗng nhỏ hơn mọi dấu thời gian thật)
+# chứ không nhảy lên đầu - một mục hỏng định dạng mà chiếm chỗ mới nhất là đúng thứ người dùng
+# đang cần tránh.
+_MOC_LOG = re.compile(r"^## \[([\d]{4}-[\d]{2}-[\d]{2}[ T][\d]{2}:[\d]{2})")
+
+
+def _moc_log(chunk: str) -> str:
+    m = _MOC_LOG.match(chunk or "")
+    return m.group(1).replace("T", " ") if m else ""
+
+
 def _slugify(text: str) -> str:
     t = (text or "").strip().lower()
     t = re.sub(r"[^\w\s-]", "", t, flags=re.UNICODE)
@@ -1648,6 +1660,13 @@ class LearnFeature:
                             entries.append(chunk)
                     if len(entries) >= want:
                         break
+            # SẮP THEO DẤU THỜI GIAN, mới nhất trước. Trước bản này chỉ sắp FILE (mỗi ngày một
+            # file) giảm dần rồi giữ nguyên thứ tự bên trong, mà `_log` thì ghi nối đuôi - nên
+            # trong một ngày lại hoá cũ trước. Người dùng báo 02/09: một ngày học 100-200 mục,
+            # dashboard chia 10 mục/trang, mục mới nhất nằm đâu đó giữa hai chục trang. Sắp
+            # theo dấu thời gian thật thay vì tin vào thứ tự file cũng tự chữa luôn ca ghi
+            # lệch giờ hay file bị sửa tay.
+            entries.sort(key=_moc_log, reverse=True)
             return {"entries": entries[:want], "running": self.lock.locked()}
 
         @router.get("/learn/metrics")
