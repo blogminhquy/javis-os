@@ -73,11 +73,26 @@ check("và nói rõ cài vào container thì mất sạch khi cập nhật",
 // Ollama mặc định chỉ nghe 127.0.0.1 - container không bao giờ với tới.
 check("có bước cho Ollama nghe ra ngoài loopback",
   /OLLAMA_HOST=0\.0\.0\.0/.test(OL) && !!VI["ol.dk_b3"]);
-// Không ai đoán được địa chỉ cầu nối Docker.
-check("gợi ý sẵn địa chỉ cầu nối Docker, không phải localhost",
-  /OL_DIA_CHI_DOCKER = "http:\/\/172\.17\.0\.1:11434"/.test(OL));
-check("và ô nhập dùng nó làm gợi ý khi chạy Docker",
-  /esc\(xa \? OL_DIA_CHI_DOCKER :/.test(OL));
+// Không ai đoán được địa chỉ cầu nối Docker, mà bản cũ lại ĐOÁN HỘ SAI: hằng
+// OL_DIA_CHI_DOCKER viết cứng 172.17.0.1, tức cổng của mạng bridge MẶC ĐỊNH (docker0). Javis
+// cài bằng docker-compose thì nằm trên mạng riêng của project, dải cấp từ 172.18.0.0/16 trở
+// đi, nên người dùng điền y như hướng dẫn vẫn không nối được. Server phải DÒ cổng thật.
+// Soi phần MÃ THẬT: dòng chú thích vẫn được nhắc lại con số cũ để giải thích vì sao nó sai,
+// nhưng nhắc trong chú thích thì không ai điền nhầm được.
+const OL_MA = OL.replace(/^\s*\/\/.*$/gm, "");
+check("không còn đoán bừa địa chỉ cầu nối bằng số viết cứng",
+  !/OL_DIA_CHI_DOCKER\s*=/.test(OL_MA) && !/172\.17\.0\.1/.test(OL_MA));
+check("địa chỉ lấy từ server (goi_y_endpoint) chứ không tự chế ở giao diện",
+  /st\.goi_y_endpoint/.test(OL));
+// 02/09: chủ repo thấy câu "điền địa chỉ này" mà không biết địa chỉ nào - vì nó nằm trong chữ
+// xám placeholder, trông như gợi ý chứ không như giá trị, lại bị ô hẹp cắt cụt giữa chừng.
+check("và điền THẲNG vào ô nhập, không để trong chữ xám",
+  /st\.goi_y_endpoint \? ' value="' \+ esc\(st\.goi_y_endpoint\)/.test(OL));
+check("câu hướng dẫn nói là đã điền sẵn, không bắt người dùng tự tìm",
+  /điền sẵn/.test(VI["ol.dk_b4"] || ""));
+// Dò hụt (mạng Docker lạ, --network=host) mà để ô trống và im lặng là ngõ cụt.
+check("dò không ra thì nói thẳng và đưa đúng một lệnh tự tìm",
+  /ol\.dk_khong_do_duoc/.test(OL) && /ip route/.test(OL) && !!VI["ol.dk_khong_do_duoc"]);
 // Bảo người ta mở 0.0.0.0 mà không nói nó nghe cả từ Internet, và KHÔNG có mật khẩu, là đẩy
 // họ vào chỗ hở một máy chủ model công khai.
 check("cảnh báo bảo mật khi mở 0.0.0.0, kèm lệnh tường lửa cụ thể",

@@ -201,6 +201,37 @@ check("và gợi ý lúc đó nói rõ là đang đoán ở mức an toàn",
       all("chưa đọc được" in (m.get("note") or "").lower() for m in _goi_y_khi_hut),
       [m.get("note") for m in _goi_y_khi_hut[:2]])
 
+# ---- 5c. Địa chỉ máy chủ nhìn từ trong Docker: DÒ chứ không đoán --------------
+# 172.17.0.1 là cổng của mạng bridge MẶC ĐỊNH, chỉ đúng với `docker run` trần. Javis cài bằng
+# docker-compose thì nằm trên mạng RIÊNG của project (dải cấp phát từ 172.18.0.0/16 trở đi vì
+# 172.17 đã bị docker0 chiếm). Nên con số viết cứng đó SAI với gần như mọi bản cài theo đúng
+# hướng dẫn - người dùng điền y như bảo mà vẫn không nối được.
+import deploy_info  # noqa: E402
+import re as _re  # noqa: E402
+# Soi phần MÃ THẬT: chú thích vẫn được nhắc con số cũ để giải thích vì sao nó sai, nhưng
+# nhắc trong chú thích thì không ai điền nhầm được.
+_ma_js = _re.sub(r"^\s*//.*$", "", (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8"),
+                 flags=_re.M)
+check("CANARY: không còn viết cứng 172.17.0.1 ở giao diện", "172.17.0.1" not in _ma_js)
+check("không chạy Docker thì không có cổng cầu nối", deploy_info.docker_gateway() == "")
+with _mock.patch.object(deploy_info, "deploy_mode", lambda: "docker"):
+    _cong = deploy_info.docker_gateway()
+check("trong Docker thì dò được cổng thật từ bảng định tuyến",
+      _cong.count(".") == 3 and _cong != "0.0.0.0", _cong)
+# Địa chỉ phải ĐIỀN SẴN vào ô, không nằm trong placeholder xám: chủ repo báo 02/09 là thấy
+# chữ "điền địa chỉ này" mà không biết địa chỉ nào - vì chữ xám trông như gợi ý, lại bị ô hẹp
+# cắt cụt giữa chừng.
+_js = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+check("địa chỉ dò được điền THẲNG vào ô nhập",
+      'st.goi_y_endpoint ? \' value="\' + esc(st.goi_y_endpoint)' in _js)
+# Dò hụt mà để ô trống, im lặng, là đẩy người dùng vào ngõ cụt.
+check("dò không ra thì nói thẳng và đưa lệnh tự tìm", "ol.dk_khong_do_duoc" in _js)
+_vi = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+check("câu hướng dẫn nói là đã điền sẵn, không bắt người dùng tự tìm địa chỉ",
+      "điền sẵn" in _vi.get("ol.dk_b4", ""), _vi.get("ol.dk_b4"))
+check("ví dụ tường lửa không viết cứng dải mạng sai nữa",
+      "172.17.0.0/16" not in _vi.get("ol.dk_canh_bao", ""))
+
 # ---- 6. Tìm kiếm + danh mục nền ----------------------------------------------
 r = c.get("/ollama-local/search", params={"q": "coder"}).json()
 check("tìm theo tên chạy", any("coder" in m["name"] for m in r["models"]))

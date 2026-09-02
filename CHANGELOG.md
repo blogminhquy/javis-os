@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.3] - 2026-09-02
+### Sửa lỗi
+- **Địa chỉ nối tới Ollama nay Javis tự tìm và điền sẵn cho bạn**, chỉ việc bấm Kết nối. Bản trước ghi "điền địa chỉ này" nhưng lại để địa chỉ dưới dạng chữ mờ trong ô nhập, còn bị cắt cụt nên không đọc hết được.
+- **Và địa chỉ đó trước đây sai.** Javis ghi cứng `172.17.0.1`, vốn chỉ đúng với một kiểu cài Docker khác; bản cài theo hướng dẫn của Javis nằm ở mạng khác nên điền y như hướng dẫn vẫn không nối được. Nay Javis đọc địa chỉ thật của máy chủ. Tìm không ra thì nói thẳng và đưa lệnh để bạn tự lấy.
+
 ## [0.55.2] - 2026-09-02
 ### Sửa lỗi
 - **Nhật ký học nay xếp mới nhất lên đầu.** Trước đây trong cùng một ngày nó lại xếp cũ trước, nên với brain học 100-200 mục mỗi ngày thì mục vừa học xong nằm lẫn đâu đó giữa hai chục trang - đúng thứ bạn mở nhật ký ra để tìm.

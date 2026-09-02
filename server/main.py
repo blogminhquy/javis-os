@@ -10880,8 +10880,18 @@ def _ol_specs_hien_dung(endpoint: str) -> dict:
 @app.get("/ollama-local/status")
 async def ollama_local_status():
     ep, key = _ol_cfg()
+    # Địa chỉ GỢI Ý phải là địa chỉ THẬT của máy này, không phải một ví dụ chung chung:
+    #   - chạy thẳng trên máy   -> chính nó, 127.0.0.1
+    #   - chạy trong Docker     -> cổng bridge DÒ ĐƯỢC (xem deploy_info.docker_gateway; viết
+    #                              cứng 172.17.0.1 là sai với gần như mọi bản cài bằng compose)
+    # Dò không ra thì trả rỗng để giao diện biết mà hỏi người dùng, thay vì điền sẵn một địa
+    # chỉ sai rồi để họ bấm Kết nối và nhận lỗi không hiểu vì sao.
+    cong = deploy_info.docker_gateway()
+    goi_y = (f"http://{cong}:{ollama_local.CONG_MAC_DINH}" if cong
+             else (ollama_local.GOI_Y_ENDPOINT if _deploy_mode() != "docker" else ""))
     ra = {"endpoint": ep, "deploy_mode": _deploy_mode(), "host_platform": _host_platform(),
-          "same_host": ollama_local.same_host(ep), "goi_y_endpoint": ollama_local.GOI_Y_ENDPOINT,
+          "same_host": ollama_local.same_host(ep), "goi_y_endpoint": goi_y,
+          "docker_gateway": cong,
           "reachable": False, "error": None, "installed_count": 0}
     if not ep:
         return ra
