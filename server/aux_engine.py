@@ -486,6 +486,13 @@ class _FallbackChain:
                     # Please run /login" chứ không phải error - nuốt nó lại và coi là mắt
                     # chết, kẻo chuỗi dự phòng tưởng thành công rồi dừng (xem chú thích
                     # ở _AUTH_FINAL_PATTERNS).
+                    # Cuộc đua làm mới token Claude: phiên KHÔNG mất, nhưng lượt này hỏng và
+                    # việc nền không tự gửi lại được -> vẫn phải nhảy sang mắt kế tiếp. Đọc CỜ
+                    # chứ không khớp chữ: câu người đọc đã được viết lại cho dễ hiểu.
+                    if t == "final" and ev.get("dua_token"):
+                        got_error = (f"{self._name(e)} trùng lúc làm mới phiên đăng nhập "
+                                     "(hai lượt cùng dùng một tài khoản)")
+                        break
                     if t == "final" and final_loi_dang_nhap(ev.get("content")):
                         got_error = (f"{self._name(e)} mất đăng nhập: "
                                      + (ev.get("content") or "").strip()[:200])
