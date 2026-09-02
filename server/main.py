@@ -11035,12 +11035,19 @@ async def ollama_local_installed():
     if not p["reachable"]:
         return {"ok": False, "models": [], "error": p["error"]}
     dang_nap = {(m.get("name") or "") for m in await ollama_local.running_models(ep, key)}
+    ten_ds = [(m.get("name") or m.get("model") or "") for m in p["models"]]
+    # Hỏi SONG SONG: `/api/show` là một lượt gọi cho mỗi model, xếp hàng thì màn hình đứng
+    # bằng đúng số model nhân thời gian mạng. Hỏng thì trả [] và chat_duoc lui về đoán tên.
+    kn_ds = await asyncio.gather(*[ollama_local.kha_nang(ep, t, key) for t in ten_ds],
+                                 return_exceptions=True)
     ra = []
-    for m in p["models"]:
-        ten = m.get("name") or m.get("model") or ""
+    for m, ten, kn in zip(p["models"], ten_ds, kn_ds):
+        kn = kn if isinstance(kn, list) else []
         ra.append({"name": ten,
                    "size_gb": round(float(m.get("size") or 0) / (1024 ** 3), 1),
                    "modified_at": m.get("modified_at") or "",
+                   # Chốt Ở SERVER: nơi này biết Ollama trả lời gì, giao diện thì không.
+                   "chat_duoc": ollama_local.chat_duoc(ten, kn),
                    "loaded": ten in dang_nap})
     ra.sort(key=lambda x: x["name"])
     return {"ok": True, "models": ra}

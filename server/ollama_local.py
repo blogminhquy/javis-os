@@ -22,6 +22,7 @@ không có quyền, và cũng không có đường, chạy một lệnh cài tr�
 from __future__ import annotations
 
 import ipaddress
+import re
 import json
 import os
 import shutil
@@ -188,6 +189,43 @@ async def running_models(endpoint: str, key: str | None = None) -> list:
         return (r.json() or {}).get("models") or [] if r.status_code == 200 else []
     except Exception:
         return []
+
+
+# Model không chat được thì không được mời đặt làm Main Model. Đoán qua TÊN bắt được
+# `embeddinggemma`, `nomic-embed-text`, `mxbai-embed-large`, nhưng TRƯỢT đúng những cái phổ
+# biến không có chữ "embed": `all-minilm`, `bge-m3`, `paraphrase-multilingual`. Đặt nhầm một
+# trong số đó làm model chính thì mọi lượt chat chết bằng một câu lỗi khó hiểu.
+_MAU_EMBED = re.compile(r"embed|all-minilm|bge-|gte-|paraphrase-", re.I)
+
+
+async def kha_nang(endpoint: str, model: str, key: str | None = None) -> list:
+    """`capabilities` của một model (`POST /api/show`). [] = không hỏi được / bản Ollama cũ.
+
+    Ollama mới trả ví dụ ["completion", "tools"] hoặc ["embedding"]. Đây là câu trả lời của
+    CHÍNH máy chạy model, nên nó thắng mọi phép đoán qua tên.
+    """
+    try:
+        ep = chuan_hoa_endpoint(endpoint)
+        async with httpx.AsyncClient(timeout=TIMEOUT_DO) as cli:
+            r = await cli.post(ep + "/api/show", headers=_headers(key),
+                               json={"model": model, "name": model})
+        if r.status_code != 200:
+            return []
+        kn = (r.json() or {}).get("capabilities")
+        return [str(x).lower() for x in kn] if isinstance(kn, list) else []
+    except Exception:
+        return []
+
+
+def chat_duoc(model: str, kha_nang_list=None) -> bool:
+    """Model này có dùng làm model chính (chat) được không.
+
+    Ưu tiên câu trả lời của Ollama; KHÔNG hỏi được thì mới lui về đoán qua tên. Thứ tự đó là
+    cố ý: đoán qua tên sai cả hai chiều, còn capabilities thì đúng theo định nghĩa.
+    """
+    if kha_nang_list:
+        return "embedding" not in kha_nang_list
+    return not _MAU_EMBED.search(model or "")
 
 
 async def delete_model(endpoint: str, model: str, key: str | None = None) -> dict:

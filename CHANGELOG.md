@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.8] - 2026-09-02
+### Sửa lỗi
+- **Model không dùng để chat được nay nói rõ vì sao.** Model embedding (như `embeddinggemma`) chỉ sinh vector cho tìm kiếm chứ không trả lời được, nên nó không có nút đặt làm model chính. Trước đây Javis chỉ lặng lẽ bỏ nút đi, không giải thích gì, nên bạn chỉ thấy "cài 2 model mà dùng được 1".
+- **Và Javis hỏi thẳng Ollama xem model nào chat được**, thay vì đoán qua tên. Ba model embedding phổ biến là `all-minilm`, `bge-m3` và `paraphrase-multilingual` đều không có chữ "embed" trong tên, nên trước đây Javis vẫn mời bạn đặt chúng làm model chính rồi mọi lượt chat mới chết.
+
 ## [0.55.7] - 2026-09-02
 ### Sửa lỗi
 - **Đã nối Ollama mà ô chọn model vẫn báo "chưa kết nối hoặc không có model".** Tab Local liệt kê đủ model nhưng ô chọn model chính không hề hỏi Ollama, nên luôn trống. Nay nó lấy đúng danh sách đang cài (bỏ model embedding vì không chat được), và nhà Ollama chỉ hiện "đã kết nối" khi bạn đã đặt địa chỉ thật.

@@ -1038,6 +1038,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ol-row-ico { flex: none; display: inline-flex; color: var(--text3); }
 .ol-row-name { display: block; font-weight: 600; font-size: 13.5px; }
 .ol-row-meta { display: block; font-size: 11.5px; color: var(--text3); margin-top: 2px; }
+/* Lý do một model không có nút "đặt làm model chính". Nằm ĐÚNG chỗ cái nút lẽ ra đứng, để
+   người đọc nối được hai thứ với nhau mà không phải suy luận. */
+.ol-row-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+  color: var(--text3); max-width: 60%; text-align: left; line-height: 1.35; }
+.ol-row-note svg { flex: none; }
 .ol-badge { margin-left: 7px; font-size: 10.5px; padding: 1px 7px; border-radius: 20px;
   background: var(--ok-wash); border: 1px solid var(--ok-line); color: var(--green);
   font-weight: 600; }

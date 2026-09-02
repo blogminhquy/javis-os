@@ -3229,8 +3229,12 @@
     let main = {};
     try { main = ((await freshSettings()).model || {}).main || {}; } catch (e) {}
     const laChinh = (ten) => main.provider === "ollama-local" && main.model === ten;
-    // Model embedding không chat được nên không có nút đặt làm model chính.
-    const chatDuoc = (ten) => !/embed/i.test(ten || "");
+    // Model embedding sinh vector cho tìm kiếm, KHÔNG sinh được câu trả lời, nên không có nút
+    // đặt làm model chính. Câu trả lời đến từ SERVER (nó hỏi thẳng Ollama qua /api/show);
+    // phép thử theo tên dưới đây chỉ là lưới đỡ khi server cũ chưa trả trường đó, và nó sai
+    // cả hai chiều - `all-minilm`, `bge-m3` là model embedding mà tên không có chữ "embed".
+    const chatDuoc = (m) => (m && typeof m.chat_duoc === "boolean")
+      ? m.chat_duoc : !/embed/i.test((m && m.name) || "");
     host.innerHTML = '<h3 class="ol-h">' + ic("database") + " " + esc(t("ol.inst_title")) +
       '<span class="ol-h-sub">' + ds.length + "</span></h3>" +
       (vuaDat ? '<div class="ol-hint ol-ok">' + esc(t("ol.set_main_ok", { ten: vuaDat })) + "</div>" : "") +
@@ -3241,10 +3245,13 @@
               (laChinh(m.name) ? '<span class="ol-badge ol-badge-main">' + esc(t("ol.is_main")) + "</span>" : "") +
               (m.loaded ? '<span class="ol-badge">' + esc(t("ol.loaded")) + "</span>" : "") + "</span>" +
               '<span class="ol-row-meta">' + olGb(m.size_gb) + "</span></span>" +
-            (chatDuoc(m.name) && !laChinh(m.name)
-              ? '<button class="gcard-btn primary ol-main" type="button" data-model="' + esc(m.name) + '">' +
-                  ic("star") + " " + esc(t("ol.use_main")) + "</button>"
-              : "") +
+            // 02/09: chủ repo hỏi "sao có 2 model mà chỉ 1 dùng được". Bản cũ chỉ LẶNG LẼ
+            // bỏ nút đi, nên không có cách nào biết vì sao ngoài việc đi hỏi. Nói ra.
+            (!chatDuoc(m)
+              ? '<span class="ol-row-note">' + ic("info") + " " + esc(t("ol.embed_note")) + "</span>"
+              : (laChinh(m.name) ? ""
+                 : '<button class="gcard-btn primary ol-main" type="button" data-model="' + esc(m.name) + '">' +
+                     ic("star") + " " + esc(t("ol.use_main")) + "</button>")) +
             '<button class="gcard-btn ol-go" type="button" data-model="' + esc(m.name) + '">' +
               ic("trash-2") + " " + esc(t("ol.remove")) + "</button>" +
           "</div>").join("") + "</div>"
