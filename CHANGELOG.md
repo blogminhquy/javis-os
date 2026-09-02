@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.2] - 2026-09-02
+### Sửa lỗi
+- **Nhật ký học nay xếp mới nhất lên đầu.** Trước đây trong cùng một ngày nó lại xếp cũ trước, nên với brain học 100-200 mục mỗi ngày thì mục vừa học xong nằm lẫn đâu đó giữa hai chục trang - đúng thứ bạn mở nhật ký ra để tìm.
+- **Thẻ Grok Build trên trang Models không còn báo lỗi đỏ** `unsupported tool prefix: NotebookEdit`. Javis đang gửi cho Grok một tên công cụ của Claude Code, thứ Grok không có; chat vẫn chạy bình thường nên lỗi này chỉ làm bạn lo chứ không hỏng gì.
+
 ## [0.55.1] - 2026-09-02
 ### Sửa lỗi
 - **Hướng dẫn cài Ollama cho bản chạy Docker nay nói đủ ba bước.** Bản trước chỉ bảo "cài trên máy thật rồi điền địa chỉ", thiếu mất hai chỗ mà không có thì chắc chắn không nối được: Ollama mặc định chỉ nghe trong máy nên container của Javis không với tới, và không ai đoán được phải điền địa chỉ nào. Nay có sẵn lệnh cho từng bước và ô địa chỉ gợi ý đúng.

@@ -88,9 +88,21 @@ LENH_CAI = "curl -fsSL https://x.ai/cli/install.sh | bash"
 LENH_CAI_WIN = "irm https://x.ai/cli/install.ps1 | iex"
 
 # Mức quyền Javis -> luật chặn của Grok. Xem `permission_cho_mode`.
+#
+# TÊN TOOL Ở ĐÂY PHẢI LÀ TOOL CỦA GROK, KHÔNG PHẢI CỦA CLAUDE CODE. Bản trước chép nguyên
+# danh sách của Claude vào đây, kèm `NotebookEdit(*)` - một tool Grok không có. Grok CLI không
+# bỏ qua tên lạ mà TỪ CHỐI cả lượt gọi: "unsupported tool prefix: NotebookEdit".
+#
+# Hậu quả lắt léo đúng kiểu khó truy: chat THẬT của người dùng chạy ở mức full, mà mức full
+# không truyền cờ --deny nào, nên chat vẫn chạy ngon. Chỉ lượt chat thử của thẻ Models là
+# chạy ở mức suggest - tức lượt DUY NHẤT đụng vào danh sách này - nên thẻ đỏ lè trong khi mọi
+# thứ khác bình thường. Người dùng báo 02/09: "vẫn chạy ào ào mà tại hiện lỗi đó tí".
+#
+# Bỏ NotebookEdit KHÔNG nới lỏng gì: Grok không có tool sửa notebook thì cũng chẳng có gì để
+# chặn. Thêm tên mới vào đây phải kiểm là Grok thật sự có tool đó (test_grok_cli canh).
 _LUAT_CHAN = {
     # suggest: CHỈ ĐỌC. Chặn cả ghi file lẫn lệnh máy.
-    "suggest": ("Write(*)", "Edit(*)", "Bash(*)", "NotebookEdit(*)"),
+    "suggest": ("Write(*)", "Edit(*)", "Bash(*)"),
     # auto: ghi file nháp được, KHÔNG chạy lệnh máy.
     "auto": ("Bash(*)",),
     # full: không chặn gì ở tầng CLI.

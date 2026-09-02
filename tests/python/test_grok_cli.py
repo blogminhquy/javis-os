@@ -860,6 +860,26 @@ check("CANARY: Gemini CLI đã gỡ khỏi system prompt (đường đó đã ch
       "Gemini CLI was removed" in _CLAUDEMD)
 
 
+# ── Luật chặn phải dùng tên tool CỦA GROK ─────────────────────────────────────
+# Người dùng báo 02/09: thẻ Grok trên trang Models đỏ với
+#   Error: --deny "NotebookEdit(*)": unsupported tool prefix: NotebookEdit
+# trong khi chat vẫn chạy bình thường. Nguyên nhân: danh sách chặn chép nguyên của Claude
+# Code, kèm NotebookEdit - tool Grok không có. Grok CLI không bỏ qua tên lạ mà TỪ CHỐI cả
+# lượt gọi. Chat thật chạy mức full (không truyền --deny) nên không dính; chỉ lượt chat thử
+# của thẻ Models chạy mức suggest, tức lượt DUY NHẤT đụng danh sách này.
+_TOOL_GROK_CO = {"Write", "Edit", "Bash", "Read", "Glob", "Grep", "WebFetch", "WebSearch", "Task"}
+_ten_chan = {r.split("(")[0] for bo in grok_cli._LUAT_CHAN.values() for r in bo}
+check("CANARY: luật chặn chỉ dùng tên tool GROK thật sự có "
+      "(tên lạ làm Grok từ chối cả lượt gọi, không phải bỏ qua)",
+      _ten_chan <= _TOOL_GROK_CO, sorted(_ten_chan - _TOOL_GROK_CO))
+check("NotebookEdit (tool của Claude Code) đã gỡ khỏi luật chặn của Grok",
+      "NotebookEdit" not in str(grok_cli._LUAT_CHAN))
+# Gỡ NotebookEdit không được phép nới lỏng mức suggest: nó vẫn phải chặn ghi file và lệnh máy.
+check("mức suggest vẫn chặn đủ ghi file và chạy lệnh",
+      {"Write", "Edit", "Bash"} <= {r.split("(")[0] for r in grok_cli._LUAT_CHAN["suggest"]})
+check("mức full vẫn không chặn gì", grok_cli._LUAT_CHAN["full"] == ())
+
+
 print()
 if _fails:
     print(f"ĐỎ {len(_fails)} mục: " + "; ".join(_fails))
