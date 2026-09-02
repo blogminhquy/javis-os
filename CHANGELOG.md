@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.9] - 2026-09-02
+### Sửa lỗi
+- **Màn tạo tài khoản lần đầu nay chỉ thẳng vào ô đang trống.** Ô Mã thiết lập nằm ở giữa trang còn nút bấm ở cuối, nên bỏ trống rồi bấm thì bạn chỉ thấy một dòng đỏ ở đáy mà không biết ô nào thiếu. Giờ màn hình tự cuộn tới đúng ô đó và đặt con trỏ vào.
+- **Dán nhầm cả dòng log vẫn vào được.** Mã in ra log nằm cùng dòng với chữ `SETUP TOKEN:`, bôi đen một dòng là dính cả nhãn, và trước đây Javis báo sai mã. Nay Javis tự gọt nhãn, dấu nháy và khoảng trắng thừa.
+
 ## [0.55.8] - 2026-09-02
 ### Sửa lỗi
 - **Model không dùng để chat được nay nói rõ vì sao.** Model embedding (như `embeddinggemma`) chỉ sinh vector cho tìm kiếm chứ không trả lời được, nên nó không có nút đặt làm model chính. Trước đây Javis chỉ lặng lẽ bỏ nút đi, không giải thích gì, nên bạn chỉ thấy "cài 2 model mà dùng được 1".
