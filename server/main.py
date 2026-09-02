@@ -5298,19 +5298,47 @@ async def files_rename(brain: str = Form("brain"), path: str = Form(...), newnam
     return {"ok": True}
 
 
+# Tên LOGIC của thư mục -> (regex nhận diện, tên tạo mới nếu chưa có). Có bảng này để client
+# KHÔNG phải đoán tên thật: brain đặt "05 - Attachments" mà frontend gửi chuỗi cứng
+# "attachments" thì server đẻ ra một thư mục thứ hai, và file đi lạc khỏi chỗ người dùng nhìn.
+_THU_MUC_LOGIC = {
+    "sources": (r"^(\d+\s*[-_.]\s*)?sources$", "Sources"),
+    "attachments": (r"^(\d+\s*[-_.]\s*)?attachments$", "Attachments"),
+}
+
+
 @app.post("/files/upload")
-async def files_upload(file: UploadFile = File(...), brain: str = Form("brain"), path: str = Form("")):
-    try:
-        d = _safe_path(brain, path)
-    except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+async def files_upload(file: UploadFile = File(...), brain: str = Form("brain"),
+                       path: str = Form(""), folder: str = Form("")):
+    """Tải file vào brain. Đưa `folder` (tên logic) thì server tự tìm đúng thư mục thật;
+    không thì dùng `path` như cũ (tương đối TRẦN duyệt)."""
+    if folder:
+        mau = _THU_MUC_LOGIC.get(folder.strip().lower())
+        if not mau:
+            return JSONResponse({"error": "Thư mục không hợp lệ"}, status_code=400)
+        d = Path(_resolve_subfolder(_brain_root(brain), *mau))
+        try:
+            # Client lưu và mở file bằng đường dẫn tương đối TRẦN duyệt, nên phải quy về đó -
+            # trả đường tuyệt đối là đẩy một đường dẫn máy chủ vào cơ sở dữ liệu project.
+            rel_dir = d.relative_to(_files_root(brain)).as_posix()
+        except ValueError:
+            return JSONResponse({"error": "Thư mục nằm ngoài phạm vi duyệt"}, status_code=400)
+    else:
+        try:
+            d = _safe_path(brain, path)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        rel_dir = (path or "").strip().replace("\\", "/").strip("/")
     d.mkdir(parents=True, exist_ok=True)
     dest = _unique_path(str(d), _sanitize_filename(file.filename))
     try:
         await _save_upload_stream(file, dest)
     except Exception as e:
         return JSONResponse({"error": f"Ghi file thất bại: {e}"}, status_code=500)
-    return {"ok": True, "name": os.path.basename(dest)}
+    ten = os.path.basename(dest)
+    # Trả luôn đường dẫn ĐÃ DÙNG: caller khỏi phải ghép lại và khỏi đoán sai tên thư mục.
+    return {"ok": True, "name": ten, "dir": rel_dir,
+            "path": (rel_dir + "/" + ten) if rel_dir else ten}
 
 
 @app.get("/files/download")
@@ -8171,9 +8199,22 @@ async def _start_scheduler():
                             # người dùng muốn GIỮ; dọn xong lệnh xoá lan sang mọi máy qua
                             # sync). inbox vẫn dọn - nó không bao giờ được sync.
                             _giu_anh = bool((_scfg.get("backup", {}) or {}).get("sync_images"))
+                            # Tài liệu đang gắn vào một project KHÔNG được dọn theo tuổi: người
+                            # dùng gắn nó vào để dùng lâu dài, xoá đi là để lại một hàng trong
+                            # khung Project trỏ vào hư không. Đường dẫn lưu ở dạng tương đối
+                            # nên ghép với CẢ trần duyệt lẫn gốc brain - thừa một ứng viên
+                            # không tồn tại thì vô hại, thiếu một cái là mất file thật.
+                            try:
+                                _rel_proj = get_store().all_project_file_paths()
+                            except Exception:
+                                _rel_proj = set()
                             for _mb in loop_feature.scheduler_brains():
+                                _giu_file = set()
+                                for _r in _rel_proj:
+                                    for _goc in (str(_files_root(_mb)), _brain_root(_mb)):
+                                        _giu_file.add(os.path.join(_goc, _r.replace("\\", "/")))
                                 kq = await asyncio.to_thread(media_gc.sweep, _mb, tuoi, tran,
-                                                             None, not _giu_anh)
+                                                             None, not _giu_anh, _giu_file)
                                 if kq.get("files"):
                                     print(f"[media gc] {_mb}: dọn {kq['files']} tệp, "
                                           f"{kq['bytes'] // (1024 * 1024)}MB")

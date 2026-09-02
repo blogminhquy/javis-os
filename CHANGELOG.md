@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.6] - 2026-09-02
+### Sửa lỗi
+- **Tài liệu bạn tải lên trong khung Project nay lưu vào Sources, không còn vào Attachments.** Attachments là vùng tạm bị dọn theo tuổi (mặc định 30 ngày) và theo dung lượng, nên tài liệu của project để ở đó là sẽ mất. Sources thì giữ lâu dài.
+- **Và file đã gắn vào project thì không bao giờ bị dọn nữa**, kể cả file cũ đang nằm trong Attachments. Trước đây dọn xong là project còn lại một dòng trỏ vào file không còn tồn tại.
+- Javis tự tìm đúng thư mục Sources của brain (kể cả khi bạn đặt tên `01 - Sources`) thay vì đoán, nên file không còn lạc vào một thư mục thứ hai trùng tên.
+
 ## [0.55.5] - 2026-09-02
 ### Sửa lỗi
 - **Điền địa chỉ Ollama mà quên cổng thì Javis tự thêm `11434`.** Trước đây gõ mỗi địa chỉ máy chủ là Javis hiểu thành cổng 80, đi trúng trang web của chính máy đó rồi báo "Máy chủ trả lỗi 301" - một con số không nói lên điều gì và không có đường nào lần ra.

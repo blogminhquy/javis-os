@@ -202,6 +202,28 @@ if git_brain.has_git():
 else:
     print("BỎ QUA test git: máy không có git trong PATH")
 
+# ── Tài liệu gắn vào project không bao giờ bị dọn (chủ repo báo 02/09) ────────────────
+# Vùng cache "cái gì cũng biến mất được" chỉ đúng khi KHÔNG AI trỏ vào nó. Một file gắn vào
+# project thì có người trỏ: xoá đi là để lại một hàng trong khung Project dẫn tới hư không.
+_cu = [("/b/attachments/bao-cao.pdf", 1 * MB, NOW - 90 * DAY),
+       ("/b/attachments/anh-cu.jpg", 1 * MB, NOW - 90 * DAY)]
+check("chưa giữ gì thì cả hai file quá hạn đều bị dọn",
+      set(media_gc.plan_deletions(_cu, NOW, 30, 0)) == {"/b/attachments/bao-cao.pdf",
+                                                        "/b/attachments/anh-cu.jpg"})
+check("file đang gắn vào project thì KHÔNG bị dọn dù quá hạn 90 ngày",
+      media_gc.plan_deletions(_cu, NOW, 30, 0, giu_path={"/b/attachments/bao-cao.pdf"})
+      == ["/b/attachments/anh-cu.jpg"])
+# Trần dung lượng là đường xoá THỨ HAI, độc lập với luật tuổi. Vá mỗi luật tuổi mà quên trần
+# thì file vẫn mất, chỉ là mất lúc brain đầy chứ không phải lúc đủ 30 ngày - khó thấy hơn.
+_moi = [("/b/attachments/bao-cao.pdf", 10 * MB, NOW - 1 * DAY),
+        ("/b/attachments/anh-moi.jpg", 10 * MB, NOW - 2 * DAY)]
+check("CANARY: trần dung lượng cũng phải chừa file của project",
+      media_gc.plan_deletions(_moi, NOW, 0, 1, giu_path={"/b/attachments/bao-cao.pdf"})
+      == ["/b/attachments/anh-moi.jpg"])
+check("giu_path rỗng thì hành vi y như cũ",
+      media_gc.plan_deletions(_cu, NOW, 30, 0, giu_path=set())
+      == media_gc.plan_deletions(_cu, NOW, 30, 0))
+
 print()
 if _fails:
     print(f"{len(_fails)} test ĐỎ: " + ", ".join(_fails))

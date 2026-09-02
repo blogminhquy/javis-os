@@ -143,8 +143,57 @@ check("CANARY: route thêm file lấy brain từ PROJECT, không nhận từ cli
       'p.get("brain")' in _them and "brain: str = Form" not in _them, _them[:200])
 check("CANARY: và kiểm đường dẫn bằng _safe_path trước khi ghi kho",
       "_safe_path(" in _them, _them[:200])
+# ── Tài liệu tải lên phải nằm chỗ BỀN, không phải vùng cache (chủ repo báo 02/09) ─────
+# attachments/ bị media_gc dọn theo tuổi (mặc định 30 ngày) và theo trần dung lượng. Tài liệu
+# của project thì người dùng gắn vào để dùng lâu dài, nên phải đi vào Sources.
+_ui = (ROOT / "dashboard" / "sessions-ui.js").read_text(encoding="utf-8")
+_tai = _ui.split("async function taiLen", 1)[1].split("\n  async function", 1)[0]
+check("CANARY: tải file của project vào sources, KHÔNG phải attachments",
+      '"folder", "sources"' in _tai and "attachments" not in _tai, _tai[:300])
+# Tên thư mục thật do SERVER tìm: brain có thể đặt "01 - Sources", và trần duyệt có thể cao
+# hơn gốc brain. Đoán bằng chuỗi cứng ở frontend là đẻ ra thư mục thứ hai, file đi lạc.
+check("CANARY: không đoán tên thư mục ở frontend, dùng đường dẫn server trả về",
+      "up.path" in _tai and "homeCuaBrain" not in _ui, _tai[:300])
+_up = _main.split("async def files_upload", 1)[1].split("\n@app.", 1)[0]
+check("route upload nhận tên thư mục LOGIC và tự tìm thư mục thật",
+      "_THU_MUC_LOGIC" in _up and "_resolve_subfolder" in _up, _up[:300])
+check("và trả về đúng đường dẫn đã dùng để caller khỏi ghép lại",
+      '"path":' in _up and '"dir":' in _up, _up[:300])
+check("tên thư mục lạ bị từ chối, không ghi bừa",
+      "Thư mục không hợp lệ" in _up, _up[:300])
+
+# Lưới an toàn: kể cả file đã lỡ nằm trong attachments từ trước, gắn vào project là không
+# được dọn nữa. Thiếu cái này thì bản vá chỉ cứu file MỚI, còn file cũ vẫn biến mất im lặng.
+check("CANARY: media_gc được truyền danh sách file của project để chừa",
+      "all_project_file_paths" in _main and "giu_path" in (SERVER / "media_gc.py").read_text(encoding="utf-8"))
+_ses = (SERVER / "sessions.py").read_text(encoding="utf-8")
+check("kho trả được mọi đường dẫn file đang gắn vào project",
+      "def all_project_file_paths" in _ses)
+
 _link = _main.split("async def projects_add_link", 1)[1].split("\n@app.", 1)[0]
 check("CANARY: link chỉ nhận http/https", "^https?://" in _link, _link[:200])
+
+# ── Tải thật một lượt, không chỉ soi cấu trúc ────────────────────────────────────────
+# Soi chuỗi chỉ chứng minh code CÓ VIẾT đúng ý; nó không chứng minh file rơi đúng chỗ. Ca dễ
+# sai nhất là brain đặt tên "01 - Sources": đoán bằng chuỗi cứng thì đẻ ra thư mục "sources"
+# thứ hai nằm cạnh, và người dùng mở Sources ra không thấy file mình vừa tải.
+from fastapi.testclient import TestClient  # noqa: E402
+import main as _mainmod  # noqa: E402
+
+_brain = tempfile.mkdtemp(prefix="brain-proj-")
+os.makedirs(os.path.join(_brain, "01 - Sources"), exist_ok=True)
+_c = TestClient(_mainmod.app, base_url="http://127.0.0.1")
+_r = _c.post("/files/upload", data={"brain": _brain, "folder": "sources"},
+             files={"file": ("bao-cao.pdf", b"%PDF-1.4 test", "application/pdf")}).json()
+check("tải lên trả ok kèm đường dẫn đã dùng", _r.get("ok") and _r.get("path"), _r)
+check("CANARY: file rơi vào thư mục Sources CÓ SẴN, không đẻ thư mục thứ hai",
+      sorted(os.listdir(_brain)) == ["01 - Sources"], sorted(os.listdir(_brain)))
+check("và file thật sự nằm trong đó",
+      os.listdir(os.path.join(_brain, "01 - Sources")) == ["bao-cao.pdf"])
+check("đường dẫn trả về trỏ đúng thư mục đó", "01 - Sources/bao-cao.pdf" in _r.get("path", ""))
+_r2 = _c.post("/files/upload", data={"brain": _brain, "folder": "linh-tinh"},
+              files={"file": ("x.txt", b"x", "text/plain")})
+check("tên thư mục lạ bị chặn 400, không ghi bừa vào brain", _r2.status_code == 400, _r2.text)
 
 print()
 if _fails:
