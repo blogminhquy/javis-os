@@ -1265,7 +1265,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
     border: 1px solid var(--border); border-radius: 24px; background: var(--bg2);
     align-items: flex-end;
   }
-  #ttsToggleBar { display: none; }                 /* loa dời vào ngăn kéo */
+  /* Nút loa Ở LẠI thanh nhập trên màn hẹp. Bản 0.48.3 giấu nó "để dời vào ngăn kéo" rồi
+     ngăn kéo cũng bỏ nút loa - điện thoại rốt cuộc không còn chỗ nào bật/tắt giọng (chủ repo
+     báo 02/09). Loa giờ tự đi theo mic, nút này để THẤY trạng thái và bấm ngược khi cần. */
+  .hud-voice .tts-bar-btn { order: 3; width: 34px; height: 34px; border: none; background: transparent; }
+  .hud-voice .tts-bar-btn.muted::after { left: 8px; right: 8px; }
   .hud-voice .attach-btn { order: 1; width: 34px; height: 34px; border: none; background: transparent; }
   .hud-voice .voice-input {
     order: 2; border: none; background: transparent; border-radius: 0;
