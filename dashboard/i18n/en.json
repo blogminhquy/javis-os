@@ -156,8 +156,6 @@
   "mb.no_tools": "No tools called yet",
   "bar.mic": "Click to talk (or hold Space)",
   "bar.attach": "Attach files (images, text, documents) → saved to Sources",
-  "bar.tts_on": "Turn voice on",
-  "bar.tts_off": "Turn voice off",
   "bar.input_ph": "Talk to Javis, type here, or drag/paste files in...",
   "bar.stop": "Stop command / stop reading (Esc)",
   "rail.expand": "Expand sidebar",

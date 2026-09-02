@@ -97,6 +97,11 @@ class JavisVoice {
     this.recognition = new SR();
     this.recognition.lang = this.lang;
     this.recognition.continuous = true;       // nghe liên tục, không dừng giữa câu
+    // iPhone/iPad: WebKit KHÔNG nghe liên tục được. Đặt continuous=true thì nó vào một phiên
+    // "ghi âm" không bao giờ tự kết thúc câu, và onend tự mở lại càng làm nó kéo dài - đúng
+    // cảnh chủ repo tả 02/09 "bật mic nó thành chế độ ghi âm". Trên iOS mỗi lượt nói là một
+    // phiên: nói xong -> gửi -> vòng rảnh tay bên app.js mở lại khi Javis đọc xong.
+    if (this._laIOS()) this.recognition.continuous = false;
     this.recognition.interimResults = true;
     this.recognition.maxAlternatives = 1;
 
@@ -168,8 +173,9 @@ class JavisVoice {
 
     this.recognition.onend = () => {
       this._starting = false;
-      // Nếu user chưa chủ động dừng → tự restart (giữ session sống khi user dừng nghĩ)
-      if (!this.userStopped) {
+      // Nếu user chưa chủ động dừng → tự restart (giữ session sống khi user dừng nghĩ).
+      // iOS không: phiên kết thúc là hết một câu, gửi luôn (xem chú thích ở continuous).
+      if (!this.userStopped && !this._laIOS()) {
         try {
           // Phiên mới thì event.results bắt đầu lại từ trống. Gói phần đã nghe vào
           // _committed trước, không thì onstart xoá trắng và nửa câu đầu biến mất.
@@ -202,6 +208,29 @@ class JavisVoice {
     return (cu + " " + moi).trim();
   }
 
+  _laIOS() {
+    if (this._iosCache === undefined) {
+      const ua = navigator.userAgent || "";
+      this._iosCache = /iP(hone|ad|od)/.test(ua)
+        || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
+    }
+    return this._iosCache;
+  }
+
+  // iOS chỉ cho phát âm thanh do CỬ CHỈ người dùng khởi động, và mỗi `new Audio()` là một
+  // phần tử mới chưa được "mở khoá". Bản cũ tạo Audio mới cho từng đoạn + một Audio preload,
+  // nên trên iPhone đoạn đầu phát được còn các đoạn sau bị chặn hoặc trễ - "đọc ngập ngừng,
+  // ngắt giữa chừng". Chữa: MỘT phần tử Audio dùng lại, mở khoá ngay trong cử chỉ bấm mic
+  // bằng một file WAV im lặng, sau đó chỉ đổi src.
+  _moKhoaAudioIOS() {
+    if (!this._laIOS() || this._iosAudio) return;
+    const a = new Audio();
+    a.setAttribute("playsinline", "");
+    a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+    a.play().catch(() => {});
+    this._iosAudio = a;
+  }
+
   _loadVoices() {
     const load = () => {
       const voices = this.synth.getVoices();
@@ -231,6 +260,7 @@ class JavisVoice {
     // Stop TTS đang đọc nếu user bấm nói
     this.synth.cancel();
     this.stopSpeaking();
+    this._moKhoaAudioIOS(); // iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic
     this._startMicMeter();  // bật đo âm mic cho hiệu ứng phát sáng
     try {
       this._stopPending = false;
@@ -416,6 +446,21 @@ class JavisVoice {
   _playChunk(i, retry) {
     // Hết chunk của đoạn này → chuyển sang đoạn kế trong hàng đợi (không tự dừng).
     if (!this.ttsChunks || i >= this.ttsChunks.length) { this._pumpQueue(); return; }
+    if (this._laIOS()) {
+      // Đường iOS: một phần tử Audio dùng lại, KHÔNG preload, KHÔNG nối qua AudioContext
+      // (createMediaElementSource trên WebKit hay làm câm tiếng khi context chưa chạy).
+      this._moKhoaAudioIOS();
+      const a = this._iosAudio || (this._iosAudio = new Audio());
+      a.onended = null; a.onerror = null;
+      a.src = this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : "");
+      this.currentAudio = a;
+      let done = false;
+      const onFail = () => { if (done) return; done = true; a.onerror = null; this._chunkFailed(i, retry); };
+      a.onended = () => { if (!done) this._playChunk(i + 1); };
+      a.onerror = onFail;
+      a.play().catch(onFail);
+      return;
+    }
     // Dùng audio đã preload nếu trùng index, không thì tạo mới (retry = tạo mới, tránh cache lỗi).
     let audio = (!retry && this._preloaded && this._preloaded.i === i) ? this._preloaded.audio
               : new Audio(this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : ""));

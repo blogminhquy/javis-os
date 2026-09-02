@@ -24,6 +24,7 @@ const app = read("dashboard/app.js");
 const qs = read("dashboard/quick-settings.js");
 const css = read("dashboard/style.css");
 const html = read("dashboard/index.html");
+// (qs đã khai ở trên)
 let fails = [];
 function check(name, cond, extra) {
   console.log((cond ? "ok   " : "FAIL ") + name + (cond || extra === undefined ? "" : "  [" + extra + "]"));
@@ -76,17 +77,34 @@ check("CANARY: thả Space KHÔNG tắt loa", !/JavisTts/.test(keyup));
 // Không đẻ thêm đường gửi tin (chốt của test_mic_khong_tu_gui).
 check("vẫn đúng 4 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 4);
 
-// ---- 5. Điện thoại thấy nút loa ----
-check("CANARY: màn hẹp KHÔNG còn giấu #ttsToggleBar", !/#ttsToggleBar \{ display: none; \}/.test(css));
-check("nút loa xếp cạnh mic trên thanh nhập màn hẹp", /\.hud-voice \.tts-bar-btn \{ order: 3;/.test(css));
-check("nút loa vẫn có trong HTML", html.indexOf('id="ttsToggleBar"') !== -1);
+// ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----
+check("CANARY: không còn #ttsToggleBar trong HTML", html.indexOf('id="ttsToggleBar"') === -1);
+check("không còn CSS .tts-bar-btn", !/\.tts-bar-btn/.test(css));
+check("quick-settings không còn tra cứu nút đã gỡ", !/\$\("ttsToggleBar"\)/.test(qs));
+
+// ---- 5b. iPhone: nghe từng câu, phát bằng một phần tử Audio dùng lại ----
+// WebKit không nghe liên tục được: continuous=true là một phiên "ghi âm" không tự kết thúc,
+// onend tự mở lại càng kéo dài. Và iOS chỉ cho phát tiếng do cử chỉ khởi động, mỗi new Audio()
+// là một phần tử chưa mở khoá - nên đoạn đầu phát, các đoạn sau nghẹn.
+check("có hàm nhận diện iOS", /_laIOS\(\) \{/.test(voice) && /iP\(hone\|ad\|od\)/.test(voice));
+check("iOS: không nghe liên tục", /if \(this\._laIOS\(\)\) this\.recognition\.continuous = false;/.test(voice));
+check("iOS: onend KHÔNG tự mở lại phiên (hết câu là gửi)", /if \(!this\.userStopped && !this\._laIOS\(\)\) \{/.test(voice));
+check("iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic",
+  /this\._moKhoaAudioIOS\(\); \/\/ iOS/.test(voice) && /startListening\(\) \{[\s\S]*?_moKhoaAudioIOS\(\)[\s\S]*?this\.recognition\.start\(\)/.test(voice));
+const iosNhanh = (voice.match(/if \(this\._laIOS\(\)\) \{\s*\n\s*\/\/ Đường iOS[\s\S]*?\n      return;\n    \}/) || [""])[0];
+check("iOS: _playChunk dùng MỘT phần tử Audio dùng lại", /this\._iosAudio \|\| \(this\._iosAudio = new Audio\(\)\)/.test(iosNhanh));
+// Bỏ dòng chú thích trước khi soi, vì chú thích có nhắc "preload" để giải thích.
+const iosMa = iosNhanh.split("\n").filter((d) => !/^\s*\/\//.test(d)).join("\n");
+check("iOS: không preload, không nối qua AudioContext", iosMa && !/preload|createMediaElementSource/.test(iosMa));
+check("iOS: đoạn hỏng vẫn đi _chunkFailed như đường thường", /_chunkFailed\(i, retry\)/.test(iosNhanh));
 
 // ---- 6. cache-bust ----
 const v = (f) => Number((html.match(new RegExp(f.replace(/\./g, "\\.").replace("-", "\\-") + "\\?v=(\\d+)")) || [])[1] || 0);
 check("voice.js đã bump (>= 17)", v("voice.js") >= 17, v("voice.js"));
 check("app.js đã bump (>= 101)", v("app.js") >= 101, v("app.js"));
 check("quick-settings.js đã bump (>= 7)", v("quick-settings.js") >= 7, v("quick-settings.js"));
-check("style.css đã bump (>= 80)", v("style.css") >= 80, v("style.css"));
+check("style.css đã bump (>= 81)", v("style.css") >= 81, v("style.css"));
+check("voice.js đã bump lần nữa cho đường iOS (>= 18)", v("voice.js") >= 18, v("voice.js"));
 
 console.log();
 if (fails.length) { console.log("ĐỎ " + fails.length + " mục: " + fails.join(", ")); process.exit(1); }

@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=80">
-  <link rel="stylesheet" href="/static/console.css?v=50">
+  <link rel="stylesheet" href="/static/style.css?v=81">
+  <link rel="stylesheet" href="/static/console.css?v=51">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -303,7 +303,7 @@
           <!-- Chip project: sessions-ui.js vẽ vào đây khi lượt chat thuộc một project.
                Rỗng thì span co về 0 nên hàng vẫn là "nhãn ... nút" như cũ. -->
           <span class="proj-chip-host" id="projChipHost"></span>
-          <span style="display:flex;align-items:center;gap:6px">
+          <span class="panel-acts">
             <button class="mini-btn" id="chatZoomBtn" title="Mở trang Trò chuyện (khung chat toàn màn)" data-i18n-title="chat.zoom"><i data-ic="maximize"></i></button>
             <button class="mini-btn chatcol-thu-btn" id="chatColThu" title="Thu khung hội thoại sang phải (như thu sidebar)" data-i18n-title="chat.col_collapse"><i data-ic="panel-left"></i></button>
           </span>
@@ -463,12 +463,6 @@
       <button class="attach-btn" id="attachBtn" title="Đính kèm file (ảnh, text, tài liệu) → lưu vào Sources" data-i18n-title="bar.attach">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-        </svg>
-      </button>
-      <button class="attach-btn tts-bar-btn muted" id="ttsToggleBar" type="button" title="Bật giọng đọc" data-i18n-title="bar.tts_on">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>
         </svg>
       </button>
       <input type="file" id="fileInput" multiple style="display:none">
@@ -777,7 +771,7 @@
        hàm vẽ lại theo tông ngay lúc parse, nếu window.javisTheme chưa có thì chúng
        đăng ký hụt và các lớp canvas kẹt ở bảng màu tối. -->
   <script src="/static/theme.js?v=2"></script>
-  <script src="/static/voice.js?v=17"></script>
+  <script src="/static/voice.js?v=18"></script>
   <script src="/static/graph.js?v=16"></script>
   <script src="/static/chat-render.js?v=11"></script>
   <script src="/static/code-hl.js?v=1"></script>
@@ -790,13 +784,13 @@
   <script src="/static/chat-ask.js?v=1"></script>
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=2"></script>
-  <script src="/static/chat-marks.js?v=2"></script>
+  <script src="/static/chat-marks.js?v=3"></script>
   <script src="/static/app.js?v=101"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=7"></script>
   <script src="/static/branding.js?v=7"></script>
-  <script src="/static/quick-settings.js?v=7"></script>
+  <script src="/static/quick-settings.js?v=8"></script>
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=17"></script>
@@ -809,7 +803,7 @@
   <script src="/static/code-term.js?v=2"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
   <script src="/static/console.js?v=132"></script>
-  <script src="/static/mobile-chat.js?v=7"></script>
+  <script src="/static/mobile-chat.js?v=8"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>

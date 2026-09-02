@@ -1,11 +1,12 @@
-/* Bỏ nút loa (bật/tắt giọng Javis) trên thanh tiêu đề.
+/* Bỏ nút loa (bật/tắt giọng Javis) - trước ở thanh tiêu đề, nay cả trên thanh nhập.
 
        node tests/js/test_bo_nut_loa_header.js
 
-   Chủ repo yêu cầu 27/08/2026: cùng MỘT công tắc giọng mà có tới ba chỗ bấm - nút loa ở
-   header, nút loa trên thanh nhập chat, và công tắc trong Cài đặt nhanh. Giữ lại nút trên
-   THANH NHẬP (nó nằm ngay cạnh chỗ người ta gõ, thấy được ở cả màn Javis lẫn trang Trò
-   chuyện, và có sẵn trên màn hẹp); bỏ nút header đi để lấy chỗ cho hòm thư.
+   27/08/2026: cùng MỘT công tắc giọng mà có tới ba chỗ bấm - nút loa ở header, nút loa trên
+   thanh nhập chat, và công tắc trong Cài đặt nhanh. Bỏ nút header để lấy chỗ cho hòm thư.
+   02/09/2026: chủ repo chốt "không cần nút bật tắt loa nữa, chỉ cần mic, bật mic là bật loa".
+   Nút thanh nhập (#ttsToggleBar) bỏ nốt; app.js gọi window.JavisTts.set() theo mic. Công tắc
+   trong Cài đặt nhanh giữ lại làm chỗ tắt tiếng thủ công.
 
    Bẫy của việc gỡ một element: app.js giữ nó ở một `const` cấp module rồi gọi thẳng
    `ttsToggle.addEventListener(...)` KHÔNG có chốt null. Gỡ nút mà quên dòng đó thì
@@ -30,8 +31,8 @@ function check(name, cond, extra) {
 
 // ---- 1. Nút header biến mất, nút trên thanh nhập ở lại ----
 check("thanh tiêu đề KHÔNG còn nút loa", html.indexOf('id="ttsToggle"') === -1);
-check("nút loa trên THANH NHẬP vẫn còn (đây là chỗ giữ lại)",
-  html.indexOf('id="ttsToggleBar"') !== -1);
+check("nút loa trên THANH NHẬP cũng KHÔNG còn (02/09: loa đi theo mic)",
+  html.indexOf('id="ttsToggleBar"') === -1);
 check("công tắc giọng trong Cài đặt nhanh vẫn còn", html.indexOf('id="qsTts"') !== -1);
 
 // ---- 2. CANARY: không file JS nào còn cầm id đã gỡ ----
@@ -45,14 +46,15 @@ check("CANARY: app.js không còn gọi thẳng ttsToggle.<gì đó> (null là c
   !/(^|[^.\w])ttsToggle\s*\./m.test(app));
 check("app.js không còn khai const ttsToggle", !/const\s+ttsToggle\s*=/.test(app));
 
-// ---- 3. Công tắc còn lại phải chạy đủ: bấm được, nhớ được, đồng bộ hai chiều ----
-check("quick-settings vẫn gắn click cho nút trên thanh nhập",
-  /\$\("ttsToggleBar"\)/.test(qs) && qs.indexOf('bar.addEventListener("click"') !== -1);
+// ---- 3. Công tắc còn lại phải chạy đủ: mic điều khiển được, nhớ được, đồng bộ Cài đặt nhanh ----
+check("quick-settings KHÔNG còn tra cứu #ttsToggleBar (nút đã gỡ, tra cứu là null)",
+  !/\$\("ttsToggleBar"\)/.test(qs));
+check("mobile-chat.js không còn nhắc tới #ttsToggleBar như một nút thật", !/getElementById\("ttsToggleBar"\)/.test(mob));
+check("quick-settings phơi window.JavisTts.set cho mic gọi", /window\.JavisTts = \{ set: applyState/.test(qs));
 check("vẫn nhớ trạng thái qua reload (localStorage javis.ttsEnabled)",
   qs.indexOf("javis.ttsEnabled") !== -1);
 check("vẫn đồng bộ với công tắc trong Cài đặt nhanh", /\$\("qsTts"\)/.test(qs));
-check("reflect() vẫn cập nhật nút trên thanh nhập (class muted + title)",
-  /bar\.classList\.toggle\("muted", !on\)/.test(qs));
+check("app.js bật loa theo mic", /window\.JavisTts\.set\(handsFree\)/.test(app));
 
 // ---- 4. cache-bust: sửa file nào thì bump file đó, không thì trình duyệt xài bản cũ ----
 const v = (f) => Number((html.match(new RegExp(f.replace(/\./g, "\\.").replace("-", "\\-") + "\\?v=(\\d+)")) || [])[1] || 0);
