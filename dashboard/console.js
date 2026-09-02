@@ -2953,7 +2953,12 @@
   // không hiểu vì sao.
   const OL_LENH_NGHE = "sudo systemctl edit --full ollama   # thêm: Environment=\"OLLAMA_HOST=0.0.0.0\"\n" +
                        "sudo systemctl restart ollama";
-  const OL_DIA_CHI_DOCKER = "http://172.17.0.1:11434";
+  // (Hằng OL_DIA_CHI_DOCKER = "http://172.17.0.1:11434" ĐÃ BỎ.) 172.17.0.1 là cổng của mạng
+  // bridge MẶC ĐỊNH, chỉ đúng với `docker run` trần. Javis cài bằng compose thì nằm trên mạng
+  // riêng của project (172.18.x trở đi), nên con số đó SAI với gần như mọi bản cài - điền
+  // đúng theo hướng dẫn vẫn không nối được. Nay server dò cổng thật và trả về `goi_y_endpoint`.
+
+  const OL_LENH_TIM_CONG = "docker exec javis ip route | grep default";
 
   function olGb(n) { return (Math.round((n || 0) * 10) / 10) + " GB"; }
 
@@ -2993,14 +2998,30 @@
             '<div class="ol-cmd"><code>' + esc(lenh) + "</code>" +
               '<button class="gcard-btn ol-copy" type="button">' + ic("copy") + " " + esc(t("common.copy")) + "</button></div>" +
             '<div class="ol-step">2. ' + esc(t("ol.step_endpoint")) + "</div>") +
+        // ĐIỀN SẴN chứ không để trong placeholder. Chủ repo báo 02/09: "ghi điền địa chỉ này
+        // mà không biết là địa chỉ nào" - đúng, vì chữ xám trong ô nhập trông như gợi ý chứ
+        // không như một giá trị, lại còn bị ô hẹp cắt cụt giữa chừng. Dò ra được thì điền
+        // thẳng vào: người dùng chỉ việc bấm Kết nối.
         '<div class="ol-row">' +
-          '<input class="ol-in ol-ep" placeholder="' +
-            esc(xa ? OL_DIA_CHI_DOCKER : (st.goi_y_endpoint || "http://127.0.0.1:11434")) + '"' +
-            (st.same_host ? ' value="' + esc(st.goi_y_endpoint || "") + '"' : "") + ">" +
+          '<input class="ol-in ol-ep" placeholder="Ví dụ: http://127.0.0.1:11434"' +
+            (st.goi_y_endpoint ? ' value="' + esc(st.goi_y_endpoint) + '"' : "") + ">" +
           '<button class="gcard-btn primary ol-noi" type="button">' + esc(t("ol.connect")) + "</button>" +
         "</div>" +
+        // Dò không ra cổng (mạng Docker lạ, hoặc chạy --network=host) thì nói thẳng là phải
+        // tự tìm, kèm đúng một lệnh tìm. Im lặng để ô trống là đẩy người dùng vào ngõ cụt.
+        (xa && !st.goi_y_endpoint
+          ? '<div class="ol-note ol-warn">' + ic("triangle-alert") + "<span>" +
+            esc(t("ol.dk_khong_do_duoc")) + "</span></div>" +
+            '<div class="ol-cmd"><code>' + esc(OL_LENH_TIM_CONG) + "</code>" +
+              '<button class="gcard-btn ol-copy3" type="button">' + ic("copy") + " " +
+              esc(t("common.copy")) + "</button></div>"
+          : "") +
         (st.error ? '<div class="ol-err">' + ic("triangle-alert") + "<span>" + esc(st.error) + "</span></div>" : "") +
       "</div>";
+    const cop3 = el.querySelector(".ol-copy3");
+    if (cop3) cop3.onclick = () => {
+      try { navigator.clipboard.writeText(OL_LENH_TIM_CONG); } catch (e) {}
+    };
     const cop = el.querySelector(".ol-copy2");
     if (cop) cop.onclick = () => {
       try { navigator.clipboard.writeText(OL_LENH_NGHE); } catch (e) {}
