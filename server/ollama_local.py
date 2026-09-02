@@ -80,7 +80,31 @@ def chuan_hoa_endpoint(raw: str) -> str:
         raise LoiEndpoint("Địa chỉ này không phải một máy chạy Ollama")
     if p.path not in ("", "/"):
         raise LoiEndpoint("Chỉ nhập địa chỉ máy chủ, không kèm đường dẫn (vd http://127.0.0.1:11434)")
+    # Gõ thiếu CỔNG thì thêm cổng mặc định của Ollama, đừng để rơi về 80. Vụ thật 02/09: chủ
+    # repo gõ mỗi IP máy chủ, Javis hiểu thành cổng 80, đi trúng web server của chính VPS đó và
+    # nhận 301 - một mã lỗi không nói lên điều gì về Ollama cả. Cổng 80 gần như không bao giờ
+    # là Ollama, còn 11434 thì luôn luôn, nên đoán ở đây là đoán đúng.
+    #
+    # CHỈ làm với http. Gõ `https://ollama.mien-cua-toi.com` không cổng là ý muốn đi qua một
+    # reverse proxy ở 443 - nhét 11434 vào đó là bẻ gãy đúng cấu hình người ta cố tình dựng.
+    if p.port is None and p.scheme == "http":
+        return f"{p.scheme}://{p.hostname}:{CONG_MAC_DINH}"
     return f"{p.scheme}://{p.netloc}"
+
+
+def la_ip_cong_khai(endpoint: str) -> bool:
+    """Địa chỉ này có phải một IP CÔNG KHAI (Internet với tới được) không.
+
+    Không phải để CHẶN - trỏ sang một máy khác qua Internet là chuyện hợp lệ. Nhưng Ollama
+    KHÔNG có mật khẩu, nên mở nó ra một IP công khai là dựng một máy chủ model ai cũng gọi
+    được. Người dùng phải được nói thẳng điều đó ngay lúc kết nối, chứ không phải đọc được
+    trong một đoạn hướng dẫn ở trên rồi quên.
+    """
+    try:
+        ip = ipaddress.ip_address(urlparse(chuan_hoa_endpoint(endpoint)).hostname or "")
+    except (ValueError, LoiEndpoint):
+        return False               # tên miền, hoặc địa chỉ hỏng - không kết luận
+    return ip.is_global
 
 
 def same_host(endpoint: str) -> bool:
@@ -122,10 +146,29 @@ async def probe(endpoint: str, key: str | None = None) -> dict:
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_DO) as cli:
             r = await cli.get(ep + "/api/tags", headers=_headers(key))
+        # 3xx = có thứ gì đó TRẢ LỜI, nhưng nó chuyển hướng - dấu hiệu kinh điển của việc trỏ
+        # nhầm vào một web server (cổng 80/443 đá sang HTTPS). Nói bằng mã số trần thì người
+        # dùng không có đường nào lần ra; nói đúng bệnh thì họ sửa được ngay.
+        if 300 <= r.status_code < 400:
+            return {"reachable": False, "models": [],
+                    "error": (f"Địa chỉ này trả về chuyển hướng (mã {r.status_code}), tức là một "
+                              "web server chứ không phải Ollama. Ollama nghe ở cổng 11434 - kiểm "
+                              "tra lại xem đã ghi đúng cổng chưa.")}
         if r.status_code != 200:
             return {"reachable": False, "models": [],
                     "error": f"Máy chủ trả lỗi {r.status_code}"}
-        return {"reachable": True, "models": (r.json() or {}).get("models") or [], "error": None}
+        try:
+            data = r.json() or {}
+        except ValueError:
+            # Trả 200 nhưng không phải JSON = có máy chủ ở đó, chỉ là không phải Ollama.
+            return {"reachable": False, "models": [],
+                    "error": ("Địa chỉ này có máy chủ trả lời nhưng không phải Ollama. Kiểm tra "
+                              "lại cổng (Ollama dùng 11434).")}
+        if "models" not in data:
+            return {"reachable": False, "models": [],
+                    "error": ("Địa chỉ này trả lời nhưng không giống Ollama. Kiểm tra lại cổng "
+                              "(Ollama dùng 11434).")}
+        return {"reachable": True, "models": data.get("models") or [], "error": None}
     except httpx.ConnectError:
         return {"reachable": False, "models": [],
                 "error": "Không nối được. Ollama đã chạy chưa, và địa chỉ có đúng không?"}

@@ -10917,7 +10917,11 @@ async def ollama_local_set_endpoint(endpoint: str = Form(""), key: str = Form(No
         patch["ollama_local_key"] = key.strip()
     _ol_luu(patch)
     p = await ollama_local.probe(ep, (key or "").strip() or _ol_cfg()[1])
-    return {"ok": True, "endpoint": ep, "reachable": p["reachable"], "error": p["error"]}
+    # Ollama KHÔNG có mật khẩu. Trỏ sang một IP công khai là hợp lệ (máy khác qua Internet),
+    # nhưng nó cũng có nghĩa cả Internet gọi được model đó, nên phải nói ngay lúc kết nối chứ
+    # không để trong một đoạn hướng dẫn phía trên mà ai cũng lướt qua.
+    return {"ok": True, "endpoint": ep, "reachable": p["reachable"], "error": p["error"],
+            "canh_bao_cong_khai": ollama_local.la_ip_cong_khai(ep)}
 
 
 @app.get("/ollama-local/specs")

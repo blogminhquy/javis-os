@@ -1,7 +1,6 @@
 {
   "_meta.name": "Tiếng Việt",
   "_meta.number_locale": "vi-VN",
-
   "nav.group.tro_ly": "Trợ lý",
   "nav.group.bo_nao": "Bộ não",
   "nav.group.code": "Code",
@@ -9,7 +8,6 @@
   "nav.group.viec": "Việc",
   "nav.group.ket_noi": "Kết nối",
   "nav.group.he_thong": "Hệ thống",
-
   "page.home.label": "Javis",
   "page.chat.label": "Trò chuyện",
   "page.chat.sub": "Khung chat rộng · lịch sử hội thoại",
@@ -50,7 +48,6 @@
   "page.account.sub": "Đăng nhập, workspace, token API",
   "page.usage.label": "Mức dùng",
   "page.usage.sub": "Mức tiết kiệm token, và token đã tiêu theo ngày",
-
   "top.menu": "Menu",
   "top.menu_open": "Mở menu",
   "top.brain_current": "Bộ não đang chọn",
@@ -58,7 +55,6 @@
   "top.brain_delete": "Xoá brain đang chọn (xác nhận gõ đúng tên)",
   "top.brain_pick": "Chọn brain từ folder ngoài bất kỳ",
   "top.notifications": "Mở hộp thư Thông báo",
-
   "settings.lang.title": "NGÔN NGỮ TRẢ LỜI",
   "settings.lang.auto": "Tự động theo người nhắn",
   "settings.lang.hint": "Chọn \"Tự động\" thì Javis trả lời đúng thứ tiếng bạn đang gõ. Ghim một ngôn ngữ thì Javis luôn trả lời bằng ngôn ngữ đó, dù bạn gõ tiếng gì. Chatbot chăm khách có ô ngôn ngữ RIÊNG ở trang Chatbot.",
@@ -67,7 +63,6 @@
   "settings.ui_lang.hint": "Chữ trên nút và nhãn. Khác với ngôn ngữ trả lời: giao diện tiếng Việt mà Javis trả lời tiếng Anh là một lựa chọn hợp lệ.",
   "settings.ui_lang.beta": "Đang dịch dần. Phần chưa dịch vẫn hiện tiếng Việt.",
   "settings.save_failed": "Lưu không được",
-
   "common.loading": "Đang tải...",
   "common.save": "Lưu",
   "common.cancel": "Huỷ",
@@ -76,7 +71,6 @@
   "common.edit": "Sửa",
   "common.retry": "Thử lại",
   "common.none": "Chưa có gì",
-
   "err.auth.bad_credentials": "Sai tài khoản hoặc mật khẩu",
   "err.auth.exists": "Đã có tài khoản - hãy đăng nhập.",
   "err.auth.password_short": "Mật khẩu tối thiểu 8 ký tự",
@@ -84,7 +78,6 @@
   "common.account": "Tài khoản",
   "common.password": "Mật khẩu",
   "common.default": "Mặc định",
-
   "top.install_title": "Cài Javis thành app riêng - mở từ Desktop/Dock, không lẫn giữa các tab",
   "top.install": "Cài Javis thành app riêng",
   "top.install_label": "Mở như app",
@@ -93,7 +86,6 @@
   "top.studio_title": "Studio - Agents, Skills, Workflows",
   "top.reset": "Reset hội thoại",
   "top.new_chat": "Hội thoại mới",
-
   "noti.label": "Thông báo",
   "noti.summary": "Cập nhật mới và tin từ Javis OS",
   "noti.read_all": "Đọc tất cả",
@@ -106,7 +98,6 @@
   "noti.push_on": "Bật",
   "noti.refresh": "↻ Làm mới",
   "noti.open_updates": "Xem nhật ký cập nhật →",
-
   "vault.expand": "Mở lại panel Vault",
   "vault.new_file": "Tạo file mới ở gốc brain",
   "vault.new_dir": "Tạo thư mục mới ở gốc brain",
@@ -118,7 +109,6 @@
   "vault.mode_name_title": "Lọc nhanh theo tên trong cây",
   "vault.mode_content": "Nội dung",
   "vault.mode_content_title": "Tìm sâu theo nội dung (quét toàn vault)",
-
   "orb.ready": "SẴN SÀNG",
   "orb.overlay_aria": "Ẩn nhãn và số liệu brain",
   "orb.overlay_title": "Ẩn nhãn thư mục và số liệu Agents / Skills / Workflows",
@@ -129,12 +119,10 @@
   "orb.stat_agents": "Mở Studio · Agents",
   "orb.stat_skills": "Mở Studio · Skills",
   "orb.stat_workflows": "Mở Studio · Workflows",
-
   "chat.col_expand": "Mở lại khung hội thoại",
   "chat.panel": "HỘI THOẠI",
   "chat.zoom": "Mở trang Trò chuyện (khung chat toàn màn)",
   "chat.col_collapse": "Thu khung hội thoại sang phải (như thu sidebar)",
-
   "qs.title": "CÀI ĐẶT NHANH",
   "qs.tts": "Đọc trả lời bằng giọng",
   "qs.rec_lang": "NGÔN NGỮ NGHE",
@@ -163,28 +151,23 @@
   "qs.recheck": "Kiểm tra lại",
   "qs.domain_docs": "Hướng dẫn cài tên miền ↗",
   "qs.deploy_docs": "Hướng dẫn deploy/SSL ↗",
-
   "mb.open": "Đổi model / nhà cung cấp / effort",
   "mb.recent": "VỪA GỌI",
   "mb.no_tools": "Chưa gọi tool nào",
-
   "bar.mic": "Bấm để nói (hoặc giữ Space)",
   "bar.attach": "Đính kèm file (ảnh, text, tài liệu) → lưu vào Sources",
   "bar.tts_on": "Bật giọng đọc",
   "bar.tts_off": "Tắt giọng đọc",
   "bar.input_ph": "Nói với Javis, gõ ở đây, hoặc kéo/dán file vào...",
   "bar.stop": "Ngắt lệnh / dừng đọc (Esc)",
-
   "rail.expand": "Mở rộng thanh bên",
   "rail.collapse": "Thu gọn thanh bên",
-
   "run.title": "Chạy workflow",
   "vbanner.text": "Cấu trúc vault chưa chuẩn cho Javis.",
   "vbanner.init": "Khởi tạo cấu trúc",
   "drop.msg": "Thả file vào đây → lưu vào Sources",
   "fm.title": "Chọn brain (folder chứa ghi chú .md)",
   "fm.use": "Dùng folder này",
-
   "wz.welcome": "Chào mừng tới Javis",
   "wz.intro": "Vài bước nhanh để bắt đầu. Mọi thứ đổi lại được sau trong",
   "wz.s1": "1. Workspace",
@@ -217,7 +200,6 @@
   "wz.or_key_later": "(có thể dán sau ở Models)",
   "wz.or_key_ph": "Ví dụ: sk-or-v1-… (tùy chọn)",
   "wz.start": "Bắt đầu dùng Javis →",
-
   "auth.title": "Đăng nhập Javis",
   "auth.code_ph": "Mã 6 số, hoặc mã khôi phục",
   "auth.code_hint": "Mở app Authenticator và nhập mã đang hiện. Mất điện thoại thì nhập một mã khôi phục đã lưu lúc bật.",
@@ -227,7 +209,6 @@
   "auth.reset2": ", xóa khối",
   "auth.reset3": "(hoặc đặt rỗng), rồi chạy",
   "auth.reset4": "Mở lại sẽ về bộ cài đặt để tạo tài khoản mới.",
-
   "setm.title": "Cài đặt Javis",
   "setm.general": "Chung",
   "setm.ws_name": "Tên workspace",
@@ -306,7 +287,6 @@
   "setm.tg_chat_ph": "Ví dụ: 123456789, 987654321",
   "common.net_err": "Lỗi mạng.",
   "common.timeout": "Máy chủ không phản hồi sau {s}s. Bấm thử lại nhé.",
-
   "models.cli_missing": "Máy chạy Javis chưa có lệnh",
   "models.cli_missing2": "đăng nhập đã xong nhưng",
   "models.cli_missing3": "chat bằng thẻ này sẽ lỗi cho tới khi cài. Bản Docker: cập nhật Javis lên bản mới nhất là có sẵn. Bản cài tay: mở trang Code > Terminal chạy",
@@ -609,17 +589,14 @@
   "studio.sk_group_ph": "Ví dụ: Marketing",
   "studio.sk_desc": "Mô tả (description - quyết định khi nào skill kích hoạt)",
   "studio.sk_body": "Nội dung (SKILL.md - hướng dẫn cho AI)",
-
   "chat.att_zoom": "Bấm để xem phóng to",
   "chat.att_gone": "không còn xem lại được",
   "chat.att_gone_hint": "File tạm đã được dọn sau vài ngày. Lúc gửi thì Javis vẫn đọc được ảnh, chỉ là ảnh không lưu lại lâu dài.",
-
   "kanban.wipe": "Xoá tất cả",
   "kanban.act_grant": "Cho phép chạy thật",
   "kanban.confirm_grant": "Cấp toàn quyền cho việc này? Nó sẽ tự thao tác THẬT ra ngoài (gửi tin, đăng bài, tạo đơn, đổi dữ liệu ở dịch vụ khác) và những thao tác đó KHÔNG hoàn tác được.",
   "kanban.confirm_wipe_attention": "Xoá tất cả việc đang chờ bạn xử lý khỏi bảng? Việc vẫn tra lại được, chỉ là không còn nằm ở đây nữa.",
   "kanban.confirm_wipe_history": "Xoá hẳn toàn bộ lịch sử việc đã xong và đã huỷ? Không hoàn tác được.",
-
   "proj.chip_title": "Khung project: hướng dẫn, tài liệu, link",
   "proj.close": "Đóng",
   "proj.loading": "Đang tải",
@@ -672,7 +649,6 @@
   "proj.delete_file": "Xoá hẳn file khỏi brain",
   "proj.confirm_delete_file": "Xoá VĨNH VIỄN \"{ten}\" khỏi brain? File biến mất khỏi ổ đĩa, không hoàn tác được. Chỉ muốn bỏ nó khỏi project thì bấm dấu X bên cạnh.",
   "proj.err_delete_file": "Không xoá được file",
-
   "cts.open": "File và link trong cuộc trò chuyện này",
   "cts.title": "Trong cuộc trò chuyện này",
   "cts.files_empty": "Cuộc này chưa tạo ra tài liệu nào.",
@@ -682,7 +658,6 @@
   "cts.from_javis": "Javis gửi",
   "cts.note": "Gom từ các tài liệu Javis có nhắc tên trong cuộc này. File Javis ghi lặng lẽ giữa lượt thì không nằm ở đây.",
   "cts.err_load": "Không đọc được cuộc trò chuyện này.",
-
   "common.copy": "Chép",
   "models.tab_cloud": "Cloud Model",
   "models.tab_local": "Model chạy trên máy",
@@ -726,7 +701,6 @@
   "ol.find_ph": "Gõ tên model (qwen, llama, mistral...)",
   "ol.find_none": "Không tìm thấy model nào khớp.",
   "ol.cap_all": "Tất cả",
-
   "ol.dk_title": "Ba bước, làm trên MÁY CHỦ chứ không phải terminal của Javis",
   "ol.dk_b1": "Mở SSH vào máy chủ VPS bằng tài khoản root. Terminal trong Javis KHÔNG dùng được: nó nằm trong container, không có quyền root, và mọi thứ cài vào đó sẽ mất sạch ở lần cập nhật kế tiếp.",
   "ol.dk_b2": "Cài Ollama trên máy chủ đó:",
@@ -734,5 +708,6 @@
   "ol.dk_b4": "Địa chỉ đã điền sẵn ở ô dưới, bạn chỉ cần bấm Kết nối:",
   "ol.dk_canh_bao": "Mở 0.0.0.0 là Ollama nghe cả từ Internet, mà nó KHÔNG có mật khẩu. Nên chặn tường lửa để chỉ Javis vào được: lấy dải mạng từ địa chỉ ở ô dưới (địa chỉ 172.18.0.1 thì dải là 172.18.0.0/16), rồi chạy ufw allow from DẢI-ĐÓ to any port 11434 và ufw deny 11434.",
   "ol.dk_cham": "VPS thường không có GPU và ít RAM, nên model chạy bằng CPU sẽ rất chậm. Máy để bàn ở nhà bạn (có GPU thì càng tốt) là chỗ hợp hơn, đổi lại VPS phải với tới được máy đó.",
-  "ol.dk_khong_do_duoc": "Javis không tự tìm được địa chỉ máy chủ. Chạy lệnh dưới trên máy chủ rồi điền số đứng sau chữ default vào ô trên, kèm :11434."
+  "ol.dk_khong_do_duoc": "Javis không tự tìm được địa chỉ máy chủ. Chạy lệnh dưới trên máy chủ rồi điền số đứng sau chữ default vào ô trên, kèm :11434.",
+  "ol.canh_bao_cong_khai": "Đã nối được, nhưng đây là địa chỉ công khai trên Internet mà Ollama thì KHÔNG có mật khẩu - ai biết địa chỉ này cũng gọi được model của bạn. Hãy chặn tường lửa để chỉ máy chủ Javis vào được cổng 11434."
 }

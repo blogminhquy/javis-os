@@ -109,6 +109,27 @@ check("gõ thiếu http:// vẫn hiểu được",
       ollama_local.chuan_hoa_endpoint("192.168.1.20:11434") == "http://192.168.1.20:11434")
 check("cắt đường dẫn thừa", ollama_local.chuan_hoa_endpoint("http://a.vn:11434/") == "http://a.vn:11434")
 
+# ---- 1b. Thiếu CỔNG: vụ thật 02/09 -------------------------------------------
+# Chủ repo gõ mỗi IP máy chủ VPS, không cổng. Javis hiểu thành cổng 80, đi trúng web server
+# của chính VPS đó và nhận 301 - một mã lỗi không nói gì về Ollama, không có đường lần ra.
+check("CANARY: gõ thiếu cổng thì thêm 11434, KHÔNG rơi về cổng 80",
+      ollama_local.chuan_hoa_endpoint("72.62.73.98") == "http://72.62.73.98:11434")
+check("và cũng vậy khi có sẵn http://",
+      ollama_local.chuan_hoa_endpoint("http://172.18.0.1") == "http://172.18.0.1:11434")
+check("cổng người dùng ghi rõ thì giữ nguyên",
+      ollama_local.chuan_hoa_endpoint("http://a.vn:8080") == "http://a.vn:8080")
+# https không cổng là ý đi qua reverse proxy ở 443. Nhét 11434 vào đó là bẻ gãy đúng cấu hình
+# người ta cố tình dựng, nên phải để yên.
+check("CANARY: https không cổng thì để yên (reverse proxy ở 443)",
+      ollama_local.chuan_hoa_endpoint("https://ollama.vidu.com") == "https://ollama.vidu.com")
+
+# Ollama không có mật khẩu, nên IP công khai = máy chủ model ai cũng gọi được. Không CHẶN
+# (trỏ sang máy khác qua Internet là hợp lệ), nhưng phải nói.
+check("nhận ra IP công khai để cảnh báo", ollama_local.la_ip_cong_khai("72.62.73.98"))
+check("IP nội bộ thì không cảnh báo", not ollama_local.la_ip_cong_khai("172.18.0.1"))
+check("localhost thì không cảnh báo", not ollama_local.la_ip_cong_khai("127.0.0.1:11434"))
+check("tên miền thì không kết luận", not ollama_local.la_ip_cong_khai("https://ollama.vidu.com"))
+
 # ---- 2. same_host: KHÔNG được suy ra từ mỗi chữ localhost ---------------------
 check("địa chỉ LAN thì chắc chắn không cùng máy", not ollama_local.same_host("http://192.168.1.20:11434"))
 _that = main.deploy_info.deploy_mode
@@ -154,6 +175,48 @@ check("đóng luồng bằng một mốc riêng, client biết dừng đọc",
 # /pull/cancel sẽ là API không làm gì cả - một lời hứa suông.
 check("KHÔNG bịa ra endpoint huỷ tải",
       not any(getattr(r, "path", "") == "/ollama-local/pull/cancel" for r in main.app.routes))
+
+# ---- 4b. Trỏ nhầm vào WEB SERVER: phải nói đúng bệnh, không phải mã số trần ----
+# Vụ thật 02/09: gõ thiếu cổng -> trúng web server của chính VPS -> nó đá HTTPS bằng 301, và
+# màn hình chỉ hiện "Máy chủ trả lỗi 301". Người dùng không có đường nào lần từ con số đó ra
+# nguyên nhân, nên đứng im ở đó luôn.
+class WebServerGia(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        if TRA_LOI[0] == "301":
+            self.send_response(301)
+            self.send_header("Location", "https://vidu.com" + self.path)
+            self.end_headers()
+            return
+        body = b"<html><body>Xin chao</body></html>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+TRA_LOI = ["301"]
+srv2 = HTTPServer(("127.0.0.1", 0), WebServerGia)
+threading.Thread(target=srv2.serve_forever, daemon=True).start()
+EP2 = f"http://127.0.0.1:{srv2.server_address[1]}"
+
+import asyncio as _aio  # noqa: E402
+
+_p = _aio.run(ollama_local.probe(EP2))
+check("301 không còn báo bằng mã số trần", "301" in (_p["error"] or "")
+      and "chuyển hướng" in (_p["error"] or ""), _p["error"])
+check("và câu đó chỉ đúng chỗ cần sửa: cổng 11434", "11434" in (_p["error"] or ""))
+check("301 thì KHÔNG coi là nối được", _p["reachable"] is False)
+
+TRA_LOI[0] = "html"
+_p = _aio.run(ollama_local.probe(EP2))
+# Trả 200 nhưng là HTML: có máy chủ ở đó, chỉ là không phải Ollama. Bản cũ để r.json() ném
+# rồi rơi vào except chung, hiện ra một câu lỗi parse JSON không ai hiểu.
+check("máy chủ trả 200 nhưng không phải Ollama cũng nói rõ",
+      _p["reachable"] is False and "không phải Ollama" in (_p["error"] or ""), _p["error"])
 
 r = c.post("/ollama-local/delete", data={"model": "gemma3:4b"}).json()
 check("gỡ model gọi đúng sang Ollama", r.get("ok") is True and "gemma3:4b" in DA_XOA, DA_XOA)
