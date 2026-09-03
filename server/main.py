@@ -4321,6 +4321,10 @@ DASHBOARD_SEED = (
     "## 📥 Chưa có hạn\n\n"
     "```tasks\nnot done\nno due date\nlimit 20\n```\n"
 )
+# Phần mở đầu của Task Inbox, dùng KHI VÀ CHỈ KHI nút "+ Việc" phải tự tạo file (xem
+# `files_taskadd`). Trước 0.55.17 nó còn được rải sẵn vào mọi brain mới, nhưng chủ repo báo
+# 03/09 là chưa dùng tới nó lần nào - một file rỗng nằm sẵn trong Dashboard chỉ tổ làm rối
+# cây thư mục. Nay hộp thư việc chỉ mọc ra khi có việc đầu tiên được thêm vào thật.
 TASKINBOX_SEED = (
     "# Task Inbox\n\n"
     "Việc thêm nhanh từ dashboard - kéo về đúng sổ khi rảnh.\n"
@@ -4357,13 +4361,15 @@ def _ensure_brain_scaffold(root):
         jr.parent.mkdir(parents=True, exist_ok=True)
         jr.write_text(JAVIS_README, encoding="utf-8")
     try:
-        # Seed trang Dashboard + Task Inbox trong thư mục dashboard (create-if-missing,
-        # user sửa gì giữ nấy). Khối ```tasks trong seed chạy thật trên dashboard Javis.
+        # Seed trang Dashboard trong thư mục dashboard (create-if-missing, user sửa gì giữ
+        # nấy). Khối ```tasks trong seed chạy thật trên dashboard Javis.
+        #
+        # KHÔNG seed "Task Inbox.md" nữa: nút "+ Việc" tự tạo nó ở lần thêm việc đầu tiên
+        # (xem `files_taskadd`), nên rải sẵn chỉ để lại một file rỗng trong cây thư mục của
+        # người không dùng tính năng đó - chủ repo báo 03/09 là chưa mở tới nó lần nào.
         dash = Path(_resolve_subfolder(str(root), r"^(\d+\s*[-_.]\s*)?dashboard$", "00 - Dashboard"))
         if not (dash / "Dashboard.md").exists():
             (dash / "Dashboard.md").write_text(DASHBOARD_SEED, encoding="utf-8")
-        if not (dash / "Task Inbox.md").exists():
-            (dash / "Task Inbox.md").write_text(TASKINBOX_SEED, encoding="utf-8")
     except Exception as e:
         print(f"[brain scaffold] dashboard seed: {e}", file=__import__('sys').stderr)
     try:
@@ -5808,8 +5814,8 @@ async def _prewarm_mdindex():
 async def files_taskadd(brain: str = Form("brain"), text: str = Form(...),
                         due: str = Form(""), path: str = Form("")):
     """Thêm MỘT dòng task "- [ ] ..." vào cuối file (nút "+ Việc" trên khối dataview/tasks).
-    `path` bỏ trống thì rơi về hộp thư việc mặc định: "<thư mục Dashboard>/Task Inbox.md"
-    (tự tạo nếu chưa có). `due` dạng YYYY-MM-DD thì gắn "📅 due" kiểu obsidian-tasks."""
+    `path` bỏ trống thì rơi về hộp thư việc mặc định: "<thư mục Dashboard>/Task Inbox.md".
+    Đây là chỗ DUY NHẤT sinh ra file đó - brain mới không còn được rải sẵn nó nữa. `due` dạng YYYY-MM-DD thì gắn "📅 due" kiểu obsidian-tasks."""
     text = " ".join((text or "").split())
     if not text:
         return JSONResponse({"error": "Nội dung việc trống"}, status_code=400)
@@ -5833,7 +5839,7 @@ async def files_taskadd(brain: str = Form("brain"), text: str = Form(...),
             body = old.rstrip("\n") + ("\n" if old.strip() else "") + line + "\n"
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
-            body = "# Task Inbox\n\nViệc thêm nhanh từ dashboard - kéo về đúng sổ khi rảnh.\n\n" + line + "\n"
+            body = TASKINBOX_SEED + "\n" + line + "\n"
         _atomic_write_text(target, body)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
