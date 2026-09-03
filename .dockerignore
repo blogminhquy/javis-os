@@ -67,7 +67,7 @@ server/purge-trash/
 server/core-off.json
 # Gói mở rộng người dùng cài (connector/plugin thả vào lúc chạy). Dữ liệu người dùng.
 server/packs/
-server/packs.json
+server/packs.json*
 server/packs-state/
 server/packs-staging/
 server/packs-store-cache.json

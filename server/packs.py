@@ -58,6 +58,11 @@ from config import STATE_DIR
 PROJECT_ROOT = STATE_DIR.parent if (STATE_DIR / "..").is_dir() else STATE_DIR
 PACKS_DIR = STATE_DIR / "packs"
 MANIFEST_TEN = ("javis-pack.yaml", "javis-pack.yml")
+# Sổ cài đặt. `pack_install` ghi, ở đây chỉ ĐỌC - và chỉ đọc đúng một trường `enabled`, để
+# module này giữ nguyên luật "chỉ stdlib + config", không kéo theo cả tầng cài đặt vào đường
+# nóng. Gói KHÔNG có trong sổ (thả tay vào thư mục) mặc định là BẬT: đó là cách dùng của người
+# vận hành, họ đã tự tay đặt nó vào thì không phải bấm thêm một nút nữa.
+LEDGER = STATE_DIR / "packs.json"
 
 SPEC_HO_TRO = (1,)
 FORMAT_MAGIC = "javis-pack"
@@ -209,7 +214,7 @@ def _tier(thu_muc, connectors) -> str:
 def _nap_mot(thu_muc, id_da_co) -> dict:
     """Đọc và kiểm MỘT thư mục gói. Luôn trả về một bản ghi, kể cả khi hỏng."""
     pid = thu_muc.name
-    ban = {"id": pid, "dir": str(thu_muc), "ok": False, "error": "",
+    ban = {"id": pid, "dir": str(thu_muc), "ok": False, "error": "", "enabled": True,
            "name": {}, "description": {}, "version": "", "author": {}, "tier": "data",
            "connectors": [], "_con_objs": []}
 
@@ -308,15 +313,35 @@ def _quet():
                 id_da_co = set(mcp_catalog.tat_ca())
             except Exception:
                 id_da_co = set()
+            so = _so_cai_dat()
             for d in sorted(PACKS_DIR.iterdir()):
                 if not d.is_dir() or d.name.startswith((".", "_")):
                     continue
+                hang = so.get(d.name)
+                if hang is not None and not hang.get("enabled", True):
+                    # Gói TẮT: vẫn liệt kê để còn bật lại được, nhưng không góp connector nào.
+                    packs.append({"id": d.name, "dir": str(d), "ok": True, "error": "",
+                                  "name": {}, "description": {}, "enabled": False,
+                                  "version": str(hang.get("version") or ""),
+                                  "author": {}, "tier": str(hang.get("tier") or "data"),
+                                  "connectors": []})
+                    continue
                 ban = _nap_mot(d, id_da_co)
+                ban["enabled"] = True
                 for con in ban.pop("_con_objs", []):
                     connectors[con["id"]] = con
                 packs.append(ban)
         _cache.update(sig=sig, packs=packs, connectors=connectors)
         return packs, connectors
+
+
+def _so_cai_dat() -> dict:
+    """Đọc sổ cài đặt. Hỏng hay thiếu thì coi như sổ rỗng, tức mọi gói trên đĩa đều bật."""
+    try:
+        d = json.loads(LEDGER.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
 
 
 def signature():
@@ -333,6 +358,11 @@ def signature():
     except OSError:
         return None
     phan = [(st.st_mtime_ns, st.st_size)]
+    try:
+        s = LEDGER.stat()
+        phan.append(("_so", s.st_mtime_ns, s.st_size))
+    except OSError:
+        pass
     try:
         for d in sorted(PACKS_DIR.iterdir()):
             if not d.is_dir():

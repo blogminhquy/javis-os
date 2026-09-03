@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.22] - 2026-09-04
+### Thêm mới
+- **Trang Gói mới: cài thêm dịch vụ cho Javis từ một tệp .zip.** Chọn tệp, Javis mở ra xem bên trong có gì rồi mới hỏi bạn có cài không. Cài xong là dịch vụ hiện ngay ở trang Kết nối, dùng được trên mọi bộ não, không phải chờ bản cập nhật Javis.
+- **Màn hình xem trước nói thật về gói.** Nó liệt kê dịch vụ sắp thêm, dấu vân tay của tệp, và nếu gói có chạy mã thì hiện khối cảnh báo đỏ kèm tên từng tệp mã, bắt bạn gõ lại mã gói mới cho cài. Ô "bật ngay" mặc định tắt.
+- **Gỡ gói thì sạch:** tệp của gói, dịch vụ nó thêm, và các kết nối bạn đã đấu theo nó đều đi theo. Hộp thoại nêu tên từng kết nối trước khi làm, và chúng vào thùng rác giữ 30 ngày.
+- **Plugin đi kèm Javis giờ gỡ được**, không chỉ tắt. Thẻ rời khỏi danh sách chính và rơi xuống mục "Đã gỡ" có nút Cài lại. Tệp vẫn nằm trong bản cài nên cập nhật Javis không làm nó mọc lại.
+
+### Bảo mật
+- **Tệp .zip lạ bị soi kỹ trước khi mở:** chặn đường dẫn leo ra ngoài, liên kết tượng trưng trỏ vào tệp bí mật, tệp nén phồng, và gói mang theo khoá riêng hay tệp .env. Gói không bao giờ được ghi đè một dịch vụ có sẵn.
+- **Trang Gói đòi đăng nhập thật**, kể cả trên bản cài chưa đặt mật khẩu, và không nhận khoá API. Cài một gói là chạy mã lạ trong máy chủ nên phải có người ngồi trước màn hình.
+
 ## [0.55.21] - 2026-09-04
 ### Thêm mới
 - **Thêm được dịch vụ mới vào Kho mà không cần chờ bản cập nhật Javis.** Thả một thư mục gói vào kho gói của máy chủ là dịch vụ đó hiện ra ở trang Kết nối, dùng được trên mọi bộ não. Đây là nửa còn lại của hướng "Javis giữ phần lõi, còn lại bạn tự chọn": bản trước cho phép GỠ bớt, bản này cho phép THÊM vào.

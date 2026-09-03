@@ -39,6 +39,7 @@
     channels: "send",
     mcp: "plug",
     plugins: "toolbox",
+    packs: "package",
     logs: "scroll-text",
     account: "circle-user",
     usage: "chart-column",
@@ -80,7 +81,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "logs", "account", "usage",
+    "packs", "logs", "account", "usage",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -95,7 +96,7 @@
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
     { get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
-    { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
+    { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins", "packs"] },
     { get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
     { get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
@@ -375,6 +376,13 @@
     if (id === "models")   return renderModels(el);
     if (id === "mcp")      return renderConnect(el);
     if (id === "plugins")  return renderPlugins(el);
+    // Trang Gói do packs.js dựng, uỷ quyền y như renderStudioPage uỷ cho studio.js. Để riêng
+    // file vì console.js đã ~7k dòng.
+    if (id === "packs") {
+      if (window.JavisPacks) return window.JavisPacks.render(el);
+      el.innerHTML = placeholder("packs", "packs.js chưa sẵn sàng.");
+      return;
+    }
     if (id === "channels") return renderChannels(el);
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
@@ -1468,8 +1476,29 @@
         </div>
         <div class="wf-desc">${esc(p.description || "")}</div>
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
-        <div class="wf-actions"><button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button></div>`;
-      div.querySelector(".tgl").onclick = async () => {
+        <div class="wf-actions">${p.removed
+            ? `<button class="s-btn-ghost undel">Cài lại</button>`
+            : `<button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button>
+               <button class="s-btn-ghost del" style="color:var(--red)">Gỡ</button>`}</div>`;
+      // "Gỡ" khác "Tắt" ở Ý ĐỊNH, nên thẻ rời hẳn khỏi danh sách chính chứ không chỉ mờ đi.
+      // Không xoá file trong bản cài: cây code read-only trên Docker, và git pull sẽ mọc lại.
+      const doiGo = async (go) => {
+        const fd = new FormData();
+        fd.append("slug", p.slug); fd.append("removed", go ? "1" : "0"); fd.append("brain", fbrain());
+        let r = {}; try { r = await (await fetch("/plugins/remove", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
+        if (r && r.error) alert(r.error);
+        load();
+      };
+      const nutDel = div.querySelector(".del");
+      if (nutDel) nutDel.onclick = () => {
+        if (confirm(`Gỡ plugin "${p.name}"?
+
+Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. Công cụ của nó sẽ biến khỏi mọi bộ não.`)) doiGo(true);
+      };
+      const nutUn = div.querySelector(".undel");
+      if (nutUn) nutUn.onclick = () => doiGo(false);
+      const nutTgl = div.querySelector(".tgl");
+      if (nutTgl) nutTgl.onclick = async () => {
         const fd = new FormData();
         fd.append("slug", p.slug); fd.append("enabled", p.enabled ? "0" : "1"); fd.append("brain", fbrain());
         let r = {}; try { r = await (await fetch("/plugins/toggle", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
@@ -1495,8 +1524,18 @@
       wrap.className = "cview-section";
       wrap.innerHTML = intro + gateBanner + dirHint + `<div id="plCards"></div>`;
       const host = wrap.querySelector("#plCards");
-      if (!plugins.length) host.innerHTML = `<div class="empty">Chưa có plugin nào. Thả một thư mục plugin vào ${esc(d.global_dir || "thư mục plugins toàn cục")} rồi tải lại.</div>`;
-      else plugins.forEach(p => host.appendChild(card(p)));
+      const conDung = plugins.filter(p => !p.removed);
+      const daGo = plugins.filter(p => p.removed);
+      if (!conDung.length) host.innerHTML = `<div class="empty">Chưa có plugin nào. Thả một thư mục plugin vào ${esc(d.global_dir || "thư mục plugins toàn cục")} rồi tải lại.</div>`;
+      else conDung.forEach(p => host.appendChild(card(p)));
+      if (daGo.length) {
+        const det = document.createElement("details");
+        det.style.marginTop = "18px";
+        det.innerHTML = `<summary style="cursor:pointer;color:var(--text3)">◆ Đã gỡ <span style="opacity:.7">${daGo.length} plugin - bấm để xem</span></summary><div id="plGo" style="margin-top:10px"></div>`;
+        wrap.appendChild(det);
+        const hostGo = det.querySelector("#plGo");
+        daGo.forEach(p => hostGo.appendChild(card(p)));
+      }
       el.innerHTML = "";
       el.appendChild(wrap);
     }
