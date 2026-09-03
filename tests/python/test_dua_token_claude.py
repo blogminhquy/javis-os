@@ -83,10 +83,25 @@ check("và xếp hàng trả rỗng ngay", asyncio.run(gate.xep_hang()) == "")
 _dat_cred(3600)
 # Token còn tốt là ĐƯỜNG NHANH: đây là 99.9% số lượt chat, thêm một mili giây ở đây cũng là
 # thuế đánh lên mọi người để chữa một ca hiếm.
+# Đo theo NỀN chứ không theo mili giây tuyệt đối. Bản cũ chốt 50ms, mà chỉ riêng
+# `asyncio.run` dựng rồi dẹp một event loop đã tốn vài chục ms trên máy chạy CI đang tải
+# nặng - tức là ngưỡng đó đo tốc độ máy chứ không đo "có xếp hàng hay không". Đường chậm
+# thật thì chờ tới lượt làm mới token, tính bằng GIÂY, nên chỉ cần cách nền vài lần là đủ
+# tách bạch. Sàn 0.5s để máy nhanh (nền ~0) không biến phép so thành vô nghĩa.
+async def _rong():
+    return ""
+
+
+_t = time.time()
+asyncio.run(_rong())
+_nen = time.time() - _t          # chi phí dựng/dẹp event loop trên chính máy này
+
 t0 = time.time()
 nhan = asyncio.run(gate.xep_hang())
+_mat = time.time() - t0
 check("token còn hạn thì không xếp hàng", nhan == "", nhan)
-check("và đường nhanh phải THẬT nhanh", time.time() - t0 < 0.05)
+check(f"và đường nhanh phải THẬT nhanh ({_mat*1000:.0f}ms, nền {_nen*1000:.0f}ms)",
+      _mat < max(_nen * 5, 0.5), f"{_mat:.3f}s")
 
 _dat_cred(10)   # trong cửa sổ CHUAN_BI_S
 gate._MOC_DI_TRUOC = 0.0
