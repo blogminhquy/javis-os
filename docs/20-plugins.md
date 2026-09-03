@@ -132,6 +132,14 @@ Từng cái làm được gì:
 
 Lưu ý về cột "Quyền tối thiểu": đó là mức khai báo cho **cả plugin** và là cái hiển thị trên thẻ. Từng tool bên trong vẫn có mức riêng. Ví dụ `meta-pages-graph` ghi "toàn quyền" trên thẻ, nhưng ba tool đọc bài/bình luận của nó chỉ cần mức chỉ-đọc, còn các tool đăng và xoá mới cần toàn quyền.
 
+## Gỡ hẳn một plugin khỏi danh sách
+
+Nút **Tắt** giữ thẻ lại cho bạn nhìn; nút **Gỡ** thì cho nó biến khỏi danh sách chính. Cả hai đều làm tool của plugin biến mất khỏi mọi bộ não, khác nhau ở chỗ bạn còn định dùng lại hay không.
+
+Gỡ **không xoá tệp** trong bản cài. Javis chỉ ghi nhớ lựa chọn đó vào thư mục state, nên cập nhật Javis lên bản mới không làm plugin mọc lại, mà cài lại thì chỉ mất một cú bấm ở mục **Đã gỡ** nằm cuối trang (mặc định gập).
+
+Áp cho cả plugin **Có sẵn** đi kèm Javis. Đây là cách dọn bộ mặc định cho gọn nếu bạn không dùng tới.
+
 ## Mức quyền tối thiểu và chế độ chạy
 
 Mỗi tool plugin khai báo một mức quyền tối thiểu; mỗi lượt chạy của Javis lại có một trần quyền. Tool chỉ chạy khi trần của lượt chạy đủ cao.

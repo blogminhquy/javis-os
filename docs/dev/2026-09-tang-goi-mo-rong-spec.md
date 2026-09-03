@@ -227,7 +227,13 @@ Chưa có UI cài, chưa chạm mạng. Thả một thư mục vào là connecto
 
 **Xong khi:** một thư mục gói mẫu trong `STATE_DIR` tạm làm `mcp_catalog.get("acme.pos-vn")` trả về connector, `public_catalog()` có nó với URL icon tuyệt đối, `POST /connect/add` tạo được kết nối thật, xoá thư mục thì nó biến mất ở lần load kế. Gỡ `tiktok-ads` thì `mcp_catalog.get("tiktok-ads")` trả `None`, thẻ của nó rời khỏi kho, tool của nó biến khỏi `mcp_hub.discover_all`, và bấm Cài lại là quay về đủ - **không byte nào của `system/mcp-catalog.json` bị sửa trong cả vòng đó**. **Toàn bộ 18 file test đọc catalog vẫn xanh mà không sửa dòng nào.** `server/bench_hotpath.py` không lùi quá mốc 150,8ms.
 
-### Giai đoạn 2 - Cài từ zip, màn hình đồng ý, gỡ sạch, trang Gói (9 ngày)
+### Giai đoạn 2 - Cài từ zip, màn hình đồng ý, gỡ sạch, trang Gói (9 ngày) - ĐÃ LÀM
+
+> Ship ở 0.55.22. `server/pack_install.py` (luật zip, sổ cài đặt, cài hai bước có chốt
+> dấu vân tay, gỡ sạch), `server/routes/packs.py` (7 endpoint, đòi phiên thật),
+> `dashboard/packs.js` (trang Gói + màn hình xác nhận), và plugin bundled gỡ được qua
+> `plugins_host.set_removed`. CHƯA làm: cài từ URL và repo riêng (Giai đoạn 5), trang
+> hướng dẫn của gói (Giai đoạn 3), sổ hiệu ứng cho plugin của gói (Giai đoạn 4).
 
 Giai đoạn giao đúng phần cần nhất: gói riêng bằng zip, và gỡ sạch.
 

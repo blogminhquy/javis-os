@@ -210,8 +210,23 @@ def _entry_file(pdir: Path) -> Optional[Path]:
     return None
 
 
+def da_go(slug: str) -> bool:
+    """Plugin ĐI KÈM APP mà người dùng đã GỠ.
+
+    "Gỡ" không phải xoá file: cây code read-only trên Docker nên xoá là EACCES, còn trên bản
+    native thì lượt `git pull` sau đó mọc lại - một thứ "đã xoá" mà tự quay về thì tệ hơn một
+    thứ đang tắt. Nên gỡ nghĩa là biến khỏi danh sách chính, khỏi mọi engine, khỏi prompt; file
+    vẫn nằm trong bản cài và cài lại là một cú bấm.
+
+    Khác `disabled` ở Ý ĐỊNH: tắt là "tạm không dùng, vẫn để đó nhìn", gỡ là "tôi không cần
+    thứ này". Giao diện đối xử hai trạng thái đó khác nhau nên sổ ghi cũng tách."""
+    return slug in (_read_state().get("removed") or [])
+
+
 def _effective_enabled(source: str, slug: str, manifest: dict) -> bool:
     """Bật/tắt HIỆU LỰC (chưa tính env gate của vault)."""
+    if da_go(slug):
+        return False
     if source == "bundled":
         st = _read_state()
         if slug in (st.get("disabled") or []):
@@ -246,7 +261,7 @@ def describe(vault_root: Optional[str] = None) -> List[dict]:
             "min_mode": mm if mm in VALID_MIN_MODE else "readonly",
             "tools": list(manifest.get("tools") or []),
             "hooks": list(manifest.get("hooks") or []),
-            "valid_slug": valid_slug(slug),
+            "valid_slug": valid_slug(slug), "removed": da_go(slug),
             "error": merr or errors.get(slug, ""),
             "dir": str(pdir),
         })
@@ -471,6 +486,23 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
             return f"ERROR: tool plugin '{name}' lỗi: {type(e).__name__}: {e}"
 
     return _call
+
+
+def set_removed(slug: str, removed: bool) -> dict:
+    """Gỡ hoặc cài lại một plugin. Ghi vào `STATE_DIR/plugins.json`, không đụng cây code.
+
+    Áp cho MỌI nguồn, kể cả bundled - đó chính là điểm: người dùng dọn được bộ mặc định mà bản
+    cập nhật sau không làm nó mọc lại."""
+    slug = str(slug or "").strip()
+    if not slug:
+        return {"ok": False, "error": "thiếu slug"}
+    st = _read_state()
+    ds = set(st.get("removed") or [])
+    ds.add(slug) if removed else ds.discard(slug)
+    st["removed"] = sorted(ds)
+    _write_state(st)
+    invalidate()
+    return {"ok": True, "removed": bool(removed)}
 
 
 def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,

@@ -268,12 +268,14 @@ i = src_hub.index("def _store_mtime")
 check("hub nhận ra kho gói và sổ đã gỡ cũng đổi được danh sách tool",
       '"packs"' in src_hub[i:i + 900] and "core-off.json" in src_hub[i:i + 900])
 
-src_main = (SERVER / "main.py").read_text(encoding="utf-8")
-check("có endpoint liệt kê gói", '@app.get("/packs")' in src_main)
-check("có endpoint phục vụ ảnh của gói", '/asset/{duong:path}' in src_main)
-i = src_main.index("_PACK_ANH = {")
-check("KHÔNG phục vụ SVG (mở thẳng một tab là chạy script)", ".svg" not in src_main[i:i + 400])
-check("gửi kèm nosniff", "X-Content-Type-Options" in src_main[i:i + 900])
+# Endpoint gói nằm ở routes/packs.py (bóc riêng ở 0.55.22), main.py chỉ gọi register.
+src_r = (SERVER / "routes" / "packs.py").read_text(encoding="utf-8")
+check("có endpoint liệt kê gói", '@router.get("/packs")' in src_r)
+check("có endpoint phục vụ ảnh của gói", '/asset/{duong:path}' in src_r)
+check("KHÔNG phục vụ SVG (mở thẳng một tab là chạy script)", ".svg" not in src_r)
+check("gửi kèm nosniff", "X-Content-Type-Options" in src_r)
+check("main.py gọi register đúng khuôn router", "packs_routes.register(app" in
+      (SERVER / "main.py").read_text(encoding="utf-8"))
 
 for f in (".gitignore", ".dockerignore"):
     t = (ROOT / f).read_text(encoding="utf-8")

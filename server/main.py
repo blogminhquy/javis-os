@@ -3215,33 +3215,18 @@ async def connect_catalog():
             "strict": bool(cfgmod.read_settings().get("mcp", {}).get("strict")), "hub": _hub_enabled()}
 
 
-@app.get("/packs")
-async def packs_list():
-    """Gói mở rộng đã cài trong `STATE_DIR/packs/`, kèm lý do nếu cái nào không nạp được.
+# Trang Gói: xem, cài từ .zip, bật tắt, gỡ. Router riêng vì main.py đã quá dài; xem
+# server/routes/packs.py. Lời gọi phải nằm ĐÚNG chỗ này - route_table.json khoá thứ tự.
+import routes.packs as packs_routes   # noqa: E402
 
-    Chỉ ĐỌC ở bản này: chưa có đường cài từ dashboard, gói vào máy bằng cách thả thư mục. Nhưng
-    danh sách phải có ngay, vì một gói hỏng mà im lặng thì người thả nó vào ngồi đoán mãi."""
-    return {"packs": packs.installed(), "dir": str(packs.PACKS_DIR),
-            "disabled": packs.tat_het()}
-
-
-# Ảnh của gói. Chỉ ba định dạng ảnh, KHÔNG có SVG: một SVG phục vụ cùng origin thì trơ trong
-# thẻ <img> nhưng chạy script khi người dùng mở thẳng nó ra một tab. Kèm `nosniff` để trình
-# duyệt thôi tự đoán kiểu, và Content-Security-Policy chặt trên đúng route này.
-_PACK_ANH = {".png": "image/png", ".webp": "image/webp",
-             ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif"}
-
-
-@app.get("/packs/{pid}/asset/{duong:path}")
-async def packs_asset(pid: str, duong: str):
-    f = packs.asset_path(pid, duong)
-    if f is None or f.suffix.lower() not in _PACK_ANH:
-        return JSONResponse({"error": "not found"}, status_code=404)
-    return FileResponse(str(f), media_type=_PACK_ANH[f.suffix.lower()], headers={
-        "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; sandbox",
-        "Cache-Control": "public, max-age=300",
-    })
+packs_routes.register(app, packs_routes.PacksDeps(
+    # Trang này đòi PHIÊN THẬT, không phụ thuộc `gate_active()`: hàm đó trả False trên bản
+    # local chưa đặt mật khẩu, mà cài một gói là chạy mã lạ trong tiến trình server. Và cố ý
+    # KHÔNG nhận API token - token dành cho tự động hoá, còn "tự động cài gói" là thứ không
+    # nên có đường tồn tại.
+    co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
+    lam_moi_hub=lambda: (mcp_hub.invalidate_cache(), _write_codex_profile()),
+))
 
 
 @app.post("/connect/core-toggle")
@@ -8320,6 +8305,31 @@ async def plugins_toggle(slug: str = Form(...), enabled: str = Form(...), brain:
     if not res.get("ok"):
         return JSONResponse({"error": res.get("error", "lỗi")}, status_code=400)
     mcp_hub.invalidate_cache()   # tool builtin/plugin nằm trong route cache của hub → phải làm mới
+    try:
+        rebuild_javis_index(brain)
+    except Exception:
+        pass
+    return res
+
+
+@app.post("/plugins/remove")
+async def plugins_remove(slug: str = Form(...), removed: str = Form("1"),
+                         brain: str = Form("brain")):
+    """GỠ hoặc CÀI LẠI một plugin, kể cả plugin đi kèm app.
+
+    Khác nút Tắt ở Ý ĐỊNH, và giao diện hiện hai trạng thái đó khác nhau: tắt là "tạm không
+    dùng, vẫn để đó nhìn", gỡ là "tôi không cần thứ này" nên thẻ rời khỏi danh sách chính.
+
+    KHÔNG xoá file trong `system/plugins/`: cây code read-only trên Docker nên xoá là EACCES,
+    còn trên bản native thì `git pull` sau đó mọc lại - một thứ "đã xoá" mà tự quay về thì tệ
+    hơn một thứ đang tắt. Lựa chọn ghi vào `STATE_DIR/plugins.json` nên sống qua cập nhật, và
+    cài lại chỉ mất một cú bấm."""
+    if not plugins_host.valid_slug(slug):
+        return JSONResponse({"error": "slug không hợp lệ"}, status_code=400)
+    res = plugins_host.set_removed(slug, removed in ("1", "true", "True", "on"))
+    if not res.get("ok"):
+        return JSONResponse({"error": res.get("error", "lỗi")}, status_code=400)
+    mcp_hub.invalidate_cache()
     try:
         rebuild_javis_index(brain)
     except Exception:
