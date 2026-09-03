@@ -39,8 +39,19 @@ server/.api_tokens.json
 server/auth_audit.jsonl*
 server/.oauth_mcp.json
 server/mcp_audit.jsonl*
+# Thư mục CHỨA CREDENTIAL do kết nối sinh ra lúc chạy. connector-cred là kho token mà một số
+# connector tự giữ (workspace-mcp); purge-trash giữ tạm chính những thư mục đó 30 ngày sau khi
+# người dùng xoá kết nối, để bấm nhầm còn lấy lại được. Cả hai TUYỆT ĐỐI không lên repo.
 server/connector-home/
 server/connector-files/
+server/connector-cred/
+server/purge-trash/
+# Artifact chạy của các bản 0.5x: trạng thái hội thoại, chỉ mục bộ nhớ, và prompt Antigravity
+# ghi ra để gỡ lỗi. Sinh ra lúc chạy nên không thuộc về repo lẫn image.
+server/conversation_state.db*
+server/memory_index.db*
+server/antigravity-duong-prompt.json
+server/usage-marks.jsonl*
 server/conversations.db
 server/conversations.db-wal
 server/conversations.db-shm

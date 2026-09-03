@@ -19,6 +19,7 @@ import time
 import uuid
 
 import mcp_store
+import winproc
 from config import STATE_DIR
 
 _TIMEOUT = 180        # QR Zalo sống ngắn - quá 3 phút coi như hết hạn
@@ -193,7 +194,11 @@ def cancel(sid, keep=False):
         return {"ok": True}
     try:
         if sess["proc"].poll() is None:
-            sess["proc"].kill()
+            # Giết CẢ CÂY, không riêng launcher. Trên Windows npx chạy qua `cmd.exe /c`, nên
+            # kill() chỉ hạ cái vỏ còn tiến trình node cháu vẫn sống và vẫn giữ khoá trên thư
+            # mục home cô lập - lần xoá kết nối sau đó sẽ trượt mà không báo gì.
+            if not winproc.kill_tree(sess["proc"].pid):
+                sess["proc"].kill()
     except Exception:
         pass
     if not keep:

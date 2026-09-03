@@ -152,8 +152,22 @@
   const liteMode = () => !graphEnabled || isNarrow();
 
   const esc = (s) => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  // Chỉ cho link http(s) (chặn javascript:/data: XSS); dùng kèm esc() khi nhúng vào href.
-  const safeHref = (u) => /^https?:\/\//i.test((u || "").toString().trim()) ? u : "#";
+  // Chỉ cho link http(s) HOẶC đường dẫn cùng origin (chặn javascript:/data: XSS); dùng kèm
+  // esc() khi nhúng vào href.
+  //
+  // Vì sao phải nhận cả đường dẫn tương đối: catalog có connector trỏ guide_url vào trang tự
+  // host, ví dụ "/static/docs/substack.html". Luật cũ chỉ nhận ^https?:// nên nó biến thành
+  // "#" - link Hướng dẫn của Substack đã chết âm thầm. Và khi gói của người khác cấp được
+  // guide_url thì chỗ này thành cửa XSS, nên phải siết cùng lúc với việc nới.
+  //
+  // "//evil.com" bị CHẶN có chủ ý: trình duyệt hiểu nó là protocol-relative, tức link ra
+  // ngoài, chứ không phải đường dẫn nội bộ. Chỉ nhận đúng MỘT dấu gạch mở đầu.
+  const safeHref = (u) => {
+    const s = (u || "").toString().trim();
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^\/(?!\/)/.test(s)) return s;
+    return "#";
+  };
   const _shield = (on) => on
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>'
     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5l8-3z"/></svg>';
@@ -4269,7 +4283,7 @@
       + '<div class="cat-desc">' + esc(con.description || "") + '</div>'
       + (soon
         ? '<button class="gcard-btn" disabled style="opacity:.5">Sắp có</button>'
-          + (con.guide_url ? ' <a class="cat-doc" href="' + esc(con.guide_url) + '" target="_blank">docs ↗</a>' : "")
+          + (con.guide_url ? ' <a class="cat-doc" href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">docs ↗</a>' : "")
         : '<button class="gcard-btn" data-connect="' + esc(con.id) + '">Kết nối</button>'
           + (con.guide_url ? ' <a class="cat-doc" href="' + esc(safeHref(con.guide_url))
               + '" target="_blank" rel="noopener">Hướng dẫn ↗</a>' : ""))
@@ -4305,7 +4319,7 @@
       + (con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "")
       // Có steps thì wizard từng bước THAY guide tường chữ (guide giữ làm fallback catalog cũ)
       + (hasSteps ? stepsHtml(con)
-        : (con.guide ? '<div class="conn-guide">' + esc(con.guide) + (con.guide_url ? ' <a href="' + esc(con.guide_url) + '" target="_blank">Hướng dẫn ↗</a>' : "") + '</div>' : ""))
+        : (con.guide ? '<div class="conn-guide">' + esc(con.guide) + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">Hướng dẫn ↗</a>' : "") + '</div>' : ""))
       + oauthWizard(con)   // nút mở trang ngoài (vd "Tạo App Password") khi catalog khai auth.setup.links
       + reuseHtml(reuseDonors(con, ctx))
       + jsonDropHtml(con)
@@ -4533,7 +4547,7 @@
       + (con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "")
       + (hasSteps ? stepsHtml(con)
         : '<div class="conn-guide">' + esc(con.guide || "Đăng nhập bằng tài khoản của nhà cung cấp.")
-          + (con.guide_url ? ' <a href="' + esc(con.guide_url) + '" target="_blank">Hướng dẫn ↗</a>' : "") + '</div>')
+          + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">Hướng dẫn ↗</a>' : "") + '</div>')
       + oauthWizard(con)
       + reuseHtml(reuseDonors(con, ctx))
       + jsonDropHtml(con)
@@ -4635,10 +4649,93 @@
       } else if (act === "toggle") {
         await postJson("/connect/toggle", { id: c.id }); closeConnModal(); renderConnect(el);
       } else if (act === "del") {
-        if (!confirm('Xoá kết nối "' + (c.label || "") + '"?')) return;
-        await postJson("/connect/delete", { id: c.id }); closeConnModal(); renderConnect(el);
+        closeConnModal(); openPurgeModal(el, c);
       }
     });
+  }
+
+  function _dungLuong(b) {
+    b = Number(b || 0);
+    if (!b) return "";
+    if (b < 1024) return b + " B";
+    if (b < 1024 * 1024) return Math.round(b / 1024) + " KB";
+    return (b / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  async function openPurgeModal(el, c) {
+    // Hộp này VẼ TỪ /connect/purge-plan chứ không tự liệt kê. Lý do: danh sách "sẽ mất những
+    // gì" viết tay trong JS thì sau vài tháng nó lệch khỏi việc server thật sự làm, mà lệch
+    // theo hướng nguy hiểm - người dùng đọc thấy ít hơn thực tế. Server đi một vòng quét thật
+    // rồi trả về đúng cái nó sắp xoá.
+    let d;
+    connModal(mHead("XOÁ KẾT NỐI") + '<div class="mp-body" id="pgBody">Đang kiểm tra…</div>');
+    try { d = await (await fetch("/connect/purge-plan?id=" + encodeURIComponent(c.id))).json(); }
+    catch (e) { d = { ok: false, error: String(e) }; }
+    const body = document.getElementById("pgBody");
+    if (!body) return;
+    if (!d || !d.ok) {
+      body.innerHTML = WARN_ICON + " " + esc((d && d.error) || "Không đọc được kết nối.");
+      return;
+    }
+    if (d.busy) {
+      body.innerHTML = WARN_ICON + ' Kết nối đang chạy dở một việc. Chờ nó xong rồi xoá, '
+        + 'vì dừng giữa chừng có thể cắt ngang một việc thật đang gửi đi.';
+      return;
+    }
+
+    const muc = (d.items || []).map(function (i) {
+      const co = _dungLuong(i.bytes);
+      return '<li>' + esc(i.label) + (i.n > 1 ? ' <b>x' + i.n + '</b>' : "")
+        + (co ? ' <span style="opacity:.6">(' + co + ')</span>' : "")
+        + (i.note ? '<br><span style="opacity:.6;font-size:.9em">' + esc(i.note) + '</span>' : "")
+        + '</li>';
+    }).join("");
+
+    // Cảnh báo lấy từ CATALOG (trường purge_warning), không viết cứng ở đây: mất phiên quét QR
+    // là tính chất của connector, nên nó phải đi cùng connector chứ không nằm trong giao diện.
+    const nang = !!d.warning;
+    body.innerHTML =
+      '<p>Sắp xoá <b>' + esc(d.label) + '</b> (' + esc(d.connector_name || "") + ').</p>'
+      + (nang ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px">'
+                + WARN_ICON + ' ' + esc(d.warning) + '</div>' : "")
+      + '<p style="margin-top:10px">Những thứ sẽ mất:</p><ul style="margin:6px 0 0 18px">' + muc + '</ul>'
+      + '<label style="display:block;margin-top:12px"><input type="checkbox" id="pgAudit"> '
+      + 'Xoá luôn nhật ký gọi tool <span style="opacity:.6">(mặc định giữ lại, chỉ bỏ tên hiển thị)</span></label>'
+      + (nang ? '<label style="display:block;margin-top:8px">Gõ đúng <b>' + esc(d.label)
+                + '</b> để xoá hẳn ngay:<br>'
+                + '<input class="mp-input" id="pgName" placeholder="Gõ lại tên kết nối"></label>' : "")
+      + '<div class="mp-foot" style="margin-top:14px"><span class="mp-note" id="pgNote"></span>'
+      + '<button class="mp-btn" data-act="close">Huỷ</button>'
+      + '<button class="mp-btn primary" id="pgTrash">'
+      + (nang ? 'Chuyển vào thùng rác 30 ngày' : 'Xoá kết nối') + '</button>'
+      + (nang ? '<button class="mp-btn danger" id="pgHard">Xoá hẳn ngay</button>' : "")
+      + '</div>';
+
+    const note = document.getElementById("pgNote");
+    async function chay(hard) {
+      note.textContent = "Đang xoá…";
+      const r = await postJson("/connect/delete", {
+        id: c.id, hard: !!hard,
+        purge_audit: !!(document.getElementById("pgAudit") || {}).checked
+      });
+      if (!r || !r.ok) {
+        note.innerHTML = WARN_ICON + " " + esc((r && r.error) || "Lỗi");
+        return;
+      }
+      closeConnModal();
+      renderConnect(el);
+    }
+    const nutTrash = document.getElementById("pgTrash");
+    if (nutTrash) nutTrash.onclick = () => chay(false);
+    const nutHard = document.getElementById("pgHard");
+    if (nutHard) nutHard.onclick = () => {
+      const v = (document.getElementById("pgName") || {}).value || "";
+      if (v.trim() !== (d.label || "").trim()) {
+        note.innerHTML = WARN_ICON + " Gõ đúng tên kết nối thì mới xoá hẳn được.";
+        return;
+      }
+      chay(true);
+    };
   }
 
   async function openAuditModal(c) {

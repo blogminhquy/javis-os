@@ -27,6 +27,8 @@ from pathlib import Path
 
 import httpx
 
+import winproc
+
 PROTOCOL = "2025-06-18"
 # _IDLE_TTL PHẢI LỚN HƠN connect_health.HEALTH_INTERVAL (600). Khi hai số bằng nhau,
 # session vừa bị dọn xong ngay trước mỗi vòng quét sức khoẻ → vòng nào cũng spawn server
@@ -398,25 +400,8 @@ class McpStdioSession:
         tồn tại chừng nào còn thành viên). Chốt an toàn hai lớp: không bao giờ đụng nhóm
         của chính server, và nếu child không phải leader (bản cũ chưa có session riêng)
         thì nhóm mang id đó không tồn tại → ProcessLookupError → rơi về kill() như cũ."""
-        pid = self.proc.pid
-        if os.name == "nt":
-            # Windows không có process group kiểu POSIX → taskkill /T giết cả cây.
-            try:
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                               capture_output=True, timeout=10,
-                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                return
-            except Exception:
-                pass
-        else:
-            try:
-                if pid != os.getpgid(0):
-                    os.killpg(pid, signal.SIGKILL)
-                    return
-            except ProcessLookupError:
-                pass   # cả nhóm đã chết sạch, hoặc child không phải leader → kill thường
-            except Exception:
-                pass
+        if winproc.kill_tree(self.proc.pid):
+            return
         try:
             self.proc.kill()   # fallback: ít nhất giết launcher như cũ
         except Exception:
@@ -537,6 +522,30 @@ class SessionPool:
         ent = self._sessions.pop(key, None)
         if ent:
             self._close_later(ent["obj"])
+
+    def dang_ban_theo_key(self, key) -> bool:
+        """Như `dang_goi_tool` nhưng tra theo KEY thay vì spec.
+
+        Chỗ xoá kết nối chỉ cầm mỗi conn_id: nó không dựng lại được spec (spec cần secret đã
+        giải mã, mà kết nối thì sắp bị xoá). Key của phiên chính là conn_id, nên tra thẳng."""
+        ent = self._sessions.get(key)
+        return bool(ent and ent.get("ban"))
+
+    async def close_now(self, key) -> bool:
+        """Đóng phiên và CHỜ tiến trình con chết hẳn, khác `invalidate` là bắn-rồi-quên.
+
+        Vì sao cần cả hai: `invalidate` dùng khi đổi cấu hình, ở đó chờ hay không cũng thế.
+        Còn trước khi `rmtree` thư mục home của một kết nối thì phải chờ thật - tiến trình
+        stdio còn sống là còn giữ khoá trên file trong đó, xoá sẽ trượt trên Windows và tệ hơn
+        là xoá NỬA VỜI trên POSIX. Trả True nếu có phiên để đóng."""
+        ent = self._sessions.pop(key, None)
+        if not ent:
+            return False
+        try:
+            await ent["obj"].close()
+        except Exception as e:
+            print(f"[mcp_client] close_now {key}: {type(e).__name__}: {e}", file=sys.stderr)
+        return True
 
     async def close_all(self):
         for key in list(self._sessions):

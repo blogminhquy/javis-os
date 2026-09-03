@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.19] - 2026-09-03
+### Bảo mật
+- **Xoá một kết nối giờ mới thật sự xoá sạch.** Trước bản này, xoá kết nối vẫn để lại thư mục chứa phiên đăng nhập của nó trên máy chủ, và không có gì dọn cả. Trên chính máy chủ dự án đang có 5 thư mục kiểu đó nằm lại sau những kết nối Zalo đã xoá từ lâu, một trong số đó vẫn giữ credential đăng nhập.
+- **Chương trình con của kết nối bị tắt ngay, thay vì sống thêm 15 phút.** Nó vẫn chạy nền suốt quãng đó dù kết nối đã biến mất khỏi màn hình.
+- **Link Hướng dẫn của một số nguồn hết chết**, và Javis siết lại đúng chỗ đó để một trang hướng dẫn không thể lén chạy mã trong dashboard của bạn.
+
+### Cải thiện
+- **Hộp xác nhận khi xoá kết nối nói rõ sẽ mất những gì**, đếm đúng từng thứ, thay vì một câu hỏi cụt. Kết nối quét mã QR như Zalo được cảnh báo riêng là mất phiên thì phải quét lại bằng điện thoại, và mặc định chuyển vào thùng rác giữ 30 ngày để bấm nhầm còn lấy lại được.
+- **Nhật ký gọi tool được giữ lại khi xoá kết nối**, chỉ bỏ tên hiển thị. Muốn xoá hẳn thì tự tick, vì một nhật ký mà thao tác xoá tự quét sạch được thì không còn là nhật ký.
+
 ## [0.55.18] - 2026-09-03
 ### Thêm mới
 - **Javis tự phát hiện khi trình duyệt bạn đang chạy bản cũ.** Từ trước tới nay chuyện này hoàn toàn câm: bạn cập nhật xong, mở lên thấy y như cũ, và không có cách nào biết là do trình duyệt giữ file cũ. Nay Javis hiện một dải nhắc ngay đầu màn hình, gọi đúng tên file đang cũ, kèm nút Tải lại.
