@@ -23,6 +23,7 @@ const SU = D("sessions-ui.js");
 const CS = D("console.js");
 const HTML = D("index.html");
 const CSS = D("style.css");
+const APP = D("app.js");
 const PY = fs.readFileSync(path.join(ROOT, "server", "sessions.py"), "utf8");
 const VI = JSON.parse(D(path.join("i18n", "vi.json")));
 const EN = JSON.parse(D(path.join("i18n", "en.json")));
@@ -146,10 +147,14 @@ check("lưu hướng dẫn xong thì nạp lại danh sách để chấm báo tr
 // VÙNG CACHE - media_gc dọn nó theo tuổi (mặc định 30 ngày) và theo trần dung lượng - nên
 // tài liệu của một project để ở đó là hẹn ngày mất, và mất rồi thì project còn lại một hàng
 // trỏ vào hư không.
-const taiLen = (SU.match(/async function taiLen\([\s\S]*?\n  \}/) || [""])[0];
+const taiLen = (SU.match(/async function taiLenMot\([\s\S]*?\n  \}/) || [""])[0];
 check("có hàm tải file lên", !!taiLen);
 check("CANARY: tải vào sources, KHÔNG còn nhắc attachments",
   /"folder", "sources"/.test(taiLen) && !/attachments/.test(taiLen));
+// Dòng chú thích dưới ô thả từng ghi "nằm ở thư mục attachments" - sai từ lúc đường tải đổi
+// sang sources, và nó là thứ DUY NHẤT người dùng đọc để biết file mình vừa tải đi đâu.
+check("chú thích dưới ô thả nói đúng thư mục", /sources/.test(VI["proj.upload_dest"])
+  && !/attachments/.test(VI["proj.upload_dest"] + EN["proj.upload_dest"]));
 // Bản cũ đoán tên thư mục ở frontend bằng chuỗi cứng "attachments". Brain đặt "01 - Sources"
 // hay "05 - Attachments" là nó đẻ ra một thư mục thứ hai trùng nghĩa, file đi lạc khỏi chỗ
 // người dùng nhìn. Tên thư mục thật chỉ server mới biết.
@@ -158,8 +163,47 @@ check("CANARY: không còn đoán tên thư mục ở frontend",
 check("đăng ký vào project đúng đường SERVER trả về",
   /themFile\(up\.path, up\.name, null\)/.test(taiLen));
 check("tìm file trong brain dùng /files/search mode=name", /\/files\/search\?brain=[\s\S]{0,80}mode=name/.test(SU));
-check("file đã có trong project thì nút Thêm xám đi, không thêm trùng",
-  /daCo\[it\.path\] \? " disabled" : ""/.test(SU));
+// 03/09: nút của file đã thêm trước đây là chữ "Đã thêm" tắt cứng, nên lỡ thêm nhầm là phải
+// đóng form, lần tìm nó trong danh sách trên rồi mới gỡ được. Nay nó đổi thành "Gỡ" ngay tại
+// hàng kết quả - thêm và bỏ cùng một chỗ, cùng một cú bấm.
+const veNut = (SU.match(/function veNutKetQua\([\s\S]*?\n  \}/) || [""])[0];
+check("kết quả tìm kiếm có nút đổi Thêm / Gỡ", !!veNut
+  && /proj\.remove_short/.test(veNut) && /proj\.add/.test(veNut));
+check("nút đọc lại trạng thái từ projChiTiet chứ không đóng cứng lúc vẽ",
+  /\(projChiTiet\.files \|\| \[\]\)\.forEach\(function \(f\) \{ theoDuong\[f\.path\] = f; \}\)/.test(veNut));
+check("và gỡ ngay tại kết quả gọi đúng route xoá file khỏi project",
+  /async function goNhanhFile\(f, nut\)[\s\S]*?\/files\/" \+\s*\n?\s*encodeURIComponent\(f\.id\) \+ "\/delete"/.test(SU));
+check("thêm hoặc gỡ xong thì vẽ lại nút, không phải tìm lại từ đầu",
+  (SU.match(/veNutKetQua\(\);/g) || []).length >= 3);
+check("nhãn Gỡ có ở cả hai từ điển", !!VI["proj.remove_short"] && !!EN["proj.remove_short"]);
+
+// ============================================================
+// 4b. Chọn NHIỀU file, và thả vào ngăn kéo thì đừng rơi xuống khung chat
+// ============================================================
+// 03/09: hộp chọn file chỉ nhận một file, còn kéo-thả vào ô "kéo thả vào đây" thì file nhảy
+// sang khung chat - app.js có một tay bắt drop toàn cục, ô thả cũ chặn mặc định nhưng không
+// chặn bọt nên window vẫn ăn tiếp.
+check("ô chọn file nhận nhiều file", /<input type="file" class="pd-file" multiple hidden>/.test(SU));
+check("có vòng tải lần lượt từng file kèm đếm n/tổng",
+  /async function taiLenNhieu\(files, drop\)/.test(SU)
+  && /\(i \+ 1\) \+ "\/" \+ ds\.length/.test(SU));
+check("một file hỏng không chặn những file còn lại", /loi\.push\(ds\[i\]\.name/.test(SU));
+check("CANARY: cả tấm ngăn kéo là vùng thả, tự chặn bọt lên window",
+  /panel\.setAttribute\("data-localdrop", "1"\)/.test(SU)
+  && /e\.stopPropagation\(\);\s+\/\/ không để app\.js/.test(SU));
+check("CANARY: app.js bỏ qua drop rơi vào vùng thả riêng",
+  /closest\("\[data-localdrop\]"\)/.test(APP)
+  && /if \(inLocalDrop\(e\)\) return;/.test(APP));
+check("và ô .pd-drop không còn bắt drop lần thứ hai (thả trúng nút là tải lên hai lần)",
+  !/drop\.ondrop/.test(SU));
+
+// ============================================================
+// 4c. Dải đính kèm dưới khung chat: nhiều file thì phải CUỘN
+// ============================================================
+// 03/09: chủ repo đính 9 file, dải cao 140px cắt cụt ở hàng thứ ba và overflow:hidden nên
+// không cuộn được - mấy file cuối còn nguyên đó nhưng không cách nào bấm X bỏ đi.
+const dai = (CSS.match(/\.attach-bar\.has-items \{[\s\S]*?\}/) || [""])[0];
+check("dải đính kèm cuộn được khi tràn", /overflow-y:\s*auto/.test(dai), dai.slice(0, 90));
 
 // ============================================================
 // 5. Ghim = nạp nội dung. Gỡ file KHÔNG xoá file trong brain.

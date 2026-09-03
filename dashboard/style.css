@@ -1357,7 +1357,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px;
   max-height: 0; overflow: hidden; transition: max-height 0.2s, padding 0.2s;
 }
-.attach-bar.has-items { max-height: 140px; padding: 8px 20px; }
+/* Nhiều file thì dải này phải CUỘN. overflow:hidden lo phần thu về 0 lúc rỗng, nhưng khi
+   có file nó cắt cụt các hàng dưới: chủ repo đính 9 file, thấy 2 hàng rưỡi, không cách nào
+   với tới nút X của mấy file cuối (báo 03/09). overscroll-behavior để lăn hết dải thì dừng,
+   không lăn lây sang khung chat phía sau. */
+.attach-bar.has-items {
+  max-height: 140px; padding: 8px 20px;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+}
 .attach-chip {
   display: flex; align-items: center; gap: 8px; background: var(--bg3);
   border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px 6px 6px;
@@ -2766,11 +2773,19 @@ body.ne-full-on .cview { z-index: 250; }
   border: 1px solid var(--accent-line); background: transparent; color: var(--accent);
   font-family: inherit; font-size: 12px; }
 .pd-res-add:disabled { border-color: var(--border); color: var(--text3); cursor: default; }
+/* Đã nằm trong project: nút đổi thành "Gỡ", vẽ nhạt đi để mắt phân biệt được ngay hàng nào
+   đã thêm rồi, chỉ đỏ lên khi rê vào - gỡ là việc phá, không nên mời gọi. */
+.pd-res-add.go { border-color: var(--border); color: var(--text3); }
+.pd-res-add.go:hover { border-color: var(--red); color: var(--red); }
 .pd-drop { display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 22px 12px; border-radius: 9px; cursor: pointer; text-align: center;
   border: 1px dashed var(--border); background: transparent; color: var(--text3);
   font-family: inherit; font-size: 13px; }
 .pd-drop:hover, .pd-drop.over { border-color: var(--accent-line); color: var(--accent); }
+/* Thả file xuống BẤT CỨ ĐÂU trên ngăn kéo cũng được, nên cả tấm phải sáng lên - viền quanh
+   một cái nút nhỏ thì người ta tưởng chỉ trúng nút mới ăn. */
+.pd-panel.tha-file { outline: 2px dashed var(--accent); outline-offset: -5px; }
+.pd-panel.tha-file .pd-drop { border-color: var(--accent-line); color: var(--accent); }
 .pd-frow { display: flex; gap: 7px; }
 .pd-ok, .pd-huy { padding: 7px 13px; border-radius: 8px; cursor: pointer;
   font-family: inherit; font-size: 13px; border: 1px solid var(--border); }
