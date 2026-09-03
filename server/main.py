@@ -66,6 +66,7 @@ import mcp_hub
 import connect_health   # sức khoẻ kết nối: vòng check nền + phân loại lỗi tiếng người
 import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất của việc dọn dấu vết
 import core_off       # năng lực MẶC ĐỊNH gỡ được: trạng thái ghi ở STATE_DIR, không sửa cây code
+import packs          # GÓI mở rộng: thả thư mục vào STATE_DIR/packs là có thêm connector
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
@@ -3212,6 +3213,35 @@ async def connect_catalog():
                  for i in da_go), key=lambda x: x["name"]),
             "orphans": mcp_store.orphans(),
             "strict": bool(cfgmod.read_settings().get("mcp", {}).get("strict")), "hub": _hub_enabled()}
+
+
+@app.get("/packs")
+async def packs_list():
+    """Gói mở rộng đã cài trong `STATE_DIR/packs/`, kèm lý do nếu cái nào không nạp được.
+
+    Chỉ ĐỌC ở bản này: chưa có đường cài từ dashboard, gói vào máy bằng cách thả thư mục. Nhưng
+    danh sách phải có ngay, vì một gói hỏng mà im lặng thì người thả nó vào ngồi đoán mãi."""
+    return {"packs": packs.installed(), "dir": str(packs.PACKS_DIR),
+            "disabled": packs.tat_het()}
+
+
+# Ảnh của gói. Chỉ ba định dạng ảnh, KHÔNG có SVG: một SVG phục vụ cùng origin thì trơ trong
+# thẻ <img> nhưng chạy script khi người dùng mở thẳng nó ra một tab. Kèm `nosniff` để trình
+# duyệt thôi tự đoán kiểu, và Content-Security-Policy chặt trên đúng route này.
+_PACK_ANH = {".png": "image/png", ".webp": "image/webp",
+             ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif"}
+
+
+@app.get("/packs/{pid}/asset/{duong:path}")
+async def packs_asset(pid: str, duong: str):
+    f = packs.asset_path(pid, duong)
+    if f is None or f.suffix.lower() not in _PACK_ANH:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return FileResponse(str(f), media_type=_PACK_ANH[f.suffix.lower()], headers={
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Cache-Control": "public, max-age=300",
+    })
 
 
 @app.post("/connect/core-toggle")
