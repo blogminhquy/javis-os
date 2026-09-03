@@ -15,11 +15,11 @@ httpx==0.27.2
 claude-agent-sdk==0.2.116
 # mcp (dep của claude-agent-sdk) chấp nhận starlette>=0.27; giữ <0.39 cho khớp fastapi 0.115.0.
 starlette>=0.37.2,<0.39
-sse-starlette>=1.6.1,<3
+ sse-starlette>=1.6.1,<3
 python-dotenv==1.0.1
 websockets==13.1
 edge-tts>=7.0.0
-python-multipart==0.0.18
+python-multipart==0.0.30
 pyyaml>=6.0
 cryptography>=42.0
 jsonschema>=4.20,<5
