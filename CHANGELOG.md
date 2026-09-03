@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.14] - 2026-09-03
+### Sửa lỗi
+- **Kết nối MCP tự nối lại khi máy chủ dịch vụ ngắt phiên.** Đây là gốc của chuyện Pancake POS "lúc được lúc không": máy chủ có quyền huỷ phiên bất cứ lúc nào (họ deploy lại, phiên hết hạn), và đúng ra Javis phải bắt tay lại ngay. Trước đây Javis không nhận ra tín hiệu đó nên coi như nguồn không có công cụ nào, và cứ thế cho tới khi bạn bỏ đi 15 phút.
+- **Trang Kết nối hết báo xanh giả.** Nguồn nối được nhưng không đưa ra công cụ nào giờ hiện chấm đỏ kèm lý do, thay vì chấm xanh ghi "Hoạt động bình thường (0 công cụ)" trong khi Javis không gọi được gì.
+- **Javis nói đúng bệnh hơn khi được hỏi.** Nguồn đang trục trặc thì trả lời thẳng là nguồn hỏng, không còn đoán mò sang chuyện thiếu quyền hay chưa gắn nguồn vào brain.
+- Sai API key giờ báo đúng là sai key và hiện nút Kết nối lại, không lẫn với lỗi mất phiên.
+
 ## [0.55.13] - 2026-09-02
 ### Sửa lỗi
 - **Chat bằng model Ollama chạy trên máy nhà đã hoạt động.** Trước đây gõ gì cũng nhận lại "There's an issue with the selected model", vì Javis lặng lẽ đưa lượt chat cho Claude Code kèm tên model của Ollama. Nay lượt chat đi đúng Ollama, đủ tool và MCP như mọi bộ não khác.

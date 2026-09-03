@@ -80,6 +80,22 @@ def _format_result(res):
     return out or json.dumps(result, ensure_ascii=False)[:2000]
 
 
+class McpHttpError(Exception):
+    """Máy chủ MCP trả mã HTTP lỗi (401, 5xx...). Là LỖI THẬT, không phải kết quả rỗng.
+
+    Vì sao phải là ngoại lệ chứ không phải một dict lặng lẽ: cả hệ thống phía trên đọc
+    "có ném lỗi không" để quyết định dựng lại phiên, đánh dấu nguồn thiếu, và tô đỏ đèn
+    sức khoẻ. Nuốt mã lỗi HTTP rồi trả danh sách tool rỗng là biến một sự cố ồn ào thành
+    một sự cố CÂM - xem `_la_phien_chet` để biết cái giá đã trả.
+    """
+
+
+# Máy chủ nói "phiên của anh không còn": chuẩn Streamable HTTP quy định 404 cho phiên đã bị
+# xoá, nhưng SDK TypeScript (thứ phần lớn máy chủ MCP dùng) lại trả 400 kèm câu có chữ session.
+_PHIEN_CHET_HINTS = ("session not found", "no valid session", "session expired",
+                     "invalid session", "session id", "mcp-session-id", "session has expired")
+
+
 # ============================================================
 # HTTP (Streamable HTTP) - client sống lâu, giữ Mcp-Session-Id
 # ============================================================
@@ -101,7 +117,74 @@ class McpHttpSession:
             h["MCP-Protocol-Version"] = PROTOCOL
         return h
 
-    async def _rpc(self, method, params=None, notify=False):
+    def _la_phien_chet(self, r) -> bool:
+        """Mã lỗi này có nghĩa "bắt tay lại đi" chứ không phải "hỏng thật" không?
+
+        Đây là chỗ đã gây ra vụ 03/09/2026 (Pancake POS "Làng Chài Xưa"): máy chủ MCP có
+        quyền XOÁ PHIÊN bất cứ lúc nào - hết hạn, họ deploy lại, hoặc bộ cân tải đưa ta
+        sang máy khác - và chuẩn quy định lúc đó máy chủ trả 404 còn CLIENT PHẢI TỰ BẮT TAY
+        LẠI. Javis trước đây không hề đọc mã HTTP, nên 404 kèm thân JSON-RPC được `r.json()`
+        nuốt gọn thành một phản hồi bình thường, `tools/list` trả `[]` mà KHÔNG ném lỗi.
+
+        Hậu quả dây chuyền, không có lấy một dòng lỗi ở đâu:
+          - `SessionPool._retry` chỉ dựng lại phiên khi có NGOẠI LỆ → phiên chết nằm lại
+            trong pool, và mỗi lần dùng lại được gia hạn `last` nên vòng quét phiên rảnh
+            (15 phút) không bao giờ dọn tới, chừng nào người dùng còn thử lại.
+          - `discover_resolved` thấy 0 tool thì `continue`, KHÔNG ghi vào `bo_qua` → hub
+            tưởng vòng dò đủ, đóng băng danh sách thiếu nguồn suốt 60 giây.
+          - `connect_health` thấy không có ngoại lệ → `ok=True, tools=0` → trang Kết nối
+            chấm XANH ghi "Hoạt động bình thường (0 công cụ)", `javis_connections` báo "ổn".
+        Đúng cảnh chủ repo gặp nhiều lần: kết nối xanh, quyền đủ, mà không bộ não nào tìm ra
+        một tool POS nào, rồi "để 15-20 phút tự hết" - chính là lúc phiên chết bị dọn.
+        """
+        if not self.session_id:
+            return False          # chưa cầm phiên nào thì 404 là URL sai, không phải phiên chết
+        if r.status_code == 404:
+            return True
+        if r.status_code != 400:
+            return False
+        return any(h in (r.text or "").lower() for h in _PHIEN_CHET_HINTS)
+
+    @staticmethod
+    def _tom_tat_loi(r) -> str:
+        """Câu lỗi ngắn cho người đọc: ưu tiên message trong thân JSON-RPC, không thì thân thô."""
+        try:
+            obj = r.json()
+            msg = ((obj or {}).get("error") or {}).get("message")
+            if msg:
+                return str(msg)[:300]
+        except Exception:
+            pass
+        return (r.text or "").strip()[:300]
+
+    async def _bat_tay(self):
+        """initialize + notifications/initialized. KHÔNG tự giữ khoá, KHÔNG tự làm mới phiên.
+
+        Chỉ đánh dấu `_init_done` khi initialize THẬT SỰ thành công. Bản cũ đánh dấu vô điều
+        kiện, nên một lần initialize trả lỗi (key sai, máy chủ 5xx lúc khởi động) là phiên đó
+        mang cờ "đã bắt tay" suốt đời và mọi lượt sau đều gửi đi trong vô vọng.
+        """
+        res = await self._rpc("initialize", {
+            "protocolVersion": PROTOCOL, "capabilities": {},
+            "clientInfo": {"name": "javis-os", "version": "1.0"},
+        }, cho_lam_moi=False)
+        if isinstance(res, dict) and res.get("error"):
+            raise McpHttpError("initialize lỗi: "
+                               + json.dumps(res["error"], ensure_ascii=False)[:300])
+        await self._rpc("notifications/initialized", notify=True, cho_lam_moi=False)
+        self._init_done = True
+
+    async def _lam_moi_phien(self, sid_cu):
+        """Bắt tay lại sau khi máy chủ báo phiên chết.
+        `sid_cu` là phiên lúc gặp lỗi: người khác đã làm mới trước thì thôi, khỏi bắt tay hai lần."""
+        async with self._lock:
+            if self._init_done and self.session_id != sid_cu:
+                return
+            self.session_id = None
+            self._init_done = False
+            await self._bat_tay()
+
+    async def _rpc(self, method, params=None, notify=False, cho_lam_moi=True):
         self._id += 1
         msg = {"jsonrpc": "2.0", "method": method}
         if not notify:
@@ -112,6 +195,13 @@ class McpHttpSession:
         sid = r.headers.get("mcp-session-id")
         if sid:
             self.session_id = sid
+        if r.status_code >= 400:
+            # `cho_lam_moi` tắt trong lúc đang bắt tay - nếu không thì initialize gặp 404 sẽ
+            # gọi lại chính mình, và `_lam_moi_phien` đợi cái khoá mà `ensure_init` đang giữ.
+            if cho_lam_moi and self._la_phien_chet(r):
+                await self._lam_moi_phien(self.session_id)
+                return await self._rpc(method, params, notify=notify, cho_lam_moi=False)
+            raise McpHttpError(f"HTTP {r.status_code}: {self._tom_tat_loi(r)}")
         if notify:
             return None
         ct = (r.headers.get("content-type") or "").lower()
@@ -135,12 +225,7 @@ class McpHttpSession:
         async with self._lock:
             if self._init_done:
                 return
-            await self._rpc("initialize", {
-                "protocolVersion": PROTOCOL, "capabilities": {},
-                "clientInfo": {"name": "javis-os", "version": "1.0"},
-            })
-            await self._rpc("notifications/initialized", notify=True)
-            self._init_done = True
+            await self._bat_tay()
 
     async def list_tools(self):
         await self.ensure_init()
@@ -768,6 +853,13 @@ async def discover_resolved(conns, bo_qua=None):
     tools_spec, route = [], {}
     for conn, (spec, tools) in zip(conns, ket):
         if not tools:
+            # Dial được mà KHÔNG có tool nào là một dạng hỏng, không phải một trạng thái bình
+            # thường: nguồn có máy chủ thật thì nó phải có tool, bằng không nó vô dụng. Ghi vào
+            # `bo_qua` để hub biết vòng dò này THIẾU và chỉ cache 10 giây (thay vì đóng băng 60
+            # giây một danh sách vắng nguồn), và để `javis_connections` nói thật với model thay
+            # vì im lặng. Connector ảo (không có gì để dial) không tính - nó vốn không có tool.
+            if bo_qua is not None and co_server_de_dial(spec):
+                bo_qua.add(conn["id"])
             continue
         deny = set(conn.get("deny_tools") or [])
         ns = conn.get("namespace") or conn.get("slug") or conn["id"]
