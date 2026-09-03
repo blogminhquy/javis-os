@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.16] - 2026-09-03
+### Cải thiện
+- **Kiểm thử tự động bớt báo động giả.** Một số phép kiểm tra trước đây chốt cứng theo mili giây nên máy chạy chậm hơn bình thường là chúng báo lỗi oan, dù phần mềm không sai gì. Nay chúng đo theo đúng thứ cần kiểm, không phụ thuộc máy nhanh hay chậm.
+- Khi có lỗi thật, nhật ký kiểm thử nói thẳng bài kiểm nào hỏng ngay ở dòng cuối, thay vì phải lần tìm giữa hàng nghìn dòng.
+
 ## [0.55.15] - 2026-09-03
 ### Sửa lỗi
 - **Đính kèm nhiều file vào chat thì cuộn xem được hết.** Trước đây dải file dưới ô nhập bị cắt ở hàng thứ hai, mấy file cuối còn nguyên đó nhưng không cách nào bấm **X** bỏ đi.

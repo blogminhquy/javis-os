@@ -54,24 +54,33 @@ def _conn(i, **kw):
 _gọi = []
 
 
+# Mỗi nguồn "chậm" bao lâu, và bao nhiêu nguồn. Đặt tên để cái trần bên dưới suy ra được
+# từ đây thay vì là một con số chép tay. 0.30s cũ để lại quá ít biên: song song là 0.30s,
+# tuần tự là 1.50s, mà trần đặt ở 1.00s - máy chạy CI chậm hơn bình thường một chút là đủ
+# đội qua trần dù mã vẫn đang chạy song song đúng như thiết kế (vụ 03/09).
+CHAM_S, SO_NGUON = 0.5, 5
+TUAN_TU_S = CHAM_S * SO_NGUON          # 2.5s nếu ai đó làm nó chạy tuần tự trở lại
+TRAN_S = (CHAM_S + TUAN_TU_S) / 2      # 1.5s - cách đều hai đầu, mỗi bên dư 1.0s
+
+
 async def _cham(spec):
     _gọi.append(spec.get("key"))
-    await asyncio.sleep(0.30)
+    await asyncio.sleep(CHAM_S)
     return [{"name": "t", "description": "d", "inputSchema": {"type": "object"}}]
 
 
 _that = mcp_client.pool.list_tools
 mcp_client.pool.list_tools = _cham
 try:
-    conns = [_conn(i) for i in range(5)]
+    conns = [_conn(i) for i in range(SO_NGUON)]
     t0 = time.time()
     tools, route = asyncio.run(mcp_client.discover_resolved(conns))
     mat = time.time() - t0
 finally:
     mcp_client.pool.list_tools = _that
 
-check(f"5 nguồn x 0.30s dò song song xong dưới 1.0s (thật: {mat:.2f}s, tuần tự sẽ là ~1.5s)",
-      mat < 1.0)
+check(f"{SO_NGUON} nguồn x {CHAM_S}s dò song song xong dưới {TRAN_S}s "
+      f"(thật: {mat:.2f}s, tuần tự sẽ là ~{TUAN_TU_S}s)", mat < TRAN_S)
 check("vẫn đủ tool của cả 5 nguồn", len(tools) == 5)
 check("mỗi nguồn được dò đúng 1 lần", sorted(_gọi) == [f"c{i}" for i in range(5)])
 # Thứ tự phải bám thứ tự conns: _mk_fn chống trùng bằng hậu tố, đảo thứ tự là tên tool đổi
@@ -83,9 +92,12 @@ check("thứ tự kết quả bám đúng thứ tự conns",
 # ============================================================
 # 2. Một nguồn treo KHÔNG được kéo cả lượt chờ theo
 # ============================================================
+TREO_S = 30.0     # nguồn chết treo bao lâu nếu KHÔNG có ai cắt nó
+
+
 async def _mot_treo(spec):
     if spec.get("key") == "c2":
-        await asyncio.sleep(30)       # nguồn chết - treo tới khi bị cắt
+        await asyncio.sleep(TREO_S)   # nguồn chết - treo tới khi bị cắt
     return [{"name": "t", "description": "d", "inputSchema": {"type": "object"}}]
 
 
@@ -103,7 +115,11 @@ finally:
     mcp_client.pool.invalidate = _inval_that
     os.environ.pop("JAVIS_MCP_DISCOVER_TIMEOUT", None)
 
-check(f"nguồn treo bị cắt đúng hạn, cả vòng xong dưới 1.5s (thật: {mat2:.2f}s)", mat2 < 1.5)
+# Trần rộng tay là CỐ Ý: thứ cần bác bỏ ở đây là "cả vòng ngồi chờ hết TREO_S", tức 30
+# giây, nên chỉ cần dưới một phần năm số đó là đã kết luận được. Bóp sát 1.5s chẳng bắt
+# thêm được lỗi nào mà chỉ thêm một chỗ đỏ oan trên máy chạy chậm.
+check(f"nguồn treo bị cắt đúng hạn, cả vòng xong dưới {TREO_S / 5}s (thật: {mat2:.2f}s)",
+      mat2 < TREO_S / 5)
 check("4 nguồn khoẻ vẫn lên tool đầy đủ", len(tools2) == 4)
 check("nguồn treo không lọt vào danh sách tool",
       all(t["namespace"] != "ns2" for t in tools2))

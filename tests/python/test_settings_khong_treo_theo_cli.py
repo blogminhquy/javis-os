@@ -52,10 +52,13 @@ _that_find = antigravity_cli.find_antigravity_cli
 _dem = {"auth": 0}
 
 
+CLI_CHAM_S = 1.2      # `agy` giả chậm bao lâu. Trần của phép đo bên dưới suy từ đây.
+
+
 def _auth_cham(bo_qua_cache=False):
-    """Giả một auth_status mất 1.2s - mô phỏng `agy` chậm/treo (bản thật tới ~80s)."""
+    """Giả một auth_status mất CLI_CHAM_S giây - mô phỏng `agy` chậm/treo (bản thật tới ~80s)."""
     _dem["auth"] += 1
-    time.sleep(1.2)
+    time.sleep(CLI_CHAM_S)
     d = {"connected": True, "method": "gia-lap", "email": "", "error": ""}
     antigravity_cli._AUTH_CACHE.update(ts=time.time(), val=dict(d))
     return d
@@ -70,7 +73,11 @@ try:
     t0 = time.time()
     d1 = antigravity_cli.auth_status_nen()
     mat = time.time() - t0
-    check(f"lần đầu (cache trống) trả lời NGAY, không chờ CLI ({mat*1000:.0f}ms)", mat < 0.3, mat)
+    # Trần suy từ chính CLI_CHAM_S: thứ cần bác bỏ là "có ngồi chờ CLI không", nên nửa
+    # thời gian CLI đã tách bạch hai trường hợp, mà lại rộng gấp đôi con số 0.3s cũ - con
+    # số ấy hẹp tới mức một nhịp GC trên máy chạy CI cũng đủ làm đỏ oan.
+    check(f"lần đầu (cache trống) trả lời NGAY, không chờ CLI ({mat*1000:.0f}ms)",
+          mat < CLI_CHAM_S / 2, mat)
     check("và nói thật là đang kiểm chứ không bịa 'đã kết nối'",
           d1.get("connected") is False and d1.get("dang_kiem") is True, d1)
 

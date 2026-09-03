@@ -97,7 +97,10 @@ def test_browse_khong_quet_dia_tren_event_loop(monkeypatch):
         h.cancel()
         return sau - truoc
 
-    assert asyncio.run(scenario()) > 5, "event loop bị khoá suốt lúc quét thư mục"
+    # Bị khoá thật thì nhịp đếm được là 0. Đòi hơn 2 nhịp đã tách bạch hoàn toàn hai
+    # trường hợp; đòi hơn 5 chỉ thêm điều kiện về TỐC ĐỘ máy (nhịp 0.01s trên máy chạy CI
+    # đang tải nặng trôi thành vài chục ms), tức một chỗ đỏ oan không đổi lại được gì.
+    assert asyncio.run(scenario()) > 2, "event loop bị khoá suốt lúc quét thư mục"
 
 
 def test_browse_cay_khong_lo_van_tra_nhanh(tmp_path):
@@ -109,7 +112,9 @@ def test_browse_cay_khong_lo_van_tra_nhanh(tmp_path):
     mat = time.time() - bat_dau
     assert len(res["dirs"]) == 6
     assert all(d["md"] <= main._BROWSE_MD_CAP for d in res["dirs"])
-    assert mat < 3, f"quét mất {mat:.1f}s - trần không có tác dụng"
+    # 2400 file: bản có trần trả lời trong tích tắc, bản cũ (glob hết cây rồi mới cắt) đi
+    # hết cây nên chậm hẳn một bậc. 8s vẫn tách bạch hai bản mà không phụ thuộc đĩa nhanh chậm.
+    assert mat < 8, f"quét mất {mat:.1f}s - trần không có tác dụng"
 
 
 def test_browse_van_tra_dung_du_lieu(tmp_path):
