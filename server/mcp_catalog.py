@@ -29,25 +29,64 @@ WRITE_HINTS = ("create", "update", "delete", "add", "remove", "edit", "send", "s
 PERM_RANK = {"readonly": 0, "safe": 1, "full": 2}
 _MODE_CAP = {"suggest": "readonly", "auto": "safe", "full": "full"}
 
-_cache = {"mtime": None, "by_id": {}}
+_cache = {"sig": None, "by_id": {}}
+
+
+def _da_go():
+    """Tập connector lõi người dùng đã GỠ. Rỗng nếu chưa gỡ gì, hoặc module lỗi.
+
+    Import lazy và bọc try/except có chủ ý: `mcp_catalog` là module nền mà nửa server phụ
+    thuộc vào, nên một file JSON lạ trong STATE_DIR không được phép làm nó ngừng nạp. Suy biến
+    nghiêng về "thấy đủ năng lực" chứ không phải "Javis trống rỗng"."""
+    try:
+        import core_off
+        return core_off.da_go("connectors")
+    except Exception as e:
+        print(f"[catalog] không đọc được danh sách đã gỡ: {e}", file=sys.stderr)
+        return set()
 
 
 def load():
-    """Nạp catalog (cache theo mtime file). Trả dict id → connector."""
+    """Nạp catalog. Trả dict id → connector, ĐÃ TRỪ những cái người dùng gỡ.
+
+    Lọc ở ĐÂY, không ở `public_catalog()`. Lọc ở chỗ hiển thị thì thẻ mất khỏi giao diện nhưng
+    tool vẫn đi ra tới engine qua `mcp_store.resolved` -> `mcp_hub.discover_all`, tức là "đã
+    gỡ" thành một lời hứa sai. `load()` là nơi duy nhất mọi đường đi qua, nên nó là chỗ duy
+    nhất lọc được một lần cho tất cả.
+
+    Cache theo (chữ ký file catalog, chữ ký danh sách đã gỡ). Thiếu vế thứ hai thì gỡ một
+    connector sẽ không có hiệu lực cho tới khi ai đó sửa file catalog, tức là không bao giờ."""
     try:
-        mtime = CATALOG_PATH.stat().st_mtime
+        st = CATALOG_PATH.stat()
+        sig_file = (st.st_mtime_ns, st.st_size)
     except OSError:
         return {}
-    if _cache["mtime"] == mtime:
+    go = _da_go()
+    sig = (sig_file, tuple(sorted(go)))
+    if _cache["sig"] == sig:
         return _cache["by_id"]
     try:
         data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        by_id = {c["id"]: c for c in data.get("connectors", []) if c.get("id")}
+        by_id = {c["id"]: c for c in data.get("connectors", []) if c.get("id")
+                 and c["id"] not in go}
     except Exception as e:
         print(f"[catalog] lỗi đọc {CATALOG_PATH.name}: {e}", file=sys.stderr)
         return _cache["by_id"]   # file hỏng → giữ bản cache cũ
-    _cache.update(mtime=mtime, by_id=by_id)
+    _cache.update(sig=sig, by_id=by_id)
     return by_id
+
+
+def tat_ca():
+    """Catalog ĐẦY ĐỦ, KHÔNG trừ cái đã gỡ. Chỉ dùng cho trang Kết nối để vẽ khu "Đã gỡ".
+
+    Tách hẳn khỏi `load()` để không ai vô tình dùng nó ở đường chạy: mọi chỗ quyết định tool
+    nào ra tới engine phải đi qua `load()`."""
+    try:
+        data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        return {c["id"]: c for c in data.get("connectors", []) if c.get("id")}
+    except Exception as e:
+        print(f"[catalog] lỗi đọc {CATALOG_PATH.name}: {e}", file=sys.stderr)
+        return {}
 
 
 def get(cid):

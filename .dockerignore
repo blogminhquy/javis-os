@@ -63,6 +63,8 @@ server/connector-home/
 server/connector-files/
 server/connector-cred/
 server/purge-trash/
+# Lựa chọn GỠ năng lực mặc định (connector lõi...). Dữ liệu người dùng, mỗi máy một kiểu.
+server/core-off.json
 # Artifact chạy của các bản 0.5x: trạng thái hội thoại, chỉ mục bộ nhớ, và prompt Antigravity
 # ghi ra để gỡ lỗi. Sinh ra lúc chạy nên không thuộc về repo lẫn image.
 server/conversation_state.db*

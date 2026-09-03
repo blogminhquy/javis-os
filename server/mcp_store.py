@@ -384,6 +384,21 @@ def resolved(enabled_only=True):
     taken_ns = set()
     for c in conns:
         con = mcp_catalog.get(c["connector_id"])
+        # CHỐT MỒ CÔI. Kết nối trỏ vào một connector không còn tồn tại (người dùng đã GỠ nó,
+        # hoặc hạ cấp app xuống bản chưa có nó) thì KHÔNG dựng dial spec.
+        #
+        # Vì sao phải chặn hẳn thay vì chạy tiếp như trước: thiếu `con`, hàm này im lặng bỏ
+        # header, env, cred_dir và inject_args, nên kết nối chạy được nhưng thiếu credential.
+        # Tệ hơn nhiều là ở tầng quyền: `mcp_hub._guard` khi đó gọi
+        # `mcp_catalog.allowed(None, perm, ...)` với `perm` mặc định "full", và hàm đó trả True
+        # VÔ ĐIỀU KIỆN khi mức hiệu lực là full - tức gỡ một connector lại làm mất luôn cổng
+        # chặn tool ghi của những kết nối theo nó. "Gỡ" phải nghĩa là im, không phải nghĩa là
+        # tự do.
+        #
+        # `custom` là ca CỐ Ý, không phải mồ côi: connector do người dùng tự khai nên không bao
+        # giờ có mặt trong catalog. Phân biệt bằng đúng chuỗi đó, y như chỗ đặt namespace dưới.
+        if con is None and c["connector_id"] != "custom":
+            continue
         secrets = secrets_store.decrypt_map(c.get("secrets") or {})
         headers = {}
         if con:
@@ -499,6 +514,29 @@ def resolved(enabled_only=True):
             "is_default": bool(c.get("is_default")), "auth": c.get("auth"), "connector": con,
         })
     return out
+
+
+def orphans():
+    """Kết nối đã mất khuôn: `connector_id` không còn trong catalog và không phải `custom`.
+
+    `resolved()` bỏ qua chúng nên chúng không chạy nữa; hàm này để giao diện NÓI RA thay vì để
+    người dùng ngồi đoán vì sao một kết nối im lặng. Mỗi phần tử kèm `co_trong_kho` để phân
+    biệt hai nguyên nhân rất khác nhau: người dùng vừa gỡ connector đó (cài lại là xong), hay
+    connector đó không tồn tại ở bản app này (phải nâng cấp, hoặc xoá kết nối).
+    """
+    try:
+        tat_ca = mcp_catalog.tat_ca()
+    except Exception:
+        tat_ca = {}
+    ra = []
+    for c in _load()["connections"]:
+        cid = c.get("connector_id") or ""
+        if cid == "custom" or mcp_catalog.get(cid):
+            continue
+        ra.append({"id": c.get("id"), "label": c.get("label") or c.get("id"),
+                   "connector_id": cid, "enabled": bool(c.get("enabled")),
+                   "co_trong_kho": cid in tat_ca})
+    return ra
 
 
 # ============================================================
