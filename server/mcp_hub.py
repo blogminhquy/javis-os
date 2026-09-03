@@ -844,10 +844,21 @@ def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=Fal
 # Discover (cache) - gộp MCP connections + builtin
 # ============================================================
 def _store_mtime():
-    try:
-        return mcp_store.STORE.stat().st_mtime
-    except OSError:
-        return 0
+    """Mốc thời gian để biết bảng tool có cần dựng lại không.
+
+    Gộp cả kho GÓI và sổ ĐÃ GỠ, không chỉ file kết nối: cả hai đều đổi được danh sách connector
+    mà không ai đụng tới `mcp_servers.json`. Ba lệnh stat, chạy trên đường nóng nên không đi
+    quét sâu - `discover_all` gọi hàm này mỗi lượt chat.
+
+    Đây là đường CHẬM (trong TTL 60 giây sẵn có), dành cho ca thả thư mục vào bằng tay. Đổi qua
+    endpoint thì đã gọi thẳng `invalidate_cache()` nên có hiệu lực ngay."""
+    tong = 0.0
+    for f in (mcp_store.STORE, STATE_DIR / "core-off.json", STATE_DIR / "packs"):
+        try:
+            tong += f.stat().st_mtime
+        except OSError:
+            pass
+    return tong
 
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,

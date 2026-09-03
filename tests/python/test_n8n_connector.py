@@ -143,12 +143,34 @@ check("n8n nằm trong catalog", "n8n" in ids)
 # nếu không thì user sửa địa chỉ n8n xong kết nối vẫn trỏ về địa chỉ cũ.
 import os
 import tempfile
+from pathlib import Path
 
 with tempfile.TemporaryDirectory() as tmp:
     os.environ["JAVIS_STATE_DIR"] = tmp
-    for mod in ("mcp_store", "secrets_store"):
+    # PHẢI nạp lại `config` nữa, không chỉ hai module dưới. `config.STATE_DIR` được tính MỘT
+    # LẦN lúc import, và `mcp_store` lấy nó bằng `from config import STATE_DIR` - nên bỏ sót
+    # `config` ở đây thì đổi biến môi trường không có tác dụng gì, và test ghi thẳng vào kho
+    # kết nối THẬT của người đang chạy. Đã xảy ra: máy chủ repo tích được 7 kết nối rác tên
+    # "n8n thử" và "Shop thử" sau nhiều lượt chạy, và lượt sau lấy nhầm hàng của lượt trước
+    # nên test đỏ oan.
+    # Hai bước, thiếu bước nào thì test ghi thẳng vào kho kết nối THẬT của người đang chạy.
+    #
+    # (1) Nạp lại `config` nữa, không chỉ hai module dưới: `config.STATE_DIR` tính MỘT LẦN lúc
+    #     import, và `mcp_store` lấy nó bằng `from config import STATE_DIR`.
+    # (2) Tạo sẵn một file store RỖNG trong thư mục tạm. `mcp_store._load` (dòng 60) có đường
+    #     lui về `_LEGACY_STORE` = `server/mcp_servers.json` khi file ở STATE_DIR chưa tồn tại,
+    #     nên một thư mục tạm trống vẫn rơi đúng vào kho thật.
+    #
+    # Đã xảy ra thật: máy chủ repo tích được 7 kết nối rác tên "n8n thử" và "Shop thử" sau
+    # nhiều lượt chạy, rồi lượt sau lấy nhầm hàng của lượt trước nên test đỏ oan.
+    (Path(tmp) / "mcp_servers.json").write_text('{"version": 2, "connections": []}',
+                                                encoding="utf-8")
+    for mod in ("mcp_store", "secrets_store", "config"):
         sys.modules.pop(mod, None)
+    import config as _cfg_moi
+    assert str(_cfg_moi.STATE_DIR) == tmp, "STATE_DIR chưa trỏ vào thư mục tạm"
     import mcp_store
+    assert not mcp_store.list_connections(), "kho tạm phải rỗng - đang đọc nhầm kho thật"
 
     cid, err = mcp_store.add_connection("n8n", {
         "fields": {"base_url": "cty.app.n8n.cloud/home/workflows", "mcp_token": "TOK123"},

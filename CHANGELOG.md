@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.21] - 2026-09-04
+### Thêm mới
+- **Thêm được dịch vụ mới vào Kho mà không cần chờ bản cập nhật Javis.** Thả một thư mục gói vào kho gói của máy chủ là dịch vụ đó hiện ra ở trang Kết nối, dùng được trên mọi bộ não. Đây là nửa còn lại của hướng "Javis giữ phần lõi, còn lại bạn tự chọn": bản trước cho phép GỠ bớt, bản này cho phép THÊM vào.
+- **Dịch vụ đến từ gói luôn hiện rõ là của gói nào**, và luôn bắt đầu ở mức Chỉ đọc dù gói khai gì đi nữa. Muốn cho ghi thì bạn tự nâng quyền từng tài khoản như mọi kết nối khác.
+- **Gói không được phép ghi đè dịch vụ có sẵn.** Một gói khai trùng tên với dịch vụ đang có thì phần đó bị từ chối và nói rõ lý do, còn dịch vụ gốc giữ nguyên. Nhờ vậy không ai lén đổi hướng một kết nối bạn đang đăng nhập thật.
+
+### Sửa lỗi
+- **Chạy bộ kiểm thử không còn làm bẩn kho kết nối của bạn.** Hai bài kiểm tra tưởng đang dùng thư mục tạm nhưng thực ra ghi thẳng vào kho thật, nên mỗi lượt chạy lại thêm vài kết nối rác tên "n8n thử" và "Shop thử". Kho của bạn có sẵn mấy dòng đó thì cứ xoá, Javis không tạo lại nữa.
+
 ## [0.55.20] - 2026-09-03
 ### Thêm mới
 - **Gỡ được dịch vụ khỏi Kho kết nối cho gọn.** Kho có 29 dịch vụ mà bình thường bạn chỉ dùng vài cái. Trỏ chuột vào một thẻ, góc phải hiện dấu ×: bấm là nó rời khỏi Kho và khỏi danh sách công cụ của mọi bộ não. Đây là bước đầu của hướng "Javis chỉ giữ phần lõi, còn lại bạn tự chọn cài thêm".

@@ -201,7 +201,12 @@ Nửa còn lại của yêu cầu đặt ra, đồng thời là rò rỉ credent
 
 **Xong khi:** xoá một kết nối stdio đang sống thì `ps` thấy tiến trình con biến mất trong một giây chứ không phải 900. `server/connector-home/` không còn thư mục của nó, kể cả thư mục do QR tạo với `home_dir` tuỳ biến. Một test chụp `STATE_DIR`, thêm kết nối, dùng thử, xoá, rồi khẳng định diff rỗng ngoại trừ `mcp_audit.jsonl` và `logs/`. `purge_connection` trên kết nối có `home_dir` là `C:\` thì từ chối và thư mục đích còn nguyên. `javascript:...` ra `#` ở cả sáu chỗ render.
 
-### Giai đoạn 1 - Sổ gói, lớp phủ catalog, và lớp gỡ được (4 ngày)
+### Giai đoạn 1 - Sổ gói, lớp phủ catalog, và lớp gỡ được (4 ngày) - ĐÃ LÀM
+
+> Ship ở 0.55.20 (`server/core_off.py`: lớp gỡ được, chốt mồ côi) và 0.55.21
+> (`server/packs.py`: nạp gói từ `STATE_DIR/packs/`, lớp phủ catalog, endpoint
+> `/packs` và `/packs/<id>/asset/<path>`). Chưa làm phần trang hướng dẫn của gói:
+> nó phải là markdown render phía server ra HTML đã lọc, xếp vào Giai đoạn 3.
 
 Chưa có UI cài, chưa chạm mạng. Thả một thư mục vào là connector hiện ra, không cần ra bản mới. Và connector lõi **tắt được**, tức cấu trúc gỡ được có mặt từ đây chứ không chờ tới kho.
 
