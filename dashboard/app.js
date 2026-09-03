@@ -1790,16 +1790,28 @@ document.addEventListener("paste", (e) => {
 });
 
 // Kéo-thả file
+// Vài khung có ô thả RIÊNG của nó (ngăn kéo project...) và tự đánh dấu [data-localdrop].
+// Thả vào đó thì file phải đi vào đúng khung đó, không được rơi tiếp xuống khung chat -
+// chủ repo báo 03/09: kéo file vào ô "kéo thả vào đây" của project thì nó nhảy sang chat.
+const inLocalDrop = (e) => !!(e.target && e.target.closest && e.target.closest("[data-localdrop]"));
 let dragDepth = 0;
 window.addEventListener("dragenter", (e) => {
   if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) {
-    dragDepth++; dropOverlay.classList.add("show");
+    dragDepth++; if (!inLocalDrop(e)) dropOverlay.classList.add("show");
   }
 });
-window.addEventListener("dragover", (e) => e.preventDefault());
+// dragover nổ liên tục nên nó là chỗ chuẩn nhất để bật/tắt lớp phủ: rê qua ô thả riêng thì
+// lớp phủ biến đi, rê ra ngoài lại hiện.
+window.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  if (inLocalDrop(e)) dropOverlay.classList.remove("show");
+  else if (dragDepth > 0) dropOverlay.classList.add("show");
+});
 window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; dropOverlay.classList.remove("show"); } });
 window.addEventListener("drop", (e) => {
-  e.preventDefault(); dragDepth = 0; dropOverlay.classList.remove("show");
+  dragDepth = 0; dropOverlay.classList.remove("show");
+  if (inLocalDrop(e)) return;   // chỗ kia đã preventDefault + chặn bọt, không đụng vào
+  e.preventDefault();
   if (e.dataTransfer?.files) [...e.dataTransfer.files].forEach(uploadFile);
 });
 

@@ -359,6 +359,7 @@
         '</div>' +
       '</div>');
     document.body.appendChild(pdEl);
+    noiThaFile(pdEl.querySelector(".pd-panel"));
     pdEl.querySelector(".pd-scrim").onclick = closeProjDrawer;
     pdEl.querySelector(".pd-x").onclick = closeProjDrawer;
     pdEl.querySelector(".pd-x").innerHTML = ic("x");
@@ -374,6 +375,48 @@
       });
     };
     return pdEl;
+  }
+
+  /** Cả tấm ngăn kéo là một vùng thả, không riêng cái ô gạch đứt.
+   *
+   *  Trước đây chỉ nút .pd-drop bắt sự kiện, mà thả xong nó KHÔNG chặn nổi bọt lên window -
+   *  app.js có một tay bắt drop toàn cục đẩy mọi file vào khung chat. Kết quả: kéo file vào
+   *  ô "kéo thả vào đây" thì file nhảy sang khung chat, đúng lỗi chủ repo báo 03/09. Nay
+   *  panel mang cờ data-localdrop để app.js biết đây là vùng tự lo, và tự nó chặn bọt. */
+  function noiThaFile(panel) {
+    if (!panel) return;
+    var coFile = function (e) {
+      var t = e.dataTransfer && e.dataTransfer.types;
+      return !!t && [].indexOf.call(t, "Files") >= 0;
+    };
+    panel.addEventListener("dragover", function (e) {
+      if (!coFile(e) || pdCheDo !== "project") return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      panel.classList.add("tha-file");
+    });
+    panel.addEventListener("dragleave", function (e) {
+      if (!panel.contains(e.relatedTarget)) panel.classList.remove("tha-file");
+    });
+    panel.addEventListener("drop", function (e) {
+      panel.classList.remove("tha-file");
+      if (!coFile(e) || pdCheDo !== "project") return;   // chế độ cuộc: nhường cho khung chat
+      e.preventDefault();
+      e.stopPropagation();          // không để app.js đẩy tiếp vào khung chat
+      var fs = e.dataTransfer.files;
+      if (fs && fs.length) nhanThaFile(fs);
+    });
+  }
+
+  /** Thả file xuống bất cứ đâu trên ngăn kéo project = thêm tài liệu cho project đó.
+   *  Tự mở tab File ở chế độ tải lên rồi đẩy qua đúng đường tải sẵn có. */
+  async function nhanThaFile(files) {
+    if (pdCheDo !== "project" || !projChiTiet || projChiTiet.dangTai || projChiTiet.loi) return;
+    projTab = "files"; pdFormFile = true; pdFileMode = "upload";
+    veDrawer();
+    var pane = pdEl.querySelector('[data-pane="files"]');
+    var drop = pane && pane.querySelector(".pd-drop");
+    if (drop) await taiLenNhieu(files, drop);
   }
 
   // ── Chế độ CUỘC TRÒ CHUYỆN: file đã tạo + link đã nhắc trong cuộc đang mở ────
@@ -508,6 +551,11 @@
     var laCuoc = pdCheDo === "cuoc";
     var p = laCuoc ? cuocTS : projChiTiet;
     if (!p) return;
+    // Chỉ ngăn kéo PROJECT mới nhận file thả vào. Khung "file của cuộc trò chuyện" không có
+    // chỗ chứa, nên gỡ cờ đi để app.js đưa file về khung chat như thả vào chỗ trống.
+    var panel = pdEl.querySelector(".pd-panel");
+    if (laCuoc) panel.removeAttribute("data-localdrop");
+    else panel.setAttribute("data-localdrop", "1");
     pdEl.querySelector(".pd-ico").innerHTML = laCuoc ? ic("files") : projIcon(projById(p.id) || p);
     pdEl.querySelector(".pd-name").textContent = laCuoc ? pdT("cts.title") : (p.name || "");
     // Đổi tên chỉ có nghĩa với project. Cuộc trò chuyện đổi tên ở cột trái, bày lại ở đây là
@@ -753,7 +801,7 @@
       (pdFileMode === "search"
         ? '<input class="pd-in pd-fsearch" placeholder="' + esc(pdT("proj.search_ph")) + '">' +
           '<div class="pd-results"><div class="pd-empty">' + esc(pdT("proj.search_hint")) + "</div></div>"
-        : '<input type="file" class="pd-file" hidden>' +
+        : '<input type="file" class="pd-file" multiple hidden>' +
           '<button class="pd-drop" type="button">' + ic("upload-cloud") + " " + esc(pdT("proj.dropzone")) + "</button>" +
           '<div class="pd-note pd-up-note">' + ic("info") + "<span>" + esc(pdT("proj.upload_dest")) + "</span></div>") +
       "</div>";
@@ -780,14 +828,12 @@
     var drop = pane.querySelector(".pd-drop");
     var inp = pane.querySelector(".pd-file");
     if (drop && inp) {
+      // Kéo-thả do CẢ tấm ngăn kéo lo (noiThaFile), nút này chỉ còn việc mở hộp chọn file.
+      // Để hai chỗ cùng bắt drop là thả trúng nút thì tải lên hai lần.
       drop.onclick = function () { inp.click(); };
-      inp.onchange = function () { if (inp.files && inp.files[0]) taiLen(inp.files[0], drop); };
-      drop.ondragover = function (e) { e.preventDefault(); drop.classList.add("over"); };
-      drop.ondragleave = function () { drop.classList.remove("over"); };
-      drop.ondrop = function (e) {
-        e.preventDefault(); drop.classList.remove("over");
-        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) taiLen(f, drop);
+      inp.onchange = function () {
+        if (inp.files && inp.files.length) taiLenNhieu(inp.files, drop);
+        inp.value = "";           // chọn lại đúng file vừa chọn vẫn phải nổ onchange
       };
     }
   }
@@ -804,34 +850,65 @@
       items = d.items || [];
     } catch (e) {}
     if (!items.length) { box.innerHTML = '<div class="pd-empty">' + esc(pdT("proj.search_none")) + "</div>"; return; }
-    var daCo = {};
-    (projChiTiet.files || []).forEach(function (f) { daCo[f.path] = true; });
     box.innerHTML = items.map(function (it) {
       return '<div class="pd-res" data-path="' + esc(it.path) + '" data-name="' + esc(it.name) + '">' +
         '<span class="pd-res-ico">' + ic(icoFile(it.name)) + "</span>" +
         '<span class="pd-res-n"><b>' + esc(it.name) + "</b><i>" + esc(it.path) + "</i></span>" +
-        '<button class="pd-res-add" type="button"' + (daCo[it.path] ? " disabled" : "") + ">" +
-          esc(daCo[it.path] ? pdT("proj.added") : pdT("proj.add")) + "</button></div>";
+        '<button class="pd-res-add" type="button"></button></div>';
     }).join("");
+    veNutKetQua();
+  }
+
+  /** Nút bên phải mỗi kết quả tìm kiếm: chưa có thì "Thêm", có rồi thì "Gỡ".
+   *
+   *  Trước đây file đã thêm hiện chữ "Đã thêm" và tắt nút, nên muốn bỏ một file vừa thêm
+   *  nhầm là phải đóng form, tìm nó trong danh sách trên, rồi mới gỡ. Chủ repo báo 03/09:
+   *  thêm và gỡ nên nằm ngay tại chỗ tìm. Trạng thái luôn ĐỌC LẠI từ projChiTiet nên gọi
+   *  hàm này sau mỗi lần thêm/gỡ/tải lên là đủ, không cần tìm lại từ server. */
+  function veNutKetQua() {
+    var box = pdEl && pdEl.querySelector(".pd-results");
+    if (!box || !projChiTiet) return;
+    var theoDuong = {};
+    (projChiTiet.files || []).forEach(function (f) { theoDuong[f.path] = f; });
     box.querySelectorAll(".pd-res").forEach(function (r) {
       var b = r.querySelector(".pd-res-add");
-      if (b.disabled) return;
-      b.onclick = function () { themFile(r.dataset.path, r.dataset.name, b); };
+      if (!b) return;
+      var f = theoDuong[r.dataset.path];
+      b.disabled = false;
+      b.classList.toggle("go", !!f);
+      b.textContent = f ? pdT("proj.remove_short") : pdT("proj.add");
+      b.title = f ? pdT("proj.remove") : "";
+      b.onclick = f
+        ? function () { goNhanhFile(f, b); }
+        : function () { themFile(r.dataset.path, r.dataset.name, b); };
     });
   }
 
   async function themFile(duong, ten, nut) {
-    if (nut) { nut.disabled = true; nut.textContent = pdT("proj.added"); }
+    if (nut) nut.disabled = true;
     var r = await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/files",
                        { path: duong, name: ten || "" });
     if (!r || !r.ok) {
       alert(pdT("proj.err_add_file") + ": " + ((r && r.error) || ""));
-      if (nut) { nut.disabled = false; nut.textContent = pdT("proj.add"); }
+      if (nut) nut.disabled = false;
       return;
     }
     await napProjChiTiet(projChiTiet.id);
     loadProjects();
     veLaiDanhSach();          // KHÔNG veDrawer: form tìm kiếm phải sống để thêm file tiếp
+    veNutKetQua();
+  }
+
+  /** Gỡ khỏi project ngay tại danh sách tìm kiếm: KHÔNG hỏi lại như nút gỡ ở danh sách
+   *  trên, vì bấm nhầm thì cái nút vừa bấm đã quay về "Thêm" ngay dưới ngón tay. */
+  async function goNhanhFile(f, nut) {
+    if (nut) nut.disabled = true;
+    await post("/projects/" + encodeURIComponent(projChiTiet.id) + "/files/" +
+               encodeURIComponent(f.id) + "/delete", {});
+    await napProjChiTiet(projChiTiet.id);
+    loadProjects();
+    veLaiDanhSach();
+    veNutKetQua();
   }
 
   /** Tải file của project vào SOURCES, không phải attachments.
@@ -843,19 +920,36 @@
    *  Tên thư mục do SERVER tìm (`folder: "sources"`), không đoán bằng chuỗi cứng: brain có
    *  thể đặt "01 - Sources", và trần duyệt có thể cao hơn gốc brain. Server trả về đúng
    *  đường dẫn đã dùng nên ở đây khỏi ghép lại. */
-  async function taiLen(file, drop) {
+  async function taiLenNhieu(files, drop) {
+    var ds = [].slice.call(files);
+    if (!ds.length) return;
     var cu = drop.innerHTML;
     drop.disabled = true;
-    drop.innerHTML = ic("loader") + " " + esc(pdT("proj.uploading")) + "…";
+    var loi = [];
+    for (var i = 0; i < ds.length; i++) {
+      // Đếm n/tổng chứ không chỉ "Đang tải lên…": thả 10 file thì im lặng một phút là
+      // người dùng tưởng treo.
+      drop.innerHTML = ic("loader") + " " + esc(pdT("proj.uploading")) + "… " +
+                       (i + 1) + "/" + ds.length;
+      var e = await taiLenMot(ds[i]);
+      if (e) loi.push(ds[i].name + ": " + e);
+    }
+    drop.disabled = false; drop.innerHTML = cu;
+    // Một file hỏng không được làm hỏng cả mẻ: những file kia đã lên rồi, chỉ báo phần trượt.
+    if (loi.length) alert(pdT("proj.err_upload") + ":\n" + loi.join("\n"));
+  }
+
+  /** Tải một file, trả về chuỗi lỗi ("" là xong). */
+  async function taiLenMot(file) {
     var up = null;
     try {
       var fd = new FormData();
       fd.append("file", file); fd.append("brain", brain()); fd.append("folder", "sources");
       up = await (await fetch("/files/upload", { method: "POST", body: fd })).json();
     } catch (e) {}
-    drop.disabled = false; drop.innerHTML = cu;
-    if (!up || !up.ok) { alert(pdT("proj.err_upload") + ": " + ((up && up.error) || "")); return; }
+    if (!up || !up.ok) return (up && up.error) || "?";
     await themFile(up.path, up.name, null);
+    return "";
   }
 
   async function ghimFile(f) {

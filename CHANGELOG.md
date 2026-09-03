@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.15] - 2026-09-03
+### Sửa lỗi
+- **Đính kèm nhiều file vào chat thì cuộn xem được hết.** Trước đây dải file dưới ô nhập bị cắt ở hàng thứ hai, mấy file cuối còn nguyên đó nhưng không cách nào bấm **X** bỏ đi.
+- **Kéo thả file vào khung tài liệu của project đã vào đúng chỗ**, không nhảy sang khung chat nữa. Thả xuống chỗ nào trên khung cũng được, cả khung sáng lên báo đã nhận.
+- **Chọn được nhiều file một lượt** khi bấm "Tải từ máy lên", thay vì mỗi lần một file. Javis tải lần lượt và đếm cho bạn xem tới file thứ mấy.
+### Cải thiện
+- **Tìm trong brain: nút "Đã thêm" đổi thành "Gỡ".** Thêm nhầm thì bấm gỡ ngay tại chỗ, không phải đóng ô tìm rồi đi lần lại trong danh sách.
+
 ## [0.55.14] - 2026-09-03
 ### Sửa lỗi
 - **Kết nối MCP tự nối lại khi máy chủ dịch vụ ngắt phiên.** Đây là gốc của chuyện Pancake POS "lúc được lúc không": máy chủ có quyền huỷ phiên bất cứ lúc nào (họ deploy lại, phiên hết hạn), và đúng ra Javis phải bắt tay lại ngay. Trước đây Javis không nhận ra tín hiệu đó nên coi như nguồn không có công cụ nào, và cứ thế cho tới khi bạn bỏ đi 15 phút.
