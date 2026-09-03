@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.20] - 2026-09-03
+### Thêm mới
+- **Gỡ được dịch vụ khỏi Kho kết nối cho gọn.** Kho có 29 dịch vụ mà bình thường bạn chỉ dùng vài cái. Trỏ chuột vào một thẻ, góc phải hiện dấu ×: bấm là nó rời khỏi Kho và khỏi danh sách công cụ của mọi bộ não. Đây là bước đầu của hướng "Javis chỉ giữ phần lõi, còn lại bạn tự chọn cài thêm".
+- **Gỡ rồi cài lại được bằng một cú bấm**, ở khu "Đã gỡ" nằm dưới Kho. File của dịch vụ vẫn nằm trong bản cài nên cập nhật Javis lên bản mới không làm nó mọc lại, mà muốn dùng lại thì có ngay.
+- **Kết nối của bạn không bị xoá khi gỡ dịch vụ.** Javis hỏi lại trước, rồi các kết nối đó dừng chạy nhưng vẫn nằm nguyên ở khu Đã kết nối, kèm một dải nhắc ở đầu trang. Cài lại dịch vụ là chúng chạy tiếp, không phải đấu lại từ đầu.
+
+### Bảo mật
+- **Kết nối trỏ vào một dịch vụ không còn tồn tại giờ dừng hẳn, thay vì chạy tiếp mà mất cổng chặn.** Trước đây, thiếu dịch vụ thì Javis vẫn gọi kết nối đó nhưng bỏ qua phân quyền, nên một kết nối đang ở mức Chỉ đọc có thể gọi được cả công cụ ghi.
+
 ## [0.55.19] - 2026-09-03
 ### Bảo mật
 - **Xoá một kết nối giờ mới thật sự xoá sạch.** Trước bản này, xoá kết nối vẫn để lại thư mục chứa phiên đăng nhập của nó trên máy chủ, và không có gì dọn cả. Trên chính máy chủ dự án đang có 5 thư mục kiểu đó nằm lại sau những kết nối Zalo đã xoá từ lâu, một trong số đó vẫn giữ credential đăng nhập.

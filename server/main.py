@@ -65,6 +65,7 @@ import mcp_catalog
 import mcp_hub
 import connect_health   # sức khoẻ kết nối: vòng check nền + phân loại lỗi tiếng người
 import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất của việc dọn dấu vết
+import core_off       # năng lực MẶC ĐỊNH gỡ được: trạng thái ghi ở STATE_DIR, không sửa cây code
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
@@ -3197,8 +3198,51 @@ async def hub_mcp(request: Request):
 
 @app.get("/connect/catalog")
 async def connect_catalog():
+    """Kho kết nối cho giao diện, kèm phần người dùng đã GỠ và kết nối đã mồ côi.
+
+    `catalog` đã TRỪ cái đã gỡ (lọc trong `mcp_catalog.load`), còn `removed` là danh sách để vẽ
+    khu "Đã gỡ" có nút Cài lại - nên nó phải đọc từ `tat_ca()` chứ không phải `load()`."""
+    tat_ca = mcp_catalog.tat_ca()
+    da_go = core_off.da_go("connectors")
     return {"catalog": mcp_catalog.public_catalog(), "connections": mcp_store.list_connections(),
+            "removed": sorted(
+                ({"id": i, "name": (tat_ca.get(i) or {}).get("name") or i,
+                  "icon": (tat_ca.get(i) or {}).get("icon") or "plug",
+                  "category": (tat_ca.get(i) or {}).get("category") or "Khác"}
+                 for i in da_go), key=lambda x: x["name"]),
+            "orphans": mcp_store.orphans(),
             "strict": bool(cfgmod.read_settings().get("mcp", {}).get("strict")), "hub": _hub_enabled()}
+
+
+@app.post("/connect/core-toggle")
+async def connect_core_toggle(request: Request):
+    """Gỡ hoặc cài lại một connector CÓ SẴN của Javis.
+
+    "Gỡ" ở đây KHÔNG xoá file trong `system/`: cây code là read-only trên Docker và bị ghi đè
+    bởi `git pull` trên bản native, nên lựa chọn phải sống ở STATE_DIR mới qua được một lần cập
+    nhật. Chi tiết trong `server/core_off.py`.
+
+    Gỡ khuôn KHÔNG xoá kết nối đã đấu theo nó - kết nối là dữ liệu của người dùng. Chúng thành
+    mồ côi, `mcp_store.resolved` từ chối dựng dial spec cho chúng, và trả về đây để giao diện
+    hỏi lại một câu trước khi gỡ."""
+    data = await request.json()
+    cid = (data.get("id") or "").strip()
+    off = bool(data.get("off"))
+    if cid not in mcp_catalog.tat_ca():
+        return JSONResponse({"ok": False, "error": "Không có connector này trong kho"},
+                            status_code=400)
+    anh_huong = [c for c in mcp_store.list_connections() if c.get("connector_id") == cid]
+    if off and anh_huong and not data.get("confirm"):
+        return JSONResponse({"ok": False, "need_confirm": True,
+                             "connections": [{"id": c["id"], "label": c.get("label") or c["id"]}
+                                             for c in anh_huong]}, status_code=409)
+    try:
+        core_off.dat("connectors", cid, off)
+    except (OSError, ValueError) as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+    mcp_hub.invalidate_cache()
+    _write_codex_profile()
+    return {"ok": True, "off": off, "orphans": mcp_store.orphans()}
 
 
 @app.post("/connect/add")

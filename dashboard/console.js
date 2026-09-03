@@ -4277,7 +4277,14 @@
     const badge = '<span class="prov-kind">' + (AUTH_BADGE[con.auth_type] || con.auth_type || "") + '</span>'
       + (con.status === "beta" ? ' <span class="prov-kind" style="color:var(--warn-ink)">beta</span>' : "")
       + (soon ? ' <span class="prov-kind">sắp có</span>' : "");
+    // Nút gỡ: dọn kho cho gọn. KHÔNG xoá file trong system/ (cây code read-only trên Docker,
+    // và git pull sẽ mọc lại) - chỉ ghi vào STATE_DIR/core-off.json, nên cài lại được.
+    // Thẻ "Tự thêm (nâng cao)" không có nút này: nó là lối vào, không phải một dịch vụ.
+    const nutGo = con.id === "custom" ? ""
+      : '<button class="cat-x" data-coreoff="' + esc(con.id) + '" title="Gỡ khỏi kho">'
+        + ic("x") + '</button>';
     return '<div class="cat-card' + (soon ? " soon" : "") + '" data-cat="' + esc(con.category || "Khác") + '">'
+      + nutGo
       + '<div class="cat-ico">' + iconInner(con) + '</div>'
       + '<div class="cat-name">' + esc(con.name) + ' ' + badge + '</div>'
       + '<div class="cat-desc">' + esc(con.description || "") + '</div>'
@@ -4794,7 +4801,32 @@
     const connectedHtml = Object.keys(groups).map(cid =>
       connectorCard(byId[cid] || { id: cid, name: cid, icon: "plug" }, groups[cid])).join("");
     const cats = Array.from(new Set(cat.map(c => c.category || "Khác")));
-    el.innerHTML = warn
+    const removed = d.removed || [];
+    const orphans = d.orphans || [];
+    // Kết nối mất khuôn thì `mcp_store.resolved` từ chối dựng dial spec, tức nó IM. Phải nói ra
+    // thay vì để người dùng ngồi đoán vì sao một nguồn đang có mà Javis bảo không có.
+    const banMoCoi = orphans.length
+      ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
+        + WARN_ICON + ' <b>' + orphans.length + ' kết nối đang dừng vì thiếu dịch vụ trong kho:</b> '
+        + orphans.map(o => esc(o.label)).join(", ") + '. '
+        + (orphans.some(o => o.co_trong_kho)
+            ? 'Cài lại dịch vụ ở khu "Đã gỡ" bên dưới là chúng chạy lại.'
+            : 'Dịch vụ này không có ở bản Javis hiện tại - cập nhật app, hoặc xoá kết nối.')
+        + '</div>'
+      : "";
+    const khuDaGo = removed.length
+      ? '<details class="cview-section"><summary><h3 style="display:inline">◆ Đã gỡ '
+        + '<span style="opacity:.5">' + removed.length + ' dịch vụ - bấm để xem</span></h3></summary>'
+        + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những dịch vụ bạn đã gỡ khỏi kho. '
+        + 'File của chúng vẫn nằm trong bản cài (Javis không sửa mã nguồn của chính nó), nên cài lại là có ngay.</div>'
+        + '<div class="prov-list" style="margin-top:12px">'
+        + removed.map(r => '<div class="prov-row"><div class="prov-ico">' + iconInner(r) + '</div>'
+            + '<div class="prov-main"><div class="prov-name">' + esc(r.name) + '</div>'
+            + '<div class="prov-meta">' + esc(r.category) + '</div></div>'
+            + '<button class="gcard-btn" data-coreon="' + esc(r.id) + '">Cài lại</button></div>').join("")
+        + '</div></details>'
+      : "";
+    el.innerHTML = warn + banMoCoi
       + '<div class="cview-section"><h3>◆ Đã kết nối <span style="opacity:.5">' + conns.length + ' tài khoản</span></h3>'
       + '<div class="gcard-meta" style="max-width:740px">Một dịch vụ nối được NHIỀU tài khoản (nhiều shop, nhiều số Zalo…). Mọi bộ não - Claude Code, ChatGPT/Codex, OpenRouter, API - dùng chung kho này qua trung tâm kết nối của Javis, kèm phân quyền và nhật ký.'
       + '<label style="margin-left:8px;cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> Chỉ dùng kết nối của Javis (bỏ kết nối sẵn của máy)</label></div>'
@@ -4810,6 +4842,26 @@
       + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">Bấm để tải…</div></div>'
       + '<div class="prov-list" id="mcpAmbientCodex" style="margin-top:12px"></div></details>';
     document.getElementById("mcpStrict").onchange = (e) => postJson("/mcp/strict", { strict: e.target.checked });
+    // Gỡ / cài lại một dịch vụ có sẵn. Gỡ mà đang có kết nối theo nó thì server trả 409 kèm
+    // danh sách, và hỏi lại một câu trước khi làm - kết nối là dữ liệu của người dùng.
+    el.querySelectorAll("[data-coreoff]").forEach(b => b.onclick = async (ev) => {
+      ev.stopPropagation();
+      const id = b.dataset.coreoff;
+      let r = await postJson("/connect/core-toggle", { id: id, off: true });
+      if (r && r.need_confirm) {
+        const ten = (r.connections || []).map(x => x.label).join(", ");
+        if (!confirm('Gỡ dịch vụ này thì ' + (r.connections || []).length + ' kết nối đang dùng nó sẽ DỪNG: '
+          + ten + '.\n\nKết nối không bị xoá, và cài lại dịch vụ là chúng chạy tiếp. Gỡ chứ?')) return;
+        r = await postJson("/connect/core-toggle", { id: id, off: true, confirm: true });
+      }
+      if (r && r.ok) renderConnect(el);
+      else alert((r && r.error) || "Không gỡ được.");
+    });
+    el.querySelectorAll("[data-coreon]").forEach(b => b.onclick = async () => {
+      const r = await postJson("/connect/core-toggle", { id: b.dataset.coreon, off: false });
+      if (r && r.ok) renderConnect(el);
+      else alert((r && r.error) || "Không cài lại được.");
+    });
     // Sức khoẻ kết nối: tô ngay khi mở trang + làm tươi mỗi 60s (tự dừng khi rời trang)
     clearInterval(_healthTimer);
     refreshConnHealth(el, conns, byId);

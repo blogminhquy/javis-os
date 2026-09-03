@@ -173,7 +173,17 @@ Loop chạy nền còn bị siết thêm theo mode của loop: loop `suggest` ch
 
 Dịch vụ chưa có trong Kho? Bấm thẻ **Tự thêm (nâng cao)** - form kỹ thuật như bản cũ (URL/lệnh + header/env, hỗ trợ HTTP, SSE, stdio). Dịch vụ đăng nhập kiểu OAuth chuẩn MCP thì Javis tự mở trang đăng nhập và tự giữ token, chạy được cả trên VPS.
 
-### 9. Chế độ "Chỉ dùng kết nối của Javis" (strict)
+### 9. Gỡ một dịch vụ khỏi Kho cho gọn
+
+Kho có 29 dịch vụ, và bình thường bạn chỉ dùng vài cái. Trỏ chuột vào một thẻ trong Kho, góc phải trên hiện dấu **×**: bấm là dịch vụ đó rời khỏi Kho, khỏi danh sách công cụ của mọi bộ não, và khỏi ngữ cảnh mỗi lượt chat.
+
+Ba điều nên biết trước khi bấm:
+
+- **Gỡ không phải xoá.** File của dịch vụ vẫn nằm trong bản cài, Javis chỉ ghi nhớ là bạn đã gỡ. Nhờ vậy cập nhật Javis lên bản mới **không** làm nó mọc lại, mà cài lại thì chỉ mất một cú bấm.
+- **Cài lại ở khu "Đã gỡ"**, nằm dưới Kho, mặc định gập. Mỗi dịch vụ đã gỡ là một hàng có nút **Cài lại**.
+- **Kết nối của bạn KHÔNG bị xoá.** Nếu đang có tài khoản đấu theo dịch vụ đó, Javis hỏi lại trước khi gỡ. Gỡ rồi thì các kết nối ấy **dừng chạy** (Javis không tự gọi chúng nữa) nhưng vẫn nằm nguyên ở khu Đã kết nối, và đầu trang hiện một dải nhắc. Cài lại dịch vụ là chúng chạy tiếp, không phải đấu lại từ đầu.
+
+### 10. Chế độ "Chỉ dùng kết nối của Javis" (strict)
 
 Tick ô này ở khu Đã kết nối nếu muốn Javis CHỈ dùng các kết nối khai ở đây, bỏ qua MCP cài sẵn trong Claude Code trên máy - kiểm soát chặt, tránh gọi nhầm công cụ của tài khoản Claude. Lưu ý: ô này áp cho engine Claude Code (cờ strict của Claude CLI); kho MCP gốc của Codex do lệnh codex quản riêng - muốn engine ChatGPT bỏ một server gốc thì gỡ bằng `codex mcp remove <tên>`.
 
