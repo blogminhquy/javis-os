@@ -763,6 +763,10 @@
        icons.js (file dựng hàm ic / Icons). Cả hai đều không phụ thuộc DOM. -->
   <!-- i18n phải nạp TRƯỚC mọi script vẽ giao diện: console.js dựng nhãn rail ngay lúc
        nạp, nên từ điển chưa sẵn sàng là rail hiện ra key trần rồi mới nháy sang chữ. -->
+  <!-- Người gác cổng bản cũ. Nạp KHÔNG kèm `?v=` và được đóng dấu no-cache, vì nó phải
+       LUÔN mới: một người gác cổng cũ theo thì không gác được gì. Đứng ngay đây để
+       bắt được cả trường hợp một file phía dưới hỏng vì đang chạy bản cũ. -->
+  <script src="/static/freshness.js"></script>
   <script src="/static/i18n/index.js?v=2"></script>
   <script src="/static/vendor/lucide-icons.js?v=4"></script>
   <script src="/static/icons.js?v=2"></script>

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.18] - 2026-09-03
+### Thêm mới
+- **Javis tự phát hiện khi trình duyệt bạn đang chạy bản cũ.** Từ trước tới nay chuyện này hoàn toàn câm: bạn cập nhật xong, mở lên thấy y như cũ, và không có cách nào biết là do trình duyệt giữ file cũ. Nay Javis hiện một dải nhắc ngay đầu màn hình, gọi đúng tên file đang cũ, kèm nút Tải lại.
+- **Tải lại rồi vẫn cũ thì Javis nói thẳng phải làm gì** (bấm Ctrl+Shift+R), thay vì để bạn bấm Tải lại mãi mà không hiểu vì sao không đổi.
+- **Máy chủ cập nhật trong lúc bạn đang mở Javis** thì dải nhắc cũng hiện, mời bạn tải lại để dùng bản mới. Javis không tự tải lại, vì bạn có thể đang gõ dở.
+
 ## [0.55.17] - 2026-09-03
 ### Cải thiện
 - **Brain mới không còn file `Task Inbox.md` nằm sẵn trong Dashboard.** Nó chỉ mọc ra khi bạn bấm "+ Việc" lần đầu, nên ai không dùng tính năng đó thì thư mục Dashboard gọn hơn một file. Brain cũ đang có sẵn mà bạn không dùng thì cứ xoá, Javis không tạo lại.
