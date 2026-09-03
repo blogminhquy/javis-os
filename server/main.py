@@ -64,6 +64,7 @@ import mcp_client
 import mcp_catalog
 import mcp_hub
 import connect_health   # sức khoẻ kết nối: vòng check nền + phân loại lỗi tiếng người
+import purge          # xoá kết nối cho sạch: chủ sở hữu duy nhất của việc dọn dấu vết
 import cred_exchange   # đổi credential hộ user (vd App Password -> Google master token) khi đấu
 import plugins_host   # hệ PLUGIN: thư mục Python thả vào, tự thêm tool/hook cho mọi engine qua hub
 import web_security   # chống CSRF-to-localhost + DNS-rebinding cho web API cục bộ
@@ -3335,16 +3336,34 @@ async def connect_toggle(request: Request):
     return {"ok": en is not None, "enabled": en}
 
 
+@app.get("/connect/purge-plan")
+async def connect_purge_plan(id: str = Query("")):
+    """Xoá kết nối này thì mất những gì. Hộp xác nhận trên giao diện vẽ từ đúng kết quả này.
+
+    Tách khỏi việc xoá để lời cảnh báo không bao giờ trôi lệch khỏi việc thật sự làm: viết rời
+    hai chỗ là kiểu chắc chắn lệch sau vài tháng sửa đổi."""
+    return purge.plan_connection((id or "").strip())
+
+
 @app.post("/connect/delete")
 async def connect_delete(request: Request):
+    """Xoá kết nối VÀ mọi dấu vết nó để lại. Toàn bộ việc dọn nằm ở `server/purge.py`.
+
+    Trước 0.55.19 chỗ này gọi bốn hàm dọn rồi coi như xong, và bỏ sót ba thứ: tiến trình con
+    stdio sống thêm 15 phút (xoá hàng trước nên `invalidate_cache` không còn tìm ra phiên để
+    đóng), thư mục `connector-home` chứa phiên đăng nhập không ai xoá, và sổ năng lực chỉ xoá
+    mềm. Đừng thêm bước dọn mới vào đây - thêm vào `purge.py`, để chỉ có MỘT chỗ biết một kết
+    nối có thể để lại những gì."""
     data = await request.json()
-    cid = data.get("id")
-    oauth_mcp.forget(cid)
-    connect_health.forget(cid)   # khỏi hiện trạng thái ma của connection đã xoá
-    ok = mcp_store.delete_connection(cid)
-    mcp_hub.invalidate_cache()
-    _write_codex_profile()
-    return {"ok": ok}
+    cid = (data.get("id") or "").strip()
+    bao_cao = await purge.purge_connection(
+        cid,
+        mode=("hard" if data.get("hard") else "trash"),
+        purge_audit=bool(data.get("purge_audit")),
+    )
+    if bao_cao.get("ok"):
+        _write_codex_profile()
+    return bao_cao
 
 
 @app.post("/connect/relogin")
@@ -8390,6 +8409,15 @@ async def _start_scheduler():
                                       f"{kqs['bytes'] // (1024 * 1024)}MB")
                 except Exception as me:
                     print(f"[media gc] {type(me).__name__}: {me}", file=__import__('sys').stderr)
+                # Dọn thùng rác của việc xoá kết nối. Đi ghép vào nhịp 6 giờ của media gc chứ
+                # không tự dựng một vòng riêng: nó chỉ là một lần quét thư mục, mà mỗi vòng
+                # nền thêm vào là thêm một thứ có thể chạy lệch nhau lúc gỡ lỗi.
+                try:
+                    n_rac = await asyncio.to_thread(purge.gc_trash)
+                    if n_rac:
+                        print(f"[purge gc] dọn {n_rac} thư mục quá {purge.TRASH_DAYS} ngày")
+                except Exception as pe:
+                    print(f"[purge gc] {type(pe).__name__}: {pe}", file=__import__('sys').stderr)
             except Exception as e:
                 print(f"[scheduler] {type(e).__name__}: {e}", file=__import__('sys').stderr)
     asyncio.create_task(_scheduler_loop())

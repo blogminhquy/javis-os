@@ -658,6 +658,32 @@ class CapabilityRegistry:
                 "revision": self.revision(brain)}
 
 
+    def drop_connection(self, conn_id: str) -> int:
+        """XOÁ CỨNG mọi hàng của một connection đã bị xoá. Trả về số nguồn đã xoá.
+
+        Khác `sweep` ở hai điểm, và cả hai đều là lý do hàm này tồn tại. Sweep chỉ đặt
+        `active=0` (mềm), và chỉ chạy khi có ai đó refresh đúng brain đó. Nên một kết nối bị
+        xoá vẫn để lại tên, mô tả tool và alias của nó nằm trong sổ - kể cả trong chỉ mục
+        FTS - cho tới lần refresh kế tiếp của đúng brain ấy, mà có thể là không bao giờ.
+        Xoá kết nối thì người dùng hiểu là xoá, nên ở đây xoá thật.
+
+        So khớp hậu tố trong Python chứ không bằng LIKE: `source_key` là `<scope>:mcp:<id>`,
+        mà scope là tên brain do người dùng đặt nên có thể chứa ký tự LIKE hiểu nhầm.
+        """
+        if not conn_id:
+            return 0
+        with self._lock:
+            db = self._conn()
+            with db:
+                keys = [r[0] for r in db.execute(
+                    "SELECT source_key FROM capability_sources WHERE source_type='mcp'")
+                    if str(r[0]).endswith(":mcp:" + conn_id)]
+                for key in keys:
+                    db.execute("DELETE FROM capabilities WHERE source_key=?", (key,))
+                    db.execute("DELETE FROM capability_sources WHERE source_key=?", (key,))
+            return len(keys)
+
+
 _REGISTRY: CapabilityRegistry | None = None
 
 

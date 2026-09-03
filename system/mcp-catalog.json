@@ -166,6 +166,7 @@
         "danger": ["zalo_send_message"]
       },
       "default_perm": "full",
+      "purge_warning": "Xoá kết nối này là mất luôn phiên đăng nhập QR. Muốn dùng lại phải mở app Zalo trên điện thoại quét mã một lần nữa.",
       "risk": "Connector này MẶC ĐỊNH ở mức TOÀN QUYỀN, tức tool gửi tin đang bật. Muốn chặn gửi, hãy hạ xuống Ghi nháp hoặc Chỉ đọc.\n\nzalo-agent-cli dùng API Zalo không chính thức qua zca-js. Tài khoản CÓ THỂ bị hạn chế hoặc KHOÁ; khuyến nghị dùng tài khoản phụ và không tự động gửi hàng loạt.",
       "rate_limit": { "calls_per_min": 20 }
     },
@@ -1205,6 +1206,7 @@
                    "share_set_access", "share_set_user", "share_remove_user"]
       },
       "default_perm": "readonly",
+      "purge_warning": "Xoá kết nối này là mất phiên Google đã dán. Muốn dùng lại phải lấy lại cookie từ trình duyệt một lần nữa.",
       "risk": "Kết nối này dùng COOKIE PHIÊN Google, credential tương đương đang đăng nhập tài khoản Google của bạn, không phải OAuth giới hạn phạm vi như Gmail hay Lịch.\n\nMức Chỉ đọc: liệt kê notebook, đọc nguồn, xem trạng thái. Không đụng gì.\n\nMức Ghi nháp: thêm quyền tạo notebook, thêm nguồn, lưu ghi chú, hỏi đáp trong notebook và tạo tóm tắt/audio ở Studio - những thứ này tiêu quota NotebookLM của bạn.\n\nMức Toàn quyền: thêm quyền XOÁ notebook, xoá nguồn, và CHIA SẺ notebook cho người khác. Chia sẻ nhầm thì gỡ lại được nhưng người ta đã đọc rồi, nên nó nằm ở mức cao nhất.\n\nnotebooklm-py là thư viện KHÔNG chính thức, chạy trên giao thức nội bộ của NotebookLM. Google đổi giao thức lúc nào cũng có thể làm kết nối này gãy.",
       "rate_limit": { "calls_per_min": 20 }
     },
