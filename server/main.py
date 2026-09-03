@@ -243,7 +243,10 @@ async def _static_cache_headers(request: Request, call_next):
     Không có ?v= thì giữ nguyên (ETag/Last-Modified của StaticFiles vẫn lo revalidate).
     Thiếu header này trình duyệt phải hỏi lại ~27 file JS/CSS mỗi lần mở trang."""
     resp = await call_next(request)
-    if request.url.path.startswith("/static/i18n/") and request.url.path.endswith(".json"):
+    if request.url.path == "/static/freshness.js":
+        # Người gác cổng mà cũ theo thì nó gác cái gì. Nạp KHÔNG kèm `?v=` và luôn hỏi lại.
+        resp.headers["Cache-Control"] = "no-cache"
+    elif request.url.path.startswith("/static/i18n/") and request.url.path.endswith(".json"):
         # Từ điển i18n được fetch KHÔNG có ?v= (i18n/index.js nạp trước khi biết phiên bản).
         # Không đóng dấu gì là trình duyệt cache theo heuristic và giữ từ điển CŨ qua cả bản
         # cập nhật - code mới gọi khoá mới, màn hình in nguyên mã khoá (khách báo 2026-08-30).
@@ -729,6 +732,63 @@ for _p in (BRAINS_DIR, OBSIDIAN_VAULT_PATH):
         pass
 
 
+# ── Vân tay tài sản tĩnh: bắt cảnh "máy chủ mới, trình duyệt cũ" ────────────────
+# Vụ 03/09/2026: chủ repo báo "up file vẫn không chọn được nhiều file" sau khi bản vá đã
+# lên main. Hoá ra trình duyệt đang chạy sessions-ui.js CŨ, trong khi dòng chữ ngay cạnh
+# ô đó lại là chữ MỚI - vì hai thứ đi hai đường khác nhau: từ điển i18n tải kèm
+# `cache: no-cache` (luôn hỏi lại máy chủ), còn file JS mang `?v=<phiên bản>` và được
+# đóng dấu cache 1 năm immutable. Bất kỳ tầng cache nào bỏ qua phần `?v=` là JS đứng yên
+# vĩnh viễn, mà KHÔNG có một dấu hiệu nào cho người dùng biết.
+#
+# Đó là kiểu hỏng tệ nhất: im lặng. Người dùng thấy bản vá "không ăn" và kết luận là code
+# sai, còn người sửa thì không tài nào tái hiện được. Chú thích ở `root()` cho thấy repo đã
+# vấp đúng chuyện này một lần trước đó (console.js đứng yên suốt hàng chục bản).
+#
+# Nên so SỐ PHIÊN BẢN là không đủ - ở ca này số phiên bản khớp mà nội dung thì cũ. Phải so
+# chính NỘI DUNG. Server băm mỗi file bằng crc32 (zlib, tốc độ C), trang so với nội dung
+# trình duyệt thật sự đang chạy. Xem `dashboard/freshness.js`.
+_ASSET_FP: dict = {}          # đường dẫn -> {"khoa": (mtime, size), "crc": "xxxxxxxx"}
+
+
+def _asset_fp_one(rel: str) -> str:
+    """crc32 của MỘT file tĩnh trong dashboard/. "" nếu không đọc được.
+    Nhớ theo (mtime, size) nên gọi lại nhiều lần vẫn rẻ; file đổi là tự băm lại."""
+    try:
+        f = DASHBOARD_PATH / rel
+        st = f.stat()
+        khoa = (st.st_mtime_ns, st.st_size)
+        ent = _ASSET_FP.get(rel)
+        if ent and ent["khoa"] == khoa:
+            return ent["crc"]
+        import zlib
+        crc = format(zlib.crc32(f.read_bytes()) & 0xFFFFFFFF, "08x")
+        _ASSET_FP[rel] = {"khoa": khoa, "crc": crc}
+        return crc
+    except OSError:
+        return ""
+
+
+def _asset_fps(html: str) -> dict:
+    """{đường dẫn tương đối -> crc32} cho mọi .js/.css index.html nạp qua /static/."""
+    out = {}
+    for rel in sorted(set(re.findall(r'/static/([\w./-]+\.(?:js|css))\?v=', html))):
+        crc = _asset_fp_one(rel)
+        if crc:
+            out[rel] = crc
+    return out
+
+
+@app.get("/app-version")
+async def app_version():
+    """Phiên bản + vân tay tài sản tĩnh. Rẻ và KHÔNG chạm mạng - `freshness.js` gọi định kỳ.
+    Khác hẳn `/version` (đi hỏi GitHub, timeout 8 giây) nên đừng gộp hai cái làm một."""
+    try:
+        html = (DASHBOARD_PATH / "index.html").read_text(encoding="utf-8")
+    except OSError:
+        html = ""
+    return {"version": _app_version() or "0", "assets": _asset_fps(html)}
+
+
 @app.get("/")
 async def root():
     html = (DASHBOARD_PATH / "index.html").read_text(encoding="utf-8")
@@ -737,7 +797,16 @@ async def root():
     # dùng console.js CŨ trong cache - máy chủ cập nhật thật mà giao diện đóng băng, mọi
     # sửa đổi frontend trở nên vô hình. Gắn phiên bản vào đây thì mỗi lần bump là tự bể cache.
     ver = _app_version() or "0"
+    # Vân tay tính TRƯỚC khi đổi `?v=` - regex tìm theo `?v=` nên thứ tự này bắt buộc.
+    fps = _asset_fps(html)
     html = re.sub(r'(/static/[\w./-]+\.(?:js|css))\?v=[\w.]+', r'\1?v=' + ver, html)
+    # Nhúng phiên bản + vân tay vào chính trang. index.html luôn tải mới (no-store) nên khối
+    # này LUÔN đúng, kể cả khi mọi file JS quanh nó đã cũ - đó chính là điểm tựa để
+    # freshness.js phát hiện ra chuyện đó.
+    moc = ('<script id="javis-fresh" type="application/json">'
+           + json.dumps({"version": ver, "assets": fps}, ensure_ascii=False)
+           + "</script>\n</head>")
+    html = html.replace("</head>", moc, 1)
     return HTMLResponse(html, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
