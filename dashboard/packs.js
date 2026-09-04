@@ -25,7 +25,11 @@
   function nn(v, mac) {
     if (!v) return mac || "";
     if (typeof v === "string") return v;
-    const lang = (window.JavisI18n && window.JavisI18n.lang) || "vi";
+    // Ngôn ngữ hiện tại lấy bằng một lời GỌI HÀM, phải có cặp ngoặc. Thiếu ngoặc thì `v[lang]`
+    // tra bằng một object hàm, luôn trượt, và mọi tên gói rơi về tiếng Anh trong giao diện
+    // tiếng Việt - hỏng lặng lẽ, vì vẫn có chữ để hiện nên trông như gói thiếu bản dịch chứ
+    // không như một lỗi. Đã sống trong file này từ 0.55.22 tới 0.55.28.
+    const lang = (window.JavisI18n && JavisI18n.lang()) || "vi";
     return v[lang] || v.en || Object.values(v)[0] || mac || "";
   }
 
@@ -69,9 +73,10 @@
   //
   // `bundle` cố ý KHÔNG có chip riêng: nó là chỗ rơi của mục khai loại lạ, và một chip tên
   // "Khác" chỉ mời người ta bấm vào để thấy lưới rỗng. Mục bundle vẫn hiện ở tab Tất cả.
-  const LOAI = {
+  //
   // Icon lấy ĐÚNG icon trang tương ứng ở thanh bên (`console.js` VIEW_ICON), không chọn lại
   // cho đẹp: người dùng nhận ra "cái này là kỹ năng" bằng hình họ đã thấy hàng ngày.
+  const LOAI = {
     agent:     { nhan: "Trợ lý",    icon: "bot",      trang: "agents" },
     skill:     { nhan: "Kỹ năng",   icon: "puzzle",   trang: "skills" },
     workflow:  { nhan: "Quy trình", icon: "workflow", trang: "workflows" },
@@ -80,6 +85,10 @@
     bundle:    { nhan: "Trọn bộ",   icon: "package",  trang: "" },
   };
   const THU_TU_LOAI = ["agent", "skill", "workflow", "tool", "connector"];
+
+  // Loại được chọn sẵn khi mở kho. `moKho()` đặt, `render()` lấy rồi XOÁ ngay - nó là ý định
+  // của MỘT lần bấm tab, không phải trạng thái của trang.
+  let _loaiCho = "";
 
   const BAC = {
     data: { nhan: "Chỉ dữ liệu", mau: "var(--ok-ink,#2f855a)" },
