@@ -354,6 +354,29 @@ Chạy lúc nào cũng được, ràng buộc thứ tự duy nhất là `categor
 
 ---
 
+## Đã làm xong tới đâu (cập nhật 2026-09-04)
+
+| Giai đoạn | Trạng thái | Bản |
+|---|---|---|
+| 0 - Xoá kết nối cho sạch | Xong | 0.55.19 |
+| 1 - Sổ gói, lớp phủ catalog, lớp gỡ được | Xong | 0.55.20 và 0.55.21 |
+| 2 - Cài từ zip, màn hình đồng ý, gỡ sạch | Xong | 0.55.22 |
+| 3 - Trang hướng dẫn của gói | **Chưa** | |
+| 4 - Gói có code | Xong | 0.55.23 |
+| 5 - Cài từ URL và repo riêng | Xong | 0.55.24 và 0.55.25 |
+| 6 - Kho công khai | Xong | 0.55.24 |
+| L - Đóng băng ngôn ngữ | **Chưa** | |
+
+Ngoài kế hoạch ban đầu, 0.55.25 làm thêm phần mà bản đầu xếp ra ngoài spec 1: **gói mang được
+agent, workflow và skill**. Cơ chế ở `server/pack_vault.py`, dùng lại đúng khuôn hash chuẩn hoá
+của `system_sync` chứ không viết bản thứ hai. Ba luật: cài không ghi đè thứ gói không đặt vào;
+cập nhật chỉ ghi đè khi mục còn y nguyên; gỡ chỉ xoá thứ chưa sửa.
+
+Còn lại đáng kể: trang hướng dẫn của gói (Giai đoạn 3), ghim gói theo commit và kiểm bản mới
+định kỳ (nửa sau Giai đoạn 5), và toàn bộ Giai đoạn L.
+
+---
+
 ## Sau khi xong hết, việc gì vẫn phải ra bản mới
 
 Nói thẳng, vì con số đau là 524 bản trong 3 tháng và chương trình này **không** làm nó giảm một nửa.

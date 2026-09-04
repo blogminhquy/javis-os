@@ -91,7 +91,7 @@ async def tai(url: str, *, header: dict = None, tran: int = MAX_TAI) -> bytes:
     import httpx
 
     hien = str(url or "").strip()
-    hd = {"User-Agent": "Javis-OS pack fetcher", **(header or {})}
+    hd = {"User-Agent": "Javis-OS pack fetcher", **header_xac_thuc(hien), **(header or {})}
     async with httpx.AsyncClient(follow_redirects=False,
                                  timeout=httpx.Timeout(TIMEOUT_TONG, connect=TIMEOUT_KET_NOI)) as cl:
         for _ in range(MAX_CHUYEN_HUONG + 1):
@@ -102,7 +102,15 @@ async def tai(url: str, *, header: dict = None, tran: int = MAX_TAI) -> bytes:
                         ke = r.headers.get("location")
                         if not ke:
                             raise LoiTai("Máy chủ chuyển hướng nhưng không nói đi đâu")
+                        truoc = httpx.URL(hien).host
                         hien = str(httpx.URL(hien).join(ke))
+                        if httpx.URL(hien).host != truoc:
+                            # Chuyển sang host KHÁC thì bỏ header xác thực. Gửi tiếp token của
+                            # host cũ sang host mới là cách rò token kinh điển: chỉ cần một
+                            # chuyển hướng do bên kia điều khiển là token đi theo.
+                            hd = {k: v for k, v in hd.items()
+                                  if k not in ("Authorization", "PRIVATE-TOKEN")}
+                            hd.update(header_xac_thuc(hien))
                         continue
                     if r.status_code == 404:
                         raise LoiTai("Không tìm thấy tệp ở địa chỉ này (404)")
@@ -122,6 +130,42 @@ async def tai(url: str, *, header: dict = None, tran: int = MAX_TAI) -> bytes:
             except httpx.HTTPError as e:
                 raise LoiTai(f"Không tải được: {type(e).__name__}") from e
     raise LoiTai("Chuyển hướng quá nhiều lần")
+
+
+def token_cho(url: str) -> str:
+    """Token đã lưu cho host của URL này, hoặc chuỗi rỗng.
+
+    Lưu theo HOST chứ không theo từng URL: một token GitHub dùng được cho mọi repo mà nó có
+    quyền, nên bắt người dùng dán lại cho từng gói là hành hạ vô ích.
+
+    Token đi bằng HEADER, không bao giờ nhét vào URL. Nhét vào URL thì nó nằm trong argv của
+    tiến trình con, trong log của proxy, và trong `Referer` khi có chuyển hướng - đó chính là
+    lý do `git_brain._redact` phải tồn tại cho đường git."""
+    try:
+        import config as cfgmod
+        from urllib.parse import urlparse
+        host = (urlparse(str(url or "")).hostname or "").lower()
+        if not host:
+            return ""
+        kho = (cfgmod.read_settings().get("packs") or {}).get("tokens") or {}
+        return str(kho.get(host) or "")
+    except Exception:
+        return ""
+
+
+def header_xac_thuc(url: str) -> dict:
+    """Header xác thực cho host này. Rỗng nếu chưa lưu token nào.
+
+    GitHub và GitLab nhận hai kiểu header khác nhau, nên nhận diện theo host. Host lạ thì dùng
+    `Authorization: Bearer` vì đó là kiểu phổ biến nhất."""
+    tk = token_cho(url)
+    if not tk:
+        return {}
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    if "gitlab" in host:
+        return {"PRIVATE-TOKEN": tk}
+    return {"Authorization": "Bearer " + tk}
 
 
 def url_zip_github(raw: str) -> str:

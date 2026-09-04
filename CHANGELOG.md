@@ -4,6 +4,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.25] - 2026-09-04
+### Thêm mới
+- **Gói mang được cả trợ lý, quy trình và kỹ năng**, không chỉ dịch vụ và công cụ. Cài một gói là bộ não đang mở có thêm những thứ đó, dùng ngay được.
+- **Kho phân biệt gói chính chủ và gói cộng đồng**, có tab lọc riêng. Gói cộng đồng thì màn hình xác nhận nói dài hơn một dòng trước khi bạn bấm.
+- **Lưu được mã truy cập cho kho riêng**, mỗi tên máy một mã. Từ đó cài được gói từ repo riêng chứ không chỉ kho công khai.
+
+### Bảo mật
+- **Javis không bao giờ ghi đè thứ bạn tự viết.** Cài mà bộ não đã có mục trùng tên thì Javis giữ bản của bạn và bỏ qua bản trong gói. Bản cập nhật của gói chỉ ghi đè khi mục còn y nguyên như lúc cài.
+- **Gỡ gói chỉ xoá thứ bạn chưa sửa.** Mục nào bạn đã chỉnh thì được giữ lại, và hộp thoại nói rõ giữ lại những gì. Gói cài lại được trong ba giây, còn thứ bạn viết thì không.
+- **Mã truy cập được mã hoá khi ghi xuống đĩa**, đi bằng header chứ không nhét vào địa chỉ, và **bị bỏ khi bị chuyển hướng sang tên máy khác** - đó là cách rò mã truy cập quen thuộc nhất.
+
+### Cải thiện
+- Đổi kiểu xuống dòng của một tệp không còn bị hiểu nhầm là "bạn đã sửa". Trước đây chỉ cần mở tệp bằng trình soạn thảo Windows rồi lưu là đủ để Javis thôi cập nhật mục đó.
+
 ## [0.55.24] - 2026-09-04
 ### Thêm mới
 - **Kho gói ngay trong Javis.** Trang Năng lực > Gói có thêm lưới danh mục: tìm kiếm, lọc theo nhóm, bấm Cài là Javis tải về, mở ra cho bạn xem rồi mới hỏi. Đúng màn hình xác nhận như khi bạn tự chọn tệp, không có đường tắt nào ngắn hơn.

@@ -96,6 +96,14 @@
       + '</div>';
   }
 
+  function vaultTom(v) {
+    // Tóm tắt "gói này thêm gì vào bộ não", dạng "2 trợ lý, 1 kỹ năng".
+    const TEN = { agents: "trợ lý", workflows: "quy trình", skills: "kỹ năng" };
+    return Object.keys(TEN)
+      .filter(k => ((v || {})[k] || []).length)
+      .map(k => (v[k].length + " " + TEN[k]));
+  }
+
   // ---- Màn hình xác nhận trước khi cài, vẽ hoàn toàn từ kết quả /packs/inspect ----
   function manHinhDongY(d, el) {
     const coMa = d.tier === "code";
@@ -124,6 +132,20 @@
             + 'Chỉ đọc. Muốn cho ghi thì bạn tự nâng quyền từng tài khoản.</span></p>' : "")
       + (d.warning ? '<p style="color:var(--warn-ink,#b7791f)">Một phần của gói bị bỏ qua: '
                      + esc(d.warning) + '</p>' : "")
+      // Agent, workflow và skill ghi vào BRAIN của bạn - nơi bạn tự viết. Phải nói rõ hơn cả
+      // connector, vì đây là thứ duy nhất trong gói đụng tới chỗ đó.
+      + (vaultTom(d.vault).length
+          ? '<p style="margin-top:10px">Thêm vào bộ não đang mở: ' + vaultTom(d.vault).join(", ")
+            + '<br><span style="opacity:.6;font-size:.9em">Nếu bộ não đã có mục trùng tên, Javis '
+            + 'giữ bản của bạn và bỏ qua bản trong gói. Gỡ gói cũng chỉ xoá thứ bạn chưa sửa.'
+            + '</span></p>' : "")
+      // Gói chưa qua review của người phát hành kho: nói dài hơn một dòng. Không chặn - ai tin
+      // nguồn nào là lựa chọn của người cài - nhưng họ phải biết mình đang chọn gì.
+      + ((d._tin && d._tin.verified === false)
+          ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);'
+            + 'padding-left:10px;margin-top:12px">Gói này do <b>cộng đồng</b> gửi, chưa qua '
+            + 'kiểm duyệt của người phát hành kho. Hãy xem kỹ phần bên dưới trước khi cài.</div>'
+          : "")
       // Khối cảnh báo cho gói có mã: KHÔNG gập được, không icon ổ khoá, không làm mềm chữ.
       // `permissions` trong manifest là lời khai của tác giả, không có tầng nào chặn, và
       // `min_mode` chỉ giới hạn cái MODEL được gọi chứ không giới hạn cái mã làm được.
@@ -165,6 +187,9 @@
         staging_id: d.staging_id, consent_sha256: d.sha256,
         enable: !!(document.getElementById("pkBat") || {}).checked,
         source: d.source || { kind: "zip" },
+        // Brain ĐANG MỞ. `currentBrainPath` là hàm toàn cục mà app.js phơi ra và cả
+        // console.js lẫn chat-render.js đều dùng - đi qua nó thay vì tự đoán chỗ khác.
+        brain: (typeof currentBrainPath === "function" ? currentBrainPath() : "") || "brain",
       });
       if (!r || !r.ok) { note.textContent = (r && r.error) || "Cài không được."; return; }
       dong();
@@ -172,7 +197,7 @@
     };
   }
 
-  async function tuUrl(el, url, expect) {
+  async function tuUrl(el, url, expect, tin) {
     // Tải từ kho hay từ link đều dừng ở bước SOI rồi mở đúng màn hình xác nhận như tệp tải
     // lên. Đường từ kho về máy không được phép ngắn hơn đường từ tệp: cùng một thứ để đọc,
     // cùng một chốt dấu vân tay.
@@ -187,6 +212,7 @@
         + '</div><div class="mp-foot"><button class="mp-btn" data-act="close">Đóng</button></div>');
       return;
     }
+    d._tin = tin || null;
     manHinhDongY(d, el);
   }
 
@@ -201,11 +227,13 @@
         ? '<button class="gcard-btn" disabled style="opacity:.55">Đã cài</button>'
         : '<button class="gcard-btn" data-kho="' + esc(g.download.url) + '" data-sha="'
           + esc(g.download.sha256 || "") + '">Cài</button>';
-    return '<div class="cat-card" data-cat="' + esc(g.category || "") + '">'
+    return '<div class="cat-card" data-cat="' + esc(g.category || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
       + '<div class="cat-ico">' + ic("package") + '</div>'
       + '<div class="cat-name">' + esc(nn(g.name, g.id))
       + ' <span class="prov-kind" style="color:' + bac.mau + '">' + bac.nhan + '</span>'
-      + (g.verified ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">chính chủ</span>' : "")
+      + (g.verified
+          ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">chính chủ</span>'
+          : ' <span class="prov-kind">cộng đồng</span>')
       + '</div>'
       + '<div class="cat-desc">' + esc(nn(g.description)) + '</div>'
       + '<div class="prov-meta">' + esc(g.id) + (g.version ? " · v" + esc(g.version) : "")
@@ -227,8 +255,18 @@
     }
     const ds = d.packs || [];
     const cats = Array.from(new Set(ds.map(g => g.category).filter(Boolean)));
+    // Hai tab nguồn. Hôm nay kho chỉ có gói chính chủ nên tab thứ hai thường rỗng, nhưng để
+    // sẵn thì ngày mở cho cộng đồng không phải sửa lại giao diện - và quan trọng hơn, người
+    // dùng quen mắt với việc NGUỒN là một thứ phải nhìn trước khi cài.
+    const soCongDong = ds.filter(g => !g.verified).length;
     host.innerHTML =
       (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:10px">Đang xem danh mục đã lưu lần trước, vì lần này chưa lấy được bản mới.</div>' : "")
+      + (soCongDong
+          ? '<div class="cat-filter" style="margin-bottom:10px">'
+            + '<button class="cat-chip on" data-pkng="">Tất cả</button>'
+            + '<button class="cat-chip" data-pkng="1">Chính chủ</button>'
+            + '<button class="cat-chip" data-pkng="0">Cộng đồng</button></div>'
+          : "")
       + '<div class="cat-tools"><input class="js-input" id="pkQ" placeholder="Tìm gói…" style="max-width:220px">'
       + '<span class="cat-filter"><button class="cat-chip on" data-pkf="">Tất cả</button>'
       + cats.map(c => '<button class="cat-chip" data-pkf="' + esc(c) + '">' + esc(c) + '</button>').join("")
@@ -238,21 +276,32 @@
       + (ds.length ? ds.map(theKho).join("") : '<div class="mp-empty">Kho chưa có gói nào.</div>')
       + '</div>';
 
+    const theo = {};
+    ds.forEach(g => { theo[g.download.url] = g; });
     host.querySelectorAll("[data-kho]").forEach(b => b.onclick = () =>
-      tuUrl(el, b.dataset.kho, b.dataset.sha));
+      tuUrl(el, b.dataset.kho, b.dataset.sha, theo[b.dataset.kho] || null));
     document.getElementById("pkLamMoi").onclick = () => veKho(el, host, true);
     const loc = () => {
       const q = (document.getElementById("pkQ").value || "").toLowerCase();
-      const chip = host.querySelector(".cat-chip.on");
+      const chip = host.querySelector("[data-pkf].on");
       const cf = chip ? (chip.dataset.pkf || "") : "";
+      const chipNg = host.querySelector("[data-pkng].on");
+      const ng = chipNg ? (chipNg.dataset.pkng || "") : "";
       host.querySelectorAll("#pkGrid .cat-card").forEach(c => {
-        const hop = (!cf || c.dataset.cat === cf) && (!q || c.textContent.toLowerCase().includes(q));
+        const hop = (!cf || c.dataset.cat === cf)
+          && (!ng || c.dataset.ng === ng)
+          && (!q || c.textContent.toLowerCase().includes(q));
         c.style.display = hop ? "" : "none";
       });
     };
     document.getElementById("pkQ").oninput = loc;
     host.querySelectorAll("[data-pkf]").forEach(b => b.onclick = () => {
       host.querySelectorAll("[data-pkf]").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      loc();
+    });
+    host.querySelectorAll("[data-pkng]").forEach(b => b.onclick = () => {
+      host.querySelectorAll("[data-pkng]").forEach(x => x.classList.remove("on"));
       b.classList.add("on");
       loc();
     });
@@ -308,6 +357,17 @@
             + '<br><span style="opacity:.6;font-size:.9em">Chúng bị xoá theo, và chuyển vào '
             + 'thùng rác giữ 30 ngày.</span></li>' : "")
       + '</ul>'
+      + (((d.vault || {}).xoa || []).length
+          ? '<li>' + d.vault.xoa.length + ' mục trong bộ não '
+            + '<span style="opacity:.6">(' + d.vault.xoa.map(x => esc(x.slug)).join(", ") + ')</span></li>'
+          : "")
+      + '</ul>'
+      // Thứ người dùng đã sửa thì KHÔNG bị xoá, và phải nói ra - nếu không họ sẽ tưởng mất.
+      + (((d.vault || {}).giu || []).length
+          ? '<p style="margin-top:10px;color:var(--ok-ink,#2f855a)">Giữ lại vì bạn đã sửa: '
+            + d.vault.giu.map(x => esc(x.slug)).join(", ") + '</p>'
+          : "")
+      + '<ul style="margin:0 0 0 18px">'
       + ((d.plugin_data || []).length
           ? '<label style="display:block;margin-top:12px"><input type="checkbox" id="pkData"> '
             + 'Xoá luôn dữ liệu plugin của gói này '

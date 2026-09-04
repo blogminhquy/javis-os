@@ -102,10 +102,32 @@ thể đổi mã, và mã đổi mà không ai xem thì toàn bộ chốt chữ 
 
 ---
 
+## Gói mang theo agent, workflow, skill
+
+Khai trong `provides` như mọi thứ khác; tệp đặt ở `agents/`, `workflows/`, `skills/<slug>/` bên
+trong gói. Chúng được ghi vào **brain đang mở lúc bấm Cài**, không phải mọi brain.
+
+Ba luật, và chúng là lý do phần này có một module riêng (`server/pack_vault.py`):
+
+1. Cài **không ghi đè** một mục đã có mà gói không phải người đặt vào đó. Người dùng tự đặt tên
+   trùng thì tệp của họ thắng, và màn hình xác nhận nói trước điều đó.
+2. Bản cập nhật của gói chỉ ghi đè khi mục **còn y nguyên** như lúc gói đặt vào. Đã sửa thì giữ
+   bản của người dùng, y hệt cách `system_sync` đối xử với skill hệ thống.
+3. Gỡ **chỉ xoá thứ còn y nguyên**. Đã sửa thì giữ lại và hộp thoại nói rõ giữ lại những gì.
+
+So sánh hash dùng lại `system_sync` nên đã chuẩn hoá kiểu xuống dòng: mở tệp bằng trình soạn
+thảo Windows rồi lưu **không** bị hiểu nhầm là đã sửa.
+
+## Kho riêng cần mã truy cập
+
+Lưu ở Cài đặt, **một mã cho mỗi tên máy** (một mã GitHub dùng được cho mọi repo nó có quyền).
+Mã được mã hoá khi ghi xuống đĩa, đi bằng header chứ không nhét vào địa chỉ, và **bị bỏ khi bị
+chuyển hướng sang tên máy khác** - gửi tiếp mã của máy cũ sang máy mới là cách rò mã quen thuộc
+nhất.
+
 ## Giới hạn cố ý của bản này
 
-Chưa có: gói mang theo agent, workflow hay skill (chúng sống trong brain của người dùng, là nơi
-người dùng SỬA, nên cần cơ chế khác - xem `system_sync` để biết khuôn manifest hash đã có sẵn);
-tab gói cộng đồng; số lượt tải; và kho riêng cần token.
+Chưa có: trang hướng dẫn riêng của gói; ghim gói theo commit; kiểm bản mới định kỳ; và số lượt
+tải.
 
 Trần: 500 gói mỗi index, 4MB cho file index, 25MB cho một gói.

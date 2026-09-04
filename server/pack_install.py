@@ -321,13 +321,27 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
         "id": pid, "name": ban["name"], "description": ban["description"],
         "version": ban["version"], "author": ban.get("author") or {},
         "tier": ban["tier"], "connectors": ban["connectors"], "plugins": plugin_slugs,
+        # Agent, workflow và skill ghi vào BRAIN của người dùng chứ không nằm trong thư mục
+        # gói, nên chúng phải hiện lên màn hình xác nhận rõ ràng hơn cả connector: đây là thứ
+        # duy nhất trong gói đụng tới nơi người dùng tự viết.
+        "vault": _liet_ke_vault(tam),
         "py_files": py, "size": len(du_lieu),
         "da_cai": ({"version": da_cai.get("version")} if da_cai else None),
     }
 
 
+def _liet_ke_vault(thu_muc):
+    """Năng lực ghi vào brain mà gói mang theo. Rỗng nếu module lỗi - không chặn việc cài."""
+    try:
+        import pack_vault
+        return pack_vault.liet_ke(thu_muc)
+    except Exception as e:
+        print(f"[packs] không đọc được năng lực brain của gói: {e}", file=sys.stderr)
+        return {}
+
+
 def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
-        nguon: dict = None) -> dict:
+        nguon: dict = None, brain_root: str = "") -> dict:
     """Đặt gói đã soi vào kho. Nguyên tử, hỏng ở bước nào cũng trả lại nguyên trạng."""
     sha = str(staging_id or "").strip()
     boc = STAGING / sha
@@ -374,6 +388,18 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
 
     packs.invalidate()
     ban = next((p for p in packs.installed() if p["id"] == pid), None)
+
+    # Ghi agent/workflow/skill vào brain. Làm SAU khi thư mục gói đã yên vị, để nếu bước này
+    # hỏng thì gói vẫn ở trạng thái cài được chứ không nửa vời.
+    bao_vault = {}
+    if brain_root:
+        try:
+            import pack_vault
+            bao_vault = pack_vault.cai(pid, dich, brain_root)
+        except Exception as e:
+            print(f"[packs] ghi năng lực vào brain: {e}", file=sys.stderr)
+            bao_vault = {"loi": [str(e)]}
+
     so = doc_so()
     so[pid] = {
         "version": (ban or {}).get("version", ""),
@@ -393,6 +419,7 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
     return {"ok": True, "id": pid, "enabled": bool(enable),
             "tier": (ban or {}).get("tier", "data"),
             "connectors": (ban or {}).get("connectors") or [],
+            "vault": bao_vault,
             "warning": (ban or {}).get("error") or ""}
 
 
@@ -478,9 +505,14 @@ def ke_hoach_go(pid: str) -> dict:
     co_du_lieu = [d.name for d in du_lieu.iterdir()
                   if d.is_dir() and (thu_muc / "plugins" / d.name).is_dir()] \
         if du_lieu.is_dir() else []
+    try:
+        import pack_vault
+        vault = pack_vault.ke_hoach_go(pid)
+    except Exception:
+        vault = {"xoa": [], "giu": []}
     return {"ok": True, "id": pid, "name": ban["name"], "tier": ban["tier"],
             "connectors": ban["connectors"], "connections": ket_noi,
-            "bytes": co, "plugin_data": co_du_lieu}
+            "bytes": co, "plugin_data": co_du_lieu, "vault": vault}
 
 
 async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -> dict:
@@ -532,6 +564,14 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
             d = STATE_DIR / "plugin-data" / slug
             if d.is_dir() and (STATE_DIR / "plugin-data").resolve() in d.resolve().parents:
                 shutil.rmtree(d, ignore_errors=True)
+
+    # Xoá năng lực trong brain, và CHỈ thứ còn y nguyên. Người dùng đã sửa thì giữ lại và
+    # nói ra - gói cài lại được trong ba giây, còn thứ họ viết thì không.
+    try:
+        import pack_vault
+        bao["vault"] = pack_vault.go(pid)
+    except Exception as e:
+        bao["errors"].append(f"dọn năng lực trong brain: {e}")
 
     so = doc_so()
     so.pop(pid, None)

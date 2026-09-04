@@ -165,7 +165,7 @@ _DEFAULT = {
     # Ngắn hơn hẳn vì đó là chỗ trung chuyển một lượt chat, không ai mở lại bao giờ.
     # Kho gói: một tệp JSON công khai. Đổi được sang kho khác; rỗng thì dùng kho
     # mặc định của Javis. Xem docs/dev/pack-store-index.md.
-    "packs": {"store_url": ""},
+    "packs": {"store_url": "", "tokens": {}},
     "media": {"enabled": True, "max_age_days": 30, "max_mb": 300, "staging_days": 3},
     "telegram": {"enabled": False, "token": "", "chat_id": ""},
     # Kênh Zalo Bot của CHỦ (API chính thức bot.zaloplatforms.com). Cùng hình dạng với telegram
@@ -459,6 +459,10 @@ _DEFAULT = {
 # Backward-compat: giá trị plaintext cũ đọc vẫn ra nguyên văn; lần ghi kế tiếp tự bọc "enc:".
 # Mất file .secret_key → decrypt trả "" (nhập lại key) - đánh đổi giống MCP secret, an toàn hơn lộ key.
 _SECRET_PATHS = (
+    # Token truy cập kho hoặc repo RIÊNG, một khoá cho mỗi tên máy. Dấu * cuối nghĩa là
+    # "mọi khoá của dict này" - cần vì tên máy do người dùng nhập nên không liệt kê trước
+    # được. Xem `_secret_keys`.
+    "packs.tokens.*",
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.ollama_key", "model.ollama_local_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
@@ -471,20 +475,30 @@ _SECRET_PATHS = (
 )
 
 
+def _secret_keys(cfg, path):
+    """(dict cha, tên khoá) cho một đường trong _SECRET_PATHS. Có thể trả nhiều cặp.
+
+    Dấu `*` ở cuối nghĩa là MỌI KHOÁ của dict đó. Cần vì có kho secret mà tên khoá do người
+    dùng đặt nên không liệt kê trước được - `packs.tokens.<host>` là ca đầu tiên."""
+    parts = path.split(".")
+    parent = cfg
+    for p in parts[:-1]:
+        if isinstance(parent, dict) and isinstance(parent.get(p), dict):
+            parent = parent[p]
+        else:
+            return []
+    key = parts[-1]
+    if key == "*":
+        return [(parent, k) for k in list(parent)] if isinstance(parent, dict) else []
+    return [(parent, key)] if isinstance(parent, dict) else []
+
+
 def _transform_secret_fields(cfg, fn):
     """Áp fn (encrypt|decrypt) lên các trường secret theo _SECRET_PATHS, tại chỗ. Bỏ qua nếu thiếu."""
     for path in _SECRET_PATHS:
-        parts = path.split(".")
-        parent = cfg
-        for p in parts[:-1]:
-            if isinstance(parent, dict) and isinstance(parent.get(p), dict):
-                parent = parent[p]
-            else:
-                parent = None
-                break
-        key = parts[-1]
-        if isinstance(parent, dict) and isinstance(parent.get(key), str) and parent.get(key):
-            parent[key] = fn(parent[key])
+        for parent, key in _secret_keys(cfg, path):
+            if isinstance(parent.get(key), str) and parent.get(key):
+                parent[key] = fn(parent[key])
     return cfg
 
 
@@ -884,13 +898,17 @@ def secret_paths_hong():
     cfg = read_settings()
     hong = []
     for path in _SECRET_PATHS:
-        parts = path.split(".")
-        r, c = raw, cfg
-        for p in parts:
-            r = r.get(p) if isinstance(r, dict) else None
-            c = c.get(p) if isinstance(c, dict) else None
-        if isinstance(r, str) and r.startswith("enc:") and not (c or ""):
-            hong.append(path)
+        # Bung dấu * ra thành từng khoá thật TRƯỚC khi so, nếu không thì mọi khoá dạng
+        # `packs.tokens.<host>` lặng lẽ rơi khỏi phần báo secret hỏng.
+        for _parent, _k in _secret_keys(cfg, path):
+            duong = path[:-1] + _k if path.endswith("*") else path
+            parts = duong.split(".")
+            r, c = raw, cfg
+            for p in parts:
+                r = r.get(p) if isinstance(r, dict) else None
+                c = c.get(p) if isinstance(c, dict) else None
+            if isinstance(r, str) and r.startswith("enc:") and not (c or ""):
+                hong.append(duong)
     return hong
 
 
