@@ -391,8 +391,10 @@
       + '</div>'
       + '<div class="kho-chinh">'
       + '<div class="cat-tools">'
-      + '<input class="js-input" id="pkQ" placeholder="Tìm trong ' + esc(LOAI[_kho.loai].nhan)
-      + '…" value="' + esc(_kho.tim) + '" style="max-width:320px">'
+      // Bề rộng do CSS lo, không viết cứng ở đây: trên điện thoại ô này phải chiếm trọn hàng,
+      // mà style nội tuyến thì media query không đè được nếu không kèm !important.
+      + '<input class="js-input kho-tim" id="pkQ" placeholder="Tìm trong '
+      + esc(LOAI[_kho.loai].nhan) + '…" value="' + esc(_kho.tim) + '">'
       + '<span class="prov-meta">' + hop.length
       + (laDaCai ? ' mục đã cài' : laCongDong ? ' mục cộng đồng' : ' mục') + '</span>'
       + '<span style="flex:1"></span>'
@@ -564,7 +566,7 @@
       (veTrang
         ? '<button class="kho-quaylai" id="pkQuayLai">← Quay lại ' + esc(veTrang.nhan) + '</button>'
         : "")
-      + '<div class="cview-section"><h3>◆ Javis Store</h3>'
+      + '<div class="cview-section kho-khoi"><h3>◆ Javis Store</h3>'
       + '<div class="gcard-meta" style="max-width:740px">Trợ lý, kỹ năng, quy trình và công cụ '
       + 'làm sẵn theo từng lĩnh vực. Bấm <b>Cài</b> là Javis tải về, mở ra cho bạn xem có gì '
       + 'rồi mới hỏi.</div>'

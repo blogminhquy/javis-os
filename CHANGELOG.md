@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.35] - 2026-09-05
+### Cải thiện
+- **Javis Store trên điện thoại bố trí lại hẳn.** Hàng loại thành một dải phân đoạn với số đếm nằm dưới tên, các nhóm lĩnh vực xuống dòng thành nhiều hàng thay vì một dải phải vuốt ngang, ô tìm kiếm chiếm trọn bề ngang.
+- **Không còn nhóm nào bị giấu.** Dải cuộn ngang cũ khiến bạn chỉ thấy bốn nhóm đầu trong khi thật ra có mười; giờ thấy hết cùng lúc.
+- Nút bấm trong kho đủ to để bấm bằng ngón tay, và trên màn hẹp thì thẻ xếp một cột.
+- Bớt một dòng tiêu đề lặp trên điện thoại, để phần chọn loại lên cao hơn gần một phần tư màn hình.
+
 ## [0.55.34] - 2026-09-05
 ### Sửa lỗi
 - **Vài nút trong kho hiện sai phông chữ.** Nút bấm không tự dùng phông của trang, nên hàng tab và cột nhóm hiện bằng phông mặc định của máy giữa một trang Montserrat. Giờ cả trang một phông.
