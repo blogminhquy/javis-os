@@ -51,21 +51,92 @@
     } catch (e) { return { ok: false, error: String(e) }; }
   }
 
-  function modal(html, maxw) {
+  // Một cái khung cho MỌI hộp thoại của trang gói. `pkm=true` là biến thể dựng riêng cho luồng
+  // cài: trên máy tính là thẻ giữa màn hình, trên điện thoại là tờ trượt từ đáy. CSS lo phần
+  // hình, chỗ này chỉ gắn lớp.
+  function modal(html, pkm) {
     let m = document.getElementById("packModal");
     if (!m) {
       m = document.createElement("div");
-      m.id = "packModal"; m.className = "mp-overlay";
+      m.id = "packModal";
       document.body.appendChild(m);
     }
-    m.innerHTML = '<div class="mp-box" style="max-width:' + (maxw || 560) + 'px">' + html + '</div>';
-    m.classList.add("open");
+    // Gán lại CẢ className chứ không add thêm: một hộp thoại mở tiếp sau hộp thoại khác phải
+    // xoá sạch biến thể của lượt trước, nếu không hộp báo lỗi ngắn vẫn dính bố cục tờ trượt.
+    m.className = "mp-overlay open" + (pkm ? " pkm-lop" : "");
+    m.innerHTML = '<div class="mp-box' + (pkm ? " pkm" : "") + '">'
+      + (pkm ? '<div class="pkm-nam"></div>' : "") + html + '</div>';
     m.querySelectorAll('[data-act="close"]').forEach(b => b.onclick = dong);
+    // Bấm ra NGOÀI hộp là đóng - thói quen của mọi tờ trượt trên điện thoại. Đóng ở đây luôn
+    // an toàn vì nó chỉ huỷ, không có nhánh nào "đóng tức là đồng ý".
+    m.onclick = (e) => { if (e.target === m) dong(); };
     return m;
   }
   function dong() {
     const m = document.getElementById("packModal");
-    if (m) m.classList.remove("open");
+    if (m) { m.classList.remove("open"); m.onclick = null; }
+  }
+
+  // Đầu hộp thoại cài: ảnh đại diện, tên, dòng phụ, nút đóng. `ten` và `phu` là HTML đã escape
+  // sẵn ở chỗ gọi - vài chỗ cần chèn <code> nên không escape lại ở đây.
+  function pkmDau(g, ten, phu) {
+    return '<div class="pkm-dau">' + (g ? veAvatar(g) : "")
+      + '<div class="pkm-chu"><div class="pkm-ten">' + ten + '</div>'
+      + (phu ? '<div class="pkm-phu">' + phu + '</div>' : "") + '</div>'
+      + '<button class="mp-x" data-act="close" title="Đóng">' + ic("x") + '</button></div>';
+  }
+
+  function dangCho(ten, dong2) {
+    modal(pkmDau(null, esc(ten), "")
+      + '<div class="pkm-danh"><div class="pkm-quay"></div><div>' + esc(dong2) + '</div></div>', true);
+  }
+
+  // Hỏng thì hiện đúng một khối đỏ nói ra chuyện gì, kèm bước dừng nếu server có trả. `lamLai`
+  // là đường quay về chọn tệp khác - thiếu nó thì người dùng phải đóng hộp rồi mò lại từ đầu.
+  function manHinhLoi(ten, loi, buoc, lamLai) {
+    modal(pkmDau(null, esc(ten), "")
+      + '<div class="pkm-than"><div class="pkm-canh do">'
+      + '<div class="pkm-canh-tieu">' + ic("triangle-alert") + 'Không cài được</div>'
+      + '<div>' + esc(loi) + '</div>'
+      + (buoc ? '<div class="pkm-o-phu">Dừng ở bước: ' + esc(buoc) + '</div>' : "")
+      + '</div></div>'
+      + '<div class="pkm-chan">'
+      + (lamLai ? '<button class="mp-btn" id="pkLai">Chọn tệp khác</button>' : "")
+      + '<button class="mp-btn primary" data-act="close">Đóng</button></div>', true);
+    const b = document.getElementById("pkLai");
+    if (b) b.onclick = lamLai;
+  }
+
+  // Hộp hỏi lại dùng chung. Trả về Promise<bool>: gọi xong `await` là biết người dùng bấm gì.
+  //
+  // Vì sao không dùng `confirm()` của trình duyệt: nó không xuống dòng được, không in đậm được,
+  // không liệt kê được cái gì sắp mất, và trên điện thoại nó là một hộp hệ thống bé xíu mà
+  // người ta bấm OK theo phản xạ. Việc gỡ một dịch vụ đang có kết nối chạy thì đáng một câu
+  // hỏi đọc được.
+  function hoi(o) {
+    return new Promise(resolve => {
+      let xong = false;
+      const tra = (v) => { if (!xong) { xong = true; resolve(v); } };
+      const m = modal(pkmDau(o.icon ? { id: o.id || "", name: o.ten, icon: o.icon } : null,
+          esc(o.tieu), o.phu ? esc(o.phu) : "")
+        + '<div class="pkm-than">'
+        + '<div class="pkm-canh ' + (o.mau || "vang") + '">'
+        + '<div class="pkm-canh-tieu">' + ic(o.mau === "do" ? "triangle-alert" : "info")
+        + esc(o.canhTieu || "Bạn có chắc không?") + '</div>'
+        + '<div>' + (o.than || "") + '</div></div>'
+        + (o.themHtml || "") + '</div>'
+        + '<div class="pkm-chan">'
+        + '<button class="mp-btn" id="pkHoiKhong">' + esc(o.khong || "Huỷ") + '</button>'
+        + '<button class="mp-btn ' + (o.mau === "do" ? "danger" : "primary") + '" id="pkHoiCo">'
+        + esc(o.co || "Đồng ý") + '</button></div>', true);
+      // Nút HUỶ giữ tiêu điểm: gõ Enter theo quán tính không được phép là "đồng ý xoá".
+      const k = document.getElementById("pkHoiKhong");
+      k.focus();
+      k.onclick = () => { dong(); tra(false); };
+      document.getElementById("pkHoiCo").onclick = () => { dong(); tra(true); };
+      m.querySelectorAll('[data-act="close"]').forEach(b => b.onclick = () => { dong(); tra(false); });
+      m.onclick = (e) => { if (e.target === m) { dong(); tra(false); } };
+    });
   }
 
   // Loại năng lực, thứ chia lưới kho thành các tab. Thứ tự ở đây LÀ thứ tự chip trên màn
@@ -86,9 +157,15 @@
   };
   const THU_TU_LOAI = ["agent", "skill", "workflow", "tool", "connector"];
 
+  // Trần dung lượng tệp .zip, do server nói (`/packs` trả `max_mb`). Giữ ở module để hộp thoại
+  // chọn tệp nói đúng con số ngay cả khi nó mở lại sau một lần lỗi, lúc không còn `d` trong tay.
+  let _maxMb = 25;
+
   // Loại được chọn sẵn khi mở kho. `moKho()` đặt, `render()` lấy rồi XOÁ ngay - nó là ý định
   // của MỘT lần bấm tab, không phải trạng thái của trang.
   let _loaiCho = "";
+  // Từ khoá điền sẵn vào ô tìm, cùng vòng đời với `_loaiCho`: đặt một lần rồi xoá ngay.
+  let _timCho = "";
   // Trang đã dẫn người dùng sang kho, để vẽ nút quay lại. `null` = vào thẳng từ thanh bên.
   let _veTrang = null;
 
@@ -106,74 +183,104 @@
   }
 
   // ---- Màn hình xác nhận trước khi cài, vẽ hoàn toàn từ kết quả /packs/inspect ----
-  function manHinhDongY(d, el) {
+  //
+  // Trật tự đọc được đặt cứng, vì đây là màn hình duy nhất trong app nơi người dùng đồng ý cho
+  // mã lạ chạy trong máy chủ của họ: đây là gói gì → nó đến từ tệp nào và vân tay ra sao → nó
+  // chạm vào đâu trong máy → cảnh báo → rồi mới tới hai cái nút.
+  //
+  // `tuTep` là hàm quay về bước chọn tệp. Có khi cài từ kho thì không có nó, và chân hộp hiện
+  // "Huỷ" thay cho "Chọn tệp khác".
+  function manHinhDongY(d, el, tuTep) {
     const coMa = d.tier === "code";
     const py = (d.py_files || []);
+    const kn = (d.connectors || []);
+    const vt = vaultTom(d.vault);
+    // Mỗi ô trong bảng là MỘT câu hỏi người cài thật sự hỏi, nên ô nào không có câu trả lời
+    // thì biến mất chứ không hiện một dòng trống.
+    const o = (nhan, gt, phu, rong) =>
+      '<div class="pkm-o' + (rong ? " rong" : "") + '"><div class="pkm-o-nhan">' + nhan + '</div>'
+      + gt + (phu ? '<div class="pkm-o-phu">' + phu + '</div>' : "") + '</div>';
+    const bang = [
+      o("Tệp", '<div class="pkm-o-gt">' + esc(d.filename || "tệp bạn vừa chọn")
+        + ' <span class="nhe">· ' + co(d.size) + '</span></div>'),
+      o("Mã kiểm tra tệp", '<div class="pkm-o-ma">' + esc((d.sha256 || "").slice(0, 20)) + '…</div>',
+        "Khớp với mã nhà phát hành công bố thì tệp là bản nguyên, chưa ai sửa dọc đường."),
+      kn.length ? o("Thêm vào kho Kết nối",
+        '<div class="pkm-o-gt">' + kn.length + ' dịch vụ: '
+        + kn.map(x => '<code>' + esc(x) + '</code>').join(", ") + '</div>',
+        "Mọi dịch vụ từ gói đều bắt đầu ở mức Chỉ đọc. Muốn cho ghi thì bạn tự nâng quyền từng "
+        + "tài khoản.", true) : "",
+      vt.length ? o("Thêm vào bộ não đang mở", '<div class="pkm-o-gt">' + vt.join(", ") + '</div>',
+        "Bộ não đã có mục trùng tên thì Javis giữ bản của bạn và bỏ qua bản trong gói. Gỡ gói "
+        + "cũng chỉ xoá thứ bạn chưa sửa.", true) : "",
+    ].filter(Boolean).join("");
+
     modal(
-      '<div class="mp-head"><div class="mp-title">CÀI GÓI</div>'
-      + '<button class="mp-x" data-act="close">×</button></div>'
-      + '<div class="mp-body">'
-      + '<p style="font-size:1.05em"><b>' + esc(nn(d.name, d.id)) + '</b>'
-      + (d.version ? ' <span style="opacity:.6">v' + esc(d.version) + '</span>' : "") + '</p>'
-      + (nn(d.description) ? '<p>' + esc(nn(d.description)) + '</p>' : "")
-      + '<div class="prov-meta">Mã gói <code>' + esc(d.id) + '</code>'
-      + (d.author && d.author.name ? ' · tác giả ' + esc(d.author.name) : "")
-      + '</div>'
-      + '<p style="margin-top:12px">Xuất xứ: <b>' + esc(d.filename || "tệp bạn vừa chọn")
-      + '</b> · ' + co(d.size) + '<br>'
-      + '<span style="opacity:.6;font-size:.9em">Dấu vân tay ' + esc((d.sha256 || "").slice(0, 16))
-      + '…</span></p>'
+      pkmDau(d, esc(nn(d.name, d.id))
+          + (d.version ? '<span class="pkm-ver">v' + esc(d.version) + '</span>' : ""),
+        '<code>' + esc(d.id) + '</code>'
+          + (d.author && d.author.name ? ' · tác giả ' + esc(d.author.name) : ""))
+      + '<div class="pkm-than">'
+      + (nn(d.description) ? '<p class="pkm-mota">' + esc(nn(d.description)) + '</p>' : "")
+      + '<div class="pkm-bang">' + bang + '</div>'
       + (d.da_cai
-          ? '<p style="color:var(--warn-ink,#b7791f)">Máy đã có gói này (bản '
-            + esc(d.da_cai.version || "?") + '). Cài tiếp là THAY bản cũ.</p>' : "")
-      + ((d.connectors || []).length
-          ? '<p style="margin-top:10px">Thêm ' + d.connectors.length + ' dịch vụ vào Kho kết nối: '
-            + d.connectors.map(x => '<code>' + esc(x) + '</code>').join(", ")
-            + '<br><span style="opacity:.6;font-size:.9em">Mọi dịch vụ từ gói đều bắt đầu ở mức '
-            + 'Chỉ đọc. Muốn cho ghi thì bạn tự nâng quyền từng tài khoản.</span></p>' : "")
-      + (d.warning ? '<p style="color:var(--warn-ink,#b7791f)">Một phần của gói bị bỏ qua: '
-                     + esc(d.warning) + '</p>' : "")
-      // Agent, workflow và skill ghi vào BRAIN của bạn - nơi bạn tự viết. Phải nói rõ hơn cả
-      // connector, vì đây là thứ duy nhất trong gói đụng tới chỗ đó.
-      + (vaultTom(d.vault).length
-          ? '<p style="margin-top:10px">Thêm vào bộ não đang mở: ' + vaultTom(d.vault).join(", ")
-            + '<br><span style="opacity:.6;font-size:.9em">Nếu bộ não đã có mục trùng tên, Javis '
-            + 'giữ bản của bạn và bỏ qua bản trong gói. Gỡ gói cũng chỉ xoá thứ bạn chưa sửa.'
-            + '</span></p>' : "")
+          ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
+            + 'Máy đã có gói này</div><div>Đang chạy bản <b>' + esc(d.da_cai.version || "?")
+            + '</b>. Cài tiếp là THAY bản cũ.</div></div>' : "")
+      + (d.warning
+          ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
+            + 'Một phần của gói bị bỏ qua</div><div>' + esc(d.warning) + '</div></div>' : "")
       // Gói chưa qua review của người phát hành kho: nói dài hơn một dòng. Không chặn - ai tin
       // nguồn nào là lựa chọn của người cài - nhưng họ phải biết mình đang chọn gì.
       + ((d._tin && d._tin.verified === false)
-          ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);'
-            + 'padding-left:10px;margin-top:12px">Gói này do <b>cộng đồng</b> gửi, chưa qua '
-            + 'kiểm duyệt của người phát hành kho. Hãy xem kỹ phần bên dưới trước khi cài.</div>'
-          : "")
+          ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
+            + 'Gói của cộng đồng</div><div>Gói này do người ngoài gửi vào kho, '
+            + 'chưa qua kiểm duyệt của người phát hành. Đọc kỹ phần bên dưới trước khi '
+            + 'cài.</div></div>' : "")
       // Khối cảnh báo cho gói có mã: KHÔNG gập được, không icon ổ khoá, không làm mềm chữ.
       // `permissions` trong manifest là lời khai của tác giả, không có tầng nào chặn, và
       // `min_mode` chỉ giới hạn cái MODEL được gọi chứ không giới hạn cái mã làm được.
       + (coMa
-        ? '<div class="conn-guide" style="border-left:3px solid var(--danger-ink,#b3261e);'
-          + 'padding-left:10px;margin-top:14px">'
-          + '<b>Gói này chạy Python thật bên trong máy chủ Javis.</b><br>'
-          + 'Nó đọc được mọi khoá API, token và tệp mà Javis đọc được. Không có lớp ngăn nào cả. '
-          + 'Chỉ cài gói từ nguồn bạn tin.'
+        ? '<div class="pkm-canh do"><div class="pkm-canh-tieu">' + ic("triangle-alert")
+          + 'Gói này chạy Python thật trong máy chủ Javis</div>'
+          + '<div>Nó đọc được mọi khoá API, token và tệp mà Javis đọc được. Không có lớp ngăn '
+          + 'nào cả. Chỉ cài gói từ nguồn bạn tin.</div>'
           + (py.length
-              ? '<div style="margin-top:8px;font-size:.9em;opacity:.85">Tệp mã trong gói: '
+              ? '<div class="pkm-o-phu">Tệp mã trong gói: '
                 + py.slice(0, 12).map(x => '<code>' + esc(x) + '</code>').join(", ")
                 + (py.length > 12 ? " và " + (py.length - 12) + " tệp nữa" : "") + '</div>' : "")
-          + '<label style="display:block;margin-top:10px">Gõ đúng <b>' + esc(d.id)
-          + '</b> để xác nhận:<br><input class="mp-input" id="pkGo" placeholder="Gõ lại mã gói">'
+          + '<label>Gõ đúng <b>' + esc(d.id) + '</b> để xác nhận:'
+          + '<input class="mp-input" id="pkGo" placeholder="Gõ lại mã gói" autocomplete="off">'
           + '</label></div>' : "")
-      + '<label style="display:block;margin-top:14px"><input type="checkbox" id="pkBat"> '
-      + 'Bật ngay sau khi cài <span style="opacity:.6">(mặc định tắt, để bạn xem lại trước)</span>'
-      + '</label>'
+      // Mặc định của công tắc đi theo BẬC của gói, không phải một hằng số:
+      //
+      //   có mã   tắt. Người dùng nên mở tệp ra xem trước khi cho nó chạy trong máy chủ mình.
+      //   dữ liệu bật. Gói chỉ-dữ-liệu không chạy gì cả - nó chỉ thêm một khuôn connector hay
+      //           vài tệp vào bộ não - nên cài xong mà nó nằm im là một cái bẫy chứ không phải
+      //           một lớp an toàn. Vấp thật khi thử đường di trú: kết nối đang chết, người dùng
+      //           bấm cài đúng gói cần, và KHÔNG có gì xảy ra vì gói vào máy ở trạng thái tắt.
+      + '<button class="pkm-gat" id="pkBat" type="button" aria-pressed="' + (coMa ? "false" : "true") + '">'
+      + '<span><span class="pkm-gat-t">Bật ngay sau khi cài</span>'
+      + '<span class="pkm-gat-s">'
+      + (coMa ? "Mặc định tắt vì gói có chạy mã, để bạn xem lại trước."
+              : "Gói chỉ có dữ liệu, bật là dùng được ngay.")
+      + '</span></span>'
+      + '<span class="pkm-cong"><span></span></span></button>'
       + '</div>'
-      + '<div class="mp-foot"><span class="mp-note" id="pkNote"></span>'
-      + '<button class="mp-btn" data-act="close">Huỷ</button>'
-      + '<button class="mp-btn primary" id="pkCai">Cài</button></div>');
+      + '<div class="pkm-chan"><span class="mp-note" id="pkNote"></span>'
+      + '<button class="mp-btn" ' + (tuTep ? 'id="pkKhac"' : 'data-act="close"') + '>'
+      + (tuTep ? "Chọn tệp khác" : "Huỷ") + '</button>'
+      + '<button class="mp-btn primary" id="pkCai">Cài</button></div>', true);
 
-    // Nút Huỷ nhận tiêu điểm mặc định: Enter không được là "đồng ý cài mã lạ".
-    const huy = document.querySelector('#packModal [data-act="close"].mp-btn');
-    if (huy) huy.focus();
+    // Nút bên TRÁI (huỷ / chọn tệp khác) nhận tiêu điểm mặc định: Enter theo quán tính không
+    // được phép là "đồng ý cài mã lạ".
+    const trai = document.querySelector("#packModal .pkm-chan .mp-btn");
+    if (trai) trai.focus();
+    const khac = document.getElementById("pkKhac");
+    if (khac) khac.onclick = tuTep;
+    const gat = document.getElementById("pkBat");
+    gat.onclick = () => gat.setAttribute("aria-pressed",
+      gat.getAttribute("aria-pressed") === "true" ? "false" : "true");
     const note = document.getElementById("pkNote");
     document.getElementById("pkCai").onclick = async () => {
       if (coMa) {
@@ -186,7 +293,7 @@
       note.textContent = "Đang cài…";
       const r = await postJson("/packs/install", {
         staging_id: d.staging_id, consent_sha256: d.sha256,
-        enable: !!(document.getElementById("pkBat") || {}).checked,
+        enable: gat.getAttribute("aria-pressed") === "true",
         source: d.source || { kind: "zip" },
         // Brain ĐANG MỞ. `currentBrainPath` là hàm toàn cục mà app.js phơi ra và cả
         // console.js lẫn chat-render.js đều dùng - đi qua nó thay vì tự đoán chỗ khác.
@@ -202,19 +309,46 @@
     // Tải từ kho hay từ link đều dừng ở bước SOI rồi mở đúng màn hình xác nhận như tệp tải
     // lên. Đường từ kho về máy không được phép ngắn hơn đường từ tệp: cùng một thứ để đọc,
     // cùng một chốt dấu vân tay.
-    modal('<div class="mp-head"><div class="mp-title">ĐANG TẢI GÓI</div></div>'
-      + '<div class="mp-body">Đang tải và kiểm tra…</div>');
+    dangCho("Đang tải gói", "Tải về và kiểm tra tệp…");
     const d = await postJson("/packs/install-url", { url: url, expect_sha256: expect || "" });
     if (!d || !d.ok) {
-      modal('<div class="mp-head"><div class="mp-title">KHÔNG CÀI ĐƯỢC</div>'
-        + '<button class="mp-x" data-act="close">×</button></div>'
-        + '<div class="mp-body"><p>' + esc((d && d.error) || "Tải không được.") + '</p>'
-        + ((d && d.stage) ? '<div class="prov-meta">Dừng ở bước: ' + esc(d.stage) + '</div>' : "")
-        + '</div><div class="mp-foot"><button class="mp-btn" data-act="close">Đóng</button></div>');
+      manHinhLoi("Cài từ kho", (d && d.error) || "Tải không được.", d && d.stage);
       return;
     }
     d._tin = tin || null;
     manHinhDongY(d, el);
+  }
+
+  // ---- Gỡ một connector ĐI KÈM APP khỏi kho Kết nối ----
+  //
+  // Ba bước, và bước nào cũng cần thiết: hỏi server xem cái gì sắp dừng (`plan`), hỏi NGƯỜI
+  // DÙNG một câu đọc được, rồi mới gỡ.
+  //
+  // Trước 0.55.36 đường này gỡ THẲNG khi connector chưa có kết nối nào - một cú bấm nhầm vào
+  // dấu × bé ở góc thẻ là dịch vụ biến khỏi kho, không ai hỏi câu nào. Câu hỏi chỉ hiện đúng
+  // trong ca đã có kết nối chạy, tức là ca hiếm hơn, còn ca thường thì im lặng.
+  //
+  // Dùng chung cho cả thẻ trong kho lẫn dấu × trên trang Kết nối - hai lối vào một hành động
+  // thì phải hỏi y hệt nhau. Vì thế nó nằm ở `window.JavisPacks`.
+  async function goApp(ten, id) {
+    const p = await postJson("/connect/core-toggle", { id: id, off: true, plan: true });
+    if (!p || !p.ok) return { ok: false, error: (p && p.error) || "Không đọc được dịch vụ này." };
+    const kn = p.connections || [];
+    const dongY = await hoi({
+      tieu: "Gỡ " + ten + " khỏi kho Kết nối?",
+      mau: "do", co: "Gỡ", khong: "Giữ lại",
+      canhTieu: kn.length
+        ? kn.length + " kết nối đang chạy sẽ DỪNG"
+        : "Bạn chắc chắn muốn gỡ chứ?",
+      than: (kn.length
+        ? "<b>" + kn.map(x => esc(x.label)).join(", ") + "</b> ngừng hoạt động ngay khi gỡ. "
+          + "Kết nối KHÔNG bị xoá: cài lại dịch vụ là chúng chạy tiếp như cũ."
+        : "Dịch vụ này biến khỏi kho Kết nối và khỏi mọi engine. Tệp của nó vẫn nằm trong bản "
+          + "cài - Javis không sửa mã nguồn của chính nó - nên cài lại lúc nào cũng được."),
+    });
+    if (!dongY) return { ok: false, huy: true };
+    const r = await postJson("/connect/core-toggle", { id: id, off: true, confirm: true });
+    return { ok: !!(r && r.ok), error: (r && r.error) || "Không gỡ được." };
   }
 
   // ---- Ảnh đại diện của một mục ----
@@ -315,7 +449,7 @@
   let _kho = { dl: null, loai: "connector", nhom: "Tất cả", trang: 1, tim: "" };
   const MOI_TRANG = 20;
 
-  async function veKho(el, host, lamMoi, loaiDau) {
+  async function veKho(el, host, lamMoi, loaiDau, timDau) {
     host.innerHTML = '<div class="mp-empty">Đang tải danh mục…</div>';
     let d;
     try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" : ""))).json(); }
@@ -329,7 +463,7 @@
     }
     _kho.dl = d;
     _kho.trang = 1;
-    _kho.tim = "";
+    _kho.tim = timDau || "";
     if (loaiDau && LOAI[loaiDau]) _kho.loai = loaiDau;
     _kho.nhom = "Tất cả";
     veLuoi(el, host);
@@ -430,7 +564,7 @@
     const lm = document.getElementById("pkLamMoi");
     if (lm) lm.onclick = () => veKho(el, host, true, _kho.loai);
     const ct = document.getElementById("pkChon2");
-    if (ct) ct.onclick = () => { const f = document.getElementById("pkFile"); if (f) f.click(); };
+    if (ct) ct.onclick = () => manHinhChon(el, _maxMb);
 
     const theo = {};
     ds.forEach(g => { theo[g.id] = g; });
@@ -447,10 +581,13 @@
         });
       }
       // Connector của app: `core_off` ghi vào sổ, tệp trong system/ không bị đụng.
-      const tat = act === "coreoff";
-      if (tat && !confirm('Gỡ "' + nn(g.name, g.id) + '" khỏi kho Kết nối?\n\n'
-          + 'Kết nối đang dùng nó sẽ dừng, nhưng KHÔNG bị xoá - cài lại là chạy tiếp.')) return;
-      postJson("/connect/core-toggle", { id: g.id, off: tat, confirm: true }).then(r => {
+      if (act === "coreoff") {
+        return goApp(nn(g.name, g.id), g.id).then(r => {
+          if (r.ok) veKho(el, host, false, _kho.loai);
+          else if (!r.huy) alert(r.error);
+        });
+      }
+      postJson("/connect/core-toggle", { id: g.id, off: false, confirm: true }).then(r => {
         if (r && r.ok) veKho(el, host, false, _kho.loai);
         else alert((r && r.error) || "Không đổi được.");
       });
@@ -458,80 +595,124 @@
   }
 
 
+  // ---- Bước 1 của luồng "cài từ tệp": chọn tệp ----
+  //
+  // Trước 0.55.36 bước này không tồn tại - nút "Cài từ tệp .zip" bấm thẳng vào một <input>
+  // ẩn, nên KHÔNG kéo thả được, mà kéo tệp vừa tải về vào cửa sổ lại đúng là thao tác quen tay
+  // nhất. Tệ hơn: thả trượt ra ngoài thì trình duyệt MỞ tệp zip đó thay cho trang, mất sạch
+  // trạng thái. Giờ có một vùng thả thật, và cả lớp phủ chặn thả trượt.
+  function manHinhChon(el, maxMb) {
+    const m = modal(
+      pkmDau(null, "Cài từ tệp .zip",
+        "Chọn gói đã tải về máy. Javis mở ra kiểm rồi cho bạn xem có gì trước khi cài.")
+      + '<div class="pkm-than">'
+      + '<label class="pkm-tha" id="pkTha">'
+      + '<input type="file" accept=".zip" id="pkTepHop" style="display:none">'
+      + '<span class="pkm-tha-ico">' + ic("upload-cloud") + '</span>'
+      + '<span class="pkm-tha-t">Kéo tệp .zip vào đây</span>'
+      + '<span class="pkm-tha-s">hoặc <u>chọn tệp trên máy</u></span>'
+      + '<span class="pkm-tha-n">Tối đa ' + (maxMb || 25) + ' MB, chỉ nhận gói .zip của Javis</span>'
+      + '</label>'
+      + '<div class="pkm-luuy">' + ic("info")
+      + '<span>Chỉ cài gói từ nguồn bạn tin. Bước sau Javis mở gói ra, liệt kê đúng những thứ '
+      + 'nó thêm vào máy, rồi mới hỏi bạn có cài không.</span></div>'
+      + '</div>'
+      + '<div class="pkm-chan"><button class="mp-btn" data-act="close">Huỷ</button></div>', true);
+
+    const tha = document.getElementById("pkTha");
+    const inp = document.getElementById("pkTepHop");
+    inp.onchange = () => { if (inp.files && inp.files[0]) chonTep(el, inp.files[0]); };
+    // Thả TRƯỢT ra ngoài vùng nhận cũng phải bị nuốt: mặc định của trình duyệt là điều hướng
+    // sang chính tệp vừa thả, tức là mất trang và mất luôn việc đang làm.
+    ["dragenter", "dragover", "drop"].forEach(ev =>
+      m.addEventListener(ev, e => e.preventDefault()));
+    ["dragenter", "dragover"].forEach(ev =>
+      tha.addEventListener(ev, () => tha.classList.add("dang-keo")));
+    ["dragleave", "drop"].forEach(ev =>
+      tha.addEventListener(ev, () => tha.classList.remove("dang-keo")));
+    tha.addEventListener("drop", e => {
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) chonTep(el, f);
+    });
+  }
+
   async function chonTep(el, file) {
-    modal('<div class="mp-head"><div class="mp-title">ĐANG ĐỌC GÓI</div></div>'
-      + '<div class="mp-body">Đang mở và kiểm tra tệp…</div>');
+    const lai = () => manHinhChon(el, _maxMb);
+    // Chặn ngay ở trình duyệt thay vì tải hết vài chục MB lên rồi mới nghe server từ chối.
+    if (!/\.zip$/i.test(file.name || "")) {
+      manHinhLoi("Cài từ tệp .zip", "Chỉ nhận tệp .zip. Tệp bạn chọn là “" + (file.name || "?")
+        + "”.", "", lai);
+      return;
+    }
+    dangCho("Đang đọc gói", "Mở tệp ra và kiểm tra…");
     const fd = new FormData();
     fd.append("file", file);
     let d;
     try { d = await (await fetch("/packs/inspect", { method: "POST", body: fd })).json(); }
     catch (e) { d = { ok: false, error: String(e) }; }
     if (!d || !d.ok) {
-      modal('<div class="mp-head"><div class="mp-title">KHÔNG CÀI ĐƯỢC</div>'
-        + '<button class="mp-x" data-act="close">×</button></div>'
-        + '<div class="mp-body"><p>' + esc((d && d.error) || "Tệp không hợp lệ.") + '</p>'
-        + ((d && d.stage) ? '<div class="prov-meta">Dừng ở bước: ' + esc(d.stage) + '</div>' : "")
-        + '</div><div class="mp-foot"><button class="mp-btn" data-act="close">Đóng</button></div>');
+      manHinhLoi("Cài từ tệp .zip", (d && d.error) || "Tệp không hợp lệ.", d && d.stage, lai);
       return;
     }
-    manHinhDongY(d, el);
+    manHinhDongY(d, el, lai);
   }
 
   async function hopGo(el, pid) {
-    modal('<div class="mp-head"><div class="mp-title">GỠ GÓI</div></div>'
-      + '<div class="mp-body">Đang kiểm tra…</div>');
+    dangCho("Gỡ gói", "Xem gói này đang giữ những gì…");
     let d;
     try {
       d = await (await fetch("/packs/uninstall-plan?id=" + encodeURIComponent(pid))).json();
     } catch (e) { d = { ok: false, error: String(e) }; }
     if (!d || !d.ok) {
-      modal('<div class="mp-head"><div class="mp-title">GỠ GÓI</div>'
-        + '<button class="mp-x" data-act="close">×</button></div>'
-        + '<div class="mp-body">' + esc((d && d.error) || "Lỗi") + '</div>'
-        + '<div class="mp-foot"><button class="mp-btn" data-act="close">Đóng</button></div>');
+      manHinhLoi("Gỡ gói", (d && d.error) || "Không đọc được gói này.", d && d.stage);
       return;
     }
     const kn = d.connections || [];
-    modal('<div class="mp-head"><div class="mp-title">GỠ GÓI</div>'
-      + '<button class="mp-x" data-act="close">×</button></div>'
-      + '<div class="mp-body">'
-      + '<p>Sắp gỡ <b>' + esc(nn(d.name, d.id)) + '</b>.</p>'
-      + '<p>Những thứ sẽ mất:</p><ul style="margin:6px 0 0 18px">'
-      + '<li>Tệp của gói <span style="opacity:.6">(' + co(d.bytes) + ')</span></li>'
+    const xoa = (d.vault || {}).xoa || [];
+    const giu = (d.vault || {}).giu || [];
+    modal(pkmDau(d, "Gỡ " + esc(nn(d.name, d.id)), '<code>' + esc(d.id) + '</code>')
+      + '<div class="pkm-than">'
+      + '<div class="pkm-canh do"><div class="pkm-canh-tieu">' + ic("triangle-alert")
+      + 'Những thứ sẽ mất</div>'
+      + '<ul class="pkm-mat">'
+      + '<li>Tệp của gói <span style="opacity:.65">(' + co(d.bytes) + ')</span></li>'
       + ((d.connectors || []).length
-          ? '<li>' + d.connectors.length + ' dịch vụ khỏi Kho kết nối</li>' : "")
+          ? '<li>' + d.connectors.length + ' dịch vụ khỏi kho Kết nối</li>' : "")
       // Kết nối theo gói bị xoá THEO, và nói thẳng ra chứ không giấu trong một ô tick: để lại
       // một hàng kết nối chết vẫn là để lại credential của nó trên đĩa.
       + (kn.length
           ? '<li><b>' + kn.length + ' kết nối bạn đã đấu</b>: '
             + kn.map(x => esc(x.label)).join(", ")
-            + '<br><span style="opacity:.6;font-size:.9em">Chúng bị xoá theo, và chuyển vào '
-            + 'thùng rác giữ 30 ngày.</span></li>' : "")
-      + '</ul>'
-      + (((d.vault || {}).xoa || []).length
-          ? '<li>' + d.vault.xoa.length + ' mục trong bộ não '
-            + '<span style="opacity:.6">(' + d.vault.xoa.map(x => esc(x.slug)).join(", ") + ')</span></li>'
-          : "")
-      + '</ul>'
+            + '<div class="pkm-o-phu">Chúng bị xoá theo, và nằm trong thùng rác 30 ngày.</div>'
+            + '</li>' : "")
+      + (xoa.length
+          ? '<li>' + xoa.length + ' mục trong bộ não <span style="opacity:.65">('
+            + xoa.map(x => esc(x.slug)).join(", ") + ')</span></li>' : "")
+      + '</ul></div>'
       // Thứ người dùng đã sửa thì KHÔNG bị xoá, và phải nói ra - nếu không họ sẽ tưởng mất.
-      + (((d.vault || {}).giu || []).length
-          ? '<p style="margin-top:10px;color:var(--ok-ink,#2f855a)">Giữ lại vì bạn đã sửa: '
-            + d.vault.giu.map(x => esc(x.slug)).join(", ") + '</p>'
-          : "")
-      + '<ul style="margin:0 0 0 18px">'
+      + (giu.length
+          ? '<div class="pkm-canh tin"><div class="pkm-canh-tieu">' + ic("check")
+            + 'Giữ lại vì bạn đã sửa</div><div>' + giu.map(x => esc(x.slug)).join(", ")
+            + '</div></div>' : "")
       + ((d.plugin_data || []).length
-          ? '<label style="display:block;margin-top:12px"><input type="checkbox" id="pkData"> '
-            + 'Xoá luôn dữ liệu plugin của gói này '
-            + '<span style="opacity:.6">(mặc định giữ lại)</span></label>' : "")
+          ? '<button class="pkm-gat" id="pkData" type="button" aria-pressed="false">'
+            + '<span><span class="pkm-gat-t">Xoá luôn dữ liệu plugin của gói này</span>'
+            + '<span class="pkm-gat-s">Mặc định giữ lại, cài lại là có ngay.</span></span>'
+            + '<span class="pkm-cong"><span></span></span></button>' : "")
       + '</div>'
-      + '<div class="mp-foot"><span class="mp-note" id="pkNote2"></span>'
+      + '<div class="pkm-chan"><span class="mp-note" id="pkNote2"></span>'
       + '<button class="mp-btn" data-act="close">Huỷ</button>'
-      + '<button class="mp-btn danger" id="pkGoOk">Gỡ</button></div>');
+      + '<button class="mp-btn danger" id="pkGoOk">Gỡ</button></div>', true);
+    const huy = document.querySelector("#packModal .pkm-chan .mp-btn");
+    if (huy) huy.focus();
+    const dl = document.getElementById("pkData");
+    if (dl) dl.onclick = () => dl.setAttribute("aria-pressed",
+      dl.getAttribute("aria-pressed") === "true" ? "false" : "true");
     const note = document.getElementById("pkNote2");
     document.getElementById("pkGoOk").onclick = async () => {
       note.textContent = "Đang gỡ…";
       const r = await postJson("/packs/uninstall", {
-        id: pid, purge_data: !!(document.getElementById("pkData") || {}).checked,
+        id: pid, purge_data: !!(dl && dl.getAttribute("aria-pressed") === "true"),
       });
       if (!r || !r.ok) { note.textContent = (r && r.error) || "Gỡ không được."; return; }
       dong();
@@ -557,8 +738,10 @@
     // Rời kho rồi quay lại bằng tab khác thì `moKho` ghi đè, còn tải lại trang thì mọi biến
     // JS về rỗng - hai đường đó tự sạch, không cần xoá tay.
     const loaiDau = _loaiCho;
+    const timDau = _timCho;
     const veTrang = _veTrang;
     _loaiCho = "";
+    _timCho = "";
 
     el.innerHTML =
       // Nút quay lại: chỉ hiện khi VÀO TỪ một trang năng lực. Vào thẳng từ thanh bên thì không
@@ -574,32 +757,35 @@
         ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-top:12px">'
           + 'Biến môi trường <code>JAVIS_DISABLE_PACKS</code> đang bật, nên mọi thứ cài thêm bị tắt hết.</div>'
         : "")
-      + '<input type="file" id="pkFile" accept=".zip" style="display:none">'
       + '<div id="pkKho" style="margin-top:12px"></div>'
       + '<div class="gcard-meta" style="margin-top:16px;opacity:.7">Thứ cài thêm nằm ở <code>'
       + esc(d.dir || "") + '</code>. Thả thẳng một thư mục vào đó cũng được, không bắt buộc '
       + 'phải qua tệp nén. Tệp .zip tối đa ' + (d.max_mb || 25) + 'MB.</div>'
       + '</div>';
 
-    const inp = document.getElementById("pkFile");
-    inp.onchange = () => { if (inp.files && inp.files[0]) chonTep(el, inp.files[0]); inp.value = ""; };
+    _maxMb = d.max_mb || 25;
     const nutVe = document.getElementById("pkQuayLai");
     if (nutVe) nutVe.onclick = () => {
       const s = window.Alpine && Alpine.store("nav");
       if (s && s.go) s.go(veTrang.id);
     };
     const hostKho = document.getElementById("pkKho");
-    if (hostKho) veKho(el, hostKho, false, loaiDau);
+    if (hostKho) veKho(el, hostKho, false, loaiDau, timDau);
   }
 
   // Mở kho với một loại đã lọc sẵn. Tab "Kho cài đặt" trên trang Trợ lý / Kỹ năng / Quy
   // trình / Plugin gọi hàm này, nên bốn trang KHÔNG ai nhúng một bản sao của lưới kho: chỉ có
   // một kho, một chỗ sửa, và người dùng học một lần là xong.
-  function moKho(loai, tuTrang, nhanTrang) {
+  //
+  // `tim` là từ khoá điền sẵn vào ô tìm. Dùng cho đường "kết nối này đang dừng vì dịch vụ của
+  // nó đã ra kho" trên trang Kết nối: bấm một nút là tới thẳng đúng gói cần cài, thay vì thả
+  // người dùng vào một kho vài chục mục rồi bảo họ tự tìm cái vừa biến mất.
+  function moKho(loai, tuTrang, nhanTrang, tim) {
     _loaiCho = LOAI[loai] ? loai : "";
     _veTrang = tuTrang ? { id: tuTrang, nhan: nhanTrang || tuTrang } : null;
+    _timCho = tim || "";
     if (window.Alpine && Alpine.store("nav")) Alpine.store("nav").go("packs");
   }
 
-  window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI };
+  window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI, goApp: goApp, hoi: hoi };
 })();

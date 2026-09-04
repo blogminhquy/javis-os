@@ -3250,11 +3250,17 @@ async def connect_core_toggle(request: Request):
     if cid not in mcp_catalog.tat_ca():
         return JSONResponse({"ok": False, "error": "Không có connector này trong kho"},
                             status_code=400)
-    anh_huong = [c for c in mcp_store.list_connections() if c.get("connector_id") == cid]
+    anh_huong = [{"id": c["id"], "label": c.get("label") or c["id"]}
+                 for c in mcp_store.list_connections() if c.get("connector_id") == cid]
+    # XEM TRƯỚC, không đụng gì. Giao diện hỏi lại người dùng TRƯỚC khi gỡ, nên nó cần biết cái
+    # gì sắp dừng - mà đường duy nhất để biết trước đây là gọi thẳng rồi đọc lỗi 409, tức là
+    # với connector KHÔNG có kết nối nào thì lần gọi đó đã gỡ xong trước khi kịp hỏi ai.
+    if data.get("plan"):
+        return {"ok": True, "plan": True, "connections": anh_huong,
+                "off": core_off.la_da_go("connectors", cid)}
     if off and anh_huong and not data.get("confirm"):
-        return JSONResponse({"ok": False, "need_confirm": True,
-                             "connections": [{"id": c["id"], "label": c.get("label") or c["id"]}
-                                             for c in anh_huong]}, status_code=409)
+        return JSONResponse({"ok": False, "need_confirm": True, "connections": anh_huong},
+                            status_code=409)
     try:
         core_off.dat("connectors", cid, off)
     except (OSError, ValueError) as e:

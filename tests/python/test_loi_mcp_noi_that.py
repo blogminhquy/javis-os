@@ -97,7 +97,8 @@ def co_ghim_mcp2(cid):
 
 check("CANARY: google-sheets ghim mcp<2 (đã xác nhận gãy với mcp 2.x)",
       co_ghim_mcp2("google-sheets"))
-check("tiktok-ads ghim mcp<2 (cùng bệnh, đã tái hiện)", co_ghim_mcp2("tiktok-ads"))
+# Trước 0.55.36 chỗ này còn kiểm tiktok-ads mắc cùng bệnh. Khuôn đó đã dọn sang repo kho,
+# nên phép kiểm đi theo nó - google-sheets ở lại app và vẫn tái hiện đúng cùng một bệnh.
 
 # Chống ghim bừa: các gói này đã test 2026-08-16 và CHẠY TỐT với mcp 2.x. Ép mcp<2 cho
 # gói đang cần mcp 2 là tự tạo đúng loại lỗi mình vừa sửa, theo chiều ngược lại.

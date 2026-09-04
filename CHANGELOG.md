@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.36] - 2026-09-05
+### Thêm mới
+- **16 kết nối dọn ra Javis Store.** Pancake POS, Shopify, Meta Ads, Facebook Trang, TikTok Ads, Slack, Lark, n8n, Hostinger, Webcake và vài cái nữa giờ cài từ kho thay vì đi kèm app. Đổi lại, bản cập nhật của chúng tới thẳng qua kho, không phải chờ bản Javis mới.
+- Ở lại trong app: **Composio**, **bộ Google** (Lịch, Gmail, Drive/Docs, Sheets, Tasks, Keep, Ads, Search Console, NotebookLM), **Zalo**, **Botcake**, **Substack**, và ô **Tự thêm (nâng cao)**.
+- **Kết nối cũ không mất.** Nếu bạn đang dùng một trong 16 cái trên, trang Kết nối hiện một dòng nhắc kèm nút cài lại đúng cái đó. Cài xong là chạy tiếp bằng đăng nhập cũ, không phải đấu lại từ đầu.
+
+### Cải thiện
+- **Màn hình cài gói làm lại hoàn toàn.** Có vùng kéo thả tệp .zip, ảnh của gói, và một bảng nói rõ gói đến từ tệp nào, dấu vân tay ra sao, nó thêm gì vào máy bạn. Trên điện thoại nó trượt lên từ đáy màn hình, nút nằm trong tầm ngón cái.
+- **Gói chỉ có dữ liệu bật sẵn sau khi cài.** Trước đây mọi gói vào máy ở trạng thái tắt, nên cài xong một kết nối mà chẳng thấy gì xảy ra. Gói có chạy mã thì vẫn tắt mặc định để bạn xem lại trước.
+
+### Sửa lỗi
+- **Gỡ một kết nối có sẵn giờ hỏi lại trước khi gỡ.** Trước đây nếu chưa ai đấu tài khoản nào thì bấm nhầm dấu × ở góc thẻ là dịch vụ biến mất luôn, không hỏi câu nào. Giờ luôn có một câu hỏi, và nếu đang có kết nối chạy thì nó gọi tên từng cái sắp dừng.
+
 ## [0.55.35] - 2026-09-05
 ### Cải thiện
 - **Javis Store trên điện thoại bố trí lại hẳn.** Hàng loại thành một dải phân đoạn với số đếm nằm dưới tên, các nhóm lĩnh vực xuống dòng thành nhiều hàng thay vì một dải phải vuốt ngang, ô tìm kiếm chiếm trọn bề ngang.

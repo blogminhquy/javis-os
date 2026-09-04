@@ -55,15 +55,15 @@ with tempfile.TemporaryDirectory() as td:
         # ─────────────── 1. Sổ đã gỡ: ghi, đọc, xoay vòng ───────────────
         check("chưa gỡ gì thì tập rỗng", core_off.da_go("connectors") == set())
         check("chưa có file thì chữ ký là None", core_off.signature() is None)
-        core_off.dat("connectors", "tiktok-ads", True)
-        check("gỡ rồi thì có trong sổ", core_off.la_da_go("connectors", "tiktok-ads"))
+        core_off.dat("connectors", "composio", True)
+        check("gỡ rồi thì có trong sổ", core_off.la_da_go("connectors", "composio"))
         check("và file được tạo ra ở STATE_DIR", core_off.STORE.is_file())
         check("chữ ký đổi sau khi ghi", core_off.signature() is not None)
-        core_off.dat("connectors", "lark", True)
+        core_off.dat("connectors", "gmail", True)
         check("gỡ cái thứ hai thì cả hai cùng nằm trong sổ",
-              core_off.da_go("connectors") == {"tiktok-ads", "lark"})
-        core_off.dat("connectors", "tiktok-ads", False)
-        check("cài lại thì rời khỏi sổ", core_off.da_go("connectors") == {"lark"})
+              core_off.da_go("connectors") == {"composio", "gmail"})
+        core_off.dat("connectors", "composio", False)
+        check("cài lại thì rời khỏi sổ", core_off.da_go("connectors") == {"gmail"})
         check("cài lại thứ chưa từng gỡ cũng không nổ",
               core_off.dat("connectors", "khong-ton-tai", False) is False)
         try:
@@ -84,31 +84,33 @@ with tempfile.TemporaryDirectory() as td:
         core_off._cache.update(sig=None, data={})
         mcp_catalog._cache.update(sig=None, by_id={})
         tong = len(mcp_catalog.tat_ca())
-        check(f"kho có {tong} connector", tong >= 29)
+        # KHÔNG chốt con số: 0.55.36 dọn 16 khuôn sang kho và còn dọn nữa. Cái
+        # đáng canh là catalog nạp được và không rỗng, không phải nó có mấy mục.
+        check(f"kho có {tong} connector", tong >= 8)
         check("load() ban đầu thấy đủ", len(mcp_catalog.load()) == tong)
 
-        core_off.dat("connectors", "tiktok-ads", True)
+        core_off.dat("connectors", "composio", True)
         check("load() trừ cái đã gỡ", len(mcp_catalog.load()) == tong - 1)
-        check("get() cái đã gỡ trả None", mcp_catalog.get("tiktok-ads") is None)
-        check("tat_ca() VẪN thấy nó (để vẽ khu Đã gỡ)", "tiktok-ads" in mcp_catalog.tat_ca())
+        check("get() cái đã gỡ trả None", mcp_catalog.get("composio") is None)
+        check("tat_ca() VẪN thấy nó (để vẽ khu Đã gỡ)", "composio" in mcp_catalog.tat_ca())
         pub = {c["id"] for c in mcp_catalog.public_catalog()}
-        check("public_catalog cũng không còn nó (vì nó đọc qua load)", "tiktok-ads" not in pub)
+        check("public_catalog cũng không còn nó (vì nó đọc qua load)", "composio" not in pub)
         check("match_url không còn khớp connector đã gỡ",
-              (mcp_catalog.match_url("https://business-api.tiktok.com/x") or {}).get("id")
-              != "tiktok-ads")
+              (mcp_catalog.match_url("https://connect.composio.dev/mcp") or {}).get("id")
+              != "composio")
 
         # Cache phải đổi theo sổ, không chỉ theo mtime file catalog. Thiếu vế này thì gỡ một
         # connector sẽ không có hiệu lực cho tới khi ai đó sửa file catalog, tức là không bao giờ.
-        core_off.dat("connectors", "tiktok-ads", False)
+        core_off.dat("connectors", "composio", False)
         check("cài lại có hiệu lực NGAY, không cần sửa file catalog",
-              mcp_catalog.get("tiktok-ads") is not None)
+              mcp_catalog.get("composio") is not None)
 
         # ─────────────── 3. Chốt mồ côi ───────────────
         goc_load = mcp_store._load
 
         def _gia():
             return {"version": 2, "connections": [
-                {"id": "c-loi", "connector_id": "tiktok-ads", "slug": "a", "label": "TikTok A",
+                {"id": "c-loi", "connector_id": "composio", "slug": "a", "label": "Composio A",
                  "enabled": True, "perm": "full"},
                 {"id": "c-custom", "connector_id": "custom", "slug": "tu-khai",
                  "label": "Tự khai", "enabled": True, "perm": "full",
@@ -128,11 +130,11 @@ with tempfile.TemporaryDirectory() as td:
 
             mc = {o["id"]: o for o in mcp_store.orphans()}
             check("orphans() nêu đúng cái lạ", set(mc) == {"c-la"})
-            check("và nói rõ nó KHÔNG có trong kho (phải cập nhật app, không phải cài lại)",
+            check("và nói rõ nó KHÔNG có trong kho (phải cài từ Javis Store, không phải cài lại)",
                   mc["c-la"]["co_trong_kho"] is False)
 
-            # Gỡ tiktok-ads -> kết nối theo nó thành mồ côi và phải IM.
-            core_off.dat("connectors", "tiktok-ads", True)
+            # Gỡ composio -> kết nối theo nó thành mồ côi và phải IM.
+            core_off.dat("connectors", "composio", True)
             ids2 = {c["id"] for c in mcp_store.resolved(enabled_only=False)}
             check("gỡ connector thì kết nối theo nó DỪNG chạy", "c-loi" not in ids2)
             check("nhưng kết nối 'Tự thêm' không bị ảnh hưởng", "c-custom" in ids2)
@@ -140,7 +142,7 @@ with tempfile.TemporaryDirectory() as td:
             check("orphans() nêu nó", "c-loi" in mc2)
             check("và nói rõ CÓ trong kho, tức cài lại là chạy tiếp",
                   mc2["c-loi"]["co_trong_kho"] is True)
-            core_off.dat("connectors", "tiktok-ads", False)
+            core_off.dat("connectors", "composio", False)
             check("cài lại thì kết nối chạy tiếp, không phải đấu lại",
                   "c-loi" in {c["id"] for c in mcp_store.resolved(enabled_only=False)})
         finally:
@@ -181,6 +183,15 @@ i_ep = src_main.index('@app.post("/connect/core-toggle")')
 than_ep = src_main[i_ep:i_ep + 2000]
 check("gỡ mà đang có kết nối thì phải hỏi lại, không làm âm thầm",
       "need_confirm" in than_ep)
+# Nhánh XEM TRƯỚC (`plan`) phải TRẢ VỀ trước khi có bất kỳ lần ghi nào.
+#
+# Vì sao đây là thứ đáng canh: trước 0.55.36 giao diện chỉ biết "cái gì sắp dừng" bằng cách
+# gọi thẳng lệnh gỡ rồi đọc lỗi 409. Với connector CHƯA có kết nối nào - tức ca thường - lần
+# gọi đó gỡ luôn, xong mới tới lượt hỏi. Một cú bấm nhầm vào dấu × ở góc thẻ là dịch vụ biến
+# mất, không ai hỏi câu nào. Thứ tự trong hàm chính là bất biến giữ điều đó.
+check("có nhánh xem trước không đụng gì", '"plan": True' in than_ep)
+check("CANARY: nhánh xem trước nằm TRƯỚC lệnh ghi sổ",
+      than_ep.index('"plan": True') < than_ep.index("core_off.dat("))
 check("và làm mới cache hub sau khi đổi", "mcp_hub.invalidate_cache()" in than_ep)
 check("/connect/catalog trả cả danh sách đã gỡ và mồ côi",
       '"removed"' in src_main and '"orphans": mcp_store.orphans()' in src_main)
@@ -189,6 +200,13 @@ src_js = (DASHBOARD / "console.js").read_text(encoding="utf-8")
 check("giao diện có nút gỡ và nút cài lại",
       "data-coreoff" in src_js and "data-coreon" in src_js)
 check("và có băng báo kết nối đang dừng vì thiếu dịch vụ", "banMoCoi" in src_js)
+# Kết nối mồ côi vì khuôn đã dọn sang kho (0.55.36 dọn 16 cái) phải được chỉ ĐÚNG đường về.
+# Câu cũ xui người dùng nâng cấp app hoặc bỏ kết nối đi. Từ nay câu đó vừa sai (nâng cấp
+# không mọc lại khuôn nữa) vừa nguy hiểm (bỏ kết nối là vứt luôn credential đã đấu).
+check("mồ côi vì khuôn ra kho thì chỉ sang Javis Store, không xui xoá kết nối",
+      "Javis Store" in src_js and "data-mocoi" in src_js)
+check("CANARY: không còn xui người dùng xoá kết nối để chữa mồ côi",
+      "cập nhật app, hoặc xoá kết nối" not in src_js)
 check("thẻ 'Tự thêm' không có nút gỡ", 'con.id === "custom" ? ""' in src_js)
 
 # Trang Kết nối tách hai tab từ 0.55.32. Nó vốn gộp "thứ đang chạy" và "thứ đấu thêm được" vào

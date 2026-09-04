@@ -277,11 +277,22 @@ check("KHÔNG phục vụ SVG", ".svg" not in src_r)
 src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
 check("màn hình xác nhận vẽ từ /packs/inspect", "/packs/inspect" in src_js)
 check("gói có mã thì bắt gõ lại mã gói", "pkGo" in src_js and "Gõ lại mã gói" in src_js)
-# Ô phải KHÔNG mang thuộc tính `checked` trong HTML. Đọc `.checked` lúc bấm thì khác.
+# Mặc định của công tắc "bật ngay sau khi cài" đi theo BẬC của gói, từ 0.55.36:
+#
+#   có mã   TẮT. Người dùng nên mở tệp ra xem trước khi cho nó chạy trong máy chủ mình.
+#   dữ liệu BẬT. Gói chỉ-dữ-liệu không chạy gì cả; cài xong mà nó nằm im là một cái bẫy -
+#           vấp thật khi thử đường di trú, kết nối đang chết mà bấm cài gói thì không có gì
+#           xảy ra.
+#
+# Phép kiểm cũ soi chuỗi "checked" quanh `id="pkBat"`. Nó vẫn XANH sau khi ô tích đổi thành
+# nút gạt `aria-pressed`, nhưng xanh vì không còn gì để tìm - một canary chết mà không ai
+# biết. Nên chốt thẳng vào biểu thức quyết định.
 _i = src_js.index('id="pkBat"')
-check("ô 'bật sau khi cài' mặc định TẮT", "checked" not in src_js[_i - 60:_i + 20])
+_o = src_js[_i - 40:_i + 200]
+check("CANARY: gói CÓ MÃ thì công tắc mặc định tắt",
+      'coMa ? "false" : "true"' in _o)
 check("nói thẳng gói chạy mã thật, không làm mềm",
-      "chạy Python thật bên trong máy chủ" in src_js)
+      "chạy Python thật" in src_js and "máy chủ Javis" in src_js)
 
 src_c = (DASHBOARD / "console.js").read_text(encoding="utf-8")
 check("trang Gói đăng ký trong rail", '"packs"' in src_c and "JavisPacks" in src_c)

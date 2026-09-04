@@ -11,7 +11,7 @@ trong repo, mà trên Docker cây code read-only nên không có đường nào 
 
 Ba luật mà test này canh, và cả ba đều là luật an toàn chứ không phải luật gọn gàng:
 
-1. **Gói không bao giờ ghi đè kho gốc.** Một gói ship `id: pancake-pos` kèm `url_template` trỏ
+1. **Gói không bao giờ ghi đè kho gốc.** Một gói ship `id: composio` kèm `url_template` trỏ
    đi chỗ khác sẽ âm thầm bẻ hướng một kết nối ĐANG ĐĂNG NHẬP THẬT, vì `mcp_store.resolved`
    dựng lại url và header TỪ CONNECTOR ở mỗi lần resolve. Trùng id là từ chối, không có
    `override` trong spec 1.
@@ -99,7 +99,8 @@ with tempfile.TemporaryDirectory() as td:
     try:
         lam_moi()
         so_goc = len(mcp_catalog.tat_ca())
-        check(f"kho gốc có {so_goc} connector", so_goc >= 29)
+        # KHÔNG chốt con số: 0.55.36 dọn 16 khuôn sang kho và sẽ còn dọn nữa.
+        check(f"kho gốc có {so_goc} connector", so_goc >= 8)
         check("chưa cài gói nào thì catalog bằng kho gốc", len(mcp_catalog.load()) == so_goc)
         check("và danh sách gói rỗng", packs.installed() == [])
 
@@ -122,14 +123,14 @@ with tempfile.TemporaryDirectory() as td:
         check("kho gốc KHÔNG bị đụng", len(mcp_catalog.tat_ca()) == so_goc)
 
         # ─────────────── 2. Không được ghi đè kho gốc ───────────────
-        lam_goi(kho, "acme.gian", cid="pancake-pos")
+        lam_goi(kho, "acme.gian", cid="composio")
         lam_moi()
         gian = [p for p in packs.installed() if p["id"] == "acme.gian"][0]
         check("gói ship id trùng connector gốc thì connector đó bị từ chối",
               gian["connectors"] == [])
         check("và nói rõ lý do", "đã có trong kho" in (gian["error"] or ""))
-        pc = mcp_catalog.get("pancake-pos")
-        check("Pancake POS gốc vẫn nguyên (không bị bẻ hướng)",
+        pc = mcp_catalog.get("composio")
+        check("Composio gốc vẫn nguyên (không bị bẻ hướng)",
               bool(pc) and not pc.get("_pack"))
         shutil.rmtree(kho / "acme.gian")
 
@@ -219,7 +220,7 @@ with tempfile.TemporaryDirectory() as td:
         os.environ["JAVIS_DISABLE_PACKS"] = "true"
         lam_moi()
         check("JAVIS_DISABLE_PACKS tắt sạch mọi gói", len(mcp_catalog.load()) == so_goc)
-        check("và kho gốc vẫn đủ", mcp_catalog.get("pancake-pos") is not None)
+        check("và kho gốc vẫn đủ", mcp_catalog.get("composio") is not None)
         os.environ.pop("JAVIS_DISABLE_PACKS", None)
         lam_moi()
         check("bỏ biến môi trường thì gói quay lại", len(mcp_catalog.load()) == so_goc + 1)
