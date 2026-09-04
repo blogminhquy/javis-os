@@ -199,8 +199,8 @@ check("cả hai endpoint đều đòi phiên đăng nhập thật",
       than.count("_DEPS.co_phien(request)") >= 1)
 
 src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
-check("lưới kho có tìm kiếm và lọc theo nhóm",
-      'id="pkQ"' in src_js and "data-pkf" in src_js)
+check("lưới kho có ô tìm kiếm", 'id="pkQ"' in src_js)
+check("và cột nhóm bấm lọc được", "data-kho-nhom" in src_js)
 check("gói đã cài hiện 'Đã cài' thay vì mời cài lại", "Đã cài" in src_js)
 check("có bản mới thì đổi nhãn nút", "Có bản mới" in src_js)
 check("kho hỏng KHÔNG làm hỏng phần gói đã cài",
@@ -253,7 +253,12 @@ check("năm loại năng lực đều khai được",
       all(packs_store._lam_sach({"id": "a", "kind": k})["kind"] == k
           for k in ("agent", "skill", "workflow", "tool", "connector")))
 
-check("lưới lọc được theo loại", "data-pkl" in src_js and "data-loai" in src_js)
+check("lưới chia theo loại năng lực", "data-kho-loai" in src_js and "data-loai" in src_js)
+check("có phân trang khi kho dài ra", "data-kho-trang" in src_js and "MOI_TRANG" in src_js)
+# Connector đi kèm app hiện trong kho, và gỡ chúng phải đi qua `core_off` chứ KHÔNG qua trình
+# gỡ gói: tệp trong system/ không được đụng vào, vì cây code read-only trên Docker.
+check("gỡ connector của app đi đúng đường core-toggle",
+      "/connect/core-toggle" in src_js and 'nguon === "app"' in src_js)
 check("mỗi thẻ đeo nhãn loại của nó", "LOAI[g.kind]" in src_js)
 check("kho mở được kèm loại lọc sẵn", "function moKho(" in src_js and "moKho: moKho" in src_js)
 # Bộ lọc mở sẵn là Ý ĐỊNH CỦA MỘT LẦN BẤM. Không xoá đi thì lần sau vào kho từ thanh bên vẫn

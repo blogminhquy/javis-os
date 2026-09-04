@@ -1072,3 +1072,71 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ol-note.ol-warn { border: 1px solid var(--warn-line); background: var(--warn-wash);
   border-radius: 10px; padding: 9px 11px; margin: 10px 0; }
 .ol-note.ol-warn .ic { color: var(--warn-ink); }
+
+/* ============================================================
+   KHO CÀI ĐẶT - lưới duyệt gói, dựng theo bản vẽ của chủ repo
+   ============================================================ */
+/* Hàng tab LOẠI: gạch chân, không phải viên thuốc. Đây là trục chính của kho (đang xem trợ lý
+   hay kỹ năng), còn cột nhóm bên trái là trục phụ - hai kiểu khác nhau để mắt không lẫn. */
+.kho-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+  margin-bottom: 18px; overflow-x: auto; }
+.kho-tab { white-space: nowrap; padding: 10px 16px; font-size: 14px; font-weight: 500;
+  color: var(--text2); background: none; border: 0; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.kho-tab.on { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
+.kho-dem { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text3); }
+.kho-tab.on .kho-dem { background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent); }
+
+.kho-than { display: flex; gap: 26px; align-items: flex-start; }
+.kho-cot { width: 190px; flex: none; display: flex; flex-direction: column; gap: 2px; }
+.kho-cot-tieu { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--text3);
+  padding: 4px 10px 8px; text-transform: uppercase; }
+.kho-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 9px; font-size: 13px; text-align: left;
+  color: var(--text2); background: none; border: 0; cursor: pointer; }
+.kho-nav:hover { background: var(--surface-2); }
+.kho-nav.on { color: var(--accent); font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 10%, transparent); }
+/* Vạch ngăn giữa hai lối gom khác nhau: "Tất cả / Đã cài" là trạng thái, phần dưới là lĩnh vực. */
+.kho-nav.ngan { margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.kho-navdem { font-size: 11px; color: var(--text3); }
+.kho-chinh { flex: 1; min-width: 0; }
+
+.kho-the { gap: 10px; }
+.kho-dau { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.kho-nhom { font-size: 11px; color: var(--text3); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.kho-ten { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; }
+.kho-ava { width: 40px; height: 40px; flex: none; border-radius: 11px; display: grid;
+  place-items: center; font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -.02em; }
+/* Logo thật thì KHÔNG tô nền: nền màu sau một logo có nền trắng trông như lỗi in. */
+.kho-ava-img { background: none; }
+.kho-ava-img svg, .kho-ava-img img { width: 34px; height: 34px; object-fit: contain; }
+.kho-daicai { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+  color: var(--ok-ink, #2f855a); }
+.kho-btn { width: 100%; padding: 10px; border-radius: 10px; font: inherit; font-size: 13px;
+  font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+.kho-btn-chinh { background: var(--accent); color: #fff; }
+.kho-btn-go { background: transparent; color: var(--danger-ink, #b3261e);
+  border-color: var(--border); }
+.kho-btn-go:hover { border-color: var(--danger-ink, #b3261e); }
+
+.kho-trang { display: flex; align-items: center; gap: 6px; margin-top: 22px; padding-top: 16px;
+  border-top: 1px solid var(--border); flex-wrap: wrap; }
+.kho-so { min-width: 34px; height: 34px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-1); color: inherit;
+  font: inherit; font-size: 13px; cursor: pointer; }
+.kho-so.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+/* Điện thoại: cột nhóm nằm ngang thành một dải cuộn, không chiếm nửa màn hình. */
+@media (max-width: 720px) {
+  .kho-than { flex-direction: column; gap: 14px; }
+  .kho-cot { width: 100%; flex-direction: row; overflow-x: auto; gap: 6px; }
+  .kho-cot-tieu { display: none; }
+  .kho-nav { white-space: nowrap; border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 12px; }
+  .kho-nav.ngan { margin-top: 0; padding-top: 6px; border-top: 1px solid var(--border); }
+}

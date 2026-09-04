@@ -193,9 +193,13 @@ check("liệt kê token KHÔNG bao giờ trả giá trị",
 
 # ─────────────── 7. Nhãn nguồn và cảnh báo gói cộng đồng ───────────────
 src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
-check("thẻ kho hiện nhãn chính chủ hoặc cộng đồng",
+check("thẻ kho vẫn hiện nhãn chính chủ hoặc cộng đồng",
       "chính chủ" in src_js and "cộng đồng" in src_js)
-check("có tab lọc theo nguồn", "data-pkng" in src_js)
+# Bộ lọc nguồn dọn từ hàng tab riêng xuống cột nhóm bên trái ở 0.55.31 (bố cục mới), nhưng
+# KHÔNG được mất: kho lớn dần thì "xem riêng hàng cộng đồng" là bộ lọc người ta tìm đầu tiên.
+check("lọc riêng được hàng cộng đồng", 'laCongDong' in src_js and '"Cộng đồng"' in src_js)
+check("và chỉ hiện lối lọc đó khi kho thật sự có hàng cộng đồng",
+      "congDong.length ?" in src_js)
 check("gói cộng đồng có cảnh báo riêng trên màn hình xác nhận",
       "chưa qua " in src_js and "kiểm duyệt" in src_js)
 check("màn hình xác nhận nói rõ gói ghi gì vào bộ não", "vaultTom" in src_js)

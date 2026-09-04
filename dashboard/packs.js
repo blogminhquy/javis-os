@@ -242,22 +242,76 @@
     manHinhDongY(d, el);
   }
 
+  // ---- Ảnh đại diện của một mục ----
+  // Ưu tiên icon THẬT của mục (connector đi kèm app đều có logo). Không có thì dựng một ô chữ
+  // cái: đó là chỗ dựa của lưới - mắt nhận ra hàng nào là hàng nào trước khi kịp đọc chữ.
+  const MAU_AVATAR = ["#2563eb", "#e8590c", "#0f766e", "#16a34a", "#7c3aed", "#0891b2",
+                      "#ca8a04", "#dc2626", "#0d9488", "#db2777"];
+
+  function chuCai(ten) {
+    const w = String(ten || "?").trim().split(/\s+/).filter(Boolean);
+    if (!w.length) return "?";
+    if (w.length === 1) return w[0].slice(0, 2).replace(/^./, c => c.toUpperCase());
+    return (w[0][0] + w[1][0]).toUpperCase();
+  }
+
+  function mauTheoId(id) {
+    let h = 0;
+    for (let i = 0; i < String(id).length; i++) h = (h * 31 + String(id).charCodeAt(i)) >>> 0;
+    return MAU_AVATAR[h % MAU_AVATAR.length];
+  }
+
+  function veAvatar(g) {
+    // Ba dạng, xử lý đúng thứ tự của `console.js iconInner` - trường `icon` của connector đã
+    // mang cả ba từ lâu và không thể ép về một dạng:
+    //   đường dẫn/URL ảnh (logo hãng)  -> <img>
+    //   tên icon Lucide                -> SVG, đặt trên nền màu
+    //   không có gì                    -> ô chữ cái
+    //
+    // `ic()` KHÔNG tự nhận đường dẫn (đó là việc của `iconInner`), nên bỏ nhánh <img> là mọi
+    // logo hãng hiện thành dấu hỏi - đúng lỗi thấy trên màn hình bản dựng đầu.
+    const src = String((g && g.icon) || "");
+    if (/^(https?:|\/)/.test(src)) {
+      return '<div class="kho-ava kho-ava-img"><img src="' + esc(src)
+        + '" alt="" loading="lazy"></div>';
+    }
+    const nen = ' style="background:' + mauTheoId(g.id) + '"';
+    if (src && window.Icons && window.Icons.has && window.Icons.has(src)) {
+      return '<div class="kho-ava"' + nen + '>' + ic(src) + '</div>';
+    }
+    return '<div class="kho-ava"' + nen + '>' + esc(chuCai(nn(g.name, g.id))) + '</div>';
+  }
+
+  // ---- Nút trên thẻ ----
+  // Bốn tình huống, và chúng KHÔNG cùng một hành động bên dưới. Mục tải từ kho thì cài là tải
+  // về rồi qua màn hình xác nhận, gỡ là trình gỡ gói. Connector đi kèm app thì không tải gì cả,
+  // "gỡ" chỉ là ghi vào sổ đã-gỡ (`core_off`) để nó biến khỏi kho Kết nối - tệp trong `system/`
+  // không hề bị đụng, vì cây code là read-only trên Docker và bị `git pull` ghi đè trên bản
+  // native. Trộn hai thứ này làm một là gỡ nhầm hoặc gỡ hụt.
+  function nutThe(g) {
+    const moi = g.installed && g.installed_version && g.version
+                && g.installed_version !== g.version;
+    if (g.nguon === "app") {
+      return g.installed
+        ? { nhan: "Gỡ khỏi Javis", lop: "kho-btn kho-btn-go", act: "coreoff" }
+        : { nhan: "Cài lại", lop: "kho-btn kho-btn-chinh", act: "coreon" };
+    }
+    if (moi) return { nhan: "Có bản mới v" + esc(g.version), lop: "kho-btn kho-btn-chinh", act: "cai" };
+    if (g.installed) return { nhan: "Gỡ cài đặt", lop: "kho-btn kho-btn-go", act: "go" };
+    return { nhan: "Cài đặt", lop: "kho-btn kho-btn-chinh", act: "cai" };
+  }
+
   function theKho(g) {
     const bac = BAC[g.tier] || BAC.data;
-    const daCai = !!g.installed;
-    const moi = daCai && g.installed_version && g.version && g.installed_version !== g.version;
-    const nut = moi
-      ? '<button class="gcard-btn" data-kho="' + esc(g.download.url) + '" data-sha="'
-        + esc(g.download.sha256 || "") + '">Có bản mới v' + esc(g.version) + '</button>'
-      : daCai
-        ? '<button class="gcard-btn" disabled style="opacity:.55">Đã cài</button>'
-        : '<button class="gcard-btn" data-kho="' + esc(g.download.url) + '" data-sha="'
-          + esc(g.download.sha256 || "") + '">Cài</button>';
     const lo = LOAI[g.kind] || LOAI.bundle;
-    return '<div class="cat-card" data-cat="' + esc(g.category || "") + '" data-ng="'
-      + (g.verified ? "1" : "0") + '" data-loai="' + esc(g.kind || "bundle") + '">'
-      + '<div class="cat-ico">' + ic(lo.icon) + '</div>'
-      + '<div class="cat-name">' + esc(nn(g.name, g.id))
+    const n = nutThe(g);
+    const meta = [g.id, g.version ? "v" + g.version : "",
+                  (g.author && g.author.name) || ""].filter(Boolean).map(esc).join(" · ");
+    return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
+      + ' data-nhom="' + esc(g.nhom || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
+      + '<div class="kho-dau">' + veAvatar(g)
+      + '<span class="kho-nhom">' + esc(g.nhom || lo.nhan) + '</span></div>'
+      + '<div class="kho-ten">' + esc(nn(g.name, g.id))
       + ' <span class="prov-kind">' + esc(lo.nhan) + '</span>'
       + ' <span class="prov-kind" style="color:' + bac.mau + '">' + bac.nhan + '</span>'
       + (g.verified
@@ -265,10 +319,18 @@
           : ' <span class="prov-kind">cộng đồng</span>')
       + '</div>'
       + '<div class="cat-desc">' + esc(nn(g.description)) + '</div>'
-      + '<div class="prov-meta">' + esc(g.id) + (g.version ? " · v" + esc(g.version) : "")
-      + (g.author && g.author.name ? " · " + esc(g.author.name) : "") + '</div>'
-      + nut + '</div>';
+      + '<div class="prov-meta">' + meta + '</div>'
+      + (g.installed
+          ? '<div class="kho-daicai">' + ic("check") + ' Đã cài trên máy</div>' : "")
+      + '<button class="' + n.lop + '" data-kho-act="' + n.act + '" data-kho-id="' + esc(g.id) + '">'
+      + n.nhan + '</button>'
+      + '</div>';
   }
+
+  // Trạng thái lưới kho. Để ở module vì mọi lần bấm tab, bấm nhóm hay đổi trang đều chỉ VẼ LẠI
+  // từ dữ liệu đã tải, không gọi lại mạng.
+  let _kho = { dl: null, loai: "connector", nhom: "Tất cả", trang: 1, tim: "" };
+  const MOI_TRANG = 20;
 
   async function veKho(el, host, lamMoi, loaiDau) {
     host.innerHTML = '<div class="mp-empty">Đang tải danh mục…</div>';
@@ -282,94 +344,128 @@
         + 'Bạn vẫn cài được gói từ tệp .zip như bình thường.</div>';
       return;
     }
+    _kho.dl = d;
+    _kho.trang = 1;
+    _kho.tim = "";
+    if (loaiDau && LOAI[loaiDau]) _kho.loai = loaiDau;
+    _kho.nhom = "Tất cả";
+    veLuoi(el, host);
+  }
+
+  function veLuoi(el, host) {
+    const d = _kho.dl || { packs: [] };
     const ds = d.packs || [];
-    const cats = Array.from(new Set(ds.map(g => g.category).filter(Boolean)));
-    // Chip lĩnh vực hiện TÊN người đọc được, không hiện mã. `category` là mã máy ("ban-hang")
-    // để lọc cho ổn định qua các bản dịch; `category_label` là chữ để đọc. Thiếu nhãn thì rơi
-    // về mã, xấu nhưng vẫn bấm được.
-    const nhanCat = {};
-    ds.forEach(g => { if (g.category && !nhanCat[g.category]) nhanCat[g.category] = nn(g.category_label, g.category); });
-    // Chỉ vẽ chip cho loại THẬT SỰ có trong kho. Một chip bấm vào ra lưới rỗng làm người ta
-    // tưởng kho hỏng, trong khi sự thật chỉ là chưa ai phát hành loại đó.
-    const coLoai = THU_TU_LOAI.filter(k => ds.some(g => (g.kind || "bundle") === k));
-    const loaiMo = (loaiDau && coLoai.includes(loaiDau)) ? loaiDau : "";
-    // Hai tab nguồn. Hôm nay kho chỉ có gói chính chủ nên tab thứ hai thường rỗng, nhưng để
-    // sẵn thì ngày mở cho cộng đồng không phải sửa lại giao diện - và quan trọng hơn, người
-    // dùng quen mắt với việc NGUỒN là một thứ phải nhìn trước khi cài.
-    const soCongDong = ds.filter(g => !g.verified).length;
+    const cungLoai = ds.filter(g => (g.kind || "bundle") === _kho.loai);
+    const daCai = cungLoai.filter(g => g.installed);
+
+    // Nhóm chỉ liệt kê nhóm THẬT SỰ có hàng trong loại đang xem. Một hàng bấm vào ra lưới rỗng
+    // làm người ta tưởng kho hỏng, trong khi sự thật chỉ là loại đó chưa có mục nào thuộc nhóm.
+    const dem = {};
+    cungLoai.forEach(g => { const k = g.nhom || "Khác"; dem[k] = (dem[k] || 0) + 1; });
+    const tenNhom = Object.keys(dem).sort((a, b) => a.localeCompare(b, "vi"));
+
+    // Gói do người ngoài gửi vào kho. Chủ kho đọc mã trước khi trộn nên chúng KHÔNG phải hàng
+    // lạ, nhưng người cài vẫn có quyền muốn xem riêng - và khi kho lớn dần thì đây là bộ lọc
+    // họ tìm đầu tiên. Chỉ hiện hàng này khi thật sự có hàng cộng đồng.
+    const congDong = cungLoai.filter(g => !g.verified);
+    const laDaCai = _kho.nhom === "Đã cài";
+    const laCongDong = _kho.nhom === "Cộng đồng";
+    const q = _kho.tim.trim().toLowerCase();
+    const hop = cungLoai.filter(g =>
+      (_kho.nhom === "Tất cả"
+        || (laDaCai ? g.installed
+            : laCongDong ? !g.verified
+            : (g.nhom || "Khác") === _kho.nhom))
+      && (!q || (nn(g.name, g.id) + " " + nn(g.description) + " " + g.id).toLowerCase().includes(q)));
+
+    const soTrang = Math.max(1, Math.ceil(hop.length / MOI_TRANG));
+    const trang = Math.min(Math.max(1, _kho.trang), soTrang);
+    _kho.trang = trang;
+    const hienThi = hop.slice((trang - 1) * MOI_TRANG, trang * MOI_TRANG);
+
+    const tabLoai = THU_TU_LOAI.map(k => {
+      const on = k === _kho.loai;
+      return '<button class="kho-tab' + (on ? " on" : "") + '" data-kho-loai="' + k + '">'
+        + esc(LOAI[k].nhan)
+        + ' <span class="kho-dem">' + ds.filter(g => (g.kind || "bundle") === k).length
+        + '</span></button>';
+    }).join("");
+
+    const hangNhom = (ten, so, on, ngan) =>
+      '<button class="kho-nav' + (on ? " on" : "") + (ngan ? " ngan" : "") + '" data-kho-nhom="'
+      + esc(ten) + '"><span>' + esc(ten) + '</span><span class="kho-navdem">' + so + '</span></button>';
+
     host.innerHTML =
-      (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:10px">Đang xem danh mục đã lưu lần trước, vì lần này chưa lấy được bản mới.</div>' : "")
-      + (soCongDong
-          ? '<div class="cat-filter" style="margin-bottom:10px">'
-            + '<button class="cat-chip on" data-pkng="">Tất cả</button>'
-            + '<button class="cat-chip" data-pkng="1">Chính chủ</button>'
-            + '<button class="cat-chip" data-pkng="0">Cộng đồng</button></div>'
-          : "")
-      + (coLoai.length > 1
-          ? '<div class="cat-filter" style="margin-bottom:10px">'
-            + '<button class="cat-chip' + (loaiMo ? "" : " on") + '" data-pkl="">Tất cả</button>'
-            + coLoai.map(k => '<button class="cat-chip' + (loaiMo === k ? " on" : "")
-                + '" data-pkl="' + k + '">' + esc(LOAI[k].nhan) + '</button>').join("")
+      (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">Đang xem danh mục đã lưu lần trước, vì lần này chưa lấy được bản mới.</div>' : "")
+      + '<div class="kho-tabs">' + tabLoai + '</div>'
+      + '<div class="kho-than">'
+      + '<div class="kho-cot">'
+      + '<div class="kho-cot-tieu">Nhóm</div>'
+      + hangNhom("Tất cả", cungLoai.length, _kho.nhom === "Tất cả")
+      + hangNhom("Đã cài", daCai.length, laDaCai)
+      + (congDong.length ? hangNhom("Cộng đồng", congDong.length, laCongDong) : "")
+      + tenNhom.map((t, i) => hangNhom(t, dem[t], _kho.nhom === t, i === 0)).join("")
+      + '</div>'
+      + '<div class="kho-chinh">'
+      + '<div class="cat-tools">'
+      + '<input class="js-input" id="pkQ" placeholder="Tìm trong ' + esc(LOAI[_kho.loai].nhan)
+      + '…" value="' + esc(_kho.tim) + '" style="max-width:320px">'
+      + '<span class="prov-meta">' + hop.length
+      + (laDaCai ? ' mục đã cài' : laCongDong ? ' mục cộng đồng' : ' mục') + '</span>'
+      + '<span style="flex:1"></span>'
+      + '<button class="mp-btn" id="pkLamMoi">Làm mới</button>'
+      + '<button class="mp-btn" id="pkChon2">Cài từ tệp .zip</button>'
+      + '</div>'
+      + '<div class="cat-grid" id="pkGrid">' + hienThi.map(theKho).join("") + '</div>'
+      + (hienThi.length ? "" : '<div class="mp-empty">'
+          + (laDaCai ? 'Chưa cài mục nào trong ' + esc(LOAI[_kho.loai].nhan) + '.'
+                     : 'Không có mục nào khớp bộ lọc.') + '</div>')
+      + (soTrang > 1
+          ? '<div class="kho-trang"><span class="prov-meta">Hiển thị '
+            + ((trang - 1) * MOI_TRANG + 1) + '-' + Math.min(trang * MOI_TRANG, hop.length)
+            + ' / ' + hop.length + '</span><span style="flex:1"></span>'
+            + Array.from({ length: soTrang }, (_, i) =>
+                '<button class="kho-so' + (i + 1 === trang ? " on" : "") + '" data-kho-trang="'
+                + (i + 1) + '">' + (i + 1) + '</button>').join("")
             + '</div>'
-          : "")
-      + '<div class="cat-tools"><input class="js-input" id="pkQ" placeholder="Tìm trong kho…" style="max-width:220px">'
-      + '<span class="cat-filter"><button class="cat-chip on" data-pkf="">Tất cả</button>'
-      + cats.map(c => '<button class="cat-chip" data-pkf="' + esc(c) + '">'
-          + esc(nhanCat[c] || c) + '</button>').join("")
-      + '</span>'
-      + '<button class="mp-btn" id="pkLamMoi" style="margin-left:auto">Làm mới</button></div>'
-      + '<div class="mp-empty" id="pkTrong" hidden>Không có mục nào khớp bộ lọc.</div>'
-      + '<div class="cat-grid" id="pkGrid">'
-      + (ds.length ? ds.map(theKho).join("")
-                   : '<div class="mp-empty">Kho chưa có mục nào.<br>'
-                     + 'Bạn vẫn cài được từ tệp .zip ở phần dưới.</div>')
-      + '</div>';
+          : "");
+
+    const lai = () => veLuoi(el, host);
+    host.querySelectorAll("[data-kho-loai]").forEach(b => b.onclick = () => {
+      _kho.loai = b.dataset.khoLoai; _kho.nhom = "Tất cả"; _kho.trang = 1; _kho.tim = ""; lai();
+    });
+    host.querySelectorAll("[data-kho-nhom]").forEach(b => b.onclick = () => {
+      _kho.nhom = b.dataset.khoNhom; _kho.trang = 1; lai();
+    });
+    host.querySelectorAll("[data-kho-trang]").forEach(b => b.onclick = () => {
+      _kho.trang = Number(b.dataset.khoTrang); lai();
+    });
+    const o = document.getElementById("pkQ");
+    if (o) o.oninput = () => { _kho.tim = o.value; _kho.trang = 1; lai(); o.focus(); };
+    const lm = document.getElementById("pkLamMoi");
+    if (lm) lm.onclick = () => veKho(el, host, true, _kho.loai);
+    const ct = document.getElementById("pkChon2");
+    if (ct) ct.onclick = () => { const f = document.getElementById("pkFile"); if (f) f.click(); };
 
     const theo = {};
-    ds.forEach(g => { theo[g.download.url] = g; });
-    host.querySelectorAll("[data-kho]").forEach(b => b.onclick = () =>
-      tuUrl(el, b.dataset.kho, b.dataset.sha, theo[b.dataset.kho] || null));
-    document.getElementById("pkLamMoi").onclick = () => veKho(el, host, true);
-    const loc = () => {
-      const q = (document.getElementById("pkQ").value || "").toLowerCase();
-      const chip = host.querySelector("[data-pkf].on");
-      const cf = chip ? (chip.dataset.pkf || "") : "";
-      const chipNg = host.querySelector("[data-pkng].on");
-      const ng = chipNg ? (chipNg.dataset.pkng || "") : "";
-      const chipL = host.querySelector("[data-pkl].on");
-      const lf = chipL ? (chipL.dataset.pkl || "") : "";
-      let hien = 0;
-      host.querySelectorAll("#pkGrid .cat-card").forEach(c => {
-        const hop = (!cf || c.dataset.cat === cf)
-          && (!ng || c.dataset.ng === ng)
-          && (!lf || c.dataset.loai === lf)
-          && (!q || c.textContent.toLowerCase().includes(q));
-        c.style.display = hop ? "" : "none";
-        if (hop) hien++;
+    ds.forEach(g => { theo[g.id] = g; });
+    host.querySelectorAll("[data-kho-act]").forEach(b => b.onclick = () => {
+      const g = theo[b.dataset.khoId];
+      if (!g) return;
+      const act = b.dataset.khoAct;
+      if (act === "cai") return tuUrl(el, g.download.url, g.download.sha256, g);
+      if (act === "go") return hopGo(el, g.id);
+      // Connector của app: `core_off` ghi vào sổ, tệp trong system/ không bị đụng.
+      const tat = act === "coreoff";
+      if (tat && !confirm('Gỡ "' + nn(g.name, g.id) + '" khỏi kho Kết nối?\n\n'
+          + 'Kết nối đang dùng nó sẽ dừng, nhưng KHÔNG bị xoá - cài lại là chạy tiếp.')) return;
+      postJson("/connect/core-toggle", { id: g.id, off: tat, confirm: true }).then(r => {
+        if (r && r.ok) veKho(el, host, false, _kho.loai);
+        else alert((r && r.error) || "Không đổi được.");
       });
-      // Lọc hết sạch thì NÓI RA, đừng để một khoảng trắng. Người vừa bấm ba cái chip không
-      // nhớ nổi cái nào đang bật, và lưới trống trơn trông y hệt lỗi tải.
-      const trong = document.getElementById("pkTrong");
-      if (trong) trong.hidden = hien > 0;
-    };
-    document.getElementById("pkQ").oninput = loc;
-    host.querySelectorAll("[data-pkf]").forEach(b => b.onclick = () => {
-      host.querySelectorAll("[data-pkf]").forEach(x => x.classList.remove("on"));
-      b.classList.add("on");
-      loc();
     });
-    host.querySelectorAll("[data-pkng]").forEach(b => b.onclick = () => {
-      host.querySelectorAll("[data-pkng]").forEach(x => x.classList.remove("on"));
-      b.classList.add("on");
-      loc();
-    });
-    host.querySelectorAll("[data-pkl]").forEach(b => b.onclick = () => {
-      host.querySelectorAll("[data-pkl]").forEach(x => x.classList.remove("on"));
-      b.classList.add("on");
-      loc();
-    });
-    if (loaiMo) loc();   // vào từ tab một trang cụ thể: áp bộ lọc ngay, đừng chớp một nhịp
   }
+
 
   async function chonTep(el, file) {
     modal('<div class="mp-head"><div class="mp-title">ĐANG ĐỌC GÓI</div></div>'

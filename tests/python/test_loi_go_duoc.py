@@ -191,6 +191,47 @@ check("giao diện có nút gỡ và nút cài lại",
 check("và có băng báo kết nối đang dừng vì thiếu dịch vụ", "banMoCoi" in src_js)
 check("thẻ 'Tự thêm' không có nút gỡ", 'con.id === "custom" ? ""' in src_js)
 
+# ============================================================
+# Connector của app hiện TRONG kho, và gỡ rồi thì phải thấy là đã gỡ
+# ============================================================
+# Từ 0.55.31 kho hiển thị gộp: connector đi kèm app nằm cùng lưới với gói tải từ kho, đánh dấu
+# sẵn "Đã cài trên máy". Nếu không thế thì tab Kết nối của kho trống trơn cho tới khi ai đó
+# phát hành gói connector, mà người dùng thì chỉ muốn một chỗ để nhìn Javis nối được với gì.
+#
+# Lỗi THẬT ở bản dựng đầu: khoá loại gõ "connector" số ít trong khi `core_off.LOAI` là
+# "connectors" số nhiều. `da_go` trả rỗng hoàn toàn im lặng, nên MỌI connector mãi mãi hiện là
+# "đã cài", kể cả cái vừa bấm gỡ xong. Chỉ thấy được bằng cách mở trình duyệt ra bấm thử.
+import routes.packs as _rp   # noqa: E402
+
+# Thư mục tạm RIÊNG: khối `with tempfile...` ở trên đã đóng từ lâu, đường dẫn của nó không còn.
+_tmp_kho = tempfile.TemporaryDirectory()
+_goc_store = core_off.STORE
+try:
+    core_off.STORE = Path(_tmp_kho.name) / "core-off-kho.json"
+    core_off._cache.update(sig=None, data=None)
+    ds = {x["id"]: x for x in _rp._connector_cua_app()}
+    check("kho liệt kê connector đi kèm app", len(ds) > 10)
+    check("và chúng mang đúng loại để lọc theo tab",
+          all(x["kind"] == "connector" for x in ds.values()))
+    check("kèm nguồn 'app' để giao diện biết gỡ bằng core_off chứ không phải trình gỡ gói",
+          all(x["nguon"] == "app" for x in ds.values()))
+    check("chưa gỡ gì thì tất cả hiện là đã cài", all(x["installed"] for x in ds.values()))
+
+    _mot = sorted(ds)[0]
+    core_off.dat("connectors", _mot, True)
+    ds2 = {x["id"]: x for x in _rp._connector_cua_app()}
+    check("gỡ một cái thì kho thấy ngay là CHƯA cài", ds2[_mot]["installed"] is False)
+    check("và những cái khác không bị ảnh hưởng",
+          all(v["installed"] for k, v in ds2.items() if k != _mot))
+
+    core_off.dat("connectors", _mot, False)
+    ds3 = {x["id"]: x for x in _rp._connector_cua_app()}
+    check("cài lại thì về đúng trạng thái cũ", ds3[_mot]["installed"] is True)
+finally:
+    core_off.STORE = _goc_store
+    core_off._cache.update(sig=None, data=None)
+    _tmp_kho.cleanup()
+
 if _fails:
     print(f"\nFAIL - test_loi_go_duoc: {len(_fails)} lỗi: {_fails}")
     sys.exit(1)
