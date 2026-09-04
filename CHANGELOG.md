@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.28] - 2026-09-04
+### Sửa lỗi
+- **Bấm tab "Kho cài đặt" không mở được kho.** Nút văng lỗi ngay lần bấm đầu tiên do một lỗi lập trình trong bản 0.55.26. Giờ bấm là sang.
+- **Mọi mục trong kho hiện tên tiếng Anh** dù giao diện đang để tiếng Việt, kể cả tên nhóm lĩnh vực. Lỗi có từ bản 0.55.22, khó thấy vì vẫn có chữ để đọc nên trông như gói thiếu bản dịch.
+
+### Cải thiện
+- Thêm loại kiểm thử mới cho giao diện: thay vì chỉ dò chữ trong mã nguồn, nó **chạy thật** mã của trang rồi bấm thử. Đúng loại lỗi vừa rồi mà cách kiểm cũ không thấy.
+
 ## [0.55.27] - 2026-09-04
 ### Sửa lỗi
 - **Cài gói bị chặn sạch với thông báo "cần Javis >=0.55.25, bản này là " (bỏ trống).** Javis đọc nhầm chỗ chứa số phiên bản của chính nó, nên tưởng mình là bản 0.0.0 và từ chối mọi gói. Lỗi xảy ra trên bản chạy Docker và mọi bản có đổi thư mục dữ liệu, tức gần như mọi máy thật. Giờ cài được, cả từ kho lẫn từ tệp .zip.
