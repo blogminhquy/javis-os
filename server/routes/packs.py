@@ -21,6 +21,7 @@ gì được nạp) rồi trả về đúng cái sắp xảy ra kèm `sha256`. `
 người gọi đưa lại đúng sha256 đó - ràng buộc này làm cái đã hiện ra trên màn hình phải chính là
 cái được cài.
 """
+import sys
 from dataclasses import dataclass
 from typing import Callable
 
@@ -49,6 +50,60 @@ class PacksDeps:
 
 
 _DEPS: PacksDeps = None
+
+
+def _nn(v, mac=""):
+    """`name`/`description` là map đa ngôn ngữ. Lấy tiếng Việt, rơi về en, rồi về giá trị đầu."""
+    if isinstance(v, dict):
+        return v.get("vi") or v.get("en") or next(iter(v.values()), mac)
+    return str(v or mac)
+
+
+def _nhom(g: dict) -> str:
+    """Tên NHÓM hiển thị của một mục trong kho.
+
+    Gộp theo CHỮ NGƯỜI ĐỌC THẤY chứ không theo mã. Danh mục kho khai `category` là mã máy
+    (`ban-hang`) kèm `category_label` để hiện; còn catalog connector đi kèm app từ xưa tới nay
+    chỉ có một trường `category` viết thẳng tiếng Việt ("Bán hàng"). Gộp theo mã thì hai thứ
+    cùng nghĩa nằm ở hai nhóm rời nhau, và cột nhóm bên trái hiện "Bán hàng" hai lần."""
+    return _nn(g.get("category_label")) or str(g.get("category") or "") or "Khác"
+
+
+def _connector_cua_app() -> list:
+    """Connector ship theo app, đóng gói lại thành mục của kho.
+
+    `tat_ca()` trả về catalog ĐẦY ĐỦ kể cả cái đã gỡ - đúng thứ cần ở đây, vì cái đã gỡ phải
+    hiện ra để bấm cài lại được. Cố ý KHÔNG lấy connector do gói cấp: gói đó đã là một mục
+    riêng trong kho rồi, liệt kê thêm connector của nó là đếm hai lần."""
+    try:
+        import core_off
+        import mcp_catalog
+        # Khoá là "connectors" số NHIỀU (`core_off.LOAI`). Gõ số ít thì `da_go` trả rỗng một
+        # cách hoàn toàn im lặng, và mọi connector mãi mãi hiện là "đã cài" - kể cả cái vừa gỡ.
+        da_go = core_off.da_go("connectors")
+        ra = []
+        for cid, c in (mcp_catalog.tat_ca() or {}).items():
+            # Chạy LỆNH thì là bậc code, dù không một dòng Python nào: `transport: stdio` khiến
+            # Javis chạy `npx` với toàn bộ biến môi trường của máy chủ.
+            code = str(c.get("transport") or "http").lower() == "stdio" or bool(c.get("command"))
+            nhom = str(c.get("category") or "Khác")
+            ra.append({
+                "id": cid, "kind": "connector",
+                "name": {"vi": c.get("name", cid)},
+                "description": {"vi": c.get("description", "")},
+                "version": "", "author": {"name": "Javis"},
+                "category": nhom, "category_label": {"vi": nhom}, "nhom": nhom,
+                "tier": "code" if code else "data",
+                "verified": True, "icon": c.get("icon", ""),
+                "installed": cid not in da_go, "installed_version": "",
+                "nguon": "app",
+                "download": {"url": "", "sha256": "", "size": 0},
+            })
+        return ra
+    except Exception as e:
+        # Kho vẫn phải vẽ được nếu chỗ này hỏng: mục tải từ kho không dính dáng gì tới catalog.
+        print(f"[packs] không gộp được connector của app vào kho: {e}", file=sys.stderr)
+        return []
 
 
 def _tu_choi():
@@ -152,6 +207,16 @@ def _make_router() -> APIRouter:
             hang = da_cai.get(g["id"])
             g["installed"] = bool(hang)
             g["installed_version"] = (hang or {}).get("version", "")
+            g["nguon"] = "kho"
+            g["nhom"] = _nhom(g)
+        # Connector đi kèm app cũng hiện TRONG kho, đánh dấu sẵn là đã cài. Người dùng không
+        # phân biệt "thứ ship theo app" với "thứ tải từ kho" - họ chỉ muốn một chỗ để nhìn xem
+        # Javis nối được với cái gì. Trộn vào đây thì lưới Kết nối của kho có đủ mặt hàng ngay
+        # từ ngày đầu, thay vì trống trơn cho tới khi ai đó phát hành gói connector.
+        #
+        # Chúng KHÔNG tải về từ đâu cả (`download.url` rỗng), và gỡ chúng đi qua `core_off`
+        # chứ không qua trình gỡ gói - nên phải có `nguon` để giao diện biết bấm nút nào.
+        (d.setdefault("packs", [])).extend(_connector_cua_app())
         return d
 
     @router.post("/packs/install-url")

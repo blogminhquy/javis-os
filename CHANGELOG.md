@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.31] - 2026-09-05
+### Thêm mới
+- **Kho cài đặt dựng lại theo thiết kế mới.** Hàng tab theo loại kèm số đếm ở trên, cột nhóm lĩnh vực bên trái, thẻ có logo thật và nhãn nhóm, và phân trang khi kho dài ra.
+- **Mọi kết nối của Javis giờ nằm luôn trong kho**, đánh dấu sẵn "Đã cài trên máy". Bạn có một chỗ duy nhất để nhìn Javis nối được với những gì, thay vì hai danh sách rời nhau.
+- **Gỡ và cài lại ngay trên thẻ.** Kết nối không dùng thì gỡ cho gọn màn hình; đổi ý thì bấm Cài lại. Kết nối đã đấu không bị xoá, chỉ dừng lại cho tới khi bạn cài lại.
+- Lọc riêng được hàng do cộng đồng gửi, và lối lọc đó chỉ hiện khi kho thật sự có hàng cộng đồng.
+
 ## [0.55.30] - 2026-09-05
 ### Thêm mới
 - **Kho cài đặt chuyển sang kho riêng: [javis-store](https://github.com/blogminhquy/javis-store).** Từ giờ thêm một món vào kho là mọi máy đang chạy Javis **thấy ngay**, không phải chờ bản cập nhật nào cả.
