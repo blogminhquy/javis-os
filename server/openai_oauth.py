@@ -98,10 +98,41 @@ def _exchange(code, code_verifier, redirect_uri=REDIRECT_URI):
 
 
 def start_device():
-    """Bước 1: lấy user_code + verification_uri. Trả cho frontend hiển thị."""
-    r = httpx.post(DEVICE_USERCODE_URL, json={"client_id": CLIENT_ID},
-                   headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA}, timeout=20)
-    r.raise_for_status()
+    """Bước 1: lấy user_code + verification_uri. Trả cho frontend hiển thị.
+
+    THỬ LẠI vài lần, vì đầu này của OpenAI hay chậm và thỉnh thoảng không trả lời. Bản cũ gọi
+    đúng một lần với hạn 20 giây: trượt một nhịp là người dùng nhìn vòng xoay rồi nhận một câu
+    lỗi kỹ thuật, đúng cảnh người dùng tả ngày 04/09 - "quay vòng vòng đợi rất lâu, hên xui lắm
+    mới hiện ra code".
+
+    Thử lại ở đây an toàn: mỗi lần chỉ XIN một mã thiết bị mới, chưa gắn với tài khoản nào và
+    chưa có tác dụng phụ gì. Mã cũ bị bỏ rơi thì tự hết hạn.
+
+    Lỗi cuối cùng nói ĐÚNG nguyên nhân. "Đợi quá lâu" và "OpenAI trả lỗi" là hai chuyện khác
+    nhau, và gộp cả hai vào một tên ngoại lệ thì người dùng không biết nên thử lại hay đi kiểm
+    tra mạng."""
+    cuoi = None
+    for lan in range(3):
+        try:
+            r = httpx.post(DEVICE_USERCODE_URL, json={"client_id": CLIENT_ID},
+                           headers={"Content-Type": "application/json",
+                                    "Accept": "application/json", "User-Agent": UA},
+                           timeout=30)
+            if r.status_code >= 500:
+                cuoi = RuntimeError(f"OpenAI đang lỗi phía họ ({r.status_code}). Thử lại sau ít phút.")
+            else:
+                r.raise_for_status()
+                break
+        except httpx.TimeoutException:
+            cuoi = TimeoutError("OpenAI không trả lời kịp. Mạng chậm hoặc phía họ đang quá tải, "
+                                "bấm Đăng nhập lần nữa.")
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"OpenAI từ chối yêu cầu ({e.response.status_code}): "
+                               f"{e.response.text[:200]}") from e
+        if lan < 2:
+            time.sleep(1.5 * (lan + 1))   # lùi dần, tổng cộng chờ thêm tối đa 4.5 giây
+    else:
+        raise cuoi or RuntimeError("Không xin được mã đăng nhập từ OpenAI.")
     d = r.json()
     dev = d.get("device_auth_id") or d.get("deviceAuthId")
     uc = d.get("user_code") or d.get("usercode") or d.get("userCode")

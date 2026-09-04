@@ -114,6 +114,80 @@ check("device mặc định → redirect deviceauth", grab["data"]["redirect_uri
 openai_oauth._exchange("C", "V", redirect_uri=openai_oauth.BROWSER_REDIRECT_URI)
 check("browser → redirect loopback 1455", grab["data"]["redirect_uri"] == "http://localhost:1455/auth/callback")
 
+# ============================================================
+# start_device: đầu này của OpenAI hay chậm, phải THỬ LẠI
+# ============================================================
+# Người dùng báo 04/09: "login Codex khó ghê, quay vòng vòng đợi rất lâu, hên xui lắm mới hiện
+# ra code". Bản cũ gọi ĐÚNG MỘT LẦN với hạn 20 giây, trượt một nhịp là hỏng cả lượt đăng nhập.
+# Thử lại ở đây an toàn vì mỗi lần chỉ XIN một mã thiết bị mới, chưa gắn tài khoản nào.
+import httpx        # noqa: E402
+import time as _t   # noqa: E402
+
+
+class _Rep:
+    def __init__(self, code=200, data=None):
+        self.status_code, self._d = code, data or {}
+        self.text = "loi"
+
+    def json(self):
+        return self._d
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError("loi", request=None, response=self)
+
+
+def _thu(chuoi):
+    """Chạy start_device với một chuỗi phản hồi giả. Trả (kết quả hoặc lỗi, số lần gọi)."""
+    dem = {"n": 0}
+    goc_post, goc_sleep = httpx.post, _t.sleep
+
+    def post_gia(*a, **k):
+        i = dem["n"]
+        dem["n"] += 1
+        v = chuoi[i] if i < len(chuoi) else chuoi[-1]
+        if isinstance(v, Exception):
+            raise v
+        return v
+
+    try:
+        httpx.post = post_gia
+        _t.sleep = lambda s: None      # không ngồi chờ thật trong test
+        try:
+            return start_ok(), dem["n"]
+        except Exception as e:
+            return e, dem["n"]
+    finally:
+        httpx.post, _t.sleep = goc_post, goc_sleep
+
+
+def start_ok():
+    return openai_oauth.start_device()
+
+
+TOT = _Rep(200, {"device_auth_id": "d1", "user_code": "ABCD-1234", "interval": 5})
+
+ra, n = _thu([TOT])
+check("lần đầu đã tốt thì gọi đúng một lần", n == 1 and isinstance(ra, dict))
+check("và trả về mã cho người dùng đọc", isinstance(ra, dict) and ra.get("user_code") == "ABCD-1234")
+
+ra, n = _thu([httpx.TimeoutException("qua han"), TOT])
+check("hết hạn một nhịp thì THỬ LẠI chứ không bỏ cuộc", n == 2 and isinstance(ra, dict))
+
+ra, n = _thu([_Rep(503), TOT])
+check("OpenAI lỗi 5xx cũng thử lại", n == 2 and isinstance(ra, dict))
+
+ra, n = _thu([httpx.TimeoutException("qua han")])
+check("hết hạn cả ba lần thì dừng, không thử mãi", n == 3)
+# Câu lỗi phải nói ĐÚNG nguyên nhân: "đợi quá lâu" và "OpenAI từ chối" cần hai cách xử lý khác
+# nhau, gộp thành một tên ngoại lệ thì người dùng không biết nên thử lại hay đi kiểm tra mạng.
+check("và nói rõ là bên kia không trả lời kịp",
+      isinstance(ra, Exception) and "không trả lời kịp" in str(ra))
+
+ra, n = _thu([_Rep(400)])
+check("lỗi 4xx là lỗi thật, KHÔNG thử lại vô ích", n == 1)
+check("và nói rõ OpenAI từ chối", isinstance(ra, Exception) and "từ chối" in str(ra))
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")
