@@ -213,6 +213,65 @@ check("và nó đọc được bằng chính bộ đọc",
 check("có tài liệu cách phát hành gói",
       (ROOT / "docs" / "dev" / "pack-store-index.md").is_file())
 
+# ============================================================
+# 4. Kho là MỘT kho, vào được từ tab của bốn trang năng lực
+# ============================================================
+# Người dùng không đi tìm "gói", họ đi tìm một trợ lý hay một kỹ năng. Nên lưới phải chia
+# được theo LOẠI, và bốn trang năng lực phải có đường sang đúng lát cắt của nó.
+
+check("bộ đọc giữ lại loại năng lực hợp lệ",
+      packs_store._lam_sach({"id": "a", "kind": "skill"})["kind"] == "skill")
+check("loại lạ rơi về 'bundle' chứ không bị loại khỏi kho",
+      packs_store._lam_sach({"id": "a", "kind": "khong-co-that"})["kind"] == "bundle")
+check("thiếu loại cũng ra 'bundle', không ra rỗng",
+      packs_store._lam_sach({"id": "a"})["kind"] == "bundle")
+check("năm loại năng lực đều khai được",
+      all(packs_store._lam_sach({"id": "a", "kind": k})["kind"] == k
+          for k in ("agent", "skill", "workflow", "tool", "connector")))
+
+check("lưới lọc được theo loại", "data-pkl" in src_js and "data-loai" in src_js)
+check("mỗi thẻ đeo nhãn loại của nó", "LOAI[g.kind]" in src_js)
+check("kho mở được kèm loại lọc sẵn", "function moKho(" in src_js and "moKho: moKho" in src_js)
+# Bộ lọc mở sẵn là Ý ĐỊNH CỦA MỘT LẦN BẤM. Không xoá đi thì lần sau vào kho từ thanh bên vẫn
+# thấy lưới bị cắt còn một loại, mà không có gì trên màn hình giải thích vì sao.
+check("loại lọc sẵn bị XOÁ ngay sau khi dùng, không dính lại lần sau",
+      '_loaiCho = "";' in src_js.split("const loaiDau = _loaiCho;")[-1][:200])
+
+src_con = (DASHBOARD / "console.js").read_text(encoding="utf-8")
+check("bốn trang năng lực đều có đường sang kho",
+      all(x in src_con for x in ('agents: "agent"', 'skills: "skill"',
+                                 'workflows: "workflow"', 'plugins: "tool"')))
+# Bốn bản sao của lưới kho là bốn thứ sẽ lệch nhau sau vài tháng. Tab chỉ ĐIỀU HƯỚNG.
+check("tab kho điều hướng sang kho chứ không nhúng bản sao lưới",
+      "JavisPacks.moKho(kind)" in src_con and "veKho" not in src_con)
+
+# Người vào trang này gần như luôn để TÌM thêm thứ gì đó. Xem lại thứ đã cài là việc thỉnh
+# thoảng, nên nó xuống dưới.
+check("kho nằm TRÊN phần đã cài",
+      src_js.index("◆ Kho cài đặt") < src_js.index("◆ Đã cài"))
+
+# Mục trong danh mục trỏ vào tệp NGAY TRONG REPO thì tệp đó phải có thật và đúng dấu vân tay.
+# Đây là lỗi khó thấy nhất của một kho: index đã trỏ sang bản mới mà tệp thì quên chưa đẩy,
+# và người dùng nhận một lỗi tải mà không ai ở đây biết.
+import hashlib
+
+for _g in idx.get("packs", []):
+    _u = (_g.get("download") or {}).get("url", "")
+    if _u.startswith("https://"):
+        continue
+    _p = ROOT / "system" / _u
+    check(f"tệp của '{_g.get('id')}' có thật trong repo", _p.is_file())
+    if _p.is_file():
+        _b = _p.read_bytes()
+        check(f"dấu vân tay của '{_g.get('id')}' khớp danh mục",
+              hashlib.sha256(_b).hexdigest() == (_g.get("download") or {}).get("sha256"))
+        check(f"kích thước của '{_g.get('id')}' khớp danh mục",
+              len(_b) == (_g.get("download") or {}).get("size"))
+    check(f"'{_g.get('id')}' khai loại năng lực để lọc được",
+          packs_store._lam_sach(_g)["kind"] != "bundle")
+    check(f"'{_g.get('id')}' khai lĩnh vực và tên lĩnh vực đọc được",
+          bool(_g.get("category")) and bool(_g.get("category_label")))
+
 if _fails:
     print(f"\nFAIL - test_kho_goi: {len(_fails)} lỗi: {_fails}")
     sys.exit(1)

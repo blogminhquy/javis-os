@@ -493,11 +493,11 @@ def _pack_duoc_nap(pdir: Path) -> Tuple[bool, str]:
         return True, ""                          # gói không có mã thì không có gì để gác
     if not packs.da_dong_y_ma(pid):
         return False, ("gói này chưa đi qua trình cài nên mã của nó không tự chạy - "
-                       "cài lại từ trang Gói để xác nhận")
+                       "cài lại ở Kho cài đặt để xác nhận")
     ghi = packs.digest_ma(pid)
     if ghi and ghi != thuc:
         return False, ("mã trong gói đã đổi so với lúc bạn đồng ý cài - "
-                       "cài lại từ trang Gói để xem và xác nhận lại")
+                       "cài lại ở Kho cài đặt để xem và xác nhận lại")
     return True, ""
 
 
@@ -786,11 +786,11 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
         # socket mà plugin mở ra vẫn sống sau khi người dùng bấm Tắt.
         unload(slug)
     if source == "pack":
-        # Plugin của gói KHÔNG bật/tắt riêng lẻ: nó đi theo gói, và trang Gói mới là chỗ bật
+        # Plugin của gói KHÔNG bật/tắt riêng lẻ: nó đi theo gói, và Kho cài đặt mới là chỗ bật
         # tắt. Ghi `enabled` vào manifest trong thư mục gói sẽ làm chữ ký mã lệch ngay lần nạp
         # sau, tức tự tay biến gói thành "đã đổi so với lúc đồng ý".
         return {"ok": False, "source": source,
-                "error": "Plugin này đến từ một gói. Bật hoặc tắt cả gói ở trang Gói."}
+                "error": "Plugin này đến từ một gói. Bật hoặc tắt cả gói ở Kho cài đặt."}
     if source == "bundled":
         st = _read_state()
         en = set(st.get("enabled") or [])

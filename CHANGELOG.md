@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.26] - 2026-09-04
+### Thêm mới
+- **Kho cài đặt**: trợ lý, kỹ năng, quy trình và công cụ làm sẵn, xếp theo lĩnh vực, bấm Cài là xong. Trang **Gói** cũ đổi thành trang này, và kho nằm ngay trên đầu vì đó là thứ bạn vào để tìm.
+- **Vào kho từ chính trang bạn đang đứng.** Trang Trợ lý, Kỹ năng, Quy trình và Plugin đều có thêm tab **Kho cài đặt**, mở ra là đã lọc sẵn đúng loại của trang đó. Vẫn là một kho duy nhất, chỉ khác cái chip bật sẵn.
+- **Có món đầu tiên trong kho để bạn thử**: "Tính giá bán". Nhập giá vốn, chọn biên lợi nhuận hoặc markup, cộng VAT rồi làm tròn lên số đẹp. Nó trả về **biên thực tế sau khi làm tròn**, không trả lại con số bạn vừa nhập.
+
+### Cải thiện
+- Chip lọc lĩnh vực hiện tên đọc được ("Bán hàng") thay vì mã ("ban-hang"), và lọc hết sạch thì nói ra thay vì để một khoảng trắng.
+
 ## [0.55.25] - 2026-09-04
 ### Thêm mới
 - **Gói mang được cả trợ lý, quy trình và kỹ năng**, không chỉ dịch vụ và công cụ. Cài một gói là bộ não đang mở có thêm những thứ đó, dùng ngay được.

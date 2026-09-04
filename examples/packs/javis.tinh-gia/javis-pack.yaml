@@ -1,0 +1,37 @@
+# Gói MẪU của Javis. Đây là bản tham chiếu đầy đủ nhỏ nhất của một gói mở rộng:
+# một công cụ chạy được, một kỹ năng ghi vào bộ não, không có gì khác.
+#
+# Nó cố tình KHÔNG mang connector, để cài thử không làm bẩn trang Kết nối của ai.
+format: javis-pack
+spec: 1
+
+# `id` phải TRÙNG ĐÚNG tên thư mục. Hai chỗ nói hai kiểu là Javis từ chối cài, chứ không
+# im lặng chọn một bên.
+id: javis.tinh-gia
+version: 1.0.0
+
+name:
+  vi: Tính giá bán
+  en: Pricing helper
+description:
+  vi: Tính giá bán từ giá vốn theo biên lợi nhuận mong muốn, cộng VAT rồi làm tròn lên số đẹp.
+  en: Work out a selling price from cost and target margin, add VAT, round up to a tidy number.
+
+author:
+  name: Javis
+license: MIT
+homepage: https://github.com/blogminhquy/javis-os
+
+# Dải phiên bản Javis chạy được gói này. Không khớp thì gói bị TẮT kèm lý do đọc được,
+# chứ không bị xoá: hạ cấp rồi nâng lại là chạy tiếp.
+compat:
+  app: ">=0.55.25"
+
+# Chỉ `connectors` là BẮT BUỘC khai, vì mỗi connector là một tệp phải trỏ đúng tên.
+# Plugin, kỹ năng, trợ lý, quy trình thì Javis tìm theo thư mục; khai ở đây là để người
+# đọc manifest biết gói này có gì mà không phải mở từng thư mục ra xem.
+provides:
+  plugins:
+    - plugins/tinh-gia
+  skills:
+    - skills/dat-gia-ban
