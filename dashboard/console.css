@@ -1140,3 +1140,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     padding: 6px 12px; }
   .kho-nav.ngan { margin-top: 0; padding-top: 6px; border-top: 1px solid var(--border); }
 }
+
+/* Hàng tab dẫn sang Kho cài đặt, đặt trên đầu năm trang năng lực.
+   LỚP RIÊNG chứ không dùng lại `.cat-chip`: trang Kết nối gán lại onclick cho mọi `.cat-chip`
+   trong trang để lọc danh mục, nên dùng chung lớp là handler của tab bị đè mất. */
+.tab-kho { border: 1px solid var(--border); background: transparent; color: inherit;
+  border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer;
+  opacity: .85; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tab-kho:hover { opacity: 1; }
+.tab-kho.on { border-color: var(--accent); color: var(--accent); font-weight: 600; opacity: 1;
+  background: color-mix(in srgb, var(--accent) 8%, transparent); }

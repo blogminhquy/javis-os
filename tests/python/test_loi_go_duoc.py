@@ -191,6 +191,41 @@ check("giao diện có nút gỡ và nút cài lại",
 check("và có băng báo kết nối đang dừng vì thiếu dịch vụ", "banMoCoi" in src_js)
 check("thẻ 'Tự thêm' không có nút gỡ", 'con.id === "custom" ? ""' in src_js)
 
+# Trang Kết nối tách hai tab từ 0.55.32. Nó vốn gộp "thứ đang chạy" và "thứ đấu thêm được" vào
+# một mạch cuộn, nên người đã đấu vài chục tài khoản phải cuộn hết đống đó mới tới chỗ đấu mới.
+check("trang Kết nối có hai khối tách rời",
+      'id="mcpTabDaNoi"' in src_js and 'id="mcpTabSanCo"' in src_js)
+# Ẩn chứ KHÔNG bỏ khỏi DOM: phần dây nối bên dưới tìm theo id và chạy MỘT lần cho cả hai khối.
+# Vẽ lẻ từng khối là mọi nút của khối kia mất handler mà không ai thấy cho tới lúc bấm.
+check("khối ẩn vẫn nằm trong DOM để dây nối chạy một lần cho cả hai",
+      '.hidden = v !== "danoi"' in src_js and '.hidden = v !== "sanco"' in src_js)
+# Trang tự vẽ lại sau mỗi lần đấu/ngắt/gỡ. Biến tab nằm trong renderConnect thì mỗi thao tác
+# lại quăng người dùng về tab đầu.
+check("tab đang mở sống ngoài renderConnect nên vẽ lại không mất chỗ đứng",
+      src_js.index("let _mcpTab") < src_js.index("async function renderConnect"))
+check("ô trống chỉ đúng tab cần mở, không chỉ xuống 'Kho bên dưới' nữa",
+      "mở tab <b>Kết nối sẵn có</b>" in src_js and "trong Kho bên dưới" not in src_js)
+
+# Hàng tab phải có LỚP RIÊNG. Trang này gán lại onclick cho MỌI `.cat-chip` trong trang để lọc
+# danh mục dịch vụ; dùng chung lớp là handler của tab bị đè mất sạch, và triệu chứng đánh lừa
+# hoàn toàn - viên thuốc vẫn sáng lên nên trông như tab chạy, chỉ có khối hiển thị là đứng im.
+check("hàng tab dùng lớp riêng, không đụng lớp của chip lọc danh mục",
+      'class="tab-kho' in src_js)
+_ham_tab = src_js[src_js.index("function hangTabKho"):src_js.index("function hangTabKho") + 1400]
+# Soi chỗ GÁN LỚP thật, không soi cả đoạn: chú thích trong hàm có nhắc tên `.cat-chip` để
+# giải thích vì sao tránh nó, và một canary đỏ vì đọc trúng lời giải thích thì vô dụng.
+check("và không nút nào trong hàm dựng tab mang lớp cat-chip",
+      'class="cat-chip' not in _ham_tab)
+check("lớp tab-kho có kiểu dáng riêng trong css",
+      ".tab-kho" in (DASHBOARD / "console.css").read_text(encoding="utf-8"))
+
+# `zlAgo` là tên còn sót lại của một module Zalo đã gỡ, KHÔNG hề được định nghĩa. Nó ném
+# ReferenceError giữa vòng tô chấm sức khoẻ, mà forEach không bắt lỗi, nên mọi kết nối sau cái
+# đầu tiên có `checked_at` đều không được tô - và vòng làm mới 60 giây lại ném thêm một lần.
+check("không còn gọi hàm zlAgo đã biến mất", "+ zlAgo(" not in src_js)
+check("và có hàm thay thế được định nghĩa thật",
+      "function _lucNao" in src_js and "_lucNao(rec.checked_at)" in src_js)
+
 # ============================================================
 # Connector của app hiện TRONG kho, và gỡ rồi thì phải thấy là đã gỡ
 # ============================================================

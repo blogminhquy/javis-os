@@ -423,14 +423,30 @@
   // bản sao là bốn thứ sẽ lệch nhau sau vài tháng, và người dùng thì học hai lần cùng một
   // giao diện. Một kho, một chỗ sửa - vào từ đâu cũng tới đúng nơi đó, chỉ khác cái chip đã
   // bật sẵn.
-  function hangTabKho(id) {
+  // `cucBo` = các tab đổi phần hiển thị NGAY TRONG trang, dạng [{nhan, chon, bam}]. Không
+  // truyền thì hàng tab có đúng hai mục như bốn trang năng lực kia.
+  function hangTabKho(id, cucBo) {
     const kind = LOAI_KHO[id];
     if (!kind) return null;
     const row = document.createElement("div");
     row.className = "cat-filter";
     row.style.margin = "0 0 14px";
-    row.innerHTML = `<button class="cat-chip on">${esc(TEN_CUA_BAN[id] || "Của bạn")}</button>`
-      + `<button class="cat-chip" data-mo-kho="${kind}">${ic("package")} Kho cài đặt</button>`;
+    const ds = (cucBo && cucBo.length) ? cucBo
+      : [{ nhan: TEN_CUA_BAN[id] || "Của bạn", chon: true }];
+    // Lớp RIÊNG `tab-kho`, KHÔNG dùng lại `.cat-chip`.
+    //
+    // Trang Kết nối gán lại `onclick` cho MỌI `.cat-chip` trong trang để lọc danh mục dịch vụ
+    // (`el.querySelectorAll(".cat-chip")`). Hàng tab này nằm cùng trong `el`, nên dùng chung
+    // lớp là handler của tab bị đè mất sạch: bấm tab chỉ thấy viên thuốc sáng lên rồi lưới
+    // danh mục lọc lại, còn khối hiển thị thì không đổi. Mất nửa tiếng mới lần ra, vì trông
+    // hệt như "tab hỏng" chứ không giống "ai đó cướp handler".
+    row.innerHTML = ds.map((x, i) =>
+        `<button class="tab-kho${x.chon ? " on" : ""}" data-tab-cb="${i}">${esc(x.nhan)}</button>`).join("")
+      + `<button class="tab-kho" data-mo-kho="${kind}">${ic("package")} Kho cài đặt</button>`;
+    row.querySelectorAll("[data-tab-cb]").forEach(b => b.onclick = () => {
+      const f = ds[Number(b.dataset.tabCb)];
+      if (f && f.bam) f.bam();
+    });
     const nut = row.querySelector("[data-mo-kho]");
     nut.onclick = () => {
       if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(kind);
@@ -4233,6 +4249,20 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
   }
 
   // ── Sức khoẻ kết nối (khối A): tô chấm màu chip theo /connect/health + nút Kết nối lại ──
+  // `checked_at` là giây kiểu Unix (`connect_health.py` dùng `time.time()`).
+  //
+  // Hàm này thay `zlAgo` - một cái tên còn sót lại từ module Zalo đã gỡ, KHÔNG hề được định
+  // nghĩa ở đâu. Nó ném ReferenceError ngay giữa vòng tô chấm, mà `forEach` thì không bắt lỗi,
+  // nên mọi kết nối SAU cái đầu tiên có `checked_at` đều không được tô - và vòng làm mới 60
+  // giây lại ném thêm một lần nữa. Hỏng lặng lẽ: chấm cứ xám, không ai biết vì sao.
+  function _lucNao(ts) {
+    const s = Math.max(0, Math.floor(Date.now() / 1000 - Number(ts || 0)));
+    if (s < 60) return "vừa xong";
+    if (s < 3600) return Math.floor(s / 60) + " phút trước";
+    if (s < 86400) return Math.floor(s / 3600) + " giờ trước";
+    return Math.floor(s / 86400) + " ngày trước";
+  }
+
   let _healthTimer = null;
   async function refreshConnHealth(el, conns, byId) {
     if (!document.body.contains(el)) { clearInterval(_healthTimer); _healthTimer = null; return; }
@@ -4245,7 +4275,7 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
       const rec = h[chip.dataset.conn];
       dot.classList.remove("hok", "herr", "hunk");
       if (!rec) { dot.classList.add("hunk"); chip.title = "Chưa kiểm tra - vòng check nền sẽ tự chạy"; return; }
-      const when = rec.checked_at ? " · kiểm tra " + zlAgo(rec.checked_at) : "";
+      const when = rec.checked_at ? " · kiểm tra " + _lucNao(rec.checked_at) : "";
       if (rec.ok) {
         dot.classList.add("hok");
         chip.title = "Hoạt động bình thường (" + (rec.tools || 0) + " công cụ)" + when;
@@ -4864,6 +4894,10 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
       </div>
     </div>`;
   }
+  // Tab đang mở của trang Kết nối. Để NGOÀI renderConnect vì trang tự vẽ lại sau mỗi lần
+  // đấu, ngắt hay gỡ dịch vụ - giữ trong hàm thì mỗi thao tác lại quăng người dùng về tab đầu.
+  let _mcpTab = "danoi";
+
   async function renderConnect(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     let d;
@@ -4922,24 +4956,62 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
         + '</div></details>'
       : "";
     el.innerHTML = warn + banMoCoi
+      // Hai TAB, không phải một mạch cuộn. Trang này gộp hai danh sách rất khác nhau:
+      // thứ đang chạy, và thứ có thể đấu thêm. Gộp lại thì người đã đấu vài chục tài
+      // khoản phải cuộn qua hết đống đó mới tới chỗ đấu cái mới.
+      //
+      // Cả hai khối đều NẰM TRONG DOM, chỉ ẩn đi - phần dây nối bên dưới tìm theo id và
+      // chạy một lần cho cả hai, nên đổi tab không phải vẽ lại hay nối lại gì cả.
+      + '<div id="mcpTabDaNoi"' + (_mcpTab === "danoi" ? "" : " hidden") + '>'
       + '<div class="cview-section"><h3>◆ Đã kết nối <span style="opacity:.5">' + conns.length + ' tài khoản</span></h3>'
       + '<div class="gcard-meta" style="max-width:740px">Một dịch vụ nối được NHIỀU tài khoản (nhiều shop, nhiều số Zalo…). Mọi bộ não - Claude Code, ChatGPT/Codex, OpenRouter, API - dùng chung kho này qua trung tâm kết nối của Javis, kèm phân quyền và nhật ký.'
       + '<label style="margin-left:8px;cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> Chỉ dùng kết nối của Javis (bỏ kết nối sẵn của máy)</label></div>'
-      + '<div class="prov-list" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">Chưa đấu nguồn nào - chọn một dịch vụ trong Kho bên dưới để bắt đầu.</div>') + '</div></div>'
-      + '<div class="cview-section"><h3>◆ Kho kết nối</h3>'
+      + '<div class="prov-list" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">Chưa đấu nguồn nào - mở tab <b>Kết nối sẵn có</b> để bắt đầu.</div>') + '</div></div>'
+      // Lối đi tiếp, đặt ngay dưới danh sách. Không có nó thì tab này là ngõ cụt với
+      // người chưa đấu gì: họ nhìn một ô trống mà không biết bước kế tiếp ở đâu.
+      + '<div class="conn-guide" style="border:1px dashed var(--border);border-radius:12px;'
+      + 'padding:14px 16px;margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px">'
+      + '<span style="flex:1;min-width:240px">Muốn nối thêm dịch vụ? Chọn từ những dịch vụ '
+      + 'Javis có sẵn, hoặc tải thêm từ kho.</span>'
+      + '<button class="mp-btn" id="mcpDiSanCo">Kết nối sẵn có</button>'
+      + '<button class="mp-btn primary" id="mcpDiKho">Kho cài đặt</button></div>'
+      + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ Kết nối sẵn của Claude Code và Codex <span style="opacity:.5">chỉ hiển thị - bấm để xem</span></h3></summary>'
+      + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Bộ não tương ứng tự dùng được các nguồn "Connected". Đăng nhập và quản lý trong app Claude hoặc bằng lệnh <code>codex mcp</code>, không sửa ở đây.</div>'
+      + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">Bấm để tải…</div></div>'
+      + '<div class="prov-list" id="mcpAmbientCodex" style="margin-top:12px"></div></details>'
+      + '</div>'
+      + '<div id="mcpTabSanCo"' + (_mcpTab === "sanco" ? "" : " hidden") + '>'
+      + '<div class="cview-section"><h3>◆ Kết nối sẵn có</h3>'
       + '<div class="cat-tools"><input class="js-input" id="catQ" placeholder="Tìm dịch vụ…" style="max-width:220px">'
       + '<span class="cat-filter"><button class="cat-chip on" data-catf="">Tất cả</button>' + cats.map(x => '<button class="cat-chip" data-catf="' + esc(x) + '">' + esc(x) + '</button>').join("") + '</span></div>'
       + '<div class="cat-grid" id="catGrid">' + catalogCard(byId.custom) + groupCards(cat, conns) + catSolo(cat).map(catalogCard).join("") + '</div></div>'
       // Hai khu kết nối sẵn của CLI: GẬP mặc định (dân thường không cần thấy) + LAZY:
       // chỉ gọi /mcp/ambient (chậm - phải health check) khi người dùng thật sự mở ra.
-      + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ Kết nối sẵn của Claude Code và Codex <span style="opacity:.5">chỉ hiển thị - bấm để xem</span></h3></summary>'
-      + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Bộ não tương ứng tự dùng được các nguồn "Connected". Đăng nhập và quản lý trong app Claude hoặc bằng lệnh <code>codex mcp</code>, không sửa ở đây.</div>'
-      + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">Bấm để tải…</div></div>'
-      + '<div class="prov-list" id="mcpAmbientCodex" style="margin-top:12px"></div></details>';
-    // Trang này đã có "Kho kết nối" của riêng nó - đó là danh mục dịch vụ ship theo app. Tab
-    // này dẫn sang chỗ khác hẳn: kho CÀI THÊM, nơi có cả connector không nằm trong bản app.
-    const tabKho = hangTabKho("mcp");
+      + '</div>';
+    // Ba tab. Hai tab đầu chỉ đổi khối hiển thị trong trang; tab thứ ba ĐIỀU HƯỚNG sang kho
+    // cài đặt - nơi có cả connector không nằm trong bản app.
+    const doiTab = (v) => {
+      _mcpTab = v;
+      const a = document.getElementById("mcpTabDaNoi");
+      const b = document.getElementById("mcpTabSanCo");
+      if (a) a.hidden = v !== "danoi";
+      if (b) b.hidden = v !== "sanco";
+      el.querySelectorAll("[data-tab-cb]").forEach((x, i) =>
+        x.classList.toggle("on", i === (v === "danoi" ? 0 : 1)));
+      // Đổi tab xong mà vẫn đang ở giữa trang cũ thì người dùng tưởng không có gì xảy ra.
+      try { el.scrollTop = 0; } catch (e) {}
+    };
+    const tabKho = hangTabKho("mcp", [
+      { nhan: "Đã kết nối", chon: _mcpTab === "danoi", bam: () => doiTab("danoi") },
+      { nhan: "Kết nối sẵn có", chon: _mcpTab === "sanco", bam: () => doiTab("sanco") },
+    ]);
     if (tabKho) el.insertBefore(tabKho, el.firstChild);
+    const nutSanCo = document.getElementById("mcpDiSanCo");
+    if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
+    const nutKho = document.getElementById("mcpDiKho");
+    if (nutKho) nutKho.onclick = () => {
+      if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho("connector");
+    };
     document.getElementById("mcpStrict").onchange = (e) => postJson("/mcp/strict", { strict: e.target.checked });
     // Gỡ / cài lại một dịch vụ có sẵn. Gỡ mà đang có kết nối theo nó thì server trả 409 kèm
     // danh sách, và hỏi lại một câu trước khi làm - kết nối là dữ liệu của người dùng.
