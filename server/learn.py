@@ -77,6 +77,18 @@ def _yaml_scalar(value: str) -> str:
     return json.dumps("" if value is None else str(value), ensure_ascii=False)
 
 
+# Nhóm mặc định khi fork không nêu `group` (giống trang Studio và Javis/index.md - MỘT tên
+# nhóm mặc định cho cả skill, agent lẫn workflow, để ba chỗ không hiểu khác nhau).
+NHOM_MAC_DINH = "Chung"
+
+
+def _nhom(item: dict) -> str:
+    """Nhóm của một agent/workflow do fork đề xuất. Fork bịa cả đoạn văn vào đây được, nên
+    cắt ngắn; rỗng thì về nhóm mặc định. safe_dump lo phần escape."""
+    g = str((item or {}).get("group") or "").strip().replace("\n", " ")
+    return g[:60] or NHOM_MAC_DINH
+
+
 def _skill_frontmatter(name: str, desc: str, group: str, today: str) -> str:
     """Frontmatter cho skill TỰ HỌC. Tách hàm riêng để test được hành vi thật.
 
@@ -713,14 +725,14 @@ class LearnFeature:
         if caps.get("agent"):
             schema_bits.append(
                 '"agents":[{"op":"create|update","slug":"kebab-ascii","name":"Tên tiếng Việt",'
-                '"role":"vai trò 1 câu","skills":["slug-skill-đã-có-hoặc-rỗng"],'
+                '"role":"vai trò 1 câu","group":"tên nhóm","skills":["slug-skill-đã-có-hoặc-rỗng"],'
                 '"body":"system prompt theo KHUNG METAPROMPT bên dưới",'
                 '"reason":"BẮT BUỘC khi op=update: sửa gì và vì sao, dẫn từ hội thoại",'
                 '"confidence":0..3}]')
         if caps.get("workflow"):
             schema_bits.append(
                 '"workflows":[{"op":"create|update","slug":"kebab-ascii","name":"Tên tiếng Việt",'
-                '"description":"mô tả ngắn",'
+                '"description":"mô tả ngắn","group":"tên nhóm",'
                 '"steps":[{"agent":"slug-agent","task":"việc của bước; {{input}}=đầu vào, {{prev}}=kết quả bước trước"}],'
                 '"reason":"BẮT BUỘC khi op=update: sửa gì và vì sao, dẫn từ hội thoại",'
                 '"confidence":0..3}]')
@@ -1053,8 +1065,7 @@ class LearnFeature:
                         continue
                     d = sk_root / slug   # vị trí BẬT (canonical) → mirror sang .claude ở lượt sysprompt kế
                     d.mkdir(parents=True, exist_ok=True)
-                    fm = _skill_frontmatter(s.get("name", slug), desc,
-                                            s.get("group") or "Chung", today)
+                    fm = _skill_frontmatter(s.get("name", slug), desc, _nhom(s), today)
                     self.deps.atomic_write_text(d / "SKILL.md", fm + body + "\n")
                     written_paths.append(str((d / 'SKILL.md').relative_to(root)).replace("\\", "/"))
                     rep["skills"].append(slug)
@@ -1115,7 +1126,7 @@ class LearnFeature:
                                                   today, old_body=old_body)
                     else:
                         fm_data = {"type": "agent", "name": a.get("name") or slug, "slug": slug,
-                                   "role": role, "skills": sk_ok, "model": "",
+                                   "role": role, "group": _nhom(a), "skills": sk_ok, "model": "",
                                    "origin": "javis-learned", "updated": today}
                         new_body = body
                     fp = old_fp if (upd and old_fp) else (ag_dir / f"{slug}.md")
@@ -1193,7 +1204,8 @@ class LearnFeature:
                     else:
                         fm_data = {"type": "workflow", "name": w.get("name") or slug, "slug": slug,
                                    "status": "off", "description": w.get("description") or "",
-                                   "steps": steps, "origin": "javis-learned", "updated": today}
+                                   "group": _nhom(w), "steps": steps,
+                                   "origin": "javis-learned", "updated": today}
                         new_body = (w.get("description") or "").strip()
                     fp = old_fp if (upd and old_fp) else (wf_dir / f"{slug}.md")
                     self.deps.atomic_write_text(fp, f"---\n{dump_fm(fm_data)}\n---\n\n{new_body}\n")

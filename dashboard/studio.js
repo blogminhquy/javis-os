@@ -81,6 +81,72 @@
 
   const refreshStats = () => { if (window.loadBrainStats) window.loadBrainStats(); };
 
+  // ===== Khung NHÓM: cột nhóm bên trái + ô tìm - DÙNG CHUNG cho Workflows / Agents / Skills =====
+  // Trang Skills có cột nhóm từ lâu, còn Agents và Workflows thì không: brain dùng vài tháng là
+  // hai danh sách phẳng vài chục dòng, phải dò bằng mắt. Ở đây gom thành MỘT khung cho cả ba
+  // trang - cùng field `group` trong frontmatter, cùng nhóm mặc định, cùng cách lọc, cùng cách
+  // xếp trên điện thoại. Chép tay thành ba bản là ba bản trôi lệch nhau ngay lần sửa đầu tiên.
+  const NHOM_MD = "Chung";                     // nhóm mặc định khi file chưa khai `group`
+  const nhomCua = (x) => (x && String(x.group || "").trim()) || NHOM_MD;
+
+  // Bỏ dấu để gõ "viet email" vẫn ra "Viết email".
+  function _spNoAccent(s) {
+    s = String(s == null ? "" : s);
+    try { s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
+    return s.replace(/[đĐ]/g, "d").toLowerCase();
+  }
+
+  function demNhom(items) {
+    const m = {};
+    (items || []).forEach(x => { const g = nhomCua(x); m[g] = (m[g] || 0) + 1; });
+    return m;
+  }
+
+  // HTML của khung: cột nhóm + ô tìm + một chỗ trống (id=bodyId) để mỗi trang tự vẽ danh sách
+  // theo kiểu riêng của nó (thẻ agent, hàng workflow, thẻ skill).
+  function khungNhomHtml(items, state, o) {
+    const dem = demNhom(items);
+    const cats = ["ALL"].concat(Object.keys(dem).sort((a, b) => a.localeCompare(b, LOC())));
+    const catHtml = cats.map(c => `<div class="gr-cat ${state.cat === c ? "sel" : ""}" data-cat="${esc(c)}"><span>${c === "ALL" ? esc(t("studio.all")) : esc(c)}</span><span class="n">${c === "ALL" ? items.length : dem[c]}</span></div>`).join("");
+    return `<div class="gr">
+      <div class="gr-side"><div class="sec">${esc(t("studio.groups"))}</div>${catHtml}</div>
+      <div class="gr-main">
+        <div class="gr-bar"><h4>${state.cat === "ALL" ? esc(t("studio.all")) : esc(state.cat)}</h4><span class="cnt"></span>
+          <input id="${o.searchId}" placeholder="${esc(o.searchPh)}" value="${esc(state.q)}"></div>
+        <div class="${o.bodyCls || ""}" id="${o.bodyId}"></div>
+      </div></div>`;
+  }
+
+  // Lọc theo nhóm đang chọn + ô tìm. `blob` trả chuỗi dùng để dò của một mục.
+  function locTheoNhom(items, state, blob) {
+    let list = items || [];
+    if (state.cat !== "ALL") list = list.filter(x => nhomCua(x) === state.cat);
+    const nq = _spNoAccent((state.q || "").trim());
+    if (nq) list = list.filter(x => _spNoAccent(blob(x)).includes(nq));
+    return list;
+  }
+
+  // Bấm nhóm thì vẽ lại CẢ trang (cột nhóm và tiêu đề đổi theo); gõ tìm thì chỉ vẽ lại danh
+  // sách, để con trỏ không bị nhảy ra khỏi ô tìm giữa lúc đang gõ.
+  function ganKhungNhom(panel, state, o) {
+    panel.querySelectorAll(".gr-side .gr-cat").forEach(c => {
+      c.onclick = () => { state.cat = c.dataset.cat; o.veLai(); };
+    });
+    const s = panel.querySelector("#" + o.searchId);
+    if (s) s.oninput = () => { state.q = s.value; o.veDanhSach(); };
+  }
+
+  function datSoLuong(panel, chu) {
+    const el = panel.querySelector(".gr-bar .cnt");
+    if (el) el.textContent = chu;
+  }
+
+  // Gợi ý nhóm ĐANG CÓ cho ô nhập trong form, để khỏi đẻ "Marketing" và "marketing" song song.
+  function nhomDatalist(items, id) {
+    const gs = [...new Set((items || []).map(nhomCua))].sort((a, b) => a.localeCompare(b, LOC()));
+    return `<datalist id="${id}">${gs.map(g => `<option value="${esc(g)}">`).join("")}</datalist>`;
+  }
+
   function switchTab(tab) {
     document.querySelectorAll(".stab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
     ["workflows", "agents", "skills"].forEach(t => document.getElementById("panel-" + t).hidden = (t !== tab));
@@ -104,20 +170,47 @@
     }).join('');
   }
 
+  const _wfState = { cat: "ALL", q: "", wfs: [] };
+
   async function loadWorkflows() {
+    _injectStudioCss();
     const panel = document.getElementById("panel-workflows");
-    panel.innerHTML = `<div class="panel-bar"><h3>Workflows</h3><div class="pb-actions"><button class="s-btn-ghost" id="wfSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="wfDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="wfImport">${esc(t("studio.import"))}</button><button class="s-btn-ghost" id="seedBtn">${esc(t("studio.seed"))}</button><button class="s-btn" id="newWf">+ Workflow</button></div></div><div class="wf-list" id="wfCards">${esc(t("common.loading"))}</div>`;
+    panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    const d = await api(`/workflows?brain=${encodeURIComponent(brain())}`);
+    _wfState.wfs = d.workflows || [];
+    _sel.workflow.clear();   // nạp lại trang là làm mới lựa chọn (danh sách có thể đã đổi)
+    refreshStats();
+    renderWorkflowUI();
+  }
+
+  const _wfFiltered = () => locTheoNhom(_wfState.wfs, _wfState,
+    (w) => `${w.name} ${w.slug} ${w.description || ""}`);
+
+  function renderWorkflowUI() {
+    const panel = document.getElementById("panel-workflows");
+    const all = _wfState.wfs;
+    panel.innerHTML = `<div class="panel-bar"><h3>Workflows</h3><div class="pb-actions"><button class="s-btn-ghost" id="wfSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="wfDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="wfImport">${esc(t("studio.import"))}</button><button class="s-btn-ghost" id="seedBtn">${esc(t("studio.seed"))}</button><button class="s-btn" id="newWf">+ Workflow</button></div></div>
+      ${all.length ? khungNhomHtml(all, _wfState, { bodyId: "wfCards", bodyCls: "wf-list",
+                                                    searchId: "wfSearch", searchPh: t("studio.wf_search_ph") })
+      : `<div class="empty">${esc(t("studio.wf_empty"))}</div>`}`;
     document.getElementById("newWf").onclick = () => editWorkflow(null);
     document.getElementById("wfImport").onclick = () => importItems(loadWorkflows);
     document.getElementById("seedBtn").onclick = async () => { await api("/studio/seed", { method: "POST", body: fd({ brain: brain() }) }); loadWorkflows(); };
     document.getElementById("wfDl").onclick = () => taiDaChon("workflow");
-    const d = await api(`/workflows?brain=${encodeURIComponent(brain())}`);
-    const wfs = d.workflows || [];
-    _sel.workflow.clear();   // nạp lại trang là làm mới lựa chọn (danh sách có thể đã đổi)
-    document.getElementById("wfSelAll").onclick = () => chonTatCa("workflow", "wfDl", "wf-sel", wfs.map(w => w.slug));
-    refreshStats();
-    const cards = document.getElementById("wfCards");
-    if (!wfs.length) { cards.innerHTML = `<div class="empty">${esc(t("studio.wf_empty"))}</div>`; return; }
+    // Chọn tất cả = danh sách ĐANG HIỆN (đúng nhóm + đúng ô tìm), giống trang Skills.
+    document.getElementById("wfSelAll").onclick = () =>
+      chonTatCa("workflow", "wfDl", "wf-sel", _wfFiltered().map(w => w.slug));
+    capNhatNutTai("workflow", "wfDl");
+    if (!all.length) return;
+    ganKhungNhom(panel, _wfState, { searchId: "wfSearch", veLai: renderWorkflowUI, veDanhSach: renderWorkflowList });
+    renderWorkflowList();
+  }
+
+  function renderWorkflowList() {
+    const cards = document.getElementById("wfCards"); if (!cards) return;
+    const wfs = _wfFiltered();
+    datSoLuong(document.getElementById("panel-workflows"), wfs.length + " workflow");
+    if (!wfs.length) { cards.innerHTML = `<div class="empty">${esc(t("studio.wf_no_match"))}</div>`; return; }
     cards.innerHTML = "";
     wfs.forEach(w => {
       const active = w.status === "active";
@@ -129,6 +222,7 @@
           <input type="checkbox" class="wf-sel" data-slug="${esc(w.slug)}" title="${esc(t("studio.sel_one"))}">
           <div class="wf-name">${esc(w.name)}</div>
           <span class="wf-badge ${active ? "ready" : "off"}">${esc(active ? t("studio.ready") : t("studio.archived"))}</span>
+          <span class="wf-group">${ic("folder-open")} ${esc(nhomCua(w))}</span>
           <span class="wf-count">${(w.steps || []).length} ${esc(t("studio.steps"))}</span>
           <div class="wf-spacer"></div>
           <div class="wf-actions">
@@ -296,6 +390,12 @@
     // chỉ có 1 bước nên mở sẵn. Các ô input VẪN nằm trong DOM khi gập (chỉ ẩn bằng CSS) -
     // captureSteps() đọc value của chúng, render kiểu chỉ-vẽ-bước-đang-mở sẽ làm nó vỡ.
     let openIdx = w ? null : 0;
+    // Tên/mô tả/nhóm giữ trong BIẾN, không đọc lại từ `w` mỗi lần vẽ: render() chạy lại mỗi
+    // khi thêm/xoá/đảo bước, nên lấy giá trị từ `w` là chữ vừa gõ ở ba ô này bị vẽ đè về giá
+    // trị cũ, im lặng - đúng cái bẫy mà captureSteps() đang giữ cho phần các bước.
+    let ten = w ? (w.name || "") : "";
+    let mota = w ? (w.description || "") : "";
+    let nhom = w ? nhomCua(w) : NHOM_MD;
     function move(i, d) {
       const j = i + d;
       if (j < 0 || j >= steps.length) return;
@@ -307,8 +407,11 @@
     function render() {
       box.innerHTML = `
         <h3>${esc(w ? t("studio.edit") : t("studio.create"))} Workflow</h3>
-        <label>${esc(t("studio.name"))}</label><input id="wfName" value="${esc(w ? w.name : "")}">
-        <label>${esc(t("studio.desc"))}</label><input id="wfDesc" value="${esc(w ? w.description : "")}">
+        <label>${esc(t("studio.name"))}</label><input id="wfName" value="${esc(ten)}">
+        <label>${esc(t("studio.desc"))}</label><input id="wfDesc" value="${esc(mota)}">
+        <label>${esc(t("studio.groups"))}</label>
+        <input id="wfGroup" list="wfGroupList" value="${esc(nhom)}" placeholder="${esc(t("studio.group_ph"))}">
+        ${nhomDatalist(_wfState.wfs, "wfGroupList")}
         <label>${esc(t("studio.steps_label"))}</label>
         <div id="stepList"></div>
         <button class="s-btn-ghost" id="addStep">${esc(t("studio.add_step"))}</button>
@@ -355,13 +458,19 @@
       box.querySelector("#addStep").onclick = () => { captureSteps(); steps.push({ agent: agentsCache[0].slug, task: "" }); openIdx = steps.length - 1; render(); };
       box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
       box.querySelector("#saveWf").onclick = async () => {
-        const name = box.querySelector("#wfName").value.trim(); if (!name) return alert(t("studio.need_name"));
         captureSteps();
-        await api("/workflows", { method: "POST", body: fd({ name, description: box.querySelector("#wfDesc").value, steps: JSON.stringify(steps), status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
+        if (!ten.trim()) return alert(t("studio.need_name"));
+        await api("/workflows", { method: "POST", body: fd({ name: ten.trim(), description: mota,
+          group: nhom.trim() || NHOM_MD, steps: JSON.stringify(steps),
+          status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
         editor.classList.remove("open"); loadWorkflows();
       };
     }
     function captureSteps() {
+      const oNe = box.querySelector("#wfName"), oMo = box.querySelector("#wfDesc"), oNh = box.querySelector("#wfGroup");
+      if (oNe) ten = oNe.value;
+      if (oMo) mota = oMo.value;
+      if (oNh) nhom = oNh.value;
       box.querySelectorAll(".step-row").forEach((r, i) => {
         const va = r.querySelector(".st-verify-agent").value;
         steps[i] = { agent: r.querySelector(".st-agent").value, task: r.querySelector(".st-task").value };
@@ -372,23 +481,49 @@
   }
 
   // ===== Agents =====
+  const _agState = { cat: "ALL", q: "", agents: [] };
+
   async function loadAgents() {
+    _injectStudioCss();
     const panel = document.getElementById("panel-agents");
-    panel.innerHTML = `<div class="panel-bar"><h3>Agents</h3><div class="pb-actions"><button class="s-btn-ghost" id="agSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="agDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="agImport">${esc(t("studio.import"))}</button><button class="s-btn" id="newAgent">+ Agent</button></div></div><div class="cards" id="agCards">${esc(t("common.loading"))}</div>`;
+    panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+    const d = await api(`/agents?brain=${encodeURIComponent(brain())}`);
+    _agState.agents = d.agents || [];
+    _sel.agent.clear();   // nạp lại trang là làm mới lựa chọn
+    refreshStats();
+    renderAgentUI();
+  }
+
+  const _agFiltered = () => locTheoNhom(_agState.agents, _agState,
+    (a) => `${a.name} ${a.slug} ${a.role || ""}`);
+
+  function renderAgentUI() {
+    const panel = document.getElementById("panel-agents");
+    const all = _agState.agents;
+    panel.innerHTML = `<div class="panel-bar"><h3>Agents</h3><div class="pb-actions"><button class="s-btn-ghost" id="agSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="agDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="agImport">${esc(t("studio.import"))}</button><button class="s-btn" id="newAgent">+ Agent</button></div></div>
+      ${all.length ? khungNhomHtml(all, _agState, { bodyId: "agCards", bodyCls: "cards",
+                                                    searchId: "agSearch", searchPh: t("studio.ag_search_ph") })
+      : `<div class="empty">${esc(t("studio.ag_empty"))}</div>`}`;
     document.getElementById("newAgent").onclick = () => editAgent(null);
     document.getElementById("agImport").onclick = () => importItems(loadAgents);
     document.getElementById("agDl").onclick = () => taiDaChon("agent");
-    const d = await api(`/agents?brain=${encodeURIComponent(brain())}`);
-    _sel.agent.clear();
     document.getElementById("agSelAll").onclick = () =>
-      chonTatCa("agent", "agDl", "ag-sel", (d.agents || []).map(a => a.slug));
-    refreshStats();
-    const cards = document.getElementById("agCards");
-    if (!(d.agents || []).length) { cards.innerHTML = `<div class="empty">${esc(t("studio.ag_empty"))}</div>`; return; }
+      chonTatCa("agent", "agDl", "ag-sel", _agFiltered().map(a => a.slug));
+    capNhatNutTai("agent", "agDl");
+    if (!all.length) return;
+    ganKhungNhom(panel, _agState, { searchId: "agSearch", veLai: renderAgentUI, veDanhSach: renderAgentList });
+    renderAgentList();
+  }
+
+  function renderAgentList() {
+    const cards = document.getElementById("agCards"); if (!cards) return;
+    const list = _agFiltered();
+    datSoLuong(document.getElementById("panel-agents"), list.length + " agent");
+    if (!list.length) { cards.innerHTML = `<div class="empty">${esc(t("studio.ag_no_match"))}</div>`; return; }
     cards.innerHTML = "";
-    d.agents.forEach(a => {
+    list.forEach(a => {
       const div = document.createElement("div"); div.className = "ag-card";
-      div.innerHTML = `<div class="ag-name"><input type="checkbox" class="ag-sel" data-slug="${esc(a.slug)}" title="${esc(t("studio.sel_one"))}"> ${ic("bot")} ${esc(a.name)} <span class="ag-model">${esc(a.model || "")}</span></div><div class="ag-role">${esc(a.role)}</div><div class="ag-skills">${(a.skills || []).map(s => `<span class="chip-skill">${esc(s)}</span>`).join("") || `<span class="dim">${esc(t("studio.no_skills"))}</span>`}</div><div class="wf-actions"><button class="s-btn-ghost edit">${esc(t("common.edit"))}</button><button class="s-btn-ghost exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="s-btn-ghost del">${esc(t("common.delete"))}</button></div>`;
+      div.innerHTML = `<div class="ag-name"><input type="checkbox" class="ag-sel" data-slug="${esc(a.slug)}" title="${esc(t("studio.sel_one"))}"> ${ic("bot")} ${esc(a.name)} <span class="ag-model">${esc(a.model || "")}</span></div><div class="ag-role">${esc(a.role)}</div><div class="ag-skills">${(a.skills || []).map(s => `<span class="chip-skill">${esc(s)}</span>`).join("") || `<span class="dim">${esc(t("studio.no_skills"))}</span>`}</div><div class="ag-group">${ic("folder-open")} ${esc(nhomCua(a))}</div><div class="wf-actions"><button class="s-btn-ghost edit">${esc(t("common.edit"))}</button><button class="s-btn-ghost exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="s-btn-ghost del">${esc(t("common.delete"))}</button></div>`;
       noiSel("agent", "agDl", div.querySelector(".ag-sel"), a.slug);
       div.querySelector(".exp").onclick = () => exportItem("agent", a.slug);
       div.querySelector(".edit").onclick = () => editAgent(a);
@@ -434,6 +569,9 @@
     box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
+      <label>${esc(t("studio.groups"))}</label>
+      <input id="agGroup" list="agGroupList" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
+      ${nhomDatalist(_agState.agents, "agGroupList")}
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -474,7 +612,10 @@
       const cut = raw.indexOf(MODEL_SEP);
       const mProv = cut === -1 ? "" : raw.slice(0, cut);
       const mName = cut === -1 ? raw : raw.slice(cut + MODEL_SEP.length);
-      await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value, prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv, slug: a ? a.slug : "", brain: brain() }) });
+      await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
+        group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
+        prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
+        slug: a ? a.slug : "", brain: brain() }) });
       editor.classList.remove("open"); loadAgents();
     };
     editor.classList.add("open");
@@ -484,12 +625,6 @@
   // Brain thật đang có 55+ skill, nên danh sách checkbox phẳng là dò bằng mắt qua cả trang.
   // Ở đây: ô tìm + gom nhóm theo field `group` sẵn có của skill (đúng nhóm mà trang Skills
   // dùng, không đẻ cách phân loại thứ hai), mỗi nhóm sổ ra thu vào được.
-  function _spNoAccent(s) {
-    s = String(s == null ? "" : s);
-    try { s = s.normalize("NFD").replace(/[̀-ͯ]/g, ""); } catch (e) {}
-    return s.replace(/[đĐ]/g, "d").toLowerCase();
-  }
-
   function renderSkillPick(box, skills, chosen) {
     const host = box.querySelector("#skillPick");
     if (!host) return;
@@ -554,20 +689,27 @@
 
   // ===== Skills (cột nhóm + tìm kiếm + bật/tắt) =====
   const _skState = { cat: "ALL", q: "", skills: [] };
-  function _injectSkillCss() {
+
+  // CSS tiêm một lần cho CẢ BA trang Studio: phần `.gr*` là khung nhóm dùng chung (cột nhóm +
+  // ô tìm), phần `.sk2*`/`.ag-group`/`.wf-group` là thẻ riêng của từng trang.
+  function _injectStudioCss() {
     if (window._skCss) return; window._skCss = true;
     const css = `
-    .sk2{display:flex;gap:16px;align-items:flex-start}
+    .gr{display:flex;gap:16px;align-items:flex-start}
+    .gr-side{width:210px;flex:none;border:1px solid var(--hairline);border-radius:10px;padding:8px;max-height:72vh;overflow:auto}
+    .gr-side .sec{font-size:12px;letter-spacing:.08em;color:var(--text3);padding:8px 10px 4px;text-transform:uppercase}
+    .gr-cat{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:15px;color:var(--text)}
+    .gr-cat:hover{background:rgba(120,180,255,.08)} .gr-cat.sel{background:var(--info-wash);color:var(--info-ink)}
+    .gr-cat .n{color:var(--text3);font-size:13px;flex:none}
+    .gr-main{flex:1;min-width:0}
+    .gr-bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+    .gr-bar h4{margin:0;font-size:17px;color:var(--text)} .gr-bar .cnt{color:var(--text3);font-size:14px}
+    .gr-bar input{flex:1;min-width:160px;max-width:340px;padding:7px 11px;border-radius:8px;border:1px solid var(--hairline);background:var(--field-bg);color:var(--text);font-size:15px;outline:none}
+    /* Nhãn nhóm trên thẻ agent và hàng workflow: nhìn thẻ là biết nó thuộc nhóm nào, khỏi phải
+       mở form ra xem. Cùng biểu tượng thư mục với dòng nhóm ở thẻ skill. */
+    .ag-group{color:var(--text3);font-size:13px;margin-top:7px;display:flex;align-items:center;gap:5px}
+    .wf-group{color:var(--text3);font-size:13px;display:inline-flex;align-items:center;gap:4px;flex:none}
     .sk2-selwrap{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text3);cursor:pointer;white-space:nowrap}
-    .sk2-side{width:210px;flex:none;border:1px solid var(--hairline);border-radius:10px;padding:8px;max-height:72vh;overflow:auto}
-    .sk2-side .sec{font-size:12px;letter-spacing:.08em;color:var(--text3);padding:8px 10px 4px;text-transform:uppercase}
-    .sk2-side .cat{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:15px;color:var(--text)}
-    .sk2-side .cat:hover{background:rgba(120,180,255,.08)} .sk2-side .cat.sel{background:var(--info-wash);color:var(--info-ink)}
-    .sk2-side .cat .n{color:var(--text3);font-size:13px;flex:none}
-    .sk2-main{flex:1;min-width:0}
-    .sk2-bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-    .sk2-bar h4{margin:0;font-size:17px;color:var(--text)} .sk2-bar .cnt{color:var(--text3);font-size:14px}
-    .sk2-bar input{flex:1;min-width:160px;max-width:340px;padding:7px 11px;border-radius:8px;border:1px solid var(--hairline);background:var(--field-bg);color:var(--text);font-size:15px;outline:none}
     .sk2-list{display:flex;flex-direction:column;gap:8px}
     .sk2-card{display:flex;gap:12px;align-items:flex-start;padding:11px 13px;border:1px solid var(--hairline);border-radius:10px}
     .sk2-card:hover{border-color:var(--info-line);background:var(--info-wash)}
@@ -582,20 +724,20 @@
     .sk-usage{font-size:11px;color:var(--text3);margin-left:8px}
     .sk-stale{opacity:.75;font-style:italic;cursor:help}
     /* ===== Mobile (<=860px) ===== xep DOC: nhom thanh dai chip cuon ngang o tren, danh sach
-       skill full-width ben duoi (truoc day cot nhom 210px bop cot skill con ~150px -> chu vo
-       tung tu). Nut thao tac luon hien (truoc day opacity:0 + chi hien khi :hover -> tren dien
+       full-width ben duoi (truoc day cot nhom 210px bop cot con lai con ~150px -> chu vo tung
+       tu). Nut thao tac luon hien (truoc day opacity:0 + chi hien khi :hover -> tren dien
        thoai khong co hover nen Sua/Xuat/Xoa khong bao gio bam duoc). */
     @media (max-width:860px){
-      .sk2{flex-direction:column;gap:12px}
-      .sk2-side{width:auto;max-height:none;display:flex;flex-direction:row;gap:6px;padding:6px;
+      .gr{flex-direction:column;gap:12px}
+      .gr-side{width:auto;max-height:none;display:flex;flex-direction:row;gap:6px;padding:6px;
         overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-      .sk2-side::-webkit-scrollbar{height:0}
-      .sk2-side .sec{display:none}
-      .sk2-side .cat{flex:none;padding:8px 13px;border:1px solid var(--hairline);
+      .gr-side::-webkit-scrollbar{height:0}
+      .gr-side .sec{display:none}
+      .gr-cat{flex:none;padding:8px 13px;border:1px solid var(--hairline);
         border-radius:999px;white-space:nowrap}
-      .sk2-side .cat .n{padding:1px 6px;border-radius:9px;background:var(--surface-3)}
-      .sk2-side .cat.sel{border-color:var(--info-line)}
-      .sk2-bar input{max-width:none;font-size:16px}   /* 16px: chan iOS tu zoom khi focus */
+      .gr-cat .n{padding:1px 6px;border-radius:9px;background:var(--surface-3)}
+      .gr-cat.sel{border-color:var(--info-line)}
+      .gr-bar input{max-width:none;font-size:16px}   /* 16px: chan iOS tu zoom khi focus */
       .sk2-tog{width:20px;height:20px;margin-top:2px}  /* vung cham lon hon */
       .sk2-card{flex-wrap:wrap;padding:12px 13px}
       .sk2-info .nm{font-size:16px}
@@ -607,7 +749,7 @@
   }
 
   async function loadSkills() {
-    _injectSkillCss();
+    _injectStudioCss();
     const panel = document.getElementById("panel-skills");
     panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
     let d; try { d = await api(`/skills?brain=${encodeURIComponent(brain())}`); } catch (e) { panel.innerHTML = `<div class="empty">${esc(t("studio.sk_load_err"))}</div>`; return; }
@@ -617,32 +759,18 @@
     renderSkillUI();
   }
 
-  function _skFiltered() {
-    const q = _skState.q.toLowerCase();
-    let list = _skState.skills;
-    if (_skState.cat !== "ALL") list = list.filter(s => (s.group || "Chung") === _skState.cat);
-    if (q) list = list.filter(s => (s.name || "").toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q) || (s.slug || "").toLowerCase().includes(q));
-    return list;
-  }
+  const _skFiltered = () => locTheoNhom(_skState.skills, _skState,
+    (s) => `${s.name} ${s.slug} ${s.description || ""}`);
 
   function renderSkillUI() {
     const panel = document.getElementById("panel-skills");
     const all = _skState.skills;
-    const groups = {};
-    all.forEach(s => { const g = s.group || "Chung"; groups[g] = (groups[g] || 0) + 1; });
     const enabledN = all.filter(s => s.enabled !== false).length;
-    const cats = ["ALL"].concat(Object.keys(groups).sort());
-    const catHtml = cats.map(c => `<div class="cat ${_skState.cat === c ? "sel" : ""}" data-cat="${esc(c)}"><span>${c === "ALL" ? esc(t("studio.all")) : esc(c)}</span><span class="n">${c === "ALL" ? all.length : groups[c]}</span></div>`).join("");
     panel.innerHTML = `
       <div class="panel-bar"><h3>Skills <span class="dim">${enabledN}/${all.length} ${esc(t("studio.on_count"))} · ${esc(t("studio.source"))} <code>skills/</code></span></h3>
         <div class="pb-actions"><button class="s-btn-ghost" id="skSelAll" title="${esc(t("studio.selall_sk_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="skDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="skImport">${esc(t("studio.import"))}</button><button class="s-btn" id="skNew">+ Skill</button></div></div>
-      ${all.length ? `<div class="sk2">
-        <div class="sk2-side"><div class="sec">${esc(t("studio.groups"))}</div>${catHtml}</div>
-        <div class="sk2-main">
-          <div class="sk2-bar"><h4>${_skState.cat === "ALL" ? esc(t("studio.all")) : esc(_skState.cat)}</h4><span class="cnt"></span>
-            <input id="skSearch" placeholder="${esc(t("studio.sk_search_ph"))}" value="${esc(_skState.q)}"></div>
-          <div class="sk2-list" id="skList"></div>
-        </div></div>`
+      ${all.length ? khungNhomHtml(all, _skState, { bodyId: "skList", bodyCls: "sk2-list",
+                                                    searchId: "skSearch", searchPh: t("studio.sk_search_ph") })
       : `<div class="empty">${esc(t("studio.sk_empty"))}</div>`}`;
     document.getElementById("skNew").onclick = () => openSkillForm(null);
     document.getElementById("skImport").onclick = () => importItems(loadSkills);
@@ -653,16 +781,14 @@
       chonTatCa("skill", "skDl", "sk2-sel", _skFiltered().filter(s => !s.system).map(s => s.slug));
     capNhatNutTai("skill", "skDl");
     if (!all.length) return;
-    panel.querySelectorAll(".sk2-side .cat").forEach(c => c.onclick = () => { _skState.cat = c.dataset.cat; renderSkillUI(); });
-    const search = document.getElementById("skSearch");
-    search.oninput = () => { _skState.q = search.value; renderSkillList(); };
+    ganKhungNhom(panel, _skState, { searchId: "skSearch", veLai: renderSkillUI, veDanhSach: renderSkillList });
     renderSkillList();
   }
 
   function renderSkillList() {
     const box = document.getElementById("skList"); if (!box) return;
     const list = _skFiltered();
-    const cntEl = document.querySelector(".sk2-bar .cnt"); if (cntEl) cntEl.textContent = list.length + " skill";
+    datSoLuong(document.getElementById("panel-skills"), list.length + " skill");
     if (!list.length) { box.innerHTML = `<div class="empty">${esc(t("studio.sk_no_match"))}</div>`; return; }
     box.innerHTML = "";
     list.forEach(s => {
