@@ -1448,7 +1448,7 @@
     const myGen = _renderGen;   // chống race: đổi trang → load dở tự bỏ
     el.innerHTML = `<div class="cview-section"><div class="empty">${esc(t("common.loading"))}</div></div>`;
 
-    const SRC = { bundled: ["Có sẵn", "var(--green)"], user: ["Toàn cục", "var(--link-ink)"], vault: ["Brain này", "var(--warn-ink)"] };
+    const SRC = { bundled: ["Có sẵn", "var(--green)"], pack: ["Từ gói", "var(--accent, #7c5cff)"], user: ["Toàn cục", "var(--link-ink)"], vault: ["Brain này", "var(--warn-ink)"] };
     const srcBadge = (s) => {
       const [t, c] = SRC[s] || [s, "var(--text3)"];
       return `<span style="font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid ${c}55;color:${c}">${esc(t)}</span>`;
@@ -1476,10 +1476,19 @@
         </div>
         <div class="wf-desc">${esc(p.description || "")}</div>
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
-        <div class="wf-actions">${p.removed
-            ? `<button class="s-btn-ghost undel">Cài lại</button>`
-            : `<button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button>
-               <button class="s-btn-ghost del" style="color:var(--red)">Gỡ</button>`}</div>`;
+        <div class="wf-actions">${p.source === "pack"
+            ? `<button class="s-btn-ghost" data-goto-packs="1">Quản lý ở trang Gói</button>`
+            : p.removed
+              ? `<button class="s-btn-ghost undel">Cài lại</button>`
+              : `<button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button>
+                 <button class="s-btn-ghost del" style="color:var(--red)">Gỡ</button>`}</div>`;
+      // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở trang Gói - nó đi theo cả gói, và có
+      // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
+      const nutGoto = div.querySelector("[data-goto-packs]");
+      if (nutGoto) nutGoto.onclick = () => {
+        const s = window.Alpine && Alpine.store("nav");
+        if (s && s.go) s.go("packs");
+      };
       // "Gỡ" khác "Tắt" ở Ý ĐỊNH, nên thẻ rời hẳn khỏi danh sách chính chứ không chỉ mờ đi.
       // Không xoá file trong bản cài: cây code read-only trên Docker, và git pull sẽ mọc lại.
       const doiGo = async (go) => {

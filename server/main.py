@@ -8506,6 +8506,14 @@ async def _start_scheduler():
                 print(f"[scheduler] {type(e).__name__}: {e}", file=__import__('sys').stderr)
     asyncio.create_task(_scheduler_loop())
     try:
+        # Gói khai `compat.app` nhưng `git pull` / `git reset --hard` không bao giờ chạy lại
+        # trình cài, nên không có lượt quét này thì dải đó chỉ có tác dụng ở lần cài đầu.
+        import pack_install
+        for x in pack_install.quet_tuong_thich():
+            print(f"[packs] đã tắt gói '{x['id']}': {x['reason']}")
+    except Exception as e:
+        print(f"[packs compat] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    try:
         restart_telegram()   # bật bot Telegram nếu đã cấu hình
     except Exception as e:
         print(f"[telegram start] {e}", file=__import__('sys').stderr)

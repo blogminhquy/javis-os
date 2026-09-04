@@ -279,7 +279,13 @@ Trang hướng dẫn của gói là **Markdown render phía server ra HTML đã 
 
 Thêm `category_key` cho cả 29 entry gốc trong một commit máy móc, **giữ nguyên `category`** cũ; `public_catalog()` phát cả hai; console đọc `category_key` qua `t("catalog.cat." + key)` có fallback nên không chỗ nào trắng. Gói cấp `category` lạ kèm `category_label` thì tự hiện nhãn của nó, không cần sửa repo. Badge "từ gói `<tên>`" trên thẻ connector và trên chi tiết kết nối, để connector do gói cấp không bao giờ lẫn với hàng chính chủ.
 
-### Giai đoạn 4 - Gói có code (7 ngày)
+### Giai đoạn 4 - Gói có code (7 ngày) - ĐÃ LÀM
+
+> Ship ở 0.55.23. `plugins_host` học nguồn thứ tư 'pack'; chữ ký mã đối chiếu lúc NẠP
+> (`_pack_duoc_nap`), không chỉ lúc cài; `ctx.on_unload` + `unload(slug)` pop cả
+> `sys.modules`; bỏ `sys.path.insert` thay bằng `submodule_search_locations`; trình cài
+> từ chối gói cướp tên plugin bundled; quét tương thích lúc khởi động. CHƯA làm:
+> `ctx.record_effect` và sổ hiệu ứng, `permissions.max_effect`.
 
 `_iter_plugin_dirs` thêm nguồn `("pack", d)`, thứ tự **bundled → pack → user → vault**. **Gói có thư mục plugin trùng tên slug bundled thì bị từ chối ngay lúc cài** (danh sách cấm là 11 slug bundled). Việc này giữ nguyên bit-for-bit hành vi user/vault-đè-bundled hôm nay, đồng thời chặn một gói lặng lẽ thay thế `javis_task`/`javis_schedule`/`javis_add_mcp` dưới một màn hình đồng ý chỉ nói "cái này chạy code".
 

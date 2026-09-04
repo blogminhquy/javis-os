@@ -51,6 +51,7 @@ import os
 import re
 import sys
 import threading
+from pathlib import Path
 
 import fastyaml
 from config import STATE_DIR
@@ -390,12 +391,43 @@ def installed() -> list:
     return [dict(p) for p in _quet()[0]]
 
 
-def plugin_dirs(vault_root=None) -> list:
-    """Thư mục plugin của các gói. Còn RỖNG ở giai đoạn này.
+def plugin_dirs() -> list:
+    """Thư mục plugin của các gói ĐANG BẬT, dạng [(pack_id, đường_dẫn)].
 
-    Bố cục `packs/<id>/plugins/<slug>/` đã đúng từ bây giờ, nên khi `plugins_host` học nguồn
-    thứ tư thì đó là một dòng chèn vào `_iter_plugin_dirs`, không phải một lần di trú."""
-    return []
+    `plugins_host._iter_plugin_dirs` gọi hàm này để có nguồn thứ tư. Chỉ liệt kê thư mục con
+    của `packs/<id>/plugins/` có entry file - việc KIỂM CHỮ KÝ MÃ và quyết định nạp hay không
+    là của `plugins_host`, vì đó là nơi thật sự chạy mã. Ở đây chỉ trả đường dẫn, không đọc
+    nội dung: hàm này nằm trên đường nóng.
+
+    Gói TẮT thì không trả gì - `_quet()` đã lọc chúng ra rồi."""
+    ra = []
+    for ban in _quet()[0]:
+        if not ban.get("ok") or ban.get("enabled") is False:
+            continue
+        goc = Path(ban["dir"]) / "plugins"
+        if not goc.is_dir():
+            continue
+        try:
+            for d in sorted(goc.iterdir()):
+                if d.is_dir() and any((d / e).is_file() for e in ("plugin.py", "__init__.py")):
+                    ra.append((ban["id"], d))
+        except OSError:
+            continue
+    return ra
+
+
+def digest_ma(pack_id: str) -> str:
+    """Chữ ký nội dung mã mà sổ cài đặt ghi lại cho gói này. Rỗng nếu không có."""
+    return str((_so_cai_dat().get(pack_id) or {}).get("code_digest") or "")
+
+
+def da_dong_y_ma(pack_id: str) -> bool:
+    """Gói này có bản ghi ĐỒNG Ý chạy mã không (tức đã đi qua trình cài).
+
+    Gói THẢ TAY vào thư mục không có hàng trong sổ. Với gói chỉ có dữ liệu thì không sao, nhưng
+    gói mang mã thì phải có người bấm qua màn hình xác nhận - nên `plugins_host` từ chối nạp mã
+    của gói không có hàng trong sổ, kèm lý do đọc được."""
+    return pack_id in _so_cai_dat()
 
 
 def _trong_goi(pid: str, rel: str, thu_muc_con: str):

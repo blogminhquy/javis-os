@@ -167,12 +167,36 @@ def vault_plugins_dir(vault_root: Optional[str]) -> Optional[Path]:
     return flat
 
 
+def _pack_plugin_dirs() -> List[tuple]:
+    """[(slug, dir, pack_id)] cho plugin nằm trong GÓI đang bật. Rỗng nếu module packs lỗi."""
+    try:
+        import packs
+        return [(d.name, d, pid) for pid, d in packs.plugin_dirs()]
+    except Exception as e:
+        print(f"[plugins] không đọc được plugin của gói: {e}", file=sys.stderr)
+        return []
+
+
 def _iter_plugin_dirs(vault_root: Optional[str]):
-    """Yield (source, plugin_dir). source ∈ {'bundled','user','vault'} (dedupe theo slug, nguồn SAU đè
-    nguồn TRƯỚC): bundled (ship theo app) → user (GLOBAL_DIR, chung mọi brain) → vault (riêng 1 brain).
-    'user' KHÔNG phụ thuộc vault_root nên nạp được ở MỌI brain và MỌI engine (kể cả Claude/Codex qua hub)."""
+    """Yield (source, plugin_dir). source ∈ {'bundled','pack','user','vault'} (dedupe theo slug,
+    nguồn SAU đè nguồn TRƯỚC): bundled (ship theo app) → pack (gói cài từ .zip) → user
+    (GLOBAL_DIR, chung mọi brain) → vault (riêng 1 brain).
+    'user' và 'pack' KHÔNG phụ thuộc vault_root nên nạp được ở MỌI brain và MỌI engine.
+
+    Vì sao 'pack' đứng SAU bundled mà TRƯỚC user: đặt sau bundled thì hành vi cũ
+    (user/vault đè bundled) giữ nguyên bit-for-bit, không phá một shadow nào đang chạy. Còn
+    việc gói KHÔNG được đè bundled thì chặn ở chỗ khác và chặn sớm hơn - trình cài từ chối
+    ngay một gói mang plugin trùng slug bundled, xem `_slug_bundled`."""
     seen: Dict[str, tuple] = {}
-    for source, base in (("bundled", BUNDLED_DIR), ("user", GLOBAL_DIR), ("vault", vault_plugins_dir(vault_root))):
+    for source, base in (("bundled", BUNDLED_DIR),):
+        if not base or not Path(base).is_dir():
+            continue
+        for d in sorted(Path(base).iterdir()):
+            if d.is_dir() and any((d / e).is_file() for e in _ENTRY_FILES):
+                seen[d.name] = (source, d)
+    for slug, d, _pid in _pack_plugin_dirs():
+        seen[slug] = ("pack", d)
+    for source, base in (("user", GLOBAL_DIR), ("vault", vault_plugins_dir(vault_root))):
         if not base or not Path(base).is_dir():
             continue
         for d in sorted(Path(base).iterdir()):
@@ -180,6 +204,19 @@ def _iter_plugin_dirs(vault_root: Optional[str]):
                 seen[d.name] = (source, d)   # trùng slug: nguồn sau ghi đè
     for _slug, (source, d) in seen.items():
         yield source, d
+
+
+def _slug_bundled() -> set:
+    """Slug của plugin ĐI KÈM APP. Trình cài từ chối gói mang plugin trùng một trong số này.
+
+    Vì sao chặn ở lúc CÀI chứ không lúc nạp: một gói lặng lẽ thay `javis_task` hay
+    `javis_schedule` dưới một màn hình xác nhận chỉ nói "gói này chạy mã" là đúng kiểu bất ngờ
+    không nên có. Chặn sớm thì người dùng thấy lý do trước khi có gì rơi xuống đĩa."""
+    try:
+        return {d.name for d in BUNDLED_DIR.iterdir()
+                if d.is_dir() and any((d / e).is_file() for e in _ENTRY_FILES)}
+    except OSError:
+        return set()
 
 
 def _read_manifest(pdir: Path) -> Tuple[dict, str]:
@@ -251,7 +288,10 @@ def describe(vault_root: Optional[str] = None) -> List[dict]:
         want = _effective_enabled(source, slug, manifest)
         user_src = source in ("user", "vault")
         gated = bool(user_src and want and not env_ok)   # muốn bật nhưng env chặn
-        loaded = want and (env_ok or source == "bundled")
+        # Nguồn 'pack' KHÔNG chịu cổng env: nó đã đi qua trình cài, tức có người xem rồi bấm
+        # đồng ý, và chữ ký mã được đối chiếu lại ở mỗi lần nạp. Thiếu vế này thì thẻ báo
+        # "bật (chưa nạp)" trong khi tool của nó đã ra tới mọi engine - nói sai với người dùng.
+        loaded = want and (env_ok or source in ("bundled", "pack"))
         mm = manifest.get("min_mode", "readonly")
         out.append({
             "slug": slug, "name": name, "source": source,
@@ -282,6 +322,7 @@ class PluginContext:
         self.state_dir = STATE_DIR
         self._tools: List[dict] = []
         self._hooks: Dict[str, List[Callable]] = {}
+        self._on_unload: List[Callable] = []
 
     @property
     def data_dir(self) -> Path:
@@ -309,6 +350,20 @@ class PluginContext:
             "schema": schema or parameters or {"type": "object", "properties": {}},
             "min_mode": min_mode, "check_fn": check_fn, "emoji": emoji,
         })
+
+    def on_unload(self, fn: Callable) -> None:
+        """Đăng ký việc phải làm khi plugin bị TẮT hoặc GỠ. Chạy ngược thứ tự đăng ký.
+
+        Tool và hook thì Javis tự thu hồi được: chúng chỉ nằm trong danh sách của
+        `LoadedPlugin` trong cache, và hub dựng lại bảng route mỗi lần cache hết hạn. Cái Javis
+        KHÔNG tự thu hồi được là thứ `register()` mở ra với thế giới bên ngoài - một thread,
+        một socket, một watcher hệ tệp, một tiến trình con. Nếu plugin mở thứ như vậy thì phải
+        tự đóng ở đây, nếu không nó sống tiếp sau khi người dùng đã bấm Tắt.
+
+        Lỗi trong callback bị nuốt và in ra stderr: một plugin dọn dẹp hỏng không được phép
+        chặn việc tắt nó."""
+        if callable(fn):
+            self._on_unload.append(fn)
 
     def register_hook(self, event: str, callback: Callable) -> None:
         """Đăng ký callback lifecycle. v1 hỗ trợ: 'pre_tool_call', 'post_tool_call'
@@ -342,11 +397,21 @@ def _signature(vault_root: Optional[str], scope_vault: bool = True) -> tuple:
         sig.append(_STATE_PATH.stat().st_mtime)
     except OSError:
         sig.append(0)
+    try:
+        import packs
+        sig.append(packs.signature())      # gói bật/tắt, cài/gỡ -> nạp lại
+    except Exception:
+        sig.append(None)
     for source, pdir in _iter_plugin_dirs(vault_root if scope_vault else None):
         for fn in ("plugin.yaml", "plugin.yml", "plugin.py", "__init__.py"):
             p = pdir / fn
             try:
-                sig.append((source, pdir.name, fn, p.stat().st_mtime))
+                st = p.stat()
+                # Thêm SIZE bên cạnh mtime: ghi đè một tệp mà giữ nguyên mtime là chuyện làm
+                # được, và chỉ so mtime thì bản mới cưỡi lên cache. Không phải chốt tuyệt đối
+                # (đổi nội dung giữ nguyên cả hai vẫn lọt) - chốt thật là chữ ký mã đối chiếu
+                # lúc NẠP, xem `_digest_thu_muc`.
+                sig.append((source, pdir.name, fn, st.st_mtime, st.st_size))
             except OSError:
                 pass
     return tuple(sig)
@@ -358,21 +423,82 @@ def _import_entry(slug: str, source: str, entry: Path):
     spec = importlib.util.spec_from_file_location(mod_name, str(entry))
     if not spec or not spec.loader:
         raise ImportError(f"không tạo được spec cho {entry}")
+    # Cho module tự tìm được anh em của nó mà KHÔNG chọc sys.path. Cách cũ chèn thư mục
+    # plugin vào đầu sys.path suốt lúc chạy thân module, nên một plugin chứa `config.py` hay
+    # `mcp_hub.py` sẽ CHE module thật của server cho mọi import nó thực hiện - và cache
+    # sys.modules giữ lại thứ nó đã import nhầm. `submodule_search_locations` cho đúng khả
+    # năng import anh em mà không đụng đường tìm kiếm toàn cục.
+    spec.submodule_search_locations = [str(entry.parent)]
     module = importlib.util.module_from_spec(spec)
-    pdir = str(entry.parent)
-    added = pdir not in sys.path
-    if added:
-        sys.path.insert(0, pdir)
+    sys.modules[mod_name] = module
     try:
-        sys.modules[mod_name] = module
         spec.loader.exec_module(module)
-    finally:
-        if added:
-            try:
-                sys.path.remove(pdir)
-            except ValueError:
-                pass
+    except BaseException:
+        sys.modules.pop(mod_name, None)   # nạp hỏng thì đừng để lại xác trong sys.modules
+        raise
     return module
+
+
+def _digest_thu_muc(thu_muc: Path) -> str:
+    """SHA256 của mọi tệp .py trong thư mục, theo thứ tự đường dẫn. Rỗng nếu không có tệp nào.
+
+    Phải khớp từng bit với `pack_install._digest_ma`, vì hai hàm này đối chiếu với nhau: một
+    cái ghi lúc CÀI, một cái tính lại lúc NẠP."""
+    import hashlib
+    h = hashlib.sha256()
+    co = False
+    for f in sorted(thu_muc.rglob("*.py")):
+        try:
+            h.update(str(f.relative_to(thu_muc)).replace("\\", "/").encode("utf-8"))
+            h.update(f.read_bytes())
+            co = True
+        except OSError:
+            continue
+    return h.hexdigest() if co else ""
+
+
+def _pack_cua(pdir: Path) -> str:
+    """Gói nào sở hữu thư mục plugin này. Rỗng nếu không phải plugin của gói."""
+    for slug, d, pid in _pack_plugin_dirs():
+        if d == pdir:
+            return pid
+    return ""
+
+
+def _pack_duoc_nap(pdir: Path) -> Tuple[bool, str]:
+    """Plugin của GÓI có được chạy mã không. Trả (được, lý do nếu không).
+
+    Hai điều kiện, và cả hai đều nói về CÙNG một thứ: có người đã xem rồi bấm đồng ý.
+
+    1. Gói phải có hàng trong sổ cài đặt, tức đã đi qua trình cài. Gói thả tay vào thư mục
+       không có hàng nào, nên mã của nó không tự chạy.
+    2. Chữ ký mã tính lại từ đĩa phải khớp cái ghi lúc cài. Kiểm ở đây chứ không chỉ ở trình
+       cài, vì ai ghi được `plugin.py` thì cũng ghi được `packs.json` - một chốt chỉ nằm ở
+       trình cài thì chỉ gác được trình cài, không gác được lần nạp sau.
+
+    Cổng `JAVIS_ENABLE_USER_PLUGINS` KHÔNG áp ở đây, có chủ ý. Cổng đó bịt lỗ "thư mục ghi
+    được nên mã chạy mà không ai bấm gì" - đúng với `<brain>/plugins/` vì model ghi được vào
+    vault. Trình cài phá bỏ đúng điều kiện đó: có người bấm, có màn hình liệt kê từng tệp .py,
+    và có chữ ký ghi lại để đối chiếu. Cùng loại bảo đảm, chỉ theo TỪNG gói thay vì bật tắt
+    tất cả. Xem docs/dev/2026-09-tang-goi-mo-rong-spec.md."""
+    pid = _pack_cua(pdir)
+    if not pid:
+        return False, "không xác định được gói sở hữu"
+    try:
+        import packs
+    except Exception as e:
+        return False, f"không đọc được sổ gói: {e}"
+    thuc = _digest_thu_muc(pdir.parent.parent)   # digest tính trên CẢ gói, như lúc cài
+    if not thuc:
+        return True, ""                          # gói không có mã thì không có gì để gác
+    if not packs.da_dong_y_ma(pid):
+        return False, ("gói này chưa đi qua trình cài nên mã của nó không tự chạy - "
+                       "cài lại từ trang Gói để xác nhận")
+    ghi = packs.digest_ma(pid)
+    if ghi and ghi != thuc:
+        return False, ("mã trong gói đã đổi so với lúc bạn đồng ý cài - "
+                       "cài lại từ trang Gói để xem và xác nhận lại")
+    return True, ""
 
 
 def _load_all(vault_root: Optional[str], scope_vault: bool = True) -> dict:
@@ -405,6 +531,14 @@ def _load_all(vault_root: Optional[str], scope_vault: bool = True) -> dict:
                     continue   # gate CỨNG: plugin user (global+vault) cần JAVIS_ENABLE_USER_PLUGINS=true
                 if not valid_slug(slug):
                     errors[slug] = "slug không hợp lệ"
+                    continue
+            if source == "pack":
+                if not valid_slug(slug):
+                    errors[slug] = "slug không hợp lệ"
+                    continue
+                duoc, vi_sao = _pack_duoc_nap(pdir)
+                if not duoc:
+                    errors[slug] = vi_sao
                     continue
             entry = _entry_file(pdir)
             if not entry:
@@ -488,6 +622,45 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
     return _call
 
 
+def unload(slug: str) -> dict:
+    """Dừng một plugin cho THẬT: chạy on_unload, bỏ khỏi cache, và pop khỏi sys.modules.
+
+    Vì sao phải pop sys.modules: `_import_entry` đặt module vào đó và trước bản này không ai
+    bỏ ra. Nạp lại sẽ ghi đè khoá cũ nên không sai kết quả, nhưng module cũ vẫn sống trong bộ
+    nhớ cùng mọi thứ nó giữ tham chiếu - và với plugin của gói thì "gói đã gỡ mà mã của nó còn
+    trong tiến trình" là một câu khó nói cho xuôi.
+
+    Trả về số callback đã chạy và số module đã bỏ. Không ném lỗi ra ngoài bao giờ: đây là
+    đường DỌN, mà một đường dọn tự ném lỗi thì để lại đúng cái tình trạng nửa vời nó sinh ra để
+    chấm dứt."""
+    slug = str(slug or "").strip()
+    ra = {"ok": True, "callbacks": 0, "modules": 0}
+    if not slug:
+        return ra
+    with _lock:
+        for k, ent in list(_cache.items()):
+            for lp in list(ent.get("plugins") or []):
+                if lp.ctx.slug != slug:
+                    continue
+                # Ngược thứ tự đăng ký: thứ mở sau đóng trước, đúng như một khối try/finally
+                # lồng nhau sẽ làm.
+                for fn in reversed(getattr(lp.ctx, "_on_unload", []) or []):
+                    try:
+                        fn()
+                        ra["callbacks"] += 1
+                    except Exception as e:
+                        print(f"[plugins] on_unload '{slug}': {type(e).__name__}: {e}",
+                              file=sys.stderr)
+                ent["plugins"] = [x for x in ent["plugins"] if x.ctx.slug != slug]
+                ent["sig"] = None      # buộc dựng lại ở lần gọi sau
+        an = f"_{re.sub(r'[^a-z0-9_]', '_', slug.lower())}"
+        for mod in [m for m in list(sys.modules)
+                    if m.startswith("javis_plugin_") and m.endswith(an)]:
+            sys.modules.pop(mod, None)
+            ra["modules"] += 1
+    return ra
+
+
 def set_removed(slug: str, removed: bool) -> dict:
     """Gỡ hoặc cài lại một plugin. Ghi vào `STATE_DIR/plugins.json`, không đụng cây code.
 
@@ -501,6 +674,8 @@ def set_removed(slug: str, removed: bool) -> dict:
     ds.add(slug) if removed else ds.discard(slug)
     st["removed"] = sorted(ds)
     _write_state(st)
+    if removed:
+        unload(slug)      # gỡ thì dừng THẬT, không chỉ biến khỏi danh sách
     invalidate()
     return {"ok": True, "removed": bool(removed)}
 
@@ -606,6 +781,16 @@ def set_enabled(slug: str, enabled: bool, vault_root: Optional[str] = None) -> d
     if not found:
         return {"ok": False, "error": "không tìm thấy plugin"}
     source, pdir = found
+    if not enabled:
+        # "Tắt" phải là DỪNG, không phải "biến khỏi danh sách". Thiếu bước này thì thread hay
+        # socket mà plugin mở ra vẫn sống sau khi người dùng bấm Tắt.
+        unload(slug)
+    if source == "pack":
+        # Plugin của gói KHÔNG bật/tắt riêng lẻ: nó đi theo gói, và trang Gói mới là chỗ bật
+        # tắt. Ghi `enabled` vào manifest trong thư mục gói sẽ làm chữ ký mã lệch ngay lần nạp
+        # sau, tức tự tay biến gói thành "đã đổi so với lúc đồng ý".
+        return {"ok": False, "source": source,
+                "error": "Plugin này đến từ một gói. Bật hoặc tắt cả gói ở trang Gói."}
     if source == "bundled":
         st = _read_state()
         en = set(st.get("enabled") or [])
