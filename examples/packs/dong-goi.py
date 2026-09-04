@@ -11,10 +11,16 @@ làm hỏng một lần phát hành:
 - `sha256` phải lấy của ĐÚNG tệp vừa tạo. Tính rời ra bằng một lệnh khác là chỗ dễ dán nhầm
   của bản trước.
 
-Và tệp ra là TÁI LẬP ĐƯỢC: cùng một nguồn thì đóng bao nhiêu lần cũng ra đúng một `sha256`.
-Muốn vậy phải ghim ngày tháng trong zip, vì mặc định `zipfile` đóng dấu giờ hiện tại vào từng
-mục, nên đóng lại sau một phút là ra tệp khác. Tái lập được thì bất kỳ ai cũng đối chiếu được
-tệp bạn phát hành với mã nguồn công khai, chứ không phải tin lời bạn.
+Mọi thứ script tự quyết đều được GHIM: tên và thứ tự mục, ngày tháng (mặc định `zipfile`
+đóng dấu giờ hiện tại vào từng mục, nên đóng lại sau một phút là ra tệp khác), và quyền tệp.
+Nhờ vậy đóng lại trên CÙNG MỘT MÁY luôn ra đúng một `sha256`, và `sha256` bạn dán vào danh mục
+không tự nhiên lệch.
+
+Cái KHÔNG ghim được là byte nén: DEFLATE cho ra chuỗi byte khác nhau giữa các bản zlib, nên tệp
+đóng trên Windows và trên máy CI Linux có thể lệch `sha256` dù nội dung y hệt. Vì vậy phép đối
+chiếu đúng là **so nội dung từng mục**, không so byte của tệp nén - `tests/python/test_goi_mau.py`
+làm đúng thế. Chọn nén thay vì `ZIP_STORED` là có chủ ý: một gói mang theo ảnh mà không nén thì
+đụng trần 25MB rất nhanh.
 """
 import hashlib
 import sys

@@ -94,12 +94,20 @@ with tempfile.TemporaryDirectory() as td:
         du = dong_zip(NGUON)
 
         # ─────────────── 0. Tệp đã phát hành khớp ĐÚNG mã nguồn ───────────────
-        # Đóng gói tái lập được nên hai thứ này phải bằng nhau từng byte. Lệch nghĩa là ai đó
-        # sửa nguồn mà quên đóng lại, và kho đang phát một bản khác thứ repo công bố - loại
-        # sai lệch mà không ai phát hiện ra bằng mắt.
+        # Sửa nguồn mà quên đóng gói lại thì kho đang phát một bản KHÁC thứ repo công bố, và
+        # không ai phát hiện ra bằng mắt. Đây là phép kiểm bắt chuyện đó.
+        #
+        # So NỘI DUNG TỪNG MỤC, không so byte của tệp nén: DEFLATE cho ra chuỗi byte khác nhau
+        # giữa các bản zlib, nên so byte thì xanh ở Windows và đỏ ở CI Linux dù nội dung y hệt.
+        # Nội dung mới là thứ đáng cam kết; byte nén chỉ là cách gói lại.
         _ship = ROOT / "system" / "packs" / "javis-tinh-gia-1.0.0.zip"
-        check("tệp phát hành trong kho khớp từng byte với mã nguồn",
-              _ship.is_file() and _ship.read_bytes() == du)
+        check("tệp phát hành có mặt trong repo", _ship.is_file())
+        if _ship.is_file():
+            with zipfile.ZipFile(io.BytesIO(_ship.read_bytes())) as _a,                  zipfile.ZipFile(io.BytesIO(du)) as _b:
+                _ta, _tb = _a.namelist(), _b.namelist()
+                check("tệp phát hành chứa đúng những mục mà mã nguồn có", _ta == _tb)
+                check("và nội dung từng mục khớp từng byte với mã nguồn",
+                      all(_a.read(x) == _b.read(x) for x in _ta if x in _tb))
 
         # ─────────────── 1. Soi: nói đúng gói có gì, TRƯỚC khi cài gì ───────────────
         r = pack_install.soi(du, "javis-tinh-gia.zip")
