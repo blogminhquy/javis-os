@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.32] - 2026-09-05
+### Thêm mới
+- **Trang Kết nối tách thành hai tab**: "Đã kết nối" và "Kết nối sẵn có", cộng lối sang Kho cài đặt. Trước đây hai danh sách nằm chung một mạch cuộn, nên ai đã đấu vài chục tài khoản phải cuộn qua hết mới tới chỗ đấu cái mới.
+- Chưa đấu gì thì tab đầu chỉ thẳng bước tiếp theo, thay vì để bạn nhìn một ô trống.
+
+### Sửa lỗi
+- **Chấm báo sức khoẻ kết nối bị đứng ở màu xám.** Một hàm đã bị gỡ từ lâu vẫn được gọi, làm việc tô chấm chết giữa chừng, nên chỉ kết nối đầu tiên được tô còn lại thì không. Giờ chấm nào cũng được tô, và di chuột vào thấy lần kiểm tra gần nhất là bao lâu trước.
+
 ## [0.55.31] - 2026-09-05
 ### Thêm mới
 - **Kho cài đặt dựng lại theo thiết kế mới.** Hàng tab theo loại kèm số đếm ở trên, cột nhóm lĩnh vực bên trái, thẻ có logo thật và nhãn nhóm, và phân trang khi kho dài ra.
