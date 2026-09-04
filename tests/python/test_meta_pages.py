@@ -24,27 +24,15 @@ def check(n, c):
     if not c: _fails.append(n)
 
 
-# ---- 1. Catalog connector ----
-cat = json.load(open(ROOT / "system" / "mcp-catalog.json", encoding="utf-8"))
-fp = next((x for x in cat["connectors"] if x["id"] == "facebook-pages"), None)
-check("catalog: có connector facebook-pages", fp is not None)
-check("catalog: provider=meta + explicit authorize/token url", fp["auth"].get("provider") == "meta"
-      and fp["auth"].get("authorize_url") and fp["auth"].get("token_url"))
-check("catalog: scope có pages_manage_posts + pages_manage_engagement + pages_show_list",
-      {"pages_manage_posts", "pages_manage_engagement", "pages_show_list"} <= set(fp["auth"]["scopes"]))
-check("catalog: có fields client_id + client_secret",
-      {f["key"] for f in fp["auth"]["fields"]} == {"client_id", "client_secret"})
-check("catalog: default_perm readonly + guide dùng localhost",
-      fp["default_perm"] == "readonly" and "localhost" in fp["auth"]["guide"])
-check("catalog: tool ghi khai ở danger", set(fp["tool_meta"].get("danger") or [])
-      == {"fb_page_post", "fb_page_photo", "fb_page_album", "fb_page_video",
-          "fb_page_edit", "fb_page_reply", "fb_page_delete"})
-# Xoá bài là hành động KHÔNG hoàn tác được - cảnh báo phải nói ra, đừng để người dùng
-# bật Toàn quyền mà tưởng xấu nhất chỉ là đăng nhầm một bài.
-check("catalog: cảnh báo nói rõ xoá bài không hoàn tác",
-      "XOÁ BÀI" in fp["risk"] and "KHÔNG HOÀN TÁC" in fp["risk"])
-import mcp_catalog  # noqa: E402
-check("mcp_catalog.get load được", mcp_catalog.get("facebook-pages") is not None)
+# ---- 1. Connector: đã dọn sang kho ----
+# Khuôn connector `facebook-pages` rời `system/mcp-catalog.json` ở 0.55.36 và giờ sống trong gói
+# `javis.facebook-pages` của repo kho (blogminhquy/javis-store). Những assert về HÌNH DẠNG của nó
+# (provider, scope, fields, default_perm, phân loại tool, chữ cảnh báo) đi theo dữ liệu sang đó:
+# `tools/kiem-tra.py` của repo kho chạy đúng các phép kiểm ấy trên mọi Pull Request.
+#
+# Giữ lại ở đây là giả vờ: dữ liệu đổi được trong kho mà KHÔNG cần bản Javis mới, nên một test
+# ở repo này chỉ canh được bản chụp lúc dọn nhà chứ không canh được thứ người dùng thật sự cài.
+# Phần bên dưới - plugin đi kèm - vẫn là mã của app nên vẫn kiểm ở đây.
 
 
 # ---- 2. Plugin nạp + min_mode ----

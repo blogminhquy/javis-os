@@ -4938,13 +4938,33 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
     const orphans = d.orphans || [];
     // Kết nối mất khuôn thì `mcp_store.resolved` từ chối dựng dial spec, tức nó IM. Phải nói ra
     // thay vì để người dùng ngồi đoán vì sao một nguồn đang có mà Javis bảo không có.
+    //
+    // Hai nguyên nhân, hai lối thoát khác hẳn nhau - trộn làm một là đẩy người dùng đi sai
+    // đường ở đúng lúc họ đang hoảng:
+    //   `co_trong_kho`  người dùng vừa tự gỡ dịch vụ đó → cài lại ở khu "Đã gỡ" ngay dưới.
+    //   không có        dịch vụ đã DỌN RA Javis Store (0.55.36 dọn 16 cái) → cài lại từ kho.
+    //
+    // Câu cũ ở nhánh thứ hai xui người dùng nâng cấp app hoặc bỏ kết nối đi. Từ 0.55.36 nó
+    // vừa sai vừa nguy hiểm: nâng cấp không mọc lại dịch vụ nữa, còn bỏ kết nối là vứt luôn
+    // credential họ đã đấu - trong khi thứ họ cần chỉ là bấm cài một gói.
+    const moCoiKho = orphans.filter(o => !o.co_trong_kho);
     const banMoCoi = orphans.length
       ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
         + WARN_ICON + ' <b>' + orphans.length + ' kết nối đang dừng vì thiếu dịch vụ trong kho:</b> '
         + orphans.map(o => esc(o.label)).join(", ") + '. '
         + (orphans.some(o => o.co_trong_kho)
-            ? 'Cài lại dịch vụ ở khu "Đã gỡ" bên dưới là chúng chạy lại.'
-            : 'Dịch vụ này không có ở bản Javis hiện tại - cập nhật app, hoặc xoá kết nối.')
+            ? 'Cài lại dịch vụ ở khu "Đã gỡ" bên dưới là chúng chạy lại. ' : "")
+        + (moCoiKho.length
+            ? 'Những dịch vụ này đã dọn ra Javis Store để nhận bản mới mà không cần cập nhật app. '
+              + 'Cài lại là kết nối cũ chạy tiếp, không phải đăng nhập lại.'
+              // Nút xếp NGANG và chỉ rộng bằng chữ. `.gcard-btn` mặc định chiếm trọn hàng, nên
+              // để trần thì hai ba nút thành hai ba dải to đùng chồng lên nhau, trông như lỗi.
+              + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'
+              + Array.from(new Set(moCoiKho.map(o => o.connector_id))).map(cid =>
+                  '<button class="gcard-btn" style="width:auto;flex:none" data-mocoi="' + esc(cid)
+                  + '">Cài ' + esc(cid) + ' từ kho</button>').join("")
+              + '</div>'
+            : "")
         + '</div>'
       : "";
     const khuDaGo = removed.length
@@ -5012,6 +5032,14 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
     if (tabKho) el.insertBefore(tabKho, el.firstChild);
     const nutSanCo = document.getElementById("mcpDiSanCo");
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
+    // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào
+    // một kho ba chục mục rồi bảo tự tìm cái vừa biến mất là bắt họ làm việc của mình.
+    el.querySelectorAll("[data-mocoi]").forEach(b => b.onclick = () => {
+      if (window.JavisPacks && window.JavisPacks.moKho) {
+        window.JavisPacks.moKho("connector", "mcp",
+          VIEW_META.mcp ? VIEW_META.mcp.label : "Kết nối", b.dataset.mocoi);
+      }
+    });
     const nutKho = document.getElementById("mcpDiKho");
     if (nutKho) nutKho.onclick = () => {
       if (window.JavisPacks && window.JavisPacks.moKho) {
@@ -5019,20 +5047,16 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
       }
     };
     document.getElementById("mcpStrict").onchange = (e) => postJson("/mcp/strict", { strict: e.target.checked });
-    // Gỡ / cài lại một dịch vụ có sẵn. Gỡ mà đang có kết nối theo nó thì server trả 409 kèm
-    // danh sách, và hỏi lại một câu trước khi làm - kết nối là dữ liệu của người dùng.
+    // Gỡ một dịch vụ có sẵn. Luồng hỏi lại nằm trong `JavisPacks.goApp` chứ không viết lại ở
+    // đây: dấu × trên thẻ và nút Gỡ trong kho là CÙNG một hành động, nên phải hỏi y hệt nhau -
+    // hai bản sao thì sớm muộn cũng lệch, mà lệch ở đúng chỗ hỏi trước khi xoá.
     el.querySelectorAll("[data-coreoff]").forEach(b => b.onclick = async (ev) => {
       ev.stopPropagation();
-      const id = b.dataset.coreoff;
-      let r = await postJson("/connect/core-toggle", { id: id, off: true });
-      if (r && r.need_confirm) {
-        const ten = (r.connections || []).map(x => x.label).join(", ");
-        if (!confirm('Gỡ dịch vụ này thì ' + (r.connections || []).length + ' kết nối đang dùng nó sẽ DỪNG: '
-          + ten + '.\n\nKết nối không bị xoá, và cài lại dịch vụ là chúng chạy tiếp. Gỡ chứ?')) return;
-        r = await postJson("/connect/core-toggle", { id: id, off: true, confirm: true });
-      }
-      if (r && r.ok) renderConnect(el);
-      else alert((r && r.error) || "Không gỡ được.");
+      const con = byId[b.dataset.coreoff] || {};
+      if (!window.JavisPacks || !window.JavisPacks.goApp) { alert("Tải lại trang rồi thử lại."); return; }
+      const r = await window.JavisPacks.goApp(con.name || b.dataset.coreoff, b.dataset.coreoff);
+      if (r.ok) renderConnect(el);
+      else if (!r.huy) alert(r.error);
     });
     el.querySelectorAll("[data-coreon]").forEach(b => b.onclick = async () => {
       const r = await postJson("/connect/core-toggle", { id: b.dataset.coreon, off: false });
