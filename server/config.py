@@ -163,6 +163,9 @@ _DEFAULT = {
     # max_age_days / max_mb <= 0 = tắt luật tương ứng. enabled=False = không dọn gì cả.
     # staging_days: hạn RIÊNG cho STATE_DIR/.staging - nơi file dán vào khung chat rơi xuống.
     # Ngắn hơn hẳn vì đó là chỗ trung chuyển một lượt chat, không ai mở lại bao giờ.
+    # Kho gói: một tệp JSON công khai. Đổi được sang kho khác; rỗng thì dùng kho
+    # mặc định của Javis. Xem docs/dev/pack-store-index.md.
+    "packs": {"store_url": ""},
     "media": {"enabled": True, "max_age_days": 30, "max_mb": 300, "staging_days": 3},
     "telegram": {"enabled": False, "token": "", "chat_id": ""},
     # Kênh Zalo Bot của CHỦ (API chính thức bot.zaloplatforms.com). Cùng hình dạng với telegram

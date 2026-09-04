@@ -4,6 +4,20 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.24] - 2026-09-04
+### Thêm mới
+- **Kho gói ngay trong Javis.** Trang Năng lực > Gói có thêm lưới danh mục: tìm kiếm, lọc theo nhóm, bấm Cài là Javis tải về, mở ra cho bạn xem rồi mới hỏi. Đúng màn hình xác nhận như khi bạn tự chọn tệp, không có đường tắt nào ngắn hơn.
+- **Gói đã cài hiện "Đã cài"**, và khi kho có bản mới thì nút đổi thành "Có bản mới vX". Bấm vào là đi qua đúng luồng xem trước rồi mới thay.
+- **Cài được từ một địa chỉ**, kể cả dạng viết tắt `owner/repo@nhánh` của GitHub.
+
+### Bảo mật
+- **Javis không bao giờ tải từ một địa chỉ trỏ vào mạng nội bộ.** Chỉ https cổng 443, và chốt xét theo địa chỉ đã phân giải chứ không theo tên máy, nên một tên miền công khai trỏ ngược về máy chủ vẫn bị chặn. Kiểm lại sau từng lần chuyển hướng, vì đó là đường vòng quen thuộc nhất.
+- **Danh mục kho được coi là dữ liệu không tin được**: mọi trường bị cắt độ dài và ép kiểu, trường lạ bị bỏ. Bậc "có chạy mã" mà kho khai chỉ để hiện nhãn; bậc thật do Javis tự tính từ tệp đã tải về.
+- **Tệp tải về không khớp dấu vân tay kho công bố thì dừng ngay**, chưa kịp hỏi gì.
+
+### Cải thiện
+- Kho không tới được thì chỉ khu danh mục báo, phần gói đã cài vẫn dùng bình thường. Mất mạng mà còn danh mục cũ thì vẫn xem được, kèm một dòng nói rõ đang xem số liệu cũ.
+
 ## [0.55.23] - 2026-09-04
 ### Thêm mới
 - **Gói giờ mang được cả công cụ, không chỉ dịch vụ kết nối.** Cài một gói là Javis có thêm tool mới, dùng được ngay trên mọi bộ não. Đây là nửa còn lại của hướng "cài thêm được thì gỡ được".
