@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.27] - 2026-09-04
+### Sửa lỗi
+- **Cài gói bị chặn sạch với thông báo "cần Javis >=0.55.25, bản này là " (bỏ trống).** Javis đọc nhầm chỗ chứa số phiên bản của chính nó, nên tưởng mình là bản 0.0.0 và từ chối mọi gói. Lỗi xảy ra trên bản chạy Docker và mọi bản có đổi thư mục dữ liệu, tức gần như mọi máy thật. Giờ cài được, cả từ kho lẫn từ tệp .zip.
+- Nếu vì lý do nào đó Javis vẫn không đọc được số phiên bản của mình, nó **bỏ qua** phép so phiên bản thay vì chặn hết. Lỗi của Javis không nên biến thành cả kho không dùng được.
+- Trang Kho cài đặt từng mượn nhầm tiêu đề của Trang chủ. Giờ nó có tiêu đề riêng.
+
+### Cải thiện
+- **Kho cài đặt rời khỏi thanh bên.** Nó không phải một chức năng ngang hàng với Trợ lý hay Kỹ năng, mà là chỗ bạn ghé để lấy thêm một trong số chúng. Đường vào giờ là tab ngay trên trang bạn đang đứng.
+- **Trang Kết nối cũng có tab Kho cài đặt**, mở ra là đã lọc sẵn phần kết nối. Vậy là đủ cả năm: Trợ lý, Kỹ năng, Quy trình, Công cụ, Kết nối.
+
 ## [0.55.26] - 2026-09-04
 ### Thêm mới
 - **Kho cài đặt**: trợ lý, kỹ năng, quy trình và công cụ làm sẵn, xếp theo lĩnh vực, bấm Cài là xong. Trang **Gói** cũ đổi thành trang này, và kho nằm ngay trên đầu vì đó là thứ bạn vào để tìm.

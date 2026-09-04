@@ -102,11 +102,24 @@
     { get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
+
+  // Trang CÓ THẬT nhưng KHÔNG hiện trên thanh bên. Kho cài đặt không phải một chức năng ngang
+  // hàng với Trợ lý hay Kỹ năng - nó là chỗ bạn ghé để LẤY THÊM một trong số chúng. Đường vào
+  // đúng là cái tab trên chính trang bạn đang đứng, chứ không phải một mục nữa trong danh
+  // sách vốn đã dài.
+  //
+  // Vẫn giữ trong RAIL_ITEMS và trong `ids` của nhóm: RAIL_ITEMS là nguồn icon/nhãn, còn
+  // `ids` là thứ `groupLabelOf` dùng để bung đúng nhóm khi vào trang. Bỏ hẳn khỏi hai chỗ đó
+  // thì `railGroups` lại coi nó là "chưa xếp nhóm" và dồn xuống nhóm đáy - hiện ở chỗ còn
+  // khó hiểu hơn.
+  const RAIL_AN = new Set(["packs"]);
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
     const seen = new Set();
     const groups = RAIL_GROUPS.map(g => {
-      const items = (g.ids || []).map(id => { seen.add(id); return RAIL_BY_ID[id]; }).filter(Boolean);
+      const items = (g.ids || [])
+        .map(id => { seen.add(id); return RAIL_AN.has(id) ? null : RAIL_BY_ID[id]; })
+        .filter(Boolean);
       return { label: g.label, icon: g.icon || "", foot: !!g.foot, items };
     }).filter(g => g.items.length);
     const rest = RAIL_ITEMS.filter(i => !seen.has(i.id));
@@ -129,7 +142,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "logs", "account", "usage"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -398,9 +411,11 @@
 
   // Loại trong kho tương ứng với từng trang năng lực. Trang nào có mặt ở đây thì được một
   // hàng tab dẫn sang kho, đã lọc sẵn đúng loại của nó.
-  const LOAI_KHO = { agents: "agent", skills: "skill", workflows: "workflow", plugins: "tool" };
+  const LOAI_KHO = { agents: "agent", skills: "skill", workflows: "workflow",
+                     plugins: "tool", mcp: "connector" };
   const TEN_CUA_BAN = { agents: "Trợ lý của bạn", skills: "Kỹ năng của bạn",
-                        workflows: "Quy trình của bạn", plugins: "Công cụ của bạn" };
+                        workflows: "Quy trình của bạn", plugins: "Công cụ của bạn",
+                        mcp: "Kết nối của bạn" };
 
   // Hàng tab "của bạn | Kho cài đặt" đặt trên đầu bốn trang năng lực.
   //
@@ -4921,6 +4936,10 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
       + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Bộ não tương ứng tự dùng được các nguồn "Connected". Đăng nhập và quản lý trong app Claude hoặc bằng lệnh <code>codex mcp</code>, không sửa ở đây.</div>'
       + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">Bấm để tải…</div></div>'
       + '<div class="prov-list" id="mcpAmbientCodex" style="margin-top:12px"></div></details>';
+    // Trang này đã có "Kho kết nối" của riêng nó - đó là danh mục dịch vụ ship theo app. Tab
+    // này dẫn sang chỗ khác hẳn: kho CÀI THÊM, nơi có cả connector không nằm trong bản app.
+    const tabKho = hangTabKho("mcp");
+    if (tabKho) el.insertBefore(tabKho, el.firstChild);
     document.getElementById("mcpStrict").onchange = (e) => postJson("/mcp/strict", { strict: e.target.checked });
     // Gỡ / cài lại một dịch vụ có sẵn. Gỡ mà đang có kết nối theo nó thì server trả 409 kèm
     // danh sách, và hỏi lại một câu trước khi làm - kết nối là dữ liệu của người dùng.

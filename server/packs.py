@@ -56,7 +56,15 @@ from pathlib import Path
 import fastyaml
 from config import STATE_DIR
 
-PROJECT_ROOT = STATE_DIR.parent if (STATE_DIR / "..").is_dir() else STATE_DIR
+# Gốc CÂY MÃ NGUỒN, để đọc VERSION. Neo vào `__file__` y như `main`, `system_sync`,
+# `plugins_host` và `updater` - KHÔNG suy ra từ STATE_DIR.
+#
+# Bản cũ suy từ STATE_DIR và sai ở mọi bản cài đặt `JAVIS_STATE_DIR`: trên Docker thì
+# `/data/state` ra `/data`, chỗ không có VERSION. Hậu quả không nhẹ chút nào - `_app_version()`
+# trả rỗng, `_hop_compat` so với (0,0,0), nên MỌI gói có khai `compat.app` đều bị từ chối ở
+# bước validate với câu "cần Javis >=x, bản này là " (bỏ trống). Tức là cả kho không cài được
+# gì, trên đúng những bản cài mà người dùng thật đang chạy.
+PROJECT_ROOT = Path(__file__).parent.parent
 PACKS_DIR = STATE_DIR / "packs"
 MANIFEST_TEN = ("javis-pack.yaml", "javis-pack.yml")
 # Sổ cài đặt. `pack_install` ghi, ở đây chỉ ĐỌC - và chỉ đọc đúng một trường `enabled`, để
@@ -119,7 +127,14 @@ def _hop_compat(dai: str) -> tuple[bool, str]:
     dai = str(dai or "").strip()
     if not dai:
         return True, ""
-    hien = _ver(_app_version())
+    ban = _app_version()
+    if not ban:
+        # Không đọc nổi VERSION là lỗi CỦA JAVIS, không phải lỗi của gói. Từ chối mọi gói vì
+        # một tệp của chính mình không đọc được thì hỏng nặng hơn nhiều so với cho cài một gói
+        # có thể hơi mới - người dùng đã đọc màn hình xác nhận và tự bấm đồng ý rồi.
+        print("[packs] không đọc được VERSION, bỏ qua chốt tương thích", file=sys.stderr)
+        return True, ""
+    hien = _ver(ban)
     for phan in dai.split():
         m = re.match(r"^(>=|<=|>|<|==|=)?\s*v?([0-9][0-9.\-+a-zA-Z]*)$", phan.strip())
         if not m:
