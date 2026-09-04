@@ -167,7 +167,17 @@
   // Từ khoá điền sẵn vào ô tìm, cùng vòng đời với `_loaiCho`: đặt một lần rồi xoá ngay.
   let _timCho = "";
   // Trang đã dẫn người dùng sang kho, để vẽ nút quay lại. `null` = vào thẳng từ thanh bên.
+  //
+  // HAI biến chứ không một, và đây là lý do: `_veTrang` là ý định của MỘT lần bấm tab, còn
+  // `_veLuot` là đường về của LƯỢT đang mở - nó phải sống qua mọi lần vẽ lại, vì trang tự vẽ
+  // lại sau mỗi lần cài, gỡ hay bật tắt.
+  //
+  // Gộp làm một thì hoặc nút biến mất ngay sau khi cài xong một món (đúng lúc cần nó nhất),
+  // hoặc nó dính lại: bấm tab từ trang Kỹ năng, rời đi, rồi vào kho từ THANH BÊN - và thấy
+  // một cái nút "Quay lại Kỹ năng" trỏ về nơi mình không hề đi ra. Ca thứ hai trước 0.55.37
+  // không xảy ra được vì kho không có mặt trên thanh bên; giờ có rồi.
   let _veTrang = null;
+  let _veLuot = null;
 
   const BAC = {
     data: { nhan: "Chỉ dữ liệu", mau: "var(--ok-ink,#2f855a)" },
@@ -301,7 +311,7 @@
       });
       if (!r || !r.ok) { note.textContent = (r && r.error) || "Cài không được."; return; }
       dong();
-      render(el);
+      veLai(el);
     };
   }
 
@@ -716,11 +726,20 @@
       });
       if (!r || !r.ok) { note.textContent = (r && r.error) || "Gỡ không được."; return; }
       dong();
-      render(el);
+      veLai(el);
     };
   }
 
+  // console.js gọi hàm này MỖI LẦN điều hướng vào trang kho, và chỉ lúc đó. Nên đây là chỗ
+  // đúng để chốt đường về của lượt mới: lấy thứ `moKho` vừa đặt (nếu vào bằng tab), hoặc
+  // không có gì (nếu vào từ thanh bên).
   async function render(el) {
+    _veLuot = _veTrang;
+    _veTrang = null;
+    return veLai(el);
+  }
+
+  async function veLai(el) {
     el.innerHTML = '<div class="cview-placeholder">Đang tải…</div>';
     let d;
     try { d = await (await fetch("/packs")).json(); }
@@ -732,14 +751,11 @@
     // Bộ lọc loại thì lấy rồi XOÁ NGAY: nó là ý định của MỘT lần bấm tab. Giữ lại thì lần sau
     // vào kho vẫn thấy lưới bị cắt còn một loại mà không có gì giải thích.
     //
-    // Nút quay lại thì NGƯỢC LẠI, phải sống suốt lượt ở trong kho. Trang này tự vẽ lại sau mỗi
-    // lần cài, gỡ hay bật tắt; xoá theo kiểu kia thì cài xong một món là nút biến mất - đúng
-    // lúc người dùng cần nó nhất, và kho không nằm trên thanh bên nên họ thật sự bị lạc.
-    // Rời kho rồi quay lại bằng tab khác thì `moKho` ghi đè, còn tải lại trang thì mọi biến
-    // JS về rỗng - hai đường đó tự sạch, không cần xoá tay.
+    // Nút quay lại thì đọc `_veLuot` - đã chốt ở `render()` cho cả lượt - nên nó sống qua mọi
+    // lần vẽ lại mà không dính sang lượt sau.
     const loaiDau = _loaiCho;
     const timDau = _timCho;
-    const veTrang = _veTrang;
+    const veTrang = _veLuot;
     _loaiCho = "";
     _timCho = "";
 

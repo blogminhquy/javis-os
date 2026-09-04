@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.37] - 2026-09-05
+### Cải thiện
+- **Javis Store ra thanh bên.** Nằm ngay dưới Kết nối, không còn phải vào một trang năng lực rồi bấm tab mới tới được. Lý do đổi: từ 0.55.36 phần lớn kết nối nằm trong kho, mà người mới cài thì chưa có trang nào để mà bấm tab.
+
+### Sửa lỗi
+- **Nút "Quay lại" không còn trỏ nhầm chỗ.** Vào kho từ tab trang Kỹ năng, rời đi, rồi vào lại từ thanh bên thì nút cũ vẫn còn và dẫn về Kỹ năng - nơi bạn không hề đi ra.
+
 ## [0.55.36] - 2026-09-05
 ### Thêm mới
 - **16 kết nối dọn ra Javis Store.** Pancake POS, Shopify, Meta Ads, Facebook Trang, TikTok Ads, Slack, Lark, n8n, Hostinger, Webcake và vài cái nữa giờ cài từ kho thay vì đi kèm app. Đổi lại, bản cập nhật của chúng tới thẳng qua kho, không phải chờ bản Javis mới.

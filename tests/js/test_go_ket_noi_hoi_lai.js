@@ -59,7 +59,8 @@ function moiTruong() {
   const doc = {
     getElementById(id) {
       if (id === "packModal") return hop;
-      if (!hop._html.includes('id="' + id + '"')) return null;
+      const trang = (doc._el && doc._el.innerHTML) || "";
+      if (!hop._html.includes('id="' + id + '"') && !trang.includes('id="' + id + '"')) return null;
       nut[id] = nut[id] || theMoi(id);
       return nut[id];
     },
@@ -87,7 +88,9 @@ function nap(traLoi) {
   globalThis.Alpine = win.Alpine;
   new Function("window", "document", "fetch", SRC)(win, doc, fetchGia);
   globalThis.Alpine = alpineCu;
-  return { P: win.JavisPacks || {}, goi, hop, nut };
+  // `docEl` day them mot vung HTML nua cho getElementById soi: trang kho ve vao `el` chu khong
+  // vao hop thoai, ma hai thu do dung chung mot ban DOM gia.
+  return { P: win.JavisPacks || {}, goi, hop, nut, docEl: (x) => { doc._el = x; } };
 }
 
 check("packs.js phoi ra goApp", typeof nap(() => ({ ok: true })).P.goApp === "function");
@@ -142,6 +145,42 @@ check("packs.js phoi ra goApp", typeof nap(() => ({ ok: true })).P.goApp === "fu
   check("xem truoc that bai -> khong ghi gi", d.goi.length === 1);
   check("xem truoc that bai -> bao loi cua server", rd && rd.ok === false && !rd.huy,
     JSON.stringify(rd));
+
+  // ---- 5. Nut "Quay lai" khong duoc dinh sang luot sau ----
+  //
+  // `moKho()` dat duong ve khi nguoi dung bam tab tu mot trang nang luc. Duong ve do phai song
+  // qua moi lan ve lai TRONG luot (trang tu ve lai sau moi lan cai/go), nhung phai CHET khi
+  // nguoi dung roi di roi vao kho bang duong khac.
+  //
+  // Truoc 0.55.37 khong co ca thu hai: kho khong co mat tren thanh ben nen duong duy nhat vao
+  // la cai tab, va tab nao cung ghi de duong ve. Dua kho ra thanh ben la mo ra ca do - vao tu
+  // thanh ben ma van thay nut "Quay lai Ky nang" tro ve noi minh khong he di ra.
+  const e = nap((url) => (url.startsWith("/packs/store")
+    ? { ok: true, packs: [] }
+    : { packs: [], dir: "/tmp/packs", max_mb: 25 }));
+
+  // `el` gia: chi can ghi nho HTML de test doc lai, va de getElementById tim thay trong do.
+  const el = {
+    _html: "",
+    set innerHTML(v) { this._html = v; },
+    get innerHTML() { return this._html; },
+    querySelectorAll: () => [],
+  };
+  e.docEl(el);
+
+  // Trong trinh duyet `window.Alpine` va `Alpine` la mot; `nap()` tra global ve nhu cu sau khi
+  // nap xong, nen dat lai o day cho `moKho` goi duoc `Alpine.store("nav").go`.
+  const alpineCu = globalThis.Alpine;
+  globalThis.Alpine = { store: () => ({ go() {} }) };
+  e.P.moKho("skill", "skills", "Ky nang");     // vao kho bang TAB tu trang Ky nang
+  await e.P.render(el);
+  check("vao tu tab -> co nut quay lai", /id="pkQuayLai"/.test(el.innerHTML), el.innerHTML.slice(0, 80));
+
+  await e.P.render(el);                        // dieu huong vao kho lan nua, lan nay tu THANH BEN
+  check("CANARY: vao tu thanh ben -> KHONG con nut quay lai cua luot truoc",
+    !/id="pkQuayLai"/.test(el.innerHTML), el.innerHTML.slice(0, 120));
+
+  globalThis.Alpine = alpineCu;
 
   console.log("");
   if (fails.length) {

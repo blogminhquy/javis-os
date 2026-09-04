@@ -280,23 +280,30 @@ check("tab truyền cả trang gốc để kho vẽ được nút quay lại",
       "moKho(kind, id," in src_con)
 check("kho vẽ nút quay lại khi vào từ một trang",
       'id="pkQuayLai"' in src_js and "_veTrang" in src_js)
-# Trang kho tự vẽ lại sau mỗi lần cài, gỡ hay bật tắt. Xoá `_veTrang` trong `render` như xoá
-# bộ lọc loại thì cài xong một món là nút quay lại biến mất - đúng lúc cần nó nhất, và kho
-# không nằm trên thanh bên nên người dùng thật sự không biết về đâu.
+# Đường về được chốt MỘT LẦN lúc điều hướng vào trang (`render`), rồi cả lượt vẽ lại đọc
+# `_veLuot`. Hai lỗi bị chặn cùng lúc bởi cách tách này:
+#   - Xoá trong lúc vẽ lại: cài xong một món là nút biến mất, đúng lúc cần nó nhất.
+#   - Không xoá gì cả: bấm tab từ trang Kỹ năng, rời đi, vào lại kho TỪ THANH BÊN, và thấy
+#     nút "Quay lại Kỹ năng" trỏ về nơi mình không hề đi ra. Ca này chỉ xảy ra được từ
+#     0.55.37, khi kho có mặt trên thanh bên.
 _than_render = src_js[src_js.index("async function render(el)"):]
 _than_render = _than_render[:_than_render.index("function moKho(")]
-check("nút quay lại SỐNG qua các lần vẽ lại, không bị xoá như bộ lọc",
-      '_loaiCho = "";' in _than_render and "_veTrang = null;" not in _than_render)
+check("đường về chốt một lần lúc vào trang, rồi mới vẽ",
+      "_veLuot = _veTrang;" in _than_render and "_veTrang = null;" in _than_render)
+_than_ve = src_js[src_js.index("async function veLai(el)"):]
+_than_ve = _than_ve[:_than_ve.index("function moKho(")]
+check("và lần vẽ lại đọc đường về của LƯỢT, không đọc ý định của lần bấm tab",
+      "const veTrang = _veLuot;" in _than_ve and '_loaiCho = "";' in _than_ve)
+check("CANARY: vẽ lại sau khi cài/gỡ KHÔNG đi qua render (đường về sẽ mất)",
+      "veLai(el);" in src_js and src_js.count("      render(el);") == 0)
 
-# Kho KHÔNG phải một chức năng ngang hàng với Trợ lý hay Kỹ năng - nó là chỗ ghé để lấy thêm
-# một trong số chúng. Đường vào là tab trên chính trang đang đứng, không phải một mục nữa
-# trên thanh bên vốn đã dài.
-check("kho không hiện trên thanh bên", 'RAIL_AN = new Set(["packs"])' in src_con)
-# Nhưng vẫn phải ở trong RAIL_ITEMS và trong `ids` của nhóm: bỏ hẳn thì `railGroups` coi là
-# "chưa xếp nhóm" và dồn xuống nhóm đáy, tức hiện ở chỗ còn khó hiểu hơn.
-check("vẫn giữ trong danh sách trang để không rơi xuống nhóm đáy",
-      '"packs", "logs", "account", "usage",' in src_con
-      and '"plugins", "packs"]' in src_con)
+# Kho có mặt trên thanh bên từ 0.55.37. Lý do ẩn nó trước đây - "đường vào đúng là cái tab
+# trên chính trang bạn đang đứng" - sai ngay khi kho thành chỗ chứa phần lớn kết nối của
+# Javis: người mới cài chưa đấu gì thì không có trang nào để mà bấm tab.
+check("kho hiện trên thanh bên", "const RAIL_AN = new Set();" in src_con)
+check("và nằm trong nhóm Kết nối", '"mcp", "packs", "channels", "models"' in src_con)
+check("vẫn giữ trong danh sách trang (nguồn icon và nhãn)",
+      '"packs", "logs", "account", "usage",' in src_con)
 # VIEW_META thiếu "packs" từ đầu nên header trang kho ghi nhầm là tiêu đề Trang chủ.
 check("trang kho có tiêu đề riêng, không mượn tiêu đề Trang chủ",
       '"plugins", "packs", "logs"' in src_con)
