@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.34] - 2026-09-05
+### Sửa lỗi
+- **Vài nút trong kho hiện sai phông chữ.** Nút bấm không tự dùng phông của trang, nên hàng tab và cột nhóm hiện bằng phông mặc định của máy giữa một trang Montserrat. Giờ cả trang một phông.
+
+### Cải thiện
+- **Kho cài đặt đổi tên thành Javis Store**, và chữ trong kho to lên cho dễ đọc.
+- **Có nút quay lại.** Vào kho từ trang Kỹ năng thì bấm một cái là về đúng trang Kỹ năng.
+- **Nút "Cài từ tệp .zip" chuyển lên đầu**, nằm ngay cạnh ô tìm kiếm.
+- **Bỏ khối "Đã cài" ở cuối trang.** Nó lặp lại thứ đã có trên lưới; nút bật/tắt tạm chuyển thẳng lên thẻ của từng món.
+
 ## [0.55.33] - 2026-09-05
 ### Thêm mới
 - **26 kết nối của Javis đã có bản trong kho.** Từ giờ chúng không còn buộc phải đi kèm app: gỡ đi cho gọn rồi lấy lại từ kho bất cứ lúc nào, và bản cập nhật của một kết nối tới thẳng qua kho chứ không phải chờ bản Javis mới.

@@ -273,7 +273,20 @@ check("năm trang năng lực đều có đường sang kho",
                                  'mcp: "connector"')))
 # Năm bản sao của lưới kho là năm thứ sẽ lệch nhau sau vài tháng. Tab chỉ ĐIỀU HƯỚNG.
 check("tab kho điều hướng sang kho chứ không nhúng bản sao lưới",
-      "JavisPacks.moKho(kind)" in src_con and "veKho" not in src_con)
+      "JavisPacks.moKho(kind" in src_con and "veKho" not in src_con)
+# Kho không nằm trên thanh bên, nên vào rồi mà không có nút quay lại là người dùng thấy mình
+# bị lạc. Tab phải truyền cả trang gốc, và kho phải vẽ nút đó.
+check("tab truyền cả trang gốc để kho vẽ được nút quay lại",
+      "moKho(kind, id," in src_con)
+check("kho vẽ nút quay lại khi vào từ một trang",
+      'id="pkQuayLai"' in src_js and "_veTrang" in src_js)
+# Trang kho tự vẽ lại sau mỗi lần cài, gỡ hay bật tắt. Xoá `_veTrang` trong `render` như xoá
+# bộ lọc loại thì cài xong một món là nút quay lại biến mất - đúng lúc cần nó nhất, và kho
+# không nằm trên thanh bên nên người dùng thật sự không biết về đâu.
+_than_render = src_js[src_js.index("async function render(el)"):]
+_than_render = _than_render[:_than_render.index("function moKho(")]
+check("nút quay lại SỐNG qua các lần vẽ lại, không bị xoá như bộ lọc",
+      '_loaiCho = "";' in _than_render and "_veTrang = null;" not in _than_render)
 
 # Kho KHÔNG phải một chức năng ngang hàng với Trợ lý hay Kỹ năng - nó là chỗ ghé để lấy thêm
 # một trong số chúng. Đường vào là tab trên chính trang đang đứng, không phải một mục nữa
@@ -288,10 +301,17 @@ check("vẫn giữ trong danh sách trang để không rơi xuống nhóm đáy"
 check("trang kho có tiêu đề riêng, không mượn tiêu đề Trang chủ",
       '"plugins", "packs", "logs"' in src_con)
 
-# Người vào trang này gần như luôn để TÌM thêm thứ gì đó. Xem lại thứ đã cài là việc thỉnh
-# thoảng, nên nó xuống dưới.
-check("kho nằm TRÊN phần đã cài",
-      src_js.index("◆ Kho cài đặt") < src_js.index("◆ Đã cài"))
+# Khối "Đã cài" ở cuối trang bỏ hẳn ở 0.55.34: nó lặp lại đúng những gì lưới đã hiện, chỉ
+# khác cách bày. Cái duy nhất chỉ nó có - nút bật/tắt tạm - chuyển thẳng lên thẻ, chứ KHÔNG
+# được biến mất: tắt tạm khác gỡ hẳn, và người ta cần nó khi một gói đang gây phiền mà chưa
+# muốn mất cấu hình.
+check("không còn khối 'Đã cài' lặp lại ở cuối trang", "◆ Đã cài" not in src_js)
+check("bật/tắt tạm chuyển lên thẻ chứ không mất",
+      'data-kho-act="tat"' in src_js and '"/packs/toggle"' in src_js)
+# Nút chọn tệp nằm TRONG thanh công cụ của lưới, tức trên đầu - không phải cuối trang.
+check("nút cài từ tệp .zip nằm trên thanh công cụ của lưới",
+      src_js.index('id="pkChon2"') < src_js.index('id="pkGrid"'))
+check("tên hiển thị là Javis Store", "◆ Javis Store" in src_js)
 
 # Mục trong danh mục trỏ vào tệp NGAY TRONG REPO thì tệp đó phải có thật và đúng dấu vân tay.
 # Đây là lỗi khó thấy nhất của một kho: index đã trỏ sang bản mới mà tệp thì quên chưa đẩy,
