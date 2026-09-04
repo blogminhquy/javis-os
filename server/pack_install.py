@@ -292,6 +292,27 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
 
     ban = packs._nap_mot(tam, da_co)
     py = sorted(str(p.relative_to(tam)).replace("\\", "/") for p in tam.rglob("*.py"))
+
+    # Plugin trong gói: liệt kê để hiện lên màn hình xác nhận, và TỪ CHỐI nếu trùng tên một
+    # plugin đi kèm app. Chặn ở đây chứ không lúc nạp, vì một gói lặng lẽ thay `javis_task`
+    # hay `javis_schedule` dưới một màn hình chỉ nói "gói này chạy mã" là đúng kiểu bất ngờ
+    # không nên có - người dùng phải thấy lý do TRƯỚC khi có gì rơi xuống đĩa.
+    plugin_slugs = []
+    goc_pl = tam / "plugins"
+    if goc_pl.is_dir():
+        for d in sorted(goc_pl.iterdir()):
+            if d.is_dir() and any((d / e).is_file() for e in ("plugin.py", "__init__.py")):
+                plugin_slugs.append(d.name)
+    try:
+        import plugins_host
+        trung = sorted(set(plugin_slugs) & plugins_host._slug_bundled())
+    except Exception:
+        trung = []
+    if trung:
+        shutil.rmtree(boc, ignore_errors=True)
+        return {"ok": False, "stage": "validate",
+                "error": ("gói mang plugin trùng tên plugin có sẵn của Javis: "
+                          + ", ".join(trung) + ". Đổi tên trong gói rồi thử lại.")}
     return {
         "ok": bool(ban["ok"]), "stage": "" if ban["ok"] else "validate",
         "error": ban["error"] if not ban["ok"] else "",
@@ -299,7 +320,7 @@ def soi(du_lieu: bytes, ten_tep: str = "") -> dict:
         "staging_id": sha, "sha256": sha, "filename": ten_tep,
         "id": pid, "name": ban["name"], "description": ban["description"],
         "version": ban["version"], "author": ban.get("author") or {},
-        "tier": ban["tier"], "connectors": ban["connectors"],
+        "tier": ban["tier"], "connectors": ban["connectors"], "plugins": plugin_slugs,
         "py_files": py, "size": len(du_lieu),
         "da_cai": ({"version": da_cai.get("version")} if da_cai else None),
     }
@@ -365,6 +386,8 @@ def cai(staging_id: str, consent_sha256: str, *, enable: bool = False,
         # được plugin.py thì cũng ghi được sổ này, nên chốt phải nằm ở chỗ nạp.
         "code_digest": _digest_ma(dich),
         "connectors": (ban or {}).get("connectors") or [],
+        "plugins": sorted(d.name for d in (dich / "plugins").iterdir()
+                          if d.is_dir()) if (dich / "plugins").is_dir() else [],
     }
     _ghi_so(so)
     return {"ok": True, "id": pid, "enabled": bool(enable),
@@ -397,6 +420,42 @@ def dat_bat_tat(pid: str, bat: bool) -> dict:
 
 
 # ─────────────────────────── gỡ ───────────────────────────
+
+def quet_tuong_thich() -> list:
+    """Lúc khởi động: TẮT gói có dải `compat.app` không còn khớp phiên bản Javis hiện tại.
+
+    Vì sao cần dù trình cài đã kiểm: `update.sh` chạy `git pull` và `updater.py` chạy
+    `git reset --hard`, không cái nào chạy lại trình cài. Không có lượt quét này thì dải
+    `compat` chỉ có tác dụng đúng một lần, ở lần cài đầu tiên - tức là trang trí.
+
+    TẮT chứ không xoá, và ghi lý do: hạ cấp Javis rồi nâng lại là gói tự chạy tiếp."""
+    ra = []
+    so = doc_so()
+    doi = False
+    for ban in packs.installed():
+        pid = ban["id"]
+        hang = so.get(pid)
+        if not hang or not hang.get("enabled", True):
+            continue
+        mf = Path(ban["dir"])
+        m = next((mf / x for x in packs.MANIFEST_TEN if (mf / x).is_file()), None)
+        if m is None:
+            continue
+        try:
+            dai = ((packs._doc_file(m) or {}).get("compat") or {}).get("app")
+        except Exception:
+            continue
+        ok, vi_sao = packs._hop_compat(dai)
+        if not ok:
+            hang["enabled"] = False
+            hang["disabled_reason"] = vi_sao
+            doi = True
+            ra.append({"id": pid, "reason": vi_sao})
+            print(f"[packs] tắt '{pid}': {vi_sao}", file=sys.stderr)
+    if doi:
+        _ghi_so(so)
+    return ra
+
 
 def ke_hoach_go(pid: str) -> dict:
     """Gỡ gói này thì mất những gì. Hộp thoại vẽ từ đúng kết quả này."""
@@ -447,6 +506,17 @@ async def go(pid: str, *, purge_data: bool = False, purge_audit: bool = False) -
             bao["connections_purged"].append(kn["label"])
         except Exception as e:
             bao["errors"].append(f"{kn['label']}: {e}")
+
+    # DỪNG plugin của gói trước khi đụng tới thư mục: `unload` chạy on_unload rồi pop module
+    # khỏi sys.modules. Thiếu bước này thì gói đã gỡ mà mã của nó còn sống trong tiến trình,
+    # cùng mọi thread hay socket nó mở ra - một câu khó nói cho xuôi.
+    try:
+        import plugins_host
+        for slug in (doc_so().get(pid) or {}).get("plugins") or []:
+            plugins_host.unload(slug)
+        plugins_host.invalidate()
+    except Exception as e:
+        bao["errors"].append(f"dừng plugin của gói: {e}")
 
     thu_muc = packs.PACKS_DIR / pid
     if thu_muc.is_dir() and packs.PACKS_DIR.resolve() in thu_muc.resolve().parents:

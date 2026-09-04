@@ -4,6 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.23] - 2026-09-04
+### Thêm mới
+- **Gói giờ mang được cả công cụ, không chỉ dịch vụ kết nối.** Cài một gói là Javis có thêm tool mới, dùng được ngay trên mọi bộ não. Đây là nửa còn lại của hướng "cài thêm được thì gỡ được".
+- **Không cần bật biến môi trường cho gói.** Gói đi qua trình cài, tức bạn đã xem màn hình liệt kê từng tệp mã rồi mới bấm đồng ý, nên không phải mở thêm một công tắc nào nữa. Plugin bạn tự thả vào thư mục thì vẫn cần như cũ.
+- **Thẻ plugin hiện nhãn nguồn "Từ gói"**, kèm nút dẫn thẳng sang trang Gói để bật tắt hoặc gỡ.
+
+### Bảo mật
+- **Mã trong gói bị khoá theo nội dung.** Lúc cài, Javis ghi lại dấu vân tay của toàn bộ mã trong gói; mỗi lần nạp nó tính lại và đối chiếu. Lệch một byte là plugin không chạy, kèm dòng nói rõ vì sao và phải làm gì. Kiểm ở lúc nạp chứ không chỉ lúc cài, vì ai sửa được tệp mã thì cũng sửa được sổ ghi.
+- **Gói không được cướp tên công cụ có sẵn của Javis.** Trình cài từ chối ngay và nói tên bị trùng.
+- **Tắt hay gỡ một plugin giờ là DỪNG thật.** Trước đây nó chỉ biến khỏi danh sách, còn thứ plugin mở ra như tiến trình nền vẫn sống tiếp. Nay plugin tự dọn được, và Javis bỏ hẳn mã của nó khỏi bộ nhớ.
+- **Plugin thôi che được mã nguồn của Javis.** Trước đây thư mục plugin được chèn vào đường tìm kiếm module, nên một plugin chứa tệp trùng tên với tệp lõi có thể thay thế nó.
+- **Gói không còn khớp phiên bản Javis sẽ tự tắt lúc khởi động**, kèm lý do, thay vì chạy tiếp trong tình trạng không rõ.
+
 ## [0.55.22] - 2026-09-04
 ### Thêm mới
 - **Trang Gói mới: cài thêm dịch vụ cho Javis từ một tệp .zip.** Chọn tệp, Javis mở ra xem bên trong có gì rồi mới hỏi bạn có cài không. Cài xong là dịch vụ hiện ngay ở trang Kết nối, dùng được trên mọi bộ não, không phải chờ bản cập nhật Javis.
