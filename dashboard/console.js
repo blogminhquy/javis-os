@@ -442,15 +442,19 @@
     // hệt như "tab hỏng" chứ không giống "ai đó cướp handler".
     row.innerHTML = ds.map((x, i) =>
         `<button class="tab-kho${x.chon ? " on" : ""}" data-tab-cb="${i}">${esc(x.nhan)}</button>`).join("")
-      + `<button class="tab-kho" data-mo-kho="${kind}">${ic("package")} Kho cài đặt</button>`;
+      + `<button class="tab-kho" data-mo-kho="${kind}">${ic("package")} Javis Store</button>`;
     row.querySelectorAll("[data-tab-cb]").forEach(b => b.onclick = () => {
       const f = ds[Number(b.dataset.tabCb)];
       if (f && f.bam) f.bam();
     });
     const nut = row.querySelector("[data-mo-kho]");
+    // Truyền cả TRANG GỐC để kho vẽ được nút quay lại. Không truyền thì người dùng sang kho
+    // rồi phải tự tìm đường về bằng thanh bên - mà kho không nằm trên thanh bên nữa, nên họ
+    // dễ thấy mình bị lạc.
     nut.onclick = () => {
-      if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(kind);
-      else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
+      if (window.JavisPacks && window.JavisPacks.moKho) {
+        window.JavisPacks.moKho(kind, id, VIEW_META[id] ? VIEW_META[id].label : id);
+      } else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
     };
     return row;
   }
@@ -1538,7 +1542,7 @@
         <div class="wf-desc">${esc(p.description || "")}</div>
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
         <div class="wf-actions">${p.source === "pack"
-            ? `<button class="s-btn-ghost" data-goto-packs="1">Quản lý ở Kho cài đặt</button>`
+            ? `<button class="s-btn-ghost" data-goto-packs="1">Quản lý ở Javis Store</button>`
             : p.removed
               ? `<button class="s-btn-ghost undel">Cài lại</button>`
               : `<button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button>
@@ -4974,7 +4978,7 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
       + '<span style="flex:1;min-width:240px">Muốn nối thêm dịch vụ? Chọn từ những dịch vụ '
       + 'Javis có sẵn, hoặc tải thêm từ kho.</span>'
       + '<button class="mp-btn" id="mcpDiSanCo">Kết nối sẵn có</button>'
-      + '<button class="mp-btn primary" id="mcpDiKho">Kho cài đặt</button></div>'
+      + '<button class="mp-btn primary" id="mcpDiKho">Javis Store</button></div>'
       + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ Kết nối sẵn của Claude Code và Codex <span style="opacity:.5">chỉ hiển thị - bấm để xem</span></h3></summary>'
       + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Bộ não tương ứng tự dùng được các nguồn "Connected". Đăng nhập và quản lý trong app Claude hoặc bằng lệnh <code>codex mcp</code>, không sửa ở đây.</div>'
       + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">Bấm để tải…</div></div>'
@@ -5010,7 +5014,9 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
     if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
     const nutKho = document.getElementById("mcpDiKho");
     if (nutKho) nutKho.onclick = () => {
-      if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho("connector");
+      if (window.JavisPacks && window.JavisPacks.moKho) {
+        window.JavisPacks.moKho("connector", "mcp", VIEW_META.mcp ? VIEW_META.mcp.label : "Kết nối");
+      }
     };
     document.getElementById("mcpStrict").onchange = (e) => postJson("/mcp/strict", { strict: e.target.checked });
     // Gỡ / cài lại một dịch vụ có sẵn. Gỡ mà đang có kết nối theo nó thì server trả 409 kèm

@@ -232,6 +232,9 @@ def _make_router() -> APIRouter:
             hang = da_cai.get(g["id"])
             g["installed"] = bool(hang)
             g["installed_version"] = (hang or {}).get("version", "")
+            # Thẻ cần biết gói đang bật hay tắt để vẽ đúng nút. Gói thả tay vào thư mục (không
+            # có hàng trong sổ) mặc định là BẬT - người vận hành đã tự đặt nó vào rồi.
+            g["enabled"] = bool(hang.get("enabled", True)) if hang else True
             g["nguon"] = "kho"
             g["nhom"] = _nhom(g)
         # Connector đi kèm app cũng hiện TRONG kho, đánh dấu sẵn là đã cài. Người dùng không

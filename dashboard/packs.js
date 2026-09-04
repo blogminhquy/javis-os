@@ -89,38 +89,13 @@
   // Loại được chọn sẵn khi mở kho. `moKho()` đặt, `render()` lấy rồi XOÁ ngay - nó là ý định
   // của MỘT lần bấm tab, không phải trạng thái của trang.
   let _loaiCho = "";
+  // Trang đã dẫn người dùng sang kho, để vẽ nút quay lại. `null` = vào thẳng từ thanh bên.
+  let _veTrang = null;
 
   const BAC = {
     data: { nhan: "Chỉ dữ liệu", mau: "var(--ok-ink,#2f855a)" },
     code: { nhan: "Có chạy mã", mau: "var(--warn-ink,#b7791f)" },
   };
-
-  function theGoi(p) {
-    const ten = esc(nn(p.name, p.id));
-    const bac = BAC[p.tier] || BAC.data;
-    const tat = p.enabled === false;
-    const loi = p.ok === false;
-    return '<div class="prov-row' + (tat || loi ? " off" : "") + '">'
-      + '<div class="prov-ico">' + ic("package") + '</div>'
-      + '<div class="prov-main">'
-      + '<div class="prov-name">' + ten
-      + ' <span class="prov-kind" style="color:' + bac.mau + '">' + bac.nhan + '</span>'
-      + (tat ? ' <span class="prov-kind">đang tắt</span>' : "")
-      + '</div>'
-      + '<div class="prov-meta">' + esc(p.id) + (p.version ? " · v" + esc(p.version) : "")
-      + (p.connectors && p.connectors.length
-          ? " · " + p.connectors.length + " dịch vụ" : "")
-      + '</div>'
-      + (loi ? '<div class="prov-meta" style="color:var(--danger-ink,#b3261e)">'
-               + esc(p.error) + '</div>'
-             : (p.error ? '<div class="prov-meta" style="color:var(--warn-ink,#b7791f)">'
-                          + esc(p.error) + '</div>' : ""))
-      + '</div>'
-      + (loi ? "" : '<button class="mp-btn" data-pk-toggle="' + esc(p.id) + '" data-on="'
-                    + (tat ? "1" : "0") + '">' + (tat ? "Bật" : "Tắt") + '</button>')
-      + '<button class="mp-btn danger" data-pk-del="' + esc(p.id) + '">Gỡ</button>'
-      + '</div>';
-  }
 
   function vaultTom(v) {
     // Tóm tắt "gói này thêm gì vào bộ não", dạng "2 trợ lý, 1 kỹ năng".
@@ -297,7 +272,7 @@
         : { nhan: "Cài lại", lop: "kho-btn kho-btn-chinh", act: "coreon" };
     }
     if (moi) return { nhan: "Có bản mới v" + esc(g.version), lop: "kho-btn kho-btn-chinh", act: "cai" };
-    if (g.installed) return { nhan: "Gỡ cài đặt", lop: "kho-btn kho-btn-go", act: "go" };
+    if (g.installed) return { nhan: "Gỡ cài đặt", lop: "kho-btn kho-btn-go", act: "go", tat: true };
     return { nhan: "Cài đặt", lop: "kho-btn kho-btn-chinh", act: "cai" };
   }
 
@@ -322,8 +297,16 @@
       + '<div class="prov-meta">' + meta + '</div>'
       + (g.installed
           ? '<div class="kho-daicai">' + ic("check") + ' Đã cài trên máy</div>' : "")
+      + '<div class="kho-nut">'
+      // Bật/tắt tạm một gói đã cài. Trước 0.55.34 nút này chỉ có ở khối "Đã cài" dưới trang;
+      // khối đó bỏ đi rồi nên nó về đây, chứ không được biến mất - tắt tạm KHÁC gỡ hẳn, và
+      // người ta cần nó khi một gói đang gây phiền mà chưa muốn mất cấu hình.
+      + (n.tat
+          ? '<button class="kho-btn kho-btn-phu" data-kho-act="tat" data-kho-id="' + esc(g.id)
+            + '">' + (g.enabled === false ? "Bật" : "Tắt") + '</button>'
+          : "")
       + '<button class="' + n.lop + '" data-kho-act="' + n.act + '" data-kho-id="' + esc(g.id) + '">'
-      + n.nhan + '</button>'
+      + n.nhan + '</button></div>'
       + '</div>';
   }
 
@@ -408,8 +391,10 @@
       + '</div>'
       + '<div class="kho-chinh">'
       + '<div class="cat-tools">'
-      + '<input class="js-input" id="pkQ" placeholder="Tìm trong ' + esc(LOAI[_kho.loai].nhan)
-      + '…" value="' + esc(_kho.tim) + '" style="max-width:320px">'
+      // Bề rộng do CSS lo, không viết cứng ở đây: trên điện thoại ô này phải chiếm trọn hàng,
+      // mà style nội tuyến thì media query không đè được nếu không kèm !important.
+      + '<input class="js-input kho-tim" id="pkQ" placeholder="Tìm trong '
+      + esc(LOAI[_kho.loai].nhan) + '…" value="' + esc(_kho.tim) + '">'
       + '<span class="prov-meta">' + hop.length
       + (laDaCai ? ' mục đã cài' : laCongDong ? ' mục cộng đồng' : ' mục') + '</span>'
       + '<span style="flex:1"></span>'
@@ -455,6 +440,12 @@
       const act = b.dataset.khoAct;
       if (act === "cai") return tuUrl(el, g.download.url, g.download.sha256, g);
       if (act === "go") return hopGo(el, g.id);
+      if (act === "tat") {
+        return postJson("/packs/toggle", { id: g.id, enabled: g.enabled === false }).then(r => {
+          if (r && r.ok) veKho(el, host, false, _kho.loai);
+          else alert((r && r.error) || "Không đổi được.");
+        });
+      }
       // Connector của app: `core_off` ghi vào sổ, tệp trong system/ không bị đụng.
       const tat = act === "coreoff";
       if (tat && !confirm('Gỡ "' + nn(g.name, g.id) + '" khỏi kho Kết nối?\n\n'
@@ -557,57 +548,56 @@
       el.innerHTML = '<div class="cview-placeholder">' + esc(d.error) + '</div>';
       return;
     }
-    const ds = d.packs || [];
-    // KHO nằm TRÊN, "đã cài" nằm dưới. Người vào trang này gần như luôn để TÌM thêm thứ gì
-    // đó; xem lại thứ mình đã cài là việc thỉnh thoảng. Thứ tự cũ (đã cài trước) là thứ tự
-    // của một trình quản lý gói, mà đây không phải trình quản lý gói.
+    // Bộ lọc loại thì lấy rồi XOÁ NGAY: nó là ý định của MỘT lần bấm tab. Giữ lại thì lần sau
+    // vào kho vẫn thấy lưới bị cắt còn một loại mà không có gì giải thích.
+    //
+    // Nút quay lại thì NGƯỢC LẠI, phải sống suốt lượt ở trong kho. Trang này tự vẽ lại sau mỗi
+    // lần cài, gỡ hay bật tắt; xoá theo kiểu kia thì cài xong một món là nút biến mất - đúng
+    // lúc người dùng cần nó nhất, và kho không nằm trên thanh bên nên họ thật sự bị lạc.
+    // Rời kho rồi quay lại bằng tab khác thì `moKho` ghi đè, còn tải lại trang thì mọi biến
+    // JS về rỗng - hai đường đó tự sạch, không cần xoá tay.
+    const loaiDau = _loaiCho;
+    const veTrang = _veTrang;
+    _loaiCho = "";
+
     el.innerHTML =
-      '<div class="cview-section"><h3>◆ Kho cài đặt</h3>'
+      // Nút quay lại: chỉ hiện khi VÀO TỪ một trang năng lực. Vào thẳng từ thanh bên thì không
+      // có chỗ nào để quay về, và một cái nút dẫn đi đâu đó ngẫu nhiên còn tệ hơn không có.
+      (veTrang
+        ? '<button class="kho-quaylai" id="pkQuayLai">← Quay lại ' + esc(veTrang.nhan) + '</button>'
+        : "")
+      + '<div class="cview-section kho-khoi"><h3>◆ Javis Store</h3>'
       + '<div class="gcard-meta" style="max-width:740px">Trợ lý, kỹ năng, quy trình và công cụ '
       + 'làm sẵn theo từng lĩnh vực. Bấm <b>Cài</b> là Javis tải về, mở ra cho bạn xem có gì '
       + 'rồi mới hỏi.</div>'
-      + '<div id="pkKho" style="margin-top:12px"></div></div>'
-      + '<div class="cview-section"><h3>◆ Đã cài <span style="opacity:.5">'
-      + ds.length + '</span></h3>'
       + (d.disabled
-        ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
+        ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-top:12px">'
           + 'Biến môi trường <code>JAVIS_DISABLE_PACKS</code> đang bật, nên mọi thứ cài thêm bị tắt hết.</div>'
         : "")
-      + '<div class="prov-list" id="pkList">'
-      + (ds.length ? ds.map(theGoi).join("")
-                   : '<div class="mp-empty">Chưa cài gì thêm.</div>')
-      + '</div>'
-      + '<div style="margin-top:14px"><button class="mp-btn" id="pkChon">Cài từ tệp .zip</button> '
       + '<input type="file" id="pkFile" accept=".zip" style="display:none">'
-      + '<span style="opacity:.6;margin-left:8px">tối đa ' + (d.max_mb || 25) + 'MB</span></div>'
-      + '<div class="gcard-meta" style="margin-top:10px;opacity:.7">Thứ cài thêm nằm ở <code>'
+      + '<div id="pkKho" style="margin-top:12px"></div>'
+      + '<div class="gcard-meta" style="margin-top:16px;opacity:.7">Thứ cài thêm nằm ở <code>'
       + esc(d.dir || "") + '</code>. Thả thẳng một thư mục vào đó cũng được, không bắt buộc '
-      + 'phải qua tệp nén.</div>'
+      + 'phải qua tệp nén. Tệp .zip tối đa ' + (d.max_mb || 25) + 'MB.</div>'
       + '</div>';
 
     const inp = document.getElementById("pkFile");
-    document.getElementById("pkChon").onclick = () => inp.click();
     inp.onchange = () => { if (inp.files && inp.files[0]) chonTep(el, inp.files[0]); inp.value = ""; };
-    el.querySelectorAll("[data-pk-toggle]").forEach(b => b.onclick = async () => {
-      const r = await postJson("/packs/toggle",
-        { id: b.dataset.pkToggle, enabled: b.dataset.on === "1" });
-      if (r && r.ok) render(el); else alert((r && r.error) || "Không đổi được.");
-    });
-    el.querySelectorAll("[data-pk-del]").forEach(b => b.onclick = () => hopGo(el, b.dataset.pkDel));
-    // Kho vẽ SAU và độc lập: kho không tới được thì phần "đã cài" ở trên vẫn dùng bình thường.
+    const nutVe = document.getElementById("pkQuayLai");
+    if (nutVe) nutVe.onclick = () => {
+      const s = window.Alpine && Alpine.store("nav");
+      if (s && s.go) s.go(veTrang.id);
+    };
     const hostKho = document.getElementById("pkKho");
-    // Lấy rồi XOÁ ngay: `_loaiCho` là ý định của một lần bấm tab, không phải trạng thái của
-    // trang. Giữ lại thì lần sau vào từ thanh bên vẫn thấy lưới bị lọc mà không hiểu vì sao.
-    const loaiDau = _loaiCho;
-    _loaiCho = "";
     if (hostKho) veKho(el, hostKho, false, loaiDau);
   }
 
   // Mở kho với một loại đã lọc sẵn. Tab "Kho cài đặt" trên trang Trợ lý / Kỹ năng / Quy
   // trình / Plugin gọi hàm này, nên bốn trang KHÔNG ai nhúng một bản sao của lưới kho: chỉ có
   // một kho, một chỗ sửa, và người dùng học một lần là xong.
-  function moKho(loai) {
+  function moKho(loai, tuTrang, nhanTrang) {
     _loaiCho = LOAI[loai] ? loai : "";
+    _veTrang = tuTrang ? { id: tuTrang, nhan: nhanTrang || tuTrang } : null;
     if (window.Alpine && Alpine.store("nav")) Alpine.store("nav").go("packs");
   }
 
