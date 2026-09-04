@@ -164,11 +164,98 @@
       const r = await postJson("/packs/install", {
         staging_id: d.staging_id, consent_sha256: d.sha256,
         enable: !!(document.getElementById("pkBat") || {}).checked,
+        source: d.source || { kind: "zip" },
       });
       if (!r || !r.ok) { note.textContent = (r && r.error) || "Cài không được."; return; }
       dong();
       render(el);
     };
+  }
+
+  async function tuUrl(el, url, expect) {
+    // Tải từ kho hay từ link đều dừng ở bước SOI rồi mở đúng màn hình xác nhận như tệp tải
+    // lên. Đường từ kho về máy không được phép ngắn hơn đường từ tệp: cùng một thứ để đọc,
+    // cùng một chốt dấu vân tay.
+    modal('<div class="mp-head"><div class="mp-title">ĐANG TẢI GÓI</div></div>'
+      + '<div class="mp-body">Đang tải và kiểm tra…</div>');
+    const d = await postJson("/packs/install-url", { url: url, expect_sha256: expect || "" });
+    if (!d || !d.ok) {
+      modal('<div class="mp-head"><div class="mp-title">KHÔNG CÀI ĐƯỢC</div>'
+        + '<button class="mp-x" data-act="close">×</button></div>'
+        + '<div class="mp-body"><p>' + esc((d && d.error) || "Tải không được.") + '</p>'
+        + ((d && d.stage) ? '<div class="prov-meta">Dừng ở bước: ' + esc(d.stage) + '</div>' : "")
+        + '</div><div class="mp-foot"><button class="mp-btn" data-act="close">Đóng</button></div>');
+      return;
+    }
+    manHinhDongY(d, el);
+  }
+
+  function theKho(g) {
+    const bac = BAC[g.tier] || BAC.data;
+    const daCai = !!g.installed;
+    const moi = daCai && g.installed_version && g.version && g.installed_version !== g.version;
+    const nut = moi
+      ? '<button class="gcard-btn" data-kho="' + esc(g.download.url) + '" data-sha="'
+        + esc(g.download.sha256 || "") + '">Có bản mới v' + esc(g.version) + '</button>'
+      : daCai
+        ? '<button class="gcard-btn" disabled style="opacity:.55">Đã cài</button>'
+        : '<button class="gcard-btn" data-kho="' + esc(g.download.url) + '" data-sha="'
+          + esc(g.download.sha256 || "") + '">Cài</button>';
+    return '<div class="cat-card" data-cat="' + esc(g.category || "") + '">'
+      + '<div class="cat-ico">' + ic("package") + '</div>'
+      + '<div class="cat-name">' + esc(nn(g.name, g.id))
+      + ' <span class="prov-kind" style="color:' + bac.mau + '">' + bac.nhan + '</span>'
+      + (g.verified ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">chính chủ</span>' : "")
+      + '</div>'
+      + '<div class="cat-desc">' + esc(nn(g.description)) + '</div>'
+      + '<div class="prov-meta">' + esc(g.id) + (g.version ? " · v" + esc(g.version) : "")
+      + (g.author && g.author.name ? " · " + esc(g.author.name) : "") + '</div>'
+      + nut + '</div>';
+  }
+
+  async function veKho(el, host, lamMoi) {
+    host.innerHTML = '<div class="mp-empty">Đang tải danh mục…</div>';
+    let d;
+    try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" : ""))).json(); }
+    catch (e) { d = { ok: false, error: String(e) }; }
+    if (!d || !d.ok) {
+      // Kho không tới được thì KHÔNG phải là hỏng cả trang: cài từ tệp vẫn chạy như thường.
+      host.innerHTML = '<div class="mp-empty">Chưa xem được danh mục ('
+        + esc((d && d.error) || "không tải được") + ').<br>'
+        + 'Bạn vẫn cài được gói từ tệp .zip như bình thường.</div>';
+      return;
+    }
+    const ds = d.packs || [];
+    const cats = Array.from(new Set(ds.map(g => g.category).filter(Boolean)));
+    host.innerHTML =
+      (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:10px">Đang xem danh mục đã lưu lần trước, vì lần này chưa lấy được bản mới.</div>' : "")
+      + '<div class="cat-tools"><input class="js-input" id="pkQ" placeholder="Tìm gói…" style="max-width:220px">'
+      + '<span class="cat-filter"><button class="cat-chip on" data-pkf="">Tất cả</button>'
+      + cats.map(c => '<button class="cat-chip" data-pkf="' + esc(c) + '">' + esc(c) + '</button>').join("")
+      + '</span>'
+      + '<button class="mp-btn" id="pkLamMoi" style="margin-left:auto">Làm mới</button></div>'
+      + '<div class="cat-grid" id="pkGrid">'
+      + (ds.length ? ds.map(theKho).join("") : '<div class="mp-empty">Kho chưa có gói nào.</div>')
+      + '</div>';
+
+    host.querySelectorAll("[data-kho]").forEach(b => b.onclick = () =>
+      tuUrl(el, b.dataset.kho, b.dataset.sha));
+    document.getElementById("pkLamMoi").onclick = () => veKho(el, host, true);
+    const loc = () => {
+      const q = (document.getElementById("pkQ").value || "").toLowerCase();
+      const chip = host.querySelector(".cat-chip.on");
+      const cf = chip ? (chip.dataset.pkf || "") : "";
+      host.querySelectorAll("#pkGrid .cat-card").forEach(c => {
+        const hop = (!cf || c.dataset.cat === cf) && (!q || c.textContent.toLowerCase().includes(q));
+        c.style.display = hop ? "" : "none";
+      });
+    };
+    document.getElementById("pkQ").oninput = loc;
+    host.querySelectorAll("[data-pkf]").forEach(b => b.onclick = () => {
+      host.querySelectorAll("[data-pkf]").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      loc();
+    });
   }
 
   async function chonTep(el, file) {
@@ -271,7 +358,11 @@
       + '<div class="gcard-meta" style="margin-top:14px;opacity:.7">Gói nằm ở <code>'
       + esc(d.dir || "") + '</code>. Thả thẳng một thư mục vào đó cũng được, không bắt buộc '
       + 'phải qua tệp nén.</div>'
-      + '</div>';
+      + '</div>'
+      + '<div class="cview-section"><h3>◆ Kho gói</h3>'
+      + '<div class="gcard-meta" style="max-width:740px">Danh mục gói do Javis phát hành. '
+      + 'Bấm Cài là Javis tải về, mở ra cho bạn xem rồi mới hỏi, y như khi bạn tự chọn tệp.</div>'
+      + '<div id="pkKho" style="margin-top:12px"></div></div>';
 
     const inp = document.getElementById("pkFile");
     document.getElementById("pkChon").onclick = () => inp.click();
@@ -282,6 +373,9 @@
       if (r && r.ok) render(el); else alert((r && r.error) || "Không đổi được.");
     });
     el.querySelectorAll("[data-pk-del]").forEach(b => b.onclick = () => hopGo(el, b.dataset.pkDel));
+    // Kho vẽ SAU và độc lập: kho không tới được thì phần "đã cài" ở trên vẫn dùng bình thường.
+    const hostKho = document.getElementById("pkKho");
+    if (hostKho) veKho(el, hostKho, false);
   }
 
   window.JavisPacks = { render: render };

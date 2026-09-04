@@ -1,0 +1,11 @@
+{
+  "format": "javis-pack-index",
+  "format_version": 1,
+  "updated": "2026-09-04",
+  "store": {
+    "name": "Kho gói Javis",
+    "url": "https://github.com/blogminhquy/javis-os"
+  },
+  "_doc": "Danh mục gói cho trang Năng lực > Gói. Cách thêm một gói: xem docs/dev/pack-store-index.md. Trường _doc và mọi khoá lạ khác đều bị Javis bỏ qua khi đọc, chỉ để lại ghi chú cho người sửa file này.",
+  "packs": []
+}

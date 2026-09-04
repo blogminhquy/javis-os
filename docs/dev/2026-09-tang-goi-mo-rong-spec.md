@@ -301,7 +301,12 @@ Thêm `category_key` cho cả 29 entry gốc trong một commit máy móc, **gi�
 
 Không chuyển `meta-ads-graph`, `meta-pages-graph`, `fb-monitor-apify` thành gói ở spec 1. Chúng là bằng chứng cho việc một định dạng là đúng, không phải đích di trú: chỗ dính `CONNECTOR_ID` chỉ gỡ được khi có `ctx.connector_id`, mà đó là việc về sau.
 
-### Giai đoạn 5 - Cài từ URL và repo riêng (4 ngày)
+### Giai đoạn 5 - Cài từ URL và repo riêng (4 ngày) - LÀM MỘT NỬA
+
+> Ship ở 0.55.24: `server/packs_fetch.py` (chốt SSRF theo địa chỉ đã phân giải, kiểm lại
+> mỗi chặng chuyển hướng, trần theo byte thật) và endpoint `/packs/install-url`.
+> CHƯA làm: token cho repo riêng, ghim theo commit, kiểm bản mới định kỳ. Gói riêng hiện
+> vẫn ship bằng tệp .zip, đường đó đã đủ dùng.
 
 `server/packs_fetch.py` mới. **Chỉ zip qua HTTPS.** Không dùng `git clone` dù image có git, vì ba lý do: token nằm trong argv và `/proc/<pid>/cmdline` đọc được (chính là hình dạng `_auth_url` ở `git_brain.py:489-503`, lý do `_redact` tồn tại); clone kéo cả lịch sử nên không chặn được dung lượng trước khi byte rơi xuống; và `httpx` đã pin sẵn nên đường HTTPS không thêm dependency lẫn subprocess. Token đi bằng **header**.
 
@@ -315,7 +320,12 @@ Không chuyển `meta-ads-graph`, `meta-pages-graph`, `fb-monitor-apify` thành 
 
 **Ghim phiên bản:** ghi lại `ref` đã yêu cầu, `commit` đã resolve, và `sha256` của archive. Ghim theo nhánh thì hiện chip hổ phách "đang bám main". **Không bao giờ tự động cập nhật gói có code.** Khi cập nhật, tính lại `permissions` và digest code; nếu rộng ra thì cài ở trạng thái **tắt** và hỏi lại. Giữ một thế hệ rollback ở `packs/.prev/<id>/`.
 
-### Giai đoạn 6 - Kho công khai (4 ngày)
+### Giai đoạn 6 - Kho công khai (4 ngày) - ĐÃ LÀM
+
+> Ship ở 0.55.24. `server/packs_store.py`, `system/pack-index.json`,
+> `docs/dev/pack-store-index.md`, và lưới kho trong `dashboard/packs.js`. Chủ dự án chốt
+> 2026-09-04: kho chỉ chứa gói chính chủ, BỎ số lượt tải (tệp JSON tĩnh không đếm được,
+> mà tự đếm thì máy khách phải gọi về server nên thành một chuyện riêng tư phải nói rõ).
 
 `server/packs_store.py` fetch `packs.store_url` **phía server** (giữ token và chốt SSRF ở server, tránh luôn CORS), `If-None-Match`, cache TTL 6 giờ. Schema index công bố ở `docs/dev/pack-store-index.md`, mỗi mục soi gương manifest cộng `download: {url, sha256, size}`, `verified`, `updated`, và khối `listing` để dành. **Các trường giá có mặt từ v1** để một gói bán tiền sau này chỉ là một nút "Mua" mở `purchase_url`, không phải một lần phá định dạng.
 

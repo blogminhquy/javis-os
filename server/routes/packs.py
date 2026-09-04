@@ -29,6 +29,8 @@ from fastapi.responses import FileResponse, JSONResponse
 
 import pack_install
 import packs
+import packs_fetch
+import packs_store
 
 # Chỉ ảnh, và KHÔNG SVG: một SVG phục vụ cùng origin thì trơ trong thẻ <img> nhưng chạy script
 # khi người dùng mở thẳng nó ra một tab, tức là XSS trên chính origin của dashboard.
@@ -89,9 +91,14 @@ def _make_router() -> APIRouter:
         if not _DEPS.co_phien(request):
             return _tu_choi()
         d = await request.json()
+        # `source` do client gửi lại nguyên văn từ kết quả soi, chỉ để GHI VÀO SỔ cho biết gói
+        # này đến từ đâu. Không có gì trong hệ thống tin vào nó, nên nó chỉ là ghi chú.
+        ng = d.get("source") if isinstance(d.get("source"), dict) else None
+        if ng:
+            ng = {"kind": str(ng.get("kind") or "")[:16], "url": str(ng.get("url") or "")[:500]}
         r = pack_install.cai(str(d.get("staging_id") or ""),
                              str(d.get("consent_sha256") or ""),
-                             enable=bool(d.get("enable")))
+                             enable=bool(d.get("enable")), nguon=ng)
         if r.get("ok"):
             _DEPS.lam_moi_hub()
         return r if r.get("ok") else JSONResponse(r, status_code=400)
@@ -123,6 +130,51 @@ def _make_router() -> APIRouter:
         if r.get("ok"):
             _DEPS.lam_moi_hub()
         return r if r.get("ok") else JSONResponse(r, status_code=409)
+
+    @router.get("/packs/store")
+    async def packs_store_list(request: Request, refresh: int = 0):
+        """Danh mục gói trong kho. Fetch ở PHÍA SERVER, không ở trình duyệt.
+
+        Ba lý do: chốt SSRF nằm ở server nên đường tải phải đi qua đó mới được gác; trình
+        duyệt sẽ vướng CORS với phần lớn nơi đặt tệp; và nếu về sau có kho riêng cần token thì
+        token không bao giờ nên rơi vào JavaScript."""
+        if not _DEPS.co_phien(request):
+            return _tu_choi()
+        d = await packs_store.lay(lam_moi=bool(refresh))
+        # Gói nào đã cài rồi thì đánh dấu, để lưới hiện "Đã cài" thay vì mời cài lại.
+        da_cai = pack_install.doc_so()
+        for g in d.get("packs") or []:
+            hang = da_cai.get(g["id"])
+            g["installed"] = bool(hang)
+            g["installed_version"] = (hang or {}).get("version", "")
+        return d
+
+    @router.post("/packs/install-url")
+    async def packs_install_url(request: Request):
+        """Tải một gói từ địa chỉ rồi SOI như tệp tải lên. Chưa cài gì cả.
+
+        Cố ý dừng ở bước soi: đường từ kho về máy không được phép ngắn hơn đường từ tệp. Cùng
+        một màn hình xác nhận, cùng một chốt dấu vân tay - chỉ khác chỗ lấy byte."""
+        if not _DEPS.co_phien(request):
+            return _tu_choi()
+        d = await request.json()
+        try:
+            url = packs_fetch.url_zip_github(str(d.get("url") or ""))
+            du_lieu = await packs_fetch.tai(url)
+        except packs_fetch.LoiTai as e:
+            return JSONResponse({"ok": False, "stage": "download", "error": str(e)},
+                                status_code=400)
+        r = pack_install.soi(du_lieu, url.rsplit("/", 1)[-1] or "goi.zip")
+        # Kho khai sẵn dấu vân tay thì đối chiếu NGAY: một tệp khác cái kho nói là dấu hiệu
+        # đường tải bị chen ngang, và đó là lúc phải dừng chứ không phải lúc hỏi người dùng.
+        mong = str(d.get("expect_sha256") or "").strip()
+        if mong and r.get("ok") and r.get("sha256") != mong:
+            return JSONResponse(
+                {"ok": False, "stage": "verify",
+                 "error": "Tệp tải về không khớp dấu vân tay mà kho công bố. Đã dừng."},
+                status_code=400)
+        r["source"] = {"kind": "url", "url": url}
+        return r if r.get("ok") else JSONResponse(r, status_code=400)
 
     @router.get("/packs/{pid}/asset/{duong:path}")
     async def packs_asset(pid: str, duong: str):

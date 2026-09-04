@@ -517,6 +517,24 @@
  {
   "order": 57,
   "type": "APIRoute",
+  "path": "/packs/store",
+  "name": "packs_store_list",
+  "methods": [
+   "GET"
+  ]
+ },
+ {
+  "order": 58,
+  "type": "APIRoute",
+  "path": "/packs/install-url",
+  "name": "packs_install_url",
+  "methods": [
+   "POST"
+  ]
+ },
+ {
+  "order": 59,
+  "type": "APIRoute",
   "path": "/packs/{pid}/asset/{duong:path}",
   "name": "packs_asset",
   "methods": [
@@ -524,7 +542,7 @@
   ]
  },
  {
-  "order": 58,
+  "order": 60,
   "type": "APIRoute",
   "path": "/connect/core-toggle",
   "name": "connect_core_toggle",
@@ -533,7 +551,7 @@
   ]
  },
  {
-  "order": 59,
+  "order": 61,
   "type": "APIRoute",
   "path": "/connect/add",
   "name": "connect_add",
@@ -542,7 +560,7 @@
   ]
  },
  {
-  "order": 60,
+  "order": 62,
   "type": "APIRoute",
   "path": "/connect/test",
   "name": "connect_test",
@@ -551,7 +569,7 @@
   ]
  },
  {
-  "order": 61,
+  "order": 63,
   "type": "APIRoute",
   "path": "/connect/health",
   "name": "connect_health_all",
@@ -560,7 +578,7 @@
   ]
  },
  {
-  "order": 62,
+  "order": 64,
   "type": "APIRoute",
   "path": "/connect/health/check",
   "name": "connect_health_check",
@@ -569,7 +587,7 @@
   ]
  },
  {
-  "order": 63,
+  "order": 65,
   "type": "APIRoute",
   "path": "/connect/substack/resolve-uid",
   "name": "connect_substack_resolve_uid",
@@ -578,7 +596,7 @@
   ]
  },
  {
-  "order": 64,
+  "order": 66,
   "type": "APIRoute",
   "path": "/connect/update",
   "name": "connect_update",
@@ -587,7 +605,7 @@
   ]
  },
  {
-  "order": 65,
+  "order": 67,
   "type": "APIRoute",
   "path": "/connect/toggle",
   "name": "connect_toggle",
@@ -596,7 +614,7 @@
   ]
  },
  {
-  "order": 66,
+  "order": 68,
   "type": "APIRoute",
   "path": "/connect/purge-plan",
   "name": "connect_purge_plan",
@@ -605,7 +623,7 @@
   ]
  },
  {
-  "order": 67,
+  "order": 69,
   "type": "APIRoute",
   "path": "/connect/delete",
   "name": "connect_delete",
@@ -614,7 +632,7 @@
   ]
  },
  {
-  "order": 68,
+  "order": 70,
   "type": "APIRoute",
   "path": "/connect/relogin",
   "name": "connect_relogin",
@@ -623,7 +641,7 @@
   ]
  },
  {
-  "order": 69,
+  "order": 71,
   "type": "APIRoute",
   "path": "/connect/default",
   "name": "connect_default",
@@ -632,7 +650,7 @@
   ]
  },
  {
-  "order": 70,
+  "order": 72,
   "type": "APIRoute",
   "path": "/connect/audit",
   "name": "connect_audit",
@@ -641,7 +659,7 @@
   ]
  },
  {
-  "order": 71,
+  "order": 73,
   "type": "APIRoute",
   "path": "/connect/zalo/start",
   "name": "connect_zalo_start",
@@ -650,7 +668,7 @@
   ]
  },
  {
-  "order": 72,
+  "order": 74,
   "type": "APIRoute",
   "path": "/connect/zalo/status",
   "name": "connect_zalo_status",
@@ -659,7 +677,7 @@
   ]
  },
  {
-  "order": 73,
+  "order": 75,
   "type": "APIRoute",
   "path": "/connect/zalo/cancel",
   "name": "connect_zalo_cancel",
@@ -668,7 +686,7 @@
   ]
  },
  {
-  "order": 74,
+  "order": 76,
   "type": "APIRoute",
   "path": "/connect/oauth/start",
   "name": "connect_oauth_start",
@@ -677,7 +695,7 @@
   ]
  },
  {
-  "order": 75,
+  "order": 77,
   "type": "APIRoute",
   "path": "/connect/oauth/callback",
   "name": "connect_oauth_callback",
@@ -686,7 +704,7 @@
   ]
  },
  {
-  "order": 76,
+  "order": 78,
   "type": "APIRoute",
   "path": "/settings",
   "name": "settings_get",
@@ -695,7 +713,7 @@
   ]
  },
  {
-  "order": 77,
+  "order": 79,
   "type": "APIRoute",
   "path": "/settings",
   "name": "settings_set",
@@ -704,7 +722,7 @@
   ]
  },
  {
-  "order": 78,
+  "order": 80,
   "type": "APIRoute",
   "path": "/backup/status",
   "name": "backup_status",
@@ -713,7 +731,7 @@
   ]
  },
  {
-  "order": 79,
+  "order": 81,
   "type": "APIRoute",
   "path": "/backup/config",
   "name": "backup_config",
@@ -722,7 +740,7 @@
   ]
  },
  {
-  "order": 80,
+  "order": 82,
   "type": "APIRoute",
   "path": "/backup/test",
   "name": "backup_test",
@@ -731,7 +749,7 @@
   ]
  },
  {
-  "order": 81,
+  "order": 83,
   "type": "APIRoute",
   "path": "/backup/now",
   "name": "backup_now",
@@ -740,7 +758,7 @@
   ]
  },
  {
-  "order": 82,
+  "order": 84,
   "type": "APIRoute",
   "path": "/openrouter/models",
   "name": "openrouter_models",
@@ -749,7 +767,7 @@
   ]
  },
  {
-  "order": 83,
+  "order": 85,
   "type": "APIRoute",
   "path": "/provider/models",
   "name": "provider_models",
@@ -758,7 +776,7 @@
   ]
  },
  {
-  "order": 84,
+  "order": 86,
   "type": "APIRoute",
   "path": "/memory/stats",
   "name": "memory_stats",
@@ -767,7 +785,7 @@
   ]
  },
  {
-  "order": 85,
+  "order": 87,
   "type": "APIRoute",
   "path": "/reflect",
   "name": "reflect",
@@ -776,7 +794,7 @@
   ]
  },
  {
-  "order": 86,
+  "order": 88,
   "type": "APIRoute",
   "path": "/health",
   "name": "health",
@@ -785,7 +803,7 @@
   ]
  },
  {
-  "order": 87,
+  "order": 89,
   "type": "APIRoute",
   "path": "/graph",
   "name": "graph",
@@ -794,14 +812,14 @@
   ]
  },
  {
-  "order": 88,
+  "order": 90,
   "type": "APIWebSocketRoute",
   "path": "/ws/graph",
   "name": "ws_graph",
   "methods": []
  },
  {
-  "order": 89,
+  "order": 91,
   "type": "APIRoute",
   "path": "/upload",
   "name": "upload",
@@ -810,7 +828,7 @@
   ]
  },
  {
-  "order": 90,
+  "order": 92,
   "type": "APIRoute",
   "path": "/upload/raw",
   "name": "upload_raw",
@@ -819,7 +837,7 @@
   ]
  },
  {
-  "order": 91,
+  "order": 93,
   "type": "APIRoute",
   "path": "/ingest-upload",
   "name": "ingest_upload",
@@ -828,7 +846,7 @@
   ]
  },
  {
-  "order": 92,
+  "order": 94,
   "type": "APIRoute",
   "path": "/vault/check",
   "name": "vault_check",
@@ -837,7 +855,7 @@
   ]
  },
  {
-  "order": 93,
+  "order": 95,
   "type": "APIRoute",
   "path": "/vault/init",
   "name": "vault_init",
@@ -846,7 +864,7 @@
   ]
  },
  {
-  "order": 94,
+  "order": 96,
   "type": "APIRoute",
   "path": "/brain/migrate",
   "name": "brain_migrate",
@@ -855,7 +873,7 @@
   ]
  },
  {
-  "order": 95,
+  "order": 97,
   "type": "APIRoute",
   "path": "/brains",
   "name": "list_brains",
@@ -864,7 +882,7 @@
   ]
  },
  {
-  "order": 96,
+  "order": 98,
   "type": "APIRoute",
   "path": "/brains/new",
   "name": "new_brain",
@@ -873,7 +891,7 @@
   ]
  },
  {
-  "order": 97,
+  "order": 99,
   "type": "APIRoute",
   "path": "/brains/delete",
   "name": "delete_brain",
@@ -882,7 +900,7 @@
   ]
  },
  {
-  "order": 98,
+  "order": 100,
   "type": "APIRoute",
   "path": "/agents",
   "name": "list_agents",
@@ -891,7 +909,7 @@
   ]
  },
  {
-  "order": 99,
+  "order": 101,
   "type": "APIRoute",
   "path": "/agents",
   "name": "save_agent",
@@ -900,7 +918,7 @@
   ]
  },
  {
-  "order": 100,
+  "order": 102,
   "type": "APIRoute",
   "path": "/agents/delete",
   "name": "delete_agent",
@@ -909,7 +927,7 @@
   ]
  },
  {
-  "order": 101,
+  "order": 103,
   "type": "APIRoute",
   "path": "/skills",
   "name": "list_skills",
@@ -918,7 +936,7 @@
   ]
  },
  {
-  "order": 102,
+  "order": 104,
   "type": "APIRoute",
   "path": "/skills/toggle",
   "name": "skill_toggle",
@@ -927,7 +945,7 @@
   ]
  },
  {
-  "order": 103,
+  "order": 105,
   "type": "APIRoute",
   "path": "/skills/get",
   "name": "skill_get",
@@ -936,7 +954,7 @@
   ]
  },
  {
-  "order": 104,
+  "order": 106,
   "type": "APIRoute",
   "path": "/skills",
   "name": "save_skill",
@@ -945,7 +963,7 @@
   ]
  },
  {
-  "order": 105,
+  "order": 107,
   "type": "APIRoute",
   "path": "/skills/delete",
   "name": "delete_skill",
@@ -954,7 +972,7 @@
   ]
  },
  {
-  "order": 106,
+  "order": 108,
   "type": "APIRoute",
   "path": "/skills/group",
   "name": "skill_set_group",
@@ -963,7 +981,7 @@
   ]
  },
  {
-  "order": 107,
+  "order": 109,
   "type": "APIRoute",
   "path": "/files/list",
   "name": "files_list",
@@ -972,7 +990,7 @@
   ]
  },
  {
-  "order": 108,
+  "order": 110,
   "type": "APIRoute",
   "path": "/files/search",
   "name": "files_search",
@@ -981,7 +999,7 @@
   ]
  },
  {
-  "order": 109,
+  "order": 111,
   "type": "APIRoute",
   "path": "/files/md-hong",
   "name": "files_md_hong",
@@ -990,7 +1008,7 @@
   ]
  },
  {
-  "order": 110,
+  "order": 112,
   "type": "APIRoute",
   "path": "/files/md-hong/sua",
   "name": "files_md_hong_sua",
@@ -999,7 +1017,7 @@
   ]
  },
  {
-  "order": 111,
+  "order": 113,
   "type": "APIRoute",
   "path": "/files/read",
   "name": "files_read",
@@ -1008,7 +1026,7 @@
   ]
  },
  {
-  "order": 112,
+  "order": 114,
   "type": "APIRoute",
   "path": "/files/write",
   "name": "files_write",
@@ -1017,7 +1035,7 @@
   ]
  },
  {
-  "order": 113,
+  "order": 115,
   "type": "APIRoute",
   "path": "/files/mkdir",
   "name": "files_mkdir",
@@ -1026,7 +1044,7 @@
   ]
  },
  {
-  "order": 114,
+  "order": 116,
   "type": "APIRoute",
   "path": "/files/delete",
   "name": "files_delete",
@@ -1035,7 +1053,7 @@
   ]
  },
  {
-  "order": 115,
+  "order": 117,
   "type": "APIRoute",
   "path": "/files/rename",
   "name": "files_rename",
@@ -1044,7 +1062,7 @@
   ]
  },
  {
-  "order": 116,
+  "order": 118,
   "type": "APIRoute",
   "path": "/files/upload",
   "name": "files_upload",
@@ -1053,7 +1071,7 @@
   ]
  },
  {
-  "order": 117,
+  "order": 119,
   "type": "APIRoute",
   "path": "/files/download",
   "name": "files_download",
@@ -1062,7 +1080,7 @@
   ]
  },
  {
-  "order": 118,
+  "order": 120,
   "type": "APIRoute",
   "path": "/files/zip",
   "name": "files_zip",
@@ -1071,7 +1089,7 @@
   ]
  },
  {
-  "order": 119,
+  "order": 121,
   "type": "APIRoute",
   "path": "/files/raw",
   "name": "files_raw",
@@ -1080,7 +1098,7 @@
   ]
  },
  {
-  "order": 120,
+  "order": 122,
   "type": "APIRoute",
   "path": "/brains/{brain_name}/{path:path}",
   "name": "brain_file_compat",
@@ -1089,7 +1107,7 @@
   ]
  },
  {
-  "order": 121,
+  "order": 123,
   "type": "APIRoute",
   "path": "/files/mdindex",
   "name": "files_mdindex",
@@ -1098,7 +1116,7 @@
   ]
  },
  {
-  "order": 122,
+  "order": 124,
   "type": "APIRoute",
   "path": "/files/taskadd",
   "name": "files_taskadd",
@@ -1107,7 +1125,7 @@
   ]
  },
  {
-  "order": 123,
+  "order": 125,
   "type": "APIRoute",
   "path": "/files/taskcheck",
   "name": "files_taskcheck",
@@ -1116,7 +1134,7 @@
   ]
  },
  {
-  "order": 124,
+  "order": 126,
   "type": "APIRoute",
   "path": "/workflows",
   "name": "list_workflows",
@@ -1125,7 +1143,7 @@
   ]
  },
  {
-  "order": 125,
+  "order": 127,
   "type": "APIRoute",
   "path": "/workflows",
   "name": "save_workflow",
@@ -1134,7 +1152,7 @@
   ]
  },
  {
-  "order": 126,
+  "order": 128,
   "type": "APIRoute",
   "path": "/workflows/toggle",
   "name": "toggle_workflow",
@@ -1143,7 +1161,7 @@
   ]
  },
  {
-  "order": 127,
+  "order": 129,
   "type": "APIRoute",
   "path": "/workflows/delete",
   "name": "delete_workflow",
@@ -1152,7 +1170,7 @@
   ]
  },
  {
-  "order": 128,
+  "order": 130,
   "type": "APIRoute",
   "path": "/export",
   "name": "export_capability",
@@ -1161,7 +1179,7 @@
   ]
  },
  {
-  "order": 129,
+  "order": 131,
   "type": "APIRoute",
   "path": "/import",
   "name": "import_capability",
@@ -1170,7 +1188,7 @@
   ]
  },
  {
-  "order": 130,
+  "order": 132,
   "type": "APIRoute",
   "path": "/usage",
   "name": "usage_stats",
@@ -1179,7 +1197,7 @@
   ]
  },
  {
-  "order": 131,
+  "order": 133,
   "type": "APIRoute",
   "path": "/usage/summary",
   "name": "usage_summary",
@@ -1188,7 +1206,7 @@
   ]
  },
  {
-  "order": 132,
+  "order": 134,
   "type": "APIRoute",
   "path": "/usage/insights",
   "name": "usage_insights",
@@ -1197,7 +1215,7 @@
   ]
  },
  {
-  "order": 133,
+  "order": 135,
   "type": "APIRoute",
   "path": "/usage/refresh",
   "name": "usage_refresh",
@@ -1206,7 +1224,7 @@
   ]
  },
  {
-  "order": 134,
+  "order": 136,
   "type": "APIRoute",
   "path": "/usage/tong-quan",
   "name": "usage_tong_quan",
@@ -1215,7 +1233,7 @@
   ]
  },
  {
-  "order": 135,
+  "order": 137,
   "type": "APIRoute",
   "path": "/usage/ngan-sach",
   "name": "usage_ngan_sach",
@@ -1224,7 +1242,7 @@
   ]
  },
  {
-  "order": 136,
+  "order": 138,
   "type": "APIRoute",
   "path": "/usage/bao-cao",
   "name": "usage_bao_cao",
@@ -1233,7 +1251,7 @@
   ]
  },
  {
-  "order": 137,
+  "order": 139,
   "type": "APIRoute",
   "path": "/workflows/resume",
   "name": "resume_workflow",
@@ -1242,7 +1260,7 @@
   ]
  },
  {
-  "order": 138,
+  "order": 140,
   "type": "APIRoute",
   "path": "/workflows/run",
   "name": "run_workflow",
@@ -1251,7 +1269,7 @@
   ]
  },
  {
-  "order": 139,
+  "order": 141,
   "type": "APIRoute",
   "path": "/studio/seed",
   "name": "studio_seed",
@@ -1260,7 +1278,7 @@
   ]
  },
  {
-  "order": 140,
+  "order": 142,
   "type": "APIRoute",
   "path": "/loops",
   "name": "loops_list",
@@ -1269,7 +1287,7 @@
   ]
  },
  {
-  "order": 141,
+  "order": 143,
   "type": "APIRoute",
   "path": "/loops",
   "name": "loops_save",
@@ -1278,7 +1296,7 @@
   ]
  },
  {
-  "order": 142,
+  "order": 144,
   "type": "APIRoute",
   "path": "/loops/toggle",
   "name": "loops_toggle",
@@ -1287,7 +1305,7 @@
   ]
  },
  {
-  "order": 143,
+  "order": 145,
   "type": "APIRoute",
   "path": "/loops/delete",
   "name": "loops_delete",
@@ -1296,7 +1314,7 @@
   ]
  },
  {
-  "order": 144,
+  "order": 146,
   "type": "APIRoute",
   "path": "/loops/move",
   "name": "loops_move",
@@ -1305,7 +1323,7 @@
   ]
  },
  {
-  "order": 145,
+  "order": 147,
   "type": "APIRoute",
   "path": "/loops/run-now",
   "name": "loops_run_now",
@@ -1314,7 +1332,7 @@
   ]
  },
  {
-  "order": 146,
+  "order": 148,
   "type": "APIRoute",
   "path": "/loops/log",
   "name": "loops_log",
@@ -1323,7 +1341,7 @@
   ]
  },
  {
-  "order": 147,
+  "order": 149,
   "type": "APIRoute",
   "path": "/loops/stop",
   "name": "loops_stop",
@@ -1332,7 +1350,7 @@
   ]
  },
  {
-  "order": 148,
+  "order": 150,
   "type": "APIRoute",
   "path": "/loop/config",
   "name": "loop_config_get",
@@ -1341,7 +1359,7 @@
   ]
  },
  {
-  "order": 149,
+  "order": 151,
   "type": "APIRoute",
   "path": "/loop/config",
   "name": "loop_config_set",
@@ -1350,7 +1368,7 @@
   ]
  },
  {
-  "order": 150,
+  "order": 152,
   "type": "APIRoute",
   "path": "/loop/run-now",
   "name": "loop_run_now",
@@ -1359,7 +1377,7 @@
   ]
  },
  {
-  "order": 151,
+  "order": 153,
   "type": "APIRoute",
   "path": "/loop/stop",
   "name": "loop_stop",
@@ -1368,7 +1386,7 @@
   ]
  },
  {
-  "order": 152,
+  "order": 154,
   "type": "APIRoute",
   "path": "/loop/log",
   "name": "loop_log",
@@ -1377,7 +1395,7 @@
   ]
  },
  {
-  "order": 153,
+  "order": 155,
   "type": "APIRoute",
   "path": "/learn/config",
   "name": "learn_config_get",
@@ -1386,7 +1404,7 @@
   ]
  },
  {
-  "order": 154,
+  "order": 156,
   "type": "APIRoute",
   "path": "/learn/config",
   "name": "learn_config_set",
@@ -1395,7 +1413,7 @@
   ]
  },
  {
-  "order": 155,
+  "order": 157,
   "type": "APIRoute",
   "path": "/learn/enable",
   "name": "learn_enable",
@@ -1404,7 +1422,7 @@
   ]
  },
  {
-  "order": 156,
+  "order": 158,
   "type": "APIRoute",
   "path": "/learn/run-now",
   "name": "learn_run_now",
@@ -1413,7 +1431,7 @@
   ]
  },
  {
-  "order": 157,
+  "order": 159,
   "type": "APIRoute",
   "path": "/learn/curator-now",
   "name": "learn_curator_now",
@@ -1422,7 +1440,7 @@
   ]
  },
  {
-  "order": 158,
+  "order": 160,
   "type": "APIRoute",
   "path": "/learn/stop",
   "name": "learn_stop",
@@ -1431,7 +1449,7 @@
   ]
  },
  {
-  "order": 159,
+  "order": 161,
   "type": "APIRoute",
   "path": "/learn/review",
   "name": "learn_review",
@@ -1440,7 +1458,7 @@
   ]
  },
  {
-  "order": 160,
+  "order": 162,
   "type": "APIRoute",
   "path": "/learn/undo",
   "name": "learn_undo",
@@ -1449,7 +1467,7 @@
   ]
  },
  {
-  "order": 161,
+  "order": 163,
   "type": "APIRoute",
   "path": "/learn/log",
   "name": "learn_log",
@@ -1458,7 +1476,7 @@
   ]
  },
  {
-  "order": 162,
+  "order": 164,
   "type": "APIRoute",
   "path": "/learn/metrics",
   "name": "learn_metrics",
@@ -1467,7 +1485,7 @@
   ]
  },
  {
-  "order": 163,
+  "order": 165,
   "type": "APIRoute",
   "path": "/kanban",
   "name": "kanban_get",
@@ -1476,7 +1494,7 @@
   ]
  },
  {
-  "order": 164,
+  "order": 166,
   "type": "APIRoute",
   "path": "/kanban/health",
   "name": "kanban_health",
@@ -1485,7 +1503,7 @@
   ]
  },
  {
-  "order": 165,
+  "order": 167,
   "type": "APIRoute",
   "path": "/kanban/task/show",
   "name": "kanban_show",
@@ -1494,7 +1512,7 @@
   ]
  },
  {
-  "order": 166,
+  "order": 168,
   "type": "APIRoute",
   "path": "/kanban/task",
   "name": "kanban_add",
@@ -1503,7 +1521,7 @@
   ]
  },
  {
-  "order": 167,
+  "order": 169,
   "type": "APIRoute",
   "path": "/kanban/task/move",
   "name": "kanban_move",
@@ -1512,7 +1530,7 @@
   ]
  },
  {
-  "order": 168,
+  "order": 170,
   "type": "APIRoute",
   "path": "/kanban/task/delete",
   "name": "kanban_delete",
@@ -1521,7 +1539,7 @@
   ]
  },
  {
-  "order": 169,
+  "order": 171,
   "type": "APIRoute",
   "path": "/kanban/task/grant",
   "name": "kanban_grant",
@@ -1530,7 +1548,7 @@
   ]
  },
  {
-  "order": 170,
+  "order": 172,
   "type": "APIRoute",
   "path": "/kanban/panel/clear",
   "name": "kanban_panel_clear",
@@ -1539,7 +1557,7 @@
   ]
  },
  {
-  "order": 171,
+  "order": 173,
   "type": "APIRoute",
   "path": "/kanban/purge",
   "name": "kanban_purge",
@@ -1548,7 +1566,7 @@
   ]
  },
  {
-  "order": 172,
+  "order": 174,
   "type": "APIRoute",
   "path": "/kanban/clear",
   "name": "kanban_clear",
@@ -1557,7 +1575,7 @@
   ]
  },
  {
-  "order": 173,
+  "order": 175,
   "type": "APIRoute",
   "path": "/kanban/orchestration",
   "name": "kanban_orchestration",
@@ -1566,7 +1584,7 @@
   ]
  },
  {
-  "order": 174,
+  "order": 176,
   "type": "APIRoute",
   "path": "/kanban/nudge",
   "name": "kanban_nudge",
@@ -1575,7 +1593,7 @@
   ]
  },
  {
-  "order": 175,
+  "order": 177,
   "type": "APIRoute",
   "path": "/kanban/run",
   "name": "kanban_run_one",
@@ -1584,7 +1602,7 @@
   ]
  },
  {
-  "order": 176,
+  "order": 178,
   "type": "APIRoute",
   "path": "/kanban/task/retry",
   "name": "kanban_retry",
@@ -1593,7 +1611,7 @@
   ]
  },
  {
-  "order": 177,
+  "order": 179,
   "type": "APIRoute",
   "path": "/kanban/task/cancel",
   "name": "kanban_cancel",
@@ -1602,7 +1620,7 @@
   ]
  },
  {
-  "order": 178,
+  "order": 180,
   "type": "APIRoute",
   "path": "/kanban/stop",
   "name": "kanban_stop",
@@ -1611,7 +1629,7 @@
   ]
  },
  {
-  "order": 179,
+  "order": 181,
   "type": "APIRoute",
   "path": "/reminders",
   "name": "reminders_list",
@@ -1620,7 +1638,7 @@
   ]
  },
  {
-  "order": 180,
+  "order": 182,
   "type": "APIRoute",
   "path": "/reminders",
   "name": "reminders_add",
@@ -1629,7 +1647,7 @@
   ]
  },
  {
-  "order": 181,
+  "order": 183,
   "type": "APIRoute",
   "path": "/reminders/scripts",
   "name": "reminders_scripts",
@@ -1638,7 +1656,7 @@
   ]
  },
  {
-  "order": 182,
+  "order": 184,
   "type": "APIRoute",
   "path": "/reminders/cancel",
   "name": "reminders_cancel",
@@ -1647,7 +1665,7 @@
   ]
  },
  {
-  "order": 183,
+  "order": 185,
   "type": "APIRoute",
   "path": "/reminders/update",
   "name": "reminders_update",
@@ -1656,7 +1674,7 @@
   ]
  },
  {
-  "order": 184,
+  "order": 186,
   "type": "APIRoute",
   "path": "/reminders/delete",
   "name": "reminders_delete",
@@ -1665,7 +1683,7 @@
   ]
  },
  {
-  "order": 185,
+  "order": 187,
   "type": "APIRoute",
   "path": "/reminders/move",
   "name": "reminders_move",
@@ -1674,7 +1692,7 @@
   ]
  },
  {
-  "order": 186,
+  "order": 188,
   "type": "APIRoute",
   "path": "/reminders/clear",
   "name": "reminders_clear",
@@ -1683,7 +1701,7 @@
   ]
  },
  {
-  "order": 187,
+  "order": 189,
   "type": "APIRoute",
   "path": "/viec/all",
   "name": "viec_all",
@@ -1692,7 +1710,7 @@
   ]
  },
  {
-  "order": 188,
+  "order": 190,
   "type": "APIRoute",
   "path": "/background",
   "name": "background_active",
@@ -1701,7 +1719,7 @@
   ]
  },
  {
-  "order": 189,
+  "order": 191,
   "type": "APIRoute",
   "path": "/lint",
   "name": "lint",
@@ -1710,7 +1728,7 @@
   ]
  },
  {
-  "order": 190,
+  "order": 192,
   "type": "APIRoute",
   "path": "/javis/index",
   "name": "javis_index",
@@ -1719,7 +1737,7 @@
   ]
  },
  {
-  "order": 191,
+  "order": 193,
   "type": "APIRoute",
   "path": "/image/generate",
   "name": "image_generate",
@@ -1728,7 +1746,7 @@
   ]
  },
  {
-  "order": 192,
+  "order": 194,
   "type": "APIRoute",
   "path": "/plugins",
   "name": "plugins_list",
@@ -1737,7 +1755,7 @@
   ]
  },
  {
-  "order": 193,
+  "order": 195,
   "type": "APIRoute",
   "path": "/plugins/toggle",
   "name": "plugins_toggle",
@@ -1746,7 +1764,7 @@
   ]
  },
  {
-  "order": 194,
+  "order": 196,
   "type": "APIRoute",
   "path": "/plugins/remove",
   "name": "plugins_remove",
@@ -1755,7 +1773,7 @@
   ]
  },
  {
-  "order": 195,
+  "order": 197,
   "type": "APIRoute",
   "path": "/browse",
   "name": "browse",
@@ -1764,7 +1782,7 @@
   ]
  },
  {
-  "order": 196,
+  "order": 198,
   "type": "APIRoute",
   "path": "/path/exists",
   "name": "path_exists",
@@ -1773,7 +1791,7 @@
   ]
  },
  {
-  "order": 197,
+  "order": 199,
   "type": "APIRoute",
   "path": "/config",
   "name": "config",
@@ -1782,7 +1800,7 @@
   ]
  },
  {
-  "order": 198,
+  "order": 200,
   "type": "APIRoute",
   "path": "/version",
   "name": "version_info",
@@ -1791,7 +1809,7 @@
   ]
  },
  {
-  "order": 199,
+  "order": 201,
   "type": "APIRoute",
   "path": "/update/status",
   "name": "update_status",
@@ -1800,7 +1818,7 @@
   ]
  },
  {
-  "order": 200,
+  "order": 202,
   "type": "APIRoute",
   "path": "/update",
   "name": "do_update",
@@ -1809,7 +1827,7 @@
   ]
  },
  {
-  "order": 201,
+  "order": 203,
   "type": "APIRoute",
   "path": "/autostart",
   "name": "autostart_get",
@@ -1818,7 +1836,7 @@
   ]
  },
  {
-  "order": 202,
+  "order": 204,
   "type": "APIRoute",
   "path": "/autostart",
   "name": "autostart_post",
@@ -1827,7 +1845,7 @@
   ]
  },
  {
-  "order": 203,
+  "order": 205,
   "type": "APIRoute",
   "path": "/changelog",
   "name": "changelog_info",
@@ -1836,7 +1854,7 @@
   ]
  },
  {
-  "order": 204,
+  "order": 206,
   "type": "APIRoute",
   "path": "/notifications",
   "name": "notifications_info",
@@ -1845,7 +1863,7 @@
   ]
  },
  {
-  "order": 205,
+  "order": 207,
   "type": "APIRoute",
   "path": "/inbox",
   "name": "inbox_list",
@@ -1854,7 +1872,7 @@
   ]
  },
  {
-  "order": 206,
+  "order": 208,
   "type": "APIRoute",
   "path": "/inbox/read",
   "name": "inbox_read",
@@ -1863,7 +1881,7 @@
   ]
  },
  {
-  "order": 207,
+  "order": 209,
   "type": "APIRoute",
   "path": "/inbox/delete",
   "name": "inbox_delete",
@@ -1872,7 +1890,7 @@
   ]
  },
  {
-  "order": 208,
+  "order": 210,
   "type": "APIRoute",
   "path": "/push/key",
   "name": "push_key",
@@ -1881,7 +1899,7 @@
   ]
  },
  {
-  "order": 209,
+  "order": 211,
   "type": "APIRoute",
   "path": "/push/subscribe",
   "name": "push_subscribe",
@@ -1890,7 +1908,7 @@
   ]
  },
  {
-  "order": 210,
+  "order": 212,
   "type": "APIRoute",
   "path": "/push/unsubscribe",
   "name": "push_unsubscribe",
@@ -1899,7 +1917,7 @@
   ]
  },
  {
-  "order": 211,
+  "order": 213,
   "type": "APIRoute",
   "path": "/push/test",
   "name": "push_test",
@@ -1908,7 +1926,7 @@
   ]
  },
  {
-  "order": 212,
+  "order": 214,
   "type": "APIRoute",
   "path": "/sw.js",
   "name": "service_worker",
@@ -1917,7 +1935,7 @@
   ]
  },
  {
-  "order": 213,
+  "order": 215,
   "type": "APIRoute",
   "path": "/brand-logo",
   "name": "brand_logo",
@@ -1926,7 +1944,7 @@
   ]
  },
  {
-  "order": 214,
+  "order": 216,
   "type": "APIRoute",
   "path": "/favicon.ico",
   "name": "favicon_ico",
@@ -1935,7 +1953,7 @@
   ]
  },
  {
-  "order": 215,
+  "order": 217,
   "type": "APIRoute",
   "path": "/branding/logo",
   "name": "branding_logo_set",
@@ -1944,7 +1962,7 @@
   ]
  },
  {
-  "order": 216,
+  "order": 218,
   "type": "APIRoute",
   "path": "/branding/logo/reset",
   "name": "branding_logo_reset",
@@ -1953,7 +1971,7 @@
   ]
  },
  {
-  "order": 217,
+  "order": 219,
   "type": "APIRoute",
   "path": "/tls-check",
   "name": "tls_check",
@@ -1962,7 +1980,7 @@
   ]
  },
  {
-  "order": 218,
+  "order": 220,
   "type": "APIRoute",
   "path": "/domain",
   "name": "domain_set",
@@ -1971,7 +1989,7 @@
   ]
  },
  {
-  "order": 219,
+  "order": 221,
   "type": "APIRoute",
   "path": "/domain/status",
   "name": "domain_status",
@@ -1980,7 +1998,7 @@
   ]
  },
  {
-  "order": 220,
+  "order": 222,
   "type": "APIRoute",
   "path": "/domain/ssl",
   "name": "domain_ssl",
@@ -1989,7 +2007,7 @@
   ]
  },
  {
-  "order": 221,
+  "order": 223,
   "type": "APIRoute",
   "path": "/tts",
   "name": "tts",
@@ -1998,7 +2016,7 @@
   ]
  },
  {
-  "order": 222,
+  "order": 224,
   "type": "APIRoute",
   "path": "/tts/voices",
   "name": "tts_voices",
@@ -2007,14 +2025,14 @@
   ]
  },
  {
-  "order": 223,
+  "order": 225,
   "type": "APIWebSocketRoute",
   "path": "/ws",
   "name": "websocket_endpoint",
   "methods": []
  },
  {
-  "order": 224,
+  "order": 226,
   "type": "APIRoute",
   "path": "/terminal/status",
   "name": "terminal_status",
@@ -2023,7 +2041,7 @@
   ]
  },
  {
-  "order": 225,
+  "order": 227,
   "type": "APIRoute",
   "path": "/terminal/close",
   "name": "terminal_close",
@@ -2032,14 +2050,14 @@
   ]
  },
  {
-  "order": 226,
+  "order": 228,
   "type": "APIWebSocketRoute",
   "path": "/ws/terminal",
   "name": "terminal_ws",
   "methods": []
  },
  {
-  "order": 227,
+  "order": 229,
   "type": "APIRoute",
   "path": "/sessions",
   "name": "sessions_list",
@@ -2048,7 +2066,7 @@
   ]
  },
  {
-  "order": 228,
+  "order": 230,
   "type": "APIRoute",
   "path": "/sessions/search",
   "name": "sessions_search",
@@ -2057,7 +2075,7 @@
   ]
  },
  {
-  "order": 229,
+  "order": 231,
   "type": "APIRoute",
   "path": "/sessions/{session_id}",
   "name": "sessions_get",
@@ -2066,7 +2084,7 @@
   ]
  },
  {
-  "order": 230,
+  "order": 232,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets",
   "name": "sessions_assets",
@@ -2075,7 +2093,7 @@
   ]
  },
  {
-  "order": 231,
+  "order": 233,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/rename",
   "name": "sessions_rename",
@@ -2084,7 +2102,7 @@
   ]
  },
  {
-  "order": 232,
+  "order": 234,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/delete",
   "name": "sessions_delete",
@@ -2093,7 +2111,7 @@
   ]
  },
  {
-  "order": 233,
+  "order": 235,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/pin",
   "name": "sessions_pin",
@@ -2102,7 +2120,7 @@
   ]
  },
  {
-  "order": 234,
+  "order": 236,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/meta",
   "name": "sessions_meta",
@@ -2111,7 +2129,7 @@
   ]
  },
  {
-  "order": 235,
+  "order": 237,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/model",
   "name": "sessions_set_model",
@@ -2120,7 +2138,7 @@
   ]
  },
  {
-  "order": 236,
+  "order": 238,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/project",
   "name": "sessions_set_project",
@@ -2129,7 +2147,7 @@
   ]
  },
  {
-  "order": 237,
+  "order": 239,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_list",
@@ -2138,7 +2156,7 @@
   ]
  },
  {
-  "order": 238,
+  "order": 240,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_create",
@@ -2147,7 +2165,7 @@
   ]
  },
  {
-  "order": 239,
+  "order": 241,
   "type": "APIRoute",
   "path": "/projects/{project_id}",
   "name": "projects_get",
@@ -2156,7 +2174,7 @@
   ]
  },
  {
-  "order": 240,
+  "order": 242,
   "type": "APIRoute",
   "path": "/projects/{project_id}/update",
   "name": "projects_update",
@@ -2165,7 +2183,7 @@
   ]
  },
  {
-  "order": 241,
+  "order": 243,
   "type": "APIRoute",
   "path": "/projects/{project_id}/files",
   "name": "projects_add_file",
@@ -2174,7 +2192,7 @@
   ]
  },
  {
-  "order": 242,
+  "order": 244,
   "type": "APIRoute",
   "path": "/projects/{project_id}/files/{file_id}/delete",
   "name": "projects_del_file",
@@ -2183,7 +2201,7 @@
   ]
  },
  {
-  "order": 243,
+  "order": 245,
   "type": "APIRoute",
   "path": "/projects/{project_id}/files/{file_id}/pin",
   "name": "projects_pin_file",
@@ -2192,7 +2210,7 @@
   ]
  },
  {
-  "order": 244,
+  "order": 246,
   "type": "APIRoute",
   "path": "/projects/{project_id}/links",
   "name": "projects_add_link",
@@ -2201,7 +2219,7 @@
   ]
  },
  {
-  "order": 245,
+  "order": 247,
   "type": "APIRoute",
   "path": "/projects/{project_id}/links/{link_id}/delete",
   "name": "projects_del_link",
@@ -2210,7 +2228,7 @@
   ]
  },
  {
-  "order": 246,
+  "order": 248,
   "type": "APIRoute",
   "path": "/projects/{project_id}/links/{link_id}/pin",
   "name": "projects_pin_link",
@@ -2219,7 +2237,7 @@
   ]
  },
  {
-  "order": 247,
+  "order": 249,
   "type": "APIRoute",
   "path": "/projects/{project_id}/pin",
   "name": "projects_pin",
@@ -2228,7 +2246,7 @@
   ]
  },
  {
-  "order": 248,
+  "order": 250,
   "type": "APIRoute",
   "path": "/projects/{project_id}/delete",
   "name": "projects_delete",
@@ -2237,7 +2255,7 @@
   ]
  },
  {
-  "order": 249,
+  "order": 251,
   "type": "APIRoute",
   "path": "/ollama-local/status",
   "name": "ollama_local_status",
@@ -2246,7 +2264,7 @@
   ]
  },
  {
-  "order": 250,
+  "order": 252,
   "type": "APIRoute",
   "path": "/ollama-local/endpoint",
   "name": "ollama_local_set_endpoint",
@@ -2255,7 +2273,7 @@
   ]
  },
  {
-  "order": 251,
+  "order": 253,
   "type": "APIRoute",
   "path": "/ollama-local/specs",
   "name": "ollama_local_get_specs",
@@ -2264,7 +2282,7 @@
   ]
  },
  {
-  "order": 252,
+  "order": 254,
   "type": "APIRoute",
   "path": "/ollama-local/specs",
   "name": "ollama_local_set_specs",
@@ -2273,7 +2291,7 @@
   ]
  },
  {
-  "order": 253,
+  "order": 255,
   "type": "APIRoute",
   "path": "/ollama-local/installed",
   "name": "ollama_local_installed",
@@ -2282,7 +2300,7 @@
   ]
  },
  {
-  "order": 254,
+  "order": 256,
   "type": "APIRoute",
   "path": "/ollama-local/recommended",
   "name": "ollama_local_recommended",
@@ -2291,7 +2309,7 @@
   ]
  },
  {
-  "order": 255,
+  "order": 257,
   "type": "APIRoute",
   "path": "/ollama-local/search",
   "name": "ollama_local_search",
@@ -2300,7 +2318,7 @@
   ]
  },
  {
-  "order": 256,
+  "order": 258,
   "type": "APIRoute",
   "path": "/ollama-local/pull",
   "name": "ollama_local_pull",
@@ -2309,7 +2327,7 @@
   ]
  },
  {
-  "order": 257,
+  "order": 259,
   "type": "APIRoute",
   "path": "/ollama-local/delete",
   "name": "ollama_local_delete",
@@ -2318,7 +2336,7 @@
   ]
  },
  {
-  "order": 258,
+  "order": 260,
   "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
@@ -2327,7 +2345,7 @@
   ]
  },
  {
-  "order": 259,
+  "order": 261,
   "type": "APIRoute",
   "path": "/runtime/muc",
   "name": "runtime_muc",
@@ -2336,7 +2354,7 @@
   ]
  },
  {
-  "order": 260,
+  "order": 262,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -2345,7 +2363,7 @@
   ]
  },
  {
-  "order": 261,
+  "order": 263,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -2354,7 +2372,7 @@
   ]
  },
  {
-  "order": 262,
+  "order": 264,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -2363,7 +2381,7 @@
   ]
  },
  {
-  "order": 263,
+  "order": 265,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -2372,7 +2390,7 @@
   ]
  },
  {
-  "order": 264,
+  "order": 266,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -2381,7 +2399,7 @@
   ]
  },
  {
-  "order": 265,
+  "order": 267,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -2390,7 +2408,7 @@
   ]
  },
  {
-  "order": 266,
+  "order": 268,
   "type": "APIRoute",
   "path": "/zalo-bot/status",
   "name": "zalo_bot_status",
@@ -2399,7 +2417,7 @@
   ]
  },
  {
-  "order": 267,
+  "order": 269,
   "type": "APIRoute",
   "path": "/zalo-bot/restart",
   "name": "zalo_bot_restart",
@@ -2408,7 +2426,7 @@
   ]
  },
  {
-  "order": 268,
+  "order": 270,
   "type": "APIRoute",
   "path": "/zalo-bot/allow",
   "name": "zalo_bot_allow",
@@ -2417,7 +2435,7 @@
   ]
  },
  {
-  "order": 269,
+  "order": 271,
   "type": "APIRoute",
   "path": "/zalo-bot/test",
   "name": "zalo_bot_test",
@@ -2426,7 +2444,7 @@
   ]
  },
  {
-  "order": 270,
+  "order": 272,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -2435,7 +2453,7 @@
   ]
  },
  {
-  "order": 271,
+  "order": 273,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -2444,7 +2462,7 @@
   ]
  },
  {
-  "order": 272,
+  "order": 274,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_list",
@@ -2453,7 +2471,7 @@
   ]
  },
  {
-  "order": 273,
+  "order": 275,
   "type": "APIRoute",
   "path": "/chatbots/verify-token",
   "name": "chatbots_verify_token",
@@ -2462,7 +2480,7 @@
   ]
  },
  {
-  "order": 274,
+  "order": 276,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_create",
@@ -2471,7 +2489,7 @@
   ]
  },
  {
-  "order": 275,
+  "order": 277,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/update",
   "name": "chatbots_update",
@@ -2480,7 +2498,7 @@
   ]
  },
  {
-  "order": 276,
+  "order": 278,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/enable",
   "name": "chatbots_enable",
@@ -2489,7 +2507,7 @@
   ]
  },
  {
-  "order": 277,
+  "order": 279,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/groups",
   "name": "chatbots_groups",
@@ -2498,7 +2516,7 @@
   ]
  },
  {
-  "order": 278,
+  "order": 280,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/log",
   "name": "chatbots_log",
@@ -2507,7 +2525,7 @@
   ]
  },
  {
-  "order": 279,
+  "order": 281,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/delete",
   "name": "chatbots_delete",
@@ -2516,7 +2534,7 @@
   ]
  },
  {
-  "order": 280,
+  "order": 282,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -2525,7 +2543,7 @@
   ]
  },
  {
-  "order": 281,
+  "order": 283,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -2534,7 +2552,7 @@
   ]
  },
  {
-  "order": 282,
+  "order": 284,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -2543,7 +2561,7 @@
   ]
  },
  {
-  "order": 283,
+  "order": 285,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",
