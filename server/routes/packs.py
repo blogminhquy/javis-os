@@ -45,6 +45,7 @@ class PacksDeps:
     """Thứ duy nhất cần từ main: cách hỏi "request này có phiên đăng nhập thật không"."""
     co_phien: Callable[[Request], bool]
     lam_moi_hub: Callable[[], None]
+    brain_root: Callable[[str], str]
 
 
 _DEPS: PacksDeps = None
@@ -96,9 +97,13 @@ def _make_router() -> APIRouter:
         ng = d.get("source") if isinstance(d.get("source"), dict) else None
         if ng:
             ng = {"kind": str(ng.get("kind") or "")[:16], "url": str(ng.get("url") or "")[:500]}
+        # Brain ĐANG MỞ lúc bấm Cài. Agent/workflow/skill thuộc về một brain cụ thể (khác
+        # connector và plugin vốn dùng chung mọi brain), nên "cài vào tất cả" là áp đặt: người
+        # dùng có brain việc và brain cá nhân, và họ không muốn mọi thứ ở cả hai nơi.
         r = pack_install.cai(str(d.get("staging_id") or ""),
                              str(d.get("consent_sha256") or ""),
-                             enable=bool(d.get("enable")), nguon=ng)
+                             enable=bool(d.get("enable")), nguon=ng,
+                             brain_root=_DEPS.brain_root(str(d.get("brain") or "brain")))
         if r.get("ok"):
             _DEPS.lam_moi_hub()
         return r if r.get("ok") else JSONResponse(r, status_code=400)
@@ -175,6 +180,36 @@ def _make_router() -> APIRouter:
                 status_code=400)
         r["source"] = {"kind": "url", "url": url}
         return r if r.get("ok") else JSONResponse(r, status_code=400)
+
+    @router.get("/packs/token")
+    async def packs_token_list(request: Request):
+        """Danh sách host đã lưu token. KHÔNG bao giờ trả giá trị token."""
+        if not _DEPS.co_phien(request):
+            return _tu_choi()
+        import config as cfgmod
+        kho = (cfgmod.read_settings().get("packs") or {}).get("tokens") or {}
+        return {"hosts": sorted(kho)}
+
+    @router.post("/packs/token")
+    async def packs_token_set(request: Request):
+        """Lưu hoặc xoá token cho một host. Token được mã hoá khi ghi xuống đĩa."""
+        if not _DEPS.co_phien(request):
+            return _tu_choi()
+        import config as cfgmod
+        d = await request.json()
+        host = str(d.get("host") or "").strip().lower()
+        if not host or "/" in host or " " in host:
+            return JSONResponse({"ok": False, "error": "Tên máy không hợp lệ"}, status_code=400)
+        tk = str(d.get("token") or "").strip()
+        cfg = cfgmod.read_settings()
+        kho = dict((cfg.get("packs") or {}).get("tokens") or {})
+        if tk:
+            kho[host] = tk
+        else:
+            kho.pop(host, None)
+        cfg.setdefault("packs", {})["tokens"] = kho
+        cfgmod.write_settings(cfg)
+        return {"ok": True, "hosts": sorted(kho)}
 
     @router.get("/packs/{pid}/asset/{duong:path}")
     async def packs_asset(pid: str, duong: str):

@@ -3226,6 +3226,10 @@ packs_routes.register(app, packs_routes.PacksDeps(
     # nên có đường tồn tại.
     co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
     lam_moi_hub=lambda: (mcp_hub.invalidate_cache(), _write_codex_profile()),
+    # Lambda chứ không truyền thẳng `_brain_root`: hàm đó định nghĩa ở phía DƯỚI trong
+    # main.py, mà lời gọi register phải nằm đúng chỗ này để giữ thứ tự route. Lambda hoãn
+    # việc tra tên tới lúc thật sự gọi, khi đó hàm đã tồn tại.
+    brain_root=lambda b: _brain_root(b),
 ))
 
 
