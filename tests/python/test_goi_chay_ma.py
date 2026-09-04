@@ -118,7 +118,7 @@ with tempfile.TemporaryDirectory() as td:
         check("sửa một byte trong mã thì tool biến mất", not route_co("goi_chao"))
         ly_do = plugins_host._load_all(None)["errors"].get("chao", "")
         check("và nói rõ lý do là mã đã đổi", "đã đổi" in ly_do)
-        check("lý do chỉ đúng đường sửa (cài lại từ trang Gói)", "trang Gói" in ly_do)
+        check("lý do chỉ đúng đường sửa (cài lại ở Kho cài đặt)", "Kho cài đặt" in ly_do)
         pf.write_bytes(goc_ma)
         check("trả mã về đúng từng byte thì chạy lại", route_co("goi_chao"))
 
@@ -222,7 +222,7 @@ check("main.py gọi quét đó lúc khởi động",
 
 src_js = (DASHBOARD / "console.js").read_text(encoding="utf-8")
 check("thẻ plugin hiện nhãn nguồn 'Từ gói'", 'pack: ["Từ gói"' in src_js)
-check("plugin của gói chỉ quản lý ở trang Gói, không bật tắt lẻ",
+check("plugin của gói chỉ quản lý ở Kho cài đặt, không bật tắt lẻ",
       "data-goto-packs" in src_js)
 
 if _fails:

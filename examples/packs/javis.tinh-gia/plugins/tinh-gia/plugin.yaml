@@ -1,0 +1,10 @@
+name: Tính giá bán
+slug: tinh-gia
+version: 1.0.0
+description: Tính giá bán từ giá vốn theo biên lợi nhuận mong muốn, cộng VAT rồi làm tròn lên số đẹp. Thuần stdlib, chỉ đọc, không chạm mạng.
+author: Javis (gói mẫu)
+enabled: true
+min_mode: readonly
+tools:
+  - javis_tinh_gia_ban
+hooks: []

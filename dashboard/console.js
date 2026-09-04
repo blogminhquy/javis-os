@@ -396,9 +396,39 @@
     el.innerHTML = placeholder(id);
   }
 
+  // Loại trong kho tương ứng với từng trang năng lực. Trang nào có mặt ở đây thì được một
+  // hàng tab dẫn sang kho, đã lọc sẵn đúng loại của nó.
+  const LOAI_KHO = { agents: "agent", skills: "skill", workflows: "workflow", plugins: "tool" };
+  const TEN_CUA_BAN = { agents: "Trợ lý của bạn", skills: "Kỹ năng của bạn",
+                        workflows: "Quy trình của bạn", plugins: "Công cụ của bạn" };
+
+  // Hàng tab "của bạn | Kho cài đặt" đặt trên đầu bốn trang năng lực.
+  //
+  // Tab thứ hai ĐIỀU HƯỚNG sang trang kho chứ không vẽ một bản sao của lưới kho tại chỗ. Bốn
+  // bản sao là bốn thứ sẽ lệch nhau sau vài tháng, và người dùng thì học hai lần cùng một
+  // giao diện. Một kho, một chỗ sửa - vào từ đâu cũng tới đúng nơi đó, chỉ khác cái chip đã
+  // bật sẵn.
+  function hangTabKho(id) {
+    const kind = LOAI_KHO[id];
+    if (!kind) return null;
+    const row = document.createElement("div");
+    row.className = "cat-filter";
+    row.style.margin = "0 0 14px";
+    row.innerHTML = `<button class="cat-chip on">${esc(TEN_CUA_BAN[id] || "Của bạn")}</button>`
+      + `<button class="cat-chip" data-mo-kho="${kind}">${ic("package")} Kho cài đặt</button>`;
+    const nut = row.querySelector("[data-mo-kho]");
+    nut.onclick = () => {
+      if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(kind);
+      else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
+    };
+    return row;
+  }
+
   // Trang Studio: tạo panel-<id> trong cview rồi gọi loader cũ (studio.js fill vào đó).
   function renderStudioPage(el, id) {
     el.innerHTML = `<div class="stab-panel" id="panel-${id}"></div>`;
+    const tab = hangTabKho(id);
+    if (tab) el.insertBefore(tab, el.firstChild);
     const fn = window.JavisStudio && window.JavisStudio[id];
     if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); } }
     else el.innerHTML = placeholder(id, "studio.js chưa sẵn sàng.");
@@ -1477,12 +1507,12 @@
         <div class="wf-desc">${esc(p.description || "")}</div>
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
         <div class="wf-actions">${p.source === "pack"
-            ? `<button class="s-btn-ghost" data-goto-packs="1">Quản lý ở trang Gói</button>`
+            ? `<button class="s-btn-ghost" data-goto-packs="1">Quản lý ở Kho cài đặt</button>`
             : p.removed
               ? `<button class="s-btn-ghost undel">Cài lại</button>`
               : `<button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button>
                  <button class="s-btn-ghost del" style="color:var(--red)">Gỡ</button>`}</div>`;
-      // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở trang Gói - nó đi theo cả gói, và có
+      // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở Kho cài đặt - nó đi theo cả gói, và có
       // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
       const nutGoto = div.querySelector("[data-goto-packs]");
       if (nutGoto) nutGoto.onclick = () => {
@@ -1546,6 +1576,8 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
         daGo.forEach(p => hostGo.appendChild(card(p)));
       }
       el.innerHTML = "";
+      const tab = hangTabKho("plugins");
+      if (tab) el.appendChild(tab);
       el.appendChild(wrap);
     }
     load();

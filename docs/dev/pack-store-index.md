@@ -27,6 +27,7 @@ Người dùng đổi được sang kho khác ở `settings.json` khoá `packs.s
       "description": {"vi": "Tính giá bán từ giá vốn và biên lợi nhuận."},
       "version": "1.0.0",
       "author": {"name": "Javis"},
+      "kind": "tool",
       "category": "sales",
       "category_label": {"vi": "Bán hàng", "en": "Sales"},
       "tier": "code",
@@ -52,7 +53,13 @@ một thẻ bấm vào không cài được thì tệ hơn là không có thẻ.
 
 ---
 
-## Bốn điều dễ hiểu sai
+## Năm điều dễ hiểu sai
+
+**`kind` là thứ chia lưới thành các tab.** Một trong `agent`, `skill`, `workflow`, `tool`,
+`connector`, `bundle`. Nó quyết định mục hiện dưới chip nào và mang nhãn gì, và nó là đường
+người dùng đi tới: bấm tab "Kho cài đặt" ở trang Kỹ năng là vào kho đã lọc sẵn `skill`. Giá trị
+lạ hay thiếu rơi về `bundle` chứ KHÔNG bị loại - một thẻ lọc không trúng vẫn tốt hơn một thẻ
+biến mất mà không ai hiểu vì sao. Dùng `bundle` cho gói thật sự gồm nhiều thứ.
 
 **`tier` là lời khai, không phải sự thật.** Nó chỉ để lọc và hiện nhãn trên lưới. Bậc THẬT do
 trình cài tự tính từ tệp đã tải về (`pack_install.soi` quét tìm `.py`, `transport: stdio`, khối
@@ -76,17 +83,30 @@ thuộc kho chút nào.
 
 ## Phát hành một gói
 
-1. Đóng thư mục gói thành `.zip` (manifest `javis-pack.yaml` nằm ở gốc, hoặc trong đúng một
-   thư mục bọc kiểu zipball của GitHub, Javis tự bóc).
-2. Tạo một Release trên GitHub và đính tệp `.zip` vào đó. Dùng Release thay vì tệp trong repo
-   để địa chỉ tải ổn định theo phiên bản, và người dùng tải bản cũ được khi cần.
-3. Lấy `sha256` của tệp:
+1. Đóng thư mục gói thành `.zip` và lấy luôn dấu vân tay:
    ```bash
-   sha256sum javis-tinh-gia.zip
+   python examples/packs/dong-goi.py javis.tinh-gia
    ```
-4. Thêm một mục vào `packs[]` trong `system/pack-index.json`, rồi đẩy lên nhánh `main`.
+   Lệnh in ra đường dẫn tệp và `sha256`. Đóng bằng `zip -r` cũng được, nhưng nhớ loại
+   `__pycache__` ra: nó lọt vào chữ ký nội dung mã nên hai máy sẽ ra hai `sha256` khác nhau.
+   Manifest `javis-pack.yaml` phải nằm ở gốc tệp nén, hoặc trong đúng một thư mục bọc kiểu
+   zipball của GitHub, Javis tự bóc.
+2. Đặt tệp vào chỗ tải được, theo một trong hai đường:
 
-Javis cache danh mục 6 giờ, nên sau khi đẩy thì bấm **Làm mới** trên trang Gói để thấy ngay.
+   **Gói của chính kho này** đi thẳng vào repo: chép `.zip` vào `system/packs/` với tên kèm
+   phiên bản (`javis-tinh-gia-1.0.0.zip`), rồi khai `download.url` TƯƠNG ĐỐI
+   (`packs/javis-tinh-gia-1.0.0.zip`). Javis ghép nó với địa chỉ của chính file index.
+   Ưu điểm: tệp và mục danh mục nằm trong CÙNG một commit, nên không bao giờ có cảnh index đã
+   trỏ sang bản mới mà tệp thì chưa lên. Gói nhỏ (vài KB) nên repo không phình.
+
+   **Gói của người khác, hoặc gói lớn** thì dùng Release trên GitHub và khai `download.url`
+   tuyệt đối. Bản cũ vẫn tải được, và repo không ôm tệp của bên thứ ba.
+
+3. Thêm một mục vào `packs[]` trong `system/pack-index.json`, rồi đẩy lên nhánh `main`.
+
+Có sẵn một gói chạy được để chép làm khuôn: `examples/packs/javis.tinh-gia/`.
+
+Javis cache danh mục 6 giờ, nên sau khi đẩy thì bấm **Làm mới** trên trang Kho cài đặt để thấy ngay.
 
 ---
 
@@ -104,8 +124,12 @@ thể đổi mã, và mã đổi mà không ai xem thì toàn bộ chốt chữ 
 
 ## Gói mang theo agent, workflow, skill
 
-Khai trong `provides` như mọi thứ khác; tệp đặt ở `agents/`, `workflows/`, `skills/<slug>/` bên
-trong gói. Chúng được ghi vào **brain đang mở lúc bấm Cài**, không phải mọi brain.
+Tệp đặt ở `agents/`, `workflows/`, `skills/<slug>/` bên trong gói; Javis tìm chúng **theo thư
+mục**. Chỉ `provides.connectors` là bắt buộc khai trong manifest, vì mỗi connector là một tệp
+phải trỏ đúng tên; khai thêm `provides.plugins` hay `provides.skills` là để người đọc manifest
+biết gói có gì mà không phải mở từng thư mục, chứ trình cài không đọc.
+
+Chúng được ghi vào **brain đang mở lúc bấm Cài**, không phải mọi brain.
 
 Ba luật, và chúng là lý do phần này có một module riêng (`server/pack_vault.py`):
 
@@ -124,6 +148,14 @@ Lưu ở Cài đặt, **một mã cho mỗi tên máy** (một mã GitHub dùng 
 Mã được mã hoá khi ghi xuống đĩa, đi bằng header chứ không nhét vào địa chỉ, và **bị bỏ khi bị
 chuyển hướng sang tên máy khác** - gửi tiếp mã của máy cũ sang máy mới là cách rò mã quen thuộc
 nhất.
+
+## Kho hiện ra ở đâu trong app
+
+Kho là **một** kho, ở trang **Kho cài đặt** trên thanh bên. Bốn trang năng lực (Trợ lý, Kỹ
+năng, Quy trình, Plugin) mỗi trang có một tab dẫn sang đó, đã lọc sẵn đúng loại của trang.
+
+Tab chỉ ĐIỀU HƯỚNG, không nhúng một bản sao của lưới. Bốn bản sao là bốn thứ sẽ lệch nhau sau
+vài tháng, và người dùng thì phải học hai lần cùng một giao diện.
 
 ## Giới hạn cố ý của bản này
 

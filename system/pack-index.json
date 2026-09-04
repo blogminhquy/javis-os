@@ -3,9 +3,32 @@
   "format_version": 1,
   "updated": "2026-09-04",
   "store": {
-    "name": "Kho gói Javis",
+    "name": "Kho cài đặt Javis",
     "url": "https://github.com/blogminhquy/javis-os"
   },
-  "_doc": "Danh mục gói cho trang Năng lực > Gói. Cách thêm một gói: xem docs/dev/pack-store-index.md. Trường _doc và mọi khoá lạ khác đều bị Javis bỏ qua khi đọc, chỉ để lại ghi chú cho người sửa file này.",
-  "packs": []
+  "_doc": "Danh mục cho trang Năng lực > Kho cài đặt. Cách thêm một mục: xem docs/dev/pack-store-index.md. Trường _doc và mọi khoá lạ khác đều bị Javis bỏ qua khi đọc, chỉ để lại ghi chú cho người sửa file này.",
+  "packs": [
+    {
+      "id": "javis.tinh-gia",
+      "kind": "tool",
+      "name": { "vi": "Tính giá bán", "en": "Pricing helper" },
+      "description": {
+        "vi": "Từ giá vốn ra giá niêm yết: chọn biên lợi nhuận hoặc markup, cộng VAT, làm tròn lên số đẹp. Trả về biên thực tế sau khi làm tròn.",
+        "en": "Turn cost into a shelf price: margin or markup, VAT, rounded up to a tidy number. Reports the real margin after rounding."
+      },
+      "version": "1.0.0",
+      "author": { "name": "Javis" },
+      "category": "ban-hang",
+      "category_label": { "vi": "Bán hàng", "en": "Sales" },
+      "tier": "code",
+      "verified": true,
+      "updated": "2026-09-04",
+      "homepage": "https://github.com/blogminhquy/javis-os/tree/main/examples/packs/javis.tinh-gia",
+      "download": {
+        "url": "packs/javis-tinh-gia-1.0.0.zip",
+        "sha256": "2efc5b73e55c98573bae20d765a6cfeabe062646f6dcb9d890fd56bb557e1cdb",
+        "size": 5289
+      }
+    }
+  ]
 }

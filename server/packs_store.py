@@ -46,6 +46,18 @@ FORMAT_VERSION = 1
 STORE_MAC_DINH = ("https://raw.githubusercontent.com/blogminhquy/javis-os/"
                   "main/system/pack-index.json")
 
+# Loại năng lực một mục trong kho mang lại. Đây là thứ chia lưới thành các tab "Trợ lý /
+# Kỹ năng / Quy trình / Công cụ", nên nó là trường quan trọng nhất về mặt trưng bày.
+#
+# Cùng luật với `tier`: LỜI KHAI của người phát hành, chỉ để lọc và hiện nhãn. Sự thật do
+# `pack_install.soi` tính từ tệp đã tải về, và màn hình xác nhận nói theo sự thật đó chứ không
+# theo dòng này.
+#
+# Giá trị lạ rơi về "bundle" chứ KHÔNG bị loại: một thẻ lọc không trúng vẫn tốt hơn một thẻ
+# biến mất khỏi kho mà không ai hiểu vì sao. Kho là nơi tìm ra thứ mình cần; giấu đi là hỏng
+# đúng việc nó sinh ra để làm.
+LOAI = ("agent", "skill", "workflow", "tool", "connector", "bundle")
+
 MAX_MO_TA = 300
 MAX_TEN = 120
 MAX_GOI = 500
@@ -74,6 +86,7 @@ def _lam_sach(m: dict) -> dict:
         "description": _map_nn(m.get("description"), MAX_MO_TA),
         "version": _chuoi(m.get("version"), 32),
         "author": {"name": _chuoi((m.get("author") or {}).get("name"), 64)},
+        "kind": _chuoi(m.get("kind"), 16) if _chuoi(m.get("kind"), 16) in LOAI else "bundle",
         "category": _chuoi(m.get("category"), 32),
         "category_label": _map_nn(m.get("category_label"), 40),
         # `tier` là thứ người phát hành KHAI, chỉ để lọc và để hiện nhãn. Bậc THẬT do trình cài

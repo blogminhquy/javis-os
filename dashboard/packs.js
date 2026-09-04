@@ -64,6 +64,23 @@
     if (m) m.classList.remove("open");
   }
 
+  // Loại năng lực, thứ chia lưới kho thành các tab. Thứ tự ở đây LÀ thứ tự chip trên màn
+  // hình, đi từ thứ người dùng hiểu nhanh nhất (trợ lý) tới thứ kỹ thuật nhất (kết nối).
+  //
+  // `bundle` cố ý KHÔNG có chip riêng: nó là chỗ rơi của mục khai loại lạ, và một chip tên
+  // "Khác" chỉ mời người ta bấm vào để thấy lưới rỗng. Mục bundle vẫn hiện ở tab Tất cả.
+  const LOAI = {
+  // Icon lấy ĐÚNG icon trang tương ứng ở thanh bên (`console.js` VIEW_ICON), không chọn lại
+  // cho đẹp: người dùng nhận ra "cái này là kỹ năng" bằng hình họ đã thấy hàng ngày.
+    agent:     { nhan: "Trợ lý",    icon: "bot",      trang: "agents" },
+    skill:     { nhan: "Kỹ năng",   icon: "puzzle",   trang: "skills" },
+    workflow:  { nhan: "Quy trình", icon: "workflow", trang: "workflows" },
+    tool:      { nhan: "Công cụ",   icon: "toolbox",  trang: "plugins" },
+    connector: { nhan: "Kết nối",   icon: "plug",     trang: "mcp" },
+    bundle:    { nhan: "Trọn bộ",   icon: "package",  trang: "" },
+  };
+  const THU_TU_LOAI = ["agent", "skill", "workflow", "tool", "connector"];
+
   const BAC = {
     data: { nhan: "Chỉ dữ liệu", mau: "var(--ok-ink,#2f855a)" },
     code: { nhan: "Có chạy mã", mau: "var(--warn-ink,#b7791f)" },
@@ -227,9 +244,12 @@
         ? '<button class="gcard-btn" disabled style="opacity:.55">Đã cài</button>'
         : '<button class="gcard-btn" data-kho="' + esc(g.download.url) + '" data-sha="'
           + esc(g.download.sha256 || "") + '">Cài</button>';
-    return '<div class="cat-card" data-cat="' + esc(g.category || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
-      + '<div class="cat-ico">' + ic("package") + '</div>'
+    const lo = LOAI[g.kind] || LOAI.bundle;
+    return '<div class="cat-card" data-cat="' + esc(g.category || "") + '" data-ng="'
+      + (g.verified ? "1" : "0") + '" data-loai="' + esc(g.kind || "bundle") + '">'
+      + '<div class="cat-ico">' + ic(lo.icon) + '</div>'
       + '<div class="cat-name">' + esc(nn(g.name, g.id))
+      + ' <span class="prov-kind">' + esc(lo.nhan) + '</span>'
       + ' <span class="prov-kind" style="color:' + bac.mau + '">' + bac.nhan + '</span>'
       + (g.verified
           ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">chính chủ</span>'
@@ -241,7 +261,7 @@
       + nut + '</div>';
   }
 
-  async function veKho(el, host, lamMoi) {
+  async function veKho(el, host, lamMoi, loaiDau) {
     host.innerHTML = '<div class="mp-empty">Đang tải danh mục…</div>';
     let d;
     try { d = await (await fetch("/packs/store" + (lamMoi ? "?refresh=1" : ""))).json(); }
@@ -255,6 +275,15 @@
     }
     const ds = d.packs || [];
     const cats = Array.from(new Set(ds.map(g => g.category).filter(Boolean)));
+    // Chip lĩnh vực hiện TÊN người đọc được, không hiện mã. `category` là mã máy ("ban-hang")
+    // để lọc cho ổn định qua các bản dịch; `category_label` là chữ để đọc. Thiếu nhãn thì rơi
+    // về mã, xấu nhưng vẫn bấm được.
+    const nhanCat = {};
+    ds.forEach(g => { if (g.category && !nhanCat[g.category]) nhanCat[g.category] = nn(g.category_label, g.category); });
+    // Chỉ vẽ chip cho loại THẬT SỰ có trong kho. Một chip bấm vào ra lưới rỗng làm người ta
+    // tưởng kho hỏng, trong khi sự thật chỉ là chưa ai phát hành loại đó.
+    const coLoai = THU_TU_LOAI.filter(k => ds.some(g => (g.kind || "bundle") === k));
+    const loaiMo = (loaiDau && coLoai.includes(loaiDau)) ? loaiDau : "";
     // Hai tab nguồn. Hôm nay kho chỉ có gói chính chủ nên tab thứ hai thường rỗng, nhưng để
     // sẵn thì ngày mở cho cộng đồng không phải sửa lại giao diện - và quan trọng hơn, người
     // dùng quen mắt với việc NGUỒN là một thứ phải nhìn trước khi cài.
@@ -267,13 +296,24 @@
             + '<button class="cat-chip" data-pkng="1">Chính chủ</button>'
             + '<button class="cat-chip" data-pkng="0">Cộng đồng</button></div>'
           : "")
-      + '<div class="cat-tools"><input class="js-input" id="pkQ" placeholder="Tìm gói…" style="max-width:220px">'
+      + (coLoai.length > 1
+          ? '<div class="cat-filter" style="margin-bottom:10px">'
+            + '<button class="cat-chip' + (loaiMo ? "" : " on") + '" data-pkl="">Tất cả</button>'
+            + coLoai.map(k => '<button class="cat-chip' + (loaiMo === k ? " on" : "")
+                + '" data-pkl="' + k + '">' + esc(LOAI[k].nhan) + '</button>').join("")
+            + '</div>'
+          : "")
+      + '<div class="cat-tools"><input class="js-input" id="pkQ" placeholder="Tìm trong kho…" style="max-width:220px">'
       + '<span class="cat-filter"><button class="cat-chip on" data-pkf="">Tất cả</button>'
-      + cats.map(c => '<button class="cat-chip" data-pkf="' + esc(c) + '">' + esc(c) + '</button>').join("")
+      + cats.map(c => '<button class="cat-chip" data-pkf="' + esc(c) + '">'
+          + esc(nhanCat[c] || c) + '</button>').join("")
       + '</span>'
       + '<button class="mp-btn" id="pkLamMoi" style="margin-left:auto">Làm mới</button></div>'
+      + '<div class="mp-empty" id="pkTrong" hidden>Không có mục nào khớp bộ lọc.</div>'
       + '<div class="cat-grid" id="pkGrid">'
-      + (ds.length ? ds.map(theKho).join("") : '<div class="mp-empty">Kho chưa có gói nào.</div>')
+      + (ds.length ? ds.map(theKho).join("")
+                   : '<div class="mp-empty">Kho chưa có mục nào.<br>'
+                     + 'Bạn vẫn cài được từ tệp .zip ở phần dưới.</div>')
       + '</div>';
 
     const theo = {};
@@ -287,12 +327,21 @@
       const cf = chip ? (chip.dataset.pkf || "") : "";
       const chipNg = host.querySelector("[data-pkng].on");
       const ng = chipNg ? (chipNg.dataset.pkng || "") : "";
+      const chipL = host.querySelector("[data-pkl].on");
+      const lf = chipL ? (chipL.dataset.pkl || "") : "";
+      let hien = 0;
       host.querySelectorAll("#pkGrid .cat-card").forEach(c => {
         const hop = (!cf || c.dataset.cat === cf)
           && (!ng || c.dataset.ng === ng)
+          && (!lf || c.dataset.loai === lf)
           && (!q || c.textContent.toLowerCase().includes(q));
         c.style.display = hop ? "" : "none";
+        if (hop) hien++;
       });
+      // Lọc hết sạch thì NÓI RA, đừng để một khoảng trắng. Người vừa bấm ba cái chip không
+      // nhớ nổi cái nào đang bật, và lưới trống trơn trông y hệt lỗi tải.
+      const trong = document.getElementById("pkTrong");
+      if (trong) trong.hidden = hien > 0;
     };
     document.getElementById("pkQ").oninput = loc;
     host.querySelectorAll("[data-pkf]").forEach(b => b.onclick = () => {
@@ -305,6 +354,12 @@
       b.classList.add("on");
       loc();
     });
+    host.querySelectorAll("[data-pkl]").forEach(b => b.onclick = () => {
+      host.querySelectorAll("[data-pkl]").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      loc();
+    });
+    if (loaiMo) loc();   // vào từ tab một trang cụ thể: áp bộ lọc ngay, đừng chớp một nhịp
   }
 
   async function chonTep(el, file) {
@@ -398,31 +453,32 @@
       return;
     }
     const ds = d.packs || [];
+    // KHO nằm TRÊN, "đã cài" nằm dưới. Người vào trang này gần như luôn để TÌM thêm thứ gì
+    // đó; xem lại thứ mình đã cài là việc thỉnh thoảng. Thứ tự cũ (đã cài trước) là thứ tự
+    // của một trình quản lý gói, mà đây không phải trình quản lý gói.
     el.innerHTML =
-      '<div class="cview-section"><h3>◆ Gói đã cài <span style="opacity:.5">'
+      '<div class="cview-section"><h3>◆ Kho cài đặt</h3>'
+      + '<div class="gcard-meta" style="max-width:740px">Trợ lý, kỹ năng, quy trình và công cụ '
+      + 'làm sẵn theo từng lĩnh vực. Bấm <b>Cài</b> là Javis tải về, mở ra cho bạn xem có gì '
+      + 'rồi mới hỏi.</div>'
+      + '<div id="pkKho" style="margin-top:12px"></div></div>'
+      + '<div class="cview-section"><h3>◆ Đã cài <span style="opacity:.5">'
       + ds.length + '</span></h3>'
-      + '<div class="gcard-meta" style="max-width:740px">Gói là cách thêm dịch vụ và công cụ '
-      + 'cho Javis mà <b>không cần chờ bản cập nhật</b>. Chọn một tệp <code>.zip</code>, Javis mở '
-      + 'ra cho bạn xem gói đó chứa gì rồi mới hỏi có cài không.</div>'
       + (d.disabled
-        ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-top:12px">'
-          + 'Biến môi trường <code>JAVIS_DISABLE_PACKS</code> đang bật, nên mọi gói bị tắt hết.</div>'
+        ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
+          + 'Biến môi trường <code>JAVIS_DISABLE_PACKS</code> đang bật, nên mọi thứ cài thêm bị tắt hết.</div>'
         : "")
-      + '<div style="margin-top:12px"><button class="mp-btn primary" id="pkChon">Cài từ tệp .zip</button> '
+      + '<div class="prov-list" id="pkList">'
+      + (ds.length ? ds.map(theGoi).join("")
+                   : '<div class="mp-empty">Chưa cài gì thêm.</div>')
+      + '</div>'
+      + '<div style="margin-top:14px"><button class="mp-btn" id="pkChon">Cài từ tệp .zip</button> '
       + '<input type="file" id="pkFile" accept=".zip" style="display:none">'
       + '<span style="opacity:.6;margin-left:8px">tối đa ' + (d.max_mb || 25) + 'MB</span></div>'
-      + '<div class="prov-list" id="pkList" style="margin-top:14px">'
-      + (ds.length ? ds.map(theGoi).join("")
-                   : '<div class="mp-empty">Chưa có gói nào.</div>')
-      + '</div>'
-      + '<div class="gcard-meta" style="margin-top:14px;opacity:.7">Gói nằm ở <code>'
+      + '<div class="gcard-meta" style="margin-top:10px;opacity:.7">Thứ cài thêm nằm ở <code>'
       + esc(d.dir || "") + '</code>. Thả thẳng một thư mục vào đó cũng được, không bắt buộc '
       + 'phải qua tệp nén.</div>'
-      + '</div>'
-      + '<div class="cview-section"><h3>◆ Kho gói</h3>'
-      + '<div class="gcard-meta" style="max-width:740px">Danh mục gói do Javis phát hành. '
-      + 'Bấm Cài là Javis tải về, mở ra cho bạn xem rồi mới hỏi, y như khi bạn tự chọn tệp.</div>'
-      + '<div id="pkKho" style="margin-top:12px"></div></div>';
+      + '</div>';
 
     const inp = document.getElementById("pkFile");
     document.getElementById("pkChon").onclick = () => inp.click();
@@ -435,8 +491,20 @@
     el.querySelectorAll("[data-pk-del]").forEach(b => b.onclick = () => hopGo(el, b.dataset.pkDel));
     // Kho vẽ SAU và độc lập: kho không tới được thì phần "đã cài" ở trên vẫn dùng bình thường.
     const hostKho = document.getElementById("pkKho");
-    if (hostKho) veKho(el, hostKho, false);
+    // Lấy rồi XOÁ ngay: `_loaiCho` là ý định của một lần bấm tab, không phải trạng thái của
+    // trang. Giữ lại thì lần sau vào từ thanh bên vẫn thấy lưới bị lọc mà không hiểu vì sao.
+    const loaiDau = _loaiCho;
+    _loaiCho = "";
+    if (hostKho) veKho(el, hostKho, false, loaiDau);
   }
 
-  window.JavisPacks = { render: render };
+  // Mở kho với một loại đã lọc sẵn. Tab "Kho cài đặt" trên trang Trợ lý / Kỹ năng / Quy
+  // trình / Plugin gọi hàm này, nên bốn trang KHÔNG ai nhúng một bản sao của lưới kho: chỉ có
+  // một kho, một chỗ sửa, và người dùng học một lần là xong.
+  function moKho(loai) {
+    _loaiCho = LOAI[loai] ? loai : "";
+    if (window.Alpine && Alpine.store("nav")) Alpine.store("nav").go("packs");
+  }
+
+  window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI };
 })();
