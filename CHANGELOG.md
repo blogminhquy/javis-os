@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.30] - 2026-09-05
+### Thêm mới
+- **Kho cài đặt chuyển sang kho riêng: [javis-store](https://github.com/blogminhquy/javis-store).** Từ giờ thêm một món vào kho là mọi máy đang chạy Javis **thấy ngay**, không phải chờ bản cập nhật nào cả.
+- **Ai cũng góp được món vào kho.** Repo kho công khai, kèm hướng dẫn gửi bài và danh sách những gì sẽ bị soi khi duyệt. Mọi món đều được đọc mã trước khi vào kho.
+- Mã nguồn từng món nằm ngay cạnh tệp tải về, nên bạn đọc được nó **trước khi** cài chứ không phải tải rồi mới xem.
+
+### Cải thiện
+- Bản Javis cũ (0.55.24 đến 0.55.29) vẫn xem và cài được món cũ như thường, không ai bị hụt giữa chừng.
+
 ## [0.55.29] - 2026-09-04
 ### Sửa lỗi
 - **Hộp thoại "Bạn cần cấp quyền microphone" hiện liên tục, bấm OK xong lại nổ, không thoát được.** Khi mic bị chặn hoặc máy không có mic, Javis cứ mở lại mic hai lần mỗi giây, mỗi lần một hộp thoại. Giờ gặp lỗi mic là **dừng hẳn** và tự tắt chế độ luôn nghe.

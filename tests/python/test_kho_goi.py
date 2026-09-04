@@ -206,12 +206,36 @@ check("có bản mới thì đổi nhãn nút", "Có bản mới" in src_js)
 check("kho hỏng KHÔNG làm hỏng phần gói đã cài",
       "Bạn vẫn cài được gói từ tệp" in src_js)
 
+
+# ============================================================
+# Kho ở REPO RIÊNG, và bản cũ vẫn cài được
+# ============================================================
+# Tách repo là điểm mấu chốt: thêm một gói không còn dính tới việc ra bản mới của app, và người
+# lạ gửi Pull Request vào kho được mà không cần quyền ghi vào mã nguồn Javis.
+check("kho mặc định trỏ sang repo riêng, không phải repo Javis OS",
+      "javis-store" in packs_store.STORE_MAC_DINH
+      and "javis-os" not in packs_store.STORE_MAC_DINH)
+check("và đọc qua raw.githubusercontent (không phải trang HTML của GitHub)",
+      packs_store.STORE_MAC_DINH.startswith("https://raw.githubusercontent.com/"))
+
 idx = json.loads((ROOT / "system" / "pack-index.json").read_text(encoding="utf-8"))
 check("repo có sẵn tệp danh mục", idx.get("format") == "javis-pack-index")
 check("và nó đọc được bằng chính bộ đọc",
       all(packs_store._lam_sach(x)["id"] for x in idx.get("packs", [])) if idx.get("packs") else True)
 check("có tài liệu cách phát hành gói",
       (ROOT / "docs" / "dev" / "pack-store-index.md").is_file())
+
+# Danh mục CŨ trong repo này đã đông lại, nhưng KHÔNG được xoá: bản 0.55.24-0.55.29 trỏ cứng vào
+# đó. Xoá đi là mọi máy chưa cập nhật thấy kho rỗng. Nên nó phải còn, và mọi địa chỉ tải trong đó
+# phải TUYỆT ĐỐI - đường tương đối sẽ ghép với repo Javis OS, nơi không còn tệp .zip nào.
+check("danh mục cũ vẫn còn cho bản chưa cập nhật", bool(idx.get("packs")))
+check("và mọi địa chỉ tải trong đó là tuyệt đối, trỏ sang kho mới",
+      all((g.get("download") or {}).get("url", "").startswith("https://")
+          and "javis-store" in g["download"]["url"] for g in idx.get("packs", [])))
+check("danh mục cũ tự nói là đã đông lại, để không ai thêm nhầm vào đó",
+      "ĐÔNG LẠI" in (idx.get("_doc") or ""))
+# Gói thật đã dọn sang repo kho, nên repo này không còn ôm tệp .zip nào nữa.
+check("repo Javis OS không còn giữ tệp gói", not (ROOT / "system" / "packs").exists())
 
 # ============================================================
 # 4. Kho là MỘT kho, vào được từ tab của bốn trang năng lực

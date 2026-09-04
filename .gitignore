@@ -148,6 +148,3 @@ parse_ads*.ps1
 Thumbs.db
 desktop.ini
 server/stop-last.log
-
-# Tệp .zip do examples/packs/dong-goi.py tạo ra: dựng lại được từ nguồn, không lên git.
-examples/packs/dist/

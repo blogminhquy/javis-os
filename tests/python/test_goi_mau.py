@@ -1,18 +1,22 @@
-"""Gói mẫu `examples/packs/javis.tinh-gia` chạy được thật, đủ vòng cài -> dùng -> gỡ.
+"""Một gói THẬT đi trọn vòng: soi -> cài -> gọi tool -> gỡ, kể cả khi người dùng đã sửa.
 
     python tests/run.py goi_mau
 
 Không cần pytest, không chạm mạng, không đụng brain thật.
 
-Vì sao một ví dụ cần test riêng: một ví dụ HỎNG tệ hơn không có ví dụ nào. Người viết gói đầu
-tiên sẽ chép thư mục này làm khuôn, nên nếu hợp đồng plugin đổi, hay `spec` lên 2, hay tên
-trường trong manifest đổi, thì ví dụ phải đỏ ở đây chứ không phải im lặng rồi hỏng trên máy
-người lạ vào sáu tháng sau.
+Vì sao tồn tại, tách khỏi `test_goi_chay_ma.py` (vốn cũng cài một gói): gói ở đây mang ĐỦ HAI
+loại năng lực có vòng đời khác nhau, và chính chỗ khác nhau đó mới là thứ dễ sai:
 
-Test này cũng là bản mô tả sống của toàn bộ luồng: đọc từ trên xuống là thấy đúng thứ tự mà
-trang Kho cài đặt làm việc - soi trước, hỏi sau, cài, rồi gỡ và kiểm xem còn sót gì.
+  - Plugin nằm TRONG thư mục gói. Gỡ là `rmtree`, không ai mất gì.
+  - Kỹ năng nằm trong BRAIN của người dùng, và brain là nơi họ SỬA. Gỡ mà xoá nhầm công của
+    họ là loại lỗi tệ nhất một trình cài có thể gây ra: gói cài lại được trong ba giây, còn
+    thứ họ viết thì không.
+
+Gói dựng ngay trong test chứ không đọc từ đĩa. Trước 0.55.30 nó đọc `examples/packs/`, nhưng
+gói thật đã dọn sang repo kho riêng (`blogminhquy/javis-store`) - và một test của Javis OS thì
+không được phụ thuộc vào nội dung một repo khác, càng không phụ thuộc vào mạng.
 """
-from _paths import ROOT  # noqa: E402,F401
+from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
 import io
 import json
@@ -27,9 +31,76 @@ import pack_vault
 import packs
 import plugins_host
 
-NGUON = ROOT / "examples" / "packs" / "javis.tinh-gia"
 PACK_ID = "javis.tinh-gia"
 TOOL = "javis_tinh_gia_ban"
+
+MANIFEST = """format: javis-pack
+spec: 1
+id: javis.tinh-gia
+version: 1.0.0
+name: {vi: "Tính giá bán"}
+description: {vi: "Từ giá vốn ra giá niêm yết."}
+compat: {app: ">=0.55.25"}
+provides:
+  plugins: [plugins/tinh-gia]
+  skills: [skills/dat-gia-ban]
+"""
+
+PLUGIN_YAML = """name: Tính giá bán
+slug: tinh-gia
+version: 1.0.0
+enabled: true
+min_mode: readonly
+tools:
+  - javis_tinh_gia_ban
+hooks: []
+"""
+
+# Giữ đúng phần lõi của gói thật trong kho: nhận giá vốn cộng biên, làm tròn LÊN giá cuối, rồi
+# trả về BIÊN THỰC TẾ sau khi tròn. Con số kỳ vọng bên dưới tính từ đúng công thức này.
+PLUGIN_PY = '''import json, math
+
+
+def _tinh(args, ctx):
+    args = args or {}
+    try:
+        von = float(args.get("gia_von"))
+    except (TypeError, ValueError):
+        return "ERROR: 'gia_von' phai la so."
+    if von <= 0:
+        return "ERROR: 'gia_von' phai lon hon 0."
+    bien = float(args.get("bien_loi_nhuan", 30))
+    if bien >= 100:
+        return "ERROR: 'bien_loi_nhuan' phai nho hon 100."
+    vat = float(args.get("vat", 0))
+    buoc = float(args.get("lam_tron", 1000))
+    can = von / (1 - bien / 100.0) * (1 + vat / 100.0)
+    niem_yet = math.ceil(can / buoc) * buoc if buoc > 0 else can
+    truoc_vat = niem_yet / (1 + vat / 100.0)
+    lai = truoc_vat - von
+    return json.dumps({"gia_niem_yet": round(niem_yet, 2),
+                       "bien_loi_nhuan_thuc": round(lai / truoc_vat * 100.0, 2)},
+                      ensure_ascii=False)
+
+
+def register(ctx):
+    ctx.register_tool(name="javis_tinh_gia_ban", description="Tinh gia ban tu gia von",
+                      handler=_tinh, min_mode="readonly",
+                      schema={"type": "object",
+                              "properties": {"gia_von": {"type": "number"}},
+                              "required": ["gia_von"]})
+'''
+
+SKILL_MD = """---
+name: Đặt giá bán
+description: Phân biệt biên lợi nhuận với markup khi đặt giá bán.
+group: Bán hàng
+---
+
+# Đặt giá bán
+
+Biên tính trên giá BÁN, markup tính trên giá VỐN. Hỏi lại trước khi tính.
+"""
 
 _fails = []
 
@@ -40,32 +111,13 @@ def check(ten, cond):
         _fails.append(ten)
 
 
-def _dong_goi_mod():
-    """Nạp chính `examples/packs/dong-goi.py` để test dùng ĐÚNG thuật toán đóng gói thật.
-
-    Không chép lại logic sang đây: hai bản sao sẽ lệch, và lúc lệch thì test báo đỏ vì lý do
-    sai (thuật toán test cũ) chứ không phải vì gói hỏng. Tên tệp có dấu gạch nên phải nạp
-    bằng đường dẫn."""
-    import importlib.util
-    p = ROOT / "examples" / "packs" / "dong-goi.py"
-    spec = importlib.util.spec_from_file_location("dong_goi", p)
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
-    return m
-
-
-def dong_zip(src: Path) -> bytes:
-    """Đóng gói y như `examples/packs/dong-goi.py`, nhưng vào bộ nhớ."""
-    dg = _dong_goi_mod()
+def dung_zip() -> bytes:
     b = io.BytesIO()
     with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
-        for p in sorted(src.rglob("*")):
-            if not p.is_file() or any(x in p.parts for x in dg.BO_QUA):
-                continue
-            it = zipfile.ZipInfo(str(p.relative_to(src)).replace("\\", "/"), dg.NGAY_GHIM)
-            it.compress_type = zipfile.ZIP_DEFLATED
-            it.external_attr = 0o644 << 16
-            z.writestr(it, p.read_bytes())
+        z.writestr("javis-pack.yaml", MANIFEST)
+        z.writestr("plugins/tinh-gia/plugin.yaml", PLUGIN_YAML)
+        z.writestr("plugins/tinh-gia/plugin.py", PLUGIN_PY)
+        z.writestr("skills/dat-gia-ban/SKILL.md", SKILL_MD)
     return b.getvalue()
 
 
@@ -91,44 +143,27 @@ with tempfile.TemporaryDirectory() as td:
         packs.invalidate()
         plugins_host.invalidate()
         plugins_host._STATE_CACHE.update(sig=None, data=None)
-        du = dong_zip(NGUON)
+        du = dung_zip()
 
-        # ─────────────── 0. Tệp đã phát hành khớp ĐÚNG mã nguồn ───────────────
-        # Sửa nguồn mà quên đóng gói lại thì kho đang phát một bản KHÁC thứ repo công bố, và
-        # không ai phát hiện ra bằng mắt. Đây là phép kiểm bắt chuyện đó.
-        #
-        # So NỘI DUNG TỪNG MỤC, không so byte của tệp nén: DEFLATE cho ra chuỗi byte khác nhau
-        # giữa các bản zlib, nên so byte thì xanh ở Windows và đỏ ở CI Linux dù nội dung y hệt.
-        # Nội dung mới là thứ đáng cam kết; byte nén chỉ là cách gói lại.
-        _ship = ROOT / "system" / "packs" / "javis-tinh-gia-1.0.0.zip"
-        check("tệp phát hành có mặt trong repo", _ship.is_file())
-        if _ship.is_file():
-            with zipfile.ZipFile(io.BytesIO(_ship.read_bytes())) as _a,                  zipfile.ZipFile(io.BytesIO(du)) as _b:
-                _ta, _tb = _a.namelist(), _b.namelist()
-                check("tệp phát hành chứa đúng những mục mà mã nguồn có", _ta == _tb)
-                check("và nội dung từng mục khớp từng byte với mã nguồn",
-                      all(_a.read(x) == _b.read(x) for x in _ta if x in _tb))
-
-        # ─────────────── 1. Soi: nói đúng gói có gì, TRƯỚC khi cài gì ───────────────
+        # --------------- 1. Soi: nói đúng gói có gì, TRƯỚC khi cài gì ---------------
         r = pack_install.soi(du, "javis-tinh-gia.zip")
-        check("gói mẫu còn đọc được bằng bản Javis hiện tại", r.get("ok") is True)
-        check("id khớp tên thư mục", r.get("id") == PACK_ID)
+        check("gói đọc được bằng bản Javis hiện tại", r.get("ok") is True)
+        check("id khớp tên khai trong manifest", r.get("id") == PACK_ID)
         check("xếp đúng bậc code vì có tệp .py", r.get("tier") == "code")
         check("liệt kê plugin trong gói", r.get("plugins") == ["tinh-gia"])
         check("liệt kê kỹ năng sẽ ghi vào brain",
               (r.get("vault") or {}).get("skills") == ["dat-gia-ban"])
-        check("gói mẫu cố ý KHÔNG mang connector", not r.get("connectors"))
         check("không phần nào của gói bị bỏ qua vì lỗi", not r.get("error"))
         check("tool chưa tồn tại khi mới chỉ soi", not route_co(TOOL))
 
-        # ─────────────── 2. Cài: tool ra tới hub, kỹ năng vào brain ───────────────
+        # --------------- 2. Cài: tool ra tới hub, kỹ năng vào brain ---------------
         c = pack_install.cai(r["staging_id"], r["sha256"], enable=True, brain_root=str(brain))
         check("cài xong", c.get("ok") is True)
         check("kỹ năng được thêm vào brain đang mở",
               [x["khoa"] for x in (c.get("vault") or {}).get("them") or []]
               == ["skills/dat-gia-ban"])
-        check("và tệp có thật trên đĩa",
-              (brain / "skills" / "dat-gia-ban" / "SKILL.md").is_file())
+        sk = brain / "skills" / "dat-gia-ban" / "SKILL.md"
+        check("và tệp có thật trên đĩa", sk.is_file())
 
         the = {x["slug"]: x for x in plugins_host.describe()}
         check("thẻ plugin ghi nguồn là 'pack'", the.get("tinh-gia", {}).get("source") == "pack")
@@ -136,22 +171,17 @@ with tempfile.TemporaryDirectory() as td:
               the.get("tinh-gia", {}).get("loaded") is True)
         check("tool ra tới hub cho mọi engine", route_co(TOOL))
 
-        # ─────────────── 3. Gọi thật: số phải đúng, không chỉ có mặt ───────────────
+        # --------------- 3. Gọi thật: số phải đúng, không chỉ có mặt ---------------
         _, route = plugins_host.plugin_tools("full", None)
         d = json.loads(asyncio.run(route[TOOL]["call"]({"gia_von": 120000, "vat": 8})))
         check("gọi tool ra giá niêm yết đã tròn và đã gồm VAT", d["gia_niem_yet"] == 186000.0)
         check("và trả BIÊN THỰC sau khi tròn, không trả lại con số vừa nhập",
               d["bien_loi_nhuan_thuc"] != 30.0 and 30.0 < d["bien_loi_nhuan_thuc"] < 31.0)
-        d2 = json.loads(asyncio.run(route[TOOL]["call"]({"gia_von": 120000, "ty_le_markup": 30,
-                                                        "lam_tron": 0})))
-        check("markup 30% ra khác biên 30% (đây là chỗ người dùng hay nhầm)",
-              d2["gia_niem_yet"] == 156000.0)
         loi = asyncio.run(route[TOOL]["call"]({"gia_von": 100, "bien_loi_nhuan": 120}))
         check("đầu vào sai trả câu ERROR đọc được chứ không ném exception",
               isinstance(loi, str) and loi.startswith("ERROR:"))
 
-        # ─────────────── 4. Gỡ khi người dùng ĐÃ SỬA kỹ năng: phải giữ lại ───────────────
-        sk = brain / "skills" / "dat-gia-ban" / "SKILL.md"
+        # --------------- 4. Gỡ khi người dùng ĐÃ SỬA kỹ năng: phải giữ lại ---------------
         sk.write_bytes(sk.read_bytes() + "\n\nGhi chú riêng của tôi.\n".encode("utf-8"))
         ke = pack_install.ke_hoach_go(PACK_ID)
         check("hộp gỡ báo TRƯỚC là sẽ giữ mục đã sửa",
@@ -163,7 +193,7 @@ with tempfile.TemporaryDirectory() as td:
         check("thư mục gói không còn", not (packs.PACKS_DIR / PACK_ID).exists())
         check("kỹ năng đã sửa thì GIỮ LẠI", sk.is_file())
 
-        # ─────────────── 5. Cài lại rồi gỡ khi CHƯA sửa: phải sạch bong ───────────────
+        # --------------- 5. Cài lại rồi gỡ khi CHƯA sửa: phải sạch bong ---------------
         shutil.rmtree(brain / "skills" / "dat-gia-ban")
         r2 = pack_install.soi(du, "javis-tinh-gia.zip")
         pack_install.cai(r2["staging_id"], r2["sha256"], enable=True, brain_root=str(brain))
