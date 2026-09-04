@@ -234,8 +234,9 @@
       // nguồn nào là lựa chọn của người cài - nhưng họ phải biết mình đang chọn gì.
       + ((d._tin && d._tin.verified === false)
           ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
-            + 'Gói của cộng đồng</div><div>Gói này do người ngoài gửi vào kho, chưa qua kiểm '
-            + 'duyệt của người phát hành. Đọc kỹ phần bên dưới trước khi cài.</div></div>' : "")
+            + 'Gói của cộng đồng</div><div>Gói này do người ngoài gửi vào kho, '
+            + 'chưa qua kiểm duyệt của người phát hành. Đọc kỹ phần bên dưới trước khi '
+            + 'cài.</div></div>' : "")
       // Khối cảnh báo cho gói có mã: KHÔNG gập được, không icon ổ khoá, không làm mềm chữ.
       // `permissions` trong manifest là lời khai của tác giả, không có tầng nào chặn, và
       // `min_mode` chỉ giới hạn cái MODEL được gọi chứ không giới hạn cái mã làm được.
