@@ -238,12 +238,26 @@ check("loại lọc sẵn bị XOÁ ngay sau khi dùng, không dính lại lần
       '_loaiCho = "";' in src_js.split("const loaiDau = _loaiCho;")[-1][:200])
 
 src_con = (DASHBOARD / "console.js").read_text(encoding="utf-8")
-check("bốn trang năng lực đều có đường sang kho",
+check("năm trang năng lực đều có đường sang kho",
       all(x in src_con for x in ('agents: "agent"', 'skills: "skill"',
-                                 'workflows: "workflow"', 'plugins: "tool"')))
-# Bốn bản sao của lưới kho là bốn thứ sẽ lệch nhau sau vài tháng. Tab chỉ ĐIỀU HƯỚNG.
+                                 'workflows: "workflow"', 'plugins: "tool"',
+                                 'mcp: "connector"')))
+# Năm bản sao của lưới kho là năm thứ sẽ lệch nhau sau vài tháng. Tab chỉ ĐIỀU HƯỚNG.
 check("tab kho điều hướng sang kho chứ không nhúng bản sao lưới",
       "JavisPacks.moKho(kind)" in src_con and "veKho" not in src_con)
+
+# Kho KHÔNG phải một chức năng ngang hàng với Trợ lý hay Kỹ năng - nó là chỗ ghé để lấy thêm
+# một trong số chúng. Đường vào là tab trên chính trang đang đứng, không phải một mục nữa
+# trên thanh bên vốn đã dài.
+check("kho không hiện trên thanh bên", 'RAIL_AN = new Set(["packs"])' in src_con)
+# Nhưng vẫn phải ở trong RAIL_ITEMS và trong `ids` của nhóm: bỏ hẳn thì `railGroups` coi là
+# "chưa xếp nhóm" và dồn xuống nhóm đáy, tức hiện ở chỗ còn khó hiểu hơn.
+check("vẫn giữ trong danh sách trang để không rơi xuống nhóm đáy",
+      '"packs", "logs", "account", "usage",' in src_con
+      and '"plugins", "packs"]' in src_con)
+# VIEW_META thiếu "packs" từ đầu nên header trang kho ghi nhầm là tiêu đề Trang chủ.
+check("trang kho có tiêu đề riêng, không mượn tiêu đề Trang chủ",
+      '"plugins", "packs", "logs"' in src_con)
 
 # Người vào trang này gần như luôn để TÌM thêm thứ gì đó. Xem lại thứ đã cài là việc thỉnh
 # thoảng, nên nó xuống dưới.
