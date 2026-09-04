@@ -96,23 +96,23 @@
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
     { get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
-    { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins", "packs"] },
+    { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
-    { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
+    { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
     { get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
 
-  // Trang CÓ THẬT nhưng KHÔNG hiện trên thanh bên. Kho cài đặt không phải một chức năng ngang
-  // hàng với Trợ lý hay Kỹ năng - nó là chỗ bạn ghé để LẤY THÊM một trong số chúng. Đường vào
-  // đúng là cái tab trên chính trang bạn đang đứng, chứ không phải một mục nữa trong danh
-  // sách vốn đã dài.
+  // Trang CÓ THẬT nhưng KHÔNG hiện trên thanh bên. Bỏ hẳn khỏi `RAIL_ITEMS` thì không dùng
+  // được, vì đó mới là nguồn icon và nhãn; nên chỗ ẩn nằm ở đây.
   //
-  // Vẫn giữ trong RAIL_ITEMS và trong `ids` của nhóm: RAIL_ITEMS là nguồn icon/nhãn, còn
-  // `ids` là thứ `groupLabelOf` dùng để bung đúng nhóm khi vào trang. Bỏ hẳn khỏi hai chỗ đó
-  // thì `railGroups` lại coi nó là "chưa xếp nhóm" và dồn xuống nhóm đáy - hiện ở chỗ còn
-  // khó hiểu hơn.
-  const RAIL_AN = new Set(["packs"]);
+  // Rỗng từ 0.55.37. Trước đó Javis Store bị ẩn với lý do "nó không phải một chức năng ngang
+  // hàng với Trợ lý hay Kỹ năng, đường vào đúng là cái tab trên chính trang bạn đang đứng".
+  // Lập luận đó đúng khi kho chỉ có vài gói và ai cũng tới nó từ một trang năng lực. Nó sai
+  // ngay khi kho thành chỗ chứa PHẦN LỚN kết nối của Javis (0.55.36 dọn 16 khuôn ra kho):
+  // một người mới cài, chưa đấu gì, không có trang nào để mà bấm tab - họ cần thấy lối vào
+  // ngay trên thanh bên. Chủ dự án yêu cầu đưa ra, và đặt cạnh Kết nối.
+  const RAIL_AN = new Set();
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
     const seen = new Set();
