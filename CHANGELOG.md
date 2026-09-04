@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.33] - 2026-09-05
+### Thêm mới
+- **26 kết nối của Javis đã có bản trong kho.** Từ giờ chúng không còn buộc phải đi kèm app: gỡ đi cho gọn rồi lấy lại từ kho bất cứ lúc nào, và bản cập nhật của một kết nối tới thẳng qua kho chứ không phải chờ bản Javis mới.
+- Ba kết nối ở lại trong app vì không đóng gói được: **Zalo** (đăng nhập bằng mã QR có đường riêng), **Botcake** và **Substack** (gọi thẳng vào lõi Javis).
+
+### Cải thiện
+- Kho không hiện hai thẻ cho cùng một dịch vụ. Khi app còn bản của mình thì thẻ của kho ẩn đi; gỡ bản của app là thẻ kho hiện ra và cài được.
+
 ## [0.55.32] - 2026-09-05
 ### Thêm mới
 - **Trang Kết nối tách thành hai tab**: "Đã kết nối" và "Kết nối sẵn có", cộng lối sang Kho cài đặt. Trước đây hai danh sách nằm chung một mạch cuộn, nên ai đã đấu vài chục tài khoản phải cuộn qua hết mới tới chỗ đấu cái mới.

@@ -94,6 +94,12 @@ def _lam_sach(m: dict) -> dict:
         "version": _chuoi(m.get("version"), 32),
         "author": {"name": _chuoi((m.get("author") or {}).get("name"), 64)},
         "kind": _chuoi(m.get("kind"), 16) if _chuoi(m.get("kind"), 16) in LOAI else "bundle",
+        # Id connector gói này cấp. Kho dùng nó để không hiện HAI thẻ cho cùng một dịch vụ khi
+        # app vẫn còn bản của mình. Cắt cả số lượng lẫn độ dài như mọi trường khác: đây vẫn là
+        # dữ liệu người lạ viết.
+        "provides": {"connectors": [_chuoi(x, 64) for x in
+                                    ((m.get("provides") or {}).get("connectors") or [])[:50]
+                                    if _chuoi(x, 64)]},
         "category": _chuoi(m.get("category"), 32),
         "category_label": _map_nn(m.get("category_label"), 40),
         # `tier` là thứ người phát hành KHAI, chỉ để lọc và để hiện nhãn. Bậc THẬT do trình cài

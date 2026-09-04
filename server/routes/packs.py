@@ -69,6 +69,20 @@ def _nhom(g: dict) -> str:
     return _nn(g.get("category_label")) or str(g.get("category") or "") or "Khác"
 
 
+def _id_app_dang_cap() -> set:
+    """Id connector app đang THẬT SỰ cấp - đã trừ những cái người dùng gỡ đi.
+
+    Trừ phần đã gỡ mới đúng: gỡ xong thì id không còn bị chiếm, nên gói trong kho cấp đúng id
+    đó phải hiện ra và cài được. Không trừ thì người dùng gỡ một dịch vụ của app rồi không có
+    đường nào lấy lại bản của kho."""
+    try:
+        import core_off
+        import mcp_catalog
+        return set(mcp_catalog.tat_ca() or {}) - core_off.da_go("connectors")
+    except Exception:
+        return set()
+
+
 def _connector_cua_app() -> list:
     """Connector ship theo app, đóng gói lại thành mục của kho.
 
@@ -201,6 +215,17 @@ def _make_router() -> APIRouter:
         if not _DEPS.co_phien(request):
             return _tu_choi()
         d = await packs_store.lay(lam_moi=bool(refresh))
+        # Dịch vụ mà APP đang cấp. Gói trong kho cấp đúng id đó thì BỎ thẻ của kho đi: `packs.py`
+        # từ chối cài một connector trùng id với kho gốc (một gói ship `id: pancake-pos` kèm
+        # url khác sẽ âm thầm bẻ hướng một kết nối đang đăng nhập thật), nên thẻ đó bấm cũng
+        # không cài được. Hiện hai thẻ cho cùng một dịch vụ, một cái vô dụng, là tệ hơn hẳn.
+        #
+        # Người dùng gỡ dịch vụ của app đi thì id thôi bị chiếm, thẻ của kho hiện ra và cài
+        # được - đó chính là đường di trú dần từ app sang kho.
+        app_dang_cap = _id_app_dang_cap()
+        d["packs"] = [g for g in (d.get("packs") or [])
+                      if not (set((g.get("provides") or {}).get("connectors") or [])
+                              & app_dang_cap)]
         # Gói nào đã cài rồi thì đánh dấu, để lưới hiện "Đã cài" thay vì mời cài lại.
         da_cai = pack_install.doc_so()
         for g in d.get("packs") or []:

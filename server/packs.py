@@ -325,8 +325,16 @@ def _quet():
         packs, connectors = [], {}
         if not tat_het() and PACKS_DIR.is_dir():
             try:
+                import core_off
                 import mcp_catalog
-                id_da_co = set(mcp_catalog.tat_ca())
+                # TRỪ những cái người dùng đã gỡ. Luật "gói không được trùng id với kho gốc"
+                # sinh ra để một gói không âm thầm bẻ hướng một connector ĐANG CHẠY THẬT - mà
+                # cái đã gỡ thì không chạy nữa, và mọi kết nối theo nó đã thành mồ côi rồi.
+                #
+                # Không trừ thì đường di trú từ app sang kho bị chặn cứng: người dùng gỡ dịch
+                # vụ của app đi rồi không có cách nào lấy lại bản của kho, vì id vẫn bị coi là
+                # đang bị chiếm bởi một thứ không còn tồn tại với họ.
+                id_da_co = set(mcp_catalog.tat_ca()) - core_off.da_go("connectors")
             except Exception:
                 id_da_co = set()
             so = _so_cai_dat()

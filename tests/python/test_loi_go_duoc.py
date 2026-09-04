@@ -262,10 +262,36 @@ try:
     core_off.dat("connectors", _mot, False)
     ds3 = {x["id"]: x for x in _rp._connector_cua_app()}
     check("cài lại thì về đúng trạng thái cũ", ds3[_mot]["installed"] is True)
+
+    # ── Đường DI TRÚ: app bỏ dần connector, kho nhận lại ──
+    # Từ 0.55.33 kho có sẵn gói cho 26 connector đi kèm app. Chừng nào app còn cấp một id thì
+    # gói cấp đúng id đó KHÔNG cài được (luật chống bẻ hướng một kết nối đang đăng nhập thật),
+    # nên thẻ của kho phải bị giấu - hiện hai thẻ mà một cái bấm không được là tệ hơn hẳn.
+    check("app còn cấp thì id nằm trong danh sách đang chiếm", _mot in _rp._id_app_dang_cap())
+    core_off.dat("connectors", _mot, True)
+    # Gỡ rồi thì id thôi bị chiếm: thẻ của kho hiện ra VÀ cài được. Không trừ phần đã gỡ thì
+    # người dùng gỡ dịch vụ của app đi là mất luôn đường lấy bản của kho.
+    check("gỡ rồi thì id thôi bị chiếm, gói của kho vào được",
+          _mot not in _rp._id_app_dang_cap())
+    core_off.dat("connectors", _mot, False)
+
 finally:
     core_off.STORE = _goc_store
     core_off._cache.update(sig=None, data=None)
     _tmp_kho.cleanup()
+
+# `packs.py` phải dùng CÙNG một luật, nếu không giao diện hiện thẻ cài được mà trình nạp vẫn
+# từ chối - hỏng theo kiểu khó hiểu nhất: bấm Cài xong không có gì xảy ra.
+_src_packs = (SERVER / "packs.py").read_text(encoding="utf-8")
+check("trình nạp gói cũng trừ phần đã gỡ khi tính id bị chiếm",
+      'set(mcp_catalog.tat_ca()) - core_off.da_go("connectors")' in _src_packs)
+
+# Mỗi mục connector trong kho khai id nó cấp, để chỗ giấu thẻ trùng có cái mà so.
+_src_store = (SERVER / "packs_store.py").read_text(encoding="utf-8")
+check("bộ đọc danh mục giữ lại `provides.connectors`", '"provides"' in _src_store)
+_src_rt = (SERVER / "routes" / "packs.py").read_text(encoding="utf-8")
+check("kho giấu thẻ trùng với dịch vụ app đang cấp",
+      "app_dang_cap" in _src_rt and "_id_app_dang_cap" in _src_rt)
 
 if _fails:
     print(f"\nFAIL - test_loi_go_duoc: {len(_fails)} lỗi: {_fails}")
