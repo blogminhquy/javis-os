@@ -43,8 +43,15 @@ FORMAT = "javis-pack-index"
 FORMAT_VERSION = 1
 
 # Kho mặc định. Người dùng đổi được trong Cài đặt, nên đây chỉ là điểm khởi đầu.
-STORE_MAC_DINH = ("https://raw.githubusercontent.com/blogminhquy/javis-os/"
-                  "main/system/pack-index.json")
+#
+# Kho nằm ở REPO RIÊNG chứ không trong repo Javis OS, và đó là điểm mấu chốt của cả tầng này:
+# thêm một gói vào kho không còn dính gì tới việc ra bản mới của app. Người phát hành đẩy một
+# commit vào `javis-store`, và mọi máy đang chạy Javis thấy ngay ở lần làm mới danh mục kế tiếp.
+#
+# Tách repo còn mở được đường đóng góp: người lạ gửi Pull Request vào kho, chủ kho đọc mã rồi mới
+# trộn - mà không ai phải có quyền ghi vào mã nguồn Javis.
+STORE_MAC_DINH = ("https://raw.githubusercontent.com/blogminhquy/javis-store/"
+                  "main/index.json")
 
 # Loại năng lực một mục trong kho mang lại. Đây là thứ chia lưới thành các tab "Trợ lý /
 # Kỹ năng / Quy trình / Công cụ", nên nó là trường quan trọng nhất về mặt trưng bày.
