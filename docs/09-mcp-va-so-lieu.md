@@ -2,6 +2,20 @@
 
 Trang **Kết nối** là nơi bạn "đấu" Javis vào các công cụ bạn đang dùng: Pancake POS, Zalo, Webcake Landing, Botcake, quảng cáo Meta/Google/TikTok, lịch, CRM... Sau khi đấu, Javis đọc được số liệu THẬT và (nếu bạn cho quyền) thao tác thật trên các công cụ đó. Trang này hướng dẫn: kết nối một dịch vụ từ Kho, nối nhiều tài khoản, phân quyền, xem nhật ký, và cách đọc số liệu.
 
+> **Từ bản 0.55.36: phần lớn dịch vụ nằm trong Javis Store, không đi kèm app nữa.**
+>
+> App chỉ còn cài sẵn **Composio**, **bộ Google** (Lịch, Gmail, Drive/Docs, Sheets, Tasks, Keep,
+> Ads, Search Console, NotebookLM), **Zalo**, **Botcake**, **Substack**, và ô **Tự thêm (nâng cao)**.
+>
+> Mọi dịch vụ khác trong tài liệu này - Pancake POS, Shopify, Meta Ads, Facebook Trang, TikTok
+> Ads, Slack, Lark, n8n, Hostinger, Webcake... - vẫn dùng y hệt, chỉ thêm MỘT bước đầu: mở tab
+> **Javis Store** trên trang Kết nối, tìm dịch vụ, bấm **Cài đặt**. Sau đó nó hiện ở tab
+> **Kết nối sẵn có** và mọi hướng dẫn bên dưới đúng nguyên văn.
+>
+> Đổi lại: bản cập nhật của một dịch vụ tới thẳng qua kho, không phải chờ bản Javis mới. Nếu bạn
+> đã đấu tài khoản từ trước, trang Kết nối hiện sẵn nút cài lại đúng dịch vụ đó, và cài xong là
+> kết nối cũ chạy tiếp bằng đăng nhập cũ.
+
 ## Tính năng này là gì
 
 Bên dưới, mỗi kết nối là một "đường ống" MCP (Model Context Protocol) nối Javis tới dịch vụ ngoài - nhưng bạn không cần biết chi tiết đó. Điểm mới từ bản 0.9:
@@ -17,7 +31,7 @@ Bên dưới, mỗi kết nối là một "đường ống" MCP (Model Context P
 2. Thanh bên trái, mở nhóm **Kết nối**, rồi bấm mục **Kết nối** (biểu tượng phích cắm, phụ đề "Nguồn dữ liệu & công cụ").
 3. Trang có 3 khu:
    - **◆ Đã kết nối** - các tài khoản bạn đang đấu, kèm ô tick "Chỉ dùng kết nối của Javis (bỏ kết nối sẵn của máy)".
-   - **◆ Kho kết nối** - 24 dịch vụ cài sẵn để đấu thêm, có ô "Tìm dịch vụ…" và dãy nút lọc: **Tất cả**, Kho ứng dụng, Bán hàng, Nhắn tin, Marketing, Văn phòng, Quảng cáo, Mạng xã hội, Sáng tạo. Sáu dịch vụ Google gom chung vào MỘT thẻ **Google** ghi "6 dịch vụ" - bấm **Chọn dịch vụ** trên thẻ đó mới ra danh sách con.
+   - **◆ Kết nối sẵn có** - những dịch vụ đã có trên máy, sẵn sàng đấu tài khoản, có ô "Tìm dịch vụ…" và dãy nút lọc: **Tất cả**, Kho ứng dụng, Bán hàng, Nhắn tin, Marketing, Văn phòng, Quảng cáo, Mạng xã hội, Sáng tạo. Sáu dịch vụ Google gom chung vào MỘT thẻ **Google** ghi "6 dịch vụ" - bấm **Chọn dịch vụ** trên thẻ đó mới ra danh sách con.
    - **◆ Kết nối sẵn của Claude Code và Codex** - khối GẬP SẴN ở cuối trang, phụ đề "chỉ hiển thị - bấm để xem". Đây là những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Danh sách chỉ tải khi bạn bấm mở, và hơi lâu vì Javis phải kiểm tra tình trạng từng nguồn. Chỉ để xem, không sửa được ở đây.
 
 ## Cách dùng (từng bước)
