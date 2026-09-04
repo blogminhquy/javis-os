@@ -3,6 +3,13 @@
 // ============================================
 
 class JavisVoice {
+  // Lỗi mic KHÔNG bao giờ tự khỏi khi thử lại. Thử lại chỉ đẻ ra đúng lỗi đó, và nếu nơi gọi
+  // báo bằng alert thì thành vòng lặp chặn cứng cả trang.
+  //   not-allowed         người dùng từ chối quyền, hoặc trang không chạy ở ngữ cảnh bảo mật
+  //   service-not-allowed trình duyệt chặn dịch vụ nhận giọng
+  //   audio-capture       máy không có mic (hay gặp trên phiên điều khiển từ xa)
+  static LOI_CHET = ["not-allowed", "service-not-allowed", "audio-capture"];
+
   constructor(opts = {}) {
     this.lang = opts.lang || "vi-VN";
     this.onTranscript = opts.onTranscript || (() => {});
@@ -112,6 +119,7 @@ class JavisVoice {
     this._silenceTimer = null;
     this._starting = false;                   // đã gọi start() nhưng onstart chưa chạy
     this._stopPending = false;                // có lệnh dừng tới trong lúc đang mở phiên
+    this._micHong = "";                       // lỗi mic KHÔNG thể tự thử lại (xem LOI_CHET)
 
     this.recognition.onstart = () => {
       this._starting = false;
@@ -168,6 +176,18 @@ class JavisVoice {
         return;
       }
       this.isListening = false;
+      // Ba lỗi này KHÔNG bao giờ tự khỏi khi thử lại: người dùng đã từ chối quyền, trình duyệt
+      // chặn dịch vụ nhận giọng, hoặc máy không có mic. Thử lại chỉ đẻ ra đúng lỗi đó.
+      //
+      // Không chốt ở đây thì thành VÒNG LẶP KHÔNG THOÁT ĐƯỢC, và đã xảy ra thật (người dùng
+      // báo 04/09 kèm ảnh): onend thấy `userStopped` còn false nên mở lại phiên; phiên mới lại
+      // 'not-allowed'; app.js lại alert. Alert là hộp CHẶN, nên bấm OK xong là vòng kế tiếp
+      // nổ ngay - không còn đường nào bấm vào trang nữa. Đánh dấu `userStopped` để chặn luôn
+      // nhánh mở lại trong onend, chứ không chỉ ghi nhớ suông.
+      if (JavisVoice.LOI_CHET.includes(event.error)) {
+        this._micHong = event.error;
+        this.userStopped = true;
+      }
       this.onError(event.error);
     };
 
@@ -175,7 +195,7 @@ class JavisVoice {
       this._starting = false;
       // Nếu user chưa chủ động dừng → tự restart (giữ session sống khi user dừng nghĩ).
       // iOS không: phiên kết thúc là hết một câu, gửi luôn (xem chú thích ở continuous).
-      if (!this.userStopped && !this._laIOS()) {
+      if (!this.userStopped && !this._micHong && !this._laIOS()) {
         try {
           // Phiên mới thì event.results bắt đầu lại từ trống. Gói phần đã nghe vào
           // _committed trước, không thì onstart xoá trắng và nửa câu đầu biến mất.
@@ -207,6 +227,9 @@ class JavisVoice {
     if (cu.endsWith(moi)) return cu;
     return (cu + " " + moi).trim();
   }
+
+  // Mic đang hỏng hẳn không? Nơi gọi dùng nó để TẮT chế độ rảnh tay thay vì cứ thử mãi.
+  micHong() { return this._micHong; }
 
   _laIOS() {
     if (this._iosCache === undefined) {
@@ -247,12 +270,20 @@ class JavisVoice {
     }
   }
 
-  startListening() {
+  // `tuDong` = true nghĩa là máy tự gọi (vòng giữ mic của chế độ rảnh tay, mở lại sau TTS).
+  // Đường tự động KHÔNG được thử lại khi mic đã hỏng hẳn - đó chính là chỗ sinh vòng lặp.
+  // Còn người dùng bấm nút mic thì LUÔN được thử lại: họ có thể vừa mới cấp quyền trong cài
+  // đặt trình duyệt, và một cái nút bấm không lên là thứ không ai chẩn đoán nổi.
+  startListening(tuDong) {
     if (!this.recognition) {
       this.onError("not-supported");
       return;
     }
     if (this.isListening) return;
+    if (this._micHong) {
+      if (tuDong) return;
+      this._micHong = "";
+    }
     // Mở nghe chủ động → huỷ mọi lịch tự-mở-lại còn treo
     this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
@@ -352,7 +383,7 @@ class JavisVoice {
     this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
     this._resumeTimer = setTimeout(() => {
-      if (!this.isPlaying && !this.isListening) this.startListening();
+      if (!this.isPlaying && !this.isListening) this.startListening(true);
     }, 400);
   }
 
@@ -391,7 +422,7 @@ class JavisVoice {
 
   _bargeIn() {
     this.stopSpeaking();       // dừng đọc ngay (không để chồng tiếng)
-    this.startListening();     // user muốn nói → mở nghe luôn, bắt trọn câu
+    this.startListening(true); // máy tự mở lại (do đo được mức âm), không phải cú bấm
   }
 
   _cleanForTTS(text) {

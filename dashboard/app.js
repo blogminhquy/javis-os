@@ -114,8 +114,11 @@ const voice = new JavisVoice({
   onError: (err) => {
     voiceBtn.classList.remove("recording");
     setOrbState("", "SẴN SÀNG");
-    if (err === "not-allowed") alert("Bạn cần cấp quyền microphone cho trang này.");
-    else if (err === "not-supported") alert("Trình duyệt không hỗ trợ nhận giọng. Dùng Chrome/Edge.");
+    // Mic hỏng hẳn thì TẮT chế độ rảnh tay. Không tắt thì vòng giữ mic 500ms bên dưới cứ mở
+    // lại mãi, mỗi lần một hộp thoại chặn - người dùng bấm OK xong nửa giây sau nó nổ tiếp,
+    // không còn đường nào bấm vào trang nữa. Đúng cảnh người dùng báo ngày 04/09.
+    if (voice.micHong && voice.micHong()) tatRanhTay();
+    alertMic(err);
   }
 });
 
@@ -1847,6 +1850,44 @@ sendBtn.addEventListener("click", () => sendMessage());
 
 // Chế độ luôn nghe (hands-free): bấm 1 lần → nghe liên tục đến khi bấm lại
 let handsFree = false;
+
+// Tắt rảnh tay từ chỗ KHÔNG phải cú bấm của người dùng (mic hỏng). Gom về một hàm vì trạng
+// thái này nằm ở ba nơi - biến, lớp CSS của nút, và công tắc loa - và bỏ sót một nơi thì giao
+// diện nói dối: nút vẫn sáng "đang nghe" trong khi không có gì đang nghe cả.
+function tatRanhTay() {
+  if (!handsFree) return;
+  handsFree = false;
+  voiceBtn.classList.remove("handsfree");
+  try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
+}
+
+// Câu báo lỗi mic. Nói ĐÚNG nguyên nhân, vì ba nguyên nhân cần ba hành động khác hẳn nhau và
+// câu chung "hãy cấp quyền" là lời khuyên KHÔNG LÀM ĐƯỢC với hai trong ba trường hợp.
+function alertMic(err) {
+  if (err === "not-allowed") {
+    // Trang không chạy ở ngữ cảnh bảo mật thì trình duyệt chặn thẳng, và KHÔNG hề hỏi quyền.
+    // Bảo họ "cấp quyền" lúc này là chỉ họ đi tìm một cái nút không tồn tại. Hay gặp khi mở
+    // Javis qua địa chỉ LAN hoặc tên miền chưa có HTTPS.
+    if (!window.isSecureContext) {
+      alert("Trình duyệt chặn micro vì trang này không chạy qua kết nối bảo mật." + "\n" + "\n"
+        + "Mở Javis bằng http://localhost:7777 trên chính máy chạy Javis, hoặc cho tên miền của bạn dùng HTTPS.");
+    } else {
+      alert("Bạn cần cấp quyền microphone cho trang này." + "\n" + "\n"
+        + "Bấm biểu tượng ổ khoá cạnh thanh địa chỉ để cấp lại, rồi bấm nút mic lần nữa.");
+    }
+  } else if (err === "audio-capture") {
+    // Trước đây lỗi này im lặng hoàn toàn: mic không bao giờ chạy mà không ai nói vì sao.
+    alert("Không tìm thấy microphone nào trên máy này." + "\n" + "\n"
+      + "Nếu bạn đang điều khiển máy từ xa thì mic của máy bạn ngồi thường không đi theo.");
+  } else if (err === "service-not-allowed") {
+    alert("Trình duyệt đang chặn dịch vụ nhận giọng nói." + "\n" + "\n"
+      + "Kiểm tra cài đặt quyền riêng tư của trình duyệt, hoặc thử Chrome/Edge.");
+  } else if (err === "not-supported") {
+    alert("Trình duyệt không hỗ trợ nhận giọng. Dùng Chrome/Edge.");
+  }
+  // Lỗi khác (mạng, start-failed…) KHÔNG hiện hộp thoại: chúng thoáng qua và tự thử lại được,
+  // còn hộp thoại thì chặn cứng cả trang.
+}
 voiceBtn.addEventListener("click", () => {
   if (!voice.isSupported()) { alert("Trình duyệt không hỗ trợ giọng nói. Dùng Chrome/Edge."); return; }
   handsFree = !handsFree;
@@ -1865,8 +1906,11 @@ voiceBtn.addEventListener("click", () => {
 
 // Tự nghe lại khi rảnh (không đang xử lý, không đang nói) - giữ mic sống ở hands-free
 setInterval(() => {
-  if (handsFree && !voice.isListening && !isProcessing && !voice.isSpeaking()) {
-    voice.startListening();
+  // `micHong()` là chốt thứ hai (chốt thứ nhất là tatRanhTay() trong onError). Giữ cả hai vì
+  // vòng này chạy hai lần mỗi giây: sót một nhịp là một hộp thoại nữa đập vào mặt người dùng.
+  if (handsFree && !voice.isListening && !isProcessing && !voice.isSpeaking()
+      && !(voice.micHong && voice.micHong())) {
+    voice.startListening(true);   // true = máy tự gọi, không phải người bấm
   }
 }, 500);
 

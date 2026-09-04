@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.29] - 2026-09-04
+### Sửa lỗi
+- **Hộp thoại "Bạn cần cấp quyền microphone" hiện liên tục, bấm OK xong lại nổ, không thoát được.** Khi mic bị chặn hoặc máy không có mic, Javis cứ mở lại mic hai lần mỗi giây, mỗi lần một hộp thoại. Giờ gặp lỗi mic là **dừng hẳn** và tự tắt chế độ luôn nghe.
+- **Báo lỗi mic nói đúng nguyên nhân.** Mở Javis qua địa chỉ mạng nội bộ hoặc tên miền chưa có HTTPS thì trình duyệt chặn thẳng và không hề hỏi quyền, nên câu "hãy cấp quyền" là lời khuyên không làm được. Máy không có mic thì trước đây im lặng hoàn toàn, giờ nói rõ.
+- **Cập nhật hỏng thì nói ra hỏng ở bước nào.** Trước đây khi quay về bản cũ thất bại, Javis chỉ nói "xem update.log" - vô dụng nếu bạn không biết log ở đâu, và tệ hơn là không cho biết máy đang chạy mã bản cũ hay bản mới đang lỗi. Giờ nó chỉ rõ bước hỏng kèm lệnh chữa.
+- **Đăng nhập ChatGPT bớt hên xui.** Trước chỉ hỏi OpenAI một lần rồi thôi, bên kia chậm một nhịp là cả lượt đăng nhập hỏng. Giờ thử lại vài lần, và nếu vẫn không được thì nói rõ là do bên kia chậm chứ không phải máy bạn.
+
 ## [0.55.28] - 2026-09-04
 ### Sửa lỗi
 - **Bấm tab "Kho cài đặt" không mở được kho.** Nút văng lỗi ngay lần bấm đầu tiên do một lỗi lập trình trong bản 0.55.26. Giờ bấm là sang.
