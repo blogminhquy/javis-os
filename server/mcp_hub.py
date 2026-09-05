@@ -680,6 +680,11 @@ def _connector_menu(pool, ambient=None):
         if ns not in seen:
             con = mcp_catalog.get(t.get("connector_id")) or {}
             desc = (con.get("description") or con.get("name") or "").strip()
+            # Plugin không có connector trong catalog nên tự mang theo mô tả của manifest
+            # (`group_desc`, do plugins_host gắn). Không đọc nó thì mọi plugin hiện trơ là
+            # "<slug> (<tên>, N tool)" và model vẫn phải đoán bên trong có gì.
+            if not desc:
+                desc = str(t.get("group_desc") or "").strip()
             if not desc and ns in _LOCAL_GROUP_DESC:
                 # Nhóm nội bộ (builtin/plugin) không có connector trong catalog nên trước đây
                 # hiện trơ là "javis (javis, N tool)" - model không đoán được skill nằm trong

@@ -372,12 +372,15 @@ class PluginContext:
 
 
 class LoadedPlugin:
-    __slots__ = ("slug", "source", "name", "min_mode", "tools", "hooks", "ctx")
+    __slots__ = ("slug", "source", "name", "description", "min_mode", "tools", "hooks", "ctx")
 
     def __init__(self, ctx: PluginContext, manifest: dict):
         self.slug = ctx.slug
         self.source = ctx.source
         self.name = manifest.get("name") or ctx.slug
+        # Giữ lại mô tả của manifest để hub có cái mà GIỚI THIỆU plugin này trong thực đơn
+        # tool lười. Xem `plugin_tools` bên dưới về lý do nó quan trọng.
+        self.description = str(manifest.get("description") or "").strip()
         self.tools = ctx._tools
         self.hooks = ctx._hooks
         self.ctx = ctx
@@ -702,8 +705,20 @@ def plugin_tools(mode: str = "full", vault_root: Optional[str] = None, *,
             desc = t["description"]
             if lp.source == "vault":
                 desc = f"[plugin {lp.slug}] {desc}"
+            # `namespace` + `label` + `group_desc`: để hub xếp tool của MỖI plugin thành một
+            # nhóm RIÊNG trong thực đơn tool lười, thay vì gộp chung vào "javis".
+            #
+            # Vì sao đây không phải chuyện thẩm mỹ: khi lazy bật, thực đơn là thứ DUY NHẤT
+            # model đọc được về những gì nó với tới. Thiếu ba trường này thì 20 tool của gói
+            # TTS Dropship nằm lẫn trong dòng "javis (javis, 45 tool): skill của brain, danh
+            # sách nguồn đang đấu, tiện ích nội bộ" - không một chữ nào nhắc tới sàn, đơn hàng
+            # hay dropship. Model không có lý do gì để đoán là nên tìm, nên nó kết luận thẳng
+            # rằng gói chưa kết nối, dù tool vẫn gọi được qua javis_run_tool. Đúng vụ ngày
+            # 05/09/2026: người dùng báo "không lên đơn được" trong khi hub vẫn phục vụ đủ.
             tools.append({"fn": fn, "server": "javis", "name": fn,
-                          "description": desc, "schema": t["schema"]})
+                          "description": desc, "schema": t["schema"],
+                          "namespace": lp.slug, "label": lp.name,
+                          "group_desc": lp.description})
             effect = "read" if t["min_mode"] == "readonly" else (
                 "write" if t["min_mode"] == "safe" else "danger"
             )
