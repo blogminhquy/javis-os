@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.47] - 2026-09-05
+### Sửa lỗi
+- **Javis không còn "quên" mất các gói bạn đã cài.** Khi có nhiều nguồn, Javis giấu bớt công cụ đi cho nhẹ và chỉ giữ một bản mục lục. Nhưng mục lục đó gộp hết tool của MỌI gói vào một dòng chung chung, nên Javis không biết là mình đang có gói TTS Dropship, Meta Ads hay Zalo, rồi trả lời thẳng là chưa kết nối dù gói vẫn chạy tốt.
+- **Mục lục giờ gọi đúng tên từng gói** kèm một dòng nói gói đó làm gì, ví dụ "TTS Dropship, 20 tool: bán dropship trên sàn thitruongsi.com". Javis thấy là có thì mới biết đường dùng.
+- Vẫn nhẹ như cũ: cách này tiết kiệm 93% chỗ so với phơi hết công cụ ra, gần đúng bằng mức trước khi sửa.
+
 ## [0.55.46] - 2026-09-05
 ### Sửa lỗi
 - **Đăng nhập Antigravity trong tab Code giờ có chỗ dán mã.** Trước đây gõ `agy` là màn hình in ra link Google rồi đứng im: mở link trên máy mình, đăng nhập xong cũng không có ô nào để điền mã về, nên không tài nào đăng nhập nổi. Nay Javis nói đúng với `agy` rằng bạn đang ngồi ở máy khác, nên nó hỏi chỗ dán như khi bạn SSH.
