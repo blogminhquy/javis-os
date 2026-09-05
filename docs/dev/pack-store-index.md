@@ -45,6 +45,7 @@ cứng vào đó) vẫn xem và cài được. Đừng thêm gì vào đó nữa
       "verified": true,
       "updated": "2026-09-04",
       "homepage": "https://github.com/...",
+      "icon": "packs/javis.tinh-gia/assets/tinh-gia.png",
       "download": {
         "url": "https://github.com/.../releases/download/v1.0.0/javis-tinh-gia.zip",
         "sha256": "abc123...",
@@ -61,6 +62,13 @@ Bắt buộc: `id` và `download.url`. Mục thiếu một trong hai bị **bỏ
 một thẻ bấm vào không cài được thì tệ hơn là không có thẻ.
 
 `download.url` viết tương đối cũng được, Javis ghép với địa chỉ của chính file index.
+
+`icon` là logo trên thẻ trong Kho cài đặt: đường dẫn **tương đối** so với file index, trỏ vào
+một ảnh `.png` / `.webp` / `.jpg` / `.gif`. Javis ghép nó như `download.url` và chỉ giữ khi kết
+quả nằm **cùng host** với index; URL tuyệt đối, `data:` hay `.svg` đều bị bỏ và thẻ rơi về ô chữ
+cái. Luật cùng host là để một mục trong kho không thành beacon gõ về máy chủ của bên thứ ba mỗi
+lần người dùng mở lưới. Kho chính đặt logo ngay trong gói (`packs/<id>/assets/`), nên thẻ trong
+kho và trang Kết nối sau khi cài dùng đúng một tệp.
 
 ---
 
