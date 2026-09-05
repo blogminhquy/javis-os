@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.42] - 2026-09-05
+### Sửa lỗi
+- **Mức suy nghĩ giờ có tác dụng thật trên ChatGPT (Codex).** Javis đặt đúng mức mà chính Codex khai là model đó nhận được, nên chọn nấc nào ra nấc đó thay vì chỉ là một chữ nhắc trong câu hỏi.
+- **Grok và Antigravity không còn bị dán chữ lạ vào cuối tin nhắn.** Trước đây Javis chèn từ khoá riêng của Claude Code vào câu hỏi gửi cho hai bộ não này, chúng không hiểu nên chẳng đổi được gì. Nay là một câu tiếng Việt nói rõ độ sâu, và nếu bản CLI có cần gạt thật thì Javis dùng cần gạt đó.
+- Javis chỉ dùng cần gạt khi chính CLI khai là có, nên bản cũ trên máy bạn vẫn chạy bình thường.
+
 ## [0.55.41] - 2026-09-05
 ### Sửa lỗi
 - **Hai mức suy nghĩ cao nhất giờ khác nhau thật.** "Rất cao" và "Tối đa" trước đây ra cùng một kết quả trên mọi bộ não, bấm mức nào cũng như nhau mà không có gì báo. Nay Javis dùng đúng cần gạt của Claude Code và của Anthropic nên chọn mức nào ra mức đó.
