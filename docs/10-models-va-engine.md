@@ -150,7 +150,9 @@ Vài chỗ đáng biết:
 1. Cài CLI một lần trên máy chạy Javis:
    - Linux/macOS: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
    - Windows PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`
-2. Gõ `agy` một lần **trong terminal của máy chạy Javis**. Máy có màn hình thì nó tự mở trình duyệt; qua SSH thì nó in ra một đường link - mở link đó trên máy bạn rồi đăng nhập Google. Phiên lưu trong keyring của hệ điều hành nên chỉ phải làm một lần.
+2. Gõ `agy` một lần **trong terminal của máy chạy Javis** (trang **Code** trong Javis là chắc ăn nhất - đúng user đang chạy Javis). Máy để bàn có màn hình thì nó tự mở trình duyệt. Máy chủ không có màn hình (VPS, Docker - kể cả Docker trên chính máy Mac của bạn) thì nó in ra một đường link: mở link đó bằng trình duyệt trên máy bạn, đăng nhập Google xong trình duyệt sẽ nhảy sang một địa chỉ `http://localhost:...` **báo không mở được - đó là bước đúng**, copy nguyên địa chỉ trên thanh URL rồi dán ngược vào terminal và Enter. Phiên lưu trong keyring của hệ điều hành nên chỉ phải làm một lần.
+
+   > Vì sao phải dán tay: `agy` nhận mã về qua một cổng loopback trên chính máy chạy nó. Trình duyệt của bạn ở máy khác nên không với tới cổng đó. Từ 0.55.46, terminal của Javis tự khai đây là phiên từ xa (`SSH_CONNECTION`) để `agy` hỏi chỗ dán thay vì nằm chờ im lặng. Bản `agy` cũ không hỏi thì mở thêm một phiên terminal rồi chạy `curl "<địa chỉ localhost vừa copy>"` cũng xong. Bố trí lạ (X11 forwarding, máy để bàn có màn hình) muốn tắt hành vi này thì đặt `JAVIS_TERMINAL_REMOTE=0`.
 3. Quay lại **Models**, thẻ **Google Antigravity CLI**, bấm **Kiểm tra lại** (nó chạy thử một lượt chat thật). Thẻ đổi sang **● Đã đăng nhập**.
 4. Bấm **Đổi model ▾** ở khối Main Model, chọn nhà cung cấp này rồi chọn model.
 

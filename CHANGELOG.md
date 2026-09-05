@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.46] - 2026-09-05
+### Sửa lỗi
+- **Đăng nhập Antigravity trong tab Code giờ có chỗ dán mã.** Trước đây gõ `agy` là màn hình in ra link Google rồi đứng im: mở link trên máy mình, đăng nhập xong cũng không có ô nào để điền mã về, nên không tài nào đăng nhập nổi. Nay Javis nói đúng với `agy` rằng bạn đang ngồi ở máy khác, nên nó hỏi chỗ dán như khi bạn SSH.
+- **Cách làm, gọn trong 3 bước:** gõ `agy` trong tab Code, mở link vừa in ra bằng trình duyệt trên máy bạn, đăng nhập Google. Trình duyệt sẽ nhảy sang một địa chỉ `localhost` **báo không mở được - đó là bước đúng**: copy nguyên địa chỉ đó trên thanh URL, dán ngược vào terminal rồi Enter.
+- Thẻ **Google Antigravity CLI** ở trang Models viết lại theo đúng ba bước này, kèm một dòng cứu hộ bằng `curl` cho bản `agy` cũ không hỏi chỗ dán.
+- Áp dụng cho máy chủ không có màn hình (VPS, Docker, kể cả Docker trên máy Mac của bạn). Máy để bàn chạy thẳng vẫn tự mở trình duyệt như cũ.
+
 ## [0.55.45] - 2026-09-05
 ### Cải thiện
 - **Thẻ kết nối trong Kho cài đặt có logo thật.** Trước đây mọi kết nối tải từ kho chỉ hiện một ô chữ cái, nhìn lướt không biết đâu là Gmail, đâu là Shopify. Nay kho khai logo cho từng gói là thẻ hiện đúng logo đó, cùng một hình với trang Kết nối sau khi cài.

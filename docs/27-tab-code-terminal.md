@@ -78,6 +78,7 @@ Terminal là chỗ chạy lệnh tuỳ ý trên máy chủ, tức là quyền ca
 | `JAVIS_TERMINAL` | `0`/`off`/`false`/`no` = tắt hẳn terminal | Bật |
 | `JAVIS_TERMINAL_SHELL` | Đường dẫn shell muốn chạy | `$SHELL`, không có thì `bash`/`sh`. Windows: `powershell.exe` rồi `cmd.exe` |
 | `JAVIS_TERMINAL_CWD` | Thư mục shell mở ra | HOME của user chạy Javis |
+| `JAVIS_TERMINAL_REMOTE` | Khai với các CLI rằng người dùng ngồi ở máy khác (`SSH_CONNECTION`), để đăng nhập Google/Anthropic hỏi chỗ dán mã thay vì chờ trình duyệt cùng máy | Tự đoán: bật trên máy chủ không có màn hình (VPS, Docker), tắt trên Windows/macOS chạy thẳng và Linux có màn hình |
 
 Chi tiết cách đặt biến xem [Cấu hình .env](16-cau-hinh-env.md).
 
@@ -92,6 +93,8 @@ Chi tiết cách đặt biến xem [Cấu hình .env](16-cau-hinh-env.md).
 **Gõ Tab mà không có gợi ý.** Bạn đang ở chế độ đơn giản (Windows). Đó là giới hạn của hệ điều hành, không phải lỗi cấu hình.
 
 **Shell thoát ngay khi vừa mở.** Xem `JAVIS_TERMINAL_SHELL` có trỏ đúng file thực thi không, và thư mục ở `JAVIS_TERMINAL_CWD` có tồn tại không.
+
+**Gõ `agy` (Antigravity) ra link rồi đứng im, không có chỗ dán mã.** `agy` nhận mã về qua một cổng loopback trên chính máy chạy nó, mà trình duyệt của bạn lại ở máy khác nên không với tới. Từ 0.55.46 terminal tự khai là phiên từ xa nên `agy` hỏi chỗ dán: đăng nhập Google xong, copy nguyên địa chỉ `http://localhost:...` mà trình duyệt báo không mở được rồi dán vào terminal. Bản `agy` cũ không hỏi thì mở thêm một phiên terminal và chạy `curl "<địa chỉ vừa copy>"`.
 
 ## Liên quan
 

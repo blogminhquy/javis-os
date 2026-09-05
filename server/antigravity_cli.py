@@ -734,8 +734,13 @@ def login_huong_dan() -> dict:
     token hộ được như Javis từng làm với Gemini CLI (đường đó đã gỡ). Dựng một nút
     "Đăng nhập" rồi bên dưới không làm gì được thì tệ hơn là nói thẳng phải gõ một lệnh.
 
-    Điểm sáng cho người chạy VPS: `agy` tự nhận biết phiên SSH và IN RA một đường link để mở
-    trên máy có trình duyệt, nên không cần màn hình ở phía máy chủ.
+    Điểm sáng cho người chạy VPS: `agy` tự nhận biết phiên từ xa và IN RA một đường link để mở
+    trên máy có trình duyệt, nên không cần màn hình ở phía máy chủ. Nhận biết đó dựa vào biến
+    `SSH_CONNECTION`; terminal của Javis là pty ngay trên máy chủ nên trước 0.55.46 không có
+    biến này và `agy` rơi vào luồng "trình duyệt cùng máy" - in link xong nằm chờ một cổng
+    loopback mà trình duyệt ở máy khác không với tới, không hỏi mã, không báo lỗi (sự cố
+    05/09). Nay `terminal._env` đặt biến đó khi máy chủ không có màn hình, nên luồng dán mã
+    chạy đúng; hướng dẫn dưới đây mô tả CHÍNH luồng đó.
     """
     return {
         "cai": lenh_cai(),
@@ -743,8 +748,14 @@ def login_huong_dan() -> dict:
         "ghi_chu": ("Dùng trang Code (Terminal) NGAY TRONG Javis - nó mở shell bằng đúng user "
                     "đang chạy Javis, đăng nhập ở đó là Javis nhận liền. (SSH bằng user khác, "
                     "vd root, đăng nhập xong Javis vẫn không thấy - đây là lý do hay gặp nhất "
-                    "của cảnh 'cài rồi mà không nhận'.) Gõ `agy`: nó in ra một đường link, mở "
-                    "link trên máy của bạn rồi đăng nhập Google là xong, chỉ phải làm một lần."),
+                    "của cảnh 'cài rồi mà không nhận'.) Gõ `agy`: nó in ra một đường link. Mở "
+                    "link đó trên máy của bạn, đăng nhập Google xong trình duyệt nhảy sang một "
+                    "địa chỉ localhost báo không mở được - đó là bước ĐÚNG, copy nguyên địa "
+                    "chỉ trên thanh URL rồi dán ngược vào terminal và Enter. Chỉ phải làm một "
+                    "lần."),
+        "cuu_ho": ("Nếu terminal không hiện chỗ dán (bản `agy` cũ): mở thêm một phiên terminal "
+                   "rồi chạy curl \"<địa chỉ localhost vừa copy>\" - cổng đó đang mở ngay "
+                   "trên máy chạy Javis nên mã về đúng chỗ."),
     }
 
 

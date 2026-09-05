@@ -3569,6 +3569,7 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
           ${on ? "" : `<div class="prov-steps">
             <div><b>${esc(t("models.agy_login"))}</b> <code>${esc(dn.dang_nhap || "agy")}</code></div>
             <div>${esc(dn.ghi_chu || "")}</div>
+            ${dn.cuu_ho ? `<div class="gcard-meta">${esc(dn.cuu_ho)}</div>` : ""}
             <div>${esc(t("models.agy_done"))}</div>
           </div>`}
           <div class="prov-action" style="flex-wrap:wrap">
