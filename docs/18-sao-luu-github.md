@@ -1,5 +1,7 @@
 # Đồng bộ brain với GitHub (2 chiều)
 
+***Tiếng Việt** · [English](en/18-github-backup.md)*
+
 Tính năng này đồng bộ **TẤT CẢ brain trong thư mục brains** (mọi bộ não: ghi chú, Wiki, ký ức, agent/workflow) với một repo GitHub **riêng tư** của bạn - theo CẢ HAI CHIỀU: đẩy thay đổi của máy này lên, đồng thời kéo thay đổi từ máy khác về. Mục đích: không mất dữ liệu khi hỏng máy/mất VPS, và **dùng được nhiều máy cùng lúc** (máy nhà + VPS) - các máy tự khớp dữ liệu với nhau qua repo.
 
 > Nên để **mọi brain nằm trong thư mục brains** (tạo brain mới qua nút ➕ là tự vào đó). Đồng bộ lấy nguyên thư mục brains làm một khối, nên brain nào nằm ngoài (chọn folder ngoài bằng nút 📁) sẽ KHÔNG được đồng bộ chung - hãy chuyển nó vào brains.

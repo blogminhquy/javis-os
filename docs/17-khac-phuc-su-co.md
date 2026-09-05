@@ -1,5 +1,7 @@
 # Khắc phục sự cố & FAQ
 
+***Tiếng Việt** · [English](en/17-troubleshooting.md)*
+
 Trang này gom các trục trặc hay gặp khi dùng Javis OS và cách xử lý từng bước. Phần lớn sự cố chỉ cần một trong hai thao tác: khởi động lại server, hoặc tải lại trình duyệt bằng Ctrl+Shift+R. Cuối trang có mục Câu hỏi thường gặp (FAQ) ngắn gọn.
 
 Nếu bạn mới cài Javis lần đầu, xem trước [Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md). Nếu bạn đang chỉnh biến môi trường, xem [Cấu hình .env](16-cau-hinh-env.md).

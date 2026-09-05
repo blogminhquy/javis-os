@@ -1,5 +1,7 @@
 # Mức dùng: token & chi phí
 
+***Tiếng Việt** · [English](en/23-usage-and-cost.md)*
+
 Trang **Mức dùng** trả lời hai câu hỏi đi liền nhau: *bạn đã đốt bao nhiêu token* và *làm sao đốt ít đi*. Javis tự đo lấy con số này từ log thật trên máy, không phải xin từ nhà cung cấp, nên bạn thấy được cả phần mà Claude hay ChatGPT không bao giờ lộ ra: phần do chính Javis chạy nền tiêu tốn.
 
 Ngay đầu trang là khối **Chế độ tiết kiệm token** với ba nút. Từ bản 0.24.7 nó nằm ở đây; trước đó là một trang riêng tên "Tiết kiệm" trong thanh bên. Gộp lại vì tách hai chỗ thì người dùng đọc hết hoá đơn mà không bao giờ thấy cái công tắc.

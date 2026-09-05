@@ -1,5 +1,7 @@
 # Models & engine
 
+***Tiếng Việt** · [English](en/10-models-and-engines.md)*
+
 Trang **Models** là nơi bạn chọn "bộ não" cho Javis: dùng engine nào, model nào để trả lời, đăng nhập vào nhà cung cấp AI, chọn model rẻ cho việc chạy nền, và bật mức suy nghĩ sâu. Đây là trang quyết định Javis thông minh tới đâu và tiêu hạn mức của gói nào.
 
 Nếu bạn mới bắt đầu, xem trước [Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md). Khi cần gắn thêm công cụ ngoài cho Javis, xem [Kết nối & số liệu kinh doanh](09-mcp-va-so-lieu.md).

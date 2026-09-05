@@ -1,5 +1,7 @@
 # Chatbot (Bot chuyên trách)
 
+***Tiếng Việt** · [English](en/25-chatbots.md)*
+
 Đem một **Agent** bạn đã tạo ra đứng trước người ngoài: họ nhắn vào một bot riêng trên **Telegram** hoặc **Zalo**, Agent đó trả lời theo đúng quy định bạn viết cho nó, gặp câu ngoài tầm thì chuyển cho người thật.
 
 Dùng được cho bất cứ việc gì bạn phải trả lời đi trả lời lại cho người khác: hỏi đáp về một sản phẩm hay dịch vụ, giải đáp quy định nội bộ cho đồng nghiệp, trực câu hỏi của học viên, hướng dẫn thành viên trong một cộng đồng, sàng lọc câu hỏi trước khi tới tay bạn.

@@ -1,5 +1,7 @@
 # Task & Dataview trong note
 
+***Tiếng Việt** · [English](en/19-tasks-and-dataview.md)*
+
 Từ bản 0.9.216, note trong brain của Javis "sống" hơn hẳn theo kiểu Obsidian: ô checkbox `- [ ]` trong note **bấm được và tự lưu**, còn khối ` ```dataview ` **chạy thật** ngay trong dashboard - hiện danh sách việc, danh sách note, bảng tổng hợp lấy từ toàn bộ brain. Hai tính năng này lấy cảm hứng từ hai plugin nổi tiếng của Obsidian là **Tasks** và **Dataview**, được Javis tự cài lại gọn nhẹ, không cần cài Obsidian hay plugin nào cả.
 
 ## 1. Checkbox task bấm được

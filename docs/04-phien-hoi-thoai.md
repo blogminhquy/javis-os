@@ -1,5 +1,7 @@
 # Phiên hội thoại
 
+***Tiếng Việt** · [English](en/04-sessions.md)*
+
 Mọi cuộc trò chuyện bạn nói với Javis đều được lưu lại tự động. Trang này hướng dẫn cách xem lại, tìm kiếm, đổi tên, xoá và mở tiếp một cuộc trò chuyện cũ, kể cả cuộc đã diễn ra từ nhiều ngày trước.
 
 Nếu bạn chưa quen với màn hình chat, đọc trước [Trò chuyện & giọng nói](02-tro-chuyen-va-giong-noi.md).
