@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.39] - 2026-09-05
+### Thêm mới
+- **Toàn bộ tài liệu hướng dẫn giờ có bản tiếng Anh.** 27 trang trong `docs/`, cộng hướng dẫn cài lên server và hướng dẫn đóng góp, đều có bản song ngữ.
+- **Đầu mỗi trang có dòng chuyển ngôn ngữ** kiểu "Tiếng Việt · English", bấm là sang đúng trang tương ứng, không phải tự đi tìm.
+- Mục lục tiếng Anh ở `docs/en/` xếp đúng thứ tự và đúng nhóm như bản tiếng Việt.
+
+### Cải thiện
+- Test tài liệu song ngữ nay canh cả 32 cặp trang: link chết, thiếu dòng chuyển ngôn ngữ hay lỡ dùng gạch ngang dài là CI báo ngay.
+
 ## [0.55.38] - 2026-09-05
 ### Thêm mới
 - **Agent và Workflow xếp theo nhóm, giống trang Kỹ năng.** Hai trang này giờ có cột nhóm bên trái kèm số đếm và ô tìm kiếm, nên brain có vài chục agent không còn là một danh sách phẳng phải dò bằng mắt.

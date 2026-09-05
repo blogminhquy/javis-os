@@ -1,5 +1,7 @@
 # Cài đặt Javis OS trên server / VPS
 
+***Tiếng Việt** · [English](DEPLOY.en.md)*
+
 Javis OS là một AI agent cá nhân + Second Brain. "Bộ não" của nó là **Claude Code CLI**
 (đăng nhập một lần, không cần API key). Có 3 cách chạy - chọn 1.
 

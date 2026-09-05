@@ -31,8 +31,36 @@ R = pathlib.Path(ROOT)
 CAP = [
     ("README.md", "README.en.md"),
     ("QUICKSTART.md", "QUICKSTART.en.md"),
+    ("CONTRIBUTING.md", "CONTRIBUTING.en.md"),
+    ("DEPLOY.md", "DEPLOY.en.md"),
     ("docs/README.md", "docs/en/README.md"),
     ("docs/01-bat-dau-thiet-lap.md", "docs/en/01-getting-started.md"),
+    ("docs/02-tro-chuyen-va-giong-noi.md", "docs/en/02-chat-and-voice.md"),
+    ("docs/03-do-thi-tri-thuc.md", "docs/en/03-knowledge-graph.md"),
+    ("docs/04-phien-hoi-thoai.md", "docs/en/04-sessions.md"),
+    ("docs/05-quan-ly-tep-tin.md", "docs/en/05-file-manager.md"),
+    ("docs/06-skills.md", "docs/en/06-skills.md"),
+    ("docs/07-agents-va-workflows.md", "docs/en/07-agents-and-workflows.md"),
+    ("docs/08-viec-dinh-ky.md", "docs/en/08-recurring-jobs.md"),
+    ("docs/09-mcp-va-so-lieu.md", "docs/en/09-connections-and-business-data.md"),
+    ("docs/10-models-va-engine.md", "docs/en/10-models-and-engines.md"),
+    ("docs/11-telegram.md", "docs/en/11-telegram.md"),
+    ("docs/12-zalo.md", "docs/en/12-zalo-agent-mcp.md"),
+    ("docs/13-second-brain-bo-nho-wiki.md", "docs/en/13-second-brain.md"),
+    ("docs/14-bao-mat-tai-khoan.md", "docs/en/14-security-and-accounts.md"),
+    ("docs/15-thuong-hieu-ten-mien.md", "docs/en/15-branding-and-domains.md"),
+    ("docs/16-cau-hinh-env.md", "docs/en/16-env-configuration.md"),
+    ("docs/17-khac-phuc-su-co.md", "docs/en/17-troubleshooting.md"),
+    ("docs/18-sao-luu-github.md", "docs/en/18-github-backup.md"),
+    ("docs/19-task-va-dataview.md", "docs/en/19-tasks-and-dataview.md"),
+    ("docs/20-plugins.md", "docs/en/20-plugins.md"),
+    ("docs/21-viec-kanban.md", "docs/en/21-kanban-work.md"),
+    ("docs/22-tu-hoc.md", "docs/en/22-self-learning.md"),
+    ("docs/23-muc-dung-token.md", "docs/en/23-usage-and-cost.md"),
+    ("docs/24-cli-terminal.md", "docs/en/24-cli.md"),
+    ("docs/25-chatbot.md", "docs/en/25-chatbots.md"),
+    ("docs/26-kenh-zalo-bot.md", "docs/en/26-zalo-bot-channel.md"),
+    ("docs/27-tab-code-terminal.md", "docs/en/27-code-terminal.md"),
 ]
 
 # ============================================================
@@ -58,12 +86,17 @@ for vi, en in CAP:
 # Đây là lỗi HAY GẶP NHẤT khi dịch: bản dịch nằm sâu thêm một tầng (docs/en/) nên mọi link
 # tương đối phải lùi thêm một cấp, mà markdown thì không kêu gì khi link chết.
 _LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+# Khối code và chữ trong nháy ngược bị bóc ra TRƯỚC khi dò link: tài liệu hay minh hoạ cú pháp
+# markdown bằng `![mô tả](attachments/ten-anh.png)`, đó là ví dụ về CÁCH VIẾT chứ không phải một
+# link cần tồn tại. Không bóc thì mỗi ví dụ như vậy thành một báo động giả, và báo động giả
+# nhiều lần thì người ta bỏ qua cả những link chết thật.
+_CODE = re.compile(r"```.*?```|`[^`\n]*`", re.DOTALL)
 _hong = []
 _quet = [R / f for pair in CAP for f in pair] + [R / "docs/dev/them-mot-ngon-ngu.md"]
 for p in _quet:
     if not p.is_file():
         continue
-    for m in _LINK.finditer(p.read_text(encoding="utf-8")):
+    for m in _LINK.finditer(_CODE.sub(" ", p.read_text(encoding="utf-8"))):
         dich = m.group(1).split("#")[0].strip()
         if not dich or dich.startswith(("http://", "https://", "mailto:", "#")):
             continue
