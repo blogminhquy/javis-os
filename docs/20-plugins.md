@@ -1,5 +1,7 @@
 # Plugins: thêm công cụ native cho mọi engine
 
+***Tiếng Việt** · [English](en/20-plugins.md)*
+
 Plugin là cách thêm **công cụ mới** cho Javis mà không phải sửa mã nguồn: một thư mục Python thả vào đúng chỗ, Javis tự nạp, và từ đó mọi engine (Claude Code, ChatGPT/Codex, OpenRouter, OpenAI, Anthropic, Gemini) đều gọi được công cụ đó.
 
 Trang này hướng dẫn đọc danh sách plugin trong dashboard, bật/tắt từng cái, hiểu 11 plugin có sẵn, và cách tự cài plugin riêng kèm rào an toàn bắt buộc phải biết trước khi làm.

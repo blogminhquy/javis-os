@@ -1,5 +1,7 @@
 # Nhóm Code: Terminal ngay trong dashboard
 
+***Tiếng Việt** · [English](en/27-code-terminal.md)*
+
 **Code** là một nhóm riêng trên thanh điều hướng - khu vực làm việc kiểu lập trình viên của Javis. Mục đầu tiên trong nhóm là **Terminal**: một dòng lệnh thật, chạy trên đúng máy đang chạy Javis, mở ngay trong trình duyệt. Không cần mở SSH ở cửa sổ khác nữa.
 
 ## Tính năng này là gì

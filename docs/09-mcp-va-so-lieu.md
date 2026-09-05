@@ -1,5 +1,7 @@
 # Kết nối & số liệu kinh doanh
 
+***Tiếng Việt** · [English](en/09-connections-and-business-data.md)*
+
 Trang **Kết nối** là nơi bạn "đấu" Javis vào các công cụ bạn đang dùng: Pancake POS, Zalo, Webcake Landing, Botcake, quảng cáo Meta/Google/TikTok, lịch, CRM... Sau khi đấu, Javis đọc được số liệu THẬT và (nếu bạn cho quyền) thao tác thật trên các công cụ đó. Trang này hướng dẫn: kết nối một dịch vụ từ Kho, nối nhiều tài khoản, phân quyền, xem nhật ký, và cách đọc số liệu.
 
 > **Từ bản 0.55.36: phần lớn dịch vụ nằm trong Javis Store, không đi kèm app nữa.**

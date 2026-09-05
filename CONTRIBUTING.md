@@ -1,5 +1,7 @@
 # Đóng góp cho Javis OS
 
+***Tiếng Việt** · [English](CONTRIBUTING.en.md)*
+
 Cảm ơn bạn đã muốn đóng góp. Repo này nhận Pull Request từ **fork** - bạn không cần quyền
 ghi trực tiếp, chỉ cần fork về tài khoản của mình, code, rồi mở PR nhắm vào nhánh `main`.
 
@@ -35,7 +37,7 @@ làm việc trên repo) - đáng đọc qua trước khi sửa nhiều, đặc b
   cái code đã nói (**cái gì**).
 - `CHANGELOG.md` viết cho người đọc trên điện thoại: vài gạch đầu dòng, nói người dùng
   **thấy gì khác**, không kể tên hàm/đường dẫn file (chi tiết kỹ thuật để trong PR).
-- Không dùng ký tự em dash (—); thay bằng dấu gạch nối `-`.
+- Không dùng ký tự em dash (U+2014); thay bằng dấu gạch nối `-`.
 
 ## Báo lỗi / đề xuất tính năng trước khi code
 

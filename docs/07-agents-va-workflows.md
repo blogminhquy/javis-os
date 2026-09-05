@@ -1,5 +1,7 @@
 # Agents & Workflows
 
+***Tiếng Việt** · [English](en/07-agents-and-workflows.md)*
+
 Đây là nơi bạn tạo ra các trợ lý AI chuyên biệt (Agent) và ghép chúng thành dây chuyền làm việc tự động (Workflow). Ví dụ: một agent chuyên nghiên cứu, một agent chuyên viết bài, một agent chuyên kiểm tra lại, nối thành chuỗi "nghiên cứu > viết > kiểm chứng" chạy một phát ra kết quả.
 
 ## Tính năng này là gì

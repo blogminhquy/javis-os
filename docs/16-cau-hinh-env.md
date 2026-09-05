@@ -1,5 +1,7 @@
 # Cấu hình .env
 
+***Tiếng Việt** · [English](en/16-env-configuration.md)*
+
 Trang này liệt kê các biến môi trường mà Javis OS đọc lúc khởi động, kèm ý nghĩa, giá trị mặc định và khi nào cần đổi. Nội dung dựa vào file `env.example` và cách server thực sự đọc `os.getenv(...)` trong mã nguồn (`server/config.py`, `server/main.py`, `server/web_security.py`, `server/claude_cli.py`, `server/sessions.py`, `server/plugins_host.py`...).
 
 Điểm quan trọng nhất cần nhớ: **mọi dòng để trống vẫn chạy được**. Trên máy cá nhân, bạn gần như không cần đụng tới file `.env`. Việc chỉnh `.env` chủ yếu dành cho khi bạn đưa Javis lên VPS/server public hoặc muốn đổi giọng đọc, cổng, đường dẫn dữ liệu.

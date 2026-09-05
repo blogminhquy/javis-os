@@ -1,5 +1,7 @@
 # Tự học: Javis thông minh dần lên
 
+***Tiếng Việt** · [English](en/22-self-learning.md)*
+
 Mỗi lần bạn trò chuyện với Javis là một lần có thông tin đáng giữ trôi qua: một sự thật về công việc của bạn, một khái niệm vừa được giải thích, một quy trình vừa làm xong. Trang **Tự học** bật cái vòng lặp nhặt những thứ đó lại và ghi vào brain, để lần sau Javis không phải hỏi lại.
 
 Trang này hướng dẫn bật tự học, chọn mức độ mạnh tay của nó, hiểu nó học được cái gì và chặn cái gì, và hoàn tác khi nó học sai.

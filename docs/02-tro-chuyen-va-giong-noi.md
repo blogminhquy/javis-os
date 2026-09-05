@@ -1,5 +1,7 @@
 # Trò chuyện & giọng nói
 
+***Tiếng Việt** · [English](en/02-chat-and-voice.md)*
+
 Đây là chỗ bạn làm việc với Javis nhiều nhất: gõ chữ hoặc nói, Javis trả lời bằng chữ kèm đọc thành tiếng. Trang này mô tả toàn bộ khung chat, từ phím tắt, lệnh gạch chéo, nút bấm dưới mỗi tin nhắn cho tới cách chọn giọng đọc và nhờ Javis tạo ảnh.
 
 Nếu chưa cài đặt xong lần đầu, xem [Bắt đầu & thiết lập lần đầu](01-bat-dau-thiet-lap.md) trước.

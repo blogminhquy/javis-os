@@ -1,5 +1,7 @@
 # Bảo mật & tài khoản
 
+***Tiếng Việt** · [English](en/14-security-and-accounts.md)*
+
 Trang này giải thích cách Javis OS tự bảo vệ khi bạn đưa nó lên mạng, và cách dùng trang **Tài khoản** trong dashboard để đặt mật khẩu, đăng xuất, tắt đăng nhập và đổi tên workspace.
 
 ## Tính năng này là gì

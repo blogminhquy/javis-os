@@ -1,5 +1,7 @@
 # Đồ thị tri thức
 
+***Tiếng Việt** · [English](en/03-knowledge-graph.md)*
+
 Đồ thị tri thức biến các ghi chú trong brain thành một mạng lưới trực quan. Mỗi đốm sáng là một file Markdown; mỗi sợi nối là một wikilink `[[...]]` giữa hai ghi chú.
 
 Đồ thị dùng canvas 2D, không dùng WebGL và không cần tải thư viện từ Internet. Nó hiện cả các ghi chú chưa có liên kết, hỗ trợ timelapse và có thể tắt hoàn toàn trong Cài đặt.
