@@ -47,6 +47,23 @@ Bên dưới, mỗi kết nối là một "đường ống" MCP (Model Context P
 
 Pancake POS mặc định ở mức **Chỉ đọc** - Javis xem được doanh thu, đơn, khách... nhưng không thể tạo đơn hay đụng tiền. Muốn Javis thao tác thật, xem mục Phân quyền bên dưới.
 
+### 1b. Kết nối TTS Dropship (token lấy từ trình duyệt)
+
+Sàn dropship.thitruongsi.com **không phát hành API key**, nên thẻ này đăng nhập bằng chính token phiên của bạn trên trình duyệt. Cài **TTS Dropship** từ tab Javis Store trước, rồi:
+
+1. Mở [dropship.thitruongsi.com](https://dropship.thitruongsi.com) và đăng nhập như bình thường.
+2. Bấm **F12** (máy Mac: Cmd + Option + I) > tab **Application** (Chrome/Edge) hoặc **Storage** (Firefox) > **Local Storage** > dòng của trang TTS.
+3. Copy toàn bộ giá trị của khoá **@publicToken** (chuỗi rất dài, bắt đầu bằng `eyJ`) rồi dán vào ô đầu tiên. Copy thêm **@refreshToken** dán vào ô thứ hai.
+4. Bấm **Kết nối**, rồi bảo Javis "kiểm tra kết nối TTS" để nó chạy `tts_health_check`.
+
+Ba điều nên biết trước khi dùng:
+
+- **Token sống khoảng 3 ngày.** Javis đọc hạn ghi ngay trên token nên báo trước khi sắp hết, và khi hết thì nói rõ phải dán lại chứ không im lặng trả số liệu sai. Ô thứ ba, "Địa chỉ gia hạn token", cứ để trống: sàn chưa công bố địa chỉ đó, điền được thì Javis mới tự gia hạn.
+- **Sàn không cho sửa đơn đã tạo.** Vì vậy tool lên đơn, huỷ đơn và đánh giá đều bắt **xác nhận hai bước**: lần gọi đầu chỉ trả bản xem trước (khách, hàng, giá, phí ship, lãi ước tính), phải xác nhận rồi Javis mới tạo thật. Đây là chốt trong mã, không phải lời nhắc.
+- **Không có đường rút tiền.** Gói chỉ đọc được biểu phí rút; muốn rút thì vào ví trên web của sàn.
+
+Mặc định ở mức **Chỉ đọc**: tìm hàng, xem đơn, tra vận đơn, xem tiền về. Muốn Javis lên đơn thay bạn thì nâng lên **Toàn quyền** trên chip tài khoản, và đọc kỹ ô cảnh báo rủi ro ở đó.
+
 ### 2. Kết nối Zalo (quét QR)
 
 Cần Node.js 20+ trên máy chạy Javis (tải tại nodejs.org, cài một lần).

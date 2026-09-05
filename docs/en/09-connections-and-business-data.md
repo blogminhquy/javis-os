@@ -47,6 +47,23 @@ Underneath, each connection is an MCP (Model Context Protocol) pipe joining Javi
 
 Pancake POS defaults to **Read only**, so Javis can see revenue, orders and customers but cannot create orders or touch money. To let Javis act, see Permissions below.
 
+### 1b. Connecting TTS Dropship (token copied from the browser)
+
+The dropship.thitruongsi.com marketplace **issues no API keys**, so this card signs in with your own browser session token. Install **TTS Dropship** from the Javis Store tab first, then:
+
+1. Open [dropship.thitruongsi.com](https://dropship.thitruongsi.com) and log in as usual.
+2. Press **F12** (Mac: Cmd + Option + I) > the **Application** tab (Chrome/Edge) or **Storage** (Firefox) > **Local Storage** > the row for the TTS site.
+3. Copy the whole value of the **@publicToken** key (a very long string starting with `eyJ`) into the first field. Copy **@refreshToken** into the second one.
+4. Click **Connect**, then ask Javis to "check the TTS connection" so it runs `tts_health_check`.
+
+Three things worth knowing up front:
+
+- **The token lives about 3 days.** Javis reads the expiry stamped inside the token, so it warns you before it runs out and says plainly what to do once it has, rather than quietly returning wrong numbers. Leave the third field, "Token refresh URL", empty: the marketplace has not published that address, and Javis only auto-refreshes once you can fill it in.
+- **The marketplace does not allow editing an order once created.** So the order, cancel and rating tools all require **two-step confirmation**: the first call returns a preview only (customer, items, price, shipping, estimated profit), and Javis creates the real order only after you confirm. That gate is in the code, not just a reminder.
+- **There is no withdrawal tool.** The pack can read the withdrawal fee schedule and nothing more; to withdraw, use the wallet on the marketplace's own site.
+
+It defaults to **Read only**: finding products, reading orders, tracking shipments, checking incoming money. To let Javis place orders for you, raise the account chip to **Full access** and read the risk warning shown there.
+
 ### 2. Connecting Zalo (QR scan)
 
 Requires Node.js 20+ on the machine running Javis (download from nodejs.org, install once).
