@@ -1126,6 +1126,26 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .kho-ava-img svg, .kho-ava-img img { width: 34px; height: 34px; object-fit: contain; }
 .kho-daicai { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
   color: var(--ok-ink, #2f855a); }
+/* Có bản mới: đổi MÀU chứ không chỉ đổi chữ. Xanh lá đọc là "xong rồi, yên tâm", nên để
+   nguyên xanh cho một dòng đang bảo người ta phải làm gì đó là tự triệt tiêu chính nó. */
+.kho-daicai.moi { color: var(--accent); }
+.kho-daicai.moi svg { width: 14px; height: 14px; }
+
+/* Băng báo bản mới, trên cùng trang Kho. Nói chuyện của CẢ kho nên nó nằm ngoài tabs. */
+.kho-bao-moi { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; font-size: 15px;
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.kho-bao-moi svg { width: 18px; height: 18px; flex: none; }
+.kho-bao-moi > span { margin-right: auto; }
+.kho-chip { padding: 5px 12px; border-radius: 999px; font: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; color: var(--accent); background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.kho-chip:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* Huy hiệu "N mới" trên tab: phải khác hẳn con số tổng bên cạnh, nếu không thì hai con số
+   dính nhau đọc thành một số duy nhất vô nghĩa. */
+.kho-dem.moi { color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important; }
 .kho-nut { display: flex; gap: 8px; }
 .kho-btn { flex: 1; padding: 11px; border-radius: 10px; font: inherit; font-size: 14px;
   font-weight: 600; cursor: pointer; border: 1px solid transparent; }

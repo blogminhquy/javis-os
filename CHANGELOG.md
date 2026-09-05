@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.43] - 2026-09-05
+### Thêm mới
+- **Gói đã cài có bản mới thì Kho nói ngay từ đầu trang.** Một băng "N gói đã cài có bản mới" nằm trên cùng, bấm vào là nhảy thẳng tới đúng nhóm và lọc sẵn còn mấy gói đó. Trước đây phải tình cờ bấm đúng tab mới thấy, nên gói Kỹ năng hay Trợ lý có bản mới thì gần như không bao giờ biết.
+- **Mỗi tab mang huy hiệu riêng** ghi có mấy gói cần cập nhật, thấy được cả khi đang đứng ở tab khác. Cột bên trái thêm một hàng lọc "Có bản mới".
+
+### Sửa lỗi
+- **Thẻ gói thôi báo sai số hiệu.** Gói đang chạy bản 1.0.0 mà kho có 1.0.1 thì thẻ vẫn hiện "v1.0.1" ngay trên dòng "Đã cài trên máy", tức là nói bạn đang chạy bản mới trong khi bạn chạy bản cũ. Nay thẻ ghi đủ cả hai: đang chạy bản nào, kho có bản nào.
+- **Mở trang Kho không còn nhìn vào danh mục của sáng nay.** Danh mục lưu 6 tiếng nên bản mới phát hành xong vẫn không hiện ra và không có dấu hiệu gì. Nay danh mục cũ quá thì trang tự lấy lại, và có dòng ghi rõ lấy lúc mấy giờ.
+
 ## [0.55.42] - 2026-09-05
 ### Sửa lỗi
 - **Mức suy nghĩ giờ có tác dụng thật trên ChatGPT (Codex).** Javis đặt đúng mức mà chính Codex khai là model đó nhận được, nên chọn nấc nào ra nấc đó thay vì chỉ là một chữ nhắc trong câu hỏi.

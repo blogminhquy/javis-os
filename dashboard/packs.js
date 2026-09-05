@@ -407,9 +407,23 @@
   // "gỡ" chỉ là ghi vào sổ đã-gỡ (`core_off`) để nó biến khỏi kho Kết nối - tệp trong `system/`
   // không hề bị đụng, vì cây code là read-only trên Docker và bị `git pull` ghi đè trên bản
   // native. Trộn hai thứ này làm một là gỡ nhầm hoặc gỡ hụt.
+  // Gói ĐÃ CÀI mà kho đang công bố số hiệu khác. Một hàm dùng chung cho cả nút, thẻ, bộ đếm
+  // và bộ lọc: trước 0.55.42 phép so này chỉ nằm trong `nutThe`, nên cái nút "Có bản mới" là
+  // thứ DUY NHẤT trong toàn giao diện biết chuyện đó - không đếm được, không lọc được, và
+  // không thấy được từ tab khác.
+  //
+  // So bằng KHÁC chứ không phải LỚN HƠN, có chủ ý: kho là nguồn sự thật về bản đang phát
+  // hành, nên một gói bị RÚT về bản cũ (bản mới hỏng) cũng phải kéo lại được. So kiểu lớn hơn
+  // sẽ khoá người dùng ở đúng cái bản vừa bị rút.
+  //
+  // Connector đi kèm app không bao giờ tính: chúng không tải từ đâu cả (`download.url` rỗng).
+  function coBanMoi(g) {
+    return !!(g && g.nguon !== "app" && g.installed && g.installed_version && g.version
+              && g.installed_version !== g.version);
+  }
+
   function nutThe(g) {
-    const moi = g.installed && g.installed_version && g.version
-                && g.installed_version !== g.version;
+    const moi = coBanMoi(g);
     if (g.nguon === "app") {
       return g.installed
         ? { nhan: "Gỡ khỏi Javis", lop: "kho-btn kho-btn-go", act: "coreoff" }
@@ -420,11 +434,30 @@
     return { nhan: "Cài đặt", lop: "kho-btn kho-btn-chinh", act: "cai" };
   }
 
+  // Dòng trạng thái dưới mô tả. Nói ĐỦ HAI SỐ khi có bản mới, vì "đang chạy cái gì" và "kho
+  // có cái gì" là hai câu hỏi khác nhau và người dùng cần cả hai để quyết định có bấm không.
+  function dongDaCai(g) {
+    if (!g.installed) return "";
+    if (g.nguon === "app" || !g.installed_version) {
+      return '<div class="kho-daicai">' + ic("check") + ' Đã cài trên máy</div>';
+    }
+    if (coBanMoi(g)) {
+      return '<div class="kho-daicai moi">' + ic("arrow-up") + ' Đang chạy v'
+        + esc(g.installed_version) + ', kho có v' + esc(g.version) + '</div>';
+    }
+    return '<div class="kho-daicai">' + ic("check") + ' Đã cài v' + esc(g.installed_version)
+      + ', đang là bản mới nhất</div>';
+  }
+
   function theKho(g) {
     const bac = BAC[g.tier] || BAC.data;
     const lo = LOAI[g.kind] || LOAI.bundle;
     const n = nutThe(g);
-    const meta = [g.id, g.version ? "v" + g.version : "",
+    // Số hiệu KHÔNG nằm ở đây khi gói đã cài. Dòng meta lấy `g.version` (số của KHO), nên thẻ
+    // của một gói đã cài bản cũ hiện "v1.0.1" ngay trên dòng "Đã cài trên máy" - tức là nói
+    // với người dùng rằng họ đang chạy 1.0.1, đúng lúc họ chạy 1.0.0. Gói đã cài thì để dòng
+    // "Đã cài" kể chuyện phiên bản, một chỗ duy nhất và nói đủ cả hai số.
+    const meta = [g.id, g.installed ? "" : (g.version ? "v" + g.version : ""),
                   (g.author && g.author.name) || ""].filter(Boolean).map(esc).join(" · ");
     return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
       + ' data-nhom="' + esc(g.nhom || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
@@ -439,8 +472,7 @@
       + '</div>'
       + '<div class="cat-desc">' + esc(nn(g.description)) + '</div>'
       + '<div class="prov-meta">' + meta + '</div>'
-      + (g.installed
-          ? '<div class="kho-daicai">' + ic("check") + ' Đã cài trên máy</div>' : "")
+      + dongDaCai(g)
       + '<div class="kho-nut">'
       // Bật/tắt tạm một gói đã cài. Trước 0.55.34 nút này chỉ có ở khối "Đã cài" dưới trang;
       // khối đó bỏ đi rồi nên nó về đây, chứ không được biến mất - tắt tạm KHÁC gỡ hẳn, và
@@ -458,6 +490,8 @@
   // từ dữ liệu đã tải, không gọi lại mạng.
   let _kho = { dl: null, loai: "connector", nhom: "Tất cả", trang: 1, tim: "" };
   const MOI_TRANG = 20;
+  // Danh mục cũ hơn ngần này (giây) thì trang Kho tự lấy lại một lần ở nền. Xem `veKho`.
+  const CU_QUA = 30 * 60;
 
   async function veKho(el, host, lamMoi, loaiDau, timDau) {
     host.innerHTML = '<div class="mp-empty">Đang tải danh mục…</div>';
@@ -477,6 +511,25 @@
     if (loaiDau && LOAI[loaiDau]) _kho.loai = loaiDau;
     _kho.nhom = "Tất cả";
     veLuoi(el, host);
+
+    // Danh mục cache 6 giờ ở phía server (`packs_store.TTL`). Với việc TÌM một gói mới thì 6
+    // giờ là hợp lý. Với việc BIẾT gói mình đã cài có bản mới chưa thì nó sai một cách im
+    // lặng: mở trang ra vẫn là danh mục của sáng nay, không dấu hiệu gì, và người dùng kết
+    // luận là Javis không có tính năng cập nhật.
+    //
+    // Nên khi bản đang cầm đã quá cũ, lấy lại MỘT lần ở nền rồi vẽ lại. Không đụng TTL của
+    // server (các nơi khác vẫn hưởng cache), chỉ trang Kho mới trả cái giá một request nhỏ.
+    // Chốt `_kho.dl === d` để nếu người dùng đã bấm Làm mới hay đổi trang trong lúc chờ thì
+    // bản về sau không đè lên thứ mới hơn.
+    const tuoi = d.fetched_at ? (Date.now() / 1000 - Number(d.fetched_at)) : 0;
+    if (!lamMoi && tuoi > CU_QUA) {
+      fetch("/packs/store?refresh=1")
+        .then(r => r.json())
+        .then(d2 => {
+          if (d2 && d2.ok && _kho.dl === d) { _kho.dl = d2; veLuoi(el, host); }
+        })
+        .catch(() => {});
+    }
   }
 
   function veLuoi(el, host) {
@@ -484,6 +537,11 @@
     const ds = d.packs || [];
     const cungLoai = ds.filter(g => (g.kind || "bundle") === _kho.loai);
     const daCai = cungLoai.filter(g => g.installed);
+    // Đếm bản mới trên MỌI loại, không chỉ tab đang mở. Đây là chỗ sửa cái lỗi nặng nhất của
+    // tầng này: lưới lọc theo `_kho.loai` và tab mặc định là "Kết nối", nên một gói Kỹ năng có
+    // bản mới thì không có gì trong giao diện nói ra - phải tình cờ bấm đúng tab mới thấy.
+    const capNhat = ds.filter(coBanMoi);
+    const capNhatLoai = cungLoai.filter(coBanMoi);
 
     // Nhóm chỉ liệt kê nhóm THẬT SỰ có hàng trong loại đang xem. Một hàng bấm vào ra lưới rỗng
     // làm người ta tưởng kho hỏng, trong khi sự thật chỉ là loại đó chưa có mục nào thuộc nhóm.
@@ -497,13 +555,23 @@
     const congDong = cungLoai.filter(g => !g.verified);
     const laDaCai = _kho.nhom === "Đã cài";
     const laCongDong = _kho.nhom === "Cộng đồng";
+    const laMoi = _kho.nhom === "Có bản mới";
     const q = _kho.tim.trim().toLowerCase();
     const hop = cungLoai.filter(g =>
       (_kho.nhom === "Tất cả"
         || (laDaCai ? g.installed
+            : laMoi ? coBanMoi(g)
             : laCongDong ? !g.verified
             : (g.nhom || "Khác") === _kho.nhom))
       && (!q || (nn(g.name, g.id) + " " + nn(g.description) + " " + g.id).toLowerCase().includes(q)));
+
+    let gioLay = "";
+    try {
+      if (d.fetched_at) {
+        gioLay = new Date(d.fetched_at * 1000)
+          .toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+      }
+    } catch (e) { gioLay = ""; }
 
     const soTrang = Math.max(1, Math.ceil(hop.length / MOI_TRANG));
     const trang = Math.min(Math.max(1, _kho.trang), soTrang);
@@ -512,24 +580,44 @@
 
     const tabLoai = THU_TU_LOAI.map(k => {
       const on = k === _kho.loai;
+      const trong = ds.filter(g => (g.kind || "bundle") === k);
+      const nMoi = trong.filter(coBanMoi).length;
       return '<button class="kho-tab' + (on ? " on" : "") + '" data-kho-loai="' + k + '">'
         + esc(LOAI[k].nhan)
-        + ' <span class="kho-dem">' + ds.filter(g => (g.kind || "bundle") === k).length
-        + '</span></button>';
+        + ' <span class="kho-dem">' + trong.length + '</span>'
+        // Huy hiệu ngay trên TAB, không chỉ trong lưới: mục đích là thấy được bản mới nằm ở
+        // tab nào mà không phải bấm thử từng tab một.
+        + (nMoi ? ' <span class="kho-dem moi">' + nMoi + ' mới</span>' : "")
+        + '</button>';
     }).join("");
 
     const hangNhom = (ten, so, on, ngan) =>
       '<button class="kho-nav' + (on ? " on" : "") + (ngan ? " ngan" : "") + '" data-kho-nhom="'
       + esc(ten) + '"><span>' + esc(ten) + '</span><span class="kho-navdem">' + so + '</span></button>';
 
+    // Băng báo bản mới, đặt TRÊN tabs vì nó nói chuyện của cả kho chứ không riêng tab nào.
+    // Mỗi chip nhảy thẳng sang đúng tab và lọc sẵn, nên từ lúc thấy tới lúc bấm Cập nhật là
+    // một cú bấm.
+    const bangMoi = capNhat.length
+      ? '<div class="kho-bao-moi">' + ic("arrow-up")
+        + '<span><b>' + capNhat.length + ' gói đã cài</b> có bản mới trong kho.</span>'
+        + THU_TU_LOAI.filter(k => capNhat.some(g => (g.kind || "bundle") === k))
+            .map(k => '<button class="kho-chip" data-kho-moi="' + k + '">'
+              + esc(LOAI[k].nhan) + ' ('
+              + capNhat.filter(g => (g.kind || "bundle") === k).length + ')</button>').join("")
+        + '</div>'
+      : "";
+
     host.innerHTML =
       (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">Đang xem danh mục đã lưu lần trước, vì lần này chưa lấy được bản mới.</div>' : "")
+      + bangMoi
       + '<div class="kho-tabs">' + tabLoai + '</div>'
       + '<div class="kho-than">'
       + '<div class="kho-cot">'
       + '<div class="kho-cot-tieu">Nhóm</div>'
       + hangNhom("Tất cả", cungLoai.length, _kho.nhom === "Tất cả")
       + hangNhom("Đã cài", daCai.length, laDaCai)
+      + (capNhatLoai.length ? hangNhom("Có bản mới", capNhatLoai.length, laMoi) : "")
       + (congDong.length ? hangNhom("Cộng đồng", congDong.length, laCongDong) : "")
       + tenNhom.map((t, i) => hangNhom(t, dem[t], _kho.nhom === t, i === 0)).join("")
       + '</div>'
@@ -540,15 +628,21 @@
       + '<input class="js-input kho-tim" id="pkQ" placeholder="Tìm trong '
       + esc(LOAI[_kho.loai].nhan) + '…" value="' + esc(_kho.tim) + '">'
       + '<span class="prov-meta">' + hop.length
-      + (laDaCai ? ' mục đã cài' : laCongDong ? ' mục cộng đồng' : ' mục') + '</span>'
+      + (laDaCai ? ' mục đã cài' : laMoi ? ' mục có bản mới'
+         : laCongDong ? ' mục cộng đồng' : ' mục') + '</span>'
       + '<span style="flex:1"></span>'
+      // Nói ra danh mục này lấy lúc nào. Không có dòng này thì "sao tôi không thấy bản mới"
+      // là câu không ai trả lời được, kể cả người viết ra nó.
+      + (gioLay ? '<span class="prov-meta">Danh mục lúc ' + esc(gioLay) + '</span>' : "")
       + '<button class="mp-btn" id="pkLamMoi">Làm mới</button>'
       + '<button class="mp-btn" id="pkChon2">Cài từ tệp .zip</button>'
       + '</div>'
       + '<div class="cat-grid" id="pkGrid">' + hienThi.map(theKho).join("") + '</div>'
       + (hienThi.length ? "" : '<div class="mp-empty">'
           + (laDaCai ? 'Chưa cài mục nào trong ' + esc(LOAI[_kho.loai].nhan) + '.'
-                     : 'Không có mục nào khớp bộ lọc.') + '</div>')
+             : laMoi ? 'Mọi gói đã cài trong ' + esc(LOAI[_kho.loai].nhan)
+                       + ' đều đang ở bản mới nhất.'
+             : 'Không có mục nào khớp bộ lọc.') + '</div>')
       + (soTrang > 1
           ? '<div class="kho-trang"><span class="prov-meta">Hiển thị '
             + ((trang - 1) * MOI_TRANG + 1) + '-' + Math.min(trang * MOI_TRANG, hop.length)
@@ -565,6 +659,11 @@
     });
     host.querySelectorAll("[data-kho-nhom]").forEach(b => b.onclick = () => {
       _kho.nhom = b.dataset.khoNhom; _kho.trang = 1; lai();
+    });
+    // Chip trên băng báo: nhảy sang tab đó VÀ lọc sẵn còn mỗi gói có bản mới.
+    host.querySelectorAll("[data-kho-moi]").forEach(b => b.onclick = () => {
+      _kho.loai = b.dataset.khoMoi; _kho.nhom = "Có bản mới";
+      _kho.trang = 1; _kho.tim = ""; lai();
     });
     host.querySelectorAll("[data-kho-trang]").forEach(b => b.onclick = () => {
       _kho.trang = Number(b.dataset.khoTrang); lai();
@@ -803,5 +902,9 @@
     if (window.Alpine && Alpine.store("nav")) Alpine.store("nav").go("packs");
   }
 
-  window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI, goApp: goApp, hoi: hoi };
+  // `coBanMoi` và `nutThe` phơi ra để test GỌI THẬT chứ không quét chuỗi: phép so phiên bản là
+  // thứ quyết định người dùng có thấy nút cập nhật hay không, và một canary đọc chữ thì vẫn
+  // xanh y nguyên khi phép so bị đảo ngược.
+  window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI, goApp: goApp, hoi: hoi,
+                        coBanMoi: coBanMoi, nutThe: nutThe, theKho: theKho };
 })();
