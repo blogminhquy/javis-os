@@ -207,6 +207,45 @@ check("model đang chạy luôn có mặt trong ô, dù server không trả nó"
       "ids.indexOf(cur) < 0" in _app)
 
 
+# ============================================================
+# 7. CÙNG LOẠI LỖI ở nhà cung cấp khác: lọc model bằng danh sách tên được phép
+# ============================================================
+# Fable 5.1 biến mất vì Javis giữ một danh sách model "được phép" rồi để nó cũ đi. OpenAI và
+# Gemini có đúng khuôn đó trong bộ lọc danh sách live: chỉ giữ tên bắt đầu bằng `gpt/o1/o3/o4/
+# chatgpt`, và chỉ giữ tên bắt đầu bằng `gemini`. Nhà cung cấp mở một dòng tên khác là dòng đó
+# không bao giờ hiện ra, không lỗi, không dấu hiệu nào. Nay lọc NGƯỢC: bỏ theo CÔNG DỤNG
+# (nhúng, giọng nói, ảnh) - mấy loại đó nhiều năm không đổi tên nên luật không lạc hậu.
+_OA = ["gpt-5.2", "o3", "o4-mini", "o5-preview", "chatgpt-4o-latest",
+       "text-embedding-3-large", "whisper-1", "gpt-4o-mini-tts", "dall-e-3",
+       "omni-moderation-latest", "gpt-image-1", "gpt-4o-audio-preview",
+       "gpt-4o-realtime-preview", "gpt-4o-transcribe", "sora-2", "davinci-002"]
+_giu = main._loc_model_chat(_OA, main._OPENAI_KHONG_CHAT)
+check("CANARY: dòng model OpenAI tên lạ vẫn tới được người dùng", "o5-preview" in _giu, _giu)
+check("model chat quen thuộc vẫn còn đủ",
+      {"gpt-5.2", "o3", "o4-mini", "chatgpt-4o-latest"} <= set(_giu), _giu)
+check("model không chat được thì bị loại hết",
+      not ({"text-embedding-3-large", "whisper-1", "gpt-4o-mini-tts", "dall-e-3",
+            "omni-moderation-latest", "gpt-image-1", "gpt-4o-audio-preview",
+            "gpt-4o-realtime-preview", "gpt-4o-transcribe", "sora-2", "davinci-002"}
+           & set(_giu)), _giu)
+
+_GM = ["gemini-3-pro", "gemini-2.5-flash", "gemma-3-27b-it", "learnlm-2.0-flash",
+       "text-embedding-004", "aqa", "imagen-4.0", "veo-3.0", "gemini-2.5-flash-preview-tts"]
+_giu2 = main._loc_model_chat(_GM, main._GEMINI_KHONG_CHAT)
+check("CANARY: dòng Google không tên 'gemini' vẫn tới được người dùng",
+      {"gemma-3-27b-it", "learnlm-2.0-flash"} <= set(_giu2), _giu2)
+check("dòng Gemini vẫn còn", {"gemini-3-pro", "gemini-2.5-flash"} <= set(_giu2), _giu2)
+check("thứ không chat được thì bị loại",
+      not ({"text-embedding-004", "aqa", "imagen-4.0", "veo-3.0",
+            "gemini-2.5-flash-preview-tts"} & set(_giu2)), _giu2)
+
+_SRC = (SERVER / "main.py").read_text(encoding="utf-8")
+check("CANARY: không còn danh sách tiền tố 'được phép' của OpenAI",
+      '("gpt", "o1", "o3", "o4", "chatgpt")' not in _SRC)
+check("CANARY: không còn điều kiện tên phải bắt đầu bằng 'gemini'",
+      'i.startswith("gemini")' not in _SRC)
+
+
 print()
 if _fails:
     print(f"{len(_fails)} test HỎNG: " + ", ".join(_fails))

@@ -65,8 +65,24 @@ check("budget token tăng dần theo nấc",
       list(budget.values()) == sorted(budget.values()) and len(set(budget.values())) == 5, budget)
 check("CANARY: xhigh và ultra KHÔNG cùng budget (nếu bằng nhau thì nấc mới chỉ là nhãn suông)",
       budget["xhigh"] != budget["ultra"], budget)
-check("model mới dùng adaptive + effort hợp lệ",
-      engine._anthropic_reasoning("claude-opus-4-8", "ultra")["output_config"]["effort"] in HOP_LE)
+# Anthropic có thang RIÊNG và rộng hơn: Messages API nhận đủ low|medium|high|xhigh|max. Dùng
+# chung `api_effort` (bảng cho các nhà kiểu OpenAI) là bóp ba nấc trên cùng của Javis thành
+# "high" - người dùng bấm "Tối đa" mà không có gì đổi, không lỗi, không dấu hiệu nào.
+HOP_LE_ANT = {"low", "medium", "high", "xhigh", "max"}
+_eff = lambda m, r: engine._anthropic_reasoning(m, r)["output_config"]["effort"]  # noqa: E731
+for _m in ("claude-opus-4-8", "claude-opus-5", "claude-sonnet-5", "claude-fable-5-1",
+           "claude-sonnet-4-6", "claude-opus-4-5"):
+    for _r in engine.REASONING_LEVELS[1:]:
+        check(f"{_m} nấc {_r} -> effort Anthropic hợp lệ", _eff(_m, _r) in HOP_LE_ANT,
+              _eff(_m, _r))
+check("CANARY: không bao giờ gửi tên nấc RIÊNG của Javis ('ultra') lên Anthropic",
+      all(_eff(m, "ultra") != "ultra" for m in ("claude-opus-5", "claude-sonnet-4-6")))
+check("CANARY: model đời mới thì xhigh và ultra khác 'high' THẬT, không phải nhãn suông",
+      (_eff("claude-opus-5", "xhigh"), _eff("claude-opus-5", "ultra")) == ("xhigh", "max"))
+check("model 4.6 chưa có 'xhigh' thì hạ về 'high', nhưng 'max' thì vẫn có",
+      (_eff("claude-sonnet-4-6", "xhigh"), _eff("claude-sonnet-4-6", "ultra")) == ("high", "max"))
+check("Opus 4.5 chỉ có ba nấc nên hai nấc trên cùng đều về 'high'",
+      (_eff("claude-opus-4-5", "xhigh"), _eff("claude-opus-4-5", "ultra")) == ("high", "high"))
 check("nấc off -> không gửi thinking gì cả",
       engine._anthropic_reasoning("claude-opus-4-8", "off") == {})
 
@@ -88,6 +104,54 @@ check("từ khoá leo thang think -> ultrathink",
       kw["low"] == "think" and kw["high"] == "think harder" and kw["ultra"] == "ultrathink", kw)
 check("nấc off giữ nguyên câu hỏi, không chèn gì", srv._cli_think("off", "xin chào") == "xin chào")
 check("nấc bật thì có chèn gợi ý", "ultrathink" in srv._cli_think("ultra", "xin chào"))
+
+# ---- 6b. Claude Code CLI: đi bằng CỜ `--effort`, từ khoá chỉ là đường dự phòng ----
+# Bảng từ khoá ở trên cho "xhigh" và "ultra" CÙNG một chữ `ultrathink`, tức "Rất cao" và
+# "Tối đa" y hệt nhau - hai nấc mà một nghĩa. Cờ `--effort` của Claude Code thì trùng khít
+# thang của Javis (low|medium|high|xhigh|max) nên chọn nấc nào ra nấc đó.
+check("CANARY: bảng từ khoá cũ ĐÚNG LÀ có hai nấc trùng nhau (lý do phải đổi sang cờ)",
+      srv._CLI_THINK_KW["xhigh"] == srv._CLI_THINK_KW["ultra"])
+check("bảng cờ effort phủ đủ mọi nấc bật",
+      all(srv._CLI_EFFORT.get(r) for r in engine.REASONING_LEVELS[1:]), srv._CLI_EFFORT)
+check("CANARY: sang cờ thì hai nấc trên cùng KHÁC nhau thật",
+      srv._CLI_EFFORT["xhigh"] != srv._CLI_EFFORT["ultra"])
+check("nấc trên cùng của Javis ('ultra') dịch sang tên của Claude Code ('max')",
+      srv._CLI_EFFORT["ultra"] == "max")
+check("CANARY: không gửi tên nấc riêng của Javis cho CLI",
+      "ultra" not in set(srv._CLI_EFFORT.values()))
+
+_HOP_LE_CLI = {"low", "medium", "high", "xhigh", "max"}
+check("mọi giá trị gửi cho `claude --effort` đều nằm trong thang CLI nhận",
+      set(srv._CLI_EFFORT.values()) <= _HOP_LE_CLI, srv._CLI_EFFORT)
+
+
+class _EngineGia:
+    def __init__(self):
+        self.effort = None
+
+
+_cu_co_co = srv.claude_cli.co_co
+try:
+    # CLI đời mới: đặt cờ, và prompt phải giữ NGUYÊN VĂN. Cộng dồn cả hai đường là vừa tốn
+    # token vừa đẩy model lên một mức khác mức người dùng chọn.
+    srv.claude_cli.co_co = lambda co: True
+    _e = _EngineGia()
+    _msg = srv._cli_do_sau(_e, "ultra", "xin chào")
+    check("CLI có --effort: đặt đúng mức", _e.effort == "max", _e.effort)
+    check("CLI có --effort: KHÔNG chèn từ khoá vào prompt nữa", _msg == "xin chào", _msg)
+    _e2 = _EngineGia()
+    check("nấc off thì không đặt effort gì cả",
+          srv._cli_do_sau(_e2, "off", "xin chào") == "xin chào" and _e2.effort is None)
+
+    # CLI đời cũ: không được truyền cờ lạ (CLI thoát ngay với "unknown option", hỏng cả lượt),
+    # nên rơi về từ khoá như trước - mất độ chính xác chứ không mất tính năng.
+    srv.claude_cli.co_co = lambda co: False
+    _e3 = _EngineGia()
+    _msg3 = srv._cli_do_sau(_e3, "ultra", "xin chào")
+    check("CANARY: CLI cũ thì KHÔNG đặt cờ", _e3.effort is None)
+    check("CLI cũ vẫn còn đường dự phòng bằng từ khoá", "ultrathink" in _msg3)
+finally:
+    srv.claude_cli.co_co = _cu_co_co
 
 # ---- 7. Lọc giá trị ----
 check("giá trị lạ bị hạ về off", srv._reasoning_level({"reasoning": "bay-ba"}) == "off")

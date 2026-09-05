@@ -336,6 +336,43 @@ def list_models() -> Optional[list]:
     return ket_qua
 
 
+# ---- Binary `claude` có cờ nào: dò một lần rồi nhớ ----
+#
+# Cùng bài học với `antigravity_cli.co_co`: truyền một cờ bản CLI chưa có là nó thoát ngay với
+# "unknown option", hỏng TRỌN lượt chat chỉ vì một tuỳ chọn phụ. Máy người dùng cài Claude Code
+# từ đời nào cũng có, nên mọi cờ mới phải đi qua đây trước.
+_CO_CACHE = {"sig": None, "help": ""}
+
+
+def _help_text() -> str:
+    """`claude --help`, nhớ theo (đường dẫn, cỡ file, mtime) nên cập nhật CLI là dò lại."""
+    cli = find_claude_cli()
+    if not cli:
+        return ""
+    try:
+        st = Path(cli).stat()
+        sig = (cli, st.st_size, st.st_mtime_ns)
+    except OSError:
+        sig = (cli, 0, 0)
+    if _CO_CACHE["sig"] == sig:
+        return _CO_CACHE["help"]
+    txt = ""
+    try:
+        r = subprocess.run([cli, "--help"], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=20, creationflags=_no_window(),
+                           stdin=subprocess.DEVNULL)
+        txt = (r.stdout or "") + (r.stderr or "")
+    except Exception:
+        txt = ""
+    _CO_CACHE.update(sig=sig, help=txt)
+    return txt
+
+
+def co_co(co: str) -> bool:
+    """Bản `claude` trên máy này có cờ đó không. Dò hụt thì trả False (không truyền cho chắc)."""
+    return co in _help_text()
+
+
 # ---- Claude Code auth (đăng nhập Anthropic dùng cho engine CLI) ----
 def _no_window():
     return subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
