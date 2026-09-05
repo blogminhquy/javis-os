@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.39] - 2026-09-05
+### Sửa lỗi
+- **Đã có Claude Fable 5.1 trong hộp chọn model.** Danh sách model của gói Claude Code giờ đọc thẳng từ Claude Code đang cài trên máy, nên nhà cung cấp ra bản mới là bạn thấy ngay, không phải đợi Javis lên phiên bản.
+- **Danh sách model cũ không còn che mất model mới.** Máy chạy đã lâu bị kẹt ở dàn model của ngày đầu cài, nâng cấp Javis bao nhiêu lần cũng không thấy dòng model mới. Nay hai danh sách gộp lại, không cái nào xoá cái nào.
+- **Chọn `fable` hay `opus` là ra đúng bản mới nhất.** Trước đây nó có thể lặng lẽ chạy một bản cũ hơn cùng dòng.
+- **Bật độ sâu suy nghĩ trên Opus 5 và Sonnet 5 không còn lỗi**, và trang Mức dùng tính tiền theo đúng từng bản: Opus từ 4.5 đã rẻ hơn xưa, còn Fable thì đắt hơn Opus.
+
 ## [0.55.38] - 2026-09-05
 ### Thêm mới
 - **Agent và Workflow xếp theo nhóm, giống trang Kỹ năng.** Hai trang này giờ có cột nhóm bên trái kèm số đếm và ô tìm kiếm, nên brain có vài chục agent không còn là một danh sách phẳng phải dò bằng mắt.

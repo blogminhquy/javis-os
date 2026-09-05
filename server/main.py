@@ -39,6 +39,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 from claude_cli import CodexCLI, claude_engine, find_claude_cli, find_codex_cli, cancel_all, _empty_mcp_file, auth_status as claude_auth_status, auth_login as claude_auth_login, auth_logout as claude_auth_logout, auth_login_ui_start, auth_login_ui_code, mcp_native_add, mcp_native_remove, mcp_native_status, mcp_open_auth_terminal, mcp_native_list, codex_mcp_native_list, codex_mcp_native_add, codex_mcp_native_remove, codex_mcp_native_status, codex_mcp_open_login_terminal
+import claude_cli   # binary `claude`: tìm đường, auth, và danh mục model nhúng sẵn trong CLI
 import config as cfgmod
 import update_state
 _ver_tuple = update_state.ver_tuple
@@ -1197,8 +1198,13 @@ async def auth_disable():
 # chat vẫn làm với openai-oauth.
 # ============================================================
 PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
+    # default_models của thẻ này là LƯỚI CUỐI, dùng khi không đọc được danh mục của binary
+    # `claude` và máy cũng không có API key. Alias đứng trước (luôn trỏ bản mới nhất của dòng),
+    # rồi tới id đầy đủ để `_claude_api_model` dịch được alias sang tên thật.
     {"id": "anthropic-cli", "label": "Anthropic OAuth (Claude Code)", "kind": "cli", "key_field": None,          "catalog_key": "claude",
-     "default_models": ["opus", "sonnet", "haiku", "fable"]},
+     "default_models": ["fable", "opus", "sonnet", "haiku",
+                        "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+                        "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"]},
     {"id": "openai-oauth",  "label": "OpenAI OAuth (ChatGPT)",  "kind": "oauth", "key_field": None,             "catalog_key": "openai-oauth",
      "default_models": []},  # model/list của Codex app-server là nguồn chân lý; không ghim version ở đây
     # Antigravity CLI (binary `agy`) - bản Google chỉ định thay cho Gemini CLI sau khi họ ngắt
@@ -1220,7 +1226,8 @@ PROVIDER_DEFS = [   # thứ tự = thứ tự hiển thị card ở trang Models
     {"id": "openrouter",    "label": "OpenRouter",              "kind": "api", "key_field": "openrouter_key",    "catalog_key": "openrouter",
      "default_models": ["openai/gpt-4o-mini"]},
     {"id": "anthropic-api", "label": "Anthropic (API)",         "kind": "api", "key_field": "anthropic_api_key", "catalog_key": "anthropic-api",
-     "default_models": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]},
+     "default_models": ["claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+                        "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"]},
     {"id": "openai",        "label": "OpenAI (ChatGPT API)",    "kind": "api", "key_field": "openai_api_key",    "catalog_key": "openai",
      "default_models": ["gpt-4o", "gpt-4o-mini", "o3-mini"]},
     {"id": "gemini",        "label": "Google Gemini (API)",     "kind": "api", "key_field": "gemini_api_key",    "catalog_key": "gemini",
@@ -1547,9 +1554,12 @@ def _claude_api_model(model: str) -> str:
 
     Claude Code hiểu "opus"/"sonnet"/"haiku" và tự chọn bản mới nhất, nhưng /v1/messages thì
     không: gửi "haiku" là ăn 404 model_not_found. Đường gọi thẳng của gói thuê bao đi qua API
-    nên phải dịch. Catalog `claude` đã được /provider/models ghi đè bằng danh sách LIVE (alias
-    đứng trước, id đầy đủ đứng sau), nên chỉ cần lấy id đầy đủ ĐẦU TIÊN cùng dòng - đó chính
-    là bản mới nhất, đúng thứ alias vẫn trỏ tới.
+    nên phải dịch, và tra trong catalog `claude` mà /provider/models vừa nạp.
+
+    Lấy bản MỚI NHẤT cùng dòng chứ KHÔNG phải "cái đầu tiên gặp trong catalog": alias có nghĩa
+    là "bản mới nhất của dòng này", nên dịch nó thành một bản cũ là lặng lẽ ghim người dùng
+    vào model cũ. Catalog nhớ trong settings.json của một máy chạy lâu năm thì trộn cả bản mới
+    lẫn bản cũ và không đảm bảo thứ tự nào cả.
 
     Không tra được thì trả nguyên: thà để nhà cung cấp nói không còn hơn tự đoán một tên khác.
     """
@@ -1560,11 +1570,15 @@ def _claude_api_model(model: str) -> str:
         cat = (cfgmod.read_settings().get("model", {}).get("catalog", {}).get("claude")) or []
     except Exception:  # noqa: BLE001 - tra cứu hỏng không được phá lượt chat
         return m
+    ung_vien = []
     for x in cat:
         x = str(x or "")
-        if "-" in x and x.split("-")[1:2] == [m]:
-            return x
-    return m
+        v = claude_cli.tach_phien_ban(x)
+        if v and v[0] == m:
+            ung_vien.append((claude_cli.bac_phien_ban(v[1]), v[2], x))
+    if not ung_vien:
+        return m
+    return min(ung_vien)[2]
 
 
 def _api_stream(prov, key, model, messages, reasoning="off"):
@@ -4010,10 +4024,30 @@ async def _fetch_provider_models(provider, m):
         # vì nó đẻ tiến trình con và có thể mất vài giây.
         return await asyncio.to_thread(antigravity_cli.list_models)
     if provider == "anthropic-cli":
-        # Provider này chạy bằng đăng nhập OAuth của Claude Code → mượn chính token đó hỏi
-        # /v1/models, nên Anthropic ra bản mới là picker thấy ngay (trước kẹt ở 4 alias tĩnh).
-        return await claude_models.fetch_models(m.get("anthropic_api_key") or "")
+        # HAI nguồn, thử theo thứ tự đầy đủ dần:
+        #   1. `anthropic_api_key` nếu máy có - /v1/models là danh sách CHÍNH THỨC.
+        #   2. Danh mục model nhúng trong chính binary `claude` - không cần key, không chạm
+        #      credential của ai, và tự mới theo mỗi lần cập nhật Claude Code.
+        # Đường 2 là thứ thay cho việc mượn token OAuth đã gỡ ở 0.26.17: từ đó tới nay gói
+        # thuê bao không có nguồn live nào, nên máy nào lỡ nhớ một catalog cũ là kẹt ở đó
+        # vĩnh viễn - nâng cấp Javis cũng không thấy dòng model mới (Fable 5.1).
+        ids = await claude_models.fetch_models(m.get("anthropic_api_key") or "")
+        if ids:
+            return ids
+        # Chạy ở worker: quét file binary ~200MB, cỡ 0,3 giây lần đầu rồi nhớ theo mtime.
+        return await asyncio.to_thread(claude_cli.list_models)
     return None
+
+
+def _gop_giu_thu_tu(*ds):
+    """Nối các danh sách, bỏ trùng, GIỮ nguyên thứ tự xuất hiện đầu tiên."""
+    ra, thay = [], set()
+    for d in ds:
+        for x in d or []:
+            if x and x not in thay:
+                thay.add(x)
+                ra.append(x)
+    return ra
 
 
 def _remember_catalog(cfg, d, ids):
@@ -4076,7 +4110,14 @@ async def provider_models_index(provider: str, refresh: bool = False) -> dict:
     m = cfg.get("model", {})
     d = _provider_def(provider) or {}
     cat = m.get("catalog", {}) or {}
-    fallback = cat.get(d.get("catalog_key", "")) or d.get("default_models", [])
+    # HỢP hai danh sách chứ không phải "cái nhớ được ĐÈ cái mặc định". Đây là gốc của lỗi
+    # "nâng cấp Javis rồi vẫn không có model mới": `_remember_catalog` ghi danh sách live vào
+    # settings.json, mà `config._deep_merge` thì THAY danh sách chứ không nối - nên từ lần ghi
+    # đó trở đi, bản mặc định mới trong config.py không bao giờ tới được người dùng nữa. Một
+    # model đã ngừng bán mà còn nằm trong danh sách chỉ phiền lúc chọn nhầm; một model MỚI
+    # không bao giờ hiện ra thì không có đường nào chữa ngoài sửa tay settings.json.
+    fallback = _gop_giu_thu_tu(d.get("default_models", []),
+                               cat.get(d.get("catalog_key", "")) or [])
     now = time.time()
     c = _PROV_MODELS_CACHE.get(provider)
     if not refresh and c and (now - c["ts"]) < 600 and c.get("ids"):
@@ -11638,10 +11679,18 @@ async def _uoc_tinh_tiet_kiem(brain: str = "brain") -> dict:
 # giao diện phải nói rõ là ước lượng, và người dùng đặt được số của chính mình qua
 # settings.model.gia_input_1m (USD cho 1 triệu token vào) để đè lên bảng này.
 #
-# Khớp theo CHUỖI CON của tên model, dài trước ngắn sau, nên "claude-opus-5" ăn mục "opus"
-# chứ không rơi về mặc định.
+# Khớp theo CHUỖI CON của tên model, dài trước ngắn sau, nên "claude-opus-5" ăn mục "opus-5"
+# chứ không rơi về mục "opus" trần, càng không rơi về mức mặc định.
+#
+# Dòng Claude khai theo TỪNG BẢN chứ không gộp một mục "opus": Anthropic đã hạ giá dòng Opus
+# từ 15$ xuống 5$ mỗi triệu token đầu vào kể từ 4.5, còn Fable thì ĐẮT HƠN Opus (10$). Gộp
+# một mục là khai vống chi phí của người chạy Opus 5 lên gấp ba, và khai hụt của người chạy
+# Fable đi ba lần - cả hai đều rơi thẳng vào con số tiền trên trang Mức dùng. Mục "opus" trần
+# giữ lại cho các bản 4.1 trở về trước, vẫn đúng giá của chúng.
 _GIA_INPUT_1M = {
-    "opus": 15.0, "sonnet": 3.0, "haiku": 1.0,
+    "fable": 10.0, "mythos": 10.0,
+    "opus-5": 5.0, "opus-4-8": 5.0, "opus-4-7": 5.0, "opus-4-6": 5.0, "opus-4-5": 5.0,
+    "opus": 15.0, "sonnet-5": 2.0, "sonnet": 3.0, "haiku": 1.0,
     "gpt-5-mini": 0.25, "gpt-5": 1.25, "gpt-4o-mini": 0.15, "gpt-4o": 2.5, "o3": 2.0,
     "gemini-2.5-pro": 1.25, "gemini-2.5-flash": 0.30, "gemini": 0.30,
     "deepseek": 0.30, "llama": 0.10, "qwen": 0.20, "mistral": 0.20, "grok": 2.0,
