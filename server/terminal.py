@@ -47,6 +47,7 @@ import select
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -103,6 +104,28 @@ def shell_argv() -> list[str]:
     return ["/bin/sh"]
 
 
+def _khong_co_trinh_duyet() -> bool:
+    """Máy chạy Javis có mở nổi một trình duyệt mà NGƯỜI DÙNG NHÌN THẤY không.
+
+    Câu hỏi này quyết định luồng đăng nhập OAuth của mọi CLI chạy trong tab Code, xem `_env`.
+
+    - `JAVIS_TERMINAL_REMOTE=1/0` ghi đè, cho ai có bố trí lạ (X11 forwarding, máy để bàn chạy
+      Docker có chia màn hình...).
+    - Windows/macOS chạy THẲNG trên máy: trình duyệt ở ngay trước mặt, giữ nguyên luồng cũ.
+    - Linux: có `DISPLAY`/`WAYLAND_DISPLAY` là máy để bàn có màn hình; không có thì đây là VPS
+      hoặc container - kể cả khi container đó nằm trên chính máy Mac của người dùng, vì trình
+      duyệt nằm NGOÀI container còn CLI nằm trong.
+    """
+    v = str(os.getenv("JAVIS_TERMINAL_REMOTE", "")).strip().lower()
+    if v in ("1", "on", "true", "yes"):
+        return True
+    if v in ("0", "off", "false", "no"):
+        return False
+    if IS_WINDOWS or sys.platform == "darwin":
+        return False
+    return not (os.getenv("DISPLAY") or os.getenv("WAYLAND_DISPLAY"))
+
+
 def _env(extra: dict | None = None) -> dict:
     e = dict(os.environ)
     # xterm-256color: cho lệnh biết terminal này vẽ được màu và di được con trỏ.
@@ -132,6 +155,30 @@ def _env(extra: dict | None = None) -> dict:
         e["PATH"] = os.pathsep.join(parts)
     except Exception:
         pass
+    # ĐĂNG NHẬP OAUTH TRONG TAB CODE: nói thẳng với CLI rằng người dùng đang ngồi ở MÁY KHÁC.
+    #
+    # Sự cố 05/09 (chủ repo, Javis chạy Docker, trình duyệt trên máy Mac): gõ `agy` trong tab
+    # Code, màn hình in link Google rồi ĐỨNG IM - không có ô nào để dán mã về, đăng nhập tắc ở
+    # đó. Nguyên nhân không nằm ở bàn phím của terminal (pty thật, gõ được) mà ở chỗ `agy` chọn
+    # đường đăng nhập THEO MÔI TRƯỜNG:
+    #   - Thấy `SSH_CONNECTION` -> biết người dùng ngồi máy khác: in link ra rồi CHỜ dán ngược
+    #     lại URL callback (kèm mã) vào terminal.
+    #   - Không thấy -> coi trình duyệt cùng máy: chỉ mở một cổng loopback
+    #     `localhost:<cổng>/oauth-callback` rồi nằm chờ, và KHÔNG hỏi gì cả.
+    # Terminal của Javis là pty thật ngay trên máy chủ nên chẳng có biến SSH nào -> luôn rơi
+    # vào đường thứ hai. Trình duyệt lại ở máy Mac, nên Google trả về localhost CỦA MAC, chỗ đó
+    # không có ai nghe: mã không bao giờ về tới `agy`, mà cũng không có chỗ nào để gõ nó vào.
+    # Cùng một bệnh với mọi CLI đăng nhập kiểu loopback khi máy chủ không có màn hình.
+    #
+    # Chỉ đặt khi máy thật sự không có trình duyệt cho người dùng, và KHÔNG đè lên phiên SSH
+    # thật. Cố ý không đặt `SSH_TTY`: giá trị của nó là đường dẫn tty, bịa ra một đường không
+    # tồn tại còn hại hơn là thiếu.
+    if _khong_co_trinh_duyet() and not e.get("SSH_CONNECTION"):
+        # Định dạng thật: "<ip khách> <cổng khách> <ip máy chủ> <cổng máy chủ>". Javis không
+        # biết IP của trình duyệt (WebSocket có thể qua proxy), và không CLI nào đọc mấy số
+        # này - chúng chỉ hỏi "biến có hay không". Điền loopback cho đúng dạng.
+        e["SSH_CONNECTION"] = "127.0.0.1 0 127.0.0.1 22"
+        e.setdefault("SSH_CLIENT", "127.0.0.1 0 22")
     if extra:
         e.update({k: str(v) for k, v in extra.items() if v is not None})
     return e

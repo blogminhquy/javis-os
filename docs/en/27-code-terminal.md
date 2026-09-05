@@ -78,6 +78,7 @@ The terminal is where arbitrary commands run on the server, which is the highest
 | `JAVIS_TERMINAL` | `0`/`off`/`false`/`no` = remove the terminal entirely | On |
 | `JAVIS_TERMINAL_SHELL` | The path of the shell to run | `$SHELL`, falling back to `bash`/`sh`. Windows: `powershell.exe` then `cmd.exe` |
 | `JAVIS_TERMINAL_CWD` | The folder the shell opens in | The HOME of the user running Javis |
+| `JAVIS_TERMINAL_REMOTE` | Tell CLIs the user is sitting at another machine (`SSH_CONNECTION`), so a Google/Anthropic sign-in asks where to paste the code instead of waiting for a browser on this machine | Auto: on for a server with no screen (VPS, Docker), off on native Windows/macOS and on Linux with a display |
 
 How to set variables: [.env configuration](16-env-configuration.md).
 
@@ -92,6 +93,8 @@ How to set variables: [.env configuration](16-env-configuration.md).
 **Tab produces no completion.** You are in simple mode (Windows). That is an operating-system limit, not a configuration error.
 
 **The shell exits the moment it opens.** Check that `JAVIS_TERMINAL_SHELL` points at a real executable and that the folder in `JAVIS_TERMINAL_CWD` exists.
+
+**Typing `agy` (Antigravity) prints a link then sits there with nowhere to paste the code.** `agy` collects the code through a loopback port on the machine it runs on, and your browser is on a different machine, so it never reaches that port. Since 0.55.46 the terminal declares itself a remote session, so `agy` asks where to paste: after signing into Google, copy the whole `http://localhost:...` address your browser fails to open and paste it into the terminal. On an older `agy` that does not ask, open a second terminal session and run `curl "<the address you copied>"`.
 
 ## Related
 

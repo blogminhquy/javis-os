@@ -150,7 +150,9 @@ This is the route **Google designated** after cutting Gemini CLI off from person
 1. Install the CLI once on the machine running Javis:
    - Linux/macOS: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
    - Windows PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`
-2. Type `agy` once **in a terminal on the machine running Javis**. On a machine with a screen it opens a browser; over SSH it prints a link, which you open on your machine and sign into Google. The session lives in the operating system keyring, so this is a one-time step.
+2. Type `agy` once **in a terminal on the machine running Javis** (the **Code** page inside Javis is the safest spot - it runs as the exact user Javis runs as). A desktop with a screen opens a browser. A server with no screen (VPS, Docker - including Docker on your own Mac) prints a link instead: open it in a browser on your machine, sign into Google, and the browser then jumps to an `http://localhost:...` address that **fails to load, which is the right step** - copy that whole address from the URL bar and paste it back into the terminal, then Enter. The session lives in the operating system keyring, so this is a one-time step.
+
+   > Why the manual paste: `agy` collects the code through a loopback port on the machine running it, and your browser sits on another machine. Since 0.55.46 the Javis terminal declares itself a remote session (`SSH_CONNECTION`) so `agy` asks where to paste instead of waiting in silence. If your `agy` is older and never asks, open a second terminal session and run `curl "<the localhost address you copied>"`. Unusual setups (X11 forwarding, a desktop with a screen) can turn this off with `JAVIS_TERMINAL_REMOTE=0`.
 3. Return to **Models**, the **Google Antigravity CLI** card, and click **Re-check** (it runs a real chat turn). The card switches to **● Signed in**.
 4. Click **Change model ▾** in the Main Model block, pick this provider and pick a model.
 
