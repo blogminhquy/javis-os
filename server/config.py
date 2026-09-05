@@ -196,6 +196,9 @@ _DEFAULT = {
         # graph_enabled=False → vào thẳng Console, KHÔNG dựng đồ thị (nhẹ cho VPS/điện thoại).
         # Frontend cũng tự ép lite-mode khi màn hình hẹp dù cờ này bật.
         "graph_enabled": True,
+        # Vấp "hết lượt gói thuê bao" thì tự chạy lại câu hỏi khi hạn mức mở. Ô trên thẻ hết
+        # lượt trong khung chat đổi giá trị này.
+        "auto_resume": True,
     },
     # MCP do Javis quản lý (registry connection ở mcp_servers.json). strict=True → CHỈ dùng
     # kết nối của Javis (--strict-mcp-config), bỏ qua config MCP sẵn có của máy.

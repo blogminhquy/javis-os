@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.44] - 2026-09-05
+### Thêm mới
+- **Hết lượt gói thuê bao thì Javis tự hỏi lại khi hạn mức mở, không cần bạn canh giờ.** Claude Code, ChatGPT (Codex), Grok Build hay Antigravity báo "hết lượt, mở lại lúc 13:01" là dưới câu báo hiện thẻ "Tự chạy lại lúc 13:01 (còn 42 phút)". Đến giờ, Javis tự hỏi lại đúng câu đó và trả lời vào cùng hội thoại, kể cả khi bạn đã đóng tab hay tắt màn hình điện thoại.
+- Trên thẻ có ô "Tự tiếp tục khi hạn mức reset" (nhớ lựa chọn cho những lần sau) và nút "Chạy lại ngay" nếu không muốn đợi. Gửi tin mới trong lúc chờ thì lịch tự huỷ.
+- Chỉ hẹn khi nhà cung cấp nói rõ mốc mở lại, và tối đa 3 lần cho một câu hỏi; không biết mốc thì thẻ chỉ có nút chạy lại ngay, không đoán giờ.
+
 ## [0.55.43] - 2026-09-05
 ### Thêm mới
 - **Gói đã cài có bản mới thì Kho nói ngay từ đầu trang.** Một băng "N gói đã cài có bản mới" nằm trên cùng, bấm vào là nhảy thẳng tới đúng nhóm và lọc sẵn còn mấy gói đó. Trước đây phải tình cờ bấm đúng tab mới thấy, nên gói Kỹ năng hay Trợ lý có bản mới thì gần như không bao giờ biết.

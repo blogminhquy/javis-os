@@ -2329,6 +2329,30 @@ body.ne-full-on .cview { z-index: 250; }
 .jv-ask-chip:hover { border-color: var(--accent); color: var(--accent); }
 .jv-ask-other { color: var(--text3); border-style: dashed; }
 
+/* The "het luot goi thue bao, tu chay lai luc HH:MM" (limit-resume.js) */
+.jv-resume { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); font-size: 15px; line-height: 1.6; }
+.jv-resume-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--text); }
+.jv-resume-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text3); flex: none; }
+.jv-resume-dot.on { background: var(--accent); box-shadow: var(--accent-ring); }
+.jv-resume-spin {
+  width: 12px; height: 12px; flex: none; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: jv-resume-spin .9s linear infinite;
+}
+@keyframes jv-resume-spin { to { transform: rotate(360deg); } }
+.jv-resume-left { color: var(--text2); }
+.jv-resume-auto { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--text2); cursor: pointer; user-select: none; }
+.jv-resume-auto input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.jv-resume-row { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; }
+.jv-resume-now {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 7px 14px; font-family: var(--font); font-size: 14px;
+  cursor: pointer; transition: border-color .15s, color .15s;
+}
+.jv-resume-now:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.jv-resume-now:disabled { opacity: .5; cursor: default; }
+.jv-resume-eng { color: var(--text3); font-size: 13px; }
+
 /* Da tra loi: cung lai, chi con doc duoc */
 .jv-ask-done .jv-ask-chip { cursor: default; opacity: .45; }
 .jv-ask-done .jv-ask-chip:hover { border-color: var(--border); color: var(--text); }

@@ -287,6 +287,8 @@ Mở trang là thấy ngay khối **Bộ não đang dùng**: nó nói bộ não 
 
 **Hết lượt gói thuê bao** thì Javis nói bằng tiếng Việt: hết lượt gói nào, còn khoảng bao lâu nữa, và bộ não nào bạn đã cắm sẵn để chạy tạm trong lúc chờ. Javis **không tự đổi bộ não hộ** - đổi là tiêu hạn mức của một tài khoản khác, có khi mất tiền thật, nên đó là quyết định của bạn (đổi ở ngay trang này, hội thoại giữ nguyên). Lưu ý loại hạn mức này đếm **lượt dùng theo giờ** chứ không đếm độ dài, nên rút gọn câu hỏi không giúp gì.
 
+Từ 0.55.44, khi nhà cung cấp nói rõ **mốc mở lại**, dưới câu báo có thẻ **"Tự chạy lại lúc HH:MM"**: đến giờ Javis tự hỏi lại đúng câu đó và trả lời vào cùng hội thoại, tab đóng hay điện thoại tắt màn hình vẫn chạy (việc nằm ở máy chủ). Trên thẻ có ô **"Tự tiếp tục khi hạn mức reset"** (tắt là chỉ nhắc giờ, không tự chạy; lựa chọn được nhớ cho lần sau) và nút **"Chạy lại ngay"**. Gửi tin mới trong lúc chờ là lịch tự huỷ. Javis chỉ hẹn khi biết mốc, tối đa 3 lần cho một câu hỏi, và không hẹn mốc xa hơn một ngày; khởi động lại máy chủ thì lịch đang chờ mất, câu báo hết lượt vẫn còn trong hội thoại để bạn bấm "Gửi lại".
+
 ## Đổi nhanh model
 
 Bạn không cần rời trang Models để đổi model: bấm **Đổi model ▾** ở khối Main Model là mở ngay bảng **SET MAIN MODEL**, chọn provider + model rồi **Switch**. Thao tác này lưu lại và áp dụng cho phiên chat mới. Khối **◆ Model việc nền** có nút **Đổi model ▾** riêng của nó (mở bảng **MODEL VIỆC NỀN**), còn các nút mức ở khối **◆ Suy nghĩ** áp dụng ngay khi bấm.

@@ -287,6 +287,8 @@ Opening the page shows a **Current brain** block: which kind the current brain i
 
 **When a subscription runs out of turns**, Javis says so plainly: which plan ran out, roughly how long until it resets, and which brains you already have wired to use meanwhile. Javis **does not switch brains for you**, because switching spends another account's quota and can cost real money, so that is your decision (made on this page, with the conversation intact). Note that this kind of limit counts **turns per hour** rather than length, so shortening questions does not help.
 
+Since 0.55.44, when the provider states the **reset time**, a card **"Auto-resume at HH:MM"** appears under that notice: at that time Javis asks the same question again and answers in the same conversation, even with the tab closed or the phone screen off (the job lives on the server). The card carries an **"Auto-continue when limits reset"** checkbox (off means it only shows the time; the choice is remembered for next time) and a **"Retry now"** button. Sending a new message while waiting cancels the schedule. Javis only schedules when it knows the reset time, at most 3 times per question, never more than a day ahead; a server restart drops pending schedules, and the limit notice stays in the conversation so you can hit "Resend".
+
 ## Switching model quickly
 
 You do not have to leave the Models page to change model: click **Change model ▾** in the Main Model block to open **SET MAIN MODEL**, pick a provider and model, then **Switch**. The choice is saved and applies to new chat sessions. The **◆ Background model** block has its own **Change model ▾** (opening **BACKGROUND MODEL**), and the level buttons in **◆ Reasoning** apply immediately on click.
