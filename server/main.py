@@ -99,6 +99,7 @@ import readonly_orchestrator # Phase 7: checkpointed multi-round read-only DAG
 import adaptive_context_runtime # Phase 8: state + sourced memory + lazy skill canaries
 import agent_runtime           # Phase 11: agent = workflow có quyền replan trong quyền đã cấp
 import limit_learner          # học hạn mức từ chính lỗi nhà cung cấp trả về
+import limit_resume           # tự chạy lại lượt chat khi gói thuê bao mở lại hạn mức
 import quota_scheduler        # sổ cái TPM dùng chung (Việc 6)
 import model_limits           # hạn mức GỢI Ý theo provider, để khai quota profile cho canary
 import model_router           # Phase 12: chọn model theo từng bước, lọc năng lực trước
@@ -3832,6 +3833,8 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         cfg.setdefault("dashboard", {})
         if "graph_enabled" in patch:
             cfg["dashboard"]["graph_enabled"] = bool(patch["graph_enabled"])
+        if "auto_resume" in patch:
+            cfg["dashboard"]["auto_resume"] = bool(patch["auto_resume"])
     elif section == "image":
         cfg.setdefault("image", {})
         if "strip_c2pa" in patch:
@@ -9864,6 +9867,8 @@ async def websocket_endpoint(ws: WebSocket):
         "type": "hello",
         "stop_tag": conn_tag,
         "running": _CHAT_RUNTIME.snapshot(),
+        # Lượt đang chờ gói thuê bao mở lại hạn mức, để F5 xong thẻ "tự chạy lại" còn dựng được.
+        "resumes": limit_resume.REGISTRY.snapshot(),
     })
 
     async def send_raw(obj):
@@ -9889,10 +9894,27 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         async def _do_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False):
+                           has_attachments=False, resume_attempt=0):
             ws = _SendProxy(conv_sid, runtime_trace)  # các nhánh engine bên dưới dùng ws proxy này
             _cfg_all = cfgmod.read_settings()
             mcfg = _cfg_all.get("model", {})
+            # Lượt này vấp "hết lượt gói thuê bao"? Bốn nhánh engine thuê bao ghi vào đây qua
+            # `_limit_frame`; cuối lượt đọc ra để lưu câu báo và hẹn tự chạy lại.
+            _limit_state = {}
+
+            def _limit_frame(raw, engine_hint, model=""):
+                """Khung `error` (đã json) cho một lỗi engine. Là lỗi hết lượt gói thuê bao thì
+                dịch sang câu người dùng hiểu, kèm mốc reset để khung chat vẽ thẻ chờ."""
+                noi, lim = _subscription_limit_event(raw or "", engine_hint)
+                frame = {"type": "error", "content": noi or raw or ""}
+                if noi:
+                    _CONTEXT_RUNTIME.record_runtime_event(
+                        runtime_trace, "subscription.limit_reached",
+                        {"engine": engine_hint, "model": model or ""})
+                    _limit_state.update(notice=noi, limit=lim)
+                    frame["limit"] = {"engine": lim.engine, "scope": lim.scope,
+                                      "reset_epoch": float(lim.reset_epoch or 0)}
+                return json.dumps(frame)
             # NGÔN NGỮ chốt MỘT LẦN cho cả lượt, ngay đây. Chốt sớm và chốt một chỗ là để câu
             # trả lời, giọng đọc và các cổng chặn không bao giờ hiểu khác nhau trong cùng một
             # lượt. Không ai ghim gì thì `resolve` trả `theo_nguoi_dung=True` và chính MODEL
@@ -10142,15 +10164,8 @@ async def websocket_endpoint(ws: WebSocket):
                             store.set_last_input_tokens(
                                 conv_sid, int(ev.get("input_tokens") or 0))
                         elif et == "error":
-                            _noi = _subscription_limit_message(ev.get("content") or "",
-                                                               "grok-cli")
-                            if _noi:
-                                _CONTEXT_RUNTIME.record_runtime_event(
-                                    runtime_trace, "subscription.limit_reached",
-                                    {"engine": "grok-cli", "model": actual_model or ""})
-                                final_text = final_text or _noi
-                            await ws.send_text(json.dumps({
-                                "type": "error", "content": _noi or ev.get("content", "")}))
+                            await ws.send_text(_limit_frame(
+                                ev.get("content") or "", "grok-cli", actual_model or ""))
                     # CLI phát id mạch trong dòng sự kiện; lưu lại để lượt sau `--resume`.
                     if kcli.session_id:
                         store.set_grok_session_id(conv_sid, kcli.session_id)
@@ -10206,12 +10221,8 @@ async def websocket_endpoint(ws: WebSocket):
                             store.set_last_input_tokens(
                                 conv_sid, int(ev.get("input_tokens") or 0))
                         elif et == "error":
-                            _noi = _subscription_limit_message(ev.get("content") or "",
-                                                               "antigravity-cli")
-                            if _noi:
-                                final_text = final_text or _noi
-                            await ws.send_text(json.dumps({
-                                "type": "error", "content": _noi or ev.get("content", "")}))
+                            await ws.send_text(_limit_frame(
+                                ev.get("content") or "", "antigravity-cli", actual_model or ""))
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
                         "model": actual_model or "", "session_id": conv_sid,
@@ -10309,14 +10320,8 @@ async def websocket_endpoint(ws: WebSocket):
                                     resume_failed = True
                                     if suppress_resume_error:
                                         continue
-                                _noi = _subscription_limit_message(ev.get("content") or "", "codex")
-                                if _noi:
-                                    _CONTEXT_RUNTIME.record_runtime_event(
-                                        runtime_trace, "subscription.limit_reached",
-                                        {"engine": "codex", "model": actual_model})
-                                    final_text = final_text or _noi
-                                await ws.send_text(json.dumps({
-                                    "type": "error", "content": _noi or ev["content"]}))
+                                await ws.send_text(_limit_frame(
+                                    ev.get("content") or "", "codex", actual_model))
                         return resume_failed
 
                     _resume_failed = await _consume_codex(
@@ -10729,16 +10734,10 @@ async def websocket_endpoint(ws: WebSocket):
                     elif etype == "error":
                         # Hết lượt gói Claude thì Claude Code in nguyên văn câu tiếng Anh (có khi
                         # là dạng máy "…reached|<epoch>"). Dịch sang câu nói được TRƯỚC khi đẩy
-                        # ra khung chat, và giữ lại làm final_text để lượt này còn lưu được.
-                        _noi = _subscription_limit_message(event.get("content") or "", "claude-code")
-                        if _noi:
-                            _CONTEXT_RUNTIME.record_runtime_event(
-                                runtime_trace, "subscription.limit_reached",
-                                {"engine": "claude-code",
-                                 "model": cli.model or mcfg.get("claude_model") or "mặc định"})
-                            final_text = final_text or _noi
-                        await ws.send_text(json.dumps({
-                            "type": "error", "content": _noi or event["content"]}))
+                        # ra khung chat; cuối lượt lưu câu đó và hẹn tự chạy lại (xem _limit_state).
+                        await ws.send_text(_limit_frame(
+                            event.get("content") or "", "claude-code",
+                            cli.model or mcfg.get("claude_model") or "mặc định"))
                 # Khung `response` PHẢI nằm NGOÀI vòng lặp. Trước đây nó nằm trong nhánh
                 # `final`, nên luồng đứt trước khi có `final` (engine chết, mạng rớt) là client
                 # không nhận `response` nào cả và bong bóng chat treo mãi - trong khi phần chữ
@@ -10760,6 +10759,29 @@ async def websocket_endpoint(ws: WebSocket):
                     store.set_last_input_tokens(conv_sid, _ctx_in)
                 except Exception as _e:
                     print(f"[last_input_tokens] {type(_e).__name__}: {_e}", file=sys.stderr)
+
+            # Vấp hạn mức gói thuê bao mà KHÔNG có câu trả lời nào: lưu câu báo vào kho phiên
+            # (để F5 còn thấy, đi thẳng vào kho chứ không qua _persist_turn: một câu báo lỗi
+            # không đáng vào nhật ký Memory hay hàng đợi tự học), rồi hẹn chạy lại đúng lượt
+            # này khi hạn mức mở. Có câu trả lời dở dang thì để nguyên như một lượt thường.
+            if _limit_state.get("notice") and not final_text:
+                _noi, _lim = _limit_state["notice"], _limit_state["limit"]
+                try:
+                    store.append_message(conv_sid, "assistant", _noi)
+                    store.auto_title(conv_sid, user_message)   # phiên mới vẫn có tên ở Lịch sử
+                except Exception as _e:
+                    print(f"[limit notice] {type(_e).__name__}: {_e}", file=sys.stderr)
+                _auto_pref = bool((_cfg_all.get("dashboard") or {}).get("auto_resume", True))
+                _item = limit_resume.REGISTRY.schedule(
+                    conv_sid, float(getattr(_lim, "reset_epoch", 0) or 0),
+                    lambda attempt, _n=_noi: _start_resumed_turn(
+                        conv_sid, user_message, brain, attempt, _n),
+                    engine=getattr(_lim, "engine", ""), notice=_noi,
+                    scope=getattr(_lim, "scope", ""), attempt=int(resume_attempt or 0),
+                    auto_default=_auto_pref)
+                await ws.send_text(json.dumps({
+                    "type": "resume", "state": "scheduled" if _item.auto else "off",
+                    **_item.payload()}))
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
@@ -10788,11 +10810,12 @@ async def websocket_endpoint(ws: WebSocket):
             return final_text
 
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False):
+                           has_attachments=False, resume_attempt=0):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             try:
                 final_text = await _do_turn(
-                    conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
+                    resume_attempt=resume_attempt,
                 )
                 _record_quality_shadow(
                     runtime_trace, user_message, final_text or "", "dashboard")
@@ -10815,6 +10838,33 @@ async def websocket_endpoint(ws: WebSocket):
                                 **context_runtime.event_fields(runtime_trace)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
+        async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice):
+            """Chạy lại một lượt đã vấp hạn mức gói thuê bao (limit_resume gọi tới, khi tới mốc
+            reset hoặc khi người dùng bấm "Chạy lại ngay").
+
+            Là một job chat bình thường của server: đăng ký vào _CHAT_RUNTIME nên tab nào đang
+            mở cũng thấy nó chạy, Stop được, và kết quả lưu vào kho phiên như mọi lượt. Tin
+            người dùng đã nằm trong kho từ lượt gốc nên KHÔNG ghi lại; chỉ rút câu "hết lượt"
+            ra khỏi cuối phiên để lịch sử không kết thúc bằng một câu của trợ lý."""
+            if _CHAT_RUNTIME.get_job(conv_sid):
+                return          # phiên đang bận (vừa có tin mới) - không chen vào giữa
+            try:
+                store.pop_last_message(conv_sid, "assistant", notice)
+            except Exception as _e:
+                print(f"[limit resume] {type(_e).__name__}: {_e}", file=sys.stderr)
+            turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
+            runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
+            await send_raw({"type": "resume", "session_id": conv_sid, "state": "running",
+                            "attempt": int(attempt or 0)})
+            task = asyncio.create_task(run_turn(
+                conv_sid, user_message, brain, turn_tag, runtime_trace, False,
+                resume_attempt=int(attempt or 0)))
+            _CHAT_RUNTIME.register_job(
+                conv_sid, task, turn_tag,
+                runtime_task_id=runtime_trace.task_id if runtime_trace else "",
+                runtime_step_id=runtime_trace.step_id if runtime_trace else "",
+            )
+
         while True:
             raw = await _real_ws.receive_text()
             payload = json.loads(raw)
@@ -10826,6 +10876,33 @@ async def websocket_endpoint(ws: WebSocket):
                 _tag = _CHAT_RUNTIME.cancel_session(_sid)
                 if _tag:
                     cancel_all(_tag)     # giết subprocess engine của đúng lượt đó
+                continue
+            if action == "resume_now":
+                # Nút "Chạy lại ngay" trên thẻ hết lượt: không đợi mốc reset.
+                _sid = payload.get("session_id") or ""
+                if _CHAT_RUNTIME.get_job(_sid):
+                    await send_raw({"type": "error", "session_id": _sid,
+                                    "content": "Phiên này đang trả lời - đợi lượt hiện tại xong đã."})
+                    continue
+                if not await limit_resume.REGISTRY.run_now(_sid):
+                    await send_raw({"type": "resume", "session_id": _sid, "state": "gone"})
+                continue
+            if action == "resume_auto":
+                # Ô "Tự tiếp tục khi hạn mức reset": đổi cho mục đang chờ VÀ nhớ làm mặc định
+                # cho những lần sau, giống ô cùng tên của Claude Code.
+                _sid = payload.get("session_id") or ""
+                _bat = bool(payload.get("enabled"))
+                try:
+                    _cfg_r = cfgmod.read_settings()
+                    _cfg_r.setdefault("dashboard", {})["auto_resume"] = _bat
+                    cfgmod.write_settings(_cfg_r)
+                except Exception as _e:
+                    print(f"[resume_auto] {type(_e).__name__}: {_e}", file=sys.stderr)
+                _item = limit_resume.REGISTRY.set_auto(_sid, _bat)
+                if _item:
+                    await send_raw({"type": "resume",
+                                    "state": "scheduled" if _item.auto else "off",
+                                    **_item.payload()})
                 continue
             user_message = payload.get("message", "").strip()
             if not user_message:
@@ -10873,6 +10950,10 @@ async def websocket_endpoint(ws: WebSocket):
             if _CHAT_RUNTIME.get_job(conv_sid):
                 await send_raw({"type": "error", "content": "Phiên này đang trả lời - đợi lượt hiện tại xong đã.", "session_id": conv_sid})
                 continue
+            # Tin mới thay cho câu hỏi đang chờ hạn mức: bỏ lịch chạy lại, kẻo hai lượt chen
+            # nhau trên cùng một phiên. Muốn hỏi lại câu cũ thì bấm "Gửi lại" ở tin đó.
+            if limit_resume.REGISTRY.cancel(conv_sid):
+                await send_raw({"type": "resume", "session_id": conv_sid, "state": "cancelled"})
             store.append_message(conv_sid, "user", user_message)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
@@ -12111,6 +12192,18 @@ def _configured_api_providers() -> tuple:
     return tuple(out)
 
 
+def _subscription_limit_event(raw: str, engine_hint: str):
+    """(câu người dùng hiểu, SubscriptionLimit) cho lỗi "gói thuê bao hết lượt"; ("", None) nếu
+    không phải loại lỗi này. Khung chat cần cả hai: câu chữ để hiện, mốc reset để hẹn chạy lại."""
+    try:
+        hit = limit_learner.parse_subscription_limit(raw, engine_hint=engine_hint)
+        if not hit:
+            return "", None
+        return model_limits.subscription_blocked_hint(hit, _configured_api_providers()), hit
+    except Exception:   # noqa: BLE001 - không được để câu báo lỗi tự nó nổ
+        return "", None
+
+
 def _subscription_limit_message(raw: str, engine_hint: str) -> str:
     """Đổi lỗi thô "gói thuê bao hết lượt" thành câu người dùng hiểu. "" nếu không phải.
 
@@ -12123,13 +12216,7 @@ def _subscription_limit_message(raw: str, engine_hint: str) -> str:
     tài khoản khác, có khi mất tiền thật - đó là quyết định của người dùng. Việc của câu này
     là nói rõ hết lượt tới bao giờ và bộ não nào đang sẵn sàng.
     """
-    try:
-        hit = limit_learner.parse_subscription_limit(raw, engine_hint=engine_hint)
-        if not hit:
-            return ""
-        return model_limits.subscription_blocked_hint(hit, _configured_api_providers())
-    except Exception:   # noqa: BLE001 - không được để câu báo lỗi tự nó nổ
-        return ""
+    return _subscription_limit_event(raw, engine_hint)[0]
 
 
 def _canary_keys() -> set:

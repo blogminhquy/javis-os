@@ -474,6 +474,28 @@ class SessionStore:
         rows = self._read("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return dict(rows[0]) if rows else None
 
+    def pop_last_message(self, session_id: str, role: str, content: Optional[str] = None) -> bool:
+        """Xoá tin CUỐI của phiên nếu nó đúng vai (và đúng nội dung, khi có truyền).
+
+        Dùng khi chạy lại một lượt vấp hạn mức: câu "hết lượt" đã lưu để F5 còn thấy, nhưng
+        chạy lại xong mà vẫn để nó nằm giữa câu hỏi và câu trả lời thật thì engine API đọc
+        lịch sử thấy hội thoại kết thúc bằng một câu của trợ lý, không còn câu hỏi nào để
+        trả lời. Đối chiếu cả nội dung để không xoá nhầm câu trả lời thật vừa tới."""
+        def _do(conn):
+            row = conn.execute(
+                "SELECT id, role, content FROM messages WHERE session_id = ? "
+                "ORDER BY ts DESC, id DESC LIMIT 1", (session_id,)).fetchone()
+            if not row or row[1] != role:
+                return False
+            if content is not None and (row[2] or "") != content:
+                return False
+            conn.execute("DELETE FROM messages WHERE id = ?", (row[0],))
+            conn.execute(
+                "UPDATE sessions SET msg_count = MAX(0, msg_count - 1) WHERE id = ?",
+                (session_id,))
+            return True
+        return bool(self._write(_do))
+
     def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
         rows = self._read(
             "SELECT id, role, content, ts, tool_calls_json FROM messages "

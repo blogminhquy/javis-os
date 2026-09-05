@@ -179,6 +179,8 @@ function handleMessage(data) {
     });
     syncActiveUI();
     notifySessions();
+    // Lượt đang chờ gói thuê bao mở lại hạn mức: dựng lại thẻ "tự chạy lại" cho phiên đang xem.
+    try { if (window.JavisResume) window.JavisResume.fromHello(data.resumes || [], savedSessionId); } catch (e) {}
     return;
   }
 
@@ -245,6 +247,13 @@ function handleMessage(data) {
       }
     }
   } else if (data.type === "response") {
+    // Lượt vấp hạn mức gói thuê bao: câu báo đã hiện ở bong bóng lỗi (kèm thẻ tự chạy lại) và
+    // server không có câu trả lời nào, nên không vẽ thêm bong bóng "(không có nội dung)".
+    if (t && t.limit && !(data.content || "").trim()) {
+      if (isActive) { hideActivity(); setOrbState("", "SẴN SÀNG"); }
+      refreshUsage();
+      return;
+    }
     const { clean: askClean, ask } = window.JavisAsk.extract(data.content || "");
     const finalText = askClean || (t && t.text) || "";
     const shownText = finalText || "_(không có nội dung trả về - thử lại hoặc đổi model)_";
@@ -263,11 +272,26 @@ function handleMessage(data) {
     }
     refreshUsage();     // cập nhật panel Mức dùng sau mỗi lượt
   } else if (data.type === "error") {
-    if (isActive) { hideActivity(); appendJavisError(data.content); setOrbState("", "SẴN SÀNG"); }
+    if (t && data.limit) t.limit = data.limit;
+    if (isActive) {
+      hideActivity();
+      const errEl = appendJavisError(data.content);
+      setOrbState("", "SẴN SÀNG");
+      if (data.limit) {
+        // Hết lượt gói thuê bao: câu báo là tin cuối của lượt (server không trả gì thêm), ghi
+        // vào convo để F5 còn thấy, rồi gắn thẻ "tự chạy lại" dưới nó (limit-resume.js).
+        recordTurn("javis", data.content || "", null, null);
+        try { if (window.JavisResume) window.JavisResume.attach(errEl, sid, data.limit); } catch (e) {}
+      }
+    }
+  } else if (data.type === "resume") {
+    // Trạng thái lịch tự chạy lại (hẹn / tắt / đang chạy / huỷ) - thẻ tự vẽ lại.
+    try { if (window.JavisResume) window.JavisResume.onFrame(data); } catch (e) {}
   } else if (data.type === "system") {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {
     // Lượt của phiên này kết thúc (xong / lỗi / bị dừng): bỏ cờ chạy, dọn buffer, refresh Lịch sử.
+    try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
     if (isActive) syncActiveUI();
@@ -360,6 +384,11 @@ function sendMessage(text) {
 }
 // Chip lựa chọn (chat-ask.js) gửi đáp án qua đây: bấm chip = y như người dùng gõ tay nhãn đó.
 window.JavisSend = sendMessage;
+// Module ngoài (limit-resume.js) gửi một khung điều khiển thô lên server. true = đã gửi.
+window.JavisWsSend = function (obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  try { ws.send(JSON.stringify(obj)); return true; } catch (e) { return false; }
+};
 
 // ============================================
 // Lưu / khôi phục phiên
@@ -398,6 +427,8 @@ function restoreSession() {
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
   });
   if (convo.length) scrollBottom(true);
+  // hello thường tới SAU bước này; nếu tới trước (kết nối nhanh) thì thẻ "tự chạy lại" gắn ở đây.
+  try { if (window.JavisResume && savedSessionId) window.JavisResume.renderFor(savedSessionId); } catch (e) {}
   notifySessions();   // panel Lịch sử tô đúng phiên đang xem thay vì không tô cái nào
   syncActiveUI();
 }
@@ -436,6 +467,8 @@ async function openStoredSession(id) {
       showActivity(Icons.msg("pen-line", "Đang soạn câu trả lời..."));
       setOrbState("thinking", "ĐANG SUY NGHĨ");
     }
+    // Phiên này đang chờ gói thuê bao mở lại hạn mức → gắn thẻ "tự chạy lại" dưới tin cuối.
+    try { if (window.JavisResume) window.JavisResume.renderFor(id); } catch (e) {}
     persistSession();
     scrollBottom(true);
     notifySessions();
