@@ -31,6 +31,10 @@ vault (brain đang chọn). Studio / trang tương ứng tự nhận file mới.
    loops/). Nếu đã có cái gần giống -> cập nhật cái cũ, đừng đẻ bản sao.
 4. **Ghi file** đúng frontmatter (mẫu bên dưới). slug = ASCII không dấu, gạch nối. Tên hiển thị
    tiếng Việt. TUYỆT ĐỐI không dùng ký tự em dash, dùng "-".
+   **`group` là BẮT BUỘC với cả ba loại agent / skill / workflow.** Trước khi chọn, đọc nhóm
+   đang dùng trong `agents/*.md`, `workflows/*.md`, `skills/*/SKILL.md` rồi lấy nhóm sát nhất;
+   không nhóm nào hợp thì đặt nhóm mới, tên ngắn theo lĩnh vực. Bỏ trống thì nó rơi vào "Chung"
+   và trang Studio dồn hết vào một đống - đúng chỗ mà cột nhóm sinh ra để tránh.
 5. **Báo cáo ngắn** bằng văn nói: đã tạo loại gì, tên/đường dẫn file, dùng ở đâu.
 
 ## Mẫu file (ghi CHÍNH XÁC theo đây)
@@ -42,6 +46,7 @@ type: agent
 name: <Tên tiếng Việt>
 slug: <ascii>
 role: <vai trò 1 câu>
+group: <Marketing|Bán hàng|Nội dung|Vận hành|Tài chính|AI|Năng suất|Cá nhân>
 skills: [slug-skill]      # [] nếu chưa gán; chỉ gán skill đã có trong skills/
 model: ""                 # "" mặc định | sonnet|opus|haiku|fable (Claude) | gpt-5.5|gpt-5.4|gpt-5.3-codex (ChatGPT/Codex)
 updated: <YYYY-MM-DD>
@@ -108,6 +113,7 @@ type: workflow
 name: <Tên>
 slug: <ascii>
 status: off               # tạo mới để 'off' cho user xem trước rồi bật
+group: <Marketing|Bán hàng|Nội dung|Vận hành|Tài chính|AI|Năng suất|Cá nhân>
 description: <mô tả ngắn>
 steps:
   - agent: <agent-slug>

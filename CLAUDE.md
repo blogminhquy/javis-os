@@ -218,7 +218,7 @@ The user can ask in words (e.g. "create an agent that writes emails", "add an ed
 
 **The full frontmatter templates for Agent / Workflow / Skill are in the `javis-builder` skill** - load it and write to the template, do not copy from memory. Paths: agent → `<brain>/agents/<slug>.md`, workflow → `<brain>/workflows/<slug>.md` (both FLAT at the brain root; `Javis/agents|workflows` is the OLD layout, read only as a fallback when the flat folder does not exist, and writing there by mistake means the app never sees it, which caused incidents on 2026-07-19 and 2026-08-16), skill → `<brain>/skills/<slug>/SKILL.md` (flat canonical; Javis mirrors it into `.claude/skills` for Claude Code; skills work on EVERY engine through the router plus `javis_use_skill`).
 
-Two skill rules must be known UP FRONT because they are often broken:
+Two rules must be known UP FRONT because they are often broken:
 - **`description` is AT MOST 150 characters - this is not cosmetic.** The router truncates at
   exactly 150 (`skill_router.SKILL_DESC_MAX`) in both the system prompt and the tool
   description, so writing longer means the tail is LOST SILENTLY and the skill cannot be
@@ -227,7 +227,7 @@ Two skill rules must be known UP FRONT because they are often broken:
   without distinguishing anything). Put full trigger examples in a `## When to use` section in
   the BODY, where nothing is truncated and which is only read once the skill is loaded. The
   index is for FINDING, the body is for DOING.
-- **Assign a group yourself when creating a skill:** BEFORE choosing, read existing skills (`skills/*/SKILL.md` → field `group`) to see which groups are IN USE, then pick the closest. Only create a new group when none fits; name it briefly by domain (Marketing, Sales, Content, Operations, Finance, AI, Productivity, Personal). **NEVER leave `group` empty** (it falls into "Chung").
+- **Assign a group yourself - to an agent and a workflow as much as to a skill** (all three carry the same `group` field): BEFORE choosing, read what is IN USE (`skills/*/SKILL.md`, `agents/*.md`, `workflows/*.md` → field `group`), then pick the closest. Only create a new group when none fits; name it briefly by domain (Marketing, Sales, Content, Operations, Finance, AI, Productivity, Personal). **NEVER leave `group` empty** (it falls into "Chung").
 - A skill folder `slug` is **ASCII without diacritics** (e.g. "Viết email" → `viet-email`). You can create/edit through the `POST /skills` endpoint or by writing the file directly.
 
 **Rules:**

@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.38] - 2026-09-05
+### Thêm mới
+- **Agent và Workflow xếp theo nhóm, giống trang Kỹ năng.** Hai trang này giờ có cột nhóm bên trái kèm số đếm và ô tìm kiếm, nên brain có vài chục agent không còn là một danh sách phẳng phải dò bằng mắt.
+- **Đặt nhóm ngay trong form.** Sửa agent hay workflow là có ô Nhóm, gõ vào hoặc chọn từ nhóm đang có. Bỏ trống thì nó nằm ở "Chung".
+- **File cũ không mất đi đâu.** Agent và workflow tạo từ trước chưa có nhóm sẽ tự nằm trong "Chung", vẫn thấy và vẫn chạy như cũ.
+- Javis khi tự tạo agent hay workflow cũng tự xếp nhóm, và chỉ mục năng lực trong brain liệt kê theo nhóm luôn.
+
+### Sửa lỗi
+- **Sửa workflow không còn mất chữ đang gõ.** Trước đây gõ tên hoặc mô tả rồi bấm thêm bước là hai ô đó quay về giá trị cũ, không báo gì.
+
 ## [0.55.37] - 2026-09-05
 ### Cải thiện
 - **Javis Store ra thanh bên.** Nằm ngay dưới Kết nối, không còn phải vào một trang năng lực rồi bấm tab mới tới được. Lý do đổi: từ 0.55.36 phần lớn kết nối nằm trong kho, mà người mới cài thì chưa có trang nào để mà bấm tab.

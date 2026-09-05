@@ -36,6 +36,18 @@ Sau khi có mẫu, bạn có thể chạy thử ngay (xem mục "Chạy một wo
 
 Ghi chú: hai skill mà agent mẫu tham chiếu (deep-research, salepage-16-buoc) chỉ là tên gán sẵn. Nếu brain của bạn chưa có hai skill đó thì agent vẫn chạy bình thường, chỉ là không có hướng dẫn chuyên sâu kèm theo.
 
+## Tìm nhanh khi đã có nhiều: cột nhóm và ô tìm
+
+Cả hai trang Agents và Workflows đều có một cột **Nhóm** bên trái, kèm số đếm từng nhóm, và một ô tìm ở trên danh sách. Cách dùng giống hệt trang [Skills](06-skills.md):
+
+- Bấm một nhóm để chỉ xem agent (hoặc workflow) thuộc nhóm đó; bấm **Tất cả** để xem lại toàn bộ.
+- Ô tìm lọc theo tên, slug và vai trò (với workflow là tên, slug và mô tả). Gõ không dấu vẫn ra kết quả có dấu: gõ "viet email" tìm được "Viết email".
+- Nhóm và ô tìm cộng dồn với nhau, nên chọn nhóm rồi gõ tìm là lọc trong đúng nhóm ấy.
+- Nút **Chọn tất cả** (để xuất nhiều mục một gói) chỉ lấy những mục **đang hiện**, tức đúng nhóm và đúng ô tìm.
+- Trên điện thoại, cột nhóm nằm thành một dải chip cuộn ngang ở trên đầu danh sách.
+
+Agent và workflow tạo từ trước bản 0.55.38 chưa có nhóm sẽ nằm trong nhóm **Chung**, không mất đi đâu. Muốn xếp lại thì mở ra sửa và điền ô Nhóm.
+
 ## Tạo một Agent (từng bước, qua form)
 
 1. Mở trang **Agents**.
@@ -46,6 +58,7 @@ Ghi chú: hai skill mà agent mẫu tham chiếu (deep-research, salepage-16-buo
 |---|---|---|
 | **Tên** | Tên agent, hiện trên thẻ. Bắt buộc. | VD: "Chuyên viên email" |
 | **Vai trò (mô tả ngắn)** | Một câu mô tả agent làm gì. | VD: "Viết email bán hàng, giọng thân mật" |
+| **Nhóm** | Tên nhóm để dashboard xếp agent vào cùng một cột bên trái. Gõ tên mới hoặc chọn từ nhóm đang có (ô có gợi ý). Để trống thì agent rơi vào nhóm "Chung". | VD: Marketing, Bán hàng, Nội dung |
 | **System prompt (cách làm việc chi tiết)** | Hướng dẫn dài, chi tiết cách agent làm việc, nguyên tắc, đầu ra mong muốn. | VD: quy tắc viết, cấm dùng từ nào, format đầu ra |
 | **Skills** | Danh sách skill có sẵn trong vault, bấm tick để cho agent được dùng. | Chọn skill hợp với vai trò |
 | **Model** | Ô chọn có 8 lựa chọn, xem bảng ngay dưới. | Sonnet cho cân bằng, Opus khi cần suy luận sâu, Haiku khi cần nhanh và rẻ |
@@ -98,6 +111,7 @@ Cần có ít nhất một agent trước khi tạo workflow. Nếu chưa có ag
 3. Điền:
    - **Tên**: tên workflow. Bắt buộc.
    - **Mô tả**: một dòng nói workflow này làm gì (không bắt buộc nhưng nên có; dòng này hiện trên thẻ workflow).
+   - **Nhóm**: tên nhóm để xếp workflow vào cột nhóm bên trái, gõ tên mới hoặc chọn từ nhóm đang có. Để trống thì nó nằm ở nhóm "Chung".
 4. Ở phần **Các bước (mỗi bước = 1 agent · dùng {{input}} và {{prev}})**, mỗi bước là một khối gồm:
    - Ô **Nhiệm vụ** (task): mô tả bước này phải làm gì. Trong nhiệm vụ, bạn dùng được hai biến đặc biệt:
      - `{{input}}` = đầu vào bạn gõ khi bấm chạy workflow.
@@ -134,7 +148,7 @@ Chữ đang gõ dở không bị mất khi bạn gập/mở, đổi thứ tự h
 
 Mỗi workflow hiện dạng một thẻ, gồm:
 
-- Hàng tiêu đề: tên workflow, một huy hiệu trạng thái (**● Sẵn sàng** khi đang bật hoặc **Lưu trữ** khi đang tắt), và số bước dạng "N bước".
+- Hàng tiêu đề: tên workflow, một huy hiệu trạng thái (**● Sẵn sàng** khi đang bật hoặc **Lưu trữ** khi đang tắt), tên nhóm, và số bước dạng "N bước".
 - Dòng mô tả workflow (nếu bạn có điền ô Mô tả).
 - Sơ đồ dây chuyền: các bước đánh số 01, 02, ... Mỗi ô hiện **nhiệm vụ** làm chữ chính, tên agent làm chữ phụ bên dưới. Trong nhiệm vụ, biến được dịch thành lời cho dễ đọc: `{{input}}` hiện là "đầu vào", `{{prev}}` hiện là "kết quả bước trước"; biến nào khác thì hiện thẳng tên biến.
 - Hàng nút: **▶ Chạy**, **Sửa**, **Lưu trữ** hoặc **Kích hoạt**, **⤓ Xuất**, **Xoá**.
@@ -171,7 +185,7 @@ Bạn không bắt buộc phải dùng form. Trong khung trò chuyện với Jav
 - "Tạo workflow nghiên cứu rồi viết bài."
 - "Thêm bước biên tập vào workflow X."
 
-Khi đó Javis tự ghi file .md tương ứng vào vault, tự đặt slug không dấu, tự gán skill hợp lý từ skill có sẵn, và nếu workflow nhắc tới một agent chưa tồn tại thì tạo agent đó trước. Sau khi làm xong, Javis báo ngắn gọn đã tạo/sửa file nào. Bạn quay lại trang Agents hoặc Workflows là thấy ngay, không cần thao tác thêm.
+Khi đó Javis tự ghi file .md tương ứng vào vault, tự đặt slug không dấu, tự xếp nhóm (đọc nhóm đang dùng trong brain rồi lấy nhóm sát nhất), tự gán skill hợp lý từ skill có sẵn, và nếu workflow nhắc tới một agent chưa tồn tại thì tạo agent đó trước. Sau khi làm xong, Javis báo ngắn gọn đã tạo/sửa file nào. Bạn quay lại trang Agents hoặc Workflows là thấy ngay, không cần thao tác thêm.
 
 Cách này tiện khi bạn mô tả được ý định bằng lời nhưng ngại điền form, hoặc muốn chỉnh nhiều bước cùng lúc.
 
@@ -183,8 +197,10 @@ Trong brain theo cấu trúc mới, mỗi agent là một file `agents/<slug>.md
 
 Vì là file văn bản, bạn có thể mở qua [Quản lý tệp tin](05-quan-ly-tep-tin.md) để xem hoặc sửa tay. Cấu trúc file:
 
-- Agent: phần đầu (frontmatter) chứa tên, vai trò, danh sách skill, model; phần thân là system prompt chi tiết. Bộ nhớ riêng và nhật ký chạy nằm ngoài file này, ở `memory/agents/<slug>/`.
-- Workflow: phần đầu chứa tên, trạng thái (active hoặc off), mô tả và danh sách các bước (mỗi bước có agent, task, và tuỳ chọn agent kiểm chứng cùng số lần sửa).
+- Agent: phần đầu (frontmatter) chứa tên, vai trò, nhóm (`group`), danh sách skill, model; phần thân là system prompt chi tiết. Bộ nhớ riêng và nhật ký chạy nằm ngoài file này, ở `memory/agents/<slug>/`.
+- Workflow: phần đầu chứa tên, trạng thái (active hoặc off), nhóm (`group`), mô tả và danh sách các bước (mỗi bước có agent, task, và tuỳ chọn agent kiểm chứng cùng số lần sửa).
+
+Trường `group` dùng chung một cách viết cho cả agent, workflow và skill, nên sửa tay trong file cũng được: ghi `group: Marketing` là lần tải lại trang sẽ thấy nó nằm đúng nhóm. Thiếu trường này thì nó vào nhóm "Chung".
 
 Sửa file rồi lưu thì trang Agents / Workflows tự nhận nội dung mới ở lần tải lại.
 

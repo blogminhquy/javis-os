@@ -4822,6 +4822,19 @@ def _today():
     from datetime import date
     return date.today().strftime("%Y-%m-%d")
 
+# NHÓM (field `group` trong frontmatter) - dùng chung cho CẢ BA loại năng lực: skill, agent,
+# workflow. Một brain dùng lâu có vài chục agent và workflow, danh sách phẳng thì tìm bằng mắt.
+# Cố tình dùng ĐÚNG một field và ĐÚNG một tên nhóm mặc định cho cả ba, để trang Studio, chỉ mục
+# Javis/index.md và AI khi tự tạo năng lực đều hiểu giống nhau, không đẻ cách phân loại thứ hai.
+NHOM_MAC_DINH = "Chung"
+
+
+def _nhom_cua(meta) -> str:
+    """Nhóm của một năng lực đọc từ frontmatter. File cũ chưa khai `group` → "Chung"."""
+    g = (meta or {}).get("group")
+    return (str(g).strip() or NHOM_MAC_DINH) if g is not None else NHOM_MAC_DINH
+
+
 def _agents_dir(brain):
     return _brain_sub(_brain_root(brain), "agents", "Javis/agents")
 def _workflows_dir(brain):
@@ -4921,7 +4934,7 @@ def agents_index(brain: str) -> list:
         meta, body = _read_md(f)
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
-                    "model": meta.get("model", ""),
+                    "model": meta.get("model", ""), "group": _nhom_cua(meta),
                     "model_provider": meta.get("model_provider", ""), "prompt": body})
     return out
 
@@ -4932,7 +4945,8 @@ async def list_agents(brain: str = Query("brain")):
 @app.post("/agents")
 async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = Form(""),
                      model: str = Form(""), slug: str = Form(""), prompt: str = Form(""),
-                     brain: str = Form("brain"), model_provider: str = Form("")):
+                     brain: str = Form("brain"), model_provider: str = Form(""),
+                     group: str = Form(NHOM_MAC_DINH)):
     slug = slug or _slugify(name)
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
@@ -4941,6 +4955,7 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # chứ không ghi vào file một nhà mà server không chạy được.
     mp = (model_provider or "").strip()
     meta = {"type": "agent", "name": name, "slug": slug, "role": role,
+            "group": (group or "").strip() or NHOM_MAC_DINH,
             "skills": skills_list, "model": model,
             "model_provider": mp if mp in AGENT_PROVIDERS else "",
             "updated": _today()}  # "" = mặc định theo CLI
@@ -6059,6 +6074,7 @@ def workflows_index(brain: str) -> list:
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
                     "status": meta.get("status", "off"),
                     "description": meta.get("description", ""),
+                    "group": _nhom_cua(meta),
                     "steps": meta.get("steps", []) or []})
     return out
 
@@ -6110,13 +6126,15 @@ async def list_workflows(brain: str = Query("brain")):
 
 @app.post("/workflows")
 async def save_workflow(name: str = Form(...), description: str = Form(""), steps: str = Form("[]"),
-                        status: str = Form("active"), slug: str = Form(""), brain: str = Form("brain")):
+                        status: str = Form("active"), slug: str = Form(""), brain: str = Form("brain"),
+                        group: str = Form(NHOM_MAC_DINH)):
     slug = slug or _slugify(name)
     try:
         steps_list = json.loads(steps)
     except Exception:
         steps_list = []
     meta = {"type": "workflow", "name": name, "slug": slug, "status": status,
+            "group": (group or "").strip() or NHOM_MAC_DINH,
             "description": description, "steps": steps_list, "updated": _today()}
     _write_md(_workflows_dir(brain) / f"{slug}.md", meta, description)
     return {"ok": True, "slug": slug}
@@ -7351,6 +7369,8 @@ async def run_workflow(slug: str = Query(...), brain: str = Query("brain"), inpu
 async def studio_seed(brain: str = Form("brain")):
     """Tạo bộ Agent + Workflow mẫu để bắt đầu."""
     a = _agents_dir(brain)
+    # Bộ mẫu ĐẶT SẴN nhóm "Nội dung": brain mới mở ra là thấy ngay cột nhóm có nghĩa, thay vì
+    # ba agent nằm trong "Chung" khiến người dùng tưởng tính năng nhóm chưa chạy.
     examples = [
         {"name": "Researcher", "role": "Chuyên nghiên cứu, tìm tư liệu và tổng hợp nguồn đáng tin cậy.",
          "skills": ["deep-research"], "prompt": "Bạn tìm 5-7 nguồn chất lượng, trích dẫn rõ ràng, tổng hợp insight chính."},
@@ -7364,10 +7384,11 @@ async def studio_seed(brain: str = Form("brain")):
     for ex in examples:
         slug = _slugify(ex["name"])
         meta = {"type": "agent", "name": ex["name"], "slug": slug, "role": ex["role"],
-                "skills": ex["skills"], "model": "sonnet", "updated": _today()}
+                "group": "Nội dung", "skills": ex["skills"], "model": "sonnet", "updated": _today()}
         _write_md(a / f"{slug}.md", meta, ex["prompt"])
     wf_meta = {"type": "workflow", "name": "Research → Write (có kiểm chứng)", "slug": "research-and-write",
-               "status": "active", "description": "Nghiên cứu → viết bài → kiểm chứng độc lập, tự sửa nếu chưa đạt.",
+               "status": "active", "group": "Nội dung",
+               "description": "Nghiên cứu → viết bài → kiểm chứng độc lập, tự sửa nếu chưa đạt.",
                "steps": [
                    {"agent": "researcher", "task": "Nghiên cứu kỹ chủ đề: {{input}}. Tìm nguồn, tổng hợp insight chính."},
                    {"agent": "writer", "task": "Viết một bài hoàn chỉnh về '{{input}}' dựa trên nghiên cứu sau:\n{{prev}}",
@@ -8064,7 +8085,8 @@ def _gather_capabilities(brain: str, skills=None) -> dict:
         for f in sorted(ad.glob("*.md")):
             m, _ = _read_md(f)
             caps["agents"].append({"slug": f.stem, "name": m.get("name", f.stem), "role": m.get("role", ""),
-                                   "model": m.get("model", ""), "skills": m.get("skills", []) or []})
+                                   "model": m.get("model", ""), "group": _nhom_cua(m),
+                                   "skills": m.get("skills", []) or []})
     wd = _workflows_dir(brain)
     if wd.is_dir():
         for f in sorted(wd.glob("*.md")):
@@ -8072,6 +8094,7 @@ def _gather_capabilities(brain: str, skills=None) -> dict:
             steps = m.get("steps", []) or []
             caps["workflows"].append({"slug": f.stem, "name": m.get("name", f.stem),
                                       "status": m.get("status", "active"), "description": m.get("description", ""),
+                                      "group": _nhom_cua(m),
                                       "agents": [s.get("agent") for s in steps if isinstance(s, dict)],
                                       "n_steps": len(steps)})
     # Skill: canonical <root>/skills + fallback .claude/skills + .agents (qua skill_router, de-dup).
@@ -8108,19 +8131,37 @@ def _render_javis_index(caps: dict) -> str:
          f"**Tổng quan:** {len(caps['agents'])} agents · {len(caps['skills'])} skills · "
          f"{len(caps['workflows'])} workflows ({n_on_wf} bật) · {len(caps['loops'])} loops ({n_on_loops} bật) · "
          f"{len(plugins)} plugins ({n_on_plugins} chạy)", ""]
+    # Cả ba loại năng lực xếp theo NHÓM (field `group`). Brain dùng lâu có vài chục agent và
+    # workflow; một danh sách phẳng dài dằng dặc thì chính AI đọc chỉ mục này cũng khó dò ra
+    # cái cần, và người đọc lại càng khó. Chỉ hiện tiêu đề nhóm khi thực sự có nhiều hơn một
+    # nhóm - brain mới toàn "Chung" thì thêm một tầng tiêu đề chỉ tổ rườm.
+    def _theo_nhom(items):
+        by = {}
+        for it in items:
+            by.setdefault(it.get("group") or NHOM_MAC_DINH, []).append(it)
+        return by
+
+    def _do_nhom(items, dong):
+        by = _theo_nhom(items)
+        nhieu_nhom = len(by) > 1
+        for g in sorted(by):
+            if nhieu_nhom:
+                L.append(f"### {g}")
+            for it in by[g]:
+                L.append(dong(it))
+
     L.append("## Agents")
     if caps["agents"]:
-        for a in caps["agents"]:
+        def _dong_agent(a):
             mdl = f" · model {a['model']}" if a["model"] else ""
             sk = f" · skills: {', '.join(a['skills'])}" if a["skills"] else ""
-            L.append(f"- **{a['name']}** (`{a['slug']}`) - {a['role']}{mdl}{sk}")
+            return f"- **{a['name']}** (`{a['slug']}`) - {a['role']}{mdl}{sk}"
+        _do_nhom(caps["agents"], _dong_agent)
     else:
         L.append("_(chưa có)_")
     L.append("\n## Skills")
     if caps["skills"]:
-        by_group = {}
-        for s in caps["skills"]:
-            by_group.setdefault(s["group"], []).append(s)
+        by_group = _theo_nhom(caps["skills"])
         for g in sorted(by_group):
             L.append(f"### {g}")
             for s in by_group[g]:
@@ -8130,9 +8171,11 @@ def _render_javis_index(caps: dict) -> str:
         L.append("_(chưa có)_")
     L.append("\n## Workflows")
     if caps["workflows"]:
-        for w in caps["workflows"]:
-            L.append(f"- **{w['name']}** (`{w['slug']}`) - {w['status']} · {w['n_steps']} bước "
-                     f"[{' -> '.join(x for x in w['agents'] if x)}]" + (f" · {w['description']}" if w["description"] else ""))
+        def _dong_wf(w):
+            return (f"- **{w['name']}** (`{w['slug']}`) - {w['status']} · {w['n_steps']} bước "
+                    f"[{' -> '.join(x for x in w['agents'] if x)}]"
+                    + (f" · {w['description']}" if w["description"] else ""))
+        _do_nhom(caps["workflows"], _dong_wf)
     else:
         L.append("_(chưa có)_")
     L.append("\n## Loops")
