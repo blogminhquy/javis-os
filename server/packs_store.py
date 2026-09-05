@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import json
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from config import STATE_DIR
 
@@ -109,6 +109,11 @@ def _lam_sach(m: dict) -> dict:
         "verified": bool(m.get("verified")),
         "updated": _chuoi(m.get("updated"), 32),
         "homepage": _chuoi(m.get("homepage"), 300),
+        # Logo trên thẻ. Đường dẫn TƯƠNG ĐỐI so với file index (như `download.url`), ghép ở
+        # `lay()`. Không nhận URL tuyệt đối: logo phải nằm CÙNG nơi với index, để một mục trong
+        # kho không thành beacon gõ về máy chủ của bên thứ ba mỗi lần vẽ lưới. `veAvatar`
+        # (packs.js) vẽ <img> khi giá trị bắt đầu bằng https:, còn lại rơi về ô chữ cái.
+        "icon": _chuoi(m.get("icon"), 300),
         "download": {"url": _chuoi(tai.get("url"), 500),
                      "sha256": _chuoi(tai.get("sha256"), 64),
                      "size": int(tai.get("size") or 0) if str(tai.get("size") or "0").isdigit() else 0},
@@ -177,6 +182,15 @@ async def lay(lam_moi: bool = False) -> dict:
         for g in goi:
             if not g["download"]["url"].startswith("https://"):
                 g["download"]["url"] = urljoin(u, g["download"]["url"])
+            # Logo: chỉ đường dẫn tương đối, chỉ ảnh, và phải ghép ra cùng host với index.
+            # Khai gì khác thì bỏ, thẻ về ô chữ cái - không bao giờ vẽ ảnh từ host lạ.
+            ic = g.get("icon") or ""
+            if (not ic or ic.startswith(("http:", "https:", "//", "/", "data:"))
+                    or not ic.lower().endswith((".png", ".webp", ".jpg", ".jpeg", ".gif"))):
+                g["icon"] = ""
+            else:
+                tuyet_doi = urljoin(u, ic)
+                g["icon"] = tuyet_doi if urlparse(tuyet_doi).netloc == urlparse(u).netloc else ""
         store = {"name": _chuoi((d.get("store") or {}).get("name"), 80),
                  "url": _chuoi((d.get("store") or {}).get("url"), 300)}
         _ghi_cache({"fetched_at": time.time(), "packs": goi, "store": store, "url": u})

@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.45] - 2026-09-05
+### Cải thiện
+- **Thẻ kết nối trong Kho cài đặt có logo thật.** Trước đây mọi kết nối tải từ kho chỉ hiện một ô chữ cái, nhìn lướt không biết đâu là Gmail, đâu là Shopify. Nay kho khai logo cho từng gói là thẻ hiện đúng logo đó, cùng một hình với trang Kết nối sau khi cài.
+- Logo chỉ được lấy từ đúng nơi đặt danh mục kho, không bao giờ tải ảnh từ máy chủ lạ, nên mở lưới không để lộ gì cho bên thứ ba.
+
 ## [0.55.44] - 2026-09-05
 ### Thêm mới
 - **Hết lượt gói thuê bao thì Javis tự hỏi lại khi hạn mức mở, không cần bạn canh giờ.** Claude Code, ChatGPT (Codex), Grok Build hay Antigravity báo "hết lượt, mở lại lúc 13:01" là dưới câu báo hiện thẻ "Tự chạy lại lúc 13:01 (còn 42 phút)". Đến giờ, Javis tự hỏi lại đúng câu đó và trả lời vào cùng hội thoại, kể cả khi bạn đã đóng tab hay tắt màn hình điện thoại.

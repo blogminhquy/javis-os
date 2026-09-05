@@ -23,6 +23,7 @@ import asyncio
 import json
 import sys
 import tempfile
+from urllib.parse import urlparse
 import time
 from pathlib import Path
 
@@ -98,6 +99,10 @@ check("trường lạ bị bỏ", "truong_la" not in ban)
 check("trường lạ trong author cũng bị bỏ", set(ban["author"]) == {"name"})
 check("size không phải số thì về 0",
       packs_store._lam_sach({"download": {"size": "abc"}})["download"]["size"] == 0)
+# Logo trên thẻ: bộ đọc giữ `icon`, còn `lay()` chỉ ghép đường dẫn tương đối cùng host với
+# index và chỉ nhận ảnh. Thẻ về ô chữ cái chứ KHÔNG BAO GIỜ vẽ ảnh từ host lạ.
+check("bộ đọc giữ lại icon để lưới vẽ logo",
+      packs_store._lam_sach({"id": "a", "icon": "packs/a/assets/a.png"})["icon"] == "packs/a/assets/a.png")
 
 # ─────────────── 4. Kho: đọc, cache, và suy biến ───────────────
 INDEX_TOT = json.dumps({
@@ -105,8 +110,10 @@ INDEX_TOT = json.dumps({
     "store": {"name": "Kho thử"},
     "packs": [
         {"id": "acme.a", "name": {"vi": "Gói A"}, "version": "1.0.0", "category": "sales",
+         "icon": "https://a.dev/a.png",                                   # host lạ -> bỏ
          "download": {"url": "https://a.dev/a.zip", "sha256": "aa", "size": 10}},
         {"id": "acme.b", "name": {"vi": "Gói B"}, "version": "2.0.0",
+         "icon": "packs/acme.b/assets/b.png",                             # tương đối -> ghép
          "download": {"url": "b.zip"}},
         {"id": "", "download": {"url": "https://a.dev/c.zip"}},          # thiếu id -> bỏ
         {"id": "acme.d"},                                                # thiếu chỗ tải -> bỏ
@@ -134,6 +141,11 @@ with tempfile.TemporaryDirectory() as td:
         b = [g for g in d["packs"] if g["id"] == "acme.b"][0]
         check("địa chỉ tải tương đối được ghép với địa chỉ kho",
               b["download"]["url"].startswith("https://") and b["download"]["url"].endswith("b.zip"))
+        a = [g for g in d["packs"] if g["id"] == "acme.a"][0]
+        check("logo tương đối được ghép thành URL cùng host với index",
+              b["icon"].startswith("https://") and b["icon"].endswith("/packs/acme.b/assets/b.png")
+              and urlparse(b["icon"]).netloc == urlparse(packs_store.url_kho()).netloc)
+        check("logo trỏ sang host lạ bị bỏ, thẻ về ô chữ cái", a["icon"] == "")
         check("có ghi cache xuống đĩa", packs_store.CACHE.is_file())
 
         # Lần sau còn hạn thì KHÔNG gọi mạng nữa.
