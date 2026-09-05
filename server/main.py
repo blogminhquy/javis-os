@@ -1670,7 +1670,7 @@ def _claude_sub_stream(model, messages, reasoning="off", *, brain=None, tag="cha
                         tag=tag, allowed_tools=CLAUDE_SUB_KHONG_TOOL,
                         model=_claude_api_model(model) or None)
     cli.system_prompt_raw = bool(tiet_kiem)
-    return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
+    return _claude_sub_doc(cli, _cli_do_sau(cli, reasoning, prompt), model)
 
 
 def _antigravity_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
@@ -1780,7 +1780,7 @@ def _claude_sub_stream_tools(model, messages, reasoning="off", *, brain=None, ta
     cli.mcp_config = mcp_hub.claude_config_path(mode, vault_root=vault)
     cli.mcp_strict = cli.mcp_config is not None
     cli.disallowed_tools = list(BOT_CAM_NATIVE)
-    return _claude_sub_doc(cli, _cli_think(reasoning, prompt), model)
+    return _claude_sub_doc(cli, _cli_do_sau(cli, reasoning, prompt), model)
 
 
 def _api_stream_goc(prov, key, model, messages, reasoning="off"):
@@ -2706,10 +2706,16 @@ def _reasoning_level(mcfg):
     return r if r in engine.REASONING_LEVELS else "off"
 
 # Từ khoá kích hoạt extended thinking của Claude Code (engine cli không có flag chuẩn).
-# Claude Code leo thang theo đúng bộ từ khoá này, nên hai mức trên cùng KHÁC nhau thật ở đây
-# chứ không phải bịa cho đủ nấc.
+# Bộ từ khoá suy nghĩ của Claude Code. ĐƯỜNG DỰ PHÒNG từ 0.55.40: bản CLI có cờ `--effort`
+# thì đi bằng cờ đó (xem `_cli_do_sau`), vì hai mức trên cùng ở bảng này ra CÙNG một từ khoá
+# `ultrathink` - tức "Rất cao" và "Tối đa" y hệt nhau, người dùng chọn mà không đổi gì.
 _CLI_THINK_KW = {"low": "think", "medium": "think hard", "high": "think harder",
                  "xhigh": "ultrathink", "ultra": "ultrathink"}
+
+# Mức của Javis -> mức của Claude Code (`claude --effort`, cùng thang trong claude-agent-sdk).
+# Trùng khít bốn mức đầu; "ultra" là tên Javis của mức trên cùng, Claude Code gọi là "max".
+_CLI_EFFORT = {"low": "low", "medium": "medium", "high": "high", "xhigh": "xhigh", "ultra": "max"}
+
 
 def _cli_think(reasoning, message):
     """Chèn gợi ý suy nghĩ vào prompt cho engine Claude Code CLI (off = giữ nguyên)."""
@@ -2717,6 +2723,28 @@ def _cli_think(reasoning, message):
     if not kw:
         return message
     return f"{message}\n\n(Suy nghĩ kỹ trước khi trả lời - {kw})"
+
+
+def _cli_do_sau(cli, reasoning, message):
+    """Đặt độ sâu suy nghĩ cho engine Claude Code, rồi trả prompt để gửi đi.
+
+    Một chỗ duy nhất quyết định đi đường nào, vì hai đường KHÔNG được cộng dồn: truyền cờ
+    `--effort` xong còn nhét thêm "ultrathink" vào prompt là vừa tốn token vừa đẩy model lên
+    một mức khác mức người dùng chọn.
+
+    - CLI có `--effort` (bản mới): đặt `cli.effort`, prompt giữ NGUYÊN VĂN. Đây là đường đúng -
+      thang của Claude Code trùng khít thang của Javis nên "Rất cao" và "Tối đa" khác nhau
+      thật, và tin nhắn người dùng không bị dính thêm một câu tiếng Việt ở cuối.
+    - CLI cũ: rơi về từ khoá trong prompt như trước, không mất tính năng.
+    """
+    muc = _CLI_EFFORT.get(reasoning or "")
+    if muc and claude_cli.co_co("--effort"):
+        try:
+            cli.effort = muc
+        except Exception:  # noqa: BLE001 - engine lạ không có thuộc tính này thì rơi về từ khoá
+            return _cli_think(reasoning, message)
+        return message
+    return _cli_think(reasoning, message)
 
 
 def _toml_str(s):
@@ -3919,6 +3947,22 @@ async def openrouter_models():
 # Model load ĐỘNG theo provider (không hardcode - provider đổi model không cần sửa code).
 _PROV_MODELS_CACHE = {}   # provider -> {"ids":[...], "ts": float}
 
+# Lọc danh sách model của OpenAI và Gemini theo kiểu LOẠI TRỪ, không phải theo danh sách tiền
+# tố được phép. Đây là bài học từ ca Fable 5.1 (0.55.39), chỉ khác nhà: một danh sách "chỉ giữ
+# mấy cái tên quen" thì mỗi lần nhà cung cấp mở dòng mới là dòng đó biến mất khỏi trình chọn,
+# im lặng, không có gì báo. Còn LOẠI theo công dụng (nhúng, giọng nói, ảnh) thì mấy loại ấy
+# nhiều năm không đổi tên, nên luật không lạc hậu theo từng đợt model mới.
+_OPENAI_KHONG_CHAT = ("embed", "whisper", "tts", "dall-e", "moderation", "image",
+                      "audio", "realtime", "transcribe", "sora", "davinci", "babbage")
+# Gemini đã có `supportedGenerationMethods` nói model nào sinh được nội dung, nên đây chỉ là
+# lưới thứ hai cho vài dòng khai generateContent mà thực tế không chat được.
+_GEMINI_KHONG_CHAT = ("embed", "aqa", "imagen", "veo", "tts")
+
+
+def _loc_model_chat(ids, cam):
+    """Bỏ những model KHÔNG chat được, khớp theo chuỗi con không phân biệt hoa thường."""
+    return [i for i in ids if i and not any(k in i.lower() for k in cam)]
+
 
 async def _fetch_provider_models(provider, m):
     """Danh sách model id LIVE từ API của provider, hoặc None (caller fallback catalog)."""
@@ -3935,9 +3979,10 @@ async def _fetch_provider_models(provider, m):
             r.raise_for_status()
             data = r.json().get("data", [])
         ids = sorted(x.get("id") for x in data if x.get("id"))
-        # lọc model chat (bỏ embedding/whisper/tts/dall-e/moderation...)
-        ids = [i for i in ids if i.startswith(("gpt", "o1", "o3", "o4", "chatgpt"))]
-        return ids or None
+        # LỌC NGƯỢC (xem `_OPENAI_KHONG_CHAT`): bỏ dòng không chat được, thay vì chỉ giữ mấy
+        # tiền tố quen mặt. Bản cũ giữ đúng `gpt/o1/o3/o4/chatgpt` nên OpenAI mở dòng tên khác
+        # là dòng đó biến mất khỏi trình chọn - y hệt ca Fable 5.1, chỉ khác nhà.
+        return _loc_model_chat(ids, _OPENAI_KHONG_CHAT) or None
     if provider == "anthropic-api":
         key = m.get("anthropic_api_key")
         if not key:
@@ -3956,10 +4001,15 @@ async def _fetch_provider_models(provider, m):
             r = await c.get("https://generativelanguage.googleapis.com/v1beta/models", params={"key": key})
             r.raise_for_status()
             data = r.json().get("models", [])
-        # name dạng 'models/gemini-2.5-flash' → lấy đuôi; chỉ giữ model sinh nội dung (bỏ embedding/aqa)
+        # name dạng 'models/gemini-2.5-flash' → lấy đuôi. Chính Google đã nói model nào sinh
+        # được nội dung qua `supportedGenerationMethods`, nên đó là bộ lọc đúng.
+        #
+        # Bản cũ đòi THÊM tên phải bắt đầu bằng "gemini". Điều kiện đó không thêm gì về mặt
+        # đúng-sai mà chỉ chặn: khoá nào được cấp dòng khác (gemma, learnlm, hay một dòng mới
+        # Google đặt tên khác) thì dòng đó không bao giờ hiện ra, im lặng như ca Fable 5.1.
         ids = [(x.get("name") or "").split("/")[-1] for x in data
                if "generateContent" in (x.get("supportedGenerationMethods") or [])]
-        return sorted(i for i in ids if i.startswith("gemini")) or None
+        return sorted(_loc_model_chat(ids, _GEMINI_KHONG_CHAT)) or None
     if provider == "groq":
         key = m.get("groq_api_key")
         if not key:
@@ -10545,7 +10595,7 @@ async def websocket_endpoint(ws: WebSocket):
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
                 _cost = None
-                _cli_prompt = _cli_think(reasoning, user_message)
+                _cli_prompt = _cli_do_sau(cli, reasoning, user_message)
                 if not cli.session_id:
                     # Bỏ --resume là Claude Code mất sạch mạch cũ. Mở mạch mới mà không mang
                     # theo gì thì đó không phải tiết kiệm, đó là làm hỏng hội thoại: người
@@ -13664,7 +13714,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _streamed = ""   # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
         loi = []
         _pinged = False
-        _cli_prompt = _cli_think(reasoning, text)
+        _cli_prompt = _cli_do_sau(cli, reasoning, text)
         if not getattr(cli, "session_id", None):
             # Chưa có mạch native (phiên mới, hoặc vừa restart nên object engine dựng lại từ
             # đầu) thì mồi transcript đã lưu vào ĐÚNG MỘT lượt, y như dashboard vẫn làm. Có mạch

@@ -499,12 +499,15 @@ _ADAPTIVE_THINKING = ("opus-5", "opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5",
                       "sonnet-5", "sonnet-4-6", "fable-5", "mythos-5")
 
 
-# Thang độ sâu suy nghĩ của Javis. Nhiều nấc hơn bộ low/medium/high mà API nhận, vì hai nấc
-# trên cùng phục vụ đường Claude Code (từ khoá think) và đường Anthropic model cũ (budget token)
-# - hai chỗ Javis tự điều khiển được độ sâu.
+# Thang độ sâu suy nghĩ của Javis, sáu nấc.
 REASONING_LEVELS = ("off", "low", "medium", "high", "xhigh", "ultra")
-# Giá trị effort GỬI LÊN API. Nhà cung cấp chỉ nhận low|medium|high; gửi "ultra" là ăn 400 và
-# hỏng cả lượt chat. Nên hai nấc trên cùng quy về "high" khi nói chuyện với API.
+# Giá trị effort GỬI LÊN API kiểu OpenAI (OpenAI, Groq, Gemini, OpenRouter, Codex). Mấy nhà đó
+# chỉ nhận low|medium|high; gửi "ultra" là ăn 400 và hỏng cả lượt chat, nên hai nấc trên cùng
+# quy về "high".
+#
+# Anthropic thì KHÁC và có bảng riêng bên dưới (`_anthropic_effort`): Messages API nhận đủ
+# low|medium|high|xhigh|max, nên dùng bảng này cho họ là bóp hai nấc trên cùng thành "Cao" -
+# người dùng bấm "Tối đa" mà không có gì đổi, im lặng, không báo lỗi gì.
 _API_EFFORT = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "ultra": "high"}
 
 
@@ -517,6 +520,28 @@ def api_effort(reasoning):
     return _API_EFFORT.get(reasoning or "", "medium")
 
 
+# Model Anthropic nhận mức effort "xhigh" (mức này ra mắt cùng Opus 4.7; 4.6 trở về trước
+# không có). Gửi "xhigh" cho model không hiểu là 400, nên chia làm hai nhóm.
+_EFFORT_CO_XHIGH = ("opus-5", "opus-4-8", "opus-4-7", "sonnet-5", "fable-5", "mythos-5")
+# Nhóm có "max" nhưng KHÔNG có "xhigh".
+_EFFORT_CO_MAX = ("opus-4-6", "sonnet-4-6")
+
+
+def _anthropic_effort(model, reasoning):
+    """Mức Javis -> mức effort của Messages API, theo đúng thứ model đó nhận được.
+
+    Vì sao không dùng chung `api_effort`: bảng kia bóp "xhigh" và "ultra" xuống "high" cho hợp
+    với các nhà kiểu OpenAI, nên trên Anthropic thì ba nấc trên cùng của Javis ra cùng một kết
+    quả. Người dùng chọn "Tối đa" và không có gì thay đổi - hỏng kiểu im lặng nhất.
+    """
+    m = (model or "").lower()
+    if reasoning == "ultra":
+        return "max" if any(k in m for k in _EFFORT_CO_XHIGH + _EFFORT_CO_MAX) else "high"
+    if reasoning == "xhigh":
+        return "xhigh" if any(k in m for k in _EFFORT_CO_XHIGH) else "high"
+    return api_effort(reasoning)
+
+
 def _anthropic_reasoning(model, reasoning):
     """Phần payload thinking cho Messages API theo mức reasoning (xem REASONING_LEVELS).
     Model 4.6+ → adaptive thinking + effort (budget_tokens bị 400 trên 4.7/4.8).
@@ -527,7 +552,7 @@ def _anthropic_reasoning(model, reasoning):
     if any(k in m for k in _ADAPTIVE_THINKING):
         return {
             "thinking": {"type": "adaptive", "display": "summarized"},
-            "output_config": {"effort": api_effort(reasoning)},
+            "output_config": {"effort": _anthropic_effort(model, reasoning)},
             "max_tokens": 16000,   # chừa chỗ cho thinking + câu trả lời (đang stream nên không lo timeout)
         }
     # Model cũ: budget_tokens là chỗ hai nấc trên cùng khác nhau THẬT, không phải nhãn suông.

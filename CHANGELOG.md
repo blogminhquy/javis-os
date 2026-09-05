@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.41] - 2026-09-05
+### Sửa lỗi
+- **Hai mức suy nghĩ cao nhất giờ khác nhau thật.** "Rất cao" và "Tối đa" trước đây ra cùng một kết quả trên mọi bộ não, bấm mức nào cũng như nhau mà không có gì báo. Nay Javis dùng đúng cần gạt của Claude Code và của Anthropic nên chọn mức nào ra mức đó.
+- **Đổi mức suy nghĩ không còn dính thêm chữ vào tin nhắn của bạn.** Trước đây Javis nhét một câu nhắc vào cuối mỗi câu hỏi để ra hiệu cho model; giờ đi bằng cài đặt thật, đỡ tốn token và tin nhắn sạch hơn.
+- **Model mới của OpenAI và Google cũng tự hiện ra.** Hai nhà này bị lọc theo tên nên dòng model đặt tên khác kiểu cũ là biến mất khỏi hộp chọn. Đây cùng một lỗi với vụ thiếu Fable 5.1, chỉ khác nhà cung cấp.
+
 ## [0.55.40] - 2026-09-05
 ### Thêm mới
 - **Toàn bộ tài liệu hướng dẫn giờ có bản tiếng Anh.** 27 trang trong `docs/`, cộng hướng dẫn cài lên server và hướng dẫn đóng góp, đều có bản song ngữ.
