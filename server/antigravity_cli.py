@@ -143,6 +143,32 @@ def co_co(*ten_co: str) -> bool:
     return any(c in txt for c in ten_co)
 
 
+# ---- Mức effort: chỉ truyền khi CHÍNH `--help` khai cả cờ LẪN giá trị ----
+#
+# Cùng tinh thần `co_co` nhưng chặt hơn một nấc, vì ở đây sai không chỉ mất một tuỳ chọn: một
+# cờ `--effort` có thật mà chỉ nhận `low|high` thì gửi "medium" là CLI thoát ngay, hỏng trọn
+# lượt chat. Nên phải thấy TÊN CỜ trong help, và thấy CẢ GIÁ TRỊ định gửi, mới truyền.
+#
+# Hệ quả thành thật: bản CLI nào không liệt kê giá trị trong help thì Javis không truyền gì
+# cả, và độ sâu suy nghĩ rơi về câu nhắc trong prompt. Đó là chủ ý - thà mất một tuỳ chọn còn
+# hơn đoán một giá trị rồi làm hỏng lượt chat của người dùng. Khi CLI khai rõ ra thì phần này
+# tự chạy, khỏi sửa code.
+_CO_EFFORT = ("--effort", "--reasoning-effort")
+
+
+def co_effort(muc: Optional[str]) -> list:
+    """['--effort', '<muc>'] nếu bản CLI này khai đủ cả hai, không thì [] (không truyền gì)."""
+    if not muc:
+        return []
+    txt = _help_text()
+    if not txt or not re.search(r"\b" + re.escape(str(muc)) + r"\b", txt):
+        return []
+    for co in _CO_EFFORT:
+        if co in txt:
+            return [co, str(muc)]
+    return []
+
+
 def nhan_prompt_qua_stdin() -> bool:
     """`--help` của bản này có TỰ KHAI là đọc prompt từ stdin không.
 
@@ -934,6 +960,9 @@ class AntigravityCLI:
         # lúc ghi đè header X-Javis-Vault của nhau trong file HOME dùng chung.
         self.mcp_config: Optional[str] = None
         self.extra_args: list[str] = []
+        # Độ sâu suy nghĩ (`main._cli_do_sau_khac` đặt). None = không truyền cờ nào.
+        # Chỉ tới được dòng lệnh khi `co_effort` thấy bản CLI này khai đủ cờ lẫn giá trị.
+        self.effort = None
         self.include_dirs: list[str] = []
         # Trần thời gian một lượt. Gemini CLI không cần vì `--approval-mode` chặn mọi câu hỏi;
         # ở đây mức suggest/auto CHƯA ĐO được là CLI có dừng hỏi không, mà headless dừng hỏi là
@@ -949,6 +978,7 @@ class AntigravityCLI:
         if self.model and co_co("--model"):
             args += ["--model", self.model]
         args += co_quyen_cho_mode(self.mode)
+        args += co_effort(self.effort)
         if self.mcp_config and co_co("--mcp-config", "--mcp-config-file"):
             args += ["--mcp-config", self.mcp_config]
         if co_co("--output-format"):

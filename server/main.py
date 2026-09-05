@@ -40,6 +40,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 from claude_cli import CodexCLI, claude_engine, find_claude_cli, find_codex_cli, cancel_all, _empty_mcp_file, auth_status as claude_auth_status, auth_login as claude_auth_login, auth_logout as claude_auth_logout, auth_login_ui_start, auth_login_ui_code, mcp_native_add, mcp_native_remove, mcp_native_status, mcp_open_auth_terminal, mcp_native_list, codex_mcp_native_list, codex_mcp_native_add, codex_mcp_native_remove, codex_mcp_native_status, codex_mcp_open_login_terminal
 import claude_cli   # binary `claude`: tìm đường, auth, và danh mục model nhúng sẵn trong CLI
+import codex_models   # thang effort mà CHÍNH Codex khai cho từng model (model/list)
 import config as cfgmod
 import update_state
 _ver_tuple = update_state.ver_tuple
@@ -1697,7 +1698,7 @@ def _antigravity_sub_stream(model, messages, reasoning="off", *, brain=None, tag
         _apply_antigravity_hub(g, _brain_root(brain), mode=mode)
     # Dùng chung bộ dịch sự kiện với Gemini CLI: hai engine đã phát cùng một hợp đồng
     # {tool_call, final, usage, error}, viết lại là hai bản dễ lệch nhau.
-    return _cli_sub_doc(g, _cli_think(reasoning, prompt), model)
+    return _cli_sub_doc(g, _cli_do_sau_khac(g, antigravity_cli, reasoning, prompt), model)
 
 
 def _grok_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat",
@@ -1716,7 +1717,7 @@ def _grok_sub_stream(model, messages, reasoning="off", *, brain=None, tag="chat"
         _apply_grok_hub(g, _brain_root(brain), mode=mode)
     # Dùng chung bộ dịch sự kiện với Gemini/Antigravity: ba engine đã phát cùng một hợp đồng
     # {tool_call, final, usage, error}, viết lại là ba bản dễ lệch nhau.
-    return _cli_sub_doc(g, _cli_think(reasoning, prompt), model)
+    return _cli_sub_doc(g, _cli_do_sau_khac(g, grok_cli, reasoning, prompt), model)
 
 
 async def _cli_sub_doc(g, prompt, model):
@@ -2745,6 +2746,87 @@ def _cli_do_sau(cli, reasoning, message):
             return _cli_think(reasoning, message)
         return message
     return _cli_think(reasoning, message)
+
+
+# Câu nhắc suy nghĩ TRUNG TÍNH, cho engine CLI không phải Claude Code.
+#
+# Vì sao không dùng chung `_CLI_THINK_KW`: mấy chữ "think hard" / "ultrathink" trong đó là TỪ
+# KHOÁ RIÊNG của Claude Code, engine khác không hiểu. Nhét chúng vào prompt của Grok hay
+# Antigravity chỉ là dán một chữ lạ vào cuối câu hỏi của người dùng, không đổi được gì. Câu
+# tiếng Việt bên dưới thì model nào cũng đọc được, và nó nói rõ ĐỘ SÂU muốn có.
+_GOI_SUY_NGHI = {
+    "low": "Trả lời gọn, không cần cân nhắc nhiều.",
+    "medium": "Suy nghĩ kỹ trước khi trả lời.",
+    "high": "Suy nghĩ thật kỹ, cân nhắc vài hướng rồi mới trả lời.",
+    "xhigh": "Suy nghĩ rất kỹ: liệt kê các hướng có thể, tự phản biện, rồi mới trả lời.",
+    "ultra": ("Dồn công sức tối đa: liệt kê các hướng có thể, tự phản biện từng hướng, "
+              "kiểm lại kết luận một lượt nữa rồi mới trả lời."),
+}
+
+# Thang effort dùng khi nói chuyện với CLI ngoài Claude Code, xếp từ nhẹ tới nặng. Tên lấy
+# theo thang chung của các nhà cung cấp để `co_effort` đối chiếu thẳng với `--help` của CLI.
+_THANG_EFFORT = ("low", "medium", "high", "xhigh", "max")
+_BAC_JAVIS = {"low": 0, "medium": 1, "high": 2, "xhigh": 3, "ultra": 4}
+
+
+def _nhac_suy_nghi(reasoning, message):
+    """Chèn câu nhắc độ sâu vào prompt (off hoặc mức lạ = giữ nguyên)."""
+    cau = _GOI_SUY_NGHI.get(reasoning or "")
+    return f"{message}\n\n({cau})" if cau else message
+
+
+def _co_effort_lui(mod, reasoning):
+    """Cờ effort cao nhất mà bản CLI này THẬT SỰ khai, tính từ mức người dùng chọn lùi xuống.
+
+    Lùi dần là để giữ đúng thứ tự: nếu `ultra` (max) không được khai mà `xhigh` thì có, ultra
+    phải ra xhigh chứ không được rơi thẳng về câu nhắc trong prompt - rơi như thế là nấc TRÊN
+    lại yếu hơn nấc dưới, đúng kiểu vô lý mà người dùng không bao giờ đoán ra.
+    """
+    i = _BAC_JAVIS.get(reasoning or "")
+    if i is None:
+        return []
+    for muc in reversed(_THANG_EFFORT[:i + 1]):
+        co = mod.co_effort(muc)
+        if co:
+            return co
+    return []
+
+
+def _cli_do_sau_khac(cli, mod, reasoning, message):
+    """Độ sâu suy nghĩ cho Grok Build / Antigravity: cờ thật nếu có, không thì câu nhắc.
+
+    `mod` là module của engine (`grok_cli` / `antigravity_cli`) - chính nó giữ `co_effort`, và
+    chính nó biết bản CLI trên máy này khai những gì. Hai đường KHÔNG cộng dồn, cùng lý do đã
+    ghi ở `_cli_do_sau`.
+    """
+    co = _co_effort_lui(mod, reasoning)
+    if co:
+        try:
+            cli.effort = co[1]
+        except Exception:  # noqa: BLE001 - engine lạ thì rơi về câu nhắc, không phá lượt chat
+            return _nhac_suy_nghi(reasoning, message)
+        return message
+    return _nhac_suy_nghi(reasoning, message)
+
+
+def _codex_do_sau(cli, reasoning, message):
+    """Độ sâu suy nghĩ cho Codex CLI: `-c model_reasoning_effort=<mức>`.
+
+    Mức KHÔNG do Javis chọn theo một bảng chép tay mà lấy từ thang chính Codex khai cho đúng
+    model đang chạy (`model/list` -> `supported_reasoning_efforts`), nên không bao giờ gửi một
+    giá trị model không hiểu. Chưa hỏi được danh sách model lần nào thì `muc_cho` trả rỗng và
+    lượt chạy bằng mặc định của Codex, y như trước - kèm câu nhắc trong prompt cho đỡ phí.
+    """
+    try:
+        muc = codex_models.muc_cho(getattr(cli, "model", "") or "", reasoning or "")
+    except Exception:  # noqa: BLE001 - tra cứu hỏng không được phá lượt chat
+        muc = ""
+    if not muc:
+        return _nhac_suy_nghi(reasoning, message)
+    override = f"model_reasoning_effort={muc}"
+    if override not in cli.extra_config:
+        cli.extra_config.append(override)
+    return message
 
 
 def _toml_str(s):
@@ -10035,7 +10117,7 @@ async def websocket_endpoint(ws: WebSocket):
                     kcli.session_id = _k_mach or None
                     # Mạch mới thì mồi lại bằng transcript đã lưu, y như Codex/Gemini: không có
                     # bước này là mở mạch mới = mất sạch ngữ cảnh cuộc đang nói dở.
-                    _k_cur = _cli_think(reasoning, user_message)
+                    _k_cur = _cli_do_sau_khac(kcli, grok_cli, reasoning, user_message)
                     _k_raw = [{"role": _m["role"], "content": _m["content"]}
                               for _m in store.get_messages(conv_sid)[:-1]
                               if _m["role"] in ("user", "assistant") and _m.get("content")]
@@ -10101,7 +10183,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "model": actual_model or "", "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in)}))
                 else:
-                    _a_cur = _cli_think(reasoning, user_message)
+                    _a_cur = _cli_do_sau_khac(acli, antigravity_cli, reasoning, user_message)
                     _a_raw = [{"role": _m["role"], "content": _m["content"]}
                               for _m in store.get_messages(conv_sid)[:-1]
                               if _m["role"] in ("user", "assistant") and _m.get("content")]
@@ -10177,7 +10259,7 @@ async def websocket_endpoint(ws: WebSocket):
                 if not ccli.is_available():
                     await ws.send_text(json.dumps({"type": "error", "content": "Chưa cài Codex CLI trong container. ChatGPT subscription là THỬ NGHIỆM - dùng Claude Code hoặc OpenRouter cho ổn định (đổi ở Models)."}))
                 else:
-                    _codex_current = _cli_think(reasoning, user_message)
+                    _codex_current = _codex_do_sau(ccli, reasoning, user_message)
                     _codex_raw = [{"role": _m["role"], "content": _m["content"]}
                                   for _m in store.get_messages(conv_sid)[:-1]
                                   if _m["role"] in ("user", "assistant") and _m.get("content")]
@@ -13610,7 +13692,7 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                         if m.get("role") in ("user", "assistant") and m.get("content")]
             except Exception:
                 _raw = []
-        _hien_tai = _cli_think(reasoning, text)
+        _hien_tai = _codex_do_sau(ccli, reasoning, text)
         thread_cu = (getattr(ccli, "session_id", None) or "")
         # Chưa có thread (phiên mới, hoặc vừa bị xoá liên kết vì provider khác chen vào) thì
         # seed transcript đúng một lượt; có thread rồi thì resume native, khỏi gửi lại lịch sử.
