@@ -702,9 +702,10 @@
             <option value="openrouter" data-i18n="setm.engine_or">OpenRouter - MCP Javis + skill + loop (không lệnh máy)</option>
           </select>
           <label data-i18n="setm.claude_model">Model Claude (khi dùng CLI)</label>
+          <!-- Danh sách nạp động từ /provider/models (app.js: loadClaudeModels). Mấy option
+               dưới đây chỉ là chỗ đứng trước khi tải xong, không phải danh sách thật. -->
           <select id="setClaudeModel">
-            <option value="" data-i18n="common.default">Mặc định</option><option value="sonnet">Sonnet</option>
-            <option value="opus">Opus</option><option value="haiku">Haiku</option>
+            <option value="" data-i18n="common.default">Mặc định</option>
           </select>
           <label>OpenRouter API key <span class="dim" id="setKeyHint"></span></label>
           <input id="setOrKey" type="password" placeholder="Ví dụ: sk-or-... (để trống nếu không đổi)" data-i18n-ph="setm.or_key_ph">
