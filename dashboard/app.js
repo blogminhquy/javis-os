@@ -2243,6 +2243,25 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
 });
 
 // ---- Settings ----
+// Ô "Model Claude (khi dùng CLI)" nạp danh sách từ server thay vì ba lựa chọn ghi cứng trong
+// index.html. Ghi cứng là một cái bẫy im lặng: dòng model mới (Fable) không có trong ô, mà
+// gán `select.value` một giá trị không có option thì trình duyệt lặng lẽ nhả về "" - tức mở
+// Cài đặt rồi bấm Lưu là model đang chạy bị đổi về Mặc định mà không ai nói gì.
+async function loadClaudeModels(cur) {
+  const sel = document.getElementById("setClaudeModel");
+  if (!sel) return;
+  let ids = [];
+  try {
+    const d = await (await fetch("/provider/models?provider=anthropic-cli")).json();
+    ids = d.models || [];
+  } catch (e) {}
+  if (cur && ids.indexOf(cur) < 0) ids.unshift(cur);   // model đang chạy luôn phải có mặt
+  const nhan = (id) => id.charAt(0).toUpperCase() + id.slice(1);
+  sel.innerHTML = '<option value="">Mặc định</option>'
+    + ids.map((id) => `<option value="${id}">${nhan(id)}</option>`).join("");
+  sel.value = cur || "";
+}
+
 async function openSettings() {
   settingsOverlay.classList.add("open");
   try {
@@ -2250,7 +2269,7 @@ async function openSettings() {
     _settingsCache = s;
     document.getElementById("setWsName").value = s.workspace_name || "";
     document.getElementById("setEngine").value = (s.model && s.model.engine) || "cli";
-    document.getElementById("setClaudeModel").value = (s.model && s.model.claude_model) || "";
+    await loadClaudeModels((s.model && s.model.claude_model) || "");
     loadOrModels((s.model && s.model.openrouter_model) || "");
     document.getElementById("setKeyHint").textContent = (s.model && s.model.openrouter_key_set) ? "(đã lưu " + s.model.openrouter_key + ")" : "(chưa có)";
     document.getElementById("setTgEnabled").checked = !!(s.telegram && s.telegram.enabled);

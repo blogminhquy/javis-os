@@ -133,11 +133,17 @@ _DEFAULT = {
         # Catalog model theo provider (Telegram /model dùng key 'claude'+'openrouter'; picker dùng cả 3).
         "catalog": {
             # anthropic-cli: danh sách nền, LUÔN dùng được kể cả khi máy không có API key.
-            # /provider/models hỏi API Anthropic bằng `anthropic_api_key` (nếu có) rồi ghi đè
-            # danh sách THẬT vào đây. Không có key thì giữ nguyên các alias dưới đây - chúng
-            # luôn trỏ tới bản mới nhất của từng dòng nên không bao giờ lạc hậu.
-            "claude": ["opus", "sonnet", "haiku", "fable"],
-            "anthropic-api": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            # /provider/models lấy danh sách THẬT theo hai đường (API key nếu có, không thì đọc
+            # danh mục model nhúng trong chính binary `claude`) rồi ghi lại vào đây. Danh sách
+            # nhớ được KHÔNG đè danh sách này nữa mà HỢP với nó (xem `provider_models_index`),
+            # vì lần ghi đầu tiên từng khoá vĩnh viễn người dùng vào dàn model của ngày hôm đó.
+            # Alias đứng trước vì alias luôn trỏ bản mới nhất của dòng; id đầy đủ đứng sau để
+            # `_claude_api_model` dịch được alias sang tên thật.
+            "claude": ["fable", "opus", "sonnet", "haiku",
+                       "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+                       "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+            "anthropic-api": ["claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+                              "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)
             "groq": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"],  # Groq (picker load động)

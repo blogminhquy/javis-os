@@ -273,7 +273,15 @@ check("CANARY: model OpenRouter khớp được bảng giá",
       up._khoa_gia("anthropic/claude-opus-4", _p) == "claude-opus")
 check("và khớp bản CỤ THỂ chứ không rơi về tên hãng",
       up._khoa_gia("deepseek/deepseek-r1", _p) == "deepseek-r1")
-check("tên nguyên văn vẫn khớp như cũ", up._khoa_gia("claude-opus-5", _p) == "claude-opus")
+# Dòng Claude khai theo TỪNG BẢN từ 0.55.39: Anthropic hạ giá Opus xuống 5$/25$ kể từ 4.5,
+# còn Fable thì ĐẮT HƠN Opus (10$/50$). Bảng gộp một mục "claude-opus" = 15$ khai vống chi phí
+# của người chạy Opus 5 lên gấp ba. Mục trần vẫn còn, và vẫn đúng cho Opus 4.1 trở về trước.
+check("tên nguyên văn khớp ĐÚNG BẢN chứ không rơi về mục chung",
+      up._khoa_gia("claude-opus-5", _p) == "claude-opus-5")
+check("bản cũ không có mục riêng thì vẫn rơi về mục chung của dòng",
+      up._khoa_gia("claude-opus-4-1-20250805", _p) == "claude-opus")
+check("Fable đắt hơn Opus, không được rẻ hơn Sonnet",
+      _p["claude-fable"]["in"] > _p["claude-opus-5"]["in"] > _p["claude-sonnet-5"]["in"])
 check("model lạ vẫn trả 0, không đoán bừa", up._khoa_gia("mo-hinh-la-hoac", _p) == "")
 
 # ============================================================
@@ -407,7 +415,10 @@ check("cấu hình cũ (claude_model) vẫn đọc được",
       main._ten_model_chinh({"claude_model": "haiku"}) == "haiku")
 check("CANARY: và giá đi theo đúng model đó, không rơi về mặc định",
       main._gia_input_1m(main._ten_model_chinh(
-          {"main": {"model": "claude-opus-5"}}), {}) == (15.0, "bang"))
+          {"main": {"model": "claude-opus-5"}}), {}) == (5.0, "bang"))
+check("giá khớp theo BẢN: Fable đắt hơn Opus 5, Opus 4.1 vẫn ở mức cũ",
+      main._gia_input_1m("claude-fable-5-1", {}) == (10.0, "bang")
+      and main._gia_input_1m("claude-opus-4-1", {}) == (15.0, "bang"))
 # Dò tay từng khoá thì cấu hình MẶC ĐỊNH đã sai: `openrouter_model` có sẵn giá trị
 # "openai/gpt-4o-mini" kể cả khi engine đang là anthropic-cli chạy Opus. Lấy nhầm là $0,15
 # thay cho $15 - lệch 100 lần, và lệch theo hướng khai thấp phần tiết kiệm xuống.

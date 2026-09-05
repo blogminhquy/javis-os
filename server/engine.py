@@ -490,7 +490,13 @@ def ollama_local_url() -> str:
     return (ep + "/v1/chat/completions") if ep else ""
 
 # Model Anthropic hỗ trợ adaptive thinking + output_config.effort (khỏi budget_tokens).
-_ADAPTIVE_THINKING = ("opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5", "sonnet-4-6", "fable-5", "mythos-5")
+#
+# Thiếu tên nào ở đây là lượt chat của model ĐÓ rơi xuống nhánh `budget_tokens` bên dưới, mà
+# dòng 5 trả 400 cho tham số đó - tức bật "độ sâu suy nghĩ" lên là hỏng cả lượt, im lặng với
+# người dùng và chỉ hiện ra như một lỗi chung chung. `opus-5` và `sonnet-5` đã sót đúng như
+# vậy: khớp theo chuỗi con nên "claude-opus-5" không dính mục "opus-4-8" nào cả.
+_ADAPTIVE_THINKING = ("opus-5", "opus-4-8", "opus-4-7", "opus-4-6", "opus-4-5",
+                      "sonnet-5", "sonnet-4-6", "fable-5", "mythos-5")
 
 
 # Thang độ sâu suy nghĩ của Javis. Nhiều nấc hơn bộ low/medium/high mà API nhận, vì hai nấc

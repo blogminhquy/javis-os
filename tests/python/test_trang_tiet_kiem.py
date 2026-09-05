@@ -229,8 +229,11 @@ _tien = main._do_duoc_tiet_kiem(_tasks, 24.0, {"model": "claude-opus-5"})["tien"
 check("có quy đổi ra tiền", _tien.get("usd_thang", 0) > 0)
 check("CANARY: không còn quy đổi sang đồng",
       "vnd_thang" not in _tien and "ty_gia" not in _tien)
+# Tra bằng khoá "opus-5" chứ không phải "opus": từ 0.55.39 bảng giá khai theo TỪNG BẢN, vì
+# Anthropic hạ giá dòng Opus xuống 5$ kể từ 4.5 còn mục "opus" trần giữ mức 15$ của 4.1 trở về
+# trước. Khớp theo chuỗi con dài nhất nên "claude-opus-5" phải ăn mục cụ thể.
 check("giá lấy theo ĐÚNG model đang dùng, không phải một số cố định",
-      _tien["gia_1m_usd"] == main._GIA_INPUT_1M["opus"] and _tien["nguon_gia"] == "bang")
+      _tien["gia_1m_usd"] == main._GIA_INPUT_1M["opus-5"] and _tien["nguon_gia"] == "bang")
 check("model rẻ hơn thì tiền quy đổi nhỏ hơn",
       main._do_duoc_tiet_kiem(_tasks, 24.0, {"model": "claude-haiku-4-5"})["tien"]["usd_thang"]
       < _tien["usd_thang"])
