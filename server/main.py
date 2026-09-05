@@ -9834,6 +9834,20 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
     return clean
 
 
+def _persist_limit_notice(store, conv_sid, user_message, notice):
+    """Lưu câu "hết lượt gói thuê bao" của một lượt KHÔNG có câu trả lời.
+
+    Cố ý KHÔNG đi qua _persist_turn: một câu báo lỗi không đáng vào nhật ký Memory hay hàng
+    đợi tự học. Chỉ ghi vào kho phiên (để F5 còn thấy) và đặt tên phiên (phiên mới vẫn có
+    tên ở Lịch sử trong lúc chờ chạy lại). Khi lượt được chạy lại, `_start_resumed_turn` rút
+    câu này ra bằng pop_last_message."""
+    try:
+        store.append_message(conv_sid, "assistant", notice)
+        store.auto_title(conv_sid, user_message)
+    except Exception as _e:
+        print(f"[limit notice] {type(_e).__name__}: {_e}", file=sys.stderr)
+
+
 # ============================================
 # WebSocket - Voice chat với Claude Code
 # ============================================
@@ -10766,11 +10780,7 @@ async def websocket_endpoint(ws: WebSocket):
             # này khi hạn mức mở. Có câu trả lời dở dang thì để nguyên như một lượt thường.
             if _limit_state.get("notice") and not final_text:
                 _noi, _lim = _limit_state["notice"], _limit_state["limit"]
-                try:
-                    store.append_message(conv_sid, "assistant", _noi)
-                    store.auto_title(conv_sid, user_message)   # phiên mới vẫn có tên ở Lịch sử
-                except Exception as _e:
-                    print(f"[limit notice] {type(_e).__name__}: {_e}", file=sys.stderr)
+                _persist_limit_notice(store, conv_sid, user_message, _noi)
                 _auto_pref = bool((_cfg_all.get("dashboard") or {}).get("auto_resume", True))
                 _item = limit_resume.REGISTRY.schedule(
                     conv_sid, float(getattr(_lim, "reset_epoch", 0) or 0),
