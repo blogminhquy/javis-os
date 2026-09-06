@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.48] - 2026-09-05
+### Thêm mới
+- **Khung "Trong cuộc trò chuyện này" giờ tự thêm file và link được**, đúng như khung Project: tìm file trong brain, tải file từ máy lên (hoặc kéo thả vào khung), dán link, gỡ ra khi không cần nữa.
+- Danh sách chia hai phần rõ ràng: phần **bạn thêm** nằm trên, phần Javis tự dò ra từ tin nhắn nằm dưới. File Javis ghi lặng lẽ giữa lượt trước nay không lọt vào danh sách thì nay bạn gắn tay vào là xong.
+- **Ghim một file là Javis đọc sẵn nội dung nó trong mọi lượt của riêng cuộc đó** (tối đa 2000 ký tự mỗi file). Không ghim thì Javis chỉ thấy tên và tự mở khi cần.
+
 ## [0.55.47] - 2026-09-05
 ### Sửa lỗi
 - **Javis không còn "quên" mất các gói bạn đã cài.** Khi có nhiều nguồn, Javis giấu bớt công cụ đi cho nhẹ và chỉ giữ một bản mục lục. Nhưng mục lục đó gộp hết tool của MỌI gói vào một dòng chung chung, nên Javis không biết là mình đang có gói TTS Dropship, Meta Ads hay Zalo, rồi trả lời thẳng là chưa kết nối dù gói vẫn chạy tốt.

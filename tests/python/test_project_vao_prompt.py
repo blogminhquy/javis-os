@@ -144,7 +144,7 @@ check("CANARY: đường chat dashboard truyền project_id",
 check("CANARY: engine gói thuê bao cũng truyền",
       'lang=_lang_qd, project_id=_row0.get("project_id") or "",' in _src)
 check("CANARY: kênh Telegram cũng truyền",
-      "build_system_prompt(brain, lang=_lang_qd, project_id=_pid)" in _src)
+      "build_system_prompt(brain, lang=_lang_qd, project_id=_pid," in _src)
 # Chỗ thứ tư trong spec là hàm ƯỚC TÍNH của trang chẩn đoán (session_id "uoc-tinh" - phiên
 # giả). Nó đo prompt CHUNG chứ không đo một cuộc cụ thể, nên cố ý KHÔNG truyền project_id:
 # gắn vào là con số ước tính nhảy theo project đang mở, mà nó vốn không nói về project nào.

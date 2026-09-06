@@ -435,7 +435,24 @@ def _project_block(project_id: str, chi_huong_dan: bool = False) -> str:
     if not files and not links:
         return ra
 
-    brain = p.get("brain") or "brain"
+    dong, da_nap = _liet_ke_tai_lieu(p.get("brain") or "brain", files, links)
+    if dong:
+        ra += ("\n\n# === TÀI LIỆU & LINK CỦA PROJECT ===\n"
+               "Đây là DANH SÁCH, không phải nội dung: mở file bằng tool đọc file khi cần, "
+               "đừng đoán nội dung từ cái tên. Link chỉ mở được nếu lượt này có tool duyệt web; "
+               "không có thì nói thẳng chứ đừng đoán nội dung trang.\n" + "\n".join(dong))
+    if da_nap:
+        ra += ("\n\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap))
+    return ra
+
+
+def _liet_ke_tai_lieu(brain: str, files: list, links: list):
+    """(dòng liệt kê, nội dung file đã ghim) cho một danh sách tài liệu + link.
+
+    Tách khỏi `_project_block` vì khung "file & link của CUỘC TRÒ CHUYỆN" gắn tay dùng lại
+    nguyên bộ luật này. Hai chỗ mà chép đôi thì trần token trôi lệch, và trần token trôi lệch
+    là kiểu hỏng không ai thấy cho tới lúc hoá đơn hoặc lỗi quá hạn mức xuất hiện.
+    """
     dong, da_nap, con_lai = [], [], PROJECT_GHIM_TONG_MAX
     for f in files[:PROJECT_FILES_LIET_KE]:
         ten, duong = f.get("name") or "", f.get("path") or ""
@@ -470,24 +487,57 @@ def _project_block(project_id: str, chi_huong_dan: bool = False) -> str:
     for l in links[:PROJECT_FILES_LIET_KE]:
         dong.append(f"- [link] {l.get('label') or l.get('url')} - {l.get('url')}"
                     + (" (ghim)" if l.get("pinned") else ""))
+    return dong, da_nap
+
+
+def _session_block(session_id: str) -> str:
+    """Tài liệu & link người dùng TỰ GẮN vào CUỘC TRÒ CHUYỆN này. "" nếu chưa gắn gì.
+
+    Song sinh với `_project_block`, và cố ý cùng trần token: project là "luôn dùng cho mọi
+    cuộc trong nhóm", còn cái này là "chỉ cuộc này". Không có nó thì nút thêm file chỉ là một
+    danh sách để ngắm - người dùng gắn bảng giá vào cuộc rồi hỏi ngay, và Javis trả lời như
+    chưa hề thấy gì.
+
+    Ghim thì NẠP NỘI DUNG, y như project: gắn tên vào cho biết chỗ mà tìm, ghim vào là bảo
+    Javis đọc sẵn.
+    """
+    if not session_id:
+        return ""
+    try:
+        store = get_store()
+        sess = store.get_session(session_id)
+        if not sess:
+            return ""
+        files = store.list_session_files(session_id)
+        links = store.list_session_links(session_id)
+    except Exception:
+        return ""
+    if not files and not links:
+        return ""
+    dong, da_nap = _liet_ke_tai_lieu(sess.get("brain") or "brain", files, links)
+    ra = ""
     if dong:
-        ra += ("\n\n# === TÀI LIỆU & LINK CỦA PROJECT ===\n"
-               "Đây là DANH SÁCH, không phải nội dung: mở file bằng tool đọc file khi cần, "
-               "đừng đoán nội dung từ cái tên. Link chỉ mở được nếu lượt này có tool duyệt web; "
-               "không có thì nói thẳng chứ đừng đoán nội dung trang.\n" + "\n".join(dong))
+        ra += ("\n\n# === TÀI LIỆU & LINK NGƯỜI DÙNG GẮN VÀO CUỘC NÀY ===\n"
+               "Người dùng tự gắn tay ở khung \"Trong cuộc trò chuyện này\", nên đây là thứ họ "
+               "coi là quan trọng cho ĐÚNG cuộc này. Vẫn là DANH SÁCH chứ không phải nội dung: "
+               "mở file bằng tool đọc file khi cần, đừng đoán nội dung từ cái tên.\n"
+               + "\n".join(dong))
     if da_nap:
-        ra += ("\n\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap))
+        ra += ("\n\n# === NỘI DUNG FILE ĐÃ GHIM TRONG CUỘC NÀY (nạp sẵn, không cần mở lại) ==="
+               + "".join(da_nap))
     return ra
 
 
 def build_system_prompt(brain: str = "brain", include_memory: bool = True,
                         include_skills: bool = True,
                         lang: "lang_mod.LangDecision | str | None" = None,
-                        project_id: str = "") -> str:
+                        project_id: str = "", session_id: str = "") -> str:
     """CLAUDE.md + nạp MEMORY.md của vault đang chọn → Javis luôn nhớ ngữ cảnh.
 
     `project_id`: hội thoại đang nằm trong project nào. Có thì ghép thêm hướng dẫn riêng +
-    danh sách tài liệu của project đó (xem `_project_block`)."""
+    danh sách tài liệu của project đó (xem `_project_block`).
+    `session_id`: cuộc trò chuyện đang chạy. Có thì ghép thêm tài liệu & link người dùng tự
+    gắn vào ĐÚNG cuộc đó (xem `_session_block`)."""
     base = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else ""
     # Chốt ngôn ngữ NGAY đầu hàm: khối NGÔN NGỮ ở cuối cần nó, mà danh sách skill ở giữa cũng
     # cần (mô tả skill là bề mặt ĐỐI CHIẾU với câu người dùng vừa gõ, nên nó phải cùng thứ
@@ -508,6 +558,13 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     if project_id:
         try:
             base += _project_block(project_id)
+        except Exception:
+            pass
+    # Ngay sau khối project, vì cùng loại: project là tài liệu của cả NHÓM, cái này là tài
+    # liệu của riêng CUỘC đang chạy - hẹp hơn nên đứng sau, gần câu hỏi hơn.
+    if session_id:
+        try:
+            base += _session_block(session_id)
         except Exception:
             pass
     # Đường dẫn lớp Agentic của vault đang làm việc (để Javis tạo agent/workflow/loop qua chat)
@@ -8699,8 +8756,12 @@ async def _start_scheduler():
                             # khung Project trỏ vào hư không. Đường dẫn lưu ở dạng tương đối
                             # nên ghép với CẢ trần duyệt lẫn gốc brain - thừa một ứng viên
                             # không tồn tại thì vô hại, thiếu một cái là mất file thật.
+                            # Cùng luật cho tài liệu người dùng gắn tay vào một CUỘC TRÒ
+                            # CHUYỆN: gắn vào là để dùng lâu dài, dọn mất thì khung "Trong
+                            # cuộc trò chuyện này" còn lại một hàng trỏ vào hư không.
                             try:
-                                _rel_proj = get_store().all_project_file_paths()
+                                _rel_proj = (get_store().all_project_file_paths()
+                                             | get_store().all_session_file_paths())
                             except Exception:
                                 _rel_proj = set()
                             for _mb in loop_feature.scheduler_brains():
@@ -9977,7 +10038,8 @@ async def websocket_endpoint(ws: WebSocket):
                 nonlocal sysprompt
                 if sysprompt is None:
                     sysprompt = build_system_prompt(
-                        brain, lang=_lang_qd, project_id=_row0.get("project_id") or ""
+                        brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
+                        session_id=conv_sid or ""
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
@@ -10003,6 +10065,7 @@ async def websocket_endpoint(ws: WebSocket):
                     return build_system_prompt(
                         brain, include_memory=include_memory, include_skills=include_skills,
                         lang=_lang_qd, project_id=_row0.get("project_id") or "",
+                        session_id=conv_sid or "",
                     ) + channel_context.build_channel_block(
                         "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
                         port=_javis_port(), brain_root=_brain_root(brain),
@@ -11245,12 +11308,177 @@ async def sessions_assets(session_id: str, brain: str = Query("")):
             "exists": co,
             "size": st.st_size if st else 0,
             "ts": v["ts"],
+            "manual": False,
+            "_that": str(rp),
         })
     ra_file.sort(key=lambda x: x["ts"], reverse=True)
     ra_link = sorted(links.values(), key=lambda x: x["ts"], reverse=True)
+    for l in ra_link:
+        l["manual"] = False
+
+    # ── Phần NGƯỜI DÙNG tự gắn ────────────────────────────────────────────────
+    # Trộn lúc ĐỌC chứ không ghi đè: máy vẫn đoán như cũ, người vẫn thêm được thứ máy không
+    # đoán ra. Trùng nhau thì bản TỰ GẮN thắng - chỉ nó mới có id để gỡ và ghim, nên để bản
+    # đoán được thắng là người dùng thấy file mình vừa thêm mà không bấm gỡ được.
+    tay_file, tay_link = _cuoc_tai_lieu_tay(session_id, sess)
+    da_co = {os.path.normcase(f["_that"]) for f in tay_file}
+    ra_file = tay_file + [f for f in ra_file
+                          if os.path.normcase(f.get("_that") or "") not in da_co]
+    url_tay = {l["url"] for l in tay_link}
+    ra_link = tay_link + [l for l in ra_link if l["url"] not in url_tay]
+    for f in ra_file:
+        f.pop("_that", None)
     return {"ok": True, "brain": b,
             "files": ra_file[:PHIEN_TS_MAX_FILE],
             "links": ra_link[:PHIEN_TS_MAX_LINK]}
+
+
+def _cuoc_tai_lieu_tay(session_id: str, sess: dict):
+    """Tài liệu & link người dùng TỰ GẮN vào cuộc này, đã dựng đúng khuôn hàng của danh sách.
+
+    Trả về (files, links). Mỗi file mang thêm `_that` = đường dẫn thật đã giải, để bên gọi
+    khử trùng với danh sách máy đoán rồi mới bỏ đi trước khi trả cho giao diện.
+
+    Brain lấy từ PHIÊN chứ không phải tham số `brain` của URL (khác nhánh máy tự dò ở trên).
+    Đường dẫn ở đây được rào `_safe_path` duyệt theo brain của phiên lúc GẮN, nên giải nó
+    theo một brain khác là ra một file khác hoặc ra không có gì.
+
+    File đã dời/xoá vẫn Ở LẠI danh sách với `exists: false`, đúng luật của link markdown:
+    gắn tay là một cử chỉ cố ý, im lặng bỏ đi thì người dùng tưởng thao tác của mình bị nuốt.
+    """
+    store = get_store()
+    brain = (sess.get("brain") or "brain").strip() or "brain"
+    broot = Path(_brain_root(brain)).resolve()
+    ra_f = []
+    for f in store.list_session_files(session_id):
+        duong = f.get("path") or ""
+        rp, co = None, False
+        try:
+            # `_safe_serve_path` (không phải `_safe_path`): đây là đường ĐỌC, và trần duyệt có
+            # thể cao hơn gốc brain nên đường dẫn lưu theo trần lẫn theo gốc đều phải giải
+            # được. Cùng lý do như chỗ nạp file ghim của project.
+            rp = Path(_safe_serve_path(brain, duong))
+            co = rp.is_file()
+        except Exception:
+            rp = None
+        ten = f.get("name") or duong.replace("\\", "/").split("/")[-1]
+        # Trần duyệt có thể CAO hơn gốc brain, nên file gắn tay chưa chắc nằm trong gốc brain.
+        # `_files_rel` ném ValueError ở đúng ca đó; rơi về đường dẫn đã lưu là đủ để hiện.
+        try:
+            hien = _files_rel(broot, rp) if rp else duong
+        except ValueError:
+            hien = duong
+        ra_f.append({
+            "id": f.get("id"),
+            "path": duong,
+            "brain_path": hien,
+            "name": rp.name if rp else ten,
+            "label": ten,
+            "image": os.path.splitext(duong)[1].lower() in IMG_EXTS,
+            "exists": co,
+            "size": 0,
+            "ts": f.get("added_at") or 0,
+            "pinned": bool(f.get("pinned")),
+            "manual": True,
+            "_that": str(rp) if rp else duong,
+        })
+    ra_l = [{
+        "id": l.get("id"),
+        "url": l.get("url") or "",
+        "label": l.get("label") or "",
+        "ts": l.get("added_at") or 0,
+        "vai": "",
+        "pinned": bool(l.get("pinned")),
+        "manual": True,
+    } for l in store.list_session_links(session_id)]
+    return ra_f, ra_l
+
+
+# ── Thêm/gỡ/ghim tài liệu & link của MỘT cuộc trò chuyện ─────────────────────
+#
+# Brain LẤY TỪ PHIÊN (`sess["brain"]`), tuyệt đối không nhận từ client - y hệt luật của route
+# project: phiên thuộc đúng một brain và đường dẫn chỉ có nghĩa trong brain đó.
+
+def _cuoc_or_404(session_id: str):
+    s = get_store().get_session(session_id)
+    return s, (None if s else JSONResponse({"error": "not found"}, status_code=404))
+
+
+@app.post("/sessions/{session_id}/assets/files")
+async def sessions_add_file(session_id: str, path: str = Form(...), name: str = Form("")):
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    b = (sess.get("brain") or "brain").strip() or "brain"
+    try:
+        alo = _safe_path(b, path)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    # `is_file()` chứ không phải `exists()`: đường dẫn RỖNG giải ra chính thư mục trần, mà thư
+    # mục thì "có tồn tại" - thế là gắn được một hàng trỏ vào một cái thư mục, ghim vào thì
+    # đọc lỗi. Ở đây chỉ nhận đúng file.
+    if not alo.is_file():
+        return JSONResponse({"error": "Không tìm thấy file trong brain này"}, status_code=404)
+    fid = get_store().add_session_file(session_id, path, name or alo.name)
+    if not fid:
+        return JSONResponse(
+            {"error": f"Cuộc này đã gắn đủ {sessions.SESSION_ASSETS_MAX} tài liệu"},
+            status_code=400)
+    return {"ok": True, "id": fid}
+
+
+@app.post("/sessions/{session_id}/assets/files/{file_id}/delete")
+async def sessions_del_file(session_id: str, file_id: str):
+    """GỠ KHỎI CUỘC, KHÔNG xoá file trên đĩa. File nằm trong brain và có đời sống riêng."""
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    return {"ok": get_store().remove_session_file(session_id, file_id)}
+
+
+@app.post("/sessions/{session_id}/assets/files/{file_id}/pin")
+async def sessions_pin_file(session_id: str, file_id: str, pinned: str = Form("1")):
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    return {"ok": get_store().set_session_file_pinned(session_id, file_id, on), "pinned": on}
+
+
+@app.post("/sessions/{session_id}/assets/links")
+async def sessions_add_link(session_id: str, url: str = Form(...), label: str = Form("")):
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    u = (url or "").strip()
+    # Chỉ nhận http/https, cùng lý do như route link của project: không rào thì `javascript:`
+    # hay `file:` lọt vào danh sách rồi hiện thành liên kết bấm được ngay trong giao diện.
+    if not re.match(r"^https?://", u, re.I):
+        return JSONResponse({"error": "URL phải bắt đầu bằng http:// hoặc https://"},
+                            status_code=400)
+    lid = get_store().add_session_link(session_id, u, label)
+    if not lid:
+        return JSONResponse(
+            {"error": f"Cuộc này đã gắn đủ {sessions.SESSION_ASSETS_MAX} link"},
+            status_code=400)
+    return {"ok": True, "id": lid}
+
+
+@app.post("/sessions/{session_id}/assets/links/{link_id}/delete")
+async def sessions_del_link(session_id: str, link_id: str):
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    return {"ok": get_store().remove_session_link(session_id, link_id)}
+
+
+@app.post("/sessions/{session_id}/assets/links/{link_id}/pin")
+async def sessions_pin_link(session_id: str, link_id: str, pinned: str = Form("1")):
+    sess, err = _cuoc_or_404(session_id)
+    if err:
+        return err
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    return {"ok": get_store().set_session_link_pinned(session_id, link_id, on), "pinned": on}
 
 
 @app.post("/sessions/{session_id}/rename")
@@ -13577,7 +13805,8 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
     # dashboard (bản đầy đủ còn TO HƠN cái vừa bị từ chối vì quá to), nhưng ở kênh này ta chưa
     # có đường nào khác để đi, nên cứ chạy tiếp và để nhà cung cấp nói nếu thật sự quá hạn mức.
     if not sysprompt:
-        sysprompt = build_system_prompt(brain, lang=_lang_qd, project_id=_pid)
+        sysprompt = build_system_prompt(brain, lang=_lang_qd, project_id=_pid,
+                                        session_id=conv_sid or "")
     sysprompt += channel_context.build_channel_block(
         channel, meta, telegram_running=(channel == "telegram"), port=_javis_port(),
         brain_root=_brain_root(brain))

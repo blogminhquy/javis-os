@@ -128,6 +128,39 @@ CREATE TABLE IF NOT EXISTS project_links (
     added_at   REAL NOT NULL
 );
 
+-- Tài liệu và link người dùng TỰ GẮN vào một CUỘC TRÒ CHUYỆN.
+--
+-- Khác hẳn danh sách "file & link trong cuộc này" đang có: danh sách đó SUY RA từ tin nhắn
+-- (xem `main.sessions_assets`) nên nó chỉ thấy thứ Javis có nhắc tên, và không ai thêm bớt
+-- được. Hai bảng dưới là phần NGƯỜI DÙNG chủ động gắn vào - đúng cái quyền họ đã có ở khung
+-- Project. Hai nguồn được trộn lúc đọc chứ không ghi đè nhau: máy đoán vẫn đoán, người vẫn
+-- thêm được thứ máy không đoán ra (file ghi lặng lẽ giữa lượt, link chưa dán vào chat).
+--
+-- KHÔNG có cột `brain`, cùng lý do như `project_files`: phiên đã thuộc đúng một brain
+-- (`sessions.brain`), và đường dẫn chỉ có nghĩa trong brain đó. Lưu brain lần nữa ở đây là
+-- mở cửa cho một cuộc trỏ sang file của brain khác, phá rào `_safe_path` bằng DỮ LIỆU.
+--
+-- Ở ĐÂY thì khai được REFERENCES (khác project_files): hai bảng này sinh ra mới nguyên nên
+-- không phải đi đường ALTER TABLE - xoá hội thoại là tài liệu gắn vào nó đi theo, không để
+-- lại hàng mồ côi trỏ vào một phiên không còn.
+CREATE TABLE IF NOT EXISTS session_files (
+    id         TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    path       TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    pinned     INTEGER NOT NULL DEFAULT 0,
+    added_at   REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS session_links (
+    id         TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    url        TEXT NOT NULL,
+    label      TEXT,
+    pinned     INTEGER NOT NULL DEFAULT 0,
+    added_at   REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_brain   ON sessions(brain, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, ts);
@@ -135,6 +168,8 @@ CREATE INDEX IF NOT EXISTS idx_projects_brain   ON projects(brain, updated_at DE
 -- Thứ tự index khớp ĐÚNG thứ tự đọc ra (ghim lên đầu, mới nhất trước) để khỏi sort lại.
 CREATE INDEX IF NOT EXISTS idx_pf_project ON project_files(project_id, pinned DESC, added_at DESC);
 CREATE INDEX IF NOT EXISTS idx_pl_project ON project_links(project_id, pinned DESC, added_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sf_session ON session_files(session_id, pinned DESC, added_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sl_session ON session_links(session_id, pinned DESC, added_at DESC);
 """
 
 # FTS5 mirror giữ đồng bộ qua trigger (shape port từ hermes_state.py:738-761).
@@ -250,6 +285,12 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
 # lần. 4000 ký tự đủ cho một bản brief tông giọng/màu sắc/luật riêng, và đủ hẹp để một project
 # không âm thầm nuốt ngân sách token của mọi câu hỏi trong đó.
 PROJECT_INSTRUCTIONS_MAX = 4000
+
+# Trần số tài liệu/link người dùng gắn tay vào MỘT cuộc trò chuyện. Cùng loại chi phí như trên
+# (khối này cũng ghép vào system prompt mỗi lượt của cuộc đó), nhưng để rộng hơn vì đây là
+# danh sách TÊN chứ không phải nội dung: phần nạp nội dung đã có trần riêng ở tầng prompt.
+# Có trần là để một cuộc chat kéo dài cả tháng không âm thầm tích thành vài trăm dòng.
+SESSION_ASSETS_MAX = 50
 
 # Tên icon Lucide: chữ thường, số và gạch nối (vd "message-circle"). Cột `projects.icon` lưu
 # TÊN icon chứ không phải ký tự emoji: icon Lucide tự đổi màu theo tông sáng/tối và vẽ giống
@@ -792,6 +833,92 @@ class SessionStore:
         return bool(self._write(lambda c: c.execute(
             "UPDATE project_links SET pinned = ? WHERE id = ? AND project_id = ?",
             (1 if pinned else 0, link_id, project_id))).rowcount)
+
+    # ── tài liệu & link người dùng TỰ GẮN vào một cuộc trò chuyện ──
+    #
+    # Song sinh với bộ hàm project ngay trên, và cố ý giống hệt về hình dạng: cùng một ngăn
+    # kéo trên giao diện vẽ cả hai, nên hai bộ API mà lệch nhau là chỗ nào cũng phải rẽ nhánh.
+    # Khác đúng một điểm: khoá ngoại lo phần xoá theo, nên không có `delete_session_assets`.
+
+    def list_session_files(self, session_id: str) -> List[Dict[str, Any]]:
+        return [dict(r) for r in self._read(
+            "SELECT id, path, name, pinned, added_at FROM session_files "
+            "WHERE session_id = ? ORDER BY pinned DESC, added_at DESC", (session_id,))]
+
+    def list_session_links(self, session_id: str) -> List[Dict[str, Any]]:
+        return [dict(r) for r in self._read(
+            "SELECT id, url, label, pinned, added_at FROM session_links "
+            "WHERE session_id = ? ORDER BY pinned DESC, added_at DESC", (session_id,))]
+
+    def add_session_file(self, session_id: str, path: str, name: str = "") -> Optional[str]:
+        """Gắn một file có sẵn trong brain vào cuộc trò chuyện. Trùng đường dẫn thì trả id cũ.
+
+        Đường dẫn phải được caller kiểm bằng rào path của brain TRƯỚC khi gọi (xem
+        `main._safe_path`): kho này không biết brain nào, và không được đoán.
+        """
+        rel = (path or "").strip()
+        if not rel:
+            return None
+        cu = self._read("SELECT id FROM session_files WHERE session_id = ? AND path = ?",
+                        (session_id, rel))
+        if cu:
+            return str(cu[0]["id"])
+        if len(self.list_session_files(session_id)) >= SESSION_ASSETS_MAX:
+            return None
+        fid = uuid.uuid4().hex
+        ten = (name or "").strip() or rel.replace("\\", "/").split("/")[-1]
+        self._write(lambda c: c.execute(
+            "INSERT INTO session_files (id, session_id, path, name, pinned, added_at) "
+            "VALUES (?, ?, ?, ?, 0, ?)", (fid, session_id, rel, ten[:160], time.time())))
+        return fid
+
+    def remove_session_file(self, session_id: str, file_id: str) -> bool:
+        # Kèm session_id trong WHERE vì id đến từ client: đoán trúng một uuid không được phép
+        # thành quyền xoá bản ghi của cuộc khác.
+        return bool(self._write(lambda c: c.execute(
+            "DELETE FROM session_files WHERE id = ? AND session_id = ?",
+            (file_id, session_id))).rowcount)
+
+    def set_session_file_pinned(self, session_id: str, file_id: str, pinned: bool) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "UPDATE session_files SET pinned = ? WHERE id = ? AND session_id = ?",
+            (1 if pinned else 0, file_id, session_id))).rowcount)
+
+    def add_session_link(self, session_id: str, url: str, label: str = "") -> Optional[str]:
+        u = (url or "").strip()
+        if not u:
+            return None
+        cu = self._read("SELECT id FROM session_links WHERE session_id = ? AND url = ?",
+                        (session_id, u))
+        if cu:
+            return str(cu[0]["id"])
+        if len(self.list_session_links(session_id)) >= SESSION_ASSETS_MAX:
+            return None
+        lid = uuid.uuid4().hex
+        self._write(lambda c: c.execute(
+            "INSERT INTO session_links (id, session_id, url, label, pinned, added_at) "
+            "VALUES (?, ?, ?, ?, 0, ?)",
+            (lid, session_id, u[:2000], (label or "").strip()[:160], time.time())))
+        return lid
+
+    def remove_session_link(self, session_id: str, link_id: str) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "DELETE FROM session_links WHERE id = ? AND session_id = ?",
+            (link_id, session_id))).rowcount)
+
+    def set_session_link_pinned(self, session_id: str, link_id: str, pinned: bool) -> bool:
+        return bool(self._write(lambda c: c.execute(
+            "UPDATE session_links SET pinned = ? WHERE id = ? AND session_id = ?",
+            (1 if pinned else 0, link_id, session_id))).rowcount)
+
+    def all_session_file_paths(self) -> set:
+        """MỌI đường dẫn đang được một CUỘC TRÒ CHUYỆN trỏ tới (gộp mọi cuộc).
+
+        Cùng vai với `all_project_file_paths`: media_gc dọn vùng cache theo tuổi, mà tài liệu
+        người dùng gắn tay vào một cuộc thì phải sống lâu bằng cuộc đó.
+        """
+        return {str(r["path"]) for r in self._read("SELECT DISTINCT path FROM session_files")
+                if (r["path"] or "").strip()}
 
     def rename(self, session_id: str, title: str) -> None:
         self._write(lambda c: c.execute(
