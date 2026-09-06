@@ -4,7 +4,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.55.49] - 2026-09-06
+## [0.55.50] - 2026-09-06
 ### Sửa lỗi
 - **Mở Javis sau mỗi lần cập nhật nhanh hơn hẳn.** Trước đây bản cập nhật nào cũng bắt trình duyệt tải lại toàn bộ giao diện, khoảng **1.6 MB** không nén. Nay giao diện được nén còn **496 KB**, và chỉ file nào thật sự đổi mới phải tải lại, phần còn lại dùng luôn bản đã lưu trong máy.
 - **Trang Models thôi đứng mãi ở chữ "Đang tải...".** Nó chờ Javis hỏi xem Claude Code đã đăng nhập chưa, mà lượt hỏi đó không có hạn chờ nên chỉ cần Claude trục trặc là cả trang treo. Nay có hạn 2,5 giây, quá thì trang cứ hiện ra bình thường.
