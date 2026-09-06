@@ -19,7 +19,9 @@ from pathlib import Path
 from capability_registry import brain_scope
 from context_compiler import ContextItem, HeuristicTokenizer
 
-INDEX_SCHEMA_VERSION = "memory-index-v2"   # v2: line-ref theo dòng thật của file
+# v2: line-ref theo dòng thật của file. v3: record_id băm cả scope, nên chỉ mục dựng bằng
+# bản cũ (id chưa có scope) phải dựng lại dù không file nào đổi.
+INDEX_SCHEMA_VERSION = "memory-index-v3"
 INDEX_POLICY_VERSION = "memory-retrieval-cascade-v1"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
 _WIKI_RE = re.compile(r"\[\[([^\]|#]+)")
@@ -181,7 +183,7 @@ class MemoryIndex:
         return meta, end + 1
 
     @classmethod
-    def _chunks(cls, text: str, relative: str, source_hash: str) -> list[dict]:
+    def _chunks(cls, text: str, relative: str, source_hash: str, scope: str) -> list[dict]:
         lines = text.splitlines()
         meta, start = cls._frontmatter(lines)
         default_title = str(meta.get("title") or Path(relative).stem)
@@ -257,7 +259,11 @@ class MemoryIndex:
             always_on = str(meta.get("always_on") or "").casefold() in ("1", "true", "yes", "on")
             always_on = always_on or any(x in lower_rel for x in ("identity", "profile", "core-facts"))
             source_ref = f"file:{relative}#L{line_start}-L{line_end}"
-            record_id = "mem_" + _sha(f"{relative}|{line_start}|{clean}")[:24]
+            # record_id là KHÓA CHÍNH toàn cục của memory_records, mà bảng đó chứa chung mọi
+            # brain. Băm thiếu scope thì hai brain chép chung một file bộ nhớ (cùng đường dẫn
+            # tương đối, cùng dòng, cùng chữ) ra cùng một id, và rebuild() của brain thứ hai
+            # nổ UNIQUE constraint vì nó chỉ dọn bản ghi cũ của CHÍNH nó (vụ 06/09/2026).
+            record_id = "mem_" + _sha(f"{scope}|{relative}|{line_start}|{clean}")[:24]
             records.append({
                 "record_id": record_id, "title": title, "content_ref": relative,
                 "excerpt": clean, "normalized": _norm(title + " " + clean),
@@ -316,7 +322,7 @@ class MemoryIndex:
             all_records = []
             source_rows = []
             for relative, _path, text, source_hash in files:
-                records = self._chunks(text, relative, source_hash)
+                records = self._chunks(text, relative, source_hash, scope)
                 all_records.extend(records)
                 source_rows.append((relative, source_hash, len(records)))
             revision = "memory_" + _sha(_json([

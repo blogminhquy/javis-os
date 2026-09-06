@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.51] - 2026-09-07
+### Sửa lỗi
+- **Hai brain dùng chung một file bộ nhớ giống hệt nhau không còn làm brain thứ hai mất bộ nhớ dài hạn.** Trước đây Javis đánh số mỗi mẩu ký ức chỉ theo tên file, số dòng và nội dung, nên hai brain cùng có một file như `facts/cach-lam-viec-chuan.md` bị coi là một mẩu. Brain dựng chỉ mục sau bị từ chối lặng lẽ, và ở chế độ tiết kiệm nó trả lời mà không nhớ gì, không một dòng báo lỗi.
+- Nay số hiệu ký ức có thêm dấu riêng của từng brain, nên chép chung file bộ nhớ giữa các brain là chuyện bình thường. Lần chạy đầu sau khi cập nhật, Javis tự dựng lại chỉ mục bộ nhớ của mọi brain; không cần làm gì thêm và không đụng tới file trong brain.
+- Nếu bạn đã đổi tên file ở một brain để né lỗi này thì đổi lại tên cũ được rồi.
+
 ## [0.55.50] - 2026-09-06
 ### Sửa lỗi
 - **Mở Javis sau mỗi lần cập nhật nhanh hơn hẳn.** Trước đây bản cập nhật nào cũng bắt trình duyệt tải lại toàn bộ giao diện, khoảng **1.6 MB** không nén. Nay giao diện được nén còn **496 KB**, và chỉ file nào thật sự đổi mới phải tải lại, phần còn lại dùng luôn bản đã lưu trong máy.
