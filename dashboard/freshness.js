@@ -73,7 +73,13 @@
     if (!ds.length) return Promise.resolve([]);
     var ver = encodeURIComponent(m.version || "0");
     return Promise.all(ds.map(function (rel) {
-      return taiNhuTrang("/static/" + rel + "?v=" + ver).then(function (buf) {
+      // `?v=` phải TRÙNG KHÍT khoá mà trang đã dùng lúc nạp file, nếu không ta đo một URL
+      // khác - cache miss, tải lại từ máy chủ, tức là đo file TRÊN MÁY CHỦ chứ không phải
+      // file trình duyệt ĐANG CHẠY, đúng cái bẫy mà chú thích taiNhuTrang ở trên cảnh báo.
+      // Server đóng dấu bằng vân tay từng file (xem `root()` trong main.py), nên khoá là
+      // chính crc trong `m.assets`; rơi về số phiên bản cho bản server cũ hơn.
+      var khoa = encodeURIComponent(m.assets[rel] || "") || ver;
+      return taiNhuTrang("/static/" + rel + "?v=" + khoa).then(function (buf) {
         if (!buf) return null;                       // không đọc được thì im, đừng báo oan
         return crc32(new Uint8Array(buf)) === m.assets[rel] ? null : rel;
       });

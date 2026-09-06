@@ -405,6 +405,15 @@ def _empty_mcp_file() -> Optional[str]:
 # tưởng mình bị đăng xuất và phải nối lại Claude (báo 2026-08-13).
 _AUTH_CACHE = {"ts": 0.0, "val": None}
 _AUTH_TTL = 90.0
+# Mốc lần hỏi HỎNG gần nhất, và trần chờ trước khi cho hỏi lại.
+#
+# Vì sao phải có: nhánh `except` bên dưới trả bản nhớ cũ nhưng KHÔNG dời `_AUTH_CACHE["ts"]`,
+# nên khi binary `claude` hỏng hoặc treo thì MỌI lượt gọi lại đẻ một tiến trình Node và chờ
+# đủ 25 giây, lặp mãi. Trang Models gọi endpoint này mỗi lần mở, nên một máy có claude hỏng là
+# một máy có trang Models kẹt vĩnh viễn. `antigravity_cli` đã vấp và vá đúng lỗ này (xem chú
+# thích _HELP_TTL_LOI bên đó); ở đây trước nay chưa có.
+_AUTH_LOI = {"ts": 0.0}
+_AUTH_TTL_LOI = 30.0
 
 
 def auth_status(bo_qua_cache: bool = False):
@@ -426,9 +435,23 @@ def auth_status(bo_qua_cache: bool = False):
     now = time.time()
     if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
         return dict(_AUTH_CACHE["val"])
+    # Vừa hỏi hỏng cách đây chưa lâu thì ĐỪNG đẻ tiến trình lần nữa. Không có cổng này, một
+    # `claude` treo biến mỗi lượt mở trang Models thành 25 giây chờ.
+    if not bo_qua_cache and now - _AUTH_LOI["ts"] < _AUTH_TTL_LOI:
+        cu = _AUTH_CACHE["val"]
+        if cu:
+            ra = dict(cu)
+            ra["stale"] = True
+            return ra
+        return {"connected": False, "unknown": True,
+                "error": "vừa hỏi hỏng, tạm nghỉ vài giây rồi thử lại"}
     try:
+        # 8 giây cho đường VẼ TRANG, 25 giây cho nút "Kiểm tra lại" (bo_qua_cache=True). Người
+        # bấm nút thì sẵn lòng chờ; người chỉ mở trang thì không, và họ không có cách nào biết
+        # mình đang chờ cái gì.
         r = subprocess.run([cli, "auth", "status", "--json"], capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=25, creationflags=_no_window())
+                           encoding="utf-8", errors="replace",
+                           timeout=25 if bo_qua_cache else 8, creationflags=_no_window())
         d = json.loads((r.stdout or "").strip() or "{}")
         ra = {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
               "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", "")}
@@ -441,6 +464,7 @@ def auth_status(bo_qua_cache: bool = False):
         _AUTH_CACHE.update(ts=now, val=dict(ra))
         return ra
     except Exception as e:
+        _AUTH_LOI["ts"] = now      # đóng cổng, khỏi lặp vòng chờ ở lượt kế tiếp
         cu = _AUTH_CACHE["val"]
         if cu:
             ra = dict(cu)
@@ -451,8 +475,13 @@ def auth_status(bo_qua_cache: bool = False):
 
 
 def auth_quen_cache():
-    """Xoá bản nhớ - gọi sau khi đăng nhập/ngắt để thẻ hiện trạng thái mới ngay."""
+    """Xoá bản nhớ - gọi sau khi đăng nhập/ngắt để thẻ hiện trạng thái mới ngay.
+
+    Xoá CẢ mốc lỗi: vừa đăng nhập xong mà cổng nghỉ-vì-lỗi còn hiệu lực thì thẻ vẫn bày trạng
+    thái cũ thêm 30 giây, đúng vào lúc người dùng đang nhìn để xem đăng nhập có ăn không.
+    """
     _AUTH_CACHE.update(ts=0.0, val=None)
+    _AUTH_LOI["ts"] = 0.0
 
 
 # ---- Vệ sĩ credentials (16/08): chống "tự nhiên bị đăng xuất" ----

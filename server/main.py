@@ -28,6 +28,7 @@ import yaml
 import fastyaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Form, Request, Body, Header
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse, Response
 # edge_tts CỐ TÌNH không import ở đây mà nạp lười trong _tts_edge và /tts/voices.
@@ -241,6 +242,45 @@ DASHBOARD_PATH = Path(__file__).parent.parent / "dashboard"
 import mimetypes
 mimetypes.add_type("image/webp", ".webp")
 app.mount("/static", StaticFiles(directory=str(DASHBOARD_PATH)), name="static")
+
+
+class _NenTinh:
+    """Nén gzip CHỈ cho `/static/`, không đụng bất cứ đường nào khác.
+
+    Vì sao cần nén: dashboard nạp 42 file js/css. Đo trên repo này 1.631 KB không nén, gzip
+    xuống 496 KB (giảm 69%). Mà `root()` đóng dấu `?v=<phiên bản>` lên MỌI file, nên mỗi bản
+    cập nhật là 42 URL đổi một lượt, cache `immutable` trượt sạch, trình duyệt kéo lại trọn
+    1,6 MB. Đó đúng là câu "update Javis xong vào chậm" người dùng báo (06/09).
+
+    VÌ SAO KHÔNG `app.add_middleware(GZipMiddleware)` THẲNG - đây là phần dễ làm sai nhất:
+    GZipMiddleware của Starlette NUỐT TRỌN response streaming rồi mới trả một cục. Đo thật
+    trên một SSE 5 chunk cách nhau 0,3 giây:
+
+        không nén : chunk về ở 0,01s / 0,31s / 0,61s / 0,91s / 1,21s
+        có nén    : CẢ NĂM chunk cùng về ở 1,50s
+
+    Javis có 4 endpoint `text/event-stream` (chat, terminal, việc nền). Bật nén toàn cục là
+    người dùng gõ câu hỏi rồi nhìn màn hình trống tới khi câu trả lời xong hẳn - đổi một lỗi
+    chậm lấy một lỗi nặng hơn hẳn.
+
+    Cổng chặn theo ĐƯỜNG DẪN chứ không theo content-type, và đó là cố ý: `/static/` chắc
+    chắn không bao giờ là stream, còn mọi đường khác thì có thể - kể cả route ai đó thêm vào
+    ngày mai. Lọc theo đường dẫn thì route mới mặc định AN TOÀN; lọc theo content-type thì
+    route mới mặc định dính bẫy.
+    """
+
+    def __init__(self, app, minimum_size: int = 1024):
+        self.app = app
+        self._gzip = GZipMiddleware(app, minimum_size=minimum_size)
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path", "").startswith("/static/"):
+            await self._gzip(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_NenTinh, minimum_size=1024)
 
 
 @app.middleware("http")
@@ -862,7 +902,19 @@ async def root():
     ver = _app_version() or "0"
     # Vân tay tính TRƯỚC khi đổi `?v=` - regex tìm theo `?v=` nên thứ tự này bắt buộc.
     fps = _asset_fps(html)
-    html = re.sub(r'(/static/[\w./-]+\.(?:js|css))\?v=[\w.]+', r'\1?v=' + ver, html)
+    # Khoá cache theo VÂN TAY TỪNG FILE, không theo số phiên bản chung.
+    #
+    # Trước đây mọi file mang `?v=<phiên bản app>`, nên bump VERSION là 42 URL đổi MỘT LƯỢT
+    # dù phần lớn file không hề sửa. Cộng với `max-age=31536000, immutable` ở middleware trên,
+    # mỗi bản cập nhật bắt trình duyệt tải lại trọn bộ tài sản tĩnh - đúng câu người dùng báo
+    # 06/09: "update Javis xong nó load vào chậm". Sửa một dòng lỗi chính tả trong console.js
+    # không có lý do gì bắt tải lại cả graph.js lẫn lucide-icons.js.
+    #
+    # `fps` ngay dòng trên đã có sẵn crc32 từng file (dùng cho freshness.js), nên đổi khoá
+    # sang nó là miễn phí. File nào thật sự đổi mới đổi URL; file không đổi giữ nguyên cache.
+    # Rơi về `ver` khi không băm được (file lạ, lỗi đọc) - thà bể cache còn hơn phục vụ đồ cũ.
+    html = re.sub(r'(/static/([\w./-]+\.(?:js|css)))\?v=[\w.]+',
+                  lambda m: m.group(1) + "?v=" + (fps.get(m.group(2)) or ver), html)
     # Nhúng phiên bản + vân tay vào chính trang. index.html luôn tải mới (no-store) nên khối
     # này LUÔN đúng, kể cả khi mọi file JS quanh nó đã cũ - đó chính là điểm tựa để
     # freshness.js phát hiện ra chuyện đó.

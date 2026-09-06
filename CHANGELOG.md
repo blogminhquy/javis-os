@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.49] - 2026-09-06
+### Sửa lỗi
+- **Mở Javis sau mỗi lần cập nhật nhanh hơn hẳn.** Trước đây bản cập nhật nào cũng bắt trình duyệt tải lại toàn bộ giao diện, khoảng **1.6 MB** không nén. Nay giao diện được nén còn **496 KB**, và chỉ file nào thật sự đổi mới phải tải lại, phần còn lại dùng luôn bản đã lưu trong máy.
+- **Trang Models thôi đứng mãi ở chữ "Đang tải...".** Nó chờ Javis hỏi xem Claude Code đã đăng nhập chưa, mà lượt hỏi đó không có hạn chờ nên chỉ cần Claude trục trặc là cả trang treo. Nay có hạn 2,5 giây, quá thì trang cứ hiện ra bình thường.
+- **Javis bớt tạo trùng trang wiki.** Kho wiki lớn hơn khoảng 60 trang là Javis chỉ còn "nhìn" thấy một phần danh mục, mà phần bị khuất lại đúng là các trang mới nhất, nên nó tưởng chưa có rồi tạo lại. Nay nó thấy đủ cả kho, kể cả trang nằm trong thư mục con, và nhận ra cả tên gọi khác của cùng một chủ đề.
+
 ## [0.55.48] - 2026-09-05
 ### Thêm mới
 - **Khung "Trong cuộc trò chuyện này" giờ tự thêm file và link được**, đúng như khung Project: tìm file trong brain, tải file từ máy lên (hoặc kéo thả vào khung), dán link, gỡ ra khi không cần nữa.

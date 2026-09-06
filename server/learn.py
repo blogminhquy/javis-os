@@ -608,10 +608,54 @@ class LearnFeature:
             out.append(f"- {slug} ({fm.get('name') or slug}) [{trang_thai}]{khoa}: {buoc or '(chưa có bước)'}")
         return "\n".join(out)
 
+    # Trần ký tự cho danh mục wiki nhét vào prompt. Gương của MEMORY_INDEX_MAX bên main.py.
+    WIKI_INDEX_MAX = 20000
+
     def _read_index(self, brain: str) -> str:
+        """Danh mục TÊN TRANG wiki để model tránh tạo trùng. Dựng từ HỆ THỐNG FILE, không từ
+        index.md.
+
+        Bản cũ đọc `index.md` rồi cắt `[:6000]`, và đó là hai lỗi chồng nhau:
+
+        1. `_merge_wiki_index` NỐI dòng mới xuống CUỐI file, còn `[:6000]` giữ phần ĐẦU. Nên
+           thứ bị cắt chính là các trang MỚI NHẤT - đúng nhóm chủ đề đang nóng, đúng nhóm dễ
+           bị tạo lại nhất. Mỗi dòng index khoảng 97 ký tự (đo trên dữ liệu thật), nên brain
+           203 note chỉ lọt khoảng 30% danh mục, và model không hề được báo là nó đang nhìn
+           một danh sách đã bị cắt.
+        2. index.md là thứ do chính vòng học ghi ra, nên nó chỉ biết những trang vòng học tạo.
+           Trang do skill `ingest-source` / `notes` viết bằng tool Write, hoặc trang người dùng
+           tự tạo, không có trong đó. Dedup dựa vào nó là dedup trên một bản đồ thiếu.
+
+        Nay quét thẳng hệ thống file qua `rglob` (thấy cả thư mục con, thấy mọi nguồn ghi), và
+        chỉ lấy TÊN TRANG. Tên mới là thứ dùng để so trùng; phần mô tả không giúp gì cho việc
+        đó mà ăn mất hai phần ba ngân sách ký tự. Bỏ mô tả đi thì cùng 20000 ký tự chứa được
+        khoảng 500 tên thay vì khoảng 200 dòng có mô tả.
+        """
         try:
-            idx = self._wiki_dir(brain) / "index.md"
-            return idx.read_text(encoding="utf-8")[:6000] if idx.exists() else ""
+            wiki = self._wiki_dir(brain)
+            if not wiki.is_dir():
+                return ""
+            ten = []
+            for f in sorted(wiki.rglob("*.md")):
+                rel = str(f.relative_to(wiki)).replace("\\", "/")
+                if f.stem.startswith("_") or f.stem in ("index", "log"):
+                    continue
+                ten.append(rel[:-3])          # bỏ đuôi .md, giữ cả tiền tố thư mục
+            if not ten:
+                return ""
+            out, tong, bo_sot = [], 0, 0
+            for t in ten:
+                d = "- " + t + "\n"
+                if tong + len(d) > self.WIKI_INDEX_MAX:
+                    bo_sot += 1
+                    continue
+                out.append(d); tong += len(d)
+            # Vượt trần thì NÓI RA. Im lặng cắt bớt là cách cũ đã sinh ra chính lỗi này: model
+            # tưởng mình thấy hết kho nên yên tâm tạo trang mới.
+            if bo_sot:
+                out.append(f"- (... còn {bo_sot} trang nữa không liệt kê hết - "
+                           f"dùng Grep trong wiki/ để kiểm trước khi tạo trang mới)\n")
+            return "".join(out)
         except Exception:
             return ""
 
@@ -994,6 +1038,10 @@ class LearnFeature:
             if caps.get("wiki"):
                 wiki_dir = Path(self.deps.resolve_subfolder(root, r"^(\d+\s*[-_.]\s*)?wiki$", "Wiki"))
                 wiki_dir.mkdir(parents=True, exist_ok=True)
+                # Quét đĩa MỘT LẦN cho cả batch. Cập nhật thêm sau mỗi lần ghi để hai mục
+                # trong CÙNG một manifest cũng không đè nhau - model thừa sức đề xuất hai
+                # biến thể của cùng một khái niệm trong một lượt.
+                muc_luc_wiki = self._wiki_muc_luc(wiki_dir)
                 for w in (manifest.get("wiki") or []):
                     title = (w.get("title") or "").strip()
                     body = (w.get("body") or "").strip()
@@ -1010,7 +1058,7 @@ class LearnFeature:
                     same = (w.get("same_as") or "").strip()
                     fp = wiki_dir / f"{title}.md"
                     if conflict:
-                        cp = wiki_dir / f"{conflict}.md"
+                        cp = self._wiki_trung(muc_luc_wiki, conflict) or (wiki_dir / f"{conflict}.md")
                         if cp.exists():
                             try:
                                 ct = cp.read_text(encoding="utf-8")
@@ -1023,18 +1071,40 @@ class LearnFeature:
                                 continue
                             except Exception:
                                 pass
-                    if same and (wiki_dir / f"{same}.md").exists():
+                    # `same_as` là tầng chống trùng NGỮ NGHĨA: model đọc danh mục rồi tự
+                    # khai "cái này chính là trang X". Đó là tín hiệu tốt nhất ta có, nên phải
+                    # phân giải cho tử tế.
+                    #
+                    # Bản cũ viết `(wiki_dir / f"{same}.md").exists()` - một phép ghép chuỗi
+                    # thô, phân biệt hoa thường, phân biệt dấu, không thấy thư mục con. Model
+                    # trả `same_as="Phễu bán hàng 8+2"` mà file thật tên "Phễu bán hàng 8 + 2.md"
+                    # hoặc đã nằm trong `wiki/Marketing/` là `.exists()` trả False, code chạy
+                    # thẳng xuống dưới và GHI TRANG MỚI. Một quyết định dedup ĐÚNG của model bị
+                    # nuốt trọn, không một dòng log. Đây là lỗ hở âm thầm nhất trong cả nhánh.
+                    dich = self._wiki_trung(muc_luc_wiki, same) if same else None
+                    if dich:
                         # cùng khái niệm → chỉ đề xuất bổ sung, KHÔNG tự tạo trùng
-                        self._append_open_question(brain, wiki_dir, same, f"đề xuất bổ sung từ chat {today} (dedup)", written_paths, root)
-                        rep["blocked"].append(f"wiki '{title}': trùng [[{same}]] → để đề xuất")
+                        self._append_open_question(brain, wiki_dir, dich.stem, f"đề xuất bổ sung từ chat {today} (dedup)", written_paths, root)
+                        rep["blocked"].append(f"wiki '{title}': trùng [[{dich.stem}]] → để đề xuất")
                         continue
-                    if self._wiki_dupe(wiki_dir, title):
-                        rep["blocked"].append(f"wiki '{title}': trùng tên chuẩn hoá → bỏ qua")
+                    if same:
+                        # Model NÓI là trùng nhưng ta không tìm ra trang đó. Trước đây ca này
+                        # rơi thẳng xuống nhánh ghi file. Nay dừng lại và nói ra: thà để người
+                        # dùng thấy một dòng trong _open-questions còn hơn lặng lẽ đẻ bản sao.
+                        self._append_open_question(brain, wiki_dir, title,
+                                                   f"model báo trùng với '{same}' nhưng không tìm thấy trang đó",
+                                                   written_paths, root)
+                        rep["blocked"].append(f"wiki '{title}': model báo trùng '{same}' mà không tra ra → để đề xuất")
+                        continue
+                    cu = self._wiki_trung(muc_luc_wiki, title)
+                    if cu:
+                        rep["blocked"].append(f"wiki '{title}': trùng [[{cu.stem}]] → bỏ qua")
                         continue
                     fm = (f"---\ntype: wiki\nstatus: active\ntags: [wiki]\norigin: javis-learned\n"
                           f"created: {today}\nupdated: {today}\nsource: [[conversations/{today}]]\n---\n")
                     self.deps.atomic_write_text(fp, fm + body + "\n")
                     written_paths.append(str(fp.relative_to(root)).replace("\\", "/"))
+                    muc_luc_wiki.setdefault(_norm_name(title), fp)
                     rep["wiki"].append(title)
                     self._merge_wiki_index(wiki_dir, title, w.get("hook") or body[:80], written_paths, root)
                     self._append_wiki_log(wiki_dir, title, written_paths, root)
@@ -1292,17 +1362,79 @@ class LearnFeature:
         except Exception:
             pass
 
-    def _wiki_dupe(self, wiki_dir, title) -> bool:
+    def _wiki_muc_luc(self, wiki_dir) -> dict:
+        """{tên đã chuẩn hoá -> Path} cho MỌI trang wiki, kể cả trong thư mục con và kể cả
+        các bí danh khai trong frontmatter `aliases`.
+
+        Dựng MỘT LẦN cho cả batch rồi truyền đi, thay vì quét lại đĩa cho từng mục trong
+        manifest: một batch 10 mục wiki trên brain 200 note là 2000 lượt đọc thư mục nếu quét
+        lại mỗi lần.
+
+        Ba điều bản cũ (`glob("*.md")`, chỉ so `stem`) không thấy:
+
+        - THƯ MỤC CON. `glob` không đệ quy, trong khi `_wiki_scan` ngay trong file này đã dùng
+          `rglob`, và `meta_tools` seed vào mọi brain câu "tạo subfolder khi một chủ đề đủ
+          dày". Nên chỉ cần một trang được dọn vào `wiki/Marketing/` là chốt chống trùng mù
+          hẳn với nó, và lượt học sau tạo lại một bản ở gốc. Đây không phải rủi ro, là chuyện
+          chắc chắn xảy ra.
+        - ALIASES. Skill `ingest-source` và `notes` bắt buộc ghi `aliases: [tên gọi khác, viết
+          tắt, thuật ngữ tiếng Anh]`. Đó chính là bảng tra đồng nghĩa mà việc chống trùng cần,
+          và trước nay không ai đọc nó.
+        - Bản cũ trả `bool` nên chỗ gọi không biết trang cũ nằm ĐÂU để mà nói cho người dùng.
+        """
+        ml = {}
         try:
-            n = _norm_name(title)
-            for f in wiki_dir.glob("*.md"):
+            for f in sorted(wiki_dir.rglob("*.md")):
                 if f.stem.startswith("_") or f.stem in ("index", "log"):
                     continue
-                if _norm_name(f.stem) == n:
-                    return True
+                for ten in self._ten_va_alias(f):
+                    ml.setdefault(_norm_name(ten), f)
         except Exception:
             pass
-        return False
+        return ml
+
+    @staticmethod
+    def _ten_va_alias(f):
+        """Tên file cộng mọi bí danh trong frontmatter. Lỗi đọc thì ít nhất còn tên file."""
+        ra = [f.stem]
+        try:
+            fm, _ = read_md(f)
+            al = (fm or {}).get("aliases")
+            if isinstance(al, str):
+                al = [al]
+            if isinstance(al, list):
+                ra += [str(x) for x in al if str(x).strip()]
+        except Exception:
+            pass
+        return ra
+
+    def _wiki_trung(self, muc_luc: dict, title: str):
+        """Trang đã có ứng với `title`, hoặc None. Hai tầng, theo đúng thứ tự tin cậy.
+
+        Tầng 1 khớp tuyệt đối sau chuẩn hoá - chắc chắn đúng, giữ nguyên từ bản cũ.
+
+        Tầng 2 khớp MỀM cho các biến tấu nhẹ ("Phễu 8+2" với "Phễu 8 + 2", thêm bớt một từ
+        phụ). Ngưỡng 0,88 đặt cao có chủ ý: chốt này CHẶN việc ghi, nên nhầm ở đây là nuốt mất
+        tri thức mới, tệ hơn là để lọt một trang trùng mà người dùng nhìn thấy và tự gộp.
+
+        RÀO SỐ HIỆU: hai tên chỉ khác nhau ở CON SỐ thì không bao giờ coi là một. "IFRS 7" với
+        "IFRS 9", "Nghị định 254" với "Nghị định 255", "GPT-4" với "GPT-5" giống nhau tới hơn
+        90% theo ký tự nhưng là hai thứ khác hẳn. Không có rào này thì khớp mềm sẽ âm thầm
+        nuốt đúng loại tài liệu mà người ta cần phân biệt nhất.
+        """
+        n = _norm_name(title)
+        if not n:
+            return None
+        if n in muc_luc:
+            return muc_luc[n]
+        import difflib
+        so_moi = set(re.findall(r"\d+", n))
+        for k, f in muc_luc.items():
+            if so_moi != set(re.findall(r"\d+", k)):
+                continue
+            if difflib.SequenceMatcher(None, n, k).ratio() >= 0.88:
+                return f
+        return None
 
     # ── 1 batch học ──
     async def run_once(self, brain: str, reason: str = "manual",
