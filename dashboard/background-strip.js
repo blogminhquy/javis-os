@@ -26,17 +26,36 @@
 (function () {
   "use strict";
 
+  // Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước mọi
+  // module này); dưới node - nơi test require() thẳng file này - `window` CHƯA KHAI BÁO nên
+  // đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
+  // thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá.
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return tw(khoa, bien);
+    try {
+      var s = require("./i18n/vi.json")[khoa] || khoa;
+      return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+        return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+      });
+    } catch (e) { return khoa; }
+  }
+
   var POLL_LIVE_MS = 6000;    // dải đang hiện việc: theo sát, trạng thái đổi từng nhịp
   var POLL_QUIET_MS = 20000;  // không có gì để hiện: vẫn hỏi nhưng thưa, đỡ quấy máy chủ
   var POLL_HIDDEN_MS = 60000; // tab ẩn: quay lại là hỏi ngay một nhát nên để rất thưa
   var MAX_CHIP = 4;           // dải là chỗ liếc mắt; muốn xem hết thì có nút sang trang Việc
   var timer = null, inflight = false, lastKey = "", dangHien = false, dangChay = false;
 
+  // Hai bảng này giữ KHOÁ từ điển chứ không giữ chữ: file còn chạy dưới node (test thuần)
+  // nên không được tra từ điển lúc nạp, chỉ tra lúc vẽ - lúc đó chắc chắn có window.
   var NHAN = {
-    running: "đang chạy", review: "chờ duyệt", blocked: "kẹt", ready: "sẵn sàng",
-    todo: "chờ tới lượt", triage: "mới nhận", enabled: "đang bật", pending: "chờ tới giờ"
+    running: "bgs.status.running", review: "bgs.status.review", blocked: "bgs.status.blocked",
+    ready: "bgs.status.ready", todo: "bgs.status.todo", triage: "bgs.status.triage",
+    enabled: "bgs.status.enabled", pending: "bgs.status.pending"
   };
-  var LOAI = { task: "Việc", loop: "Loop", reminder: "Nhắc" };
+  var LOAI = { task: "bgs.kind.task", loop: "bgs.kind.loop", reminder: "bgs.kind.reminder" };
+  function nhan(x) { return NHAN[x] ? tw(NHAN[x]) : x; }
+  function loai(x) { return LOAI[x] ? tw(LOAI[x]) : x; }
 
   /* Phần QUYẾT ĐỊNH tách thành hàm thuần: không đụng DOM nên test bằng node được, và mọi luật
      "hiện hay không, hiện cái gì" nằm gọn một chỗ thay vì rải trong lúc dựng HTML. */
@@ -58,17 +77,15 @@
     chips = chips.slice(0, MAX_CHIP);
 
     var dau;
-    if (muc === "run") dau = (data.running_count || chips.length) + " việc đang chạy ngầm";
-    else dau = (data.stalled_count || chips.length) + " việc đã giao nhưng KHÔNG tự chạy";
+    if (muc === "run") dau = tw("bgs.dau_run", { count: data.running_count || chips.length });
+    else dau = tw("bgs.dau_stall", { count: data.stalled_count || chips.length });
     var cua_toi = 0;
     for (var i = 0; i < chips.length; i++) if (chips[i].mine) cua_toi++;
-    if (cua_toi) dau += " · " + cua_toi + " của hội thoại này";
+    if (cua_toi) dau += " · " + tw("bgs.cua_hoi_thoai", { count: cua_toi });
 
     var warn = "";
     if (muc === "stall") {
-      warn = 'Điều phối của brain này đang ở mức "' + (data.orchestration || "off") +
-        '" nên việc chỉ nằm xếp hàng. Bật "AI tự vận hành" ở trang Việc thì chúng mới chạy ' +
-        'và tự báo kết quả về đây.';
+      warn = tw("bgs.warn_xep_hang", { muc: data.orchestration || "off" });
     }
     return { hien: true, muc: muc, dau: dau, chips: chips, them: them, warn: warn };
   }
@@ -118,18 +135,19 @@
     var chips = q.chips.map(function (x) {
       return '<span class="bg-chip' + (x.mine ? " mine" : "") +
         (x.status === "running" ? " on" : "") + '" title="' +
-        esc(LOAI[x.kind] || x.kind) + " · " + esc(NHAN[x.status] || x.status) +
-        (x.mine ? " · giao từ hội thoại này" : "") + '">' +
-        '<b>' + esc(LOAI[x.kind] || x.kind) + '</b> ' + esc(x.title) +
-        ' <i>' + esc(NHAN[x.status] || x.status) + '</i></span>';
+        esc(loai(x.kind)) + " · " + esc(nhan(x.status)) +
+        (x.mine ? " · " + esc(tw("bgs.chip_mine")) : "") + '">' +
+        '<b>' + esc(loai(x.kind)) + '</b> ' + esc(x.title) +
+        ' <i>' + esc(nhan(x.status)) + '</i></span>';
     }).join("");
-    if (q.them) chips += '<span class="bg-chip">+' + q.them + " nữa</span>";
+    if (q.them) chips += '<span class="bg-chip">' + esc(tw("bgs.chip_more", { so: q.them })) + "</span>";
 
     e.hidden = false;
     e.className = "bg-strip bg-" + q.muc;
     e.innerHTML =
       '<div class="bg-head"><span class="bg-dot"></span><span class="bg-title">' + esc(q.dau) +
-      '</span><button type="button" class="bg-open">Trang Việc</button></div>' +
+      '</span><button type="button" class="bg-open">' + esc(tw("bgs.open_kanban")) +
+      '</button></div>' +
       '<div class="bg-chips">' + chips + '</div>' +
       (q.warn ? '<div class="bg-warn">' + esc(q.warn) + '</div>' : "");
 

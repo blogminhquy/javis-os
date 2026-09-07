@@ -17,6 +17,20 @@
 (function () {
   "use strict";
 
+  // Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước mọi
+  // module này); dưới node - nơi test require() thẳng file này - `window` CHƯA KHAI BÁO nên
+  // đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
+  // thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá trần.
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return tw(khoa, bien);
+    try {
+      var s = require("./i18n/vi.json")[khoa] || khoa;
+      return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+        return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+      });
+    } catch (e) { return khoa; }
+  }
+
   var OPEN = String.fromCharCode(0xE000), CLOSE = String.fromCharCode(0xE001);   // sentinel placeholder (private-use, khong xuat hien trong text)
 
   // ---------------------------------------------------------------- helpers
@@ -138,7 +152,7 @@
     var clean = String(rawpath || "").replace(/^\.?\//, "");
     return 'href="' + esc(fileUrl(clean, brainOverride) + "&dl=1") + '" data-vault-path="' + esc(clean) +
       '" class="jv-fdownload' + (extraCls ? " " + extraCls : "") +
-      '" download title="Tải file về"';
+      '" download title="' + esc(tw("crender.dl_file")) + '"';
   }
   // Thuoc tinh <a> mo trang Tep tin dung vi tri file/thu muc. Giu href deep-link (#open=..) de
   // Ctrl/giua chuot mo tab trinh duyet moi cung nhay dung cho; bam thuong -> mo trong app.
@@ -150,7 +164,7 @@
     // Noi dung chuot dung viec cu bam do LAM: file sua duoc thi mo trinh sua, thu muc thi ve
     // trang Tep tin. Chu cu ghi "Mo vi tri trong Tep tin" cho MOI thu, nen bam vao mot file
     // .html roi thay trinh sua bung ra la mot bat ngo - dung huong nhung sai loi hua.
-    var tit = EDIT_EXT_RE.test(clean.split(/[?#]/)[0]) ? "Mở ra sửa" : "Mở vị trí trong Tệp tin";
+    var tit = EDIT_EXT_RE.test(clean.split(/[?#]/)[0]) ? tw("crender.open_edit") : tw("crender.open_loc");
     return 'href="#open=' + esc(encodeURIComponent(clean)) + '" data-vault-path="' + esc(clean) +
       '" class="jv-floc' + (extraCls ? " " + extraCls : "") + '" title="' + tit + '"';
   }
@@ -178,7 +192,7 @@
     var label = (alias != null && alias.trim()) ? alias.trim() : target;
     return '<a href="#open=' + esc(encodeURIComponent(target)) + '" data-vault-path="' + esc(target) + '"' +
       (label !== target ? ' data-wiki-alias="' + esc(label) + '"' : "") +
-      ' class="jv-wikilink" title="Mở note: ' + esc(target) + '">' + esc(label) + "</a>";
+      ' class="jv-wikilink" title="' + esc(tw("crender.open_note", { ten: target })) + '">' + esc(label) + "</a>";
   }
   // FNV-1a -> id ngan on dinh cho artifact (cung noi dung -> cung id qua cac lan re-render khi stream)
   function hashId(s) {
@@ -258,11 +272,11 @@
   // attribute), dataview.js tu phat hien va chay. contenteditable=false de trong WYSIWYG khong sua
   // nham ket qua; turndown rule (console.js) tra lai dung fence goc khi luu.
   function dataviewHtml(lang, code) {
-    var title = lang === "tasks" ? ic("list-todo") + " Việc (tasks)" : ic("table-2") + " Dataview";
+    var title = lang === "tasks" ? ic("list-todo") + " " + esc(tw("crender.dv_tasks")) : ic("table-2") + " Dataview";
     return '<div class="jv-dataview" contenteditable="false" data-dv-lang="' + esc(lang) +
       '" data-dv-q="' + esc(encodeURIComponent(code)) + '">' +
       '<div class="jv-dv-head"><span class="jv-dv-title">' + title + "</span></div>" +
-      '<div class="jv-dv-body"><span class="jv-dv-wait">Đang chạy truy vấn…</span></div></div>';
+      '<div class="jv-dv-body"><span class="jv-dv-wait">' + esc(tw("crender.dv_running")) + '</span></div></div>';
   }
   function renderFence(info, code, streaming) {
     var lang = (info || "").trim().split(/\s+/)[0] || "";
@@ -296,8 +310,8 @@
       var m = src.match(/[?&]path=([^&]*)/);
       ten = m ? decodeQueryPart(m[1]).split("/").pop() : src.split("/").pop();
     } catch (e) { ten = ""; }
-    box.textContent = ten ? "Không mở được ảnh: " + ten : "Không mở được ảnh";
-    box.title = "File có thể đã bị xoá, hoặc hội thoại này thuộc brain khác với brain đang chọn.";
+    box.textContent = ten ? tw("crender.img_gone_ten", { ten: ten }) : tw("crender.img_gone");
+    box.title = tw("crender.img_gone_hint");
     el.replaceWith(box);
   }
   function imgHtml(u, alt, rawpath) {
@@ -314,7 +328,7 @@
     var vp = (rawpath && isVaultRel(rawpath))
       ? ' data-vault-path="' + esc(String(rawpath).replace(/^\.?\//, "")) + '"' : "";
     return '<a class="jv-img-link" href="' + esc(h) + '"' + vp +
-      ' target="_blank" rel="noopener" title="Bấm để xem phóng to">' + img + "</a>";
+      ' target="_blank" rel="noopener" title="' + esc(tw("chat.att_zoom")) + '">' + img + "</a>";
   }
   // ---------------------------------------------------------------- frontmatter YAML
   // Khoi `---\n...\n---` o DAU mot file .md la METADATA (type, status, created...), khong phai
@@ -332,7 +346,7 @@
       .replace(/^\uFEFF?---[ \t]*\r?\n/, "")
       .replace(/\r?\n---[ \t]*\r?\n?$/, "");
     return '<div class="jv-fm" contenteditable="false" data-fm="' + esc(encodeURIComponent(block)) + '">' +
-      '<div class="jv-fm-head">' + ic("tag") + " Thuộc tính</div>" +
+      '<div class="jv-fm-head">' + ic("tag") + " " + esc(tw("crender.fm_title")) + "</div>" +
       '<pre class="jv-fm-body">' + esc(than) + "</pre></div>";
   }
   function tableHtml(tbl) {
@@ -764,7 +778,7 @@
       wl.classList.remove("jv-wl-busy");
       if (!hit) {
         wl.classList.add("jv-wl-miss");
-        wl.title = "Không tìm thấy note này trong vault";
+        wl.title = tw("crender.wl_miss");
         setTimeout(function () { wl.classList.remove("jv-wl-miss"); }, 1500);
         return;
       }
@@ -772,7 +786,7 @@
     }).catch(function () {
       wl.classList.remove("jv-wl-busy");
       wl.classList.add("jv-wl-miss");
-      wl.title = "Không mở được note này - thử lại";
+      wl.title = tw("crender.wl_err");
       setTimeout(function () { wl.classList.remove("jv-wl-miss"); }, 1500);
     });
   }
@@ -841,9 +855,9 @@
       '<div class="jv-lb-bar">' +
         '<span class="jv-lb-ten"></span>' +
         '<span class="jv-lb-nut">' +
-          '<button type="button" data-lb="tai" title="Tải ảnh về">' + ic("download") + " Tải về</button>" +
-          '<button type="button" data-lb="tab" title="Mở ảnh ở tab mới">' + ic("external-link") + "</button>" +
-          '<button type="button" data-lb="dong" title="Đóng (Esc)">' + ic("x") + "</button>" +
+          '<button type="button" data-lb="tai" title="' + esc(tw("crender.lb_dl_title")) + '">' + ic("download") + " " + esc(tw("ol.pull")) + "</button>" +
+          '<button type="button" data-lb="tab" title="' + esc(tw("crender.lb_tab")) + '">' + ic("external-link") + "</button>" +
+          '<button type="button" data-lb="dong" title="' + esc(tw("kanban.close_esc")) + '">' + ic("x") + "</button>" +
         "</span>" +
       "</div>" +
       '<div class="jv-lb-khung"><img class="jv-lb-img" alt=""></div>';

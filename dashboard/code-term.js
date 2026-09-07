@@ -71,9 +71,9 @@
     var panel = el.querySelector("#codePanel");
     var cn = CHUC_NANG.filter(function (c) { return c.id === id; })[0];
     if (!panel) return;
-    if (!cn) { panel.innerHTML = '<div class="code-empty">Chức năng "' + esc(id) + '" chưa có.</div>'; return; }
+    if (!cn) { panel.innerHTML = '<div class="code-empty">' + esc(window.t("term.no_feature", { id: id })) + "</div>"; return; }
     try { _dangChay = cn.ve(panel) || null; }
-    catch (e) { panel.innerHTML = '<div class="code-empty">Lỗi nạp: ' + esc(e.message) + "</div>"; }
+    catch (e) { panel.innerHTML = '<div class="code-empty">' + esc(window.t("term.load_err", { loi: e.message })) + "</div>"; }
   }
 
   function dongChucNang() {
@@ -108,7 +108,7 @@
       var s = document.createElement("script");
       s.src = src;
       s.onload = ok;
-      s.onerror = function () { loi(new Error("Không tải được " + src)); };
+      s.onerror = function () { loi(new Error(window.t("term.script_err", { src: src }))); };
       document.head.appendChild(s);
     });
   }
@@ -134,7 +134,7 @@
 
   function khungCho(chu) {
     return '<div class="code-empty">' + ic("loader", { cls: "ic-xl ic-spin" }) +
-      "<div>" + esc(chu || "Đang mở terminal...") + "</div></div>";
+      "<div>" + esc(chu || window.t("term.opening")) + "</div></div>";
   }
 
   function veTerminal(panel) {
@@ -155,16 +155,16 @@
       .catch(function (e) {
         if (!song) return;
         panel.innerHTML = '<div class="code-empty">' + ic("triangle-alert", { cls: "ic-xl ic-warn" }) +
-          "<div>Không mở được terminal.</div><div class=\"code-dim\">" + esc(e.message) + "</div></div>";
+          "<div>" + esc(window.t("term.open_err")) + "</div><div class=\"code-dim\">" + esc(e.message) + "</div></div>";
       });
     return { huy: function () { doi.huy(); } };
   }
 
   function khungTat() {
     return '<div class="code-empty">' + ic("lock", { cls: "ic-xl ic-dim" }) +
-      "<div><b>Terminal đang tắt trên máy này.</b></div>" +
-      '<div class="code-dim">Máy chủ đặt biến môi trường <code>JAVIS_TERMINAL=0</code>. ' +
-      "Bỏ biến đó rồi khởi động lại Javis là bật lại.</div></div>";
+      "<div><b>" + esc(window.t("term.off_title")) + "</b></div>" +
+      '<div class="code-dim">' + esc(window.t("term.off_env")) + ' <code>JAVIS_TERMINAL=0</code>. ' +
+      esc(window.t("term.off_hint")) + "</div></div>";
   }
 
   /** Dựng terminal NHIỀU TAB: mỗi tab là một phiên shell riêng ở server (trần số phiên do
@@ -178,15 +178,15 @@
         '<div class="term-tabs" id="termTabs"></div>' +
         '<div class="term-bar">' +
           '<span class="term-dot" id="termDot"></span>' +
-          '<span class="term-st" id="termSt">Đang nối...</span>' +
-          '<span class="term-cwd" title="Thư mục làm việc">' + ic("folder-tree") + " " + esc(st.cwd) + "</span>" +
+          '<span class="term-st" id="termSt">' + esc(window.t("ol.connecting")) + "</span>" +
+          '<span class="term-cwd" title="' + esc(window.t("term.cwd")) + '">' + ic("folder-tree") + " " + esc(st.cwd) + "</span>" +
           '<span class="term-sp"></span>' +
-          '<button class="term-btn" id="termClear" title="Xoá màn hình (Ctrl+L)">' + ic("eraser") + " Xoá</button>" +
-          '<button class="term-btn" id="termNew" title="Đóng phiên của tab này rồi mở phiên sạch">' + ic("rotate-cw") + " Khởi động lại</button>" +
+          '<button class="term-btn" id="termClear" title="' + esc(window.t("term.clear_tip")) + '">' + ic("eraser") + " " + esc(window.t("term.clear")) + "</button>" +
+          '<button class="term-btn" id="termNew" title="' + esc(window.t("term.restart_tip")) + '">' + ic("rotate-cw") + " " + esc(window.t("term.restart")) + "</button>" +
         "</div>" +
         (ong ? '<div class="term-note">' + ic("triangle-alert", { cls: "ic-warn" }) +
-          " <b>Chế độ đơn giản (Windows).</b> Gõ nguyên một dòng rồi Enter. Không có gợi ý Tab, " +
-          "không chạy được chương trình toàn màn hình như <code>vim</code> hay <code>htop</code>." +
+          " <b>" + esc(window.t("term.simple_title")) + "</b> " + esc(window.t("term.simple_note")) +
+          " <code>vim</code> " + esc(window.t("term.simple_or")) + " <code>htop</code>." +
           "</div>" : "") +
         '<div class="term-hosts" id="termHosts"></div>' +
       "</div>";
@@ -237,7 +237,7 @@
       var q = "brain=" + encodeURIComponent(brain()) +
               "&cols=" + tb.term.cols + "&rows=" + tb.term.rows +
               "&session=" + encodeURIComponent(tb.sid || "");
-      trangThai(tb, "Đang nối...", "");
+      trangThai(tb, window.t("ol.connecting"), "");
       var ws = tb.ws = new WebSocket(WS_GOC + "/ws/terminal?" + q);
       ws.onmessage = function (ev) {
         var m;
@@ -246,22 +246,24 @@
         if (m.type === "hello") {
           tb.sid = m.session || "";
           ghiTabs();
-          trangThai(tb, (m.che_do === "ong" ? "Chế độ đơn giản" : "Đang chạy") + " · " + (m.shell || "shell"), "ok");
+          trangThai(tb, (m.che_do === "ong" ? window.t("term.st_simple") : window.t("kanban.st_running")) +
+            " · " + (m.shell || "shell"), "ok");
           gui(tb, { type: "resize", cols: tb.term.cols, rows: tb.term.rows });
           if (tabs[chon] === tb) tb.term.focus();
           return;
         }
         if (m.type === "exit") {
-          trangThai(tb, "Shell đã thoát" + (m.code == null ? "" : " (mã " + m.code + ")"), "off");
-          tb.term.write("\r\n\x1b[2m[phiên đã kết thúc - bấm \"Khởi động lại\" hoặc đóng tab này]\x1b[0m\r\n");
+          trangThai(tb, window.t("term.st_exit") +
+            (m.code == null ? "" : " (" + window.t("term.exit_code", { ma: m.code }) + ")"), "off");
+          tb.term.write("\r\n\x1b[2m[" + window.t("term.session_done") + "]\x1b[0m\r\n");
           tb.sid = "";
           tb.dong = true;
           ghiTabs();
           return;
         }
         if (m.type === "error") {
-          trangThai(tb, "Lỗi", "err");
-          tb.term.write("\r\n\x1b[31m" + String(m.error || "Lỗi không rõ").replace(/\n/g, "\r\n") + "\x1b[0m\r\n");
+          trangThai(tb, window.t("app.err_cap"), "err");
+          tb.term.write("\r\n\x1b[31m" + String(m.error || window.t("term.err_unknown")).replace(/\n/g, "\r\n") + "\x1b[0m\r\n");
           // Trần số phiên (tính CẢ tab trình duyệt khác) hoặc lỗi mở shell: id cũ đã vô dụng,
           // bỏ đi để lần sau tab này mở phiên mới sạch.
           tb.sid = "";
@@ -271,7 +273,7 @@
       };
       ws.onclose = function () {
         if (tb.dong) return;
-        trangThai(tb, "Mất kết nối - đang nối lại...", "err");
+        trangThai(tb, window.t("term.reconnect"), "err");
         // đóng tab trình duyệt/ngủ máy/đổi mạng: shell vẫn sống, nối lại là thấy nguyên
         tb.dem = setTimeout(function () { noi(tb); }, 1500);
       };
@@ -283,7 +285,7 @@
       var tb = {
         so: ++demTab, sid: sid || "", host: document.createElement("div"),
         term: null, fit: null, ws: null, dong: false, dem: null, boDem: "",
-        stChu: "Đang nối...", stMau: "",
+        stChu: window.t("ol.connecting"), stMau: "",
       };
       tb.host.className = "term-host";
       hosts.appendChild(tb.host);
@@ -339,13 +341,13 @@
     function veTabs() {
       var h = tabs.map(function (tb, i) {
         return '<span class="term-tab' + (i === chon ? " act" : "") + '" data-i="' + i + '">' +
-          ic("terminal") + '<span class="term-tab-nhan">Phiên ' + tb.so + "</span>" +
-          '<button class="term-tab-x" data-x="' + i + '" title="Đóng hẳn phiên này (giết shell)">' + ic("x") + "</button>" +
+          ic("terminal") + '<span class="term-tab-nhan">' + esc(window.t("term.tab_n", { n: tb.so })) + "</span>" +
+          '<button class="term-tab-x" data-x="' + i + '" title="' + esc(window.t("term.tab_close_tip")) + '">' + ic("x") + "</button>" +
         "</span>";
       }).join("");
       var day = tabs.length >= maxTab;
       h += '<button class="term-tab-add" id="termTabAdd"' + (day ? " disabled" : "") +
-        ' title="' + (day ? "Tối đa " + maxTab + " phiên cùng lúc" : "Mở thêm phiên (tab mới)") + '">' +
+        ' title="' + esc(day ? window.t("term.tab_max", { count: maxTab }) : window.t("term.tab_add_tip")) + '">' +
         ic("plus") + "</button>";
       tabsEl.innerHTML = h;
     }

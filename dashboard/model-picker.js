@@ -10,8 +10,8 @@
 
   // Thang độ sâu suy nghĩ - phải KHỚP engine.REASONING_LEVELS bên server, nếu không người dùng
   // chọn xong server lọc về "off" mà giao diện vẫn khoe đang bật.
-  const EFFORT = [["off", "Tắt"], ["low", "Thấp"], ["medium", "Vừa"],
-                  ["high", "Cao"], ["xhigh", "Rất cao"], ["ultra", "Tối đa"]];
+  const EFFORT = [["off", "models.r_off"], ["low", "models.r_low"], ["medium", "models.r_med"],
+                  ["high", "models.r_high"], ["xhigh", "models.r_xhigh"], ["ultra", "models.r_ultra"]];
   const modelCache = {};   // provider id -> {models, ts}; không giữ catalog cũ suốt cả tab
   const MODEL_CACHE_MS = 5 * 60 * 1000;
   let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off" };
@@ -22,7 +22,7 @@
   let expanded = null;     // provider đang mở rộng trong popover
   let filter = "";
 
-  const short = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26) || "mặc định";
+  const short = (m) => (m || "").split("/").pop().replace(/^(claude-|gpt-)/, "").slice(0, 26) || window.t("models.mp_default");
   const provShort = (lbl) => (lbl || "").split(" ")[0];
   const $ = (id) => document.getElementById(id);
   const curSid = () => { try { return (window.JavisSessions && window.JavisSessions.current()) || null; } catch (e) { return null; } };
@@ -80,14 +80,14 @@
     const mt = $("mbModelTxt"), et = $("mbEffortTxt");
     if (mt) {
       mt.textContent = (p ? provShort(p.label) : "Model") + " · " + short(eff.model)
-        + (sessionPin ? " · ghim" : pinBroken ? " · ghim hỏng" : "");
+        + (sessionPin ? " · " + window.t("mpick.pin") : pinBroken ? " · " + window.t("mpick.pin_broken") : "");
       mt.title = sessionPin
-        ? "Model ghim riêng cho phiên chat này (đổi ở phiên khác không ảnh hưởng)"
+        ? window.t("mpick.pin_title")
         : pinBroken
-          ? "Model ghim của phiên không còn dùng được (provider đã bị gỡ key) - đang chạy model mặc định chung"
-          : "Theo model mặc định chung";
+          ? window.t("mpick.pin_broken_title")
+          : window.t("mpick.follow_default");
     }
-    if (et) et.textContent = "Effort: " + (EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[1];
+    if (et) et.textContent = "Effort: " + window.t((EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[1]);
   }
 
   async function fetchModels(pid) {
@@ -105,17 +105,17 @@
     const pop = $("mbPop");
     if (!pop) return;
     if (!expanded) expanded = state.main.provider || "anthropic-cli";
-    let html = `<input class="mb-search" id="mbSearch" placeholder="Tìm model..." value="${filter.replace(/"/g, "&quot;")}">`;
+    let html = `<input class="mb-search" id="mbSearch" placeholder="${window.t("mpick.search_ph")}" value="${filter.replace(/"/g, "&quot;")}">`;
     for (const p of state.providers) {
       const on = !!p.configured;
       html += `<div class="mb-prov ${on ? "" : "off"}" data-prov="${on ? p.id : ""}">
                  <span>${p.label}${p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""}</span><span>${on ? ic(p.id === expanded ? "chevron-down" : "chevron-right") : ic("lock", { cls: "ic-dim" })}</span></div>`;
-      if (!on) { html += `<div class="mb-link" data-goto="models">+ Thêm API key ở trang Models để mở khoá</div>`; continue; }
+      if (!on) { html += `<div class="mb-link" data-goto="models">+ ${window.t("mpick.add_key")}</div>`; continue; }
       if (p.id === expanded) {
         let ids = await fetchModels(p.id);
         if (filter) ids = ids.filter((id) => id.toLowerCase().includes(filter.toLowerCase()));
         if (!ids.length) {
-          html += `<div class="mb-empty">${filter ? "Không có model khớp." : "Chưa lấy được danh sách model."}</div>`;
+          html += `<div class="mb-empty">${filter ? window.t("mpick.no_match") : window.t("mpick.no_list")}</div>`;
         }
         for (const id of ids.slice(0, 60)) {
           const _eff = effective();
@@ -126,7 +126,7 @@
       }
     }
     html += `<div class="mb-eff-row"><span class="lbl">Effort</span>` +
-      EFFORT.map(([v, l]) => `<button class="mb-eff-btn ${state.reasoning === v ? "cur" : ""}" data-eff="${v}">${l}</button>`).join("") +
+      EFFORT.map(([v, l]) => `<button class="mb-eff-btn ${state.reasoning === v ? "cur" : ""}" data-eff="${v}">${window.t(l)}</button>`).join("") +
       `</div>`;
     pop.innerHTML = html;
     const se = $("mbSearch");

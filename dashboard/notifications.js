@@ -86,9 +86,9 @@
     render();
   }
   function kindLabel(kind) {
-    if (kind === "marketing") return "Tin mới";
-    if (kind === "community") return "Cộng đồng";
-    return "Cập nhật";
+    if (kind === "marketing") return window.t("noti.kind_marketing");
+    if (kind === "community") return window.t("noti.kind_community");
+    return window.t("page.logs.label");
   }
   function openUpdates() {
     closePanel();
@@ -111,16 +111,16 @@
     var d = new Date((Number(ts) || 0) * 1000);
     if (!ts || isNaN(d.getTime())) return "";
     var cach = (Date.now() - d.getTime()) / 1000;
-    if (cach < 60) return "vừa xong";
-    if (cach < 3600) return Math.floor(cach / 60) + " phút trước";
-    if (cach < 86400) return Math.floor(cach / 3600) + " giờ trước";
+    if (cach < 60) return window.t("kanban.ago_now");
+    if (cach < 3600) return window.t("noti.ago_min", { count: Math.floor(cach / 60) });
+    if (cach < 86400) return window.t("noti.ago_hour", { count: Math.floor(cach / 3600) });
     return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) + " " +
            d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
   }
   function nhanLoai(kind) {
-    if (kind === "report") return "Báo cáo";
-    if (kind === "system") return "Hệ thống";
-    return "Trả lời";
+    if (kind === "report") return window.t("noti.card_report");
+    if (kind === "system") return window.t("settings.grp_system");
+    return window.t("noti.card_answer");
   }
   async function docThu(body) {
     try {
@@ -145,17 +145,18 @@
   }
   function theThu(item) {
     var chua = !item.read ? " unread" : "";
-    var phu = item.session_id ? "Mở lại hội thoại →" : "";
+    var phu = item.session_id ? window.t("noti.reopen_chat") : "";
     return '<article class="noti-card' + chua + '" tabindex="0" role="button" data-thu-id="' + esc(item.id) + '">' +
       '<div class="noti-card-top"><span class="noti-kind ' + esc(item.kind || "answer") + '">' +
       esc(nhanLoai(item.kind)) + '</span><span class="noti-time">' + esc(thoiGian(item.ts)) + "</span></div>" +
-      "<h4>" + esc(item.title || "Javis vừa gửi một tin") + "</h4>" +
+      "<h4>" + esc(item.title || window.t("noti.msg_title")) + "</h4>" +
       '<p class="noti-card-body">' + esc(item.body || "") + "</p>" +
       (phu ? '<span class="noti-cta">' + phu + "</span>" : "") + "</article>";
   }
   function veHomThu(list) {
     if (!state.thu.length) {
-      list.innerHTML = '<div class="noti-empty">Chưa có thư nào.<br>Kết quả việc chạy nền, báo cáo định kỳ và nhắc hẹn sẽ về đây.</div>';
+      list.innerHTML = '<div class="noti-empty">' + esc(window.t("noti.inbox_empty")) + "<br>" +
+        esc(window.t("noti.inbox_empty_sub")) + "</div>";
       return;
     }
     list.innerHTML = state.thu.slice(0, MAX_ITEMS).map(theThu).join("");
@@ -191,8 +192,8 @@
     badge.hidden = tong === 0;
     badge.textContent = tong > 99 ? "99+" : String(tong);
     if (summary) summary.textContent = tong
-      ? tong + " tin chưa đọc"
-      : "Bạn đã đọc hết";
+      ? window.t("noti.unread_n", { count: tong })
+      : window.t("noti.all_read");
 
     var tabMine = byId("notiTabMine"), tabNews = byId("notiTabNews");
     if (tabMine && tabNews) {
@@ -207,7 +208,8 @@
     if (state.tab === "mine") { veHomThu(list); return; }
 
     if (!state.items.length) {
-      list.innerHTML = '<div class="noti-empty">Chưa có thông báo.<br>Các bản cập nhật và tin từ Javis OS sẽ xuất hiện tại đây.</div>';
+      list.innerHTML = '<div class="noti-empty">' + esc(window.t("noti.news_empty")) + "<br>" +
+        esc(window.t("noti.news_empty_sub")) + "</div>";
       return;
     }
     var limited = state.items.slice(0, MAX_ITEMS);
@@ -223,18 +225,18 @@
       var body = kind !== "update" && item.body
         ? '<p class="noti-card-body">' + esc(item.body) + "</p>"
         : "";
-      var ctaLabel = (item.cta && item.cta.label) || (kind === "update" ? "Xem chi tiết bản cập nhật →" : "");
+      var ctaLabel = (item.cta && item.cta.label) || (kind === "update" ? window.t("noti.cta_update") : "");
       var cta = ctaLabel ? '<span class="noti-cta">' + esc(ctaLabel) + "</span>" : "";
       return '<article class="noti-card' + unreadClass + '" tabindex="0" role="button" data-noti-id="' + esc(id) + '">' +
         '<div class="noti-card-top"><span class="noti-kind ' + esc(kind) + '">' + esc(kindLabel(kind)) + '</span>' +
         '<span class="noti-time">' + esc(item.published_at || "") + "</span></div>" +
-        "<h4>" + esc(item.title || "Thông báo") + "</h4>" +
+        "<h4>" + esc(item.title || window.t("noti.label")) + "</h4>" +
         '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + "</article>";
     }).join("");
     var remaining = limited.length - visible.length;
     var loadMore = remaining > 0
-      ? '<button class="noti-load-more" id="notificationLoadMore" type="button">Tải thêm ' +
-        Math.min(PAGE_SIZE, remaining) + " thông báo ↓</button>"
+      ? '<button class="noti-load-more" id="notificationLoadMore" type="button">' +
+        esc(window.t("noti.load_more", { count: Math.min(PAGE_SIZE, remaining) })) + "</button>"
       : "";
     list.innerHTML = cards + loadMore;
     list.querySelectorAll("[data-noti-id]").forEach(function (card) {
@@ -270,7 +272,7 @@
     if (state.loading || (!force && Date.now() - state.loadedAt < 300000)) return;
     state.loading = true;
     var list = byId("notificationList");
-    if (!state.items.length && list && state.tab === "news") list.innerHTML = '<div class="noti-loading">Đang tải thông báo…</div>';
+    if (!state.items.length && list && state.tab === "news") list.innerHTML = '<div class="noti-loading">' + esc(window.t("noti.loading")) + "</div>";
     try {
       var response = await fetch("/notifications", { cache: "no-store" });
       if (!response.ok) throw new Error("HTTP " + response.status);
@@ -281,7 +283,8 @@
       firstRun(state.items);
       render();
     } catch (e) {
-      if (list && state.tab === "news") list.innerHTML = '<div class="noti-empty">Chưa tải được thông báo.<br>Hãy kiểm tra kết nối rồi thử lại.</div>';
+      if (list && state.tab === "news") list.innerHTML = '<div class="noti-empty">' +
+        esc(window.t("noti.load_fail")) + "<br>" + esc(window.t("noti.load_fail_sub")) + "</div>";
     } finally { state.loading = false; }
   }
   function openPanel() {
@@ -316,12 +319,12 @@
     }
     nut.hidden = false;
     var on = await JavisPush.dangBat();
-    nut.textContent = on ? "Tắt" : "Bật";
+    nut.textContent = on ? window.t("cb.tat") : window.t("noti.push_on");
     nut.classList.toggle("primary", !on);
     if (thu) thu.hidden = !on;
     if (ghi) ghi.textContent = loi || (on
-      ? "Đang bật trên trình duyệt này"
-      : "Báo cả khi bạn không mở Javis");
+      ? window.t("noti.push_on_here")
+      : window.t("noti.push_note"));
     if (ghi) ghi.classList.toggle("loi", !!loi);
     if (loi || !on) return;
     // Bật/tắt là việc của TỪNG máy, nên "đang bật ở đây" chưa trả lời được "máy kia có nhận
@@ -330,12 +333,11 @@
     if (!ghi || !tb.length) return;
     var hong = tb.filter(function (x) { return x.lan_cuoi && !x.ok_lan_cuoi; });
     if (hong.length) {
-      ghi.textContent = tb.length + " thiết bị · " + hong[0].dich_vu + " đang lỗi: "
-        + String(hong[0].loi_lan_cuoi || "").slice(0, 80);
+      ghi.textContent = window.t("noti.push_dev_err", { count: tb.length, dv: hong[0].dich_vu,
+        loi: String(hong[0].loi_lan_cuoi || "").slice(0, 80) });
       ghi.classList.add("loi");
     } else {
-      ghi.textContent = "Đang bật · đẩy tới " + tb.length
-        + (tb.length > 1 ? " thiết bị" : " thiết bị");
+      ghi.textContent = window.t("noti.push_dev_ok", { count: tb.length });
       ghi.classList.remove("loi");
     }
   }
@@ -348,7 +350,7 @@
       var dangBat = await JavisPush.dangBat();
       var r = dangBat ? await JavisPush.tat() : await JavisPush.bat();
       nut.disabled = false;
-      await veNutPush(r.ok ? "" : (r.error || "Không bật được."));
+      await veNutPush(r.ok ? "" : (r.error || window.t("noti.push_err")));
     });
     if (thu) thu.addEventListener("click", async function () {
       thu.disabled = true;
@@ -358,8 +360,8 @@
       // Nói rõ ĐỦ MẤY MÁY nhận được, chứ không phải "đã gửi" chung chung: gửi thử trên điện
       // thoại mà chỉ máy tính kêu thì câu "đã gửi" là một câu đúng-nhưng-vô-dụng.
       ghi.textContent = r.ok
-        ? "Đã gửi tới " + (r.so || 1) + " thiết bị - kiểm tra thông báo của máy."
-        : (r.error || "Gửi thử hỏng.");
+        ? window.t("noti.push_test_ok", { count: r.so || 1 })
+        : (r.error || window.t("noti.push_test_err"));
       ghi.classList.toggle("loi", !r.ok);
     });
   }

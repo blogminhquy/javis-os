@@ -30,7 +30,8 @@ C. **Cùng một trải nghiệm trên cả tám bộ não.** Hệ quả của (
    "dù là claude hay codex hay dùng api thì trải nghiệm nói chuyện với bot cũng vẫn giống
    nhau". Mục B3 chạy THẬT qua cả tám provider rồi đối chiếu payload từng con.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
+from _paths import ROOT, SERVER
+import json  # noqa: E402,F401  - nạp server/ vào sys.path
 import os
 import sys
 import tempfile
@@ -346,8 +347,12 @@ check("lượt bot tự ghim đường của nó", '_CONTEXT_RUNTIME.pin_executi
       and '"bot", None, context_runtime.RUNTIME_VERSION' in _SRC)
 # Bảng nhãn đường giờ chỉ còn MỘT bản, nằm ở khung chat (app.js): trang Tiết kiệm gộp vào
 # Mức dùng ở 0.24.7 và mang theo bản sao thứ hai của bảng này.
+# Nhãn đã vào từ điển i18n (0.55.14): bảng CTX_PATH_LABEL nay giữ KHOÁ, window.t() giải nghĩa
+# lúc vẽ. Kiểm hai vế để không hở: app.js trỏ đường bot vào đúng khoá, và khoá mang đúng chữ.
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("giao diện có nhãn tiếng Việt cho đường bot",
-      'bot: "Bot chuyên trách"' in (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8"))
+      'bot: "app.ctx_bot"' in (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+      and _VI.get("app.ctx_bot") == "Bot chuyên trách")
 
 # Đo thật: prompt của bot phải nhỏ hơn hẳn capsule của mức Siêu tiết kiệm. Đây là bằng chứng
 # cho câu "bot không cần hai tầng đó", chứ không phải lời khẳng định suông.

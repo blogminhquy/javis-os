@@ -30,10 +30,10 @@
   function groupOf(ts) {
     var d0 = new Date(); d0.setHours(0, 0, 0, 0);
     var start = d0.getTime() / 1000;
-    if (ts >= start) return "Hôm nay";
-    if (ts >= start - 86400) return "Hôm qua";
-    if (ts >= start - 6 * 86400) return "7 ngày qua";
-    return "Cũ hơn";
+    if (ts >= start) return window.t("usage.ky.hom_nay");
+    if (ts >= start - 86400) return window.t("usage.ky.hom_qua");
+    if (ts >= start - 6 * 86400) return window.t("sess.grp_7days");
+    return window.t("cs.cl_older");
   }
 
   var side = null, listEl = null, searchEl = null, searchTimer = null, refreshTimer = null;
@@ -74,10 +74,10 @@
   // escape ở đây - tên project do người dùng gõ.
   function projLabelHtml() {
     var cur = curProject();
-    if (!cur) return ic("layers") + " Tất cả hội thoại";
-    if (cur === "none") return ic("circle") + " Chưa xếp nhóm";
+    if (!cur) return ic("layers") + " " + window.t("sess.proj_all");
+    if (cur === "none") return ic("circle") + " " + window.t("sess.proj_none");
     var p = projById(cur);
-    if (!p) return ic("layers") + " Tất cả hội thoại";
+    if (!p) return ic("layers") + " " + window.t("sess.proj_all");
     return projIcon(p) + " " + esc(p.name);
   }
 
@@ -109,12 +109,12 @@
     if (!projBar) return;
     var cur = curProject();
     projBar.innerHTML =
-      '<button class="cs-proj-cur" type="button" title="Chọn nhóm hội thoại">' +
+      '<button class="cs-proj-cur" type="button" title="' + esc(window.t("sess.proj_pick_title")) + '">' +
         '<span class="cs-proj-name">' + projLabelHtml() + '</span>' +
         '<span class="cs-proj-caret">' + ic("chevron-down") + '</span>' +
       '</button>' +
-      (cur ? '<button class="cs-proj-x" type="button" title="Bỏ lọc, xem tất cả">' + ic("x") + '</button>' : '') +
-      '<button class="cs-proj-add" type="button" title="Tạo project mới">' + ic("folder-plus") + '</button>';
+      (cur ? '<button class="cs-proj-x" type="button" title="' + esc(window.t("sess.proj_clear_title")) + '">' + ic("x") + '</button>' : '') +
+      '<button class="cs-proj-add" type="button" title="' + esc(window.t("sess.proj_add_title")) + '">' + ic("folder-plus") + '</button>';
     projBar.querySelector(".cs-proj-cur").onclick = function (e) { openProjMenu(e.currentTarget); };
     projBar.querySelector(".cs-proj-add").onclick = function () { newProject(); };
     var x = projBar.querySelector(".cs-proj-x");
@@ -133,8 +133,8 @@
   function openProjMenu(anchor) {
     var cur = curProject();
     var rows = [
-      { label: "Tất cả hội thoại", icon: "layers", on: !cur, run: function () { chonProject(""); } },
-      { label: "Chưa xếp nhóm", icon: "circle", on: cur === "none", run: function () { chonProject("none"); } },
+      { label: window.t("sess.proj_all"), icon: "layers", on: !cur, run: function () { chonProject(""); } },
+      { label: window.t("sess.proj_none"), icon: "circle", on: cur === "none", run: function () { chonProject("none"); } },
     ];
     if (projects.length) rows.push({ sep: true });
     projects.forEach(function (p) {
@@ -152,12 +152,12 @@
         //   - Hover KHÔNG tồn tại trên màn cảm ứng, nên trên máy tính bảng bốn nút đó là
         //     bốn chức năng không có đường nào bấm tới.
         //   - Icon trần bắt người dùng đoán nghĩa; hộp chức năng ghi bằng CHỮ thì không.
-        acts: [{ icon: "ellipsis-vertical", title: "Chức năng của project",
+        acts: [{ icon: "ellipsis-vertical", title: window.t("sess.proj_acts"),
                  run: function () { openProjActs(anchor, p); } }],
       });
     });
     rows.push({ sep: true });
-    rows.push({ label: "＋ Project mới", run: function () { newProject(); } });
+    rows.push({ label: window.t("sess.proj_new"), run: function () { newProject(); } });
     openMenu(anchor, rows);
   }
 
@@ -172,21 +172,21 @@
       { label: p.name, icon: p.icon || "folder", wrap: true,
         run: function () { chonProject(p.id); } },
       { sep: true },
-      { label: p.pinned ? "Bỏ ghim khỏi đầu danh sách" : "Ghim lên đầu danh sách",
+      { label: p.pinned ? window.t("sess.proj_unpin") : window.t("sess.proj_pin"),
         icon: "pin", run: function () { ghimProject(p); } },
-      { label: "Mở khung Hướng dẫn / File / Link", icon: "sliders-horizontal",
+      { label: window.t("sess.proj_drawer"), icon: "sliders-horizontal",
         run: function () { openProjDrawer(p.id); } },
-      { label: "Đổi icon", icon: "palette",
+      { label: window.t("sess.proj_icon"), icon: "palette",
         run: function () {
           pickIcon(anchor, p.icon || "", function (v) {
             post("/projects/" + encodeURIComponent(p.id) + "/update", { icon: v }).then(loadProjects);
           });
         } },
-      { label: "Đổi tên project", icon: "pencil", run: function () { renameProject(p); } },
+      { label: window.t("proj.rename"), icon: "pencil", run: function () { renameProject(p); } },
       { sep: true },
-      { label: "Xoá project", icon: "trash-2", run: function () { delProject(p); } },
+      { label: window.t("sess.proj_delete"), icon: "trash-2", run: function () { delProject(p); } },
       { sep: true },
-      { label: "Quay lại danh sách", icon: "chevron-left",
+      { label: window.t("sess.proj_back"), icon: "chevron-left",
         run: function () { openProjMenu(anchor); } },
     ]);
   }
@@ -204,7 +204,7 @@
   }
 
   async function newProject() {
-    var name = prompt("Tên project (nhóm hội thoại):", "");
+    var name = prompt(window.t("sess.proj_new_q"), "");
     if (name == null || !name.trim()) return;
     var r = await post("/projects", { name: name.trim(), brain: brain() });
     await loadProjects();
@@ -220,7 +220,7 @@
   }
 
   async function renameProject(p) {
-    var name = prompt("Tên mới cho project:", p.name || "");
+    var name = prompt(window.t("sess.proj_rename_q"), p.name || "");
     if (name == null || !name.trim()) return;
     await post("/projects/" + encodeURIComponent(p.id) + "/update", { name: name.trim() });
     await loadProjects();
@@ -231,9 +231,9 @@
     // Nói THẲNG hội thoại không mất. Người dùng gom nhóm để đỡ rối, không ai muốn một cú bấm
     // nhầm cuốn theo cả tháng trò chuyện - và cũng không có đường hoàn tác nào.
     var n = p.session_count || 0;
-    if (!confirm('Xoá project "' + (p.name || "") + '"?\n\n' +
-                 (n ? n + " hội thoại trong đó sẽ được gỡ khỏi nhóm chứ KHÔNG bị xoá."
-                    : "Project này chưa có hội thoại nào."))) return;
+    if (!confirm(window.t("sess.proj_del_q", { ten: p.name || "" }) + "\n\n" +
+                 (n ? window.t("sess.proj_del_n", { count: n })
+                    : window.t("sess.proj_del_empty")))) return;
     await post("/projects/" + encodeURIComponent(p.id) + "/delete", {});
     if (projChiTiet && projChiTiet.id === p.id) { projChiTiet = null; closeProjDrawer(); }
     quenPhienProj();
@@ -1040,8 +1040,8 @@
     menuEl = document.createElement("div");
     menuEl.className = "cs-menu cs-ico";
     var head = el('<div class="cs-ico-head">' +
-      '<input class="cs-ico-in" placeholder="Lọc theo tên icon (star, folder…)">' +
-      '<button class="cs-ico-clear" type="button">Xoá icon</button></div>');
+      '<input class="cs-ico-in" placeholder="' + esc(window.t("sess.icon_ph")) + '">' +
+      '<button class="cs-ico-clear" type="button">' + esc(window.t("sess.icon_clear")) + '</button></div>');
     var grid = el('<div class="cs-ico-grid"></div>');
     var tenAll = tenIcon();
 
@@ -1050,7 +1050,7 @@
       var ds = q ? tenAll.filter(function (n) { return n.indexOf(q) !== -1; }) : tenAll;
       grid.innerHTML = "";
       if (!ds.length) {
-        grid.appendChild(el('<div class="cs-ico-empty">Không có icon nào tên chứa "' + esc(q) + '".</div>'));
+        grid.appendChild(el('<div class="cs-ico-empty">' + esc(window.t("sess.icon_none", { q: q })) + '</div>'));
         return;
       }
       ds.forEach(function (n) {
@@ -1105,13 +1105,13 @@
         // phải đọc mới biết đang ở đâu. Dùng đúng icon rail đang dùng cho hai thứ đó
         // (message-circle cho Trò chuyện, folder-tree cho Tệp tin) để cả app nói cùng một
         // ngôn ngữ hình, chứ không đặt icon mới chỉ riêng chỗ này.
-        '<button class="cside-tab" data-tab="chat" type="button">' + ic("message-circle") + ' Hội thoại</button>' +
-        '<button class="cside-tab" data-tab="files" type="button">' + ic("folder-tree") + ' Thư mục</button>' +
+        '<button class="cside-tab" data-tab="chat" type="button">' + ic("message-circle") + ' ' + esc(window.t("sess.tab_chat")) + '</button>' +
+        '<button class="cside-tab" data-tab="files" type="button">' + ic("folder-tree") + ' ' + esc(window.t("sess.tab_files")) + '</button>' +
       '</div>' +
       '<div class="cside-pane" data-pane="chat">' +
-        '<button class="cside-new" type="button">＋ Hội thoại mới</button>' +
+        '<button class="cside-new" type="button">' + esc(window.t("sess.new_chat")) + '</button>' +
         '<div class="cside-proj"></div>' +
-        '<input class="cside-search" placeholder="Tìm trong mọi hội thoại…">' +
+        '<input class="cside-search" placeholder="' + esc(window.t("sess.search_ph")) + '">' +
         '<div class="cside-list"></div>' +
       '</div>' +
       '<div class="cside-pane" data-pane="files"></div>';
@@ -1202,7 +1202,7 @@
       if (cached && cached.brain === brain() && cached.project === curProject() && cached.items.length) {
         renderList(cached.items.slice(0, shown), cached.items.length > shown);
       } else {
-        listEl.innerHTML = '<div class="cside-empty">Đang tải…</div>';
+        listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.loading")) + '</div>';
       }
     }
     try {
@@ -1211,13 +1211,13 @@
       renderList(c.items.slice(0, shown), c.items.length > shown);
     } catch (e) {
       // Lỗi mạng thoáng qua: còn danh sách (từ cache) thì giữ nguyên, đừng đập đi
-      if (!listEl.querySelector(".cside-item")) listEl.innerHTML = '<div class="cside-empty">Lỗi tải danh sách.</div>';
+      if (!listEl.querySelector(".cside-item")) listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.load_err")) + '</div>';
     }
   }
 
   function renderList(items, hasMore) {
     if (!items.length) {
-      listEl.innerHTML = '<div class="cside-empty">Chưa có hội thoại nào.<br>Bấm ＋ để bắt đầu.</div>';
+      listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.empty1")) + '<br>' + esc(window.t("sess.empty2")) + '</div>';
       return;
     }
     // Bấm "Xem thêm" render lại từ đầu → giữ chỗ cuộn để không bị nhảy lên trên.
@@ -1227,7 +1227,7 @@
     items.forEach(function (s) {
       // Mục ghim gom thành MỘT nhóm trên đầu, không xếp theo thời gian nữa - ghim chính là để
       // thoát khỏi thứ tự thời gian. Server đã sắp pinned trước nên chỉ cần đổi nhãn nhóm.
-      var g = s.pinned ? "Đã ghim" : groupOf(s.updated_at || 0);
+      var g = s.pinned ? window.t("sess.grp_pinned") : groupOf(s.updated_at || 0);
       if (g !== lastGroup) {
         listEl.appendChild(el('<div class="cside-group">' + g + '</div>'));
         lastGroup = g;
@@ -1242,17 +1242,17 @@
       // ở đây không phân loại được gì, chỉ thêm một nút phải bấm và một hàng nút chật thêm.
       // Icon để PHÂN LOẠI thì nằm ở Project - xem openProjMenu.
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + '">' +
-        '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="Đang trả lời">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
-        esc(s.title || s.preview || "(chưa đặt tên)") + '</div>' +
+        '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="' + esc(window.t("sess.running")) + '">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
+        esc(s.title || s.preview || window.t("sess.untitled")) + '</div>' +
         '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
         (eng ? '<span class="ci-badge">' + esc(eng) + '</span>' : '') +
-        '<span>' + (s.msg_count || 0) + ' tin</span>' +
+        '<span>' + esc(window.t("sess.msgs", { count: s.msg_count || 0 })) + '</span>' +
         '<span class="act">' +
-          '<span class="pin' + (s.pinned ? " on" : "") + '" title="' + (s.pinned ? "Bỏ ghim" : "Ghim lên đầu") + '">' + ic("pin") + '</span>' +
-          '<span class="mov" title="Chuyển vào project">' + ic("folder") + '</span>' +
-          '<span class="ren" title="Đổi tên">' + ic("pencil") + '</span>' +
-          '<span class="del" title="Xoá">' + ic("trash-2") + '</span>' +
+          '<span class="pin' + (s.pinned ? " on" : "") + '" title="' + esc(s.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span>' +
+          '<span class="mov" title="' + esc(window.t("sess.move_to")) + '">' + ic("folder") + '</span>' +
+          '<span class="ren" title="' + esc(window.t("cs.fm_rename_title")) + '">' + ic("pencil") + '</span>' +
+          '<span class="del" title="' + esc(window.t("common.delete")) + '">' + ic("trash-2") + '</span>' +
         '</span>' +
         '</div></div>');
       // Hai nút mới gắn handler RIÊNG kèm stopPropagation, không nhét thêm nhánh vào
@@ -1273,7 +1273,7 @@
       listEl.appendChild(item);
     });
     if (hasMore) {
-      var more = el('<button class="cside-more" type="button">Xem thêm ' + PAGE + '</button>');
+      var more = el('<button class="cside-more" type="button">' + esc(window.t("sess.more", { so: PAGE })) + '</button>');
       more.onclick = function () { shown += PAGE; loadList(); };
       listEl.appendChild(more);
     }
@@ -1282,34 +1282,34 @@
 
   async function doSearch(q) {
     if (!listEl) return;
-    listEl.innerHTML = '<div class="cside-empty">Đang tìm…</div>';
+    listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.searching")) + '</div>';
     try {
       var r = await fetch("/sessions/search?q=" + encodeURIComponent(q) + "&brain=" + encodeURIComponent(brain()) + "&limit=40");
       var data = await r.json();
       var hits = data.results || [];
-      if (!hits.length) { listEl.innerHTML = '<div class="cside-empty">Không tìm thấy.</div>'; return; }
+      if (!hits.length) { listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.no_result")) + '</div>'; return; }
       listEl.innerHTML = "";
       hits.forEach(function (h) {
         var snip = esc(h.snippet || "").replace(/&gt;&gt;&gt;/g, "<b>").replace(/&lt;&lt;&lt;/g, "</b>");
         var item = el('<div class="cside-item">' +
-          '<div class="ci-title">' + esc(h.title || "(chưa đặt tên)") + '</div>' +
+          '<div class="ci-title">' + esc(h.title || window.t("sess.untitled")) + '</div>' +
           '<div class="ci-snip">' + snip + '</div>' +
           '<div class="ci-meta"><span>' + fmtT(h.ts) + '</span></div></div>');
         item.onclick = function () { openSession(h.session_id); };
         listEl.appendChild(item);
       });
-    } catch (e) { listEl.innerHTML = '<div class="cside-empty">Lỗi tìm kiếm.</div>'; }
+    } catch (e) { listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.search_err")) + '</div>'; }
   }
 
   async function delSession(s) {
-    if (!confirm('Xoá hội thoại "' + (s.title || s.preview || "(chưa đặt tên)") + '"?')) return;
+    if (!confirm(window.t("sess.del_q", { ten: s.title || s.preview || window.t("sess.untitled") }))) return;
     try { await fetch("/sessions/" + encodeURIComponent(s.id) + "/delete", { method: "POST" }); } catch (e) {}
     if (s.id === currentId() && window.JavisSessions) window.JavisSessions.new();
     refresh();
   }
 
   async function renSession(s) {
-    var t = prompt("Tên mới cho hội thoại:", s.title || s.preview || "");
+    var t = prompt(window.t("sess.rename_q"), s.title || s.preview || "");
     if (t == null) return;
     try {
       var fd = new FormData(); fd.append("title", t);
@@ -1326,7 +1326,7 @@
 
   function moveMenu(anchor, s) {
     var rows = [{
-      label: "Bỏ khỏi nhóm", on: !s.project_id,
+      label: window.t("sess.move_none"), on: !s.project_id,
       run: function () { moveTo(s, ""); },
     }];
     if (projects.length) rows.push({ sep: true });
@@ -1340,7 +1340,7 @@
     });
     if (!projects.length) {
       rows.push({ sep: true });
-      rows.push({ label: "＋ Project mới", run: function () { newProject(); } });
+      rows.push({ label: window.t("sess.proj_new"), run: function () { newProject(); } });
     }
     openMenu(anchor, rows);
   }
@@ -1400,7 +1400,16 @@
     if (gs) gs.addEventListener("change", refresh);
     // Nút "Lịch sử" → mở thẳng workspace với sidebar. Đặt INLINE trong hàng nút header
     // (.hud-actions) để không đè lên nút Cài đặt/Reset; fallback về body nếu chưa có header.
-    var btn = el('<div id="jv-sess-btn" title="Lịch sử hội thoại">' + ic("history") + ' <span>Lịch sử</span></div>');
+    var btn = el('<div id="jv-sess-btn">' + ic("history") + ' <span class="jv-sess-lbl"></span></div>');
+    // Nút này dựng NGAY lúc tải trang, có thể trước khi từ điển về, mà t() lúc đó trả về
+    // chính cái khoá. Nên vẽ nhãn qua một hàm và vẽ lại khi từ điển sẵn sàng/đổi ngôn ngữ.
+    function veNhanBtn() {
+      btn.title = window.t("sess.hist_title");
+      var lbl = btn.querySelector(".jv-sess-lbl");
+      if (lbl) lbl.textContent = window.t("sess.hist");
+    }
+    veNhanBtn();
+    window.addEventListener("javis:i18n", veNhanBtn);
     btn.onclick = function () { if (window.JavisChatStage) window.JavisChatStage.showSide(); };
     var host = document.querySelector(".hud-actions");
     (host || document.body).appendChild(btn);

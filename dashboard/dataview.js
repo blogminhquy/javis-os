@@ -20,12 +20,32 @@
 (function () {
   "use strict";
 
+  // Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước mọi
+  // module này); dưới node - nơi test require() thẳng file này - `window` CHƯA KHAI BÁO nên
+  // đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
+  // thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá trần.
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return tw(khoa, bien);
+    try {
+      var s = require("./i18n/vi.json")[khoa] || khoa;
+      return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+        return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+      });
+    } catch (e) { return khoa; }
+  }
+
   // File này chạy hai chế độ: trong trình duyệt và dưới node (test require nó).
   // Dưới node không có window nên không có ic() - trả về chuỗi rỗng để phần logic
   // vẫn test được mà không phải kéo cả tầng icon vào. Trong trình duyệt thì
   // icons.js đã nạp trước (index.html bảo đảm thứ tự, có test canh) nên lấy
   // được hàm thật.
   var ic = (typeof window !== "undefined" && window.ic) ? window.ic : function () { return ""; };
+
+  // Cùng lý do với ic(): dưới node không có window nên không có từ điển, lúc đó trả về chính
+  // khoá. Tra lúc GỌI chứ không lúc nạp file, để không phụ thuộc thứ tự script trong HTML.
+  function dt(k, bien) {
+    return (typeof window !== "undefined" && window.t) ? tw(k, bien) : k;
+  }
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -109,11 +129,11 @@
   }
   function parseQuery(src) {
     var s = String(src == null ? "" : src).replace(/\r/g, "").trim();
-    if (!s) return { error: "Truy vấn trống" };
+    if (!s) return { error: dt("dview.err.empty_query") };
     var parts = s.split(/\b(FROM|WHERE|SORT|GROUP\s+BY|LIMIT|FLATTEN)\b/i);
     var head = parts[0].trim();
     var hm = /^(TASK|LIST|TABLE)\b([\s\S]*)$/i.exec(head);
-    if (!hm) return { error: "Chưa hỗ trợ truy vấn này - hãy bắt đầu bằng TASK, LIST hoặc TABLE" };
+    if (!hm) return { error: dt("dview.err.unsupported_query") };
     var q = { type: hm[1].toUpperCase(), columns: [], from: null, where: null,
               sort: null, limit: 0, withoutId: false, warn: [] };
     var rest = hm[2].replace(/\n/g, " ").trim();
@@ -133,7 +153,7 @@
       else if (kw === "SORT") q.sort = parseSort(val);
       else if (kw === "LIMIT") q.limit = parseInt(val, 10) || 0;
       else if (kw === "GROUP BY") q.group = val;          // TASK von da nhom theo file
-      else if (kw === "FLATTEN") q.warn.push("FLATTEN chưa hỗ trợ - đã bỏ qua");
+      else if (kw === "FLATTEN") q.warn.push(dt("dview.warn.flatten"));
     }
     if (q.from && q.from.error) return { error: q.from.error };
     return q;
@@ -155,7 +175,7 @@
     for (var g = 0; g < orGroups.length; g++)
       for (var a = 0; a < orGroups[g].length; a++)
         if (orGroups[g][a].kind === "bad")
-          return { error: 'FROM chỉ hỗ trợ "thư mục" và #tag (AND/OR, phủ định -), gặp: ' + orGroups[g][a].v };
+          return { error: dt("dview.err.from", { v: orGroups[g][a].v }) };
     return { or: orGroups };
   }
   // ---------------------------------------------------------------- ngon ngu obsidian-tasks (khoi ```tasks)
@@ -219,7 +239,7 @@
       }
       if ((m = /^limit(?:\s+to)?\s+(\d+)(?:\s+tasks?)?$/.exec(low))) { q.limit = parseInt(m[1], 10) || 0; return; }
       if (IGNORE.test(low)) return;
-      q.warn.push('Bỏ qua dòng chưa hỗ trợ: "' + line + '"');
+      q.warn.push(dt("dview.warn.skip_line") + ' "' + line + '"');
     });
     if (conds.length) q.where = conds.map(function (c) { return "(" + c + ")"; }).join(" AND ");
     return q;
@@ -261,7 +281,7 @@
     var toks = tokenize(String(src || "")), pos = 0;
     function peek() { return toks[pos]; }
     function next() { return toks[pos++]; }
-    function expect(t) { if (next() !== t) throw new Error("Thiếu '" + t + "' trong biểu thức: " + src); }
+    function expect(t) { if (next() !== t) throw new Error(dt("dview.err.missing_token", { tok: t, src: src })); }
     function parseOr() {
       var l = parseAnd();
       while (peek() && /^(or)$/i.test(peek())) { next(); var r = parseAnd(); l = (function (a, b) { return function (c) { return truthy(a(c)) || truthy(b(c)); }; })(l, r); }
@@ -301,7 +321,7 @@
     }
     function parseVal() {
       var t = next();
-      if (t == null) throw new Error("Biểu thức dở dang: " + src);
+      if (t == null) throw new Error(dt("dview.err.incomplete_expr", { src: src }));
       if (t === "(") { var e = parseOr(); expect(")"); return e; }
       if (t[0] === '"' || t[0] === "'") { var s = t.slice(1, -1); return function () { return s; }; }
       if (/^-?\d/.test(t)) { var n = parseFloat(t); return function () { return n; }; }
@@ -334,7 +354,7 @@
           var la = parseOr(); expect(")");
           return function (c) { var v2 = la(c); return v2 == null ? 0 : (Array.isArray(v2) ? v2.length : String(v2).length); };
         }
-        throw new Error("Hàm chưa hỗ trợ: " + t + "()");
+        throw new Error(dt("dview.err.unknown_func", { ten: t }));
       }
       // chuoi truong: a.b.c (this. tro ve chinh ctx)
       var chain = t.split(".").filter(function (x) { return x && x.toLowerCase() !== "this"; });
@@ -349,7 +369,7 @@
       };
     }
     var fn = parseOr();
-    if (pos < toks.length) throw new Error("Thừa '" + toks[pos] + "' trong biểu thức: " + src);
+    if (pos < toks.length) throw new Error(dt("dview.err.extra_token", { tok: toks[pos], src: src }));
     return fn;
   }
   function truthy(v) {
@@ -417,7 +437,7 @@
       '" data-dv-line="' + (t.line || 0) + '" data-dv-raw="' + esc(encodeURIComponent(String(t.raw || "").trim())) + '"' +
       (t.checked ? " checked" : "") + '><span class="dv-ttext">' + esc(t.text || "") + badges + "</span></li>";
   }
-  function emptyHtml() { return '<div class="dv-empty">Không có kết quả nào khớp truy vấn.</div>'; }
+  function emptyHtml() { return '<div class="dv-empty">' + esc(tw("dview.rong_khong_khop")) + "</div>"; }
   function execQuery(q, files) {
     var pages = files.filter(function (f) { return matchFrom(q.from, f); });
     var whereFn = q.where ? compile(q.where) : null;
@@ -442,7 +462,7 @@
         g.rows.push(r);
       });
       var done = rows.filter(function (r) { return r.t.checked; }).length;
-      html += '<div class="dv-count">' + rows.length + " việc · " + done + " đã xong</div>";
+      html += '<div class="dv-count">' + dt("dview.count_tasks", { so: rows.length, xong: done }) + "</div>";
       groups.forEach(function (g) {
         html += '<div class="dv-group"><div class="dv-ghead">' + fileLinkHtml(g.f.path) + "</div><ul class=\"dv-tasks\">" +
           g.rows.map(function (r) { return taskItemHtml(r.t, r.f); }).join("") + "</ul></div>";
@@ -489,7 +509,7 @@
     var q = el.getAttribute("data-dv-q") || "";
     try { q = decodeURIComponent(q); } catch (e) {}
     if (lang === "dataviewjs") {
-      body.innerHTML = errHtml("Khối dataviewjs (chạy code JS) chưa được hỗ trợ - hãy dùng truy vấn dataview thường.", q);
+      body.innerHTML = errHtml(tw("dview.err.dataviewjs"), q);
       return;
     }
     var pq = lang === "tasks" ? parseTasksQuery(q) : parseQuery(q);
@@ -499,8 +519,8 @@
       var head = el.querySelector(".jv-dv-head");
       if (head && !head.querySelector(".dv-add")) {
         var ab = document.createElement("button");
-        ab.type = "button"; ab.className = "dv-add"; ab.textContent = "+ Việc";
-        ab.title = "Thêm việc mới vào Task Inbox";
+        ab.type = "button"; ab.className = "dv-add"; ab.textContent = tw("dview.add_task_btn");
+        ab.title = tw("dview.add_task_title");
         head.appendChild(ab);
       }
     }
@@ -512,7 +532,7 @@
           html = '<div class="dv-warn">' + esc(pq.warn.join(" · ")) + "</div>" + html;
         body.innerHTML = html;
       } catch (err) {
-        body.innerHTML = errHtml("Lỗi chạy truy vấn: " + (err && err.message || err), q);
+        body.innerHTML = errHtml(tw("dview.err.run", { loi: (err && err.message || err) }), q);
       }
     });
   }
@@ -534,7 +554,7 @@
     fetch("/files/taskadd", { method: "POST", body: fd })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
-        go.disabled = false; go.textContent = "Thêm";
+        go.disabled = false; go.textContent = tw("proj.add");
         if (d && d.ok) {
           ti.value = ""; di.value = "";
           form.classList.remove("open");
@@ -544,13 +564,13 @@
           });
           scheduleScan();
         } else {
-          go.innerHTML = ic("triangle-alert", { cls: "ic-warn" }); go.title = (d && d.error) || "Không thêm được";
-          setTimeout(function () { go.textContent = "Thêm"; }, 1600);
+          go.innerHTML = ic("triangle-alert", { cls: "ic-warn" }); go.title = (d && d.error) || tw("dview.add_failed");
+          setTimeout(function () { go.textContent = tw("proj.add"); }, 1600);
         }
       })
       .catch(function () {
         go.disabled = false; go.innerHTML = ic("triangle-alert", { cls: "ic-warn" });
-        setTimeout(function () { go.textContent = "Thêm"; }, 1600);
+        setTimeout(function () { go.textContent = tw("proj.add"); }, 1600);
       });
   }
 
@@ -601,12 +621,12 @@
           } else {
             cb.checked = !cb.checked;   // hoan tac
             if (li) { li.classList.add("dv-failed"); setTimeout(function () { li.classList.remove("dv-failed"); }, 1600); }
-            cb.title = (res.d && res.d.error) || "Không lưu được - thử tải lại trang";
+            cb.title = (res.d && res.d.error) || tw("dview.save_failed");
           }
         })
         .catch(function () {
           cb.disabled = false; cb.checked = !cb.checked;
-          cb.title = "Mất kết nối - chưa lưu được";
+          cb.title = tw("dview.offline");
         });
     });
 
@@ -620,9 +640,11 @@
           form = document.createElement("div");
           form.className = "dv-addform";
           form.setAttribute("contenteditable", "false");
-          form.innerHTML = '<input type="text" class="dv-add-text" placeholder="Việc mới...">' +
-            '<input type="date" class="dv-add-date" title="Hạn (tuỳ chọn)">' +
-            '<button type="button" class="dv-add-go">Thêm</button>';
+          form.innerHTML = '<input type="text" class="dv-add-text" placeholder="' +
+            esc(tw("dview.new_task_ph")) + '">' +
+            '<input type="date" class="dv-add-date" title="' +
+            esc(tw("dview.due_title")) + '">' +
+            '<button type="button" class="dv-add-go">' + esc(tw("proj.add")) + '</button>';
           var head = el.querySelector(".jv-dv-head");
           head.parentNode.insertBefore(form, head.nextSibling);
         }

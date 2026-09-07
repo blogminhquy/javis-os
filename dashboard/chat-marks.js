@@ -73,7 +73,7 @@
       // hiện trên bong bóng khi thiếu, vd tin dựng từ đường khác.
       var t = el.dataset && el.dataset.text != null ? el.dataset.text : el.textContent;
       t = gonChu(t);
-      if (!t) t = "(chỉ có tệp đính kèm)";
+      if (!t) t = window.t("cmark.attachment_only");
       ds.push({ el: el, text: t });
     }
     return ds;
@@ -225,12 +225,13 @@
       ray = null; hop = null;
       boc.querySelector(".cm-nut").onclick = moTam;
     } else {
-      boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="Mốc hội thoại"></div>';
+      boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="'
+        + window.t("cmark.ray_aria") + '"></div>';
       ray = boc.querySelector(".cm-ray");
       var rayHtml = "";
       for (var i = 0; i < moc.length; i++) {
         rayHtml += '<button type="button" class="cm-vach" data-cm="' + i + '" tabindex="-1" '
-          + 'aria-label="Câu hỏi ' + (i + 1) + '"></button>';
+          + 'aria-label="' + window.t("cmark.question_n", { so: i + 1 }) + '"></button>';
       }
       // Dựng MỘT LƯỢT cả vạch lẫn hộp: hộp là con của ray nên ghi ray.innerHTML riêng sẽ xoá
       // mất nó, rồi biến `hop` thành con trỏ tới một node đã rời khỏi trang - hover không
@@ -264,9 +265,9 @@
     dongTam();
     tam = document.createElement("div");
     tam.className = "cm-tam-lop";
-    tam.innerHTML = '<div class="cm-tam" role="dialog" aria-label="Câu hỏi trong hội thoại">'
-      + '<div class="cm-tam-dau"><b>Câu hỏi trong hội thoại</b>'
-      + '<button type="button" class="cm-tam-dong" aria-label="Đóng">\u2715</button></div>'
+    tam.innerHTML = '<div class="cm-tam" role="dialog" aria-label="' + window.t("cmark.sheet_title") + '">'
+      + '<div class="cm-tam-dau"><b>' + window.t("cmark.sheet_title") + '</b>'
+      + '<button type="button" class="cm-tam-dong" aria-label="' + window.t("common.close") + '">\u2715</button></div>'
       + '<div class="cm-tam-ds">' + mucHtml() + "</div></div>";
     document.body.appendChild(tam);
     tam.addEventListener("click", function (e) {

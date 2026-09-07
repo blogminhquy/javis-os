@@ -1,3 +1,17 @@
+// Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước mọi
+// module này); dưới node - nơi test require() thẳng file này - `window` CHƯA KHAI BÁO nên
+// đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
+// thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá trần.
+function graphTw(khoa, bien) {
+  if (typeof window !== "undefined" && window.t) return graphTw(khoa, bien);
+  try {
+    var s = require("./i18n/vi.json")[khoa] || khoa;
+    return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+      return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+    });
+  } catch (e) { return khoa; }
+}
+
 // ============================================
 // JAVIS OS - Knowledge graph "Tinh vân bộ não" (force-graph / d3-force, kiểu Obsidian)
 // Engine d3-force. Thiết kế: node = sao phát sáng, TÔ MÀU THEO DANH MỤC
@@ -178,7 +192,7 @@ class JavisGraph {
   async load(query = "source=all") {
     const res = await fetch(`/graph?${query}&orphans=1`);   // 2D hiện CẢ note cô đơn (như graph view Obsidian)
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Không tải được đồ thị (${res.status})`);
+    if (!res.ok) throw new Error(data.error || graphTw("graph.load_failed", { status: res.status }));
     const nodes = Array.isArray(data.nodes) ? data.nodes : [];
     this._catMap = null;                     // gán lại màu danh mục tươi cho mỗi lần nạp
     this._prep(nodes);
@@ -187,7 +201,7 @@ class JavisGraph {
     const links = (data.edges || []).map(e => ({ source: e.source, target: e.target }));
 
     if (!this.graph) {
-      if (!window.ForceGraph) throw new Error("Thư viện đồ thị 2D chưa tải (kiểm tra mạng)");
+      if (!window.ForceGraph) throw new Error(graphTw("graph.lib_2d_missing"));
       const self = this;
       this.graph = ForceGraph()(this.container)
         .backgroundColor("rgba(0,0,0,0)")

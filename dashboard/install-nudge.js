@@ -61,35 +61,35 @@
     var coNutCai = !!(window.JavisInstall && window.JavisInstall.coHopCai());
     var than = ios
       ? '<ol class="inud-buoc">'
-        + '<li>Bấm nút <b>Chia sẻ</b> ở thanh dưới của Safari.</li>'
-        + '<li>Kéo xuống chọn <b>Thêm vào MH chính</b>.</li>'
-        + '<li>Bấm <b>Thêm</b> là xong.</li></ol>'
+        + '<li>' + window.t("instl.ios1_a") + ' <b>' + window.t("instl.ios1_b") + '</b> ' + window.t("instl.ios1_c") + '</li>'
+        + '<li>' + window.t("instl.ios2_a") + ' <b>' + window.t("instl.ios2_b") + '</b>.</li>'
+        + '<li>' + window.t("instl.tap") + ' <b>' + window.t("instl.ios3_b") + '</b> ' + window.t("instl.ios3_c") + '</li></ol>'
       : (coNutCai
-        ? '<p class="inud-mo">Bấm <b>Cài Javis</b>, trình duyệt sẽ hỏi xác nhận một lần.</p>'
+        ? '<p class="inud-mo">' + window.t("instl.tap") + ' <b>' + window.t("instl.cai") + '</b>, ' + window.t("instl.tap_note") + '</p>'
         : '<ol class="inud-buoc">'
-          + '<li>Mở <b>menu</b> của trình duyệt (ba chấm ở góc).</li>'
-          + '<li>Chọn <b>Thêm vào màn hình chính</b> hoặc <b>Cài ứng dụng</b>.</li></ol>');
+          + '<li>' + window.t("instl.menu1_a") + ' <b>menu</b> ' + window.t("instl.menu1_b") + '</li>'
+          + '<li>' + window.t("instl.menu2_a") + ' <b>' + window.t("instl.menu2_b") + '</b> ' + window.t("instl.menu2_or") + ' <b>' + window.t("instl.menu2_c") + '</b>.</li></ol>');
 
     var el = document.createElement("div");
     el.className = "inud-wrap";
     el.setAttribute("role", "dialog");
-    el.setAttribute("aria-label", "Thêm Javis vào Màn hình chính");
+    el.setAttribute("aria-label", window.t("instl.title"));
     el.innerHTML =
       '<div class="inud-nen"></div>'
       + '<div class="inud-hop">'
       + '  <div class="inud-dau">'
       + '    <img class="inud-icon" src="/static/icon-192.png" alt="">'
       + '    <div class="inud-tieude">'
-      + '      <b>Thêm Javis vào Màn hình chính</b>'
-      + '      <span>Mở nhanh như một app, và <b>nhận được thông báo</b> khi việc chạy nền xong.</span>'
+      + '      <b>' + window.t("instl.title") + '</b>'
+      + '      <span>' + window.t("instl.sub_a") + ' <b>' + window.t("instl.sub_b") + '</b> ' + window.t("instl.sub_c") + '</span>'
       + '    </div>'
       + '  </div>'
       + than
       + '  <div class="inud-nut">'
-      + '    <button type="button" class="inud-tat" id="inudTat">Đừng nhắc nữa</button>'
+      + '    <button type="button" class="inud-tat" id="inudTat">' + window.t("instl.tat") + '</button>'
       + '    <span class="inud-day"></span>'
-      + '    <button type="button" class="inud-sau" id="inudSau">Để sau</button>'
-      + (coNutCai && !ios ? '    <button type="button" class="inud-cai" id="inudCai">Cài Javis</button>' : "")
+      + '    <button type="button" class="inud-sau" id="inudSau">' + window.t("cs.fm_fix_later") + '</button>'
+      + (coNutCai && !ios ? '    <button type="button" class="inud-cai" id="inudCai">' + window.t("instl.cai") + '</button>' : "")
       + '  </div>'
       + '</div>';
     document.body.appendChild(el);

@@ -16,10 +16,10 @@
     function apply(hidden, persist) {
       root.classList.toggle("brain-overlays-hidden", hidden);
       button.setAttribute("aria-pressed", hidden ? "true" : "false");
-      button.setAttribute("aria-label", hidden ? "Hiện nhãn và số liệu brain" : "Ẩn nhãn và số liệu brain");
+      button.setAttribute("aria-label", hidden ? window.t("bview.overlay_show_aria") : window.t("orb.overlay_aria"));
       button.title = hidden
-        ? "Hiện nhãn thư mục và số liệu Agents / Skills / Workflows"
-        : "Ẩn nhãn thư mục và số liệu Agents / Skills / Workflows";
+        ? window.t("bview.overlay_show_title")
+        : window.t("orb.overlay_title");
       if (persist) {
         try { localStorage.setItem(STORAGE_KEY, hidden ? "1" : "0"); } catch (e) {}
       }
@@ -46,14 +46,14 @@
     function setPlaying(on) {
       btn.classList.toggle("playing", !!on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
-      btn.title = on ? "Dừng timelapse (trả lại đồ thị đầy đủ)"
-                     : "Timelapse: xem lại brain lớn lên từ note đầu tiên tới giờ";
+      btn.title = on ? window.t("bview.timelapse_stop_title")
+                     : window.t("orb.timelapse_title");
     }
 
     btn.addEventListener("click", function () {
       var g = window.__javisGraph;
       if (!g || typeof g.startTimelapse !== "function") {
-        btn.title = "Đồ thị chưa sẵn sàng";
+        btn.title = window.t("bview.graph_not_ready");
         return;
       }
       if (g.timelapseRunning) { g.stopTimelapse(); return; }   // sự kiện end sẽ tự tắt trạng thái nút

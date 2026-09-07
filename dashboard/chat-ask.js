@@ -13,6 +13,20 @@
 (function () {
   "use strict";
 
+  // Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước mọi
+  // module này); dưới node - nơi test require() thẳng file này - `window` CHƯA KHAI BÁO nên
+  // đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
+  // thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá trần.
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return tw(khoa, bien);
+    try {
+      var s = require("./i18n/vi.json")[khoa] || khoa;
+      return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+        return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+      });
+    } catch (e) { return khoa; }
+  }
+
   var ASK_RE = /<!--\s*JAVIS_ASK:\s*([\s\S]*?)\s*-->/;
   var MAX_OPTS = 4;
   var MAX_LABEL = 40;
@@ -80,7 +94,7 @@
     box.innerHTML =
       '<div class="jv-ask-q">' + tag + esc(ask.question) + "</div>" +
       '<div class="jv-ask-row">' + chips +
-        '<button class="jv-ask-chip jv-ask-other" type="button" data-other="1">Ý khác…</button>' +
+        '<button class="jv-ask-chip jv-ask-other" type="button" data-other="1">' + esc(tw("cask.other")) + "</button>" +
       "</div>";
     box._ask = ask;              // giu lai de doc nhan luc bam chip (nhan trong day da bi cut())
     host.appendChild(box);

@@ -58,7 +58,7 @@
       sysHost.className = "rail-sys";
       var lbl = document.createElement("div");
       lbl.className = "rail-sys-lbl";
-      lbl.textContent = "Hệ thống";
+      lbl.textContent = window.t("nav.group.he_thong");
       sysHost.appendChild(lbl);
       sysBtns = document.createElement("div");
       sysBtns.className = "rail-sys-btns";
@@ -114,7 +114,7 @@
     var chatInput = document.getElementById("chatInput");
     var longPh = chatInput ? chatInput.getAttribute("placeholder") : "";
     function setPlaceholder() {
-      if (chatInput) chatInput.setAttribute("placeholder", mq.matches ? "Nói hoặc gõ cho Javis…" : longPh);
+      if (chatInput) chatInput.setAttribute("placeholder", mq.matches ? window.t("mchat.input_ph_short") : longPh);
     }
 
     // ---- 4) Nút + = hội thoại mới (reset) + focus ô nhập cho phản hồi tức thì ----
@@ -158,8 +158,8 @@
       document.body.classList.toggle("brain-max", !!on);
       if (brainMaxBtn) {
         brainMaxBtn.setAttribute("aria-pressed", on ? "true" : "false");
-        brainMaxBtn.title = on ? "Thu khoang não về khung nhỏ"
-                               : "Bung khoang não ra toàn màn để nhìn rõ đồ thị";
+        brainMaxBtn.title = on ? window.t("mchat.brain_min_title")
+                               : window.t("orb.max_title");
       }
       refitGraph(340);   // đợi hết hoạt ảnh đổi layout rồi mới đo lại
     }

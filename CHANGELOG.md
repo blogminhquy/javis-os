@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.14] - 2026-09-07
+### Cải thiện
+- **Chuyển sang tiếng Anh giờ là tiếng Anh thật.** Trước đây đổi ngôn ngữ xong vẫn còn nhiều mảng tiếng Việt: trang Chatbot, trang Mức dùng token, hộp thư thông báo, terminal, lịch sử hội thoại, khung sửa file, dải việc nền và phần lớn trang Cài đặt, Kết nối, Models, Cập nhật. Hơn 1.000 câu chữ nữa đã có bản tiếng Anh.
+- Từ điển giao diện tăng từ 725 lên 2.308 dòng, phủ gần hết những gì bạn thấy trên màn hình.
+
 ## [0.55.13] - 2026-09-02
 ### Sửa lỗi
 - **Chat bằng model Ollama chạy trên máy nhà đã hoạt động.** Trước đây gõ gì cũng nhận lại "There's an issue with the selected model", vì Javis lặng lẽ đưa lượt chat cho Claude Code kèm tên model của Ollama. Nay lượt chat đi đúng Ollama, đủ tool và MCP như mọi bộ não khác.

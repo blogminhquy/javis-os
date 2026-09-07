@@ -1915,7 +1915,7 @@ rateSlider.addEventListener("input", () => { const r = parseFloat(rateSlider.val
 document.getElementById("testVoiceBtn").addEventListener("click", () => {
   const v = document.querySelector('input[name="voice"]:checked').value;
   // force: nghe thử là hành động chủ động của user, phải kêu kể cả khi đang tắt tiếng (mặc định).
-  voice.speak(v.includes("HoaiMy") ? "Xin chào, em là HoaiMy, trợ lý của bạn." : "Xin chào, tôi là NamMinh, trợ lý của bạn.", { force: true });
+  voice.speak(v.includes("HoaiMy") ? window.t("app.voice_sample_hoaimy") : window.t("app.voice_sample_namminh"), { force: true });
 });
 // Nút loa header đã bỏ (0.48.3) - công tắc giọng nay chỉ còn nút trên THANH NHẬP
 // (#ttsToggleBar) và công tắc trong Cài đặt nhanh, cả hai do quick-settings.js lo.

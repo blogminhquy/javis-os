@@ -107,9 +107,17 @@ check("/auth/status lộ totp_broken cho UI", '"totp_broken"' in src)
 check("khởi động hô to danh sách secret hỏng", "secret_paths_hong()" in src)
 
 cjs = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+# Chữ đã dời vào từ điển i18n (0.55.14) nên không còn nằm thẳng trong console.js. Bằng chứng
+# bây giờ phải đi HAI VẾ: console.js gọi đúng khoá, VÀ khoá đó mang đúng câu tiếng Việt. Chỉ
+# kiểm một vế là hở: kiểm mỗi khoá thì đổi nội dung khoá thành "Chưa bật" vẫn xanh, còn kiểm
+# mỗi từ điển thì gỡ hẳn lời cảnh báo khỏi giao diện cũng vẫn xanh.
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("thẻ Tài khoản có nhánh khoá hỏng (không hiện 'Chưa bật' nữa)",
-      "a.totp_broken" in cjs and "khoá bị lỗi" in cjs)
-check("có đường 'bật lại với khoá mới' ngay trên UI", "Bật lại xác thực 2 lớp" in cjs)
+      "a.totp_broken" in cjs
+      and "cs.tfa_broken_a" in cjs and "khoá bị lỗi" in _VI.get("cs.tfa_broken_a", "")
+      and "cs.tfa_row_broken" in cjs and "khoá bị lỗi" in _VI.get("cs.tfa_row_broken", ""))
+check("có đường 'bật lại với khoá mới' ngay trên UI",
+      "cs.tfa_reenable" in cjs and _VI.get("cs.tfa_reenable") == "Bật lại xác thực 2 lớp")
 
 _td.cleanup()
 if _fails:

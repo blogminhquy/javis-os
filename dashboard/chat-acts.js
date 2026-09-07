@@ -12,7 +12,8 @@
 (function () {
   "use strict";
 
-  var THU = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  var THU_KEY = ["cact.thu_cn", "cact.thu_2", "cact.thu_3", "cact.thu_4", "cact.thu_5",
+    "cact.thu_6", "cact.thu_7"];
 
   // File này chạy hai chế độ: trong trình duyệt và dưới node (test require nó).
   // Dưới node không có window nên không có ic() - trả về chuỗi rỗng để phần logic
@@ -20,6 +21,14 @@
   // icons.js đã nạp trước (index.html bảo đảm thứ tự, có test canh) nên lấy
   // được hàm thật.
   var ic = (typeof window !== "undefined" && window.ic) ? window.ic : function () { return ""; };
+
+  // Chu hien ra lay tu tu dien. Trong trinh duyet la window.t (i18n/index.js nap dau tien);
+  // duoi node khong co window nen doc thang vi.json, nho vay ban node van ra chu that chu
+  // khong phai ma khoa tran. Cung mot ly do voi ic() o tren.
+  function tw(khoa) {
+    if (typeof window !== "undefined" && window.t) return window.t(khoa);
+    try { return require("./i18n/vi.json")[khoa] || khoa; } catch (e) { return khoa; }
+  }
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -45,7 +54,7 @@
   function fmtTimeFull(ts) {
     var d = toDate(ts);
     if (!d) return "";
-    return THU[d.getDay()] + ", " + pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) +
+    return tw(THU_KEY[d.getDay()]) + ", " + pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) +
       "/" + d.getFullYear() + " " + fmtTime(ts);
   }
 
@@ -67,11 +76,11 @@
       : "";
     var send = "";
     if (canResend !== false && role === "user") {
-      send = '<button class="msg-act" type="button" data-act="retry" title="Gửi lại câu này">↻</button>' +
-        '<button class="msg-act" type="button" data-act="edit" title="Sửa lại rồi gửi">' + ic("pencil") + '</button>';
+      send = '<button class="msg-act" type="button" data-act="retry" title="' + esc(tw("cact.retry")) + '">↻</button>' +
+        '<button class="msg-act" type="button" data-act="edit" title="' + esc(tw("cact.edit")) + '">' + ic("pencil") + '</button>';
     }
     return '<div class="msg-acts">' + time + send +
-      '<button class="msg-act" type="button" data-act="copy" title="Sao chép nội dung">⧉</button>' +
+      '<button class="msg-act" type="button" data-act="copy" title="' + esc(tw("cact.copy")) + '">⧉</button>' +
       "</div>";
   }
 

@@ -17,6 +17,14 @@
   // van test duoc ma khong phai keo ca tang icon vao.
   var ic = (typeof window !== "undefined" && window.ic) ? window.ic : function () { return ""; };
 
+  // Chu hien ra lay tu tu dien. Trong trinh duyet la window.t (i18n/index.js nap dau tien);
+  // duoi node khong co window nen doc thang vi.json, nho vay ban node van ra chu that chu
+  // khong phai ma khoa tran. Cung mot ly do voi ic() o tren.
+  function tw(khoa) {
+    if (typeof window !== "undefined" && window.t) return window.t(khoa);
+    try { return require("./i18n/vi.json")[khoa] || khoa; } catch (e) { return khoa; }
+  }
+
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -33,11 +41,11 @@
     var toSat = (6 - dow + 7) % 7 || 7;
     var toMon = (1 - dow + 7) % 7 || 7;
     return [
-      { label: "Hôm nay", date: iso(now) },
-      { label: "Ngày mai", date: iso(addDays(now, 1)) },
-      { label: "Cuối tuần (thứ 7)", date: iso(addDays(now, toSat)) },
-      { label: "Tuần sau (thứ 2)", date: iso(addDays(now, toMon)) },
-      { label: "Chọn ngày…", pick: true },
+      { label: tw("cs.uz_today"), date: iso(now) },
+      { label: tw("tsug.ngay_mai"), date: iso(addDays(now, 1)) },
+      { label: tw("tsug.cuoi_tuan"), date: iso(addDays(now, toSat)) },
+      { label: tw("tsug.tuan_sau"), date: iso(addDays(now, toMon)) },
+      { label: tw("tsug.chon_ngay"), pick: true },
     ];
   }
   // Dong vua go xong co phai khung task "- [ ]" / "- [x]" tron? (nbsp cua contenteditable -> space)
@@ -50,14 +58,18 @@
   //   token / text = ky tu THAT duoc chen vao file .md. Day la cu phap cua
   //     Obsidian Tasks nen BUOC phai giu nguyen emoji - doi la Obsidian khong
   //     doc duoc nua va test_dataview_tasks.py se do.
-  var MAIN = [
-    { menuIcon: "calendar", label: "Hạn chót (due)", kind: "date", token: "📅" },
-    { menuIcon: "hourglass", label: "Ngày dự kiến", kind: "date", token: "⏳" },
-    { menuIcon: "plane-takeoff", label: "Ngày bắt đầu", kind: "date", token: "🛫" },
-    { menuIcon: "chevrons-up", label: "Ưu tiên cao", kind: "insert", text: "⏫ " },
-    { menuIcon: "chevron-up", label: "Ưu tiên vừa", kind: "insert", text: "🔼 " },
-    { menuIcon: "chevron-down", label: "Ưu tiên thấp", kind: "insert", text: "🔽 " },
-  ];
+  // Ham chu khong phai hang: nhan phai lay tu dien lai moi lan mo menu, vi nguoi dung
+  // co the doi ngon ngu giua chung ma khong tai lai trang.
+  function mainItems() {
+    return [
+      { menuIcon: "calendar", label: tw("tsug.han_chot"), kind: "date", token: "📅" },
+      { menuIcon: "hourglass", label: tw("tsug.ngay_du_kien"), kind: "date", token: "⏳" },
+      { menuIcon: "plane-takeoff", label: tw("tsug.ngay_bat_dau"), kind: "date", token: "🛫" },
+      { menuIcon: "chevrons-up", label: tw("tsug.uu_tien_cao"), kind: "insert", text: "⏫ " },
+      { menuIcon: "chevron-up", label: tw("tsug.uu_tien_vua"), kind: "insert", text: "🔼 " },
+      { menuIcon: "chevron-down", label: tw("tsug.uu_tien_thap"), kind: "insert", text: "🔽 " },
+    ];
+  }
 
   // ---------------------------------------------------------------- popup (chi khi co DOM)
   if (typeof document !== "undefined") {
@@ -183,7 +195,7 @@
       if (!elx || !wys.contains(elx)) return;
       var li = elx.closest ? elx.closest("li") : null;
       if (li && li.classList.contains("task-item")) {
-        if (caretAtEnd(li, s)) { mode = "main"; openPop(MAIN); }
+        if (caretAtEnd(li, s)) { mode = "main"; openPop(mainItems()); }
         return;
       }
       var block = li || (elx.closest ? elx.closest("p,div,h1,h2,h3,h4,h5,h6") : null);
