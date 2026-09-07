@@ -178,15 +178,15 @@
   function pager(box, items, perPage, renderPage, emptyHtml) {
     if (!box) return;
     const all = items || [];
-    if (!all.length) { box.innerHTML = emptyHtml || `<div class="dim" style="color:var(--text3)">Chưa có gì.</div>`; return; }
+    if (!all.length) { box.innerHTML = emptyHtml || `<div class="dim" style="color:var(--text3)">${window.t("common.none")}</div>`; return; }
     const pages = Math.max(1, Math.ceil(all.length / perPage));
     let page = 0;
     const draw = () => {
       page = Math.min(Math.max(0, page), pages - 1);
       const nav = pages > 1 ? `<div class="jv-pager">
-          <button class="s-btn-ghost" data-pg="prev"${page === 0 ? " disabled" : ""}>← Trước</button>
-          <span class="jv-pager-n">Trang ${page + 1}/${pages} · ${all.length} mục</span>
-          <button class="s-btn-ghost" data-pg="next"${page >= pages - 1 ? " disabled" : ""}>Sau →</button>
+          <button class="s-btn-ghost" data-pg="prev"${page === 0 ? " disabled" : ""}>← ${window.t("cs.pager_prev")}</button>
+          <span class="jv-pager-n">${window.t("cs.pager_info", { trang: page + 1, tong: pages, so: all.length })}</span>
+          <button class="s-btn-ghost" data-pg="next"${page >= pages - 1 ? " disabled" : ""}>${window.t("cs.pager_next")} →</button>
         </div>` : "";
       box.innerHTML = renderPage(all.slice(page * perPage, page * perPage + perPage)) + nav;
       const p = box.querySelector('[data-pg="prev"]'), n = box.querySelector('[data-pg="next"]');
@@ -298,8 +298,8 @@
     // trúng nhầm note, và trình sửa mở ra rồi thì thanh nút tràn khỏi màn hẹp nên khó thoát.
     // Mở nhầm một note rồi mắc kẹt trong đó tệ hơn hẳn là không mở.
     if (isNarrow()) {
-      if (window.JavisToast) window.JavisToast("Sửa note trên điện thoại đã tắt - mở trên máy tính để chỉnh sửa.");
-      else alert("Sửa note trên điện thoại đã tắt. Mở trên máy tính để chỉnh sửa.");
+      if (window.JavisToast) window.JavisToast(window.t("cs.note_mobile_off"));
+      else alert(window.t("cs.note_mobile_off_alert"));
       return;
     }
     const ceilingRel = _vtHome ? _vtHome + "/" + brainRel : brainRel;   // ghép tiền tố trần như cây
@@ -378,8 +378,8 @@
   function renderStudioPage(el, id) {
     el.innerHTML = `<div class="stab-panel" id="panel-${id}"></div>`;
     const fn = window.JavisStudio && window.JavisStudio[id];
-    if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); } }
-    else el.innerHTML = placeholder(id, "studio.js chưa sẵn sàng.");
+    if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); } }
+    else el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "studio.js" }));
   }
 
   // Các trang thuộc nhóm Code, đều do code-term.js dựng. Thêm chức năng Code mới thì thêm id
@@ -396,28 +396,28 @@
   // bằng cloneNode(false), mà clone đó GIỮ NGUYÊN class - để lại thì trang sau mất padding.)
   function renderCode(el, id) {
     const fn = window.JavisCode && window.JavisCode.render;
-    if (!fn) { el.innerHTML = placeholder(id, "code-term.js chưa sẵn sàng."); return; }
+    if (!fn) { el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "code-term.js" })); return; }
     _pageLeave = () => {
       el.classList.remove("cview-flush");
       try { window.JavisCode.roi(); } catch (e) {}
     };
-    try { fn(el, id); } catch (e) { el.innerHTML = placeholder(id, "Lỗi nạp: " + e.message); }
+    try { fn(el, id); } catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); }
   }
 
   // Trang Chatbot do chatbots.js dựng - uỷ quyền y như renderStudioPage uỷ cho studio.js,
   // để console.js không phình thêm một màn hình nữa.
   function renderChatbots(el) {
     const fn = window.JavisChatbots && window.JavisChatbots.render;
-    if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("chatbots", "Lỗi nạp: " + e.message); } }
-    else el.innerHTML = placeholder("chatbots", "chatbots.js chưa sẵn sàng.");
+    if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("chatbots", window.t("cs.err_load") + e.message); } }
+    else el.innerHTML = placeholder("chatbots", window.t("cs.mod_not_ready", { ten: "chatbots.js" }));
   }
 
   function placeholder(id, note) {
     const m = VIEW_META[id] || {};
     return `<div class="cview-placeholder">
       <div class="ph-ico">${ic(m.icon || "sparkles", { cls: "ic-xl" })}</div>
-      <div><b>${esc(m.label || id)}</b> - đang phát triển</div>
-      <div style="max-width:380px;font-size:14px;opacity:.7">${esc(note || "Trang này là chỗ cắm chức năng mở rộng sau. Khung điều hướng đã sẵn sàng.")}</div>
+      <div><b>${esc(m.label || id)}</b> - ${window.t("cs.ph_dev")}</div>
+      <div style="max-width:380px;font-size:14px;opacity:.7">${esc(note || window.t("cs.ph_note"))}</div>
     </div>`;
   }
 
@@ -462,45 +462,45 @@
     // Ủy quyền sang module mới nếu đã nạp; nếu chưa thì rơi về bảng cũ (usage_store 30 ngày).
     if (window.JavisUsage && window.JavisUsage.render) { try { return window.JavisUsage.render(el); } catch (e) {} }
     _injectUsageCss();
-    el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder" style="min-height:200px"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div class="dim">Đang tải mức dùng...</div></div></div>`;
+    el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder" style="min-height:200px"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div class="dim">${window.t("cs.uz_loading")}</div></div></div>`;
     let d;
     try { d = await (await fetch("/usage")).json(); }
-    catch (e) { el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder"><div class="ph-ico">${ic("chart-column", { cls: "ic-xl ic-dim" })}</div><div>Không tải được dữ liệu mức dùng.</div></div></div>`; return; }
+    catch (e) { el.innerHTML = `<div class="uz-wrap"><div class="cview-placeholder"><div class="ph-ico">${ic("chart-column", { cls: "ic-xl ic-dim" })}</div><div>${window.t("cs.uz_err")}</div></div></div>`; return; }
     const daily = d.daily || [];
     const today = d.today || { items: [], total: { in: 0, out: 0, cost: 0, turns: 0 } };
     const all = d.all_time || { items: [], total: { in: 0, out: 0, cost: 0, turns: 0 } };
     const tt = today.total, at = all.total;
 
     const orCard = (d.openrouter && d.openrouter.remaining != null)
-      ? `<div class="uz-card"><div class="uz-k">OpenRouter còn</div><div class="uz-v" style="color:var(--green)">$${(+d.openrouter.remaining).toFixed(2)}</div><div class="uz-sub">đã dùng $${(+(d.openrouter.used || 0)).toFixed(2)}</div></div>` : "";
+      ? `<div class="uz-card"><div class="uz-k">${window.t("cs.uz_or_left")}</div><div class="uz-v" style="color:var(--green)">$${(+d.openrouter.remaining).toFixed(2)}</div><div class="uz-sub">${window.t("cs.uz_used")} $${(+(d.openrouter.used || 0)).toFixed(2)}</div></div>` : "";
     const cards = `<div class="uz-cards">
-      <div class="uz-card accent"><div class="uz-k">Hôm nay</div><div class="uz-v">${_uzTok(tt.in + tt.out)}</div><div class="uz-sub">${_uzTok(tt.in)}↑ ${_uzTok(tt.out)}↓ · ${tt.turns || 0} lượt${tt.cost > 0 ? " · $" + tt.cost.toFixed(2) : ""}</div></div>
-      <div class="uz-card"><div class="uz-k">Tổng tích luỹ</div><div class="uz-v">${_uzTok(at.in + at.out)}</div><div class="uz-sub">${_uzTok(at.in)}↑ ${_uzTok(at.out)}↓${at.cost > 0 ? " · $" + at.cost.toFixed(2) : ""}</div></div>
+      <div class="uz-card accent"><div class="uz-k">${window.t("cs.uz_today")}</div><div class="uz-v">${_uzTok(tt.in + tt.out)}</div><div class="uz-sub">${_uzTok(tt.in)}↑ ${_uzTok(tt.out)}↓ · ${window.t("cs.uz_turns", { count: tt.turns || 0 })}${tt.cost > 0 ? " · $" + tt.cost.toFixed(2) : ""}</div></div>
+      <div class="uz-card"><div class="uz-k">${window.t("cs.uz_total")}</div><div class="uz-v">${_uzTok(at.in + at.out)}</div><div class="uz-sub">${_uzTok(at.in)}↑ ${_uzTok(at.out)}↓${at.cost > 0 ? " · $" + at.cost.toFixed(2) : ""}</div></div>
       ${orCard}
     </div>`;
 
     const maxv = Math.max(1, ...daily.map(x => x.in + x.out));
     const bars = daily.map(x => {
       const v = x.in + x.out, h = v > 0 ? Math.max(3, Math.round(v / maxv * 100)) : 0;
-      const tip = `${x.day}: ${_uzTok(v)} token${x.cost > 0 ? " · $" + x.cost.toFixed(2) : ""} · ${x.turns || 0} lượt`;
+      const tip = `${x.day}: ${_uzTok(v)} token${x.cost > 0 ? " · $" + x.cost.toFixed(2) : ""} · ${window.t("cs.uz_turns", { count: x.turns || 0 })}`;
       return `<div class="uz-bar-col" title="${esc(tip)}"><div class="uz-bar ${v > 0 ? "" : "empty"}" style="height:${h}%"></div></div>`;
     }).join("");
     const xlabels = daily.map(x => `<div class="uz-xl">${esc(x.day.slice(8))}</div>`).join("");
-    const chart = daily.length ? `<div class="uz-sec-h">${daily.length} ngày gần nhất · token/ngày</div>
+    const chart = daily.length ? `<div class="uz-sec-h">${window.t("cs.uz_chart_head", { so: daily.length })}</div>
       <div class="uz-chart">${bars}</div><div class="uz-xlabels">${xlabels}</div>` : "";
 
-    const scope = today.items.length ? "hôm nay" : "tổng tích luỹ";
+    const scope = today.items.length ? window.t("cs.uz_scope_today") : window.t("cs.uz_scope_all");
     const items = today.items.length ? today.items : all.items;
     const rows = items.length ? items.map(i => `<tr>
         <td><span class="uz-prov">${esc(_UZ_PROV[i.provider] || i.provider)}</span> <span class="uz-mdl">${esc(_uzModel(i.model))}</span></td>
         <td class="num">${_uzTok(i.in)}</td><td class="num">${_uzTok(i.out)}</td>
         <td class="num">${i.turns || 0}</td><td class="num">${_uzCost(i.cost)}</td></tr>`).join("")
-      : `<tr><td colspan="5" style="padding:16px;color:var(--text3)">Chưa có lượt nào.</td></tr>`;
-    const table = `<div class="uz-sec-h">Theo nhà cung cấp · ${scope}</div>
-      <table class="uz-tbl"><thead><tr><th>Nhà cung cấp / model</th><th style="text-align:right">Token vào</th><th style="text-align:right">Token ra</th><th style="text-align:right">Lượt</th><th style="text-align:right">Chi phí</th></tr></thead><tbody>${rows}</tbody></table>`;
+      : `<tr><td colspan="5" style="padding:16px;color:var(--text3)">${window.t("cs.uz_no_turns")}</td></tr>`;
+    const table = `<div class="uz-sec-h">${window.t("cs.uz_by_provider", { pv: scope })}</div>
+      <table class="uz-tbl"><thead><tr><th>${window.t("cs.uz_th_provider")}</th><th style="text-align:right">${window.t("cs.uz_th_in")}</th><th style="text-align:right">${window.t("cs.uz_th_out")}</th><th style="text-align:right">${window.t("cs.uz_th_turns")}</th><th style="text-align:right">${window.t("cs.uz_th_cost")}</th></tr></thead><tbody>${rows}</tbody></table>`;
 
     el.innerHTML = `<div class="uz-wrap">${cards}${chart}${table}
-      <div class="uz-note">Số liệu do Javis tự đo từ token vào/ra của mọi engine (Claude Code, ChatGPT/Codex, OpenRouter...), không phụ thuộc nhà cung cấp có lộ hạn mức hay không. Chi phí chỉ hiện khi nhà cung cấp trả về giá thật (vd Claude Code CLI); còn lại chỉ đếm token. Lưu 30 ngày gần nhất.</div>
+      <div class="uz-note">${window.t("cs.uz_note")}</div>
     </div>`;
   }
 
@@ -604,15 +604,15 @@
   }
   function _clRelHtml(rel) {
     const cls = rel.is_current ? "cur" : (rel.installed ? "" : "new");
-    const tag = rel.is_current ? `<span class="cl-tag cur">đang dùng</span>`
-      : (!rel.installed ? `<span class="cl-tag new">bản mới</span>` : "");
+    const tag = rel.is_current ? `<span class="cl-tag cur">${window.t("cs.cl_current")}</span>`
+      : (!rel.installed ? `<span class="cl-tag new">${window.t("cs.cl_new")}</span>` : "");
     const secs = (rel.sections || []).map(s => {
       const items = (s.items || []).map(it => `<li>${_clInline(it)}</li>`).join("");
       return `<div class="cl-sec ${_clSecClass(s.title)}"><h4>${esc(s.title)}</h4><ul>${items}</ul></div>`;
     }).join("");
     return `<div class="cl-rel ${cls}">
       <div class="cl-rtop"><span class="cl-ver">v${esc(rel.version)}</span>${rel.date ? `<span class="cl-date">${esc(rel.date)}</span>` : ""}${tag}</div>
-      ${secs || '<div class="cl-empty">(không có chi tiết)</div>'}
+      ${secs || `<div class="cl-empty">${window.t("cs.cl_no_detail")}</div>`}
     </div>`;
   }
 
@@ -620,10 +620,10 @@
     const d = _clData; if (!d) return;
     const cur = d.current || "?";
     const upBadge = d.update_available
-      ? `<span class="cl-badge up">Có bản mới: v${esc(d.latest)}</span>`
-      : `<span class="cl-badge ok">Đang ở bản mới nhất</span>`;
+      ? `<span class="cl-badge up">${window.t("cs.cl_badge_new", { ver: esc(d.latest) })}</span>`
+      : `<span class="cl-badge ok">${window.t("cs.cl_badge_ok")}</span>`;
     const upNote = d.update_available
-      ? `<div class="cl-note">Có thể cập nhật ngay ở khung phía trên; nếu bản Docker không hỗ trợ tự cập nhật, hãy <b>Redeploy</b> trên Hostinger hoặc chạy <code>docker compose up -d --pull always</code>.</div>`
+      ? `<div class="cl-note">${window.t("cs.cl_upnote_a")} <b>Redeploy</b> ${window.t("cs.cl_upnote_b")} <code>docker compose up -d --pull always</code>.</div>`
       : "";
     const rels = d.releases || [];
     const total = rels.length;
@@ -633,14 +633,14 @@
     const slice = rels.slice(start, start + CL_PAGE_SIZE);
     const timeline = slice.length
       ? slice.map(_clRelHtml).join("")
-      : `<div class="cl-empty">Chưa có nhật ký. Thêm file <code>CHANGELOG.md</code> ở gốc dự án.</div>`;
+      : `<div class="cl-empty">${window.t("cs.cl_empty_a")} <code>CHANGELOG.md</code> ${window.t("cs.cl_empty_b")}</div>`;
     const pager = pages > 1 ? `<div class="cl-pager">
-      <button class="cl-pg" data-clpage="${page - 1}"${page === 0 ? " disabled" : ""}>‹ Mới hơn</button>
-      <span class="cl-pg-info">Trang ${page + 1}/${pages} · ${total} bản</span>
-      <button class="cl-pg" data-clpage="${page + 1}"${page >= pages - 1 ? " disabled" : ""}>Cũ hơn ›</button>
+      <button class="cl-pg" data-clpage="${page - 1}"${page === 0 ? " disabled" : ""}>‹ ${window.t("cs.cl_newer")}</button>
+      <span class="cl-pg-info">${window.t("cs.cl_pg_info", { trang: page + 1, tong: pages, so: total })}</span>
+      <button class="cl-pg" data-clpage="${page + 1}"${page >= pages - 1 ? " disabled" : ""}>${window.t("cs.cl_older")} ›</button>
     </div>` : "";
     el.innerHTML = `<div class="cl-wrap">
-      <div class="cl-head"><span class="cl-cur">Đang cài: <b>v${esc(cur)}</b></span>${upBadge}</div>
+      <div class="cl-head"><span class="cl-cur">${window.t("cs.cl_installed")} <b>v${esc(cur)}</b></span>${upBadge}</div>
       ${upNote}
       ${timeline}
       ${pager}
@@ -659,19 +659,19 @@
     _injectChangelogCss();
     const myGen = _renderGen;
     el.innerHTML = `<div class="cl-wrap">
-      <section class="upd-card" aria-label="Cập nhật Javis OS">
+      <section class="upd-card" aria-label="${window.t("cs.upd_aria")}">
         <div class="upd-title"><span class="upd-name">Javis OS</span><span class="gcard-tag" id="updVerTag">…</span></div>
-        <div class="gcard-meta" id="updVerMeta">Đang kiểm tra bản mới…</div>
+        <div class="gcard-meta" id="updVerMeta">${window.t("cs.upd_checking")}</div>
         <div class="upd-changes" id="updVerChangelog"></div>
         <div class="js-actions">
-          <button class="gcard-btn ghost" id="updVerCheck">Kiểm tra lại</button>
-          <button class="gcard-btn" id="updVerUpdate" style="display:none">${ic("upload-cloud")} Cập nhật ngay</button>
+          <button class="gcard-btn ghost" id="updVerCheck">${window.t("qs.recheck")}</button>
+          <button class="gcard-btn" id="updVerUpdate" style="display:none">${ic("upload-cloud")} ${window.t("cs.upd_now")}</button>
         </div>
         <div class="upd-progress" id="updVerProgress"></div>
         <div class="gcard-meta" id="updVerStatus"></div>
         <div class="upd-rollback" id="updVerRollback"></div>
       </section>
-      <div id="clTimeline"><div class="cl-note">Đang tải nhật ký cập nhật...</div></div>
+      <div id="clTimeline"><div class="cl-note">${window.t("cs.cl_loading")}</div></div>
     </div>`;
     // Nút "Kiểm tra lại" PHẢI làm mới cả danh sách bên dưới, không chỉ khung trên.
     wireUpdateManager(el, napTimeline);
@@ -689,7 +689,7 @@
     } catch (e) {
       if (myGen !== _renderGen) return;
       const timeline = el.querySelector("#clTimeline");
-      if (timeline) timeline.innerHTML = `<div class="cl-empty">Không tải được nhật ký cập nhật. Hãy tải lại trang.</div>`;
+      if (timeline) timeline.innerHTML = `<div class="cl-empty">${window.t("cs.cl_load_err")}</div>`;
       return;
     }
     if (myGen !== _renderGen) return;   // đã đổi trang trong lúc chờ
@@ -700,8 +700,8 @@
   }
 
   const UPDATE_STEPS = [
-    ["preparing", "Chuẩn bị"], ["pulling", "Tải code"], ["installing", "Cài thư viện"],
-    ["restarting", "Khởi động lại"], ["health_check", "Kiểm tra sức khoẻ"], ["done", "Xong"],
+    ["preparing", "cs.upd_step_prepare"], ["pulling", "cs.upd_step_pull"], ["installing", "cs.upd_step_install"],
+    ["restarting", "cs.upd_step_restart"], ["health_check", "cs.upd_step_health"], ["done", "cs.upd_step_done"],
   ];
   // mode "native" chạy trên cả Linux lẫn Mac - nhãn lấy theo platform server báo về
   const updateModeLabel = (j) => j.mode === "docker" ? "Docker / VPS"
@@ -716,27 +716,26 @@
   // Gộp lại là cướp mất của người dùng thông tin duy nhất họ cần.
   function _updVimSaoKhongCoNut(maLyDo) {
     if (maLyDo === "watchtower_off") {
-      return "Máy này <b>chưa bật Watchtower</b> - đó là thứ nhận lệnh cập nhật từ nút bấm, và nó "
-        + "nằm ngoài luồng <code>docker compose up -d</code> thường lệ. Bật một lần, ở thư mục chứa "
-        + "file compose:<br><code>docker compose --profile update up -d</code><br>"
-        + "Xong tải lại trang là nút hiện ra. Không muốn bật thì vẫn cập nhật tay được: "
-        + "<code>docker compose up -d --pull always</code>."
+      return window.t("cs.upd_wt_a") + " <b>" + window.t("cs.upd_wt_b") + "</b> " + window.t("cs.upd_wt_c")
+        + " <code>docker compose up -d</code> " + window.t("cs.upd_wt_d")
+        + "<br><code>docker compose --profile update up -d</code><br>"
+        + window.t("cs.upd_wt_e")
+        + " <code>docker compose up -d --pull always</code>."
         // Chủ repo gõ lệnh trên rồi lãnh "no configuration file provided: not found" - đứng sai
         // thư mục, vì tên thư mục tuỳ lúc clone (javis hay javis-os). Câu "ở thư mục chứa file
         // compose" đúng nhưng vô dụng khi người ta KHÔNG BIẾT nó nằm đâu. Docker biết, nên hỏi nó.
-        + "<div class=\"upd-why-sub\">Báo <code>no configuration file provided: not found</code> "
-        + "là đang đứng sai thư mục. Hỏi Docker xem nó nằm đâu:<br>"
+        + "<div class=\"upd-why-sub\">" + window.t("cs.upd_wt_f") + " <code>no configuration file provided: not found</code> "
+        + window.t("cs.upd_wt_g") + "<br>"
         + "<code>docker ps --format '{{.Names}}\\t{{.Label \"com.docker.compose.project.working_dir\"}}'</code>"
         + "</div>";
     }
     if (maLyDo === "no_token") {
-      return "Bản cài này <b>không kèm Watchtower</b> (stack Hostinger cố tình bỏ - trên đó nó không "
-        + "đụng được Docker socket nên chạy là lỗi vòng lặp). Cập nhật bằng <b>Redeploy</b> trong "
-        + "Hostinger Docker Manager.";
+      return window.t("cs.upd_nt_a") + " <b>" + window.t("cs.upd_nt_b") + "</b> "
+        + window.t("cs.upd_nt_c") + " <b>Redeploy</b> " + window.t("cs.upd_nt_d");
     }
     // Rơi vào đây là mode lạ hoặc server cũ chưa trả mã lý do - giữ nguyên câu cũ, đừng đoán bừa.
-    return "↻ Cập nhật bằng <b>Redeploy</b>: Hostinger dùng Docker Manager; VPS chạy "
-      + "<code>docker compose up -d --pull always</code>.";
+    return "↻ " + window.t("cs.upd_fb_a") + " <b>Redeploy</b>" + window.t("cs.upd_fb_b")
+      + " <code>docker compose up -d --pull always</code>.";
   }
 
   function wireUpdateManager(root, napLai) {
@@ -747,8 +746,8 @@
       const normalized = phase === "rolling_back" ? "health_check" : phase;
       let at = UPDATE_STEPS.findIndex(x => x[0] === normalized); if (at < 0) at = 0;
       box.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px">${
-        UPDATE_STEPS.map((s, i) => `<span style="${i === at ? "font-weight:600" : "opacity:.7"}">${i < at ? OK_ICON : (i === at ? ic("loader", { cls: "ic-spin" }) : ic("circle", { cls: "ic-dim" }))} ${esc(s[1])}</span>`).join('<span style="opacity:.4"> → </span>')
-      }</div>${phase === "rolling_back" ? '<div style="margin-top:6px;color:var(--red)">↩ Bản mới lỗi, đang tự quay về bản cũ…</div>' : ""}${extra ? `<div style="margin-top:6px;opacity:.85">${esc(extra)}</div>` : ""}`;
+        UPDATE_STEPS.map((s, i) => `<span style="${i === at ? "font-weight:600" : "opacity:.7"}">${i < at ? OK_ICON : (i === at ? ic("loader", { cls: "ic-spin" }) : ic("circle", { cls: "ic-dim" }))} ${esc(window.t(s[1]))}</span>`).join('<span style="opacity:.4"> → </span>')
+      }</div>${phase === "rolling_back" ? `<div style="margin-top:6px;color:var(--red)">↩ ${window.t("cs.upd_rolling")}</div>` : ""}${extra ? `<div style="margin-top:6px;opacity:.85">${esc(extra)}</div>` : ""}`;
     };
     const loadChanges = async () => {
       const box = q("updVerChangelog"); if (!box) return;
@@ -756,7 +755,7 @@
       const fresh = (d.releases || []).filter(r => !r.installed).slice(0, 2);
       if (!fresh.length) { box.style.display = "none"; return; }
       box.style.display = "";
-      box.innerHTML = "<b>Bản mới có gì:</b>" + fresh.map(r => {
+      box.innerHTML = "<b>" + window.t("cs.upd_whatsnew") + "</b>" + fresh.map(r => {
         const items = (r.sections || []).flatMap(s => s.items || []).slice(0, 3);
         return `<div style="margin-top:5px">v${esc(r.version)}${r.date ? " · " + esc(r.date) : ""}</div><ul style="margin:2px 0 0 16px;padding:0">${items.map(it => `<li>${_clInline(it)}</li>`).join("")}</ul>`;
       }).join("");
@@ -764,9 +763,9 @@
     const loadVersion = async () => {
       const tag = q("updVerTag"), meta = q("updVerMeta"), update = q("updVerUpdate"), changes = q("updVerChangelog");
       if (!tag || !meta || !update) return;
-      meta.textContent = "Đang kiểm tra bản mới…";
+      meta.textContent = window.t("cs.upd_checking");
       let j = {}; try { j = await (await fetch("/version", { cache: "no-store" })).json(); }
-      catch (e) { meta.innerHTML = WARN_ICON + " Không kiểm tra được phiên bản."; return; }
+      catch (e) { meta.innerHTML = WARN_ICON + " " + window.t("cs.upd_check_err"); return; }
       tag.textContent = "v" + (j.current || "?");
       root.dataset.currentVersion = j.current || "";
       root.dataset.previousVersion = j.previous_version || "";
@@ -774,7 +773,7 @@
       if (changes) { changes.style.display = "none"; changes.innerHTML = ""; }
       const mode = updateModeLabel(j) || j.mode || "";
       if (j.update_available) {
-        const base = `🆕 Có bản mới <b>v${esc(j.latest)}</b> (đang chạy v${esc(j.current)}) · ${esc(mode)}`;
+        const base = `🆕 ${window.t("cs.upd_have_new")} <b>v${esc(j.latest)}</b> ${window.t("cs.upd_running", { ver: esc(j.current) })} · ${esc(mode)}`;
         if (j.can_self_update) { meta.innerHTML = base; update.style.display = ""; }
         else {
           meta.innerHTML = base + '<div class="upd-why">' + _updVimSaoKhongCoNut(j.self_update_off) + "</div>";
@@ -782,7 +781,7 @@
         }
         loadChanges();
       } else {
-        meta.innerHTML = j.latest ? `${OK_ICON} Đang dùng bản mới nhất (v${esc(j.current)}) · ${esc(mode)}` : `v${esc(j.current)} · ${esc(mode)}${j.error ? " · chưa so được với GitHub" : ""}`;
+        meta.innerHTML = j.latest ? `${OK_ICON} ${window.t("cs.upd_latest", { ver: esc(j.current) })} · ${esc(mode)}` : `v${esc(j.current)} · ${esc(mode)}${j.error ? " · " + window.t("cs.upd_nocompare") : ""}`;
         update.style.display = "none";
       }
     };
@@ -797,51 +796,51 @@
     };
     const update = q("updVerUpdate");
     if (update) update.onclick = async () => {
-      if (!confirm("Cập nhật Javis lên bản mới nhất?\nApp sẽ tự khởi động lại; nếu lỗi hệ thống sẽ thử quay về bản cũ.")) return;
+      if (!confirm(window.t("cs.upd_confirm"))) return;
       const status = q("updVerStatus"), rollback = q("updVerRollback");
       const oldCur = root.dataset.currentVersion || "";
       update.disabled = true; if (rollback) { rollback.style.display = "none"; rollback.innerHTML = ""; }
-      progress("preparing", "Đang chuẩn bị cập nhật…"); status.textContent = "";
+      progress("preparing", window.t("cs.upd_preparing")); status.textContent = "";
       let resp; try { resp = await (await fetch("/update", { method: "POST" })).json(); }
       catch (e) { resp = { ok: true }; }
       if (resp && resp.ok === false) {
         update.disabled = false; q("updVerProgress").style.display = "none";
-        status.innerHTML = WARN_ICON + " " + esc(resp.error || "Không cập nhật được.") + (resp.manual ? " Chạy: <code>" + esc(resp.manual) + "</code>" : "");
+        status.innerHTML = WARN_ICON + " " + esc(resp.error || window.t("cs.upd_failed")) + (resp.manual ? " " + window.t("cs.upd_run") + " <code>" + esc(resp.manual) + "</code>" : "");
         return;
       }
-      status.innerHTML = ic("loader", { cls: "ic-spin" }) + " Đang cập nhật… đừng tắt trang.";
+      status.innerHTML = ic("loader", { cls: "ic-spin" }) + " " + window.t("cs.upd_running_now");
       let tries = 0;
       const poll = setInterval(async () => {
         tries++;
         let state = null; try { state = await (await fetch("/update/status", { cache: "no-store" })).json(); } catch (e) {}
         if (state && state.state && state.state.phase) {
           const phase = state.state.phase, result = state.state.result;
-          const stash = state.state.stashed ? ic("package") + " Sửa đổi cục bộ đã được cất vào git stash." : "";
+          const stash = state.state.stashed ? ic("package") + " " + window.t("cs.upd_stashed") : "";
           progress(phase, stash);
-          if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " Đã cập nhật xong. Đang tải lại trang…"; setTimeout(() => location.reload(), 1500); return; }
-          if (result === "rolled_back") { clearInterval(poll); status.innerHTML = "↩ Bản mới lỗi, đã <b>tự quay về bản cũ</b>."; update.disabled = false; return; }
+          if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return; }
+          if (result === "rolled_back") { clearInterval(poll); status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
           if (["pull_failed", "rollback_failed", "error"].includes(result)) {
             clearInterval(poll); q("updVerProgress").style.display = "none";
-            status.innerHTML = WARN_ICON + " " + esc(state.state.error || "Cập nhật lỗi.") + " Xem <code>update.log</code>."; update.disabled = false; return;
+            status.innerHTML = WARN_ICON + " " + esc(state.state.error || window.t("cs.upd_err")) + " " + window.t("cs.upd_see") + " <code>update.log</code>."; update.disabled = false; return;
           }
         }
         try {
           const v = await (await fetch("/version", { cache: "no-store" })).json();
           const docker = root.dataset.updateMode === "docker";
           if ((docker || !(state && state.state && state.state.phase)) && v.update_available === false && v.current && v.current !== oldCur) {
-            clearInterval(poll); status.innerHTML = OK_ICON + " Đã cập nhật xong. Đang tải lại trang…"; setTimeout(() => location.reload(), 1500); return;
+            clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(() => location.reload(), 1500); return;
           }
           if (docker && tries >= 12 && v.current === oldCur) {
-            clearInterval(poll); status.innerHTML = WARN_ICON + " Bản mới chưa lên sau một lúc - có thể lỗi.";
+            clearInterval(poll); status.innerHTML = WARN_ICON + " " + window.t("cs.upd_slow");
             if (rollback) {
               const prev = root.dataset.previousVersion || v.previous_version || "";
               rollback.style.display = "";
-              rollback.innerHTML = "<b>Cách lùi bản Docker:</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>Hoặc pin image <code>ghcr.io/blogminhquy/javis-os:${esc(prev)}</code> rồi Redeploy.` : "");
+              rollback.innerHTML = "<b>" + window.t("cs.upd_rb_docker") + "</b><br><code>docker compose pull && docker compose up -d</code>" + (prev ? `<br>${window.t("cs.upd_pin_a")} <code>ghcr.io/blogminhquy/javis-os:${esc(prev)}</code> ${window.t("cs.upd_pin_b")}` : "");
             }
             update.disabled = false; return;
           }
         } catch (e) {}
-        if (tries > 60) { clearInterval(poll); status.textContent = "Server chưa lên lại sau khoảng 3 phút - thử tải lại trang."; update.disabled = false; }
+        if (tries > 60) { clearInterval(poll); status.textContent = window.t("cs.upd_timeout"); update.disabled = false; }
       }, 3000);
     };
     loadVersion();
@@ -870,11 +869,11 @@
     try {
       const r = await fetch(_dlZipUrl(rel) + "&probe=1");
       d = await r.json().catch(() => ({}));
-    } catch (e) { alert("Không đọc được thư mục: " + e.message); return; }
+    } catch (e) { alert(window.t("cs.dl_read_err") + e.message); return; }
     if (d.error) { alert(d.error); return; }
-    if (!d.files) { alert(`Thư mục "${name}" không có file nào để tải.`); return; }
+    if (!d.files) { alert(window.t("cs.dl_empty", { ten: name })); return; }
     const mb = (d.bytes || 0) / 1048576;
-    if (mb > 200 && !confirm(`"${name}" có ${d.files} file, khoảng ${mb.toFixed(0)} MB.\nNén thành .zip và tải về?`)) return;
+    if (mb > 200 && !confirm(window.t("cs.dl_confirm", { ten: name, so: d.files, mb: mb.toFixed(0) }))) return;
     _dlGo(_dlZipUrl(rel));
   }
 
@@ -1015,30 +1014,30 @@
       <div class="fm-search-tools">
         <div class="vault-search fm-search">
           <span class="vs-ico">${ic("search")}</span>
-          <input id="fmSearch" type="search" placeholder="Tìm file trong toàn brain..." spellcheck="false" autocomplete="off">
-          <button class="vs-clear" id="fmSearchClear" title="Xoá tìm kiếm" hidden>${X_ICON}</button>
+          <input id="fmSearch" type="search" placeholder="${window.t("cs.fm_search_ph")}" spellcheck="false" autocomplete="off">
+          <button class="vs-clear" id="fmSearchClear" title="${window.t("cs.fm_search_clear")}" hidden>${X_ICON}</button>
         </div>
-        <div class="vault-modes fm-search-modes" aria-label="Phạm vi tìm kiếm">
-          <button class="vs-chip active" id="fmSearchName" data-mode="name" title="Tìm theo tên file">Tên</button>
-          <button class="vs-chip" id="fmSearchContent" data-mode="content" title="Tìm trong nội dung file text">Nội dung</button>
+        <div class="vault-modes fm-search-modes" aria-label="${window.t("cs.fm_search_scope")}">
+          <button class="vs-chip active" id="fmSearchName" data-mode="name" title="${window.t("cs.fm_search_by_name")}">${window.t("vault.mode_name")}</button>
+          <button class="vs-chip" id="fmSearchContent" data-mode="content" title="${window.t("cs.fm_search_in_content")}">${window.t("vault.mode_content")}</button>
         </div>
-        <div class="fm-search-meta" id="fmSearchMeta">Tìm trong toàn brain</div>
+        <div class="fm-search-meta" id="fmSearchMeta">${window.t("cs.fm_meta_all")}</div>
       </div>
       <div class="fm-bar">
         <div class="fm-crumb" id="fmCrumb"></div>
         <div class="fm-actions">
-          <button class="s-btn-ghost" id="fmUp">↑ Lên</button>
-          <button class="s-btn-ghost" id="fmHome" title="Về thư mục brain">${ic("house")} Brain</button>
-          <button class="s-btn-ghost" id="fmNewDir">+ Thư mục</button>
+          <button class="s-btn-ghost" id="fmUp">↑ ${window.t("cs.fm_up")}</button>
+          <button class="s-btn-ghost" id="fmHome" title="${window.t("cs.fm_home_title")}">${ic("house")} Brain</button>
+          <button class="s-btn-ghost" id="fmNewDir">+ ${window.t("cs.fm_new_dir")}</button>
           <button class="s-btn-ghost" id="fmNewFile">+ File</button>
-          <label class="s-btn-ghost fm-uplabel">⤒ Tải lên<input type="file" id="fmUpload" hidden multiple></label>
-          <button class="s-btn-ghost" id="fmZipCur" title="Nén cả thư mục đang mở thành .zip rồi tải về">⤓ Tải thư mục</button>
+          <label class="s-btn-ghost fm-uplabel">⤒ ${window.t("cs.fm_upload")}<input type="file" id="fmUpload" hidden multiple></label>
+          <button class="s-btn-ghost" id="fmZipCur" title="${window.t("cs.fm_zip_title")}">⤓ ${window.t("cs.fm_zip_btn")}</button>
           <button class="s-btn-ghost" id="fmRefresh">↻</button>
         </div>
       </div>
       <div id="fmFix"></div>
       <div id="fmMiss"></div>
-      <div id="fmList" class="fm-list">Đang tải...</div>
+      <div id="fmList" class="fm-list">${window.t("common.loading")}</div>
       </div>
       <div class="fm-edit" id="fmEdit"></div>
     </div>`;
@@ -1058,7 +1057,7 @@
       searchTimer = null; searchSeq++;
       searchInput.value = "";
       searchClear.hidden = true;
-      searchMeta.textContent = searchMode === "content" ? "Quét nội dung file text" : "Tìm trong toàn brain";
+      searchMeta.textContent = searchMode === "content" ? window.t("cs.fm_meta_scan") : window.t("cs.fm_meta_all");
     }
 
     // upTarget: đường dẫn nút "Lên" sẽ tới (null = đã ở trần → ẩn nút). Do server tính (parent).
@@ -1067,16 +1066,16 @@
       // path === undefined → điểm vào mặc định (brain); "" = trần (ổ đĩa); chuỗi = tương đối trần
       resetSearchUi();
       missEl.innerHTML = "";
-      listEl.innerHTML = "Đang tải...";
+      listEl.innerHTML = window.t("common.loading");
       const qp = (path === undefined || path === null) ? "" : `&path=${encodeURIComponent(path)}`;
       let resp, d;
       try { resp = await fetch(`/files/list?brain=${encodeURIComponent(fbrain())}${qp}`); d = await resp.json().catch(() => ({})); }
-      catch (e) { listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">Lỗi kết nối: ${esc(e.message)}</div>`; return null; }
+      catch (e) { listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${window.t("cs.fm_conn_err")} ${esc(e.message)}</div>`; return null; }
       if (!resp.ok || d.error) {
         const msg = d.error || (resp.status === 404
-          ? "Máy chủ Javis chưa có chức năng Tệp tin - hãy KHỞI ĐỘNG LẠI server (stop-javis.bat → start-javis.vbs) rồi tải lại trang."
-          : resp.status === 401 ? "Phiên đăng nhập hết hạn - tải lại trang & đăng nhập."
-          : "Lỗi máy chủ (" + resp.status + ").");
+          ? window.t("cs.fm_err_404")
+          : resp.status === 401 ? window.t("cs.fm_err_401")
+          : window.t("cs.fm_err_server", { ma: resp.status }));
         listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${WARN_ICON} ${esc(msg)}</div>`;
         // Server cũ trả 400 "Không phải thư mục" khi path trỏ vào FILE. Đừng để người dùng đứng
         // trước một trang trống: lùi về thư mục cha rồi soi sáng đúng file đó.
@@ -1093,7 +1092,7 @@
       const upBtn = el.querySelector("#fmUp"); if (upBtn) upBtn.style.display = (upTarget === null || upTarget === undefined) ? "none" : "";
       crumb(d.root);
       const items = d.items || [];
-      if (!items.length) listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">Thư mục trống.</div>`;
+      if (!items.length) listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">${window.t("cs.fm_empty_dir")}</div>`;
       else { listEl.innerHTML = ""; items.forEach(it => listEl.appendChild(row(it))); }
       // Link trỏ vào chỗ không có gì: nói rõ đã tìm cái gì, đang đứng ở đâu, rồi tự đi tìm theo
       // TÊN (server khớp cả khi lệch dấu tiếng Việt) - tên trong chat hay khác tên trên đĩa.
@@ -1110,8 +1109,8 @@
     };
     async function khongThayFile(missing, home) {
       const ten = String(missing).split("/").pop() || missing;
-      missEl.innerHTML = `<div class="fm-miss">${WARN_ICON} Không có <b>${esc(trongBrain(missing, home))}</b> trong brain này.
-        Đang mở thư mục gần nhất còn tồn tại. <span id="fmMissWait">Đang tìm file tên giống…</span>
+      missEl.innerHTML = `<div class="fm-miss">${WARN_ICON} ${window.t("cs.fm_miss_a")} <b>${esc(trongBrain(missing, home))}</b> ${window.t("cs.fm_miss_b")}
+        <span id="fmMissWait">${window.t("cs.fm_miss_wait")}</span>
         <div class="fm-miss-hits" id="fmMissHits"></div></div>`;
       let items = [];
       try {
@@ -1120,8 +1119,8 @@
       } catch (e) {}
       const wait = missEl.querySelector("#fmMissWait"), hits = missEl.querySelector("#fmMissHits");
       if (!wait || !hits) return;
-      if (!items.length) { wait.textContent = "Không tìm thấy file nào tên gần giống."; return; }
-      wait.textContent = items.length === 1 ? "Có lẽ là file này:" : "Có lẽ là một trong các file này:";
+      if (!items.length) { wait.textContent = window.t("cs.fm_miss_none"); return; }
+      wait.textContent = items.length === 1 ? window.t("cs.fm_miss_one") : window.t("cs.fm_miss_many");
       items.forEach(it => {
         const b = document.createElement("button");
         b.innerHTML = `${_fileIcon(it.ext || "")} ${esc(trongBrain(it.path, home) || it.name)}`;
@@ -1147,14 +1146,13 @@
     function veBangSua(items) {
       const n = items.length;
       fixEl.innerHTML = `<div class="fm-fix">${WARN_ICON}
-        <b>${n} file .md còn dấu vết hỏng từ bản cũ.</b>
-        Bản Javis trước 0.33.4 lưu note qua trình sửa trực quan là làm hỏng khối thuộc tính
-        (<code>---</code> đầu note thành <code>* * *</code>) và dồn dấu gạch chéo vào chữ.
-        Bản này đã bịt đường đó; mấy file lỡ hỏng thì chữa lại một lần là xong.
+        <b>${window.t("cs.fm_fix_head", { so: n })}</b>
+        ${window.t("cs.fm_fix_why_a")} <code>---</code> ${window.t("cs.fm_fix_why_b")}
+        <code>* * *</code> ${window.t("cs.fm_fix_why_c")}
         <div class="fm-fix-list" id="fmFixList"></div>
         <div class="fm-fix-act">
-          <button class="s-btn" id="fmFixGo">Chữa hết ${n} file</button>
-          <button class="s-btn-ghost" id="fmFixNo">Để sau</button>
+          <button class="s-btn" id="fmFixGo">${window.t("cs.fm_fix_go", { so: n })}</button>
+          <button class="s-btn-ghost" id="fmFixNo">${window.t("cs.fm_fix_later")}</button>
         </div></div>`;
       const ds = fixEl.querySelector("#fmFixList");
       items.slice(0, 12).forEach(it => {
@@ -1165,12 +1163,12 @@
       });
       if (n > 12) {
         const d = document.createElement("div");
-        d.className = "fm-fix-row"; d.textContent = `… và ${n - 12} file nữa`;
+        d.className = "fm-fix-row"; d.textContent = window.t("cs.fm_fix_more", { so: n - 12 });
         ds.appendChild(d);
       }
       fixEl.querySelector("#fmFixNo").onclick = () => { fixEl.innerHTML = ""; };
       fixEl.querySelector("#fmFixGo").onclick = async (ev) => {
-        const b = ev.currentTarget; b.disabled = true; b.textContent = "Đang chữa…";
+        const b = ev.currentTarget; b.disabled = true; b.textContent = window.t("cs.fm_fixing");
         let d = {};
         try {
           const fd = new FormData();
@@ -1182,8 +1180,8 @@
         // Nói đúng số thật, kể cả khi có file chữa không xong - im lặng nuốt phần hỏng là
         // để người dùng tưởng đã sạch trong khi chưa.
         fixEl.innerHTML = `<div class="fm-fix${hong || d.error ? "" : " xong"}">${hong || d.error ? WARN_ICON : CHECK_ICON}
-          ${d.error ? `Không chữa được: ${esc(d.error)}`
-            : `Đã chữa <b>${xong} file</b>.${hong ? ` Còn <b>${hong} file</b> không ghi được - xem quyền ghi của thư mục brain.` : " Mở lại note là thấy khối thuộc tính về đúng chỗ."}`}
+          ${d.error ? `${window.t("cs.fm_fix_err")} ${esc(d.error)}`
+            : `${window.t("cs.fm_fix_done_a")} <b>${xong} file</b>.${hong ? ` ${window.t("cs.fm_fix_done_b")} <b>${hong} file</b> ${window.t("cs.fm_fix_done_c")}` : " " + window.t("cs.fm_fix_done_d")}`}
         </div>`;
         if (xong) load(cur);
       };
@@ -1202,10 +1200,10 @@
       el.querySelector("#fmSearchName").classList.toggle("active", searchMode === "name");
       el.querySelector("#fmSearchContent").classList.toggle("active", searchMode === "content");
       searchInput.placeholder = searchMode === "content"
-        ? "Tìm trong nội dung file text..."
-        : "Tìm theo tên file trong toàn brain...";
+        ? window.t("cs.fm_ph_content")
+        : window.t("cs.fm_ph_name");
       if (searchInput.value.trim()) runSearch();
-      else searchMeta.textContent = searchMode === "content" ? "Quét nội dung file text" : "Tìm trong toàn brain";
+      else searchMeta.textContent = searchMode === "content" ? window.t("cs.fm_meta_scan") : window.t("cs.fm_meta_all");
       searchInput.focus();
     }
     async function runSearch() {
@@ -1215,33 +1213,33 @@
       if (!q) { await load(cur); return; }
       if (searchMode === "content" && q.length < 2) {
         searchSeq++;
-        listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">Nhập ít nhất 2 ký tự để tìm trong nội dung.</div>`;
-        searchMeta.textContent = "Cần ít nhất 2 ký tự";
+        listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">${window.t("cs.fm_min2")}</div>`;
+        searchMeta.textContent = window.t("cs.fm_min2_meta");
         return;
       }
       const seq = ++searchSeq;
-      listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">Đang tìm trong toàn brain...</div>`;
-      searchMeta.textContent = searchMode === "content" ? "Đang quét nội dung..." : "Đang tìm theo tên...";
+      listEl.innerHTML = `<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">${window.t("cs.fm_searching")}</div>`;
+      searchMeta.textContent = searchMode === "content" ? window.t("cs.fm_scanning") : window.t("cs.fm_by_name");
       let resp, d;
       try {
         resp = await fetch(`/files/search?brain=${encodeURIComponent(fbrain())}&q=${encodeURIComponent(q)}&mode=${searchMode}&limit=100`);
         d = await resp.json().catch(() => ({}));
       } catch (e) {
         if (seq !== searchSeq) return;
-        listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">Lỗi tìm kiếm: ${esc(e.message)}</div>`;
-        searchMeta.textContent = "Tìm kiếm thất bại";
+        listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${window.t("cs.fm_search_err")} ${esc(e.message)}</div>`;
+        searchMeta.textContent = window.t("cs.fm_search_failed");
         return;
       }
       if (seq !== searchSeq) return;
       if (!resp.ok || d.error) {
-        listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${WARN_ICON} ${esc(d.error || "Không tìm kiếm được.")}</div>`;
-        searchMeta.textContent = "Tìm kiếm thất bại";
+        listEl.innerHTML = `<div class="empty" style="padding:20px;color:var(--red)">${WARN_ICON} ${esc(d.error || window.t("cs.fm_search_cant"))}</div>`;
+        searchMeta.textContent = window.t("cs.fm_search_failed");
         return;
       }
       const items = d.items || [];
-      searchMeta.textContent = `${items.length} kết quả · ${searchMode === "content" ? "nội dung" : "tên file"}`;
+      searchMeta.textContent = window.t("cs.fm_results", { so: items.length, kieu: searchMode === "content" ? window.t("cs.fm_kind_content") : window.t("cs.fm_kind_name") });
       if (!items.length) {
-        listEl.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:var(--text3)">Không tìm thấy file phù hợp với “${esc(q)}”.</div>`;
+        listEl.innerHTML = `<div class="empty" style="padding:24px;text-align:center;color:var(--text3)">${window.t("cs.fm_no_match", { q: esc(q) })}</div>`;
         return;
       }
       listEl.innerHTML = "";
@@ -1253,8 +1251,8 @@
       const editable = TEXT_EDIT_EXTS.includes(target.ext);
       const viewable = IMG_EXTS.includes(target.ext) || target.ext === ".pdf";
       const match = it.match === "content"
-        ? `Trong nội dung${it.line ? " · dòng " + it.line : ""}`
-        : "Tên file";
+        ? `${window.t("cs.fm_in_content")}${it.line ? " · " + window.t("cs.fm_line", { so: it.line }) : ""}`
+        : window.t("cs.fm_match_name");
       div.innerHTML = `<span class="fm-ico">${_fileIcon(target.ext)}</span>
         <span class="fm-search-main">
           <span class="fm-search-name">${esc(it.name)}</span>
@@ -1262,7 +1260,7 @@
           ${it.snippet ? `<span class="fm-search-snip">${esc(it.snippet)}</span>` : ""}
         </span>
         <span class="fm-search-kind">${esc(match)}</span>
-        <span class="fm-row-act"><button data-act="open">Mở</button><button data-act="dl" title="Tải file về máy">⤓ Tải</button><button data-act="loc">Vị trí</button></span>`;
+        <span class="fm-row-act"><button data-act="open">${window.t("cs.fm_open")}</button><button data-act="dl" title="${window.t("cs.fm_dl_title")}">⤓ ${window.t("cs.fm_dl")}</button><button data-act="loc">${window.t("cs.fm_loc")}</button></span>`;
       const openHit = () => {
         if (editable || viewable) moTrongTrang(it.path, target);
         else window.open(rawUrl(it.path), "_blank");
@@ -1286,15 +1284,15 @@
       const editable = it.type === "file" && TEXT_EDIT_EXTS.includes(it.ext);
       const viewable = it.type === "file" && (IMG_EXTS.includes(it.ext) || it.ext === ".pdf");
       let acts = "";
-      if (editable) acts += '<button data-act="edit" title="Sửa nội dung">Sửa</button>';
-      else if (viewable) acts += '<button data-act="view" title="Xem trước">Xem</button>';
-      else if (it.type === "file") acts += '<button data-act="open" title="Mở trong tab mới">Mở</button>';
-      acts += '<button data-act="ren" title="Đổi tên">Đổi tên</button>';
+      if (editable) acts += `<button data-act="edit" title="${window.t("cs.fm_edit_title")}">${window.t("common.edit")}</button>`;
+      else if (viewable) acts += `<button data-act="view" title="${window.t("cs.fm_view_title")}">${window.t("cs.fm_view")}</button>`;
+      else if (it.type === "file") acts += `<button data-act="open" title="${window.t("cs.fm_open_tab_title")}">${window.t("cs.fm_open")}</button>`;
+      acts += `<button data-act="ren" title="${window.t("cs.fm_rename_title")}">${window.t("cs.fm_rename")}</button>`;
       // Tải: MỌI loại file (không riêng .md); thư mục thì nén .zip rồi mới tải.
       acts += it.type === "dir"
-        ? '<button data-act="zip" title="Tải cả thư mục về máy (nén .zip)">⤓ Zip</button>'
-        : '<button data-act="dl" title="Tải file về máy">⤓ Tải</button>';
-      acts += '<button data-act="del" class="danger" title="Xoá">Xoá</button>';
+        ? `<button data-act="zip" title="${window.t("cs.fm_zipfolder_title")}">⤓ Zip</button>`
+        : `<button data-act="dl" title="${window.t("cs.fm_dl_title")}">⤓ ${window.t("cs.fm_dl")}</button>`;
+      acts += `<button data-act="del" class="danger" title="${window.t("common.delete")}">${window.t("common.delete")}</button>`;
       div.innerHTML = `<span class="fm-ico">${it.type === "dir" ? ic("folder") : _fileIcon(it.ext)}</span>
         <span class="fm-name">${esc(it.name)}</span>
         <span class="fm-size">${it.type === "dir" ? "" : _humanSize(it.size)}</span>
@@ -1333,12 +1331,12 @@
       openNote(rel, { name: ten, ext: duoi, type: "file" });
     }
     async function doRename(rel, oldname) {
-      const nn = prompt("Tên mới:", oldname); if (!nn || nn === oldname) return;
+      const nn = prompt(window.t("cs.fm_new_name"), oldname); if (!nn || nn === oldname) return;
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel); fd.append("newname", nn);
       await fetch("/files/rename", { method: "POST", body: fd }); load(cur);
     }
     async function doDelete(rel, name) {
-      if (!confirm(`Xoá "${name}"? Không thể hoàn tác.`)) return;
+      if (!confirm(window.t("cs.fm_del_confirm", { ten: name }))) return;
       const fd = new FormData(); fd.append("brain", fbrain()); fd.append("path", rel);
       await fetch("/files/delete", { method: "POST", body: fd }); load(cur);
     }

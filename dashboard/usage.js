@@ -23,16 +23,24 @@
   // ngôn ngữ giao diện thì ngày giờ phải đổi theo, nếu không thì nửa màn hình tiếng Anh
   // mà ngày vẫn dd/mm/yyyy kiểu Việt.
   const LOC = () => (window.JavisI18n && JavisI18n.locale()) || "vi-VN";
-  var PERIODS = [
-    ["today", "Hôm nay"], ["yesterday", "Hôm qua"],
-    ["this_week", "Tuần này"], ["last_week", "Tuần trước"],
-    ["this_month", "Tháng này"], ["last_month", "Tháng trước"],
-    ["last_3_months", "3 tháng"], ["this_year", "Năm nay"],
-  ];
-  var PROVS = [["", "Tất cả"], ["claude", "Claude Code"], ["codex", "ChatGPT"], ["api", "API"]];
+  // Nhãn hiện ra màn hình phải tra từ điển LÚC VẼ chứ không lúc nạp file: từ điển về sau
+  // (fetch bất đồng bộ), nên một hằng dựng sẵn sẽ đóng băng bản tiếng Việt vĩnh viễn.
+  function PERIODS() {
+    return [
+      ["today", window.t("usage.ky.hom_nay")], ["yesterday", window.t("usage.ky.hom_qua")],
+      ["this_week", window.t("usage.ky.tuan_nay")], ["last_week", window.t("usage.ky.tuan_truoc")],
+      ["this_month", window.t("usage.ky.thang_nay")], ["last_month", window.t("usage.ky.thang_truoc")],
+      ["last_3_months", window.t("usage.ky.ba_thang")], ["this_year", window.t("usage.ky.nam_nay")],
+    ];
+  }
+  function PROVS() {
+    return [["", window.t("studio.all")], ["claude", "Claude Code"], ["codex", "ChatGPT"], ["api", "API"]];
+  }
   var PROV_LABEL = { claude: "Claude Code", codex: "ChatGPT/Codex", api: "API (OpenRouter...)", "grok-cli": "Grok Build" };
-  var SRC_LABEL = { manual: "Bạn gõ tay", javis: "Javis (tự chạy)" };
-  var ACT_LABEL = { chat: "Chat", background: "Nền (loop/lịch)", subagent: "Subagent", manual: "Thủ công" };
+  function SRC_LABEL() { return { manual: window.t("usage.nguon.tay"), javis: window.t("usage.nguon.javis") }; }
+  function ACT_LABEL() {
+    return { chat: "Chat", background: window.t("usage.hd.nen"), subagent: "Subagent", manual: window.t("usage.hd.thu_cong") };
+  }
   var PROV_COLOR = { claude: "var(--accent)", codex: "var(--green)", api: "var(--link-ink)" };
   var MOC_ICO = { muc: "zap", model: "brain", ngan_sach: "shield" };
 
@@ -197,7 +205,7 @@
   function render(el) {
     injectCss();
     state.el = el;
-    el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder" style="min-height:220px"><div class="ph-ico">' + ic("loader", { cls: "ic-xl ic-spin" }) + '</div><div class="dim">Đang dựng chỉ số token...</div></div></div>';
+    el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder" style="min-height:220px"><div class="ph-ico">' + ic("loader", { cls: "ic-xl ic-spin" }) + '</div><div class="dim">' + window.t("usage.dang_dung") + "</div></div></div>";
     load(true);
   }
 
@@ -227,8 +235,8 @@
   function jsonOk(r) {
     if (!r.ok) {
       var e = new Error(r.status === 401 || r.status === 403
-        ? "Phiên đăng nhập đã hết hạn. Tải lại trang để đăng nhập lại."
-        : "Máy chủ trả lỗi " + r.status + ".");
+        ? window.t("usage.err.het_phien")
+        : window.t("usage.err.http", { ma: r.status }));
       e.httpStatus = r.status;
       throw e;
     }
@@ -239,8 +247,8 @@
     if (!state.el) return;
     state.el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder">'
       + '<div class="ph-ico">' + ic("chart-column", { cls: "ic-xl ic-dim" }) + "</div>"
-      + "<div>" + esc(msg || "Không tải được số liệu token.") + "</div>"
-      + '<button class="tk-mini" data-act="thu-lai" style="margin:12px auto 0">Thử lại</button>'
+      + "<div>" + esc(msg || window.t("usage.err.tai")) + "</div>"
+      + '<button class="tk-mini" data-act="thu-lai" style="margin:12px auto 0">' + window.t("common.retry") + "</button>"
       + "</div></div>";
     var b = state.el.querySelector('[data-act="thu-lai"]');
     if (b) b.onclick = function () { render(state.el); };
@@ -303,28 +311,32 @@
     var thueBao = eng.loai === "Gói thuê bao";
     var usdThang = fCost(t.usd_thang || 0);
     var cachTinh = t.nguon_gia === "tay"
-      ? "theo đơn giá bạn tự đặt"
+      ? window.t("usage.gia.tay")
       : (t.nguon_gia === "bang"
-        ? "theo giá tham khảo của model đang dùng"
-        : "theo một mức giá phổ biến, vì chưa nhận ra model đang dùng");
+        ? window.t("usage.gia.bang")
+        : window.t("usage.gia.pho_bien"));
+    var gioDo = dod.gio_do || 24;
     return '<div class="tk-tien">'
       + '<div class="tk-tien-row">'
-      + '<div><div class="k">Đã tiết kiệm</div><div class="v">' + fTok(dod.token_tiet_kiem)
-      + '</div><div class="s">token, trong ' + (dod.gio_do || 24) + ' giờ qua</div></div>'
-      + '<div><div class="k">Theo nhịp này</div><div class="v">' + fTok(dod.token_thang)
-      + '</div><div class="s">token mỗi tháng</div></div>'
-      + '<div class="tien"><div class="k">Quy ra tiền</div><div class="v">~' + usdThang + "</div>"
-      + '<div class="s">mỗi tháng, theo giá API</div></div>'
+      + '<div><div class="k">' + window.t("usage.tk.tieu_de") + '</div><div class="v">' + fTok(dod.token_tiet_kiem)
+      + '</div><div class="s">' + window.t("usage.tien.token_trong_gio", { gio: gioDo }) + "</div></div>"
+      + '<div><div class="k">' + window.t("usage.tien.theo_nhip") + '</div><div class="v">' + fTok(dod.token_thang)
+      + '</div><div class="s">' + window.t("usage.tien.token_thang") + "</div></div>"
+      + '<div class="tien"><div class="k">' + window.t("usage.tien.quy_ra_tien") + '</div><div class="v">~' + usdThang + "</div>"
+      + '<div class="s">' + window.t("usage.tien.moi_thang_gia_api") + "</div></div>"
       + "</div>"
-      + '<div class="tk-tien-note">Số token là <b>đo được</b>; phần mỗi tháng là phép chiếu'
-      + ' theo đúng nhịp dùng của ' + (dod.gio_do || 24) + ' giờ vừa rồi. Tiền là <b>ước lượng</b> '
-      + esc(cachTinh) + ' ($' + (t.gia_1m_usd || 0) + ' cho 1 triệu token vào).'
+      + '<div class="tk-tien-note">'
+      + window.t("usage.tien.note", {
+        do_duoc: "<b>" + window.t("usage.tien.do_duoc") + "</b>",
+        uoc_luong: "<b>" + window.t("usage.tien.uoc_luong") + "</b>",
+        gio: gioDo, cach: esc(cachTinh), gia: (t.gia_1m_usd || 0),
+      })
       + (thueBao
-        ? ' Bạn đang dùng <b>gói thuê bao</b> nên không trả theo token: con số này là mức tiết kiệm'
-        + ' quy đổi nếu tính theo giá API, và trên thực tế nó thể hiện thành việc lâu chạm trần gói hơn.'
-        : '')
-      + " Muốn con số đúng với hợp đồng của bạn thì đặt <code>gia_input_1m</code> trong"
-      + " <code>settings.json</code> (mục <code>model</code>)."
+        ? " " + window.t("usage.tien.thue_bao", { goi: "<b>" + window.t("usage.tien.goi") + "</b>" })
+        : "")
+      + " " + window.t("usage.tien.hop_dong", {
+        a: "<code>gia_input_1m</code>", b: "<code>settings.json</code>", c: "<code>model</code>",
+      })
       + "</div></div>";
   }
 
@@ -339,11 +351,12 @@
       var pct = (p.id !== "off" && m.phan_tram)
         ? '<span class="tk-muc-pct">-' + (+m.phan_tram || 0) + "% token</span>" : "";
       var tok = m.token_moi_request != null
-        ? '<span class="tk-muc-tok">' + (+m.token_moi_request || 0).toLocaleString(LOC()) + " token mỗi lượt</span>" : "";
+        ? '<span class="tk-muc-tok">'
+          + window.t("usage.token_moi_luot", { n: (+m.token_moi_request || 0).toLocaleString(LOC()) }) + "</span>" : "";
       // Bộ não đang chạy không ăn được mức này thì phải nói NGAY trên nút. Khoe một con số
       // không bao giờ tới là dạy người dùng thôi tin cả trang.
-      var na = m.ap_dung === false ? '<span class="tk-muc-na">không áp cho bộ não đang dùng</span>' : "";
-      var now = p.id === d.muc ? '<span class="tk-muc-now">đang dùng</span>' : "";
+      var na = m.ap_dung === false ? '<span class="tk-muc-na">' + window.t("usage.muc.na") + "</span>" : "";
+      var now = p.id === d.muc ? '<span class="tk-muc-now">' + window.t("usage.muc.dang_dung") + "</span>" : "";
       return '<button class="tk-muc-b' + (p.id === d.muc ? " on" : "") + '" data-muc="' + esc(p.id) + '">'
         + '<span class="tk-muc-top"><b>' + esc(p.nhan) + "</b>" + pct + "</span>"
         + tok + "<small>" + esc(m.ghi_chu || p.mo_ta) + "</small>" + na + now + "</button>";
@@ -353,35 +366,36 @@
     if (dod.du_du_lieu) {
       var gio = dod.gio_do || 24;
       doHtml = '<div class="tk-muc-do">'
-        + '<div><div class="k">Chế độ Đầy đủ</div><div class="v">' + fTok(dod.tb_cu) + '</div><div class="s">token mỗi lượt, ' + (dod.so_luot_cu || 0) + " lượt</div></div>"
-        + '<div><div class="k">Khi tiết kiệm</div><div class="v">' + fTok(dod.tb_moi) + '</div><div class="s">token mỗi lượt, ' + (dod.so_luot_moi || 0) + " lượt</div></div>"
-        + '<div class="pct"><div class="k">Giảm được</div><div class="v">' + (dod.phan_tram || 0) + '%</div><div class="s">số thật đo trong ' + gio + ' giờ qua</div></div>'
+        + '<div><div class="k">' + window.t("usage.muc.day_du") + '</div><div class="v">' + fTok(dod.tb_cu)
+        + '</div><div class="s">' + window.t("usage.muc.do_sub", { count: (dod.so_luot_cu || 0) }) + "</div></div>"
+        + '<div><div class="k">' + window.t("usage.muc.khi_tk") + '</div><div class="v">' + fTok(dod.tb_moi)
+        + '</div><div class="s">' + window.t("usage.muc.do_sub", { count: (dod.so_luot_moi || 0) }) + "</div></div>"
+        + '<div class="pct"><div class="k">' + window.t("usage.muc.giam") + '</div><div class="v">' + (dod.phan_tram || 0)
+        + '%</div><div class="s">' + window.t("usage.muc.do_trong", { gio: gio }) + "</div></div>"
         + "</div>";
       doHtml += tienHtml(dod, d);
     }
 
-    var chuaChon = d.tu_chon ? "" : " Mức đang chạy là mặc định của bản này, bạn chưa tự chọn bao giờ."
-      + " Bấm một mức bất kỳ là Javis ghim lại, từ đó không bản cập nhật nào đổi nữa.";
+    var chuaChon = d.tu_chon ? "" : " " + window.t("usage.muc.chua_chon");
 
     // Dải một dòng luôn hiện; phần thân chỉ dựng khi người dùng bung ra.
     var mm = (dangDung && dangDung.m) || {};
     var strip = '<button class="tk-muc-strip" data-act="mo-muc">'
       + ic("zap", { cls: "ic-sm ic-accent" })
-      + "<span>Chế độ tiết kiệm token: <b>" + esc((dangDung && dangDung.nhan) || d.muc || "?") + "</b>"
+      + "<span>" + window.t("usage.muc.strip", { ten: "<b>" + esc((dangDung && dangDung.nhan) || d.muc || "?") + "</b>" })
       + (mm.phan_tram ? ' <span class="pc">-' + (+mm.phan_tram || 0) + "%</span>" : "")
       + (mm.token_moi_request != null
-        ? " · " + (+mm.token_moi_request || 0).toLocaleString(LOC()) + " token mỗi lượt" : "")
+        ? " · " + window.t("usage.token_moi_luot", { n: (+mm.token_moi_request || 0).toLocaleString(LOC()) }) : "")
       + "</span>"
-      + '<span class="sp">' + (state.moMuc ? "Thu lại" : "Đổi")
+      + '<span class="sp">' + (state.moMuc ? window.t("usage.muc.thu_lai") : window.t("usage.muc.doi"))
       + ic(state.moMuc ? "chevron-up" : "chevron-down", { cls: "ic-sm" }) + "</span></button>";
 
     var body = state.moMuc
       ? '<div class="tk-muc-body"><div class="tk-muc-list">' + btns + "</div>"
       + (state.toast ? state.toast : "")
       + doHtml
-      + '<div class="tk-muc-note">Đổi xong có hiệu lực ngay, không cần khởi động lại. Thấy Javis'
-      + " trả lời tệ đi thì bấm <b>Tắt</b> là quay lại như cũ lập tức."
-      + " Con số phần trăm là ước lượng đo trên chính bộ não và bộ nhớ của bạn."
+      + '<div class="tk-muc-note">'
+      + window.t("usage.muc.note", { tat: "<b>" + window.t("usage.muc.tat") + "</b>" })
       + esc(chuaChon) + "</div></div>"
       : (state.toast || "");
 
@@ -401,16 +415,17 @@
           .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
           .then(function (res) {
             if (!res.ok || !res.j || res.j.ok === false) {
-              state.toast = '<div class="tk-muc-toast err">' + esc((res.j && res.j.error) || "Đổi mức thất bại.") + "</div>";
+              state.toast = '<div class="tk-muc-toast err">' + esc((res.j && res.j.error) || window.t("usage.muc.err")) + "</div>";
             } else {
               var cb = (res.j.canh_bao || []).join(" ");
-              state.toast = '<div class="tk-muc-toast ok">Đã chuyển sang mức "' + esc(res.j.nhan) + '". Có hiệu lực ngay.'
+              state.toast = '<div class="tk-muc-toast ok">' + window.t("usage.muc.ok", { ten: esc(res.j.nhan) })
                 + (cb ? " " + esc(cb) : "") + "</div>";
             }
             return loadMuc(true);
           })
           .catch(function (e) {
-            state.toast = '<div class="tk-muc-toast err">Đổi mức thất bại: ' + esc(e && e.message ? e.message : e) + "</div>";
+            state.toast = '<div class="tk-muc-toast err">' + window.t("usage.muc.err2") + " "
+              + esc(e && e.message ? e.message : e) + "</div>";
           })
           .then(function () { load(false); });
       };
@@ -422,10 +437,10 @@
     var t = state.tq; if (!t) return "";
     var phu = [];
     if ((t.tiet_kiem || {}).suy_doan && (t.tiet_kiem || {}).token) {
-      phu.push("Chưa có nhật ký đổi mức nên phần tiết kiệm giả định cả kỳ chạy cùng một chế độ.");
+      phu.push(window.t("usage.hero.suy_doan"));
     }
     if (!((t.tien || {}).goi || {}).gia_thang_usd) {
-      phu.push("Khai giá gói mỗi tháng ở ô Tiền mặt bên dưới thì Javis tính được gói đang lời hay lỗ.");
+      phu.push(window.t("usage.hero.khai_gia_goi"));
     }
     return '<div class="tk-hero"><p>' + esc(t.cau || "") + "</p>"
       + (phu.length ? '<div class="sub">' + esc(phu.join(" ")) + "</div>" : "")
@@ -444,25 +459,29 @@
         + Math.min(100, Math.round((ns.ty_le || 0) * 100)) + '%"></div></div>';
       body = '<div class="big ' + cls + '">' + fCost(ns.da_tieu) + "</div>"
         + thanh
-        + '<div class="s">trên trần ' + fCost(ns.tran) + " tháng này, còn " + fCost(ns.con)
-        + (ns.du_bao_vuot ? ". Theo nhịp này sẽ vượt trần." : "") + "</div>";
+        + '<div class="s">' + window.t("usage.tien.tren_tran", { tran: fCost(ns.tran), con: fCost(ns.con) })
+        + (ns.du_bao_vuot ? ". " + window.t("usage.tien.se_vuot") : "") + "</div>";
     } else {
       // Chưa đặt trần thì ô này nói về ĐÚNG kỳ đang chọn, nên phải gọi tên kỳ ra. Đặt trần
       // rồi thì nó chuyển sang nói về THÁNG, vì trần là trần tháng - hai nghĩa khác nhau
       // trong cùng một ô, không nói rõ là người đọc so nhầm.
       body = '<div class="big">' + fCost(that.usd) + "</div>"
-        + '<div class="s">' + esc((t.ten_ky || "Kỳ này").toLowerCase()) + ", tiền mặt thật"
-        + (that.usd ? " (nhánh dùng API key)" : ", chưa đặt trần tháng") + "</div>";
+        + '<div class="s">' + esc((t.ten_ky || window.t("usage.tien.ky_nay")).toLowerCase())
+        + ", " + window.t("usage.tien.tien_that")
+        + (that.usd ? " " + window.t("usage.tien.nhanh_api") : ", " + window.t("usage.tien.chua_tran")) + "</div>";
     }
     if (orb && orb.remaining != null) {
-      body += '<div class="s">OpenRouter còn <b style="color:var(--green)">' + fCost(orb.remaining) + "</b></div>";
+      body += '<div class="s">'
+        + window.t("usage.tien.or_con", { tien: '<b style="color:var(--green)">' + fCost(orb.remaining) + "</b>" })
+        + "</div>";
     }
     if ((ns.dang_phanh || {}).bat) {
-      body += '<div class="s" style="color:var(--accent)">Đang phanh: việc nền đã chuyển sang đường không tốn tiền.</div>';
+      body += '<div class="s" style="color:var(--accent)">' + window.t("usage.tien.dang_phanh") + "</div>";
     }
-    return '<div class="tk-a"><div class="h">' + ic("shield", { cls: "ic-sm" }) + "Tiền mặt tháng này</div>"
+    return '<div class="tk-a"><div class="h">' + ic("shield", { cls: "ic-sm" }) + window.t("usage.tien.tieu_de") + "</div>"
       + body
-      + '<button class="tk-mini" data-act="ns">' + (state.moNganSach ? "Đóng" : "Đặt ngân sách") + "</button></div>";
+      + '<button class="tk-mini" data-act="ns">'
+      + (state.moNganSach ? window.t("common.close") : window.t("usage.tien.dat_ns")) + "</button></div>";
   }
 
   // Gói Claude/ChatGPT tính hạn mức theo CỬA SỔ vài giờ chứ không theo ngày, nên "hôm nay
@@ -485,27 +504,27 @@
       var cls = tl >= 0.9 ? "bad" : (tl >= 0.7 ? "warn" : "ok");
       body = '<div class="big ' + cls + '">' + pct(tl) + "</div>"
         + '<div class="track"><div class="fill ' + cls + '" style="width:' + Math.round(tl * 100) + '%"></div></div>'
-        + '<div class="s">' + fTok(c.tokens) + " token trong 5 giờ qua, trên trần bạn khai "
-        + fTok(c.tran_khai) + ".</div>";
+        + '<div class="s">' + fTok(c.tokens) + " "
+        + window.t("usage.tran.tren_khai", { tran: fTok(c.tran_khai) }) + "</div>";
     } else {
       body = '<div class="big">' + fTok(c.tokens) + "</div>";
       if (c.dinh) {
         var tl2 = Math.min(1, c.ty_le || 0);
         body += '<div class="track"><div class="fill" style="width:' + Math.round(tl2 * 100) + '%"></div></div>'
-          + '<div class="s">token trong 5 giờ qua. '
+          + '<div class="s">' + window.t("usage.tran.trong_5h") + " "
           + (tl2 >= 0.99
-            ? "Đây đang là 5 giờ bận nhất của bạn từ trước tới nay."
-            : "Bằng " + pct(tl2) + " mức cao nhất bạn từng chạm (" + fTok(c.dinh) + ").")
+            ? window.t("usage.tran.ban_nhat")
+            : window.t("usage.tran.so_dinh", { pc: pct(tl2), dinh: fTok(c.dinh) }))
           + "</div>";
       } else {
-        body += '<div class="s">token trong 5 giờ qua. Chưa đủ lịch sử để biết mốc của bạn ở đâu.</div>';
+        body += '<div class="s">' + window.t("usage.tran.trong_5h") + " " + window.t("usage.tran.chua_du_ls") + "</div>";
       }
-      body += '<div class="s">Khai trần gói ở ô Tiền mặt thì Javis báo được lúc sắp bị chặn.</div>';
+      body += '<div class="s">' + window.t("usage.tran.khai_tran") + "</div>";
     }
     if (!thueBao) {
-      body += '<div class="s">Bạn đang dùng API key nên không có trần gói; số này chỉ để thấy nhịp dùng.</div>';
+      body += '<div class="s">' + window.t("usage.tran.api_key") + "</div>";
     }
-    return '<div class="tk-a"><div class="h">' + ic("chart-column", { cls: "ic-sm" }) + "Cửa sổ 5 giờ</div>"
+    return '<div class="tk-a"><div class="h">' + ic("chart-column", { cls: "ic-sm" }) + window.t("usage.tran.tieu_de") + "</div>"
       + body + "</div>";
   }
 
@@ -516,20 +535,18 @@
       // Hai lý do khác hẳn nhau, và gộp làm một là nói dối theo hướng làm người ta tắt chế độ
       // tiết kiệm đi: "chưa chạy lượt nào" với "bạn đang chỉnh tay nên Javis không biết cấu
       // hình đó tốn bao nhiêu".
-      return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + "Đã tiết kiệm</div>"
+      return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + window.t("usage.tk.tieu_de") + "</div>"
         + '<div class="big">-</div><div class="s">'
-        + (k.khong_do_duoc
-          ? "Bạn đang tự chỉnh tay từng đường nên Javis không biết cấu hình này tốn bao nhiêu mỗi lượt. Chọn một mức có sẵn là đo được."
-          : "Chưa có lượt nào của Javis trong kỳ này để tính.")
+        + (k.khong_do_duoc ? window.t("usage.tk.chinh_tay") : window.t("usage.tk.chua_luot"))
         + "</div></div>";
     }
     var ti = k.tien || {};
-    return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + "Đã tiết kiệm</div>"
+    return '<div class="tk-a"><div class="h">' + ic("sparkles", { cls: "ic-sm" }) + window.t("usage.tk.tieu_de") + "</div>"
       + '<div class="big warn">' + fTok(k.token) + "</div>"
-      + '<div class="s">token không phải gửi, qua ' + (k.so_luot || 0) + " lượt của Javis. "
-      + "Chế độ <b>" + esc(k.nhan_muc || "") + "</b> cắt " + (k.phan_tram || 0)
-      + "% chi phí cố định mỗi lượt.</div>"
-      + '<div class="s">Quy theo giá API khoảng <b>' + fCost(ti.usd) + "</b>.</div></div>";
+      + '<div class="s">' + window.t("usage.tk.qua_luot", { count: (k.so_luot || 0) }) + " "
+      + window.t("usage.tk.che_do", { ten: "<b>" + esc(k.nhan_muc || "") + "</b>", pc: (k.phan_tram || 0) })
+      + "</div>"
+      + '<div class="s">' + window.t("usage.tk.quy_gia", { tien: "<b>" + fCost(ti.usd) + "</b>" }) + "</div></div>";
   }
 
   function nganSachHtml() {
@@ -544,22 +561,22 @@
     function val(dangGo, daLuu) { return dangGo != null && dangGo !== "" ? dangGo : (daLuu || ""); }
     var tick = function (k, mac_dinh) { return (f[k] != null ? f[k] : mac_dinh) ? " checked" : ""; };
     return '<div class="tk-ns"><div class="row">'
-      + '<div><label>Giá gói mỗi tháng (USD)</label><input id="tk-ns-goi" type="number" min="0" step="1" value="'
-      + esc(val(f.goi, g.gia_thang_usd)) + '" placeholder="Ví dụ 200"></div>'
-      + '<div><label>Trần tiền API mỗi tháng (USD)</label><input id="tk-ns-tran" type="number" min="0" step="1" value="'
-      + esc(val(f.tran, ns.tran)) + '" placeholder="Ví dụ 30"></div>'
-      + '<div><label>Trần token cửa sổ 5 giờ</label><input id="tk-ns-5h" type="number" min="0" step="1000" value="'
-      + esc(val(f.h5, c.tran_khai)) + '" placeholder="Để trống thì Javis tự đo"></div>'
+      + "<div><label>" + window.t("usage.ns.gia_goi") + '</label><input id="tk-ns-goi" type="number" min="0" step="1" value="'
+      + esc(val(f.goi, g.gia_thang_usd)) + '" placeholder="' + window.t("usage.ns.ph_gia_goi") + '"></div>'
+      + "<div><label>" + window.t("usage.ns.tran_api") + '</label><input id="tk-ns-tran" type="number" min="0" step="1" value="'
+      + esc(val(f.tran, ns.tran)) + '" placeholder="' + window.t("usage.ns.ph_tran_api") + '"></div>'
+      + "<div><label>" + window.t("usage.ns.tran_5h") + '</label><input id="tk-ns-5h" type="number" min="0" step="1000" value="'
+      + esc(val(f.h5, c.tran_khai)) + '" placeholder="' + window.t("usage.ns.ph_tran_5h") + '"></div>'
       + "</div>"
       + '<label class="chk"><input id="tk-ns-phanh" type="checkbox"' + tick("phanh", ns.tu_phanh) + ">"
-      + "Chạm trần thì tự đẩy việc nền sang đường không tốn tiền</label>"
+      + window.t("usage.ns.tu_phanh") + "</label>"
       + '<label class="chk"><input id="tk-ns-tuan" type="checkbox"' + tick("tuan", !!t.bao_cao_tuan) + ">"
-      + "Gửi báo cáo token về chat mỗi sáng thứ Hai</label>"
-      + '<div class="acts"><button class="save" data-act="ns-luu">Lưu</button>'
-      + '<button class="tk-mini" data-act="ns">Huỷ</button></div>'
-      + '<div class="hint">Bốn con số này Javis không tự biết được: nhà cung cấp không cho lấy giá gói'
-      + " hay hạn mức gói qua API. Để trống thì trang chỉ nói được cái nó đo được."
-      + " Tự phanh chỉ đụng tới <b>việc chạy nền</b>, chat của bạn không bị hạ model.</div></div>";
+      + window.t("usage.ns.bao_cao_tuan") + "</label>"
+      + '<div class="acts"><button class="save" data-act="ns-luu">' + window.t("common.save") + "</button>"
+      + '<button class="tk-mini" data-act="ns">' + window.t("common.cancel") + "</button></div>"
+      + '<div class="hint">'
+      + window.t("usage.ns.hint", { nen: "<b>" + window.t("usage.ns.viec_nen") + "</b>" })
+      + "</div></div>";
   }
 
   function card(k, v, sub, accent) {
@@ -567,7 +584,7 @@
   }
 
   function barList(items, labelMap, colorFn) {
-    if (!items || !items.length) return '<div style="color:var(--text3);font-size:13px">Chưa có dữ liệu.</div>';
+    if (!items || !items.length) return '<div style="color:var(--text3);font-size:13px">' + window.t("usage.chua_du_lieu") + "</div>";
     var max = Math.max.apply(null, items.map(function (x) { return x.tokens; })) || 1;
     return '<div class="tk-blist">' + items.map(function (x) {
       var lab = (labelMap && labelMap[x.key]) || model(x.key) || x.key;
@@ -582,22 +599,25 @@
   // Bảng "ngốn nhất" kèm NÚT XỬ LÝ. Bảng chỉ để ngắm thì người đọc biết cái gì đắt mà vẫn
   // phải tự đi tìm chỗ chỉnh - và đa số sẽ không đi.
   function table(items, header, actFn) {
-    if (!items || !items.length) return '<div style="color:var(--text3);font-size:13px">Chưa có dữ liệu.</div>';
+    if (!items || !items.length) return '<div style="color:var(--text3);font-size:13px">' + window.t("usage.chua_du_lieu") + "</div>";
     var rows = items.slice(0, 8).map(function (x) {
       return "<tr><td>" + esc(model(x.key) || x.key) + '</td><td class="num">' + fTok(x.tokens)
         + '</td><td class="num">' + (x.cost > 0 ? fCost(x.cost) : "-") + "</td>"
         + (actFn ? '<td class="act">' + actFn(x) + "</td>" : "") + "</tr>";
     }).join("");
-    return '<table class="tk-tbl"><thead><tr><th>' + esc(header) + '</th><th style="text-align:right">Token</th><th style="text-align:right">Quy đổi</th>'
+    return '<table class="tk-tbl"><thead><tr><th>' + esc(header) + '</th><th style="text-align:right">Token</th>'
+      + '<th style="text-align:right">' + window.t("usage.th.quy_doi") + "</th>"
       + (actFn ? "<th></th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   function tableProj(items) {
-    if (!items || !items.length) return '<div style="color:var(--text3);font-size:13px">Chưa có dữ liệu.</div>';
+    if (!items || !items.length) return '<div style="color:var(--text3);font-size:13px">' + window.t("usage.chua_du_lieu") + "</div>";
     var rows = items.slice(0, 8).map(function (x) {
       return "<tr><td>" + esc(x.key) + '</td><td class="num">' + fTok(x.tokens) + '</td><td class="num">' + (x.sessions || 0) + "</td></tr>";
     }).join("");
-    return '<table class="tk-tbl"><thead><tr><th>Brain / dự án</th><th style="text-align:right">Token</th><th style="text-align:right">Phiên</th></tr></thead><tbody>' + rows + "</tbody></table>";
+    return '<table class="tk-tbl"><thead><tr><th>' + window.t("usage.th.brain") + "</th>"
+      + '<th style="text-align:right">Token</th>'
+      + '<th style="text-align:right">' + window.t("usage.th.phien") + "</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   // Loop đang bật, kèm nút tắt ngay tại chỗ. Đây là hành động DUY NHẤT trên trang này vừa
@@ -616,15 +636,16 @@
     rows.sort(function (a, b) { return (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0); });
     var tr = rows.slice(0, 8).map(function (r) {
       return "<tr><td>" + esc(r.name) + '<div style="font-size:11px;color:var(--text3)">'
-        + esc(r.brainName || "") + (r.interval ? " · mỗi " + r.interval + " phút" : "")
+        + esc(r.brainName || "") + (r.interval ? " · " + window.t("usage.loop.moi_phut", { count: r.interval }) : "")
         + (r.mode ? " · " + esc(r.mode) : "") + "</div></td>"
-        + '<td class="num">' + (r.enabled ? "đang chạy" : "đã tắt") + "</td>"
+        + '<td class="num">' + (r.enabled ? window.t("usage.loop.on") : window.t("usage.loop.off")) + "</td>"
         + '<td class="act"><button class="tk-go' + (r.enabled ? " on" : "") + '" data-loop="'
         + esc(r.slug) + '" data-brain="' + esc(r.brain) + '">'
-        + (r.enabled ? "Tắt" : "Bật") + "</button></td></tr>";
+        + (r.enabled ? window.t("usage.loop.btn_tat") : window.t("usage.loop.btn_bat")) + "</button></td></tr>";
     }).join("");
-    return '<div class="tk-sec">Việc nền đang chạy</div>'
-      + '<table class="tk-tbl"><thead><tr><th>Loop</th><th style="text-align:right">Trạng thái</th><th></th></tr></thead><tbody>'
+    return '<div class="tk-sec">' + window.t("usage.sec.viec_nen") + "</div>"
+      + '<table class="tk-tbl"><thead><tr><th>Loop</th>'
+      + '<th style="text-align:right">' + window.t("usage.th.trang_thai") + "</th><th></th></tr></thead><tbody>"
       + tr + "</tbody></table>";
   }
 
@@ -634,36 +655,41 @@
     var t = state.tq; if (!t || !(t.nhip_engine || []).length) return "";
     var rows = t.nhip_engine.slice(0, 6).map(function (x) {
       return "<tr><td>" + esc(PROV_LABEL[x.provider] || x.provider) + "</td>"
-        + "<td>" + esc(ACT_LABEL[x.activity] || x.activity) + "</td>"
+        + "<td>" + esc(ACT_LABEL()[x.activity] || x.activity) + "</td>"
         + '<td class="num">' + fTok(x.moi_luot) + "</td>"
         + '<td class="num">' + (x.turns || 0) + "</td>"
         + '<td class="num">' + (x.cost_moi_luot > 0 ? "$" + (+x.cost_moi_luot).toFixed(3) : "-") + "</td></tr>";
     }).join("");
-    return '<div class="tk-sec">Cùng một loại việc thì bộ não nào đắt hơn</div>'
-      + '<table class="tk-tbl"><thead><tr><th>Bộ não</th><th>Việc</th>'
-      + '<th style="text-align:right">Token/lượt</th><th style="text-align:right">Lượt</th>'
-      + '<th style="text-align:right">Quy đổi/lượt</th></tr></thead><tbody>' + rows + "</tbody></table>";
+    return '<div class="tk-sec">' + window.t("usage.sec.engine") + "</div>"
+      + '<table class="tk-tbl"><thead><tr><th>' + window.t("usage.th.bo_nao") + "</th>"
+      + "<th>" + window.t("usage.th.viec") + "</th>"
+      + '<th style="text-align:right">' + window.t("usage.th.token_luot") + "</th>"
+      + '<th style="text-align:right">' + window.t("usage.th.luot") + "</th>"
+      + '<th style="text-align:right">' + window.t("usage.th.quy_doi_luot") + "</th></tr></thead><tbody>"
+      + rows + "</tbody></table>";
   }
 
   function paint(s, insights) {
     var el = state.el; if (!el) return;
     var k = s.kpi || {};
     var t = state.tq || {};
-    var chips = PERIODS.map(function (p) {
+    var chips = PERIODS().map(function (p) {
       return '<button class="tk-chip' + (p[0] === state.period ? " on" : "") + '" data-period="' + p[0] + '">' + esc(p[1]) + "</button>";
     }).join("");
-    var seg = PROVS.map(function (p) {
+    var seg = PROVS().map(function (p) {
       return '<button class="' + (p[0] === state.provider ? "on" : "") + '" data-prov="' + p[0] + '">' + esc(p[1]) + "</button>";
     }).join("");
     var bar1 = '<div class="tk-bar1"><div class="tk-chips">' + chips + '</div>'
       + '<div class="tk-seg">' + seg + '</div>'
-      + '<button class="tk-refresh" data-act="refresh">' + (state.busy ? "Đang quét..." : "↻ Làm mới") + "</button></div>";
+      + '<button class="tk-refresh" data-act="refresh">'
+      + (state.busy ? window.t("usage.dang_quet") : window.t("noti.refresh")) + "</button></div>";
 
     var deltaHtml = "";
     if (k.delta_pct != null) {
       var up = k.delta_pct >= 0;
-      deltaHtml = '<span class="' + (up ? "tk-up" : "tk-down") + '">' + (up ? "▲" : "▼") + " " + Math.abs(k.delta_pct) + "%</span> vs kỳ trước";
-    } else { deltaHtml = "kỳ trước chưa có số"; }
+      deltaHtml = '<span class="' + (up ? "tk-up" : "tk-down") + '">' + (up ? "▲" : "▼") + " " + Math.abs(k.delta_pct)
+        + "%</span> " + window.t("usage.vs_ky_truoc");
+    } else { deltaHtml = window.t("usage.ky_truoc_trong"); }
 
     var act = '<div class="tk-act">' + oTien() + oTran() + oTietKiem() + "</div>"
       + (state.nsToast || "") + nganSachHtml();
@@ -671,11 +697,13 @@
     var cache = t.cache || {};
     var db = t.du_bao || {};
     var cards = '<div class="tk-cards">'
-      + card("Tổng token", fTok(k.tokens), deltaHtml, true)
-      + card("Số lượt", (k.turns || 0).toLocaleString(LOC()), fTok(k.avg_per_turn) + " token mỗi lượt")
-      + card("Cache đỡ cho", fCost(cache.usd), "nhờ dùng lại ngữ cảnh (" + pct(cache.ty_le) + ")")
-      + card("Phiên", (k.sessions || 0), "tb " + fTok(k.avg_per_session) + "/phiên")
-      + (db.co ? card("Hết kỳ ước chừng", fTok(db.tokens), "còn " + (db.con_ngay || 0) + " ngày nữa") : "")
+      + card(window.t("usage.card.tong_token"), fTok(k.tokens), deltaHtml, true)
+      + card(window.t("usage.card.so_luot"), (k.turns || 0).toLocaleString(LOC()),
+        window.t("usage.token_moi_luot", { n: fTok(k.avg_per_turn) }))
+      + card(window.t("usage.card.cache"), fCost(cache.usd), window.t("usage.card.cache_sub", { pc: pct(cache.ty_le) }))
+      + card(window.t("usage.card.phien"), (k.sessions || 0), window.t("usage.card.phien_sub", { n: fTok(k.avg_per_session) }))
+      + (db.co ? card(window.t("usage.card.du_bao"), fTok(db.tokens),
+        window.t("usage.card.con_ngay", { count: (db.con_ngay || 0) })) : "")
       + "</div>";
 
     // Biểu đồ theo ngày + hàng MỐC ngay dưới trục. Không có mốc thì tháng sau nhìn lại chỉ
@@ -688,7 +716,7 @@
     var maxD = Math.max.apply(null, ts.map(function (d) { return d.total; })) || 1;
     var cols = ts.map(function (d) {
       function seg2(v, col) { return v > 0 ? '<div class="tk-seg2" style="height:' + (v / maxD * 100) + "%;background:" + col + '"></div>' : ""; }
-      var tip = d.day + ": " + fTok(d.total) + " token, " + (d.turns || 0) + " lượt";
+      var tip = window.t("usage.chart.tip", { ngay: d.day, tok: fTok(d.total), count: (d.turns || 0) });
       return '<div class="tk-col" title="' + esc(tip) + '">'
         + seg2(d.claude, PROV_COLOR.claude) + seg2(d.codex, PROV_COLOR.codex) + seg2(d.api, PROV_COLOR.api) + "</div>";
     }).join("");
@@ -704,33 +732,40 @@
       + '<span><span class="tk-dot" style="background:' + PROV_COLOR.claude + '"></span>Claude</span>'
       + '<span><span class="tk-dot" style="background:' + PROV_COLOR.codex + '"></span>ChatGPT</span>'
       + '<span><span class="tk-dot" style="background:' + PROV_COLOR.api + '"></span>API</span>'
-      + "<span>" + ic("zap", { cls: "ic-sm ic-accent" }) + " đổi chế độ · "
-      + ic("brain", { cls: "ic-sm ic-accent" }) + " đổi bộ não</span></div>";
-    var chart = ts.length ? ('<div class="tk-sec">Token theo ngày</div><div class="tk-chart">' + cols + '</div><div class="tk-xrow">' + xs + '</div><div class="tk-mrow">' + ms + "</div>" + legend) : "";
+      + "<span>" + ic("zap", { cls: "ic-sm ic-accent" }) + " " + window.t("usage.legend.doi_muc") + " · "
+      + ic("brain", { cls: "ic-sm ic-accent" }) + " " + window.t("usage.legend.doi_nao") + "</span></div>";
+    var chart = ts.length ? ('<div class="tk-sec">' + window.t("usage.sec.theo_ngay") + '</div><div class="tk-chart">' + cols + '</div><div class="tk-xrow">' + xs + '</div><div class="tk-mrow">' + ms + "</div>" + legend) : "";
 
     var grid = '<div class="tk-grid">'
-      + "<div><div class=\"tk-sec\">Nguồn tiêu (bạn vs Javis)</div>" + barList(s.by_source, SRC_LABEL, function () { return "var(--accent)"; })
-      + "<div class=\"tk-sec\">Hoạt động</div>" + barList(s.by_activity, ACT_LABEL, function () { return "var(--link-ink)"; }) + "</div>"
+      + '<div><div class="tk-sec">' + window.t("usage.sec.nguon_tieu") + "</div>"
+      + barList(s.by_source, SRC_LABEL(), function () { return "var(--accent)"; })
+      + '<div class="tk-sec">' + window.t("usage.sec.hoat_dong") + "</div>"
+      + barList(s.by_activity, ACT_LABEL(), function () { return "var(--link-ink)"; }) + "</div>"
       + "<div><div class=\"tk-sec\">Provider</div>" + barList(s.by_provider, PROV_LABEL, function (kk) { return PROV_COLOR[kk] || "var(--accent)"; }) + "</div>"
       + "</div>";
 
     var tables = '<div class="tk-grid" style="margin-top:6px">'
-      + '<div><div class="tk-sec">Model ngốn nhất</div>' + table(s.by_model, "Model", function () {
-        return '<button class="tk-go" data-goto="models">Đổi model</button>';
+      + '<div><div class="tk-sec">' + window.t("usage.sec.model_ngon") + "</div>" + table(s.by_model, "Model", function () {
+        return '<button class="tk-go" data-goto="models">' + window.t("usage.btn_doi_model") + "</button>";
       }) + "</div>"
-      + '<div><div class="tk-sec">Brain ngốn nhất</div>' + tableProj(s.by_project) + "</div>"
+      + '<div><div class="tk-sec">' + window.t("usage.sec.brain_ngon") + "</div>" + tableProj(s.by_project) + "</div>"
       + "</div>";
 
     var insHtml = "";
     if (insights && insights.length) {
-      insHtml = '<div class="tk-sec">Đề xuất</div><div class="tk-ins">' + insights.map(function (i) {
+      insHtml = '<div class="tk-sec">' + window.t("usage.sec.de_xuat") + '</div><div class="tk-ins">' + insights.map(function (i) {
         var ico = i.level === "warn" ? ic("triangle-alert", { cls: "ic-warn" }) : ic("lightbulb", { cls: "ic-accent" });
         return '<div class="item ' + (i.level === "warn" ? "warn" : "info") + '"><div class="ico">' + ico + '</div>'
           + '<div><div class="t">' + esc(i.title) + '</div><div class="d">' + esc(i.detail) + "</div></div></div>";
       }).join("") + "</div>";
     }
 
-    var note = '<div class="tk-note">Số "Tổng token" gồm cả token đọc-cache, nên rất lớn - phần lớn là đọc lại ngữ cảnh đã có, rẻ hơn token mới nhiều lần, xem ô "Cache đỡ cho". Tiền chia làm hai loại và trang này không trộn chúng: <b>tiền mặt</b> chỉ phát sinh ở nhánh dùng API key, còn với gói thuê bao thì mọi con số tiền chỉ là <b>quy đổi</b> theo bảng giá tham khảo để biết gói có đáng không. Nguồn Claude và Codex dựng từ log thật (có lịch sử); nhánh API chỉ có số từ khi bật ghi log.</div>';
+    var note = '<div class="tk-note">' + window.t("usage.note", {
+      tong: window.t("usage.card.tong_token"),
+      cache: window.t("usage.card.cache"),
+      tien_mat: "<b>" + window.t("usage.note_tien_mat") + "</b>",
+      quy_doi: "<b>" + window.t("usage.note_quy_doi") + "</b>",
+    }) + "</div>";
 
     el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + heroHtml() + act + cards + chart + grid + tables + loopHtml() + engineHtml() + insHtml + note + "</div>";
     // Thông báo đã hiện xong thì thôi. Không xoá ở đây thì câu "Đã chuyển sang mức Tối ưu"
@@ -783,8 +818,8 @@
           // tưởng đã đặt xong trần tiền, và cái trần đó không tồn tại. Phiên hết hạn trả 401
           // kèm thân JSON nên `r.json()` vẫn resolve - phải soi `r.ok` chứ không soi mỗi body.
           if (!res.ok || res.j.ok === false) {
-            state.nsToast = '<div class="tk-muc-toast err">Chưa lưu được: '
-              + esc(res.j.error || "máy chủ từ chối. Thử tải lại trang rồi đăng nhập lại.")
+            state.nsToast = '<div class="tk-muc-toast err">' + window.t("usage.ns.err") + " "
+              + esc(res.j.error || window.t("usage.ns.err_tu_choi"))
               + "</div>";
             luu.disabled = false;
             load(false);
@@ -799,7 +834,7 @@
           load(false);
         })
         .catch(function (e) {
-          state.nsToast = '<div class="tk-muc-toast err">Chưa lưu được: '
+          state.nsToast = '<div class="tk-muc-toast err">' + window.t("usage.ns.err") + " "
             + esc(e && e.message ? e.message : e) + "</div>";
           luu.disabled = false;
           load(false);
@@ -820,7 +855,7 @@
     });
     var rb = el.querySelector('[data-act="refresh"]');
     if (rb) rb.onclick = function () {
-      if (state.busy) return; state.busy = true; rb.textContent = "Đang quét...";
+      if (state.busy) return; state.busy = true; rb.textContent = window.t("usage.dang_quet");
       fetch("/usage/refresh", { method: "POST" }).then(function (r) { return r.json(); })
         .then(function () { state.busy = false; load(false); })
         .catch(function () { state.busy = false; load(false); });
