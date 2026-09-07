@@ -532,6 +532,29 @@
     }
   }
 
+  // Vẽ lại lưới kho = thay sạch `host.innerHTML`, nên Ô TÌM cũng bị vứt đi và dựng lại. Gõ một
+  // chữ là ô đang gõ rời khỏi trang, con trỏ rơi về `body`, phải bấm chuột vào ô mới gõ được
+  // chữ thứ hai - đúng lỗi chủ repo báo (2026-09-07): "tìm kiếm chỉ viết được 1 chữ cái 1 lần".
+  // Gọi `focus()` trên ô CŨ không cứu được gì vì nó không còn nằm trong trang nữa; phải trả con
+  // trỏ cho ô MỚI. Tách thành cặp ghi/trả để bọc quanh đúng một lần thay `innerHTML`.
+  function ghiConTro(host) {
+    const cu = host.querySelector ? host.querySelector("#pkQ") : null;
+    if (!cu || document.activeElement !== cu) return null;
+    return { cu: cu, dau: cu.selectionStart, cuoi: cu.selectionEnd };
+  }
+
+  function traConTro(host, nho) {
+    if (!nho) return;
+    const moi = host.querySelector ? host.querySelector("#pkQ") : null;
+    if (!moi || moi === nho.cu) return;
+    try { moi.focus(); } catch (e) {}
+    // Gõ chèn vào GIỮA chuỗi thì con trỏ phải ở lại giữa. Ô mới dựng từ `value=` nên mặc định
+    // con trỏ nhảy xuống cuối, làm mấy chữ gõ tiếp bị lộn chỗ.
+    try {
+      if (nho.dau !== null && nho.dau !== undefined) moi.setSelectionRange(nho.dau, nho.cuoi);
+    } catch (e) {}
+  }
+
   function veLuoi(el, host) {
     const d = _kho.dl || { packs: [] };
     const ds = d.packs || [];
@@ -608,6 +631,7 @@
         + '</div>'
       : "";
 
+    const nhoConTro = ghiConTro(host);
     host.innerHTML =
       (d.stale ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">Đang xem danh mục đã lưu lần trước, vì lần này chưa lấy được bản mới.</div>' : "")
       + bangMoi
@@ -653,6 +677,8 @@
             + '</div>'
           : "");
 
+    traConTro(host, nhoConTro);
+
     const lai = () => veLuoi(el, host);
     host.querySelectorAll("[data-kho-loai]").forEach(b => b.onclick = () => {
       _kho.loai = b.dataset.khoLoai; _kho.nhom = "Tất cả"; _kho.trang = 1; _kho.tim = ""; lai();
@@ -669,7 +695,14 @@
       _kho.trang = Number(b.dataset.khoTrang); lai();
     });
     const o = document.getElementById("pkQ");
-    if (o) o.oninput = () => { _kho.tim = o.value; _kho.trang = 1; lai(); o.focus(); };
+    if (o) {
+      const loc = () => { _kho.tim = o.value; _kho.trang = 1; lai(); };
+      // Bộ gõ tiếng Việt (Gboard telex, bộ gõ sẵn của macOS/iOS) dựng một chữ qua nhiều nhịp
+      // composition. Vẽ lại giữa chừng là ô đang dựng chữ bị vứt đi và dấu thanh mất theo, nên
+      // đợi bộ gõ chốt chữ xong (`compositionend`) rồi mới lọc.
+      o.oninput = (ev) => { if (!(ev && ev.isComposing)) loc(); };
+      o.oncompositionend = loc;
+    }
     const lm = document.getElementById("pkLamMoi");
     if (lm) lm.onclick = () => veKho(el, host, true, _kho.loai);
     const ct = document.getElementById("pkChon2");
@@ -904,7 +937,10 @@
 
   // `coBanMoi` và `nutThe` phơi ra để test GỌI THẬT chứ không quét chuỗi: phép so phiên bản là
   // thứ quyết định người dùng có thấy nút cập nhật hay không, và một canary đọc chữ thì vẫn
-  // xanh y nguyên khi phép so bị đảo ngược.
+  // xanh y nguyên khi phép so bị đảo ngược. `veKho` phơi ra cùng lý do: ô tìm trong kho
+  // chỉ gõ được đúng một chữ rồi văng con trỏ, và chỉ có gõ THẬT qua đường vẽ lại mới bắt
+  // được lỗi đó.
   window.JavisPacks = { render: render, moKho: moKho, LOAI: LOAI, goApp: goApp, hoi: hoi,
-                        coBanMoi: coBanMoi, nutThe: nutThe, theKho: theKho };
+                        coBanMoi: coBanMoi, nutThe: nutThe, theKho: theKho,
+                        ghiConTro: ghiConTro, traConTro: traConTro, veKho: veKho };
 })();

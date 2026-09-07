@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.53] - 2026-09-07
+### Sửa lỗi
+- **Ô tìm trong Javis Store gõ được cả câu, không còn mỗi lần một chữ cái.** Trước đây gõ một chữ là con trỏ văng ra khỏi ô, phải bấm chuột vào lại mới gõ được chữ tiếp theo.
+- Gõ chèn vào giữa chữ đã có cũng đúng chỗ, không bị nhảy xuống cuối nữa.
+- Gõ tiếng Việt có dấu trong ô này không còn rơi mất dấu thanh.
+
 ## [0.55.52] - 2026-09-07
 ### Sửa lỗi
 - Bản Docker mới luôn kiểm tra và cài Codex hiện hành khi phát hành, tránh cập nhật Javis mà danh sách ChatGPT vẫn kẹt ở model cũ do dùng lại bộ cài đã cache.
