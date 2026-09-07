@@ -17,6 +17,7 @@ nữa, trước bản này KHÔNG có cách nào biết một lượt đã đi �
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -39,6 +40,13 @@ def check(name, cond):
 _CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 _USAGE = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
 _APP = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+# Từ 0.55.14 câu tiếng Việt của giao diện dời vào từ điển i18n, .js chỉ còn gọi
+# window.t("khoa"). Bảo đảm không đổi, chỉ bằng chứng đổi chỗ - nên mọi khẳng định
+# về LỜI GIAO DIỆN NÓI RA phải soi ĐỦ HAI VẾ: file .js gọi đúng khoá, và khoá đó
+# trong vi.json mang đúng câu tiếng Việt cần có. Thiếu vế nào cũng là test hở:
+# chỉ kiểm khoá thì đổi nội dung khoá thành câu ngược nghĩa vẫn xanh, còn chỉ kiểm
+# từ điển thì gỡ hẳn dòng chữ khỏi giao diện vẫn xanh.
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 _MAIN = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 
 # ============================================================
@@ -61,7 +69,9 @@ check("CANARY: không còn tên cũ 'Tối đa'", "Tối đa" not in _nhan.value
 check("có khối chọn mức trong trang Mức dùng", "function mucHtml(" in _USAGE)
 _i_ghep = _USAGE.find("mucHtml(state.muc) + bar1")
 check("CANARY: khối chọn mức ghép TRƯỚC thanh lọc kỳ và mọi con số", _i_ghep != -1)
-check("và có tiêu đề người đọc hiểu", "Chế độ tiết kiệm token" in _USAGE)
+check("và có tiêu đề người đọc hiểu",
+      "usage.muc.strip" in _USAGE
+      and "Chế độ tiết kiệm token" in _VI.get("usage.muc.strip", ""))
 
 # Trang riêng đã gỡ hẳn: còn sót một mảnh là rail vẫn hiện mục Tiết kiệm, hoặc tệ hơn, hai
 # nơi cùng vẽ một khối và chúng lệch nhau.
@@ -126,7 +136,9 @@ check("có chi tiết để đối chiếu, không chỉ một con số trơ",
       set(_uoc.get("chi_tiet") or {}) >= {"claude_md_va_bo_nho", "capsule", "mo_ta_cong_cu"})
 # Nói rõ là ƯỚC LƯỢNG. Trình bày một ước lượng như số đo là hứa thứ không giữ được.
 check("CANARY: tự khai đây là ước lượng", _uoc.get("la_uoc_luong") is True)
-check("giao diện có nói ra chữ 'ước lượng'", "ước lượng" in _USAGE)
+check("giao diện có nói ra chữ 'ước lượng'",
+      "usage.muc.note" in _USAGE
+      and "ước lượng" in _VI.get("usage.muc.note", ""))
 
 # Khai hỏng thì trả rỗng chứ không nổ giữa trang.
 check("brain không tồn tại vẫn không nổ",
@@ -249,18 +261,27 @@ check("giao diện vẽ khối quy đổi tiền", "tk-tien" in _USAGE and "func
 check("giao diện đọc đủ ba trường mới",
       "token_tiet_kiem" in _USAGE and "token_thang" in _USAGE and "usd_thang" in _USAGE)
 check("giao diện gọi đúng tên: đo được / phép chiếu / ước lượng",
-      "đo được" in _USAGE and "phép chiếu" in _USAGE and "ước lượng" in _USAGE)
-check("giao diện ghi rõ đơn giá đang dùng", "1 triệu token vào" in _USAGE)
+      "usage.tien.do_duoc" in _USAGE and "đo được" in _VI.get("usage.tien.do_duoc", "")
+      and "usage.tien.note" in _USAGE and "phép chiếu" in _VI.get("usage.tien.note", "")
+      and "usage.tien.uoc_luong" in _USAGE
+      and "ước lượng" in _VI.get("usage.tien.uoc_luong", ""))
+check("giao diện ghi rõ đơn giá đang dùng",
+      "usage.tien.note" in _USAGE
+      and "1 triệu token vào" in _VI.get("usage.tien.note", ""))
 check("CANARY: giao diện không còn vẽ tiền đồng",
       "ty_gia" not in _USAGE and "fVnd" not in _USAGE and "đ/$" not in _USAGE)
 # Người dùng gói thuê bao KHÔNG trả theo token: với họ đây là mức quy đổi, không phải tiền
 # mặt tiết kiệm được. Nhập nhèm chỗ này là cả trang mất tin cậy.
 check("nói đúng với người dùng gói thuê bao",
-      "gói thuê bao" in _USAGE and "quy đổi" in _USAGE)
+      "usage.tien.goi" in _USAGE and "gói thuê bao" in _VI.get("usage.tien.goi", "")
+      and "usage.tien.thue_bao" in _USAGE
+      and "quy đổi" in _VI.get("usage.tien.thue_bao", ""))
 check("endpoint có trả loại engine để giao diện phân biệt được ca đó",
       _muc_api.get("engine", {}).get("loai") in ("Gói thuê bao", "API key", None)
       or isinstance(_muc_api.get("engine"), dict))
-check("và nói rõ đây là số THẬT chứ không phải ước lượng", "số thật" in _USAGE)
+check("và nói rõ đây là số THẬT chứ không phải ước lượng",
+      "usage.muc.do_trong" in _USAGE
+      and "số thật" in _VI.get("usage.muc.do_trong", ""))
 
 # ============================================================
 # 5. Đường tiết kiệm phải có TÊN RIÊNG trong trace
@@ -321,12 +342,16 @@ check("bấm vào dòng đó thì sang trang Mức dùng", 'usageGoto = "usage"'
 # 7. Panel Mức dùng cũng phải nói được chuyện này
 # ============================================================
 check("panel Mức dùng có dòng tiết kiệm", "_usageSavingRow" in _APP)
-check("nó nêu tên mức đang dùng", "Tiết kiệm: <b>" in _APP)
+check("nó nêu tên mức đang dùng",
+      'window.t("app.saving_label")} <b>' in _APP
+      and "Tiết kiệm:" in _VI.get("app.saving_label", ""))
 # Ưu tiên số ĐO ĐƯỢC, chưa có mới dùng ước lượng - và phải nói rõ cái nào là cái nào.
 check("CANARY: ưu tiên số đo thật hơn ước lượng",
       _APP.find("dod.du_du_lieu") < _APP.find("uoc.phan_tram"))
 check("phân biệt rõ 'đo thật' với 'ước lượng'",
-      "(đo thật)" in _APP and "(ước lượng)" in _APP)
+      "app.saving_measured" in _APP and "(đo thật)" in _VI.get("app.saving_measured", "")
+      and "app.saving_est" in _APP
+      and "(ước lượng)" in _VI.get("app.saving_est", ""))
 # refreshUsage chạy sau MỖI lượt chat; gọi /runtime/diagnostics mỗi lần là tự bắt mình trả giá
 # cho chính cái panel đo giá.
 check("CANARY: có cache để không gọi lại sau mỗi lượt chat",
@@ -346,10 +371,13 @@ check("có bảng dịch tên chế độ ở khung chat", "CTX_PATH_LABEL" in _
 check("CANARY: không còn bảng thứ hai để lệch", "DUONG_LABEL" not in _CONSOLE)
 _bang_chat = _APP.split("CTX_PATH_LABEL = {")[1].split("};")[0]
 for _k, _v in _TEN.items():
-    check(f"khung chat gọi '{_k}' là '{_v}'", f'{_k}: "{_v}"' in _bang_chat)
+    _khoa = f"app.ctx_{_k}"
+    check(f"khung chat gọi '{_k}' là '{_v}'",
+          f'{_k}: "{_khoa}"' in _bang_chat and _VI.get(_khoa) == _v)
 for _k in ("readonly", "orchestrator", "write", "workflow", "bot"):
+    _khoa = f"app.ctx_{_k}"
     check(f"và có tên tiếng Việt cho '{_k}'",
-          len(_bang_chat.split(f"{_k}: ")[1].split('"')[1]) > 2)
+          f'{_k}: "{_khoa}"' in _bang_chat and len(_VI.get(_khoa, "")) > 2)
 
 # Và không được sót chữ cũ ở BẤT KỲ chỗ nào người dùng đọc. Bỏ comment trước khi soi: cả hai
 # file đều nhắc lại cụm cũ trong phần giải thích vì sao bỏ nó, quét cả comment là bắt nhầm

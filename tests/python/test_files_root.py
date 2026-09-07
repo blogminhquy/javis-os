@@ -8,6 +8,7 @@ parent=None khi ở trần (ẩn nút Lên).
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -129,10 +130,18 @@ try:
     check("UI gửi mode thật xuống /files/search",
           "/files/search?brain=${encodeURIComponent(fbrain())}" in console_js
           and "&mode=${searchMode}" in console_js)
+    # Chữ trên nút đã vào từ điển i18n ở 0.55.14: console.js gọi khoá, câu tiếng Việt nằm
+    # trong vi.json. Kiểm CẢ HAI vế (giao diện gọi đúng khoá + khoá mang đúng câu) để gỡ nút
+    # khỏi giao diện hay đổi nội dung khoá đều làm test đỏ.
+    VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
     check("UI Tệp tin có nút Tải về ở danh sách thường và kết quả tìm kiếm",
-          console_js.count('data-act="dl"') >= 2 and "Tải file về máy" in console_js)
+          console_js.count('data-act="dl"') >= 2
+          and console_js.count('title="${window.t("cs.fm_dl_title")}"') >= 2
+          and VI.get("cs.fm_dl_title") == "Tải file về máy")
     check("UI cây file Javis có nút tải cạnh file và trong editor",
-          'data-a="dl"' in console_js and 'mk("⤓ Tải", "Tải file về máy"' in console_js)
+          'data-a="dl"' in console_js and '"cs.fm_dl_title"' in console_js
+          and 'mk("⤓ " + esc(window.t("cs.fm_dl")), window.t("cs.fm_dl_title")' in console_js
+          and VI.get("cs.fm_dl") == "Tải" and VI.get("cs.fm_dl_title") == "Tải file về máy")
     check("UI có nút tải CẢ thư mục (nén .zip): danh sách, thanh công cụ, cây file",
           'data-act="zip"' in console_js and 'id="fmZipCur"' in console_js
           and console_js.count("_dlFolder(rel, it.name)") >= 2)

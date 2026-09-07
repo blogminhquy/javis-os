@@ -22,6 +22,9 @@ const D = (f) => fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", f
 const APP = D("app.js");
 const CONSOLE = D("console.js");
 const HTML = D("index.html");
+// Chữ tiếng Việt đã dời vào từ điển i18n ở 0.55.14, nên phép thử phải bắc cả hai vế:
+// giao diện gọi ĐÚNG khoá, và khoá đó trong vi.json mang ĐÚNG câu cần có.
+const VI = JSON.parse(D(path.join("i18n", "vi.json")));
 
 let fails = [];
 function check(name, cond) {
@@ -46,10 +49,11 @@ check("thanh tiêu đề không còn tiêu đề tĩnh để phải cắt", !/cp
 
 // Ẩn được chữ là nhờ nó nằm trong <span>. Để chữ trần thì không cách nào ẩn mà giữ icon.
 check("CANARY: chữ 'Thu nhỏ' nằm trong <span> để ẩn được",
-      CONSOLE.indexOf("<span>Thu nhỏ</span>") !== -1);
+      /<span>[^<]*cs\.cp_min"[^<]*<\/span>/.test(CONSOLE) && VI["cs.cp_min"] === "Thu nhỏ");
 // Ẩn chữ thì trình đọc màn hình mất nghĩa của nút, nên phải có nhãn thay thế.
 check("nút vẫn có nhãn cho trình đọc màn hình khi ẩn chữ",
-      /id="cpMinBtn"[\s\S]{0,160}aria-label="Thu nhỏ/.test(CONSOLE));
+      /id="cpMinBtn"[\s\S]{0,200}aria-label="'\s*\+\s*esc\(window\.t\("cs\.cp_min_title"\)\)/.test(CONSOLE)
+      && (VI["cs.cp_min_title"] || "").includes("Thu nhỏ"));
 
 // ---- 2. Trình duyệt phải nạp lại file đã sửa ----
 const v = (f) => {

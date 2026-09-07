@@ -14,6 +14,7 @@ chỗ làm người ta vấp, và file này canh cả ba:
   3. Cửa chỉ được đóng khi THẬT SỰ cần: chạy local hoặc đã có admin thì không hỏi mã.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
+import json
 import os
 import tempfile
 
@@ -76,8 +77,13 @@ check("có ô nhập mã trong wizard", 'id="wzToken"' in
 # đáy và không biết ô nào đang trống - đúng cảnh khách gặp.
 check("CANARY: lỗi mã thì KÉO MÀN HÌNH tới đúng ô đó",
       "scrollIntoView" in _app and "_soiOTrong" in _app)
+# Từ 0.55.14 chữ tiếng Việt của dashboard dời vào từ điển i18n, app.js chỉ còn gọi
+# window.t("khoa"). Nên khẳng định soi ĐỦ HAI VẾ: app.js thật sự chặn ô trống rồi báo bằng
+# khoá đó, VÀ khoá đó trong vi.json mang đúng câu "Thiếu MÃ THIẾT LẬP".
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("chặn ô trống ngay ở client, không phải đợi server trả 403",
-      '_tokO.value.trim()' in _app and "Thiếu MÃ THIẾT LẬP" in _app)
+      '_tokO.value.trim()' in _app and "app.wz_token_missing" in _app
+      and "Thiếu MÃ THIẾT LẬP" in _VI.get("app.wz_token_missing", ""))
 check("server trả lỗi mã thì cũng kéo về đúng ô",
       "/MÃ THIẾT LẬP/i.test" in _app)
 

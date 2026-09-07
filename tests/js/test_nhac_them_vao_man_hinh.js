@@ -35,6 +35,9 @@ const nudge = read("dashboard/install-nudge.js");
 const app = read("dashboard/app.js");
 const html = read("dashboard/index.html");
 const css = read("dashboard/style.css");
+// 0.55.14: chữ tiếng Việt của giao diện đã dời vào từ điển i18n, nên mấy khẳng định về
+// LỜI LẼ dưới đây soi hai vế: file .js gọi đúng khoá, và khoá đó mang đúng câu.
+const VI = JSON.parse(read("dashboard/i18n/vi.json"));
 
 let fails = [];
 function check(name, cond, extra) {
@@ -53,7 +56,8 @@ check("CANARY: ghi mốc NGAY LÚC HIỆN, không đợi người dùng bấm n�
   && nudge.indexOf("ghi(KEY_LUC") < nudge.indexOf('querySelector("#inudSau")'));
 
 // ---- 2. Lối ra vĩnh viễn ----
-check("có nút 'Đừng nhắc nữa'", nudge.indexOf("Đừng nhắc nữa") !== -1);
+check("có nút 'Đừng nhắc nữa'",
+  nudge.indexOf("instl.tat") !== -1 && (VI["instl.tat"] || "").indexOf("Đừng nhắc nữa") !== -1);
 check("tắt hẳn thì không bao giờ hiện lại",
   /doc\(KEY_TAT\) === "1"\) return false/.test(nudge));
 check("cài xong rồi thì thôi nhắc, kể cả khi sau này mở lại bằng tab thường",
@@ -77,7 +81,8 @@ check("CANARY: iOS KHÔNG được vẽ nút Cài (Safari không có hộp cài 
 check("CANARY: iPadOS khai mình là Mac - phải soi maxTouchPoints mới nhận ra",
   /MacIntel.*maxTouchPoints/.test(nudge));
 check("trình duyệt không có hộp cài thì chỉ đường qua menu, không hứa nút",
-  nudge.indexOf("Thêm vào màn hình chính") !== -1);
+  nudge.indexOf("instl.menu2_b") !== -1
+  && (VI["instl.menu2_b"] || "").indexOf("Thêm vào màn hình chính") !== -1);
 
 // ---- 5. Dùng CHUNG một event beforeinstallprompt với nút trên thanh trạng thái ----
 check("app.js mở JavisInstall cho nơi khác dùng chung", /window\.JavisInstall = \{/.test(app));

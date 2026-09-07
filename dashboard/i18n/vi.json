@@ -2306,5 +2306,6 @@
   "bgs.cua_hoi_thoai.other": "{count} của hội thoại này",
   "bgs.warn_xep_hang": "Điều phối của brain này đang ở mức \"{muc}\" nên việc chỉ nằm xếp hàng. Bật \"AI tự vận hành\" ở trang Việc thì chúng mới chạy và tự báo kết quả về đây.",
   "push.err_dv_khong_nhan": "{dv} không nhận được",
-  "dview.rong_khong_khop": "Không có kết quả nào khớp truy vấn."
+  "dview.rong_khong_khop": "Không có kết quả nào khớp truy vấn.",
+  "common.download": "Tải về"
 }

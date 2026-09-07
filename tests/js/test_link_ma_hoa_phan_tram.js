@@ -27,6 +27,10 @@ const ROOT = path.join(__dirname, "..", "..");
 const { mdToHtml } = require(path.join(ROOT, "dashboard", "chat-render.js"));
 const CR = fs.readFileSync(path.join(ROOT, "dashboard", "chat-render.js"), "utf8");
 const CONSOLE = fs.readFileSync(path.join(ROOT, "dashboard", "console.js"), "utf8");
+// 0.55.14: chu tieng Viet cua giao dien da doi vao tu dien i18n, nen kiem mot chuoi
+// literal trong .js khong con dung. Cach kiem gio phai du HAI VE: file giao dien goi DUNG
+// khoa, va khoa do trong vi.json mang DUNG cau can co.
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 
 const fails = [];
 const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
@@ -93,7 +97,8 @@ check("CANARY: 404 đi nhánh riêng, không rơi vào 'hãy tải về'",
   /resp\.status === 404.*_neRenderMissing/s.test(
     CONSOLE.slice(CONSOLE.indexOf("const isMd = ext") - 900, CONSOLE.indexOf("const isMd = ext"))));
 check("báo lỗi in ra ĐƯỜNG DẪN đã thử (để còn sửa được link)",
-  /Link trỏ tới <code>\$\{esc\(rel\)\}/.test(CONSOLE));
+  /cs\.ne_miss_a[^\n]*<code>\$\{esc\(rel\)\}/.test(CONSOLE) &&
+  VI["cs.ne_miss_a"].includes("Link trỏ tới"));
 check("file nhị phân / quá to VẪN mời tải về", /_neRenderDownload\(body, actions, rel, it\)/.test(CONSOLE));
 
 // ============================================================

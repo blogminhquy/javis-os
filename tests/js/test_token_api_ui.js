@@ -18,6 +18,11 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
 const CON = fs.readFileSync(path.join(ROOT, "dashboard", "console.js"), "utf8");
 const CSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
+// 0.55.14 dời chữ tiếng Việt của dashboard vào từ điển i18n: console.js gọi `window.t("khoa")`,
+// câu chữ nằm ở vi.json. Nên mọi khẳng định về LỜI trang nói phải soi HAI VẾ - mã gọi đúng
+// khoá, và khoá đó mang đúng câu - chứ soi một vế thôi là test hở.
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
+const noi = (k, chu) => CON.includes(k) && String(VI[k] || "").includes(chu);
 
 const fails = [];
 const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
@@ -25,7 +30,9 @@ const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); 
 // ============================================================
 // 1. Có mặt trong trang Tài khoản
 // ============================================================
-check("trang Cài đặt có mục Token API", /<h3>Token API \(cho CLI\)<\/h3>/.test(CON));
+check("trang Cài đặt có mục Token API",
+  /<h3>\$\{esc\(window\.t\("cs\.ac_tk_head"\)\)\}<\/h3>/.test(CON)
+  && /Token API/.test(VI["cs.ac_tk_head"] || ""));
 check("có ô đặt tên token", /id="tkName"/.test(CON));
 check("có chọn phạm vi", /id="tkScope"/.test(CON));
 check("hai phạm vi đúng như máy chủ nhận", /value="chat"/.test(CON) && /value="full"/.test(CON));
@@ -44,7 +51,7 @@ const khoiTao = CON.slice(CON.indexOf('document.getElementById("tkCreate").oncli
 check("bóc được khối tạo token để soi", khoiTao.length > 200);
 check("bản thô lấy từ phản hồi lệnh TẠO", /esc\(r\.token \|\| ""\)/.test(khoiTao));
 check("CANARY: nói thẳng là đóng trang thì không xem lại được",
-  /không xem lại được/.test(khoiTao));
+  khoiTao.includes("cs.ac_tk_new_hd") && /không xem lại được/.test(VI["cs.ac_tk_new_hd"] || ""));
 check("có nút copy vì token dài, gõ tay là chép sai", /id="tkCopy"/.test(khoiTao));
 check("chỉ đường luôn cho người dùng dán vào máy kia", /javis login /.test(khoiTao));
 
@@ -60,14 +67,19 @@ check("danh sách hiện tiền tố để nhận ra token nào", /t\.prefix/.te
 // token trông như chưa ai dùng, tức là che mất một token lạ đang chạy.
 check("mốc dùng cuối quyết định bởi chính dữ liệu máy chủ trả",
   /Number\(t\.last_used_at\) > 0/.test(khoiList));
-check("token chưa dùng lần nào cũng nói rõ", /chưa dùng lần nào/.test(khoiList));
-check("chưa có token nào thì nói rõ, không để trống", /Chưa có token nào/.test(khoiList));
+check("token chưa dùng lần nào cũng nói rõ",
+  khoiList.includes("cs.tk_never_used") && /chưa dùng lần nào/.test(VI["cs.tk_never_used"] || ""));
+check("chưa có token nào thì nói rõ, không để trống",
+  khoiList.includes("cs.tk_empty") && /Chưa có token nào/.test(VI["cs.tk_empty"] || ""));
 
 // ============================================================
 // 3. Thu hồi là không hoàn tác được
 // ============================================================
-check("CANARY: thu hồi phải hỏi lại", /confirm\("Thu hồi token này\?/.test(khoiList));
-check("lời hỏi nói rõ hậu quả", /mất kết nối ngay/.test(khoiList));
+check("CANARY: thu hồi phải hỏi lại",
+  /confirm\(window\.t\("cs\.tk_revoke_confirm"\)\)/.test(khoiList)
+  && /^Thu hồi token này\?/.test(VI["cs.tk_revoke_confirm"] || ""));
+check("lời hỏi nói rõ hậu quả",
+  khoiList.includes("cs.tk_revoke_confirm") && /mất kết nối ngay/.test(VI["cs.tk_revoke_confirm"] || ""));
 check("thu hồi xong thì vẽ lại danh sách", /renderTokens\(\);\s*\n\s*\};/.test(khoiList));
 
 // ============================================================
@@ -76,7 +88,7 @@ check("thu hồi xong thì vẽ lại danh sách", /renderTokens\(\);\s*\n\s*\};
 // Đây là điểm bảo mật quan trọng nhất của cả tính năng: KHÔNG có token mặc định. Người dùng
 // phải hiểu ngay rằng cửa này đóng cho tới khi chính họ mở.
 check("CANARY: nói rõ chưa tạo thì không đường nào vào",
-  /chưa tạo thì không đường nào vào/.test(CON));
+  noi("cs.ac_tk_intro_b", "chưa tạo thì không đường nào vào"));
 
 // ============================================================
 // 5. CSS đi kèm
@@ -93,8 +105,9 @@ check("danh sách token có kiểu", /\.tk-row \{/.test(CSS));
 // Người dùng vào Cài đặt, không thấy gì, và kết luận tính năng chưa có. Không một dòng lỗi nào
 // xuất hiện - đây đúng loại sai mà chỉ test mới bắt được, còn người thì đọc mãi vẫn trượt.
 check("mục Token API do renderAccount vẽ (tức là trang Tài khoản)",
-  CON.indexOf("async function renderAccount(") < CON.indexOf("<h3>Token API (cho CLI)</h3>")
-  && CON.indexOf("<h3>Token API (cho CLI)</h3>") < CON.indexOf("async function renderTokens("));
+  /Token API/.test(VI["cs.ac_tk_head"] || "")
+  && CON.indexOf("async function renderAccount(") < CON.indexOf('cs.ac_tk_head')
+  && CON.indexOf('cs.ac_tk_head') < CON.indexOf("async function renderTokens("));
 
 const NOI = [
   ["cli/javis_cli/client.py", "thông báo 401 của CLI"],

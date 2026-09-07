@@ -194,11 +194,11 @@
     elActions.innerHTML = ""; elActions.appendChild(closeBtn());
     elBody.innerHTML = '<div class="jvfe-note">' + esc(msg || tw("fedit.read_err")) +
       ' - <a href="' + esc(rawUrl(b, ceil)) + '" target="_blank" rel="noopener">' + esc(tw("fedit.open_tab")) + "</a>" +
-      ' · <a href="' + esc(rawUrl(b, ceil, 1)) + '">' + esc(tw("ol.pull")) + "</a></div>";
+      ' · <a href="' + esc(rawUrl(b, ceil, 1)) + '">' + esc(tw("common.download")) + "</a></div>";
   }
   function dlLink(b, ceil) {
     var a = document.createElement("a");
-    a.href = rawUrl(b, ceil, 1); a.title = tw("ol.pull");
+    a.href = rawUrl(b, ceil, 1); a.title = tw("common.download");
     a.innerHTML = '<button class="jvfe-btn icon" type="button">⇩</button>';
     return a;
   }

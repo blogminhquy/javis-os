@@ -855,7 +855,7 @@
       '<div class="jv-lb-bar">' +
         '<span class="jv-lb-ten"></span>' +
         '<span class="jv-lb-nut">' +
-          '<button type="button" data-lb="tai" title="' + esc(tw("crender.lb_dl_title")) + '">' + ic("download") + " " + esc(tw("ol.pull")) + "</button>" +
+          '<button type="button" data-lb="tai" title="' + esc(tw("crender.lb_dl_title")) + '">' + ic("download") + " " + esc(tw("common.download")) + "</button>" +
           '<button type="button" data-lb="tab" title="' + esc(tw("crender.lb_tab")) + '">' + ic("external-link") + "</button>" +
           '<button type="button" data-lb="dong" title="' + esc(tw("kanban.close_esc")) + '">' + ic("x") + "</button>" +
         "</span>" +

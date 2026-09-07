@@ -17,6 +17,9 @@ const path = require("path");
 
 const APP = fs.readFileSync(path.join(__dirname, "../../dashboard/app.js"), "utf8");
 const CSS = fs.readFileSync(path.join(__dirname, "../../dashboard/style.css"), "utf8");
+// 0.55.14: chữ tiếng Việt của nút đã dời vào từ điển i18n, nên khẳng định về LỜI LẼ soi
+// hai vế: app.js gọi đúng khoá, và khoá đó trong vi.json mang đúng câu.
+const VI = JSON.parse(fs.readFileSync(path.join(__dirname, "../../dashboard/i18n/vi.json"), "utf8"));
 
 let fails = [];
 function check(name, cond) {
@@ -49,10 +52,13 @@ check("chưa có tin nào thì chưa đụng tới nút", /if \(!newMsgBtn\.pare
 check("có hàm vẽ nút theo hai dạng", /function veNutXuong\(/.test(APP));
 const iVe = APP.indexOf("function veNutXuong");
 const thanVe = APP.slice(iVe, APP.indexOf("\n}", iVe));
-check("dạng gọn: chỉ icon, không chữ", /coTinMoi \? XUONG_ICON \+ " Tin mới" : XUONG_ICON/.test(thanVe));
+check("dạng gọn: chỉ icon, không chữ",
+      /coTinMoi \? XUONG_ICON \+ " " \+ window\.t\("app\.new_msg"\) : XUONG_ICON/.test(thanVe)
+      && VI["app.new_msg"] === "Tin mới");
 check("gắn/nhả lớp has-new", /classList\.toggle\("has-new"/.test(thanVe));
 check("có nhãn trợ năng cho cả hai dạng",
-      /aria-label/.test(thanVe) && /Xuống cuối hội thoại/.test(thanVe));
+      /aria-label/.test(thanVe) && /window\.t\("app\.scroll_bottom"\)/.test(thanVe)
+      && (VI["app.scroll_bottom"] || "").indexOf("Xuống cuối hội thoại") !== -1);
 
 // Icon dung ic() nhung phai co loi thoat: app.js chay sau icons.js, van guard cho chac.
 check("icon lấy qua ic() có lối thoát khi chưa nạp icons.js",

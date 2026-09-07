@@ -2306,5 +2306,6 @@
   "bgs.cua_hoi_thoai.other": "{count} from this conversation",
   "bgs.warn_xep_hang": "Orchestration for this brain is set to \"{muc}\", so tasks only sit in the queue. Turn on \"AI self-driving\" on the Work page and they will run and report back here.",
   "push.err_dv_khong_nhan": "{dv} did not receive it",
-  "dview.rong_khong_khop": "No results match the query."
+  "dview.rong_khong_khop": "No results match the query.",
+  "common.download": "Download"
 }

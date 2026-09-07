@@ -21,6 +21,10 @@ global.currentBrainPath = () => "brains/B";
 const { mdToHtml } = require("../../dashboard/chat-render.js");
 const SRC = fs.readFileSync(path.join(__dirname, "../../dashboard/chat-render.js"), "utf8");
 const CSS = fs.readFileSync(path.join(__dirname, "../../dashboard/style.css"), "utf8");
+// 0.55.14: chu tieng Viet cua giao dien da doi vao tu dien i18n, nen kiem mot chuoi
+// literal trong .js khong con dung. Cach kiem gio phai du HAI VE: file giao dien goi DUNG
+// khoa, va khoa do trong vi.json mang DUNG cau can co.
+const VI = JSON.parse(fs.readFileSync(path.join(__dirname, "../../dashboard/i18n/vi.json"), "utf8"));
 
 let fails = [];
 function check(name, cond, them) {
@@ -54,7 +58,8 @@ check("link file thường không bị biến thành link ảnh", !/jv-img-link/
 // ---- 4. Lightbox có đủ ba việc: xem, tải, đóng ----
 check("có hàm mở lightbox", /function moLightbox\(/.test(SRC));
 check("có hàm đóng lightbox", /function dongLightbox\(/.test(SRC));
-check("có nút Tải về", /data-lb="tai"/.test(SRC) && /Tải về/.test(SRC));
+check("có nút Tải về",
+      /data-lb="tai"/.test(SRC) && SRC.includes("common.download") && VI["common.download"].includes("Tải về"));
 check("có nút mở tab mới", /data-lb="tab"/.test(SRC));
 check("có nút đóng", /data-lb="dong"/.test(SRC));
 check("Esc đóng lightbox", /e\.key === "Escape"/.test(SRC) && /dongLightbox\(\)/.test(SRC));

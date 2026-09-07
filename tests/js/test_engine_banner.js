@@ -14,6 +14,11 @@ const SRC = fs.readFileSync(
   path.join(__dirname, "..", "..", "dashboard", "console.js"), "utf8");
 const CSS = fs.readFileSync(
   path.join(__dirname, "..", "..", "dashboard", "console.css"), "utf8");
+// Chu trong dai bao da doi vao tu dien i18n o 0.55.14: console.js goi window.t("cs.eng_*"),
+// cau tieng Viet nam o dashboard/i18n/vi.json. Nen moi khang dinh ve loi chu phai kiem DU HAI
+// VE - giao dien goi DUNG khoa, va khoa do mang DUNG cau - chu kiem mot ve la test ho.
+const VI = JSON.parse(fs.readFileSync(
+  path.join(__dirname, "..", "..", "dashboard", "i18n", "vi.json"), "utf8"));
 
 let fails = [];
 function check(name, cond) {
@@ -34,16 +39,22 @@ check("khong ghep cau bao loi cua server vao dai bao",
   FN.indexOf("rec.message") === -1 || FN.indexOf("b.title") !== -1);
 
 // ---- 2. Phai noi dung viec can lam ----
-check("noi ro la chua ket noi Model AI", FN.indexOf("Chưa kết nối Model AI") !== -1);
-check("moi nguoi dung bam", FN.indexOf("bấm để kết nối") !== -1);
+check("noi ro la chua ket noi Model AI",
+  FN.indexOf('"cs.eng_nomodel"') !== -1
+  && (VI["cs.eng_nomodel"] || "").indexOf("Chưa kết nối Model AI") !== -1);
+check("moi nguoi dung bam",
+  FN.indexOf('"cs.eng_nomodel"') !== -1
+  && (VI["cs.eng_nomodel"] || "").indexOf("bấm để kết nối") !== -1);
 
 // ---- 3. Do dai: phai VUA thanh trang thai ----
 // Dai bao dung inline tren thanh trang thai canh cac nut khac. Qua ~60 ky tu la chac chan
 // bi cat cut o man hinh thuong, va cat cut thi mat dung phan huong dan.
-const m = FN.match(/b\.innerHTML\s*=\s*WARN_ICON\s*\+\s*"([^"]*)"/);
-check("doc duoc noi dung dai bao", !!m);
+// Chu khong con nam trong console.js nua: doc ten khoa o day roi lay cau that trong vi.json,
+// vi do moi la chuoi thuc su hien ra tren thanh trang thai.
+const m = FN.match(/b\.innerHTML\s*=\s*WARN_ICON[^;]*?window\.t\("([\w.]+)"\)/);
+check("doc duoc noi dung dai bao", !!m && !!VI[m[1]]);
 if (m) {
-  const text = m[1].trim();
+  const text = String(VI[m[1]] || "").trim();
   check(`dai bao du ngan (${text.length} ky tu, tran 60)`, text.length <= 60);
   check("dai bao khong con noi chuoi dai", FN.indexOf('+ " " + (ENGINE_FIX_UI') === -1);
 }
@@ -51,7 +62,9 @@ if (m) {
 // ---- 4. Chi tiet ky thuat chuyen vao tooltip, khong bo di ----
 // Van can khi di hoi, chi la khong dang chiem cho tren thanh trang thai.
 check("van giu chi tiet ky thuat trong tooltip", FN.indexOf("b.title") !== -1);
-check("tooltip co nhac trang Models", FN.indexOf("trang Models") !== -1);
+check("tooltip co nhac trang Models",
+  FN.indexOf('"cs.eng_gotomodels"') !== -1
+  && (VI["cs.eng_gotomodels"] || "").indexOf("trang Models") !== -1);
 
 // ---- 5. Bam duoc va dan toi dung cho ----
 // Bao "chua ket noi" ma khong dua duoc nguoi ta toi cho ket noi thi chi la than phien.

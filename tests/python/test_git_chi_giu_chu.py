@@ -19,6 +19,7 @@ thiếu vào cuối file, nên với một brain cũ thì mấy dòng "chặn l�
 và git hiểu ngược: `Javis/learn-log/*.json` được mở lại. Log thô có thể chứa secret, nên đó
 không phải lỗi thẩm mỹ.
 """
+import json
 import os
 import shutil
 import subprocess
@@ -151,11 +152,18 @@ check("báo cáo đồng bộ có chỗ đếm media bỏ qua",
       '"media_bo_qua": 0, "media_bytes": 0' in SRC)
 check("_sync_mirror trả về con số đó chứ không nuốt", 'return {"media_bo_qua"' in SRC)
 JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
+# Từ 0.55.14 chữ tiếng Việt của dashboard dời vào từ điển i18n, console.js chỉ còn gọi
+# window.t("khoa"). Nên mỗi khẳng định dưới đây soi ĐỦ HAI VẾ: giao diện có gọi đúng khoá,
+# VÀ khoá đó trong vi.json mang đúng câu cần nói. Thiếu một vế là test hở.
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("giao diện đồng bộ nói rõ chỉ lưu thông tin, không lưu media",
-      "Mặc định chỉ đồng bộ THÔNG TIN, không đồng bộ media" in JS)
+      "cs.bk_media_head" in JS
+      and "Mặc định chỉ đồng bộ THÔNG TIN, không đồng bộ media" in _VI.get("cs.bk_media_head", ""))
 check("giao diện nói media vẫn nằm trên máy, không phải bị xoá",
-      "vẫn nằm nguyên trên máy" in JS)
-check("giao diện chỉ chỗ sao lưu media thay thế", "Drive" in JS)
+      "cs.bk_media_c" in JS
+      and "vẫn nằm nguyên trên máy" in _VI.get("cs.bk_media_c", ""))
+check("giao diện chỉ chỗ sao lưu media thay thế",
+      "cs.bk_media_i" in JS and "Drive" in _VI.get("cs.bk_media_i", ""))
 check("sau mỗi lần đồng bộ có báo số file media bị bỏ qua", "r.media_bo_qua" in JS)
 DOC = (ROOT / "docs" / "18-sao-luu-github.md").read_text(encoding="utf-8")
 check("tài liệu có mục riêng về chuyện này",

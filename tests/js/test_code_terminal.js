@@ -121,8 +121,13 @@ check("CANARY: convertEol bật ở chế độ ống (không thì output Window
       /convertEol:\s*ong\b/.test(CODE_CODE));
 check("CANARY: convertEol KHÔNG bật cứng (bật ở pty là cướp mất '\\n' trần của chương trình TUI)",
       !/convertEol:\s*true/.test(CODE_CODE));
+// Lời cảnh báo đã vào từ điển i18n ở 0.55.14: code-term.js gọi window.t("term.simple_title"),
+// câu tiếng Việt nằm ở vi.json. Kiểm đủ hai vế - giao diện có gọi khoá, và khoá mang đúng câu -
+// vì thiếu vế nào cũng để lọt: chỉ kiểm khoá thì đổi nội dung khoá vẫn xanh, chỉ kiểm từ điển
+// thì gỡ hẳn lời cảnh báo khỏi giao diện vẫn xanh.
 check("chế độ ống hiện lời cảnh báo cho người dùng, không im lặng",
-      /Chế độ đơn giản \(Windows\)/.test(CODE));
+      CODE.indexOf('"term.simple_title"') !== -1
+      && (VI_JSON["term.simple_title"] || "").indexOf("Chế độ đơn giản (Windows)") !== -1);
 check("chế độ ống tự hiện chữ vừa gõ + Backspace + gom dòng rồi mới gửi",
       /\\x7f/.test(CODE_CODE) && /boDem \+ "\\n"/.test(CODE_CODE));
 check("Ctrl-C ở chế độ ống đi bằng gói tín hiệu riêng",
