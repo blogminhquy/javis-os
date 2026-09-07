@@ -1636,12 +1636,20 @@
       if (toks.length === 5 && toks.every(t => /^[\d*/,\-]+$/.test(t))) return { cron: s };
       // KHÔNG dùng \b sau đơn vị: \b của JS là ranh giới ASCII, mà "giờ" kết thúc bằng ký tự có
       // dấu ("ờ") nên "1.5 giờ" ở cuối chuỗi sẽ trượt. Alternation đã đủ đặc trưng để không khớp bừa.
-      const m = s.toLowerCase().match(/^(\d+(?:[.,]\d+)?)\s*(phút|phut|tiếng|tieng|giờ|gio|ngày|ngay)/);
+      // Nhận CẢ đơn vị tiếng Anh, và đây không phải chuyện cho sang: ô gợi ý ngay bên cạnh
+      // được dịch ở 0.55.14 nên bản tiếng Anh mời người ta gõ "in 30 minutes". Chỉ nhận tiếng
+      // Việt thì người làm ĐÚNG theo gợi ý sẽ trượt xuống nhánh `{at: s}`, server không hiểu
+      // rồi ném "at không hiểu" - nhắc hẹn im lặng không được tạo. Gợi ý bằng thứ tiếng nào
+      // thì phải hiểu được thứ tiếng đó.
+      // "in " đứng trước là tuỳ chọn; "minutes?" phải đứng trước "mins?" để "minutes" không bị
+      // "min" ăn mất phần đuôi.
+      const m = s.toLowerCase().match(
+        /^(?:in\s+)?(\d+(?:[.,]\d+)?)\s*(phút|phut|tiếng|tieng|giờ|gio|ngày|ngay|minutes?|mins?|hours?|hrs?|days?)/);
       if (m) {
         const num = parseFloat(m[1].replace(",", "."));
         const u = m[2];
-        const mins = (u === "ngày" || u === "ngay") ? num * 1440
-          : (u === "tiếng" || u === "tieng" || u === "giờ" || u === "gio") ? num * 60 : num;
+        const mins = /^(ngày|ngay|days?)$/.test(u) ? num * 1440
+          : /^(tiếng|tieng|giờ|gio|hours?|hrs?)$/.test(u) ? num * 60 : num;
         return { delay_min: Math.max(1, Math.round(mins)) };
       }
       return { at: s };
@@ -2552,9 +2560,13 @@
 
     async function showTask(id) {
       openDrawer();
-      drawerBody.innerHTML = esc(t("common.loading"));
+      // window.t chứ KHÔNG phải t: dòng dưới khai `const t = d.task`, mà const có vùng chết -
+      // gọi t() ở đây là ReferenceError "Cannot access 't' before initialization" ngay câu lệnh
+      // đầu, tức bấm vào một thẻ việc thì ngăn kéo mở ra RỖNG và không bao giờ điền. Cả nhánh
+      // báo lỗi ngay dưới cũng chết theo nên không ai thấy vì sao.
+      drawerBody.innerHTML = esc(window.t("common.loading"));
       let d = {}; try { d = await (await fetch(`/kanban/task/show?brain=${encodeURIComponent(fbrain())}&id=${encodeURIComponent(id)}`)).json(); } catch (e) {}
-      if (!d.ok) { drawerBody.innerHTML = `<span style="color:var(--red)">${esc(d.error || t("kanban.cant_load"))}</span>`; return; }
+      if (!d.ok) { drawerBody.innerHTML = `<span style="color:var(--red)">${esc(d.error || window.t("kanban.cant_load"))}</span>`; return; }
       const t = d.task || {}, events = d.events || [], runs = d.runs || [];
       const acts = taskActions(t);
       drawerTitle.textContent = t.title || window.t("kanban.detail");

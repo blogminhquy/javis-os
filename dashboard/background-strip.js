@@ -31,7 +31,7 @@
   // đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
   // thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá.
   function tw(khoa, bien) {
-    if (typeof window !== "undefined" && window.t) return tw(khoa, bien);
+    if (typeof window !== "undefined" && window.t) return window.t(khoa, bien);
     try {
       var s = require("./i18n/vi.json")[khoa] || khoa;
       return String(s).replace(/\{(\w+)\}/g, function (m, ten) {

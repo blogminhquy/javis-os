@@ -220,7 +220,10 @@
     var t = bo_dau(q).trim();
     if (!t) return ds;
     return ds.filter(function (c) {
-      return (bo_dau(c.label) + " " + bo_dau(nhan(c)) + " " + c.id + " " + (c.kw || "")).indexOf(t) !== -1;
+      // KHONG tim tren c.label nua: tu 0.55.14 truong do giu MA KHOA i18n ("ecmd.bold"), nen
+      // moi lenh deu chua chuoi "ecmd." va go mot chu bat ky trong {e,c,m,d,.} la khop het,
+      // tuc bo loc mat tac dung. nhan(c) moi la chu that da dich.
+      return (bo_dau(nhan(c)) + " " + c.id + " " + (c.kw || "")).indexOf(t) !== -1;
     });
   }
   // Dau "/" chi mo menu khi no MO DAU mot tu (dau dong hoac sau khoang trang). Nho vay

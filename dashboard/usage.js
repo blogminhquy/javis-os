@@ -862,5 +862,14 @@
     };
   }
 
+  // Đổi ngôn ngữ giao diện: cả trang này vẽ nhãn bằng window.t() lúc paint(), nên phải
+  // vẽ lại thì chữ mới đổi theo. Chỉ vẽ lại khi trang đang thật sự nằm trên màn hình
+  // (state.el còn gắn vào DOM), kẻo bắn thêm mấy lượt fetch cho một trang đã đóng.
+  window.addEventListener("javis:i18n", function () {
+    var el = state.el;
+    if (!el || !el.isConnected) return;
+    load(false);
+  });
+
   window.JavisUsage = { render: render };
 })();
