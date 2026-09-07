@@ -3446,9 +3446,27 @@ Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. C�
     // gốc của PROVIDER_DEFS (sort có tiebreak theo chỉ số nên ổn định, không phụ thuộc engine).
     // Phải hỏi /claude/status mới biết Claude Code có đăng nhập thật không: nó không có
     // key_field nên server luôn trả configured=true, tin theo đó là Claude chưa đăng nhập vẫn
-    // nằm chễm chệ trên cùng. Một request cục bộ, rẻ.
+    // nằm chễm chệ trên cùng.
+    //
+    // NHƯNG PHẢI CÓ TRẦN CHỜ (chủ repo báo 06/09: trang Models đứng ở "Đang tải..." rất lâu).
+    // Lượt gọi này CHẶN nét vẽ đầu tiên, mà trước đây nó trần trụi không timeout - trong khi
+    // `freshSettings()` ngay trên đã có AbortController 6 giây từ lâu, kèm đúng chú thích
+    // "nếu /settings chậm/treo thì KHÔNG để panel kẹt Đang tải... mãi". Cùng một bài học,
+    // chỗ này chưa học. Phía server `/claude/status` đẻ một tiến trình Node và bản nhớ của nó
+    // nằm trong RAM nên NGUỘI SẠCH sau mỗi lần cập nhật, nên lần mở đầu tiên sau update chắc
+    // chắn phải chờ tiến trình. Và `catch` không cứu được: fetch treo thì không hề reject.
+    //
+    // 2,5 giây: đường ấm khoảng 3ms, đường nguội khoảng 750ms, nên trần này không cắt vào ca
+    // thật nào. Quá hạn thì coi như chưa đăng nhập và VẼ TIẾP - thẻ có thể xếp thấp hơn thực
+    // tế trong chốc lát, còn hơn để cả trang trắng. `refreshClaudeCard` ngay dưới vẫn hỏi lại
+    // bất đồng bộ và ghi đúng trạng thái lên thẻ.
     let claudeOn = false;
-    try { claudeOn = !!(await (await fetch("/claude/status")).json()).connected; } catch (e) {}
+    try {
+      const ac = new AbortController();
+      const hen = setTimeout(() => ac.abort(), 2500);
+      try { claudeOn = !!(await (await fetch("/claude/status", { signal: ac.signal })).json()).connected; }
+      finally { clearTimeout(hen); }
+    } catch (e) {}
     // kind "cli" nay có ba bộ não (Claude Code, Grok Build, Antigravity). Chỉ Claude mới phải
     // hỏi /claude/status; hai cái kia đã có `configured` thật từ server (đọc file đăng nhập).
     const provOn = (p) => (p.id === "anthropic-cli" ? claudeOn : !!p.configured);
