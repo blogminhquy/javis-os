@@ -56,7 +56,10 @@ RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}" \
 # hành ra ngoài KHÔNG có codex, người mới cài đăng nhập ChatGPT xanh (OAuth do Javis tự lo, không
 # cần binary) rồi vào chat mới vỡ, không có lấy một dòng lỗi chỉ đường (báo cáo 16/08). Thiếu
 # codex thì build phải ĐỎ để CI chặn lại, không được ship image què.
-RUN npm install -g @openai/codex && npm cache clean --force && codex --version
+# CI resolves latest to a concrete version before building: a new CLI version
+# changes this layer's cache key even when the Dockerfile itself is unchanged.
+ARG CODEX_CLI_VERSION=0.153.4
+RUN npm install -g @openai/codex@${CODEX_CLI_VERSION} && npm cache clean --force && codex --version
 
 # Gemini CLI KHÔNG còn được cài sẵn (bỏ ở 0.29.1).
 #

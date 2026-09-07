@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.52] - 2026-09-07
+### Sửa lỗi
+- Bản Docker mới luôn kiểm tra và cài Codex hiện hành khi phát hành, tránh cập nhật Javis mà danh sách ChatGPT vẫn kẹt ở model cũ do dùng lại bộ cài đã cache.
+- Cài lại bằng `install.sh` hoặc cập nhật bằng `update.sh native` cũng nâng Codex để nhận danh sách model mới theo tài khoản.
+
 ## [0.55.51] - 2026-09-07
 ### Sửa lỗi
 - **Hai brain dùng chung một file bộ nhớ giống hệt nhau không còn làm brain thứ hai mất bộ nhớ dài hạn.** Trước đây Javis đánh số mỗi mẩu ký ức chỉ theo tên file, số dòng và nội dung, nên hai brain cùng có một file như `facts/cach-lam-viec-chuan.md` bị coi là một mẩu. Brain dựng chỉ mục sau bị từ chối lặng lẽ, và ở chế độ tiết kiệm nó trả lời mà không nhớ gì, không một dòng báo lỗi.

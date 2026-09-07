@@ -45,6 +45,14 @@ if [ "$MODE" = "docker" ] || { [ "$MODE" = "auto" ] && is_docker; }; then
 else
   echo "==> Native → cập nhật thư viện Python + restart dịch vụ..."
   [ -d .venv ] && ./.venv/bin/pip install -r requirements.txt -q || true
+  # Updating Python alone leaves the ChatGPT model catalog on an old Codex CLI.
+  if command -v npm >/dev/null 2>&1; then
+    if ! npm install -g @openai/codex@latest && ! $SUDO npm install -g @openai/codex@latest; then
+      echo "[!] Codex chua cap nhat duoc; danh sach model ChatGPT co the van cu."
+    fi
+  else
+    echo "[!] Khong co npm; cap nhat Codex thu cong de nhan model ChatGPT moi."
+  fi
   if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q "^$NAME\.service"; then
     $SUDO systemctl restart "$NAME"
     echo "==> Đã restart. Theo dõi:  journalctl -u $NAME -f"

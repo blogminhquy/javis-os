@@ -130,7 +130,8 @@ ok "Claude CLI $(claude --version 2>/dev/null || echo installed)"
 # trình cài của Google là một script tải về chạy thẳng, để chủ máy tự quyết. Trang Models có
 # sẵn lệnh cài trên thẻ.
 cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
-  command -v "$2" >/dev/null 2>&1 && return 0
+  # Codex supplies the live model catalog; an installed old CLI must be upgraded.
+  if [ "$2" != "codex" ] && command -v "$2" >/dev/null 2>&1; then return 0; fi
   log "Installing $3 globally via npm (best-effort)..."
   if npm install -g "$1" >/dev/null 2>&1 || $SUDO npm install -g "$1" >/dev/null 2>&1; then
     ok "$3 $("$2" --version 2>/dev/null || echo installed)"
@@ -143,7 +144,7 @@ cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
 # tải về chạy thẳng của nhà cung cấp, để người dùng tự chạy một dòng khi muốn (xem trang
 # Models). Đường Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`); đường xAI
 # là Grok Build (`grok`).
-cai_them_cli @openai/codex codex "Codex CLI"
+cai_them_cli @openai/codex@latest codex "Codex CLI"
 
 # --- 5. venv + python deps ---
 log "Creating virtualenv (.venv)..."
