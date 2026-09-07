@@ -1640,13 +1640,21 @@ class LearnFeature:
     def _brain_last_active(self, brain: str) -> float:
         """Lần CUỐI người dùng thật sự trò chuyện trên brain này (epoch), 0 = không rõ.
 
-        Đọc Memory/conversations/ chứ KHÔNG đọc mtime cả thư mục: chính curator ghi
+        Đọc <bộ nhớ>/conversations/ chứ KHÔNG đọc mtime cả thư mục: chính curator ghi
         Javis/learn-log mỗi vòng, nên lấy mtime thư mục là brain nào cũng "vừa mới hoạt
         động" - curator tự nuôi lý do để chạy tiếp trên brain đã bỏ.
+
+        Thử CẢ HAI cách viết vì brain cũ chưa migrate còn dùng `Memory/` hoa. Trước đây chỗ
+        này đóng đinh mỗi bản HOA, nên brain hiện đại (thư mục `memory/` thường) luôn trả 0.0
+        và bộ lọc "bỏ brain đã nguội" ngay dưới không bao giờ nổ - tức nó chết câm đúng cái
+        việc mà đoạn chú thích trên nói nó sinh ra để làm. Không gọi thẳng
+        `deps.brain_memory_dir` vì hàm đó TẠO thư mục, mà đây chỉ là phép dò.
         """
         try:
-            d = Path(self.deps.brain_root(brain)) / "Memory" / "conversations"
-            if not d.is_dir():
+            root = Path(self.deps.brain_root(brain))
+            d = next((root / t / "conversations" for t in ("memory", "Memory")
+                      if (root / t / "conversations").is_dir()), None)
+            if d is None:
                 return 0.0
             return max((f.stat().st_mtime for f in d.glob("*.md")), default=0.0)
         except Exception:

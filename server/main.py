@@ -343,16 +343,125 @@ def _atomic_write_text(path, content: str, encoding: str = "utf-8"):
         raise
 
 
+# Chuẩn hoá: `memory` chữ thường. `Memory` chữ hoa chỉ còn là bố cục CŨ.
+_MEM_LINK_HOA_RE = re.compile(r"(?<![\w/])Memory/")
+
+
+def _thu_muc_bo_nho(root: Path) -> Path:
+    """Thư mục bộ nhớ của một brain. CHỈ ĐỌC - không tạo, không sửa gì.
+
+    Chuẩn là `memory` chữ thường. `Memory` chữ hoa là bố cục cũ chưa migrate, vẫn được tôn
+    trọng KHI ĐÓ LÀ BẢN DUY NHẤT - brain cũ không phải đổi mới dùng được. Đây là bản gốc của
+    luật "bộ nhớ nằm ở đâu"; mọi nơi khác phải hỏi qua đây chứ đừng chép lại.
+    """
+    mem = root / "memory"
+    if not mem.is_dir() and (root / "Memory").is_dir():
+        return root / "Memory"
+    return mem
+
+
+def _gop_chi_muc_bo_nho(src: Path, dst: Path) -> None:
+    """Nối các dòng của một MEMORY.md lạc vào bản chuẩn, bỏ dòng đã có sẵn.
+
+    MEMORY.md là DANH SÁCH ký ức chứ không phải nội dung một ký ức, nên xử như file thường
+    (đổi tên bản đến) là để lại hai chỉ mục rời nhau, mà chỉ một cái được nạp vào prompt.
+    Link trong dòng cũng đổi `Memory/` thành `memory/` cho khớp chỗ file vừa được chuyển tới.
+    """
+    them = [_MEM_LINK_HOA_RE.sub("memory/", l).rstrip()
+            for l in src.read_text(encoding="utf-8", errors="replace").splitlines()]
+    cu = dst.read_text(encoding="utf-8", errors="replace") if dst.exists() else ""
+    da_co = {l.strip() for l in cu.splitlines()}
+    moi = [l for l in them if l.strip() and l.strip() not in da_co]
+    if not moi:
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with open(dst, "a", encoding="utf-8") as fh:
+        if cu and not cu.endswith("\n"):
+            fh.write("\n")
+        fh.write("\n".join(moi) + "\n")
+
+
+def _ten_khong_dung_hang(dst: Path) -> Path:
+    """Tên trống cạnh `dst` để giữ bản đến mà không đè bản đang có."""
+    for i in range(1, 100):
+        hau = " (từ Memory hoa)" if i == 1 else f" (từ Memory hoa {i})"
+        p = dst.with_name(f"{dst.stem}{hau}{dst.suffix}")
+        if not p.exists():
+            return p
+    return dst.with_name(f"{dst.stem} (từ Memory hoa {int(time.time())}){dst.suffix}")
+
+
+def _gop_memory_lac_chu_hoa(root: Path, mem: Path) -> None:
+    """Gộp `<root>/Memory` lạc chữ hoa vào thư mục bộ nhớ chuẩn. KHÔNG đè file nào.
+
+    VÌ SAO CÓ HÀM NÀY (vụ 06/09/2026)
+    Linux phân biệt hoa thường, nên `Memory/` và `memory/` là HAI thư mục thật sự khác nhau -
+    trên máy Mac thì không, nên lỗi này không bao giờ lộ ra lúc chạy thử. Tài liệu của chính
+    Javis lại dạy sai đường: CLAUDE.md và AGENTS.md seed vào mỗi brain đều viết `Memory/` hoa,
+    trong khi MỌI đường đọc đều lấy `memory/` thường. Model làm theo tài liệu, ghi ký ức vào
+    `Memory/`, và ký ức đó BIẾN MẤT: không vào chỉ mục nạp mỗi lượt, không vào memory_index,
+    còn `/brain/migrate` thì từ chối gộp vì "memory đã tồn tại". Không một dòng lỗi nào.
+
+    Hàm này chữa các brain đã dính; phần dạy sai đường đã sửa ở CLAUDE.md và SCHEMA_SEED.
+    Gọi từ `_brain_memory_dir` - cửa duy nhất mà mọi đường đọc/ghi bộ nhớ đều đi qua - nên
+    brain tự lành ở lượt chat kế tiếp, không cần ai bấm gì.
+
+    Va chạm thì GIỮ CẢ HAI BẢN: thừa một file dễ dọn, mất một ký ức thì không lấy lại được.
+    """
+    lac = root / "Memory"
+    if mem.name == "Memory" or not lac.is_dir():
+        return                      # brain cũ chỉ có bản hoa: bố cục hợp lệ, không đụng vào
+    try:
+        if lac.samefile(mem):
+            return                  # macOS/Windows: hai tên, MỘT thư mục - "gộp" là tự dẫm chân
+    except OSError:
+        return
+    chuyen, ca_hai, loi = [], [], []
+    for src in sorted(p for p in lac.rglob("*") if p.is_file()):
+        rel = src.relative_to(lac)
+        try:
+            dst = mem / rel
+            if rel.name == "MEMORY.md":
+                _gop_chi_muc_bo_nho(src, dst)
+                src.unlink()
+            elif dst.exists() and dst.read_bytes() == src.read_bytes():
+                src.unlink()        # trùng khít từng byte: bỏ bản thừa, không sinh rác
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if dst.exists():
+                    dst = _ten_khong_dung_hang(dst)
+                    ca_hai.append(str(rel).replace("\\", "/"))
+                shutil.move(str(src), str(dst))
+            chuyen.append(str(rel).replace("\\", "/"))
+        except Exception as e:
+            loi.append(f"{rel}: {e}")
+    for d in sorted((p for p in lac.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)):
+        try:
+            d.rmdir()
+        except OSError:
+            pass
+    try:
+        lac.rmdir()
+    except OSError:
+        loi.append("Memory/ còn file lạ nên giữ nguyên thư mục")
+    if chuyen or loi:
+        print(f"[memory hoa-thường] {root}: gộp {len(chuyen)} file từ Memory/ vào {mem.name}/"
+              + (f"; giữ cả hai bản do trùng tên: {ca_hai}" if ca_hai else "")
+              + (f"; lỗi: {loi}" if loi else ""), file=__import__('sys').stderr)
+
+
 def _brain_memory_dir(brain: str) -> Path:
-    """Folder bộ nhớ TRONG brain đang chọn. Cấu trúc mới: <root>/memory; fallback cũ <root>/Memory."""
+    """Folder bộ nhớ TRONG brain đang chọn, đã tạo sẵn khung và tự lành nếu lạc chữ hoa."""
     base = Path(__file__).parent.parent
     if not brain or brain == "brain":
         root = _default_brain_dir()
     else:
         root = Path(brain) if os.path.isdir(brain) else _default_brain_dir()
-    mem = root / "memory"
-    if not mem.is_dir() and (root / "Memory").is_dir():
-        mem = root / "Memory"   # vault cũ chưa migrate
+    mem = _thu_muc_bo_nho(root)
+    try:
+        _gop_memory_lac_chu_hoa(root, mem)
+    except Exception as e:
+        print(f"[memory hoa-thường] {e}", file=__import__('sys').stderr)
     try:
         (mem / "facts").mkdir(parents=True, exist_ok=True)
         (mem / "conversations").mkdir(parents=True, exist_ok=True)
@@ -362,7 +471,6 @@ def _brain_memory_dir(brain: str) -> Path:
     except Exception as e:
         print(f"[memory dir error] {e}", file=__import__('sys').stderr)
     return mem
-
 # Trần cho chỉ mục bộ nhớ nạp vào MỌI lượt chat. Đo trên brain thật: 87 ký ức = 18.363 ký tự
 # (~5,7k token) và tăng tuyến tính theo số ký ức - đúng cái bệnh curator vừa mắc, không có gì
 # chặn. Trần này chưa cắt gì hôm nay (18.363 < 20.000), nó biến đường dốc thành đường phẳng.
@@ -375,7 +483,7 @@ def _fit_memory_index(mem: str, cap: int = None) -> str:
 
     Hạ dần theo bậc: giữ nguyên -> rút mô tả còn 100 ký tự -> còn 60 -> chỉ còn tiêu đề+link
     -> (cùng lắm) cắt bớt dòng kèm lời chỉ đường. Rút mô tả KHÔNG mất năng lực nhớ: tiêu đề và
-    đường dẫn file vẫn còn nguyên, chi tiết đầy đủ vẫn nằm trong Memory/facts/*.md và đọc được
+    đường dẫn file vẫn còn nguyên, chi tiết đầy đủ vẫn nằm trong memory/facts/*.md và đọc được
     bất cứ lúc nào. Mất hẳn dòng mới là mất trí nhớ, nên đó là bậc CUỐI.
     """
     cap = cap or MEMORY_INDEX_MAX
@@ -405,7 +513,7 @@ def _fit_memory_index(mem: str, cap: int = None) -> str:
         got = rebuild(desc_cap)
         if len(got) <= cap:
             note = ("\n\n> (Mô tả trong chỉ mục đã rút gọn cho vừa ngữ cảnh. Chi tiết đầy đủ của "
-                    "từng ký ức nằm trong file tương ứng ở Memory/facts/ - cứ đọc khi cần.)")
+                    "từng ký ức nằm trong file tương ứng ở memory/facts/ - cứ đọc khi cần.)")
             return got + note
 
     # Bậc cuối: buộc phải bỏ bớt dòng. Giữ các dòng ĐẦU (ký ức nền tảng ghi sớm nhất) và nói rõ
@@ -422,7 +530,7 @@ def _fit_memory_index(mem: str, cap: int = None) -> str:
     con_lai = sum(1 for l in lines if _MEM_ITEM_RE.match(l)) - items
     return "\n".join(kept) + (
         f"\n\n> (Chỉ mục quá dài nên còn {con_lai} ký ức chưa liệt kê ở đây. "
-        "Đọc Memory/MEMORY.md để xem đủ danh sách, và Memory/facts/ để xem chi tiết.)")
+        "Đọc memory/MEMORY.md để xem đủ danh sách, và memory/facts/ để xem chi tiết.)")
 
 
 # ── Khối PROJECT ghép vào system prompt ──────────────────────────────────────
@@ -721,7 +829,7 @@ def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = Fa
 
 # Redaction patterns - port subset từ hermes-agent/agent/redact.py.
 # Bảo vệ log_conversation() khỏi việc ghi vĩnh viễn API key / Telegram bot token /
-# JWT vào brain/Memory/conversations/*.md khi user vô tình paste vào chat
+# JWT vào brain/memory/conversations/*.md khi user vô tình paste vào chat
 # (file này thường bị commit lên git → leak vĩnh viễn).
 _SECRET_PREFIX_RE = re.compile(
     r"(?<![A-Za-z0-9_-])("
@@ -4727,10 +4835,14 @@ def _check_structure(root: Path):
     for it in STANDARD_STRUCTURE:
         present, where = False, None
         if it["kind"] == "dir":
-            for d in top_dirs:
-                if re.match(it["detect"], d.strip(), re.IGNORECASE):
-                    present, where = True, d
-                    break
+            # `detect` khớp KHÔNG phân biệt hoa thường (vault ngoài đời có cả "Sources" lẫn
+            # "sources"), nên trên Linux nó khớp được CẢ HAI thư mục khi chỉ khác mỗi chữ hoa.
+            # Trước đây lấy bản nào `os.listdir` trả trước, tức bảng Cấu trúc có thể chỉ vào
+            # `Memory/` trong khi app đọc `memory/` - đúng thư mục đang bị bỏ quên (vụ 06/09).
+            # Ưu tiên bản ĐÚNG CHÍNH TẢ CHUẨN để bảng nói cùng một thứ với `_thu_muc_bo_nho`.
+            hop = sorted(d for d in top_dirs if re.match(it["detect"], d.strip(), re.IGNORECASE))
+            if hop:
+                present, where = True, (it["create"] if it["create"] in hop else hop[0])
             if not present and it.get("alt") and (root / it["alt"]).exists():
                 present, where = True, it["alt"]   # vị trí cũ chưa migrate vẫn tính là có
         elif it["kind"] == "exact":
@@ -4777,7 +4889,7 @@ SCHEMA_SEED = (
     "- `01 - Daily Log/` → `04 - Future Log/` - bộ sổ bullet journal (nhật ký ngày/tuần/tháng/tương lai, chứa task `- [ ]`; khối dataview kéo việc từ đây)\n"
     "- `06 - Sources/` - ghi chú thô (source of truth)\n"
     "- `07 - Wiki/` - tri thức đã chưng cất, có `[[wikilink]]`\n"
-    "- `Memory/` - bộ nhớ dài hạn của Javis (facts + conversations)\n"
+    "- `memory/` - bộ nhớ dài hạn của Javis (facts + conversations)\n"
     "- `Javis/` - agents + workflows\n\n"
     "Nguyên lý: Sources → (ingest) → Wiki. Tri thức tích luỹ, không tái phát hiện.\n"
 )
@@ -9927,7 +10039,7 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
     lịch sử, nên bóc khối không mất gì cả.)
 
     Vì sao là hàm chung: trước 0.9.244 chỉ nhánh dashboard lưu, nên hội thoại Telegram vắng
-    mặt ở `/sessions`, ở `brain/Memory/conversations`, và ở vòng tự học.
+    mặt ở `/sessions`, ở `brain/memory/conversations`, và ở vòng tự học.
 
     Trả về text đã bóc khối (rỗng/None thì KHÔNG lưu gì - lượt lỗi hoặc bị huỷ).
     """
@@ -13318,7 +13430,7 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     trước 0.9.244, chỉ khác là lần này biết trước mà vẫn làm.
 
     Vì sao tách vỏ khỏi lõi: trước 0.9.244 nhánh Telegram không lưu gì cả, nên hội thoại
-    Telegram vắng mặt ở `/sessions`, ở `brain/Memory/conversations`, và ở vòng tự học -
+    Telegram vắng mặt ở `/sessions`, ở `brain/memory/conversations`, và ở vòng tự học -
     lỗ hổng chức năng lớn nhất trong danh sách trôi lệch giữa hai bản dispatch.
 
     Quy ước trả về của lõi: **dict = câu trả lời thật** (đáng lưu), **chuỗi = thông báo lỗi**
