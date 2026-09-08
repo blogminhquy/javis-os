@@ -7986,7 +7986,7 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
 
 
 async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
-                        quiet=False) -> tuple:
+                        quiet=False, ngan="") -> tuple:
     """Báo cáo cho NGƯỜI YÊU CẦU loop/task (mặc định của Javis). Quy tắc:
       - owner_chat dạng "web:<sid>" → đẩy thẳng vào ĐÚNG khung chat web đã giao việc.
       - owner_chat dạng "zalo:<id>" → gửi qua bot Zalo cho ĐÚNG người đó.
@@ -8007,12 +8007,19 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     chỉ bỏ hai thứ GỌI người dùng dậy: chấm đỏ trên chuông và thông báo đẩy của trình duyệt.
     Dành cho tin đáng lưu mà không đáng làm phiền - xem `_bo_vao_hom_thu` và `TaskRunner._report`.
 
+    `ngan` (thêm 0.55.57): bản RÚT GỌN chỉ dùng cho kênh NGOÀI (Telegram/Zalo). Khung chat web
+    và hòm thư luôn nhận bản ĐẦY ĐỦ. Chủ repo báo 2026-09-08: "việc ngầm chạy xong nó không đẩy
+    hết kết quả lên màn chat hiện tại, và nó để luôn ở trang Việc" - đúng vậy, `TaskRunner._report`
+    cắt kết quả còn 240 ký tự cho MỌI kênh. Cắt như thế đúng với Telegram (một cái liếc trên
+    điện thoại) nhưng sai hẳn với khung chat: người ta vừa ngồi đó giao việc, kết quả phải rơi
+    về nguyên vẹn, không phải một mẩu cụt kèm lời mời đi sang trang khác đọc nốt.
+
     Trả (ok, error). `ok` là ĐÃ TỚI ĐƯỢC NGƯỜI DÙNG, và hòm thư tính là tới: nó nằm ở
     server, còn sau F5, thấy được từ máy khác. Nhờ vậy một cái nhắc hẹn trên máy chưa đấu
     Telegram không còn bị ghi là "failed" trong khi nội dung đang nằm sẵn trong hòm."""
     vao_hom = await _bo_vao_hom_thu(owner_chat, text, kind=kind, label=label, source=source,
                                     quiet=quiet)
-    ok, err = await _gui_qua_kenh(owner_chat, text)
+    ok, err = await _gui_qua_kenh(owner_chat, text, ngan=ngan)
     if ok or not vao_hom:
         return ok, ("" if ok else err)
     # Kênh hỏng nhưng hòm thư đã giữ tin: với NGƯỜI DÙNG đây là thành công, nên đừng trả lỗi
@@ -8024,15 +8031,37 @@ async def _notify_owner(owner_chat, text, *, kind="answer", label="", source="",
     return True, ""
 
 
-async def _gui_qua_kenh(owner_chat, text) -> tuple:
+# Trần một tin Telegram là 4096 ký tự; dài hơn là API trả 400 và tin KHÔNG tới, im lặng.
+_TRAN_TIN_TG = 3900
+
+
+def _cat_cho_tg(text: str) -> str:
+    """Cắt cho vừa trần Telegram, và NÓI RA là đã cắt.
+
+    Cắt lặng thì người đọc tưởng mình đã đọc hết. Kết quả đầy đủ luôn còn trong hòm thư và
+    trang Việc, nên câu đuôi chỉ cần chỉ đường về đó.
+    """
+    t = str(text or "")
+    if len(t) <= _TRAN_TIN_TG:
+        return t
+    return t[:_TRAN_TIN_TG].rstrip() + "\n\n… (còn nữa - xem đầy đủ trong hòm thư của Javis)"
+
+
+async def _gui_qua_kenh(owner_chat, text, *, ngan="") -> tuple:
     """Gửi qua ĐÚNG kênh đã giao việc. Tách khỏi `_notify_owner` để chỗ đó chỉ còn lo việc
-    ghép hai đường (hòm thư + kênh), không lẫn với chi tiết của từng nhà."""
+    ghép hai đường (hòm thư + kênh), không lẫn với chi tiết của từng nhà.
+
+    Đây cũng là nơi DUY NHẤT biết mỗi kênh chịu được gì, nên bản rút gọn `ngan` được chọn ở
+    đây chứ không ở nơi sinh việc: khung chat web không có trần và người dùng đang ngồi đó -
+    trả về đủ; Telegram/Zalo là một cái liếc trên điện thoại và có trần thật - trả bản gọn.
+    """
     cid = str(owner_chat or "").strip()
     if cid.startswith(WEB_CHAT_PREFIX):
         sid = cid[len(WEB_CHAT_PREFIX):]
         if await push_to_chat(sid, text):
             return True, ""
         return False, "Không tìm thấy phiên chat web để báo"
+    text = str(ngan or text or "")
     # Việc giao TỪ Zalo phải báo VỀ Zalo. Không có nhánh này thì kết quả rơi sang Telegram của
     # chủ, tức là người giao việc không bao giờ thấy nó, còn chủ thì nhận một báo cáo không
     # rõ của ai - và máy chưa đấu Telegram thì mất hút hoàn toàn.
@@ -8048,7 +8077,7 @@ async def _gui_qua_kenh(owner_chat, text) -> tuple:
     try:
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                             json={"chat_id": target, "text": text})
+                             json={"chat_id": target, "text": _cat_cho_tg(text)})
             d = r.json() if r.content else {}
             if d.get("ok"):
                 return True, ""

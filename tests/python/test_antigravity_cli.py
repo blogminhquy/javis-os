@@ -1024,6 +1024,111 @@ _evs_l = chay(_gom(_g_l))
 check("CANARY: một sự cố chỉ hiện ĐÚNG MỘT bong bóng lỗi, không nhân đôi",
       len([e for e in _evs_l if e["type"] == "error"]) == 1, _evs_l)
 
+
+# ============================================================
+# 8c. Nhà cung cấp gãy TẠM THỜI: chờ một nhịp rồi hỏi lại, đừng giết cả lượt
+# ============================================================
+# Chủ repo gửi ảnh (2026-09-08) đúng nguyên văn thứ `agy` in ra rồi thoát mã 1:
+#
+#     failed to send message: ... Eligibility check failed: failed to get load code assist
+#     response: UNAVAILABLE (code 503): The service is currently unavailable.
+#
+# 503 là Google đang trục trặc, không phải cấu hình sai. Đường API (`engine.py`) đã biết chờ
+# rồi hỏi lại từ lâu; đường CLI thì chưa, nên một cơn 503 chớp nhoáng cũng lấy trọn lượt chat.
+_LOI_503 = ("failed to send message: send failed; already reported to the user: Eligibility "
+            "check failed: failed to get load code assist response: UNAVAILABLE (code 503): "
+            "The service is currently unavailable.")
+
+
+def _gia_gay_roi_hoi(so_lan_gay, dong_ra, stderr=_LOI_503, help_text=None):
+    """`agy` giả: gãy `so_lan_gay` lần đầu, lần sau trả lời bình thường. Đếm bằng file."""
+    d = Path(tempfile.mkdtemp(prefix="javis-fakeagy-503-"))
+    p = d / "agy"
+    p.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys, os\n"
+        "a = sys.argv[1:]\n"
+        f"if '--help' in a:\n    sys.stdout.write({(help_text or _HELP_MOI)!r}); sys.exit(0)\n"
+        f"dem = {str(d / 'dem.txt')!r}\n"
+        "n = int(open(dem).read()) if os.path.exists(dem) else 0\n"
+        "open(dem, 'w').write(str(n + 1))\n"
+        f"if n < {int(so_lan_gay)}:\n"
+        f"    sys.stderr.write({stderr!r}); sys.exit(1)\n"
+        f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
+        "sys.exit(0)\n",
+        encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return str(p), d
+
+
+_nhip_that = antigravity_cli._NHIP_THU_LAI
+antigravity_cli._NHIP_THU_LAI = (0.01, 0.01)      # test không ngồi chờ 8 giây thật
+try:
+    # Gãy MỘT lần rồi hết: người dùng phải nhận câu trả lời, không thấy bóng dáng câu lỗi nào.
+    _reset_cache()
+    _cli_503, _d_503 = _gia_gay_roi_hoi(
+        1, [json.dumps({"role": "assistant", "content": "Chào anh."})])
+    antigravity_cli.find_antigravity_cli = lambda: _cli_503
+    _g_503 = antigravity_cli.AntigravityCLI(cwd=str(_d_503))
+    _g_503.cli_path = _cli_503
+    _evs_503 = chay(_gom(_g_503))
+    check("CANARY: 503 chớp nhoáng -> tự hỏi lại, người dùng vẫn nhận câu trả lời",
+          any(e["type"] == "final" and e["content"] == "Chào anh." for e in _evs_503), _evs_503)
+    check("và KHÔNG bắn câu lỗi tiếng Anh của lượt gãy ra màn hình",
+          not any(e["type"] == "error" for e in _evs_503), _evs_503)
+    check("đúng 2 lần chạy (1 gãy + 1 được), không thử lại thừa",
+          (_d_503 / "dem.txt").read_text().strip() == "2",
+          (_d_503 / "dem.txt").read_text())
+
+    # Gãy MÃI: hết nhịp thì phải nói rõ lỗi của AI, không quăng nguyên câu tiếng Anh sáu dòng.
+    _reset_cache()
+    _cli_mai, _d_mai = _gia_gay_roi_hoi(99, [])
+    antigravity_cli.find_antigravity_cli = lambda: _cli_mai
+    _g_mai = antigravity_cli.AntigravityCLI(cwd=str(_d_mai))
+    _g_mai.cli_path = _cli_mai
+    _evs_mai = chay(_gom(_g_mai))
+    _loi_mai = " ".join(str(e.get("content") or "") for e in _evs_mai if e["type"] == "error")
+    check("gãy mãi thì thử đủ nhịp rồi mới thôi (1 + 2 lần)",
+          (_d_mai / "dem.txt").read_text().strip() == "3", (_d_mai / "dem.txt").read_text())
+    check("CANARY: câu báo nói rõ đây là lỗi PHÍA GOOGLE, không phải cấu hình của người dùng",
+          "phía Google" in _loi_mai and "thử lại" in _loi_mai, _loi_mai[:200])
+
+    # Thứ chờ mãi cũng không hết thì TUYỆT ĐỐI không thử lại: chậm gấp ba rồi vẫn hỏng.
+    for _ten, _loi_khac in (("chưa đăng nhập", "Please run `agy` to login first"),
+                            ("hết hạn mức", "RESOURCE_EXHAUSTED: quota exceeded")):
+        _reset_cache()
+        _cli_k, _d_k = _gia_gay_roi_hoi(99, [], stderr=_loi_khac)
+        antigravity_cli.find_antigravity_cli = lambda: _cli_k
+        _g_k = antigravity_cli.AntigravityCLI(cwd=str(_d_k))
+        _g_k.cli_path = _cli_k
+        chay(_gom(_g_k))
+        check(f"CANARY: {_ten} thì KHÔNG thử lại (chạy đúng 1 lần)",
+              (_d_k / "dem.txt").read_text().strip() == "1", (_d_k / "dem.txt").read_text())
+
+    # Đã chạy tool rồi thì thôi: chạy lại là gửi tin/ghi file/đặt lịch HAI LẦN.
+    _reset_cache()
+    _cli_t, _d_t = _gia_gay_roi_hoi(99, [], stderr=_LOI_503)
+    # Lượt này in ra một tool_call rồi mới gãy -> đã đụng thế giới bên ngoài.
+    Path(_cli_t).write_text(
+        "#!/usr/bin/env python3\nimport sys, os\na = sys.argv[1:]\n"
+        f"if '--help' in a:\n    sys.stdout.write({_HELP_MOI!r}); sys.exit(0)\n"
+        f"dem = {str(_d_t / 'dem.txt')!r}\n"
+        "n = int(open(dem).read()) if os.path.exists(dem) else 0\n"
+        "open(dem, 'w').write(str(n + 1))\n"
+        "print(%r, flush=True)\n" % json.dumps(
+            {"type": "tool_use", "tool_name": "zalo_send_message", "tool_id": "t1"}) +
+        f"sys.stderr.write({_LOI_503!r}); sys.exit(1)\n",
+        encoding="utf-8")
+    Path(_cli_t).chmod(Path(_cli_t).stat().st_mode | stat.S_IEXEC)
+    antigravity_cli.find_antigravity_cli = lambda: _cli_t
+    _g_t = antigravity_cli.AntigravityCLI(cwd=str(_d_t))
+    _g_t.cli_path = _cli_t
+    chay(_gom(_g_t))
+    check("CANARY: lượt đã chạy tool thì KHÔNG thử lại (không gửi tin hai lần)",
+          (_d_t / "dem.txt").read_text().strip() == "1", (_d_t / "dem.txt").read_text())
+finally:
+    antigravity_cli._NHIP_THU_LAI = _nhip_that
+
 antigravity_cli.find_antigravity_cli = _that_find
 
 

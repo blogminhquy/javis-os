@@ -230,6 +230,62 @@ def _la_loi_xung_effort(loi: str) -> bool:
                                 "incompatible", "not supported", "not compatible"))
 
 
+# ---- Nhà cung cấp gãy TẠM THỜI: chờ một nhịp rồi hỏi lại, đừng giết cả lượt ----
+#
+# Chủ repo gửi ảnh (2026-09-08), nguyên văn thứ `agy` in ra rồi thoát mã 1:
+#
+#     failed to send message: send failed; already reported to the user: Eligibility check
+#     failed: failed to get load code assist response: UNAVAILABLE (code 503): The service is
+#     currently unavailable.
+#
+# 503 là phía Google đang trục trặc, KHÔNG phải cấu hình sai và cũng không phải hết hạn mức.
+# Việc đúng là chờ rồi hỏi lại - đúng cách `engine.py` đã đối xử với 429/503 của các API từ
+# lâu (xem `_RETRY_STATUS`). Đường CLI thì chưa có gì cả: gãy một cái là người dùng lãnh trọn
+# một câu tiếng Anh sáu dòng và mất lượt chat, dù chỉ cần đợi vài giây.
+_LOI_TAM_THOI = (
+    "unavailable", "temporarily", "try again", "timeout", "timed out", "deadline exceeded",
+    "connection reset", "connection refused", "eof", "bad gateway", "service unavailable",
+    "internal error", "overloaded", "too many requests",
+)
+_MA_TAM_THOI = ("code 429", "code 500", "code 502", "code 503", "code 504",
+                "429", "500 ", "502 ", "503", "504 ")
+
+
+def _la_loi_tam_thoi(loi: str) -> bool:
+    """Câu lỗi này có phải kiểu CHỜ MỘT NHỊP LÀ HẾT không (nhà cung cấp gãy, không phải ta sai).
+
+    Nhận theo câu chữ vì `agy` không trả mã máy đọc được: nó gói lỗi upstream thành một chuỗi
+    tiếng Anh rồi thoát mã 1. Cố tình KHÔNG nhận những thứ chờ mãi cũng không hết (chưa đăng
+    nhập, hết hạn mức, model không tồn tại, xung đột cờ) - thử lại mấy cái đó chỉ tổ chậm gấp
+    đôi rồi vẫn hỏng.
+    """
+    l = (loi or "").lower()
+    if not l:
+        return False
+    if _la_loi_chua_dang_nhap(l) or _la_loi_xung_effort(l):
+        return False
+    if any(k in l for k in ("quota", "exhausted", "rate limit exceeded", "insufficient",
+                            "not found", "invalid", "permission denied", "unauthor")):
+        # "resource exhausted"/"quota" là hết phần được cấp - chờ vài giây không đổi được gì.
+        return False
+    return any(k in l for k in _LOI_TAM_THOI) or any(k in l for k in _MA_TAM_THOI)
+
+
+# Chờ bao lâu trước mỗi lần hỏi lại. Ngắn thôi: người dùng đang ngồi nhìn màn hình chat, chờ
+# quá nửa phút thì thà báo lỗi để họ tự quyết còn hơn. Hai nhịp là đủ vượt một cơn 503 chớp
+# nhoáng, mà tổng thời gian xấu nhất vẫn dưới 10 giây cộng thời gian chạy.
+_NHIP_THU_LAI = (2.0, 6.0)
+
+
+def _cau_bao_tam_thoi(loi: str) -> str:
+    """Câu nói cho người dùng khi thử lại hết nhịp mà vẫn gãy. Nói rõ LỖI CỦA AI."""
+    return ("Google (Antigravity) đang trục trặc tạm thời nên lượt này không gửi đi được. "
+            "Javis đã tự thử lại " + str(len(_NHIP_THU_LAI)) + " lần, vẫn chưa được.\n\n"
+            "Chờ một lát rồi nhắn lại, hoặc đổi sang bộ não khác ở trang Models. Đây là lỗi "
+            "phía Google, không phải cấu hình của bạn.\n\n"
+            "_Nguyên văn:_ " + (loi or "")[:400])
+
+
 def nhan_prompt_qua_stdin() -> bool:
     """`--help` của bản này có TỰ KHAI là đọc prompt từ stdin không.
 
@@ -1134,6 +1190,27 @@ class AntigravityCLI:
             ket = {}
             async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
                 yield ev
+        # Nhà cung cấp gãy TẠM THỜI (503 UNAVAILABLE, timeout, bad gateway...): chờ một nhịp rồi
+        # hỏi lại. Ba điều kiện, thiếu một là không thử:
+        #   - lỗi thuộc loại chờ-là-hết (xem `_la_loi_tam_thoi`), không phải chưa đăng nhập/hết
+        #     hạn mức - mấy cái đó thử lại chỉ tổ chậm gấp đôi rồi vẫn hỏng;
+        #   - lượt đó KHÔNG lấy được chữ nào (đã nhả chữ mà chạy lại là câu trả lời hiện hai lần);
+        #   - lượt đó KHÔNG chạy tool nào (đã gửi tin, đã ghi file, đã đặt lịch thì chạy lại là
+        #     làm hai lần) - cùng luật với đường API trong `engine.py`.
+        for _nhip in _NHIP_THU_LAI:
+            if ket.get("text") or ket.get("co_tool"):
+                break
+            if not any(_la_loi_tam_thoi(x) for x in ket.get("cac_loi") or []):
+                break
+            print(f"[antigravity] nhà cung cấp gãy tạm thời, chờ {_nhip}s rồi hỏi lại",
+                  file=sys.stderr)
+            await asyncio.sleep(_nhip)
+            _ket_hong = ket
+            ket = {}
+            async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
+                yield ev
+            if not ket.get("text") and not (ket.get("cac_loi") or []):
+                ket = _ket_hong      # lượt sau câm hẳn thì giữ câu lỗi cũ, đừng để trắng tay
         # Vượt trần dòng lệnh: chạy lại NGAY bằng đường không có trần. Không có nhánh này thì
         # người dùng nhận nguyên "OSError: [Errno 7] Argument list too long" - một câu họ không
         # sửa được gì, và lượt chat coi như mất trắng (báo 2026-08-30, chat dài tiếng Việt).
@@ -1182,7 +1259,11 @@ class AntigravityCLI:
             await asyncio.to_thread(nho_duong, self.cli_path, duong, "đã chạy được")
         else:
             for _l in ket.get("cac_loi") or []:      # không thử lại thì phải đưa lỗi ra
-                yield {"type": "error", "content": _l}
+                # Gãy tạm thời mà thử lại hết nhịp vẫn không xong: người dùng cần biết ĐÂY LÀ
+                # LỖI PHÍA GOOGLE và Javis đã tự thử lại rồi, chứ không phải một câu tiếng Anh
+                # sáu dòng nghe như mình cấu hình sai (chủ repo gửi đúng ảnh đó, 2026-09-08).
+                yield {"type": "error",
+                       "content": _cau_bao_tam_thoi(_l) if _la_loi_tam_thoi(_l) else _l}
         text = ket.get("text") or ""
         if text:
             # Không nuốt chuyện này: trả lời mà thiếu system prompt thì vẫn trôi chảy, người dùng
@@ -1343,6 +1424,7 @@ class AntigravityCLI:
         co_stream = co_co("--output-format")
         co_json = False
         qua_tran_argv = False
+        co_tool = False
         while True:
             ev = await hang.get()
             if ev is HET:
@@ -1363,6 +1445,8 @@ class AntigravityCLI:
                     else:
                         da_thu_doc = True
             for ra in self._doi_su_kien(ev, cac_manh):
+                if ra.get("type") == "tool_call":
+                    co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
                 if ra.get("type") == "error":
                     da_loi = True
                     cac_loi.append(str(ra.get("content") or ""))
@@ -1371,7 +1455,7 @@ class AntigravityCLI:
                 yield ra
         ket.update(text="".join(cac_manh).strip(), loi=da_loi, cac_loi=cac_loi,
                    ten_ngu_canh=ten_ngu_canh, qua_tran_argv=qua_tran_argv,
-                   doc_duoc=doc_duoc, da_thu_doc=da_thu_doc,
+                   doc_duoc=doc_duoc, da_thu_doc=da_thu_doc, co_tool=co_tool,
                    biet_doc_hay_khong=(duong != "file") or (co_stream and co_json))
 
     def _doi_su_kien(self, ev: dict, cac_manh: list) -> list:
