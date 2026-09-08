@@ -82,7 +82,7 @@ About custom domains and HTTPS: on a Caddy VPS you enter the domain right in **S
 
 | Variable | Meaning | Default | When to change |
 |---|---|---|---|
-| `CLAUDE_CWD` | The working folder of the CLI engine (where it reads `CLAUDE.md` and inherits MCPs) | The project root (Docker: `/app`) | You want the engine to work in another folder. |
+| `CLAUDE_CWD` | Fallback folder for a few side jobs of the Claude engine (source ingest, the terminal before a brain is chosen). Since 0.55.58 **chat always runs inside the selected brain folder** and no longer reads this variable, so files Javis creates from chat land inside the brain | The project root (Docker: `/app`) | Almost never needed. |
 | `BRAINS_DIR` | The parent folder holding every brain, one subfolder per Second Brain. The default brain is `<BRAINS_DIR>/Brain Default` | `brains/` in the project (Docker: `/brains`) | You want the brains elsewhere (a separate data disk, a git-backup mount). |
 | `OBSIDIAN_VAULT_PATH` | The path of the main Second Brain vault | `vault/` in the project (Docker: `/data/vault`) | If the server already has a real Obsidian vault, point this at it. Left empty, Javis uses the sample vault in the repo (so a fresh machine runs immediately). |
 | `BRAIN_PATH` | The old-style brain folder from the single-brain era. Kept only to migrate old data | `brain/` in the project (Docker: `/data/brain`) | Almost never needed. Do not use it for a new install. |

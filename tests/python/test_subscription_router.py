@@ -258,8 +258,10 @@ check("có hàm dịch lỗi thô sang câu nói được",
       and "def _subscription_limit_event(" in _MAIN_SRC)
 check("cửa chung của bốn nhánh dịch bằng hàm đó",
       "noi, lim = _subscription_limit_event(raw or \"\", engine_hint)" in _MAIN_SRC)
+# 0.55.58: vòng đọc sự kiện của nhánh Claude Code được gói vào `_consume_claude` (để mồi lại khi
+# mất mạch, cùng cách `_consume_codex`) nên thụt vào thêm một nấc - mẫu dưới đi theo, giống mẫu Codex.
 check("CANARY: nhánh Claude Code dùng câu đã dịch",
-      '_limit_frame(\n                            event.get("content") or "", "claude-code"' in _MAIN_SRC)
+      '_limit_frame(\n                                event.get("content") or "", "claude-code"' in _MAIN_SRC)
 check("CANARY: nhánh Codex dùng câu đã dịch",
       '_limit_frame(\n                                    ev.get("content") or "", "codex"' in _MAIN_SRC)
 # Antigravity CLI cũng chạy bằng gói Google nên cùng luật: hết lượt phải ra

@@ -268,7 +268,7 @@ Dừng bằng `stop-javis.bat`. Mở http://localhost:7777
 | `JAVIS_STATE_DIR` | Nơi Javis ghi state (settings, sessions, loop config) | `server/` (Docker: `/data/state`) |
 | `OBSIDIAN_VAULT_PATH` | Vault Second Brain chính | `vault/` trong repo (Docker: `/data/vault`) |
 | `BRAIN_PATH` | Thư mục brain | `brain/` trong repo (Docker: `/data/brain`) |
-| `CLAUDE_CWD` | Thư mục làm việc của Claude CLI | repo root |
+| `CLAUDE_CWD` | Thư mục dự phòng của Claude CLI (chat chạy trong thư mục brain) | repo root |
 
 ---
 

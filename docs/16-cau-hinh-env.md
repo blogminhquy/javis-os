@@ -86,7 +86,7 @@ Về tên miền riêng và HTTPS: VPS dùng Caddy nhập tên miền ngay trong
 
 | Biến | Ý nghĩa | Mặc định | Khi nào đổi |
 |---|---|---|---|
-| `CLAUDE_CWD` | Thư mục làm việc của engine CLI (nơi đọc file `CLAUDE.md` và kế thừa MCP) | Thư mục gốc dự án (Docker: `/app`) | Muốn engine làm việc trong một thư mục khác. |
+| `CLAUDE_CWD` | Thư mục dự phòng cho vài việc phụ của engine Claude (nhập nguồn, terminal khi chưa chọn brain). Từ 0.55.58 **chat luôn chạy trong thư mục brain đang chọn** và không đọc biến này nữa, nên file Javis tạo từ chat nằm đúng trong brain | Thư mục gốc dự án (Docker: `/app`) | Hầu như không cần đặt. |
 | `BRAINS_DIR` | Thư mục cha chứa mọi brain, mỗi thư mục con là một Second Brain. Brain mặc định là `<BRAINS_DIR>/Brain Default` | `brains/` trong dự án (Docker: `/brains`) | Muốn để nhiều brain ở nơi khác (ví dụ ổ dữ liệu riêng, mount git-backup). |
 | `OBSIDIAN_VAULT_PATH` | Đường dẫn vault Second Brain chính | `vault/` trong dự án (Docker: `/data/vault`) | Trên server đã có vault Obsidian thật thì trỏ biến này vào đó. Để trống thì Javis dùng vault mẫu trong repo (máy mới chạy được ngay). |
 | `BRAIN_PATH` | Thư mục brain kiểu cũ, thời một-brain. Chỉ còn để migrate dữ liệu cũ | `brain/` trong dự án (Docker: `/data/brain`) | Hầu như không cần đụng. Đừng dùng cho cài mới. |
