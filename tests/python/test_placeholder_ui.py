@@ -19,6 +19,10 @@ import re
 from _paths import ROOT  # noqa: E402,F401
 
 DASH = ROOT / "dashboard"
+# Tra khoá i18n ra chữ tiếng Việt thật (xem chú thích trong quet()).
+import json
+VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+KHOA_I18N = re.compile(r'(?:window\.)?(?:t|tw|dich)\(\s*"([a-z0-9_.]+)"')
 
 NGUON = ([DASH / "index.html"]
          + sorted(DASH.glob("*.js"))
@@ -57,8 +61,22 @@ def quet():
                 s = m.group(1)
                 if not s.strip():
                     continue
+                # Placeholder đã vào từ điển i18n (0.55.54): chỗ bắt được là biểu thức
+                # `' + esc(tw("khoa")) + '` chứ không còn là chữ. Tra ngược khoá ra chữ
+                # THẬT rồi soát nó - bỏ qua như nhánh dưới thì luật này lặng lẽ thôi phủ
+                # đúng những ô nhập vừa được dịch, tức là hở đúng chỗ vừa đụng vào.
+                # Chú ý: bộ bắt ở trên dừng ngay ở dấu nháy MỞ của khoá, nên phần bắt
+                # được chỉ là "' + esc(tw(". Phải soi tiếp một đoạn mã sau chỗ khớp mới
+                # thấy tên khoá.
+                mk = None
+                if "tw(" in s or "t(" in s or "esc(" in s:
+                    mk = KHOA_I18N.search(text, m.start(), m.start() + 400)
+                if mk:
+                    s = VI.get(mk.group(1), "")
+                    if not s.strip():
+                        continue
                 # Dựng động: phần bắt được là mảnh biểu thức, không phải chữ hiển thị.
-                if "${" in s or s.lstrip().startswith("' +") or s.lstrip().startswith('" +'):
+                elif "${" in s or s.lstrip().startswith("' +") or s.lstrip().startswith('" +'):
                     continue
                 tinh.append(s)
                 dau = s.lstrip()[:1]
