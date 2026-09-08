@@ -275,8 +275,15 @@ check("đọc tệp tải lên theo khối, không nạp cả tệp vào RAM r�
 check("KHÔNG phục vụ SVG", ".svg" not in src_r)
 
 src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
+# Từ 0.55.54 chữ tiếng Việt của dashboard nằm trong từ điển i18n, giao diện chỉ gọi khoá. Nên
+# mỗi khẳng định về "màn hình phải nói câu X" kiểm ĐỦ HAI VẾ: packs.js gọi đúng khoá, VÀ khoá
+# đó trong vi.json mang đúng câu. Thiếu vế đầu thì gỡ hẳn dòng chữ khỏi giao diện vẫn xanh;
+# thiếu vế sau thì đổi nội dung khoá thành câu ngược nghĩa vẫn xanh.
+_VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("màn hình xác nhận vẽ từ /packs/inspect", "/packs/inspect" in src_js)
-check("gói có mã thì bắt gõ lại mã gói", "pkGo" in src_js and "Gõ lại mã gói" in src_js)
+check("gói có mã thì bắt gõ lại mã gói",
+      "pkGo" in src_js and "store.inspect.code.type_ph" in src_js
+      and "Gõ lại mã gói" in _VI.get("store.inspect.code.type_ph", ""))
 # Mặc định của công tắc "bật ngay sau khi cài" đi theo BẬC của gói, từ 0.55.36:
 #
 #   có mã   TẮT. Người dùng nên mở tệp ra xem trước khi cho nó chạy trong máy chủ mình.
@@ -292,7 +299,9 @@ _o = src_js[_i - 40:_i + 200]
 check("CANARY: gói CÓ MÃ thì công tắc mặc định tắt",
       'coMa ? "false" : "true"' in _o)
 check("nói thẳng gói chạy mã thật, không làm mềm",
-      "chạy Python thật" in src_js and "máy chủ Javis" in src_js)
+      "store.inspect.code.title" in src_js
+      and "chạy Python thật" in _VI.get("store.inspect.code.title", "")
+      and "máy chủ Javis" in _VI.get("store.inspect.code.title", ""))
 
 src_c = (DASHBOARD / "console.js").read_text(encoding="utf-8")
 check("trang Gói đăng ký trong rail", '"packs"' in src_c and "JavisPacks" in src_c)

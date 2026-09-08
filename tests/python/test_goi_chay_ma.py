@@ -221,7 +221,12 @@ check("main.py gọi quét đó lúc khởi động",
       "pack_install.quet_tuong_thich()" in (SERVER / "main.py").read_text(encoding="utf-8"))
 
 src_js = (DASHBOARD / "console.js").read_text(encoding="utf-8")
-check("thẻ plugin hiện nhãn nguồn 'Từ gói'", 'pack: ["Từ gói"' in src_js)
+# Từ 0.55.54 chữ của dashboard nằm trong từ điển i18n, console.js chỉ gọi khoá. Kiểm ĐỦ HAI VẾ:
+# nhánh `pack` của bảng nguồn gọi đúng khoá, VÀ khoá đó trong vi.json mang đúng nhãn "Từ gói".
+_VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
+check("thẻ plugin hiện nhãn nguồn 'Từ gói'",
+      'pack: [window.t("cs.pl_src_pack")' in src_js
+      and "Từ gói" in _VI.get("cs.pl_src_pack", ""))
 check("plugin của gói chỉ quản lý ở Kho cài đặt, không bật tắt lẻ",
       "data-goto-packs" in src_js)
 

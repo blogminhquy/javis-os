@@ -104,7 +104,13 @@ check("tab mang huy hieu so ban moi cua rieng no", /kho-dem moi/.test(SRC));
 check("cot ben trai co hang loc 'Co ban moi'", /hangNhom\("Có bản mới"/.test(SRC));
 check("danh muc qua cu thi tu lay lai mot lan o nen",
   /CU_QUA/.test(SRC) && /packs\/store\?refresh=1/.test(SRC));
-check("va noi ra danh muc lay luc nao", /Danh mục lúc/.test(SRC));
+// Chu "Danh muc luc ..." da vao tu dien i18n o 0.55.54, nen soi chuoi tieng Viet literal trong
+// .js la het thay. Bao dam khong doi, chi doi cho chung cu, nen kiem DU HAI VE: packs.js goi
+// dung khoa, va khoa do trong vi.json mang dung cau. Chi kiem khoa thi doi noi dung khoa thanh
+// cau nguoc nghia van xanh; chi kiem tu dien thi go han dong chu khoi giao dien van xanh.
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
+check("va noi ra danh muc lay luc nao",
+  /store\.catalog_at/.test(SRC) && (VI["store.catalog_at"] || "").includes("Danh mục lúc"));
 
 // CSS phai co that, neu khong thi bang bao va huy hieu deu la chu tran khong ai thay.
 const CSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");

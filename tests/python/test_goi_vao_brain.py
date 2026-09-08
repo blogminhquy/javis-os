@@ -23,6 +23,7 @@ chuyển hướng sang host khác) và nhãn nguồn chính chủ / cộng đồ
 """
 from _paths import ROOT, SERVER, DASHBOARD  # noqa: E402,F401
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -193,19 +194,32 @@ check("liệt kê token KHÔNG bao giờ trả giá trị",
 
 # ─────────────── 7. Nhãn nguồn và cảnh báo gói cộng đồng ───────────────
 src_js = (DASHBOARD / "packs.js").read_text(encoding="utf-8")
+# Từ 0.55.54 chữ tiếng Việt của trang kho dời vào từ điển i18n, giao diện chỉ còn gọi tw("khoa").
+# Nên mỗi bảo đảm dưới đây phải soi ĐỦ HAI VẾ: packs.js gọi đúng khoá, VÀ vi.json giữ đúng câu.
+# Thiếu vế đầu thì gỡ hẳn dòng chữ khỏi giao diện vẫn xanh; thiếu vế sau thì đổi khoá thành câu
+# ngược nghĩa vẫn xanh.
+_VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("thẻ kho vẫn hiện nhãn chính chủ hoặc cộng đồng",
-      "chính chủ" in src_js and "cộng đồng" in src_js)
+      'tw("store.verified")' in src_js and "chính chủ" in _VI.get("store.verified", "")
+      and 'tw("store.community")' in src_js and "cộng đồng" in _VI.get("store.community", ""))
 # Bộ lọc nguồn dọn từ hàng tab riêng xuống cột nhóm bên trái ở 0.55.31 (bố cục mới), nhưng
 # KHÔNG được mất: kho lớn dần thì "xem riêng hàng cộng đồng" là bộ lọc người ta tìm đầu tiên.
+# ("Cộng đồng" ở đây là GIÁ TRỊ lọc, vừa là vế so sánh vừa là payload data-kho-nhom, nên cố ý
+# không dịch và vẫn nằm nguyên trong .js.)
 check("lọc riêng được hàng cộng đồng", 'laCongDong' in src_js and '"Cộng đồng"' in src_js)
 check("và chỉ hiện lối lọc đó khi kho thật sự có hàng cộng đồng",
-      "congDong.length ?" in src_js)
+      re.search(r'congDong\.length\s*\?\s*hangNhom\("Cộng đồng"', src_js) is not None)
 check("gói cộng đồng có cảnh báo riêng trên màn hình xác nhận",
-      "chưa qua " in src_js and "kiểm duyệt" in src_js)
+      'tw("store.inspect.community.body")' in src_js
+      and "chưa qua " in _VI.get("store.inspect.community.body", "")
+      and "kiểm duyệt" in _VI.get("store.inspect.community.body", ""))
 check("màn hình xác nhận nói rõ gói ghi gì vào bộ não", "vaultTom" in src_js)
 check("và nói rõ Javis giữ bản của bạn khi trùng tên",
-      "giữ bản của bạn" in src_js)
-check("hộp gỡ nói rõ thứ giữ lại vì đã sửa", "Giữ lại vì bạn đã sửa" in src_js)
+      'tw("store.inspect.vault_note")' in src_js
+      and "giữ bản của bạn" in _VI.get("store.inspect.vault_note", ""))
+check("hộp gỡ nói rõ thứ giữ lại vì đã sửa",
+      'tw("store.rm.kept")' in src_js
+      and "Giữ lại vì bạn đã sửa" in _VI.get("store.rm.kept", ""))
 check("cài thì gửi kèm brain đang mở", "currentBrainPath" in src_js)
 
 src_i = (SERVER / "pack_install.py").read_text(encoding="utf-8")
