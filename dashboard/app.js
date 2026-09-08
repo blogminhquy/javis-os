@@ -113,7 +113,7 @@ const voice = new JavisVoice({
   },
   onError: (err) => {
     voiceBtn.classList.remove("recording");
-    setOrbState("", "SẴN SÀNG");
+    setOrbState("", window.t("orb.ready"));
     // Mic hỏng hẳn thì TẮT chế độ rảnh tay. Không tắt thì vòng giữ mic 500ms bên dưới cứ mở
     // lại mãi, mỗi lần một hộp thoại chặn - người dùng bấm OK xong nửa giây sau nó nổ tiếp,
     // không còn đường nào bấm vào trang nữa. Đúng cảnh người dùng báo ngày 04/09.
@@ -250,7 +250,7 @@ function handleMessage(data) {
     // Lượt vấp hạn mức gói thuê bao: câu báo đã hiện ở bong bóng lỗi (kèm thẻ tự chạy lại) và
     // server không có câu trả lời nào, nên không vẽ thêm bong bóng "(không có nội dung)".
     if (t && t.limit && !(data.content || "").trim()) {
-      if (isActive) { hideActivity(); setOrbState("", "SẴN SÀNG"); }
+      if (isActive) { hideActivity(); setOrbState("", window.t("orb.ready")); }
       refreshUsage();
       return;
     }
@@ -276,7 +276,7 @@ function handleMessage(data) {
     if (isActive) {
       hideActivity();
       const errEl = appendJavisError(data.content);
-      setOrbState("", "SẴN SÀNG");
+      setOrbState("", window.t("orb.ready"));
       if (data.limit) {
         // Hết lượt gói thuê bao: câu báo là tin cuối của lượt (server không trả gì thêm), ghi
         // vào convo để F5 còn thấy, rồi gắn thẻ "tự chạy lại" dưới nó (limit-resume.js).
@@ -1903,21 +1903,21 @@ function alertMic(err) {
     // Bảo họ "cấp quyền" lúc này là chỉ họ đi tìm một cái nút không tồn tại. Hay gặp khi mở
     // Javis qua địa chỉ LAN hoặc tên miền chưa có HTTPS.
     if (!window.isSecureContext) {
-      alert("Trình duyệt chặn micro vì trang này không chạy qua kết nối bảo mật." + "\n" + "\n"
-        + "Mở Javis bằng http://localhost:7777 trên chính máy chạy Javis, hoặc cho tên miền của bạn dùng HTTPS.");
+      alert(window.t("app.mic_insecure") + "\n" + "\n"
+        + window.t("app.mic_insecure_fix"));
     } else {
-      alert("Bạn cần cấp quyền microphone cho trang này." + "\n" + "\n"
-        + "Bấm biểu tượng ổ khoá cạnh thanh địa chỉ để cấp lại, rồi bấm nút mic lần nữa.");
+      alert(window.t("app.mic_denied") + "\n" + "\n"
+        + window.t("app.mic_denied_fix"));
     }
   } else if (err === "audio-capture") {
     // Trước đây lỗi này im lặng hoàn toàn: mic không bao giờ chạy mà không ai nói vì sao.
-    alert("Không tìm thấy microphone nào trên máy này." + "\n" + "\n"
-      + "Nếu bạn đang điều khiển máy từ xa thì mic của máy bạn ngồi thường không đi theo.");
+    alert(window.t("app.mic_none") + "\n" + "\n"
+      + window.t("app.mic_none_fix"));
   } else if (err === "service-not-allowed") {
-    alert("Trình duyệt đang chặn dịch vụ nhận giọng nói." + "\n" + "\n"
-      + "Kiểm tra cài đặt quyền riêng tư của trình duyệt, hoặc thử Chrome/Edge.");
+    alert(window.t("app.mic_service_blocked") + "\n" + "\n"
+      + window.t("app.mic_service_blocked_fix"));
   } else if (err === "not-supported") {
-    alert("Trình duyệt không hỗ trợ nhận giọng. Dùng Chrome/Edge.");
+    alert(window.t("app.mic_unsupported"));
   }
   // Lỗi khác (mạng, start-failed…) KHÔNG hiện hộp thoại: chúng thoáng qua và tự thử lại được,
   // còn hộp thoại thì chặn cứng cả trang.
@@ -2289,7 +2289,7 @@ async function loadClaudeModels(cur) {
   } catch (e) {}
   if (cur && ids.indexOf(cur) < 0) ids.unshift(cur);   // model đang chạy luôn phải có mặt
   const nhan = (id) => id.charAt(0).toUpperCase() + id.slice(1);
-  sel.innerHTML = '<option value="">Mặc định</option>'
+  sel.innerHTML = '<option value="">' + window.t("common.default") + '</option>'
     + ids.map((id) => `<option value="${id}">${nhan(id)}</option>`).join("");
   sel.value = cur || "";
 }

@@ -21,6 +21,20 @@
     "antigravity-cli": "Antigravity CLI",
   };
 
+  /* Chu hien ra lay tu tu dien. Trong trinh duyet la window.t (i18n/index.js nap truoc
+     moi module nay); duoi node - noi test require() thang file nay - `window` CHUA KHAI
+     BAO nen doc window.t la ReferenceError chu khong phai undefined, phai hoi bang typeof.
+     O do doc thang vi.json de ham van tra ve chu that, khong phai ma khoa. */
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return window.t(khoa, bien);
+    try {
+      var s = require("./i18n/vi.json")[khoa] || khoa;
+      return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+        return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+      });
+    } catch (e) { return khoa; }
+  }
+
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -35,17 +49,17 @@
     var n = new Date((now == null ? Date.now() / 1000 : now) * 1000);
     var hm = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
     if (d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()) return hm;
-    return hm + " ngày " + pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1);
+    return tw("lres.when_other_day", { gio: hm, ngay: pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) });
   }
 
   // "con 1 gio 5 phut" / "con 3 phut" / "con duoi 1 phut". Am hoac 0 -> "".
   function fmtLeft(seconds) {
     var s = Math.floor(Number(seconds) || 0);
     if (s <= 0) return "";
-    if (s < 60) return "còn dưới 1 phút";
+    if (s < 60) return tw("lres.left_under_min");
     var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-    if (h <= 0) return "còn " + m + " phút";
-    return "còn " + h + " giờ" + (m ? " " + m + " phút" : "");
+    if (h <= 0) return tw("cs.si_left_min", { so: m });
+    return m ? tw("cs.si_left_hm", { gio: h, phut: m }) : tw("lres.left_hour", { gio: h });
   }
 
   /* Tu mot muc cho (payload cua server) suy ra chu de ve. Tra:
@@ -63,28 +77,28 @@
     var out = { text: "", left: "", auto: !!info.auto, showAuto: false, showNow: true, busy: false };
 
     if (state === "running") {
-      out.text = "Đang chạy lại câu hỏi này...";
+      out.text = tw("lres.running");
       out.busy = true; out.showNow = false;
       return out;
     }
     if (state === "done") {
-      out.text = "Đã chạy lại lúc " + fmtWhen(info.done_at || now, now) + ".";
+      out.text = tw("lres.done", { gio: fmtWhen(info.done_at || now, now) });
       out.showNow = false;
       return out;
     }
     if (state === "cancelled") {
-      out.text = "Đã bỏ lịch chạy lại vì bạn gửi tin mới.";
+      out.text = tw("lres.cancelled");
       out.showNow = false;
       return out;
     }
     if (state === "gone") {
-      out.text = "Không còn lịch chạy lại (máy chủ vừa khởi động lại?). Bấm Gửi lại ở tin của bạn nếu vẫn cần.";
+      out.text = tw("lres.gone");
       out.showNow = false;
       return out;
     }
     if (state === "pending") {
       // Khung error vua toi, server chua noi co hen hay khong. Chi nhac moc mo lai.
-      out.text = when ? "Hạn mức mở lại lúc " + when + "." : "";
+      out.text = when ? tw("lres.reset_at", { gio: when }) : "";
       out.showNow = false;
       return out;
     }
@@ -92,25 +106,25 @@
     if (state === "scheduled" && info.auto) {
       out.showAuto = true;
       if (leftS > 0) {
-        out.text = "Tự chạy lại lúc " + when;
+        out.text = tw("lres.auto_at", { gio: when });
         out.left = fmtLeft(leftS);
       } else {
-        out.text = "Đến giờ rồi, đang chờ máy chủ chạy lại...";
+        out.text = tw("lres.due_waiting");
       }
       return out;
     }
     var reason = info.reason || "off";
     if (reason === "no_reset") {
-      out.text = "Nhà cung cấp không nói lúc nào mở lại, nên không hẹn giờ được.";
+      out.text = tw("lres.no_reset");
     } else if (reason === "too_far") {
-      out.text = "Hạn mức mở lại lúc " + when + ", quá xa để hẹn tự chạy.";
+      out.text = tw("lres.too_far", { gio: when });
     } else if (reason === "max_attempts") {
-      out.text = "Đã tự chạy lại " + (info.max_attempts || 3) + " lần mà vẫn hết lượt, thôi không hẹn nữa.";
+      out.text = tw("lres.max_attempts", { count: info.max_attempts || 3 });
     } else if (reason === "off") {
       out.showAuto = true;
-      out.text = when ? "Hạn mức mở lại lúc " + when + ". Không tự chạy lại." : "Không tự chạy lại.";
+      out.text = when ? tw("lres.off_at", { gio: when }) : tw("lres.off");
     } else {
-      out.text = when ? "Hạn mức mở lại lúc " + when + "." : "";
+      out.text = when ? tw("lres.reset_at", { gio: when }) : "";
     }
     return out;
   }
@@ -135,11 +149,11 @@
       '</div>';
     if (d.showAuto) {
       h += '<label class="jv-resume-auto"><input type="checkbox"' + (d.auto ? " checked" : "") +
-        (d.busy ? " disabled" : "") + '> Tự tiếp tục khi hạn mức reset</label>';
+        (d.busy ? " disabled" : "") + '> ' + esc(tw("lres.auto_label")) + '</label>';
     }
     if (d.showNow) {
       h += '<div class="jv-resume-row"><button type="button" class="jv-resume-now"' + (d.busy ? " disabled" : "") +
-        '>Chạy lại ngay</button>' +
+        '>' + esc(tw("lres.now_btn")) + '</button>' +
         (eng ? '<span class="jv-resume-eng">' + esc(eng) + '</span>' : "") + '</div>';
     }
     return h;

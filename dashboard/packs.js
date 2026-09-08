@@ -20,6 +20,39 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+  // Từ điển vi.json khi file này chạy DƯỚI NODE (test nạp nó bằng `new Function`). Trong thân
+  // một `new Function` thì `require` KHÔNG tồn tại - nó là biến của module, không phải biến
+  // toàn cục - nên mượn `process.mainModule.require`. Ba đường dò vì lối nạp đó không để lại
+  // vị trí của chính file này. Trong trình duyệt không có `process`, cả khối rơi vào catch.
+  let _tuVi = null;
+  function tuDienVi() {
+    if (_tuVi) return _tuVi;
+    _tuVi = {};
+    try {
+      const req = process.mainModule.require;
+      const p = req("path");
+      const goc = p.dirname(process.mainModule.filename);
+      [p.join(process.cwd(), "dashboard/i18n/vi.json"),
+       p.join(goc, "../../dashboard/i18n/vi.json"),
+       p.join(goc, "i18n/vi.json")].forEach((d) => {
+        if (Object.keys(_tuVi).length) return;
+        try { _tuVi = req(d) || {}; } catch (e) { /* thử đường kế tiếp */ }
+      });
+    } catch (e) { /* trình duyệt: không có process, và cũng không cần */ }
+    return _tuVi;
+  }
+
+  // Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước file
+  // này); dưới node là vi.json ở trên, để hàm trả về chữ THẬT chứ không phải mã khoá trần -
+  // mấy test kho so đúng câu hiện ra trên thẻ.
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return window.t(khoa, bien);
+    const s = tuDienVi()[khoa];
+    if (s == null) return khoa;
+    return String(s).replace(/\{(\w+)\}/g, (m, ten) =>
+      (bien && bien[ten] != null) ? String(bien[ten]) : m);
+  }
+
   // name/description là map đa ngôn ngữ. Lấy theo ngôn ngữ giao diện, rơi về en, rồi về giá
   // trị đầu tiên có được - thiếu bản dịch thì hiện tiếng khác, không bao giờ hiện trống.
   function nn(v, mac) {
@@ -83,7 +116,8 @@
     return '<div class="pkm-dau">' + (g ? veAvatar(g) : "")
       + '<div class="pkm-chu"><div class="pkm-ten">' + ten + '</div>'
       + (phu ? '<div class="pkm-phu">' + phu + '</div>' : "") + '</div>'
-      + '<button class="mp-x" data-act="close" title="Đóng">' + ic("x") + '</button></div>';
+      + '<button class="mp-x" data-act="close" title="' + esc(tw("common.close")) + '">'
+      + ic("x") + '</button></div>';
   }
 
   function dangCho(ten, dong2) {
@@ -96,13 +130,16 @@
   function manHinhLoi(ten, loi, buoc, lamLai) {
     modal(pkmDau(null, esc(ten), "")
       + '<div class="pkm-than"><div class="pkm-canh do">'
-      + '<div class="pkm-canh-tieu">' + ic("triangle-alert") + 'Không cài được</div>'
+      + '<div class="pkm-canh-tieu">' + ic("triangle-alert") + tw("store.err.title") + '</div>'
       + '<div>' + esc(loi) + '</div>'
-      + (buoc ? '<div class="pkm-o-phu">Dừng ở bước: ' + esc(buoc) + '</div>' : "")
+      + (buoc ? '<div class="pkm-o-phu">' + tw("store.err.stage", { buoc: esc(buoc) })
+          + '</div>' : "")
       + '</div></div>'
       + '<div class="pkm-chan">'
-      + (lamLai ? '<button class="mp-btn" id="pkLai">Chọn tệp khác</button>' : "")
-      + '<button class="mp-btn primary" data-act="close">Đóng</button></div>', true);
+      + (lamLai ? '<button class="mp-btn" id="pkLai">' + tw("store.pick_other_file")
+          + '</button>' : "")
+      + '<button class="mp-btn primary" data-act="close">' + tw("common.close")
+      + '</button></div>', true);
     const b = document.getElementById("pkLai");
     if (b) b.onclick = lamLai;
   }
@@ -122,13 +159,14 @@
         + '<div class="pkm-than">'
         + '<div class="pkm-canh ' + (o.mau || "vang") + '">'
         + '<div class="pkm-canh-tieu">' + ic(o.mau === "do" ? "triangle-alert" : "info")
-        + esc(o.canhTieu || "Bạn có chắc không?") + '</div>'
+        + esc(o.canhTieu || tw("store.confirm.title")) + '</div>'
         + '<div>' + (o.than || "") + '</div></div>'
         + (o.themHtml || "") + '</div>'
         + '<div class="pkm-chan">'
-        + '<button class="mp-btn" id="pkHoiKhong">' + esc(o.khong || "Huỷ") + '</button>'
+        + '<button class="mp-btn" id="pkHoiKhong">'
+        + esc(o.khong || tw("common.cancel")) + '</button>'
         + '<button class="mp-btn ' + (o.mau === "do" ? "danger" : "primary") + '" id="pkHoiCo">'
-        + esc(o.co || "Đồng ý") + '</button></div>', true);
+        + esc(o.co || tw("store.confirm.yes")) + '</button></div>', true);
       // Nút HUỶ giữ tiêu điểm: gõ Enter theo quán tính không được phép là "đồng ý xoá".
       const k = document.getElementById("pkHoiKhong");
       k.focus();
@@ -147,13 +185,15 @@
   //
   // Icon lấy ĐÚNG icon trang tương ứng ở thanh bên (`console.js` VIEW_ICON), không chọn lại
   // cho đẹp: người dùng nhận ra "cái này là kỹ năng" bằng hình họ đã thấy hàng ngày.
+  // `nhan` giữ KHOÁ từ điển chứ không giữ chữ: bảng này dựng lúc nạp file, sớm hơn lúc từ
+  // điển về, nên chỗ VẼ mới tra bằng tw().
   const LOAI = {
-    agent:     { nhan: "Trợ lý",    icon: "bot",      trang: "agents" },
-    skill:     { nhan: "Kỹ năng",   icon: "puzzle",   trang: "skills" },
-    workflow:  { nhan: "Quy trình", icon: "workflow", trang: "workflows" },
-    tool:      { nhan: "Công cụ",   icon: "toolbox",  trang: "plugins" },
-    connector: { nhan: "Kết nối",   icon: "plug",     trang: "mcp" },
-    bundle:    { nhan: "Trọn bộ",   icon: "package",  trang: "" },
+    agent:     { nhan: "store.kind.agent",     icon: "bot",      trang: "agents" },
+    skill:     { nhan: "store.kind.skill",     icon: "puzzle",   trang: "skills" },
+    workflow:  { nhan: "store.kind.workflow",  icon: "workflow", trang: "workflows" },
+    tool:      { nhan: "store.kind.tool",      icon: "toolbox",  trang: "plugins" },
+    connector: { nhan: "store.kind.connector", icon: "plug",     trang: "mcp" },
+    bundle:    { nhan: "store.kind.bundle",    icon: "package",  trang: "" },
   };
   const THU_TU_LOAI = ["agent", "skill", "workflow", "tool", "connector"];
 
@@ -180,16 +220,17 @@
   let _veLuot = null;
 
   const BAC = {
-    data: { nhan: "Chỉ dữ liệu", mau: "var(--ok-ink,#2f855a)" },
-    code: { nhan: "Có chạy mã", mau: "var(--warn-ink,#b7791f)" },
+    data: { nhan: "store.tier.data", mau: "var(--ok-ink,#2f855a)" },
+    code: { nhan: "store.tier.code", mau: "var(--warn-ink,#b7791f)" },
   };
 
   function vaultTom(v) {
     // Tóm tắt "gói này thêm gì vào bộ não", dạng "2 trợ lý, 1 kỹ năng".
-    const TEN = { agents: "trợ lý", workflows: "quy trình", skills: "kỹ năng" };
+    const TEN = { agents: "store.vault.agents", workflows: "store.vault.workflows",
+                  skills: "store.vault.skills" };
     return Object.keys(TEN)
       .filter(k => ((v || {})[k] || []).length)
-      .map(k => (v[k].length + " " + TEN[k]));
+      .map(k => tw(TEN[k], { count: v[k].length }));
   }
 
   // ---- Màn hình xác nhận trước khi cài, vẽ hoàn toàn từ kết quả /packs/inspect ----
@@ -211,56 +252,63 @@
       '<div class="pkm-o' + (rong ? " rong" : "") + '"><div class="pkm-o-nhan">' + nhan + '</div>'
       + gt + (phu ? '<div class="pkm-o-phu">' + phu + '</div>' : "") + '</div>';
     const bang = [
-      o("Tệp", '<div class="pkm-o-gt">' + esc(d.filename || "tệp bạn vừa chọn")
+      o(tw("store.inspect.file"), '<div class="pkm-o-gt">'
+        + esc(d.filename || tw("store.inspect.file_fallback"))
         + ' <span class="nhe">· ' + co(d.size) + '</span></div>'),
-      o("Mã kiểm tra tệp", '<div class="pkm-o-ma">' + esc((d.sha256 || "").slice(0, 20)) + '…</div>',
-        "Khớp với mã nhà phát hành công bố thì tệp là bản nguyên, chưa ai sửa dọc đường."),
-      kn.length ? o("Thêm vào kho Kết nối",
-        '<div class="pkm-o-gt">' + kn.length + ' dịch vụ: '
+      o(tw("store.inspect.sha"),
+        '<div class="pkm-o-ma">' + esc((d.sha256 || "").slice(0, 20)) + '…</div>',
+        tw("store.inspect.sha_note")),
+      kn.length ? o(tw("store.inspect.add_conn"),
+        '<div class="pkm-o-gt">' + tw("store.inspect.conn_count", { count: kn.length }) + ' '
         + kn.map(x => '<code>' + esc(x) + '</code>').join(", ") + '</div>',
-        "Mọi dịch vụ từ gói đều bắt đầu ở mức Chỉ đọc. Muốn cho ghi thì bạn tự nâng quyền từng "
-        + "tài khoản.", true) : "",
-      vt.length ? o("Thêm vào bộ não đang mở", '<div class="pkm-o-gt">' + vt.join(", ") + '</div>',
-        "Bộ não đã có mục trùng tên thì Javis giữ bản của bạn và bỏ qua bản trong gói. Gỡ gói "
-        + "cũng chỉ xoá thứ bạn chưa sửa.", true) : "",
+        tw("store.inspect.conn_note"), true) : "",
+      vt.length ? o(tw("store.inspect.add_vault"),
+        '<div class="pkm-o-gt">' + vt.join(", ") + '</div>',
+        tw("store.inspect.vault_note"), true) : "",
     ].filter(Boolean).join("");
 
     modal(
       pkmDau(d, esc(nn(d.name, d.id))
           + (d.version ? '<span class="pkm-ver">v' + esc(d.version) + '</span>' : ""),
         '<code>' + esc(d.id) + '</code>'
-          + (d.author && d.author.name ? ' · tác giả ' + esc(d.author.name) : ""))
+          + (d.author && d.author.name
+              ? ' · ' + tw("store.inspect.author", { ten: esc(d.author.name) }) : ""))
       + '<div class="pkm-than">'
       + (nn(d.description) ? '<p class="pkm-mota">' + esc(nn(d.description)) + '</p>' : "")
       + '<div class="pkm-bang">' + bang + '</div>'
       + (d.da_cai
           ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
-            + 'Máy đã có gói này</div><div>Đang chạy bản <b>' + esc(d.da_cai.version || "?")
-            + '</b>. Cài tiếp là THAY bản cũ.</div></div>' : "")
+            + tw("store.inspect.already.title") + '</div><div>'
+            + tw("store.inspect.already.body",
+                 { ver: '<b>' + esc(d.da_cai.version || "?") + '</b>' })
+            + '</div></div>' : "")
       + (d.warning
           ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
-            + 'Một phần của gói bị bỏ qua</div><div>' + esc(d.warning) + '</div></div>' : "")
+            + tw("store.inspect.skipped.title") + '</div><div>' + esc(d.warning)
+            + '</div></div>' : "")
       // Gói chưa qua review của người phát hành kho: nói dài hơn một dòng. Không chặn - ai tin
       // nguồn nào là lựa chọn của người cài - nhưng họ phải biết mình đang chọn gì.
       + ((d._tin && d._tin.verified === false)
           ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("info")
-            + 'Gói của cộng đồng</div><div>Gói này do người ngoài gửi vào kho, '
-            + 'chưa qua kiểm duyệt của người phát hành. Đọc kỹ phần bên dưới trước khi '
-            + 'cài.</div></div>' : "")
+            + tw("store.inspect.community.title") + '</div><div>'
+            + tw("store.inspect.community.body") + '</div></div>' : "")
       // Khối cảnh báo cho gói có mã: KHÔNG gập được, không icon ổ khoá, không làm mềm chữ.
       // `permissions` trong manifest là lời khai của tác giả, không có tầng nào chặn, và
       // `min_mode` chỉ giới hạn cái MODEL được gọi chứ không giới hạn cái mã làm được.
       + (coMa
         ? '<div class="pkm-canh do"><div class="pkm-canh-tieu">' + ic("triangle-alert")
-          + 'Gói này chạy Python thật trong máy chủ Javis</div>'
-          + '<div>Nó đọc được mọi khoá API, token và tệp mà Javis đọc được. Không có lớp ngăn '
-          + 'nào cả. Chỉ cài gói từ nguồn bạn tin.</div>'
+          + tw("store.inspect.code.title") + '</div>'
+          + '<div>' + tw("store.inspect.code.body") + '</div>'
           + (py.length
-              ? '<div class="pkm-o-phu">Tệp mã trong gói: '
+              ? '<div class="pkm-o-phu">' + tw("store.inspect.code.files") + ' '
                 + py.slice(0, 12).map(x => '<code>' + esc(x) + '</code>').join(", ")
-                + (py.length > 12 ? " và " + (py.length - 12) + " tệp nữa" : "") + '</div>' : "")
-          + '<label>Gõ đúng <b>' + esc(d.id) + '</b> để xác nhận:'
-          + '<input class="mp-input" id="pkGo" placeholder="Gõ lại mã gói" autocomplete="off">'
+                + (py.length > 12
+                    ? " " + tw("store.inspect.code.more", { count: py.length - 12 }) : "")
+                + '</div>' : "")
+          + '<label>'
+          + tw("store.inspect.code.type_label", { ma: '<b>' + esc(d.id) + '</b>' })
+          + '<input class="mp-input" id="pkGo" placeholder="'
+          + esc(tw("store.inspect.code.type_ph")) + '" autocomplete="off">'
           + '</label></div>' : "")
       // Mặc định của công tắc đi theo BẬC của gói, không phải một hằng số:
       //
@@ -270,17 +318,18 @@
       //           một lớp an toàn. Vấp thật khi thử đường di trú: kết nối đang chết, người dùng
       //           bấm cài đúng gói cần, và KHÔNG có gì xảy ra vì gói vào máy ở trạng thái tắt.
       + '<button class="pkm-gat" id="pkBat" type="button" aria-pressed="' + (coMa ? "false" : "true") + '">'
-      + '<span><span class="pkm-gat-t">Bật ngay sau khi cài</span>'
+      + '<span><span class="pkm-gat-t">' + tw("store.inspect.enable.title") + '</span>'
       + '<span class="pkm-gat-s">'
-      + (coMa ? "Mặc định tắt vì gói có chạy mã, để bạn xem lại trước."
-              : "Gói chỉ có dữ liệu, bật là dùng được ngay.")
+      + (coMa ? tw("store.inspect.enable.off_note")
+              : tw("store.inspect.enable.on_note"))
       + '</span></span>'
       + '<span class="pkm-cong"><span></span></span></button>'
       + '</div>'
       + '<div class="pkm-chan"><span class="mp-note" id="pkNote"></span>'
       + '<button class="mp-btn" ' + (tuTep ? 'id="pkKhac"' : 'data-act="close"') + '>'
-      + (tuTep ? "Chọn tệp khác" : "Huỷ") + '</button>'
-      + '<button class="mp-btn primary" id="pkCai">Cài</button></div>', true);
+      + (tuTep ? tw("store.pick_other_file") : tw("common.cancel")) + '</button>'
+      + '<button class="mp-btn primary" id="pkCai">' + tw("store.inspect.install_btn")
+      + '</button></div>', true);
 
     // Nút bên TRÁI (huỷ / chọn tệp khác) nhận tiêu điểm mặc định: Enter theo quán tính không
     // được phép là "đồng ý cài mã lạ".
@@ -296,11 +345,11 @@
       if (coMa) {
         const v = (document.getElementById("pkGo") || {}).value || "";
         if (v.trim() !== d.id) {
-          note.textContent = "Gõ đúng mã gói thì mới cài được.";
+          note.textContent = tw("store.inspect.type_wrong");
           return;
         }
       }
-      note.textContent = "Đang cài…";
+      note.textContent = tw("store.installing");
       const r = await postJson("/packs/install", {
         staging_id: d.staging_id, consent_sha256: d.sha256,
         enable: gat.getAttribute("aria-pressed") === "true",
@@ -309,7 +358,10 @@
         // console.js lẫn chat-render.js đều dùng - đi qua nó thay vì tự đoán chỗ khác.
         brain: (typeof currentBrainPath === "function" ? currentBrainPath() : "") || "brain",
       });
-      if (!r || !r.ok) { note.textContent = (r && r.error) || "Cài không được."; return; }
+      if (!r || !r.ok) {
+        note.textContent = (r && r.error) || tw("store.install_failed");
+        return;
+      }
       dong();
       veLai(el);
     };
@@ -319,10 +371,11 @@
     // Tải từ kho hay từ link đều dừng ở bước SOI rồi mở đúng màn hình xác nhận như tệp tải
     // lên. Đường từ kho về máy không được phép ngắn hơn đường từ tệp: cùng một thứ để đọc,
     // cùng một chốt dấu vân tay.
-    dangCho("Đang tải gói", "Tải về và kiểm tra tệp…");
+    dangCho(tw("store.downloading.title"), tw("store.downloading.body"));
     const d = await postJson("/packs/install-url", { url: url, expect_sha256: expect || "" });
     if (!d || !d.ok) {
-      manHinhLoi("Cài từ kho", (d && d.error) || "Tải không được.", d && d.stage);
+      manHinhLoi(tw("store.install_from_store"),
+        (d && d.error) || tw("store.download_failed"), d && d.stage);
       return;
     }
     d._tin = tin || null;
@@ -342,23 +395,24 @@
   // thì phải hỏi y hệt nhau. Vì thế nó nằm ở `window.JavisPacks`.
   async function goApp(ten, id) {
     const p = await postJson("/connect/core-toggle", { id: id, off: true, plan: true });
-    if (!p || !p.ok) return { ok: false, error: (p && p.error) || "Không đọc được dịch vụ này." };
+    if (!p || !p.ok) {
+      return { ok: false, error: (p && p.error) || tw("store.conn.read_failed") };
+    }
     const kn = p.connections || [];
     const dongY = await hoi({
-      tieu: "Gỡ " + ten + " khỏi kho Kết nối?",
-      mau: "do", co: "Gỡ", khong: "Giữ lại",
+      tieu: tw("store.conn.remove_title", { ten: ten }),
+      mau: "do", co: tw("proj.remove_short"), khong: tw("store.conn.keep"),
       canhTieu: kn.length
-        ? kn.length + " kết nối đang chạy sẽ DỪNG"
-        : "Bạn chắc chắn muốn gỡ chứ?",
+        ? tw("store.conn.will_stop", { count: kn.length })
+        : tw("store.conn.sure"),
       than: (kn.length
-        ? "<b>" + kn.map(x => esc(x.label)).join(", ") + "</b> ngừng hoạt động ngay khi gỡ. "
-          + "Kết nối KHÔNG bị xoá: cài lại dịch vụ là chúng chạy tiếp như cũ."
-        : "Dịch vụ này biến khỏi kho Kết nối và khỏi mọi engine. Tệp của nó vẫn nằm trong bản "
-          + "cài - Javis không sửa mã nguồn của chính nó - nên cài lại lúc nào cũng được."),
+        ? tw("store.conn.stop_body",
+             { ten: "<b>" + kn.map(x => esc(x.label)).join(", ") + "</b>" })
+        : tw("store.conn.gone_body")),
     });
     if (!dongY) return { ok: false, huy: true };
     const r = await postJson("/connect/core-toggle", { id: id, off: true, confirm: true });
-    return { ok: !!(r && r.ok), error: (r && r.error) || "Không gỡ được." };
+    return { ok: !!(r && r.ok), error: (r && r.error) || tw("store.conn.remove_failed") };
   }
 
   // ---- Ảnh đại diện của một mục ----
@@ -426,12 +480,17 @@
     const moi = coBanMoi(g);
     if (g.nguon === "app") {
       return g.installed
-        ? { nhan: "Gỡ khỏi Javis", lop: "kho-btn kho-btn-go", act: "coreoff" }
-        : { nhan: "Cài lại", lop: "kho-btn kho-btn-chinh", act: "coreon" };
+        ? { nhan: tw("store.btn.remove_from_javis"), lop: "kho-btn kho-btn-go", act: "coreoff" }
+        : { nhan: tw("store.btn.reinstall"), lop: "kho-btn kho-btn-chinh", act: "coreon" };
     }
-    if (moi) return { nhan: "Có bản mới v" + esc(g.version), lop: "kho-btn kho-btn-chinh", act: "cai" };
-    if (g.installed) return { nhan: "Gỡ cài đặt", lop: "kho-btn kho-btn-go", act: "go", tat: true };
-    return { nhan: "Cài đặt", lop: "kho-btn kho-btn-chinh", act: "cai" };
+    if (moi) {
+      return { nhan: tw("store.btn.update_to", { ver: esc(g.version) }),
+               lop: "kho-btn kho-btn-chinh", act: "cai" };
+    }
+    if (g.installed) {
+      return { nhan: tw("store.btn.uninstall"), lop: "kho-btn kho-btn-go", act: "go", tat: true };
+    }
+    return { nhan: tw("store.btn.install"), lop: "kho-btn kho-btn-chinh", act: "cai" };
   }
 
   // Dòng trạng thái dưới mô tả. Nói ĐỦ HAI SỐ khi có bản mới, vì "đang chạy cái gì" và "kho
@@ -439,14 +498,16 @@
   function dongDaCai(g) {
     if (!g.installed) return "";
     if (g.nguon === "app" || !g.installed_version) {
-      return '<div class="kho-daicai">' + ic("check") + ' Đã cài trên máy</div>';
+      return '<div class="kho-daicai">' + ic("check") + ' ' + tw("store.installed_here")
+        + '</div>';
     }
     if (coBanMoi(g)) {
-      return '<div class="kho-daicai moi">' + ic("arrow-up") + ' Đang chạy v'
-        + esc(g.installed_version) + ', kho có v' + esc(g.version) + '</div>';
+      return '<div class="kho-daicai moi">' + ic("arrow-up") + ' '
+        + tw("store.running_store_has",
+             { cai: esc(g.installed_version), kho: esc(g.version) }) + '</div>';
     }
-    return '<div class="kho-daicai">' + ic("check") + ' Đã cài v' + esc(g.installed_version)
-      + ', đang là bản mới nhất</div>';
+    return '<div class="kho-daicai">' + ic("check") + ' '
+      + tw("store.installed_latest", { ver: esc(g.installed_version) }) + '</div>';
   }
 
   function theKho(g) {
@@ -462,13 +523,14 @@
     return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
       + ' data-nhom="' + esc(g.nhom || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
       + '<div class="kho-dau">' + veAvatar(g)
-      + '<span class="kho-nhom">' + esc(g.nhom || lo.nhan) + '</span></div>'
+      + '<span class="kho-nhom">' + esc(g.nhom || tw(lo.nhan)) + '</span></div>'
       + '<div class="kho-ten">' + esc(nn(g.name, g.id))
-      + ' <span class="prov-kind">' + esc(lo.nhan) + '</span>'
-      + ' <span class="prov-kind" style="color:' + bac.mau + '">' + bac.nhan + '</span>'
+      + ' <span class="prov-kind">' + esc(tw(lo.nhan)) + '</span>'
+      + ' <span class="prov-kind" style="color:' + bac.mau + '">' + tw(bac.nhan) + '</span>'
       + (g.verified
-          ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">chính chủ</span>'
-          : ' <span class="prov-kind">cộng đồng</span>')
+          ? ' <span class="prov-kind" style="color:var(--ok-ink,#2f855a)">'
+            + tw("store.verified") + '</span>'
+          : ' <span class="prov-kind">' + tw("store.community") + '</span>')
       + '</div>'
       + '<div class="cat-desc">' + esc(nn(g.description)) + '</div>'
       + '<div class="prov-meta">' + meta + '</div>'
@@ -479,7 +541,7 @@
       // người ta cần nó khi một gói đang gây phiền mà chưa muốn mất cấu hình.
       + (n.tat
           ? '<button class="kho-btn kho-btn-phu" data-kho-act="tat" data-kho-id="' + esc(g.id)
-            + '">' + (g.enabled === false ? "Bật" : "Tắt") + '</button>'
+            + '">' + (g.enabled === false ? tw("cb.bat") : tw("cb.tat")) + '</button>'
           : "")
       + '<button class="' + n.lop + '" data-kho-act="' + n.act + '" data-kho-id="' + esc(g.id) + '">'
       + n.nhan + '</button></div>'
@@ -606,7 +668,7 @@
       const trong = ds.filter(g => (g.kind || "bundle") === k);
       const nMoi = trong.filter(coBanMoi).length;
       return '<button class="kho-tab' + (on ? " on" : "") + '" data-kho-loai="' + k + '">'
-        + esc(LOAI[k].nhan)
+        + esc(tw(LOAI[k].nhan))
         + ' <span class="kho-dem">' + trong.length + '</span>'
         // Huy hiệu ngay trên TAB, không chỉ trong lưới: mục đích là thấy được bản mới nằm ở
         // tab nào mà không phải bấm thử từng tab một.
@@ -626,7 +688,7 @@
         + '<span><b>' + capNhat.length + ' gói đã cài</b> có bản mới trong kho.</span>'
         + THU_TU_LOAI.filter(k => capNhat.some(g => (g.kind || "bundle") === k))
             .map(k => '<button class="kho-chip" data-kho-moi="' + k + '">'
-              + esc(LOAI[k].nhan) + ' ('
+              + esc(tw(LOAI[k].nhan)) + ' ('
               + capNhat.filter(g => (g.kind || "bundle") === k).length + ')</button>').join("")
         + '</div>'
       : "";
@@ -650,7 +712,7 @@
       // Bề rộng do CSS lo, không viết cứng ở đây: trên điện thoại ô này phải chiếm trọn hàng,
       // mà style nội tuyến thì media query không đè được nếu không kèm !important.
       + '<input class="js-input kho-tim" id="pkQ" placeholder="Tìm trong '
-      + esc(LOAI[_kho.loai].nhan) + '…" value="' + esc(_kho.tim) + '">'
+      + esc(tw(LOAI[_kho.loai].nhan)) + '…" value="' + esc(_kho.tim) + '">'
       + '<span class="prov-meta">' + hop.length
       + (laDaCai ? ' mục đã cài' : laMoi ? ' mục có bản mới'
          : laCongDong ? ' mục cộng đồng' : ' mục') + '</span>'
@@ -663,8 +725,8 @@
       + '</div>'
       + '<div class="cat-grid" id="pkGrid">' + hienThi.map(theKho).join("") + '</div>'
       + (hienThi.length ? "" : '<div class="mp-empty">'
-          + (laDaCai ? 'Chưa cài mục nào trong ' + esc(LOAI[_kho.loai].nhan) + '.'
-             : laMoi ? 'Mọi gói đã cài trong ' + esc(LOAI[_kho.loai].nhan)
+          + (laDaCai ? 'Chưa cài mục nào trong ' + esc(tw(LOAI[_kho.loai].nhan)) + '.'
+             : laMoi ? 'Mọi gói đã cài trong ' + esc(tw(LOAI[_kho.loai].nhan))
                        + ' đều đang ở bản mới nhất.'
              : 'Không có mục nào khớp bộ lọc.') + '</div>')
       + (soTrang > 1
