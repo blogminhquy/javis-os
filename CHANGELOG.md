@@ -2,7 +2,9 @@
 
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại mục **Cập nhật** trên thanh bên trái.
 
-Định dạng: mỗi phiên bản là một khối `## [0.55.54] - 2026-09-08
+Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+
+## [0.55.54] - 2026-09-08
 ### Cải thiện
 - **Chuyển sang tiếng Anh giờ là tiếng Anh thật.** Trước đây đổi ngôn ngữ xong vẫn còn nhiều mảng tiếng Việt: Javis Store, trang Chatbot, Mức dùng token, hộp thư thông báo, terminal, lịch sử hội thoại, khung sửa file, dải việc nền và phần lớn trang Cài đặt, Kết nối, Models, Cập nhật. Hơn 1.200 câu chữ nữa đã có bản tiếng Anh.
 - **Đổi ngôn ngữ ăn ngay** ở hộp thư thông báo, thanh chọn model, trang Mức dùng và thẻ tên miền. Trước đây mấy chỗ này vẽ chữ một lần rồi thôi, phải tải lại trang mới thấy đổi.
@@ -11,8 +13,6 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Nhắc hẹn đặt bằng tiếng Anh đã tạo được.** Ô nhập mời bạn gõ "in 30 minutes" nhưng Javis chỉ hiểu "30 phút nữa", nên làm đúng theo gợi ý thì nhắc hẹn lặng lẽ không được tạo. Nay hiểu cả hai thứ tiếng.
 - **Bấm vào một thẻ việc thì ngăn kéo chi tiết hiện nội dung**, thay vì mở ra rỗng và đứng im.
 - **Menu gõ dấu gạch chéo trong trình sửa lọc lại đúng.** Trước đó gõ chữ nào cũng ra đủ mười lệnh.
-
-## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
 ## [0.55.53] - 2026-09-07
 ### Sửa lỗi
