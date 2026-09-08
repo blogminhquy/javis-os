@@ -31,13 +31,34 @@ const path = require("path");
 
 const root = path.join(__dirname, "..", "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
-const nudge = read("dashboard/install-nudge.js");
+// Bóc chú thích TRƯỚC KHI SOI. Chú thích đầu install-nudge.js kể lại đúng những câu mà mấy
+// khẳng định dưới đây đi tìm ("Chia sẻ", "Thêm vào MH chính", "beforeinstallprompt"), nên soi
+// nguyên file là test xanh nhờ lời văn giải thích chứ không nhờ mã chạy - đúng cái bẫy đã sập
+// một lần: chuỗi tiếng Việt dời hết vào từ điển i18n mà hai khẳng định về đường dẫn iOS vẫn
+// xanh, vì chúng khớp với chú thích. Giải thích bằng tiếng Việt trong chú thích là quy ước
+// TỐT của repo này; chỉ có test là không được tin vào đó.
+function bocChuThich(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((d) => !d.trim().startsWith("//"))
+    // Chú thích cuối dòng cũng bóc, nhưng không cắt nhầm giữa một URL ("https://...").
+    .map((d) => d.replace(/(^|[^:])\/\/.*$/, "$1"))
+    .join("\n");
+}
+const nudge = bocChuThich(read("dashboard/install-nudge.js"));
 const app = read("dashboard/app.js");
 const html = read("dashboard/index.html");
 const css = read("dashboard/style.css");
 // 0.55.14: chữ tiếng Việt của giao diện đã dời vào từ điển i18n, nên mấy khẳng định về
-// LỜI LẼ dưới đây soi hai vế: file .js gọi đúng khoá, và khoá đó mang đúng câu.
+// LỜI LẼ dưới đây soi HAI VẾ: mã .js gọi đúng khoá, và khoá đó trong vi.json mang đúng câu.
+// Thiếu vế nào cũng là pass rỗng: soi mỗi khoá thì đổi câu thành gì cũng xanh, soi mỗi câu
+// thì gỡ hẳn khoá khỏi mã cũng xanh.
 const VI = JSON.parse(read("dashboard/i18n/vi.json"));
+// Đọc khoá và soi luôn nội dung: goiKhoa() lo vế mã, cauLa() lo vế từ điển.
+const goiKhoa = (k) => nudge.indexOf('"' + k + '"') !== -1;
+const cauLa = (k, chu) => (VI[k] || "").indexOf(chu) !== -1;
+const noiDung = (k, chu) => goiKhoa(k) && cauLa(k, chu);
 
 let fails = [];
 function check(name, cond, extra) {
@@ -56,8 +77,7 @@ check("CANARY: ghi mốc NGAY LÚC HIỆN, không đợi người dùng bấm n�
   && nudge.indexOf("ghi(KEY_LUC") < nudge.indexOf('querySelector("#inudSau")'));
 
 // ---- 2. Lối ra vĩnh viễn ----
-check("có nút 'Đừng nhắc nữa'",
-  nudge.indexOf("instl.tat") !== -1 && (VI["instl.tat"] || "").indexOf("Đừng nhắc nữa") !== -1);
+check("có nút 'Đừng nhắc nữa'", noiDung("instl.tat", "Đừng nhắc nữa"), VI["instl.tat"]);
 check("tắt hẳn thì không bao giờ hiện lại",
   /doc\(KEY_TAT\) === "1"\) return false/.test(nudge));
 check("cài xong rồi thì thôi nhắc, kể cả khi sau này mở lại bằng tab thường",
@@ -74,15 +94,18 @@ check("không bung ngay lúc mở trang (chờ một nhịp)",
   /CHO_TRUOC_KHI_HIEN\s*=\s*\d{4,}/.test(nudge) && /setTimeout\(thu, CHO_TRUOC_KHI_HIEN\)/.test(nudge));
 
 // ---- 4. Hướng dẫn ĐÚNG cho từng trình duyệt ----
-check("iOS: chỉ đường Chia sẻ → Thêm vào MH chính",
-  nudge.indexOf("Chia sẻ") !== -1 && nudge.indexOf("Thêm vào MH chính") !== -1);
+check("iOS: mã vẽ đủ ba bước của đường dẫn Safari",
+  goiKhoa("instl.ios1_b") && goiKhoa("instl.ios2_b") && goiKhoa("instl.ios3_b"));
+check("iOS: khoá bước 1 nói đúng nút 'Chia sẻ'",
+  noiDung("instl.ios1_b", "Chia sẻ"), VI["instl.ios1_b"]);
+check("iOS: khoá bước 2 nói đúng 'Thêm vào MH chính'",
+  noiDung("instl.ios2_b", "Thêm vào MH chính"), VI["instl.ios2_b"]);
 check("CANARY: iOS KHÔNG được vẽ nút Cài (Safari không có hộp cài nào để mở)",
   /coNutCai && !ios \? .*inudCai/.test(nudge));
 check("CANARY: iPadOS khai mình là Mac - phải soi maxTouchPoints mới nhận ra",
   /MacIntel.*maxTouchPoints/.test(nudge));
 check("trình duyệt không có hộp cài thì chỉ đường qua menu, không hứa nút",
-  nudge.indexOf("instl.menu2_b") !== -1
-  && (VI["instl.menu2_b"] || "").indexOf("Thêm vào màn hình chính") !== -1);
+  noiDung("instl.menu2_b", "Thêm vào màn hình chính"), VI["instl.menu2_b"]);
 
 // ---- 5. Dùng CHUNG một event beforeinstallprompt với nút trên thanh trạng thái ----
 check("app.js mở JavisInstall cho nơi khác dùng chung", /window\.JavisInstall = \{/.test(app));

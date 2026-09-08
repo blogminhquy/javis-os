@@ -242,10 +242,10 @@
     return "";   // code ngan -> khoi code inline
   }
   function artTitle(type, lang) {
-    if (type === "html") return "Trang HTML";
-    if (type === "svg") return "Anh SVG";
-    if (type === "mermaid") return "So do";
-    return "Ma " + ((lang || "text").toUpperCase());
+    if (type === "html") return tw("crender.art_html");
+    if (type === "svg") return tw("crender.art_svg");
+    if (type === "mermaid") return tw("crender.art_mermaid");
+    return tw("crender.art_code", { lang: (lang || "text").toUpperCase() });
   }
   function artIcon(type) {
     return ic(type === "html" ? "globe" : type === "svg" ? "image" : type === "mermaid" ? "chart-column" : "file");
@@ -253,12 +253,12 @@
   function artifactCard(type, lang, code) {
     var id = hashId(type + "" + code);
     registry[id] = { type: type, lang: lang, code: code };
-    var sub = code.split("\n").length + " dong · bam de xem";
+    var sub = tw("crender.art_lines", { count: code.split("\n").length });
     return '<div class="jv-art" role="button" tabindex="0" data-art="' + id + '">' +
       '<span class="jv-art-ic">' + artIcon(type) + "</span>" +
       '<span class="jv-art-meta"><span class="jv-art-title">' + esc(artTitle(type, lang)) + "</span>" +
       '<span class="jv-art-sub">' + esc(sub) + "</span></span>" +
-      '<span class="jv-art-open">Mo ▸</span></div>';
+      '<span class="jv-art-open">' + esc(tw("crender.art_open")) + ' ▸</span></div>';
   }
 
   function codeBlockHtml(lang, code, streaming) {
@@ -557,13 +557,13 @@
       '<div class="jv-ap-head">' +
         '<span class="jv-ap-title">Artifact</span>' +
         '<span class="jv-ap-tabs">' +
-          '<button class="jv-ap-tab active" data-tab="preview">Xem truoc</button>' +
-          '<button class="jv-ap-tab" data-tab="code">Ma nguon</button>' +
+          '<button class="jv-ap-tab active" data-tab="preview">' + esc(tw("crender.ap_preview")) + "</button>" +
+          '<button class="jv-ap-tab" data-tab="code">' + esc(tw("crender.ap_source")) + "</button>" +
         "</span>" +
         '<span class="jv-ap-actions">' +
-          '<button class="jv-ap-btn" data-act="copy" title="Copy ma nguon">⧉</button>' +
-          '<button class="jv-ap-btn" data-act="download" title="Tai ve">⇩</button>' +
-          '<button class="jv-ap-btn jv-ap-close" data-act="close" title="Dong (Esc)">' + ic("x") + '</button>' +
+          '<button class="jv-ap-btn" data-act="copy" title="' + esc(tw("crender.ap_copy")) + '">⧉</button>' +
+          '<button class="jv-ap-btn" data-act="download" title="' + esc(tw("common.download")) + '">⇩</button>' +
+          '<button class="jv-ap-btn jv-ap-close" data-act="close" title="' + esc(tw("crender.close_esc")) + '">' + ic("x") + '</button>' +
         "</span>" +
       "</div>" +
       '<div class="jv-ap-body"></div>';
@@ -627,7 +627,7 @@
       return;
     }
     if (art.type === "mermaid") {
-      elBody.innerHTML = '<div class="jv-ap-mermaid">Dang ve so do...</div>';
+      elBody.innerHTML = '<div class="jv-ap-mermaid">' + esc(tw("crender.mm_drawing")) + "</div>";
       renderMermaid(art.code, elBody.querySelector(".jv-ap-mermaid"));
       return;
     }
@@ -693,16 +693,16 @@
     if (!host) return;
     loadMermaid(function (ok) {
       if (!ok || !window.mermaid) {
-        host.innerHTML = '<div class="jv-ap-note">Khong tai duoc thu vien so do (co the dang offline). Xem ma o tab Ma nguon.</div>' +
+        host.innerHTML = '<div class="jv-ap-note">' + esc(tw("crender.mm_offline")) + "</div>" +
           '<pre class="code-block">' + esc(code) + "</pre>";
         return;
       }
       var id = "jvmm" + (++mmSeq);
       try {
         window.mermaid.render(id, code).then(function (res) { host.innerHTML = res.svg; })
-          .catch(function () { host.innerHTML = '<div class="jv-ap-note">So do sai cu phap mermaid.</div><pre class="code-block">' + esc(code) + "</pre>"; });
+          .catch(function () { host.innerHTML = '<div class="jv-ap-note">' + esc(tw("crender.mm_bad")) + '</div><pre class="code-block">' + esc(code) + "</pre>"; });
       } catch (e) {
-        host.innerHTML = '<div class="jv-ap-note">So do sai cu phap mermaid.</div><pre class="code-block">' + esc(code) + "</pre>";
+        host.innerHTML = '<div class="jv-ap-note">' + esc(tw("crender.mm_bad")) + '</div><pre class="code-block">' + esc(code) + "</pre>";
       }
     });
   }
@@ -857,7 +857,7 @@
         '<span class="jv-lb-nut">' +
           '<button type="button" data-lb="tai" title="' + esc(tw("crender.lb_dl_title")) + '">' + ic("download") + " " + esc(tw("common.download")) + "</button>" +
           '<button type="button" data-lb="tab" title="' + esc(tw("crender.lb_tab")) + '">' + ic("external-link") + "</button>" +
-          '<button type="button" data-lb="dong" title="' + esc(tw("kanban.close_esc")) + '">' + ic("x") + "</button>" +
+          '<button type="button" data-lb="dong" title="' + esc(tw("crender.close_esc")) + '">' + ic("x") + "</button>" +
         "</span>" +
       "</div>" +
       '<div class="jv-lb-khung"><img class="jv-lb-img" alt=""></div>';

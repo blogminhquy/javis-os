@@ -15,6 +15,9 @@
   var PAGE_SIZE = 5;
   var state = { items: [], read: new Set(), loadedAt: 0, loading: false, visibleCount: PAGE_SIZE,
                 thu: [], thuChuaDoc: 0, tab: "mine" };
+  // Ngày giờ đi theo NGÔN NGỮ đang chọn, không viết cứng "vi-VN": người đọc bản tiếng Anh
+  // mà thấy định dạng ngày kiểu Việt là lạc quẻ. Cả dashboard lấy locale từ đúng chỗ này.
+  function LOC() { return (window.JavisI18n && JavisI18n.locale()) || "vi-VN"; }
 
   function byId(id) { return document.getElementById(id); }
   function esc(value) {
@@ -88,7 +91,7 @@
   function kindLabel(kind) {
     if (kind === "marketing") return window.t("noti.kind_marketing");
     if (kind === "community") return window.t("noti.kind_community");
-    return window.t("page.logs.label");
+    return window.t("noti.kind_update");
   }
   function openUpdates() {
     closePanel();
@@ -111,15 +114,15 @@
     var d = new Date((Number(ts) || 0) * 1000);
     if (!ts || isNaN(d.getTime())) return "";
     var cach = (Date.now() - d.getTime()) / 1000;
-    if (cach < 60) return window.t("kanban.ago_now");
+    if (cach < 60) return window.t("noti.ago_now");
     if (cach < 3600) return window.t("noti.ago_min", { count: Math.floor(cach / 60) });
     if (cach < 86400) return window.t("noti.ago_hour", { count: Math.floor(cach / 3600) });
-    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) + " " +
-           d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(LOC(), { day: "2-digit", month: "2-digit" }) + " " +
+           d.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
   }
   function nhanLoai(kind) {
     if (kind === "report") return window.t("noti.card_report");
-    if (kind === "system") return window.t("settings.grp_system");
+    if (kind === "system") return window.t("noti.card_system");
     return window.t("noti.card_answer");
   }
   async function docThu(body) {
@@ -230,7 +233,7 @@
       return '<article class="noti-card' + unreadClass + '" tabindex="0" role="button" data-noti-id="' + esc(id) + '">' +
         '<div class="noti-card-top"><span class="noti-kind ' + esc(kind) + '">' + esc(kindLabel(kind)) + '</span>' +
         '<span class="noti-time">' + esc(item.published_at || "") + "</span></div>" +
-        "<h4>" + esc(item.title || window.t("noti.label")) + "</h4>" +
+        "<h4>" + esc(item.title || window.t("noti.card_untitled")) + "</h4>" +
         '<p class="noti-card-summary">' + esc(item.summary || "") + "</p>" + body + cta + "</article>";
     }).join("");
     var remaining = limited.length - visible.length;
@@ -319,7 +322,7 @@
     }
     nut.hidden = false;
     var on = await JavisPush.dangBat();
-    nut.textContent = on ? window.t("cb.tat") : window.t("noti.push_on");
+    nut.textContent = on ? window.t("noti.push_off") : window.t("noti.push_on");
     nut.classList.toggle("primary", !on);
     if (thu) thu.hidden = !on;
     if (ghi) ghi.textContent = loi || (on
@@ -419,6 +422,15 @@
       if (id && id !== "test") moTheoId(id); else openPanel();
     },
   };
+
+  // Từ điển về BẤT ĐỒNG BỘ (i18n/index.js fetch xong mới bắn "javis:i18n"). Hòm thư có thể
+  // đã vẽ xong trước lúc đó và in ra mã khoá; đổi ngôn ngữ giữa chừng cũng không ăn nếu
+  // không nghe. Vẽ lại thẻ, và vẽ lại cả ô thông báo đẩy khi ô đó đang hiện.
+  window.addEventListener("javis:i18n", function () {
+    render();
+    var hop = byId("notificationPush");
+    if (hop && !hop.hidden) veNutPush();
+  });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();

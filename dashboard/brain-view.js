@@ -26,6 +26,13 @@
     }
 
     apply(readHidden(), false);
+    // Từ điển i18n nạp bằng fetch, tức là VỀ SAU DOMContentLoaded. apply() chạy ngay ở đây
+    // nên window.t() lúc đó trả về chính cái khoá, và aria-label/title của nút mắt đọng lại
+    // đúng chuỗi "bview.overlay_show_aria". Nghe "javis:i18n" để viết lại bằng chữ thật -
+    // sự kiện này cũng bắn khi người dùng đổi ngôn ngữ giao diện.
+    window.addEventListener("javis:i18n", function () {
+      apply(root.classList.contains("brain-overlays-hidden"), false);
+    });
     button.addEventListener("click", function () {
       apply(!root.classList.contains("brain-overlays-hidden"), true);
     });
@@ -62,6 +69,11 @@
 
     // Hết phim (hoặc bấm dừng) → nút về trạng thái nghỉ
     window.addEventListener("javis-timelapse-end", function () { setPlaying(false); });
+
+    // Cùng lý do như nút mắt: tooltip do JS ghi thì phải ghi lại khi từ điển về / đổi ngôn ngữ.
+    window.addEventListener("javis:i18n", function () {
+      setPlaying(btn.classList.contains("playing"));
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

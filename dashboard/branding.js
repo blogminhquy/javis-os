@@ -5,6 +5,13 @@
 
   function $(id) { return document.getElementById(id); }
 
+  // Cả thẻ tên miền (wizard 3 bước + badge DNS/SSL) lẫn dòng trạng thái ảnh đại diện đều
+  // được VẼ MỘT LẦN bằng JS, nên đổi ngôn ngữ giao diện là chúng đứng nguyên tiếng cũ.
+  // Nhớ lại dữ liệu đã vẽ để lượt "javis:i18n" dựng lại y hệt bằng từ điển mới, khỏi phải
+  // gọi lại /domain/status (một lượt tra DNS thật, chậm và vô cớ).
+  var _domCache = null;      // JSON /domain/status lần vẽ gần nhất; null = chưa vẽ lần nào
+  var _logoCustom = null;    // true/false = đang dùng ảnh riêng / ảnh mặc định; null = chưa biết
+
   function setStatus(id, msg, isErr) {
     var el = $(id);
     if (!el) return;
@@ -71,6 +78,7 @@
       var j = await r.json().catch(function () { return {}; });
       if (!r.ok || !j.ok) { setStatus("brandLogoStatus", j.error || window.t("brand.upload_failed"), true); return; }
       bustLogos();
+      _logoCustom = true;
       setStatus("brandLogoStatus", window.t("brand.image_updated"), false);
     } catch (e) {
       setStatus("brandLogoStatus", window.t("brand.net_err_upload"), true);
@@ -84,6 +92,7 @@
       var j = await r.json().catch(function () { return {}; });
       if (!r.ok || !j.ok) { setStatus("brandLogoStatus", (j && j.error) || window.t("brand.restore_failed"), true); return; }
       bustLogos();
+      _logoCustom = false;
       setStatus("brandLogoStatus", window.t("brand.image_reset"), false);
     } catch (e) {
       setStatus("brandLogoStatus", window.t("app.err_net"), true);
@@ -98,6 +107,7 @@
 
   // Vẽ trạng thái tên miền + SSL từ dữ liệu /domain/status.
   function renderDomainStatus(j) {
+    _domCache = j || { domain: "" };
     var row = $("domStatusRow"), sslRow = $("domSslRow"), guide = $("domainGuide");
     if (!j || !j.domain) {
       if (row) row.style.display = "none";
@@ -201,7 +211,8 @@
       var dom = (j.domain || {}).custom || "";
       var di = $("setDomain"); if (di) di.value = dom;
       var b = j.branding || {};
-      setStatus("brandLogoStatus", b.logo_ext ? window.t("brand.using_custom_image") : window.t("brand.using_default_image"), false);
+      _logoCustom = !!b.logo_ext;
+      setStatus("brandLogoStatus", _logoCustom ? window.t("brand.using_custom_image") : window.t("brand.using_default_image"), false);
       if (dom) checkDomain(); else renderDomainStatus({ domain: "" });
     } catch (e) { /* im lặng */ }
   }
@@ -246,6 +257,16 @@
     // Controls giờ nằm trong sidebar (luôn hiển thị) → nạp giá trị hiện tại ngay khi tải trang.
     loadExtras();
   }
+
+  // Đổi ngôn ngữ giao diện (hoặc từ điển vừa nạp xong): dựng lại phần chữ do JS vẽ.
+  // Chỉ dựng lại thứ đã từng vẽ, để không tự dưng in "Chưa đặt tên miền" lên một trang
+  // chưa hề mở phần tên miền.
+  window.addEventListener("javis:i18n", function () {
+    if (_logoCustom !== null) {
+      setStatus("brandLogoStatus", _logoCustom ? window.t("brand.using_custom_image") : window.t("brand.using_default_image"), false);
+    }
+    if (_domCache) renderDomainStatus(_domCache);
+  });
 
   // Cho trang Cài đặt (console.js) gọi nạp lại giá trị avatar/tên miền khi mở trang.
   window.__javisRefreshExtras = loadExtras;

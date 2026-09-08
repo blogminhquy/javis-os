@@ -144,7 +144,7 @@
   }
   function closeBtn() {
     var b = document.createElement("button");
-    b.className = "jvfe-btn icon"; b.innerHTML = ic("x"); b.title = tw("kanban.close_esc");
+    b.className = "jvfe-btn icon"; b.innerHTML = ic("x"); b.title = tw("fedit.close_esc");
     b.onclick = close; return b;
   }
 
@@ -154,7 +154,7 @@
     build();
     var b = brain();
     elTitle.innerHTML = esc(baseOf(brainRel));
-    elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">' + esc(tw("models.opening")) + "</div>";
+    elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">' + esc(tw("fedit.opening")) + "</div>";
     curSave = null;
     modal.classList.add("open");
     document.body.classList.add("jvfe-open");
@@ -225,7 +225,7 @@
         .then(function (r) {
           save.disabled = false;
           if (r && r.ok) {
-            save.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(tw("proj.instr_saved")); save.classList.add("saved");
+            save.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(tw("fedit.saved")); save.classList.add("saved");
             setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.classList.remove("saved"); }, 1400);
           } else { save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); }
         })

@@ -227,9 +227,16 @@ check("trường hợp đó cũng đóng dấu để khỏi soát lại mãi",
 # window.t("khoa"). Nên khẳng định soi ĐỦ HAI VẾ: thẻ nhắc hẹn có gọi đúng khoá với đúng mốc
 # r.due_at, VÀ khoá đó trong vi.json thật sự nói "kế tiếp". Thiếu một vế là test hở.
 VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+# Khoá của thẻ NHẮC HẸN tách riêng khỏi thẻ loop: loop in "kế tiếp ~<giờ>" (dấu ngã = ước
+# lượng, vì loop chạy theo chu kỳ), nhắc hẹn in "kế tiếp <giờ>" KHÔNG dấu ngã vì giờ là chính
+# xác. Gộp chung một khoá thì thẻ nhắc hẹn mọc thêm "~" và nói sai về độ chắc chắn.
 check("thẻ nhắc hẹn hiện lần chạy kế tiếp",
-      'window.t("cs.si_next", { luc: fmtWhen(r.due_at)' in CONSOLE
-      and "kế tiếp" in VI.get("cs.si_next", ""))
+      'window.t("cs.si_next_rem", { luc: fmtWhen(r.due_at)' in CONSOLE
+      and "kế tiếp" in VI.get("cs.si_next_rem", "")
+      and "~" not in VI.get("cs.si_next_rem", ""))
+check("thẻ loop vẫn giữ dấu ngã vì giờ chỉ là ước lượng",
+      'window.t("cs.si_next", { luc: fmtWhen(lp.next_run)' in CONSOLE
+      and "~" in VI.get("cs.si_next", ""))
 check("thẻ nhắc hẹn hiện cron bằng lời", "r.cron_human || r.cron" in CONSOLE)
 check("có hàm nói rõ hôm nay/mai/ngày cụ thể", "function fmtWhen" in CONSOLE)
 check("có hàm nói còn bao lâu nữa", "function fmtLeft" in CONSOLE)

@@ -210,6 +210,13 @@
   // Đổi phiên (mở phiên cũ, chat mới, xoá phiên) → hỏi lại ghim của phiên rồi vẽ lại.
   window.addEventListener("javis:sessions-changed", async () => { await loadSessionPin(); renderBar(); });
 
+  // Từ điển về (fetch bất đồng bộ, thường SAU khi chip model đã vẽ) hoặc người dùng đổi
+  // ngôn ngữ giao diện: vẽ lại chip, và vẽ lại cả bảng chọn nếu nó đang mở.
+  window.addEventListener("javis:i18n", () => {
+    renderBar();
+    if (isOpen()) renderPop();
+  });
+
   if (document.readyState !== "loading") window.initModelBar();
   else document.addEventListener("DOMContentLoaded", () => window.initModelBar());
 })();

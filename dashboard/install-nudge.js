@@ -88,7 +88,7 @@
       + '  <div class="inud-nut">'
       + '    <button type="button" class="inud-tat" id="inudTat">' + window.t("instl.tat") + '</button>'
       + '    <span class="inud-day"></span>'
-      + '    <button type="button" class="inud-sau" id="inudSau">' + window.t("cs.fm_fix_later") + '</button>'
+      + '    <button type="button" class="inud-sau" id="inudSau">' + window.t("instl.sau") + '</button>'
       + (coNutCai && !ios ? '    <button type="button" class="inud-cai" id="inudCai">' + window.t("instl.cai") + '</button>' : "")
       + '  </div>'
       + '</div>';

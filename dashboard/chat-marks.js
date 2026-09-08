@@ -226,12 +226,12 @@
       boc.querySelector(".cm-nut").onclick = moTam;
     } else {
       boc.innerHTML = '<div class="cm-ray" role="navigation" aria-label="'
-        + window.t("cmark.ray_aria") + '"></div>';
+        + escHtml(window.t("cmark.ray_aria")) + '"></div>';
       ray = boc.querySelector(".cm-ray");
       var rayHtml = "";
       for (var i = 0; i < moc.length; i++) {
         rayHtml += '<button type="button" class="cm-vach" data-cm="' + i + '" tabindex="-1" '
-          + 'aria-label="' + window.t("cmark.question_n", { so: i + 1 }) + '"></button>';
+          + 'aria-label="' + escHtml(window.t("cmark.question_n", { so: i + 1 })) + '"></button>';
       }
       // Dựng MỘT LƯỢT cả vạch lẫn hộp: hộp là con của ray nên ghi ray.innerHTML riêng sẽ xoá
       // mất nó, rồi biến `hop` thành con trỏ tới một node đã rời khỏi trang - hover không
@@ -265,9 +265,9 @@
     dongTam();
     tam = document.createElement("div");
     tam.className = "cm-tam-lop";
-    tam.innerHTML = '<div class="cm-tam" role="dialog" aria-label="' + window.t("cmark.sheet_title") + '">'
+    tam.innerHTML = '<div class="cm-tam" role="dialog" aria-label="' + escHtml(window.t("cmark.sheet_title")) + '">'
       + '<div class="cm-tam-dau"><b>' + window.t("cmark.sheet_title") + '</b>'
-      + '<button type="button" class="cm-tam-dong" aria-label="' + window.t("common.close") + '">\u2715</button></div>'
+      + '<button type="button" class="cm-tam-dong" aria-label="' + escHtml(window.t("common.close")) + '">\u2715</button></div>'
       + '<div class="cm-tam-ds">' + mucHtml() + "</div></div>";
     document.body.appendChild(tam);
     tam.addEventListener("click", function (e) {

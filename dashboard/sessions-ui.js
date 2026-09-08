@@ -30,8 +30,10 @@
   function groupOf(ts) {
     var d0 = new Date(); d0.setHours(0, 0, 0, 0);
     var start = d0.getTime() / 1000;
-    if (ts >= start) return window.t("usage.ky.hom_nay");
-    if (ts >= start - 86400) return window.t("usage.ky.hom_qua");
+    // Khoá riêng của danh sách hội thoại: usage.ky.* là nhãn ô chọn kỳ bên trang Mức dùng,
+    // mượn sang đây là một hôm sửa nhãn bên kia thì nhóm ngày bên này đổi theo mà không ai ngờ.
+    if (ts >= start) return window.t("sess.grp_hom_nay");
+    if (ts >= start - 86400) return window.t("sess.grp_hom_qua");
     if (ts >= start - 6 * 86400) return window.t("sess.grp_7days");
     return window.t("cs.cl_older");
   }

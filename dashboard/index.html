@@ -407,7 +407,10 @@
                 <span class="dom-badge" id="sslBadge" data-i18n="qs.ssl_checking">SSL: đang kiểm tra</span>
               </div>
               <div class="dom-ssl" id="domSslRow" style="display:none">
-                <button class="s-btn" id="sslToggle" data-i18n="qs.ssl_on">Bật SSL</button>
+                <!-- Nhãn nút này do branding.js đặt theo trạng thái (Bật SSL / Kích hoạt lại), nên
+                     KHÔNG gắn data-i18n: applyDom() quét lại DOM mỗi lần đổi ngôn ngữ và sẽ ghi đè
+                     nhãn động bằng nhãn tĩnh, tức nút nói sai một nửa thời gian. Giống nút #themeToggle. -->
+                <button class="s-btn" id="sslToggle">Bật SSL</button>
                 <button class="s-btn-ghost" id="checkDomain" data-i18n="qs.recheck">Kiểm tra lại</button>
               </div>
               <div id="domainGuide" class="dom-guide" style="display:none"></div>

@@ -37,7 +37,7 @@
   // Bốn trạng thái THẬT, không phải hai. "Bot chết âm thầm" là thứ chủ chỉ phát hiện khi
   // có người phàn nàn, nên lỗi phải là một ô màu nhìn thấy được chứ không phải sự vắng mặt.
   var TRANG_THAI = {
-    running:  { nhan: "kanban.st_running", mau: "ok" },
+    running:  { nhan: "cb.tt_dang_chay", mau: "ok" },
     starting: { nhan: "cb.tt_khoi_dong", mau: "wait" },
     error:    { nhan: "cb.tt_loi", mau: "err" },
     off:      { nhan: "cb.tt_tat", mau: "off" },
@@ -199,7 +199,11 @@
     // không được để im - đó đúng kiểu hỏng mà cả tính năng này đang cố tránh.
     var mat = b.agent_missing
       ? '<div class="cb-err">' + ic("triangle-alert") + ' ' +
-        esc(window.t("cb.agent_mat", { slug: (b.agent || {}).slug })) + '</div>' : "";
+        esc(window.t("cb.agent_mat", {
+          // Bot thiếu hẳn object agent (hoặc agent không có slug) thì chỗ điền nhận undefined,
+          // mà t() chỉ thay khi giá trị khác null - để nguyên là người dùng đọc thấy "{slug}".
+          slug: (b.agent || {}).slug || window.t("cb.agent_khong_ro"),
+        })) + '</div>' : "";
     // Poller sống KHÔNG có nghĩa là bot trả lời được: model gọi hỏng thì chấm vẫn xanh trong
     // khi người hỏi nhận toàn câu xin lỗi. Lỗi lượt gần nhất phải nằm ngay trên thẻ, không bắt chủ
     // mở Nhật ký mới thấy - vì chủ chỉ mở Nhật ký khi đã NGỜ là có chuyện.

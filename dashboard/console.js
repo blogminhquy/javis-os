@@ -1927,7 +1927,7 @@
     // Câu tả LỊCH của một nhắc hẹn. Trước đây thẻ cron chỉ in "cron 0 7 * * *" rồi hết - không
     // đọc được lịch, cũng không biết lần chạy kế tiếp là lúc nào (lỗi khách báo).
     function remWhen(r) {
-      const next = r.due_at ? window.t("cs.si_next", { luc: fmtWhen(r.due_at), con: fmtLeft(r.due_at) }) : "";
+      const next = r.due_at ? window.t("cs.si_next_rem", { luc: fmtWhen(r.due_at), con: fmtLeft(r.due_at) }) : "";
       if (r.cron) {
         const human = r.cron_human || r.cron;
         return `${human} · ${next}`.replace(/ · $/, "");
@@ -4590,7 +4590,7 @@
   }
 
   function openAccountMenu(el, c, con) {
-    const m = connModal(mHead(esc(c.label || window.t("common.account")))
+    const m = connModal(mHead(esc(c.label || window.t("cs.cn_account_fallback")))
       + '<div class="conn-menu">'
       + '<button class="conn-menu-btn" data-m="test">' + ic("rotate-cw") + ' ' + esc(window.t("cs.cn_menu_test")) + '</button>'
       + '<button class="conn-menu-btn" data-m="rekey">' + ic("repeat") + ' ' + esc(window.t("cs.cn_menu_rekey")) + '</button>'
@@ -6482,7 +6482,7 @@
       + `<div><b>${esc(loi || window.t("cs.ne_notfound"))}</b><br>`
       + `${esc(window.t("cs.ne_miss_a"))} <code>${esc(rel)}</code> ${esc(window.t("cs.ne_miss_b"))}<br>`
       + `${esc(window.t("cs.ne_miss_c"))}</div>`
-      + `<div class="ne-hits" id="neMissHits"><span class="dim">${esc(window.t("cs.fm_miss_wait"))}</span></div></div>`;
+      + `<div class="ne-hits" id="neMissHits"><span class="dim">${esc(window.t("cs.ne_miss_wait"))}</span></div></div>`;
     const ed = document.getElementById("noteEditor");
     actions.innerHTML = "";
     const b = document.createElement("button");

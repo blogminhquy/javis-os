@@ -41,12 +41,6 @@
   // được hàm thật.
   var ic = (typeof window !== "undefined" && window.ic) ? window.ic : function () { return ""; };
 
-  // Cùng lý do với ic(): dưới node không có window nên không có từ điển, lúc đó trả về chính
-  // khoá. Tra lúc GỌI chứ không lúc nạp file, để không phụ thuộc thứ tự script trong HTML.
-  function dt(k, bien) {
-    return (typeof window !== "undefined" && window.t) ? tw(k, bien) : k;
-  }
-
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -129,11 +123,11 @@
   }
   function parseQuery(src) {
     var s = String(src == null ? "" : src).replace(/\r/g, "").trim();
-    if (!s) return { error: dt("dview.err.empty_query") };
+    if (!s) return { error: tw("dview.err.empty_query") };
     var parts = s.split(/\b(FROM|WHERE|SORT|GROUP\s+BY|LIMIT|FLATTEN)\b/i);
     var head = parts[0].trim();
     var hm = /^(TASK|LIST|TABLE)\b([\s\S]*)$/i.exec(head);
-    if (!hm) return { error: dt("dview.err.unsupported_query") };
+    if (!hm) return { error: tw("dview.err.unsupported_query") };
     var q = { type: hm[1].toUpperCase(), columns: [], from: null, where: null,
               sort: null, limit: 0, withoutId: false, warn: [] };
     var rest = hm[2].replace(/\n/g, " ").trim();
@@ -153,7 +147,7 @@
       else if (kw === "SORT") q.sort = parseSort(val);
       else if (kw === "LIMIT") q.limit = parseInt(val, 10) || 0;
       else if (kw === "GROUP BY") q.group = val;          // TASK von da nhom theo file
-      else if (kw === "FLATTEN") q.warn.push(dt("dview.warn.flatten"));
+      else if (kw === "FLATTEN") q.warn.push(tw("dview.warn.flatten"));
     }
     if (q.from && q.from.error) return { error: q.from.error };
     return q;
@@ -175,7 +169,7 @@
     for (var g = 0; g < orGroups.length; g++)
       for (var a = 0; a < orGroups[g].length; a++)
         if (orGroups[g][a].kind === "bad")
-          return { error: dt("dview.err.from", { v: orGroups[g][a].v }) };
+          return { error: tw("dview.err.from", { v: orGroups[g][a].v }) };
     return { or: orGroups };
   }
   // ---------------------------------------------------------------- ngon ngu obsidian-tasks (khoi ```tasks)
@@ -239,7 +233,7 @@
       }
       if ((m = /^limit(?:\s+to)?\s+(\d+)(?:\s+tasks?)?$/.exec(low))) { q.limit = parseInt(m[1], 10) || 0; return; }
       if (IGNORE.test(low)) return;
-      q.warn.push(dt("dview.warn.skip_line") + ' "' + line + '"');
+      q.warn.push(tw("dview.warn.skip_line") + ' "' + line + '"');
     });
     if (conds.length) q.where = conds.map(function (c) { return "(" + c + ")"; }).join(" AND ");
     return q;
@@ -281,7 +275,7 @@
     var toks = tokenize(String(src || "")), pos = 0;
     function peek() { return toks[pos]; }
     function next() { return toks[pos++]; }
-    function expect(t) { if (next() !== t) throw new Error(dt("dview.err.missing_token", { tok: t, src: src })); }
+    function expect(t) { if (next() !== t) throw new Error(tw("dview.err.missing_token", { tok: t, src: src })); }
     function parseOr() {
       var l = parseAnd();
       while (peek() && /^(or)$/i.test(peek())) { next(); var r = parseAnd(); l = (function (a, b) { return function (c) { return truthy(a(c)) || truthy(b(c)); }; })(l, r); }
@@ -321,7 +315,7 @@
     }
     function parseVal() {
       var t = next();
-      if (t == null) throw new Error(dt("dview.err.incomplete_expr", { src: src }));
+      if (t == null) throw new Error(tw("dview.err.incomplete_expr", { src: src }));
       if (t === "(") { var e = parseOr(); expect(")"); return e; }
       if (t[0] === '"' || t[0] === "'") { var s = t.slice(1, -1); return function () { return s; }; }
       if (/^-?\d/.test(t)) { var n = parseFloat(t); return function () { return n; }; }
@@ -354,7 +348,7 @@
           var la = parseOr(); expect(")");
           return function (c) { var v2 = la(c); return v2 == null ? 0 : (Array.isArray(v2) ? v2.length : String(v2).length); };
         }
-        throw new Error(dt("dview.err.unknown_func", { ten: t }));
+        throw new Error(tw("dview.err.unknown_func", { ten: t }));
       }
       // chuoi truong: a.b.c (this. tro ve chinh ctx)
       var chain = t.split(".").filter(function (x) { return x && x.toLowerCase() !== "this"; });
@@ -369,7 +363,7 @@
       };
     }
     var fn = parseOr();
-    if (pos < toks.length) throw new Error(dt("dview.err.extra_token", { tok: toks[pos], src: src }));
+    if (pos < toks.length) throw new Error(tw("dview.err.extra_token", { tok: toks[pos], src: src }));
     return fn;
   }
   function truthy(v) {
@@ -462,7 +456,7 @@
         g.rows.push(r);
       });
       var done = rows.filter(function (r) { return r.t.checked; }).length;
-      html += '<div class="dv-count">' + dt("dview.count_tasks", { so: rows.length, xong: done }) + "</div>";
+      html += '<div class="dv-count">' + tw("dview.count_tasks", { so: rows.length, xong: done }) + "</div>";
       groups.forEach(function (g) {
         html += '<div class="dv-group"><div class="dv-ghead">' + fileLinkHtml(g.f.path) + "</div><ul class=\"dv-tasks\">" +
           g.rows.map(function (r) { return taskItemHtml(r.t, r.f); }).join("") + "</ul></div>";
