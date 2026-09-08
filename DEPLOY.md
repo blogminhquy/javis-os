@@ -95,6 +95,9 @@ link riêng chạy HTTPS mà không cần mua tên miền. **Lưu ý (đã kiể
      (vd `javis.srv1782015.hstgr.cloud`), hoặc tên miền riêng đã trỏ DNS A về IP VPS.
    - `JAVIS_ADMIN_USER`: tên đăng nhập, mặc định `admin`.
    - `JAVIS_ADMIN_PASSWORD`: mật khẩu mạnh anh tự đặt; để trống thì lần đầu dùng MÃ THIẾT LẬP.
+   - `JAVIS_AUTO_UPDATE` (tuỳ chọn): đặt `true` thì Javis TỰ cập nhật mỗi ngày. Bỏ trống thì
+     vẫn cập nhật được bằng nút **⬆ Cập nhật ngay** trong app - từ 0.55.56 stack Hostinger đã
+     kèm sẵn Watchtower nên nút đó có ngay từ lần cài đầu.
 
    Các trường kỹ thuật cũ như `JAVIS_HOST`, `JAVIS_PORT`, đường dẫn state/brain và
    `CLAUDE_CWD` đã được dọn khỏi form; Docker image vẫn tự dùng đúng giá trị mặc định.
@@ -274,14 +277,20 @@ Dừng bằng `stop-javis.bat`. Mở http://localhost:7777
 > **Nhanh nhất - bấm ngay trong app:** mở **Cập nhật** (rail trái) → khung **Javis OS** hiện
 > phiên bản đang chạy + tự kiểm tra bản mới trên GitHub. Có bản mới → bấm **⬆ Cập nhật ngay**,
 > app tự kéo bản mới + khởi động lại (~20-40s), khỏi vào terminal.
-> - **Docker/VPS:** cần service **watchtower**. Nó CÓ trong `docker-compose.yml` nhưng nằm trong
->   `profiles: ["update"]`, tức là **`docker compose up -d` không bật nó**. Đó là lý do phổ biến
->   nhất khiến máy này có nút mà máy kia không. Bật một lần:
+> - **Docker/VPS:** nút này chạy nhờ service **watchtower**, và từ 0.55.56 nó **đi kèm sẵn**
+>   trong cả `docker-compose.yml` lẫn `docker-compose.hostinger.yml` - cài mới là có nút ngay.
+>   Máy nào còn thiếu nút là đang chạy bằng file compose cũ (trước đó Watchtower nằm trong
+>   `profiles: ["update"]` nên `docker compose up -d` không bật nó). Lấy bản mới rồi dựng lại:
 >   ```bash
->   docker compose --profile update up -d
+>   curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
+>   docker compose up -d --pull always
 >   ```
->   Chỉ Watchtower được cấp quyền Docker (socket); app Javis KHÔNG → an toàn. Không bật cũng
+>   Chưa muốn đổi file compose thì bật riêng cũng được: `docker compose --profile update up -d`.
+>   Chỉ Watchtower được cấp quyền Docker (socket); app Javis KHÔNG → an toàn. Không có nó cũng
 >   được, khung sẽ chỉ *báo có bản mới* + chỉ cách cập nhật tay.
+> - **Muốn TỰ cập nhật, khỏi bấm nút:** đặt `JAVIS_AUTO_UPDATE=true` trong `.env` (Hostinger: ô
+>   Environment) rồi dựng lại. Mặc định tắt vì tự cập nhật là app tự khởi động lại bất cứ lúc
+>   nào có bản mới, cắt ngang việc nền. Chu kỳ đổi bằng `JAVIS_AUTO_UPDATE_INTERVAL` (giây).
 > - **Native/Windows:** nút chạy `update.sh` (git pull + restart) giúp bạn.
 
 Repo & image GHCR đều **Public** → `git clone`/`pull` và `docker pull` không cần đăng nhập.

@@ -165,7 +165,9 @@ Open **Updates** (**System** group); the **Javis OS** card shows the running ver
 
 An install directly on the machine (Windows, Linux, macOS) can always update itself. The Docker build only updates in place when the **Watchtower** container is running.
 
-Watchtower is under `profiles: ["update"]`, so `docker compose up -d` does **not** start it, which is the most common reason one machine has the button and another does not. Start it once with `docker compose --profile update up -d` then reload the page. The Hostinger stack deliberately omits Watchtower (it cannot reach the Docker socket), so that machine updates through **Redeploy**. The Updates panel tells you which case your machine is in.
+Since 0.55.56 Watchtower **ships by default** in both the VPS compose and the Hostinger compose, so a fresh install has the button. Still missing it means the stack is running from an older compose file: Watchtower used to sit under `profiles: ["update"]` (which `docker compose up -d` does not start) and the Hostinger stack shipped without it. The way out is to fetch the new compose and bring it up again - on a VPS run `curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml` then `docker compose up -d --pull always`; on Hostinger hit **Redeploy** in Docker Manager. Not ready to swap the file? `docker compose --profile update up -d` starts it on its own. The Updates panel tells you which case your machine is in.
+
+**The stack reports "Partially running" after updating the compose file**: almost always the `<name>-watchtower` container failing to reach the host's Docker socket (Hostinger has hit exactly this). The Javis app is unaffected - it is a separate container and keeps running; you simply lose the "Update now" button and fall back to Redeploy. The real reason is in the log: `docker logs javis-watchtower`.
 
 **A compose command reporting `not found`** comes in three shapes with three entirely different causes:
 

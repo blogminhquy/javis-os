@@ -73,8 +73,10 @@ Hostinger VPS → **Docker Manager → Compose → URL** → paste the **Hosting
 https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
 ```
 The **Environment** box on the current template needs only three fields: `DOMAIN_NAME`,
-`JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`. The technical variables for ports, state,
-brains and working directories are hidden because the Docker image sets them correctly.
+`JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`, plus one optional `JAVIS_AUTO_UPDATE`
+(set it to `true` and Javis updates itself daily; leave it empty and you update with
+the button in the app). The technical variables for ports, state, brains and working
+directories are hidden because the Docker image sets them correctly.
 
 Set `DOMAIN_NAME` so Hostinger's Traefik issues HTTPS:
 - **Free link** (no domain purchase needed): `DOMAIN_NAME=javis.<vps-hostname>.hstgr.cloud`

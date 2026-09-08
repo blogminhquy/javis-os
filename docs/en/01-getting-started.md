@@ -181,19 +181,24 @@ This lives under **Updates** (**System** group). The Javis OS panel at the top s
 | Windows | Yes |
 | Linux / macOS, run directly | Yes |
 | Docker with Watchtower running | Yes |
-| Docker without Watchtower | No; the panel says why and how to enable it |
+| Docker built from an older compose (no Watchtower) | No; the panel says why and how to get the new file |
 
-**Why one machine has the button and another does not.** Almost always because Watchtower sits inside `profiles: ["update"]` in `docker-compose.yml`, so the habitual `docker compose up -d` **does not start it**. Enable it once, in the folder holding the compose file:
+**Since 0.55.56 Watchtower ships by default** in both `docker-compose.yml` and `docker-compose.hostinger.yml`, so a fresh install has the button straight away, with no extra command to remember.
+
+**Why one machine has the button and another does not.** Before 0.55.56 Watchtower sat inside `profiles: ["update"]`, so the habitual `docker compose up -d` **did not start it**, and the Hostinger stack shipped without it. A machine still missing the button is running from one of those older files. Fetch the new one and bring it up again, in the folder holding the compose file:
 
 ```bash
-docker compose --profile update up -d
+curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
+docker compose up -d --pull always
 ```
 
-Reload the page and the button appears. If you would rather not enable it, updating by hand still works: `docker compose up -d --pull always`.
+On Hostinger, open Docker Manager and hit **Redeploy** (the stack re-reads the compose from its URL). Not ready to swap the compose file? Starting Watchtower on its own works too: `docker compose --profile update up -d`.
 
-The **Hostinger stack** (`docker-compose.hostinger.yml`) deliberately omits Watchtower - it cannot reach the Docker socket there, so running it just loops on errors. Hostinger machines update via **Redeploy** in Docker Manager; there is nothing extra to enable.
+Reload the page and the button appears. If you would rather go without Watchtower, updating by hand still works: `docker compose up -d --pull always`.
 
-The Updates panel distinguishes these two cases and prints the right procedure for your machine.
+**Want Javis to update itself with no button at all:** add `JAVIS_AUTO_UPDATE=true` to `.env` (Hostinger: the Environment box) and bring the stack up again. It is off by default on purpose: auto-updating means the app restarts itself whenever a new version lands, cutting across background work. The default cadence is 24 hours, changed with `JAVIS_AUTO_UPDATE_INTERVAL` (seconds).
+
+The Updates panel distinguishes these cases and prints the right procedure for your machine.
 
 ### The six-step progress bar
 
@@ -267,7 +272,7 @@ Paste it into the **Setup token** box in the wizard and press **Start using Javi
 - **Forgot the admin password:** press "Forgot password?" on the sign-in screen for instructions. The procedure is to open `server/settings.json`, delete the `"auth"` block (or empty it), and restart the server; reopening the app returns you to the wizard to create a new account. See [Security & accounts](../14-bao-mat-tai-khoan.md).
 - **Too many failed sign-ins, "Too many attempts":** Javis locks temporarily to stop password guessing. Wait a few minutes and try again.
 - **Update says "Already updating, hold on.":** another update is in flight. Wait for it to finish and try again.
-- **No "⬆ Update now" button:** you are on Docker without Watchtower running. The Updates panel says exactly what your machine is missing. On a self-managed VPS run `docker compose --profile update up -d` once and reload - the habitual `docker compose up -d` does NOT start Watchtower because it sits in its own profile. On Hostinger it cannot be enabled; use Redeploy.
+- **No "⬆ Update now" button:** you are on Docker without Watchtower running, which since 0.55.56 means the stack was built from an older compose file. The Updates panel says exactly what your machine is missing. On a self-managed VPS, fetch the current `docker-compose.yml` and run `docker compose up -d --pull always`; on Hostinger, hit Redeploy in Docker Manager. Sticking with the old file? `docker compose --profile update up -d` starts Watchtower on its own.
 - **The port is right but nothing loads:** check that the address really is `http://localhost:7777` (or the VPS IP with port 7777). If you just changed code, restart the server and try again.
 
 Still stuck? See [Troubleshooting & FAQ](../17-khac-phuc-su-co.md).

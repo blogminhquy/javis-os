@@ -4,7 +4,7 @@
 # CÀI TRÊN HOSTINGER: dùng file RIÊNG cho Hostinger (1 container, deploy là chạy, không kén hạ tầng):
 #   https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
 #   (Docker Manager → Compose → URL. Cách gắn TÊN MIỀN + HTTPS ghi trong chú thích cuối file đó / DEPLOY.md.)
-#   File NÀY cũng chạy trên Hostinger nhưng kèm Watchtower (hay báo "Partially running") → nên dùng file trên.
+#   File NÀY cũng chạy trên Hostinger được, nhưng file kia gọn hơn và có sẵn nhãn Traefik.
 #
 # CÀI TRÊN VPS BẤT KỲ (DigitalOcean/Vultr... - HTTPS bằng Caddy, xem DEPLOY.md):
 #   1) docker compose run --rm javis claude auth login --claudeai   # ĐĂNG NHẬP CLAUDE 1 LẦN
@@ -81,20 +81,32 @@ services:
     # URL cố định: tạo named tunnel ở Cloudflare Zero Trust → TUNNEL_TOKEN env → đổi command thành:
     #   command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
 
-  # Cập nhật 1-CLICK từ UI (nút "Cập nhật ngay"). Watchtower cần quyền Docker (socket) nên hay báo
-  # "Partially running" trên Hostinger Docker Manager → MẶC ĐỊNH TẮT (profile "update"). Bật khi cần:
-  #   docker compose --profile update up -d
-  # (Hostinger: dùng docker-compose.hostinger.yml + Redeploy để cập nhật, KHÔNG cần Watchtower.)
+  # Cập nhật 1-CLICK từ UI (nút "Cập nhật ngay"). BẬT SẴN từ 0.55.56.
+  #
+  # Trước đó nó nằm trong `profiles: ["update"]`, tức `docker compose up -d` quen tay KHÔNG bật
+  # nó. Hệ quả đo được qua hai lần chủ repo báo (2026-08-12 rồi 2026-09-08): máy này có nút cập
+  # nhật, máy kia không, không ai đoán ra vì sao - và một cái nút chỉ hiện trên số ít máy thì
+  # coi như không có. Nay mặc định BẬT: cài mới là cập nhật được ngay, khỏi nhớ thêm lệnh nào.
+  #
+  # Đổi lại, Watchtower cần quyền Docker (socket). Host nào không cho là nó khởi động lại liên
+  # tục và Docker Manager báo stack "Partially running" - CONTAINER JAVIS VẪN CHẠY BÌNH THƯỜNG,
+  # chỉ mất cái nút, và trang Cập nhật sẽ nói thẳng là phải cập nhật tay. Không muốn có nó:
+  #   docker compose up -d --scale watchtower=0
   watchtower:
     image: containrrr/watchtower
     container_name: ${JAVIS_NAME:-javis}-watchtower
     restart: unless-stopped
-    profiles: ["update"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      WATCHTOWER_HTTP_API_UPDATE: "true"                    # chỉ cập nhật khi có HTTP trigger (không tự polling)
+      WATCHTOWER_HTTP_API_UPDATE: "true"                    # nhận lệnh cập nhật từ nút bấm
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_TOKEN:-javis-update}
+      # TỰ đi tìm bản mới theo chu kỳ, KHÔNG chờ ai bấm nút. Mặc định TẮT có chủ ý: bật lên là
+      # Javis tự khởi động lại bất cứ lúc nào có image mới, cắt ngang việc nền và phiên chat
+      # đang chạy. Muốn hoàn toàn tự động thì đặt trong .env:  JAVIS_AUTO_UPDATE=true
+      # (chu kỳ mặc định 24h, đổi bằng JAVIS_AUTO_UPDATE_INTERVAL tính bằng GIÂY).
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: ${JAVIS_AUTO_UPDATE:-false}
+      WATCHTOWER_POLL_INTERVAL: ${JAVIS_AUTO_UPDATE_INTERVAL:-86400}
       WATCHTOWER_CLEANUP: "true"                            # dọn image cũ sau khi update
     # Theo dõi ĐÚNG container của bản này. Để trống hay ghi cứng "javis" thì trên VPS nhiều bản,
     # Watchtower của bản này sẽ đi cập nhật (và restart) container của bản khác.

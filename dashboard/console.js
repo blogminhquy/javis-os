@@ -798,15 +798,19 @@
     : (j.platform === "mac" ? "macOS" : "Linux");
 
   // Vì sao máy này không có nút "Cập nhật ngay". Chủ repo báo (2026-08-12): "một số máy VPS
-  // không có nút update, anh không hiểu vì sao". Cả hai lý do đều ĐÚNG THIẾT KẾ, nhưng app gộp
-  // chúng vào một câu chung chung nên nhìn hệt như máy hỏng.
+  // không có nút update, anh không hiểu vì sao", rồi báo lại (2026-09-08) với các bản cài
+  // Hostinger mới. Lần sau là lần quyết định: từ 0.55.56 Watchtower ĐI KÈM SẴN trong compose,
+  // nên máy nào rơi vào đây gần như chắc chắn đang chạy bằng một file compose CŨ.
   //
-  // Khác nhau ở chỗ QUAN TRỌNG NHẤT: một cái bật được bằng đúng một lệnh, một cái thì không.
-  // Gộp lại là cướp mất của người dùng thông tin duy nhất họ cần.
+  // Vì vậy câu chữ dưới đây nói ra ĐÚNG MỘT việc cần làm - lấy compose mới rồi dựng lại - chứ
+  // không còn dạy cách bật thêm một service. Lệnh bật riêng vẫn giữ, làm đường lui cho ai chưa
+  // muốn đổi file, nhưng nó không còn là câu trả lời chính.
   function _updVimSaoKhongCoNut(maLyDo) {
     if (maLyDo === "watchtower_off") {
       return window.t("cs.upd_wt_a") + " <b>" + window.t("cs.upd_wt_b") + "</b> " + window.t("cs.upd_wt_c")
-        + " <code>docker compose up -d</code> " + window.t("cs.upd_wt_d")
+        + "<br><code>curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml</code>"
+        + "<br><code>docker compose up -d --pull always</code><br>"
+        + window.t("cs.upd_wt_d")
         + "<br><code>docker compose --profile update up -d</code><br>"
         + window.t("cs.upd_wt_e")
         + " <code>docker compose up -d --pull always</code>."
@@ -820,7 +824,8 @@
     }
     if (maLyDo === "no_token") {
       return window.t("cs.upd_nt_a") + " <b>" + window.t("cs.upd_nt_b") + "</b> "
-        + window.t("cs.upd_nt_c") + " <b>Redeploy</b> " + window.t("cs.upd_nt_d");
+        + window.t("cs.upd_nt_c") + " <b>Redeploy</b> " + window.t("cs.upd_nt_d")
+        + " <code>docker compose up -d --pull always</code>.";
     }
     // Rơi vào đây là mode lạ hoặc server cũ chưa trả mã lý do - giữ nguyên câu cũ, đừng đoán bừa.
     return "↻ " + window.t("cs.upd_fb_a") + " <b>Redeploy</b>" + window.t("cs.upd_fb_b")
