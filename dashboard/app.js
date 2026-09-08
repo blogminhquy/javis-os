@@ -113,9 +113,12 @@ const voice = new JavisVoice({
   },
   onError: (err) => {
     voiceBtn.classList.remove("recording");
-    setOrbState("", window.t("orb.ready"));
-    if (err === "not-allowed") alert(window.t("app.mic_denied"));
-    else if (err === "not-supported") alert(window.t("app.mic_unsupported"));
+    setOrbState("", "SẴN SÀNG");
+    // Mic hỏng hẳn thì TẮT chế độ rảnh tay. Không tắt thì vòng giữ mic 500ms bên dưới cứ mở
+    // lại mãi, mỗi lần một hộp thoại chặn - người dùng bấm OK xong nửa giây sau nó nổ tiếp,
+    // không còn đường nào bấm vào trang nữa. Đúng cảnh người dùng báo ngày 04/09.
+    if (voice.micHong && voice.micHong()) tatRanhTay();
+    alertMic(err);
   }
 });
 
@@ -176,6 +179,8 @@ function handleMessage(data) {
     });
     syncActiveUI();
     notifySessions();
+    // Lượt đang chờ gói thuê bao mở lại hạn mức: dựng lại thẻ "tự chạy lại" cho phiên đang xem.
+    try { if (window.JavisResume) window.JavisResume.fromHello(data.resumes || [], savedSessionId); } catch (e) {}
     return;
   }
 
@@ -242,6 +247,13 @@ function handleMessage(data) {
       }
     }
   } else if (data.type === "response") {
+    // Lượt vấp hạn mức gói thuê bao: câu báo đã hiện ở bong bóng lỗi (kèm thẻ tự chạy lại) và
+    // server không có câu trả lời nào, nên không vẽ thêm bong bóng "(không có nội dung)".
+    if (t && t.limit && !(data.content || "").trim()) {
+      if (isActive) { hideActivity(); setOrbState("", "SẴN SÀNG"); }
+      refreshUsage();
+      return;
+    }
     const { clean: askClean, ask } = window.JavisAsk.extract(data.content || "");
     const finalText = askClean || (t && t.text) || "";
     const shownText = finalText || window.t("app.no_content");
@@ -260,11 +272,26 @@ function handleMessage(data) {
     }
     refreshUsage();     // cập nhật panel Mức dùng sau mỗi lượt
   } else if (data.type === "error") {
-    if (isActive) { hideActivity(); appendJavisError(data.content); setOrbState("", window.t("orb.ready")); }
+    if (t && data.limit) t.limit = data.limit;
+    if (isActive) {
+      hideActivity();
+      const errEl = appendJavisError(data.content);
+      setOrbState("", "SẴN SÀNG");
+      if (data.limit) {
+        // Hết lượt gói thuê bao: câu báo là tin cuối của lượt (server không trả gì thêm), ghi
+        // vào convo để F5 còn thấy, rồi gắn thẻ "tự chạy lại" dưới nó (limit-resume.js).
+        recordTurn("javis", data.content || "", null, null);
+        try { if (window.JavisResume) window.JavisResume.attach(errEl, sid, data.limit); } catch (e) {}
+      }
+    }
+  } else if (data.type === "resume") {
+    // Trạng thái lịch tự chạy lại (hẹn / tắt / đang chạy / huỷ) - thẻ tự vẽ lại.
+    try { if (window.JavisResume) window.JavisResume.onFrame(data); } catch (e) {}
   } else if (data.type === "system") {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {
     // Lượt của phiên này kết thúc (xong / lỗi / bị dừng): bỏ cờ chạy, dọn buffer, refresh Lịch sử.
+    try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
     if (isActive) syncActiveUI();
@@ -357,6 +384,11 @@ function sendMessage(text) {
 }
 // Chip lựa chọn (chat-ask.js) gửi đáp án qua đây: bấm chip = y như người dùng gõ tay nhãn đó.
 window.JavisSend = sendMessage;
+// Module ngoài (limit-resume.js) gửi một khung điều khiển thô lên server. true = đã gửi.
+window.JavisWsSend = function (obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  try { ws.send(JSON.stringify(obj)); return true; } catch (e) { return false; }
+};
 
 // ============================================
 // Lưu / khôi phục phiên
@@ -395,6 +427,8 @@ function restoreSession() {
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
   });
   if (convo.length) scrollBottom(true);
+  // hello thường tới SAU bước này; nếu tới trước (kết nối nhanh) thì thẻ "tự chạy lại" gắn ở đây.
+  try { if (window.JavisResume && savedSessionId) window.JavisResume.renderFor(savedSessionId); } catch (e) {}
   notifySessions();   // panel Lịch sử tô đúng phiên đang xem thay vì không tô cái nào
   syncActiveUI();
 }
@@ -433,6 +467,8 @@ async function openStoredSession(id) {
       showActivity(Icons.msg("pen-line", window.t("app.act_writing")));
       setOrbState("thinking", window.t("app.orb_thinking"));
     }
+    // Phiên này đang chờ gói thuê bao mở lại hạn mức → gắn thẻ "tự chạy lại" dưới tin cuối.
+    try { if (window.JavisResume) window.JavisResume.renderFor(id); } catch (e) {}
     persistSession();
     scrollBottom(true);
     notifySessions();
@@ -1791,16 +1827,28 @@ document.addEventListener("paste", (e) => {
 });
 
 // Kéo-thả file
+// Vài khung có ô thả RIÊNG của nó (ngăn kéo project...) và tự đánh dấu [data-localdrop].
+// Thả vào đó thì file phải đi vào đúng khung đó, không được rơi tiếp xuống khung chat -
+// chủ repo báo 03/09: kéo file vào ô "kéo thả vào đây" của project thì nó nhảy sang chat.
+const inLocalDrop = (e) => !!(e.target && e.target.closest && e.target.closest("[data-localdrop]"));
 let dragDepth = 0;
 window.addEventListener("dragenter", (e) => {
   if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) {
-    dragDepth++; dropOverlay.classList.add("show");
+    dragDepth++; if (!inLocalDrop(e)) dropOverlay.classList.add("show");
   }
 });
-window.addEventListener("dragover", (e) => e.preventDefault());
+// dragover nổ liên tục nên nó là chỗ chuẩn nhất để bật/tắt lớp phủ: rê qua ô thả riêng thì
+// lớp phủ biến đi, rê ra ngoài lại hiện.
+window.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  if (inLocalDrop(e)) dropOverlay.classList.remove("show");
+  else if (dragDepth > 0) dropOverlay.classList.add("show");
+});
 window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; dropOverlay.classList.remove("show"); } });
 window.addEventListener("drop", (e) => {
-  e.preventDefault(); dragDepth = 0; dropOverlay.classList.remove("show");
+  dragDepth = 0; dropOverlay.classList.remove("show");
+  if (inLocalDrop(e)) return;   // chỗ kia đã preventDefault + chặn bọt, không đụng vào
+  e.preventDefault();
   if (e.dataTransfer?.files) [...e.dataTransfer.files].forEach(uploadFile);
 });
 
@@ -1836,6 +1884,44 @@ sendBtn.addEventListener("click", () => sendMessage());
 
 // Chế độ luôn nghe (hands-free): bấm 1 lần → nghe liên tục đến khi bấm lại
 let handsFree = false;
+
+// Tắt rảnh tay từ chỗ KHÔNG phải cú bấm của người dùng (mic hỏng). Gom về một hàm vì trạng
+// thái này nằm ở ba nơi - biến, lớp CSS của nút, và công tắc loa - và bỏ sót một nơi thì giao
+// diện nói dối: nút vẫn sáng "đang nghe" trong khi không có gì đang nghe cả.
+function tatRanhTay() {
+  if (!handsFree) return;
+  handsFree = false;
+  voiceBtn.classList.remove("handsfree");
+  try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
+}
+
+// Câu báo lỗi mic. Nói ĐÚNG nguyên nhân, vì ba nguyên nhân cần ba hành động khác hẳn nhau và
+// câu chung "hãy cấp quyền" là lời khuyên KHÔNG LÀM ĐƯỢC với hai trong ba trường hợp.
+function alertMic(err) {
+  if (err === "not-allowed") {
+    // Trang không chạy ở ngữ cảnh bảo mật thì trình duyệt chặn thẳng, và KHÔNG hề hỏi quyền.
+    // Bảo họ "cấp quyền" lúc này là chỉ họ đi tìm một cái nút không tồn tại. Hay gặp khi mở
+    // Javis qua địa chỉ LAN hoặc tên miền chưa có HTTPS.
+    if (!window.isSecureContext) {
+      alert("Trình duyệt chặn micro vì trang này không chạy qua kết nối bảo mật." + "\n" + "\n"
+        + "Mở Javis bằng http://localhost:7777 trên chính máy chạy Javis, hoặc cho tên miền của bạn dùng HTTPS.");
+    } else {
+      alert("Bạn cần cấp quyền microphone cho trang này." + "\n" + "\n"
+        + "Bấm biểu tượng ổ khoá cạnh thanh địa chỉ để cấp lại, rồi bấm nút mic lần nữa.");
+    }
+  } else if (err === "audio-capture") {
+    // Trước đây lỗi này im lặng hoàn toàn: mic không bao giờ chạy mà không ai nói vì sao.
+    alert("Không tìm thấy microphone nào trên máy này." + "\n" + "\n"
+      + "Nếu bạn đang điều khiển máy từ xa thì mic của máy bạn ngồi thường không đi theo.");
+  } else if (err === "service-not-allowed") {
+    alert("Trình duyệt đang chặn dịch vụ nhận giọng nói." + "\n" + "\n"
+      + "Kiểm tra cài đặt quyền riêng tư của trình duyệt, hoặc thử Chrome/Edge.");
+  } else if (err === "not-supported") {
+    alert("Trình duyệt không hỗ trợ nhận giọng. Dùng Chrome/Edge.");
+  }
+  // Lỗi khác (mạng, start-failed…) KHÔNG hiện hộp thoại: chúng thoáng qua và tự thử lại được,
+  // còn hộp thoại thì chặn cứng cả trang.
+}
 voiceBtn.addEventListener("click", () => {
   if (!voice.isSupported()) { alert(window.t("app.voice_unsupported")); return; }
   handsFree = !handsFree;
@@ -1854,8 +1940,11 @@ voiceBtn.addEventListener("click", () => {
 
 // Tự nghe lại khi rảnh (không đang xử lý, không đang nói) - giữ mic sống ở hands-free
 setInterval(() => {
-  if (handsFree && !voice.isListening && !isProcessing && !voice.isSpeaking()) {
-    voice.startListening();
+  // `micHong()` là chốt thứ hai (chốt thứ nhất là tatRanhTay() trong onError). Giữ cả hai vì
+  // vòng này chạy hai lần mỗi giây: sót một nhịp là một hộp thoại nữa đập vào mặt người dùng.
+  if (handsFree && !voice.isListening && !isProcessing && !voice.isSpeaking()
+      && !(voice.micHong && voice.micHong())) {
+    voice.startListening(true);   // true = máy tự gọi, không phải người bấm
   }
 }, 500);
 
@@ -2186,6 +2275,25 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
 });
 
 // ---- Settings ----
+// Ô "Model Claude (khi dùng CLI)" nạp danh sách từ server thay vì ba lựa chọn ghi cứng trong
+// index.html. Ghi cứng là một cái bẫy im lặng: dòng model mới (Fable) không có trong ô, mà
+// gán `select.value` một giá trị không có option thì trình duyệt lặng lẽ nhả về "" - tức mở
+// Cài đặt rồi bấm Lưu là model đang chạy bị đổi về Mặc định mà không ai nói gì.
+async function loadClaudeModels(cur) {
+  const sel = document.getElementById("setClaudeModel");
+  if (!sel) return;
+  let ids = [];
+  try {
+    const d = await (await fetch("/provider/models?provider=anthropic-cli")).json();
+    ids = d.models || [];
+  } catch (e) {}
+  if (cur && ids.indexOf(cur) < 0) ids.unshift(cur);   // model đang chạy luôn phải có mặt
+  const nhan = (id) => id.charAt(0).toUpperCase() + id.slice(1);
+  sel.innerHTML = '<option value="">Mặc định</option>'
+    + ids.map((id) => `<option value="${id}">${nhan(id)}</option>`).join("");
+  sel.value = cur || "";
+}
+
 async function openSettings() {
   settingsOverlay.classList.add("open");
   try {
@@ -2193,7 +2301,7 @@ async function openSettings() {
     _settingsCache = s;
     document.getElementById("setWsName").value = s.workspace_name || "";
     document.getElementById("setEngine").value = (s.model && s.model.engine) || "cli";
-    document.getElementById("setClaudeModel").value = (s.model && s.model.claude_model) || "";
+    await loadClaudeModels((s.model && s.model.claude_model) || "");
     loadOrModels((s.model && s.model.openrouter_model) || "");
     document.getElementById("setKeyHint").textContent = (s.model && s.model.openrouter_key_set) ? window.t("app.saved_paren", { v: s.model.openrouter_key }) : window.t("app.none_paren");
     document.getElementById("setTgEnabled").checked = !!(s.telegram && s.telegram.enabled);

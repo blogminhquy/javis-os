@@ -39,6 +39,7 @@
     channels: "send",
     mcp: "plug",
     plugins: "toolbox",
+    packs: "package",
     logs: "scroll-text",
     account: "circle-user",
     usage: "chart-column",
@@ -80,7 +81,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "logs", "account", "usage",
+    "packs", "logs", "account", "usage",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -97,15 +98,28 @@
     { get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
     { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
-    { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "channels", "models"] },
+    { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
     { get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
+
+  // Trang CÓ THẬT nhưng KHÔNG hiện trên thanh bên. Bỏ hẳn khỏi `RAIL_ITEMS` thì không dùng
+  // được, vì đó mới là nguồn icon và nhãn; nên chỗ ẩn nằm ở đây.
+  //
+  // Rỗng từ 0.55.37. Trước đó Javis Store bị ẩn với lý do "nó không phải một chức năng ngang
+  // hàng với Trợ lý hay Kỹ năng, đường vào đúng là cái tab trên chính trang bạn đang đứng".
+  // Lập luận đó đúng khi kho chỉ có vài gói và ai cũng tới nó từ một trang năng lực. Nó sai
+  // ngay khi kho thành chỗ chứa PHẦN LỚN kết nối của Javis (0.55.36 dọn 16 khuôn ra kho):
+  // một người mới cài, chưa đấu gì, không có trang nào để mà bấm tab - họ cần thấy lối vào
+  // ngay trên thanh bên. Chủ dự án yêu cầu đưa ra, và đặt cạnh Kết nối.
+  const RAIL_AN = new Set();
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
     const seen = new Set();
     const groups = RAIL_GROUPS.map(g => {
-      const items = (g.ids || []).map(id => { seen.add(id); return RAIL_BY_ID[id]; }).filter(Boolean);
+      const items = (g.ids || [])
+        .map(id => { seen.add(id); return RAIL_AN.has(id) ? null : RAIL_BY_ID[id]; })
+        .filter(Boolean);
       return { label: g.label, icon: g.icon || "", foot: !!g.foot, items };
     }).filter(g => g.items.length);
     const rest = RAIL_ITEMS.filter(i => !seen.has(i.id));
@@ -128,7 +142,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "logs", "account", "usage"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -152,8 +166,22 @@
   const liteMode = () => !graphEnabled || isNarrow();
 
   const esc = (s) => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  // Chỉ cho link http(s) (chặn javascript:/data: XSS); dùng kèm esc() khi nhúng vào href.
-  const safeHref = (u) => /^https?:\/\//i.test((u || "").toString().trim()) ? u : "#";
+  // Chỉ cho link http(s) HOẶC đường dẫn cùng origin (chặn javascript:/data: XSS); dùng kèm
+  // esc() khi nhúng vào href.
+  //
+  // Vì sao phải nhận cả đường dẫn tương đối: catalog có connector trỏ guide_url vào trang tự
+  // host, ví dụ "/static/docs/substack.html". Luật cũ chỉ nhận ^https?:// nên nó biến thành
+  // "#" - link Hướng dẫn của Substack đã chết âm thầm. Và khi gói của người khác cấp được
+  // guide_url thì chỗ này thành cửa XSS, nên phải siết cùng lúc với việc nới.
+  //
+  // "//evil.com" bị CHẶN có chủ ý: trình duyệt hiểu nó là protocol-relative, tức link ra
+  // ngoài, chứ không phải đường dẫn nội bộ. Chỉ nhận đúng MỘT dấu gạch mở đầu.
+  const safeHref = (u) => {
+    const s = (u || "").toString().trim();
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^\/(?!\/)/.test(s)) return s;
+    return "#";
+  };
   const _shield = (on) => on
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5l8-3z"/><path d="M9 12l2 2 4-4"/></svg>'
     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5l8-3z"/></svg>';
@@ -361,6 +389,13 @@
     if (id === "models")   return renderModels(el);
     if (id === "mcp")      return renderConnect(el);
     if (id === "plugins")  return renderPlugins(el);
+    // Trang Gói do packs.js dựng, uỷ quyền y như renderStudioPage uỷ cho studio.js. Để riêng
+    // file vì console.js đã ~7k dòng.
+    if (id === "packs") {
+      if (window.JavisPacks) return window.JavisPacks.render(el);
+      el.innerHTML = placeholder("packs", "packs.js chưa sẵn sàng.");
+      return;
+    }
     if (id === "channels") return renderChannels(el);
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
@@ -374,9 +409,61 @@
     el.innerHTML = placeholder(id);
   }
 
+  // Loại trong kho tương ứng với từng trang năng lực. Trang nào có mặt ở đây thì được một
+  // hàng tab dẫn sang kho, đã lọc sẵn đúng loại của nó.
+  const LOAI_KHO = { agents: "agent", skills: "skill", workflows: "workflow",
+                     plugins: "tool", mcp: "connector" };
+  const TEN_CUA_BAN = { agents: "Trợ lý của bạn", skills: "Kỹ năng của bạn",
+                        workflows: "Quy trình của bạn", plugins: "Công cụ của bạn",
+                        mcp: "Kết nối của bạn" };
+
+  // Hàng tab "của bạn | Kho cài đặt" đặt trên đầu bốn trang năng lực.
+  //
+  // Tab thứ hai ĐIỀU HƯỚNG sang trang kho chứ không vẽ một bản sao của lưới kho tại chỗ. Bốn
+  // bản sao là bốn thứ sẽ lệch nhau sau vài tháng, và người dùng thì học hai lần cùng một
+  // giao diện. Một kho, một chỗ sửa - vào từ đâu cũng tới đúng nơi đó, chỉ khác cái chip đã
+  // bật sẵn.
+  // `cucBo` = các tab đổi phần hiển thị NGAY TRONG trang, dạng [{nhan, chon, bam}]. Không
+  // truyền thì hàng tab có đúng hai mục như bốn trang năng lực kia.
+  function hangTabKho(id, cucBo) {
+    const kind = LOAI_KHO[id];
+    if (!kind) return null;
+    const row = document.createElement("div");
+    row.className = "cat-filter";
+    row.style.margin = "0 0 14px";
+    const ds = (cucBo && cucBo.length) ? cucBo
+      : [{ nhan: TEN_CUA_BAN[id] || "Của bạn", chon: true }];
+    // Lớp RIÊNG `tab-kho`, KHÔNG dùng lại `.cat-chip`.
+    //
+    // Trang Kết nối gán lại `onclick` cho MỌI `.cat-chip` trong trang để lọc danh mục dịch vụ
+    // (`el.querySelectorAll(".cat-chip")`). Hàng tab này nằm cùng trong `el`, nên dùng chung
+    // lớp là handler của tab bị đè mất sạch: bấm tab chỉ thấy viên thuốc sáng lên rồi lưới
+    // danh mục lọc lại, còn khối hiển thị thì không đổi. Mất nửa tiếng mới lần ra, vì trông
+    // hệt như "tab hỏng" chứ không giống "ai đó cướp handler".
+    row.innerHTML = ds.map((x, i) =>
+        `<button class="tab-kho${x.chon ? " on" : ""}" data-tab-cb="${i}">${esc(x.nhan)}</button>`).join("")
+      + `<button class="tab-kho" data-mo-kho="${kind}">${ic("package")} Javis Store</button>`;
+    row.querySelectorAll("[data-tab-cb]").forEach(b => b.onclick = () => {
+      const f = ds[Number(b.dataset.tabCb)];
+      if (f && f.bam) f.bam();
+    });
+    const nut = row.querySelector("[data-mo-kho]");
+    // Truyền cả TRANG GỐC để kho vẽ được nút quay lại. Không truyền thì người dùng sang kho
+    // rồi phải tự tìm đường về bằng thanh bên - mà kho không nằm trên thanh bên nữa, nên họ
+    // dễ thấy mình bị lạc.
+    nut.onclick = () => {
+      if (window.JavisPacks && window.JavisPacks.moKho) {
+        window.JavisPacks.moKho(kind, id, VIEW_META[id] ? VIEW_META[id].label : id);
+      } else { const s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("packs"); }
+    };
+    return row;
+  }
+
   // Trang Studio: tạo panel-<id> trong cview rồi gọi loader cũ (studio.js fill vào đó).
   function renderStudioPage(el, id) {
     el.innerHTML = `<div class="stab-panel" id="panel-${id}"></div>`;
+    const tab = hangTabKho(id);
+    if (tab) el.insertBefore(tab, el.firstChild);
     const fn = window.JavisStudio && window.JavisStudio[id];
     if (fn) { try { fn(); } catch (e) { el.innerHTML = placeholder(id, window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder(id, window.t("cs.mod_not_ready", { ten: "studio.js" }));
@@ -1424,7 +1511,7 @@
     const myGen = _renderGen;   // chống race: đổi trang → load dở tự bỏ
     el.innerHTML = `<div class="cview-section"><div class="empty">${esc(t("common.loading"))}</div></div>`;
 
-    const SRC = { bundled: [window.t("cs.pl_src_bundled"), "var(--green)"], user: [window.t("cs.pl_src_user"), "var(--link-ink)"], vault: [window.t("cs.pl_src_vault"), "var(--warn-ink)"] };
+    const SRC = { bundled: ["Có sẵn", "var(--green)"], pack: ["Từ gói", "var(--accent, #7c5cff)"], user: ["Toàn cục", "var(--link-ink)"], vault: ["Brain này", "var(--warn-ink)"] };
     const srcBadge = (s) => {
       const [t, c] = SRC[s] || [s, "var(--text3)"];
       return `<span style="font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid ${c}55;color:${c}">${esc(t)}</span>`;
@@ -1452,8 +1539,38 @@
         </div>
         <div class="wf-desc">${esc(p.description || "")}</div>
         <div class="wf-steps">${meta}${chips ? `<div style="margin-top:8px">${chips}</div>` : ""}${p.error ? `<div style="margin-top:6px;color:var(--red)">${esc(p.error)}</div>` : ""}</div>
-        <div class="wf-actions"><button class="s-btn-ghost tgl">${p.enabled ? window.t("cb.tat") : window.t("cb.bat")}</button></div>`;
-      div.querySelector(".tgl").onclick = async () => {
+        <div class="wf-actions">${p.source === "pack"
+            ? `<button class="s-btn-ghost" data-goto-packs="1">Quản lý ở Javis Store</button>`
+            : p.removed
+              ? `<button class="s-btn-ghost undel">Cài lại</button>`
+              : `<button class="s-btn-ghost tgl">${p.enabled ? "Tắt" : "Bật"}</button>
+                 <button class="s-btn-ghost del" style="color:var(--red)">Gỡ</button>`}</div>`;
+      // Plugin đến từ gói thì bật/tắt và gỡ đều làm ở Kho cài đặt - nó đi theo cả gói, và có
+      // đúng MỘT chỗ gỡ thì người dùng không phải đoán gỡ ở đâu mới là gỡ thật.
+      const nutGoto = div.querySelector("[data-goto-packs]");
+      if (nutGoto) nutGoto.onclick = () => {
+        const s = window.Alpine && Alpine.store("nav");
+        if (s && s.go) s.go("packs");
+      };
+      // "Gỡ" khác "Tắt" ở Ý ĐỊNH, nên thẻ rời hẳn khỏi danh sách chính chứ không chỉ mờ đi.
+      // Không xoá file trong bản cài: cây code read-only trên Docker, và git pull sẽ mọc lại.
+      const doiGo = async (go) => {
+        const fd = new FormData();
+        fd.append("slug", p.slug); fd.append("removed", go ? "1" : "0"); fd.append("brain", fbrain());
+        let r = {}; try { r = await (await fetch("/plugins/remove", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
+        if (r && r.error) alert(r.error);
+        load();
+      };
+      const nutDel = div.querySelector(".del");
+      if (nutDel) nutDel.onclick = () => {
+        if (confirm(`Gỡ plugin "${p.name}"?
+
+Tệp vẫn nằm trong bản cài, cài lại được bất cứ lúc nào. Công cụ của nó sẽ biến khỏi mọi bộ não.`)) doiGo(true);
+      };
+      const nutUn = div.querySelector(".undel");
+      if (nutUn) nutUn.onclick = () => doiGo(false);
+      const nutTgl = div.querySelector(".tgl");
+      if (nutTgl) nutTgl.onclick = async () => {
         const fd = new FormData();
         fd.append("slug", p.slug); fd.append("enabled", p.enabled ? "0" : "1"); fd.append("brain", fbrain());
         let r = {}; try { r = await (await fetch("/plugins/toggle", { method: "POST", body: fd })).json(); } catch (e) { r = { error: e.message }; }
@@ -1479,9 +1596,21 @@
       wrap.className = "cview-section";
       wrap.innerHTML = intro + gateBanner + dirHint + `<div id="plCards"></div>`;
       const host = wrap.querySelector("#plCards");
-      if (!plugins.length) host.innerHTML = `<div class="empty">${esc(window.t("cs.pl_empty_a"))} ${esc(d.global_dir || window.t("cs.pl_dir_fallback"))} ${esc(window.t("cs.pl_empty_b"))}</div>`;
-      else plugins.forEach(p => host.appendChild(card(p)));
+      const conDung = plugins.filter(p => !p.removed);
+      const daGo = plugins.filter(p => p.removed);
+      if (!conDung.length) host.innerHTML = `<div class="empty">Chưa có plugin nào. Thả một thư mục plugin vào ${esc(d.global_dir || "thư mục plugins toàn cục")} rồi tải lại.</div>`;
+      else conDung.forEach(p => host.appendChild(card(p)));
+      if (daGo.length) {
+        const det = document.createElement("details");
+        det.style.marginTop = "18px";
+        det.innerHTML = `<summary style="cursor:pointer;color:var(--text3)">◆ Đã gỡ <span style="opacity:.7">${daGo.length} plugin - bấm để xem</span></summary><div id="plGo" style="margin-top:10px"></div>`;
+        wrap.appendChild(det);
+        const hostGo = det.querySelector("#plGo");
+        daGo.forEach(p => hostGo.appendChild(card(p)));
+      }
       el.innerHTML = "";
+      const tab = hangTabKho("plugins");
+      if (tab) el.appendChild(tab);
       el.appendChild(wrap);
     }
     load();
@@ -3324,9 +3453,27 @@
     // gốc của PROVIDER_DEFS (sort có tiebreak theo chỉ số nên ổn định, không phụ thuộc engine).
     // Phải hỏi /claude/status mới biết Claude Code có đăng nhập thật không: nó không có
     // key_field nên server luôn trả configured=true, tin theo đó là Claude chưa đăng nhập vẫn
-    // nằm chễm chệ trên cùng. Một request cục bộ, rẻ.
+    // nằm chễm chệ trên cùng.
+    //
+    // NHƯNG PHẢI CÓ TRẦN CHỜ (chủ repo báo 06/09: trang Models đứng ở "Đang tải..." rất lâu).
+    // Lượt gọi này CHẶN nét vẽ đầu tiên, mà trước đây nó trần trụi không timeout - trong khi
+    // `freshSettings()` ngay trên đã có AbortController 6 giây từ lâu, kèm đúng chú thích
+    // "nếu /settings chậm/treo thì KHÔNG để panel kẹt Đang tải... mãi". Cùng một bài học,
+    // chỗ này chưa học. Phía server `/claude/status` đẻ một tiến trình Node và bản nhớ của nó
+    // nằm trong RAM nên NGUỘI SẠCH sau mỗi lần cập nhật, nên lần mở đầu tiên sau update chắc
+    // chắn phải chờ tiến trình. Và `catch` không cứu được: fetch treo thì không hề reject.
+    //
+    // 2,5 giây: đường ấm khoảng 3ms, đường nguội khoảng 750ms, nên trần này không cắt vào ca
+    // thật nào. Quá hạn thì coi như chưa đăng nhập và VẼ TIẾP - thẻ có thể xếp thấp hơn thực
+    // tế trong chốc lát, còn hơn để cả trang trắng. `refreshClaudeCard` ngay dưới vẫn hỏi lại
+    // bất đồng bộ và ghi đúng trạng thái lên thẻ.
     let claudeOn = false;
-    try { claudeOn = !!(await (await fetch("/claude/status")).json()).connected; } catch (e) {}
+    try {
+      const ac = new AbortController();
+      const hen = setTimeout(() => ac.abort(), 2500);
+      try { claudeOn = !!(await (await fetch("/claude/status", { signal: ac.signal })).json()).connected; }
+      finally { clearTimeout(hen); }
+    } catch (e) {}
     // kind "cli" nay có ba bộ não (Claude Code, Grok Build, Antigravity). Chỉ Claude mới phải
     // hỏi /claude/status; hai cái kia đã có `configured` thật từ server (đọc file đăng nhập).
     const provOn = (p) => (p.id === "anthropic-cli" ? claudeOn : !!p.configured);
@@ -3447,6 +3594,7 @@
           ${on ? "" : `<div class="prov-steps">
             <div><b>${esc(t("models.agy_login"))}</b> <code>${esc(dn.dang_nhap || "agy")}</code></div>
             <div>${esc(dn.ghi_chu || "")}</div>
+            ${dn.cuu_ho ? `<div class="gcard-meta">${esc(dn.cuu_ho)}</div>` : ""}
             <div>${esc(t("models.agy_done"))}</div>
           </div>`}
           <div class="prov-action" style="flex-wrap:wrap">
@@ -4131,6 +4279,20 @@
   }
 
   // ── Sức khoẻ kết nối (khối A): tô chấm màu chip theo /connect/health + nút Kết nối lại ──
+  // `checked_at` là giây kiểu Unix (`connect_health.py` dùng `time.time()`).
+  //
+  // Hàm này thay `zlAgo` - một cái tên còn sót lại từ module Zalo đã gỡ, KHÔNG hề được định
+  // nghĩa ở đâu. Nó ném ReferenceError ngay giữa vòng tô chấm, mà `forEach` thì không bắt lỗi,
+  // nên mọi kết nối SAU cái đầu tiên có `checked_at` đều không được tô - và vòng làm mới 60
+  // giây lại ném thêm một lần nữa. Hỏng lặng lẽ: chấm cứ xám, không ai biết vì sao.
+  function _lucNao(ts) {
+    const s = Math.max(0, Math.floor(Date.now() / 1000 - Number(ts || 0)));
+    if (s < 60) return "vừa xong";
+    if (s < 3600) return Math.floor(s / 60) + " phút trước";
+    if (s < 86400) return Math.floor(s / 3600) + " giờ trước";
+    return Math.floor(s / 86400) + " ngày trước";
+  }
+
   let _healthTimer = null;
   async function refreshConnHealth(el, conns, byId) {
     if (!document.body.contains(el)) { clearInterval(_healthTimer); _healthTimer = null; return; }
@@ -4142,8 +4304,8 @@
       if (chip.classList.contains("off")) { chip.title = window.t("cs.cn_h_off"); return; }
       const rec = h[chip.dataset.conn];
       dot.classList.remove("hok", "herr", "hunk");
-      if (!rec) { dot.classList.add("hunk"); chip.title = window.t("cs.cn_h_unchecked"); return; }
-      const when = rec.checked_at ? " · " + window.t("cs.cn_h_checked") + " " + zlAgo(rec.checked_at) : "";
+      if (!rec) { dot.classList.add("hunk"); chip.title = "Chưa kiểm tra - vòng check nền sẽ tự chạy"; return; }
+      const when = rec.checked_at ? " · kiểm tra " + _lucNao(rec.checked_at) : "";
       if (rec.ok) {
         dot.classList.add("hok");
         chip.title = window.t("cs.cn_h_ok", { so: rec.tools || 0 }) + when;
@@ -4269,15 +4431,22 @@
     const soon = con.status === "soon";
     const badge = '<span class="prov-kind">' + esc(AUTH_BADGE[con.auth_type] ? window.t(AUTH_BADGE[con.auth_type]) : (con.auth_type || "")) + '</span>'
       + (con.status === "beta" ? ' <span class="prov-kind" style="color:var(--warn-ink)">beta</span>' : "")
-      + (soon ? ' <span class="prov-kind">' + esc(window.t("cs.cn_soon_badge")) + '</span>' : "");
+      + (soon ? ' <span class="prov-kind">sắp có</span>' : "");
+    // Nút gỡ: dọn kho cho gọn. KHÔNG xoá file trong system/ (cây code read-only trên Docker,
+    // và git pull sẽ mọc lại) - chỉ ghi vào STATE_DIR/core-off.json, nên cài lại được.
+    // Thẻ "Tự thêm (nâng cao)" không có nút này: nó là lối vào, không phải một dịch vụ.
+    const nutGo = con.id === "custom" ? ""
+      : '<button class="cat-x" data-coreoff="' + esc(con.id) + '" title="Gỡ khỏi kho">'
+        + ic("x") + '</button>';
     return '<div class="cat-card' + (soon ? " soon" : "") + '" data-cat="' + esc(con.category || "Khác") + '">'
+      + nutGo
       + '<div class="cat-ico">' + iconInner(con) + '</div>'
       + '<div class="cat-name">' + esc(con.name) + ' ' + badge + '</div>'
       + '<div class="cat-desc">' + esc(con.description || "") + '</div>'
       + (soon
-        ? '<button class="gcard-btn" disabled style="opacity:.5">' + esc(window.t("cs.cn_soon_btn")) + '</button>'
-          + (con.guide_url ? ' <a class="cat-doc" href="' + esc(con.guide_url) + '" target="_blank">docs ↗</a>' : "")
-        : '<button class="gcard-btn" data-connect="' + esc(con.id) + '">' + esc(window.t("models.connect")) + '</button>'
+        ? '<button class="gcard-btn" disabled style="opacity:.5">Sắp có</button>'
+          + (con.guide_url ? ' <a class="cat-doc" href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">docs ↗</a>' : "")
+        : '<button class="gcard-btn" data-connect="' + esc(con.id) + '">Kết nối</button>'
           + (con.guide_url ? ' <a class="cat-doc" href="' + esc(safeHref(con.guide_url))
               + '" target="_blank" rel="noopener">' + esc(window.t("cs.cn_guide")) + ' ↗</a>' : ""))
       + '</div>';
@@ -4312,7 +4481,7 @@
       + (con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "")
       // Có steps thì wizard từng bước THAY guide tường chữ (guide giữ làm fallback catalog cũ)
       + (hasSteps ? stepsHtml(con)
-        : (con.guide ? '<div class="conn-guide">' + esc(con.guide) + (con.guide_url ? ' <a href="' + esc(con.guide_url) + '" target="_blank">' + esc(window.t("cs.cn_guide")) + ' ↗</a>' : "") + '</div>' : ""))
+        : (con.guide ? '<div class="conn-guide">' + esc(con.guide) + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">Hướng dẫn ↗</a>' : "") + '</div>' : ""))
       + oauthWizard(con)   // nút mở trang ngoài (vd "Tạo App Password") khi catalog khai auth.setup.links
       + reuseHtml(reuseDonors(con, ctx))
       + jsonDropHtml(con)
@@ -4538,8 +4707,8 @@
       // Cảnh báo rủi ro phải hiện NGAY LÚC QUYẾT ĐỊNH, không đợi tới hộp thoại đổi quyền.
       + (con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "")
       + (hasSteps ? stepsHtml(con)
-        : '<div class="conn-guide">' + esc(con.guide || window.t("cs.cn_oauth_guide"))
-          + (con.guide_url ? ' <a href="' + esc(con.guide_url) + '" target="_blank">' + esc(window.t("cs.cn_guide")) + ' ↗</a>' : "") + '</div>')
+        : '<div class="conn-guide">' + esc(con.guide || "Đăng nhập bằng tài khoản của nhà cung cấp.")
+          + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">Hướng dẫn ↗</a>' : "") + '</div>')
       + oauthWizard(con)
       + reuseHtml(reuseDonors(con, ctx))
       + jsonDropHtml(con)
@@ -4638,10 +4807,93 @@
       } else if (act === "toggle") {
         await postJson("/connect/toggle", { id: c.id }); closeConnModal(); renderConnect(el);
       } else if (act === "del") {
-        if (!confirm(window.t("cs.cn_del_confirm", { ten: c.label || "" }))) return;
-        await postJson("/connect/delete", { id: c.id }); closeConnModal(); renderConnect(el);
+        closeConnModal(); openPurgeModal(el, c);
       }
     });
+  }
+
+  function _dungLuong(b) {
+    b = Number(b || 0);
+    if (!b) return "";
+    if (b < 1024) return b + " B";
+    if (b < 1024 * 1024) return Math.round(b / 1024) + " KB";
+    return (b / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  async function openPurgeModal(el, c) {
+    // Hộp này VẼ TỪ /connect/purge-plan chứ không tự liệt kê. Lý do: danh sách "sẽ mất những
+    // gì" viết tay trong JS thì sau vài tháng nó lệch khỏi việc server thật sự làm, mà lệch
+    // theo hướng nguy hiểm - người dùng đọc thấy ít hơn thực tế. Server đi một vòng quét thật
+    // rồi trả về đúng cái nó sắp xoá.
+    let d;
+    connModal(mHead("XOÁ KẾT NỐI") + '<div class="mp-body" id="pgBody">Đang kiểm tra…</div>');
+    try { d = await (await fetch("/connect/purge-plan?id=" + encodeURIComponent(c.id))).json(); }
+    catch (e) { d = { ok: false, error: String(e) }; }
+    const body = document.getElementById("pgBody");
+    if (!body) return;
+    if (!d || !d.ok) {
+      body.innerHTML = WARN_ICON + " " + esc((d && d.error) || "Không đọc được kết nối.");
+      return;
+    }
+    if (d.busy) {
+      body.innerHTML = WARN_ICON + ' Kết nối đang chạy dở một việc. Chờ nó xong rồi xoá, '
+        + 'vì dừng giữa chừng có thể cắt ngang một việc thật đang gửi đi.';
+      return;
+    }
+
+    const muc = (d.items || []).map(function (i) {
+      const co = _dungLuong(i.bytes);
+      return '<li>' + esc(i.label) + (i.n > 1 ? ' <b>x' + i.n + '</b>' : "")
+        + (co ? ' <span style="opacity:.6">(' + co + ')</span>' : "")
+        + (i.note ? '<br><span style="opacity:.6;font-size:.9em">' + esc(i.note) + '</span>' : "")
+        + '</li>';
+    }).join("");
+
+    // Cảnh báo lấy từ CATALOG (trường purge_warning), không viết cứng ở đây: mất phiên quét QR
+    // là tính chất của connector, nên nó phải đi cùng connector chứ không nằm trong giao diện.
+    const nang = !!d.warning;
+    body.innerHTML =
+      '<p>Sắp xoá <b>' + esc(d.label) + '</b> (' + esc(d.connector_name || "") + ').</p>'
+      + (nang ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px">'
+                + WARN_ICON + ' ' + esc(d.warning) + '</div>' : "")
+      + '<p style="margin-top:10px">Những thứ sẽ mất:</p><ul style="margin:6px 0 0 18px">' + muc + '</ul>'
+      + '<label style="display:block;margin-top:12px"><input type="checkbox" id="pgAudit"> '
+      + 'Xoá luôn nhật ký gọi tool <span style="opacity:.6">(mặc định giữ lại, chỉ bỏ tên hiển thị)</span></label>'
+      + (nang ? '<label style="display:block;margin-top:8px">Gõ đúng <b>' + esc(d.label)
+                + '</b> để xoá hẳn ngay:<br>'
+                + '<input class="mp-input" id="pgName" placeholder="Gõ lại tên kết nối"></label>' : "")
+      + '<div class="mp-foot" style="margin-top:14px"><span class="mp-note" id="pgNote"></span>'
+      + '<button class="mp-btn" data-act="close">Huỷ</button>'
+      + '<button class="mp-btn primary" id="pgTrash">'
+      + (nang ? 'Chuyển vào thùng rác 30 ngày' : 'Xoá kết nối') + '</button>'
+      + (nang ? '<button class="mp-btn danger" id="pgHard">Xoá hẳn ngay</button>' : "")
+      + '</div>';
+
+    const note = document.getElementById("pgNote");
+    async function chay(hard) {
+      note.textContent = "Đang xoá…";
+      const r = await postJson("/connect/delete", {
+        id: c.id, hard: !!hard,
+        purge_audit: !!(document.getElementById("pgAudit") || {}).checked
+      });
+      if (!r || !r.ok) {
+        note.innerHTML = WARN_ICON + " " + esc((r && r.error) || "Lỗi");
+        return;
+      }
+      closeConnModal();
+      renderConnect(el);
+    }
+    const nutTrash = document.getElementById("pgTrash");
+    if (nutTrash) nutTrash.onclick = () => chay(false);
+    const nutHard = document.getElementById("pgHard");
+    if (nutHard) nutHard.onclick = () => {
+      const v = (document.getElementById("pgName") || {}).value || "";
+      if (v.trim() !== (d.label || "").trim()) {
+        note.innerHTML = WARN_ICON + " Gõ đúng tên kết nối thì mới xoá hẳn được.";
+        return;
+      }
+      chay(true);
+    };
   }
 
   async function openAuditModal(c) {
@@ -4668,6 +4920,10 @@
       </div>
     </div>`;
   }
+  // Tab đang mở của trang Kết nối. Để NGOÀI renderConnect vì trang tự vẽ lại sau mỗi lần
+  // đấu, ngắt hay gỡ dịch vụ - giữ trong hàm thì mỗi thao tác lại quăng người dùng về tab đầu.
+  let _mcpTab = "danoi";
+
   async function renderConnect(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     let d;
@@ -4700,22 +4956,135 @@
     const connectedHtml = Object.keys(groups).map(cid =>
       connectorCard(byId[cid] || { id: cid, name: cid, icon: "plug" }, groups[cid])).join("");
     const cats = Array.from(new Set(cat.map(c => c.category || "Khác")));
-    el.innerHTML = warn
-      + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_connected_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_account_n", { so: conns.length })) + '</span></h3>'
-      + '<div class="gcard-meta" style="max-width:740px">' + esc(window.t("cs.cn_intro"))
-      + '<label style="margin-left:8px;cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> ' + esc(window.t("cs.cn_strict")) + '</label></div>'
-      + '<div class="prov-list" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">' + esc(window.t("cs.cn_empty")) + '</div>') + '</div></div>'
-      + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_store_head")) + '</h3>'
-      + '<div class="cat-tools"><input class="js-input" id="catQ" placeholder="' + esc(window.t("cs.cn_search_ph")) + '" style="max-width:220px">'
-      + '<span class="cat-filter"><button class="cat-chip on" data-catf="">' + esc(window.t("studio.all")) + '</button>' + cats.map(x => '<button class="cat-chip" data-catf="' + esc(x) + '">' + esc(x) + '</button>').join("") + '</span></div>'
+    const removed = d.removed || [];
+    const orphans = d.orphans || [];
+    // Kết nối mất khuôn thì `mcp_store.resolved` từ chối dựng dial spec, tức nó IM. Phải nói ra
+    // thay vì để người dùng ngồi đoán vì sao một nguồn đang có mà Javis bảo không có.
+    //
+    // Hai nguyên nhân, hai lối thoát khác hẳn nhau - trộn làm một là đẩy người dùng đi sai
+    // đường ở đúng lúc họ đang hoảng:
+    //   `co_trong_kho`  người dùng vừa tự gỡ dịch vụ đó → cài lại ở khu "Đã gỡ" ngay dưới.
+    //   không có        dịch vụ đã DỌN RA Javis Store (0.55.36 dọn 16 cái) → cài lại từ kho.
+    //
+    // Câu cũ ở nhánh thứ hai xui người dùng nâng cấp app hoặc bỏ kết nối đi. Từ 0.55.36 nó
+    // vừa sai vừa nguy hiểm: nâng cấp không mọc lại dịch vụ nữa, còn bỏ kết nối là vứt luôn
+    // credential họ đã đấu - trong khi thứ họ cần chỉ là bấm cài một gói.
+    const moCoiKho = orphans.filter(o => !o.co_trong_kho);
+    const banMoCoi = orphans.length
+      ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px;margin-bottom:12px">'
+        + WARN_ICON + ' <b>' + orphans.length + ' kết nối đang dừng vì thiếu dịch vụ trong kho:</b> '
+        + orphans.map(o => esc(o.label)).join(", ") + '. '
+        + (orphans.some(o => o.co_trong_kho)
+            ? 'Cài lại dịch vụ ở khu "Đã gỡ" bên dưới là chúng chạy lại. ' : "")
+        + (moCoiKho.length
+            ? 'Những dịch vụ này đã dọn ra Javis Store để nhận bản mới mà không cần cập nhật app. '
+              + 'Cài lại là kết nối cũ chạy tiếp, không phải đăng nhập lại.'
+              // Nút xếp NGANG và chỉ rộng bằng chữ. `.gcard-btn` mặc định chiếm trọn hàng, nên
+              // để trần thì hai ba nút thành hai ba dải to đùng chồng lên nhau, trông như lỗi.
+              + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">'
+              + Array.from(new Set(moCoiKho.map(o => o.connector_id))).map(cid =>
+                  '<button class="gcard-btn" style="width:auto;flex:none" data-mocoi="' + esc(cid)
+                  + '">Cài ' + esc(cid) + ' từ kho</button>').join("")
+              + '</div>'
+            : "")
+        + '</div>'
+      : "";
+    const khuDaGo = removed.length
+      ? '<details class="cview-section"><summary><h3 style="display:inline">◆ Đã gỡ '
+        + '<span style="opacity:.5">' + removed.length + ' dịch vụ - bấm để xem</span></h3></summary>'
+        + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những dịch vụ bạn đã gỡ khỏi kho. '
+        + 'File của chúng vẫn nằm trong bản cài (Javis không sửa mã nguồn của chính nó), nên cài lại là có ngay.</div>'
+        + '<div class="prov-list" style="margin-top:12px">'
+        + removed.map(r => '<div class="prov-row"><div class="prov-ico">' + iconInner(r) + '</div>'
+            + '<div class="prov-main"><div class="prov-name">' + esc(r.name) + '</div>'
+            + '<div class="prov-meta">' + esc(r.category) + '</div></div>'
+            + '<button class="gcard-btn" data-coreon="' + esc(r.id) + '">Cài lại</button></div>').join("")
+        + '</div></details>'
+      : "";
+    el.innerHTML = warn + banMoCoi
+      // Hai TAB, không phải một mạch cuộn. Trang này gộp hai danh sách rất khác nhau:
+      // thứ đang chạy, và thứ có thể đấu thêm. Gộp lại thì người đã đấu vài chục tài
+      // khoản phải cuộn qua hết đống đó mới tới chỗ đấu cái mới.
+      //
+      // Cả hai khối đều NẰM TRONG DOM, chỉ ẩn đi - phần dây nối bên dưới tìm theo id và
+      // chạy một lần cho cả hai, nên đổi tab không phải vẽ lại hay nối lại gì cả.
+      + '<div id="mcpTabDaNoi"' + (_mcpTab === "danoi" ? "" : " hidden") + '>'
+      + '<div class="cview-section"><h3>◆ Đã kết nối <span style="opacity:.5">' + conns.length + ' tài khoản</span></h3>'
+      + '<div class="gcard-meta" style="max-width:740px">Một dịch vụ nối được NHIỀU tài khoản (nhiều shop, nhiều số Zalo…). Mọi bộ não - Claude Code, ChatGPT/Codex, OpenRouter, API - dùng chung kho này qua trung tâm kết nối của Javis, kèm phân quyền và nhật ký.'
+      + '<label style="margin-left:8px;cursor:pointer"><input type="checkbox" id="mcpStrict" ' + (d.strict ? "checked" : "") + '> Chỉ dùng kết nối của Javis (bỏ kết nối sẵn của máy)</label></div>'
+      + '<div class="prov-list" style="margin-top:12px">' + (connectedHtml || '<div class="mp-empty">Chưa đấu nguồn nào - mở tab <b>Kết nối sẵn có</b> để bắt đầu.</div>') + '</div></div>'
+      // Lối đi tiếp, đặt ngay dưới danh sách. Không có nó thì tab này là ngõ cụt với
+      // người chưa đấu gì: họ nhìn một ô trống mà không biết bước kế tiếp ở đâu.
+      + '<div class="conn-guide" style="border:1px dashed var(--border);border-radius:12px;'
+      + 'padding:14px 16px;margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:12px">'
+      + '<span style="flex:1;min-width:240px">Muốn nối thêm dịch vụ? Chọn từ những dịch vụ '
+      + 'Javis có sẵn, hoặc tải thêm từ kho.</span>'
+      + '<button class="mp-btn" id="mcpDiSanCo">Kết nối sẵn có</button>'
+      + '<button class="mp-btn primary" id="mcpDiKho">Javis Store</button></div>'
+      + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ Kết nối sẵn của Claude Code và Codex <span style="opacity:.5">chỉ hiển thị - bấm để xem</span></h3></summary>'
+      + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">Những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Bộ não tương ứng tự dùng được các nguồn "Connected". Đăng nhập và quản lý trong app Claude hoặc bằng lệnh <code>codex mcp</code>, không sửa ở đây.</div>'
+      + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">Bấm để tải…</div></div>'
+      + '<div class="prov-list" id="mcpAmbientCodex" style="margin-top:12px"></div></details>'
+      + '</div>'
+      + '<div id="mcpTabSanCo"' + (_mcpTab === "sanco" ? "" : " hidden") + '>'
+      + '<div class="cview-section"><h3>◆ Kết nối sẵn có</h3>'
+      + '<div class="cat-tools"><input class="js-input" id="catQ" placeholder="Tìm dịch vụ…" style="max-width:220px">'
+      + '<span class="cat-filter"><button class="cat-chip on" data-catf="">Tất cả</button>' + cats.map(x => '<button class="cat-chip" data-catf="' + esc(x) + '">' + esc(x) + '</button>').join("") + '</span></div>'
       + '<div class="cat-grid" id="catGrid">' + catalogCard(byId.custom) + groupCards(cat, conns) + catSolo(cat).map(catalogCard).join("") + '</div></div>'
       // Hai khu kết nối sẵn của CLI: GẬP mặc định (dân thường không cần thấy) + LAZY:
       // chỉ gọi /mcp/ambient (chậm - phải health check) khi người dùng thật sự mở ra.
-      + '<details class="cview-section amb-details" id="ambWrap"><summary><h3 style="display:inline">◆ ' + esc(window.t("cs.cn_amb_head")) + ' <span style="opacity:.5">' + esc(window.t("cs.cn_amb_hint")) + '</span></h3></summary>'
-      + '<div class="gcard-meta" style="max-width:740px;margin-top:10px">' + esc(window.t("cs.cn_amb_desc_a")) + ' <code>codex mcp</code>' + esc(window.t("cs.cn_amb_desc_b")) + '</div>'
-      + '<div class="prov-list" id="mcpAmbient" style="margin-top:12px"><div class="mp-empty">' + esc(window.t("cs.cn_amb_click")) + '</div></div>'
-      + '<div class="prov-list" id="mcpAmbientCodex" style="margin-top:12px"></div></details>';
+      + '</div>';
+    // Ba tab. Hai tab đầu chỉ đổi khối hiển thị trong trang; tab thứ ba ĐIỀU HƯỚNG sang kho
+    // cài đặt - nơi có cả connector không nằm trong bản app.
+    const doiTab = (v) => {
+      _mcpTab = v;
+      const a = document.getElementById("mcpTabDaNoi");
+      const b = document.getElementById("mcpTabSanCo");
+      if (a) a.hidden = v !== "danoi";
+      if (b) b.hidden = v !== "sanco";
+      el.querySelectorAll("[data-tab-cb]").forEach((x, i) =>
+        x.classList.toggle("on", i === (v === "danoi" ? 0 : 1)));
+      // Đổi tab xong mà vẫn đang ở giữa trang cũ thì người dùng tưởng không có gì xảy ra.
+      try { el.scrollTop = 0; } catch (e) {}
+    };
+    const tabKho = hangTabKho("mcp", [
+      { nhan: "Đã kết nối", chon: _mcpTab === "danoi", bam: () => doiTab("danoi") },
+      { nhan: "Kết nối sẵn có", chon: _mcpTab === "sanco", bam: () => doiTab("sanco") },
+    ]);
+    if (tabKho) el.insertBefore(tabKho, el.firstChild);
+    const nutSanCo = document.getElementById("mcpDiSanCo");
+    if (nutSanCo) nutSanCo.onclick = () => doiTab("sanco");
+    // Từ banner mồ côi sang thẳng gói cần cài, ô tìm điền sẵn id connector. Thả người dùng vào
+    // một kho ba chục mục rồi bảo tự tìm cái vừa biến mất là bắt họ làm việc của mình.
+    el.querySelectorAll("[data-mocoi]").forEach(b => b.onclick = () => {
+      if (window.JavisPacks && window.JavisPacks.moKho) {
+        window.JavisPacks.moKho("connector", "mcp",
+          VIEW_META.mcp ? VIEW_META.mcp.label : "Kết nối", b.dataset.mocoi);
+      }
+    });
+    const nutKho = document.getElementById("mcpDiKho");
+    if (nutKho) nutKho.onclick = () => {
+      if (window.JavisPacks && window.JavisPacks.moKho) {
+        window.JavisPacks.moKho("connector", "mcp", VIEW_META.mcp ? VIEW_META.mcp.label : "Kết nối");
+      }
+    };
     document.getElementById("mcpStrict").onchange = (e) => postJson("/mcp/strict", { strict: e.target.checked });
+    // Gỡ một dịch vụ có sẵn. Luồng hỏi lại nằm trong `JavisPacks.goApp` chứ không viết lại ở
+    // đây: dấu × trên thẻ và nút Gỡ trong kho là CÙNG một hành động, nên phải hỏi y hệt nhau -
+    // hai bản sao thì sớm muộn cũng lệch, mà lệch ở đúng chỗ hỏi trước khi xoá.
+    el.querySelectorAll("[data-coreoff]").forEach(b => b.onclick = async (ev) => {
+      ev.stopPropagation();
+      const con = byId[b.dataset.coreoff] || {};
+      if (!window.JavisPacks || !window.JavisPacks.goApp) { alert("Tải lại trang rồi thử lại."); return; }
+      const r = await window.JavisPacks.goApp(con.name || b.dataset.coreoff, b.dataset.coreoff);
+      if (r.ok) renderConnect(el);
+      else if (!r.huy) alert(r.error);
+    });
+    el.querySelectorAll("[data-coreon]").forEach(b => b.onclick = async () => {
+      const r = await postJson("/connect/core-toggle", { id: b.dataset.coreon, off: false });
+      if (r && r.ok) renderConnect(el);
+      else alert((r && r.error) || "Không cài lại được.");
+    });
     // Sức khoẻ kết nối: tô ngay khi mở trang + làm tươi mỗi 60s (tự dừng khi rời trang)
     clearInterval(_healthTimer);
     refreshConnHealth(el, conns, byId);

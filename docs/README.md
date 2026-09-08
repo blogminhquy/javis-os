@@ -59,9 +59,14 @@ Thanh điều hướng của dashboard gom **19 trang** thành **7 nhóm**: Tr�
 
 ## Bản tiếng Anh
 
-Tài liệu đang dịch dần từng trang, không dịch một lượt. [docs/en/](en/README.md) nói rõ trang
-nào đã có tiếng Anh và trang nào còn nguyên tiếng Việt - xem ở đó thay vì đoán. Thêm một ngôn
-ngữ vào chính Javis (không phải tài liệu) thì theo [sổ tay thêm ngôn ngữ](dev/them-mot-ngon-ngu.md).
+**Toàn bộ tài liệu đã có bản tiếng Anh.** Mỗi trang có dòng chuyển ngôn ngữ ngay dưới tiêu đề,
+bấm là sang đúng trang tương ứng. Mục lục tiếng Anh ở [docs/en/](en/README.md); ngoài ra ở gốc
+repo có [README.en.md](../README.en.md), [QUICKSTART.en.md](../QUICKSTART.en.md),
+[DEPLOY.en.md](../DEPLOY.en.md) và [CONTRIBUTING.en.md](../CONTRIBUTING.en.md).
+
+Bản tiếng Việt là bản gốc: sửa nội dung thì sửa bên tiếng Việt trước rồi cập nhật bản tiếng Anh
+tương ứng, đừng để hai bên nói khác nhau. Thêm một ngôn ngữ vào chính Javis (không phải tài
+liệu) thì theo [sổ tay thêm ngôn ngữ](dev/them-mot-ngon-ngu.md).
 
 ---
 

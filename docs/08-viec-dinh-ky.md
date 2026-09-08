@@ -1,5 +1,7 @@
 # Việc định kỳ & Nhắc hẹn
 
+***Tiếng Việt** · [English](en/08-recurring-jobs.md)*
+
 Trang **Việc định kỳ** là nơi bạn giao cho Javis những việc tự chạy khi bạn không ngồi trước máy: việc lặp theo chu kỳ (gọi là **loop**) và nhắc hẹn theo mốc giờ. Mỗi việc lặp tự thức dậy đúng chu kỳ, làm đúng một nhiệm vụ bạn mô tả, tự kiểm chứng rồi ghi nhật ký và nhắn kết quả về Telegram cho bạn.
 
 Trang này gộp việc của **mọi brain**, không chỉ brain đang chọn ở thanh bên.

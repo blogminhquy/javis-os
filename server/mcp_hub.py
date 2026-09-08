@@ -100,6 +100,59 @@ def _audit_append(rec):
         print(f"[hub audit] {e}", file=sys.stderr)
 
 
+def forget_rate(conn_id) -> None:
+    """Quên bộ đếm tần suất của một connection đã bị xoá.
+
+    Nhỏ nhưng có thật: `_rate` là dict theo conn_id và không ai pop nó bao giờ, nên id của
+    mọi kết nối từng dùng tool sẽ nằm lại trong RAM tới lúc khởi động lại."""
+    _rate.pop(conn_id, None)
+
+
+def audit_scrub(conn_id, drop=False) -> int:
+    """Dọn nhật ký cho một connection đã xoá. Trả về số dòng đã chạm.
+
+    MẶC ĐỊNH CHỈ XOÁ NHÃN, không xoá dòng. Nhãn là thứ duy nhất trong bản ghi mang tên người
+    hoặc tên cửa hàng; bỏ nó đi là hết dữ liệu cá nhân, mà vẫn còn lại dấu vết "kết nối này
+    từng gọi tool kia lúc đó". Một nhật ký mà thao tác xoá tự quét sạch được thì không còn là
+    nhật ký - nên `drop=True` phải do người dùng tự tick.
+
+    Ghi lại bằng tmp + replace vì `_audit_append` mở file ở chế độ append KHÔNG khoá: sửa tại
+    chỗ mà gặp đúng lúc một tool call đang ghi là mất dòng đó.
+    """
+    if not conn_id or not _AUDIT_PATH.exists():
+        return 0
+    try:
+        lines = _AUDIT_PATH.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        print(f"[hub audit] doc de don: {e}", file=sys.stderr)
+        return 0
+    out, touched = [], 0
+    for line in lines:
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            out.append(line)      # dòng hỏng: giữ nguyên, không phải việc của hàm này
+            continue
+        if rec.get("conn_id") != conn_id:
+            out.append(line)
+            continue
+        touched += 1
+        if drop:
+            continue
+        rec["label"] = ""
+        out.append(json.dumps(rec, ensure_ascii=False))
+    if not touched:
+        return 0
+    try:
+        tmp = _AUDIT_PATH.with_suffix(".jsonl.tmp")
+        tmp.write_text((("\n".join(out)) + "\n") if out else "", encoding="utf-8")
+        tmp.replace(_AUDIT_PATH)
+    except OSError as e:
+        print(f"[hub audit] ghi lai: {e}", file=sys.stderr)
+        return 0
+    return touched
+
+
 def audit_tail(limit=50, conn_id=None):
     try:
         if not _AUDIT_PATH.exists():
@@ -627,6 +680,11 @@ def _connector_menu(pool, ambient=None):
         if ns not in seen:
             con = mcp_catalog.get(t.get("connector_id")) or {}
             desc = (con.get("description") or con.get("name") or "").strip()
+            # Plugin không có connector trong catalog nên tự mang theo mô tả của manifest
+            # (`group_desc`, do plugins_host gắn). Không đọc nó thì mọi plugin hiện trơ là
+            # "<slug> (<tên>, N tool)" và model vẫn phải đoán bên trong có gì.
+            if not desc:
+                desc = str(t.get("group_desc") or "").strip()
             if not desc and ns in _LOCAL_GROUP_DESC:
                 # Nhóm nội bộ (builtin/plugin) không có connector trong catalog nên trước đây
                 # hiện trơ là "javis (javis, N tool)" - model không đoán được skill nằm trong
@@ -791,10 +849,21 @@ def _apply_lazy(tools_spec, route, include_ambient=False, hidden=None, force=Fal
 # Discover (cache) - gộp MCP connections + builtin
 # ============================================================
 def _store_mtime():
-    try:
-        return mcp_store.STORE.stat().st_mtime
-    except OSError:
-        return 0
+    """Mốc thời gian để biết bảng tool có cần dựng lại không.
+
+    Gộp cả kho GÓI và sổ ĐÃ GỠ, không chỉ file kết nối: cả hai đều đổi được danh sách connector
+    mà không ai đụng tới `mcp_servers.json`. Ba lệnh stat, chạy trên đường nóng nên không đi
+    quét sâu - `discover_all` gọi hàm này mỗi lượt chat.
+
+    Đây là đường CHẬM (trong TTL 60 giây sẵn có), dành cho ca thả thư mục vào bằng tay. Đổi qua
+    endpoint thì đã gọi thẳng `invalidate_cache()` nên có hiệu lực ngay."""
+    tong = 0.0
+    for f in (mcp_store.STORE, STATE_DIR / "core-off.json", STATE_DIR / "packs"):
+        try:
+            tong += f.stat().st_mtime
+        except OSError:
+            pass
+    return tong
 
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,

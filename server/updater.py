@@ -224,7 +224,20 @@ def chan_doan_pull(pull_out: str) -> str:
 
 
 def pip_install():
-    return run([venv_python(), "-m", "pip", "install", "-r", "requirements.txt", "-q"])
+    """Cài thư viện. Mã lỗi TRẢ VỀ CHO NƠI GỌI KIỂM - trước đây không ai kiểm.
+
+    pip hỏng (mất mạng giữa chừng, một gói bị gỡ khỏi PyPI, xung đột phiên bản giữa hai bản
+    Javis) là một trong hai đường dẫn thẳng tới cảnh "cập nhật xong máy chết hẳn": server mới
+    thiếu thư viện nên không lên, rồi đường lùi cũng chạy pip và cũng hỏng y hệt. Nuốt mã lỗi
+    thì cả hai lần đều im lặng, và người dùng chỉ nhận được một câu chung chung."""
+    r = run([venv_python(), "-m", "pip", "install", "-r", "requirements.txt", "-q"])
+    if r.returncode != 0:
+        log(f"pip LỖI (rc={r.returncode}). Server sắp tới nhiều khả năng KHÔNG lên được.")
+    return r
+
+
+def _head_hien_tai() -> str:
+    return (run(["git", "rev-parse", "HEAD"]).stdout or "").strip()
 
 
 def read_current_version():
@@ -284,14 +297,20 @@ def main():
     pull = run(["git", "pull", "--ff-only"])
     if pull.returncode != 0:
         log("git pull LỖI:\n" + (pull.stderr or pull.stdout or ""))
+        # Mã nguồn chưa đổi nên bản CŨ vẫn nguyên vẹn - bật lại là xong. Nhưng phải KIỂM xem
+        # nó lên thật không: báo mỗi "pull thất bại" trong khi server cũng đang nằm là bỏ
+        # người dùng lại với một câu sai về chuyện đang thực sự xảy ra.
         start_server(mode, a.port)
+        them = "" if poll_health(a.port, 60) else (
+            " Server cũ CŨNG chưa lên lại - mở Javis bằng tay để chạy tiếp.")
         us.write_state({"phase": "error", "result": "pull_failed",
-                        "error": (pull.stderr or "git pull thất bại")[:500], "finished_at": _now()})
+                        "error": ((pull.stderr or "git pull thất bại")[:400] + them),
+                        "finished_at": _now()})
         return 1
 
     us.write_state({"phase": "installing"})
     log("Cài thư viện…")
-    pip_install()
+    pip_moi = pip_install()
 
     us.write_state({"phase": "restarting"})
     log("Khởi động bản mới…")
@@ -323,8 +342,25 @@ def main():
         us.write_state({"phase": "error", "result": "rollback_failed",
                         "error": "Không có commit cũ để lùi.", "finished_at": _now()})
         return 1
-    run(["git", "reset", "--hard", a.old_sha])
-    pip_install()
+    # Từ đây trở xuống mọi bước đều KIỂM MÃ LỖI. Trước đây không bước nào kiểm, nên khi đường
+    # lùi hỏng người dùng nhận đúng một câu "Xem update.log" - vô dụng trên bản Windows và
+    # Docker, nơi họ không biết log nằm ở đâu. Tệ hơn: không ai biết mã nguồn lúc đó đang là
+    # bản CŨ hay vẫn là bản MỚI đang hỏng, mà hai tình huống ấy cần hai cách chữa khác hẳn.
+    hong = []
+
+    rs = run(["git", "reset", "--hard", a.old_sha])
+    head = _head_hien_tai()
+    if rs.returncode != 0 or not head.startswith(a.old_sha[:7]):
+        # Reset trượt là chuyện NẶNG NHẤT ở đây: mã nguồn vẫn là bản mới đang hỏng, nên bật
+        # lại bao nhiêu lần cũng hỏng y như vậy. Phải nói thẳng, kèm lệnh chữa.
+        hong.append(f"lùi mã nguồn KHÔNG thành (git reset rc={rs.returncode}, "
+                    f"HEAD={head[:7] or '?'}). Mã nguồn vẫn là bản mới đang lỗi. "
+                    f"Chạy tay: git reset --hard {a.old_sha[:12]}")
+
+    if pip_install().returncode != 0:
+        hong.append("cài lại thư viện cho bản cũ thất bại - kiểm tra mạng rồi chạy lại: "
+                    "pip install -r requirements.txt")
+
     # Bản mới có thể đang chạy dở (lên tiến trình nhưng /health đỏ) → dừng hẳn trước khi
     # bật bản cũ, kẻo nohup bind trùng cổng. Windows/systemd dừng lại cũng vô hại.
     stop_server(mode, 0, a.port)
@@ -334,8 +370,16 @@ def main():
         us.write_state({"phase": "done", "result": "rolled_back",
                         "error": "Bản mới lỗi, đã tự quay về bản cũ.", "finished_at": _now()})
         return 0
+
+    if pip_moi.returncode != 0:
+        hong.append("bản mới cũng không cài nổi thư viện, nên nhiều khả năng lỗi nằm ở môi "
+                    "trường chứ không ở mã nguồn")
     us.write_state({"phase": "error", "result": "rollback_failed",
-                    "error": "Bản mới lỗi và lùi bản cũng chưa lên. Xem update.log.", "finished_at": _now()})
+                    "error": ("Bản mới lỗi và bản cũ cũng chưa lên. "
+                              + ("; ".join(hong) if hong else
+                                 "Mã nguồn đã lùi đúng và thư viện cài xong, nhưng server vẫn "
+                                 "không lên - nhiều khả năng cổng đang bị tiến trình khác giữ.")),
+                    "finished_at": _now()})
     return 1
 
 

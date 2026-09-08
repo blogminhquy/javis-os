@@ -133,11 +133,17 @@ _DEFAULT = {
         # Catalog model theo provider (Telegram /model dùng key 'claude'+'openrouter'; picker dùng cả 3).
         "catalog": {
             # anthropic-cli: danh sách nền, LUÔN dùng được kể cả khi máy không có API key.
-            # /provider/models hỏi API Anthropic bằng `anthropic_api_key` (nếu có) rồi ghi đè
-            # danh sách THẬT vào đây. Không có key thì giữ nguyên các alias dưới đây - chúng
-            # luôn trỏ tới bản mới nhất của từng dòng nên không bao giờ lạc hậu.
-            "claude": ["opus", "sonnet", "haiku", "fable"],
-            "anthropic-api": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            # /provider/models lấy danh sách THẬT theo hai đường (API key nếu có, không thì đọc
+            # danh mục model nhúng trong chính binary `claude`) rồi ghi lại vào đây. Danh sách
+            # nhớ được KHÔNG đè danh sách này nữa mà HỢP với nó (xem `provider_models_index`),
+            # vì lần ghi đầu tiên từng khoá vĩnh viễn người dùng vào dàn model của ngày hôm đó.
+            # Alias đứng trước vì alias luôn trỏ bản mới nhất của dòng; id đầy đủ đứng sau để
+            # `_claude_api_model` dịch được alias sang tên thật.
+            "claude": ["fable", "opus", "sonnet", "haiku",
+                       "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+                       "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+            "anthropic-api": ["claude-fable-5-1", "claude-opus-5", "claude-sonnet-5",
+                              "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
             "openai": ["gpt-4o", "gpt-4o-mini", "o3-mini"],                        # OpenAI API
             "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],  # Google Gemini API (picker load động)
             "groq": ["llama-3.3-70b-versatile", "qwen3-32b", "openai/gpt-oss-120b"],  # Groq (picker load động)
@@ -163,6 +169,9 @@ _DEFAULT = {
     # max_age_days / max_mb <= 0 = tắt luật tương ứng. enabled=False = không dọn gì cả.
     # staging_days: hạn RIÊNG cho STATE_DIR/.staging - nơi file dán vào khung chat rơi xuống.
     # Ngắn hơn hẳn vì đó là chỗ trung chuyển một lượt chat, không ai mở lại bao giờ.
+    # Kho gói: một tệp JSON công khai. Đổi được sang kho khác; rỗng thì dùng kho
+    # mặc định của Javis. Xem docs/dev/pack-store-index.md.
+    "packs": {"store_url": "", "tokens": {}},
     "media": {"enabled": True, "max_age_days": 30, "max_mb": 300, "staging_days": 3},
     "telegram": {"enabled": False, "token": "", "chat_id": ""},
     # Kênh Zalo Bot của CHỦ (API chính thức bot.zaloplatforms.com). Cùng hình dạng với telegram
@@ -187,6 +196,9 @@ _DEFAULT = {
         # graph_enabled=False → vào thẳng Console, KHÔNG dựng đồ thị (nhẹ cho VPS/điện thoại).
         # Frontend cũng tự ép lite-mode khi màn hình hẹp dù cờ này bật.
         "graph_enabled": True,
+        # Vấp "hết lượt gói thuê bao" thì tự chạy lại câu hỏi khi hạn mức mở. Ô trên thẻ hết
+        # lượt trong khung chat đổi giá trị này.
+        "auto_resume": True,
     },
     # MCP do Javis quản lý (registry connection ở mcp_servers.json). strict=True → CHỈ dùng
     # kết nối của Javis (--strict-mcp-config), bỏ qua config MCP sẵn có của máy.
@@ -456,6 +468,10 @@ _DEFAULT = {
 # Backward-compat: giá trị plaintext cũ đọc vẫn ra nguyên văn; lần ghi kế tiếp tự bọc "enc:".
 # Mất file .secret_key → decrypt trả "" (nhập lại key) - đánh đổi giống MCP secret, an toàn hơn lộ key.
 _SECRET_PATHS = (
+    # Token truy cập kho hoặc repo RIÊNG, một khoá cho mỗi tên máy. Dấu * cuối nghĩa là
+    # "mọi khoá của dict này" - cần vì tên máy do người dùng nhập nên không liệt kê trước
+    # được. Xem `_secret_keys`.
+    "packs.tokens.*",
     "model.openrouter_key", "model.anthropic_api_key", "model.openai_api_key", "model.gemini_api_key",
     "model.groq_api_key", "model.ollama_key", "model.ollama_local_key",
     "model.openai_oauth.access_token", "model.openai_oauth.refresh_token", "model.openai_oauth.id_token",
@@ -468,20 +484,30 @@ _SECRET_PATHS = (
 )
 
 
+def _secret_keys(cfg, path):
+    """(dict cha, tên khoá) cho một đường trong _SECRET_PATHS. Có thể trả nhiều cặp.
+
+    Dấu `*` ở cuối nghĩa là MỌI KHOÁ của dict đó. Cần vì có kho secret mà tên khoá do người
+    dùng đặt nên không liệt kê trước được - `packs.tokens.<host>` là ca đầu tiên."""
+    parts = path.split(".")
+    parent = cfg
+    for p in parts[:-1]:
+        if isinstance(parent, dict) and isinstance(parent.get(p), dict):
+            parent = parent[p]
+        else:
+            return []
+    key = parts[-1]
+    if key == "*":
+        return [(parent, k) for k in list(parent)] if isinstance(parent, dict) else []
+    return [(parent, key)] if isinstance(parent, dict) else []
+
+
 def _transform_secret_fields(cfg, fn):
     """Áp fn (encrypt|decrypt) lên các trường secret theo _SECRET_PATHS, tại chỗ. Bỏ qua nếu thiếu."""
     for path in _SECRET_PATHS:
-        parts = path.split(".")
-        parent = cfg
-        for p in parts[:-1]:
-            if isinstance(parent, dict) and isinstance(parent.get(p), dict):
-                parent = parent[p]
-            else:
-                parent = None
-                break
-        key = parts[-1]
-        if isinstance(parent, dict) and isinstance(parent.get(key), str) and parent.get(key):
-            parent[key] = fn(parent[key])
+        for parent, key in _secret_keys(cfg, path):
+            if isinstance(parent.get(key), str) and parent.get(key):
+                parent[key] = fn(parent[key])
     return cfg
 
 
@@ -881,13 +907,17 @@ def secret_paths_hong():
     cfg = read_settings()
     hong = []
     for path in _SECRET_PATHS:
-        parts = path.split(".")
-        r, c = raw, cfg
-        for p in parts:
-            r = r.get(p) if isinstance(r, dict) else None
-            c = c.get(p) if isinstance(c, dict) else None
-        if isinstance(r, str) and r.startswith("enc:") and not (c or ""):
-            hong.append(path)
+        # Bung dấu * ra thành từng khoá thật TRƯỚC khi so, nếu không thì mọi khoá dạng
+        # `packs.tokens.<host>` lặng lẽ rơi khỏi phần báo secret hỏng.
+        for _parent, _k in _secret_keys(cfg, path):
+            duong = path[:-1] + _k if path.endswith("*") else path
+            parts = duong.split(".")
+            r, c = raw, cfg
+            for p in parts:
+                r = r.get(p) if isinstance(r, dict) else None
+                c = c.get(p) if isinstance(c, dict) else None
+            if isinstance(r, str) and r.startswith("enc:") and not (c or ""):
+                hong.append(duong)
     return hong
 
 

@@ -21,6 +21,60 @@ def _no_window() -> int:
     return subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
+# Thang effort mỗi model Codex nhận, do CHÍNH Codex khai trong `model/list`. Nhớ trong RAM,
+# ghi mỗi lần `list_models` chạy trót lọt.
+#
+# Vì sao phải nhớ chứ không hỏi lại lúc cần: `list_models` đẻ một tiến trình `codex app-server`
+# và mất vài giây - không được phép nằm trên đường chat. Bù lại, đường lấy danh sách model
+# (trang Models, hộp chọn model, /provider/models) đều gọi qua đây, nên máy đang chạy thì bảng
+# này gần như luôn có sẵn. Chưa có thì `efforts_for` trả rỗng và caller KHÔNG truyền effort -
+# lượt chat chạy bằng mặc định của Codex, đúng như trước, chứ không hỏng.
+_EFFORTS: dict = {}
+
+
+def efforts_for(model: str) -> list:
+    """Các mức effort model này nhận, theo lời của chính Codex. [] = chưa biết."""
+    return list(_EFFORTS.get(str(model or "").strip()) or [])
+
+
+def _nho_efforts(items) -> None:
+    for x in items or []:
+        muc = [m for m in (x.get("supported_reasoning_efforts") or []) if m]
+        if x.get("id") and muc:
+            _EFFORTS[x["id"]] = muc
+
+
+# Thang effort của Codex, xếp từ nhẹ tới nặng. Chỉ dùng để SẮP XẾP thang mà model tự khai,
+# không phải để quyết định model nhận mức nào - cái đó là lời của Codex.
+_THANG = ("minimal", "low", "medium", "high", "xhigh", "max")
+
+
+def muc_cho(model: str, muc_javis: str) -> str:
+    """Mức của Javis -> mức effort của Codex, lấy từ THANG CỦA CHÍNH MODEL ĐÓ. "" = đừng truyền.
+
+    Không có bảng dịch chép tay, và đó là chủ ý: Codex đổi thang theo từng model và từng đợt
+    (`minimal` chỉ vài model có, `xhigh` mới thêm sau). Bảng chép tay thì sai lặng lẽ, còn giá
+    trị model không nhận thì hỏng cả lượt chat. Ở đây mọi giá trị trả ra đều LẤY TỪ danh sách
+    mà chính Codex vừa khai cho model đó, nên không bao giờ gửi một mức nó không hiểu.
+
+    Luật: "ultra" là nấc trên cùng của Javis nên luôn ra nấc CAO NHẤT model có. Mấy nấc còn
+    lại lấy đúng tên nếu model có, không thì lùi xuống nấc thấp hơn gần nhất - lùi chứ không
+    tiến, vì tiến là tiêu nhiều tiền hơn mức người dùng chọn.
+    """
+    thang = [m for m in _THANG if m in efforts_for(model)]
+    if not thang or not muc_javis or muc_javis == "off":
+        return ""
+    if muc_javis == "ultra":
+        return thang[-1]
+    if muc_javis in thang:
+        return muc_javis
+    if muc_javis not in _THANG:
+        return ""
+    i = _THANG.index(muc_javis)
+    thap_hon = [m for m in thang if _THANG.index(m) < i]
+    return thap_hon[-1] if thap_hon else thang[0]
+
+
 def _normalize_items(items: Any) -> list[dict]:
     """Chuẩn hoá model/list, giữ nguyên thứ tự picker của Codex và bỏ bản ẩn."""
     if not isinstance(items, list):
@@ -149,6 +203,7 @@ def list_models(timeout: float = 20.0, cli_path: Optional[str] = None,
         models = _normalize_items(all_items)
         if not models:
             return None
+        _nho_efforts(models)
         default = next((x["id"] for x in models if x["is_default"]), models[0]["id"])
         return {
             "models": [x["id"] for x in models],

@@ -250,23 +250,28 @@ _noi2 = model_limits.subscription_blocked_hint(_h2, ())
 check("không biết mốc reset thì NÓI là chưa biết", "chưa biết" in _noi2)
 check("chưa có bộ não dự phòng thì gợi ý cắm thêm", "Models" in _noi2)
 
-# Và main.py phải thật sự DÙNG câu đó ở cả hai nhánh, thay cho chuỗi lỗi thô.
+# Và main.py phải thật sự DÙNG câu đó ở cả bốn nhánh, thay cho chuỗi lỗi thô. Từ 0.55.44 bốn
+# nhánh đi chung một cửa `_limit_frame` (dựng khung error kèm mốc reset để hẹn tự chạy lại);
+# `_subscription_limit_message` vẫn còn cho Telegram.
 check("có hàm dịch lỗi thô sang câu nói được",
-      "def _subscription_limit_message(" in _MAIN_SRC)
+      "def _subscription_limit_message(" in _MAIN_SRC
+      and "def _subscription_limit_event(" in _MAIN_SRC)
+check("cửa chung của bốn nhánh dịch bằng hàm đó",
+      "noi, lim = _subscription_limit_event(raw or \"\", engine_hint)" in _MAIN_SRC)
 check("CANARY: nhánh Claude Code dùng câu đã dịch",
-      '_subscription_limit_message(event.get("content") or "", "claude-code")' in _MAIN_SRC)
+      '_limit_frame(\n                            event.get("content") or "", "claude-code"' in _MAIN_SRC)
 check("CANARY: nhánh Codex dùng câu đã dịch",
-      '_subscription_limit_message(ev.get("content") or "", "codex")' in _MAIN_SRC)
+      '_limit_frame(\n                                    ev.get("content") or "", "codex"' in _MAIN_SRC)
 # Antigravity CLI cũng chạy bằng gói Google nên cùng luật: hết lượt phải ra
 # câu tiếng Việt, không phải nguyên văn của Google.
 check("CANARY: nhánh Antigravity CLI dùng câu đã dịch",
-      '"antigravity-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 5)
+      '_limit_frame(\n                                ev.get("content") or "", "antigravity-cli"' in _MAIN_SRC)
 # Bộ não thứ 11 (Grok Build CLI) chạy bằng gói SuperGrok / X Premium+ nên cùng luật: hết lượt
 # phải ra câu tiếng Việt, không phải nguyên văn của xAI.
 check("CANARY: nhánh Grok Build CLI dùng câu đã dịch",
-      '"grok-cli")' in _MAIN_SRC and _MAIN_SRC.count("_subscription_limit_message(") >= 7)
+      '_limit_frame(\n                                ev.get("content") or "", "grok-cli"' in _MAIN_SRC)
 check("không nhận ra thì vẫn trả nguyên văn lỗi gốc, không nuốt mất",
-      _MAIN_SRC.count('"content": _noi or ') == 4)
+      '"content": noi or raw or ""' in _MAIN_SRC)
 check("hàm dịch nuốt mọi lỗi của chính nó (câu báo lỗi không được tự nổ)",
       main._subscription_limit_message(None, "claude-code") == ""
       and main._subscription_limit_message(12345, "codex") == "")

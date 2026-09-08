@@ -387,6 +387,67 @@ async def _skill_findable():
 
 asyncio.run(_skill_findable())
 
+
+# ============================================================
+# THỰC ĐƠN PHẢI GỌI TÊN TỪNG PLUGIN
+#
+# Vụ thật 05/09/2026: người dùng cài gói TTS Dropship (20 tool), plugin nạp đủ, hub phục vụ
+# đủ, `javis_run_tool` gọi tới nơi. Nhưng lazy đang bật, và tool plugin không mang
+# `namespace` nên cả 20 tool rơi vào nhóm "javis" cùng builtin. Model đọc thực đơn chỉ thấy
+# đúng một dòng "javis (javis, 45 tool): skill của brain, danh sách nguồn đang đấu, tiện ích
+# nội bộ" - KHÔNG một chữ nào nhắc TTS, dropship, sàn hay đơn hàng.
+#
+# Nó kết luận gói chưa kết nối và báo là không lên đơn được. Không có lỗi nào ở đâu cả: hub
+# đúng, plugin đúng, quyền đúng. Chỉ là thứ DUY NHẤT model đọc được về năng lực của mình lại
+# không nói ra năng lực đó có tồn tại.
+#
+# Nên đây là canary về NỘI DUNG thực đơn, không phải về việc tool có nằm trong pool. Tool nằm
+# trong pool mà không ai biết đường tìm thì đúng bằng không có.
+# ============================================================
+_pl_tools = [
+    {"fn": "tts_create_order", "server": "javis", "namespace": "tts-dropship",
+     "label": "TTS Dropship", "group_desc": "Bán dropship trên sàn thitruongsi.com - lên đơn, "
+                                            "theo dõi vận đơn, xem tiền về",
+     "description": "TẠO ĐƠN HÀNG THẬT trên sàn", "schema": {"type": "object", "properties": {}}},
+    {"fn": "tts_orders", "server": "javis", "namespace": "tts-dropship",
+     "label": "TTS Dropship", "group_desc": "Bán dropship trên sàn thitruongsi.com - lên đơn, "
+                                            "theo dõi vận đơn, xem tiền về",
+     "description": "Đọc đơn hàng", "schema": {"type": "object", "properties": {}}},
+    {"fn": "javis_use_skill", "server": "javis",
+     "description": "Chạy skill của brain", "schema": {"type": "object", "properties": {}}},
+]
+_menu = mcp_hub._connector_menu(_pl_tools)
+check("thực đơn GỌI TÊN plugin, không gộp hết vào 'javis'", "tts-dropship" in _menu)
+check("thực đơn nêu tên hiển thị của plugin", "TTS Dropship" in _menu)
+check("thực đơn nói plugin đó LÀM GÌ (mô tả từ manifest)", "dropship" in _menu.lower())
+check("đếm đúng số tool của riêng plugin đó", "2 tool" in _menu)
+check("builtin vẫn ở nhóm javis với mô tả nội bộ",
+      "javis (" in _menu and "skill của brain" in _menu)
+
+# Không có `group_desc` (plugin đời cũ) thì vẫn phải gọi tên nhóm, chỉ là thiếu mô tả - suy
+# biến nghiêng về "nói được tên" chứ không quay lại gộp chung.
+_menu2 = mcp_hub._connector_menu([{"fn": "x_a", "server": "javis", "namespace": "goi-cu",
+                                   "label": "Gói cũ", "description": "d",
+                                   "schema": {}}])
+check("plugin thiếu mô tả vẫn hiện thành nhóm riêng", "goi-cu" in _menu2 and "Gói cũ" in _menu2)
+
+
+# `plugins_host.plugin_tools` phải THẬT SỰ gắn ba trường đó, nếu không thì canary trên chỉ
+# canh một fixture do chính test dựng ra.
+def _plugin_gan_nhan():
+    import plugins_host
+    src = os.path.join(SERVER, "plugins_host.py")
+    with open(src, encoding="utf-8") as fh:
+        s = fh.read()
+    khoi = s.split('tools.append({"fn": fn, "server": "javis"')[-1][:400]
+    for truong in ('"namespace": lp.slug', '"label": lp.name', '"group_desc": lp.description'):
+        check(f"plugin_tools gắn {truong}", truong in khoi)
+    check("LoadedPlugin mang description của manifest",
+          '"description"' in s.split("__slots__")[1][:200])
+
+
+_plugin_gan_nhan()
+
 print()
 if _fails:
     print("FAILED (%d): %s" % (len(_fails), ", ".join(_fails)))

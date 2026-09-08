@@ -1,5 +1,7 @@
 # Second Brain: bộ nhớ, Wiki, INGEST
 
+***Tiếng Việt** · [English](en/13-second-brain.md)*
+
 Second Brain là "bộ não ngoài" của Javis: một thư mục chứa các ghi chú Markdown mà Javis đọc, tích luỹ và nhớ lâu dài. Nhờ nó, Javis không chỉ trả lời câu hỏi trong lúc chat mà còn nhớ về bạn, về việc kinh doanh của bạn, và ngày càng hiểu bạn hơn theo thời gian.
 
 Trang này hướng dẫn: hiểu Second Brain gồm những gì, cách tạo và chọn nhiều "não" khác nhau, cách để Javis nhớ (bộ nhớ dài hạn), và cách "tiêu hoá" tài liệu (INGEST) để biến file thô thành tri thức dùng lại được.

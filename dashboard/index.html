@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=81">
+  <link rel="stylesheet" href="/static/style.css?v=82">
   <link rel="stylesheet" href="/static/console.css?v=51">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -705,9 +705,10 @@
             <option value="openrouter" data-i18n="setm.engine_or">OpenRouter - MCP Javis + skill + loop (không lệnh máy)</option>
           </select>
           <label data-i18n="setm.claude_model">Model Claude (khi dùng CLI)</label>
+          <!-- Danh sách nạp động từ /provider/models (app.js: loadClaudeModels). Mấy option
+               dưới đây chỉ là chỗ đứng trước khi tải xong, không phải danh sách thật. -->
           <select id="setClaudeModel">
-            <option value="" data-i18n="common.default">Mặc định</option><option value="sonnet">Sonnet</option>
-            <option value="opus">Opus</option><option value="haiku">Haiku</option>
+            <option value="" data-i18n="common.default">Mặc định</option>
           </select>
           <label>OpenRouter API key <span class="dim" id="setKeyHint"></span></label>
           <input id="setOrKey" type="password" placeholder="Ví dụ: sk-or-... (để trống nếu không đổi)" data-i18n-ph="setm.or_key_ph">
@@ -766,6 +767,10 @@
        icons.js (file dựng hàm ic / Icons). Cả hai đều không phụ thuộc DOM. -->
   <!-- i18n phải nạp TRƯỚC mọi script vẽ giao diện: console.js dựng nhãn rail ngay lúc
        nạp, nên từ điển chưa sẵn sàng là rail hiện ra key trần rồi mới nháy sang chữ. -->
+  <!-- Người gác cổng bản cũ. Nạp KHÔNG kèm `?v=` và được đóng dấu no-cache, vì nó phải
+       LUÔN mới: một người gác cổng cũ theo thì không gác được gì. Đứng ngay đây để
+       bắt được cả trường hợp một file phía dưới hỏng vì đang chạy bản cũ. -->
+  <script src="/static/freshness.js"></script>
   <script src="/static/i18n/index.js?v=2"></script>
   <script src="/static/vendor/lucide-icons.js?v=4"></script>
   <script src="/static/icons.js?v=2"></script>
@@ -785,10 +790,11 @@
   <script src="/static/editor-cmds.js?v=1"></script>
   <script src="/static/file-editor.js?v=8"></script>
   <script src="/static/chat-ask.js?v=1"></script>
+  <script src="/static/limit-resume.js?v=1"></script>
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=2"></script>
   <script src="/static/chat-marks.js?v=3"></script>
-  <script src="/static/app.js?v=101"></script>
+  <script src="/static/app.js?v=102"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=1"></script>
   <script src="/static/model-picker.js?v=7"></script>
@@ -798,6 +804,7 @@
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=17"></script>
   <script src="/static/studio.js?v=30"></script>
+  <script src="/static/packs.js?v=1"></script>
   <script src="/static/chatbots.js?v=10"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>

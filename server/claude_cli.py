@@ -173,6 +173,206 @@ def find_claude_cli() -> Optional[str]:
     return None
 
 
+# ---- Danh sách model của gói Claude Code, đọc từ CHÍNH BINARY `claude` ----
+#
+# Vì sao phải có: provider `anthropic-cli` chạy bằng đăng nhập của Claude Code, mà Javis KHÔNG
+# được đọc token đó (Anthropic cấm - xem claude_auth.py), nên từ 0.26.17 nó không còn nguồn
+# danh sách model nào ngoài `anthropic_api_key`. Phần đông người dùng chạy gói thuê bao và
+# không có key, nên trình chọn model rơi về mấy alias ghi cứng trong config.py - và một khi
+# `settings.json` đã nhớ một danh sách cũ thì danh sách ĐÓ đè luôn bản mặc định mới, tức là
+# nâng cấp Javis cũng không thấy dòng model mới. Đúng lỗi chủ repo báo 05/09: cài xong bản
+# mới vẫn không có Fable 5.1.
+#
+# Nguồn mới ở đây KHÔNG đụng vào bất cứ thứ gì của người dùng: binary `claude` nhúng sẵn danh
+# mục model của chính nó (thử `claude --model tên-bậy` là nó tự nói "isn't described by this
+# version's model catalog"), nên đọc file binary ra là biết bản CLI đang cài hiểu những model
+# nào. Cập nhật Claude Code là danh sách tự mới theo, khỏi sửa code Javis - đúng thứ đường
+# mượn token ngày trước làm được, mà lần này không chạm credential của ai.
+#
+# Đây là HEURISTIC trên dữ liệu nội bộ của CLI, nên nó fail-soft: đọc không ra thì trả None và
+# caller giữ nguyên catalog mặc định, chứ không bao giờ làm hỏng trình chọn model.
+_RX_MODEL_ID = re.compile(rb'"(claude-[a-z]+-[0-9][0-9a-z-]{0,24})"')
+_MAX_QUET_MB = 600            # binary Claude Code ~215MB; quá ngưỡng này là file lạ, không quét
+_MODELS_CACHE = {"sig": None, "ids": None}
+
+
+def tach_phien_ban(mid: str):
+    """`claude-opus-4-5-20251101` -> ("opus", (4, 5), 1). None = không phải model id.
+
+    Số thứ ba là cờ "có gắn ngày". Tách ngày ra khỏi số phiên bản là bắt buộc chứ không phải
+    làm đẹp: `claude-opus-4-20250514` mà để nguyên thì nó thành phiên bản 4.20250514, tức mới
+    hơn cả `claude-opus-4-8` - trình chọn model sẽ bày một bản chụp năm ngoái lên đầu.
+
+    Lọc ở đây cũng là chỗ duy nhất phân biệt model thật với chuỗi trùng khuôn: binary còn chứa
+    `claude-code-20250219` (tên client) và `claude-desktop-3p`. Luật: sau `claude-` phải là
+    một TÊN DÒNG toàn chữ, rồi tới một số phiên bản tối đa 2 chữ số - ngày tháng 8 chữ số
+    không bao giờ là số hiệu dòng.
+    """
+    parts = (mid or "").split("-")
+    if len(parts) < 3 or parts[0] != "claude" or not parts[1].isalpha():
+        return None
+    if not (parts[2].isdigit() and len(parts[2]) <= 2):
+        return None
+    so = []
+    for x in parts[2:]:
+        if not x.isdigit():
+            return None
+        so.append(int(x))
+    ngay = 1 if so[-1] > 9999 else 0
+    if ngay:
+        so = so[:-1]
+    return parts[1], tuple(so), ngay
+
+
+def bac_phien_ban(ver) -> tuple:
+    """Số phiên bản -> khoá sắp xếp MỚI NHẤT TRƯỚC, đệm về đủ 2 cấp.
+
+    Đệm là phần dễ quên: `claude-opus-4` là (4,) còn `claude-opus-4-8` là (4, 8). So thẳng thì
+    tuple ngắn thắng, tức bản 4 trần đứng trên 4.8. Đệm số 0 vào rồi mới đổi dấu thì đúng thứ
+    tự người ta mong: 5.1 > 5 > 4.8 > 4.
+    """
+    v = tuple(ver[:2])
+    v = v + (0,) * (2 - len(v))
+    return tuple(-n for n in v)
+
+
+def _doc_id_model(path: Path) -> list:
+    """Mọi model id nhúng trong một file, đọc theo khối để không nuốt 200MB vào RAM."""
+    ra = []
+    thay = set()
+    with path.open("rb") as f:
+        du = b""
+        while True:
+            khoi = f.read(1 << 22)
+            if not khoi:
+                break
+            buf = du + khoi
+            for m in _RX_MODEL_ID.finditer(buf):
+                mid = m.group(1).decode("ascii", "ignore")
+                if mid not in thay:
+                    thay.add(mid)
+                    ra.append(mid)
+            du = buf[-64:]        # id bị cắt ngang ranh giới khối vẫn bắt được ở vòng sau
+    return ra
+
+
+def _file_co_danh_muc() -> Optional[Path]:
+    """File chứa danh mục model: binary native, hoặc `cli.js` khi cài bằng npm.
+
+    Bản npm trên Windows là một file .cmd vài trăm byte trỏ sang cli.js, nên quét thẳng nó thì
+    không ra gì - phải lần sang bundle thật.
+    """
+    cli = find_claude_cli()
+    if not cli:
+        return None
+    try:
+        p = Path(os.path.realpath(cli))
+    except Exception:
+        return None
+    try:
+        if p.is_file() and p.stat().st_size > (1 << 20):
+            return p
+    except OSError:
+        return None
+    goc = p.parent
+    for phu in ("node_modules/@anthropic-ai/claude-code/cli.js",
+                "../lib/node_modules/@anthropic-ai/claude-code/cli.js",
+                "../node_modules/@anthropic-ai/claude-code/cli.js"):
+        try:
+            q = (goc / phu).resolve()
+            if q.is_file():
+                return q
+        except OSError:
+            continue
+    return p if p.is_file() else None
+
+
+def list_models() -> Optional[list]:
+    """Model của gói Claude Code: alias đứng trước, rồi id đầy đủ MỚI NHẤT trước.
+
+    None = không đọc được (chưa cài CLI, file lạ, hoặc bản CLI không nhúng danh mục) - caller
+    giữ nguyên catalog đang có. Kết quả nhớ theo (đường dẫn, cỡ file, mtime) nên cập nhật
+    Claude Code là lần hỏi sau tự quét lại, còn bình thường thì không đụng đĩa.
+    """
+    p = _file_co_danh_muc()
+    if not p:
+        return None
+    try:
+        st = p.stat()
+        if st.st_size > _MAX_QUET_MB * (1 << 20):
+            return None
+        sig = (str(p), st.st_size, st.st_mtime_ns)
+    except OSError:
+        return None
+    if _MODELS_CACHE["sig"] == sig:
+        return list(_MODELS_CACHE["ids"]) if _MODELS_CACHE["ids"] else None
+    try:
+        tho = _doc_id_model(p)
+    except Exception:
+        return None
+    hop = []
+    for mid in tho:
+        v = tach_phien_ban(mid)
+        if v:
+            hop.append((v[0], v[1], v[2], mid))
+    if not hop:
+        _MODELS_CACHE.update(sig=sig, ids=None)
+        return None
+    # Dòng nào có bản mới nhất thì đứng trước; trong một dòng, bản mới trước, và bản KHÔNG
+    # gắn ngày đứng trên bản gắn ngày (`claude-haiku-4-5` trước `claude-haiku-4-5-20251001`)
+    # vì đó mới là tên người dùng gõ.
+    moi_nhat = {}
+    for fam, ver, _, _ in hop:
+        if ver > moi_nhat.get(fam, ()):
+            moi_nhat[fam] = ver
+    hop.sort(key=lambda x: (bac_phien_ban(moi_nhat[x[0]]), x[0], bac_phien_ban(x[1]), x[2], x[3]))
+    ids = [mid for _, _, _, mid in hop]
+    alias = []
+    for fam, _, _, _ in hop:
+        if fam not in alias:
+            alias.append(fam)
+    ket_qua = (alias + ids)[:40]
+    _MODELS_CACHE.update(sig=sig, ids=list(ket_qua))
+    return ket_qua
+
+
+# ---- Binary `claude` có cờ nào: dò một lần rồi nhớ ----
+#
+# Cùng bài học với `antigravity_cli.co_co`: truyền một cờ bản CLI chưa có là nó thoát ngay với
+# "unknown option", hỏng TRỌN lượt chat chỉ vì một tuỳ chọn phụ. Máy người dùng cài Claude Code
+# từ đời nào cũng có, nên mọi cờ mới phải đi qua đây trước.
+_CO_CACHE = {"sig": None, "help": ""}
+
+
+def _help_text() -> str:
+    """`claude --help`, nhớ theo (đường dẫn, cỡ file, mtime) nên cập nhật CLI là dò lại."""
+    cli = find_claude_cli()
+    if not cli:
+        return ""
+    try:
+        st = Path(cli).stat()
+        sig = (cli, st.st_size, st.st_mtime_ns)
+    except OSError:
+        sig = (cli, 0, 0)
+    if _CO_CACHE["sig"] == sig:
+        return _CO_CACHE["help"]
+    txt = ""
+    try:
+        r = subprocess.run([cli, "--help"], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=20, creationflags=_no_window(),
+                           stdin=subprocess.DEVNULL)
+        txt = (r.stdout or "") + (r.stderr or "")
+    except Exception:
+        txt = ""
+    _CO_CACHE.update(sig=sig, help=txt)
+    return txt
+
+
+def co_co(co: str) -> bool:
+    """Bản `claude` trên máy này có cờ đó không. Dò hụt thì trả False (không truyền cho chắc)."""
+    return co in _help_text()
+
+
 # ---- Claude Code auth (đăng nhập Anthropic dùng cho engine CLI) ----
 def _no_window():
     return subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -205,6 +405,15 @@ def _empty_mcp_file() -> Optional[str]:
 # tưởng mình bị đăng xuất và phải nối lại Claude (báo 2026-08-13).
 _AUTH_CACHE = {"ts": 0.0, "val": None}
 _AUTH_TTL = 90.0
+# Mốc lần hỏi HỎNG gần nhất, và trần chờ trước khi cho hỏi lại.
+#
+# Vì sao phải có: nhánh `except` bên dưới trả bản nhớ cũ nhưng KHÔNG dời `_AUTH_CACHE["ts"]`,
+# nên khi binary `claude` hỏng hoặc treo thì MỌI lượt gọi lại đẻ một tiến trình Node và chờ
+# đủ 25 giây, lặp mãi. Trang Models gọi endpoint này mỗi lần mở, nên một máy có claude hỏng là
+# một máy có trang Models kẹt vĩnh viễn. `antigravity_cli` đã vấp và vá đúng lỗ này (xem chú
+# thích _HELP_TTL_LOI bên đó); ở đây trước nay chưa có.
+_AUTH_LOI = {"ts": 0.0}
+_AUTH_TTL_LOI = 30.0
 
 
 def auth_status(bo_qua_cache: bool = False):
@@ -226,9 +435,23 @@ def auth_status(bo_qua_cache: bool = False):
     now = time.time()
     if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
         return dict(_AUTH_CACHE["val"])
+    # Vừa hỏi hỏng cách đây chưa lâu thì ĐỪNG đẻ tiến trình lần nữa. Không có cổng này, một
+    # `claude` treo biến mỗi lượt mở trang Models thành 25 giây chờ.
+    if not bo_qua_cache and now - _AUTH_LOI["ts"] < _AUTH_TTL_LOI:
+        cu = _AUTH_CACHE["val"]
+        if cu:
+            ra = dict(cu)
+            ra["stale"] = True
+            return ra
+        return {"connected": False, "unknown": True,
+                "error": "vừa hỏi hỏng, tạm nghỉ vài giây rồi thử lại"}
     try:
+        # 8 giây cho đường VẼ TRANG, 25 giây cho nút "Kiểm tra lại" (bo_qua_cache=True). Người
+        # bấm nút thì sẵn lòng chờ; người chỉ mở trang thì không, và họ không có cách nào biết
+        # mình đang chờ cái gì.
         r = subprocess.run([cli, "auth", "status", "--json"], capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=25, creationflags=_no_window())
+                           encoding="utf-8", errors="replace",
+                           timeout=25 if bo_qua_cache else 8, creationflags=_no_window())
         d = json.loads((r.stdout or "").strip() or "{}")
         ra = {"connected": bool(d.get("loggedIn")), "email": d.get("email", ""),
               "plan": d.get("subscriptionType", "") or d.get("authMethod", ""), "org": d.get("orgName", "")}
@@ -241,6 +464,7 @@ def auth_status(bo_qua_cache: bool = False):
         _AUTH_CACHE.update(ts=now, val=dict(ra))
         return ra
     except Exception as e:
+        _AUTH_LOI["ts"] = now      # đóng cổng, khỏi lặp vòng chờ ở lượt kế tiếp
         cu = _AUTH_CACHE["val"]
         if cu:
             ra = dict(cu)
@@ -251,8 +475,13 @@ def auth_status(bo_qua_cache: bool = False):
 
 
 def auth_quen_cache():
-    """Xoá bản nhớ - gọi sau khi đăng nhập/ngắt để thẻ hiện trạng thái mới ngay."""
+    """Xoá bản nhớ - gọi sau khi đăng nhập/ngắt để thẻ hiện trạng thái mới ngay.
+
+    Xoá CẢ mốc lỗi: vừa đăng nhập xong mà cổng nghỉ-vì-lỗi còn hiệu lực thì thẻ vẫn bày trạng
+    thái cũ thêm 30 giây, đúng vào lúc người dùng đang nhìn để xem đăng nhập có ăn không.
+    """
     _AUTH_CACHE.update(ts=0.0, val=None)
+    _AUTH_LOI["ts"] = 0.0
 
 
 # ---- Vệ sĩ credentials (16/08): chống "tự nhiên bị đăng xuất" ----

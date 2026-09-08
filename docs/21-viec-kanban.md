@@ -1,5 +1,7 @@
 # Việc (Kanban): giao goal cho AI chạy nền
 
+***Tiếng Việt** · [English](en/21-kanban-work.md)*
+
 Trang **Việc** là chỗ bạn giao một mục tiêu ("goal") rồi để Javis tự làm ở nền, không cần bạn ngồi canh khung chat. Bạn viết một câu mô tả việc cần xong, AI tự chuẩn hoá thành đặc tả, tự chọn loại worker, tự nhận việc và chạy; xong thì bắn kết quả về Telegram cho đúng người đã giao.
 
 Điểm dễ hiểu nhầm nhất: đây **không phải bảng Trello kéo thả**. Bạn không kéo thẻ, không bấm chạy từng thẻ. Màn hình này để **quan sát hàng đợi và xử lý ngoại lệ**, phần chạy do dispatcher lo.

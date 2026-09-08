@@ -24,16 +24,15 @@ def check(n, c):
     if not c: _fails.append(n)
 
 
-# ---- 1. Catalog connector ----
-cat = json.load(open(ROOT / "system" / "mcp-catalog.json", encoding="utf-8"))
-fm = next((x for x in cat["connectors"] if x["id"] == "facebook-monitor"), None)
-check("catalog: có connector facebook-monitor", fm is not None)
-check("catalog: auth apikey + field apify_token",
-      fm["auth"].get("type") == "apikey" and any(f["key"] == "apify_token" for f in fm["auth"]["fields"]))
-check("catalog: default_perm readonly + tool_meta read fb_monitor",
-      fm["default_perm"] == "readonly" and fm["tool_meta"]["read"] == ["fb_monitor"])
-import mcp_catalog  # noqa: E402
-check("mcp_catalog.get load được", mcp_catalog.get("facebook-monitor") is not None)
+# ---- 1. Connector: đã dọn sang kho ----
+# Khuôn connector `facebook-monitor` rời `system/mcp-catalog.json` ở 0.55.36 và giờ sống trong gói
+# `javis.facebook-monitor` của repo kho (blogminhquy/javis-store). Những assert về HÌNH DẠNG của nó
+# (provider, scope, fields, default_perm, phân loại tool, chữ cảnh báo) đi theo dữ liệu sang đó:
+# `tools/kiem-tra.py` của repo kho chạy đúng các phép kiểm ấy trên mọi Pull Request.
+#
+# Giữ lại ở đây là giả vờ: dữ liệu đổi được trong kho mà KHÔNG cần bản Javis mới, nên một test
+# ở repo này chỉ canh được bản chụp lúc dọn nhà chứ không canh được thứ người dùng thật sự cài.
+# Phần bên dưới - plugin đi kèm - vẫn là mã của app nên vẫn kiểm ở đây.
 
 
 # ---- 2. Plugin nạp ----

@@ -1,5 +1,7 @@
 # Quản lý tệp tin
 
+***Tiếng Việt** · [English](en/05-file-manager.md)*
+
 Trang "Tệp tin" là trình quản lý tệp ngay trong dashboard Javis. Bạn tìm file, duyệt thư mục, mở và sửa file văn bản (.md, .txt...) trực tiếp trên trình duyệt rồi lưu, tải file lên, tải file về (mọi loại file), tải cả thư mục về dạng .zip, tạo thư mục, đổi tên và xoá. Điểm vào luôn là "brain" (bộ não) bạn đang chọn, không cần mở File Explorer hay dùng lệnh.
 
 ## Tính năng này là gì

@@ -1,5 +1,7 @@
 # Kênh Telegram
 
+***Tiếng Việt** · [English](en/11-telegram.md)*
+
 Bật bot Telegram để hỏi Javis ngay từ điện thoại, không cần mở dashboard. Bạn nhắn cho bot như nhắn cho một người, Javis trả lời bằng chính bộ não và bộ nhớ đang chạy trên máy/VPS của bạn.
 
 ## Tính năng này là gì

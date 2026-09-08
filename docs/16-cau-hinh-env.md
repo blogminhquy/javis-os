@@ -1,5 +1,7 @@
 # Cấu hình .env
 
+***Tiếng Việt** · [English](en/16-env-configuration.md)*
+
 Trang này liệt kê các biến môi trường mà Javis OS đọc lúc khởi động, kèm ý nghĩa, giá trị mặc định và khi nào cần đổi. Nội dung dựa vào file `env.example` và cách server thực sự đọc `os.getenv(...)` trong mã nguồn (`server/config.py`, `server/main.py`, `server/web_security.py`, `server/claude_cli.py`, `server/sessions.py`, `server/plugins_host.py`...).
 
 Điểm quan trọng nhất cần nhớ: **mọi dòng để trống vẫn chạy được**. Trên máy cá nhân, bạn gần như không cần đụng tới file `.env`. Việc chỉnh `.env` chủ yếu dành cho khi bạn đưa Javis lên VPS/server public hoặc muốn đổi giọng đọc, cổng, đường dẫn dữ liệu.
@@ -73,6 +75,7 @@ Chi tiết quan trọng về `JAVIS_HOST`: Javis dùng cơ chế "an toàn mặc
 | `JAVIS_TERMINAL` | Công tắc tắt hẳn Terminal trong nhóm Code. `0`/`off`/`false`/`no` = tắt | Bật | Không muốn có dòng lệnh nào mở được từ trình duyệt. Terminal vốn đã chỉ mở cho trình duyệt ĐÃ ĐĂNG NHẬP (token API không vào được), nhưng nhiều người vẫn muốn khoá cứng ở tầng máy chủ. Xem [Nhóm Code: Terminal](27-tab-code-terminal.md). |
 | `JAVIS_TERMINAL_SHELL` | Shell mà Terminal chạy | `$SHELL`, không có thì `bash`/`sh`. Windows: `powershell.exe` rồi `cmd.exe` | Muốn ép dùng một shell khác (`zsh`, `fish`, `cmd.exe`). |
 | `JAVIS_TERMINAL_CWD` | Thư mục terminal mở ra | HOME của user chạy Javis | Muốn shell mở sẵn ở gốc brain hoặc một thư mục dự án khác. |
+| `JAVIS_TERMINAL_REMOTE` | Khai với các CLI trong Terminal rằng người dùng ngồi ở MÁY KHÁC (đặt `SSH_CONNECTION`) | Tự đoán: bật khi máy chủ không có màn hình (VPS, Docker), tắt trên Windows/macOS chạy thẳng và Linux có màn hình | Đăng nhập `agy`, `claude`, `codex`... in link rồi đứng im vì chúng tưởng trình duyệt nằm cùng máy. Bật (`1`) để chúng hỏi chỗ dán mã. Tắt (`0`) nếu máy chủ thật sự mở được trình duyệt cho bạn (X11 forwarding chẳng hạn). Xem [Nhóm Code: Terminal](27-tab-code-terminal.md). |
 
 Về MÃ THIẾT LẬP: khi chạy public mà chưa có tài khoản admin, lần đầu mở app sẽ yêu cầu nhập một mã thiết lập. Mã này chỉ in ra log server lúc khởi động, nên chỉ người xem được log/terminal mới tạo được tài khoản, kẻ chỉ có URL không làm gì được. Nếu bạn đặt sẵn `JAVIS_ADMIN_USER` + `JAVIS_ADMIN_PASSWORD` thì khỏi cần mã này, cứ đăng nhập bằng tài khoản đã đặt. Xem thêm ở [Bảo mật & tài khoản](14-bao-mat-tai-khoan.md).
 

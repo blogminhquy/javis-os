@@ -178,6 +178,10 @@ try:
           and "Dashboard" in r["path"])
     inbox = BRAIN / r["path"]
     body = inbox.read_text(encoding="utf-8")
+    # Từ 03/09 brain mới KHÔNG còn được rải sẵn Task Inbox, nên đường này là chỗ DUY NHẤT
+    # sinh ra nó. File tự tạo phải có đủ phần mở đầu, không phải một file trơ chỉ có task.
+    check("CANARY: taskadd tự tạo được file kèm phần mở đầu (không còn ai seed sẵn nữa)",
+          body.startswith("# Task Inbox"))
     check("taskadd: dòng task đúng + gắn 📅", "- [ ] Việc thêm nhanh 📅 2026-08-01" in body)
     r2 = asyncio.run(main.files_taskadd(brain="brain", text="Việc 2", due="", path=r["path"]))
     body = inbox.read_text(encoding="utf-8")

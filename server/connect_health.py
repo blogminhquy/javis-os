@@ -95,6 +95,15 @@ async def check_one(conn, pool=None) -> dict:
         spec["headers"].update(await mcp_client._oauth_headers(conn))
         tools = await asyncio.wait_for(pool.list_tools(spec), timeout=_CHECK_TIMEOUT)
         rec.update(ok=True, tools=len(tools))
+        # Nối được nhưng hộp công cụ RỖNG thì không được tô xanh. Đèn xanh ghi "Hoạt động
+        # bình thường (0 công cụ)" là câu nói dối tai hại nhất trang này: người dùng tin là
+        # nguồn ổn nên đi tìm lỗi ở chỗ khác, còn bộ não thì đọc `javis_connections` thấy
+        # "ổn" rồi kết luận bừa (vụ 03/09: "POS ổn nhưng không có tool nào" - model quay ra
+        # đổ cho brain chưa gắn nguồn). Máy chủ có thật mà không có tool là hỏng, nói thẳng.
+        if not tools:
+            rec.update(ok=False, kind="empty",
+                       message="Nối được nhưng máy chủ không đưa ra công cụ nào - phiên có "
+                               "thể vừa bị máy chủ xoá. Bấm Kiểm tra để nối lại.")
     except Exception as e:
         # Quá hạn TRONG LÚC phiên đang chạy dở một tool call thật (lên đơn POS, gửi tin): ping
         # chỉ đang xếp hàng chờ khoá chứ nguồn không hề hỏng. Báo đỏ ở đây là trang Kết nối nói

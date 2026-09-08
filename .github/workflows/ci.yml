@@ -54,13 +54,26 @@ jobs:
 
       # Trước 0.9.242 chỉ 4 trong 11 test JS được liệt tay ở đây, 7 cái còn lại chưa từng
       # chạy lần nào. Nay quét cả thư mục nên thêm test mới là tự chạy.
+      # Vòng lặp này in tên file TRƯỚC khi chạy, nên khi một test đỏ thì tên nó nằm lẫn
+      # giữa hàng nghìn dòng ở GIỮA log, còn phần đuôi (thứ duy nhất đọc được khi log bị
+      # cắt) lại là test cuối cùng - luôn xanh. Vụ 03/09: một test chập chờn làm đỏ CI, và
+      # không cách nào biết là test nào nếu không tải nguyên log về. Gom tên lại rồi in ở
+      # CUỐI, và đẩy luôn lên phần tóm tắt của GitHub để thấy ngay trên trang Actions.
       - name: Chạy test JS dashboard
         run: |
           status=0
+          dsdo=""
           for f in tests/js/test_*.js tests/js/test_*.mjs; do
             echo "==== $(basename "$f") ===="
-            node "$f" || status=1
+            node "$f" || { status=1; dsdo="$dsdo $(basename "$f")"; }
           done
+          if [ -n "$dsdo" ]; then
+            echo ""
+            echo "======================================================"
+            echo "ĐỎ (test JS):$dsdo"
+            echo "======================================================"
+            { echo "### Test JS đỏ"; for t in $dsdo; do echo "- \`$t\`"; done; } >> "$GITHUB_STEP_SUMMARY"
+          fi
           exit $status
 
       # KHÔNG còn `cd server`: từ 0.9.242 test tự nạp đường dẫn qua tests/python/_paths.py
@@ -71,8 +84,16 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           status=0
+          dsdo=""
           for f in tests/python/test_*.py; do
             echo "==== $(basename "$f") ===="
-            python "$f" || status=1
+            python "$f" || { status=1; dsdo="$dsdo $(basename "$f")"; }
           done
+          if [ -n "$dsdo" ]; then
+            echo ""
+            echo "======================================================"
+            echo "ĐỎ (test Python):$dsdo"
+            echo "======================================================"
+            { echo "### Test Python đỏ"; for t in $dsdo; do echo "- \`$t\`"; done; } >> "$GITHUB_STEP_SUMMARY"
+          fi
           exit $status

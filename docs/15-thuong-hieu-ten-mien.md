@@ -1,5 +1,7 @@
 # Thương hiệu & tên miền riêng
 
+***Tiếng Việt** · [English](en/15-branding-and-domains.md)*
+
 Trang này hướng dẫn hai việc: đổi logo/avatar của Javis thành ảnh của bạn, và trỏ một tên miền riêng (ví dụ `javis.tencuaban.com`) vào Javis để chạy qua HTTPS. Các thao tác nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**.
 
 ## Tính năng này là gì

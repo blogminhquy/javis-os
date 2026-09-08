@@ -34,8 +34,11 @@ def test_moi_thanh_vien_nhom_co_group_line():
 
 
 def test_cac_connector_bat_buoc_co_steps():
+    # Trước 0.55.36 danh sách này còn meta-ads-graph và facebook-pages. Hai khuôn đó đã dọn sang
+    # repo kho, nên phép kiểm "có steps" đi theo chúng sang `tools/kiem-tra.py` bên ấy - nó chạy
+    # trên MỌI gói trong kho, tức phủ rộng hơn hai cái tên ghi cứng ở đây.
     pc = _public()
-    for cid in STEP_CONNECTORS | {"meta-ads-graph", "facebook-pages"}:
+    for cid in STEP_CONNECTORS:
         assert pc[cid].get("steps"), f"{cid}: thiếu wizard steps"
 
 
@@ -73,10 +76,10 @@ def test_steps_dung_schema():
 
 
 def test_oauth_byo_co_buoc_redirect():
-    """Connector oauth BYO (Google lẫn Facebook) phải có đúng MỘT bước chèn ô copy
+    """Connector oauth BYO phải có đúng MỘT bước chèn ô copy
     Redirect URI - thiếu là user không biết dán gì, thừa là rối."""
     pc = _public()
-    for cid in ("google-calendar", "gmail", "meta-ads-graph", "facebook-pages"):
+    for cid in ("google-calendar", "gmail"):
         n = sum(1 for s in pc[cid]["steps"] if s.get("copy") == "redirect")
         assert n == 1, cid
 

@@ -147,7 +147,7 @@ check("CANARY: và kiểm đường dẫn bằng _safe_path trước khi ghi kho
 # attachments/ bị media_gc dọn theo tuổi (mặc định 30 ngày) và theo trần dung lượng. Tài liệu
 # của project thì người dùng gắn vào để dùng lâu dài, nên phải đi vào Sources.
 _ui = (ROOT / "dashboard" / "sessions-ui.js").read_text(encoding="utf-8")
-_tai = _ui.split("async function taiLen", 1)[1].split("\n  async function", 1)[0]
+_tai = _ui.split("async function taiLenMot", 1)[1].split("\n  async function", 1)[0]
 check("CANARY: tải file của project vào sources, KHÔNG phải attachments",
       '"folder", "sources"' in _tai and "attachments" not in _tai, _tai[:300])
 # Tên thư mục thật do SERVER tìm: brain có thể đặt "01 - Sources", và trần duyệt có thể cao

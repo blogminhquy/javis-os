@@ -24,17 +24,15 @@ def check(n, c):
     if not c: _fails.append(n)
 
 
-# ---- 1. Catalog connector ----
-cat = json.load(open(ROOT / "system" / "mcp-catalog.json", encoding="utf-8"))
-mg = next((x for x in cat["connectors"] if x["id"] == "meta-ads-graph"), None)
-check("catalog: có connector meta-ads-graph", mg is not None)
-check("catalog: provider=meta + explicit authorize/token url", mg["auth"].get("provider") == "meta"
-      and mg["auth"].get("authorize_url") and mg["auth"].get("token_url"))
-check("catalog: có fields client_id + client_secret", {f["key"] for f in mg["auth"]["fields"]} == {"client_id", "client_secret"})
-check("catalog: default_perm readonly + guide dùng localhost", mg["default_perm"] == "readonly"
-      and "localhost" in mg["auth"]["guide"])
-import mcp_catalog  # noqa: E402
-check("mcp_catalog.get load được", mcp_catalog.get("meta-ads-graph") is not None)
+# ---- 1. Connector: đã dọn sang kho ----
+# Khuôn connector `meta-ads-graph` rời `system/mcp-catalog.json` ở 0.55.36 và giờ sống trong gói
+# `javis.meta-ads-graph` của repo kho (blogminhquy/javis-store). Những assert về HÌNH DẠNG của nó
+# (provider, scope, fields, default_perm, phân loại tool, chữ cảnh báo) đi theo dữ liệu sang đó:
+# `tools/kiem-tra.py` của repo kho chạy đúng các phép kiểm ấy trên mọi Pull Request.
+#
+# Giữ lại ở đây là giả vờ: dữ liệu đổi được trong kho mà KHÔNG cần bản Javis mới, nên một test
+# ở repo này chỉ canh được bản chụp lúc dọn nhà chứ không canh được thứ người dùng thật sự cài.
+# Phần bên dưới - plugin đi kèm - vẫn là mã của app nên vẫn kiểm ở đây.
 
 
 # ---- 2. oauth_mcp nhánh Meta ----

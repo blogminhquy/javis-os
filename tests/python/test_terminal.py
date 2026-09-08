@@ -28,6 +28,11 @@ import time
 
 import terminal  # noqa: E402
 
+# Trần cho mọi phép đo "trả về NGAY, không chặn" trong file này. Thứ các phép đo đó
+# cần bác bỏ đều là một cú CHỜ tính bằng giây (chờ shell chết, chờ hàng ghi thông),
+# nên trần rộng vẫn bắt đúng lỗi mà không biến phép đo thành phép đo tốc độ máy.
+TRAN_NGAY_S = 2.0
+
 _fails = []
 
 
@@ -242,7 +247,10 @@ async def _dong_khong_treo_loop():
     t0 = time.time()
     p.dong()
     tre = time.time() - t0
-    check("dong() trả về ngay, không giữ event loop", tre < 0.5, f"{tre:.2f}s")
+    # Trần 2s chứ không 0.5s: thứ cần bác bỏ là "dong() ngồi chờ shell chết hẳn", mà cú
+    # chờ đó tính bằng giây (vòng chờ ngay dưới cho hẳn 8s). 0.5s không bắt thêm được lỗi
+    # nào so với 2s, chỉ thêm một chỗ đỏ oan khi máy chạy CI đang tải nặng.
+    check("dong() trả về ngay, không giữ event loop", tre < TRAN_NGAY_S, f"{tre:.2f}s")
 
     het = time.time() + 8
     while time.time() < het and (p._fd >= 0 or p.song()):
@@ -299,7 +307,7 @@ async def _go_khong_chan_loop():
     t0 = time.time()
     p.go("y")
     tre = time.time() - t0
-    check("hàng ghi đầy -> go() bỏ gói mới ngay, không chặn", tre < 0.5, f"{tre:.2f}s")
+    check("hàng ghi đầy -> go() bỏ gói mới ngay, không chặn", tre < TRAN_NGAY_S, f"{tre:.2f}s")
 
     # (3) Đóng phiên khi thread ghi đang kẹt giữa cú os.write: giết shell trước (trật tự đã
     # chốt ở vụ 14/08/2026) làm cú ghi nhận EIO, thread ghi phải tự thoát - không để lại một

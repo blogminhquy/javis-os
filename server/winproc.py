@@ -50,3 +50,38 @@ def kwargs_no_window() -> dict:
     nhưng để rỗng thì đọc log lỗi đỡ phải hỏi "cờ này ở đâu ra".
     """
     return {"creationflags": CREATE_NO_WINDOW} if os.name == "nt" else {}
+
+
+def kill_tree(pid: int) -> bool:
+    """Giết CẢ CÂY tiến trình mang gốc `pid`, không riêng cái launcher.
+
+    Vì sao là hàm dùng chung chứ không phải method: có ít nhất hai chỗ spawn tiến trình con
+    sống lâu và cả hai đều phải quét cây, nhưng chúng cầm hai LOẠI đối tượng khác nhau -
+    `mcp_client.McpStdioSession` giữ một asyncio subprocess, còn `zalo_login` giữ một
+    `subprocess.Popen`. Điểm chung duy nhất là con số pid, nên hàm nhận đúng con số đó.
+
+    Vụ đã cắn (2026-08-15): npx trên Windows chạy qua `cmd.exe /c`, giết launcher thì tiến
+    trình node cháu vẫn sống và vẫn giữ khoá trên thư mục home cô lập. Trên POSIX cũng vậy
+    khi launcher chết trước mà nhóm vẫn còn thành viên.
+
+    Trả True khi đã quét được cả nhóm; False thì người gọi tự `kill()` cái launcher như cũ.
+    Hai chốt an toàn: không bao giờ đụng nhóm của chính server, và pid không phải leader
+    (bản cũ chưa đặt session riêng) thì nhóm mang số đó không tồn tại nên rơi về False.
+    """
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                           capture_output=True, timeout=10, creationflags=no_window())
+            return True
+        except Exception:
+            return False
+    try:
+        import signal
+        if pid != os.getpgid(0):
+            os.killpg(pid, signal.SIGKILL)
+            return True
+    except ProcessLookupError:
+        pass   # cả nhóm đã chết sạch, hoặc child không phải leader
+    except Exception:
+        pass
+    return False

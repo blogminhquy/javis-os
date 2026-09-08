@@ -1,5 +1,7 @@
 # Task & Dataview trong note
 
+***Tiếng Việt** · [English](en/19-tasks-and-dataview.md)*
+
 Từ bản 0.9.216, note trong brain của Javis "sống" hơn hẳn theo kiểu Obsidian: ô checkbox `- [ ]` trong note **bấm được và tự lưu**, còn khối ` ```dataview ` **chạy thật** ngay trong dashboard - hiện danh sách việc, danh sách note, bảng tổng hợp lấy từ toàn bộ brain. Hai tính năng này lấy cảm hứng từ hai plugin nổi tiếng của Obsidian là **Tasks** và **Dataview**, được Javis tự cài lại gọn nhẹ, không cần cài Obsidian hay plugin nào cả.
 
 ## 1. Checkbox task bấm được
@@ -199,11 +201,15 @@ Dòng nào chưa hỗ trợ (vd `filter by function`) thì khối hiện cảnh 
 
 Mọi khối ra danh sách việc (` ```tasks ` hoặc `TASK`) đều có nút **+ Việc** ở góc phải đầu khối. Bấm vào là hiện ô nhập nội dung + ô chọn hạn (tuỳ chọn), Enter hoặc bấm Thêm là xong. Việc mới được ghi vào file **`Task Inbox.md`** trong thư mục dashboard của brain, kèm `📅 hạn` nếu bạn chọn ngày, và mọi khối trên trang tự làm mới ngay. Task Inbox là hộp thư việc: thêm nhanh ở đó, lúc rảnh kéo về đúng sổ Daily/Weekly.
 
+File này **chỉ được tạo ở lần bạn thêm việc đầu tiên**. Không dùng nút "+ Việc" thì nó không bao giờ xuất hiện, nên thư mục Dashboard không có file rỗng nằm chờ.
+
 Javis **dò** thư mục dashboard chứ không cắm cứng một tên: thư mục cấp 1 nào của brain có tên là `dashboard` (không phân biệt hoa thường, cho phép tiền tố số thứ tự kiểu `00 - Dashboard`, `01 - dashboard`, `02_Dashboard`) thì việc mới rơi vào đó. Brain chưa có thư mục nào khớp thì Javis mới tạo mới với tên `00 - Dashboard`.
 
 ### Trang Dashboard mặc định
 
-Thư mục dashboard nằm trong cấu trúc chuẩn của brain: brain mới được tạo sẵn `00 - Dashboard` kèm hai file seed là `Dashboard.md` (các khối tasks: quá hạn, hôm nay, sắp tới, chưa có hạn) và `Task Inbox.md`. Brain cũ thiếu thì banner cấu trúc vault có nút tạo bổ sung. File seed chỉ tạo khi chưa có - bạn sửa gì Javis giữ nguyên.
+Thư mục dashboard nằm trong cấu trúc chuẩn của brain: brain mới được tạo sẵn `00 - Dashboard` kèm một file seed là `Dashboard.md` (các khối tasks: quá hạn, hôm nay, sắp tới, chưa có hạn). Brain cũ thiếu thì banner cấu trúc vault có nút tạo bổ sung. File seed chỉ tạo khi chưa có - bạn sửa gì Javis giữ nguyên.
+
+`Task Inbox.md` **không** nằm trong bộ seed (từ 0.55.17): nó chỉ mọc ra khi bạn bấm "+ Việc" lần đầu. Brain cũ đang có sẵn file đó mà bạn không dùng thì cứ xoá, Javis không tạo lại.
 
 ### Chưa hỗ trợ gì
 

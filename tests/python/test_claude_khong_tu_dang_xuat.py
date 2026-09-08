@@ -89,11 +89,18 @@ else:
     ngoan = subprocess.Popen(["bash", "-c", "trap 'exit 7' TERM; sleep 300 & wait"],
                              start_new_session=True)
     time.sleep(0.3)
+    # Buộc vào ÂN HẠN thật thay vì một con số chép tay. Bản cũ chốt 2.5s, mà ân hạn chỉ
+    # 2.0s - tức là ngưỡng ấy nằm NGOÀI ân hạn nên nó xanh kể cả khi tiến trình ăn trọn ân
+    # hạn rồi mới bị KILL, đúng thứ nó sinh ra để bắt. Thoát tử tế thì vòng chờ nhả ngay ở
+    # nhịp 0.1s đầu tiên, nên "dưới trọn ân hạn" vừa đúng ý vừa dư biên gấp nhiều lần.
+    AN_HAN_S = 2.0
     t0 = time.time()
-    claude_cli._kill_tree(ngoan)
+    claude_cli._kill_tree(ngoan, grace_s=AN_HAN_S)
+    mat = time.time() - t0
     check("CANARY: tiến trình bắt TERM được thoát TỬ TẾ (kịp đóng file token)",
           ngoan.poll() is not None and ngoan.returncode == 7)
-    check("và thoát nhanh trong ân hạn", time.time() - t0 < 2.5)
+    check(f"và thoát nhanh, KHÔNG cần hết ân hạn {AN_HAN_S}s (thật: {mat:.2f}s)",
+          mat < AN_HAN_S)
 
     # Tiến trình LÌ (phớt lờ TERM): hết ân hạn phải bị KILL - không được sống mãi.
     li = subprocess.Popen(["bash", "-c", "trap '' TERM; sleep 300"], start_new_session=True)

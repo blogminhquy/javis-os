@@ -88,9 +88,16 @@ check("quick-settings không còn tra cứu nút đã gỡ", !/\$\("ttsToggleBar
 // là một phần tử chưa mở khoá - nên đoạn đầu phát, các đoạn sau nghẹn.
 check("có hàm nhận diện iOS", /_laIOS\(\) \{/.test(voice) && /iP\(hone\|ad\|od\)/.test(voice));
 check("iOS: không nghe liên tục", /if \(this\._laIOS\(\)\) this\.recognition\.continuous = false;/.test(voice));
-check("iOS: onend KHÔNG tự mở lại phiên (hết câu là gửi)", /if \(!this\.userStopped && !this\._laIOS\(\)\) \{/.test(voice));
+// Khớp theo HÀNH VI, không theo chuỗi y nguyên: điều kiện mở lại phải có cả "người dùng
+// chưa dừng" lẫn "không phải iOS", nhưng cho phép chen thêm điều kiện khác (0.55.29 chen
+// thêm chốt mic hỏng hẳn). Canary dò chuỗi cứng thì mỗi lần sửa đúng cũng đỏ giả.
+check("iOS: onend KHÔNG tự mở lại phiên (hết câu là gửi)",
+  /if \(!this\.userStopped &&[^)]*!this\._laIOS\(\)\) \{/.test(voice));
 check("iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic",
-  /this\._moKhoaAudioIOS\(\); \/\/ iOS/.test(voice) && /startListening\(\) \{[\s\S]*?_moKhoaAudioIOS\(\)[\s\S]*?this\.recognition\.start\(\)/.test(voice));
+  /this\._moKhoaAudioIOS\(\); \/\/ iOS/.test(voice)
+  // `startListening` nhận tham số từ 0.55.29 (cờ phân biệt máy tự gọi với người bấm),
+  // nên mẫu phải cho phép có tham số.
+  && /startListening\([^)]*\) \{[\s\S]*?_moKhoaAudioIOS\(\)[\s\S]*?this\.recognition\.start\(\)/.test(voice));
 const iosNhanh = (voice.match(/if \(this\._laIOS\(\)\) \{\s*\n\s*\/\/ Đường iOS[\s\S]*?\n      return;\n    \}/) || [""])[0];
 check("iOS: _playChunk dùng MỘT phần tử Audio dùng lại", /this\._iosAudio \|\| \(this\._iosAudio = new Audio\(\)\)/.test(iosNhanh));
 // Bỏ dòng chú thích trước khi soi, vì chú thích có nhắc "preload" để giải thích.

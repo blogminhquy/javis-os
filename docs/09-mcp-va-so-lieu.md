@@ -1,6 +1,22 @@
 # Kết nối & số liệu kinh doanh
 
+***Tiếng Việt** · [English](en/09-connections-and-business-data.md)*
+
 Trang **Kết nối** là nơi bạn "đấu" Javis vào các công cụ bạn đang dùng: Pancake POS, Zalo, Webcake Landing, Botcake, quảng cáo Meta/Google/TikTok, lịch, CRM... Sau khi đấu, Javis đọc được số liệu THẬT và (nếu bạn cho quyền) thao tác thật trên các công cụ đó. Trang này hướng dẫn: kết nối một dịch vụ từ Kho, nối nhiều tài khoản, phân quyền, xem nhật ký, và cách đọc số liệu.
+
+> **Từ bản 0.55.36: phần lớn dịch vụ nằm trong Javis Store, không đi kèm app nữa.**
+>
+> App chỉ còn cài sẵn **Composio**, **bộ Google** (Lịch, Gmail, Drive/Docs, Sheets, Tasks, Keep,
+> Ads, Search Console, NotebookLM), **Zalo**, **Botcake**, **Substack**, và ô **Tự thêm (nâng cao)**.
+>
+> Mọi dịch vụ khác trong tài liệu này - Pancake POS, Shopify, Meta Ads, Facebook Trang, TikTok
+> Ads, Slack, Lark, n8n, Hostinger, Webcake... - vẫn dùng y hệt, chỉ thêm MỘT bước đầu: mở tab
+> **Javis Store** trên trang Kết nối, tìm dịch vụ, bấm **Cài đặt**. Sau đó nó hiện ở tab
+> **Kết nối sẵn có** và mọi hướng dẫn bên dưới đúng nguyên văn.
+>
+> Đổi lại: bản cập nhật của một dịch vụ tới thẳng qua kho, không phải chờ bản Javis mới. Nếu bạn
+> đã đấu tài khoản từ trước, trang Kết nối hiện sẵn nút cài lại đúng dịch vụ đó, và cài xong là
+> kết nối cũ chạy tiếp bằng đăng nhập cũ.
 
 ## Tính năng này là gì
 
@@ -17,7 +33,7 @@ Bên dưới, mỗi kết nối là một "đường ống" MCP (Model Context P
 2. Thanh bên trái, mở nhóm **Kết nối**, rồi bấm mục **Kết nối** (biểu tượng phích cắm, phụ đề "Nguồn dữ liệu & công cụ").
 3. Trang có 3 khu:
    - **◆ Đã kết nối** - các tài khoản bạn đang đấu, kèm ô tick "Chỉ dùng kết nối của Javis (bỏ kết nối sẵn của máy)".
-   - **◆ Kho kết nối** - 24 dịch vụ cài sẵn để đấu thêm, có ô "Tìm dịch vụ…" và dãy nút lọc: **Tất cả**, Kho ứng dụng, Bán hàng, Nhắn tin, Marketing, Văn phòng, Quảng cáo, Mạng xã hội, Sáng tạo. Sáu dịch vụ Google gom chung vào MỘT thẻ **Google** ghi "6 dịch vụ" - bấm **Chọn dịch vụ** trên thẻ đó mới ra danh sách con.
+   - **◆ Kết nối sẵn có** - những dịch vụ đã có trên máy, sẵn sàng đấu tài khoản, có ô "Tìm dịch vụ…" và dãy nút lọc: **Tất cả**, Kho ứng dụng, Bán hàng, Nhắn tin, Marketing, Văn phòng, Quảng cáo, Mạng xã hội, Sáng tạo. Sáu dịch vụ Google gom chung vào MỘT thẻ **Google** ghi "6 dịch vụ" - bấm **Chọn dịch vụ** trên thẻ đó mới ra danh sách con.
    - **◆ Kết nối sẵn của Claude Code và Codex** - khối GẬP SẴN ở cuối trang, phụ đề "chỉ hiển thị - bấm để xem". Đây là những nguồn đã đăng nhập sẵn trong tài khoản Claude (đồng bộ từ claude.ai) và trong Codex CLI. Danh sách chỉ tải khi bạn bấm mở, và hơi lâu vì Javis phải kiểm tra tình trạng từng nguồn. Chỉ để xem, không sửa được ở đây.
 
 ## Cách dùng (từng bước)
@@ -30,6 +46,23 @@ Bên dưới, mỗi kết nối là một "đường ống" MCP (Model Context P
 4. Có nhiều cửa hàng? Bấm **+ Thêm tài khoản** trên thẻ Pancake POS, dán key của shop tiếp theo. Mỗi shop một chip riêng.
 
 Pancake POS mặc định ở mức **Chỉ đọc** - Javis xem được doanh thu, đơn, khách... nhưng không thể tạo đơn hay đụng tiền. Muốn Javis thao tác thật, xem mục Phân quyền bên dưới.
+
+### 1b. Kết nối TTS Dropship (token lấy từ trình duyệt)
+
+Sàn dropship.thitruongsi.com **không phát hành API key**, nên thẻ này đăng nhập bằng chính token phiên của bạn trên trình duyệt. Cài **TTS Dropship** từ tab Javis Store trước, rồi:
+
+1. Mở [dropship.thitruongsi.com](https://dropship.thitruongsi.com) và đăng nhập như bình thường.
+2. Bấm **F12** (máy Mac: Cmd + Option + I) > tab **Application** (Chrome/Edge) hoặc **Storage** (Firefox) > **Local Storage** > dòng của trang TTS.
+3. Copy toàn bộ giá trị của khoá **@publicToken** (chuỗi rất dài, bắt đầu bằng `eyJ`) rồi dán vào ô đầu tiên. Copy thêm **@refreshToken** dán vào ô thứ hai.
+4. Bấm **Kết nối**, rồi bảo Javis "kiểm tra kết nối TTS" để nó chạy `tts_health_check`.
+
+Ba điều nên biết trước khi dùng:
+
+- **Token sống khoảng 3 ngày.** Javis đọc hạn ghi ngay trên token nên báo trước khi sắp hết, và khi hết thì nói rõ phải dán lại chứ không im lặng trả số liệu sai. Ô thứ ba, "Địa chỉ gia hạn token", cứ để trống: sàn chưa công bố địa chỉ đó, điền được thì Javis mới tự gia hạn.
+- **Sàn không cho sửa đơn đã tạo.** Vì vậy tool lên đơn, huỷ đơn và đánh giá đều bắt **xác nhận hai bước**: lần gọi đầu chỉ trả bản xem trước (khách, hàng, giá, phí ship, lãi ước tính), phải xác nhận rồi Javis mới tạo thật. Đây là chốt trong mã, không phải lời nhắc.
+- **Không có đường rút tiền.** Gói chỉ đọc được biểu phí rút; muốn rút thì vào ví trên web của sàn.
+
+Mặc định ở mức **Chỉ đọc**: tìm hàng, xem đơn, tra vận đơn, xem tiền về. Muốn Javis lên đơn thay bạn thì nâng lên **Toàn quyền** trên chip tài khoản, và đọc kỹ ô cảnh báo rủi ro ở đó.
 
 ### 2. Kết nối Zalo (quét QR)
 
@@ -173,7 +206,17 @@ Loop chạy nền còn bị siết thêm theo mode của loop: loop `suggest` ch
 
 Dịch vụ chưa có trong Kho? Bấm thẻ **Tự thêm (nâng cao)** - form kỹ thuật như bản cũ (URL/lệnh + header/env, hỗ trợ HTTP, SSE, stdio). Dịch vụ đăng nhập kiểu OAuth chuẩn MCP thì Javis tự mở trang đăng nhập và tự giữ token, chạy được cả trên VPS.
 
-### 9. Chế độ "Chỉ dùng kết nối của Javis" (strict)
+### 9. Gỡ một dịch vụ khỏi Kho cho gọn
+
+Kho có 29 dịch vụ, và bình thường bạn chỉ dùng vài cái. Trỏ chuột vào một thẻ trong Kho, góc phải trên hiện dấu **×**: bấm là dịch vụ đó rời khỏi Kho, khỏi danh sách công cụ của mọi bộ não, và khỏi ngữ cảnh mỗi lượt chat.
+
+Ba điều nên biết trước khi bấm:
+
+- **Gỡ không phải xoá.** File của dịch vụ vẫn nằm trong bản cài, Javis chỉ ghi nhớ là bạn đã gỡ. Nhờ vậy cập nhật Javis lên bản mới **không** làm nó mọc lại, mà cài lại thì chỉ mất một cú bấm.
+- **Cài lại ở khu "Đã gỡ"**, nằm dưới Kho, mặc định gập. Mỗi dịch vụ đã gỡ là một hàng có nút **Cài lại**.
+- **Kết nối của bạn KHÔNG bị xoá.** Nếu đang có tài khoản đấu theo dịch vụ đó, Javis hỏi lại trước khi gỡ. Gỡ rồi thì các kết nối ấy **dừng chạy** (Javis không tự gọi chúng nữa) nhưng vẫn nằm nguyên ở khu Đã kết nối, và đầu trang hiện một dải nhắc. Cài lại dịch vụ là chúng chạy tiếp, không phải đấu lại từ đầu.
+
+### 10. Chế độ "Chỉ dùng kết nối của Javis" (strict)
 
 Tick ô này ở khu Đã kết nối nếu muốn Javis CHỈ dùng các kết nối khai ở đây, bỏ qua MCP cài sẵn trong Claude Code trên máy - kiểm soát chặt, tránh gọi nhầm công cụ của tài khoản Claude. Lưu ý: ô này áp cho engine Claude Code (cờ strict của Claude CLI); kho MCP gốc của Codex do lệnh codex quản riêng - muốn engine ChatGPT bỏ một server gốc thì gỡ bằng `codex mcp remove <tên>`.
 

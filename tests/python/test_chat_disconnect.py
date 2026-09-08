@@ -1,6 +1,7 @@
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 
 from fastapi import WebSocketDisconnect
@@ -89,7 +90,28 @@ def test_websocket_disconnect_does_not_cancel_turn(monkeypatch, tmp_path):
 
         # Socket đã đóng nhưng job vẫn thuộc runtime của server.
         assert runtime.get_job("session-background") is not None
-        await asyncio.sleep(0.08)
+
+        # Chờ việc nền xong bằng cách HỎI LẠI, không phải ngủ một khoảng chốt cứng.
+        # Bản cũ `await asyncio.sleep(0.08)` cho việc nền đúng 80ms để chạy xong một luồng
+        # đã có sẵn 30ms ngủ bên trong (fake_stream) CỘNG với ghi SQLite - trên máy chạy CI
+        # đang tải nặng là không đủ, và test đỏ oan trong khi mã không sai gì. Bắt được
+        # 03/09/2026 nhờ log CI mới biết gọi tên test đỏ (xem test_ci_noi_ro_test_do.py);
+        # trước đó nó chỉ là một lần "CI chập chờn" không ai lần ra.
+        #
+        # Trần rộng KHÔNG làm test chậm đi: xong sớm là thoát sớm. Và nó vẫn bắt được lỗi
+        # thật - việc nền chết hẳn thì hết 10 giây vẫn không xong, test đỏ kèm lý do.
+        async def cho_xong(dieu_kien, tran_s=10.0):
+            het = time.monotonic() + tran_s
+            while time.monotonic() < het:
+                if dieu_kien():
+                    return True
+                await asyncio.sleep(0.01)
+            return dieu_kien()
+
+        xong = await cho_xong(
+            lambda: runtime.get_job("session-background") is None
+            and len(store.get_messages("session-background")) >= 2)
+        assert xong, "việc nền không chạy xong trong 10 giây"
 
         messages = store.get_messages("session-background")
         assert [m["role"] for m in messages] == ["user", "assistant"]

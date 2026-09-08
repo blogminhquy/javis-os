@@ -29,29 +29,110 @@ WRITE_HINTS = ("create", "update", "delete", "add", "remove", "edit", "send", "s
 PERM_RANK = {"readonly": 0, "safe": 1, "full": 2}
 _MODE_CAP = {"suggest": "readonly", "auto": "safe", "full": "full"}
 
-_cache = {"mtime": None, "by_id": {}}
+_cache = {"sig": None, "by_id": {}}
+
+
+def _da_go():
+    """Tập connector lõi người dùng đã GỠ. Rỗng nếu chưa gỡ gì, hoặc module lỗi.
+
+    Import lazy và bọc try/except có chủ ý: `mcp_catalog` là module nền mà nửa server phụ
+    thuộc vào, nên một file JSON lạ trong STATE_DIR không được phép làm nó ngừng nạp. Suy biến
+    nghiêng về "thấy đủ năng lực" chứ không phải "Javis trống rỗng"."""
+    try:
+        import core_off
+        return core_off.da_go("connectors")
+    except Exception as e:
+        print(f"[catalog] không đọc được danh sách đã gỡ: {e}", file=sys.stderr)
+        return set()
+
+
+def _lop_goi():
+    """Connector do GÓI trong STATE_DIR cung cấp. Rỗng nếu chưa cài gói nào, hoặc module lỗi.
+
+    Import lazy và bọc try/except cùng lý do với `_da_go`: `mcp_catalog` là module nền mà nửa
+    server phụ thuộc vào, nên một thư mục lạ trong STATE_DIR không được phép làm nó ngừng nạp."""
+    try:
+        import packs
+        return packs.connector_layers()
+    except Exception as e:
+        print(f"[catalog] không nạp được gói: {e}", file=sys.stderr)
+        return {}
+
+
+def _sig_goi():
+    try:
+        import packs
+        return packs.signature()
+    except Exception:
+        return None
 
 
 def load():
-    """Nạp catalog (cache theo mtime file). Trả dict id → connector."""
+    """Nạp catalog. Trả dict id → connector: kho gốc, TRỪ cái người dùng gỡ, CỘNG cái gói thêm.
+
+    Lọc ở ĐÂY, không ở `public_catalog()`. Lọc ở chỗ hiển thị thì thẻ mất khỏi giao diện nhưng
+    tool vẫn đi ra tới engine qua `mcp_store.resolved` -> `mcp_hub.discover_all`, tức là "đã
+    gỡ" thành một lời hứa sai. `load()` là nơi duy nhất mọi đường đi qua, nên nó là chỗ duy
+    nhất lọc được một lần cho tất cả.
+
+    Cache theo (chữ ký file catalog, chữ ký danh sách đã gỡ). Thiếu vế thứ hai thì gỡ một
+    connector sẽ không có hiệu lực cho tới khi ai đó sửa file catalog, tức là không bao giờ."""
     try:
-        mtime = CATALOG_PATH.stat().st_mtime
+        st = CATALOG_PATH.stat()
+        sig_file = (st.st_mtime_ns, st.st_size)
     except OSError:
         return {}
-    if _cache["mtime"] == mtime:
+    go = _da_go()
+    sig = (sig_file, tuple(sorted(go)), _sig_goi())
+    if _cache["sig"] == sig:
         return _cache["by_id"]
     try:
         data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        by_id = {c["id"]: c for c in data.get("connectors", []) if c.get("id")}
+        by_id = {c["id"]: c for c in data.get("connectors", []) if c.get("id")
+                 and c["id"] not in go}
     except Exception as e:
         print(f"[catalog] lỗi đọc {CATALOG_PATH.name}: {e}", file=sys.stderr)
         return _cache["by_id"]   # file hỏng → giữ bản cache cũ
-    _cache.update(mtime=mtime, by_id=by_id)
+    # Gói PHỦ THÊM, không bao giờ ghi đè: `packs` đã từ chối mọi connector trùng id với kho
+    # gốc, nên `setdefault` ở đây chỉ là chốt thứ hai cho chắc. Ghi đè được nghĩa là một gói
+    # bẻ hướng được kết nối đang đăng nhập thật - xem `packs._kiem_connector`.
+    for cid, con in (_lop_goi() or {}).items():
+        by_id.setdefault(cid, con)
+    _cache.update(sig=sig, by_id=by_id)
     return by_id
+
+
+def tat_ca():
+    """Catalog ĐẦY ĐỦ, KHÔNG trừ cái đã gỡ. Chỉ dùng cho trang Kết nối để vẽ khu "Đã gỡ".
+
+    Tách hẳn khỏi `load()` để không ai vô tình dùng nó ở đường chạy: mọi chỗ quyết định tool
+    nào ra tới engine phải đi qua `load()`."""
+    try:
+        data = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        return {c["id"]: c for c in data.get("connectors", []) if c.get("id")}
+    except Exception as e:
+        print(f"[catalog] lỗi đọc {CATALOG_PATH.name}: {e}", file=sys.stderr)
+        return {}
 
 
 def get(cid):
     return load().get(cid)
+
+
+def _icon_goi(con, gia_tri):
+    """Icon của connector từ gói: đường dẫn trong gói -> URL tuyệt đối. Khác thì giữ nguyên.
+
+    Chấp nhận cả `assets/x.png` (đúng như manifest mẫu) lẫn `x.png`, và cắt tiền tố `assets/`
+    vì endpoint đã neo sẵn vào thư mục đó. Viết lại ở PHÍA SERVER nên `iconInner` trong
+    console.js (vốn đã route dấu / sang <img>) không phải biết gói là gì."""
+    v = str(gia_tri or "").strip()
+    pid = (con or {}).get("_pack")
+    if not pid or not v or v.startswith(("http://", "https://", "/")):
+        return v
+    v = v.lstrip("./")
+    if v.startswith("assets/"):
+        v = v[len("assets/"):]
+    return f"/packs/{pid}/asset/{v}"
 
 
 def public_catalog():
@@ -60,7 +141,11 @@ def public_catalog():
     for c in load().values():
         auth = c.get("auth") or {}
         out.append({
-            "id": c["id"], "name": c.get("name", c["id"]), "icon": c.get("icon", "🔌"),
+            "id": c["id"], "name": c.get("name", c["id"]),
+            # Icon và trang hướng dẫn của gói là đường dẫn TRONG gói. Viết lại thành URL tuyệt
+            # đối ở PHÍA SERVER, nên `iconInner` (console.js, vốn đã route dấu / sang <img>)
+            # không phải biết gói là gì.
+            "icon": _icon_goi(c, c.get("icon", "🔌")),
             "category": c.get("category", "Khác"), "description": c.get("description", ""),
             "status": c.get("status", "ready"), "transport": c.get("transport", "http"),
             "auth_type": auth.get("type", "apikey"),
@@ -72,7 +157,14 @@ def public_catalog():
                         "default": str(f.get("default", "") or ""),
                         "multiline": bool(f.get("multiline") or f.get("file"))}
                        for f in (auth.get("fields") or [])],
-            "guide": auth.get("guide", ""), "guide_url": auth.get("guide_url", ""),
+            "guide": auth.get("guide", ""),
+            # Trang hướng dẫn NẰM TRONG gói chưa phục vụ được ở bản này: nó phải là markdown
+            # render phía server ra HTML đã lọc, vì một trang HTML của tác giả lạ chạy trên
+            # origin của dashboard thì chỉ cách endpoint cài gói đúng một lỗ XSS. Trả rỗng còn
+            # hơn render một link chết. Phần chữ `guide` vẫn hiện bình thường.
+            "guide_url": (auth.get("guide_url", "")
+                          if not c.get("_pack") or str(auth.get("guide_url", "")).startswith(
+                              ("http://", "https://")) else ""),
             "setup": auth.get("setup") or {},
             # Nhóm hiển thị (vd mọi dịch vụ Google gom về MỘT card) + wizard từng bước
             # thay guide tường chữ. steps: [{text, link?, link_label?, copy?}] -
@@ -86,6 +178,8 @@ def public_catalog():
             # Có kho token riêng ngoài Javis → UI hiện nút "Đăng nhập lại Google (xoá quyền cũ)".
             # Chỉ trả CÓ hay KHÔNG (bool), không lộ tên biến môi trường ra frontend.
             "cred_dir": bool(c.get("cred_dir")),
+            # Nguồn: connector do GÓI cấp không bao giờ được trông y hệt hàng chính chủ.
+            "pack": c.get("_pack", ""), "pack_name": c.get("_pack_name", ""),
         })
     return out
 

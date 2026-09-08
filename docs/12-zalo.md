@@ -1,5 +1,7 @@
 # Zalo Agent MCP
 
+***Tiếng Việt** · [English](en/12-zalo-agent-mcp.md)*
+
 > **Javis có BA chỗ dính tới Zalo, đừng lẫn.** Trang này nói về chỗ thứ nhất: đăng nhập
 > **chính tài khoản Zalo của bạn** để Javis thao tác thay bạn. Hai chỗ kia dùng API chính
 > thức, an toàn, nhưng chỉ thấy được thứ người ta nhắn thẳng cho bot.

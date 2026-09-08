@@ -41,6 +41,21 @@ def _write(data):
     rt.setdefault("preset_choice", {"level": "off", "source": "user", "at": "2026-01-01T00:00:00+00:00"})
     cfg.SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     cfg.SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    # Đẩy mốc thời gian lùi lại một chút sau mỗi lần ghi.
+    #
+    # `read_settings` cache theo (mtime_ns, size). Test này ghi hai nội dung CÙNG ĐỘ DÀI liên
+    # tiếp (allocation 100 rồi 250), nên nếu hệ tệp trả cùng một mtime_ns thì lần đọc thứ hai
+    # trúng cache cũ và phép kiểm hot reload đỏ oan. Đo được: đỏ ngẫu nhiên khoảng 1 trên 3
+    # lượt, trên cả cây sạch từ origin/main.
+    #
+    # Đây là giới hạn THẬT của cách cache chứ không riêng của test: người dùng sửa tay hai lần
+    # trong cùng một nhịp đồng hồ, giữ nguyên độ dài, cũng trượt y hệt. Không siết cache bằng
+    # hash nội dung vì `read_settings` nằm trên đường nóng của mọi lượt chat; đổi lại thì ghi
+    # rõ giới hạn ra đây.
+    import os as _os
+    _write.lan = getattr(_write, "lan", 0) + 1
+    _t = 1_600_000_000 + _write.lan * 60      # mỗi lần ghi một mốc KHÁC HẲN, không phụ thuộc đồng hồ
+    _os.utime(cfg.SETTINGS_PATH, (_t, _t))
 
 
 # ---- 1. _deep_merge thuần ----

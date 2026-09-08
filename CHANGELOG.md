@@ -2,17 +2,331 @@
 
 Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay trong app tại mục **Cập nhật** trên thanh bên trái.
 
-Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
-
-## [0.55.14] - 2026-09-08
+Định dạng: mỗi phiên bản là một khối `## [0.55.54] - 2026-09-08
 ### Cải thiện
-- **Chuyển sang tiếng Anh giờ là tiếng Anh thật.** Trước đây đổi ngôn ngữ xong vẫn còn nhiều mảng tiếng Việt: trang Chatbot, trang Mức dùng token, hộp thư thông báo, terminal, lịch sử hội thoại, khung sửa file, dải việc nền và phần lớn trang Cài đặt, Kết nối, Models, Cập nhật. Hơn 1.000 câu chữ nữa đã có bản tiếng Anh, từ điển giao diện tăng từ 725 lên 2.338 dòng.
+- **Chuyển sang tiếng Anh giờ là tiếng Anh thật.** Trước đây đổi ngôn ngữ xong vẫn còn nhiều mảng tiếng Việt: Javis Store, trang Chatbot, Mức dùng token, hộp thư thông báo, terminal, lịch sử hội thoại, khung sửa file, dải việc nền và phần lớn trang Cài đặt, Kết nối, Models, Cập nhật. Hơn 1.200 câu chữ nữa đã có bản tiếng Anh.
 - **Đổi ngôn ngữ ăn ngay** ở hộp thư thông báo, thanh chọn model, trang Mức dùng và thẻ tên miền. Trước đây mấy chỗ này vẽ chữ một lần rồi thôi, phải tải lại trang mới thấy đổi.
 
 ### Sửa lỗi
 - **Nhắc hẹn đặt bằng tiếng Anh đã tạo được.** Ô nhập mời bạn gõ "in 30 minutes" nhưng Javis chỉ hiểu "30 phút nữa", nên làm đúng theo gợi ý thì nhắc hẹn lặng lẽ không được tạo. Nay hiểu cả hai thứ tiếng.
 - **Bấm vào một thẻ việc thì ngăn kéo chi tiết hiện nội dung**, thay vì mở ra rỗng và đứng im.
 - **Menu gõ dấu gạch chéo trong trình sửa lọc lại đúng.** Trước đó gõ chữ nào cũng ra đủ mười lệnh.
+
+## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
+
+## [0.55.53] - 2026-09-07
+### Sửa lỗi
+- **Ô tìm trong Javis Store gõ được cả câu, không còn mỗi lần một chữ cái.** Trước đây gõ một chữ là con trỏ văng ra khỏi ô, phải bấm chuột vào lại mới gõ được chữ tiếp theo.
+- Gõ chèn vào giữa chữ đã có cũng đúng chỗ, không bị nhảy xuống cuối nữa.
+- Gõ tiếng Việt có dấu trong ô này không còn rơi mất dấu thanh.
+
+## [0.55.52] - 2026-09-07
+### Sửa lỗi
+- Bản Docker mới luôn kiểm tra và cài Codex hiện hành khi phát hành, tránh cập nhật Javis mà danh sách ChatGPT vẫn kẹt ở model cũ do dùng lại bộ cài đã cache.
+- Cài lại bằng `install.sh` hoặc cập nhật bằng `update.sh native` cũng nâng Codex để nhận danh sách model mới theo tài khoản.
+
+## [0.55.51] - 2026-09-07
+### Sửa lỗi
+- **Hai brain dùng chung một file bộ nhớ giống hệt nhau không còn làm brain thứ hai mất bộ nhớ dài hạn.** Trước đây Javis đánh số mỗi mẩu ký ức chỉ theo tên file, số dòng và nội dung, nên hai brain cùng có một file như `facts/cach-lam-viec-chuan.md` bị coi là một mẩu. Brain dựng chỉ mục sau bị từ chối lặng lẽ, và ở chế độ tiết kiệm nó trả lời mà không nhớ gì, không một dòng báo lỗi.
+- Nay số hiệu ký ức có thêm dấu riêng của từng brain, nên chép chung file bộ nhớ giữa các brain là chuyện bình thường. Lần chạy đầu sau khi cập nhật, Javis tự dựng lại chỉ mục bộ nhớ của mọi brain; không cần làm gì thêm và không đụng tới file trong brain.
+- Nếu bạn đã đổi tên file ở một brain để né lỗi này thì đổi lại tên cũ được rồi.
+
+## [0.55.50] - 2026-09-06
+### Sửa lỗi
+- **Mở Javis sau mỗi lần cập nhật nhanh hơn hẳn.** Trước đây bản cập nhật nào cũng bắt trình duyệt tải lại toàn bộ giao diện, khoảng **1.6 MB** không nén. Nay giao diện được nén còn **496 KB**, và chỉ file nào thật sự đổi mới phải tải lại, phần còn lại dùng luôn bản đã lưu trong máy.
+- **Trang Models thôi đứng mãi ở chữ "Đang tải...".** Nó chờ Javis hỏi xem Claude Code đã đăng nhập chưa, mà lượt hỏi đó không có hạn chờ nên chỉ cần Claude trục trặc là cả trang treo. Nay có hạn 2,5 giây, quá thì trang cứ hiện ra bình thường.
+- **Javis bớt tạo trùng trang wiki.** Kho wiki lớn hơn khoảng 60 trang là Javis chỉ còn "nhìn" thấy một phần danh mục, mà phần bị khuất lại đúng là các trang mới nhất, nên nó tưởng chưa có rồi tạo lại. Nay nó thấy đủ cả kho, kể cả trang nằm trong thư mục con, và nhận ra cả tên gọi khác của cùng một chủ đề.
+- **Ký ức Javis vừa ghi không còn biến mất.** Trên máy chủ Linux, brain có thể lỡ đẻ ra hai thư mục bộ nhớ cùng tên nhưng khác chữ hoa thường, và mọi ghi chú rơi vào cái thứ hai thì Javis không bao giờ đọc lại được: ghi xong là mất, không báo lỗi. Nay Javis tự gộp hai thư mục về một ở lần trò chuyện kế tiếp, và nếu hai bên trùng tên file thì giữ lại cả hai chứ không đè.
+
+## [0.55.48] - 2026-09-05
+### Thêm mới
+- **Khung "Trong cuộc trò chuyện này" giờ tự thêm file và link được**, đúng như khung Project: tìm file trong brain, tải file từ máy lên (hoặc kéo thả vào khung), dán link, gỡ ra khi không cần nữa.
+- Danh sách chia hai phần rõ ràng: phần **bạn thêm** nằm trên, phần Javis tự dò ra từ tin nhắn nằm dưới. File Javis ghi lặng lẽ giữa lượt trước nay không lọt vào danh sách thì nay bạn gắn tay vào là xong.
+- **Ghim một file là Javis đọc sẵn nội dung nó trong mọi lượt của riêng cuộc đó** (tối đa 2000 ký tự mỗi file). Không ghim thì Javis chỉ thấy tên và tự mở khi cần.
+
+## [0.55.47] - 2026-09-05
+### Sửa lỗi
+- **Javis không còn "quên" mất các gói bạn đã cài.** Khi có nhiều nguồn, Javis giấu bớt công cụ đi cho nhẹ và chỉ giữ một bản mục lục. Nhưng mục lục đó gộp hết tool của MỌI gói vào một dòng chung chung, nên Javis không biết là mình đang có gói TTS Dropship, Meta Ads hay Zalo, rồi trả lời thẳng là chưa kết nối dù gói vẫn chạy tốt.
+- **Mục lục giờ gọi đúng tên từng gói** kèm một dòng nói gói đó làm gì, ví dụ "TTS Dropship, 20 tool: bán dropship trên sàn thitruongsi.com". Javis thấy là có thì mới biết đường dùng.
+- Vẫn nhẹ như cũ: cách này tiết kiệm 93% chỗ so với phơi hết công cụ ra, gần đúng bằng mức trước khi sửa.
+
+## [0.55.46] - 2026-09-05
+### Sửa lỗi
+- **Đăng nhập Antigravity trong tab Code giờ có chỗ dán mã.** Trước đây gõ `agy` là màn hình in ra link Google rồi đứng im: mở link trên máy mình, đăng nhập xong cũng không có ô nào để điền mã về, nên không tài nào đăng nhập nổi. Nay Javis nói đúng với `agy` rằng bạn đang ngồi ở máy khác, nên nó hỏi chỗ dán như khi bạn SSH.
+- **Cách làm, gọn trong 3 bước:** gõ `agy` trong tab Code, mở link vừa in ra bằng trình duyệt trên máy bạn, đăng nhập Google. Trình duyệt sẽ nhảy sang một địa chỉ `localhost` **báo không mở được - đó là bước đúng**: copy nguyên địa chỉ đó trên thanh URL, dán ngược vào terminal rồi Enter.
+- Thẻ **Google Antigravity CLI** ở trang Models viết lại theo đúng ba bước này, kèm một dòng cứu hộ bằng `curl` cho bản `agy` cũ không hỏi chỗ dán.
+- Áp dụng cho máy chủ không có màn hình (VPS, Docker, kể cả Docker trên máy Mac của bạn). Máy để bàn chạy thẳng vẫn tự mở trình duyệt như cũ.
+
+## [0.55.45] - 2026-09-05
+### Cải thiện
+- **Thẻ kết nối trong Kho cài đặt có logo thật.** Trước đây mọi kết nối tải từ kho chỉ hiện một ô chữ cái, nhìn lướt không biết đâu là Gmail, đâu là Shopify. Nay kho khai logo cho từng gói là thẻ hiện đúng logo đó, cùng một hình với trang Kết nối sau khi cài.
+- Logo chỉ được lấy từ đúng nơi đặt danh mục kho, không bao giờ tải ảnh từ máy chủ lạ, nên mở lưới không để lộ gì cho bên thứ ba.
+
+## [0.55.44] - 2026-09-05
+### Thêm mới
+- **Hết lượt gói thuê bao thì Javis tự hỏi lại khi hạn mức mở, không cần bạn canh giờ.** Claude Code, ChatGPT (Codex), Grok Build hay Antigravity báo "hết lượt, mở lại lúc 13:01" là dưới câu báo hiện thẻ "Tự chạy lại lúc 13:01 (còn 42 phút)". Đến giờ, Javis tự hỏi lại đúng câu đó và trả lời vào cùng hội thoại, kể cả khi bạn đã đóng tab hay tắt màn hình điện thoại.
+- Trên thẻ có ô "Tự tiếp tục khi hạn mức reset" (nhớ lựa chọn cho những lần sau) và nút "Chạy lại ngay" nếu không muốn đợi. Gửi tin mới trong lúc chờ thì lịch tự huỷ.
+- Chỉ hẹn khi nhà cung cấp nói rõ mốc mở lại, và tối đa 3 lần cho một câu hỏi; không biết mốc thì thẻ chỉ có nút chạy lại ngay, không đoán giờ.
+
+## [0.55.43] - 2026-09-05
+### Thêm mới
+- **Gói đã cài có bản mới thì Kho nói ngay từ đầu trang.** Một băng "N gói đã cài có bản mới" nằm trên cùng, bấm vào là nhảy thẳng tới đúng nhóm và lọc sẵn còn mấy gói đó. Trước đây phải tình cờ bấm đúng tab mới thấy, nên gói Kỹ năng hay Trợ lý có bản mới thì gần như không bao giờ biết.
+- **Mỗi tab mang huy hiệu riêng** ghi có mấy gói cần cập nhật, thấy được cả khi đang đứng ở tab khác. Cột bên trái thêm một hàng lọc "Có bản mới".
+
+### Sửa lỗi
+- **Thẻ gói thôi báo sai số hiệu.** Gói đang chạy bản 1.0.0 mà kho có 1.0.1 thì thẻ vẫn hiện "v1.0.1" ngay trên dòng "Đã cài trên máy", tức là nói bạn đang chạy bản mới trong khi bạn chạy bản cũ. Nay thẻ ghi đủ cả hai: đang chạy bản nào, kho có bản nào.
+- **Mở trang Kho không còn nhìn vào danh mục của sáng nay.** Danh mục lưu 6 tiếng nên bản mới phát hành xong vẫn không hiện ra và không có dấu hiệu gì. Nay danh mục cũ quá thì trang tự lấy lại, và có dòng ghi rõ lấy lúc mấy giờ.
+
+## [0.55.42] - 2026-09-05
+### Sửa lỗi
+- **Mức suy nghĩ giờ có tác dụng thật trên ChatGPT (Codex).** Javis đặt đúng mức mà chính Codex khai là model đó nhận được, nên chọn nấc nào ra nấc đó thay vì chỉ là một chữ nhắc trong câu hỏi.
+- **Grok và Antigravity không còn bị dán chữ lạ vào cuối tin nhắn.** Trước đây Javis chèn từ khoá riêng của Claude Code vào câu hỏi gửi cho hai bộ não này, chúng không hiểu nên chẳng đổi được gì. Nay là một câu tiếng Việt nói rõ độ sâu, và nếu bản CLI có cần gạt thật thì Javis dùng cần gạt đó.
+- Javis chỉ dùng cần gạt khi chính CLI khai là có, nên bản cũ trên máy bạn vẫn chạy bình thường.
+
+## [0.55.41] - 2026-09-05
+### Sửa lỗi
+- **Hai mức suy nghĩ cao nhất giờ khác nhau thật.** "Rất cao" và "Tối đa" trước đây ra cùng một kết quả trên mọi bộ não, bấm mức nào cũng như nhau mà không có gì báo. Nay Javis dùng đúng cần gạt của Claude Code và của Anthropic nên chọn mức nào ra mức đó.
+- **Đổi mức suy nghĩ không còn dính thêm chữ vào tin nhắn của bạn.** Trước đây Javis nhét một câu nhắc vào cuối mỗi câu hỏi để ra hiệu cho model; giờ đi bằng cài đặt thật, đỡ tốn token và tin nhắn sạch hơn.
+- **Model mới của OpenAI và Google cũng tự hiện ra.** Hai nhà này bị lọc theo tên nên dòng model đặt tên khác kiểu cũ là biến mất khỏi hộp chọn. Đây cùng một lỗi với vụ thiếu Fable 5.1, chỉ khác nhà cung cấp.
+
+## [0.55.40] - 2026-09-05
+### Thêm mới
+- **Toàn bộ tài liệu hướng dẫn giờ có bản tiếng Anh.** 27 trang trong `docs/`, cộng hướng dẫn cài lên server và hướng dẫn đóng góp, đều có bản song ngữ.
+- **Đầu mỗi trang có dòng chuyển ngôn ngữ** kiểu "Tiếng Việt · English", bấm là sang đúng trang tương ứng, không phải tự đi tìm.
+- Mục lục tiếng Anh ở `docs/en/` xếp đúng thứ tự và đúng nhóm như bản tiếng Việt.
+
+### Cải thiện
+- Test tài liệu song ngữ nay canh cả 32 cặp trang: link chết, thiếu dòng chuyển ngôn ngữ hay lỡ dùng gạch ngang dài là CI báo ngay.
+
+## [0.55.39] - 2026-09-05
+### Sửa lỗi
+- **Đã có Claude Fable 5.1 trong hộp chọn model.** Danh sách model của gói Claude Code giờ đọc thẳng từ Claude Code đang cài trên máy, nên nhà cung cấp ra bản mới là bạn thấy ngay, không phải đợi Javis lên phiên bản.
+- **Danh sách model cũ không còn che mất model mới.** Máy chạy đã lâu bị kẹt ở dàn model của ngày đầu cài, nâng cấp Javis bao nhiêu lần cũng không thấy dòng model mới. Nay hai danh sách gộp lại, không cái nào xoá cái nào.
+- **Chọn `fable` hay `opus` là ra đúng bản mới nhất.** Trước đây nó có thể lặng lẽ chạy một bản cũ hơn cùng dòng.
+- **Bật độ sâu suy nghĩ trên Opus 5 và Sonnet 5 không còn lỗi**, và trang Mức dùng tính tiền theo đúng từng bản: Opus từ 4.5 đã rẻ hơn xưa, còn Fable thì đắt hơn Opus.
+
+## [0.55.38] - 2026-09-05
+### Thêm mới
+- **Agent và Workflow xếp theo nhóm, giống trang Kỹ năng.** Hai trang này giờ có cột nhóm bên trái kèm số đếm và ô tìm kiếm, nên brain có vài chục agent không còn là một danh sách phẳng phải dò bằng mắt.
+- **Đặt nhóm ngay trong form.** Sửa agent hay workflow là có ô Nhóm, gõ vào hoặc chọn từ nhóm đang có. Bỏ trống thì nó nằm ở "Chung".
+- **File cũ không mất đi đâu.** Agent và workflow tạo từ trước chưa có nhóm sẽ tự nằm trong "Chung", vẫn thấy và vẫn chạy như cũ.
+- Javis khi tự tạo agent hay workflow cũng tự xếp nhóm, và chỉ mục năng lực trong brain liệt kê theo nhóm luôn.
+
+### Sửa lỗi
+- **Sửa workflow không còn mất chữ đang gõ.** Trước đây gõ tên hoặc mô tả rồi bấm thêm bước là hai ô đó quay về giá trị cũ, không báo gì.
+
+## [0.55.37] - 2026-09-05
+### Cải thiện
+- **Javis Store ra thanh bên.** Nằm ngay dưới Kết nối, không còn phải vào một trang năng lực rồi bấm tab mới tới được. Lý do đổi: từ 0.55.36 phần lớn kết nối nằm trong kho, mà người mới cài thì chưa có trang nào để mà bấm tab.
+
+### Sửa lỗi
+- **Nút "Quay lại" không còn trỏ nhầm chỗ.** Vào kho từ tab trang Kỹ năng, rời đi, rồi vào lại từ thanh bên thì nút cũ vẫn còn và dẫn về Kỹ năng - nơi bạn không hề đi ra.
+
+## [0.55.36] - 2026-09-05
+### Thêm mới
+- **16 kết nối dọn ra Javis Store.** Pancake POS, Shopify, Meta Ads, Facebook Trang, TikTok Ads, Slack, Lark, n8n, Hostinger, Webcake và vài cái nữa giờ cài từ kho thay vì đi kèm app. Đổi lại, bản cập nhật của chúng tới thẳng qua kho, không phải chờ bản Javis mới.
+- Ở lại trong app: **Composio**, **bộ Google** (Lịch, Gmail, Drive/Docs, Sheets, Tasks, Keep, Ads, Search Console, NotebookLM), **Zalo**, **Botcake**, **Substack**, và ô **Tự thêm (nâng cao)**.
+- **Kết nối cũ không mất.** Nếu bạn đang dùng một trong 16 cái trên, trang Kết nối hiện một dòng nhắc kèm nút cài lại đúng cái đó. Cài xong là chạy tiếp bằng đăng nhập cũ, không phải đấu lại từ đầu.
+
+### Cải thiện
+- **Màn hình cài gói làm lại hoàn toàn.** Có vùng kéo thả tệp .zip, ảnh của gói, và một bảng nói rõ gói đến từ tệp nào, dấu vân tay ra sao, nó thêm gì vào máy bạn. Trên điện thoại nó trượt lên từ đáy màn hình, nút nằm trong tầm ngón cái.
+- **Gói chỉ có dữ liệu bật sẵn sau khi cài.** Trước đây mọi gói vào máy ở trạng thái tắt, nên cài xong một kết nối mà chẳng thấy gì xảy ra. Gói có chạy mã thì vẫn tắt mặc định để bạn xem lại trước.
+
+### Sửa lỗi
+- **Gỡ một kết nối có sẵn giờ hỏi lại trước khi gỡ.** Trước đây nếu chưa ai đấu tài khoản nào thì bấm nhầm dấu × ở góc thẻ là dịch vụ biến mất luôn, không hỏi câu nào. Giờ luôn có một câu hỏi, và nếu đang có kết nối chạy thì nó gọi tên từng cái sắp dừng.
+
+## [0.55.35] - 2026-09-05
+### Cải thiện
+- **Javis Store trên điện thoại bố trí lại hẳn.** Hàng loại thành một dải phân đoạn với số đếm nằm dưới tên, các nhóm lĩnh vực xuống dòng thành nhiều hàng thay vì một dải phải vuốt ngang, ô tìm kiếm chiếm trọn bề ngang.
+- **Không còn nhóm nào bị giấu.** Dải cuộn ngang cũ khiến bạn chỉ thấy bốn nhóm đầu trong khi thật ra có mười; giờ thấy hết cùng lúc.
+- Nút bấm trong kho đủ to để bấm bằng ngón tay, và trên màn hẹp thì thẻ xếp một cột.
+- Bớt một dòng tiêu đề lặp trên điện thoại, để phần chọn loại lên cao hơn gần một phần tư màn hình.
+
+## [0.55.34] - 2026-09-05
+### Sửa lỗi
+- **Vài nút trong kho hiện sai phông chữ.** Nút bấm không tự dùng phông của trang, nên hàng tab và cột nhóm hiện bằng phông mặc định của máy giữa một trang Montserrat. Giờ cả trang một phông.
+
+### Cải thiện
+- **Kho cài đặt đổi tên thành Javis Store**, và chữ trong kho to lên cho dễ đọc.
+- **Có nút quay lại.** Vào kho từ trang Kỹ năng thì bấm một cái là về đúng trang Kỹ năng.
+- **Nút "Cài từ tệp .zip" chuyển lên đầu**, nằm ngay cạnh ô tìm kiếm.
+- **Bỏ khối "Đã cài" ở cuối trang.** Nó lặp lại thứ đã có trên lưới; nút bật/tắt tạm chuyển thẳng lên thẻ của từng món.
+
+## [0.55.33] - 2026-09-05
+### Thêm mới
+- **26 kết nối của Javis đã có bản trong kho.** Từ giờ chúng không còn buộc phải đi kèm app: gỡ đi cho gọn rồi lấy lại từ kho bất cứ lúc nào, và bản cập nhật của một kết nối tới thẳng qua kho chứ không phải chờ bản Javis mới.
+- Ba kết nối ở lại trong app vì không đóng gói được: **Zalo** (đăng nhập bằng mã QR có đường riêng), **Botcake** và **Substack** (gọi thẳng vào lõi Javis).
+
+### Cải thiện
+- Kho không hiện hai thẻ cho cùng một dịch vụ. Khi app còn bản của mình thì thẻ của kho ẩn đi; gỡ bản của app là thẻ kho hiện ra và cài được.
+
+## [0.55.32] - 2026-09-05
+### Thêm mới
+- **Trang Kết nối tách thành hai tab**: "Đã kết nối" và "Kết nối sẵn có", cộng lối sang Kho cài đặt. Trước đây hai danh sách nằm chung một mạch cuộn, nên ai đã đấu vài chục tài khoản phải cuộn qua hết mới tới chỗ đấu cái mới.
+- Chưa đấu gì thì tab đầu chỉ thẳng bước tiếp theo, thay vì để bạn nhìn một ô trống.
+
+### Sửa lỗi
+- **Chấm báo sức khoẻ kết nối bị đứng ở màu xám.** Một hàm đã bị gỡ từ lâu vẫn được gọi, làm việc tô chấm chết giữa chừng, nên chỉ kết nối đầu tiên được tô còn lại thì không. Giờ chấm nào cũng được tô, và di chuột vào thấy lần kiểm tra gần nhất là bao lâu trước.
+
+## [0.55.31] - 2026-09-05
+### Thêm mới
+- **Kho cài đặt dựng lại theo thiết kế mới.** Hàng tab theo loại kèm số đếm ở trên, cột nhóm lĩnh vực bên trái, thẻ có logo thật và nhãn nhóm, và phân trang khi kho dài ra.
+- **Mọi kết nối của Javis giờ nằm luôn trong kho**, đánh dấu sẵn "Đã cài trên máy". Bạn có một chỗ duy nhất để nhìn Javis nối được với những gì, thay vì hai danh sách rời nhau.
+- **Gỡ và cài lại ngay trên thẻ.** Kết nối không dùng thì gỡ cho gọn màn hình; đổi ý thì bấm Cài lại. Kết nối đã đấu không bị xoá, chỉ dừng lại cho tới khi bạn cài lại.
+- Lọc riêng được hàng do cộng đồng gửi, và lối lọc đó chỉ hiện khi kho thật sự có hàng cộng đồng.
+
+## [0.55.30] - 2026-09-05
+### Thêm mới
+- **Kho cài đặt chuyển sang kho riêng: [javis-store](https://github.com/blogminhquy/javis-store).** Từ giờ thêm một món vào kho là mọi máy đang chạy Javis **thấy ngay**, không phải chờ bản cập nhật nào cả.
+- **Ai cũng góp được món vào kho.** Repo kho công khai, kèm hướng dẫn gửi bài và danh sách những gì sẽ bị soi khi duyệt. Mọi món đều được đọc mã trước khi vào kho.
+- Mã nguồn từng món nằm ngay cạnh tệp tải về, nên bạn đọc được nó **trước khi** cài chứ không phải tải rồi mới xem.
+
+### Cải thiện
+- Bản Javis cũ (0.55.24 đến 0.55.29) vẫn xem và cài được món cũ như thường, không ai bị hụt giữa chừng.
+
+## [0.55.29] - 2026-09-04
+### Sửa lỗi
+- **Hộp thoại "Bạn cần cấp quyền microphone" hiện liên tục, bấm OK xong lại nổ, không thoát được.** Khi mic bị chặn hoặc máy không có mic, Javis cứ mở lại mic hai lần mỗi giây, mỗi lần một hộp thoại. Giờ gặp lỗi mic là **dừng hẳn** và tự tắt chế độ luôn nghe.
+- **Báo lỗi mic nói đúng nguyên nhân.** Mở Javis qua địa chỉ mạng nội bộ hoặc tên miền chưa có HTTPS thì trình duyệt chặn thẳng và không hề hỏi quyền, nên câu "hãy cấp quyền" là lời khuyên không làm được. Máy không có mic thì trước đây im lặng hoàn toàn, giờ nói rõ.
+- **Cập nhật hỏng thì nói ra hỏng ở bước nào.** Trước đây khi quay về bản cũ thất bại, Javis chỉ nói "xem update.log" - vô dụng nếu bạn không biết log ở đâu, và tệ hơn là không cho biết máy đang chạy mã bản cũ hay bản mới đang lỗi. Giờ nó chỉ rõ bước hỏng kèm lệnh chữa.
+- **Đăng nhập ChatGPT bớt hên xui.** Trước chỉ hỏi OpenAI một lần rồi thôi, bên kia chậm một nhịp là cả lượt đăng nhập hỏng. Giờ thử lại vài lần, và nếu vẫn không được thì nói rõ là do bên kia chậm chứ không phải máy bạn.
+
+## [0.55.28] - 2026-09-04
+### Sửa lỗi
+- **Bấm tab "Kho cài đặt" không mở được kho.** Nút văng lỗi ngay lần bấm đầu tiên do một lỗi lập trình trong bản 0.55.26. Giờ bấm là sang.
+- **Mọi mục trong kho hiện tên tiếng Anh** dù giao diện đang để tiếng Việt, kể cả tên nhóm lĩnh vực. Lỗi có từ bản 0.55.22, khó thấy vì vẫn có chữ để đọc nên trông như gói thiếu bản dịch.
+
+### Cải thiện
+- Thêm loại kiểm thử mới cho giao diện: thay vì chỉ dò chữ trong mã nguồn, nó **chạy thật** mã của trang rồi bấm thử. Đúng loại lỗi vừa rồi mà cách kiểm cũ không thấy.
+
+## [0.55.27] - 2026-09-04
+### Sửa lỗi
+- **Cài gói bị chặn sạch với thông báo "cần Javis >=0.55.25, bản này là " (bỏ trống).** Javis đọc nhầm chỗ chứa số phiên bản của chính nó, nên tưởng mình là bản 0.0.0 và từ chối mọi gói. Lỗi xảy ra trên bản chạy Docker và mọi bản có đổi thư mục dữ liệu, tức gần như mọi máy thật. Giờ cài được, cả từ kho lẫn từ tệp .zip.
+- Nếu vì lý do nào đó Javis vẫn không đọc được số phiên bản của mình, nó **bỏ qua** phép so phiên bản thay vì chặn hết. Lỗi của Javis không nên biến thành cả kho không dùng được.
+- Trang Kho cài đặt từng mượn nhầm tiêu đề của Trang chủ. Giờ nó có tiêu đề riêng.
+
+### Cải thiện
+- **Kho cài đặt rời khỏi thanh bên.** Nó không phải một chức năng ngang hàng với Trợ lý hay Kỹ năng, mà là chỗ bạn ghé để lấy thêm một trong số chúng. Đường vào giờ là tab ngay trên trang bạn đang đứng.
+- **Trang Kết nối cũng có tab Kho cài đặt**, mở ra là đã lọc sẵn phần kết nối. Vậy là đủ cả năm: Trợ lý, Kỹ năng, Quy trình, Công cụ, Kết nối.
+
+## [0.55.26] - 2026-09-04
+### Thêm mới
+- **Kho cài đặt**: trợ lý, kỹ năng, quy trình và công cụ làm sẵn, xếp theo lĩnh vực, bấm Cài là xong. Trang **Gói** cũ đổi thành trang này, và kho nằm ngay trên đầu vì đó là thứ bạn vào để tìm.
+- **Vào kho từ chính trang bạn đang đứng.** Trang Trợ lý, Kỹ năng, Quy trình và Plugin đều có thêm tab **Kho cài đặt**, mở ra là đã lọc sẵn đúng loại của trang đó. Vẫn là một kho duy nhất, chỉ khác cái chip bật sẵn.
+- **Có món đầu tiên trong kho để bạn thử**: "Tính giá bán". Nhập giá vốn, chọn biên lợi nhuận hoặc markup, cộng VAT rồi làm tròn lên số đẹp. Nó trả về **biên thực tế sau khi làm tròn**, không trả lại con số bạn vừa nhập.
+
+### Cải thiện
+- Chip lọc lĩnh vực hiện tên đọc được ("Bán hàng") thay vì mã ("ban-hang"), và lọc hết sạch thì nói ra thay vì để một khoảng trắng.
+
+## [0.55.25] - 2026-09-04
+### Thêm mới
+- **Gói mang được cả trợ lý, quy trình và kỹ năng**, không chỉ dịch vụ và công cụ. Cài một gói là bộ não đang mở có thêm những thứ đó, dùng ngay được.
+- **Kho phân biệt gói chính chủ và gói cộng đồng**, có tab lọc riêng. Gói cộng đồng thì màn hình xác nhận nói dài hơn một dòng trước khi bạn bấm.
+- **Lưu được mã truy cập cho kho riêng**, mỗi tên máy một mã. Từ đó cài được gói từ repo riêng chứ không chỉ kho công khai.
+
+### Bảo mật
+- **Javis không bao giờ ghi đè thứ bạn tự viết.** Cài mà bộ não đã có mục trùng tên thì Javis giữ bản của bạn và bỏ qua bản trong gói. Bản cập nhật của gói chỉ ghi đè khi mục còn y nguyên như lúc cài.
+- **Gỡ gói chỉ xoá thứ bạn chưa sửa.** Mục nào bạn đã chỉnh thì được giữ lại, và hộp thoại nói rõ giữ lại những gì. Gói cài lại được trong ba giây, còn thứ bạn viết thì không.
+- **Mã truy cập được mã hoá khi ghi xuống đĩa**, đi bằng header chứ không nhét vào địa chỉ, và **bị bỏ khi bị chuyển hướng sang tên máy khác** - đó là cách rò mã truy cập quen thuộc nhất.
+
+### Cải thiện
+- Đổi kiểu xuống dòng của một tệp không còn bị hiểu nhầm là "bạn đã sửa". Trước đây chỉ cần mở tệp bằng trình soạn thảo Windows rồi lưu là đủ để Javis thôi cập nhật mục đó.
+
+## [0.55.24] - 2026-09-04
+### Thêm mới
+- **Kho gói ngay trong Javis.** Trang Năng lực > Gói có thêm lưới danh mục: tìm kiếm, lọc theo nhóm, bấm Cài là Javis tải về, mở ra cho bạn xem rồi mới hỏi. Đúng màn hình xác nhận như khi bạn tự chọn tệp, không có đường tắt nào ngắn hơn.
+- **Gói đã cài hiện "Đã cài"**, và khi kho có bản mới thì nút đổi thành "Có bản mới vX". Bấm vào là đi qua đúng luồng xem trước rồi mới thay.
+- **Cài được từ một địa chỉ**, kể cả dạng viết tắt `owner/repo@nhánh` của GitHub.
+
+### Bảo mật
+- **Javis không bao giờ tải từ một địa chỉ trỏ vào mạng nội bộ.** Chỉ https cổng 443, và chốt xét theo địa chỉ đã phân giải chứ không theo tên máy, nên một tên miền công khai trỏ ngược về máy chủ vẫn bị chặn. Kiểm lại sau từng lần chuyển hướng, vì đó là đường vòng quen thuộc nhất.
+- **Danh mục kho được coi là dữ liệu không tin được**: mọi trường bị cắt độ dài và ép kiểu, trường lạ bị bỏ. Bậc "có chạy mã" mà kho khai chỉ để hiện nhãn; bậc thật do Javis tự tính từ tệp đã tải về.
+- **Tệp tải về không khớp dấu vân tay kho công bố thì dừng ngay**, chưa kịp hỏi gì.
+
+### Cải thiện
+- Kho không tới được thì chỉ khu danh mục báo, phần gói đã cài vẫn dùng bình thường. Mất mạng mà còn danh mục cũ thì vẫn xem được, kèm một dòng nói rõ đang xem số liệu cũ.
+
+## [0.55.23] - 2026-09-04
+### Thêm mới
+- **Gói giờ mang được cả công cụ, không chỉ dịch vụ kết nối.** Cài một gói là Javis có thêm tool mới, dùng được ngay trên mọi bộ não. Đây là nửa còn lại của hướng "cài thêm được thì gỡ được".
+- **Không cần bật biến môi trường cho gói.** Gói đi qua trình cài, tức bạn đã xem màn hình liệt kê từng tệp mã rồi mới bấm đồng ý, nên không phải mở thêm một công tắc nào nữa. Plugin bạn tự thả vào thư mục thì vẫn cần như cũ.
+- **Thẻ plugin hiện nhãn nguồn "Từ gói"**, kèm nút dẫn thẳng sang trang Gói để bật tắt hoặc gỡ.
+
+### Bảo mật
+- **Mã trong gói bị khoá theo nội dung.** Lúc cài, Javis ghi lại dấu vân tay của toàn bộ mã trong gói; mỗi lần nạp nó tính lại và đối chiếu. Lệch một byte là plugin không chạy, kèm dòng nói rõ vì sao và phải làm gì. Kiểm ở lúc nạp chứ không chỉ lúc cài, vì ai sửa được tệp mã thì cũng sửa được sổ ghi.
+- **Gói không được cướp tên công cụ có sẵn của Javis.** Trình cài từ chối ngay và nói tên bị trùng.
+- **Tắt hay gỡ một plugin giờ là DỪNG thật.** Trước đây nó chỉ biến khỏi danh sách, còn thứ plugin mở ra như tiến trình nền vẫn sống tiếp. Nay plugin tự dọn được, và Javis bỏ hẳn mã của nó khỏi bộ nhớ.
+- **Plugin thôi che được mã nguồn của Javis.** Trước đây thư mục plugin được chèn vào đường tìm kiếm module, nên một plugin chứa tệp trùng tên với tệp lõi có thể thay thế nó.
+- **Gói không còn khớp phiên bản Javis sẽ tự tắt lúc khởi động**, kèm lý do, thay vì chạy tiếp trong tình trạng không rõ.
+
+## [0.55.22] - 2026-09-04
+### Thêm mới
+- **Trang Gói mới: cài thêm dịch vụ cho Javis từ một tệp .zip.** Chọn tệp, Javis mở ra xem bên trong có gì rồi mới hỏi bạn có cài không. Cài xong là dịch vụ hiện ngay ở trang Kết nối, dùng được trên mọi bộ não, không phải chờ bản cập nhật Javis.
+- **Màn hình xem trước nói thật về gói.** Nó liệt kê dịch vụ sắp thêm, dấu vân tay của tệp, và nếu gói có chạy mã thì hiện khối cảnh báo đỏ kèm tên từng tệp mã, bắt bạn gõ lại mã gói mới cho cài. Ô "bật ngay" mặc định tắt.
+- **Gỡ gói thì sạch:** tệp của gói, dịch vụ nó thêm, và các kết nối bạn đã đấu theo nó đều đi theo. Hộp thoại nêu tên từng kết nối trước khi làm, và chúng vào thùng rác giữ 30 ngày.
+- **Plugin đi kèm Javis giờ gỡ được**, không chỉ tắt. Thẻ rời khỏi danh sách chính và rơi xuống mục "Đã gỡ" có nút Cài lại. Tệp vẫn nằm trong bản cài nên cập nhật Javis không làm nó mọc lại.
+
+### Bảo mật
+- **Tệp .zip lạ bị soi kỹ trước khi mở:** chặn đường dẫn leo ra ngoài, liên kết tượng trưng trỏ vào tệp bí mật, tệp nén phồng, và gói mang theo khoá riêng hay tệp .env. Gói không bao giờ được ghi đè một dịch vụ có sẵn.
+- **Trang Gói đòi đăng nhập thật**, kể cả trên bản cài chưa đặt mật khẩu, và không nhận khoá API. Cài một gói là chạy mã lạ trong máy chủ nên phải có người ngồi trước màn hình.
+
+## [0.55.21] - 2026-09-04
+### Thêm mới
+- **Thêm được dịch vụ mới vào Kho mà không cần chờ bản cập nhật Javis.** Thả một thư mục gói vào kho gói của máy chủ là dịch vụ đó hiện ra ở trang Kết nối, dùng được trên mọi bộ não. Đây là nửa còn lại của hướng "Javis giữ phần lõi, còn lại bạn tự chọn": bản trước cho phép GỠ bớt, bản này cho phép THÊM vào.
+- **Dịch vụ đến từ gói luôn hiện rõ là của gói nào**, và luôn bắt đầu ở mức Chỉ đọc dù gói khai gì đi nữa. Muốn cho ghi thì bạn tự nâng quyền từng tài khoản như mọi kết nối khác.
+- **Gói không được phép ghi đè dịch vụ có sẵn.** Một gói khai trùng tên với dịch vụ đang có thì phần đó bị từ chối và nói rõ lý do, còn dịch vụ gốc giữ nguyên. Nhờ vậy không ai lén đổi hướng một kết nối bạn đang đăng nhập thật.
+
+### Sửa lỗi
+- **Chạy bộ kiểm thử không còn làm bẩn kho kết nối của bạn.** Hai bài kiểm tra tưởng đang dùng thư mục tạm nhưng thực ra ghi thẳng vào kho thật, nên mỗi lượt chạy lại thêm vài kết nối rác tên "n8n thử" và "Shop thử". Kho của bạn có sẵn mấy dòng đó thì cứ xoá, Javis không tạo lại nữa.
+
+## [0.55.20] - 2026-09-03
+### Thêm mới
+- **Gỡ được dịch vụ khỏi Kho kết nối cho gọn.** Kho có 29 dịch vụ mà bình thường bạn chỉ dùng vài cái. Trỏ chuột vào một thẻ, góc phải hiện dấu ×: bấm là nó rời khỏi Kho và khỏi danh sách công cụ của mọi bộ não. Đây là bước đầu của hướng "Javis chỉ giữ phần lõi, còn lại bạn tự chọn cài thêm".
+- **Gỡ rồi cài lại được bằng một cú bấm**, ở khu "Đã gỡ" nằm dưới Kho. File của dịch vụ vẫn nằm trong bản cài nên cập nhật Javis lên bản mới không làm nó mọc lại, mà muốn dùng lại thì có ngay.
+- **Kết nối của bạn không bị xoá khi gỡ dịch vụ.** Javis hỏi lại trước, rồi các kết nối đó dừng chạy nhưng vẫn nằm nguyên ở khu Đã kết nối, kèm một dải nhắc ở đầu trang. Cài lại dịch vụ là chúng chạy tiếp, không phải đấu lại từ đầu.
+
+### Bảo mật
+- **Kết nối trỏ vào một dịch vụ không còn tồn tại giờ dừng hẳn, thay vì chạy tiếp mà mất cổng chặn.** Trước đây, thiếu dịch vụ thì Javis vẫn gọi kết nối đó nhưng bỏ qua phân quyền, nên một kết nối đang ở mức Chỉ đọc có thể gọi được cả công cụ ghi.
+
+## [0.55.19] - 2026-09-03
+### Bảo mật
+- **Xoá một kết nối giờ mới thật sự xoá sạch.** Trước bản này, xoá kết nối vẫn để lại thư mục chứa phiên đăng nhập của nó trên máy chủ, và không có gì dọn cả. Trên chính máy chủ dự án đang có 5 thư mục kiểu đó nằm lại sau những kết nối Zalo đã xoá từ lâu, một trong số đó vẫn giữ credential đăng nhập.
+- **Chương trình con của kết nối bị tắt ngay, thay vì sống thêm 15 phút.** Nó vẫn chạy nền suốt quãng đó dù kết nối đã biến mất khỏi màn hình.
+- **Link Hướng dẫn của một số nguồn hết chết**, và Javis siết lại đúng chỗ đó để một trang hướng dẫn không thể lén chạy mã trong dashboard của bạn.
+
+### Cải thiện
+- **Hộp xác nhận khi xoá kết nối nói rõ sẽ mất những gì**, đếm đúng từng thứ, thay vì một câu hỏi cụt. Kết nối quét mã QR như Zalo được cảnh báo riêng là mất phiên thì phải quét lại bằng điện thoại, và mặc định chuyển vào thùng rác giữ 30 ngày để bấm nhầm còn lấy lại được.
+- **Nhật ký gọi tool được giữ lại khi xoá kết nối**, chỉ bỏ tên hiển thị. Muốn xoá hẳn thì tự tick, vì một nhật ký mà thao tác xoá tự quét sạch được thì không còn là nhật ký.
+
+## [0.55.18] - 2026-09-03
+### Thêm mới
+- **Javis tự phát hiện khi trình duyệt bạn đang chạy bản cũ.** Từ trước tới nay chuyện này hoàn toàn câm: bạn cập nhật xong, mở lên thấy y như cũ, và không có cách nào biết là do trình duyệt giữ file cũ. Nay Javis hiện một dải nhắc ngay đầu màn hình, gọi đúng tên file đang cũ, kèm nút Tải lại.
+- **Tải lại rồi vẫn cũ thì Javis nói thẳng phải làm gì** (bấm Ctrl+Shift+R), thay vì để bạn bấm Tải lại mãi mà không hiểu vì sao không đổi.
+- **Máy chủ cập nhật trong lúc bạn đang mở Javis** thì dải nhắc cũng hiện, mời bạn tải lại để dùng bản mới. Javis không tự tải lại, vì bạn có thể đang gõ dở.
+
+## [0.55.17] - 2026-09-03
+### Cải thiện
+- **Brain mới không còn file `Task Inbox.md` nằm sẵn trong Dashboard.** Nó chỉ mọc ra khi bạn bấm "+ Việc" lần đầu, nên ai không dùng tính năng đó thì thư mục Dashboard gọn hơn một file. Brain cũ đang có sẵn mà bạn không dùng thì cứ xoá, Javis không tạo lại.
+
+## [0.55.16] - 2026-09-03
+### Cải thiện
+- **Kiểm thử tự động bớt báo động giả.** Một số phép kiểm tra trước đây chốt cứng theo mili giây nên máy chạy chậm hơn bình thường là chúng báo lỗi oan, dù phần mềm không sai gì. Nay chúng đo theo đúng thứ cần kiểm, không phụ thuộc máy nhanh hay chậm.
+- Khi có lỗi thật, nhật ký kiểm thử nói thẳng bài kiểm nào hỏng ngay ở dòng cuối, thay vì phải lần tìm giữa hàng nghìn dòng.
+
+## [0.55.15] - 2026-09-03
+### Sửa lỗi
+- **Đính kèm nhiều file vào chat thì cuộn xem được hết.** Trước đây dải file dưới ô nhập bị cắt ở hàng thứ hai, mấy file cuối còn nguyên đó nhưng không cách nào bấm **X** bỏ đi.
+- **Kéo thả file vào khung tài liệu của project đã vào đúng chỗ**, không nhảy sang khung chat nữa. Thả xuống chỗ nào trên khung cũng được, cả khung sáng lên báo đã nhận.
+- **Chọn được nhiều file một lượt** khi bấm "Tải từ máy lên", thay vì mỗi lần một file. Javis tải lần lượt và đếm cho bạn xem tới file thứ mấy.
+### Cải thiện
+- **Tìm trong brain: nút "Đã thêm" đổi thành "Gỡ".** Thêm nhầm thì bấm gỡ ngay tại chỗ, không phải đóng ô tìm rồi đi lần lại trong danh sách.
+
+## [0.55.14] - 2026-09-03
+### Sửa lỗi
+- **Kết nối MCP tự nối lại khi máy chủ dịch vụ ngắt phiên.** Đây là gốc của chuyện Pancake POS "lúc được lúc không": máy chủ có quyền huỷ phiên bất cứ lúc nào (họ deploy lại, phiên hết hạn), và đúng ra Javis phải bắt tay lại ngay. Trước đây Javis không nhận ra tín hiệu đó nên coi như nguồn không có công cụ nào, và cứ thế cho tới khi bạn bỏ đi 15 phút.
+- **Trang Kết nối hết báo xanh giả.** Nguồn nối được nhưng không đưa ra công cụ nào giờ hiện chấm đỏ kèm lý do, thay vì chấm xanh ghi "Hoạt động bình thường (0 công cụ)" trong khi Javis không gọi được gì.
+- **Javis nói đúng bệnh hơn khi được hỏi.** Nguồn đang trục trặc thì trả lời thẳng là nguồn hỏng, không còn đoán mò sang chuyện thiếu quyền hay chưa gắn nguồn vào brain.
+- Sai API key giờ báo đúng là sai key và hiện nút Kết nối lại, không lẫn với lỗi mất phiên.
 
 ## [0.55.13] - 2026-09-02
 ### Sửa lỗi

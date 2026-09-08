@@ -1,5 +1,7 @@
 # Skills
 
+***Tiếng Việt** · [English](en/06-skills.md)*
+
 Skill là "kỹ năng đóng gói" cho Javis: một hướng dẫn viết sẵn để AI làm đúng một loại việc theo chuẩn của bạn (ví dụ viết email bán hàng, dựng trang bán hàng, nghiên cứu chuyên sâu). Khi bạn nói một câu khớp với mô tả của skill, Javis tự lấy hướng dẫn đó ra dùng, không cần bạn dán lại quy trình mỗi lần.
 
 Trang này hướng dẫn quản lý skill trong dashboard: xem theo nhóm, tìm kiếm, bật/tắt, thêm, sửa, xoá, xuất/nhập, gọi tay bằng menu lệnh, và cách nhờ Javis tự tạo skill bằng lời.

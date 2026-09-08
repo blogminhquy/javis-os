@@ -1,5 +1,7 @@
 # Kênh Zalo Bot
 
+***Tiếng Việt** · [English](en/26-zalo-bot-channel.md)*
+
 Hỏi Javis ngay trên Zalo, không cần mở dashboard và không cần cài Telegram. Bạn nhắn cho một bot Zalo riêng như nhắn cho một người, Javis trả lời bằng chính bộ não và bộ nhớ đang chạy trên máy hoặc VPS của bạn.
 
 Đây là kênh dùng **API chính thức** của Zalo, nên không có rủi ro khoá tài khoản.

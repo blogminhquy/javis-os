@@ -15,7 +15,12 @@ function check(name, cond) {
 
 // ---- console.js phai co dung co che nay ----
 check("renderModels hoi /claude/status de biet Claude co dang nhap that khong",
-  /claudeOn = !!\(await \(await fetch\("\/claude\/status"\)\)\.json\(\)\)\.connected/.test(CONSOLE_JS));
+  /claudeOn = !!\(await \(await fetch\("\/claude\/status", \{ signal: ac\.signal \}\)\)\.json\(\)\)\.connected/.test(CONSOLE_JS));
+// 06/09: luot goi nay CHAN net ve dau tien va truoc day khong co timeout, nen mot `claude`
+// treo la trang Models ket o "Dang tai..." vinh vien (fetch treo thi catch khong cuu duoc vi
+// no khong reject). freshSettings ngay tren da co AbortController tu lau; cho nay phai co.
+check("va co TRAN CHO, khong de ket man hinh khi claude treo",
+  /new AbortController\(\)[\s\S]{0,200}ac\.abort\(\)[\s\S]{0,400}\/claude\/status/.test(CONSOLE_JS));
 // Luat doi tu 0.28.5: kind "cli" nay co HAI bo nao (Claude Code, Gemini CLI). /claude/status
 // chi noi ve Claude, nen lay no cho ca hai la the Gemini bao "chua ket noi" du da dang nhap
 // Google - hoac nguoc lai. So theo ID chu khong theo kind.

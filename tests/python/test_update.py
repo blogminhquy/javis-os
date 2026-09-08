@@ -176,19 +176,39 @@ check("console.js có nhãn macOS theo platform", "macOS" in _console_src)
 check("main.py truyền --server-pid cho updater",
       "--server-pid" in open(os.path.join(str(SERVER), "main.py"), encoding="utf-8").read())
 
-# Khoá cache tĩnh phải gắn theo PHIÊN BẢN, không phải số gõ tay. Bug thật: console.js?v=72
-# đứng yên suốt hàng chục bản nên trình duyệt dùng bản CŨ trong cache, mọi sửa frontend vô
-# hình. Test này chốt: trang chủ phục vụ .js/.css với ?v=<phiên bản app>.
+# Khoá cache tĩnh phải do SERVER tính, không phải số gõ tay. Bug thật: console.js?v=72 đứng
+# yên suốt hàng chục bản nên trình duyệt dùng bản CŨ trong cache, mọi sửa frontend vô hình.
+#
+# 06/09 đổi khoá từ <phiên bản app> sang <vân tay crc32 từng file>. Lý do: khoá theo phiên bản
+# làm cả 42 file đổi URL mỗi lần bump VERSION, cache immutable trượt sạch, trình duyệt kéo lại
+# trọn 1,6 MB - đúng câu người dùng báo "update xong app vào chậm". Bất biến cần giữ vẫn thế
+# (không file nào mang khoá chết), chỉ mạnh thêm: khoá bám NỘI DUNG chứ không bám số phiên bản.
 import asyncio as _aio  # noqa: E402
 _html = _aio.run(main.root()).body.decode("utf-8")
 _ver = main._app_version()
-check("trang chủ gắn phiên bản app vào console.js (chống cache giao diện cũ)",
-      f"console.js?v={_ver}" in _html)
-check("KHÔNG còn khoá cache gõ tay ?v=72 (đã thay bằng phiên bản)",
-      "?v=72" not in _html)
 import re as _re2  # noqa: E402
-_stale = [m for m in _re2.findall(r'/static/\S+?\.(?:js|css)\?v=([\w.]+)', _html) if m != _ver]
-check("mọi file .js/.css đều mang đúng phiên bản, không sót cái nào", not _stale)
+_khoa = dict(_re2.findall(r'/static/(\S+?\.(?:js|css))\?v=([\w.]+)', _html))
+check("mọi file .js/.css đều được gắn khoá cache, không sót cái nào",
+      len(_khoa) > 30 and all(v for v in _khoa.values()))
+check("KHÔNG còn khoá cache gõ tay ?v=72 (đã thay bằng khoá server tính)",
+      "?v=72" not in _html)
+_fps = main._asset_fps(_html)
+check("khoá là VÂN TAY nội dung của chính file đó",
+      _khoa.get("console.js") == _fps.get("console.js") != None)
+# Đây mới là điều bản vá đánh đổi để lấy: sửa MỘT file thì chỉ file đó bể cache.
+_truoc = dict(_khoa)
+_cjs = main.DASHBOARD_PATH / "console.js"
+_goc = _cjs.read_bytes()
+try:
+    _cjs.write_bytes(_goc + b"\n// canary\n")
+    _sau = dict(_re2.findall(r'/static/(\S+?\.(?:js|css))\?v=([\w.]+)',
+                             _aio.run(main.root()).body.decode("utf-8")))
+    check("sửa console.js thì RIÊNG nó đổi khoá",
+          _sau.get("console.js") != _truoc.get("console.js"))
+    _lay = [k for k in _truoc if k != "console.js" and _sau.get(k) != _truoc[k]]
+    check("và mọi file khác GIỮ NGUYÊN khoá (cache vẫn ăn qua bản cập nhật)", not _lay)
+finally:
+    _cjs.write_bytes(_goc)
 
 # --- Hộp thư thông báo: dữ liệu cộng đồng + release hợp nhất ---
 _ann_raw = json.dumps({

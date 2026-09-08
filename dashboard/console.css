@@ -257,6 +257,11 @@ body.in-console .hud-actions { display: none; }
 .mp-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 9px 18px; border-radius: 9px; cursor: pointer; font-size: 15px; margin-left: 8px; }
 .mp-btn.primary { background: var(--accent-solid); border-color: var(--accent-solid); color: var(--on-accent); font-weight: 600; }
 .mp-btn.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Nút phá huỷ (gỡ, xoá). Đã có `.mp-btn.danger` trong HTML từ lâu mà chưa bao giờ có luật CSS,
+   nên nút Gỡ xưa nay hiện y hệt nút Huỷ đứng ngay cạnh - hai việc trái ngược, một hình dạng. */
+.mp-btn.danger { border-color: var(--danger-ink, #b3261e); color: var(--danger-ink, #b3261e);
+  font-weight: 600; }
+.mp-btn.danger:hover { background: color-mix(in srgb, var(--danger-ink, #b3261e) 12%, transparent); }
 @media (max-width: 860px) {
   .mp-body { grid-template-columns: 1fr; }
   .mp-provs { border-right: 0; border-bottom: 1px solid var(--glass-brd); max-height: 140px; }
@@ -886,6 +891,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cat-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px;
   background: var(--surface-1); display: flex; flex-direction: column; gap: 8px; }
 .cat-card.soon { opacity: .55; }
+
+/* Nút gỡ một dịch vụ khỏi kho. Mờ khi nghỉ, rõ khi trỏ vào thẻ: nó là việc HIẾM, không nên
+   tranh chỗ với nút Kết nối vốn là việc thường làm. */
+.cat-card { position: relative; }
+.cat-x { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; padding: 0;
+  display: grid; place-items: center; border: 0; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--ink-3, #8a8a8a); opacity: 0; transition: opacity .12s; }
+.cat-card:hover .cat-x, .cat-x:focus-visible { opacity: 1; }
+.cat-x:hover { background: var(--danger-bg, #f5dcdc); color: var(--danger-ink, #b3261e); }
+.cat-x svg { width: 14px; height: 14px; }
 .cat-ico { font-size: 30px; height: 34px; display: flex; align-items: center; }
 .ico-img { width: 32px; height: 32px; object-fit: contain; border-radius: 7px; vertical-align: middle; }
 .conn-card .conn-ico .ico-img { display: block; margin: 0 auto; }
@@ -1062,3 +1077,306 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ol-note.ol-warn { border: 1px solid var(--warn-line); background: var(--warn-wash);
   border-radius: 10px; padding: 9px 11px; margin: 10px 0; }
 .ol-note.ol-warn .ic { color: var(--warn-ink); }
+
+/* ============================================================
+   KHO CÀI ĐẶT - lưới duyệt gói, dựng theo bản vẽ của chủ repo
+   ============================================================ */
+/* Hàng tab LOẠI: gạch chân, không phải viên thuốc. Đây là trục chính của kho (đang xem trợ lý
+   hay kỹ năng), còn cột nhóm bên trái là trục phụ - hai kiểu khác nhau để mắt không lẫn. */
+.kho-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+  margin-bottom: 18px; overflow-x: auto; }
+/* `font: inherit` là BẮT BUỘC trên mọi <button>: phần tử form không thừa kế phông của trang,
+   trình duyệt áp phông hệ thống riêng. Thiếu nó thì giữa một trang Montserrat có vài nút hiện
+   bằng phông mặc định của máy - trông như trang bị lỗi tải phông. */
+.kho-tab { white-space: nowrap; padding: 11px 16px; font: inherit; font-size: 15px;
+  font-weight: 500; color: var(--text2); background: none; border: 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; }
+.kho-tab.on { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
+.kho-dem { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text3); }
+.kho-tab.on .kho-dem { background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent); }
+
+.kho-than { display: flex; gap: 26px; align-items: flex-start; }
+.kho-cot { width: 190px; flex: none; display: flex; flex-direction: column; gap: 2px; }
+.kho-cot-tieu { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--text3);
+  padding: 4px 10px 8px; text-transform: uppercase; }
+.kho-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 9px 11px; border-radius: 9px; font: inherit; font-size: 14px; text-align: left;
+  color: var(--text2); background: none; border: 0; cursor: pointer; }
+.kho-nav:hover { background: var(--surface-2); }
+.kho-nav.on { color: var(--accent); font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 10%, transparent); }
+/* Vạch ngăn giữa hai lối gom khác nhau: "Tất cả / Đã cài" là trạng thái, phần dưới là lĩnh vực. */
+.kho-nav.ngan { margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.kho-navdem { font-size: 12px; color: var(--text3); }
+.kho-chinh { flex: 1; min-width: 0; }
+
+.kho-the { gap: 10px; }
+.kho-dau { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.kho-nhom { font-size: 12px; color: var(--text3); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.kho-ten { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; }
+.kho-ava { width: 40px; height: 40px; flex: none; border-radius: 11px; display: grid;
+  place-items: center; font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -.02em; }
+/* Logo thật thì KHÔNG tô nền: nền màu sau một logo có nền trắng trông như lỗi in. */
+.kho-ava-img { background: none; }
+.kho-ava-img svg, .kho-ava-img img { width: 34px; height: 34px; object-fit: contain; }
+.kho-daicai { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  color: var(--ok-ink, #2f855a); }
+/* Có bản mới: đổi MÀU chứ không chỉ đổi chữ. Xanh lá đọc là "xong rồi, yên tâm", nên để
+   nguyên xanh cho một dòng đang bảo người ta phải làm gì đó là tự triệt tiêu chính nó. */
+.kho-daicai.moi { color: var(--accent); }
+.kho-daicai.moi svg { width: 14px; height: 14px; }
+
+/* Băng báo bản mới, trên cùng trang Kho. Nói chuyện của CẢ kho nên nó nằm ngoài tabs. */
+.kho-bao-moi { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; font-size: 15px;
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.kho-bao-moi svg { width: 18px; height: 18px; flex: none; }
+.kho-bao-moi > span { margin-right: auto; }
+.kho-chip { padding: 5px 12px; border-radius: 999px; font: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; color: var(--accent); background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.kho-chip:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* Huy hiệu "N mới" trên tab: phải khác hẳn con số tổng bên cạnh, nếu không thì hai con số
+   dính nhau đọc thành một số duy nhất vô nghĩa. */
+.kho-dem.moi { color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important; }
+.kho-nut { display: flex; gap: 8px; }
+.kho-btn { flex: 1; padding: 11px; border-radius: 10px; font: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+/* Bật/tắt tạm: việc HIẾM hơn hẳn cài và gỡ, nên nó nhỏ lại và không tranh chỗ. */
+.kho-btn-phu { flex: none; padding: 11px 16px; background: var(--surface-2); color: var(--text2);
+  border-color: var(--border); }
+.kho-btn-chinh { background: var(--accent); color: #fff; }
+.kho-btn-go { background: transparent; color: var(--danger-ink, #b3261e);
+  border-color: var(--border); }
+.kho-btn-go:hover { border-color: var(--danger-ink, #b3261e); }
+
+.kho-trang { display: flex; align-items: center; gap: 6px; margin-top: 22px; padding-top: 16px;
+  border-top: 1px solid var(--border); flex-wrap: wrap; }
+.kho-so { min-width: 36px; height: 36px; padding: 0 11px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-1); color: inherit;
+  font: inherit; font-size: 14px; cursor: pointer; }
+
+/* Chữ trong thẻ của kho to hơn thẻ danh mục thường: đây là chỗ người ta ĐỌC để quyết định có
+   cài hay không, không phải một dòng nhãn liếc qua. */
+.kho-the .cat-desc { font-size: 13.5px; opacity: .82; }
+.kho-the .prov-meta { font-size: 12.5px; }
+
+/* Nút quay lại trang vừa đi ra. */
+.kho-quaylai { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px;
+  padding: 8px 15px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--accent); font: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; }
+.kho-quaylai:hover { border-color: var(--accent); }
+.kho-so.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+.kho-tim { width: 100%; max-width: 320px; }
+
+/* ---------- Điện thoại và máy tính bảng ----------
+   Breakpoint 860px trùng với breakpoint chính của app, nên kho đổi bố cục CÙNG LÚC với thanh
+   bên và khung chat - không có khoảng nào mà nửa trang ở chế độ này, nửa kia ở chế độ khác.
+
+   Ba thứ đổi hình, và mỗi thứ đều vì một lý do cụ thể chứ không phải cho gọn:
+
+   TAB LOẠI thành một dải phân đoạn, số đếm xuống DƯỚI nhãn. Trên màn hẹp, để số nằm cạnh chữ
+   thì năm mục không đủ chỗ và chữ bị cắt; xếp dọc thì mỗi mục chỉ cần rộng bằng chữ dài nhất.
+
+   CỘT NHÓM thành các viên thuốc XUỐNG DÒNG, không phải dải cuộn ngang. Dải cuộn giấu mất
+   nhóm ở cuối, mà người dùng điện thoại thường không nghĩ tới việc vuốt ngang một hàng nút -
+   họ chỉ thấy có bốn nhóm trong khi thật ra có mười.
+
+   Ô TÌM chiếm trọn hàng, hai nút phụ xuống hàng dưới. */
+@media (max-width: 860px) {
+  .kho-than { flex-direction: column; gap: 16px; }
+
+  .kho-tabs { border-bottom: 0; background: var(--surface-2); border-radius: 14px;
+    padding: 4px; gap: 2px; overflow-x: auto; }
+  /* `flex: 1 1 0` chứ không phải grid 5 cột: số loại nằm ở JS, và một ngày nó thêm loại thứ
+     sáu thì bố cục tự chia lại thay vì vỡ. */
+  .kho-tab { flex: 1 1 0; min-width: 62px; flex-direction: column; gap: 3px;
+    padding: 9px 4px; border-bottom: 0; margin-bottom: 0; border-radius: 11px;
+    font-size: 12.5px; justify-content: center; text-align: center; }
+  .kho-tab.on { background: var(--surface-1); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  .kho-dem { font-size: 11.5px; padding: 0 7px; }
+
+  .kho-cot { width: 100%; flex-direction: row; flex-wrap: wrap; overflow: visible; gap: 8px; }
+  .kho-cot-tieu { display: none; }
+  /* Cao 40px là ngưỡng bấm được bằng ngón tay mà không cần ngắm. */
+  .kho-nav { flex: 0 0 auto; white-space: nowrap; border: 1px solid var(--border);
+    border-radius: 999px; padding: 9px 14px; gap: 7px; }
+  .kho-nav.on { border-color: var(--accent); }
+  /* Vạch ngăn trên chỉ có nghĩa khi các mục xếp DỌC. Xuống dòng ngang rồi thì nó thành một
+     nét lạ giữa hàng, nên trả về viền viên thuốc bình thường. */
+  .kho-nav.ngan { margin-top: 0; padding-top: 9px; border-top: 1px solid var(--border); }
+
+  .kho-tim { max-width: none; flex: 1 1 100%; }
+
+  /* Giấu tiêu đề khối: nó lặp gần nguyên văn tiêu đề trang ngay phía trên. Trên máy tính thì
+     vô hại, còn trên điện thoại nó đẩy hàng tab xuống gần một phần tư màn hình - đúng thứ
+     người ta cần thấy đầu tiên. Câu mô tả bên dưới thì GIỮ, vì nó nói một điều khác: bấm Cài
+     là mở ra cho xem trước rồi mới hỏi. */
+  .kho-khoi > h3 { display: none; }
+  .kho-the { gap: 12px; }
+  .kho-nut { flex-wrap: wrap; }
+  .kho-btn { min-height: 44px; }
+  .kho-so { min-width: 40px; height: 40px; }
+  .kho-quaylai { min-height: 40px; }
+}
+
+/* Màn thật hẹp: lưới một cột, chữ trong tab co lại một nấc để năm mục vẫn vừa một hàng. */
+@media (max-width: 480px) {
+  .cat-grid { grid-template-columns: 1fr; }
+  .kho-tab { font-size: 11.5px; min-width: 56px; padding: 8px 2px; }
+  .kho-dem { font-size: 11px; padding: 0 6px; }
+  .kho-nav { padding: 9px 12px; font-size: 13.5px; }
+}
+
+/* Hàng tab dẫn sang Kho cài đặt, đặt trên đầu năm trang năng lực.
+   LỚP RIÊNG chứ không dùng lại `.cat-chip`: trang Kết nối gán lại onclick cho mọi `.cat-chip`
+   trong trang để lọc danh mục, nên dùng chung lớp là handler của tab bị đè mất. */
+.tab-kho { border: 1px solid var(--border); background: transparent; color: inherit;
+  border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer;
+  opacity: .85; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tab-kho:hover { opacity: 1; }
+.tab-kho.on { border-color: var(--accent); color: var(--accent); font-weight: 600; opacity: 1;
+  background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* ============================================================
+   Hộp thoại cài gói (.pkm) - dùng cho cả "cài từ tệp .zip" và "cài từ kho"
+
+   Vì sao tách hẳn một lớp thay vì dùng tiếp `.mp-body`: `.mp-body` là lưới hai cột dựng cho
+   bộ chọn model, còn màn hình này là một cột đọc từ trên xuống. Nhồi nội dung khác vào một
+   lưới không dành cho nó chính là thứ làm hộp thoại cũ trông vụn.
+
+   Nó cũng là màn hình DUY NHẤT trong app nơi người dùng đồng ý cho mã lạ chạy trong máy chủ
+   của họ. Nên trật tự đọc được đặt cứng: đây là gói gì, đến từ tệp nào và vân tay ra sao, nó
+   chạm vào đâu, cảnh báo, rồi mới tới hai cái nút. */
+.mp-box.pkm { width: 560px; max-height: min(88vh, 760px); }
+.pkm-dau { display: flex; align-items: flex-start; gap: 14px; padding: 20px 20px 0; }
+.pkm-dau .kho-ava { width: 46px; height: 46px; border-radius: 13px; font-size: 17px; }
+.pkm-dau .kho-ava-img svg, .pkm-dau .kho-ava-img img { width: 40px; height: 40px; }
+.pkm-chu { flex: 1; min-width: 0; }
+.pkm-ten { font-size: 18px; font-weight: 700; line-height: 1.25; display: flex;
+  align-items: center; gap: 8px; flex-wrap: wrap; }
+.pkm-ver { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text2); }
+.pkm-phu { margin-top: 4px; font-size: 13px; color: var(--text2); }
+.pkm-phu code { font-size: 12px; }
+
+.pkm-than { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 4px;
+  display: flex; flex-direction: column; gap: 14px; }
+.pkm-mota { margin: 0; font-size: 14px; line-height: 1.55; }
+
+/* Bảng SỰ THẬT: mỗi ô một câu hỏi người cài thật sự hỏi. Nền là đường kẻ, các ô đè lên trên
+   cách nhau 1px - cách này giữ đúng một nét kẻ giữa hai ô dù ô nào có xuống dòng. */
+.pkm-bang { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border);
+  border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.pkm-o { background: var(--bg2); padding: 12px 14px; min-width: 0; }
+.pkm-o.rong { grid-column: 1 / -1; }
+.pkm-o-nhan { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--text3);
+  text-transform: uppercase; }
+.pkm-o-gt { margin-top: 3px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.pkm-o-gt .nhe { color: var(--text3); font-weight: 500; }
+.pkm-o-ma { margin-top: 3px; font-size: 12px; font-family: var(--font); overflow-wrap: anywhere; }
+.pkm-o-phu { margin-top: 3px; font-size: 11.5px; color: var(--text3); line-height: 1.45; }
+
+/* Ba mức cảnh báo, ba màu, và KHÔNG cái nào gập lại được. Một cảnh báo phải bấm mới đọc được
+   là một cảnh báo không ai đọc. */
+.pkm-canh { border-radius: 12px; padding: 13px 15px; display: flex; flex-direction: column;
+  gap: 7px; font-size: 13px; line-height: 1.55; }
+.pkm-canh-tieu { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.pkm-canh-tieu svg { width: 16px; height: 16px; flex: none; }
+.pkm-canh.tin { background: color-mix(in srgb, var(--ok-ink, #2f855a) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok-ink, #2f855a) 26%, transparent); }
+.pkm-canh.tin .pkm-canh-tieu { color: var(--ok-ink, #2f855a); }
+.pkm-canh.vang { background: color-mix(in srgb, var(--warn-ink, #b7791f) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn-ink, #b7791f) 30%, transparent); }
+.pkm-canh.vang .pkm-canh-tieu { color: var(--warn-ink, #b7791f); }
+.pkm-canh.do { background: color-mix(in srgb, var(--danger-ink, #b3261e) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger-ink, #b3261e) 32%, transparent); }
+.pkm-canh.do .pkm-canh-tieu { color: var(--danger-ink, #b3261e); }
+.pkm-canh code { font-size: 12px; overflow-wrap: anywhere; }
+.pkm-canh .mp-input { width: 100%; margin-top: 4px; background: var(--sunken);
+  border: 1px solid var(--border); color: var(--text); border-radius: 9px; padding: 10px 12px;
+  font: inherit; font-size: 14px; }
+.pkm-canh .mp-input:focus { outline: none; border-color: var(--danger-ink, #b3261e); }
+
+/* Hàng gạt "bật ngay sau khi cài": bấm được cả dải, không phải một ô tích 13px. */
+.pkm-gat { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  width: 100%; text-align: left; padding: 12px 14px; border: 1px solid var(--border);
+  border-radius: 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.pkm-gat:hover { border-color: var(--accent); }
+.pkm-gat-t { display: block; font-size: 14px; font-weight: 600; }
+.pkm-gat-s { display: block; font-size: 12px; color: var(--text3); margin-top: 2px; }
+.pkm-cong { flex: none; width: 44px; height: 26px; border-radius: 999px; background: var(--border);
+  padding: 3px; transition: background .18s ease; }
+.pkm-cong span { display: block; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  transition: transform .18s ease; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.pkm-gat[aria-pressed="true"] .pkm-cong { background: var(--accent); }
+.pkm-gat[aria-pressed="true"] .pkm-cong span { transform: translateX(18px); }
+
+/* Vùng thả tệp. Kéo-thả là cách người ta thật sự đưa một tệp vừa tải về vào app; trước đây màn
+   này chỉ có một nút mở hộp chọn tệp, nên thao tác quen tay nhất lại là thao tác duy nhất
+   không làm được. */
+.pkm-tha { display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 30px 20px; border: 1.5px dashed var(--border); border-radius: 14px;
+  background: var(--surface-1); cursor: pointer; text-align: center;
+  transition: border-color .15s ease, background .15s ease; }
+.pkm-tha:hover, .pkm-tha.dang-keo { border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.pkm-tha-ico { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.pkm-tha-ico svg { width: 26px; height: 26px; }
+.pkm-tha-t { font-size: 15px; font-weight: 700; }
+.pkm-tha-s { font-size: 13px; color: var(--text2); }
+.pkm-tha-s u { color: var(--accent); font-weight: 600; }
+.pkm-tha-n { font-size: 12px; color: var(--text3); }
+
+.pkm-luuy { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  border-radius: 12px; background: var(--surface-1); font-size: 12.5px; color: var(--text2);
+  line-height: 1.5; }
+.pkm-luuy svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+
+.pkm-chan { display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--glass-brd); }
+.pkm-chan .mp-note { margin-right: auto; }
+.pkm-danh { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 34px 20px; text-align: center; color: var(--text2); font-size: 14px; }
+.pkm-quay { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid var(--border);
+  border-top-color: var(--accent); animation: pkmQuay .7s linear infinite; }
+@keyframes pkmQuay { to { transform: rotate(360deg); } }
+
+/* Danh sách "sẽ mất gì" khi gỡ. Dấu đầu dòng tự vẽ để canh thẳng với chữ ở mọi cỡ phông. */
+.pkm-mat { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.pkm-mat li { position: relative; padding-left: 18px; font-size: 13.5px; line-height: 1.55; }
+.pkm-mat li::before { content: ""; position: absolute; left: 3px; top: 8px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--text3); }
+
+.pkm-nam { display: none; }
+
+/* ---------- Điện thoại: hộp thoại thành TỜ TRƯỢT TỪ ĐÁY ----------
+   Không phải cho đẹp. Hộp thoại giữa màn hình trên điện thoại luôn thua ba thứ: bàn phím đẩy
+   nó lệch, nút rơi vào giữa màn nơi ngón cái không với tới, và nội dung dài thì cuộn trong một
+   khung nổi rất khó nắm. Tờ trượt từ đáy gỡ cả ba: nút nằm trong tầm ngón cái, chiều cao bám
+   mép dưới, và thanh nắm nói cho người dùng biết cái này kéo xuống là đóng. */
+@media (max-width: 860px) {
+  .mp-overlay.pkm-lop { align-items: flex-end; }
+  .mp-box.pkm { width: 100%; max-width: none; max-height: 94vh;
+    border-radius: 20px 20px 0 0; animation: pkmLen .26s ease; }
+  .pkm-nam { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border);
+    margin: 10px auto 0; }
+  .pkm-dau { padding-top: 14px; }
+  .pkm-bang { grid-template-columns: 1fr; }
+  .pkm-chan { flex-direction: column-reverse; align-items: stretch;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .pkm-chan .mp-btn { margin-left: 0; min-height: 46px; }
+  .pkm-chan .mp-note { margin-right: 0; text-align: center; }
+  .pkm-tha { padding: 24px 16px; }
+}
+@keyframes pkmLen { from { transform: translateY(26px); opacity: 0; } to { transform: none; opacity: 1; } }

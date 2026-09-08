@@ -116,9 +116,14 @@ for cap in (12000, 8000, 5000):
 tiny = main._fit_memory_index(mem, 1200)
 kept = sum(1 for l in tiny.split("\n") if main._MEM_ITEM_RE.match(l))
 check("tran cuc chat: buoc phai bo bot dong", kept < n_all)
+# Duong chi tiep PHAI la `memory/` chu THUONG. Truoc 06/09/2026 hai cau nay ghi `Memory/`
+# hoa, tuc chinh loi chi muc rut gon lai day model di vao thu muc ma app KHONG BAO GIO doc -
+# ghi vao do la mat ky uc, im lang. Xem tests/python/test_memory_hoa_thuong.py.
 check("bo dong thi PHAI noi ro con bao nhieu + duong doc tiep",
-      "chưa liệt kê" in tiny and "Memory/MEMORY.md" in tiny)
-check("rut mo ta thi chi duong sang facts/", "Memory/facts/" in main._fit_memory_index(mem, 8000))
+      "chưa liệt kê" in tiny and "memory/MEMORY.md" in tiny)
+check("rut mo ta thi chi duong sang facts/", "memory/facts/" in main._fit_memory_index(mem, 8000))
+check("CANARY: khong duong chi tiep nao quay lai cach viet Memory/ hoa",
+      "Memory/" not in tiny and "Memory/" not in main._fit_memory_index(mem, 8000))
 check("tran doc duoc tu bien moi truong", "JAVIS_MEMORY_INDEX_MAX" in
       SERVER.joinpath("main.py").read_text(encoding="utf-8"))
 

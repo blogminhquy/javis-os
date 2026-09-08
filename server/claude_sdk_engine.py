@@ -242,6 +242,9 @@ class ClaudeSDK:
         self.mcp_strict = False
         self.disallowed_tools = None
         self.max_wall_s = None
+        # Độ sâu suy nghĩ (low|medium|high|xhigh|max) - `main._cli_do_sau` đặt. None = không
+        # truyền gì, để Claude Code dùng mặc định của chính nó.
+        self.effort = None
         self.javis_mode = None    # _apply_mcp đặt (suggest|auto|full) - enforce min_mode plugin in-process
         self.javis_vault = None   # _apply_mcp đặt - brain đang làm việc, cho ctx của plugin
         # True = gửi system_prompt TRẦN, bỏ preset claude_code. Đường tiết kiệm token dùng cái
@@ -455,6 +458,17 @@ class ClaudeSDK:
             kw["env"] = {**os.environ, **_env}
         if self.model:
             kw["model"] = self.model
+        # Độ sâu suy nghĩ đi bằng CỜ THẬT của Claude Code (`--effort`), không phải bằng mấy từ
+        # khoá "think harder" nhét vào prompt như bản cũ. Ba cái lợi: thang của SDK trùng khít
+        # thang của Javis (low|medium|high|xhigh|max) nên hai mức trên cùng khác nhau THẬT chứ
+        # không cùng ra "ultrathink"; không tốn token nhắc trong mỗi prompt; và không có câu
+        # tiếng Việt lạ dính vào cuối tin nhắn người dùng.
+        #
+        # Hai lớp chắn cho bản CLI cũ: `main._cli_do_sau` dò `--effort` trong `claude --help`
+        # trước khi đặt, và ở đây còn kiểm SDK có trường này không. Truyền một cờ CLI chưa biết
+        # là nó thoát ngay với "unknown option", tức hỏng trọn lượt chat.
+        if self.effort and "effort" in fields:
+            kw["effort"] = self.effort
         if self.session_id:
             kw["resume"] = self.session_id
         servers, strict = self._mcp_servers()
