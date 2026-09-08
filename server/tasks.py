@@ -910,20 +910,31 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
             "blocked": "bị chặn, cần bạn xem",
         }
         icon = "✅" if status in ("review", "done") else "⚠"
-        parts = [f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}."]
-        # Tin nhắn PHẢI ngắn - đây là cái liếc trên điện thoại, chi tiết đã nằm ở trang Việc.
-        # Việc bị chặn: chỉ cần LÝ DO (result lúc này là tường thuật dở dang, dán vào chỉ
-        # tổ thành bức tường văn và lặp lại chính lý do). Việc xong: vài dòng đầu của kết quả.
+        dau = f"{icon} Việc '{task.get('title', '')}' {labels.get(status, status)}."
+        # HAI bản, vì hai kênh chịu được hai thứ khác nhau - và bản trước chỉ có một, nên ai
+        # ngồi trên web cũng chỉ nhận được mẩu 240 ký tự dành cho Telegram (chủ repo báo
+        # 2026-09-08: "việc ngầm chạy xong nó không đẩy hết kết quả lên màn chat hiện tại").
+        #
+        #   day_du - cho khung chat web (nơi vừa giao việc) và hòm thư: KHÔNG cắt. Người ta
+        #            đang ngồi ngay đó, kết quả phải rơi về nguyên vẹn.
+        #   ngan   - cho Telegram/Zalo: một cái liếc trên điện thoại, chi tiết ở trang Việc.
+        #
+        # `_notify_owner` chọn bản nào theo kênh; ở đây chỉ dựng nội dung.
         if status == "blocked":
             reason = str(task.get("block_reason") or task.get("block_kind") or "").strip()
-            parts.append("Lý do: " + (reason[:240] or "không rõ"))
+            than = "Lý do: " + (reason or "không rõ")
+            # Việc bị chặn: chỉ cần LÝ DO (result lúc này là tường thuật dở dang, dán vào chỉ
+            # tổ thành bức tường văn và lặp lại chính lý do).
+            parts = [dau, than]
+            parts_ngan = [dau, "Lý do: " + (reason[:240] or "không rõ")]
         else:
-            head = "\n".join(
+            ket_qua = "\n".join(
                 ln for ln in str(task.get("result") or "").strip().splitlines() if ln.strip()
-            )[:240].strip()
-            if head:
-                parts.append(head)
+            ).strip()
+            parts = [dau] + ([ket_qua] if ket_qua else [])
+            parts_ngan = [dau] + ([ket_qua[:240].strip()] if ket_qua else [])
         parts.append("Xem chi tiết ở trang Việc.")
+        parts_ngan.append("Xem chi tiết ở trang Việc.")
         # Việc chạy xong TRÓT LỌT thì báo LẶNG: kết quả vẫn rơi vào khung chat đã giao việc và
         # vẫn vào hòm thư, nhưng không nổi chấm đỏ trên chuông và không rung thông báo đẩy.
         # Chỉ `blocked` (kẹt, cần gỡ) và `review` (chờ duyệt) mới kêu, vì đó là thứ CẦN người
@@ -934,6 +945,7 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 task.get("chat_id", ""),
                 channel_context.strip_control_blocks("\n\n".join(parts)),
                 quiet=(status == "done"),
+                ngan=channel_context.strip_control_blocks("\n\n".join(parts_ngan)),
             )
         except Exception as e:
             # KHÔNG nuốt im: đây là đường DUY NHẤT để kết quả việc nền quay về với người dùng,

@@ -401,8 +401,17 @@ def test_report_ngan_va_khong_lap_lai(tmp_path):
     assert kw.get("quiet") is False, kw
 
 
-def test_report_done_bao_ngan_gon(tmp_path):
-    """Việc xong: báo tiêu đề + tóm tắt ngắn, không đổ nguyên bản kết quả."""
+def test_report_done_gui_du_ket_qua_va_kem_ban_ngan(tmp_path):
+    """Việc xong: gửi ĐỦ kết quả, kèm một bản rút gọn cho kênh ngoài.
+
+    HỢP ĐỒNG ĐỔI Ở 0.55.57, và đổi vì một lời phàn nàn cụ thể (chủ repo, 2026-09-08): "việc
+    ngầm chạy xong nó không đẩy hết kết quả lên màn chat hiện tại, và nó để luôn ở trang Việc".
+
+    Bản trước cắt kết quả còn 240 ký tự cho MỌI kênh. Cắt như vậy đúng với Telegram - một cái
+    liếc trên điện thoại - nhưng sai hẳn với khung chat web: người ta vừa ngồi đó giao việc,
+    nhận lại một mẩu cụt kèm lời mời sang trang khác đọc nốt. Nên nay `_report` gửi cả hai và
+    `_notify_owner` chọn theo kênh: web + hòm thư nhận `text` đầy đủ, Telegram/Zalo nhận `ngan`.
+    """
     sent = []
 
     async def capture(chat_id, text, **kw):
@@ -421,9 +430,13 @@ def test_report_done_bao_ngan_gon(tmp_path):
         )
     )
     msg, kw = sent[0]
-    assert len(msg) <= 400
     assert "Lấy bảng giá Submagic" in msg
     assert "Đã lấy xong bảng giá." in msg
+    # CANARY: kết quả phải về ĐỦ. Bản cũ cắt còn <= 400 ký tự, và đó chính là lỗi.
+    assert "chi tiết dài" in msg and len(msg) > 2000, len(msg)
+    # Kèm bản rút gọn cho kênh ngoài, đủ ngắn để liếc trên điện thoại.
+    assert 0 < len(kw.get("ngan", "")) <= 400, kw.get("ngan")
+    assert "Lấy bảng giá Submagic" in kw["ngan"]
     # Việc xong TRÓT LỌT thì báo LẶNG: kết quả vẫn đi qua kênh (rơi vào khung chat đã giao
     # việc) và vẫn vào hòm thư, nhưng không nổi chấm đỏ và không rung thông báo đẩy.
     assert kw.get("quiet") is True, kw

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.57] - 2026-09-08
+### Sửa lỗi
+- **Google trục trặc một nhịp không còn giết cả lượt chat.** Antigravity gặp lỗi `503 UNAVAILABLE` là Javis chỉ hiện một câu tiếng Anh sáu dòng rồi bỏ đó. Nay Javis tự chờ rồi hỏi lại 2 lần; vẫn không được thì nói thẳng đây là lỗi phía Google chứ không phải cấu hình của bạn. Lượt nào đã gửi tin hay ghi file rồi thì tuyệt đối không chạy lại.
+- **Việc ngầm chạy xong trả về ĐỦ kết quả ngay trong khung chat**, thay vì một mẩu 240 ký tự kèm lời mời sang trang Việc đọc nốt. Telegram và Zalo vẫn nhận bản gọn để liếc trên điện thoại.
+- **Mở file .txt hoặc .md trên điện thoại giờ thoát ra được.** Trước đây vừa mở là bàn phím bật lên che mất nút Đóng, Esc thì điện thoại không có, còn nút Back thì thoát luôn khỏi app. Nay file mở toàn màn hình, không tự bật bàn phím nữa, nút Đóng to hơn và **bấm Back là đóng file** chứ không rời Javis.
+
 ## [0.55.56] - 2026-09-08
 ### Thêm mới
 - **Cài mới là cập nhật được ngay.** Watchtower, thứ làm cho nút **⬆ Cập nhật ngay** chạy được, nay đi kèm sẵn trong cả compose Hostinger lẫn compose VPS. Trước đây bản Hostinger không có nó còn bản VPS giấu sau một tuỳ chọn, nên máy này có nút mà máy kia không và Hostinger phải vào Docker Manager bấm Redeploy mỗi lần.

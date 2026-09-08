@@ -210,8 +210,10 @@ check("và nói luôn lối thoát thứ hai: xoá nếu đã xử lý trong cha
 _da_bao = []
 
 
-async def _bao_ghi(chat_id, text, quiet=False):
-    _da_bao.append({"chat": chat_id, "text": text, "quiet": quiet})
+async def _bao_ghi(chat_id, text, quiet=False, **kw):
+    # `**kw` nuốt `ngan` (bản rút gọn cho Telegram/Zalo, thêm ở 0.55.57). Ở đây chỉ soi `text`
+    # vì đó là thứ khung chat web nhận - và từ 0.55.57 nó là bản ĐẦY ĐỦ.
+    _da_bao.append({"chat": chat_id, "text": text, "quiet": quiet, "ngan": kw.get("ngan", "")})
     return True
 
 

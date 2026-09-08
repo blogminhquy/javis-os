@@ -79,7 +79,7 @@ n0 = len(inbox.danh_sach(10_000))
 gui = []
 
 
-async def _gia_kenh(owner_chat, text):
+async def _gia_kenh(owner_chat, text, **_kw):
     gui.append((owner_chat, text))
     return True, ""
 
@@ -101,7 +101,7 @@ check("thư bóc đúng mã phiên từ tiền tố web:", moi[0]["session_id"] 
 # Kênh hỏng (chưa đấu Telegram) mà thư vẫn vào hòm thì lượt báo vẫn tính là TỚI ĐƯỢC người
 # dùng. Thiếu luật này thì nhắc hẹn trên máy chưa đấu bot bị ghi "failed" trong khi nội
 # dung đang nằm sẵn trong hòm - đúng cảnh khó hiểu mà bản này sinh ra để bỏ.
-async def _kenh_hong(owner_chat, text):
+async def _kenh_hong(owner_chat, text, **_kw):
     return False, "Bot Telegram chưa bật hoặc chưa có chat_id"
 
 

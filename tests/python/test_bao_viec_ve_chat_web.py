@@ -160,6 +160,50 @@ check("đang xem phiên khác thì vẫn làm tươi Lịch sử để phiên đ
       "notifySessions();" in _body)
 
 
+# ─────────── 3b. Khung chat nhận ĐỦ kết quả, kênh ngoài nhận bản gọn ───────────
+# Chủ repo báo 2026-09-08: "việc ngầm chạy xong nó không đẩy hết kết quả lên màn chat hiện tại,
+# và nó để luôn ở trang Việc". Đúng: `TaskRunner._report` cắt kết quả còn 240 ký tự cho MỌI
+# kênh. Cắt vậy hợp với Telegram (liếc trên điện thoại) nhưng sai với khung chat - người ta vừa
+# ngồi đó giao việc, nhận lại một mẩu cụt kèm lời mời sang trang khác đọc nốt.
+SID2 = "sid_test_day_du"
+DAI = "Dòng đầu.\n" + ("nội dung rất dài " * 300)
+
+
+async def _run_day_du():
+    store = main.get_store()
+    store.get_or_create(SID2, brain="brain", engine="cli", model="x")
+    await main._notify_owner(main.WEB_CHAT_PREFIX + SID2, DAI, ngan="Xong. Xem trang Việc.")
+    msgs = store.get_messages(SID2)
+    noi_dung = (msgs[-1]["content"] if msgs else "")
+    check("CANARY: khung chat web nhận ĐỦ kết quả, không bị cắt còn một mẩu",
+          len(noi_dung) > 2000 and "nội dung rất dài" in noi_dung)
+
+    # Kênh ngoài thì ngược lại: nhận bản gọn, và phải đi qua đúng cửa `_gui_qua_kenh`.
+    da_gui = []
+    that = main._gui_qua_kenh
+
+    async def _bat(owner_chat, text, **kw):
+        da_gui.append((owner_chat, text, kw))
+        return True, ""
+
+    main._gui_qua_kenh = _bat
+    try:
+        await main._notify_owner("123456", DAI, ngan="Xong. Xem trang Việc.")
+    finally:
+        main._gui_qua_kenh = that
+    check("bản rút gọn được chuyển xuống tầng kênh",
+          bool(da_gui) and da_gui[0][2].get("ngan") == "Xong. Xem trang Việc.")
+
+
+asyncio.run(_run_day_du())
+
+# Trần Telegram: dài hơn 4096 là API trả 400 và tin KHÔNG tới, im lặng. Phải cắt, và phải NÓI
+# là đã cắt - cắt lặng thì người đọc tưởng mình đã đọc hết.
+_cat = main._cat_cho_tg(DAI)
+check("CANARY: tin Telegram cắt cho vừa trần 4096", len(_cat) < 4096)
+check("và nói ra là đã cắt, kèm đường đi tìm bản đầy đủ", "còn nữa" in _cat)
+check("tin ngắn thì không đụng vào", main._cat_cho_tg("ngắn thôi") == "ngắn thôi")
+
 # ─────────── 4. System prompt ───────────
 check("system prompt nêu 3 kênh nhận báo theo nơi giao việc",
       '"web:<chat session id>"' in CLAUDE_MD
