@@ -20,6 +20,7 @@ import sys
 import uuid
 from pathlib import Path
 import re
+import urllib.parse
 import secrets
 import shutil
 import time
@@ -740,6 +741,13 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
         f"- WORKFLOW: tạo/sửa tại `{wf}/<slug>.md`\n"
         f"- LOOP (nhiệm vụ lặp vô hạn): tạo/sửa tại `{lp}/<slug>.md`\n"
         f"- SKILL: tạo/sửa tại `{sk}/<slug>/SKILL.md` (tự mirror sang .claude/skills cho Claude native)\n"
+        f"- FILE KHÁC (bài viết, báo cáo, nháp, dữ liệu): ghi VÀO TRONG vault root ở trên bằng đường "
+        f"dẫn TUYỆT ĐỐI `{root}/<thư mục>/<tên file>`. TUYỆT ĐỐI không ghi tương đối theo thư mục "
+        "làm việc và không ghi ra ngoài vault: file ngoài vault không hiện ở trang Tệp tin và mất "
+        "khi cập nhật. Trong câu trả lời, dẫn link bằng đường dẫn TƯƠNG ĐỐI so với vault root "
+        "(vd `bai-viet/bai-1.txt`), và CHỈ dẫn link tới file đã ghi xong thật. Khi đếm hay liệt kê "
+        "file (vd \"còn bao nhiêu bài chưa xong\"), liệt kê lại thư mục bằng tool ngay lúc đó, "
+        "đừng nhớ lại từ lượt trước.\n"
         "Khi user yêu cầu tạo/sửa agent, workflow hoặc loop qua chat, ghi file .md đúng định dạng "
         "(xem mục 'Tạo/sửa Agent & Workflow qua chat' và 'Điều phối' trong system prompt) bằng "
         "ĐƯỜNG DẪN TUYỆT ĐỐI ở trên. Trang Agents/Workflows/Việc định kỳ sẽ tự nhận file mới."
@@ -3177,9 +3185,9 @@ def _apply_mcp(cli, mode="full", brain=None):
     không cần --disallowedTools. Hub tắt: per-server + --disallowedTools như cũ."""
     try:
         cli.javis_mode = mode   # engine SDK dùng để enforce min_mode plugin in-process
-        # Brain đang làm việc → engine truyền xuống ctx của plugin. KHÔNG suy từ cwd: chat chạy
-        # với cwd=CLAUDE_CWD (gốc project, main.py:318) chứ không phải thư mục brain, nên suy từ
-        # cwd là luôn trượt đúng ở đường chat - nơi bug thật sự xảy ra.
+        # Brain đang làm việc → engine truyền xuống ctx của plugin. Đặt TƯỜNG MINH, không suy từ
+        # cwd: trước 0.55.58 chat chạy với cwd=CLAUDE_CWD (gốc project) nên suy từ cwd từng trượt
+        # đúng ở đường chat; nay chat đã chạy cwd=brain, nhưng đặt rõ thì đúng ở MỌI chỗ dựng engine.
         cli.javis_vault = _brain_root(brain) if brain else None
         if _hub_enabled():
             cli.mcp_config = mcp_hub.claude_config_path(mode)
@@ -8469,6 +8477,188 @@ async def _canh_bao_hua_suong(brain: str, chat_id: str, final_text: str,
     return background_status.promise_note(view.get("orchestration") or "")
 
 
+# ---- Link file trong câu trả lời: đưa về ĐÚNG đường dẫn mà khung chat mở được ----
+#
+# Chủ repo báo (2026-09-08): "tạo file trong đoạn chat nhưng sai link, ấn vào không ra file
+# cũ"; file "đã viết" mà mở thư mục không thấy; đếm bài chưa hoàn thiện lúc 3 lúc 5. Cả ba
+# cùng một gốc: Claude Code trong chat chạy với cwd = GỐC PROJECT (/app trong Docker) chứ không
+# phải thư mục brain, nên đường dẫn tương đối mà model ghi/đọc rơi ra ngoài brain - và trong
+# Docker thì /app bay theo mỗi lần dựng lại container. cwd đã sửa ở nhánh chat (xem chỗ dựng
+# engine); ba hàm dưới là LƯỚI cho phần còn lại: model vẫn có thể dẫn link bằng đường dẫn
+# tuyệt đối của máy (khung chat không mở được), hoặc dẫn tới một file không hề tồn tại.
+#
+# Nguyên tắc: chỉ ĐỔI CÁCH VIẾT của link, không đổi câu chữ; và KHÔNG BỊA - link nào không thấy
+# file thì nói ra trong một dòng riêng, thà thừa một dòng còn hơn một cái link câm.
+_LINK_BO_QUA = ("#", "mailto:", "data:", "tel:", "blob:", "/files/raw", "/files/download")
+_BACKTICK_RE = re.compile(r"`([^`\n]+)`")
+
+
+def _files_vua_ghi(brain_root: str, ung_vien, t0: float) -> list:
+    """Từ đường dẫn moi được trong tool call → danh sách file CÓ THẬT, NẰM TRONG brain và VỪA
+    ĐỔI trong lượt (mtime >= t0). Tương đối thì ghép với gốc brain (cwd của lượt chat)."""
+    ra, seen = [], set()
+    try:
+        broot = Path(brain_root).resolve()
+    except Exception:
+        return ra
+    for c in (ung_vien or []):
+        try:
+            pp = Path(str(c).replace("\\", "/"))
+            if not pp.is_absolute():
+                pp = broot / pp
+            pp = pp.resolve()
+            if pp in seen or not pp.is_file():
+                continue
+            pp.relative_to(broot)          # ngoài brain → ValueError → bỏ
+            if pp.stat().st_mtime < float(t0) - 2:
+                continue
+            seen.add(pp)
+            ra.append(str(pp))
+        except Exception:
+            continue
+    return ra
+
+
+def _link_muc_tieu_moi(brain_root: str, raw: str, files_written=None):
+    """Cách viết MỚI cho một target link, hoặc None nếu giữ nguyên.
+
+    - Tuyệt đối (POSIX/Windows, kể cả %20) mà nằm TRONG brain → tương đối theo gốc brain.
+    - Tuyệt đối ngoài brain, URL, anchor, link /files/raw → không đụng.
+    - Tương đối mà không có file, nhưng trùng TÊN với một file vừa ghi trong lượt → trỏ sang
+      file đó (model hay dẫn sai thư mục nhưng đúng tên file).
+    """
+    t = str(raw or "").strip().strip("<>").strip()
+    if not t or "://" in t or t.lower().startswith(_LINK_BO_QUA):
+        return None
+    if re.search(r"%[0-9a-fA-F]{2}", t):
+        try:
+            t = urllib.parse.unquote(t)
+        except Exception:
+            pass
+    try:
+        broot = Path(brain_root).resolve()
+    except Exception:
+        return None
+    tuyet_doi = t.startswith("/") or t.startswith("~") or re.match(r"^[A-Za-z]:[\\/]", t) is not None
+    if tuyet_doi:
+        try:
+            cand = Path(t.replace("\\", "/")).expanduser().resolve()
+            rel = cand.relative_to(broot).as_posix()
+        except Exception:
+            return None                     # ngoài brain: khung chat không mở được, để nguyên
+        return rel if rel != str(raw).strip() else None
+    rel = re.sub(r"^(\./)+", "", t.replace("\\", "/")).lstrip("/")
+    if not rel or (broot / rel).exists():
+        return (rel if rel != str(raw).strip() and re.search(r"%[0-9a-fA-F]{2}", str(raw)) else None)
+    base = rel.rsplit("/", 1)[-1].lower()
+    for f in (files_written or []):
+        try:
+            fp = Path(str(f)).resolve()
+            if fp.name.lower() == base:
+                return fp.relative_to(broot).as_posix()
+        except Exception:
+            continue
+    return None
+
+
+def _chuan_hoa_link_file(brain_root: str, text: str, files_written=None) -> str:
+    """Viết lại link/ảnh markdown, đường dẫn trong backtick và đường dẫn tuyệt đối trần trong
+    câu trả lời về dạng khung chat mở được (tương đối theo gốc brain). Không thấy gì để đổi
+    thì trả nguyên văn."""
+    if not text or not brain_root:
+        return text
+    try:
+        broot = Path(brain_root).resolve()
+    except Exception:
+        return text
+
+    def _md(m):
+        raw = channel_context._md_link_target(m)
+        moi = _link_muc_tieu_moi(brain_root, raw, files_written)
+        if moi is None:
+            return m.group(0)
+        return f"{m.group(1)}[{m.group(2)}]({moi})"
+
+    ra = channel_context._MD_LINK_RE.sub(_md, text)
+
+    def _bt(m):
+        raw = m.group(1).strip()
+        # Chỉ đụng tới thứ trông như đường dẫn TUYỆT ĐỐI (backtick còn chứa lệnh, tên tool...).
+        if not (raw.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", raw)):
+            return m.group(0)
+        moi = _link_muc_tieu_moi(brain_root, raw, files_written)
+        return f"`{moi}`" if moi else m.group(0)
+
+    ra = _BACKTICK_RE.sub(_bt, ra)
+
+    # Đường dẫn tuyệt đối TRẦN (không backtick, không link) nằm trong brain → bọc backtick
+    # dạng tương đối để khung chat biến thành link bấm được. Chỉ khi resolve được vào brain,
+    # nên không đụng nhầm chữ thường.
+    def _tran(m):
+        raw = m.group(1).rstrip(".,;:!?…")
+        duoi = m.group(1)[len(raw):]
+        try:
+            rel = Path(raw).resolve().relative_to(broot).as_posix()
+        except Exception:
+            return m.group(0)
+        if not (broot / rel).exists():
+            return m.group(0)
+        return m.group(0)[:m.start(1) - m.start(0)] + f"`{rel}`" + duoi
+
+    ra = re.sub(r"(?<![`\[(/\w])(/[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
+    return ra
+
+
+def _link_file_khong_thay(brain_root: str, text: str) -> list:
+    """Những target link/ảnh markdown trong câu trả lời mà KHÔNG có file trong brain (tối đa 5).
+    Bỏ qua URL, anchor, link /files/raw. Tuyệt đối ngoài brain cũng tính là không mở được."""
+    if not text or not brain_root:
+        return []
+    try:
+        broot = Path(brain_root).resolve()
+    except Exception:
+        return []
+    thieu, seen = [], set()
+    for muc in channel_context.markdown_targets(text):
+        raw = str(muc.get("raw") or "").strip().strip("<>")
+        if not raw or "://" in raw or raw.lower().startswith(_LINK_BO_QUA):
+            continue
+        # Chỉ xét thứ TRÔNG NHƯ đường dẫn file (có thư mục hoặc có đuôi). `[Models](models)` hay
+        # `[xem](muc-2)` là chữ, không phải file - báo "không thấy" cho chúng là báo động giả.
+        if "/" not in raw and "\\" not in raw and not re.search(r"\.[A-Za-z0-9]{1,6}$", raw):
+            continue
+        t = raw
+        if re.search(r"%[0-9a-fA-F]{2}", t):
+            try:
+                t = urllib.parse.unquote(t)
+            except Exception:
+                pass
+        try:
+            if t.startswith("/") or t.startswith("~") or re.match(r"^[A-Za-z]:[\\/]", t):
+                cand = Path(t.replace("\\", "/")).expanduser().resolve()
+                cand.relative_to(broot)
+            else:
+                cand = (broot / re.sub(r"^(\./)+", "", t.replace("\\", "/")).lstrip("/")).resolve()
+            co = cand.exists()
+        except Exception:
+            co = False
+        if not co and raw not in seen:
+            seen.add(raw)
+            thieu.append(raw)
+        if len(thieu) >= 5:
+            break
+    return thieu
+
+
+def _cau_link_khong_thay(thieu: list) -> str:
+    """Dòng sự thật khi câu trả lời dẫn link tới file không có trong brain. Không đổ lỗi, không
+    đoán nguyên nhân; chỉ nói mình không thấy và chỉ chỗ tự kiểm."""
+    ds = ", ".join(f"`{x}`" for x in thieu[:5])
+    return ("⚠ Câu trả lời có dẫn link tới file mà mình không tìm thấy trong brain: " + ds +
+            ". Có thể file được ghi ở chỗ khác hoặc chưa được ghi thật. Kiểm tra ở trang Tệp tin "
+            "trước khi tin vào link đó.")
+
+
 @app.get("/lint")
 async def lint(brain: str = Query("brain")):
     """LINT - health-check Wiki (chỉ đọc, không sửa). Trả danh sách 8 loại vấn đề."""
@@ -10229,7 +10419,19 @@ async def websocket_endpoint(ws: WebSocket):
                     api_model or mcfg.get("claude_model") or "mặc định", kind,
                 )
             _ctx_in = 0        # token VÀO của lượt này, để khung chat nói được nó tốn bao nhiêu
-            cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=CLAUDE_CWD, tag=turn_tag)
+            # cwd = THƯ MỤC BRAIN, không phải gốc project (0.55.58). Trước đó nhánh này là chỗ
+            # DUY NHẤT trong bốn engine chat còn chạy cwd=CLAUDE_CWD (/app trong Docker) - Codex,
+            # Antigravity, Grok và mọi workflow/loop/lint đều đã cwd=brain. Hậu quả chủ repo báo
+            # 2026-09-08: model ghi "bai-viet/x.md" là rơi vào /app (bay theo lần dựng lại
+            # container kế tiếp), link trong chat trỏ vào brain nên bấm không ra, còn "đếm bài
+            # chưa xong" lúc nhìn /app lúc nhìn brain nên lúc 3 lúc 5. Hai lý do từng giữ
+            # CLAUDE_CWD đều hết: skill hệ thống nay được cài vào từng brain rồi mirror
+            # (system_sync), còn vault_root của plugin đã đặt tường minh qua _apply_mcp.
+            #
+            # Cái giá: transcript Claude Code nằm theo cwd, nên MỌI phiên cũ resume trượt đúng
+            # một lần sau bản này. Nhánh bên dưới bắt cờ `resume_failed` rồi mồi lại từ kho phiên
+            # (cùng cách Codex), người dùng thấy một dòng báo chứ không mất mạch.
+            cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_brain_root(brain), tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
             final_text = ""
             used_fast_path = False
@@ -10454,6 +10656,7 @@ async def websocket_endpoint(ws: WebSocket):
                     # CLI phát id mạch trong dòng sự kiện; lưu lại để lượt sau `--resume`.
                     if kcli.session_id:
                         store.set_grok_session_id(conv_sid, kcli.session_id)
+                    final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "grok-cli",
                         "model": actual_model or "", "session_id": conv_sid,
@@ -10508,6 +10711,7 @@ async def websocket_endpoint(ws: WebSocket):
                         elif et == "error":
                             await ws.send_text(_limit_frame(
                                 ev.get("content") or "", "antigravity-cli", actual_model or ""))
+                    final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "antigravity-cli",
                         "model": actual_model or "", "session_id": conv_sid,
@@ -10623,6 +10827,7 @@ async def websocket_endpoint(ws: WebSocket):
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
                         await _consume_codex(_fallback)
+                    final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "codex",
                         "model": actual_model, "session_id": conv_sid,
@@ -10926,6 +11131,7 @@ async def websocket_endpoint(ws: WebSocket):
                             await ws.send_text(json.dumps({
                                 "type": "error", "content": final_text,
                             }))
+                        final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                         await ws.send_text(json.dumps({
                             "type": "response", "content": final_text, "engine": prov,
                             "model": actual_model, "session_id": conv_sid,
@@ -10996,38 +11202,80 @@ async def websocket_endpoint(ws: WebSocket):
                      {"role": "user", "content": _cli_prompt}],
                     provider="cli", model=cli.model or mcfg.get("claude_model") or "mặc định",
                 )
-                async for event in cli.query(_cli_prompt):
-                    etype = event["type"]
-                    if etype == "tool_call":
-                        await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "content": f"⚙ Đang gọi: {event['name']}"}))
-                    elif etype == "tool_result":
-                        await ws.send_text(json.dumps({"type": "tool_result", "content": event["content"][:200]}))
-                    elif etype == "text":
-                        _streamed += event["content"]
-                        await ws.send_text(json.dumps({"type": "stream", "content": event["content"]}))
-                    elif etype == "final":
-                        final_text = event.get("content") or final_text
-                        _cli_sid = event.get("session_id")
-                        _cost = event.get("cost_usd")
-                        if _cli_sid:
-                            store.set_cli_session_id(conv_sid, _cli_sid)
-                        _ctx_in += int(event.get("tokens_in", 0) or 0)
-                        usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
-                                           event.get("tokens_in", 0), event.get("tokens_out", 0), event.get("cost_usd") or 0)
-                        _CONTEXT_RUNTIME.record_usage(
-                            runtime_trace, event.get("tokens_in", 0), event.get("tokens_out", 0))
-                    elif etype == "error":
-                        # Hết lượt gói Claude thì Claude Code in nguyên văn câu tiếng Anh (có khi
-                        # là dạng máy "…reached|<epoch>"). Dịch sang câu nói được TRƯỚC khi đẩy
-                        # ra khung chat; cuối lượt lưu câu đó và hẹn tự chạy lại (xem _limit_state).
-                        await ws.send_text(_limit_frame(
-                            event.get("content") or "", "claude-code",
-                            cli.model or mcfg.get("claude_model") or "mặc định"))
+                _t0_cli = time.time()
+                _da_ghi: list = []      # đường dẫn moi từ tham số tool trong lượt (Write/Edit/Bash...)
+
+                async def _consume_claude(prompt, suppress_resume_error=False):
+                    """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
+                    nonlocal final_text, _streamed, _cli_sid, _cost, _ctx_in
+                    resume_failed = False
+                    async for event in cli.query(prompt):
+                        etype = event["type"]
+                        if etype == "tool_call":
+                            await ws.send_text(json.dumps({"type": "tool_call", "tool": event["name"], "content": f"⚙ Đang gọi: {event['name']}"}))
+                            # Nhặt mọi thứ trông giống đường dẫn trong tham số tool (Write/Edit có
+                            # file_path, Bash thì lẫn trong lệnh). Lọc "có thật + vừa đổi" ở dưới.
+                            try:
+                                _da_ghi.extend(channel_context.candidate_paths_from_tool(event.get("input") or {}))
+                            except Exception:
+                                pass
+                        elif etype == "tool_result":
+                            await ws.send_text(json.dumps({"type": "tool_result", "content": event["content"][:200]}))
+                        elif etype == "text":
+                            _streamed += event["content"]
+                            await ws.send_text(json.dumps({"type": "stream", "content": event["content"]}))
+                        elif etype == "final":
+                            final_text = event.get("content") or final_text
+                            _cli_sid = event.get("session_id")
+                            _cost = event.get("cost_usd")
+                            if _cli_sid:
+                                store.set_cli_session_id(conv_sid, _cli_sid)
+                            _ctx_in += int(event.get("tokens_in", 0) or 0)
+                            usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
+                                               event.get("tokens_in", 0), event.get("tokens_out", 0), event.get("cost_usd") or 0)
+                            _CONTEXT_RUNTIME.record_usage(
+                                runtime_trace, event.get("tokens_in", 0), event.get("tokens_out", 0))
+                        elif etype == "error":
+                            if event.get("resume_failed"):
+                                resume_failed = True
+                                if suppress_resume_error:
+                                    continue      # sẽ mồi lại ngay dưới, không bắn câu lỗi ra
+                            # Hết lượt gói Claude thì Claude Code in nguyên văn câu tiếng Anh (có khi
+                            # là dạng máy "…reached|<epoch>"). Dịch sang câu nói được TRƯỚC khi đẩy
+                            # ra khung chat; cuối lượt lưu câu đó và hẹn tự chạy lại (xem _limit_state).
+                            await ws.send_text(_limit_frame(
+                                event.get("content") or "", "claude-code",
+                                cli.model or mcfg.get("claude_model") or "mặc định"))
+                    return resume_failed
+
+                _co_mach = bool(cli.session_id)
+                _resume_failed = await _consume_claude(_cli_prompt, suppress_resume_error=_co_mach)
+                if _co_mach and _resume_failed and not (final_text or _streamed):
+                    # Mạch cũ không còn trên máy (đổi thư mục làm việc ở 0.55.58, hoặc update/
+                    # restart dọn mất transcript). Không bỏ luôn ngữ cảnh: mồi lại từ kho phiên
+                    # SQLite rồi chạy lại, lượt sau resume mạch mới. Cùng cách nhánh Codex.
+                    await ws.send_text(json.dumps({
+                        "type": "system",
+                        "content": "Phiên Claude cũ không còn trên máy - Javis đang khôi phục ngữ cảnh từ lịch sử đã lưu."
+                    }))
+                    cli.session_id = None
+                    _cli_raw2 = [{"role": _m["role"], "content": _m["content"]}
+                                 for _m in store.get_messages(conv_sid)[:-1]
+                                 if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    await _consume_claude(compaction.bootstrap_prompt(
+                        _cli_raw2, _cli_prompt, summary=_row0.get("compact_summary") or ""))
                 # Khung `response` PHẢI nằm NGOÀI vòng lặp. Trước đây nó nằm trong nhánh
                 # `final`, nên luồng đứt trước khi có `final` (engine chết, mạng rớt) là client
                 # không nhận `response` nào cả và bong bóng chat treo mãi - trong khi phần chữ
                 # đã stream ra thì vẫn còn đó. Ba nhánh engine kia vốn đã gửi ngoài vòng lặp.
                 final_text = final_text or _streamed
+                # Link file → dạng khung chat mở được, ưu tiên file vừa ghi trong lượt này.
+                try:
+                    final_text = _chuan_hoa_link_file(
+                        _brain_root(brain), final_text,
+                        _files_vua_ghi(_brain_root(brain), _da_ghi, _t0_cli))
+                except Exception as _e:
+                    print(f"[link file] {type(_e).__name__}: {_e}", file=sys.stderr)
                 await ws.send_text(json.dumps({
                     "type": "response", "content": final_text, "session_id": conv_sid,
                     "cli_session_id": _cli_sid, "cost_usd": _cost, "engine": "cli",
@@ -11079,6 +11327,14 @@ async def websocket_endpoint(ws: WebSocket):
                         await push_to_chat(conv_sid, _canh_bao)
                 except Exception as _e:
                     print(f"[hua suong] {type(_e).__name__}: {_e}", file=sys.stderr)
+                # Link file trỏ vào hư không → nói ra bằng một dòng riêng, cùng cách với lời hứa
+                # suông: không sửa câu của model, chỉ thêm sự thật ở dưới.
+                try:
+                    _thieu = _link_file_khong_thay(_brain_root(brain), final_text)
+                    if _thieu:
+                        await push_to_chat(conv_sid, _cau_link_khong_thay(_thieu))
+                except Exception as _e:
+                    print(f"[link file] {type(_e).__name__}: {_e}", file=sys.stderr)
                 # Nén NỀN phần lịch sử cũ sắp rơi khỏi cửa sổ (chỉ engine API - CLI tự quản
                 # context). Lỗi nén không ảnh hưởng lượt chat; lượt sau vẫn còn fallback trim.
                 if (not used_fast_path and kind == "api" and api_key and
@@ -13546,6 +13802,13 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                     out["text"] = (out.get("text") or "") + "\n\n" + _canh_bao
             except Exception as e:
                 print(f"[hua suong telegram] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+            # Cùng luật với dashboard: link trỏ vào hư không thì nói ra, nối vào cuối tin.
+            try:
+                _thieu = _link_file_khong_thay(_brain_root(brain), out.get("text") or "")
+                if _thieu:
+                    out["text"] = (out.get("text") or "") + "\n\n" + _cau_link_khong_thay(_thieu)
+            except Exception as e:
+                print(f"[link file telegram] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         if conv_sid and isinstance(out, dict):
             try:
                 await _persist_turn(store, conv_sid, brain, text, out.get("text") or "")
@@ -14315,9 +14578,13 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         )
         return _tg_ket(clean_out, files, "", loi)
     else:
-        if sess["cli"] is None:
-            # tag riêng theo chat → /stop chỉ giết đúng subprocess của chat này, không đụng người khác
-            sess["cli"] = claude_engine(system_prompt=sysprompt, cwd=CLAUDE_CWD, tag=f"telegram:{chat_id}")
+        _goc = _brain_root(brain)
+        if sess["cli"] is None or getattr(sess["cli"], "cwd", None) != _goc:
+            # tag riêng theo chat → /stop chỉ giết đúng subprocess của chat này, không đụng người khác.
+            # cwd = thư mục brain (0.55.58, cùng lý do với nhánh dashboard). Đổi brain bằng /brain
+            # thì `_tg_ngat_mach` chỉ cắt mạch mà giữ đối tượng engine, nên phải dựng lại ở đây
+            # khi cwd không còn khớp brain - không thì lượt sau vẫn ghi file vào brain cũ.
+            sess["cli"] = claude_engine(system_prompt=sysprompt, cwd=_goc, tag=f"telegram:{chat_id}")
         cli = sess["cli"]
         cli.system_prompt = sysprompt
         # Cùng luật với nhánh CLI của web: tên model nhà khác không đưa cho `claude`.
@@ -14343,42 +14610,71 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
              {"role": "user", "content": _cli_prompt}],
             provider="cli", model=cli.model or mcfg.get("claude_model") or "mặc định",
         )
-        async for ev in cli.query(_cli_prompt):
-            et = ev["type"]
-            if et == "final":
-                out = ev.get("content") or out
-                # Thiếu dòng này tới 0.9.244 (xem nhánh API ngay trên): lượt Telegram qua
-                # Claude Code không được tính vào bảng Mức dùng.
-                usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
-                                   ev.get("tokens_in", 0), ev.get("tokens_out", 0),
-                                   ev.get("cost_usd") or 0)
-                _CONTEXT_RUNTIME.record_usage(
-                    runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
-            elif et == "tool_call":
-                nm = ev.get("name", "")
-                if nm in ("Write", "NotebookEdit"):
-                    fp = (ev.get("input") or {}).get("file_path") or (ev.get("input") or {}).get("notebook_path")
-                    if fp:
-                        written.append(str(fp))
-                await _p(f"⚙ Đang gọi: {nm}")
-            elif et == "tool_result":
-                await _p("✓ Nhận kết quả - đang phân tích…")
-            elif et == "text":
-                _streamed += ev.get("content") or ""
-                if not _pinged:
-                    _pinged = True; await _p("✍ Đang soạn câu trả lời…")
-            elif et == "error":
-                # Xem nhánh API: lỗi giữa lượt không chí mạng, cứ chạy tiếp rồi báo ở cuối.
-                loi.append(str(ev.get("content") or "lỗi không rõ"))
-                _CONTEXT_RUNTIME.note_error(runtime_trace, "cli_error_event")
+        async def _chay_claude(prompt):
+            """Một lần gọi `claude`. Trả True nếu mạch cũ không còn (resume trượt)."""
+            nonlocal out, _streamed, _pinged
+            resume_failed = False
+            async for ev in cli.query(prompt):
+                et = ev["type"]
+                if et == "final":
+                    out = ev.get("content") or out
+                    # Thiếu dòng này tới 0.9.244 (xem nhánh API ngay trên): lượt Telegram qua
+                    # Claude Code không được tính vào bảng Mức dùng.
+                    usage_store.record("cli", cli.model or mcfg.get("claude_model") or "mặc định",
+                                       ev.get("tokens_in", 0), ev.get("tokens_out", 0),
+                                       ev.get("cost_usd") or 0)
+                    _CONTEXT_RUNTIME.record_usage(
+                        runtime_trace, ev.get("tokens_in", 0), ev.get("tokens_out", 0))
+                elif et == "tool_call":
+                    nm = ev.get("name", "")
+                    if nm in ("Write", "NotebookEdit"):
+                        fp = (ev.get("input") or {}).get("file_path") or (ev.get("input") or {}).get("notebook_path")
+                        if fp:
+                            written.append(str(fp))
+                    # Nhặt rộng cả đường dẫn lẫn trong lệnh Bash; tầng sau lọc "có thật + vừa đổi".
+                    try:
+                        written.extend(channel_context.candidate_paths_from_tool(ev.get("input") or {}))
+                    except Exception:
+                        pass
+                    await _p(f"⚙ Đang gọi: {nm}")
+                elif et == "tool_result":
+                    await _p("✓ Nhận kết quả - đang phân tích…")
+                elif et == "text":
+                    _streamed += ev.get("content") or ""
+                    if not _pinged:
+                        _pinged = True; await _p("✍ Đang soạn câu trả lời…")
+                elif et == "error":
+                    if ev.get("resume_failed"):
+                        resume_failed = True      # mồi lại ngay dưới, không tính là lỗi của lượt
+                        continue
+                    # Xem nhánh API: lỗi giữa lượt không chí mạng, cứ chạy tiếp rồi báo ở cuối.
+                    loi.append(str(ev.get("content") or "lỗi không rõ"))
+                    _CONTEXT_RUNTIME.note_error(runtime_trace, "cli_error_event")
+            return resume_failed
+
+        _co_mach = bool(getattr(cli, "session_id", None))
+        _rf = await _chay_claude(_cli_prompt)
+        if _co_mach and _rf and not (out or _streamed):
+            # Mạch cũ không còn (đổi thư mục làm việc ở 0.55.58, hoặc transcript bị dọn): mồi lại
+            # từ kho phiên rồi chạy lại - cùng cách nhánh dashboard và Codex.
+            await _p("↻ Phiên Claude cũ không còn trên máy - đang khôi phục ngữ cảnh từ lịch sử đã lưu…")
+            cli.session_id = None
+            _raw_cu2, _tom_cu2 = _tg_lich_su_kho(store, conv_sid, text)
+            await _chay_claude(compaction.bootstrap_prompt(_raw_cu2, _cli_prompt, summary=_tom_cu2))
         out = out or _streamed
         if not out:
             return "⚠ " + (loi[0] if loi else "Engine không trả về nội dung nào.")
+        # Link file → dạng khung chat/Telegram mở được, ưu tiên file vừa ghi trong lượt này.
+        try:
+            out = _chuan_hoa_link_file(_brain_root(brain), out,
+                                       _files_vua_ghi(_brain_root(brain), written, t0))
+        except Exception as _e:
+            print(f"[link file telegram] {type(_e).__name__}: {_e}", file=sys.stderr)
         # File sinh ra trong lượt → bot gửi đính kèm SAU câu trả lời (xem telegram_bot._handle_turn).
         # vault_root = brain phiên này: ảnh Javis tạo nhúng dạng ![](attachments/x.png) (path tương
         # đối) được resolve về gốc vault để tự đính kèm về ĐÚNG người đang chat, khỏi phải curl.
         files = channel_context.collect_turn_files(out, written, t0,
-                                                   cwd=CLAUDE_CWD, exclude=sess["sent"],
+                                                   cwd=_brain_root(brain), exclude=sess["sent"],
                                                    vault_root=_brain_root(brain))
         # Lọc SAU collect_turn_files: hàm đó dò đường dẫn file trong text gốc, lọc trước là mất dấu.
         clean_out = channel_context.strip_attached_media(

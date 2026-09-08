@@ -296,7 +296,7 @@ Stop it with `stop-javis.bat`. Open http://localhost:7777
 | `JAVIS_STATE_DIR` | Where Javis writes state (settings, sessions, loop configuration) | `server/` (Docker: `/data/state`) |
 | `OBSIDIAN_VAULT_PATH` | The main Second Brain vault | `vault/` in the repo (Docker: `/data/vault`) |
 | `BRAIN_PATH` | The brain folder | `brain/` in the repo (Docker: `/data/brain`) |
-| `CLAUDE_CWD` | The Claude CLI's working folder | the repo root |
+| `CLAUDE_CWD` | Fallback folder for the Claude CLI (chat runs inside the brain folder) | the repo root |
 
 ---
 

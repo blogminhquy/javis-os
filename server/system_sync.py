@@ -7,8 +7,10 @@ giờ nhận bản skill mới; brain ngoài (path:) không có gì; đổi brai
 
 Kiến trúc mới - 2 tầng rõ ràng:
   - TẦNG HỆ THỐNG (đi theo repo/image, update theo phiên bản app):
-      <project>/.claude/skills/<slug>/SKILL.md   - skill hệ thống (nguồn chuẩn; chat cwd=/app
-                                                    nên Claude Code nạp NATIVE, không phụ thuộc brain)
+      <project>/.claude/skills/<slug>/SKILL.md   - skill hệ thống (nguồn chuẩn; được cài vào TỪNG
+                                                    brain qua sync có manifest rồi mirror, nên Claude
+                                                    Code cwd=brain vẫn nạp NATIVE - từ 0.55.58 chat
+                                                    cũng chạy cwd=brain, không còn cwd=/app)
       <project>/system/loops/<slug>.md            - loop hệ thống (template, placeholder {today})
   - TẦNG BRAIN (dữ liệu người dùng, đổi theo brain): memory/, sources/, wiki/, agent/workflow/
       skill/loop do user tạo. KHÔNG bị update ghi đè.

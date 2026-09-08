@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.58] - 2026-09-08
+### Sửa lỗi
+- **File tạo từ chat nằm đúng trong brain, link bấm là mở.** Trước đây Claude Code trong chat làm việc ở thư mục cài app chứ không phải thư mục brain, nên file "đã viết" nằm lạc chỗ và bay theo lần cập nhật kế tiếp, link trong chat trỏ vào hư không, đếm bài lúc 3 lúc 5. Nay chat chạy ngay trong thư mục brain, như Codex, Antigravity và Grok vẫn làm.
+- **Link file trong câu trả lời được Javis tự sửa về dạng mở được.** Link nào trỏ tới file không có trong brain thì có một dòng nói thẳng ngay dưới, thay vì một cái link câm.
+- **Hội thoại cũ không còn bị kẹt khi phiên Claude Code mất trên máy**: Javis tự mở phiên mới và mồi lại từ lịch sử đã lưu. Lượt đầu tiên sau khi cập nhật sẽ thấy một dòng báo như vậy, đó là bình thường.
+- Máy dọn ảnh cũ không còn xoá file văn bản `.txt` để trong thư mục ảnh.
+
 ## [0.55.57] - 2026-09-08
 ### Sửa lỗi
 - **Google trục trặc một nhịp không còn giết cả lượt chat.** Antigravity gặp lỗi `503 UNAVAILABLE` là Javis chỉ hiện một câu tiếng Anh sáu dòng rồi bỏ đó. Nay Javis tự chờ rồi hỏi lại 2 lần; vẫn không được thì nói thẳng đây là lỗi phía Google chứ không phải cấu hình của bạn. Lượt nào đã gửi tin hay ghi file rồi thì tuyệt đối không chạy lại.

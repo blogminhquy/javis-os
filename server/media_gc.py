@@ -21,6 +21,11 @@ import re
 import time
 
 
+# Đuôi file VĂN BẢN mà máy dọn không bao giờ đụng (khi keep_md=True). Tri thức là chữ, không
+# phải ảnh; .txt đứng cạnh .md vì đó là định dạng văn bản mặc định của chủ repo.
+DUOI_VAN_BAN = (".md", ".txt")
+
+
 def plan_deletions(entries, now, max_age_days, max_mb, keep_md=True, giu_path=None):
     """Quyết định file nào phải xoá. HÀM THUẦN.
 
@@ -28,9 +33,13 @@ def plan_deletions(entries, now, max_age_days, max_mb, keep_md=True, giu_path=No
     now          : mốc thời gian tham chiếu (time.time()).
     max_age_days : file già hơn ngần này ngày thì xoá. <= 0 = tắt luật tuổi.
     max_mb       : trần dung lượng vùng cache. <= 0 = tắt luật trần.
-    keep_md      : True (mặc định) = không bao giờ xoá .md, vì vùng cache của brain có thể
-                   lạc note vào mà note là tri thức. Đặt False cho thư mục THUẦN trung chuyển
-                   (staging), nơi một file .md chỉ là thứ user vừa dán vào chat, không phải note.
+    keep_md      : True (mặc định) = không bao giờ xoá file VĂN BẢN (.md và .txt), vì vùng
+                   cache của brain có thể lạc note vào mà note là tri thức. Trước 0.55.58 chỉ
+                   chừa .md; nhưng chủ repo quy ước file văn bản mặc định là .txt, nên một bài
+                   viết .txt rơi vào attachments/ là bị máy dọn xoá như ảnh cũ - đúng kiểu
+                   "file đã viết rồi biến mất" mà không có một dòng báo nào (báo 2026-09-08).
+                   Đặt False cho thư mục THUẦN trung chuyển (staging), nơi một file .md chỉ là
+                   thứ user vừa dán vào chat, không phải note.
     giu_path     : set đường dẫn TUYỆT ĐỐI không bao giờ được xoá, bất kể tuổi hay trần.
 
     Vì sao có giu_path: vùng cache "cái gì cũng biến mất được" chỉ đúng khi KHÔNG AI trỏ vào
@@ -42,7 +51,7 @@ def plan_deletions(entries, now, max_age_days, max_mb, keep_md=True, giu_path=No
     """
     khoa = {os.path.normcase(os.path.abspath(x)) for x in (giu_path or ())}
     giu = [t for t in entries
-           if not (keep_md and str(t[0]).lower().endswith(".md"))
+           if not (keep_md and str(t[0]).lower().endswith(DUOI_VAN_BAN))
            and os.path.normcase(os.path.abspath(str(t[0]))) not in khoa]
     xoa, con_lai = [], []
     if max_age_days and max_age_days > 0:

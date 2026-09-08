@@ -51,6 +51,12 @@ check("qua han + vuot tran -> cong don, khong trung",
 # ---- 5. File .md không bao giờ bị xoá ----
 r = media_gc.plan_deletions([muc("ghi-chu.md", 400, 99), muc("anh.png", 1, 40)], NOW, 30, 300)
 check("chua file .md", r == ["anh.png"])
+# 0.55.58: .txt cũng là văn bản. Chủ repo quy ước file văn bản mặc định là .txt, nên một bài
+# viết .txt lạc vào attachments/ mà bị dọn như ảnh cũ là "file đã viết rồi biến mất" không báo.
+r = media_gc.plan_deletions([muc("bai-viet.txt", 400, 99), muc("anh.png", 1, 40)], NOW, 30, 300)
+check("CANARY: chua ca file .txt (van ban, khong phai media)", r == ["anh.png"])
+r = media_gc.plan_deletions([muc("BAI.TXT", 400, 99)], NOW, 30, 300)
+check("duoi viet hoa cung duoc chua", r == [])
 
 # ---- 6. Tắt từng luật bằng 0 / số âm ----
 check("max_age_days=0 -> tat luat tuoi",

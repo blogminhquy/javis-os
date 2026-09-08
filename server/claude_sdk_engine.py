@@ -147,6 +147,29 @@ def loi_de_hieu(e, tran_init=None):
     return f"SDK engine: {type(e).__name__}: {e}"
 
 
+# Dấu hiệu "mạch cũ KHÔNG CÒN trên máy": `--resume <id>` mà Claude Code không tìm thấy transcript.
+# ĐO trực tiếp trên binary 2.1.263 (2026-09-08): nó in "No conversation found with session ID:
+# <id>" rồi trả result subtype=error_during_execution, is_error=True, `errors` mang đúng câu đó,
+# KHÔNG có `result`. Transcript nằm ở ~/.claude/projects/<cwd đã mã hoá>/, nên hai ca hay gặp:
+#   (1) ĐỔI THƯ MỤC LÀM VIỆC - từ 0.55.58 chat chạy cwd=brain thay vì gốc project, mọi phiên cũ
+#       rơi vào đây đúng một lần; đo thử: tạo phiên ở thư mục A, resume từ B là trượt, từ A thì được;
+#   (2) update/restart dọn mất thư mục đó.
+_MAU_MAT_MACH = ("no conversation found with session id",)
+
+
+def la_loi_mat_mach(msg) -> bool:
+    """ResultMessage này có phải "mạch cũ không còn" không. Chỉ nhận khi is_error + đúng câu."""
+    try:
+        if not getattr(msg, "is_error", False):
+            return False
+        van_ban = " ".join(str(x) for x in (getattr(msg, "errors", None) or []))
+        van_ban += " " + str(getattr(msg, "result", "") or "")
+        l = van_ban.lower()
+        return any(m in l for m in _MAU_MAT_MACH)
+    except Exception:
+        return False
+
+
 def map_message(msg):
     """Map 1 message SDK → (list event dict 'hợp đồng ClaudeCLI', session_id|None).
     PURE - test offline được, không cần CLI/auth."""
@@ -200,7 +223,17 @@ def map_message(msg):
             pass
         # Kết thúc LỖI mà không có chữ nào trả về → nói rõ lý do thay vì để dashboard
         # hiện "(không có nội dung trả về)" trơ trọi (hay gặp sau khi phiên trước bị ngắt).
-        if msg.is_error and not (msg.result or "").strip():
+        # Mạch cũ không còn: bản trước để nguyên, sự kiện `final` vẫn mang session_id CHẾT,
+        # main.py lưu lại id đó và lượt sau lại resume đúng cái id chết - hội thoại kẹt vĩnh
+        # viễn với câu "Claude kết thúc lỗi (error_during_execution)". Nay cắm cờ máy đọc được
+        # và trả session_id None để người gọi mồi lại từ kho phiên (cùng cách nhánh Codex).
+        resume_failed = la_loi_mat_mach(msg)
+        if resume_failed:
+            events.append({"type": "error", "resume_failed": True,
+                           "content": "Phiên Claude cũ không còn trên máy (mạch hội thoại phía "
+                                      "Claude Code đã mất). Javis mở mạch mới và mồi lại từ "
+                                      "lịch sử đã lưu."})
+        elif msg.is_error and not (msg.result or "").strip():
             events.append({"type": "error",
                            "content": f"Claude kết thúc lỗi ({msg.subtype}) - không có nội dung trả về. "
                                       "Gửi lại tin nhắn; nếu vẫn lặp lại, mở hội thoại mới "
@@ -217,14 +250,15 @@ def map_message(msg):
             # người ngồi chat thì câu trên đã đủ (gửi lại là xong), nhưng việc nền KHÔNG gửi
             # lại được - nó phải biết mà nhảy sang bộ não kế tiếp.
             "dua_token": dua_token,
-            "session_id": msg.session_id,
+            "resume_failed": resume_failed,
+            "session_id": None if resume_failed else msg.session_id,
             "cost_usd": msg.total_cost_usd,
             "duration_ms": msg.duration_ms,
             "tokens_in": ((u.get("input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0)
                           + (u.get("cache_creation_input_tokens") or 0)),
             "tokens_out": u.get("output_tokens") or 0,
         })
-        return events, msg.session_id
+        return events, (None if resume_failed else msg.session_id)
     return events, None
 
 
@@ -296,8 +330,9 @@ class ClaudeSDK:
         mode = (self.javis_mode or "full").strip().lower()
         # vault_root: CHỈ để ctx của plugin biết đang làm việc ở brain nào (vd image-chatgpt lưu
         # ảnh vào đúng attachments/). self.javis_vault do _apply_mcp đặt TƯỜNG MINH (main.py) -
-        # KHÔNG suy từ cwd: chat chạy với cwd = gốc project (CLAUDE_CWD), không phải thư mục
-        # brain, nên suy từ cwd luôn trượt đúng ở đường chat - nơi bug thật sự xảy ra.
+        # KHÔNG suy từ cwd: trước 0.55.58 chat chạy với cwd = gốc project (CLAUDE_CWD) nên suy
+        # từ cwd từng trượt đúng ở đường chat; nay chat đã chạy cwd=brain, nhưng đặt rõ thì
+        # đúng ở MỌI chỗ dựng engine, không phụ thuộc ai nhớ đặt cwd.
         # Vẫn KHÔNG nạp plugin riêng-của-vault (giữ nguyên hành vi cũ): scope_vault=False.
         p_tools, p_route = plugins_host.plugin_tools(mode, self.javis_vault, scope_vault=False)
         if not p_tools:
@@ -590,6 +625,8 @@ class ClaudeSDK:
                         tools_running += 1
                     elif ev["type"] == "tool_result":
                         tools_running = max(0, tools_running - 1)
+                    elif ev.get("resume_failed"):
+                        self.session_id = None   # id chết; giữ lại là lượt sau kẹt tiếp
                     yield ev
                 if isinstance(msg, ResultMessage):
                     break
