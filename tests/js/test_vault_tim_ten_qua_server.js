@@ -24,6 +24,10 @@ const root = path.join(__dirname, "..", "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const con = read("dashboard/console.js");
 const html = read("dashboard/index.html");
+// 0.55.14 đưa chữ tiếng Việt vào từ điển i18n: console.js không còn nhúng cứng câu chữ mà
+// gọi `window.t("khoa")`. Nạp CHÍNH vi.json làm từ điển cho bệ đỡ bên dưới, nên khẳng định
+// "nói rõ là không thấy" vẫn kiểm đủ hai vế: mã gọi đúng khoá VÀ khoá đó mang đúng câu.
+const VI = JSON.parse(read("dashboard/i18n/vi.json"));
 
 let fails = [];
 function check(name, cond, extra) {
@@ -37,6 +41,7 @@ check("bóc được hàm _vtNameSearch từ console.js", src.length > 0);
 
 // Bệ đỡ tối thiểu: chỉ những thứ hàm thật sự chạm tới.
 const STUB = `
+  const window = { t: tra };
   const box = { innerHTML: "" };
   const document = { getElementById: () => box };
   const fbrain = () => "Brain Default";
@@ -50,14 +55,23 @@ const STUB = `
   };
 `;
 
+// Bản sao tối giản của `t()` trong dashboard/i18n/index.js: tra vi.json rồi thay chỗ {ten}.
+// Thiếu khoá thì trả về chính khoá, đúng như hàng thật - nên một khoá viết sai trong console.js
+// sẽ lộ ra ở khẳng định bên dưới chứ không âm thầm xanh.
+function tra(key, bien) {
+  const v = VI[String(key || "")];
+  if (v == null) return String(key || "");
+  return String(v).replace(/\{(\w+)\}/g, (m, ten) => (bien && bien[ten] != null ? String(bien[ten]) : m));
+}
+
 function chay(fetchGia) {
   const calls = [];
   // Ghi lại URL ngay ở đây: `calls` là thứ duy nhất test soi được, và nó phải đếm cả request
   // lẫn lượt bò để so hai đường với nhau.
   const fetchDem = async (u, ...r) => { calls.push(String(u)); return fetchGia(u, ...r); };
-  const factory = new Function("calls", "fetch", STUB + src
+  const factory = new Function("calls", "fetch", "tra", STUB + src
     + "\n return { fn: _vtNameSearch, ket: () => _render, hop: () => box };");
-  const o = factory(calls, fetchDem);
+  const o = factory(calls, fetchDem, tra);
   return { calls, ...o };
 }
 

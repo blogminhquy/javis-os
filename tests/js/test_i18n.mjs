@@ -87,16 +87,23 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
 // ---- 6b. index.html: chữ tiếng Việt tĩnh PHẢI mang data-i18n ----
 // Quét xong 0.51.0 thì mọi text node / thuộc tính title-placeholder-aria có dấu Việt trong
 // index.html đều đã gắn khoá từ điển. Chốt lại để một dòng HTML thêm sau không lặng lẽ
-// đứng ngoài bản dịch. Ngoại lệ là TÊN RIÊNG và chỗ JS tự quản (nút đổi tông do theme.js
-// đặt title theo trạng thái sáng/tối - một khoá tĩnh sẽ ghi đè sai một nửa thời gian).
+// đứng ngoài bản dịch. Ngoại lệ là TÊN RIÊNG và chỗ JS tự quản.
+//
+// Vì sao có ID_JS_TU_QUAN: nút nào mang nhãn HAI TRẠNG THÁI thì nhãn phải do JS đặt, và gắn
+// thêm data-i18n tĩnh là hỏng - applyDom() quét lại DOM mỗi lần đổi ngôn ngữ nên nó ghi đè
+// nhãn động bằng nhãn tĩnh, tức nút nói sai đúng một nửa thời gian.
+//   - themeToggle: theme.js đặt title theo tông sáng/tối.
+//   - sslToggle:   branding.js đặt "Bật SSL" hay "Kích hoạt lại" theo trạng thái chứng chỉ.
 {
   const html = fs.readFileSync(path.join(ROOT, "dashboard", "index.html"), "utf8")
     .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, "");
   const NGOAI_LE_TEXT = ["Ngọc Thu", "by Minh Quý", "1.10×"];
+  const ID_JS_TU_QUAN = ["themeToggle", "sslToggle"];
+  const tuQuan = (attrs) => ID_JS_TU_QUAN.some((id) => attrs.includes('id="' + id + '"'));
   const chuaGan = [];
   for (const m of html.matchAll(/<([a-zA-Z0-9]+)((?:[^<>"]|"[^"]*")*)>([^<>]*)/g)) {
     const [, , attrs, text] = m;
-    if (DAU_VIET.test(text) && !attrs.includes("data-i18n")
+    if (DAU_VIET.test(text) && !attrs.includes("data-i18n") && !tuQuan(attrs)
         && !NGOAI_LE_TEXT.some((x) => text.includes(x))) {
       chuaGan.push(text.trim().slice(0, 50));
     }
@@ -107,7 +114,7 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
   const attrChuaGan = [];
   for (const m of html.matchAll(/<[a-zA-Z0-9]+((?:[^<>"]|"[^"]*")*)>/g)) {
     const a = m[1];
-    if (a.includes('id="themeToggle"')) continue;   // theme.js tự đặt title theo tông
+    if (tuQuan(a)) continue;   // nhãn/title do JS đặt theo trạng thái - xem ID_JS_TU_QUAN
     for (const [att, can] of [["title", "data-i18n-title"], ["placeholder", "data-i18n-ph"],
                               ["aria-label", "data-i18n-aria"]]) {
       const mm = a.match(new RegExp('(?<![-\\w])' + att + '="([^"]*)"'));
@@ -154,22 +161,39 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
 // ---- 6d. Mọi khoá t("...") trong JS phải TỒN TẠI trong vi.json ----
 // Bản đối xứng của kiểm tra 6b (bên đó lo index.html): gọi một khoá chưa khai là applyDom/t()
 // rơi về chính cái khoá, và không test nào khác nhìn thấy cho tới khi người dùng thấy.
+//
+// Phải quét CẢ HÀM RÀO, không chỉ `t(`. Module nào được require() trong test node (chat-render,
+// dataview, file-editor, chat-ask, background-strip, chat-acts, task-suggest, chat-slash,
+// editor-cmds, graph) không gọi window.t thẳng mà bọc qua một hàm rào riêng - `tw()`, `dich()`
+// hay `graphTw()` - để chạy được cả ngoài trình duyệt. Regex cũ chỉ bắt `t(`, mà sau chữ t của
+// `tw(` là chữ w chứ không phải dấu ngoặc, nên phần lớn khoá của mấy file đó lọt lưới im lặng.
+//
+// Và quét MỌI file .js trong dashboard/ thay vì một danh sách chép tay: file mới thêm vào sau
+// này tự động được canh, không phải nhớ ghi tên vào đây (chuyện không ai nhớ).
 {
-  const JS_DUNG_T = ["console.js", "studio.js", "theme.js", "app.js", "chat-render.js",
-    "sessions-ui.js", "dataview.js", "brains-ui.js", "file-editor.js", "editor-cmds.js",
-    "chatbots.js", "model-picker.js", "quick-settings.js", "usage.js", "code-term.js",
-    "notifications.js"];
+  const TEN_HAM = /(?<![\w.$])(?:window\.)?(?:graphTw|dich|tw|t)\(\s*"([a-z0-9_.]+)"/g;
+  const thuMuc = path.join(ROOT, "dashboard");
+  const cacFile = fs.readdirSync(thuMuc).filter((f) => f.endsWith(".js")).sort();
   const thieuJs = [];
-  for (const f of JS_DUNG_T) {
-    const p = path.join(ROOT, "dashboard", f);
-    if (!fs.existsSync(p)) continue;
-    const src = fs.readFileSync(p, "utf8");
-    for (const m of src.matchAll(/(?<![\w.$])(?:window\.)?t\(\s*"([a-z0-9_.]+)"/g)) {
-      if (m[1].includes(".") && !(m[1] in vi)) thieuJs.push(`${f}:${m[1]}`);
+  let soKhoa = 0;
+  for (const f of cacFile) {
+    const src = fs.readFileSync(path.join(thuMuc, f), "utf8");
+    for (const m of src.matchAll(TEN_HAM)) {
+      if (!m[1].includes(".")) continue;   // "ok", "vi" ... là tham số thường, không phải khoá
+      soKhoa++;
+      if (!(m[1] in vi)) thieuJs.push(`${f}:${m[1]}`);
     }
   }
-  check("mọi khoá t(...) trong JS đều có trong vi.json", thieuJs.length === 0,
+  check("mọi khoá t(...)/tw(...) trong JS đều có trong vi.json", thieuJs.length === 0,
         thieuJs.slice(0, 6).join(", "));
+  // Canary cho chính vòng quét: regex hỏng thì nó lặng lẽ quét 0 khoá và báo xanh mãi mãi.
+  check("vòng quét THẬT SỰ thấy khoá trong JS (regex chưa hỏng)", soKhoa > 500, `${soKhoa} khoá`);
+  // Và canary riêng cho nhánh hàm rào: chỉ đếm tổng thì xoá mất `tw|dich|graphTw` vẫn xanh.
+  const raoDemDuoc = ["chat-render.js", "dataview.js", "graph.js"].every((f) => {
+    const src = fs.readFileSync(path.join(thuMuc, f), "utf8");
+    return [...src.matchAll(TEN_HAM)].some((m) => m[1].includes("."));
+  });
+  check("quét được cả khoá gọi qua hàm rào tw()/dich()/graphTw()", raoDemDuoc);
 }
 
 // ---- 6. CHỐT CHẶN THOÁI LUI ----

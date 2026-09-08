@@ -223,15 +223,30 @@ check("trường hợp đó cũng đóng dấu để khỏi soát lại mãi",
 
 
 # ── 6. Dashboard thật sự hiện giờ + có nút sửa/xoá ──────────────────────────
-check("thẻ nhắc hẹn hiện lần chạy kế tiếp", "kế tiếp ${fmtWhen(r.due_at)}" in CONSOLE)
+# Từ 0.55.14 chữ tiếng Việt của dashboard dời vào từ điển i18n, console.js chỉ còn gọi
+# window.t("khoa"). Nên khẳng định soi ĐỦ HAI VẾ: thẻ nhắc hẹn có gọi đúng khoá với đúng mốc
+# r.due_at, VÀ khoá đó trong vi.json thật sự nói "kế tiếp". Thiếu một vế là test hở.
+VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+# Khoá của thẻ NHẮC HẸN tách riêng khỏi thẻ loop: loop in "kế tiếp ~<giờ>" (dấu ngã = ước
+# lượng, vì loop chạy theo chu kỳ), nhắc hẹn in "kế tiếp <giờ>" KHÔNG dấu ngã vì giờ là chính
+# xác. Gộp chung một khoá thì thẻ nhắc hẹn mọc thêm "~" và nói sai về độ chắc chắn.
+check("thẻ nhắc hẹn hiện lần chạy kế tiếp",
+      'window.t("cs.si_next_rem", { luc: fmtWhen(r.due_at)' in CONSOLE
+      and "kế tiếp" in VI.get("cs.si_next_rem", "")
+      and "~" not in VI.get("cs.si_next_rem", ""))
+check("thẻ loop vẫn giữ dấu ngã vì giờ chỉ là ước lượng",
+      'window.t("cs.si_next", { luc: fmtWhen(lp.next_run)' in CONSOLE
+      and "~" in VI.get("cs.si_next", ""))
 check("thẻ nhắc hẹn hiện cron bằng lời", "r.cron_human || r.cron" in CONSOLE)
 check("có hàm nói rõ hôm nay/mai/ngày cụ thể", "function fmtWhen" in CONSOLE)
 check("có hàm nói còn bao lâu nữa", "function fmtLeft" in CONSOLE)
 check("thẻ nhắc hẹn có nút Sửa và Xoá",
       "rmEdit" in CONSOLE and "rmDel" in CONSOLE and "/reminders/delete" in CONSOLE)
 check("form sửa được nhắc hẹn qua /reminders/update", "/reminders/update" in CONSOLE)
+# Cũng vậy: nút "Vẫn tạo" nay là khoá cs.si_force trong từ điển (0.55.14).
 check("thiếu kênh báo thì hỏi lại chứ không im lặng",
-      "can_force" in CONSOLE and "Vẫn tạo" in CONSOLE)
+      "can_force" in CONSOLE and "cs.si_force" in CONSOLE
+      and "Vẫn tạo" in VI.get("cs.si_force", ""))
 check("đầu trang Việc cảnh báo khi chưa có kênh báo", "lpNotifyWarn" in CONSOLE)
 check("tool javis_schedule có op=update để sửa lịch bằng chat",
       '"update"' in PLUGIN and "_do_update" in PLUGIN)

@@ -120,7 +120,7 @@
     ok.onclick = khiBam;
     var x = document.createElement("button");
     x.className = "jf-x";
-    x.textContent = "Để sau";
+    x.textContent = window.t("cs.fm_fix_later");
     x.onclick = function () { bar.remove(); };
     bar.appendChild(txt); bar.appendChild(ok); bar.appendChild(x);
     document.head.appendChild(css);
@@ -130,15 +130,16 @@
   /* KHÔNG tự tải lại trang. Người dùng có thể đang gõ dở một câu dài, và mất chữ đang gõ vì
    * một thứ họ không hề bấm là tệ hơn hẳn cái nó chữa. Chỉ hiện dải và để họ bấm. */
   function baoCoBanMoi(verMoi) {
-    veDai("Javis vừa cập nhật lên bản " + verMoi + ".",
-          "Tải lại trang để dùng bản mới.", "Tải lại", function () { location.reload(); });
+    veDai(window.t("fresh.new_ver", { ver: verMoi }),
+          window.t("fresh.new_ver_sub"), window.t("fresh.reload"), function () { location.reload(); });
   }
 
   function baoChayBanCu(ds, daThuTaiLai) {
-    var ten = ds.slice(0, 3).join(", ") + (ds.length > 3 ? " và " + (ds.length - 3) + " file nữa" : "");
+    var ten = ds.slice(0, 3).join(", ")
+      + (ds.length > 3 ? " " + window.t("fresh.more_files", { count: ds.length - 3 }) : "");
     if (!daThuTaiLai) {
-      veDai("Trình duyệt đang chạy bản cũ của Javis.",
-            "Bấm để tải lại. (" + ten + ")", "Tải lại", function () {
+      veDai(window.t("fresh.stale_title"),
+            window.t("fresh.stale_sub", { ds: ten }), window.t("fresh.reload"), function () {
               try { sessionStorage.setItem(KHOA_DA_TAI, "1"); } catch (e) { /* noop */ }
               location.reload();
             });
@@ -146,10 +147,9 @@
     }
     // Tải lại rồi mà vẫn lệch: cache nằm ngoài tầm với của trang (proxy, CDN). Nói THẲNG
     // phải làm gì, đừng để người dùng bấm Tải lại mãi mà không hiểu vì sao không đổi.
-    veDai("Vẫn đang chạy bản cũ dù đã tải lại.",
-          "Bấm Ctrl+Shift+R (máy Mac: Cmd+Shift+R). Vẫn vậy thì có một tầng cache giữa "
-          + "máy bạn và Javis đang giữ file cũ: " + ten,
-          "Thử lại", function () { location.reload(true); });
+    veDai(window.t("fresh.stuck_title"),
+          window.t("fresh.stuck_sub", { phim: "Ctrl+Shift+R", phim_mac: "Cmd+Shift+R", ds: ten }),
+          window.t("common.retry"), function () { location.reload(true); });
   }
 
   // ── Chạy ──────────────────────────────────────────────────────────────────────

@@ -13,6 +13,20 @@
 (function () {
   "use strict";
 
+  // Chữ hiện ra lấy từ từ điển. Trong trình duyệt là window.t (i18n/index.js nạp trước mọi
+  // module này); dưới node - nơi test require() thẳng file này - `window` CHƯA KHAI BÁO nên
+  // đọc window.t là ReferenceError chứ không phải undefined, phải hỏi bằng typeof. Ở đó đọc
+  // thẳng vi.json để hàm vẫn trả về chữ thật, không phải mã khoá trần.
+  function tw(khoa, bien) {
+    if (typeof window !== "undefined" && window.t) return window.t(khoa, bien);
+    try {
+      var s = require("./i18n/vi.json")[khoa] || khoa;
+      return String(s).replace(/\{(\w+)\}/g, function (m, ten) {
+        return (bien && bien[ten] != null) ? String(bien[ten]) : m;
+      });
+    } catch (e) { return khoa; }
+  }
+
   var IMG = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico"];
 
   function esc(s) {
@@ -130,7 +144,7 @@
   }
   function closeBtn() {
     var b = document.createElement("button");
-    b.className = "jvfe-btn icon"; b.innerHTML = ic("x"); b.title = "Đóng (Esc)";
+    b.className = "jvfe-btn icon"; b.innerHTML = ic("x"); b.title = tw("fedit.close_esc");
     b.onclick = close; return b;
   }
 
@@ -140,7 +154,7 @@
     build();
     var b = brain();
     elTitle.innerHTML = esc(baseOf(brainRel));
-    elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">Đang mở…</div>';
+    elActions.innerHTML = ""; elBody.innerHTML = '<div class="jvfe-note">' + esc(tw("fedit.opening")) + "</div>";
     curSave = null;
     modal.classList.add("open");
     document.body.classList.add("jvfe-open");
@@ -178,13 +192,13 @@
   }
   function renderError(b, ceil, brainRel, msg) {
     elActions.innerHTML = ""; elActions.appendChild(closeBtn());
-    elBody.innerHTML = '<div class="jvfe-note">' + esc(msg || "Không đọc được file.") +
-      ' - <a href="' + esc(rawUrl(b, ceil)) + '" target="_blank" rel="noopener">Mở tab mới</a>' +
-      ' · <a href="' + esc(rawUrl(b, ceil, 1)) + '">Tải về</a></div>';
+    elBody.innerHTML = '<div class="jvfe-note">' + esc(msg || tw("fedit.read_err")) +
+      ' - <a href="' + esc(rawUrl(b, ceil)) + '" target="_blank" rel="noopener">' + esc(tw("fedit.open_tab")) + "</a>" +
+      ' · <a href="' + esc(rawUrl(b, ceil, 1)) + '">' + esc(tw("common.download")) + "</a></div>";
   }
   function dlLink(b, ceil) {
     var a = document.createElement("a");
-    a.href = rawUrl(b, ceil, 1); a.title = "Tải về";
+    a.href = rawUrl(b, ceil, 1); a.title = tw("common.download");
     a.innerHTML = '<button class="jvfe-btn icon" type="button">⇩</button>';
     return a;
   }
@@ -193,7 +207,7 @@
   // phai co san ngay tren thanh nay. Trinh sua dinh (console.js) da co doi nut nay tu truoc.
   function openLink(b, ceil) {
     var a = document.createElement("a");
-    a.href = rawUrl(b, ceil); a.target = "_blank"; a.rel = "noopener"; a.title = "Mở tab mới";
+    a.href = rawUrl(b, ceil); a.target = "_blank"; a.rel = "noopener"; a.title = tw("fedit.open_tab");
     a.innerHTML = '<button class="jvfe-btn icon" type="button">↗</button>';
     return a;
   }
@@ -201,7 +215,7 @@
   // Nut Luu (dung getContent de lay noi dung THAT theo che do dang mo) + Tai + Dong.
   function appendSaveAndClose(b, ceil, getContent) {
     var save = document.createElement("button");
-    save.className = "jvfe-btn"; save.innerHTML = ic("save") + " Lưu"; save.title = "Lưu (Ctrl+S)";
+    save.className = "jvfe-btn"; save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.title = tw("fedit.save_title");
     curSave = function () {
       var fd = new FormData();
       fd.append("brain", b); fd.append("path", ceil); fd.append("content", getContent());
@@ -211,11 +225,11 @@
         .then(function (r) {
           save.disabled = false;
           if (r && r.ok) {
-            save.innerHTML = ic("check", { cls: "ic-ok" }) + " Đã lưu"; save.classList.add("saved");
-            setTimeout(function () { save.innerHTML = ic("save") + " Lưu"; save.classList.remove("saved"); }, 1400);
-          } else { save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Lỗi"; setTimeout(function () { save.innerHTML = ic("save") + " Lưu"; }, 1600); }
+            save.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(tw("fedit.saved")); save.classList.add("saved");
+            setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); save.classList.remove("saved"); }, 1400);
+          } else { save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); }
         })
-        .catch(function () { save.disabled = false; save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Lỗi"; setTimeout(function () { save.innerHTML = ic("save") + " Lưu"; }, 1600); });
+        .catch(function () { save.disabled = false; save.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + esc(tw("app.err_cap")); setTimeout(function () { save.innerHTML = ic("save") + " " + esc(tw("common.save")); }, 1600); });
     };
     save.onclick = curSave;
     elActions.appendChild(save);
@@ -276,8 +290,8 @@
     }
 
     var seg = document.createElement("span"); seg.className = "ne-seg";
-    var bWys = document.createElement("button"); bWys.className = "jvfe-btn"; bWys.textContent = "Sửa";
-    var bSrc = document.createElement("button"); bSrc.className = "jvfe-btn active"; bSrc.textContent = "Nguồn";
+    var bWys = document.createElement("button"); bWys.className = "jvfe-btn"; bWys.textContent = tw("common.edit");
+    var bSrc = document.createElement("button"); bSrc.className = "jvfe-btn active"; bSrc.textContent = tw("fedit.tab_source");
     function setMode(m) {
       if (m === curMode) return;
       if (m === "source") wysToSrc(); else srcToWys();

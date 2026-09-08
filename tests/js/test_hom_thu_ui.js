@@ -28,6 +28,9 @@ const sw = read("dashboard/sw.js");
 const app = read("dashboard/app.js");
 const css = read("dashboard/style.css");
 const main = read("server/main.py");
+// 0.55.14 dời chữ tiếng Việt vào từ điển i18n, nên câu chữ phải tra ở đây chứ không
+// còn nằm literal trong .js nữa.
+const VI = JSON.parse(read("dashboard/i18n/vi.json"));
 
 let fails = [];
 function check(name, cond, extra) {
@@ -87,9 +90,17 @@ check("nút hỏng thì GIỮ lý do trên màn hình, không vẽ đè bằng g
 // điện thoại không - mà màn hình vẫn báo "đã gửi" vì CÓ máy nhận được.
 check("CANARY: Gửi thử đọc kết quả theo TỪNG thiết bị, không chỉ cờ ok chung",
   /d\.devices \|\| \[\]/.test(push) && /hong\[0\]|hong\.length/.test(push));
+// Hai vế, vì chữ đã vào từ điển i18n (0.55.14): giao diện phải TRUYỀN số máy vào khoá, và
+// khoá đó phải thật sự in số ra ({count}) chứ không phải một câu "đã gửi" chung chung.
 check("báo đủ mấy máy nhận được chứ không nói 'đã gửi' chung chung",
-  /Đã gửi tới " \+ \(r\.so/.test(noti));
-check("nêu ĐÍCH DANH dịch vụ đẩy đang hỏng", /mot\.dich_vu \+ " không nhận được"/.test(push));
+  /window\.t\("noti\.push_test_ok", \{ count: r\.so/.test(noti)
+  && /\{count\}/.test(VI["noti.push_test_ok"] || "")
+  && /thiết bị/.test(VI["noti.push_test_ok"] || ""));
+// Hai vế, cùng lý do: tên dịch vụ phải được truyền vào khoá, và khoá phải in nó ra ({dv}).
+check("nêu ĐÍCH DANH dịch vụ đẩy đang hỏng",
+  /window\.t\("push\.err_dv_khong_nhan", \{ dv: mot\.dich_vu \}\)/.test(push)
+  && /\{dv\}/.test(VI["push.err_dv_khong_nhan"] || "")
+  && /không nhận được/.test(VI["push.err_dv_khong_nhan"] || ""));
 check("ô công tắc nói số thiết bị đang nhận", /JavisPush\.thietBi\(\)/.test(noti));
 check("server trả danh sách thiết bị kèm lỗi lần gửi gần nhất",
   main.indexOf('"loi_lan_cuoi"') !== -1 && main.indexOf('"devices": chi_tiet') !== -1);

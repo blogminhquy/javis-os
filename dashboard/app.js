@@ -55,7 +55,7 @@ function stopCurrent() {
   hideActivity();
   if (sid && turns[sid]) turns[sid].running = false;
   setSessionRunning(sid, false);
-  if (!handsFreeActive()) setOrbState("", "SẴN SÀNG");
+  if (!handsFreeActive()) setOrbState("", window.t("orb.ready"));
   syncActiveUI();
 }
 function handsFreeActive() { return typeof handsFree !== "undefined" && handsFree; }
@@ -97,7 +97,7 @@ const voice = new JavisVoice({
   lang: "vi-VN",
   onStart: () => {
     voiceBtn.classList.add("recording");
-    setOrbState("listening", handsFree ? "ĐANG NGHE • LUÔN" : "ĐANG NGHE");
+    setOrbState("listening", handsFree ? window.t("app.orb_listening_always") : window.t("app.orb_listening"));
     voiceInterim.textContent = "";
   },
   onInterim: (text) => { voiceInterim.textContent = text; },
@@ -109,11 +109,11 @@ const voice = new JavisVoice({
   onEnd: () => {
     voiceBtn.classList.remove("recording");
     // Hands-free: giữ trạng thái chờ nghe lại, đừng reset về SẴN SÀNG cho đỡ nháy
-    if (!isProcessing && !handsFree) setOrbState("", "SẴN SÀNG");
+    if (!isProcessing && !handsFree) setOrbState("", window.t("orb.ready"));
   },
   onError: (err) => {
     voiceBtn.classList.remove("recording");
-    setOrbState("", "SẴN SÀNG");
+    setOrbState("", window.t("orb.ready"));
     // Mic hỏng hẳn thì TẮT chế độ rảnh tay. Không tắt thì vòng giữ mic 500ms bên dưới cứ mở
     // lại mãi, mỗi lần một hộp thoại chặn - người dùng bấm OK xong nửa giây sau nó nổ tiếp,
     // không còn đường nào bấm vào trang nữa. Đúng cảnh người dùng báo ngày 04/09.
@@ -225,22 +225,22 @@ function handleMessage(data) {
   if (data.type === "status") {
     if (t) t.running = true;
     setSessionRunning(sid, true);
-    if (isActive) { setOrbState("thinking", "ĐANG SUY NGHĨ"); showActivity(escapeHtml(data.content || "")); syncActiveUI(); }
+    if (isActive) { setOrbState("thinking", window.t("app.orb_thinking")); showActivity(escapeHtml(data.content || "")); syncActiveUI(); }
   } else if (data.type === "tool_call") {
     if (data.tool) trackMCP(data.tool);
     if (isActive) showActivity(escapeHtml(data.content || ""));
   } else if (data.type === "tool_result") {
-    if (isActive) showActivity(Icons.msg("check", "Nhận data - đang phân tích...", { cls: "ic-ok" }));
+    if (isActive) showActivity(Icons.msg("check", window.t("app.act_analyzing"), { cls: "ic-ok" }));
   } else if (data.type === "stream") {
     if (!t) return;
     t.text += (data.content || "");
     if (isActive) {
-      if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", "Đang soạn câu trả lời...")); }
+      if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
       t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text);
       scrollBottom();
       // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
       if (voice.ttsEnabled && data.tts !== false) {
-        setOrbState("speaking", "ĐANG NÓI");
+        setOrbState("speaking", window.t("app.orb_speaking"));
         const safeChunk = (data.content || "").replace(/<!--[\s\S]*/, "");
         if (safeChunk) voice.enqueueSpeak(safeChunk);
         t.spoke = true;
@@ -250,13 +250,13 @@ function handleMessage(data) {
     // Lượt vấp hạn mức gói thuê bao: câu báo đã hiện ở bong bóng lỗi (kèm thẻ tự chạy lại) và
     // server không có câu trả lời nào, nên không vẽ thêm bong bóng "(không có nội dung)".
     if (t && t.limit && !(data.content || "").trim()) {
-      if (isActive) { hideActivity(); setOrbState("", "SẴN SÀNG"); }
+      if (isActive) { hideActivity(); setOrbState("", window.t("orb.ready")); }
       refreshUsage();
       return;
     }
     const { clean: askClean, ask } = window.JavisAsk.extract(data.content || "");
     const finalText = askClean || (t && t.text) || "";
-    const shownText = finalText || "_(không có nội dung trả về - thử lại hoặc đổi model)_";
+    const shownText = finalText || window.t("app.no_content");
     if (t) t.text = shownText;
     if (isActive) {
       hideActivity();
@@ -266,8 +266,8 @@ function handleMessage(data) {
       if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
-      if (voice.ttsEnabled && t && !t.spoke && finalText) { setOrbState("speaking", "ĐANG NÓI"); voice.speak(finalText); }
-      else if (!voice.ttsEnabled) setOrbState("", "SẴN SÀNG");
+      if (voice.ttsEnabled && t && !t.spoke && finalText) { setOrbState("speaking", window.t("app.orb_speaking")); voice.speak(finalText); }
+      else if (!voice.ttsEnabled) setOrbState("", window.t("orb.ready"));
       maybeAutoLearn();
     }
     refreshUsage();     // cập nhật panel Mức dùng sau mỗi lượt
@@ -276,7 +276,7 @@ function handleMessage(data) {
     if (isActive) {
       hideActivity();
       const errEl = appendJavisError(data.content);
-      setOrbState("", "SẴN SÀNG");
+      setOrbState("", window.t("orb.ready"));
       if (data.limit) {
         // Hết lượt gói thuê bao: câu báo là tin cuối của lượt (server không trả gì thêm), ghi
         // vào convo để F5 còn thấy, rồi gắn thẻ "tự chạy lại" dưới nó (limit-resume.js).
@@ -375,8 +375,8 @@ function sendMessage(text) {
   clearAttachments();
   turns[sid] = { text: "", bubble: null, spoke: false, running: true };
   setSessionRunning(sid, true);
-  setOrbState("thinking", "ĐANG SUY NGHĨ");
-  showActivity("Javis đang suy nghĩ...");   // hiện NGAY trong khung chat, không đợi server báo
+  setOrbState("thinking", window.t("app.orb_thinking"));
+  showActivity(window.t("app.act_thinking"));   // hiện NGAY trong khung chat, không đợi server báo
   syncActiveUI();
   // Server đóng dấu model đang chạy cho phiên ngay từ tin đầu -> bar hiện "ghim" tại chỗ.
   try { if (window.JavisModelBar) window.JavisModelBar.noteStamped(sid); } catch (e) {}
@@ -464,8 +464,8 @@ async function openStoredSession(id) {
     if (t && t.running) {
       t.bubble = createStreamingBubble();
       if (t.text) t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text);
-      showActivity(Icons.msg("pen-line", "Đang soạn câu trả lời..."));
-      setOrbState("thinking", "ĐANG SUY NGHĨ");
+      showActivity(Icons.msg("pen-line", window.t("app.act_writing")));
+      setOrbState("thinking", window.t("app.orb_thinking"));
     }
     // Phiên này đang chờ gói thuê bao mở lại hạn mức → gắn thẻ "tự chạy lại" dưới tin cuối.
     try { if (window.JavisResume) window.JavisResume.renderFor(id); } catch (e) {}
@@ -607,7 +607,7 @@ function appendUserMessage(text, attachments, ts) {
   const isLong = text && (text.split("\n").length > 10 || text.length > 900);
   const textHtml = text
     ? `<div class="utext${isLong ? " clamped" : ""}">${escapeHtml(text)}</div>` +
-      (isLong ? `<button class="clamp-more" type="button">Xem thêm</button>` : "")
+      (isLong ? `<button class="clamp-more" type="button">${window.t("app.show_more")}</button>` : "")
     : "";
   div.innerHTML = `<div class="bubble">${textHtml}${attHtml}</div>` +
     actsHtml("user", ts === undefined ? Date.now() : ts, !!(text || "").trim());
@@ -724,7 +724,7 @@ function showActivity(html) {
       activityEl.querySelector(".act-time").textContent = s >= 3 ? fmtElapsed(s) : "";
     }, 1000);
   }
-  activityEl.querySelector(".act-text").innerHTML = html || "Đang xử lý...";
+  activityEl.querySelector(".act-text").innerHTML = html || window.t("app.act_processing");
   chatAppend(activityEl);   // re-append → luôn dưới cùng (kể cả dưới bubble đang stream)
   scrollBottom();
 }
@@ -754,11 +754,12 @@ newMsgBtn.addEventListener("click", () => scrollBottom(true));
 const XUONG_ICON = (typeof ic === "function") ? ic("chevron-down") : "↓";
 function veNutXuong(coTinMoi) {
   newMsgBtn.classList.toggle("has-new", !!coTinMoi);
-  newMsgBtn.innerHTML = coTinMoi ? XUONG_ICON + " Tin mới" : XUONG_ICON;
-  newMsgBtn.title = coTinMoi ? "Có tin mới - xuống cuối" : "Xuống cuối hội thoại";
+  newMsgBtn.innerHTML = coTinMoi ? XUONG_ICON + " " + window.t("app.new_msg") : XUONG_ICON;
+  newMsgBtn.title = coTinMoi ? window.t("app.new_msg_title") : window.t("app.scroll_bottom");
   newMsgBtn.setAttribute("aria-label", newMsgBtn.title);
 }
 veNutXuong(false);
+window.addEventListener("javis:i18n", () => veNutXuong(newMsgBtn.classList.contains("has-new")));
 
 function chatAppend(el) {
   if (newMsgBtn.parentNode !== chatArea) chatArea.appendChild(newMsgBtn);
@@ -810,7 +811,7 @@ function copyText(s) {
 }
 function flashCopied(btn, label) {
   const old = btn.textContent;
-  btn.innerHTML = ic("check", { cls: "ic-ok" }) + " Đã copy";
+  btn.innerHTML = ic("check", { cls: "ic-ok" }) + " " + window.t("app.copied");
   setTimeout(() => { btn.textContent = label || old; }, 1200);
 }
 // Bấm một nút trong hàng .msg-acts. Gửi lại / sửa lại đều lấy chữ GỐC của tin người
@@ -850,7 +851,7 @@ chatArea.addEventListener("click", (e) => {
     if (pre) copyText(pre.innerText).then(() => flashCopied(t, "⧉ Copy"));
   } else if (t.classList.contains("clamp-more")) {
     const u = t.closest(".bubble") && t.closest(".bubble").querySelector(".utext");
-    if (u) { u.classList.toggle("clamped"); t.textContent = u.classList.contains("clamped") ? "Xem thêm" : "Thu gọn"; }
+    if (u) { u.classList.toggle("clamped"); t.textContent = u.classList.contains("clamped") ? window.t("app.show_more") : window.t("app.show_less"); }
   }
 });
 // Điện thoại không có hover: chạm vào tin để bật/tắt hàng nút của đúng tin đó.
@@ -904,7 +905,7 @@ function veToolGanNhat(vuaGoi) {
   if (!toolGanNhat.length) {
     const em = document.createElement("div");
     em.className = "mcp-item dim";
-    em.textContent = "Chưa gọi tool nào";
+    em.textContent = window.t("app.no_tool_yet");
     list.appendChild(em);
     return;
   }
@@ -957,7 +958,7 @@ async function initGraph() {
   const c2d = document.getElementById("graph2d");
   if (c2d) c2d.style.display = "block";   // "" sẽ rơi về CSS #graph2d{display:none} → bị ẩn
   await _ensure2DLib();
-  if (!window.ForceGraph) { graphStats.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Lỗi tải thư viện đồ thị (kiểm tra mạng)"; return; }
+  if (!window.ForceGraph) { graphStats.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.graph_lib_err"); return; }
   javisGraph = new JavisGraph(c2d);   // resize() gọi bên trong load()
   await reloadGraph();
 }
@@ -998,8 +999,8 @@ function _ensureNodeModal() {
       '<div class="node-head">' +
         '<span class="node-title" id="nodeTitle"></span>' +
         '<span class="node-actions">' +
-          '<a class="nm-btn" id="nodeOpenTab" target="_blank" rel="noopener">↗ Tab mới</a>' +
-          '<button class="nm-btn" id="nodeSave" type="button">' + ic("save") + ' Lưu</button>' +
+          '<a class="nm-btn" id="nodeOpenTab" target="_blank" rel="noopener">↗ ' + window.t("app.new_tab") + '</a>' +
+          '<button class="nm-btn" id="nodeSave" type="button">' + ic("save") + ' ' + window.t("common.save") + '</button>' +
           '<button class="nm-btn" id="nodeCloseBtn" type="button">' + ic("x") + '</button>' +
         '</span>' +
       '</div>' +
@@ -1024,34 +1025,34 @@ async function openNodePopup(node) {
   const body = m.querySelector("#nodeBody");
   const saveBtn = m.querySelector("#nodeSave");
   saveBtn.style.display = "none";
-  body.innerHTML = '<div class="node-msg">Đang mở…</div>';
+  body.innerHTML = `<div class="node-msg">${window.t("models.opening")}</div>`;
   m.classList.add("open");
   let d = {};
   try { d = await (await fetch(`/files/read?brain=${encodeURIComponent(brain)}&path=${encodeURIComponent(rel)}`)).json(); }
-  catch (e) { body.innerHTML = `<div class="node-msg">Lỗi mở file: ${escapeHtml(String((e && e.message) || e))}</div>`; return; }
+  catch (e) { body.innerHTML = `<div class="node-msg">${window.t("app.file_open_err")} ${escapeHtml(String((e && e.message) || e))}</div>`; return; }
   if (!d || d.error || d.editable === false) {
-    body.innerHTML = `<div class="node-msg">${escapeHtml((d && d.error) || "File này không sửa trực tiếp được.")} · <a href="${rawUrl}" target="_blank" style="color:var(--accent)">Mở trong tab mới</a></div>`;
+    body.innerHTML = `<div class="node-msg">${escapeHtml((d && d.error) || window.t("app.file_not_editable"))} · <a href="${rawUrl}" target="_blank" style="color:var(--accent)">${window.t("app.open_in_new_tab")}</a></div>`;
     return;
   }
   body.innerHTML = '<textarea id="nodeText" spellcheck="false"></textarea>';
   body.querySelector("#nodeText").value = d.content || "";
   saveBtn.style.display = "";
-  saveBtn.innerHTML = ic("save") + " Lưu";
+  saveBtn.innerHTML = ic("save") + " " + window.t("common.save");
   saveBtn.onclick = async () => {
-    saveBtn.textContent = "Đang lưu…";
+    saveBtn.textContent = window.t("settings.saving");
     const fd = new FormData();
     fd.append("brain", brain); fd.append("path", rel);
     fd.append("content", body.querySelector("#nodeText").value);
     let r = {};
-    try { r = await (await fetch("/files/write", { method: "POST", body: fd })).json(); } catch (e) { r = { error: (e && e.message) || "lỗi" }; }
-    saveBtn.innerHTML = (r && r.ok) ? ic("check", { cls: "ic-ok" }) + " Đã lưu" : ic("triangle-alert", { cls: "ic-warn" }) + " Lỗi";
-    setTimeout(() => { saveBtn.innerHTML = ic("save") + " Lưu"; }, 1600);
+    try { r = await (await fetch("/files/write", { method: "POST", body: fd })).json(); } catch (e) { r = { error: (e && e.message) || window.t("app.err_low") }; }
+    saveBtn.innerHTML = (r && r.ok) ? ic("check", { cls: "ic-ok" }) + " " + window.t("proj.instr_saved") : ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.err_cap");
+    setTimeout(() => { saveBtn.innerHTML = ic("save") + " " + window.t("common.save"); }, 1600);
   };
   setTimeout(() => { try { body.querySelector("#nodeText").focus(); } catch (e) {} }, 30);
 }
 async function reloadGraph() {
   if (!javisGraph) return;
-  graphStats.textContent = "Đang tải...";
+  graphStats.textContent = window.t("common.loading");
   const val = graphSource.value;
   const query = val.startsWith("path:")
     ? `path=${encodeURIComponent(val.slice(5))}`
@@ -1059,9 +1060,9 @@ async function reloadGraph() {
   try {
     const data = await javisGraph.load(query);
     const stats = data.stats || {};
-    graphStats.textContent = `${stats.total_notes} note · ${stats.total_links} kết nối`;
+    graphStats.textContent = window.t("app.graph_stats", { n: stats.total_notes, l: stats.total_links });
     renderConceptLabels(data.categories || [], stats.total_notes || 0);
-  } catch (e) { graphStats.textContent = "Lỗi: " + e.message; }
+  } catch (e) { graphStats.textContent = window.t("models.err") + " " + e.message; }
 }
 // Đổi brain → khung chat phải đổi theo brain (vụ Mac 0.9.230: transcript giữ nguyên phiên
 // brain cũ, tưởng mất hội thoại, phải reload mới thấy). Nhớ phiên đang xem của TỪNG brain
@@ -1104,7 +1105,7 @@ function connectGraphWatch() {
     const r = javisGraph.addOrUpdate(m.node, m.linkTargets, m.isNew);
     if (r && r.created) {
       const s = javisGraph.nodeStats();
-      graphStats.textContent = `${s.nodes} note · ${s.links} kết nối`;
+      graphStats.textContent = window.t("app.graph_stats", { n: s.nodes, l: s.links });
       // Nháy nhẹ nhãn để báo có note mới sinh ra
       graphStats.classList.add("pulse");
       setTimeout(() => graphStats.classList.remove("pulse"), 700);
@@ -1131,8 +1132,8 @@ async function checkVault() {
     } else {
       const miss = d.items.filter(i => !i.present).map(i => i.label).join(", ");
       vbText.textContent = d.ok
-        ? `Vault chạy được, nhưng thiếu: ${miss}.`
-        : `Cấu trúc vault chưa chuẩn cho Javis - thiếu: ${miss}.`;
+        ? window.t("app.vault_ok_missing", { miss: miss })
+        : window.t("app.vault_bad", { miss: miss });
       vaultBanner.classList.add("show");
     }
   } catch (e) {}
@@ -1141,13 +1142,13 @@ async function checkVault() {
 vbInit.addEventListener("click", async () => {
   vbInit.disabled = true;
   const old = vbInit.textContent;
-  vbInit.textContent = "Đang tạo...";
+  vbInit.textContent = window.t("app.creating");
   try {
     const fd = new FormData();
     fd.append("brain", currentBrainPath());
     const d = await (await fetch("/vault/init", { method: "POST", body: fd })).json();
     if (d.ok) {
-      vbText.innerHTML = `${ic("check", { cls: "ic-ok" })} Đã tạo: ${escapeHtml((d.created || []).join(", ") || "(đã đủ)")}`;
+      vbText.innerHTML = `${ic("check", { cls: "ic-ok" })} ${window.t("app.created")} ${escapeHtml((d.created || []).join(", ") || window.t("app.already_full"))}`;
       vbInit.style.display = "none";
       setTimeout(() => { vaultBanner.classList.remove("show"); vbInit.style.display = ""; checkVault(); }, 2500);
     }
@@ -1220,7 +1221,7 @@ function renderConceptLabels(categories, total) {
       `<div class="cl-meta">${c.count} note · <span class="cl-fire"${catCol ? ` style="color:${catCol}"` : ""}>${share}% Vault</span></div>`;
     // Bấm nhãn danh mục → rọi sáng đúng cụm đó trong đồ thị.
     div.style.cursor = "pointer";
-    div.title = "Bấm để rọi sáng cụm " + c.name;
+    div.title = window.t("app.spotlight_cluster", { ten: c.name });
     div.onclick = () => {
       const g = window.__javisGraph;
       if (!g || typeof g.spotlightCategory !== "function") return;
@@ -1259,7 +1260,7 @@ function loadCustomBrains() {
   [...graphSource.querySelectorAll("option[data-custom]")].forEach(o => o.remove());
   if (!brains.length) return;
   const grp = document.createElement("optgroup");
-  grp.label = "Thư mục ngoài";
+  grp.label = window.t("app.external_folder");
   grp.dataset.customGroup = "1";
   brains.forEach(b => {
     const opt = document.createElement("option");
@@ -1299,17 +1300,17 @@ const fmHint = document.getElementById("fmHint");
 let fmCurrent = "";
 
 async function fmBrowse(path) {
-  fmHint.textContent = "Đang tải...";
+  fmHint.textContent = window.t("common.loading");
   try {
     const res = await fetch(`/browse?path=${encodeURIComponent(path || "")}`);
     const data = await res.json();
     fmCurrent = data.path || "";
-    fmPath.textContent = fmCurrent || "Ổ đĩa";
+    fmPath.textContent = fmCurrent || window.t("app.drives");
     fmList.innerHTML = "";
     if (data.parent !== null && data.parent !== undefined) {
       const up = document.createElement("div");
       up.className = "fm-row up";
-      up.innerHTML = `<span class="fm-name">${ic("arrow-up")} .. (lên trên)</span>`;
+      up.innerHTML = `<span class="fm-name">${ic("arrow-up")} ${window.t("app.up_one_level")}</span>`;
       up.onclick = () => fmBrowse(data.parent);
       fmList.appendChild(up);
     }
@@ -1321,9 +1322,9 @@ async function fmBrowse(path) {
       row.onclick = () => fmBrowse(d.path);
       fmList.appendChild(row);
     });
-    fmHint.textContent = data.here_md ? `${data.here_md} file .md ở đây` : (data.error || "Chọn folder chứa ghi chú");
+    fmHint.textContent = data.here_md ? window.t("app.md_here", { count: Number(data.here_md) }) : (data.error || window.t("app.pick_notes_folder"));
   } catch (e) {
-    fmHint.textContent = "Lỗi: " + e.message;
+    fmHint.textContent = window.t("models.err") + " " + e.message;
   }
 }
 
@@ -1352,7 +1353,7 @@ function pumpAudioLevel() {
     // Đọc xong cả hàng đợi (gồm các bước trung gian) → trả orb về nghỉ.
     // Hands-free thì để vòng lặp nghe-lại tự chuyển sang trạng thái ĐANG NGHE.
     if (!isProcessing && !handsFree && !voice.isSpeaking() && orbState.classList.contains("speaking")) {
-      setOrbState("", "SẴN SÀNG");
+      setOrbState("", window.t("orb.ready"));
     }
   }
   requestAnimationFrame(pumpAudioLevel);
@@ -1585,23 +1586,23 @@ async function doReflect(auto) {
   if (reflecting) return;
   reflecting = true;
   turnsSinceReflect = 0;
-  if (!auto && learnBtn) { learnBtn.disabled = true; learnBtn.innerHTML = ic("brain") + " Đang học..."; }
-  if (memResult) memResult.innerHTML = auto ? ic("brain") + " Đang tự học nền..." : "Javis đang đọc lại hội thoại và rút ra ký ức...";
+  if (!auto && learnBtn) { learnBtn.disabled = true; learnBtn.innerHTML = ic("brain") + " " + window.t("app.learning"); }
+  if (memResult) memResult.innerHTML = auto ? ic("brain") + " " + window.t("app.learning_bg") : window.t("app.learning_msg");
   try {
     const fd = new FormData();
     fd.append("brain", currentBrainPath());
     const d = await (await fetch("/reflect", { method: "POST", body: fd })).json();
     if (d.ok) {
-      if (memResult) memResult.innerHTML = (auto ? ic("brain") + " Tự học: " : "") + escapeHtml(d.summary || "Đã học xong.");
+      if (memResult) memResult.innerHTML = (auto ? ic("brain") + " " + window.t("app.selflearn_prefix") + " " : "") + escapeHtml(d.summary || window.t("app.learned_done"));
       if (d.facts != null && memCount) memCount.textContent = d.facts;
     } else {
-      if (memResult) memResult.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || "Học thất bại");
+      if (memResult) memResult.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || window.t("app.learn_failed"));
     }
   } catch (e) {
-    if (memResult) memResult.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Lỗi mạng";
+    if (memResult) memResult.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.err_net");
   } finally {
     reflecting = false;
-    if (!auto && learnBtn) { learnBtn.innerHTML = ic("brain") + " Học từ hội thoại"; learnBtn.disabled = false; }
+    if (!auto && learnBtn) { learnBtn.innerHTML = ic("brain") + " " + window.t("app.learn_from_convo"); learnBtn.disabled = false; }
   }
 }
 
@@ -1657,12 +1658,12 @@ function renderChips() {
     chip.className = "attach-chip pinned";
     chip.setAttribute("role", "button");
     chip.tabIndex = 0;
-    chip.title = `${pinnedNote.abs}\nJavis đang làm việc trên file này - bấm để mở lại trong trình sửa`;
+    chip.title = `${pinnedNote.abs}\n${window.t("app.pin_title")}`;
     chip.innerHTML = `<div class="chip-ico">${ic("file-text")}</div>`
       + `<div class="chip-info"><span class="chip-name">${escapeHtml(pinnedNote.name)}</span>`
-      + `<span class="chip-meta">đang mở - bấm để sửa tiếp</span></div>`
+      + `<span class="chip-meta">${window.t("app.pin_meta")}</span></div>`
       + `<span class="chip-edit" aria-hidden="true">${ic("pen-line")}</span>`
-      + `<button class="chip-x" data-unpin="1" title="Bỏ ghim file">${ic("x")}</button>`;
+      + `<button class="chip-x" data-unpin="1" title="${window.t("app.unpin_file")}">${ic("x")}</button>`;
     // Bấm vào chip = quay lại đúng chỗ đang sửa. Nút X nằm trong chip nên phải loại nó ra,
     // không thì bỏ ghim xong lại mở file vừa bỏ ra.
     chip.addEventListener("click", (e) => {
@@ -1691,7 +1692,7 @@ function renderChips() {
         + `<img src="${escapeHtml(_tUrl)}" alt=""></a>`
       : `<div class="chip-ico">${a.uploading ? ic("loader", { cls: "ic-spin" }) : ic("file-text")}</div>`;
     const meta = a.uploading
-      ? (a.statusText || "đang xử lý...")
+      ? (a.statusText || window.t("app.att_processing"))
       : (a.statusText ? a.statusText : (fmtSize(a.size) + (a.folder ? ` → ${escapeHtml(a.folder)}` : "")));
     chip.innerHTML = `${thumb}<div class="chip-info"><span class="chip-name">${escapeHtml(a.name)}</span><span class="chip-meta">${meta}</span></div><button class="chip-x" data-i="${i}">${ic("x")}</button>`;
     attachBar.appendChild(chip);
@@ -1756,7 +1757,7 @@ async function uploadFile(file) {
     name: file.name || "paste.png",
     kind: isImg ? "image" : "file",
     preview: isImg ? URL.createObjectURL(file) : null,
-    uploading: true, statusText: "đang tải...", path: null, size: file.size,
+    uploading: true, statusText: window.t("app.att_uploading"), path: null, size: file.size,
     sources: null, attachments: null,
   };
   pendingAttachments.push(att);
@@ -1775,16 +1776,16 @@ async function uploadFile(file) {
     } finally {
       clearTimeout(timer);
     }
-    if (!resp.ok) { att.uploading = false; att.statusText = "lỗi máy chủ (" + resp.status + ")"; renderChips(); return; }
+    if (!resp.ok) { att.uploading = false; att.statusText = window.t("app.att_server_err", { code: resp.status }); renderChips(); return; }
     const up = await resp.json();
-    if (!up.ok) { att.uploading = false; att.statusText = up.error ? ("lỗi: " + up.error) : "lỗi upload"; renderChips(); return; }
+    if (!up.ok) { att.uploading = false; att.statusText = up.error ? (window.t("app.err_low") + ": " + up.error) : window.t("app.att_upload_err"); renderChips(); return; }
     att.path = up.staged; att.name = up.name; att.size = up.size; att.kind = up.kind;
     att.url = up.url || "";   // đường xem lại trên máy chủ (bong bóng chat dùng, không phải blob)
     att.sources = up.sources; att.attachments = up.attachments;
     att.uploading = false; att.statusText = "";
   } catch (e) {
     att.uploading = false;
-    att.statusText = (e && e.name === "AbortError") ? "quá thời gian tải" : "lỗi mạng";
+    att.statusText = (e && e.name === "AbortError") ? window.t("app.att_timeout") : window.t("app.err_net_low");
   }
   renderChips();
 }
@@ -1902,27 +1903,27 @@ function alertMic(err) {
     // Bảo họ "cấp quyền" lúc này là chỉ họ đi tìm một cái nút không tồn tại. Hay gặp khi mở
     // Javis qua địa chỉ LAN hoặc tên miền chưa có HTTPS.
     if (!window.isSecureContext) {
-      alert("Trình duyệt chặn micro vì trang này không chạy qua kết nối bảo mật." + "\n" + "\n"
-        + "Mở Javis bằng http://localhost:7777 trên chính máy chạy Javis, hoặc cho tên miền của bạn dùng HTTPS.");
+      alert(window.t("app.mic_insecure") + "\n" + "\n"
+        + window.t("app.mic_insecure_fix"));
     } else {
-      alert("Bạn cần cấp quyền microphone cho trang này." + "\n" + "\n"
-        + "Bấm biểu tượng ổ khoá cạnh thanh địa chỉ để cấp lại, rồi bấm nút mic lần nữa.");
+      alert(window.t("app.mic_denied") + "\n" + "\n"
+        + window.t("app.mic_denied_fix"));
     }
   } else if (err === "audio-capture") {
     // Trước đây lỗi này im lặng hoàn toàn: mic không bao giờ chạy mà không ai nói vì sao.
-    alert("Không tìm thấy microphone nào trên máy này." + "\n" + "\n"
-      + "Nếu bạn đang điều khiển máy từ xa thì mic của máy bạn ngồi thường không đi theo.");
+    alert(window.t("app.mic_none") + "\n" + "\n"
+      + window.t("app.mic_none_fix"));
   } else if (err === "service-not-allowed") {
-    alert("Trình duyệt đang chặn dịch vụ nhận giọng nói." + "\n" + "\n"
-      + "Kiểm tra cài đặt quyền riêng tư của trình duyệt, hoặc thử Chrome/Edge.");
+    alert(window.t("app.mic_service_blocked") + "\n" + "\n"
+      + window.t("app.mic_service_blocked_fix"));
   } else if (err === "not-supported") {
-    alert("Trình duyệt không hỗ trợ nhận giọng. Dùng Chrome/Edge.");
+    alert(window.t("app.mic_unsupported"));
   }
   // Lỗi khác (mạng, start-failed…) KHÔNG hiện hộp thoại: chúng thoáng qua và tự thử lại được,
   // còn hộp thoại thì chặn cứng cả trang.
 }
 voiceBtn.addEventListener("click", () => {
-  if (!voice.isSupported()) { alert("Trình duyệt không hỗ trợ giọng nói. Dùng Chrome/Edge."); return; }
+  if (!voice.isSupported()) { alert(window.t("app.voice_unsupported")); return; }
   handsFree = !handsFree;
   voiceBtn.classList.toggle("handsfree", handsFree);
   // Loa đi theo mic (chủ repo yêu cầu 02/09): bật nghe là muốn NÓI CHUYỆN bằng giọng, nên
@@ -1933,7 +1934,7 @@ voiceBtn.addEventListener("click", () => {
     voice.startListening();
   } else {
     voice.stopListening();
-    setOrbState("", "SẴN SÀNG");
+    setOrbState("", window.t("orb.ready"));
   }
 });
 
@@ -2003,7 +2004,7 @@ rateSlider.addEventListener("input", () => { const r = parseFloat(rateSlider.val
 document.getElementById("testVoiceBtn").addEventListener("click", () => {
   const v = document.querySelector('input[name="voice"]:checked').value;
   // force: nghe thử là hành động chủ động của user, phải kêu kể cả khi đang tắt tiếng (mặc định).
-  voice.speak(v.includes("HoaiMy") ? "Xin chào, em là HoaiMy, trợ lý của bạn." : "Xin chào, tôi là NamMinh, trợ lý của bạn.", { force: true });
+  voice.speak(v.includes("HoaiMy") ? window.t("app.voice_sample_hoaimy") : window.t("app.voice_sample_namminh"), { force: true });
 });
 // Nút loa header đã bỏ (0.48.3) - công tắc giọng nay chỉ còn nút trên THANH NHẬP
 // (#ttsToggleBar) và công tắc trong Cài đặt nhanh, cả hai do quick-settings.js lo.
@@ -2041,12 +2042,12 @@ const ENGINE_LABEL = {
 // bị đẩy sang model dự phòng lúc model chính quá tải, thì badge nói sai về mọi tin phía trên.
 // Gắn vào TỪNG TIN thì mỗi tin tự khai đúng bộ não đã sinh ra nó, và đầu khung được trả lại.
 const CTX_PATH_LABEL = {
-  legacy: "Đầy đủ", sources: "Tối ưu", fast: "Tức thì",
-  readonly: "Tra cứu", orchestrator: "Tra cứu sâu", write: "Thực thi",
-  workflow: "Quy trình",
+  legacy: "app.ctx_legacy", sources: "app.ctx_sources", fast: "app.ctx_fast",
+  readonly: "app.ctx_readonly", orchestrator: "app.ctx_orchestrator", write: "app.ctx_write",
+  workflow: "app.ctx_workflow",
   // Bot chuyên trách vốn nhẹ hơn cả mức Siêu tiết kiệm (không CLAUDE.md, không MEMORY.md,
   // không đặc tả tool) nên nó có tên riêng - gộp vào "Đầy đủ" là nói ngược hẳn sự thật.
-  bot: "Bot chuyên trách",
+  bot: "app.ctx_bot",
 };
 function _renderCtxLine(msgEl, data) {
   // Có engine mà chưa có ctx_path thì VẪN vẽ: hai thứ đến từ hai chỗ khác nhau trong payload,
@@ -2069,18 +2070,16 @@ function _renderCtxLine(msgEl, data) {
     phan.push((ENGINE_LABEL[data.engine] || data.engine)
               + (data.model ? " · " + _shortModel(data.model) : ""));
   }
-  if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] || data.ctx_path);
+  if (data.ctx_path) phan.push(CTX_PATH_LABEL[data.ctx_path] ? window.t(CTX_PATH_LABEL[data.ctx_path]) : data.ctx_path);
   if (tok) phan.push(_fmtTok(tok) + " token");
   el.textContent = phan.join(" · ");
   const chuThich = [];
   if (data.engine) {
-    chuThich.push("Bộ não THẬT đã chạy lượt này"
-                  + (data.model ? ": " + data.model : "")
-                  + " (máy chủ khai, không phải model tự nhận).");
+    chuThich.push(window.t("app.ctx_engine", { model: data.model ? ": " + data.model : "" }));
   }
   if (data.ctx_path) {
-    chuThich.push(cu ? "Đang gửi đủ mọi thứ. Bấm để chọn mức tiết kiệm."
-                     : "Đang tiết kiệm token. Bấm để xem chi tiết.");
+    chuThich.push(cu ? window.t("app.ctx_hint_full")
+                     : window.t("app.ctx_hint_saving"));
   }
   el.title = chuThich.join("\n");
   msgEl.appendChild(el);
@@ -2091,9 +2090,9 @@ async function refreshTgStatus() {
   if (!el) return;
   try {
     const s = await (await fetch("/telegram/status")).json();
-    if (!s.enabled) el.innerHTML = ic("circle", { cls: "ic-fill ic-dim" }) + " Tắt";
-    else if (!s.token_set) el.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " Đã bật nhưng chưa có token";
-    else el.innerHTML = s.running ? ic("circle", { cls: "ic-fill ic-ok" }) + " Đang chạy" + (s.chat_id ? " · chỉ chat_id " + s.chat_id : " · MỌI người (nên đặt chat_id)") : ic("loader") + " Chưa chạy (lưu lại)";
+    if (!s.enabled) el.innerHTML = ic("circle", { cls: "ic-fill ic-dim" }) + " " + window.t("settings.tag_off");
+    else if (!s.token_set) el.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.tg_no_token");
+    else el.innerHTML = s.running ? ic("circle", { cls: "ic-fill ic-ok" }) + " " + window.t("kanban.st_running") + (s.chat_id ? " " + window.t("app.tg_only_chat") + " " + s.chat_id : " " + window.t("app.tg_everyone")) : ic("loader") + " " + window.t("app.tg_not_running");
     // Menu lệnh "/" đặt hụt: bot vẫn chạy nên mọi thứ ở trên vẫn xanh, chỉ là gõ "/" trong
     // Telegram không sổ ra danh sách lệnh. Không nói ra thì không ai đoán được vì sao.
     if (s.loi_menu_lenh) el.innerHTML += '<div class="set-note">' + ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(s.loi_menu_lenh) + "</div>";
@@ -2116,14 +2115,14 @@ async function refreshUsage() {
   const el = document.getElementById("usagePanel"); if (!el) return;
   let d; try { d = await (await fetch("/usage")).json(); } catch (e) { return; }
   // Hôm nay chưa có lượt nào → hiện TỔNG tích luỹ để không trống trơn.
-  let src = d.today, scope = "hôm nay";
-  if ((!src || !(src.items || []).length) && d.all_time && (d.all_time.items || []).length) { src = d.all_time; scope = "tổng"; }
+  let src = d.today, scope = window.t("app.usage_today");
+  if ((!src || !(src.items || []).length) && d.all_time && (d.all_time.items || []).length) { src = d.all_time; scope = window.t("app.usage_alltime"); }
   const items = (src && src.items) || [];
   const tot = (src && src.total) || { in: 0, out: 0, cost: 0 };
   const row = (nameHtml, tok, extra) => `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:1px 0;${extra || ""}"><span style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nameHtml}</span><span style="color:#7aa2ff;white-space:nowrap;font-variant-numeric:tabular-nums">${tok}</span></div>`;
   let html;
   if (!items.length) {
-    html = `<div class="mcp-item dim">Chưa có lượt nào hôm nay</div>`;
+    html = `<div class="mcp-item dim">${window.t("app.usage_none_today")}</div>`;
   } else {
     html = items.map(i => {
       const lbl = _PROV_LABEL[i.provider] || escapeHtml(i.provider);
@@ -2131,11 +2130,11 @@ async function refreshUsage() {
       const nm = `${escapeHtml(lbl)} <span class="dim">${escapeHtml(_shortModel(i.model))}</span>`;
       return row(nm, `${_fmtTok(i.in)}↑ ${_fmtTok(i.out)}↓${cost}`);
     }).join("");
-    html += row(`<b>Tổng ${scope}</b>`, `<b>${_fmtTok(tot.in)}↑ ${_fmtTok(tot.out)}↓${tot.cost > 0 ? " · $" + tot.cost.toFixed(2) : ""}</b>`, "border-top:1px solid var(--hairline);margin-top:2px;padding-top:3px");
+    html += row(`<b>${window.t("app.usage_total")} ${scope}</b>`, `<b>${_fmtTok(tot.in)}↑ ${_fmtTok(tot.out)}↓${tot.cost > 0 ? " · $" + tot.cost.toFixed(2) : ""}</b>`, "border-top:1px solid var(--hairline);margin-top:2px;padding-top:3px");
   }
   html += await _usageSavingRow();
   if (d.openrouter && d.openrouter.remaining != null) {
-    html += row("OpenRouter còn", `$${(+d.openrouter.remaining).toFixed(2)}`, "margin-top:4px;color:var(--green)");
+    html += row(window.t("app.or_remaining"), `$${(+d.openrouter.remaining).toFixed(2)}`, "margin-top:4px;color:var(--green)");
   }
   el.innerHTML = html;
 }
@@ -2156,17 +2155,17 @@ async function _usageSavingRow() {
   try { d = await (await fetch("/runtime/muc")).json(); }
   catch (e) { return _savingCache.html; }
   const ten = ((d.danh_sach || []).find(p => p.id === d.muc) || {}).nhan
-    || (d.muc === "custom" ? "Tự chỉnh" : "?");
+    || (d.muc === "custom" ? window.t("app.saving_custom") : "?");
   const dod = d.do_duoc || {};
   const uoc = ((d.uoc_tinh || {}).muc || {})[d.muc] || {};
   // Ưu tiên số ĐO ĐƯỢC; chưa đủ dữ liệu thì mới dùng ước lượng, và nói rõ là ước lượng.
   let phu;
-  if (dod.du_du_lieu) phu = `giảm ${dod.phan_tram}% (đo thật)`;
-  else if (d.muc === "off") phu = "chưa bật tiết kiệm";
-  else if (uoc.phan_tram) phu = `giảm ~${uoc.phan_tram}% (ước lượng)`;
-  else phu = "chưa đo được";
-  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="usage" title="Mở trang Mức dùng">`
-    + `<span style="color:var(--text2)">Tiết kiệm: <b>${escapeHtml(ten)}</b></span>`
+  if (dod.du_du_lieu) phu = window.t("app.saving_measured", { p: dod.phan_tram });
+  else if (d.muc === "off") phu = window.t("app.saving_off");
+  else if (uoc.phan_tram) phu = window.t("app.saving_est", { p: uoc.phan_tram });
+  else phu = window.t("app.saving_unknown");
+  const html = `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;padding:3px 0 0;margin-top:3px;border-top:1px solid var(--hairline);cursor:pointer" data-usage-goto="usage" title="${window.t("app.open_usage_page")}">`
+    + `<span style="color:var(--text2)">${window.t("app.saving_label")} <b>${escapeHtml(ten)}</b></span>`
     + `<span style="color:#7aa2ff;white-space:nowrap">${escapeHtml(phu)}</span></div>`;
   _savingCache = { at: now, html };
   return html;
@@ -2242,7 +2241,7 @@ async function initAuthGate() {
     if (_wizardMandatory) {
       const pass = document.getElementById("wzPass"); if (pass) pass.required = true;
       const tw = document.getElementById("wzTokenWrap"); if (tw) tw.style.display = "";
-      const note = document.getElementById("wzErr"); if (note) note.textContent = "Đặt tài khoản + mật khẩu (≥8 ký tự) + MÃ THIẾT LẬP để bảo vệ Javis trên server công khai.";
+      const note = document.getElementById("wzErr"); if (note) note.textContent = window.t("app.wz_mandatory");
     }
     wz.classList.add("open");
   } else {
@@ -2267,8 +2266,8 @@ document.getElementById("authSubmit").addEventListener("click", async () => {
       codeWrap.style.display = "";
       if (codeInp) { codeInp.value = ""; codeInp.focus(); }
     }
-    err.textContent = d.error || "Đăng nhập thất bại";
-  } catch (e) { err.textContent = "Lỗi mạng"; }
+    err.textContent = d.error || window.t("app.login_failed");
+  } catch (e) { err.textContent = window.t("app.err_net"); }
 });
 ["authPass", "authCode"].forEach((id) => {
   const el = document.getElementById(id);
@@ -2290,7 +2289,7 @@ async function loadClaudeModels(cur) {
   } catch (e) {}
   if (cur && ids.indexOf(cur) < 0) ids.unshift(cur);   // model đang chạy luôn phải có mặt
   const nhan = (id) => id.charAt(0).toUpperCase() + id.slice(1);
-  sel.innerHTML = '<option value="">Mặc định</option>'
+  sel.innerHTML = '<option value="">' + window.t("common.default") + '</option>'
     + ids.map((id) => `<option value="${id}">${nhan(id)}</option>`).join("");
   sel.value = cur || "";
 }
@@ -2304,10 +2303,10 @@ async function openSettings() {
     document.getElementById("setEngine").value = (s.model && s.model.engine) || "cli";
     await loadClaudeModels((s.model && s.model.claude_model) || "");
     loadOrModels((s.model && s.model.openrouter_model) || "");
-    document.getElementById("setKeyHint").textContent = (s.model && s.model.openrouter_key_set) ? "(đã lưu " + s.model.openrouter_key + ")" : "(chưa có)";
+    document.getElementById("setKeyHint").textContent = (s.model && s.model.openrouter_key_set) ? window.t("app.saved_paren", { v: s.model.openrouter_key }) : window.t("app.none_paren");
     document.getElementById("setTgEnabled").checked = !!(s.telegram && s.telegram.enabled);
     document.getElementById("setTgChat").value = (s.telegram && s.telegram.chat_id) || "";
-    document.getElementById("setTgHint").textContent = (s.telegram && s.telegram.token_set) ? "(đã lưu " + s.telegram.token + ")" : "(chưa có)";
+    document.getElementById("setTgHint").textContent = (s.telegram && s.telegram.token_set) ? window.t("app.saved_paren", { v: s.telegram.token }) : window.t("app.none_paren");
     refreshTgStatus();
     await refreshAuthRow();
   } catch (e) {}
@@ -2323,8 +2322,8 @@ async function refreshAuthRow() {
   try { a = await (await fetch("/auth/status")).json(); } catch (e) { return false; }
   const co = !a.needs_setup;
   st.innerHTML = co
-    ? ic("check", { cls: "ic-ok" }) + " Đã đặt mật khẩu - đăng nhập bắt buộc."
-    : ic("triangle-alert", { cls: "ic-warn" }) + " Chưa đặt mật khẩu - ai mở trang cũng dùng được. Đặt mật khẩu trước khi lên VPS.";
+    ? ic("check", { cls: "ic-ok" }) + " " + window.t("app.pw_set")
+    : ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.pw_unset");
   const u = document.getElementById("setAuthUser");
   if (u && a.username) u.value = a.username;
   const cur = document.getElementById("setAuthCur");
@@ -2332,7 +2331,7 @@ async function refreshAuthRow() {
   if (cur) { cur.hidden = !co; if (!co) cur.value = ""; }
   if (curLbl) curLbl.hidden = !co;
   const p = document.getElementById("setAuthPass");
-  if (p) p.placeholder = co ? "Mật khẩu mới (để trống nếu chỉ đổi tên)" : "Đặt mật khẩu (tối thiểu 8 ký tự)";
+  if (p) p.placeholder = co ? window.t("app.pw_ph_change") : window.t("app.pw_ph_set");
   return co;
 }
 window.__javisRefreshAuthRow = refreshAuthRow;
@@ -2340,9 +2339,9 @@ function _saveSetting(section, dataObj, btn) {
   const fd = new FormData();
   fd.append("section", section);
   fd.append("data", JSON.stringify(dataObj));
-  const old = btn.textContent; btn.disabled = true; btn.textContent = "Đang lưu...";
+  const old = btn.textContent; btn.disabled = true; btn.textContent = window.t("settings.saving");
   return fetch("/settings", { method: "POST", body: fd }).then(r => r.json()).then(d => {
-    btn.innerHTML = d.ok ? ic("check", { cls: "ic-ok" }) + " Đã lưu" : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || "lỗi"));
+    btn.innerHTML = d.ok ? ic("check", { cls: "ic-ok" }) + " " + window.t("proj.instr_saved") : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(d.error || window.t("app.err_low")));
     setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1500);
     return d;
   }).catch(() => { btn.textContent = old; btn.disabled = false; });
@@ -2385,13 +2384,13 @@ if (document.getElementById("settingsBtn")) {
     setTimeout(refreshTgStatus, 600);
   });
   document.getElementById("testTelegram").addEventListener("click", async (e) => {
-    const btn = e.target; btn.disabled = true; const old = btn.textContent; btn.textContent = "Đang gửi...";
+    const btn = e.target; btn.disabled = true; const old = btn.textContent; btn.textContent = window.t("app.sending");
     try {
       const r = await (await fetch("/telegram/test", { method: "POST" })).json();
       btn.innerHTML = r.ok
-        ? (r.total > 1 ? `${ic("check", { cls: "ic-ok" })} Đã gửi ${Number(r.sent) || 0}/${Number(r.total) || 0} ID` + (r.error ? " (có lỗi)" : "") : ic("check", { cls: "ic-ok" }) + " Đã gửi (xem Telegram)")
-        : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(r.error || "lỗi"));
-    } catch (e) { btn.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " lỗi mạng"; }
+        ? (r.total > 1 ? `${ic("check", { cls: "ic-ok" })} ${window.t("app.tg_sent_n", { sent: Number(r.sent) || 0, total: Number(r.total) || 0 })}` + (r.error ? " " + window.t("app.tg_has_err") : "") : ic("check", { cls: "ic-ok" }) + " " + window.t("app.tg_sent"))
+        : (ic("triangle-alert", { cls: "ic-warn" }) + " " + escapeHtml(r.error || window.t("app.err_low")));
+    } catch (e) { btn.innerHTML = ic("triangle-alert", { cls: "ic-warn" }) + " " + window.t("app.err_net_low"); }
     setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 2500);
   });
   document.getElementById("savePassword").addEventListener("click", async (e) => {
@@ -2408,43 +2407,43 @@ if (document.getElementById("settingsBtn")) {
     // openSettings(), nên tin vào _settingsCache là đi nhầm nhánh và bấm Lưu không ăn.
     let hasPw = false;
     try { hasPw = !(await (await fetch("/auth/status")).json()).needs_setup; }
-    catch (err) { bao(false, "Không đọc được trạng thái đăng nhập."); return; }
-    btn.disabled = true; btn.textContent = "Đang lưu...";
+    catch (err) { bao(false, window.t("app.auth_status_err")); return; }
+    btn.disabled = true; btn.textContent = window.t("settings.saving");
     if (!hasPw) {
       // Lần đầu đặt mật khẩu → /auth/setup (cấp cookie luôn)
-      if (!pass || pass.length < 8) { bao(false, "Mật khẩu tối thiểu 8 ký tự."); return; }
+      if (!pass || pass.length < 8) { bao(false, window.t("app.pw_min8")); return; }
       const fd = new FormData(); fd.append("username", user || "admin"); fd.append("password", pass);
       try {
         const d = await (await fetch("/auth/setup", { method: "POST", body: fd })).json();
-        bao(!!d.ok, d.ok ? "Đã đặt mật khẩu" : (d.error || "lỗi"));
+        bao(!!d.ok, d.ok ? window.t("app.pw_set_ok") : (d.error || window.t("app.err_low")));
         if (d.ok) { document.getElementById("setAuthPass").value = ""; openSettings(); }
-      } catch (err) { bao(false, "lỗi mạng"); }
+      } catch (err) { bao(false, window.t("app.err_net_low")); }
       return;
     }
     // Đã có tài khoản → ĐỔI qua /auth/password (đòi mật khẩu hiện tại). /auth/setup là đường
     // lần-đầu, gọi nó ở đây chỉ nhận về "Đã có tài khoản - hãy đăng nhập".
     const cur = curEl ? curEl.value : "";
-    if (!cur) { bao(false, "Nhập mật khẩu hiện tại."); return; }
-    if (pass && pass.length < 8) { bao(false, "Mật khẩu mới tối thiểu 8 ký tự."); return; }
-    if (!pass && !user) { bao(false, "Chưa đổi gì cả."); return; }
+    if (!cur) { bao(false, window.t("app.pw_need_cur")); return; }
+    if (pass && pass.length < 8) { bao(false, window.t("app.pw_new_min8")); return; }
+    if (!pass && !user) { bao(false, window.t("app.nothing_changed")); return; }
     const fd = new FormData();
     fd.append("current_password", cur); fd.append("username", user);
     if (pass) fd.append("password", pass);
     try {
       const d = await (await fetch("/auth/password", { method: "POST", body: fd })).json();
-      bao(!!d.ok, d.ok ? (pass ? "Đã đổi mật khẩu" : "Đã đổi tên đăng nhập") : (d.error || "lỗi"));
+      bao(!!d.ok, d.ok ? (pass ? window.t("app.pw_changed") : window.t("app.user_changed")) : (d.error || window.t("app.err_low")));
       if (d.ok) {
         document.getElementById("setAuthPass").value = "";
         if (curEl) curEl.value = "";
         refreshAuthRow();
       }
-    } catch (err) { bao(false, "lỗi mạng"); }
+    } catch (err) { bao(false, window.t("app.err_net_low")); }
   });
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/auth/logout", { method: "POST" }); location.reload();
   });
   document.getElementById("disableAuthBtn").addEventListener("click", async () => {
-    if (!confirm("Tắt đăng nhập? Ai mở trang cũng dùng được (chỉ nên dùng khi chạy máy cá nhân, không phải VPS).")) return;
+    if (!confirm(window.t("app.disable_auth_confirm"))) return;
     await fetch("/auth/disable", { method: "POST" }); location.reload();
   });
 }
@@ -2463,10 +2462,10 @@ async function loadOrModels(saved, force) {
   const input = document.getElementById("setOrModel");
   if (!sel) return;
   if (!_orModelsLoaded || force) {
-    sel.innerHTML = '<option value="__custom__">Nhập tên model khác (custom)…</option><option disabled>đang tải…</option>';
+    sel.innerHTML = `<option value="__custom__">${window.t("app.or_custom_model")}</option><option disabled>${window.t("models.mp_loading_tag")}</option>`;
     try {
       const d = await (await fetch("/openrouter/models")).json();
-      sel.innerHTML = '<option value="__custom__">Nhập tên model khác (custom)…</option>';
+      sel.innerHTML = `<option value="__custom__">${window.t("app.or_custom_model")}</option>`;
       (d.models || []).forEach(m => {
         const o = document.createElement("option");
         o.value = m.id; o.textContent = m.id;
@@ -2474,7 +2473,7 @@ async function loadOrModels(saved, force) {
       });
       _orModelsLoaded = (d.models || []).length > 0;
     } catch (e) {
-      sel.innerHTML = '<option value="__custom__">Nhập tên model khác (custom)…</option>';
+      sel.innerHTML = `<option value="__custom__">${window.t("app.or_custom_model")}</option>`;
     }
   }
   // Chọn model đã lưu nếu có trong list, ngược lại dùng custom
@@ -2506,32 +2505,31 @@ if (document.getElementById("wzFinish")) {
     const user = document.getElementById("wzUser").value.trim();
     const pass = document.getElementById("wzPass").value;
     const prov = (document.querySelector('input[name="wzprov"]:checked') || {}).value || "anthropic-cli";
-    const btn = document.getElementById("wzFinish"); btn.disabled = true; btn.textContent = "Đang lưu…";
+    const btn = document.getElementById("wzFinish"); btn.disabled = true; btn.textContent = window.t("settings.saving");
     // Ô mã thiết lập nằm ở mục 2, còn nút bấm và dòng báo lỗi nằm tít dưới đáy. Bỏ trống rồi
     // bấm thì người dùng chỉ thấy một dòng đỏ ở đáy, không thấy ô nào đang trống - có người
     // còn không biết là CÓ một ô như vậy. Nên khi lỗi phải KÉO MÀN HÌNH tới đúng ô đó.
     const _soiOTrong = (o, cau) => {
       err.textContent = cau;
-      btn.disabled = false; btn.textContent = "Bắt đầu dùng Javis →";
+      btn.disabled = false; btn.textContent = window.t("app.wz_start");
       if (o) { try { o.scrollIntoView({ block: "center", behavior: "smooth" }); o.focus(); } catch (e) {} }
     };
     if (_wizardMandatory && !pass) {
       return _soiOTrong(document.getElementById("wzPass"),
-                        "Bắt buộc đặt mật khẩu khi chạy trên server công khai.");
+                        window.t("app.wz_pw_required"));
     }
     // Chặn ngay ở đây thay vì để server trả 403: cùng một câu lỗi, nhưng người dùng thấy con
     // trỏ nhảy vào đúng ô đang trống nên hiểu ngay phải làm gì.
     const _tokO = document.getElementById("wzToken");
     if (_wizardMandatory && _tokO && !_tokO.value.trim()) {
-      return _soiOTrong(_tokO, "Thiếu MÃ THIẾT LẬP. Lấy mã bằng lệnh ngay dưới ô này, "
-                               + "rồi dán chuỗi đó vào đây.");
+      return _soiOTrong(_tokO, window.t("app.wz_token_missing"));
     }
     try {
       if (pass) {
         const d = await (await fetch("/auth/setup", { method: "POST", body: _fd({ username: user || "admin", password: pass, setup_token: _tokO ? _tokO.value.trim() : "" }) })).json();
         // Server từ chối vì mã sai (403) thì cũng kéo về đúng ô mã, đừng để người dùng tự dò.
         if (!d.ok) { return _soiOTrong(/MÃ THIẾT LẬP/i.test(d.error || "") ? _tokO : null,
-                                       d.error || "Đặt mật khẩu lỗi"); }
+                                       d.error || window.t("app.wz_pw_err")); }
       }
       await fetch("/settings", { method: "POST", body: _fd({ section: "general", data: JSON.stringify({ workspace_name: ws, setup_done: true }) }) });
       const _PM = { "anthropic-cli": "sonnet", "openai-oauth": "gpt-5.5", "openrouter": "openai/gpt-4o-mini" };
@@ -2540,7 +2538,7 @@ if (document.getElementById("wzFinish")) {
       if (prov === "openrouter" && _ork && _ork.trim()) _mp.openrouter_key = _ork.trim();
       await fetch("/settings", { method: "POST", body: _fd({ section: "model", data: JSON.stringify(_mp) }) });
       location.reload();
-    } catch (e) { err.textContent = "Lỗi mạng"; btn.disabled = false; btn.textContent = "Bắt đầu dùng Javis →"; }
+    } catch (e) { err.textContent = window.t("app.err_net"); btn.disabled = false; btn.textContent = window.t("app.wz_start"); }
   });
 }
 
@@ -2551,18 +2549,22 @@ if (document.getElementById("wzFinish")) {
   const orKey = document.getElementById("wzOrKey");
   const hint = document.getElementById("wzProvHint");
   const HINTS = {
-    "anthropic-cli": "Sau khi vào: đăng nhập Claude 1 lần - chạy <code>claude auth login --claudeai</code> trong terminal (Hostinger: App terminal).",
-    "openai-oauth": "Sau khi vào: mục <b>Models</b> → đăng nhập ChatGPT (hoặc <code>codex login</code> trong terminal).",
-    "openrouter": "Lấy key tại <a href='https://openrouter.ai/keys' target='_blank' style='color:var(--link-ink)'>openrouter.ai/keys</a> rồi dán ở trên (hoặc sau ở Models).",
+    "anthropic-cli": () => window.t("app.wz_hint_cli_1") + "<code>claude auth login --claudeai</code>" + window.t("app.wz_hint_cli_2"),
+    "openai-oauth": () => window.t("app.wz_hint_gpt_1") + "<b>Models</b>" + window.t("app.wz_hint_gpt_2") + "<code>codex login</code>" + window.t("app.wz_hint_gpt_3"),
+    "openrouter": () => window.t("app.wz_hint_or_1") + "<a href='https://openrouter.ai/keys' target='_blank' style='color:var(--link-ink)'>openrouter.ai/keys</a>" + window.t("app.wz_hint_or_2"),
   };
   function pick(prov) {
     cards.forEach(c => c.classList.toggle("sel", c.dataset.prov === prov));
     const r = document.querySelector('input[name="wzprov"][value="' + prov + '"]'); if (r) r.checked = true;
     if (orKey) orKey.style.display = prov === "openrouter" ? "" : "none";
-    if (hint) hint.innerHTML = HINTS[prov] || "";
+    if (hint) hint.innerHTML = HINTS[prov] ? HINTS[prov]() : "";
   }
   cards.forEach(c => c.addEventListener("click", () => pick(c.dataset.prov)));
   pick("anthropic-cli");
+  window.addEventListener("javis:i18n", () => {
+    const da = document.querySelector('input[name="wzprov"]:checked');
+    pick((da && da.value) || "anthropic-cli");
+  });
 })();
 
 // ============================================

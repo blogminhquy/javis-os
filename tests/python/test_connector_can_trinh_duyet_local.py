@@ -57,8 +57,11 @@ check("lời chặn chỉ đường thay thế (thẻ Lịch/Gmail riêng cho VP
 # ---- 4. Frontend gửi force + đổi nút thành xác nhận ----
 console = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("console.js gửi force khi user xác nhận lần hai", "force: !!m._forceAdd" in console)
+# Chữ đã vào từ điển i18n ở 0.55.14: console.js gọi khoá, câu tiếng Việt nằm trong vi.json.
+# Nên kiểm CẢ HAI vế: giao diện gọi đúng khoá VÀ khoá đó mang đúng câu.
+VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("console.js đổi nút thành lời xác nhận khi can_force",
-      "Tôi hiểu, vẫn kết nối" in console)
+      "cs.cn_force_add" in console and "Tôi hiểu, vẫn kết nối" in VI.get("cs.cn_force_add", ""))
 
 print()
 if _fails:

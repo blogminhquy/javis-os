@@ -4,6 +4,7 @@ Phần chống-nở là hồi quy cũ (dải này từng đẩy cột chat ra ng
 yêu cầu 27/08 của chủ repo: bỏ hai đèn "HỆ THỐNG" vì chúng gần như luôn xanh nên chẳng nói
 thêm được gì, thay bằng ba tool Javis vừa gọi - thứ THAY ĐỔI theo từng lượt.
 """
+import json  # noqa: E402
 import re  # noqa: E402
 from _paths import ROOT, SERVER  # noqa: E402,F401
 
@@ -12,6 +13,10 @@ STYLE = (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8")
 CONSOLE_CSS = (ROOT / "dashboard" / "console.css").read_text(encoding="utf-8")
 APP = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
 INDEX = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+# Từ 0.55.14 câu tiếng Việt trong giao diện dời vào từ điển i18n, .js chỉ còn gọi
+# window.t("khoa"). Muốn giữ nguyên bảo đảm thì phải soi CẢ HAI vế: file .js gọi
+# đúng khoá, và khoá đó trong vi.json mang đúng câu cần có.
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 
 fails = []
 
@@ -67,7 +72,9 @@ check("hai đèn HỆ THỐNG đã bỏ hẳn",
       and "updateSysStatus" not in APP)
 check("dải vẫn còn để hiện tool (không bỏ luôn cả ô)",
       'id="sysBar"' in INDEX and 'id="mcpList"' in INDEX)
-check("chưa gọi tool nào thì nói vậy, không để trống trơ", "Chưa gọi tool nào" in ve_block)
+check("chưa gọi tool nào thì nói vậy, không để trống trơ",
+      "app.no_tool_yet" in ve_block
+      and "Chưa gọi tool nào" in _VI.get("app.no_tool_yet", ""))
 check("nhãn tool không chèn HTML thô",
       "div.innerHTML" not in track_block and "div.innerHTML" not in ve_block
       and "escapeHtml(t.label)" in ve_block)

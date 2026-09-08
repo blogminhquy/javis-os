@@ -22,7 +22,8 @@ File này canh phần LOGIC (chạy được trên Linux của CI) và canh vi�
 do ra. Phần đọc/ghi registry chỉ có trên Windows nên không mô phỏng ở đây; đổi lại, mọi quyết
 định đều nằm trong các hàm thuần dưới đây chứ không nhét trong nhánh `winreg`.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER
+import json  # noqa: E402,F401
 import os
 import sys
 import tempfile
@@ -132,7 +133,12 @@ check("trạng thái trả về kèm đường dẫn log để còn chỗ mà so
 # `stale`, nên cùng một máy hỏng mà mở hai trang thì đọc được hai câu trả lời khác nhau.
 _JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("CANARY: cả hai trang đều hiện `ly_do`", _JS.count("j.ly_do") >= 2)
-check("nhãn nói thật khi bật mà không chạy được", "bật nhưng không chạy" in _JS.casefold())
+# Nhãn đã vào từ điển i18n (0.55.14). Kiểm hai vế: console.js gọi khoá ở CẢ HAI trang (Tổng
+# quan và Hệ thống), và cả hai khoá đều còn nói đúng sự thật "bật nhưng không chạy".
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+check("nhãn nói thật khi bật mà không chạy được",
+      all(k in _JS and "bật nhưng không chạy" in _VI.get(k, "").casefold()
+          for k in ("cs.ov_auto_broken", "cs.st_auto_broken")))
 check("dashboard KHÔNG tự dựng lại câu lý do (server là nguồn duy nhất)",
       "Task Manager" not in _JS)
 

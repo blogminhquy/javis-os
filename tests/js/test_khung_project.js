@@ -328,17 +328,28 @@ check("ghi rõ link do ai gửi", !!VI["cts.from_you"] && !!VI["cts.from_javis"]
 // ============================================================
 // Bốn icon hiện-khi-rê-chuột ăn ~100px trong popover 280px, và hover thì KHÔNG tồn tại trên
 // màn cảm ứng - ở đó chúng là bốn chức năng không có đường nào bấm tới.
+// Chữ đã vào từ điển i18n (0.55.14) nên kiểm hai vế: hàng acts gọi đúng khoá, và khoá mang
+// đúng cái nhãn. Vế phủ định giữ nguyên ý: KHÔNG còn act icon trần nào bên cạnh nút ba chấm.
 check("một nút ba chấm thay cho bốn icon hover",
-  /icon: "ellipsis-vertical", title: "Chức năng của project"/.test(SU)
-  && !/\{ icon: "palette", title: "Đổi icon"/.test(SU));
+  /icon: "ellipsis-vertical", title: window\.t\("sess\.proj_acts"\)/.test(SU)
+  && /Chức năng của project/.test(VI["sess.proj_acts"] || "")
+  && !/\{ icon: "palette", title:/.test(SU));
 check("icon ba chấm có thật trong bộ đã vendor",
   /"ellipsis-vertical":/.test(fs.readFileSync(path.join(ROOT, "dashboard", "vendor", "lucide-icons.js"), "utf8")));
 check("và được khai trong manifest (để lần sinh lại còn giữ)",
   JSON.stringify(JSON.parse(D("icons.manifest.json")).groups).includes("ellipsis-vertical"));
+// Mỗi hàng kiểm hai vế (khoá trong .js + câu trong vi.json) từ 0.55.14. Nhân tiện canh đủ
+// cả năm hàng mà tên mục này hứa, chứ bản cũ bỏ sót ghim và đổi icon.
 check("hộp chức năng có đủ ghim, đổi icon, đổi tên, xoá, và lối quay lại",
-  /function openProjActs/.test(SU) && /Quay lại danh sách/.test(SU)
-  && /Đổi tên project/.test(SU) && /Xoá project/.test(SU));
-check("và có cả lối mở khung Hướng dẫn / File / Link", /Mở khung Hướng dẫn/.test(SU));
+  /function openProjActs/.test(SU)
+  && /window\.t\("sess\.proj_pin"\)/.test(SU) && /ghim/i.test(VI["sess.proj_pin"] || "")
+  && /window\.t\("sess\.proj_icon"\)/.test(SU) && /Đổi icon/.test(VI["sess.proj_icon"] || "")
+  && /window\.t\("proj\.rename"\)/.test(SU) && /Đổi tên project/.test(VI["proj.rename"] || "")
+  && /window\.t\("sess\.proj_delete"\)/.test(SU) && /Xoá project/.test(VI["sess.proj_delete"] || "")
+  && /window\.t\("sess\.proj_back"\)/.test(SU) && /Quay lại danh sách/.test(VI["sess.proj_back"] || ""));
+check("và có cả lối mở khung Hướng dẫn / File / Link",
+  /window\.t\("sess\.proj_drawer"\)/.test(SU)
+  && /Mở khung Hướng dẫn/.test(VI["sess.proj_drawer"] || ""));
 // Đi sâu trong CÙNG một popover: hai lớp nổi chồng nhau thì bấm ra ngoài lớp trong đóng
 // nhầm cả hai.
 check("hộp đi sâu trong cùng popover, không bung lớp nổi thứ hai",

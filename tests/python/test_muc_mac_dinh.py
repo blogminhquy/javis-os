@@ -257,8 +257,13 @@ asyncio.run(_go())
 # Khối chọn mức nằm ở đầu trang Mức dùng từ 0.24.7 (trước đó là một trang riêng trong rail).
 _usage = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
 check("giao diện đọc nguồn của mức đang chạy", "d.tu_chon" in _usage)
+# 0.55.14 dời chữ tiếng Việt của dashboard vào từ điển i18n, .js chỉ còn window.t("khoa").
+# Nên soi đủ hai vế: usage.js gọi đúng khoá, và khoá đó trong vi.json mang đúng câu.
+_vi = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
+_chua_chon = _vi.get("usage.muc.chua_chon", "")
 check("giao diện nói rõ khi mức chỉ là mặc định",
-      "mặc định của bản này" in _usage and "chưa tự chọn bao giờ" in _usage)
+      "usage.muc.chua_chon" in _usage
+      and "mặc định của bản này" in _chua_chon and "chưa tự chọn bao giờ" in _chua_chon)
 _src_main = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 check("máy chủ trả nguồn của mức cho giao diện",
       '"tu_chon"' in _src_main and '"preset_nguon"' in _src_main)

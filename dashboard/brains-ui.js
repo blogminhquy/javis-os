@@ -126,22 +126,21 @@
   }
 
   async function newBrain() {
-    const name = (window.prompt("Tên brain mới:") || "").trim();
+    const name = (window.prompt(window.t("brains.new_prompt")) || "").trim();
     if (!name) return;
     const fd = new FormData();
     fd.append("name", name);
     let r;
     try { r = await (await fetch("/brains/new", { method: "POST", body: fd })).json(); }
-    catch (e) { alert("Lỗi mạng khi tạo brain."); return; }
-    if (!r || !r.ok) { alert((r && r.error) || "Không tạo được brain."); return; }
+    catch (e) { alert(window.t("brains.create_net_err")); return; }
+    if (!r || !r.ok) { alert((r && r.error) || window.t("brains.create_failed")); return; }
     await loadBrains(r.path, false);
   }
 
   // Gỡ 1 thư mục ngoài khỏi danh sách - CHỈ khỏi menu + localStorage, KHÔNG đụng ổ đĩa.
   function removeCustomFromList(opt) {
     const name = opt.textContent.trim();
-    if (!window.confirm('Bỏ folder ngoài "' + name + '" khỏi danh sách?\n\n' +
-        "Chỉ gỡ khỏi menu chọn não, KHÔNG xoá dữ liệu trên ổ đĩa.")) return;
+    if (!window.confirm(window.t("brains.confirm_remove_custom", { ten: name }))) return;
     let list;
     try { list = JSON.parse(localStorage.getItem("javis.brains") || "[]"); } catch (e) { list = []; }
     if (!Array.isArray(list)) list = [];
@@ -153,41 +152,37 @@
     }
     opt.remove();
     sel.dispatchEvent(new Event("change"));
-    alert('Đã bỏ "' + name + '" khỏi danh sách.');
+    alert(window.t("brains.removed_custom", { ten: name }));
   }
 
   async function deleteBrain() {
     const opt = sel.options[sel.selectedIndex];
-    if (sel.value === "brain") { alert("Không thể xoá Brain mặc định (não khởi đầu)."); return; }
+    if (sel.value === "brain") { alert(window.t("brains.cannot_delete_default")); return; }
     if (!opt || !opt.dataset.brain) {
       // Thư mục ngoài: cho GỠ khỏi danh sách (không xoá ổ đĩa). Trước đây chỉ báo lỗi mà
       // không có cách gỡ nào → entry kẹt vĩnh viễn kể cả sau khi folder đã bị xoá.
       if (opt && opt.dataset.custom) { removeCustomFromList(opt); return; }
-      alert("Chỉ xoá được brain trong danh sách. Thư mục ngoài thì bỏ khỏi danh sách, không xoá ổ đĩa.");
+      alert(window.t("brains.only_listed"));
       return;
     }
     const name = opt.dataset.brainName;
     // Xác nhận KỸ: gõ đúng tên - vì đây là TOÀN BỘ tri thức trong não này, mất là không lấy lại được.
-    const typed = window.prompt(
-      "XOÁ BRAIN \"" + name + "\"\n\n" +
-      "Não này sẽ được chuyển vào THÙNG RÁC (giữ 30 ngày rồi tự xoá hẳn), và việc xoá sẽ ĐỒNG BỘ sang mọi máy khác.\n\n" +
-      "Gõ CHÍNH XÁC tên brain để xác nhận:"
-    );
+    const typed = window.prompt(window.t("brains.delete_prompt", { ten: name }));
     if (typed === null) return;
-    if (typed.trim() !== name) { alert("Tên không khớp - đã huỷ xoá."); return; }
+    if (typed.trim() !== name) { alert(window.t("brains.name_mismatch")); return; }
     const fd = new FormData();
     fd.append("name", name);
     fd.append("confirm", typed.trim());
     let r;
     try { r = await (await fetch("/brains/delete", { method: "POST", body: fd })).json(); }
-    catch (e) { alert("Lỗi mạng khi xoá brain."); return; }
-    if (!r || !r.ok) { alert((r && r.error) || "Không xoá được brain."); return; }
+    catch (e) { alert(window.t("brains.delete_net_err")); return; }
+    if (!r || !r.ok) { alert((r && r.error) || window.t("brains.delete_failed")); return; }
     // Về brain mặc định rồi nạp lại danh sách
     sel.value = "brain";
     localStorage.setItem("javis.graphSource", "brain");
     await loadBrains(null, false);
     sel.dispatchEvent(new Event("change"));
-    alert('Đã xoá brain "' + name + '" (đưa vào thùng rác 30 ngày, đồng bộ xoá sang các máy khác).');
+    alert(window.t("brains.deleted", { ten: name }));
   }
 
   const nb = document.getElementById("newBrainBtn");

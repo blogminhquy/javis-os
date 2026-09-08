@@ -27,6 +27,7 @@ Ba gốc rễ, test này canh cả ba:
 Chạy:
     python tests/python/test_viec_nen_hien_ra.py
 """
+import json
 import os
 import re
 import sys
@@ -216,6 +217,9 @@ STRIP = (DASHBOARD / "background-strip.js").read_text(encoding="utf-8")
 APPJS = (DASHBOARD / "app.js").read_text(encoding="utf-8")
 CONSOLE = (DASHBOARD / "console.js").read_text(encoding="utf-8")
 CSS = (DASHBOARD / "style.css").read_text(encoding="utf-8")
+# Từ 0.55.14 câu tiếng Việt của dải dời vào từ điển i18n, .js chỉ còn gọi khoá.
+# Nên soi CẢ HAI vế: dải gọi đúng khoá, và khoá đó trong vi.json nói đúng câu.
+_VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
 
 check("index.html có ô dải việc nền, mặc định ẩn",
       'id="bgStrip"' in HTML and re.search(r'id="bgStrip"[^>]*hidden', HTML) is not None)
@@ -235,7 +239,10 @@ check("dải có trần số chip", "MAX_CHIP" in STRIP)
 check("phần quyết định là hàm thuần, test bằng node được (tests/js/test_dai_viec_nen.js)",
       "module.exports = { quyetDinh: quyetDinh }" in STRIP)
 check("dải nói thẳng khi việc KHÔNG tự chạy",
-      "KHÔNG tự chạy" in STRIP and "AI tự vận hành" in STRIP)
+      "bgs.dau_stall" in STRIP
+      and "KHÔNG tự chạy" in _VI.get("bgs.dau_stall", "")
+      and "bgs.warn_xep_hang" in STRIP
+      and "AI tự vận hành" in _VI.get("bgs.warn_xep_hang", ""))
 check("dải không vẽ lại DOM khi trạng thái không đổi (đỡ nháy)",
       "lastKey" in STRIP and "if (key === lastKey) return;" in STRIP)
 check("app.js làm tươi dải khi lượt xong và khi việc nền báo về",

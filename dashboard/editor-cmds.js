@@ -21,6 +21,17 @@
 
   var ic = (typeof window !== "undefined" && window.ic) ? window.ic : function () { return ""; };
 
+  // Nhan lenh giu KHOA tu dien, dich luc VE chu khong luc dinh nghia bang: file nay nap
+  // truoc khi tu dien ve xong, va con chay duoi node (test require) noi khong co window.
+  function dich(k) {
+    try {
+      if (typeof window !== "undefined" && window.t) return window.t(k);
+      return require("./i18n/vi.json")[k] || k;
+    } catch (e) {}
+    return k;
+  }
+  function nhan(c) { return dich(c && c.label); }
+
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -102,68 +113,68 @@
     // slash:false = KHONG vao menu "/". Dam va nghieng boi chu DANG CHON, khong phai thu
     // "chen tai cho" nhu ca menu con lai; ma go "/" xong thi dau co gi dang chon. Chung van
     // giu nut tren thanh cong cu va Ctrl+B / Ctrl+I - hai phim ai cung thuoc san.
-    { id: "bold", label: "Đậm", slash: false, btn: { text: "B", style: "font-weight:700" },
+    { id: "bold", label: "ecmd.bold", slash: false, btn: { text: "B", style: "font-weight:700" },
       key: { letter: "b", show: "B" },
       wys: function (c) { exec(c, "bold"); },
-      src: function (c) { wrapTa(c, "**", "**", "chữ đậm"); } },
+      src: function (c) { wrapTa(c, "**", "**", dich("ecmd.ph_bold")); } },
 
-    { id: "italic", label: "Nghiêng", slash: false, btn: { text: "I", style: "font-style:italic" },
+    { id: "italic", label: "ecmd.italic", slash: false, btn: { text: "I", style: "font-style:italic" },
       key: { letter: "i", show: "I" },
       wys: function (c) { exec(c, "italic"); },
-      src: function (c) { wrapTa(c, "*", "*", "chữ nghiêng"); } },
+      src: function (c) { wrapTa(c, "*", "*", dich("ecmd.ph_italic")); } },
 
-    { id: "h1", label: "Tiêu đề 1", kw: "heading tieu de lon", btn: { text: "H1" },
+    { id: "h1", label: "ecmd.h1", kw: "heading tieu de lon", btn: { text: "H1" },
       key: { alt: true, code: "Digit1", show: "1" },
       wys: function (c) { exec(c, "formatBlock", "H1"); },
       src: function (c) { lineTa(c, "# "); } },
 
-    { id: "h2", label: "Tiêu đề 2", kw: "heading tieu de", btn: { text: "H2" },
+    { id: "h2", label: "ecmd.h2", kw: "heading tieu de", btn: { text: "H2" },
       key: { alt: true, code: "Digit2", show: "2" },
       wys: function (c) { exec(c, "formatBlock", "H2"); },
       src: function (c) { lineTa(c, "## "); } },
 
-    { id: "h3", label: "Tiêu đề 3", kw: "heading tieu de nho", btn: { text: "H3" },
+    { id: "h3", label: "ecmd.h3", kw: "heading tieu de nho", btn: { text: "H3" },
       key: { alt: true, code: "Digit3", show: "3" },
       wys: function (c) { exec(c, "formatBlock", "H3"); },
       src: function (c) { lineTa(c, "### "); } },
 
-    { id: "ul", label: "Gạch đầu dòng", kw: "bullet danh sach list", btn: { text: "•" },
+    { id: "ul", label: "ecmd.ul", kw: "bullet danh sach list", btn: { text: "•" },
       key: { shift: true, code: "Digit8", show: "8" },
       wys: function (c) { exec(c, "insertUnorderedList"); },
       src: function (c) { lineTa(c, "- "); } },
 
-    { id: "ol", label: "Danh sách số", kw: "so thu tu numbered list", btn: { text: "1." },
+    { id: "ol", label: "ecmd.ol", kw: "so thu tu numbered list", btn: { text: "1." },
       key: { shift: true, code: "Digit7", show: "7" },
       wys: function (c) { exec(c, "insertOrderedList"); },
       src: function (c) { lineTa(c, "{n}. "); } },
 
     // Nut MOI (yeu cau 2026-07-31): dung ngay sau hai kieu danh sach vi no cung ho danh sach.
-    { id: "task", label: "Checkbox", kw: "task viec can lam todo o vuong tick",
+    { id: "task", label: "ecmd.task", kw: "task viec can lam todo o vuong tick",
       btn: { icon: "list-todo" },
       key: { shift: true, code: "Digit9", show: "9" },
       wys: wysTask,
       src: function (c) { lineTa(c, "- [ ] "); } },
 
-    { id: "quote", label: "Trích dẫn", kw: "blockquote trich", btn: { icon: "quote" },
+    { id: "quote", label: "ecmd.quote", kw: "blockquote trich", btn: { icon: "quote" },
       // Ctrl+Shift+. de nho: Shift+. chinh la ky tu ">" cua markdown trich dan.
       key: { shift: true, code: "Period", show: "." },
       wys: function (c) { exec(c, "formatBlock", "BLOCKQUOTE"); },
       src: function (c) { lineTa(c, "> "); } },
 
-    { id: "code", label: "Code", kw: "ma nguon inline", btn: { text: "</>" },
+    { id: "code", label: "ecmd.code", kw: "ma nguon inline", btn: { text: "</>" },
       key: { letter: "e", show: "E" },
       wys: function (c) { exec(c, "insertHTML", "<code>code</code>"); },
       src: function (c) { wrapTa(c, "`", "`", "code"); } },
 
-    { id: "link", label: "Link", kw: "lien ket url", btn: { icon: "link" },
+    { id: "link", label: "ecmd.link", kw: "lien ket url", btn: { icon: "link" },
       key: { letter: "k", show: "K" },
       run: function (c) {
         var u = prompt("URL:", "https://");
         if (!u) return;
-        if (c.mode() === "wys") exec(c, "createLink", u); else wrapTa(c, "[", "](" + u + ")", "chữ");
+        if (c.mode() === "wys") exec(c, "createLink", u); else wrapTa(c, "[", "](" + u + ")", dich("ecmd.ph_text"));
       } },
 
-    { id: "hr", label: "Kẻ ngang", kw: "duong ke ngan cach", btn: { text: "―" },
+    { id: "hr", label: "ecmd.hr", kw: "duong ke ngan cach", btn: { text: "―" },
       wys: function (c) { exec(c, "insertHorizontalRule"); },
       src: function (c) { insTa(c, "\n---\n"); } },
   ];
@@ -209,7 +220,10 @@
     var t = bo_dau(q).trim();
     if (!t) return ds;
     return ds.filter(function (c) {
-      return (bo_dau(c.label) + " " + c.id + " " + (c.kw || "")).indexOf(t) !== -1;
+      // KHONG tim tren c.label nua: tu 0.55.14 truong do giu MA KHOA i18n ("ecmd.bold"), nen
+      // moi lenh deu chua chuoi "ecmd." va go mot chu bat ky trong {e,c,m,d,.} la khop het,
+      // tuc bo loc mat tac dung. nhan(c) moi la chu that da dich.
+      return (bo_dau(nhan(c)) + " " + c.id + " " + (c.kw || "")).indexOf(t) !== -1;
     });
   }
   // Dau "/" chi mo menu khi no MO DAU mot tu (dau dong hoac sau khoang trang). Nho vay
@@ -233,7 +247,7 @@
     menuCmds: menuCmds, filterCmds: filterCmds, slashTrigger: slashTrigger, esc: esc,
     // Nhan nut cho thanh cong cu: SVG neu co icon, chu da escape neu la chu thuan.
     btnHtml: function (c) { return c.btn.icon ? ic(c.btn.icon) : esc(c.btn.text); },
-    btnTitle: function (c) { var k = keyLabel(c); return c.label + (k ? " (" + k + ")" : ""); },
+    btnTitle: function (c) { var k = keyLabel(c); return nhan(c) + (k ? " (" + k + ")" : ""); },
   };
 
   // ---------------------------------------------------------------- phan DOM
@@ -278,7 +292,7 @@
       pop.innerHTML = mItems.map(function (c, i) {
         return '<div class="ec-item' + (i === mSel ? " sel" : "") + '" data-i="' + i + '">' +
           '<span class="ec-ic">' + api.btnHtml(c) + "</span>" +
-          '<span class="ec-lb">' + esc(c.label) + "</span>" +
+          '<span class="ec-lb">' + esc(nhan(c)) + "</span>" +
           '<span class="ec-key">' + esc(keyLabel(c)) + "</span></div>";
       }).join("");
       // Menu co the dai hon khung -> keo muc dang chon vao tam nhin, khong thi bam mui ten

@@ -5,6 +5,7 @@ Chạy:
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 from pathlib import Path
+import json
 
 
 INDEX = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
@@ -20,6 +21,8 @@ MAIN = "\n".join(
 HOSTINGER = (ROOT / "docker-compose.hostinger.yml").read_text(encoding="utf-8")
 VPS = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 DOC = (ROOT / "docs" / "15-thuong-hieu-ten-mien.md").read_text(encoding="utf-8")
+
+VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 
 fails = []
 
@@ -38,10 +41,18 @@ check("UI đổi NamMinh thành Nam Minh nhưng giữ mã Edge",
       "<strong>Nam Minh</strong>" in INDEX and 'value="vi-VN-NamMinhNeural"' in INDEX)
 check("card tên miền có hành động lưu và kiểm tra rõ ràng", "Lưu &amp; kiểm tra" in INDEX)
 check("card có hai link tài liệu", "docs/15-thuong-hieu-ten-mien.md" in INDEX and "DEPLOY.md" in INDEX)
-check("wizard có ba bước và nút sao chép", "1. Lưu tên miền" in BRANDING and
-      "2. Trỏ DNS về VPS" in BRANDING and "3. Bật HTTPS" in BRANDING and "data-copy" in BRANDING)
-check("wizard có nhánh Hostinger riêng", "Kích hoạt route HTTPS trên Hostinger" in BRANDING and
-      "DOMAIN_NAME=" in BRANDING and "Redeploy" in BRANDING)
+# Chữ trong wizard đã vào từ điển i18n ở 0.55.14: branding.js dựng số bước rồi gọi khoá,
+# câu tiếng Việt nằm trong vi.json. Kiểm CẢ HAI vế (giao diện gọi đúng khoá + khoá mang
+# đúng câu) để đổi nội dung khoá hay gỡ bước khỏi giao diện đều làm test đỏ.
+check("wizard có ba bước và nút sao chép",
+      "<b>1. " in BRANDING and "brand.step1_title" in BRANDING and VI.get("brand.step1_title") == "Lưu tên miền" and
+      "<b>2. " in BRANDING and "brand.step2_title" in BRANDING and VI.get("brand.step2_title") == "Trỏ DNS về VPS" and
+      "<b>3. " in BRANDING and "brand.step3_title" in BRANDING and VI.get("brand.step3_title") == "Bật HTTPS" and
+      "data-copy" in BRANDING)
+check("wizard có nhánh Hostinger riêng",
+      "brand.step3_hostinger_title" in BRANDING
+      and VI.get("brand.step3_hostinger_title") == "Kích hoạt route HTTPS trên Hostinger"
+      and "DOMAIN_NAME=" in BRANDING and "Redeploy" in BRANDING)
 check("backend trả metadata môi trường cho UI", all(x in MAIN for x in (
       '"deployment_target"', '"route_domain"', '"ui_can_enable_ssl"', '"requires_redeploy"')))
 check("backend không giả vờ sửa được Traefik Hostinger", "Hostinger quản lý HTTPS bằng Traefik" in MAIN)

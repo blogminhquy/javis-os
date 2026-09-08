@@ -27,6 +27,9 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const html = fs.readFileSync(path.join(ROOT, "dashboard", "index.html"), "utf8");
 const js = fs.readFileSync(path.join(ROOT, "dashboard", "console.js"), "utf8");
 const css = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
+// Chữ tiếng Việt đã dời vào từ điển i18n ở 0.55.14, nên phép thử phải bắc cả hai vế:
+// giao diện gọi ĐÚNG khoá, và khoá đó trong vi.json mang ĐÚNG câu cần có.
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 
 const fails = [];
 function check(name, cond) {
@@ -68,7 +71,8 @@ check("chỉ đọc trạng thái qua /auth/status", /fetch\("\/auth\/status"\)/
 check("chưa đặt mật khẩu -> nói phải đặt mật khẩu trước", /needs_setup/.test(ham));
 check("và không đưa nút bấm ở trạng thái đó",
   ham.indexOf("needs_setup") < ham.indexOf('data-settings-go="account"'));
-check("có cảnh báo khi mã khôi phục sắp hết", /sắp hết/.test(ham));
+check("có cảnh báo khi mã khôi phục sắp hết",
+  ham.includes("cs.tfa_row_low") && (VI["cs.tfa_row_low"] || "").includes("sắp hết"));
 
 // Luồng bật thật vẫn phải còn nguyên ở trang Tài khoản - đừng dời nhầm sang đây.
 check("luồng quét QR vẫn nằm ở trang Tài khoản", js.includes("/auth/2fa/start"));

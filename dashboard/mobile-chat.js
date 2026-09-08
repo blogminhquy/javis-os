@@ -51,15 +51,15 @@
     }
 
     // ---- 2) Nhóm Hệ thống: mobile dời vào đáy ngăn kéo, desktop trả về chỗ cũ ----
-    var sysHost = null, sysBtns = null, moved = [];
+    var sysHost = null, sysBtns = null, sysLbl = null, moved = [];
     function ensureSysHost() {
       if (sysHost || !railEl) return;
       sysHost = document.createElement("div");
       sysHost.className = "rail-sys";
-      var lbl = document.createElement("div");
-      lbl.className = "rail-sys-lbl";
-      lbl.textContent = "Hệ thống";
-      sysHost.appendChild(lbl);
+      sysLbl = document.createElement("div");
+      sysLbl.className = "rail-sys-lbl";
+      sysLbl.textContent = window.t("nav.group.he_thong");
+      sysHost.appendChild(sysLbl);
       sysBtns = document.createElement("div");
       sysBtns.className = "rail-sys-btns";
       sysHost.appendChild(sysBtns);
@@ -80,7 +80,7 @@
     // thoảng chữ hệ thống to lại hiện ra trong khi chỗ đó đáng nhẽ là không có gì").
     function boSysHost() {
       if (sysHost && sysHost.parentElement) sysHost.parentElement.removeChild(sysHost);
-      sysHost = null; sysBtns = null;
+      sysHost = null; sysBtns = null; sysLbl = null;
     }
     function placeSystem() {
       if (mq.matches) {
@@ -111,10 +111,20 @@
     }
 
     // ---- 3) Placeholder ngắn cho ô nhập trên mobile ----
+    // Cả hai chuỗi đều TRA TỪ ĐIỂN lúc vẽ. Bản trước CHỤP placeholder từ DOM một lần lúc
+    // khởi tạo, mà lúc đó applyDom() của i18n chưa chạy, nên cái chụp được luôn là chuỗi
+    // tiếng Việt viết cứng trong index.html - chọn tiếng Anh thì ô nhập trên màn rộng vẫn
+    // nói tiếng Việt. Từ điển về sau DOMContentLoaded nên còn phải vẽ lại ở "javis:i18n".
     var chatInput = document.getElementById("chatInput");
-    var longPh = chatInput ? chatInput.getAttribute("placeholder") : "";
     function setPlaceholder() {
-      if (chatInput) chatInput.setAttribute("placeholder", mq.matches ? "Nói hoặc gõ cho Javis…" : longPh);
+      if (!chatInput) return;
+      var khoa = mq.matches ? "mchat.input_ph_short" : "bar.input_ph";
+      var chu = window.t(khoa);
+      // t() trả về CHÍNH cái khoá khi từ điển chưa về (hoặc thiếu khoá). Ghi đè lúc đó là
+      // in "bar.input_ph" vào ô nhập, tệ hơn hẳn chuỗi tiếng Việt sẵn trong HTML. Bỏ qua,
+      // lượt "javis:i18n" bên dưới sẽ vẽ lại bằng chữ thật.
+      if (chu === khoa) return;
+      chatInput.setAttribute("placeholder", chu);
     }
 
     // ---- 4) Nút + = hội thoại mới (reset) + focus ô nhập cho phản hồi tức thì ----
@@ -158,8 +168,8 @@
       document.body.classList.toggle("brain-max", !!on);
       if (brainMaxBtn) {
         brainMaxBtn.setAttribute("aria-pressed", on ? "true" : "false");
-        brainMaxBtn.title = on ? "Thu khoang não về khung nhỏ"
-                               : "Bung khoang não ra toàn màn để nhìn rõ đồ thị";
+        brainMaxBtn.title = on ? window.t("mchat.brain_min_title")
+                               : window.t("orb.max_title");
       }
       refitGraph(340);   // đợi hết hoạt ảnh đổi layout rồi mới đo lại
     }
@@ -174,6 +184,17 @@
 
     function applyAll() { placeHeader(); placeSystem(); setPlaceholder(); syncBrainMax(); }
     applyAll();
+
+    // Từ điển nạp bất đồng bộ (i18n/index.js fetch xong mới bắn "javis:i18n"), nên mọi chữ
+    // vẽ bằng window.t() ở trên đều chạy TRƯỚC khi có từ điển. Vẽ lại đúng những chỗ đó.
+    window.addEventListener("javis:i18n", function () {
+      setPlaceholder();
+      if (sysLbl) sysLbl.textContent = window.t("nav.group.he_thong");
+      if (brainMaxBtn) {
+        var dangBung = document.body.classList.contains("brain-max");
+        brainMaxBtn.title = dangBung ? window.t("mchat.brain_min_title") : window.t("orb.max_title");
+      }
+    });
 
     var onChange = function () { applyAll(); closeNav(); };
     if (mq.addEventListener) mq.addEventListener("change", onChange);

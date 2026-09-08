@@ -79,8 +79,11 @@ check("tên provider tra từ bảng, không in id trần",
   /ENGINE_LABEL\[data\.engine\] \|\| data\.engine/.test(CTX), CTX);
 check("bảng nhãn provider vẫn còn trong app.js", /const ENGINE_LABEL = \{/.test(APP));
 // Tên model đầy đủ phải xem được ở đâu đó: dòng bị cắt ngắn cho vừa, nên tooltip là chỗ duy nhất.
+// Câu tiếng Việt đã dời vào từ điển i18n ở 0.55.14, nên bắc cả hai vế: app.js gọi ĐÚNG khoá
+// tooltip (và vẫn nối tên model đầy đủ vào), và khoá đó trong vi.json mang ĐÚNG câu cần có.
 check("tooltip nói rõ đây là bộ não THẬT đã chạy, kèm tên model đầy đủ",
-  /Bộ não THẬT đã chạy lượt này/.test(CTX) && /": " \+ data\.model/.test(CTX), CTX);
+  /window\.t\("app\.ctx_engine"/.test(CTX) && /": " \+ data\.model/.test(CTX)
+  && (VI["app.ctx_engine"] || "").includes("Bộ não THẬT đã chạy lượt này"), CTX);
 // Hai nửa của dòng này tới từ hai chỗ khác nhau trong payload. Điều kiện vào cũ là
 // `!data.ctx_path` -> có engine mà thiếu ctx_path là mất luôn nửa đang có.
 check("thiếu ctx_path nhưng có engine thì VẪN vẽ dòng",

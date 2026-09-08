@@ -3,6 +3,14 @@
 (function () {
   var SESSION_COMMANDS = ["new", "reset", "stop"];
 
+  // Chu hien ra lay tu tu dien. Trong trinh duyet la window.t (i18n/index.js nap dau tien);
+  // duoi node (test require file nay) khong co window nen doc thang vi.json. Chu tw chu
+  // khong phai t: ham choose() ben duoi da co bien cuc bo ten t, viet t( la goi nham no.
+  function tw(khoa) {
+    if (typeof window !== "undefined" && window.t) return window.t(khoa);
+    try { return require("./i18n/vi.json")[khoa] || khoa; } catch (e) { return khoa; }
+  }
+
   // Danh sach slug skill dang co (menu nap tu /skills rot vao). Chi dung cho lenh GIUA cau:
   // o giua cau ma bat bua theo hinh dang thi '/home/user/x' hay '3/4 cai' cung thanh lenh.
   var knownSkills = [];
@@ -64,14 +72,18 @@
     return { type: "skill", cmd: p.cmd, message: buildSkillInvocation(p.cmd, p.arg) };
   }
 
-  var SESSION_ITEMS = [
-    { kind: "session", cmd: "new", name: "Hội thoại mới", desc: "Bắt đầu cuộc trò chuyện mới" },
-    { kind: "session", cmd: "reset", name: "Reset phiên", desc: "Xoá ngữ cảnh, bắt đầu lại" },
-    { kind: "session", cmd: "stop", name: "Dừng", desc: "Dừng lượt đang trả lời" },
-  ];
+  // Ham chu khong phai hang: nhan phai lay tu dien lai moi lan dung menu, vi nguoi dung
+  // co the doi ngon ngu giua chung ma khong tai lai trang.
+  function sessionItems() {
+    return [
+      { kind: "session", cmd: "new", name: tw("top.new_chat"), desc: tw("slash.new_desc") },
+      { kind: "session", cmd: "reset", name: tw("slash.reset_name"), desc: tw("slash.reset_desc") },
+      { kind: "session", cmd: "stop", name: tw("slash.stop_name"), desc: tw("slash.stop_desc") },
+    ];
+  }
 
   function buildMenu(skills) {
-    var out = SESSION_ITEMS.slice();
+    var out = sessionItems();
     (skills || []).forEach(function (s) {
       if (!s || !s.slug) return;
       out.push({ kind: "skill", cmd: s.slug, name: s.name || s.slug, desc: s.description || "" });

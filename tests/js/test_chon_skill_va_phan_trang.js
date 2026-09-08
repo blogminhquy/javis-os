@@ -81,6 +81,16 @@ check("CANARY: trang Tiết kiệm đã gộp vào Mức dùng, không còn bả
   CONSOLE.indexOf('id="rtTasks"') === -1 && CONSOLE.indexOf("renderRuntime") === -1);
 
 // ---- Chạy thật helper để chắc nó lật đúng ----
+// Chữ trong thanh lật trang đã vào từ điển i18n ở 0.55.14: helper gọi window.t("cs.pager_*")
+// thay vì chuỗi tiếng Việt nhúng cứng. Nên chạy thật cần một window.t, và nó tra ĐÚNG
+// dashboard/i18n/vi.json (kèm thay chỗ {ten}) chứ không trả lại tên khoá - nhờ vậy phép thử
+// bên dưới vẫn kiểm được đủ hai vế: helper gọi đúng khoá, và khoá mang đúng câu tiếng Việt.
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
+global.window = {
+  t: (key, bien) => String(VI[key] == null ? key : VI[key]).replace(
+    /\{(\w+)\}/g, (m, ten) => (bien && bien[ten] != null ? String(bien[ten]) : m)),
+};
+
 const src = CONSOLE.slice(CONSOLE.indexOf("function pager(box, items"));
 const body = src.slice(0, src.indexOf("\n  }\n") + 5);
 const pager = new Function("return " + body.trim())();

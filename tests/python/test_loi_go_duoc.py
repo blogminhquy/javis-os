@@ -26,6 +26,7 @@ Ba chỗ dễ làm sai, và test canh cả ba:
 """
 from _paths import ROOT, SERVER, DASHBOARD  # noqa: E402,F401
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -221,8 +222,22 @@ check("khối ẩn vẫn nằm trong DOM để dây nối chạy một lần cho
 # lại quăng người dùng về tab đầu.
 check("tab đang mở sống ngoài renderConnect nên vẽ lại không mất chỗ đứng",
       src_js.index("let _mcpTab") < src_js.index("async function renderConnect"))
+# Chữ của ô trống đã vào từ điển i18n ở 0.55.54, nên soi chuỗi tiếng Việt literal trong .js là
+# hết thấy. Bảo đảm không đổi, chỉ đổi chỗ chứng cứ, nên phải kiểm ĐỦ HAI VẾ: console.js ghép
+# đúng ba khoá theo đúng thứ tự (mở tab + <b>tên tab</b> + phần đuôi), và ba khoá đó trong
+# vi.json mang đúng câu cần có. Thiếu vế nào cũng hở: chỉ kiểm khoá thì đổi nội dung khoá thành
+# câu ngược nghĩa vẫn xanh, chỉ kiểm từ điển thì gỡ hẳn dòng chữ khỏi giao diện vẫn xanh.
+_vi = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
+_ghep_o_trong = re.search(
+    r'cs\.cn_empty_a[\s\S]{0,60}<b>[\s\S]{0,60}cs\.cn_tab_sanco[\s\S]{0,60}</b>'
+    r'[\s\S]{0,60}cs\.cn_empty_b', src_js)
+_cau_o_trong = _vi.get("cs.cn_empty_a", "") + _vi.get("cs.cn_tab_sanco", "") + _vi.get("cs.cn_empty_b", "")
 check("ô trống chỉ đúng tab cần mở, không chỉ xuống 'Kho bên dưới' nữa",
-      "mở tab <b>Kết nối sẵn có</b>" in src_js and "trong Kho bên dưới" not in src_js)
+      bool(_ghep_o_trong)
+      and "mở tab" in _vi.get("cs.cn_empty_a", "")
+      and "Kết nối sẵn có" in _vi.get("cs.cn_tab_sanco", "")
+      and "Kho bên dưới" not in _cau_o_trong
+      and "trong Kho bên dưới" not in src_js)
 
 # Hàng tab phải có LỚP RIÊNG. Trang này gán lại onclick cho MỌI `.cat-chip` trong trang để lọc
 # danh mục dịch vụ; dùng chung lớp là handler của tab bị đè mất sạch, và triệu chứng đánh lừa

@@ -136,8 +136,13 @@ check("server cũ chưa có endpoint thì im lặng, không hiện lỗi",
       "if (!r.ok) return;" in CONSOLE)
 check("có nút chữa hết và nút để sau", 'id="fmFixGo"' in CONSOLE and 'id="fmFixNo"' in CONSOLE)
 check("chữa xong thì nạp lại danh sách file", "if (xong) load(cur);" in CONSOLE)
+# 0.55.14 dời chữ tiếng Việt của dashboard vào từ điển i18n, .js chỉ còn window.t("khoa").
+# Nên soi đủ hai vế: console.js đếm d.loi và gọi đúng khoá, và khoá đó trong vi.json vẫn
+# mang đúng câu báo file không ghi được.
+VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("báo cả số file chữa hỏng chứ không nuốt đi",
-      "d.loi || []" in CONSOLE and "không ghi được" in CONSOLE)
+      "d.loi || []" in CONSOLE and "cs.fm_fix_done_c" in CONSOLE
+      and "không ghi được" in VI.get("cs.fm_fix_done_c", ""))
 
 print()
 if fails:

@@ -47,6 +47,10 @@ def check(name, cond):
 
 _USAGE = (ROOT / "dashboard" / "usage.js").read_text(encoding="utf-8")
 _MAIN = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+# 0.55.14 dời chữ tiếng Việt của dashboard vào từ điển i18n, .js chỉ còn window.t("khoa").
+# Nên mọi khẳng định "giao diện phải nói ra câu X" từ đây soi ĐỦ HAI VẾ: usage.js gọi đúng
+# khoá, VÀ khoá đó trong vi.json mang đúng câu. Thiếu vế nào cũng là test hở.
+_VI = json.loads((ROOT / "dashboard" / "i18n" / "vi.json").read_text(encoding="utf-8"))
 
 # ============================================================
 # 1. Đếm được SỐ LƯỢT - mẫu số của mọi phép tính tiết kiệm
@@ -360,7 +364,8 @@ check("đặt được ngân sách ngay trên trang",
       "function nganSachHtml(" in _USAGE and '"/usage/ngan-sach"' in _USAGE)
 # "Cache hit 80%" là ngôn ngữ của người viết code. Người trả tiền hỏi nó đáng bao nhiêu.
 check("CANARY: cache được dịch ra TIỀN chứ không chỉ phần trăm",
-      "Cache đỡ cho" in _USAGE and "cache.usd" in _USAGE)
+      "usage.card.cache" in _USAGE and "Cache đỡ cho" in _VI.get("usage.card.cache", "")
+      and "cache.usd" in _USAGE)
 check("CANARY: và tiền nhỏ hơn một xu không bị làm tròn thành 0", "<$0.01" in _USAGE)
 # Chủ repo chốt: chỉ USD, không quy đổi sang đồng ở bất cứ đâu. Soi cả hai phía, vì một chuỗi
 # "0đ" gõ cứng trong câu mở đầu ở server cũng đủ làm lời hứa đó sai trên màn hình.
@@ -381,8 +386,10 @@ check("dải chế độ tiết kiệm thu gọn một dòng, bấm mới bung",
 # Chủ repo đã chốt khối chọn mức nằm ĐẦU trang. Thu gọn nó là để đỡ chiếm màn hình, không
 # phải để đẩy nó xuống dưới hoá đơn.
 check("CANARY: và nó vẫn nằm TRƯỚC mọi con số", "mucHtml(state.muc) + bar1" in _USAGE)
-check("nói rõ dự báo là ước chừng, không phải hoá đơn", "ước chừng" in _USAGE)
-check("nói rõ phanh chỉ đụng việc nền", "việc chạy nền" in _USAGE)
+check("nói rõ dự báo là ước chừng, không phải hoá đơn",
+      "usage.card.du_bao" in _USAGE and "ước chừng" in _VI.get("usage.card.du_bao", ""))
+check("nói rõ phanh chỉ đụng việc nền",
+      "usage.ns.viec_nen" in _USAGE and "việc chạy nền" in _VI.get("usage.ns.viec_nen", ""))
 
 # ============================================================
 # 10. Vòng lặp nền có thật sự gọi tới
@@ -520,12 +527,14 @@ check("CANARY: ô ngân sách luôn đọc số của THÁNG, không đổi theo
 check("giao diện soi r.ok chứ không chỉ đọc thân JSON",
       "function jsonOk(" in _USAGE and "if (!r.ok)" in _USAGE)
 check("phiên hết hạn thì nói ra, không vẽ trang 0 đồng", "hết hạn" in _USAGE)
-check("nút lưu ngân sách báo lỗi khi server từ chối", "Chưa lưu được" in _USAGE)
+check("nút lưu ngân sách báo lỗi khi server từ chối",
+      "usage.ns.err" in _USAGE and "Chưa lưu được" in _VI.get("usage.ns.err", ""))
 check("CANARY: thông báo tan sau khi hiện, không dính lại mãi",
       'state.toast = "";' in _USAGE and 'state.nsToast = "";' in _USAGE)
 check("số đang gõ dở trong form không bị xoá khi trang vẽ lại",
       "function nhoForm(" in _USAGE and "state.nsForm" in _USAGE)
-check("nói rõ chỉ đếm lượt của Javis", "lượt của Javis" in _USAGE)
+check("nói rõ chỉ đếm lượt của Javis",
+      "usage.tk.qua_luot" in _USAGE and "lượt của Javis" in _VI.get("usage.tk.qua_luot", ""))
 
 # Việc nền chạy bằng API key phải ghi mức dùng, không thì trần tiền không thấy chính khoản
 # chi mà nó sinh ra để chặn.

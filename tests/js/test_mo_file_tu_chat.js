@@ -29,6 +29,10 @@ const ROOT = path.join(__dirname, "..", "..");
 const D = (f) => fs.readFileSync(path.join(ROOT, "dashboard", f), "utf8");
 const CONSOLE = D("console.js");
 const CR = D("chat-render.js");
+// 0.55.14: chu tieng Viet cua giao dien da doi vao tu dien i18n, nen kiem mot chuoi
+// literal trong .js khong con dung. Cach kiem gio phai du HAI VE: file giao dien goi DUNG
+// khoa, va khoa do trong vi.json mang DUNG cau can co.
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 
 const fails = [];
 const check = (name, cond) => { console.log((cond ? "ok   " : "FAIL ") + name); if (!cond) fails.push(name); };
@@ -62,8 +66,10 @@ check(".html nằm trong danh sách sửa được của trình sửa cây",
 // 3. Chữ trên link phải đúng việc cú bấm đó LÀM
 // ============================================================
 check("có phân biệt đuôi sửa được khi đặt title", /EDIT_EXT_RE\s*=/.test(CR));
-check("file sửa được -> 'Mở ra sửa'", /Mở ra sửa/.test(CR));
-check("thư mục -> 'Mở vị trí trong Tệp tin'", /Mở vị trí trong Tệp tin/.test(CR));
+check("file sửa được -> 'Mở ra sửa'",
+      CR.includes("crender.open_edit") && VI["crender.open_edit"].includes("Mở ra sửa"));
+check("thư mục -> 'Mở vị trí trong Tệp tin'",
+      CR.includes("crender.open_loc") && VI["crender.open_loc"].includes("Mở vị trí trong Tệp tin"));
 check("CANARY: không còn dán một câu 'mở vị trí' cho MỌI thứ (bấm .html mà hứa mở thư mục)",
       !/class="jv-floc[^"]*"[^']*title="Mo vi tri trong Tep tin"/.test(CR));
 check("html + htm đều tính là sửa được", /html\?/.test(CR) || /\bhtml\b[\s\S]{0,40}\bhtm\b/.test(CR));

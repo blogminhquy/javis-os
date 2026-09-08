@@ -16,16 +16,23 @@
     function apply(hidden, persist) {
       root.classList.toggle("brain-overlays-hidden", hidden);
       button.setAttribute("aria-pressed", hidden ? "true" : "false");
-      button.setAttribute("aria-label", hidden ? "Hiện nhãn và số liệu brain" : "Ẩn nhãn và số liệu brain");
+      button.setAttribute("aria-label", hidden ? window.t("bview.overlay_show_aria") : window.t("orb.overlay_aria"));
       button.title = hidden
-        ? "Hiện nhãn thư mục và số liệu Agents / Skills / Workflows"
-        : "Ẩn nhãn thư mục và số liệu Agents / Skills / Workflows";
+        ? window.t("bview.overlay_show_title")
+        : window.t("orb.overlay_title");
       if (persist) {
         try { localStorage.setItem(STORAGE_KEY, hidden ? "1" : "0"); } catch (e) {}
       }
     }
 
     apply(readHidden(), false);
+    // Từ điển i18n nạp bằng fetch, tức là VỀ SAU DOMContentLoaded. apply() chạy ngay ở đây
+    // nên window.t() lúc đó trả về chính cái khoá, và aria-label/title của nút mắt đọng lại
+    // đúng chuỗi "bview.overlay_show_aria". Nghe "javis:i18n" để viết lại bằng chữ thật -
+    // sự kiện này cũng bắn khi người dùng đổi ngôn ngữ giao diện.
+    window.addEventListener("javis:i18n", function () {
+      apply(root.classList.contains("brain-overlays-hidden"), false);
+    });
     button.addEventListener("click", function () {
       apply(!root.classList.contains("brain-overlays-hidden"), true);
     });
@@ -46,14 +53,14 @@
     function setPlaying(on) {
       btn.classList.toggle("playing", !!on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
-      btn.title = on ? "Dừng timelapse (trả lại đồ thị đầy đủ)"
-                     : "Timelapse: xem lại brain lớn lên từ note đầu tiên tới giờ";
+      btn.title = on ? window.t("bview.timelapse_stop_title")
+                     : window.t("orb.timelapse_title");
     }
 
     btn.addEventListener("click", function () {
       var g = window.__javisGraph;
       if (!g || typeof g.startTimelapse !== "function") {
-        btn.title = "Đồ thị chưa sẵn sàng";
+        btn.title = window.t("bview.graph_not_ready");
         return;
       }
       if (g.timelapseRunning) { g.stopTimelapse(); return; }   // sự kiện end sẽ tự tắt trạng thái nút
@@ -62,6 +69,11 @@
 
     // Hết phim (hoặc bấm dừng) → nút về trạng thái nghỉ
     window.addEventListener("javis-timelapse-end", function () { setPlaying(false); });
+
+    // Cùng lý do như nút mắt: tooltip do JS ghi thì phải ghi lại khi từ điển về / đổi ngôn ngữ.
+    window.addEventListener("javis:i18n", function () {
+      setPlaying(btn.classList.contains("playing"));
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

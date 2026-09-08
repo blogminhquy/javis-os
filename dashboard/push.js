@@ -20,9 +20,9 @@
   function antoan() { return window.isSecureContext === true; }
 
   function vichLyDo() {
-    if (!antoan()) return "Trình duyệt chỉ cho bật thông báo đẩy trên https (hoặc localhost). Javis đang chạy qua http nên chưa bật được.";
-    if (!coHoTro()) return "Trình duyệt này không hỗ trợ thông báo đẩy.";
-    if (Notification.permission === "denied") return "Bạn đã chặn thông báo cho trang này. Mở phần cài đặt quyền của trình duyệt để bỏ chặn.";
+    if (!antoan()) return window.t("push.err_khong_https");
+    if (!coHoTro()) return window.t("push.err_khong_ho_tro");
+    if (Notification.permission === "denied") return window.t("push.err_bi_chan");
     return "";
   }
 
@@ -57,11 +57,11 @@
     if (vi) return { ok: false, error: vi };
     try {
       var quyen = await Notification.requestPermission();
-      if (quyen !== "granted") return { ok: false, error: "Bạn chưa cho phép hiện thông báo." };
+      if (quyen !== "granted") return { ok: false, error: window.t("push.err_chua_cho_phep") };
       var r = await dangKySW();
-      if (!r) return { ok: false, error: "Không đăng ký được service worker." };
+      if (!r) return { ok: false, error: window.t("push.err_service_worker") };
       var key = (await (await fetch("/push/key")).json()).key;
-      if (!key) return { ok: false, error: "Máy chủ chưa có khoá VAPID." };
+      if (!key) return { ok: false, error: window.t("push.err_thieu_vapid") };
       var sub = await r.pushManager.getSubscription();
       // Khoá server đổi (state bị xoá, dựng lại máy) thì đăng ký cũ vô dụng - huỷ rồi đăng
       // ký lại thay vì im lặng giữ một cái không bao giờ nhận được gì.
@@ -79,7 +79,7 @@
         body: JSON.stringify({ subscription: sub.toJSON(), nhan: navigator.userAgent.slice(0, 110) }),
       });
       var d = await res.json();
-      return d.ok ? { ok: true } : { ok: false, error: d.error || "Máy chủ từ chối đăng ký." };
+      return d.ok ? { ok: true } : { ok: false, error: d.error || window.t("push.err_may_chu_tu_choi") };
     } catch (e) {
       return { ok: false, error: (e && e.message) || String(e) };
     }
@@ -106,12 +106,12 @@
     try {
       var d = await (await fetch("/push/test", { method: "POST" })).json();
       var tb = d.devices || [];
-      if (!tb.length) return { ok: false, error: "Chưa có thiết bị nào đăng ký nhận." };
+      if (!tb.length) return { ok: false, error: window.t("push.err_chua_co_thiet_bi") };
       var hong = tb.filter(function (x) { return !x.ok; });
       if (!hong.length) return { ok: true, so: tb.length };
       var mot = hong[0];
       return { ok: false, so: tb.length, soHong: hong.length,
-               error: mot.dich_vu + " không nhận được"
+               error: window.t("push.err_dv_khong_nhan", { dv: mot.dich_vu })
                  + (mot.ma ? " (HTTP " + mot.ma + ")" : "")
                  + (mot.loi ? ": " + String(mot.loi).slice(0, 90) : "") };
     } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }

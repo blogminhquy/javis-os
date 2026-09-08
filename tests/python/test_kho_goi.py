@@ -215,8 +215,13 @@ check("lưới kho có ô tìm kiếm", 'id="pkQ"' in src_js)
 check("và cột nhóm bấm lọc được", "data-kho-nhom" in src_js)
 check("gói đã cài hiện 'Đã cài' thay vì mời cài lại", "Đã cài" in src_js)
 check("có bản mới thì đổi nhãn nút", "Có bản mới" in src_js)
+# Từ 0.55.54 câu này dời vào từ điển i18n, giao diện chỉ còn gọi tw("store.catalog_failed_hint").
+# Soi đủ hai vế: packs.js gọi đúng khoá, VÀ vi.json giữ đúng câu trấn an ("cài từ tệp .zip vẫn
+# chạy"). Chỉ kiểm một vế thì gỡ chữ khỏi giao diện, hoặc đổi nội dung khoá, vẫn xanh.
+_VI = json.loads((DASHBOARD / "i18n" / "vi.json").read_text(encoding="utf-8"))
 check("kho hỏng KHÔNG làm hỏng phần gói đã cài",
-      "Bạn vẫn cài được gói từ tệp" in src_js)
+      'tw("store.catalog_failed_hint")' in src_js
+      and "Bạn vẫn cài được gói từ tệp" in _VI.get("store.catalog_failed_hint", ""))
 
 
 # ============================================================
