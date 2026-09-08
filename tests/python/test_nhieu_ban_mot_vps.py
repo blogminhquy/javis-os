@@ -92,6 +92,17 @@ check("compose VPS: watchtower mang tên của bản",
 check("compose VPS: watchtower theo dõi ĐÚNG container của bản mình",
       str(vps["watchtower"]["command"]).strip() == "javis-shop")
 
+# Watchtower của Hostinger (thêm ở 0.55.56) phải tách bạch y như bên compose VPS: trùng tên
+# container là stack thứ hai chết lúc deploy, còn ghi cứng "javis" ở `command` là Watchtower của
+# bản này đi cập nhật rồi RESTART container của bản kia - hỏng ngang việc của người khác.
+_hwt = load("docker-compose.hostinger.yml", BAN2)["services"]["watchtower"]
+check("Hostinger: watchtower mang tên của bản",
+      _hwt["container_name"] == "javis-shop-watchtower")
+check("Hostinger: watchtower theo dõi ĐÚNG container của bản mình",
+      str(_hwt["command"]).strip() == "javis-shop")
+check("Hostinger: watchtower KHÔNG mở ra Traefik (container nội bộ)",
+      "traefik.enable=false" in " ".join(_hwt.get("labels") or []))
+
 host = load("docker-compose.hostinger.yml", BAN2)["services"]["javis"]
 check("Hostinger: container mang tên của bản", host["container_name"] == "javis-shop")
 check("Hostinger: cổng dự phòng đổi theo bản",

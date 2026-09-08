@@ -305,15 +305,24 @@ Stop it with `stop-javis.bat`. Open http://localhost:7777
 > **The fastest, right in the app:** open **Updates** (the left rail) and the **Javis OS** panel shows
 > the running version and checks GitHub for a newer one. When there is one, click **⬆ Update now** and
 > the app pulls the new version and restarts (~20-40s), with no terminal needed.
-> - **Docker/VPS:** the **watchtower** service is required. It IS in `docker-compose.yml` but sits
->   under `profiles: ["update"]`, meaning **`docker compose up -d` does not start it**. That is the most
->   common reason one machine has the button and another does not. Start it once:
+> - **Docker/VPS:** the button runs through the **watchtower** service, and since 0.55.56 it
+>   **ships by default** in both `docker-compose.yml` and `docker-compose.hostinger.yml`, so a
+>   fresh install has the button straight away. A machine still missing it is running from an
+>   older compose file (Watchtower used to sit under `profiles: ["update"]`, which
+>   `docker compose up -d` does not start). Fetch the new file and bring it up again:
 >   ```bash
->   docker compose --profile update up -d
+>   curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml
+>   docker compose up -d --pull always
 >   ```
+>   Not ready to swap the compose file? Starting it on its own works too:
+>   `docker compose --profile update up -d`.
 >   Only Watchtower is granted Docker access (the socket); the Javis app is NOT, which is what makes it
->   safe. Not starting it is fine too, and the panel then only *reports a new version* and explains how
+>   safe. Going without it is fine too, and the panel then only *reports a new version* and explains how
 >   to update by hand.
+> - **Want it fully automatic, with no button:** set `JAVIS_AUTO_UPDATE=true` in `.env`
+>   (Hostinger: the Environment box) and bring the stack up again. It is off by default because
+>   auto-updating means the app restarts itself whenever a new version lands, cutting across
+>   background work. Change the cadence with `JAVIS_AUTO_UPDATE_INTERVAL` (seconds).
 > - **Native/Windows:** the button runs `update.sh` (git pull plus restart) for you.
 
 The repo and the GHCR image are both **Public**, so `git clone`/`pull` and `docker pull` need no login.

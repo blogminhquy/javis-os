@@ -6,7 +6,7 @@ This page lists the environment variables Javis OS reads at startup, with their 
 
 The most important thing to remember: **everything runs with every line left empty**. On a personal machine you barely ever need to touch `.env`. Editing it is mainly for putting Javis on a VPS or public server, or for changing the voice, the port or the data paths.
 
-If you install through **Hostinger Docker Manager**, you do not need the full advanced list below. The Hostinger compose file surfaces only 3 user fields in the Environment box: `DOMAIN_NAME`, `JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`. The internal variables for ports, state, brains and the working folder are already inside the Docker image.
+If you install through **Hostinger Docker Manager**, you do not need the full advanced list below. The Hostinger compose file surfaces only 3 user fields in the Environment box: `DOMAIN_NAME`, `JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`, plus one optional `JAVIS_AUTO_UPDATE`. The internal variables for ports, state, brains and the working folder are already inside the Docker image.
 
 ## What this feature is
 
@@ -111,6 +111,8 @@ Note: these two TTS variables apply to the default free Edge TTS voice. If you p
 | `DOMAIN_NAME` | The domain the reverse proxy (Hostinger's Traefik) routes to Javis. Javis reads it to compare against the domain you entered in the app and to know whether a Redeploy is needed | (empty; the Hostinger compose sets `localhost`) | Hostinger deploy: set it to your domain in Docker Manager then Redeploy. The in-app wizard has a **Copy variable** button that prepares this line. |
 | `JAVIS_DEPLOY_TARGET` | Declares the environment explicitly: `hostinger`, `vps`, `native`, `windows` | Auto-detected (a `.hstgr.cloud` hostname = hostinger; running Docker = vps) | Almost never needed by hand. The Hostinger compose already sets `hostinger`. Set it when Javis guesses the environment wrong and the domain wizard shows the wrong instructions. |
 | `WATCHTOWER_TOKEN` | The token the "Update now" button (the **Updates** page) uses to call Watchtower when running Docker | In `docker-compose.yml`: `javis-update`. Outside Docker: empty (no variable means Javis assumes Watchtower is not running) | For tighter security: change it to a random string, setting the same value on both the app and the watchtower service. |
+| `JAVIS_AUTO_UPDATE` | Lets Watchtower find new versions and recreate the container on its own, with no button to press | `false` | Off by default on purpose: turning it on means the app restarts itself whenever a new version lands, cutting across background work and a running chat. Set it in `.env` (Hostinger: the Environment box) and bring the stack up again. |
+| `JAVIS_AUTO_UPDATE_INTERVAL` | How often Watchtower looks for a new version, in SECONDS | `86400` (24 hours) | Only has an effect with `JAVIS_AUTO_UPDATE=true`. Do not set it too short: every new version is another restart. |
 
 ### Group 7: Advanced variables (rarely need touching)
 

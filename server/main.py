@@ -9167,13 +9167,20 @@ async def _watchtower_ly_do() -> str:
     theo thiết kế, nhưng app trước nay gộp chúng vào một câu chung chung nên nhìn hệt như máy
     hỏng - và không có cách nào tự biết máy mình thiếu gì.
 
-    - no_token: WATCHTOWER_TOKEN không được set. Đây là stack Hostinger, nơi CỐ TÌNH không
-      kèm Watchtower (nó không đụng được Docker socket, bị Restarting liên tục). Đường cập
-      nhật ở đây là Redeploy, không có gì để bật thêm.
-    - watchtower_off: token có (docker-compose.yml luôn đặt sẵn) nhưng không nối được tới
-      container. Gần như luôn là vì Watchtower nằm trong `profiles: ["update"]`, tức là
-      `docker compose up -d` KHÔNG bật nó. Đây mới là trường hợp bật được, và bật bằng đúng
-      một lệnh - nên phải nói ra lệnh đó.
+    Từ 0.55.56 Watchtower BẬT SẴN trong cả hai file compose (VPS lẫn Hostinger), nên hai mã
+    dưới đây đổi NGHĨA - đọc kỹ trước khi sửa câu chữ ở dashboard theo:
+
+    - no_token: WATCHTOWER_TOKEN không được set, mà mọi file compose của Javis đều đặt sẵn
+      biến này. Nghĩa là stack đang chạy được deploy từ một file compose CŨ (hoặc một file tự
+      viết). Cách ra: lấy compose mới rồi deploy lại - Hostinger bấm Redeploy, VPS chạy
+      `docker compose up -d --pull always`.
+    - watchtower_off: token có nhưng không nối được tới container. Hai khả năng, và câu trả
+      lời cho cả hai đều là "deploy lại bằng compose mới": stack cũ có Watchtower trong
+      `profiles: ["update"]` nên `docker compose up -d` không bật nó; hoặc Watchtower có chạy
+      nhưng không đụng được Docker socket của host (Hostinger từng dính, xem log container
+      `<tên>-watchtower`).
+
+    Điều KHÔNG đổi: cả hai đều là app CÒN SỐNG, chỉ mất cái nút. Không được vẽ chúng như lỗi.
     """
     if not os.getenv("WATCHTOWER_TOKEN", ""):
         return "no_token"

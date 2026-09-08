@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.56] - 2026-09-08
+### Thêm mới
+- **Cài mới là cập nhật được ngay.** Watchtower, thứ làm cho nút **⬆ Cập nhật ngay** chạy được, nay đi kèm sẵn trong cả compose Hostinger lẫn compose VPS. Trước đây bản Hostinger không có nó còn bản VPS giấu sau một tuỳ chọn, nên máy này có nút mà máy kia không và Hostinger phải vào Docker Manager bấm Redeploy mỗi lần.
+- **Muốn khỏi bấm nút:** đặt `JAVIS_AUTO_UPDATE=true` (Hostinger: ô Environment) là Javis tự tìm bản mới mỗi ngày. Mặc định tắt, vì tự cập nhật nghĩa là app tự khởi động lại bất cứ lúc nào có bản mới, cắt ngang việc đang chạy.
+
+### Sửa lỗi
+- **Máy nào còn thiếu nút cập nhật thì được chỉ đúng một việc cần làm**: lấy file compose mới rồi dựng lại. Câu cũ bảo máy Hostinger "không bật được" nay không còn đúng.
+
+> Bản đang chạy cần **deploy lại một lần** bằng compose mới thì mới có Watchtower: Hostinger bấm **Redeploy**, VPS tải lại `docker-compose.yml` rồi `docker compose up -d --pull always`.
+
 ## [0.55.55] - 2026-09-08
 ### Sửa lỗi
 - **Model Antigravity kiểu `gemini-3.8-flash-medium` chat được trở lại.** Tên model đó đã kèm sẵn mức nghĩ, nhưng Javis vẫn gửi thêm mức **Độ sâu suy nghĩ** bạn chọn, nên Antigravity từ chối chạy: bạn chỉ nhận hai dòng đỏ rồi câu "không có nội dung trả về". Nay Javis nhận ra loại model này và không gửi phần thừa nữa; độ sâu bạn chọn chuyển thành lời nhắc trong câu hỏi.

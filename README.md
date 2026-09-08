@@ -70,8 +70,10 @@ VPS Hostinger → **Docker Manager → Compose → URL** → dán **file Hosting
 https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
 ```
 Ô **Environment** của mẫu mới chỉ còn 3 trường cần thiết: `DOMAIN_NAME`,
-`JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`. Các biến kỹ thuật về cổng, state,
-brain và thư mục chạy đã được ẩn vì Docker image tự đặt đúng.
+`JAVIS_ADMIN_USER`, `JAVIS_ADMIN_PASSWORD`, cộng một trường tuỳ chọn
+`JAVIS_AUTO_UPDATE` (đặt `true` là Javis tự cập nhật mỗi ngày, bỏ trống thì cập
+nhật bằng nút trong app). Các biến kỹ thuật về cổng, state, brain và thư mục chạy
+đã được ẩn vì Docker image tự đặt đúng.
 
 Đặt `DOMAIN_NAME` để Traefik của Hostinger cấp HTTPS:
 - **Link miễn phí** (không cần mua tên miền): `DOMAIN_NAME=javis.<hostname-vps>.hstgr.cloud`

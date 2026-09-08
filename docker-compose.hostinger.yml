@@ -8,8 +8,10 @@
 # CÁCH DÙNG:
 #   1) Docker Manager > Compose > URL > dán:
 #      https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.hostinger.yml
-#   2) Ô Environment chỉ còn 3 trường hữu ích:
-#        DOMAIN_NAME, JAVIS_ADMIN_USER, JAVIS_ADMIN_PASSWORD.
+#   2) Ô Environment chỉ còn 4 trường hữu ích:
+#        DOMAIN_NAME, JAVIS_ADMIN_USER, JAVIS_ADMIN_PASSWORD, JAVIS_AUTO_UPDATE.
+#      (JAVIS_AUTO_UPDATE=true thì Javis TỰ cập nhật mỗi ngày, khỏi bấm nút. Bỏ trống thì
+#       cập nhật bằng nút "Cập nhật ngay" trong app - xem service watchtower ở dưới.)
 #      (Thêm 2 trường CHỈ CẦN KHI cài bản Javis THỨ HAI trở đi trên cùng VPS - xem cuối file:
 #        JAVIS_NAME, JAVIS_HOST_PORT. Cài bản đầu thì bỏ trống cả hai.)
 #      Đặt DOMAIN_NAME để có HTTPS:
@@ -23,7 +25,8 @@
 #
 # GHI CHÚ:
 #   - Mấu chốt: KHÔNG khai báo networks - Traefik của Hostinger tự thấy container qua nhãn.
-#   - Cập nhật bản mới: Redeploy trong Docker Manager (image :latest + pull_policy: always).
+#   - Cập nhật bản mới: bấm "Cập nhật ngay" ngay trong app (trang Cập nhật). Nút đó cần
+#     container watchtower đi kèm bên dưới; nó không lên được thì vẫn Redeploy như cũ.
 #   - VPS KHÔNG phải Hostinger: bỏ file này, dùng docker-compose.yml + docker-compose.https.yml (Caddy).
 #   - Image GHCR phải để PUBLIC (GitHub > Packages > javis-os > Package settings > Public).
 # ============================================================================
@@ -45,6 +48,12 @@ services:
       DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
       JAVIS_ADMIN_USER: ${JAVIS_ADMIN_USER:-admin}
       JAVIS_ADMIN_PASSWORD: ${JAVIS_ADMIN_PASSWORD:-}
+      # Chung một token với service watchtower bên dưới -> nút "Cập nhật ngay" gọi được nó.
+      # ĐÓNG CỨNG chứ không lấy từ biến, có lý do: mỗi `${...}` trong file này đẻ thêm một ô
+      # trong form Environment của Docker Manager, mà token này không ai cần đổi - cổng 8080 của
+      # Watchtower không publish ra ngoài, chỉ container trong cùng stack gọi tới được.
+      # Muốn token riêng thì dùng docker-compose.yml (bản VPS), nó nhận biến WATCHTOWER_TOKEN.
+      WATCHTOWER_TOKEN: javis-update
     ports:
       # Đường vào dự phòng (nút Open / http://<ip>:7777). Bản thứ hai PHẢI đổi cổng này
       # (JAVIS_HOST_PORT=7778) vì một cổng máy chủ chỉ một container giữ được.
@@ -77,6 +86,42 @@ services:
       retries: 3
       start_period: 25s
 
+  # ------------------------------------------------------------------------
+  # Cập nhật 1-CLICK từ trong app (nút "Cập nhật ngay" ở trang Cập nhật). CÓ SẴN từ 0.55.56.
+  #
+  # Lịch sử phải nói thật, vì nó là lý do khối này từng KHÔNG có: bản 2026-07-18 đã thử rồi gỡ
+  # đi, do trên Docker Manager container Watchtower bị Restarting liên tục (không đụng được
+  # Docker socket) và stack hiện "Partially running". Nay đưa lại vì cái giá của việc thiếu nó
+  # lớn hơn: máy cài mới không tự cập nhật được, phải nhớ vào Docker Manager bấm Redeploy - mà
+  # chủ repo báo đúng cảnh đó (2026-09-08).
+  #
+  # Điều KHÔNG đổi kể cả khi host chặn socket: container javis ở trên CHẠY BÌNH THƯỜNG. Watchtower
+  # là một container RIÊNG, nó hỏng thì chỉ mất cái nút, không kéo theo app. Gặp "Partially
+  # running" thì mở log container `javis-watchtower`; không sửa được thì cập nhật bằng REDEPLOY
+  # y như trước, trang Cập nhật trong app cũng tự nói ra điều đó.
+  watchtower:
+    image: containrrr/watchtower
+    container_name: ${JAVIS_NAME:-javis}-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_HTTP_API_UPDATE: "true"                    # nhận lệnh cập nhật từ nút bấm
+      WATCHTOWER_HTTP_API_TOKEN: javis-update               # khớp WATCHTOWER_TOKEN của app ở trên
+      # TỰ tìm bản mới rồi dựng lại, KHÔNG chờ ai bấm nút. Đây là ô Environment thứ TƯ, và là
+      # `${...}` duy nhất được thêm vào file này - vì nó là một LỰA CHỌN của người cài, không
+      # phải mặc định kỹ thuật: bật lên là Javis tự khởi động lại bất cứ lúc nào có bản mới,
+      # cắt ngang việc nền và phiên chat đang chạy. Bỏ trống = tắt, cập nhật bằng nút bấm.
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: ${JAVIS_AUTO_UPDATE:-false}
+      WATCHTOWER_POLL_INTERVAL: 86400                       # 24h, chỉ có tác dụng khi bật ở trên
+      WATCHTOWER_CLEANUP: "true"                            # dọn image cũ sau khi update
+    # KHÔNG gắn nhãn traefik.*: đây là container nội bộ, không có gì để mở ra Internet.
+    labels:
+      - traefik.enable=false
+    # Theo dõi ĐÚNG container của bản này. Ghi cứng "javis" thì trên VPS có hai bản, Watchtower
+    # của bản này sẽ đi cập nhật và restart container của bản kia.
+    command: ${JAVIS_NAME:-javis}
+
 # ============================================================================
 # NHIỀU BẢN JAVIS TRÊN CÙNG MỘT VPS HOSTINGER
 #
@@ -91,11 +136,6 @@ services:
 # Mỗi stack có volume riêng, nên state / brain / tài khoản admin / token đăng nhập Claude đều
 # TÁCH BẠCH. Đăng nhập Claude phải làm lại một lần cho mỗi bản (App terminal của stack đó).
 # ============================================================================
-
-# GHI CHÚ: bản Hostinger CỐ TÌNH không kèm Watchtower. Đã thử (2026-07-18): trên Hostinger Docker
-# Manager, container Watchtower bị Restarting liên tục (không đụng được Docker socket), nên nút
-# "Cập nhật ngay" trong app KHÔNG chạy được ở đây. Bản Hostinger cập nhật bằng REDEPLOY.
-# Muốn nút bấm-là-chạy: dùng VPS tự quản (docker-compose.yml, profile update) hoặc bản Windows/native.
 
 volumes:
   javis-data:

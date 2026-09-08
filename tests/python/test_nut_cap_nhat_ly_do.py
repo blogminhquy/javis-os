@@ -14,11 +14,16 @@ nó. Máy nào từng chạy `--profile update` thì có nút, máy nào không 
 Nhưng app gộp hai lý do rất khác nhau vào MỘT câu chung chung ("cập nhật bằng Redeploy"),
 nên người dùng không có cách nào tự biết máy mình thiếu gì:
 
-  - watchtower_off: bật được, bằng đúng một lệnh.
-  - no_token:      không bật được (stack Hostinger), phải Redeploy.
+  - watchtower_off: token có mà không nối được tới container.
+  - no_token:      không có cả token.
 
 Gộp lại là cướp mất thông tin duy nhất người dùng cần. Nên thứ file này canh không phải là
 "có tự cập nhật được không" mà là "có NÓI RA ĐÚNG lý do không".
+
+CẬP NHẬT 0.55.56 - chủ repo báo lại (2026-09-08): "một số cài đặt hostinger mới không tự động
+cập nhật, bị thiếu watchtower". Nói ra đúng lý do là cần, nhưng chưa đủ: mặc định đúng còn
+quan trọng hơn một câu giải thích hay. Nay Watchtower ĐI KÈM SẴN trong cả hai file compose,
+nên mục 4 dưới đây canh chiều NGƯỢC LẠI với bản trước - đó là chủ ý, không phải test bị lỏng.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import os, sys, asyncio, tempfile, re, io
@@ -119,23 +124,39 @@ check("thiếu mã lý do vẫn có câu dự phòng",
       re.search(r'docker compose up -d --pull always', CON) is not None)
 
 # ============================================================
-# 4. Tiền đề: Watchtower THẬT SỰ nằm trong profile update
+# 4. Tiền đề: Watchtower ĐI KÈM SẴN, cài mới là cập nhật được ngay
 # ============================================================
-# Cả bản vá dựa trên sự thật này. Ngày nào ai đó bỏ profile đi thì lời khuyên trong app thành
-# sai, mà không có gì báo - nên canh thẳng vào file compose.
+# Đây là thay đổi của 0.55.56, và chủ repo báo đúng cái giá của thiết kế cũ (2026-09-08): "một
+# số cài đặt hostinger mới không tự động cập nhật, bị thiếu watchtower". Trước đó Watchtower
+# nằm trong `profiles: ["update"]` của compose VPS (lệnh `docker compose up -d` KHÔNG bật nó)
+# và không có mặt trong compose Hostinger - tức nút cập nhật chỉ hiện trên số ít máy, mà một
+# cái nút như vậy thì coi như không có.
+#
+# Canh thẳng vào file compose, vì mọi lời khuyên trong app đều dựa trên tiền đề này: ngày nào
+# ai đó đẩy Watchtower về sau một profile nữa thì câu chữ ở dashboard thành sai, không ai báo.
 COMPOSE = io.open(os.path.join(ROOT, "docker-compose.yml"), encoding="utf-8").read()
-check("CANARY: watchtower vẫn nằm trong profiles [update]",
-      re.search(r'watchtower:[\s\S]{0,400}profiles:\s*\["update"\]', COMPOSE) is not None)
-# Hostinger cố tình không có watchtower - nhánh no_token dựa vào đúng điều này.
+check("CANARY: watchtower KHÔNG còn nấp sau profile (up -d là phải có nút)",
+      re.search(r'watchtower:[\s\S]{0,600}profiles:', COMPOSE) is None)
 HOST = io.open(os.path.join(ROOT, "docker-compose.hostinger.yml"), encoding="utf-8").read()
-check("CANARY: stack Hostinger vẫn không có service watchtower",
-      re.search(r'^\s{2}watchtower:', HOST, re.M) is None)
+check("CANARY: stack Hostinger CÓ service watchtower",
+      re.search(r'^\s{2}watchtower:', HOST, re.M) is not None)
+check("CANARY: Hostinger đặt WATCHTOWER_TOKEN cho app (thiếu là app tưởng không có Watchtower)",
+      "WATCHTOWER_TOKEN" in HOST)
+# Tự cập nhật (không cần bấm nút) phải TẮT mặc định: bật ngầm là app tự khởi động lại giữa
+# chừng một việc nền, không ai chọn điều đó.
+for _f, _t in (("docker-compose.yml", COMPOSE), ("docker-compose.hostinger.yml", HOST)):
+    check(f"{_f}: có cửa bật tự cập nhật theo chu kỳ", "WATCHTOWER_HTTP_API_PERIODIC_POLLS" in _t)
+    check(f"CANARY: {_f} để tự cập nhật TẮT mặc định",
+          "JAVIS_AUTO_UPDATE:-false" in _t)
 
 # Tài liệu phải ghi cùng một lệnh - lệch nhau là người dùng gõ theo tài liệu rồi vẫn không có nút.
+# Lệnh `--profile update` nay là ĐƯỜNG LUI cho stack cũ, không còn là câu trả lời chính, nhưng
+# vẫn phải có mặt: người đang chạy compose cũ mà không được chỉ lệnh nào thì vẫn tắc như cũ.
 for f in ("DEPLOY.md", "docs/01-bat-dau-thiet-lap.md", "docs/17-khac-phuc-su-co.md"):
     t = io.open(os.path.join(ROOT, f), encoding="utf-8").read()
-    check(f"{f} ghi đúng lệnh bật Watchtower",
+    check(f"{f} ghi đúng lệnh bật Watchtower cho stack cũ",
           "docker compose --profile update up -d" in t)
+    check(f"{f} nói cách TỰ cập nhật khỏi bấm nút", "JAVIS_AUTO_UPDATE" in t)
 
 _sc = io.open(os.path.join(ROOT, "docs", "17-khac-phuc-su-co.md"), encoding="utf-8").read()
 check("tài liệu sự cố có bảng phân biệt ba kiểu 'not found'",

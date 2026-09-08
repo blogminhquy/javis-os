@@ -165,7 +165,11 @@ Mở **Cập nhật** (nhóm **Hệ thống**); thẻ **Javis OS** hiện phiên
 
 Bản cài trực tiếp trên máy (Windows, Linux, macOS) luôn tự cập nhật được. Bản Docker chỉ tự cập nhật tại chỗ khi container **Watchtower** đang chạy.
 
-Watchtower nằm trong `profiles: ["update"]`, nên `docker compose up -d` **không** bật nó - đó là lý do phổ biến nhất khiến máy này có nút mà máy kia không. Bật một lần bằng `docker compose --profile update up -d` rồi tải lại trang. Stack Hostinger cố tình không kèm Watchtower (không đụng được Docker socket), máy đó cập nhật bằng **Redeploy**. Khung Cập nhật tự nói máy bạn rơi vào trường hợp nào.
+Từ 0.55.56 Watchtower **đi kèm sẵn** trong cả compose VPS lẫn compose Hostinger, nên cài mới là có nút. Còn thiếu nút nghĩa là stack đang chạy bằng file compose cũ: trước đó Watchtower nằm trong `profiles: ["update"]` (lệnh `docker compose up -d` không bật nó) và stack Hostinger thì không kèm nó. Cách ra là lấy compose mới rồi dựng lại - VPS chạy `curl -fsSLO https://raw.githubusercontent.com/blogminhquy/javis-os/main/docker-compose.yml` rồi `docker compose up -d --pull always`, Hostinger bấm **Redeploy** trong Docker Manager. Chưa muốn đổi file thì bật riêng bằng `docker compose --profile update up -d`. Khung Cập nhật tự nói máy bạn rơi vào trường hợp nào.
+
+**Muốn khỏi bấm nút, để Javis tự cập nhật**: thêm `JAVIS_AUTO_UPDATE=true` vào `.env` (Hostinger: ô Environment) rồi dựng lại stack. Mặc định tắt, vì tự cập nhật nghĩa là app tự khởi động lại bất cứ lúc nào có bản mới, cắt ngang việc nền đang chạy. Chu kỳ mặc định 24 giờ, đổi bằng `JAVIS_AUTO_UPDATE_INTERVAL` (giây).
+
+**Stack báo "Partially running" sau khi cập nhật compose**: gần như luôn là container `<tên>-watchtower` không đụng được Docker socket của host (Hostinger từng dính đúng lỗi này). App Javis KHÔNG bị ảnh hưởng - nó là container riêng, vẫn chạy bình thường; chỉ là nút "Cập nhật ngay" không dùng được và bạn quay lại cách Redeploy. Xem lý do thật trong log: `docker logs javis-watchtower`.
 
 **Gõ lệnh compose mà báo `not found`** - ba kiểu, ba nguyên nhân khác hẳn:
 
