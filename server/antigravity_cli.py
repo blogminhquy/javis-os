@@ -169,6 +169,67 @@ def co_effort(muc: Optional[str]) -> list:
     return []
 
 
+# ---- Model TỰ MANG mức nghĩ trong tên: truyền thêm `--effort` là XUNG ĐỘT ----
+#
+# `agy models` trả về tên model đã gắn sẵn mức nghĩ ở đuôi: `gemini-3.8-flash-medium`,
+# `gemini-3.6-flash-high`... Với những model đó, CHỌN MODEL CHÍNH LÀ CHỌN MỨC NGHĨ, nên `agy`
+# từ chối chạy khi còn kèm cờ (chủ repo báo 2026-09-08, ảnh chụp màn hình):
+#
+#     invalid model selection (--model "gemini-3.8-flash-medium" --effort "high"):
+#     --model gemini-3.8-flash-medium conflicts with --effort=high
+#
+# `co_effort` KHÔNG bắt được ca này, và đó là chỗ đáng ghi lại: nó hỏi `--help` xem cờ có tồn
+# tại không, mà cờ tồn tại thật, giá trị "high" cũng được khai thật. Cái sai nằm ở chỗ GHÉP cờ
+# đúng với một model đã khoá - một điều kiện chỉ đọc được từ TÊN MODEL. Và nó hỏng nặng chứ
+# không nhẹ: CLI chết ngay lúc đọc cờ, chưa gọi tới model, nên MỌI lượt chat trên model đó đều
+# mất trắng cho tới khi người dùng tự đổi model hoặc hạ độ sâu suy nghĩ.
+_DUOI_KHOA_EFFORT = ("low", "medium", "high", "xhigh", "max", "minimal")
+_MODEL_XUNG_EFFORT: set = set()   # model bị CHÍNH CLI báo xung đột - nhớ để lượt sau khỏi thử
+
+
+def nho_model_xung_effort(model) -> None:
+    """Nhớ trong phiên: model này bị `agy` từ chối khi kèm `--effort`.
+
+    Để lượt sau đi thẳng đường không cờ thay vì tốn thêm một tiến trình hỏng nữa. Chỉ nhớ trong
+    RAM: một bản `agy` mới có thể bỏ luật xung đột, mà ghi ra đĩa thì cái nhớ sai sống dai hơn
+    cái sai nó vá.
+    """
+    ten = str(model or "").strip().lower()
+    if ten:
+        _MODEL_XUNG_EFFORT.add(ten)
+
+
+def model_khoa_effort(model) -> bool:
+    """Tên model này đã tự mang sẵn mức nghĩ -> KHÔNG được truyền `--effort` nữa.
+
+    Nói thẳng cái giá của cách nhận diện bằng đuôi tên: một model thật sự tên đuôi `-max` mà
+    vẫn nhận `--effort` sẽ bị bỏ cờ oan, và độ sâu rơi về câu nhắc trong prompt. Đó là hướng
+    sai ĐÚNG - bỏ sót một tuỳ chọn thì người dùng vẫn có câu trả lời, còn ghép sai là mất trọn
+    lượt chat kèm một câu lỗi tiếng Anh họ không sửa được gì.
+    """
+    ten = str(model or "").strip().lower()
+    if not ten:
+        return False
+    if ten in _MODEL_XUNG_EFFORT:
+        return True
+    duoi = ten.rsplit("-", 1)[-1] if "-" in ten else ""
+    return duoi in _DUOI_KHOA_EFFORT
+
+
+def _la_loi_xung_effort(loi: str) -> bool:
+    """Câu lỗi này có phải là "model đã khoá mức nghĩ mà còn kèm --effort" không.
+
+    Lưới an toàn cho những hình dạng xung đột CHƯA ĐO ĐƯỢC (model không hỗ trợ suy nghĩ, bản
+    CLI đổi câu chữ, đuôi tên model kiểu mới). Nhận rộng có chủ đích: đoán nhầm thì cùng lắm
+    chạy lại một lượt không cờ, còn bỏ sót là người dùng mất câu trả lời.
+    """
+    l = (loi or "").lower()
+    if "effort" not in l:
+        return False
+    return any(k in l for k in ("conflict", "invalid model selection", "cannot be used with",
+                                "incompatible", "not supported", "not compatible"))
+
+
 def nhan_prompt_qua_stdin() -> bool:
     """`--help` của bản này có TỰ KHAI là đọc prompt từ stdin không.
 
@@ -989,7 +1050,10 @@ class AntigravityCLI:
         if self.model and co_co("--model"):
             args += ["--model", self.model]
         args += co_quyen_cho_mode(self.mode)
-        args += co_effort(self.effort)
+        # Hai điều kiện, thiếu một là hỏng lượt chat: `co_effort` biết bản CLI này CÓ cờ hay
+        # không, `model_khoa_effort` biết model đang chọn đã tự mang mức nghĩ trong tên chưa.
+        if not model_khoa_effort(self.model):
+            args += co_effort(self.effort)
         if self.mcp_config and co_co("--mcp-config", "--mcp-config-file"):
             args += ["--mcp-config", self.mcp_config]
         if co_co("--output-format"):
@@ -1052,9 +1116,24 @@ class AntigravityCLI:
         # ra màn hình. Chủ repo đã thấy đúng cảnh ngược lại: hai bong bóng đỏ "Error: empty
         # prompt" và "thoát với mã 1" hiện lên, rồi mới tới câu trả lời - người dùng không có
         # cách nào biết cái đỏ đó Javis đã tự xử xong.
-        async for ev in self._mot_luot(full, prompt, duong, ket,
-                                       giu_loi=(duong != "file")):
+        # `giu_loi=True` cho MỌI đường, kể cả đường file. Trước 0.55.x chỗ này truyền
+        # `giu_loi=(duong != "file")`, và nó đẻ ra lỗi kép: đường file vừa bắn lỗi ra ngay tại
+        # chỗ, vừa gom vào `cac_loi` để nhánh `else` cuối hàm bắn ra LẦN NỮA - người dùng nhận
+        # hai bong bóng đỏ y hệt nhau cho cùng một sự cố. Giữ hết ở `cac_loi` thì chỉ còn đúng
+        # một chỗ phát lỗi, mà lượt thử lại bên dưới cũng không bị lộ câu lỗi của lượt hỏng.
+        async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
             yield ev
+        # Model đã khoá mức nghĩ mà Javis còn kèm `--effort`: `agy` chết ngay lúc đọc cờ (xem
+        # `model_khoa_effort`). Bỏ cờ rồi chạy lại NGAY trong lượt này - người dùng vẫn nhận
+        # câu trả lời, chỉ mất phần độ sâu mà chính tên model đã ấn định sẵn.
+        if self.effort and any(_la_loi_xung_effort(x) for x in ket.get("cac_loi") or []):
+            print(f"[antigravity] model {self.model} không nhận --effort, chạy lại không cờ",
+                  file=sys.stderr)
+            nho_model_xung_effort(self.model)
+            self.effort = None
+            ket = {}
+            async for ev in self._mot_luot(full, prompt, duong, ket, giu_loi=True):
+                yield ev
         # Vượt trần dòng lệnh: chạy lại NGAY bằng đường không có trần. Không có nhánh này thì
         # người dùng nhận nguyên "OSError: [Errno 7] Argument list too long" - một câu họ không
         # sửa được gì, và lượt chat coi như mất trắng (báo 2026-08-30, chat dài tiếng Việt).
@@ -1065,8 +1144,7 @@ class AntigravityCLI:
             print(f"[antigravity] prompt vượt trần dòng lệnh, chuyển sang {_duong_lui}",
                   file=sys.stderr)
             ket = {}
-            async for ev in self._mot_luot(full, prompt, _duong_lui, ket,
-                                           giu_loi=(_duong_lui != "file")):
+            async for ev in self._mot_luot(full, prompt, _duong_lui, ket, giu_loi=True):
                 yield ev
             duong = _duong_lui
         # Prompt KHÔNG TỚI NƠI có hai hình dạng, và bản trước chỉ bắt được một:

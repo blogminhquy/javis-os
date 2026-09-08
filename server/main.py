@@ -3016,7 +3016,15 @@ def _cli_do_sau_khac(cli, mod, reasoning, message):
     `mod` là module của engine (`grok_cli` / `antigravity_cli`) - chính nó giữ `co_effort`, và
     chính nó biết bản CLI trên máy này khai những gì. Hai đường KHÔNG cộng dồn, cùng lý do đã
     ghi ở `_cli_do_sau`.
+
+    Chốt chặn ĐẦU TIÊN cho ca "model tự mang mức nghĩ trong tên" (Antigravity:
+    `gemini-3.8-flash-medium`): với model đó, cờ `--effort` đúng cú pháp vẫn làm CLI thoát mã 1
+    kèm "conflicts with --effort", mất trọn lượt chat. Nên hỏi module trước, và rơi về câu nhắc
+    trong prompt y như mọi bản CLI không có cờ - chọn model coi như đã chọn mức nghĩ rồi.
     """
+    khoa = getattr(mod, "model_khoa_effort", None)
+    if khoa and khoa(getattr(cli, "model", "") or ""):
+        return _nhac_suy_nghi(reasoning, message)
     co = _co_effort_lui(mod, reasoning)
     if co:
         try:

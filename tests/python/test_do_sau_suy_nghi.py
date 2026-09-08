@@ -224,6 +224,31 @@ for _mod, _ten in ((grok_cli, "Grok"), (antigravity_cli, "Antigravity")):
           _m4b != "hỏi" and "ultrathink" not in _m4b and "think hard" not in _m4b, _m4b)
     check(f"{_ten}: cờ lạ giá trị không khai cũng không truyền", _mod.co_effort("max") == [])
 
+# --- 6d. Antigravity: model TỰ MANG mức nghĩ trong tên thì cấm kèm `--effort` ---
+# Chủ repo báo 2026-09-08 kèm ảnh: chọn `gemini-3.8-flash-medium` + độ sâu "Cao" là mọi lượt
+# chat chết ngay, không một chữ trả về:
+#
+#     invalid model selection (--model "gemini-3.8-flash-medium" --effort "high"):
+#     --model gemini-3.8-flash-medium conflicts with --effort=high
+#
+# Cờ có thật, giá trị "high" cũng được `--help` khai thật, nên `co_effort` gật đầu - cái sai
+# nằm ở chỗ GHÉP cờ đúng với một model đã khoá sẵn mức nghĩ. Đây là canary cho đúng chỗ đó.
+antigravity_cli._HELP_CACHE.update(path="gia", text=_HELP_CO, ts=_t.time())
+_ag_khoa = _EngineGia2("gemini-3.8-flash-medium")
+_m_khoa = srv._cli_do_sau_khac(_ag_khoa, antigravity_cli, "high", "hỏi")
+check("CANARY: model đuôi -medium/-high thì TUYỆT ĐỐI không đặt effort (CLI thoát mã 1)",
+      _ag_khoa.effort is None, _ag_khoa.effort)
+check("và độ sâu không mất trắng: rơi về câu nhắc trong prompt", _m_khoa != "hỏi", _m_khoa)
+_ag_thuong = _EngineGia2("claude-sonnet-4-6")
+srv._cli_do_sau_khac(_ag_thuong, antigravity_cli, "high", "hỏi")
+check("model KHÔNG khoá thì vẫn đặt cờ như cũ (đừng vá quá tay)",
+      _ag_thuong.effort == "high", _ag_thuong.effort)
+for _m, _mong in (("gemini-3.8-flash-medium", True), ("gemini-3.6-flash-high", True),
+                  ("gemini-3-pro-low", True), ("claude-sonnet-4-6", False),
+                  ("gemini-3-pro", False), ("", False)):
+    check(f"model_khoa_effort({_m!r}) == {_mong}",
+          antigravity_cli.model_khoa_effort(_m) is _mong)
+
 check("mọi nấc bật đều có câu nhắc trung tính",
       all(srv._GOI_SUY_NGHI.get(r) for r in engine.REASONING_LEVELS[1:]), srv._GOI_SUY_NGHI)
 check("CANARY: câu nhắc trung tính không mượn từ khoá của Claude Code",

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.55] - 2026-09-08
+### Sửa lỗi
+- **Model Antigravity kiểu `gemini-3.8-flash-medium` chat được trở lại.** Tên model đó đã kèm sẵn mức nghĩ, nhưng Javis vẫn gửi thêm mức **Độ sâu suy nghĩ** bạn chọn, nên Antigravity từ chối chạy: bạn chỉ nhận hai dòng đỏ rồi câu "không có nội dung trả về". Nay Javis nhận ra loại model này và không gửi phần thừa nữa; độ sâu bạn chọn chuyển thành lời nhắc trong câu hỏi.
+- **Antigravity từ chối vì lý do khác thì Javis tự chạy lại ngay**, thay vì bỏ mặc bạn với một câu lỗi tiếng Anh.
+- **Một sự cố chỉ hiện một dòng báo lỗi.** Với hội thoại dài, cùng một lỗi trước đây hiện hai lần y hệt nhau.
+
 ## [0.55.54] - 2026-09-08
 ### Cải thiện
 - **Chuyển sang tiếng Anh giờ là tiếng Anh thật.** Trước đây đổi ngôn ngữ xong vẫn còn nhiều mảng tiếng Việt: Javis Store, trang Chatbot, Mức dùng token, hộp thư thông báo, terminal, lịch sử hội thoại, khung sửa file, dải việc nền và phần lớn trang Cài đặt, Kết nối, Models, Cập nhật. Hơn 1.200 câu chữ nữa đã có bản tiếng Anh.

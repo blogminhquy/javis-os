@@ -938,6 +938,96 @@ antigravity_cli._no_window = _no_window_that
 
 
 # ============================================================
+# 8b. Model TỰ MANG mức nghĩ trong tên: kèm `--effort` là chết cả lượt chat
+# ============================================================
+# Chủ repo báo 2026-09-08 kèm ảnh chụp: đang chat thì nhận hai bong bóng đỏ rồi một dòng
+# "(không có nội dung trả về - thử lại hoặc đổi model)":
+#
+#     invalid model selection (--model "gemini-3.8-flash-medium" --effort "high"):
+#     --model gemini-3.8-flash-medium conflicts with --effort=high
+#     Antigravity CLI thoát với mã 1.
+#
+# `agy models` trả tên model đã gắn sẵn mức nghĩ ở đuôi, nên chọn model CHÍNH LÀ chọn mức nghĩ
+# và `agy` cấm kèm cờ. Hỏng nặng chứ không nhẹ: CLI chết lúc đọc cờ, chưa gọi tới model, nên
+# MỌI lượt chat trên model đó mất trắng cho tới khi người dùng tự đổi model hoặc hạ độ sâu.
+_HELP_EFFORT = (_HELP_MOI + "  --effort <level>   low, medium, high, xhigh\n")
+
+_reset_cache()
+_cli_e, _d_e = _gia([], help_text=_HELP_EFFORT)
+antigravity_cli.find_antigravity_cli = lambda: _cli_e
+_g_khoa = antigravity_cli.AntigravityCLI(cwd="/tmp", model="gemini-3.8-flash-medium")
+_g_khoa.cli_path = _cli_e
+_g_khoa.effort = "high"
+check("CANARY: model đã khoá mức nghĩ thì dòng lệnh KHÔNG được có --effort",
+      "--effort" not in _g_khoa._build_args("hỏi"), _g_khoa._build_args("hỏi"))
+_g_thuong = antigravity_cli.AntigravityCLI(cwd="/tmp", model="claude-sonnet-4-6")
+_g_thuong.cli_path = _cli_e
+_g_thuong.effort = "high"
+check("model thường thì vẫn truyền --effort như cũ (đừng vá quá tay)",
+      "--effort" in _g_thuong._build_args("hỏi"), _g_thuong._build_args("hỏi"))
+
+
+def _gia_xung_effort(dong_ra):
+    """`agy` giả có luật y như bản thật: có `--effort` là từ chối, không có thì trả lời.
+
+    Ghi NỐI TIẾP argv của từng lần chạy để test soi được cả lượt hỏng lẫn lượt chạy lại.
+    """
+    d = Path(tempfile.mkdtemp(prefix="javis-fakeagy-eff-"))
+    p = d / "agy"
+    p.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        "a = sys.argv[1:]\n"
+        f"if '--help' in a:\n    sys.stdout.write({_HELP_EFFORT!r}); sys.exit(0)\n"
+        f"open({str(d / 'argv.txt')!r}, 'a').write('\\x00'.join(a) + '\\n')\n"
+        "if '--effort' in a:\n"
+        "    sys.stderr.write('invalid model selection (--model \"m\" --effort \"high\"): "
+        "--model m conflicts with --effort=high')\n    sys.exit(1)\n"
+        f"for l in {json.dumps(dong_ra)}:\n    print(l, flush=True)\n"
+        "sys.exit(0)\n",
+        encoding="utf-8")
+    p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return str(p), d
+
+
+# Lưới an toàn cho hình dạng CHƯA ĐO ĐƯỢC: model không có đuôi mức nghĩ mà CLI vẫn từ chối
+# (model không biết suy nghĩ, hoặc bản `agy` sau đổi luật). Chính câu lỗi của CLI là dấu hiệu -
+# bỏ cờ rồi chạy lại NGAY trong lượt này, người dùng vẫn có câu trả lời.
+_reset_cache()
+_cli_x, _d_x = _gia_xung_effort([json.dumps({"role": "assistant", "content": "Chào anh."})])
+antigravity_cli.find_antigravity_cli = lambda: _cli_x
+_g_x = antigravity_cli.AntigravityCLI(cwd=str(_d_x), model="model-la")
+_g_x.cli_path = _cli_x
+_g_x.effort = "high"
+_evs_x = chay(_gom(_g_x))
+_lan_chay = [l.split("\x00") for l in
+             (_d_x / "argv.txt").read_text(encoding="utf-8").strip().splitlines()]
+check("CANARY: CLI báo xung đột --effort -> chạy lại KHÔNG cờ, không để mất lượt chat",
+      any(e["type"] == "final" and e["content"] == "Chào anh." for e in _evs_x), _evs_x)
+check("lượt chạy lại đã bỏ hẳn --effort",
+      len(_lan_chay) == 2 and "--effort" not in _lan_chay[1], _lan_chay)
+check("không bắn câu lỗi tiếng Anh của lượt hỏng ra cho người dùng",
+      not any(e["type"] == "error" for e in _evs_x), _evs_x)
+check("nhớ model đó trong phiên để lượt sau khỏi thử lại",
+      antigravity_cli.model_khoa_effort("model-la"))
+
+# Lỗi KHÔNG phải xung đột effort thì vẫn phải hiện ra, và hiện ĐÚNG MỘT LẦN. Đường file trước
+# đây bắn lỗi hai lần (một lần tại chỗ, một lần ở nhánh gom cuối `query`) nên cùng một sự cố
+# hiện hai bong bóng đỏ y hệt nhau - đúng cảnh trong ảnh chủ repo gửi.
+_reset_cache()
+_cli_l, _d_l = _gia([], ma=1, stderr="đứt cáp", help_text=_HELP_MOI)
+antigravity_cli.find_antigravity_cli = lambda: _cli_l
+_g_l = antigravity_cli.AntigravityCLI(cwd=str(_d_l))
+_g_l.cli_path = _cli_l
+_g_l.instructions = "y" * 200000        # đủ dài để phải đi đường file
+_evs_l = chay(_gom(_g_l))
+check("CANARY: một sự cố chỉ hiện ĐÚNG MỘT bong bóng lỗi, không nhân đôi",
+      len([e for e in _evs_l if e["type"] == "error"]) == 1, _evs_l)
+
+antigravity_cli.find_antigravity_cli = _that_find
+
+
+# ============================================================
 # 9. Kernel cũ: SDK phải chạy binary `claude` của máy, không phải bản Bun đóng gói
 # ============================================================
 # Người dùng chạy NAS Synology DS916+ (kernel 3.10.108) báo kèm log: `_bundled/claude` build
