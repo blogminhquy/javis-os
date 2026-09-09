@@ -73,7 +73,20 @@
   // Path tro toi file/thu muc TRONG vault (khong phai URL ngoai / data / o dia)?
   function isVaultRel(p) {
     p = String(p == null ? "" : p).trim();
-    return !!p && !/^(https?:|mailto:|data:|blob:|\/)/i.test(p);
+    return !!p && !/^(https?:|mailto:|data:|blob:|file:|\/)/i.test(p);
+  }
+  // Link `file:///brains/Brain%20Default/wiki/x.md` (hay file://localhost/..., file:/C:/...):
+  // harness cua Antigravity dan model "dung link markdown voi giao thuc file://", nen dang nay
+  // ve deu (bug 2026-09-09: bam link wiki vua ingest thi 404). Truoc day no lot qua isVaultRel
+  // (khong khop nhanh nao) roi thanh data-vault-path="file:///..." - server di tim mot file ten
+  // "file:" va tra 404. Tra ve duong dan da go giao thuc + giai ma %xx; khong phai file URI -> null.
+  var FILE_URI_RE = /^file:(?:\/\/[^/\\]*)?(?=[/\\])/i;
+  function fileUriPath(href) {
+    href = String(href == null ? "" : href).trim();
+    if (!FILE_URI_RE.test(href)) return null;
+    var p = decodeVaultPath(href.replace(FILE_URI_RE, "")).replace(/\\/g, "/");
+    if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);          // /C:/x -> C:/x
+    return p;
   }
   function decodeQueryPart(s) {
     try { return decodeURIComponent(String(s || "").replace(/\+/g, " ")); }
@@ -94,16 +107,35 @@
     if (!/%[0-9a-f]{2}/i.test(s)) return s;
     try { return decodeURIComponent(s); } catch (e) { return s; }
   }
-  function currentBrainMatches(name) {
+  function currentBrainBase() {
     var b = String(brainPath() || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    var base = b === "brain" ? "Brain Default" : b.split("/").pop();
-    return String(base || "").toLowerCase() === String(name || "").toLowerCase();
+    return b === "brain" ? "Brain Default" : (b.split("/").pop() || "");
+  }
+  function currentBrainMatches(name) {
+    return String(currentBrainBase() || "").toLowerCase() === String(name || "").toLowerCase();
   }
   // Link file noi bo co the do server tao dung (/files/raw), do AI ghi sai theo duong dan dia
   // (/brains/<ten brain>/<file>), hoac la URL day du cung origin. Chuan hoa ve {brain,path};
   // link /brains chi doi khi dung CHINH brain dang chat, tranh mo nham file trung ten o brain khac.
   function appFileRef(href) {
     href = String(href == null ? "" : href).trim();
+    var fu = fileUriPath(href);
+    if (fu != null) {
+      // Duong dan dia day du tren MAY CHU (Docker: /brains/<brain>/..., cai tay: /home/x/brains/
+      // <brain>/..., Windows: C:/.../<brain>/...). Tim ten brain dang chat trong duong dan roi
+      // lay phan sau no; khong thay ten brain nao khac thi coi ca chuoi la duong tuong doi
+      // (model hay viet file:///wiki/x.md) - sai thi server 404 va khung "khong thay file" da
+      // co goi y ten gan dung, van hon mot cai link cam.
+      var base = currentBrainBase();
+      var idx = base ? fu.toLowerCase().indexOf("/" + base.toLowerCase() + "/") : -1;
+      if (idx >= 0) {
+        var sau = fu.slice(idx + base.length + 2).replace(/^\/+/, "");
+        return sau ? { path: sau, brain: brainPath() } : null;
+      }
+      if (/^\/brains\/[^/]+\//i.test(fu)) return null;   // brain KHAC: dung mo nham file trung ten
+      var rel0 = fu.replace(/^[A-Za-z]:/, "").replace(/^\/+/, "");
+      return rel0 ? { path: rel0, brain: brainPath() } : null;
+    }
     if (/^https?:\/\//i.test(href) && typeof window !== "undefined" && window.location) {
       try {
         var u = new URL(href, window.location.href);
@@ -178,6 +210,7 @@
   // Windows (":" loai luon URL va lenh co cong cu), khong leo thang "..".
   function codeFilePath(c) {
     var t = String(c == null ? "" : c).trim().replace(/\\/g, "/").replace(/^\.?\//, "");
+    if (fileUriPath(t) != null) { var fr = appFileRef(t); if (!fr) return ""; t = fr.path; }
     if (t.length < 4 || t.length > 240) return "";
     if (!isVaultRel(t)) return "";
     if (/[:<>"|?*\[\]]/.test(t)) return "";
@@ -508,6 +541,10 @@
     // Bat ca cap ngoac can bang 1 tang, roi cat title markdown tuy chon o duoi ( "tieu de" / 'tieu de').
     raw = raw.replace(/!\[([^\]]*)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, function (_m, alt, src) {
       src = src.replace(/\s+(["']).*\1\s*$/, "").trim();
+      if (fileUriPath(src) != null) {
+        var iref = appFileRef(src);
+        if (iref) return put(imgHtml(fileUrl(iref.path, iref.brain), alt, iref.path));
+      }
       if (isVaultRel(src)) src = decodeVaultPath(src);   // %20 -> khoang trang; xem decodeVaultPath
       return put(imgHtml(resolveSrc(src), alt, src));
     });
@@ -516,6 +553,10 @@
       href = href.replace(/\s+(["']).*\1\s*$/, "").trim();
       var appRef = appFileRef(href);
       if (appRef) return put('<a ' + vaultLink(appRef.path, "", appRef.brain) + ">" + esc(t) + "</a>");
+      // file:// tro sang brain khac / khong suy ra duoc: van la link vault de cu bam ra khung
+      // "khong thay file" (co goi y ten gan dung), thay vi mo tab moi 404 hay khong lam gi ca.
+      var fu = fileUriPath(href);
+      if (fu != null) return put('<a ' + vaultLink(fu.replace(/^\/+/, "")) + ">" + esc(t) + "</a>");
       if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
       // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
       // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
@@ -1008,9 +1049,13 @@
     // get(id): cho turndown (console.js) tra artifact card ve lai dung fence ``` khi luu note WYSIWYG
     window.JavisArtifacts = { open: openArtifact, close: closePanel,
       get: function (id) { return registry[id] || null; } };
+    // console.js goi lai khi mot duong dan file:// lot toi openVaultPath/JavisOpenNote (deep-link,
+    // chip file dang mo...) - mot luat go giao thuc, nam o mot cho.
+    window.JavisFileRef = appFileRef;
   }
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { mdToHtml: mdToHtml, highlight: highlight, wkResolve: wkResolve,
-      appFilePath: appFilePath, isDownloadFile: isDownloadFile };
+      appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
+      isDownloadFile: isDownloadFile };
   }
 })();

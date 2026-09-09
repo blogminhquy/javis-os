@@ -299,6 +299,7 @@
   // thư mục - đúng cái "thi thoảng nó vẫn bị gửi về folder" chủ repo báo (2026-08-13). Một
   // quyết định, mọi người gọi chung.
   function openVaultPath(fullPath) {
+    fullPath = _goFileUri(fullPath);
     const raw = String(fullPath == null ? "" : fullPath);
     const clean = raw.replace(/^\.?\//, "").replace(/\/+$/, "");
     const base = clean.split("/").pop();
@@ -320,7 +321,20 @@
   // đồ thị (app.js onGraphNodeClick) VÀ wikilink [[..]] trong chat-render.js - đều truyền MỘT chuỗi path.
   // ĐỪNG gán đè hàm này bằng openNote thô: mất bước suy tên/đuôi file → note .md rơi nhánh "hãy tải về"
   // (đã dính ở 0.9.152).
+  // Đường dẫn còn khoác giao thức file:// (link do Antigravity viết, 2026-09-09) thì gỡ về dạng
+  // tương đối gốc brain trước, không thì tiền tố trần bị ghép thành "brains/x/file:///brains/x/..."
+  // và server trả 404. Luật gỡ nằm ở chat-render.js (JavisFileRef); ở đây chỉ gọi lại.
+  function _goFileUri(p) {
+    const s = String(p == null ? "" : p);
+    if (!/^file:/i.test(s)) return p;
+    if (typeof window.JavisFileRef === "function") {
+      const r = window.JavisFileRef(s);
+      if (r && r.path) return r.path;
+    }
+    return s.replace(/^file:(?:\/\/[^/\\]*)?/i, "").replace(/^\/+/, "");
+  }
   if (typeof window !== "undefined") window.JavisOpenNote = function (brainRel) {
+    brainRel = _goFileUri(brainRel);
     if (!brainRel) return;
     // Trên điện thoại KHÔNG mở trình sửa: node trên đồ thị quá nhỏ nên chạm gần như luôn
     // trúng nhầm note, và trình sửa mở ra rồi thì thanh nút tràn khỏi màn hẹp nên khó thoát.
