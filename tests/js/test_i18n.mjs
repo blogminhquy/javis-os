@@ -97,7 +97,7 @@ for (const [ten, o] of [["vi.json", vi], ["en.json", en]]) {
 {
   const html = fs.readFileSync(path.join(ROOT, "dashboard", "index.html"), "utf8")
     .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, "");
-  const NGOAI_LE_TEXT = ["Ngọc Thu", "by Javis OS team", "1.10×"];
+  const NGOAI_LE_TEXT = ["Ngọc Thu", "by Javis Foundation", "1.10×"];
   const ID_JS_TU_QUAN = ["themeToggle", "sslToggle"];
   const tuQuan = (attrs) => ID_JS_TU_QUAN.some((id) => attrs.includes('id="' + id + '"'));
   const chuaGan = [];
