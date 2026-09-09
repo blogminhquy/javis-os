@@ -323,7 +323,11 @@ def extract_paths(text: str) -> list:
 # Media/liên kết NHÚNG trong markdown: ![alt](path) hoặc [text](path).
 # Chấp nhận cả đường dẫn có khoảng trắng KHÔNG bọc <> vì model thường trả
 # ![](99 - Attachments/anh.png), dù CommonMark chuẩn yêu cầu <...>.
-_MD_LINK_RE = re.compile(r"(!?)\[([^\]\n]*)\]\(\s*(?:<([^>\n]+)>|([^\n)]*?))\s*\)")
+# Target được phép chứa MỘT tầng ngoặc tròn cân bằng: tên file kiểu "30 Ngày Làm Chủ Antigravity
+# (CES Global).md" là chuyện thường trong wiki, và bản cũ (`[^\n)]*?`) cắt ngay ở dấu ")" đầu tiên,
+# nên link đúng bị coi là "không thấy file" và bị chuẩn hoá hụt đuôi (2026-09-09). Dashboard
+# (chat-render.js) đã nhận ngoặc cân bằng từ trước; hai đầu phải cùng một luật.
+_MD_LINK_RE = re.compile(r"(!?)\[([^\]\n]*)\]\(\s*(?:<([^>\n]+)>|((?:[^\n()]|\([^\n()]*\))*?))\s*\)")
 _MD_TITLE_RE = re.compile(r"""\s+(?:"[^"\n]*"|'[^'\n]*')\s*$""")
 
 

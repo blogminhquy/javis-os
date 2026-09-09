@@ -745,7 +745,9 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
         f"dẫn TUYỆT ĐỐI `{root}/<thư mục>/<tên file>`. TUYỆT ĐỐI không ghi tương đối theo thư mục "
         "làm việc và không ghi ra ngoài vault: file ngoài vault không hiện ở trang Tệp tin và mất "
         "khi cập nhật. Trong câu trả lời, dẫn link bằng đường dẫn TƯƠNG ĐỐI so với vault root "
-        "(vd `bai-viet/bai-1.txt`), và CHỈ dẫn link tới file đã ghi xong thật. Khi đếm hay liệt kê "
+        "(vd `bai-viet/bai-1.txt`), KHÔNG dùng giao thức `file://` và không mã hoá %20 dù harness "
+        "có dặn khác (khung chat và Telegram mở không được), và CHỈ dẫn link tới file đã ghi xong "
+        "thật. Khi đếm hay liệt kê "
         "file (vd \"còn bao nhiêu bài chưa xong\"), liệt kê lại thư mục bằng tool ngay lúc đó, "
         "đừng nhớ lại từ lượt trước.\n"
         "Khi user yêu cầu tạo/sửa agent, workflow hoặc loop qua chat, ghi file .md đúng định dạng "
@@ -8491,6 +8493,27 @@ async def _canh_bao_hua_suong(brain: str, chat_id: str, final_text: str,
 # file thì nói ra trong một dòng riêng, thà thừa một dòng còn hơn một cái link câm.
 _LINK_BO_QUA = ("#", "mailto:", "data:", "tel:", "blob:", "/files/raw", "/files/download")
 _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
+# `file:///brains/Brain%20Default/wiki/x.md`, `file://localhost/...`, `file:/C:/...`. Harness của
+# Antigravity dặn model "dùng link markdown kiểu GitHub với giao thức file://" (bug 2026-09-09:
+# bấm link wiki vừa ingest thì 404), nên dạng này sẽ còn về đều; gỡ giao thức rồi xử lý như
+# đường dẫn tuyệt đối bình thường.
+_FILE_URI_RE = re.compile(r"^file:(?://[^/\\]*)?(?=[/\\])", re.IGNORECASE)
+
+
+def _go_file_uri(t: str):
+    """`file:///a/b` → `/a/b` (đã giải mã %xx, `/C:/x` → `C:/x`). Không phải file URI → None."""
+    t = str(t or "").strip()
+    if not _FILE_URI_RE.match(t):
+        return None
+    duong = _FILE_URI_RE.sub("", t, count=1)
+    try:
+        duong = urllib.parse.unquote(duong)
+    except Exception:
+        pass
+    duong = duong.replace("\\", "/")
+    if re.match(r"^/[A-Za-z]:/", duong):
+        duong = duong[1:]
+    return duong
 
 
 def _files_vua_ghi(brain_root: str, ung_vien, t0: float) -> list:
@@ -8528,7 +8551,10 @@ def _link_muc_tieu_moi(brain_root: str, raw: str, files_written=None):
       file đó (model hay dẫn sai thư mục nhưng đúng tên file).
     """
     t = str(raw or "").strip().strip("<>").strip()
-    if not t or "://" in t or t.lower().startswith(_LINK_BO_QUA):
+    file_uri = _go_file_uri(t)
+    if file_uri is not None:
+        t = file_uri
+    elif not t or "://" in t or t.lower().startswith(_LINK_BO_QUA):
         return None
     if re.search(r"%[0-9a-fA-F]{2}", t):
         try:
@@ -8545,7 +8571,13 @@ def _link_muc_tieu_moi(brain_root: str, raw: str, files_written=None):
             cand = Path(t.replace("\\", "/")).expanduser().resolve()
             rel = cand.relative_to(broot).as_posix()
         except Exception:
-            return None                     # ngoài brain: khung chat không mở được, để nguyên
+            # Ngoài brain: khung chat không mở được, để nguyên. Riêng `file:///wiki/x.md` (model
+            # viết đường tương đối theo brain nhưng vẫn khoác giao thức) thì thử theo gốc brain.
+            if file_uri is None:
+                return None
+            rel = t.lstrip("/")
+            if not rel or not (broot / rel).exists():
+                return None
         return rel if rel != str(raw).strip() else None
     rel = re.sub(r"^(\./)+", "", t.replace("\\", "/")).lstrip("/")
     if not rel or (broot / rel).exists():
@@ -8584,7 +8616,7 @@ def _chuan_hoa_link_file(brain_root: str, text: str, files_written=None) -> str:
     def _bt(m):
         raw = m.group(1).strip()
         # Chỉ đụng tới thứ trông như đường dẫn TUYỆT ĐỐI (backtick còn chứa lệnh, tên tool...).
-        if not (raw.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", raw)):
+        if not (raw.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", raw) or _go_file_uri(raw) is not None):
             return m.group(0)
         moi = _link_muc_tieu_moi(brain_root, raw, files_written)
         return f"`{moi}`" if moi else m.group(0)
@@ -8606,6 +8638,14 @@ def _chuan_hoa_link_file(brain_root: str, text: str, files_written=None) -> str:
         return m.group(0)[:m.start(1) - m.start(0)] + f"`{rel}`" + duoi
 
     ra = re.sub(r"(?<![`\[(/\w])(/[^\s`\"'()\[\]<>|*?:]+)", _tran, ra)
+
+    def _uri_tran(m):
+        moi = _link_muc_tieu_moi(brain_root, m.group(0), files_written)
+        if not moi or "://" in moi or not (broot / moi).exists():
+            return m.group(0)
+        return f"`{moi}`"
+
+    ra = re.sub(r"(?<![`\[(<\w])file:(?://[^/\s]*)?/[^\s`\"'<>()\[\]]+", _uri_tran, ra, flags=re.IGNORECASE)
     return ra
 
 
@@ -8621,7 +8661,10 @@ def _link_file_khong_thay(brain_root: str, text: str) -> list:
     thieu, seen = [], set()
     for muc in channel_context.markdown_targets(text):
         raw = str(muc.get("raw") or "").strip().strip("<>")
-        if not raw or "://" in raw or raw.lower().startswith(_LINK_BO_QUA):
+        file_uri = _go_file_uri(raw)
+        if file_uri is not None:
+            raw = file_uri
+        elif not raw or "://" in raw or raw.lower().startswith(_LINK_BO_QUA):
             continue
         # Chỉ xét thứ TRÔNG NHƯ đường dẫn file (có thư mục hoặc có đuôi). `[Models](models)` hay
         # `[xem](muc-2)` là chữ, không phải file - báo "không thấy" cho chúng là báo động giả.

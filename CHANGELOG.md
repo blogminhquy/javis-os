@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.61] - 2026-09-09
+### Sửa lỗi
+- **Link file dạng `file:///brains/...` trong chat giờ bấm là mở.** Antigravity hay viết link kiểu này (kèm %20), trước đây bấm vào chỉ ra khung "Không tìm thấy file". Nay Javis tự gỡ về đường dẫn trong brain, cả ở link, ảnh và chữ trần; link cũ trong lịch sử cũng mở được.
+- **Tên file có ngoặc tròn không còn bị báo nhầm "không thấy file".** Ví dụ "30 Ngày Làm Chủ Antigravity (CES Global).md" từng bị cắt ở dấu ngoặc đóng đầu tiên.
+- Javis dặn thẳng mọi bộ não không dùng `file://` khi dẫn link, để Telegram và Zalo (không có bước tự sửa) cũng mở được.
+
 ## [0.55.60] - 2026-09-09
 ### Cải thiện
 - Nhãn tác giả ở đáy thanh điều hướng đổi thành **"by Javis Foundation"** (chủ repo đổi ý ngay sau bản 0.55.59).
