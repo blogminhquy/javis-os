@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.59] - 2026-09-09
+### Cải thiện
+- Nhãn tác giả ở đáy thanh điều hướng đổi từ "by Minh Quý" thành **"by Javis OS team"**.
+
 ## [0.55.58] - 2026-09-08
 ### Sửa lỗi
 - **File tạo từ chat nằm đúng trong brain, link bấm là mở.** Trước đây Claude Code trong chat làm việc ở thư mục cài app chứ không phải thư mục brain, nên file "đã viết" nằm lạc chỗ và bay theo lần cập nhật kế tiếp, link trong chat trỏ vào hư không, đếm bài lúc 3 lúc 5. Nay chat chạy ngay trong thư mục brain, như Codex, Antigravity và Grok vẫn làm.
