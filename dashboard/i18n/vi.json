@@ -1256,6 +1256,8 @@
   "app.att_server_err": "lỗi máy chủ ({code})",
   "app.att_upload_err": "lỗi upload",
   "app.att_timeout": "quá thời gian tải",
+  "app.att_wait_send": "Chờ file đính kèm tải lên xong rồi gửi...",
+  "app.att_failed_send": "Có file chưa tải lên được. Gỡ file lỗi (nút X) hoặc đính lại rồi gửi.",
   "app.ctx_legacy": "Đầy đủ",
   "app.ctx_sources": "Tối ưu",
   "app.ctx_fast": "Tức thì",

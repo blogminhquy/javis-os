@@ -1386,6 +1386,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 }
 .attach-chip .chip-x:hover { color: var(--red); }
 .attach-chip.uploading { opacity: 0.6; }
+/* Dòng nhắc dưới các chip (file chưa tải lên được): chiếm trọn một hàng để không chen vào chip. */
+.attach-bar .attach-note { flex-basis: 100%; font-size: 13px; color: var(--warn-ink, #b45309); }
 /* Chip FILE ĐANG MỞ (ghim): phải nhìn ra ngay là khác đính kèm một lần - nó sống qua nhiều
    lượt chat nên người dùng cần thấy "à, Javis vẫn đang làm việc trên file này". */
 .attach-chip.pinned {

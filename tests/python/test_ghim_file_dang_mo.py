@@ -52,7 +52,7 @@ check("set() gán đè (một ghim duy nhất), không push",
 # Thanh chip phải bung ra khi CHỈ có ghim (chưa đính kèm gì) - nếu quên vế này thì
 # ghim vô hình vì .attach-bar cao 0 khi không có .has-items.
 check("thanh chip bung ra khi chỉ có ghim",
-      'attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote)' in APP)
+      'attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote' in APP)
 check("chip ghim render với class riêng .pinned", '"attach-chip pinned"' in APP)
 check("chip ghim có nút bỏ ghim riêng", 'data-unpin="1"' in APP and "if (b.dataset.unpin) JavisPin.clear();" in APP)
 
