@@ -208,7 +208,7 @@ If you have piled up unprocessed sources, you can hand Javis a **loop** running 
 3. Under **Job type**, keep **🔁 Loop**.
 4. Set a **Name** (for example "Digest new sources").
 5. Fill in **Task description (each cycle Javis does exactly this)**, for example: "Each cycle read 1 unprocessed source in sources and propose the Wiki page to create".
-6. Choose the **Mode**: **Suggest (read only)** for suggestions only, or **Auto (safe)** to let it write draft files in the brain.
+6. Choose the **Mode**: **Full power** (the default) lets it act for real, **Auto (drafts)** limits it to writing draft files in the brain, **Suggest (read only)** gives suggestions only.
 7. Set the **Cycle (minutes, minimum 5)**, choose the **Brain (where the job is stored)**, then click **💾 Save**.
 
 Details of each mode, how to enable and disable, reading the log and safety tips: [Recurring jobs and reminders](08-recurring-jobs.md).

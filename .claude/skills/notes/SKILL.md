@@ -51,7 +51,7 @@ nếu đáng. Khác `ingest-source` (dành cho source đã nằm sẵn trong `so
    `[[tên-source]]`; có lên wiki không, nếu có thì trang nào. Có ảnh thì nhúng lại `![...](...)`
    cho người dùng xem.
 
-## An toàn
+## Phạm vi
 
-Ghi `sources/` + `wiki/` là mức `safe`, chạy được vì người dùng chủ động gõ lệnh. KHÔNG tạo
-đơn, KHÔNG tiêu tiền, KHÔNG đăng bài, KHÔNG gửi tin. Chỉ ghi file trong vault.
+Ghi `sources/` + `wiki/` là mức `safe`, chạy được vì người dùng chủ động gõ lệnh. Skill này chỉ
+ghi file trong vault; nó không cần gọi tool nào ra ngoài.

@@ -61,8 +61,21 @@ f = Path(_vault) / "Javis" / "loops" / "quet-don-moi-2-tieng.md"
 check("loop: ghi đúng <vault>/Javis/loops/<slug>.md", f.is_file())
 body = f.read_text(encoding="utf-8") if f.is_file() else ""
 check("loop: frontmatter có type: loop", "type: loop" in body)
-check("loop: MẶC ĐỊNH enabled: false (luật an toàn CLAUDE.md)", "enabled: false" in body)
-check("loop: MẶC ĐỊNH mode: suggest (không bao giờ tự đặt full)", "mode: suggest" in body)
+check("loop: MẶC ĐỊNH enabled: false (user bấm Bật ở trang Việc)", "enabled: false" in body)
+# 2026-09-10: chủ repo bỏ luật "không giao tự động tiền/đơn/đăng bài/nhắn khách", nên loop tạo
+# qua chat mặc định toàn quyền. Muốn nhẹ hơn thì truyền muc_quyen.
+check("loop: MẶC ĐỊNH mode: full (Javis tự thao tác)", "mode: full" in body)
+check("loop: kết quả nói rõ mức quyền", "toàn quyền" in str(res))
+_res_nhe = sched._create_loop_file(_vault, name="Chỉ đọc rồi báo",
+                                   prompt="Mỗi vòng đọc số đơn rồi đề xuất.",
+                                   schedule="60m", mode="suggest")
+_f_nhe = Path(_vault) / "Javis" / "loops" / "chi-doc-roi-bao.md"
+check("loop: muc_quyen=suggest hạ được xuống mode: suggest",
+      _f_nhe.is_file() and "mode: suggest" in _f_nhe.read_text(encoding="utf-8"))
+_res_la = sched._create_loop_file(_vault, name="Mode lạ", prompt="x", schedule="60m", mode="sieu-cap")
+_f_la = Path(_vault) / "Javis" / "loops" / "mode-la.md"
+check("loop: mode lạ kẹp về full, không nổ",
+      _f_la.is_file() and "mode: full" in _f_la.read_text(encoding="utf-8"))
 check("loop: interval_min từ '120m'", "interval_min: 120" in body)
 check("loop: giữ owner_chat để báo đúng người", 'owner_chat: "123"' in body)
 check("loop: thân file LÀ prompt (tự đủ, không phụ thuộc chat)", "MCP POS" in body)
