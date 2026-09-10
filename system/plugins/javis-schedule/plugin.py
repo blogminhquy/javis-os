@@ -14,8 +14,9 @@ lại sau MỘT tool duy nhất, tự route đúng chỗ theo bản chất lịc
       này CỐ Ý miễn đăng nhập cho localhost - main.py:70 _AUTH_LOCAL_EXACT).
 
 An toàn (BẮT BUỘC, không nhận tham số để đổi):
-    - Loop tạo qua chat LUÔN enabled: false + mode: suggest. Luật CLAUDE.md: "KHÔNG bao giờ tự
-      đặt mode: full".
+    - Loop tạo qua chat LUÔN enabled: false (người dùng bật ở trang Việc) và mặc định mode: full
+      (chủ repo bỏ luật "không giao tự động tiền/đơn/đăng bài/nhắn khách" ngày 2026-09-10).
+      Muốn nhẹ hơn thì truyền muc_quyen=auto|suggest, áp cho cả loop lẫn nhắc hẹn.
     - ctx.vault_root RỖNG -> báo lỗi rõ, TUYỆT ĐỐI không âm thầm rơi về Brain Default (đây chính
       là bug Task 1 vừa vá ở image_gen/_plugins_server - đừng tái tạo).
     - Trùng slug (đã có việc lặp cùng tên) -> báo lỗi, KHÔNG ghi đè: self_improve.py lấy định
@@ -203,10 +204,14 @@ def _loops_dir(vault_root: str) -> Path:
     return Path(vault_root) / "Javis" / "loops"
 
 
+_LOOP_MODES = ("suggest", "auto", "full")
+_LOOP_MODE_MAC_DINH = "full"
+
+
 def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
-                      owner_chat: str = "", brain_name: str = "") -> str:
-    """Ghi 1 loop mới vào <vault_root>/Javis/loops/<slug>.md. AN TOÀN CỨNG (không nhận tham số
-    để đổi): enabled luôn false, mode luôn suggest. Trùng slug (việc đã có) -> báo lỗi rõ, KHÔNG
+                      owner_chat: str = "", brain_name: str = "", mode: str = "") -> str:
+    """Ghi 1 loop mới vào <vault_root>/Javis/loops/<slug>.md. enabled luôn false (người dùng bật
+    ở trang Việc); mode mặc định full, hạ xuống auto/suggest khi model truyền. Trùng slug (việc đã có) -> báo lỗi rõ, KHÔNG
     ghi đè - self_improve.py lấy định danh loop theo TÊN FILE nên đẻ bản ascii song song sẽ để
     bản gốc vẫn chạy, thành 2 loop làm cùng 1 việc."""
     if not vault_root:
@@ -221,6 +226,9 @@ def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
     if fp.exists():
         return (f"ERROR: đã có việc tên '{name}' (Javis/loops/{slug}.md) - "
                  f"sửa nó thay vì tạo bản sao (vd đổi lịch/nội dung của file đó)")
+    mode = str(mode or "").strip().lower() or _LOOP_MODE_MAC_DINH
+    if mode not in _LOOP_MODES:
+        mode = _LOOP_MODE_MAC_DINH
     interval = _interval_min(schedule)
     if interval is None:
         return (f"ERROR: không rõ chu kỳ '{schedule}' - nói rõ số + đơn vị (vd '120m', '2 tiếng', "
@@ -232,7 +240,7 @@ def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
         f"name: {_yaml_scalar(name)}\n"
         f"slug: {slug}\n"
         "enabled: false\n"
-        "mode: suggest\n"
+        f"mode: {mode}\n"
         # goal: custom - BẮT BUỘC, KHÔNG được để self_improve.py mặc định 'business' (đọc
         # self_improve.py:250,546). goal='business' bỏ qua HOÀN TOÀN loop["body"] (chỉ đọc số
         # liệu MCP), nên nếu thiếu dòng này, prompt user vừa gõ (thân file dưới đây) không bao
@@ -253,9 +261,11 @@ def _create_loop_file(vault_root: str, name: str, prompt: str, schedule: str,
     except Exception as e:
         return f"ERROR: ghi file loop lỗi: {type(e).__name__}: {e}"
     where = f" trong brain {brain_name}" if brain_name else ""
-    return (f"Đã tạo việc lặp '{name}'{where} (Javis/loops/{slug}.md), chạy mỗi {interval} phút. "
-             f"Đang TẮT (enabled: false) và chỉ-gợi-ý (mode: suggest) theo luật an toàn - "
-             f"vào tab Việc trong dashboard để bật thật.")
+    ten_mode = {"full": "toàn quyền, tự thao tác ra ngoài", "auto": "chỉ ghi file nháp",
+                "suggest": "chỉ đọc rồi đề xuất"}[mode]
+    return (f"Đã tạo việc lặp '{name}'{where} (Javis/loops/{slug}.md), chạy mỗi {interval} phút, "
+             f"mức quyền {mode} ({ten_mode}). Đang TẮT (enabled: false): người dùng vào tab Việc "
+             f"trong dashboard bấm Bật thì nó mới chạy.")
 
 
 def _list_loops(vault_root: str) -> list:
@@ -285,7 +295,7 @@ def _list_loops(vault_root: str) -> list:
             "id": fp.stem,
             "name": str(fm.get("name") or fp.stem),
             "enabled": bool(fm.get("enabled", False)),
-            "mode": str(fm.get("mode", "suggest") or "suggest"),
+            "mode": str(fm.get("mode", "full") or "full"),
             "interval_min": fm.get("interval_min", 0),
         })
     return out
@@ -367,12 +377,11 @@ async def _post_reminder(payload: dict, brain_name: str = "") -> str:
               f"lần chạy kế tiếp {data.get('due_human') or '?'}.")
     else:
         ra = f"Đã đặt nhắc hẹn lúc {data.get('due_human') or '?'}{where} (id {data.get('id')})."
-    # Việc tới giờ tự chạy MỘT MÌNH với đầy đủ quyền. Máy chủ gửi kèm câu cảnh báo; đọc lại
-    # NGUYÊN VĂN cho user chứ đừng tóm tắt hay bỏ qua - đây là lúc duy nhất họ chắc chắn đang
-    # nhìn, và sau đó thì không ai duyệt gì nữa.
-    if data.get("canh_bao"):
-        ra += ("\n\n" + data["canh_bao"]
-               + "\n(NÓI LẠI nguyên văn đoạn cảnh báo trên cho user, đừng nuốt.)")
+    mq = str(data.get("muc_quyen") or "").strip().lower()
+    if data.get("mode") == "task" and mq:
+        ten = {"full": "toàn quyền, tự thao tác ra ngoài", "auto": "chỉ ghi file nháp",
+               "suggest": "chỉ đọc rồi báo lại"}.get(mq, mq)
+        ra += f" Mức quyền {mq} ({ten})."
     return ra
 
 
@@ -411,7 +420,8 @@ async def _do_create(vault_root: str, args: dict) -> str:
     kind = _route_kind(schedule, notify_only)
     if kind == "loop":
         return _create_loop_file(vault_root, name=name, prompt=prompt, schedule=schedule,
-                                 owner_chat=chat_id, brain_name=brain_name)
+                                 owner_chat=chat_id, brain_name=brain_name,
+                                 mode=str(args.get("muc_quyen") or ""))
     # I2: notify_only=True nghĩa là CHỈ nhắc bằng lời (mode "notify" - reminders.py:342 "⏰ Nhắc
     # anh: ..."), KHÔNG dựng nguyên engine Claude + MCP để "làm hộ" (mode "task" - reminders.py:
     # 418 _run_task, tốn tới max_wall_s=300). Trước đây hard-code "task" nên notify_only vô nghĩa -
@@ -443,8 +453,8 @@ async def _update_reminder(vault_root: str, rid: str, fields: dict) -> str:
 
 
 def _update_loop_file(vault_root: str, slug: str, fields: dict) -> str:
-    """Sửa loop bằng cách ghi lại frontmatter. Chỉ nhận name/prompt/schedule - các trường an toàn
-    (enabled/mode) vẫn phải bật tay trên dashboard, đúng luật loop tạo qua chat."""
+    """Sửa loop bằng cách ghi lại frontmatter. Chỉ nhận name/prompt/schedule - enabled/mode đổi
+    trên dashboard, nơi người dùng nhìn thấy cả danh sách loop."""
     fp = _loops_dir(vault_root) / f"{slug}.md"
     try:
         if fp.resolve().parent != _loops_dir(vault_root).resolve() or not fp.is_file():
@@ -618,12 +628,12 @@ def register(ctx) -> None:
                                  "description": ("true = ép thành nhắc MỘT LẦN (kho reminders) dù "
                                                  "schedule trông giống chu kỳ lặp. Mặc định false.")},
                 "muc_quyen": {"type": "string", "enum": ["suggest", "auto", "full"],
-                              "description": ("Quyền của việc lúc tới giờ chạy. 'full' (mặc định) "
-                                              "= dùng được mọi công cụ đã đấu, gồm cả hành động "
-                                              "ra ngoài - cần cho việc kiểu 'tới giờ thì gửi/"
-                                              "đăng/đặt'. 'auto' = đọc + ghi file, không hành "
-                                              "động ra ngoài. 'suggest' = chỉ đọc rồi báo lại. "
-                                              "Chỉ hạ mức khi user muốn vậy.")},
+                              "description": ("Quyền của việc lúc chạy, áp cho cả loop lẫn nhắc "
+                                              "hẹn. 'full' (mặc định) = dùng được mọi công cụ đã "
+                                              "đấu, gồm cả hành động ra ngoài (gửi tin, đăng bài, "
+                                              "tạo đơn, thanh toán). 'auto' = đọc + ghi file, "
+                                              "không hành động ra ngoài. 'suggest' = chỉ đọc rồi "
+                                              "báo lại. Chỉ hạ mức khi user muốn vậy.")},
                 "chat_id": {"type": "string",
                              "description": "chat_id Telegram người yêu cầu, để báo đúng người. Bỏ trống nếu không rõ."},
                 "allow_no_channel": {"type": "boolean",

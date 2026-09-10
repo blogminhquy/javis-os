@@ -60,10 +60,10 @@ Write the description as specifically as possible: say what to read, what to do,
 
 ### Step 4a (loops): pick the mode and the cycle
 
-- **Mode**: three buttons, **Suggest (read-only)**, **Auto (safe)**, **⚠ Full power**. New jobs default to **Suggest (read-only)**. Read "The three permission levels" below before changing it.
+- **Mode**: three buttons, **Suggest (read-only)**, **Auto (drafts)**, **Full power**. New jobs default to **Full power** (since 0.55.62; Suggest before that). See "The three permission levels" below if you want a lighter job.
 - **Cycle (minutes, minimum 5)**: the number of minutes between runs. The field is prefilled with **120**. Anything under 5 is raised to 5 by the server.
 
-Under the form there is a reminder line: Suggest = read only plus suggestions. Auto (safe) = writes draft files and reads MCP, NO money/orders/publishing. Full power = does everything itself.
+Under the form there is a reminder line: Full power (default) = does everything itself, outside actions included. Auto = writes draft files and reads MCP, no outside actions. Suggest = read only plus suggestions.
 
 ### Step 4b (reminders): set "When" and "Type"
 
@@ -73,10 +73,10 @@ Under the form there is a reminder line: Suggest = read only plus suggestions. A
   - **🤖 Do it and report**: at the set time, Javis runs the engine to actually **do** the job and sends the result to Telegram.
 - **What it may do** (only shown for 🤖 Do it and report): three levels, defaulting to **Full power**.
   - **Read only**: reads real data through MCP and reads files, then reports. Writes nothing, does nothing outside.
-  - **Write files**: adds permission to write draft files in the brain. Still no orders, no spending, no publishing, no messaging.
+  - **Write files**: adds permission to write draft files in the brain. The hub still blocks outside actions at this level.
   - **Full power** (default): every tool you connected, outside actions included. This is the only level that can do things like "send the message at that time", "publish at that time", "book the calendar at that time".
 
-  Why the default is Full power: a reminder does **exactly the one thing you wrote down and scheduled**, which is a chat instruction moved to a later time. Restricting it more than when you sit chatting means telling it "send this for me at 10am tomorrow" and being told at 10am that it was not allowed to send. In exchange, choosing this level shows a red warning box in the form, and the job card carries a **full power** label so one glance tells you. Remember: **it runs when nobody is next to it**, there is no approval step, and sending a message or publishing cannot be undone. Only hand it what you are willing to let it do alone.
+  Why the default is Full power: a reminder does **exactly the one thing you wrote down and scheduled**, which is a chat instruction moved to a later time. Restricting it more than when you sit chatting means telling it "send this for me at 10am tomorrow" and being told at 10am that it was not allowed to send. The job card carries a **full power** label so one glance tells you. It runs when nobody is next to it, so write the job text clearly.
 
 ### Step 5: Pick the brain
 
@@ -85,8 +85,6 @@ The **Brain (where the job is stored)** field picks which brain holds this job, 
 ### Step 6: Save
 
 Click **💾 Save**. The button reads "Saving..." then returns. On success the form closes and the list reloads. Errors appear next to the button as an orange "⚠ ..." line.
-
-If you picked **⚠ Full power**, a confirmation dialog restates the risk before saving. Cancelling there saves nothing.
 
 ### Step 7: Switch the job on
 
@@ -98,13 +96,11 @@ Reminders are different: once created they are already queued, with nothing to s
 
 | Button in the form | Label on the card | What Javis may do |
 |---|---|---|
-| **Suggest (read-only)** | suggest | Read-only tools, including reading real data through MCP. **No file writes**. Each iteration gives 2 to 3 concrete suggested actions. The safest, and the default. |
-| **Auto (safe)** | auto (safe) | Reads MCP and **can write files** in the brain (creating or editing draft notes). Still hard-blocked from money, orders, ads, publishing and messaging. Adds a self-verification step after each iteration. |
-| **⚠ Full power** | ⚠ full power | Everything open: every tool and every MCP, **real outside actions** without asking. |
+| **Full power** | full power | Everything open: every tool and every MCP, **real outside actions** without asking: create orders, run ads, publish posts, send messages. **The default** since 0.55.62. |
+| **Auto (drafts)** | auto (drafts) | Reads MCP and **can write files** in the brain (creating or editing draft notes). The hub blocks outside actions. Adds a self-verification step after each iteration. |
+| **Suggest (read-only)** | suggest | Read-only tools, including reading real data through MCP. **No file writes**. Each iteration gives 2 to 3 concrete suggested actions. |
 
-Choosing **⚠ Full power** shows a red warning block in the form, opening with: "**⚠ FULL POWER MODE, high risk.** The loop will take REAL actions through MCP without asking: it may **create or edit orders, run ads (spending real money), send messages and email, publish posts**."
-
-Read that carefully: a full-power loop runs in the background on a schedule, **with nobody approving each step**, and **real actions cannot be undone**. Javis asks for confirmation twice (once on save, once when you click **Enable**) for exactly that reason. If you need this mode, run it in **Suggest (read-only)** for a few iterations first, read the log to see what it intends to do, and write the task description with a genuinely narrow scope.
+Before 0.55.62 Javis had a safety rule: background jobs could never spend money, create orders, publish or message customers on their own, so the default was Suggest and picking Full power went through two confirmation dialogs. The project owner removed that rule: Javis now acts on its own, and the two lighter levels remain as options for a specific loop you want read-only or drafts-only. A full-power loop runs in the background on a schedule with nobody approving each step, so describe its task with a clear scope.
 
 ## What the "When" field understands
 
@@ -150,7 +146,7 @@ The third line is a short history: `last HH:MM` (or `never run`), the latest ver
 
 ### Reading a reminder card
 
-Reminder cards are more compact: the name (or the content if unnamed), then a secondary line with the time and the type. The type is `remind` (remind only), `do + report`, or `script`. `do + report` also shows a permission label (`read only`, `may write files`, or `full power` in red).
+Reminder cards are more compact: the name (or the content if unnamed), then a secondary line with the time and the type. The type is `remind` (remind only), `do + report`, or `script`. `do + report` also shows a permission label (`read only`, `may write files`, or `full power`).
 
 The time always states **when it will run**, so you never have to read cron yourself:
 
@@ -168,7 +164,7 @@ Every button targets that card's own brain, not the brain selected in the sideba
 
 On a loop card:
 
-- **Enable** / **Disable**: flip the state. Enabling an **⚠ Full power** job asks for confirmation. Enabling also clears an auto-pause.
+- **Enable** / **Disable**: flip the state. Enabling also clears an auto-pause.
 - **▶ Run now**: run one iteration immediately, without waiting for the cycle. The button reads "Running..." and the list reloads after about 2.5 seconds. Note: this button does **not** save an open form; it runs what is saved in the file. Running now also clears an auto-pause, because it is a deliberate action on your part.
 - **Edit**: reopen the form with this job's content.
 - **Delete**: asks to confirm, then removes `Javis/loops/<slug>.md` entirely.
@@ -203,7 +199,7 @@ While an iteration is running, the page refreshes the list every 5 seconds so yo
 
 ## The self-verification step
 
-In **Auto (safe)** and **⚠ Full power** modes, after the work is done Javis runs an independent check: a reviewer assumes the result is WRONG, then rereads the relevant files to compare. This verification pass is **always read-only**, even for full-power jobs.
+In **Auto (drafts)** and **Full power** modes, after the work is done Javis runs an independent check: a reviewer assumes the result is WRONG, then rereads the relevant files to compare. This verification pass is **always read-only**, even for full-power jobs.
 
 The step is skipped if the iteration failed, or if the result says there was no new work.
 
@@ -214,7 +210,7 @@ The criteria vary by job type:
 - Jobs thickening the Wiki: do they follow the Wiki conventions, is anything invented or missing citations, were any links broken.
 - Jobs using the `code` tool profile (settable only in the `.md` file): `python -m py_compile` or `node --check` must be run for every edited file and all must be clean, and the diff must be small (under about 80 lines).
 
-In **Suggest** and **Auto (safe)** modes there is one more hard criterion: detecting any money, order, ad, publishing or messaging action through MCP is an **immediate fail**. In **⚠ Full power**, real actions are permitted, so the criterion becomes: fail only when it did the wrong thing or went beyond the task's scope, caused clear harm, or touched something you did not intend.
+In **Suggest** and **Auto (drafts)** modes there is one more hard criterion: detecting any money, order, ad, publishing or messaging action through MCP is an **immediate fail**. In **Full power** (the default), real actions are permitted, so the criterion becomes: fail only when it did the wrong thing or went beyond the task's scope, caused clear harm, or touched something you did not intend.
 
 The result appears as **✓ Pass** or **✗ Fail** with a short reason, both on the card and in the log.
 
@@ -266,7 +262,7 @@ Javis uses the `javis_schedule` tool (a bundled plugin) to pick the right store:
 
 Two hard safety rails on this path, which no parameter can change:
 
-- A loop created through chat is **always** `enabled: false` and `mode: suggest`. You must open the Recurring jobs page and click **Enable** for it to run for real.
+- A loop created through chat is **always** `enabled: false`, and defaults to `mode: full` (say "read only" or "drafts only" for a lighter one). You must open the Recurring jobs page and click **Enable** for it to run for real.
 - If the cycle is unclear (you said "every morning" without a time), the tool reports an error and asks back, never guessing.
 
 ## Advanced fields (editable only in the .md file)
@@ -293,9 +289,9 @@ The **file body** (below the second `---`) is exactly the "Task description" you
 | **+ Add job** | Open the create form |
 | **■ Stop the running iteration** | Abort the system-wide running iteration, without disabling the job |
 | **🔁 Loop** / **⏰ Reminder** | Pick the job kind (locked while editing) |
-| **Suggest (read-only)** | Read only, no file writes. The default |
-| **Auto (safe)** | Writes draft files in the brain, no money/orders/publishing |
-| **⚠ Full power** | Real outside actions. Confirmed twice |
+| **Full power** | Real outside actions. The default |
+| **Auto (drafts)** | Writes draft files in the brain, the hub blocks outside actions |
+| **Suggest (read-only)** | Read only, no file writes |
 | **⏰ Remind only** | Sends "⏰ Reminder: ..." at the time |
 | **🤖 Do it and report** | Runs the engine at the time and reports the result |
 | **What it may do** | The permission level for Do it and report: Read only / Write files / Full power (default) |
@@ -317,7 +313,7 @@ The **file body** (below the second `---`) is exactly the "Task description" you
 
 ## Tips
 
-- **Start in Suggest (read-only).** Let it run a few iterations, read the log to judge the quality of its suggestions, and only then move up to **Auto (safe)**.
+- **Not sure about a new loop yet? Drop it to Suggest (read-only).** Let it run a few iterations, read the log to judge the quality of its suggestions, then move it back to **Full power**.
 - **Do not set the cycle too tight.** One iteration every 5 to 10 minutes burns tokens and real machine resources. Most needs are fine with a few hours. Watch the spend in [Usage: tokens & cost](23-usage-and-cost.md).
 - **Use a cheap model for background work.** The [Models & engines](10-models-and-engines.md) page has a "Background model" block that applies to loops, Kanban work, reminders and self-learning. Picking a cheap model there saves a lot.
 - **Set `quiet_hours` for jobs that run at night.** With Telegram reporting on, a job running at 3am wakes you. Add `quiet_hours: 23-07` to the file, or set `notify: false`.

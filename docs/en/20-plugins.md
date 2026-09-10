@@ -163,7 +163,7 @@ Each plugin tool declares a minimum permission level; each Javis run has a permi
 | The tool's minimum (the card label) | Meaning | Which mode it runs in |
 |---|---|---|
 | `readonly` - "read only" | Only reads or computes, changes nothing | Every mode |
-| `safe` - "write (safe)" | Writes files or spends quota | Auto (safe) mode and Full power |
+| `safe` - "write (safe)" | Writes files or spends quota | Auto (drafts) mode and Full power |
 | `full` - "full power" | A real outside action (posting, deleting, sending) | Full power mode only |
 
 The chat box you type into runs at the full level, so all three kinds are callable. Conversely, a [recurring job](08-recurring-jobs.md) set to **Suggest** can only run read-only tools; meeting a higher-level tool it returns `ERROR: tool '<name>' needs a higher permission level (...)` and stops rather than acting recklessly. This is a hard block in code, not an instruction in the prompt, so no model can talk its way past it.

@@ -20,8 +20,9 @@ tự rủi ro:
 1. **Tool phải tới được tay engine API.** Đây là toàn bộ lý do tính năng tồn tại. Đường đi thật
    là qua MCP Hub, và hiện lazy đang bật nên nó nằm sau `javis_search_tools`/`javis_run_tool` -
    test phải đi đúng đường đó chứ không gọi tắt vào hàm.
-2. **Không được đẻ ra việc mức `full`.** Việc full tự thao tác thật ra ngoài (tạo đơn, tiêu
-   tiền, chạy quảng cáo, gửi tin) và không hoàn tác được. Luật CLAUDE.md: không bao giờ tự đặt.
+2. **Mức quyền mặc định là `full`** (đổi 2026-09-10, khi chủ repo bỏ luật "không giao tự động
+   tiền/đơn/đăng bài/nhắn khách"). Trước đó tool từ chối thẳng mức full và mặc định `suggest`;
+   nay việc tự thao tác ra ngoài như lúc chat, và mode lạ kẹp về full chứ không trôi lung tung.
 3. **Không được im lặng nuốt các thiếu sót** làm việc chạy vào hư không: sai brain, mất người
    nhận kết quả.
 4. **Tài liệu phải khớp mã.** Đây là lỗi gốc, nên nó cũng phải có canary riêng.
@@ -94,13 +95,8 @@ async def _chay():
             return await _c(a)
 
     # ============================================================
-    # 2. Rào an toàn - kiểm TRƯỚC khi có hàng đợi, để chắc rào đứng độc lập
+    # 2. Chưa có hàng đợi thì phải báo rõ - kiểm TRƯỚC khi dựng hàng đợi
     # ============================================================
-    out = await goi({"op": "add", "title": "chạy quảng cáo hộ anh", "mode": "full"})
-    check("CANARY: KHÔNG đẻ được việc mức full", "ERROR" in out)
-    check("từ chối kèm lý do, không chỉ nói không", "không hoàn tác" in out)
-    check("chỉ luôn đường đi tiếp cho người dùng", "trang Việc" in out)
-
     # Hàng đợi chưa dựng (máy chủ đang khởi động) thì phải báo rõ chứ không nổ ra traceback:
     # tool call nổ giữa lượt chat là engine thấy một đống stack trace thay vì lời giải thích.
     out = await goi({"op": "list"})
@@ -130,7 +126,12 @@ async def _chay():
     out = await goi({"op": "add", "title": "soạn báo cáo tuần", "chat_id": "web:phien123"})
     check("giao được việc", "Đã giao việc" in out)
     check("trả mã việc để theo dõi tiếp", "Mã việc:" in out)
-    check("CANARY: mặc định là suggest, không phải auto", "suggest" in out)
+    check("CANARY: mặc định là full (Javis tự thao tác, luật cũ đã bỏ 2026-09-10)", "full" in out)
+
+    # Mức full truyền tường minh cũng được nhận, không còn bị từ chối như trước 2026-09-10.
+    out_full = await goi({"op": "add", "title": "chạy quảng cáo hộ anh", "mode": "full",
+                          "chat_id": "web:phien123"})
+    check("mode=full được nhận, không còn ERROR", "Đã giao việc" in out_full and "full" in out_full)
 
     # Nói thẳng rằng lượt trả lời này KHÔNG đợi việc chạy xong. Luật CLAUDE.md, và là hiểu nhầm
     # số một của người dùng khi giao việc lần đầu.
@@ -153,12 +154,17 @@ async def _chay():
     out = await goi({"op": "add"})
     check("thiếu title bị từ chối", "ERROR" in out)
 
-    # Mode lạ (model gõ sai, hoặc bịa ra tên mức) phải KẸP VỀ suggest. Thả trôi thì enqueue tự
-    # kẹp về "auto" - tức là model gõ sai một chữ là việc được nâng quyền ghi file, im lặng.
+    # Mode lạ (model gõ sai, hoặc bịa ra tên mức) phải KẸP VỀ mặc định (full), không để enqueue
+    # tự xử thành "auto" - một mức không ai chọn.
     out = await goi({"op": "add", "title": "việc mode lạ", "mode": "sieu-cap",
                      "chat_id": "web:phien123"})
-    check("CANARY: mode lạ kẹp về suggest, không trôi thành auto",
-          "Đã giao việc" in out and "suggest" in out and "auto" not in out)
+    check("CANARY: mode lạ kẹp về full (mặc định), không trôi thành auto",
+          "Đã giao việc" in out and "Mức quyền: full" in out)
+
+    # Hạ mức tường minh vẫn được: người dùng muốn việc chỉ đọc thì model truyền suggest.
+    out = await goi({"op": "add", "title": "chỉ đọc rồi đề xuất", "mode": "suggest",
+                     "chat_id": "web:phien123"})
+    check("mode=suggest hạ được xuống chỉ đọc", "Đã giao việc" in out and "Mức quyền: suggest" in out)
 
     # ============================================================
     # 5. Việc nằm THẬT trong kho, đúng thuộc tính
@@ -168,9 +174,10 @@ async def _chay():
 
     board = feat.board_view(str(_VAULT))
     moi = [t for c in (board.get("columns") or {}).values() for t in c]
-    check("việc vào thật trong kho, không phải chỉ in ra chữ", len(moi) == 3)
-    check("CANARY: execution_mode lưu đúng suggest",
-          all(t.get("execution_mode") == "suggest" for t in moi))
+    check("việc vào thật trong kho, không phải chỉ in ra chữ", len(moi) == 5)
+    _modes = sorted(t.get("execution_mode") for t in moi)
+    check("CANARY: execution_mode lưu đúng mức đã giao (4 full, 1 suggest): " + ",".join(_modes),
+          _modes == ["full", "full", "full", "full", "suggest"])
     check("CANARY: chat_id lưu đúng để kết quả về đúng người",
           any(t.get("chat_id") == "web:phien123" for t in moi))
     check("việc ghi nhận do chat tạo", all(t.get("created_by") == "chat" for t in moi))
@@ -189,7 +196,7 @@ async def _chay():
     check("CANARY: chế độ chỉ-đọc CHẶN giao việc ở tầng quyền",
           "ERROR" in out and "quyền" in out)
     check("số việc trong kho không đổi sau lần bị chặn",
-          len([t for c in (feat.board_view(str(_VAULT)).get("columns") or {}).values() for t in c]) == 3)
+          len([t for c in (feat.board_view(str(_VAULT)).get("columns") or {}).values() for t in c]) == 5)
 
     # Không biết brain nào thì PHẢI từ chối, không được âm thầm rơi về Brain Default - giao việc
     # nhầm brain là việc chạy trên dữ liệu của người khác. (Đúng lỗi image_gen từng dính.)
@@ -200,7 +207,7 @@ async def _chay():
         check("CANARY: không biết brain thì TỪ CHỐI, không rơi về brain mặc định",
               "ERROR" in out and "brain" in out)
         check("việc lạc brain không lọt vào kho nào",
-              len([t for c in (feat.board_view(str(_VAULT)).get("columns") or {}).values() for t in c]) == 3)
+              len([t for c in (feat.board_view(str(_VAULT)).get("columns") or {}).values() for t in c]) == 5)
 
     # ============================================================
     # 6b. Mặt kia của cổng điều phối - đặt CUỐI vì nó đẻ thêm một việc vào kho
@@ -235,9 +242,9 @@ asyncio.run(_chay())
 _pt, _pr = plugins_host.plugin_tools("full", str(_VAULT), scope_vault=False)
 check("CANARY: đường Claude Code cũng có tool giao việc",
       "javis_task" in [x["fn"] for x in _pt])
-check("rào full đứng vững trên cả đường đó",
-      "ERROR" in asyncio.run(_pr["javis_task"]["call"](
-          {"op": "add", "title": "chạy quảng cáo", "mode": "full"})))
+check("mức full giao được trên cả đường đó",
+      "Đã giao việc" in asyncio.run(_pr["javis_task"]["call"](
+          {"op": "add", "title": "chạy quảng cáo", "mode": "full", "chat_id": "web:x"})))
 
 # Chế độ chỉ-đọc phải chặn ở đường này nữa - min_mode nằm trong route của plugin_tools(mode).
 _pt2, _pr2 = plugins_host.plugin_tools("suggest", str(_VAULT), scope_vault=False)

@@ -60,10 +60,10 @@ Viết mô tả càng cụ thể càng tốt: nói rõ đọc gì, làm gì, lư
 
 ### Bước 4a (việc lặp): Chọn chế độ và chu kỳ
 
-- **Chế độ**: ba nút **Đề xuất (chỉ đọc)**, **Tự làm (an toàn)**, **⚠ Toàn quyền**. Mặc định của việc mới là **Đề xuất (chỉ đọc)**. Xem mục "Ba mức quyền" bên dưới trước khi đổi.
+- **Chế độ**: ba nút **Đề xuất (chỉ đọc)**, **Tự làm (ghi nháp)**, **Toàn quyền**. Mặc định của việc mới là **Toàn quyền** (từ 0.55.62; trước đó là Đề xuất). Xem mục "Ba mức quyền" bên dưới nếu muốn hạ.
 - **Chu kỳ (phút, tối thiểu 5)**: số phút giữa hai lần chạy. Ô điền sẵn **120**. Nhập nhỏ hơn 5 thì server tự nâng lên 5.
 
-Dưới biểu mẫu có dòng nhắc: "Đề xuất = chỉ đọc + gợi ý. Tự làm (an toàn) = ghi nháp file + đọc MCP, KHÔNG tiền/đơn/đăng bài. Toàn quyền = tự thao tác mọi thứ."
+Dưới biểu mẫu có dòng nhắc: "Toàn quyền (mặc định) = tự thao tác mọi thứ, kể cả ra ngoài. Tự làm = ghi nháp file + đọc MCP, không hành động ra ngoài. Đề xuất = chỉ đọc + gợi ý."
 
 ### Bước 4b (nhắc hẹn): Đặt "Khi nào" và "Kiểu"
 
@@ -73,10 +73,10 @@ Dưới biểu mẫu có dòng nhắc: "Đề xuất = chỉ đọc + gợi ý. 
   - **🤖 Tự làm rồi báo**: tới giờ Javis chạy engine để **làm** việc đó rồi gửi kết quả về Telegram.
 - **Được phép làm gì** (chỉ hiện khi chọn 🤖 Tự làm rồi báo): ba mức, mặc định **Toàn quyền**.
   - **Chỉ đọc**: đọc dữ liệu thật qua MCP và đọc file, rồi báo lại. Không ghi gì, không làm gì ra ngoài.
-  - **Ghi file**: thêm quyền ghi file nháp trong brain. Vẫn không tạo đơn, tiêu tiền, đăng bài hay gửi tin.
+  - **Ghi file**: thêm quyền ghi file nháp trong brain. Hub vẫn chặn hành động ra ngoài ở mức này.
   - **Toàn quyền** (mặc định): dùng được mọi công cụ bạn đã đấu, gồm cả hành động ra ngoài. Đây là mức duy nhất làm được những việc kiểu "tới giờ thì gửi tin", "tới giờ thì đăng bài", "tới giờ thì đặt lịch".
 
-  Vì sao mặc định là Toàn quyền: nhắc hẹn làm **đúng một việc bạn đã viết ra và hẹn giờ**, tức là một câu lệnh trong chat được dời sang giờ khác. Trói nó chặt hơn lúc bạn đang ngồi chat thì thành ra bạn dặn "10h mai gửi giúp tôi" mà tới 10h nó báo về là không được phép gửi. Đổi lại, khi chọn mức này form hiện một ô cảnh báo đỏ, và thẻ việc gắn nhãn **toàn quyền** để bạn liếc một cái là biết. Cần nhớ: **việc chạy khi không có ai ngồi cạnh**, không có bước duyệt nào, và gửi tin hay đăng bài thì không rút lại được. Chỉ giao thứ bạn sẵn sàng để nó tự làm.
+  Vì sao mặc định là Toàn quyền: nhắc hẹn làm **đúng một việc bạn đã viết ra và hẹn giờ**, tức là một câu lệnh trong chat được dời sang giờ khác. Trói nó chặt hơn lúc bạn đang ngồi chat thì thành ra bạn dặn "10h mai gửi giúp tôi" mà tới 10h nó báo về là không được phép gửi. Thẻ việc gắn nhãn **toàn quyền** để bạn liếc một cái là biết. Việc chạy khi không có ai ngồi cạnh, nên hãy viết nội dung việc thật rõ.
 
 ### Bước 5: Chọn brain
 
@@ -85,8 +85,6 @@ Dưới biểu mẫu có dòng nhắc: "Đề xuất = chỉ đọc + gợi ý. 
 ### Bước 6: Lưu
 
 Bấm **💾 Lưu**. Nút đổi thành "Đang lưu..." rồi trở lại. Lưu xong biểu mẫu tự đóng và danh sách tải lại. Lỗi thì hiện ngay cạnh nút, dạng "⚠ ..." màu vàng cam.
-
-Nếu bạn chọn chế độ **⚠ Toàn quyền**, trước khi lưu sẽ có một hộp thoại xác nhận nhắc lại rủi ro. Bấm huỷ ở đó là không lưu gì cả.
 
 ### Bước 7: Bật việc lên
 
@@ -98,13 +96,11 @@ Nhắc hẹn thì khác: tạo xong là đã ở hàng chờ, không cần bật
 
 | Nút trên biểu mẫu | Nhãn trên thẻ | Javis được làm gì |
 |---|---|---|
-| **Đề xuất (chỉ đọc)** | đề xuất | Chỉ dùng công cụ đọc, kể cả đọc dữ liệu thật qua MCP. **Không ghi file**. Mỗi vòng nêu 2-3 đề xuất hành động cụ thể. An toàn nhất, mặc định. |
-| **Tự làm (an toàn)** | tự làm (an toàn) | Đọc MCP + **ghi được file** trong brain (tạo/sửa note nháp). Vẫn bị chặn cứng mọi hành động tiền, đơn hàng, quảng cáo, đăng bài, gửi tin. Có thêm bước tự kiểm chứng sau mỗi vòng. |
-| **⚠ Toàn quyền** | ⚠ toàn quyền | Mở hết: mọi công cụ và mọi MCP, **thao tác thật ra bên ngoài** không cần hỏi. |
+| **Toàn quyền** | toàn quyền | Mở hết: mọi công cụ và mọi MCP, **thao tác thật ra bên ngoài** không cần hỏi: tạo đơn, chạy quảng cáo, đăng bài, gửi tin. **Mặc định** từ 0.55.62. |
+| **Tự làm (ghi nháp)** | tự làm (ghi nháp) | Đọc MCP + **ghi được file** trong brain (tạo/sửa note nháp). Hub chặn hành động ra ngoài. Có thêm bước tự kiểm chứng sau mỗi vòng. |
+| **Đề xuất (chỉ đọc)** | đề xuất | Chỉ dùng công cụ đọc, kể cả đọc dữ liệu thật qua MCP. **Không ghi file**. Mỗi vòng nêu 2-3 đề xuất hành động cụ thể. |
 
-Chọn **⚠ Toàn quyền** thì một khối cảnh báo đỏ hiện ngay trong biểu mẫu, nguyên văn mở đầu: "**⚠ CHẾ ĐỘ TOÀN QUYỀN - rủi ro cao.** Loop sẽ tự thao tác THẬT qua MCP không cần hỏi: có thể **tạo/sửa đơn hàng, chạy quảng cáo (tiêu tiền thật), gửi tin nhắn/email, đăng bài**."
-
-Hãy đọc kỹ chỗ này: loop toàn quyền chạy nền theo lịch, **không có người duyệt từng bước**, và **hành động thật thì không hoàn tác được**. Javis hỏi xác nhận hai lần (một lần khi lưu, một lần nữa khi bạn bấm **Bật**) chính vì lý do đó. Nếu cần chế độ này, hãy chạy thử ở **Đề xuất (chỉ đọc)** vài vòng trước, đọc nhật ký xem nó định làm gì, và viết mô tả nhiệm vụ thật hẹp về phạm vi.
+Trước 0.55.62 Javis có một luật an toàn: việc chạy nền không bao giờ được tự tiêu tiền, lên đơn, đăng bài hay nhắn khách, nên mặc định là Đề xuất và chọn Toàn quyền phải qua hai hộp xác nhận. Chủ dự án đã bỏ luật đó: Javis giờ tự thao tác, hai mức nhẹ chỉ còn là lựa chọn cho ai muốn một loop cụ thể chỉ đọc hoặc chỉ ghi nháp. Loop toàn quyền chạy nền theo lịch không có người duyệt từng bước, nên hãy viết mô tả nhiệm vụ rõ phạm vi.
 
 ## Ô "Khi nào" hiểu những gì
 
@@ -144,13 +140,13 @@ Thẻ bắt đầu bằng `🔁 <tên việc>` kèm slug (tên file) mờ ở b�
 | ● bật | Đang bật, sẽ tự chạy theo chu kỳ |
 | ○ tắt | Đang tắt, không tự chạy (thẻ hiển thị mờ) |
 
-Dòng thứ hai ghi chế độ và chu kỳ, ví dụ `tự làm (an toàn) · mỗi 120 phút`, kèm các thông tin nâng cao nếu có: tên loại nhiệm vụ cũ (khi khác "Tự định nghĩa"), `im lặng 23-07`, `tối đa 3/ngày (đã 1)`, `⚙ code · <thư mục>`.
+Dòng thứ hai ghi chế độ và chu kỳ, ví dụ `toàn quyền · mỗi 120 phút`, kèm các thông tin nâng cao nếu có: tên loại nhiệm vụ cũ (khi khác "Tự định nghĩa"), `im lặng 23-07`, `tối đa 3/ngày (đã 1)`, `⚙ code · <thư mục>`.
 
 Dòng thứ ba là lịch sử ngắn: `lần cuối HH:MM` (hoặc `chưa chạy`), kết quả kiểm chứng gần nhất (` · ok` nếu sạch, hoặc `· ✓ Đạt: ...` / `· ✗ Chưa đạt: ...`), và `· kế tiếp ~HH:MM` nếu đang bật. Việc đang tự tạm dừng thì có thêm một dòng `⚠` ghi rõ lý do và thời điểm.
 
 ### Đọc một thẻ nhắc hẹn
 
-Thẻ nhắc hẹn gọn hơn: tên (hoặc nội dung nếu không đặt tên), rồi một dòng phụ ghi thời điểm và kiểu. Kiểu là `nhắc` (chỉ nhắc), `tự làm + báo`, hoặc `script`. Riêng `tự làm + báo` có thêm nhãn mức quyền (`chỉ đọc`, `được ghi file`, hoặc `toàn quyền` in đỏ).
+Thẻ nhắc hẹn gọn hơn: tên (hoặc nội dung nếu không đặt tên), rồi một dòng phụ ghi thời điểm và kiểu. Kiểu là `nhắc` (chỉ nhắc), `tự làm + báo`, hoặc `script`. Riêng `tự làm + báo` có thêm nhãn mức quyền (`chỉ đọc`, `được ghi file`, hoặc `toàn quyền`).
 
 Thời điểm luôn nói rõ **bao giờ chạy**, không bắt bạn tự đọc cron:
 
@@ -168,7 +164,7 @@ Mọi nút đều nhắm đúng brain của chính thẻ đó, không phải bra
 
 Trên thẻ việc lặp:
 
-- **Bật** / **Tắt**: gạt trạng thái. Bật một việc **⚠ Toàn quyền** sẽ hỏi xác nhận. Bật cũng xoá luôn trạng thái tự tạm dừng.
+- **Bật** / **Tắt**: gạt trạng thái. Bật cũng xoá luôn trạng thái tự tạm dừng.
 - **▶ Chạy ngay**: chạy một vòng ngay lập tức, không chờ tới chu kỳ. Nút đổi thành "Đang chạy..." và danh sách tự tải lại sau khoảng 2,5 giây. Lưu ý: nút này **không** lưu biểu mẫu đang mở, nó chạy đúng nội dung đã lưu trong file. Bấm Chạy ngay cũng xoá trạng thái tự tạm dừng vì đây là hành động chủ động của bạn.
 - **Sửa**: mở lại biểu mẫu với nội dung của việc này.
 - **Xoá**: hỏi xác nhận rồi xoá hẳn file `Javis/loops/<slug>.md`.
@@ -203,7 +199,7 @@ Trong lúc có một vòng chạy, trang tự làm mới danh sách mỗi 5 giâ
 
 ## Bước tự kiểm chứng
 
-Với chế độ **Tự làm (an toàn)** và **⚠ Toàn quyền**, sau khi làm xong việc, Javis chạy thêm một lượt kiểm tra độc lập: một "người soi" giả định kết quả vừa rồi là SAI, rồi đọc lại file liên quan để đối chiếu. Lượt kiểm chứng này **luôn chỉ được đọc**, kể cả với việc toàn quyền.
+Với chế độ **Tự làm (ghi nháp)** và **Toàn quyền**, sau khi làm xong việc, Javis chạy thêm một lượt kiểm tra độc lập: một "người soi" giả định kết quả vừa rồi là SAI, rồi đọc lại file liên quan để đối chiếu. Lượt kiểm chứng này **luôn chỉ được đọc**, kể cả với việc toàn quyền.
 
 Bước này bị bỏ qua nếu vòng vừa rồi lỗi, hoặc kết quả nói "không có việc mới".
 
@@ -214,7 +210,7 @@ Tiêu chí soi thay đổi theo loại việc:
 - Việc làm dày Wiki: có đúng quy ước Wiki không, có bịa hay thiếu trích dẫn không, có làm hỏng link không.
 - Việc dùng hồ sơ công cụ `code` (chỉ đặt được trong file `.md`): bắt buộc chạy `python -m py_compile` hoặc `node --check` cho từng file đã sửa và tất cả phải sạch, đồng thời diff phải nhỏ (dưới khoảng 80 dòng).
 
-Với chế độ **Đề xuất** và **Tự làm (an toàn)** còn một tiêu chí cứng nữa: phát hiện bất kỳ hành động tiền, đơn hàng, quảng cáo, đăng bài hay gửi tin qua MCP là **trượt ngay**. Riêng chế độ **⚠ Toàn quyền** thì hành động thật là được phép, nên tiêu chí đổi thành: chỉ trượt nếu làm sai hoặc quá phạm vi nhiệm vụ, gây hại rõ ràng, hoặc đụng thứ ngoài ý bạn.
+Với chế độ **Đề xuất** và **Tự làm (ghi nháp)** còn một tiêu chí cứng nữa: phát hiện bất kỳ hành động tiền, đơn hàng, quảng cáo, đăng bài hay gửi tin qua MCP là **trượt ngay**. Với chế độ **Toàn quyền** (mặc định) thì hành động thật là được phép, nên tiêu chí đổi thành: chỉ trượt nếu làm sai hoặc quá phạm vi nhiệm vụ, gây hại rõ ràng, hoặc đụng thứ ngoài ý bạn.
 
 Kết quả hiện dạng **✓ Đạt** hoặc **✗ Chưa đạt** kèm lý do ngắn, cả trên thẻ lẫn trong nhật ký.
 
@@ -266,7 +262,7 @@ Javis dùng công cụ `javis_schedule` (một plugin đi kèm app) để tự c
 
 Hai rào an toàn cứng của đường này, không tham số nào đổi được:
 
-- Việc lặp tạo qua chat **luôn** ở `enabled: false` và `mode: suggest`. Bạn phải vào trang Việc định kỳ bấm **Bật** thì nó mới chạy thật.
+- Việc lặp tạo qua chat **luôn** ở `enabled: false`, và mặc định `mode: full` (nói "chỉ đọc" hoặc "chỉ ghi nháp" nếu muốn nhẹ hơn). Bạn phải vào trang Việc định kỳ bấm **Bật** thì nó mới chạy thật.
 - Không rõ chu kỳ (ví dụ bạn chỉ nói "mỗi sáng" mà không kèm giờ) thì công cụ báo lỗi và hỏi lại, tuyệt đối không tự đoán.
 
 ## Trường nâng cao (chỉ sửa được trong file .md)
@@ -293,9 +289,9 @@ Phần **thân file** (bên dưới dấu `---` thứ hai) chính là ô "Mô t�
 | **+ Thêm việc** | Mở biểu mẫu tạo việc mới |
 | **■ Dừng vòng đang chạy** | Huỷ vòng đang chạy trên toàn hệ, không tắt việc |
 | **🔁 Việc lặp** / **⏰ Nhắc hẹn** | Chọn loại việc (khoá khi đang sửa) |
-| **Đề xuất (chỉ đọc)** | Chỉ đọc, không ghi file. Mặc định |
-| **Tự làm (an toàn)** | Ghi file nháp trong brain, cấm tiền/đơn/đăng bài |
-| **⚠ Toàn quyền** | Thao tác thật ra ngoài. Hỏi xác nhận 2 lần |
+| **Toàn quyền** | Thao tác thật ra ngoài. Mặc định |
+| **Tự làm (ghi nháp)** | Ghi file nháp trong brain, hub chặn hành động ra ngoài |
+| **Đề xuất (chỉ đọc)** | Chỉ đọc, không ghi file |
 | **⏰ Chỉ nhắc** | Tới giờ bắn tin "⏰ Nhắc anh: ..." |
 | **🤖 Tự làm rồi báo** | Tới giờ chạy engine làm việc rồi báo kết quả |
 | **Được phép làm gì** | Mức quyền của kiểu Tự làm: Chỉ đọc / Ghi file / Toàn quyền (mặc định) |
@@ -317,7 +313,7 @@ Phần **thân file** (bên dưới dấu `---` thứ hai) chính là ô "Mô t�
 
 ## Mẹo
 
-- **Bắt đầu bằng Đề xuất (chỉ đọc).** Cho chạy vài vòng, đọc nhật ký xem chất lượng đề xuất thế nào, rồi mới nâng lên **Tự làm (an toàn)**.
+- **Chưa tin một loop mới thì hạ xuống Đề xuất (chỉ đọc).** Cho chạy vài vòng, đọc nhật ký xem chất lượng đề xuất thế nào, rồi mới trả về **Toàn quyền**.
 - **Đừng đặt chu kỳ quá dày.** 5-10 phút một vòng tốn token và tài nguyên máy thật. Đa số nhu cầu chỉ cần vài giờ một lần. Theo dõi mức tiêu ở [Mức dùng: token & chi phí](23-muc-dung-token.md).
 - **Dùng model rẻ cho việc nền.** Trang [Models & engine](10-models-va-engine.md) có khối "Model việc nền" áp cho cả loop, việc Kanban, nhắc hẹn và tự học. Chọn một model rẻ ở đó là tiết kiệm được nhiều.
 - **Đặt `quiet_hours` cho việc chạy ban đêm.** Nếu bạn để báo cáo Telegram bật, việc chạy lúc 3h sáng sẽ đánh thức bạn. Thêm `quiet_hours: 23-07` vào file, hoặc đặt `notify: false`.

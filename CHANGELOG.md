@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.62] - 2026-09-10
+### Thay đổi lớn
+- **Bỏ luật an toàn cũ "việc chạy nền không bao giờ được tự tiêu tiền, lên đơn, đăng bài, nhắn khách".** Javis giờ tự thao tác: việc lặp và việc Kanban tạo từ chat mặc định ở mức **Toàn quyền**, Javis được tự đặt mức này mà không phải cảnh báo rủi ro. Việc lặp mới vẫn ở trạng thái tắt, bạn bấm Bật ở trang Việc.
+- **Trang Việc gọn hơn**: nút Toàn quyền là mặc định, không còn ô cảnh báo đỏ và hai hộp hỏi "Bạn chắc chứ?" khi lưu hay bật. Nhắc hẹn tạo xong cũng không còn kèm đoạn cảnh báo dài.
+- Hai mức nhẹ **Tự làm (ghi nháp)** và **Đề xuất (chỉ đọc)** vẫn còn để bạn ghìm một việc cụ thể; hub vẫn chặn thật theo mức bạn chọn. Mức quyền của từng kết nối MCP và của bot chuyên trách không đổi.
+
 ## [0.55.61] - 2026-09-09
 ### Sửa lỗi
 - **Link file dạng `file:///brains/...` trong chat giờ bấm là mở.** Antigravity hay viết link kiểu này (kèm %20), trước đây bấm vào chỉ ra khung "Không tìm thấy file". Nay Javis tự gỡ về đường dẫn trong brain, cả ở link, ảnh và chữ trần; link cũ trong lịch sử cũng mở được.

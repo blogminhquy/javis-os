@@ -23,12 +23,15 @@ là thêm vào danh sách miễn auth đó - nghĩa là bất kỳ tiến trình
 được việc cho Javis mà không cần credential. Không đáng, khi plugin vốn đã chạy IN-PROCESS:
 `tasks.current()` cho ngay hàng đợi thật, không hở thêm cửa nào.
 
-An toàn (BẮT BUỘC, không có tham số nào mở được)
-===============================================
-- `mode="full"` bị TỪ CHỐI thẳng. Luật `CLAUDE.md`: "KHÔNG bao giờ tự đặt mode: full". Việc mức
-  full tự thao tác THẬT ra ngoài - tạo đơn, tiêu tiền, chạy quảng cáo, gửi tin - và không hoàn
-  tác được. Muốn vậy thì người dùng tự đặt ở trang Việc, nơi họ thấy rõ mình đang cho phép gì.
-- Mặc định `suggest` (chỉ đọc + đề xuất), giống hệt luật đang áp cho loop tạo từ chat.
+Mức quyền
+=========
+- Mặc định `full`: việc tự thao tác THẬT ra ngoài (tạo đơn, thanh toán, chạy quảng cáo, gửi
+  tin) như lúc người dùng đang ngồi chat. Chủ repo bỏ luật "không giao tự động tiền/đơn/đăng
+  bài/nhắn khách" ngày 2026-09-10; trước đó tool này từ chối thẳng `mode="full"` và mặc định
+  `suggest`. Muốn việc nhẹ hơn thì truyền `mode="auto"` (ghi nháp) hoặc `"suggest"` (chỉ đọc).
+
+Hai luật còn giữ, vì chúng không liên quan tới mức quyền mà tới việc chạy ĐÚNG brain và về ĐÚNG
+người:
 - `vault_root` rỗng -> báo lỗi rõ, TUYỆT ĐỐI không âm thầm rơi về Brain Default. Giao việc nhầm
   brain là việc chạy trên dữ liệu của người khác.
 - `chat_id` rỗng thì CẢNH BÁO trong kết quả trả về chứ không nuốt: kết quả việc sẽ đi về ID
@@ -58,7 +61,8 @@ _COT = [
     ("done", "xong"),
 ]
 
-_MODE_CHO_PHEP = ("suggest", "auto")
+_MODE_CHO_PHEP = ("suggest", "auto", "full")
+_MODE_MAC_DINH = "full"
 
 # Chỉ mức điều phối "auto" mới có dispatcher lấy việc ra chạy (`tasks.TaskRunner._dispatch`).
 # "off" (mặc định của MỌI brain mới) và "manual" đều để việc nằm im vô thời hạn.
@@ -89,14 +93,10 @@ def _them(args, ctx) -> str:
     if not tieu_de:
         return "ERROR: thiếu title - việc phải có tên thì người dùng mới theo dõi được."
 
-    mode = str((args or {}).get("mode") or "suggest").strip().lower()
-    if mode == "full":
-        return ("ERROR: tool này KHÔNG tạo được việc mức full. Mức full cho việc tự thao tác "
-                "thật ra ngoài (tạo đơn, tiêu tiền, chạy quảng cáo, gửi tin) và không hoàn tác "
-                "được, nên phải do chính người dùng đặt ở trang Việc. Hãy tạo mức suggest hoặc "
-                "auto, rồi nói người dùng tự nâng nếu họ muốn.")
+    mode = str((args or {}).get("mode") or _MODE_MAC_DINH).strip().lower()
+    # Mode lạ (model gõ sai, hoặc bịa ra tên mức) kẹp về mặc định thay vì để enqueue tự xử.
     if mode not in _MODE_CHO_PHEP:
-        mode = "suggest"
+        mode = _MODE_MAC_DINH
 
     f, loi = _feature()
     if loi:
@@ -122,7 +122,8 @@ def _them(args, ctx) -> str:
     except Exception as e:
         return f"ERROR: không giao được việc ({type(e).__name__}: {e})."
 
-    ten_mode = {"suggest": "chỉ đọc và đề xuất", "auto": "được ghi file nháp trong brain"}[mode]
+    ten_mode = {"suggest": "chỉ đọc và đề xuất", "auto": "được ghi file nháp trong brain",
+                "full": "toàn quyền, tự thao tác ra ngoài"}[mode]
     ra = [f"Đã giao việc: {tieu_de}", f"Mã việc: {tid}", f"Mức quyền: {mode} ({ten_mode})"]
     if deps:
         ra.append("Chờ xong: " + ", ".join(deps))
@@ -196,9 +197,10 @@ def register(ctx):
         "gật (vd 'áp dụng kế hoạch vừa trình bày', 'cập nhật timeline', 'theo dõi rồi nhắc lại'): "
         "mỗi việc đều bắn thông báo về chuông và về khung chat khi nó xong hoặc kẹt. "
         "op=add: cần title; nên kèm chat_id (lấy từ khối KÊNH HỘI THOẠI HIỆN TẠI) để kết quả về "
-        "đúng người, và intent nếu cần mô tả kỹ hơn tiêu đề. mode=suggest (mặc định, chỉ đọc và "
-        "đề xuất) hoặc auto (được ghi file nháp trong brain); mode full BỊ TỪ CHỐI, người dùng "
-        "tự nâng ở trang Việc. deps='id1,id2' để việc này chờ việc khác xong. "
+        "đúng người, và intent nếu cần mô tả kỹ hơn tiêu đề. mode=full (mặc định: toàn quyền, "
+        "tự thao tác ra ngoài như lúc chat), auto (chỉ ghi file nháp trong brain) hoặc suggest "
+        "(chỉ đọc và đề xuất); chỉ hạ mức khi người dùng muốn vậy. deps='id1,id2' để việc này "
+        "chờ việc khác xong. "
         "op=list: liệt kê việc theo cột. "
         "Chuyển cột, huỷ việc và duyệt việc chờ phê duyệt thì làm ở trang Việc, tool này không có.",
         _chay,
@@ -208,7 +210,7 @@ def register(ctx):
                 "op": {"type": "string", "enum": ["add", "list"]},
                 "title": {"type": "string", "description": "Tên việc, ngắn gọn (op=add)"},
                 "intent": {"type": "string", "description": "Mô tả đầy đủ hơn nếu tiêu đề chưa đủ"},
-                "mode": {"type": "string", "enum": ["suggest", "auto"]},
+                "mode": {"type": "string", "enum": ["suggest", "auto", "full"]},
                 "chat_id": {"type": "string", "description": "Người nhận kết quả, vd web:<mã phiên>"},
                 "deps": {"type": "string", "description": "Mã các việc phải xong trước, cách nhau dấu phẩy"},
             },

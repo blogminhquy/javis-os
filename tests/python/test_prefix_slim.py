@@ -134,7 +134,7 @@ check("da go mau plugin.py", "def register(ctx):" not in md)
 check("da go mau frontmatter agent/workflow", "type: workflow\nname: <Tên>" not in md)
 check("co tro toi javis-builder", "javis-builder" in md)
 
-for luat in ("mode: suggest", "enabled: false", "JAVIS_ENABLE_USER_PLUGINS",
+for luat in ("mode: full", "enabled: false", "JAVIS_ENABLE_USER_PLUGINS",
              "AT MOST 150 characters", "NEVER leave `group` empty", "owner_chat",
              "notify: false",
              "em dash"):

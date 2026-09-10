@@ -1,4 +1,4 @@
-"""Nhắc hẹn phải LÀM ĐƯỢC việc user đã hẹn, kèm cảnh báo lúc tạo.
+"""Nhắc hẹn phải LÀM ĐƯỢC việc user đã hẹn.
 
     python tests/run.py nhac_hen_muc_quyen      (KHÔNG mạng, không spawn engine)
 
@@ -9,14 +9,13 @@ những gọi không được mà còn KHÔNG NHÌN THẤY chúng, và prompt c�
 tin ra ngoài". Kết cục: đúng giờ nó vẫn thức dậy, chạy, rồi báo về là không làm được - còn
 việc thì vẫn chưa ai làm.
 
-Chốt hướng (chủ repo, 2026-08-07): "Bỏ các quyền giúp anh, có cảnh báo là được."
+Chốt hướng (chủ repo, 2026-08-07): "Bỏ các quyền giúp anh, có cảnh báo là được." Rồi tới
+2026-09-10 chủ repo bỏ luôn luật an toàn "không giao tự động tiền/đơn/đăng bài/nhắn khách" trên
+toàn Javis: câu cảnh báo lúc tạo (`canh_bao`) và hộp cảnh báo đỏ trên form được gỡ, loop cũng
+mặc định toàn quyền như nhắc hẹn.
 
-Vì sao mặc định toàn quyền là ĐÚNG với nhắc hẹn mà không đúng với loop: loop tự nghĩ ra việc
-để làm mỗi vòng, còn nhắc hẹn làm ĐÚNG một việc user đã viết ra và hẹn giờ - nó là một câu
-lệnh trong chat được dời sang giờ khác. Trói nó chặt hơn lúc chat là tự mâu thuẫn.
-
-Test này khoá bốn thứ: mặc định, ba mức dựng engine khác nhau thật, cảnh báo có tới tay user
-không, và cảnh báo có viết TRUNG TÍNH không (không gắn với một ca dùng cụ thể nào).
+Test này khoá ba thứ: mặc định toàn quyền, ba mức dựng engine khác nhau thật, và phần cảnh báo
+cũ đã gỡ hết (không còn nửa bản nào sót lại trong server, plugin, CLAUDE.md hay giao diện).
 """
 import asyncio
 import os
@@ -148,39 +147,34 @@ check("không nói mức thì chạy theo mặc định (toàn quyền)",
       g["allowed_tools"] is None and g["hub_mode"] == "full")
 
 
-# ---- 3. Cảnh báo phải tới tay user ----
-NOTE = R.CANH_BAO_TOAN_QUYEN
-check("cảnh báo nói rõ nó chạy MỘT MÌNH", "MỘT MÌNH" in NOTE)
-check("cảnh báo nói rõ không ai duyệt lại", "không có ai duyệt lại" in NOTE)
-check("cảnh báo nói rõ phần lớn không rút lại được", "không rút lại được" in NOTE)
-check("cảnh báo chỉ luôn lối hạ mức", "chỉ đọc" in NOTE)
-check("cảnh báo không dùng em dash (luật CLAUDE.md)", "—" not in NOTE)
-
-# TRUNG TÍNH: chủ repo dặn "đừng chỉ dựa vào casestudy của anh để viết cảnh báo" - đây là tool
-# cho mọi người dùng, mỗi người đấu một bộ công cụ khác nhau.
-for rieng in ("Zalo", "zalo", "Telegram", "nhóm 136", "chứng khoán", "POS", "Pancake"):
-    check(f"cảnh báo không gắn với ca dùng riêng: {rieng!r}", rieng not in NOTE)
-
+# ---- 3. Cảnh báo cũ đã gỡ hết, không sót nửa bản nào ----
+# Một luật an toàn có hai bản thì bản bị quên là bản sai; luật đã bỏ mà còn sót một bản thì
+# người dùng vẫn đọc thấy một cảnh báo mà app không còn làm theo.
+check("reminders.py không còn hằng cảnh báo toàn quyền", not hasattr(R, "CANH_BAO_TOAN_QUYEN"))
 SRC = (SERVER / "reminders.py").read_text(encoding="utf-8")
-check("endpoint tạo trả kèm canh_bao", '"canh_bao"' in SRC)
-check("chỉ cảnh báo đúng ca đáng cảnh báo (task + toàn quyền)",
-      'rem["mode"] == "task" and rem.get("muc_quyen") == "full"' in SRC)
+check("endpoint tạo không còn trả canh_bao", '"canh_bao"' not in SRC)
 
 PLUGIN = (ROOT / "system" / "plugins" / "javis-schedule" / "plugin.py").read_text(encoding="utf-8")
-check("tool javis_schedule đọc lại cảnh báo cho user", 'data.get("canh_bao")' in PLUGIN)
-check("tool dặn model đừng nuốt cảnh báo", "đừng nuốt" in PLUGIN)
+check("tool javis_schedule không còn đọc lại cảnh báo", 'data.get("canh_bao")' not in PLUGIN)
+check("tool javis_schedule nói mức quyền của nhắc hẹn vừa tạo", 'data.get("muc_quyen")' in PLUGIN)
 check("tool nhận tham số muc_quyen", '"muc_quyen"' in PLUGIN)
 
 CLAUDEMD = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-check("CLAUDE.md dặn đọc lại nguyên văn cảnh báo",
-      "read it back VERBATIM" in CLAUDEMD and "muc_quyen" in CLAUDEMD)
+check("CLAUDE.md không còn bắt đọc lại nguyên văn cảnh báo", "read it back VERBATIM" not in CLAUDEMD)
+check("CLAUDE.md vẫn dạy tham số muc_quyen", "muc_quyen" in CLAUDEMD)
+check("CLAUDE.md: loop tạo từ chat mặc định full", "defaults to `mode: full`" in CLAUDEMD)
+check("CLAUDE.md không còn cấm tự đặt full", "NEVER set `mode: full`" not in CLAUDEMD)
 
 
-# ---- 4. Giao diện: mức quyền phải hiện ra, và cảnh báo phải nổi ----
+# ---- 4. Giao diện: mức quyền phải hiện ra, hộp cảnh báo đỏ và confirm() đã gỡ ----
 JS = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
 check("thẻ nhắc hẹn hiện mức quyền", "MQ_LBL" in JS and "rm-mq" in JS)
 check("form có ô chọn mức quyền", "lpRemMq" in JS)
-check("form hiện cảnh báo khi chọn toàn quyền", "lpRemMqWarn" in JS)
+check("form không còn hộp cảnh báo đỏ khi chọn toàn quyền", "lpRemMqWarn" not in JS)
+check("form loop không còn hộp cảnh báo đỏ", "lpFullWarn" not in JS)
+check("không còn confirm() khi lưu hay bật loop toàn quyền",
+      "si_full_confirm" not in JS and "si_toggle_confirm" not in JS)
+check("loop mới mặc định toàn quyền trên form", 'fcur = { mode: "full" }' in JS)
 check("ô mức quyền chỉ hiện với kiểu tự-làm", 'frmode === "task" ? "" : "none"' in JS)
 check("form gửi muc_quyen lên server", JS.count("muc_quyen: frmq") + JS.count('"muc_quyen", frmq') >= 2)
 CSS = (ROOT / "dashboard" / "style.css").read_text(encoding="utf-8")

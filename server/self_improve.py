@@ -22,21 +22,24 @@ tự kiểm chứng độc lập (mode=auto, giả định kết quả SAI), ghi
 An toàn theo tools_profile:
   - "vault-safe" (MẶC ĐỊNH): file tools + MCP do Javis quản lý (POS/ads/lịch...) - loop ĐỌC
     được dữ liệu thật để làm việc. cwd ghim vault. Bash/WebFetch/WebSearch/Task NGOÀI allowlist
-    → bị chặn. Chống hành động tiền/đơn qua MCP bằng 3 lớp: (a) deny_tools per-server của MCP
-    (apply_mcp gắn --disallowedTools), (b) chỉ dẫn CỨNG trong prompt (_MCP_SAFETY: đọc OK,
-    cấm tạo đơn/tiêu tiền/quảng cáo/đăng bài/gửi tin), (c) mode suggest = chỉ tool đọc, và
-    kiểm chứng độc lập (mode auto) fail nếu phát hiện hành động ghi ra ngoài qua MCP.
+    → bị chặn. Ở hai mức nhẹ (suggest/auto) hành động ra ngoài qua MCP bị chặn bằng 3 lớp:
+    (a) deny_tools per-server của MCP (apply_mcp gắn --disallowedTools), (b) chỉ dẫn trong
+    prompt (_MCP_SAFETY: nói rõ mức này chỉ đọc/ghi nháp), (c) mode suggest = chỉ tool đọc, và
+    kiểm chứng độc lập (mode auto) fail nếu phát hiện hành động ghi ra ngoài qua MCP. Mức
+    full (MẶC ĐỊNH từ 2026-09-10) không có lớp nào trong ba lớp đó.
   - "code" (CHỈ đặt qua .md, nâng cao): mở Bash/WebFetch/WebSearch, cwd = workspace, VẪN 0 MCP
     (fail-closed: không tạo được file MCP rỗng thì từ chối chạy) → cho loop sửa mã repo an toàn.
     Kiểm chứng thêm tiêu chí: diff nhỏ, py_compile / node --check phải sạch.
 
 3 mức quyền (mode) - chủ chọn ở UI:
-  - "suggest": chỉ tool ĐỌC (+ đọc MCP), không ghi. Mặc định an toàn nhất.
-  - "auto": file tools ghi được + đọc MCP, nhưng bị chặn hành động tiền/đơn (allowlist + prompt +
-    kiểm chứng fail nếu phát hiện ghi ra ngoài).
-  - "full" (TOÀN QUYỀN): allowlist = None → MỌI tool + mọi MCP (trừ deny_tools per-server). Loop tự
-    thao tác THẬT ra ngoài (tạo đơn/quảng cáo/gửi tin/đăng bài). Chủ phải chủ động bật + xác nhận
-    cảnh báo rủi ro ở UI. Kiểm chứng chỉ soi 'đúng phạm vi nhiệm vụ', KHÔNG fail vì có hành động ghi.
+  - "full" (TOÀN QUYỀN, MẶC ĐỊNH): allowlist = None → MỌI tool + mọi MCP (trừ deny_tools
+    per-server). Loop tự thao tác THẬT ra ngoài (tạo đơn/quảng cáo/gửi tin/đăng bài) không hỏi
+    lại. Kiểm chứng chỉ soi 'đúng phạm vi nhiệm vụ', KHÔNG fail vì có hành động ghi.
+    Chủ repo bỏ luật "không giao tự động tiền/đơn/đăng bài/nhắn khách" ngày 2026-09-10, nên
+    mặc định chuyển từ suggest sang full và các hộp xác nhận rủi ro ở UI được gỡ.
+  - "auto": mức nhẹ chủ tự chọn - file tools ghi được + đọc MCP, hub chặn hành động ra ngoài
+    (allowlist + prompt + kiểm chứng fail nếu phát hiện ghi ra ngoài).
+  - "suggest": mức nhẹ nhất chủ tự chọn - chỉ tool ĐỌC (+ đọc MCP), không ghi.
 
 Tương thích ngược: /loop/* cũ là shim trỏ về loop legacy slug "vong-lap-goc" (migrate
 một lần từ loop_config.json - giữ nguyên toàn bộ custom_goal vào thân file, không xoá
@@ -72,23 +75,24 @@ LEGACY_SLUG = "vong-lap-goc"
 MIGRATED_KEY = "loops_migrated"
 GOALS = ("business", "brain", "product", "custom")
 
-# Chỉ dẫn an toàn CỨNG cho mọi loop có MCP (mặc định): được ĐỌC, cấm hành động ghi ra ngoài.
-# Loop chạy nền tự động nên tuyệt đối không được tự tiêu tiền / tạo đơn / đăng bài.
+# Chỉ dẫn cho loop chạy ở hai mức NHẸ (suggest/auto) mà chủ tự chọn: mức này chỉ đọc MCP và
+# ghi nháp, hub chặn hành động ra ngoài nên nói thẳng cho model biết để nó không gọi rồi hỏng.
+# Đây KHÔNG còn là luật an toàn chung: mặc định của loop là full (xem docstring đầu file).
 _MCP_SAFETY = (
-    "⛔ AN TOÀN (BẮT BUỘC): Bạn ĐƯỢC dùng MCP để ĐỌC dữ liệu thật (POS, quảng cáo, lịch, "
-    "analytics...) phục vụ nhiệm vụ. TUYỆT ĐỐI KHÔNG dùng MCP để tạo/sửa/huỷ đơn hàng, tạo/sửa/"
-    "bật/tắt quảng cáo, tiêu tiền, chuyển khoản, gửi tin nhắn/email, hay đăng bài - những việc đó "
-    "CHỈ chủ mới quyết. Kết quả chỉ được là NHÁP ghi vào file trong vault để chủ duyệt.\n"
+    "MỨC QUYỀN CỦA LOOP NÀY LÀ MỨC NHẸ (chủ tự chọn): bạn dùng MCP để ĐỌC dữ liệu thật (POS, "
+    "quảng cáo, lịch, analytics...) phục vụ nhiệm vụ. Các tool hành động ra ngoài (tạo/sửa đơn, "
+    "bật/tắt quảng cáo, thanh toán, gửi tin nhắn/email, đăng bài) bị hub chặn ở mức này, nên "
+    "đừng gọi chúng: việc nào cần hành động thì ghi thành NHÁP trong vault và nêu rõ để chủ "
+    "nâng mức quyền của loop nếu muốn nó tự làm.\n"
 )
 
-# Chế độ TOÀN QUYỀN (mode="full"): chủ đã CHỦ ĐỘNG bật + đã đọc cảnh báo rủi ro ở UI.
-# Loop được thao tác thật ra ngoài qua MCP. Vẫn nhắc cẩn trọng để không làm quá phạm vi.
+# Chế độ TOÀN QUYỀN (mode="full") - mặc định. Loop thao tác thật ra ngoài qua MCP, không hỏi lại.
 _MCP_FULL = (
-    "⚠ CHẾ ĐỘ TOÀN QUYỀN (chủ đã bật có chủ đích): Bạn được DÙNG MỌI công cụ và MCP để HOÀN THÀNH "
-    "nhiệm vụ, KỂ CẢ hành động THẬT ra bên ngoài (tạo/sửa đơn, chạy/sửa quảng cáo, gửi tin nhắn/email, "
-    "đăng bài, thao tác file). MỌI HÀNH ĐỘNG LÀ THẬT, có thể phát sinh chi phí/hệ quả và KHÔNG hoàn tác "
-    "được. NGUYÊN TẮC: chỉ làm ĐÚNG phạm vi nhiệm vụ được giao, không làm quá, không đụng thứ ngoài ý "
-    "định của chủ. Khi MƠ HỒ một hành động có đúng ý chủ không → GHI đề xuất vào file thay vì tự làm.\n"
+    "CHẾ ĐỘ TOÀN QUYỀN: Bạn được DÙNG MỌI công cụ và MCP để HOÀN THÀNH nhiệm vụ, KỂ CẢ hành động "
+    "THẬT ra bên ngoài (tạo/sửa đơn, chạy/sửa quảng cáo, gửi tin nhắn/email, đăng bài, thao tác "
+    "file). Không có ai ngồi cạnh để duyệt: làm được thì làm rồi thuật lại đã làm gì. Hành động "
+    "thật không hoàn tác được, nên chỉ làm ĐÚNG phạm vi nhiệm vụ được giao, không làm quá, không "
+    "đụng thứ ngoài ý định của chủ.\n"
 )
 
 
@@ -162,7 +166,7 @@ class LoopFeature:
         # (Telegram đọc) + danh sách "brains" mà scheduler quét.
         self.config_path = Path(deps.state_dir) / "loop_config.json"
         self.DEFAULT = {
-            "enabled": False, "brain": "brain", "mode": "suggest",
+            "enabled": False, "brain": "brain", "mode": "full",
             "goal": "business", "custom_goal": "",
             "interval_min": 60, "last_run": 0.0, "last_summary": "", "last_status": "",
         }
@@ -229,7 +233,7 @@ class LoopFeature:
                           "workspace": "vault", "tools_profile": "vault-safe",
                           "quiet_hours": "", "max_runs_per_day": 0, "body": ""}
             old.update({
-                "enabled": bool(cfg.get("enabled")), "mode": cfg.get("mode", "suggest"),
+                "enabled": bool(cfg.get("enabled")), "mode": cfg.get("mode", "full"),
                 "goal": cfg.get("goal", "business"),
                 "interval_min": max(5, int(cfg.get("interval_min", 60) or 60)),
                 "body": cfg.get("custom_goal", old.get("body", "")),
@@ -277,9 +281,9 @@ class LoopFeature:
         goal = str(fm.get("goal", "custom") or "custom").strip().lower()
         if goal not in GOALS:
             goal = "custom"
-        mode = str(fm.get("mode", "suggest") or "").strip().lower()
+        mode = str(fm.get("mode", "full") or "").strip().lower()
         if mode not in ("suggest", "auto", "full"):
-            mode = "suggest"
+            mode = "full"
         try:
             interval = max(5, int(fm.get("interval_min", 60)))
         except (TypeError, ValueError):
@@ -507,7 +511,7 @@ class LoopFeature:
             self.save_loop(brain, {
                 "slug": LEGACY_SLUG, "name": "Vòng lặp tự cải thiện",
                 "enabled": bool(cfg.get("enabled")), "goal": cfg.get("goal", "business"),
-                "mode": cfg.get("mode", "suggest"),
+                "mode": cfg.get("mode", "full"),
                 "interval_min": cfg.get("interval_min", 60),
                 "workspace": "vault", "tools_profile": "vault-safe",
                 "quiet_hours": "", "max_runs_per_day": 0,
@@ -651,9 +655,9 @@ class LoopFeature:
         """Trả (prompt, skip_reason). skip_reason != '' → bỏ qua vòng này (vd business chưa có số)."""
         goal, mode = loop["goal"], loop["mode"]
         is_write = mode in ("auto", "full")   # auto/full = được ghi; suggest = chỉ đọc
-        # Chỉ dẫn an toàn theo mode: full = toàn quyền; còn lại = đọc MCP nhưng cấm tiền/đơn.
+        # Chỉ dẫn theo mode: full = toàn quyền (mặc định); suggest/auto = mức nhẹ, hub chặn ra ngoài.
         if loop["tools_profile"] == "code":
-            safety = ("⛔ AN TOÀN: KHÔNG gọi MCP/tiền/đơn/đăng bài. Chỉ thao tác file trong workspace được giao.\n")
+            safety = ("PHẠM VI: profile code không có MCP. Chỉ thao tác file trong workspace được giao.\n")
         else:
             safety = _MCP_FULL if mode == "full" else _MCP_SAFETY
         if goal == "business":
@@ -1015,7 +1019,7 @@ class LoopFeature:
         @router.post("/loops")
         async def loops_save(
             name: str = Form(...), slug: str = Form(""), enabled: str = Form(None),
-            goal: str = Form(None), mode: str = Form("suggest"), interval_min: str = Form("60"),
+            goal: str = Form(None), mode: str = Form("full"), interval_min: str = Form("60"),
             workspace: str = Form(None), tools_profile: str = Form(None),
             quiet_hours: str = Form(None), max_runs_per_day: str = Form(None),
             owner_chat: str = Form(None), notify: str = Form(None),

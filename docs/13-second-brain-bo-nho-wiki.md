@@ -208,7 +208,7 @@ Nếu bạn dồn nhiều nguồn chưa xử lý, có thể giao cho Javis một
 3. Ở **Loại việc**, giữ **🔁 Việc lặp**.
 4. Đặt **Tên** (ví dụ "Tiêu hoá nguồn mới").
 5. Điền ô **Mô tả nhiệm vụ (mỗi vòng Javis làm đúng việc này)**, ví dụ: "Mỗi vòng đọc 1 source chưa xử lý trong sources rồi đề xuất Wiki page nên tạo".
-6. Chọn **Chế độ**: **Đề xuất (chỉ đọc)** để Javis chỉ gợi ý, hoặc **Tự làm (an toàn)** để nó được ghi file nháp trong brain.
+6. Chọn **Chế độ**: **Toàn quyền** (mặc định) để Javis tự thao tác thật, **Tự làm (ghi nháp)** để nó chỉ ghi file nháp trong brain, hoặc **Đề xuất (chỉ đọc)** để nó chỉ gợi ý.
 7. Đặt **Chu kỳ (phút, tối thiểu 5)**, chọn **Brain (nơi lưu việc)**, rồi bấm **💾 Lưu**.
 
 Chi tiết từng chế độ, cách bật/tắt, xem nhật ký và mẹo an toàn: [Việc định kỳ & Nhắc hẹn](08-viec-dinh-ky.md).

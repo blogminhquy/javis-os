@@ -28,8 +28,9 @@ nói của user, KHỎI cần biết "bây giờ" trong prompt (giữ prompt-cac
 MỨC QUYỀN của mode "task": ba mức như loop (suggest chỉ đọc, auto thêm ghi file, full toàn
 quyền), MẶC ĐỊNH `full`. Nhắc hẹn khác loop ở chỗ căn bản - nó làm ĐÚNG một việc người dùng đã
 viết ra và hẹn giờ, tức là một câu lệnh trong chat được dời sang giờ khác - nên trói nó chặt
-hơn lúc chat là tự mâu thuẫn. Đổi lại, lúc tạo thì trả kèm `canh_bao` và chỗ gọi phải đọc lại
-cho người dùng. Xem `CANH_BAO_TOAN_QUYEN` và `MUC_QUYEN_MAC_DINH`.
+hơn lúc chat là tự mâu thuẫn. Bản 2026-08-07 còn trả kèm một câu cảnh báo `canh_bao` lúc tạo;
+chủ repo bỏ hẳn luật "không giao tự động tiền/đơn/đăng bài/nhắn khách" ngày 2026-09-10 nên câu
+đó đã gỡ. Xem `MUC_QUYEN_MAC_DINH`.
 
 Module KHÔNG import main (tránh vòng lặp import): mọi helper tiêm qua RemindersDeps.
 """
@@ -79,22 +80,11 @@ VALID_MUC_QUYEN = {"suggest", "auto", "full"}
 # sang giờ khác, nên trói nó chặt hơn lúc chat là tự mâu thuẫn: người dùng gõ "10h mai gửi
 # link vào nhóm" rồi tới giờ Javis báo về là nó không được phép gửi.
 #
-# Trước bản này mức quyền bị ghim cứng ở chỉ-đọc, nên MỌI nhắc hẹn yêu cầu một hành động ra
+# Trước 2026-08-07 mức quyền bị ghim cứng ở chỉ-đọc, nên MỌI nhắc hẹn yêu cầu một hành động ra
 # ngoài (gửi tin, đăng bài, đặt lịch, tạo đơn) đều thức dậy đúng giờ, chạy, rồi báo về là không
-# làm được - trong khi việc thì vẫn chưa ai làm. Nay mở quyền và ĐỔI LẠI BẰNG MỘT LỜI CẢNH BÁO
-# rõ ràng lúc tạo; ai muốn mức cũ thì đặt muc_quyen="suggest" cho nhắc hẹn đó.
+# làm được - trong khi việc thì vẫn chưa ai làm. Ai muốn mức nhẹ hơn thì đặt muc_quyen="suggest"
+# hoặc "auto" cho nhắc hẹn đó.
 MUC_QUYEN_MAC_DINH = "full"
-
-# Cảnh báo hiện lúc tạo một nhắc hẹn có thể tự hành động. Viết TRUNG TÍNH, không gắn với một ca
-# dùng cụ thể nào: mỗi người đấu một bộ công cụ khác nhau, nên chỉ nói đúng ba điều mà ai cũng
-# cần biết - nó chạy một mình, nó có quyền gì, và cái gì không rút lại được.
-CANH_BAO_TOAN_QUYEN = (
-    "⚠ Nhắc hẹn kiểu giao việc chạy MỘT MÌNH khi tới giờ, với đầy đủ quyền như lúc bạn đang "
-    "ngồi chat: nó dùng được mọi công cụ đã đấu, nên tuỳ việc bạn giao mà nó có thể gửi tin, "
-    "đăng bài, đặt lịch, tạo đơn hoặc tiêu tiền thật. Ở bước đó không có ai duyệt lại, và phần "
-    "lớn những việc đó không rút lại được. Chỉ giao thứ bạn sẵn sàng để nó tự làm. Muốn nó chỉ "
-    "đọc rồi báo lại thì đặt mức quyền \"chỉ đọc\" cho nhắc hẹn này."
-)
 
 NHAN_MUC_QUYEN = {"suggest": "chỉ đọc", "auto": "được ghi file", "full": "toàn quyền"}
 
@@ -768,12 +758,6 @@ class RemindersFeature:
                     "due_at": rem["due_at"], "due_human": _fmt_vn(rem["due_at"]),
                     "cron": rem["cron"], "repeat_min": rem["repeat_min"],
                     "muc_quyen": rem.get("muc_quyen"),
-                    # Cảnh báo đi CÙNG kết quả tạo, không nằm đâu đó trong tài liệu: đây là lúc
-                    # duy nhất người dùng chắc chắn đang nhìn. Chỗ gọi (chat/dashboard) có nhiệm
-                    # vụ đọc lại nguyên văn cho họ.
-                    "canh_bao": (CANH_BAO_TOAN_QUYEN
-                                 if (rem["mode"] == "task" and rem.get("muc_quyen") == "full")
-                                 else ""),
                     # Kèm lời đọc để chỗ gọi (chat) nhắc lại lịch bằng tiếng Việt, khỏi bắt user
                     # tự dịch "0 7 * * *".
                     "cron_human": cron_util.describe_cron(rem["cron"]) if rem["cron"] else ""}
