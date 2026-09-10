@@ -306,9 +306,11 @@ function handleMessage(data) {
 // ============================================
 // Messages
 // ============================================
+// Lượt Enter đang ĐỢI file tải lên xong. Chỉ giữ một lượt: bấm Enter hai lần trong lúc chờ
+// không được thành hai tin.
+let _choTaiLen = null;
 function sendMessage(text) {
   const msg = (text || chatInput.value).trim();
-  const atts = pendingAttachments.filter(a => a.path);  // chỉ file đã upload xong
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
   const _slash = (window.JavisSlash && msg) ? window.JavisSlash.route(msg) : { type: "passthrough" };
   if (_slash.type === "session") {
@@ -317,7 +319,34 @@ function sendMessage(text) {
     else { try { newChat(); } catch (e) {} }   // new | reset -> hội thoại mới trên web
     return;
   }
-  if ((!msg && atts.length === 0) || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  // File còn ĐANG TẢI LÊN thì đợi nó xong rồi gửi, KHÔNG gửi thiếu. Trước đây dòng lọc
+  // `a.path` bên dưới lặng lẽ bỏ file chưa tải xong: dán ảnh hay một đoạn văn dài rồi gõ câu
+  // hỏi và Enter ngay là tin bay đi tay không, bong bóng không có ảnh, Javis cũng không nhận
+  // được file - đúng lỗi chủ repo báo 2026-09-10. Chip trên thanh đính kèm vẫn hiện "đang
+  // tải..." nên người dùng thấy vì sao tin chưa đi.
+  const dangTai = pendingAttachments.filter(a => a.uploading);
+  if (dangTai.length) {
+    if (!_choTaiLen) {
+      showActivity(escapeHtml(window.t("app.att_wait_send")));
+      _choTaiLen = Promise.all(dangTai.map(a => a.xong || Promise.resolve())).then(() => {
+        _choTaiLen = null;
+        const _t = savedSessionId && turns[savedSessionId];
+        if (!(_t && _t.running)) hideActivity();
+        sendMessage(text);
+      });
+    }
+    return;
+  }
+  // File tải lên HỎNG cũng không được lặng lẽ bỏ qua: chip đã ghi lý do, thêm một dòng nói
+  // thẳng để người dùng gỡ file lỗi hoặc thử lại, rồi mới gửi.
+  if (pendingAttachments.some(a => !a.uploading && !a.path)) {
+    attachNote = window.t("app.att_failed_send");
+    renderChips();
+    return;
+  }
+  const atts = pendingAttachments.filter(a => a.path);
+  if (!msg && atts.length === 0) return;
   if (!savedSessionId) {
     savedSessionId = newSid();                           // hội thoại mới → mint id để định tuyến
     // Đang mở một project ở cột Lịch sử thì hội thoại mới rơi thẳng vào project đó, khỏi phải
@@ -448,9 +477,13 @@ async function openStoredSession(id) {
       // convo là thứ được ghi xuống localStorage rồi dựng lại ở lần F5 sau. Nhét bản CÒN khối
       // vào đây là lỗi sống dai qua mọi lần tải lại, dù bong bóng lượt này đã sạch.
       if (m.role === "user") {
+        // Server chỉ lưu CHỮ đã gửi (kèm khối ngữ cảnh), không lưu riêng danh sách đính kèm.
+        // Đọc lại từ chính khối đó, không thì mở lại hội thoại là ảnh và file biến mất khỏi
+        // bong bóng, người dùng không xem lại được mình đã gửi gì (chủ repo báo 2026-09-10).
         const _sach = chuNguoiGo(m.content || "");
-        appendUserMessage(_sach, [], ts);
-        convo.push({ role: "user", text: _sach, atts: [], ts });
+        const _atts = docDinhKem(m.content || "");
+        appendUserMessage(_sach, _atts, ts);
+        convo.push({ role: "user", text: _sach, atts: _atts, ts });
       }
       // sess.brain: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
       // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
@@ -542,6 +575,38 @@ function chuNguoiGo(text) {
     s = t.slice(i + 3);
   }
   return s;
+}
+// Chiều ngược của chuNguoiGo: đọc lại DANH SÁCH FILE ĐÍNH KÈM từ khối "[File đính kèm ...]"
+// mà sendMessage đã chèn vào đầu tin. Server chỉ lưu chữ đã gửi, không lưu riêng đính kèm,
+// nên đây là nguồn duy nhất để mở lại hội thoại mà bong bóng vẫn còn ảnh và thẻ file.
+//
+// Mỗi dòng "- <đường dẫn stage>" là một file. Tên file = đoạn cuối đường dẫn (nhận cả "/" lẫn
+// "\" vì máy chủ có thể là Windows). Ảnh trỏ về /upload/raw?name=<tên> - đúng URL mà /upload
+// đã trả lúc tải lên, nên xem lại được y như tin vừa gửi; stage bị dọn thì rơi vào khung
+// "không còn xem lại được" như mọi ảnh cũ khác.
+const _ANH_EXT = /\.(png|jpe?g|gif|webp|bmp)$/i;
+function docDinhKem(text) {
+  const out = [];
+  let s = String(text == null ? "" : text);
+  for (let vong = 0; vong < 4; vong++) {
+    const t = s.replace(/^\s+/, "");
+    if (!_KHOI_NGU_CANH.some(k => t.startsWith(k))) break;
+    const i = t.indexOf("]\n\n");
+    if (i < 0) break;
+    const khoi = t.slice(0, i);
+    if (khoi.startsWith("[File đính kèm")) {
+      khoi.split("\n").forEach(dong => {
+        const m = /^- (.+)$/.exec(dong.trim());
+        if (!m) return;
+        const ten = m[1].trim().split(/[\\/]/).pop();
+        if (!ten) return;
+        out.push({ name: ten, kind: _ANH_EXT.test(ten) ? "image" : "file",
+                   url: "/upload/raw?name=" + encodeURIComponent(ten) });
+      });
+    }
+    s = t.slice(i + 3);
+  }
+  return out;
 }
 window.JavisChuNguoiGo = chuNguoiGo;   // console.js dùng lại khi dựng bản xem trước hội thoại
 
@@ -1650,8 +1715,11 @@ function _pinRestore() {
   } catch (e) {}
 }
 
+// Dòng nhắc ngay dưới các chip (vd "có file chưa tải lên được"). Tự xoá ở lần gỡ file hay
+// tải file mới kế tiếp.
+let attachNote = "";
 function renderChips() {
-  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote);
+  attachBar.classList.toggle("has-items", pendingAttachments.length > 0 || !!pinnedNote || !!attachNote);
   attachBar.innerHTML = "";
   if (pinnedNote) {
     const chip = document.createElement("div");
@@ -1697,6 +1765,12 @@ function renderChips() {
     chip.innerHTML = `${thumb}<div class="chip-info"><span class="chip-name">${escapeHtml(a.name)}</span><span class="chip-meta">${meta}</span></div><button class="chip-x" data-i="${i}">${ic("x")}</button>`;
     attachBar.appendChild(chip);
   });
+  if (attachNote) {
+    const note = document.createElement("div");
+    note.className = "attach-note";
+    note.textContent = attachNote;
+    attachBar.appendChild(note);
+  }
   attachBar.querySelectorAll(".chip-x").forEach(b =>
     b.addEventListener("click", () => {
       if (b.dataset.unpin) JavisPin.clear();
@@ -1743,16 +1817,19 @@ function removeAttachment(i) {
   const a = pendingAttachments[i];
   if (a && a.preview) URL.revokeObjectURL(a.preview);
   pendingAttachments.splice(i, 1);
+  attachNote = "";
   renderChips();
 }
 function clearAttachments() {
   pendingAttachments.forEach(a => { if (a.preview) URL.revokeObjectURL(a.preview); });
   pendingAttachments = [];
+  attachNote = "";
   renderChips();
 }
 
 async function uploadFile(file) {
   const isImg = file.type.startsWith("image/");
+  let _xong = null;
   const att = {
     name: file.name || "paste.png",
     kind: isImg ? "image" : "file",
@@ -1760,8 +1837,20 @@ async function uploadFile(file) {
     uploading: true, statusText: window.t("app.att_uploading"), path: null, size: file.size,
     sources: null, attachments: null,
   };
+  // Lời hứa "tải xong" (thành hay hỏng đều xong) để sendMessage đợi được thay vì gửi thiếu.
+  att.xong = new Promise(r => { _xong = r; });
   pendingAttachments.push(att);
+  attachNote = "";
   renderChips();
+  try {
+    await _taiLen(file, att);
+  } finally {
+    att.uploading = false;
+    renderChips();
+    if (_xong) _xong();
+  }
+}
+async function _taiLen(file, att) {
   try {
     // Chỉ STAGE để Javis đọc - KHÔNG tự convert/lưu. Lưu Sources chỉ khi user yêu cầu.
     const fd = new FormData();

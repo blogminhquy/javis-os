@@ -75,7 +75,9 @@ check("Esc (thoát rảnh tay): tắt loa", /window\.JavisTts\.set\(false\)/.tes
 const keyup = (app.match(/addEventListener\("keyup"[\s\S]*?\}\);/) || [""])[0];
 check("CANARY: thả Space KHÔNG tắt loa", !/JavisTts/.test(keyup));
 // Không đẻ thêm đường gửi tin (chốt của test_mic_khong_tu_gui).
-check("vẫn đúng 4 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 4);
+// 5 từ 0.55.63: chỗ thứ 5 là sendMessage gọi lại chính nó sau khi file đính kèm tải xong
+// (test_mic_khong_tu_gui canh kỹ chỗ đó), không phải một đường gửi tin mới.
+check("vẫn đúng 5 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 5);
 
 // ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----
 check("CANARY: không còn #ttsToggleBar trong HTML", html.indexOf('id="ttsToggleBar"') === -1);

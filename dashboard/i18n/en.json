@@ -1256,6 +1256,8 @@
   "app.att_server_err": "server error ({code})",
   "app.att_upload_err": "upload error",
   "app.att_timeout": "upload timed out",
+  "app.att_wait_send": "Waiting for the attachment to finish uploading, then sending...",
+  "app.att_failed_send": "A file failed to upload. Remove it (the X button) or attach it again, then send.",
   "app.ctx_legacy": "Full",
   "app.ctx_sources": "Optimised",
   "app.ctx_fast": "Instant",

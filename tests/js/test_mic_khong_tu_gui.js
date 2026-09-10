@@ -61,8 +61,13 @@ check("_muteRecognition vẫn là chỗ duy nhất bật _resumeAfterTTS khi đa
 // hễ ai bỏ chốt ở mục 1-2 thì tin nhắn ma quay lại ngay.
 check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
   /onTranscript: \(text\) => \{[\s\S]{0,200}if \(text\) sendMessage\(text\);/.test(app));
+// Chỗ thứ 5 (0.55.63) là sendMessage TỰ GỌI LẠI CHÍNH NÓ sau khi file đính kèm tải lên
+// xong - cùng một lượt Enter của người dùng bị hoãn, không phải một đường gửi mới.
 const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
-check("chỉ có 4 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi)", goiGui === 4, goiGui);
+check("chỉ có 5 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, gọi lại sau khi tải file xong)",
+  goiGui === 5, goiGui);
+check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
+  /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text\);/.test(app));
 
 // ---- 4. Server không tự nhập liệu: việc nền luôn là tin của Javis ----
 check("push_to_chat ghi vai assistant, không bao giờ là user",

@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.63] - 2026-09-10
+### Sửa lỗi
+- **Ảnh và file đính kèm không còn rơi mất khi bấm Enter sớm.** Dán ảnh hay một đoạn văn dài rồi gõ câu hỏi và Enter ngay, trước đây tin bay đi tay không: bong bóng không có ảnh, Javis cũng không nhận được file. Nay Javis chờ file tải lên xong rồi mới gửi, có dòng báo trong lúc chờ; file tải hỏng thì nói thẳng để bạn gỡ hoặc đính lại.
+- **Mở lại hội thoại cũ vẫn thấy mình đã gửi ảnh, file nào.** Trước đây bấm vào một cuộc ở Lịch sử, hay mở lại app sau khi để nền lâu, là mọi ảnh và thẻ file trong bong bóng của bạn biến mất. Nay chúng hiện lại đúng chỗ, ảnh bấm phóng to được như lúc vừa gửi.
+
 ## [0.55.62] - 2026-09-10
 ### Thay đổi lớn
 - **Bỏ luật an toàn cũ "việc chạy nền không bao giờ được tự tiêu tiền, lên đơn, đăng bài, nhắn khách".** Javis giờ tự thao tác: việc lặp và việc Kanban tạo từ chat mặc định ở mức **Toàn quyền**, Javis được tự đặt mức này mà không phải cảnh báo rủi ro. Việc lặp mới vẫn ở trạng thái tắt, bạn bấm Bật ở trang Việc.
