@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.66] - 2026-09-13
+### Sửa lỗi
+- **Xem ảnh trên điện thoại giờ thoát ra được.** Bấm vào một tấm ảnh trong chat là kẹt luôn: nút đóng nằm lọt dưới đồng hồ và vạch pin của điện thoại nên bấm không trúng, mà vuốt cạnh trái để lùi lại thì cũng không ăn gì. Nay thanh công cụ lùi xuống dưới thanh trạng thái, và **vuốt cạnh hoặc bấm Back là đóng ảnh** thay vì văng ra khỏi Javis.
+- Đóng bằng nút X, phím Esc hay bấm nền đen cũng dọn sạch bước lùi, nên bạn không phải bấm Back thêm một cái vô nghĩa nữa.
+
 ## [0.55.65] - 2026-09-13
 ### Thêm mới
 - **Javis sửa được skill cũ, thay vì chỉ biết tạo skill mới.** Trước đây một skill lộ ra chỗ sai thì vòng tự học đành bỏ qua, hoặc đẻ thêm một bản gần giống bên cạnh. Nay nó sửa thẳng vào đúng file đó, giữ nguyên tên, nhóm và mọi tuỳ chỉnh của bạn, và ghi một dòng lý do vào mục Lịch sử để bạn đọc lại.
