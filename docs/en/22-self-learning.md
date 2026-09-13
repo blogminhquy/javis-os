@@ -62,7 +62,7 @@ The **What to learn** box has six switches. A filled dot `●` is on, a hollow d
 | --- | --- | --- |
 | **Memories (Memory)** | On | Durable facts about you and your business, written into files under `memory/facts/` plus a line added to `MEMORY.md` |
 | **Knowledge (Wiki)** | On | Reusable concepts, frameworks and procedures, written as notes in the brain's Wiki folder |
-| **Skills (Skill)** | On | Multi-step procedures Javis just performed and judged repeatable, written as `skills/<slug>/SKILL.md` |
+| **Skills (Skill)** | On | Multi-step procedures Javis just performed and judged repeatable, written as `skills/<slug>/SKILL.md`. An existing skill that just revealed a flaw is **edited in place** (since 0.55.65) rather than copied |
 | **Roles (Agent)** | **Off** | Specialist roles you asked for repeatedly in conversation, written as `agents/<slug>.md`. An existing role needing improvement is **edited in place** rather than copied |
 | **Step chains (Workflow)** | **Off** | Chains of 2 or more steps across roles you have repeated, written as `workflows/<slug>.md` in a disabled state so you review before enabling. An existing chain missing a step, carrying a redundant one or in the wrong order is **edited in place** |
 | **Work (Kanban)** | **Off** | Proposals for background work, pushed onto the board on the **Work** page |
@@ -174,11 +174,16 @@ Clicking **▶ Learn now** is subject to exactly the same ceilings: the analysis
 
 The **Curator (periodic maintenance)** button turns on a cleanup round running every **24 hours**. The on-screen description: "Cleans the index, LINTs the Wiki (suggestions only), compacts MEMORY.md. Deletes nothing."
 
-Specifically it does three things:
+Specifically it does four things:
 
 1. **Rebuilds the memory index.** It scans `memory/facts/` and adds a line to `MEMORY.md` for any memory file lacking one. This is how it catches the case where you created a memory file by hand and forgot the index.
-2. **Warns when the index bloats.** `MEMORY.md` is loaded into **every chat turn**, so its length makes every question more expensive. Over about **150 lines**, the Curator logs "⚠ over the index ceiling (~150 lines), consider compacting." It **does not compact by itself**, merging is your call.
-3. **Checks Wiki health (LINT).** It finds duplicate notes, orphan notes nobody links to, broken wikilinks, unresolved contradictions and gaps. The result is only a **list of suggestions** written into the log under "Wiki LINT (suggestions, nothing changed)". The Curator never fixes anything and never deletes a note.
+2. **Retires index lines that no longer carry value (since 0.55.65).** Two kinds, both backed by hard evidence rather than a guess: a memory a newer one has **superseded** (you changed the information, and Javis marked the old file), and a line pointing at a file you **deleted by hand**. Because `MEMORY.md` is loaded into every chat turn, a retired piece of information left in it is one Javis still reads every single time.
+
+   **The memory file is never deleted**, it only leaves the index: it stays in `memory/facts/`, stays readable, the newer memory still links to it, and git can still undo the change.
+
+   Javis deliberately does **not** retire by age. Something like "the owner makes traditional fish sauce" is still true ten years later; unused is not the same as wrong.
+3. **Warns when the index bloats.** `MEMORY.md` is loaded into **every chat turn**, so its length makes every question more expensive. Over about **150 lines**, the Curator logs "⚠ over the index ceiling (~150 lines), consider compacting." It **does not compact by itself**, merging is your call.
+4. **Checks Wiki health (LINT).** It finds duplicate notes, orphan notes nobody links to, broken wikilinks, unresolved contradictions and gaps. The result is only a **list of suggestions** written into the log under "Wiki LINT (suggestions, nothing changed)". The Curator never fixes anything and never deletes a note.
 
 The "🩺 LINT Wiki" button that once existed on the dashboard is gone. LINT now runs inside the Curator.
 

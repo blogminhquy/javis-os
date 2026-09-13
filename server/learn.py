@@ -35,6 +35,7 @@ import fastyaml   # bộ nạp YAML dùng libyaml, tự rơi về bộ nạp Pyt
 from fastapi import APIRouter, Form, Query
 
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
+import system_sync   # is_system_skill: chặn tự học ghi đè skill do app ship
 import git_brain
 import aux_engine   # engine viec nen theo model phu nguoi dung chon
 import skill_router
@@ -48,7 +49,9 @@ def _today() -> str:
     return _now_vn().strftime("%Y-%m-%d")
 
 
-# Dấu thời gian ở đầu mỗi mục nhật ký học: "## [2026-08-31 06:13] learn — ...". Đọc ra để SẮP,
+# Dấu thời gian ở đầu mỗi mục nhật ký học: "## [2026-08-31 06:13] learn - ...". Đọc ra để SẮP,
+# (mục ghi trước 0.55.65 dùng gạch dài ở chỗ đó; regex chỉ bám phần dấu thời gian nên cả hai
+# vẫn đọc được.)
 # nên mục nào không đọc được phải rơi xuống ĐÁY (chuỗi rỗng nhỏ hơn mọi dấu thời gian thật)
 # chứ không nhảy lên đầu - một mục hỏng định dạng mà chiếm chỗ mới nhất là đúng thứ người dùng
 # đang cần tránh.
@@ -107,6 +110,7 @@ def _skill_frontmatter(name: str, desc: str, group: str, today: str) -> str:
 # ============================================================
 # Sửa TẠI CHỖ agent/workflow đã có (op="update")
 # ============================================================
+# (Từ 0.55.65 khối này bao cả SKILL, xem hai rào thứ 5-6 riêng của skill ở cuối chú thích.)
 # Chủ chốt 26/08: bản đầu chỉ biết TẠO MỚI, gặp một workflow cần cải tiến là bỏ qua, nên
 # mỗi lần muốn sửa lại đẻ thêm một bản sao gần giống. Nay fork được phép đề xuất op="update"
 # trên đúng file đang có. Ghi đè là việc nguy hiểm nên nó có kèm bốn rào, đều ép bằng code:
@@ -116,6 +120,14 @@ def _skill_frontmatter(name: str, desc: str, group: str, today: str) -> str:
 #      và MỌI field lạ chủ tự thêm trong frontmatter (merge chứ không render đè).
 #   4. Chủ ghim `learn_lock: true` vào frontmatter là tự học cấm đụng file đó.
 # Cộng thêm git-commit sẵn có nên vẫn hoàn tác được bằng một chạm.
+#
+# SKILL có thêm HAI rào nữa, vì hai đường hỏng dưới đây không tồn tại với agent/workflow:
+#   5. Skill HỆ THỐNG (javis-builder, ingest-source, query-wiki, lint-wiki, notes,
+#      html-to-webcake) là CẤM. Chúng do app ship và tự cập nhật theo bản mới; đụng vào một
+#      cái là nó thành bản của người dùng và app ngừng cập nhật đè lên - mất im lặng một
+#      năng lực mặc định. `system_sync.is_system_skill` là nguồn chuẩn duy nhất.
+#   6. Skill user đã TẮT (nằm trong `.disabled/`) cũng cấm - sửa nó là hồi sinh thứ người
+#      dùng cố ý tắt. Đây là rào đã có sẵn ở nhánh tạo mới, giữ nguyên cho nhánh sửa.
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 LEARN_LOCK_KEY = "learn_lock"
 _HISTORY_HEADER = "## Lịch sử (tự học)"
@@ -204,6 +216,27 @@ def append_history(body: str, reason: str, today: str, old_body: str = "") -> st
     if sau:
         out += [""] + sau
     return "\n".join(out).strip()
+
+
+# Dòng mục lục trong MEMORY.md: "- [Tên](facts/<slug>.md) - mô tả ngắn".
+_DONG_FACT = re.compile(r"\]\(facts/([^)]+?)\.md\)")
+# Gạch dài cũ ở giữa dòng mục lục (bản trước 0.55.65 ghi ra). Chuẩn hoá lúc curator chạy qua,
+# vì MEMORY.md nạp trước MỌI câu hỏi nên nó vào ngữ cảnh và vào cả giọng đọc từng lượt.
+_GACH_DAI = re.compile(r"(\]\(facts/[^)]+?\.md\))\s*[\u2013\u2014]\s*")
+
+
+def _da_bi_thay(fp) -> bool:
+    """Fact này đã bị một fact khác thay thế chưa (frontmatter có `superseded_by` khác rỗng).
+
+    Đọc THÔ bằng regex chứ không qua YAML: hàm chạy trên MỌI fact mỗi vòng curator, và một
+    file frontmatter hỏng chỉ được phép làm nó trả False chứ không được ném lỗi lên curator.
+    """
+    try:
+        head = Path(fp).read_text(encoding="utf-8")[:800]
+    except OSError:
+        return False
+    m = re.search(r"^superseded_by:\s*(\S.*)$", head, re.MULTILINE)
+    return bool(m and m.group(1).strip() not in ("", "''", '""', "null", "~"))
 
 
 def _norm_name(text: str) -> str:
@@ -651,6 +684,31 @@ class LearnFeature:
                 return fp
         return None
 
+    def _skill_lines(self, brain: str) -> str:
+        """Skill hiện có, mỗi dòng 'slug (Tên): description' - để fork dedup và biết sửa cái nào.
+
+        Skill HỆ THỐNG vẫn liệt kê (fork cần thấy để không đẻ bản trùng) nhưng dán nhãn cấm
+        sửa, cùng thành ngữ với nhãn [chủ đã khoá] của agent. Python vẫn chặn độc lập ở
+        `_promote_sync`, đây chỉ là lớp nói trước cho đỡ tốn một vòng đề xuất rồi bị loại.
+        """
+        out = []
+        try:
+            root = self.deps.brain_root(brain)
+            for d in sorted((Path(root) / "skills").glob("*/SKILL.md"))[:40]:
+                slug = d.parent.name
+                fm, _ = read_md(d)
+                if system_sync.is_system_skill(slug):
+                    nhan = " [hệ thống, cấm sửa]"
+                elif learn_locked(fm):
+                    nhan = " [chủ đã khoá]"
+                else:
+                    nhan = ""
+                out.append(f"- {slug} ({fm.get('name') or slug}): "
+                           f"{str(fm.get('description') or '')[:100]}{nhan}")
+        except Exception:
+            return ""
+        return "\n".join(out)
+
     def _agent_lines(self, brain: str) -> str:
         """Agent hiện có, mỗi dòng 'slug (Tên): vai trò' - đủ để fork dedup và biết sửa cái nào."""
         out = []
@@ -814,6 +872,7 @@ class LearnFeature:
         if caps.get("agent"): want.append("agents")
         if caps.get("workflow"): want.append("workflows")
         if caps.get("task"): want.append("tasks")
+        have_skills = self._skill_lines(brain) if caps.get("skill") else ""
         have_agents = self._agent_lines(brain) if (caps.get("agent") or caps.get("workflow")) else ""
         have_wfs = self._workflow_lines(brain) if caps.get("workflow") else ""
 
@@ -831,9 +890,10 @@ class LearnFeature:
                 '"conflict_with":"tên-trang-đã-có-hoặc-rỗng"}]')
         if caps.get("skill"):
             schema_bits.append(
-                '"skills":[{"slug":"kebab","name":"..",'
+                '"skills":[{"op":"create|update","slug":"kebab","name":"..",'
                 f'"description":"năng lực, TỐI ĐA {skill_router.SKILL_DESC_MAX} ký tự",'
                 '"group":"tên nhóm","body":"markdown theo CHUẨN VIẾT SKILL bên dưới",'
+                '"reason":"BẮT BUỘC khi op=update: sửa gì và vì sao, dẫn từ hội thoại",'
                 '"self_observed":true|false,"confidence":0..3}]')
         if caps.get("agent"):
             schema_bits.append(
@@ -898,7 +958,17 @@ class LearnFeature:
                "đừng viết.\n"
                "  7. body khoảng 100 dòng cho skill đơn giản, 200 cho skill phức tạp.\n"
                "  8. KHÔNG tạo skill kiểu router chỉ trỏ sang skill khác.\n"
-               "  9. group BẮT BUỘC, chọn nhóm sát nhất với skill đã có.\n\n"
+               "  9. group BẮT BUỘC, chọn nhóm sát nhất với skill đã có.\n"
+               "  10. SỬA SKILL ĐÃ CÓ thay vì đẻ bản sao - đây là lối MẶC ĐỊNH khi một skill "
+               "dưới đây vừa lộ ra chỗ sai: hội thoại hoặc việc nền cho thấy nó thiếu bước, "
+               "chỉ sai đường dẫn/flag, hay có một cái bẫy chưa ghi → trả op=\"update\" với "
+               "ĐÚNG slug đó, body là bản ĐẦY ĐỦ sau khi sửa (giữ nguyên phần còn đúng), kèm "
+               "reason nêu sửa gì và vì sao. TUYỆT ĐỐI không tạo slug gần giống "
+               "(…-v2, …-moi, …-ban-sua).\n"
+               "  11. KHÔNG update chỉ để chữ đẹp hơn: phải có BẰNG CHỨNG trong batch này "
+               "rằng làm theo skill cũ đã ra kết quả sai hoặc thiếu. Không có thì để yên. "
+               "Skill hệ thống (javis-builder, ingest-source, query-wiki, lint-wiki, notes, "
+               "html-to-webcake) và skill ghi [chủ đã khoá] thì cấm đụng.\n\n"
                if caps.get("skill") else "")
             + ("TASK (chống spam backlog): worker nền là HEADLESS - chỉ đọc/ghi file TRONG brain này "
                "và đọc dữ liệu qua MCP. Nó KHÔNG có tay user, KHÔNG có trình duyệt đã đăng nhập, "
@@ -949,6 +1019,8 @@ class LearnFeature:
             ',"notes":"tóm tắt tiếng Việt 1-2 câu"}\n\n'
             "=== BỘ NHỚ HIỆN CÓ (MEMORY.md, để tránh trùng) ===\n" + (mem_idx or "(trống)") + "\n\n"
             + ("=== WIKI INDEX HIỆN CÓ (tránh trùng) ===\n" + (wiki_idx or "(trống)") + "\n\n" if caps.get("wiki") else "")
+            + ("=== SKILL ĐÃ CÓ (tránh trùng; cần sửa thì op=update đúng slug này) ===\n"
+               + (have_skills or "(chưa có)") + "\n\n" if caps.get("skill") else "")
             + ("=== AGENT ĐÃ CÓ (tránh trùng vai; cần sửa thì op=update đúng slug này) ===\n"
                + (have_agents or "(chưa có)") + "\n\n"
                if (caps.get("agent") or caps.get("workflow")) else "")
@@ -990,10 +1062,19 @@ class LearnFeature:
     async def _verify_skills(self, brain: str, skills: List[dict], cfg: dict) -> List[dict]:
         if not skills:
             return skills
-        listing = "\n".join(f"- {s.get('slug')}: {s.get('name')} — {s.get('description','')}" for s in skills)
-        prompt = ("Một vòng học đề xuất tạo các SKILL sau (Javis tự quan sát từ việc đã làm). "
-                  "GIẢ ĐỊNH chúng SAI/thừa. Với mỗi slug, quyết định giữ hay bỏ.\n" + listing +
-                  '\nCHỈ trả JSON: {"keep":["slug1",...]} - slug đáng giữ (quy trình thật, đủ cụ thể, không trùng skill có sẵn).')
+        # Sửa một skill đang có nguy hiểm hơn tạo mới (đè lên tri thức đã dùng được), nên
+        # vòng phản biện phải THẤY nó là bản sửa và thấy lý do, y như với agent/workflow.
+        listing = "\n".join(
+            f"- [{'SỬA' if is_update(s) else 'TẠO'}] {s.get('slug')}: {s.get('name')} - "
+            f"{s.get('description','')}"
+            + (f" | lý do sửa: {str(s.get('reason') or '').strip()[:200]}" if is_update(s) else "")
+            for s in skills)
+        prompt = ("Một vòng học đề xuất TẠO hoặc SỬA các SKILL sau (Javis tự quan sát từ việc đã "
+                  "làm). GIẢ ĐỊNH chúng SAI/thừa. Với mỗi slug, quyết định giữ hay bỏ.\n" + listing +
+                  "\nBỎ một bản TẠO nếu quy trình không có thật, không đủ cụ thể, hoặc trùng skill "
+                  "có sẵn. BỎ một bản SỬA nếu lý do không dẫn được ra bằng chứng skill cũ đã cho "
+                  "kết quả sai/thiếu, hoặc bản sửa chỉ khác về câu chữ.\n"
+                  'CHỈ trả JSON: {"keep":["slug1",...]}.')
         out = await self._spawn_readonly(brain, prompt, cfg, tag="learn")
         d = _extract_json(out) or {}
         keep = set(d.get("keep") or [])
@@ -1009,7 +1090,7 @@ class LearnFeature:
         def _dong(kind, x, extra):
             op = "SỬA" if is_update(x) else "TẠO"
             ly_do = str(x.get("reason") or "").strip()
-            return (f"- [{op}] {kind} {x.get('slug')}: {x.get('name')} — {extra}"
+            return (f"- [{op}] {kind} {x.get('slug')}: {x.get('name')} - {extra}"
                     + (f" | lý do sửa: {ly_do[:200]}" if op == "SỬA" else ""))
 
         listing = "\n".join(_dong("agent", a, str(a.get("role") or "")) for a in agents)
@@ -1041,7 +1122,8 @@ class LearnFeature:
         """Ghi thật vào vault (chỉ khi allow_write). Trả report {facts,wiki,skills,commit,blocked}."""
         root = self.deps.brain_root(brain)
         rep = {"facts": [], "wiki": [], "skills": [], "agents": [], "workflows": [],
-               "agents_updated": [], "workflows_updated": [], "blocked": [], "commit": None}
+               "skills_updated": [], "agents_updated": [], "workflows_updated": [],
+               "blocked": [], "commit": None}
         written_paths: List[str] = []
 
         if not allow_write:
@@ -1051,7 +1133,7 @@ class LearnFeature:
             for w in (manifest.get("wiki") or []):
                 rep["wiki"].append(w.get("title"))
             for s in (manifest.get("skills") or []):
-                rep["skills"].append(s.get("slug"))
+                rep["skills_updated" if is_update(s) else "skills"].append(s.get("slug"))
             if caps.get("agent"):
                 for a in (manifest.get("agents") or []):
                     rep["agents_updated" if is_update(a) else "agents"].append(a.get("slug"))
@@ -1196,19 +1278,57 @@ class LearnFeature:
                     desc_err = skill_router.validate_description(desc)
                     if desc_err:
                         rep["blocked"].append(f"skill '{slug}': {desc_err}"); continue
-                    # AN TOÀN: KHÔNG ghi đè skill ĐÃ CÓ (của user, bất kỳ vị trí nào) và KHÔNG hồi sinh
-                    # skill user đã TẮT → tránh mất dữ liệu / bật lại thứ user cố ý tắt.
-                    if (skill_router.resolve_skill_file(root, slug)
-                            or (sk_root / ".disabled" / slug / "SKILL.md").is_file()
+                    # Skill user đã TẮT là CẤM ở cả hai nhánh: tạo mới thì hồi sinh thứ user
+                    # cố ý tắt, sửa thì cũng vậy. Xét trước mọi thứ khác.
+                    if ((sk_root / ".disabled" / slug / "SKILL.md").is_file()
                             or (cl_dis / slug / "SKILL.md").is_file()):
-                        rep["blocked"].append(f"skill '{slug}': đã tồn tại → không ghi đè")
+                        rep["blocked"].append(f"skill '{slug}': user đã tắt → không hồi sinh")
                         continue
-                    d = sk_root / slug   # vị trí BẬT (canonical) → mirror sang .claude ở lượt sysprompt kế
-                    d.mkdir(parents=True, exist_ok=True)
-                    fm = _skill_frontmatter(s.get("name", slug), desc, _nhom(s), today)
-                    self.deps.atomic_write_text(d / "SKILL.md", fm + body + "\n")
-                    written_paths.append(str((d / 'SKILL.md').relative_to(root)).replace("\\", "/"))
-                    rep["skills"].append(slug)
+                    old_fp = skill_router.resolve_skill_file(root, slug)
+                    upd = is_update(s)
+                    if not upd:
+                        # AN TOÀN: op=create KHÔNG bao giờ đè skill ĐÃ CÓ (của user, bất kỳ
+                        # vị trí nào). Muốn sửa thì phải nói thẳng op="update".
+                        if old_fp:
+                            rep["blocked"].append(f"skill '{slug}': đã tồn tại → không ghi đè")
+                            continue
+                    else:
+                        # ---- op=update: sáu rào ở khối "Sửa TẠI CHỖ" đầu file ----
+                        if system_sync.is_system_skill(slug):
+                            rep["blocked"].append(f"skill '{slug}': skill hệ thống → app tự cập nhật, cấm sửa")
+                            continue
+                        if not old_fp:
+                            rep["blocked"].append(f"skill '{slug}': chưa có skill này để cập nhật")
+                            continue
+                        if not str(s.get("reason") or "").strip():
+                            rep["blocked"].append(f"skill '{slug}': cập nhật mà không nêu lý do")
+                            continue
+                        old_fm, old_body = read_md(old_fp)
+                        if learn_locked(old_fm):
+                            rep["blocked"].append(f"skill '{slug}': chủ đã khoá (learn_lock)")
+                            continue
+                    if upd:
+                        # merge: name/group/status/created và MỌI field lạ chủ tự thêm là của
+                        # CHỦ, không đụng. Fork bỏ trống description = "giữ nguyên", không
+                        # phải "xoá" - description rỗng là skill mất đường route.
+                        fm_data = dict(old_fm)
+                        fm_data.update({"updated": today, "learned_updated": today})
+                        if desc:
+                            fm_data["description"] = desc
+                        fm_data.setdefault("name", s.get("name") or slug)
+                        fm_data.setdefault("group", _nhom(s))
+                        fp = old_fp
+                        new_body = append_history(body, str(s.get("reason") or "").strip(),
+                                                  today, old_body=old_body)
+                        self.deps.atomic_write_text(fp, f"---\n{dump_fm(fm_data)}\n---\n{new_body}\n")
+                    else:
+                        d = sk_root / slug   # vị trí BẬT (canonical) → mirror sang .claude ở lượt sysprompt kế
+                        d.mkdir(parents=True, exist_ok=True)
+                        fp = d / "SKILL.md"
+                        fm = _skill_frontmatter(s.get("name", slug), desc, _nhom(s), today)
+                        self.deps.atomic_write_text(fp, fm + body + "\n")
+                    written_paths.append(str(fp.relative_to(root)).replace("\\", "/"))
+                    rep["skills_updated" if upd else "skills"].append(slug)
 
             # ---- AGENTS (tự học, cap mặc định TẮT) ----
             # op=create: vai MỚI, không bao giờ đè vai đã có.
@@ -1369,6 +1489,7 @@ class LearnFeature:
                     msg = (f"learn: +{len(rep['facts'])} fact +{len(rep['wiki'])} wiki +{len(rep['skills'])} skill"
                            + (f" +{len(rep['agents'])} agent" if rep["agents"] else "")
                            + (f" +{len(rep['workflows'])} workflow" if rep["workflows"] else "")
+                           + (f" ~{len(rep['skills_updated'])} skill" if rep["skills_updated"] else "")
                            + (f" ~{len(rep['agents_updated'])} agent" if rep["agents_updated"] else "")
                            + (f" ~{len(rep['workflows_updated'])} workflow" if rep["workflows_updated"] else "")
                            + f" ({today})")
@@ -1387,7 +1508,7 @@ class LearnFeature:
             text = idx.read_text(encoding="utf-8") if idx.exists() else ""
             if f"facts/{slug}.md" in text:
                 return
-            line = f"- [{title}](facts/{slug}.md) — {hook}".rstrip(" —")
+            line = f"- [{title}](facts/{slug}.md) - {hook}".rstrip(" -")
             if "_(Chưa có ký ức" in text:
                 text = re.sub(r"_\(Chưa có ký ức.*?\)_", line, text, flags=re.DOTALL)
             else:
@@ -1405,7 +1526,7 @@ class LearnFeature:
                 return
             if "## Tự học" not in text:
                 text = text.rstrip() + "\n\n## Tự học\n"
-            line = f"- [[{title}]] — {desc}".rstrip(" —")
+            line = f"- [[{title}]] - {desc}".rstrip(" -")
             text = text.rstrip() + "\n" + line + "\n"
             self.deps.atomic_write_text(idx, text)
             written.append(str(idx.relative_to(root)).replace("\\", "/"))
@@ -1425,7 +1546,7 @@ class LearnFeature:
     def _append_open_question(self, brain, wiki_dir, title, reason, written, root):
         try:
             oq = wiki_dir / "_open-questions.md"
-            entry = f"\n- [ ] ({_today()}) [[{title}]]: {reason} — status: open\n"
+            entry = f"\n- [ ] ({_today()}) [[{title}]]: {reason} - status: open\n"
             old = oq.read_text(encoding="utf-8") if oq.exists() else "# Open Questions\n"
             self.deps.atomic_write_text(oq, old.rstrip() + "\n" + entry)
             written.append(str(oq.relative_to(root)).replace("\\", "/"))
@@ -1632,6 +1753,7 @@ class LearnFeature:
                       f"{reason} · {status} · fact={report['facts']} wiki={report['wiki']} skill={report['skills']}"
                       + (f" agent={report['agents']}" if report.get("agents") else "")
                       + (f" workflow={report['workflows']}" if report.get("workflows") else "")
+                      + (f" sửa-skill={report['skills_updated']}" if report.get("skills_updated") else "")
                       + (f" sửa-agent={report['agents_updated']}" if report.get("agents_updated") else "")
                       + (f" sửa-workflow={report['workflows_updated']}" if report.get("workflows_updated") else "")
                       + (f" task={report['tasks']}" if report.get("tasks") else "")
@@ -1694,20 +1816,77 @@ class LearnFeature:
             idx = mem_dir / "MEMORY.md"
             files = sorted(facts_dir.glob("*.md")) if facts_dir.is_dir() else []
             text = idx.read_text(encoding="utf-8") if idx.exists() else ""
-            missing = [f for f in files if f"facts/{f.stem}.md" not in text]
+            # Bỏ qua fact ĐÃ BỊ THAY THẾ: kéo nó vào index là đúng thứ `_curator_retire_memory`
+            # ngay dưới vừa gỡ ra, hai vòng curator sẽ đá nhau mãi mãi.
+            missing = [f for f in files
+                       if f"facts/{f.stem}.md" not in text and not _da_bi_thay(f)]
             for f in missing:
                 self._merge_memory_index(brain, f.stem, f.stem.replace("-", " ").title(), "", [], root)
             after = idx.read_text(encoding="utf-8") if idx.exists() else ""   # đọc lại SAU merge (đếm chuẩn)
             size = idx.stat().st_size if idx.exists() else 0
             lines = len([l for l in after.splitlines() if l.strip().startswith("- [")])
             warn = " ⚠ vượt trần index (~150 dòng) - cân nhắc nén." if lines > 150 else ""
+            go = self._curator_retire_memory(idx)
+            if go:
+                lines -= go["n"]
+                size = idx.stat().st_size if idx.exists() else 0
             with git_brain.BrainLock(root) as lk:
                 if getattr(lk, "acquired", False):
                     git_brain.commit_paths(root, [str(idx.relative_to(root)).replace("\\", "/")],
                                            f"curator: reindex memory ({_today()})")
-            return f"Reindex: +{len(missing)} dòng thiếu · MEMORY.md {lines} mục / {size}B.{warn}"
+            return (f"Reindex: +{len(missing)} dòng thiếu"
+                    + (f" · -{go['n']} dòng hết hạn ({go['ly_do']})" if (go and go["n"])
+                       else (" · chuẩn hoá mục lục" if go else ""))
+                    + f" · MEMORY.md {lines} mục / {size}B.{warn}")
         except Exception as e:
             return f"Reindex lỗi: {e}"
+
+    def _curator_retire_memory(self, idx) -> Optional[dict]:
+        """Gỡ khỏi MEMORY.md những dòng mục lục KHÔNG CÒN GIÁ TRỊ. Trả {n, ly_do} hoặc None.
+
+        Vì sao đây là việc đáng làm nhất trong "chống rác tri thức": MEMORY.md được nạp
+        TRƯỚC MỌI câu hỏi. Một fact đã bị thay thế mà còn nằm trong mục lục thì Javis vẫn
+        đọc thông tin cũ mỗi lượt, và index vẫn tính vào trần ~150 dòng. Nhánh `supersedes`
+        của learn đã biết ghi `superseded_by:` vào file cũ, nhưng CHƯA AI gỡ dòng mục lục
+        của nó, nên tri thức "đã nghỉ hưu" ở lại vĩnh viễn.
+
+        Hai loại được gỡ, cả hai đều có BẰNG CHỨNG CỨNG, không phải phỏng đoán:
+          - fact đã bị thay thế (file có `superseded_by`),
+          - dòng trỏ tới file KHÔNG CÒN TỒN TẠI (chủ tự xoá tay) - một liên kết chết.
+        Cố ý KHÔNG gỡ theo TUỔI: một fact kiểu "chủ làm nước mắm truyền thống" mười năm sau
+        vẫn đúng. Đây là cùng lập luận với `skill_usage`: vắng tín hiệu không phải là bằng
+        chứng vô dụng.
+
+        KHÔNG BAO GIỜ xoá file fact. Chỉ gỡ dòng mục lục; file vẫn nằm trong `facts/`, vẫn
+        đọc được, vẫn được fact thay thế nó trỏ tới bằng `[[slug]]`, và git vẫn hoàn tác được.
+        """
+        try:
+            if not Path(idx).is_file():
+                return None
+            text = Path(idx).read_text(encoding="utf-8")
+            facts_dir = Path(idx).parent / "facts"
+            giu, thay, chet = [], 0, 0
+            for dong in text.splitlines():
+                m = _DONG_FACT.search(dong)
+                if m:
+                    fp = facts_dir / f"{m.group(1)}.md"
+                    if not fp.is_file():
+                        chet += 1
+                        continue
+                    if _da_bi_thay(fp):
+                        thay += 1
+                        continue
+                giu.append(_GACH_DAI.sub(r"\1 - ", dong))
+            moi = "\n".join(giu).rstrip() + "\n"
+            if moi == text:
+                return None
+            self.deps.atomic_write_text(idx, moi)
+            ly_do = ", ".join(x for x in [f"{thay} đã bị thay thế" if thay else "",
+                                          f"{chet} trỏ vào file đã xoá" if chet else ""] if x)
+            return {"n": thay + chet, "ly_do": ly_do}
+        except Exception as e:
+            print(f"[curator retire memory] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+            return None
 
     def _brain_last_active(self, brain: str) -> float:
         """Lần CUỐI người dùng thật sự trò chuyện trên brain này (epoch), 0 = không rõ.
@@ -1778,7 +1957,7 @@ class LearnFeature:
             d.mkdir(parents=True, exist_ok=True)
             now = _now_vn()
             with open(d / f"{now.strftime('%Y-%m-%d')}.md", "a", encoding="utf-8") as fh:
-                fh.write(f"\n## [{now.strftime('%Y-%m-%d %H:%M')}] {kind} — {title}\n{body}\n")
+                fh.write(f"\n## [{now.strftime('%Y-%m-%d %H:%M')}] {kind} - {title}\n{body}\n")
         except Exception as e:
             print(f"[learn log] {e}", file=__import__('sys').stderr)
 

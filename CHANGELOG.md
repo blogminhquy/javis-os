@@ -4,6 +4,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.65] - 2026-09-13
+### Thêm mới
+- **Javis sửa được skill cũ, thay vì chỉ biết tạo skill mới.** Trước đây một skill lộ ra chỗ sai thì vòng tự học đành bỏ qua, hoặc đẻ thêm một bản gần giống bên cạnh. Nay nó sửa thẳng vào đúng file đó, giữ nguyên tên, nhóm và mọi tuỳ chỉnh của bạn, và ghi một dòng lý do vào mục Lịch sử để bạn đọc lại.
+- Sáu rào chặn: bắt buộc nêu lý do, không tự tạo mới khi không thấy file, không đụng skill bạn đã tắt, không đụng skill hệ thống (Javis tự cập nhật những cái đó theo bản mới), và ghim `learn_lock: true` vào skill nào là cấm tự học sửa nó. Có git nên vẫn hoàn tác được bằng một chạm.
+
+### Cải thiện
+- **Bộ nhớ dài hạn tự dọn thông tin đã hết hạn.** Khi bạn đổi một thông tin cũ, bản ghi cũ vẫn nằm trong danh mục ký ức và vẫn được đọc vào mỗi câu hỏi. Nay Javis gỡ nó khỏi danh mục, cùng những dòng trỏ vào file bạn đã xoá tay. **File ký ức không bị xoá**, chỉ rời khỏi danh mục.
+- Javis cố ý **không** dọn theo tuổi: một điều đúng từ năm ngoái thì năm nay vẫn đúng.
+- Bỏ hết dấu gạch dài trong các file Javis tự ghi (danh mục ký ức, danh mục wiki, nhật ký học). Dấu này làm phần đọc thành tiếng bị vấp.
+
 ## [0.55.64] - 2026-09-13
 ### Thêm mới
 - **Javis học được từ việc nó tự làm, không chỉ từ những gì bạn nói.** Trước đây chỉ hội thoại mới vào vòng tự học, nên mọi việc chạy nền ở trang Việc trôi qua không để lại gì. Nay việc nền xong (hoặc vướng) là được xếp vào cùng hàng đợi học đó. Việc **bị chặn** được ưu tiên nhất, vì nó chỉ đúng chỗ hệ thống còn thiếu.
