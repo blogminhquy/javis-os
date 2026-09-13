@@ -114,6 +114,17 @@ Roughly every 30 seconds, Javis checks the queue and fires a learning batch when
 
 Each batch reads at most the 3 most recent conversation sessions, taking the last 12 messages of each, with the total content cut at about 24,000 characters. So it learns from what **just happened**, not by digging through the whole history.
 
+### Javis also learns from the work it does itself (since 0.55.64)
+
+That queue does not listen to chat only. Every **background job on the Work page** that reaches an end also joins the same queue, along with its title, intent and result:
+
+- A **blocked** job goes into the priority group and is learned from after about 3 minutes of quiet, because the reason it got blocked usually points straight at what the system is missing (an MCP that was never connected, a missing permission, a step in the wrong order).
+- A job that finished normally waits like an ordinary chat turn and is learned in the same batch.
+- At most **5 jobs** are merged into one batch, each contributing 1,200 characters of its result, so a busy day of background work does not blow up the batch.
+- A job the **learning loop itself** proposed never comes back as learning material for that same loop, which is what keeps it from feeding on itself.
+
+A background job's result is written by a background agent, so it counts as untrusted content: it goes through the same prompt-injection defanging as a source you paste into chat.
+
 Only one batch runs at a time. Self-learning, the Curator and the other writing processes share a lock on the brain so they never tread on each other.
 
 ## The gates before writing (why Javis learns less than you expect)

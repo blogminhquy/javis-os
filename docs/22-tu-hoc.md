@@ -114,6 +114,17 @@ Cứ khoảng 30 giây, Javis kiểm tra hàng chờ và bắn một mẻ học 
 
 Mỗi mẻ học đọc tối đa 3 phiên hội thoại gần nhất, mỗi phiên lấy 12 tin cuối, tổng nội dung cắt ở khoảng 24.000 ký tự. Nghĩa là nó học từ đoạn **vừa xảy ra**, không đào lại toàn bộ lịch sử.
 
+### Javis học cả từ việc nó tự làm (từ 0.55.64)
+
+Hàng chờ trên không chỉ nghe luồng chat. Mỗi **việc nền ở trang Việc** chạy đến nơi cũng được xếp vào cùng hàng chờ đó, kèm tên việc, yêu cầu và kết quả:
+
+- Việc **bị chặn** được xếp vào nhóm ưu tiên, học sau khoảng 3 phút im, vì lý do bị chặn thường chỉ đúng chỗ hệ thống còn thiếu (chưa nối MCP nào, thiếu quyền, quy trình sai bước).
+- Việc chạy xong bình thường nằm chờ như một lượt chat, học chung mẻ.
+- Tối đa **5 việc** gộp vào một mẻ, mỗi việc lấy 1.200 ký tự kết quả, nên một ngày chạy nhiều việc cũng không làm mẻ học phình ra.
+- Việc do **chính vòng học** đề xuất thì không quay lại làm nguyên liệu học cho chính nó, tránh vòng tự khuếch đại.
+
+Kết quả việc nền do một agent nền viết ra nên được coi là nội dung không tin cậy: nó đi qua đúng bộ khử câu chèn lệnh như source bạn dán vào chat.
+
 Chỉ một mẻ học chạy tại một thời điểm. Tự học, Curator và các tiến trình ghi khác dùng chung một khoá trên brain nên không giẫm chân nhau.
 
 ## Cửa lọc trước khi ghi (vì sao Javis học ít hơn bạn tưởng)

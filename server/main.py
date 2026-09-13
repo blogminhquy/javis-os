@@ -8210,6 +8210,11 @@ tasks_feature = tasks_mod.register(app, tasks_mod.TasksDeps(
 # Gate ở learn.py (cap "task" mặc định off + chỉ enqueue khi allow_write); dedup ở tasks.enqueue.
 learn_feature.deps.enqueue_task = tasks_feature.enqueue
 
+# Nối ngược Kanban → learn: việc nền chạy xong (hoặc vướng) thì xếp vào hàng đợi tự học.
+# Không có nhánh này thì Javis chỉ học được từ những gì NÓI trong chat, còn những gì nó TỰ LÀM
+# trong nền - phần kinh nghiệm thực chiến - trôi qua không để lại bài học nào.
+tasks_feature.deps.learn_hook = learn_feature.enqueue_job
+
 
 # ============================================================
 # NHẮC HẸN TỪ CHAT (reminders.py) - "30 phút nữa nhắc anh...", "8h30 sáng mai...".

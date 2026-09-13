@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.55.64] - 2026-09-13
+### Thêm mới
+- **Javis học được từ việc nó tự làm, không chỉ từ những gì bạn nói.** Trước đây chỉ hội thoại mới vào vòng tự học, nên mọi việc chạy nền ở trang Việc trôi qua không để lại gì. Nay việc nền xong (hoặc vướng) là được xếp vào cùng hàng đợi học đó. Việc **bị chặn** được ưu tiên nhất, vì nó chỉ đúng chỗ hệ thống còn thiếu.
+- Vẫn đi qua đủ các bước cũ: gom nhiều việc rồi mới học một lượt, chạy trong phiên chỉ-đọc tách riêng, có vòng kiểm lại trước khi ghi. Việc nào do chính vòng học đẻ ra thì không quay lại làm bài học cho chính nó.
+
+### Sửa lỗi
+- **Bản tin gửi qua Telegram không còn dính câu trạng thái tiếng Anh ở đầu.** Bản tin giá vàng sáng 13/09 mở đầu bằng "The task has been started in the background. Waiting for results." - đó là câu bộ não Antigravity tự nói trong lúc chờ, bị nối nhầm vào trước nội dung thật. Nay chỉ câu trả lời cuối được gửi đi. Số liệu và dữ liệu đã lưu không hề bị ảnh hưởng.
+
 ## [0.55.63] - 2026-09-10
 ### Sửa lỗi
 - **Ảnh và file đính kèm không còn rơi mất khi bấm Enter sớm.** Dán ảnh hay một đoạn văn dài rồi gõ câu hỏi và Enter ngay, trước đây tin bay đi tay không: bong bóng không có ảnh, Javis cũng không nhận được file. Nay Javis chờ file tải lên xong rồi mới gửi, có dòng báo trong lúc chờ; file tải hỏng thì nói thẳng để bạn gỡ hoặc đính lại.

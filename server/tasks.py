@@ -79,6 +79,9 @@ class TasksDeps:
     mcp_allow_patterns: Optional[Callable[[], List[str]]] = None
     report: Optional[Callable] = None
     aux_swap: Optional[Callable] = None
+    # Nối Kanban → tự học: việc nền chạy xong/vướng thì xếp vào hàng đợi học (learn.enqueue_job).
+    # Tiêm sau khi learn_feature sẵn sàng (main gán). None = chưa nối → bỏ qua, worker chạy như cũ.
+    learn_hook: Optional[Callable] = None
 
 
 class TasksFeature:
@@ -464,6 +467,7 @@ class TasksFeature:
             await self._asnapshot(root)
             if final_task and final_task.get("status") in ("done", "review", "blocked"):
                 await self._report(final_task)
+                await self._hoc_tu_viec(root, final_task)
 
     # ------------------------------------------------------------------
     # AI specification and execution lanes
@@ -896,6 +900,38 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 hen.cancel()
             self._hen_bao.pop(cid, None)
             await self._xa_bao(cid)
+
+    async def _hoc_tu_viec(self, root: str, task: dict) -> None:
+        """Đẩy MỘT việc nền vừa kết thúc sang hàng đợi tự học.
+
+        Trước đây tự học chỉ nghe luồng chat (`_persist_turn`), nên mọi thứ Javis tự làm trong
+        nền trôi qua không để lại gì - kể cả việc BỊ CHẶN, thứ đáng học nhất vì nó chỉ đúng chỗ
+        hệ thống còn thiếu. Ở đây chỉ XẾP HÀNG; mẻ học thật vẫn chạy trong `learn.tick` với đủ
+        debounce, rate-limit, fork read-only và vòng verify như luồng chat.
+
+        BEST-EFFORT tuyệt đối: hàm này nằm trong `finally` của worker, một lỗi ở đây mà ném lên
+        là nuốt mất đường báo kết quả vừa chạy ngay phía trên.
+        """
+        hook = getattr(self.deps, "learn_hook", None)
+        if not hook:
+            return
+        try:
+            ket = str(task.get("result") or "")
+            if task.get("status") == "blocked":
+                # Việc vướng: `result` là tường thuật dở dang, LÝ DO mới là bài học.
+                ket = (str(task.get("block_reason") or task.get("block_kind") or "").strip()
+                       or ket)
+            await hook(
+                root,
+                title=str(task.get("title") or ""),
+                intent=str(task.get("intent") or ""),
+                result=ket,
+                status=str(task.get("status") or ""),
+                created_by=str(task.get("created_by") or ""),
+            )
+        except Exception as e:
+            print(f"[kanban] xếp việc {task.get('id', '')} vào hàng đợi học lỗi: "
+                  f"{type(e).__name__}: {e}", file=sys.stderr)
 
     async def _report(self, task: dict) -> None:
         if not self.deps.report:
