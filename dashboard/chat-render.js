@@ -868,7 +868,7 @@
   // Bam anh trong chat -> mo lop xem phong to (kieu ChatGPT): anh vua man, co nut Tai ve,
   // Mo tab moi, Dong; bam nen den hoac Esc de dong; bam vao anh de doi qua lai giua "vua man"
   // va "co that" (1:1) roi keo xem chi tiet.
-  var _lb = null, _lbUrl = "", _lbTen = "";
+  var _lb = null, _lbUrl = "", _lbTen = "", _lbDayLichSu = false;
 
   function _lbTaiVe() {
     if (!_lbUrl) return;
@@ -882,13 +882,28 @@
     a.click();
     a.remove();
   }
-  function dongLightbox() {
+  // Go lop phu khoi DOM. KHONG dung vao lich su - dung cho luc THAY anh nay bang anh khac,
+  // noi buoc lich su da chen phai duoc GIU lai cho lan dong that. Bo qua cho nay la mo anh thu
+  // hai se history.back() roi pushState lai, va popstate cham chan sinh ra sau do dong nham
+  // dung cai vua mo.
+  function _goLopPhu() {
     if (!_lb) return;
     _lb.remove(); _lb = null; _lbUrl = ""; _lbTen = "";
     document.body.classList.remove("jv-lb-open");
   }
+  function dongLightbox() {
+    if (!_lb) return;
+    _goLopPhu();
+    // Dong bang nut X / Esc / bam nen: nha luon buoc lich su da chen, khong thi nguoi dung phai
+    // bam Back mot cai "khong lam gi" truoc khi thuc su roi trang. (Cung thanh ngu voi
+    // file-editor.js - xem chu thich ben do.)
+    if (_lbDayLichSu) {
+      _lbDayLichSu = false;
+      try { history.back(); } catch (e) {}
+    }
+  }
   function moLightbox(url, ten) {
-    dongLightbox();
+    _goLopPhu();
     _lbUrl = url; _lbTen = ten || "";
     _lb = document.createElement("div");
     _lb.className = "jv-lb";
@@ -925,6 +940,13 @@
     });
     document.body.appendChild(_lb);
     document.body.classList.add("jv-lb-open");
+    // Nut Back cua dien thoai (va cu vuot canh man hinh) phai DONG anh, khong phai roi khoi
+    // Javis. Chu repo bao 2026-09-13: dang xem anh thi vuot canh trai khong an gi, ma nut X thi
+    // bi thanh trang thai che - khong con duong nao ra. Chen mot buoc lich su o day de cu Back
+    // co cho ma lui ve.
+    if (!_lbDayLichSu) {
+      try { history.pushState({ jvlb: 1 }, ""); _lbDayLichSu = true; } catch (e) {}
+    }
   }
   // ---------------------------------------------------------------- wiring (chi khi co DOM)
   if (typeof document !== "undefined") {
@@ -933,6 +955,11 @@
     window.JavisLightbox = { open: moLightbox, close: dongLightbox };
     document.addEventListener("keydown", function (e) {
       if (_lb && e.key === "Escape") { e.preventDefault(); dongLightbox(); }
+    });
+    window.addEventListener("popstate", function () {
+      if (!_lb) return;
+      _lbDayLichSu = false;     // buoc vua bi go chinh la buoc minh chen -> dung back() them lan nua
+      dongLightbox();
     });
     // Bam anh trong chat -> lightbox. Dang ky o pha CAPTURE va dat TRUOC cac handler khac de
     // an chac khong bi handler link vault (jv-floc/jv-fdownload) cuop mat.

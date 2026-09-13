@@ -2030,7 +2030,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    Con trỏ .chat-img vốn đã là zoom-in từ lâu, nhưng bấm vào lại TẢI FILE VỀ - hứa một đằng
    làm một nẻo. Nay bấm là mở lớp này: ảnh vừa màn, kèm nút Tải về / Mở tab mới / Đóng. */
 .jv-lb { position: fixed; inset: 0; z-index: 5000; display: flex; flex-direction: column;
-  background: rgba(0, 0, 0, 0.86); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+  background: rgba(0, 0, 0, 0.86); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  /* VUNG AN TOAN cua dien thoai (chu repo bao 2026-09-13, kem anh chup): thanh cong cu nam sat
+     inset:0 nen tren may co tai tho / thanh trang thai de len, dong ho va vach pin che mat nut
+     X - lop phu bien thanh cai bay khong thoat ra duoc. Trang da co viewport-fit=cover nen
+     env() tra ve so that; dem o CHINH lop phu de ca thanh cong cu lan khung anh cung lui vao,
+     va vi box-sizing:border-box la mac dinh toan cuc nen inset:0 van phu kin man hinh. */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 body.jv-lb-open { overflow: hidden; }        /* khoá cuộn nền để lăn chuột là lăn trong ảnh */
 .jv-lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 10px 14px; color: #fff; flex: none; }
