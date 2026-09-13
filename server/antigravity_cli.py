@@ -1404,6 +1404,7 @@ class AntigravityCLI:
 
         cac_manh: list[str] = []
         cac_loi: list[str] = []
+        chan: dict = {}          # trạng thái phụ của vòng đọc; hiện giữ "toan_van" (xem _chot_van)
         da_loi = False
         # Đi đường file thì phải biết model có ĐỌC ĐƯỢC file không, và phải phân biệt cho đúng ba
         # trạng thái chứ không phải hai. Bản đầu chỉ dò tên file trong bất kỳ sự kiện nào, và nó
@@ -1444,7 +1445,7 @@ class AntigravityCLI:
                             doc_duoc = True
                     else:
                         da_thu_doc = True
-            for ra in self._doi_su_kien(ev, cac_manh):
+            for ra in self._doi_su_kien(ev, cac_manh, chan):
                 if ra.get("type") == "tool_call":
                     co_tool = True      # đã đụng thế giới bên ngoài -> KHÔNG được chạy lại
                 if ra.get("type") == "error":
@@ -1453,12 +1454,13 @@ class AntigravityCLI:
                     if giu_loi:
                         continue      # lượt này còn có thể thử lại bằng đường khác
                 yield ra
-        ket.update(text="".join(cac_manh).strip(), loi=da_loi, cac_loi=cac_loi,
+        ket.update(text=_chot_van("".join(cac_manh).strip(), chan.get("toan_van", "")),
+                   loi=da_loi, cac_loi=cac_loi,
                    ten_ngu_canh=ten_ngu_canh, qua_tran_argv=qua_tran_argv,
                    doc_duoc=doc_duoc, da_thu_doc=da_thu_doc, co_tool=co_tool,
                    biet_doc_hay_khong=(duong != "file") or (co_stream and co_json))
 
-    def _doi_su_kien(self, ev: dict, cac_manh: list) -> list:
+    def _doi_su_kien(self, ev: dict, cac_manh: list, chan: Optional[dict] = None) -> list:
         """Một dòng NDJSON của `agy` -> 0..n sự kiện theo hợp đồng của Javis.
 
         CHƯA ĐO được tên trường thật, nên nhận rộng: gom mọi hình dạng "có chữ để hiện" mà một
@@ -1551,6 +1553,13 @@ class AntigravityCLI:
             # không có delta nào. Nên chỉ lấy khi tay trắng - đúng một lần, và không bao giờ
             # rỗng vì lý do "đã bỏ qua chỗ duy nhất có chữ".
             if cac_manh:
+                # Vẫn GIỮ LẠI toàn văn để `_chot_van` gọt phần chữ thừa đứng trước nó.
+                if chan is not None:
+                    for k in ("response", "content", "text", "output"):
+                        v = ev.get(k)
+                        if isinstance(v, str) and v.strip():
+                            chan["toan_van"] = v.strip()
+                            break
                 return ra
 
         # Còn lại: mọi thứ trông như chữ của trợ lý đều gom vào câu trả lời. Đây là chỗ hứng
@@ -1567,6 +1576,30 @@ class AntigravityCLI:
                         cac_manh.append(vv)
                         break
         return ra
+
+
+def _chot_van(gom: str, toan_van: str) -> str:
+    """Bỏ phần chữ TRUNG GIAN lọt vào TRƯỚC câu trả lời cuối.
+
+    Sự cố 13/09/2026: bản tin giá vàng gửi ra Telegram mở đầu bằng "The task has been started
+    in the background. Waiting for results." Không phải lỗi dữ liệu - đó là câu model tự nói
+    ở bước chờ tác vụ nền, và vòng đọc sự kiện dưới kia cố ý gom RỘNG ("mọi thứ trông như chữ
+    của trợ lý"), nên câu trạng thái đó bị nối thẳng vào đầu câu trả lời thật.
+
+    Trọng tài là `response` của sự kiện `result`: `agy` mang TOÀN VĂN câu trả lời cuối ở đó.
+    Chỗ gom mà KẾT THÚC bằng đúng toàn văn ấy nhưng dài hơn thì phần dôi ra nằm ở ĐẦU, và
+    theo định nghĩa nó không thuộc câu trả lời -> cắt.
+
+    Cố ý chỉ xét `endswith`, KHÔNG xét "toàn văn nằm đâu đó trong chỗ gom": bản `agy` nào cắt
+    ngắn `response` cho câu trả lời dài thì bản cắt ngắn ấy vẫn là chuỗi con, và tin theo nó
+    là tự tay xén mất phần đuôi. Không khớp thì giữ nguyên chỗ gom - thà thừa một dòng lạ
+    người đọc nhận ra ngay, còn hơn thiếu một đoạn không ai biết là đã mất.
+    """
+    if not toan_van or not gom or gom == toan_van:
+        return gom
+    if gom.endswith(toan_van):
+        return toan_van
+    return gom
 
 
 def _la_loi_chua_dang_nhap(loi: str) -> bool:

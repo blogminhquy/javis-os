@@ -62,7 +62,7 @@ Bấm nút một lần nữa để tắt. Lúc tắt, Javis lưu ngay trạng th
 | --- | --- | --- |
 | **Ký ức (Memory)** | Bật | Sự thật bền vững về chính bạn và doanh nghiệp bạn, ghi thành file trong `memory/facts/` và thêm một dòng vào `MEMORY.md` |
 | **Tri thức (Wiki)** | Bật | Khái niệm, framework, quy trình tái dùng được, ghi thành note trong thư mục Wiki của brain |
-| **Kỹ năng (Skill)** | Bật | Quy trình nhiều bước Javis vừa tự làm và thấy lặp lại được, ghi thành `skills/<slug>/SKILL.md` |
+| **Kỹ năng (Skill)** | Bật | Quy trình nhiều bước Javis vừa tự làm và thấy lặp lại được, ghi thành `skills/<slug>/SKILL.md`. Skill đã có mà vừa lộ ra chỗ sai thì **sửa tại chỗ** (từ 0.55.65), không đẻ bản sao |
 | **Vai (Agent)** | **Tắt** | Vai chuyên môn bạn nhờ đi nhờ lại trong hội thoại, ghi thành `agents/<slug>.md`. Vai đã có mà cần cải tiến thì **sửa tại chỗ**, không đẻ bản sao |
 | **Chuỗi bước (Workflow)** | **Tắt** | Chuỗi từ 2 bước nhiều vai bạn đã làm lặp lại, ghi thành `workflows/<slug>.md` ở trạng thái tắt để bạn xem trước rồi tự bật. Chuỗi đã có mà thiếu bước, thừa bước hay sai thứ tự thì **sửa tại chỗ** |
 | **Việc (Kanban)** | **Tắt** | Đề xuất việc nền, đẩy vào bảng ở trang **Việc** |
@@ -73,7 +73,14 @@ Về công tắc **Việc**: nó mặc định tắt và Javis **chủ động t
 
 #### Javis sửa vai và chuỗi đã có như thế nào
 
-Khi hội thoại cho thấy một agent hay workflow **đang có** làm sai, thiếu bước, thừa bước hay giao nhầm vai, Javis sửa thẳng vào đúng file đó thay vì tạo một bản gần giống bên cạnh. Việc ghi đè này có bốn rào, tất cả đều do code ép chứ không phải dặn bằng lời:
+Khi hội thoại cho thấy một skill, agent hay workflow **đang có** làm sai, thiếu bước, thừa bước hay giao nhầm vai, Javis sửa thẳng vào đúng file đó thay vì tạo một bản gần giống bên cạnh.
+
+Riêng **skill** có thêm hai rào nữa, vì hai đường hỏng này không tồn tại với agent và workflow:
+
+- **Skill hệ thống là cấm.** `javis-builder`, `ingest-source`, `query-wiki`, `lint-wiki`, `notes`, `html-to-webcake` do app ship và tự cập nhật theo bản mới. Sửa một cái là bản đó thành của bạn và app ngừng cập nhật đè lên, tức bạn mất im lặng một năng lực mặc định.
+- **Skill bạn đã tắt là cấm.** Sửa nó chẳng khác gì bật lại thứ bạn cố ý tắt.
+
+Ngoài ra vòng học chỉ được đổi phần chuyên môn: tên hiển thị, nhóm, trạng thái, ngày tạo và mọi field lạ bạn tự thêm vào frontmatter đều giữ nguyên. Bỏ trống mô tả nghĩa là "không đụng", không phải "xoá". Việc ghi đè này có bốn rào, tất cả đều do code ép chứ không phải dặn bằng lời:
 
 1. **File phải đang tồn tại.** Nói sửa mà không tìm thấy file thì bỏ qua, không âm thầm tạo mới.
 2. **Phải nêu lý do**, rút từ chính hội thoại. Không có lý do thì không được sửa, và lý do đó hiện trong Nhật ký học để bạn đọc lại.
@@ -113,6 +120,17 @@ Bạn không phải bấm gì. Mỗi lượt chat xong, Javis phân loại lư�
 Cứ khoảng 30 giây, Javis kiểm tra hàng chờ và bắn một mẻ học khi thoả một trong các điều kiện: đủ **3 lượt** tích luỹ, hoặc lượt gấp và đã trôi qua 30 giây, hoặc lượt đặc tri thức và đã **im 3 phút**, hoặc **im 10 phút** mà vẫn còn lượt chưa học.
 
 Mỗi mẻ học đọc tối đa 3 phiên hội thoại gần nhất, mỗi phiên lấy 12 tin cuối, tổng nội dung cắt ở khoảng 24.000 ký tự. Nghĩa là nó học từ đoạn **vừa xảy ra**, không đào lại toàn bộ lịch sử.
+
+### Javis học cả từ việc nó tự làm (từ 0.55.64)
+
+Hàng chờ trên không chỉ nghe luồng chat. Mỗi **việc nền ở trang Việc** chạy đến nơi cũng được xếp vào cùng hàng chờ đó, kèm tên việc, yêu cầu và kết quả:
+
+- Việc **bị chặn** được xếp vào nhóm ưu tiên, học sau khoảng 3 phút im, vì lý do bị chặn thường chỉ đúng chỗ hệ thống còn thiếu (chưa nối MCP nào, thiếu quyền, quy trình sai bước).
+- Việc chạy xong bình thường nằm chờ như một lượt chat, học chung mẻ.
+- Tối đa **5 việc** gộp vào một mẻ, mỗi việc lấy 1.200 ký tự kết quả, nên một ngày chạy nhiều việc cũng không làm mẻ học phình ra.
+- Việc do **chính vòng học** đề xuất thì không quay lại làm nguyên liệu học cho chính nó, tránh vòng tự khuếch đại.
+
+Kết quả việc nền do một agent nền viết ra nên được coi là nội dung không tin cậy: nó đi qua đúng bộ khử câu chèn lệnh như source bạn dán vào chat.
 
 Chỉ một mẻ học chạy tại một thời điểm. Tự học, Curator và các tiến trình ghi khác dùng chung một khoá trên brain nên không giẫm chân nhau.
 
@@ -163,11 +181,16 @@ Bấm **▶ Học ngay** cũng chịu đúng các trần này: phần phân tíc
 
 Nút **Curator (bảo trì định kỳ)** bật một vòng dọn dẹp chạy mỗi **24 giờ**. Mô tả trên màn hình: "Dọn index, LINT Wiki (chỉ đề xuất), nén MEMORY.md. Không xoá."
 
-Cụ thể nó làm ba việc:
+Cụ thể nó làm bốn việc:
 
 1. **Dựng lại chỉ mục bộ nhớ.** Quét `memory/facts/`, thấy file ký ức nào chưa có dòng trong `MEMORY.md` thì thêm vào. Đây là cách bắt trường hợp bạn tự tạo file ký ức bằng tay mà quên thêm vào chỉ mục.
-2. **Cảnh báo khi chỉ mục phình.** `MEMORY.md` được nạp vào **mọi lượt chat**, nên nó dài là mọi câu hỏi đều đắt lên. Vượt khoảng **150 dòng**, Curator ghi vào nhật ký dòng "⚠ vượt trần index (~150 dòng) - cân nhắc nén.". Nó **không tự nén**, việc gộp lại là bạn quyết.
-3. **Soi sức khoẻ Wiki (LINT).** Tìm note trùng lặp, note mồ côi không ai trỏ tới, wikilink gãy, mâu thuẫn chưa giải, và chỗ còn thiếu. Kết quả chỉ là **danh sách đề xuất** ghi vào nhật ký dưới tiêu đề "Wiki LINT (đề xuất, chưa sửa)". Curator không tự sửa và không tự xoá note nào.
+2. **Gỡ khỏi chỉ mục thứ đã hết giá trị (từ 0.55.65).** Hai loại, cả hai đều có bằng chứng rõ ràng chứ không phải phỏng đoán: ký ức đã bị một ký ức mới **thay thế** (bạn đổi thông tin, Javis đánh dấu file cũ), và dòng trỏ vào file bạn đã **xoá tay**. Vì `MEMORY.md` nạp vào mọi lượt chat nên một thông tin đã nghỉ hưu còn nằm đó là Javis vẫn đọc nó mỗi lần.
+
+   **File ký ức không bị xoá**, chỉ rời khỏi chỉ mục: nó vẫn nằm trong `memory/facts/`, vẫn mở đọc được, ký ức mới vẫn trỏ tới nó, và git vẫn hoàn tác được.
+
+   Javis cố ý **không** gỡ theo tuổi. Một điều như "chủ làm nước mắm truyền thống" mười năm sau vẫn đúng; lâu không dùng không có nghĩa là sai.
+3. **Cảnh báo khi chỉ mục phình.** `MEMORY.md` được nạp vào **mọi lượt chat**, nên nó dài là mọi câu hỏi đều đắt lên. Vượt khoảng **150 dòng**, Curator ghi vào nhật ký dòng "⚠ vượt trần index (~150 dòng) - cân nhắc nén.". Nó **không tự nén**, việc gộp lại là bạn quyết.
+4. **Soi sức khoẻ Wiki (LINT).** Tìm note trùng lặp, note mồ côi không ai trỏ tới, wikilink gãy, mâu thuẫn chưa giải, và chỗ còn thiếu. Kết quả chỉ là **danh sách đề xuất** ghi vào nhật ký dưới tiêu đề "Wiki LINT (đề xuất, chưa sửa)". Curator không tự sửa và không tự xoá note nào.
 
 Nút "🩺 LINT Wiki" từng có trên dashboard đã bỏ. LINT nay chạy bên trong Curator.
 
