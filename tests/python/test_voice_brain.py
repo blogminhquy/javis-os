@@ -193,7 +193,125 @@ async def main():
     await vb.close_all()
     check("close_all dọn sạch", vb.active_count() == 0)
 
+    # ---- 4b. Ba bộ não trên gói (Voice V3, spec mục 13) ----
+    for k in ("codex", "claude", "grok"):
+        check(f"BRAIN_PROVIDERS có {k} chạy trên gói (key_field rỗng)",
+              k in vb.BRAIN_PROVIDERS and vb.BRAIN_PROVIDERS[k]["key_field"] == "" and k not in vb.PROVIDERS)
+
+    # Codex: creds giả + stream giả, kiểm đúng token/account/model/messages đi xuống
+    seen = {}
+
+    async def fake_codex(token, account, model, messages, reasoning="off"):
+        seen.update(token=token, account=account, model=model, system=messages[0]["content"], last=messages[-1]["content"])
+        yield {"type": "meta", "model": model}
+        yield {"type": "text", "content": "Ừ, "}
+        yield {"type": "text", "content": "được."}
+
+    cx = vb.CodexVoiceBrain(model="gpt-x", creds_fn=lambda: {"access_token": "tk", "account_id": "acc"}, stream_fn=fake_codex)
+    out = "".join([d async for d in cx.stream("chào", [{"role": "user", "content": "trước đó"}])])
+    check("codex: gom text delta", out == "Ừ, được.")
+    check("codex: token, account, model, system prompt giọng và câu cuối đi đúng",
+          seen["token"] == "tk" and seen["account"] == "acc" and seen["model"] == "gpt-x"
+          and seen["system"] == vb.SYSTEM_PROMPT and seen["last"] == "chào")
+    cx2 = vb.CodexVoiceBrain(creds_fn=lambda: None, stream_fn=fake_codex)
+    err = ""
+    try:
+        [d async for d in cx2.stream("q", [])]
+    except RuntimeError as e:
+        err = str(e)
+    check("codex: chưa kết nối OAuth -> lỗi nhắc trang Models", "Models" in err)
+
+    async def codex_limit(token, account, model, messages, reasoning="off"):
+        yield {"type": "limit_exceeded", "provider": "ChatGPT"}
+
+    err = ""
+    try:
+        [d async for d in vb.CodexVoiceBrain(creds_fn=lambda: {"access_token": "t"}, stream_fn=codex_limit).stream("q", [])]
+    except RuntimeError as e:
+        err = str(e)
+    check("codex: hết hạn mức -> RuntimeError rõ", "hạn mức" in err)
+
+    # Claude: client giả cùng khuôn ClaudeSDKClient (query/receive_response/disconnect), message giả
+    # nhận diện bằng TÊN LỚP như claude_pieces.
+    class StreamEvent:
+        def __init__(self, text): self.event = {"type": "content_block_delta", "delta": {"type": "text_delta", "text": text}}
+
+    class TextBlock:
+        def __init__(self, text): self.text = text
+
+    class AssistantMessage:
+        def __init__(self, text): self.content = [TextBlock(text)]
+
+    class ResultMessage:
+        def __init__(self, is_error=False, result=""): self.is_error = is_error; self.result = result
+
+    class FakeClient:
+        def __init__(self, script):
+            self.script = list(script); self.queries = []; self.disconnected = False
+
+        async def query(self, text): self.queries.append(text)
+
+        async def receive_response(self):
+            for m in self.script.pop(0):
+                yield m
+
+        async def disconnect(self): self.disconnected = True
+
+    made = []
+
+    async def factory():
+        c = FakeClient([[StreamEvent("Xin "), StreamEvent("chào."), AssistantMessage("Xin chào."), ResultMessage()],
+                        [AssistantMessage("Không stream."), ResultMessage()],
+                        [ResultMessage(is_error=True, result="hết hạn mức")]])
+        made.append(c)
+        return c
+
+    cl = vb.ClaudeVoiceBrain(model="haiku", client_factory=factory)
+    out = "".join([d async for d in cl.stream("chào", [{"role": "assistant", "content": "trước đó"}])])
+    check("claude: stream delta, KHÔNG lặp lại AssistantMessage", out == "Xin chào.")
+    check("claude: lượt đầu mồi lịch sử, không mồi hướng dẫn (đã đi system_prompt)",
+          "trước đó" in made[0].queries[0] and "HƯỚNG DẪN" not in made[0].queries[0] and made[0].queries[0].endswith("chào"))
+    out = "".join([d async for d in cl.stream("câu hai", [])])
+    check("claude: lượt sau chỉ gửi câu, cùng client; không delta thì lấy AssistantMessage",
+          made[0].queries[1] == "câu hai" and out == "Không stream." and len(made) == 1)
+    err = ""
+    try:
+        [d async for d in cl.stream("câu ba", [])]
+    except RuntimeError as e:
+        err = str(e)
+    check("claude: ResultMessage lỗi -> RuntimeError mang lý do", "hết hạn mức" in err)
+    await cl.close()
+    check("claude: close ngắt client", made[0].disconnected and cl.client is None)
+    check("claude_pieces: bỏ qua message lạ", vb.claude_pieces(object()) == [])
+
+    # Grok: CLI giả cùng khuôn GrokCLI.query (chỉ final), session_id nhớ sau lượt đầu
+    class FakeGrok:
+        def __init__(self): self.session_id = None; self.prompts = []
+
+        async def query(self, prompt):
+            self.prompts.append(prompt)
+            self.session_id = "s-1"
+            yield {"type": "usage", "input": 1, "output": 1}
+            yield {"type": "final", "content": "Trả một cục."}
+
+    g = vb.GrokVoiceBrain(cli_factory=FakeGrok)
+    out = "".join([d async for d in g.stream("chào", [{"role": "user", "content": "trước đó"}])])
+    check("grok: lấy final khi không có text", out == "Trả một cục.")
+    check("grok: lượt đầu mồi lịch sử (chưa có mạch)", "trước đó" in g.cli.prompts[0])
+    out = "".join([d async for d in g.stream("câu hai", [])])
+    check("grok: có mạch rồi thì chỉ gửi câu", g.cli.prompts[1] == "câu hai")
+
+    # _make chọn đúng lớp
+    check("_make: codex/claude/grok ra đúng lớp",
+          isinstance(vb._make({"provider": "codex", "model": ""}), vb.CodexVoiceBrain)
+          and isinstance(vb._make({"provider": "claude", "model": ""}), vb.ClaudeVoiceBrain)
+          and vb._make({"provider": "claude", "model": ""}).model == "haiku"
+          and isinstance(vb._make({"provider": "grok", "model": "grok-4.6"}), vb.GrokVoiceBrain))
+
     # ---- 5. dây nối main.py ----
+    src5 = (SERVER / "main.py").read_text(encoding="utf-8")
+    check("main: /voice/options báo sẵn/chưa sẵn cho codex, claude, grok",
+          'elif pid == "codex":' in src5 and 'elif pid == "claude":' in src5 and 'elif pid == "grok":' in src5)
     src = (SERVER / "main.py").read_text(encoding="utf-8")
     check("main: nhánh voice trong WS", 'payload.get("voice")' in src and "run_voice_turn(" in src)
     check("main: làn nhanh chỉ đẩy phần đọc được qua split_speakable (marker không ra loa)",

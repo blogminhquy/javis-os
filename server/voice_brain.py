@@ -43,6 +43,11 @@ MODES = ("standard", "fast", "live")
 BRAIN_PROVIDERS = {
     "": {"label": "Bộ não chính (như gõ chữ)", "key_field": "", "default_model": ""},
     "antigravity": {"label": "Antigravity CLI (gói Google)", "key_field": "", "default_model": ""},
+    # Ba bộ não chạy trên GÓI đã đăng nhập ở trang Models (Voice V3, spec mục 13): lớp giọng chỉ
+    # cần một model trả lời ngắn và nhanh, nên bộ não nào cũng cắm được.
+    "codex": {"label": "ChatGPT (gói ChatGPT, qua Codex)", "key_field": "", "default_model": ""},
+    "claude": {"label": "Claude Code (gói Claude)", "key_field": "", "default_model": "haiku"},
+    "grok": {"label": "Grok Build (gói SuperGrok / X Premium+)", "key_field": "", "default_model": ""},
     "groq": {"label": "Groq (API)", "key_field": "groq_api_key", "default_model": "llama-3.3-70b-versatile"},
     "gemini": {"label": "Google Gemini (API)", "key_field": "gemini_api_key", "default_model": "gemini-2.5-flash"},
     "openai": {"label": "OpenAI (API)", "key_field": "openai_api_key", "default_model": "gpt-4o-mini"},
@@ -181,6 +186,22 @@ def split_speakable(text: str, start: int, final: bool = False):
     return out, start
 
 
+def seed_text(history: List[dict], text: str, with_prompt: bool = True) -> str:
+    """Lượt ĐẦU của một tiến trình/mạch mới: hướng dẫn (nếu engine không nhận system prompt
+    riêng) + mấy lượt gần nhất từ kho phiên + câu vừa nói. Dùng chung cho agy, Claude, Grok."""
+    parts = []
+    if with_prompt:
+        parts.append("[HƯỚNG DẪN CHO LƯỢT NÓI CHUYỆN NÀY]\n" + SYSTEM_PROMPT)
+    h = [x for x in (history or [])[-HISTORY_N:] if str(x.get("content") or "").strip()]
+    if h:
+        parts.append("[MẤY LƯỢT GẦN NHẤT TRONG PHIÊN NÀY]")
+        for x in h:
+            ai = "Javis" if x.get("role") == "assistant" else "Người dùng"
+            parts.append(f"{ai}: {str(x.get('content'))[:1500]}")
+    parts.append("[NGƯỜI DÙNG VỪA NÓI]\n" + str(text or ""))
+    return "\n\n".join(parts)
+
+
 def build_messages(history: List[dict], text: str, system: str = SYSTEM_PROMPT) -> List[dict]:
     msgs = [{"role": "system", "content": system}]
     for h in (history or [])[-HISTORY_N:]:
@@ -283,15 +304,7 @@ class AntigravityVoiceBrain(VoiceBrain):
         self.turns = 0
 
     def _seed_text(self, history: List[dict], text: str) -> str:
-        parts = ["[HƯỚNG DẪN CHO LƯỢT NÓI CHUYỆN NÀY]\n" + SYSTEM_PROMPT]
-        h = [x for x in (history or [])[-HISTORY_N:] if str(x.get("content") or "").strip()]
-        if h:
-            parts.append("[MẤY LƯỢT GẦN NHẤT TRONG PHIÊN NÀY]")
-            for x in h:
-                ai = "Javis" if x.get("role") == "assistant" else "Người dùng"
-                parts.append(f"{ai}: {str(x.get('content'))[:1500]}")
-        parts.append("[NGƯỜI DÙNG VỪA NÓI]\n" + str(text or ""))
-        return "\n\n".join(parts)
+        return seed_text(history, text, with_prompt=True)
 
     async def stream(self, text: str, history: List[dict]) -> AsyncIterator[str]:
         self.last_used = time.time()
@@ -361,6 +374,249 @@ class AntigravityVoiceBrain(VoiceBrain):
 
 
 # ============================================================
+# Ba bộ não trên GÓI đã đăng nhập (Voice V3, spec mục 13)
+# ============================================================
+def _codex_creds():
+    import openai_oauth
+    return openai_oauth.valid_creds()
+
+
+def codex_default_model() -> str:
+    """Model Codex mặc định = đầu catalog 'openai-oauth' đã lấy live (main._codex_safe_model
+    cũng làm vậy). Rỗng thì engine tự chọn mặc định của nó."""
+    try:
+        import config as cfgmod
+        cat = (cfgmod.read_settings().get("model", {}).get("catalog", {}).get("openai-oauth")) or []
+        return str(cat[0]) if cat else ""
+    except Exception:
+        return ""
+
+
+class CodexVoiceBrain(VoiceBrain):
+    """ChatGPT trên gói đã đăng nhập (OAuth), qua backend Codex Responses API: một HTTP stream
+    mỗi lượt, không dựng tiến trình nào, nên đây là đường gói nhanh nhất. Cùng hàm
+    `engine.openai_responses_stream` mà bộ não chính dùng; ở đây chỉ khác system prompt ngắn."""
+    provider = "codex"
+
+    def __init__(self, model: str = "", creds_fn: Optional[Callable] = None, stream_fn: Optional[Callable] = None):
+        super().__init__()
+        self.model = model
+        self._creds_fn = creds_fn
+        self._stream_fn = stream_fn
+
+    async def stream(self, text: str, history: List[dict]) -> AsyncIterator[str]:
+        self.last_used = time.time()
+        creds = (self._creds_fn or _codex_creds)() or {}
+        if not creds.get("access_token"):
+            raise RuntimeError("Chưa kết nối ChatGPT (OAuth) ở trang Models.")
+        if self._stream_fn:
+            fn = self._stream_fn
+        else:
+            import engine
+            fn = engine.openai_responses_stream
+        msgs = build_messages(history, text)
+        async with self._lock:
+            async for ev in fn(creds.get("access_token", ""), creds.get("account_id", ""),
+                               self.model or codex_default_model(), msgs, "off"):
+                t = ev.get("type")
+                if t == "text" and ev.get("content"):
+                    yield ev["content"]
+                elif t == "limit_exceeded":
+                    raise RuntimeError("ChatGPT hết hạn mức gói cho lượt này.")
+                elif t == "error":
+                    raise RuntimeError(str(ev.get("content") or "lỗi ChatGPT"))
+
+
+def claude_pieces(msg):
+    """Đổi một message của claude-agent-sdk thành [(loại, dữ liệu)]: ('delta', chữ) từ StreamEvent
+    (include_partial_messages), ('text', chữ) từ AssistantMessage, ('result', msg) từ ResultMessage.
+    Nhận diện bằng TÊN LỚP để test tiêm message giả không cần SDK."""
+    name = type(msg).__name__
+    out = []
+    if name == "StreamEvent":
+        ev = getattr(msg, "event", None) or {}
+        if isinstance(ev, dict) and ev.get("type") == "content_block_delta":
+            d = ev.get("delta") or {}
+            if d.get("type") == "text_delta" and d.get("text"):
+                out.append(("delta", str(d["text"])))
+    elif name == "AssistantMessage":
+        for b in (getattr(msg, "content", None) or []):
+            if type(b).__name__ == "TextBlock" and (getattr(b, "text", "") or "").strip():
+                out.append(("text", str(b.text)))
+    elif name == "ResultMessage":
+        out.append(("result", msg))
+    return out
+
+
+class ClaudeVoiceBrain(VoiceBrain):
+    """Claude Code trên gói Claude: MỘT ClaudeSDKClient sống suốt phiên nói (như tiến trình agy),
+    không tool, không MCP, không nạp settings hay CLAUDE.md, system prompt trần vài trăm token,
+    nên lượt sau chỉ còn độ trễ của model. Mạch giữ trong client nên có ký ức giữa các lượt."""
+    provider = "claude"
+
+    def __init__(self, model: str = "", client_factory: Optional[Callable] = None):
+        super().__init__()
+        self.model = model
+        self._factory = client_factory      # test tiêm client giả (async () -> client)
+        self.client = None
+        self._seeded = False
+        self.turns = 0
+
+    def _options(self):
+        import tempfile
+        from claude_agent_sdk import ClaudeAgentOptions
+        fields = getattr(ClaudeAgentOptions, "__dataclass_fields__", {})
+        kw = {"system_prompt": SYSTEM_PROMPT, "cwd": tempfile.gettempdir(),
+              "permission_mode": "bypassPermissions"}
+        if "tools" in fields:
+            kw["tools"] = []                        # không tool builtin: bộ não giọng chỉ nói
+        if "max_turns" in fields:
+            kw["max_turns"] = 1
+        if "setting_sources" in fields:
+            kw["setting_sources"] = []              # không CLAUDE.md, không MCP máy: khởi động nhanh
+        if "include_partial_messages" in fields:
+            kw["include_partial_messages"] = True   # stream từng mảnh chữ cho loa
+        if self.model and "model" in fields:
+            kw["model"] = self.model
+        try:
+            import claude_cli
+            _cli = (os.environ.get("JAVIS_CLAUDE_CLI") or "").strip() or (claude_cli.tim_binary("claude") or "")
+            if _cli and "_bundled" not in _cli.replace("\\", "/") and "cli_path" in fields:
+                kw["cli_path"] = _cli
+        except Exception:
+            pass
+        try:
+            import claude_auth
+            _env = claude_auth.env_cho_cli()
+            if _env and "env" in fields:
+                kw["env"] = {**os.environ, **_env}
+        except Exception:
+            pass
+        return ClaudeAgentOptions(**kw)
+
+    async def _ensure(self):
+        if self.client is not None:
+            return
+        if self._factory:
+            self.client = await self._factory()
+        else:
+            import claude_cli
+            import claude_sdk_engine
+            if not claude_sdk_engine.sdk_available() or not claude_cli.find_claude_cli():
+                raise RuntimeError("Chưa cài hoặc chưa đăng nhập Claude Code (claude).")
+            from claude_agent_sdk import ClaudeSDKClient
+            try:
+                import claude_token_gate
+                await claude_token_gate.xep_hang()
+            except Exception:
+                pass
+            self.client = ClaudeSDKClient(options=self._options())
+            await self.client.connect()
+        self._seeded = False
+        self.turns = 0
+
+    async def stream(self, text: str, history: List[dict]) -> AsyncIterator[str]:
+        self.last_used = time.time()
+        async with self._lock:
+            await self._ensure()
+            # System prompt đã đi bằng tuỳ chọn SDK nên lượt đầu chỉ mồi lịch sử.
+            content = text if self._seeded else seed_text(history, text, with_prompt=False)
+            self._seeded = True
+            self.turns += 1
+            got_delta = False
+            deadline = time.time() + TURN_TIMEOUT_S
+            try:
+                await self.client.query(content)
+                agen = self.client.receive_response().__aiter__()
+                while True:
+                    left = deadline - time.time()
+                    if left <= 0:
+                        raise asyncio.TimeoutError()
+                    try:
+                        msg = await asyncio.wait_for(agen.__anext__(), timeout=left)
+                    except StopAsyncIteration:
+                        return
+                    for kind, data in claude_pieces(msg):
+                        if kind == "delta":
+                            got_delta = True
+                            yield data
+                        elif kind == "text":
+                            if not got_delta:
+                                yield data
+                        elif kind == "result":
+                            if getattr(data, "is_error", False):
+                                raise RuntimeError(str(getattr(data, "result", "") or "Claude báo lỗi."))
+                            return
+            except asyncio.TimeoutError:
+                await self.close()
+                raise RuntimeError("Claude không trả lời trong 90 giây.")
+            except RuntimeError:
+                raise
+            except Exception as e:
+                await self.close()          # client hỏng: lần sau mở lại và mồi lại
+                raise RuntimeError(f"Claude: {type(e).__name__}: {e}")
+
+    async def close(self) -> None:
+        c, self.client = self.client, None
+        self._seeded = False
+        if c is None:
+            return
+        try:
+            await asyncio.wait_for(c.disconnect(), timeout=5.0)
+        except Exception:
+            pass
+
+
+class GrokVoiceBrain(VoiceBrain):
+    """Grok Build trên gói SuperGrok / X Premium+: một lượt `grok` headless mỗi câu, giữ cùng một
+    GrokCLI để `--resume` mạch cũ (có ký ức). CLI gom chữ rồi trả `final` một cục nên không stream
+    từng mảnh, nhưng câu trả lời giọng ngắn nên chấp nhận được."""
+    provider = "grok"
+
+    def __init__(self, model: str = "", cli_factory: Optional[Callable] = None):
+        super().__init__()
+        self.model = model
+        self._factory = cli_factory
+        self.cli = None
+
+    def _ensure(self):
+        if self.cli is not None:
+            return
+        if self._factory:
+            self.cli = self._factory()
+        else:
+            import grok_cli
+            if not grok_cli.find_grok_cli():
+                raise RuntimeError("Chưa cài Grok Build (grok). Cài rồi đăng nhập ở trang Models.")
+            import tempfile
+            self.cli = grok_cli.GrokCLI(cwd=tempfile.gettempdir(), tag="voice", model=self.model or None,
+                                        instructions=SYSTEM_PROMPT)
+            self.cli.mode = "suggest"
+            self.cli.max_turns = 1
+            self.cli.timeout = TURN_TIMEOUT_S
+
+    async def stream(self, text: str, history: List[dict]) -> AsyncIterator[str]:
+        self.last_used = time.time()
+        async with self._lock:
+            self._ensure()
+            content = text if getattr(self.cli, "session_id", None) else seed_text(history, text, with_prompt=False)
+            got = False
+            async for ev in self.cli.query(content):
+                t = ev.get("type")
+                if t == "text" and ev.get("content"):
+                    got = True
+                    yield ev["content"]
+                elif t == "final":
+                    if not got and ev.get("content"):
+                        yield str(ev["content"])
+                elif t == "error":
+                    raise RuntimeError(str(ev.get("content") or "Grok báo lỗi."))
+
+    async def close(self) -> None:
+        self.cli = None
+
+
+# ============================================================
 # Sổ phiên
 # ============================================================
 _BRAINS: Dict[str, VoiceBrain] = {}
@@ -386,6 +642,12 @@ def _make(conf: dict) -> VoiceBrain:
         except Exception:
             cli = ""
         return AntigravityVoiceBrain(model=conf.get("model") or "", cli_path=cli)
+    if prov == "codex":
+        return CodexVoiceBrain(model=conf.get("model") or "")
+    if prov == "claude":
+        return ClaudeVoiceBrain(model=conf.get("model") or BRAIN_PROVIDERS["claude"]["default_model"])
+    if prov == "grok":
+        return GrokVoiceBrain(model=conf.get("model") or "")
     if prov in PROVIDERS:
         if not conf.get("api_key"):
             raise RuntimeError(f"Bộ não giọng nói {prov} chưa có API key ở trang Models.")

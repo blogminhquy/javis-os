@@ -10386,6 +10386,10 @@ async def voice_options():
     # Vẽ từ voice_brain.BRAIN_PROVIDERS / STT_PROVIDERS chứ không chép lại danh sách ở đây:
     # trang Cài đặt và đường LƯU phải soi CÙNG một danh sách, không thì thêm nhà cung cấp mới
     # là giao diện cho chọn mà server lặng lẽ bỏ.
+    def _models_items(lst):
+        return [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
+                if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (lst or [])]
+
     brain_list = []
     for pid, p in voice_brain.BRAIN_PROVIDERS.items():
         item = {"id": pid, "label": p["label"], "available": _san(p["key_field"])}
@@ -10393,9 +10397,41 @@ async def voice_options():
             item["default_model"] = p["default_model"]
         if pid == "antigravity":
             item["available"] = agy_models is not None
-            item["models"] = [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
-                              if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (agy_models or [])]
+            item["models"] = _models_items(agy_models)
             item["hint"] = "" if agy_models is not None else "Chưa cài agy. Cài rồi Re-check ở trang Models."
+        # Ba bộ não trên gói (Voice V3): sẵn hay không đọc từ CHÍNH trạng thái đăng nhập của
+        # trang Models, không hỏi mạng ở đây (trang Cài đặt vẽ thẻ này mỗi lần mở).
+        elif pid == "codex":
+            o = m.get("openai_oauth") or {}
+            item["available"] = bool(o.get("access_token") or o.get("refresh_token"))
+            item["models"] = _models_items((m.get("catalog", {}) or {}).get("openai-oauth") or [])
+            item["hint"] = ("Đi HTTP stream trên gói ChatGPT, không dựng tiến trình: đường gói nhanh nhất."
+                            if item["available"] else "Chưa kết nối ChatGPT. Vào trang Models bấm Kết nối.")
+        elif pid == "claude":
+            try:
+                import claude_sdk_engine as _cse
+                item["available"] = bool(_cse.sdk_available() and claude_cli.find_claude_cli())
+            except Exception:
+                item["available"] = False
+            try:
+                item["models"] = _models_items(claude_cli.list_models() or [])
+            except Exception:
+                item["models"] = []
+            item["hint"] = ("Giữ một phiên Claude Code sống suốt lúc nói, không tool, không MCP. "
+                            "Chọn haiku cho nhanh nhất." if item["available"]
+                            else "Chưa cài hoặc chưa đăng nhập Claude Code. Xem trang Models.")
+        elif pid == "grok":
+            try:
+                item["available"] = bool(grok_cli.find_grok_cli())
+            except Exception:
+                item["available"] = False
+            try:
+                item["models"] = _models_items(grok_cli.list_models() or []) if item["available"] else []
+            except Exception:
+                item["models"] = []
+            item["hint"] = ("Mỗi câu một lượt grok headless, nối lại mạch cũ nên có ký ức. Trả lời về "
+                            "một cục chứ không stream từng chữ." if item["available"]
+                            else "Chưa cài Grok Build (grok). Xem trang Models.")
         brain_list.append(item)
     return {
         "ok": True,
