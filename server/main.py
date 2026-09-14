@@ -4089,6 +4089,24 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         # /settings rồi POST nguyên object về) mà lưu thì đè mất key thật.
         if patch.get("elevenlabs_key") and not patch["elevenlabs_key"].strip().startswith("••••"):
             v["elevenlabs_key"] = patch["elevenlabs_key"].strip()
+        # Voice V2 (chế độ nói chuyện, bộ não giọng, nghe bằng gì, nhà cung cấp Live). Ô CHỌN chỉ
+        # nhận giá trị có trong danh sách gốc (voice_brain / voice_live) để giá trị lạ không âm
+        # thầm làm hỏng lượt nói; ô GÕ nhận cả chuỗi rỗng vì "để trống" là lựa chọn THẬT (bỏ bộ
+        # não giọng, hay dùng tên model mặc định của hãng).
+        # Thêm ô mới ở thẻ cài đặt giọng nói thì PHẢI nối thêm vào đây: endpoint này dùng
+        # allowlist từng key, quên là người dùng bấm Lưu thấy báo xong mà F5 là mất sạch
+        # (test_luu_cai_dat_giong.py canh đúng chuyện đó).
+        if patch.get("mode") in voice_brain.MODES:
+            v["mode"] = patch["mode"]
+        if "brain_provider" in patch and str(patch["brain_provider"] or "") in voice_brain.BRAIN_PROVIDERS:
+            v["brain_provider"] = str(patch["brain_provider"] or "")
+        if patch.get("stt_provider") in voice_brain.STT_PROVIDERS:
+            v["stt_provider"] = patch["stt_provider"]
+        if patch.get("live_provider") in voice_live.PROVIDERS:
+            v["live_provider"] = patch["live_provider"]
+        for k in ("brain_model", "stt_model", "live_model", "live_voice"):
+            if k in patch:
+                v[k] = str(patch[k] or "").strip()
     elif section == "password":
         # Đổi mật khẩu KHÔNG đi qua đây nữa - xem /auth/password. Đường này không đòi mật khẩu
         # hiện tại VÀ nhận cả token API scope `full`, nghĩa là một token rò ra là đổi được mật
@@ -10360,25 +10378,31 @@ async def voice_options():
     except Exception:
         agy_models = None
     keys = {k: bool(m.get(k)) for k in ("groq_api_key", "gemini_api_key", "openai_api_key", "openrouter_key")}
+
+    def _san(key_field):
+        return True if not key_field else bool(m.get(key_field))
+
+    # Vẽ từ voice_brain.BRAIN_PROVIDERS / STT_PROVIDERS chứ không chép lại danh sách ở đây:
+    # trang Cài đặt và đường LƯU phải soi CÙNG một danh sách, không thì thêm nhà cung cấp mới
+    # là giao diện cho chọn mà server lặng lẽ bỏ.
+    brain_list = []
+    for pid, p in voice_brain.BRAIN_PROVIDERS.items():
+        item = {"id": pid, "label": p["label"], "available": _san(p["key_field"])}
+        if p["default_model"]:
+            item["default_model"] = p["default_model"]
+        if pid == "antigravity":
+            item["available"] = agy_models is not None
+            item["models"] = [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
+                              if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (agy_models or [])]
+            item["hint"] = "" if agy_models is not None else "Chưa cài agy. Cài rồi Re-check ở trang Models."
+        brain_list.append(item)
     return {
         "ok": True,
         "voice": {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
                                              "stt_model", "live_provider", "live_model", "live_voice")},
-        "brain_providers": [
-            {"id": "", "label": "Bộ não chính (như gõ chữ)", "available": True},
-            {"id": "antigravity", "label": "Antigravity CLI (gói Google)", "available": agy_models is not None,
-             "models": [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
-                        if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (agy_models or [])],
-             "hint": "" if agy_models is not None else "Chưa cài agy. Cài rồi Re-check ở trang Models."},
-            {"id": "groq", "label": "Groq (API)", "available": keys["groq_api_key"], "default_model": "llama-3.3-70b-versatile"},
-            {"id": "gemini", "label": "Google Gemini (API)", "available": keys["gemini_api_key"], "default_model": "gemini-2.5-flash"},
-            {"id": "openai", "label": "OpenAI (API)", "available": keys["openai_api_key"], "default_model": "gpt-4o-mini"},
-            {"id": "openrouter", "label": "OpenRouter", "available": keys["openrouter_key"], "default_model": "google/gemini-2.5-flash"},
-        ],
-        "stt_providers": [
-            {"id": "browser", "label": "Trình duyệt (Web Speech, miễn phí)", "available": True},
-            {"id": "groq", "label": "Groq Whisper (chính xác hơn)", "available": keys["groq_api_key"]},
-        ],
+        "brain_providers": brain_list,
+        "stt_providers": [{"id": pid, "label": p["label"], "available": _san(p["key_field"])}
+                          for pid, p in voice_brain.STT_PROVIDERS.items()],
         "live_providers": [
             {"id": k, "label": p["label"], "available": keys.get(p["key_field"], False),
              "default_model": p["default_model"], "voices": p["voices"]}
