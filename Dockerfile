@@ -43,6 +43,24 @@ COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modu
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
+# Thư viện hệ thống cho Chromium (kiểm thử giao diện bằng Playwright).
+#
+# Vì sao phải nằm TRONG ẢNH chứ không cài lúc chạy: container chạy bằng user `javis` không
+# phải root và mã nguồn để chỉ đọc, nên một nút bấm trong app KHÔNG THỂ `apt-get` được. Đây là
+# phần duy nhất bắt buộc phải có sẵn.
+#
+# Còn BẢN THÂN trình duyệt thì KHÔNG nằm trong ảnh: nó nặng và phần lớn người dùng không cần.
+# Ai cần thì bấm nút trong trang Công cụ, Javis tải bản headless về `<state>/browsers` - thư
+# mục nằm trên ổ gắn ngoài nên sống qua mỗi lần cập nhật, không phải tải lại.
+#
+# Để riêng MỘT lớp để đo được nó tốn bao nhiêu (`docker history`), và để tắt được bằng
+# `--build-arg WITH_BROWSER_DEPS=0` khi ai đó muốn ảnh gọn nhất có thể.
+ARG WITH_BROWSER_DEPS=1
+RUN if [ "$WITH_BROWSER_DEPS" = "1" ]; then \
+        npx -y playwright@latest install-deps chromium \
+        && rm -rf /var/lib/apt/lists/* /root/.npm; \
+    fi
+
 # The brain: Claude Code CLI, installed globally. Overridable build-arg.
 ARG CLAUDE_CLI_VERSION=latest
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}" \
