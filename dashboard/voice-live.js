@@ -5,7 +5,9 @@
    này KHÔNG biết nhà cung cấp là ai: đổi nhà cung cấp là chuyện của trang Cài đặt.
 
    Khung JSON nhận: ready | interrupted (xả hàng đợi phát ngay, đó là ngắt lời) | transcript
-   (role, text, final) | tool (name, status) | turn_done | error. Byte nhận = audio.
+   (role, text, final) | tool (name, status) | turn_done | reconnected | error. Byte nhận = audio.
+   Khung JSON gửi: text | context (khối ngữ cảnh giao diện, chỉ khi đổi) | played (số ms đã phát
+   tới lúc bị ngắt, để server cắt ngữ cảnh đúng chỗ đã nghe) | stop.
 
    Bắt mic bằng ScriptProcessorNode: đã lỗi thời nhưng chạy trên mọi trình duyệt còn dùng và
    không cần nạp file worklet riêng qua CSP. Khối 4096 mẫu ở 16 kHz = 256 ms mỗi khung.
@@ -17,6 +19,7 @@
   var ws = null, inCtx = null, outCtx = null, proc = null, src = null, stream = null;
   var nextAt = 0, playing = [], on = false, opts = {};
   var wasSpeaking = false, speakTimer = null;
+  var utterStartAt = 0, lastCtx = "";   // mốc bắt đầu phát câu hiện tại; ngữ cảnh đã gửi lần cuối
 
   function emit(name) {
     var fn = opts[name];
@@ -52,6 +55,7 @@
     node.buffer = ab;
     node.connect(outCtx.destination);
     var t = Math.max(outCtx.currentTime + 0.02, nextAt);
+    if (!playing.length && !utterStartAt) utterStartAt = t;
     node.start(t);
     nextAt = t + ab.duration;
     playing.push(node);
@@ -59,11 +63,22 @@
     tickSpeaking();
   }
 
+  // Số ms của câu hiện tại đã thật sự phát ra loa (0 nếu chưa phát gì).
+  function playedMs() {
+    if (!outCtx || !utterStartAt) return 0;
+    return Math.max(0, Math.round((outCtx.currentTime - utterStartAt) * 1000));
+  }
+
   function flushPlayback() {
     playing.forEach(function (n) { try { n.stop(); } catch (e) {} });
     playing = [];
     nextAt = 0;
+    utterStartAt = 0;
     tickSpeaking();
+  }
+
+  function sendJson(obj) {
+    if (ws && ws.readyState === WebSocket.OPEN) { try { ws.send(JSON.stringify(obj)); } catch (e) {} }
   }
 
   // Báo trạng thái "Javis đang nói" theo hàng đợi phát thật (không có sự kiện nào khác đáng tin).
@@ -93,10 +108,16 @@
       if (e.data instanceof ArrayBuffer) { playChunk(e.data); return; }
       var d; try { d = JSON.parse(e.data); } catch (err) { return; }
       if (d.type === "ready") emit("onReady", d);
-      else if (d.type === "interrupted") { flushPlayback(); emit("onInterrupted"); }
+      else if (d.type === "interrupted") {
+        var ms = playedMs();          // đo TRƯỚC khi xả, xả xong là mất mốc
+        flushPlayback();
+        sendJson({ type: "played", ms: ms });
+        emit("onInterrupted", ms);
+      }
       else if (d.type === "transcript") emit("onTranscript", d.role, d.text || "", !!d.final);
       else if (d.type === "tool") emit("onTool", d.name, d.status);
-      else if (d.type === "turn_done") emit("onTurnDone");
+      else if (d.type === "turn_done") { utterStartAt = 0; emit("onTurnDone"); }
+      else if (d.type === "reconnected") emit("onReconnected");
       else if (d.type === "error") emit("onError", d.message || "error");
     };
     ws.onclose = function () { if (on) { stop(); emit("onClosed"); } };
@@ -117,7 +138,16 @@
   }
 
   function sendText(text) {
-    if (ws && ws.readyState === WebSocket.OPEN && text) ws.send(JSON.stringify({ type: "text", text: String(text) }));
+    if (text) sendJson({ type: "text", text: String(text) });
+  }
+
+  // Ngữ cảnh giao diện (trang đang mở, đoạn bôi đen): chỉ gửi khi ĐỔI, rỗng cũng là một trạng thái.
+  function sendContext(text) {
+    text = String(text || "");
+    if (text === lastCtx || !ws || ws.readyState !== WebSocket.OPEN) return false;
+    lastCtx = text;
+    sendJson({ type: "context", text: text });
+    return true;
   }
 
   function stop() {
@@ -126,6 +156,7 @@
     try { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "stop" })); } catch (e) {}
     try { if (ws) ws.close(); } catch (e) {}
     ws = null;
+    lastCtx = ""; utterStartAt = 0;
     try { if (proc) { proc.disconnect(); proc.onaudioprocess = null; } if (src) src.disconnect(); } catch (e) {}
     proc = null; src = null;
     try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
@@ -136,6 +167,7 @@
     emit("onStopped");
   }
 
-  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, isOn: function () { return on; },
+  window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext,
+                            playedMs: playedMs, isOn: function () { return on; },
                             isSpeaking: function () { return !!playing.length; } };
 })();

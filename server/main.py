@@ -10446,8 +10446,11 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                                        engine=f"voice-live:{prov.name}", model=prov.model)
     except Exception:
         conv_sid = session_id or ""
-    await _j({"type": "ready", "provider": prov.name, "model": prov.model, "session_id": conv_sid})
+    await _j({"type": "ready", "provider": prov.name, "model": prov.model, "session_id": conv_sid,
+              "async_tools": prov.supports_async_tools()})
     asst_buf = {"text": ""}
+    ui_ctx = {"text": ""}          # khối [NGỮ CẢNH GIAO DIỆN: ...] mới nhất từ trình duyệt
+    tool_tasks: set = set()
 
     async def from_client():
         while True:
@@ -10467,24 +10470,80 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                     except Exception:
                         pass
                     await prov.send_text(str(d["text"]))
+                elif d.get("type") == "context":
+                    # Trang đang mở / đoạn bôi đen: kèm vào yêu cầu gửi bộ não chính, và đẩy vào
+                    # kênh im lặng của nhà cung cấp nếu có (GPT-Live thinking.append).
+                    ui_ctx["text"] = str(d.get("text") or "")[:2000]
+                    try:
+                        await prov.send_context(ui_ctx["text"])
+                    except Exception:
+                        pass
+                elif d.get("type") == "played":
+                    # Bị ngắt lời sau khi đã phát N ms: cắt ngữ cảnh đúng chỗ đã nghe (OpenAI Realtime).
+                    try:
+                        await prov.truncate_played(int(d.get("ms") or 0))
+                    except Exception:
+                        pass
                 elif d.get("type") == "stop":
                     return
 
+    async def _run_tool(ev: dict):
+        """Tool chạy NỀN: vòng đọc sự kiện không đứng lại, model vẫn nghe/nói trong lúc chờ.
+
+        Bộ não chính có thể mất 5 đến 30 giây; nếu await ngay trong from_provider thì suốt lúc đó
+        không audio nào từ hãng về được trình duyệt và cuộc nói chuyện đứng im (bài học GPT-Live:
+        ủy nhiệm phải song song với hội thoại).
+        """
+        name = str(ev.get("name") or "")
+        cid = str(ev.get("id") or "")
+        await _j({"type": "tool", "name": name, "status": "running"})
+        try:
+            await prov.send_tool_running(cid, name)
+        except Exception:
+            pass
+        req = str((ev.get("args") or {}).get("request") or "")
+        if ui_ctx["text"]:
+            req = ui_ctx["text"] + "\n\n" + req
+        try:
+            result = await _voice_ask_javis(req, conv_sid, brain) if name == "ask_javis" \
+                else f"Tool {name} không có."
+        except Exception as e:
+            result = f"Bộ não chính lỗi: {type(e).__name__}: {e}"
+        try:
+            await prov.send_tool_result(cid, name, result)
+        except Exception as e:
+            await _j({"type": "error", "message": f"Không trả được kết quả cho model: {e}"})
+        await _j({"type": "tool", "name": name, "status": "done"})
+
     async def from_provider():
-        async for ev in prov.events():
+        while True:
+            async for ev in prov.events():
+                if ev.get("type") == "goaway":
+                    break   # nhà cung cấp sắp đóng: nối lại NGAY, không đợi nó đóng
+                if not await _handle_provider_event(ev):
+                    return
+            if not prov.wants_reconnect:
+                return
+            try:
+                await prov.reconnect()
+            except Exception as e:
+                await _j({"type": "error", "message": f"Nối lại nhà cung cấp thất bại: {type(e).__name__}: {e}"})
+                return
+            await _j({"type": "reconnected"})
+
+    async def _handle_provider_event(ev: dict) -> bool:
+        """Trả False khi phải dừng phiên (trình duyệt đã đóng)."""
+        if True:
             t = ev.get("type")
             if t == "audio":
                 try:
                     await ws.send_bytes(ev["data"])
                 except Exception:
-                    return
+                    return False
             elif t == "tool_call":
-                await _j({"type": "tool", "name": ev.get("name"), "status": "running"})
-                req = str((ev.get("args") or {}).get("request") or "")
-                result = await _voice_ask_javis(req, conv_sid, brain) if ev.get("name") == "ask_javis" \
-                    else f"Tool {ev.get('name')} không có."
-                await prov.send_tool_result(ev.get("id", ""), ev.get("name", ""), result)
-                await _j({"type": "tool", "name": ev.get("name"), "status": "done"})
+                task = asyncio.create_task(_run_tool(ev))
+                tool_tasks.add(task)
+                task.add_done_callback(tool_tasks.discard)
             elif t == "transcript":
                 if ev.get("role") == "assistant":
                     asst_buf["text"] += str(ev.get("text") or "")
@@ -10514,6 +10573,7 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
                 await _j(ev)
             elif t in ("error", "ready"):
                 await _j(ev)
+            return True
 
     t1 = asyncio.create_task(from_client())
     t2 = asyncio.create_task(from_provider())
@@ -10526,6 +10586,8 @@ async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str =
         for t in pending:
             t.cancel()
     finally:
+        for task in list(tool_tasks):
+            task.cancel()
         await prov.close()
         try:
             await ws.close()
