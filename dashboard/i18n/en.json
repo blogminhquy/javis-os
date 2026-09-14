@@ -1547,6 +1547,17 @@
   "cs.pl_st_idle": "on (not loaded)",
   "cs.pl_minmode": "minimum permission: {muc}",
   "cs.pl_intro_a": "Plugins add a",
+  "cs.ct_head": "Optional tools",
+  "cs.ct_intro": "Things Javis can use but does not ship with, because not everyone needs them. Install one when you do.",
+  "cs.ct_nhac_browser": "This machine has no browser Javis can drive, so the connection will validate but still not work. Install the browser on the Tools page first.",
+  "cs.ct_toi_trang": "Open the Tools page",
+  "cs.ct_san_sang": "Ready",
+  "cs.ct_chua_cai": "Not installed",
+  "cs.ct_dang_cai": "Installing",
+  "cs.ct_cai": "Install",
+  "cs.ct_go": "Remove",
+  "cs.ct_cai_lai": "Try again",
+  "cs.ct_xac_nhan_go": "Remove the browser Javis downloaded? UI testing will stop working until you install it again.",
   "cs.pl_intro_b": "(callable from any engine) and a native",
   "cs.pl_intro_c": "to Javis without touching the core - usable on EVERY engine (Claude Code, Codex, API) through the hub, respecting the 3 permission levels like any other tool.",
   "cs.pl_gate_head": "Plugins you installed are blocked.",
@@ -2615,5 +2626,7 @@
   "store.disabled_env": "The environment variable {bien} is on, so everything installed as an add-on is switched off.",
   "store.dir_note": "Add-ons live in {duong}. You can drop a folder straight in there, no zip file required.",
   "store.zip_limit": ".zip files up to {mb}MB.",
-  "store.catalog_at": "Catalog as of {luc}"
+  "store.catalog_at": "Catalog as of {luc}",
+  "wz.ct_head": "Optional tools",
+  "wz.ct_browser": "Install a browser so Javis can check the UI itself after code changes (about 100 MB, downloads in the background)"
 }

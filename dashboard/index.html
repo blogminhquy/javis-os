@@ -679,6 +679,15 @@
           </div>
           <div id="wzProvHint"></div>
         </div>
+        <!-- Công cụ tuỳ chọn: hỏi NGAY LÚC ĐẦU như trình cài của Hermes, thay vì để người
+             dùng tự phát hiện ra mình thiếu vài tuần sau. Khối này tự ẩn nếu máy đã có sẵn. -->
+        <div id="wzCongCu" style="display:none;margin-top:14px">
+          <label data-i18n="wz.ct_head">Công cụ tuỳ chọn</label>
+          <label class="wz-ct-dong" style="display:flex;gap:9px;align-items:flex-start;font-weight:400;cursor:pointer">
+            <input type="checkbox" id="wzCtBrowser" style="margin-top:3px;width:auto">
+            <span data-i18n="wz.ct_browser">Cài trình duyệt để Javis tự kiểm thử giao diện sau khi sửa code (khoảng 100 MB, tải ở nền)</span>
+          </label>
+        </div>
         <div class="set-actions"><button class="s-btn" id="wzFinish" data-i18n="wz.start">Bắt đầu dùng Javis →</button></div>
         <div class="auth-err" id="wzErr"></div>
       </div>

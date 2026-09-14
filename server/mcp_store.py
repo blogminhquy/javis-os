@@ -429,6 +429,17 @@ def resolved(enabled_only=True):
         # thật: cài lại chục lần vô ích vì lần nào cũng đọc lại credential cũ trên đĩa).
         # Trỏ mỗi connection vào một thư mục riêng thì xoá kết nối là token đi theo, lần gọi
         # tool kế tiếp server tự mở lại màn đăng nhập Google với đúng bộ quyền hiện hành.
+        # Playwright MCP phải biết Javis tải trình duyệt về ĐÂU, và trên máy chủ Linux thì phải
+        # lái Chromium chứ không phải Google Chrome (container Debian không có Chrome, và câu
+        # lỗi khi nó đi tìm thì không ai đoán ra). Nhận biết theo LỆNH chứ không theo id, để
+        # connector đến từ gói hay người dùng tự thêm tay đều được lo như nhau.
+        if "playwright" in (str(c.get("command") or "") + " " + " ".join(str(a) for a in args)).lower():
+            try:
+                import optional_tools
+                for k, v in optional_tools.env_playwright().items():
+                    env.setdefault(k, v)
+            except Exception as e:
+                print(f"[mcp_store] env playwright: {type(e).__name__}: {e}", file=sys.stderr)
         cred = _cred_dir(c, con)
         if cred:
             try:

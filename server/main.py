@@ -3597,6 +3597,15 @@ packs_routes.register(app, packs_routes.PacksDeps(
     brain_root=lambda b: _brain_root(b),
 ))
 
+# Công cụ TUỲ CHỌN (trình duyệt cho Javis tự kiểm thử giao diện). Đăng ký NGAY SAU trang Gói vì
+# cùng một họ: cả hai đều mang thứ mới về máy, nên dùng chung đúng một luật xác thực.
+import routes.tools as tools_routes   # noqa: E402
+
+tools_routes.register(app, tools_routes.ToolsDeps(
+    co_phien=lambda r: cfgmod.valid_session(r.cookies.get("javis_session", "")),
+    lam_moi_hub=lambda: (mcp_hub.invalidate_cache(), _write_codex_profile()),
+))
+
 
 @app.post("/connect/core-toggle")
 async def connect_core_toggle(request: Request):

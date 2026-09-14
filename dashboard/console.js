@@ -1529,6 +1529,82 @@
   // ============================================
   // Trang PLUGINS - tool/hook native cho mọi engine (bundled / toàn cục / brain)
   // ============================================
+  // ---- Công cụ TUỲ CHỌN: thứ Javis dùng được nhưng không cài sẵn ----
+  // Đặt ở ĐẦU trang Công cụ vì đây là câu trả lời cho "vì sao Javis không mở được trình duyệt"
+  // - người dùng đi tìm câu đó sẽ tới trang này trước. Thẻ Playwright ở trang Kết nối cũng
+  // nhắc sang đây, vì chỗ người ta PHÁT HIỆN ra mình thiếu lại là lúc đang đấu kết nối.
+  let _ctTimer = null;
+  async function veCongCuTuyChon(host) {
+    clearTimeout(_ctTimer); _ctTimer = null;
+    let d = { tools: [] };
+    try { d = await (await fetch("/tools/optional")).json(); } catch (e) { return; }
+    if (!d.ok || !(d.tools || []).length) return;
+    host.innerHTML = "";
+    let dangCai = false;
+
+    (d.tools || []).forEach(ct => {
+      if (ct.trang_thai === "dang_cai") dangCai = true;
+      const mau = { san_sang: "var(--green)", dang_cai: "var(--warn-ink)", chua_cai: "var(--text3)" }[ct.trang_thai] || "var(--text3)";
+      const nhan = { san_sang: window.t("cs.ct_san_sang"), dang_cai: window.t("cs.ct_dang_cai"), chua_cai: window.t("cs.ct_chua_cai") }[ct.trang_thai] || ct.trang_thai;
+      const cham = ct.trang_thai === "chua_cai" ? "○" : "●";
+      const card = document.createElement("div");
+      card.className = "wf-card" + (ct.trang_thai === "san_sang" ? "" : " off");
+      const dl = ct.dung_luong ? " · " + esc(ct.dung_luong)
+        : (ct.trang_thai === "chua_cai" && ct.dung_luong_uoc ? " · " + esc(ct.dung_luong_uoc) : "");
+      card.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
+        + '<div style="min-width:0">'
+        + '<div style="font-weight:600">' + esc(ct.ten) + '</div>'
+        + '<div style="color:var(--text3);font-size:13px;margin-top:3px">' + esc(ct.mo_ta) + '</div>'
+        + '<div style="color:var(--text3);font-size:12.5px;margin-top:6px;word-break:break-all">' + esc(ct.ly_do || "") + dl + '</div>'
+        + (ct.tien_do && ct.trang_thai === "dang_cai"
+            ? '<div style="color:var(--warn-ink);font-size:12.5px;margin-top:5px">' + esc(ct.tien_do) + '</div>' : "")
+        + (ct.loi ? '<div style="color:var(--red);font-size:12.5px;margin-top:5px">' + esc(ct.loi) + '</div>' : "")
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0">'
+        + '<span style="color:' + mau + ';font-size:12.5px;white-space:nowrap">' + cham + ' ' + esc(nhan) + '</span>'
+        + '<span class="ct-nut"></span>'
+        + '</div></div>';
+      const oNut = card.querySelector(".ct-nut");
+      if (ct.trang_thai === "dang_cai") {
+        oNut.innerHTML = '<span style="color:var(--text3);font-size:12px">…</span>';
+      } else if (ct.go_duoc) {
+        const b = document.createElement("button");
+        b.className = "s-btn ghost"; b.textContent = window.t("cs.ct_go");
+        b.onclick = async () => {
+          if (!confirm(window.t("cs.ct_xac_nhan_go"))) return;
+          b.disabled = true;
+          try {
+            await fetch("/tools/optional/remove", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: ct.id })
+            });
+          } catch (e) {}
+          veCongCuTuyChon(host);
+        };
+        oNut.appendChild(b);
+      } else if (ct.trang_thai === "chua_cai") {
+        const b = document.createElement("button");
+        b.className = "s-btn"; b.textContent = window.t(ct.loi ? "cs.ct_cai_lai" : "cs.ct_cai");
+        b.onclick = async () => {
+          b.disabled = true; b.textContent = window.t("cs.ct_dang_cai");
+          try {
+            await fetch("/tools/optional/install", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: ct.id })
+            });
+          } catch (e) {}
+          veCongCuTuyChon(host);
+        };
+        oNut.appendChild(b);
+      }
+      host.appendChild(card);
+    });
+    // Đang tải thì hỏi lại để dòng tiến độ nhúc nhích. Dừng hẳn khi xong: một vòng hỏi chạy
+    // mãi trên một trang không ai nhìn là thứ chỉ tốn pin.
+    if (dangCai) _ctTimer = setTimeout(() => veCongCuTuyChon(host), 2000);
+  }
+
   async function renderPlugins(el) {
     _injectExtraCss();
     const myGen = _renderGen;   // chống race: đổi trang → load dở tự bỏ
@@ -1615,7 +1691,16 @@
       plugins.sort((a, b) => (order[a.source] ?? 9) - (order[b.source] ?? 9) || (a.name || "").localeCompare(b.name || ""));
       const wrap = document.createElement("div");
       wrap.className = "cview-section";
-      wrap.innerHTML = intro + gateBanner + dirHint + `<div id="plCards"></div>`;
+      // Khối "Công cụ tuỳ chọn" đứng TRƯỚC danh sách plugin: nó trả lời câu hỏi người dùng
+      // mang tới trang này ("sao Javis không mở được trình duyệt"), còn danh sách plugin là
+      // thứ để xem sau. Khối tự ẩn khi không có công cụ tuỳ chọn nào.
+      wrap.innerHTML = `<div id="ctTuyChon" style="margin-bottom:20px"></div>`
+        + intro + gateBanner + dirHint + `<div id="plCards"></div>`;
+      const oCt = wrap.querySelector("#ctTuyChon");
+      oCt.innerHTML = `<h3 style="margin:0 0 4px;font-size:15px">${esc(window.t("cs.ct_head"))}</h3>`
+        + `<p style="color:var(--text3);font-size:13px;max-width:720px;margin:0 0 10px">${esc(window.t("cs.ct_intro"))}</p>`
+        + `<div id="ctCards"></div>`;
+      veCongCuTuyChon(oCt.querySelector("#ctCards"));
       const host = wrap.querySelector("#plCards");
       const conDung = plugins.filter(p => !p.removed);
       const daGo = plugins.filter(p => p.removed);
@@ -4462,6 +4547,28 @@
       + '</div>';
   }
 
+  // Connector này cần một công cụ tuỳ chọn mà máy chưa có? Nói ngay trong form đấu nối.
+  // Nhận biết theo LỆNH chứ không theo id, để connector đến từ gói hay tự thêm tay đều được
+  // nhắc như nhau (đúng cách mcp_store nhận biết ở phía server).
+  async function nhacCongCuThieu(m, con) {
+    const o = m && m.querySelector("#ctNhac");
+    if (!o) return;
+    const dau = ((con.command || "") + " " + (con.args || []).join(" ")).toLowerCase();
+    if (dau.indexOf("playwright") < 0) return;
+    let d = null;
+    try { d = await (await fetch("/tools/optional")).json(); } catch (e) { return; }
+    const ct = ((d && d.tools) || []).find(x => x.id === "browser");
+    if (!ct || ct.trang_thai === "san_sang") return;
+    o.innerHTML = '<div class="conn-risk">' + WARN_ICON + ' ' + esc(window.t("cs.ct_nhac_browser"))
+      + ' <a href="#" id="ctDiToi">' + esc(window.t("cs.ct_toi_trang")) + ' ↗</a></div>';
+    const a = o.querySelector("#ctDiToi");
+    if (a) a.onclick = (e) => {
+      e.preventDefault();
+      try { m.remove(); } catch (err) {}
+      try { Alpine.store("nav").go("plugins"); } catch (err) {}
+    };
+  }
+
   function openAddFlow(el, con, isFirst, ctx) {
     if (!con) return;
     if (con.id === "custom") return openMcpForm(el);
@@ -4489,6 +4596,10 @@
       + '<div class="conn-form">'
       // Cảnh báo rủi ro phải hiện NGAY LÚC QUYẾT ĐỊNH, không đợi tới hộp thoại đổi quyền.
       + (con.risk ? '<div class="conn-risk">' + WARN_ICON + ' ' + esc(con.risk) + '</div>' : "")
+      // Chỗ NHẮC công cụ tuỳ chọn còn thiếu. Đặt ngay đây vì lúc người ta đấu Playwright mới
+      // là lúc phát hiện ra máy chưa có trình duyệt - bắt họ tự mò sang trang khác thì kết
+      // nối đấu xong vẫn không chạy và không ai hiểu vì sao.
+      + '<div id="ctNhac"></div>'
       // Có steps thì wizard từng bước THAY guide tường chữ (guide giữ làm fallback catalog cũ)
       + (hasSteps ? stepsHtml(con)
         : (con.guide ? '<div class="conn-guide">' + esc(con.guide) + (con.guide_url ? ' <a href="' + esc(safeHref(con.guide_url)) + '" target="_blank" rel="noopener">' + esc(window.t("cs.cn_guide")) + ' ↗</a>' : "") + '</div>' : ""))
@@ -4500,6 +4611,7 @@
       + '</div>'
       + '<div class="mp-foot"><span class="mp-note" id="cErr"></span><div><button class="mp-btn" data-act="close">' + esc(window.t("common.cancel")) + '</button><button class="mp-btn primary" id="cGo">' + esc(window.t("models.connect")) + '</button></div></div>');
     wireWizCommon(m); wireJsonDrop(m); wireReuse(m);
+    nhacCongCuThieu(m, con);
     m.querySelector("#cGo").onclick = async () => {
       const fieldsVal = {};
       m.querySelectorAll("[data-f]").forEach(inp => { fieldsVal[inp.dataset.f] = inp.value.trim(); });
