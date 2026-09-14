@@ -11950,6 +11950,37 @@ async def websocket_endpoint(ws: WebSocket):
             # Kèm hạn giờ: bộ não chính treo (engine CLI không thoát, mạng đứng) thì trước đây
             # task nằm đó vĩnh viễn, `note_task_done` cũng không chạy nên hàng đợi báo "đang
             # chạy" mãi mãi. Thà báo một câu thật còn hơn im lặng vô hạn.
+            # Một THẺ THẬT trên trang Việc cho mỗi việc nền của giọng (0.57.20). Trước đó loại
+            # việc này chỉ sống trong bộ nhớ tiến trình: xong là bay hơi, không để lại dấu, và
+            # trong lúc chạy người dùng không nhìn thấy nó ở đâu để biết còn sống hay đã chết
+            # (chủ dự án 15/09: "việc ngầm chạy thì cập nhật vào trang việc luôn nhé").
+            #
+            # Thẻ tạo thẳng ở trạng thái `running` nên bộ điều phối KHÔNG bao giờ nhặt lên chạy
+            # lần nữa: `next_candidate` chỉ lấy triage/ready, còn `reclaim_stale` chỉ đụng thẻ
+            # có hạn giữ chỗ (claim_expires_at > 0), mà thẻ này chưa từng được ai giữ chỗ.
+            tid = ""
+            try:
+                tid = tasks_feature.store.enqueue(
+                    _brain_root(brain), title=str(request)[:160], intent=str(request),
+                    status="running", created_by="voice",
+                    chat_id=f"{WEB_CHAT_PREFIX}{conv_sid}",
+                )
+            except Exception as e:
+                print(f"[voice bg] không tạo được thẻ Việc: {type(e).__name__}: {e}", file=sys.stderr)
+
+            def _dong_the(ket_qua: str, hong: str = "") -> None:
+                """Đóng thẻ khi việc xong. Hỏng thì để trạng thái CHẶN chứ không phải xong: thẻ
+                xanh cho một việc thất bại là nói dối ngay trên màn hình."""
+                if not tid:
+                    return
+                try:
+                    if hong:
+                        tasks_feature.store.block(tid, "", "voice_bg", hong[:2000], result=ket_qua[:20000])
+                    else:
+                        tasks_feature.store.complete(tid, "", ket_qua[:20000])
+                except Exception as e:
+                    print(f"[voice bg] không đóng được thẻ Việc: {type(e).__name__}: {e}", file=sys.stderr)
+
             out = ""
             try:
                 out = await asyncio.wait_for(
@@ -11959,12 +11990,17 @@ async def websocket_endpoint(ws: WebSocket):
             except asyncio.TimeoutError:
                 out = (f"Việc nền chạy quá {int(VOICE_BG_TIMEOUT // 60)} phút mà chưa xong nên em dừng lại: "
                        f"{str(request)[:160]}. Anh thử giao lại, hoặc hỏi thẳng ở khung chat để chạy trực tiếp.")
+                _dong_the(out, hong="quá hạn giờ")
             except asyncio.CancelledError:
                 voice_brain.note_task_done(conv_sid, request)
+                _dong_the("", hong="bị dừng giữa chừng")
                 await push_to_chat(conv_sid, f"Việc nền bị dừng giữa chừng: {str(request)[:160]}")
                 raise
             except Exception as e:
                 out = f"Việc nền lỗi: {type(e).__name__}: {e}"
+                _dong_the(out, hong=f"{type(e).__name__}: {e}")
+            else:
+                _dong_the(out or "(việc nền xong nhưng không có nội dung)")
             finally:
                 voice_brain.note_task_done(conv_sid, request)
             await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)")
@@ -16448,6 +16484,39 @@ async def _soat_secret_hong():
                   file=__import__('sys').stderr)
     except Exception:
         pass
+
+
+@app.on_event("startup")
+async def _don_the_viec_giong_mo_coi():
+    """Thẻ Việc của việc nền GIỌNG còn "đang chạy" sau khi tiến trình chết.
+
+    Việc nền của giọng là một task asyncio sống trong tiến trình, không phải job có worker giữ
+    chỗ, nên không có cơ chế nào nhặt nó lên chạy tiếp. Server khởi động lại giữa chừng là thẻ
+    nằm đó "đang chạy" vĩnh viễn: đúng kiểu kẹt mà đợt này đang đi dọn, chỉ đổi chỗ từ khung
+    chat sang trang Việc. Đánh dấu CHẶN kèm lý do thật để người dùng biết mà giao lại.
+    """
+    def _don():
+        try:
+            store = tasks_feature.store
+        except Exception:
+            return 0
+        n = 0
+        for root in (store.board_roots() or []):
+            for t in store.list_tasks(root, limit=500):
+                if str(t.get("created_by")) == "voice" and str(t.get("status")) == "running":
+                    try:
+                        store.block(str(t["id"]), "", "voice_bg",
+                                    "server khởi động lại nên việc nền không còn chạy")
+                        n += 1
+                    except Exception:
+                        pass
+        return n
+    try:
+        n = await asyncio.to_thread(_don)
+        if n:
+            print(f"[voice bg] dọn {n} thẻ Việc mồ côi sau khi khởi động lại", file=sys.stderr)
+    except Exception as e:
+        print(f"[voice bg] dọn thẻ mồ côi lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 @app.on_event("startup")

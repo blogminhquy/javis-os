@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.20] - 2026-09-15
+### Thêm mới
+- **Việc giao bằng giọng giờ hiện thành thẻ trên trang Việc.** Nhận việc là có thẻ "đang chạy" ngay, xong thì thẻ chuyển sang xong kèm kết quả, hỏng hay quá lâu thì chuyển sang chặn kèm lý do thật. Không còn phải hỏi miệng mới biết việc còn sống hay đã chết, và xong rồi vẫn còn dấu để xem lại.
+### Sửa lỗi
+- **Quả cầu não hết giật và hết tự thu nhỏ khi bạn nói.** Trước đây nó bám theo mức âm thô đọc lại 60 lần mỗi giây nên rung bần bật, và lúc Javis suy nghĩ thì mọi chấm cùng co lại gần một nửa, nhìn như màn hình tự thu nhỏ. Nay nhịp thở mượt và nhẹ, vẫn sống theo giọng nhưng không giật.
+- **Thẻ việc không bị kẹt "đang chạy" sau khi khởi động lại.** Server tắt giữa chừng thì việc nền không còn chạy nữa, nên thẻ được đánh dấu chặn kèm lý do thay vì nằm đó mãi.
+
 ## [0.57.19] - 2026-09-15
 ### Thêm mới
 - **Javis tự hỏi thăm khi việc nền chạy lâu.** Giao một việc xong, thay vì im lặng hàng phút, nó thỉnh thoảng nói "em vẫn đang xem, chờ chút nhé", và thưa dần chứ không lải nhải: sau 25 giây, rồi một phút, rồi hai phút. Chờ quá lâu thì nó nói thật là lâu hơn dự tính. Chỉ nói khi bạn không đang nói và loa đang rảnh, và chỉ trong lúc bật chế độ rảnh tay.

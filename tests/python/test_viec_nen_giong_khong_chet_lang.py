@@ -76,31 +76,67 @@ vb.note_task_done(SID, "kiểm tra tiến độ")
 check("hết việc thì sổ sạch, không còn báo đang chạy",
       vb.pending_tasks(SID) == [] and vb.pending_note(SID) == "")
 
-# ---- 4. Việc nền của giọng phải CÓ MẶT trong sổ việc nền chung (0.57.19) ----
-# Trước đó loại việc này không hiện ở đâu cả: dải trạng thái không đếm, `has_pending_work`
-# không tính nên Javis còn bị dán nhầm cảnh báo "hứa suông" trong khi vừa giao việc thật, và
-# người dùng chỉ còn cách hỏi miệng mới biết nó còn sống hay đã chết.
+# ---- 4. Việc nền của giọng là THẺ THẬT trên trang Việc (0.57.20) ----
+# Chủ dự án 15/09: "việc ngầm chạy thì cập nhật vào trang việc luôn nhé vì hiện tại đang không
+# cập nhật". Trước đó loại việc này chỉ sống trong bộ nhớ tiến trình: xong là bay hơi, không
+# để lại dấu, và trong lúc chạy không nhìn thấy ở đâu để biết còn sống hay đã chết.
 import background_status as bs  # noqa: E402
+from task_store import TaskStore  # noqa: E402
 
 v_khong = bs.active_view([], [], [], chat_id="web:abc")
 check("chưa có việc gì: dải ẩn", v_khong["level"] == "idle" and v_khong.get("voice_count") == 0)
 
-v = bs.active_view([], [], [], chat_id="web:abc",
+# `voice_tasks` giờ CHỈ để đếm việc còn sống trong tiến trình, KHÔNG sinh mục riêng nữa: mỗi
+# việc đã là một thẻ Kanban, thêm mục nữa là đếm đôi cùng một việc trên dải trạng thái.
+the_giong = {"id": "t_v1", "title": "tổng hợp việc hôm nay", "status": "running",
+             "chat_id": "web:abc", "created_by": "voice"}
+v = bs.active_view([the_giong], [], [], chat_id="web:abc",
                    voice_tasks=[{"request": "tổng hợp việc hôm nay", "at": 1700000000.0}])
-check("việc nền của giọng vào sổ chung", v["count"] == 1 and v["voice_count"] == 1)
-check("được tính là ĐANG CHẠY THẬT (task asyncio sống, không phải thẻ chờ điều phối)",
-      v["running_count"] == 1 and v["level"] == "run")
-check("luôn là việc CỦA khung chat này", v["mine_count"] == 1)
-check("giữ nguyên nội dung yêu cầu để người dùng biết đang chờ cái gì",
-      v["items"][0]["title"] == "tổng hợp việc hôm nay" and v["items"][0]["kind"] == "voice")
+check("một việc = MỘT mục, không đếm đôi", v["count"] == 1 and v["running_count"] == 1)
+check("vẫn đếm riêng được số việc nền của giọng (cho câu hỏi thăm)", v["voice_count"] == 1)
+check("là việc CỦA khung chat này", v["mine_count"] == 1)
 check("has_pending_work thấy nó (hết bị dán nhầm cảnh báo hứa suông)",
       bs.has_pending_work(v) is True)
 
-v2 = bs.active_view([{"id": "t1", "title": "việc bảng", "status": "running"}], [], [],
-                    chat_id="web:abc",
-                    voice_tasks=[{"request": "kiểm tra tiến độ", "at": 1700000000.0}])
-check("lẫn việc bảng: tổng đúng, phần của giọng đếm riêng",
-      v2["count"] == 2 and v2["running_count"] == 2 and v2["voice_count"] == 1)
+# ---- 5. Vòng đời thẻ: tạo đang chạy -> đóng, và điều phối KHÔNG được nhặt lên chạy lại ----
+kho = TaskStore(__import__("pathlib").Path(os.environ["JAVIS_STATE_DIR"]) / "kanban-thu.sqlite3")
+ROOT_THU = "/brain/thu"
+tid = kho.enqueue(ROOT_THU, title="tổng hợp việc hôm nay", intent="tổng hợp việc hôm nay",
+                  status="running", created_by="voice", chat_id="web:abc")
+t = kho.get_task(tid)
+check("thẻ tạo ra ở trạng thái ĐANG CHẠY", t["status"] == "running")
+check("thẻ ghi rõ do giọng giao và thuộc khung chat nào",
+      t["created_by"] == "voice" and t["chat_id"] == "web:abc")
+check("ĐIỀU PHỐI KHÔNG NHẶT thẻ đang chạy lên chạy lại (chống chạy hai lần)",
+      kho.next_candidate(ROOT_THU) is None)
+check("reclaim_stale không đụng tới (thẻ chưa từng có hạn giữ chỗ)",
+      kho.reclaim_stale(ROOT_THU, set()) == 0 and kho.get_task(tid)["status"] == "running")
+
+# Xong: đóng thẻ kèm kết quả, dù chưa bao giờ có worker nào giữ chỗ.
+kho.complete(tid, "", "Hôm nay anh đã sửa ngắt lời và việc nền.")
+t = kho.get_task(tid)
+check("việc xong thì thẻ sang XONG và giữ kết quả",
+      t["status"] == "done" and "ngắt lời" in (t["result"] or ""))
+
+# Hỏng: phải là CHẶN chứ không phải xong. Thẻ xanh cho một việc thất bại là nói dối.
+tid2 = kho.enqueue(ROOT_THU, title="việc sẽ hỏng", intent="việc sẽ hỏng",
+                   status="running", created_by="voice", chat_id="web:abc")
+kho.block(tid2, "", "voice_bg", "quá hạn giờ")
+t2 = kho.get_task(tid2)
+check("việc hỏng thì thẻ sang CHẶN kèm lý do thật",
+      t2["status"] == "blocked" and "quá hạn" in (t2["block_reason"] or ""))
+kho.close()
+
+# ---- 6. main.py nối đúng vòng đời ấy ----
+check("tạo thẻ ngay khi nhận việc, trạng thái running, đánh dấu created_by=voice",
+      re.search(r"tasks_feature\.store\.enqueue\([\s\S]{0,260}status=\"running\", created_by=\"voice\"", src) is not None)
+check("mọi đường ra đều đóng thẻ (xong / lỗi / quá hạn / bị huỷ)",
+      len(re.findall(r"_dong_the\(", body)) >= 5)
+check("hỏng thì đóng bằng block, xong mới complete",
+      "tasks_feature.store.block(tid" in body and "tasks_feature.store.complete(tid" in body)
+check("khởi động lại thì dọn thẻ mồ côi, không để kẹt 'đang chạy' vĩnh viễn",
+      "_don_the_viec_giong_mo_coi" in src
+      and 'server khởi động lại nên việc nền không còn chạy' in src)
 
 print(("\n%d FAIL" % len(_fails)) if _fails else "\nTat ca OK")
 raise SystemExit(1 if _fails else 0)

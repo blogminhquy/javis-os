@@ -274,7 +274,13 @@ class JavisGraph {
     const catDim = this._catFilter && n.__cat !== this._catFilter && !isHover && !isNbr;
     const dim = (hovering && !isHover && !isNbr) || catDim;
     const breathe = 1 + 0.05 * Math.sin(t / 650 + (n.__ph || 0));       // thở nhẹ, lệch pha
-    const pulse = this._thinking ? (1 + (0.16 + 0.3 * this.level) * Math.sin(t / 220)) : (1 + 0.25 * this.level);
+    // Nhịp thở theo giọng. Biên độ GIỮ NHỎ và nhịp CHẬM: mức âm đã được làm trơn ở setLevel,
+    // nhưng biên độ cũ (0,46 lúc nghĩ, chu kỳ 1,4 giây) vẫn làm cả quả cầu phình co như bơm
+    // hơi. Nay lúc nghĩ tối đa 0,16 với chu kỳ ~2,6 giây, lúc đọc tối đa 0,12 - thấy là nó
+    // đang sống theo tiếng nói, chứ không thấy nó giật.
+    const pulse = this._thinking
+      ? (1 + (0.06 + 0.10 * this.level) * Math.sin(t / 420))
+      : (1 + 0.12 * this.level);
     let born = 1;
     if (n.__born) { const age = (t - n.__born) / 500; born = age < 1 ? age : 1; if (age >= 1) n.__born = 0; }  // nảy sinh
     const r = (n.__r || 5) * (isHover ? 1.35 : 1) * breathe * pulse * (0.4 + 0.6 * born);
@@ -375,7 +381,23 @@ class JavisGraph {
   wake() { if (this.graph) { try { this.graph.resumeAnimation(); } catch (e) {} } }
   resume() { this.wake(); }
   setThinking(active) { this._thinking = !!active; }
-  setLevel(l) { this.level = l || 0; }
+
+  // Mức âm để thổi vào nhịp thở của quả cầu. LÀM TRƠN trước khi dùng.
+  //
+  // `voice.getLevel()` là trung bình phổ THÔ, đọc lại 60 lần mỗi giây. Tiếng nói vốn lên
+  // xuống liên tục, nên con số ấy nhảy loạn từng khung hình; nhân thẳng vào bán kính mỗi
+  // chấm là cả quả cầu rung bần bật (chủ dự án 15/09: "nói nhiều lúc quả cầu bị giựt không
+  // cố định"). Tệ hơn, ở nhịp NGHĨ biên độ cũ tới 0,46 nên có lúc MỌI chấm cùng co còn 0,54
+  // lần - nhìn y như quả cầu tự thu nhỏ lại, đúng cái "tự zoom out ra luôn" anh ấy tả, dù
+  // camera không hề đổi.
+  //
+  // Lên NHANH, xuống CHẬM (như đồng hồ VU của bàn trộn âm): bắt kịp lúc bật tiếng mà không
+  // rơi thẳng đứng lúc ngắt quãng giữa hai từ.
+  setLevel(l) {
+    const raw = Math.max(0, Math.min(1, l || 0));
+    const cu = this.level || 0;
+    this.level = cu + (raw - cu) * (raw > cu ? 0.30 : 0.06);
+  }
 
   // Rọi sáng một danh mục (bấm nhãn PERSONAL/SALES... quanh não). null = bỏ lọc.
   spotlightCategory(cat) {
