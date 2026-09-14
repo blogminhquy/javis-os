@@ -57,3 +57,27 @@ Google và OpenAI đổi tên liên tục.
 - Live chỉ bật được khi có key của nhà cung cấp; thiếu thì trang cài đặt nói rõ.
 - Ngoài phạm vi: wake word khi mic tắt, STT streaming server, TTS có cảm xúc ngoài các provider
   đã có.
+
+## 6. Sau khi so với GPT-Live (0.57.1, cùng ngày)
+
+Đọc bài giới thiệu GPT-Live (OpenAI, 07/2026) và tài liệu API (09/2026): hai ý lớn là song công
+toàn phần (model tự quyết nghe/nói/ngắt) và ủy nhiệm việc nặng cho model nền TRONG LÚC vẫn trò
+chuyện. Javis đã có ý thứ hai (`ask_javis`, `JAVIS_ASK_MAIN`) nhưng route Live `await` tool ngay
+trong vòng đọc sự kiện nên cuộc nói chuyện đứng im 5 đến 30 giây. Sửa:
+
+- `ask_javis` chạy thành task nền (`_run_tool` trong route), vòng đọc sự kiện không dừng. Gemini
+  2.5 Flash Live khai báo tool `behavior: NON_BLOCKING`, kết quả `scheduling: WHEN_IDLE`; Gemini
+  3.1 Flash Live CHƯA hỗ trợ tool bất đồng bộ (tài liệu Google) nên model im chờ, nhưng audio vẫn
+  chảy. OpenAI Realtime: kết quả tool về khi model đang nói thì `response.create` xếp hàng tới
+  `response.done`.
+- Ngữ cảnh giao diện: trình duyệt gửi khung `context` (cùng khối `[NGỮ CẢNH GIAO DIỆN: ...]` của
+  V1, chỉ khi đổi, dò 1,5 s một lần); server kèm vào yêu cầu gửi bộ não chính và đẩy vào kênh
+  im lặng của hãng nếu có (GPT-Live `session.thinking.append`).
+- Ngắt lời: trình duyệt đo số ms đã phát của câu đang nói, gửi khung `played`; OpenAI Realtime
+  nhận `conversation.item.truncate` để ngữ cảnh chỉ giữ phần đã nghe (nguyên tắc V1).
+- Gemini: `sessionResumption` + `contextWindowCompression` trong setup; nhận `goAway` thì route nối
+  lại ngay bằng handle cũ, trình duyệt chỉ thấy khung `reconnected`.
+- Nhà cung cấp thứ ba `gpt-live` (`wss://api.openai.com/v1/live/sessions`, `session.start`, ủy nhiệm
+  `client`): `session.delegation.created` -> chạy bộ não chính với câu người dùng vừa nói ->
+  `session.commentary.append`. Không có sự kiện interrupted/turn_done, suy ra từ transcript. Khuôn
+  sự kiện lấy từ SDK openai 3.13. CHƯA chạy thật (máy dev không có key).

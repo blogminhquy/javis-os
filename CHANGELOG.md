@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.1] - 2026-09-14
+### Cải thiện
+- **Chế độ Live không còn đứng im khi Javis đi lấy dữ liệu.** Trước đây hỏi một câu cần số liệu là cả cuộc nói chuyện khựng lại tới khi bộ não chính trả lời xong. Nay việc đó chạy nền: Javis nói "để mình xem" rồi vẫn nghe và đáp tiếp, có kết quả thì thuật lại (Gemini dòng 3.1 vẫn im chờ vì Google chưa hỗ trợ, dòng 2.5 và OpenAI thì nói tiếp được).
+- **Thêm OpenAI GPT-Live** (mô hình song công mới, 09/2026) làm nhà cung cấp Live thứ ba, cùng ô cài đặt, dùng key OpenAI đã có. Javis là "bộ não nền" của nó: model tự quyết khi nào giao việc, Javis làm rồi trả kết quả để nó kể lại. Chưa chạy thử thật.
+- Ngắt lời chính xác hơn với OpenAI Realtime: Javis chỉ nhớ đúng phần bạn đã nghe, không nhớ phần chưa kịp đọc. Gemini tự nối lại khi Google đóng kết nối sau khoảng 10 phút, bạn không thấy đứt.
+- Phiên Live biết bạn đang mở trang nào, bôi đen đoạn nào, giống chế độ chuẩn, nên "tóm tắt đoạn này" nói bằng giọng cũng hiểu.
+
 ## [0.57.0] - 2026-09-14
 ### Thêm mới
 - **Bộ não riêng cho giọng nói, chạy trên gói Antigravity đã có.** Trong Cài đặt → Giọng nói chọn chế độ "Làn nhanh": khi bạn nói, một bộ não nhẹ trả lời trong 1 đến 2 giây thay vì 5 đến 10 giây; câu nào cần số liệu, file, việc hay mở app thì nó nói "để mình xem" rồi chuyển cho bộ não chính, cùng một hội thoại. Chọn được Antigravity (không tốn key), Groq, Gemini, OpenAI hay OpenRouter.

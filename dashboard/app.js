@@ -234,14 +234,26 @@ window.JavisVoiceMode = { refresh: napCaiDatGiong, get: () => voiceMode };
 
 // Bậc Live: mic bấm là mở phiên nghe nói thẳng thay cho Web Speech. Bản ghi chữ hai chiều
 // vào khung chat như tin thường; orb theo cùng đạo diễn (nói / nghe / gọi tool).
-let _liveUserBubble = null, _liveJavisText = "", _liveJavisBubble = null;
+let _liveUserBubble = null, _liveJavisText = "", _liveJavisBubble = null, _liveCtxTimer = null;
+// Ngữ cảnh giao diện vào phiên Live (GPT-Live gọi là "share UI context"): cùng khối V1 gửi cho
+// bộ não chính, đẩy khi ĐỔI (sendContext tự lọc trùng), dò 1,5 s một lần trong lúc mic mở.
+function guiNguCanhLive() {
+  try {
+    if (!window.JavisVoiceLive || !window.JavisVoiceLive.isOn()) return;
+    const ctx = window.JavisUiContext ? window.JavisUiContext.build({ page: nguCanhTrang(), selection: nguCanhChon() }) : "";
+    window.JavisVoiceLive.sendContext(ctx);
+  } catch (e) {}
+}
 async function batLive() {
   if (!window.JavisVoiceLive) { alert(window.t("app.live_missing")); return false; }
   const ok = await window.JavisVoiceLive.start({
     sessionId: () => savedSessionId,
     brain: () => currentBrainPath(),
-    onStarted: () => { voiceBtn.classList.add("recording"); runActions(turn.micOn()); },
-    onStopped: () => { voiceBtn.classList.remove("recording"); runActions(turn.micOff()); },
+    onStarted: () => {
+      voiceBtn.classList.add("recording"); runActions(turn.micOn());
+      clearInterval(_liveCtxTimer); _liveCtxTimer = setInterval(guiNguCanhLive, 1500); guiNguCanhLive();
+    },
+    onStopped: () => { clearInterval(_liveCtxTimer); _liveCtxTimer = null; voiceBtn.classList.remove("recording"); runActions(turn.micOff()); },
     onReady: (d) => { if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); } },
     onSpeakStart: () => runActions(turn.ttsStart()),
     onSpeakEnd: () => runActions(turn.ttsEnd()),

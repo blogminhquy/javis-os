@@ -322,7 +322,7 @@ Thẻ **Chế độ và bộ não giọng nói** có ba lựa chọn:
 
 - **Chuẩn**: nghe bằng trình duyệt, bộ não chính trả lời. Đúng như trước.
 - **Làn nhanh**: khi bạn nói, một bộ não giọng riêng trả lời trong 1 đến 2 giây. Chọn được **Antigravity** (chạy trên gói Google đã đăng nhập, không tốn key; Javis giữ một phiên `agy` sống suốt lúc bạn nói và tắt sau 5 phút im), hoặc Groq, Gemini, OpenAI, OpenRouter bằng key ở trang Models. Câu nào cần số liệu, file, việc, mở app thì bộ não giọng nói "để mình xem" rồi chuyển cho bộ não chính, tất cả trong cùng một hội thoại.
-- **Live**: nghe nói thẳng qua **Gemini Live** hoặc **OpenAI Realtime** (cần API key của hãng). Giọng có cảm xúc, ngắt lời tự nhiên, bản ghi chữ hai chiều hiện trong khung chat. Khi cần dữ liệu thật, model gọi bộ não chính rồi thuật lại.
+- **Live**: nghe nói thẳng qua **Gemini Live**, **OpenAI Realtime** hoặc **OpenAI GPT-Live** (cần API key của hãng). Giọng có cảm xúc, ngắt lời tự nhiên, bản ghi chữ hai chiều hiện trong khung chat. Khi cần dữ liệu thật, model giao cho bộ não chính chạy nền rồi vẫn trò chuyện tiếp, có kết quả thì thuật lại (Gemini dòng 3.1 còn im chờ vì Google chưa hỗ trợ việc nền). Phiên Live cũng biết bạn đang mở trang nào, bôi đen đoạn nào.
 
 Ngoài ra ô **Nghe bằng** cho chọn **Groq Whisper** nếu đã có key Groq: chữ chính xác hơn với tiếng Việt, chữ tạm trên màn hình vẫn hiện tức thì.
 
