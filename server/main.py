@@ -11900,7 +11900,7 @@ async def websocket_endpoint(ws: WebSocket):
             # nhận, phiên rảnh để nói tiếp; yêu cầu chạy nền như một việc riêng (nhiều việc song
             # song được), xong thì push_to_chat đẩy kết quả vào khung chat và loa đọc khi rảnh.
             if not (filler or "").strip():
-                filler = "Ừ, để mình xem."
+                filler = "Ừ, để xem ngay."
                 await send_raw({"type": "stream", "content": filler, "session_id": conv_sid, "lane": "voice"})
             await _flush(final=True)
             clean = filler.strip()
