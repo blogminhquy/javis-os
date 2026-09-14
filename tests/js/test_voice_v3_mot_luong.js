@@ -81,6 +81,13 @@ check("app.js: lượt mới reset số từ và vẽ đủ bong bóng cũ", /ke
 check("app.js: vòng vẽ orb gọi nhipTheoLoi", /if \(_theoLoi && \(_stopBtnTick % 3\) === 0\) nhipTheoLoi\(\);/.test(app));
 check("style.css: có .theo-loi-cho", /\.theo-loi-cho \{/.test(css));
 
+// 6. Chữ đang nghe hiện trong khung chat (bong bóng nháp), không đè lên khối não
+check("app.js: có nhapGiong dựng bong bóng nháp msg-user trong cột chat", /function nhapGiong\(text\)/.test(app) && /className = "msg msg-user msg-nhap-giong"/.test(app));
+check("app.js: không còn ghi chữ tạm lên #voiceInterim ngoài nhapGiong", (app.match(/voiceInterim\.textContent = /g) || []).length === 1);
+check("app.js: mic Web Speech và Live đều đi nhapGiong", /onInterim: \(text\) => \{\s*\n\s*nhapGiong\(text\);/.test(app) && /else nhapGiong\(text\);/.test(app));
+check("app.js: gửi tin thì gỡ bong bóng nháp trước", /voice\.resetSpokenWords\(\);[^\n]*\n\s*nhapGiong\(""\);/.test(app));
+check("style.css: có .msg-nhap-giong", /\.msg-nhap-giong \.bubble \{/.test(css));
+
 // 4
 check("channel_context.py giải thích kênh=giọng: trả lời như người đang nói, không dàn trang",
       /kênh=giọng/.test(ctxPy) && /không tiêu đề, không bảng, không gạch đầu dòng/.test(ctxPy));

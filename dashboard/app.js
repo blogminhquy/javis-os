@@ -71,6 +71,29 @@ const chatInput = document.getElementById("chatInput");
 const sendBtn = document.getElementById("sendBtn");
 const voiceBtn = document.getElementById("voiceBtn");
 const voiceInterim = document.getElementById("voiceInterim");
+
+// ---- Voice V3: chữ đang nghe hiện NGAY TRONG KHUNG CHAT (chủ dự án 2026-09-14) ----
+// Trước đây chữ tạm đè lên khối não (#voiceInterim), xa cột hội thoại. Nay nó là một bong bóng
+// NHÁP ở cuối cột chat, cùng vị trí tin thật sẽ xuất hiện khi gửi, như ChatGPT Voice. Rỗng thì
+// gỡ bong bóng. Bong bóng nháp không vào convo, không lưu; khi gửi thì appendUserMessage thay nó.
+let _nhapGiongEl = null;
+function nhapGiong(text) {
+  text = String(text || "").trim();
+  if (voiceInterim) voiceInterim.textContent = "";
+  if (!text) {
+    if (_nhapGiongEl) { try { _nhapGiongEl.remove(); } catch (e) {} _nhapGiongEl = null; }
+    return;
+  }
+  if (!_nhapGiongEl || !_nhapGiongEl.isConnected) {
+    const div = document.createElement("div");
+    div.className = "msg msg-user msg-nhap-giong";
+    div.innerHTML = '<div class="bubble"><div class="utext"></div></div>';
+    chatAppend(div);
+    _nhapGiongEl = div;
+  }
+  _nhapGiongEl.querySelector(".utext").textContent = text;
+  scrollBottom();
+}
 const orbState = document.getElementById("orbState");
 
 // Thanh trạng thái đã bỏ tên workspace + ngày tháng (0.9.195) - element có thể không còn,
@@ -98,11 +121,11 @@ const voice = new JavisVoice({
   lang: "vi-VN",
   onStart: () => {
     voiceBtn.classList.add("recording");
-    voiceInterim.textContent = "";
+    nhapGiong("");
     runActions(turn.micOn());
   },
   onInterim: (text) => {
-    voiceInterim.textContent = text;
+    nhapGiong(text);
     // Đang tạm dừng vì nghi chen ngang mà có chữ -> chen ngang THẬT: đạo diễn trả stop_tts.
     // Đọc phần Javis đã đọc ra tiếng TRƯỚC khi dừng, để tin kế tiếp mang ngắt_lời=.
     if (turn.interrupted && text) turn.setInterruptedAt(voice.lastSpokenPrefix());
@@ -110,7 +133,7 @@ const voice = new JavisVoice({
   },
   onTranscript: (text) => {
     voiceBtn.classList.remove("recording");
-    voiceInterim.textContent = "";
+    nhapGiong("");
     text = veTinTuGiong(text);   // luật CHỜ / DỪNG của đạo diễn: trả "" khi không gửi
     if (text) sendMessage(text);
   },
@@ -356,8 +379,8 @@ async function batLive() {
     onTool: (name, status) => { if (status === "running") runActions(turn.toolCall(name)); else runActions(turn.turnDone()); },
     onTranscript: (role, text, final) => {
       if (role === "user") {
-        if (final && text.trim()) { appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); voiceInterim.textContent = ""; }
-        else voiceInterim.textContent = text;
+        if (final && text.trim()) { nhapGiong(""); appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); }
+        else nhapGiong(text);
         return;
       }
       _liveJavisText += text;
@@ -650,6 +673,7 @@ function sendMessage(text) {
   cum.reset();
   ketThucTheoLoi(false);       // bong bóng trước vẽ đủ
   voice.resetSpokenWords();    // lượt mới đếm từ đã đọc lại từ 0
+  nhapGiong("");               // bong bóng nháp (chữ đang nghe) nhường chỗ cho tin thật
   // Voice V3: đang ở phiên Live mà GÕ chữ thì đẩy thẳng vào phiên Live (cùng một cuộc nói
   // chuyện, Javis đáp bằng giọng), không mở lượt chat riêng. Có file đính kèm thì đi đường thường.
   if (voiceMode === "live" && !atts.length && window.JavisVoiceLive && window.JavisVoiceLive.isOn()) {
