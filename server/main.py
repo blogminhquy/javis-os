@@ -124,9 +124,11 @@ import sessions                  # PROJECT_INSTRUCTIONS_MAX cho khối project t
 from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): list/resume/search
 import compaction   # nén hội thoại dài cho engine API (tóm tắt phần cũ thay vì cắt bỏ)
 from chat_runtime import ChatRuntime
+import ui_bridge   # tool javis_ui bảo dashboard mở trang/file/việc rồi đợi trình duyệt đáp
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
+ui_bridge.attach(_CHAT_RUNTIME)
 _CONTEXT_RUNTIME = context_runtime.get_runtime()
 _CAPABILITY_REGISTRY = capability_registry.get_registry()
 _CAPABILITY_RESOLVER = capability_resolver.get_resolver()
@@ -10217,6 +10219,35 @@ async def _tts_edge(text: str, voice: str, rate: str) -> bytes:
     return bytes(buf)
 
 
+async def _tts_edge_stream(text: str, voice: str, rate: str):
+    """Edge TTS STREAMING: trả (khúc đầu, generator các khúc sau).
+
+    Vì sao tách khúc đầu ra: Voice V1 phát audio ngay khi Edge sinh khúc đầu thay vì gom cả
+    câu (câu 600 ký tự gom xong mất 1-2 giây, người nghe tưởng máy treo). Nhưng lỗi Edge
+    (mạng, giọng không tồn tại) phải thành 502 thật để client còn rơi về đường dự phòng, mà
+    StreamingResponse đã gửi header 200 rồi thì không đổi được nữa. Nên đợi CHO ĐƯỢC khúc đầu
+    trước khi trả response, lỗi thì nổ ở đây, còn các khúc sau mới stream.
+    """
+    import edge_tts   # lazy - xem ghi chú ở đầu file
+    communicate = edge_tts.Communicate(text, voice, rate=rate)
+    it = communicate.stream()
+    first = b""
+    async for chunk in it:
+        if chunk["type"] == "audio" and chunk["data"]:
+            first = chunk["data"]
+            break
+    if not first:
+        raise RuntimeError("Edge TTS không trả audio.")
+
+    async def _rest():
+        yield first
+        async for chunk in it:
+            if chunk["type"] == "audio" and chunk["data"]:
+                yield chunk["data"]
+
+    return first, _rest()
+
+
 async def _tts_openai(text: str, rate: str, cfg: dict) -> bytes:
     import httpx
     key = (cfg.get("model", {}) or {}).get("openai_api_key", "")
@@ -10261,8 +10292,18 @@ async def tts(
     → tự fallback về Edge TTS để giọng không bao giờ tắt hẳn."""
     import sys
     from fastapi import HTTPException, Response
+    from fastapi.responses import StreamingResponse
     cfg = cfgmod.read_settings()
     provider = ((cfg.get("voice", {}) or {}).get("tts_provider") or "edge").lower()
+    # Edge đi đường STREAM (Voice V1): byte đầu tới trình duyệt ngay khi Edge sinh ra, thẻ
+    # <audio> của Chrome phát dần mp3 chunked. `Accept-Ranges: none` để trình duyệt khỏi hỏi
+    # Range trên một stream không có Content-Length.
+    _stream_headers = {"Cache-Control": "no-cache", "Accept-Ranges": "none"}
+
+    async def _edge_streaming():
+        _first, gen = await _tts_edge_stream(text, voice, rate)
+        return StreamingResponse(gen, media_type="audio/mpeg", headers=_stream_headers)
+
     audio = b""
     try:
         if provider == "openai":
@@ -10270,12 +10311,12 @@ async def tts(
         elif provider == "elevenlabs":
             audio = await _tts_elevenlabs(text, cfg)
         else:
-            audio = await _tts_edge(text, voice, rate)
+            return await _edge_streaming()
     except Exception as e:
         print(f"[TTS {provider}] {type(e).__name__}: {e} - thử fallback Edge", file=sys.stderr)
         if provider != "edge":
             try:
-                audio = await _tts_edge(text, voice, rate)
+                return await _edge_streaming()
             except Exception as e2:
                 raise HTTPException(502, f"TTS failed: {type(e2).__name__}: {e2}")
         else:
@@ -11456,6 +11497,12 @@ async def websocket_endpoint(ws: WebSocket):
             action = payload.get("action")
             if action == "reset":
                 continue                        # client tự quản phiên; reset KHÔNG còn giết lượt nào
+            if action == "ui_result":
+                # Dashboard vừa làm xong (hoặc từ chối) một `ui_action` do tool javis_ui bắn
+                # ra. Giải future đang đợi trong ui_bridge để tool trả lời model ngay trong lượt.
+                ui_bridge.resolve(str(payload.get("id") or ""), bool(payload.get("ok")),
+                                  str(payload.get("detail") or ""), skipped=bool(payload.get("skipped")))
+                continue
             if action == "stop":
                 _sid = payload.get("session_id") or ""
                 _tag = _CHAT_RUNTIME.cancel_session(_sid)

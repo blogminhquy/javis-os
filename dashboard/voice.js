@@ -37,6 +37,20 @@ class JavisVoice {
     this._resumeAfterTTS = false;  // mic đang mở khi TTS bắt đầu → đọc xong tự mở nghe lại
     this._resumeTimer = null;
 
+    // ---- Voice V1 (docs/dev/2026-09-voice-v1-spec.md): móc nối với đạo diễn voice-turn.js ----
+    // voice.js chỉ lo TAI và MIỆNG; luật "chờ bao lâu rồi gửi, có được ngắt không" nằm ở đạo
+    // diễn, app.js gắn các móc này. Không gắn thì hành vi cũ giữ nguyên (silenceMs cố định,
+    // chen ngang giết ngay).
+    this.endpointDelay = opts.endpointDelay || null;   // (text) -> ms im lặng trước khi gửi
+    this.onBargeStart = opts.onBargeStart || null;     // đủ 500 ms tiếng nói khi đang đọc
+    this.onSpeakStart = opts.onSpeakStart || null;     // bắt đầu phát tiếng
+    this.onSpeakEnd = opts.onSpeakEnd || null;         // hết hàng đợi hoặc bị dừng
+    this.onSlow = opts.onSlow || null;                 // (bool) khúc TTS tải quá chậm
+    this.bargeEnabled = true;                          // công tắc "ngắt lời bằng giọng"
+    this.bargeMinTicks = 5;                            // 5 nhịp 100 ms = 500 ms (LiveKit min_duration)
+    this._paused = false;                              // đang TẠM DỪNG vì nghi chen ngang
+    this._spokenChunks = [];                           // khúc đã phát xong trong lượt đọc này
+
     // Audio analysis - cho hiệu ứng phát sáng theo âm thanh
     this.audioCtx = null;
     this.outAnalyser = null;   // âm Javis đọc (TTS)
@@ -163,9 +177,12 @@ class JavisVoice {
       const display = (this.accumulatedTranscript + " " + interim).trim();
       if (display) {
         this.onInterim(display);
-        // Reset đồng hồ im lặng - nói tiếp thì hoãn, im đủ lâu thì tự gửi
+        // Reset đồng hồ im lặng - nói tiếp thì hoãn, im đủ lâu thì tự gửi. Có đạo diễn thì
+        // độ trễ tính theo câu (kết bằng liên từ thì chờ lâu hơn), không thì số cố định.
         clearTimeout(this._silenceTimer);
-        this._silenceTimer = setTimeout(() => this.stopListening(), this.silenceMs);
+        let ms = this.silenceMs;
+        try { if (this.endpointDelay) ms = this.endpointDelay(display) || ms; } catch (e) {}
+        this._silenceTimer = setTimeout(() => this.stopListening(), ms);
       }
     };
 
@@ -274,7 +291,9 @@ class JavisVoice {
   // Đường tự động KHÔNG được thử lại khi mic đã hỏng hẳn - đó chính là chỗ sinh vòng lặp.
   // Còn người dùng bấm nút mic thì LUÔN được thử lại: họ có thể vừa mới cấp quyền trong cài
   // đặt trình duyệt, và một cái nút bấm không lên là thứ không ai chẩn đoán nổi.
-  startListening(tuDong) {
+  // `giuTieng` = true: mở nghe trong lúc audio đang TẠM DỪNG vì nghi chen ngang (Voice V1).
+  // Không được giết tiếng đang đọc ở đây, vì nếu hoá ra là chen ngang giả thì phải phát tiếp.
+  startListening(tuDong, giuTieng) {
     if (!this.recognition) {
       this.onError("not-supported");
       return;
@@ -285,12 +304,11 @@ class JavisVoice {
       this._micHong = "";
     }
     // Mở nghe chủ động → huỷ mọi lịch tự-mở-lại còn treo
-    this._resumeAfterTTS = false;
+    if (!giuTieng) this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
     this._committed = "";                     // lượt nói MỚI, không kéo chữ của lượt trước sang
     // Stop TTS đang đọc nếu user bấm nói
-    this.synth.cancel();
-    this.stopSpeaking();
+    if (!giuTieng) { this.synth.cancel(); this.stopSpeaking(); }
     this._moKhoaAudioIOS(); // iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic
     this._startMicMeter();  // bật đo âm mic cho hiệu ứng phát sáng
     try {
@@ -350,10 +368,17 @@ class JavisVoice {
   // Lấy đoạn kế trong hàng đợi để đọc; hết hàng đợi thì dừng.
   _pumpQueue() {
     if (!this.speechQueue || this.speechQueue.length === 0) {
+      const dangDoc = this.isPlaying;
       this.isPlaying = false;
+      this._paused = false;
       this._stopBargeMonitor();
       this._resumeRecognitionIfNeeded();             // đọc xong hết → mở nghe lại nếu trước đó mic đang mở
+      if (dangDoc && this.onSpeakEnd) { try { this.onSpeakEnd(); } catch (e) {} }
       return;
+    }
+    if (!this.isPlaying) {
+      this._spokenChunks = [];                       // lượt đọc mới: phần "đã đọc" tính lại từ đầu
+      if (this.onSpeakStart) { try { this.onSpeakStart(); } catch (e) {} }
     }
     this.isPlaying = true;
     this._muteRecognition();                         // mic đang mở → tạm ngừng NHẬN DẠNG, khỏi thu giọng TTS vào chat
@@ -398,12 +423,15 @@ class JavisVoice {
     // một tiếng động đủ to trong phòng (nhạc, TV, người khác nói) là mic tự mở, chép lại rồi tự
     // gửi thành tin nhắn của người dùng. Mic đang tắt thì Javis không được phép tự nghe lại.
     if (!this._resumeAfterTTS) return;
+    if (!this.bargeEnabled) return;                  // người dùng tắt "ngắt lời bằng giọng" trong Cài đặt nhanh
     if (this._bargeTimer || !this.micStream || !this.inAnalyser) return;
     const N = this.inAnalyser.fftSize || 128;
     if (!this._timeData || this._timeData.length !== N) this._timeData = new Uint8Array(N);
     let hits = 0, ticks = 0, baseline = 0;
+    // Cần `bargeMinTicks` nhịp 100 ms LIÊN TIẾP (mặc định 5 = 500 ms, bằng min_duration của
+    // livekit/agents). Bản cũ 3 nhịp: một tiếng ho, tiếng đặt cốc là Javis câm giữa câu.
     this._bargeTimer = setInterval(() => {
-      if (!this.isPlaying) { this._stopBargeMonitor(); return; }
+      if (!this.isPlaying || this._paused) { this._stopBargeMonitor(); return; }
       this.inAnalyser.getByteTimeDomainData(this._timeData);
       let s = 0;
       for (let k = 0; k < N; k++) { const dv = this._timeData[k] - 128; s += dv * dv; }
@@ -411,7 +439,7 @@ class JavisVoice {
       ticks++;
       if (ticks <= 6) { baseline = Math.max(baseline, rms); return; }   // ~600ms đầu: đo nền/echo
       const thresh = Math.max(0.045, baseline * 2 + 0.02);             // vượt HẲN nền mới coi là user nói
-      if (rms > thresh) { if (++hits >= 3) { this._stopBargeMonitor(); this._bargeIn(); } }   // ~300ms liên tục
+      if (rms > thresh) { if (++hits >= this.bargeMinTicks) { this._stopBargeMonitor(); this._bargeIn(); } }
       else hits = 0;
     }, 100);
   }
@@ -421,8 +449,52 @@ class JavisVoice {
   }
 
   _bargeIn() {
+    // Có đạo diễn (Voice V1): nó quyết định TẠM DỪNG rồi chờ chữ, chứ không giết ngay.
+    if (this.onBargeStart) { try { this.onBargeStart(); return; } catch (e) {} }
     this.stopSpeaking();       // dừng đọc ngay (không để chồng tiếng)
     this.startListening(true); // máy tự mở lại (do đo được mức âm), không phải cú bấm
+  }
+
+  // ---- Voice V1: tạm dừng / phát tiếp / phần đã đọc ----
+  // Tạm dừng audio tại chỗ (không xoá hàng đợi). Recognition được mở bởi app.js ngay sau đó
+  // (startListening(true, true)) để xem người dùng có thật sự nói không.
+  pauseSpeaking() {
+    if (!this.isPlaying || this._paused) return false;
+    this._paused = true;
+    this._stopBargeMonitor();
+    try { if (this.currentAudio) this.currentAudio.pause(); } catch (e) {}
+    try { if (this.synth && this.synth.speaking) this.synth.pause(); } catch (e) {}
+    return true;
+  }
+
+  // Chen ngang giả (2 giây không có chữ): phát tiếp từ chỗ dừng.
+  resumeSpeaking() {
+    if (!this._paused) return false;
+    this._paused = false;
+    try { if (this.currentAudio) this.currentAudio.play().catch(() => {}); } catch (e) {}
+    try { if (this.synth && this.synth.paused) this.synth.resume(); } catch (e) {}
+    this._startBargeMonitor();
+    return true;
+  }
+
+  // Phần Javis ĐÃ ĐỌC RA TIẾNG trong lượt này: các khúc đã phát xong cộng phần khúc dở theo
+  // tỉ lệ thời gian, cắt ở ranh giới từ. Dùng khi bị ngắt lời thật, để tin kế tiếp mang
+  // "ngắt_lời=" và model không đọc lại từ đầu (mượn synchronized_transcript của LiveKit).
+  lastSpokenPrefix() {
+    const parts = (this._spokenChunks || []).slice();
+    try {
+      const a = this.currentAudio;
+      const i = this._chunkIndex;
+      if (a && this.ttsChunks && i != null && i < this.ttsChunks.length && a.duration > 0) {
+        const text = this.ttsChunks[i];
+        const ratio = Math.max(0, Math.min(1, a.currentTime / a.duration));
+        let cut = Math.floor(text.length * ratio);
+        const sp = text.lastIndexOf(" ", cut);
+        if (sp > 0) cut = sp;
+        if (cut > 0) parts.push(text.slice(0, cut));
+      }
+    } catch (e) {}
+    return parts.join(" ").replace(/\s+/g, " ").trim();
   }
 
   _cleanForTTS(text) {
@@ -497,6 +569,14 @@ class JavisVoice {
               : new Audio(this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : ""));
     this._preloaded = null;
     this.currentAudio = audio;
+    this._chunkIndex = i;
+    // Đo mạng: từ lúc gọi play() tới lúc thật sự phát. Quá slowMs thì báo "mạng chậm" - đây là
+    // số đo thật, không phải trạng thái vẽ cho có (spec Voice V1 mục 4).
+    const _t0 = Date.now();
+    audio.onplaying = () => {
+      const cham = (Date.now() - _t0) > 2500;
+      if (this.onSlow && cham !== !!this._slowFlag) { this._slowFlag = cham; try { this.onSlow(cham); } catch (e) {} }
+    };
 
     // Route analyser (cho hiệu ứng glow) chỉ khi context chạy + chưa route
     try {
@@ -530,7 +610,11 @@ class JavisVoice {
       audio.onerror = null;
       this._chunkFailed(i, retry);   // thử lại backend, vẫn hỏng mới cân nhắc trình duyệt (không rơi tiếng Anh)
     };
-    audio.onended = () => { if (!handled) this._playChunk(i + 1); };
+    audio.onended = () => {
+      if (handled) return;
+      this._spokenChunks.push(this.ttsChunks[i]);   // khúc này đã ra tiếng trọn vẹn
+      this._playChunk(i + 1);
+    };
     audio.onerror = onFail;
     audio.play().catch(onFail);
   }
@@ -565,12 +649,15 @@ class JavisVoice {
   }
 
   stopSpeaking() {
+    const dangDoc = this.isPlaying;
     this._stopBargeMonitor();
+    this._paused = false;
     this.synth.cancel();
     if (this.currentAudio) {
       this.currentAudio.pause();
       this.currentAudio = null;
     }
+    if (dangDoc && this.onSpeakEnd) { try { this.onSpeakEnd(); } catch (e) {} }
     if (this._preloaded && this._preloaded.audio) {
       try { this._preloaded.audio.pause(); } catch (e) {}
     }
@@ -619,9 +706,14 @@ class JavisVoice {
     return chunks.filter(c => c.length > 0);
   }
 
+  // Đang TẠM DỪNG (nghi chen ngang) thì KHÔNG tính là đang nói: onresult phải nhận chữ lúc
+  // này, vì đó chính là bằng chứng phân biệt chen ngang thật với tiếng ho.
   isSpeaking() {
+    if (this._paused) return false;
     return this.isPlaying || (this.synth && this.synth.speaking);
   }
+
+  isPaused() { return !!this._paused; }
 
   isSupported() {
     return !!(window.SpeechRecognition || window.webkitSpeechRecognition);

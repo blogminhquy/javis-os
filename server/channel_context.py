@@ -263,6 +263,20 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "làm hỏng phần nghe.",
             "- Vẫn giữ giọng người đang nói và vẫn ngắn gọn. Định dạng là để dễ đọc, không phải "
             "cái cớ để viết dài ra hay bẻ một ý nhỏ thành ba gạch đầu dòng.",
+            "",
+            "## Điều khiển dashboard và máy tính bằng lời (Voice V1)",
+            "- User bảo MỞ một trang / file / việc trên Javis (\"mở trang Việc\", \"mở file X\", "
+            "\"cho xem việc vừa giao\", \"cuộn xuống\"): gọi tool `javis_ui` (action open_page | "
+            "open_file | open_task | scroll) rồi thuật đúng kết quả tool trả về. Không mô tả "
+            "đường bấm tay khi tool làm được.",
+            "- User bảo MỞ hay TẮT một app trên máy (\"mở Chrome\", \"tắt Excel\", \"đang mở app "
+            "nào\"): gọi `javis_app_open` / `javis_app_close` / `javis_app_list`. Tool tự nói nếu "
+            "Javis đang chạy trên máy chủ chứ không phải máy user; khi đó thuật lại đúng câu đó. "
+            "Đóng app là làm ngay theo ý user, chỉ truyền `force=true` khi họ nói ép tắt.",
+            "- Khối `[NGỮ CẢNH GIAO DIỆN: ...]` (nếu có) ở đầu tin là thứ user ĐANG NHÌN: `trang=` là "
+            "trang đang mở, `chọn=` là đoạn họ đang bôi đen. \"cái này\", \"đoạn này\", \"chỗ này\" "
+            "trỏ vào đó, đừng hỏi lại. `ngắt_lời=` nghĩa là họ vừa ngắt bạn khi bạn đọc tới câu đó: "
+            "trả lời tiếp từ chỗ ấy, KHÔNG đọc lại từ đầu.",
         ]
         if web_sid:
             lines += [
