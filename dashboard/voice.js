@@ -72,6 +72,7 @@ class JavisVoice {
     this.onSpeakEnd = opts.onSpeakEnd || null;         // hết hàng đợi hoặc bị dừng
     this.onSlow = opts.onSlow || null;                 // (bool) khúc TTS tải quá chậm
     this.bargeEnabled = true;                          // công tắc "ngắt lời bằng giọng"
+    this.handsFree = false;                            // app.js bật khi đang nói chuyện bằng giọng
     // 2 nhịp 100 ms là đủ để NGHI NGỜ, vì nghi ngờ chỉ dẫn tới một cú nhá tiếng 400 ms chứ
     // không còn dừng hẳn. Tiếng ho hay tiếng đặt cốc chết ngay trong lúc nhá nên không cắt
     // được câu nữa; đổi lại một tiếng "thôi" ngắn cũng kịp lọt vào cửa sổ thăm dò. Bản cũ
@@ -507,6 +508,7 @@ class JavisVoice {
     }
     this.isPlaying = true;
     this._muteRecognition();                         // mic đang mở → tạm ngừng NHẬN DẠNG, khỏi thu giọng TTS vào chat
+    this._giuTaiKhiDoc();                            // rảnh tay: giữ luồng mic sống để CÒN CÁI MÀ ĐO
     this._startBargeMonitor();                       // cho phép ngắt lời bằng giọng khi đang đọc
     const text = this.speechQueue.shift();
     const ui = this._uncounted.indexOf(text);        // V3: đoạn này có tính vào số từ đã đọc không
@@ -541,17 +543,43 @@ class JavisVoice {
     }, 400);
   }
 
+  // Đang nói chuyện bằng giọng thì phải GIỮ luồng mic sống trong lúc Javis đọc, kể cả khi
+  // nhận dạng đã đóng. Ngắt lời đo mức âm chứ không đọc chữ, nên không có luồng mic là không
+  // có gì để đo và ngắt lời chết câm. Luồng mic vốn không bao giờ bị tắt tracks, nên thường
+  // chỉ cần nối lại bộ đo; lần đầu thì mở (quyền đã cấp từ lúc bật rảnh tay, không hỏi lại).
+  _giuTaiKhiDoc() {
+    if (!this.handsFree || !this.bargeEnabled) return;
+    // AudioContext bị treo (tab ẩn lâu, máy ngủ dậy) thì analyser trả toàn số im lặng và ngắt
+    // lời điếc mà không có lỗi nào báo. Đánh thức trước khi đo.
+    try { this._ensureCtx(); } catch (e) {}
+    if (this.micStream && this.inAnalyser) return;
+    // _startMicMeter là async: nối xong mới mở được bộ rình, nên phải mở lại ở đây chứ không
+    // dựa vào lời gọi đồng bộ ngay sau (lúc ấy inAnalyser còn chưa có, bộ rình thoát ngay).
+    try { this._startMicMeter().then(() => this._startBargeMonitor()).catch(() => {}); } catch (e) {}
+  }
+
   // ---- Ngắt lời (barge-in): đang đọc mà nghe user nói đủ to/đủ lâu → dừng đọc + mở nghe ngay ----
   _startBargeMonitor() {
     // Ngắt lời chỉ khi user THỰC SỰ dùng giọng (đã cấp mic). Đo BIÊN ĐỘ SÓNG (time-domain RMS) từ
     // luồng mic ĐÃ khử vọng - đúng độ TO thật, đáng tin hơn trung bình phổ (bị pha loãng bởi dải tần
     // cao im lặng nên giọng nói không bao giờ chạm ngưỡng). Tự HIỆU CHỈNH theo nền (echo + ồn) đo
     // trong ~600ms đầu để hợp mọi máy/môi trường, hạn chế tự-ngắt do nghe lại chính giọng TTS.
-    // CHỈ rình khi mic ĐANG mở và vừa bị tạm ngừng vì TTS (_resumeAfterTTS). Không có chốt này
-    // thì luồng mic mở từ lần nói trước còn sống suốt đời trang, nên MỌI lần Javis đọc đều rình:
-    // một tiếng động đủ to trong phòng (nhạc, TV, người khác nói) là mic tự mở, chép lại rồi tự
-    // gửi thành tin nhắn của người dùng. Mic đang tắt thì Javis không được phép tự nghe lại.
-    if (!this._resumeAfterTTS) return;
+    // ĐIỀU KIỆN RÌNH: đang trong một cuộc nói chuyện bằng giọng (rảnh tay), hoặc mic vừa bị
+    // tạm ngừng vì TTS.
+    //
+    // Bản cũ chỉ nhận `_resumeAfterTTS`, và đó là lý do ngắt lời CHƯA TỪNG chạy một lần nào
+    // trong hội thoại rảnh tay: nói xong thì đồng hồ im lặng gọi stopListening() nên mic ĐÓNG
+    // hẳn trước khi câu trả lời kịp đọc; tới lượt đọc, _muteRecognition() thấy isListening đã
+    // false nên thoát ngay và không đặt cờ ấy; vòng giữ mic trong app.js thì bỏ qua vì đang
+    // đọc. Cả ba chốt cùng đúng riêng lẻ mà ghép lại thành điếc hoàn toàn (chủ dự án thử thật
+    // 15/09: nói chen vào, Javis đọc tiếp như không nghe thấy gì).
+    //
+    // Nỗi lo cũ vẫn được giữ nguyên, chỉ đổi chốt cho đúng chỗ: không được để luồng mic sống
+    // suốt đời trang rồi lần nào Javis đọc cũng rình, vì một tiếng động to trong phòng (nhạc,
+    // TV, người khác nói) sẽ tự mở mic rồi chép thành tin nhắn. Chốt đúng là "người dùng CÓ
+    // đang nói chuyện bằng giọng không" (handsFree), chứ không phải "mic có tình cờ còn mở
+    // không". Rảnh tay tắt thì Javis đọc trong im lặng, không nghe gì hết.
+    if (!this._resumeAfterTTS && !this.handsFree) return;
     if (!this.bargeEnabled) return;                  // người dùng tắt "ngắt lời bằng giọng" trong Cài đặt nhanh
     if (this._dangNha) return;                       // đang nhá tiếng thăm dò, đừng mở bộ rình thứ hai
     if (this._bargeTimer || !this.micStream || !this.inAnalyser) return;

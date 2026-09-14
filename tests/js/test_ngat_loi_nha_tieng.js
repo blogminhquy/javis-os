@@ -175,9 +175,13 @@ const Lop = new Function("window", "localStorage", "setInterval", "clearInterval
   dh.setInterval, dh.clearInterval, dh.setTimeout, dh.clearTimeout);
 
 // Phòng có loa ngoài: vọng đi THEO âm lượng loa, giọng người thì không.
+// LƯU Ý: dựng đúng luồng THẬT của hội thoại rảnh tay, tức `_resumeAfterTTS = false` và mic đã
+// ĐÓNG (isListening false). Đặt cờ ấy thành true là dựng một tình huống không bao giờ xảy ra
+// và test sẽ xanh trong khi người dùng thật không ngắt lời được - đúng chuyện đã xảy ra 15/09.
 function dungPhong(mucVong) {
   const v = new Lop({ lang: "vi-VN" });
-  v.bargeEnabled = true; v._resumeAfterTTS = true; v.isPlaying = true; v.micStream = {};
+  v.bargeEnabled = true; v.handsFree = true; v.isPlaying = true; v.micStream = {};
+  v._resumeAfterTTS = false; v.isListening = false;
   v._echoFloor = 0;
   v.currentAudio = { volume: 1, pause() {}, play() { return Promise.resolve(); } };
   v.giongNguoi = 0;
@@ -220,6 +224,28 @@ check("dừng trong vòng 700 ms kể từ lúc bắt đầu nói",
   p2.dungLuc > 0 && p2.dungLuc - batDauNoi <= 700, p2.dungLuc - batDauNoi);
 check("dừng rồi thì âm lượng trả về đầy (khúc sau không bị câm)", p2.currentAudio.volume === 1);
 p2._stopBargeMonitor(); p2._huyNha();
+
+// Ca 2b: MẮT XÍCH ĐÃ LÀM HỎNG TẤT CẢ (15/09). Trong hội thoại rảnh tay, nói xong là đồng hồ
+// im lặng đóng mic TRƯỚC khi câu trả lời kịp đọc, nên _muteRecognition() thoát ngay và không
+// đặt _resumeAfterTTS. Bản cũ lấy đúng cờ ấy làm điều kiện rình, nên ngắt lời chưa từng chạy
+// một lần nào dù mọi thứ bên dưới đều đúng. Chốt đúng là "đang nói chuyện bằng giọng".
+const p2b = dungPhong(0.078);
+check("mic đã đóng + chưa từng có _resumeAfterTTS (đúng luồng thật)",
+  p2b.isListening === false && p2b._resumeAfterTTS === false);
+p2b._startBargeMonitor();
+check("vẫn rình được nhờ cờ rảnh tay", p2b._bargeTimer !== null && p2b._bargeTimer !== undefined);
+p2b._stopBargeMonitor();
+p2b.handsFree = false;
+p2b._startBargeMonitor();
+check("tắt rảnh tay thì KHÔNG rình (quay về gõ chữ là Javis đọc trong im lặng)",
+  !p2b._bargeTimer);
+p2b._stopBargeMonitor(); p2b._huyNha();
+check("_pumpQueue giữ luồng mic sống khi đang rảnh tay", /this\._giuTaiKhiDoc\(\);/.test(voiceSrc));
+check("_giuTaiKhiDoc nối bộ đo xong mới mở bộ rình (async)",
+  /this\._startMicMeter\(\)\.then\(\(\) => this\._startBargeMonitor\(\)\)/.test(voiceSrc));
+check("app.js đồng bộ cờ rảnh tay sang voice.js",
+  /voice\.handsFree = handsFree && voiceMode !== "live";/.test(appSrc)
+  && /voice\.handsFree = false;/.test(appSrc));
 
 // Ca 3: tiếng ho 200 ms giữa lúc đang đọc -> không được cắt câu.
 const p3 = dungPhong(0.078);

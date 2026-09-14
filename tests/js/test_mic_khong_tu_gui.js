@@ -48,11 +48,19 @@ check("onstart hạ cờ _starting", /onstart = \(\) => \{\s*\n\s*this\._startin
 check("onend hạ cờ _starting", /onend = \(\) => \{\s*\n\s*this\._starting = false;/.test(voice));
 check("onerror hạ cờ _starting", /onerror = \(event\) => \{\s*\n\s*this\._starting = false;/.test(voice));
 
-// ---- 2. Barge-in chỉ rình khi mic đang thật sự mở ----
-// _resumeAfterTTS chỉ bật trong _muteRecognition, mà chỗ đó đòi isListening === true.
-// Vậy điều kiện này đúng bằng "người dùng đang trong phiên nói chuyện bằng giọng".
-check("_startBargeMonitor thoát sớm khi mic không mở (!_resumeAfterTTS)",
-  /_startBargeMonitor\(\) \{[\s\S]{0,900}if \(!this\._resumeAfterTTS\) return;/.test(voice));
+// ---- 2. Barge-in chỉ rình khi người dùng ĐANG nói chuyện bằng giọng ----
+// Bản cũ suy: "_resumeAfterTTS chỉ bật trong _muteRecognition, mà chỗ đó đòi isListening ===
+// true, vậy cờ ấy đúng bằng đang-nói-chuyện-bằng-giọng". SUY SAI, và nó khoá luôn cái sai vào
+// test: trong hội thoại rảnh tay, nói xong là đồng hồ im lặng ĐÓNG mic trước khi câu trả lời
+// kịp đọc, nên tới lượt đọc thì isListening đã false, _muteRecognition thoát ngay và cờ không
+// bao giờ bật. Ngắt lời vì thế chưa từng chạy một lần nào (chủ dự án thử thật 15/09).
+// Chốt đúng là cờ `handsFree` do app.js đồng bộ. Ý ĐỊNH của mục này giữ nguyên: rảnh tay tắt
+// thì Javis đọc trong im lặng, không được tự nghe rồi biến tiếng TV thành tin nhắn.
+check("_startBargeMonitor thoát sớm khi KHÔNG trong cuộc nói chuyện bằng giọng",
+  /_startBargeMonitor\(\) \{[\s\S]{0,1800}if \(!this\._resumeAfterTTS && !this\.handsFree\) return;/.test(voice));
+check("app.js đồng bộ handsFree sang voice.js (và tắt ngay khi mic hỏng)",
+  /voice\.handsFree = handsFree && voiceMode !== "live";/.test(app)
+  && /function tatRanhTay\(\) \{[\s\S]{0,200}voice\.handsFree = false;/.test(app));
 check("_muteRecognition vẫn là chỗ duy nhất bật _resumeAfterTTS khi đang nghe",
   /_muteRecognition\(\) \{\s*\n\s*if \(!this\.recognition \|\| !this\.isListening\) return;\s*\n\s*this\._resumeAfterTTS = true;/.test(voice));
 

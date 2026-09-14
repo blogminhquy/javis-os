@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.15] - 2026-09-15
+### Sửa lỗi
+- **Ngắt lời giờ mới thật sự chạy.** Bản trước làm đúng phần nhận biết nhưng chưa bao giờ được gọi tới: đang nói chuyện bằng giọng, bạn dứt lời là mic đóng lại trước khi Javis kịp trả lời, mà điều kiện rình ngắt lời lại đòi mic phải đang mở. Nay Javis giữ tai trong suốt lúc nó đọc, nên nói chen vào là nó dừng sau khoảng nửa giây. Tắt chế độ rảnh tay thì nó đọc trong im lặng như cũ, không nghe gì.
+
 ## [0.57.14] - 2026-09-15
 ### Sửa lỗi
 - **Nói chen vào là Javis dừng thật.** Trước đây đang nghe một đoạn dài mà nói "thôi" hay "dừng lại" thì nó giật một cái rồi đọc tiếp, vì phải chờ nhận dạng trả chữ trong 2 giây mà tiếng nói ngắn đã dứt trước khi tai kịp mở. Giờ Javis nhận ra trong khoảng nửa giây và dừng hẳn.

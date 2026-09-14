@@ -2341,6 +2341,7 @@ let handsFree = false;
 function tatRanhTay() {
   if (!handsFree) return;
   handsFree = false;
+  voice.handsFree = false;        // thôi rình ngắt lời ngay, đừng đợi vòng 500 ms
   voiceBtn.classList.remove("handsfree");
   try { if (window.JavisTts) window.JavisTts.set(false); } catch (e) {}
 }
@@ -2376,6 +2377,7 @@ voiceBtn.addEventListener("click", () => {
   if (!voice.isSupported()) { alert(window.t("app.voice_unsupported")); return; }
   handsFree = !handsFree;
   voiceBtn.classList.toggle("handsfree", handsFree);
+  voice.handsFree = handsFree && voiceMode !== "live";   // bật ngay, không đợi vòng 500 ms
   // Loa đi theo mic (chủ repo yêu cầu 02/09): bật nghe là muốn NÓI CHUYỆN bằng giọng, nên
   // Javis phải đáp bằng giọng; tắt nghe là quay về gõ chữ, Javis im. Điện thoại từng không
   // có chỗ nào bật loa cả, nên gộp vào mic là một nút lo cả hai chiều.
@@ -2418,6 +2420,11 @@ voiceBtn.addEventListener("click", () => {
 
 // Tự nghe lại khi rảnh (không đang xử lý, không đang nói) - giữ mic sống ở hands-free
 setInterval(() => {
+  // Cờ rảnh tay cho voice.js: NGẮT LỜI chỉ được rình khi người dùng đang thật sự nói chuyện
+  // bằng giọng. Đồng bộ ở đây chứ không rải theo từng chỗ bật/tắt rảnh tay (nút mic, Esc,
+  // mic hỏng, phiên Live đóng - năm nơi), vì sót một nơi là ngắt lời hoặc chết câm hoặc rình
+  // cả lúc người ta đã quay về gõ chữ. Vòng này chạy hai lần mỗi giây nên lệch không đáng kể.
+  voice.handsFree = handsFree && voiceMode !== "live";
   // `micHong()` là chốt thứ hai (chốt thứ nhất là tatRanhTay() trong onError). Giữ cả hai vì
   // vòng này chạy hai lần mỗi giây: sót một nhịp là một hộp thoại nữa đập vào mặt người dùng.
   if (handsFree && voiceMode !== "live" && !voice.isListening && !isProcessing && !voice.isSpeaking()
