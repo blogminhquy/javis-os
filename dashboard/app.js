@@ -483,7 +483,18 @@ function handleMessage(data) {
   // chỉ tích luỹ vào buffer + đánh dấu "đang chạy" ở Lịch sử (server đã tự lưu vào DB).
   const sid = data.session_id || null;
   const isActive = !!sid && sid === savedSessionId;
-  const t = sid ? (turns[sid] || (turns[sid] = { text: "", bubble: null, spoke: false, running: true })) : null;
+  // CHỈ khung của một LƯỢT mới được dựng bộ đệm và đánh dấu phiên "đang chạy". Khung NGOÀI
+  // lượt (push của việc nền, inbox...) tuyệt đối không được: `turn_done` đã xoá turns[sid] khi
+  // lượt kết thúc, nên dựng lại ở đây là HỒI SINH một lượt đã chết với cờ running=true mà
+  // không còn turn_done nào tới để hạ nó xuống. Hậu quả dây chuyền: syncActiveUI khoá nút gửi,
+  // sendMessage nuốt lặng mọi tin sau đó, và vòng giữ mic không mở lại vì tưởng đang xử lý -
+  // khung chat chết cứng ở "đang suy nghĩ" ngay sau khi một việc nền báo xong. Chủ dự án gặp
+  // 15/09: "sau khi có đoạn chạy nền thì không nói nữa luôn, không nhắn tiếp vào khung chat".
+  const KHUNG_LUOT = ["status", "tool_call", "tool_result", "stream", "response", "error", "turn_done"];
+  const t = !sid ? null
+    : (turns[sid] || (KHUNG_LUOT.includes(data.type)
+        ? (turns[sid] = { text: "", bubble: null, spoke: false, running: true })
+        : null));
 
   if (data.type === "push") {
     // Tin do việc chạy NỀN đẩy vào (việc Kanban / loop / nhắc hẹn xong), không thuộc lượt
@@ -672,7 +683,15 @@ function sendMessage(text) {
     try { if (window.JavisModelBar) window.JavisModelBar.claimPending(savedSessionId); } catch (e) {}
   }
   const sid = savedSessionId;
-  if (turns[sid] && turns[sid].running) return;          // phiên này đang trả lời → chưa gửi tiếp
+  // Phiên đang trả lời thì không gửi chồng lượt. NHƯNG tin từ MIC (hay gõ trong lúc rảnh tay)
+  // là người dùng CHEN NGANG: họ vừa cắt lời Javis rồi nói câu mới, nên câu mới phải thắng -
+  // dừng lượt cũ rồi gửi. Nuốt lặng như trước là kẹt cứng: đạo diễn đã bật `processing` trong
+  // endpoint() TRƯỚC khi gọi vào đây, mà lượt bị nuốt thì không bao giờ có turn_done để hạ nó,
+  // nên orb đứng mãi ở "đang suy nghĩ" và người dùng không thấy tin mình vừa nói ở đâu cả.
+  if (turns[sid] && turns[sid].running) {
+    if (!(_tuGiong || handsFree)) return;   // gõ chữ lúc không rảnh tay: giữ chốt cũ
+    stopCurrent();
+  }
   // Đang BUNG NÃO toàn màn (mobile) mà gửi tin thì thu lại: ở trạng thái đó khung chat bị
   // ẩn hẳn, không thu thì người dùng gõ xong không thấy câu trả lời hiện ở đâu cả. Bấm hộ
   // đúng cái nút để đi chung một đường (đổi aria + canh lại khung đồ thị).

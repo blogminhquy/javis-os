@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.16] - 2026-09-15
+### Sửa lỗi
+- **Việc nền báo xong không còn làm chết cứng khung chat.** Sau khi một việc chạy nền đẩy kết quả vào, hội thoại bị coi nhầm là "vẫn đang trả lời": nút gửi khoá, tin nhắn tiếp theo biến mất không dấu vết, mic không mở lại và màn hình đứng mãi ở "đang suy nghĩ". Nay kết quả việc nền chỉ chèn thêm một bong bóng, không đụng tới trạng thái của lượt.
+- **Cắt lời giữa chừng thì dừng hẳn lượt đó.** Trước đây ngắt lời chỉ tắt tiếng, còn Javis vẫn viết tiếp cho một câu không ai nghe, và phiên vẫn bận nên câu bạn vừa chen vào bị chặn. Giờ nói chen vào là nó dừng luôn cả việc đang làm và nghe bạn.
+
 ## [0.57.15] - 2026-09-15
 ### Sửa lỗi
 - **Ngắt lời giờ mới thật sự chạy.** Bản trước làm đúng phần nhận biết nhưng chưa bao giờ được gọi tới: đang nói chuyện bằng giọng, bạn dứt lời là mic đóng lại trước khi Javis kịp trả lời, mà điều kiện rình ngắt lời lại đòi mic phải đang mở. Nay Javis giữ tai trong suốt lúc nó đọc, nên nói chen vào là nó dừng sau khoảng nửa giây. Tắt chế độ rảnh tay thì nó đọc trong im lặng như cũ, không nghe gì.

@@ -308,7 +308,14 @@
     this.speaking = false;
     this.userSpeaking = true;
     if (spokenPrefix) this.interruptedAt = String(spokenPrefix);
-    return [{ type: "stop_tts", interrupted: true }, { type: "listen" }].concat(this._recompute());
+    var acts = [{ type: "stop_tts", interrupted: true }];
+    // Cắt lời giữa chừng nghĩa là THÔI, không cần nốt câu trả lời ấy nữa: dừng luôn lượt đang
+    // chạy, y như cụm "thôi / dừng lại" trong endpoint(). Để lượt chạy tiếp thì server vẫn đẻ
+    // chữ cho một câu không ai nghe, và tệ hơn: phiên còn "đang trả lời" nên câu người dùng
+    // vừa chen vào sẽ bị chặn không gửi được.
+    if (this.processing) { this.processing = false; acts.push({ type: "stop_turn" }); }
+    acts.push({ type: "listen" });
+    return acts.concat(this._recompute());
   };
 
   // 2 giây không có chữ -> chen ngang GIẢ: phát tiếp, đóng recognition.

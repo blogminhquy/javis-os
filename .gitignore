@@ -155,3 +155,5 @@ server/stop-last.log
 .playwright-mcp/
 server/.mcp_agy_*.json
 server/settings.json.bak*
+# File ngữ cảnh Antigravity CLI sinh ra mỗi lượt chạy (rác của máy đang chạy, không phải mã)
+server/.javis-agy/
