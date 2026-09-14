@@ -88,6 +88,12 @@ check("app.js: mic Web Speech và Live đều đi nhapGiong", /onInterim: \(text
 check("app.js: gửi tin thì gỡ bong bóng nháp trước", /voice\.resetSpokenWords\(\);[^\n]*\n\s*nhapGiong\(""\);/.test(app));
 check("style.css: có .msg-nhap-giong", /\.msg-nhap-giong \.bubble \{/.test(css));
 
+// 7. Tách nói khỏi làm: câu xác nhận kèm dòng "đang làm nền"
+check("app.js: response mang background -> dòng voice-nen dưới bong bóng", /if \(data\.background\) \{/.test(app) && /className = "voice-nen"/.test(app)
+      && /window\.t\("app\.voice_bg_task", \{ task:/.test(app));
+check("i18n vi/en có app.voice_bg_task với {task}", /\{task\}/.test(vi["app.voice_bg_task"] || "") && /\{task\}/.test(en["app.voice_bg_task"] || ""));
+check("style.css: có .voice-nen", /\.voice-nen \{/.test(css));
+
 // 4
 check("channel_context.py giải thích kênh=giọng: trả lời như người đang nói, không dàn trang",
       /kênh=giọng/.test(ctxPy) && /không tiêu đề, không bảng, không gạch đầu dòng/.test(ctxPy));

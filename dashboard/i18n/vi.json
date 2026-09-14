@@ -1245,6 +1245,7 @@
   "app.orb_slow": "MẠNG CHẬM",
   "app.orb_background": "{n} VIỆC NỀN",
   "app.voice_filler": "Để mình xem nhé.|Đang tìm đây, chờ mình chút.|Để mình kiểm tra lại.",
+  "app.voice_bg_task": "Đang làm nền: {task}. Kết quả sẽ tự hiện ở đây, bạn cứ nói tiếp.",
   "app.live_missing": "Thiếu module nghe nói thẳng (tải lại trang).",
   "app.live_error": "Phiên nghe nói thẳng lỗi:",
   "app.mic_denied": "Bạn cần cấp quyền microphone cho trang này.",

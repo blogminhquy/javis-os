@@ -275,3 +275,30 @@ mạng (thẻ cài đặt vẽ mỗi lần mở): codex = có access/refresh tok
 
 Cả ba đóng sau 5 phút không nói (reaper cũ). Lưu ý gói: đây là dùng cá nhân bình thường, không
 phải chạy nền 24/7, nên nằm trong phạm vi Anthropic và xAI cho phép.
+
+## 14. Tách NÓI khỏi LÀM: việc nền chạy riêng, giọng không bao giờ bị khoá (0.57.11)
+
+Chủ dự án thử ChatGPT ở làn nhanh, thấy mượt, rồi so với ChatGPT Live: bên đó bộ não giọng
+vẫn nói chuyện liên tục trong lúc việc nặng chạy nền, không liên quan nhau, có kết quả thì đọc;
+giao được nhiều việc cùng lúc. Javis tới 0.57.10 thì `run_voice_turn` gặp `JAVIS_ASK_MAIN` là
+`await run_turn(...)` ngay trong lượt, nên phiên bị khoá hàng chục giây và người nói bị chặn
+bằng "phiên đang trả lời".
+
+Sửa trong `run_voice_turn` (main.py):
+- Gặp marker: bảo đảm có câu xác nhận (thiếu thì "Ừ, để mình xem."), lưu lượt, gửi `response`
+  kèm `background: <yêu cầu>` và `turn_done`, `finish_job` NGAY. Phiên rảnh, mic nghe tiếp.
+- `_voice_bg_task(ask, sid, brain)` chạy bằng `asyncio.create_task`: gọi `_voice_ask_javis`
+  với khoá phiên RIÊNG `voice:<sid>:<id>` (nhiều việc song song thật, không xếp hàng chung một
+  mạch; yêu cầu đã được dặn phải tự đứng được), xong thì `push_to_chat(sid, kết quả)`: ghi kho
+  phiên web rồi bắn khung `push`. Dashboard vẽ bong bóng và đọc lên nếu loa rảnh, đang nói thì
+  hoãn tới lúc rảnh (luật tin nền của V1).
+- `voice_brain._PENDING` + `pending_note(sid)`: câu người dùng gửi bộ não giọng được ghép thêm
+  ghi chú "đang có việc nền: ... (giao N giây trước); kết quả tự hiện; đừng bịa, đừng giao lại".
+  Xoá khỏi sổ khi việc xong. Bản lưu kho phiên vẫn là câu gốc.
+- SYSTEM_PROMPT: câu xác nhận trước marker giờ là BẮT BUỘC và tự nhiên ("Ừ, để mình xem."),
+  yêu cầu phải tự đứng được vì bộ não chính không nghe cuộc nói chuyện, và dặn rõ việc chạy nền.
+- Dashboard: dưới câu xác nhận có dòng nhỏ "Đang làm nền: ... Kết quả sẽ tự hiện ở đây".
+
+Giới hạn cố ý: nút Dừng chỉ dừng lượt giọng, không dừng việc nền đã giao (như việc Kanban);
+việc nền dùng mạch riêng nên không nhớ các việc nền trước, nhưng kết quả đã nằm trong kho phiên
+web nên bộ não giọng thấy chúng ở lượt sau. Bộ não giọng lỗi thì vẫn rơi về `run_turn` như cũ.
