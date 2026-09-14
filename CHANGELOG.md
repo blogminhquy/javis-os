@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.8] - 2026-09-14
+### Cải thiện
+- **Chữ hiện theo lời đọc, như ChatGPT Voice.** Khi bạn nói chuyện bằng giọng, bong bóng trả lời của Javis hiện dần đúng chỗ giọng đang đọc tới, thay vì hiện cả câu trước rồi loa mới đọc đuổi theo. Ngắt lời giữa chừng thì chữ dừng đúng chỗ Javis đã nói, có dấu ba chấm ở cuối. Đọc xong hết mới vẽ đầy đủ ảnh, link, bảng và nút hỏi lại.
+- Áp dụng cho cả chế độ chuẩn, Làn nhanh và Live. Tải lại trang vẫn thấy đủ câu trả lời trong lịch sử.
+
 ## [0.57.7] - 2026-09-14
 ### Cải thiện
 - **Thanh bên nói tiếng Việt nốt.** Nhóm Năng lực giờ là **Trợ lý**, **Kỹ năng**, **Quy trình**, **Công cụ** (Chatbot giữ nguyên), đúng bộ chữ mà Javis Store vẫn dùng. Tiêu đề trang vẫn kèm tên tiếng Anh trong ngoặc nên ai quen chữ cũ vẫn nhận ra ngay.

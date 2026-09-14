@@ -58,6 +58,19 @@
     return best;
   }
 
+  // N từ đầu của `text`, giữ nguyên khoảng trắng và dấu bên trong (V3: bong bóng hiện chữ theo
+  // lời đọc). n <= 0 -> rỗng; n quá số từ -> cả chuỗi.
+  function takeWords(text, n) {
+    text = String(text == null ? "" : text);
+    if (n <= 0) return "";
+    var re = /\S+/g, m, count = 0, end = 0;
+    while ((m = re.exec(text))) {
+      count++; end = m.index + m[0].length;
+      if (count >= n) break;
+    }
+    return text.slice(0, end);
+  }
+
   function lastSpace(s, limit) {
     return s.lastIndexOf(" ", Math.min(limit, s.length) - 1);
   }
@@ -176,7 +189,8 @@
     return out;
   };
 
-  var api = { Chunker: Chunker, DEFAULTS: DEFAULTS, countWords: countWords, lastNiceCut: lastNiceCut };
+  var api = { Chunker: Chunker, DEFAULTS: DEFAULTS, countWords: countWords, lastNiceCut: lastNiceCut,
+              takeWords: takeWords };
   if (typeof window !== "undefined") window.JavisVoiceChunker = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

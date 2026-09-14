@@ -2862,3 +2862,7 @@ body.ne-full-on .cview { z-index: 250; }
    danh sách sót, trong khi sự thật là file còn đó dưới một cái tên khác. */
 .pd-row.mat { opacity: .55; }
 .pd-row.mat .pd-row-name { text-decoration: line-through; }
+
+/* Voice V3: bong bóng hiện chữ theo lời đọc - dấu chờ khi loa chưa kịp đọc từ nào */
+.theo-loi-cho { opacity: .55; animation: theoLoiNhap 1.2s ease-in-out infinite; }
+@keyframes theoLoiNhap { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }

@@ -223,3 +223,27 @@ nhận dạng (Web Speech chép chính giọng TTS thành chữ người dùng),
 họ đang nói; làm được thì phải đổi sang STT server streaming, ngoài phạm vi. Cảm xúc giọng thì
 Edge TTS không có; OpenAI/ElevenLabs/Live đã chọn được trong cài đặt. Realtime API thì chính là
 chế độ Live đã có.
+
+## 12. Chữ hiện theo lời đọc (0.57.8)
+
+Chủ dự án gửi ảnh ChatGPT Voice: chữ trong khung chat hiện DẦN theo đúng chỗ giọng đang đọc (như
+typing), và ngắt giữa chừng thì bong bóng dừng đúng chỗ đã nói. Javis lúc đó vẽ cả câu ngay khi
+chữ về từ model (trước loa vài giây), nên nhìn thì chữ xong rồi mà loa mới bắt đầu.
+
+Cách làm, tất cả ở trình duyệt, không đổi khung WS:
+- `voice.js` đếm số TỪ đã ra tiếng (`spokenWords()`): khúc đã phát xong cộng phần khúc dở theo tỉ
+  lệ `currentTime / duration`, cả ba đường (Audio máy tính, một phần tử Audio trên iOS, giọng
+  trình duyệt). Chỉ reset khi app.js mở lượt chat mới (`resetSpokenWords`), nên model chậm hơn
+  loa (hàng đợi cạn rồi đầy lại) vẫn đếm liền; `_spokenChunks` cũ reset mỗi lượt đọc nên không
+  dùng được. Câu tiến độ và tin nền đọc với `enqueueSpeak(text, {uncounted: true})` thì không
+  tính, vì chúng không thuộc câu trả lời. Khúc TTS lỗi bị bỏ vẫn cộng từ, kẻo chữ kẹt lại.
+- `voice-live.js` không có văn bản đồng bộ với tiếng, nên đo tỉ lệ: `progress()` trả ms đã xếp
+  lịch và ms đã phát kể từ `resetProgress()`; bong bóng hiện `tổng từ * played / total`.
+- `app.js`: `batTheoLoi / veTheoLoi / ketThucTheoLoi / nhipTheoLoi`. Đang rảnh tay (mic bật, loa
+  bật) thì khung `stream` và `response` không vẽ markdown mà vẽ N từ đầu của văn bản ĐÃ LỌC cho
+  loa (`_cleanForTTS`, để số từ khớp với số từ đã đọc); vòng vẽ orb gọi `nhipTheoLoi` khoảng 20
+  lần một giây. Lượt xong và loa im thì vẽ markdown đầy đủ kèm chip hỏi lại. Ngắt lời THẬT
+  (`stop_tts` với `interrupted`, hay `interrupted` từ Live) thì đóng băng ở chỗ đã nói kèm "…".
+- Kho phiên vẫn lưu ĐỦ câu trả lời (server lưu trước khi loa đọc), nên F5 thấy cả câu; khối
+  `ngắt_lời=` ở tin kế tiếp vẫn cho model biết người dùng nghe tới đâu. Cố ý không cắt bản lưu:
+  người dùng có thể muốn đọc phần Javis chưa kịp nói.
