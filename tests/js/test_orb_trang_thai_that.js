@@ -64,7 +64,8 @@ const iTurn = html.indexOf("voice-turn.js"), iVoice = html.indexOf("/static/voic
 const iCtx = html.indexOf("ui-context.js"), iAct = html.indexOf("ui-actions.js"), iApp = html.indexOf("/static/app.js");
 check("index.html: voice-turn.js trước voice.js", iTurn > 0 && iTurn < iVoice);
 check("index.html: ui-context.js và ui-actions.js trước app.js", iCtx > 0 && iAct > 0 && iCtx < iApp && iAct < iApp);
-check("index.html: bump ?v= voice.js và app.js", /voice\.js\?v=19/.test(html) && /app\.js\?v=104/.test(html));
+const vVoice = +((html.match(/\/static\/voice\.js\?v=(\d+)/) || [])[1] || 0), vApp = +((html.match(/\/static\/app\.js\?v=(\d+)/) || [])[1] || 0);
+check("index.html: ?v= voice.js >= 19 và app.js >= 104 (bản Voice V1)", vVoice >= 19 && vApp >= 104);
 check("index.html: hàng chọn im lặng (name=endpoint) và công tắc #qsBarge", /name="endpoint"/.test(html) && /id="qsBarge"/.test(html));
 ["app.orb_waiting", "app.orb_tool", "app.orb_paused", "app.orb_reconnecting", "app.orb_mic_error", "app.orb_slow", "app.orb_background", "qs.endpoint", "qs.barge"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");

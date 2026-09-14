@@ -806,7 +806,7 @@
   <script src="/static/theme.js?v=2"></script>
   <!-- Voice V1: đạo diễn hội thoại (thuần) phải nạp TRƯỚC voice.js và app.js. -->
   <script src="/static/voice-turn.js?v=1"></script>
-  <script src="/static/voice.js?v=19"></script>
+  <script src="/static/voice.js?v=20"></script>
   <script src="/static/graph.js?v=16"></script>
   <script src="/static/chat-render.js?v=12"></script>
   <script src="/static/code-hl.js?v=1"></script>
@@ -824,7 +824,9 @@
   <!-- Voice V1: khối ngữ cảnh giao diện + bộ nhận lệnh ui_action, nạp TRƯỚC app.js. -->
   <script src="/static/ui-context.js?v=1"></script>
   <script src="/static/ui-actions.js?v=1"></script>
-  <script src="/static/app.js?v=104"></script>
+  <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
+  <script src="/static/voice-live.js?v=1"></script>
+  <script src="/static/app.js?v=105"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=2"></script>
   <script src="/static/model-picker.js?v=7"></script>
@@ -842,7 +844,7 @@
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=2"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=133"></script>
+  <script src="/static/console.js?v=134"></script>
   <script src="/static/mobile-chat.js?v=8"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

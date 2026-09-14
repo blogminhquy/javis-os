@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.0] - 2026-09-14
+### Thêm mới
+- **Bộ não riêng cho giọng nói, chạy trên gói Antigravity đã có.** Trong Cài đặt → Giọng nói chọn chế độ "Làn nhanh": khi bạn nói, một bộ não nhẹ trả lời trong 1 đến 2 giây thay vì 5 đến 10 giây; câu nào cần số liệu, file, việc hay mở app thì nó nói "để mình xem" rồi chuyển cho bộ não chính, cùng một hội thoại. Chọn được Antigravity (không tốn key), Groq, Gemini, OpenAI hay OpenRouter.
+- **Nghe bằng Groq Whisper** nếu bạn đã có key Groq: chữ chính xác hơn tiếng Việt, chữ tạm vẫn hiện tức thì như cũ.
+- **Chế độ Live: nghe nói thẳng** qua Gemini Live hoặc OpenAI Realtime (cần API key của hãng), giọng có cảm xúc, ngắt lời tự nhiên, vẫn hỏi được bộ não chính khi cần dữ liệu. Nhà cung cấp đổi được ngay trong cùng thẻ cài đặt.
+
+### Cải thiện
+- Trang Cài đặt có thẻ "Chế độ và bộ não giọng nói" tự báo cái nào chưa sẵn (chưa cài agy, chưa dán key).
+
 ## [0.56.0] - 2026-09-14
 ### Thêm mới
 - **Nói chuyện với Javis tự nhiên hơn.** Nói "khoan", "đợi chút" là Javis im chờ bạn; nói "thôi", "dừng lại" là nó ngừng đọc. Câu kết bằng "và", "nhưng" hay dấu phẩy thì Javis tự chờ thêm chứ không gửi vội. Chen ngang khi Javis đang đọc: nó tạm dừng 2 giây xem bạn có nói thật không, nói thật thì dừng hẳn và trả lời tiếp từ chỗ đang đọc dở, còn tiếng ho thì đọc tiếp.

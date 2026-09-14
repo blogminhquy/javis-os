@@ -316,6 +316,16 @@ Các kênh chữ thuần thì siết hơn vì bản thân chúng không vẽ đ�
 
 > Nếu Javis vẫn trả lời bằng văn xuôi dài: nhiều khả năng bộ nhớ dài hạn của brain còn một ký ức cũ kiểu "không thích bảng markdown, thích văn nói ngắn" từ thời bạn dùng bằng giọng nói, và ký ức đó được nạp vào **mọi** lượt chat. Mở `memory/MEMORY.md` trong trang **Tệp tin**, tìm dòng nói về cách trả lời rồi xoá dòng đó cùng file tương ứng trong `memory/facts/`. Xem [Second Brain, bộ nhớ & wiki](13-second-brain-bo-nho-wiki.md).
 
+## Ba chế độ nói chuyện (Cài đặt → Giọng nói)
+
+Thẻ **Chế độ và bộ não giọng nói** có ba lựa chọn:
+
+- **Chuẩn**: nghe bằng trình duyệt, bộ não chính trả lời. Đúng như trước.
+- **Làn nhanh**: khi bạn nói, một bộ não giọng riêng trả lời trong 1 đến 2 giây. Chọn được **Antigravity** (chạy trên gói Google đã đăng nhập, không tốn key; Javis giữ một phiên `agy` sống suốt lúc bạn nói và tắt sau 5 phút im), hoặc Groq, Gemini, OpenAI, OpenRouter bằng key ở trang Models. Câu nào cần số liệu, file, việc, mở app thì bộ não giọng nói "để mình xem" rồi chuyển cho bộ não chính, tất cả trong cùng một hội thoại.
+- **Live**: nghe nói thẳng qua **Gemini Live** hoặc **OpenAI Realtime** (cần API key của hãng). Giọng có cảm xúc, ngắt lời tự nhiên, bản ghi chữ hai chiều hiện trong khung chat. Khi cần dữ liệu thật, model gọi bộ não chính rồi thuật lại.
+
+Ngoài ra ô **Nghe bằng** cho chọn **Groq Whisper** nếu đã có key Groq: chữ chính xác hơn với tiếng Việt, chữ tạm trên màn hình vẫn hiện tức thì.
+
 ## Giọng đọc: nhà cung cấp, giọng, tốc độ
 
 Mọi thứ về giọng nằm trong **Cài đặt → Giọng nói, thương hiệu & truy cập**.

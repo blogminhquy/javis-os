@@ -125,6 +125,8 @@ from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): lis
 import compaction   # nén hội thoại dài cho engine API (tóm tắt phần cũ thay vì cắt bỏ)
 from chat_runtime import ChatRuntime
 import ui_bridge   # tool javis_ui bảo dashboard mở trang/file/việc rồi đợi trình duyệt đáp
+import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
+import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 
 app = FastAPI(title="Javis OS")
 _CHAT_RUNTIME = ChatRuntime()
@@ -10326,6 +10328,211 @@ async def tts(
     return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-cache"})
 
 
+# ============================================
+# Voice V2 - nghe bằng Groq, tuỳ chọn giọng nói, nghe nói thẳng (Live)
+# ============================================
+@app.post("/stt")
+async def stt_route(file: UploadFile = File(...), lang: str = Form("")):
+    """Dashboard gửi file ghi âm (webm/opus) sau khi hết câu -> chữ qua Groq Whisper.
+
+    Dùng lại đúng `stt.groq_nghe` của kênh Telegram/Zalo. Trả `{"ok": true, "text": ...}` hoặc
+    `{"ok": false, "ly_do": ...}`; trình duyệt lỗi thì giữ chữ của Web Speech, không mất lượt.
+    """
+    cfg = cfgmod.read_settings()
+    key = (cfg.get("model", {}) or {}).get("groq_api_key", "")
+    v = cfg.get("voice", {}) or {}
+    data = await file.read()
+    ngon_ngu = (lang or "").split("-")[0].strip() or None
+    res = await stt.groq_nghe(data, file.filename or "voice.webm", key, v.get("stt_model") or "", ngon_ngu)
+    return {"ok": bool(res.get("ok")), "text": res.get("text", ""), "ly_do": res.get("ly_do", ""),
+            "model": res.get("model", "")}
+
+
+@app.get("/voice/options")
+async def voice_options():
+    """Cho thẻ 'Chế độ và bộ não giọng nói' ở trang Cài đặt: cái gì đang sẵn, key nào đã có."""
+    cfg = cfgmod.read_settings()
+    m = cfg.get("model", {}) or {}
+    v = cfg.get("voice", {}) or {}
+    agy_models = None
+    try:
+        agy_models = antigravity_cli.list_models()
+    except Exception:
+        agy_models = None
+    keys = {k: bool(m.get(k)) for k in ("groq_api_key", "gemini_api_key", "openai_api_key", "openrouter_key")}
+    return {
+        "ok": True,
+        "voice": {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
+                                             "stt_model", "live_provider", "live_model", "live_voice")},
+        "brain_providers": [
+            {"id": "", "label": "Bộ não chính (như gõ chữ)", "available": True},
+            {"id": "antigravity", "label": "Antigravity CLI (gói Google)", "available": agy_models is not None,
+             "models": [{"id": x.get("id") or x.get("name") or x, "label": x.get("label") or x.get("name") or x}
+                        if isinstance(x, dict) else {"id": str(x), "label": str(x)} for x in (agy_models or [])],
+             "hint": "" if agy_models is not None else "Chưa cài agy. Cài rồi Re-check ở trang Models."},
+            {"id": "groq", "label": "Groq (API)", "available": keys["groq_api_key"], "default_model": "llama-3.3-70b-versatile"},
+            {"id": "gemini", "label": "Google Gemini (API)", "available": keys["gemini_api_key"], "default_model": "gemini-2.5-flash"},
+            {"id": "openai", "label": "OpenAI (API)", "available": keys["openai_api_key"], "default_model": "gpt-4o-mini"},
+            {"id": "openrouter", "label": "OpenRouter", "available": keys["openrouter_key"], "default_model": "google/gemini-2.5-flash"},
+        ],
+        "stt_providers": [
+            {"id": "browser", "label": "Trình duyệt (Web Speech, miễn phí)", "available": True},
+            {"id": "groq", "label": "Groq Whisper (chính xác hơn)", "available": keys["groq_api_key"]},
+        ],
+        "live_providers": [
+            {"id": k, "label": p["label"], "available": keys.get(p["key_field"], False),
+             "default_model": p["default_model"], "voices": p["voices"]}
+            for k, p in voice_live.catalog().items()
+        ],
+        "voice_brains_active": voice_brain.active_count(),
+    }
+
+
+async def _voice_ask_javis(request: str, conv_sid: str, brain: str) -> str:
+    """Tool `ask_javis` của phiên Live: chạy MỘT lượt bộ não chính rồi trả chữ.
+
+    Đi qua `_tg_answer` (vỏ chung của Telegram/CLI) với khoá phiên `voice:<sid>` để lượt có ký
+    ức hội thoại, ghi kho phiên và vào vòng tự học như mọi kênh khác. Lỗi thì trả câu lỗi để
+    model nói lại cho người dùng, không ném ra ngoài (ném là rớt cả phiên Live).
+    """
+    sess = _tg_session(f"voice:{conv_sid}")
+    try:
+        root = _brain_root(brain)
+        if os.path.isdir(root):
+            sess["brain"] = root
+    except Exception:
+        pass
+    try:
+        out = await _tg_answer(request, meta={"chat_id": f"voice:{conv_sid}"}, channel="cli")
+    except Exception as e:
+        return f"Bộ não chính lỗi: {type(e).__name__}: {e}"
+    if isinstance(out, dict):
+        return channel_context.strip_control_blocks(str(out.get("text") or ""))[:6000] or "(không có nội dung)"
+    return str(out or "")[:6000]
+
+
+@app.websocket("/ws/voice-live")
+async def voice_live_ws(ws: WebSocket, session_id: str = Query(""), brain: str = Query("brain")):
+    """Nghe nói thẳng (Voice V2 bậc Live): trình duyệt đẩy PCM16 16 kHz, nhận PCM16 24 kHz.
+
+    Khung JSON về trình duyệt: ready | interrupted | transcript | tool | turn_done | error.
+    Khung JSON từ trình duyệt: {"type":"text","text":...} | {"type":"stop"}. Byte = audio.
+    """
+    if cfgmod.gate_active() and not cfgmod.valid_session(ws.cookies.get("javis_session", "")):
+        await ws.close(code=1008)
+        return
+    await ws.accept()
+
+    async def _j(obj):
+        try:
+            await ws.send_text(json.dumps(obj, ensure_ascii=False))
+        except Exception:
+            pass
+
+    cfg = cfgmod.read_settings()
+    try:
+        prov = voice_live.make_provider(cfg)
+        await prov.connect()
+    except Exception as e:
+        await _j({"type": "error", "message": f"{type(e).__name__}: {e}" if not isinstance(e, RuntimeError) else str(e)})
+        try:
+            await ws.close()
+        except Exception:
+            pass
+        return
+    store = get_store()
+    try:
+        conv_sid = store.get_or_create(session_id or None, brain=_brain_key(brain),
+                                       engine=f"voice-live:{prov.name}", model=prov.model)
+    except Exception:
+        conv_sid = session_id or ""
+    await _j({"type": "ready", "provider": prov.name, "model": prov.model, "session_id": conv_sid})
+    asst_buf = {"text": ""}
+
+    async def from_client():
+        while True:
+            msg = await ws.receive()
+            if msg.get("type") == "websocket.disconnect":
+                return
+            if msg.get("bytes"):
+                await prov.send_audio(msg["bytes"])
+            elif msg.get("text"):
+                try:
+                    d = json.loads(msg["text"])
+                except Exception:
+                    continue
+                if d.get("type") == "text" and d.get("text"):
+                    try:
+                        store.append_message(conv_sid, "user", str(d["text"]))
+                    except Exception:
+                        pass
+                    await prov.send_text(str(d["text"]))
+                elif d.get("type") == "stop":
+                    return
+
+    async def from_provider():
+        async for ev in prov.events():
+            t = ev.get("type")
+            if t == "audio":
+                try:
+                    await ws.send_bytes(ev["data"])
+                except Exception:
+                    return
+            elif t == "tool_call":
+                await _j({"type": "tool", "name": ev.get("name"), "status": "running"})
+                req = str((ev.get("args") or {}).get("request") or "")
+                result = await _voice_ask_javis(req, conv_sid, brain) if ev.get("name") == "ask_javis" \
+                    else f"Tool {ev.get('name')} không có."
+                await prov.send_tool_result(ev.get("id", ""), ev.get("name", ""), result)
+                await _j({"type": "tool", "name": ev.get("name"), "status": "done"})
+            elif t == "transcript":
+                if ev.get("role") == "assistant":
+                    asst_buf["text"] += str(ev.get("text") or "")
+                elif ev.get("final") and ev.get("text"):
+                    try:
+                        store.append_message(conv_sid, "user", str(ev["text"]))
+                    except Exception:
+                        pass
+                await _j(ev)
+            elif t == "turn_done":
+                if asst_buf["text"].strip():
+                    try:
+                        store.append_message(conv_sid, "assistant", asst_buf["text"].strip())
+                    except Exception:
+                        pass
+                asst_buf["text"] = ""
+                await _j(ev)
+            elif t == "interrupted":
+                # Đoạn đã đọc dở vẫn là lời Javis đã nói: chốt vào phiên rồi xoá bộ đệm,
+                # không để nó dính sang lượt sau.
+                if asst_buf["text"].strip():
+                    try:
+                        store.append_message(conv_sid, "assistant", asst_buf["text"].strip())
+                    except Exception:
+                        pass
+                asst_buf["text"] = ""
+                await _j(ev)
+            elif t in ("error", "ready"):
+                await _j(ev)
+
+    t1 = asyncio.create_task(from_client())
+    t2 = asyncio.create_task(from_provider())
+    try:
+        done, pending = await asyncio.wait({t1, t2}, return_when=asyncio.FIRST_COMPLETED)
+        for t in done:
+            exc = t.exception() if not t.cancelled() else None
+            if exc and t is t2:
+                await _j({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+        for t in pending:
+            t.cancel()
+    finally:
+        await prov.close()
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+
 @app.get("/tts/voices")
 async def tts_voices(lang: str = Query("")):
     """Giọng Edge cho MỘT ngôn ngữ. Không truyền `lang` = ngôn ngữ trả lời đang cấu hình.
@@ -11464,6 +11671,90 @@ async def websocket_endpoint(ws: WebSocket):
                                 **context_runtime.event_fields(runtime_trace)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
+        async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf):
+            """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-09-voice-v2-spec.md mục 2).
+
+            Tin đến từ mic đi qua bộ não giọng (voice_brain) thay vì bộ não chính: trả lời
+            ngắn trong 1-2 giây. Câu nào cần dữ liệu, tool hay hành động thì bộ não giọng trả
+            dòng `JAVIS_ASK_MAIN:`; khi đó câu chờ được đọc ra loa rồi lượt chuyển sang
+            run_turn như thường, CÙNG phiên, nên kho phiên vẫn một mạch.
+
+            Bộ não giọng hỏng (chưa cài agy, hết key, hết giờ) thì rơi về run_turn, không để
+            lượt câm. Chỉ stream từng DÒNG đã khép: dòng marker không bao giờ ra loa.
+            """
+            hist = []
+            try:
+                hist = [m for m in store.get_messages(conv_sid)
+                        if m.get("role") in ("user", "assistant")][-(voice_brain.HISTORY_N + 1):-1]
+            except Exception:
+                pass
+            text, sent_upto, brain_obj = "", 0, None
+
+            # Stream từng mảnh NGAY để loa bắt đầu sớm, nhưng dòng marker không bao giờ ra
+            # loa. Marker luôn đứng ĐẦU dòng, nên: dòng đã có chữ thường rồi thì không thể
+            # thành marker nữa (gửi thoải mái); dòng mới mà chữ đầu trùng đầu marker thì
+            # giữ lại cho tới khi biết chắc là marker hay không.
+            async def _flush(final=False):
+                nonlocal sent_upto
+                while sent_upto < len(text):
+                    nl = text.find("\n", sent_upto)
+                    line_start = text.rfind("\n", 0, sent_upto) + 1
+                    if nl < 0:
+                        partial = text[sent_upto:]
+                        line = text[line_start:]
+                        mk = voice_brain.MARKER
+                        if not final and (mk.startswith(line) or line.startswith(mk)):
+                            return                      # chưa biết có phải marker: đợi thêm
+                        if line.startswith(mk):
+                            sent_upto = len(text)        # final: dòng marker, bỏ
+                            return
+                        sent_upto = len(text)
+                        if partial:
+                            await send_raw({"type": "stream", "content": partial, "session_id": conv_sid, "lane": "voice"})
+                        return
+                    chunk = text[sent_upto:nl + 1]
+                    line = text[line_start:nl + 1]
+                    sent_upto = nl + 1
+                    if line.lstrip().startswith(voice_brain.MARKER):
+                        continue
+                    await send_raw({"type": "stream", "content": chunk, "session_id": conv_sid, "lane": "voice"})
+
+            try:
+                brain_obj = await voice_brain.get_brain(conv_sid, conf)
+                await send_raw({"type": "status", "content": "Javis đang trả lời nhanh...", "session_id": conv_sid})
+                async for delta in brain_obj.stream(user_message, hist):
+                    text += delta
+                    await _flush()
+            except asyncio.CancelledError:
+                await send_raw({"type": "system", "content": "Đã dừng lượt này.", "session_id": conv_sid})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
+            except Exception as e:
+                print(f"[voice lane] {conf.get('provider')}: {type(e).__name__}: {e} - rơi về bộ não chính",
+                      file=sys.stderr)
+                await send_raw({"type": "status", "content": f"Bộ não giọng nói lỗi ({e}), dùng bộ não chính...",
+                                "session_id": conv_sid})
+                await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+                return
+            filler, ask = voice_brain.parse_marker(text)
+            if ask is None:
+                await _flush(final=True)
+                clean = text.strip()
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, clean)
+                except Exception:
+                    pass
+                await send_raw({"type": "response", "content": clean, "session_id": conv_sid,
+                                "lane": "voice", "engine": f"voice:{brain_obj.provider}",
+                                "model": brain_obj.model})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
+            # Cần bộ não chính: câu chờ đã stream (nếu có); lượt chạy tiếp như thường.
+            await _flush(final=True)
+            await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+
         async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice):
             """Chạy lại một lượt đã vấp hạn mức gói thuê bao (limit_resume gọi tới, khi tới mốc
             reset hoặc khi người dùng bấm "Chạy lại ngay").
@@ -11590,8 +11881,20 @@ async def websocket_endpoint(ws: WebSocket):
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             has_attachments = bool(payload.get("attachments") or payload.get("files"))
-            task = asyncio.create_task(run_turn(
-                conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments))
+            # Voice V2: tin đến từ MIC (`voice: true`) và cài đặt ở chế độ Làn nhanh có bộ não
+            # giọng riêng thì đi run_voice_turn; còn lại đi run_turn như cũ.
+            _vconf = None
+            if payload.get("voice") and not has_attachments:
+                try:
+                    _vconf = voice_brain.config_from_settings(cfgmod.read_settings())
+                except Exception:
+                    _vconf = None
+            if _vconf and _vconf.get("mode") == "fast" and _vconf.get("provider"):
+                task = asyncio.create_task(run_voice_turn(
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf))
+            else:
+                task = asyncio.create_task(run_turn(
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments))
             _CHAT_RUNTIME.register_job(
                 conv_sid, task, turn_tag,
                 runtime_task_id=runtime_trace.task_id if runtime_trace else "",
