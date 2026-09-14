@@ -16,86 +16,21 @@ kiểm lại lần nữa vì nó là bên thực hiện và không tin server tu
 from __future__ import annotations
 
 import ui_bridge
+import ui_targets   # bảng tên trang/nhóm + bí danh tiếng Việt, dùng CHUNG với đường tắt giọng nói
 
-# Trang hợp lệ = RAIL_ITEMS trong dashboard/console.js. Thêm trang mới thì thêm ở cả hai chỗ.
-PAGES = (
-    "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
-    "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage",
-)
-
-# Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra.
-ALIASES = {
-    "viec": "kanban", "cong viec": "kanban", "bang viec": "kanban", "task": "kanban", "tasks": "kanban",
-    "tep": "files", "tep tin": "files", "file": "files", "thu muc": "files", "brain": "files",
-    "cai dat": "settings", "setting": "settings", "thiet lap": "settings",
-    "mo hinh": "models", "model": "models", "bo nao": "models", "engine": "models",
-    "ket noi": "mcp", "nguon": "mcp", "connect": "mcp",
-    "goi": "packs", "kho": "packs", "store": "packs", "pack": "packs",
-    "kenh": "channels", "telegram": "channels", "zalo": "channels",
-    "muc dung": "usage", "token": "usage", "chi phi": "usage",
-    "tro chuyen": "chat", "hoi thoai": "chat", "trang chu": "home", "javis": "home",
-    "tu hoc": "selfimprove", "self improve": "selfimprove", "hoc": "learn",
-    "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",
-    "tai khoan": "account", "quy trinh": "workflows", "workflow": "workflows",
-    "ky nang": "skills", "skill": "skills", "agent": "agents", "chatbot": "chatbots", "bot": "chatbots",
-}
-
-# Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
-# dashboard/ui-actions.js. Mở NHÓM khác mở TRANG: người dùng hay muốn bung phần đang gập để
-# nhìn xem trong đó có gì, chứ chưa chọn trang nào.
-GROUPS = ("tro_ly", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
-
-GROUP_ALIASES = {
-    "tro ly": "tro_ly", "assistant": "tro_ly",
-    "bo nao": "bo_nao", "second brain": "bo_nao", "brain": "bo_nao",
-    "code": "code", "lap trinh": "code",
-    "nang luc": "nang_luc", "kha nang": "nang_luc", "capability": "nang_luc",
-    "viec": "viec", "cong viec": "viec", "task": "viec",
-    "ket noi": "ket_noi", "connect": "ket_noi", "ket noi va model": "ket_noi",
-    "he thong": "he_thong", "system": "he_thong", "cai dat chung": "he_thong",
-}
+# Tên trang, tên nhóm và bí danh nằm ở server/ui_targets.py. Trước 0.57.6 bảng đó nằm ngay
+# trong file này, nên đường tắt giọng nói (main.py, dòng JAVIS_UI:) không tra được và cứ nói
+# tiếng Việt là dashboard trả "trang không tồn tại".
+PAGES = ui_targets.PAGES
+ALIASES = ui_targets.ALIASES
+GROUPS = ui_targets.GROUPS
+GROUP_ALIASES = ui_targets.GROUP_ALIASES
+resolve_page = ui_targets.resolve_page
+resolve_group = ui_targets.resolve_group
+normalize_target = ui_targets.normalize_target
+_khong_dau = ui_targets.khong_dau
 
 ACTIONS = ("open_page", "open_file", "open_task", "scroll", "open_group", "sidebar")
-
-
-def _khong_dau(s: str) -> str:
-    import unicodedata
-    s = str(s or "").strip().lower().replace("đ", "d")
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(ch for ch in s if not unicodedata.combining(ch))
-    return " ".join(s.split())
-
-
-def resolve_page(target: str) -> str:
-    """Trả id trang hợp lệ hoặc chuỗi rỗng."""
-    t = _khong_dau(target)
-    for tien_to in ("trang ", "page ", "mo ", "open "):
-        if t.startswith(tien_to):
-            t = t[len(tien_to):].strip()
-    if t in PAGES:
-        return t
-    if t in ALIASES:
-        return ALIASES[t]
-    # "trang viec kanban" -> thử từng từ
-    for w in t.split():
-        if w in PAGES:
-            return w
-        if w in ALIASES:
-            return ALIASES[w]
-    return ""
-
-
-def resolve_group(target: str) -> str:
-    """Trả id nhóm thanh bên hợp lệ hoặc chuỗi rỗng."""
-    t = _khong_dau(target)
-    for tien_to in ("nhom ", "group ", "muc ", "mo ", "open "):
-        if t.startswith(tien_to):
-            t = t[len(tien_to):].strip()
-    t = t.replace("-", "_")
-    if t.replace(" ", "_") in GROUPS:
-        return t.replace(" ", "_")
-    return GROUP_ALIASES.get(t, "")
 
 
 def check_target(action: str, target: str) -> str:
@@ -125,21 +60,6 @@ def check_target(action: str, target: str) -> str:
         if _khong_dau(t) not in ("open", "close", "mo", "dong", "bung", "thu", "thu gon"):
             return "sidebar chỉ nhận target 'open' (bung thanh bên) hoặc 'close' (thu gọn)."
     return ""
-
-
-def normalize_target(action: str, target: str) -> str:
-    t = str(target or "").strip()
-    if action == "open_page":
-        return resolve_page(t)
-    if action == "open_file":
-        return t.replace("\\", "/").lstrip("./")
-    if action == "scroll":
-        return "top" if _khong_dau(t) in ("top", "len", "dau", "len dau") else "bottom"
-    if action == "open_group":
-        return resolve_group(t)
-    if action == "sidebar":
-        return "close" if _khong_dau(t) in ("close", "dong", "thu", "thu gon") else "open"
-    return t
 
 
 async def _ui(args, ctx) -> str:
@@ -173,7 +93,7 @@ def register(ctx):
             "Điều khiển DASHBOARD Javis đang mở trong trình duyệt của người dùng: mở trang, mở file, "
             "mở việc, cuộn. Dùng khi người dùng bảo (bằng lời hoặc gõ) 'mở trang Việc', 'mở file X', "
             "'cho xem việc vừa giao', 'cuộn xuống'. action=open_page (target: id trang - "
-            + ", ".join(PAGES) + " - hoặc tên tiếng Việt như 'việc', 'tệp', 'cài đặt'); "
+            + ", ".join(PAGES) + " - hoặc ĐÚNG tên tiếng Việt đang hiện trên thanh bên: 'việc', 'tệp tin', 'cài đặt', 'trợ lý' = agents, 'kỹ năng' = skills, 'quy trình' = workflows, 'công cụ' = plugins); "
             "open_file (target: đường dẫn tương đối trong brain); open_task (target: mã việc Kanban); "
             "scroll (target: top | bottom); open_group (BUNG một nhóm đang gập trên thanh bên mà "
             "KHÔNG đổi trang, dùng khi người dùng nói 'mở mục Năng lực', 'bung nhóm Kết nối', 'cho xem "
