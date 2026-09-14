@@ -151,3 +151,5 @@ server/stop-last.log
 
 # Playwright MCP ghi snapshot/console vào cwd khi kiểm tra dashboard
 .playwright-mcp/
+server/.mcp_agy_*.json
+server/settings.json.bak*

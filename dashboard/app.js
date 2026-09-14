@@ -212,8 +212,66 @@ function veTinTuGiong(text) {
   const acts = turn.endpoint(text || "");
   runActions(acts);
   const c = acts.find(a => a.type === "commit");
+  if (c) _tuGiong = true;   // sendMessage kế tiếp là tin từ mic
   return c ? c.text : "";
 }
+let _tuGiong = false;
+
+// ============================================
+// Voice V2 - cài đặt giọng nói (chế độ, nghe bằng Groq) và bậc Live
+// ============================================
+let voiceMode = "standard";   // standard | fast | live (đọc từ /settings)
+async function napCaiDatGiong() {
+  try {
+    const s = await (await fetch("/settings")).json();
+    const v = (s && s.voice) || {};
+    voiceMode = v.mode || "standard";
+    voice.sttUpload = v.stt_provider === "groq";
+  } catch (e) {}
+}
+napCaiDatGiong();
+window.JavisVoiceMode = { refresh: napCaiDatGiong, get: () => voiceMode };
+
+// Bậc Live: mic bấm là mở phiên nghe nói thẳng thay cho Web Speech. Bản ghi chữ hai chiều
+// vào khung chat như tin thường; orb theo cùng đạo diễn (nói / nghe / gọi tool).
+let _liveUserBubble = null, _liveJavisText = "", _liveJavisBubble = null;
+async function batLive() {
+  if (!window.JavisVoiceLive) { alert(window.t("app.live_missing")); return false; }
+  const ok = await window.JavisVoiceLive.start({
+    sessionId: () => savedSessionId,
+    brain: () => currentBrainPath(),
+    onStarted: () => { voiceBtn.classList.add("recording"); runActions(turn.micOn()); },
+    onStopped: () => { voiceBtn.classList.remove("recording"); runActions(turn.micOff()); },
+    onReady: (d) => { if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); } },
+    onSpeakStart: () => runActions(turn.ttsStart()),
+    onSpeakEnd: () => runActions(turn.ttsEnd()),
+    onInterrupted: () => { _liveJavisText = ""; _liveJavisBubble = null; },
+    onTool: (name, status) => { if (status === "running") runActions(turn.toolCall(name)); else runActions(turn.turnDone()); },
+    onTranscript: (role, text, final) => {
+      if (role === "user") {
+        if (final && text.trim()) { appendUserMessage(text.trim(), []); recordTurn("user", text.trim(), []); voiceInterim.textContent = ""; }
+        else voiceInterim.textContent = text;
+        return;
+      }
+      _liveJavisText += text;
+      if (!_liveJavisBubble) _liveJavisBubble = createStreamingBubble();
+      _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText);
+      scrollBottom();
+    },
+    onTurnDone: () => {
+      if (_liveJavisText.trim()) recordTurn("javis", _liveJavisText.trim(), null, null);
+      _liveJavisText = ""; _liveJavisBubble = null;
+      runActions(turn.turnDone());
+    },
+    onError: (msg) => {
+      appendJavisError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
+      runActions(turn.turnDone());
+    },
+    onClosed: () => { handsFree = false; voiceBtn.classList.remove("handsfree"); },
+  });
+  return ok;
+}
+function tatLive() { try { if (window.JavisVoiceLive) window.JavisVoiceLive.stop(); } catch (e) {} }
 
 // Dải việc nền (background-strip.js) báo số việc đang chạy để orb ghi hậu tố thật.
 window.JavisOrb = { setBackground: (n) => runActions(turn.setBackground(n)) };
@@ -525,7 +583,10 @@ function sendMessage(text) {
   syncActiveUI();
   // Server đóng dấu model đang chạy cho phiên ngay từ tin đầu -> bar hiện "ghim" tại chỗ.
   try { if (window.JavisModelBar) window.JavisModelBar.noteStamped(sid); } catch (e) {}
-  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid }));
+  // Voice V2: tin đến từ MIC mang cờ `voice` để server đưa qua làn nhanh (bộ não giọng nói)
+  // khi cài đặt bật. Gõ chữ thì đi bộ não chính như cũ.
+  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid, voice: _tuGiong }));
+  _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
 // không tính (đó là câu đang gõ, không phải thứ đang nhìn).
@@ -2150,6 +2211,12 @@ voiceBtn.addEventListener("click", () => {
   // Javis phải đáp bằng giọng; tắt nghe là quay về gõ chữ, Javis im. Điện thoại từng không
   // có chỗ nào bật loa cả, nên gộp vào mic là một nút lo cả hai chiều.
   try { if (window.JavisTts) window.JavisTts.set(handsFree); } catch (e) {}
+  // Voice V2 bậc Live: nút mic mở phiên nghe nói thẳng thay cho Web Speech + TTS.
+  if (voiceMode === "live") {
+    if (handsFree) { batLive().then(ok => { if (!ok) { handsFree = false; voiceBtn.classList.remove("handsfree"); } }); }
+    else tatLive();
+    return;
+  }
   if (handsFree) {
     voice.startListening();
   } else {
@@ -2184,7 +2251,7 @@ voiceBtn.addEventListener("click", () => {
 setInterval(() => {
   // `micHong()` là chốt thứ hai (chốt thứ nhất là tatRanhTay() trong onError). Giữ cả hai vì
   // vòng này chạy hai lần mỗi giây: sót một nhịp là một hộp thoại nữa đập vào mặt người dùng.
-  if (handsFree && !voice.isListening && !isProcessing && !voice.isSpeaking()
+  if (handsFree && voiceMode !== "live" && !voice.isListening && !isProcessing && !voice.isSpeaking()
       && !(voice.micHong && voice.micHong())) {
     voice.startListening(true);   // true = máy tự gọi, không phải người bấm
   }
@@ -2207,6 +2274,7 @@ document.addEventListener("keydown", (e) => {
     // trả lời hay ngắt Javis đang nói (đã bỏ theo yêu cầu - đã có nút bật/tắt tiếng và nút Dừng).
     handsFree = false; voiceBtn.classList.remove("handsfree");
     voice.stopListening();
+    tatLive();
     runActions(turn.micOff());
     try { if (window.JavisTts) window.JavisTts.set(false); } catch (e2) {}   // Esc = thoát nói chuyện bằng giọng
     if (typeof closeNodePopup === "function") closeNodePopup();

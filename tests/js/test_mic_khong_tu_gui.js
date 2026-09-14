@@ -72,12 +72,16 @@ check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all c�
 // ---- 4. Server không tự nhập liệu: việc nền luôn là tin của Javis ----
 check("push_to_chat ghi vai assistant, không bao giờ là user",
   /def push_to_chat[\s\S]{0,1400}append_message\(sid, "assistant", clean\)/.test(server));
-// Đúng HAI chỗ ghi vai "user", cả hai đều là lượt hỏi có thật của người dùng: WebSocket của
-// dashboard, và tin nhắn đến từ Telegram/Zalo (phiên riêng theo chat_id, không dùng chung id
-// với hội thoại web). Con số này nhích lên là có đường mới đẻ ra tin của người dùng - phải
-// đọc lại xem nó đến từ đâu trước khi sửa test.
+// Đúng BỐN chỗ ghi vai "user", cả bốn đều là lời của chính người dùng: WebSocket của dashboard,
+// tin nhắn đến từ Telegram/Zalo (phiên riêng theo chat_id), và HAI chỗ trong phiên nghe nói
+// thẳng `/ws/voice-live` (Voice V2, 0.57.0): chữ người dùng gõ vào phiên Live, và bản ghi CUỐI
+// của câu họ vừa NÓI do nhà cung cấp trả về - đó là giọng thật của họ, không phải máy tự nhập.
+// Con số này nhích lên là có đường mới đẻ ra tin của người dùng - phải đọc lại xem nó đến từ
+// đâu trước khi sửa test.
 const ghiUser = (server.match(/append_message\([^)]*"user"/g) || []).length;
-check("chỉ 2 chỗ trong server ghi vai user, đều là lượt hỏi thật (web + bot)", ghiUser === 2, ghiUser);
+check("chỉ 4 chỗ trong server ghi vai user, đều là lời thật của người dùng (web + bot + 2 của Live)", ghiUser === 4, ghiUser);
+const liveBody = (server.match(/async def voice_live_ws\([\s\S]*?\n@app\./) || [""])[0];
+check("hai chỗ mới nằm TRONG voice_live_ws", (liveBody.match(/append_message\([^)]*"user"/g) || []).length === 2);
 
 // ---- 5. cache-bust ----
 const v = (f) => Number((html.match(new RegExp(f.replace(/\./g, "\\.") + "\\?v=(\\d+)")) || [])[1] || 0);

@@ -5709,6 +5709,96 @@
         + ` <button class="s-btn" data-settings-go="account">${esc(window.t("cs.tfa_row_enable"))}</button>`;
   }
 
+  // ---- Voice V2: thẻ "Chế độ và bộ não giọng nói" (docs/dev/2026-09-voice-v2-spec.md) ----
+  // Đọc /voice/options để biết cái gì đang sẵn (agy đã cài chưa, key nào đã dán), rồi vẽ ba
+  // khối: chế độ, bộ não giọng cho làn nhanh, nghe bằng gì, và nhà cung cấp cho bậc Live.
+  async function renderVoiceV2Card() {
+    const host = document.getElementById("vpV2Host");
+    if (!host) return;
+    let o = null;
+    try { o = await (await fetch("/voice/options", { cache: "no-store" })).json(); } catch (e) { o = null; }
+    if (!o || !o.ok) { host.innerHTML = `<div class="gcard-meta">${esc(t("settings.v2_load_fail"))}</div>`; return; }
+    const v = o.voice || {};
+    const optA = (id, label, cur, dis) => `<option value="${esc(id)}" ${id === (cur || "") ? "selected" : ""} ${dis ? "disabled" : ""}>${esc(label)}</option>`;
+    const brainOpts = o.brain_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), v.brain_provider, !p.available && p.id !== "")).join("");
+    const sttOpts = o.stt_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), v.stt_provider || "browser", !p.available)).join("");
+    const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
+    host.innerHTML = `
+      <div class="qs-block" style="margin-top:14px">
+        <div class="popover-label">${esc(t("settings.v2_title"))}</div>
+        <label class="js-lbl">${esc(t("settings.v2_mode"))}</label>
+        <select class="js-input" id="v2Mode">
+          ${optA("standard", t("settings.v2_mode_standard"), v.mode || "standard")}
+          ${optA("fast", t("settings.v2_mode_fast"), v.mode)}
+          ${optA("live", t("settings.v2_mode_live"), v.mode)}
+        </select>
+        <div id="v2FastBox">
+          <label class="js-lbl">${esc(t("settings.v2_brain"))}</label>
+          <select class="js-input" id="v2Brain">${brainOpts}</select>
+          <label class="js-lbl">${esc(t("settings.v2_brain_model"))}</label>
+          <select class="js-input" id="v2BrainModelSel" style="display:none"></select>
+          <input class="js-input" id="v2BrainModel" value="${esc(v.brain_model || "")}" placeholder="${esc(t("settings.v2_model_ph"))}">
+          <div class="gcard-meta" id="v2BrainHint"></div>
+        </div>
+        <label class="js-lbl">${esc(t("settings.v2_stt"))}</label>
+        <select class="js-input" id="v2Stt">${sttOpts}</select>
+        <div id="v2LiveBox">
+          <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
+          <select class="js-input" id="v2Live">${liveOpts}</select>
+          <label class="js-lbl">${esc(t("settings.v2_live_model"))}</label>
+          <input class="js-input" id="v2LiveModel" value="${esc(v.live_model || "")}" placeholder="">
+          <label class="js-lbl">${esc(t("settings.v2_live_voice"))}</label>
+          <select class="js-input" id="v2LiveVoice"></select>
+          <div class="gcard-meta" id="v2LiveHint">${esc(t("settings.v2_live_note"))}</div>
+        </div>
+        <div class="js-actions"><button class="gcard-btn" id="v2Save">${esc(t("settings.v2_save"))}</button></div>
+        <div class="gcard-meta" id="v2Status">${esc(t("settings.v2_note"))}</div>
+      </div>`;
+    const $ = (id) => document.getElementById(id);
+    const byId = (arr, id) => (arr || []).find(p => p.id === id) || null;
+    const syncBrain = () => {
+      const p = byId(o.brain_providers, $("v2Brain").value);
+      const sel = $("v2BrainModelSel"), inp = $("v2BrainModel");
+      if (p && p.models && p.models.length) {
+        sel.innerHTML = p.models.map(m => optA(m.id, m.label || m.id, v.brain_model || p.models[0].id)).join("");
+        sel.style.display = ""; inp.style.display = "none";
+        if (!p.models.some(m => m.id === v.brain_model)) { const low = p.models.find(m => /flash.*low/i.test(m.id)); if (low) sel.value = low.id; }
+      } else {
+        sel.style.display = "none"; inp.style.display = "";
+        if (p && !inp.value && p.default_model) inp.placeholder = p.default_model;
+      }
+      $("v2BrainHint").textContent = (p && p.hint) || (p && p.id === "antigravity" ? t("settings.v2_agy_hint") : "");
+    };
+    const syncLive = () => {
+      const p = byId(o.live_providers, $("v2Live").value);
+      const vs = $("v2LiveVoice");
+      vs.innerHTML = (p && p.voices || []).map(x => optA(x, x, v.live_voice || (p.voices && p.voices[0]))).join("");
+      $("v2LiveModel").placeholder = (p && p.default_model) || "";
+    };
+    const syncMode = () => {
+      const m = $("v2Mode").value;
+      $("v2FastBox").style.display = m === "fast" ? "" : "none";
+      $("v2LiveBox").style.display = m === "live" ? "" : "none";
+    };
+    $("v2Brain").onchange = syncBrain; $("v2Live").onchange = syncLive; $("v2Mode").onchange = syncMode;
+    syncBrain(); syncLive(); syncMode();
+    $("v2Save").onclick = async () => {
+      const st = $("v2Status");
+      st.textContent = t("settings.saving");
+      const p = byId(o.brain_providers, $("v2Brain").value);
+      const brainModel = (p && p.models && p.models.length) ? $("v2BrainModelSel").value : $("v2BrainModel").value.trim();
+      const data = {
+        mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
+        stt_provider: $("v2Stt").value, live_provider: $("v2Live").value,
+        live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
+      };
+      if (data.mode === "fast" && !data.brain_provider) { st.textContent = t("settings.v2_need_brain"); return; }
+      const r = await saveSetting("voice", data);
+      st.textContent = r && r.ok ? t("settings.v2_saved") : t("settings.save_failed");
+      try { if (window.JavisVoiceMode) window.JavisVoiceMode.refresh(); } catch (e) {}
+    };
+  }
+
   async function renderSettings(el) {
     const gen = _renderGen;               // chốt token: nếu user đổi trang trong lúc await → bỏ render này
     parkQuickSet();                       // giữ #quickSet an toàn TRƯỚC khi ghi đè cviewBody
@@ -5877,7 +5967,7 @@
       };
     }
     const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
-    if (provHost) provHost.innerHTML = provHtml;
+    if (provHost) { provHost.innerHTML = provHtml + '<div id="vpV2Host"></div>'; renderVoiceV2Card(); }
 
     const provSel = document.getElementById("vpProvider");
     if (provSel) {   // guard: thiếu điểm neo (vd cache index.html cũ) thì avatar/tên miền vẫn chạy, không sập trang
