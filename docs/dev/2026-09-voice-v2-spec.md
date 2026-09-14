@@ -247,3 +247,31 @@ Cách làm, tất cả ở trình duyệt, không đổi khung WS:
 - Kho phiên vẫn lưu ĐỦ câu trả lời (server lưu trước khi loa đọc), nên F5 thấy cả câu; khối
   `ngắt_lời=` ở tin kế tiếp vẫn cho model biết người dùng nghe tới đâu. Cố ý không cắt bản lưu:
   người dùng có thể muốn đọc phần Javis chưa kịp nói.
+
+## 13. Ba bộ não giọng trên gói: ChatGPT, Claude Code, Grok Build (0.57.9)
+
+Chủ dự án hỏi: về lý thuyết lớp giọng dùng model nào cũng được đúng không, và model giọng cần
+trả lời nhanh nhất có thể, nên thêm ChatGPT, Claude và Grok để chọn. Đúng: bộ não giọng chỉ cần
+trả lời ngắn, việc nặng đã có `JAVIS_ASK_MAIN` chuyển sang bộ não chính, nên bộ não nào cũng cắm
+được. Ba lớp mới trong `voice_brain.py`, cùng hợp đồng `stream(text, history)`:
+
+- **CodexVoiceBrain** (`codex`): ChatGPT trên gói OAuth đã kết nối ở trang Models, qua chính
+  `engine.openai_responses_stream` của bộ não chính nhưng với system prompt giọng ngắn. Một HTTP
+  stream mỗi lượt, không dựng tiến trình, nên là đường gói nhanh nhất. Model mặc định = đầu
+  catalog `openai-oauth` (như `main._codex_safe_model`).
+- **ClaudeVoiceBrain** (`claude`): MỘT `ClaudeSDKClient` sống suốt phiên nói (như tiến trình agy):
+  `tools=[]`, `setting_sources=[]` (không CLAUDE.md, không MCP máy), `max_turns=1`, system prompt
+  trần, `include_partial_messages` để stream từng mảnh. Mạch giữ trong client nên có ký ức; lượt
+  đầu mồi lịch sử từ kho phiên, không mồi hướng dẫn (đã đi bằng tuỳ chọn SDK). Mặc định `haiku`.
+  `claude_pieces(msg)` nhận diện message bằng TÊN LỚP để test không cần SDK. Client hỏng thì
+  đóng, lượt sau mở lại. Qua `claude_token_gate.xep_hang` trước khi connect như engine chính.
+- **GrokVoiceBrain** (`grok`): một lượt `grok` headless mỗi câu, giữ cùng `GrokCLI` để `--resume`
+  mạch cũ (có ký ức), `mode=suggest`, `max_turns=1`. CLI gom chữ rồi trả `final` một cục nên
+  không stream từng chữ; câu trả lời giọng ngắn nên chấp nhận.
+
+`GET /voice/options` báo sẵn hay chưa từ chính trạng thái đăng nhập của trang Models, không hỏi
+mạng (thẻ cài đặt vẽ mỗi lần mở): codex = có access/refresh token OAuth; claude = SDK có + binary
+`claude`; grok = binary `grok`. Kèm danh sách model của từng gói và một dòng gợi ý.
+
+Cả ba đóng sau 5 phút không nói (reaper cũ). Lưu ý gói: đây là dùng cá nhân bình thường, không
+phải chạy nền 24/7, nên nằm trong phạm vi Anthropic và xAI cho phép.
