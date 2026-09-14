@@ -2870,3 +2870,6 @@ body.ne-full-on .cview { z-index: 250; }
 /* Voice V3: bong bóng NHÁP của chữ đang nghe từ mic, đứng cuối cột chat thay vì đè lên khối não */
 .msg-nhap-giong .bubble { opacity: .62; border-style: dashed; }
 .msg-nhap-giong .bubble .utext::after { content: " …"; opacity: .6; }
+
+/* Voice V3: dòng "đang làm nền" dưới câu xác nhận của bộ não giọng */
+.msg-javis .voice-nen { font-size: 12.5px; opacity: .7; margin: 4px 0 0 4px; font-style: italic; }

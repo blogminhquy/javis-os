@@ -569,6 +569,14 @@ function handleMessage(data) {
         if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
+      // V3: bộ não giọng vừa giao một việc chạy NỀN (tách nói khỏi làm). Ghi rõ dưới câu xác
+      // nhận để người dùng biết việc đã nhận; kết quả về sau bằng khung push (tự đọc khi loa rảnh).
+      if (data.background) {
+        const nen = document.createElement("div");
+        nen.className = "voice-nen";
+        nen.textContent = window.t("app.voice_bg_task", { task: String(data.background).slice(0, 160) });
+        msgEl.appendChild(nen);
+      }
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
       if (voice.ttsEnabled && t) {
         docCum(cum.flush(), t);                              // đẩy nốt phần đuôi chưa khép câu

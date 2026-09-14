@@ -10449,14 +10449,17 @@ async def voice_options():
     }
 
 
-async def _voice_ask_javis(request: str, conv_sid: str, brain: str) -> str:
-    """Tool `ask_javis` của phiên Live: chạy MỘT lượt bộ não chính rồi trả chữ.
+async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "") -> str:
+    """Tool `ask_javis` của phiên Live, và việc nền của làn nhanh (V3): chạy MỘT lượt bộ não
+    chính rồi trả chữ.
 
     Đi qua `_tg_answer` (vỏ chung của Telegram/CLI) với khoá phiên `voice:<sid>` để lượt có ký
-    ức hội thoại, ghi kho phiên và vào vòng tự học như mọi kênh khác. Lỗi thì trả câu lỗi để
-    model nói lại cho người dùng, không ném ra ngoài (ném là rớt cả phiên Live).
+    ức hội thoại, ghi kho phiên và vào vòng tự học như mọi kênh khác. `key` riêng (làn nhanh
+    truyền `voice:<sid>:<id>`) để nhiều việc chạy song song không xếp hàng chung một mạch. Lỗi
+    thì trả câu lỗi để model nói lại cho người dùng, không ném ra ngoài (ném là rớt cả phiên Live).
     """
-    sess = _tg_session(f"voice:{conv_sid}")
+    key = key or f"voice:{conv_sid}"
+    sess = _tg_session(key)
     try:
         root = _brain_root(brain)
         if os.path.isdir(root):
@@ -10464,7 +10467,7 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str) -> str:
     except Exception:
         pass
     try:
-        out = await _tg_answer(request, meta={"chat_id": f"voice:{conv_sid}"}, channel="cli")
+        out = await _tg_answer(request, meta={"chat_id": key}, channel="cli")
     except Exception as e:
         return f"Bộ não chính lỗi: {type(e).__name__}: {e}"
     if isinstance(out, dict):
@@ -11825,7 +11828,10 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 brain_obj = await voice_brain.get_brain(conv_sid, conf)
                 await send_raw({"type": "status", "content": "Javis đang trả lời nhanh...", "session_id": conv_sid})
-                async for delta in brain_obj.stream(user_message, hist):
+                # Đang có việc nền thì dặn bộ não giọng (V3): kết quả tự hiện, đừng bịa, đừng giao lại.
+                _ghi_chu = voice_brain.pending_note(conv_sid)
+                _hoi = user_message + ("\n\n" + _ghi_chu if _ghi_chu else "")
+                async for delta in brain_obj.stream(_hoi, hist):
                     text += delta
                     await _flush()
             except asyncio.CancelledError:
@@ -11888,9 +11894,42 @@ async def websocket_endpoint(ws: WebSocket):
                 await send_raw({"type": "turn_done", "session_id": conv_sid})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
                 return
-            # Cần bộ não chính: câu chờ đã stream (nếu có); lượt chạy tiếp như thường.
+            # Cần bộ não chính: V3 TÁCH NÓI KHỎI LÀM (spec mục 14). Trước đây `await run_turn`
+            # ngay tại đây nên phiên bị khoá tới khi bộ não chính xong (hàng chục giây), người
+            # dùng nói gì cũng bị "phiên đang trả lời". Nay lượt giọng KẾT THÚC NGAY sau câu xác
+            # nhận, phiên rảnh để nói tiếp; yêu cầu chạy nền như một việc riêng (nhiều việc song
+            # song được), xong thì push_to_chat đẩy kết quả vào khung chat và loa đọc khi rảnh.
+            if not (filler or "").strip():
+                filler = "Ừ, để mình xem."
+                await send_raw({"type": "stream", "content": filler, "session_id": conv_sid, "lane": "voice"})
             await _flush(final=True)
-            await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
+            clean = filler.strip()
+            try:
+                await _persist_turn(store, conv_sid, brain, user_message, clean)
+            except Exception:
+                pass
+            await send_raw({"type": "response", "content": clean, "session_id": conv_sid,
+                            "lane": "voice", "engine": f"voice:{brain_obj.provider}",
+                            "model": brain_obj.model, "background": ask})
+            await send_raw({"type": "turn_done", "session_id": conv_sid})
+            _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+            voice_brain.note_task_start(conv_sid, ask)
+            asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))
+
+        async def _voice_bg_task(request, conv_sid, brain):
+            """Một việc nền do bộ não giọng giao: chạy bộ não chính rồi đẩy kết quả vào khung chat.
+
+            Khoá phiên RIÊNG cho mỗi việc (`voice:<sid>:<id>`) để hai việc giao liên tiếp chạy
+            song song thật, không xếp hàng sau nhau; yêu cầu đã tự đứng được nên không cần mạch
+            chung. Kết quả ghi vào kho phiên web (push_to_chat) nên bộ não giọng thấy ở lượt sau.
+            """
+            try:
+                out = await _voice_ask_javis(request, conv_sid, brain, key=f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}")
+            except Exception as e:
+                out = f"Việc nền lỗi: {type(e).__name__}: {e}"
+            finally:
+                voice_brain.note_task_done(conv_sid, request)
+            await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)")
 
         async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice):
             """Chạy lại một lượt đã vấp hạn mức gói thuê bao (limit_resume gọi tới, khi tới mốc

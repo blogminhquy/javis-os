@@ -308,8 +308,31 @@ async def main():
           and vb._make({"provider": "claude", "model": ""}).model == "haiku"
           and isinstance(vb._make({"provider": "grok", "model": "grok-4.6"}), vb.GrokVoiceBrain))
 
+    # ---- 4c. Sổ việc nền của phiên nói (V3, spec mục 14) ----
+    check("pending: chưa có việc -> ghi chú rỗng", vb.pending_note("p1") == "")
+    n = vb.note_task_start("p1", "xem doanh thu hôm nay")
+    vb.note_task_start("p1", "gửi mail cho Lan")
+    ghi = vb.pending_note("p1", now=vb.pending_tasks("p1")[0]["at"] + 12)
+    check("pending: hai việc, ghi chú kể cả hai kèm số giây, dặn đừng bịa", n == 1 and "doanh thu" in ghi and "gửi mail" in ghi
+          and "12 giây" in ghi and "đừng bịa" in ghi)
+    vb.note_task_done("p1", "xem doanh thu hôm nay")
+    check("pending: xong một việc thì còn một", len(vb.pending_tasks("p1")) == 1 and "gửi mail" in vb.pending_note("p1"))
+    vb.note_task_done("p1", "gửi mail cho Lan")
+    check("pending: xong hết thì sổ rỗng", vb.pending_note("p1") == "" and vb.pending_tasks("p1") == [])
+    vb.note_task_done("p1", "không có")   # không nổ
+    check("prompt: bắt buộc câu xác nhận + việc chạy nền + yêu cầu tự đứng được",
+          "MỘT câu xác nhận" in vb.SYSTEM_PROMPT and "chạy NỀN" in vb.SYSTEM_PROMPT and "tự đứng được" in vb.SYSTEM_PROMPT)
+
     # ---- 5. dây nối main.py ----
     src5 = (SERVER / "main.py").read_text(encoding="utf-8")
+    check("main: gặp JAVIS_ASK_MAIN thì kết thúc lượt giọng ngay và giao việc nền, không await run_turn",
+          "asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))" in src5
+          and '"background": ask' in src5
+          and "await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)\n\n        async def _voice_bg_task" not in src5)
+    check("main: việc nền có khoá phiên riêng để chạy song song, xong thì push_to_chat",
+          'key=f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"' in src5 and "await push_to_chat(conv_sid, out" in src5
+          and 'meta={"chat_id": key}' in src5)
+    check("main: câu gửi bộ não giọng ghép pending_note", "voice_brain.pending_note(conv_sid)" in src5)
     check("main: /voice/options báo sẵn/chưa sẵn cho codex, claude, grok",
           'elif pid == "codex":' in src5 and 'elif pid == "claude":' in src5 and 'elif pid == "grok":' in src5)
     src = (SERVER / "main.py").read_text(encoding="utf-8")

@@ -69,9 +69,12 @@ SYSTEM_PROMPT = (
     "Bạn KHÔNG có tool và KHÔNG biết dữ liệu sống. Khi câu hỏi cần bất kỳ thứ nào sau đây: số liệu "
     "kinh doanh, lịch, email, file hay ghi chú trong brain, ký ức dài hạn, giao việc, nhắc hẹn, mở "
     "trang hay mở app, gửi tin, hay bất cứ hành động nào ra ngoài, thì KHÔNG đoán và KHÔNG bịa. Thay "
-    "vào đó trả lời đúng khuôn này: tuỳ chọn một câu chờ ngắn ở dòng đầu (ví dụ 'Để mình xem.'), rồi "
-    "một dòng riêng bắt đầu bằng " + MARKER + " theo sau là yêu cầu đầy đủ để bộ não chính của Javis "
-    "thực hiện. Không viết gì sau dòng đó.\n"
+    "vào đó trả lời đúng khuôn này: MỘT câu xác nhận ngắn, tự nhiên ở dòng đầu (kiểu 'Ừ, để mình "
+    "xem.', 'Dạ, để em kiểm tra ngay.'), rồi một dòng riêng bắt đầu bằng " + MARKER + " theo sau là "
+    "yêu cầu ĐẦY ĐỦ, tự đứng được (bộ não chính không nghe cuộc nói chuyện này) để bộ não chính của "
+    "Javis thực hiện. Không viết gì sau dòng đó. Việc đó chạy NỀN như một việc riêng: kết quả tự "
+    "hiện trong khung chat khi xong, còn bạn vẫn trò chuyện tiếp bình thường; có thể giao nhiều việc "
+    "nền liên tiếp. Người dùng hỏi tiến độ thì nói việc đang chạy, KHÔNG bịa kết quả.\n"
     "NGOẠI LỆ, làm NGAY không nhờ bộ não chính: khi người dùng chỉ bảo ĐIỀU KHIỂN MÀN HÌNH, hãy "
     "trả lời một câu ngắn xác nhận rồi xuống dòng ghi " + UI_MARKER + " kèm lệnh:\n"
     "  " + UI_MARKER + " open_page <id trang>   (mở một tab. Viết ID tiếng Anh; trong ngoặc là nhãn "
@@ -614,6 +617,50 @@ class GrokVoiceBrain(VoiceBrain):
 
     async def close(self) -> None:
         self.cli = None
+
+
+# ============================================================
+# Việc nền đang chạy của mỗi phiên nói (Voice V3, spec mục 14: tách NÓI khỏi LÀM)
+# ============================================================
+# Khi bộ não giọng phát JAVIS_ASK_MAIN, main.py giao yêu cầu đó cho bộ não chính chạy NỀN rồi
+# kết thúc lượt giọng ngay, để người dùng nói tiếp được. Sổ này cho bộ não giọng biết còn việc
+# gì đang chạy, để nó trả lời "đang chạy" thay vì bịa kết quả hay giao lại việc cũ.
+_PENDING: Dict[str, List[dict]] = {}
+PENDING_MAX_NOTE = 6
+
+
+def note_task_start(session_id: str, request: str) -> int:
+    lst = _PENDING.setdefault(str(session_id or "default"), [])
+    lst.append({"request": str(request or "")[:300], "at": time.time()})
+    return len(lst)
+
+
+def note_task_done(session_id: str, request: str) -> None:
+    lst = _PENDING.get(str(session_id or "default")) or []
+    for i, it in enumerate(lst):
+        if it["request"] == str(request or "")[:300]:
+            lst.pop(i)
+            break
+    if not lst:
+        _PENDING.pop(str(session_id or "default"), None)
+
+
+def pending_tasks(session_id: str) -> List[dict]:
+    return list(_PENDING.get(str(session_id or "default")) or [])
+
+
+def pending_note(session_id: str, now: Optional[float] = None) -> str:
+    """Dòng ghi chú ghép vào cuối câu người dùng gửi bộ não giọng; rỗng khi không có việc nền."""
+    lst = pending_tasks(session_id)
+    if not lst:
+        return ""
+    now = now or time.time()
+    dong = []
+    for it in lst[-PENDING_MAX_NOTE:]:
+        giay = int(max(0, now - it["at"]))
+        dong.append(f"- {it['request']} (giao {giay} giây trước)")
+    return ("[GHI CHÚ HỆ THỐNG: đang có việc chạy nền, kết quả sẽ TỰ hiện trong khung chat khi xong; "
+            "đừng bịa kết quả, đừng giao lại việc trùng:\n" + "\n".join(dong) + "]")
 
 
 # ============================================================
