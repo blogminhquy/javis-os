@@ -114,3 +114,25 @@ Sửa:
   của `main.py` chưa xử lý. Thêm ô mới mà quên server là test đỏ ngay.
 - BẪY khi viết test: rào chống DNS-rebinding trả 403 cho host `testserver` mặc định của
   TestClient, phải đặt `base_url="http://127.0.0.1:7777"`, không thì 403 che mất lỗi thật.
+
+## 9. Whisper bịa câu đăng ký kênh YouTube (0.57.4)
+
+Triệu chứng: đang nói chuyện bằng giọng thì trong khung chat hiện một tin của NGƯỜI DÙNG với nội
+dung "Hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn ...", và Javis trả
+lời câu đó một cách nghiêm túc.
+
+Nguyên nhân gốc: không phải lỗi Javis, mà là ảo giác kinh điển của Whisper. Whisper học chủ yếu
+từ phụ đề YouTube nên khi audio là im lặng, tiếng ồn nền hay một đoạn ngắn không rõ, nó sinh ra
+câu outro dày đặc nhất trong dữ liệu học. Đường đi: `voice.js` ghi song song với Web Speech, hết
+câu thì đẩy file lên `POST /stt`, và chữ Whisper THAY chữ Chrome (`cb(better || text)`), nên câu
+bịa ghi đè lên câu nghe đúng. Không có tầng nào lọc, và vì không phải lỗi mạng nên không có gì
+báo.
+
+Sửa: `stt.loc_ao_giac(text)` trong `server/stt.py`, gọi ngay trong `groq_nghe` nên mọi kênh
+(dashboard, Telegram, Zalo) dùng chung. Cắt THEO TỪNG CÂU vì Whisper hay dán câu bịa vào trước
+lời thật; lọc xong rỗng thì trả `khong_nghe_ro` để `voice.js` giữ chữ Web Speech.
+
+Ranh giới cố ý: mẫu chỉ bắt dấu hiệu riêng của câu outro (tên kênh, "subscribe cho kênh", "không
+bỏ lỡ ... video"). Người dùng bàn chuyện marketing hằng ngày, nên thà sót một câu bịa còn hơn
+nuốt một câu nói thật. `tests/python/test_stt_ao_giac.py` canh cả hai phía: cắt đúng câu bịa VÀ
+giữ nguyên bảy câu nói thật dễ bị bắt nhầm.
