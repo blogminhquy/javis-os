@@ -125,6 +125,7 @@ from sessions import get_store   # kho phiên hội thoại (sqlite + fts5): lis
 import compaction   # nén hội thoại dài cho engine API (tóm tắt phần cũ thay vì cắt bỏ)
 from chat_runtime import ChatRuntime
 import ui_bridge   # tool javis_ui bảo dashboard mở trang/file/việc rồi đợi trình duyệt đáp
+import ui_targets   # đổi lời nói ("mở trang công cụ") thành id trang dashboard hiểu
 import voice_brain   # Voice V2: bộ não giọng nói riêng (Antigravity sống lâu / Groq / Gemini...)
 import voice_live    # Voice V2: nghe nói thẳng qua Gemini Live / OpenAI Realtime
 
@@ -11809,10 +11810,18 @@ async def websocket_endpoint(ws: WebSocket):
             noi, ui = voice_brain.parse_ui(text)
             if ui is not None:
                 act, tgt = ui
-                try:
-                    res = await ui_bridge.request(act, tgt, session_id=conv_sid)
-                except Exception as e:
-                    res = {"ok": False, "detail": f"{type(e).__name__}: {e}"}
+                # Bộ não giọng là model NHỎ: nó hay viết nhãn người dùng vừa nói ("công cụ",
+                # "kỹ năng") thay vì id trang. Dashboard chỉ nhận id chuẩn, nên tra bí danh ở
+                # đây - đúng bảng mà tool javis_ui dùng. Tra không ra thì nói thật, đừng bắn
+                # chữ lạ sang trình duyệt rồi nhận câu lỗi khó hiểu.
+                dung = ui_targets.normalize_target(act, tgt)
+                if act in ("open_page", "open_group") and not dung:
+                    res = {"ok": False, "detail": f"không có {'trang' if act == 'open_page' else 'nhóm'} '{tgt}'"}
+                else:
+                    try:
+                        res = await ui_bridge.request(act, dung or tgt, session_id=conv_sid)
+                    except Exception as e:
+                        res = {"ok": False, "detail": f"{type(e).__name__}: {e}"}
                 text = noi or ("Xong." if res.get("ok") else "")
                 if not res.get("ok"):
                     text = (noi + " " if noi else "") + f"(chưa làm được: {res.get('detail') or 'dashboard không trả lời'})"

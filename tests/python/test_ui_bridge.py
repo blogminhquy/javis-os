@@ -94,6 +94,13 @@ async def main():
     check("resolve_page: 'trang Cài đặt' -> settings", m.resolve_page("trang Cài đặt") == "settings")
     check("resolve_page: id chuẩn giữ nguyên", m.resolve_page("models") == "models")
     check("resolve_page: lạ -> rỗng", m.resolve_page("trang lạ hoắc") == "")
+    # Thanh bên đã Việt hoá (0.57.6): nói đúng chữ đang hiện trên màn hình phải mở được trang.
+    check("resolve_page: 'công cụ' -> plugins", m.resolve_page("công cụ") == "plugins")
+    check("resolve_page: 'mở trang kỹ năng' -> skills", m.resolve_page("mở trang kỹ năng") == "skills")
+    check("resolve_page: 'trợ lý' -> agents", m.resolve_page("trợ lý") == "agents")
+    check("resolve_page: 'cho xem trang quy trình' -> workflows",
+          m.resolve_page("cho xem trang quy trình") == "workflows")
+    check("resolve_group: 'mở mục Năng lực' -> nang_luc", m.resolve_group("mở mục Năng lực") == "nang_luc")
     check("open_file chặn ..", bool(m.check_target("open_file", "../x.md")))
     check("open_file chặn tuyệt đối", bool(m.check_target("open_file", "C:/x.md")) and bool(m.check_target("open_file", "/etc/passwd")))
     check("open_file nhận tương đối", m.check_target("open_file", "Wiki/a.md") == "")
@@ -121,6 +128,10 @@ async def main():
     main_src = (SERVER / "main.py").read_text(encoding="utf-8")
     check("main gắn runtime vào ui_bridge", "ui_bridge.attach(_CHAT_RUNTIME)" in main_src)
     check("/ws xử lý action ui_result", 'if action == "ui_result":' in main_src and "ui_bridge.resolve(" in main_src)
+    # Đường TẮT giọng nói (dòng JAVIS_UI:) phải tra bí danh trước khi bắn sang dashboard. Thiếu
+    # bước này thì model giọng viết "công cụ" là trình duyệt trả "trang không tồn tại" (lỗi 0.57.5).
+    check("đường tắt giọng nói chuẩn hoá target qua ui_targets",
+          "ui_targets.normalize_target(act, tgt)" in main_src)
 
 
 asyncio.run(main())

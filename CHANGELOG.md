@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.7] - 2026-09-14
+### Cải thiện
+- **Thanh bên nói tiếng Việt nốt.** Nhóm Năng lực giờ là **Trợ lý**, **Kỹ năng**, **Quy trình**, **Công cụ** (Chatbot giữ nguyên), đúng bộ chữ mà Javis Store vẫn dùng. Tiêu đề trang vẫn kèm tên tiếng Anh trong ngoặc nên ai quen chữ cũ vẫn nhận ra ngay.
+- **Ra lệnh bằng giọng theo đúng chữ nhìn thấy.** Nói "mở trang công cụ", "cho xem trang kỹ năng", "mở trang trợ lý" là Javis mở đúng tab, không cần đọc tên tiếng Anh nữa.
+- **Sửa lỗi nói tên trang tiếng Việt thì không mở được.** Làn giọng nói gửi thẳng chữ bạn vừa nói sang trình duyệt, nên hễ không phải tên tiếng Anh là bị trả về "trang không tồn tại". Nay chữ được tra trước, và tra không ra thì Javis nói rõ là không có trang đó.
+
 ## [0.57.6] - 2026-09-14
 ### Cải thiện
 - **Nói chuyện với Javis mượt hơn hẳn, ở mọi chế độ.** Trước đây khi dùng bộ não chính, mỗi mẩu chữ vài từ vừa sinh ra là bị đọc ngay, thành hàng chục lần gọi giọng đọc nối nhau nên nghe cà nhắc. Nay Javis đọc theo cụm tự nhiên: hết câu, hoặc đến dấu phẩy và liên từ ở cụm đầu cho tiếng ra nhanh, câu dài thì cắt ở chỗ dễ nghe; model chậm mà loa đang im thì đẩy cụm đang có chứ không để bạn chờ.

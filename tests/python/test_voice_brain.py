@@ -246,6 +246,10 @@ check("ui: đang stream dở chữ đầu trùng marker thì giữ lại, chưa 
       _ss("Mở ngay.\nJAVIS_U") == (["Mở ngay.\n"], len("Mở ngay.\n")))
 check("prompt bộ não giọng có dạy khuôn JAVIS_UI", vb.UI_MARKER in vb.SYSTEM_PROMPT
       and "open_group" in vb.SYSTEM_PROMPT)
+# Model giọng là model NHỎ: nó chỉ viết đúng id khi prompt nói rõ id nào ứng với nhãn tiếng
+# Việt người dùng đọc lên ("mở trang công cụ" -> plugins).
+check("prompt kèm nhãn tiếng Việt của trang", "plugins (công cụ)" in vb.SYSTEM_PROMPT
+      and "skills (kỹ năng)" in vb.SYSTEM_PROMPT and "agents (trợ lý)" in vb.SYSTEM_PROMPT)
 
 asyncio.run(main())
 if _fails:

@@ -4,14 +4,15 @@
 
    Voice V1 spec mục 6. Bên thực hiện KHÔNG tin server tuyệt đối: trang lạ, đường dẫn tuyệt
    đối, `..`, scheme, mã việc lạ đều bị chặn ở đây dù plugin đã kiểm một lần. Danh sách trang
-   phải khớp RAIL_ITEMS của console.js và PAGES của plugin javis-ui, không thì "mở trang X" ở
-   một đầu nhận mà đầu kia từ chối. */
+   phải khớp RAIL_ITEMS của console.js và PAGES của server/ui_targets.py (bảng dùng chung của
+   tool javis_ui lẫn đường tắt giọng nói), không thì "mở trang X" ở một đầu nhận mà đầu kia
+   từ chối. */
 const fs = require("fs");
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
 const A = require(path.join(root, "dashboard", "ui-actions.js"));
 const consoleJs = fs.readFileSync(path.join(root, "dashboard", "console.js"), "utf8");
-const plugin = fs.readFileSync(path.join(root, "system", "plugins", "javis-ui", "plugin.py"), "utf8");
+const plugin = fs.readFileSync(path.join(root, "server", "ui_targets.py"), "utf8");
 const app = fs.readFileSync(path.join(root, "dashboard", "app.js"), "utf8");
 const main = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
 
@@ -42,7 +43,7 @@ const rail = railM ? railM[1].match(/"([a-z]+)"/g).map(x => x.replace(/"/g, ""))
 check("PAGES của ui-actions == RAIL_ITEMS của console.js", JSON.stringify(rail) === JSON.stringify(A.PAGES));
 const pm = plugin.match(/PAGES = \(([\s\S]*?)\)/);
 const ppages = pm ? pm[1].match(/"([a-z]+)"/g).map(x => x.replace(/"/g, "")) : [];
-check("PAGES của plugin javis-ui == RAIL_ITEMS", JSON.stringify(rail) === JSON.stringify(ppages));
+check("PAGES của ui_targets.py == RAIL_ITEMS", JSON.stringify(rail) === JSON.stringify(ppages));
 
 // ---- Nhóm thanh bên: mở NHÓM khác mở TRANG (0.57.5) ----
 check("open_group nhóm có thật: ok", A.validate({ action: "open_group", target: "nang_luc" }).ok);
@@ -56,7 +57,7 @@ const grail = grM ? (grM[1].match(/id: "([a-z_]+)"/g) || []).map(x => x.replace(
 check("GROUPS của ui-actions == RAIL_GROUPS của console.js", JSON.stringify(grail) === JSON.stringify(A.GROUPS));
 const gpm = plugin.match(/GROUPS = \(([\s\S]*?)\)/);
 const pgroups = gpm ? gpm[1].match(/"([a-z_]+)"/g).map(x => x.replace(/"/g, "")) : [];
-check("GROUPS của plugin javis-ui == RAIL_GROUPS", JSON.stringify(grail) === JSON.stringify(pgroups));
+check("GROUPS của ui_targets.py == RAIL_GROUPS", JSON.stringify(grail) === JSON.stringify(pgroups));
 // Mở trang bằng lời PHẢI bung luôn nhóm chứa nó: JavisNav.go đi qua store Alpine (store.go
 // mới có dòng `this.openGroup = gl`), gọi thẳng navigateTo thì thanh bên vẫn gập.
 check("JavisNav.go đi qua store Alpine để bung nhóm", /go\(id\) \{ const s = _navStore\(\);/.test(consoleJs));
