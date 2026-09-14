@@ -100,7 +100,14 @@ deploy_info.deploy_mode = lambda: "docker"
 why = m.check_ready()
 check("docker: check_fn trả lý do nhắc máy chủ", isinstance(why, str) and "máy chủ" in why)
 deploy_info.deploy_mode = lambda: "windows"
-check("windows: check_fn trả None", m.check_ready() is None)
+# CI chạy trên Linux không màn hình: giả DISPLAY để nhánh "Linux không có DISPLAY" không bắt nhầm.
+_disp = os.environ.get("DISPLAY")
+os.environ["DISPLAY"] = ":0"
+check("windows/có màn hình: check_fn trả None", m.check_ready() is None)
+if _disp is None:
+    del os.environ["DISPLAY"]
+else:
+    os.environ["DISPLAY"] = _disp
 deploy_info.deploy_mode = _goc
 
 # ---- 3. Mở ----

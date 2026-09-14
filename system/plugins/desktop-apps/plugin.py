@@ -35,6 +35,13 @@ try:
 except Exception:  # pragma: no cover - chạy ngoài server (không xảy ra trong app)
     deploy_info = None
 
+try:
+    import winproc
+    _no_window = winproc.no_window          # cờ ẩn cửa sổ console trên Windows, 0 nơi khác
+except Exception:  # pragma: no cover
+    def _no_window():
+        return getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
 IS_WIN = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
 
@@ -206,16 +213,9 @@ def _installed() -> List[dict]:
 
 
 def _run(cmd: List[str], timeout: float = 8.0) -> str:
-    kw = {}
-    if IS_WIN:
-        try:
-            import winproc
-            kw = winproc.kwargs_no_window()
-        except Exception:
-            kw = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
-                           encoding="utf-8", errors="ignore", **kw)
+                           encoding="utf-8", errors="ignore", creationflags=_no_window())
         return r.stdout or ""
     except Exception as e:
         return f"__ERR__ {type(e).__name__}: {e}"
@@ -258,16 +258,18 @@ def _launch(target: str, kind: str) -> str:
             return ""
         if IS_MAC:
             cmd = ["open", "-a", target] if kind == "app" else ["open", target]
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10, creationflags=_no_window())
             return "" if r.returncode == 0 else (r.stderr or "open lỗi").strip()
         if kind == "url" or kind == "path":
-            subprocess.Popen(["xdg-open", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(["xdg-open", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             creationflags=_no_window())
             return ""
         if target.endswith(".desktop"):
-            r = subprocess.run(["gtk-launch", Path(target).name], capture_output=True, text=True, timeout=10)
+            r = subprocess.run(["gtk-launch", Path(target).name], capture_output=True, text=True, timeout=10,
+                               creationflags=_no_window())
             if r.returncode == 0:
                 return ""
-        subprocess.Popen([target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen([target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=_no_window())
         return ""
     except Exception as e:
         return f"{type(e).__name__}: {e}"
