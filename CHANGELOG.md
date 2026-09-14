@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.10] - 2026-09-14
+### Cải thiện
+- **Chữ đang nghe hiện ngay trong khung chat.** Khi bạn nói, câu đang được nhận dạng hiện thành một bong bóng nháp mờ ở cuối cột hội thoại, đúng chỗ tin nhắn sẽ xuất hiện khi gửi, thay vì đè lên khối não ở giữa màn hình. Nói xong là bong bóng nháp đổi thành tin thật.
+
 ## [0.57.9] - 2026-09-14
 ### Thêm mới
 - **Bộ não giọng nói chọn được ChatGPT, Claude Code hay Grok Build**, chạy trên gói bạn đã đăng nhập ở trang Models, không cần API key. Trong Cài đặt → Giọng nói → Làn nhanh giờ có thêm ba lựa chọn bên cạnh Antigravity và các API. ChatGPT đi thẳng qua mạng nên nhanh nhất; Claude Code giữ một phiên sống suốt lúc nói nên lượt sau chỉ còn thời gian model nghĩ (chọn haiku cho nhanh); Grok trả lời về một cục chứ chưa stream từng chữ.

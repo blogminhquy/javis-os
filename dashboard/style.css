@@ -2866,3 +2866,7 @@ body.ne-full-on .cview { z-index: 250; }
 /* Voice V3: bong bóng hiện chữ theo lời đọc - dấu chờ khi loa chưa kịp đọc từ nào */
 .theo-loi-cho { opacity: .55; animation: theoLoiNhap 1.2s ease-in-out infinite; }
 @keyframes theoLoiNhap { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }
+
+/* Voice V3: bong bóng NHÁP của chữ đang nghe từ mic, đứng cuối cột chat thay vì đè lên khối não */
+.msg-nhap-giong .bubble { opacity: .62; border-style: dashed; }
+.msg-nhap-giong .bubble .utext::after { content: " …"; opacity: .6; }
