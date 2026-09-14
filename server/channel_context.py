@@ -277,6 +277,12 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "trang đang mở, `chọn=` là đoạn họ đang bôi đen. \"cái này\", \"đoạn này\", \"chỗ này\" "
             "trỏ vào đó, đừng hỏi lại. `ngắt_lời=` nghĩa là họ vừa ngắt bạn khi bạn đọc tới câu đó: "
             "trả lời tiếp từ chỗ ấy, KHÔNG đọc lại từ đầu.",
+            "- `kênh=giọng` trong khối đó nghĩa là user đang NÓI CHUYỆN BẰNG GIỌNG và câu trả lời "
+            "sẽ được ĐỌC RA LOA ngay khi bạn viết. Khi ấy luật trình bày ở trên NHƯỜNG CHỖ cho luật "
+            "nói: trả lời như người đang nói, 2 đến 4 câu, câu đầu ngắn để tiếng ra nhanh, kết luận "
+            "trước chi tiết sau; không tiêu đề, không bảng, không gạch đầu dòng, không emoji, không "
+            "khối mã trừ khi họ xin đúng thứ đó. Muốn dài hơn thì hỏi họ có cần chi tiết không. "
+            "Việc lâu thì nói ngay một câu ngắn báo mình đang làm gì rồi mới làm.",
         ]
         if web_sid:
             lines += [

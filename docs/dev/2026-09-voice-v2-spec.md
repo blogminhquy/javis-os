@@ -173,3 +173,53 @@ người dùng tưởng Javis không hiểu "mở dropdown". Nay `JavisNav.go` �
 liệu gì. Nay bộ não giọng phát `JAVIS_UI: <action> <target>` (`voice_brain.UI_MARKER`,
 `parse_ui`), `run_voice_turn` gọi thẳng `ui_bridge.request`. Action lạ do model bịa thì bỏ qua
 chứ không chạy. Dòng marker không bao giờ ra loa, y như `JAVIS_ASK_MAIN`.
+
+## 11. Nói chuyện mượt, chữ và giọng một luồng (0.57.6, Voice V3)
+
+Đầu bài: chủ dự án dán một cuộc trò chuyện với ChatGPT Voice (2026-09-14) và bảo "triển khai để
+nói chuyện mượt như này, theo gợi ý của ChatGPT". Các gợi ý trong đó: vừa gõ vừa nói trong cùng
+một phiên; cắt cụm tự nhiên (dấu câu trước, rồi phẩy hay liên từ, cụm 5 đến 12 từ, quá 300 đến
+500 ms không có điểm đẹp thì đẩy, cụm đầu ngắn hơn); endpointing phân biệt dừng để nghĩ với dừng
+hẳn; backchannel; câu trả lời voice ngắn hơn chat; ngắt lời bất cứ lúc nào; máy trạng thái rõ;
+nói tiến độ khi việc lâu; hai chế độ nhanh và sâu. Đối chiếu với V1 và V2 thì đã có: máy trạng
+thái (voice-turn.js), endpointing hai ngưỡng, ngắt lời có tạm dừng, hai chế độ (làn nhanh +
+JAVIS_ASK_MAIN, Live + ask_javis). Đợt này làm phần còn thiếu.
+
+**a. Bộ não chính vẫn đọc từng mẩu.** 0.57.2 mới sửa phía server cho LÀN NHANH; làn chính
+(Claude Code) vẫn bắn mỗi text delta thành một khung `stream`, và app.js đọc mỗi khung là một
+yêu cầu TTS. Sửa ở TRÌNH DUYỆT để mọi làn hưởng chung: `dashboard/voice-chunker.js` (module
+thuần, test bằng node) gom chữ stream và chỉ trả cụm đọc được theo đúng thứ tự ưu tiên ChatGPT
+gợi ý. Cụm ĐẦU của lượt cắt sớm (đủ 6 từ mà có phẩy hay liên từ, hoặc 12 từ) để tiếng đầu ra
+nhanh; cụm SAU chỉ cắt khi hết câu hoặc quá 220 ký tự. Đồng hồ 150 ms: chữ dở nằm im quá 400 ms
+mà LOA ĐANG IM thì đẩy ở điểm đẹp gần nhất; loa đang bận thì không đẩy vì đợi không mất gì, còn
+đẩy sớm là thêm một yêu cầu TTS vô ích (đúng cái bẫy 0.57.1). Khối mã ``` không bao giờ ra
+loa; gặp `<!--` (JAVIS_ASK) là bỏ từ đó về sau. `split_speakable` phía server giữ nguyên: làn
+nhanh gửi nguyên câu thì qua chunker vẫn phát ngay. Không có "so"/"or" tiếng Anh trong danh
+sách liên từ vì "so với", "hay" tiếng Việt đụng ngay.
+
+**b. Một luồng chữ và giọng.** Đang rảnh tay (mic bật) mà gõ chữ thì khung WS vẫn mang
+`voice: true` nên đi làn nhanh như tin từ mic, và câu trả lời vẫn đọc ra loa (loa đã đi theo mic
+từ 02/09). Ở chế độ Live thì chữ gõ đẩy thẳng vào phiên Live qua `sendText` (route đã nhận khung
+`text` từ 0.57.0 mà chưa ai gọi), không mở lượt chat riêng; có file đính kèm thì đi đường thường.
+
+**c. Trả lời ngắn khi đang nói.** Khối `[NGỮ CẢNH GIAO DIỆN ...]` thêm `kênh=giọng` khi tin từ
+mic hoặc gõ lúc rảnh tay; `channel_context.py` dặn bộ não chính: khi ấy luật "trình bày cho mắt"
+nhường chỗ cho luật nói, 2 đến 4 câu, câu đầu ngắn, không tiêu đề, bảng, gạch đầu dòng. Bộ não
+giọng (làn nhanh) vốn đã có luật này trong SYSTEM_PROMPT.
+
+**d. Câu tiến độ.** Đạo diễn thêm `turnStart(now)`, `noteSpoke()`, `fillerCheck(now)`: xử lý quá
+2,5 giây (đang gọi tool thì 1,2 giây) mà chưa có chữ thật nào ra loa thì trả `speak_filler` đúng
+một lần mỗi lượt; app.js đọc một câu ngẫu nhiên từ `app.voice_filler` (i18n, các câu cách nhau
+bằng `|`), chỉ khi rảnh tay. Làn nhanh đã có câu chờ trước JAVIS_ASK_MAIN thì `spoke` bật và
+không nói thêm.
+
+**e. Endpointing.** Kết câu bằng ậm ừ lúc nghĩ ("ừm", "ờ", "kiểu", "cái", "um", "like") thì chờ
+ngưỡng dài; không có "à" vì "vậy à" là câu hỏi đã xong. Cụm CHỜ / DỪNG nhận cả bản nói lắp hay
+lặp ("từ từ đợi đợi đợi chút", "thôi thôi dừng lại"): mọi từ thuộc bộ từ vựng của các cụm VÀ có
+một cụm nguyên vẹn trong câu; có từ lạ ("đợi mình xem lại số liệu") thì vẫn là tin thường.
+
+**Cố ý KHÔNG làm:** backchannel "ừ, à" khi người dùng nói dài, vì loa mở là voice.js phải tắt
+nhận dạng (Web Speech chép chính giọng TTS thành chữ người dùng), một tiếng "ừ" sẽ cắt mất câu
+họ đang nói; làm được thì phải đổi sang STT server streaming, ngoài phạm vi. Cảm xúc giọng thì
+Edge TTS không có; OpenAI/ElevenLabs/Live đã chọn được trong cài đặt. Realtime API thì chính là
+chế độ Live đã có.

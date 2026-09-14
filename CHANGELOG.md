@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.6] - 2026-09-14
+### Cải thiện
+- **Nói chuyện với Javis mượt hơn hẳn, ở mọi chế độ.** Trước đây khi dùng bộ não chính, mỗi mẩu chữ vài từ vừa sinh ra là bị đọc ngay, thành hàng chục lần gọi giọng đọc nối nhau nên nghe cà nhắc. Nay Javis đọc theo cụm tự nhiên: hết câu, hoặc đến dấu phẩy và liên từ ở cụm đầu cho tiếng ra nhanh, câu dài thì cắt ở chỗ dễ nghe; model chậm mà loa đang im thì đẩy cụm đang có chứ không để bạn chờ.
+- **Vừa nói vừa gõ trong cùng một cuộc trò chuyện.** Đang bật mic mà gõ chữ bổ sung thì tin vẫn đi làn nhanh và Javis vẫn trả lời bằng giọng; ở chế độ Live thì chữ gõ đi thẳng vào phiên đang nói.
+- **Việc lâu thì Javis nói trước một câu** kiểu "để mình xem nhé" rồi mới trả kết quả, thay vì im lặng mấy giây. Bộ não chính cũng được dặn trả lời ngắn như người đang nói khi bạn nghe bằng tai.
+- Hiểu "từ từ đợi đợi đợi chút" hay "thôi thôi dừng lại" dù bạn nói lắp; kết câu bằng "ừm", "kiểu" thì Javis chờ bạn nghĩ tiếp chứ không gửi vội.
+
 ## [0.57.5] - 2026-09-14
 ### Sửa lỗi
 - **Dọn sạch những câu mời đăng ký kênh đã lỡ nằm trong hội thoại cũ.** Bộ lọc ở bản trước chỉ chặn từ lúc nghe trở đi, còn tin nhắn cũ vẫn nằm nguyên và vẫn được đọc lại làm ngữ cảnh mỗi lượt. Nay có lệnh quét lại kho, xoá tin nào chỉ toàn câu bịa và cắt phần bịa khỏi tin có lẫn lời bạn nói. Bộ lọc cũng nhận thêm biến thể "đăng ký kênh để ủng hộ kênh của mình" và "cảm ơn các bạn đã theo dõi và hẹn gặp lại".

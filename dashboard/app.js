@@ -150,6 +150,36 @@ let _bargeTimer = null;   // 2 giây sau khi tạm dừng mà không có chữ -
 let _waitTimer = null;    // "khoan" rồi im lâu -> thôi chờ
 let _ngatLoiTai = "";     // câu Javis bị ngắt lúc đọc, đi vào tin kế tiếp rồi xoá
 
+// ---- Voice V3: cắt cụm cho loa + câu tiến độ (docs/dev/2026-09-voice-v2-spec.md mục 11) ----
+// Chữ stream của MỌI làn đi qua voice-chunker.js rồi mới ra loa: đọc theo cụm tự nhiên (hết
+// câu, hoặc phẩy/liên từ khi cụm đầu, hoặc im lâu mà loa đang im) thay vì đọc từng mẩu vài từ.
+const cum = new window.JavisVoiceChunker.Chunker();
+let _cumTimer = null;
+function docCum(chunks, t) {
+  (chunks || []).forEach((c) => {
+    if (!c || !c.trim()) return;
+    voice.enqueueSpeak(c);
+    if (t) t.spoke = true;
+    turn.noteSpoke();
+  });
+}
+// Đồng hồ 150 ms chạy suốt lượt: đẩy cụm dở khi im lâu mà loa im, và nói câu tiến độ khi xử lý
+// quá lâu chưa có chữ nào (chỉ trong phiên nói chuyện bằng giọng, tức đang rảnh tay).
+function batDongHoCum() {
+  if (_cumTimer) return;
+  _cumTimer = setInterval(() => {
+    const t = savedSessionId ? turns[savedSessionId] : null;
+    if (!t || !t.running) { clearInterval(_cumTimer); _cumTimer = null; return; }
+    if (!voice.ttsEnabled) return;
+    docCum(cum.tick(Date.now(), !voice.isSpeaking()), t);
+    if (handsFree) runActions(turn.fillerCheck(Date.now()));
+  }, 150);
+}
+function noiTienDo() {
+  const opts = String(window.t("app.voice_filler") || "").split("|").map(s => s.trim()).filter(Boolean);
+  if (opts.length) voice.enqueueSpeak(opts[Math.floor(Math.random() * opts.length)]);
+}
+
 const ORB_LABEL = {
   idle: ["", "orb.ready"],
   listening: ["listening", null],
@@ -202,6 +232,7 @@ function runActions(acts) {
       case "abort_listen": voice._muteRecognition(); break;         // đóng recognition, mic mở lại sau khi đọc xong
       case "stop_turn": stopCurrent(); break;
       case "flush_deferred": (a.texts || []).forEach(t => { if (voice.ttsEnabled) voice.enqueueSpeak(t); }); break;
+      case "speak_filler": noiTienDo(); break;                    // V3: "để mình xem nhé" khi việc lâu
       default: break;
     }
   });
@@ -417,11 +448,13 @@ function handleMessage(data) {
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
       t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text);
       scrollBottom();
-      // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
+      // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
+      // Trước đây mỗi khung stream của bộ não chính (vài từ) là một yêu cầu TTS riêng nên nghe
+      // cà nhắc; làn nhanh gửi nguyên câu thì qua đây vẫn phát ngay. OpenRouter gửi tts:false
+      // -> đọc 1 lần ở cuối.
       if (voice.ttsEnabled && data.tts !== false) {
-        const safeChunk = (data.content || "").replace(/<!--[\s\S]*/, "");
-        if (safeChunk) voice.enqueueSpeak(safeChunk);
-        t.spoke = true;
+        docCum(cum.push(data.content || "", Date.now()), t);
+        batDongHoCum();
       }
     }
   } else if (data.type === "response") {
@@ -444,7 +477,10 @@ function handleMessage(data) {
       if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
-      if (voice.ttsEnabled && t && !t.spoke && finalText) voice.speak(finalText);   // orb: onSpeakStart của voice.js
+      if (voice.ttsEnabled && t) {
+        docCum(cum.flush(), t);                              // đẩy nốt phần đuôi chưa khép câu
+        if (!t.spoke && finalText) voice.speak(finalText);   // engine gửi tts:false: đọc 1 lần ở cuối
+      } else cum.reset();
       maybeAutoLearn();
     }
     refreshUsage();     // cập nhật panel Mức dùng sau mỗi lượt
@@ -471,7 +507,7 @@ function handleMessage(data) {
     try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
-    if (isActive) { syncActiveUI(); runActions(turn.turnDone()); }
+    if (isActive) { syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
     notifySessions();
     // Lượt vừa xong có thể đã giao việc nền. Đây là ĐÚNG khoảnh khắc người dùng đọc câu trả
@@ -541,6 +577,16 @@ function sendMessage(text) {
     try { document.getElementById("brainMaxBtn").click(); } catch (e) {}
   }
   voice.stopSpeaking();
+  cum.reset();
+  // Voice V3: đang ở phiên Live mà GÕ chữ thì đẩy thẳng vào phiên Live (cùng một cuộc nói
+  // chuyện, Javis đáp bằng giọng), không mở lượt chat riêng. Có file đính kèm thì đi đường thường.
+  if (voiceMode === "live" && !atts.length && window.JavisVoiceLive && window.JavisVoiceLive.isOn()) {
+    chatInput.value = ""; chatInput.style.height = "auto";
+    appendUserMessage(msg, []);
+    recordTurn("user", msg, []);
+    window.JavisVoiceLive.sendText(msg);
+    return;
+  }
   window.JavisAsk.freezeAll();   // trả lời rồi thì chip của lượt trước hết bấm được
   appendUserMessage(msg, atts);
   // Lưu cả `url` (đường /upload/raw của file stage): thiếu nó thì F5 xong ảnh trong tin cũ
@@ -573,8 +619,11 @@ function sendMessage(text) {
   // Ngữ cảnh giao diện (Voice V1, spec mục 5): trang đang mở, đoạn đang bôi đen, câu Javis bị
   // ngắt lời. Đứng SAU khối file ghim và TRƯỚC câu hỏi; rỗng thì không chèn gì.
   try {
+    // `voice`: đang nói chuyện bằng giọng (tin từ mic, HAY gõ chữ khi mic rảnh tay đang bật):
+    // câu trả lời sẽ đọc ra loa nên model phải trả lời ngắn như người đang nói (V3).
     const ctxUi = window.JavisUiContext ? window.JavisUiContext.build({
       page: nguCanhTrang(), selection: nguCanhChon(), interruptedAt: _ngatLoiTai,
+      voice: _tuGiong || handsFree,
     }) : "";
     if (ctxUi) outMsg = `${ctxUi}\n\n${outMsg}`;
   } catch (e) {}
@@ -596,8 +645,9 @@ function sendMessage(text) {
   // Server đóng dấu model đang chạy cho phiên ngay từ tin đầu -> bar hiện "ghim" tại chỗ.
   try { if (window.JavisModelBar) window.JavisModelBar.noteStamped(sid); } catch (e) {}
   // Voice V2: tin đến từ MIC mang cờ `voice` để server đưa qua làn nhanh (bộ não giọng nói)
-  // khi cài đặt bật. Gõ chữ thì đi bộ não chính như cũ.
-  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid, voice: _tuGiong }));
+  // khi cài đặt bật. V3: đang rảnh tay mà GÕ chữ thì cũng đi làn nhanh, vì đó vẫn là cuộc nói
+  // chuyện bằng giọng (vừa nói vừa gõ bổ sung, một luồng). Mic tắt thì đi bộ não chính như cũ.
+  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid, voice: _tuGiong || handsFree }));
   _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
