@@ -21,7 +21,7 @@ from typing import Callable
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 import config as cfgmod
-from graph_builder import build_graph, _color_for, _top_folder, WIKILINK_RE
+from graph_builder import build_graph, _color_for, _top_folder, doc_wikilink
 
 
 @dataclass
@@ -108,9 +108,8 @@ def _node_payload(fpath, roots):
     targets = []
     try:
         content = Path(fpath).read_text(encoding="utf-8", errors="replace")
-        for m in WIKILINK_RE.finditer(content):
-            t = m.group(1).strip().split("/")[-1].strip().lower()
-            if t and t != node["id"]:
+        for t in doc_wikilink(content):
+            if t != node["id"]:
                 targets.append(t)
     except Exception:
         pass

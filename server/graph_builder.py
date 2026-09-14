@@ -11,6 +11,31 @@ from typing import List, Dict
 # Match [[Note]] và [[folder/Note|alias]]
 WIKILINK_RE = re.compile(r"\[\[([^\]\|#]+)(?:[#\|][^\]]*)?\]\]")
 
+# Khối mã phải được BỎ RA trước khi dò wikilink. Bash dùng `[[ ... ]]` làm phép thử, nên một
+# skill có dòng `[[ ! "$f" =~ \.md$ ]]` sẽ đẻ ra một "wikilink" tên là ! "$f" =~ \.md$ - và
+# đồ thị phía trình duyệt ném "node not found" mỗi khung hình cho tới khi chết hẳn. Vấp thật
+# 15/09 ngay sau khi cài bộ skill lập trình vào brain.
+#
+# `build_graph` tình cờ thoát vì nó chỉ nối khi tên khớp một note CÓ THẬT; đường cập nhật
+# trực tiếp (routes/graph.py::_node_payload) thì gửi thẳng nên nổ. Sửa ở đây, một chỗ, cho cả
+# hai đường dùng chung.
+_KHOI_MA_RE = re.compile(r"```[\s\S]*?```|~~~[\s\S]*?~~~")
+_MA_DONG_RE = re.compile(r"`[^`\n]*`")
+
+
+def bo_khoi_ma(text: str) -> str:
+    """Thay khối mã và mã trong dòng bằng khoảng trắng, giữ nguyên độ dài dòng ở mức đủ dùng."""
+    s = _KHOI_MA_RE.sub(" ", text or "")
+    return _MA_DONG_RE.sub(" ", s)
+
+
+def doc_wikilink(text: str):
+    """Tên các note được trỏ tới trong một file markdown (đã chuẩn hoá thường, bỏ khối mã)."""
+    for m in WIKILINK_RE.finditer(bo_khoi_ma(text)):
+        ten = m.group(1).strip().split("/")[-1].strip().lower()
+        if ten:
+            yield ten
+
 # Palette tinh vân tím (như V.A.U.L.T) - tím chủ đạo + vài tông phụ, lõi trắng nóng
 FOLDER_COLORS = {
     "00": "#c77dff", "01": "#a96bff", "02": "#7c5cff", "03": "#d98cff",
@@ -86,9 +111,7 @@ def build_graph(roots: List[str], max_files: int = 2000, include_orphans: bool =
             content = Path(fpath).read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
-        for match in WIKILINK_RE.finditer(content):
-            target_raw = match.group(1).strip()
-            target_stem = target_raw.split("/")[-1].strip().lower()
+        for target_stem in doc_wikilink(content):
             if target_stem in stem_to_id and target_stem != node_id:
                 edges.append({"source": node_id, "target": stem_to_id[target_stem]})
                 nodes[node_id]["links"] += 1

@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.22] - 2026-09-15
+### Sửa lỗi
+- **Đồ thị tri thức không còn chết khi brain có note chứa mã.** Bash dùng `[[ ... ]]` làm phép thử, trùng cú pháp liên kết note, nên một đoạn mã trong note bị đọc nhầm thành liên kết tới một note không tồn tại và đồ thị đổ lỗi liên tục cho tới khi ngừng vẽ. Nay khối mã được bỏ qua trước khi dò liên kết, và một liên kết hỏng không còn làm sập cả đồ thị.
+
 ## [0.57.21] - 2026-09-15
 ### Sửa lỗi
 - **Bảo dừng việc ngầm thì nó dừng thật, thay vì đẻ thêm một việc để đi dừng.** Trước đây nói "tạm dừng việc tìm kiếm ngầm đi" là Javis dạ vâng rồi giao thêm một việc nền mới mang nội dung "dừng việc nền đang chạy", nói lần nữa lại đẻ thêm một cái nữa. Nay câu đó được hiểu là lệnh: huỷ ngay tại chỗ, trả lời tức thì, và nói rõ đã dừng mấy việc. Không có việc nào đang chạy thì nói thật chứ không giả vờ đã dừng.
