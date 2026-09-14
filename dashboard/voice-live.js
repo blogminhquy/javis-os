@@ -58,10 +58,21 @@
     if (!playing.length && !utterStartAt) utterStartAt = t;
     node.start(t);
     nextAt = t + ab.duration;
+    schedMs += ab.duration * 1000;
     playing.push(node);
     node.onended = function () { var k = playing.indexOf(node); if (k >= 0) playing.splice(k, 1); tickSpeaking(); };
     tickSpeaking();
   }
+
+  // V3: tiến độ phát kể từ lần resetProgress (app.js gọi khi vẽ xong một bong bóng): tổng ms đã
+  // xếp lịch và số ms đã thật sự ra loa. Bong bóng hiện chữ theo tỉ lệ này, vì bản ghi chữ của
+  // nhà cung cấp về trước tiếng nhiều.
+  var schedMs = 0;
+  function progress() {
+    var remaining = (outCtx && playing.length) ? Math.max(0, (nextAt - outCtx.currentTime) * 1000) : 0;
+    return { played: Math.max(0, Math.round(schedMs - remaining)), total: Math.round(schedMs) };
+  }
+  function resetProgress() { schedMs = 0; }
 
   // Số ms của câu hiện tại đã thật sự phát ra loa (0 nếu chưa phát gì).
   function playedMs() {
@@ -74,6 +85,7 @@
     playing = [];
     nextAt = 0;
     utterStartAt = 0;
+    schedMs = 0;
     tickSpeaking();
   }
 
@@ -168,6 +180,7 @@
   }
 
   window.JavisVoiceLive = { start: start, stop: stop, sendText: sendText, sendContext: sendContext,
-                            playedMs: playedMs, isOn: function () { return on; },
+                            playedMs: playedMs, progress: progress, resetProgress: resetProgress,
+                            isOn: function () { return on; },
                             isSpeaking: function () { return !!playing.length; } };
 })();

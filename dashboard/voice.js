@@ -50,6 +50,13 @@ class JavisVoice {
     this.bargeMinTicks = 5;                            // 5 nhịp 100 ms = 500 ms (LiveKit min_duration)
     this._paused = false;                              // đang TẠM DỪNG vì nghi chen ngang
     this._spokenChunks = [];                           // khúc đã phát xong trong lượt đọc này
+    // ---- Voice V3: đếm số TỪ đã ra tiếng, để bong bóng hiện chữ THEO LỜI ĐỌC (karaoke) ----
+    // Khác _spokenChunks (reset mỗi lượt đọc), số này chỉ reset khi app.js mở lượt chat mới, nên
+    // model chậm hơn loa (hàng đợi cạn rồi đầy lại) vẫn đếm liền. Câu tiến độ và tin nền đọc
+    // với opts.uncounted thì không tính, vì chúng không nằm trong câu trả lời.
+    this._wordsDone = 0;
+    this._countThis = true;
+    this._uncounted = [];
 
     // ---- Voice V2: nghe bằng Groq Whisper (docs/dev/2026-09-voice-v2-spec.md mục 3) ----
     // Web Speech vẫn cho chữ tạm và điểm dừng câu; song song đó MediaRecorder ghi âm, hết câu
@@ -421,6 +428,7 @@ class JavisVoice {
     if (clean === this._lastQueued && !opts.force) return;
     this._lastQueued = clean;
     this.speechQueue.push(clean);
+    if (opts.uncounted) this._uncounted.push(clean);   // V3: không tính vào số từ đã đọc
     if (!this.isPlaying) this._pumpQueue();
     else this._preloadNextQueued();   // đang đọc khúc cuối của đoạn trước thì tải ngay đoạn này
   }
@@ -463,6 +471,9 @@ class JavisVoice {
     this._muteRecognition();                         // mic đang mở → tạm ngừng NHẬN DẠNG, khỏi thu giọng TTS vào chat
     this._startBargeMonitor();                       // cho phép ngắt lời bằng giọng khi đang đọc
     const text = this.speechQueue.shift();
+    const ui = this._uncounted.indexOf(text);        // V3: đoạn này có tính vào số từ đã đọc không
+    this._countThis = ui < 0;
+    if (ui >= 0) this._uncounted.splice(ui, 1);
     if (this.ttsBackend) this._speakBackend(text);   // Edge TTS (giọng Việt chuẩn)
     else this._speakBrowser(text);                   // fallback Web Speech
   }
@@ -560,6 +571,23 @@ class JavisVoice {
   // Phần Javis ĐÃ ĐỌC RA TIẾNG trong lượt này: các khúc đã phát xong cộng phần khúc dở theo
   // tỉ lệ thời gian, cắt ở ranh giới từ. Dùng khi bị ngắt lời thật, để tin kế tiếp mang
   // "ngắt_lời=" và model không đọc lại từ đầu (mượn synchronized_transcript của LiveKit).
+  static demTu(s) { const m = String(s || "").trim().match(/\S+/g); return m ? m.length : 0; }
+
+  // V3: số từ đã THẬT SỰ ra loa kể từ lần reset (app.js reset khi mở lượt chat mới): khúc đã
+  // phát xong cộng phần khúc dở theo tỉ lệ thời gian. Bong bóng chat hiện đúng chừng ấy từ.
+  resetSpokenWords() { this._wordsDone = 0; }
+  spokenWords() {
+    let n = this._wordsDone;
+    try {
+      const a = this.currentAudio, i = this._chunkIndex;
+      if (this._countThis && this.isPlaying && a && this.ttsChunks && i != null && i < this.ttsChunks.length && a.duration > 0) {
+        const ratio = Math.max(0, Math.min(1, a.currentTime / a.duration));
+        n += Math.floor(JavisVoice.demTu(this.ttsChunks[i]) * ratio);
+      }
+    } catch (e) {}
+    return n;
+  }
+
   lastSpokenPrefix() {
     const parts = (this._spokenChunks || []).slice();
     try {
@@ -637,9 +665,14 @@ class JavisVoice {
       a.onended = null; a.onerror = null;
       a.src = this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : "");
       this.currentAudio = a;
+      this._chunkIndex = i;
       let done = false;
       const onFail = () => { if (done) return; done = true; a.onerror = null; this._chunkFailed(i, retry); };
-      a.onended = () => { if (!done) this._playChunk(i + 1); };
+      a.onended = () => {
+        if (done) return;
+        if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
+        this._playChunk(i + 1);
+      };
       a.onerror = onFail;
       a.play().catch(onFail);
       return;
@@ -692,6 +725,7 @@ class JavisVoice {
     audio.onended = () => {
       if (handled) return;
       this._spokenChunks.push(this.ttsChunks[i]);   // khúc này đã ra tiếng trọn vẹn
+      if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
       this._playChunk(i + 1);
     };
     audio.onerror = onFail;
@@ -706,7 +740,11 @@ class JavisVoice {
     if (!retry) { this._playChunk(i, true); return; }
     const okBrowserVoice = this.lang.startsWith("vi") ? !!this.vietnameseVoice : true;
     if (okBrowserVoice) this._speakBrowser(this.ttsChunks[i], () => this._playChunk(i + 1));
-    else this._playChunk(i + 1);
+    else {
+      // Khúc bị BỎ vẫn tính là đã qua, kẻo bong bóng hiện chữ theo lời kẹt lại ở khúc đó.
+      if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
+      this._playChunk(i + 1);
+    }
   }
 
   // onDone: gọi khi đọc xong đoạn (mặc định: lấy đoạn kế trong hàng đợi).
@@ -716,11 +754,12 @@ class JavisVoice {
     let idx = 0;
     const playNext = () => {
       if (idx >= chunks.length) { done(); return; }
-      const utter = new SpeechSynthesisUtterance(chunks[idx++]);
+      const piece = chunks[idx++];
+      const utter = new SpeechSynthesisUtterance(piece);
       utter.lang = this.lang;
       if (this.vietnameseVoice) utter.voice = this.vietnameseVoice;
       utter.rate = 1.05;
-      utter.onend = playNext;
+      utter.onend = () => { if (this._countThis) this._wordsDone += JavisVoice.demTu(piece); playNext(); };
       utter.onerror = playNext;
       this.synth.speak(utter);
     };

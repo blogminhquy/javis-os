@@ -100,6 +100,12 @@ check("flush với khối mã dở -> bỏ khối, không đọc", j(c.flush()) 
 c = new C.Chunker();
 check("push rỗng / null không lỗi", j(c.push("", 1)) === "[]" && j(c.push(null, 1)) === "[]");
 check("countWords", C.countWords("  a b   c ") === 3 && C.countWords("") === 0);
+// ---- 5. takeWords (chữ theo lời đọc) ----
+check("takeWords: 0 -> rỗng", C.takeWords("một hai ba", 0) === "");
+check("takeWords: 2 từ, giữ nguyên khoảng trắng trong", C.takeWords("một  hai ba", 2) === "một  hai");
+check("takeWords: quá số từ -> cả chuỗi", C.takeWords("một hai ba", 9) === "một hai ba");
+check("takeWords: dấu câu dính từ đi theo từ", C.takeWords("Ừ, để mình xem.", 2) === "Ừ, để");
+check("takeWords: null không lỗi", C.takeWords(null, 3) === "");
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - voice-chunker");

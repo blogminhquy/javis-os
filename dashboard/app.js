@@ -39,6 +39,7 @@ function syncActiveUI() {
 }
 
 function stopCurrent() {
+  try { ketThucTheoLoi(false); } catch (e) {}
   voice.stopSpeaking();
   const sid = savedSessionId;
   // Dừng ĐÚNG phiên đang xem (phiên nền khác vẫn chạy). Server huỷ lượt + gửi turn_done về.
@@ -177,7 +178,70 @@ function batDongHoCum() {
 }
 function noiTienDo() {
   const opts = String(window.t("app.voice_filler") || "").split("|").map(s => s.trim()).filter(Boolean);
-  if (opts.length) voice.enqueueSpeak(opts[Math.floor(Math.random() * opts.length)]);
+  // uncounted: câu tiến độ không thuộc câu trả lời, không tính vào số từ đã đọc (chữ theo lời).
+  if (opts.length) voice.enqueueSpeak(opts[Math.floor(Math.random() * opts.length)], { uncounted: true });
+}
+
+// ---- Voice V3: chữ hiện THEO LỜI ĐỌC (karaoke), như ChatGPT Voice ----
+// Đang nói chuyện bằng giọng thì bong bóng của Javis chỉ hiện phần loa ĐÃ đọc tới: đếm từ đã ra
+// tiếng (voice.spokenWords) rồi lấy đúng chừng ấy từ; ở Live thì theo tỉ lệ ms đã phát trên ms
+// đã xếp lịch (JavisVoiceLive.progress). Bị ngắt lời thì bong bóng dừng đúng chỗ đã nói kèm "…".
+// Đọc xong hết mới vẽ markdown đầy đủ (ảnh, link, bảng, chip hỏi lại). Chữ đã về từ model mà
+// chưa đọc tới thì chưa hiện, y như người nói: chữ ra đến đâu, nghe đến đó.
+let _theoLoi = null;   // { el, text, ask, live, shown, chuaXong }
+function dangTheoLoi() { return handsFree && voice.ttsEnabled; }
+function batTheoLoi(el, text, ask, live) {
+  if (!el) return;
+  if (_theoLoi && _theoLoi.el !== el) ketThucTheoLoi(false);
+  const cu = (_theoLoi && _theoLoi.el === el) ? _theoLoi : null;
+  _theoLoi = { el, text: String(text || ""), ask: ask || (cu && cu.ask) || null, live: !!live,
+               shown: cu ? cu.shown : -1, chuaXong: cu ? cu.chuaXong : true };
+  veTheoLoi();
+}
+function _chuTheoLoi(s) { return s.live ? s.text : voice._cleanForTTS(s.text); }
+function veTheoLoi() {
+  const s = _theoLoi; if (!s) return;
+  const C = window.JavisVoiceChunker;
+  const full = _chuTheoLoi(s), tong = C.countWords(full);
+  let n;
+  if (s.live) {
+    const p = window.JavisVoiceLive ? window.JavisVoiceLive.progress() : null;
+    n = (p && p.total > 0) ? Math.round(tong * Math.min(1, p.played / p.total)) : Math.max(0, s.shown);
+  } else n = voice.spokenWords();
+  n = Math.max(s.shown, Math.min(n, tong));
+  if (n === s.shown) return;
+  s.shown = n;
+  s.el.querySelector(".bubble").innerHTML = n > 0 ? escapeHtml(C.takeWords(full, n)) : '<span class="theo-loi-cho">…</span>';
+  scrollBottom();
+}
+// Kết thúc: vẽ đầy đủ (đọc xong hoặc chuyển lượt) hoặc đóng băng ở chỗ đã nói (bị ngắt lời).
+function ketThucTheoLoi(biNgat) {
+  const s = _theoLoi; if (!s) return;
+  _theoLoi = null;
+  const host = s.el.querySelector(".bubble");
+  const full = _chuTheoLoi(s), tong = window.JavisVoiceChunker.countWords(full);
+  if (biNgat && s.shown > 0 && s.shown < tong) {
+    host.innerHTML = escapeHtml(window.JavisVoiceChunker.takeWords(full, s.shown)) + " …";
+  } else {
+    host.innerHTML = markdownToHtml(s.text);
+  }
+  if (s.ask) window.JavisAsk.render(s.el, s.ask, true);
+  if (s.live && window.JavisVoiceLive) window.JavisVoiceLive.resetProgress();
+}
+// Gọi ~20 lần/giây từ vòng vẽ orb: cập nhật chữ, và khi lượt xong + loa im thì vẽ đầy đủ.
+function nhipTheoLoi() {
+  const s = _theoLoi; if (!s) return;
+  veTheoLoi();
+  let dangChay, loaIm;
+  if (s.live) {
+    dangChay = s.chuaXong;
+    loaIm = !(window.JavisVoiceLive && window.JavisVoiceLive.isSpeaking());
+  } else {
+    const t = savedSessionId ? turns[savedSessionId] : null;
+    dangChay = !!(t && t.running);
+    loaIm = !voice.isSpeaking() && !voice.isPaused() && !(voice.speechQueue && voice.speechQueue.length);
+  }
+  if (!dangChay && loaIm) ketThucTheoLoi(false);
 }
 
 const ORB_LABEL = {
@@ -219,7 +283,7 @@ function runActions(acts) {
         _waitTimer = setTimeout(() => runActions(turn.waitTimeout()), turn.opts.waitTimeoutMs);
         break;
       case "stop_tts":
-        if (a.interrupted) { clearTimeout(_bargeTimer); _bargeTimer = null; }
+        if (a.interrupted) { clearTimeout(_bargeTimer); _bargeTimer = null; ketThucTheoLoi(true); }   // V3: đóng băng chỗ đã nói
         voice.stopSpeaking();
         break;
       case "pause_tts":
@@ -231,7 +295,7 @@ function runActions(acts) {
       case "listen": voice.startListening(true, true); break;       // giữ tiếng đang tạm dừng
       case "abort_listen": voice._muteRecognition(); break;         // đóng recognition, mic mở lại sau khi đọc xong
       case "stop_turn": stopCurrent(); break;
-      case "flush_deferred": (a.texts || []).forEach(t => { if (voice.ttsEnabled) voice.enqueueSpeak(t); }); break;
+      case "flush_deferred": (a.texts || []).forEach(t => { if (voice.ttsEnabled) voice.enqueueSpeak(t, { uncounted: true }); }); break;
       case "speak_filler": noiTienDo(); break;                    // V3: "để mình xem nhé" khi việc lâu
       default: break;
     }
@@ -288,7 +352,7 @@ async function batLive() {
     onReady: (d) => { if (d && d.session_id && !savedSessionId) { savedSessionId = d.session_id; persistSession(); } },
     onSpeakStart: () => runActions(turn.ttsStart()),
     onSpeakEnd: () => runActions(turn.ttsEnd()),
-    onInterrupted: () => { _liveJavisText = ""; _liveJavisBubble = null; },
+    onInterrupted: () => { ketThucTheoLoi(true); _liveJavisText = ""; _liveJavisBubble = null; },
     onTool: (name, status) => { if (status === "running") runActions(turn.toolCall(name)); else runActions(turn.turnDone()); },
     onTranscript: (role, text, final) => {
       if (role === "user") {
@@ -298,11 +362,12 @@ async function batLive() {
       }
       _liveJavisText += text;
       if (!_liveJavisBubble) _liveJavisBubble = createStreamingBubble();
-      _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText);
-      scrollBottom();
+      if (dangTheoLoi()) batTheoLoi(_liveJavisBubble, _liveJavisText, null, true);   // V3: chữ theo tiếng
+      else { _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText); scrollBottom(); }
     },
     onTurnDone: () => {
       if (_liveJavisText.trim()) recordTurn("javis", _liveJavisText.trim(), null, null);
+      if (_theoLoi && _theoLoi.live && _theoLoi.el === _liveJavisBubble) _theoLoi.chuaXong = false;   // vẽ đủ khi loa im
       _liveJavisText = ""; _liveJavisBubble = null;
       runActions(turn.turnDone());
     },
@@ -406,7 +471,7 @@ function handleMessage(data) {
       // Đọc tin nền chỉ khi người dùng KHÔNG đang nói hay đang nghe Javis nói dở (Voice V1):
       // chen một bản tin vào giữa câu người dùng là cắt ngang họ. Hoãn tới lúc rảnh.
       if (voice.ttsEnabled) {
-        if (turn.canSpeakNow()) voice.enqueueSpeak(data.content || "");
+        if (turn.canSpeakNow()) voice.enqueueSpeak(data.content || "", { uncounted: true });
         else turn.defer(data.content || "");
       }
       try { if (el) el.scrollIntoView({ block: "nearest" }); } catch (e) {}
@@ -446,8 +511,9 @@ function handleMessage(data) {
     t.text += (data.content || "");
     if (isActive) {
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
-      t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text);
-      scrollBottom();
+      // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
+      if (dangTheoLoi() && data.tts !== false) batTheoLoi(t.bubble, t.text, null, false);
+      else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text); scrollBottom(); }
       // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
       // Trước đây mỗi khung stream của bộ não chính (vài từ) là một yêu cầu TTS riêng nên nghe
       // cà nhắc; làn nhanh gửi nguyên câu thì qua đây vẫn phát ngay. OpenRouter gửi tts:false
@@ -473,8 +539,12 @@ function handleMessage(data) {
       hideActivity();
       let msgEl = t && t.bubble;
       if (!msgEl) msgEl = appendJavisMessage(shownText);
-      else msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
-      if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
+      if (dangTheoLoi() && t && finalText) {
+        batTheoLoi(msgEl, shownText, ask, false);        // V3: chữ theo lời tới khi đọc xong, rồi vẽ đủ + chip
+      } else {
+        if (t && t.bubble) msgEl.querySelector(".bubble").innerHTML = markdownToHtml(shownText);
+        if (ask) window.JavisAsk.render(msgEl, ask, true);   // chip chỉ mọc khi lượt xong
+      }
       _renderCtxLine(msgEl, data);   // lượt này đi đường nào, tốn bao nhiêu
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
       if (voice.ttsEnabled && t) {
@@ -578,6 +648,8 @@ function sendMessage(text) {
   }
   voice.stopSpeaking();
   cum.reset();
+  ketThucTheoLoi(false);       // bong bóng trước vẽ đủ
+  voice.resetSpokenWords();    // lượt mới đếm từ đã đọc lại từ 0
   // Voice V3: đang ở phiên Live mà GÕ chữ thì đẩy thẳng vào phiên Live (cùng một cuộc nói
   // chuyện, Javis đáp bằng giọng), không mở lượt chat riêng. Có file đính kèm thì đi đường thường.
   if (voiceMode === "live" && !atts.length && window.JavisVoiceLive && window.JavisVoiceLive.isOn()) {
@@ -1668,6 +1740,7 @@ let _stopBtnTick = 0;
 function pumpAudioLevel() {
   if (javisGraph) javisGraph.setLevel(voice.getLevel());
   // Cập nhật hiển thị nút stop ~6 lần/giây (theo dõi cả lúc Javis đang đọc)
+  if (_theoLoi && (_stopBtnTick % 3) === 0) nhipTheoLoi();   // V3: chữ theo lời ~20 lần/giây
   if ((_stopBtnTick++ % 10) === 0) {
     updateStopBtn();
     // (Voice V1) orb do đạo diễn vẽ từ sự kiện thật: voice.js báo onSpeakEnd khi hết hàng đợi.

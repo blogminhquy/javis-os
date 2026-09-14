@@ -11,7 +11,9 @@
         i18n có app.voice_filler ở cả hai ngôn ngữ, nhiều câu cách nhau bằng |.
      3. Gõ chữ lúc rảnh tay: khung WS voice: _tuGiong || handsFree; khối ngữ cảnh mang voice; ở Live
         thì đẩy vào phiên Live bằng sendText, không mở lượt chat.
-     4. channel_context.py dạy bộ não chính khoá kênh=giọng. */
+     4. channel_context.py dạy bộ não chính khoá kênh=giọng.
+     5. Chữ hiện THEO LỜI ĐỌC: voice.js đếm từ đã ra tiếng, voice-live.js đo tiến độ phát, app.js chỉ
+        vẽ phần đã đọc, ngắt lời thì đóng băng kèm …, đọc xong mới vẽ markdown đủ. */
 const fs = require("fs");
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
@@ -51,6 +53,33 @@ check("khung WS: voice: _tuGiong || handsFree", /session_id: sid, voice: _tuGion
 check("khối ngữ cảnh mang voice: _tuGiong || handsFree", /voice: _tuGiong \|\| handsFree,\s*\n\s*\}\) : "";/.test(app));
 check("Live: gõ chữ thì sendText vào phiên Live và return, không đi ws chat",
       /voiceMode === "live" && !atts\.length && window\.JavisVoiceLive && window\.JavisVoiceLive\.isOn\(\)\) \{[\s\S]{0,400}window\.JavisVoiceLive\.sendText\(msg\);\s*\n\s*return;/.test(app));
+
+// 5. Chữ hiện THEO LỜI ĐỌC (karaoke)
+const voiceJs = read("dashboard/voice.js"), liveJs = read("dashboard/voice-live.js"), css = read("dashboard/style.css");
+check("voice.js: đếm từ đã ra tiếng (spokenWords / resetSpokenWords / demTu)",
+      /resetSpokenWords\(\) \{ this\._wordsDone = 0; \}/.test(voiceJs) && /spokenWords\(\) \{/.test(voiceJs) && /static demTu\(s\)/.test(voiceJs));
+check("voice.js: khúc đọc xong cộng từ, cả đường máy tính lẫn iOS lẫn giọng trình duyệt",
+      (voiceJs.match(/this\._wordsDone \+= JavisVoice\.demTu\(/g) || []).length >= 4);
+check("voice.js: enqueueSpeak(opts.uncounted) không tính vào số từ", /if \(opts\.uncounted\) this\._uncounted\.push\(clean\);/.test(voiceJs)
+      && /this\._countThis = ui < 0;/.test(voiceJs));
+check("voice.js: iOS cũng ghi _chunkIndex (spokenWords cần)", /this\.currentAudio = a;\s*\n\s*this\._chunkIndex = i;/.test(voiceJs));
+check("voice-live.js: progress() + resetProgress(), schedMs cộng theo từng khối, xả thì về 0",
+      /progress: progress, resetProgress: resetProgress/.test(liveJs) && /schedMs \+= ab\.duration \* 1000;/.test(liveJs)
+      && /utterStartAt = 0;\s*\n\s*schedMs = 0;/.test(liveJs));
+check("app.js: stream ở phiên giọng -> batTheoLoi thay vì vẽ cả câu", /if \(dangTheoLoi\(\) && data\.tts !== false\) batTheoLoi\(t\.bubble, t\.text, null, false\);/.test(app));
+check("app.js: response ở phiên giọng -> batTheoLoi mang ask, vẽ đủ + chip khi đọc xong",
+      /if \(dangTheoLoi\(\) && t && finalText\) \{\s*\n\s*batTheoLoi\(msgEl, shownText, ask, false\);/.test(app)
+      && /if \(s\.ask\) window\.JavisAsk\.render\(s\.el, s\.ask, true\);/.test(app));
+check("app.js: ngắt lời thật -> đóng băng chỗ đã nói kèm …", /a\.interrupted\) \{[^\n]*ketThucTheoLoi\(true\);/.test(app)
+      && /takeWords\(full, s\.shown\)\) \+ " …";/.test(app));
+check("app.js: Live -> batTheoLoi live, ngắt -> ketThucTheoLoi(true), turn_done -> chuaXong=false",
+      /batTheoLoi\(_liveJavisBubble, _liveJavisText, null, true\)/.test(app) && /onInterrupted: \(\) => \{ ketThucTheoLoi\(true\);/.test(app)
+      && /_theoLoi\.chuaXong = false;/.test(app));
+check("app.js: câu tiến độ và tin nền đọc với uncounted", /opts\.length\)\]\, \{ uncounted: true \}\)/.test(app)
+      && /voice\.enqueueSpeak\(t, \{ uncounted: true \}\)/.test(app) && /voice\.enqueueSpeak\(data\.content \|\| "", \{ uncounted: true \}\)/.test(app));
+check("app.js: lượt mới reset số từ và vẽ đủ bong bóng cũ", /ketThucTheoLoi\(false\);[^\n]*\n\s*voice\.resetSpokenWords\(\);/.test(app));
+check("app.js: vòng vẽ orb gọi nhipTheoLoi", /if \(_theoLoi && \(_stopBtnTick % 3\) === 0\) nhipTheoLoi\(\);/.test(app));
+check("style.css: có .theo-loi-cho", /\.theo-loi-cho \{/.test(css));
 
 // 4
 check("channel_context.py giải thích kênh=giọng: trả lời như người đang nói, không dàn trang",
