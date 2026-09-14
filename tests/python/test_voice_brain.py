@@ -196,8 +196,8 @@ async def main():
     # ---- 5. dây nối main.py ----
     src = (SERVER / "main.py").read_text(encoding="utf-8")
     check("main: nhánh voice trong WS", 'payload.get("voice")' in src and "run_voice_turn(" in src)
-    check("main: dòng marker không bao giờ stream ra loa (giữ mảnh trùng đầu marker, bỏ dòng marker)",
-          "mk.startswith(line) or line.startswith(mk)" in src and "line.lstrip().startswith(voice_brain.MARKER)" in src)
+    check("main: làn nhanh chỉ đẩy phần đọc được qua split_speakable (marker không ra loa)",
+          "voice_brain.split_speakable(text, sent_upto, final)" in src)
     check("main: bộ não giọng hỏng thì rơi về run_turn", "rơi về bộ não chính" in src)
     check("main: có POST /stt và GET /voice/options", '@app.post("/stt")' in src and '@app.get("/voice/options")' in src)
     check("main: có WS /ws/voice-live", '@app.websocket("/ws/voice-live")' in src)
@@ -205,6 +205,28 @@ async def main():
     for k in ("brain_provider", "stt_provider", "live_provider", '"mode": "standard"'):
         check(f"config mặc định có {k}", k in cfg_src)
 
+
+# ---- split_speakable: chỉ phát câu đã khép (0.57.1) ----
+def _ss(text, start=0, final=False):
+    return vb.split_speakable(text, start, final)
+
+check("split: delta vài từ chưa có dấu -> KHÔNG phát gì", _ss("Xin lỗi David nhé, chắc") == ([], 0))
+check("split: câu khép -> phát câu, giữ phần dở",
+      _ss("Xin lỗi David nhé. Chắc là do mạng") == (["Xin lỗi David nhé."], len("Xin lỗi David nhé.")))
+check("split: hai câu khép trong một lần -> một mẩu gồm cả hai (ít yêu cầu TTS hơn)",
+      _ss("Câu một. Câu hai! Câu ba đang") == (["Câu một. Câu hai!"], len("Câu một. Câu hai!")))
+check("split: dấu chấm trong số thập phân không phải kết câu", _ss("Doanh thu 1.5 tỷ đang tăng") == ([], 0))
+check("split: xuống dòng là khép", _ss("Dòng một\nDòng hai đang") == (["Dòng một\n"], len("Dòng một\n")))
+check("split: final đẩy nốt phần đuôi thành MỘT mẩu", _ss("Câu một. đuôi dở", final=True) == (["Câu một. đuôi dở"], len("Câu một. đuôi dở")))
+long = "a" * 100 + ", " + "b" * 150
+ch, pos = _ss(long)
+check("split: đoạn dở dài quá SPEAK_MAX thì cắt sau dấu phẩy", ch == ["a" * 100 + ", "] and pos == 102)
+check("split: dòng bắt đầu bằng đầu marker thì giữ lại", _ss("Để mình xem.\nJAVIS_ASK") == (["Để mình xem.\n"], len("Để mình xem.\n")))
+check("split: dòng marker bị bỏ cả khi final",
+      _ss("Để mình xem.\nJAVIS_ASK_MAIN: doanh thu tháng này", final=True) == (["Để mình xem.\n"], len("Để mình xem.\nJAVIS_ASK_MAIN: doanh thu tháng này")))
+check("split: dòng marker giữa chừng bị bỏ, dòng sau vẫn phát",
+      _ss("Để mình xem.\nJAVIS_ASK_MAIN: x\nXong rồi.\n") == (["Để mình xem.\n", "Xong rồi.\n"], len("Để mình xem.\nJAVIS_ASK_MAIN: x\nXong rồi.\n")))
+check("split: gọi nối tiếp từ vị trí cũ", _ss("Câu một. Câu hai.", start=len("Câu một.")) == ([" Câu hai."], len("Câu một. Câu hai.")))
 
 asyncio.run(main())
 if _fails:

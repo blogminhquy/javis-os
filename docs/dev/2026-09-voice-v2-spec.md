@@ -81,3 +81,15 @@ trong vòng đọc sự kiện nên cuộc nói chuyện đứng im 5 đến 30 
   `client`): `session.delegation.created` -> chạy bộ não chính với câu người dùng vừa nói ->
   `session.commentary.append`. Không có sự kiện interrupted/turn_done, suy ra từ transcript. Khuôn
   sự kiện lấy từ SDK openai 3.13. CHƯA chạy thật (máy dev không có key).
+
+## 7. Làn nhanh nghe giật (0.57.2)
+
+Triệu chứng: nói chuyện ở làn nhanh (Antigravity) nghe giật, cắt từng mẩu, orb hay báo MẠNG CHẬM.
+Nguyên nhân gốc: `_flush` trong `run_voice_turn` đẩy MỖI delta stream (vài từ) thành một khung
+`stream`, và `app.js` gọi `voice.enqueueSpeak` cho mỗi khung, mỗi khung là một yêu cầu Edge TTS
+riêng (0,5 đến 2 giây chờ mỗi cái); giữa hai khung không tải trước gì. Sửa hai tầng:
+- server: `voice_brain.split_speakable(text, start, final)` (hàm thuần, có test) chỉ trả phần ĐỌC
+  ĐƯỢC: câu đã khép, dòng đã khép, hoặc đoạn dở dài quá `SPEAK_MAX` cắt ở dấu phẩy; marker vẫn
+  không ra loa.
+- trình duyệt: `voice.js` tải trước câu KẾ trong hàng đợi khi đang ở khúc cuối câu hiện tại
+  (`_preloadNextQueued`), preload khớp theo URL thay vì index.

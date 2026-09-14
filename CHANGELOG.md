@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.2] - 2026-09-14
+### Sửa lỗi
+- **Làn nhanh hết nghe giật, cà nhắc.** Trước đây mỗi mẩu chữ vài từ vừa sinh ra là bị đẩy đi đọc ngay, thành hàng chục lần gọi giọng đọc nối nhau, mỗi lần một khoảng chờ mạng nên nghe như cắt từng mẩu và hay hiện "MẠNG CHẬM". Nay Javis chỉ đọc khi câu đã trọn (hết dấu chấm, chấm hỏi, hay xuống dòng), câu dài quá thì cắt ở dấu phẩy.
+- Trong lúc đang đọc câu này, trình duyệt đã tải sẵn câu kế tiếp nên hết câu là nói liền, không còn khoảng trống giữa hai câu.
+
 ## [0.57.1] - 2026-09-14
 ### Cải thiện
 - **Chế độ Live không còn đứng im khi Javis đi lấy dữ liệu.** Trước đây hỏi một câu cần số liệu là cả cuộc nói chuyện khựng lại tới khi bộ não chính trả lời xong. Nay việc đó chạy nền: Javis nói "để mình xem" rồi vẫn nghe và đáp tiếp, có kết quả thì thuật lại (Gemini dòng 3.1 vẫn im chờ vì Google chưa hỗ trợ, dòng 2.5 và OpenAI thì nói tiếp được).

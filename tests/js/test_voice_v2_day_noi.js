@@ -43,6 +43,11 @@ check("voice.js: file quá nhỏ (dưới 2 KB) không gửi", /blob\.size < 200
 check("live: 16 kHz lên, 24 kHz xuống", /IN_RATE = 16000, OUT_RATE = 24000/.test(live));
 check("live: interrupted -> flushPlayback", /d\.type === "interrupted"\) \{[\s\S]{0,120}flushPlayback\(\)/.test(live));
 check("live: gửi Int16 buffer nhị phân", /ws\.send\(floatToPcm16\(f32\)\.buffer\)/.test(live));
+check("voice.js: tải trước đoạn KẾ trong hàng đợi khi ở khúc cuối", /_preloadNextQueued\(\) \{/.test(voice)
+      && /this\._chunkIndex !== this\.ttsChunks\.length - 1\) return;/.test(voice) && /else this\._preloadNextQueued\(\);/.test(voice));
+check("voice.js: enqueue lúc đang đọc thì tải trước ngay", /else this\._preloadNextQueued\(\);   \/\/ đang đọc/.test(voice));
+check("voice.js: preload khớp theo URL, không theo index", /this\._preloaded\.url === url/.test(voice) && !/_preloaded\.i === i/.test(voice));
+check("server: làn nhanh chỉ đẩy câu đã khép qua split_speakable", /voice_brain\.split_speakable\(text, sent_upto, final\)/.test(main));
 check("live: có sendText và stop", /sendText: sendText, sendContext: sendContext/.test(live) && /type: "stop"/.test(live));
 check("live: phát nối tiếp theo nextAt", /nextAt = t \+ ab\.duration/.test(live));
 check("live: bị ngắt thì đo ms đã phát TRƯỚC khi xả rồi gửi khung played",

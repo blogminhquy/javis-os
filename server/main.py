@@ -11752,33 +11752,13 @@ async def websocket_endpoint(ws: WebSocket):
                 pass
             text, sent_upto, brain_obj = "", 0, None
 
-            # Stream từng mảnh NGAY để loa bắt đầu sớm, nhưng dòng marker không bao giờ ra
-            # loa. Marker luôn đứng ĐẦU dòng, nên: dòng đã có chữ thường rồi thì không thể
-            # thành marker nữa (gửi thoải mái); dòng mới mà chữ đầu trùng đầu marker thì
-            # giữ lại cho tới khi biết chắc là marker hay không.
+            # Chỉ đẩy phần ĐỌC ĐƯỢC: câu đã khép hoặc dòng đã khép (voice_brain.split_speakable).
+            # Trình duyệt đọc mỗi khung là một yêu cầu TTS riêng, nên đẩy từng delta vài từ là
+            # nghe giật, cà nhắc (bài học 0.57.1). Dòng marker không bao giờ ra loa.
             async def _flush(final=False):
                 nonlocal sent_upto
-                while sent_upto < len(text):
-                    nl = text.find("\n", sent_upto)
-                    line_start = text.rfind("\n", 0, sent_upto) + 1
-                    if nl < 0:
-                        partial = text[sent_upto:]
-                        line = text[line_start:]
-                        mk = voice_brain.MARKER
-                        if not final and (mk.startswith(line) or line.startswith(mk)):
-                            return                      # chưa biết có phải marker: đợi thêm
-                        if line.startswith(mk):
-                            sent_upto = len(text)        # final: dòng marker, bỏ
-                            return
-                        sent_upto = len(text)
-                        if partial:
-                            await send_raw({"type": "stream", "content": partial, "session_id": conv_sid, "lane": "voice"})
-                        return
-                    chunk = text[sent_upto:nl + 1]
-                    line = text[line_start:nl + 1]
-                    sent_upto = nl + 1
-                    if line.lstrip().startswith(voice_brain.MARKER):
-                        continue
+                chunks, sent_upto = voice_brain.split_speakable(text, sent_upto, final)
+                for chunk in chunks:
                     await send_raw({"type": "stream", "content": chunk, "session_id": conv_sid, "lane": "voice"})
 
             try:

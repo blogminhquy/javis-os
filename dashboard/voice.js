@@ -422,6 +422,26 @@ class JavisVoice {
     this._lastQueued = clean;
     this.speechQueue.push(clean);
     if (!this.isPlaying) this._pumpQueue();
+    else this._preloadNextQueued();   // đang đọc khúc cuối của đoạn trước thì tải ngay đoạn này
+  }
+
+  // Tải trước audio của đoạn KẾ trong hàng đợi khi đoạn hiện tại đang ở khúc cuối, để hết
+  // khúc là phát liền. Trước đây chỉ tải trước trong CÙNG một đoạn, còn giữa hai đoạn (hai câu
+  // stream về liên tiếp) là một lượt chờ Edge TTS trọn vẹn: nghe như cắt từng câu.
+  _preloadNextQueued() {
+    if (this._laIOS() || this._preloaded || !this.ttsBackend) return;
+    if (!this.ttsChunks || this._chunkIndex !== this.ttsChunks.length - 1) return;
+    const next = this.speechQueue && this.speechQueue[0];
+    if (!next) return;
+    const first = this._splitForLatency(next)[0];
+    if (first) this._preloadUrl(this._chunkUrl(first));
+  }
+
+  _preloadUrl(url) {
+    const na = new Audio(url);
+    na.preload = "auto";
+    try { na.load(); } catch (e) {}
+    this._preloaded = { url: url, audio: na };
   }
 
   // Lấy đoạn kế trong hàng đợi để đọc; hết hàng đợi thì dừng.
@@ -624,9 +644,11 @@ class JavisVoice {
       a.play().catch(onFail);
       return;
     }
-    // Dùng audio đã preload nếu trùng index, không thì tạo mới (retry = tạo mới, tránh cache lỗi).
-    let audio = (!retry && this._preloaded && this._preloaded.i === i) ? this._preloaded.audio
-              : new Audio(this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : ""));
+    // Dùng audio đã preload nếu trùng URL (cùng đoạn hay đoạn kế trong hàng đợi), không thì
+    // tạo mới (retry = tạo mới, tránh cache lỗi).
+    const url = this._chunkUrl(this.ttsChunks[i]);
+    let audio = (!retry && this._preloaded && this._preloaded.url === url) ? this._preloaded.audio
+              : new Audio(url + (retry ? "&retry=1" : ""));
     this._preloaded = null;
     this.currentAudio = audio;
     this._chunkIndex = i;
@@ -653,13 +675,10 @@ class JavisVoice {
       }
     } catch (e) { /* phát thẳng vẫn ổn */ }
 
-    // PRELOAD đoạn kế tiếp ngay khi đoạn này bắt đầu → khi hết là phát liền, không trống
-    if (i + 1 < this.ttsChunks.length) {
-      const na = new Audio(this._chunkUrl(this.ttsChunks[i + 1]));
-      na.preload = "auto";
-      try { na.load(); } catch (e) {}
-      this._preloaded = { i: i + 1, audio: na };
-    }
+    // PRELOAD khúc kế tiếp ngay khi khúc này bắt đầu → khi hết là phát liền, không trống;
+    // khúc cuối thì tải trước đoạn KẾ trong hàng đợi.
+    if (i + 1 < this.ttsChunks.length) this._preloadUrl(this._chunkUrl(this.ttsChunks[i + 1]));
+    else this._preloadNextQueued();
 
     // Một audio lỗi thì Chrome bắn CẢ sự kiện 'error' LẪN play() reject → phải chống xử lý 2 lần
     // (nếu không: 2 retry chồng nhau + audio mồ côi stopSpeaking không dừng được). Cờ handled = xử lý đúng 1 lần.

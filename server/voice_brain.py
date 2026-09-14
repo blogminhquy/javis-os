@@ -58,6 +58,66 @@ def parse_marker(text: str):
     return filler, m.group(1).strip()
 
 
+# Đoạn stream chưa có dấu kết câu mà dài quá mức này thì cắt ở dấu phẩy/khoảng trắng cuối,
+# để một câu dài lê thê không giữ loa im mãi.
+SPEAK_MAX = 220
+_SENT_END = re.compile(r"[.!?…]+[\"'”’)\]]*(?=\s|$)")
+
+
+def split_speakable(text: str, start: int, final: bool = False):
+    """Cắt phần chữ từ `start` thành các mẩu ĐỌC ĐƯỢC cho loa; trả (mẩu, vị trí mới).
+
+    Vì sao phải có hàm này (bài học 0.57.1): trước đây làn nhanh đẩy MỖI delta stream (vài từ)
+    thành một khung cho trình duyệt, mà trình duyệt đọc mỗi khung là một yêu cầu TTS riêng ->
+    hàng chục yêu cầu Edge, mỗi cái một độ trễ mạng, nghe giật và cà nhắc như cắt từng mẩu.
+    Nay chỉ phát khi CÂU đã khép (dấu . ! ? … hoặc xuống dòng), hoặc khi đoạn dở dài quá
+    SPEAK_MAX thì cắt ở dấu phẩy/khoảng trắng cuối; `final` thì đẩy nốt phần đuôi.
+
+    Dòng marker `JAVIS_ASK_MAIN:` không bao giờ ra loa: dòng mới mà chữ đầu trùng đầu marker
+    thì giữ lại tới khi biết chắc; đã là marker thì bỏ cả dòng.
+    """
+    out: List[str] = []
+    while start < len(text):
+        nl = text.find("\n", start)
+        line_start = text.rfind("\n", 0, start) + 1
+        if nl < 0:
+            line = text[line_start:]
+            if not final and (MARKER.startswith(line.lstrip()) or line.lstrip().startswith(MARKER)):
+                break                          # chưa biết có phải marker: đợi thêm
+            if line.lstrip().startswith(MARKER):
+                start = len(text)              # final: dòng marker, bỏ
+                break
+            partial = text[start:]
+            if final:
+                if partial.strip():
+                    out.append(partial)
+                start = len(text)
+                break
+            # Chưa xuống dòng: chỉ lấy tới dấu kết câu cuối cùng.
+            last_end = -1
+            for m in _SENT_END.finditer(partial):
+                last_end = m.end()
+            if last_end > 0:
+                out.append(partial[:last_end])
+                start += last_end
+                continue
+            if len(partial) >= SPEAK_MAX:
+                cut = max(partial.rfind(",", 0, SPEAK_MAX), partial.rfind(" ", 0, SPEAK_MAX))
+                if cut > 20:
+                    out.append(partial[:cut + 1])
+                    start += cut + 1
+                    continue
+            break                              # câu còn dở: đợi thêm chữ
+        chunk = text[start:nl + 1]
+        line = text[line_start:nl + 1]
+        start = nl + 1
+        if line.lstrip().startswith(MARKER):
+            continue
+        if chunk.strip():
+            out.append(chunk)
+    return out, start
+
+
 def build_messages(history: List[dict], text: str, system: str = SYSTEM_PROMPT) -> List[dict]:
     msgs = [{"role": "system", "content": system}]
     for h in (history or [])[-HISTORY_N:]:
