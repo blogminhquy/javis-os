@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.3] - 2026-09-14
+### Sửa lỗi
+- **Cài đặt giọng nói giờ lưu được thật.** Chọn chế độ Làn nhanh hay Live, chọn bộ não giọng, chọn cách nghe, bấm Lưu thì nút báo đã lưu nhưng máy chủ không ghi gì cả, tải lại trang là mất sạch. Nay bảy ô đó lưu đúng, và giá trị lạ thì bị bỏ qua chứ không làm hỏng lượt nói.
+- Lưu thẻ giọng đọc (Edge, OpenAI, ElevenLabs) không còn đụng tới cài đặt Làn nhanh, hai thẻ ở chung một mục nên trước đây dễ lẫn.
+
 ## [0.57.2] - 2026-09-14
 ### Sửa lỗi
 - **Làn nhanh hết nghe giật, cà nhắc.** Trước đây mỗi mẩu chữ vài từ vừa sinh ra là bị đẩy đi đọc ngay, thành hàng chục lần gọi giọng đọc nối nhau, mỗi lần một khoảng chờ mạng nên nghe như cắt từng mẩu và hay hiện "MẠNG CHẬM". Nay Javis chỉ đọc khi câu đã trọn (hết dấu chấm, chấm hỏi, hay xuống dòng), câu dài quá thì cắt ở dấu phẩy.

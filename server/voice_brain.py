@@ -30,7 +30,28 @@ MARKER = "JAVIS_ASK_MAIN:"
 IDLE_S = 300.0
 TURN_TIMEOUT_S = 90.0
 HISTORY_N = 10
-PROVIDERS = ("antigravity", "groq", "gemini", "openai", "openrouter")
+# Danh sách các ô CHỌN của thẻ "Chế độ và bộ não giọng nói". Đây là NGUỒN DUY NHẤT: trang Cài
+# đặt (GET /voice/options) vẽ từ đây, và đường lưu (POST /settings) cũng nhận đúng những giá trị
+# này. Hai nơi giữ hai danh sách riêng là cách sinh ra lỗi "bấm Lưu thấy xong, F5 là mất".
+MODES = ("standard", "fast", "live")
+
+# key_field rỗng = chạy trên gói người dùng đã đăng nhập, không cần API key.
+BRAIN_PROVIDERS = {
+    "": {"label": "Bộ não chính (như gõ chữ)", "key_field": "", "default_model": ""},
+    "antigravity": {"label": "Antigravity CLI (gói Google)", "key_field": "", "default_model": ""},
+    "groq": {"label": "Groq (API)", "key_field": "groq_api_key", "default_model": "llama-3.3-70b-versatile"},
+    "gemini": {"label": "Google Gemini (API)", "key_field": "gemini_api_key", "default_model": "gemini-2.5-flash"},
+    "openai": {"label": "OpenAI (API)", "key_field": "openai_api_key", "default_model": "gpt-4o-mini"},
+    "openrouter": {"label": "OpenRouter", "key_field": "openrouter_key", "default_model": "google/gemini-2.5-flash"},
+}
+
+STT_PROVIDERS = {
+    "browser": {"label": "Trình duyệt (Web Speech, miễn phí)", "key_field": ""},
+    "groq": {"label": "Groq Whisper (chính xác hơn)", "key_field": "groq_api_key"},
+}
+
+# Bộ não chạy bằng API key (antigravity chạy bằng gói nên không nằm trong đây).
+PROVIDERS = tuple(k for k, p in BRAIN_PROVIDERS.items() if p["key_field"])
 
 SYSTEM_PROMPT = (
     "Bạn là Javis, trợ lý cá nhân, đang NÓI CHUYỆN BẰNG GIỌNG với người dùng. Trả lời như người "
@@ -308,10 +329,10 @@ def config_from_settings(cfg: dict) -> dict:
     v = (cfg or {}).get("voice") or {}
     m = (cfg or {}).get("model") or {}
     prov = str(v.get("brain_provider") or "").strip().lower()
-    keys = {"groq": m.get("groq_api_key", ""), "gemini": m.get("gemini_api_key", ""),
-            "openai": m.get("openai_api_key", ""), "openrouter": m.get("openrouter_key", "")}
+    kf = (BRAIN_PROVIDERS.get(prov) or {}).get("key_field") or ""
     return {"mode": str(v.get("mode") or "standard"), "provider": prov,
-            "model": str(v.get("brain_model") or "").strip(), "api_key": keys.get(prov, "")}
+            "model": str(v.get("brain_model") or "").strip(),
+            "api_key": str(m.get(kf, "")) if kf else ""}
 
 
 def _make(conf: dict) -> VoiceBrain:
@@ -323,12 +344,10 @@ def _make(conf: dict) -> VoiceBrain:
         except Exception:
             cli = ""
         return AntigravityVoiceBrain(model=conf.get("model") or "", cli_path=cli)
-    if prov in ("groq", "gemini", "openai", "openrouter"):
+    if prov in PROVIDERS:
         if not conf.get("api_key"):
             raise RuntimeError(f"Bộ não giọng nói {prov} chưa có API key ở trang Models.")
-        default = {"groq": "llama-3.3-70b-versatile", "gemini": "gemini-2.5-flash",
-                   "openai": "gpt-4o-mini", "openrouter": "google/gemini-2.5-flash"}[prov]
-        return ApiVoiceBrain(prov, conf["api_key"], conf.get("model") or default)
+        return ApiVoiceBrain(prov, conf["api_key"], conf.get("model") or BRAIN_PROVIDERS[prov]["default_model"])
     raise RuntimeError("Chưa chọn bộ não giọng nói.")
 
 

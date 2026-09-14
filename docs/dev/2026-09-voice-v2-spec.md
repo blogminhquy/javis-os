@@ -93,3 +93,24 @@ riêng (0,5 đến 2 giây chờ mỗi cái); giữa hai khung không tải trư
   không ra loa.
 - trình duyệt: `voice.js` tải trước câu KẾ trong hàng đợi khi đang ở khúc cuối câu hiện tại
   (`_preloadNextQueued`), preload khớp theo URL thay vì index.
+
+## 8. Bấm Lưu báo xong mà F5 là mất (0.57.3)
+
+Triệu chứng: trang Cài đặt chọn Làn nhanh + bộ não giọng, bấm Lưu, nút hiện "Đã lưu", tải lại
+trang thì về giá trị cũ.
+
+Nguyên nhân gốc: nhánh `voice` của `POST /settings` dùng ALLOWLIST TỪNG KEY và chỉ liệt kê các ô
+TTS cũ. Bảy ô Voice V2 (`mode`, `brain_provider`, `brain_model`, `stt_provider`, `live_provider`,
+`live_model`, `live_voice`) không có tên trong đó nên bị bỏ im lặng, endpoint vẫn trả
+`{"ok": true}`. Giá trị đang có trong `settings.json` của máy dev là do viết tay lúc phát triển,
+nên đường lưu chưa từng chạy đúng lần nào. Chính comment ở nhánh `locale` đã cảnh báo đúng bẫy này.
+
+Sửa:
+- `voice_brain.MODES / BRAIN_PROVIDERS / STT_PROVIDERS` là NGUỒN DUY NHẤT cho các ô chọn;
+  `GET /voice/options` vẽ từ đó và nhánh lưu cũng nhận đúng từ đó, không còn hai danh sách song
+  song. `_make` và `config_from_settings` cũng lấy `key_field` và `default_model` từ đây.
+- `tests/python/test_luu_cai_dat_giong.py`: vòng tròn lưu rồi đọc lại qua TestClient, cộng một
+  chốt chặn đọc khối `data` của nút Lưu trong `console.js` và bắt lỗi nếu có key nào nhánh voice
+  của `main.py` chưa xử lý. Thêm ô mới mà quên server là test đỏ ngay.
+- BẪY khi viết test: rào chống DNS-rebinding trả 403 cho host `testserver` mặc định của
+  TestClient, phải đặt `base_url="http://127.0.0.1:7777"`, không thì 403 che mất lỗi thật.
