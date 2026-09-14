@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.18] - 2026-09-15
+### Sửa lỗi
+- **Việc chạy nền không còn biến mất giữa chừng.** Javis nhận việc, báo "đang chạy nền", rồi kết quả không bao giờ về và hỏi lại thì vẫn báo đang chạy. Nguyên nhân: việc nền bị hệ thống dọn mất ngay khi đang chạy vì không có gì giữ nó lại. Nay việc nền sống trọn vẹn tới lúc xong.
+- **Việc nền luôn báo về một câu, dù xong, lỗi, bị dừng hay quá lâu.** Trước đây gặp mấy trường hợp đó là im lặng tuyệt đối, bạn ngồi đợi một kết quả không bao giờ tới. Quá 10 phút thì Javis nói thẳng là nó dừng và mời bạn giao lại.
+
 ## [0.57.17] - 2026-09-15
 ### Sửa lỗi
 - **Nói chen vào được cả lúc Javis đang nghĩ.** Trước đây mic bị đóng suốt thời gian xử lý, có khi vài chục giây, nên bạn nói thêm ngữ cảnh hay bảo nó dừng đều như nói vào chỗ trống. Giờ mic vẫn nghe trong lúc nó nghĩ: bạn nói là nó bỏ câu đang làm dở và nhận câu mới, kèm đủ ngữ cảnh của câu trước.

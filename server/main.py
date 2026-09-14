@@ -7967,6 +7967,11 @@ async def _zalo_send_to(chat_id, text) -> tuple:
 
 _PUSH_TASKS = set()   # giữ tham chiếu task đẩy đang bay (xem chú thích trong _bo_vao_hom_thu)
 
+# Việc nền do bộ não giọng giao (Voice V3, "tách nói khỏi làm"). Giữ ref mạnh vì asyncio chỉ
+# giữ ref YẾU tới task đang chờ: thả trôi là có thể bị gom rác giữa chừng, việc chết lặng.
+_VOICE_BG_TASKS = set()
+VOICE_BG_TIMEOUT = 600.0   # giây. Quá hạn thì báo một câu thật, không treo im vô hạn.
+
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
                           quiet=False) -> bool:
@@ -11914,7 +11919,15 @@ async def websocket_endpoint(ws: WebSocket):
             await send_raw({"type": "turn_done", "session_id": conv_sid})
             _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
             voice_brain.note_task_start(conv_sid, ask)
-            asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))
+            # GIỮ REF MẠNH. asyncio chỉ giữ tham chiếu YẾU tới task đang chờ, nên một task thả
+            # trôi như `asyncio.create_task(...)` không gán vào đâu có thể bị gom rác ngay giữa
+            # chừng: việc nền chết lặng, không kết quả, không lỗi, không cả `note_task_done`.
+            # Đúng cảnh chủ dự án gặp 15/09 ("có chạy nền nhưng không thấy nó trả về kết quả",
+            # hai việc treo mãi). Repo đã biết bẫy này ở _UPDATE_TASKS / _PUSH_TASKS, riêng chỗ
+            # này bỏ sót.
+            _bg = asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))
+            _VOICE_BG_TASKS.add(_bg)
+            _bg.add_done_callback(_VOICE_BG_TASKS.discard)
 
         async def _voice_bg_task(request, conv_sid, brain):
             """Một việc nền do bộ não giọng giao: chạy bộ não chính rồi đẩy kết quả vào khung chat.
@@ -11923,8 +11936,25 @@ async def websocket_endpoint(ws: WebSocket):
             song song thật, không xếp hàng sau nhau; yêu cầu đã tự đứng được nên không cần mạch
             chung. Kết quả ghi vào kho phiên web (push_to_chat) nên bộ não giọng thấy ở lượt sau.
             """
+            # Mọi đường ra đều PHẢI báo về khung chat. Bản trước để `await push_to_chat` NGOÀI
+            # try/finally, nên việc bị huỷ (đổi bộ não, tắt phiên) là chết lặng: người dùng
+            # ngồi đợi một kết quả không bao giờ tới và không có gì nói cho họ biết.
+            # Kèm hạn giờ: bộ não chính treo (engine CLI không thoát, mạng đứng) thì trước đây
+            # task nằm đó vĩnh viễn, `note_task_done` cũng không chạy nên hàng đợi báo "đang
+            # chạy" mãi mãi. Thà báo một câu thật còn hơn im lặng vô hạn.
+            out = ""
             try:
-                out = await _voice_ask_javis(request, conv_sid, brain, key=f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}")
+                out = await asyncio.wait_for(
+                    _voice_ask_javis(request, conv_sid, brain, key=f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"),
+                    timeout=VOICE_BG_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                out = (f"Việc nền chạy quá {int(VOICE_BG_TIMEOUT // 60)} phút mà chưa xong nên em dừng lại: "
+                       f"{str(request)[:160]}. Anh thử giao lại, hoặc hỏi thẳng ở khung chat để chạy trực tiếp.")
+            except asyncio.CancelledError:
+                voice_brain.note_task_done(conv_sid, request)
+                await push_to_chat(conv_sid, f"Việc nền bị dừng giữa chừng: {str(request)[:160]}")
+                raise
             except Exception as e:
                 out = f"Việc nền lỗi: {type(e).__name__}: {e}"
             finally:
