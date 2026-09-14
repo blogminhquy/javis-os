@@ -195,8 +195,11 @@ check("có nút sang trang Agents để tạo", /id="cbNewAgent"/.test(CB) && /J
 // Vai trò dài làm <option> tràn ngang khỏi hộp, mà <option> thì không tạo kiểu được.
 check("vai trò Agent bị cắt ngắn trước khi vào option", /vai\.slice\(0, 34\)/.test(CB));
 check("CSS chặn select nở rộng ra khỏi form", /\.cb-form select \{[^}]*text-overflow: ellipsis/.test(CSS));
+// Kiểm Ý NGHĨA (có cửa `go` cho module ngoài gọi), không khoá cứng hình dạng: 0.57.5 đổi
+// `{ go: navigateTo }` thành object có thêm openGroup/setCollapsed và `go` đi qua store Alpine
+// để bung luôn nhóm chứa trang. Khoá cứng nguyên văn thì mỗi lần thêm cửa là test đỏ oan.
 check("console phơi cửa chuyển trang cho module ngoài",
-  /window\.JavisNav = \{ go: navigateTo \}/.test(CON));
+  /window\.JavisNav = \{/.test(CON) && /\bgo\((id)?\)/.test(CON));
 // Vai trò dài làm <option> tràn ngang khỏi hộp, mà <option> thì không tạo kiểu được.
 check("vai trò Agent bị cắt ngắn trước khi vào option", /vai\.slice\(0, 34\)/.test(CB));
 check("CSS chặn select nở rộng ra khỏi form", /\.cb-form select \{[^}]*text-overflow: ellipsis/.test(CSS));
