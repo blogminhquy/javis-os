@@ -28,7 +28,9 @@
     bargeMinTicks: 5,       // nhịp 100 ms tiếng nói liên tiếp mới coi là chen ngang (500 ms)
     falseInterruptMs: 2000, // sau khi tạm dừng, không có chữ trong chừng này thì phát tiếp
     waitTimeoutMs: 90000,   // "khoan" rồi im 90 giây thì thôi chờ
-    slowMs: 2500            // khúc TTS mất hơn chừng này mới phát = mạng chậm
+    slowMs: 2500,           // khúc TTS mất hơn chừng này mới phát = mạng chậm
+    fillerMs: 2500,         // xử lý chừng này ms chưa có chữ nào ra loa thì nói câu tiến độ (V3)
+    fillerToolMs: 1200      // đang gọi tool thì nói sớm hơn: chắc chắn còn lâu
   };
 
   // ---- Cụm từ (đã chuẩn hoá: thường, không dấu câu) ----
@@ -48,14 +50,39 @@
                    "javis", "ơi", "nghen", "nhen", "hen", "đây", "cái"];
   var LEAD = ["javis ơi", "ê javis", "này javis", "javis", "ơi", "ê", "này", "hey javis", "hey", "ok javis"];
 
-  // Câu kết bằng một trong các từ này thì rất có thể người dùng còn nói tiếp.
+  // Câu kết bằng một trong các từ này thì rất có thể người dùng còn nói tiếp. Nhóm cuối là
+  // tiếng ậm ừ lúc đang NGHĨ ("ừm", "ờ", "kiểu", "cái"): dừng để nghĩ, không phải dừng hẳn (V3,
+  // gợi ý endpointing thông minh). Không có "à" vì "vậy à" là câu hỏi đã xong.
   var UNFINISHED = [
     "và", "nhưng", "thì", "là", "với", "rồi", "để", "mà", "hoặc", "hay", "nếu", "vì", "còn", "cho",
     "của", "về", "như", "khi", "lúc", "nên", "bằng", "từ", "đến", "tới", "tại", "bởi", "trong",
     "ngoài", "trên", "dưới", "sau", "trước", "cùng", "hãy", "rằng", "là", "the", "and", "but",
     "then", "so", "with", "to", "a", "an", "of", "or", "if", "because", "that", "when", "for",
-    "in", "on", "at", "is", "are", "was", "were", "which", "who", "how", "what", "where"
+    "in", "on", "at", "is", "are", "was", "were", "which", "who", "how", "what", "where",
+    "ừm", "ờ", "ơ", "kiểu", "cái", "um", "uh", "hmm", "like"
   ];
+
+  // Từ vựng của các cụm CHỜ / DỪNG, để nhận cả bản nói lắp hay lặp ("từ từ đợi đợi đợi chút"):
+  // mọi từ đều thuộc bộ này VÀ có ít nhất một cụm nguyên vẹn nằm trong câu thì vẫn là CHỜ.
+  function vocabOf(phrases) {
+    var set = {};
+    for (var i = 0; i < phrases.length; i++) {
+      var toks = phrases[i].split(" ");
+      for (var k = 0; k < toks.length; k++) set[toks[k]] = true;
+    }
+    for (var p = 0; p < PARTICLES.length; p++) set[PARTICLES[p]] = true;
+    return set;
+  }
+  var WAIT_VOCAB = vocabOf(WAIT), STOP_VOCAB = vocabOf(STOP);
+
+  function loosePhrase(core, phrases, vocab) {
+    if (!core) return false;
+    var toks = core.split(" ");
+    for (var i = 0; i < toks.length; i++) if (!vocab[toks[i]]) return false;
+    var padded = " " + core + " ";
+    for (var j = 0; j < phrases.length; j++) if (padded.indexOf(" " + phrases[j] + " ") >= 0) return true;
+    return false;
+  }
 
   function normalize(text) {
     var s = String(text == null ? "" : text).toLowerCase();
@@ -90,12 +117,12 @@
 
   function isWaitPhrase(text) {
     var c = coreOf(text);
-    return !!c && WAIT.indexOf(c) >= 0;
+    return !!c && (WAIT.indexOf(c) >= 0 || loosePhrase(c, WAIT, WAIT_VOCAB));
   }
 
   function isStopPhrase(text) {
     var c = coreOf(text);
-    return !!c && STOP.indexOf(c) >= 0;
+    return !!c && (STOP.indexOf(c) >= 0 || loosePhrase(c, STOP, STOP_VOCAB));
   }
 
   function looksUnfinished(text) {
@@ -131,6 +158,9 @@
     this.deferred = [];
     this.interruptedAt = "";   // câu Javis đọc tới lúc bị ngắt, đi vào tin kế tiếp
     this.history = [];
+    this.turnAt = 0;           // mốc ms lượt hiện tại bắt đầu xử lý (V3: câu tiến độ)
+    this.spoke = false;        // lượt này đã có chữ THẬT ra loa chưa
+    this.fillerDone = false;   // câu tiến độ chỉ nói MỘT lần mỗi lượt
   }
 
   VoiceTurn.prototype._recompute = function () {
@@ -206,14 +236,31 @@
     return acts.concat(this._recompute());
   };
 
-  VoiceTurn.prototype.turnStart = function () {
+  VoiceTurn.prototype.turnStart = function (now) {
     this.processing = true; this.tool = "";
+    this.turnAt = now || Date.now();
+    this.spoke = false; this.fillerDone = false;
     return this._recompute();
   };
 
   VoiceTurn.prototype.turnDone = function () {
     this.processing = false; this.tool = "";
+    this.turnAt = 0;
     return this._recompute();
+  };
+
+  // Chữ thật của câu trả lời vừa ra loa: từ giờ không cần câu tiến độ nữa.
+  VoiceTurn.prototype.noteSpoke = function () { this.spoke = true; };
+
+  // Câu TIẾN ĐỘ (V3, gợi ý "vừa nói tiến độ vừa trả dần kết quả"): xử lý đã lâu mà loa còn im
+  // thì nói một câu ngắn kiểu "để mình xem nhé", đúng một lần mỗi lượt. Đang gọi tool thì nói
+  // sớm hơn vì chắc chắn còn lâu. Hàm chỉ quyết ĐẾN LÚC chưa; nói câu gì là việc của app.js.
+  VoiceTurn.prototype.fillerCheck = function (now) {
+    if (!this.processing || this.spoke || this.fillerDone || !this.turnAt) return [];
+    var wait = this.tool ? this.opts.fillerToolMs : this.opts.fillerMs;
+    if ((now || Date.now()) - this.turnAt < wait) return [];
+    this.fillerDone = true;
+    return [{ type: "speak_filler" }];
   };
 
   VoiceTurn.prototype.toolCall = function (name) {

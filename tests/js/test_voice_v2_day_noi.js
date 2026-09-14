@@ -25,7 +25,7 @@ function check(name, cond) {
 }
 
 // 1
-check("app.js: khung WS mang voice: _tuGiong", /session_id: sid, voice: _tuGiong \}\)\)/.test(app));
+check("app.js: khung WS mang voice: _tuGiong (V3: hoặc đang rảnh tay)", /session_id: sid, voice: _tuGiong \|\| handsFree \}\)\)/.test(app));
 check("app.js: commit từ đạo diễn bật cờ _tuGiong", /if \(c\) _tuGiong = true;/.test(app));
 check("app.js: gửi xong hạ cờ", /_tuGiong = false;\s*\n\}/.test(app));
 check("app.js: đọc mode + stt_provider từ /settings", /voiceMode = v\.mode \|\| "standard";/.test(app) && /voice\.sttUpload = v\.stt_provider === "groq";/.test(app));

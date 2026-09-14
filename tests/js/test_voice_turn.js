@@ -59,6 +59,17 @@ check("CHỜ khi Javis đang đọc: dừng đọc + chờ", has(a, "stop_tts") 
 a = w2.waitTimeout();
 check("hết 90 giây chờ -> về listening", w2.state === "listening");
 
+// ---- 2b. V3: nói lắp / lặp vẫn là CHỜ; ậm ừ lúc nghĩ thì chờ lâu ----
+check("isWaitPhrase V3: 'từ từ đợi đợi đợi chút' (lặp) vẫn là CHỜ", T.isWaitPhrase("từ từ đợi đợi đợi chút"));
+check("isWaitPhrase V3: 'khoan khoan đợi mình chút nhé'", T.isWaitPhrase("khoan khoan đợi mình chút nhé"));
+check("isWaitPhrase V3: 'đợi mình xem lại số liệu' KHÔNG phải CHỜ (có từ ngoài bộ)", !T.isWaitPhrase("đợi mình xem lại số liệu"));
+check("isWaitPhrase V3: 'để mình' (không có cụm trọn) KHÔNG phải CHỜ", !T.isWaitPhrase("để mình"));
+check("isStopPhrase V3: 'thôi thôi dừng lại' (lặp) là DỪNG", T.isStopPhrase("thôi thôi dừng lại"));
+check("isStopPhrase V3: 'thôi dừng việc đó lại' KHÔNG phải DỪNG", !T.isStopPhrase("thôi dừng việc đó lại"));
+check("endpointing V3: kết bằng 'ừm' -> chờ dài", v.delayFor("cho anh xem doanh thu ừm") === 2200);
+check("endpointing V3: kết bằng 'kiểu' -> chờ dài", v.delayFor("anh muốn nó kiểu") === 2200);
+check("endpointing V3: 'vậy à' là câu hỏi xong -> chờ ngắn", v.delayFor("hôm nay lỗ vậy à") === 800);
+
 // ---- 3. Cụm DỪNG ----
 check("isStopPhrase: 'thôi'", T.isStopPhrase("thôi"));
 check("isStopPhrase: 'dừng lại đi'", T.isStopPhrase("dừng lại đi"));
@@ -116,6 +127,26 @@ check("flush xong thì rỗng", d.deferred.length === 0);
 const d2 = new T.VoiceTurn();
 d2.micOn(); d2.interim("đang nói");
 check("người dùng đang nói: canSpeakNow false", !d2.canSpeakNow());
+
+// ---- 6b. V3: câu tiến độ khi xử lý lâu ----
+const f = new T.VoiceTurn();
+f.micOn(); f.turnStart(1000);
+check("filler: mới 1 giây chưa có chữ -> chưa nói", f.fillerCheck(2000).length === 0);
+a = f.fillerCheck(3600);
+check("filler: quá 2,5 giây chưa có chữ -> speak_filler", has(a, "speak_filler"));
+check("filler: chỉ nói MỘT lần mỗi lượt", f.fillerCheck(9000).length === 0);
+const f2 = new T.VoiceTurn();
+f2.micOn(); f2.turnStart(1000); f2.noteSpoke();
+check("filler: đã có chữ ra loa thì không nói", f2.fillerCheck(9000).length === 0);
+const f3 = new T.VoiceTurn();
+f3.micOn(); f3.turnStart(1000); f3.toolCall("pos_statistics");
+check("filler: đang gọi tool thì nói sớm hơn (1,2 giây)", f3.fillerCheck(2300).length === 1);
+const f4 = new T.VoiceTurn();
+f4.micOn(); f4.turnStart(1000); f4.turnDone();
+check("filler: lượt đã xong thì không nói", f4.fillerCheck(9000).length === 0);
+const f5 = new T.VoiceTurn();
+f5.micOn(); f5.turnStart(1000); f5.fillerCheck(9000); f5.turnDone(); f5.turnStart(20000);
+check("filler: lượt mới tính lại từ đầu", f5.fillerCheck(23000).length === 1);
 
 // ---- 7. WebSocket và tool ----
 const r = new T.VoiceTurn();

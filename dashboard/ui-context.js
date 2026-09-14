@@ -34,6 +34,9 @@
     if (sel) parts.push('chọn="' + safe(sel) + '"');
     var it = clip(ctx.interruptedAt, MAX_INT);
     if (it) parts.push('ngắt_lời="' + safe(it) + '"');
+    // Đang nói chuyện bằng giọng (mic bật, câu trả lời sẽ ĐỌC ra loa): model phải trả lời như
+    // người đang nói, ngắn và không dàn trang (V3). channel_context.py giải thích khoá này.
+    if (ctx.voice) parts.push("kênh=giọng");
     if (!parts.length) return "";
     return PREFIX + " " + parts.join("; ") + "]";
   }

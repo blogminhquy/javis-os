@@ -1240,6 +1240,7 @@
   "app.orb_mic_error": "MIC ERROR",
   "app.orb_slow": "SLOW NETWORK",
   "app.orb_background": "{n} BACKGROUND",
+  "app.voice_filler": "Let me check.|Looking into it, one moment.|Let me have a look.",
   "app.live_missing": "Live voice module missing (reload the page).",
   "app.live_error": "Live voice session error:",
   "app.mic_denied": "You need to grant this page microphone permission.",
