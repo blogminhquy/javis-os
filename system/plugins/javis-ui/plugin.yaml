@@ -1,0 +1,10 @@
+name: Điều khiển dashboard
+slug: javis-ui
+version: 1.0.0
+description: Mở trang, mở file trong brain, mở một việc Kanban hoặc cuộn khung chat trên dashboard đang mở, theo lời người dùng nói hoặc gõ. Dashboard xác nhận đã làm xong ngay trong lượt; không có tab nào mở thì tool nói rõ.
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_ui
+hooks: []

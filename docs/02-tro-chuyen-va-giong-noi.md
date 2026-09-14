@@ -80,9 +80,25 @@ Nút mic (hình micro to, bên trái thanh nhập) bật **chế độ luôn ngh
 3. Sau khi trả lời xong, Javis tự bật mic nghe lại, không cần bạn bấm.
 4. Muốn tắt chế độ này: bấm lại nút mic, hoặc nhấn phím **Esc**.
 
-Trong chế độ rảnh tay, khi bạn bắt đầu nói thì Javis tự ngắt phần nó đang đọc để lắng nghe, nên bạn có thể chen ngang bất cứ lúc nào. Cơ chế này đo độ to của giọng qua luồng mic đã khử vọng (nói liên tục khoảng 0,3 giây, to hơn hẳn nền), nên tiếng loa của chính Javis không tự làm nó ngắt lời.
+Trong chế độ rảnh tay, khi bạn bắt đầu nói thì Javis **tạm dừng** phần nó đang đọc để lắng nghe. Nếu trong 2 giây bạn thật sự nói thành câu, Javis dừng hẳn và tin kế tiếp của bạn mang theo câu nó đang đọc dở, nên nó trả lời tiếp từ chỗ đó chứ không đọc lại từ đầu. Nếu chỉ là tiếng ho hay tiếng động, Javis đọc tiếp từ chỗ dừng. Cơ chế đo độ to của giọng qua luồng mic đã khử vọng (nói liên tục khoảng 0,5 giây, to hơn hẳn nền), nên tiếng loa của chính Javis không tự làm nó ngắt lời. Tắt cơ chế này bằng công tắc **Ngắt lời Javis bằng giọng** trong Cài đặt nhanh.
 
 Chen ngang chỉ hoạt động khi **mic đang mở**. Mic đã tắt thì dù Javis đang đọc, một tiếng động trong phòng cũng không bật mic trở lại.
+
+### Nói "khoan", "thôi": Javis hiểu
+
+- **"Khoan"**, **"đợi chút"**, **"từ từ"**, **"để mình nghĩ"** (hoặc "wait", "hold on"): Javis không gửi gì, dừng đọc nếu đang đọc, và hiện **ĐANG CHỜ BẠN**. Nói tiếp câu thật là nó gửi bình thường. Im lặng 90 giây thì nó thôi chờ.
+- **"Thôi"**, **"dừng lại"**, **"đủ rồi"** (hoặc "stop"): đang đọc thì im ngay, đang suy nghĩ thì bấm hộ nút Dừng. Không gửi gì.
+- Chỉ những câu **ngắn đúng cụm đó** mới được hiểu là lệnh. "Khoan, mở Chrome" là một tin nhắn bình thường.
+
+Javis cũng tự chờ lâu hơn khi câu bạn nói kết bằng "và", "nhưng", "thì" hay dấu phẩy, vì lúc đó bạn thường chưa nói xong. Chỉnh mức im lặng trước khi gửi (Nhanh 0,5 giây, Vừa 0,8 giây, Chậm 1,2 giây) trong Cài đặt nhanh, mục **Im lặng rồi gửi**.
+
+### Điều khiển Javis và máy tính bằng lời
+
+Nói (hoặc gõ) là được, Javis dùng đúng công cụ và báo lại kết quả thật:
+
+- **"Mở trang Việc"**, **"mở file tên X"**, **"cho xem việc vừa giao"**, **"cuộn xuống"**: dashboard tự mở đúng chỗ và Javis nói "đã mở". Việc này chỉ chạy khi có một tab Javis đang mở.
+- **"Mở Chrome"**, **"bật Excel lên"**, **"mở trang youtube.com"**, **"tắt Chrome"**, **"đang mở app nào"**: Javis mở hay đóng app trên **chính máy đang chạy Javis**. Đóng app là đóng lịch sự (app có tài liệu chưa lưu sẽ tự hỏi lưu); nói "ép tắt" thì Javis tắt hẳn. Nếu Javis chạy trong Docker trên máy chủ thì nó nói rõ là không điều khiển được máy bạn.
+- Đang bôi đen một đoạn chữ rồi nói "tóm tắt đoạn này": Javis biết bạn đang chỉ đoạn nào, không hỏi lại.
 
 ### Bước 4 - Nghe Javis trả lời bằng giọng
 
@@ -373,7 +389,13 @@ Dòng chữ ngay dưới quả cầu cho biết Javis đang làm gì:
 | ĐANG NGHE | Đang nghe bạn nói (giữ phím Cách) |
 | ĐANG NGHE • LUÔN | Chế độ rảnh tay đang bật |
 | ĐANG SUY NGHĨ | Bộ não đang xử lý câu hỏi |
+| ĐANG GỌI <tên tool> | Bộ não đang gọi một công cụ (POS, lịch, mở trang...) |
 | ĐANG NÓI | Javis đang đọc câu trả lời |
+| ĐANG CHỜ BẠN | Bạn vừa nói "khoan" / "đợi chút", Javis im chờ bạn nói tiếp |
+| TẠM DỪNG, ĐANG NGHE BẠN | Nghi bạn chen ngang, Javis dừng đọc 2 giây xem bạn có nói thật không |
+| ĐANG KẾT NỐI LẠI | Mất kết nối với máy chủ, đang nối lại |
+| · MẠNG CHẬM | Hậu tố: một khúc giọng đọc mất hơn 2,5 giây mới phát được |
+| · N VIỆC NỀN | Hậu tố: đang có N việc chạy nền ở trang Việc |
 
 ## Bảng tra nhanh nút và phím tắt
 

@@ -120,6 +120,8 @@
   function render(d) {
     var e = el();
     if (!e) return;
+    // Voice V1: orb ghi hậu tố "N việc nền" từ đúng con số này (không có thì 0).
+    try { if (window.JavisOrb) window.JavisOrb.setBackground((d && d.running_count) || 0); } catch (err) {}
     var q = quyetDinh(d);
     if (!q.hien) { hide(); return; }
 

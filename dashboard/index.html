@@ -32,7 +32,7 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=83">
+  <link rel="stylesheet" href="/static/style.css?v=84">
   <link rel="stylesheet" href="/static/console.css?v=51">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
@@ -374,6 +374,31 @@
                   <div class="popover-label"><span data-i18n="qs.rate">TỐC ĐỘ</span> <span id="rateLabel" style="float:right;color:var(--accent);font-family:var(--font)">1.10×</span></div>
                   <input type="range" id="rateSlider" min="0.7" max="1.8" step="0.05" value="1.1" style="width:100%">
                   <div class="rate-marks"><span data-i18n="qs.rate_slow">Chậm</span><span data-i18n="qs.rate_mid">BT</span><span data-i18n="qs.rate_fast">Nhanh</span></div>
+                </div>
+                <!-- Voice V1: im lặng bao lâu thì gửi, và có cho ngắt lời bằng giọng không (lưu localStorage) -->
+                <div class="popover-section">
+                  <div class="popover-label" data-i18n="qs.endpoint">IM LẶNG RỒI GỬI</div>
+                  <div class="voice-options">
+                    <label class="voice-opt">
+                      <input type="radio" name="endpoint" value="500">
+                      <div><strong data-i18n="qs.endpoint_fast">Nhanh</strong><div class="opt-sub" data-i18n="qs.endpoint_fast_sub">0,5 giây · nói ngắn, dứt khoát</div></div>
+                    </label>
+                    <label class="voice-opt">
+                      <input type="radio" name="endpoint" value="800" checked>
+                      <div><strong data-i18n="qs.endpoint_mid">Vừa</strong><div class="opt-sub" data-i18n="qs.endpoint_mid_sub">0,8 giây · mặc định</div></div>
+                    </label>
+                    <label class="voice-opt">
+                      <input type="radio" name="endpoint" value="1200">
+                      <div><strong data-i18n="qs.endpoint_slow">Chậm</strong><div class="opt-sub" data-i18n="qs.endpoint_slow_sub">1,2 giây · hay ngập ngừng</div></div>
+                    </label>
+                  </div>
+                  <div class="opt-sub" style="margin-top:6px" data-i18n="qs.endpoint_hint">Câu kết bằng "và", "nhưng", dấu phẩy thì Javis tự chờ lâu hơn. Nói "khoan" hay "đợi chút" là Javis im chờ bạn.</div>
+                </div>
+                <div class="popover-section">
+                  <label class="qs-row">
+                    <span data-i18n="qs.barge">Ngắt lời Javis bằng giọng</span>
+                    <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
+                  </label>
                 </div>
                 <div class="popover-section">
                   <button class="test-btn" id="testVoiceBtn" data-i18n="qs.test_voice">▶ Nghe thử</button>
@@ -779,7 +804,9 @@
        hàm vẽ lại theo tông ngay lúc parse, nếu window.javisTheme chưa có thì chúng
        đăng ký hụt và các lớp canvas kẹt ở bảng màu tối. -->
   <script src="/static/theme.js?v=2"></script>
-  <script src="/static/voice.js?v=18"></script>
+  <!-- Voice V1: đạo diễn hội thoại (thuần) phải nạp TRƯỚC voice.js và app.js. -->
+  <script src="/static/voice-turn.js?v=1"></script>
+  <script src="/static/voice.js?v=19"></script>
   <script src="/static/graph.js?v=16"></script>
   <script src="/static/chat-render.js?v=12"></script>
   <script src="/static/code-hl.js?v=1"></script>
@@ -794,9 +821,12 @@
   <script src="/static/chat-slash.js?v=1"></script>
   <script src="/static/chat-acts.js?v=2"></script>
   <script src="/static/chat-marks.js?v=3"></script>
-  <script src="/static/app.js?v=103"></script>
+  <!-- Voice V1: khối ngữ cảnh giao diện + bộ nhận lệnh ui_action, nạp TRƯỚC app.js. -->
+  <script src="/static/ui-context.js?v=1"></script>
+  <script src="/static/ui-actions.js?v=1"></script>
+  <script src="/static/app.js?v=104"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
-  <script src="/static/background-strip.js?v=1"></script>
+  <script src="/static/background-strip.js?v=2"></script>
   <script src="/static/model-picker.js?v=7"></script>
   <script src="/static/branding.js?v=7"></script>
   <script src="/static/quick-settings.js?v=8"></script>
@@ -812,7 +842,7 @@
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=2"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=132"></script>
+  <script src="/static/console.js?v=133"></script>
   <script src="/static/mobile-chat.js?v=8"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

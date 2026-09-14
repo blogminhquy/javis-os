@@ -655,6 +655,12 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .orb-state.listening { color: var(--accent); }
 .orb-state.speaking { color: var(--accent2); }
 .orb-state.thinking { color: var(--yellow); }
+/* Voice V1: trạng thái thật (docs/dev/2026-09-voice-v1-spec.md mục 4) */
+.orb-state.waiting { color: var(--accent2); }
+.orb-state.paused { color: var(--yellow); }
+.orb-state.reconnecting { color: var(--red); animation: orb-blink 1.2s ease-in-out infinite; }
+.orb-state.error { color: var(--red); }
+@keyframes orb-blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 .orb-interim {
   font-size: 17px; color: var(--text); margin-top: 8px;
   max-width: 600px; margin-left: auto; margin-right: auto; min-height: 20px;

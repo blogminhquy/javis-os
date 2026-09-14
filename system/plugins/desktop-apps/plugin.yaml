@@ -1,0 +1,12 @@
+name: Điều khiển app trên máy
+slug: desktop-apps
+version: 1.0.0
+description: Mở, đóng và liệt kê ứng dụng trên CHÍNH MÁY đang chạy Javis (Windows, macOS, Linux có màn hình) theo lời người dùng, ví dụ "mở Chrome", "tắt Excel", "đang mở app nào". Tự chặn và nói rõ khi Javis chạy trong Docker trên máy chủ, vì khi đó máy chạy Javis không phải máy của người dùng.
+author: Javis (bundled)
+enabled: true
+min_mode: safe
+tools:
+  - javis_app_list
+  - javis_app_open
+  - javis_app_close
+hooks: []

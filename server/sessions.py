@@ -204,6 +204,9 @@ _KHOI_DINH_KEM = re.compile(r"^\s*\[File đính kèm[^\]]*\]\s*")
 # tên "[FILE ĐANG MỞ trong trình sửa của Javis: /home/…". Ghim còn được gửi lại MỖI LƯỢT nên
 # nó phổ biến hơn khối đính kèm nhiều.
 _KHOI_GHIM = re.compile(r"^\s*\[FILE ĐANG MỞ[^\]]*\]\s*")
+# Khối ngữ cảnh giao diện (Voice V1, dashboard/ui-context.js): trang đang mở, đoạn đang bôi
+# đen, câu Javis bị ngắt lời. Cùng loại với hai khối trên và cũng đi TRƯỚC câu của user.
+_KHOI_NGU_CANH_UI = re.compile(r"^\s*\[NGỮ CẢNH GIAO DIỆN:[^\]]*\]\s*")
 # Câu dashboard tự điền khi user đính kèm file mà KHÔNG gõ gì - không mang thông tin gì.
 _CAU_TU_DIEN = "Hãy đọc (các) file trên và phản hồi / tóm tắt nội dung chính."
 # File đính kèm được app.js liệt kê mỗi dòng một cái, dạng "- <đường dẫn>". Neo vào ĐÚNG dạng
@@ -248,6 +251,7 @@ def title_from_message(msg: str, gioi_han: int = TITLE_MAX) -> str:
     for _ in range(4):
         truoc = con_lai
         con_lai = _KHOI_GHIM.sub("", con_lai, count=1)
+        con_lai = _KHOI_NGU_CANH_UI.sub("", con_lai, count=1)
         m_dk = _KHOI_DINH_KEM.match(con_lai)
         if m_dk:
             khoi_dk = m_dk.group(0)

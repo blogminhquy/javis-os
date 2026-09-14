@@ -2585,6 +2585,7 @@
       if (window._javisKanbanDrawerCleanup === cleanupDrawer) {
         delete window._javisKanbanDrawerCleanup;
       }
+      if (window.JavisKanbanShow === showTask) delete window.JavisKanbanShow;
     };
     window._javisKanbanDrawerCleanup = cleanupDrawer;
 
@@ -2692,6 +2693,8 @@
       await load();
     });
 
+    // Voice V1: tool javis_ui (open_task) mở ngăn kéo việc qua cửa này (dashboard/ui-actions.js).
+    window.JavisKanbanShow = showTask;
     async function showTask(id) {
       openDrawer();
       // window.t chứ KHÔNG phải t: dòng dưới khai `const t = d.task`, mà const có vùng chết -

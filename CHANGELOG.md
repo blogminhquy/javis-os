@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.56.0] - 2026-09-14
+### Thêm mới
+- **Nói chuyện với Javis tự nhiên hơn.** Nói "khoan", "đợi chút" là Javis im chờ bạn; nói "thôi", "dừng lại" là nó ngừng đọc. Câu kết bằng "và", "nhưng" hay dấu phẩy thì Javis tự chờ thêm chứ không gửi vội. Chen ngang khi Javis đang đọc: nó tạm dừng 2 giây xem bạn có nói thật không, nói thật thì dừng hẳn và trả lời tiếp từ chỗ đang đọc dở, còn tiếng ho thì đọc tiếp.
+- **Điều khiển bằng lời.** "Mở trang Việc", "mở file X", "cuộn xuống" là dashboard tự mở. "Mở Chrome", "tắt Excel", "đang mở app nào" là Javis mở hay đóng app trên chính máy đang chạy Javis (chạy trên VPS thì nó nói rõ là không được). Bôi đen một đoạn rồi nói "tóm tắt đoạn này" là Javis biết đoạn nào.
+- **Dòng trạng thái giữa màn hình nói thật:** ĐANG GỌI tên tool, ĐANG CHỜ BẠN, TẠM DỪNG, ĐANG KẾT NỐI LẠI, và hậu tố MẠNG CHẬM hay N VIỆC NỀN chỉ hiện khi đo được thật.
+
+### Cải thiện
+- Giọng đọc bắt đầu sớm hơn: máy chủ phát âm thanh ngay khi sinh ra thay vì đợi xong cả câu. Thêm hai nút trong Cài đặt nhanh: mức im lặng trước khi gửi, và bật/tắt ngắt lời bằng giọng.
+
 ## [0.55.66] - 2026-09-13
 ### Sửa lỗi
 - **Xem ảnh trên điện thoại giờ thoát ra được.** Bấm vào một tấm ảnh trong chat là kẹt luôn: nút đóng nằm lọt dưới đồng hồ và vạch pin của điện thoại nên bấm không trúng, mà vuốt cạnh trái để lùi lại thì cũng không ăn gì. Nay thanh công cụ lùi xuống dưới thanh trạng thái, và **vuốt cạnh hoặc bấm Back là đóng ảnh** thay vì văng ra khỏi Javis.
