@@ -860,6 +860,9 @@
   <script src="/static/push.js?v=2"></script>
   <script src="/static/install-nudge.js?v=1"></script>
   <script src="/static/notifications.js?v=3"></script>
+  <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
+       (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
+  <script src="/static/pet.js?v=1"></script>
   <!-- (Nút đổi tông TỐI ↔ SÁNG: theme.js đã nạp ở đầu khối script phía trên) -->
   <!-- Alpine self-host (dashboard/vendor): bản unpkg đo được 2.1s lúc first load + chết khi offline -->
   <script defer src="/static/vendor/alpinejs-3.14.1.min.js?v=1"></script>

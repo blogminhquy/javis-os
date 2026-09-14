@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.0] - 2026-09-15
+### Thêm mới
+- **Javis có linh vật riêng, nép ở mép màn hình.** Một khuôn mặt nhỏ ló ra nửa người bên phải, hai mắt né sang phần còn nhìn thấy, nhìn theo con trỏ và chớp mắt. Nó đổi biểu cảm theo đúng việc đang làm: mắt mở to khi lắng nghe, liếc lên khi suy nghĩ, cong lại khi trả lời.
+- **Bấm một lần là nó bước hẳn ra kèm menu nhanh** (trò chuyện, việc, cài đặt, ẩn) và đứng nguyên ngoài đó; bấm ra chỗ khác chỉ đóng menu chứ không kéo nó vào. Kéo thả đi đâu cũng được, ném sát mép thì nó mới nép nửa người trở lại.
+- **Trang "Linh vật" mới** trong nhóm Hệ thống: chọn 1 trong 5 hình dáng và 12 bảng màu, hoặc tắt hẳn. Mỗi bảng màu tự đổi tông theo giao diện ngày hay đêm, và lựa chọn lưu theo tài khoản nên máy nào mở cũng thấy đúng con mình chọn.
+### Cải thiện
+- **Logo và favicon đổi sang mặt linh vật** (khối tròn cam, hai mắt đen). Logo giờ tự đổi theo phiên bản app, hết cảnh cập nhật xong vẫn thấy logo cũ nằm trong cache trình duyệt.
+- **Thanh bên gọn đi một tầng.** Nhóm "Trợ lý" được bỏ, hai mục bên trong dồn xuống "Bộ não" và đứng đầu nhóm. Trang "Javis" nay gọi đúng tên là **Đồ thị**, và vẫn là trang mở ra đầu tiên.
+
 ## [0.57.23] - 2026-09-15
 ### Thêm mới
 - **Trình duyệt cho Javis tự kiểm thử giao diện giờ là một lựa chọn, cài bằng nút bấm.** Trang Công cụ có mục "Công cụ tuỳ chọn" với nút cài, và trình hướng dẫn lần đầu cũng hỏi luôn. Máy nào đã có sẵn Chrome thì Javis dùng luôn và không mời tải gì; chỉ máy chủ thiếu trình duyệt mới thấy nút. Bản tải về nằm trên ổ dữ liệu nên còn nguyên sau mỗi lần cập nhật.

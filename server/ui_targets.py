@@ -20,7 +20,7 @@ import unicodedata
 PAGES = (
     "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage",
+    "packs", "logs", "account", "usage", "pet",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
@@ -35,6 +35,8 @@ ALIASES = {
     "kenh": "channels", "telegram": "channels", "zalo": "channels",
     "muc dung": "usage", "token": "usage", "chi phi": "usage",
     "tro chuyen": "chat", "hoi thoai": "chat", "trang chu": "home", "javis": "home",
+    "do thi": "home", "graph": "home", "khoang nao": "home", "do thi tri thuc": "home",
+    "linh vat": "pet", "mascot": "pet", "con pet": "pet", "pet": "pet", "thu cung": "pet",
     "tu hoc": "selfimprove", "self improve": "selfimprove", "hoc": "learn",
     "viec dinh ky": "selfimprove", "nhac hen": "selfimprove",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",
@@ -50,10 +52,12 @@ ALIASES = {
 # Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
 # dashboard/ui-actions.js. Mở NHÓM khác mở TRANG: người dùng hay muốn bung phần đang gập để
 # nhìn xem trong đó có gì, chứ chưa chọn trang nào.
-GROUPS = ("tro_ly", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
+GROUPS = ("bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
 
 GROUP_ALIASES = {
-    "tro ly": "tro_ly", "assistant": "tro_ly",
+    # Nhóm "Trợ lý" đã bỏ ở 0.58.0 (gộp vào Bộ não); giữ bí danh cũ trỏ sang Bộ não để
+    # câu lệnh bằng lời quen tay không chết.
+    "tro ly": "bo_nao", "assistant": "bo_nao",
     "bo nao": "bo_nao", "second brain": "bo_nao", "brain": "bo_nao",
     "code": "code", "lap trinh": "code",
     "nang luc": "nang_luc", "kha nang": "nang_luc", "capability": "nang_luc",

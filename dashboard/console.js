@@ -43,6 +43,7 @@
     logs: "scroll-text",
     account: "circle-user",
     usage: "chart-column",
+    pet: "smile",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -52,7 +53,6 @@
 
   // Icon cho TẦNG 1 (nhãn nhóm) - chỉ dùng ở header nhóm rail.
   const GICON = {
-    "Trợ lý": ic("sparkles"),
     "Bộ não": ic("brain"),
     "Code": ic("file-code"),
     "Năng lực": ic("lightbulb"),
@@ -81,7 +81,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage",
+    "packs", "logs", "account", "usage", "pet",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -90,8 +90,11 @@
   const RAIL_GROUPS = [
     // `id` là tên máy đọc của nhóm, dùng cho lệnh bằng lời (`javis_ui` action open_group).
     // Nhãn đổi theo ngôn ngữ nên KHÔNG dùng nhãn làm khoá tra cứu được.
-    { id: "tro_ly", get label() { return t("nav.group.tro_ly"); },      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
-    { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
+    // Nhóm "Trợ lý" đã BỎ ở 0.58.0: nó chỉ chứa Đồ thị + Trò chuyện, mà cả hai đều là cách
+    // NHÌN vào chính bộ não (đồ thị là khoang não, trò chuyện là nói với bộ não đó), nên
+    // đứng thành một tầng riêng ngang hàng với Bộ não là thừa một bậc. Hai mục dồn xuống
+    // "Bộ não" và đứng đầu nhóm, vì đó là hai trang được mở nhiều nhất.
+    { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["home", "chat", "files", "learn"] },
     // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
     // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
     // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
@@ -101,7 +104,7 @@
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
-    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
+    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
 
@@ -144,7 +147,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -402,6 +405,7 @@
     if (id === "chat")     return renderChat(el);
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
     if (id === "settings") return renderSettings(el);
+    if (id === "pet") return renderPetPage(el);
     if (id === "models")   return renderModels(el);
     if (id === "mcp")      return renderConnect(el);
     if (id === "plugins")  return renderPlugins(el);
@@ -5911,6 +5915,61 @@
       st.textContent = r && r.ok ? t("settings.v2_saved") : t("settings.save_failed");
       try { if (window.JavisVoiceMode) window.JavisVoiceMode.refresh(); } catch (e) {}
     };
+  }
+
+  // ---- Thẻ LINH VẬT trên trang Cài đặt ----
+  // Pet là một module độc lập (dashboard/pet.js) và nó GIỮ trạng thái thật; ở đây chỉ vẽ ô
+  // chọn rồi gọi JavisPet.setCfg(). Không sao chép danh sách hình dáng hay bảng màu sang
+  // đây: hai bản danh sách lệch nhau là kiểu lỗi đã xảy ra với bảng icon một lần rồi.
+  // Trang LINH VẬT (nhóm Hệ thống). Tách khỏi trang Cài đặt vì nó không phải một công tắc
+  // hệ thống: đây là chỗ người dùng ngồi chọn hình dáng và màu cho con pet của mình, và
+  // nhét chung vào trang Cài đặt vốn đã dài thì không ai tìm ra.
+  async function renderPetPage(el) {
+    const gen = _renderGen;
+    parkQuickSet();
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
+    const s = await freshSettings();
+    if (gen !== _renderGen) return;
+    el.innerHTML = '<div class="settings-page"><div class="settings-group-body settings-two-col" id="petPageBody"></div></div>';
+    renderPetCard(el.querySelector("#petPageBody"), (s.dashboard || {}).pet);
+  }
+
+  function renderPetCard(host, tuMayChu) {
+    if (!host) return;
+    const P = window.JavisPet;
+    if (!P) {                                   // pet.js chưa nạp (cache index.html cũ)
+      host.innerHTML = `<div class="settings-card compact"><p>${esc(t("settings.pet_missing"))}</p></div>`;
+      return;
+    }
+    if (tuMayChu) P.hydrate(tuMayChu);
+    const ve = () => {
+      const cur = P.get();
+      const shapes = P.shapes(), palettes = P.palettes();
+      host.innerHTML = `<div class="settings-card">
+        <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
+        <p>${esc(t("settings.pet_desc"))}</p>
+        <div class="js-actions">
+          <button class="gcard-btn ${cur.enabled ? "ghost" : ""}" id="setPetToggle">${esc(cur.enabled ? t("settings.pet_off") : t("settings.pet_on"))}</button>
+          <button class="gcard-btn ghost" id="setPetReset">${esc(t("settings.pet_reset"))}</button>
+        </div>
+        <div class="gcard-meta">${esc(t("settings.pet_hint"))}</div>
+      </div>
+      <div class="settings-card">
+        <div class="settings-card-head"><b>${esc(t("settings.pet_shape"))}</b></div>
+        <div class="pet-picker" role="group">${Object.entries(shapes).map(([k, sh]) =>
+          `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette)}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
+        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_color"))}</b><span class="gcard-tag">${esc(t(palettes[cur.palette].key))}</span></div>
+        <div class="pet-picker" role="group">${Object.keys(palettes).map(k => {
+          const tone = P.toneOf(k) || ["#888"];
+          return `<button type="button" class="pet-swatch" data-pet-palette="${esc(k)}" aria-pressed="${k === cur.palette}" title="${esc(t(palettes[k].key))}" aria-label="${esc(t(palettes[k].key))}"><i style="background:${esc(tone[0])}"></i></button>`;
+        }).join("")}</div>
+      </div>`;
+      host.querySelector("#setPetToggle").onclick = () => { P.setEnabled(!cur.enabled); ve(); };
+      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", side: "right", pos: 0.62, enabled: true }); ve(); };
+      host.querySelectorAll("[data-pet-shape]").forEach(b => b.onclick = () => { P.setCfg({ shape: b.dataset.petShape }); ve(); });
+      host.querySelectorAll("[data-pet-palette]").forEach(b => b.onclick = () => { P.setCfg({ palette: b.dataset.petPalette }); ve(); });
+    };
+    ve();
   }
 
   async function renderSettings(el) {

@@ -16,11 +16,11 @@
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin javis-ui.
   var PAGES = ["home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
                "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-               "packs", "logs", "account", "usage"];
+               "packs", "logs", "account", "usage", "pet"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
   // trong plugin javis-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
   // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
-  var GROUPS = ["tro_ly", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
+  var GROUPS = ["bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
   var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
 
   function validate(frame) {

@@ -1,0 +1,486 @@
+/* pet.js - LINH VẬT của Javis: một khuôn mặt nhỏ nép ở mép màn hình, lấp ló nửa người.
+
+   Đây KHÔNG phải đồ trang trí. Nó là "sự hiện diện" của Javis ở mọi trang: nhìn theo con trỏ,
+   chớp mắt, và đổi biểu cảm theo đúng trạng thái thật của lượt trả lời (nghe / nghĩ / nói /
+   lỗi). Trạng thái không tự bịa: app.js gọi JavisPet.setState() ngay trong setOrbState(), tức
+   là pet và chữ trên orb luôn nói cùng một điều.
+
+   Hình học và bảng màu lấy nguyên từ bản mẫu javis-avatar-v3.html (chủ dự án chốt), rút gọn
+   cho cỡ nhỏ: vành quỹ đạo ở đây là MỘT path có dash xoay, không phải 144 mảnh như bản mẫu.
+   Ở 56px thì vệt mờ dần của bản mẫu không ai nhìn thấy, mà 576 lượt ghi style mỗi khung hình
+   thì máy nào cũng thấy.
+
+   Tương tác: bấm = trượt ra kèm menu nhanh, bấm lại = nép vào; kéo = đặt lại chỗ, thả ra thì
+   tự hút về mép gần nhất. Chỗ đứng, hình dáng, bảng màu lưu ở localStorage (tức thì, khỏi
+   nháy lúc mở trang) VÀ ở settings.dashboard.pet trên máy chủ (theo người, không theo máy).
+
+   KHÔNG dùng ký tự em dash ở bất kỳ đâu trong file này. */
+(function () {
+  "use strict";
+
+  var KHOA = "javis.pet";
+  var NGUONG_KEO = 16;   // px di chuyển tối thiểu mới coi là KÉO chứ không phải bấm
+
+  // ---- Hình dáng (path trong viewBox 320x320, tâm 160/160) ----
+  var SHAPES = {
+    circle:   { key: "pet.shape.circle",   d: "M160 82 A78 78 0 1 1 160 238 A78 78 0 1 1 160 82 Z" },
+    square:   { key: "pet.shape.square",   d: "M111 85 H209 Q235 85 235 111 V209 Q235 235 209 235 H111 Q85 235 85 209 V111 Q85 85 111 85 Z" },
+    triangle: { key: "pet.shape.triangle", d: "M147 85 Q160 64 173 85 L244 211 Q256 234 230 234 H90 Q64 234 76 211 Z" },
+    cloud:    { key: "pet.shape.cloud",    d: "M105 224 C62 224 54 171 84 155 C71 119 102 92 131 106 C149 66 209 81 214 118 C255 110 273 160 246 182 C258 219 219 244 191 226 C167 249 127 246 105 224 Z" },
+    pentagon: { key: "pet.shape.pentagon", d: "M150 80 Q160 73 170 80 L235 127 Q244 133 240 145 L216 222 Q213 232 201 232 H119 Q107 232 104 222 L80 145 Q76 133 85 127 Z" },
+  };
+
+  // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
+  // (javisTheme), nên pet không bao giờ chói lên giữa nền tối.
+  var PALETTES = {
+    amber:    { key: "pet.color.amber",    sun: ["#F28C28", "#F7C98F", "#F7E3CF"], moon: ["#E8C97A", "#F3DEAA", "#2B241D"] },
+    pearl:    { key: "pet.color.pearl",    sun: ["#E3DCCF", "#B8AA95", "#EAE4D9"], moon: ["#DDD7CA", "#FFF0D4", "#292720"] },
+    clay:     { key: "pet.color.clay",     sun: ["#B76A4B", "#E5AA87", "#EEDDD2"], moon: ["#CEA58C", "#F1CFB5", "#30231E"] },
+    rose:     { key: "pet.color.rose",     sun: ["#CB6576", "#F2ABAE", "#F2DCE0"], moon: ["#DCA4B0", "#F4CBD2", "#30212A"] },
+    honey:    { key: "pet.color.honey",    sun: ["#D5A32D", "#F3D381", "#F2E7C8"], moon: ["#DCC888", "#F6E7B6", "#2D291C"] },
+    sage:     { key: "pet.color.sage",     sun: ["#639574", "#AAD2A9", "#DDE9DC"], moon: ["#A5C5A6", "#D3E6C5", "#202D25"] },
+    jade:     { key: "pet.color.jade",     sun: ["#379E90", "#8FD6C5", "#D7EBE4"], moon: ["#8BC6BA", "#C2E9D9", "#1D2C29"] },
+    blue:     { key: "pet.color.blue",     sun: ["#548EC5", "#A4CDEB", "#DCE7F0"], moon: ["#9DBBDB", "#CDDEF1", "#212A35"] },
+    lavender: { key: "pet.color.lavender", sun: ["#9272C2", "#C9B2E7", "#E8DFF1"], moon: ["#BBA9D7", "#E0CEF1", "#292333"] },
+    pink:     { key: "pet.color.pink",     sun: ["#C67FAB", "#EDB9D6", "#F0DFE9"], moon: ["#D3AEC7", "#F1D3E4", "#30232D"] },
+    slate:    { key: "pet.color.slate",    sun: ["#7B8794", "#B8C4CD", "#E0E4E8"], moon: ["#ADB7C2", "#D6E0E8", "#252A30"] },
+    cocoa:    { key: "pet.color.cocoa",    sun: ["#79604F", "#BFA38A", "#E8DFD5"], moon: ["#B9A38A", "#E3CDB0", "#2B2620"] },
+  };
+
+  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62 };
+
+  // ---- Biểu cảm: TOÀN BỘ cảm xúc nằm ở đôi mắt, không có miệng ----
+  // Chủ dự án chốt: mắt to nhỏ đổi cỡ là đủ diễn, đừng thêm chi tiết.
+  //
+  // Mỗi mục tả MỘT con mắt quanh gốc toạ độ (0,0), không phải cả cặp ở vị trí cố định. Nhờ
+  // vậy veMat() xếp lại được hai mắt theo hàng NGANG (lúc trượt ra) hay theo cột DỌC (lúc
+  // nép ở mép, chỉ còn nửa thân nhìn thấy) mà không phải khai hai bộ biểu cảm song song.
+  // Mục là mảng [trái, phải] khi hai mắt KHÁC nhau.
+  var EYES = {
+    neutral:    '<ellipse rx="7.2" ry="17.5"/>',
+    curious:    '<ellipse cy="-2" rx="8.4" ry="21"/>',
+    excited:    '<ellipse cy="-1" rx="9.2" ry="22.5"/>',
+    // Đang nghĩ: hai tròng nhìn chéo lên, một bên hẹp hơn một chút cho ra vẻ đang lục trí nhớ.
+    thinking:   ['<ellipse cx="2" cy="-8" rx="6.4" ry="15"/>', '<ellipse cx="2" cy="-9" rx="7.6" ry="18"/>'],
+    happy:      '<path class="pet-line" d="M-9 6 Q0 -7 9 6"/>',
+    calm:       '<path class="pet-line" d="M-9 0 H9"/>',
+    sleepy:     '<path class="pet-line" d="M-9 6 H9"/>',
+    sad:        '<path class="pet-line" d="M-9 -2 Q0 -10 9 -2"/>',
+    suspicious: ['<path class="pet-line" d="M-9 -3 H9"/>', '<path class="pet-line" d="M-9 2 H9"/>'],
+    blink:      '<path class="pet-line" d="M-9 0 H9"/>',
+  };
+
+  // Trạng thái thật của lượt (app.js bắn sang) -> biểu cảm + nhịp vành quỹ đạo.
+  //   ring: tốc độ xoay (độ/giây); 0 = đứng yên. dash: hình dải. mo: độ mờ của vành.
+  var STATES = {
+    idle:         { eye: "neutral",    ring: 7,   dash: "300 40",  mo: 0.5 },
+    listening:    { eye: "curious",    ring: 26,  dash: "4 11",    mo: 0.95 },
+    waiting:      { eye: "curious",    ring: 12,  dash: "8 14",    mo: 0.7 },
+    thinking:     { eye: "thinking",   ring: 108, dash: "90 150",  mo: 1 },
+    speaking:     { eye: "happy",      ring: 18,  dash: "30 15",   mo: 1 },
+    paused:       { eye: "sleepy",     ring: 4,   dash: "300 40",  mo: 0.35 },
+    reconnecting: { eye: "suspicious", ring: 40,  dash: "6 22",    mo: 0.6 },
+    error:        { eye: "sad",        ring: 0,   dash: "300 40",  mo: 0.8 },
+  };
+
+  var el = null, svg = null, nutBody = null, menu = null;
+  var pRing = null, pFace = null, gEyes = null, gRig = null;
+  var cfg = Object.assign({}, MAC_DINH);
+  var state = "idle", mood = "neutral", dangChop = false;
+  var raf = 0, truoc = 0, gocRing = 0, tocDo = STATES.idle.ring, tocDoDich = STATES.idle.ring;
+  var chopLuc = 0, liecLuc = 0, vuiDen = 0;
+  var tx = 0, ty = 0, px = 0, py = 0;      // hướng nhìn: đích và giá trị đang nội suy
+  var liecX = 0, liecY = 0, liecDichX = 0, liecDichY = 0;
+  var chuotLuc = 0;
+  var keo = null;                           // { id, dx, dy, di } khi đang kéo
+  var giamChuyenDong = null;
+
+  function t(k, d) {
+    try {
+      var v = window.t ? window.t(k) : k;
+      return (!v || v === k) ? (d || k) : v;
+    } catch (e) { return d || k; }
+  }
+  function kep(n, a, b) { return Math.max(a, Math.min(b, n)); }
+  function noiSuy(a, b, k) { return a + (b - a) * k; }
+  function sang() { try { return !!(window.javisTheme && window.javisTheme.isLight()); } catch (e) { return false; } }
+
+  // ---- Lưu / nạp ----
+  function docLocal() {
+    try {
+      var o = JSON.parse(localStorage.getItem(KHOA) || "null");
+      if (o && typeof o === "object") return o;
+    } catch (e) {}
+    return null;
+  }
+  function ghiLocal() { try { localStorage.setItem(KHOA, JSON.stringify(cfg)); } catch (e) {} }
+  function ghiServer() {
+    // Gửi lên máy chủ để pet theo NGƯỜI chứ không theo máy. Hỏng mạng thì thôi: localStorage
+    // ở trên đã giữ lựa chọn rồi, không được để một lượt fetch lỗi làm mất cài đặt.
+    try {
+      // POST /settings nhận FormData (section + data), KHÔNG nhận JSON body. Gửi JSON thì
+      // FastAPI trả 422 và cài đặt lặng lẽ không bao giờ tới máy chủ.
+      var fd = new FormData();
+      fd.append("section", "dashboard");
+      fd.append("data", JSON.stringify({ pet: cfg }));
+      fetch("/settings", { method: "POST", body: fd }).catch(function () {});
+    } catch (e) {}
+  }
+  function chuanHoa(o) {
+    var c = Object.assign({}, MAC_DINH, o || {});
+    if (!SHAPES[c.shape]) c.shape = MAC_DINH.shape;
+    if (!PALETTES[c.palette]) c.palette = MAC_DINH.palette;
+    if (c.side !== "left" && c.side !== "right") c.side = MAC_DINH.side;
+    c.pos = kep(Number(c.pos) || MAC_DINH.pos, 0.05, 0.95);
+    c.enabled = c.enabled !== false;
+    return c;
+  }
+
+  // ---- Dựng DOM ----
+  function dung() {
+    if (el) return;
+    el = document.createElement("div");
+    el.id = "javisPet";
+    el.className = "pet";
+    el.dataset.out = "0";
+    el.dataset.menu = "0";
+    el.innerHTML =
+      '<button type="button" class="pet-body" aria-label="Javis">' +
+        '<svg viewBox="0 0 320 320" aria-hidden="true">' +
+          '<g class="pet-rig">' +
+            '<path class="pet-ring" pathLength="360"></path>' +
+            '<path class="pet-face"></path>' +
+            '<g class="pet-eyes"></g>' +
+          '</g>' +
+        '</svg>' +
+      '</button>' +
+      '<div class="pet-menu" hidden></div>';
+    document.body.appendChild(el);
+    svg = el.querySelector("svg");
+    nutBody = el.querySelector(".pet-body");
+    menu = el.querySelector(".pet-menu");
+    gRig = el.querySelector(".pet-rig");
+    pRing = el.querySelector(".pet-ring");
+    pFace = el.querySelector(".pet-face");
+    gEyes = el.querySelector(".pet-eyes");
+    noiTuongTac();
+  }
+
+  function veMenu() {
+    // Icon lấy từ tầng icon chung (window.ic), KHÔNG dùng emoji: dashboard này cấm emoji
+    // trong giao diện, vì emoji mỗi hệ điều hành vẽ một kiểu và trình đọc màn hình đọc ra
+    // một cái tên vô nghĩa. Thiếu window.ic (nạp lỗi) thì để trống chứ không thay bằng chữ.
+    var icon = function (ten) { return window.ic ? window.ic(ten) : ""; };
+    var muc = [
+      { id: "chat", ic: icon("message-circle"), nhan: t("pet.menu.chat", "Trò chuyện") },
+      { id: "kanban", ic: icon("square-kanban"), nhan: t("pet.menu.work", "Việc") },
+      { id: "settings", ic: icon("settings"), nhan: t("pet.menu.settings", "Cài đặt pet") },
+      { id: "hide", ic: icon("x"), nhan: t("pet.menu.hide", "Ẩn pet") },
+    ];
+    menu.innerHTML = muc.map(function (m) {
+      return '<button type="button" data-pet-go="' + m.id + '"><span aria-hidden="true">' + m.ic + '</span>' +
+             '<b></b></button>';
+    }).join("");
+    // Nhãn gán bằng textContent chứ không nối chuỗi: nó tới từ từ điển, và từ điển là dữ liệu.
+    menu.querySelectorAll("button").forEach(function (b, i) { b.querySelector("b").textContent = muc[i].nhan; });
+  }
+
+  // ---- Diện mạo ----
+  function apDung() {
+    if (!el) return;
+    var d = SHAPES[cfg.shape].d;
+    pFace.setAttribute("d", d);
+    pRing.setAttribute("d", d);
+    var tone = PALETTES[cfg.palette][sang() ? "sun" : "moon"];
+    el.style.setProperty("--pet-face", tone[0]);
+    el.style.setProperty("--pet-ring", tone[1]);
+    // Mắt phải tương phản với THÂN, không với nền trang: thân sáng thì mắt than chì, thân
+    // tối thì mắt trắng. Tính bằng độ chói tương đối (WCAG) chứ không đoán bằng mắt.
+    var rgb = tone[0].slice(1).match(/../g).map(function (x) {
+      var v = parseInt(x, 16) / 255;
+      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    var choi = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+    el.style.setProperty("--pet-eye", choi > 0.179 ? "#201e1e" : "#ffffff");
+    el.dataset.side = cfg.side;
+    veMat(dangChop ? "blink" : mood);   // đổi mép thì hai mắt dồn sang phía kia
+    el.style.top = (cfg.pos * 100).toFixed(2) + "%";
+    el.style.left = cfg.side === "left" ? "0px" : "";
+    el.style.right = cfg.side === "right" ? "0px" : "";
+    el.hidden = !cfg.enabled || dangChanCua();
+  }
+
+  // Màn đăng nhập là một CỔNG: chưa qua thì chưa có gì để linh vật hiện diện cùng, và một
+  // khuôn mặt nhấp nháy cạnh ô mật khẩu chỉ làm người ta phân tâm. Theo dõi bằng
+  // MutationObserver vì lớp `.open` do app.js gắn sau một lượt gọi mạng, không có sự kiện nào.
+  function dangChanCua() {
+    var g = document.getElementById("authOverlay");
+    return !!(g && g.classList.contains("open"));
+  }
+  function ngoCongDangNhap() {
+    var g = document.getElementById("authOverlay");
+    if (!g || !window.MutationObserver) return;
+    new MutationObserver(function () {
+      if (!el) return;
+      el.hidden = !cfg.enabled || dangChanCua();
+      if (el.hidden) { moMenu(false); raNgoai(false); dung_lai(); } else chay();
+    }).observe(g, { attributes: true, attributeFilter: ["class"] });
+  }
+
+  // Xếp hai con mắt. Lúc nép ở mép, hai mắt vẫn đứng CẠNH NHAU theo hàng ngang nhưng NÉ hẳn
+  // sang nửa thân còn nhìn thấy, và xích lại gần nhau một chút cho vừa chỗ. Đừng để chúng
+  // đứng yên giữa mặt: một nửa mặt bị mép màn hình cắt mất thì con mắt bên kia cũng mất theo,
+  // và cái thò ra chỉ còn một con mắt rưỡi.
+  function veMat(ten) {
+    if (!gEyes) return;
+    var e = EYES[ten] || EYES.neutral;
+    var trai = typeof e === "string" ? e : e[0];
+    var phai = typeof e === "string" ? e : e[1];
+    var a, b;
+    if (el && el.dataset.out !== "1") {
+      var tam = cfg.side === "right" ? -34 : 34;   // tâm của cặp mắt, lệch về phía còn thấy
+      a = [tam - 13, 0]; b = [tam + 13, 0];
+    } else {
+      a = [-15, 0]; b = [15, 0];
+    }
+    gEyes.innerHTML =
+      '<g transform="translate(' + (160 + a[0]) + " " + (160 + a[1]) + ')">' + trai + "</g>" +
+      '<g transform="translate(' + (160 + b[0]) + " " + (160 + b[1]) + ')">' + phai + "</g>";
+  }
+
+  // ---- Vòng vẽ ----
+  function nhip(now) {
+    raf = 0;
+    if (!el || el.hidden) return;
+    var dt = Math.min((now - (truoc || now)) / 1000, 0.05);
+    truoc = now;
+
+    if (giamChuyenDong && giamChuyenDong.matches) {
+      // Tôn trọng prefers-reduced-motion: đứng yên hoàn toàn, chỉ giữ biểu cảm.
+      gRig.style.transform = "";
+      pRing.style.strokeDashoffset = "0";
+      return;
+    }
+
+    // Nhìn theo con trỏ; rời chuột hơn 1,6 giây thì về giữa rồi liếc vu vơ.
+    if (now - chuotLuc > 1600) { tx = 0; ty = 0; }
+    var muot = 1 - Math.exp(-dt * 7);
+    px = noiSuy(px, tx, muot); py = noiSuy(py, ty, muot);
+    if (now - chuotLuc > 1600) {
+      if (now > liecLuc) {
+        liecDichX = (Math.random() * 2 - 1) * 0.5;
+        liecDichY = (Math.random() * 2 - 1) * 0.3;
+        liecLuc = now + 3600 + Math.random() * 3200;
+      }
+      var cham = 1 - Math.exp(-dt * 1.2);
+      liecX = noiSuy(liecX, liecDichX, cham); liecY = noiSuy(liecY, liecDichY, cham);
+    } else {
+      var ve = 1 - Math.exp(-dt * 4);
+      liecX = noiSuy(liecX, 0, ve); liecY = noiSuy(liecY, 0, ve);
+    }
+    var nhinX = kep(px + liecX, -1, 1), nhinY = kep(py + liecY, -1, 1);
+    var tho = Math.sin(now * 0.00135) * 0.8;
+
+    gRig.style.transform = "translate(" + (nhinX * 3.4).toFixed(2) + "px," +
+      (nhinY * 2.4 + tho * 0.5).toFixed(2) + "px)";
+    gEyes.style.transform = "translate(" + (nhinX * 7).toFixed(2) + "px," +
+      (nhinY * 4.5).toFixed(2) + "px)";
+
+    tocDo += (tocDoDich - tocDo) * (1 - Math.exp(-dt * 2));
+    gocRing = (gocRing + tocDo * dt) % 360;
+    pRing.style.strokeDashoffset = (-gocRing).toFixed(2);
+
+    // Chớp mắt: ngắn và KHÔNG đều nhịp. Đều nhịp là cảm giác máy móc.
+    if (now > chopLuc && !dangChop && vuiDen < now) {
+      dangChop = true; veMat("blink");
+      setTimeout(function () { dangChop = false; veMat(mood); }, 130);
+      chopLuc = now + 2800 + Math.random() * 3200;
+    }
+    if (vuiDen && now > vuiDen) { vuiDen = 0; apDungTrangThai(); }
+
+    raf = requestAnimationFrame(nhip);
+  }
+  function chay() {
+    if (raf || !el || el.hidden) return;
+    truoc = 0;
+    raf = requestAnimationFrame(nhip);
+  }
+  function dung_lai() { if (raf) cancelAnimationFrame(raf); raf = 0; }
+
+  function apDungTrangThai() {
+    var s = STATES[state] || STATES.idle;
+    mood = s.eye;
+    if (!dangChop) veMat(mood);
+    tocDoDich = s.ring;
+    pRing.style.strokeDasharray = s.dash;
+    pRing.style.opacity = String(s.mo);
+    el.dataset.state = state;
+  }
+
+  // ---- Tương tác ----
+  // HAI trạng thái TÁCH RỜI, đừng gộp lại làm một:
+  //   data-out  = pet đang đứng hẳn ra ngoài mép hay còn nép nửa người vào trong.
+  //   data-menu = khung menu nhanh đang mở hay đóng.
+  // Gộp chung thì bấm ra chỗ khác là pet bị hút ngược vào mép cùng lúc menu đóng, trong khi
+  // chủ dự án muốn nó ĐỨNG NGUYÊN ngoài đó cho tới khi bị ném trở vào (kéo sát mép rồi thả).
+  function raNgoai(ra) {
+    el.dataset.out = ra ? "1" : "0";
+    veMat(dangChop ? "blink" : mood);   // nép thì hai mắt né sang nửa còn thấy
+  }
+  function moMenu(mo) {
+    if (mo && !menu.childElementCount) veMenu();
+    menu.hidden = !mo;
+    el.dataset.menu = mo ? "1" : "0";
+  }
+
+  function noiTuongTac() {
+    nutBody.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      var r = el.getBoundingClientRect();
+      keo = { id: e.pointerId, x0: e.clientX, y0: e.clientY, dy: e.clientY - (r.top + r.height / 2), di: false };
+      try { nutBody.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    nutBody.addEventListener("pointermove", function (e) {
+      if (!keo || e.pointerId !== keo.id) return;
+      // Mất pointerup (con trỏ rời cửa sổ, setPointerCapture không ăn, hộp thoại của hệ điều
+      // hành xen vào) thì `keo` kẹt lại và pet sẽ bám theo chuột dù không ai bấm nút nào.
+      // `buttons === 0` là bằng chứng chắc chắn rằng nút đã nhả: bỏ lượt kéo ngay.
+      if (e.buttons === 0) { keo = null; delete el.dataset.dragging; return; }
+      if (!keo.di && Math.abs(e.clientX - keo.x0) + Math.abs(e.clientY - keo.y0) < NGUONG_KEO) return;
+      if (!keo.di) { keo.di = true; el.dataset.dragging = "1"; moMenu(false); raNgoai(true); }
+      var y = kep((e.clientY - keo.dy) / Math.max(window.innerHeight, 1), 0.06, 0.94);
+      cfg.pos = y;
+      cfg.side = e.clientX < window.innerWidth / 2 ? "left" : "right";
+      el.style.top = (y * 100).toFixed(2) + "%";
+      if (el.dataset.side !== cfg.side) { el.dataset.side = cfg.side; veMat(mood); }
+      el.style.left = cfg.side === "left" ? "0px" : "";
+      el.style.right = cfg.side === "right" ? "0px" : "";
+    });
+    function thaKeo(e) {
+      if (!keo || (e && e.pointerId !== keo.id)) return;
+      var daKeo = keo.di;
+      var x = e ? e.clientX : 0;
+      keo = null;
+      delete el.dataset.dragging;
+      if (daKeo) {
+        // NÉM VÀO MÉP thì nó mới chui vào. Thả ở giữa màn hình thì nó hút về mép gần nhất
+        // nhưng vẫn đứng nguyên cả người ngoài đó. Ngưỡng tính theo bề ngang pet chứ không
+        // phải một số px cứng, để trên màn hẹp (pet 46px) không phải ném chính xác hơn.
+        var mep = Math.min(x, window.innerWidth - x);
+        raNgoai(mep > el.getBoundingClientRect().width * 0.5);
+        ghiLocal(); ghiServer();
+        return;
+      }
+      var dangRa = el.dataset.out === "1";
+      if (!dangRa) {                       // đang nép: trượt hẳn ra và mở menu, chào một nhịp
+        raNgoai(true); moMenu(true);
+        mood = "excited"; veMat(mood); vuiDen = performance.now() + 1500;
+      } else {
+        moMenu(el.dataset.menu !== "1");   // đã ở ngoài: bấm chỉ bật tắt menu, không chui vào
+      }
+    }
+    nutBody.addEventListener("pointerup", thaKeo);
+    nutBody.addEventListener("pointercancel", thaKeo);
+
+    menu.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-pet-go]");
+      if (!b) return;
+      var id = b.dataset.petGo;
+      moMenu(false);
+      if (id === "hide") { setEnabled(false); return; }
+      try { window.JavisNav && window.JavisNav.go(id); } catch (err) {}
+    });
+
+    // Bấm ra chỗ khác thì ĐÓNG MENU, và chỉ đóng menu. Pet đứng nguyên chỗ nó đang đứng.
+    // Cũng không có đồng hồ tự nép: một con vật tự bỏ đi giữa lúc người ta đang định bấm
+    // là kiểu khó chịu nhất của mấy widget nổi.
+    document.addEventListener("pointerdown", function (e) {
+      if (!el || el.hidden || el.dataset.menu !== "1") return;
+      if (!el.contains(e.target)) moMenu(false);
+    }, true);
+
+    window.addEventListener("pointermove", function (e) {
+      if (!el || el.hidden || keo) return;
+      var r = el.getBoundingClientRect();
+      if (!r.width) return;
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      // Chia cho một bán kính RỘNG hơn thân pet: chia cho chính bề rộng thân thì chỉ cần
+      // chuột ra khỏi pet vài chục px là mắt đã chạm biên và đứng im.
+      tx = kep((e.clientX - cx) / 420, -1, 1);
+      ty = kep((e.clientY - cy) / 320, -1, 1);
+      chuotLuc = performance.now();
+    }, { passive: true });
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) dung_lai(); else chay();
+    });
+  }
+
+  // ---- API công khai ----
+  function setState(s) {
+    if (!STATES[s]) s = "idle";
+    if (s === state) return;
+    state = s;
+    vuiDen = 0;
+    if (el) apDungTrangThai();
+  }
+  function setCfg(patch) {
+    cfg = chuanHoa(Object.assign({}, cfg, patch || {}));
+    ghiLocal(); ghiServer();
+    if (el) { apDung(); chay(); }
+    try { window.dispatchEvent(new CustomEvent("javis:pet", { detail: Object.assign({}, cfg) })); } catch (e) {}
+  }
+  function setEnabled(on) { setCfg({ enabled: !!on }); }
+
+  function init() {
+    cfg = chuanHoa(docLocal());
+    dung();
+    veMenu();
+    apDung();
+    apDungTrangThai();
+    giamChuyenDong = window.matchMedia("(prefers-reduced-motion: reduce)");
+    try { giamChuyenDong.addEventListener("change", function () { chay(); }); } catch (e) {}
+    chopLuc = performance.now() + 2600;
+    ngoCongDangNhap();
+    chay();
+    try { window.javisTheme && window.javisTheme.on(function () { apDung(); }); } catch (e) {}
+    window.addEventListener("javis:i18n", function () { veMenu(); });
+  }
+
+  window.JavisPet = {
+    setState: setState,
+    setCfg: setCfg,
+    setEnabled: setEnabled,
+    get: function () { return Object.assign({}, cfg); },
+    shapes: function () { return SHAPES; },
+    palettes: function () { return PALETTES; },
+    toneOf: function (ten) { return PALETTES[ten] ? PALETTES[ten][sang() ? "sun" : "moon"] : null; },
+    // Cho trang Cài đặt hoà cấu hình từ máy chủ vào (localStorage chỉ là bản nhớ tạm cho
+    // lần mở đầu, máy chủ mới là nguồn theo NGƯỜI).
+    hydrate: function (o) {
+      if (!o || typeof o !== "object") return;
+      cfg = chuanHoa(Object.assign({}, cfg, o));
+      ghiLocal();
+      if (el) { apDung(); apDungTrangThai(); chay(); }
+    },
+    // Cho trang Cài đặt vẽ ô xem thử: một SVG tĩnh, cùng hình cùng màu với pet thật.
+    previewSvg: function (shape, palette) {
+      var d = (SHAPES[shape] || SHAPES.circle).d;
+      var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
+      var rgb = tone[0].slice(1).match(/../g).map(function (x) {
+        var v = parseInt(x, 16) / 255;
+        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      var mat = (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) > 0.179 ? "#201e1e" : "#ffffff";
+      // viewBox ôm TRỌN hình rộng nhất (tam giác trải 64..256), không cắt theo hình tròn:
+      // cắt chặt thì tam giác và mây bị xén mất góc ngay trong ô chọn.
+      return '<svg viewBox="58 58 204 204" aria-hidden="true">' +
+        '<path d="' + d + '" fill="' + tone[0] + '"/>' +
+        '<ellipse cx="145" cy="160" rx="7.2" ry="17.5" fill="' + mat + '"/>' +
+        '<ellipse cx="175" cy="160" rx="7.2" ry="17.5" fill="' + mat + '"/></svg>';
+    },
+  };
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
