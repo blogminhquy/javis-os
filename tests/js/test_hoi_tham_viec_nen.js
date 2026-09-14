@@ -38,7 +38,7 @@ check("mỗi khoá có nhiều câu để không lặp một câu duy nhất",
 check("câu tiếng Việt CÓ DẤU", /[ạảãáàâăêôơưđ]/i.test(vi["app.voice_cho_viec"]));
 check("không có em dash trong câu hỏi thăm",
   (vi["app.voice_cho_viec"] + vi["app.voice_cho_viec_lau"] + en["app.voice_cho_viec"]
-   + en["app.voice_cho_viec_lau"]).indexOf("—") === -1);
+   + en["app.voice_cho_viec_lau"]).indexOf("\u2014") === -1);
 
 // ---- 2. Nhấc nguyên khối logic ra chạy thật ----
 const m = app.match(/let _soViecGiong = 0[\s\S]*?\n_hoiThamTimer = setInterval\(hoiThamViecNen, 2000\);/);
