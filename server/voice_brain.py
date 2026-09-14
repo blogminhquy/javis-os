@@ -24,6 +24,8 @@ import sys
 import time
 from typing import AsyncIterator, Callable, Dict, List, Optional
 
+import winproc         # lệnh con câm lặng trên Windows (canary test_windows_no_console)
+
 MARKER = "JAVIS_ASK_MAIN:"
 IDLE_S = 300.0
 TURN_TIMEOUT_S = 90.0
@@ -151,15 +153,9 @@ class AntigravityVoiceBrain(VoiceBrain):
         if self._spawn:
             self.proc = await self._spawn(self._args())
         else:
-            kw = {}
-            try:
-                import winproc
-                kw = winproc.kwargs_no_window()
-            except Exception:
-                pass
             self.proc = await asyncio.create_subprocess_exec(
                 *self._args(), stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL, **kw)
+                stderr=asyncio.subprocess.DEVNULL, **winproc.kwargs_no_window())
         self._seeded = False
         self.turns = 0
 
