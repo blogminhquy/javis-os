@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.5] - 2026-09-14
+### Sửa lỗi
+- **Dọn sạch những câu mời đăng ký kênh đã lỡ nằm trong hội thoại cũ.** Bộ lọc ở bản trước chỉ chặn từ lúc nghe trở đi, còn tin nhắn cũ vẫn nằm nguyên và vẫn được đọc lại làm ngữ cảnh mỗi lượt. Nay có lệnh quét lại kho, xoá tin nào chỉ toàn câu bịa và cắt phần bịa khỏi tin có lẫn lời bạn nói. Bộ lọc cũng nhận thêm biến thể "đăng ký kênh để ủng hộ kênh của mình" và "cảm ơn các bạn đã theo dõi và hẹn gặp lại".
+- Bộ lọc không còn tự ý chèn khoảng trắng vào tên file hay địa chỉ web khi không có gì để cắt, và giữ nguyên câu khi chính bạn đang nhắc lại câu bịa đó.
+
+### Cải thiện
+- **Mở tab bằng lời nhanh hơn hẳn.** Trước đây một câu "mở trang Models" vẫn phải đi qua bộ não chính cùng toàn bộ ngữ cảnh hội thoại nên mất hàng chục giây. Nay bộ não giọng tự làm, chỉ còn đúng thời gian nó nghĩ.
+- **Nói được cả "mở mục Năng lực" hay "thu gọn thanh bên".** Trước đây chỉ mở được từng trang, muốn bung một nhóm đang gập trong menu thì không có lệnh nào. Mở một trang bằng lời giờ cũng tự bung nhóm chứa nó, thay vì để thanh bên gập như cũ.
+
 ## [0.57.4] - 2026-09-14
 ### Sửa lỗi
 - **Hết cảnh Javis tự nhiên "nghe" thấy câu mời đăng ký kênh YouTube.** Máy nghe Groq Whisper học từ phụ đề YouTube, nên gặp khoảng lặng hay tiếng ồn là nó bịa ra câu quen thuộc "Hãy subscribe cho kênh Ghiền Mì Gõ...", và câu đó đi thẳng vào khung chat như thể bạn vừa nói. Nay Javis cắt bỏ những câu bịa kiểu đó, giữ nguyên phần bạn nói thật ở trước hoặc sau; nếu cả lượt chỉ toàn câu bịa thì quay về dùng chữ của trình duyệt.

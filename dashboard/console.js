@@ -88,18 +88,20 @@
   // Nhóm cuối (foot:true) được ghim xuống ĐÁY rail; các nhóm còn lại cuộn ở giữa.
   // Thứ tự & thành viên đổi ở đây; RAIL_ITEMS vẫn là nguồn icon/label + tra cứu cho go().
   const RAIL_GROUPS = [
-    { get label() { return t("nav.group.tro_ly"); },      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
-    { get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
+    // `id` là tên máy đọc của nhóm, dùng cho lệnh bằng lời (`javis_ui` action open_group).
+    // Nhãn đổi theo ngôn ngữ nên KHÔNG dùng nhãn làm khoá tra cứu được.
+    { id: "tro_ly", get label() { return t("nav.group.tro_ly"); },      icon: GICON["Trợ lý"],   ids: ["home", "chat"] },
+    { id: "bo_nao", get label() { return t("nav.group.bo_nao"); },      icon: GICON["Bộ não"],   ids: ["files", "learn"] },
     // "Code" là NHÓM riêng, không phải một mục nhét vào "Bộ não". Đây là một KHU VỰC làm việc
     // sẽ dày lên (Terminal hôm nay, các công cụ lập trình khác sau này), chứ không phải một
     // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
-    { get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
-    { get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
-    { get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
-    { get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
-    { get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
+    { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
+    { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
+    { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
+    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
 
@@ -6330,7 +6332,31 @@
     // Cửa chuyển trang cho module ngoài (vd nút "Tạo Agent" ở trang Chatbot). Phơi navigateTo
     // chứ không để module tự đặt store.active: navigateTo còn dọn trang cũ, cất #quickSet và
     // vẽ lại đồ thị - bỏ qua mấy bước đó là để lại rác của trang trước trên trang sau.
-    window.JavisNav = { go: navigateTo };
+    // `go` đi qua store Alpine chứ không gọi thẳng `navigateTo`: store còn BUNG NHÓM chứa trang
+    // vừa mở. Gọi thẳng thì mở trang bằng lời xong thanh bên vẫn gập, người dùng tưởng Javis
+    // không hiểu "mở dropdown". Không có store (trang chưa dựng xong) thì lui về navigateTo.
+    function _navStore() {
+      try { return window.Alpine && window.Alpine.store("nav"); } catch (e) { return null; }
+    }
+    window.JavisNav = {
+      go(id) { const s = _navStore(); if (s && typeof s.go === "function") s.go(id); else navigateTo(id); },
+      // Bung một NHÓM trên thanh bên mà KHÔNG đổi trang. Trả false nếu không có nhóm đó.
+      openGroup(groupId) {
+        const g = RAIL_GROUPS.find(gr => gr.id === groupId);
+        const s = _navStore();
+        if (!g || !s) return false;
+        s.openGroup = g.label;
+        if (s.collapsed) s.toggleCollapsed();   // đang thu gọn thì bung ra, không thì mở nhóm cũng vô hình
+        return true;
+      },
+      setCollapsed(thu) {
+        const s = _navStore();
+        if (!s) return false;
+        if (!!s.collapsed !== !!thu) s.toggleCollapsed();
+        return true;
+      },
+      groupIds() { return RAIL_GROUPS.map(g => g.id).filter(Boolean); },
+    };
   }
 
   function _returnChatNodes() {

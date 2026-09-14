@@ -61,6 +61,8 @@ server/memory_index.db*
 server/antigravity-duong-prompt.json
 server/usage-marks.jsonl*
 server/conversations.db
+server/conversations.db.bak-*
+server/md_hong_da_soi.json
 server/conversations.db-wal
 server/conversations.db-shm
 server/runtime.db

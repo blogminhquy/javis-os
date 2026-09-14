@@ -41,7 +41,22 @@ ALIASES = {
     "ky nang": "skills", "skill": "skills", "agent": "agents", "chatbot": "chatbots", "bot": "chatbots",
 }
 
-ACTIONS = ("open_page", "open_file", "open_task", "scroll")
+# Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
+# dashboard/ui-actions.js. Mở NHÓM khác mở TRANG: người dùng hay muốn bung phần đang gập để
+# nhìn xem trong đó có gì, chứ chưa chọn trang nào.
+GROUPS = ("tro_ly", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong")
+
+GROUP_ALIASES = {
+    "tro ly": "tro_ly", "assistant": "tro_ly",
+    "bo nao": "bo_nao", "second brain": "bo_nao", "brain": "bo_nao",
+    "code": "code", "lap trinh": "code",
+    "nang luc": "nang_luc", "kha nang": "nang_luc", "capability": "nang_luc",
+    "viec": "viec", "cong viec": "viec", "task": "viec",
+    "ket noi": "ket_noi", "connect": "ket_noi", "ket noi va model": "ket_noi",
+    "he thong": "he_thong", "system": "he_thong", "cai dat chung": "he_thong",
+}
+
+ACTIONS = ("open_page", "open_file", "open_task", "scroll", "open_group", "sidebar")
 
 
 def _khong_dau(s: str) -> str:
@@ -71,6 +86,18 @@ def resolve_page(target: str) -> str:
     return ""
 
 
+def resolve_group(target: str) -> str:
+    """Trả id nhóm thanh bên hợp lệ hoặc chuỗi rỗng."""
+    t = _khong_dau(target)
+    for tien_to in ("nhom ", "group ", "muc ", "mo ", "open "):
+        if t.startswith(tien_to):
+            t = t[len(tien_to):].strip()
+    t = t.replace("-", "_")
+    if t.replace(" ", "_") in GROUPS:
+        return t.replace(" ", "_")
+    return GROUP_ALIASES.get(t, "")
+
+
 def check_target(action: str, target: str) -> str:
     """Chuỗi lý do chặn, hoặc rỗng nếu ổn. Trả target đã chuẩn hoá qua `normalize_target`."""
     if action not in ACTIONS:
@@ -91,6 +118,12 @@ def check_target(action: str, target: str) -> str:
     elif action == "scroll":
         if _khong_dau(t) not in ("top", "bottom", "len", "xuong", "dau", "cuoi", "len dau", "xuong cuoi"):
             return "scroll chỉ nhận target 'top' hoặc 'bottom'."
+    elif action == "open_group":
+        if not resolve_group(t):
+            return f"không có nhóm '{target}'. Nhóm hợp lệ: {', '.join(GROUPS)}."
+    elif action == "sidebar":
+        if _khong_dau(t) not in ("open", "close", "mo", "dong", "bung", "thu", "thu gon"):
+            return "sidebar chỉ nhận target 'open' (bung thanh bên) hoặc 'close' (thu gọn)."
     return ""
 
 
@@ -102,6 +135,10 @@ def normalize_target(action: str, target: str) -> str:
         return t.replace("\\", "/").lstrip("./")
     if action == "scroll":
         return "top" if _khong_dau(t) in ("top", "len", "dau", "len dau") else "bottom"
+    if action == "open_group":
+        return resolve_group(t)
+    if action == "sidebar":
+        return "close" if _khong_dau(t) in ("close", "dong", "thu", "thu gon") else "open"
     return t
 
 
@@ -118,10 +155,14 @@ async def _ui(args, ctx) -> str:
     res = await ui_bridge.request(action, target, session_id=sid)
     if not res.get("ok"):
         return "ERROR: " + (res.get("detail") or "dashboard không thực hiện được")
-    ten = {"open_page": "trang", "open_file": "file", "open_task": "việc", "scroll": "cuộn"}[action]
     detail = res.get("detail") or ""
     if action == "scroll":
         return f"Đã cuộn khung chat {'lên đầu' if target == 'top' else 'xuống cuối'}."
+    if action == "sidebar":
+        return "Đã bung thanh bên." if target == "open" else "Đã thu gọn thanh bên."
+    if action == "open_group":
+        return f"Đã bung nhóm {target} trên thanh bên."
+    ten = {"open_page": "trang", "open_file": "file", "open_task": "việc"}[action]
     return f"Đã mở {ten} {target} trên dashboard." + (f" {detail}" if detail else "")
 
 
@@ -134,7 +175,11 @@ def register(ctx):
             "'cho xem việc vừa giao', 'cuộn xuống'. action=open_page (target: id trang - "
             + ", ".join(PAGES) + " - hoặc tên tiếng Việt như 'việc', 'tệp', 'cài đặt'); "
             "open_file (target: đường dẫn tương đối trong brain); open_task (target: mã việc Kanban); "
-            "scroll (target: top | bottom). session_id: mã phiên web trong khối KÊNH HỘI THOẠI HIỆN TẠI "
+            "scroll (target: top | bottom); open_group (BUNG một nhóm đang gập trên thanh bên mà "
+            "KHÔNG đổi trang, dùng khi người dùng nói 'mở mục Năng lực', 'bung nhóm Kết nối', 'cho xem "
+            "phần ẩn trong menu' - target: " + ", ".join(GROUPS) + " hoặc tên tiếng Việt như 'năng lực'); "
+            "sidebar (target: open để bung cả thanh bên, close để thu gọn còn icon). session_id: mã phiên "
+            "web trong khối KÊNH HỘI THOẠI HIỆN TẠI "
             "(để đúng tab thực hiện; bỏ trống thì mọi tab đang mở làm). Tool trả về 'Đã mở ...' khi "
             "dashboard xác nhận, hoặc ERROR khi không có tab nào mở / trang không tồn tại."
         ),
