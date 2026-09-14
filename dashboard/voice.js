@@ -25,6 +25,10 @@ class JavisVoice {
   static NHA_TI_LE = 0.45;      // còn trên 45% mức trước khi nhá thì không phải vọng
   static NHA_SAN = 0.02;        // dưới mức này coi như phòng im, đừng bắt
 
+  // Khúc audio đứng im bao nhiêu giây thì coi là TREO (xem _canhTreo).
+  static TREO_CHUA_PHAT = 12;   // chưa ra tiếng lần nào: chờ rộng tay cho mạng chậm
+  static TREO_DANG_PHAT = 6;    // đang phát mà đứng im: stream đứt, cắt sớm
+
   // Mẫu đo trong lúc nhá tiếng có phải giọng NGƯỜI không. Thuần, không đụng DOM, để test
   // được bằng node: vọng của loa tụt theo âm lượng, giọng người giữ nguyên mức.
   static laNguoiThat(preLevel, samples) {
@@ -847,11 +851,13 @@ class JavisVoice {
       const onFail = () => { if (done) return; done = true; a.onerror = null; this._chunkFailed(i, retry); };
       a.onended = () => {
         if (done) return;
+        this._huyCanhTreo();
         if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
         this._playChunk(i + 1);
       };
       a.onerror = onFail;
       a.play().catch(onFail);
+      this._canhTreo(a, onFail);   // treo im cũng phải đi tiếp, xem chú thích ở _canhTreo
       return;
     }
     // Dùng audio đã preload nếu trùng URL (cùng đoạn hay đoạn kế trong hàng đợi), không thì
@@ -902,12 +908,43 @@ class JavisVoice {
     };
     audio.onended = () => {
       if (handled) return;
+      this._huyCanhTreo();
       this._spokenChunks.push(this.ttsChunks[i]);   // khúc này đã ra tiếng trọn vẹn
       if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
       this._playChunk(i + 1);
     };
     audio.onerror = onFail;
     audio.play().catch(onFail);
+    this._canhTreo(audio, onFail);
+  }
+
+  // ---- Canh khúc audio TREO IM (mạng chậm, stream đứt giữa chừng) ----
+  // Thẻ <audio> có thể tắc mà KHÔNG bắn 'error' lẫn 'ended': stream Edge TTS đứt nửa chừng thì
+  // nó nằm im vĩnh viễn. Cả chuỗi đọc dừng tại đó, mọi thứ trong hàng đợi phía sau không bao
+  // giờ được phát, và `isPlaying` kẹt true nên enqueueSpeak chỉ xếp hàng chứ không mở đọc lại.
+  // Người dùng thấy đúng cảnh "trả lời xong hết nhưng không phát voice luôn" mà không có lỗi
+  // nào hiện ra (chủ dự án báo 15/09, kèm nhãn MẠNG CHẬM trên orb). Treo thì coi như khúc hỏng:
+  // đi tiếp đường _chunkFailed (thử lại một lần, rồi bỏ khúc) để cả câu không chết theo nó.
+  _canhTreo(audio, onFail) {
+    this._huyCanhTreo();
+    let truoc = -1, im = 0;
+    this._treoTimer = setInterval(() => {
+      if (this.currentAudio !== audio || audio.ended) { this._huyCanhTreo(); return; }
+      if (this._paused) { im = 0; return; }          // tạm dừng có chủ ý thì không phải treo
+      const t = audio.currentTime || 0;
+      if (t > truoc + 0.05) { truoc = t; im = 0; return; }
+      im++;
+      // Chưa ra tiếng lần nào thì chờ rộng tay (mạng chậm, Edge tổng hợp lâu); đã phát rồi mà
+      // đứng im thì đó là stream đứt, cắt sớm hơn.
+      if (im >= (t > 0 ? JavisVoice.TREO_DANG_PHAT : JavisVoice.TREO_CHUA_PHAT)) {
+        this._huyCanhTreo();
+        onFail();
+      }
+    }, 1000);
+  }
+
+  _huyCanhTreo() {
+    if (this._treoTimer) { clearInterval(this._treoTimer); this._treoTimer = null; }
   }
 
   // Đoạn TTS backend lỗi: thử LẠI backend 1 lần (lỗi mạng chốc lát) để GIỮ giọng Việt;
@@ -919,6 +956,9 @@ class JavisVoice {
     const okBrowserVoice = this.lang.startsWith("vi") ? !!this.vietnameseVoice : true;
     if (okBrowserVoice) this._speakBrowser(this.ttsChunks[i], () => this._playChunk(i + 1));
     else {
+      // Khúc bị BỎ là mất tiếng thật sự mà màn hình không báo gì. Ít nhất phải để lại dấu vết
+      // trong console, không thì lần sau người dùng kêu "không phát voice" là không có gì để lần.
+      try { console.warn("[Javis TTS] bỏ khúc (backend hỏng, máy không có giọng Việt):", this.ttsChunks[i]); } catch (e) {}
       // Khúc bị BỎ vẫn tính là đã qua, kẻo bong bóng hiện chữ theo lời kẹt lại ở khúc đó.
       if (this._countThis) this._wordsDone += JavisVoice.demTu(this.ttsChunks[i]);
       this._playChunk(i + 1);
@@ -947,6 +987,7 @@ class JavisVoice {
   stopSpeaking() {
     const dangDoc = this.isPlaying;
     this._stopBargeMonitor();
+    this._huyCanhTreo();
     this._huyNha();            // đang thăm dò dở thì bỏ, và trả âm lượng về đầy
     this._paused = false;
     this.synth.cancel();

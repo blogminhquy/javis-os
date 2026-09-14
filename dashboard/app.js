@@ -623,6 +623,7 @@ function handleMessage(data) {
     setSessionRunning(sid, false);
     if (isActive) { syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
+    if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     notifySessions();
     // Lượt vừa xong có thể đã giao việc nền. Đây là ĐÚNG khoảnh khắc người dùng đọc câu trả
     // lời "em đã giao 3 việc" và tự hỏi nó có chạy thật không - dải phải trả lời được ngay.
@@ -636,6 +637,25 @@ function handleMessage(data) {
 // Lượt Enter đang ĐỢI file tải lên xong. Chỉ giữ một lượt: bấm Enter hai lần trong lúc chờ
 // không được thành hai tin.
 let _choTaiLen = null;
+
+// ---- Tin đang đợi lượt cũ dừng HẲN rồi mới gửi ----
+// Server từ chối tin mới khi phiên còn job đang chạy ("Phiên này đang trả lời - đợi lượt hiện
+// tại xong đã"), mà lệnh Dừng chỉ HUỶ job chứ không kết thúc nó tức thì: engine CLI có thể mất
+// cả giây mới thật sự dừng. Gửi ngay sau stopCurrent() là rơi đúng vào lời từ chối đó, và câu
+// người dùng vừa nói biến mất không dấu vết. Nên đợi `turn_done` rồi gửi, kèm lưới 1,5 giây
+// phòng khi lượt cũ chết mà không kịp báo.
+let _tinChoLuot = null, _tinChoTimer = null;
+function datTinCho(text) {
+  _tinChoLuot = String(text || "");
+  clearTimeout(_tinChoTimer);
+  _tinChoTimer = setTimeout(guiTinCho, 1500);
+}
+function guiTinCho() {
+  clearTimeout(_tinChoTimer); _tinChoTimer = null;
+  const t = _tinChoLuot; _tinChoLuot = null;
+  if (t) sendMessage(t);       // stopCurrent() đã hạ cờ running nên lần này không quay lại đây
+}
+
 function sendMessage(text) {
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
@@ -691,6 +711,8 @@ function sendMessage(text) {
   if (turns[sid] && turns[sid].running) {
     if (!(_tuGiong || handsFree)) return;   // gõ chữ lúc không rảnh tay: giữ chốt cũ
     stopCurrent();
+    datTinCho(msg);   // gửi khi lượt cũ dừng HẲN, không gửi ngay (xem chú thích ở datTinCho)
+    return;
   }
   // Đang BUNG NÃO toàn màn (mobile) mà gửi tin thì thu lại: ở trạng thái đó khung chat bị
   // ẩn hẳn, không thu thì người dùng gõ xong không thấy câu trả lời hiện ở đâu cả. Bấm hộ
@@ -2446,7 +2468,13 @@ setInterval(() => {
   voice.handsFree = handsFree && voiceMode !== "live";
   // `micHong()` là chốt thứ hai (chốt thứ nhất là tatRanhTay() trong onError). Giữ cả hai vì
   // vòng này chạy hai lần mỗi giây: sót một nhịp là một hộp thoại nữa đập vào mặt người dùng.
-  if (handsFree && voiceMode !== "live" && !voice.isListening && !isProcessing && !voice.isSpeaking()
+  //
+  // KHÔNG còn đòi `!isProcessing`: trong lúc Javis đang nghĩ, người ta vẫn phải nói chen vào
+  // hay nói thêm ngữ cảnh được, y như nói chuyện với người thật. Chốt cũ đóng mic suốt thời
+  // gian xử lý (có khi vài chục giây) nên nói vào chỗ trống, không ai nghe (chủ dự án báo
+  // 15/09). Tin nói lúc ấy đi qua sendMessage: nó dừng lượt cũ rồi gửi lại câu mới, và tin
+  // đầu đã nằm trong kho phiên nên model vẫn thấy đủ ngữ cảnh.
+  if (handsFree && voiceMode !== "live" && !voice.isListening && !voice.isSpeaking()
       && !(voice.micHong && voice.micHong())) {
     voice.startListening(true);   // true = máy tự gọi, không phải người bấm
   }

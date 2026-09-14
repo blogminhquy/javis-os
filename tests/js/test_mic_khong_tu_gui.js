@@ -71,11 +71,17 @@ check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
   /onTranscript: \(text\) => \{[\s\S]{0,200}if \(text\) sendMessage\(text\);/.test(app));
 // Chỗ thứ 5 (0.55.63) là sendMessage TỰ GỌI LẠI CHÍNH NÓ sau khi file đính kèm tải lên
 // xong - cùng một lượt Enter của người dùng bị hoãn, không phải một đường gửi mới.
+// Chỗ thứ 6 (0.57.17) cùng kiểu HOÃN chứ không phải đường mới: người dùng nói chen ngang lúc
+// Javis đang trả lời thì phải dừng lượt cũ trước, mà server chỉ nhận tin mới khi job cũ đã
+// dừng hẳn, nên câu ấy được gửi lại khi `turn_done` về (guiTinCho).
 const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
-check("chỉ có 5 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, gọi lại sau khi tải file xong)",
-  goiGui === 5, goiGui);
+check("chỉ có 6 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ)",
+  goiGui === 6, goiGui);
 check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
   /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text\);/.test(app));
+check("chỗ thứ 6 là tin hoãn, chỉ gửi sau khi lượt cũ đã dừng",
+  /function guiTinCho\(\) \{[\s\S]{0,300}if \(t\) sendMessage\(t\);/.test(app)
+  && /if \(isActive && _tinChoLuot\) guiTinCho\(\);/.test(app));
 
 // ---- 4. Server không tự nhập liệu: việc nền luôn là tin của Javis ----
 check("push_to_chat ghi vai assistant, không bao giờ là user",

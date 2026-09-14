@@ -77,7 +77,9 @@ check("CANARY: thả Space KHÔNG tắt loa", !/JavisTts/.test(keyup));
 // Không đẻ thêm đường gửi tin (chốt của test_mic_khong_tu_gui).
 // 5 từ 0.55.63: chỗ thứ 5 là sendMessage gọi lại chính nó sau khi file đính kèm tải xong
 // (test_mic_khong_tu_gui canh kỹ chỗ đó), không phải một đường gửi tin mới.
-check("vẫn đúng 5 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 5);
+// 6 từ 0.57.17: chỗ thứ 6 cũng là HOÃN - câu nói chen ngang gửi lại sau khi lượt cũ dừng hẳn.
+check("vẫn đúng 6 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 6,
+  (app.match(/(?<!function )\bsendMessage\(/g) || []).length);
 
 // ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----
 check("CANARY: không còn #ttsToggleBar trong HTML", html.indexOf('id="ttsToggleBar"') === -1);
