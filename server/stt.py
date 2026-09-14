@@ -12,9 +12,55 @@ Trả về LUÔN là dict có khoá `ok`. Hỏng thì kèm `ly_do` (mã máy đ�
 dòng tiếng Việt để đưa thẳng vào lượt chat) - chứ không ném ngoại lệ: một tin thoại nghe hụt
 không được phép làm gãy vòng nhận tin của bot.
 """
+import re
 import sys
 
 import httpx
+
+# ---- Whisper bịa câu kêu gọi đăng ký kênh ----
+# Whisper học chủ yếu từ phụ đề YouTube, nên gặp im lặng, tiếng ồn nền hay một đoạn ngắn không
+# rõ là nó "nhớ lại" mấy câu outro dày đặc trong dữ liệu học. Tiếng Việt nổi tiếng nhất là
+# "Hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn". Đây là thứ nguy hiểm
+# một cách âm thầm: không phải lỗi mạng nên không có gì báo, nó lặng lẽ thành tin nhắn của
+# người dùng và Javis trả lời nó một cách nghiêm túc. Whisper cũng hay dán câu bịa vào TRƯỚC
+# lời thật, nên phải cắt theo từng câu chứ không vứt cả lượt.
+#
+# Ranh giới: mẫu phải ĐỦ HẸP để không đụng lời nói thật. Người dùng bàn chuyện marketing hằng
+# ngày ("đăng ký kênh YouTube tốn bao nhiêu", "viết câu kêu gọi đăng ký kênh"), nên chỉ bắt khi
+# có dấu hiệu riêng của câu outro: tên kênh, "subscribe cho kênh", hoặc cụm "không bỏ lỡ ...
+# video". Thà sót một câu bịa còn hơn nuốt một câu người ta nói thật.
+_AO_GIAC = [re.compile(p, re.I) for p in (
+    r"ghi[eề]n\s*m[iì]\s*g[oõ]",                 # tên kênh trong câu outro phổ biến nhất
+    r"subscribe\s+cho\s+k[eê]nh",
+    r"(đăng\s*k[yý]|like)\b[^.!?]{0,60}\bk[eê]nh\b[^.!?]{0,60}kh[oô]ng\s+b[oỏ]\s+l[oỡ]",
+    r"kh[oô]ng\s+b[oỏ]\s+l[oỡ]\s+(nh[uữ]ng\s+)?video",
+    r"subscribe\s+to\s+(my|our|the|this)\s+channel",
+    r"thanks?\s+(you\s+)?for\s+watching",
+    r"h[eẹ]n\s+g[aặ]p\s+l[aạ]i[^.!?]{0,40}video\s+(ti[eế]p\s+theo|sau)",
+)]
+
+# Chú thích trong ngoặc do Whisper tự thêm (không ai đọc thành tiếng mấy thứ này).
+_CHU_THICH = re.compile(
+    r"[\[\(]\s*(music|nhạc|nhạc\s*nền|applause|vỗ\s*tay|laughter|cười|silence|im\s*lặng|"
+    r"blank[_\s]*audio|inaudible|sound|tiếng\s*động)[^\]\)]{0,20}[\]\)]", re.I)
+_NOT_NHAC = re.compile("[♪♫♬♩]+")
+_CAU = re.compile(r"[^.!?…]+[.!?…]*", re.S)
+_CHI_DAU = re.compile("[\\s.!?…,;:\\-–—\"'()\\[\\]]+")
+
+
+def loc_ao_giac(text) -> str:
+    """Cắt những câu Whisper BỊA ra, giữ nguyên phần người dùng nói thật.
+
+    Trả chuỗi đã cắt (có thể rỗng). Rỗng nghĩa là cả lượt chỉ toàn câu bịa: chỗ gọi nên coi như
+    không nghe rõ và giữ lại chữ của Web Speech, đừng đẩy chuỗi rỗng đi tiếp.
+    """
+    s = str(text or "")
+    s = _CHU_THICH.sub(" ", s)
+    s = _NOT_NHAC.sub(" ", s)
+    giu = [c for c in _CAU.findall(s) if c.strip() and not any(r.search(c) for r in _AO_GIAC)]
+    out = " ".join(c.strip() for c in giu).strip()
+    return "" if not _CHI_DAU.sub("", out) else out
+
 
 GROQ_STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 STT_MAC_DINH = "vi"   # gợi ý khi chỗ gọi không chốt gì; "" ở chỗ gọi = để Whisper tự dò
@@ -119,7 +165,9 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None):
                   else d.get("error")) or f"Groq HTTP {r.status_code}"
             print(f"[stt groq] {ly}", file=sys.stderr)
             return {"ok": False, "ly_do": "loi", "noi_voi_javis": loi_thanh_dong("loi", str(ly)[:200])}
-        text = str(d.get("text") or "").strip()
+        # Lọc câu bịa TRƯỚC khi trả: lọc xong rỗng thì đúng nghĩa là không nghe được gì, đi
+        # chung một đường với im lặng thật để chỗ gọi chỉ phải xử một trường hợp.
+        text = loc_ao_giac(d.get("text"))
         if not text:
             return {"ok": False, "ly_do": "khong_nghe_ro",
                     "noi_voi_javis": loi_thanh_dong("khong_nghe_ro")}

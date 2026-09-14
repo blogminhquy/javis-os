@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.4] - 2026-09-14
+### Sửa lỗi
+- **Hết cảnh Javis tự nhiên "nghe" thấy câu mời đăng ký kênh YouTube.** Máy nghe Groq Whisper học từ phụ đề YouTube, nên gặp khoảng lặng hay tiếng ồn là nó bịa ra câu quen thuộc "Hãy subscribe cho kênh Ghiền Mì Gõ...", và câu đó đi thẳng vào khung chat như thể bạn vừa nói. Nay Javis cắt bỏ những câu bịa kiểu đó, giữ nguyên phần bạn nói thật ở trước hoặc sau; nếu cả lượt chỉ toàn câu bịa thì quay về dùng chữ của trình duyệt.
+- Bộ lọc cố ý để hẹp, nên bạn vẫn nói bình thường được về đăng ký kênh, làm video hay chạy quảng cáo mà không bị cắt mất câu.
+
 ## [0.57.3] - 2026-09-14
 ### Sửa lỗi
 - **Cài đặt giọng nói giờ lưu được thật.** Chọn chế độ Làn nhanh hay Live, chọn bộ não giọng, chọn cách nghe, bấm Lưu thì nút báo đã lưu nhưng máy chủ không ghi gì cả, tải lại trang là mất sạch. Nay bảy ô đó lưu đúng, và giá trị lạ thì bị bỏ qua chứ không làm hỏng lượt nói.
