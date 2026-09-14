@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.12] - 2026-09-14
+### Cải thiện
+- **Bộ não giọng xưng hô theo bạn.** Bạn xưng thế nào với Javis thì nó đáp lại cho khớp, không còn bị ép về một cách xưng hô cố định; các câu chờ có sẵn cũng bỏ đại từ để không lệch với cách bạn đang nói.
+
 ## [0.57.11] - 2026-09-14
 ### Cải thiện
 - **Nói chuyện không bao giờ bị khoá khi Javis đang làm việc.** Ở Làn nhanh, khi bạn nhờ một việc cần dữ liệu hay hành động, Javis nói "Ừ, để mình xem" rồi giao việc đó chạy nền và quay lại nghe bạn ngay, thay vì im lặng hàng chục giây và báo "phiên đang trả lời". Giao được nhiều việc liên tiếp, việc nào xong thì kết quả tự hiện trong khung chat và được đọc lên khi bạn không đang nói.

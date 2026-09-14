@@ -1244,7 +1244,7 @@
   "app.orb_mic_error": "LỖI MIC",
   "app.orb_slow": "MẠNG CHẬM",
   "app.orb_background": "{n} VIỆC NỀN",
-  "app.voice_filler": "Để mình xem nhé.|Đang tìm đây, chờ mình chút.|Để mình kiểm tra lại.",
+  "app.voice_filler": "Để xem nhé.|Đang tìm đây, chờ chút.|Để kiểm tra lại đã.",
   "app.voice_bg_task": "Đang làm nền: {task}. Kết quả sẽ tự hiện ở đây, bạn cứ nói tiếp.",
   "app.live_missing": "Thiếu module nghe nói thẳng (tải lại trang).",
   "app.live_error": "Phiên nghe nói thẳng lỗi:",
