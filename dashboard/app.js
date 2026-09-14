@@ -3076,6 +3076,18 @@ async function initSetup() {
   } catch (e) { return false; }
 }
 if (document.getElementById("wzFinish")) {
+  // Công cụ tuỳ chọn trong trình hướng dẫn: chỉ HỎI khi máy thật sự thiếu. Máy cá nhân
+  // thường đã có sẵn Chrome, mời họ tải thêm cả trăm MB là mời một việc vô nghĩa.
+  (async () => {
+    try {
+      const d = await (await fetch("/tools/optional")).json();
+      const ct = ((d && d.tools) || []).find(x => x.id === "browser");
+      if (ct && ct.trang_thai === "chua_cai") {
+        const o = document.getElementById("wzCongCu");
+        if (o) o.style.display = "";
+      }
+    } catch (e) {}
+  })();
   document.getElementById("wzFinish").addEventListener("click", async () => {
     const err = document.getElementById("wzErr"); err.textContent = "";
     const ws = document.getElementById("wzWsName").value.trim();
@@ -3114,6 +3126,18 @@ if (document.getElementById("wzFinish")) {
       const _ork = (document.getElementById("wzOrKeyInput") || {}).value;
       if (prov === "openrouter" && _ork && _ork.trim()) _mp.openrouter_key = _ork.trim();
       await fetch("/settings", { method: "POST", body: _fd({ section: "model", data: JSON.stringify(_mp) }) });
+      // Người dùng đã tick "cài trình duyệt": khởi động việc tải ở NỀN rồi vào app luôn. Không
+      // bắt họ ngồi nhìn thanh tiến độ cả trăm MB ngay phút đầu tiên; trang Công cụ có đủ
+      // trạng thái để xem sau. Hỏng thì cũng không chặn đường vào app.
+      const _ctB = document.getElementById("wzCtBrowser");
+      if (_ctB && _ctB.checked) {
+        try {
+          await fetch("/tools/optional/install", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: "browser" }),
+          });
+        } catch (e) {}
+      }
       location.reload();
     } catch (e) { err.textContent = window.t("app.err_net"); btn.disabled = false; btn.textContent = window.t("app.wz_start"); }
   });

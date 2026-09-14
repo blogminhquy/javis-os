@@ -97,3 +97,28 @@ jobs:
             { echo "### Test Python đỏ"; for t in $dsdo; do echo "- \`$t\`"; done; } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $status
+
+  # Ảnh Docker nặng thêm bao nhiêu vì thư viện trình duyệt? Build THẬT rồi đọc số, không đoán.
+  # KHÔNG đẩy lên registry: workflow phát hành gắn tag `:latest` mà VPS người dùng kéo đúng tag
+  # đó, nên một bản build từ nhánh chưa kiểm tuyệt đối không được chạm vào nó.
+  do-anh:
+    name: Đo kích thước ảnh Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ảnh (không đẩy) và đọc kích thước từng lớp
+        run: |
+          docker build -t javis-do:pr . 2>&1 | tail -5
+          tong=$(docker image inspect javis-do:pr --format '{{.Size}}')
+          lop=$(docker history javis-do:pr --no-trunc --format '{{.Size}}|{{.CreatedBy}}' \
+                 | grep -i "playwright.*install-deps" | head -1 | cut -d'|' -f1)
+          mb() { awk -v b="$1" 'BEGIN{printf "%.0f MB", b/1024/1024}'; }
+          echo "Tổng ảnh: $(mb "$tong")"
+          echo "Lớp thư viện trình duyệt: ${lop:-（không tìm thấy lớp）}"
+          {
+            echo "### Kích thước ảnh Docker"
+            echo "- Tổng: **$(mb "$tong")**"
+            echo "- Riêng thư viện trình duyệt: **${lop:-không đo được}**"
+            echo ""
+            echo "Trình duyệt KHÔNG nằm trong ảnh - tải bằng nút trong trang Công cụ."
+          } >> "$GITHUB_STEP_SUMMARY"

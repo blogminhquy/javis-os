@@ -1547,6 +1547,17 @@
   "cs.pl_st_idle": "bật (chưa nạp)",
   "cs.pl_minmode": "quyền tối thiểu: {muc}",
   "cs.pl_intro_a": "Plugin thêm",
+  "cs.ct_head": "Công cụ tuỳ chọn",
+  "cs.ct_intro": "Thứ Javis dùng được nhưng không cài sẵn, vì không phải ai cũng cần. Bấm cài khi bạn cần tới.",
+  "cs.ct_nhac_browser": "Máy này chưa có trình duyệt nào Javis lái được, nên kết nối sẽ đấu xong mà vẫn không chạy được. Vào trang Công cụ bấm cài trình duyệt trước đã.",
+  "cs.ct_toi_trang": "Mở trang Công cụ",
+  "cs.ct_san_sang": "Sẵn sàng",
+  "cs.ct_chua_cai": "Chưa cài",
+  "cs.ct_dang_cai": "Đang cài",
+  "cs.ct_cai": "Cài",
+  "cs.ct_go": "Gỡ",
+  "cs.ct_cai_lai": "Thử lại",
+  "cs.ct_xac_nhan_go": "Gỡ trình duyệt Javis đã tải? Kiểm thử giao diện sẽ ngừng chạy cho tới khi cài lại.",
   "cs.pl_intro_b": "(công cụ engine gọi được) và",
   "cs.pl_intro_c": "native cho Javis mà không sửa lõi - dùng được ở MỌI engine (Claude Code, Codex, API) qua hub, tôn trọng 3 mức quyền như tool khác.",
   "cs.pl_gate_head": "Plugin do bạn cài đang bị chặn.",
@@ -2615,5 +2626,7 @@
   "store.disabled_env": "Biến môi trường {bien} đang bật, nên mọi thứ cài thêm bị tắt hết.",
   "store.dir_note": "Thứ cài thêm nằm ở {duong}. Thả thẳng một thư mục vào đó cũng được, không bắt buộc phải qua tệp nén.",
   "store.zip_limit": "Tệp .zip tối đa {mb}MB.",
-  "store.catalog_at": "Danh mục lúc {luc}"
+  "store.catalog_at": "Danh mục lúc {luc}",
+  "wz.ct_head": "Công cụ tuỳ chọn",
+  "wz.ct_browser": "Cài trình duyệt để Javis tự kiểm thử giao diện sau khi sửa code (khoảng 100 MB, tải ở nền)"
 }
