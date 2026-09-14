@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.13] - 2026-09-14
+### Cải thiện
+- **Xưng hô để tự do.** Bỏ luật cứng "mặc định bạn/mình" và test chặn chữ anh/em trong mã nguồn: cách xưng hô là chuyện của từng người dùng, Javis xưng theo cách bạn đang xưng với nó, có ký ức thì theo ký ức. Bộ dò "hứa suông" vẫn được giữ và kiểm với mọi giọng xưng hô.
+
 ## [0.57.12] - 2026-09-14
 ### Cải thiện
 - **Bộ não giọng xưng hô theo bạn.** Bạn xưng thế nào với Javis thì nó đáp lại cho khớp, không còn bị ép về một cách xưng hô cố định; các câu chờ có sẵn cũng bỏ đại từ để không lệch với cách bạn đang nói.
