@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.14] - 2026-09-15
+### Sửa lỗi
+- **Nói chen vào là Javis dừng thật.** Trước đây đang nghe một đoạn dài mà nói "thôi" hay "dừng lại" thì nó giật một cái rồi đọc tiếp, vì phải chờ nhận dạng trả chữ trong 2 giây mà tiếng nói ngắn đã dứt trước khi tai kịp mở. Giờ Javis nhận ra trong khoảng nửa giây và dừng hẳn.
+- **Hết cảnh Javis nghe chính loa của mình rồi tự câm.** Khi nghi có người nói, nó hạ nhỏ tiếng một nhá rồi nghe lại: tiếng vọng từ loa nhỏ theo, giọng người thì không, nên phân biệt được ngay. Loa ngoài mở to vẫn dùng ngắt lời được, và mức vọng của phòng được nhớ lại cho những lần sau.
+
 ## [0.57.13] - 2026-09-14
 ### Cải thiện
 - **Xưng hô để tự do.** Bỏ luật cứng "mặc định bạn/mình" và test chặn chữ anh/em trong mã nguồn: cách xưng hô là chuyện của từng người dùng, Javis xưng theo cách bạn đang xưng với nó, có ký ức thì theo ký ức. Bộ dò "hứa suông" vẫn được giữ và kiểm với mọi giọng xưng hô.

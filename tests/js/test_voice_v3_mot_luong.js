@@ -62,7 +62,8 @@ check("voice.js: khúc đọc xong cộng từ, cả đường máy tính lẫn 
       (voiceJs.match(/this\._wordsDone \+= JavisVoice\.demTu\(/g) || []).length >= 4);
 check("voice.js: enqueueSpeak(opts.uncounted) không tính vào số từ", /if \(opts\.uncounted\) this\._uncounted\.push\(clean\);/.test(voiceJs)
       && /this\._countThis = ui < 0;/.test(voiceJs));
-check("voice.js: iOS cũng ghi _chunkIndex (spokenWords cần)", /this\.currentAudio = a;\s*\n\s*this\._chunkIndex = i;/.test(voiceJs));
+// (giữa hai dòng này còn một dòng áp âm lượng cho phép nhá tiếng, xem test_ngat_loi_nha_tieng.js)
+check("voice.js: iOS cũng ghi _chunkIndex (spokenWords cần)", /this\.currentAudio = a;[\s\S]{0,120}this\._chunkIndex = i;/.test(voiceJs));
 check("voice-live.js: progress() + resetProgress(), schedMs cộng theo từng khối, xả thì về 0",
       /progress: progress, resetProgress: resetProgress/.test(liveJs) && /schedMs \+= ab\.duration \* 1000;/.test(liveJs)
       && /utterStartAt = 0;\s*\n\s*schedMs = 0;/.test(liveJs));

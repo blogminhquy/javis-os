@@ -10,6 +10,30 @@ class JavisVoice {
   //   audio-capture       máy không có mic (hay gặp trên phiên điều khiển từ xa)
   static LOI_CHET = ["not-allowed", "service-not-allowed", "audio-capture"];
 
+  // ---- Ngắt lời bằng giọng: mẹo NHÁ TIẾNG (0.57.14) ----
+  // Đo mức âm mic KHÔNG phân biệt nổi giọng người với tiếng LOA NGOÀI vọng lại, nên bản cũ
+  // kẹt giữa hai cái sai: ngưỡng thấp thì Javis nghe chính mình rồi tự câm, ngưỡng cao thì
+  // nói kiểu gì nó cũng đọc tiếp. Cách thoát: đừng đoán, hãy THỬ. Nghi có người nói thì hạ
+  // âm lượng loa xuống một nhá rồi đo lại. Tiếng vọng đi theo âm lượng nên tụt cả chục lần;
+  // giọng người thì không tụt. So mức sau khi nhá với mức trước khi nhá là biết ngay, không
+  // cần hiệu chỉnh tay, không cần chờ nhận dạng trả chữ (Web Speech mất 0,5 đến 1,5 giây mới
+  // có chữ đầu, lâu hơn cả một tiếng "thôi" - đó là lý do bản cũ không sao ngắt được).
+  static BARGE_SAN = 0.045;     // sàn tuyệt đối của ngưỡng nghi ngờ (0..1)
+  static NHA_GAIN = 0.12;       // nhá: còn 12% âm lượng
+  static NHA_TICKS = 4;         // thăm dò 4 nhịp 100 ms
+  static NHA_MIN_HIT = 2;       // 2 nhịp còn tiếng khi đã nhá = người thật
+  static NHA_TI_LE = 0.45;      // còn trên 45% mức trước khi nhá thì không phải vọng
+  static NHA_SAN = 0.02;        // dưới mức này coi như phòng im, đừng bắt
+
+  // Mẫu đo trong lúc nhá tiếng có phải giọng NGƯỜI không. Thuần, không đụng DOM, để test
+  // được bằng node: vọng của loa tụt theo âm lượng, giọng người giữ nguyên mức.
+  static laNguoiThat(preLevel, samples) {
+    const nguong = Math.max((preLevel || 0) * JavisVoice.NHA_TI_LE, JavisVoice.NHA_SAN);
+    let hit = 0;
+    for (let i = 0; i < (samples || []).length; i++) if (samples[i] > nguong) hit++;
+    return hit >= JavisVoice.NHA_MIN_HIT;
+  }
+
   constructor(opts = {}) {
     this.lang = opts.lang || "vi-VN";
     this.onTranscript = opts.onTranscript || (() => {});
@@ -42,12 +66,22 @@ class JavisVoice {
     // diễn, app.js gắn các móc này. Không gắn thì hành vi cũ giữ nguyên (silenceMs cố định,
     // chen ngang giết ngay).
     this.endpointDelay = opts.endpointDelay || null;   // (text) -> ms im lặng trước khi gửi
-    this.onBargeStart = opts.onBargeStart || null;     // đủ 500 ms tiếng nói khi đang đọc
+    this.onBargeStart = opts.onBargeStart || null;     // NGHI có người chen ngang (đường cũ: tạm dừng chờ chữ)
+    this.onBargeConfirm = opts.onBargeConfirm || null; // ĐÃ CHẮC là người thật (nhá tiếng xong): dừng hẳn
     this.onSpeakStart = opts.onSpeakStart || null;     // bắt đầu phát tiếng
     this.onSpeakEnd = opts.onSpeakEnd || null;         // hết hàng đợi hoặc bị dừng
     this.onSlow = opts.onSlow || null;                 // (bool) khúc TTS tải quá chậm
     this.bargeEnabled = true;                          // công tắc "ngắt lời bằng giọng"
-    this.bargeMinTicks = 5;                            // 5 nhịp 100 ms = 500 ms (LiveKit min_duration)
+    // 2 nhịp 100 ms là đủ để NGHI NGỜ, vì nghi ngờ chỉ dẫn tới một cú nhá tiếng 400 ms chứ
+    // không còn dừng hẳn. Tiếng ho hay tiếng đặt cốc chết ngay trong lúc nhá nên không cắt
+    // được câu nữa; đổi lại một tiếng "thôi" ngắn cũng kịp lọt vào cửa sổ thăm dò. Bản cũ
+    // phải để 5 nhịp vì lúc ấy chạm ngưỡng là câm luôn.
+    this.bargeMinTicks = 2;
+    // Mức vọng của phòng, TỰ HỌC theo từng câu và nhớ qua các lần mở trang. Chặn trên 0.3 để
+    // một giá trị rác trong localStorage không làm ngắt lời chết hẳn.
+    this._echoFloor = Math.min(0.3, parseFloat(localStorage.getItem("javis.nenVong")) || 0);
+    this._dangNha = false;                             // đang nhá tiếng để thăm dò
+    this._nhaTimer = null;
     this._paused = false;                              // đang TẠM DỪNG vì nghi chen ngang
     this._spokenChunks = [];                           // khúc đã phát xong trong lượt đọc này
     // ---- Voice V3: đếm số TỪ đã ra tiếng, để bong bóng hiện chữ THEO LỜI ĐỌC (karaoke) ----
@@ -465,6 +499,10 @@ class JavisVoice {
     }
     if (!this.isPlaying) {
       this._spokenChunks = [];                       // lượt đọc mới: phần "đã đọc" tính lại từ đầu
+      // Nền vọng học được ở lượt trước giữ lại nhưng HẠ dần: cắm tai nghe hay vặn nhỏ loa
+      // xong mà nền còn treo ở mức cũ thì ngắt lời lại hoá điếc. Hạ 30% mỗi lượt, vài câu là
+      // về đúng môi trường mới, mà vẫn không phải học lại từ số không mỗi lần.
+      this._echoFloor = this._echoFloor * 0.7;
       if (this.onSpeakStart) { try { this.onSpeakStart(); } catch (e) {} }
     }
     this.isPlaying = true;
@@ -515,32 +553,141 @@ class JavisVoice {
     // gửi thành tin nhắn của người dùng. Mic đang tắt thì Javis không được phép tự nghe lại.
     if (!this._resumeAfterTTS) return;
     if (!this.bargeEnabled) return;                  // người dùng tắt "ngắt lời bằng giọng" trong Cài đặt nhanh
+    if (this._dangNha) return;                       // đang nhá tiếng thăm dò, đừng mở bộ rình thứ hai
     if (this._bargeTimer || !this.micStream || !this.inAnalyser) return;
-    const N = this.inAnalyser.fftSize || 128;
-    if (!this._timeData || this._timeData.length !== N) this._timeData = new Uint8Array(N);
-    let hits = 0, ticks = 0, baseline = 0;
-    // Cần `bargeMinTicks` nhịp 100 ms LIÊN TIẾP (mặc định 5 = 500 ms, bằng min_duration của
-    // livekit/agents). Bản cũ 3 nhịp: một tiếng ho, tiếng đặt cốc là Javis câm giữa câu.
+    let hits = 0, gan = [];
+    // NGƯỠNG TỰ HỌC, không còn đo một lần rồi thôi. Bản cũ lấy nền trong 600 ms ĐẦU, mà bộ
+    // rình khởi động TRƯỚC lúc tiếng thật sự ra loa (còn đang tải file TTS), nên nền đo được
+    // là phòng im và ngưỡng rơi về sàn 0.045: loa ngoài mở to là vượt ngay, Javis tự ngắt
+    // lời mình. Nay nền là trung bình trượt của chính những nhịp KHÔNG nghi ngờ, nên nó dâng
+    // dần tới đúng mức vọng của phòng; thêm nữa mỗi lần nhá tiếng kết luận "là vọng" thì nền
+    // được nâng thẳng lên trên mức vừa đo (xem _ketThucNha), nên chỉ sau một hai lần là hết
+    // nghi oan.
     this._bargeTimer = setInterval(() => {
       if (!this.isPlaying || this._paused) { this._stopBargeMonitor(); return; }
-      this.inAnalyser.getByteTimeDomainData(this._timeData);
-      let s = 0;
-      for (let k = 0; k < N; k++) { const dv = this._timeData[k] - 128; s += dv * dv; }
-      const rms = Math.sqrt(s / N) / 128;   // 0..1 (im lặng ~0.005, nói thường ~0.05-0.2)
-      ticks++;
-      if (ticks <= 6) { baseline = Math.max(baseline, rms); return; }   // ~600ms đầu: đo nền/echo
-      const thresh = Math.max(0.045, baseline * 2 + 0.02);             // vượt HẲN nền mới coi là user nói
-      if (rms > thresh) { if (++hits >= this.bargeMinTicks) { this._stopBargeMonitor(); this._bargeIn(); } }
-      else hits = 0;
+      const rms = this._micRms();
+      if (rms == null) return;
+      // KHÔNG gieo nền bằng mẫu đầu tiên. Gieo là ngưỡng lập tức thành 1,8 lần mức đang đo,
+      // nên chính mức ấy không bao giờ vượt nổi ngưỡng của nó: bộ rình tê liệt, không nhá
+      // tiếng lần nào, ngắt lời chết câm. Đã đo thấy trên trang thật 15/09. Nền chỉ được đi
+      // lên từ trung bình trượt và từ các lần nhá tiếng kết luận "là vọng".
+      const thresh = Math.max(JavisVoice.BARGE_SAN, this._echoFloor * 1.8 + 0.01);
+      if (rms > thresh) {
+        gan.push(rms);
+        if (gan.length > 3) gan.shift();
+        if (++hits >= this.bargeMinTicks) {
+          this._stopBargeMonitor();
+          const pre = gan.reduce((a, b) => a + b, 0) / gan.length;
+          this._nhaTiengThuXem(pre);
+        }
+      } else {
+        hits = 0; gan = [];
+        this._echoFloor = this._echoFloor * 0.9 + rms * 0.1;   // chỉ học lúc không nghi ngờ
+      }
     }, 100);
+  }
+
+  // Biên độ sóng (time-domain RMS) của luồng mic ĐÃ khử vọng. Đúng độ TO thật, đáng tin hơn
+  // trung bình phổ (bị pha loãng bởi dải tần cao im lặng nên giọng nói không bao giờ chạm
+  // ngưỡng). Trả null khi chưa có luồng mic.
+  _micRms() {
+    if (!this.inAnalyser) return null;
+    const N = this.inAnalyser.fftSize || 128;
+    if (!this._timeData || this._timeData.length !== N) this._timeData = new Uint8Array(N);
+    this.inAnalyser.getByteTimeDomainData(this._timeData);
+    let s = 0;
+    for (let k = 0; k < N; k++) { const dv = this._timeData[k] - 128; s += dv * dv; }
+    return Math.sqrt(s / N) / 128;   // 0..1 (im lặng ~0.005, nói thường ~0.05-0.2)
+  }
+
+  // Âm lượng loa theo trạng thái: đang nhá thì nhỏ, không thì đầy. Gọi ở MỌI chỗ gắn audio
+  // mới, vì mỗi khúc TTS là một phần tử Audio khác: quên một chỗ là khúc kế tiếp bật lại âm
+  // lượng đầy ngay giữa lúc đang thăm dò, hỏng hết phép so.
+  _apAmLuong(audio) {
+    try { if (audio) audio.volume = this._dangNha ? JavisVoice.NHA_GAIN : 1; } catch (e) {}
+  }
+
+  // ---- Nhá tiếng để thăm dò: hạ âm lượng một nhá rồi đo lại ----
+  // Vọng của loa tụt theo âm lượng, giọng người thì không. So mức sau khi nhá với mức trước
+  // khi nhá là phân biệt được, không cần chờ nhận dạng trả chữ.
+  _nhaTiengThuXem(preLevel) {
+    if (this._dangNha) return;
+    this._dangNha = true;
+    this._apAmLuong(this.currentAudio);
+    // Web Speech không hạ được âm lượng giữa câu đang đọc, nên đường đó tạm dừng hẳn trong
+    // lúc thăm dò (vẫn đúng phép so: vọng biến mất, giọng người thì còn).
+    const dungSynth = !this.currentAudio && this.synth && this.synth.speaking;
+    if (dungSynth) { try { this.synth.pause(); } catch (e) {} }
+    const mau = [];
+    this._nhaTimer = setInterval(() => {
+      if (!this.isPlaying) { this._ketThucNha(false, preLevel, dungSynth); return; }
+      const rms = this._micRms();
+      if (rms != null) mau.push(rms);
+      if (mau.length >= JavisVoice.NHA_TICKS) {
+        this._ketThucNha(JavisVoice.laNguoiThat(preLevel, mau), preLevel, dungSynth);
+      }
+    }, 100);
+  }
+
+  _ketThucNha(laNguoi, preLevel, dungSynth) {
+    if (this._nhaTimer) { clearInterval(this._nhaTimer); this._nhaTimer = null; }
+    if (!this._dangNha) return;
+    this._dangNha = false;
+    this._apAmLuong(this.currentAudio);
+    if (dungSynth) { try { this.synth.resume(); } catch (e) {} }
+    if (laNguoi) {
+      this._bargeIn();
+      // Lưới an toàn: nơi nhận (đạo diễn) có thể nuốt cú ngắt vì trạng thái lệch. Còn đang
+      // đọc sau một nhịp nghĩa là không ai dừng gì cả, phải mở lại bộ rình chứ không thì
+      // ngắt lời chết câm tới hết câu trả lời và người dùng không hiểu vì sao.
+      setTimeout(() => { if (this.isPlaying && !this._paused) this._startBargeMonitor(); }, 300);
+      return;
+    }
+    // Là vọng của chính mình: nâng nền cho đúng mức ấy thôi nghi ngờ lần nữa, rồi đọc tiếp.
+    // Người nghe chỉ thấy tiếng nhỏ đi một nhá, không giật, không câm.
+    //
+    // Nền leo TỪNG BẬC chứ không nhảy thẳng tới mức vừa đo: một tiếng ho to (0.2) mà nhảy
+    // thẳng là nền treo ở đó, ngưỡng vọt lên gần 0.4 và mấy lượt sau nói gì Javis cũng không
+    // nghe. Leo bậc thì vọng thật (lặp lại liên tục) vẫn tới nơi sau một hai nhá, còn tiếng
+    // ho một lần chỉ đẩy được một bậc nhỏ.
+    const tran = (preLevel || 0) * 1.05;
+    this._echoFloor = Math.max(this._echoFloor, Math.min(tran, this._echoFloor * 1.6 + 0.02));
+    this._nhoNenVong();
+    this._startBargeMonitor();
   }
 
   _stopBargeMonitor() {
     if (this._bargeTimer) { clearInterval(this._bargeTimer); this._bargeTimer = null; }
   }
 
+  // Nhớ nền vọng qua các lần mở trang: phòng của một người thì gần như không đổi, nhớ được
+  // thì câu trả lời ĐẦU TIÊN sau khi tải trang đã có ngưỡng đúng, khỏi phải nhá tiếng vài lần
+  // để học lại từ số không. Hỏng localStorage (chế độ riêng tư) thì thôi, học lại cũng được.
+  _nhoNenVong() {
+    try { localStorage.setItem("javis.nenVong", String(this._echoFloor.toFixed(4))); } catch (e) {}
+  }
+
+  // Huỷ cuộc thăm dò đang dở (dừng đọc, đổi lượt): trả âm lượng về đầy, không để phần tử
+  // Audio kế tiếp thừa hưởng mức nhá.
+  _huyNha() {
+    if (this._nhaTimer) { clearInterval(this._nhaTimer); this._nhaTimer = null; }
+    if (!this._dangNha) return;
+    this._dangNha = false;
+    this._apAmLuong(this.currentAudio);
+    try { if (this.synth && this.synth.paused) this.synth.resume(); } catch (e) {}
+  }
+
+  // Đã nhá tiếng và chắc là người thật: DỪNG HẲN, không chờ nhận dạng xác nhận nữa.
+  // Đường cũ (onBargeStart) tạm dừng rồi đòi có chữ trong 2 giây mới coi là ngắt thật. Nghe
+  // thì chặt chẽ, dùng thì hỏng: nhận dạng chỉ được mở SAU khi tạm dừng, mà Chrome mất 0,5
+  // đến 1,5 giây mới trả chữ đầu tiên, nên một tiếng "thôi" hay "dừng lại" đã nói xong trước
+  // khi tai kịp mở. Không có chữ nào tới, đạo diễn kết luận chen ngang giả rồi đọc tiếp:
+  // đúng cảnh chủ dự án tả 15/09 "nói kiểu gì cũng không dừng được". Nay bằng chứng là phép
+  // nhá tiếng, chắc hơn chữ và có trong 400 ms, nên không cần cửa sổ chờ ấy nữa.
   _bargeIn() {
-    // Có đạo diễn (Voice V1): nó quyết định TẠM DỪNG rồi chờ chữ, chứ không giết ngay.
+    if (this.onBargeConfirm) {
+      try { this.onBargeConfirm(); return; } catch (e) {}
+    }
     if (this.onBargeStart) { try { this.onBargeStart(); return; } catch (e) {} }
     this.stopSpeaking();       // dừng đọc ngay (không để chồng tiếng)
     this.startListening(true); // máy tự mở lại (do đo được mức âm), không phải cú bấm
@@ -553,6 +700,7 @@ class JavisVoice {
     if (!this.isPlaying || this._paused) return false;
     this._paused = true;
     this._stopBargeMonitor();
+    this._huyNha();
     try { if (this.currentAudio) this.currentAudio.pause(); } catch (e) {}
     try { if (this.synth && this.synth.speaking) this.synth.pause(); } catch (e) {}
     return true;
@@ -665,6 +813,7 @@ class JavisVoice {
       a.onended = null; a.onerror = null;
       a.src = this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : "");
       this.currentAudio = a;
+      this._apAmLuong(a);      // đang nhá tiếng thăm dò thì khúc mới cũng phải nhỏ theo
       this._chunkIndex = i;
       let done = false;
       const onFail = () => { if (done) return; done = true; a.onerror = null; this._chunkFailed(i, retry); };
@@ -684,6 +833,7 @@ class JavisVoice {
               : new Audio(url + (retry ? "&retry=1" : ""));
     this._preloaded = null;
     this.currentAudio = audio;
+    this._apAmLuong(audio);    // đang nhá tiếng thăm dò thì khúc mới cũng phải nhỏ theo
     this._chunkIndex = i;
     // Đo mạng: từ lúc gọi play() tới lúc thật sự phát. Quá slowMs thì báo "mạng chậm" - đây là
     // số đo thật, không phải trạng thái vẽ cho có (spec Voice V1 mục 4).
@@ -769,6 +919,7 @@ class JavisVoice {
   stopSpeaking() {
     const dangDoc = this.isPlaying;
     this._stopBargeMonitor();
+    this._huyNha();            // đang thăm dò dở thì bỏ, và trả âm lượng về đầy
     this._paused = false;
     this.synth.cancel();
     if (this.currentAudio) {

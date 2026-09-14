@@ -48,8 +48,12 @@ check("orb nhãn tool dùng app.orb_tool", /app\.orb_tool/.test(app));
 check("dải việc nền báo số cho orb", /window\.JavisOrb\.setBackground/.test(read("dashboard/background-strip.js")));
 
 // 3. voice.js
-check("voice.js: 5 nhịp = 500 ms", /this\.bargeMinTicks = 5;/.test(voice) && /hits >= this\.bargeMinTicks/.test(voice));
-check("voice.js: _bargeIn ưu tiên onBargeStart (tạm dừng) trước khi giết", /_bargeIn\(\) \{\s*\n[\s\S]{0,200}if \(this\.onBargeStart\)/.test(voice));
+// 0.57.14: 2 nhịp = 200 ms là đủ để NGHI NGỜ, vì nghi ngờ chỉ dẫn tới một cú nhá tiếng 400 ms
+// chứ không dừng hẳn nữa (test_ngat_loi_nha_tieng.js). Bản cũ phải để 5 nhịp vì chạm ngưỡng
+// là câm luôn, và chính vì thế một tiếng "thôi" ngắn không bao giờ ngắt được lời Javis.
+check("voice.js: 2 nhịp = 200 ms để nghi ngờ", /this\.bargeMinTicks = 2;/.test(voice) && /hits >= this\.bargeMinTicks/.test(voice));
+check("voice.js: _bargeIn ưu tiên onBargeConfirm (đã chắc), rồi mới tới onBargeStart cũ",
+  /_bargeIn\(\) \{\s*\n\s*if \(this\.onBargeConfirm\)/.test(voice) && /if \(this\.onBargeStart\)/.test(voice));
 check("voice.js: có pauseSpeaking/resumeSpeaking", /pauseSpeaking\(\) \{/.test(voice) && /resumeSpeaking\(\) \{/.test(voice));
 check("voice.js: isSpeaking() = false khi tạm dừng", /isSpeaking\(\) \{\s*\n\s*if \(this\._paused\) return false;/.test(voice));
 check("voice.js: lastSpokenPrefix có thật", /lastSpokenPrefix\(\) \{/.test(voice) && /_spokenChunks\.push\(this\.ttsChunks\[i\]\)/.test(voice));

@@ -157,6 +157,8 @@ const voice = new JavisVoice({
   // ---- Voice V1: móc nối đạo diễn (voice-turn.js) ----
   endpointDelay: (text) => turn.delayFor(text),
   onBargeStart: () => runActions(turn.bargeStart()),
+  // Nhá tiếng xong, chắc là người thật: dừng hẳn và mở tai ngay, không qua cửa sổ chờ chữ.
+  onBargeConfirm: () => runActions(turn.bargeConfirmed(voice.lastSpokenPrefix())),
   onSpeakStart: () => runActions(turn.ttsStart()),
   onSpeakEnd: () => runActions(turn.ttsEnd()),
   onSlow: (cham) => runActions(turn.setSlow(cham)),

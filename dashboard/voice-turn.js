@@ -298,6 +298,19 @@
       .concat(this._recompute());
   };
 
+  // voice.js đã NHÁ TIẾNG và chắc là người thật (vọng tụt theo âm lượng, giọng người thì
+  // không): dừng hẳn và mở tai, KHÔNG qua cửa sổ chờ chữ 2 giây. Cửa sổ ấy vốn là cách duy
+  // nhất để phân biệt chen ngang thật với tiếng vọng, nhưng nhận dạng chỉ mở SAU khi tạm
+  // dừng nên một tiếng "thôi" ngắn không bao giờ kịp lọt vào, và câu trả lời cứ thế đọc tiếp.
+  VoiceTurn.prototype.bargeConfirmed = function (spokenPrefix) {
+    if (!this.speaking) return [];
+    this.interrupted = false;
+    this.speaking = false;
+    this.userSpeaking = true;
+    if (spokenPrefix) this.interruptedAt = String(spokenPrefix);
+    return [{ type: "stop_tts", interrupted: true }, { type: "listen" }].concat(this._recompute());
+  };
+
   // 2 giây không có chữ -> chen ngang GIẢ: phát tiếp, đóng recognition.
   VoiceTurn.prototype.bargeTimeout = function () {
     if (!this.interrupted) return [];
