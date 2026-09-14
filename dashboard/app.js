@@ -112,6 +112,10 @@ function setOrbState(state, label) {
   const thinking = state === "thinking";
   _thinkingActive = thinking;
   if (javisGraph) javisGraph.setThinking(thinking);
+  // Linh vật ở mép màn hình diễn theo ĐÚNG trạng thái này, không có nguồn riêng: nếu chữ
+  // trên orb nói "đang nghĩ" mà pet vẫn ngồi chớp mắt thì một trong hai đang nói dối.
+  // Lớp rỗng "" của orb là trạng thái nghỉ.
+  try { if (window.JavisPet) window.JavisPet.setState(state || "idle"); } catch (e) {}
 }
 
 // ============================================

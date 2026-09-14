@@ -1038,6 +1038,13 @@ async def root():
     # Rơi về `ver` khi không băm được (file lạ, lỗi đọc) - thà bể cache còn hơn phục vụ đồ cũ.
     html = re.sub(r'(/static/([\w./-]+\.(?:js|css)))\?v=[\w.]+',
                   lambda m: m.group(1) + "?v=" + (fps.get(m.group(2)) or ver), html)
+    # /brand-logo cũng phải bể cache theo phiên bản. Nó KHÔNG nằm dưới /static nên không lọt
+    # vào regex trên, và nó được phục vụ kèm max-age=60 - nghĩa là đổi logo mặc định trong
+    # một bản cập nhật xong người dùng vẫn thấy logo cũ cho tới khi tự bấm Ctrl+Shift+R.
+    # Con số `?v=` trong index.html trước đây gõ tay, và đúng như mọi con số gõ tay khác,
+    # nó đứng yên ở 5 qua hàng chục bản.
+    html = html.replace("/brand-logo?v=5", "/brand-logo?v=" + ver).replace(
+        'src="/brand-logo"', 'src="/brand-logo?v=' + ver + '"')
     # Nhúng phiên bản + vân tay vào chính trang. index.html luôn tải mới (no-store) nên khối
     # này LUÔN đúng, kể cả khi mọi file JS quanh nó đã cũ - đó chính là điểm tựa để
     # freshness.js phát hiện ra chuyện đó.
@@ -4084,6 +4091,27 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             cfg["dashboard"]["graph_enabled"] = bool(patch["graph_enabled"])
         if "auto_resume" in patch:
             cfg["dashboard"]["auto_resume"] = bool(patch["auto_resume"])
+        if "pet" in patch:
+            # Linh vật góc màn hình (dashboard/pet.js). LỌC TỪNG KHOÁ chứ không nuốt cả
+            # object: đây là thứ được ghi từ trình duyệt, và một object tự do trong
+            # settings.json là chỗ để rác lọt vào rồi ở lại mãi.
+            pet_cu = cfg["dashboard"].get("pet") or {}
+            pet_moi = patch.get("pet") or {}
+            if not isinstance(pet_moi, dict):
+                pet_moi = {}
+            pet = dict(pet_cu)
+            if "enabled" in pet_moi:
+                pet["enabled"] = bool(pet_moi["enabled"])
+            for k in ("shape", "palette", "side"):
+                v = pet_moi.get(k)
+                if isinstance(v, str) and 0 < len(v) <= 24 and v.replace("-", "").isalnum():
+                    pet[k] = v
+            if "pos" in pet_moi:
+                try:
+                    pet["pos"] = max(0.0, min(1.0, float(pet_moi["pos"])))
+                except (TypeError, ValueError):
+                    pass
+            cfg["dashboard"]["pet"] = pet
     elif section == "image":
         cfg.setdefault("image", {})
         if "strip_c2pa" in patch:

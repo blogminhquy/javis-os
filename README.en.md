@@ -156,13 +156,13 @@ Open Javis and the setup wizard walks you through:
 
 > 📚 **Detailed docs:** see the **[docs/](docs/README.md)** folder - a guide per feature (where to open it, what to press, how to use it). Most pages are in Vietnamese; [docs/en/](docs/en/README.md) has the translated ones. The table below is a quick map.
 
-The left navigation rail groups **19 pages** into **7 groups** (click a group name to open it):
+The left navigation rail groups **21 pages** into **6 groups** (click a group name to open it):
 
 | Group | Item | What it does | Guide |
 |---|---|---|---|
-| **Assistant** | **Javis** | The main screen: chat (typed or spoken), knowledge graph, brain file tree on the left. | [Chat & voice](docs/02-tro-chuyen-va-giong-noi.md) · [Knowledge graph](docs/03-do-thi-tri-thuc.md) |
+| **Brain** | **Graph** | The screen Javis opens on: knowledge graph, chat (typed or spoken), brain file tree on the left. | [Chat & voice](docs/02-tro-chuyen-va-giong-noi.md) · [Knowledge graph](docs/03-do-thi-tri-thuc.md) |
 | | **Chat** | A full-width chat pane with a conversation-history column. | [Sessions](docs/04-phien-hoi-thoai.md) |
-| **Brain** | **Files** | Browse the brain, **edit `.md`/`.txt` in place**, search by name or content, upload and download. | [File manager](docs/05-quan-ly-tep-tin.md) |
+| | **Files** | Browse the brain, **edit `.md`/`.txt` in place**, search by name or content, upload and download. | [File manager](docs/05-quan-ly-tep-tin.md) |
 | | **Self-learning** | Javis distils memories, wiki entries and skills after each conversation; undoable. | [Self-learning](docs/22-tu-hoc.md) |
 | **Code** | **Terminal** | A **real shell** on the machine running Javis, right in the browser - no SSH needed. | [Code group: Terminal](docs/27-tab-code-terminal.md) |
 | **Capabilities** | **Agents** | Build specialist assistants (role + skills + their own memory). | [Agents & workflows](docs/07-agents-va-workflows.md) |
@@ -178,6 +178,7 @@ The left navigation rail groups **19 pages** into **7 groups** (click a group na
 | | **Models** | Main model, providers, reasoning depth, background-work model. | [Models & engines](docs/10-models-va-engine.md) |
 | **System** | **Usage** | Tokens and cost per day, per provider, per source. | [Usage](docs/23-muc-dung-token.md) |
 | | **Settings** | System status, interface & brain, voice, branding, custom domain. | [Getting started](docs/en/01-getting-started.md) |
+| | **Mascot** | Shape, palette and on/off switch for the pet tucked at the screen edge. | [Getting started](docs/en/01-getting-started.md) |
 | | **Updates** | Current version, update/Redeploy, progress and the feature changelog. | [Troubleshooting](docs/17-khac-phuc-su-co.md) |
 | | **Account** | Workspace, sign in/out, change or disable the password, API tokens for the CLI. | [Security & accounts](docs/14-bao-mat-tai-khoan.md) · [Javis CLI](docs/24-cli-terminal.md) |
 
