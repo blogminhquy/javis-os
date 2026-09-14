@@ -115,8 +115,11 @@ const voice = new JavisVoice({
   },
   onEnd: () => {
     voiceBtn.classList.remove("recording");
-    // Hands-free: giữ trạng thái chờ nghe lại, đừng reset về SẴN SÀNG cho đỡ nháy
+    // Hands-free: giữ trạng thái chờ nghe lại, đừng reset về SẴN SÀNG cho đỡ nháy.
+    // Phiên nghe kết thúc mà không có chữ (tiếng ồn rồi im) thì vẫn phải hạ cờ "đang nói":
+    // endpoint("") không gửi gì, chỉ trả đạo diễn về listening để tin nền được đọc tiếp.
     if (!handsFree) runActions(turn.micOff());
+    else runActions(turn.endpoint(""));
   },
   onError: (err) => {
     voiceBtn.classList.remove("recording");
