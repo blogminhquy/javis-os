@@ -93,6 +93,10 @@ SYSTEM_PROMPT = (
     "  " + UI_MARKER + " scroll top | bottom     (cuộn khung chat)\n"
     "Chỉ dùng khuôn này cho việc thuần giao diện. Muốn biết NỘI DUNG bên trong trang thì vẫn phải "
     "nhờ bộ não chính.\n"
+    "NGOẠI LỆ THỨ HAI, tuyệt đối: khi người dùng bảo DỪNG hay HUỶ việc nền đang chạy (dừng việc "
+    "ngầm, tạm dừng tìm kiếm ngầm, huỷ tác vụ...), TUYỆT ĐỐI KHÔNG giao việc mới. Giao việc để đi "
+    "dừng một việc khác là đẻ thêm đúng thứ họ đang muốn bỏ. Chỉ trả lời một câu ngắn xác nhận, "
+    "không kèm dòng lệnh nào; hệ thống đã tự huỷ trước khi bạn kịp nói.\n"
     "Chuyện trò thường, hỏi ý kiến, giải thích khái niệm, tính nhẩm, chuyển ngữ: trả lời thẳng."
 )
 
@@ -650,6 +654,39 @@ def note_task_done(session_id: str, request: str) -> None:
 
 def pending_tasks(session_id: str) -> List[dict]:
     return list(_PENDING.get(str(session_id or "default")) or [])
+
+
+# ---- "Dừng việc nền đi" là LỆNH, không phải một việc mới ----
+# Chủ dự án 15/09 gặp vòng lặp cười ra nước mắt: bảo "tạm dừng cái việc tìm kiếm ngầm đi nhé"
+# thì Javis dạ vâng rồi GIAO THÊM một việc nền mới với nội dung "dừng việc nền đang chạy". Nói
+# lần nữa lại đẻ thêm một việc nữa. Gốc ở chỗ luật của bộ não giọng bảo mọi thứ cần HÀNH ĐỘNG
+# thì đẩy sang bộ não chính, mà "dừng việc" nghe đúng là một hành động.
+#
+# Chữa bằng luật CỨNG chứ không chỉ dặn model: nhận ra câu này thì huỷ ngay tại chỗ, không hỏi
+# model, không giao việc. Vừa đúng, vừa trả lời tức thì.
+#
+# Ranh giới: phải có ĐỦ CẶP một từ DỪNG và một từ chỉ VIỆC ĐANG CHẠY NGẦM. Chỉ "dừng việc" thì
+# không tính, vì "dừng việc nhập liệu lại" là chuyện khác hẳn.
+_DUNG_TU = (
+    "dừng", "tạm dừng", "ngừng", "huỷ", "hủy", "bỏ", "tắt", "thôi", "dẹp", "khoan làm",
+    "stop", "cancel", "abort", "kill", "halt",
+)
+_VIEC_TU = (
+    "việc nền", "viec nen", "việc ngầm", "viec ngam", "chạy nền", "chay nen", "chạy ngầm",
+    "ngầm", "ngam", "nền", "nen", "tác vụ", "tac vu", "đang chạy", "dang chay",
+    "background", "task", "job",
+)
+
+
+def la_lenh_dung_viec(text: str) -> bool:
+    """Câu này có phải là LỆNH dừng việc nền đang chạy không (thuần, test được)."""
+    s = " " + re.sub(r"\s+", " ", str(text or "").lower().strip()) + " "
+    if not s.strip():
+        return False
+    co_dung = any((" " + t + " ") in s or s.startswith(" " + t + " ") for t in _DUNG_TU)
+    if not co_dung:
+        return False
+    return any(v in s for v in _VIEC_TU)
 
 
 def pending_note(session_id: str, now: Optional[float] = None) -> str:

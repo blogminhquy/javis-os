@@ -39,12 +39,12 @@ src = open(os.path.join(ROOT, "server", "main.py"), encoding="utf-8").read()
 # ---- 1. Giữ ref mạnh cho task việc nền ----
 check("CANARY: không còn create_task thả trôi cho _voice_bg_task",
       not re.search(r"^\s*asyncio\.create_task\(_voice_bg_task\(", src, re.M))
-check("task việc nền được gán và giữ trong _VOICE_BG_TASKS",
-      re.search(r"_bg = asyncio\.create_task\(_voice_bg_task\([\s\S]{0,120}"
-                r"_VOICE_BG_TASKS\.add\(_bg\)[\s\S]{0,120}"
-                r"_bg\.add_done_callback\(_VOICE_BG_TASKS\.discard\)", src) is not None)
-check("_VOICE_BG_TASKS khai báo ở cấp module (task sống lâu hơn lượt)",
-      re.search(r"^_VOICE_BG_TASKS = set\(\)", src, re.M) is not None)
+check("task việc nền được giao thẳng cho sổ giữ ref (không thả trôi)",
+      re.search(r"_nho_viec_nen_giong\(conv_sid, asyncio\.create_task\(_voice_bg_task\(", src) is not None)
+check("_VOICE_BG_TASKS khai báo ở cấp module, gom THEO PHIÊN (để huỷ đúng phiên)",
+      re.search(r"^_VOICE_BG_TASKS: dict = \{\}", src, re.M) is not None)
+check("sổ tự dọn khi task xong, không giữ ref chết",
+      re.search(r"task\.add_done_callback\(_xong\)", src) is not None)
 
 # ---- 2. Mọi đường ra đều báo về khung chat ----
 body = (re.search(r"async def _voice_bg_task\([\s\S]*?\n        async def _start_resumed_turn", src)
@@ -137,6 +137,81 @@ check("hỏng thì đóng bằng block, xong mới complete",
 check("khởi động lại thì dọn thẻ mồ côi, không để kẹt 'đang chạy' vĩnh viễn",
       "_don_the_viec_giong_mo_coi" in src
       and 'server khởi động lại nên việc nền không còn chạy' in src)
+
+# ---- 7. "Dừng việc nền đi" là LỆNH, không phải một việc mới (0.57.21) ----
+# Chủ dự án 15/09 gặp vòng lặp cười ra nước mắt: bảo "tạm dừng cái việc tìm kiếm ngầm đi nhé"
+# thì Javis dạ vâng rồi GIAO THÊM một việc nền mang nội dung "dừng việc nền đang chạy"; nói
+# lần nữa lại đẻ thêm một việc nữa. Gốc: luật của bộ não giọng bảo "cần hành động thì giao bộ
+# não chính", mà dừng việc nghe đúng là một hành động.
+LENH = [
+    "tạm dừng cái việc tìm kiếm ngầm đi nhé",     # nguyên văn chủ dự án
+    "tắt việc tìm kiếm đang chạy",                # nguyên văn chủ dự án
+    "dừng việc nền", "huỷ tác vụ đang chạy", "thôi bỏ việc ngầm đi",
+    "ngừng chạy nền", "stop the background task", "cancel background work",
+]
+KHONG_PHAI = [
+    "dừng việc nhập liệu lại",     # "dừng" + "việc" nhưng không phải việc nền
+    "việc nền chạy tới đâu rồi",   # hỏi tiến độ, không phải bảo dừng
+    "cho anh xem việc nền",
+    "dừng lại", "thôi",            # cụm dừng LỜI NÓI, đã có luật riêng ở voice-turn.js
+    "tìm giúp anh tin tức hôm nay",
+    "tạo việc nền mới",
+]
+for c in LENH:
+    check("nhận là lệnh dừng: " + c, vb.la_lenh_dung_viec(c) is True)
+for c in KHONG_PHAI:
+    check("KHÔNG nhận nhầm: " + c, vb.la_lenh_dung_viec(c) is False)
+check("câu rỗng không phải lệnh", vb.la_lenh_dung_viec("") is False and vb.la_lenh_dung_viec(None) is False)
+
+check("SYSTEM_PROMPT cấm giao việc để đi dừng việc",
+      "KHÔNG giao việc mới" in vb.SYSTEM_PROMPT)
+
+# Sổ việc nền theo PHIÊN: huỷ đúng phiên đang nói, không đụng phiên khác.
+import asyncio  # noqa: E402
+
+reg = re.search(r"def _nho_viec_nen_giong\([\s\S]*?\n    return n\n", src)
+check("nhấc được cặp hàm sổ việc nền theo phiên", reg is not None)
+ns = {"_VOICE_BG_TASKS": {}}
+exec(compile(reg.group(0) if reg else "", "<reg>", "exec"), ns)
+
+
+async def _thu_huy():
+    async def _lau():
+        await asyncio.sleep(30)
+
+    t1 = asyncio.create_task(_lau())
+    t2 = asyncio.create_task(_lau())
+    khac = asyncio.create_task(_lau())
+    ns["_nho_viec_nen_giong"]("phien-A", t1)
+    ns["_nho_viec_nen_giong"]("phien-A", t2)
+    ns["_nho_viec_nen_giong"]("phien-B", khac)
+    await asyncio.sleep(0)
+    n = ns["huy_viec_nen_giong"]("phien-A")
+    await asyncio.sleep(0.05)
+    da_huy = t1.cancelled() and t2.cancelled()
+    con_song = not khac.done()
+    khac.cancel()
+    try:
+        await khac
+    except asyncio.CancelledError:
+        pass
+    return n, da_huy, con_song, dict(ns["_VOICE_BG_TASKS"])
+
+
+_n, _huy, _con, _so = asyncio.run(_thu_huy())
+check("huỷ đúng số việc của phiên đang nói", _n == 2, _n)
+check("hai việc của phiên đó đã bị huỷ thật", _huy is True)
+check("việc của PHIÊN KHÁC không bị đụng tới", _con is True)
+check("phiên đã huỷ hết thì xoá khỏi sổ, không rò bộ nhớ", "phien-A" not in _so)
+
+check("lưới 1: chặn ngay đầu lượt, không hỏi model",
+      re.search(r"if voice_brain\.la_lenh_dung_viec\(user_message\):[\s\S]{0,500}"
+                r"huy_viec_nen_giong\(conv_sid\)", src) is not None)
+check("lưới 2: model vẫn cố giao việc để dừng việc thì cũng chặn",
+      re.search(r"if voice_brain\.la_lenh_dung_viec\(ask\):[\s\S]{0,500}"
+                r"huy_viec_nen_giong\(conv_sid\)", src) is not None)
+check("không có việc nào đang chạy thì nói thật, không giả vờ đã dừng",
+      "Hiện không có việc nền nào đang chạy đâu." in src)
 
 print(("\n%d FAIL" % len(_fails)) if _fails else "\nTat ca OK")
 raise SystemExit(1 if _fails else 0)

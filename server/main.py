@@ -7969,8 +7969,37 @@ _PUSH_TASKS = set()   # giữ tham chiếu task đẩy đang bay (xem chú thíc
 
 # Việc nền do bộ não giọng giao (Voice V3, "tách nói khỏi làm"). Giữ ref mạnh vì asyncio chỉ
 # giữ ref YẾU tới task đang chờ: thả trôi là có thể bị gom rác giữa chừng, việc chết lặng.
-_VOICE_BG_TASKS = set()
+# Gom THEO PHIÊN để còn huỷ được đúng việc của khung chat đang nói.
+_VOICE_BG_TASKS: dict = {}
 VOICE_BG_TIMEOUT = 600.0   # giây. Quá hạn thì báo một câu thật, không treo im vô hạn.
+
+
+def _nho_viec_nen_giong(conv_sid: str, task) -> None:
+    _VOICE_BG_TASKS.setdefault(str(conv_sid), set()).add(task)
+
+    def _xong(t):
+        s = _VOICE_BG_TASKS.get(str(conv_sid))
+        if s is None:
+            return
+        s.discard(t)
+        if not s:
+            _VOICE_BG_TASKS.pop(str(conv_sid), None)
+    task.add_done_callback(_xong)
+
+
+def huy_viec_nen_giong(conv_sid: str) -> int:
+    """Huỷ MỌI việc nền của một phiên nói. Trả về số việc đã huỷ.
+
+    Đường huỷ trong `_voice_bg_task` lo phần còn lại: gạch tên khỏi sổ, đóng thẻ Việc sang
+    CHẶN kèm lý do, và đẩy một câu về khung chat. Nên ở đây chỉ cần cancel.
+    """
+    tasks = list(_VOICE_BG_TASKS.get(str(conv_sid)) or [])
+    n = 0
+    for t in tasks:
+        if not t.done():
+            t.cancel()
+            n += 1
+    return n
 
 
 async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="",
@@ -11821,6 +11850,29 @@ async def websocket_endpoint(ws: WebSocket):
             Bộ não giọng hỏng (chưa cài agy, hết key, hết giờ) thì rơi về run_turn, không để
             lượt câm. Chỉ stream từng DÒNG đã khép: dòng marker không bao giờ ra loa.
             """
+            # "Dừng việc nền đi" là LỆNH, xử NGAY TẠI ĐÂY, không hỏi model.
+            #
+            # Chủ dự án 15/09 gặp vòng lặp: bảo "tạm dừng cái việc tìm kiếm ngầm đi nhé" thì
+            # Javis dạ vâng rồi GIAO THÊM một việc nền mới mang nội dung "dừng việc nền đang
+            # chạy"; nói lần nữa lại đẻ thêm một việc nữa. Dặn model thôi thì không đủ chắc,
+            # vì luật của nó là "cần hành động thì giao bộ não chính", mà dừng việc nghe đúng
+            # là một hành động. Nên chốt cứng ở đây: nhận ra câu lệnh là huỷ luôn rồi trả lời,
+            # vừa đúng vừa tức thì (không mất một lượt model nào).
+            if voice_brain.la_lenh_dung_viec(user_message):
+                _n = huy_viec_nen_giong(conv_sid)
+                _cau = (f"Rồi, em dừng {_n} việc nền đang chạy." if _n
+                        else "Hiện không có việc nền nào đang chạy đâu.")
+                await send_raw({"type": "stream", "content": _cau, "session_id": conv_sid, "lane": "voice"})
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, _cau)
+                except Exception:
+                    pass
+                await send_raw({"type": "response", "content": _cau, "session_id": conv_sid,
+                                "lane": "voice", "engine": "voice:local", "model": "lenh"})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
+
             hist = []
             try:
                 hist = [m for m in store.get_messages(conv_sid)
@@ -11912,6 +11964,27 @@ async def websocket_endpoint(ws: WebSocket):
             # dùng nói gì cũng bị "phiên đang trả lời". Nay lượt giọng KẾT THÚC NGAY sau câu xác
             # nhận, phiên rảnh để nói tiếp; yêu cầu chạy nền như một việc riêng (nhiều việc song
             # song được), xong thì push_to_chat đẩy kết quả vào khung chat và loa đọc khi rảnh.
+            # LƯỚI THỨ HAI: model vẫn cố giao một việc để đi DỪNG việc khác. Giao việc để dừng
+            # việc là đẻ thêm đúng thứ người dùng đang muốn bỏ, nên chặn tại đây chứ không chỉ
+            # dựa vào lời dặn trong prompt.
+            if voice_brain.la_lenh_dung_viec(ask):
+                _n = huy_viec_nen_giong(conv_sid)
+                _cau = (f"Rồi, em dừng {_n} việc nền đang chạy." if _n
+                        else "Hiện không có việc nền nào đang chạy đâu.")
+                sent_upto = 0
+                await _flush(final=True)
+                await send_raw({"type": "stream", "content": _cau, "session_id": conv_sid, "lane": "voice"})
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, _cau)
+                except Exception:
+                    pass
+                await send_raw({"type": "response", "content": _cau, "session_id": conv_sid,
+                                "lane": "voice", "engine": f"voice:{brain_obj.provider}",
+                                "model": brain_obj.model})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
+
             if not (filler or "").strip():
                 filler = "Ừ, để xem ngay."
                 await send_raw({"type": "stream", "content": filler, "session_id": conv_sid, "lane": "voice"})
@@ -11933,9 +12006,7 @@ async def websocket_endpoint(ws: WebSocket):
             # Đúng cảnh chủ dự án gặp 15/09 ("có chạy nền nhưng không thấy nó trả về kết quả",
             # hai việc treo mãi). Repo đã biết bẫy này ở _UPDATE_TASKS / _PUSH_TASKS, riêng chỗ
             # này bỏ sót.
-            _bg = asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))
-            _VOICE_BG_TASKS.add(_bg)
-            _bg.add_done_callback(_VOICE_BG_TASKS.discard)
+            _nho_viec_nen_giong(conv_sid, asyncio.create_task(_voice_bg_task(ask, conv_sid, brain)))
 
         async def _voice_bg_task(request, conv_sid, brain):
             """Một việc nền do bộ não giọng giao: chạy bộ não chính rồi đẩy kết quả vào khung chat.
@@ -16495,26 +16566,29 @@ async def _don_the_viec_giong_mo_coi():
     nằm đó "đang chạy" vĩnh viễn: đúng kiểu kẹt mà đợt này đang đi dọn, chỉ đổi chỗ từ khung
     chat sang trang Việc. Đánh dấu CHẶN kèm lý do thật để người dùng biết mà giao lại.
     """
+    # Tên biến đếm KHÔNG được trùng với biến của hàm cha: bộ quét tĩnh (test_bien_chua_gan.py)
+    # coi "hàm con cộng dồn vào biến trùng tên của hàm cha" là dấu hiệu quên `nonlocal`, và đó
+    # là một lỗi có thật từng xảy ra nên chốt ấy đáng giữ. Đặt tên khác cho khỏi mập mờ.
     def _don():
         try:
             store = tasks_feature.store
         except Exception:
             return 0
-        n = 0
+        dem = 0
         for root in (store.board_roots() or []):
             for t in store.list_tasks(root, limit=500):
                 if str(t.get("created_by")) == "voice" and str(t.get("status")) == "running":
                     try:
                         store.block(str(t["id"]), "", "voice_bg",
                                     "server khởi động lại nên việc nền không còn chạy")
-                        n += 1
+                        dem += 1
                     except Exception:
                         pass
-        return n
+        return dem
     try:
-        n = await asyncio.to_thread(_don)
-        if n:
-            print(f"[voice bg] dọn {n} thẻ Việc mồ côi sau khi khởi động lại", file=sys.stderr)
+        so_the = await asyncio.to_thread(_don)
+        if so_the:
+            print(f"[voice bg] dọn {so_the} thẻ Việc mồ côi sau khi khởi động lại", file=sys.stderr)
     except Exception as e:
         print(f"[voice bg] dọn thẻ mồ côi lỗi: {type(e).__name__}: {e}", file=sys.stderr)
 

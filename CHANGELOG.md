@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.21] - 2026-09-15
+### Sửa lỗi
+- **Bảo dừng việc ngầm thì nó dừng thật, thay vì đẻ thêm một việc để đi dừng.** Trước đây nói "tạm dừng việc tìm kiếm ngầm đi" là Javis dạ vâng rồi giao thêm một việc nền mới mang nội dung "dừng việc nền đang chạy", nói lần nữa lại đẻ thêm một cái nữa. Nay câu đó được hiểu là lệnh: huỷ ngay tại chỗ, trả lời tức thì, và nói rõ đã dừng mấy việc. Không có việc nào đang chạy thì nói thật chứ không giả vờ đã dừng.
+
 ## [0.57.20] - 2026-09-15
 ### Thêm mới
 - **Việc giao bằng giọng giờ hiện thành thẻ trên trang Việc.** Nhận việc là có thẻ "đang chạy" ngay, xong thì thẻ chuyển sang xong kèm kết quả, hỏng hay quá lâu thì chuyển sang chặn kèm lý do thật. Không còn phải hỏi miệng mới biết việc còn sống hay đã chết, và xong rồi vẫn còn dấu để xem lại.
