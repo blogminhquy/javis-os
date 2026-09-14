@@ -407,7 +407,50 @@ async function batLive() {
 function tatLive() { try { if (window.JavisVoiceLive) window.JavisVoiceLive.stop(); } catch (e) {} }
 
 // Dải việc nền (background-strip.js) báo số việc đang chạy để orb ghi hậu tố thật.
-window.JavisOrb = { setBackground: (n) => runActions(turn.setBackground(n)) };
+window.JavisOrb = {
+  setBackground: (n) => runActions(turn.setBackground(n)),
+  setVoiceJobs: (n) => datSoViecGiong(n),
+};
+
+// ---- Voice V3: Javis TỰ HỎI THĂM khi việc nền chạy lâu ----
+// Chủ dự án 15/09: giao việc xong thì im lặng hàng phút, "anh không rõ nó có chạy nền thật hay
+// không"; anh ấy muốn nó nói kiểu "để em xem nhé", "chờ em tý", "em vẫn chưa xong". Người thật
+// nhận việc lâu thì thỉnh thoảng ngẩng lên nói một câu, chứ không ngồi câm.
+//
+// Ba luật giữ cho nó không thành phiền:
+//   - THƯA DẦN: 25 giây, rồi 60, rồi 120, rồi mỗi 180 giây. Nhắc dày là tra tấn.
+//   - Chỉ nói khi RẢNH THẬT (đạo diễn cho phép: không ai đang nói, loa đang im). Chen một câu
+//     hỏi thăm vào giữa lời người dùng là đúng cái tội mà ngắt lời sinh ra để chữa.
+//   - Chỉ khi đang rảnh tay và loa đang bật. Gõ chữ thì màn hình đã có dải việc nền rồi.
+// Số việc đến từ /background (sổ thật của server), không phải đếm mò ở trình duyệt.
+let _soViecGiong = 0, _mocViecGiong = 0, _lanHoiTham = 0, _hoiThamTimer = null;
+const NHIP_HOI_THAM = [25000, 60000, 120000];   // sau đó lặp lại 180 giây một lần
+function datSoViecGiong(n) {
+  const so = Math.max(0, parseInt(n, 10) || 0);
+  if (so === _soViecGiong) return;
+  const truoc = _soViecGiong;
+  _soViecGiong = so;
+  if (so > 0 && truoc === 0) { _mocViecGiong = Date.now(); _lanHoiTham = 0; }
+  if (so === 0) { _mocViecGiong = 0; _lanHoiTham = 0; }
+}
+function nhipHoiTham() {
+  return _lanHoiTham < NHIP_HOI_THAM.length ? NHIP_HOI_THAM[_lanHoiTham] : 180000;
+}
+function hoiThamViecNen() {
+  if (!_soViecGiong || !_mocViecGiong) return;
+  if (!handsFree || !voice.ttsEnabled) return;
+  if (!turn.canSpeakNow()) return;              // đang nghe người dùng nói, hay loa đang bận
+  if (Date.now() - _mocViecGiong < nhipHoiTham()) return;
+  // Quá hai phút thì đổi giọng điệu: thừa nhận là lâu, đừng "sắp xong rồi" mãi.
+  const key = (Date.now() - _mocViecGiong) > 120000 ? "app.voice_cho_viec_lau" : "app.voice_cho_viec";
+  const opts = String(window.t(key) || "").split("|").map(s => s.trim()).filter(Boolean);
+  if (!opts.length) return;
+  _lanHoiTham++;
+  _mocViecGiong = Date.now();
+  // uncounted: câu hỏi thăm không thuộc câu trả lời nào, không tính vào chữ hiện theo lời đọc.
+  voice.enqueueSpeak(opts[Math.floor(Math.random() * opts.length)], { uncounted: true });
+}
+_hoiThamTimer = setInterval(hoiThamViecNen, 2000);
 
 // ============================================
 // WebSocket

@@ -8463,9 +8463,17 @@ def _viec_nen_view(brain: str, chat_id: str = "") -> dict:
         running_slug = loop_feature._running[1] if loop_feature._running else ""
     except Exception:
         pass
+    # Việc nền do bộ não GIỌNG giao: sổ đánh theo mã phiên chat, còn dải trạng thái gọi tới đây
+    # bằng "web:<mã phiên>", nên bóc tiền tố ra mới tra được.
+    vsid = chat_id[len(WEB_CHAT_PREFIX):] if str(chat_id or "").startswith(WEB_CHAT_PREFIX) else ""
+    try:
+        voice_tasks = voice_brain.pending_tasks(vsid) if vsid else []
+    except Exception:
+        voice_tasks = []
     return background_status.active_view(
         tasks, loops, rems, chat_id=chat_id,
         orchestration=orchestration, running_loop=running_slug,
+        voice_tasks=voice_tasks,
     )
 
 

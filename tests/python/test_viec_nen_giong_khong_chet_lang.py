@@ -76,5 +76,31 @@ vb.note_task_done(SID, "kiểm tra tiến độ")
 check("hết việc thì sổ sạch, không còn báo đang chạy",
       vb.pending_tasks(SID) == [] and vb.pending_note(SID) == "")
 
+# ---- 4. Việc nền của giọng phải CÓ MẶT trong sổ việc nền chung (0.57.19) ----
+# Trước đó loại việc này không hiện ở đâu cả: dải trạng thái không đếm, `has_pending_work`
+# không tính nên Javis còn bị dán nhầm cảnh báo "hứa suông" trong khi vừa giao việc thật, và
+# người dùng chỉ còn cách hỏi miệng mới biết nó còn sống hay đã chết.
+import background_status as bs  # noqa: E402
+
+v_khong = bs.active_view([], [], [], chat_id="web:abc")
+check("chưa có việc gì: dải ẩn", v_khong["level"] == "idle" and v_khong.get("voice_count") == 0)
+
+v = bs.active_view([], [], [], chat_id="web:abc",
+                   voice_tasks=[{"request": "tổng hợp việc hôm nay", "at": 1700000000.0}])
+check("việc nền của giọng vào sổ chung", v["count"] == 1 and v["voice_count"] == 1)
+check("được tính là ĐANG CHẠY THẬT (task asyncio sống, không phải thẻ chờ điều phối)",
+      v["running_count"] == 1 and v["level"] == "run")
+check("luôn là việc CỦA khung chat này", v["mine_count"] == 1)
+check("giữ nguyên nội dung yêu cầu để người dùng biết đang chờ cái gì",
+      v["items"][0]["title"] == "tổng hợp việc hôm nay" and v["items"][0]["kind"] == "voice")
+check("has_pending_work thấy nó (hết bị dán nhầm cảnh báo hứa suông)",
+      bs.has_pending_work(v) is True)
+
+v2 = bs.active_view([{"id": "t1", "title": "việc bảng", "status": "running"}], [], [],
+                    chat_id="web:abc",
+                    voice_tasks=[{"request": "kiểm tra tiến độ", "at": 1700000000.0}])
+check("lẫn việc bảng: tổng đúng, phần của giọng đếm riêng",
+      v2["count"] == 2 and v2["running_count"] == 2 and v2["voice_count"] == 1)
+
 print(("\n%d FAIL" % len(_fails)) if _fails else "\nTat ca OK")
 raise SystemExit(1 if _fails else 0)

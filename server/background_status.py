@@ -166,9 +166,30 @@ def _reminder_item(rem: dict, chat_id: str) -> dict:
     }
 
 
+def _voice_item(vt: dict) -> dict:
+    """Việc nền do BỘ NÃO GIỌNG giao (voice_brain._PENDING). Luôn là việc CỦA khung chat này -
+    sổ ấy vốn được đánh theo đúng mã phiên chat - và luôn đang CHẠY THẬT: nó là một task asyncio
+    sống, không phải thẻ xếp hàng chờ điều phối.
+
+    Trước 0.57.19 loại việc này không có mặt ở đâu cả: dải trạng thái không đếm, trang Việc
+    không thấy, `has_pending_work` không tính nên Javis còn bị dán nhầm cảnh báo "hứa suông"
+    trong khi nó vừa giao việc thật. Người dùng chỉ còn cách hỏi miệng (chủ dự án 15/09: "anh
+    thấy là có chạy nền nhưng mà không thấy nó trả về kết quả").
+    """
+    req = str(vt.get("request") or "")
+    return {
+        "kind": "voice",
+        "id": "voice:" + str(int(vt.get("at") or 0)),
+        "title": req[:160],
+        "status": "running",
+        "mine": True,
+        "at": float(vt.get("at") or 0),
+    }
+
+
 def active_view(tasks: list, loops: list, reminders: list, chat_id: str = "",
                 orchestration: str = "off", running_loop: str = "",
-                now: float = 0.0) -> dict:
+                now: float = 0.0, voice_tasks: list = None) -> dict:
     """Gom việc nền còn sống thành một khung nhìn cho dải trạng thái của khung chat.
 
     Nhận dữ liệu THÔ đã đọc sẵn (không tự đi đọc kho) để test được mà không cần dựng cả server.
@@ -199,6 +220,8 @@ def active_view(tasks: list, loops: list, reminders: list, chat_id: str = "",
             items.append(_loop_item(lp, cid, str(running_loop or "")))
     for r in reminders or []:
         items.append(_reminder_item(r, cid))
+    for vt in voice_tasks or []:
+        items.append(_voice_item(vt))
 
     # Việc CỦA KHUNG CHAT NÀY lên đầu, rồi tới việc đang chạy thật, rồi mới tới phần còn lại.
     order = {"running": 0, "review": 1, "blocked": 2, "ready": 3,
@@ -223,6 +246,9 @@ def active_view(tasks: list, loops: list, reminders: list, chat_id: str = "",
         "mine_count": len(mine),
         "running_count": len(running),
         "stalled_count": len(stalled),
+        # Đếm riêng việc nền của bộ não giọng: dashboard dùng số này để biết khi nào nên tự hỏi
+        # thăm "em vẫn đang xem" (chỉ hỏi thăm cho việc của chính cuộc nói chuyện này).
+        "voice_count": len([x for x in items if x["kind"] == "voice"]),
         "level": level,
         "orchestration": str(orchestration or "off"),
         "items": items[:MAX_ITEMS],

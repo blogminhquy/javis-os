@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.19] - 2026-09-15
+### Thêm mới
+- **Javis tự hỏi thăm khi việc nền chạy lâu.** Giao một việc xong, thay vì im lặng hàng phút, nó thỉnh thoảng nói "em vẫn đang xem, chờ chút nhé", và thưa dần chứ không lải nhải: sau 25 giây, rồi một phút, rồi hai phút. Chờ quá lâu thì nó nói thật là lâu hơn dự tính. Chỉ nói khi bạn không đang nói và loa đang rảnh, và chỉ trong lúc bật chế độ rảnh tay.
+### Sửa lỗi
+- **Việc giao bằng giọng đã hiện trong dải việc nền.** Trước đây loại việc này không xuất hiện ở đâu cả nên bạn không có cách nào biết nó còn sống hay đã chết, ngoài hỏi miệng. Nay nó được đếm như mọi việc đang chạy khác.
+
 ## [0.57.18] - 2026-09-15
 ### Sửa lỗi
 - **Việc chạy nền không còn biến mất giữa chừng.** Javis nhận việc, báo "đang chạy nền", rồi kết quả không bao giờ về và hỏi lại thì vẫn báo đang chạy. Nguyên nhân: việc nền bị hệ thống dọn mất ngay khi đang chạy vì không có gì giữ nó lại. Nay việc nền sống trọn vẹn tới lúc xong.
