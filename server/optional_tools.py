@@ -31,6 +31,8 @@ import sys
 import time
 from pathlib import Path
 
+
+import winproc
 from config import STATE_DIR
 
 # Nơi tải trình duyệt về. Playwright đọc biến môi trường này cho cả lúc tải lẫn lúc chạy, nên
@@ -185,7 +187,7 @@ async def _chay_tai(cong_cu: str) -> None:
     try:
         tt = await asyncio.create_subprocess_exec(
             *lenh, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=moi_truong, cwd=str(BROWSERS_DIR))
+            env=moi_truong, cwd=str(BROWSERS_DIR), **winproc.kwargs_no_window())
     except FileNotFoundError:
         v.update({"dang_chay": False, "loi": "Máy này không có Node (npx), không tải được trình duyệt."})
         return

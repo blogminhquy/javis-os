@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.57.23] - 2026-09-15
+### Thêm mới
+- **Trình duyệt cho Javis tự kiểm thử giao diện giờ là một lựa chọn, cài bằng nút bấm.** Trang Công cụ có mục "Công cụ tuỳ chọn" với nút cài, và trình hướng dẫn lần đầu cũng hỏi luôn. Máy nào đã có sẵn Chrome thì Javis dùng luôn và không mời tải gì; chỉ máy chủ thiếu trình duyệt mới thấy nút. Bản tải về nằm trên ổ dữ liệu nên còn nguyên sau mỗi lần cập nhật.
+- Đang đấu kết nối Playwright mà máy chưa có trình duyệt thì có dòng nhắc ngay trong form, kèm lối đi thẳng sang trang Công cụ, thay vì đấu xong mới phát hiện không chạy được.
+
 ## [0.57.22] - 2026-09-15
 ### Sửa lỗi
 - **Đồ thị tri thức không còn chết khi brain có note chứa mã.** Bash dùng `[[ ... ]]` làm phép thử, trùng cú pháp liên kết note, nên một đoạn mã trong note bị đọc nhầm thành liên kết tới một note không tồn tại và đồ thị đổ lỗi liên tục cho tới khi ngừng vẽ. Nay khối mã được bỏ qua trước khi dò liên kết, và một liên kết hỏng không còn làm sập cả đồ thị.
