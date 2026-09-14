@@ -33,7 +33,19 @@ _AO_GIAC = [re.compile(p, re.I) for p in (
     r"ghi[eề]n\s*m[iì]\s*g[oõ]",                 # tên kênh trong câu outro phổ biến nhất
     r"subscribe\s+cho\s+k[eê]nh",
     r"(đăng\s*k[yý]|like)\b[^.!?]{0,60}\bk[eê]nh\b[^.!?]{0,60}kh[oô]ng\s+b[oỏ]\s+l[oỡ]",
-    r"kh[oô]ng\s+b[oỏ]\s+l[oỡ]\s+(nh[uữ]ng\s+)?video",
+    r"kh[oô]ng\s+b[oỏ]\s+l[oỡ]\s+(nh[uữ]ng\s+)?video(\s+(h[aấ]p\s+d[aẫ]n|m[oớ]i\s+nh[aấ]t|hay|m[oớ]i))?",
+    # "Các bạn hãy đăng ký kênh để ủng hộ kênh của mình nhé" và họ hàng: dấu hiệu riêng là
+    # NGƯỜI NÓI tự kêu gọi ủng hộ kênh CỦA MÌNH, chuyện không bao giờ xảy ra khi ra lệnh cho
+    # trợ lý. Phải có cả "đăng ký/ủng hộ" lẫn "kênh ... của mình/tôi/chúng tôi/mình nhé".
+    # Đuôi khép câu ("... kênh nha các bạn") nuốt luôn, không thì còn lại một mẩu cụt lủn mà
+    # đếm chữ vẫn thấy "đủ dài". Chỉ nuốt đúng mấy tiếng đệm quen thuộc, không nuốt bừa.
+    r"(đăng\s*k[yý]|[uủ]ng\s*h[oộ])\b[^.!?]{0,60}\bk[eê]nh\b[^.!?]{0,40}"
+    r"([uủ]ng\s*h[oộ]|c[uủ]a\s+(m[iì]nh|t[oô]i|ch[uú]ng\s+(t[oô]i|m[iì]nh)))"
+    r"(\s+(k[eê]nh|nh[eé]|nha|nh[aá]|v[oớ]i|đi|m[iì]nh|c[aá]c\s+b[aạ]n)){0,4}",
+    r"c[aá]c\s+b[aạ]n\b[^.!?]{0,40}(đăng\s*k[yý]|subscribe)\b[^.!?]{0,30}\bk[eê]nh",
+    # "Cảm ơn các bạn đã theo dõi và hẹn gặp lại" - phải có ĐỦ ba mảnh mới bắt, vì riêng
+    # "cảm ơn" hay "theo dõi" thì người dùng nói suốt.
+    r"c[aả]m\s*[oơ]n\s+c[aá]c\s+b[aạ]n[^.!?]{0,40}theo\s*d[oõ]i[^.!?]{0,40}h[eẹ]n\s+g[aặ]p\s+l[aạ]i",
     r"subscribe\s+to\s+(my|our|the|this)\s+channel",
     r"thanks?\s+(you\s+)?for\s+watching",
     r"h[eẹ]n\s+g[aặ]p\s+l[aạ]i[^.!?]{0,40}video\s+(ti[eế]p\s+theo|sau)",
@@ -44,8 +56,12 @@ _CHU_THICH = re.compile(
     r"[\[\(]\s*(music|nhạc|nhạc\s*nền|applause|vỗ\s*tay|laughter|cười|silence|im\s*lặng|"
     r"blank[_\s]*audio|inaudible|sound|tiếng\s*động)[^\]\)]{0,20}[\]\)]", re.I)
 _NOT_NHAC = re.compile("[♪♫♬♩]+")
-_CAU = re.compile(r"[^.!?…]+[.!?…]*", re.S)
-_CHI_DAU = re.compile("[\\s.!?…,;:\\-–—\"'()\\[\\]]+")
+# Tách "câu" để soi từng mảnh. XUỐNG DÒNG cũng là ranh giới: khối điều khiển của Javis
+# (`[NGỮ CẢNH GIAO DIỆN: ...]`) đứng riêng một dòng, không tách ra thì nó dính vào câu bịa ngay
+# sau và bị cắt oan. Ba nhánh phủ HẾT mọi ký tự nên ghép lại là nguyên văn.
+_CAU = re.compile(r"[^.!?…\n]+[.!?…]*|[.!?…]+|\n")
+_CO_CHU = re.compile(r"[^\W_]", re.U)   # còn ít nhất một chữ cái hay chữ số thì mới là lời nói
+_GIU_TOI_THIEU = 4   # số chữ tối thiểu để một mẩu hai bên câu bịa được coi là lời nói thật
 
 
 def loc_ao_giac(text) -> str:
@@ -53,13 +69,51 @@ def loc_ao_giac(text) -> str:
 
     Trả chuỗi đã cắt (có thể rỗng). Rỗng nghĩa là cả lượt chỉ toàn câu bịa: chỗ gọi nên coi như
     không nghe rõ và giữ lại chữ của Web Speech, đừng đẩy chuỗi rỗng đi tiếp.
+
+    KHÔNG CẮT GÌ THÌ PHẢI TRẢ LẠI Y NGUYÊN. Bản đầu cắt câu rồi nối lại bằng khoảng trắng, thành
+    ra `README.md` hoá `README. md` và `https://github.com/x` hoá `https://github. com/x` dù
+    chẳng có câu bịa nào - phát hiện khi quét thử kho hội thoại cũ (0.57.5). Nên ở đây ghép lại
+    NGUYÊN VĂN từng đoạn giữ lại, kể cả phần regex tách câu bỏ qua.
     """
     s = str(text or "")
     s = _CHU_THICH.sub(" ", s)
     s = _NOT_NHAC.sub(" ", s)
-    giu = [c for c in _CAU.findall(s) if c.strip() and not any(r.search(c) for r in _AO_GIAC)]
-    out = " ".join(c.strip() for c in giu).strip()
-    return "" if not _CHI_DAU.sub("", out) else out
+    phan, pos, da_bo = [], 0, False
+    for m in _CAU.finditer(s):
+        if m.start() > pos:
+            phan.append(s[pos:m.start()])          # dấu câu đứng đầu chuỗi, regex không nuốt
+        cau = m.group(0)
+        pos = m.end()
+        # finditer chứ không search: Whisper hay lặp câu bịa vài lần trong một câu, lấy mỗi
+        # lần khớp ĐẦU TIÊN thì bản sao thứ hai sống sót nguyên vẹn (thấy ở tin #592).
+        hits = [x for r in _AO_GIAC for x in r.finditer(cau)]
+        if not cau.strip() or not hits:
+            phan.append(cau)
+            continue
+        # Nhiều mẫu cùng khớp một câu bịa (tên kênh, "subscribe cho kênh", "không bỏ lỡ video"),
+        # nên lấy TỪ chỗ khớp sớm nhất ĐẾN chỗ khớp muộn nhất làm vùng bỏ.
+        dau, duoi = cau[:min(h.start() for h in hits)], cau[max(h.end() for h in hits):]
+        n_dau, n_duoi = len(dau.split()), len(duoi.split())
+        # Câu bịa NẰM GIỮA lời thật, hai đầu đều ra hồn: đó là người dùng đang TRÍCH DẪN nó
+        # ("anh thấy có cái câu là các bạn đã đăng ký kênh ủng hộ mình, anh không nói câu đấy").
+        # Cắt là phá nát ý họ, nên giữ nguyên cả câu. Gặp thật khi quét kho (tin #658).
+        if n_dau >= _GIU_TOI_THIEU and n_duoi >= _GIU_TOI_THIEU:
+            phan.append(cau)
+            continue
+        # Còn lại: bỏ vùng bịa, giữ hai đầu nếu còn ra hồn một câu nói. Dưới mức đó thường chỉ
+        # là "Hãy", "Nhớ", "nha các bạn" dính liền với chính câu bịa.
+        da_bo = True
+        if n_dau >= _GIU_TOI_THIEU:
+            phan.append(dau)
+        if n_duoi >= _GIU_TOI_THIEU:
+            phan.append(duoi)
+    if pos < len(s):
+        phan.append(s[pos:])
+    out = "".join(phan)
+    if da_bo:
+        out = re.sub(r"[ \t]{2,}", " ", out)       # dọn khoảng trống ngay vết cắt, chừa xuống dòng
+    out = out.strip()
+    return out if _CO_CHU.search(out) else ""
 
 
 GROQ_STT_URL = "https://api.groq.com/openai/v1/audio/transcriptions"

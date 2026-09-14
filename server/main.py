@@ -11803,6 +11803,32 @@ async def websocket_endpoint(ws: WebSocket):
                                 "session_id": conv_sid})
                 await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
                 return
+            # ĐƯỜNG TẮT giao diện: mở tab, bung nhóm, cuộn. Không cần dữ liệu gì nên không đánh
+            # thức bộ não chính (lượt đó mang cả ngữ cảnh hội thoại, có lúc hơn 200 nghìn token,
+            # nên "mở trang Models" mất hàng chục giây). Gọi thẳng dashboard ngay tại đây.
+            noi, ui = voice_brain.parse_ui(text)
+            if ui is not None:
+                act, tgt = ui
+                try:
+                    res = await ui_bridge.request(act, tgt, session_id=conv_sid)
+                except Exception as e:
+                    res = {"ok": False, "detail": f"{type(e).__name__}: {e}"}
+                text = noi or ("Xong." if res.get("ok") else "")
+                if not res.get("ok"):
+                    text = (noi + " " if noi else "") + f"(chưa làm được: {res.get('detail') or 'dashboard không trả lời'})"
+                sent_upto = 0
+                await _flush(final=True)
+                clean = text.strip()
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, clean)
+                except Exception:
+                    pass
+                await send_raw({"type": "response", "content": clean, "session_id": conv_sid,
+                                "lane": "voice", "engine": f"voice:{brain_obj.provider}",
+                                "model": brain_obj.model})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
             filler, ask = voice_brain.parse_marker(text)
             if ask is None:
                 await _flush(final=True)

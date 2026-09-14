@@ -199,6 +199,9 @@ async def main():
     check("main: làn nhanh chỉ đẩy phần đọc được qua split_speakable (marker không ra loa)",
           "voice_brain.split_speakable(text, sent_upto, final)" in src)
     check("main: bộ não giọng hỏng thì rơi về run_turn", "rơi về bộ não chính" in src)
+    check("main: lệnh giao diện gọi THẲNG dashboard, không qua bộ não chính",
+          "voice_brain.parse_ui(text)" in src
+          and src.index("voice_brain.parse_ui(text)") < src.index("voice_brain.parse_marker(text)"))
     check("main: có POST /stt và GET /voice/options", '@app.post("/stt")' in src and '@app.get("/voice/options")' in src)
     check("main: có WS /ws/voice-live", '@app.websocket("/ws/voice-live")' in src)
     cfg_src = (SERVER / "config.py").read_text(encoding="utf-8")
@@ -227,6 +230,22 @@ check("split: dòng marker bị bỏ cả khi final",
 check("split: dòng marker giữa chừng bị bỏ, dòng sau vẫn phát",
       _ss("Để mình xem.\nJAVIS_ASK_MAIN: x\nXong rồi.\n") == (["Để mình xem.\n", "Xong rồi.\n"], len("Để mình xem.\nJAVIS_ASK_MAIN: x\nXong rồi.\n")))
 check("split: gọi nối tiếp từ vị trí cũ", _ss("Câu một. Câu hai.", start=len("Câu một.")) == ([" Câu hai."], len("Câu một. Câu hai.")))
+
+# ---- parse_ui: đường tắt giao diện, không đánh thức bộ não chính (0.57.5) ----
+check("ui: mở trang -> (câu nói, action, target)",
+      vb.parse_ui("Mở ngay.\nJAVIS_UI: open_page models") == ("Mở ngay.", ("open_page", "models")))
+check("ui: bung nhóm thanh bên",
+      vb.parse_ui("Bung mục Năng lực nhé.\nJAVIS_UI: open_group nang_luc") == ("Bung mục Năng lực nhé.", ("open_group", "nang_luc")))
+check("ui: không có câu nói kèm thì câu nói rỗng", vb.parse_ui("JAVIS_UI: sidebar close") == ("", ("sidebar", "close")))
+check("ui: action model tự bịa thì BỎ QUA, không nuốt câu và không chạy gì",
+      vb.parse_ui("JAVIS_UI: rm -rf /") == ("JAVIS_UI: rm -rf /", None))
+check("ui: câu thường không dính", vb.parse_ui("Doanh thu hôm nay bao nhiêu?") == ("Doanh thu hôm nay bao nhiêu?", None))
+check("ui: dòng JAVIS_UI không bao giờ ra loa",
+      _ss("Mở ngay.\nJAVIS_UI: open_page models", final=True)[0] == ["Mở ngay.\n"])
+check("ui: đang stream dở chữ đầu trùng marker thì giữ lại, chưa phát",
+      _ss("Mở ngay.\nJAVIS_U") == (["Mở ngay.\n"], len("Mở ngay.\n")))
+check("prompt bộ não giọng có dạy khuôn JAVIS_UI", vb.UI_MARKER in vb.SYSTEM_PROMPT
+      and "open_group" in vb.SYSTEM_PROMPT)
 
 asyncio.run(main())
 if _fails:

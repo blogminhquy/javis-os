@@ -44,6 +44,25 @@ const pm = plugin.match(/PAGES = \(([\s\S]*?)\)/);
 const ppages = pm ? pm[1].match(/"([a-z]+)"/g).map(x => x.replace(/"/g, "")) : [];
 check("PAGES của plugin javis-ui == RAIL_ITEMS", JSON.stringify(rail) === JSON.stringify(ppages));
 
+// ---- Nhóm thanh bên: mở NHÓM khác mở TRANG (0.57.5) ----
+check("open_group nhóm có thật: ok", A.validate({ action: "open_group", target: "nang_luc" }).ok);
+check("open_group nhóm lạ: chặn", !A.validate({ action: "open_group", target: "admin" }).ok);
+check("sidebar open/close: ok", A.validate({ action: "sidebar", target: "open" }).ok
+  && A.validate({ action: "sidebar", target: "close" }).ok);
+check("sidebar target lạ: chặn", !A.validate({ action: "sidebar", target: "half" }).ok);
+// Ba nơi phải cùng danh sách nhóm, y như PAGES.
+const grM = consoleJs.match(/const RAIL_GROUPS = \[([\s\S]*?)\n  \];/);
+const grail = grM ? (grM[1].match(/id: "([a-z_]+)"/g) || []).map(x => x.replace(/id: "|"/g, "")) : [];
+check("GROUPS của ui-actions == RAIL_GROUPS của console.js", JSON.stringify(grail) === JSON.stringify(A.GROUPS));
+const gpm = plugin.match(/GROUPS = \(([\s\S]*?)\)/);
+const pgroups = gpm ? gpm[1].match(/"([a-z_]+)"/g).map(x => x.replace(/"/g, "")) : [];
+check("GROUPS của plugin javis-ui == RAIL_GROUPS", JSON.stringify(grail) === JSON.stringify(pgroups));
+// Mở trang bằng lời PHẢI bung luôn nhóm chứa nó: JavisNav.go đi qua store Alpine (store.go
+// mới có dòng `this.openGroup = gl`), gọi thẳng navigateTo thì thanh bên vẫn gập.
+check("JavisNav.go đi qua store Alpine để bung nhóm", /go\(id\) \{ const s = _navStore\(\);/.test(consoleJs));
+check("console.js xuất JavisNav.openGroup và setCollapsed",
+  /openGroup\(groupId\)/.test(consoleJs) && /setCollapsed\(thu\)/.test(consoleJs));
+
 // Dây nối: app.js chuyển frame ui_action sang JavisUiActions, console.js xuất JavisKanbanShow,
 // server có nhánh ui_result.
 check("app.js xử lý frame ui_action", /data\.type === "ui_action"/.test(app) && /JavisUiActions\.handle\(/.test(app));

@@ -136,3 +136,40 @@ Ranh giới cố ý: mẫu chỉ bắt dấu hiệu riêng của câu outro (tê
 bỏ lỡ ... video"). Người dùng bàn chuyện marketing hằng ngày, nên thà sót một câu bịa còn hơn
 nuốt một câu nói thật. `tests/python/test_stt_ao_giac.py` canh cả hai phía: cắt đúng câu bịa VÀ
 giữ nguyên bảy câu nói thật dễ bị bắt nhầm.
+
+## 10. Dọn ảo giác cũ, mở nhóm thanh bên, bỏ bộ não chính khỏi lệnh giao diện (0.57.5)
+
+Ba việc chủ dự án nêu cùng lúc.
+
+**a. Ảo giác đã lỡ vào kho.** Bộ lọc 0.57.4 chỉ chặn từ lúc nghe trở đi. `tools/don_ao_giac_stt.py`
+quét lại `messages` (chỉ `role='user'`) bằng ĐÚNG `stt.loc_ao_giac`: tin chỉ toàn câu bịa thì xoá,
+tin lẫn lời thật thì cắt phần bịa. Mặc định chỉ XEM, có `--xoa` mới sửa và luôn sao lưu DB trước.
+Chạy thật trên máy chủ dự án: xoá 4, cắt 12.
+
+Chạy thử lần đầu lộ ra ba lỗi THẬT của bộ lọc, sửa hết trước khi ghi:
+- Cắt câu rồi nối bằng khoảng trắng làm hỏng `README.md` thành `README. md` và mọi URL, dù không
+  có câu bịa nào. Nay ghép lại nguyên văn từng đoạn giữ lại (104 tin suýt bị sửa oan).
+- Câu bịa dính ĐUÔI lời thật mà không có dấu chấm ngăn thì vứt cả câu là mất luôn lời người ta
+  nói. Nay giữ hai đầu nếu còn từ 4 chữ trở lên.
+- Người dùng TRÍCH DẪN chính câu bịa ("anh thấy có cái câu là các bạn đã đăng ký kênh ủng hộ
+  mình, anh không nói câu đấy") thì bị cắt nát. Nay câu bịa nằm giữa mà hai đầu đều ra hồn thì
+  giữ nguyên cả câu.
+Thêm: `finditer` thay `search` (Whisper lặp câu bịa vài lần trong một câu), xuống dòng cũng là
+ranh giới câu (không thì khối `[NGỮ CẢNH GIAO DIỆN: ...]` bị kéo đi theo).
+
+**b. Mở nhóm thanh bên.** Trước chỉ có `open_page`. Thêm `open_group` (bung một nhóm đang gập mà
+KHÔNG đổi trang) và `sidebar open|close`, đi đủ ba nơi như `PAGES`: `RAIL_GROUPS` trong
+console.js (thêm khoá `id` vì nhãn đổi theo ngôn ngữ nên không làm khoá tra cứu được),
+`GROUPS` trong ui-actions.js, `GROUPS` trong plugin javis-ui. `test_ui_actions.js` canh ba danh
+sách khớp nhau.
+
+Sửa luôn một lỗi liên quan: `window.JavisNav.go` trỏ thẳng `navigateTo`, trong khi hàm `go` của
+store Alpine mới là chỗ bung nhóm chứa trang. Nên mở trang bằng lời xong thanh bên vẫn gập,
+người dùng tưởng Javis không hiểu "mở dropdown". Nay `JavisNav.go` đi qua store.
+
+**c. Lệnh giao diện không đánh thức bộ não chính.** Đường cũ: bộ não giọng phát
+`JAVIS_ASK_MAIN` -> `run_turn` với cả ngữ cảnh hội thoại (có lúc hơn 200 nghìn token) -> tool
+`javis_ui` -> dashboard. Một câu "mở trang Models" mất hàng chục giây cho một việc không cần dữ
+liệu gì. Nay bộ não giọng phát `JAVIS_UI: <action> <target>` (`voice_brain.UI_MARKER`,
+`parse_ui`), `run_voice_turn` gọi thẳng `ui_bridge.request`. Action lạ do model bịa thì bỏ qua
+chứ không chạy. Dòng marker không bao giờ ra loa, y như `JAVIS_ASK_MAIN`.

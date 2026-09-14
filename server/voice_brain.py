@@ -27,6 +27,10 @@ from typing import AsyncIterator, Callable, Dict, List, Optional
 import winproc         # lệnh con câm lặng trên Windows (canary test_windows_no_console)
 
 MARKER = "JAVIS_ASK_MAIN:"
+# Đường TẮT cho việc chỉ đụng tới giao diện: bộ não giọng tự phát, server gọi thẳng dashboard,
+# không phải đánh thức bộ não chính (xem parse_ui).
+UI_MARKER = "JAVIS_UI:"
+UI_ACTIONS = ("open_page", "open_group", "sidebar", "scroll")
 IDLE_S = 300.0
 TURN_TIMEOUT_S = 90.0
 HISTORY_N = 10
@@ -63,10 +67,22 @@ SYSTEM_PROMPT = (
     "vào đó trả lời đúng khuôn này: tuỳ chọn một câu chờ ngắn ở dòng đầu (ví dụ 'Để mình xem.'), rồi "
     "một dòng riêng bắt đầu bằng " + MARKER + " theo sau là yêu cầu đầy đủ để bộ não chính của Javis "
     "thực hiện. Không viết gì sau dòng đó.\n"
+    "NGOẠI LỆ, làm NGAY không nhờ bộ não chính: khi người dùng chỉ bảo ĐIỀU KHIỂN MÀN HÌNH, hãy "
+    "trả lời một câu ngắn xác nhận rồi xuống dòng ghi " + UI_MARKER + " kèm lệnh:\n"
+    "  " + UI_MARKER + " open_page <tên trang>   (mở một tab: models, files, kanban, settings, agents, "
+    "skills, workflows, chatbots, plugins, mcp, packs, channels, terminal, learn, selfimprove, logs, "
+    "account, usage, home, chat)\n"
+    "  " + UI_MARKER + " open_group <tên nhóm>   (BUNG một mục đang gập trên thanh bên mà không đổi "
+    "trang: tro_ly, bo_nao, code, nang_luc, viec, ket_noi, he_thong)\n"
+    "  " + UI_MARKER + " sidebar open | close    (bung hay thu gọn cả thanh bên)\n"
+    "  " + UI_MARKER + " scroll top | bottom     (cuộn khung chat)\n"
+    "Chỉ dùng khuôn này cho việc thuần giao diện. Muốn biết NỘI DUNG bên trong trang thì vẫn phải "
+    "nhờ bộ não chính.\n"
     "Chuyện trò thường, hỏi ý kiến, giải thích khái niệm, tính nhẩm, chuyển ngữ: trả lời thẳng."
 )
 
 _MARK_RE = re.compile(r"^[ \t]*" + re.escape(MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
+_UI_RE = re.compile(r"^[ \t]*" + re.escape(UI_MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
 
 
 def parse_marker(text: str):
@@ -77,6 +93,27 @@ def parse_marker(text: str):
         return t.strip(), None
     filler = t[:m.start()].strip()
     return filler, m.group(1).strip()
+
+
+def parse_ui(text: str):
+    """(câu nói, (action, target) | None) cho dòng `JAVIS_UI:`.
+
+    Vì sao có đường tắt này: mở một tab là việc KHÔNG cần dữ liệu gì. Trước đây nó vẫn phải đi
+    `JAVIS_ASK_MAIN` sang bộ não chính, mà bộ não chính mang cả ngữ cảnh hội thoại (có lúc hơn
+    200 nghìn token) nên một câu "mở trang Models" mất hàng chục giây. Bộ não giọng tự phát
+    dòng này thì server gọi thẳng dashboard, còn đúng độ trễ của chính bộ não giọng.
+    """
+    t = str(text or "")
+    m = _UI_RE.search(t)
+    if not m:
+        return t.strip(), None
+    noi = (t[:m.start()] + t[m.end():]).strip()
+    phan = m.group(1).strip().split(None, 1)
+    action = phan[0].strip().lower()
+    target = (phan[1].strip() if len(phan) > 1 else "")
+    if action not in UI_ACTIONS:
+        return t.strip(), None          # model bịa action lạ: coi như không có, đừng nuốt câu
+    return noi, (action, target)
 
 
 # Đoạn stream chưa có dấu kết câu mà dài quá mức này thì cắt ở dấu phẩy/khoảng trắng cuối,
@@ -103,9 +140,10 @@ def split_speakable(text: str, start: int, final: bool = False):
         line_start = text.rfind("\n", 0, start) + 1
         if nl < 0:
             line = text[line_start:]
-            if not final and (MARKER.startswith(line.lstrip()) or line.lstrip().startswith(MARKER)):
+            if not final and any(mk.startswith(line.lstrip()) or line.lstrip().startswith(mk)
+                                 for mk in (MARKER, UI_MARKER)):
                 break                          # chưa biết có phải marker: đợi thêm
-            if line.lstrip().startswith(MARKER):
+            if line.lstrip().startswith((MARKER, UI_MARKER)):
                 start = len(text)              # final: dòng marker, bỏ
                 break
             partial = text[start:]
@@ -132,7 +170,7 @@ def split_speakable(text: str, start: int, final: bool = False):
         chunk = text[start:nl + 1]
         line = text[line_start:nl + 1]
         start = nl + 1
-        if line.lstrip().startswith(MARKER):
+        if line.lstrip().startswith((MARKER, UI_MARKER)):
             continue
         if chunk.strip():
             out.append(chunk)

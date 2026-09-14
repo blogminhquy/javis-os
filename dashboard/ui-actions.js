@@ -17,7 +17,11 @@
   var PAGES = ["home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
                "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
                "packs", "logs", "account", "usage"];
-  var ACTIONS = ["open_page", "open_file", "open_task", "scroll"];
+  // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
+  // trong plugin javis-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần
+  // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
+  var GROUPS = ["tro_ly", "bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
+  var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
 
   function validate(frame) {
     frame = frame || {};
@@ -38,11 +42,15 @@
       if (!target || !/^[\w.\-:]+$/.test(target)) return { ok: false, error: "mã việc không hợp lệ" };
     } else if (action === "scroll") {
       if (target !== "top" && target !== "bottom") return { ok: false, error: "scroll chỉ nhận top/bottom" };
+    } else if (action === "open_group") {
+      if (GROUPS.indexOf(target) < 0) return { ok: false, error: "không có nhóm: " + target };
+    } else if (action === "sidebar") {
+      if (target !== "open" && target !== "close") return { ok: false, error: "sidebar chỉ nhận open/close" };
     }
     return { ok: true, action: action, target: target };
   }
 
-  if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES };
+  if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES, GROUPS: GROUPS };
   if (typeof document === "undefined") return;   // node: chỉ lấy hàm thuần
 
   function tw(k, v) { try { return window.t ? window.t(k, v) : k; } catch (e) { return k; } }
@@ -70,6 +78,20 @@
         await sleep(100);
       }
       return { ok: false, detail: "trang Việc không mở kịp" };
+    }
+    if (v.action === "open_group") {
+      if (window.JavisNav && typeof window.JavisNav.openGroup === "function") {
+        return window.JavisNav.openGroup(v.target)
+          ? { ok: true, detail: "" } : { ok: false, detail: "không có nhóm đó trên thanh bên" };
+      }
+      return { ok: false, detail: "bộ điều hướng chưa sẵn sàng" };
+    }
+    if (v.action === "sidebar") {
+      if (window.JavisNav && typeof window.JavisNav.setCollapsed === "function") {
+        window.JavisNav.setCollapsed(v.target === "close");
+        return { ok: true, detail: "" };
+      }
+      return { ok: false, detail: "bộ điều hướng chưa sẵn sàng" };
     }
     if (v.action === "scroll") {
       var area = document.getElementById("chatArea");
@@ -102,5 +124,5 @@
     try { if (window.JavisUiActions && typeof window.JavisUiActions.onDone === "function") window.JavisUiActions.onDone(v, r); } catch (e) {}
   }
 
-  window.JavisUiActions = { validate: validate, handle: handle, PAGES: PAGES, onDone: null };
+  window.JavisUiActions = { validate: validate, handle: handle, PAGES: PAGES, GROUPS: GROUPS, onDone: null };
 })();
