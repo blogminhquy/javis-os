@@ -277,5 +277,53 @@ check("chay sach: ket qua la output buoc cuoi", evs3[-1].get("result") == "BẢN
 check("chay sach: {{prev}} van la output buoc truoc",
       len(da_hoi) == 2 and "BẢN THẢO" in da_hoi[1])
 
+# --- 4. Agent TRÍCH câu báo hết lượt trong bài viết của nó ---
+# Đây là chính cái loại hỏng mà bản vá trên sinh ra để dập, chỉ đổi chiều: nhận nhầm một câu
+# trích là vứt luôn bài viết thật (không có step_done nên không sang {{prev}}) rồi báo người
+# dùng hết gói trong khi gói vẫn còn.
+_trich = ('Bài viết: khi gặp thông báo "You have reached your session limit" '
+          'thì bạn nên chờ tới giờ reset.')
+_gan_engine([[{"type": "final", "content": _trich}],
+             [{"type": "final", "content": "BẢN SỬA"}]])
+evs4 = _chay_raw("hai-buoc")
+loai4 = [e["type"] for e in evs4]
+check("cau TRICH trong bai KHONG bi coi la het luot",
+      loai4.count("step_done") == 2 and loai4[-1] == "done" and "error" not in loai4)
+check("cau TRICH: bai viet that van sang duoc {{prev}}",
+      len(da_hoi) == 2 and _trich in da_hoi[1])
+check("cau TRICH: van la ket qua cua buoc 1",
+      [e for e in evs4 if e["type"] == "step_done"][0].get("output") == _trich)
+# Bài DÀI có câu báo thật ở cuối cũng không tính: bước đã làm ra việc thật.
+_gan_engine([[{"type": "final", "content": "x" * 600 + "\nYou've hit your session limit"}],
+             [{"type": "final", "content": "BẢN SỬA"}]])
+check("bai DAI co cau bao o cuoi cung khong bi coi la het luot",
+      "error" not in [e["type"] for e in _chay_raw("hai-buoc")])
+
+# --- 5. Bước hỏng phải để lại LÝ DO trên đúng dòng bước trong kho lần chạy ---
+# Nhánh hết lượt về theo đường câu trả lời nên không hề có step_error nào; thiếu nó thì dòng
+# bước lưu với error rỗng, và bảng chạy của Studio quay mãi vì nó chỉ tắt vòng quay ở
+# step_done / step_error.
+main._execute_workflow_raw = _raw_that
+_gan_engine([[{"type": "final", "content": "You've hit your session limit · resets 12pm (UTC)"}]])
+
+
+async def _gom_lich_su():
+    ra = []
+    async for ev in _execute_that(str(wf_loi), "hai-buoc", "viết về A", source="web"):
+        ra.append(ev)
+    return ra
+
+evs5 = asyncio.run(_gom_lich_su())
+loai5 = [e["type"] for e in evs5]
+check("het luot: co phat step_error truoc su kien error",
+      "step_error" in loai5 and loai5.index("step_error") < loai5.index("error"))
+_dong5 = workflow_runs.get_store().gan_nhat(main._brain_key(str(wf_loi)), slug="hai-buoc", limit=1)
+_day5 = workflow_runs.get_store().lay(_dong5[0]["id"]) if _dong5 else {}
+_buoc5 = (_day5.get("steps") or [{}])[0]
+check("het luot: dong buoc trong kho lan chay mang cau loi tieng Viet",
+      "Hết lượt" in str(_buoc5.get("error") or ""))
+check("het luot: ban ghi lan chay ket thuc la error", _day5.get("status") == "error")
+main._execute_workflow_raw = gia_raw
+
 print("\nFAIL:" if fails else "\nOK - workflow_turn_ws", fails or "")
 sys.exit(1 if fails else 0)

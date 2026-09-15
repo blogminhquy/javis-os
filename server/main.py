@@ -7787,6 +7787,14 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         # {{prev}} cho bước sau nhai lại một câu báo lỗi. Sự kiện `error` mang theo `i` và
         # `agent` để khung chat nói được HỎNG Ở BƯỚC NÀO, AI CHẠY (workflow_chat.tin_loi).
         if loi_buoc:
+            # `step_error` TRƯỚC rồi mới tới `error`. Nhánh hết lượt về theo đường câu trả lời
+            # nên chưa hề phát step_error nào, mà đó mới là sự kiện ghi lý do vào ĐÚNG DÒNG
+            # BƯỚC của kho lần chạy (_ghi_lich_su) và là thứ bảng chạy của Studio chờ để tắt
+            # vòng quay của bước. Thiếu nó thì bước đó lưu lại với error rỗng và quay mãi.
+            # Không sợ đếm hai lần: workflow_chat.chay và workspace.js chỉ ghi đè cùng một ô,
+            # còn tasks.py gộp step_error và error vào chung một biến.
+            if loi_buoc != loi_engine:
+                yield {"type": "step_error", "i": i, "content": loi_buoc}
             yield {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
             return
         out = _learn(agent_slug, out)   # bóc JAVIS_LESSON + ghi bộ nhớ trước khi out thành {{prev}}
@@ -14080,6 +14088,39 @@ _NHA_SANG_ENGINE = {
 }
 
 
+# Trần chữ của một output được coi là "chỉ có câu báo hết lượt". Dài hơn thế thì bước đã LÀM
+# RA việc thật, câu tiếng Anh kia chỉ là một đoạn trích trong đó.
+_TRAN_OUT_HET_LUOT = 400
+# Câu báo được coi là mở đầu dòng nếu nằm trong ngần này ký tự đầu dòng (chừa chỗ cho "Error: ",
+# "⚠ ", dấu đầu dòng).
+_DAU_DONG_HET_LUOT = 12
+
+
+def _het_luot_ap_dao(raw: str) -> bool:
+    """Câu báo hết lượt có CHIẾM output này không, hay chỉ được trích trong một bài viết?
+
+    Đây là hàng rào chống chính cái loại hỏng mà bản vá hết lượt sinh ra để dập. Một agent viết
+    bài hoàn toàn có thể viết: Khi gặp thông báo "You have reached your session limit" thì nên
+    chờ. Nhận nhầm câu đó là bước bị vứt nguyên bài viết thật (không có step_done nên không
+    sang {{prev}}) và người dùng bị báo là hết gói trong khi gói vẫn còn - tệ hơn hẳn lỗi cũ.
+
+    Ba điều kiện, phải đúng cả: output ngắn (bài thật thì dài hơn nhiều), câu báo mở đầu dòng
+    của nó HOẶC chiếm quá nửa dòng đó. Câu nhà cung cấp in ra luôn thoả; câu trích giữa một câu
+    văn thì không.
+    """
+    span = limit_learner.subscription_span(raw or "")
+    if not span:
+        return False
+    if len(str(raw or "").strip()) > _TRAN_OUT_HET_LUOT:
+        return False
+    dau_dong = raw.rfind("\n", 0, span[0]) + 1
+    het_dong = raw.find("\n", span[1])
+    dong = raw[dau_dong: het_dong if het_dong >= 0 else len(raw)].strip()
+    if not dong:
+        return False
+    return (span[0] - dau_dong) <= _DAU_DONG_HET_LUOT or (span[1] - span[0]) * 2 >= len(dong)
+
+
 def _loi_het_luot_cua_buoc(out: str, loi: str, provider: str, agent_name: str) -> str:
     """Câu tiếng Việt khi một BƯỚC workflow dừng vì gói thuê bao hết lượt. "" = không phải.
 
@@ -14091,7 +14132,9 @@ def _loi_het_luot_cua_buoc(out: str, loi: str, provider: str, agent_name: str) -
     Dùng lại bộ nhận dạng của khung chat (`_subscription_limit_event`) chứ không viết bộ thứ
     hai: hai bộ nhận dạng thì mẫu câu mới chỉ được thêm vào một chỗ."""
     hint = _NHA_SANG_ENGINE.get(str(provider or "").strip(), "")
-    for raw in (out, loi):
+    for raw, phai_ap_dao in ((out, True), (loi, False)):
+        if phai_ap_dao and not _het_luot_ap_dao(raw or ""):
+            continue
         noi, _lim = _subscription_limit_event(raw or "", hint)
         if not noi:
             continue

@@ -315,10 +315,15 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
 )
 
 # "resets at 3pm", "resets in 2 hours 15 minutes", "try again in 45 minutes", và dạng KHÔNG có
-# giới từ mà nhà cung cấp hay in: "resets 12pm (UTC)". Bắt buộc có "at|in|on" thì mốc reset
-# duy nhất người dùng được cho biết lại rơi mất, và câu báo hoá ra "không biết lúc nào reset".
+# giới từ mà nhà cung cấp hay in: "resets 12pm (UTC)". Bắt buộc có "at|in|on" thì mốc reset duy
+# nhất người dùng được cho biết lại rơi mất, và câu báo hoá ra "không biết lúc nào reset".
+# Nhưng bỏ hẳn giới từ thì "Please reset your API key at console.anthropic.com" cũng lọt, và
+# Javis đi khoe "Nhà cung cấp nói: reset your API key at console" - nên dạng không giới từ phải
+# có NGAY một mốc thời gian đằng sau (số, midnight, noon, tomorrow).
 _RESET_TEXT_RE = re.compile(
-    r"(resets?\s+(?:at\s+|in\s+|on\s+)?[^.\n|]{1,60}|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
+    r"(resets?\s+(?:at|in|on)\s+[^.\n|]{1,60}"
+    r"|resets?\s+(?=\d|midnight|noon|tomorrow)[^.\n|]{1,60}"
+    r"|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
 _RESET_IN_RE = re.compile(
     r"\b(?:resets?|try\s+again)\s+in\s+"
     r"(?:(\d+)\s*(?:hours?|hrs?|h|giờ)\s*)?(?:(\d+)\s*(?:minutes?|mins?|m|phút))?", re.I)
@@ -332,6 +337,25 @@ def _reset_seconds(text: str) -> float:
     hours = int(m.group(1) or 0)
     minutes = int(m.group(2) or 0)
     return float(hours * 3600 + minutes * 60)
+
+
+def subscription_span(text: str) -> tuple[int, int] | None:
+    """Vị trí (đầu, cuối) của ĐÚNG câu báo hết lượt trong `text`. None = không có.
+
+    Vì sao cần: chỗ gọi phải phân biệt được "cả output là câu báo hết lượt" với "một bài viết
+    có TRÍCH câu đó trong ngoặc kép". Muốn cân được thì phải biết câu ấy chiếm bao nhiêu, nằm
+    ở đâu. Dùng CHUNG bộ mẫu với `parse_subscription_limit` (không đẻ bộ nhận dạng thứ hai),
+    nên thêm mẫu mới là cả hai hàm cùng biết.
+    """
+    raw = str(text or "")
+    if not raw.strip():
+        return None
+    for _name, _engine, _scope, pattern in _SUB_PATTERNS:
+        m = pattern.search(raw)
+        if m:
+            return m.span()
+    m = _CLAUDE_EPOCH_RE.search(raw)
+    return m.span() if m else None
 
 
 def parse_subscription_limit(text: str, engine_hint: str = "",

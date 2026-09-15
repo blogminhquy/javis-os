@@ -203,6 +203,31 @@ check("tính được mốc reset từ 'resets in 2 hours 30 minutes'",
 check("giữ nguyên văn câu nói về reset để còn hiện lại",
       _h and "2 hours 30 minutes" in _h.reset_text)
 
+# Dạng KHÔNG có giới từ mà nhà cung cấp hay in. Bỏ mẫu này thì mốc reset duy nhất người dùng
+# được cho biết rơi mất, và câu báo hoá ra "nhà cung cấp không nói lúc nào reset".
+_h = limit_learner.parse_subscription_limit(
+    "You've hit your session limit · resets 12pm (UTC)", engine_hint="claude-code", now=_now)
+check("nhận ra dạng 'hit your session limit'", _h is not None and _h.source == "sub_session")
+check("đọc được mốc reset không giới từ 'resets 12pm'",
+      _h is not None and _h.reset_text == "resets 12pm (UTC)")
+# Nhưng nới giới từ mà không đòi mốc thời gian thì câu văn thường cũng lọt, và Javis đi khoe
+# "Nhà cung cấp nói: reset your API key at console" - vô nghĩa với người đọc.
+_h = limit_learner.parse_subscription_limit(
+    "Claude AI usage limit reached. Please reset your API key at console.anthropic.com",
+    now=_now)
+check("vẫn nhận ra đây là lỗi hết lượt", _h is not None)
+check("CANARY: 'reset your API key at console' KHÔNG bị đọc thành mốc reset",
+      _h is not None and _h.reset_text == "")
+
+# subscription_span: chỗ gọi cần biết câu báo NẰM ĐÂU để phân biệt "cả output là câu báo" với
+# "một bài viết có trích câu đó". Dùng chung bộ mẫu nên không lệch với parse_subscription_limit.
+_sp = limit_learner.subscription_span("You've hit your session limit · resets 12pm (UTC)")
+check("span của câu báo bắt đầu ngay đầu chuỗi", _sp is not None and _sp[0] == 0)
+_sp = limit_learner.subscription_span(
+    'Bài viết: khi gặp thông báo "You have reached your session limit" thì bạn nên chờ.')
+check("span của câu TRÍCH nằm sâu trong câu văn", _sp is not None and _sp[0] > 20)
+check("không có câu báo thì không có span", limit_learner.subscription_span("bài viết thường") is None)
+
 _h = limit_learner.parse_subscription_limit("5-hour limit reached", now=_now)
 check("nhận ra cửa sổ 5 giờ", _h is not None and _h.scope == "5 giờ")
 _h = limit_learner.parse_subscription_limit("You've reached your weekly limit", now=_now)
