@@ -652,9 +652,14 @@ function handleMessage(data) {
         msgEl.appendChild(nen);
       }
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
-      if (voice.ttsEnabled && t) {
+      // data.tts === false: khung "response" này KHÔNG được đọc (vd bản sửa lại sau khi bóc
+      // JAVIS_LESSON của phiên trợ lý) - giống hệt cách nhánh "stream" đã tôn trọng data.tts.
+      if (voice.ttsEnabled && t && data.tts !== false) {
         docCum(cum.flush(), t);                              // đẩy nốt phần đuôi chưa khép câu
-        if (!t.spoke && finalText) voice.speak(finalText);   // engine gửi tts:false: đọc 1 lần ở cuối
+        // Đánh dấu ĐÃ ĐỌC ngay sau khi gọi, không chỉ đọc điều kiện: thiếu dòng này thì một
+        // khung "response" thứ hai của CÙNG lượt (vd bản sửa lại) sẽ gọi speak() lần nữa,
+        // cắt ngang rồi phát lại từ đầu.
+        if (!t.spoke && finalText) { voice.speak(finalText); t.spoke = true; }   // engine gửi tts:false: đọc 1 lần ở cuối
       } else cum.reset();
       maybeAutoLearn();
     }

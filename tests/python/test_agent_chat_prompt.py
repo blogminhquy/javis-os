@@ -63,10 +63,15 @@ check("cuoi luot goi _ket_luot_agent", "_ket_luot_agent(brain, _persona[1], user
 # lại một khung "response" nữa để ép trình duyệt vẽ lại đúng chữ (xem app.js: data.type ===
 # "response" thay hẳn nội dung bong bóng bằng data.content).
 _m_resend = re.search(
-    r"_ket_luot_agent\(brain, _persona\[1\], user_message, final_text\)(.{0,800}?)\"type\": \"response\"",
+    r"_ket_luot_agent\(brain, _persona\[1\], user_message, final_text\)(.{0,1600}?)\"type\": \"response\"(.{0,200}?)\}\)\)",
     than, re.S)
 check("sau _ket_luot_agent co gui lai khung response de xoa JAVIS_LESSON tren bong bong",
       _m_resend is not None)
+# Fix round 2: khung gửi lại PHẢI kèm "tts": False, nếu không app.js gọi voice.speak() lần
+# hai (đọc lại từ đầu) vì t.spoke chỉ được set từ nhánh "stream", không phải từ speak() dự
+# phòng ở cuối nhánh "response" cho engine đọc-một-lần.
+check("khung gui lai co tts:false de khong doc lai lan hai",
+      _m_resend is not None and '"tts": False' in _m_resend.group(2))
 
 # Fix round 1 - issue 2: cụm canary của engine kiểu "api" (Phase 9 write-path, orchestrator,
 # readonly, Fast Path) phải KHÔNG được chạy khi có persona - nếu không nó tự trả lời bằng

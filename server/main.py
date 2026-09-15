@@ -11988,13 +11988,16 @@ async def websocket_endpoint(ws: WebSocket):
                 if final_text != _final_truoc_boc:
                     # Mọi nhánh engine ở trên (cli/grok-cli/antigravity-cli/codex/API) đã gửi
                     # khung "response" RAW còn dòng JAVIS_LESSON trước khi luồng chạy tới đây
-                    # (bong bóng chat đã hiện chữ thô). dashboard/app.js coi khung "response"
-                    # là THAY HẲN nội dung bong bóng bằng `data.content` (xem
-                    # `data.type === "response"` trong app.js: `t.text = shownText` rồi ghi
-                    # lại `innerHTML` của `.bubble`), nên gửi thêm MỘT khung "response" nữa
-                    # với text đã sạch để ép vẽ lại đúng chữ - không cần đổi gì ở app.js.
+                    # (bong bóng chat đã hiện chữ thô, và loa CÓ THỂ đã đọc luôn bản thô đó).
+                    # dashboard/app.js coi khung "response" là THAY HẲN nội dung bong bóng bằng
+                    # `data.content` (xem `data.type === "response"` trong app.js: `t.text =
+                    # shownText` rồi ghi lại `innerHTML` của `.bubble`), nên gửi thêm MỘT khung
+                    # "response" nữa với text đã sạch để ép vẽ lại đúng chữ - không cần đổi gì
+                    # ở app.js cho phần chữ. Riêng loa: PHẢI kèm "tts": false, nếu không app.js
+                    # gọi voice.speak() lần hai, cắt ngang rồi đọc lại từ đầu.
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "session_id": conv_sid,
+                        "tts": False,
                     }))
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
