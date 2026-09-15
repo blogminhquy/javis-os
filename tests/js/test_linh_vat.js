@@ -236,6 +236,31 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
     && than.indexOf("settings.pet_shape") < than.indexOf("setPetSave"));
 }
 
+// ---- 9d. Đang NGHĨ thì mắt đảo giữa hai dáng (0.59.9) ----
+// Chủ dự án chốt 15/09: thích nhất dáng hai gạch ngang, và đồng ý để nó luân phiên với dáng
+// liếc-lục-trí-nhớ đang có. Đứng yên một dáng suốt ba chục giây thì mắt thành hai hình dán.
+{
+  check("có bảng hai dáng mắt lúc nghĩ", /var NGHI_MAT = \["thinking", "nghi"\];/.test(pet));
+  // "nghi" chính là hai gạch ngang - ai sửa nó thành hình khác là cái chủ dự án yêu cầu biến
+  // mất trong im lặng, nên khoá luôn hình của nó. Và nó phải KHÁC dáng chớp mắt: hai dáng vẽ
+  // y hệt nhau thì một cú chớp giữa lúc nghĩ nhìn như máy bị khựng.
+  check("dáng 'nghi' đúng là HAI GẠCH NGANG",
+    /nghi:\s*'<path class="pet-line" d="M-7 -1 H7"\/>'/.test(pet));
+  check("dáng nghĩ KHÁC dáng chớp mắt",
+    /blink:\s*'<path class="pet-line" d="M-9 0 H9"\/>'/.test(pet));
+  check("vòng vẽ đảo mắt theo nhịp khi state là thinking",
+    /if \(state === "thinking" && NGHI_MAT\.length > 1 && !dangChop && now > nghiLuc\)/.test(pet));
+  check("đổi trạng thái thì đặt lại nhịp, không nháy ngay lúc vừa vào",
+    /nghiPha = 0;\s*\n\s*nghiLuc = .*NGHI_LAU\[0\]/.test(pet));
+  // Dáng đầu của NGHI_MAT phải TRÙNG mắt khai trong STATES.thinking: lệch nhau thì lúc vừa
+  // vào trạng thái, màn hình vẽ một dáng còn bộ đếm pha lại tưởng đang ở dáng kia.
+  const matNghi = (/thinking:\s*\{ eye: "(\w+)"/.exec(pet) || [])[1];
+  check("dáng đầu khớp với mắt khai trong STATES.thinking",
+    matNghi === (/var NGHI_MAT = \["(\w+)"/.exec(pet) || [])[1]);
+  check("mỗi dáng giữ trên một giây (đảo nhanh hơn là thành giật)",
+    (/var NGHI_LAU = \[(\d+), (\d+)\]/.exec(pet) || []).slice(1).every(v => +v >= 1000));
+}
+
 // ---- 10a. Vành quỹ đạo phải ĐẬP VÀO MẮT khi đang làm việc (0.59.4) ----
 // Chủ dự án báo 15/09: vành "nhỏ và mờ quá", đổi trạng thái nhìn không ra. Lúc nghỉ nó cố ý
 // mảnh và nhạt; mọi trạng thái KHÁC nghỉ phải đổi sang màu chính và dày hẳn lên.
