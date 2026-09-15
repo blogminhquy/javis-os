@@ -512,7 +512,10 @@
        x-effect="document.body.classList.toggle('rail-collapsed', $store.nav.collapsed)">
     <!-- ĐỈNH cố định -->
     <div class="rail-top">
-      <div class="rail-brand"><img src="/brand-logo" alt="Javis" style="width:30px;height:30px;border-radius:8px;display:block;object-fit:cover"></div>
+      <!-- Dấu ấn và CHỮ tách làm hai ô: pet.js thay ruột của .brand-mark bằng khuôn mặt linh
+           vật (xem veDauAn), nên chữ phải nằm ngoài ô đó, không thì mỗi lần đổi hình dáng hay
+           bảng màu là chữ bị xoá theo. .brand .brand-icon trên thanh trên cũng cùng vai trò. -->
+      <div class="rail-brand"><span class="brand-mark"><img src="/brand-logo" alt="Javis" style="width:30px;height:30px;border-radius:8px;display:block;object-fit:cover"></span><span class="rail-brand-text">JAVIS <i>OS</i></span></div>
     </div>
     <!-- GIỮA cuộn được - gom theo nhóm; nhóm foot (Hệ thống) tự ghim xuống đáy -->
     <div class="rail-nav">

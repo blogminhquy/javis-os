@@ -76,10 +76,23 @@ body.in-console .hud-actions { display: none; }
 }
 .rail-group.open > .rail-grp-items { max-height: 340px; opacity: 1; padding: 2px 0 4px; }
 .rail-brand {
-  height: 42px; display: flex; align-items: center; justify-content: center;
+  height: 42px; display: flex; align-items: center; justify-content: center; gap: 9px;
   color: var(--accent); font-size: 22px;
+}
+/* Quầng sáng cam ở trên ô DẤU ẤN, không ở cả khối. filter của cha ăn xuống toàn bộ cây con,
+   và `filter:none` của con KHÔNG gỡ được nó - để nguyên ở .rail-brand là chữ "JAVIS OS"
+   cũng phát sáng cam theo. */
+.rail-brand .brand-mark {
+  display: flex; flex: none;
   filter: drop-shadow(0 0 8px rgba(255, 107, 43, 0.55));
 }
+/* Chữ hiệu: cùng kiểu với .brand-text trên thanh trên (đậm, giãn chữ) để hai chỗ là một
+   thương hiệu chứ không phải hai. "OS" nhạt hơn, đúng như thanh trên vẫn vẽ. */
+.rail-brand-text {
+  font-family: var(--font); font-size: 14px; font-weight: 700; letter-spacing: 2.5px;
+  color: var(--text); white-space: nowrap; filter: none;
+}
+.rail-brand-text i { font-style: normal; font-weight: 400; color: var(--text3); }
 .rail-item {
   position: relative; background: transparent; border: 0; cursor: pointer;
   color: var(--text3); border-radius: 9px; padding: 7px 8px 7px 16px;
@@ -328,6 +341,7 @@ body.in-console .hud-actions { display: none; }
   }
   .rail.collapsed .rail-item { justify-content: center; padding: 9px 0; gap: 0; }
   .rail.collapsed .rail-item .rail-lbl { display: none; }       /* giấu chữ, chỉ còn icon */
+  .rail.collapsed .rail-brand-text { display: none; }           /* thu gọn: chỉ còn dấu ấn, chữ không vừa */
   .rail.collapsed .rf-meta { display: none; }                   /* giấu version/tác giả cho vừa bề ngang hẹp, chỉ còn nút */
   .rail.collapsed .rail-lang { display: none; }                 /* ô ngôn ngữ cũng không vừa bề ngang thu gọn */
   .rail.collapsed .rail-foot { justify-content: center; }       /* thu: chỉ còn nút, căn giữa */
