@@ -9172,7 +9172,9 @@ def _dong_lan_chay_gan_nhat(brain) -> str:
         return ""
     r = ds[0]
     try:
-        luc = datetime.fromtimestamp(float(r["started_at"])).strftime("%H:%M %d/%m")
+        # Docker chạy giờ UTC chứ không phải giờ Việt Nam, nên phải gắn múi giờ người dùng đã
+        # chọn (localefmt) - dùng datetime.fromtimestamp trần là lệch đúng offset VN lúc deploy.
+        luc = datetime.fromtimestamp(float(r["started_at"]), tz=localefmt.now().tzinfo).strftime("%H:%M %d/%m")
     except Exception:
         luc = "?"
     return (f"Lần chạy quy trình gần nhất: {r['name']} lúc {luc} ({r['nhan']}). "
