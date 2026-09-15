@@ -142,7 +142,7 @@ Phụ đề: "TTS, avatar và tên miền riêng". Đây là nơi chứa bộ **
 
 - Công tắc **🔊 Đọc trả lời bằng giọng**.
 - Khối **NHÀ CUNG CẤP GIỌNG ĐỌC**: chọn "Edge TTS - miễn phí (mặc định)", "OpenAI - mượt, đa ngôn ngữ" hoặc "ElevenLabs - tự nhiên nhất", dán key tương ứng rồi bấm **Lưu nhà cung cấp**. Provider trả phí lỗi sẽ tự về Edge.
-- **NGÔN NGỮ NGHE** (Tiếng Việt `vi-VN` hoặc Tiếng Anh `en-US`), **GIỌNG ĐỌC (Edge)** (Ngọc Thu hoặc Nam Minh), **TỐC ĐỘ** và nút **▶ Nghe thử**. Khối giọng Edge chỉ hiện khi nhà cung cấp là Edge.
+- **NGÔN NGỮ NGHE** (Tiếng Việt `vi-VN` hoặc Tiếng Anh `en-US`), **GIỌNG ĐỌC (Edge)** (Hoài My, Nam Minh hoặc 5 giọng đa ngôn ngữ), **TỐC ĐỘ** và nút **▶ Nghe thử**. Khối giọng Edge chỉ hiện khi nhà cung cấp là Edge.
 - **ẢNH ĐẠI DIỆN**: **Tải ảnh lên** hoặc **Khôi phục mặc định**.
 - **TÊN MIỀN & SSL**: nhập tên miền, bấm **Lưu & kiểm tra**, xem hai nhãn `DNS:` và `SSL:`, rồi **Bật SSL** hoặc **Kiểm tra lại**.
 

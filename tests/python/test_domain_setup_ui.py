@@ -35,8 +35,8 @@ def check(name: str, condition: bool) -> None:
         fails.append(name)
 
 
-check("UI đổi HoaiMy thành Ngọc Thu nhưng giữ mã Edge",
-      "<strong>Ngọc Thu</strong>" in INDEX and 'value="vi-VN-HoaiMyNeural"' in INDEX)
+check("UI ghi đúng tên giọng Hoài My và giữ mã Edge",
+      "<strong>Hoài My</strong>" in INDEX and 'value="vi-VN-HoaiMyNeural"' in INDEX)
 check("UI đổi NamMinh thành Nam Minh nhưng giữ mã Edge",
       "<strong>Nam Minh</strong>" in INDEX and 'value="vi-VN-NamMinhNeural"' in INDEX)
 check("card tên miền có hành động lưu và kiểm tra rõ ràng", "Lưu &amp; kiểm tra" in INDEX)

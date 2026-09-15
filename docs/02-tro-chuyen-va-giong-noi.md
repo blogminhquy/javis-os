@@ -342,21 +342,22 @@ Khối **NHÀ CUNG CẤP GIỌNG ĐỌC** có ba lựa chọn:
 
 Chọn xong bấm **Lưu nhà cung cấp**. Dòng trạng thái bên dưới ghi đang dùng cái nào. Nếu nhà cung cấp trả phí gặp lỗi (hết hạn mức, sai key, mất mạng), Javis **tự quay về Edge TTS** để giọng không bao giờ tắt hẳn.
 
-Khi chọn OpenAI hoặc ElevenLabs, khối hai giọng Edge (Ngọc Thu / Nam Minh) tự ẩn đi vì lúc đó giọng chọn ngay trong khối của nhà cung cấp.
+Khi chọn OpenAI hoặc ElevenLabs, khối giọng Edge (Hoài My, Nam Minh và 5 giọng đa ngôn ngữ) tự ẩn đi vì lúc đó giọng chọn ngay trong khối của nhà cung cấp.
 
 ### Chọn giọng Edge và tốc độ
 
 | Tuỳ chọn | Giá trị | Ghi chú |
 |---|---|---|
-| Giọng đọc | **Ngọc Thu** | Nữ, tự nhiên và ấm áp (mặc định; mã Edge: `vi-VN-HoaiMyNeural`) |
+| Giọng đọc | **Hoài My** | Nữ, tự nhiên và ấm áp (mặc định; mã Edge: `vi-VN-HoaiMyNeural`) |
 | Giọng đọc | **Nam Minh** | Nam, trầm (mã Edge: `vi-VN-NamMinhNeural`) |
+| Giọng đọc | **Ava, Emma** (nữ), **Andrew, Brian, William** (nam) | 5 giọng đa ngôn ngữ thế hệ mới của Edge: tự nhận tiếng Việt, ngữ điệu mượt hơn hai giọng trên nhưng có thể lơ lớ vài chữ. Nghe thử rồi chọn. |
 | Tốc độ | Thanh trượt 0.70× đến 1.80× | Mặc định 1.10× |
 | Ngôn ngữ nghe | **Tiếng Việt** (vi-VN) | Mặc định |
 | Ngôn ngữ nghe | **Tiếng Anh** (en-US) | Dùng khi bạn nói toàn tiếng Anh |
 
 Các bước:
 
-1. Chọn Ngọc Thu hoặc Nam Minh.
+1. Chọn Hoài My, Nam Minh hoặc một trong 5 giọng đa ngôn ngữ.
 2. Kéo thanh **TỐC ĐỘ** để chỉnh nhanh/chậm; số bên cạnh hiện tốc độ hiện tại (ví dụ 1.10×).
 3. Bấm **▶ Nghe thử** để nghe một câu chào mẫu bằng giọng vừa chọn.
 4. "Ngôn ngữ nghe" là ngôn ngữ Javis dùng để nhận diện lời bạn nói, khác với giọng đọc trả lời. Để mặc định Tiếng Việt trừ khi bạn quen nói tiếng Anh.
