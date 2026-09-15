@@ -393,6 +393,7 @@ async function batLive() {
       }
       _liveJavisText += text;
       if (!_liveJavisBubble) _liveJavisBubble = createStreamingBubble();
+      _liveJavisBubble.dataset.md = _liveJavisText;   // copy ra markdown gốc, kể cả hội thoại bằng giọng
       if (dangTheoLoi()) batTheoLoi(_liveJavisBubble, _liveJavisText, null, true);   // V3: chữ theo tiếng
       else { _liveJavisBubble.querySelector(".bubble").innerHTML = markdownToHtml(_liveJavisText); scrollBottom(); }
     },
@@ -608,9 +609,11 @@ function handleMessage(data) {
     t.text += (data.content || "");
     if (isActive) {
       if (!t.bubble) { t.bubble = createStreamingBubble(); showActivity(Icons.msg("pen-line", window.t("app.act_writing"))); }
+      t.bubble.dataset.md = t.text;   // copy giữa chừng vẫn ra markdown gốc, kể cả khi đang đọc theo giọng
       // V3: đang nói chuyện bằng giọng thì chữ hiện THEO LỜI ĐỌC, không hiện trước loa.
       if (dangTheoLoi() && data.tts !== false) batTheoLoi(t.bubble, t.text, null, false);
       else { t.bubble.querySelector(".bubble").innerHTML = markdownToHtml(t.text); scrollBottom(); }
+      // Đọc NGAY đoạn trung gian (chỉ đọc phiên đang xem). OpenRouter gửi tts:false → đọc 1 lần ở cuối.
       // Voice V3: gom chữ stream thành CỤM đọc được (voice-chunker.js) thay vì đọc từng mẩu.
       // Trước đây mỗi khung stream của bộ não chính (vài từ) là một yêu cầu TTS riêng nên nghe
       // cà nhắc; làn nhanh gửi nguyên câu thì qua đây vẫn phát ngay. OpenRouter gửi tts:false
@@ -636,6 +639,7 @@ function handleMessage(data) {
       hideActivity();
       let msgEl = t && t.bubble;
       if (!msgEl) msgEl = appendJavisMessage(shownText);
+      if (t && t.bubble) msgEl.dataset.md = shownText;   // copy ra markdown gốc dù đọc theo giọng hay không
       if (dangTheoLoi() && t && finalText) {
         batTheoLoi(msgEl, shownText, ask, false);        // V3: chữ theo lời tới khi đọc xong, rồi vẽ đủ + chip
       } else {
@@ -1239,6 +1243,7 @@ function appendJavisMessage(text, ts, brain) {
   div.className = "msg msg-javis";
   div.innerHTML = `<div class="bubble">${markdownToHtml(text, brain)}</div>` +
     actsHtml("javis", ts === undefined ? Date.now() : ts, !!lastUserText().trim());
+  div.dataset.md = text || "";   // markdown gốc cho nút Sao chép
   chatAppend(div); scrollBottom();
   return div;
 }
@@ -1440,7 +1445,9 @@ function runMsgAct(btn) {
   const act = btn.dataset.act;
   if (act === "copy") {
     const b = msgEl.querySelector(".bubble");
-    if (b) copyText(b.innerText).then(() => flashCopied(btn, "⧉"));
+    // Tin Javis giữ markdown gốc trong dataset.md: copy bản đó để bài viết dán sang
+    // CMS/website còn nguyên heading, đậm, link, bảng. innerText chỉ là fallback.
+    if (b) copyText(msgEl.dataset.md || b.innerText).then(() => flashCopied(btn, "⧉"));
     return;
   }
   // Chi tin NGUOI DUNG mang nut gui lai / sua lai, nen chu goc luon nam ngay tren chinh no.

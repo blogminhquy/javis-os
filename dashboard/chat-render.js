@@ -386,12 +386,21 @@
     var rows = tbl.trim().split("\n").filter(function (r) { return r.trim(); });
     var cells = function (r) { return r.replace(/^\||\|$/g, "").split("|").map(function (c) { return c.trim(); }); };
     var head = cells(rows[0]);
+    // Hàng phân cách quyết định căn cột: `:---:` giữa, `---:` phải, còn lại trái.
+    var aligns = rows[1] ? cells(rows[1]).map(function (c) {
+      if (/^:-+:$/.test(c)) return "center";
+      if (/^-+:$/.test(c)) return "right";
+      return "";
+    }) : [];
+    var alAttr = function (i) { return aligns[i] ? ' style="text-align:' + aligns[i] + '"' : ""; };
     var body = rows.slice(2).map(cells);
-    var th = head.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("");
+    var th = head.map(function (c, i) { return "<th" + alAttr(i) + ">" + inline(c) + "</th>"; }).join("");
     var trs = body.map(function (r) {
-      return "<tr>" + r.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+      return "<tr>" + r.map(function (c, i) { return "<td" + alAttr(i) + ">" + inline(c) + "</td>"; }).join("") + "</tr>";
     }).join("");
-    return '<table class="md-table"><thead><tr>' + th + "</tr></thead><tbody>" + trs + "</tbody></table>";
+    // Bọc khung cuộn ngang: bảng rộng tự cuộn trong khung, không bóp nát chữ trên mobile.
+    return '<div class="md-table-wrap"><table class="md-table"><thead><tr>' + th +
+      "</tr></thead><tbody>" + trs + "</tbody></table></div>";
   }
 
   // ---------------------------------------------------------------- inline (dam/nghieng/gach/xuong dong)
