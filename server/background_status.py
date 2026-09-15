@@ -112,19 +112,21 @@ def promise_note(orchestration: str = "") -> str:
     """Dòng sự thật dán dưới câu trả lời có hứa mà KHÔNG có việc nền nào.
 
     Viết ở ngôi Javis, bằng lời nói, không bảng và không em dash (luật CLAUDE.md).
+
+    NGẮN CÓ CHỦ Ý (chủ repo báo 2026-09-15: "thi thoảng nó thông báo lỗi này không hiểu gì
+    luôn"). Bản cũ dài ba đoạn, giải thích cả cơ chế "lượt trả lời đóng lại khi nói xong" -
+    đúng nhưng là chuyện nội bộ, đọc giữa dòng chat thì chỉ thấy rối. Dòng này chỉ cần trả lời
+    hai câu hỏi của người đọc: có báo cáo nào tự về không, và giờ phải làm gì.
     """
     lines = [
-        "⚠ Javis tự kiểm: lượt vừa rồi mình có hứa sẽ báo lại, nhưng mình KHÔNG tạo việc nền "
-        "nào nên sẽ không có báo cáo nào tự về đây. Lượt trả lời của mình đóng lại ngay khi "
-        "mình nói xong, không có ai đánh thức mình dậy để làm nốt.",
-        "Bạn nhắn lại một câu là mình làm ngay trong lượt sau, hoặc bảo mình \"giao thành việc "
-        "nền\" để mình đẩy vào hàng đợi và kết quả tự rơi về khung chat này.",
+        "⚠ Mình vừa hẹn sẽ báo lại nhưng KHÔNG đặt việc nền nào, nên sẽ không có báo cáo nào "
+        "tự về đây. Nhắn \"làm luôn\" là mình làm ngay, hoặc \"giao việc nền\" để mình đẩy vào "
+        "hàng đợi và kết quả tự rơi về khung chat này.",
     ]
     if orchestration and orchestration != "auto":
         lines.append(
-            "Nói thêm cho rõ: điều phối việc nền của brain này đang ở mức "
-            f"\"{orchestration}\", nghĩa là việc giao vào cũng chỉ nằm xếp hàng chứ chưa tự "
-            "chạy. Bật \"AI tự vận hành\" ở trang Việc nếu bạn muốn nó chạy một mình."
+            "Lưu ý thêm: việc nền của brain này chưa tự chạy, có giao thì cũng nằm chờ. Bật "
+            "\"AI tự vận hành\" ở trang Việc nếu muốn nó chạy một mình."
         )
     return "\n\n".join(lines)
 

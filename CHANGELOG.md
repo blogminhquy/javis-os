@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.7] - 2026-09-15
+### Cải thiện
+- **Dòng cảnh báo "mình vừa hẹn mà không đặt việc nền" giờ gọn lại còn hai câu.** Bản cũ dài ba đoạn, giải thích cả chuyện lượt trả lời đóng lại thế nào, đọc giữa dòng chat thì rối hơn là hiểu.
+- Nay nó chỉ nói hai điều cần biết: sẽ không có báo cáo nào tự về, và bạn nhắn "làm luôn" hay "giao việc nền" là xong.
+
 ## [0.58.6] - 2026-09-15
 ### Thêm mới
 - **Thêm 5 giọng đọc mới trong Cài đặt nhanh:** Ava, Emma (nữ) và Andrew, Brian, William (nam). Đây là các giọng đa ngôn ngữ thế hệ mới của Edge, tự nhận tiếng Việt và đọc mượt hơn hai giọng cũ, đổi lại có thể lơ lớ vài chữ. Bấm Nghe thử rồi chọn giọng hợp tai.

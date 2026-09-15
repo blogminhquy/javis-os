@@ -159,11 +159,16 @@ check("mục đứng im được đánh dấu sẵn để dải khỏi đoán l�
       v_moi["items"][0]["stalled"] is True and v_nhac["items"][0]["stalled"] is False)
 
 note = bg.promise_note("off")
-check("dòng đính chính nói rõ KHÔNG có việc nền nào", "KHÔNG tạo việc nền nào" in note)
+check("dòng đính chính nói rõ KHÔNG có việc nền nào", "KHÔNG đặt việc nền nào" in note)
 check("dòng đính chính nêu luôn chuyện điều phối tắt", "trang Việc" in note)
 check("dòng đính chính không dùng em dash (luật CLAUDE.md)", "\u2014" not in note)
 check("promise_note khi điều phối auto thì không đổ lỗi cho điều phối",
       "trang Việc" not in bg.promise_note("auto"))
+# Dòng này đọc giữa dòng chat nên phải NGẮN: bản cũ ba đoạn làm chủ repo không hiểu gì
+# (2026-09-15). Giữ trần để lần sau có ai nới câu thì test chặn lại.
+check("đính chính ngắn, đọc là hiểu", len(bg.promise_note("auto")) <= 260)
+check("đính chính vẫn chỉ được việc cần làm tiếp",
+      "làm luôn" in note and "giao việc nền" in note)
 
 
 # ─────────── 3. Server: endpoint + móc nối ───────────
