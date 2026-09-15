@@ -140,8 +140,9 @@ check("index.html nạp pet.js", iPet > 0);
 check("index.html nạp pet.js SAU app.js và console.js", iPet > iApp && iPet > iConsole);
 ["page.pet.label", "page.pet.title", "page.pet.sub", "settings.pet", "settings.pet_desc",
  "settings.pet_hint", "settings.pet_on", "settings.pet_off", "settings.pet_shape",
- "settings.pet_color", "settings.pet_missing", "pet.menu.chat", "pet.menu.work",
- "pet.menu.settings", "pet.menu.hide"].forEach(k => {
+ "settings.pet_color", "settings.pet_missing", "settings.pet_save", "settings.pet_saved",
+ "settings.pet_save_fail", "settings.pet_saving", "pet.menu.chat", "pet.menu.agent",
+ "pet.menu.workflow", "pet.menu.settings", "pet.menu.hide"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
 // Mỗi hình dáng và mỗi bảng màu phải có nhãn dịch, không thì ô chọn hiện trần khoá.
@@ -160,7 +161,12 @@ check("màn hẹp KHÔNG co pet nhỏ lại nữa", !/\.pet, \.pet-body \{ width
 check("cỡ đi qua biến CSS --pet-size", /width: var\(--pet-size/.test(css)
   && /setProperty\("--pet-size"/.test(pet));
 check("màn hẹp vẫn có trần theo bề ngang màn", /min\(var\(--pet-size[^)]*\), 24vw\)/.test(css));
-check("server nhận khoá size", /for k in \("shape", "palette", "side", "size"\)/.test(read("server/main.py")));
+const mainPy = read("server/main.py");
+check("server nhận khoá size", /for k in \("shape", "palette", "side", "size"\)/.test(mainPy));
+// "rat_lon" có GẠCH DƯỚI. Luật lọc cũ chỉ tha dấu gạch ngang nên cỡ lớn nhất bị bỏ trong im
+// lặng: chọn xong màn hình đổi ngay (localStorage), F5 là về cỡ cũ, không một dòng lỗi nào.
+check("server không loại cỡ có gạch dưới (rat_lon)",
+  /v\.replace\("-", ""\)\.replace\("_", ""\)\.isalnum\(\)/.test(mainPy));
 [...pet.matchAll(/key: "(pet\.size\.\w+)"/g)].forEach(m => {
   check("i18n vi+en có " + m[1], typeof vi[m[1]] === "string" && typeof en[m[1]] === "string");
 });
@@ -184,6 +190,47 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
 ["app.ws_mat_ket_noi", "app.ws_giu_tin", "app.ws_tra_tin"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
+
+// ---- 10b. Menu nhanh: đúng 5 mục, đúng thứ tự chủ dự án chốt (0.59.3) ----
+// Menu cũ chỉ có Trò chuyện / Việc / Cài đặt / Ẩn, và "Cài đặt pet" lại mở trang Cài đặt
+// chung chứ không phải trang Linh vật - bấm xong phải tự đi tìm.
+{
+  const menu = pet.slice(pet.indexOf("var muc = ["), pet.indexOf("];", pet.indexOf("var muc = [")));
+  const ids = [...menu.matchAll(/\{ id: "([a-z]+)"/g)].map(m => m[1]);
+  check("menu nhanh đúng 5 mục theo thứ tự chốt",
+    ids.join(",") === "chat,agent,workflow,pet,hide");
+  check("Trợ lý / Quy trình đi qua openTab của trang Cộng sự",
+    /window\.JavisWorkspace\.openTab\(id\)/.test(pet));
+  // Năm mục cao hơn 200px, mà pet đứng được sát mép trên/dưới: phải ghìm menu lại trong màn
+  // hình, không thì mục đầu hay mục cuối nằm ngoài màn và không bấm được.
+  check("menu được ghìm lại trong màn hình khi pet đứng sát mép",
+    /function ghimMenuTrongMan\(\)/.test(pet) && /menu\.style\.marginTop = Math\.round\(dich\)/.test(pet));
+  check("workspace.js có openTab và phơi ra ngoài",
+    /function openTab\(kind\)/.test(read("dashboard/workspace.js"))
+    && /openTab: openTab/.test(read("dashboard/workspace.js")));
+}
+
+// ---- 10c. Nút Lưu của trang Linh vật ----
+// Không phải nút trang trí: nó POST rồi ĐỌC LẠI /settings và so từng khoá, vì nhánh lưu bên
+// server lọc từng khoá một và bỏ khoá lạ trong im lặng.
+{
+  check("pet.js có hàm luu() đọc lại để kiểm chứng",
+    /function luu\(\)/.test(pet) && /return fetch\("\/settings"\);/.test(pet) && /luu: luu,/.test(pet));
+  check("trang Linh vật có nút Lưu và ô trạng thái",
+    /id="setPetSave"/.test(console_js) && /id="setPetStatus"/.test(console_js));
+  check("lưu hỏng thì GỌI TÊN khoá không vào được", /r\.lech\.join\(", "\)/.test(console_js));
+}
+
+// ---- 10d. Icon trang Linh vật là chính khuôn mặt linh vật ----
+{
+  const icons = read("dashboard/icons.js");
+  check("icons.js có icon riêng javis-pet", /"javis-pet":/.test(icons));
+  check("javis-pet có vành cam + mắt liếc lên phải",
+    /stroke="#F28C28"/.test(icons) && /cy="10\.74"/.test(icons));
+  check("bodyOf tra bảng icon riêng trước Lucide", /if \(RIENG\[name\]\) return RIENG\[name\];/.test(icons));
+  check("console.js: trang pet dùng icon đó chứ không phải mặt cười chung",
+    /pet: "javis-pet",/.test(console_js));
+}
 
 // ---- 11. Không có emoji trong menu (test_icons cũng bắt, nhưng bắt ở đây thì đọc ra lý do) ----
 check("menu dùng icon lucide chứ không phải emoji",

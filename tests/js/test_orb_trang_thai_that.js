@@ -38,7 +38,7 @@ check("capNhatOrb là nơi duy nhất gọi setOrbState", (app.match(/setOrbStat
 check("mất WS -> turn.wsDown", /ws\.onclose = \(\) => \{[\s\S]{0,120}turn\.wsDown\(\)/.test(app));
 check("hello -> turn.wsUp", /runActions\(turn\.wsUp\(\)\)/.test(app));
 check("tool_call -> turn.toolCall(data.tool)", /turn\.toolCall\(data\.tool/.test(app));
-check("turn_done -> turn.turnDone", /data\.type === "turn_done"[\s\S]{0,1100}runActions\(turn\.turnDone\(\)\)/.test(app));
+check("turn_done -> turn.turnDone", /data\.type === "turn_done"[\s\S]{0,1400}runActions\(turn\.turnDone\(\)\)/.test(app));
 check("sendMessage -> turn.turnStart", /setSessionRunning\(sid, true\);\s*\n\s*runActions\(turn\.turnStart\(\)\);/.test(app));
 check("tin nền: đọc ngay khi rảnh, hoãn khi bận", /turn\.canSpeakNow\(\)\) voice\.enqueueSpeak/.test(app) && /turn\.defer\(/.test(app));
 check("nghe xong đi qua veTinTuGiong (luật CHỜ/DỪNG)", /text = veTinTuGiong\(text\);/.test(app));

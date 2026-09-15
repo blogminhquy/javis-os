@@ -95,6 +95,13 @@
         st.buoc[k].trang_thai = "loi";
         st.buoc[k].loi = ev.content || st.buoc[k].loi;
       }
+    } else if (ev.type === "stopped") {
+      // Người dùng bấm Dừng giữa chừng. KHÔNG phải lỗi (không có gì hỏng) và cũng không phải
+      // xong (chưa ra kết quả), nên nó là một trạng thái thứ ba. Thiếu nhánh này thì máy trạng
+      // thái đứng mãi ở "dang": icon bên trái quay không ngừng và cột phải vẫn ghi "Đang chạy
+      // Bước 1/3" cho một lần chạy đã chết từ lâu (chủ dự án báo 15/09).
+      st.trang_thai = "dung"; st.cho_duyet = null;
+      st.buoc.forEach(function (b) { if (b.trang_thai === "dang") b.trang_thai = "cho"; });
     } else if (ev.type === "done") {
       st.trang_thai = "xong"; st.cho_duyet = null;
       // Bước đã hỏng thì KHÔNG đổi thành xong. Server không còn gửi `done` sau một bước hỏng,
@@ -111,8 +118,9 @@
   }
 
   // ---------- trạng thái trang ----------
-  // tabPhai = tab đang mở ở cột phải: "cai" (cài đặt trợ lý / tiến độ quy trình) hay "files"
-  // (cây thư mục MƯỢN của màn chính).
+  // tabPhai = tab đang mở ở cột phải: "cai" (cài đặt trợ lý / tiến độ quy trình), "lichsu"
+  // (lần chạy + hội thoại cũ của cộng sự này) hay "files" (cây thư mục MƯỢN của màn chính).
+  var TAB_PHAI = ["cai", "lichsu", "files"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
   var S = { loai: "agent", q: "", nhom: "", agents: [], workflows: [], chon: { agent: null, workflow: null },
             el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "cai" };   // tienDo[session_id] = tiến độ lần chạy đang xem
 
@@ -186,9 +194,11 @@
           // của cột trái trang Trò chuyện - cùng một kiểu tab, không đẻ bộ lớp thứ hai.
           '<div class="cside-tabs ws-rtabs">' +
             '<button type="button" class="cside-tab" data-rtab="cai">' + ic("settings") + ' ' + esc(t("ws.tab_settings")) + '</button>' +
+            '<button type="button" class="cside-tab" data-rtab="lichsu">' + ic("history") + ' ' + esc(t("ws.tab_history")) + '</button>' +
             '<button type="button" class="cside-tab" data-rtab="files">' + ic("folder-tree") + ' ' + esc(t("sess.tab_files")) + '</button>' +
           '</div>' +
           '<div class="cside-pane ws-rpane" data-rpane="cai" id="wsRightSet"></div>' +
+          '<div class="cside-pane ws-rpane" data-rpane="lichsu" id="wsRightHistory"></div>' +
           '<div class="cside-pane ws-rpane" data-rpane="files" id="wsRightFiles"></div>' +
         '</aside>' +
       '</div>';
@@ -219,7 +229,7 @@
     // Nhớ chỗ đang đứng: mở lại trang mà rơi về mục đầu danh sách thì mỗi lần ghé qua trang
     // khác rồi quay lại là mất chỗ, trong khi cộng sự đang dùng thường chỉ là một hai mục.
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
-    try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = r === "files" ? "files" : "cai"; } catch (e) { S.tabPhai = "cai"; }
+    try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "cai"; } catch (e) { S.tabPhai = "cai"; }
     chonTabPhai(S.tabPhai);
     taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_session")); });
   }
@@ -239,6 +249,22 @@
       pendingCommand = cmd;
       window.JavisNav.go("workspace");
     });
+  }
+  // Mở trang Cộng sự ở ĐÚNG tab (menu nhanh của linh vật: "Trợ lý" / "Quy trình"). Khác
+  // openCommand ở chỗ không nhắm tới một cộng sự cụ thể: chỉ chuyển tab rồi để chonMacDinh()
+  // chọn mục gần nhất. Ghi localStorage TRƯỚC khi đổi trang, vì render() dựng lại S.loai từ
+  // đó - đặt S.loai xong mới điều hướng thì render() lấy giá trị cũ ghi đè lên ngay.
+  function openTab(kind) {
+    var loai = kind === "workflow" ? "workflow" : "agent";
+    // KHÔNG đụng vào S.q: ô tìm là một node DOM đang hiện chữ, xoá trạng thái mà không xoá ô
+    // là danh sách đầy đủ nằm dưới một câu lọc vẫn nhìn thấy được. Nhóm thì khác - veTrai()
+    // vẽ lại ô chọn theo S.nhom nên hai bên vẫn khớp.
+    S.loai = loai; S.nhom = "";
+    luuChon();
+    if (active) { veTrai(); chonMacDinh(); return true; }
+    if (!window.JavisNav) return false;
+    window.JavisNav.go("workspace");
+    return true;
   }
   function luuChon() { try { localStorage.setItem("javis_ws_loai", S.loai); if (S.chon.agent) localStorage.setItem("javis_ws_agent", S.chon.agent); if (S.chon.workflow) localStorage.setItem("javis_ws_workflow", S.chon.workflow); } catch (e) {} }
 
@@ -273,7 +299,7 @@
   function traCayThuMuc() { try { if (window.JavisVaultPanel) window.JavisVaultPanel.giveBack(); } catch (e) {} }
   function chonTabPhai(tab) {
     var el = S.el; if (!el) return;
-    S.tabPhai = tab === "files" ? "files" : "cai";
+    S.tabPhai = TAB_PHAI.indexOf(tab) >= 0 ? tab : "cai";
     try { localStorage.setItem("javis_ws_rtab", S.tabPhai); } catch (e) {}
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.classList.toggle("active", b.dataset.rtab === S.tabPhai); });
     el.querySelectorAll("[data-rpane]").forEach(function (p) { p.classList.toggle("on", p.dataset.rpane === S.tabPhai); });
@@ -377,6 +403,7 @@
       if (!still()) return false;
       if (!window.JavisSessions || window.JavisSessions.current() !== id) throw new Error(t("ws.err_session"));
       chatReady(true);
+      toMoiLichSu();   // phiên vừa đổi: tô lại hàng đang mở ở tab Lịch sử
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
       return true;
     } catch (e) {
@@ -432,12 +459,11 @@
     // cây là node mượn và chỉ có một bản: trả rồi mượn lại theo tab đang mở là luật gọn nhất,
     // khỏi phải nhớ chỗ nào được phép ghi đè chỗ nào không.
     traCayThuMuc();
-    if (!item) { host.innerHTML = ""; chonTabPhai(S.tabPhai); return; }
+    if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(S.tabPhai); return; }
     if (S.loai === "agent") {
       host.innerHTML = '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
-        '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>' +
-        '<div class="ws-rtitle">' + esc(t("ws.recent_chats")) + '</div><div class="ws-sess" id="wsSess"></div>';
+        '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
       // MƯỢN chính trình sửa agent của Studio (studio.js), không dựng bản thứ hai: chọn model,
       // chọn skill, nhóm... đã nằm ở đó, chép lại là hai bản trôi lệch nhau ngay lần sửa đầu.
       if (window.JavisStudio && window.JavisStudio.editAgent) {
@@ -450,7 +476,6 @@
         await api("/agents/delete", { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
         S.chon.agent = null; await taiDanhSach(); veTrai(); chonMacDinh();
       };
-      taiPhienGanDay(item);
     } else {
       var td = tienDoHienTai(item);
       host.innerHTML = '<div class="ws-workflow-head">'+ic("workflow")+'<h3>'+esc(item.name)+'</h3><p>'+esc(item.description || t("ws.wf_sub", {n:cacBuoc(item).length}))+'</p>'+
@@ -460,8 +485,7 @@
         '<div class="ws-steps" id="wsSteps"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsEditWf">' + esc(t("ws.edit_steps")) + '</button>' +
         '<button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
-        '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>' +
-        '<div class="ws-rtitle">' + esc(t("ws.run_history")) + '</div><div class="ws-runs" id="wsRuns"></div>';
+        '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
       host.querySelector("#wsRun").onclick = chayQuyTrinh;
       veBuoc(item, td);
       host.querySelector("#wsEditWf").onclick = function () { window.JavisStudio && window.JavisStudio.editWorkflow(item, { onSaved: async function () { await sauLuu(item, "workflow"); } }); };
@@ -471,8 +495,8 @@
         await api("/workflows/delete", { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
         S.chon.workflow = null; await taiDanhSach(); veTrai(); chonMacDinh();
       };
-      taiLichSu(item);
     }
+    veLichSu(item);
     chonTabPhai(S.tabPhai);
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
@@ -490,6 +514,7 @@
     if (td.trang_thai === "dang") return t("ws.running_step", { a: td.hien_tai + 1, b: td.buoc.length });
     if (td.trang_thai === "xong") return t("ws.done");
     if (td.trang_thai === "loi") return t("ws.failed");
+    if (td.trang_thai === "dung") return t("ws.stopped");
     if (td.cho_duyet) return t("ws.waiting");
     return t("ws.ready");
   }
@@ -519,22 +544,53 @@
     var stt = S.el.querySelector("#wsWfStatus"); if (stt) stt.textContent = nhanTienDo(td);
     var pg = S.el.querySelector(".ws-prog > div"); if (pg) pg.style.width = phanTram(td) + "%";
   }
+  // ---------- tab LỊCH SỬ (cột phải) ----------
+  // Trước 0.59.3 lịch sử nằm DƯỚI ĐÁY khung Cài đặt: muốn xem lần chạy hôm qua thì phải cuộn
+  // qua hết form sửa trợ lý, qua ba nút Xuất/Xoá, qua danh sách bước. Chủ dự án nói thẳng là
+  // không tiện. Nay nó là một TAB riêng, ngang hàng với Cài đặt và Thư mục, đúng kiểu cột lịch
+  // sử của trang Trò chuyện: bấm một cái là ra, không phải cuộn tìm.
+  function veLichSu(item) {
+    var host = S.el && S.el.querySelector("#wsRightHistory"); if (!host) return;
+    if (!item) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.pick_one")) + '</div>'; return; }
+    host.innerHTML =
+      (S.loai === "workflow"
+        ? '<div class="ws-rtitle">' + esc(t("ws.history_runs")) + '</div><div class="ws-runs" id="wsRuns"></div>'
+        : "") +
+      '<div class="ws-rtitle">' + esc(t("ws.history_chats")) + '</div><div class="ws-sess" id="wsSess"></div>';
+    if (S.loai === "workflow") taiLichSu(item);
+    taiPhienGanDay(item);
+  }
+  // Tô lại hàng của phiên ĐANG MỞ mà không tải lại gì cả. Hai danh sách ở tab Lịch sử tới từ
+  // hai lời gọi mạng, còn phiên thì đổi ngay lúc bấm - vẽ lại cả tab chỉ để đổi một cái viền
+  // là tốn hai request và làm danh sách nháy một nhịp.
+  function toMoiLichSu() {
+    var el = S.el; if (!el) return;
+    var cur = window.JavisSessions ? window.JavisSessions.current() : null;
+    el.querySelectorAll("#wsRuns [data-sid], #wsSess [data-sid]").forEach(function (b) {
+      b.classList.toggle("on", !!cur && b.dataset.sid === cur);
+    });
+  }
+  function moPhienCu(sid) {
+    if (!sid || !window.JavisSessions) return;
+    Promise.resolve(window.JavisSessions.open(sid)).then(toMoiLichSu).catch(function () {});
+  }
   async function taiLichSu(item) {
     var host = S.el && S.el.querySelector("#wsRuns"); if (!host) return;
-    var r = await api("/workflows/runs?brain=" + encodeURIComponent(brain()) + "&slug=" + encodeURIComponent(item.slug) + "&limit=10");
+    var r = await api("/workflows/runs?brain=" + encodeURIComponent(brain()) + "&slug=" + encodeURIComponent(item.slug) + "&limit=20");
     // Vẽ trễ: người dùng có thể đã đổi sang mục khác trong lúc chờ mạng. Ghi vào khung của
     // mục cũ là lịch sử của quy trình A nằm dưới tên quy trình B.
     if (!conDangXem(item)) return;
     host = S.el && S.el.querySelector("#wsRuns"); if (!host) return;
     var ds = r.runs || [];
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.no_runs")) + '</div>'; return; }
+    var curSid = window.JavisSessions ? window.JavisSessions.current() : null;
     host.innerHTML = ds.map(function (x) {
       var d = new Date(Number(x.started_at || 0) * 1000);
-      return '<button type="button" class="ws-run ' + esc(x.status) + '" data-sid="' + esc(x.session_id || "") + '">' +
+      return '<button type="button" class="ws-run ' + esc(x.status) + (x.session_id && x.session_id === curSid ? " on" : "") + '" data-sid="' + esc(x.session_id || "") + '">' +
         '<span class="ws-run-avatars">' + Array.from(new Set((x.steps || []).map(function (b) { return b.agent; }).filter(Boolean))).slice(0, 3).map(function (slug) { return avatar(agentOf(slug), 22); }).join('') + '</span><span>' + esc(gioPhut(d)) + '</span>' +
         '<span class="ws-run-st">' + esc(x.nhan || x.status || "") + '</span><small>' + esc(loiNguoiGo(x.input).slice(0, 60)) + '</small></button>';
     }).join("");
-    host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { if (b.dataset.sid && window.JavisSessions) window.JavisSessions.open(b.dataset.sid); }; });
+    host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { moPhienCu(b.dataset.sid); }; });
   }
   // Bỏ khối "[NGỮ CẢNH GIAO DIỆN: ...]" mà dashboard chèn trước câu hỏi: kho lần chạy lưu
   // nguyên chuỗi đã gửi, nên dòng lịch sử mà in thô thì 60 ký tự đầu là khối đó chứ không phải
@@ -550,15 +606,35 @@
     try { return d.toLocaleString(loc, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }); }
     catch (e) { return d.toLocaleString(); }
   }
+  // Nhãn nhóm theo NGÀY, đúng bốn mốc của cột Lịch sử trang Trò chuyện (sessions-ui.js) và
+  // dùng chung từ điển với nó: hai chỗ cùng làm một việc thì phải đọc lên giống nhau.
+  function nhomNgay(ts) {
+    var d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    var moc = d0.getTime() / 1000;
+    if (ts >= moc) return t("sess.grp_hom_nay");
+    if (ts >= moc - 86400) return t("sess.grp_hom_qua");
+    if (ts >= moc - 6 * 86400) return t("sess.grp_7days");
+    return t("cs.cl_older");
+  }
   async function taiPhienGanDay(item) {
     var host = S.el && S.el.querySelector("#wsSess"); if (!host) return;
-    var r = await api("/sessions?brain=" + encodeURIComponent(brain()) + "&channel=" + encodeURIComponent("agent:" + item.slug) + "&limit=8");
+    // Kênh theo LOẠI đang xem, không cứng "agent:". Quy trình cũng có hội thoại riêng (mỗi tin
+    // là một lần chạy), và cột lịch sử mà chỉ biết đọc kênh trợ lý thì nửa trang này trống.
+    var r = await api("/sessions?brain=" + encodeURIComponent(brain()) + "&channel=" + encodeURIComponent(kenh(item)) + "&limit=20");
     if (!conDangXem(item)) return;
     host = S.el && S.el.querySelector("#wsSess"); if (!host) return;
     var ds = r.sessions || [];
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.no_chats")) + '</div>'; return; }
-    host.innerHTML = ds.map(function (s) { return '<button type="button" class="ws-run" data-sid="' + esc(s.id) + '"><strong>' + esc(s.title || s.preview || t("ws.untitled")) + '</strong></button>'; }).join("");
-    host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { window.JavisSessions && window.JavisSessions.open(b.dataset.sid); }; });
+    var cur = window.JavisSessions ? window.JavisSessions.current() : null, nhomTruoc = null;
+    host.innerHTML = ds.map(function (s) {
+      var moc = Number(s.updated_at || 0), nhom = nhomNgay(moc), dau = "";
+      if (nhom !== nhomTruoc) { dau = '<div class="cside-group">' + esc(nhom) + "</div>"; nhomTruoc = nhom; }
+      return dau + '<button type="button" class="ws-run' + (s.id === cur ? " on" : "") + '" data-sid="' + esc(s.id) + '">' +
+        '<strong>' + esc(s.title || s.preview || t("ws.untitled")) + '</strong>' +
+        '<span class="ws-run-st">' + esc(gioPhut(new Date(moc * 1000))) + '</span>' +
+        '<small>' + esc(t("sess.msgs", { count: s.msg_count || 0 })) + '</small></button>';
+    }).join("");
+    host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { moPhienCu(b.dataset.sid); }; });
   }
 
   // ---------- sự kiện quy trình từ WebSocket ----------
@@ -583,6 +659,20 @@
       // nên danh sách bên trái phải xếp lại. Không làm thì quy trình vừa chạy vẫn nằm cuối.
       if (ev.type === "done" || ev.type === "error" || ev.type === "wait_user") { taiLichSu(item); taiDanhSach().then(veTrai); }
     }
+  }
+
+  // Lượt của một phiên vừa KẾT THÚC (app.js gọi ở khung turn_done). Đây là lưới an toàn cuối
+  // cùng cho tiến độ: server bắn `stopped` khi người dùng bấm Dừng, nhưng lượt còn có thể chết
+  // theo những đường không kịp phát sự kiện nào (engine bị giết, WebSocket rớt giữa chừng, tiến
+  // trình máy chủ khởi động lại). Lượt xong rồi mà tiến độ vẫn "dang" thì chắc chắn nó sẽ không
+  // bao giờ nhúc nhích nữa - đóng nó lại ở đây, đừng để icon quay vĩnh viễn.
+  function onTurnDone(sid) {
+    if (!sid || !S.tienDo[sid] || S.tienDo[sid].trang_thai !== "dang") return;
+    apDung(S.tienDo[sid], { type: "stopped" });
+    if (S.loai === "workflow") veDanhSach();
+    var item = dangChon();
+    var cur = window.JavisSessions ? window.JavisSessions.current() : null;
+    if (item && S.loai === "workflow" && cur === sid) veBuoc(item, S.tienDo[sid]);
   }
 
   // ---------- tạo mới ----------
@@ -619,5 +709,5 @@
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
+  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
 })();

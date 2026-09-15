@@ -42,7 +42,10 @@
     logs: "scroll-text",
     account: "circle-user",
     usage: "chart-column",
-    pet: "smile",
+    // Không phải "smile" của Lucide: trang Linh vật mang chính khuôn mặt linh vật (vành cam,
+    // mắt liếc), xem RIENG trong dashboard/icons.js. Cái tab dẫn tới con pet mà không giống
+    // con pet thì nó là tab duy nhất trong app nói sai về nơi nó dẫn tới.
+    pet: "javis-pet",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -331,6 +334,18 @@
     openFilesAt(fullPath);
   }
   if (typeof window !== "undefined") window.JavisOpenVaultPath = openVaultPath;
+  // Mở một CỘNG SỰ từ link trong chat: "agent|workflow:<slug>[:<mã phiên>]".
+  // Có mã phiên thì mở đúng cuộc hội thoại đã chạy việc đó, không thì mở cuộc gần nhất.
+  // Hai đường vào giống hệt link file: cú bấm thường (chat-render.js) và deep-link "#cs=".
+  function moCongSu(spec) {
+    const m = /^(agent|workflow):([^:]+)(?::(.+))?$/.exec(String(spec == null ? "" : spec).trim());
+    if (!m || !window.JavisWorkspace) return false;
+    window.JavisWorkspace.openCommand(m[1], m[2]).then((ok) => {
+      if (ok && m[3] && window.JavisSessions) window.JavisSessions.open(m[3]);
+    });
+    return true;
+  }
+  if (typeof window !== "undefined") window.JavisOpenCongSu = moCongSu;
   // Mở note trong editor cây từ đường dẫn TƯƠNG ĐỐI GỐC BRAIN (như openNodePopup). Người gọi: click node
   // đồ thị (app.js onGraphNodeClick) VÀ wikilink [[..]] trong chat-render.js - đều truyền MỘT chuỗi path.
   // ĐỪNG gán đè hàm này bằng openNote thô: mất bước suy tên/đuôi file → note .md rơi nhánh "hãy tải về"
@@ -5976,10 +5991,11 @@
         <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
         <p>${esc(t("settings.pet_desc"))}</p>
         <div class="js-actions">
+          <button class="gcard-btn" id="setPetSave">${SAVE_ICON} ${esc(t("settings.pet_save"))}</button>
           <button class="gcard-btn ${cur.enabled ? "ghost" : ""}" id="setPetToggle">${esc(cur.enabled ? t("settings.pet_off") : t("settings.pet_on"))}</button>
           <button class="gcard-btn ghost" id="setPetReset">${esc(t("settings.pet_reset"))}</button>
         </div>
-        <div class="gcard-meta">${esc(t("settings.pet_hint"))}</div>
+        <div class="gcard-meta" id="setPetStatus">${esc(t("settings.pet_hint"))}</div>
       </div>
       <div class="settings-card">
         <div class="settings-card-head"><b>${esc(t("settings.pet_shape"))}</b></div>
@@ -5994,6 +6010,22 @@
           return `<button type="button" class="pet-swatch" data-pet-palette="${esc(k)}" aria-pressed="${k === cur.palette}" title="${esc(t(palettes[k].key))}" aria-label="${esc(t(palettes[k].key))}"><i style="background:${esc(tone[0])}"></i></button>`;
         }).join("")}</div>
       </div>`;
+      // Nút Lưu. Mỗi cú bấm chọn hình/cỡ/màu đã tự gửi lên máy chủ rồi, nên nút này KHÔNG
+      // phải chỗ duy nhất để lưu - nó là chỗ NÓI RA kết quả: đã vào máy chủ thật hay chưa.
+      // Trước đây không có gì trả lời câu đó, nên một khoá bị bộ lọc phía server bỏ qua thì
+      // im lặng tuyệt đối cho tới lần tải lại trang sau.
+      const stt = host.querySelector("#setPetStatus");
+      host.querySelector("#setPetSave").onclick = async (e) => {
+        const nut = e.currentTarget;
+        nut.disabled = true;
+        stt.textContent = t("settings.pet_saving");
+        const r = await P.luu();
+        nut.disabled = false;
+        if (r.ok) { stt.innerHTML = OK_ICON + " " + esc(t("settings.pet_saved")); return; }
+        // Khoá nào không vào được thì gọi tên nó ra: "không lưu được" chung chung thì người
+        // dùng không biết bỏ cái gì đi cho xong.
+        stt.innerHTML = Icons.warn(t("settings.pet_save_fail") + (r.lech.length ? " (" + r.lech.join(", ") + ")" : ""));
+      };
       host.querySelector("#setPetToggle").onclick = () => { P.setEnabled(!cur.enabled); ve(); };
       host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", size: "vua", side: "right", pos: 0.62, enabled: true }); ve(); };
       host.querySelectorAll("[data-pet-shape]").forEach(b => b.onclick = () => { P.setCfg({ shape: b.dataset.petShape }); ve(); });
@@ -7704,6 +7736,8 @@
       try {
         const m = /^#open=(.+)$/.exec(location.hash || "");
         if (m) openVaultPath(decodeURIComponent(m[1]));
+        const c = /^#cs=(.+)$/.exec(location.hash || "");
+        if (c) moCongSu(decodeURIComponent(c[1]));
       } catch (e) {}
     });
   }

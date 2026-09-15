@@ -1437,9 +1437,20 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-right { width: 320px; flex: none; overflow: hidden; padding: 14px 12px;
   display: flex; flex-direction: column; gap: 8px;
   border-left: 1px solid var(--glass-brd); background: var(--surface-1); }
-/* Hai tab của cột phải (Cài đặt | Thư mục) dùng lại .cside-tabs/.cside-tab của style.css.
+/* Ba tab của cột phải (Cài đặt | Lịch sử | Thư mục) dùng lại .cside-tabs/.cside-tab của
+   style.css, chỉ nén lại: cột này rộng 272-320px nên chia ba là mỗi tab chỉ còn ~80px, đệm
+   mặc định của .cside-tab làm chữ tràn ra ngoài viền.
    Khung nội dung tự cuộn chứ không để cả cột cuộn: cây thư mục có thanh cuộn riêng, để nó
    nằm trong luồng chung là hai thanh cuộn lồng nhau. */
+.ws-rtabs .cside-tab { padding: 7px 4px; gap: 5px; min-width: 0; font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-rtabs .cside-tab svg { flex: none; }
+/* Cột phải co xuống 272px ở màn hẹp hơn: chia ba thì mỗi tab còn 76px, không đủ cho cả icon
+   lẫn chữ ("Thư mục" bị cắt đuôi). Bỏ ICON chứ không cắt CHỮ - chữ mới là thứ nói tab nào là
+   tab nào, icon chỉ là trang trí khi có chỗ. */
+@media (max-width: 1240px) {
+  .ws-rtabs .cside-tab svg { display: none; }
+}
 .ws-rpane { display: none; flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; }
 .ws-rpane.on { display: flex; flex-direction: column; }
 .ws-rpane[data-rpane="cai"] { gap: 0; }
@@ -1548,6 +1559,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-run-st { flex: none; font-size: 11px; color: var(--text3); }
 .ws-run.done .ws-run-st { color: #6fd08c; }
 .ws-run.error .ws-run-st { color: #ff8b8b; }
+/* Hàng của hội thoại ĐANG MỞ. Cột lịch sử mà không tô chỗ đang đứng thì mỗi lần liếc sang
+   lại phải đối chiếu tiêu đề để biết mình đang ở đâu (cột Lịch sử trang Trò chuyện tô từ lâu). */
+.ws-run.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--text); }
+/* Tên hội thoại ăn hết chỗ thừa, còn giờ và số tin nép về phải theo đúng thứ tự mắt đọc. */
+.ws-sess .ws-run strong { flex: 1 1 auto; min-width: 0; }
+.ws-sess .ws-run small { flex: none; }
 
 /* Màn hẹp dần: hai cột bên lần lượt thành NGĂN KÉO trượt đè để khung chat giữ đủ bề ngang.
    Ba nấc vì một màn laptop 1024px trừ thanh bên còn ~900px, mà 260 + 320 cột hai bên ăn hết

@@ -697,6 +697,9 @@ function handleMessage(data) {
       if (t && t.id && t.id !== _idDung) return;
     }
     try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
+    // Trang Cộng sự phải biết lượt đã đóng: tiến độ quy trình còn kẹt ở "đang chạy" thì icon
+    // quay mãi ở cột trái, kể cả khi lượt chết theo đường không kịp phát sự kiện nào.
+    try { if (window.JavisWorkspace) window.JavisWorkspace.onTurnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
     // Chip "Đang soạn câu trả lời..." phải TẮT ở đây chứ không chỉ ở nhánh `response`: lượt
@@ -820,6 +823,11 @@ function traTinDutMang() {
   showActivity(Icons.warn(window.t("app.ws_tra_tin")));
 }
 
+// Phiên cộng sự (agent:/workflow:) -> phiên Trò chuyện đã GỌI nó bằng lệnh "/". Sống trong
+// bộ nhớ trang: tải lại trang là quên, và như vậy là đúng - lúc đó người dùng không còn đang
+// theo dõi cuộc gọi ấy nữa.
+const _gocCongSu = {};
+
 function sendMessage(text) {
   if (window.JavisWorkspace && !window.JavisWorkspace.canSend()) return;
   const msg = (text || chatInput.value).trim();
@@ -827,8 +835,14 @@ function sendMessage(text) {
   const _slash = (window.JavisSlash && msg) ? window.JavisSlash.route(msg) : { type: "passthrough" };
   if (_slash.type === "agent" || _slash.type === "workflow") {
     if (!window.JavisWorkspace) return;
+    // Khung chat NGƯỜI DÙNG đang đứng lúc gõ lệnh. Gõ "/quy-trinh" là trang nhảy hẳn sang
+    // Cộng sự, việc chạy ở đó, và khung Trò chuyện vừa rời đi không bao giờ biết kết quả ra
+    // sao - đúng chỗ chủ dự án thấy vô lý. Nhớ lại nguồn rồi gửi kèm mỗi tin, để server đẩy
+    // kết quả NGƯỢC về đây kèm link mở lại cuộc hội thoại đã làm việc đó.
+    const goc = savedSessionId;
     window.JavisWorkspace.openCommand(_slash.type, _slash.slug).then(function (opened) {
       if (!opened) return;
+      if (goc && savedSessionId && savedSessionId !== goc) _gocCongSu[savedSessionId] = goc;
       chatInput.value = _slash.message || "";
       if (_slash.message) sendMessage(_slash.message);
       else chatInput.focus();
@@ -969,7 +983,13 @@ function sendMessage(text) {
   // Voice V2: tin đến từ MIC mang cờ `voice` để server đưa qua làn nhanh (bộ não giọng nói)
   // khi cài đặt bật. V3: đang rảnh tay mà GÕ chữ thì cũng đi làn nhanh, vì đó vẫn là cuộc nói
   // chuyện bằng giọng (vừa nói vừa gõ bổ sung, một luồng). Mic tắt thì đi bộ não chính như cũ.
-  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid, voice: _tuGiong || handsFree }));
+  // `origin_chat` chỉ đi kèm ĐÚNG MỘT tin: tin sinh ra từ cú gõ "/" ở khung Trò chuyện. Sau
+  // đó người dùng đã đứng ở trang Cộng sự và biết kết quả nằm đâu, nên chép mọi lượt tiếp
+  // theo về khung cũ là làm ngập nó bằng một cuộc trò chuyện của người khác.
+  const _goc = _gocCongSu[sid] || "";
+  delete _gocCongSu[sid];
+  ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid,
+                          voice: _tuGiong || handsFree, origin_chat: _goc }));
   _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
