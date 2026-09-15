@@ -62,9 +62,12 @@
   }
 
   // Đổi src mọi ảnh logo (header, thanh bên, màn đăng nhập, preview) để thấy ảnh mới ngay.
-  function bustLogos() {
+  // `rieng` = từ giờ đang dùng logo NGƯỜI DÙNG tải lên hay logo mặc định. Linh vật chỉ được
+  // thay chỗ logo trên thanh bên khi người dùng CHƯA tải logo riêng, nên phải báo cho nó.
+  function bustLogos(rieng) {
     var v = "/brand-logo?v=" + Date.now();
     document.querySelectorAll('img[src^="/brand-logo"]').forEach(function (img) { img.src = v; });
+    try { if (window.JavisPet) window.JavisPet.setLogoRieng(rieng); } catch (e) {}
   }
 
   // ---------- Logo / avatar ----------
@@ -77,7 +80,7 @@
       var r = await fetch("/branding/logo", { method: "POST", body: fd });
       var j = await r.json().catch(function () { return {}; });
       if (!r.ok || !j.ok) { setStatus("brandLogoStatus", j.error || window.t("brand.upload_failed"), true); return; }
-      bustLogos();
+      bustLogos(true);
       _logoCustom = true;
       setStatus("brandLogoStatus", window.t("brand.image_updated"), false);
     } catch (e) {
@@ -91,7 +94,7 @@
       var r = await fetch("/branding/logo/reset", { method: "POST" });
       var j = await r.json().catch(function () { return {}; });
       if (!r.ok || !j.ok) { setStatus("brandLogoStatus", (j && j.error) || window.t("brand.restore_failed"), true); return; }
-      bustLogos();
+      bustLogos(false);
       _logoCustom = false;
       setStatus("brandLogoStatus", window.t("brand.image_reset"), false);
     } catch (e) {
