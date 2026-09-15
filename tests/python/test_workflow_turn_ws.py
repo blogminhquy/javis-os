@@ -69,6 +69,14 @@ check("lan hai noi ket qua truoc + dem lan chay", goi[1]["input"].startswith("s�
       and text2.startswith("Lần chạy #2"))
 
 
+# Attached context must reach the engine input, scoped to this workflow session.
+from unittest.mock import patch
+with patch.object(main, "_session_block", return_value="\n\nATTACHED_FILE_AND_LINK") as context:
+    run("read attached context")
+    check("workflow receives attached context", "ATTACHED_FILE_AND_LINK" in goi[-1]["input"])
+    check("attachment context uses current session", context.call_args.args == (sid,))
+
+
 async def gia_loi(brain, slug, input="", tools=None, session_id="", source="other"):
     yield {"type": "start", "workflow": "Viết bài", "steps": 1}
     yield {"type": "step_start", "i": 0, "agent": "Người viết", "task": "viết"}

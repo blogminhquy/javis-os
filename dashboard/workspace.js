@@ -21,11 +21,12 @@
 
   function avatar(a, size, state) { return window.JavisAvatar ? window.JavisAvatar.html(a, size, state) : ic("bot"); }
   function agentOf(slug) { return S.agents.find(function (a) { return a.slug === slug || a.name === slug; }) || {slug: slug || ""}; }
-  var opening = 0, ready = false, active = false;
+  var opening = 0, ready = false, active = false, pendingCommand = null;
   function chatReady(value) {
     ready = value;
     var input = document.getElementById("chatInput");
     if (input) input.disabled = !value;
+    var files = S.el && S.el.querySelector("#wsFiles"); if (files) files.disabled = !value;
     var run = S.el && S.el.querySelector("#wsRun");
     if (run) run.disabled = !value;
   }
@@ -136,6 +137,7 @@
           '<div class="ws-bar">' +
             '<button type="button" class="ws-ico" id="wsLeftBtn" title="' + esc(t("ws.toggle_list")) + '">' + ic("panel-left") + '</button>' +
             '<div class="ws-id" id="wsIdentity"></div>' +
+            '<button type="button" class="ws-btn" id="wsFiles">' + ic("paperclip") + ' ' + esc(t("ws.files_links")) + '</button>' +
             '<button type="button" class="ws-btn" id="wsNewChat">' + esc(t("sess.new_chat")) + '</button>' +
             // Bộ icon chưa đóng gói "panel-right" (xem icons.manifest.json) và thêm icon mới
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
@@ -149,6 +151,7 @@
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; luuChon(); veTrai(); chonMacDinh(); }; });
     el.querySelector("#wsSearch").oninput = function (e) { S.q = e.target.value; veDanhSach(); };
     el.querySelector("#wsNew").onclick = taoMoi;
+    el.querySelector("#wsFiles").onclick = function () { if (ready && window.JavisChatSide) window.JavisChatSide.moKhungCuoc(); };
     el.querySelector("#wsStore").onclick = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
     var page = el.querySelector("#wsPage");
@@ -163,7 +166,24 @@
     // Nhớ chỗ đang đứng: mở lại trang mà rơi về mục đầu danh sách thì mỗi lần ghé qua trang
     // khác rồi quay lại là mất chỗ, trong khi cộng sự đang dùng thường chỉ là một hai mục.
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
-    taiDanhSach().then(function () { veTrai(); chonMacDinh(); }).catch(function () { veLoi(t("ws.err_session")); });
+    taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_session")); });
+  }
+  async function selectCommand(cmd) {
+    S.loai = cmd.kind; S.chon[cmd.kind] = cmd.slug; S.q = ""; S.nhom = "";
+    luuChon(); veTrai();
+    var item = dangChon();
+    if (!item) { cmd.resolve(false); return; }
+    cmd.resolve(await moPhien(item, false));
+  }
+  function openCommand(kind, slug) {
+    return new Promise(function (resolve) {
+      var cmd = {kind: kind, slug: slug, resolve: resolve};
+      if (active) { selectCommand(cmd); return; }
+      if (!window.JavisNav) { resolve(false); return; }
+      if (pendingCommand) pendingCommand.resolve(false);
+      pendingCommand = cmd;
+      window.JavisNav.go("workspace");
+    });
   }
   function luuChon() { try { localStorage.setItem("javis_ws_loai", S.loai); if (S.chon.agent) localStorage.setItem("javis_ws_agent", S.chon.agent); if (S.chon.workflow) localStorage.setItem("javis_ws_workflow", S.chon.workflow); } catch (e) {} }
 
@@ -430,5 +450,5 @@
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
+  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
 })();

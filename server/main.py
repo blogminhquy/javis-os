@@ -10958,7 +10958,7 @@ async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resu
         if truoc:
             day_du = st.lay(truoc[0]["id"]) or {}
             ket_truoc = day_du.get("output", "")
-        dau_vao = workflow_chat.ghep_dau_vao(user_message, ket_truoc)
+        dau_vao = workflow_chat.ghep_dau_vao(user_message + _session_block(conv_sid), ket_truoc)
         events = globals()["execute_workflow"](brain, slug, dau_vao, session_id=conv_sid, source="web")
     kq = await workflow_chat.chay(events, emit)
     giay = int(time.time() - t0)
@@ -11170,7 +11170,7 @@ async def websocket_endpoint(ws: WebSocket):
                 nonlocal sysprompt
                 if sysprompt is None:
                     if _persona and _persona[0] == "agent":
-                        sysprompt = _agent_chat_prompt(brain, _persona[1])
+                        sysprompt = _agent_chat_prompt(brain, _persona[1]) + _session_block(conv_sid)
                     else:
                         sysprompt = build_system_prompt(
                             brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",

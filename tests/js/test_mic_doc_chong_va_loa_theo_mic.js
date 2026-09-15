@@ -79,7 +79,7 @@ check("CANARY: thả Space KHÔNG tắt loa", !/JavisTts/.test(keyup));
 // (test_mic_khong_tu_gui canh kỹ chỗ đó), không phải một đường gửi tin mới.
 // 6 từ 0.57.17: chỗ thứ 6 cũng là HOÃN - câu nói chen ngang gửi lại sau khi lượt cũ dừng hẳn.
 // 7 từ 0.58.2: chỗ thứ 7 cũng HOÃN - câu gửi lúc mất WebSocket, gửi lại khi nối lại được.
-check("vẫn đúng 7 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 7,
+check("vẫn đúng 8 chỗ gọi sendMessage", (app.match(/(?<!function )\bsendMessage\(/g) || []).length === 8,
   (app.match(/(?<!function )\bsendMessage\(/g) || []).length);
 
 // ---- 5. Mic là công tắc DUY NHẤT (chủ repo chốt 02/09: "không cần nút bật tắt loa nữa") ----
@@ -119,5 +119,7 @@ check("style.css đã bump (>= 81)", v("style.css") >= 81, v("style.css"));
 check("voice.js đã bump lần nữa cho đường iOS (>= 18)", v("voice.js") >= 18, v("voice.js"));
 
 console.log();
+check("slash only sends after opening the selected session", /if \(\!opened\) return;[\s\S]{0,150}if \(_slash.message\) sendMessage\(_slash.message\)/.test(app));
 if (fails.length) { console.log("ĐỎ " + fails.length + " mục: " + fails.join(", ")); process.exit(1); }
 console.log("Tất cả xanh.");
+

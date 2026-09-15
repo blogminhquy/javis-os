@@ -14,6 +14,8 @@
   // Danh sach slug skill dang co (menu nap tu /skills rot vao). Chi dung cho lenh GIUA cau:
   // o giua cau ma bat bua theo hinh dang thi '/home/user/x' hay '3/4 cai' cung thanh lenh.
   var knownSkills = [];
+  var knownPartners = [];
+  function setKnownPartners(agents, workflows) { knownPartners = buildMenu([], agents, workflows).filter(function (x) { return x.kind === "agent" || x.kind === "workflow"; }); }
   function setKnownSkills(list) {
     knownSkills = [];
     (list || []).forEach(function (s) {
@@ -46,7 +48,7 @@
     var hit = null, m;
     MID_RE.lastIndex = 0;
     while ((m = MID_RE.exec(text)) !== null) {
-      if (isKnownSkill(m[2])) hit = m;
+      if (isKnownSkill(m[2]) || knownPartners.some(function (x) { return x.cmd === m[2].toLowerCase(); })) hit = m;
     }
     if (!hit) return null;
     var start = hit.index + hit[1].length;
@@ -69,6 +71,8 @@
     var p = parseSlashAnywhere(text);
     if (!p) return { type: "passthrough" };
     if (classify(p.cmd) === "session") return { type: "session", cmd: p.cmd };
+    var partner = knownPartners.find(function (x) { return x.cmd === p.cmd; });
+    if (partner) return { type: partner.kind, slug: partner.slug, message: p.arg };
     return { type: "skill", cmd: p.cmd, message: buildSkillInvocation(p.cmd, p.arg) };
   }
 
@@ -82,8 +86,14 @@
     ];
   }
 
-  function buildMenu(skills) {
+  function buildMenu(skills, agents, workflows) {
     var out = sessionItems();
+    [["agent", agents], ["workflow", workflows]].forEach(function (group) {
+      (group[1] || []).forEach(function (x) {
+        if (!x.slug || (group[0] === "workflow" && x.status !== "active")) return;
+        out.push({kind: group[0], slug: x.slug, cmd: group[0] + "-" + x.slug, name: x.name || x.slug, desc: x.role || x.description || ""});
+      });
+    });
     (skills || []).forEach(function (s) {
       if (!s || !s.slug) return;
       out.push({ kind: "skill", cmd: s.slug, name: s.name || s.slug, desc: s.description || "" });
@@ -124,6 +134,7 @@
     parseSlashAnywhere: parseSlashAnywhere,
     tokenAtCaret: tokenAtCaret,
     setKnownSkills: setKnownSkills,
+    setKnownPartners: setKnownPartners,
     SESSION_COMMANDS: SESSION_COMMANDS,
     classify: classify,
     buildSkillInvocation: buildSkillInvocation,
@@ -137,7 +148,7 @@
 
   // ===== Phan MENU DOM (chi trinh duyet) =====
   if (typeof window !== "undefined" && typeof document !== "undefined") {
-    var box = null, items = [], active = 0, skillsCache = null, cacheBrain = null;
+    var box = null, items = [], active = 0, skillsCache = null, cacheBrain = null, agentsCache = [], workflowsCache = [], loadedAt = 0, inputSeq = 0;
 
     function ensureBox() {
       if (box) return box;
@@ -151,10 +162,13 @@
 
     async function loadSkills() {
       var brain = (typeof window.currentBrainPath === "function") ? window.currentBrainPath() : "brain";
-      if (skillsCache && cacheBrain === brain) return skillsCache;
+      if (skillsCache && cacheBrain === brain && Date.now() - loadedAt < 5000) return skillsCache;
       try {
-        var r = await fetch("/skills?brain=" + encodeURIComponent(brain));
-        var d = await r.json();
+        var results = await Promise.all(["skills", "agents", "workflows"].map(async function (kind) {
+          try { var r = await fetch("/" + kind + "?brain=" + encodeURIComponent(brain)); if (!r.ok) return {}; return await r.json(); } catch (e) { return {}; }
+        }));
+        var d = results[0]; agentsCache = results[1].agents || []; workflowsCache = results[2].workflows || [];
+        api.setKnownPartners(agentsCache, workflowsCache); loadedAt = Date.now();
         skillsCache = (d && d.skills) || [];
       } catch (e) { skillsCache = []; }
       cacheBrain = brain;
@@ -163,7 +177,7 @@
       return skillsCache;
     }
 
-    function hide() { if (box) box.style.display = "none"; items = []; active = 0; }
+    function hide() { inputSeq++; if (box) box.style.display = "none"; items = []; active = 0; }
 
     function positionBox(input) {
       var rect = input.getBoundingClientRect();
@@ -184,7 +198,7 @@
         var row = document.createElement("div");
         row.className = "slash-item" + (i === active ? " active" : "");
         row.innerHTML = '<span class="slash-cmd">/' + esc(it.cmd) + '</span>' +
-          '<span class="slash-name">' + esc(it.name) + '</span>' +
+          '<span class="slash-name">' + esc(it.kind === 'agent' ? tw('ws.tab_agent') + ' · ' : it.kind === 'workflow' ? tw('ws.tab_workflow') + ' · ' : '') + esc(it.name) + '</span>' +
           '<span class="slash-desc">' + esc(it.desc) + '</span>';
         row.addEventListener("mousedown", function (e) { e.preventDefault(); choose(i); });
         box.appendChild(row);
@@ -199,7 +213,7 @@
       var input = document.getElementById("chatInput");
       var t = tok;
       hide();
-      if (it.kind === "skill") {
+      if (it.kind !== "session") {
         // Thay DUNG token dang go, giu nguyen chu hai ben - go lenh giua cau khong duoc
         // xoa cau dang viet. Khong ro token thi rot ve hanh vi cu (thay ca o).
         var val = input.value;
@@ -223,10 +237,12 @@
       tok = api.tokenAtCaret(input.value, input.selectionStart);
       if (!tok) { hide(); return; }
       ensureBox();
+      var seq = ++inputSeq;
       var skills = await loadSkills();
+      if (seq !== inputSeq || !api.tokenAtCaret(input.value, input.selectionStart)) return;
       // Lenh phien (/new /reset /stop) chi hien khi token o DAU o nhap: giua cau ma bam
       // /reset thi mat sach ngu canh dang viet do, khong ai muon vay.
-      var all = tok.atHead ? buildMenu(skills) : buildMenu(skills).filter(function (x) { return x.kind === "skill"; });
+      var all = tok.atHead ? buildMenu(skills, agentsCache, workflowsCache) : buildMenu(skills, agentsCache, workflowsCache).filter(function (x) { return x.kind !== "session"; });
       items = filterItems(all, tok.query);
       active = 0;
       if (!items.length) { hide(); return; }

@@ -825,6 +825,16 @@ function sendMessage(text) {
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
   const _slash = (window.JavisSlash && msg) ? window.JavisSlash.route(msg) : { type: "passthrough" };
+  if (_slash.type === "agent" || _slash.type === "workflow") {
+    if (!window.JavisWorkspace) return;
+    window.JavisWorkspace.openCommand(_slash.type, _slash.slug).then(function (opened) {
+      if (!opened) return;
+      chatInput.value = _slash.message || "";
+      if (_slash.message) sendMessage(_slash.message);
+      else chatInput.focus();
+    });
+    return;
+  }
   if (_slash.type === "session") {
     chatInput.value = ""; chatInput.style.height = "auto";
     if (_slash.cmd === "stop") { try { stopCurrent(); } catch (e) {} }
