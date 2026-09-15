@@ -12521,10 +12521,42 @@ async def terminal_ws(ws: WebSocket, session: str = Query(""), brain: str = Quer
 # ============================================================
 @app.get("/sessions")
 async def sessions_list(brain: str = Query(None), limit: int = Query(50),
-                        project: str = Query("")):
-    """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project."""
+                        project: str = Query(""), channel: str = Query("")):
+    """project: bỏ trống = mọi hội thoại; "none" = cuộc chưa xếp nhóm; còn lại = id project.
+    channel: bỏ trống = loại các kênh cộng sự (agent:/workflow:); có giá trị = đúng kênh đó
+    (trang Cộng sự mở một trợ lý/quy trình)."""
     return {"sessions": get_store().list_sessions(limit=limit, brain=_brain_keys(brain),
-                                                  project=project or None)}
+                                                  project=project or None,
+                                                  channel=channel or None)}
+
+
+_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow):([a-z0-9][a-z0-9-]*)$")
+
+
+@app.post("/sessions/new")
+async def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
+    """Mở một phiên TRỐNG với kênh định trước. Trang Cộng sự gọi trước tin đầu tiên: kho phiên
+    phải biết phiên này là chat với trợ lý/quy trình nào thì lượt đầu mới đi đúng đường.
+    Phiên chat thường vẫn mint id ở client như cũ; route này chỉ cho kênh cộng sự."""
+    ch = (channel or "").strip()
+    m = _KENH_CONG_SU_RE.match(ch)
+    if not m:
+        return JSONResponse({"error": "channel phải là agent:<slug> hoặc workflow:<slug>"}, status_code=400)
+    loai, slug = m.group(1), m.group(2)
+    thu_muc = _agents_dir(brain) if loai == "agent" else _workflows_dir(brain)
+    if not (thu_muc / f"{slug}.md").exists():
+        return JSONResponse({"error": f"{loai} '{slug}' không có trong brain này"}, status_code=404)
+    store = get_store()
+    sid = store.create_session(brain=_brain_key(brain), engine="cli", channel=ch)
+    if loai == "agent":
+        meta, _ = _read_md(thu_muc / f"{slug}.md")
+        mdl, prov = (meta.get("model") or "").strip(), (meta.get("model_provider") or "").strip()
+        if mdl and prov:
+            try:
+                store.set_pinned_model(sid, prov, mdl)
+            except Exception:
+                pass
+    return {"id": sid, "channel": ch}
 
 
 @app.get("/sessions/search")

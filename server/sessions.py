@@ -35,6 +35,11 @@ _STATE_DIR = Path(os.getenv("JAVIS_STATE_DIR", str(Path(__file__).parent)))
 _DEFAULT_DB = _STATE_DIR / "conversations.db"
 DB_PATH = Path(os.getenv("JAVIS_SESSIONS_DB", str(_DEFAULT_DB)))
 
+# Kênh của phiên "cộng sự": chat với MỘT trợ lý hoặc MỘT quy trình (trang Cộng sự, 0.59).
+# Thanh lịch sử của trang Trò chuyện không liệt kê các kênh này: chúng thuộc về cột phải của
+# trang Cộng sự, lẫn vào đây thì người dùng thấy hai bản ghi cho một việc.
+KENH_CONG_SU = ("agent:", "workflow:")
+
 
 def loc_brain(brain, cot: str = "s.brain"):
     """(mệnh_đề_WHERE, params) cho bộ lọc brain. ("", []) nghĩa là không lọc.
@@ -561,7 +566,8 @@ class SessionStore:
 
     def list_sessions(self, limit: int = 50, brain: Any = None,
                       include_archived: bool = False,
-                      project: Optional[str] = None) -> List[Dict[str, Any]]:
+                      project: Optional[str] = None,
+                      channel: Optional[str] = None) -> List[Dict[str, Any]]:
         """Danh sách hội thoại, MỤC GHIM luôn nằm trên đầu.
 
         `project`: bỏ trống = tất cả; "none" = các cuộc chưa xếp vào project nào;
@@ -570,6 +576,10 @@ class SessionStore:
 
         `brain`: một chuỗi, hoặc DANH SÁCH các cách viết cùng trỏ về một brain (xem
         `loc_brain`).
+
+        `channel`: có giá trị thì CHỈ lấy đúng kênh đó (trang Cộng sự mở một trợ lý/quy
+        trình). Bỏ trống (mặc định) thì loại các kênh cộng sự (`KENH_CONG_SU`) khỏi thanh
+        lịch sử của trang Trò chuyện, vì chúng đã có chỗ riêng.
         """
         where = []
         params: list = []
@@ -584,6 +594,13 @@ class SessionStore:
         elif project:
             where.append("s.project_id = ?")
             params.append(project)
+        if channel:
+            where.append("s.channel = ?")
+            params.append(channel)
+        else:
+            for tien_to in KENH_CONG_SU:
+                where.append("s.channel NOT LIKE ?")
+                params.append(tien_to + "%")
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
         params.append(limit)
         rows = self._read(
@@ -602,6 +619,18 @@ class SessionStore:
             tuple(params),
         )
         return [dict(r) for r in rows]
+
+    def moc_cap_nhat_theo_kenh(self, brain: Any, tien_to: str) -> Dict[str, float]:
+        """{kênh: updated_at mới nhất} cho các kênh bắt đầu bằng `tien_to` (vd "agent:").
+        Trang Cộng sự dùng để xếp trợ lý vừa chat gần nhất lên đầu."""
+        cond, bparams = loc_brain(brain)
+        sql = "SELECT channel, MAX(updated_at) AS m FROM sessions s WHERE s.channel LIKE ?"
+        params: list = [tien_to + "%"]
+        if cond:
+            sql += " AND " + cond
+            params += bparams
+        sql += " GROUP BY channel"
+        return {r["channel"]: float(r["m"] or 0) for r in self._read(sql, tuple(params))}
 
     # ── ghim / icon / project của một hội thoại ──
 
