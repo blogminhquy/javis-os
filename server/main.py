@@ -116,6 +116,7 @@ import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ 
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
+import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
 import ollama_catalog           # danh mục model để gợi ý + tìm kiếm
@@ -7454,6 +7455,32 @@ def _workflow_agent_helpers(brain, tools):
     return _mk, _agent_sysprompt, _log_run, _learn
 
 
+def _agent_chat_prompt(brain, slug) -> str:
+    """System prompt khi CHỦ chat trực tiếp với một trợ lý ở trang Cộng sự.
+
+    Là ĐÚNG prompt mà workflow dùng cho trợ lý đó (vai, thân file, kỹ năng, bộ nhớ riêng, luật
+    JAVIS_LESSON), cộng một câu nói rõ đây là trò chuyện chứ không phải một bước quy trình.
+    Cố ý KHÔNG nối CLAUDE.md, bộ nhớ của chủ hay khối kênh: người dùng đang muốn nói chuyện với
+    "Người viết", không phải với Javis đội mũ Người viết.
+    """
+    if not (_agents_dir(brain) / f"{slug}.md").exists():
+        raise FileNotFoundError(slug)
+    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
+    _name, sysprompt, _model, _prov = _agent_sysprompt(slug)
+    return (sysprompt + "\n\n# Kênh: bạn đang trò chuyện trực tiếp với chủ trên dashboard Javis "
+            "(trang Cộng sự). Trả lời như đang nói chuyện, theo ngôn ngữ chủ đang dùng; "
+            "không cần báo cáo dạng nhiệm vụ trừ khi được giao việc cụ thể.")
+
+
+def _ket_luot_agent(brain, slug, user_message, final_text) -> str:
+    """Cuối một lượt chat với trợ lý: bóc JAVIS_LESSON vào bộ nhớ trợ lý, ghi nhật ký chạy của
+    trợ lý (memory/agents/<slug>/runs), trả về text SẠCH để lưu phiên và hiện lên chat."""
+    _mk, _agent_sysprompt, _log, _learn = _workflow_agent_helpers(brain, None)
+    sach = _learn(slug, final_text or "")
+    _log(slug, user_message or "", sach or "")
+    return sach
+
+
 async def execute_workflow_graph(brain, slug, input="", tools=None, session_id=""):
     """Đường Phase 10: cùng engine, cùng prompt, khác ở chỗ CÓ trạng thái.
 
@@ -11016,6 +11043,13 @@ async def websocket_endpoint(ws: WebSocket):
                 pass
             # Đọc row phiên TRƯỚC khi chọn provider: phiên có thể đã ghim model riêng.
             _row0 = store.get_session(conv_sid) or {}
+            # Phiên cộng sự (trang Cộng sự, 0.59): kênh agent:<slug> đổi system prompt sang prompt
+            # của trợ lý đó. Đọc MỘT lần ở đây, mọi chỗ chọn prompt bên dưới đều hỏi `_persona`.
+            _persona = workflow_chat.persona_cua_phien(_row0)
+            if _persona and _persona[0] == "agent" and not (_agents_dir(brain) / f"{_persona[1]}.md").exists():
+                await ws.send_text(json.dumps({"type": "error",
+                    "content": f"Trợ lý '{_persona[1]}' không còn trong brain này. Mở trang Cộng sự để chọn trợ lý khác."}))
+                return ""
             prov, kind, api_key, api_model = _chat_provider_for_session(mcfg, _row0)
             reasoning = _reasoning_level(mcfg)
             _CONTEXT_RUNTIME.set_route(
@@ -11058,13 +11092,16 @@ async def websocket_endpoint(ws: WebSocket):
             def _legacy_system_prompt():
                 nonlocal sysprompt
                 if sysprompt is None:
-                    sysprompt = build_system_prompt(
-                        brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
-                        session_id=conv_sid or ""
-                    ) + channel_context.build_channel_block(
-                        "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
-                        port=_javis_port(), brain_root=_brain_root(brain),
-                    )
+                    if _persona and _persona[0] == "agent":
+                        sysprompt = _agent_chat_prompt(brain, _persona[1])
+                    else:
+                        sysprompt = build_system_prompt(
+                            brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
+                            session_id=conv_sid or ""
+                        ) + channel_context.build_channel_block(
+                            "dashboard", {"session_id": conv_sid}, telegram_running=bool(_TG_BOT),
+                            port=_javis_port(), brain_root=_brain_root(brain),
+                        )
                 return sysprompt
 
             async def _subscription_system_prompt(route_provider, route_model, route_kind):
@@ -11082,6 +11119,9 @@ async def websocket_endpoint(ws: WebSocket):
 
                 Trả về (prompt, plan). plan=None nghĩa là Phase 8 không chạy được lượt này.
                 """
+                if _persona:
+                    return _legacy_system_prompt(), None
+
                 def _base(include_memory: bool, include_skills: bool) -> str:
                     return build_system_prompt(
                         brain, include_memory=include_memory, include_skills=include_skills,
@@ -11117,7 +11157,9 @@ async def websocket_endpoint(ws: WebSocket):
             # hẳn nhánh engine chứ không chạy bên trong. Tính ở đây để chuỗi bên dưới chỉ còn
             # là một điều kiện, khỏi phải thụt lề lại cả hai nhánh. None = không đi đường tắt.
             _codex_fast_plan = None
-            if kind in ("oauth", "cli") and not _schedule_action:
+            # Phiên cộng sự: Fast Path bỏ memory và lịch sử, dùng prompt riêng - không hợp
+            # với trợ lý (trợ lý cần ĐÚNG sysprompt của mình, không phải capsule rút gọn).
+            if kind in ("oauth", "cli") and not _schedule_action and not _persona:
                 try:
                     _plan = await asyncio.to_thread(
                         _FAST_PATH.prepare, runtime_trace, user_message, _brain_root(brain),
@@ -11615,16 +11657,22 @@ async def websocket_endpoint(ws: WebSocket):
                             brain_root=_brain_root(brain),
                         )
 
-                    try:
-                        _phase8_plan = await asyncio.to_thread(
-                            _get_adaptive_context().prepare,
-                            runtime_trace, user_message, _brain_root(brain), conv_sid,
-                            store.get_messages(conv_sid), "dashboard", prov,
-                            api_model or "?", kind, _phase8_base,
-                        )
-                    except Exception as _exc:
+                    if _persona:
+                        # Phiên cộng sự: prompt luôn là _agent_chat_prompt, không cần tốn công
+                        # dựng capsule Phase 8 rồi bỏ nó ngay dưới.
                         _phase8_plan = adaptive_context_runtime.AdaptiveContextPlan(
-                            "legacy", f"prepare_error:{type(_exc).__name__}")
+                            "legacy", "persona_agent_chat")
+                    else:
+                        try:
+                            _phase8_plan = await asyncio.to_thread(
+                                _get_adaptive_context().prepare,
+                                runtime_trace, user_message, _brain_root(brain), conv_sid,
+                                store.get_messages(conv_sid), "dashboard", prov,
+                                api_model or "?", kind, _phase8_base,
+                            )
+                        except Exception as _exc:
+                            _phase8_plan = adaptive_context_runtime.AdaptiveContextPlan(
+                                "legacy", f"prepare_error:{type(_exc).__name__}")
                     if _phase8_plan.action == "reject":
                         # Rơi về legacy ở đây là SAI CHIỀU. Phase 8 tồn tại để thay
                         # CLAUDE.md bằng capsule nhỏ; legacy gửi nguyên CLAUDE.md cộng
@@ -11643,7 +11691,8 @@ async def websocket_endpoint(ws: WebSocket):
                         }))
                     else:
                         sysprompt = (_phase8_plan.system_prompt
-                                     if _phase8_plan.action == "use" else _legacy_system_prompt())
+                                     if _phase8_plan.action == "use" and not _persona
+                                     else _legacy_system_prompt())
                         label = _api_label(prov)
                         actual_model = api_model or "?"
                         _ident = (
@@ -11922,6 +11971,12 @@ async def websocket_endpoint(ws: WebSocket):
                 await ws.send_text(json.dumps({
                     "type": "resume", "state": "scheduled" if _item.auto else "off",
                     **_item.payload()}))
+
+            if _persona and _persona[0] == "agent":
+                # Cuối lượt chat trợ lý: bóc JAVIS_LESSON vào bộ nhớ TRỢ LÝ (không phải bộ
+                # nhớ Javis) và ghi nhật ký chạy của trợ lý, trước khi lượt được lưu như
+                # một lượt chat bình thường.
+                final_text = _ket_luot_agent(brain, _persona[1], user_message, final_text)
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
