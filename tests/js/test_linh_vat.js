@@ -146,7 +146,7 @@ check("index.html nạp pet.js SAU app.js và console.js", iPet > iApp && iPet >
  "settings.pet_hint", "settings.pet_on", "settings.pet_off", "settings.pet_shape",
  "settings.pet_color", "settings.pet_missing", "settings.pet_save", "settings.pet_saved",
  "settings.pet_save_fail", "settings.pet_saving", "pet.menu.chat", "pet.menu.agent",
- "pet.menu.workflow", "pet.menu.settings", "pet.menu.hide"].forEach(k => {
+ "pet.menu.workflow", "pet.menu.mic_on", "pet.menu.mic_off", "pet.menu.settings"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
 // Mỗi hình dáng và mỗi bảng màu phải có nhãn dịch, không thì ô chọn hiện trần khoá.
@@ -214,16 +214,32 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
     mo.filter(([k]) => k === "idle" || k === "paused").every(([, v]) => v < 0.5));
 }
 
-// ---- 10b. Menu nhanh: đúng 5 mục, đúng thứ tự chủ dự án chốt (0.59.3) ----
+// ---- 10b. Menu nhanh: đúng 5 mục, đúng thứ tự chủ dự án chốt (0.59.3, sửa 0.59.5) ----
 // Menu cũ chỉ có Trò chuyện / Việc / Cài đặt / Ẩn, và "Cài đặt pet" lại mở trang Cài đặt
-// chung chứ không phải trang Linh vật - bấm xong phải tự đi tìm.
+// chung chứ không phải trang Linh vật - bấm xong phải tự đi tìm. 0.59.5: "Ẩn pet" nhường chỗ
+// cho công tắc MIC (tắt pet vẫn làm được ở trang Linh vật, ngay trong menu này một bước).
 {
   const menu = pet.slice(pet.indexOf("var muc = ["), pet.indexOf("];", pet.indexOf("var muc = [")));
   const ids = [...menu.matchAll(/\{ id: "([a-z]+)"/g)].map(m => m[1]);
   check("menu nhanh đúng 5 mục theo thứ tự chốt",
-    ids.join(",") === "chat,agent,workflow,pet,hide");
+    ids.join(",") === "chat,agent,workflow,mic,pet");
   check("Trợ lý / Quy trình đi qua openTab của trang Cộng sự",
     /window\.JavisWorkspace\.openTab\(id\)/.test(pet));
+  // Mic: BẤM HỘ nút mic thật, không dựng đường thứ hai. Nút đó còn kéo theo loa, chế độ Live
+  // và các câu báo lỗi mic - hai đường song song là sớm muộn nói hai chuyện khác nhau.
+  check("mục mic bấm hộ chính nút mic của ô nhập",
+    /var nutMic = document\.getElementById\("voiceBtn"\);\s*\n\s*if \(nutMic\) nutMic\.click\(\);/.test(pet));
+  check("trạng thái mic đọc từ lớp của nút thật, không nuôi cờ riêng",
+    /b\.classList\.contains\("handsfree"\)/.test(pet));
+  check("nhãn mic đổi theo trạng thái (Bật mic / Tắt mic)",
+    /mic \? t\("pet\.menu\.mic_off"[\s\S]{0,60}pet\.menu\.mic_on/.test(pet));
+  // Nhãn chỉ đúng nếu menu được VẼ LẠI mỗi lần mở: mic còn bật tắt được từ nút dưới ô nhập.
+  check("mở menu là vẽ lại, không chỉ vẽ lần đầu",
+    /if \(mo\) veMenu\(\);/.test(pet) && !/if \(mo && !menu\.childElementCount\)/.test(pet));
+  check("không còn mục Ẩn pet trong menu", ids.indexOf("hide") < 0);
+  // ...nhưng đường TẮT linh vật phải còn: nút "Tắt linh vật" ở trang Linh vật gọi setEnabled.
+  check("vẫn tắt được linh vật ở trang Linh vật",
+    /setEnabled: setEnabled,/.test(pet) && /P\.setEnabled\(!cur\.enabled\)/.test(console_js));
   // Năm mục cao hơn 200px, mà pet đứng được sát mép trên/dưới: phải ghìm menu lại trong màn
   // hình, không thì mục đầu hay mục cuối nằm ngoài màn và không bấm được.
   check("menu được ghìm lại trong màn hình khi pet đứng sát mép",

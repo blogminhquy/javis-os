@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.5] - 2026-09-15
+### Cải thiện
+- **Menu nhanh của linh vật có công tắc mic.** Bấm linh vật là bật hoặc tắt mic ngay tại đó, chữ trên menu nói rõ cú bấm sắp làm gì.
+- Bỏ mục "Ẩn pet" khỏi menu. Muốn tắt linh vật thì vào "Cài đặt pet" ngay trong cùng menu đó, bấm "Tắt linh vật".
+
 ## [0.59.4] - 2026-09-15
 ### Sửa lỗi
 - **Mở một file trong lúc chat với cộng sự không còn để lại một khoảng trống to giữa màn hình.** Giờ file nằm bên trái, hội thoại thu vào một cột hẹp bên phải, ô nhập trải dài dưới đáy - đúng như trang Trò chuyện.

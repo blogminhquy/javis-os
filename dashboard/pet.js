@@ -225,17 +225,29 @@
     noiTuongTac();
   }
 
+  // Mic ĐANG bật hay không. Hỏi thẳng lớp CSS của nút mic thật (#voiceBtn) chứ không nuôi một
+  // cờ riêng: trạng thái rảnh tay tắt ở nhiều đường (bấm nút, mic hỏng, phiên Live đóng) và
+  // đường nào cũng gỡ đúng lớp này, nên đây là chỗ duy nhất không bao giờ nói dối.
+  function micDangBat() {
+    var b = document.getElementById("voiceBtn");
+    return !!(b && b.classList.contains("handsfree"));
+  }
+
   function veMenu() {
     // Icon lấy từ tầng icon chung (window.ic), KHÔNG dùng emoji: dashboard này cấm emoji
     // trong giao diện, vì emoji mỗi hệ điều hành vẽ một kiểu và trình đọc màn hình đọc ra
     // một cái tên vô nghĩa. Thiếu window.ic (nạp lỗi) thì để trống chứ không thay bằng chữ.
     var icon = function (ten) { return window.ic ? window.ic(ten) : ""; };
+    var mic = micDangBat();
     var muc = [
       { id: "chat", ic: icon("message-circle"), nhan: t("pet.menu.chat", "Trò chuyện") },
       { id: "agent", ic: icon("bot"), nhan: t("pet.menu.agent", "Trợ lý") },
       { id: "workflow", ic: icon("workflow"), nhan: t("pet.menu.workflow", "Quy trình") },
+      // Mic là CÔNG TẮC, nên nhãn phải nói việc sắp xảy ra chứ không phải trạng thái hiện tại:
+      // đang tắt thì mời "Bật mic", đang bật thì mời "Tắt mic". Nhãn tính lại mỗi lần mở menu
+      // (xem moMenu), vì mic còn bật tắt được từ nút mic dưới ô nhập và từ phiên Live.
+      { id: "mic", ic: icon("mic"), nhan: mic ? t("pet.menu.mic_off", "Tắt mic") : t("pet.menu.mic_on", "Bật mic") },
       { id: "pet", ic: icon("settings"), nhan: t("pet.menu.settings", "Cài đặt pet") },
-      { id: "hide", ic: icon("x"), nhan: t("pet.menu.hide", "Ẩn pet") },
     ];
     menu.innerHTML = muc.map(function (m) {
       return '<button type="button" data-pet-go="' + m.id + '"><span aria-hidden="true">' + m.ic + '</span>' +
@@ -392,7 +404,9 @@
     veMat(dangChop ? "blink" : mood);   // nép thì hai mắt né sang nửa còn thấy
   }
   function moMenu(mo) {
-    if (mo && !menu.childElementCount) veMenu();
+    // Vẽ lại MỖI LẦN mở, không chỉ lần đầu: nhãn mục mic đổi theo trạng thái mic, mà mic thì
+    // bật tắt được từ chỗ khác (nút dưới ô nhập, phím Space, phiên Live đóng lại).
+    if (mo) veMenu();
     menu.hidden = !mo;
     el.dataset.menu = mo ? "1" : "0";
     if (mo) ghimMenuTrongMan();
@@ -465,7 +479,14 @@
       if (!b) return;
       var id = b.dataset.petGo;
       moMenu(false);
-      if (id === "hide") { setEnabled(false); return; }
+      // Mic: BẤM HỘ cái nút mic thật chứ không gọi lại API giọng nói. Nút đó còn kéo theo cả
+      // loa, chế độ Live và mấy câu báo lỗi mic (xem voiceBtn trong app.js); dựng đường thứ
+      // hai là sớm muộn hai đường nói hai chuyện khác nhau.
+      if (id === "mic") {
+        var nutMic = document.getElementById("voiceBtn");
+        if (nutMic) nutMic.click();
+        return;
+      }
       // Trợ lý và Quy trình là HAI TAB của cùng trang Cộng sự, không phải hai trang: đi qua
       // openTab() để mở đúng tab, chứ JavisNav.go("workspace") thì rơi vào tab đang nhớ dở
       // từ lần trước và cú bấm "Quy trình" có khi mở ra danh sách trợ lý.
