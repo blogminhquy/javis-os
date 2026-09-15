@@ -149,6 +149,35 @@ check("đổi brain -> xoá sạch vệt (mọi bước thuộc brain cũ)",
 const dong = CON.slice(CON.indexOf("function closeNote()"), CON.indexOf("async function _neRenameCur("));
 check("đóng trình sửa KHÔNG xoá vệt", dong.indexOf("_neLichSu = []") < 0);
 
+// ============================================================
+// 6. Esc: trình sửa nhường phím cho ô nhập đang có con trỏ
+// ============================================================
+// Bộ bắt phím của trình sửa gắn ở mức document + capture, nên nó ĐOẠT Esc của cả trang. Từ
+// khi trang Cộng sự chứa trình sửa, bấm Esc để xoá chữ trong ô tìm cột trái lại đóng mất file
+// đang mở. Nhường cho ô nhập NGOÀI trình sửa; ô nằm trong trình sửa thì Esc vẫn đóng như cũ.
+{
+  const d0 = CON.indexOf("function _neOTextNgoai(");
+  const d1 = CON.indexOf("\n  }", d0);
+  check("moi được hàm nhận dạng ô nhập ra khỏi console.js", d0 > 0 && d1 > d0);
+  const ctxO = { _neTrongEditor: (el) => !!(el && el.trongEditor) };
+  vm.createContext(ctxO);
+  vm.runInContext(CON.slice(d0, d1 + 4), ctxO);
+  const ngoai = ctxO._neOTextNgoai;
+  check("ô text thường -> nhường phím", ngoai({ tagName: "INPUT", type: "text" }) === true);
+  check("ô tìm (type=search) -> nhường phím", ngoai({ tagName: "INPUT", type: "search" }) === true);
+  check("textarea -> nhường phím", ngoai({ tagName: "TEXTAREA" }) === true);
+  check("vùng soạn thảo -> nhường phím", ngoai({ tagName: "DIV", isContentEditable: true }) === true);
+  check("checkbox KHÔNG phải ô gõ chữ -> Esc vẫn đóng trình sửa",
+    ngoai({ tagName: "INPUT", type: "checkbox" }) === false);
+  check("bấm ngoài mọi ô nhập -> Esc vẫn đóng trình sửa", ngoai({ tagName: "DIV" }) === false
+    && ngoai(null) === false);
+  check("CANARY: ô nhập BÊN TRONG trình sửa thì Esc vẫn đóng trình sửa",
+    ngoai({ tagName: "TEXTAREA", trongEditor: true }) === false);
+  const kh = CON.slice(CON.indexOf("function _neKeyHandler("), CON.indexOf("function _neOTextNgoai("));
+  check("nhánh Esc hỏi hàm đó trước khi đóng",
+    /_neOTextNgoai\(e\.target\)\) return;[\s\S]{0,120}closeNote\(\)/.test(kh));
+}
+
 if (fails.length) {
   console.error(`\nFAIL - test_lui_tien_note: ${fails.length} lỗi`);
   process.exit(1);

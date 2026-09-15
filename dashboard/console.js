@@ -7082,7 +7082,24 @@
     // cả trang dashboard (mà lùi cả trang thì mất luôn hội thoại đang mở).
     else if (e.altKey && e.key === "ArrowLeft") { e.preventDefault(); _neDiLichSu(-1); }
     else if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); _neDiLichSu(1); }
-    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeNote(); }
+    // Esc khi con trỏ đang ở MỘT Ô NHẬP NGOÀI trình sửa là phím của ô đó (xoá chữ đang gõ,
+    // thu ô tìm lại) - nhường cho nó. Bộ bắt phím này gắn ở mức document + capture nên không
+    // nhường thì ô tìm cột trái trang Cộng sự và ô lọc cây Vault không bao giờ nhận được Esc,
+    // và người dùng bấm Esc để xoá chữ lại bị đóng mất file đang mở.
+    else if (e.key === "Escape") {
+      if (_neOTextNgoai(e.target)) return;
+      e.preventDefault(); e.stopPropagation(); closeNote();
+    }
+  }
+  // Ô nhập chữ nằm NGOÀI trình sửa? Ô bên TRONG trình sửa không tính: gõ nội dung file rồi bấm
+  // Esc thì vẫn phải đóng trình sửa như trước, đó là đường thoát quen tay.
+  function _neOTextNgoai(el) {
+    if (!el || _neTrongEditor(el)) return false;
+    const tag = String(el.tagName || "").toUpperCase();
+    if (tag === "TEXTAREA" || el.isContentEditable) return true;
+    if (tag !== "INPUT") return false;
+    return ["text", "search", "email", "url", "tel", "password", "number"]
+      .indexOf(String(el.type || "text").toLowerCase()) >= 0;
   }
   // Chuột có nút lùi/tiến bên hông (button 3/4): dùng được luôn, không phải học gì thêm.
   // Chặn ở `mousedown` mới cắt được hành vi lùi TRANG của trình duyệt (chặn ở mouseup là
