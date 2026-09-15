@@ -390,7 +390,7 @@ check("prompt bộ não giọng có dạy khuôn JAVIS_UI", vb.UI_MARKER in vb.S
 # Model giọng là model NHỎ: nó chỉ viết đúng id khi prompt nói rõ id nào ứng với nhãn tiếng
 # Việt người dùng đọc lên ("mở trang công cụ" -> plugins).
 check("prompt kèm nhãn tiếng Việt của trang", "plugins (công cụ)" in vb.SYSTEM_PROMPT
-      and "skills (kỹ năng)" in vb.SYSTEM_PROMPT and "agents (trợ lý)" in vb.SYSTEM_PROMPT)
+      and "skills (kỹ năng)" in vb.SYSTEM_PROMPT and "workspace (cộng sự, trợ lý, quy trình)" in vb.SYSTEM_PROMPT)
 
 asyncio.run(main())
 if _fails:

@@ -50,6 +50,9 @@ ALIASES = {
     # Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0, bí danh cũ giữ để lệnh nói quen tay
     # không chết.
     "cong su": "workspace", "workspace": "workspace", "tro ly va quy trinh": "workspace",
+    # Id trang số nhiều cũ (trước 0.59.0) - prompt/bookmark cũ gọi thẳng "agents"/"workflows"
+    # vẫn phải ra đúng trang, không chỉ id chuẩn "workspace".
+    "agents": "workspace", "workflows": "workspace",
 }
 
 # Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong

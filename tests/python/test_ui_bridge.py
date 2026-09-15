@@ -101,6 +101,10 @@ async def main():
     check("resolve_page: 'cho xem trang quy trình' -> workspace",
           m.resolve_page("cho xem trang quy trình") == "workspace")
     check("resolve_page: 'cộng sự' -> workspace", m.resolve_page("cộng sự") == "workspace")
+    # Id trang số nhiều cũ (trước 0.59.0): prompt/bookmark cũ gọi thẳng "agents"/"workflows"
+    # vẫn phải ra đúng trang mới, không phải rỗng.
+    check("resolve_page: 'agents' -> workspace", m.resolve_page("agents") == "workspace")
+    check("resolve_page: 'workflows' -> workspace", m.resolve_page("workflows") == "workspace")
     check("resolve_group: 'mở mục Năng lực' -> nang_luc", m.resolve_group("mở mục Năng lực") == "nang_luc")
     check("open_file chặn ..", bool(m.check_target("open_file", "../x.md")))
     check("open_file chặn tuyệt đối", bool(m.check_target("open_file", "C:/x.md")) and bool(m.check_target("open_file", "/etc/passwd")))
