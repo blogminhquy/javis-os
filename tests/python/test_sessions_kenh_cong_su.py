@@ -69,5 +69,20 @@ check("phien ghi dung kenh va ghim model cua agent", row["channel"] == "agent:ng
 r = cl.get("/sessions", params={"brain": "brain", "channel": "agent:nguoi-viet"}).json()
 check("GET /sessions?channel= tra dung phien", [s["id"] for s in r["sessions"]] == [row["id"]])
 
+# Slug CO DAU tieng Viet. _slugify giu nguyen chu tieng Viet, nen brain that co han
+# "javis-vu~.md" va "kiem-chung-vien.md" (dau day du). Khuon cu ^[a-z0-9][a-z0-9-]*$ chan dung
+# nhung file do: bam vao trang Cong su la an 400 kem cau loi THO cua server hien thang ra man
+# hinh. Day la thu canh chuyen do.
+_slug_vn = "kiểm-chứng-viên"
+(ag_dir / (_slug_vn + ".md")).write_text("---\nname: Kiểm chứng viên\nrole: soi\n---\nSoi ky.\n", encoding="utf-8")
+r = cl.post("/sessions/new", data={"brain": "brain", "channel": "agent:" + _slug_vn})
+check("POST /sessions/new nhan slug co dau tieng Viet", r.status_code == 200 and r.json().get("id"))
+check("phien ghi dung kenh co dau",
+      main.get_store().get_session(r.json()["id"])["channel"] == "agent:" + _slug_vn)
+# Van phai chan thu co the leo ra khoi thu muc hay cat nham kenh.
+for xau in ["agent:a/b", "agent:a\\b", "workflow:x y", "agent:", "agent:a:b", "tro-ly:x"]:
+    r = cl.post("/sessions/new", data={"brain": "brain", "channel": xau})
+    check("POST /sessions/new chan kenh sai dang: " + xau, r.status_code == 400)
+
 print("\nFAIL:" if fails else "\nOK - sessions_kenh_cong_su", fails or "")
 sys.exit(1 if fails else 0)

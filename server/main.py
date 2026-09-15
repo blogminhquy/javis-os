@@ -12771,7 +12771,12 @@ async def sessions_list(brain: str = Query(None), limit: int = Query(50),
                                                   channel=channel or None)}
 
 
-_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow):([a-z0-9][a-z0-9-]*)$")
+# Slug của agent/workflow KHÔNG phải chỉ [a-z0-9-]: _slugify giữ nguyên chữ tiếng Việt, nên
+# brain thật có hẳn "javis-vũ.md" và "kiểm-chứng-viên.md". Khuôn cũ chặn đúng những file đó,
+# và trang Cộng sự bấm vào là ăn 400 - mở hội thoại không được mà không hiểu vì sao. Ở đây chỉ
+# cần chặn thứ có thể leo ra khỏi thư mục hay cắt nhầm kênh: dấu gạch chéo hai chiều, dấu hai
+# chấm (ngăn "agent:a:b") và khoảng trắng. Tồn tại file hay không thì kiểm ngay bên dưới.
+_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow):([^\s/\\:]+)$")
 
 
 @app.post("/sessions/new")
