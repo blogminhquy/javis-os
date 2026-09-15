@@ -35,7 +35,7 @@ check("app.js không còn setOrbState('', ready) rải rác", !/setOrbState\("",
 check("capNhatOrb là nơi duy nhất gọi setOrbState", (app.match(/setOrbState\(/g) || []).length === 2);   // định nghĩa + capNhatOrb
 
 // 2. sự kiện thật
-check("mất WS -> turn.wsDown", /ws\.onclose = \(\) => \{[^\n]*turn\.wsDown\(\)/.test(app));
+check("mất WS -> turn.wsDown", /ws\.onclose = \(\) => \{[\s\S]{0,120}turn\.wsDown\(\)/.test(app));
 check("hello -> turn.wsUp", /runActions\(turn\.wsUp\(\)\)/.test(app));
 check("tool_call -> turn.toolCall(data.tool)", /turn\.toolCall\(data\.tool/.test(app));
 check("turn_done -> turn.turnDone", /data\.type === "turn_done"[\s\S]{0,600}runActions\(turn\.turnDone\(\)\)/.test(app));

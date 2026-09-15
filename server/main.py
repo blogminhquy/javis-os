@@ -4102,7 +4102,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             pet = dict(pet_cu)
             if "enabled" in pet_moi:
                 pet["enabled"] = bool(pet_moi["enabled"])
-            for k in ("shape", "palette", "side"):
+            for k in ("shape", "palette", "side", "size"):
                 v = pet_moi.get(k)
                 if isinstance(v, str) and 0 < len(v) <= 24 and v.replace("-", "").isalnum():
                     pet[k] = v

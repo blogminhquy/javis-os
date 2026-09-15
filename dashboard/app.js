@@ -466,7 +466,11 @@ function connect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   ws = new WebSocket(WS_URL);
   // Mất socket là trạng thái THẬT người dùng cần thấy ("ĐANG KẾT NỐI LẠI"), không phải đoán.
-  ws.onclose = () => { try { runActions(turn.wsDown()); } catch (e) {} setTimeout(connect, 3000); };
+  ws.onclose = () => {
+    try { runActions(turn.wsDown()); } catch (e) {}
+    baoDutMang(true);
+    setTimeout(connect, 3000);
+  };
   ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
 }
 
@@ -517,6 +521,8 @@ function handleMessage(data) {
     // Lượt đang chờ gói thuê bao mở lại hạn mức: dựng lại thẻ "tự chạy lại" cho phiên đang xem.
     try { if (window.JavisResume) window.JavisResume.fromHello(data.resumes || [], savedSessionId); } catch (e) {}
     runActions(turn.wsUp());   // socket đã nối: orb thôi "ĐANG KẾT NỐI LẠI"
+    baoDutMang(false);
+    guiTinDutMang();           // và những câu nói lúc mất mạng được gửi đi, không bốc hơi
     return;
   }
   if (data.type === "ui_action") {
@@ -703,6 +709,73 @@ function guiTinCho() {
   if (t) sendMessage(t);       // stopCurrent() đã hạ cờ running nên lần này không quay lại đây
 }
 
+// Báo mất mạng NGAY TRONG KHUNG CHAT. Orb đã có chữ "ĐANG KẾT NỐI LẠI", nhưng orb nằm
+// trong .hud-body và khối đó bị ẩn hẳn khi đang ở trang Trò chuyện, nên ở đúng chỗ người
+// dùng đang gõ thì không có dấu hiệu nào. Khung chat thì trang nào cũng thấy.
+//
+// Chờ 2,5 giây mới báo: iOS đóng socket mỗi lần trang bị ẩn rồi nối lại sau một nhịp, báo
+// ngay là nhấp nháy suốt ngày vì một chuyện tự khỏi.
+let _dutMangTimer = null, _dangBaoDutMang = false;
+function baoDutMang(dut) {
+  if (dut) {
+    if (_dutMangTimer || _dangBaoDutMang) return;
+    _dutMangTimer = setTimeout(() => {
+      _dutMangTimer = null;
+      if (!ws || ws.readyState !== WebSocket.OPEN) { _dangBaoDutMang = true; showActivity(Icons.warn(window.t("app.ws_mat_ket_noi"))); }
+    }, 2500);
+    return;
+  }
+  clearTimeout(_dutMangTimer); _dutMangTimer = null;
+  // Chỉ dọn dòng CỦA MÌNH: lượt đang chạy cũng dùng activity, xoá bừa là mất dấu "đang nghĩ".
+  if (_dangBaoDutMang) { _dangBaoDutMang = false; hideActivity(); }
+}
+
+// ---- Tin gửi lúc WebSocket đang đứt ----
+// Chỗ này TRƯỚC ĐÂY là một `return` trần, và đó là một lỗi mất chữ im lặng: đứt socket thì
+// câu vừa nói biến mất không dấu vết. Trên iPhone nó xảy ra thường xuyên, vì Safari đóng
+// WebSocket mỗi lần trang bị ẩn hay bị đóng băng nền (xem chú thích ở connect()), và người
+// dùng chỉ đổi khung chat là dính. Tệ hơn nữa: trạng thái "ĐANG KẾT NỐI LẠI" nằm trên orb,
+// mà orb bị ẩn hẳn khi đang ở trang Trò chuyện (body.on-chat .hud-body{visibility:hidden}) -
+// nên không có một dấu hiệu nào cho biết vì sao câu nói bốc hơi. Đúng lỗi chủ repo báo 15/09.
+//
+// Nay: giữ câu lại, báo NGAY trong khung chat (chỗ này thì trang nào cũng thấy), gửi khi nối
+// lại được. Quá lâu thì TRẢ CHỮ VỀ ô nhập - thà bắt người dùng bấm gửi lại còn hơn để họ
+// tưởng đã gửi rồi ngồi đợi một câu trả lời không bao giờ tới.
+const CHO_NOI_LAI_MS = 25000;
+let _tinDutMang = [], _tinDutMangTimer = null;
+function giuTinKhiDutMang(msg) {
+  const t = String(msg || "").trim();
+  if (!t) return;
+  if (_tinDutMang.length >= 5) _tinDutMang.shift();   // trần: đứt mạng lâu thì giữ 5 câu gần nhất
+  _tinDutMang.push(t);
+  chatInput.value = ""; chatInput.style.height = "auto";
+  clearTimeout(_dutMangTimer); _dutMangTimer = null;
+  _dangBaoDutMang = true;
+  showActivity(Icons.warn(window.t("app.ws_giu_tin")));
+  clearTimeout(_tinDutMangTimer);
+  _tinDutMangTimer = setTimeout(traTinDutMang, CHO_NOI_LAI_MS);
+}
+// Nối lại được: gửi lần lượt. Gọi từ nhánh `hello` chứ không từ onopen - hello mới là lúc
+// server đã dựng xong phiên và sẵn sàng nhận tin.
+function guiTinDutMang() {
+  clearTimeout(_tinDutMangTimer); _tinDutMangTimer = null;
+  const ds = _tinDutMang; _tinDutMang = [];
+  if (!ds.length) return;
+  hideActivity();
+  ds.forEach((t, i) => setTimeout(() => sendMessage(t), i * 150));
+}
+// Chờ mãi không nối lại: trả chữ về ô nhập, nói thẳng là chưa gửi được.
+function traTinDutMang() {
+  clearTimeout(_tinDutMangTimer); _tinDutMangTimer = null;
+  const ds = _tinDutMang; _tinDutMang = [];
+  if (!ds.length) return;
+  const con = chatInput.value.trim();
+  chatInput.value = ds.concat(con ? [con] : []).join("\n");
+  chatInput.style.height = "auto";
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + "px";
+  showActivity(Icons.warn(window.t("app.ws_tra_tin")));
+}
+
 function sendMessage(text) {
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
@@ -713,7 +786,7 @@ function sendMessage(text) {
     else { try { newChat(); } catch (e) {} }   // new | reset -> hội thoại mới trên web
     return;
   }
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) { giuTinKhiDutMang(msg); return; }
   // File còn ĐANG TẢI LÊN thì đợi nó xong rồi gửi, KHÔNG gửi thiếu. Trước đây dòng lọc
   // `a.path` bên dưới lặng lẽ bỏ file chưa tải xong: dán ảnh hay một đoạn văn dài rồi gõ câu
   // hỏi và Enter ngay là tin bay đi tay không, bong bóng không có ảnh, Javis cũng không nhận

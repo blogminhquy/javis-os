@@ -134,7 +134,42 @@ const petSrc = pet.slice(pet.indexOf("var SHAPES = {"), pet.indexOf("var MAC_DIN
   check("i18n vi+en có " + m[1], typeof vi[m[1]] === "string" && typeof en[m[1]] === "string");
 });
 
-// ---- 9. Không có emoji trong menu (test_icons cũng bắt, nhưng bắt ở đây thì đọc ra lý do) ----
+// ---- 9. Cỡ pet ----
+const sizes = [...pet.matchAll(/^\s+(\w+):\s*\{ key: "pet\.size\.\w+",\s*px: (\d+) \}/gm)];
+check("có bảng cỡ pet (" + sizes.length + " cỡ)", sizes.length >= 3);
+check("cỡ mặc định không phải cỡ nhỏ nhất", /size: "vua"/.test(pet));
+// Bản đầu để 56px rồi CO XUỐNG 46px trên màn hẹp, chủ dự án báo nhìn bé quá trên iPhone.
+// Ngón tay to hơn con trỏ chuột, nên màn hẹp không được thu nhỏ pet.
+check("màn hẹp KHÔNG co pet nhỏ lại nữa", !/\.pet, \.pet-body \{ width: 46px/.test(css));
+check("cỡ đi qua biến CSS --pet-size", /width: var\(--pet-size/.test(css)
+  && /setProperty\("--pet-size"/.test(pet));
+check("màn hẹp vẫn có trần theo bề ngang màn", /min\(var\(--pet-size[^)]*\), 24vw\)/.test(css));
+check("server nhận khoá size", /for k in \("shape", "palette", "side", "size"\)/.test(read("server/main.py")));
+[...pet.matchAll(/key: "(pet\.size\.\w+)"/g)].forEach(m => {
+  check("i18n vi+en có " + m[1], typeof vi[m[1]] === "string" && typeof en[m[1]] === "string");
+});
+
+// ---- 10. Tin KHÔNG bốc hơi khi mất WebSocket ----
+// Đây là lỗi thật chủ repo báo 15/09 trên iPhone: đổi khung chat, nói một câu, chữ nhận đúng
+// mà không có gì vào khung chat. Nguyên nhân kép: sendMessage `return` trần khi socket đứt,
+// và trạng thái "ĐANG KẾT NỐI LẠI" nằm trên orb - orb thì bị ẩn hẳn ở trang Trò chuyện.
+check("socket đứt thì GIỮ tin lại, không return trần",
+  /if \(!ws \|\| ws\.readyState !== WebSocket\.OPEN\) \{ giuTinKhiDutMang\(msg\); return; \}/.test(app));
+check("không còn nhánh vứt tin lặng lẽ", !/WebSocket\.OPEN\) return;/.test(app));
+check("nối lại được thì gửi hàng đợi",
+  /guiTinDutMang\(\);/.test(app) && /turn\.wsUp\(\)\);[\s\S]{0,80}baoDutMang\(false\);/.test(app));
+check("chờ mãi không nối lại thì TRẢ CHỮ về ô nhập",
+  /function traTinDutMang\(\)[\s\S]{0,400}chatInput\.value = ds\.concat/.test(app));
+check("hàng đợi có trần, không phình vô hạn", /if \(_tinDutMang\.length >= 5\) _tinDutMang\.shift\(\);/.test(app));
+check("mất mạng được báo NGAY TRONG khung chat (orb bị ẩn ở trang Trò chuyện)",
+  /function baoDutMang\(dut\)/.test(app) && /showActivity\(Icons\.warn\(window\.t\("app\.ws_mat_ket_noi"\)\)\)/.test(app));
+check("chờ một nhịp mới báo, khỏi nhấp nháy khi iOS ẩn trang", /\}, 2500\);/.test(app));
+check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDutMang\(true\);/.test(app));
+["app.ws_mat_ket_noi", "app.ws_giu_tin", "app.ws_tra_tin"].forEach(k => {
+  check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
+});
+
+// ---- 11. Không có emoji trong menu (test_icons cũng bắt, nhưng bắt ở đây thì đọc ra lý do) ----
 check("menu dùng icon lucide chứ không phải emoji",
   /var icon = function \(ten\) \{ return window\.ic \? window\.ic\(ten\) : ""; \};/.test(pet)
   && /ic: icon\("message-circle"\)/.test(pet));
