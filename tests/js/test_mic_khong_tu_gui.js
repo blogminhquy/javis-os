@@ -77,8 +77,8 @@ check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
 // Chỗ thứ 7 (0.58.2) VẪN là hoãn: mất WebSocket thì câu được giữ lại rồi gửi khi nối lại
 // (guiTinDutMang). Trước đó chỗ này vứt tin lặng lẽ - trên iPhone là câu nói bốc hơi.
 const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
-check("chỉ có 7 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng)",
-  goiGui === 7, goiGui);
+check("chỉ có 8 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng, sau khi mở agent/workflow)",
+  goiGui === 8, goiGui);
 check("chỗ thứ 7 là hàng đợi mất mạng, chỉ gửi sau khi socket nối lại",
   /function guiTinDutMang\(\)[\s\S]{0,400}setTimeout\(\(\) => sendMessage\(t\)/.test(app));
 check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
@@ -111,8 +111,10 @@ const v = (f) => Number((html.match(new RegExp(f.replace(/\./g, "\\.") + "\\?v=(
 check("voice.js đã bump ?v= (>= 16)", v("voice.js") >= 16, v("voice.js"));
 
 console.log();
+check("slash only sends after opening the selected session", /if \(\!opened\) return;[\s\S]{0,150}if \(_slash.message\) sendMessage\(_slash.message\)/.test(app));
 if (fails.length) {
   console.log("THAT BAI " + fails.length + ": " + fails.join(", "));
   process.exit(1);
 }
 console.log("OK - test_mic_khong_tu_gui: tat ca pass");
+

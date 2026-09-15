@@ -1,4 +1,9 @@
 {
+  "ws.upload_agent": "Upload agent",
+  "ws.upload_workflow": "Upload workflow",
+  "ws.retry_session": "Retry opening chat",
+
+  "ws.files_links": "Files & links",
   "_meta.name": "English",
   "_meta.number_locale": "en-US",
   "nav.group.bo_nao": "Brain",
@@ -135,6 +140,7 @@
   "chat.col_collapse": "Collapse the conversation panel to the right (like the sidebar)",
   "qs.title": "QUICK SETTINGS",
   "qs.tts": "Read replies aloud",
+  "qs.tts_can_mic": "Turn the microphone on for Javis to speak. This switch only mutes.",
   "qs.rec_lang": "Listening language",
   "qs.voice": "VOICE",
   "qs.voice_pick": "Edge voice",
@@ -2688,6 +2694,7 @@
   "ws.toggle_panel": "Toggle right panel",
   "ws.empty": "Nothing matches. Create one or browse Javis Store.",
   "ws.pick_one": "Pick a partner on the left",
+  "ws.none_yet": "No partners yet. Create one on the left before you can chat.",
   "ws.wf_sub": "Workflow · {n} steps",
   "ws.ph_agent": "Message {ten}...",
   "ws.ph_workflow": "Describe the result you want; each message is one run...",
@@ -2699,7 +2706,7 @@
   "ws.wf_progress": "Progress",
   "ws.edit_steps": "Edit steps",
   "ws.run_history": "Run history",
-  "ws.no_runs": "No runs yet. Send a message to run.",
+  "ws.no_runs": "No runs yet. Click Run workflow or send a request in chat.",
   "ws.running_step": "Running · Step {a}/{b}",
   "ws.done": "Completed",
   "ws.failed": "Stopped on error",
@@ -2709,5 +2716,17 @@
   "ws.step_doing": "In progress...",
   "ws.step_done": "Done",
   "ws.step_err": "Error",
-  "ws.step_n": "Step {n}"
+  "ws.step_n": "Step {n}",
+  "ws.avatar_change": "Change avatar",
+  "ws.avatar_shape": "Shape",
+  "ws.avatar_color": "Colour",
+  "ws.avatar_random": "Shuffle avatar",
+  "ws.run": "Run workflow",
+  "ws.running": "Running…",
+  "ws.run_default": "Run this workflow with its current configuration.",
+  "ws.input_label": "input",
+  "ws.previous_result": "previous result",
+  "ws.save_failed": "Could not save. Please try again.",
+  "ws.err_avatar_shape": "That avatar shape is not valid. Pick one from the library.",
+  "ws.err_avatar_palette": "That avatar colour is not valid. Pick one from the library."
 }

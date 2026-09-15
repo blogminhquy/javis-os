@@ -49,9 +49,10 @@ class JavisVoice {
     this.recognition = null;
     this.synth = window.speechSynthesis;
     this.isListening = false;
-    // Nhớ lựa chọn bật/tắt đọc qua reload. MẶC ĐỊNH TẮT: người dùng mới vào phải im lặng,
-    // chỉ đọc thành tiếng khi họ tự bật công tắc (lưu "1" vào localStorage).
-    this.ttsEnabled = (localStorage.getItem("javis.ttsEnabled") === "1");
+    // Mỗi lần nạp trang đều bắt đầu TẮT, không nhớ lựa chọn cũ: mở trang lên mà máy tự nói là
+    // điều không ai chờ đợi. Chỉ thao tác BẬT MIC mới bật đọc, và chỉ trong phiên trang này
+    // (quick-settings.js gọi window.JavisTts.set theo mic).
+    this.ttsEnabled = false;
     this.vietnameseVoice = null;
 
     // Edge TTS backend (server)
@@ -1047,13 +1048,6 @@ class JavisVoice {
   setRecognitionLang(lang) {
     this.lang = lang;
     if (this.recognition) this.recognition.lang = lang;
-  }
-
-  toggleTTS() {
-    this.ttsEnabled = !this.ttsEnabled;
-    try { localStorage.setItem("javis.ttsEnabled", this.ttsEnabled ? "1" : "0"); } catch (e) {}
-    if (!this.ttsEnabled) this.stopSpeaking();
-    return this.ttsEnabled;
   }
 
   _splitIntoChunks(text, maxLen) {

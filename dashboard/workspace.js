@@ -19,6 +19,21 @@
   async function api(url, opt) { var r = await fetch(url, opt); return r.json(); }
   function fd(o) { var f = new FormData(); Object.keys(o).forEach(function (k) { f.append(k, o[k]); }); return f; }
 
+  function avatar(a, size, state) { return window.JavisAvatar ? window.JavisAvatar.html(a, size, state) : ic("bot"); }
+  function agentOf(slug) { return S.agents.find(function (a) { return a.slug === slug || a.name === slug; }) || {slug: slug || ""}; }
+  var opening = 0, ready = false, active = false, pendingCommand = null;
+  function chatReady(value) {
+    ready = value;
+    var input = document.getElementById("chatInput");
+    if (input) input.disabled = !value;
+    var files = S.el && S.el.querySelector("#wsFiles"); if (files) files.disabled = !value;
+    var run = S.el && S.el.querySelector("#wsRun");
+    if (run) run.disabled = !value;
+  }
+  function onChatState(state) {
+    if (!active || !S.el || S.loai !== "agent") return;
+    S.el.querySelectorAll(".ws-id .agent-avatar, .aa-preview .agent-avatar, .ws-item.on .agent-avatar").forEach(function (el) { el.dataset.state = state || "idle"; });
+  }
   // ---------- phần thuần ----------
   // Xếp theo MỐC GẦN NHẤT chứ không theo tên: cộng sự vừa dùng xong là cộng sự sắp dùng lại.
   // Mục chưa có mốc rơi xuống dưới và xếp theo tên cho ổn định (không nhảy lung tung mỗi lần vẽ).
@@ -34,7 +49,8 @@
     return ds.filter(function (x) {
       if (nhom && (x.group || "Chung") !== nhom) return false;
       if (!nq) return true;
-      return khongDau([x.name, x.role, x.description, x.slug].join(" ")).indexOf(nq) >= 0;
+      var text = khongDau([x.name, x.role, x.description, x.slug, x.group].join(" "));
+      return nq.split(/\s+/).every(function (word) { return text.indexOf(word) >= 0; });
     });
   }
   function bucMoi(i) { return { i: i, agent: "", trang_thai: "cho", loi: "" }; }
@@ -106,22 +122,24 @@
 
   // ---------- dựng khung ----------
   function render(el, opts) {
-    S.el = el;
+    S.el = el; active = true; ready = false;
     el.innerHTML =
       '<div class="wspage" id="wsPage">' +
         '<aside class="ws-left" id="wsLeft">' +
           '<div class="ws-seg"><button type="button" data-loai="agent">' + ic("bot") + ' ' + esc(t("ws.tab_agent")) + '</button>' +
           '<button type="button" data-loai="workflow">' + ic("workflow") + ' ' + esc(t("ws.tab_workflow")) + '</button></div>' +
           '<input class="ws-search" id="wsSearch" placeholder="' + esc(t("ws.search_ph")) + '">' +
-          '<select class="ws-group" id="wsGroup"></select>' +
+          '<div class="ws-groups" id="wsGroup" role="group" aria-label="' + esc(t("studio.groups")) + '"></div>' +
           '<div class="ws-list" id="wsList"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
+          '<button type="button" class="ws-btn" id="wsImport">' + esc(t("ws.upload_agent")) + '</button>' +
           '<button type="button" class="ws-btn" id="wsStore">' + ic("package") + ' Javis Store</button></div>' +
         '</aside>' +
         '<div class="ws-main">' +
           '<div class="ws-bar">' +
             '<button type="button" class="ws-ico" id="wsLeftBtn" title="' + esc(t("ws.toggle_list")) + '">' + ic("panel-left") + '</button>' +
             '<div class="ws-id" id="wsIdentity"></div>' +
+            '<button type="button" class="ws-btn" id="wsFiles">' + ic("paperclip") + ' ' + esc(t("ws.files_links")) + '</button>' +
             '<button type="button" class="ws-btn" id="wsNewChat">' + esc(t("sess.new_chat")) + '</button>' +
             // Bộ icon chưa đóng gói "panel-right" (xem icons.manifest.json) và thêm icon mới
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
@@ -132,10 +150,16 @@
         '<aside class="ws-right" id="wsRight"></aside>' +
       '</div>';
     if (opts && opts.borrow) opts.borrow(el.querySelector("#wsSlot"));
-    el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; luuChon(); veTrai(); chonMacDinh(); }; });
+    el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; luuChon(); veTrai(); chonMacDinh(); }; });
     el.querySelector("#wsSearch").oninput = function (e) { S.q = e.target.value; veDanhSach(); };
-    el.querySelector("#wsGroup").onchange = function (e) { S.nhom = e.target.value; veDanhSach(); };
     el.querySelector("#wsNew").onclick = taoMoi;
+    el.querySelector("#wsImport").onclick = function () {
+      if (window.JavisStudio) window.JavisStudio.importItems(async function () {
+        if (!active) return;
+        await taiDanhSach(); veTrai(); chonMacDinh();
+      });
+    };
+    el.querySelector("#wsFiles").onclick = function () { if (ready && window.JavisChatSide) window.JavisChatSide.moKhungCuoc(); };
     el.querySelector("#wsStore").onclick = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
     var page = el.querySelector("#wsPage");
@@ -150,17 +174,38 @@
     // Nhớ chỗ đang đứng: mở lại trang mà rơi về mục đầu danh sách thì mỗi lần ghé qua trang
     // khác rồi quay lại là mất chỗ, trong khi cộng sự đang dùng thường chỉ là một hai mục.
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
-    taiDanhSach().then(function () { veTrai(); chonMacDinh(); });
+    taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_session")); });
+  }
+  async function selectCommand(cmd) {
+    S.loai = cmd.kind; S.chon[cmd.kind] = cmd.slug; S.q = ""; S.nhom = "";
+    luuChon(); veTrai();
+    var item = dangChon();
+    if (!item) { cmd.resolve(false); return; }
+    cmd.resolve(await moPhien(item, false));
+  }
+  function openCommand(kind, slug) {
+    return new Promise(function (resolve) {
+      var cmd = {kind: kind, slug: slug, resolve: resolve};
+      if (active) { selectCommand(cmd); return; }
+      if (!window.JavisNav) { resolve(false); return; }
+      if (pendingCommand) pendingCommand.resolve(false);
+      pendingCommand = cmd;
+      window.JavisNav.go("workspace");
+    });
   }
   function luuChon() { try { localStorage.setItem("javis_ws_loai", S.loai); if (S.chon.agent) localStorage.setItem("javis_ws_agent", S.chon.agent); if (S.chon.workflow) localStorage.setItem("javis_ws_workflow", S.chon.workflow); } catch (e) {} }
 
   function veTrai() {
     var el = S.el; if (!el) return;
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.classList.toggle("on", b.dataset.loai === S.loai); });
-    var nhoms = {}; danhSach().forEach(function (x) { nhoms[x.group || "Chung"] = 1; });
+    var nhoms = {}; danhSach().forEach(function (x) { var g = x.group || "Chung"; nhoms[g] = (nhoms[g] || 0) + 1; });
+    if (S.nhom && !nhoms[S.nhom]) S.nhom = "";
     var sel = el.querySelector("#wsGroup");
-    sel.innerHTML = '<option value="">' + esc(t("ws.all_groups")) + '</option>' + Object.keys(nhoms).sort().map(function (g) { return '<option value="' + esc(g) + '"' + (g === S.nhom ? " selected" : "") + '>' + esc(g) + '</option>'; }).join("");
+    var groups = [{name: "", label: t("ws.all_groups"), count: danhSach().length}].concat(Object.keys(nhoms).sort().map(function (g) { return {name:g, label:g, count:nhoms[g]}; }));
+    sel.innerHTML = groups.map(function (g) { return '<button type="button" class="ws-group-chip" data-group="'+esc(g.name)+'" aria-pressed="'+(S.nhom===g.name)+'"><span>'+esc(g.label)+'</span><small>'+g.count+'</small></button>'; }).join('');
+    sel.querySelectorAll("[data-group]").forEach(function (b) { b.onclick = function () { S.nhom = b.dataset.group; veTrai(); }; });
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
+    el.querySelector("#wsImport").textContent = t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow");
     veDanhSach();
   }
   function veDanhSach() {
@@ -170,8 +215,8 @@
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
     host.innerHTML = ds.map(function (x) {
       var phu = S.loai === "agent" ? (x.group || "Chung") + " · " + (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
-      return '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" data-slug="' + esc(x.slug) + '">' +
-        '<span class="ws-item-ic">' + ic(S.loai === "agent" ? "bot" : "workflow") + '</span>' +
+      return '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
+        '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42) : ic("workflow")) + '</span>' +
         '<span class="ws-item-text"><strong>' + esc(x.name) + '</strong><small>' + esc(phu) + '</small></span></button>';
     }).join("");
     host.querySelectorAll("[data-slug]").forEach(function (b) {
@@ -184,9 +229,14 @@
     });
   }
   function chonMacDinh() {
-    var ds = danhSach(); if (!ds.length) { veGiua(null); vePhai(null); return; }
+    var ds = danhSach();
+    // Danh sách RỖNG (brain mới tinh, hay tab Quy trình khi chưa có quy trình nào): không có
+    // phiên nào để mở nên phải KHOÁ ô nhập lại. Bỏ quên chốt này thì ô nhập vẫn sáng trong khi
+    // `ready` còn false từ render(), người dùng gõ xong bấm gửi và KHÔNG CÓ GÌ xảy ra: canSend()
+    // trả false, app.js lặng lẽ quay ra, màn hình không nói một lời nào.
+    if (!ds.length) { chatReady(false); veGiua(null, t("ws.none_yet")); vePhai(null); return; }
     if (!ds.some(function (x) { return x.slug === S.chon[S.loai]; })) S.chon[S.loai] = ds[0].slug;
-    veDanhSach(); moPhien(dangChon(), false);
+    veDanhSach(); return moPhien(dangChon(), false);
   }
 
   // ---------- phiên ----------
@@ -194,38 +244,75 @@
   // thoại), chưa có thì xin server một phiên TRỐNG đúng kênh. Phải xin trước tin đầu tiên,
   // vì kho phiên phải biết kênh thì lượt đầu mới đi đúng đường (server/main.py: /sessions/new).
   async function moPhien(item, moiHan) {
-    veGiua(item); vePhai(item);
-    if (!item) return;
-    var b = encodeURIComponent(brain()), ch = kenh(item), id = null;
-    if (!moiHan) {
-      var r = await api("/sessions?brain=" + b + "&channel=" + encodeURIComponent(ch) + "&limit=1");
-      if (r.sessions && r.sessions[0]) id = r.sessions[0].id;
-    }
-    if (!id) {
-      var n = await api("/sessions/new", { method: "POST", body: fd({ brain: brain(), channel: ch }) });
-      if (!n.id) {
-        veLoi(n.error || t("ws.err_session"));
-        // Mở phiên hỏng (slug có dấu thì server từ chối kênh, brain vừa đổi...) thì phải CẮT
-        // đường tin nhắn đi lạc: không làm gì nữa là ô nhập vẫn trỏ vào phiên của cộng sự mở
-        // TRƯỚC đó, và tin gõ tiếp rơi vào đúng hội thoại của người khác mà không ai thấy.
-        try { if (window.JavisSessions) window.JavisSessions.new(); } catch (e) {}
-        return;
+    var ticket = ++opening;
+    chatReady(false); veGiua(item);
+    if (!item) return false;
+    var still = function () { return active && ticket === opening && conDangXem(item); };
+    try {
+      vePhai(item);
+      var b = encodeURIComponent(brain()), ch = kenh(item), id = null;
+      if (!moiHan) {
+        var r = await api("/sessions?brain=" + b + "&channel=" + encodeURIComponent(ch) + "&limit=1");
+        if (!still()) return false;
+        if (r.sessions && r.sessions[0]) id = r.sessions[0].id;
       }
-      id = n.id;
+      if (!id) {
+        var n = await api("/sessions/new", { method: "POST", body: fd({ brain: brain(), channel: ch }) });
+        if (!still()) return false;
+        if (!n.id) throw new Error(n.error || t("ws.err_session"));
+        id = n.id;
+      }
+      S.sessionCuaPhien[id] = item.slug;
+      if (window.JavisSessions) await window.JavisSessions.open(id, still);
+      if (!still()) return false;
+      if (!window.JavisSessions || window.JavisSessions.current() !== id) throw new Error(t("ws.err_session"));
+      chatReady(true);
+      if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
+      return true;
+    } catch (e) {
+      if (still()) { veLoi(e.message || t("ws.err_session")); if (window.JavisSessions) window.JavisSessions.new(); }
+      return false;
     }
-    S.sessionCuaPhien[id] = item.slug;
-    if (window.JavisSessions) window.JavisSessions.open(id);
-    // Phiên vừa đổi thì tiến độ ở cột phải phải vẽ lại theo phiên MỚI (mỗi phiên một lần chạy).
-    if (S.loai === "workflow") { var td = tienDoHienTai(item); veBuoc(item, td); }
   }
-  function veLoi(msg) { var el = S.el && S.el.querySelector("#wsIdentity"); if (el) el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small>'; }
-  function veGiua(item) {
+  async function chayQuyTrinh() {
+    var item = dangChon();
+    if (!ready || S.loai !== "workflow" || !item || !window.JavisSend) return;
+    var td = tienDoHienTai(item);
+    if (td.trang_thai === "dang" || td.cho_duyet) return;
+    var input = document.getElementById("chatInput");
+    window.JavisSend((input && input.value.trim()) || t("ws.run_default"));
+  }
+  function veLoi(msg) { var el = S.el && S.el.querySelector("#wsIdentity"); if (el) {
+    el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small><button type="button" class="ws-btn" id="wsRetry">' + esc(t("ws.retry_session")) + '</button>';
+    el.querySelector("#wsRetry").onclick = function () { moPhien(dangChon(), false); };
+  } }
+  // `nhac` = câu thay cho lời mời chọn mục, dùng khi danh sách rỗng (chưa có gì để chọn cả).
+  function veGiua(item, nhac) {
     var el = S.el && S.el.querySelector("#wsIdentity"); if (!el) return;
-    if (!item) { el.innerHTML = '<strong>' + esc(t("ws.pick_one")) + '</strong>'; return; }
+    if (!item) {
+      el.innerHTML = '<strong>' + esc(nhac || t("ws.pick_one")) + '</strong>';
+      if (nhac) { var o = document.getElementById("chatInput"); if (o) o.placeholder = nhac; }
+      return;
+    }
     var phu = S.loai === "agent" ? (item.group || "Chung") + " · " + (item.role || "") : t("ws.wf_sub", { n: cacBuoc(item).length });
-    el.innerHTML = ic(S.loai === "agent" ? "bot" : "workflow") + '<div><strong>' + esc(item.name) + '</strong><small>' + esc(phu) + '</small></div>';
+    el.innerHTML = (S.loai === "agent" ? avatar(item, 42) : ic("workflow")) + '<div><strong>' + esc(item.name) + '</strong><small>' + esc(phu) + '</small></div>';
     var inp = document.getElementById("chatInput");
     if (inp) inp.placeholder = S.loai === "agent" ? t("ws.ph_agent", { ten: item.name }) : t("ws.ph_workflow");
+  }
+
+  function thuGonCaiDat() {
+    var page = S.el && S.el.querySelector("#wsPage");
+    if (page) page.classList.toggle("right-open", !window.matchMedia("(max-width: 1060px)").matches);
+  }
+  async function sauLuu(item, loai) {
+    await taiDanhSach();
+    if (!active || S.loai !== loai || S.chon[loai] !== item.slug) return;
+    veTrai(); veGiua(dangChon());
+    // Retry session setup after saving; never unlock a chat bound to the wrong agent.
+    if (!ready && !await moPhien(dangChon(), false)) return;
+    thuGonCaiDat();
+    var input = document.getElementById("chatInput");
+    if (input) input.focus();
   }
 
   // ---------- cột phải ----------
@@ -241,7 +328,7 @@
       // chọn skill, nhóm... đã nằm ở đó, chép lại là hai bản trôi lệch nhau ngay lần sửa đầu.
       if (window.JavisStudio && window.JavisStudio.editAgent) {
         window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"), dsNhom: S.agents,
-          onSaved: async function () { await taiDanhSach(); veTrai(); veGiua(dangChon()); } });
+          onSaved: async function () { await sauLuu(item, "agent"); } });
       }
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
@@ -252,7 +339,8 @@
       taiPhienGanDay(item);
     } else {
       var td = tienDoHienTai(item);
-      host.innerHTML = '<div class="ws-rtitle">' + esc(t("ws.wf_progress")) + '</div>' +
+      host.innerHTML = '<div class="ws-workflow-head">'+ic("workflow")+'<h3>'+esc(item.name)+'</h3><p>'+esc(item.description || t("ws.wf_sub", {n:cacBuoc(item).length}))+'</p>'+
+        '<button type="button" class="ws-btn primary ws-run-button" id="wsRun">'+ic("play")+' '+esc(t("ws.run"))+'</button></div>'+ '<div class="ws-rtitle">' + esc(t("ws.wf_progress")) + '</div>' +
         '<div class="ws-prog"><div style="width:' + phanTram(td) + '%"></div></div>' +
         '<div class="ws-status" id="wsWfStatus">' + esc(nhanTienDo(td)) + '</div>' +
         '<div class="ws-steps" id="wsSteps"></div>' +
@@ -260,8 +348,9 @@
         '<button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
         '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>' +
         '<div class="ws-rtitle">' + esc(t("ws.run_history")) + '</div><div class="ws-runs" id="wsRuns"></div>';
+      host.querySelector("#wsRun").onclick = chayQuyTrinh;
       veBuoc(item, td);
-      host.querySelector("#wsEditWf").onclick = function () { window.JavisStudio && window.JavisStudio.editWorkflow(item, { onSaved: async function () { await taiDanhSach(); veTrai(); vePhai(dangChon()); } }); };
+      host.querySelector("#wsEditWf").onclick = function () { window.JavisStudio && window.JavisStudio.editWorkflow(item, { onSaved: async function () { await sauLuu(item, "workflow"); } }); };
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("workflow", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
         if (!confirm(t("studio.del_wf", { ten: item.name }))) return;
@@ -270,6 +359,8 @@
       };
       taiLichSu(item);
     }
+    host.insertAdjacentHTML("afterbegin", '<button type="button" class="ws-ico ws-panel-close" aria-label="'+esc(t("common.close"))+'">'+ic("x")+'</button>');
+    host.querySelector(".ws-panel-close").onclick = function () { S.el.querySelector("#wsPage").classList.remove("right-open"); };
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
   // Tiến độ ĐANG XEM: lần chạy sống của phiên đang mở nếu có, không thì khung rỗng dựng từ
@@ -293,11 +384,13 @@
     var host = S.el && S.el.querySelector("#wsSteps"); if (!host) return;
     var buocs = cacBuoc(item);
     host.innerHTML = td.buoc.map(function (b, i) {
-      var task = (buocs[i] || {}).task || "";
+      var step = buocs[i] || {};
+      var task = (step.name || step.title || step.task || "").replace(/\{\{input\}\}/g, t("ws.input_label")).replace(/\{\{prev\}\}/g, t("ws.previous_result"));
+      var agent = agentOf(step.agent || b.agent);
       var nhan = { cho: t("ws.step_wait"), dang: t("ws.step_doing"), xong: t("ws.step_done"), loi: t("ws.step_err") }[b.trang_thai];
       return '<div class="ws-step ' + b.trang_thai + '"><span class="ws-num">' + (b.trang_thai === "xong" ? ic("check") : (i + 1)) + '</span>' +
         '<strong>' + esc(task.slice(0, 80) || t("ws.step_n", { n: i + 1 })) + '</strong><small>' + esc(nhan) + (b.loi ? ": " + esc(b.loi) : "") + '</small>' +
-        '<div class="ws-who">' + ic("bot") + ' ' + esc(b.agent || tenAgent((buocs[i] || {}).agent)) + '</div></div>';
+        '<div class="ws-who">' + avatar(agent, 26, b.trang_thai === "dang" ? "thinking" : "idle") + ' ' + esc(agent.name || b.agent || step.agent) + '</div></div>';
     }).join("") + (td.cho_duyet ? '<div class="ws-wait">' + esc(t("studio.wait1")) + ' "' + esc(td.cho_duyet.node) + '"' + (td.cho_duyet.prompt ? ": " + esc(td.cho_duyet.prompt) : "") +
       '<div><button type="button" class="ws-btn primary" id="wsApprove">' + esc(t("studio.approve")) + ' ' + esc(td.cho_duyet.code) + '</button><small>' + esc(t("studio.wait_warn")) + '</small></div></div>' : "");
     var ap = host.querySelector("#wsApprove");
@@ -308,6 +401,8 @@
       window.JavisWsSend({ action: "wf_resume", session_id: sid, task_id: td.cho_duyet.task_id, node: td.cho_duyet.node, code: td.cho_duyet.code, brain: brain() });
       td.cho_duyet = null; td.trang_thai = "dang"; veBuoc(item, td);
     };
+    var run = S.el.querySelector("#wsRun");
+    if (run) { run.disabled = !ready || td.trang_thai === "dang" || !!td.cho_duyet; run.textContent = t(td.trang_thai === "dang" ? "ws.running" : "ws.run"); }
     var stt = S.el.querySelector("#wsWfStatus"); if (stt) stt.textContent = nhanTienDo(td);
     var pg = S.el.querySelector(".ws-prog > div"); if (pg) pg.style.width = phanTram(td) + "%";
   }
@@ -323,7 +418,7 @@
     host.innerHTML = ds.map(function (x) {
       var d = new Date(Number(x.started_at || 0) * 1000);
       return '<button type="button" class="ws-run ' + esc(x.status) + '" data-sid="' + esc(x.session_id || "") + '">' +
-        '<span>' + esc(gioPhut(d)) + '</span>' +
+        '<span class="ws-run-avatars">' + Array.from(new Set((x.steps || []).map(function (b) { return b.agent; }).filter(Boolean))).slice(0, 3).map(function (slug) { return avatar(agentOf(slug), 22); }).join('') + '</span><span>' + esc(gioPhut(d)) + '</span>' +
         '<span class="ws-run-st">' + esc(x.nhan || x.status || "") + '</span><small>' + esc(loiNguoiGo(x.input).slice(0, 60)) + '</small></button>';
     }).join("");
     host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { if (b.dataset.sid && window.JavisSessions) window.JavisSessions.open(b.dataset.sid); }; });
@@ -376,7 +471,13 @@
   // ---------- tạo mới ----------
   function taoMoi() {
     if (!window.JavisStudio) return;
-    var sau = async function () { await taiDanhSach(); veTrai(); chonMacDinh(); };
+    var loai = S.loai;
+    var sau = async function (saved) {
+      await taiDanhSach(); if (!active || S.loai !== loai) return;
+      if (saved && saved.slug) S.chon[loai] = saved.slug;
+      veTrai();
+      if (await chonMacDinh()) { thuGonCaiDat(); document.getElementById("chatInput").focus(); }
+    };
     // Không truyền `host`: tạo mới vẫn mở modal của Studio (cột phải đang là form của mục
     // đang chọn, vẽ đè lên đó thì người dùng tưởng mình đang sửa mục cũ).
     if (S.loai === "agent") window.JavisStudio.editAgent(null, { dsNhom: S.agents, onSaved: sau });
@@ -388,9 +489,10 @@
   // dùng nhắn cho một cộng sự không còn ở đâu trên màn hình. console.js gọi hàm này trong
   // _pageLeave, ngay trước khi trả node chat về HUD.
   function roi() {
+    active = false; opening++; chatReady(true);
     var inp = document.getElementById("chatInput");
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
+  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
 })();

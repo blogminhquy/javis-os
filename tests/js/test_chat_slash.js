@@ -86,5 +86,21 @@ check("token: dinh lien chu thi KHONG mo menu", S.tokenAtCaret("abc/no", 6) === 
 check("token: con tro dung truoc token thi khong tinh", S.tokenAtCaret("chao /notes", 5) === null);
 check("token: chi tinh phan TRUOC con tro", (() => { const t = S.tokenAtCaret("/notes them chu", 3); return t && t.query === "no"; })());
 
+
+const agents = [{slug: "writer", name: "Writer"}];
+const workflows = [{slug: "writer", name: "Workflow", status: "active"}, {slug: "draft", status: "draft"}];
+S.setKnownPartners(agents, workflows);
+check("agent command routes to agent", S.route("/agent-writer hello").type === "agent" && S.route("/agent-writer hello").message === "hello");
+check("workflow collision is distinct", S.route("/workflow-writer hello").type === "workflow");
+check("partner in middle preserves request", S.route("hello /agent-writer").message === "hello");
+check("draft workflows hidden", !S.buildMenu([], agents, workflows).some(x => x.cmd === "workflow-draft"));
+check("skill remains a skill", S.route("/writer hello").type === "skill");
+
+const searchable = [{cmd: "agent-viet", name: "Người viết", desc: "Nội dung bán hàng", group: "Marketing"}, {cmd: "workflow-ban", name: "Bán hàng", desc: ""}];
+check("Vietnamese without accents", S.filterItems(searchable, "nguoi viet")[0] === searchable[0]);
+check("multiple words across fields", S.filterItems(searchable, "marketing noi dung")[0] === searchable[0]);
+check("exact name outranks description", S.filterItems(searchable, "ban hang")[0] === searchable[1]);
+check("all words required", S.filterItems(searchable, "marketing unknown").length === 0);
+check("Vietnamese slash query opens menu", S.tokenAtCaret("/viết", 5).query === "viết");
 if (fails.length) { console.log("\nFAIL - test_chat_slash: " + fails.length + " loi"); process.exit(1); }
 console.log("\nOK - test_chat_slash: tat ca pass");

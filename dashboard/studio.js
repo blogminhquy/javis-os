@@ -86,7 +86,7 @@
   window.JavisStudio = {
     workflows: loadWorkflows, agents: loadAgents, skills: loadSkills,
     // Trang Cộng sự mượn chính hai trình sửa này (xem editAgent/editWorkflow) + nút Xuất.
-    editAgent: editAgent, editWorkflow: editWorkflow, exportItem: exportItem,
+    editAgent: editAgent, editWorkflow: editWorkflow, exportItem: exportItem, importItems: importItems,
   };
   const _studioBtn = document.getElementById("studioOpenBtn");
   if (_studioBtn) _studioBtn.addEventListener("click", () => window.openStudio("workspace"));
@@ -100,6 +100,16 @@
   // xếp trên điện thoại. Chép tay thành ba bản là ba bản trôi lệch nhau ngay lần sửa đầu tiên.
   const NHOM_MD = "Chung";                     // nhóm mặc định khi file chưa khai `group`
   const nhomCua = (x) => (x && String(x.group || "").trim()) || NHOM_MD;
+
+  // Server trả về MÃ MÁY chứ không phải câu cho người đọc (server/agent_avatar.py ném
+  // ValueError("avatar_shape"), main.py chuyển thẳng thành {"error": "avatar_shape"}). Đổ thẳng
+  // mã đó vào alert là người dùng đọc được đúng chữ "avatar_shape" - vô nghĩa và không dịch
+  // được. Ở đây dịch mã đã biết, mã lạ rơi về câu chung. Bảng tra dựng KHÔNG có prototype:
+  // `{}["__proto__"]` trả về Object.prototype chứ không phải undefined, nên một mã lạ đúng
+  // tên đó sẽ lọt qua nhánh "|| ws.save_failed".
+  const _MA_LOI_LUU = Object.assign(Object.create(null),
+    { avatar_shape: "ws.err_avatar_shape", avatar_palette: "ws.err_avatar_palette" });
+  const loiLuu = (ma) => t(_MA_LOI_LUU[String(ma == null ? "" : ma)] || "ws.save_failed");
 
   // Bỏ dấu để gõ "viet email" vẫn ra "Viết email".
   function _spNoAccent(s) {
@@ -134,7 +144,7 @@
     let list = items || [];
     if (state.cat !== "ALL") list = list.filter(x => nhomCua(x) === state.cat);
     const nq = _spNoAccent((state.q || "").trim());
-    if (nq) list = list.filter(x => _spNoAccent(blob(x)).includes(nq));
+    if (nq) list = list.filter(x => nq.split(/\s+/).every(word => _spNoAccent(blob(x)).includes(word)));
     return list;
   }
 
@@ -399,6 +409,7 @@
     agentsCache = ad.agents || [];
     if (!agentsCache.length) { alert(t("studio.no_agents")); return; }
     const box = document.getElementById("editorBox");
+    box.classList.remove("agent-editor");
     const steps = w ? JSON.parse(JSON.stringify(w.steps || [])) : [{ agent: agentsCache[0].slug, task: "" }];
     const opts = (sel) => agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
     const optsV = (sel) => `<option value="">${esc(t("studio.no_verify"))}</option>` + agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
@@ -474,14 +485,24 @@
       });
       box.querySelector("#addStep").onclick = () => { captureSteps(); steps.push({ agent: agentsCache[0].slug, task: "" }); openIdx = steps.length - 1; render(); };
       box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
+      // Cùng luật với #saveAg: khoá nút trong lúc gửi, ĐỌC kết quả rồi mới đóng. Bản cũ đóng
+      // khung và báo onSaved() vô điều kiện, nên lưu hỏng (server 400, mất mạng) trông y hệt
+      // lưu xong - người dùng đóng tab rồi mới biết mất bài. Và onSaved phải nhận `saved`:
+      // trang Cộng sự dựa vào `saved.slug` để chọn đúng quy trình vừa tạo.
       box.querySelector("#saveWf").onclick = async () => {
         captureSteps();
         if (!ten.trim()) return alert(t("studio.need_name"));
-        await api("/workflows", { method: "POST", body: fd({ name: ten.trim(), description: mota,
-          group: nhom.trim() || NHOM_MD, steps: JSON.stringify(steps),
-          status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
-        editor.classList.remove("open");
-        if (tuyChon.onSaved) tuyChon.onSaved(); else loadWorkflows();
+        const nutLuu = box.querySelector("#saveWf");
+        nutLuu.disabled = true;
+        try {
+          const saved = await api("/workflows", { method: "POST", body: fd({ name: ten.trim(), description: mota,
+            group: nhom.trim() || NHOM_MD, steps: JSON.stringify(steps),
+            status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
+          if (!saved.ok) { alert(loiLuu(saved.error)); return; }
+          editor.classList.remove("open");
+          if (tuyChon.onSaved) await tuyChon.onSaved(saved); else loadWorkflows();
+        } catch (err) { alert(t("ws.save_failed")); }
+        finally { nutLuu.disabled = false; }
       };
     }
     function captureSteps() {
@@ -596,12 +617,16 @@
     const modelOptions = (g) =>
       `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
     const box = opts.host || document.getElementById("editorBox");
+    if (opts.host && !box.isConnected) return;
+    let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
+    box.classList.add("agent-editor");
     box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
+      <div class="agent-avatar-picker" id="agAvatar"></div>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
       <label>${esc(t("studio.groups"))}</label>
-      <input id="agGroup" list="agGroupList" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
-      ${nhomDatalist((_agState.agents.length ? _agState.agents : (opts.dsNhom || [])), "agGroupList")}
+      <input id="agGroup" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
+      <div class="ag-group-options">${uniq((opts.dsNhom || _agState.agents).map(nhomCua)).map(g => `<button type="button" class="ws-group-chip" data-group="${esc(g)}">${esc(g)}</button>`).join("")}</div>
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -619,6 +644,9 @@
         ? t("studio.model_hint")
         : t("studio.model_none"))}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
+    if (window.JavisAvatar) window.JavisAvatar.picker(box.querySelector("#agAvatar"), avatar, v => { avatar = v; });
+    box.querySelectorAll("[data-group]").forEach(b => { b.onclick = () => { box.querySelector("#agGroup").value = b.dataset.group; }; });
+    box.querySelectorAll("label").forEach(label => { const input = label.nextElementSibling; if (input && /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName)) label.htmlFor = input.id; });
     if (a && a.model) {
       const sel = box.querySelector("#agModel");
       sel.value = val(a.model_provider || "", a.model);
@@ -645,12 +673,18 @@
       const cut = raw.indexOf(MODEL_SEP);
       const mProv = cut === -1 ? "" : raw.slice(0, cut);
       const mName = cut === -1 ? raw : raw.slice(cut + MODEL_SEP.length);
-      await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
-        group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
-        prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
-        slug: a ? a.slug : "", brain: brain() }) });
-      moDong(false);
-      if (opts.onSaved) opts.onSaved(); else loadAgents();
+      const saveButton = box.querySelector("#saveAg");
+      saveButton.disabled = true;
+      try {
+        const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
+          group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
+          prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
+          slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
+        if (!saved.ok) { alert(loiLuu(saved.error)); return; }
+        moDong(false);
+        if (opts.onSaved) await opts.onSaved(saved); else loadAgents();
+      } catch (err) { alert(t("ws.save_failed")); }
+      finally { saveButton.disabled = false; }
     };
     moDong(true);
   }
@@ -670,7 +704,7 @@
 
     const draw = () => {
       const nq = _spNoAccent(q.trim());
-      const hop = (s) => !nq || _spNoAccent(`${s.name} ${s.slug} ${s.group || ""} ${s.description || ""}`).includes(nq);
+      const hop = (s) => !nq || nq.split(/\s+/).every(word => _spNoAccent(`${s.name} ${s.slug} ${s.group || ""} ${s.description || ""}`).includes(word));
       const groups = new Map();
       skills.forEach(s => {
         if (!hop(s)) return;

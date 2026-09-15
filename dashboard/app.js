@@ -118,6 +118,7 @@ function setOrbState(state, label) {
   // trên orb nói "đang nghĩ" mà pet vẫn ngồi chớp mắt thì một trong hai đang nói dối.
   // Lớp rỗng "" của orb là trạng thái nghỉ.
   try { if (window.JavisPet) window.JavisPet.setState(state || "idle"); } catch (e) {}
+  try { if (window.JavisWorkspace) window.JavisWorkspace.onChatState(state || "idle"); } catch (e) {}
 }
 
 // ============================================
@@ -406,7 +407,7 @@ async function batLive() {
       appendJavisError(String(msg || "").startsWith("mic:") ? window.t("app.mic_denied") : (window.t("app.live_error") + " " + msg));
       runActions(turn.turnDone());
     },
-    onClosed: () => { handsFree = false; voiceBtn.classList.remove("handsfree"); },
+    onClosed: () => { handsFree = false; voiceBtn.classList.remove("handsfree"); if (window.JavisTts) window.JavisTts.set(false); },
   });
   return ok;
 }
@@ -820,9 +821,20 @@ function traTinDutMang() {
 }
 
 function sendMessage(text) {
+  if (window.JavisWorkspace && !window.JavisWorkspace.canSend()) return;
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
   const _slash = (window.JavisSlash && msg) ? window.JavisSlash.route(msg) : { type: "passthrough" };
+  if (_slash.type === "agent" || _slash.type === "workflow") {
+    if (!window.JavisWorkspace) return;
+    window.JavisWorkspace.openCommand(_slash.type, _slash.slug).then(function (opened) {
+      if (!opened) return;
+      chatInput.value = _slash.message || "";
+      if (_slash.message) sendMessage(_slash.message);
+      else chatInput.focus();
+    });
+    return;
+  }
   if (_slash.type === "session") {
     chatInput.value = ""; chatInput.style.height = "auto";
     if (_slash.cmd === "stop") { try { stopCurrent(); } catch (e) {} }
@@ -1028,10 +1040,12 @@ function restoreSession() {
 // ============================================
 // Phiên hội thoại lưu DB (panel Lịch sử - sessions-ui.js gọi qua window.JavisSessions)
 // ============================================
-async function openStoredSession(id) {
+let sessionOpenSeq = 0;
+async function openStoredSession(id, stillCurrent) {
+  const ticket = ++sessionOpenSeq;
   try {
     const sess = await (await fetch(`/sessions/${encodeURIComponent(id)}`)).json();
-    if (!sess || sess.error) return;
+    if (ticket !== sessionOpenSeq || (stillCurrent && !stillCurrent()) || !sess || sess.error) return;
     convo = [];
     hideActivity();
     chatArea.innerHTML = "";
@@ -1089,6 +1103,7 @@ function resetChatView() {
   try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
 }
 function newChat() {
+  sessionOpenSeq++;
   // KHÔNG reset server, KHÔNG đụng lượt đang chạy của phiên khác - chúng chạy nền + tự lưu; vào
   // Lịch sử bấm lại để xem tiếp. Ở đây chỉ mở một khung trống cho hội thoại mới (mint id khi gửi).
   resetChatView();
@@ -2588,7 +2603,7 @@ voiceBtn.addEventListener("click", () => {
   try { if (window.JavisTts) window.JavisTts.set(handsFree); } catch (e) {}
   // Voice V2 bậc Live: nút mic mở phiên nghe nói thẳng thay cho Web Speech + TTS.
   if (voiceMode === "live") {
-    if (handsFree) { batLive().then(ok => { if (!ok) { handsFree = false; voiceBtn.classList.remove("handsfree"); } }); }
+    if (handsFree) { batLive().then(ok => { if (!ok) { handsFree = false; voiceBtn.classList.remove("handsfree"); if (window.JavisTts) window.JavisTts.set(false); } }); }
     else tatLive();
     return;
   }

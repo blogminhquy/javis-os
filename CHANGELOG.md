@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.1] - 2026-09-15
+### Thêm mới
+- **Mỗi trợ lý và quy trình có hình đại diện riêng.** Hình tự sinh theo tên, đổi được hình dáng và màu ngay trong cột cài đặt, nên liếc một cái là biết đang nói chuyện với ai.
+- **Nút Chạy quy trình nằm ngay trong cột phải.** Không còn phải gõ một câu vào khung chat chỉ để bắt đầu một lượt chạy.
+- **Gõ `/` trong khung chat là nhảy thẳng tới một cộng sự.** Danh sách hiện ra có cả trợ lý lẫn quy trình, gõ không dấu cũng tìm ra, chọn một cái là mở đúng hội thoại đó và gửi luôn câu bạn vừa viết.
+- **File và link bạn gắn vào cuộc trò chuyện giờ đến tay trợ lý và quy trình**, trước đây chỉ bộ não chính đọc được.
+### Sửa lỗi
+- **Giọng đọc lúc mở app luôn ở trạng thái tắt**, chỉ bật mic mới bật tiếng. Trước đây nó nhớ trạng thái cũ nên có lúc tự đọc thành tiếng ngoài ý muốn.
+- Chưa tạo trợ lý hay quy trình nào thì ô nhập bị khoá hẳn kèm một dòng nhắc, thay vì im lặng nuốt tin nhắn.
+- Lưu quy trình thất bại giờ báo lỗi rõ, trước đây cửa sổ đóng lại như thể đã lưu xong.
+
 ## [0.59.0] - 2026-09-15
 ### Thêm mới
 - **Trang Cộng sự thay cho hai trang Trợ lý và Quy trình.** Chọn một trợ lý là chat được ngay với đúng vai đó, mỗi trợ lý có hội thoại riêng và cài đặt nằm ở cột phải.

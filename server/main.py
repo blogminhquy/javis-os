@@ -116,6 +116,7 @@ import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ 
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
+import agent_avatar
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
@@ -5411,7 +5412,8 @@ def agents_index(brain: str) -> list:
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
                     "model": meta.get("model", ""), "group": _nhom_cua(meta),
-                    "model_provider": meta.get("model_provider", ""), "prompt": body})
+                    "model_provider": meta.get("model_provider", ""), "prompt": body,
+                    "avatar": agent_avatar.for_agent(meta, f.stem)})
     # last_chat_at: mốc chat gần nhất với agent này. `moc_cap_nhat_theo_kenh` là hàm của
     # Task 3 (SessionStore), CHƯA tồn tại nếu Task 2 chạy trước - try/except rơi về {} để
     # Task 2 tự đứng vững một mình; nhớ quay lại kiểm khi Task 3 xong.
@@ -5431,7 +5433,8 @@ async def list_agents(brain: str = Query("brain")):
 async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = Form(""),
                      model: str = Form(""), slug: str = Form(""), prompt: str = Form(""),
                      brain: str = Form("brain"), model_provider: str = Form(""),
-                     group: str = Form(NHOM_MAC_DINH)):
+                     group: str = Form(NHOM_MAC_DINH), avatar_shape: str = Form(None),
+                     avatar_palette: str = Form(None)):
     slug = slug or _slugify(name)
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
@@ -5439,9 +5442,15 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # Giá trị lạ (client cũ, gõ tay) bị loại về "" để _agent_model_provider suy như agent cũ,
     # chứ không ghi vào file một nhà mà server không chạy được.
     mp = (model_provider or "").strip()
+    path = _agents_dir(brain) / f"{slug}.md"
+    previous = _read_md(path)[0] if path.is_file() else None
+    try:
+        avatar = agent_avatar.for_save(previous, slug, avatar_shape, avatar_palette)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
     meta = {"type": "agent", "name": name, "slug": slug, "role": role,
             "group": (group or "").strip() or NHOM_MAC_DINH,
-            "skills": skills_list, "model": model,
+            "skills": skills_list, "model": model, "avatar": avatar,
             "model_provider": mp if mp in AGENT_PROVIDERS else "",
             "updated": _today()}  # "" = mặc định theo CLI
     _write_md(_agents_dir(brain) / f"{slug}.md", meta, (prompt.strip() or role))
@@ -7813,9 +7822,15 @@ async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run
                 pass
 
 
-async def execute_workflow(brain, slug, input="", tools=None, session_id="", source="other"):
+async def execute_workflow(brain, slug, input="", tools=None, session_id="", source="other",
+                           input_luu=None):
     """Chạy workflow và GHI LỊCH SỬ. Mọi chỗ gọi (trang Cộng sự, Kanban, nhắc hẹn) đi qua đây.
-    `source`: web | kanban | reminder | loop | other, chỉ để lọc khi đọc lại."""
+    `source`: web | kanban | reminder | loop | other, chỉ để lọc khi đọc lại.
+
+    `input_luu`: câu GHI VÀO LỊCH SỬ khi khác thứ đưa cho động cơ. Ngữ cảnh tự động (tài liệu
+    người dùng gắn vào cuộc, nội dung file đã ghim) phải tới được động cơ, nhưng nó không phải
+    lời người dùng gõ: lưu nguyên vào cột `input` là dòng lịch sử chạy và bảng lần chạy hiện
+    nguyên khối tài liệu thay cho câu yêu cầu. None = lưu đúng thứ đã đưa cho động cơ."""
     wf_file = _workflows_dir(brain) / f"{slug}.md"
     if not wf_file.exists():
         yield {"type": "error", "content": "workflow not found"}
@@ -7823,7 +7838,8 @@ async def execute_workflow(brain, slug, input="", tools=None, session_id="", sou
     meta, _ = _read_md(wf_file)
     async for ev in _ghi_lich_su(
             _execute_workflow_raw(brain, slug, input, tools, session_id),
-            brain=_brain_key(brain), slug=slug, name=meta.get("name", slug), input=input,
+            brain=_brain_key(brain), slug=slug, name=meta.get("name", slug),
+            input=input if input_luu is None else input_luu,
             source=source, session_id=session_id):
         yield ev
 
@@ -10949,8 +10965,13 @@ async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resu
         if truoc:
             day_du = st.lay(truoc[0]["id"]) or {}
             ket_truoc = day_du.get("output", "")
+        # Khối tài liệu gắn vào cuộc đi SAU CÙNG và KHÔNG vào cột `input` của kho lần chạy:
+        # dòng lịch sử ở cột phải cắt 60 ký tự đầu của `input`, nên câu ngắn mà dính khối này
+        # là lịch sử toàn đề mục "TÀI LIỆU & LINK..." chứ không thấy người dùng đã yêu cầu gì.
         dau_vao = workflow_chat.ghep_dau_vao(user_message, ket_truoc)
-        events = globals()["execute_workflow"](brain, slug, dau_vao, session_id=conv_sid, source="web")
+        events = globals()["execute_workflow"](
+            brain, slug, dau_vao + _session_block(conv_sid), session_id=conv_sid, source="web",
+            input_luu=dau_vao)
     kq = await workflow_chat.chay(events, emit)
     giay = int(time.time() - t0)
     if kq["trang_thai"] == "done":
@@ -11161,7 +11182,7 @@ async def websocket_endpoint(ws: WebSocket):
                 nonlocal sysprompt
                 if sysprompt is None:
                     if _persona and _persona[0] == "agent":
-                        sysprompt = _agent_chat_prompt(brain, _persona[1])
+                        sysprompt = _agent_chat_prompt(brain, _persona[1]) + _session_block(conv_sid)
                     else:
                         sysprompt = build_system_prompt(
                             brain, lang=_lang_qd, project_id=_row0.get("project_id") or "",
