@@ -49,6 +49,18 @@
 
   var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62 };
 
+  // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
+  // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
+  // liếc đi thì nó thành một thực thể đang để ý tới cái gì đó ngoài khung.
+  //
+  // Đơn vị của LIEC_* là đơn vị viewBox (320x320, thân bán kính 78). NGHI_* là cùng dáng ấy
+  // quy về thang -1..1 của tầm đưa mắt, để lúc rời chuột con mắt TRÔI VỀ dáng này chứ không
+  // trôi về giữa. TAM_* là tầm đưa mắt tối đa: đủ rộng để con trỏ kéo được mắt sang hẳn bên
+  // kia, chứ không phải chỉ nhúc nhích quanh dáng liếc.
+  var LIEC_X = 16, LIEC_Y = -12;      // dáng chân dung (ảnh tĩnh, không có con trỏ)
+  var TAM_X = 24, TAM_Y = 18;
+  var NGHI_X = LIEC_X / TAM_X, NGHI_Y = LIEC_Y / TAM_Y;
+
   // ---- Biểu cảm: TOÀN BỘ cảm xúc nằm ở đôi mắt, không có miệng ----
   // Chủ dự án chốt: mắt to nhỏ đổi cỡ là đủ diễn, đừng thêm chi tiết.
   //
@@ -104,6 +116,15 @@
   function kep(n, a, b) { return Math.max(a, Math.min(b, n)); }
   function noiSuy(a, b, k) { return a + (b - a) * k; }
   function sang() { try { return !!(window.javisTheme && window.javisTheme.isLight()); } catch (e) { return false; } }
+  // Mắt phải tương phản với THÂN, không với nền trang: thân sáng thì mắt than chì, thân tối
+  // thì mắt trắng. Tính bằng độ chói tương đối (WCAG) chứ không đoán bằng mắt.
+  function mauMat(than) {
+    var rgb = than.slice(1).match(/../g).map(function (x) {
+      var v = parseInt(x, 16) / 255;
+      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) > 0.179 ? "#201e1e" : "#ffffff";
+  }
 
   // ---- Lưu / nạp ----
   function docLocal() {
@@ -194,14 +215,7 @@
     var tone = PALETTES[cfg.palette][sang() ? "sun" : "moon"];
     el.style.setProperty("--pet-face", tone[0]);
     el.style.setProperty("--pet-ring", tone[1]);
-    // Mắt phải tương phản với THÂN, không với nền trang: thân sáng thì mắt than chì, thân
-    // tối thì mắt trắng. Tính bằng độ chói tương đối (WCAG) chứ không đoán bằng mắt.
-    var rgb = tone[0].slice(1).match(/../g).map(function (x) {
-      var v = parseInt(x, 16) / 255;
-      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    });
-    var choi = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
-    el.style.setProperty("--pet-eye", choi > 0.179 ? "#201e1e" : "#ffffff");
+    el.style.setProperty("--pet-eye", mauMat(tone[0]));
     el.dataset.side = cfg.side;
     veMat(dangChop ? "blink" : mood);   // đổi mép thì hai mắt dồn sang phía kia
     el.style.top = (cfg.pos * 100).toFixed(2) + "%";
@@ -262,14 +276,18 @@
       return;
     }
 
-    // Nhìn theo con trỏ; rời chuột hơn 1,6 giây thì về giữa rồi liếc vu vơ.
-    if (now - chuotLuc > 1600) { tx = 0; ty = 0; }
+    // Nhìn theo con trỏ; rời chuột hơn 1,6 giây thì trôi về DÁNG LIẾC (không phải về giữa)
+    // rồi thi thoảng đảo mắt quanh dáng đó.
+    var ranh = now - chuotLuc > 1600;
+    if (ranh) { tx = 0; ty = 0; }
     var muot = 1 - Math.exp(-dt * 7);
     px = noiSuy(px, tx, muot); py = noiSuy(py, ty, muot);
-    if (now - chuotLuc > 1600) {
+    if (ranh) {
       if (now > liecLuc) {
-        liecDichX = (Math.random() * 2 - 1) * 0.5;
-        liecDichY = (Math.random() * 2 - 1) * 0.3;
+        // Biên đảo mắt phải NHỎ so với dáng liếc, không thì có lúc nó gần như nhìn thẳng và
+        // dáng liếc thôi không còn là chữ ký nữa, chỉ còn là một trong các hướng ngẫu nhiên.
+        liecDichX = kep(NGHI_X + (Math.random() * 2 - 1) * 0.17, -1, 1);
+        liecDichY = kep(NGHI_Y + (Math.random() * 2 - 1) * 0.13, -1, 1);
         liecLuc = now + 3600 + Math.random() * 3200;
       }
       var cham = 1 - Math.exp(-dt * 1.2);
@@ -281,10 +299,14 @@
     var nhinX = kep(px + liecX, -1, 1), nhinY = kep(py + liecY, -1, 1);
     var tho = Math.sin(now * 0.00135) * 0.8;
 
+    // Lúc nép ở mép thì ghìm tầm mắt lại: nửa thân bị màn hình cắt mất, đưa mắt hết tầm là
+    // một con trôi ra ngoài phần còn nhìn thấy.
+    var ghim = el.dataset.out === "1" ? 1 : 0.45;
+
     gRig.style.transform = "translate(" + (nhinX * 3.4).toFixed(2) + "px," +
       (nhinY * 2.4 + tho * 0.5).toFixed(2) + "px)";
-    gEyes.style.transform = "translate(" + (nhinX * 7).toFixed(2) + "px," +
-      (nhinY * 4.5).toFixed(2) + "px)";
+    gEyes.style.transform = "translate(" + (nhinX * TAM_X * ghim).toFixed(2) + "px," +
+      (nhinY * TAM_Y * ghim).toFixed(2) + "px)";
 
     tocDo += (tocDoDich - tocDo) * (1 - Math.exp(-dt * 2));
     gocRing = (gocRing + tocDo * dt) % 360;
@@ -428,6 +450,7 @@
     cfg = chuanHoa(Object.assign({}, cfg, patch || {}));
     ghiLocal(); ghiServer();
     if (el) { apDung(); chay(); }
+    veDauAn();
     try { window.dispatchEvent(new CustomEvent("javis:pet", { detail: Object.assign({}, cfg) })); } catch (e) {}
   }
   function setEnabled(on) { setCfg({ enabled: !!on }); }
@@ -443,8 +466,55 @@
     chopLuc = performance.now() + 2600;
     ngoCongDangNhap();
     chay();
-    try { window.javisTheme && window.javisTheme.on(function () { apDung(); }); } catch (e) {}
+    veDauAn();
+    try { window.javisTheme && window.javisTheme.on(function () { apDung(); veDauAn(); }); } catch (e) {}
     window.addEventListener("javis:i18n", function () { veMenu(); });
+    // Logo riêng của người dùng thắng linh vật, nên phải hỏi máy chủ một lượt. Hỏi SAU khi
+    // đã vẽ bằng localStorage: chờ mạng xong mới vẽ thì thanh bên nháy một nhịp lúc mở trang.
+    fetch("/settings").then(function (r) { return r.json(); }).then(function (j) {
+      _logoRieng = !!((j.branding || {}).logo_ext);
+      var petMayChu = (j.dashboard || {}).pet;
+      if (petMayChu) {
+        cfg = chuanHoa(Object.assign({}, cfg, petMayChu));
+        ghiLocal(); apDung(); apDungTrangThai(); chay();
+      }
+      veDauAn();
+    }).catch(function () {});
+  }
+
+  // Chân dung TĨNH: cùng hình dáng, cùng bảng màu, cùng dáng liếc với con pet đang sống.
+  // Dùng cho ô xem thử trên trang Linh vật và cho dấu ấn trên thanh bên. Không có vành quỹ
+  // đạo: ở cỡ 30px thì vành chỉ còn là một vệt bẩn quanh hình.
+  function chanDung(shape, palette) {
+    var d = (SHAPES[shape] || SHAPES.circle).d;
+    var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
+    var mat = mauMat(tone[0]);
+    var ex = 160 + LIEC_X, ey = 160 + LIEC_Y;
+    return '<svg viewBox="58 58 204 204" aria-hidden="true">' +
+      '<path d="' + d + '" fill="' + tone[0] + '"/>' +
+      '<ellipse cx="' + (ex - 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/>' +
+      '<ellipse cx="' + (ex + 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/></svg>';
+  }
+
+  // ---- DẤU ẤN trên thanh bên ----
+  // Bật linh vật thì chỗ logo hiện chính khuôn mặt ấy, để cả app nói cùng một nhân dạng.
+  // TẮT linh vật, HOẶC người dùng đã tải logo riêng lên, thì trả lại thẻ <img src="/brand-logo">
+  // nguyên bản: logo của người ta thì người ta quyết, một con vật không được đè lên.
+  var LO_DAU_AN = ".rail-brand, .brand .brand-icon";
+  var _logoRieng = false;      // người dùng đã tải logo riêng lên chưa
+  function dungDauAn() { return !!cfg.enabled && !_logoRieng; }
+  function veDauAn() {
+    var dung = dungDauAn();
+    document.querySelectorAll(LO_DAU_AN).forEach(function (o) {
+      if (o.dataset.brandGoc === undefined) o.dataset.brandGoc = o.innerHTML;
+      if (dung) {
+        o.classList.add("brand-pet");
+        o.innerHTML = chanDung(cfg.shape, cfg.palette);
+      } else if (o.classList.contains("brand-pet")) {
+        o.classList.remove("brand-pet");
+        o.innerHTML = o.dataset.brandGoc;
+      }
+    });
   }
 
   window.JavisPet = {
@@ -462,23 +532,16 @@
       cfg = chuanHoa(Object.assign({}, cfg, o));
       ghiLocal();
       if (el) { apDung(); apDungTrangThai(); chay(); }
+      veDauAn();
     },
-    // Cho trang Cài đặt vẽ ô xem thử: một SVG tĩnh, cùng hình cùng màu với pet thật.
-    previewSvg: function (shape, palette) {
-      var d = (SHAPES[shape] || SHAPES.circle).d;
-      var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
-      var rgb = tone[0].slice(1).match(/../g).map(function (x) {
-        var v = parseInt(x, 16) / 255;
-        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-      });
-      var mat = (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) > 0.179 ? "#201e1e" : "#ffffff";
-      // viewBox ôm TRỌN hình rộng nhất (tam giác trải 64..256), không cắt theo hình tròn:
-      // cắt chặt thì tam giác và mây bị xén mất góc ngay trong ô chọn.
-      return '<svg viewBox="58 58 204 204" aria-hidden="true">' +
-        '<path d="' + d + '" fill="' + tone[0] + '"/>' +
-        '<ellipse cx="145" cy="160" rx="7.2" ry="17.5" fill="' + mat + '"/>' +
-        '<ellipse cx="175" cy="160" rx="7.2" ry="17.5" fill="' + mat + '"/></svg>';
-    },
+    // branding.js gọi khi người dùng tải logo riêng lên hay khôi phục logo mặc định.
+    setLogoRieng: function (rieng) { _logoRieng = !!rieng; veDauAn(); },
+    // Ô xem thử trên trang Linh vật, và DẤU ẤN thay cho logo trên thanh bên: cùng một hàm,
+    // vì hai chỗ đó phải là cùng một khuôn mặt.
+    previewSvg: chanDung,
+    markSvg: function () { return chanDung(cfg.shape, cfg.palette); },
+    // Thanh bên có đang dùng khuôn mặt linh vật thay cho logo không.
+    usingMark: function () { return dungDauAn(); },
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

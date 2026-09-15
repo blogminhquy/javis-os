@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.1] - 2026-09-15
+### Thêm mới
+- **Chỗ logo trên thanh bên mang luôn khuôn mặt linh vật** khi bạn bật nó, và đổi theo đúng hình dáng với màu bạn chọn. Tắt linh vật, hoặc đã tải logo riêng lên, thì chỗ đó trả về logo cũ: logo của bạn thì bạn quyết.
+### Cải thiện
+- **Linh vật thôi nhìn thẳng.** Rời chuột một lúc là nó liếc chéo lên phía trên bên phải, đúng ánh mắt trong hình logo, chứ không đứng nhìn thẳng vô hồn. Con trỏ vẫn kéo được mắt nó sang bất cứ hướng nào; buông ra thì nó trôi về dáng liếc ấy.
+
 ## [0.58.0] - 2026-09-15
 ### Thêm mới
 - **Javis có linh vật riêng, nép ở mép màn hình.** Một khuôn mặt nhỏ ló ra nửa người bên phải, hai mắt né sang phần còn nhìn thấy, nhìn theo con trỏ và chớp mắt. Nó đổi biểu cảm theo đúng việc đang làm: mắt mở to khi lắng nghe, liếc lên khi suy nghĩ, cong lại khi trả lời.
