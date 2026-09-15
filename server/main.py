@@ -12066,6 +12066,7 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "session_id": conv_sid,
                         "tts": False,
+                        **_ctx_frame(runtime_trace, _ctx_in),
                     }))
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
