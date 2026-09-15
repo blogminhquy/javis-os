@@ -71,7 +71,11 @@ const jitter = [...pet.matchAll(/liecDich[XY] = kep\(NGHI_[XY] \+ \(Math\.random
 check("biên đảo mắt nhỏ hơn dáng nghỉ (giữ được chữ ký)",
   jitter.length === 2 && jitter[0] < Math.abs(liecX / tamX) && jitter[1] < Math.abs(liecY / tamY));
 check("rời chuột thì trôi về dáng liếc chứ không về giữa", /if \(ranh\) \{\s*\n\s*if \(now > liecLuc\)/.test(pet));
-check("chân dung tĩnh dùng đúng dáng liếc", /var ex = 160 \+ LIEC_X, ey = 160 \+ LIEC_Y;/.test(pet));
+// Chân dung nhận được hướng liếc KHÁC (ô xem thử lớn trong cài đặt trợ lý liếc trái-xuống),
+// nhưng MẶC ĐỊNH vẫn phải là dáng liếc chữ ký - không thì mọi avatar đổi hướng nhìn một lượt.
+check("chân dung tĩnh mặc định vẫn dùng đúng dáng liếc",
+  /o\.liecX === undefined \? LIEC_X/.test(pet) && /o\.liecY === undefined \? LIEC_Y/.test(pet)
+  && /var ex = 160 \+ lx, ey = 160 \+ ly;/.test(pet));
 
 // ---- 3. Nép ở mép: mắt né sang nửa còn nhìn thấy ----
 check("nép bên phải thì mắt dồn sang TRÁI và ngược lại",
@@ -190,6 +194,25 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
 ["app.ws_mat_ket_noi", "app.ws_giu_tin", "app.ws_tra_tin"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
+
+// ---- 10a. Vành quỹ đạo phải ĐẬP VÀO MẮT khi đang làm việc (0.59.4) ----
+// Chủ dự án báo 15/09: vành "nhỏ và mờ quá", đổi trạng thái nhìn không ra. Lúc nghỉ nó cố ý
+// mảnh và nhạt; mọi trạng thái KHÁC nghỉ phải đổi sang màu chính và dày hẳn lên.
+{
+  const luat = css.slice(css.indexOf('.pet[data-state]:not([data-state="idle"])'));
+  const than = luat.slice(0, luat.indexOf("}"));
+  check("css: trạng thái khác nghỉ thì vành đổi sang MÀU CHÍNH", /stroke: var\(--pet-face/.test(than));
+  check("css: và dày hơn hẳn nét lúc nghỉ (7)", /stroke-width: 1[0-9]/.test(than));
+  check("css: loại trừ cả 'paused' - đó là lúc pet đang ngủ, không phải đang làm",
+    /:not\(\[data-state="paused"\]\)/.test(luat.slice(0, luat.indexOf("{"))));
+  // Độ mờ đi kèm: nét đậm mà opacity 0,6 thì vẫn là một vệt mờ.
+  const st = pet.slice(pet.indexOf("var STATES = {"), pet.indexOf("var el = null"));
+  const mo = [...st.matchAll(/^\s+(\w+):\s*\{[^}]*mo: ([\d.]+)/gm)].map(m => [m[1], +m[2]]);
+  check("mọi trạng thái đang làm việc đều đục hẳn (mo = 1)",
+    mo.filter(([k]) => k !== "idle" && k !== "paused").every(([, v]) => v === 1));
+  check("trạng thái nghỉ vẫn nhạt, để còn thấy sự khác biệt",
+    mo.filter(([k]) => k === "idle" || k === "paused").every(([, v]) => v < 0.5));
+}
 
 // ---- 10b. Menu nhanh: đúng 5 mục, đúng thứ tự chủ dự án chốt (0.59.3) ----
 // Menu cũ chỉ có Trò chuyện / Việc / Cài đặt / Ẩn, và "Cài đặt pet" lại mở trang Cài đặt

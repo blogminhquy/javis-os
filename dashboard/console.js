@@ -6000,7 +6000,10 @@
       <div class="settings-card">
         <div class="settings-card-head"><b>${esc(t("settings.pet_shape"))}</b></div>
         <div class="pet-picker" role="group">${Object.entries(shapes).map(([k, sh]) =>
-          `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette)}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
+          // `vanh: true` - ô chọn hình dáng vẽ CẢ vành quỹ đạo, để mấy hình này trông đúng con
+          // pet thật ở mép màn hình chứ không phải một cái mặt trần. Avatar trợ lý và dấu ấn
+          // trên thanh bên vẫn không có vành: ở cỡ 26-30px nó chỉ còn là một vệt bẩn.
+          `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette, { vanh: true })}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_size"))}</b><span class="gcard-tag">${esc(t(sizes[cur.size].key))}</span></div>
         <div class="pet-picker" role="group">${Object.entries(sizes).map(([k, sz]) =>
           `<button type="button" class="pet-pick pet-pick-size" data-pet-size="${esc(k)}" aria-pressed="${k === cur.size}"><i style="width:${Math.round(sz.px / 3)}px;height:${Math.round(sz.px / 3)}px"></i><span>${esc(t(sz.key))}</span></button>`).join("")}</div>

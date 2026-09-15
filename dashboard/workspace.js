@@ -556,17 +556,27 @@
       (S.loai === "workflow"
         ? '<div class="ws-rtitle">' + esc(t("ws.history_runs")) + '</div><div class="ws-runs" id="wsRuns"></div>'
         : "") +
-      '<div class="ws-rtitle">' + esc(t("ws.history_chats")) + '</div><div class="ws-sess" id="wsSess"></div>';
+      '<div class="ws-rtitle">' + esc(t("ws.history_chats")) + '</div><div class="ws-chatside" id="wsSess"></div>';
     if (S.loai === "workflow") taiLichSu(item);
-    taiPhienGanDay(item);
+    // Danh sách hội thoại là CHÍNH cột lịch sử của trang Trò chuyện (sessions-ui.js), gắn vào
+    // đây ở chế độ lọc theo kênh: cùng ô tìm, cùng nhóm theo ngày, cùng ghim / đổi tên / xoá,
+    // cùng nút "Xem thêm". Chủ dự án yêu cầu đúng trải nghiệm ấy chứ không phải một danh sách
+    // rút gọn khác; và một bản thứ hai thì lệch dần khỏi bản gốc ngay từ lần sửa đầu tiên.
+    if (window.JavisChatSide && window.JavisChatSide.mount) {
+      window.JavisChatSide.mount(host.querySelector("#wsSess"), {
+        kenh: kenh(item), chiHoiThoai: true,
+        onNew: function () { var x = dangChon(); if (x) moPhien(x, true); },
+      });
+    }
   }
-  // Tô lại hàng của phiên ĐANG MỞ mà không tải lại gì cả. Hai danh sách ở tab Lịch sử tới từ
-  // hai lời gọi mạng, còn phiên thì đổi ngay lúc bấm - vẽ lại cả tab chỉ để đổi một cái viền
-  // là tốn hai request và làm danh sách nháy một nhịp.
+  // Tô lại hàng của phiên ĐANG MỞ trong danh sách LẦN CHẠY mà không tải lại gì cả: vẽ lại cả
+  // tab chỉ để đổi một cái viền là tốn một request và làm danh sách nháy một nhịp.
+  // (Danh sách hội thoại bên dưới là cột lịch sử mượn của trang Trò chuyện, nó tự tô hàng đang
+  // mở mỗi lần app.js gọi JavisChatSide.refresh - không đụng tay vào đây.)
   function toMoiLichSu() {
     var el = S.el; if (!el) return;
     var cur = window.JavisSessions ? window.JavisSessions.current() : null;
-    el.querySelectorAll("#wsRuns [data-sid], #wsSess [data-sid]").forEach(function (b) {
+    el.querySelectorAll("#wsRuns [data-sid]").forEach(function (b) {
       b.classList.toggle("on", !!cur && b.dataset.sid === cur);
     });
   }
@@ -606,43 +616,19 @@
     try { return d.toLocaleString(loc, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }); }
     catch (e) { return d.toLocaleString(); }
   }
-  // Nhãn nhóm theo NGÀY, đúng bốn mốc của cột Lịch sử trang Trò chuyện (sessions-ui.js) và
-  // dùng chung từ điển với nó: hai chỗ cùng làm một việc thì phải đọc lên giống nhau.
-  function nhomNgay(ts) {
-    var d0 = new Date(); d0.setHours(0, 0, 0, 0);
-    var moc = d0.getTime() / 1000;
-    if (ts >= moc) return t("sess.grp_hom_nay");
-    if (ts >= moc - 86400) return t("sess.grp_hom_qua");
-    if (ts >= moc - 6 * 86400) return t("sess.grp_7days");
-    return t("cs.cl_older");
-  }
-  async function taiPhienGanDay(item) {
-    var host = S.el && S.el.querySelector("#wsSess"); if (!host) return;
-    // Kênh theo LOẠI đang xem, không cứng "agent:". Quy trình cũng có hội thoại riêng (mỗi tin
-    // là một lần chạy), và cột lịch sử mà chỉ biết đọc kênh trợ lý thì nửa trang này trống.
-    var r = await api("/sessions?brain=" + encodeURIComponent(brain()) + "&channel=" + encodeURIComponent(kenh(item)) + "&limit=20");
-    if (!conDangXem(item)) return;
-    host = S.el && S.el.querySelector("#wsSess"); if (!host) return;
-    var ds = r.sessions || [];
-    if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.no_chats")) + '</div>'; return; }
-    var cur = window.JavisSessions ? window.JavisSessions.current() : null, nhomTruoc = null;
-    host.innerHTML = ds.map(function (s) {
-      var moc = Number(s.updated_at || 0), nhom = nhomNgay(moc), dau = "";
-      if (nhom !== nhomTruoc) { dau = '<div class="cside-group">' + esc(nhom) + "</div>"; nhomTruoc = nhom; }
-      return dau + '<button type="button" class="ws-run' + (s.id === cur ? " on" : "") + '" data-sid="' + esc(s.id) + '">' +
-        '<strong>' + esc(s.title || s.preview || t("ws.untitled")) + '</strong>' +
-        '<span class="ws-run-st">' + esc(gioPhut(new Date(moc * 1000))) + '</span>' +
-        '<small>' + esc(t("sess.msgs", { count: s.msg_count || 0 })) + '</small></button>';
-    }).join("");
-    host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { moPhienCu(b.dataset.sid); }; });
-  }
-
   // ---------- sự kiện quy trình từ WebSocket ----------
   // app.js chuyển MỌI khung wf_event vào đây, kể cả của phiên đang không mở: ghi theo
   // session_id để mở lại phiên đó là thấy ngay tiến độ, không phải chạy lại từ đầu.
   function onWfEvent(frame) {
     var sid = frame.session_id, ev = frame.event || {}; if (!sid) return;
     var item = dangChon();
+    // Phiên mở từ cột LỊCH SỬ đi thẳng qua JavisSessions.open (module lịch sử lo), không qua
+    // moPhien nên chưa có tên trong sổ "phiên nào của cộng sự nào". Lần chạy đầu tiên ở đó mà
+    // thiếu dòng này thì icon quay ở cột trái không bao giờ bật: dangChay() tra sổ không thấy.
+    if (item && !S.sessionCuaPhien[sid] &&
+        window.JavisSessions && window.JavisSessions.current() === sid) {
+      S.sessionCuaPhien[sid] = item.slug;
+    }
     if (!S.tienDo[sid]) {
       var n = (item && S.loai === "workflow" && S.sessionCuaPhien[sid] === item.slug) ? cacBuoc(item).length : Number(ev.steps || 0);
       S.tienDo[sid] = tienDoMoi(n);

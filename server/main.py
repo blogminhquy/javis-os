@@ -12918,8 +12918,12 @@ async def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
 
 
 @app.get("/sessions/search")
-async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = Query(30)):
-    return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain))}
+async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: int = Query(30),
+                          channel: str = Query("")):
+    """channel: bỏ trống = tìm mọi kênh (thanh tìm trang Trò chuyện); có giá trị = chỉ kênh đó
+    (ô tìm ở cột lịch sử của một trợ lý / quy trình trên trang Cộng sự)."""
+    return {"results": get_store().search(q, limit=limit, brain=_brain_keys(brain),
+                                          channel=channel or None)}
 
 
 @app.get("/sessions/{session_id}")

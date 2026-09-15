@@ -1141,16 +1141,24 @@ class SessionStore:
         return q.strip()
 
     def search(self, query: str, limit: int = 30,
-               brain: Any = None) -> List[Dict[str, Any]]:
+               brain: Any = None, channel: Optional[str] = None) -> List[Dict[str, Any]]:
         """Full-text search nội dung mọi hội thoại. FTS5 nếu có, fallback LIKE.
 
-        `brain` nhận cả danh sách bí danh, cùng luật với `list_sessions`."""
+        `brain` nhận cả danh sách bí danh, cùng luật với `list_sessions`.
+
+        `channel`: bỏ trống = tìm trong MỌI kênh (giữ nguyên hành vi cũ của thanh tìm ở trang
+        Trò chuyện); có giá trị = chỉ đúng kênh đó, cho ô tìm ở cột lịch sử của một cộng sự -
+        ở đó mà trả về hội thoại của cả brain thì bấm vào là nhảy ra khỏi trợ lý đang mở."""
         q = (query or "").strip()
         if not q:
             return []
 
         _bcond, _bparams = loc_brain(brain)
         brain_clause = (" AND " + _bcond) if _bcond else ""
+        ch = str(channel or "").strip()
+        if ch:
+            brain_clause += " AND s.channel = ?"
+            _bparams = list(_bparams) + [ch]
         if self._fts_enabled:
             fts_q = self._sanitize_fts(q)
             if fts_q:

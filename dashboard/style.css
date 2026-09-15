@@ -2900,10 +2900,25 @@ body.ne-full-on .cview { z-index: 250; }
    (thinking / speaking), lúc nghỉ thì mờ gần hết đúng như chủ dự án chốt. */
 .pet-ring {
   fill: none; stroke: var(--pet-ring, #f7c98f); stroke-width: 7; stroke-linecap: round;
+  /* CHỈ chuyển mượt độ mờ. Đừng thêm stroke / stroke-width vào đây: vòng vẽ của pet ghi
+     `strokeDashoffset` lên chính thẻ này MỖI KHUNG HÌNH, và chuyển cảnh bị khởi động lại
+     theo từng lần ghi - đo thật: sau 800ms nét mới bò tới 12,087px trên đường về 13px, nên
+     đổi trạng thái xong nhìn vẫn như chưa đổi. Đổi tức thì cũng đúng ý hơn: người dùng cần
+     thấy NGAY là Javis vừa bắt đầu làm việc. */
   transition: opacity .3s ease;
   /* Phóng to hơn thân một chút để vòng CHẠY BÊN NGOÀI chứ không nằm đè lên mép thân:
      dùng chung path với thân nên không phóng thì nét vẽ bị thân nuốt mất một nửa. */
   transform: scale(1.1); transform-origin: 160px 160px;
+}
+/* ĐANG LÀM VIỆC thì vành phải ĐẬP VÀO MẮT. Lúc nghỉ nó cố ý mảnh và nhạt (tông phụ của bảng
+   màu), nhưng bản đầu giữ nguyên nét ấy cho mọi trạng thái, nên pet chuyển từ "rảnh" sang
+   "đang nghĩ" mà nhìn gần như không khác gì - đúng điều chủ dự án báo 15/09: nhỏ và mờ quá,
+   đổi trạng thái không thấy. Nay mọi trạng thái KHÁC nghỉ đổi sang MÀU CHÍNH của bảng màu
+   (cùng màu thân, nên vẫn là một nhân dạng) và dày gần gấp đôi, thêm một quầng sáng nhẹ.
+   `paused` nằm cùng phía "nghỉ": nó là lúc pet đang ngủ, không phải lúc đang làm. */
+.pet[data-state]:not([data-state="idle"]):not([data-state="paused"]) .pet-ring {
+  stroke: var(--pet-face, #f28c28); stroke-width: 13;
+  filter: drop-shadow(0 0 5px var(--pet-face, #f28c28));
 }
 .pet-rig { transform-origin: 160px 160px; }
 
