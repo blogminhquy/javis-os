@@ -96,5 +96,11 @@ check("partner in middle preserves request", S.route("hello /agent-writer").mess
 check("draft workflows hidden", !S.buildMenu([], agents, workflows).some(x => x.cmd === "workflow-draft"));
 check("skill remains a skill", S.route("/writer hello").type === "skill");
 
+const searchable = [{cmd: "agent-viet", name: "Người viết", desc: "Nội dung bán hàng", group: "Marketing"}, {cmd: "workflow-ban", name: "Bán hàng", desc: ""}];
+check("Vietnamese without accents", S.filterItems(searchable, "nguoi viet")[0] === searchable[0]);
+check("multiple words across fields", S.filterItems(searchable, "marketing noi dung")[0] === searchable[0]);
+check("exact name outranks description", S.filterItems(searchable, "ban hang")[0] === searchable[1]);
+check("all words required", S.filterItems(searchable, "marketing unknown").length === 0);
+check("Vietnamese slash query opens menu", S.tokenAtCaret("/viết", 5).query === "viết");
 if (fails.length) { console.log("\nFAIL - test_chat_slash: " + fails.length + " loi"); process.exit(1); }
 console.log("\nOK - test_chat_slash: tat ca pass");

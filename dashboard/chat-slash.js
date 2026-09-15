@@ -91,31 +91,32 @@
     [["agent", agents], ["workflow", workflows]].forEach(function (group) {
       (group[1] || []).forEach(function (x) {
         if (!x.slug || (group[0] === "workflow" && x.status !== "active")) return;
-        out.push({kind: group[0], slug: x.slug, cmd: group[0] + "-" + x.slug, name: x.name || x.slug, desc: x.role || x.description || ""});
+        out.push({kind: group[0], slug: x.slug, cmd: group[0] + "-" + x.slug, name: x.name || x.slug, group: x.group || "", desc: x.role || x.description || ""});
       });
     });
     (skills || []).forEach(function (s) {
       if (!s || !s.slug) return;
-      out.push({ kind: "skill", cmd: s.slug, name: s.name || s.slug, desc: s.description || "" });
+      out.push({ kind: "skill", cmd: s.slug, name: s.name || s.slug, group: s.group || "", desc: s.description || "" });
     });
     return out;
   }
 
+  function normalizeSearch(value) {
+    return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[đĐ]/g, "d").toLowerCase().replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  }
   function filterItems(items, query) {
-    var q = (query || "").toLowerCase();
+    var q = normalizeSearch(query), words = q.split(" ").filter(Boolean);
     if (!q) return (items || []).slice();
-    var scored = [];
-    (items || []).forEach(function (it) {
-      var cmd = (it.cmd || "").toLowerCase();
-      var name = (it.name || "").toLowerCase();
-      var score = -1;
-      if (cmd.indexOf(q) === 0) score = 0;            // cmd khop tien to - uu tien nhat
-      else if (cmd.indexOf(q) !== -1) score = 1;      // cmd chua query
-      else if (name.indexOf(q) !== -1) score = 2;     // ten chua query
-      if (score >= 0) scored.push({ it: it, score: score });
-    });
-    scored.sort(function (a, b) { return a.score - b.score; });
-    return scored.map(function (x) { return x.it; });
+    return (items || []).map(function (it, index) {
+      var name = normalizeSearch(it.name), cmd = normalizeSearch(it.cmd);
+      var extra = normalizeSearch([it.desc, it.group, it.kind].join(" "));
+      var all = name + " " + cmd + " " + extra;
+      if (!words.every(function (word) { return all.indexOf(word) !== -1; })) return null;
+      var score = name === q || cmd === q ? 0 : name.indexOf(q) === 0 || cmd.indexOf(q) === 0 ? 1 : name.indexOf(q) >= 0 || cmd.indexOf(q) >= 0 ? 2 : 3;
+      return {item: it, score: score, index: index};
+    }).filter(Boolean).sort(function (a, b) { return a.score - b.score || a.index - b.index; })
+      .map(function (x) { return x.item; });
   }
 
   // Token lenh dang go NGAY TRUOC con tro. Tra {start, query, atHead} hoac null.
@@ -123,7 +124,7 @@
   function tokenAtCaret(text, caret) {
     if (typeof text !== "string") return null;
     var pos = (typeof caret === "number") ? caret : text.length;
-    var m = text.slice(0, pos).match(/(^|\s)\/([a-zA-Z0-9_-]*)$/);
+    var m = text.slice(0, pos).match(/(^|\s)\/([\p{L}\p{M}0-9_-]*)$/u);
     if (!m) return null;
     var start = m.index + m[1].length;
     return { start: start, query: m[2], atHead: start === 0 };
@@ -141,6 +142,7 @@
     route: route,
     buildMenu: buildMenu,
     filterItems: filterItems,
+    normalizeSearch: normalizeSearch,
   };
 
   if (typeof window !== "undefined") window.JavisSlash = api;
@@ -253,8 +255,8 @@
 
     function onKeydown(e) {
       if (!box || box.style.display === "none") return;
-      if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; renderList(); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + items.length) % items.length; renderList(); }
+      if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; renderList(); box.children[active].scrollIntoView({block: "nearest"}); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + items.length) % items.length; renderList(); box.children[active].scrollIntoView({block: "nearest"}); }
       else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); choose(active); }
       else if (e.key === "Escape") { e.preventDefault(); hide(); }
     }

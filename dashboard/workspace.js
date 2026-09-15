@@ -49,7 +49,8 @@
     return ds.filter(function (x) {
       if (nhom && (x.group || "Chung") !== nhom) return false;
       if (!nq) return true;
-      return khongDau([x.name, x.role, x.description, x.slug].join(" ")).indexOf(nq) >= 0;
+      var text = khongDau([x.name, x.role, x.description, x.slug, x.group].join(" "));
+      return nq.split(/\s+/).every(function (word) { return text.indexOf(word) >= 0; });
     });
   }
   function bucMoi(i) { return { i: i, agent: "", trang_thai: "cho", loi: "" }; }

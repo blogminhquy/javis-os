@@ -134,7 +134,7 @@
     let list = items || [];
     if (state.cat !== "ALL") list = list.filter(x => nhomCua(x) === state.cat);
     const nq = _spNoAccent((state.q || "").trim());
-    if (nq) list = list.filter(x => _spNoAccent(blob(x)).includes(nq));
+    if (nq) list = list.filter(x => nq.split(/\s+/).every(word => _spNoAccent(blob(x)).includes(word)));
     return list;
   }
 
@@ -684,7 +684,7 @@
 
     const draw = () => {
       const nq = _spNoAccent(q.trim());
-      const hop = (s) => !nq || _spNoAccent(`${s.name} ${s.slug} ${s.group || ""} ${s.description || ""}`).includes(nq);
+      const hop = (s) => !nq || nq.split(/\s+/).every(word => _spNoAccent(`${s.name} ${s.slug} ${s.group || ""} ${s.description || ""}`).includes(word));
       const groups = new Map();
       skills.forEach(s => {
         if (!hop(s)) return;
