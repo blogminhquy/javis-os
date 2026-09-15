@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.4] - 2026-09-15
+### Sửa lỗi
+- **Mở một file trong lúc chat với cộng sự không còn để lại một khoảng trống to giữa màn hình.** Giờ file nằm bên trái, hội thoại thu vào một cột hẹp bên phải, ô nhập trải dài dưới đáy - đúng như trang Trò chuyện.
+- **Linh vật đang làm việc giờ nhìn là biết.** Vòng quanh người nó dày hẳn lên và sáng màu chính khi Javis nghe, nghĩ, trả lời hay gặp lỗi; lúc rảnh mới mảnh và nhạt như cũ.
+- **Các trợ lý thôi chớp mắt đồng loạt.** Mỗi trợ lý có nhịp riêng nên danh sách trông như mấy nhân vật khác nhau chứ không phải mấy bản sao của một cái máy.
+### Cải thiện
+- **Lịch sử hội thoại của trợ lý và quy trình giờ là đúng cột lịch sử bạn quen ở trang Trò chuyện**: ô tìm riêng trong hội thoại của cộng sự đó, nhóm theo ngày, ghim, đổi tên, xoá, và nút xem thêm.
+- Hình đại diện trong phần cài đặt trợ lý liếc sang trái và hơi xuống, nhìn về phía nội dung thay vì nhìn ra ngoài.
+- Mấy hình chọn ở trang Linh vật có thêm vòng cam bao ngoài, giống hệt con pet thật ở mép màn hình.
+- Hai chữ **Trợ lý** và **Quy trình** ở đầu cột trái trang Cộng sự được in đậm cho dễ thấy.
+
 ## [0.59.3] - 2026-09-15
 ### Thêm mới
 - **Lịch sử của trợ lý và quy trình có tab riêng ở cột phải.** Trước đây nó nằm tít dưới đáy khung Cài đặt, phải cuộn qua cả cái form mới thấy. Giờ bấm vào tab Lịch sử là ra ngay: các lần chạy và các cuộc trò chuyện cũ, kèm giờ, và cuộc đang mở được tô sáng.

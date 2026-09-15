@@ -1412,19 +1412,21 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
   padding: 14px 18px 16px; }
 .ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-/* Trình sửa file mở từ chat / từ tab Thư mục: XẾP CHỒNG như trang Trò chuyện - trình sửa ở
-   TRÊN, khung chat rút gọn ở dưới, để vừa sửa file vừa nhắn cho cộng sự về chính file đó.
+/* Trình sửa file mở từ chat / từ tab Thư mục. Khung xếp thế nào thì xem khối @media bên dưới:
+   màn rộng XẾP NGANG (trình sửa trái, hội thoại phải), màn hẹp thì trình sửa chiếm hết chỗ.
    `order` chứ không đổi thứ tự DOM: #wsSlot phải đứng trước trong DOM vì console.js mượn node
    chat vào đó ngay lúc dựng khung, trước khi ai biết có mở file hay không. */
-.ws-edit { display: none; position: relative; flex: 1 1 60%; min-height: 0; min-width: 0;
-  flex-direction: column; order: 1; margin-bottom: 10px; }
+/* `flex: 1 1 auto` cho khổ màn HẸP, nơi .ws-main còn là flex dọc và trình sửa là con duy nhất
+   còn hiện: thiếu nó thì trình sửa chỉ cao bằng nội dung, nằm lửng giữa một cột trống. Màn
+   rộng đi đường grid nên mấy giá trị flex này không có tác dụng gì. */
+.ws-edit { display: none; position: relative; flex: 1 1 auto; min-height: 0; min-width: 0;
+  flex-direction: column; order: 1; }
 .ws-main.edit-on > .ws-edit { display: flex; }
-.ws-main.edit-on > .ws-slot { order: 2; flex: 1 1 40%; }
 /* .transcript mang sẵn `min-height: clamp(280px, 46vh, 620px)` từ style.css (ở màn chính nó là
-   cả cột phải). Khi trình sửa lấy mất 60% chiều cao thì con số đó LỚN HƠN chỗ còn lại, khung
-   hội thoại từ chối co và ĐẨY Ô NHẬP RỚT KHỎI MÀN HÌNH - đo thật ở cửa sổ 950px: #hudVoice
-   nằm ở y=1138. Trang Trò chuyện đã gỡ đúng chốt này (.chatpage-slot .transcript), ở đây gỡ
-   y hệt, và chỉ gỡ lúc edit-on để layout thường không đổi. */
+   cả cột phải). Trong khung này con số đó LỚN HƠN chỗ nó được chia, nên khung hội thoại từ
+   chối co và ĐẨY Ô NHẬP RỚT KHỎI MÀN HÌNH - đo thật ở cửa sổ 950px: #hudVoice nằm ở y=1138.
+   Trang Trò chuyện đã gỡ đúng chốt này (.chatpage-slot .transcript), ở đây gỡ y hệt, và chỉ gỡ
+   lúc edit-on để layout thường không đổi. */
 .ws-main.edit-on > .ws-slot > .transcript { min-height: 0; max-height: none; }
 /* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của cột
    giữa nên phải gỡ inset/z-index, TRỪ khi đang phóng to (.ne-full) - lúc đó nó cố ý phủ kín
@@ -1434,6 +1436,34 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Màn hẹp không đủ chỗ cho cả hai: trình sửa chiếm chỗ, đóng nó ra là khung chat về đủ
    (ẩn bằng display:none nên đoạn chat đang dở còn nguyên). */
 @media (max-width: 860px) { .ws-main.edit-on > .ws-slot { display: none; } }
+/* Màn rộng: XẾP NGANG chứ không xếp chồng - trình sửa bên trái, hội thoại thành một cột hẹp
+   bên phải, còn cụm nhập (dải việc nền, file đính kèm, thanh model, ô nhập) trải hết bề ngang
+   dưới đáy. Đúng khuôn trang Trò chuyện đã chốt (.chatpage-main.edit-on trong console.js).
+
+   Vì sao đổi: kiểu xếp chồng 60/40 để lại một KHOẢNG TRỐNG lớn giữa trình sửa và ô nhập -
+   khung hội thoại rỗng cao gần nửa màn hình, giữa nó lơ lửng mỗi cái chip file đang ghim và
+   thanh model, trong khi trình sửa bị bóp lại chỉ còn vài dòng và cắt ngang câu (chủ dự án
+   chụp lại đúng cảnh đó). Nằm ngang thì trình sửa được cao hết màn, còn hội thoại rỗng chỉ
+   chiếm một cột hẹp.
+
+   Cột hội thoại co theo bề ngang: cột giữa trang Cộng sự đã bị hai cột hai bên ăn mất ~570px,
+   khoá cứng 340px như trang Trò chuyện là trên laptop 1280 trình sửa chỉ còn hơn 300px. */
+@media (min-width: 861px) {
+  .ws-main.edit-on { display: grid; column-gap: 14px;
+    grid-template-columns: minmax(0, 1fr) clamp(220px, 32%, 340px);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
+  .ws-main.edit-on > .ws-bar { grid-row: 1; grid-column: 1 / -1; }
+  .ws-main.edit-on > .ws-edit { grid-row: 2; grid-column: 1; min-width: 0; }
+  /* display:contents để TỪNG node chat mượn về tự nhận một ô trong lưới; bọc trong một item
+     thì cả cụm nhập bị nhốt trong cột hẹp bên phải. */
+  .ws-main.edit-on > .ws-slot { display: contents; }
+  .ws-main.edit-on > .ws-slot > .transcript { grid-row: 2; grid-column: 2; min-height: 0;
+    overflow-y: auto; border-left: 1px solid var(--border); padding-left: 12px; }
+  .ws-main.edit-on > .ws-slot > .bg-strip { grid-row: 3; grid-column: 1 / -1; }
+  .ws-main.edit-on > .ws-slot > .attach-bar { grid-row: 4; grid-column: 1 / -1; }
+  .ws-main.edit-on > .ws-slot > .model-bar { grid-row: 5; grid-column: 1 / -1; }
+  .ws-main.edit-on > .ws-slot > .hud-voice { grid-row: 6; grid-column: 1 / -1; }
+}
 .ws-right { width: 320px; flex: none; overflow: hidden; padding: 14px 12px;
   display: flex; flex-direction: column; gap: 8px;
   border-left: 1px solid var(--glass-brd); background: var(--surface-1); }
@@ -1457,10 +1487,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 /* Hai nút Trợ lý | Quy trình: một viên thuốc chia đôi, nút đang chọn tô cam nhạt. */
 .ws-seg { display: flex; gap: 6px; }
+/* In ĐẬM: đây là hai tiêu đề chia đôi cả cột trái, không phải hai nút phụ. Chữ thường 13px
+   làm chúng chìm ngang hàng với ô lọc nhóm ngay bên dưới (chủ dự án yêu cầu 15/09). */
 .ws-seg button { flex: 1; min-width: 0; display: inline-flex; align-items: center;
   justify-content: center; gap: 6px; padding: 7px 6px; border-radius: 9px;
   border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer;
-  font-family: var(--font); font-size: 13px; white-space: nowrap; }
+  font-family: var(--font); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .ws-seg button:hover { color: var(--accent); border-color: var(--accent); }
 .ws-seg button.on { color: var(--accent); border-color: #7d532d; background: rgba(255, 122, 60, .12); }
 .ws-search, .ws-group { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px;
@@ -1548,8 +1580,19 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   background: rgba(255, 122, 60, .1); font-size: 12.5px; }
 .ws-wait small { display: block; margin-top: 4px; font-size: 11px; color: var(--text3); }
 
+/* Tab Lịch sử gắn CHÍNH cột lịch sử của trang Trò chuyện (sessions-ui.js, chế độ gọn). Khung
+   chứa phải là flex dọc CÓ chiều cao, vì .cside-list bên trong tự cuộn - nhét vào một khung
+   cao tự do thì nó không bao giờ cuộn mà đẩy dài cả cột phải. */
+.ws-chatside { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 260px; }
+/* `.cside-gon` = chế độ gọn của chính module đó (không có hàng tab, không có thanh project).
+   Nhắm vào nó chứ vào khung chứa: luật đi theo CHẾ ĐỘ, nên chỗ nào gắn kiểu này cũng đúng. */
+.cside-gon .cside-pane { flex: 1 1 auto; min-height: 0; gap: 8px; }
+/* Cột phải hẹp hơn cột lịch sử trang Trò chuyện: hàng giờ / số tin / nút nép sát lại cho khỏi
+   chen nhau. */
+.cside-gon .ci-meta { gap: 6px; }
+
 /* Một lần chạy / một hội thoại cũ: nút trải hết bề ngang cột phải. */
-.ws-runs, .ws-sess { display: flex; flex-direction: column; gap: 4px; }
+.ws-runs { display: flex; flex-direction: column; gap: 4px; }
 .ws-run { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   padding: 6px 8px; border-radius: 8px; border: 1px solid var(--glass-brd); background: none;
   color: var(--text2); cursor: pointer; font-family: var(--font); font-size: 12.5px; }
@@ -1562,9 +1605,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Hàng của hội thoại ĐANG MỞ. Cột lịch sử mà không tô chỗ đang đứng thì mỗi lần liếc sang
    lại phải đối chiếu tiêu đề để biết mình đang ở đâu (cột Lịch sử trang Trò chuyện tô từ lâu). */
 .ws-run.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--text); }
-/* Tên hội thoại ăn hết chỗ thừa, còn giờ và số tin nép về phải theo đúng thứ tự mắt đọc. */
-.ws-sess .ws-run strong { flex: 1 1 auto; min-width: 0; }
-.ws-sess .ws-run small { flex: none; }
 
 /* Màn hẹp dần: hai cột bên lần lượt thành NGĂN KÉO trượt đè để khung chat giữ đủ bề ngang.
    Ba nấc vì một màn laptop 1024px trừ thanh bên còn ~900px, mà 260 + 320 cột hai bên ăn hết
@@ -1602,7 +1642,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Cộng sự: cùng nhân dạng ở danh sách, trình sửa và mỗi bước quy trình. */
 .agent-avatar { --avatar-size:40px; display:inline-flex; width:var(--avatar-size); height:var(--avatar-size); flex:none; vertical-align:middle; }
 .agent-avatar svg { display:block; width:100%; height:100%; overflow:visible; }
-.agent-avatar .aa-eyes { transform-origin:176px 148px; animation:aa-blink 6s infinite; }
+/* Nhịp chớp mắt lấy từ biến gắn trên từng avatar (agent-avatar.js sinh theo slug) nên mỗi
+   trợ lý chớp một nhịp riêng; thiếu biến thì rơi về nhịp cũ. Tâm co cũng đi theo mắt: ô xem
+   thử lớn liếc sang trái nên tâm phải lệch trái, không thì mắt vừa nhắm vừa trượt đi. */
+.agent-avatar .aa-eyes { transform-origin:var(--aa-eye-x,176px) var(--aa-eye-y,148px);
+  animation:aa-blink var(--aa-blink-dur,6s) var(--aa-blink-delay,0s) infinite; }
 .agent-avatar .aa-gaze { transition:transform .2s ease; }
 .agent-avatar[data-state="thinking"] svg { animation:aa-think 1.6s ease-in-out infinite; }
 .agent-avatar[data-state="speaking"] .aa-eyes { animation:aa-talk .8s ease-in-out infinite; }

@@ -83,12 +83,16 @@ check("CANARY: hộp xác nhận xoá project nói rõ hội thoại KHÔNG bị
 // ============================================================
 // 3. Nút mới: có handler riêng + chặn nổi bọt
 // ============================================================
-["pin", "mov"].forEach((cls) => {
-  // stopPropagation phải là việc ĐẦU TIÊN trong handler, không phải đâu đó ở giữa: chỉ cần
-  // một nhánh return sớm nằm trước nó là cú bấm rơi xuống hàng cha và mở nhầm hội thoại.
-  const re = new RegExp('item\\.querySelector\\("\\.' + cls + '"\\)\\.onclick = function \\(ev\\) \\{\\s*ev\\.stopPropagation\\(\\);');
-  check(`nút .${cls} có handler riêng và chặn nổi bọt ngay đầu`, re.test(SESS));
-});
+// stopPropagation phải là việc ĐẦU TIÊN trong handler, không phải đâu đó ở giữa: chỉ cần
+// một nhánh return sớm nằm trước nó là cú bấm rơi xuống hàng cha và mở nhầm hội thoại.
+// `.mov` (xếp vào nhóm) VẮNG MẶT ở chế độ lọc theo kênh của trang Cộng sự - hội thoại của một
+// trợ lý không xếp vào project được - nên handler của nó gắn có điều kiện.
+check("nút .pin có handler riêng và chặn nổi bọt ngay đầu",
+  /item\.querySelector\("\.pin"\)\.onclick = function \(ev\) \{\s*ev\.stopPropagation\(\);/.test(SESS));
+check("nút .mov có handler riêng và chặn nổi bọt ngay đầu",
+  /if \(nutXep\) nutXep\.onclick = function \(ev\) \{\s*ev\.stopPropagation\(\);/.test(SESS));
+check("CANARY: .mov chỉ vắng ở chế độ lọc kênh, chứ không bị gỡ hẳn",
+  /kenhLoc \? "" : '<span class="mov"/.test(SESS));
 
 // ============================================================
 // 4. KHÔNG được nhét nhánh mới vào item.onclick
@@ -144,7 +148,11 @@ check("vẫn đổi được icon của project",
 check("CANARY: ghim xong thì bỏ cache danh sách (nếu không thứ tự cũ còn nguyên trên màn hình)",
   /async function togglePin[\s\S]{0,320}cached = null;/.test(SESS));
 check("cache phân biệt theo cả bộ lọc project, không chỉ brain",
-  /cached\.project === curProject\(\)/.test(SESS));
+  /cached\.project === \(kenhLoc \? "" : curProject\(\)\)/.test(SESS));
+// Cùng lý do, và là cái bẫy mới của 0.59.4: hai chỗ gắn (cột lịch sử trang Trò chuyện và cột
+// lịch sử của một cộng sự) dùng CHUNG một biến cache, nên thiếu kênh trong khoá là mở trang
+// Cộng sự thấy nháy một nhịp danh sách hội thoại của cả brain rồi mới đúng.
+check("cache phân biệt theo cả KÊNH đang lọc", /cached\.kenh === kenhLoc/.test(SESS));
 
 // ============================================================
 // 6. Chat mới rơi vào project đang mở

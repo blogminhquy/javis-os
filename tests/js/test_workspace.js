@@ -322,5 +322,50 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
     /window\.JavisOpenCongSu = moCongSu/.test(con) && /\/\^#cs=\(\.\+\)\$\//.test(con));
 }
 
+// ============================================================
+// Lịch sử hội thoại = ĐÚNG cột lịch sử của trang Trò chuyện (0.59.4)
+// ============================================================
+// Chủ dự án yêu cầu "bê nguyên cách làm trong phần trò chuyện vào": ô tìm, nhóm theo ngày,
+// ghim / đổi tên / xoá, nút Xem thêm. Gắn chính module đó ở chế độ lọc kênh, không dựng bản
+// thứ hai - bản thứ hai lệch khỏi bản gốc ngay từ lần sửa đầu tiên.
+{
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  const sess = fs.readFileSync(path.join(root, "dashboard", "sessions-ui.js"), "utf8");
+  check("trang Cong su gan chinh cot lich su cua trang Tro chuyen",
+    /JavisChatSide\.mount\(host\.querySelector\("#wsSess"\), \{/.test(ws)
+    && /kenh: kenh\(item\), chiHoiThoai: true/.test(ws));
+  check("nut Hoi thoai moi o do mo dung KENH cua cong su",
+    /onNew: function \(\) \{ var x = dangChon\(\); if \(x\) moPhien\(x, true\); \}/.test(ws));
+  check("KHONG con ban danh sach hoi thoai thu hai trong workspace.js",
+    !/taiPhienGanDay/.test(ws));
+  check("sessions-ui: mount nhan tuy chon loc theo kenh", /function mount\(container, opts\)/.test(sess));
+  check("sessions-ui: danh sach va o tim deu loc theo kenh",
+    /kenhLoc \? "&channel=" \+ encodeURIComponent\(kenhLoc\)/.test(sess)
+    && /kenhLoc \? "&channel=" \+ encodeURIComponent\(kenhLoc\) : ""\) \+ "&limit=40"/.test(sess));
+  const mainPy = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
+  check("server: /sessions/search nhan channel", /async def sessions_search[\s\S]{0,200}channel: str = Query\(""\)/.test(mainPy));
+  const css2 = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
+  check("co kieu cho che do gon cua cot lich su", /\.cside-gon \.cside-pane \{/.test(css2)
+    && /side\.classList\.add\("cside-gon"\)/.test(sess));
+}
+
+// ============================================================
+// Mở một file trong lúc chat: XẾP NGANG, không để lại khoảng trống (0.59.4)
+// ============================================================
+// Lỗi thật chủ dự án chụp lại: trình sửa bị bóp còn vài dòng, dưới nó là một khoảng trống cao
+// gần nửa màn hình (khung hội thoại rỗng) với mỗi cái chip file ghim lơ lửng giữa.
+{
+  const css = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
+  const khoi = css.slice(css.indexOf("@media (min-width: 861px) {\n  .ws-main.edit-on"));
+  check("man rong: trinh sua va hoi thoai xep NGANG bang grid hai cot",
+    /\.ws-main\.edit-on \{ display: grid;/.test(khoi) && /grid-template-columns: minmax\(0, 1fr\)/.test(khoi));
+  check("cum nhap trai het be ngang duoi day",
+    ["bg-strip", "attach-bar", "model-bar", "hud-voice"].every(c =>
+      new RegExp("\\." + c + " \\{ grid-row: \\d; grid-column: 1 / -1; \\}").test(khoi)));
+  check("slot tan vao luoi de tung node nhan o rieng", /\.ws-slot \{ display: contents; \}/.test(khoi));
+  check("man hep van giu cach cu (an khung chat)",
+    /@media \(max-width: 860px\) \{ \.ws-main\.edit-on > \.ws-slot \{ display: none; \} \}/.test(css));
+}
+
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - workspace");

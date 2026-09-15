@@ -54,4 +54,44 @@ assert.equal(ve.length,3,'mọi avatar đều được vẽ lại');
 assert.equal(swatch.length,2);
 assert.equal(swatch[0],'transparent','bảng màu lạ rơi về màu trong suốt');
 assert.equal(swatch[1],'#112233');
-console.log('OK - saved identity, stable legacy avatar, escaped markup, theme redraw survives a stray palette');
+
+// ============================================================
+// Chớp mắt LỆCH PHA giữa các trợ lý (0.59.4)
+// ============================================================
+// Trước đây mọi avatar dùng chung `animation: aa-blink 6s` nên cả danh sách chớp mắt đồng
+// loạt - nhìn ra ngay là mấy bản sao của một cái máy (chủ dự án báo 15/09).
+{
+  const nhip = (slug) => {
+    const h = A.html({slug}, 40);
+    return [/--aa-blink-delay:(-?[\d.]+)s/.exec(h)[1], /--aa-blink-dur:([\d.]+)s/.exec(h)[1]].join("|");
+  };
+  const ds = ['viet-bai','ke-toan','chay-ads','tro-ly-zalo','bien-tap'].map(nhip);
+  assert.equal(new Set(ds).size, ds.length, 'mỗi trợ lý phải có một nhịp chớp mắt riêng');
+  // ...nhưng ỔN ĐỊNH: cùng một trợ lý vẽ ở hai chỗ (hàng danh sách + đầu khung chat) phải
+  // chớp cùng nhịp, và vẽ lại danh sách không được đổi nhịp của ai.
+  assert.equal(nhip('viet-bai'), nhip('viet-bai'), 'cùng slug thì cùng nhịp, không random mỗi lần vẽ');
+  const tre = ds.map(x => +x.split("|")[0]), lau = ds.map(x => +x.split("|")[1]);
+  assert(tre.every(v => v <= 0 && v > -7), 'trễ phải ÂM (bắt đầu giữa chu kỳ) và trong một vòng');
+  assert(lau.every(v => v >= 5 && v <= 8.5), 'chu kỳ chớp mắt giữ trong khoảng người thật');
+}
+
+// ============================================================
+// Hướng liếc của ô xem thử lớn trong cài đặt trợ lý (0.59.4)
+// ============================================================
+// Chủ dự án chốt: ô đó liếc sang TRÁI và hơi XUỐNG, khác dáng chữ ký chéo lên phải.
+{
+  const goi = [];
+  ctx.window.JavisPet.previewSvg = (s, p, o) => { goi.push(o || {}); return '<svg><path/><ellipse/><ellipse/></svg>'; };
+  A.html({slug:'x'}, 40);
+  assert.deepEqual(goi.pop(), {}, 'avatar thường giữ nguyên dáng liếc mặc định');
+  A.html({slug:'x'}, 100, 'idle', {liec:'trai_duoi'});
+  const o = goi.pop();
+  assert(o.liecX < 0, 'liếc sang TRÁI');
+  assert(o.liecY > 0, 'và hơi XUỐNG dưới');
+  assert(/html\(\{avatar:value\}, 100, "idle", \{liec:"trai_duoi"\}\)/.test(nguon),
+    'ô xem thử trong picker phải truyền hướng liếc đó');
+  // Tâm co của nhịp chớp mắt phải đi theo mắt, không thì mắt vừa nhắm vừa trượt đi.
+  const h = A.html({slug:'x'}, 100, 'idle', {liec:'trai_duoi'});
+  assert(/--aa-eye-x:144px/.test(h) && /--aa-eye-y:169px/.test(h), 'tâm chớp mắt đi theo mắt');
+}
+console.log('OK - saved identity, stable legacy avatar, escaped markup, theme redraw survives a stray palette, staggered blink, preview gaze');

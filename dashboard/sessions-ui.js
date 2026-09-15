@@ -39,6 +39,16 @@
   }
 
   var side = null, listEl = null, searchEl = null, searchTimer = null, refreshTimer = null;
+  // CHẾ ĐỘ LỌC THEO KÊNH (trang Cộng sự, 0.59.4). Cột lịch sử ở đó phải là ĐÚNG cột này -
+  // cùng ô tìm, cùng nhóm theo ngày, cùng ghim/đổi tên/xoá, cùng nút "Xem thêm" - chỉ khác
+  // là nó chỉ thấy hội thoại của một trợ lý (kênh "agent:<slug>") hay một quy trình.
+  // Dựng bản thứ hai cho cột đó là chép lại gần 200 dòng rồi để hai bản trôi lệch nhau.
+  //
+  // Module này giữ trạng thái ở mức file (side/listEl/...), tức MỘT chỗ gắn tại một thời
+  // điểm. Không sao: trang Trò chuyện và trang Cộng sự không bao giờ hiện cùng lúc, và mỗi
+  // trang đều gọi mount() lúc dựng, nên chỗ gắn luôn là trang đang xem.
+  var kenhLoc = "";        // "" = cột lịch sử thường; "agent:x"/"workflow:y" = lọc đúng kênh
+  var hamTaoMoi = null;    // nút "Hội thoại mới" ở chế độ lọc: trang Cộng sự tự lo (đúng kênh)
   // Cột trái có HAI tab: hội thoại và cây thư mục brain. Nhớ tab đã chọn qua localStorage -
   // ai dùng cây làm chính thì mỗi lần mở chat lại phải bấm sang là phiền vô ích.
   var TAB_KEY = "javis.chatside.tab";
@@ -1243,19 +1253,54 @@
   var cached = null;   // {brain, items}
 
   async function fetchList() {
-    var b = brain(), p = curProject();
+    var b = brain(), p = kenhLoc ? "" : curProject();
     var r = await fetch("/sessions?brain=" + encodeURIComponent(b) + "&limit=" + (shown + 1) +
-                        (p ? "&project=" + encodeURIComponent(p) : ""));
+                        (p ? "&project=" + encodeURIComponent(p) : "") +
+                        (kenhLoc ? "&channel=" + encodeURIComponent(kenhLoc) : ""));
     var data = await r.json();
-    cached = { brain: b, project: p, items: data.sessions || [] };
+    // `kenh` nằm trong khoá cache: thiếu nó thì lần mở trang Cộng sự kế tiếp vẽ tạm bằng danh
+    // sách hội thoại thường của trang Trò chuyện, rồi mới thay - một nhịp nháy nội dung sai.
+    cached = { brain: b, project: p, kenh: kenhLoc, items: data.sessions || [] };
     return cached;
   }
 
-  function mount(container) {
+  /** Gắn cột lịch sử vào một khung.
+   *
+   * `opts.kenh`      - chỉ hiện hội thoại của kênh này (trang Cộng sự: "agent:<slug>").
+   * `opts.chiHoiThoai` - bỏ hàng tab Hội thoại|Thư mục và thanh project. Cột phải trang Cộng
+   *                    sự đã có tab riêng bao ngoài rồi, lồng thêm một tầng tab nữa là rối;
+   *                    còn project là cách gom hội thoại của NGƯỜI DÙNG, không áp cho hội
+   *                    thoại của một trợ lý.
+   * `opts.onNew`     - thay hành vi nút "Hội thoại mới" (kênh cộng sự phải mở đúng kênh).
+   */
+  function mount(container, opts) {
     if (!container) return;
+    var o = opts || {};
     side = container;
     shown = PAGE;
     lastBrain = brain();
+    kenhLoc = o.kenh || "";
+    hamTaoMoi = typeof o.onNew === "function" ? o.onNew : null;
+    var gonNhe = !!o.chiHoiThoai;
+    if (gonNhe) {
+      side.classList.add("cside-gon");
+      side.innerHTML =
+        '<div class="cside-pane on" data-pane="chat">' +
+          '<button class="cside-new" type="button">' + esc(window.t("sess.new_chat")) + '</button>' +
+          // Câu mời khác của trang Trò chuyện: ở đây ô tìm CHỈ soi hội thoại của cộng sự đang
+          // mở, hứa "mọi hội thoại" là hứa sai.
+          '<input class="cside-search" placeholder="' + esc(window.t("sess.search_ph_kenh")) + '">' +
+          '<div class="cside-list"></div>' +
+        '</div>';
+      listEl = side.querySelector(".cside-list");
+      searchEl = side.querySelector(".cside-search");
+      projBar = null;
+      cayEl = null;
+      noiODoTimVaNutMoi();
+      loadList();
+      return;
+    }
+    side.classList.remove("cside-gon");
     side.innerHTML =
       '<div class="cside-tabs">' +
         // Icon ở đầu mỗi tab: hai tab đứng cạnh nhau và chỉ khác nhau bằng chữ, nên liếc qua
@@ -1276,15 +1321,7 @@
     searchEl = side.querySelector(".cside-search");
     projBar = side.querySelector(".cside-proj");
     cayEl = side.querySelector('[data-pane="files"]');
-    side.querySelector(".cside-new").onclick = function () {
-      if (window.JavisSessions) window.JavisSessions.new();
-      closeDrawerIfNarrow();
-    };
-    searchEl.oninput = function () {
-      clearTimeout(searchTimer);
-      var q = searchEl.value.trim();
-      searchTimer = setTimeout(function () { q ? doSearch(q) : loadList(); }, 280);
-    };
+    noiODoTimVaNutMoi();
     side.querySelectorAll(".cside-tab").forEach(function (b) {
       b.onclick = function () { chonTab(b.dataset.tab); };
     });
@@ -1292,6 +1329,22 @@
     loadProjects();
     loadList();   // lần đầu mở panel: nạp THẲNG, không qua debounce 150ms của refresh()
     chonTab(tabDaLuu());
+  }
+
+  // Hai dây nối giống nhau ở cả hai chế độ gắn, tách ra cho khỏi chép đôi.
+  function noiODoTimVaNutMoi() {
+    var nut = side.querySelector(".cside-new");
+    if (nut) nut.onclick = function () {
+      if (hamTaoMoi) { hamTaoMoi(); return; }
+      if (window.JavisSessions) window.JavisSessions.new();
+      closeDrawerIfNarrow();
+    };
+    if (!searchEl) return;
+    searchEl.oninput = function () {
+      clearTimeout(searchTimer);
+      var q = searchEl.value.trim();
+      searchTimer = setTimeout(function () { q ? doSearch(q) : loadList(); }, 280);
+    };
   }
 
   /**
@@ -1304,7 +1357,7 @@
    * màn chính mất panel Vault.
    */
   function chonTab(tab) {
-    if (!side) return;
+    if (!side || !side.querySelector(".cside-tab")) return;   // chế độ gọn: không có hàng tab
     tabHienTai = tab === "files" ? "files" : "chat";
     try { localStorage.setItem(TAB_KEY, tabHienTai); } catch (e) {}
     side.querySelectorAll(".cside-tab").forEach(function (b) {
@@ -1325,7 +1378,7 @@
       lastBrain = b; shown = PAGE;
       // Project gắn theo brain, nên đổi brain là danh sách project đổi theo. Không nạp lại thì
       // thanh trên đầu còn treo tên project của brain cũ mà bộ lọc lại đang trỏ vào id lạ.
-      renderProjBar(); loadProjects();
+      if (projBar) { renderProjBar(); loadProjects(); }
       // Cây Vault tự dựng lại khi đổi brain (console.js theo dõi #graphSource), nên ở đây
       // không phải làm gì thêm - đó chính là cái lợi của việc mượn node thay vì nuôi bản hai.
     }
@@ -1356,7 +1409,8 @@
     // Khung đang trống: vẽ ngay từ cache prefetch (nếu đúng brain) cho hết cảm giác delay;
     // không có cache mới hiện "Đang tải…". Các lần sau giữ danh sách cũ cho khỏi nháy.
     if (!listEl.querySelector(".cside-item")) {
-      if (cached && cached.brain === brain() && cached.project === curProject() && cached.items.length) {
+      if (cached && cached.brain === brain() && cached.kenh === kenhLoc &&
+          cached.project === (kenhLoc ? "" : curProject()) && cached.items.length) {
         renderList(cached.items.slice(0, shown), cached.items.length > shown);
       } else {
         listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.loading")) + '</div>';
@@ -1392,7 +1446,9 @@
       var eng = (s.engine || "").toString().slice(0, 10);
       // Kênh sinh ra hội thoại: web là mặc định nên khỏi ghi, Telegram thì gắn nhãn để
       // khỏi lẫn với cuộc tự mở trên dashboard.
-      var ch = (s.channel || "").toString();
+      // Đang LỌC theo kênh thì nhãn kênh là thừa: mọi hàng đều cùng một kênh, in ra chỉ tổ
+      // chiếm chỗ của giờ và số tin trong một cột hẹp ("agent:ng" trên từng dòng).
+      var ch = kenhLoc ? "" : (s.channel || "").toString();
       var chLabel = ch === "telegram" ? "TG" : (ch && ch !== "web" ? ch.slice(0, 8) : "");
       var isRun = !!(window.JavisRunning && window.JavisRunning.has(s.id));
       // KHÔNG có icon riêng cho từng hội thoại. Hàng nào cũng là một cuộc trò chuyện nên icon
@@ -1407,7 +1463,10 @@
         '<span>' + esc(window.t("sess.msgs", { count: s.msg_count || 0 })) + '</span>' +
         '<span class="act">' +
           '<span class="pin' + (s.pinned ? " on" : "") + '" title="' + esc(s.pinned ? window.t("proj.pin_off") : window.t("sess.pin_top")) + '">' + ic("pin") + '</span>' +
-          '<span class="mov" title="' + esc(window.t("sess.move_to")) + '">' + ic("folder") + '</span>' +
+          // "Xếp vào nhóm" chỉ có nghĩa với hội thoại của NGƯỜI DÙNG. Hội thoại của một trợ
+          // lý đã thuộc về trợ lý đó rồi, nhét thêm vào một project là hai cách xếp chồng lên
+          // nhau mà cột này không hiện project nào cả.
+          (kenhLoc ? "" : '<span class="mov" title="' + esc(window.t("sess.move_to")) + '">' + ic("folder") + '</span>') +
           '<span class="ren" title="' + esc(window.t("cs.fm_rename_title")) + '">' + ic("pencil") + '</span>' +
           '<span class="del" title="' + esc(window.t("common.delete")) + '">' + ic("trash-2") + '</span>' +
         '</span>' +
@@ -1416,7 +1475,8 @@
       // item.onclick bên dưới. Handler đó là thứ test_chat_side_actions.js bóc ra chạy thật
       // với đúng năm tham số của nó; thêm tên hàm lạ vào là test nổ ReferenceError.
       item.querySelector(".pin").onclick = function (ev) { ev.stopPropagation(); togglePin(s); };
-      item.querySelector(".mov").onclick = function (ev) { ev.stopPropagation(); moveMenu(ev.currentTarget, s); };
+      var nutXep = item.querySelector(".mov");
+      if (nutXep) nutXep.onclick = function (ev) { ev.stopPropagation(); moveMenu(ev.currentTarget, s); };
       // Bấm phải dò theo TỔ TIÊN, không so class của đúng node bị bấm. Nội dung .ren/.del là
       // một <svg> (ic() trả chuỗi SVG), nên chạm vào icon thì e.target LÀ cái svg chứ không
       // phải cái span - so classList kiểu cũ luôn trượt và click rơi xuống openSession.
@@ -1441,7 +1501,8 @@
     if (!listEl) return;
     listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.searching")) + '</div>';
     try {
-      var r = await fetch("/sessions/search?q=" + encodeURIComponent(q) + "&brain=" + encodeURIComponent(brain()) + "&limit=40");
+      var r = await fetch("/sessions/search?q=" + encodeURIComponent(q) + "&brain=" + encodeURIComponent(brain()) +
+                          (kenhLoc ? "&channel=" + encodeURIComponent(kenhLoc) : "") + "&limit=40");
       var data = await r.json();
       var hits = data.results || [];
       if (!hits.length) { listEl.innerHTML = '<div class="cside-empty">' + esc(window.t("sess.no_result")) + '</div>'; return; }

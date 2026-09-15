@@ -95,15 +95,19 @@
 
   // Trạng thái thật của lượt (app.js bắn sang) -> biểu cảm + nhịp vành quỹ đạo.
   //   ring: tốc độ xoay (độ/giây); 0 = đứng yên. dash: hình dải. mo: độ mờ của vành.
+  // Độ mờ: trạng thái NGHỈ (idle/paused) cố ý nhạt, mọi trạng thái đang làm việc thì ĐỤC HẲN.
+  // Nét vẽ và màu của vành do CSS lo theo data-state (xem .pet-ring trong style.css), ở đây
+  // chỉ còn nhịp xoay + hình dải. Trước 0.59.4 các trạng thái đang làm để 0,6-0,95 nên cộng
+  // với nét mảnh màu nhạt là nhìn không ra pet có đang chạy hay không.
   var STATES = {
-    idle:         { eye: "neutral",    ring: 7,   dash: "300 40",  mo: 0.5 },
-    listening:    { eye: "curious",    ring: 26,  dash: "4 11",    mo: 0.95 },
-    waiting:      { eye: "curious",    ring: 12,  dash: "8 14",    mo: 0.7 },
+    idle:         { eye: "neutral",    ring: 7,   dash: "300 40",  mo: 0.45 },
+    listening:    { eye: "curious",    ring: 26,  dash: "4 11",    mo: 1 },
+    waiting:      { eye: "curious",    ring: 12,  dash: "8 14",    mo: 1 },
     thinking:     { eye: "thinking",   ring: 108, dash: "90 150",  mo: 1 },
     speaking:     { eye: "happy",      ring: 18,  dash: "30 15",   mo: 1 },
     paused:       { eye: "sleepy",     ring: 4,   dash: "300 40",  mo: 0.35 },
-    reconnecting: { eye: "suspicious", ring: 40,  dash: "6 22",    mo: 0.6 },
-    error:        { eye: "sad",        ring: 0,   dash: "300 40",  mo: 0.8 },
+    reconnecting: { eye: "suspicious", ring: 40,  dash: "6 22",    mo: 1 },
+    error:        { eye: "sad",        ring: 0,   dash: "300 40",  mo: 1 },
   };
 
   var el = null, svg = null, nutBody = null, menu = null;
@@ -542,14 +546,32 @@
   }
 
   // Chân dung TĨNH: cùng hình dáng, cùng bảng màu, cùng dáng liếc với con pet đang sống.
-  // Dùng cho ô xem thử trên trang Linh vật và cho dấu ấn trên thanh bên. Không có vành quỹ
-  // đạo: ở cỡ 30px thì vành chỉ còn là một vệt bẩn quanh hình.
-  function chanDung(shape, palette) {
+  // Dùng cho ô xem thử trên trang Linh vật, cho dấu ấn trên thanh bên và cho avatar trợ lý.
+  //
+  // `opts`:
+  //   vanh  - vẽ thêm VÀNH QUỸ ĐẠO bao ngoài (mặc định không). Bật ở ô chọn Hình dáng trang
+  //           Linh vật để mấy hình đó trông đúng con pet thật; TẮT ở avatar trợ lý và ở dấu
+  //           ấn cỡ nhỏ, vì dưới 30px cái vành chỉ còn là một vệt bẩn quanh hình.
+  //   liecX / liecY - đổi HƯỚNG LIẾC (đơn vị viewBox, gốc là chéo lên phải). Ô xem thử lớn
+  //           trong cài đặt trợ lý liếc sang trái và hơi xuống, theo yêu cầu của chủ dự án.
+  function chanDung(shape, palette, opts) {
+    var o = opts || {};
     var d = (SHAPES[shape] || SHAPES.circle).d;
     var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
     var mat = mauMat(tone[0]);
-    var ex = 160 + LIEC_X, ey = 160 + LIEC_Y;
-    return '<svg viewBox="58 58 204 204" aria-hidden="true">' +
+    var lx = o.liecX === undefined ? LIEC_X : Number(o.liecX);
+    var ly = o.liecY === undefined ? LIEC_Y : Number(o.liecY);
+    var ex = 160 + lx, ey = 160 + ly;
+    // Vành dùng CHUNG path với thân rồi phóng 1,1 lần quanh tâm, y hệt con pet sống (xem
+    // .pet-ring trong style.css). Khai một hình, hai chỗ không bao giờ lệch dáng nhau.
+    var vanh = o.vanh
+      ? '<path d="' + d + '" fill="none" stroke="' + tone[1] + '" stroke-width="7" ' +
+        'stroke-linecap="round" transform="translate(160 160) scale(1.1) translate(-160 -160)"/>'
+      : "";
+    // Khung NỚI RA khi có vành, giữ nguyên khi không: hình tam giác phóng 1,1 lần cộng nửa
+    // nét vẽ chạm tới 269, tràn khỏi khung cũ (58..262). Nới cho mọi chân dung thì avatar trợ
+    // lý và dấu ấn đang dùng tự nhiên bé lại 6%, đổi diện mạo một chỗ không ai yêu cầu.
+    return '<svg viewBox="' + (o.vanh ? "48 48 224 224" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
       '<path d="' + d + '" fill="' + tone[0] + '"/>' +
       '<ellipse cx="' + (ex - 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/>' +
       '<ellipse cx="' + (ex + 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/></svg>';
