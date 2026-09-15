@@ -1,4 +1,8 @@
 {
+  "ws.upload_agent": "Upload agent",
+  "ws.upload_workflow": "Upload workflow",
+  "ws.retry_session": "Retry opening chat",
+
   "ws.files_links": "Files & links",
   "_meta.name": "English",
   "_meta.number_locale": "en-US",

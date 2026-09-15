@@ -86,7 +86,7 @@
   window.JavisStudio = {
     workflows: loadWorkflows, agents: loadAgents, skills: loadSkills,
     // Trang Cộng sự mượn chính hai trình sửa này (xem editAgent/editWorkflow) + nút Xuất.
-    editAgent: editAgent, editWorkflow: editWorkflow, exportItem: exportItem,
+    editAgent: editAgent, editWorkflow: editWorkflow, exportItem: exportItem, importItems: importItems,
   };
   const _studioBtn = document.getElementById("studioOpenBtn");
   if (_studioBtn) _studioBtn.addEventListener("click", () => window.openStudio("workspace"));

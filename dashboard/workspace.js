@@ -132,6 +132,7 @@
           '<div class="ws-groups" id="wsGroup" role="group" aria-label="' + esc(t("studio.groups")) + '"></div>' +
           '<div class="ws-list" id="wsList"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
+          '<button type="button" class="ws-btn" id="wsImport">' + esc(t("ws.upload_agent")) + '</button>' +
           '<button type="button" class="ws-btn" id="wsStore">' + ic("package") + ' Javis Store</button></div>' +
         '</aside>' +
         '<div class="ws-main">' +
@@ -152,6 +153,12 @@
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; luuChon(); veTrai(); chonMacDinh(); }; });
     el.querySelector("#wsSearch").oninput = function (e) { S.q = e.target.value; veDanhSach(); };
     el.querySelector("#wsNew").onclick = taoMoi;
+    el.querySelector("#wsImport").onclick = function () {
+      if (window.JavisStudio) window.JavisStudio.importItems(async function () {
+        if (!active) return;
+        await taiDanhSach(); veTrai(); chonMacDinh();
+      });
+    };
     el.querySelector("#wsFiles").onclick = function () { if (ready && window.JavisChatSide) window.JavisChatSide.moKhungCuoc(); };
     el.querySelector("#wsStore").onclick = function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
@@ -198,6 +205,7 @@
     sel.innerHTML = groups.map(function (g) { return '<button type="button" class="ws-group-chip" data-group="'+esc(g.name)+'" aria-pressed="'+(S.nhom===g.name)+'"><span>'+esc(g.label)+'</span><small>'+g.count+'</small></button>'; }).join('');
     sel.querySelectorAll("[data-group]").forEach(function (b) { b.onclick = function () { S.nhom = b.dataset.group; veTrai(); }; });
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
+    el.querySelector("#wsImport").textContent = t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow");
     veDanhSach();
   }
   function veDanhSach() {
@@ -223,7 +231,7 @@
   function chonMacDinh() {
     var ds = danhSach(); if (!ds.length) { veGiua(null); vePhai(null); return; }
     if (!ds.some(function (x) { return x.slug === S.chon[S.loai]; })) S.chon[S.loai] = ds[0].slug;
-    veDanhSach(); moPhien(dangChon(), false);
+    veDanhSach(); return moPhien(dangChon(), false);
   }
 
   // ---------- phiên ----------
@@ -232,10 +240,11 @@
   // vì kho phiên phải biết kênh thì lượt đầu mới đi đúng đường (server/main.py: /sessions/new).
   async function moPhien(item, moiHan) {
     var ticket = ++opening;
-    chatReady(false); veGiua(item); vePhai(item);
+    chatReady(false); veGiua(item);
     if (!item) return false;
     var still = function () { return active && ticket === opening && conDangXem(item); };
     try {
+      vePhai(item);
       var b = encodeURIComponent(brain()), ch = kenh(item), id = null;
       if (!moiHan) {
         var r = await api("/sessions?brain=" + b + "&channel=" + encodeURIComponent(ch) + "&limit=1");
@@ -268,7 +277,10 @@
     var input = document.getElementById("chatInput");
     window.JavisSend((input && input.value.trim()) || t("ws.run_default"));
   }
-  function veLoi(msg) { var el = S.el && S.el.querySelector("#wsIdentity"); if (el) el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small>'; }
+  function veLoi(msg) { var el = S.el && S.el.querySelector("#wsIdentity"); if (el) {
+    el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small><button type="button" class="ws-btn" id="wsRetry">' + esc(t("ws.retry_session")) + '</button>';
+    el.querySelector("#wsRetry").onclick = function () { moPhien(dangChon(), false); };
+  } }
   function veGiua(item) {
     var el = S.el && S.el.querySelector("#wsIdentity"); if (!el) return;
     if (!item) { el.innerHTML = '<strong>' + esc(t("ws.pick_one")) + '</strong>'; return; }
@@ -276,6 +288,21 @@
     el.innerHTML = (S.loai === "agent" ? avatar(item, 42) : ic("workflow")) + '<div><strong>' + esc(item.name) + '</strong><small>' + esc(phu) + '</small></div>';
     var inp = document.getElementById("chatInput");
     if (inp) inp.placeholder = S.loai === "agent" ? t("ws.ph_agent", { ten: item.name }) : t("ws.ph_workflow");
+  }
+
+  function thuGonCaiDat() {
+    var page = S.el && S.el.querySelector("#wsPage");
+    if (page) page.classList.toggle("right-open", !window.matchMedia("(max-width: 1060px)").matches);
+  }
+  async function sauLuu(item, loai) {
+    await taiDanhSach();
+    if (!active || S.loai !== loai || S.chon[loai] !== item.slug) return;
+    veTrai(); veGiua(dangChon());
+    // Retry session setup after saving; never unlock a chat bound to the wrong agent.
+    if (!ready && !await moPhien(dangChon(), false)) return;
+    thuGonCaiDat();
+    var input = document.getElementById("chatInput");
+    if (input) input.focus();
   }
 
   // ---------- cột phải ----------
@@ -291,7 +318,7 @@
       // chọn skill, nhóm... đã nằm ở đó, chép lại là hai bản trôi lệch nhau ngay lần sửa đầu.
       if (window.JavisStudio && window.JavisStudio.editAgent) {
         window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"), dsNhom: S.agents,
-          onSaved: async function () { await taiDanhSach(); veTrai(); veGiua(dangChon()); } });
+          onSaved: async function () { await sauLuu(item, "agent"); } });
       }
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
@@ -313,7 +340,7 @@
         '<div class="ws-rtitle">' + esc(t("ws.run_history")) + '</div><div class="ws-runs" id="wsRuns"></div>';
       host.querySelector("#wsRun").onclick = chayQuyTrinh;
       veBuoc(item, td);
-      host.querySelector("#wsEditWf").onclick = function () { window.JavisStudio && window.JavisStudio.editWorkflow(item, { onSaved: async function () { await taiDanhSach(); veTrai(); vePhai(dangChon()); } }); };
+      host.querySelector("#wsEditWf").onclick = function () { window.JavisStudio && window.JavisStudio.editWorkflow(item, { onSaved: async function () { await sauLuu(item, "workflow"); } }); };
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("workflow", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
         if (!confirm(t("studio.del_wf", { ten: item.name }))) return;
@@ -434,7 +461,13 @@
   // ---------- tạo mới ----------
   function taoMoi() {
     if (!window.JavisStudio) return;
-    var sau = async function (saved) { await taiDanhSach(); if (saved && saved.slug) S.chon[S.loai] = saved.slug; veTrai(); chonMacDinh(); };
+    var loai = S.loai;
+    var sau = async function (saved) {
+      await taiDanhSach(); if (!active || S.loai !== loai) return;
+      if (saved && saved.slug) S.chon[loai] = saved.slug;
+      veTrai();
+      if (await chonMacDinh()) { thuGonCaiDat(); document.getElementById("chatInput").focus(); }
+    };
     // Không truyền `host`: tạo mới vẫn mở modal của Studio (cột phải đang là form của mục
     // đang chọn, vẽ đè lên đó thì người dùng tưởng mình đang sửa mục cũ).
     if (S.loai === "agent") window.JavisStudio.editAgent(null, { dsNhom: S.agents, onSaved: sau });

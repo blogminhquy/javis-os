@@ -1,4 +1,8 @@
 {
+  "ws.upload_agent": "Tải lên trợ lý",
+  "ws.upload_workflow": "Tải lên quy trình",
+  "ws.retry_session": "Mở lại hội thoại",
+
   "ws.files_links": "File & link",
   "_meta.name": "Tiếng Việt",
   "_meta.number_locale": "vi-VN",
