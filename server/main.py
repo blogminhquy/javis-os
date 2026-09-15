@@ -5411,6 +5411,15 @@ def agents_index(brain: str) -> list:
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
                     "model": meta.get("model", ""), "group": _nhom_cua(meta),
                     "model_provider": meta.get("model_provider", ""), "prompt": body})
+    # last_chat_at: mốc chat gần nhất với agent này. `moc_cap_nhat_theo_kenh` là hàm của
+    # Task 3 (SessionStore), CHƯA tồn tại nếu Task 2 chạy trước - try/except rơi về {} để
+    # Task 2 tự đứng vững một mình; nhớ quay lại kiểm khi Task 3 xong.
+    try:
+        moc = get_store().moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")
+    except Exception:
+        moc = {}
+    for a in out:
+        a["last_chat_at"] = float(moc.get("agent:" + a["slug"], 0) or 0)
     return out
 
 @app.get("/agents")
@@ -6551,6 +6560,15 @@ def workflows_index(brain: str) -> list:
                     "description": meta.get("description", ""),
                     "group": _nhom_cua(meta),
                     "steps": meta.get("steps", []) or []})
+    # Mốc chạy gần nhất để trang Cộng sự/Studio biết workflow nào còn "sống": đọc một lần
+    # cho CẢ danh sách (moc_moi_nhat_theo_slug group theo brain) thay vì N lần lay() riêng lẻ.
+    try:
+        import workflow_runs
+        moc = workflow_runs.get_store().moc_moi_nhat_theo_slug(_brain_key(brain))
+    except Exception:
+        moc = {}
+    for w in out:
+        w["last_run_at"] = float(moc.get(w["slug"], 0) or 0)
     return out
 
 def _get_workflow_canary(brain):
@@ -7597,7 +7615,7 @@ async def execute_workflow_graph(brain, slug, input="", tools=None, session_id="
                "task_id": result.task_id, "reason": result.stop_reason}
 
 
-async def execute_workflow(brain, slug, input="", tools=None, session_id=""):
+async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""):
     """Chạy workflow nhiều agent tuần tự, YIELD event dict (KHÔNG bọc SSE). Dùng CHUNG cho:
       - /workflows/run  : user bấm ở Studio (full quyền, stream SSE).
       - dispatcher Kanban: chạy nền không người xem → truyền tools=SAFE_FILE_TOOLS để agent
@@ -7723,6 +7741,66 @@ async def execute_workflow(brain, slug, input="", tools=None, session_id=""):
     yield {"type": "done", "result": prev}
 
 
+async def _ghi_lich_su(gen, *, brain, slug, name, input, source, session_id, run_id=None):
+    """Bọc luồng sự kiện của một lần chạy workflow để ghi kho lịch sử (workflow_runs).
+
+    Không nuốt, không đổi sự kiện nào; chỉ gắn thêm `run_id` vào sự kiện `start`. Đặt ở đây
+    (chứ không ở từng chỗ gọi) để trang Cộng sự, Kanban, nhắc hẹn và loop đều được ghi mà
+    không ai phải nhớ. `run_id` truyền vào khi chạy TIẾP một lần đang chờ duyệt: cập nhật
+    đúng bản ghi cũ thay vì đẻ bản mới.
+
+    Luồng bị đóng giữa chừng (người dùng dừng, client rớt) thì `finally` chốt bản ghi là
+    lỗi "dừng giữa chừng", không để nó kẹt ở "đang chạy" mãi.
+    """
+    import workflow_runs
+    st = workflow_runs.get_store()
+    rid = run_id or st.bat_dau(brain=brain, slug=slug, name=name, input=input or "",
+                               source=source or "other", session_id=session_id or "")
+    ket = None
+    try:
+        async for ev in gen:
+            t = ev.get("type")
+            if t == "start":
+                ev = dict(ev, run_id=rid)
+            elif t == "step_start":
+                st.ghi_buoc(rid, int(ev.get("i", 0)), agent=ev.get("agent", ""), task=ev.get("task", ""))
+            elif t == "step_done":
+                st.ghi_buoc(rid, int(ev.get("i", 0)), output=ev.get("output", ""), verified=ev.get("verified"))
+            elif t == "step_error":
+                st.ghi_buoc(rid, int(ev.get("i", 0)), error=ev.get("content", ""))
+            elif t == "wait_user":
+                ket = "waiting"
+                st.ket_thuc(rid, "waiting", task_id=str(ev.get("task_id") or ""))
+            elif t == "error":
+                ket = "error"
+                st.ket_thuc(rid, "error", error=str(ev.get("content") or ""))
+            elif t == "done":
+                ket = "done"
+                st.ket_thuc(rid, "done", output=str(ev.get("result") or ""))
+            yield ev
+    finally:
+        if ket is None:
+            try:
+                st.ket_thuc(rid, "error", error="dừng giữa chừng")
+            except Exception:
+                pass
+
+
+async def execute_workflow(brain, slug, input="", tools=None, session_id="", source="other"):
+    """Chạy workflow và GHI LỊCH SỬ. Mọi chỗ gọi (trang Cộng sự, Kanban, nhắc hẹn) đi qua đây.
+    `source`: web | kanban | reminder | loop | other, chỉ để lọc khi đọc lại."""
+    wf_file = _workflows_dir(brain) / f"{slug}.md"
+    if not wf_file.exists():
+        yield {"type": "error", "content": "workflow not found"}
+        return
+    meta, _ = _read_md(wf_file)
+    async for ev in _ghi_lich_su(
+            _execute_workflow_raw(brain, slug, input, tools, session_id),
+            brain=_brain_key(brain), slug=slug, name=meta.get("name", slug), input=input,
+            source=source, session_id=session_id):
+        yield ev
+
+
 def workflow_capability_guard(node, route_entry, approved: bool) -> str:
     """Hàng rào cuối trước khi chạy một node capability. Rỗng = cho chạy.
 
@@ -7740,8 +7818,8 @@ def workflow_capability_guard(node, route_entry, approved: bool) -> str:
     return ""
 
 
-async def execute_workflow_resume(brain, slug, task_id, node_id, code, tools=None,
-                                  session_id=""):
+async def _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools=None,
+                                       session_id=""):
     """Duyệt xong thì chạy tiếp workflow đang dừng. Yield event như /workflows/run."""
     graph = load_workflow_graph(brain, slug)
     if graph is None:
@@ -7808,6 +7886,21 @@ async def execute_workflow_resume(brain, slug, task_id, node_id, code, tools=Non
                "task_id": task_id, "reason": result.stop_reason}
 
 
+async def execute_workflow_resume(brain, slug, task_id, node_id, code, tools=None,
+                                  session_id="", source="other"):
+    """Chạy tiếp lần đang chờ duyệt, ghi vào ĐÚNG bản ghi lịch sử đang `waiting`."""
+    import workflow_runs
+    cu = workflow_runs.get_store().tim_theo_task(task_id)
+    wf_file = _workflows_dir(brain) / f"{slug}.md"
+    meta, _ = _read_md(wf_file) if wf_file.exists() else ({}, "")
+    async for ev in _ghi_lich_su(
+            _execute_workflow_resume_raw(brain, slug, task_id, node_id, code, tools, session_id),
+            brain=_brain_key(brain), slug=slug, name=meta.get("name", slug), input=(cu or {}).get("input", ""),
+            source=source, session_id=session_id or (cu or {}).get("session_id", ""),
+            run_id=(cu or {}).get("id")):
+        yield ev
+
+
 @app.get("/workflows/resume")
 async def resume_workflow(task_id: str = Query(...), node: str = Query(...),
                           code: str = Query(...), slug: str = Query(...),
@@ -7822,6 +7915,23 @@ async def resume_workflow(task_id: str = Query(...), node: str = Query(...),
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/workflows/runs")
+async def workflow_runs_list(brain: str = Query("brain"), slug: str = Query(""), limit: int = Query(20)):
+    """Lịch sử chạy quy trình, mới nhất trước, bản gọn (không kèm kết quả đầy đủ)."""
+    import workflow_runs
+    return {"runs": workflow_runs.get_store().gan_nhat(
+        _brain_key(brain), slug=slug or None, limit=max(1, min(int(limit or 20), 100)))}
+
+
+@app.get("/workflows/runs/{run_id}")
+async def workflow_runs_get(run_id: str):
+    import workflow_runs
+    r = workflow_runs.get_store().lay(run_id)
+    if not r:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return r
 
 
 @app.get("/workflows/run")

@@ -689,7 +689,9 @@ def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
     """
     from tasks import TasksDeps, TasksFeature
 
-    async def paused_workflow(brain_root, slug, intent, tools):
+    async def paused_workflow(brain_root, slug, intent, tools, source="other"):
+        # `source` thêm ở Task 2 (Cộng sự): tasks.py giờ gọi kèm source="kanban" để ghi
+        # đúng nguồn vào lịch sử; hàm giả này phải nhận kwarg đó dù không dùng tới.
         yield {"type": "start", "workflow": "demo", "steps": 2}
         yield {"type": "step_done", "i": 0, "output": "đã soạn xong"}
         yield {"type": "wait_user", "node": "w", "reason": "write_node_needs_confirmation",
@@ -717,7 +719,7 @@ def test_kanban_marks_a_paused_workflow_as_needing_a_person(tmp_path):
 def test_kanban_surfaces_an_agent_escalation_too(tmp_path):
     from tasks import TasksDeps, TasksFeature
 
-    async def escalating(brain_root, slug, intent, tools):
+    async def escalating(brain_root, slug, intent, tools, source="other"):
         yield {"type": "escalation", "reason": "repeated_failure_signature"}
 
     feature = TasksFeature(TasksDeps(

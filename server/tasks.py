@@ -718,7 +718,7 @@ nói rõ đã được phép tự hành động; nếu không thì để auto đ
             error = ""
             try:
                 async for event in self.deps.execute_workflow(
-                    task["brain_root"], slug, intent, tools
+                    task["brain_root"], slug, intent, tools, source="kanban"
                 ):
                     kind = event.get("type")
                     if kind == "done":
