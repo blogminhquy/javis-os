@@ -10900,6 +10900,48 @@ async def tts_voices(lang: str = Query("")):
 
 
 # ============================================
+# Lượt ở phiên workflow:<slug> - LÕI module-level để test gọi thẳng được (xem run_workflow_turn)
+# ============================================
+async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resume=None) -> str:
+    """LÕI của một lượt ở phiên workflow:<slug>: chạy quy trình, đẩy khung về trình duyệt, lưu
+    tin trả lời. Trả về text đã lưu. Không đăng ký job, không gửi turn_done: closure trong
+    websocket_endpoint lo, để hàm này gọi được từ test với execute_workflow giả.
+
+    `resume` = {"task_id","node","code"} khi người dùng bấm Duyệt: chạy tiếp lần đang chờ.
+    Tra `execute_workflow` qua globals() LÚC GỌI để test thay được.
+    """
+    import workflow_runs
+    st = workflow_runs.get_store()
+    t0 = time.time()
+    if resume:
+        events = globals()["execute_workflow_resume"](
+            brain, slug, resume["task_id"], resume["node"], resume["code"],
+            session_id=conv_sid, source="web")
+    else:
+        truoc = st.gan_nhat(_brain_key(brain), slug=slug, session_id=conv_sid, status="done", limit=1)
+        ket_truoc = ""
+        if truoc:
+            day_du = st.lay(truoc[0]["id"]) or {}
+            ket_truoc = day_du.get("output", "")
+        dau_vao = workflow_chat.ghep_dau_vao(user_message, ket_truoc)
+        events = globals()["execute_workflow"](brain, slug, dau_vao, session_id=conv_sid, source="web")
+    kq = await workflow_chat.chay(events, emit)
+    giay = int(time.time() - t0)
+    if kq["trang_thai"] == "done":
+        so_lan = st.dem_theo_phien(conv_sid) or 1
+        text = workflow_chat.tin_xong(so_lan, kq["so_buoc"], giay, kq["ket_qua"])
+    elif kq["trang_thai"] == "waiting":
+        w = kq["wait"] or {}
+        text = workflow_chat.tin_cho_duyet(str(w.get("node") or ""), str(w.get("prompt") or ""))
+    else:
+        loi = kq["loi"] or {}
+        text = workflow_chat.tin_loi(loi.get("i"), loi.get("agent", ""), loi.get("content", ""))
+    await emit({"type": "stream", "content": text})
+    await _persist_turn(store, conv_sid, brain, user_message, text)
+    return text
+
+
+# ============================================
 # Lưu MỘT lượt hội thoại - đường DUY NHẤT, dùng chung cho mọi kênh (dashboard, Telegram)
 # ============================================
 async def _persist_turn(store, conv_sid, brain, user_message, final_text):
@@ -12063,6 +12105,43 @@ async def websocket_endpoint(ws: WebSocket):
                                 **context_runtime.event_fields(runtime_trace)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
+        async def run_workflow_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, slug, resume=None):
+            """Lượt ở phiên workflow:<slug>. Cùng khung với run_turn (trace, Dừng, turn_done)
+            nhưng thân là _luot_quy_trinh. Lỗi bất ngờ vẫn thành một tin trong chat: luật của
+            trang Cộng sự là chạy quy trình không bao giờ kết thúc trong im lặng."""
+            ws = _SendProxy(conv_sid, runtime_trace)
+            _trace_token = context_runtime.bind_trace(runtime_trace)
+
+            async def emit(frame):
+                await ws.send_text(json.dumps(frame, ensure_ascii=False))
+            try:
+                await _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resume=resume)
+                _CONTEXT_RUNTIME.finish(runtime_trace, "COMPLETED")
+            except asyncio.CancelledError:
+                _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
+                _cau = "Đã dừng lần chạy này theo yêu cầu."
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, _cau)
+                except Exception:
+                    pass
+                await send_raw({"type": "system", "content": _cau, "session_id": conv_sid,
+                                **context_runtime.event_fields(runtime_trace)})
+            except Exception as e:
+                _CONTEXT_RUNTIME.note_error(runtime_trace, type(e).__name__)
+                _CONTEXT_RUNTIME.finish(runtime_trace, "FAILED", type(e).__name__)
+                _cau = workflow_chat.tin_loi(None, "", f"{type(e).__name__}: {e}")
+                try:
+                    await _persist_turn(store, conv_sid, brain, user_message, _cau)
+                except Exception:
+                    pass
+                await send_raw({"type": "error", "content": _cau, "session_id": conv_sid,
+                                **context_runtime.event_fields(runtime_trace)})
+            finally:
+                context_runtime.reset_trace(_trace_token)
+                await send_raw({"type": "turn_done", "session_id": conv_sid,
+                                **context_runtime.event_fields(runtime_trace)})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+
         async def run_voice_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, conf):
             """LÀN NHANH giọng nói (Voice V2, docs/dev/2026-09-voice-v2-spec.md mục 2).
 
@@ -12345,6 +12424,31 @@ async def websocket_endpoint(ws: WebSocket):
                 if _tag:
                     cancel_all(_tag)     # giết subprocess engine của đúng lượt đó
                 continue
+            if action == "wf_resume":
+                # Nút Duyệt ở cột phải trang Cộng sự: chạy tiếp lần đang chờ, kết quả về cùng phiên.
+                _sid = str(payload.get("session_id") or "")
+                _row = store.get_session(_sid) or {}
+                _pers = workflow_chat.persona_cua_phien(_row)
+                if not (_pers and _pers[0] == "workflow"):
+                    await send_raw({"type": "error", "session_id": _sid, "content": "Phiên này không phải phiên quy trình."})
+                    continue
+                if _CHAT_RUNTIME.get_job(_sid):
+                    await send_raw({"type": "error", "session_id": _sid, "content": "Quy trình đang chạy, đợi xong đã."})
+                    continue
+                _node = str(payload.get("node") or "")
+                _msg = f"Đã duyệt bước \"{_node}\"."
+                store.append_message(_sid, "user", _msg)
+                _brain_r = _row.get("brain") or payload.get("brain") or "brain"
+                _tag = f"chat:{_sid[:12]}:{uuid.uuid4().hex[:8]}"
+                _trace = _CONTEXT_RUNTIME.start_turn(_sid, _brain_r, "dashboard")
+                task = asyncio.create_task(run_workflow_turn(
+                    _sid, _msg, _brain_r, _tag, _trace, _pers[1],
+                    resume={"task_id": str(payload.get("task_id") or ""), "node": _node,
+                            "code": str(payload.get("code") or "")}))
+                _CHAT_RUNTIME.register_job(_sid, task, _tag,
+                    runtime_task_id=_trace.task_id if _trace else "",
+                    runtime_step_id=_trace.step_id if _trace else "")
+                continue
             if action == "resume_now":
                 # Nút "Chạy lại ngay" trên thẻ hết lượt: không đợi mốc reset.
                 _sid = payload.get("session_id") or ""
@@ -12425,6 +12529,18 @@ async def websocket_endpoint(ws: WebSocket):
             store.append_message(conv_sid, "user", user_message)
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
+            # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt
+            # hỏi bộ não chính - rẽ nhánh TRƯỚC cả Voice V2, vì trang Cộng sự không có mic.
+            _pers = workflow_chat.persona_cua_phien(store.get_session(conv_sid) or {})
+            if _pers and _pers[0] == "workflow":
+                task = asyncio.create_task(run_workflow_turn(
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, _pers[1]))
+                _CHAT_RUNTIME.register_job(
+                    conv_sid, task, turn_tag,
+                    runtime_task_id=runtime_trace.task_id if runtime_trace else "",
+                    runtime_step_id=runtime_trace.step_id if runtime_trace else "",
+                )
+                continue
             has_attachments = bool(payload.get("attachments") or payload.get("files"))
             # Voice V2: tin đến từ MIC (`voice: true`) và cài đặt ở chế độ Làn nhanh có bộ não
             # giọng riêng thì đi run_voice_turn; còn lại đi run_turn như cũ.
