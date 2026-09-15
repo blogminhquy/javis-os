@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.10] - 2026-09-15
+### Cải thiện
+- **Trang Cộng sự lúc chưa có gì giờ mời bạn tạo ngay tại chỗ.** Brain mới tinh trước đây chỉ hiện một dòng chữ giữa màn hình, bấm vào đâu cũng không ra gì. Giờ chỗ khung chat là hai nút **Tạo trợ lý** và **Tạo quy trình** (kèm lối sang Javis Store), bấm một cái là mở thẳng trình tạo.
+### Sửa lỗi
+- **Nút Thử lại giờ tải lại thật.** Khi trang Cộng sự không lấy được danh sách, nút cũ chỉ mở lại hội thoại: câu báo lỗi biến mất, cột trái vẫn trống, không có gì được tải lại. Giờ nó tải lại danh sách và nói rõ là hỏng ở khâu lấy danh sách.
+
 ## [0.59.9] - 2026-09-15
 ### Cải thiện
 - **Lúc Javis suy nghĩ, mắt linh vật đảo qua lại giữa hai dáng**: liếc chéo lên như đang lục trí nhớ, rồi lim dim thành hai gạch ngang, mỗi dáng giữ chừng một giây rưỡi. Trước đây nó trơ một dáng suốt cả lượt trả lời.

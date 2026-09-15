@@ -32,6 +32,9 @@ const code = src.slice(src.indexOf('  function thuGonCaiDat('), src.indexOf('  /
   let ds = [], opens = 0;
   const o = {disabled:false, placeholder:'cũ'}, iden = {innerHTML:''};
   const ctx = {
+   // daTai: danh sách đã tải xong (chỉ là rỗng thật). veGiua() đọc cờ này để biết có bày màn
+   // khởi đầu hay không; khung #wsOnboard không có trong DOM giả nên veKhoiDau() tự lui ra.
+   daTai:true, taoMoi(){},
    danhSach:()=>ds, veDanhSach(){}, vePhai(){}, moPhien:async()=>{opens++;return true;},
    chatReady(v){ o.disabled = !v; }, esc:s=>String(s), t:k=>k, avatar:()=>'', ic:()=>'',
    S:{loai:'agent', chon:{agent:null}, el:{querySelector:sel=>sel==='#wsIdentity'?iden:null}},

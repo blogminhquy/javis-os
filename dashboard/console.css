@@ -1555,6 +1555,22 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Bộ icon chưa đóng gói "panel-right": lật gương panel-left, cùng nghĩa mà không phải tải icon mới. */
 .ws-ico.lat svg { transform: scaleX(-1); }
 
+/* MÀN KHỞI ĐẦU (workspace.js veKhoiDau): chưa có cộng sự nào thì khung chat chẳng để làm gì
+   (ô nhập đã bị khoá), nên ẩn nó đi và đặt vào đúng chỗ ấy hai nút tạo.
+   Ẩn khung chat bằng display:none trên .ws-slot - node chat là node MƯỢN của app, ẩn cha chứ
+   không đụng vào chính nó, y như cách .ws-main.edit-on làm ở khổ màn hẹp. */
+.ws-main.onboard-on > .ws-slot { display: none; }
+.ws-onboard { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 20px 16px; }
+/* display:flex ở trên thắng thuộc tính hidden, phải nói lại cho rõ. */
+.ws-onboard[hidden] { display: none; }
+.ws-onboard .ws-ob-ic { color: var(--accent); opacity: .85; }
+.ws-onboard h3 { margin: 0; font-size: 17px; }
+.ws-onboard p { margin: 0; max-width: 460px; font-size: 13px; line-height: 1.55; color: var(--text3); }
+/* Màn hẹp thì ba nút xuống dòng chứ không bị bóp: "Tạo quy trình" gãy làm ba dòng là xấu. */
+.ws-ob-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.ws-ob-acts .ws-btn { padding: 8px 14px; font-size: 13.5px; }
+
 .ws-rtitle { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--text3); margin: 12px 0 6px; }
 .ws-rtitle:first-child { margin-top: 0; }

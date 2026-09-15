@@ -230,6 +230,80 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("quay lai thi danh sach day du tro lai", nodes["#wsList"].innerHTML.includes("Người viết"));
 }
 
+// ============================================================
+// MÀN KHỞI ĐẦU khi chưa có cộng sự nào (0.59.9)
+// ============================================================
+// Chuyện thật 15/09: brain chưa có trợ lý lẫn quy trình thì cột giữa chỉ còn một dòng chữ,
+// bấm vào đâu cũng không ra gì, còn nút "Thử lại" lúc tải hỏng thì xoá luôn câu lỗi mà không
+// tải lại thứ vừa hỏng. Nay chỗ khung chat là hai nút tạo, và Thử lại tải lại DANH SÁCH.
+{
+  const vm = require("node:vm");
+  const src = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  const doan = src.slice(src.indexOf("  function veLoi(msg) {"), src.indexOf("  function thuGonCaiDat() {"));
+
+  const lop = () => ({ _c: {}, toggle(c, on) { this._c[c] = !!on; }, co(c) { return !!this._c[c]; } });
+  const con = {};                                  // nút con moi ra từ khung, giữ lại để bấm
+  const nutCon = (s) => (con[s] = con[s] || { onclick: null });
+  const khung = { innerHTML: "", hidden: true, querySelector: nutCon };
+  const idn = { innerHTML: "", querySelector: nutCon };
+  const main = { classList: lop() };
+  const nodes = { "#wsIdentity": idn, "#wsOnboard": khung, ".ws-main": main };
+  const tao = [];
+  const ctx = {
+    S: { loai: "agent", agents: [], workflows: [], chon: {}, el: { querySelector: (s) => nodes[s] || null } },
+    daTai: true, active: true,
+    danhSach: () => (ctx.S.loai === "agent" ? ctx.S.agents : ctx.S.workflows),
+    taoMoi: (loai) => tao.push(loai), dangChon: () => null, taiDanhSach: async () => {},
+    veTrai() {}, chonMacDinh() {}, cacBuoc: () => [], avatar: () => "<i></i>",
+    esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: (n) => '<svg data-ic="' + n + '"></svg>',
+    document: { getElementById: () => null }, window: {},
+  };
+  vm.createContext(ctx); vm.runInContext(doan, ctx);
+
+  ctx.veGiua(null, "ws.none_yet");
+  check("danh sach rong thi bay man khoi dau thay cho khung chat",
+    khung.hidden === false && main.classList.co("onboard-on"));
+  check("man khoi dau bay CA HAI nut tao",
+    /id="wsObAgent"/.test(khung.innerHTML) && /id="wsObWf"/.test(khung.innerHTML)
+    && khung.innerHTML.includes("ws.new_agent") && khung.innerHTML.includes("ws.new_workflow"));
+  check("chua co gi ca thi dung loi chao brain moi", khung.innerHTML.includes("ws.start_title"));
+  con["#wsObAgent"].onclick(); con["#wsObWf"].onclick();
+  check("moi nut mo dung trinh tao cua LOAI cua no", tao.join(",") === "agent,workflow");
+
+  ctx.veGiua({ slug: "a", name: "Người viết", role: "viết", group: "Marketing" });
+  check("chon duoc cong su thi tat man khoi dau, tra lai khung chat",
+    khung.hidden === true && !main.classList.co("onboard-on") && khung.innerHTML === "");
+
+  // Chỉ TAB đang đứng rỗng (có trợ lý, chưa có quy trình): vẫn bày nút, nhưng nói đúng thứ thiếu.
+  ctx.S.agents = [{ slug: "a", name: "Người viết" }]; ctx.S.loai = "workflow";
+  ctx.veGiua(null, "ws.none_yet");
+  check("tab Quy trinh rong thi noi la thieu quy trinh", khung.hidden === false
+    && khung.innerHTML.includes("ws.start_no_workflow") && !khung.innerHTML.includes("ws.start_title"));
+
+  // Tải danh sách HỎNG thì mảng cũng rỗng - nhưng đó là lỗi mạng, không phải brain mới tinh.
+  ctx.daTai = false; ctx.S.agents = []; ctx.S.workflows = []; ctx.S.loai = "agent";
+  ctx.veGiua(null);
+  check("CANARY: tai danh sach hong thi KHONG bia ra 'chua co cong su nao'", khung.hidden === true);
+
+  // Nút Thử lại: tải lại DANH SÁCH rồi mới mở phiên, không phải chỉ mở lại phiên.
+  ctx.veLoi("ws.err_list");
+  check("nut Thu lai goi lamLai (tai lai danh sach)", con["#wsRetry"].onclick === ctx.lamLai);
+  check("cau loi cua tai danh sach khac cau loi mo hoi thoai", idn.innerHTML.includes("ws.err_list"));
+}
+{
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  const css = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
+  check("khung man khoi dau nam san trong cot giua", ws.includes('id="wsOnboard"'));
+  check("tai danh sach hong thi bao dung la hong DANH SACH", ws.includes('veLoi(t("ws.err_list"))'));
+  check("bat man khoi dau thi AN khung chat muon",
+    /\.ws-main\.onboard-on > \.ws-slot \{ display: none; \}/.test(css) && /\.ws-onboard\[hidden\]/.test(css));
+  const vi = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "i18n", "vi.json"), "utf8"));
+  const en = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "i18n", "en.json"), "utf8"));
+  check("chu man khoi dau co ca hai thu tieng",
+    ["ws.start_title", "ws.start_no_agent", "ws.start_no_workflow", "ws.start_desc", "ws.err_list"]
+      .every((k) => vi[k] && en[k]));
+}
+
 // Dựng khung: ô nhập phải được GIEO LẠI từ S.q, và nút kính lúp phải trỏ tới nó bằng
 // aria-controls. render() nằm ngoài khối bóc ở trên nên canh bằng mã nguồn.
 {
