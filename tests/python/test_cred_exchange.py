@@ -134,6 +134,90 @@ if _gps_that is not None:
 else:
     sys.modules.pop("gpsoauth", None)
 
+# ---- handler apify_verify_token THẬT: kiểm token với Apify ngay lúc Kết nối ----
+# httpx được import TRONG handler -> nhét module giả vào sys.modules là chặn được mạng.
+_apify_calls = []
+_fake_httpx = types.ModuleType("httpx")
+
+
+class _FakeResp:
+    def __init__(self, code):
+        self.status_code = code
+
+
+def _fake_get(url, headers=None, timeout=None):
+    _apify_calls.append((url, dict(headers or {})))
+    tok = (headers or {}).get("Authorization", "")
+    return _FakeResp(200 if tok == "Bearer apify_api_DUNG" else 401)
+
+
+_fake_httpx.get = _fake_get
+_httpx_that = sys.modules.get("httpx")
+sys.modules["httpx"] = _fake_httpx
+
+_a = cred_exchange._apify_verify_token
+_at1, _ae1 = _a({"apify_token_raw": "apify_api_DUNG"})
+check("apify: token đúng -> trả về NGUYÊN VẸN, không lỗi",
+      _at1 == "apify_api_DUNG" and _ae1 == "")
+check("apify: gọi đúng endpoint users/me",
+      _apify_calls and "api.apify.com/v2/users/me" in _apify_calls[0][0])
+_at2, _ae2 = _a({"apify_token_raw": "apify_api_SAI"})
+check("apify: token sai -> lỗi chỉ chỗ lấy lại token, KHÔNG lưu",
+      _at2 is None and "console.apify.com" in (_ae2 or ""))
+_at3, _ae3 = _a({"apify_token_raw": ""})
+check("apify: bỏ trống -> lỗi nói rõ cần dán token", _at3 is None and "token" in (_ae3 or "").lower())
+if _httpx_that is not None:
+    sys.modules["httpx"] = _httpx_that
+else:
+    sys.modules.pop("httpx", None)
+
+# ---- skip_if_output=False: giá trị dán thẳng vào ô đích VẪN phải qua kiểm ----
+# Khe thật đã xảy ra 2026-08-14: form cũ còn mở trên trình duyệt gửi field trùng tên output,
+# một URL rác chui thẳng vào kho vì đường tắt "đã có sẵn giá trị đích thì bỏ qua".
+CON_KIEM = {"id": "kiem-thang", "auth": {"fields": [{"key": "raw"}], "exchange": {
+    "handler": "gia_lap_kiem", "inputs": ["raw"], "output": "token",
+    "drop": ["raw"], "skip_if_output": False}}}
+
+
+def _handler_kiem(fields):
+    v = str(fields.get("raw") or "")
+    if v.startswith("https:"):
+        return None, "Đây là đường link, không phải token."
+    return v, ""
+
+
+cred_exchange.HANDLERS["gia_lap_kiem"] = _handler_kiem
+_ok1, _er1 = cred_exchange.run(CON_KIEM, {"raw": "", "token": "https://console.rac"})
+check("skip_if_output=False: URL rác dán thẳng vào ô đích -> BỊ CHẶN", "link" in (_er1 or ""))
+_ok2, _er2 = cred_exchange.run(CON_KIEM, {"raw": "", "token": "tok_that_123"})
+check("skip_if_output=False: giá trị dán thẳng hợp lệ -> qua kiểm, được giữ",
+      _er2 == "" and _ok2.get("token") == "tok_that_123")
+check("skip_if_output=False: field thô vẫn bị xoá", "raw" not in _ok2)
+
+# ---- facebook-monitor: khai báo connector giờ nằm ở GÓI, không còn trong repo ----
+# Từ 0.55.36 ("Dọn 16 kết nối ra Javis Store"), connector facebook-monitor không còn trong
+# system/mcp-catalog.json mà do gói trong STATE_DIR cung cấp. Test này chạy với STATE_DIR
+# tạm nên bình thường sẽ KHÔNG thấy nó - đó là đúng, không phải hỏng. Vẫn giữ phần kiểm:
+# máy nào có cài gói (chạy test với STATE_DIR thật) thì khai báo phải đúng, vì đây là hàng
+# rào chống lưu token rác. Không có gói thì báo một dòng rồi đi tiếp.
+fbm = mcp_catalog.get("facebook-monitor")
+if not fbm:
+    print("bỏ qua  facebook-monitor: connector đã dời sang Javis Store, "
+          "STATE_DIR của test không có gói này (đúng như thiết kế)")
+else:
+    fbm_ex = ((fbm or {}).get("auth") or {}).get("exchange") or {}
+    check("facebook-monitor khai exchange apify_verify_token",
+          fbm_ex.get("handler") == "apify_verify_token")
+    check("facebook-monitor: token đã kiểm ghi xuống key apify_token (key plugin fb-monitor đọc)",
+          fbm_ex.get("output") == "apify_token")
+    check("BẢO MẬT: facebook-monitor khai drop field thô",
+          "apify_token_raw" in (fbm_ex.get("drop") or []))
+    _fbm_fields = {f["key"] for f in ((fbm or {}).get("auth") or {}).get("fields") or []}
+    check("facebook-monitor: form chỉ còn field thô (không còn ô dán thẳng key đã lưu)",
+          _fbm_fields == {"apify_token_raw"})
+    check("facebook-monitor: khai skip_if_output=False (dán thẳng cũng phải qua kiểm)",
+          fbm_ex.get("skip_if_output") is False)
+
 # ---- connector không khai exchange thì đi qua không đổi gì ----
 out5, err5 = cred_exchange.run({"id": "khac", "auth": {"fields": []}},
                                {"api_key": "abc"})

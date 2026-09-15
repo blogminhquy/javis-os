@@ -149,8 +149,17 @@ async def _monitor(args, ctx):
             errors.append(f"{actor}: {data['__error']}")
             continue
         for p in data:
-            if isinstance(p, dict):
-                posts.append(_norm(p))
+            if not isinstance(p, dict):
+                continue
+            # Actor trả BẢN GHI LỖI trộn lẫn dataset (vd not_available khi Trang chặn xem
+            # lúc chưa đăng nhập) - trước đây bị đếm thành "bài viết" rỗng 0 share khiến
+            # kết quả trông như quét được mà thật ra không quét được gì.
+            if p.get("error"):
+                mo_ta = str(p.get("errorDescription") or "")[:120]
+                errors.append(f"{p.get('url') or '?'}: {p.get('error')}"
+                              + (f" - {mo_ta}" if mo_ta else ""))
+                continue
+            posts.append(_norm(p))
 
     posts = [p for p in posts if p["shares"] >= min_shares]
     posts.sort(key=lambda p: p["shares"], reverse=True)
@@ -167,7 +176,9 @@ def register(ctx):
                      "urls = danh sách link Trang/Nhóm (chuỗi cách nhau hoặc mảng); URL chứa '/groups/' được "
                      "quét bằng actor nhóm, còn lại quét như Trang. limit = số bài/nguồn (mặc định 20); "
                      "min_shares = chỉ lấy bài từ ngần này share trở lên. Trả bài kèm share/react/bình luận, "
-                     "sắp theo share giảm dần. KHÔNG dùng tài khoản cá nhân, chỉ đọc. Tốn phí Apify theo lượt."),
+                     "sắp theo share giảm dần. KHÔNG dùng tài khoản cá nhân, chỉ đọc. Tốn phí Apify theo lượt. "
+                     "LƯU Ý: Trang nào chặn xem feed khi chưa đăng nhập Facebook sẽ trả lỗi not_available - "
+                     "đó là chặn từ phía Facebook, đổi Trang khác hoặc chờ bản hỗ trợ cookie."),
         schema={"type": "object", "properties": {
             "urls": {"type": "string", "description": "Link Trang/Nhóm công khai, cách nhau bởi dấu phẩy hoặc xuống dòng"},
             "limit": {"type": "integer", "description": "Số bài quét mỗi nguồn (mặc định 20)"},
