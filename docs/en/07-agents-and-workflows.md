@@ -88,7 +88,7 @@ To be clear: this memory belongs to **one agent**; Javis's shared memory about y
 
 ### Editing or deleting an agent
 
-- **Edit**: on the agent card, click **Edit**, change things and click **Save**.
+- **Edit**: select the agent, change its settings on the right and click **Save**.
 - **⤓ Export**: package the agent (with its skills) into a `.zip` to share, see "Sharing" at the end of this page.
 - **Delete**: click **Delete** and confirm in the "Delete agent ...?" dialog. Note: if a workflow uses that agent, its step will point at an agent that no longer exists, so check related workflows afterwards. Deleting an agent does **not** delete `memory/agents/<slug>/`, so its old memory and logs remain on disk.
 

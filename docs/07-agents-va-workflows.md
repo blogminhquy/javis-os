@@ -88,7 +88,7 @@ Phân biệt: bộ nhớ này là của **riêng một agent**; bộ nhớ chung
 
 ### Sửa hoặc xoá agent
 
-- **Sửa**: trên thẻ agent, bấm **Sửa**, chỉnh rồi bấm **Lưu**.
+- **Sửa**: chọn trợ lý, chỉnh ở cột phải rồi bấm **Lưu**.
 - **⤓ Xuất**: đóng gói agent (kèm skill của nó) thành file `.zip` để chia sẻ, xem mục "Chia sẻ" cuối trang.
 - **Xoá**: bấm **Xoá**, xác nhận ở hộp thoại "Xoá agent ...?". Lưu ý: nếu một workflow đang dùng agent này thì bước đó sẽ trỏ tới agent không còn tồn tại, nên xoá xong hãy kiểm tra lại các workflow liên quan. Xoá agent **không** xoá thư mục `memory/agents/<slug>/`, nên bộ nhớ và nhật ký cũ vẫn còn trên đĩa.
 
@@ -97,14 +97,14 @@ Phân biệt: bộ nhớ này là của **riêng một agent**; bộ nhớ chung
 Tạo ít nhất một trợ lý ở tab **Trợ lý** trước khi tạo quy trình.
 
 1. Mở **Cộng sự > Quy trình**.
-2. Bấm **+ Workflow** ở góc trên bên phải.
+2. Bấm **Tạo quy trình** ở cuối cột trái.
 3. Điền:
    - **Tên**: tên workflow. Bắt buộc.
    - **Mô tả**: một dòng nói workflow này làm gì (không bắt buộc nhưng nên có; dòng này hiện trên thẻ workflow).
    - **Nhóm**: tên nhóm để xếp workflow vào cột nhóm bên trái, gõ tên mới hoặc chọn từ nhóm đang có. Để trống thì nó nằm ở nhóm "Chung".
 4. Ở phần **Các bước (mỗi bước = 1 agent · dùng {{input}} và {{prev}})**, mỗi bước là một khối gồm:
    - Ô **Nhiệm vụ** (task): mô tả bước này phải làm gì. Trong nhiệm vụ, bạn dùng được hai biến đặc biệt:
-     - `{{input}}` = đầu vào bạn gõ khi bấm chạy workflow.
+     - `{{input}}` = nội dung tin nhắn bạn gửi để chạy quy trình.
      - `{{prev}}` = kết quả của bước ngay trước đó.
    - Phần **Kiểm chứng** (không bắt buộc): chọn một agent đóng vai người soi lỗi cho bước này, và số lần cho phép sửa lại. Để mặc định "- không kiểm chứng -" nếu không cần. Số lần sửa mặc định là 1, cho phép từ 0 đến 5.
 5. Bấm **+ Bước** để thêm bước mới.
