@@ -28,6 +28,8 @@ GROUP_ALIASES = ui_targets.GROUP_ALIASES
 resolve_page = ui_targets.resolve_page
 resolve_group = ui_targets.resolve_group
 normalize_target = ui_targets.normalize_target
+resolve_scroll = ui_targets.resolve_scroll
+SCROLL_TARGETS = ui_targets.SCROLL_TARGETS
 _khong_dau = ui_targets.khong_dau
 
 ACTIONS = ("open_page", "open_file", "open_task", "scroll", "open_group", "sidebar")
@@ -51,8 +53,9 @@ def check_target(action: str, target: str) -> str:
         if not t:
             return "thiếu target: mã việc Kanban (lấy từ javis_task op=list)."
     elif action == "scroll":
-        if _khong_dau(t) not in ("top", "bottom", "len", "xuong", "dau", "cuoi", "len dau", "xuong cuoi"):
-            return "scroll chỉ nhận target 'top' hoặc 'bottom'."
+        if not resolve_scroll(t):
+            return ("scroll nhận target: " + " | ".join(SCROLL_TARGETS) + " (hoặc tiếng Việt như "
+                    "'xuống dưới', 'cuộn trang này lên', 'cuộn khung chat xuống').")
     elif action == "open_group":
         if not resolve_group(t):
             return f"không có nhóm '{target}'. Nhóm hợp lệ: {', '.join(GROUPS)}."
@@ -77,7 +80,9 @@ async def _ui(args, ctx) -> str:
         return "ERROR: " + (res.get("detail") or "dashboard không thực hiện được")
     detail = res.get("detail") or ""
     if action == "scroll":
-        return f"Đã cuộn khung chat {'lên đầu' if target == 'top' else 'xuống cuối'}."
+        # `detail` là thứ dashboard THẬT SỰ cuộn ("nội dung trang" hay "khung chat"). Đừng đoán:
+        # target 'bottom' là để dashboard tự chọn theo trang đang mở.
+        return f"Đã cuộn {detail or 'khung chat'} {'lên đầu' if target.endswith('top') else 'xuống cuối'}."
     if action == "sidebar":
         return "Đã bung thanh bên." if target == "open" else "Đã thu gọn thanh bên."
     if action == "open_group":
@@ -95,7 +100,9 @@ def register(ctx):
             "'cho xem việc vừa giao', 'cuộn xuống'. action=open_page (target: id trang - "
             + ", ".join(PAGES) + " - hoặc ĐÚNG tên tiếng Việt đang hiện trên thanh bên: 'việc', 'tệp tin', 'cài đặt', 'trợ lý' = agents, 'kỹ năng' = skills, 'quy trình' = workflows, 'công cụ' = plugins); "
             "open_file (target: đường dẫn tương đối trong brain); open_task (target: mã việc Kanban); "
-            "scroll (target: top | bottom); open_group (BUNG một nhóm đang gập trên thanh bên mà "
+            "scroll (cuộn THỨ NGƯỜI DÙNG ĐANG XEM - target: top | bottom để dashboard tự chọn "
+            "theo trang đang mở, page_top | page_bottom khi họ nói rõ 'cuộn trang này', "
+            "chat_top | chat_bottom khi họ nói rõ 'cuộn khung chat'); open_group (BUNG một nhóm đang gập trên thanh bên mà "
             "KHÔNG đổi trang, dùng khi người dùng nói 'mở mục Năng lực', 'bung nhóm Kết nối', 'cho xem "
             "phần ẩn trong menu' - target: " + ", ".join(GROUPS) + " hoặc tên tiếng Việt như 'năng lực'); "
             "sidebar (target: open để bung cả thanh bên, close để thu gọn còn icon). session_id: mã phiên "

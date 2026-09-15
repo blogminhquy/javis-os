@@ -121,6 +121,53 @@ def resolve_group(target: str) -> str:
     return _tra(t, GROUP_ALIASES, GROUPS)
 
 
+# ---------------------------------------------------------------- cuộn
+# "cuộn xuống" phải cuộn THỨ NGƯỜI TA ĐANG NHÌN. Trước 0.58.5 lệnh này luôn cuộn khung chat, nên
+# đứng ở trang Tự học hay Việc định kỳ mà bảo "cuộn xuống dưới" thì danh sách đứng im còn khung
+# chat bên cạnh nhảy (BUG-001). Nay target mang theo PHẠM VI:
+#   top | bottom              - tự chọn: trang nội dung đang mở thì cuộn trang, không thì cuộn chat
+#   page_top | page_bottom    - ép cuộn phần nội dung của trang đang mở
+#   chat_top | chat_bottom    - ép cuộn khung hội thoại
+SCROLL_TARGETS = ("top", "bottom", "page_top", "page_bottom", "chat_top", "chat_bottom")
+
+_HUONG_LEN = {"top", "len", "dau", "tren", "up", "cung"}
+_HUONG_XUONG = {"bottom", "xuong", "cuoi", "duoi", "down", "het"}
+# Token được phép xuất hiện kèm, để "scroll left" vẫn bị chặn thay vì lặng lẽ thành "bottom".
+_TU_CHAT = {"chat", "hoi", "thoai", "tro", "chuyen", "tin", "nhan"}
+_TU_TRANG = {"page", "trang", "noi", "dung", "man", "hinh", "danh", "sach", "bang", "cua", "so",
+             "pane", "khung", "list"}
+_TU_THUA = {"cuon", "scroll", "keo", "cai", "nay", "do", "dang", "xem", "giup", "ho", "minh", "em",
+            "anh", "chi", "ban", "di", "ve", "toi", "o", "cho", "phan", "muc", "luon", "chut", "ti",
+            "mot", "chuc", "mai", "tiep", "them", "nua", "va", "roi"}
+# Cụm nói lên PHẠM VI. Tra theo cụm (không theo token rời) vì "khung chat" và "khung nội dung"
+# chung chữ "khung" - tách token là đoán sai ngay.
+_CUM_CHAT = ("chat", "hoi thoai", "tro chuyen", "tin nhan", "cuoc noi chuyen")
+_CUM_TRANG = ("trang", "page", "noi dung", "man hinh", "danh sach", "cua so", "pane", "bang", "list")
+
+
+def scroll_hop_le(target: str) -> bool:
+    """Chỉ nhận chữ NÓI VỀ CUỘN. Token lạ (left, right, 50%) bị chặn ngay ở server."""
+    t = khong_dau(target)
+    if not t:
+        return False
+    biet = _HUONG_LEN | _HUONG_XUONG | _TU_CHAT | _TU_TRANG | _TU_THUA
+    return all(w in biet for w in t.split())
+
+
+def resolve_scroll(target: str) -> str:
+    """Trả một trong SCROLL_TARGETS, hoặc rỗng nếu câu không phải lệnh cuộn."""
+    t = khong_dau(target)
+    if not scroll_hop_le(t):
+        return ""
+    tu = set(t.split())
+    huong = "top" if (tu & _HUONG_LEN) and not (tu & _HUONG_XUONG) else "bottom"
+    if any(c in t for c in _CUM_CHAT):
+        return "chat_" + huong
+    if any(c in t for c in _CUM_TRANG):
+        return "page_" + huong
+    return huong
+
+
 def normalize_target(action: str, target: str) -> str:
     """Đưa target về đúng thứ dashboard nhận (ui-actions.js chỉ chấp nhận id chuẩn)."""
     t = str(target or "").strip()
@@ -129,7 +176,7 @@ def normalize_target(action: str, target: str) -> str:
     if action == "open_file":
         return t.replace("\\", "/").lstrip("./")
     if action == "scroll":
-        return "top" if khong_dau(t) in ("top", "len", "dau", "len dau") else "bottom"
+        return resolve_scroll(t)
     if action == "open_group":
         return resolve_group(t)
     if action == "sidebar":

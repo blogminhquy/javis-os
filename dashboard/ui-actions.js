@@ -22,6 +22,10 @@
   // đang gập lại để nhìn xem có gì, chứ chưa chọn trang nào.
   var GROUPS = ["bo_nao", "code", "nang_luc", "viec", "ket_noi", "he_thong"];
   var ACTIONS = ["open_page", "open_file", "open_task", "scroll", "open_group", "sidebar"];
+  // Phạm vi cuộn. Cùng danh sách với SCROLL_TARGETS trong server/ui_targets.py. `top`/`bottom` để
+  // TRANG NÀY tự chọn (xem khungCuonTrang): người nói "cuộn xuống" muốn cuộn thứ họ đang nhìn, mà chỉ
+  // trình duyệt mới biết đang có trang nội dung nào mở và nó có cuộn được không.
+  var SCROLLS = ["top", "bottom", "page_top", "page_bottom", "chat_top", "chat_bottom"];
 
   function validate(frame) {
     frame = frame || {};
@@ -41,7 +45,7 @@
     } else if (action === "open_task") {
       if (!target || !/^[\w.\-:]+$/.test(target)) return { ok: false, error: "mã việc không hợp lệ" };
     } else if (action === "scroll") {
-      if (target !== "top" && target !== "bottom") return { ok: false, error: "scroll chỉ nhận top/bottom" };
+      if (SCROLLS.indexOf(target) < 0) return { ok: false, error: "scroll chỉ nhận: " + SCROLLS.join(", ") };
     } else if (action === "open_group") {
       if (GROUPS.indexOf(target) < 0) return { ok: false, error: "không có nhóm: " + target };
     } else if (action === "sidebar") {
@@ -50,12 +54,40 @@
     return { ok: true, action: action, target: target };
   }
 
-  if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES, GROUPS: GROUPS };
+  if (typeof module !== "undefined" && module.exports) module.exports = { validate: validate, PAGES: PAGES, GROUPS: GROUPS, SCROLLS: SCROLLS };
   if (typeof document === "undefined") return;   // node: chỉ lấy hàm thuần
 
   function tw(k, v) { try { return window.t ? window.t(k, v) : k; } catch (e) { return k; } }
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function cuonDuoc(el) {
+    if (!el || el.scrollHeight - el.clientHeight <= 4) return false;
+    var oy = "";
+    try { oy = window.getComputedStyle(el).overflowY; } catch (e) { oy = "auto"; }
+    return oy === "auto" || oy === "scroll" || oy === "overlay";
+  }
+
+  /* Khung cuộn của TRANG NỘI DUNG đang mở, hoặc null khi đang ở cockpit / trang không có gì
+     để cuộn. Đây là chỗ sửa BUG-001: trước đây "cuộn xuống" luôn nhắm #chatArea nên đứng ở
+     trang Tự học hay Việc định kỳ thì danh sách đứng im.
+
+     #cviewBody là khung cuộn mặc định của mọi trang. Vài trang dán sát mép (.cview-flush:
+     Terminal, trình sửa file) tắt cuộn ở đó và tự cuộn bên trong, nên phải tìm tiếp con cháu
+     nào cuộn được và lấy cái CAO NHẤT (khung chính, không phải một danh sách nhỏ trong góc). */
+  function khungCuonTrang() {
+    var cview = document.getElementById("cview");
+    if (!cview || !cview.getClientRects().length) return null;    // cockpit: cview đang ẩn
+    var body = document.getElementById("cviewBody");
+    if (cuonDuoc(body)) return body;
+    var goc = body || cview, tot = null;
+    var con = goc.querySelectorAll("*");
+    for (var i = 0; i < con.length; i++) {
+      if (!cuonDuoc(con[i]) || !con[i].getClientRects().length) continue;
+      if (!tot || con[i].clientHeight > tot.clientHeight) tot = con[i];
+    }
+    return tot;
+  }
 
   async function execute(v) {
     if (v.action === "open_page") {
@@ -94,10 +126,30 @@
       return { ok: false, detail: "bộ điều hướng chưa sẵn sàng" };
     }
     if (v.action === "scroll") {
-      var area = document.getElementById("chatArea");
-      if (area) area.scrollTop = v.target === "top" ? 0 : area.scrollHeight;
-      window.scrollTo({ top: v.target === "top" ? 0 : document.body.scrollHeight, behavior: "smooth" });
-      return { ok: true, detail: "" };
+      var len = v.target.indexOf("top") >= 0;
+      var pham_vi = v.target.indexOf("page") === 0 ? "page" : (v.target.indexOf("chat") === 0 ? "chat" : "auto");
+      var chat = document.getElementById("chatArea");
+      var el = null, ten = "";
+      if (pham_vi !== "chat") {
+        el = khungCuonTrang();
+        // Trang "Trò chuyện" bê thẳng #chatArea vào khung nội dung (chat-zoom.js), nên khung
+        // cuộn của trang CHÍNH LÀ khung chat: gọi tên cho đúng thứ vừa cuộn.
+        ten = el && el === chat ? tw("ui.scroll_chat") : tw("ui.scroll_page");
+      }
+      if (!el && pham_vi !== "page") {
+        el = chat;
+        ten = tw("ui.scroll_chat");
+        if (el && !cuonDuoc(el)) { el = null; ten = ""; }
+      }
+      if (!el) {
+        if (pham_vi === "page") return { ok: false, detail: tw("ui.scroll_no_page") };
+        // Không khung nào cuộn được (màn hẹp, cả trang là một dải dọc): cuộn chính tài liệu.
+        window.scrollTo({ top: len ? 0 : document.body.scrollHeight, behavior: "smooth" });
+        return { ok: true, detail: tw("ui.scroll_window") };
+      }
+      try { el.scrollTo({ top: len ? 0 : el.scrollHeight, behavior: "smooth" }); }
+      catch (e) { el.scrollTop = len ? 0 : el.scrollHeight; }
+      return { ok: true, detail: ten };
     }
     return { ok: false, detail: "không hỗ trợ" };
   }

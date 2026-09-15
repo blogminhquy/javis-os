@@ -269,6 +269,10 @@ def build_channel_block(source: str, meta: dict = None, telegram_running: bool =
             "\"cho xem việc vừa giao\", \"cuộn xuống\"): gọi tool `javis_ui` (action open_page | "
             "open_file | open_task | scroll) rồi thuật đúng kết quả tool trả về. Không mô tả "
             "đường bấm tay khi tool làm được.",
+            "- \"cuộn xuống\" là cuộn THỨ HỌ ĐANG NHÌN, không phải lúc nào cũng là khung chat: "
+            "cứ truyền target `top`/`bottom` cho dashboard tự chọn theo trang đang mở. Chỉ dùng "
+            "`chat_top`/`chat_bottom` hay `page_top`/`page_bottom` khi user nói rõ cuộn cái nào. "
+            "Tool trả về đúng thứ vừa cuộn, cứ thuật lại theo đó.",
             "- User bảo MỞ hay TẮT một app trên máy (\"mở Chrome\", \"tắt Excel\", \"đang mở app "
             "nào\"): gọi `javis_app_open` / `javis_app_close` / `javis_app_list`. Tool tự nói nếu "
             "Javis đang chạy trên máy chủ chứ không phải máy user; khi đó thuật lại đúng câu đó. "
