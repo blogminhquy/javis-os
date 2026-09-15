@@ -284,10 +284,11 @@ check("loại lọc sẵn bị XOÁ ngay sau khi dùng, không dính lại lần
       '_loaiCho = "";' in src_js.split("const loaiDau = _loaiCho;")[-1][:200])
 
 src_con = (DASHBOARD / "console.js").read_text(encoding="utf-8")
-check("năm trang năng lực đều có đường sang kho",
-      all(x in src_con for x in ('agents: "agent"', 'skills: "skill"',
-                                 'workflows: "workflow"', 'plugins: "tool"',
-                                 'mcp: "connector"')))
+src_ws = (DASHBOARD / "workspace.js").read_text(encoding="utf-8")
+check("mọi loại năng lực có đường sang kho, trợ lý và quy trình đi qua Cộng sự",
+      all(x in src_con for x in ('skills: "skill"', 'plugins: "tool"', 'mcp: "connector"'))
+      and 'window.JavisPacks.moKho(S.loai, "workspace",' in src_ws
+      and 'data-loai="agent"' in src_ws and 'data-loai="workflow"' in src_ws)
 # Năm bản sao của lưới kho là năm thứ sẽ lệch nhau sau vài tháng. Tab chỉ ĐIỀU HƯỚNG.
 check("tab kho điều hướng sang kho chứ không nhúng bản sao lưới",
       "JavisPacks.moKho(kind" in src_con and "veKho" not in src_con)
