@@ -30,8 +30,8 @@ sid = store.create_session(brain=main._brain_key("brain"), engine="cli", channel
 goi = []
 
 
-async def gia_execute(brain, slug, input="", tools=None, session_id="", source="other"):
-    goi.append({"input": input, "source": source, "session_id": session_id})
+async def gia_execute(brain, slug, input="", tools=None, session_id="", source="other", input_luu=None):
+    goi.append({"input": input, "source": source, "session_id": session_id, "input_luu": input_luu})
     rid = workflow_runs.get_store().bat_dau(brain=main._brain_key(brain), slug=slug, name="Viết bài",
                                            input=input, source=source, session_id=session_id)
     yield {"type": "start", "workflow": "Viết bài", "steps": 1, "run_id": rid}
@@ -41,6 +41,7 @@ async def gia_execute(brain, slug, input="", tools=None, session_id="", source="
     yield {"type": "done", "result": "BÀI 1"}
 
 
+_execute_that = main.execute_workflow   # giữ bản THẬT để kiểm đường ghi lịch sử ở cuối file
 main.execute_workflow = gia_execute   # _luot_quy_trinh tra cứu qua module lúc gọi
 
 
@@ -69,15 +70,53 @@ check("lan hai noi ket qua truoc + dem lan chay", goi[1]["input"].startswith("s�
       and text2.startswith("Lần chạy #2"))
 
 
-# Attached context must reach the engine input, scoped to this workflow session.
+# Tài liệu người dùng gắn vào cuộc phải TỚI ĐỘNG CƠ, nhưng KHÔNG được nằm trong câu ghi vào
+# kho lần chạy: cột `input` chính là dòng tóm tắt ở lịch sử chạy (cắt 60 ký tự đầu), nên dính
+# khối tài liệu vào là lịch sử không còn thấy người dùng đã yêu cầu gì.
 from unittest.mock import patch
 with patch.object(main, "_session_block", return_value="\n\nATTACHED_FILE_AND_LINK") as context:
-    run("read attached context")
-    check("workflow receives attached context", "ATTACHED_FILE_AND_LINK" in goi[-1]["input"])
-    check("attachment context uses current session", context.call_args.args == (sid,))
+    run("đọc tài liệu đã gắn")
+    check("dong co nhan duoc khoi tai lieu", "ATTACHED_FILE_AND_LINK" in goi[-1]["input"])
+    check("khoi tai lieu lay dung phien dang mo", context.call_args.args == (sid,))
+    check("cau ghi vao lich su chi la loi nguoi go",
+          goi[-1]["input_luu"].startswith("đọc tài liệu đã gắn")
+          and "ATTACHED_FILE_AND_LINK" not in goi[-1]["input_luu"])
+
+# Kiểm tới TẬN KHO: chỉ sửa _luot_quy_trinh mà quên đầu execute_workflow thì cột `input` của
+# bản ghi vẫn là chuỗi đưa cho động cơ. Ở đây chỉ giả `_execute_workflow_raw`, còn đường ghi
+# lịch sử là bản thật.
+brain_that = Path(_TMP) / "brain-that"
+(brain_that / "workflows").mkdir(parents=True, exist_ok=True)
+(brain_that / "workflows" / "viet-bai.md").write_text(
+    "---\ntype: workflow\nname: Viết bài\nslug: viet-bai\nstatus: active\nsteps: []\n---\nmô tả\n",
+    encoding="utf-8")
+sid2 = store.create_session(brain=main._brain_key(str(brain_that)), engine="cli",
+                            channel="workflow:viet-bai")
+tho = {}
 
 
-async def gia_loi(brain, slug, input="", tools=None, session_id="", source="other"):
+async def gia_raw(brain, slug, input="", tools=None, session_id=""):
+    tho["input"] = input
+    yield {"type": "start", "workflow": "Viết bài", "steps": 1}
+    yield {"type": "done", "result": "XONG"}
+
+
+async def _im(_frame):
+    pass
+
+
+main._execute_workflow_raw = gia_raw
+main.execute_workflow = _execute_that
+with patch.object(main, "_session_block", return_value="\n\nATTACHED_FILE_AND_LINK"):
+    asyncio.run(main._luot_quy_trinh(store, sid2, "viết về B", str(brain_that), "viet-bai", _im))
+dong = workflow_runs.get_store().gan_nhat(main._brain_key(str(brain_that)), slug="viet-bai", limit=1)
+check("duong that: dong co van nhan khoi tai lieu", "ATTACHED_FILE_AND_LINK" in tho.get("input", ""))
+check("duong that: cot input cua ban ghi khong dinh khoi tai lieu",
+      len(dong) == 1 and dong[0]["input"] == "viết về B")
+main.execute_workflow = gia_execute
+
+
+async def gia_loi(brain, slug, input="", tools=None, session_id="", source="other", input_luu=None):
     yield {"type": "start", "workflow": "Viết bài", "steps": 1}
     yield {"type": "step_start", "i": 0, "agent": "Người viết", "task": "viết"}
     yield {"type": "error", "content": "engine chết"}
@@ -88,7 +127,7 @@ check("loi van thanh tin trong chat", text3 == "Quy trình dừng ở bước 1 
       and store.get_messages(sid)[-1]["content"] == text3)
 
 
-async def gia_cho(brain, slug, input="", tools=None, session_id="", source="other"):
+async def gia_cho(brain, slug, input="", tools=None, session_id="", source="other", input_luu=None):
     yield {"type": "start", "workflow": "Viết bài", "steps": 2}
     yield {"type": "wait_user", "node": "dang", "prompt": "đăng?", "task_id": "tk9", "code": "ZZ"}
 

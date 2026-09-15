@@ -51,8 +51,16 @@ check("quick-settings KHÔNG còn tra cứu #ttsToggleBar (nút đã gỡ, tra c
   !/\$\("ttsToggleBar"\)/.test(qs));
 check("mobile-chat.js không còn nhắc tới #ttsToggleBar như một nút thật", !/getElementById\("ttsToggleBar"\)/.test(mob));
 check("quick-settings phơi window.JavisTts.set cho mic gọi", /window\.JavisTts = \{ set: applyState/.test(qs));
-check("vẫn nhớ trạng thái qua reload (localStorage javis.ttsEnabled)",
-  qs.indexOf("javis.ttsEnabled") !== -1);
+// 15/09: loa KHÔNG còn nhớ qua reload nữa. Mỗi lần nạp trang bắt đầu TẮT, và chỉ thao tác bật
+// MIC mới bật đọc. Test cũ soi chuỗi "javis.ttsEnabled" nên vẫn xanh nhờ một hàm persist() đã
+// chết - đúng kiểu xanh giả: nó canh một lời hứa mà sản phẩm không còn giữ.
+check("mỗi lần nạp trang loa bắt đầu TẮT", /var enabled = false;/.test(qs));
+check("không còn đọc/ghi lựa chọn cũ trong localStorage",
+  qs.indexOf("javis.ttsEnabled") === -1 && !/localStorage\.(get|set)Item/.test(qs));
+check("chỉ MIC bật được loa (công tắc Cài đặt nhanh phải hỏi handsFreeActive)",
+  /qs\.checked && micDangBat\(\)/.test(qs) && /handsFreeActive/.test(qs));
+check("voice.js cũng không còn ghi lựa chọn qua reload",
+  read("dashboard/voice.js").indexOf("javis.ttsEnabled") === -1);
 check("vẫn đồng bộ với công tắc trong Cài đặt nhanh", /\$\("qsTts"\)/.test(qs));
 check("app.js bật loa theo mic", /window\.JavisTts\.set\(handsFree\)/.test(app));
 

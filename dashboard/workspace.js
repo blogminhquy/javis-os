@@ -229,7 +229,12 @@
     });
   }
   function chonMacDinh() {
-    var ds = danhSach(); if (!ds.length) { veGiua(null); vePhai(null); return; }
+    var ds = danhSach();
+    // Danh sách RỖNG (brain mới tinh, hay tab Quy trình khi chưa có quy trình nào): không có
+    // phiên nào để mở nên phải KHOÁ ô nhập lại. Bỏ quên chốt này thì ô nhập vẫn sáng trong khi
+    // `ready` còn false từ render(), người dùng gõ xong bấm gửi và KHÔNG CÓ GÌ xảy ra: canSend()
+    // trả false, app.js lặng lẽ quay ra, màn hình không nói một lời nào.
+    if (!ds.length) { chatReady(false); veGiua(null, t("ws.none_yet")); vePhai(null); return; }
     if (!ds.some(function (x) { return x.slug === S.chon[S.loai]; })) S.chon[S.loai] = ds[0].slug;
     veDanhSach(); return moPhien(dangChon(), false);
   }
@@ -281,9 +286,14 @@
     el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small><button type="button" class="ws-btn" id="wsRetry">' + esc(t("ws.retry_session")) + '</button>';
     el.querySelector("#wsRetry").onclick = function () { moPhien(dangChon(), false); };
   } }
-  function veGiua(item) {
+  // `nhac` = câu thay cho lời mời chọn mục, dùng khi danh sách rỗng (chưa có gì để chọn cả).
+  function veGiua(item, nhac) {
     var el = S.el && S.el.querySelector("#wsIdentity"); if (!el) return;
-    if (!item) { el.innerHTML = '<strong>' + esc(t("ws.pick_one")) + '</strong>'; return; }
+    if (!item) {
+      el.innerHTML = '<strong>' + esc(nhac || t("ws.pick_one")) + '</strong>';
+      if (nhac) { var o = document.getElementById("chatInput"); if (o) o.placeholder = nhac; }
+      return;
+    }
     var phu = S.loai === "agent" ? (item.group || "Chung") + " · " + (item.role || "") : t("ws.wf_sub", { n: cacBuoc(item).length });
     el.innerHTML = (S.loai === "agent" ? avatar(item, 42) : ic("workflow")) + '<div><strong>' + esc(item.name) + '</strong><small>' + esc(phu) + '</small></div>';
     var inp = document.getElementById("chatInput");

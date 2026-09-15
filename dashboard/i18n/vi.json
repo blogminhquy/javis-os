@@ -140,6 +140,7 @@
   "chat.col_collapse": "Thu khung hội thoại sang phải (như thu sidebar)",
   "qs.title": "CÀI ĐẶT NHANH",
   "qs.tts": "Đọc trả lời bằng giọng",
+  "qs.tts_can_mic": "Bật micro thì Javis mới đọc thành tiếng. Công tắc này chỉ dùng để tắt tiếng.",
   "qs.rec_lang": "Ngôn ngữ nghe",
   "qs.voice": "GIỌNG ĐỌC",
   "qs.voice_pick": "Giọng Edge",
@@ -2693,6 +2694,7 @@
   "ws.toggle_panel": "Ẩn/hiện cột phải",
   "ws.empty": "Chưa có mục phù hợp. Tạo mới hoặc tìm trong Javis Store.",
   "ws.pick_one": "Chọn một cộng sự ở cột trái",
+  "ws.none_yet": "Chưa có cộng sự nào. Tạo mới ở cột trái rồi mới trò chuyện được.",
   "ws.wf_sub": "Quy trình · {n} bước",
   "ws.ph_agent": "Nhắn cho {ten}...",
   "ws.ph_workflow": "Mô tả kết quả bạn muốn nhận, mỗi tin là một lần chạy...",
@@ -2724,5 +2726,7 @@
   "ws.run_default": "Chạy quy trình theo cấu hình hiện tại.",
   "ws.input_label": "đầu vào",
   "ws.previous_result": "kết quả trước",
-  "ws.save_failed": "Không lưu được. Vui lòng thử lại."
+  "ws.save_failed": "Không lưu được. Vui lòng thử lại.",
+  "ws.err_avatar_shape": "Hình đại diện không hợp lệ. Chọn lại một hình trong thư viện.",
+  "ws.err_avatar_palette": "Màu đại diện không hợp lệ. Chọn lại một màu trong thư viện."
 }

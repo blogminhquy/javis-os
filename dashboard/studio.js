@@ -101,6 +101,16 @@
   const NHOM_MD = "Chung";                     // nhóm mặc định khi file chưa khai `group`
   const nhomCua = (x) => (x && String(x.group || "").trim()) || NHOM_MD;
 
+  // Server trả về MÃ MÁY chứ không phải câu cho người đọc (server/agent_avatar.py ném
+  // ValueError("avatar_shape"), main.py chuyển thẳng thành {"error": "avatar_shape"}). Đổ thẳng
+  // mã đó vào alert là người dùng đọc được đúng chữ "avatar_shape" - vô nghĩa và không dịch
+  // được. Ở đây dịch mã đã biết, mã lạ rơi về câu chung. Bảng tra dựng KHÔNG có prototype:
+  // `{}["__proto__"]` trả về Object.prototype chứ không phải undefined, nên một mã lạ đúng
+  // tên đó sẽ lọt qua nhánh "|| ws.save_failed".
+  const _MA_LOI_LUU = Object.assign(Object.create(null),
+    { avatar_shape: "ws.err_avatar_shape", avatar_palette: "ws.err_avatar_palette" });
+  const loiLuu = (ma) => t(_MA_LOI_LUU[String(ma == null ? "" : ma)] || "ws.save_failed");
+
   // Bỏ dấu để gõ "viet email" vẫn ra "Viết email".
   function _spNoAccent(s) {
     s = String(s == null ? "" : s);
@@ -475,14 +485,24 @@
       });
       box.querySelector("#addStep").onclick = () => { captureSteps(); steps.push({ agent: agentsCache[0].slug, task: "" }); openIdx = steps.length - 1; render(); };
       box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
+      // Cùng luật với #saveAg: khoá nút trong lúc gửi, ĐỌC kết quả rồi mới đóng. Bản cũ đóng
+      // khung và báo onSaved() vô điều kiện, nên lưu hỏng (server 400, mất mạng) trông y hệt
+      // lưu xong - người dùng đóng tab rồi mới biết mất bài. Và onSaved phải nhận `saved`:
+      // trang Cộng sự dựa vào `saved.slug` để chọn đúng quy trình vừa tạo.
       box.querySelector("#saveWf").onclick = async () => {
         captureSteps();
         if (!ten.trim()) return alert(t("studio.need_name"));
-        await api("/workflows", { method: "POST", body: fd({ name: ten.trim(), description: mota,
-          group: nhom.trim() || NHOM_MD, steps: JSON.stringify(steps),
-          status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
-        editor.classList.remove("open");
-        if (tuyChon.onSaved) tuyChon.onSaved(); else loadWorkflows();
+        const nutLuu = box.querySelector("#saveWf");
+        nutLuu.disabled = true;
+        try {
+          const saved = await api("/workflows", { method: "POST", body: fd({ name: ten.trim(), description: mota,
+            group: nhom.trim() || NHOM_MD, steps: JSON.stringify(steps),
+            status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
+          if (!saved.ok) { alert(loiLuu(saved.error)); return; }
+          editor.classList.remove("open");
+          if (tuyChon.onSaved) await tuyChon.onSaved(saved); else loadWorkflows();
+        } catch (err) { alert(t("ws.save_failed")); }
+        finally { nutLuu.disabled = false; }
       };
     }
     function captureSteps() {
@@ -660,7 +680,7 @@
           group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
-        if (!saved.ok) { alert(saved.error || t("ws.save_failed")); return; }
+        if (!saved.ok) { alert(loiLuu(saved.error)); return; }
         moDong(false);
         if (opts.onSaved) await opts.onSaved(saved); else loadAgents();
       } catch (err) { alert(t("ws.save_failed")); }
