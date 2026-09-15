@@ -92,12 +92,24 @@
     // Đang nghĩ: hai tròng nhìn chéo lên, một bên hẹp hơn một chút cho ra vẻ đang lục trí nhớ.
     thinking:   ['<ellipse cx="2" cy="-8" rx="6.4" ry="15"/>', '<ellipse cx="2" cy="-9" rx="7.6" ry="18"/>'],
     happy:      '<path class="pet-line" d="M-9 6 Q0 -7 9 6"/>',
-    calm:       '<path class="pet-line" d="M-9 0 H9"/>',
+    // Hai gạch ngang lúc ĐANG NGHĨ. Cố ý NGẮN hơn dáng chớp mắt và hơi nhếch lên: chớp mắt là
+    // mắt NHẮM (vệt kéo hết bề ngang con mắt), còn đây là mắt lim dim nghĩ ngợi - hai thứ đó
+    // trông giống nhau thì một cú chớp giữa lúc nghĩ nhìn như máy bị khựng.
+    nghi:       '<path class="pet-line" d="M-7 -1 H7"/>',
     sleepy:     '<path class="pet-line" d="M-9 6 H9"/>',
     sad:        '<path class="pet-line" d="M-9 -2 Q0 -10 9 -2"/>',
     suspicious: ['<path class="pet-line" d="M-9 -3 H9"/>', '<path class="pet-line" d="M-9 2 H9"/>'],
     blink:      '<path class="pet-line" d="M-9 0 H9"/>',
   };
+
+  // ĐANG NGHĨ thì hai con mắt ĐỔI QUA ĐỔI LẠI giữa hai dáng, không đứng yên một dáng:
+  //   "thinking" = liếc chéo lên, như đang lục trí nhớ;
+  //   "nghi"     = hai gạch ngang, dáng lim dim nghĩ ngợi (chủ dự án chốt 15/09 là thích dáng
+  //                này nhất, và đồng ý để nó luân phiên với dáng trên).
+  // Mỗi dáng giữ chừng một giây rưỡi rồi đổi. Muốn nó ĐỨNG YÊN ở hai gạch ngang thì bỏ mảng
+  // này còn một phần tử "nghi" - vòng vẽ tự thôi đổi, không phải sửa chỗ nào khác.
+  var NGHI_MAT = ["thinking", "nghi"];
+  var NGHI_LAU = [1500, 1200];   // mỗi dáng giữ bao lâu (ms), cộng thêm một chút ngẫu nhiên
 
   // Trạng thái thật của lượt (app.js bắn sang) -> biểu cảm + nhịp vành quỹ đạo.
   //   ring: tốc độ xoay (độ/giây); 0 = đứng yên. dash: hình dải. mo: độ mờ của vành.
@@ -129,6 +141,8 @@
   var state = "idle", mood = "neutral", dangChop = false;
   var raf = 0, truoc = 0, gocRing = 0, tocDo = STATES.idle.ring, tocDoDich = STATES.idle.ring;
   var chopLuc = 0, liecLuc = 0, vuiDen = 0;
+  // Nhịp ĐỔI MẮT lúc đang nghĩ (xem NGHI_MAT). nghiPha = đang ở dáng nào.
+  var nghiLuc = 0, nghiPha = 0;
   var tx = 0, ty = 0, px = 0, py = 0;      // hướng nhìn: đích và giá trị đang nội suy
   var liecX = 0, liecY = 0, liecDichX = 0, liecDichY = 0;
   var chuotLuc = 0;
@@ -383,6 +397,15 @@
     gocRing = (gocRing + tocDo * dt) % 360;
     pRing.style.strokeDashoffset = (-gocRing).toFixed(2);
 
+    // Đang NGHĨ: đảo giữa dáng lục trí nhớ và hai gạch ngang. Đứng yên một dáng suốt ba chục
+    // giây thì con mắt thành hai cái hình dán; đảo qua lại là nó đang thật sự nghĩ.
+    if (state === "thinking" && NGHI_MAT.length > 1 && !dangChop && now > nghiLuc) {
+      nghiPha = (nghiPha + 1) % NGHI_MAT.length;
+      mood = NGHI_MAT[nghiPha];
+      veMat(mood);
+      nghiLuc = now + NGHI_LAU[nghiPha % NGHI_LAU.length] + Math.random() * 500;
+    }
+
     // Chớp mắt: ngắn và KHÔNG đều nhịp. Đều nhịp là cảm giác máy móc.
     if (now > chopLuc && !dangChop && vuiDen < now) {
       dangChop = true; veMat("blink");
@@ -403,6 +426,11 @@
   function apDungTrangThai() {
     var s = STATES[state] || STATES.idle;
     mood = s.eye;
+    // Vào lại trạng thái nghĩ thì bắt đầu từ dáng ĐẦU của NGHI_MAT và chờ đủ một nhịp mới đổi.
+    // Không đặt lại thì mốc cũ đã trôi qua từ lâu, nên vừa bắt đầu nghĩ là mắt nháy sang dáng
+    // kia ngay lập tức, trông như giật.
+    nghiPha = 0;
+    nghiLuc = (typeof performance !== "undefined" ? performance.now() : 0) + NGHI_LAU[0];
     if (!dangChop) veMat(mood);
     tocDoDich = s.ring;
     pRing.style.strokeDasharray = s.dash;

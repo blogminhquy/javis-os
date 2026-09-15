@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.9] - 2026-09-15
+### Cải thiện
+- **Lúc Javis suy nghĩ, mắt linh vật đảo qua lại giữa hai dáng**: liếc chéo lên như đang lục trí nhớ, rồi lim dim thành hai gạch ngang, mỗi dáng giữ chừng một giây rưỡi. Trước đây nó trơ một dáng suốt cả lượt trả lời.
+
 ## [0.59.8] - 2026-09-15
 ### Sửa lỗi
 - **Cập nhật thất bại giờ nói rõ vì sao bằng tiếng Việt.** Trước đây nó ném nguyên lời của git ra màn hình ("Not possible to fast-forward, aborting") - đúng nhưng chỉ lập trình viên đọc mới hiểu. Giờ Javis nói thẳng máy đang đứng nhầm nhánh, mất mạng, hay có sửa đổi cục bộ chặn đường, kèm đúng câu lệnh cần chạy.
