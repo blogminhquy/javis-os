@@ -91,8 +91,15 @@ async def chay(events, emit: Callable[[dict], Awaitable[None]]) -> Dict[str, Any
                 kq["ket_qua"] = str(ev.get("result") or "")
                 da_ket = True
             elif t == "error":
+                # Lỗi của MỘT BƯỚC mang sẵn `i` và `agent` (main.py gắn khi bước hỏng): tin
+                # theo nó trước. Chỉ rơi về "bước đang chạy" khi lỗi không thuộc bước nào
+                # (không tìm thấy workflow, luồng đứt) - lúc đó `i` vắng mặt.
+                i_loi = ev.get("i")
+                i_loi = buoc_dang_chay if i_loi is None else int(i_loi)
                 kq["trang_thai"] = "error"
-                kq["loi"] = {"i": buoc_dang_chay, "agent": agent_cua_buoc.get(buoc_dang_chay if buoc_dang_chay is not None else -1, ""),
+                kq["loi"] = {"i": i_loi,
+                             "agent": str(ev.get("agent") or agent_cua_buoc.get(
+                                 i_loi if i_loi is not None else -1, "")),
                              "content": str(ev.get("content") or "")}
                 da_ket = True
             elif t == "wait_user":

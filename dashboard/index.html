@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=84">
-  <link rel="stylesheet" href="/static/console.css?v=52">
+  <link rel="stylesheet" href="/static/style.css?v=85">
+  <link rel="stylesheet" href="/static/console.css?v=53">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -200,7 +200,9 @@
         </div>
         <div class="vault-search">
           <i class="vs-ico" data-ic="search"></i>
-          <input id="vaultSearch" type="text" placeholder="Tìm note..." data-i18n-ph="vault.search_ph" spellcheck="false" autocomplete="off">
+          <!-- data-esc: ô này TỰ xử Esc (xoá chữ, về lại cây). Trình sửa note bắt Esc ở mức
+               document + capture, nên không khai dấu này thì Esc ở đây đóng mất file đang mở. -->
+          <input id="vaultSearch" type="text" data-esc placeholder="Tìm note..." data-i18n-ph="vault.search_ph" spellcheck="false" autocomplete="off">
           <button class="vs-clear" id="vaultSearchClear" title="Xoá tìm kiếm" data-i18n-title="vault.search_clear" hidden><i data-ic="x"></i></button>
         </div>
         <div class="vault-modes">
@@ -863,10 +865,10 @@
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=17"></script>
-  <script src="/static/studio.js?v=34"></script>
+  <script src="/static/studio.js?v=37"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
-  <script src="/static/workspace.js?v=6"></script>
+  <script src="/static/workspace.js?v=9"></script>
   <script src="/static/packs.js?v=1"></script>
   <script src="/static/chatbots.js?v=10"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
@@ -875,7 +877,7 @@
        phần khung - xterm.js (285KB) nạp lười ở lần đầu mở tab, không nằm trong đường khởi động. -->
   <script src="/static/code-term.js?v=2"></script>
   <!-- Console layer: console.js đăng ký store TRƯỚC khi Alpine khởi động (defer) -->
-  <script src="/static/console.js?v=134"></script>
+  <script src="/static/console.js?v=137"></script>
   <script src="/static/mobile-chat.js?v=8"></script>
   <script src="/static/brain-view.js?v=1"></script>
   <script src="/static/push.js?v=2"></script>

@@ -4,6 +4,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.2] - 2026-09-15
+### Thêm mới
+- **Trang Cộng sự có cây thư mục ngay bên cạnh.** Cột phải giờ có hai tab: Cài đặt như cũ, và Thư mục là đúng cây thư mục bạn vẫn dùng ở trang Trò chuyện. Vừa nhắn với trợ lý vừa mở file mà không phải nhảy trang.
+- **Quy trình đang chạy có vòng quay trong danh sách**, nên liếc cột trái là biết cái nào còn đang làm.
+### Sửa lỗi
+- **Bấm vào file .md hay ảnh trong lúc chat với trợ lý giờ mở được.** Trước đây bấm vào không có gì xảy ra, hoặc bạn bị quăng sang trang Tệp tin.
+- **Trợ lý có tên dấu tiếng Việt mở được hội thoại.** Trước đây chọn vào là hiện một câu lỗi kỹ thuật khó hiểu và không chat được.
+- **Quy trình gặp trục trặc không còn báo "đã hoàn tất".** Bước hỏng hiện rõ là hỏng, và khi bộ não của một trợ lý hết lượt gói thuê bao thì Javis nói thẳng bước nào, trợ lý nào, bao giờ mở lại, thay vì để lại một câu tiếng Anh khó hiểu ở chỗ đáng lẽ là kết quả.
+### Cải thiện
+- Ô tìm cộng sự thu lại thành một nút kính lúp, và bộ lọc nhóm đổi thành ô chọn cho đỡ rối mắt.
+
 ## [0.59.1] - 2026-09-15
 ### Thêm mới
 - **Mỗi trợ lý và quy trình có hình đại diện riêng.** Hình tự sinh theo tên, đổi được hình dáng và màu ngay trong cột cài đặt, nên liếc một cái là biết đang nói chuyện với ai.

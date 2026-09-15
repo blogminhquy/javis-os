@@ -79,6 +79,22 @@ kq, fr = run([
 ])
 check("chay error giu buoc + agent", kq["trang_thai"] == "error" and kq["loi"] == {"i": 0, "agent": "A", "content": "dừng"})
 
+# Lỗi của một BƯỚC mang sẵn `i` và `agent` (main.py gắn từ 0.59.2). Phải theo nó chứ không
+# theo "bước đang chạy": bước hỏng và bước đang chạy trùng nhau ở đường bình thường, nhưng
+# lỗi tới sau khi luồng đã đi tiếp thì đổ tội nhầm bước, và người dùng đi sửa nhầm agent.
+kq, fr = run([
+    {"type": "start", "workflow": "W", "steps": 3},
+    {"type": "step_start", "i": 0, "agent": "A", "task": "t"},
+    {"type": "step_done", "i": 0, "agent": "A", "output": "o0"},
+    {"type": "step_start", "i": 1, "agent": "B", "task": "t2"},
+    {"type": "error", "i": 1, "agent": "B", "content": "Hết lượt gói Claude (Claude Code)."},
+])
+check("chay error theo dung i/agent su kien mang theo",
+      kq["loi"] == {"i": 1, "agent": "B", "content": "Hết lượt gói Claude (Claude Code)."})
+check("tin_loi dung so buoc cua nguoi doc (dem tu 1)",
+      wc.tin_loi(kq["loi"]["i"], kq["loi"]["agent"], kq["loi"]["content"])
+      == "Quy trình dừng ở bước 2 (B): Hết lượt gói Claude (Claude Code).")
+
 kq, fr = run([
     {"type": "start", "workflow": "W", "steps": 2},
     {"type": "wait_user", "node": "dang", "prompt": "?", "task_id": "tk", "code": "AB"},

@@ -100,6 +100,16 @@
   // xếp trên điện thoại. Chép tay thành ba bản là ba bản trôi lệch nhau ngay lần sửa đầu tiên.
   const NHOM_MD = "Chung";                     // nhóm mặc định khi file chưa khai `group`
   const nhomCua = (x) => (x && String(x.group || "").trim()) || NHOM_MD;
+  // Các dòng bày ra ô chọn nhóm: nhóm mặc định, nhóm ĐANG CÓ của mục đang sửa, rồi mọi nhóm
+  // đang dùng. Nhóm mà chỉ mình mục này dùng không nằm trong danh sách chung, thiếu dòng đó
+  // là ô chọn rơi về dòng đầu và bấm Lưu một cái là đổi nhóm im lặng.
+  const dsNhomChon = (nhomDangCo, ds) => [...new Set(
+    [NHOM_MD, nhomDangCo || NHOM_MD].concat((ds || []).map(nhomCua)).filter(Boolean))];
+  // Nhóm CHỐT khi bấm Lưu. Ô gõ tay rỗng KHÔNG có nghĩa là "Chung": chọn "Nhóm mới..." rồi đổi
+  // ý, không gõ gì, mà đẩy về Chung là mục đang ở Marketing bị ném sang Chung không một lời
+  // nào. Rỗng thì giữ nguyên nhóm cũ, chỉ mục thật sự chưa có nhóm mới rơi về Chung.
+  const nhomLuu = (oGoTay, nhomCu) =>
+    String(oGoTay == null ? "" : oGoTay).trim() || String(nhomCu == null ? "" : nhomCu).trim() || NHOM_MD;
 
   // Server trả về MÃ MÁY chứ không phải câu cho người đọc (server/agent_avatar.py ném
   // ValueError("avatar_shape"), main.py chuyển thẳng thành {"error": "avatar_shape"}). Đổ thẳng
@@ -339,6 +349,14 @@
         }
       } else if (d.type === "step_error") {
         const out = document.getElementById(`rs-out-${d.i}`); if (out) out.innerHTML += `<div class="rs-err">${ic("triangle-alert", { cls: "ic-warn" })} ${esc(d.content)}</div>`;
+        // Bước đã báo lỗi thì TẮT vòng quay của chính nó. Trước đây chỉ `step_done` mới thay
+        // được .rs-spin, mà bước hỏng thì không bao giờ có step_done nữa (server dừng ngay),
+        // nên bước ấy quay mãi trong khi cả lần chạy đã kết thúc.
+        const divE = stepDivs[d.i];
+        if (divE) {
+          const sp = divE.querySelector(".rs-spin");
+          if (sp) sp.outerHTML = `<span class="rs-fail">${ic("circle-x", { cls: "ic-err" })}</span>`;
+        }
       } else if (d.type === "step_model") {
         // Router chọn model khác model mặc định của agent - nói rõ để khỏi ngờ ngợ.
         const div = stepDivs[d.i];
@@ -616,6 +634,13 @@
       ? `<optgroup label="${esc(t("studio.model_saved"))}"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} ${esc(t("studio.saved_suffix"))}</option></optgroup>` : "";
     const modelOptions = (g) =>
       `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
+    // NHÓM: một Ô CHỌN các nhóm đang dùng, cộng một dòng "Nhóm mới..." mới bung ô gõ tay ra
+    // (chủ repo yêu cầu 0.59.2 - trước đây là ô gõ tay cộng một hàng chip, và hàng chip dài
+    // cả chục nhóm thì đẩy phần Skills rớt khỏi màn hình). Vẫn LƯU đúng field cũ qua #agGroup,
+    // nên agent/workflow đang có không phải đụng tới.
+    const NHOM_MOI = "__javis_nhom_moi__";
+    const nhomDangCo = a ? nhomCua(a) : NHOM_MD;
+    const dsNhomCo = dsNhomChon(nhomDangCo, opts.dsNhom || _agState.agents);
     const box = opts.host || document.getElementById("editorBox");
     if (opts.host && !box.isConnected) return;
     let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
@@ -625,8 +650,8 @@
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
       <label>${esc(t("studio.groups"))}</label>
-      <input id="agGroup" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
-      <div class="ag-group-options">${uniq((opts.dsNhom || _agState.agents).map(nhomCua)).map(g => `<button type="button" class="ws-group-chip" data-group="${esc(g)}">${esc(g)}</button>`).join("")}</div>
+      <select id="agGroupSel">${dsNhomCo.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join("")}<option value="${NHOM_MOI}">${esc(t("studio.group_new"))}</option></select>
+      <input id="agGroup" value="${esc(nhomDangCo)}" aria-label="${esc(t("studio.group_new"))}" placeholder="${esc(t("studio.group_ph"))}" hidden>
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -645,7 +670,15 @@
         : t("studio.model_none"))}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
     if (window.JavisAvatar) window.JavisAvatar.picker(box.querySelector("#agAvatar"), avatar, v => { avatar = v; });
-    box.querySelectorAll("[data-group]").forEach(b => { b.onclick = () => { box.querySelector("#agGroup").value = b.dataset.group; }; });
+    // Ô gõ tay là HÌNH CHIẾU của ô chọn, và cũng là chỗ lưu đọc ra - nên mỗi lần đổi dòng
+    // phải chép giá trị sang, không thì chọn nhóm khác mà bấm Lưu vẫn ra nhóm cũ.
+    const selNhom = box.querySelector("#agGroupSel"), oNhom = box.querySelector("#agGroup");
+    selNhom.value = nhomDangCo;
+    selNhom.onchange = () => {
+      const moi = selNhom.value === NHOM_MOI;
+      oNhom.hidden = !moi;
+      if (moi) { oNhom.value = ""; oNhom.focus(); } else oNhom.value = selNhom.value;
+    };
     box.querySelectorAll("label").forEach(label => { const input = label.nextElementSibling; if (input && /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName)) label.htmlFor = input.id; });
     if (a && a.model) {
       const sel = box.querySelector("#agModel");
@@ -677,7 +710,7 @@
       saveButton.disabled = true;
       try {
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
-          group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
+          group: nhomLuu(box.querySelector("#agGroup").value, nhomDangCo),
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
         if (!saved.ok) { alert(loiLuu(saved.error)); return; }

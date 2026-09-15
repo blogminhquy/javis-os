@@ -79,6 +79,45 @@ check("CANARY: không vô hiệu hoá nút phóng to trình sửa",
   /\.chatpage-edit > \.note-editor:not\(\.ne-full\)/.test(CON));
 
 // ============================================================
+// 2c. Trang Cộng sự cũng mượn được trình sửa VÀ cây Vault (0.59.2)
+// ============================================================
+// Trang Cộng sự mang CÙNG lớp body.on-chat với trang Trò chuyện, nhưng khung sửa của nó tên
+// khác (#wsEdit). Trước 0.59.2 _borrowNoteEditor() tra cứng #chatPageEdit, nên ở trang Cộng sự
+// `into` là null: bấm một file .md trong chat với trợ lý thì KHÔNG CÓ GÌ xảy ra - không lỗi,
+// không toast, chỉ là im lặng. Đó là loại hỏng tệ nhất vì không để lại dấu vết nào.
+const WS = D("workspace.js");
+check("trang Cộng sự có chỗ đứng riêng cho trình sửa", /id="wsEdit"/.test(WS));
+check("CANARY: khung mặc định của _borrowNoteEditor nhận CẢ hai trang",
+  /into = into \|\| document\.getElementById\("chatPageEdit"\) \|\| document\.getElementById\("wsEdit"\)/.test(CON));
+// Xếp chồng chứ không đè: trình sửa ở trên, khung chat rút gọn ở dưới (cùng lối với
+// .chatpage-main.edit-on). Đè lên thì đang sửa file là mất hẳn chỗ nhắn cho trợ lý về file đó.
+const CCSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
+check("khung sửa của trang Cộng sự chỉ hiện khi có file mở",
+  /\.ws-main\.edit-on > \.ws-edit \{ display: flex; \}/.test(CCSS));
+check("CANARY: không vô hiệu hoá nút phóng to trình sửa ở trang Cộng sự",
+  /\.ws-edit > \.note-editor:not\(\.ne-full\)/.test(CCSS));
+check("màn hẹp thì trình sửa chiếm chỗ khung chat",
+  /\.ws-main\.edit-on > \.ws-slot \{ display: none; \}/.test(CCSS));
+// .transcript mang sẵn `min-height: clamp(280px, 46vh, 620px)` từ style.css. Khi trình sửa lấy
+// 60% chiều cao thì con số đó lớn hơn chỗ còn lại, khung hội thoại TỪ CHỐI co và đẩy ô nhập
+// rớt khỏi màn hình - đo thật trong Chromium ở cửa sổ 950px: #hudVoice nằm ở y=1138. Trang Trò
+// chuyện đã gỡ đúng chốt này từ lâu; đây là bản cho trang Cộng sự.
+check("CANARY: gỡ min-height của khung hội thoại khi trình sửa chiếm chỗ",
+  /\.ws-main\.edit-on > \.ws-slot > \.transcript \{ min-height: 0;/.test(CCSS));
+check("trang Trò chuyện vẫn giữ chốt tương ứng",
+  /\.chatpage-slot \.transcript\{ flex:1 1 auto; min-height:0;/.test(CON));
+// Cột phải của trang Cộng sự có tab Thư mục mượn CHÍNH cây đó - cùng một node với tab Thư mục
+// của trang Trò chuyện, nên hai bên phải cùng một luật trả.
+check("cột phải trang Cộng sự có hai tab", /data-rtab="cai"/.test(WS) && /data-rtab="files"/.test(WS));
+check("tab Thư mục ở cột phải mượn chính panel Vault",
+  /S\.tabPhai === "files" && host && window\.JavisVaultPanel\) window\.JavisVaultPanel\.borrow\(host\)/.test(WS));
+check("CANARY: rời tab / rời trang Cộng sự đều trả cây Vault về",
+  /function traCayThuMuc\(\)[^\n]*JavisVaultPanel\.giveBack\(\)/.test(WS)
+  && /function roi\(\)[\s\S]{0,200}traCayThuMuc\(\)/.test(WS));
+check("CANARY: vẽ lại cột phải cũng trả cây về trước khi ghi đè",
+  /function vePhai\(item\)[\s\S]{0,600}traCayThuMuc\(\)/.test(WS));
+
+// ============================================================
 // 3. Nút "Vị trí" ở kết quả tìm kiếm
 // ============================================================
 check("kết quả tìm kiếm có nút Vị trí", /class="vr-loc"/.test(CON));

@@ -40,7 +40,7 @@ check("tìm thấy khối khung nhóm dùng chung", i0 !== -1 && i1 > i0);
 const esc = (s) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const KHOI = SRC.slice(i0, i1);
 const M = new Function("esc", "t", "ic", "LOC", KHOI +
-  "\n return { NHOM_MD, nhomCua, demNhom, locTheoNhom, khungNhomHtml, nhomDatalist };")(
+  "\n return { NHOM_MD, nhomCua, demNhom, locTheoNhom, khungNhomHtml, nhomDatalist, dsNhomChon, nhomLuu };")(
   esc, (k) => k, () => "", () => "vi-VN");
 
 check("nhóm mặc định là Chung", M.NHOM_MD === "Chung");
@@ -108,11 +108,36 @@ check("bấm Chọn tất cả chỉ lấy mục ĐANG HIỆN (đúng nhóm + đ
 for (const [ten, oId, list] of [["Agent", "agGroup", "agGroupList"], ["Workflow", "wfGroup", "wfGroupList"]]) {
   check(`form ${ten} có ô nhập nhóm`, SRC.includes(`id="${oId}"`));
   check(`form ${ten} gợi ý nhóm đang có (khỏi đẻ Marketing và marketing song song)`,
-    ten === "Agent" ? SRC.includes('class="ag-group-options"') && SRC.includes('.map(nhomCua)') && SRC.includes('box.querySelector("#agGroup").value = b.dataset.group')
+    // Agent: một Ô CHỌN các nhóm đang dùng (0.59.2 thay cho hàng chip), cộng dòng "Nhóm mới..."
+    // mới bung ô gõ tay. Ô gõ tay #agGroup vẫn là chỗ LƯU đọc ra, nên chọn một dòng phải chép
+    // giá trị sang nó - quên nhát đó thì đổi nhóm xong bấm Lưu vẫn ra nhóm cũ, im lặng.
+    ten === "Agent" ? SRC.includes('id="agGroupSel"') && SRC.includes('.map(nhomCua)')
+        && SRC.includes("oNhom.value = selNhom.value") && SRC.includes("studio.group_new")
       : SRC.includes(`nhomDatalist(`) && SRC.includes(`"${list}"`));
 }
-check("lưu Agent gửi kèm group", /group: box\.querySelector\("#agGroup"\)\.value\.trim\(\) \|\| NHOM_MD/.test(SRC));
+check("lưu Agent gửi kèm group", /group: nhomLuu\(box\.querySelector\("#agGroup"\)\.value, nhomDangCo\)/.test(SRC));
 check("lưu Workflow gửi kèm group", /group: nhom\.trim\(\) \|\| NHOM_MD/.test(SRC));
+
+// ---- Ô CHỌN nhóm: đi một vòng thật từ lúc mở form tới lúc bấm Lưu ----
+// Hai bẫy ở đây đều IM LẶNG: agent mang một nhóm mà chỉ mình nó dùng thì nhóm đó không có
+// trong danh sách chung, và chọn "Nhóm mới..." rồi đổi ý (không gõ gì) mà đẩy về Chung là
+// agent đang ở Marketing bị ném sang Chung, không một lời nào.
+const DS_AG = [{ group: "Marketing" }, { group: "Bán hàng" }, { name: "chưa xếp" }];
+const dong = M.dsNhomChon("Nghiên cứu", DS_AG);
+check("ô chọn luôn có nhóm ĐANG CÓ của mục đang sửa (dù không ai khác dùng)",
+  dong.includes("Nghiên cứu"), dong.join("|"));
+check("ô chọn có nhóm mặc định + mọi nhóm đang dùng",
+  dong.includes("Chung") && dong.includes("Marketing") && dong.includes("Bán hàng"));
+check("ô chọn không lặp dòng", new Set(dong).size === dong.length, dong.join("|"));
+// Vòng tròn đầy đủ: mở form -> ô chọn đứng ở nhóm cũ -> chọn lại chính dòng đó -> ô gõ tay
+// nhận giá trị (studio.js: `oNhom.value = selNhom.value`) -> bấm Lưu.
+check("nhóm riêng của mục đi một vòng qua ô chọn vẫn về nguyên vẹn",
+  M.nhomLuu(dong[dong.indexOf("Nghiên cứu")], "Nghiên cứu") === "Nghiên cứu");
+check("chọn Nhóm mới rồi bỏ trống thì GIỮ nhóm cũ, không rơi về Chung",
+  M.nhomLuu("", "Marketing") === "Marketing" && M.nhomLuu("   ", "Marketing") === "Marketing");
+check("gõ tên mới thì đổi sang tên mới", M.nhomLuu("  Nội dung  ", "Marketing") === "Nội dung");
+check("mục thật sự chưa có nhóm nào mới rơi về Chung",
+  M.nhomLuu("", "") === "Chung" && M.nhomLuu(null, null) === "Chung");
 
 // ---- Bẫy mất chữ trong form Workflow ----
 // render() chạy lại mỗi lần thêm/xoá/đảo bước. Ô nào đọc value từ `w` sẽ bị vẽ đè về giá trị

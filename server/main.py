@@ -7708,9 +7708,11 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         out = ""
         verified = None
         attempt = 0
+        loi_buoc = ""      # bước này HỎNG vì sao. "" = bước chạy được.
         while True:
             gcli = _mk(sysprompt, agent_model, agent_prov)   # áp model agent đã chọn
             out = ""
+            loi_engine = ""
             async for ev in gcli.query(cur_prompt):
                 if ev["type"] == "text":
                     yield {"type": "step_text", "i": i, "content": ev["content"]}
@@ -7719,7 +7721,17 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
                 elif ev["type"] == "final":
                     out = ev.get("content") or out
                 elif ev["type"] == "error":
+                    loi_engine = ev["content"] or loi_engine
                     yield {"type": "step_error", "i": i, "content": ev["content"]}
+
+            # Chốt "bước này hỏng hay không" NGAY ĐÂY, trước cả vòng kiểm chứng. Trước 0.59.2
+            # engine báo lỗi xong vẫn chảy thẳng xuống `step_done` ở cuối, nên một bước chết
+            # vẫn hiện tích xanh "Đã hoàn tất" ở cột phải và câu lỗi thô thành kết quả quy
+            # trình. Đưa câu "hết lượt gói" cho agent kiểm chứng còn tệ hơn: đốt thêm một lượt
+            # của đúng cái gói vừa hết để hỏi một câu vô nghĩa.
+            loi_buoc = _loi_het_luot_cua_buoc(out, loi_engine, agent_prov, agent_name) or loi_engine
+            if loi_buoc:
+                break
 
             if not verify_slug:
                 break
@@ -7770,6 +7782,21 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
                 "CẢI THIỆN kết quả lần trước theo phản hồi: giữ phần đã tốt, sửa đúng chỗ bị chê. Làm cho ĐẠT."
             )
 
+        # Bước hỏng thì DỪNG CẢ LẦN CHẠY ở đây: không `step_done` (bước hỏng không phải bước
+        # xong), không `done` (kết quả hỏng không phải kết quả), và không đẩy `out` sang
+        # {{prev}} cho bước sau nhai lại một câu báo lỗi. Sự kiện `error` mang theo `i` và
+        # `agent` để khung chat nói được HỎNG Ở BƯỚC NÀO, AI CHẠY (workflow_chat.tin_loi).
+        if loi_buoc:
+            # `step_error` TRƯỚC rồi mới tới `error`. Nhánh hết lượt về theo đường câu trả lời
+            # nên chưa hề phát step_error nào, mà đó mới là sự kiện ghi lý do vào ĐÚNG DÒNG
+            # BƯỚC của kho lần chạy (_ghi_lich_su) và là thứ bảng chạy của Studio chờ để tắt
+            # vòng quay của bước. Thiếu nó thì bước đó lưu lại với error rỗng và quay mãi.
+            # Không sợ đếm hai lần: workflow_chat.chay và workspace.js chỉ ghi đè cùng một ô,
+            # còn tasks.py gộp step_error và error vào chung một biến.
+            if loi_buoc != loi_engine:
+                yield {"type": "step_error", "i": i, "content": loi_buoc}
+            yield {"type": "error", "i": i, "agent": agent_name, "content": loi_buoc}
+            return
         out = _learn(agent_slug, out)   # bóc JAVIS_LESSON + ghi bộ nhớ trước khi out thành {{prev}}
         prev = out
         yield {"type": "step_done", "i": i, "agent": agent_name, "output": out, "verified": verified}
@@ -12771,7 +12798,12 @@ async def sessions_list(brain: str = Query(None), limit: int = Query(50),
                                                   channel=channel or None)}
 
 
-_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow):([a-z0-9][a-z0-9-]*)$")
+# Slug của agent/workflow KHÔNG phải chỉ [a-z0-9-]: _slugify giữ nguyên chữ tiếng Việt, nên
+# brain thật có hẳn "javis-vũ.md" và "kiểm-chứng-viên.md". Khuôn cũ chặn đúng những file đó,
+# và trang Cộng sự bấm vào là ăn 400 - mở hội thoại không được mà không hiểu vì sao. Ở đây chỉ
+# cần chặn thứ có thể leo ra khỏi thư mục hay cắt nhầm kênh: dấu gạch chéo hai chiều, dấu hai
+# chấm (ngăn "agent:a:b") và khoảng trắng. Tồn tại file hay không thì kiểm ngay bên dưới.
+_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow):([^\s/\\:]+)$")
 
 
 @app.post("/sessions/new")
@@ -14043,6 +14075,75 @@ def _subscription_limit_event(raw: str, engine_hint: str):
         return model_limits.subscription_blocked_hint(hit, _configured_api_providers()), hit
     except Exception:   # noqa: BLE001 - không được để câu báo lỗi tự nó nổ
         return "", None
+
+
+# Nhà chạy agent (AGENT_PROVIDERS) -> tên engine mà limit_learner hiểu. Nhà không có trong
+# bảng (API key thuần) thì để rỗng: gói thuê bao chỉ là chuyện của bốn nhà dưới đây, gán bừa
+# một cái tên là câu báo lỗi nói sai tên gói người dùng phải đi gia hạn.
+_NHA_SANG_ENGINE = {
+    "anthropic-cli": "claude-code",
+    "openai-oauth": "codex",
+    "grok-cli": "grok-cli",
+    "antigravity-cli": "antigravity-cli",
+}
+
+
+# Trần chữ của một output được coi là "chỉ có câu báo hết lượt". Dài hơn thế thì bước đã LÀM
+# RA việc thật, câu tiếng Anh kia chỉ là một đoạn trích trong đó.
+_TRAN_OUT_HET_LUOT = 400
+# Câu báo được coi là mở đầu dòng nếu nằm trong ngần này ký tự đầu dòng (chừa chỗ cho "Error: ",
+# "⚠ ", dấu đầu dòng).
+_DAU_DONG_HET_LUOT = 12
+
+
+def _het_luot_ap_dao(raw: str) -> bool:
+    """Câu báo hết lượt có CHIẾM output này không, hay chỉ được trích trong một bài viết?
+
+    Đây là hàng rào chống chính cái loại hỏng mà bản vá hết lượt sinh ra để dập. Một agent viết
+    bài hoàn toàn có thể viết: Khi gặp thông báo "You have reached your session limit" thì nên
+    chờ. Nhận nhầm câu đó là bước bị vứt nguyên bài viết thật (không có step_done nên không
+    sang {{prev}}) và người dùng bị báo là hết gói trong khi gói vẫn còn - tệ hơn hẳn lỗi cũ.
+
+    Ba điều kiện, phải đúng cả: output ngắn (bài thật thì dài hơn nhiều), câu báo mở đầu dòng
+    của nó HOẶC chiếm quá nửa dòng đó. Câu nhà cung cấp in ra luôn thoả; câu trích giữa một câu
+    văn thì không.
+    """
+    span = limit_learner.subscription_span(raw or "")
+    if not span:
+        return False
+    if len(str(raw or "").strip()) > _TRAN_OUT_HET_LUOT:
+        return False
+    dau_dong = raw.rfind("\n", 0, span[0]) + 1
+    het_dong = raw.find("\n", span[1])
+    dong = raw[dau_dong: het_dong if het_dong >= 0 else len(raw)].strip()
+    if not dong:
+        return False
+    return (span[0] - dau_dong) <= _DAU_DONG_HET_LUOT or (span[1] - span[0]) * 2 >= len(dong)
+
+
+def _loi_het_luot_cua_buoc(out: str, loi: str, provider: str, agent_name: str) -> str:
+    """Câu tiếng Việt khi một BƯỚC workflow dừng vì gói thuê bao hết lượt. "" = không phải.
+
+    Vì sao phải soi cả `out` chứ không chỉ `loi`: nhà cung cấp thường KHÔNG báo hết lượt như
+    một lỗi, mà in nguyên văn câu tiếng Anh ra đúng chỗ câu trả lời ("You've hit your session
+    limit - resets 12pm (UTC)"). Không soi `out` thì bước coi như chạy xong, và người dùng đọc
+    được câu tiếng Anh đó như thể nó là KẾT QUẢ của quy trình - đúng cái đã xảy ra 15/09.
+
+    Dùng lại bộ nhận dạng của khung chat (`_subscription_limit_event`) chứ không viết bộ thứ
+    hai: hai bộ nhận dạng thì mẫu câu mới chỉ được thêm vào một chỗ."""
+    hint = _NHA_SANG_ENGINE.get(str(provider or "").strip(), "")
+    for raw, phai_ap_dao in ((out, True), (loi, False)):
+        if phai_ap_dao and not _het_luot_ap_dao(raw or ""):
+            continue
+        noi, _lim = _subscription_limit_event(raw or "", hint)
+        if not noi:
+            continue
+        ten = str(agent_name or "").strip()
+        if ten:
+            noi += (f" Bước này chạy bằng trợ lý \"{ten}\", nên muốn chạy tiếp ngay thì trỏ "
+                    "riêng trợ lý đó sang model khác ở trang Models.")
+        return noi
+    return ""
 
 
 def _subscription_limit_message(raw: str, engine_hint: str) -> str:

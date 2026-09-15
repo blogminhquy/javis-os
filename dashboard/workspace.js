@@ -73,21 +73,34 @@
       st.buoc[i].trang_thai = "dang";
       st.hien_tai = i; st.trang_thai = "dang";
     } else if (ev.type === "step_done") {
-      if (st.buoc[i]) st.buoc[i].trang_thai = "xong";
+      // Bước đã mang dấu HỎNG thì không có sự kiện nào sau đó xoá được dấu ấy. Server hiện
+      // không còn gửi step_done sau step_error nữa, nhưng luật phải tự đứng được ở đây: máy
+      // trạng thái này còn ăn lại sự kiện của phiên cũ, và một tích xanh sai còn tệ hơn
+      // không có tích nào.
+      if (st.buoc[i] && st.buoc[i].trang_thai !== "loi") st.buoc[i].trang_thai = "xong";
     } else if (ev.type === "step_error") {
-      if (st.buoc[i]) st.buoc[i].loi = ev.content || "";
+      // Bước mà động cơ đã báo lỗi là bước HỎNG, không phải bước "đang làm dở". Trước 0.59.2
+      // đây chỉ ghi câu lỗi vào .loi rồi để step_done đè trạng thái thành "xong", nên cột
+      // phải hiện tích xanh cho đúng cái bước vừa chết.
+      if (st.buoc[i]) { st.buoc[i].trang_thai = "loi"; st.buoc[i].loi = ev.content || st.buoc[i].loi; }
     } else if (ev.type === "wait_user") {
       st.trang_thai = "cho";
       st.cho_duyet = { node: ev.node || "", prompt: ev.prompt || "", task_id: ev.task_id || "", code: ev.code || "" };
     } else if (ev.type === "error") {
       st.trang_thai = "loi";
-      if (st.hien_tai >= 0 && st.buoc[st.hien_tai] && st.buoc[st.hien_tai].trang_thai === "dang") {
-        st.buoc[st.hien_tai].trang_thai = "loi";
-        st.buoc[st.hien_tai].loi = ev.content || "";
+      // Lỗi của một BƯỚC mang sẵn số bước; lỗi chung (luồng đứt) thì không, lúc đó đánh dấu
+      // bước đang chạy. Bước "cho" (chưa tới lượt) giữ nguyên - nó không hỏng, nó không chạy.
+      var k = isFinite(i) ? i : st.hien_tai;
+      if (k >= 0 && st.buoc[k] && st.buoc[k].trang_thai !== "xong") {
+        st.buoc[k].trang_thai = "loi";
+        st.buoc[k].loi = ev.content || st.buoc[k].loi;
       }
     } else if (ev.type === "done") {
       st.trang_thai = "xong"; st.cho_duyet = null;
-      st.buoc.forEach(function (b) { b.trang_thai = "xong"; });
+      // Bước đã hỏng thì KHÔNG đổi thành xong. Server không còn gửi `done` sau một bước hỏng,
+      // nhưng luật ở đây phải tự đứng được: máy trạng thái này còn ăn sự kiện của phiên cũ
+      // mở lại, và một tích xanh sai còn tệ hơn không có tích nào.
+      st.buoc.forEach(function (b) { if (b.trang_thai !== "loi") b.trang_thai = "xong"; });
     }
     return st;
   }
@@ -98,8 +111,10 @@
   }
 
   // ---------- trạng thái trang ----------
+  // tabPhai = tab đang mở ở cột phải: "cai" (cài đặt trợ lý / tiến độ quy trình) hay "files"
+  // (cây thư mục MƯỢN của màn chính).
   var S = { loai: "agent", q: "", nhom: "", agents: [], workflows: [], chon: { agent: null, workflow: null },
-            el: null, tienDo: {}, sessionCuaPhien: {} };   // tienDo[session_id] = tiến độ lần chạy đang xem
+            el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "cai" };   // tienDo[session_id] = tiến độ lần chạy đang xem
 
   function danhSach() { return S.loai === "agent" ? S.agents : S.workflows; }
   function kenh(item) { return (S.loai === "agent" ? "agent:" : "workflow:") + item.slug; }
@@ -128,8 +143,22 @@
         '<aside class="ws-left" id="wsLeft">' +
           '<div class="ws-seg"><button type="button" data-loai="agent">' + ic("bot") + ' ' + esc(t("ws.tab_agent")) + '</button>' +
           '<button type="button" data-loai="workflow">' + ic("workflow") + ' ' + esc(t("ws.tab_workflow")) + '</button></div>' +
-          '<input class="ws-search" id="wsSearch" placeholder="' + esc(t("ws.search_ph")) + '">' +
-          '<div class="ws-groups" id="wsGroup" role="group" aria-label="' + esc(t("studio.groups")) + '"></div>' +
+          // Ô tìm KHÔNG mở sẵn (chủ repo yêu cầu): cột trái chỉ rộng 210-260px, một ô nhập
+          // nằm đó suốt ngày ăn mất một dòng mà chín trên mười lần người dùng không gõ gì.
+          // Bấm nút kính lúp mới bung ra, gõ xong xoá hết rồi rời đi là nó tự thu lại.
+          '<div class="ws-filters" id="wsFilters">' +
+            '<select class="ws-group" id="wsGroup" aria-label="' + esc(t("studio.groups")) + '"></select>' +
+            // Ô nhập được GIEO LẠI từ S.q, và nút mang aria-controls trỏ vào nó: câu đang lọc
+            // phải luôn NHÌN THẤY ĐƯỢC. Dựng khung với ô rỗng trong khi S.q còn chữ là danh
+            // sách thiếu người mà không có gì trên màn hình giải thích vì sao.
+            '<button type="button" class="ws-ico ws-search-btn" id="wsSearchBtn" aria-controls="wsSearch" ' +
+            'aria-expanded="' + (S.q ? "true" : "false") + '" ' +
+            'title="' + esc(t("ws.search_ph")) + '" aria-label="' + esc(t("ws.search_ph")) + '">' + ic("search") + '</button>' +
+            // data-esc: khai với trình sửa note (console.js _neOTextNgoai) rằng ô này TỰ xử
+            // Esc. Bộ bắt phím của trình sửa gắn ở mức document + capture nên nếu không khai
+            // thì Esc ở đây đóng mất file đang mở thay vì xoá chữ đang gõ.
+            '<input class="ws-search" id="wsSearch" data-esc' + (S.q ? "" : " hidden") + ' value="' + esc(S.q) + '" placeholder="' + esc(t("ws.search_ph")) + '">' +
+          '</div>' +
           '<div class="ws-list" id="wsList"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
           '<button type="button" class="ws-btn" id="wsImport">' + esc(t("ws.upload_agent")) + '</button>' +
@@ -146,12 +175,28 @@
             '<button type="button" class="ws-ico lat" id="wsRightBtn" title="' + esc(t("ws.toggle_panel")) + '">' + ic("panel-left") + '</button>' +
           '</div>' +
           '<div class="ws-slot" id="wsSlot"></div>' +
+          // Chỗ đứng cho TRÌNH SỬA khi mở một file .md từ chat hay từ cây thư mục, y như
+          // #chatPageEdit của trang Trò chuyện. Thiếu nó thì _borrowNoteEditor() không tìm
+          // được khung nào để mượn và cú bấm vào link file lặng lẽ không làm gì cả.
+          '<div class="ws-edit" id="wsEdit"></div>' +
         '</div>' +
-        '<aside class="ws-right" id="wsRight"></aside>' +
+        '<aside class="ws-right" id="wsRight">' +
+          '<button type="button" class="ws-ico ws-panel-close" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button>' +
+          // Hai tab của cột phải: Cài đặt | Thư mục. Dùng lại đúng lớp .cside-tabs/.cside-pane
+          // của cột trái trang Trò chuyện - cùng một kiểu tab, không đẻ bộ lớp thứ hai.
+          '<div class="cside-tabs ws-rtabs">' +
+            '<button type="button" class="cside-tab" data-rtab="cai">' + ic("settings") + ' ' + esc(t("ws.tab_settings")) + '</button>' +
+            '<button type="button" class="cside-tab" data-rtab="files">' + ic("folder-tree") + ' ' + esc(t("sess.tab_files")) + '</button>' +
+          '</div>' +
+          '<div class="cside-pane ws-rpane" data-rpane="cai" id="wsRightSet"></div>' +
+          '<div class="cside-pane ws-rpane" data-rpane="files" id="wsRightFiles"></div>' +
+        '</aside>' +
       '</div>';
     if (opts && opts.borrow) opts.borrow(el.querySelector("#wsSlot"));
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; luuChon(); veTrai(); chonMacDinh(); }; });
-    el.querySelector("#wsSearch").oninput = function (e) { S.q = e.target.value; veDanhSach(); };
+    noiODoTim(el);
+    el.querySelectorAll("[data-rtab]").forEach(function (b) { b.onclick = function () { chonTabPhai(b.dataset.rtab); }; });
+    el.querySelector(".ws-panel-close").onclick = function () { el.querySelector("#wsPage").classList.remove("right-open"); };
     el.querySelector("#wsNew").onclick = taoMoi;
     el.querySelector("#wsImport").onclick = function () {
       if (window.JavisStudio) window.JavisStudio.importItems(async function () {
@@ -174,6 +219,8 @@
     // Nhớ chỗ đang đứng: mở lại trang mà rơi về mục đầu danh sách thì mỗi lần ghé qua trang
     // khác rồi quay lại là mất chỗ, trong khi cộng sự đang dùng thường chỉ là một hai mục.
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
+    try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = r === "files" ? "files" : "cai"; } catch (e) { S.tabPhai = "cai"; }
+    chonTabPhai(S.tabPhai);
     taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_session")); });
   }
   async function selectCommand(cmd) {
@@ -195,18 +242,71 @@
   }
   function luuChon() { try { localStorage.setItem("javis_ws_loai", S.loai); if (S.chon.agent) localStorage.setItem("javis_ws_agent", S.chon.agent); if (S.chon.workflow) localStorage.setItem("javis_ws_workflow", S.chon.workflow); } catch (e) {} }
 
+  // ---------- ô tìm thu gọn ----------
+  // Nút kính lúp bung ô nhập ra; ô nhập RỖNG mà mất tiêu điểm thì tự thu lại. Esc xoá chữ,
+  // vẽ lại danh sách đầy đủ rồi thu - nếu chỉ thu mà không xoá thì danh sách vẫn đang lọc
+  // theo một câu không còn nhìn thấy ở đâu, và người dùng tưởng cộng sự của mình biến mất.
+  function moODoTim(el, mo) {
+    var o = el.querySelector("#wsSearch"), nut = el.querySelector("#wsSearchBtn");
+    if (!o || !nut) return;
+    o.hidden = !mo;
+    nut.setAttribute("aria-expanded", mo ? "true" : "false");
+    if (mo) o.focus(); else nut.focus();
+  }
+  function noiODoTim(el) {
+    var o = el.querySelector("#wsSearch"), nut = el.querySelector("#wsSearchBtn");
+    if (!o || !nut) return;
+    nut.onclick = function () { if (o.hidden) moODoTim(el, true); else if (!o.value.trim()) moODoTim(el, false); else o.focus(); };
+    o.oninput = function (e) { S.q = e.target.value; veDanhSach(); };
+    o.onblur = function () { if (!o.value.trim()) { o.hidden = true; nut.setAttribute("aria-expanded", "false"); } };
+    o.onkeydown = function (e) {
+      if (e.key !== "Escape" && e.key !== "Esc") return;
+      e.preventDefault(); e.stopPropagation();
+      o.value = ""; S.q = ""; veDanhSach(); moODoTim(el, false);
+    };
+  }
+
+  // ---------- tab cột phải ----------
+  // Cây thư mục là node MƯỢN của màn chính, chỉ có MỘT bản. Rời tab (hay rời trang) mà không
+  // trả thì màn chính và trang Trò chuyện mất hẳn panel Vault - cùng bài học với tab Thư mục
+  // của trang Trò chuyện (xem sessions-ui.js chonTab).
+  function traCayThuMuc() { try { if (window.JavisVaultPanel) window.JavisVaultPanel.giveBack(); } catch (e) {} }
+  function chonTabPhai(tab) {
+    var el = S.el; if (!el) return;
+    S.tabPhai = tab === "files" ? "files" : "cai";
+    try { localStorage.setItem("javis_ws_rtab", S.tabPhai); } catch (e) {}
+    el.querySelectorAll("[data-rtab]").forEach(function (b) { b.classList.toggle("active", b.dataset.rtab === S.tabPhai); });
+    el.querySelectorAll("[data-rpane]").forEach(function (p) { p.classList.toggle("on", p.dataset.rpane === S.tabPhai); });
+    var host = el.querySelector("#wsRightFiles");
+    if (S.tabPhai === "files" && host && window.JavisVaultPanel) window.JavisVaultPanel.borrow(host);
+    else traCayThuMuc();
+  }
+
   function veTrai() {
     var el = S.el; if (!el) return;
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.classList.toggle("on", b.dataset.loai === S.loai); });
     var nhoms = {}; danhSach().forEach(function (x) { var g = x.group || "Chung"; nhoms[g] = (nhoms[g] || 0) + 1; });
     if (S.nhom && !nhoms[S.nhom]) S.nhom = "";
+    // Một Ô CHỌN chứ không phải hàng chip (chủ repo yêu cầu): brain thật có cả chục nhóm, mà
+    // chip thì xuống dòng thành một mảng chiếm gần nửa cột trái, đẩy danh sách cộng sự xuống
+    // dưới. Số đếm giữ lại trong nhãn từng dòng nên vẫn biết nhóm nào đông.
     var sel = el.querySelector("#wsGroup");
     var groups = [{name: "", label: t("ws.all_groups"), count: danhSach().length}].concat(Object.keys(nhoms).sort().map(function (g) { return {name:g, label:g, count:nhoms[g]}; }));
-    sel.innerHTML = groups.map(function (g) { return '<button type="button" class="ws-group-chip" data-group="'+esc(g.name)+'" aria-pressed="'+(S.nhom===g.name)+'"><span>'+esc(g.label)+'</span><small>'+g.count+'</small></button>'; }).join('');
-    sel.querySelectorAll("[data-group]").forEach(function (b) { b.onclick = function () { S.nhom = b.dataset.group; veTrai(); }; });
+    sel.innerHTML = groups.map(function (g) { return '<option value="'+esc(g.name)+'">'+esc(g.label)+' ('+g.count+')</option>'; }).join('');
+    sel.value = S.nhom;
+    sel.onchange = function () { S.nhom = sel.value; veTrai(); };
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
     el.querySelector("#wsImport").textContent = t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow");
     veDanhSach();
+  }
+  // Quy trình này có lần chạy nào ĐANG chạy không? Đọc thẳng từ S.tienDo (máy trạng thái ăn
+  // wf_event) chứ không nuôi một cờ riêng: cờ riêng thì lúc chạy xong, lỗi, hay dừng chờ duyệt
+  // phải nhớ tắt ở cả ba chỗ, quên một chỗ là icon quay mãi không dừng. apDung() đã đặt
+  // trang_thai về "xong"/"loi"/"cho" ở cả ba đường đó, nên chỉ cần so đúng một giá trị.
+  function dangChay(slug) {
+    return Object.keys(S.tienDo).some(function (sid) {
+      return S.sessionCuaPhien[sid] === slug && S.tienDo[sid] && S.tienDo[sid].trang_thai === "dang";
+    });
   }
   function veDanhSach() {
     var el = S.el; if (!el) return;
@@ -214,9 +314,15 @@
     var host = el.querySelector("#wsList");
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
     host.innerHTML = ds.map(function (x) {
+      // "Đang chạy" phải đọc được BẰNG CHỮ, không chỉ bằng icon quay: người tắt hiệu ứng
+      // (prefers-reduced-motion, xem style.css) và trình đọc màn hình không thấy vòng quay
+      // nào cả, nên thêm một chữ vào dòng phụ và một <title> vào icon.
+      var chay = S.loai === "workflow" && dangChay(x.slug);
       var phu = S.loai === "agent" ? (x.group || "Chung") + " · " + (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
+      if (chay) phu += " · " + t("ws.running");
       return '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
-        '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42) : ic("workflow")) + '</span>' +
+        '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
+          : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
         '<span class="ws-item-text"><strong>' + esc(x.name) + '</strong><small>' + esc(phu) + '</small></span></button>';
     }).join("");
     host.querySelectorAll("[data-slug]").forEach(function (b) {
@@ -259,7 +365,11 @@
       if (!id) {
         var n = await api("/sessions/new", { method: "POST", body: fd({ brain: brain(), channel: ch }) });
         if (!still()) return false;
-        if (!n.id) throw new Error(n.error || t("ws.err_session"));
+        // Câu lỗi của server (vd "channel phải là agent:<slug>...") là chữ cho NHẬT KÝ, không
+        // phải chữ cho màn hình: nó nói về khuôn dữ liệu bên trong, không nói người dùng phải
+        // làm gì, và không đi qua từ điển nên bản tiếng Anh vẫn ra tiếng Việt. Ghi ra console
+        // cho người sửa lỗi, còn màn hình dùng câu của mình.
+        if (!n.id) { try { console.warn("POST /sessions/new:", n.error); } catch (e2) {} throw new Error(t("ws.err_session")); }
         id = n.id;
       }
       S.sessionCuaPhien[id] = item.slug;
@@ -270,7 +380,7 @@
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
       return true;
     } catch (e) {
-      if (still()) { veLoi(e.message || t("ws.err_session")); if (window.JavisSessions) window.JavisSessions.new(); }
+      if (still()) { veLoi(t("ws.err_session")); if (window.JavisSessions) window.JavisSessions.new(); }
       return false;
     }
   }
@@ -317,8 +427,12 @@
 
   // ---------- cột phải ----------
   function vePhai(item) {
-    var host = S.el && S.el.querySelector("#wsRight"); if (!host) return;
-    if (!item) { host.innerHTML = ""; return; }
+    var host = S.el && S.el.querySelector("#wsRightSet"); if (!host) return;
+    // TRẢ cây thư mục về trước khi vẽ lại cột phải. Vẽ lại chỉ ghi vào khung Cài đặt, nhưng
+    // cây là node mượn và chỉ có một bản: trả rồi mượn lại theo tab đang mở là luật gọn nhất,
+    // khỏi phải nhớ chỗ nào được phép ghi đè chỗ nào không.
+    traCayThuMuc();
+    if (!item) { host.innerHTML = ""; chonTabPhai(S.tabPhai); return; }
     if (S.loai === "agent") {
       host.innerHTML = '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
@@ -359,8 +473,7 @@
       };
       taiLichSu(item);
     }
-    host.insertAdjacentHTML("afterbegin", '<button type="button" class="ws-ico ws-panel-close" aria-label="'+esc(t("common.close"))+'">'+ic("x")+'</button>');
-    host.querySelector(".ws-panel-close").onclick = function () { S.el.querySelector("#wsPage").classList.remove("right-open"); };
+    chonTabPhai(S.tabPhai);
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
   // Tiến độ ĐANG XEM: lần chạy sống của phiên đang mở nếu có, không thì khung rỗng dựng từ
@@ -459,6 +572,10 @@
       S.tienDo[sid] = tienDoMoi(n);
     }
     apDung(S.tienDo[sid], ev);
+    // Vẽ lại danh sách trái ở MỌI sự kiện, kể cả của phiên đang không mở: icon quay ở hàng
+    // quy trình đọc từ S.tienDo, nên không vẽ lại thì bắt đầu chạy mà hàng vẫn đứng im, và
+    // chạy xong rồi mà vẫn quay.
+    if (S.loai === "workflow") veDanhSach();
     var cur = window.JavisSessions ? window.JavisSessions.current() : null;
     if (item && S.loai === "workflow" && cur === sid) {
       veBuoc(item, S.tienDo[sid]);
@@ -488,11 +605,19 @@
   // mà ô nhập là node MƯỢN của app - không trả lại thì sang trang Trò chuyện nó vẫn mời người
   // dùng nhắn cho một cộng sự không còn ở đâu trên màn hình. console.js gọi hàm này trong
   // _pageLeave, ngay trước khi trả node chat về HUD.
+  // console.js cũng trả cây trong _returnChatNodes, nhưng trả ở đây nữa là đúng chỗ: tab Thư
+  // mục là của trang NÀY mượn, nên trang này tự dọn lấy chứ không phó thác cho người gọi.
+  // Hàm trả kiểm _vaultSlot trước nên gọi hai lần vẫn vô hại.
   function roi() {
     active = false; opening++; chatReady(true);
+    traCayThuMuc();
+    // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
+    // là lần sau quay vào danh sách đã bị lọc mà ô tìm thì rỗng và đang thu: người dùng thấy
+    // cộng sự của mình biến mất, không có gì trên màn hình nói vì sao.
+    S.q = "";
     var inp = document.getElementById("chatInput");
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
+  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
 })();

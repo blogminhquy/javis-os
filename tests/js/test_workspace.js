@@ -44,6 +44,189 @@ W.apDung(st2, { type: "error", content: "chết" });
 check("error -> buoc dang lam thanh loi", st2.trang_thai === "loi" && st2.buoc[0].trang_thai === "loi");
 check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
 
+// ============================================================
+// Bước HỎNG không được vẽ thành tích xanh (0.59.2)
+// ============================================================
+// Chuyện thật 15/09: cột phải hiện đủ 7 bước "Đã hoàn tất" cho một lần chạy đã chết giữa
+// chừng, vì step_error chỉ ghi câu lỗi vào .loi rồi step_done/done đè trạng thái thành "xong".
+{
+  const s = W.tienDoMoi(2);
+  W.apDung(s, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(s, { type: "step_error", i: 0, content: "engine chết" });
+  check("step_error -> buoc thanh LOI chu khong con la dang lam",
+    s.buoc[0].trang_thai === "loi" && s.buoc[0].loi === "engine chết");
+  W.apDung(s, { type: "step_done", i: 0 });
+  check("CANARY: step_done den sau KHONG doi buoc hong thanh xong", s.buoc[0].trang_thai === "loi");
+  W.apDung(s, { type: "done" });
+  check("CANARY: done cung KHONG xoa dau buoc hong", s.buoc[0].trang_thai === "loi"
+    && s.buoc[1].trang_thai === "xong");
+
+  // Lỗi mang sẵn số bước: đánh dấu ĐÚNG bước đó, không phải bước đang chạy.
+  const s2 = W.tienDoMoi(3);
+  W.apDung(s2, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(s2, { type: "step_done", i: 0 });
+  W.apDung(s2, { type: "step_start", i: 1, agent: "B" });
+  W.apDung(s2, { type: "error", i: 1, agent: "B", content: "Hết lượt gói Claude." });
+  check("error mang i thi danh dau dung buoc do",
+    s2.buoc[1].trang_thai === "loi" && s2.buoc[1].loi === "Hết lượt gói Claude."
+    && s2.buoc[0].trang_thai === "xong" && s2.buoc[2].trang_thai === "cho");
+}
+
+// ============================================================
+// Icon QUAY ở hàng quy trình đang chạy (0.59.2)
+// ============================================================
+// Trước đây mọi hàng quy trình đều đeo icon tĩnh, nên bấm Chạy xong nhìn sang cột trái không
+// biết cái nào đang chạy. Trạng thái đọc THẲNG từ S.tienDo chứ không nuôi cờ riêng - cờ riêng
+// thì phải nhớ tắt ở cả ba đường kết thúc (xong / lỗi / dừng chờ duyệt), quên một đường là
+// icon quay mãi.
+{
+  const S = W.state();
+  S.sessionCuaPhien = { "s1": "viet-bai" };
+  S.tienDo = { "s1": W.tienDoMoi(2) };
+  check("chua chay thi khong quay", W.dangChay("viet-bai") === false);
+  W.apDung(S.tienDo.s1, { type: "step_start", i: 0, agent: "A" });
+  check("dang chay thi quay", W.dangChay("viet-bai") === true);
+  check("quy trinh KHAC khong quay lay", W.dangChay("ban-tin") === false);
+  W.apDung(S.tienDo.s1, { type: "wait_user", node: "x", code: "AB" });
+  check("dung cho duyet thi thoi quay", W.dangChay("viet-bai") === false);
+  W.apDung(S.tienDo.s1, { type: "step_start", i: 1, agent: "B" });
+  W.apDung(S.tienDo.s1, { type: "error", content: "chết" });
+  check("chay loi thi thoi quay", W.dangChay("viet-bai") === false);
+  S.tienDo = { "s1": W.tienDoMoi(1) };
+  W.apDung(S.tienDo.s1, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(S.tienDo.s1, { type: "done" });
+  check("chay xong thi thoi quay", W.dangChay("viet-bai") === false);
+  S.sessionCuaPhien = {}; S.tienDo = {};
+}
+
+// ============================================================
+// Chạy THẬT cột trái + cột phải với DOM giả (0.59.2)
+// ============================================================
+// Ba thay đổi ở đây đều là thứ nhìn mã nguồn không ra: ô lọc nhóm phải là <select>, ô tìm chỉ
+// bung khi bấm nút, và đổi tab cột phải phải TRẢ cây Vault về (node chỉ có một - quên trả là
+// màn chính lẫn trang Trò chuyện mất hẳn panel Vault).
+{
+  const vm = require("node:vm");
+  const src = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  const doan = src.slice(src.indexOf("  // ---------- ô tìm thu gọn ----------"),
+                         src.indexOf("  function chonMacDinh("))
+             + src.slice(src.indexOf("  function roi() {"), src.indexOf("\n  window.JavisWorkspace ="));
+
+  const lop = () => ({ _c: {}, toggle(c, on) { this._c[c] = !!on; }, co(c) { return !!this._c[c]; } });
+  const oGia = () => ({ innerHTML: "", textContent: "", value: "", hidden: true, dataset: {},
+    _attrs: {}, _focus: 0, classList: lop(),
+    setAttribute(k, v) { this._attrs[k] = v; }, focus() { this._focus++; },
+    querySelectorAll() { return []; } });
+  const nodes = {};
+  ["#wsGroup", "#wsNew", "#wsImport", "#wsList", "#wsSearch", "#wsSearchBtn", "#wsRightFiles", "#wsPage"]
+    .forEach((s) => { nodes[s] = oGia(); });
+  const tab = (v) => ({ dataset: { rtab: v }, classList: lop() });
+  const pane = (v) => ({ dataset: { rpane: v }, classList: lop() });
+  const tabs = [tab("cai"), tab("files")], panes = [pane("cai"), pane("files")];
+  const el = {
+    querySelector: (s) => nodes[s] || null,
+    querySelectorAll: (s) => (s === "[data-rtab]" ? tabs : s === "[data-rpane]" ? panes : []),
+  };
+  const ds = [{ slug: "a", name: "Người viết", role: "viết", group: "Marketing" },
+              { slug: "b", name: "Kế toán", role: "sổ sách", group: "Finance" },
+              { slug: "c", name: "Chạy ads", role: "ads", group: "Marketing" }];
+  const goi = [], kho = {};
+  const ctx = {
+    S: { loai: "agent", q: "", nhom: "", chon: { agent: "a" }, el: el, tienDo: {}, sessionCuaPhien: {}, tabPhai: "cai" },
+    danhSach: () => ds, loc: W.loc, cacBuoc: () => [], dangChon: () => ds[0],
+    luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
+    esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
+    localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
+    document: { getElementById: () => null },
+    window: { JavisVaultPanel: { borrow(h) { goi.push("borrow"); ctx._into = h; return true; },
+                                 giveBack() { goi.push("giveBack"); } } },
+  };
+  vm.createContext(ctx); vm.runInContext(doan, ctx);
+
+  // ---- Bộ lọc nhóm là Ô CHỌN, không phải hàng chip ----
+  ctx.veTrai();
+  const html = nodes["#wsGroup"].innerHTML;
+  check("bo loc nhom ve bang <option>, khong con chip", html.indexOf("<option") === 0 && !/ws-group-chip/.test(html));
+  check("co dong Tat ca nhom dung dau", html.indexOf('<option value="">ws.all_groups (3)') === 0);
+  check("moi nhom kem so dem", html.includes(">Marketing (2)<") && html.includes(">Finance (1)<"));
+  check("o chon dung dang o mac dinh Tat ca", nodes["#wsGroup"].value === "");
+  nodes["#wsGroup"].value = "Finance"; nodes["#wsGroup"].onchange();
+  check("doi dong trong o chon thi loc theo nhom do", ctx.S.nhom === "Finance"
+    && nodes["#wsList"].innerHTML.includes("Kế toán") && !nodes["#wsList"].innerHTML.includes("Người viết"));
+  ctx.S.nhom = ""; ctx.veTrai();
+
+  // ---- Hàng quy trình ĐANG chạy đeo icon quay ----
+  ctx.S.loai = "workflow"; ctx.S.chon.workflow = "a";
+  ctx.S.sessionCuaPhien = { s1: "a" };
+  ctx.S.tienDo = { s1: W.apDung(W.tienDoMoi(2), { type: "step_start", i: 0, agent: "X" }) };
+  ctx.ic = (n, o) => '<svg data-ic="' + n + '" class="' + ((o && o.cls) || "") + '"></svg>';
+  ctx.veDanhSach();
+  check("hang quy trinh dang chay co lop ic-spin", /ic-spin/.test(nodes["#wsList"].innerHTML));
+  check("hang quy trinh KHAC van icon tinh",
+    (nodes["#wsList"].innerHTML.match(/ic-spin/g) || []).length === 1);
+  // Icon quay thôi là chưa đủ: người tắt hiệu ứng và trình đọc màn hình không thấy nó quay.
+  check("dang chay con noi BANG CHU o dong phu",
+    (nodes["#wsList"].innerHTML.match(/ws\.running/g) || []).length === 1);
+  W.apDung(ctx.S.tienDo.s1, { type: "done" });
+  ctx.veDanhSach();
+  check("chay xong thi ve lai la het quay", !/ic-spin/.test(nodes["#wsList"].innerHTML));
+  ctx.S.loai = "agent"; ctx.S.tienDo = {}; ctx.S.sessionCuaPhien = {};
+
+  // ---- Ô tìm: nút kính lúp bung ra, rỗng thì tự thu ----
+  ctx.noiODoTim(el);
+  const o = nodes["#wsSearch"], nut = nodes["#wsSearchBtn"];
+  check("o tim dong san luc dung khung", o.hidden === true);
+  nut.onclick();
+  check("bam nut thi bung o tim va dua con tro vao", o.hidden === false && o._focus === 1
+    && nut._attrs["aria-expanded"] === "true");
+  o.value = "ke toan"; o.oninput({ target: o });
+  check("go chu van loc nhu cu", ctx.S.nhom === "" && nodes["#wsList"].innerHTML.includes("Kế toán")
+    && !nodes["#wsList"].innerHTML.includes("Người viết"));
+  o.onblur();
+  check("con chu thi mat tieu diem KHONG thu lai", o.hidden === false);
+  o.value = ""; o.onblur();
+  check("rong roi mat tieu diem thi thu lai", o.hidden === true);
+  nut.onclick(); o.value = "ke toan"; o.oninput({ target: o });
+  let chan = 0;
+  o.onkeydown({ key: "Escape", preventDefault() { chan++; }, stopPropagation() {} });
+  check("Esc xoa chu, tra lai danh sach day du va thu o tim",
+    chan === 1 && o.value === "" && ctx.S.q === "" && o.hidden === true
+    && nodes["#wsList"].innerHTML.includes("Người viết"));
+
+  // ---- Tab cột phải: mượn cây khi sang Thư mục, TRẢ khi rời ----
+  check("CANARY: chua bam sang Thu muc thi chua muon cay", goi.indexOf("borrow") < 0);
+  ctx.chonTabPhai("files");
+  check("bam sang Thu muc thi muon cay Vault", goi[goi.length - 1] === "borrow" && ctx._into === nodes["#wsRightFiles"]);
+  check("khung Thu muc bat, khung Cai dat tat",
+    panes[1].classList.co("on") && !panes[0].classList.co("on") && tabs[1].classList.co("active"));
+  check("nho tab dang dung", kho["javis_ws_rtab"] === "files");
+  ctx.chonTabPhai("cai");
+  check("CANARY: quay ve tab Cai dat thi TRA cay Vault", goi[goi.length - 1] === "giveBack");
+  ctx.chonTabPhai("files");
+  ctx.roi();
+  check("CANARY: roi trang cung TRA cay Vault", goi[goi.length - 1] === "giveBack");
+
+  // ---- Rời trang thì XOÁ câu đang tìm ----
+  // S.q sống ở mức module, còn ô nhập chết theo DOM của trang. Giữ lại câu tìm là lần sau quay
+  // vào danh sách đã bị lọc mà ô tìm rỗng và đang thu: cộng sự biến mất, không lời giải thích.
+  ctx.S.q = "ke toan";
+  ctx.veDanhSach();
+  check("CANARY: dang loc thi danh sach that su thieu nguoi",
+    !nodes["#wsList"].innerHTML.includes("Người viết"));
+  ctx.roi();
+  check("roi trang thi xoa cau dang tim", ctx.S.q === "");
+  ctx.veDanhSach();
+  check("quay lai thi danh sach day du tro lai", nodes["#wsList"].innerHTML.includes("Người viết"));
+}
+
+// Dựng khung: ô nhập phải được GIEO LẠI từ S.q, và nút kính lúp phải trỏ tới nó bằng
+// aria-controls. render() nằm ngoài khối bóc ở trên nên canh bằng mã nguồn.
+{
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  check("o tim gieo lai gia tri tu S.q", ws.includes('(S.q ? "" : " hidden")') && ws.includes("esc(S.q)"));
+  check("nut kinh lup co aria-controls tro toi o nhap", ws.includes('aria-controls="wsSearch"'));
+}
+
 // Dây nối
 const app = fs.readFileSync(path.join(root, "dashboard", "app.js"), "utf8");
 check("app.js chuyen wf_event sang JavisWorkspace", /data\.type === "wf_event"/.test(app) && /JavisWorkspace\.onWfEvent\(/.test(app));
@@ -57,6 +240,17 @@ const con = fs.readFileSync(path.join(root, "dashboard", "console.js"), "utf8");
 check("console.js co renderWorkspace muon khung chat", /function renderWorkspace\(el\)/.test(con) && /JavisWorkspace\.render\(el, \{ borrow: _borrowChatNodes \}\)/.test(con));
 const studio = fs.readFileSync(path.join(root, "dashboard", "studio.js"), "utf8");
 check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/.test(studio) && /opts\.host/.test(studio) && /opts\.onSaved/.test(studio));
+// Bảng chạy của Studio: bước đã báo lỗi thì TẮT vòng quay của chính nó. Trước đây chỉ
+// `step_done` mới thay được .rs-spin, mà bước hỏng thì không bao giờ có step_done nữa (server
+// dừng ngay), nên bước ấy quay mãi trong khi cả lần chạy đã kết thúc.
+{
+  const nhanh = studio.slice(studio.indexOf('d.type === "step_error"'),
+                             studio.indexOf('d.type === "step_model"'));
+  check("studio.js: step_error thay .rs-spin bang dau bao loi",
+    /querySelector\("\.rs-spin"\)/.test(nhanh) && /rs-fail/.test(nhanh));
+  const css = fs.readFileSync(path.join(root, "dashboard", "style.css"), "utf8");
+  check("co kieu cho dau bao loi cua buoc", /\.rs-fail \{/.test(css));
+}
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - workspace");
