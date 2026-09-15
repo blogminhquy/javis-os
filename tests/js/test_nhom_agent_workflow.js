@@ -108,7 +108,8 @@ check("bấm Chọn tất cả chỉ lấy mục ĐANG HIỆN (đúng nhóm + đ
 for (const [ten, oId, list] of [["Agent", "agGroup", "agGroupList"], ["Workflow", "wfGroup", "wfGroupList"]]) {
   check(`form ${ten} có ô nhập nhóm`, SRC.includes(`id="${oId}"`));
   check(`form ${ten} gợi ý nhóm đang có (khỏi đẻ Marketing và marketing song song)`,
-    SRC.includes(`nhomDatalist(`) && SRC.includes(`"${list}"`));
+    ten === "Agent" ? SRC.includes('class="ag-group-options"') && SRC.includes('.map(nhomCua)') && SRC.includes('box.querySelector("#agGroup").value = b.dataset.group')
+      : SRC.includes(`nhomDatalist(`) && SRC.includes(`"${list}"`));
 }
 check("lưu Agent gửi kèm group", /group: box\.querySelector\("#agGroup"\)\.value\.trim\(\) \|\| NHOM_MD/.test(SRC));
 check("lưu Workflow gửi kèm group", /group: nhom\.trim\(\) \|\| NHOM_MD/.test(SRC));

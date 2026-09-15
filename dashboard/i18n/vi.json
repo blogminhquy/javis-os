@@ -2699,7 +2699,7 @@
   "ws.wf_progress": "Tiến độ",
   "ws.edit_steps": "Sửa các bước",
   "ws.run_history": "Lịch sử chạy",
-  "ws.no_runs": "Chưa chạy lần nào. Gửi một tin để chạy.",
+  "ws.no_runs": "Chưa chạy lần nào. Bấm Chạy quy trình hoặc gửi yêu cầu trong chat.",
   "ws.running_step": "Đang chạy · Bước {a}/{b}",
   "ws.done": "Đã hoàn tất",
   "ws.failed": "Dừng vì lỗi",
@@ -2709,5 +2709,15 @@
   "ws.step_doing": "Đang thực hiện...",
   "ws.step_done": "Đã hoàn tất",
   "ws.step_err": "Lỗi",
-  "ws.step_n": "Bước {n}"
+  "ws.step_n": "Bước {n}",
+  "ws.avatar_change": "Đổi hình đại diện",
+  "ws.avatar_shape": "Hình dáng",
+  "ws.avatar_color": "Màu sắc",
+  "ws.avatar_random": "Chọn ngẫu nhiên",
+  "ws.run": "Chạy quy trình",
+  "ws.running": "Đang chạy…",
+  "ws.run_default": "Chạy quy trình theo cấu hình hiện tại.",
+  "ws.input_label": "đầu vào",
+  "ws.previous_result": "kết quả trước",
+  "ws.save_failed": "Không lưu được. Vui lòng thử lại."
 }

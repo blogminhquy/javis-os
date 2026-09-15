@@ -2699,7 +2699,7 @@
   "ws.wf_progress": "Progress",
   "ws.edit_steps": "Edit steps",
   "ws.run_history": "Run history",
-  "ws.no_runs": "No runs yet. Send a message to run.",
+  "ws.no_runs": "No runs yet. Click Run workflow or send a request in chat.",
   "ws.running_step": "Running · Step {a}/{b}",
   "ws.done": "Completed",
   "ws.failed": "Stopped on error",
@@ -2709,5 +2709,15 @@
   "ws.step_doing": "In progress...",
   "ws.step_done": "Done",
   "ws.step_err": "Error",
-  "ws.step_n": "Step {n}"
+  "ws.step_n": "Step {n}",
+  "ws.avatar_change": "Change avatar",
+  "ws.avatar_shape": "Shape",
+  "ws.avatar_color": "Colour",
+  "ws.avatar_random": "Shuffle avatar",
+  "ws.run": "Run workflow",
+  "ws.running": "Running…",
+  "ws.run_default": "Run this workflow with its current configuration.",
+  "ws.input_label": "input",
+  "ws.previous_result": "previous result",
+  "ws.save_failed": "Could not save. Please try again."
 }

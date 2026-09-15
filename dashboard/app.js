@@ -118,6 +118,7 @@ function setOrbState(state, label) {
   // trên orb nói "đang nghĩ" mà pet vẫn ngồi chớp mắt thì một trong hai đang nói dối.
   // Lớp rỗng "" của orb là trạng thái nghỉ.
   try { if (window.JavisPet) window.JavisPet.setState(state || "idle"); } catch (e) {}
+  try { if (window.JavisWorkspace) window.JavisWorkspace.onChatState(state || "idle"); } catch (e) {}
 }
 
 // ============================================
@@ -820,6 +821,7 @@ function traTinDutMang() {
 }
 
 function sendMessage(text) {
+  if (window.JavisWorkspace && !window.JavisWorkspace.canSend()) return;
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
   const _slash = (window.JavisSlash && msg) ? window.JavisSlash.route(msg) : { type: "passthrough" };
@@ -1028,10 +1030,12 @@ function restoreSession() {
 // ============================================
 // Phiên hội thoại lưu DB (panel Lịch sử - sessions-ui.js gọi qua window.JavisSessions)
 // ============================================
-async function openStoredSession(id) {
+let sessionOpenSeq = 0;
+async function openStoredSession(id, stillCurrent) {
+  const ticket = ++sessionOpenSeq;
   try {
     const sess = await (await fetch(`/sessions/${encodeURIComponent(id)}`)).json();
-    if (!sess || sess.error) return;
+    if (ticket !== sessionOpenSeq || (stillCurrent && !stillCurrent()) || !sess || sess.error) return;
     convo = [];
     hideActivity();
     chatArea.innerHTML = "";
@@ -1089,6 +1093,7 @@ function resetChatView() {
   try { if (window.JavisBackground) window.JavisBackground.reset(); } catch (e) {}
 }
 function newChat() {
+  sessionOpenSeq++;
   // KHÔNG reset server, KHÔNG đụng lượt đang chạy của phiên khác - chúng chạy nền + tự lưu; vào
   // Lịch sử bấm lại để xem tiếp. Ở đây chỉ mở một khung trống cho hội thoại mới (mint id khi gửi).
   resetChatView();

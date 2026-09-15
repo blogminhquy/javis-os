@@ -116,6 +116,7 @@ import lang_registry      # sổ đăng ký: mọi thứ về một ngôn ngữ 
 import background_status  # việc nền còn sống của một khung chat + bắt lời hứa "xong em báo"
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
+import agent_avatar
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
@@ -5411,7 +5412,8 @@ def agents_index(brain: str) -> list:
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
                     "model": meta.get("model", ""), "group": _nhom_cua(meta),
-                    "model_provider": meta.get("model_provider", ""), "prompt": body})
+                    "model_provider": meta.get("model_provider", ""), "prompt": body,
+                    "avatar": agent_avatar.for_agent(meta, f.stem)})
     # last_chat_at: mốc chat gần nhất với agent này. `moc_cap_nhat_theo_kenh` là hàm của
     # Task 3 (SessionStore), CHƯA tồn tại nếu Task 2 chạy trước - try/except rơi về {} để
     # Task 2 tự đứng vững một mình; nhớ quay lại kiểm khi Task 3 xong.
@@ -5431,7 +5433,8 @@ async def list_agents(brain: str = Query("brain")):
 async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = Form(""),
                      model: str = Form(""), slug: str = Form(""), prompt: str = Form(""),
                      brain: str = Form("brain"), model_provider: str = Form(""),
-                     group: str = Form(NHOM_MAC_DINH)):
+                     group: str = Form(NHOM_MAC_DINH), avatar_shape: str = Form(None),
+                     avatar_palette: str = Form(None)):
     slug = slug or _slugify(name)
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
     # `model_provider` nói RÕ model thuộc nhà nào - cùng một tên model có thể có ở hai nhà
@@ -5439,9 +5442,15 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # Giá trị lạ (client cũ, gõ tay) bị loại về "" để _agent_model_provider suy như agent cũ,
     # chứ không ghi vào file một nhà mà server không chạy được.
     mp = (model_provider or "").strip()
+    path = _agents_dir(brain) / f"{slug}.md"
+    previous = _read_md(path)[0] if path.is_file() else None
+    try:
+        avatar = agent_avatar.for_save(previous, slug, avatar_shape, avatar_palette)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
     meta = {"type": "agent", "name": name, "slug": slug, "role": role,
             "group": (group or "").strip() or NHOM_MAC_DINH,
-            "skills": skills_list, "model": model,
+            "skills": skills_list, "model": model, "avatar": avatar,
             "model_provider": mp if mp in AGENT_PROVIDERS else "",
             "updated": _today()}  # "" = mặc định theo CLI
     _write_md(_agents_dir(brain) / f"{slug}.md", meta, (prompt.strip() or role))

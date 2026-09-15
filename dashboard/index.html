@@ -33,7 +33,7 @@
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
   <link rel="stylesheet" href="/static/style.css?v=84">
-  <link rel="stylesheet" href="/static/console.css?v=51">
+  <link rel="stylesheet" href="/static/console.css?v=52">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -854,7 +854,7 @@
   <script src="/static/ui-actions.js?v=1"></script>
   <!-- Voice V2: nghe nói thẳng (Live), app.js gọi lười khi bấm mic ở chế độ Live. -->
   <script src="/static/voice-live.js?v=1"></script>
-  <script src="/static/app.js?v=105"></script>
+  <script src="/static/app.js?v=106"></script>
   <!-- Sau app.js: dải việc nền đọc window.JavisSessions (app.js dựng) để biết phiên + brain. -->
   <script src="/static/background-strip.js?v=2"></script>
   <script src="/static/model-picker.js?v=7"></script>
@@ -863,10 +863,10 @@
   <script src="/static/chat-zoom.js?v=6"></script>
   <script src="/static/brains-ui.js?v=7"></script>
   <script src="/static/sessions-ui.js?v=17"></script>
-  <script src="/static/studio.js?v=30"></script>
+  <script src="/static/studio.js?v=31"></script>
   <!-- Trang Cộng sự: nạp SAU studio.js (mượn trình sửa agent/workflow của Studio) và TRƯỚC
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
-  <script src="/static/workspace.js?v=1"></script>
+  <script src="/static/workspace.js?v=2"></script>
   <script src="/static/packs.js?v=1"></script>
   <script src="/static/chatbots.js?v=10"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
@@ -884,6 +884,7 @@
   <!-- Linh vật ở mép màn hình. Nạp SAU app.js vì nó chỉ được app.js gọi vào
        (setOrbState -> JavisPet.setState), và sau console.js để trang Cài đặt vẽ được thẻ chọn. -->
   <script src="/static/pet.js?v=1"></script>
+  <script src="/static/agent-avatar.js?v=1"></script>
   <!-- (Nút đổi tông TỐI ↔ SÁNG: theme.js đã nạp ở đầu khối script phía trên) -->
   <!-- Alpine self-host (dashboard/vendor): bản unpkg đo được 2.1s lúc first load + chết khi offline -->
   <script defer src="/static/vendor/alpinejs-3.14.1.min.js?v=1"></script>

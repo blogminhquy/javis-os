@@ -399,6 +399,7 @@
     agentsCache = ad.agents || [];
     if (!agentsCache.length) { alert(t("studio.no_agents")); return; }
     const box = document.getElementById("editorBox");
+    box.classList.remove("agent-editor");
     const steps = w ? JSON.parse(JSON.stringify(w.steps || [])) : [{ agent: agentsCache[0].slug, task: "" }];
     const opts = (sel) => agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
     const optsV = (sel) => `<option value="">${esc(t("studio.no_verify"))}</option>` + agentsCache.map(a => `<option value="${a.slug}" ${a.slug === sel ? "selected" : ""}>${esc(a.name)}</option>`).join("");
@@ -596,12 +597,16 @@
     const modelOptions = (g) =>
       `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
     const box = opts.host || document.getElementById("editorBox");
+    if (opts.host && !box.isConnected) return;
+    let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
+    box.classList.add("agent-editor");
     box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
+      <div class="agent-avatar-picker" id="agAvatar"></div>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
       <label>${esc(t("studio.groups"))}</label>
-      <input id="agGroup" list="agGroupList" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
-      ${nhomDatalist((_agState.agents.length ? _agState.agents : (opts.dsNhom || [])), "agGroupList")}
+      <input id="agGroup" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
+      <div class="ag-group-options">${uniq((opts.dsNhom || _agState.agents).map(nhomCua)).map(g => `<button type="button" class="ws-group-chip" data-group="${esc(g)}">${esc(g)}</button>`).join("")}</div>
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -619,6 +624,9 @@
         ? t("studio.model_hint")
         : t("studio.model_none"))}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
+    if (window.JavisAvatar) window.JavisAvatar.picker(box.querySelector("#agAvatar"), avatar, v => { avatar = v; });
+    box.querySelectorAll("[data-group]").forEach(b => { b.onclick = () => { box.querySelector("#agGroup").value = b.dataset.group; }; });
+    box.querySelectorAll("label").forEach(label => { const input = label.nextElementSibling; if (input && /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName)) label.htmlFor = input.id; });
     if (a && a.model) {
       const sel = box.querySelector("#agModel");
       sel.value = val(a.model_provider || "", a.model);
@@ -645,12 +653,18 @@
       const cut = raw.indexOf(MODEL_SEP);
       const mProv = cut === -1 ? "" : raw.slice(0, cut);
       const mName = cut === -1 ? raw : raw.slice(cut + MODEL_SEP.length);
-      await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
-        group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
-        prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
-        slug: a ? a.slug : "", brain: brain() }) });
-      moDong(false);
-      if (opts.onSaved) opts.onSaved(); else loadAgents();
+      const saveButton = box.querySelector("#saveAg");
+      saveButton.disabled = true;
+      try {
+        const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
+          group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
+          prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
+          slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
+        if (!saved.ok) { alert(saved.error || t("ws.save_failed")); return; }
+        moDong(false);
+        if (opts.onSaved) await opts.onSaved(saved); else loadAgents();
+      } catch (err) { alert(t("ws.save_failed")); }
+      finally { saveButton.disabled = false; }
     };
     moDong(true);
   }
