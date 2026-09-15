@@ -108,7 +108,11 @@ check("bấm Chọn tất cả chỉ lấy mục ĐANG HIỆN (đúng nhóm + đ
 for (const [ten, oId, list] of [["Agent", "agGroup", "agGroupList"], ["Workflow", "wfGroup", "wfGroupList"]]) {
   check(`form ${ten} có ô nhập nhóm`, SRC.includes(`id="${oId}"`));
   check(`form ${ten} gợi ý nhóm đang có (khỏi đẻ Marketing và marketing song song)`,
-    ten === "Agent" ? SRC.includes('class="ag-group-options"') && SRC.includes('.map(nhomCua)') && SRC.includes('box.querySelector("#agGroup").value = b.dataset.group')
+    // Agent: một Ô CHỌN các nhóm đang dùng (0.59.2 thay cho hàng chip), cộng dòng "Nhóm mới..."
+    // mới bung ô gõ tay. Ô gõ tay #agGroup vẫn là chỗ LƯU đọc ra, nên chọn một dòng phải chép
+    // giá trị sang nó - quên nhát đó thì đổi nhóm xong bấm Lưu vẫn ra nhóm cũ, im lặng.
+    ten === "Agent" ? SRC.includes('id="agGroupSel"') && SRC.includes('.map(nhomCua)')
+        && SRC.includes("oNhom.value = selNhom.value") && SRC.includes("studio.group_new")
       : SRC.includes(`nhomDatalist(`) && SRC.includes(`"${list}"`));
 }
 check("lưu Agent gửi kèm group", /group: box\.querySelector\("#agGroup"\)\.value\.trim\(\) \|\| NHOM_MD/.test(SRC));
