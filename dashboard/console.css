@@ -1412,8 +1412,37 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
   padding: 14px 18px 16px; }
 .ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.ws-right { width: 320px; flex: none; overflow: auto; padding: 14px 12px;
+/* Trình sửa file mở từ chat / từ tab Thư mục: XẾP CHỒNG như trang Trò chuyện - trình sửa ở
+   TRÊN, khung chat rút gọn ở dưới, để vừa sửa file vừa nhắn cho cộng sự về chính file đó.
+   `order` chứ không đổi thứ tự DOM: #wsSlot phải đứng trước trong DOM vì console.js mượn node
+   chat vào đó ngay lúc dựng khung, trước khi ai biết có mở file hay không. */
+.ws-edit { display: none; position: relative; flex: 1 1 60%; min-height: 0; min-width: 0;
+  flex-direction: column; order: 1; margin-bottom: 10px; }
+.ws-main.edit-on > .ws-edit { display: flex; }
+.ws-main.edit-on > .ws-slot { order: 2; flex: 1 1 40%; }
+/* .transcript mang sẵn `min-height: clamp(280px, 46vh, 620px)` từ style.css (ở màn chính nó là
+   cả cột phải). Khi trình sửa lấy mất 60% chiều cao thì con số đó LỚN HƠN chỗ còn lại, khung
+   hội thoại từ chối co và ĐẨY Ô NHẬP RỚT KHỎI MÀN HÌNH - đo thật ở cửa sổ 950px: #hudVoice
+   nằm ở y=1138. Trang Trò chuyện đã gỡ đúng chốt này (.chatpage-slot .transcript), ở đây gỡ
+   y hệt, và chỉ gỡ lúc edit-on để layout thường không đổi. */
+.ws-main.edit-on > .ws-slot > .transcript { min-height: 0; max-height: none; }
+/* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của cột
+   giữa nên phải gỡ inset/z-index, TRỪ khi đang phóng to (.ne-full) - lúc đó nó cố ý phủ kín
+   màn hình (cùng lý do với .chatpage-edit, xem _injectChatCss trong console.js). */
+.ws-edit > .note-editor:not(.ne-full) { position: static; inset: auto; z-index: auto;
+  flex: 1 1 auto; min-height: 0; min-width: 0; border-radius: 12px; }
+/* Màn hẹp không đủ chỗ cho cả hai: trình sửa chiếm chỗ, đóng nó ra là khung chat về đủ
+   (ẩn bằng display:none nên đoạn chat đang dở còn nguyên). */
+@media (max-width: 860px) { .ws-main.edit-on > .ws-slot { display: none; } }
+.ws-right { width: 320px; flex: none; overflow: hidden; padding: 14px 12px;
+  display: flex; flex-direction: column; gap: 8px;
   border-left: 1px solid var(--glass-brd); background: var(--surface-1); }
+/* Hai tab của cột phải (Cài đặt | Thư mục) dùng lại .cside-tabs/.cside-tab của style.css.
+   Khung nội dung tự cuộn chứ không để cả cột cuộn: cây thư mục có thanh cuộn riêng, để nó
+   nằm trong luồng chung là hai thanh cuộn lồng nhau. */
+.ws-rpane { display: none; flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; }
+.ws-rpane.on { display: flex; flex-direction: column; }
+.ws-rpane[data-rpane="cai"] { gap: 0; }
 
 /* Hai nút Trợ lý | Quy trình: một viên thuốc chia đôi, nút đang chọn tô cam nhạt. */
 .ws-seg { display: flex; gap: 6px; }
@@ -1426,6 +1455,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-search, .ws-group { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px;
   border: 1px solid var(--border); background: none; color: var(--text); font-family: var(--font);
   font-size: 13px; }
+/* Hàng lọc: ô chọn nhóm + nút kính lúp. Ô tìm chỉ bung ra khi bấm nút, và bung xuống HÀNG
+   RIÊNG (flex-basis 100% + wrap) chứ không chen ngang - chen ngang thì ô chọn nhóm bị bóp
+   còn vài chục pixel, hoặc phải ẩn đi và người dùng mất luôn bộ lọc đang bật. */
+.ws-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: none; }
+.ws-filters .ws-group { flex: 1 1 auto; min-width: 0; width: auto; }
+.ws-filters .ws-search-btn { flex: none; }
+.ws-filters .ws-search { flex: 1 0 100%; }
+.ws-search[hidden] { display: none; }
 .ws-list { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
 .ws-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   padding: 7px 9px; border-radius: 9px; border: 1px solid transparent; background: none;
@@ -1566,20 +1603,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .aa-colors button { width:26px; height:26px; background:var(--swatch); border:3px solid var(--bg2); outline:1px solid var(--border); border-radius:50%; cursor:pointer; }
 .aa-colors button[aria-pressed="true"] { outline:2px solid var(--accent); outline-offset:2px; }
 .ws-right { width:350px; background:var(--bg2); padding:20px 18px; scrollbar-width:thin; }
+.ws-rpane { padding-right:2px; }
 .ws-item { padding:10px 9px; gap:9px; }
 .ws-item-ic { opacity:1; display:flex; align-items:center; }
 .ws-item-text strong { font-size:14px; }
 .ws-item-text small { margin-top:3px; }
-.ws-groups { display:flex; gap:6px; flex-wrap:wrap; max-height:132px; overflow:auto; padding:2px 0 8px; flex:none; scrollbar-width:thin; }
-.ws-group-chip { display:inline-flex; align-items:center; gap:6px; max-width:100%; border:1px solid var(--border); border-radius:16px; padding:6px 10px; background:transparent; color:var(--text2); font:inherit; font-size:12px; cursor:pointer; }
-.ws-group-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ws-group-chip small { opacity:.7; }
-.ws-group-chip[aria-pressed="true"], .ws-group-chip:hover { background:var(--surface-1); border-color:var(--accent); color:var(--accent); }
+/* Hàng chip nhóm (.ws-groups/.ws-group-chip) và hàng chip gợi ý nhóm trong trình sửa agent
+   (.ag-group-options) ĐÃ BỎ ở 0.59.2: cả hai thay bằng một ô chọn. Brain thật có cả chục
+   nhóm nên chip xuống dòng thành một mảng chiếm gần nửa cột. */
 .agent-editor > label { display:block; color:var(--text2); font-size:12px; font-weight:600; margin:16px 0 7px; }
 .agent-editor > input, .agent-editor > select, .agent-editor > textarea { width:100%; min-width:0; box-sizing:border-box; border:1px solid var(--border); border-radius:9px; padding:10px 11px; background:var(--field-bg); color:var(--text); font:inherit; font-size:13px; line-height:1.5; }
 .agent-editor > textarea { min-height:136px; resize:vertical; }
 .agent-editor :is(input,select,textarea):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-.ag-group-options { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; max-height:85px; overflow:auto; }
 .agent-editor .sp-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; padding:10px; }
 .agent-editor .sp-bar input { grid-column:1/-1; width:100%; box-sizing:border-box; font-family:inherit; }
 .agent-editor .sp-count { min-width:0; }
@@ -1615,5 +1650,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-run-avatars { display:inline-flex; flex:none; }
 .ws-run-avatars .agent-avatar + .agent-avatar { margin-left:-7px; }
 .ws-panel-close { display:none; }
-@media (max-width:1060px) { .ws-panel-close { display:flex; float:right; position:sticky; top:0; z-index:2; background:var(--bg2); } }
+/* Cột phải nay là flex dọc (tabs + khung nội dung) nên float/sticky không còn tác dụng:
+   nút đóng là một item của cột, đẩy về mép phải bằng align-self. */
+@media (max-width:1060px) { .ws-panel-close { display:flex; align-self:flex-end; flex:none; } }
 .agent-avatar[data-state="listening"] .aa-eyes { transform:scaleY(1.2); }
