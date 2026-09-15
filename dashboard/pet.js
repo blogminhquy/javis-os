@@ -155,8 +155,30 @@
       var fd = new FormData();
       fd.append("section", "dashboard");
       fd.append("data", JSON.stringify({ pet: cfg }));
-      fetch("/settings", { method: "POST", body: fd }).catch(function () {});
-    } catch (e) {}
+      return fetch("/settings", { method: "POST", body: fd }).catch(function () {});
+    } catch (e) { return Promise.resolve(); }
+  }
+
+  // Nút Lưu của trang Linh vật. KHÔNG chỉ POST rồi báo xanh: POST xong ĐỌC LẠI /settings và
+  // so từng khoá với thứ vừa gửi. Vì sao phải khổ thế: nhánh lưu bên server lọc từng khoá một
+  // (xem section "dashboard" trong main.py), nên một giá trị không qua được bộ lọc sẽ bị bỏ
+  // TRONG IM LẶNG - request vẫn 200, màn hình vẫn đúng nhờ localStorage, và chỉ tới lần F5 sau
+  // người dùng mới thấy lựa chọn của mình biến mất. Đúng lỗi cỡ "Rất lớn" đã dính.
+  // Trả về Promise {ok, lech: [khoá lệch]}.
+  function luu() {
+    var muon = Object.assign({}, cfg);
+    return ghiServer()
+      .then(function () { return fetch("/settings"); })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var da = (j.dashboard || {}).pet || {};
+        var lech = Object.keys(muon).filter(function (k) {
+          if (k === "pos") return Math.abs(Number(da[k]) - Number(muon[k])) > 0.001;
+          return da[k] !== muon[k];
+        });
+        return { ok: !lech.length, lech: lech };
+      })
+      .catch(function () { return { ok: false, lech: [] }; });
   }
   function chuanHoa(o) {
     var c = Object.assign({}, MAC_DINH, o || {});
@@ -206,8 +228,9 @@
     var icon = function (ten) { return window.ic ? window.ic(ten) : ""; };
     var muc = [
       { id: "chat", ic: icon("message-circle"), nhan: t("pet.menu.chat", "Trò chuyện") },
-      { id: "kanban", ic: icon("square-kanban"), nhan: t("pet.menu.work", "Việc") },
-      { id: "settings", ic: icon("settings"), nhan: t("pet.menu.settings", "Cài đặt pet") },
+      { id: "agent", ic: icon("bot"), nhan: t("pet.menu.agent", "Trợ lý") },
+      { id: "workflow", ic: icon("workflow"), nhan: t("pet.menu.workflow", "Quy trình") },
+      { id: "pet", ic: icon("settings"), nhan: t("pet.menu.settings", "Cài đặt pet") },
       { id: "hide", ic: icon("x"), nhan: t("pet.menu.hide", "Ẩn pet") },
     ];
     menu.innerHTML = muc.map(function (m) {
@@ -368,6 +391,20 @@
     if (mo && !menu.childElementCount) veMenu();
     menu.hidden = !mo;
     el.dataset.menu = mo ? "1" : "0";
+    if (mo) ghimMenuTrongMan();
+  }
+  // Menu neo giữa thân pet, mà pet thì đứng được sát mép trên hoặc mép dưới. Với năm mục nó
+  // cao hơn 200px, nên ở hai đầu màn hình phần thò ra bị cắt mất và mục đầu (hay mục cuối)
+  // không bấm được. Đo xong đẩy vào bằng marginTop: không đụng tới `transform`, nên hoạt ảnh
+  // mở menu (petMenuVao, cũng ghi transform) vẫn chạy nguyên.
+  function ghimMenuTrongMan() {
+    menu.style.marginTop = "";
+    var r = menu.getBoundingClientRect();
+    if (!r.height) return;
+    var le = 8, dich = 0;
+    if (r.top < le) dich = le - r.top;
+    else if (r.bottom > window.innerHeight - le) dich = (window.innerHeight - le) - r.bottom;
+    if (dich) menu.style.marginTop = Math.round(dich) + "px";
   }
 
   function noiTuongTac() {
@@ -425,6 +462,13 @@
       var id = b.dataset.petGo;
       moMenu(false);
       if (id === "hide") { setEnabled(false); return; }
+      // Trợ lý và Quy trình là HAI TAB của cùng trang Cộng sự, không phải hai trang: đi qua
+      // openTab() để mở đúng tab, chứ JavisNav.go("workspace") thì rơi vào tab đang nhớ dở
+      // từ lần trước và cú bấm "Quy trình" có khi mở ra danh sách trợ lý.
+      if (id === "agent" || id === "workflow") {
+        try { if (window.JavisWorkspace) { window.JavisWorkspace.openTab(id); return; } } catch (err) {}
+        id = "workspace";
+      }
       try { window.JavisNav && window.JavisNav.go(id); } catch (err) {}
     });
 
@@ -560,6 +604,8 @@
     markSvg: function () { return chanDung(cfg.shape, cfg.palette); },
     // Thanh bên có đang dùng khuôn mặt linh vật thay cho logo không.
     usingMark: function () { return dungDauAn(); },
+    // Lưu NGAY lên máy chủ rồi đọc lại để chắc chắn đã vào (nút Lưu trang Linh vật).
+    luu: luu,
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

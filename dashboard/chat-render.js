@@ -557,6 +557,17 @@
       // "khong thay file" (co goi y ten gan dung), thay vi mo tab moi 404 hay khong lam gi ca.
       var fu = fileUriPath(href);
       if (fu != null) return put('<a ' + vaultLink(fu.replace(/^\/+/, "")) + ">" + esc(t) + "</a>");
+      // Link tro toi mot cong su: "#cs=<agent|workflow>:<slug>[:<ma phien>]". Server dat link
+      // nay khi mot quy trinh / tro ly chay xong tu khung Tro chuyen, de nguoi doc nhay thang
+      // toi dung cuoc hoi thoai da lam viec do. KHONG phai URL ngoai, khong mo tab moi.
+      if (/^#cs=/.test(href)) {
+        var spec = href.slice(4);
+        // decodeURIComponent nem loi voi mot dau % le loi - va nem o day la HONG CA TIN NHAN,
+        // vi chuoi thay the nay dang chay giua .replace(). Giai ma duoc thi dung, khong thi
+        // giu nguyen chuoi tho (slug va ma phien deu la ASCII nen van mo dung).
+        try { spec = decodeURIComponent(spec); } catch (err) {}
+        return put('<a class="jv-cs" href="' + esc(href) + '" data-cs="' + esc(spec) + '">' + esc(t) + "</a>");
+      }
       if (/^(https?:|mailto:)/i.test(href)) return put('<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + "</a>");
       // URL that thi GIU nguyen ma hoa (do la duong dan mang); chi duong dan trong vault moi go
       // ra, vi no se di thang toi ten file tren dia. Xem decodeVaultPath.
@@ -997,6 +1008,15 @@
       try { wys.dispatchEvent(new CustomEvent("jv-task-toggle", { bubbles: true })); } catch (err) {}
     });
     document.addEventListener("click", function (e) {
+      // Link toi mot cong su (#cs=...): mo trang Cong su dung tro ly / quy trinh, va dung cuoc
+      // hoi thoai da chay viec do. Bat TRUOC cac nhanh khac vi no khong phai link vault.
+      var cs = e.target.closest ? e.target.closest("a.jv-cs") : null;
+      if (cs && cs.getAttribute("data-cs")) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0) return;
+        e.preventDefault();
+        if (typeof window.JavisOpenCongSu === "function") window.JavisOpenCongSu(cs.getAttribute("data-cs"));
+        return;
+      }
       // Wikilink [[..]]: bam la DI CHUYEN toi note dich - chay CA trong ban render dang sua (ne-wys/.jvfe-modal),
       // vi y nghia cua wikilink la dieu huong; muon sua chu cua link thi dung che do Nguon.
       var wl = e.target.closest ? e.target.closest("a.jv-wikilink") : null;

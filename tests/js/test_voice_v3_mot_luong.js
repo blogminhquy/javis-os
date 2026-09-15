@@ -49,7 +49,7 @@ check("i18n vi/en có app.voice_filler với từ 2 câu trở lên",
 check("i18n: câu tiến độ không có em dash", !/—/.test(vi["app.voice_filler"] + en["app.voice_filler"]));
 
 // 3
-check("khung WS: voice: _tuGiong || handsFree", /session_id: sid, voice: _tuGiong \|\| handsFree \}\)\)/.test(app));
+check("khung WS: voice: _tuGiong || handsFree", /ws\.send\(JSON\.stringify\(\{ message: outMsg[\s\S]{0,200}voice: _tuGiong \|\| handsFree/.test(app));
 check("khối ngữ cảnh mang voice: _tuGiong || handsFree", /voice: _tuGiong \|\| handsFree,\s*\n\s*\}\) : "";/.test(app));
 check("Live: gõ chữ thì sendText vào phiên Live và return, không đi ws chat",
       /voiceMode === "live" && !atts\.length && window\.JavisVoiceLive && window\.JavisVoiceLive\.isOn\(\)\) \{[\s\S]{0,400}window\.JavisVoiceLive\.sendText\(msg\);\s*\n\s*return;/.test(app));

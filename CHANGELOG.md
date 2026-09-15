@@ -4,6 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.3] - 2026-09-15
+### Thêm mới
+- **Lịch sử của trợ lý và quy trình có tab riêng ở cột phải.** Trước đây nó nằm tít dưới đáy khung Cài đặt, phải cuộn qua cả cái form mới thấy. Giờ bấm vào tab Lịch sử là ra ngay: các lần chạy và các cuộc trò chuyện cũ, kèm giờ, và cuộc đang mở được tô sáng.
+- **Menu nhanh của linh vật có đủ 5 lối đi:** Trò chuyện, Trợ lý, Quy trình, Cài đặt pet, Ẩn pet. "Cài đặt pet" nay mở thẳng trang Linh vật chứ không quăng bạn vào trang Cài đặt chung.
+- **Trang Linh vật có nút Lưu.** Bấm xong nó nói rõ đã vào máy chủ thật hay chưa, và nếu có gì không lưu được thì gọi tên đúng thứ đó ra.
+### Sửa lỗi
+- **Chọn cỡ "Rất lớn" cho linh vật giờ lưu được.** Trước đây chọn xong màn hình đổi ngay nhưng tải lại trang là về cỡ cũ, không một lời giải thích.
+- **Bấm Dừng một quy trình thì nó dừng thật trên màn hình.** Trước đây chat đã báo đã dừng mà cột trái vẫn quay và cột phải vẫn ghi "Đang chạy - Bước 1/3".
+- **Gọi một quy trình hay trợ lý từ khung Trò chuyện thì kết quả quay về đúng khung đó**, kèm một đường dẫn bấm vào là mở lại cuộc hội thoại đã làm việc. Trước đây bạn bị chuyển sang trang Cộng sự và khung chat cũ không bao giờ biết việc chạy ra sao.
+### Cải thiện
+- Icon của trang Linh vật là chính khuôn mặt linh vật, không còn là mặt cười chung chung.
+
 ## [0.59.2] - 2026-09-15
 ### Thêm mới
 - **Trang Cộng sự có cây thư mục ngay bên cạnh.** Cột phải giờ có hai tab: Cài đặt như cũ, và Thư mục là đúng cây thư mục bạn vẫn dùng ở trang Trò chuyện. Vừa nhắn với trợ lý vừa mở file mà không phải nhảy trang.

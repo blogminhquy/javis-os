@@ -4106,7 +4106,11 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
                 pet["enabled"] = bool(pet_moi["enabled"])
             for k in ("shape", "palette", "side", "size"):
                 v = pet_moi.get(k)
-                if isinstance(v, str) and 0 < len(v) <= 24 and v.replace("-", "").isalnum():
+                # Gạch dưới cũng là ký tự HỢP LỆ: khoá cỡ lớn nhất tên là "rat_lon", mà luật
+                # cũ chỉ tha dấu gạch ngang nên isalnum() trả False và cỡ đó bị loại LẶNG LẼ -
+                # người dùng chọn "Rất lớn", màn hình đổi ngay, F5 xong về cỡ cũ mà không có
+                # một dòng lỗi nào (chủ dự án báo 15/09).
+                if isinstance(v, str) and 0 < len(v) <= 24 and v.replace("-", "").replace("_", "").isalnum():
                     pet[k] = v
             if "pos" in pet_moi:
                 try:
@@ -8150,6 +8154,48 @@ async def push_to_chat(session_id, text) -> bool:
 
 WEB_CHAT_PREFIX = "web:"   # owner_chat của việc giao từ dashboard: "web:<mã phiên chat>"
 
+# Kết quả của một cộng sự gửi NGƯỢC về khung Trò chuyện đã gọi nó. Cắt ở đây chứ không đẩy
+# nguyên: bản đầy đủ nằm sẵn trong hội thoại của cộng sự và link ngay bên trên trỏ tới đó,
+# nên khung Trò chuyện chỉ cần đủ để đọc lướt mà biết việc đã xong hay hỏng.
+TRAN_BAO_KHUNG_GOC = 2000
+
+
+def _ten_cong_su(brain, loai: str, slug: str) -> str:
+    """Tên người-đọc-được của một trợ lý / quy trình. Không tra ra thì trả slug."""
+    try:
+        ds = agents_index(brain) if loai == "agent" else workflows_index(brain)
+        for x in ds:
+            if x.get("slug") == slug:
+                return str(x.get("name") or slug)
+    except Exception:
+        pass
+    return slug
+
+
+async def _bao_ve_khung_goc(goc_sid: str, brain, loai: str, slug: str, conv_sid: str,
+                            text: str) -> bool:
+    """Cộng sự chạy xong sau một lệnh "/" gõ ở khung Trò chuyện: đẩy kết quả NGƯỢC về đúng
+    khung đó, kèm link mở lại cuộc hội thoại đã làm việc.
+
+    Vì sao cần: gõ "/quy-trinh" ở khung Trò chuyện là trang nhảy hẳn sang Cộng sự và mọi thứ
+    diễn ra ở đó. Quay lại khung cũ thì nó vẫn y nguyên như lúc rời đi, không một dòng nào nói
+    rằng mình vừa sai một quy trình đi làm việc, càng không có kết quả. Chủ dự án yêu cầu
+    15/09: kết quả phải về khung đã gọi, hoặc chí ít là đường dẫn tới chỗ có nó. Đây làm cả hai.
+
+    Link "#cs=..." do chat-render.js dựng thành nút bấm được (mở đúng cộng sự + đúng phiên).
+    """
+    goc = str(goc_sid or "").strip()
+    than = str(text or "").strip()
+    if not goc or not than or goc == conv_sid:
+        return False
+    if len(than) > TRAN_BAO_KHUNG_GOC:
+        than = than[:TRAN_BAO_KHUNG_GOC].rstrip() + "\n\n... (còn nữa, mở hội thoại bên trên để đọc đủ)"
+    nhan = "Trợ lý" if loai == "agent" else "Quy trình"
+    ten = _ten_cong_su(brain, loai, slug)
+    link = f"#cs={loai}:{slug}:{conv_sid}"
+    dau = f"**{nhan} {ten}** vừa chạy xong việc bạn giao từ đây. [Mở hội thoại]({link})"
+    return await push_to_chat(goc, dau + "\n\n" + than)
+
 
 async def _zalo_send_to(chat_id, text) -> tuple:
     """Gửi 1 tin Zalo tới ĐÚNG chat_id. Trả (ok, error). Đối xứng với `_tg_send_to`."""
@@ -12152,13 +12198,23 @@ async def websocket_endpoint(ws: WebSocket):
             return final_text
 
         async def run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace=None,
-                           has_attachments=False, resume_attempt=0):
+                           has_attachments=False, resume_attempt=0, goc_chat=""):
             _trace_token = context_runtime.bind_trace(runtime_trace)
             try:
                 final_text = await _do_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
                     resume_attempt=resume_attempt,
                 )
+                # Phiên TRỢ LÝ mở từ một lệnh "/" gõ ở khung Trò chuyện: câu trả lời quay về
+                # đúng khung đó, kèm link mở lại cuộc hội thoại (cùng luật với quy trình).
+                if goc_chat:
+                    _p = workflow_chat.persona_cua_phien(store.get_session(conv_sid) or {})
+                    if _p:
+                        try:
+                            await _bao_ve_khung_goc(goc_chat, brain, _p[0], _p[1], conv_sid,
+                                                    final_text or "")
+                        except Exception as _e:
+                            print(f"[bao khung goc] {type(_e).__name__}: {_e}", file=sys.stderr)
                 _record_quality_shadow(
                     runtime_trace, user_message, final_text or "", "dashboard")
                 _CONTEXT_RUNTIME.finish(
@@ -12180,7 +12236,8 @@ async def websocket_endpoint(ws: WebSocket):
                                 **context_runtime.event_fields(runtime_trace)})
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
 
-        async def run_workflow_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, slug, resume=None):
+        async def run_workflow_turn(conv_sid, user_message, brain, turn_tag, runtime_trace, slug,
+                                    resume=None, goc_chat=""):
             """Lượt ở phiên workflow:<slug>. Cùng khung với run_turn (trace, Dừng, turn_done)
             nhưng thân là _luot_quy_trinh. Lỗi bất ngờ vẫn thành một tin trong chat: luật của
             trang Cộng sự là chạy quy trình không bao giờ kết thúc trong im lặng."""
@@ -12190,11 +12247,24 @@ async def websocket_endpoint(ws: WebSocket):
             async def emit(frame):
                 await ws.send_text(json.dumps(frame, ensure_ascii=False))
             try:
-                await _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resume=resume)
+                _kq = await _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resume=resume)
                 _CONTEXT_RUNTIME.finish(runtime_trace, "COMPLETED")
+                # Gọi từ khung Trò chuyện bằng lệnh "/" thì kết quả phải quay VỀ khung đó.
+                try:
+                    await _bao_ve_khung_goc(goc_chat, brain, "workflow", slug, conv_sid, _kq)
+                except Exception as _e:
+                    print(f"[bao khung goc] {type(_e).__name__}: {_e}", file=sys.stderr)
             except asyncio.CancelledError:
                 _CONTEXT_RUNTIME.finish(runtime_trace, "CANCELLED", "cancelled")
                 _cau = "Đã dừng lần chạy này theo yêu cầu."
+                # Cột phải (và icon quay ở cột trái) sống bằng luồng `wf_event`, KHÔNG đọc tin
+                # chat. Bỏ khung này thì tiến độ đứng mãi ở "Đang chạy - Bước 1/3" cho một lần
+                # chạy vừa bị người dùng dừng: màn hình nói một đằng, sự thật một nẻo.
+                try:
+                    await send_raw({"type": "wf_event", "session_id": conv_sid,
+                                    "event": {"type": "stopped"}})
+                except Exception:
+                    pass
                 try:
                     await _persist_turn(store, conv_sid, brain, user_message, _cau)
                 except Exception:
@@ -12207,6 +12277,12 @@ async def websocket_endpoint(ws: WebSocket):
                 _cau = workflow_chat.tin_loi(None, "", f"{type(e).__name__}: {e}")
                 try:
                     await _persist_turn(store, conv_sid, brain, user_message, _cau)
+                except Exception:
+                    pass
+                # Hỏng cũng phải báo về khung đã gọi: im lặng khi hỏng là kiểu hỏng tệ nhất,
+                # người dùng ngồi đợi một kết quả không bao giờ tới.
+                try:
+                    await _bao_ve_khung_goc(goc_chat, brain, "workflow", slug, conv_sid, _cau)
                 except Exception:
                     pass
                 await send_raw({"type": "error", "content": _cau, "session_id": conv_sid,
@@ -12606,10 +12682,18 @@ async def websocket_endpoint(ws: WebSocket):
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt
             # hỏi bộ não chính - rẽ nhánh TRƯỚC cả Voice V2, vì trang Cộng sự không có mic.
+            # Khung Trò chuyện đã GỌI cộng sự này bằng lệnh "/" (dashboard gửi kèm mỗi tin).
+            # Chỉ nhận khi phiên hiện tại là phiên cộng sự, và không tự trỏ về chính nó.
+            _goc = str(payload.get("origin_chat") or "").strip()
+            if _goc == conv_sid:
+                _goc = ""
             _pers = workflow_chat.persona_cua_phien(store.get_session(conv_sid) or {})
+            if not _pers:
+                _goc = ""
             if _pers and _pers[0] == "workflow":
                 task = asyncio.create_task(run_workflow_turn(
-                    conv_sid, user_message, brain, turn_tag, runtime_trace, _pers[1]))
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, _pers[1],
+                    goc_chat=_goc))
                 _CHAT_RUNTIME.register_job(
                     conv_sid, task, turn_tag,
                     runtime_task_id=runtime_trace.task_id if runtime_trace else "",
@@ -12630,7 +12714,8 @@ async def websocket_endpoint(ws: WebSocket):
                     conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf))
             else:
                 task = asyncio.create_task(run_turn(
-                    conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments))
+                    conv_sid, user_message, brain, turn_tag, runtime_trace, has_attachments,
+                    goc_chat=_goc))
             _CHAT_RUNTIME.register_job(
                 conv_sid, task, turn_tag,
                 runtime_task_id=runtime_trace.task_id if runtime_trace else "",

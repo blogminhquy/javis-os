@@ -118,11 +118,13 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     setAttribute(k, v) { this._attrs[k] = v; }, focus() { this._focus++; },
     querySelectorAll() { return []; } });
   const nodes = {};
-  ["#wsGroup", "#wsNew", "#wsImport", "#wsList", "#wsSearch", "#wsSearchBtn", "#wsRightFiles", "#wsPage"]
+  ["#wsGroup", "#wsNew", "#wsImport", "#wsList", "#wsSearch", "#wsSearchBtn", "#wsRightFiles",
+   "#wsRightHistory", "#wsPage"]
     .forEach((s) => { nodes[s] = oGia(); });
   const tab = (v) => ({ dataset: { rtab: v }, classList: lop() });
   const pane = (v) => ({ dataset: { rpane: v }, classList: lop() });
-  const tabs = [tab("cai"), tab("files")], panes = [pane("cai"), pane("files")];
+  const tabs = [tab("cai"), tab("lichsu"), tab("files")];
+  const panes = [pane("cai"), pane("lichsu"), pane("files")];
   const el = {
     querySelector: (s) => nodes[s] || null,
     querySelectorAll: (s) => (s === "[data-rtab]" ? tabs : s === "[data-rpane]" ? panes : []),
@@ -134,6 +136,7 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   const ctx = {
     S: { loai: "agent", q: "", nhom: "", chon: { agent: "a" }, el: el, tienDo: {}, sessionCuaPhien: {}, tabPhai: "cai" },
     danhSach: () => ds, loc: W.loc, cacBuoc: () => [], dangChon: () => ds[0],
+    TAB_PHAI: ["cai", "lichsu", "files"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
@@ -198,10 +201,18 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   ctx.chonTabPhai("files");
   check("bam sang Thu muc thi muon cay Vault", goi[goi.length - 1] === "borrow" && ctx._into === nodes["#wsRightFiles"]);
   check("khung Thu muc bat, khung Cai dat tat",
-    panes[1].classList.co("on") && !panes[0].classList.co("on") && tabs[1].classList.co("active"));
+    panes[2].classList.co("on") && !panes[0].classList.co("on") && tabs[2].classList.co("active"));
   check("nho tab dang dung", kho["javis_ws_rtab"] === "files");
   ctx.chonTabPhai("cai");
   check("CANARY: quay ve tab Cai dat thi TRA cay Vault", goi[goi.length - 1] === "giveBack");
+  // Tab LỊCH SỬ (0.59.3): tab thứ ba, và nó cũng KHÔNG được giữ cây Vault.
+  ctx.chonTabPhai("lichsu");
+  check("co tab Lich su rieng, khong con nam duoi day khung Cai dat",
+    panes[1].classList.co("on") && !panes[0].classList.co("on") && tabs[1].classList.co("active"));
+  check("CANARY: sang tab Lich su cung TRA cay Vault", goi[goi.length - 1] === "giveBack");
+  check("nho tab Lich su", kho["javis_ws_rtab"] === "lichsu");
+  ctx.chonTabPhai("tab-la-hoac");
+  check("tab la thi lui ve Cai dat", ctx.S.tabPhai === "cai");
   ctx.chonTabPhai("files");
   ctx.roi();
   check("CANARY: roi trang cung TRA cay Vault", goi[goi.length - 1] === "giveBack");
@@ -250,6 +261,65 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
     /querySelector\("\.rs-spin"\)/.test(nhanh) && /rs-fail/.test(nhanh));
   const css = fs.readFileSync(path.join(root, "dashboard", "style.css"), "utf8");
   check("co kieu cho dau bao loi cua buoc", /\.rs-fail \{/.test(css));
+}
+
+// ============================================================
+// Bấm DỪNG thì vòng quay phải dừng theo (0.59.3)
+// ============================================================
+// Chuyện thật 15/09: bấm Dừng, khung chat hiện "Đã dừng lần chạy này theo yêu cầu", nhưng hàng
+// bên trái vẫn quay và cột phải vẫn ghi "Đang chạy - Bước 1/3". Lý do: lượt bị huỷ nên không
+// có sự kiện `done`/`error` nào, máy trạng thái đứng nguyên ở "dang" mãi mãi.
+{
+  const st = W.tienDoMoi(3);
+  W.apDung(st, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(st, { type: "stopped" });
+  check("stopped -> khong con la dang chay", st.trang_thai === "dung");
+  check("stopped -> buoc dang lam tra ve cho, KHONG bi danh dau hong",
+    st.buoc[0].trang_thai === "cho" && !st.buoc.some(b => b.trang_thai === "loi"));
+  const st2 = W.tienDoMoi(2);
+  W.apDung(st2, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(st2, { type: "step_error", i: 0, content: "chết" });
+  W.apDung(st2, { type: "stopped" });
+  check("CANARY: stopped KHONG xoa dau hong cua buoc da loi", st2.buoc[0].trang_thai === "loi");
+
+  const S = W.state();
+  S.loai = "workflow"; S.sessionCuaPhien = { s9: "viet-bai" };
+  S.tienDo = { s9: W.apDung(W.tienDoMoi(2), { type: "step_start", i: 0, agent: "A" }) };
+  check("CANARY: truoc khi dung thi hang van dang quay", W.dangChay("viet-bai") === true);
+  W.onTurnDone("s9");
+  check("luot dong ma tien do con ket 'dang' thi tu dong lai", W.dangChay("viet-bai") === false);
+  S.tienDo = {}; S.sessionCuaPhien = {}; S.loai = "agent";
+  check("nhan tien do co nhan rieng cho lan chay bi dung",
+    /ws\.stopped/.test(fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8")));
+}
+// Hai đầu dây của chuyện dừng: server phải BẮN sự kiện, app.js phải gọi onTurnDone (lưới an
+// toàn cho những kiểu chết không kịp bắn gì).
+{
+  const mainPy = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
+  check("server ban wf_event stopped khi luot bi huy",
+    /asyncio\.CancelledError[\s\S]{0,900}"event": \{"type": "stopped"\}/.test(mainPy));
+  check("app.js goi JavisWorkspace.onTurnDone o khung turn_done",
+    /data\.type === "turn_done"[\s\S]{0,900}JavisWorkspace\.onTurnDone\(sid\)/.test(app));
+}
+
+// ============================================================
+// Gọi cộng sự từ khung Trò chuyện thì kết quả phải quay VỀ khung đó (0.59.3)
+// ============================================================
+{
+  const mainPy = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
+  const render = fs.readFileSync(path.join(root, "dashboard", "chat-render.js"), "utf8");
+  check("app.js nho khung Tro chuyen da goi cong su",
+    /_gocCongSu\[savedSessionId\] = goc;/.test(app) && /origin_chat: _goc \}\)\)/.test(app));
+  check("chi bao MOT lan: gui xong thi quen khung goc di",
+    /delete _gocCongSu\[sid\];/.test(app));
+  check("server nhan origin_chat va truyen xuong hai duong chay",
+    /payload\.get\("origin_chat"\)/.test(mainPy) && /goc_chat=_goc/.test(mainPy));
+  check("server day ket qua nguoc ve khung goc (ca khi hong)",
+    (mainPy.match(/_bao_ve_khung_goc\(/g) || []).length >= 4);
+  check("link #cs= duoc ve thanh nut bam duoc trong chat", /class="jv-cs"/.test(render));
+  check("bam link #cs= mo dung cong su", /window\.JavisOpenCongSu\(cs\.getAttribute\("data-cs"\)\)/.test(render));
+  check("console.js co JavisOpenCongSu + deep-link #cs=",
+    /window\.JavisOpenCongSu = moCongSu/.test(con) && /\/\^#cs=\(\.\+\)\$\//.test(con));
 }
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
