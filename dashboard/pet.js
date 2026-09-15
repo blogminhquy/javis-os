@@ -105,15 +105,22 @@
   // Nét vẽ và màu của vành do CSS lo theo data-state (xem .pet-ring trong style.css), ở đây
   // chỉ còn nhịp xoay + hình dải. Trước 0.59.4 các trạng thái đang làm để 0,6-0,95 nên cộng
   // với nét mảnh màu nhạt là nhìn không ra pet có đang chạy hay không.
+  //
+  // HÌNH DẢI: ÍT VỆT, VỆT DÀI. Đơn vị tính trên pathLength 360, nên "44 46" là chu kỳ 90, tức
+  // đúng 4 vệt chạy quanh người. Bản trước để "4 11" (24 vệt) và "8 14" (16 vệt): ở cỡ lớn nó
+  // thành một vòng chấm lấm tấm chạy vòng vòng, chủ dự án nhìn bản thật rồi bảo rối mắt. Vài
+  // vệt dài trông như một quỹ đạo thật; hai chục chấm trông như đèn trang trí.
+  // Đổi số ở đây thì nhớ: tổng một chu kỳ nên chia hết 360, không thì chỗ khép vòng có một vệt
+  // cụt dài ngắn khác hẳn các vệt còn lại.
   var STATES = {
-    idle:         { eye: "neutral",    ring: 7,   dash: "300 40",  mo: 0.45 },
-    listening:    { eye: "curious",    ring: 26,  dash: "4 11",    mo: 1 },
-    waiting:      { eye: "curious",    ring: 12,  dash: "8 14",    mo: 1 },
-    thinking:     { eye: "thinking",   ring: 108, dash: "90 150",  mo: 1 },
-    speaking:     { eye: "happy",      ring: 18,  dash: "30 15",   mo: 1 },
-    paused:       { eye: "sleepy",     ring: 4,   dash: "300 40",  mo: 0.35 },
-    reconnecting: { eye: "suspicious", ring: 40,  dash: "6 22",    mo: 1 },
-    error:        { eye: "sad",        ring: 0,   dash: "300 40",  mo: 1 },
+    idle:         { eye: "neutral",    ring: 7,   dash: "286 74",  mo: 0.45 },   // 1 vệt dài, hở một quãng
+    listening:    { eye: "curious",    ring: 26,  dash: "44 46",   mo: 1 },      // 4 vệt
+    waiting:      { eye: "curious",    ring: 12,  dash: "30 60",   mo: 1 },      // 4 vệt, thưa hơn
+    thinking:     { eye: "thinking",   ring: 108, dash: "100 80",  mo: 1 },      // 2 vệt dài, quay nhanh
+    speaking:     { eye: "happy",      ring: 18,  dash: "56 34",   mo: 1 },      // 4 vệt, dày dặn
+    paused:       { eye: "sleepy",     ring: 4,   dash: "286 74",  mo: 0.35 },
+    reconnecting: { eye: "suspicious", ring: 40,  dash: "24 36",   mo: 1 },      // 6 vệt ngắn: bồn chồn
+    error:        { eye: "sad",        ring: 0,   dash: "286 74",  mo: 1 },
   };
 
   var el = null, svg = null, nutBody = null, menu = null;
@@ -598,13 +605,13 @@
     // Vành dùng CHUNG path với thân rồi phóng 1,1 lần quanh tâm, y hệt con pet sống (xem
     // .pet-ring trong style.css). Khai một hình, hai chỗ không bao giờ lệch dáng nhau.
     var vanh = o.vanh
-      ? '<path d="' + d + '" fill="none" stroke="' + tone[1] + '" stroke-width="7" ' +
-        'stroke-linecap="round" transform="translate(160 160) scale(1.1) translate(-160 -160)"/>'
+      ? '<path d="' + d + '" fill="none" stroke="' + tone[1] + '" stroke-width="5" ' +
+        'stroke-linecap="round" transform="translate(160 160) scale(1.14) translate(-160 -160)"/>'
       : "";
-    // Khung NỚI RA khi có vành, giữ nguyên khi không: hình tam giác phóng 1,1 lần cộng nửa
-    // nét vẽ chạm tới 269, tràn khỏi khung cũ (58..262). Nới cho mọi chân dung thì avatar trợ
-    // lý và dấu ấn đang dùng tự nhiên bé lại 6%, đổi diện mạo một chỗ không ai yêu cầu.
-    return '<svg viewBox="' + (o.vanh ? "48 48 224 224" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
+    // Khung NỚI RA khi có vành, giữ nguyên khi không: hình tam giác phóng 1,14 lần cộng nửa
+    // nét vẽ chạm tới 274, tràn khỏi khung cũ (58..262). Nới cho mọi chân dung thì avatar trợ
+    // lý và dấu ấn đang dùng tự nhiên bé lại, đổi diện mạo một chỗ không ai yêu cầu.
+    return '<svg viewBox="' + (o.vanh ? "42 42 236 236" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
       '<path d="' + d + '" fill="' + tone[0] + '"/>' +
       '<ellipse cx="' + (ex - 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/>' +
       '<ellipse cx="' + (ex + 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/></svg>';

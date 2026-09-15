@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.7] - 2026-09-15
+### Cải thiện
+- **Vòng quanh linh vật mảnh và gọn hơn hẳn.** Thay vì hai chục chấm nhỏ chạy vòng vòng, giờ chỉ còn vài vệt dài, nét mảnh, tách khỏi người một chút. Đang làm việc vẫn thấy rõ vì vệt đổi sang màu chính và sáng lên, chứ không phải vì nó dày.
+
 ## [0.59.6] - 2026-09-15
 ### Thêm mới
 - **Chọn được màu mắt cho linh vật: đen hoặc trắng**, mặc định đen. Trước đây màu mắt tự đổi theo màu thân, không ai chọn được.

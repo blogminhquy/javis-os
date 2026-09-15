@@ -2899,25 +2899,32 @@ body.ne-full-on .cview { z-index: 250; }
 /* Vành quỹ đạo: MỘT path có dash xoay. Chỉ thấy rõ khi Javis đang làm việc thật
    (thinking / speaking), lúc nghỉ thì mờ gần hết đúng như chủ dự án chốt. */
 .pet-ring {
-  fill: none; stroke: var(--pet-ring, #f7c98f); stroke-width: 7; stroke-linecap: round;
+  /* NÉT MẢNH. Bản 0.59.4 để 7 (và 13 lúc đang làm việc) cho dễ thấy, nhưng chủ dự án nhìn bản
+     thật rồi chốt 15/09: dày quá, hoá ra một vòng chấm to chạy quanh người. Sức nặng của trạng
+     thái nay dồn vào MÀU (tông chính, đục hẳn) chứ không vào bề dày - mảnh mà đậm màu thì vừa
+     thấy rõ vừa còn tinh tế. */
+  fill: none; stroke: var(--pet-ring, #f7c98f); stroke-width: 5; stroke-linecap: round;
   /* CHỈ chuyển mượt độ mờ. Đừng thêm stroke / stroke-width vào đây: vòng vẽ của pet ghi
      `strokeDashoffset` lên chính thẻ này MỖI KHUNG HÌNH, và chuyển cảnh bị khởi động lại
      theo từng lần ghi - đo thật: sau 800ms nét mới bò tới 12,087px trên đường về 13px, nên
      đổi trạng thái xong nhìn vẫn như chưa đổi. Đổi tức thì cũng đúng ý hơn: người dùng cần
      thấy NGAY là Javis vừa bắt đầu làm việc. */
   transition: opacity .3s ease;
-  /* Phóng to hơn thân một chút để vòng CHẠY BÊN NGOÀI chứ không nằm đè lên mép thân:
-     dùng chung path với thân nên không phóng thì nét vẽ bị thân nuốt mất một nửa. */
-  transform: scale(1.1); transform-origin: 160px 160px;
+  /* Phóng to hơn thân để vòng CHẠY BÊN NGOÀI chứ không nằm đè lên mép thân: dùng chung path
+     với thân nên không phóng thì nét vẽ bị thân nuốt mất một nửa. 1,14 chứ không phải 1,1 -
+     chủ dự án muốn vành TÁCH khỏi thân một chút, nhìn ra hai lớp chứ không phải một cái viền
+     dính vào người. */
+  transform: scale(1.14); transform-origin: 160px 160px;
 }
 /* ĐANG LÀM VIỆC thì vành phải ĐẬP VÀO MẮT. Lúc nghỉ nó cố ý mảnh và nhạt (tông phụ của bảng
    màu), nhưng bản đầu giữ nguyên nét ấy cho mọi trạng thái, nên pet chuyển từ "rảnh" sang
    "đang nghĩ" mà nhìn gần như không khác gì - đúng điều chủ dự án báo 15/09: nhỏ và mờ quá,
    đổi trạng thái không thấy. Nay mọi trạng thái KHÁC nghỉ đổi sang MÀU CHÍNH của bảng màu
-   (cùng màu thân, nên vẫn là một nhân dạng) và dày gần gấp đôi, thêm một quầng sáng nhẹ.
+   (cùng màu thân, nên vẫn là một nhân dạng), dày thêm một chút và có quầng sáng nhẹ - đủ thấy
+   ngay, chưa tới mức thành một cái vòng thô quanh người.
    `paused` nằm cùng phía "nghỉ": nó là lúc pet đang ngủ, không phải lúc đang làm. */
 .pet[data-state]:not([data-state="idle"]):not([data-state="paused"]) .pet-ring {
-  stroke: var(--pet-face, #f28c28); stroke-width: 13;
+  stroke: var(--pet-face, #f28c28); stroke-width: 8;
   filter: drop-shadow(0 0 5px var(--pet-face, #f28c28));
 }
 .pet-rig { transform-origin: 160px 160px; }

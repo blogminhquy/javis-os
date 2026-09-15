@@ -243,7 +243,13 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   const luat = css.slice(css.indexOf('.pet[data-state]:not([data-state="idle"])'));
   const than = luat.slice(0, luat.indexOf("}"));
   check("css: trạng thái khác nghỉ thì vành đổi sang MÀU CHÍNH", /stroke: var\(--pet-face/.test(than));
-  check("css: và dày hơn hẳn nét lúc nghỉ (7)", /stroke-width: 1[0-9]/.test(than));
+  // Dày HƠN lúc nghỉ nhưng vẫn phải MẢNH. Bản 0.59.4 để 13 cho dễ thấy, chủ dự án nhìn bản
+  // thật rồi chốt: dày quá, thành một vòng chấm to chạy quanh người. Sức nặng dồn vào MÀU.
+  const netNghi = +(/\.pet-ring \{[\s\S]{0,800}?stroke-width: (\d+)/.exec(css) || [])[1];
+  const netChay = +(/stroke-width: (\d+)/.exec(than) || [])[1];
+  check("css: nét lúc nghỉ mảnh (<= 6)", netNghi > 0 && netNghi <= 6);
+  check("css: đang làm việc thì dày hơn nhưng vẫn mảnh (<= 9)", netChay > netNghi && netChay <= 9);
+  check("css: vành TÁCH khỏi thân một chút (phóng > 1,1)", /transform: scale\(1\.1[2-9]\)/.test(css));
   check("css: loại trừ cả 'paused' - đó là lúc pet đang ngủ, không phải đang làm",
     /:not\(\[data-state="paused"\]\)/.test(luat.slice(0, luat.indexOf("{"))));
   // Độ mờ đi kèm: nét đậm mà opacity 0,6 thì vẫn là một vệt mờ.
@@ -253,6 +259,13 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
     mo.filter(([k]) => k !== "idle" && k !== "paused").every(([, v]) => v === 1));
   check("trạng thái nghỉ vẫn nhạt, để còn thấy sự khác biệt",
     mo.filter(([k]) => k === "idle" || k === "paused").every(([, v]) => v < 0.5));
+  // ÍT VỆT, VỆT DÀI. "4 11" trên pathLength 360 là 24 vệt - ở cỡ lớn thành một vòng chấm lấm
+  // tấm chạy vòng vòng, chủ dự án nhìn bản thật rồi bảo rối mắt (15/09). Trần 8 vệt.
+  const dash = [...st.matchAll(/dash: "(\d+) (\d+)"/g)].map(m => [+m[1], +m[2]]);
+  check("đọc được hình dải của mọi trạng thái (" + dash.length + ")", dash.length === mo.length);
+  check("không hình dải nào vượt 8 vệt quanh người", dash.every(([a, b]) => 360 / (a + b) <= 8));
+  check("vệt nào cũng đủ dài để ra một quỹ đạo, không phải một cái chấm",
+    dash.every(([a]) => a >= 20));
 }
 
 // ---- 10b. Menu nhanh: đúng 5 mục, đúng thứ tự chủ dự án chốt (0.59.3, sửa 0.59.5) ----
