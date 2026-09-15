@@ -79,6 +79,16 @@ check("html + htm đều tính là sửa được", /html\?/.test(CR) || /\bhtml
 // ============================================================
 check("vẫn giữ nhánh tải file cho ảnh/video/pdf/nén", /DOWNLOAD_EXT_RE\s*=/.test(CR));
 check("CANARY: .html KHÔNG bị xếp vào nhóm tải về", !/DOWNLOAD_EXT_RE = [^\n]*\bhtml\b/.test(CR));
+// 0.59.2: ảnh đi tới openVaultPath (wikilink [[hinh.png]], deep-link #open=) trước đây rơi
+// xuống openFilesAt, tức là ĐỔI TRANG sang Tệp tin. Ở trang Cộng sự cú bấm đó ném người dùng
+// ra khỏi cuộc trò chuyện đang mở với trợ lý, chỉ để xem một tấm ảnh. Nay mở lightbox tại chỗ.
+check("ảnh mở lightbox tại chỗ chứ không đổi trang",
+      /VT_IMG_EXTS\.includes\(duoi\) && window\.JavisLightbox/.test(than)
+      && /window\.JavisLightbox\.open\(_vtRaw\(clean\), base\)/.test(than));
+check("CANARY: nhánh ảnh đứng TRƯỚC đường lui về trang Tệp tin",
+      than.lastIndexOf("JavisLightbox") < than.lastIndexOf("openFilesAt"));
+check("lightbox là bản CÓ SẴN của chat-render, không dựng khung xem thứ hai",
+      /window\.JavisLightbox = \{ open: moLightbox/.test(CR));
 
 console.log();
 if (fails.length) { console.log(fails.length + " test HỎNG: " + fails.join(", ")); process.exit(1); }

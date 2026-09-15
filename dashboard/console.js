@@ -320,6 +320,14 @@
       }
       if (typeof window.JavisEditFile === "function") { window.JavisEditFile(clean); return; }
     }
+    // ẢNH: mở LIGHTBOX ngay tại chỗ. Trước 0.59.2 ảnh rơi xuống openFilesAt, tức là ĐỔI TRANG
+    // sang Tệp tin - ở trang Cộng sự thì cú bấm đó ném người dùng ra khỏi cuộc trò chuyện đang
+    // mở với trợ lý, chỉ để xem một tấm ảnh. Lightbox đã có sẵn nút Tải về và Mở tab mới nên
+    // không mất đường nào cả. (Ảnh chèn thẳng trong chat đã đi lightbox từ trước, chat-render.js
+    // bắt ở pha capture; nhánh này lo LINK trỏ tới ảnh và deep-link #open=.)
+    if (!laThuMuc && VT_IMG_EXTS.includes(duoi) && window.JavisLightbox) {
+      window.JavisLightbox.open(_vtRaw(clean), base); return;
+    }
     openFilesAt(fullPath);
   }
   if (typeof window !== "undefined") window.JavisOpenVaultPath = openVaultPath;
@@ -6489,7 +6497,11 @@
   let _neSlot = null;
   function _borrowNoteEditor(into) {
     const ed = document.getElementById("noteEditor");
-    into = into || document.getElementById("chatPageEdit");
+    // Bỏ trống `into` = tự tìm khung của trang ĐANG mở. Có HAI trang mượn khung chat và cùng
+    // mang lớp body.on-chat: Trò chuyện (#chatPageEdit) và Cộng sự (#wsEdit). Trước 0.59.2 chỗ
+    // này tra cứng #chatPageEdit, nên ở trang Cộng sự `into` là null và cú bấm vào một file .md
+    // trong chat LẶNG LẼ không làm gì - không lỗi, không toast, chỉ là không có gì mở ra.
+    into = into || document.getElementById("chatPageEdit") || document.getElementById("wsEdit");
     if (!ed || !into) return false;
     if (!_neSlot) _neSlot = { node: ed, parent: ed.parentNode, next: ed.nextSibling };
     into.appendChild(ed);
