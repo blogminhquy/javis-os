@@ -2885,14 +2885,14 @@ body.ne-full-on .cview { z-index: 250; }
    .modal-overlay (400) và mọi hộp thoại cao hơn. Pet không bao giờ được che một câu
    hỏi đang chờ người dùng trả lời, kể cả màn đăng nhập. */
 .pet {
-  position: fixed; z-index: 390; width: 56px; height: 56px;
+  position: fixed; z-index: 390; width: var(--pet-size, 72px); height: var(--pet-size, 72px);
   transform: translateY(-50%); pointer-events: none;
 }
 /* [hidden] của trình duyệt là display:none, nhưng luật display:flex của .pet-menu bên dưới
    THẮNG nó. Thiếu dòng này thì menu nhanh hiện thường trực ngay từ lúc mở trang. */
 .pet[hidden], .pet-menu[hidden] { display: none; }
 .pet-body {
-  flex: none; width: 56px; height: 56px; padding: 0; border: 0; background: none;
+  flex: none; width: 100%; height: 100%; padding: 0; border: 0; background: none;
   cursor: grab; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent;
   transition: transform .34s cubic-bezier(.2,.8,.2,1), filter .34s ease;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .28));
@@ -2970,9 +2970,11 @@ body.ne-full-on .cview { z-index: 250; }
 .pet-swatch i { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(128, 128, 128, .28); }
 .pet-swatch[aria-pressed="true"] { border-color: var(--accent); }
 
-/* Màn hẹp: pet nhỏ lại và lùi lên khỏi vùng ngón cái (thanh nhập chat nằm dưới cùng). */
+/* Màn hẹp KHÔNG thu nhỏ pet nữa: ngón tay to hơn con trỏ chuột, và trên điện thoại một
+   chấm bé còn khó thấy hơn trên màn rộng. Cỡ do người dùng chọn (trang Linh vật), chỉ giới
+   hạn theo bề ngang màn để nó không chiếm nửa màn hình trên máy nhỏ. */
 @media (max-width: 700px) {
-  .pet, .pet-body { width: 46px; height: 46px; }
+  .pet { width: min(var(--pet-size, 72px), 24vw); height: min(var(--pet-size, 72px), 24vw); }
   .pet-menu button { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2985,3 +2987,10 @@ body.ne-full-on .cview { z-index: 250; }
 .brand-pet { filter: none !important; }
 .brand-pet svg { display: block; width: 30px; height: 30px; overflow: visible; }
 .brand .brand-pet svg { width: 22px; height: 22px; }
+
+/* Ô chọn CỠ: một chấm tròn đúng tỉ lệ cỡ thật, để so bằng mắt thay vì đoán theo chữ. */
+.pet-pick-size { justify-content: flex-end; min-height: 74px; }
+.pet-pick-size i {
+  display: block; border-radius: 50%; background: var(--pet-face, var(--accent));
+  margin-bottom: 4px; flex: none;
+}

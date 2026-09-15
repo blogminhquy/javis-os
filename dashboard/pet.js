@@ -47,7 +47,18 @@
     cocoa:    { key: "pet.color.cocoa",    sun: ["#79604F", "#BFA38A", "#E8DFD5"], moon: ["#B9A38A", "#E3CDB0", "#2B2620"] },
   };
 
-  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62 };
+  // Cỡ pet. Số là bề ngang tính bằng px trên MÀN RỘNG; màn hẹp nhân thêm hệ số ở dưới.
+  // Mặc định "vua" chứ không phải "nho": bản đầu để 56px và trên điện thoại còn co xuống 46px,
+  // chủ dự án báo nhìn bé quá, nhất là trên iPhone.
+  var SIZES = {
+    nho:  { key: "pet.size.nho",  px: 52 },
+    vua:  { key: "pet.size.vua",  px: 72 },
+    lon:  { key: "pet.size.lon",  px: 96 },
+    rat_lon: { key: "pet.size.rat_lon", px: 124 },
+  };
+  // Màn hẹp KHÔNG thu nhỏ nữa. Ngược lại: ngón tay to hơn con trỏ chuột, và màn hình bé thì
+  // một chấm 52px còn khó thấy hơn trên màn rộng. Giữ nguyên cỡ đã chọn.
+  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: "vua" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
@@ -152,6 +163,7 @@
     if (!SHAPES[c.shape]) c.shape = MAC_DINH.shape;
     if (!PALETTES[c.palette]) c.palette = MAC_DINH.palette;
     if (c.side !== "left" && c.side !== "right") c.side = MAC_DINH.side;
+    if (!SIZES[c.size]) c.size = MAC_DINH.size;
     c.pos = kep(Number(c.pos) || MAC_DINH.pos, 0.05, 0.95);
     c.enabled = c.enabled !== false;
     return c;
@@ -217,6 +229,9 @@
     el.style.setProperty("--pet-ring", tone[1]);
     el.style.setProperty("--pet-eye", mauMat(tone[0]));
     el.dataset.side = cfg.side;
+    // Cỡ đi bằng BIẾN CSS chứ không phải style.width trực tiếp: menu, viền focus và luật màn
+    // hẹp đều ăn theo cùng một con số, khai một chỗ thì không có chỗ nào lệch.
+    el.style.setProperty("--pet-size", SIZES[cfg.size].px + "px");
     veMat(dangChop ? "blink" : mood);   // đổi mép thì hai mắt dồn sang phía kia
     el.style.top = (cfg.pos * 100).toFixed(2) + "%";
     el.style.left = cfg.side === "left" ? "0px" : "";
@@ -523,6 +538,7 @@
     setEnabled: setEnabled,
     get: function () { return Object.assign({}, cfg); },
     shapes: function () { return SHAPES; },
+    sizes: function () { return SIZES; },
     palettes: function () { return PALETTES; },
     toneOf: function (ten) { return PALETTES[ten] ? PALETTES[ten][sang() ? "sun" : "moon"] : null; },
     // Cho trang Cài đặt hoà cấu hình từ máy chủ vào (localStorage chỉ là bản nhớ tạm cho

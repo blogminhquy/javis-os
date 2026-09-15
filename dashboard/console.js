@@ -5944,7 +5944,7 @@
     if (tuMayChu) P.hydrate(tuMayChu);
     const ve = () => {
       const cur = P.get();
-      const shapes = P.shapes(), palettes = P.palettes();
+      const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes();
       host.innerHTML = `<div class="settings-card">
         <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
         <p>${esc(t("settings.pet_desc"))}</p>
@@ -5958,6 +5958,9 @@
         <div class="settings-card-head"><b>${esc(t("settings.pet_shape"))}</b></div>
         <div class="pet-picker" role="group">${Object.entries(shapes).map(([k, sh]) =>
           `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette)}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
+        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_size"))}</b><span class="gcard-tag">${esc(t(sizes[cur.size].key))}</span></div>
+        <div class="pet-picker" role="group">${Object.entries(sizes).map(([k, sz]) =>
+          `<button type="button" class="pet-pick pet-pick-size" data-pet-size="${esc(k)}" aria-pressed="${k === cur.size}"><i style="width:${Math.round(sz.px / 3)}px;height:${Math.round(sz.px / 3)}px"></i><span>${esc(t(sz.key))}</span></button>`).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_color"))}</b><span class="gcard-tag">${esc(t(palettes[cur.palette].key))}</span></div>
         <div class="pet-picker" role="group">${Object.keys(palettes).map(k => {
           const tone = P.toneOf(k) || ["#888"];
@@ -5965,8 +5968,9 @@
         }).join("")}</div>
       </div>`;
       host.querySelector("#setPetToggle").onclick = () => { P.setEnabled(!cur.enabled); ve(); };
-      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", side: "right", pos: 0.62, enabled: true }); ve(); };
+      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", size: "vua", side: "right", pos: 0.62, enabled: true }); ve(); };
       host.querySelectorAll("[data-pet-shape]").forEach(b => b.onclick = () => { P.setCfg({ shape: b.dataset.petShape }); ve(); });
+      host.querySelectorAll("[data-pet-size]").forEach(b => b.onclick = () => { P.setCfg({ size: b.dataset.petSize }); ve(); });
       host.querySelectorAll("[data-pet-palette]").forEach(b => b.onclick = () => { P.setCfg({ palette: b.dataset.petPalette }); ve(); });
     };
     ve();

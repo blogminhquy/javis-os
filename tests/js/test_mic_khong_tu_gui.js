@@ -74,9 +74,13 @@ check("onTranscript vẫn gửi thẳng, không qua bước xác nhận",
 // Chỗ thứ 6 (0.57.17) cùng kiểu HOÃN chứ không phải đường mới: người dùng nói chen ngang lúc
 // Javis đang trả lời thì phải dừng lượt cũ trước, mà server chỉ nhận tin mới khi job cũ đã
 // dừng hẳn, nên câu ấy được gửi lại khi `turn_done` về (guiTinCho).
+// Chỗ thứ 7 (0.58.2) VẪN là hoãn: mất WebSocket thì câu được giữ lại rồi gửi khi nối lại
+// (guiTinDutMang). Trước đó chỗ này vứt tin lặng lẽ - trên iPhone là câu nói bốc hơi.
 const goiGui = (app.match(/(?<!function )\bsendMessage\(/g) || []).length;
-check("chỉ có 6 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ)",
-  goiGui === 6, goiGui);
+check("chỉ có 7 chỗ gọi sendMessage (giọng nói, thử lại, Enter, nút gửi, sau khi tải file xong, sau khi dừng lượt cũ, sau khi nối lại mạng)",
+  goiGui === 7, goiGui);
+check("chỗ thứ 7 là hàng đợi mất mạng, chỉ gửi sau khi socket nối lại",
+  /function guiTinDutMang\(\)[\s\S]{0,400}setTimeout\(\(\) => sendMessage\(t\)/.test(app));
 check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
   /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text\);/.test(app));
 check("chỗ thứ 6 là tin hoãn, chỉ gửi sau khi lượt cũ đã dừng",

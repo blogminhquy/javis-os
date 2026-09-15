@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.2] - 2026-09-15
+### Sửa lỗi
+- **Câu bạn vừa nói không còn bốc hơi khi mạng chớp.** Trên iPhone, đổi khung chat là Safari hay đóng kết nối tới máy chủ một nhịp; trước đây tin gửi đúng lúc đó bị bỏ đi lặng lẽ, chữ nhận đúng mà không có gì vào khung chat và không có lời giải thích nào. Nay câu ấy được giữ lại, gửi ngay khi nối lại được, và nếu mãi không nối được thì trả về ô nhập để bạn bấm gửi lại.
+- **Mất kết nối giờ được báo ngay trong khung chat.** Trước đây chỉ có dòng chữ trên quả cầu não, mà quả cầu thì bị ẩn hẳn khi bạn đang ở trang Trò chuyện, nên đúng chỗ đang gõ lại không có dấu hiệu gì.
+### Cải thiện
+- **Linh vật chọn được kích cỡ** (Nhỏ, Vừa, Lớn, Rất lớn) trong trang Linh vật, và cỡ mặc định to hơn trước. Điện thoại thôi tự thu nhỏ nó: ngón tay to hơn con trỏ chuột, màn bé mà con pet cũng bé thì vừa khó thấy vừa khó bấm.
+
 ## [0.58.1] - 2026-09-15
 ### Thêm mới
 - **Chỗ logo trên thanh bên mang luôn khuôn mặt linh vật** khi bạn bật nó, và đổi theo đúng hình dáng với màu bạn chọn. Tắt linh vật, hoặc đã tải logo riêng lên, thì chỗ đó trả về logo cũ: logo của bạn thì bạn quyết.
