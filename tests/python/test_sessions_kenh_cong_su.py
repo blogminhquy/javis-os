@@ -43,6 +43,12 @@ check("loc dung kenh agent", [s["id"] for s in st.list_sessions(brain="/b", chan
 check("loc dung kenh workflow", [s["id"] for s in st.list_sessions(brain="/b", channel="workflow:viet-bai")] == [c])
 moc = st.moc_cap_nhat_theo_kenh(["/b"], "agent:")
 check("moc_cap_nhat_theo_kenh", set(moc) == {"agent:nguoi-viet"} and moc["agent:nguoi-viet"] > 0)
+check("channel=* tra ve moi kenh", {s["id"] for s in st.list_sessions(brain="/b", channel="*")} == {a, b, c, d})
+
+# Canary nguồn: learn.py phải gọi list_sessions với channel="*" ở fallback "phiên mới nhất
+# của brain" - hội thoại cộng sự cũng là hội thoại của chủ, vòng tự học không được bỏ sót.
+_learn_src = (ROOT / "server" / "learn.py").read_text(encoding="utf-8")
+check("learn.py fallback dung channel=\"*\"", 'channel="*"' in _learn_src)
 
 # Route: POST /sessions/new
 import main  # noqa: E402

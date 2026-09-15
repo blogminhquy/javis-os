@@ -577,9 +577,10 @@ class SessionStore:
         `brain`: một chuỗi, hoặc DANH SÁCH các cách viết cùng trỏ về một brain (xem
         `loc_brain`).
 
-        `channel`: có giá trị thì CHỈ lấy đúng kênh đó (trang Cộng sự mở một trợ lý/quy
-        trình). Bỏ trống (mặc định) thì loại các kênh cộng sự (`KENH_CONG_SU`) khỏi thanh
-        lịch sử của trang Trò chuyện, vì chúng đã có chỗ riêng.
+        `channel`: None (mặc định) = danh sách cho thanh lịch sử trang Trò chuyện, loại các
+        kênh cộng sự (`KENH_CONG_SU`) vì chúng đã có chỗ riêng ở trang Cộng sự; "*" = MỌI
+        kênh, không lọc gì cả (chỗ nào coi hội thoại cộng sự cũng là hội thoại của chủ thì
+        dùng giá trị này, ví dụ vòng tự học); còn lại = CHỈ đúng kênh đó.
         """
         where = []
         params: list = []
@@ -594,7 +595,9 @@ class SessionStore:
         elif project:
             where.append("s.project_id = ?")
             params.append(project)
-        if channel:
+        if channel == "*":
+            pass  # mọi kênh, không lọc gì thêm
+        elif channel:
             where.append("s.channel = ?")
             params.append(channel)
         else:
