@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.5] - 2026-09-15
+### Sửa lỗi
+- **"Cuộn xuống dưới" giờ cuộn đúng thứ bạn đang xem.** Trước đây lệnh này luôn kéo khung chat, nên đứng ở trang Tự học hay Việc định kỳ mà bảo cuộn thì danh sách đứng im còn khung chat bên cạnh nhảy. Nay Javis cuộn trang nội dung đang mở, chỉ quay về khung chat khi bạn đang ở màn hình chính.
+- Muốn chỉ rõ thì nói thẳng: "cuộn trang này xuống" hay "cuộn khung chat lên đầu". Javis cũng nói lại đúng cái nó vừa cuộn, thay vì luôn miệng bảo "đã cuộn khung chat".
+- Trang Terminal và trình sửa file cuộn ở khung bên trong nên trước đây lệnh cuộn không ăn gì cả; nay Javis tìm đúng khung đó. Trang không có gì để cuộn thì Javis nói thật chứ không im lặng.
+
 ## [0.58.4] - 2026-09-15
 ### Sửa lỗi
 - **iPhone: câu bạn nói không còn hiện chữ cam rồi biến mất.** Safari trên iPhone hay giao chữ nghe được ở dạng tạm mà không bao giờ chốt, nhất là sau khi nói chuyện một hồi lâu; trước đây tới lúc hết câu Javis chỉ lấy phần đã chốt nên câu ấy rỗng và không vào khung chat. Nay phần chữ tạm được gửi đi đúng như bạn thấy trên màn hình.

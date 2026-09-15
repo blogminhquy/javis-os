@@ -106,6 +106,17 @@ async def main():
     check("open_file nhận tương đối", m.check_target("open_file", "Wiki/a.md") == "")
     check("scroll chỉ top/bottom", bool(m.check_target("scroll", "left")) and m.check_target("scroll", "xuống") == "")
     check("normalize scroll 'xuống' -> bottom", m.normalize_target("scroll", "xuống") == "bottom")
+    # BUG-001: "cuộn xuống" phải cuộn thứ người dùng đang nhìn, nên target mang theo phạm vi.
+    check("scroll: 'cuộn trang này xuống' -> page_bottom",
+          m.normalize_target("scroll", "cuộn trang này xuống") == "page_bottom")
+    check("scroll: 'cuộn khung chat lên' -> chat_top",
+          m.normalize_target("scroll", "cuộn khung chat lên") == "chat_top")
+    check("scroll: 'cuộn màn hình xuống dưới' -> page_bottom",
+          m.resolve_scroll("cuộn màn hình xuống dưới") == "page_bottom")
+    check("scroll: nói trống không thì để dashboard tự chọn",
+          m.resolve_scroll("cuộn xuống dưới") == "bottom")
+    check("scroll: dạng chuẩn đi qua nguyên vẹn",
+          all(m.resolve_scroll(x) == x for x in m.SCROLL_TARGETS))
     check("action lạ bị chặn", bool(m.check_target("nuke", "x")))
 
     # handler: target lạ -> ERROR mà KHÔNG chạm cầu nối (không client vẫn trả lỗi trang)
@@ -123,6 +134,20 @@ async def main():
     rt2.add_client("x", w)
     out = await m._ui({"action": "open_page", "target": "việc", "session_id": "web:s1"}, None)
     check("handler: thành công nói 'Đã mở trang kanban'", out.startswith("Đã mở trang kanban"))
+
+    # Câu thuật lại phải lấy từ thứ dashboard THẬT SỰ cuộn, không đoán "khung chat" như trước:
+    # model đọc câu này rồi nói lại cho người dùng, đoán sai là nói sai.
+    rt3 = ChatRuntime()
+    ui_bridge.attach(rt3)
+
+    async def w3(ev):
+        if ev.get("type") == "ui_action":
+            ui_bridge.resolve(ev["id"], True, "nội dung trang")
+
+    rt3.add_client("y", w3)
+    out = await m._ui({"action": "scroll", "target": "cuộn trang này xuống"}, None)
+    check("handler scroll: thuật đúng thứ dashboard vừa cuộn",
+          out == "Đã cuộn nội dung trang xuống cuối.")
 
     # 7) /ws có nhánh ui_result
     main_src = (SERVER / "main.py").read_text(encoding="utf-8")
