@@ -76,7 +76,12 @@
   // kia, chứ không phải chỉ nhúc nhích quanh dáng liếc.
   var LIEC_X = 16, LIEC_Y = -12;      // dáng chân dung (ảnh tĩnh, không có con trỏ)
   var TAM_X = 24, TAM_Y = 18;
-  var NGHI_X = LIEC_X / TAM_X, NGHI_Y = LIEC_Y / TAM_Y;
+  var NGHI_Y = LIEC_Y / TAM_Y;
+  // Hướng liếc lúc nghỉ đi theo MÉP đang nép: nép mép phải thì liếc sang TRÁI, nép mép trái
+  // thì liếc sang PHẢI, tức luôn nhìn VÀO TRONG màn hình. Trước 0.59.11 chỗ này là một hằng số
+  // luôn dương, nên con pet nép ở mép phải lại nhìn trổ ra ngoài viền màn hình, trông như đang
+  // quay lưng lại với trang đang đọc.
+  function nghiX() { return (cfg.side === "left" ? LIEC_X : -LIEC_X) / TAM_X; }
 
   // ---- Biểu cảm: TOÀN BỘ cảm xúc nằm ở đôi mắt, không có miệng ----
   // Chủ dự án chốt: mắt to nhỏ đổi cỡ là đủ diễn, đừng thêm chi tiết.
@@ -303,6 +308,7 @@
     // hẹp đều ăn theo cùng một con số, khai một chỗ thì không có chỗ nào lệch.
     el.style.setProperty("--pet-size", SIZES[cfg.size].px + "px");
     veMat(dangChop ? "blink" : mood);   // đổi mép thì hai mắt dồn sang phía kia
+    liecLuc = 0;                        // và chọn lại hướng liếc ngay, xem nghiX()
     el.style.top = (cfg.pos * 100).toFixed(2) + "%";
     el.style.left = cfg.side === "left" ? "0px" : "";
     el.style.right = cfg.side === "right" ? "0px" : "";
@@ -371,7 +377,7 @@
       if (now > liecLuc) {
         // Biên đảo mắt phải NHỎ so với dáng liếc, không thì có lúc nó gần như nhìn thẳng và
         // dáng liếc thôi không còn là chữ ký nữa, chỉ còn là một trong các hướng ngẫu nhiên.
-        liecDichX = kep(NGHI_X + (Math.random() * 2 - 1) * 0.17, -1, 1);
+        liecDichX = kep(nghiX() + (Math.random() * 2 - 1) * 0.17, -1, 1);
         liecDichY = kep(NGHI_Y + (Math.random() * 2 - 1) * 0.13, -1, 1);
         liecLuc = now + 3600 + Math.random() * 3200;
       }
@@ -489,7 +495,9 @@
       cfg.pos = y;
       cfg.side = e.clientX < window.innerWidth / 2 ? "left" : "right";
       el.style.top = (y * 100).toFixed(2) + "%";
-      if (el.dataset.side !== cfg.side) { el.dataset.side = cfg.side; veMat(mood); }
+      // Sang mép khác là đổi luôn hướng liếc; chờ hết nhịp đảo mắt (3,6 đến 6,8 giây) thì
+      // vừa thả tay ra con pet còn nhìn trổ ra ngoài màn hình một lúc lâu.
+      if (el.dataset.side !== cfg.side) { el.dataset.side = cfg.side; veMat(mood); liecLuc = 0; }
       el.style.left = cfg.side === "left" ? "0px" : "";
       el.style.right = cfg.side === "right" ? "0px" : "";
     });

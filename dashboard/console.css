@@ -1728,7 +1728,25 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-run { padding:10px 8px; border-radius:8px; }
 .ws-id .agent-avatar { flex:none; }
 @media (max-width:1200px) { .ws-right { width:310px; } }
-@media (max-width:600px) { .ws-right { width:min(350px,90vw); } .ws-bar { gap:6px; } #wsNewChat { font-size:11px; max-width:110px; white-space:normal; } }
+/* MÀN ĐIỆN THOẠI: thanh đầu trang xếp HAI DÒNG. Dòng trên là nguyên khuôn mặt cộng sự cùng
+   tên và vai trò, dòng dưới là các nút chức năng. Xếp cả năm thứ trên MỘT dòng thì bốn cái nút
+   ép ô tên còn đúng một chữ cái (đo thật trên iPhone: tiêu đề hiện ra là "C" và "C."), tức chỗ
+   duy nhất nói cho biết mình đang nói với ai lại là chỗ bị cắt mất trước tiên. */
+@media (max-width:600px) {
+  .ws-right { width:min(350px,90vw); }
+  .ws-bar { flex-wrap:wrap; gap:8px 6px; }
+  /* order -1: trong DOM ô tên đứng SAU nút mở danh sách, mà dòng trên phải là khuôn mặt. */
+  .ws-id { order:-1; flex:1 0 100%; flex-wrap:wrap; }
+  /* Lúc hỏng, câu báo lỗi và nút Thử lại được nhồi vào chính ô tên (xem veLoi trong
+     workspace.js). Chen cạnh cái tên trên màn hẹp thì câu lỗi bị cắt giữa chữ và chữ trên nút
+     bẻ làm hai dòng, nên cho cả hai xuống một dòng riêng. */
+  .ws-id .ws-err { flex:1 0 100%; }
+  .ws-id #wsRetry { flex:none; }
+  /* Dòng riêng thì "Hội thoại mới" không phải co chữ hay bẻ dòng để chen vào nữa. */
+  #wsNewChat { font-size:12px; white-space:nowrap; }
+  /* Nút mở cột phải dạt về mép phải, cân với nút mở cột trái ở đầu dòng. */
+  #wsRightBtn { margin-left:auto; }
+}
 @media (prefers-reduced-motion:reduce) { .agent-avatar *, .agent-avatar svg { animation:none!important; transition:none!important; } }
 
 .ws-run-avatars { display:inline-flex; flex:none; }

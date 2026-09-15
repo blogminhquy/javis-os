@@ -56,7 +56,7 @@ const liecY = +(pet.match(/LIEC_Y = (-?[\d.]+)/) || [])[1];
 const tamX = +(pet.match(/var TAM_X = (-?[\d.]+)/) || [])[1];
 const tamY = +(pet.match(/TAM_Y = (-?[\d.]+)/) || [])[1];
 check("có dáng liếc LIEC_X / LIEC_Y", Number.isFinite(liecX) && Number.isFinite(liecY));
-check("lúc nghỉ mắt liếc sang PHẢI (LIEC_X > 0)", liecX > 0);
+check("chân dung tĩnh liếc sang PHẢI (LIEC_X > 0)", liecX > 0);
 check("lúc nghỉ mắt liếc LÊN TRÊN (LIEC_Y < 0)", liecY < 0);
 // Tầm đưa mắt phải RỘNG HƠN dáng liếc, không thì con trỏ kéo mắt sang trái không nổi và
 // "nhìn theo con trỏ" thành lời nói suông.
@@ -64,9 +64,13 @@ check("tầm đưa mắt rộng hơn dáng liếc", tamX > Math.abs(liecX) && ta
 // Mắt không được trôi ra ngoài thân: thân bán kính 78 quanh tâm 160, nửa khoảng cách hai mắt
 // 15, bán trục ngang của mắt lớn nhất 9.2.
 check("đưa mắt hết tầm vẫn nằm trong thân", tamX + 15 + 9.2 < 78 && tamY + 22.5 < 78);
-const nghi = pet.match(/NGHI_X = LIEC_X \/ TAM_X, NGHI_Y = LIEC_Y \/ TAM_Y/);
-check("dáng nghỉ quy từ dáng liếc, không gõ lại số", !!nghi);
-const jitter = [...pet.matchAll(/liecDich[XY] = kep\(NGHI_[XY] \+ \(Math\.random\(\) \* 2 - 1\) \* ([\d.]+)/g)]
+// Dáng nghỉ vẫn QUY TỪ dáng liếc chứ không gõ lại số, nhưng từ 0.59.11 trục ngang LẬT DẤU
+// theo mép đang nép: nép mép phải thì liếc sang trái, nép mép trái thì liếc sang phải, tức
+// luôn nhìn VÀO TRONG màn hình. Phép thử chạy thật ở tests/js/test_pet_huong_liec.js.
+check("hướng liếc lúc nghỉ lật dấu theo mép đang nép",
+  /function nghiX\(\) \{ return \(cfg\.side === "left" \? LIEC_X : -LIEC_X\) \/ TAM_X; \}/.test(pet));
+check("dáng nghỉ quy từ dáng liếc, không gõ lại số", /NGHI_Y = LIEC_Y \/ TAM_Y;/.test(pet));
+const jitter = [...pet.matchAll(/liecDich[XY] = kep\((?:nghiX\(\)|NGHI_Y) \+ \(Math\.random\(\) \* 2 - 1\) \* ([\d.]+)/g)]
   .map(m => +m[1]);
 check("biên đảo mắt nhỏ hơn dáng nghỉ (giữ được chữ ký)",
   jitter.length === 2 && jitter[0] < Math.abs(liecX / tamX) && jitter[1] < Math.abs(liecY / tamY));
