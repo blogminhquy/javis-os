@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.8] - 2026-09-15
+### Cải thiện
+- **Phần Giọng nói, thương hiệu & truy cập trong Cài đặt đỡ trống trải hẳn.** Trước đây nó xếp hai cột, mà thẻ giọng nói dài gấp gần mười lần thẻ ảnh đại diện bên cạnh, nên nửa màn hình là khoảng trắng. Nay xếp một cột, mỗi thẻ một việc, nhãn bên trái và ô chọn bên phải. Cả khối ngắn lại gần một nửa.
+- **Chọn giọng và tốc độ bằng ô xổ xuống.** Bảy giọng Edge trước đây là bảy ô vuông xếp dọc chiếm gần hết màn hình cho đúng một lựa chọn; tốc độ là thanh trượt chia độ. Nay mỗi thứ gọn trong một dòng, tốc độ có sẵn năm mức đặt tên rõ ràng từ Chậm tới Rất nhanh. Giọng và tốc độ bạn đang dùng giữ nguyên, không bị đặt lại.
+- **Nút Lưu ở đâu cũng giống nhau.** Trước có bốn kiểu nút khác nhau, chỗ thì tràn ngang chỗ thì nhỏ xíu, mỗi thẻ đặt một nơi. Nay mỗi thẻ đúng một nút Lưu, luôn nằm góc dưới bên phải. Riêng ba mục của Micro thì nói thẳng là áp dụng ngay, không cần bấm gì.
+### Sửa lỗi
+- Chọn "Im lặng rồi gửi" nhanh hay chậm giờ có tác dụng ngay từ lúc mở app, trước đây phải bấm lại một lần mỗi phiên nó mới nhớ.
+
 ## [0.58.7] - 2026-09-15
 ### Cải thiện
 - **Dòng cảnh báo "mình vừa hẹn mà không đặt việc nền" giờ gọn lại còn hai câu.** Bản cũ dài ba đoạn, giải thích cả chuyện lượt trả lời đóng lại thế nào, đọc giữa dòng chat thì rối hơn là hiểu.

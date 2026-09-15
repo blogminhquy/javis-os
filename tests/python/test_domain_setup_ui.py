@@ -35,10 +35,12 @@ def check(name: str, condition: bool) -> None:
         fails.append(name)
 
 
+# 0.58.8: tên giọng dời từ HTML vào từ điển (radio đổi thành ô chọn, nhãn đi theo data-i18n).
+# Mã giọng thì vẫn phải nằm nguyên trong index.html.
 check("UI ghi đúng tên giọng Hoài My và giữ mã Edge",
-      "<strong>Hoài My</strong>" in INDEX and 'value="vi-VN-HoaiMyNeural"' in INDEX)
+      "Hoài My" in VI.get("qs.voice_opt_hoaimy", "") and 'value="vi-VN-HoaiMyNeural"' in INDEX)
 check("UI đổi NamMinh thành Nam Minh nhưng giữ mã Edge",
-      "<strong>Nam Minh</strong>" in INDEX and 'value="vi-VN-NamMinhNeural"' in INDEX)
+      "Nam Minh" in VI.get("qs.voice_opt_namminh", "") and 'value="vi-VN-NamMinhNeural"' in INDEX)
 check("card tên miền có hành động lưu và kiểm tra rõ ràng", "Lưu &amp; kiểm tra" in INDEX)
 check("card có hai link tài liệu", "docs/15-thuong-hieu-ten-mien.md" in INDEX and "DEPLOY.md" in INDEX)
 # Chữ trong wizard đã vào từ điển i18n ở 0.55.14: branding.js dựng số bước rồi gọi khoá,

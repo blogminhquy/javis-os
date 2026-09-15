@@ -5842,14 +5842,16 @@
     const sttOpts = o.stt_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), v.stt_provider || "browser", !p.available)).join("");
     const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
     host.innerHTML = `
-      <div class="qs-block" style="margin-top:14px">
+      <div class="qs-block">
         <div class="popover-label">${esc(t("settings.v2_title"))}</div>
-        <label class="js-lbl">${esc(t("settings.v2_mode"))}</label>
-        <select class="js-input" id="v2Mode">
-          ${optA("standard", t("settings.v2_mode_standard"), v.mode || "standard")}
-          ${optA("fast", t("settings.v2_mode_fast"), v.mode)}
-          ${optA("live", t("settings.v2_mode_live"), v.mode)}
-        </select>
+        <div class="qs-field">
+          <label class="qs-lbl" for="v2Mode">${esc(t("settings.v2_mode"))}</label>
+          <select class="js-input" id="v2Mode">
+            ${optA("standard", t("settings.v2_mode_standard"), v.mode || "standard")}
+            ${optA("fast", t("settings.v2_mode_fast"), v.mode)}
+            ${optA("live", t("settings.v2_mode_live"), v.mode)}
+          </select>
+        </div>
         <div id="v2FastBox">
           <label class="js-lbl">${esc(t("settings.v2_brain"))}</label>
           <select class="js-input" id="v2Brain">${brainOpts}</select>
@@ -5858,8 +5860,10 @@
           <input class="js-input" id="v2BrainModel" value="${esc(v.brain_model || "")}" placeholder="${esc(t("settings.v2_model_ph"))}">
           <div class="gcard-meta" id="v2BrainHint"></div>
         </div>
-        <label class="js-lbl">${esc(t("settings.v2_stt"))}</label>
-        <select class="js-input" id="v2Stt">${sttOpts}</select>
+        <div class="qs-field">
+          <label class="qs-lbl" for="v2Stt">${esc(t("settings.v2_stt"))}</label>
+          <select class="js-input" id="v2Stt">${sttOpts}</select>
+        </div>
         <div id="v2LiveBox">
           <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
           <select class="js-input" id="v2Live">${liveOpts}</select>
@@ -5869,7 +5873,7 @@
           <select class="js-input" id="v2LiveVoice"></select>
           <div class="gcard-meta" id="v2LiveHint">${esc(t("settings.v2_live_note"))}</div>
         </div>
-        <div class="js-actions"><button class="gcard-btn" id="v2Save">${esc(t("settings.v2_save"))}</button></div>
+        <div class="js-actions qs-foot"><button class="gcard-btn" id="v2Save">${esc(t("settings.v2_save"))}</button></div>
         <div class="gcard-meta" id="v2Status">${esc(t("settings.v2_note"))}</div>
       </div>`;
     const $ = (id) => document.getElementById(id);
@@ -6004,47 +6008,55 @@
     const langs = (s.lang_list || []);
     const replyLang = lc.reply_lang || "auto";
     const uiLang = (window.JavisI18n && JavisI18n.lang()) || "vi";
+    // MỘT thẻ cho cả hai ô ngôn ngữ (0.58.8). Trước là hai thẻ riêng nằm cạnh nhau trong lưới,
+    // mỗi thẻ đúng một ô chọn - hai cái khung cho hai dòng chữ.
     const langHtml = `
       <div class="qs-block">
-        <div class="popover-label">${esc(t("settings.ui_lang.title"))}</div>
-        <select class="js-input" id="vpUiLang">
-          ${langs.map(l => opt(l.ma, l.ten, uiLang)).join("")}
-        </select>
+        <div class="popover-label">${esc(t("settings.grp_lang"))}</div>
+        <div class="qs-field">
+          <label class="qs-lbl" for="vpUiLang">${esc(t("settings.ui_lang.title"))}</label>
+          <select class="js-input" id="vpUiLang">
+            ${langs.map(l => opt(l.ma, l.ten, uiLang)).join("")}
+          </select>
+        </div>
         <div class="qs-hint">${esc(t("settings.ui_lang.hint"))}
           <b>${esc(t("settings.ui_lang.beta"))}</b></div>
-      </div>
-      <div class="qs-block">
-        <div class="popover-label">${esc(t("settings.lang.title"))}</div>
-        <select class="js-input" id="vpReplyLang">
-          ${opt("auto", t("settings.lang.auto"), replyLang)}
-          ${langs.map(l => opt(l.ma, l.ten, replyLang)).join("")}
-        </select>
+        <div class="qs-field">
+          <label class="qs-lbl" for="vpReplyLang">${esc(t("settings.lang.title"))}</label>
+          <select class="js-input" id="vpReplyLang">
+            ${opt("auto", t("settings.lang.auto"), replyLang)}
+            ${langs.map(l => opt(l.ma, l.ten, replyLang)).join("")}
+          </select>
+        </div>
         <div class="qs-hint">${esc(t("settings.lang.hint"))}</div>
       </div>`;
 
-    // Nhà cung cấp giọng đọc - gộp NGAY trong nhóm giọng nói (render vào #ttsProviderHost), không tách section riêng.
+    // Nhà cung cấp giọng đọc. KHÔNG còn vỏ thẻ .qs-block của riêng nó, cũng không còn nút Lưu
+    // và dòng trạng thái riêng (0.58.8): khối này giờ nằm BÊN TRONG thẻ "GIỌNG ĐỌC" của
+    // index.html, dùng chung nút #vpSave và ô #vpStatus ở cuối thẻ đó. Chọn nhà cung cấp rồi
+    // chọn giọng là MỘT việc, trước đây tách hai thẻ nên có hai chỗ bấm Lưu cho cùng một việc.
     const provHtml = `
-      <div class="qs-block">
-        <div class="popover-label">${esc(t("settings.tts_provider"))}</div>
+      <div class="qs-field">
+        <label class="qs-lbl" for="vpProvider">${esc(t("settings.tts_provider"))}</label>
         <select class="js-input" id="vpProvider">
           ${opt("edge", t("settings.tts_edge"), prov)}
           ${opt("openai", t("settings.tts_openai"), prov)}
           ${opt("elevenlabs", t("settings.tts_eleven"), prov)}
         </select>
-        <div id="vpOpenai" style="display:none">
-          <label class="js-lbl">OpenAI API key ${oaSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
-          <input class="js-input" id="vpOaKey" type="password" placeholder="${esc(t("settings.oa_key_ph"))}">
-          <label class="js-lbl">${esc(t("settings.tts_openai_voice"))}</label>
+      </div>
+      <div id="vpOpenai" style="display:none">
+        <label class="js-lbl">OpenAI API key ${oaSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
+        <input class="js-input" id="vpOaKey" type="password" placeholder="${esc(t("settings.oa_key_ph"))}">
+        <div class="qs-field">
+          <label class="qs-lbl" for="vpOaVoice">${esc(t("settings.tts_openai_voice"))}</label>
           <select class="js-input" id="vpOaVoice">${oaVoices.map(x => opt(x, x, v.openai_tts_voice || "alloy")).join("")}</select>
         </div>
-        <div id="vpEleven" style="display:none">
-          <label class="js-lbl">ElevenLabs API key ${elSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
-          <input class="js-input" id="vpElKey" type="password" placeholder="${esc(t("settings.eleven_ph"))}">
-          <label class="js-lbl">Voice ID <span class="dim">${esc(t("settings.voice_id_hint"))}</span></label>
-          <input class="js-input" id="vpElVoice" value="${esc(v.elevenlabs_voice || "")}" placeholder="${esc(t("settings.eleven_voice_ph"))}">
-        </div>
-        <div class="js-actions"><button class="gcard-btn" id="vpSave">${esc(t("settings.save_provider"))}</button></div>
-        <div class="gcard-meta" id="vpStatus">${esc(t("settings.tts_using"))} <b>${esc(prov)}</b>. ${esc(t("settings.tts_note"))}</div>
+      </div>
+      <div id="vpEleven" style="display:none">
+        <label class="js-lbl">ElevenLabs API key ${elSet ? `<span class="dim">${esc(t("settings.key_set"))}</span>` : ""}</label>
+        <input class="js-input" id="vpElKey" type="password" placeholder="${esc(t("settings.eleven_ph"))}">
+        <label class="js-lbl">Voice ID <span class="dim">${esc(t("settings.voice_id_hint"))}</span></label>
+        <input class="js-input" id="vpElVoice" value="${esc(v.elevenlabs_voice || "")}" placeholder="${esc(t("settings.eleven_voice_ph"))}">
       </div>`;
     el.innerHTML = `<div class="settings-page">
       <details class="settings-group" open>
@@ -6143,8 +6155,12 @@
         refreshSettings();
       };
     }
-    const provHost = document.getElementById("ttsProviderHost");   // điểm neo trong nhóm giọng nói (index.html)
-    if (provHost) { provHost.innerHTML = provHtml + '<div id="vpV2Host"></div>'; renderVoiceV2Card(); }
+    // Hai điểm neo TÁCH BẠCH trong index.html: #ttsProviderHost nằm trong thẻ "Giọng đọc",
+    // còn #vpV2Host là thẻ "Chế độ nói chuyện" của riêng nó (trước đây V2 bị nhét vào trong
+    // khối nhà cung cấp, nên một thẻ có hai nút Lưu chồng nhau).
+    const provHost = document.getElementById("ttsProviderHost");
+    if (provHost) provHost.innerHTML = provHtml;
+    renderVoiceV2Card();
 
     const provSel = document.getElementById("vpProvider");
     if (provSel) {   // guard: thiếu điểm neo (vd cache index.html cũ) thì avatar/tên miền vẫn chạy, không sập trang
@@ -6160,7 +6176,9 @@
       };
       provSel.onchange = showFields; showFields();
 
+      // Dòng trạng thái nằm sẵn trong index.html (rỗng) nên câu mở đầu phải đặt từ đây.
       const st = document.getElementById("vpStatus");
+      if (st) st.innerHTML = esc(t("settings.tts_using")) + " <b>" + esc(prov) + "</b>. " + esc(t("settings.tts_note"));
       document.getElementById("vpSave").onclick = async () => {
         st.textContent = t("settings.saving");
         const data = {

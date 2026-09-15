@@ -333,111 +333,103 @@
               <span class="toggle"><input type="checkbox" id="qsTts"><span></span></span>
             </label>
 
-            <!-- Nhà cung cấp giọng đọc: console.js render vào đây khi mở trang Cài đặt (gộp cùng nhóm giọng nói) -->
-            <!-- Ngôn ngữ trả lời: console.js render vào đây khi mở trang Cài đặt.
+            <!-- MỘT CỘT, mỗi thẻ một việc (0.58.8). Bản trước xếp lưới HAI cột: các thẻ cao
+                 thấp chênh nhau rất xa (thẻ giọng nói 1200px nằm cạnh thẻ ảnh đại diện 150px)
+                 nên ô ngắn bị ô dài kéo giãn theo, để lại mảng trống gần một màn hình - chủ
+                 repo gọi đúng tên là "rất rỗi". Một cột thì không còn ô nào phải chờ ô nào.
+                 Trong mỗi thẻ, bề ngang được dùng bằng hàng "nhãn trái, ô chọn phải" (.qs-field)
+                 thay vì xếp chồng dọc, nên thẻ ngắn lại mà không phải bỏ bớt nội dung. -->
+
+            <!-- Ngôn ngữ: console.js render vào đây khi mở trang Cài đặt.
                  Đặt TRÊN nhóm giọng nói vì giọng đọc phụ thuộc ngôn ngữ, không ngược lại. -->
             <div id="replyLangHost"></div>
 
-            <div id="ttsProviderHost"></div>
-
-            <!-- Giọng đọc + ngôn ngữ nghe + tốc độ (dời từ header xuống, giữ nguyên id/name) -->
-            <div class="voice-picker-wrap">
-              <button id="voicePickerBtn" style="display:none" aria-hidden="true"></button>
-              <div class="voice-popover" id="voicePopover">
-                <div class="popover-section">
-                  <div class="popover-label" data-i18n="qs.rec_lang">NGÔN NGỮ NGHE</div>
-                  <div class="voice-options">
-                    <label class="voice-opt">
-                      <input type="radio" name="recognitionLang" value="vi-VN" checked>
-                      <div><strong data-i18n="qs.rec_vi">Tiếng Việt</strong><div class="opt-sub" data-i18n="qs.rec_vi_sub">vi-VN · mặc định</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="recognitionLang" value="en-US">
-                      <div><strong data-i18n="qs.rec_en">Tiếng Anh</strong><div class="opt-sub" data-i18n="qs.rec_en_sub">en-US · khi nói toàn Anh</div></div>
-                    </label>
-                  </div>
+            <!-- GIỌNG ĐỌC. Nhà cung cấp do console.js đổ vào #ttsProviderHost (nằm TRONG thẻ
+                 này, không tách thẻ riêng nữa: chọn nhà cung cấp rồi chọn giọng là một việc).
+                 Bảy giọng trước đây là bảy thẻ radio xếp dọc, cao gần 600px cho một lựa chọn
+                 duy nhất; nay là một ô chọn cao một hàng. Tốc độ cũng vậy: thanh trượt đổi
+                 thành ô chọn có tên mức, vì không ai cần 1.37× mà cần "hơi nhanh". -->
+            <div class="qs-block">
+              <div class="popover-label" data-i18n="qs.voice">GIỌNG ĐỌC</div>
+              <div id="ttsProviderHost"></div>
+              <!-- #edgeVoiceSection: console.js ẩn khối này khi nhà cung cấp không phải Edge
+                   (OpenAI/ElevenLabs chọn giọng ngay trong khối nhà cung cấp ở trên). -->
+              <div id="edgeVoiceSection">
+                <div class="qs-field">
+                  <label class="qs-lbl" for="voiceSel" data-i18n="qs.voice_pick">Giọng Edge</label>
+                  <select class="js-input" id="voiceSel" name="voice">
+                    <option value="vi-VN-HoaiMyNeural" data-i18n="qs.voice_opt_hoaimy">Hoài My · Nữ, tự nhiên ấm áp</option>
+                    <option value="vi-VN-NamMinhNeural" data-i18n="qs.voice_opt_namminh">Nam Minh · Nam, trầm</option>
+                    <option value="en-US-AvaMultilingualNeural" data-i18n="qs.voice_opt_ava">Ava · Nữ, dịu và biểu cảm · đa ngôn ngữ</option>
+                    <option value="en-US-EmmaMultilingualNeural" data-i18n="qs.voice_opt_emma">Emma · Nữ, vui tươi rõ chữ · đa ngôn ngữ</option>
+                    <option value="en-US-AndrewMultilingualNeural" data-i18n="qs.voice_opt_andrew">Andrew · Nam, ấm và tự tin · đa ngôn ngữ</option>
+                    <option value="en-US-BrianMultilingualNeural" data-i18n="qs.voice_opt_brian">Brian · Nam, gần gũi đời thường · đa ngôn ngữ</option>
+                    <option value="en-AU-WilliamMultilingualNeural" data-i18n="qs.voice_opt_william">William · Nam, thân thiện giọng Úc · đa ngôn ngữ</option>
+                  </select>
                 </div>
-                <div class="popover-section" id="edgeVoiceSection">
-                  <div class="popover-label"><span data-i18n="qs.voice">GIỌNG ĐỌC</span> <span class="dim" style="text-transform:none;letter-spacing:0">(Edge)</span></div>
-                  <div class="voice-options">
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="vi-VN-HoaiMyNeural" checked>
-                      <div><strong>Hoài My</strong><div class="opt-sub" data-i18n="qs.voice_f_sub">Nữ · tự nhiên, ấm áp</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="vi-VN-NamMinhNeural">
-                      <div><strong>Nam Minh</strong><div class="opt-sub" data-i18n="qs.voice_m_sub">Nam · trầm</div></div>
-                    </label>
-                    <!-- 5 giọng đa ngôn ngữ của Edge (thế hệ mới hơn HoaiMy/NamMinh): tự nhận tiếng Việt và
-                         đọc mượt hơn, đổi lại có thể lơ lớ vài chữ. Cùng đường /tts, không cần gì thêm ở server. -->
-                    <div class="dim" style="font-size:12px;margin:6px 0 2px" data-i18n="qs.voice_ml_note">Giọng đa ngôn ngữ: đọc tiếng Việt mượt hơn, có thể lơ lớ vài chữ</div>
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="en-US-AvaMultilingualNeural">
-                      <div><strong>Ava</strong><div class="opt-sub" data-i18n="qs.voice_ava_sub">Nữ · dịu, biểu cảm · đa ngôn ngữ</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="en-US-EmmaMultilingualNeural">
-                      <div><strong>Emma</strong><div class="opt-sub" data-i18n="qs.voice_emma_sub">Nữ · vui tươi, rõ chữ · đa ngôn ngữ</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="en-US-AndrewMultilingualNeural">
-                      <div><strong>Andrew</strong><div class="opt-sub" data-i18n="qs.voice_andrew_sub">Nam · ấm, tự tin · đa ngôn ngữ</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="en-US-BrianMultilingualNeural">
-                      <div><strong>Brian</strong><div class="opt-sub" data-i18n="qs.voice_brian_sub">Nam · gần gũi, đời thường · đa ngôn ngữ</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="voice" value="en-AU-WilliamMultilingualNeural">
-                      <div><strong>William</strong><div class="opt-sub" data-i18n="qs.voice_william_sub">Nam · thân thiện, giọng Úc · đa ngôn ngữ</div></div>
-                    </label>
-                  </div>
-                </div>
-                <div class="popover-section">
-                  <div class="popover-label"><span data-i18n="qs.rate">TỐC ĐỘ</span> <span id="rateLabel" style="float:right;color:var(--accent);font-family:var(--font)">1.10×</span></div>
-                  <input type="range" id="rateSlider" min="0.7" max="1.8" step="0.05" value="1.1" style="width:100%">
-                  <div class="rate-marks"><span data-i18n="qs.rate_slow">Chậm</span><span data-i18n="qs.rate_mid">BT</span><span data-i18n="qs.rate_fast">Nhanh</span></div>
-                </div>
-                <!-- Voice V1: im lặng bao lâu thì gửi, và có cho ngắt lời bằng giọng không (lưu localStorage) -->
-                <div class="popover-section">
-                  <div class="popover-label" data-i18n="qs.endpoint">IM LẶNG RỒI GỬI</div>
-                  <div class="voice-options">
-                    <label class="voice-opt">
-                      <input type="radio" name="endpoint" value="500">
-                      <div><strong data-i18n="qs.endpoint_fast">Nhanh</strong><div class="opt-sub" data-i18n="qs.endpoint_fast_sub">0,5 giây · nói ngắn, dứt khoát</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="endpoint" value="800" checked>
-                      <div><strong data-i18n="qs.endpoint_mid">Vừa</strong><div class="opt-sub" data-i18n="qs.endpoint_mid_sub">0,8 giây · mặc định</div></div>
-                    </label>
-                    <label class="voice-opt">
-                      <input type="radio" name="endpoint" value="1200">
-                      <div><strong data-i18n="qs.endpoint_slow">Chậm</strong><div class="opt-sub" data-i18n="qs.endpoint_slow_sub">1,2 giây · hay ngập ngừng</div></div>
-                    </label>
-                  </div>
-                  <div class="opt-sub" style="margin-top:6px" data-i18n="qs.endpoint_hint">Câu kết bằng "và", "nhưng", dấu phẩy thì Javis tự chờ lâu hơn. Nói "khoan" hay "đợi chút" là Javis im chờ bạn.</div>
-                </div>
-                <div class="popover-section">
-                  <label class="qs-row">
-                    <span data-i18n="qs.barge">Ngắt lời Javis bằng giọng</span>
-                    <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
-                  </label>
-                </div>
-                <div class="popover-section">
-                  <button class="test-btn" id="testVoiceBtn" data-i18n="qs.test_voice">▶ Nghe thử</button>
-                </div>
+                <div class="qs-hint" data-i18n="qs.voice_ml_note">Giọng đa ngôn ngữ: đọc tiếng Việt mượt hơn, có thể lơ lớ vài chữ</div>
               </div>
+              <div class="qs-field">
+                <label class="qs-lbl" for="rateSel" data-i18n="qs.rate_lbl">Tốc độ đọc</label>
+                <select class="js-input" id="rateSel">
+                  <option value="0.85" data-i18n="qs.rate_opt_slow">Chậm · 0,85×</option>
+                  <option value="1.00" data-i18n="qs.rate_opt_normal">Bình thường · 1,00×</option>
+                  <option value="1.10" data-i18n="qs.rate_opt_default">Hơi nhanh · 1,10× (mặc định)</option>
+                  <option value="1.25" data-i18n="qs.rate_opt_fast">Nhanh · 1,25×</option>
+                  <option value="1.45" data-i18n="qs.rate_opt_veryfast">Rất nhanh · 1,45×</option>
+                </select>
+              </div>
+              <div class="js-actions qs-foot">
+                <button class="gcard-btn ghost" id="testVoiceBtn" data-i18n="qs.test_voice">▶ Nghe thử</button>
+                <button class="gcard-btn" id="vpSave" data-i18n="qs.voice_save">Lưu giọng đọc</button>
+              </div>
+              <div class="gcard-meta" id="vpStatus"></div>
             </div>
 
+            <!-- CHẾ ĐỘ NÓI CHUYỆN (Voice V2): console.js renderVoiceV2Card() đổ vào đây.
+                 Là thẻ RIÊNG chứ không lồng trong thẻ giọng đọc, vì nó có nút Lưu của chính
+                 nó - luật của trang này: một thẻ, một nút Lưu, luôn ở góc dưới phải. -->
+            <div id="vpV2Host"></div>
+
+            <!-- MICRO (Voice V1): ba mục dưới đây ghi thẳng localStorage của máy đang dùng
+                 nên KHÔNG có nút Lưu, và câu cuối thẻ nói rõ điều đó - thiếu câu ấy thì người
+                 dùng đi tìm nút Lưu không có. -->
+            <div class="qs-block">
+              <div class="popover-label" data-i18n="qs.mic">MICRO</div>
+              <div class="qs-field">
+                <label class="qs-lbl" for="recLangSel" data-i18n="qs.rec_lang">Ngôn ngữ nghe</label>
+                <select class="js-input" id="recLangSel" name="recognitionLang">
+                  <option value="vi-VN" data-i18n="qs.rec_vi_opt">Tiếng Việt · vi-VN</option>
+                  <option value="en-US" data-i18n="qs.rec_en_opt">Tiếng Anh · en-US</option>
+                </select>
+              </div>
+              <div class="qs-field">
+                <label class="qs-lbl" for="endpointSel" data-i18n="qs.endpoint">Im lặng rồi gửi</label>
+                <select class="js-input" id="endpointSel" name="endpoint">
+                  <option value="500" data-i18n="qs.endpoint_fast_opt">Nhanh · 0,5 giây</option>
+                  <option value="800" data-i18n="qs.endpoint_mid_opt">Vừa · 0,8 giây (mặc định)</option>
+                  <option value="1200" data-i18n="qs.endpoint_slow_opt">Chậm · 1,2 giây</option>
+                </select>
+              </div>
+              <div class="qs-hint" data-i18n="qs.endpoint_hint">Câu kết bằng "và", "nhưng", dấu phẩy thì Javis tự chờ lâu hơn. Nói "khoan" hay "đợi chút" là Javis im chờ bạn.</div>
+              <label class="qs-field">
+                <span class="qs-lbl" data-i18n="qs.barge">Ngắt lời Javis bằng giọng</span>
+                <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
+              </label>
+              <div class="gcard-meta" data-i18n="qs.mic_local">Ba mục này áp dụng ngay trên máy đang dùng, không cần bấm Lưu.</div>
+            </div>
+
+            <!-- THƯƠNG HIỆU. Hai nút trước đây là hai thanh tràn ngang (một tím đặc, một
+                 viền mờ) xếp chồng cạnh ảnh 48px, to hơn cả nội dung chúng phục vụ. Nay là
+                 hai nút cỡ thường, cùng họ .gcard-btn với mọi nút khác trên trang Cài đặt. -->
             <div class="qs-block">
               <div class="popover-label" data-i18n="qs.avatar">ẢNH ĐẠI DIỆN</div>
-              <div style="display:flex;align-items:center;gap:12px;margin:6px 0">
-                <img id="brandLogoPreview" src="/brand-logo" alt="logo"
-                     style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid var(--border)">
-                <div style="display:flex;flex-direction:column;gap:6px;flex:1">
-                  <label class="s-btn" style="cursor:pointer;display:block;text-align:center"><span data-i18n="qs.avatar_upload">Tải ảnh lên</span>
+              <div class="qs-avatar">
+                <img id="brandLogoPreview" src="/brand-logo" alt="logo">
+                <div class="js-actions qs-foot">
+                  <label class="gcard-btn ghost qs-file"><span data-i18n="qs.avatar_upload">Tải ảnh lên</span>
                     <input type="file" id="brandLogoInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label>
-                  <button class="s-btn-ghost" id="brandLogoReset" data-i18n="qs.avatar_reset">Khôi phục mặc định</button>
+                  <button class="gcard-btn ghost" id="brandLogoReset" data-i18n="qs.avatar_reset">Khôi phục mặc định</button>
                 </div>
               </div>
               <div class="opt-sub" id="brandLogoStatus"></div>
@@ -448,7 +440,7 @@
               <div class="opt-sub dom-intro" data-i18n="qs.domain_intro">Nhập tên miền để Javis kiểm tra DNS và hướng dẫn bật HTTPS theo đúng môi trường đang chạy.</div>
               <div class="dom-field">
                 <input id="setDomain" placeholder="Ví dụ: javis.tencuaban.com" data-i18n-ph="qs.domain_ph" autocomplete="off" spellcheck="false">
-                <button class="s-btn" id="saveDomain" data-i18n="qs.domain_save">Lưu &amp; kiểm tra</button>
+                <button class="gcard-btn" id="saveDomain" data-i18n="qs.domain_save">Lưu &amp; kiểm tra</button>
               </div>
               <div class="dom-status" id="domStatusRow" style="display:none">
                 <span class="dom-badge" id="dnsBadge" data-i18n="qs.dns_checking">DNS: đang kiểm tra</span>
@@ -458,8 +450,8 @@
                 <!-- Nhãn nút này do branding.js đặt theo trạng thái (Bật SSL / Kích hoạt lại), nên
                      KHÔNG gắn data-i18n: applyDom() quét lại DOM mỗi lần đổi ngôn ngữ và sẽ ghi đè
                      nhãn động bằng nhãn tĩnh, tức nút nói sai một nửa thời gian. Giống nút #themeToggle. -->
-                <button class="s-btn" id="sslToggle">Bật SSL</button>
-                <button class="s-btn-ghost" id="checkDomain" data-i18n="qs.recheck">Kiểm tra lại</button>
+                <button class="gcard-btn" id="sslToggle">Bật SSL</button>
+                <button class="gcard-btn ghost" id="checkDomain" data-i18n="qs.recheck">Kiểm tra lại</button>
               </div>
               <div id="domainGuide" class="dom-guide" style="display:none"></div>
               <div class="opt-sub" id="domainStatus"></div>

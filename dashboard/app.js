@@ -2590,13 +2590,19 @@ voiceBtn.addEventListener("click", () => {
 // ---- Voice V1: hai nút trong Cài đặt nhanh (lưu localStorage, không đụng settings.json) ----
 // Im lặng bao lâu thì gửi (500 / 800 / 1200 ms) và có cho ngắt lời Javis bằng giọng không.
 (function () {
+  // 0.58.8: ba thẻ radio đổi thành một ô chọn (#endpointSel). Giá trị lưu KHÔNG đổi nên
+  // người đang dùng không bị reset về mặc định.
   const ep = localStorage.getItem("javis.endpoint") || "800";
-  const epInput = document.querySelector(`input[name="endpoint"][value="${ep}"]`);
-  if (epInput) epInput.checked = true;
-  document.querySelectorAll('input[name="endpoint"]').forEach(r => r.addEventListener("change", () => {
-    turn.opts.minDelay = parseInt(r.value, 10) || 800;
-    localStorage.setItem("javis.endpoint", r.value);
-  }));
+  const epSel = document.getElementById("endpointSel");
+  if (epSel) {
+    epSel.value = ep;
+    if (!epSel.value) epSel.value = "800";      // giá trị cũ không còn trong danh sách
+    turn.opts.minDelay = parseInt(epSel.value, 10) || 800;
+    epSel.addEventListener("change", () => {
+      turn.opts.minDelay = parseInt(epSel.value, 10) || 800;
+      localStorage.setItem("javis.endpoint", epSel.value);
+    });
+  }
   const barge = localStorage.getItem("javis.bargeIn") !== "0";
   voice.bargeEnabled = barge;
   const qb = document.getElementById("qsBarge");
@@ -2665,28 +2671,51 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   persistSession();
 });
 
-// Voice picker
-const voicePickerBtn = document.getElementById("voicePickerBtn");
-const voicePopover = document.getElementById("voicePopover");
-const rateSlider = document.getElementById("rateSlider");
-const rateLabel = document.getElementById("rateLabel");
+// ---- Chọn giọng / tốc độ / ngôn ngữ nghe ----
+// 0.58.8: bảy thẻ radio giọng + thanh trượt tốc độ + hai thẻ ngôn ngữ nghe đổi hết thành ô
+// chọn, và popover nổi (di sản từ hồi bộ chọn nằm trên thanh tiêu đề) đã gỡ - mọi thứ nay
+// nằm thẳng trong trang Cài đặt. KHOÁ localStorage giữ nguyên nên không ai bị reset.
+const voiceSel = document.getElementById("voiceSel");
+const rateSel = document.getElementById("rateSel");
+const recLangSel = document.getElementById("recLangSel");
 const savedVoice = localStorage.getItem("javis.voice") || "vi-VN-HoaiMyNeural";
 const savedRate = parseFloat(localStorage.getItem("javis.rate") || "1.10");
-document.querySelector(`input[name="voice"][value="${savedVoice}"]`)?.click();
-rateSlider.value = savedRate; rateLabel.textContent = savedRate.toFixed(2) + "×";
-voice.setVoice(savedVoice); voice.setRate(rateToPct(savedRate));
-function rateToPct(r) { const p = ((r - 1) * 100).toFixed(0); return (p >= 0 ? "+" : "") + p + "%"; }
-voicePickerBtn.addEventListener("click", (e) => { e.stopPropagation(); voicePopover.classList.toggle("open"); });
-document.addEventListener("click", (e) => { if (!voicePopover.contains(e.target) && e.target !== voicePickerBtn) voicePopover.classList.remove("open"); });
-document.querySelectorAll('input[name="voice"]').forEach(r => r.addEventListener("change", () => { voice.setVoice(r.value); localStorage.setItem("javis.voice", r.value); }));
 const savedRecLang = localStorage.getItem("javis.recLang") || "vi-VN";
-const recLangInput = document.querySelector(`input[name="recognitionLang"][value="${savedRecLang}"]`);
-if (recLangInput) recLangInput.checked = true;
-voice.setRecognitionLang(savedRecLang);
-document.querySelectorAll('input[name="recognitionLang"]').forEach(r => r.addEventListener("change", () => { voice.setRecognitionLang(r.value); localStorage.setItem("javis.recLang", r.value); }));
-rateSlider.addEventListener("input", () => { const r = parseFloat(rateSlider.value); rateLabel.textContent = r.toFixed(2) + "×"; voice.setRate(rateToPct(r)); localStorage.setItem("javis.rate", r.toString()); });
-document.getElementById("testVoiceBtn").addEventListener("click", () => {
-  const v = document.querySelector('input[name="voice"]:checked').value;
+function rateToPct(r) { const p = ((r - 1) * 100).toFixed(0); return (p >= 0 ? "+" : "") + p + "%"; }
+// Gán value cho <select> mà giá trị đó không có trong danh sách thì select về RỖNG (ô trắng,
+// không lỗi, không ai biết). Nên mọi chỗ gán đều phải có đường lùi.
+function _chonHoacDau(sel, val) {
+  if (!sel) return val;
+  sel.value = val;
+  if (!sel.value) sel.selectedIndex = 0;
+  return sel.value;
+}
+const voiceNow = _chonHoacDau(voiceSel, savedVoice);
+const recNow = _chonHoacDau(recLangSel, savedRecLang);
+// Tốc độ: thanh trượt cũ đẻ ra giá trị bất kỳ (1,37×) còn ô chọn chỉ có 5 mức, nên phải NÉO
+// về mức gần nhất thay vì bỏ trống ô.
+let rateNow = savedRate;
+if (rateSel) {
+  let gan = null;
+  Array.from(rateSel.options).forEach(o => {
+    const x = parseFloat(o.value);
+    if (gan === null || Math.abs(x - savedRate) < Math.abs(gan - savedRate)) gan = x;
+  });
+  if (gan !== null) { rateNow = gan; rateSel.value = gan.toFixed(2); }
+}
+voice.setVoice(voiceNow); voice.setRate(rateToPct(rateNow)); voice.setRecognitionLang(recNow);
+if (voiceSel) voiceSel.addEventListener("change", () => {
+  voice.setVoice(voiceSel.value); localStorage.setItem("javis.voice", voiceSel.value);
+});
+if (rateSel) rateSel.addEventListener("change", () => {
+  const r = parseFloat(rateSel.value);
+  voice.setRate(rateToPct(r)); localStorage.setItem("javis.rate", r.toString());
+});
+if (recLangSel) recLangSel.addEventListener("change", () => {
+  voice.setRecognitionLang(recLangSel.value); localStorage.setItem("javis.recLang", recLangSel.value);
+});
+document.getElementById("testVoiceBtn")?.addEventListener("click", () => {
+  const v = (voiceSel && voiceSel.value) || savedVoice;
   // force: nghe thử là hành động chủ động của user, phải kêu kể cả khi đang tắt tiếng (mặc định).
   voice.speak(v.includes("HoaiMy") ? window.t("app.voice_sample_hoaimy") : window.t("app.voice_sample_namminh"), { force: true });
 });

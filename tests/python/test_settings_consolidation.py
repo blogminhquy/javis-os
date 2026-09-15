@@ -5,6 +5,7 @@ Chạy:
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 from pathlib import Path
+import re
 
 
 CONSOLE = (ROOT / "dashboard" / "console.js").read_text(encoding="utf-8")
@@ -57,7 +58,13 @@ check("Cài đặt có khung đọc giới hạn chiều rộng", ".settings-pag
 check("Cài đặt chia nhóm gập mở", CONSOLE.count('class="settings-group"') >= 4)
 check("Trạng thái hệ thống đã vào Cài đặt", 'class="settings-status-grid"' in CONSOLE)
 check("Cài đặt có lối tắt thay vì nhân đôi form", all(f'data-settings-go="{x}"' in CONSOLE for x in ("models", "channels", "account", "logs")))
-check("quick settings dùng lưới hai cột và mobile một cột", ".settings-page .quick-set-body" in STYLE and "@media (max-width: 700px)" in STYLE)
+# 0.58.8: khối này xếp MỘT CỘT. Lưới hai cột cũ làm ô ngắn bị ô dài kéo giãn theo (thẻ giọng
+# nói ~1200px cạnh thẻ ảnh đại diện ~150px) nên để lại mảng trống gần một màn hình.
+check("quick settings xếp một cột, không còn lưới hai cột",
+      ".settings-page .quick-set-body" in STYLE
+      and re.search(r"\.settings-page \.quick-set-body \{[^}]*grid-template-columns", STYLE) is None)
+check("hàng nhãn + ô chọn xoay thành cột ở màn hẹp",
+      re.search(r"@media \(max-width: 700px\) \{\s*\.qs-field \{[^}]*flex-direction: column", STYLE) is not None)
 check("mobile không kéo nút cài đặt cũ vào drawer", 'moveEl(document.getElementById("settingsBtn")' not in MOBILE)
 
 if fails:

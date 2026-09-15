@@ -1467,33 +1467,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-attach .att-mat-note { opacity: .75; }
 .attach-chip .chip-thumb { display: block; line-height: 0; cursor: zoom-in; }
 
-/* Voice picker popover */
-.voice-picker-wrap { position: relative; }
-.voice-popover {
-  position: absolute; top: calc(100% + 8px); right: 0; width: 260px;
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
-  padding: 14px; box-shadow: var(--shadow-2); z-index: 100; display: none;
-}
-.voice-popover.open { display: block; }
-.popover-section { margin-bottom: 14px; }
-.popover-section:last-child { margin-bottom: 0; }
+/* Nhãn nhóm nhỏ trong thẻ cài đặt ("GIỌNG ĐỌC", "MICRO", "ẢNH ĐẠI DIỆN"...). Tên còn dấu vết
+   của popover chọn giọng ngày trước; popover đó đã gỡ ở 0.58.8 (mọi lựa chọn nay là ô chọn
+   nằm thẳng trong trang Cài đặt), nhưng class thì console.js dùng ở hàng chục chỗ nên giữ. */
 .popover-label { font-family: var(--font); font-size: 12px; letter-spacing: 2px; color: var(--text3); margin-bottom: 8px; }
-.voice-options { display: flex; flex-direction: column; gap: 6px; }
-.voice-opt {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-}
-.voice-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
-.voice-opt input { accent-color: var(--accent); }
-.voice-opt strong { font-size: 15px; }
-.voice-opt .opt-sub { font-size: 13px; color: var(--text3); margin-top: 2px; }
-#rateSlider { accent-color: var(--accent); }
-.rate-marks { display: flex; justify-content: space-between; font-size: 12px; color: var(--text3); font-family: var(--font); margin-top: 4px; }
-.test-btn {
-  width: 100%; background: transparent; color: var(--accent); border: 1px solid var(--accent);
-  padding: 8px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
-}
-.test-btn:hover { background: var(--accent-wash-2); }
 
 /* ===== STUDIO ===== */
 .studio-open-btn {
@@ -1721,35 +1698,44 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .quick-set > summary::-webkit-details-marker { display: none; }
 .quick-set .qs-caret { display: inline-block; transition: transform 0.2s; }
 .quick-set[open] .qs-caret { transform: rotate(90deg); }
+/* MỘT CỘT (0.58.8). Trước đây là lưới 2 cột, mà các thẻ ở đây cao thấp chênh nhau hàng nghìn
+   pixel (thẻ giọng nói ~1200px cạnh thẻ ảnh đại diện ~150px). Ô lưới thì cao bằng hàng, nên ô
+   ngắn bị kéo giãn theo ô dài và để lại đúng chỗ trống mà chủ repo gọi là "rất rỗi". Một cột
+   thì mỗi thẻ cao đúng phần nội dung của nó, không ô nào phải chờ ô nào. Bề ngang được dùng
+   lại bằng .qs-field (nhãn trái, ô chọn phải) chứ không phải bằng cách xếp thêm cột. */
 .quick-set-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 4px; }
-.settings-page .quick-set-body {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
-  padding: 16px 0 0;
-}
-.settings-page .quick-set-body > .qs-row { grid-column: 1 / -1; }
-.settings-page .quick-set-body > #ttsProviderHost,
-.settings-page .quick-set-body > .voice-picker-wrap { min-width: 0; }
-.settings-page .quick-set-body > .qs-block { min-width: 0; }
-.qs-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.settings-page .quick-set-body { padding: 16px 0 0; }
+.settings-page .quick-set-body > * { min-width: 0; }
+.qs-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 .qs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--text2);
   background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-/* Popover giọng nói giờ hiển thị INLINE trong sidebar (không nổi/che như ở header) */
-.quick-set .voice-picker-wrap { position: static; }
-.quick-set .voice-popover { position: static; display: block; width: auto; padding: 0; border: none; background: transparent; box-shadow: none; }
-.quick-set-body .s-btn, .quick-set-body .s-btn-ghost, .quick-set-body .test-btn { width: 100%; }
-/* Trừ nút nằm trong HÀNG NGANG (ô nhập + nút). Trong một flex row, item mang width:100% có
-   flex-basis:auto nên "cỡ mong muốn" của nó = trọn hàng; ô nhập bên cạnh lại là flex:1
-   (basis 0) nên khi phải co, toàn bộ phần co dồn vào nút còn ô nhập teo lại còn một sợi.
-   Đúng lỗi ô nhập tên miền bé tí không nhìn thấy. Specificity 3 lớp để thắng dòng trên
-   bất kể thứ tự nạp (CSS của khối tên miền do branding.js tiêm lúc chạy). */
-.quick-set-body .dom-field .s-btn,
-.quick-set-body .dom-ssl .s-btn,
-.quick-set-body .dom-ssl .s-btn-ghost { width: auto; }
-.quick-set .set-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+/* Hàng "nhãn trái, ô chọn phải". Ô chọn có TRẦN bề ngang: kéo một cái <select> dài 900px chỉ
+   để hiện 3 chữ thì trông còn rỗng hơn lưới hai cột. Màn hẹp xoay thành cột (cuối file). */
+.qs-field { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 10px 0; }
+.qs-field .qs-lbl { flex: 1 1 auto; font-size: 14px; color: var(--text2); }
+/* 400px: đủ cho nhãn dài nhất đang có ("Chuẩn: nghe bằng trình duyệt, bộ não chính trả lời")
+   mà chưa thành một ô chọn dài nửa màn hình chỉ để hiện vài chữ. */
+.qs-field > select, .qs-field > input { flex: 0 1 400px; min-width: 0; margin: 0; }
+.qs-field > .toggle { flex: none; }
+.qs-hint { font-size: 12.5px; line-height: 1.5; color: var(--text3); margin: -2px 0 10px; }
+.qs-block .opt-sub { font-size: 12.5px; line-height: 1.5; color: var(--text3); }
+/* Nút Lưu của MỌI thẻ: luôn ở góc dưới phải, luôn cùng một họ nút (.gcard-btn của trang Cài
+   đặt). Trước đây mỗi thẻ một kiểu - nút tím tràn ngang, nút viền tràn ngang, nút thường canh
+   trái - nên mắt phải đi tìm nút Lưu ở mỗi thẻ một chỗ. */
+.quick-set-body .js-actions.qs-foot { justify-content: flex-end; margin-top: 12px; }
+.quick-set-body .qs-file { cursor: pointer; }
+.qs-avatar { display: flex; align-items: center; gap: 12px; margin: 10px 0; flex-wrap: wrap; }
+.qs-avatar img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); }
+/* Hai nút đứng NGAY CẠNH ảnh chứ không bị đẩy sang mép phải: chúng thao tác lên chính cái
+   ảnh bên trái, đẩy xa ra thì lại thành một khoảng trống giữa thẻ. Nút Lưu của thẻ khác vẫn
+   ở mép phải vì nó chốt cả thẻ, không gắn với một thứ cụ thể nào bên trái. */
+.quick-set-body .qs-avatar .js-actions { flex: 1 1 auto; margin-top: 0; justify-content: flex-start; }
 
 @media (max-width: 700px) {
-  .settings-page .quick-set-body { grid-template-columns: 1fr; }
-  .settings-page .quick-set-body > .qs-row { grid-column: auto; }
+  .qs-field { flex-direction: column; align-items: stretch; gap: 6px; }
+  .qs-field > select, .qs-field > input { flex: 1 1 auto; }
+  .qs-field > .toggle { align-self: flex-end; }
 }
 
 /* Dòng nhỏ dưới mỗi câu trả lời: lượt này đi đường nào, tốn bao nhiêu token vào.
