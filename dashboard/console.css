@@ -470,6 +470,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .settings-links button b { font-size: 13px; }
 .settings-links button small { color: var(--text3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .settings-two-col { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding-top: 16px; }
+/* Trang Linh vật xếp MỘT CỘT ở mọi khổ màn, không phải lưới hai ô như trang Cài đặt. Chủ dự
+   án chốt 15/09: hai hàng hai ô nhìn trên điện thoại rất khó, mà đây lại là trang hay mở trên
+   điện thoại nhất (chỉnh con pet đang nằm ngay mép màn hình đó). Hẹp hơn 960px của trang Cài
+   đặt vì một cột trải hết chiều ngang màn 27 inch thì hàng hình dáng loãng ra giữa một khoảng
+   trống mênh mông. */
+.pet-page-body { display: flex; flex-direction: column; gap: 12px; padding-top: 16px;
+  width: min(100%, 620px); }
 .settings-card { min-width: 0; padding: 14px; border: 1px solid var(--glass-brd); border-radius: 12px; background: var(--surface-1); }
 .settings-card.compact { max-width: 520px; margin-top: 16px; }
 .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

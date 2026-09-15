@@ -5972,7 +5972,10 @@
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
     if (gen !== _renderGen) return;
-    el.innerHTML = '<div class="settings-page"><div class="settings-group-body settings-two-col" id="petPageBody"></div></div>';
+    // MỘT CỘT, không phải lưới hai ô. Chủ dự án chốt 15/09: kiểu hai hàng hai ô trên điện
+    // thoại rất khó xem, và trang này hay được mở trên điện thoại (chỉnh con pet đang nằm ở
+    // mép màn hình đó). Một cột thì thứ tự đọc trên mọi khổ màn là như nhau.
+    el.innerHTML = '<div class="settings-page"><div class="settings-group-body pet-page-body" id="petPageBody"></div></div>';
     renderPetCard(el.querySelector("#petPageBody"), (s.dashboard || {}).pet);
   }
 
@@ -5984,26 +5987,23 @@
       return;
     }
     if (tuMayChu) P.hydrate(tuMayChu);
+    // Nhãn màu mắt. Hai khoá viết THẲNG ra, không ghép chuỗi vào trong lời gọi dịch: bộ quét
+    // khoá i18n (tests/js/test_i18n.mjs) đọc đúng cái chuỗi đứng ngay sau lời gọi, nên ghép
+    // kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
+    const nhanMat = (k) => (k === "trang" ? t("pet.eye.trang") : t("pet.eye.den"));
     const ve = () => {
       const cur = P.get();
-      const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes();
+      const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes(), mats = P.eyeColors();
+      // Thứ tự: HÌNH DÁNG trước (thứ người ta tới đây để đổi), rồi cỡ, màu, màu mắt, và CUỐI
+      // CÙNG mới tới khối nút Lưu / Tắt / Đặt lại. Chủ dự án chốt 15/09.
       host.innerHTML = `<div class="settings-card">
-        <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
-        <p>${esc(t("settings.pet_desc"))}</p>
-        <div class="js-actions">
-          <button class="gcard-btn" id="setPetSave">${SAVE_ICON} ${esc(t("settings.pet_save"))}</button>
-          <button class="gcard-btn ${cur.enabled ? "ghost" : ""}" id="setPetToggle">${esc(cur.enabled ? t("settings.pet_off") : t("settings.pet_on"))}</button>
-          <button class="gcard-btn ghost" id="setPetReset">${esc(t("settings.pet_reset"))}</button>
-        </div>
-        <div class="gcard-meta" id="setPetStatus">${esc(t("settings.pet_hint"))}</div>
-      </div>
-      <div class="settings-card">
         <div class="settings-card-head"><b>${esc(t("settings.pet_shape"))}</b></div>
         <div class="pet-picker" role="group">${Object.entries(shapes).map(([k, sh]) =>
           // `vanh: true` - ô chọn hình dáng vẽ CẢ vành quỹ đạo, để mấy hình này trông đúng con
           // pet thật ở mép màn hình chứ không phải một cái mặt trần. Avatar trợ lý và dấu ấn
           // trên thanh bên vẫn không có vành: ở cỡ 26-30px nó chỉ còn là một vệt bẩn.
-          `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette, { vanh: true })}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
+          // `mat` - vẽ đúng màu mắt đang chọn, để ô xem thử không nói khác con pet thật.
+          `<button type="button" class="pet-pick" data-pet-shape="${esc(k)}" aria-pressed="${k === cur.shape}">${P.previewSvg(k, cur.palette, { vanh: true, mat: cur.eye })}<span>${esc(t(sh.key))}</span></button>`).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_size"))}</b><span class="gcard-tag">${esc(t(sizes[cur.size].key))}</span></div>
         <div class="pet-picker" role="group">${Object.entries(sizes).map(([k, sz]) =>
           `<button type="button" class="pet-pick pet-pick-size" data-pet-size="${esc(k)}" aria-pressed="${k === cur.size}"><i style="width:${Math.round(sz.px / 3)}px;height:${Math.round(sz.px / 3)}px"></i><span>${esc(t(sz.key))}</span></button>`).join("")}</div>
@@ -6012,6 +6012,19 @@
           const tone = P.toneOf(k) || ["#888"];
           return `<button type="button" class="pet-swatch" data-pet-palette="${esc(k)}" aria-pressed="${k === cur.palette}" title="${esc(t(palettes[k].key))}" aria-label="${esc(t(palettes[k].key))}"><i style="background:${esc(tone[0])}"></i></button>`;
         }).join("")}</div>
+        <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye"))}</b><span class="gcard-tag">${esc(nhanMat(cur.eye))}</span></div>
+        <div class="pet-picker" role="group">${Object.entries(mats).map(([k, mau]) =>
+          `<button type="button" class="pet-swatch" data-pet-eye="${esc(k)}" aria-pressed="${k === cur.eye}" title="${esc(nhanMat(k))}" aria-label="${esc(nhanMat(k))}"><i style="background:${esc(mau)}"></i></button>`).join("")}</div>
+      </div>
+      <div class="settings-card">
+        <div class="settings-card-head"><b>${esc(t("settings.pet"))}</b><span class="gcard-tag">${esc(cur.enabled ? t("settings.tag_on") : t("settings.tag_off"))}</span></div>
+        <p>${esc(t("settings.pet_desc"))}</p>
+        <div class="js-actions">
+          <button class="gcard-btn" id="setPetSave">${SAVE_ICON} ${esc(t("settings.pet_save"))}</button>
+          <button class="gcard-btn ${cur.enabled ? "ghost" : ""}" id="setPetToggle">${esc(cur.enabled ? t("settings.pet_off") : t("settings.pet_on"))}</button>
+          <button class="gcard-btn ghost" id="setPetReset">${esc(t("settings.pet_reset"))}</button>
+        </div>
+        <div class="gcard-meta" id="setPetStatus">${esc(t("settings.pet_hint"))}</div>
       </div>`;
       // Nút Lưu. Mỗi cú bấm chọn hình/cỡ/màu đã tự gửi lên máy chủ rồi, nên nút này KHÔNG
       // phải chỗ duy nhất để lưu - nó là chỗ NÓI RA kết quả: đã vào máy chủ thật hay chưa.
@@ -6030,10 +6043,11 @@
         stt.innerHTML = Icons.warn(t("settings.pet_save_fail") + (r.lech.length ? " (" + r.lech.join(", ") + ")" : ""));
       };
       host.querySelector("#setPetToggle").onclick = () => { P.setEnabled(!cur.enabled); ve(); };
-      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", size: "vua", side: "right", pos: 0.62, enabled: true }); ve(); };
+      host.querySelector("#setPetReset").onclick = () => { P.setCfg({ shape: "circle", palette: "amber", size: "vua", side: "right", pos: 0.62, eye: "den", enabled: true }); ve(); };
       host.querySelectorAll("[data-pet-shape]").forEach(b => b.onclick = () => { P.setCfg({ shape: b.dataset.petShape }); ve(); });
       host.querySelectorAll("[data-pet-size]").forEach(b => b.onclick = () => { P.setCfg({ size: b.dataset.petSize }); ve(); });
       host.querySelectorAll("[data-pet-palette]").forEach(b => b.onclick = () => { P.setCfg({ palette: b.dataset.petPalette }); ve(); });
+      host.querySelectorAll("[data-pet-eye]").forEach(b => b.onclick = () => { P.setCfg({ eye: b.dataset.petEye }); ve(); });
     };
     ve();
   }
