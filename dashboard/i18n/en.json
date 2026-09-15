@@ -1,7 +1,7 @@
 {
   "ws.upload_agent": "Upload agent",
   "ws.upload_workflow": "Upload workflow",
-  "ws.retry_session": "Retry opening chat",
+  "ws.retry_session": "Retry",
 
   "ws.files_links": "Files & links",
   "_meta.name": "English",
@@ -2709,7 +2709,12 @@
   "ws.toggle_panel": "Toggle right panel",
   "ws.empty": "Nothing matches. Create one or browse Javis Store.",
   "ws.pick_one": "Pick a partner on the left",
-  "ws.none_yet": "No partners yet. Create one on the left before you can chat.",
+  "ws.none_yet": "No partners yet. Create an agent or a workflow to get started.",
+  "ws.start_title": "Start with your first partner",
+  "ws.start_no_agent": "No agents yet",
+  "ws.start_no_workflow": "No workflows yet",
+  "ws.start_desc": "An agent is one specialist you chat with directly. A workflow chains several agents into steps that run in one go. Create one to get started, or grab a ready-made one from Javis Store.",
+  "ws.err_list": "Could not load the partner list.",
   "ws.wf_sub": "Workflow · {n} steps",
   "ws.ph_agent": "Message {ten}...",
   "ws.ph_workflow": "Describe the result you want; each message is one run...",

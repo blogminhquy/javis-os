@@ -21,7 +21,10 @@
 
   function avatar(a, size, state) { return window.JavisAvatar ? window.JavisAvatar.html(a, size, state) : ic("bot"); }
   function agentOf(slug) { return S.agents.find(function (a) { return a.slug === slug || a.name === slug; }) || {slug: slug || ""}; }
-  var opening = 0, ready = false, active = false, pendingCommand = null;
+  // daTai = đã tải được danh sách ÍT NHẤT MỘT LẦN. Phân biệt "brain mới tinh, chưa có cộng sự
+  // nào" với "gọi /agents hỏng nên không biết có gì": cả hai đều để lại mảng rỗng, nhưng cái
+  // sau mà bày màn khởi đầu "Chưa có cộng sự nào" là nói dối người dùng về một lỗi mạng.
+  var opening = 0, ready = false, active = false, pendingCommand = null, daTai = false;
   function chatReady(value) {
     ready = value;
     var input = document.getElementById("chatInput");
@@ -141,6 +144,7 @@
     var r = await Promise.all([api("/agents?brain=" + b), api("/workflows?brain=" + b)]);
     S.agents = sapXep(r[0].agents || [], "last_chat_at");
     S.workflows = sapXep((r[1].workflows || []).filter(function (w) { return w.status === "active"; }), "last_run_at");
+    daTai = true;
   }
 
   // ---------- dựng khung ----------
@@ -182,6 +186,10 @@
             // phải chạy gen_icons tải mạng - lật gương panel-left bằng CSS rẻ hơn mà cùng nghĩa.
             '<button type="button" class="ws-ico lat" id="wsRightBtn" title="' + esc(t("ws.toggle_panel")) + '">' + ic("panel-left") + '</button>' +
           '</div>' +
+          // Màn khởi đầu: danh sách rỗng thì không có phiên nào để mở, ô nhập bị khoá, nên
+          // chỗ khung chat là hai nút tạo. Nằm TRƯỚC #wsSlot trong DOM cho thuận mắt, còn
+          // khung chat thì ẩn đi bằng lớp .onboard-on (xem console.css).
+          '<div class="ws-onboard" id="wsOnboard" hidden></div>' +
           '<div class="ws-slot" id="wsSlot"></div>' +
           // Chỗ đứng cho TRÌNH SỬA khi mở một file .md từ chat hay từ cây thư mục, y như
           // #chatPageEdit của trang Trò chuyện. Thiếu nó thì _borrowNoteEditor() không tìm
@@ -207,7 +215,7 @@
     noiODoTim(el);
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.onclick = function () { chonTabPhai(b.dataset.rtab); }; });
     el.querySelector(".ws-panel-close").onclick = function () { el.querySelector("#wsPage").classList.remove("right-open"); };
-    el.querySelector("#wsNew").onclick = taoMoi;
+    el.querySelector("#wsNew").onclick = function () { taoMoi(S.loai); };
     el.querySelector("#wsImport").onclick = function () {
       if (window.JavisStudio) window.JavisStudio.importItems(async function () {
         if (!active) return;
@@ -231,7 +239,7 @@
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
     try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "cai"; } catch (e) { S.tabPhai = "cai"; }
     chonTabPhai(S.tabPhai);
-    taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_session")); });
+    taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
   }
   async function selectCommand(cmd) {
     S.loai = cmd.kind; S.chon[cmd.kind] = cmd.slug; S.q = ""; S.nhom = "";
@@ -421,11 +429,22 @@
   }
   function veLoi(msg) { var el = S.el && S.el.querySelector("#wsIdentity"); if (el) {
     el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small><button type="button" class="ws-btn" id="wsRetry">' + esc(t("ws.retry_session")) + '</button>';
-    el.querySelector("#wsRetry").onclick = function () { moPhien(dangChon(), false); };
+    el.querySelector("#wsRetry").onclick = lamLai;
   } }
+  // Thử lại = tải lại DANH SÁCH rồi mới mở phiên, không phải chỉ mở lại phiên. Hỏng ở bước tải
+  // danh sách (gọi /agents trượt) thì cột trái trống trơn và dangChon() trả null, nên cái nút
+  // cũ chỉ gọi moPhien(null): nó xoá câu lỗi, thay bằng lời mời chọn một cộng sự ở một cột
+  // trái không có gì, và không tải lại thứ vừa hỏng. Chủ dự án gặp đúng màn này (15/09).
+  async function lamLai() {
+    try { await taiDanhSach(); } catch (e) { if (active) { veGiua(dangChon()); veLoi(t("ws.err_list")); } return; }
+    if (!active) return;
+    veTrai(); chonMacDinh();
+  }
   // `nhac` = câu thay cho lời mời chọn mục, dùng khi danh sách rỗng (chưa có gì để chọn cả).
   function veGiua(item, nhac) {
     var el = S.el && S.el.querySelector("#wsIdentity"); if (!el) return;
+    // Không có mục nào để mở VÀ danh sách thật sự rỗng (đã tải xong) = màn khởi đầu.
+    veKhoiDau(!item && daTai && !danhSach().length);
     if (!item) {
       el.innerHTML = '<strong>' + esc(nhac || t("ws.pick_one")) + '</strong>';
       if (nhac) { var o = document.getElementById("chatInput"); if (o) o.placeholder = nhac; }
@@ -435,6 +454,34 @@
     el.innerHTML = (S.loai === "agent" ? avatar(item, 42) : ic("workflow")) + '<div><strong>' + esc(item.name) + '</strong><small>' + esc(phu) + '</small></div>';
     var inp = document.getElementById("chatInput");
     if (inp) inp.placeholder = S.loai === "agent" ? t("ws.ph_agent", { ten: item.name }) : t("ws.ph_workflow");
+  }
+
+  // ---------- màn khởi đầu ----------
+  // Brain mới tinh (hay tab Quy trình khi chưa có quy trình nào): cột giữa không có gì để trò
+  // chuyện, ô nhập đã khoá từ chonMacDinh, mà màn hình chỉ nói một câu "chưa có cộng sự nào"
+  // rồi để người dùng tự mò sang cột trái. Chủ dự án bấm vào giữa màn hình, không ra gì cả
+  // (15/09). Nay chỗ khung chat là chính hai nút TẠO TRỢ LÝ và TẠO QUY TRÌNH, bấm là mở thẳng
+  // trình tạo của Studio - kể cả nút của loại KHÁC tab đang đứng.
+  function veKhoiDau(hien) {
+    var el = S.el; if (!el) return;
+    var main = el.querySelector(".ws-main"), host = el.querySelector("#wsOnboard");
+    if (main && main.classList) main.classList.toggle("onboard-on", !!hien);
+    if (!host) return;
+    host.hidden = !hien;
+    if (!hien) { host.innerHTML = ""; return; }
+    var trong = !S.agents.length && !S.workflows.length;
+    var tieu = trong ? t("ws.start_title") : t(S.loai === "agent" ? "ws.start_no_agent" : "ws.start_no_workflow");
+    host.innerHTML = ic("bot", { cls: "ws-ob-ic", size: "34px" }) +
+      '<h3>' + esc(tieu) + '</h3><p>' + esc(t("ws.start_desc")) + '</p>' +
+      '<div class="ws-ob-acts">' +
+        '<button type="button" class="ws-btn primary" id="wsObAgent">' + ic("plus") + ' ' + esc(t("ws.new_agent")) + '</button>' +
+        '<button type="button" class="ws-btn primary" id="wsObWf">' + ic("plus") + ' ' + esc(t("ws.new_workflow")) + '</button>' +
+        '<button type="button" class="ws-btn" id="wsObStore">' + ic("package") + ' Javis Store</button>' +
+      '</div>';
+    var nut = function (id, fn) { var b = host.querySelector(id); if (b) b.onclick = fn; };
+    nut("#wsObAgent", function () { taoMoi("agent"); });
+    nut("#wsObWf", function () { taoMoi("workflow"); });
+    nut("#wsObStore", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); });
   }
 
   function thuGonCaiDat() {
@@ -662,18 +709,24 @@
   }
 
   // ---------- tạo mới ----------
-  function taoMoi() {
+  // `loai` chỉ rõ tạo TRỢ LÝ hay QUY TRÌNH: màn khởi đầu bày cả hai nút nên nút được bấm mới
+  // là thứ quyết định, không phải tab đang đứng. Bỏ trống thì theo tab (nút Tạo mới cột trái).
+  function taoMoi(loai) {
     if (!window.JavisStudio) return;
-    var loai = S.loai;
+    loai = loai === "agent" || loai === "workflow" ? loai : S.loai;
     var sau = async function (saved) {
-      await taiDanhSach(); if (!active || S.loai !== loai) return;
-      if (saved && saved.slug) S.chon[loai] = saved.slug;
-      veTrai();
-      if (await chonMacDinh()) { thuGonCaiDat(); document.getElementById("chatInput").focus(); }
+      await taiDanhSach(); if (!active) return;
+      // Tạo XONG thì chuyển hẳn sang tab của thứ vừa tạo. Bấm "Tạo quy trình" từ màn khởi đầu
+      // trong khi tab đang là Trợ lý mà không chuyển thì lưu xong lại nhìn vào một danh sách
+      // rỗng khác, tưởng quy trình vừa tạo bốc hơi.
+      if (saved && saved.slug) { S.loai = loai; S.nhom = ""; S.chon[loai] = saved.slug; }
+      if (S.loai !== loai) return;
+      luuChon(); veTrai();
+      if (await chonMacDinh()) { thuGonCaiDat(); var o = document.getElementById("chatInput"); if (o) o.focus(); }
     };
     // Không truyền `host`: tạo mới vẫn mở modal của Studio (cột phải đang là form của mục
     // đang chọn, vẽ đè lên đó thì người dùng tưởng mình đang sửa mục cũ).
-    if (S.loai === "agent") window.JavisStudio.editAgent(null, { dsNhom: S.agents, onSaved: sau });
+    if (loai === "agent") window.JavisStudio.editAgent(null, { dsNhom: S.agents, onSaved: sau });
     else window.JavisStudio.editWorkflow(null, { onSaved: sau });
   }
 
