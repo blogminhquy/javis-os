@@ -698,7 +698,11 @@ function handleMessage(data) {
     try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
-    if (isActive) { syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
+    // Chip "Đang soạn câu trả lời..." phải TẮT ở đây chứ không chỉ ở nhánh `response`: lượt
+    // của phiên quy trình (trang Cộng sự) kết thúc bằng `stream` + `turn_done`, không có
+    // `response` nào, nên trước đây chip đứng lại đếm giờ mãi dù kết quả đã in xong. Gọi thêm
+    // một lần ở đây vô hại với lượt thường - hideActivity() là thao tác không cộng dồn.
+    if (isActive) { hideActivity(); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     notifySessions();

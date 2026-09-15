@@ -317,9 +317,16 @@
       var d = new Date(Number(x.started_at || 0) * 1000);
       return '<button type="button" class="ws-run ' + esc(x.status) + '" data-sid="' + esc(x.session_id || "") + '">' +
         '<span>' + esc(gioPhut(d)) + '</span>' +
-        '<span class="ws-run-st">' + esc(x.nhan || x.status || "") + '</span><small>' + esc(String(x.input || "").slice(0, 60)) + '</small></button>';
+        '<span class="ws-run-st">' + esc(x.nhan || x.status || "") + '</span><small>' + esc(loiNguoiGo(x.input).slice(0, 60)) + '</small></button>';
     }).join("");
     host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { if (b.dataset.sid && window.JavisSessions) window.JavisSessions.open(b.dataset.sid); }; });
+  }
+  // Bỏ khối "[NGỮ CẢNH GIAO DIỆN: ...]" mà dashboard chèn trước câu hỏi: kho lần chạy lưu
+  // nguyên chuỗi đã gửi, nên dòng lịch sử mà in thô thì 60 ký tự đầu là khối đó chứ không phải
+  // câu người dùng gõ. Dùng lại chính hàm của app.js, đừng viết bản thứ hai để rồi lệch nhau.
+  function loiNguoiGo(s) {
+    try { return window.chuNguoiGo ? window.chuNguoiGo(s || "") : String(s || ""); }
+    catch (e) { return String(s || ""); }
   }
   // Ngày giờ theo NGÔN NGỮ giao diện, không khoá "vi-VN": đổi sang tiếng Anh mà ngày vẫn
   // dd/mm là nửa màn hình nói một kiểu (cùng lý do với LOC() bên studio.js).
@@ -369,5 +376,14 @@
     else window.JavisStudio.editWorkflow(null, { onSaved: sau });
   }
 
-  window.JavisWorkspace = { render: render, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
+  // Rời trang: trả ô nhập về lời mời chung. veGiua() đổi placeholder thành "Nhắn cho <trợ lý>",
+  // mà ô nhập là node MƯỢN của app - không trả lại thì sang trang Trò chuyện nó vẫn mời người
+  // dùng nhắn cho một cộng sự không còn ở đâu trên màn hình. console.js gọi hàm này trong
+  // _pageLeave, ngay trước khi trả node chat về HUD.
+  function roi() {
+    var inp = document.getElementById("chatInput");
+    if (inp) inp.placeholder = t("bar.input_ph");
+  }
+
+  window.JavisWorkspace = { render: render, roi: roi, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, state: function () { return S; } };
 })();

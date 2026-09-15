@@ -527,7 +527,13 @@
     if (_chatSlots.length) _returnChatNodes();
     document.body.classList.add("on-chat");
     window.JavisWorkspace.render(el, { borrow: _borrowChatNodes });
-    _pageLeave = _returnChatNodes;
+    // Trang này đổi placeholder của ô nhập (node MƯỢN của app) thành "Nhắn cho <trợ lý>", nên
+    // rời trang phải cho nó dọn trước khi node được trả về HUD - không thì trang Trò chuyện
+    // vẫn mời người dùng nhắn cho một cộng sự không còn hiện ở đâu cả.
+    _pageLeave = () => {
+      try { if (window.JavisWorkspace.roi) window.JavisWorkspace.roi(); } catch (e) {}
+      _returnChatNodes();
+    };
   }
 
   function placeholder(id, note) {
