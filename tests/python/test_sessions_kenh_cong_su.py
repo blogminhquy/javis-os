@@ -84,5 +84,32 @@ for xau in ["agent:a/b", "agent:a\\b", "workflow:x y", "agent:", "agent:a:b", "t
     r = cl.post("/sessions/new", data={"brain": "brain", "channel": xau})
     check("POST /sessions/new chan kenh sai dang: " + xau, r.status_code == 400)
 
+# Slug toan DAU CHAM. Day la nua AN TOAN cua viec noi khuon: khuon moi cho qua moi ky tu tru
+# gach cheo, hai cham va khoang trang, nen ".." va "." lot khuon. Chung KHONG duoc tro ra
+# ngoai thu muc agents/, va quan trong hon: khong duoc doc mot file nao nam ngoai do.
+from unittest.mock import patch  # noqa: E402
+_da_doc = []
+_read_md_that = main._read_md
+
+
+def _ghi_lai_duong_doc(p, *a, **k):
+    _da_doc.append(Path(str(p)).resolve())
+    return _read_md_that(p, *a, **k)
+
+
+# File moi nhu vay nam NGAY TREN thu muc agents - neu ".." tro ra duoc thi no la thu doc trung.
+(Path(main._brain_root("brain")) / "bi-mat.md").write_text(
+    "---\nname: bí mật\n---\nkhông được đọc\n", encoding="utf-8")
+with patch.object(main, "_read_md", _ghi_lai_duong_doc):
+    for xau in ["agent:..", "agent:.", "workflow:..", "agent:...", "agent:..md"]:
+        r = cl.post("/sessions/new", data={"brain": "brain", "channel": xau})
+        check("POST /sessions/new tu choi slug toan dau cham: " + xau,
+              r.status_code in (400, 404))
+_thu_muc_ag = main._agents_dir("brain").resolve()
+_thu_muc_wf = main._workflows_dir("brain").resolve()
+check("khong doc file nao ngoai agents/ va workflows/",
+      all(str(p).startswith(str(_thu_muc_ag)) or str(p).startswith(str(_thu_muc_wf))
+          for p in _da_doc))
+
 print("\nFAIL:" if fails else "\nOK - sessions_kenh_cong_su", fails or "")
 sys.exit(1 if fails else 0)
