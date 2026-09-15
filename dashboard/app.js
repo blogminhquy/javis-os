@@ -680,6 +680,10 @@ function handleMessage(data) {
   } else if (data.type === "resume") {
     // Trạng thái lịch tự chạy lại (hẹn / tắt / đang chạy / huỷ) - thẻ tự vẽ lại.
     try { if (window.JavisResume) window.JavisResume.onFrame(data); } catch (e) {}
+  } else if (data.type === "wf_event") {
+    // Tiến độ từng bước của một lần chạy quy trình (trang Cộng sự vẽ ở cột phải). Khung chat
+    // không vẽ gì: chip trạng thái đã đi bằng khung status riêng.
+    try { if (window.JavisWorkspace) window.JavisWorkspace.onWfEvent(data); } catch (e) {}
   } else if (data.type === "system") {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {

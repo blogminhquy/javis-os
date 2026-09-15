@@ -191,7 +191,9 @@ check("trang nói rõ đang xem bot của brain nào",
 check("trang chỉ cách xem brain khác", noi("cb.intro_8", "Đổi brain ở đầu trang"));
 // Thẻ bot bỏ dòng brain: mọi bot ở đây đều cùng một brain nên nhắc lại từng thẻ chỉ là nhiễu.
 check("thẻ bot không nhắc lại brain", !/ic\("brain"\) \+ ' ' \+ esc\(b\.brain\)/.test(CB));
-check("có nút sang trang Agents để tạo", /id="cbNewAgent"/.test(CB) && /JavisNav\.go\("agents"\)/.test(CB));
+// Trang "Agents" riêng đã gộp vào trang Cộng sự, nên nút này phải dẫn tới "workspace": dẫn
+// sang một id trang không còn tồn tại thì rail không sáng mục nào và khung giữa trắng trơn.
+check("có nút sang trang Cộng sự để tạo trợ lý", /id="cbNewAgent"/.test(CB) && /JavisNav\.go\("workspace"\)/.test(CB));
 // Vai trò dài làm <option> tràn ngang khỏi hộp, mà <option> thì không tạo kiểu được.
 check("vai trò Agent bị cắt ngắn trước khi vào option", /vai\.slice\(0, 34\)/.test(CB));
 check("CSS chặn select nở rộng ra khỏi form", /\.cb-form select \{[^}]*text-overflow: ellipsis/.test(CSS));

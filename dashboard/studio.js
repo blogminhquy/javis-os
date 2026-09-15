@@ -72,12 +72,24 @@
 
   // Studio đã tách thành các trang sidebar riêng. openStudio = điều hướng rail (giữ tương thích
   // cho nút header & dải số liệu .bstat ở đáy graph). Console gọi loader qua window.JavisStudio.
-  window.openStudio = (tab) => { if (window.Alpine) Alpine.store("nav").go(tab || "workflows"); };
+  //
+  // Hai trang "agents" và "workflows" ĐÃ BỎ, cả hai gộp vào trang Cộng sự (workspace). Nút cũ
+  // vẫn truyền tên trang cũ (dải .bstat trong index.html, nút Studio trên thanh đầu), nên đổi
+  // tên ở ĐÂY thay vì đi sửa từng nút: gọi go("agents") bây giờ là đi tới một trang không tồn
+  // tại, rail không sáng mục nào và khung giữa trắng trơn.
+  const TRANG_CU = { agents: "workspace", workflows: "workspace" };
+  window.openStudio = (tab) => {
+    const id = TRANG_CU[tab] || tab || "workspace";
+    if (window.JavisNav && window.JavisNav.go) window.JavisNav.go(id);
+    else if (window.Alpine) Alpine.store("nav").go(id);
+  };
   window.JavisStudio = {
     workflows: loadWorkflows, agents: loadAgents, skills: loadSkills,
+    // Trang Cộng sự mượn chính hai trình sửa này (xem editAgent/editWorkflow) + nút Xuất.
+    editAgent: editAgent, editWorkflow: editWorkflow, exportItem: exportItem,
   };
   const _studioBtn = document.getElementById("studioOpenBtn");
-  if (_studioBtn) _studioBtn.addEventListener("click", () => window.openStudio("workflows"));
+  if (_studioBtn) _studioBtn.addEventListener("click", () => window.openStudio("workspace"));
 
   const refreshStats = () => { if (window.loadBrainStats) window.loadBrainStats(); };
 
@@ -147,13 +159,9 @@
     return `<datalist id="${id}">${gs.map(g => `<option value="${esc(g)}">`).join("")}</datalist>`;
   }
 
-  function switchTab(tab) {
-    document.querySelectorAll(".stab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
-    ["workflows", "agents", "skills"].forEach(t => document.getElementById("panel-" + t).hidden = (t !== tab));
-    if (tab === "workflows") loadWorkflows();
-    else if (tab === "agents") loadAgents();
-    else loadSkills();
-  }
+  // (Hàm switchTab của Studio ba-tab cũ đã bỏ: Studio không còn là MỘT trang ba tab, mỗi phần
+  // là một trang riêng của rail, nên nó chỉ còn là đoạn code chết trỏ vào ba panel không tồn
+  // tại. Đổi trang bây giờ đi qua openStudio/JavisNav.)
 
   // ===== Workflows =====
   // Biến workflow đọc thành lời cho ô bước: thay "…" (cũ) vì "Nhận …, tạo project folder"
@@ -175,6 +183,10 @@
   async function loadWorkflows() {
     _injectStudioCss();
     const panel = document.getElementById("panel-workflows");
+    // Trang "Quy trình" riêng đã gộp vào trang Cộng sự, nên panel này thường KHÔNG có trong
+    // DOM. Không chặn ở đây thì mọi lời gọi còn sót (nút cũ, onSaved mặc định) ném TypeError
+    // giữa chừng và nuốt luôn phần việc đứng sau nó.
+    if (!panel) return;
     panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
     const d = await api(`/workflows?brain=${encodeURIComponent(brain())}`);
     _wfState.wfs = d.workflows || [];
@@ -377,7 +389,12 @@
 
   // ===== Workflow editor =====
   let agentsCache = [];
-  async function editWorkflow(w) {
+  // `tuyChon.onSaved` thay cho loadWorkflows(): trang Cộng sự gọi hàm này lúc panel Studio
+  // không có trong DOM, gọi loadWorkflows() ở đó là ghi vào node không tồn tại. (Tên tham số
+  // KHÔNG đặt là `opts` vì thân hàm đã có một `const opts` khác - danh sách <option> của ô
+  // chọn agent.)
+  async function editWorkflow(w, tuyChon) {
+    tuyChon = tuyChon || {};
     const ad = await api(`/agents?brain=${encodeURIComponent(brain())}`);
     agentsCache = ad.agents || [];
     if (!agentsCache.length) { alert(t("studio.no_agents")); return; }
@@ -463,7 +480,8 @@
         await api("/workflows", { method: "POST", body: fd({ name: ten.trim(), description: mota,
           group: nhom.trim() || NHOM_MD, steps: JSON.stringify(steps),
           status: w ? w.status : "active", slug: w ? w.slug : "", brain: brain() }) });
-        editor.classList.remove("open"); loadWorkflows();
+        editor.classList.remove("open");
+        if (tuyChon.onSaved) tuyChon.onSaved(); else loadWorkflows();
       };
     }
     function captureSteps() {
@@ -486,6 +504,7 @@
   async function loadAgents() {
     _injectStudioCss();
     const panel = document.getElementById("panel-agents");
+    if (!panel) return;   // cùng lý do với loadWorkflows: trang Trợ lý riêng đã gộp vào Cộng sự
     panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
     const d = await api(`/agents?brain=${encodeURIComponent(brain())}`);
     _agState.agents = d.agents || [];
@@ -538,7 +557,18 @@
   // đoán, mà đoán sai thì chạy nhầm nhà và nhầm cả hoá đơn.
   const MODEL_SEP = "::";
 
-  async function editAgent(a) {
+  // `opts.dsNhom` = danh sách agent để gợi ý TÊN NHÓM đang có. Trang Cộng sự truyền vào vì
+  // `_agState.agents` chỉ được đổ khi trang Agents cũ chạy loadAgents(), mà trang đó đã bỏ -
+  // thiếu nó thì ô Nhóm mất sạch gợi ý và người dùng gõ tay đẻ ra "Marketing" lẫn "marketing".
+  // `opts.host` = vẽ form thẳng vào một khung có sẵn (cột phải trang Cộng sự) thay vì bật
+  // modal #studioEditor. Vì sao cần: trang Cộng sự muốn sửa trợ lý NGAY cạnh khung chat, mà
+  // dựng bản form thứ hai ở đó là hai bản trôi lệch nhau ngay lần sửa đầu tiên (chọn model,
+  // chọn skill, nhóm... đều đã nằm ở đây). `opts.onSaved` thay cho loadAgents(): trang gọi
+  // tự quyết vẽ lại cái gì, vì panel Studio có thể đang không tồn tại trong DOM.
+  async function editAgent(a, opts) {
+    opts = opts || {};
+    // Có host thì KHÔNG đụng vào modal: mở/đóng nó sẽ che mất cả trang Cộng sự.
+    const moDong = (mo) => { if (!opts.host) editor.classList.toggle("open", mo); };
     const [sd, st] = await Promise.all([
       api(`/skills?brain=${encodeURIComponent(brain())}`),
       api("/settings"),
@@ -565,13 +595,13 @@
       ? `<optgroup label="${esc(t("studio.model_saved"))}"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} ${esc(t("studio.saved_suffix"))}</option></optgroup>` : "";
     const modelOptions = (g) =>
       `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
-    const box = document.getElementById("editorBox");
+    const box = opts.host || document.getElementById("editorBox");
     box.innerHTML = `<h3>${esc(a ? t("studio.edit") : t("studio.create"))} Agent</h3>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
       <label>${esc(t("studio.groups"))}</label>
       <input id="agGroup" list="agGroupList" value="${esc(a ? nhomCua(a) : NHOM_MD)}" placeholder="${esc(t("studio.group_ph"))}">
-      ${nhomDatalist(_agState.agents, "agGroupList")}
+      ${nhomDatalist((_agState.agents.length ? _agState.agents : (opts.dsNhom || [])), "agGroupList")}
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -588,7 +618,7 @@
       <div class="dim" style="font-size:12px;margin-top:4px">${esc(nhom.length
         ? t("studio.model_hint")
         : t("studio.model_none"))}</div>
-      <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd">${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
+      <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
     if (a && a.model) {
       const sel = box.querySelector("#agModel");
       sel.value = val(a.model_provider || "", a.model);
@@ -604,7 +634,10 @@
     // ra khỏi màn hình sẽ mất tick, im lặng, và người dùng chỉ phát hiện sau khi agent chạy sai.
     const chosen = new Set(a ? (a.skills || []) : []);
     renderSkillPick(box, skills, chosen);
-    box.querySelector("#cancelEd").onclick = () => editor.classList.remove("open");
+    // Vẽ trong host thì nút Huỷ vô nghĩa (form nằm sẵn ở cột phải, không có gì để đóng) nên
+    // nó đã bị ẩn ở trên; giữ handler để bấm nhầm bằng bàn phím cũng không đóng modal người
+    // khác đang mở.
+    box.querySelector("#cancelEd").onclick = () => { if (opts.host) return; moDong(false); };
     box.querySelector("#saveAg").onclick = async () => {
       const name = box.querySelector("#agName").value.trim(); if (!name) return alert(t("studio.need_name"));
       const sk = [...chosen].join(",");
@@ -616,9 +649,10 @@
         group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
         prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
         slug: a ? a.slug : "", brain: brain() }) });
-      editor.classList.remove("open"); loadAgents();
+      moDong(false);
+      if (opts.onSaved) opts.onSaved(); else loadAgents();
     };
-    editor.classList.add("open");
+    moDong(true);
   }
 
   // ===== Khung chọn skill trong màn sửa Agent =====
