@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.11] - 2026-09-15
+### Sửa lỗi
+- **Trên điện thoại, trang Cộng sự đã thấy được tên trợ lý đang mở.** Trước đây tên bị mấy cái nút chen cho co lại còn một chữ cái, giờ thanh đầu trang xếp hai dòng: dòng trên là khuôn mặt cùng tên và vai trò, dòng dưới mới là **File & link**, **Hội thoại mới** và hai nút mở cột.
+### Cải thiện
+- **Linh vật luôn nhìn vào trong màn hình.** Lúc không có con trỏ để dõi theo, nó nép mép phải thì liếc sang trái, nép mép trái thì liếc sang phải, thay vì lúc nào cũng nhìn trổ ra ngoài viền. Kéo sang mép kia là mắt đổi hướng theo ngay.
+
 ## [0.59.10] - 2026-09-15
 ### Cải thiện
 - **Trang Cộng sự lúc chưa có gì giờ mời bạn tạo ngay tại chỗ.** Brain mới tinh trước đây chỉ hiện một dòng chữ giữa màn hình, bấm vào đâu cũng không ra gì. Giờ chỗ khung chat là hai nút **Tạo trợ lý** và **Tạo quy trình** (kèm lối sang Javis Store), bấm một cái là mở thẳng trình tạo.
