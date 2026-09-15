@@ -232,6 +232,7 @@ class JavisVoice {
 
     this.accumulatedTranscript = "";
     this._committed = "";                     // chữ đã nghe ở các phiên trước trong CÙNG một lượt nói
+    this._duoiTam = "";                       // đuôi chữ TẠM (chưa final) của sự kiện onresult cuối
     this.userStopped = false;                 // user chủ động dừng?
     this.silenceMs = 1500;                    // im lặng bao lâu thì tự gửi
     this._silenceTimer = null;
@@ -244,6 +245,7 @@ class JavisVoice {
       this.isListening = true;
       this.userStopped = false;
       this.accumulatedTranscript = "";
+      this._duoiTam = "";
       // Lệnh dừng tới TRƯỚC khi phiên kịp mở (bấm rồi thả Space thật nhanh, bấm nút mic hai
       // lần liền): lúc đó isListening còn false nên stopListening() không dừng được gì, mic ở
       // lại MỞ vĩnh viễn và onend còn tự khởi động lại. Người dùng tưởng đã tắt, thực ra Javis
@@ -277,6 +279,12 @@ class JavisVoice {
         else interim += transcript;
       }
       this.accumulatedTranscript = this._ghepChuyenBien(final.trim());
+      // Nhớ ĐUÔI CHỮ TẠM của sự kiện cuối. WebKit trên iOS hay giao toàn chữ tạm rồi kết
+      // thúc phiên mà không bao giờ chốt final (nhất là sau nhiều lượt mở/đóng), nên onend
+      // chỉ nhìn accumulatedTranscript là mất trắng câu đã hiện trên màn hình - đúng cảnh
+      // chủ dự án tả 15/09 "chữ cam nhạt hiện rồi biến mất, không vào khung chat". Chrome
+      // máy tính chốt final trước onend nên tới đó đuôi này rỗng, không đổi gì.
+      this._duoiTam = interim.trim();
       // Show user toàn bộ tích lũy + đoạn đang nghe
       const display = (this.accumulatedTranscript + " " + interim).trim();
       if (display) {
@@ -319,8 +327,10 @@ class JavisVoice {
       if (!this.userStopped && !this._micHong && !this._laIOS()) {
         try {
           // Phiên mới thì event.results bắt đầu lại từ trống. Gói phần đã nghe vào
-          // _committed trước, không thì onstart xoá trắng và nửa câu đầu biến mất.
-          this._committed = this._ghepChuyenBien("");
+          // _committed trước (kể cả đuôi tạm chưa kịp chốt), không thì onstart xoá trắng và
+          // nửa câu đầu biến mất.
+          this._committed = JavisVoice.ghepDuoiTam(this._ghepChuyenBien(""), this._duoiTam);
+          this._duoiTam = "";
           this.recognition.start();
           return;
         } catch (e) {
@@ -328,9 +338,12 @@ class JavisVoice {
         }
       }
       this.isListening = false;
-      // Gửi toàn bộ text đã tích luỹ khi user dừng
-      const finalText = this.accumulatedTranscript.trim();
+      // Gửi toàn bộ text đã tích luỹ khi user dừng. Đuôi chữ tạm chưa được chốt final thì
+      // ghép vào (iOS không bao giờ chốt; Chrome hiếm khi để sót), cùng phép ghép chống lặp
+      // với _committed: final đã phủ đuôi thì không ghép hai lần.
+      const finalText = JavisVoice.ghepDuoiTam(this.accumulatedTranscript, this._duoiTam);
       this._committed = "";
+      this._duoiTam = "";
       if (finalText) this.onTranscript(finalText);
       this.onEnd();
     };
@@ -346,6 +359,20 @@ class JavisVoice {
     if (!cu) return moi;
     if (moi.startsWith(cu)) return moi;
     if (cu.endsWith(moi)) return cu;
+    return (cu + " " + moi).trim();
+  }
+
+  // Ghép đuôi chữ TẠM (chưa final) vào phần đã chốt, lúc phiên kết thúc. Thuần để test bằng
+  // node. So không phân biệt hoa thường và dấu câu cuối, vì Chrome khi chốt final hay đổi
+  // "xem doanh thu" thành "Xem doanh thu." - cùng câu, không được ghép hai lần.
+  static ghepDuoiTam(daChot, duoi) {
+    const cu = String(daChot || "").trim();
+    const moi = String(duoi || "").trim();
+    if (!moi) return cu;
+    if (!cu) return moi;
+    const chuan = (s) => s.toLowerCase().replace(/[.,!?;:…]+$/, "").trim();
+    const a = chuan(cu), b = chuan(moi);
+    if (a === b || a.endsWith(b) || b.startsWith(a)) return b.startsWith(a) && b.length > a.length ? moi : cu;
     return (cu + " " + moi).trim();
   }
 
@@ -531,6 +558,7 @@ class JavisVoice {
     this.userStopped = true;             // chặn auto-restart trong onend
     clearTimeout(this._silenceTimer);
     this.accumulatedTranscript = "";     // bỏ những gì lỡ nghe - không gửi
+    this._duoiTam = "";                  // cả đuôi chữ tạm, kẻo onend ghép nó thành tin
     this.onInterim("");                  // xoá chữ đang hiện dở trên màn hình
     this._stopRecorder().catch(() => {}); // Voice V2: bỏ đoạn ghi âm dở, không gửi Groq
     try { this.recognition.abort(); } catch (e) {}

@@ -45,7 +45,18 @@ check("sendMessage: đang chạy + tin từ mic -> stopCurrent rồi ĐẶT TIN 
 check("turn_done tới thì mới gửi tin đang chờ",
   /if \(isActive && _tinChoLuot\) guiTinCho\(\);/.test(app));
 check("có lưới thời gian phòng khi lượt cũ chết mà không báo turn_done",
-  /_tinChoTimer = setTimeout\(guiTinCho, 1500\);/.test(app));
+  /_tinChoTimer = setTimeout\(guiTinCho, 5000\);/.test(app));
+// 0.58.4: lưới 1,5 giây nổ TRƯỚC turn_done là tin gửi đúng lúc server còn job (bị từ chối),
+// hoặc turn_done cũ về sau và xoá sạch lượt mới. Lưới phải rộng hơn thời gian giết engine.
+check("lưới không còn là 1,5 giây", !/setTimeout\(guiTinCho, 1500\)/.test(app));
+check("trong lúc chờ, câu vừa nói vẫn ở lại màn hình (bong bóng nháp)",
+  /function datTinCho\(text\) \{[\s\S]{0,400}nhapGiong\(_tinChoLuot\)/.test(app));
+check("lượt bị dừng được ghi nhớ theo id, và turn_done muộn của nó không đụng lượt mới",
+  /_luotDaDung\[sid\] = turns\[sid\]\.id/.test(app)
+  && /if \(t && t\.id && t\.id !== _idDung\) return;/.test(app));
+check("khung của lượt mới về thì thôi chờ turn_done cũ (không kẹt cờ running)",
+  /t\.id !== _luotDaDung\[sid\]\) delete _luotDaDung\[sid\];/.test(app));
+check("socket nối lại thì xoá sạch danh sách chờ", /_luotDaDung = \{\};\s*\/\/ socket mới/.test(app));
 
 // Chạy THẬT cặp datTinCho/guiTinCho lấy từ nguồn, để chắc nó không gửi hai lần.
 const src = (app.match(/let _tinChoLuot = null, _tinChoTimer = null;[\s\S]*?\n\}\n/) || [""])[0]
