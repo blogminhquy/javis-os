@@ -34,7 +34,7 @@ check("index.html nạp voice-chunker.js trước app.js", iChunk > 0 && iApp > 
 check("app.js dựng chunker từ JavisVoiceChunker", /const cum = new window\.JavisVoiceChunker\.Chunker\(\);/.test(app));
 check("stream: đổ qua cum.push rồi docCum, bật đồng hồ", /docCum\(cum\.push\(data\.content \|\| "", Date\.now\(\)\), t\);\s*\n\s*batDongHoCum\(\);/.test(app));
 check("stream: KHÔNG còn enqueueSpeak thẳng từ khung stream", !/const safeChunk = \(data\.content \|\| ""\)\.replace/.test(app));
-check("response: flush phần đuôi rồi mới xét đọc cả câu (tts:false)", /docCum\(cum\.flush\(\), t\);[\s\S]{0,200}if \(!t\.spoke && finalText\) voice\.speak\(finalText\);/.test(app));
+check("response: flush phần đuôi rồi mới xét đọc cả câu (tts:false)", /if \(voice\.ttsEnabled && t && data\.tts !== false\) \{\s*docCum\(cum\.flush\(\), t\);[\s\S]*?if \(!t\.spoke && finalText\) \{ voice\.speak\(finalText\); t\.spoke = true; \}/.test(app));
 check("turn_done: reset chunker", /runActions\(turn\.turnDone\(\)\); cum\.reset\(\);/.test(app));
 check("gửi tin mới: reset chunker", /voice\.stopSpeaking\(\);\s*\n\s*cum\.reset\(\);/.test(app));
 check("docCum đánh dấu t.spoke và turn.noteSpoke", /if \(t\) t\.spoke = true;\s*\n\s*turn\.noteSpoke\(\);/.test(app));

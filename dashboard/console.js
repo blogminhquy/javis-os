@@ -26,8 +26,7 @@
     home: "hexagon",
     chat: "message-circle",
     settings: "settings",
-    workflows: "workflow",
-    agents: "bot",
+    workspace: "bot",
     chatbots: "headset",
     skills: "puzzle",
     files: "folder-tree",
@@ -79,7 +78,7 @@
   // Nhãn rail lấy từ TỪ ĐIỂN (thư mục dashboard/i18n) chứ không viết cứng. `t()` suy biến về
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
-    "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
+    "home", "chat", "settings", "workspace", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -101,7 +100,7 @@
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["agents", "chatbots", "skills", "workflows", "plugins"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "chatbots", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "logs", "account"], foot: true },
@@ -147,7 +146,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workflows", "agents", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -159,8 +158,8 @@
     },
   }]));
 
-  // 4 trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).
-  const STUDIO_PAGES = ["workflows", "agents", "skills"];
+  // Trang tách từ Studio cũ - render container rồi gọi loader trong studio.js (window.JavisStudio).
+  const STUDIO_PAGES = ["skills"];
 
   let _settings = null;
   let _renderGen = 0;         // token chống race: mỗi lần đổi trang tăng 1; render async cũ tự bỏ
@@ -251,7 +250,9 @@
   // Trang cũ đã gộp đi đâu. Giữ bảng này thay vì xoá trắng: người dùng có bookmark, có nút
   // trong chat, và có thói quen. Bấm vào một id đã biến mất mà không có chỗ đáp là màn hình
   // trắng không giải thích gì.
-  const TRANG_GOP = { runtime: "usage" };
+  // Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0; ai bấm nút cũ trong chat hay
+  // bookmark vẫn tới nơi.
+  const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace" };
   function navigateTo(id) {
     id = TRANG_GOP[id] || id;
     const store = Alpine.store("nav");
@@ -403,6 +404,7 @@
     const fresh = el.cloneNode(false); el.parentNode.replaceChild(fresh, el); el = fresh;
     _renderGen++;   // đổi trang → vô hiệu mọi render async đang dở (guard bổ sung cho renderer đã có)
     if (id === "chat")     return renderChat(el);
+    if (id === "workspace") return renderWorkspace(el);
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
     if (id === "settings") return renderSettings(el);
     if (id === "pet") return renderPetPage(el);
@@ -431,11 +433,8 @@
 
   // Loại trong kho tương ứng với từng trang năng lực. Trang nào có mặt ở đây thì được một
   // hàng tab dẫn sang kho, đã lọc sẵn đúng loại của nó.
-  const LOAI_KHO = { agents: "agent", skills: "skill", workflows: "workflow",
-                     plugins: "tool", mcp: "connector" };
-  const TEN_CUA_BAN = { get agents() { return window.t("store.tab_agents"); },
-                        get skills() { return window.t("store.tab_skills"); },
-                        get workflows() { return window.t("store.tab_workflows"); },
+  const LOAI_KHO = { skills: "skill", plugins: "tool", mcp: "connector" };
+  const TEN_CUA_BAN = { get skills() { return window.t("store.tab_skills"); },
                         get plugins() { return window.t("store.tab_plugins"); },
                         get mcp() { return window.t("store.tab_mcp"); } };
 
@@ -519,6 +518,22 @@
     const fn = window.JavisChatbots && window.JavisChatbots.render;
     if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("chatbots", window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder("chatbots", window.t("cs.mod_not_ready", { ten: "chatbots.js" }));
+  }
+
+  // Trang Cộng sự: dựng bởi workspace.js, mượn khung chat như trang Trò chuyện.
+  function renderWorkspace(el) {
+    if (!window.JavisWorkspace) { el.innerHTML = placeholder("workspace", window.t("cs.mod_not_ready", { ten: "workspace.js" })); return; }
+    _injectChatCss();
+    if (_chatSlots.length) _returnChatNodes();
+    document.body.classList.add("on-chat");
+    window.JavisWorkspace.render(el, { borrow: _borrowChatNodes });
+    // Trang này đổi placeholder của ô nhập (node MƯỢN của app) thành "Nhắn cho <trợ lý>", nên
+    // rời trang phải cho nó dọn trước khi node được trả về HUD - không thì trang Trò chuyện
+    // vẫn mời người dùng nhắn cho một cộng sự không còn hiện ở đâu cả.
+    _pageLeave = () => {
+      try { if (window.JavisWorkspace.roi) window.JavisWorkspace.roi(); } catch (e) {}
+      _returnChatNodes();
+    };
   }
 
   function placeholder(id, note) {

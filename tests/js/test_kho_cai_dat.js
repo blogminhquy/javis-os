@@ -81,7 +81,10 @@ check("loai la cung khong lam vo, van mo kho", !loiLa && daGo.length === 2);
 const CON = fs.readFileSync(path.join(ROOT, "dashboard", "console.js"), "utf8");
 const khoiLoaiKho = (CON.match(/const LOAI_KHO = \{([\s\S]*?)\};/) || [])[1] || "";
 const loaiTuConsole = [...khoiLoaiKho.matchAll(/:\s*"([a-z]+)"/g)].map(m => m[1]);
-check("console.js khai du nam trang nang luc", loaiTuConsole.length === 5);
+// Ba trang, khong phai nam: hai trang Tro ly va Quy trinh da gop vao trang Cong su, va trang
+// do tu co nut Javis Store rieng (workspace.js goi thang JavisPacks.moKho theo tab dang mo),
+// nen no khong di qua bang LOAI_KHO nay.
+check("console.js khai du ba trang nang luc di qua hang tab kho", loaiTuConsole.length === 3);
 check("moi loai console.js tro toi deu co trong bang cua packs.js",
   loaiTuConsole.length > 0 && loaiTuConsole.every(k => Object.prototype.hasOwnProperty.call(P.LOAI, k)));
 check("bang loai co ca nam loai cong 'bundle' lam cho roi",

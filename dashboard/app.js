@@ -652,9 +652,14 @@ function handleMessage(data) {
         msgEl.appendChild(nen);
       }
       if (finalText.trim()) recordTurn("javis", finalText, null, ask);
-      if (voice.ttsEnabled && t) {
+      // data.tts === false: khung "response" này KHÔNG được đọc (vd bản sửa lại sau khi bóc
+      // JAVIS_LESSON của phiên trợ lý) - giống hệt cách nhánh "stream" đã tôn trọng data.tts.
+      if (voice.ttsEnabled && t && data.tts !== false) {
         docCum(cum.flush(), t);                              // đẩy nốt phần đuôi chưa khép câu
-        if (!t.spoke && finalText) voice.speak(finalText);   // engine gửi tts:false: đọc 1 lần ở cuối
+        // Đánh dấu ĐÃ ĐỌC ngay sau khi gọi, không chỉ đọc điều kiện: thiếu dòng này thì một
+        // khung "response" thứ hai của CÙNG lượt (vd bản sửa lại) sẽ gọi speak() lần nữa,
+        // cắt ngang rồi phát lại từ đầu.
+        if (!t.spoke && finalText) { voice.speak(finalText); t.spoke = true; }   // engine gửi tts:false: đọc 1 lần ở cuối
       } else cum.reset();
       maybeAutoLearn();
     }
@@ -675,6 +680,10 @@ function handleMessage(data) {
   } else if (data.type === "resume") {
     // Trạng thái lịch tự chạy lại (hẹn / tắt / đang chạy / huỷ) - thẻ tự vẽ lại.
     try { if (window.JavisResume) window.JavisResume.onFrame(data); } catch (e) {}
+  } else if (data.type === "wf_event") {
+    // Tiến độ từng bước của một lần chạy quy trình (trang Cộng sự vẽ ở cột phải). Khung chat
+    // không vẽ gì: chip trạng thái đã đi bằng khung status riêng.
+    try { if (window.JavisWorkspace) window.JavisWorkspace.onWfEvent(data); } catch (e) {}
   } else if (data.type === "system") {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {
@@ -689,7 +698,11 @@ function handleMessage(data) {
     try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
-    if (isActive) { syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
+    // Chip "Đang soạn câu trả lời..." phải TẮT ở đây chứ không chỉ ở nhánh `response`: lượt
+    // của phiên quy trình (trang Cộng sự) kết thúc bằng `stream` + `turn_done`, không có
+    // `response` nào, nên trước đây chip đứng lại đếm giờ mãi dù kết quả đã in xong. Gọi thêm
+    // một lần ở đây vô hại với lượt thường - hideActivity() là thao tác không cộng dồn.
+    if (isActive) { hideActivity(); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     notifySessions();

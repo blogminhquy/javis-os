@@ -31,7 +31,10 @@ const check = (name, cond, extra) => {
 // Bóc đúng khối dùng chung rồi chạy nó với vài hàm giả (t/ic/LOC), để test bắt được lỗi
 // hành vi chứ không chỉ lỗi thiếu chữ.
 const i0 = SRC.indexOf("  const NHOM_MD =");
-const i1 = SRC.indexOf("  function switchTab(");
+// Mốc cuối khối là tiêu đề phần Workflows. Trước đây lấy `function switchTab(`, nhưng hàm đó
+// đã bỏ cùng lúc Studio ba-tab tan thành các trang riêng của rail, và mốc biến mất thì cả khối
+// bóc ra rỗng - test đỏ vì lý do chẳng liên quan gì tới khung nhóm.
+const i1 = SRC.indexOf("  // ===== Workflows =====");
 check("tìm thấy khối khung nhóm dùng chung", i0 !== -1 && i1 > i0);
 
 const esc = (s) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");

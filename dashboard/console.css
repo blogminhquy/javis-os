@@ -1394,3 +1394,153 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .pkm-tha { padding: 24px 16px; }
 }
 @keyframes pkmLen { from { transform: translateY(26px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ============================================================
+   TRANG CỘNG SỰ (workspace.js) - ba cột: danh sách | khung chat mượn | cột phải
+   ============================================================
+   Cột giữa mượn chính node chat của app (xem _borrowChatNodes trong console.js), nên phần
+   xếp khung phải giống .chatpage: flex dọc, min-height:0 ở MỌI tầng. Thiếu một min-height:0
+   là khung chat từ chối co lại, đẩy ô nhập rơi khỏi đáy màn hình. */
+/* overflow:hidden KHÔNG phải để cho gọn: ngăn kéo lúc đóng nằm ở translateX(105%), mà phần
+   dịch bằng transform VẪN tính vào vùng cuộn của cha. Thiếu dòng này thì trang thừa ra ~300px
+   bề ngang, và chỉ cần bấm vào ô nhập là cả trang trượt ngang một đoạn (đo thật: scrollLeft
+   nhảy 132px ngay khi ô nhập nhận focus). */
+.wspage { display: flex; height: 100%; min-height: 0; position: relative; overflow: hidden; }
+.ws-left { width: 260px; flex: none; display: flex; flex-direction: column; gap: 8px;
+  min-height: 0; padding: 14px 12px; border-right: 1px solid var(--glass-brd);
+  background: var(--surface-1); }
+.ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
+  padding: 14px 18px 16px; }
+.ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.ws-right { width: 320px; flex: none; overflow: auto; padding: 14px 12px;
+  border-left: 1px solid var(--glass-brd); background: var(--surface-1); }
+
+/* Hai nút Trợ lý | Quy trình: một viên thuốc chia đôi, nút đang chọn tô cam nhạt. */
+.ws-seg { display: flex; gap: 6px; }
+.ws-seg button { flex: 1; min-width: 0; display: inline-flex; align-items: center;
+  justify-content: center; gap: 6px; padding: 7px 6px; border-radius: 9px;
+  border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer;
+  font-family: var(--font); font-size: 13px; white-space: nowrap; }
+.ws-seg button:hover { color: var(--accent); border-color: var(--accent); }
+.ws-seg button.on { color: var(--accent); border-color: #7d532d; background: rgba(255, 122, 60, .12); }
+.ws-search, .ws-group { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px;
+  border: 1px solid var(--border); background: none; color: var(--text); font-family: var(--font);
+  font-size: 13px; }
+.ws-list { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.ws-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 7px 9px; border-radius: 9px; border: 1px solid transparent; background: none;
+  color: var(--text2); cursor: pointer; font-family: var(--font); }
+.ws-item:hover { background: var(--surface-1); color: var(--text); }
+.ws-item.on { border-color: #7d532d; background: rgba(255, 122, 60, .12); color: var(--text); }
+.ws-item-ic { flex: none; opacity: .8; }
+.ws-item-text { min-width: 0; display: flex; flex-direction: column; }
+.ws-item-text strong { font-size: 13.5px; font-weight: 600; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ws-item-text small { font-size: 11.5px; color: var(--text3); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+/* Hai nút đáy cột XẾP DỌC: cột trái chỉ rộng 210-260px, để cạnh nhau thì "Tạo quy trình" bị
+   bẻ thành ba dòng chữ rời. */
+.ws-left-foot { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.ws-left-foot .ws-btn { justify-content: center; white-space: nowrap; overflow: hidden; }
+
+.ws-bar { display: flex; align-items: center; gap: 10px; padding: 0 2px 10px; flex: none; }
+.ws-bar > button { flex: none; }
+/* Tên + vai trò của cộng sự CẮT BỚT bằng ba chấm, tuyệt đối không xuống dòng. Vai trò trong
+   file agent là cả một câu, nên để nó tự ngắt dòng là thanh tiêu đề cao mấy trăm pixel và
+   ĐẨY Ô NHẬP RỚT KHỎI MÀN HÌNH (đo thật ở màn 1024px: ô nhập nằm ở y=850/768). */
+.ws-id { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.ws-id > svg, .ws-id > .ic { flex: none; }
+.ws-id > div { min-width: 0; }
+.ws-id strong, .ws-id small, .ws-id .ws-err { display: block; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ws-id strong { font-size: 15px; }
+.ws-id small, .ws-id .ws-err { font-size: 12px; color: var(--text3); }
+.ws-id .ws-err { color: #ff8b8b; }
+.ws-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 8px;
+  border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer;
+  font-family: var(--font); font-size: 13px; }
+.ws-btn:hover { color: var(--accent); border-color: var(--accent); }
+.ws-btn.primary { color: var(--accent); border-color: #7d532d; background: rgba(255, 122, 60, .14); }
+.ws-btn.danger:hover { color: #ff8b8b; border-color: #ff8b8b; }
+.ws-ico { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 8px;
+  padding: 4px 9px; cursor: pointer; line-height: 1; }
+.ws-ico:hover { color: var(--accent); border-color: var(--accent); }
+/* Bộ icon chưa đóng gói "panel-right": lật gương panel-left, cùng nghĩa mà không phải tải icon mới. */
+.ws-ico.lat svg { transform: scaleX(-1); }
+
+.ws-rtitle { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text3); margin: 12px 0 6px; }
+.ws-rtitle:first-child { margin-top: 0; }
+.ws-empty { font-size: 12.5px; color: var(--text3); padding: 8px 2px; }
+.ws-form label { display: block; font-size: 12px; color: var(--text3); margin: 8px 0 3px; }
+.ws-form input, .ws-form select, .ws-form textarea { width: 100%; box-sizing: border-box; }
+.ws-form h3 { display: none; }   /* tiêu đề "Sửa Agent" thừa: cột phải đã có nhãn riêng */
+.ws-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* Thanh tiến độ + danh sách bước của một lần chạy quy trình. */
+.ws-prog { height: 4px; border-radius: 3px; background: var(--surface-1);
+  border: 1px solid var(--glass-brd); overflow: hidden; }
+.ws-prog > div { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+.ws-status { font-size: 12.5px; color: var(--text2); margin: 6px 0 10px; }
+.ws-steps { display: flex; flex-direction: column; gap: 6px; }
+.ws-step { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 2px 8px;
+  align-items: start; padding: 7px 8px; border-radius: 9px; border: 1px solid var(--glass-brd); }
+.ws-step .ws-num { grid-row: 1 / span 3; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+  border: 1px solid var(--border); color: var(--text3); }
+.ws-step strong { font-size: 13px; font-weight: 600; }
+.ws-step small { font-size: 11.5px; color: var(--text3); }
+.ws-step .ws-who { font-size: 11.5px; color: var(--text3); display: flex; align-items: center; gap: 4px; }
+.ws-step.dang { border-color: #7d532d; background: rgba(255, 122, 60, .08); }
+.ws-step.dang .ws-num { color: var(--accent); border-color: var(--accent); }
+.ws-step.xong .ws-num { color: #6fd08c; border-color: #6fd08c; }
+.ws-step.loi { border-color: #ff8b8b; }
+.ws-step.loi .ws-num, .ws-step.loi small { color: #ff8b8b; }
+.ws-wait { margin-top: 8px; padding: 8px; border-radius: 9px; border: 1px solid #7d532d;
+  background: rgba(255, 122, 60, .1); font-size: 12.5px; }
+.ws-wait small { display: block; margin-top: 4px; font-size: 11px; color: var(--text3); }
+
+/* Một lần chạy / một hội thoại cũ: nút trải hết bề ngang cột phải. */
+.ws-runs, .ws-sess { display: flex; flex-direction: column; gap: 4px; }
+.ws-run { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 8px; border-radius: 8px; border: 1px solid var(--glass-brd); background: none;
+  color: var(--text2); cursor: pointer; font-family: var(--font); font-size: 12.5px; }
+.ws-run:hover { border-color: var(--accent); color: var(--text); }
+.ws-run strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-run small { color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-run-st { flex: none; font-size: 11px; color: var(--text3); }
+.ws-run.done .ws-run-st { color: #6fd08c; }
+.ws-run.error .ws-run-st { color: #ff8b8b; }
+
+/* Màn hẹp dần: hai cột bên lần lượt thành NGĂN KÉO trượt đè để khung chat giữ đủ bề ngang.
+   Ba nấc vì một màn laptop 1024px trừ thanh bên còn ~900px, mà 260 + 320 cột hai bên ăn hết
+   580: cột chat chỉ còn hơn 280px, hẹp hơn cả điện thoại. Cột phải (đọc tiến độ, thỉnh
+   thoảng mới sửa) nhường trước, cột trái (chọn cộng sự) nhường sau. */
+@media (max-width: 1240px) {
+  .ws-left { width: 210px; }
+  .ws-right { width: 272px; }
+}
+.ws-left, .ws-right { transition: transform .2s ease; }
+/* Hai lớp `left-open` / `right-open` nghĩa là "NGƯỢC VỚI MẶC ĐỊNH của khổ màn hình này", chứ
+   không phải "đang mở": màn rộng thì cột hiện sẵn nên bấm nút là ẩn đi lấy chỗ cho khung chat;
+   màn hẹp thì cột là ngăn kéo đang đóng nên bấm nút là kéo ra. Cùng một nút, cùng một nhãn
+   "Ẩn/hiện", và ở khổ nào nó cũng làm được việc. */
+@media (min-width: 901px) { .wspage.left-open .ws-left { display: none; } }
+@media (min-width: 1061px) { .wspage.right-open .ws-right { display: none; } }
+@media (max-width: 1060px) {
+  .ws-right { position: absolute; top: 0; bottom: 0; right: 0; z-index: 6;
+    width: min(84vw, 300px); background: var(--bg); transform: translateX(105%); }
+  .wspage.right-open .ws-right { transform: none; box-shadow: 0 0 40px var(--shadow-veil); }
+}
+@media (max-width: 900px) {
+  .ws-left { position: absolute; top: 0; bottom: 0; left: 0; z-index: 6;
+    width: min(84vw, 300px); background: var(--bg); transform: translateX(-105%); }
+  .wspage.left-open .ws-left { transform: none; box-shadow: 0 0 40px var(--shadow-veil); }
+  .ws-main { padding: 12px 12px 14px; }
+}
+/* NỀN MỜ: vừa nói cho mắt biết "chạm ra ngoài là đóng", vừa là chỗ hứng cú chạm đó (cùng
+   bài học với ngăn kéo của trang Trò chuyện - không có nền thì ngăn kéo che hết đường đóng). */
+@media (max-width: 1060px) {
+  .wspage.left-open::before, .wspage.right-open::before { content: ""; position: absolute;
+    inset: 0; z-index: 5; background: rgba(0, 0, 0, .38); }
+}

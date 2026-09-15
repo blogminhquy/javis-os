@@ -98,7 +98,7 @@ def register(ctx):
             "Điều khiển DASHBOARD Javis đang mở trong trình duyệt của người dùng: mở trang, mở file, "
             "mở việc, cuộn. Dùng khi người dùng bảo (bằng lời hoặc gõ) 'mở trang Việc', 'mở file X', "
             "'cho xem việc vừa giao', 'cuộn xuống'. action=open_page (target: id trang - "
-            + ", ".join(PAGES) + " - hoặc ĐÚNG tên tiếng Việt đang hiện trên thanh bên: 'việc', 'tệp tin', 'cài đặt', 'trợ lý' = agents, 'kỹ năng' = skills, 'quy trình' = workflows, 'công cụ' = plugins); "
+            + ", ".join(PAGES) + " - hoặc ĐÚNG tên tiếng Việt đang hiện trên thanh bên: 'việc', 'tệp tin', 'cài đặt', 'trợ lý' và 'quy trình' = workspace (trang Cộng sự), 'kỹ năng' = skills, 'công cụ' = plugins); "
             "open_file (target: đường dẫn tương đối trong brain); open_task (target: mã việc Kanban); "
             "scroll (cuộn THỨ NGƯỜI DÙNG ĐANG XEM - target: top | bottom để dashboard tự chọn "
             "theo trang đang mở, page_top | page_bottom khi họ nói rõ 'cuộn trang này', "

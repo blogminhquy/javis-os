@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.0] - 2026-09-15
+### Thêm mới
+- **Trang Cộng sự thay cho hai trang Trợ lý và Quy trình.** Chọn một trợ lý là chat được ngay với đúng vai đó, mỗi trợ lý có hội thoại riêng và cài đặt nằm ở cột phải.
+- **Quy trình chạy ngay trong khung chat.** Gửi một tin là một lần chạy, tiến độ từng bước hiện ở cột phải, kết quả về chat và tin sau vẫn nhớ kết quả trước để bạn góp ý tiếp.
+- **Lịch sử chạy được lưu lại.** Cột phải liệt kê các lần chạy gần nhất, bấm vào là mở lại; hỏi Javis "quy trình chạy gần nhất ra sao" ở khung chat chính để tra kết quả đã lưu. Quy trình vừa chạy tự lên đầu danh sách.
+
+
 ## [0.58.8] - 2026-09-15
 ### Cải thiện
 - **Phần Giọng nói, thương hiệu & truy cập trong Cài đặt đỡ trống trải hẳn.** Trước đây nó xếp hai cột, mà thẻ giọng nói dài gấp gần mười lần thẻ ảnh đại diện bên cạnh, nên nửa màn hình là khoảng trắng. Nay xếp một cột, mỗi thẻ một việc, nhãn bên trái và ô chọn bên phải. Cả khối ngắn lại gần một nửa.

@@ -138,7 +138,15 @@ check("agents_index trả model_provider cho giao diện",
 check("_agent_sysprompt trả kèm nhà", 'ameta.get("model_provider")' in src)
 # Bốn chỗ bóc tuple và bốn chỗ dựng engine phải đi cùng nhau - lệch một chỗ là agent đó
 # âm thầm mất nhà đã chọn.
-check("đủ 4 chỗ bóc tuple 4 phần", src.count("= _agent_sysprompt(") + src.count("= agent_sysprompt(") == 4)
+# Chat riêng cũng dùng helper này; kiểm cấu trúc tuple ở mọi nơi gọi thay vì
+# đóng đinh tổng số lời gọi của cả main.py vào số nhánh workflow.
+import ast
+calls = [n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Assign)
+         and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Name)
+         and n.value.func.id in ("_agent_sysprompt", "agent_sysprompt")]
+check("mọi lời gọi sysprompt đều bóc đủ 4 phần", bool(calls) and all(
+    len(n.targets) == 1 and isinstance(n.targets[0], ast.Tuple)
+    and len(n.targets[0].elts) == 4 for n in calls))
 check("mọi chỗ bóc tuple đều lấy cả provider",
       src.count("agent_model, agent_prov = ") + src.count("v_model, v_prov = ") == 4)
 check("mọi chỗ dựng engine đều truyền provider xuống",

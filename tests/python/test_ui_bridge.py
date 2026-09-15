@@ -97,9 +97,14 @@ async def main():
     # Thanh bên đã Việt hoá (0.57.6): nói đúng chữ đang hiện trên màn hình phải mở được trang.
     check("resolve_page: 'công cụ' -> plugins", m.resolve_page("công cụ") == "plugins")
     check("resolve_page: 'mở trang kỹ năng' -> skills", m.resolve_page("mở trang kỹ năng") == "skills")
-    check("resolve_page: 'trợ lý' -> agents", m.resolve_page("trợ lý") == "agents")
-    check("resolve_page: 'cho xem trang quy trình' -> workflows",
-          m.resolve_page("cho xem trang quy trình") == "workflows")
+    check("resolve_page: 'trợ lý' -> workspace", m.resolve_page("trợ lý") == "workspace")
+    check("resolve_page: 'cho xem trang quy trình' -> workspace",
+          m.resolve_page("cho xem trang quy trình") == "workspace")
+    check("resolve_page: 'cộng sự' -> workspace", m.resolve_page("cộng sự") == "workspace")
+    # Id trang số nhiều cũ (trước 0.59.0): prompt/bookmark cũ gọi thẳng "agents"/"workflows"
+    # vẫn phải ra đúng trang mới, không phải rỗng.
+    check("resolve_page: 'agents' -> workspace", m.resolve_page("agents") == "workspace")
+    check("resolve_page: 'workflows' -> workspace", m.resolve_page("workflows") == "workspace")
     check("resolve_group: 'mở mục Năng lực' -> nang_luc", m.resolve_group("mở mục Năng lực") == "nang_luc")
     check("open_file chặn ..", bool(m.check_target("open_file", "../x.md")))
     check("open_file chặn tuyệt đối", bool(m.check_target("open_file", "C:/x.md")) and bool(m.check_target("open_file", "/etc/passwd")))

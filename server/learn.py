@@ -1646,7 +1646,9 @@ class LearnFeature:
             if not convs and not jobs:
                 # manual run không có pending → lấy phiên mới nhất của brain
                 try:
-                    recent = self.deps.sessions_store.list_sessions(limit=1, brain=brain)
+                    # channel="*": hội thoại với cộng sự (agent:/workflow:) cũng là hội thoại
+                    # của chủ, vòng tự học không được bỏ sót.
+                    recent = self.deps.sessions_store.list_sessions(limit=1, brain=brain, channel="*")
                     convs = [recent[0]["id"]] if recent else []
                 except Exception:
                     convs = []
