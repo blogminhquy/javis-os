@@ -154,7 +154,10 @@
             '<button type="button" class="ws-ico ws-search-btn" id="wsSearchBtn" aria-controls="wsSearch" ' +
             'aria-expanded="' + (S.q ? "true" : "false") + '" ' +
             'title="' + esc(t("ws.search_ph")) + '" aria-label="' + esc(t("ws.search_ph")) + '">' + ic("search") + '</button>' +
-            '<input class="ws-search" id="wsSearch"' + (S.q ? "" : " hidden") + ' value="' + esc(S.q) + '" placeholder="' + esc(t("ws.search_ph")) + '">' +
+            // data-esc: khai với trình sửa note (console.js _neOTextNgoai) rằng ô này TỰ xử
+            // Esc. Bộ bắt phím của trình sửa gắn ở mức document + capture nên nếu không khai
+            // thì Esc ở đây đóng mất file đang mở thay vì xoá chữ đang gõ.
+            '<input class="ws-search" id="wsSearch" data-esc' + (S.q ? "" : " hidden") + ' value="' + esc(S.q) + '" placeholder="' + esc(t("ws.search_ph")) + '">' +
           '</div>' +
           '<div class="ws-list" id="wsList"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +

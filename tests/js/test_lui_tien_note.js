@@ -163,16 +163,25 @@ check("đóng trình sửa KHÔNG xoá vệt", dong.indexOf("_neLichSu = []") < 
   vm.createContext(ctxO);
   vm.runInContext(CON.slice(d0, d1 + 4), ctxO);
   const ngoai = ctxO._neOTextNgoai;
-  check("ô text thường -> nhường phím", ngoai({ tagName: "INPUT", type: "text" }) === true);
-  check("ô tìm (type=search) -> nhường phím", ngoai({ tagName: "INPUT", type: "search" }) === true);
-  check("textarea -> nhường phím", ngoai({ tagName: "TEXTAREA" }) === true);
-  check("vùng soạn thảo -> nhường phím", ngoai({ tagName: "DIV", isContentEditable: true }) === true);
-  check("checkbox KHÔNG phải ô gõ chữ -> Esc vẫn đóng trình sửa",
-    ngoai({ tagName: "INPUT", type: "checkbox" }) === false);
-  check("bấm ngoài mọi ô nhập -> Esc vẫn đóng trình sửa", ngoai({ tagName: "DIV" }) === false
+  // Nhường theo DẤU `data-esc` do chính ô khai, không nhường cho mọi ô nhập.
+  const o = (tag, attrs, them) => Object.assign({ tagName: tag,
+    hasAttribute: (k) => (attrs || []).indexOf(k) >= 0 }, them || {});
+  check("ô có khai data-esc -> nhường phím", ngoai(o("INPUT", ["data-esc"])) === true);
+  check("textarea có khai data-esc -> nhường phím", ngoai(o("TEXTAREA", ["data-esc"])) === true);
+  // Đây là ô CHAT: textarea, được trang Trò chuyện tự đưa con trỏ vào, và KHÔNG có bộ xử Esc
+  // nào của riêng nó. Nhường cho nó là Esc thành phím chết ở đúng chỗ người dùng đứng nhiều nhất.
+  check("CANARY: textarea trơn (ô chat) KHÔNG giành Esc", ngoai(o("TEXTAREA", [])) === false);
+  check("ô text trơn không khai gì -> Esc vẫn đóng trình sửa", ngoai(o("INPUT", [])) === false);
+  check("bấm ngoài mọi ô nhập -> Esc vẫn đóng trình sửa", ngoai(o("DIV", [])) === false
     && ngoai(null) === false);
-  check("CANARY: ô nhập BÊN TRONG trình sửa thì Esc vẫn đóng trình sửa",
-    ngoai({ tagName: "TEXTAREA", trongEditor: true }) === false);
+  check("CANARY: ô khai data-esc nhưng BÊN TRONG trình sửa thì Esc vẫn đóng trình sửa",
+    ngoai(o("TEXTAREA", ["data-esc"], { trongEditor: true })) === false);
+  // Hai ô thật đang khai dấu này.
+  check("ô tìm cộng sự khai data-esc", /id="wsSearch" data-esc/.test(D("workspace.js")));
+  check("ô lọc cây Vault khai data-esc", /id="vaultSearch"[^>]*\sdata-esc/.test(HTML));
+  check("CANARY: ô chat KHÔNG khai data-esc",
+    /<textarea[^>]*id="chatInput"[^>]*>/.test(HTML)
+    && !/id="chatInput"[^>]*\sdata-esc/.test(HTML));
   const kh = CON.slice(CON.indexOf("function _neKeyHandler("), CON.indexOf("function _neOTextNgoai("));
   check("nhánh Esc hỏi hàm đó trước khi đóng",
     /_neOTextNgoai\(e\.target\)\) return;[\s\S]{0,120}closeNote\(\)/.test(kh));

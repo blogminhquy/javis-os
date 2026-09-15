@@ -7091,15 +7091,15 @@
       e.preventDefault(); e.stopPropagation(); closeNote();
     }
   }
-  // Ô nhập chữ nằm NGOÀI trình sửa? Ô bên TRONG trình sửa không tính: gõ nội dung file rồi bấm
-  // Esc thì vẫn phải đóng trình sửa như trước, đó là đường thoát quen tay.
+  // Ô nhập này có TỰ XỬ Esc không? Nhường theo dấu `data-esc` do chính ô đó khai, chứ KHÔNG
+  // nhường cho mọi ô nhập: ô chat (#chatInput) là một <textarea> được trang Trò chuyện tự đưa
+  // con trỏ vào và nó KHÔNG có bộ xử Esc nào, nên nhường đại là Esc thành phím chết ở đúng ô
+  // người dùng đang đứng nhiều nhất.
+  // Ô bên TRONG trình sửa không tính: gõ nội dung file rồi bấm Esc thì vẫn phải đóng trình sửa
+  // như trước, đó là đường thoát quen tay.
   function _neOTextNgoai(el) {
     if (!el || _neTrongEditor(el)) return false;
-    const tag = String(el.tagName || "").toUpperCase();
-    if (tag === "TEXTAREA" || el.isContentEditable) return true;
-    if (tag !== "INPUT") return false;
-    return ["text", "search", "email", "url", "tel", "password", "number"]
-      .indexOf(String(el.type || "text").toLowerCase()) >= 0;
+    return !!(el.hasAttribute && el.hasAttribute("data-esc"));
   }
   // Chuột có nút lùi/tiến bên hông (button 3/4): dùng được luôn, không phải học gì thêm.
   // Chặn ở `mousedown` mới cắt được hành vi lùi TRANG của trình duyệt (chặn ở mouseup là
