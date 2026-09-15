@@ -203,7 +203,14 @@
     }
     if (!id) {
       var n = await api("/sessions/new", { method: "POST", body: fd({ brain: brain(), channel: ch }) });
-      if (!n.id) { veLoi(n.error || t("ws.err_session")); return; }
+      if (!n.id) {
+        veLoi(n.error || t("ws.err_session"));
+        // Mở phiên hỏng (slug có dấu thì server từ chối kênh, brain vừa đổi...) thì phải CẮT
+        // đường tin nhắn đi lạc: không làm gì nữa là ô nhập vẫn trỏ vào phiên của cộng sự mở
+        // TRƯỚC đó, và tin gõ tiếp rơi vào đúng hội thoại của người khác mà không ai thấy.
+        try { if (window.JavisSessions) window.JavisSessions.new(); } catch (e) {}
+        return;
+      }
       id = n.id;
     }
     S.sessionCuaPhien[id] = item.slug;
