@@ -515,7 +515,9 @@
   // Bật linh vật thì chỗ logo hiện chính khuôn mặt ấy, để cả app nói cùng một nhân dạng.
   // TẮT linh vật, HOẶC người dùng đã tải logo riêng lên, thì trả lại thẻ <img src="/brand-logo">
   // nguyên bản: logo của người ta thì người ta quyết, một con vật không được đè lên.
-  var LO_DAU_AN = ".rail-brand, .brand .brand-icon";
+  // Chỉ thay RUỘT của ô dấu ấn, không thay cả khối thương hiệu: chữ "JAVIS OS" nằm cạnh đó
+  // trong cùng khối, thay cả khối là mỗi lần đổi hình dáng hay bảng màu lại xoá mất chữ.
+  var LO_DAU_AN = ".rail-brand .brand-mark, .brand .brand-icon";
   var _logoRieng = false;      // người dùng đã tải logo riêng lên chưa
   function dungDauAn() { return !!cfg.enabled && !_logoRieng; }
   function veDauAn() {

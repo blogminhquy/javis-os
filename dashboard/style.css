@@ -2981,9 +2981,9 @@ body.ne-full-on .cview { z-index: 250; }
   .pet-body, .pet-menu { transition: none !important; animation: none !important; }
 }
 
-/* Chỗ logo trên thanh bên khi nó đang mang khuôn mặt linh vật (pet.js -> veDauAn).
-   Ảnh logo cũ là <img> vuông bo góc; dấu ấn là SVG khuôn mặt nên bỏ bóng cam của
-   .rail-brand đi, không thì cái mặt nằm trong một quầng sáng không ai gọi. */
+/* Ô dấu ấn khi nó đang mang khuôn mặt linh vật (pet.js -> veDauAn). Ảnh logo cũ là
+   <img> vuông bo góc; dấu ấn là SVG khuôn mặt nên bỏ quầng sáng cam của .brand-mark đi,
+   không thì cái mặt nằm trong một vầng hào quang không ai gọi. */
 .brand-pet { filter: none !important; }
 .brand-pet svg { display: block; width: 30px; height: 30px; overflow: visible; }
 .brand .brand-pet svg { width: 22px; height: 22px; }

@@ -27,6 +27,7 @@ const console_js = read("dashboard/console.js");
 const uiActions = read("dashboard/ui-actions.js");
 const uiTargets = read("server/ui_targets.py");
 const branding = read("dashboard/branding.js");
+const railCss = read("dashboard/console.css");
 const vi = JSON.parse(read("dashboard/i18n/vi.json"));
 const en = JSON.parse(read("dashboard/i18n/en.json"));
 
@@ -93,6 +94,21 @@ check("css: menu neo tuyệt đối, không nằm trong flex 56px", /\.pet-menu 
 check("bật linh vật + chưa có logo riêng thì mới thay logo",
   /function dungDauAn\(\) \{ return !!cfg\.enabled && !_logoRieng; \}/.test(pet));
 check("tắt dấu ấn thì trả lại thẻ <img> nguyên bản", /o\.innerHTML = o\.dataset\.brandGoc;/.test(pet));
+// Chữ "JAVIS OS" nằm CẠNH dấu ấn trong cùng khối .rail-brand. Nếu pet.js thay ruột của cả
+// khối thì mỗi lần đổi hình dáng hay bảng màu là chữ bị xoá theo - nên nó phải nhắm vào ô
+// con .brand-mark, và index.html phải có sẵn ô con đó.
+check("dấu ấn thay ruột ô .brand-mark, không thay cả khối thương hiệu",
+  /var LO_DAU_AN = "\.rail-brand \.brand-mark, \.brand \.brand-icon";/.test(pet));
+check("index.html: .rail-brand có ô dấu ấn riêng và chữ JAVIS OS",
+  /<div class="rail-brand"><span class="brand-mark">/.test(html)
+  && /<span class="rail-brand-text">JAVIS <i>OS<\/i><\/span>/.test(html));
+check("css: thu gọn thanh bên thì giấu chữ, chỉ còn dấu ấn",
+  /\.rail\.collapsed \.rail-brand-text \{ display: none; \}/.test(railCss));
+// Quầng sáng cam phải ở ô DẤU ẤN chứ không ở cả khối: filter của cha ăn xuống cả cây con và
+// con không gỡ được, để ở .rail-brand là chữ cũng phát sáng cam theo.
+check("css: quầng sáng nằm trên .brand-mark, không trên .rail-brand",
+  /\.rail-brand \.brand-mark \{[\s\S]{0,120}drop-shadow/.test(railCss)
+  && !/\.rail-brand \{[^}]*drop-shadow/.test(railCss));
 check("branding.js báo cho pet khi đổi logo", /JavisPet\.setLogoRieng\(rieng\)/.test(branding));
 check("branding.js truyền đúng true khi tải lên, false khi khôi phục",
   /bustLogos\(true\);/.test(branding) && /bustLogos\(false\);/.test(branding));

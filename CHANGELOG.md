@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.3] - 2026-09-15
+### Cải thiện
+- **Thanh bên có lại chữ "JAVIS OS" cạnh linh vật.** Trước đó chỗ đó chỉ còn mỗi khuôn mặt. Thu gọn thanh bên thì chữ tự ẩn, chỉ còn khuôn mặt như cũ.
+
 ## [0.58.2] - 2026-09-15
 ### Sửa lỗi
 - **Câu bạn vừa nói không còn bốc hơi khi mạng chớp.** Trên iPhone, đổi khung chat là Safari hay đóng kết nối tới máy chủ một nhịp; trước đây tin gửi đúng lúc đó bị bỏ đi lặng lẽ, chữ nhận đúng mà không có gì vào khung chat và không có lời giải thích nào. Nay câu ấy được giữ lại, gửi ngay khi nối lại được, và nếu mãi không nối được thì trả về ô nhập để bạn bấm gửi lại.
