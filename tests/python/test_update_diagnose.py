@@ -103,6 +103,53 @@ check("câu cũ mơ hồ không còn ở chỗ ghi thông báo",
       "(pull chưa áp?)" not in _ghi)
 check("chỗ ghi thông báo có dùng chẩn đoán", "ly_do" in _ghi)
 
+# ============================================================
+# 7. `git pull` CHẾT HẲN thì cũng phải nói bằng tiếng người
+# ============================================================
+# Lỗi thật chủ dự án gặp trên máy mình 15/09, nguyên văn những gì hiện ra:
+#
+#   hint: Diverging branches can't be fast-forwarded, you need to either:
+#   hint:   git merge --no-ff ... or: git rebase
+#   fatal: Not possible to fast-forward, aborting.
+#
+# Nguyên nhân: máy đang đứng trên một nhánh phụ cũ (feat/...) chứ không phải main, và nhánh đó
+# đã rẽ khác đường với bản của nó trên máy chủ. Git nói đúng, nhưng nói với lập trình viên.
+_DIVERGE = ("hint: Diverging branches can't be fast-forwarded, you need to either:\n"
+            "hint:   git merge --no-ff\nfatal: Not possible to fast-forward, aborting.")
+
+updater.run = _gia_lap("feat/cong-su-cay-thu-muc", 0, "origin/feat/cong-su-cay-thu-muc")
+_msg = updater.chan_doan_pull_hong(_DIVERGE)
+check("rẽ nhánh + đứng nhầm nhánh: gọi tên nhánh đang đứng",
+      "feat/cong-su-cay-thu-muc" in _msg)
+check("nói rõ đó không phải nhánh main", "không phải nhánh main" in _msg)
+check("đưa LỆNH cụ thể để về đúng chỗ", "git checkout main" in _msg)
+check("không ném lời git thô ra màn hình", "fast-forward" not in _msg and "hint:" not in _msg)
+
+# Đang ở ĐÚNG main mà vẫn rẽ đôi: lời khuyên phải khác hẳn - ở đây không checkout đi đâu được.
+updater.run = _gia_lap("main", 0, "origin/main")
+_msg = updater.chan_doan_pull_hong(_DIVERGE)
+check("main rẽ đôi: chỉ cách lấy lại đúng bản máy chủ", "reset --hard origin/main" in _msg)
+check("và nói rõ cái giá: bỏ commit riêng", "BỎ commit riêng" in _msg)
+
+# Mấy ca còn lại: mỗi ca một lời khuyên KHÁC nhau, không phải một câu chung chung.
+updater.run = _gia_lap("main", 128, "")
+check("chưa theo dõi remote", "chưa theo dõi" in updater.chan_doan_pull_hong("There is no tracking information for the current branch."))
+updater.run = _gia_lap("HEAD", 128, "")
+check("detached HEAD", "detached" in updater.chan_doan_pull_hong("You are not currently on a branch.").lower())
+updater.run = _gia_lap("main", 0, "origin/main")
+check("mất mạng", "mạng" in updater.chan_doan_pull_hong("fatal: unable to access 'https://github.com/...': Could not resolve host: github.com"))
+check("sửa đổi cục bộ chặn đường", "git stash" in updater.chan_doan_pull_hong("error: Your local changes to the following files would be overwritten by merge:"))
+# Lỗi lạ hoắc trên ĐÚNG nhánh main: thà trả rỗng (để nơi gọi in lời git thô) còn hơn bịa ra
+# một nguyên nhân sai.
+check("lỗi lạ trên main thì không bịa nguyên nhân",
+      updater.chan_doan_pull_hong("fatal: một lỗi chưa từng gặp") == "")
+
+updater.run = _that
+
+_hong = _src[_src.find("pull = run([\"git\", \"pull\", \"--ff-only\"])"):][:1200]
+check("nhánh pull hỏng có gọi chẩn đoán", "chan_doan_pull_hong(" in _hong)
+check("và ưu tiên lời giải thích hơn lời git thô", "ly_do + " in _hong)
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")

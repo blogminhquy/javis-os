@@ -223,6 +223,66 @@ def chan_doan_pull(pull_out: str) -> str:
             + ". Xem update.log để biết chi tiết.")
 
 
+def chan_doan_pull_hong(loi: str, nhanh: str = "", theo_doi: str = "") -> str:
+    """Vì sao `git pull --ff-only` CHẾT HẲN. Anh em sinh đôi của chan_doan_pull ở trên, cho
+    nhánh ngược lại: pull trả mã lỗi chứ không phải trả về 0 rồi im.
+
+    Vì sao cần: git in ra đúng thứ nó nghĩ người đọc là lập trình viên -
+
+        hint: Diverging branches can't be fast-forwarded, you need to either:
+        hint:   git merge --no-ff ... or: git rebase
+        fatal: Not possible to fast-forward, aborting.
+
+    Người bấm nút "Cập nhật ngay" trên điện thoại đọc câu đó xong không biết máy mình đang
+    hỏng chuyện gì, mà nguyên nhân thật thì gần như luôn là một trong ba chuyện rất dễ nói
+    bằng tiếng người: đứng nhầm nhánh, nhánh đã rẽ đôi, hoặc không nối được mạng.
+
+    `nhanh` / `theo_doi` truyền vào để test gọi được mà không cần một repo git thật; bỏ trống
+    thì tự hỏi git.
+    """
+    out = (loi or "").strip()
+    thap = out.lower()
+    if not nhanh:
+        nhanh = (run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout or "").strip()
+    if not theo_doi:
+        up = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        theo_doi = (up.stdout or "").strip() if up.returncode == 0 else ""
+
+    dung_nhanh = bool(theo_doi) and theo_doi.endswith("/main")
+    ve_main = "Chạy: git checkout main && git pull --ff-only"
+
+    # Rẽ đôi: nhánh cục bộ có commit mà nhánh trên máy chủ không có, và ngược lại. Hay gặp
+    # nhất khi máy đang đứng trên một nhánh nhánh phụ cũ, hoặc khi PR được gộp kiểu squash
+    # (commit trên main là một commit MỚI, không phải commit của nhánh phụ).
+    if "not possible to fast-forward" in thap or "diverging" in thap or "diverged" in thap:
+        if not dung_nhanh:
+            return (f"Máy đang đứng ở nhánh '{nhanh}'"
+                    + (f" (theo dõi '{theo_doi}')" if theo_doi else "")
+                    + ", không phải nhánh main, và nhánh đó đã rẽ khác đường với bản trên máy "
+                      "chủ nên không cập nhật thẳng được. " + ve_main)
+        return ("Nhánh main trên máy đã rẽ khác đường với máy chủ (có commit riêng ở đây). "
+                "Muốn lấy đúng bản trên máy chủ và BỎ commit riêng: "
+                "git fetch origin && git reset --hard origin/main")
+    if "no tracking information" in thap or "no upstream" in thap:
+        return (f"Nhánh '{nhanh}' chưa theo dõi nhánh nào trên máy chủ nên git không biết tải "
+                f"từ đâu. " + ve_main)
+    if "you are not currently on a branch" in thap or nhanh == "HEAD":
+        return "Máy đang ở trạng thái detached HEAD (không đứng trên nhánh nào). " + ve_main
+    if ("could not resolve host" in thap or "unable to access" in thap
+            or "connection" in thap or "timed out" in thap):
+        return "Không nối được tới GitHub. Kiểm tra mạng rồi bấm cập nhật lại."
+    if "authentication" in thap or "permission denied" in thap or "403" in thap:
+        return "GitHub từ chối quyền truy cập. Kiểm tra lại thông tin đăng nhập git của máy."
+    if "local changes" in thap or "would be overwritten" in thap:
+        return ("Trên máy có sửa đổi cục bộ chặn mất bản mới. Cất đi rồi thử lại: "
+                "git stash && git pull --ff-only")
+    if not dung_nhanh:
+        return (f"Máy đang đứng ở nhánh '{nhanh}'"
+                + (f" (theo dõi '{theo_doi}')" if theo_doi else "")
+                + ", không phải nhánh main. " + ve_main)
+    return ""
+
+
 def pip_install():
     """Cài thư viện. Mã lỗi TRẢ VỀ CHO NƠI GỌI KIỂM - trước đây không ai kiểm.
 
@@ -303,8 +363,14 @@ def main():
         start_server(mode, a.port)
         them = "" if poll_health(a.port, 60) else (
             " Server cũ CŨNG chưa lên lại - mở Javis bằng tay để chạy tiếp.")
+        # NÓI RA nguyên nhân bằng tiếng người. Trước bản này chỗ này ném thẳng lời git ra màn
+        # hình ("hint: Diverging branches can't be fast-forwarded... fatal: Not possible to
+        # fast-forward"), mà người bấm nút Cập nhật thì không đọc ra được máy mình hỏng gì.
+        ly_do = chan_doan_pull_hong(pull.stderr or pull.stdout or "")
+        log("Chẩn đoán: " + (ly_do or "(không nhận ra nguyên nhân quen thuộc)"))
+        tho = (pull.stderr or "git pull thất bại").strip()
         us.write_state({"phase": "error", "result": "pull_failed",
-                        "error": ((pull.stderr or "git pull thất bại")[:400] + them),
+                        "error": ((ly_do + " (chi tiết trong update.log)") if ly_do else tho[:400]) + them,
                         "finished_at": _now()})
         return 1
 
