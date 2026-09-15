@@ -297,6 +297,12 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
      re.compile(r"(you'?ve\s+)?(hit|reached)\s+your\s+(usage|plan|weekly)\s+limit", re.I)),
     ("codex_quota", "codex", "",
      re.compile(r"usage\s+limit\s+reached|quota\s+exceeded\s+for\s+your\s+plan", re.I)),
+    # "You've hit your session limit · resets 12pm (UTC)". Câu này KHÔNG tự nói nhà nào, nên
+    # engine để rỗng: gọi nó là "gói ChatGPT" khi thật ra là gói Claude thì người dùng đi sửa
+    # nhầm chỗ. Rỗng thì `engine_hint` của chỗ gọi quyết, không có hint thì hiện nhãn chung
+    # "gói thuê bao đang dùng" - thà nói ít hơn là nói sai.
+    ("sub_session", "", "",
+     re.compile(r"(you'?ve\s+)?(hit|reached)\s+your\s+session\s+limit", re.I)),
     # Gemini CLI. Câu chữ lấy từ chính bundle @google/gemini-cli và từ lỗi backend Google trả
     # về ("Quota exceeded for quota metric...", RESOURCE_EXHAUSTED). Gói đăng nhập Google có
     # hạn mức theo NGÀY, nên nói được "hết lượt hôm nay" là đúng chuyện đang xảy ra.
@@ -308,9 +314,11 @@ _SUB_PATTERNS: tuple[tuple[str, str, str, re.Pattern], ...] = (
                 r"|RESOURCE_EXHAUSTED", re.I)),
 )
 
-# "resets at 3pm", "resets in 2 hours 15 minutes", "try again in 45 minutes"
+# "resets at 3pm", "resets in 2 hours 15 minutes", "try again in 45 minutes", và dạng KHÔNG có
+# giới từ mà nhà cung cấp hay in: "resets 12pm (UTC)". Bắt buộc có "at|in|on" thì mốc reset
+# duy nhất người dùng được cho biết lại rơi mất, và câu báo hoá ra "không biết lúc nào reset".
 _RESET_TEXT_RE = re.compile(
-    r"(resets?\s+(?:at|in|on)\s+[^.\n|]{1,60}|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
+    r"(resets?\s+(?:at\s+|in\s+|on\s+)?[^.\n|]{1,60}|try\s+again\s+in\s+[^.\n|]{1,40})", re.I)
 _RESET_IN_RE = re.compile(
     r"\b(?:resets?|try\s+again)\s+in\s+"
     r"(?:(\d+)\s*(?:hours?|hrs?|h|giờ)\s*)?(?:(\d+)\s*(?:minutes?|mins?|m|phút))?", re.I)
