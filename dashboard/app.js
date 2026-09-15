@@ -54,6 +54,8 @@ function stopCurrent() {
     }).catch(() => {});
   }
   hideActivity();
+  // Nhớ lượt vừa dừng: turn_done của nó có thể về SAU khi lượt mới đã chạy (xem _luotDaDung).
+  if (sid && turns[sid] && turns[sid].running && turns[sid].id) _luotDaDung[sid] = turns[sid].id;
   if (sid && turns[sid]) turns[sid].running = false;
   setSessionRunning(sid, false);
   try { runActions(turn.turnDone()); } catch (e) {}   // bấm Dừng: hết lượt, orb theo đạo diễn
@@ -504,6 +506,8 @@ function handleMessage(data) {
     stopTag = data.stop_tag || null;
     if (window.JavisRunning) window.JavisRunning.clear();
     Object.keys(turns).forEach(sid => { if (turns[sid]) turns[sid].running = false; });
+    _luotDaDung = {};   // socket mới: turn_done của lượt đã dừng trên socket cũ không còn tới
+
     (data.running || []).forEach(job => {
       const sid = job.session_id;
       if (!sid) return;
@@ -548,6 +552,10 @@ function handleMessage(data) {
     : (turns[sid] || (KHUNG_LUOT.includes(data.type)
         ? (turns[sid] = { text: "", bubble: null, spoke: false, running: true })
         : null));
+  // Khung của lượt MỚI đã về: server chỉ nhận tin mới khi job cũ đã dứt, và turn_done của job
+  // cũ đi trước trên cùng socket, nên nó không thể còn tới nữa - thôi chờ (xem _luotDaDung).
+  if (sid && _luotDaDung[sid] != null && data.type !== "turn_done" && KHUNG_LUOT.includes(data.type)
+      && t && t.id && t.id !== _luotDaDung[sid]) delete _luotDaDung[sid];
 
   if (data.type === "push") {
     // Tin do việc chạy NỀN đẩy vào (việc Kanban / loop / nhắc hẹn xong), không thuộc lượt
@@ -671,6 +679,13 @@ function handleMessage(data) {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {
     // Lượt của phiên này kết thúc (xong / lỗi / bị dừng): bỏ cờ chạy, dọn buffer, refresh Lịch sử.
+    // turn_done của lượt ĐÃ DỪNG mà về sau khi lượt mới đã gửi (câu nói chen ngang, lưới thời
+    // gian nổ trước) thì chỉ là tiếng vọng: bỏ qua, không xoá trạng thái lượt mới đang chạy.
+    const _idDung = _luotDaDung[sid];
+    if (_idDung != null) {
+      delete _luotDaDung[sid];
+      if (t && t.id && t.id !== _idDung) return;
+    }
     try { if (window.JavisResume) window.JavisResume.turnDone(sid); } catch (e) {}
     if (t) t.running = false;
     setSessionRunning(sid, false);
@@ -695,19 +710,34 @@ let _choTaiLen = null;
 // Server từ chối tin mới khi phiên còn job đang chạy ("Phiên này đang trả lời - đợi lượt hiện
 // tại xong đã"), mà lệnh Dừng chỉ HUỶ job chứ không kết thúc nó tức thì: engine CLI có thể mất
 // cả giây mới thật sự dừng. Gửi ngay sau stopCurrent() là rơi đúng vào lời từ chối đó, và câu
-// người dùng vừa nói biến mất không dấu vết. Nên đợi `turn_done` rồi gửi, kèm lưới 1,5 giây
+// người dùng vừa nói biến mất không dấu vết. Nên đợi `turn_done` rồi gửi, kèm lưới thời gian
 // phòng khi lượt cũ chết mà không kịp báo.
+//
+// Lưới ấy từng là 1,5 giây (0.57.17) và đó là một trong hai "trục trặc nhỏ lúc chèn câu" chủ
+// dự án báo 15/09: engine CLI bị giết có khi mất hơn thế mới thật sự dừng, lưới nổ trước
+// `turn_done` là tin gửi đi đúng lúc server còn job và bị trả về lời từ chối; hoặc gửi được
+// rồi `turn_done` của lượt CŨ mới về và xoá sạch trạng thái lượt MỚI (chữ stream không hiện,
+// loa câm). Nay lưới rộng 5 giây, `turn_done` vẫn là tín hiệu chính, và lượt cũ được đánh dấu
+// (xem _luotDaDung) để turn_done muộn của nó không đụng vào lượt mới.
 let _tinChoLuot = null, _tinChoTimer = null;
 function datTinCho(text) {
   _tinChoLuot = String(text || "");
   clearTimeout(_tinChoTimer);
-  _tinChoTimer = setTimeout(guiTinCho, 1500);
+  _tinChoTimer = setTimeout(guiTinCho, 5000);
+  // Trong lúc chờ, câu vừa nói vẫn phải Ở LẠI trên màn hình (bong bóng nháp), không thì
+  // người dùng thấy chữ biến mất vài giây rồi mới hiện lại và tưởng đã mất.
+  try { nhapGiong(_tinChoLuot); } catch (e) {}
 }
 function guiTinCho() {
   clearTimeout(_tinChoTimer); _tinChoTimer = null;
   const t = _tinChoLuot; _tinChoLuot = null;
+  // Lưới nổ mà turn_done chưa về: coi như lượt cũ không còn báo gì nữa, thôi chờ nó.
+  try { if (savedSessionId) delete _luotDaDung[savedSessionId]; } catch (e) {}
   if (t) sendMessage(t);       // stopCurrent() đã hạ cờ running nên lần này không quay lại đây
 }
+// Lượt bị bấm Dừng (hay bị câu nói chen ngang dừng) mà chưa nhận turn_done: sid -> id lượt.
+// turn_done về sau khi lượt MỚI đã chạy thì thuộc về lượt cũ, không được xoá trạng thái lượt mới.
+let _luotDaDung = {}, _luotSeq = 0;
 
 // Báo mất mạng NGAY TRONG KHUNG CHAT. Orb đã có chữ "ĐANG KẾT NỐI LẠI", nhưng orb nằm
 // trong .hud-body và khối đó bị ẩn hẳn khi đang ở trang Trò chuyện, nên ở đúng chỗ người
@@ -904,7 +934,7 @@ function sendMessage(text) {
 
   chatInput.value = ""; chatInput.style.height = "auto";
   clearAttachments();
-  turns[sid] = { text: "", bubble: null, spoke: false, running: true };
+  turns[sid] = { text: "", bubble: null, spoke: false, running: true, id: ++_luotSeq };
   setSessionRunning(sid, true);
   runActions(turn.turnStart());
   showActivity(window.t("app.act_thinking"));   // hiện NGAY trong khung chat, không đợi server báo

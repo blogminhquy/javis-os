@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.4] - 2026-09-15
+### Sửa lỗi
+- **iPhone: câu bạn nói không còn hiện chữ cam rồi biến mất.** Safari trên iPhone hay giao chữ nghe được ở dạng tạm mà không bao giờ chốt, nhất là sau khi nói chuyện một hồi lâu; trước đây tới lúc hết câu Javis chỉ lấy phần đã chốt nên câu ấy rỗng và không vào khung chat. Nay phần chữ tạm được gửi đi đúng như bạn thấy trên màn hình.
+- **Nói chen vào lúc Javis đang trả lời mượt hơn.** Trước đây câu chen được gửi lại sau đúng 1,5 giây; nếu lượt cũ chưa dừng kịp thì máy chủ từ chối, hoặc dừng xong muộn thì xoá nhầm trạng thái của lượt mới khiến chữ không hiện và loa im. Nay Javis chờ đúng tín hiệu lượt cũ dừng hẳn, và câu bạn vừa nói vẫn nằm trên màn hình trong lúc chờ thay vì biến mất mấy giây.
+
 ## [0.58.3] - 2026-09-15
 ### Cải thiện
 - **Thanh bên có lại chữ "JAVIS OS" cạnh linh vật.** Trước đó chỗ đó chỉ còn mỗi khuôn mặt. Thu gọn thanh bên thì chữ tự ẩn, chỉ còn khuôn mặt như cũ.
