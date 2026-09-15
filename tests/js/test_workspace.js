@@ -45,6 +45,34 @@ check("error -> buoc dang lam thanh loi", st2.trang_thai === "loi" && st2.buoc[0
 check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
 
 // ============================================================
+// Bước HỎNG không được vẽ thành tích xanh (0.59.2)
+// ============================================================
+// Chuyện thật 15/09: cột phải hiện đủ 7 bước "Đã hoàn tất" cho một lần chạy đã chết giữa
+// chừng, vì step_error chỉ ghi câu lỗi vào .loi rồi step_done/done đè trạng thái thành "xong".
+{
+  const s = W.tienDoMoi(2);
+  W.apDung(s, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(s, { type: "step_error", i: 0, content: "engine chết" });
+  check("step_error -> buoc thanh LOI chu khong con la dang lam",
+    s.buoc[0].trang_thai === "loi" && s.buoc[0].loi === "engine chết");
+  W.apDung(s, { type: "step_done", i: 0 });
+  check("CANARY: step_done den sau KHONG doi buoc hong thanh xong", s.buoc[0].trang_thai === "loi");
+  W.apDung(s, { type: "done" });
+  check("CANARY: done cung KHONG xoa dau buoc hong", s.buoc[0].trang_thai === "loi"
+    && s.buoc[1].trang_thai === "xong");
+
+  // Lỗi mang sẵn số bước: đánh dấu ĐÚNG bước đó, không phải bước đang chạy.
+  const s2 = W.tienDoMoi(3);
+  W.apDung(s2, { type: "step_start", i: 0, agent: "A" });
+  W.apDung(s2, { type: "step_done", i: 0 });
+  W.apDung(s2, { type: "step_start", i: 1, agent: "B" });
+  W.apDung(s2, { type: "error", i: 1, agent: "B", content: "Hết lượt gói Claude." });
+  check("error mang i thi danh dau dung buoc do",
+    s2.buoc[1].trang_thai === "loi" && s2.buoc[1].loi === "Hết lượt gói Claude."
+    && s2.buoc[0].trang_thai === "xong" && s2.buoc[2].trang_thai === "cho");
+}
+
+// ============================================================
 // Icon QUAY ở hàng quy trình đang chạy (0.59.2)
 // ============================================================
 // Trước đây mọi hàng quy trình đều đeo icon tĩnh, nên bấm Chạy xong nhìn sang cột trái không
@@ -136,6 +164,9 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("hang quy trinh dang chay co lop ic-spin", /ic-spin/.test(nodes["#wsList"].innerHTML));
   check("hang quy trinh KHAC van icon tinh",
     (nodes["#wsList"].innerHTML.match(/ic-spin/g) || []).length === 1);
+  // Icon quay thôi là chưa đủ: người tắt hiệu ứng và trình đọc màn hình không thấy nó quay.
+  check("dang chay con noi BANG CHU o dong phu",
+    (nodes["#wsList"].innerHTML.match(/ws\.running/g) || []).length === 1);
   W.apDung(ctx.S.tienDo.s1, { type: "done" });
   ctx.veDanhSach();
   check("chay xong thi ve lai la het quay", !/ic-spin/.test(nodes["#wsList"].innerHTML));
@@ -174,6 +205,26 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   ctx.chonTabPhai("files");
   ctx.roi();
   check("CANARY: roi trang cung TRA cay Vault", goi[goi.length - 1] === "giveBack");
+
+  // ---- Rời trang thì XOÁ câu đang tìm ----
+  // S.q sống ở mức module, còn ô nhập chết theo DOM của trang. Giữ lại câu tìm là lần sau quay
+  // vào danh sách đã bị lọc mà ô tìm rỗng và đang thu: cộng sự biến mất, không lời giải thích.
+  ctx.S.q = "ke toan";
+  ctx.veDanhSach();
+  check("CANARY: dang loc thi danh sach that su thieu nguoi",
+    !nodes["#wsList"].innerHTML.includes("Người viết"));
+  ctx.roi();
+  check("roi trang thi xoa cau dang tim", ctx.S.q === "");
+  ctx.veDanhSach();
+  check("quay lai thi danh sach day du tro lai", nodes["#wsList"].innerHTML.includes("Người viết"));
+}
+
+// Dựng khung: ô nhập phải được GIEO LẠI từ S.q, và nút kính lúp phải trỏ tới nó bằng
+// aria-controls. render() nằm ngoài khối bóc ở trên nên canh bằng mã nguồn.
+{
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  check("o tim gieo lai gia tri tu S.q", ws.includes('(S.q ? "" : " hidden")') && ws.includes("esc(S.q)"));
+  check("nut kinh lup co aria-controls tro toi o nhap", ws.includes('aria-controls="wsSearch"'));
 }
 
 // Dây nối

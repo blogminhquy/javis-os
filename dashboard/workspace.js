@@ -73,21 +73,34 @@
       st.buoc[i].trang_thai = "dang";
       st.hien_tai = i; st.trang_thai = "dang";
     } else if (ev.type === "step_done") {
-      if (st.buoc[i]) st.buoc[i].trang_thai = "xong";
+      // Bước đã mang dấu HỎNG thì không có sự kiện nào sau đó xoá được dấu ấy. Server hiện
+      // không còn gửi step_done sau step_error nữa, nhưng luật phải tự đứng được ở đây: máy
+      // trạng thái này còn ăn lại sự kiện của phiên cũ, và một tích xanh sai còn tệ hơn
+      // không có tích nào.
+      if (st.buoc[i] && st.buoc[i].trang_thai !== "loi") st.buoc[i].trang_thai = "xong";
     } else if (ev.type === "step_error") {
-      if (st.buoc[i]) st.buoc[i].loi = ev.content || "";
+      // Bước mà động cơ đã báo lỗi là bước HỎNG, không phải bước "đang làm dở". Trước 0.59.2
+      // đây chỉ ghi câu lỗi vào .loi rồi để step_done đè trạng thái thành "xong", nên cột
+      // phải hiện tích xanh cho đúng cái bước vừa chết.
+      if (st.buoc[i]) { st.buoc[i].trang_thai = "loi"; st.buoc[i].loi = ev.content || st.buoc[i].loi; }
     } else if (ev.type === "wait_user") {
       st.trang_thai = "cho";
       st.cho_duyet = { node: ev.node || "", prompt: ev.prompt || "", task_id: ev.task_id || "", code: ev.code || "" };
     } else if (ev.type === "error") {
       st.trang_thai = "loi";
-      if (st.hien_tai >= 0 && st.buoc[st.hien_tai] && st.buoc[st.hien_tai].trang_thai === "dang") {
-        st.buoc[st.hien_tai].trang_thai = "loi";
-        st.buoc[st.hien_tai].loi = ev.content || "";
+      // Lỗi của một BƯỚC mang sẵn số bước; lỗi chung (luồng đứt) thì không, lúc đó đánh dấu
+      // bước đang chạy. Bước "cho" (chưa tới lượt) giữ nguyên - nó không hỏng, nó không chạy.
+      var k = isFinite(i) ? i : st.hien_tai;
+      if (k >= 0 && st.buoc[k] && st.buoc[k].trang_thai !== "xong") {
+        st.buoc[k].trang_thai = "loi";
+        st.buoc[k].loi = ev.content || st.buoc[k].loi;
       }
     } else if (ev.type === "done") {
       st.trang_thai = "xong"; st.cho_duyet = null;
-      st.buoc.forEach(function (b) { b.trang_thai = "xong"; });
+      // Bước đã hỏng thì KHÔNG đổi thành xong. Server không còn gửi `done` sau một bước hỏng,
+      // nhưng luật ở đây phải tự đứng được: máy trạng thái này còn ăn sự kiện của phiên cũ
+      // mở lại, và một tích xanh sai còn tệ hơn không có tích nào.
+      st.buoc.forEach(function (b) { if (b.trang_thai !== "loi") b.trang_thai = "xong"; });
     }
     return st;
   }
@@ -135,9 +148,13 @@
           // Bấm nút kính lúp mới bung ra, gõ xong xoá hết rồi rời đi là nó tự thu lại.
           '<div class="ws-filters" id="wsFilters">' +
             '<select class="ws-group" id="wsGroup" aria-label="' + esc(t("studio.groups")) + '"></select>' +
-            '<button type="button" class="ws-ico ws-search-btn" id="wsSearchBtn" aria-expanded="false" ' +
+            // Ô nhập được GIEO LẠI từ S.q, và nút mang aria-controls trỏ vào nó: câu đang lọc
+            // phải luôn NHÌN THẤY ĐƯỢC. Dựng khung với ô rỗng trong khi S.q còn chữ là danh
+            // sách thiếu người mà không có gì trên màn hình giải thích vì sao.
+            '<button type="button" class="ws-ico ws-search-btn" id="wsSearchBtn" aria-controls="wsSearch" ' +
+            'aria-expanded="' + (S.q ? "true" : "false") + '" ' +
             'title="' + esc(t("ws.search_ph")) + '" aria-label="' + esc(t("ws.search_ph")) + '">' + ic("search") + '</button>' +
-            '<input class="ws-search" id="wsSearch" hidden placeholder="' + esc(t("ws.search_ph")) + '">' +
+            '<input class="ws-search" id="wsSearch"' + (S.q ? "" : " hidden") + ' value="' + esc(S.q) + '" placeholder="' + esc(t("ws.search_ph")) + '">' +
           '</div>' +
           '<div class="ws-list" id="wsList"></div>' +
           '<div class="ws-left-foot"><button type="button" class="ws-btn" id="wsNew">' + ic("plus") + ' ' + esc(t("ws.new_item")) + '</button>' +
@@ -294,10 +311,15 @@
     var host = el.querySelector("#wsList");
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
     host.innerHTML = ds.map(function (x) {
+      // "Đang chạy" phải đọc được BẰNG CHỮ, không chỉ bằng icon quay: người tắt hiệu ứng
+      // (prefers-reduced-motion, xem style.css) và trình đọc màn hình không thấy vòng quay
+      // nào cả, nên thêm một chữ vào dòng phụ và một <title> vào icon.
+      var chay = S.loai === "workflow" && dangChay(x.slug);
       var phu = S.loai === "agent" ? (x.group || "Chung") + " · " + (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
+      if (chay) phu += " · " + t("ws.running");
       return '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
         '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
-          : (dangChay(x.slug) ? ic("loader", { cls: "ic-spin" }) : ic("workflow"))) + '</span>' +
+          : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
         '<span class="ws-item-text"><strong>' + esc(x.name) + '</strong><small>' + esc(phu) + '</small></span></button>';
     }).join("");
     host.querySelectorAll("[data-slug]").forEach(function (b) {
@@ -586,6 +608,10 @@
   function roi() {
     active = false; opening++; chatReady(true);
     traCayThuMuc();
+    // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
+    // là lần sau quay vào danh sách đã bị lọc mà ô tìm thì rỗng và đang thu: người dùng thấy
+    // cộng sự của mình biến mất, không có gì trên màn hình nói vì sao.
+    S.q = "";
     var inp = document.getElementById("chatInput");
     if (inp) inp.placeholder = t("bar.input_ph");
   }
