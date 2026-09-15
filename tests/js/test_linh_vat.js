@@ -166,7 +166,7 @@ check("cỡ đi qua biến CSS --pet-size", /width: var\(--pet-size/.test(css)
   && /setProperty\("--pet-size"/.test(pet));
 check("màn hẹp vẫn có trần theo bề ngang màn", /min\(var\(--pet-size[^)]*\), 24vw\)/.test(css));
 const mainPy = read("server/main.py");
-check("server nhận khoá size", /for k in \("shape", "palette", "side", "size"\)/.test(mainPy));
+check("server nhận khoá size và khoá màu mắt", /for k in \("shape", "palette", "side", "size", "eye"\)/.test(mainPy));
 // "rat_lon" có GẠCH DƯỚI. Luật lọc cũ chỉ tha dấu gạch ngang nên cỡ lớn nhất bị bỏ trong im
 // lặng: chọn xong màn hình đổi ngay (localStorage), F5 là về cỡ cũ, không một dòng lỗi nào.
 check("server không loại cỡ có gạch dưới (rat_lon)",
@@ -194,6 +194,47 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
 ["app.ws_mat_ket_noi", "app.ws_giu_tin", "app.ws_tra_tin"].forEach(k => {
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
+
+// ---- 9b. MÀU MẮT do người dùng chọn (0.59.6) ----
+// Trước đây màu mắt suy tự động từ độ chói của thân. Chủ dự án muốn tự quyết: đen hay trắng,
+// mặc định đen. Đường tự động vẫn còn, nhưng chỉ cho AVATAR TRỢ LÝ - chúng là nhân dạng khác.
+{
+  check("có bảng hai màu mắt", /var MAU_MAT = \{ den: "#201e1e", trang: "#ffffff" \};/.test(pet));
+  check("mặc định là ĐEN", /size: "vua", eye: "den" \}/.test(pet));
+  check("khoá lạ rơi về mặc định", /if \(!MAU_MAT\[c\.eye\]\) c\.eye = MAC_DINH\.eye;/.test(pet));
+  check("con pet đeo màu mắt ĐÃ CHỌN, không suy từ thân nữa",
+    /setProperty\("--pet-eye", mauMatCfg\(\)\)/.test(pet));
+  check("dấu ấn trên thanh bên cũng theo màu mắt đã chọn",
+    /markSvg: function \(\) \{ return chanDung\(cfg\.shape, cfg\.palette, \{ mat: cfg\.eye \}\); \}/.test(pet));
+  // Avatar trợ lý KHÔNG truyền `mat`, nên vẫn đi đường tự động. Mất chốt này là đổi màu mắt
+  // pet kéo theo cả danh sách trợ lý đổi theo.
+  check("avatar trợ lý vẫn suy tự động (không truyền mat)",
+    /var mat = MAU_MAT\[o\.mat\] \|\| mauMatTuDong\(tone\[0\]\);/.test(pet)
+    && !/previewSvg\(a\.shape, a\.palette, [^)]*mat:/.test(read("dashboard/agent-avatar.js")));
+  check("trang Linh vật có ô chọn màu mắt", /data-pet-eye="/.test(console_js)
+    && /P\.setCfg\(\{ eye: b\.dataset\.petEye \}\)/.test(console_js));
+  check("ô xem thử hình dáng vẽ đúng màu mắt đang chọn",
+    /\{ vanh: true, mat: cur\.eye \}/.test(console_js));
+  check("Đặt lại trả màu mắt về đen", /eye: "den", enabled: true/.test(console_js));
+  ["settings.pet_eye", "pet.eye.den", "pet.eye.trang"].forEach(k => {
+    check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
+  });
+}
+
+// ---- 9c. Trang Linh vật xếp MỘT CỘT (0.59.6) ----
+// Chủ dự án chốt 15/09: kiểu hai hàng hai ô rất khó xem trên điện thoại, mà đây là trang hay
+// mở trên điện thoại nhất. Hình dáng lên trước, khối nút Lưu xuống cuối.
+{
+  check("không còn dùng lưới hai cột ở trang Linh vật",
+    /pet-page-body" id="petPageBody"/.test(console_js)
+    && !/settings-two-col" id="petPageBody"/.test(console_js));
+  check("css: một cột ở mọi khổ màn", /\.pet-page-body \{ display: flex; flex-direction: column;/.test(railCss));
+  // Thứ tự đọc: thẻ HÌNH DÁNG phải đứng TRƯỚC thẻ có nút Lưu.
+  const than = console_js.slice(console_js.indexOf("const ve = () => {", console_js.indexOf("function renderPetCard")));
+  check("hình dáng lên trước, khối nút Lưu xuống cuối",
+    than.indexOf("settings.pet_shape") > 0
+    && than.indexOf("settings.pet_shape") < than.indexOf("setPetSave"));
+}
 
 // ---- 10a. Vành quỹ đạo phải ĐẬP VÀO MẮT khi đang làm việc (0.59.4) ----
 // Chủ dự án báo 15/09: vành "nhỏ và mờ quá", đổi trạng thái nhìn không ra. Lúc nghỉ nó cố ý

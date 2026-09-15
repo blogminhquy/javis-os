@@ -58,7 +58,13 @@
   };
   // Màn hẹp KHÔNG thu nhỏ nữa. Ngược lại: ngón tay to hơn con trỏ chuột, và màn hình bé thì
   // một chấm 52px còn khó thấy hơn trên màn rộng. Giữ nguyên cỡ đã chọn.
-  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: "vua" };
+
+  // MÀU MẮT do người dùng chọn, hai lựa chọn thôi: đen hoặc trắng. Trước đây con số này suy
+  // tự động từ độ chói của thân (xem mauMatTuDong), nhưng chủ dự án muốn tự quyết - bảng màu
+  // sáng thì mắt trắng nhìn cũng có nét riêng, và "tự động" thì không ai đoán được nó sẽ ra gì.
+  // Avatar trợ lý KHÔNG theo lựa chọn này: chúng là nhân dạng khác, vẫn suy tự động.
+  var MAU_MAT = { den: "#201e1e", trang: "#ffffff" };
+  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: "vua", eye: "den" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
@@ -133,13 +139,16 @@
   function sang() { try { return !!(window.javisTheme && window.javisTheme.isLight()); } catch (e) { return false; } }
   // Mắt phải tương phản với THÂN, không với nền trang: thân sáng thì mắt than chì, thân tối
   // thì mắt trắng. Tính bằng độ chói tương đối (WCAG) chứ không đoán bằng mắt.
-  function mauMat(than) {
+  // Đây là đường TỰ ĐỘNG, nay chỉ còn dùng cho avatar trợ lý; con pet đi theo cfg.eye.
+  function mauMatTuDong(than) {
     var rgb = than.slice(1).match(/../g).map(function (x) {
       var v = parseInt(x, 16) / 255;
       return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
     });
     return (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) > 0.179 ? "#201e1e" : "#ffffff";
   }
+  // Màu mắt của CON PET: lựa chọn của người dùng, không suy từ thân nữa.
+  function mauMatCfg() { return MAU_MAT[cfg.eye] || MAU_MAT.den; }
 
   // ---- Lưu / nạp ----
   function docLocal() {
@@ -190,6 +199,7 @@
     if (!PALETTES[c.palette]) c.palette = MAC_DINH.palette;
     if (c.side !== "left" && c.side !== "right") c.side = MAC_DINH.side;
     if (!SIZES[c.size]) c.size = MAC_DINH.size;
+    if (!MAU_MAT[c.eye]) c.eye = MAC_DINH.eye;
     c.pos = kep(Number(c.pos) || MAC_DINH.pos, 0.05, 0.95);
     c.enabled = c.enabled !== false;
     return c;
@@ -266,7 +276,7 @@
     var tone = PALETTES[cfg.palette][sang() ? "sun" : "moon"];
     el.style.setProperty("--pet-face", tone[0]);
     el.style.setProperty("--pet-ring", tone[1]);
-    el.style.setProperty("--pet-eye", mauMat(tone[0]));
+    el.style.setProperty("--pet-eye", mauMatCfg());
     el.dataset.side = cfg.side;
     // Cỡ đi bằng BIẾN CSS chứ không phải style.width trực tiếp: menu, viền focus và luật màn
     // hẹp đều ăn theo cùng một con số, khai một chỗ thì không có chỗ nào lệch.
@@ -575,11 +585,13 @@
   //           ấn cỡ nhỏ, vì dưới 30px cái vành chỉ còn là một vệt bẩn quanh hình.
   //   liecX / liecY - đổi HƯỚNG LIẾC (đơn vị viewBox, gốc là chéo lên phải). Ô xem thử lớn
   //           trong cài đặt trợ lý liếc sang trái và hơi xuống, theo yêu cầu của chủ dự án.
+  //   mat   - khoá MÀU MẮT ("den" / "trang"). Chỗ nào vẽ CON PET thì truyền vào để chân dung
+  //           khớp với con pet sống; bỏ trống (avatar trợ lý) thì suy tự động từ độ chói thân.
   function chanDung(shape, palette, opts) {
     var o = opts || {};
     var d = (SHAPES[shape] || SHAPES.circle).d;
     var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
-    var mat = mauMat(tone[0]);
+    var mat = MAU_MAT[o.mat] || mauMatTuDong(tone[0]);
     var lx = o.liecX === undefined ? LIEC_X : Number(o.liecX);
     var ly = o.liecY === undefined ? LIEC_Y : Number(o.liecY);
     var ex = 160 + lx, ey = 160 + ly;
@@ -613,7 +625,7 @@
       if (o.dataset.brandGoc === undefined) o.dataset.brandGoc = o.innerHTML;
       if (dung) {
         o.classList.add("brand-pet");
-        o.innerHTML = chanDung(cfg.shape, cfg.palette);
+        o.innerHTML = chanDung(cfg.shape, cfg.palette, { mat: cfg.eye });
       } else if (o.classList.contains("brand-pet")) {
         o.classList.remove("brand-pet");
         o.innerHTML = o.dataset.brandGoc;
@@ -644,7 +656,10 @@
     // Ô xem thử trên trang Linh vật, và DẤU ẤN thay cho logo trên thanh bên: cùng một hàm,
     // vì hai chỗ đó phải là cùng một khuôn mặt.
     previewSvg: chanDung,
-    markSvg: function () { return chanDung(cfg.shape, cfg.palette); },
+    markSvg: function () { return chanDung(cfg.shape, cfg.palette, { mat: cfg.eye }); },
+    // Danh sách màu mắt cho ô chọn ở trang Linh vật. Trả khoá + mã màu để chỗ vẽ khỏi phải
+    // khai lại bảng màu lần thứ hai.
+    eyeColors: function () { return Object.assign({}, MAU_MAT); },
     // Thanh bên có đang dùng khuôn mặt linh vật thay cho logo không.
     usingMark: function () { return dungDauAn(); },
     // Lưu NGAY lên máy chủ rồi đọc lại để chắc chắn đã vào (nút Lưu trang Linh vật).
