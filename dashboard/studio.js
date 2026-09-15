@@ -100,6 +100,16 @@
   // xếp trên điện thoại. Chép tay thành ba bản là ba bản trôi lệch nhau ngay lần sửa đầu tiên.
   const NHOM_MD = "Chung";                     // nhóm mặc định khi file chưa khai `group`
   const nhomCua = (x) => (x && String(x.group || "").trim()) || NHOM_MD;
+  // Các dòng bày ra ô chọn nhóm: nhóm mặc định, nhóm ĐANG CÓ của mục đang sửa, rồi mọi nhóm
+  // đang dùng. Nhóm mà chỉ mình mục này dùng không nằm trong danh sách chung, thiếu dòng đó
+  // là ô chọn rơi về dòng đầu và bấm Lưu một cái là đổi nhóm im lặng.
+  const dsNhomChon = (nhomDangCo, ds) => [...new Set(
+    [NHOM_MD, nhomDangCo || NHOM_MD].concat((ds || []).map(nhomCua)).filter(Boolean))];
+  // Nhóm CHỐT khi bấm Lưu. Ô gõ tay rỗng KHÔNG có nghĩa là "Chung": chọn "Nhóm mới..." rồi đổi
+  // ý, không gõ gì, mà đẩy về Chung là mục đang ở Marketing bị ném sang Chung không một lời
+  // nào. Rỗng thì giữ nguyên nhóm cũ, chỉ mục thật sự chưa có nhóm mới rơi về Chung.
+  const nhomLuu = (oGoTay, nhomCu) =>
+    String(oGoTay == null ? "" : oGoTay).trim() || String(nhomCu == null ? "" : nhomCu).trim() || NHOM_MD;
 
   // Server trả về MÃ MÁY chứ không phải câu cho người đọc (server/agent_avatar.py ném
   // ValueError("avatar_shape"), main.py chuyển thẳng thành {"error": "avatar_shape"}). Đổ thẳng
@@ -622,7 +632,7 @@
     // nên agent/workflow đang có không phải đụng tới.
     const NHOM_MOI = "__javis_nhom_moi__";
     const nhomDangCo = a ? nhomCua(a) : NHOM_MD;
-    const dsNhomCo = uniq([NHOM_MD, nhomDangCo].concat((opts.dsNhom || _agState.agents).map(nhomCua)));
+    const dsNhomCo = dsNhomChon(nhomDangCo, opts.dsNhom || _agState.agents);
     const box = opts.host || document.getElementById("editorBox");
     if (opts.host && !box.isConnected) return;
     let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
@@ -633,7 +643,7 @@
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
       <label>${esc(t("studio.groups"))}</label>
       <select id="agGroupSel">${dsNhomCo.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join("")}<option value="${NHOM_MOI}">${esc(t("studio.group_new"))}</option></select>
-      <input id="agGroup" value="${esc(nhomDangCo)}" placeholder="${esc(t("studio.group_ph"))}" hidden>
+      <input id="agGroup" value="${esc(nhomDangCo)}" aria-label="${esc(t("studio.group_new"))}" placeholder="${esc(t("studio.group_ph"))}" hidden>
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -692,7 +702,7 @@
       saveButton.disabled = true;
       try {
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
-          group: box.querySelector("#agGroup").value.trim() || NHOM_MD,
+          group: nhomLuu(box.querySelector("#agGroup").value, nhomDangCo),
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
         if (!saved.ok) { alert(loiLuu(saved.error)); return; }
