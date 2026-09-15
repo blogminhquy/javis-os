@@ -9158,6 +9158,27 @@ def rebuild_javis_index(brain: str) -> dict:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
+def _dong_lan_chay_gan_nhat(brain) -> str:
+    """Một dòng cho system prompt: lần chạy quy trình gần nhất của brain, rỗng nếu chưa có.
+    Nhờ dòng này, hỏi "quy trình chạy gần nhất ra sao" ở khung chat chính là Javis biết ngay
+    có gì để tra và tra bằng tool nào."""
+    try:
+        import workflow_runs
+        from datetime import datetime
+        ds = workflow_runs.get_store().gan_nhat(_brain_key(brain), limit=1)
+    except Exception:
+        return ""
+    if not ds:
+        return ""
+    r = ds[0]
+    try:
+        luc = datetime.fromtimestamp(float(r["started_at"])).strftime("%H:%M %d/%m")
+    except Exception:
+        luc = "?"
+    return (f"Lần chạy quy trình gần nhất: {r['name']} lúc {luc} ({r['nhan']}). "
+            "Chi tiết hay các lần khác: tool javis_workflow (op=runs, op=show).")
+
+
 def _javis_capability_summary(brain: str, skills=None) -> str:
     """Bản LIVE gọn (capped) chèn vào system prompt: để engine nào cũng biết Javis có gì.
     Skill nhiều -> chỉ đếm + nhóm (chi tiết ở Javis/index.md), tránh phình context.
@@ -9176,6 +9197,9 @@ def _javis_capability_summary(brain: str, skills=None) -> str:
         parts.append(f"Skills: {sum(1 for s in c['skills'] if s['enabled'])} kỹ năng (nhóm: {', '.join(groups[:12])})")
     if c["workflows"]:
         parts.append("Workflows: " + ", ".join(w["name"] for w in c["workflows"][:20] if w["status"] == "active"))
+    _lc = _dong_lan_chay_gan_nhat(brain)
+    if _lc:
+        parts.append(_lc)
     if c["loops"]:
         parts.append("Loops: " + ", ".join(f"{l['name']}({'bật' if l['enabled'] else 'tắt'})" for l in c["loops"][:20]))
     live_plugins = [p for p in c.get("plugins", []) if p.get("loaded")]
