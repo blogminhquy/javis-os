@@ -1608,6 +1608,8 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .rs-agent { font-weight: 600; color: var(--text); }
 .rs-tool { font-size: 12px; color: var(--accent2-ink); font-family: var(--font); }
 .rs-ok { color: var(--green); }
+/* Bước hỏng: thay chỗ của .rs-spin nên cũng phải đứng cùng hàng với tên agent. */
+.rs-fail { color: var(--red); display: inline-flex; align-items: center; }
 .rs-spin { width: 10px; height: 10px; border: 1.5px solid var(--accent2-line); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.7s linear infinite; }
 .rs-task { font-size: 13px; color: var(--text2); margin: 6px 0; font-style: italic; }
 .rs-out { font-size: 14px; color: var(--text); line-height: 1.55; white-space: pre-wrap; max-height: 240px; overflow-y: auto; }

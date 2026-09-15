@@ -240,6 +240,17 @@ const con = fs.readFileSync(path.join(root, "dashboard", "console.js"), "utf8");
 check("console.js co renderWorkspace muon khung chat", /function renderWorkspace\(el\)/.test(con) && /JavisWorkspace\.render\(el, \{ borrow: _borrowChatNodes \}\)/.test(con));
 const studio = fs.readFileSync(path.join(root, "dashboard", "studio.js"), "utf8");
 check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/.test(studio) && /opts\.host/.test(studio) && /opts\.onSaved/.test(studio));
+// Bảng chạy của Studio: bước đã báo lỗi thì TẮT vòng quay của chính nó. Trước đây chỉ
+// `step_done` mới thay được .rs-spin, mà bước hỏng thì không bao giờ có step_done nữa (server
+// dừng ngay), nên bước ấy quay mãi trong khi cả lần chạy đã kết thúc.
+{
+  const nhanh = studio.slice(studio.indexOf('d.type === "step_error"'),
+                             studio.indexOf('d.type === "step_model"'));
+  check("studio.js: step_error thay .rs-spin bang dau bao loi",
+    /querySelector\("\.rs-spin"\)/.test(nhanh) && /rs-fail/.test(nhanh));
+  const css = fs.readFileSync(path.join(root, "dashboard", "style.css"), "utf8");
+  check("co kieu cho dau bao loi cua buoc", /\.rs-fail \{/.test(css));
+}
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }
 console.log("\nOK - workspace");

@@ -349,6 +349,14 @@
         }
       } else if (d.type === "step_error") {
         const out = document.getElementById(`rs-out-${d.i}`); if (out) out.innerHTML += `<div class="rs-err">${ic("triangle-alert", { cls: "ic-warn" })} ${esc(d.content)}</div>`;
+        // Bước đã báo lỗi thì TẮT vòng quay của chính nó. Trước đây chỉ `step_done` mới thay
+        // được .rs-spin, mà bước hỏng thì không bao giờ có step_done nữa (server dừng ngay),
+        // nên bước ấy quay mãi trong khi cả lần chạy đã kết thúc.
+        const divE = stepDivs[d.i];
+        if (divE) {
+          const sp = divE.querySelector(".rs-spin");
+          if (sp) sp.outerHTML = `<span class="rs-fail">${ic("circle-x", { cls: "ic-err" })}</span>`;
+        }
       } else if (d.type === "step_model") {
         // Router chọn model khác model mặc định của agent - nói rõ để khỏi ngờ ngợ.
         const div = stepDivs[d.i];
