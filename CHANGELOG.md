@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.58.6] - 2026-09-15
+### Thêm mới
+- **Thêm 5 giọng đọc mới trong Cài đặt nhanh:** Ava, Emma (nữ) và Andrew, Brian, William (nam). Đây là các giọng đa ngôn ngữ thế hệ mới của Edge, tự nhận tiếng Việt và đọc mượt hơn hai giọng cũ, đổi lại có thể lơ lớ vài chữ. Bấm Nghe thử rồi chọn giọng hợp tai.
+- Vẫn miễn phí và nhanh như trước vì cùng đi qua Edge; không cần cài thêm gì.
+### Sửa lỗi
+- Giọng nữ mặc định giờ ghi đúng tên thật **Hoài My** thay vì "Ngọc Thu".
+
 ## [0.58.5] - 2026-09-15
 ### Sửa lỗi
 - **"Cuộn xuống dưới" giờ cuộn đúng thứ bạn đang xem.** Trước đây lệnh này luôn kéo khung chat, nên đứng ở trang Tự học hay Việc định kỳ mà bảo cuộn thì danh sách đứng im còn khung chat bên cạnh nhảy. Nay Javis cuộn trang nội dung đang mở, chỉ quay về khung chat khi bạn đang ở màn hình chính.

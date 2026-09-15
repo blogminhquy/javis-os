@@ -316,21 +316,22 @@ The **VOICE PROVIDER** block has three options:
 
 Pick one and click **Save provider**. The status line underneath says which one is active. If a paid provider fails (quota exhausted, wrong key, network down), Javis **falls back to Edge TTS** automatically so the voice never goes silent.
 
-When you pick OpenAI or ElevenLabs, the two Edge voices (Ngọc Thu / Nam Minh) hide themselves, because the voice is then chosen inside the provider's own block.
+When you pick OpenAI or ElevenLabs, the Edge voices (Hoài My, Nam Minh and the 5 multilingual ones) hide themselves, because the voice is then chosen inside the provider's own block.
 
 ### Choosing an Edge voice and the speed
 
 | Option | Value | Note |
 |---|---|---|
-| Voice | **Ngọc Thu** | Female, natural and warm (default; Edge code `vi-VN-HoaiMyNeural`) |
+| Voice | **Hoài My** | Female, natural and warm (default; Edge code `vi-VN-HoaiMyNeural`) |
 | Voice | **Nam Minh** | Male, deeper (Edge code `vi-VN-NamMinhNeural`) |
+| Voice | **Ava, Emma** (female), **Andrew, Brian, William** (male) | Edge's 5 newer multilingual voices: they detect Vietnamese on their own and sound smoother than the two above, but may slur a few words. Preview before choosing. |
 | Speed | Slider from 0.70× to 1.80× | Default 1.10× |
 | Listening language | **Vietnamese** (vi-VN) | Default |
 | Listening language | **English** (en-US) | Use it if you speak entirely in English |
 
 Steps:
 
-1. Pick Ngọc Thu or Nam Minh.
+1. Pick Hoài My, Nam Minh or one of the 5 multilingual voices.
 2. Drag the **SPEED** slider; the number next to it shows the current rate (for example 1.10×).
 3. Click **▶ Preview** to hear a sample greeting in the chosen voice.
 4. "Listening language" is the language Javis uses to recognise your speech, which is separate from the answer voice. Leave it on Vietnamese unless you normally speak English.

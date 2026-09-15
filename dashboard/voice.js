@@ -56,7 +56,7 @@ class JavisVoice {
 
     // Edge TTS backend (server)
     this.ttsBackend = opts.ttsBackend || "/tts"; // "/tts" hoặc null để dùng browser
-    this.ttsVoice = opts.ttsVoice || "vi-VN-HoaiMyNeural"; // nhãn UI: Ngọc Thu (nữ) | Nam Minh (nam)
+    this.ttsVoice = opts.ttsVoice || "vi-VN-HoaiMyNeural"; // nhãn UI: Hoài My (nữ) | Nam Minh (nam) | 5 giọng đa ngôn ngữ (Ava, Emma, Andrew, Brian, William)
     this.ttsRate = opts.ttsRate || "+5%";
     this.currentAudio = null;
     this.ttsQueue = [];
