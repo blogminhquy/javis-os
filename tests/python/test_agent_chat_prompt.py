@@ -58,5 +58,25 @@ check("_subscription_system_prompt bo qua nen ngu canh khi co persona",
 check("nhanh phase8 API khong dung plan khi co persona", 'action == "use" and not _persona' in than)
 check("cuoi luot goi _ket_luot_agent", "_ket_luot_agent(brain, _persona[1], user_message, final_text)" in than)
 
+# Fix round 1 - issue 1: bong bóng chat KHÔNG được để lộ dòng JAVIS_LESSON. Mọi nhánh engine
+# đã gửi khung "response" RAW trước khi tới _ket_luot_agent, nên sau khi bóc sạch phải gửi
+# lại một khung "response" nữa để ép trình duyệt vẽ lại đúng chữ (xem app.js: data.type ===
+# "response" thay hẳn nội dung bong bóng bằng data.content).
+_m_resend = re.search(
+    r"_ket_luot_agent\(brain, _persona\[1\], user_message, final_text\)(.{0,800}?)\"type\": \"response\"",
+    than, re.S)
+check("sau _ket_luot_agent co gui lai khung response de xoa JAVIS_LESSON tren bong bong",
+      _m_resend is not None)
+
+# Fix round 1 - issue 2: cụm canary của engine kiểu "api" (Phase 9 write-path, orchestrator,
+# readonly, Fast Path) phải KHÔNG được chạy khi có persona - nếu không nó tự trả lời bằng
+# prompt riêng, bỏ mất hẳn prompt trợ lý cho lượt đó. Cả cụm phải rơi thẳng xuống nhánh Phase 8
+# API/OAuth cuối (đã persona-aware) khi có persona.
+_m_cascade = re.search(
+    r'elif \(kind == "api" and api_key\) or kind == "oauth":(.*?)# ===== API/OAuth: Phase 8',
+    than, re.S)
+check("cascade api-key ton tai va bi gate boi not _persona",
+      _m_cascade is not None and 'and not _persona' in _m_cascade.group(1))
+
 print("\nFAIL:" if fails else "\nOK - agent_chat_prompt", fails or "")
 sys.exit(1 if fails else 0)

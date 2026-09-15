@@ -11491,7 +11491,14 @@ async def websocket_endpoint(ws: WebSocket):
                 fast_plan = None
                 write_plan = None
                 confirm_plan = None
-                if kind == "api" and api_key:
+                # Phiên cộng sự (kênh agent:<slug>) đi engine kiểu "api": cả cụm canary Phase 9
+                # (xác nhận/đề xuất ghi) và canary đọc/Fast Path dưới đây đều dùng prompt RIÊNG
+                # của chính canary đó, không phải prompt trợ lý - để chúng tự trả lời là bỏ mất
+                # tính cách trợ lý ngay từ lượt đó. `and not _persona` ở cả hai cửa vào (đây và
+                # elif kind == "api" and api_key: bên dưới) ép toàn cụm rơi thẳng xuống nhánh
+                # Phase 8 API/OAuth cuối cùng, nơi đã đọc `_persona` để dùng `_legacy_system_prompt()`
+                # (chính là `_agent_chat_prompt`). Mất mấy đường tắt rẻ tiền, đổi lại đúng vai.
+                if kind == "api" and api_key and not _persona:
                     # Phase 9 xét TRƯỚC: lượt này có thể là câu xác nhận cho một hành
                     # động ghi đã đề xuất ở lượt trước, không phải một yêu cầu mới.
                     try:
@@ -11542,7 +11549,7 @@ async def websocket_endpoint(ws: WebSocket):
                         "session_id": conv_sid,
                         **_ctx_frame(runtime_trace, _ctx_in),
                     }))
-                elif kind == "api" and api_key:
+                elif kind == "api" and api_key and not _persona:
                     # Mọi exception trong prepare của canary phải rơi tiếp xuống nhánh
                     # sau (cuối cùng là legacy), không được phá lượt chat (spec mục 23).
                     try:
@@ -11976,7 +11983,19 @@ async def websocket_endpoint(ws: WebSocket):
                 # Cuối lượt chat trợ lý: bóc JAVIS_LESSON vào bộ nhớ TRỢ LÝ (không phải bộ
                 # nhớ Javis) và ghi nhật ký chạy của trợ lý, trước khi lượt được lưu như
                 # một lượt chat bình thường.
+                _final_truoc_boc = final_text
                 final_text = _ket_luot_agent(brain, _persona[1], user_message, final_text)
+                if final_text != _final_truoc_boc:
+                    # Mọi nhánh engine ở trên (cli/grok-cli/antigravity-cli/codex/API) đã gửi
+                    # khung "response" RAW còn dòng JAVIS_LESSON trước khi luồng chạy tới đây
+                    # (bong bóng chat đã hiện chữ thô). dashboard/app.js coi khung "response"
+                    # là THAY HẲN nội dung bong bóng bằng `data.content` (xem
+                    # `data.type === "response"` trong app.js: `t.text = shownText` rồi ghi
+                    # lại `innerHTML` của `.bubble`), nên gửi thêm MỘT khung "response" nữa
+                    # với text đã sạch để ép vẽ lại đúng chữ - không cần đổi gì ở app.js.
+                    await ws.send_text(json.dumps({
+                        "type": "response", "content": final_text, "session_id": conv_sid,
+                    }))
 
             # Lưu lượt assistant: kho phiên + title + log Memory + hàng đợi tự học.
             # Đường lưu DÙNG CHUNG với Telegram (_persist_turn) - nó tự bóc khối điều khiển.
