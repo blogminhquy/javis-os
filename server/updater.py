@@ -4,7 +4,8 @@ Server spawn DETACHED:
 
     python updater.py --old-sha <sha> --old-version <v> --target <v> --port <p> --server-pid <pid>
 
-Chuỗi: stop server -> git pull (stash nếu cây bẩn) -> pip install -> start -> chờ /health ~90s.
+Chuỗi: stop server -> lấy nhánh release + merge an toàn (stash nếu cây bẩn) -> pip install
+-> start -> chờ /health ~90s.
 /health không lên → git reset --hard <old-sha> -> pip -> start (rollback tự động).
 4 chế độ restart (service_mode): windows (bat/vbs), systemd (systemctl), launchd (Mac có
 job KeepAlive: KHÔNG kill PID mà `launchctl kickstart -k` - xem has_launchd_job), nohup
@@ -191,6 +192,64 @@ def git_dirty():
     return bool((r.stdout or "").strip())
 
 
+def stash_local_changes():
+    """Cất phần code đã sửa và trả True khi thật sự tạo một stash mới."""
+    if not git_dirty():
+        return False
+    log("Cây git có sửa đổi cục bộ → tạm cất để cập nhật (sẽ tự khôi phục).")
+    result = run(["git", "stash", "push", "-m", "javis-auto-update"])
+    return result.returncode == 0
+
+
+def restore_local_changes():
+    """Khôi phục đúng stash updater vừa tạo.
+
+    Updater tạo stash ngay trước fetch nên nó luôn là ``stash@{0}``. Dùng ``apply`` thay vì
+    ``pop`` để bản sao còn nguyên cho tới khi health-check xanh; nếu phải rollback thì có thể
+    áp lại trên bản cũ. Nếu code mới xung đột, reset conflict nhưng vẫn giữ stash an toàn.
+    """
+    restored = run(["git", "stash", "apply", "--index", "stash@{0}"])
+    if restored.returncode == 0:
+        return True, ""
+    run(["git", "reset", "--hard", "HEAD"])
+    return False, (restored.stderr or restored.stdout or
+                   "Tùy chỉnh cục bộ xung đột; vẫn được giữ tại stash@{0}.").strip()[:500]
+
+
+def drop_update_stash():
+    """Xóa bản sao tạm chỉ sau khi bản mới đã qua health-check."""
+    return run(["git", "stash", "drop", "stash@{0}"]).returncode == 0
+
+
+def release_source():
+    """Nguồn phát hành cố định, không phụ thuộc upstream của nhánh đang checkout.
+
+    Máy người dùng thường đứng trên nhánh sửa riêng theo dõi ``fork/fix-*``. ``git pull``
+    khi đó tải đúng nhánh sửa riêng chứ không tải bản phát hành ở ``origin/main``; thêm
+    ``--ff-only`` còn làm mọi lịch sử phân kỳ dừng ngay. Biến môi trường chỉ dành cho bản
+    đóng gói/fork có chủ đích, mặc định luôn là nguồn release chính thức của checkout.
+    """
+    return (os.getenv("JAVIS_UPDATE_REMOTE", "origin").strip() or "origin",
+            os.getenv("JAVIS_UPDATE_BRANCH", "main").strip() or "main")
+
+
+def merge_release():
+    """Fetch đúng release rồi hợp nhất vào nhánh hiện tại, giữ các commit tùy chỉnh.
+
+    Không checkout ``main`` và không reset cứng: hai cách đó có thể làm mất commit sửa riêng
+    của người dùng. Merge không tương tác xử lý được cả fast-forward lẫn diverged history.
+    Nếu có conflict, abort để cây làm việc trở về nguyên trạng trước lần cập nhật.
+    """
+    remote, branch = release_source()
+    fetched = run(["git", "fetch", "--prune", remote, branch])
+    if fetched.returncode != 0:
+        return fetched
+    merged = run(["git", "merge", "--no-edit", "FETCH_HEAD"])
+    if merged.returncode != 0:
+        run(["git", "merge", "--abort"])
+    return merged
+
+
 def chan_doan_pull(pull_out: str) -> str:
     """Vì sao `git pull` trả về THÀNH CÔNG mà VERSION vẫn y nguyên.
 
@@ -273,14 +332,16 @@ def main():
     a = ap.parse_args()
 
     if a.dry_run:
-        print(f"PLAN: stop -> pull(stash nếu bẩn) -> pip -> start -> health({a.port}) "
+        remote, branch = release_source()
+        print(f"PLAN: stop -> fetch({remote}/{branch}) + merge(stash nếu bẩn) -> pip -> start -> health({a.port}) "
               f"-> rollback(reset {a.old_sha or '?'}) nếu không lên")
         return 0
 
     target = a.target or None
     us.write_state({"phase": "preparing", "started_at": _now(), "finished_at": None,
                     "result": None, "error": None, "old_sha": a.old_sha,
-                    "old_version": a.old_version, "target_version": target, "stashed": False})
+                    "old_version": a.old_version, "target_version": target, "stashed": False,
+                    "stash_warning": None})
 
     mode = service_mode()
     log(f"Chế độ restart: {mode}")
@@ -290,23 +351,41 @@ def main():
     time.sleep(2)
 
     us.write_state({"phase": "pulling"})
-    if git_dirty():
-        log("Cây git có sửa đổi cục bộ → git stash (giữ lại, không mất).")
-        run(["git", "stash"])
+    made_stash = stash_local_changes()
+    if made_stash:
         us.write_state({"stashed": True})
-    pull = run(["git", "pull", "--ff-only"])
+    pull = merge_release()
     if pull.returncode != 0:
-        log("git pull LỖI:\n" + (pull.stderr or pull.stdout or ""))
+        remote, branch = release_source()
+        log(f"Cập nhật từ {remote}/{branch} LỖI; đã hoàn tác merge để giữ nguyên code:\n"
+            + (pull.stderr or pull.stdout or ""))
+        if made_stash:
+            restored, restore_error = restore_local_changes()
+            if not restored:
+                log("Không tự khôi phục được tùy chỉnh; dữ liệu vẫn an toàn trong stash@{0}: "
+                    + restore_error)
         # Mã nguồn chưa đổi nên bản CŨ vẫn nguyên vẹn - bật lại là xong. Nhưng phải KIỂM xem
-        # nó lên thật không: báo mỗi "pull thất bại" trong khi server cũng đang nằm là bỏ
+        # nó lên thật không: báo mỗi "hợp nhất thất bại" trong khi server cũng đang nằm là bỏ
         # người dùng lại với một câu sai về chuyện đang thực sự xảy ra.
         start_server(mode, a.port)
         them = "" if poll_health(a.port, 60) else (
             " Server cũ CŨNG chưa lên lại - mở Javis bằng tay để chạy tiếp.")
         us.write_state({"phase": "error", "result": "pull_failed",
-                        "error": ((pull.stderr or "git pull thất bại")[:400] + them),
+                        "error": ((pull.stderr or f"Không hợp nhất được {remote}/{branch}")[:400]
+                                  + them),
                         "finished_at": _now()})
         return 1
+
+    if made_stash:
+        restored, restore_error = restore_local_changes()
+        if restored:
+            log("Đã khôi phục các chỉnh sửa cục bộ.")
+            us.write_state({"stashed": False})
+        else:
+            log("Code mới đã cập nhật, nhưng tùy chỉnh xung đột và được giữ an toàn tại "
+                "stash@{0}: " + restore_error)
+            us.write_state({"stashed": True,
+                            "stash_warning": "Tùy chỉnh xung đột; vẫn an toàn tại stash@{0}."})
 
     us.write_state({"phase": "installing"})
     log("Cài thư viện…")
@@ -324,10 +403,15 @@ def main():
     log(f"health={healthy} current={current} → {outcome}")
 
     if outcome == "success":
+        if made_stash:
+            drop_update_stash()
         us.record_boot_version(current)
-        us.write_state({"phase": "done", "result": "success", "finished_at": _now()})
+        us.write_state({"phase": "done", "result": "success", "finished_at": _now(),
+                        "stash_warning": None})
         return 0
     if outcome == "version_mismatch":
+        if made_stash:
+            drop_update_stash()
         ly_do = chan_doan_pull(pull.stdout or "")
         log("Phiên bản không đổi. Chẩn đoán: " + ly_do)
         us.write_state({"phase": "done", "result": "error",
@@ -357,6 +441,14 @@ def main():
                     f"HEAD={head[:7] or '?'}). Mã nguồn vẫn là bản mới đang lỗi. "
                     f"Chạy tay: git reset --hard {a.old_sha[:12]}")
 
+    # Lùi code xong thì áp lại tùy chỉnh cục bộ đã cất trước khi pull - nếu không, người dùng
+    # về được bản cũ nhưng mất phần họ tự sửa, mà bản sao thì nằm im trong stash không ai biết.
+    if made_stash:
+        restored, restore_error = restore_local_changes()
+        if not restored:
+            hong.append("đã lùi code nhưng chưa áp lại được tùy chỉnh; bản sao vẫn ở "
+                        "stash@{0}: " + restore_error)
+
     if pip_install().returncode != 0:
         hong.append("cài lại thư viện cho bản cũ thất bại - kiểm tra mạng rồi chạy lại: "
                     "pip install -r requirements.txt")
@@ -367,6 +459,8 @@ def main():
     time.sleep(2)
     start_server(mode, a.port)
     if poll_health(a.port, 90):
+        if made_stash:
+            drop_update_stash()
         us.write_state({"phase": "done", "result": "rolled_back",
                         "error": "Bản mới lỗi, đã tự quay về bản cũ.", "finished_at": _now()})
         return 0

@@ -167,6 +167,49 @@ check("chế độ launchd đổi ca bằng kickstart -k, KHÔNG kill PID + nohu
 check("has_launchd_job không bao giờ bật ngoài Mac (Linux CI không được gọi launchctl)",
       sys.platform == "darwin" or _updmod.has_launchd_job() is False)
 
+# --- updater luôn lấy nhánh release, không pull upstream của nhánh fix đang đứng ---
+_real_run = _updmod.run
+_calls = []
+class _GitResult:
+    def __init__(self, rc=0, out=""):
+        self.returncode, self.stdout, self.stderr = rc, out, ""
+def _fake_git(cmd):
+    _calls.append(cmd)
+    return _GitResult()
+_updmod.run = _fake_git
+_merged = _updmod.merge_release()
+_updmod.run = _real_run
+check("updater fetch đúng origin/main dù nhánh hiện tại theo dõi fork/fix-*",
+      _calls[:1] == [["git", "fetch", "--prune", "origin", "main"]])
+check("updater merge release thay vì pull --ff-only",
+      ["git", "merge", "--no-edit", "FETCH_HEAD"] in _calls
+      and not any(c[:2] == ["git", "pull"] for c in _calls))
+check("merge release thành công trả rc=0", _merged.returncode == 0)
+
+_calls = []
+def _fake_conflict(cmd):
+    _calls.append(cmd)
+    return _GitResult(1 if cmd[:2] == ["git", "merge"] and "--abort" not in cmd else 0)
+_updmod.run = _fake_conflict
+_updmod.merge_release()
+_updmod.run = _real_run
+check("merge xung đột được abort để giữ cây code nguyên trạng",
+      ["git", "merge", "--abort"] in _calls)
+
+_calls = []
+_updmod.run = _fake_git
+_updmod.git_dirty = lambda: True
+check("updater tạo stash có nhãn khi có code sửa", _updmod.stash_local_changes() is True)
+check("stash dùng push có nhãn để nhận diện",
+      ["git", "stash", "push", "-m", "javis-auto-update"] in _calls)
+_calls = []
+_restored, _restore_error = _updmod.restore_local_changes()
+_updmod.run = _real_run
+check("updater tự apply đúng stash vừa tạo sau khi merge", _restored is True and
+      ["git", "stash", "apply", "--index", "stash@{0}"] in _calls)
+check("updater giữ bản sao stash cho tới health-check",
+      not any(c[:3] == ["git", "stash", "drop"] for c in _calls))
+
 # --- /version báo platform để UI ghi đúng nhãn (Mac từng bị dán 'Linux (systemd)') ---
 _v2 = asyncio.run(main.version_info())
 check("/version có khoá platform", _v2.get("platform") in ("windows", "mac", "linux"))

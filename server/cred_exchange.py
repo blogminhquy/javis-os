@@ -96,8 +96,35 @@ def _google_master_token(fields):
                   "hoặc lấy master token ở máy cá nhân rồi dán thẳng vào ô Master token.")
 
 
+def _apify_verify_token(fields):
+    """Kiểm Personal API token của Apify bằng GET /v2/users/me. Trả (token, lỗi).
+
+    Connector facebook-monitor là connector ẢO (tool do plugin phục vụ, không có server để
+    dial) nên validate_connection không gọi thử được gì - trước bước này, dán token rác vẫn
+    được lưu im lặng và chỉ vỡ ở lần quét đầu tiên. Kiểm ngay lúc Kết nối thì báo đúng bệnh
+    tại chỗ. Token đúng thì trả về NGUYÊN VẸN (không đổi sang thứ khác)."""
+    import httpx
+
+    tok = str(fields.get("apify_token_raw") or "").strip()
+    if not tok:
+        return None, "Cần dán Apify Personal API token (lấy ở console.apify.com/settings/integrations)."
+    try:
+        r = httpx.get("https://api.apify.com/v2/users/me",
+                      headers={"Authorization": f"Bearer {tok}"}, timeout=15)
+    except Exception as e:
+        return None, (f"Không gọi được máy chủ Apify ({type(e).__name__}). Kiểm tra mạng của máy "
+                      "chạy Javis rồi thử lại.")
+    if r.status_code == 200:
+        return tok, ""
+    if r.status_code in (401, 403):
+        return None, ("Apify từ chối token này. Mở console.apify.com/settings/integrations, "
+                      "copy lại Personal API token (nút copy cạnh ô token) rồi dán lại.")
+    return None, f"Apify trả HTTP {r.status_code}. Thử lại sau ít phút."
+
+
 HANDLERS = {
     "google_master_token": _google_master_token,
+    "apify_verify_token": _apify_verify_token,
 }
 
 
@@ -120,8 +147,15 @@ def run(connector, fields):
 
     out_key = str(ex.get("output") or "")
     # Đã có sẵn giá trị đích -> người dùng tự lấy token rồi, không đụng vào.
+    # NGOẠI LỆ skip_if_output=False: connector kiểm được credential từ mọi mạng (vd Apify)
+    # thì LUÔN kiểm, kể cả giá trị dán thẳng - đường tắt này từng cho một URL rác chui vào
+    # kho qua form cũ còn mở trên trình duyệt (field cũ trùng tên output, 2026-08-14).
     if out_key and str(fields.get(out_key) or "").strip():
-        return _bo_rac(fields), ""
+        if ex.get("skip_if_output") is not False:
+            return _bo_rac(fields), ""
+        inputs_cfg = list(ex.get("inputs") or [])
+        if inputs_cfg and not str(fields.get(inputs_cfg[0]) or "").strip():
+            fields[inputs_cfg[0]] = str(fields.get(out_key) or "").strip()
 
     inputs = list(ex.get("inputs") or [])
     nhan = {f.get("key"): f for f in ((connector or {}).get("auth") or {}).get("fields") or []}

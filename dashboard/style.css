@@ -788,7 +788,10 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .settings-body .s-btn-ghost { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 7px; padding: 7px 14px; font-size: 14px; cursor: pointer; }
 
 /* Markdown bảng + code trong chat */
-.md-table { border-collapse: collapse; margin: 6px 0; font-size: 14px; width: 100%; }
+/* Bảng nhiều cột (so sánh sản phẩm) cuộn ngang trong khung riêng thay vì bị
+   overflow-wrap:anywhere của bubble bẻ chữ giữa từ trên màn hẹp. */
+.md-table-wrap { overflow-x: auto; max-width: 100%; margin: 6px 0; -webkit-overflow-scrolling: touch; }
+.md-table { border-collapse: collapse; margin: 0; font-size: 14px; width: 100%; }
 .md-table th, .md-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .md-table th { background: var(--bg3); color: var(--text); }
 .code-block {
@@ -993,7 +996,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .msg-javis .bubble strong { color: var(--accent); }
 .msg-javis .bubble ul { padding-left: 18px; margin: 10px 0; }
 .msg-javis .bubble code { font-family: var(--mono); font-size: 13px; background: var(--bg); padding: 1px 4px; border-radius: 3px; color: var(--accent2-ink); }
-.msg-javis .bubble h3 { font-size: 15px; color: var(--text); margin: 18px 0 6px; }
+.msg-javis .bubble h3 { font-size: 17px; color: var(--text); margin: 18px 0 6px; }
 .msg-javis .bubble h3:first-child { margin-top: 0; }
 
 /* Link/URL dài trong tin nhắn: ngắt dòng theo khung thay vì tràn ra ngoài (vd link Google Docs
@@ -1997,8 +2000,14 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    ============================================================ */
 
 /* Markdown block trong bong bong Javis */
-.msg-javis .bubble h1 { font-size: 19px; }
-.msg-javis .bubble h2 { font-size: 17px; }
+.msg-javis .bubble h1 { font-size: 20px; }
+.msg-javis .bubble h2 { font-size: 18px; }
+/* Thang tiêu đề phải LỚN DẦN lên trên và không tụt dưới cỡ chữ thân bài (16px):
+   trước đây h3=15px nhỏ hơn thân bài, h4-h6 rơi về mặc định trình duyệt (h5~13px,
+   h6~10.7px) làm bài dài nhìn phẳng lì, không quét được cấu trúc. */
+.msg-javis .bubble h4 { font-size: 16px; }
+.msg-javis .bubble h5 { font-size: 15px; }
+.msg-javis .bubble h6 { font-size: 14px; color: var(--text2); }
 .msg-javis .bubble h1, .msg-javis .bubble h2,
 .msg-javis .bubble h4, .msg-javis .bubble h5, .msg-javis .bubble h6 {
   color: var(--text); margin: 18px 0 6px; line-height: 1.35; }
@@ -2338,9 +2347,13 @@ body.ne-full-on .cview { z-index: 250; }
 .jv-ask-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .jv-ask-chip {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  border-radius: 999px; padding: 5px 12px; font-family: var(--font); font-size: 13px;
+  border-radius: 14px; padding: 5px 12px; font-family: var(--font); font-size: 13px;
   cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  text-align: left; max-width: 100%;
 }
+.jv-ask-chip-label { font-weight: 600; }
+.jv-ask-chip-desc { font-size: 11.5px; color: var(--text3); font-weight: 400; }
 .jv-ask-chip:hover { border-color: var(--accent); color: var(--accent); }
 .jv-ask-other { color: var(--text3); border-style: dashed; }
 

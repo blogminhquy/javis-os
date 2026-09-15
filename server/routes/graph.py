@@ -242,9 +242,25 @@ def _make_router() -> APIRouter:
         except Exception as e:
             print(f"[ws_graph] {type(e).__name__}: {e}", file=__import__('sys').stderr)
         finally:
-            stop.set()   # tắt awatch (stop_event) rồi huỷ nốt các task nền của socket này
-            for t in (watcher, sparse, recv, item):
-                t.cancel()
+            # Tắt watcher và CHỜ mọi task thoát hẳn. Chỉ gọi ``cancel()`` rồi rời handler sẽ
+            # để luồng FSEvents/watchfiles còn giữ Unix socket trên macOS; mỗi lần F5 tạo thêm
+            # một socket mồ côi, tới giới hạn ``maxfiles=256`` thì toàn bộ API bắt đầu nổ
+            # ``OSError: [Errno 24] Too many open files`` và giao diện tưởng brain biến mất.
+            stop.set()
+            # awatch cần nhìn thấy stop_event để tự đóng backend FSEvents. Hủy watcher ngay
+            # có thể ngắt coroutine trước khi backend kịp thu socket; ngược lại chờ vô hạn sẽ
+            # treo disconnect trên một số bản watchfiles. Vì vậy dọn ba task thuần asyncio
+            # trước, cho watcher tối đa 2 giây thoát êm rồi mới cưỡng chế hủy.
+            auxiliaries = (sparse, recv, item)
+            for t in auxiliaries:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*auxiliaries, return_exceptions=True)
+            try:
+                await asyncio.wait_for(watcher, timeout=2.0)
+            except asyncio.TimeoutError:
+                watcher.cancel()
+                await asyncio.gather(watcher, return_exceptions=True)
 
     return router
 
