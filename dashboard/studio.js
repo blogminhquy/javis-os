@@ -189,7 +189,7 @@
   function renderWorkflowUI() {
     const panel = document.getElementById("panel-workflows");
     const all = _wfState.wfs;
-    panel.innerHTML = `<div class="panel-bar"><h3>${esc(t("page.workflows.label"))}</h3><div class="pb-actions"><button class="s-btn-ghost" id="wfSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="wfDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="wfImport">${esc(t("studio.import"))}</button><button class="s-btn-ghost" id="seedBtn">${esc(t("studio.seed"))}</button><button class="s-btn" id="newWf">+ ${esc(t("page.workflows.label"))}</button></div></div>
+    panel.innerHTML = `<div class="panel-bar"><h3>${esc(t("page.workspace.label"))}</h3><div class="pb-actions"><button class="s-btn-ghost" id="wfSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="wfDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="wfImport">${esc(t("studio.import"))}</button><button class="s-btn-ghost" id="seedBtn">${esc(t("studio.seed"))}</button><button class="s-btn" id="newWf">+ ${esc(t("page.workspace.label"))}</button></div></div>
       ${all.length ? khungNhomHtml(all, _wfState, { bodyId: "wfCards", bodyCls: "wf-list",
                                                     searchId: "wfSearch", searchPh: t("studio.wf_search_ph") })
       : `<div class="empty">${esc(t("studio.wf_empty"))}</div>`}`;
@@ -500,7 +500,7 @@
   function renderAgentUI() {
     const panel = document.getElementById("panel-agents");
     const all = _agState.agents;
-    panel.innerHTML = `<div class="panel-bar"><h3>${esc(t("page.agents.label"))}</h3><div class="pb-actions"><button class="s-btn-ghost" id="agSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="agDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="agImport">${esc(t("studio.import"))}</button><button class="s-btn" id="newAgent">+ ${esc(t("page.agents.label"))}</button></div></div>
+    panel.innerHTML = `<div class="panel-bar"><h3>${esc(t("page.workspace.label"))}</h3><div class="pb-actions"><button class="s-btn-ghost" id="agSelAll" title="${esc(t("studio.selall_title"))}">${esc(t("studio.selall"))}</button><button class="s-btn-ghost" id="agDl" disabled title="${esc(t("studio.dl_title"))}">${esc(t("studio.dl_sel"))}</button><button class="s-btn-ghost" id="agImport">${esc(t("studio.import"))}</button><button class="s-btn" id="newAgent">+ ${esc(t("page.workspace.label"))}</button></div></div>
       ${all.length ? khungNhomHtml(all, _agState, { bodyId: "agCards", bodyCls: "cards",
                                                     searchId: "agSearch", searchPh: t("studio.ag_search_ph") })
       : `<div class="empty">${esc(t("studio.ag_empty"))}</div>`}`;

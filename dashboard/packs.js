@@ -188,9 +188,9 @@
   // `nhan` giữ KHOÁ từ điển chứ không giữ chữ: bảng này dựng lúc nạp file, sớm hơn lúc từ
   // điển về, nên chỗ VẼ mới tra bằng tw().
   const LOAI = {
-    agent:     { nhan: "store.kind.agent",     icon: "bot",      trang: "agents" },
+    agent:     { nhan: "store.kind.agent",     icon: "bot",      trang: "workspace" },
     skill:     { nhan: "store.kind.skill",     icon: "puzzle",   trang: "skills" },
-    workflow:  { nhan: "store.kind.workflow",  icon: "workflow", trang: "workflows" },
+    workflow:  { nhan: "store.kind.workflow",  icon: "workflow", trang: "workspace" },
     tool:      { nhan: "store.kind.tool",      icon: "toolbox",  trang: "plugins" },
     connector: { nhan: "store.kind.connector", icon: "plug",     trang: "mcp" },
     bundle:    { nhan: "store.kind.bundle",    icon: "package",  trang: "" },

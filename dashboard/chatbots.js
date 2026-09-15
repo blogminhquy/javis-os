@@ -693,10 +693,10 @@
     box.onmousedown = function (e) { if (e.target === box) dong(); };
     box.querySelector("#cbCancel").onclick = dong;
 
-    // Sang thẳng trang Agents. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
+    // Sang thẳng trang Cộng sự. Đóng form trước để quay lại không bị hai lớp modal chồng nhau.
     box.querySelector("#cbNewAgent").onclick = function () {
       dong();
-      try { window.JavisNav.go("agents"); } catch (e) {}
+      try { window.JavisNav.go("workspace"); } catch (e) {}
     };
 
     // Đổi mức là vẽ lại cảnh báo NGAY, và ô đồng ý luôn bắt đầu ở trạng thái chưa tick. Giữ

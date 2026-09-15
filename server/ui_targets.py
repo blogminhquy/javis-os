@@ -18,7 +18,7 @@ import unicodedata
 # Trang hợp lệ = RAIL_ITEMS trong dashboard/console.js và PAGES trong dashboard/ui-actions.js.
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
-    "home", "chat", "settings", "workflows", "agents", "skills", "chatbots", "files",
+    "home", "chat", "settings", "workspace", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet",
 )
@@ -41,12 +41,15 @@ ALIASES = {
     "viec dinh ky": "selfimprove", "nhac hen": "selfimprove",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",
     "cap nhat": "logs", "phien ban": "logs",
-    "tai khoan": "account", "quy trinh": "workflows", "workflow": "workflows",
-    "ky nang": "skills", "skill": "skills", "agent": "agents", "chatbot": "chatbots", "bot": "chatbots",
+    "tai khoan": "account", "quy trinh": "workspace", "workflow": "workspace",
+    "ky nang": "skills", "skill": "skills", "agent": "workspace", "chatbot": "chatbots", "bot": "chatbots",
     # Nhãn thanh bên sau khi Việt hoá (0.57.6) - nói sao thấy vậy thì mở được.
-    "tro ly": "agents", "tro ly rieng": "agents", "vai": "agents",
+    "tro ly": "workspace", "tro ly rieng": "workspace", "vai": "workspace",
     "cong cu": "plugins", "plugin": "plugins", "tien ich": "plugins",
     "bot tra loi khach": "chatbots", "tra loi khach": "chatbots",
+    # Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0, bí danh cũ giữ để lệnh nói quen tay
+    # không chết.
+    "cong su": "workspace", "workspace": "workspace", "tro ly va quy trinh": "workspace",
 }
 
 # Nhóm trên thanh bên = RAIL_GROUPS trong dashboard/console.js (khoá `id`) và GROUPS trong
