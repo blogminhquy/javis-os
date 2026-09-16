@@ -120,8 +120,18 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
 
   const lop = () => ({ _c: {}, toggle(c, on) { this._c[c] = !!on; }, co(c) { return !!this._c[c]; } });
   const oGia = () => ({ innerHTML: "", textContent: "", value: "", hidden: true, dataset: {},
-    _attrs: {}, _focus: 0, classList: lop(),
+    _attrs: {}, _focus: 0, scrollTop: 0, classList: lop(),
     setAttribute(k, v) { this._attrs[k] = v; }, focus() { this._focus++; },
+    // querySelector: veDanhSach dò nút "Xem thêm" vừa vẽ. Trình duyệt thật luôn có hàm này -
+    // thiếu nó ở đây là bộ giả sai, không phải code sai. Trả node giả khi HTML vừa vẽ CÓ id
+    // đó, để phép thử phân trang bấm được vào nút.
+    querySelector(sel) {
+      if (sel === "#wsMore" && this.innerHTML.indexOf('id="wsMore"') !== -1) {
+        if (!this._more) this._more = oGia();
+        return this._more;
+      }
+      return null;
+    },
     querySelectorAll() { return []; } });
   const nodes = {};
   ["#wsGroup", "#wsNew", "#wsImport", "#wsList", "#wsSearch", "#wsSearchBtn", "#wsRightFiles",
@@ -140,7 +150,11 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
               { slug: "c", name: "Chạy ads", role: "ads", group: "Marketing" }];
   const goi = [], kho = {};
   const ctx = {
-    S: { loai: "agent", q: "", nhom: "", chon: { agent: "a" }, el: el, tienDo: {}, sessionCuaPhien: {}, tabPhai: "cai" },
+    // `TRANG` (cỡ trang của danh sách trái) khai ở đầu module, ngoài đoạn được bóc - khai lại
+    // ở đây y như S, cùng lý do.
+    TRANG: 20,
+    S: { loai: "agent", q: "", nhom: "", chon: { agent: "a" }, el: el, tienDo: {}, sessionCuaPhien: {},
+         tabPhai: "cai", hien: 20, lanChay: {} },
     danhSach: () => ds, loc: W.loc, cacBuoc: () => [], dangChon: () => ds[0],
     TAB_PHAI: ["cai", "lichsu", "files"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
@@ -240,6 +254,48 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("roi trang thi xoa cau dang tim", ctx.S.q === "");
   ctx.veDanhSach();
   check("quay lai thi danh sach day du tro lai", nodes["#wsList"].innerHTML.includes("Người viết"));
+
+  // ---- Muc DA GHIM phai nhin ra duoc (0.59.20) ----
+  // Chu du an bao 16/09: ghim roi ma danh sach trong y het chua ghim. Dau ghim nam TRONG the
+  // <strong> cua cai ten, ma the do cat chu bang ellipsis -> ten dai mot chut la mat dau ghim.
+  ds[1].pinned = true;
+  ctx.veDanhSach();
+  const htmlGhim = nodes["#wsList"].innerHTML;
+  check("hang ghim mang lop rieng", /ws-item-wrap ghim/.test(htmlGhim));
+  check("dau ghim nam NGOAI the ten (khong bi ellipsis cat)",
+    /<\/strong>/.test(htmlGhim) && htmlGhim.indexOf("ws-item-pin") > htmlGhim.indexOf("</strong>"));
+  check("CANARY: dau ghim khong con nam trong <strong>",
+    !/<strong>[^<]*<span class="ws-item-pin"/.test(htmlGhim));
+  check("co nhan nhom Da ghim va Con lai",
+    htmlGhim.includes("ws.grp_pinned") && htmlGhim.includes("ws.grp_rest"));
+  ds[1].pinned = false;
+  ctx.veDanhSach();
+  check("khong ghim gi thi KHONG doi them nhan nhom",
+    !nodes["#wsList"].innerHTML.includes("ws.grp_pinned")
+    && !nodes["#wsList"].innerHTML.includes("ws.grp_rest"));
+
+  // ---- Phan trang danh sach trai: 20 muc, bam Xem them ra 20 nua (0.59.20) ----
+  const dsGoc = ds.slice();
+  ds.length = 0;
+  for (let i = 0; i < 45; i++) ds.push({ slug: "t" + i, name: "Tro ly " + i, role: "r", group: "Chung" });
+  ctx.S.hien = 20;
+  ctx.veDanhSach();
+  const dem = (h) => (h.match(/data-slug="/g) || []).length;
+  check("chi ve 20 muc dau", dem(nodes["#wsList"].innerHTML) === 20);
+  check("con muc phia sau thi co nut Xem them", nodes["#wsList"].innerHTML.includes('id="wsMore"')
+    && nodes["#wsList"].innerHTML.includes("sess.more"));
+  nodes["#wsList"]._more.onclick();
+  check("bam Xem them ra them 20 muc", dem(nodes["#wsList"].innerHTML) === 40 && ctx.S.hien === 40);
+  nodes["#wsList"]._more.onclick();
+  check("het muc thi thoi ve nut Xem them",
+    dem(nodes["#wsList"].innerHTML) === 45 && !nodes["#wsList"].innerHTML.includes('id="wsMore"'));
+  check("CANARY: go chu tim la ve lai TRANG DAU", (() => {
+    o.value = "Tro ly 4"; o.oninput({ target: o });
+    return ctx.S.hien === 20;
+  })());
+  o.value = ""; o.oninput({ target: o });
+  ds.length = 0; dsGoc.forEach((x) => ds.push(x));
+  ctx.S.hien = 20;
 }
 
 // ============================================================
@@ -609,6 +665,64 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
   const ws2 = src2;
   check("roi() co goi traKhungChat", /function roi\(\)[\s\S]{0,200}traKhungChat\(\)/.test(ws2));
   check("nho cuoc dang do NGAY LUC dung trang", /chonTabPhai\(S\.tabPhai\);\s*\n\s*nhoPhienTruoc\(\);/.test(ws2));
+}
+
+// ============================================================
+// Tab Lich su: MOT danh sach, khong phai hai (0.59.20)
+// ============================================================
+// Chu du an bao 16/09: "Lich su cua quy trinh hien dang co 2 lich su". Dung: moi lan chay quy
+// trinh de ra dung MOT hoi thoai, nen "LAN CHAY" va "HOI THOAI" la cung mot viec ke hai lan.
+// Nay chi con danh sach hoi thoai (ban muon cua trang Tro chuyen: co o tim, ghim, sua, xoa,
+// Xem them), con thu RIENG cua lan chay - avatar cac tro ly da phoi hop va trang thai - gan
+// thang vao hang hoi thoai do qua ham trang tri.
+{
+  const vm3 = require("node:vm");
+  const src3 = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  const doan3 = src3.slice(src3.indexOf("  function veLichSu(item) {"),
+                           src3.indexOf("  // ---------- sự kiện quy trình từ WebSocket"));
+  const hostGia = { innerHTML: "", querySelector: () => ({}) };
+  const goiMount = [];
+  const ctx3 = {
+    S: { loai: "workflow", el: { querySelector: (s) => (s === "#wsRightHistory" ? hostGia : null) },
+         chon: { workflow: "wf" }, lanChay: {} },
+    esc: (x) => String(x == null ? "" : x), t: (k) => k, avatar: (a, n) => '<i data-avatar="' + (a && a.slug) + '" data-n="' + n + '"></i>',
+    agentOf: (sl) => ({ slug: sl }), kenh: () => "workflow:wf", dangChon: () => ({ slug: "wf" }),
+    conDangXem: () => true, moPhien() {}, api: async () => ({ runs: [] }), brain: () => "b",
+    window: { JavisChatSide: { mount: (h, o) => goiMount.push(o), refresh: () => goiMount.push("refresh") } },
+  };
+  vm3.createContext(ctx3); vm3.runInContext(doan3, ctx3);
+
+  ctx3.veLichSu({ slug: "wf" });
+  check("tab Lich su chi dung MOT khung danh sach", (hostGia.innerHTML.match(/<div /g) || []).length === 1
+    && hostGia.innerHTML.includes('id="wsSess"'));
+  check("CANARY: khong con danh sach LAN CHAY rieng", !hostGia.innerHTML.includes("wsRuns")
+    && !src3.includes('id="wsRuns"'));
+  check("CANARY: khong con tieu de nao day nut Hoi thoai moi xuong giua cot",
+    !hostGia.innerHTML.includes("ws-rtitle"));
+  check("quy trinh thi cot lich su nhan ham trang tri",
+    typeof goiMount[0].trangTri === "function" && goiMount[0].chiHoiThoai === true);
+
+  // Trang tri: avatar cac tro ly da phoi hop + trang thai lan chay, gan dung hang cua phien do.
+  ctx3.S.lanChay = { s1: { session_id: "s1", status: "error", nhan: "lỗi",
+                           steps: [{ agent: "a1" }, { agent: "a2" }, { agent: "a1" }] } };
+  const tt = ctx3.trangTriHang({ id: "s1" });
+  check("hang co lan chay thi deo avatar cac tro ly", /ws-run-avatars/.test(tt.dau)
+    && (tt.dau.match(/data-avatar/g) || []).length === 2);
+  check("trang thai lan chay thanh mot nhan nho", /ws-run-badge error/.test(tt.meta) && tt.meta.includes("lỗi"));
+  check("CANARY: hang khong phai lan chay thi khong trang tri gi",
+    ctx3.trangTriHang({ id: "khong-co" }) === null);
+
+  // Tro ly khong co lan chay nao -> khong gan ham trang tri (khoi tra ve null cho tung hang).
+  goiMount.length = 0; ctx3.S.loai = "agent";
+  ctx3.veLichSu({ slug: "ag" });
+  check("tro ly thi khong can ham trang tri", goiMount[0].trangTri === null);
+
+  const ss = fs.readFileSync(path.join(root, "dashboard", "sessions-ui.js"), "utf8");
+  check("sessions-ui nhan tuy chon trangTri", /hamTrangTri = typeof o\.trangTri === "function"/.test(ss));
+  check("trang tri duoc chen vao ca tieu de lan hang meta",
+    /\(tt\.dau \|\| ""\)/.test(ss) && /\(tt\.meta \|\| ""\)/.test(ss));
+  check("CANARY: ham trang tri nem loi thi KHONG lam cut danh sach",
+    /try \{ tt = hamTrangTri\(s\) \|\| \{\}; \} catch \(e\) \{ tt = \{\}; \}/.test(ss));
 }
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

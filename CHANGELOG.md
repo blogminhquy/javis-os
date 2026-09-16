@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.20] - 2026-09-16
+### Cải thiện
+- **Trợ lý và quy trình đã ghim nhìn là thấy.** Mục ghim nằm dưới nhãn **Đã ghim**, có vạch màu bên trái và dấu ghim ở mép phải hàng. Trước đây dấu ghim nằm trong phần tên bị cắt ngắn nên tên dài một chút là mất tăm, ghim rồi mà trông y như chưa ghim.
+- **Tab Lịch sử chỉ còn MỘT danh sách.** Mỗi lần chạy quy trình đẻ ra đúng một hội thoại, nên hai danh sách cũ là cùng một việc kể hai lần. Nay chỉ còn danh sách hội thoại, và những gì hay nhất của lần chạy đi theo luôn: khuôn mặt các trợ lý đã phối hợp đứng trước tiêu đề, trạng thái **xong** hay **lỗi** là một nhãn nhỏ bên cạnh giờ.
+- **Hội thoại mới và ô tìm nằm ngay đầu cột**, không bị danh sách khác đẩy xuống giữa. Mỗi hàng vẫn ghim, đổi tên, xoá được như cũ.
+- **Danh sách trợ lý và quy trình hiện 20 mục, bấm "Xem thêm 20" để mở tiếp.** Brain có vài chục cộng sự không còn phải cuộn một cột dài dằng dặc; đổi tab, đổi thư mục hay gõ tìm là về lại trang đầu.
+
 ## [0.59.19] - 2026-09-16
 ### Bảo mật
 - **Nâng nền web của Javis lên bản đã vá.** Bản cũ có chỗ cho phép người ngoài gửi vài request nặng để ăn hết RAM rồi làm Javis treo, và trên Windows có chỗ làm lộ mật khẩu máy. Cập nhật bằng cách chạy lại lệnh cài là nó tự tải bản mới; cài thủ công thì chạy thêm `pip install -r requirements.txt`.
