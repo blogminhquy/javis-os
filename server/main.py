@@ -16555,9 +16555,18 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
     # /<slug> khác → coi là gọi skill (cần CLI)
     if cfgmod.read_settings().get("model", {}).get("engine") == "openrouter":
         return {"reply": f"⚠ Skill cần engine Claude CLI. Gửi /cli để đổi, rồi /{cmd} lại."}
-    ask = (f"Hãy dùng skill `{cmd}`" + (f" với yêu cầu: {arg}" if arg else "")
-           + ". Nếu không có skill tên này thì cứ xử lý yêu cầu của tôi bình thường.")
-    return {"ask": ask}
+    # KHỐI NGỮ CẢNH đặt trước câu người dùng, KHÔNG viết lại câu đó. Phải khớp đúng mẫu của
+    # dashboard (chat-slash.js: buildSkillInvocation) để hai kênh nói cùng một thứ - chuỗi cũ
+    # nhồi câu của người dùng vào giữa một câu của máy rồi lưu nguyên thế làm tin của họ, nên
+    # mở lại hội thoại là đọc được một câu mình chưa từng gõ (khách báo 16/09).
+    dan = "Hãy dùng skill này để làm việc dưới đây."
+    try:
+        co_that = any((x or {}).get("slug") == cmd for x in skills_index(_tg_brain(chat)))
+    except Exception:
+        co_that = False
+    if not co_that:
+        dan += " Brain không có skill tên này thì cứ xử lý yêu cầu bên dưới như bình thường."
+    return {"ask": f"[SKILL: {cmd}\n{dan}]\n\n" + (arg.strip() if arg else f"/{cmd}")}
 
 
 def _tg_inbox_dir(chat=None):

@@ -113,6 +113,9 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   const src = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
   const doan = src.slice(src.indexOf("  // ---------- ô tìm thu gọn ----------"),
                          src.indexOf("  function chonMacDinh("))
+             // Khối trả khung chat về bộ não chính: roi() gọi vào nó.
+             + src.slice(src.indexOf("  // ---------- trả khung chat về bộ não chính"),
+                         src.indexOf("  // ---------- phiên ----------"))
              + src.slice(src.indexOf("  function roi() {"), src.indexOf("\n  window.JavisWorkspace ="));
 
   const lop = () => ({ _c: {}, toggle(c, on) { this._c[c] = !!on; }, co(c) { return !!this._c[c]; } });
@@ -146,6 +149,11 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     document: { getElementById: () => null },
     window: { JavisVaultPanel: { borrow(h) { goi.push("borrow"); ctx._into = h; return true; },
                                  giveBack() { goi.push("giveBack"); } },
+              // Kho phiên giả: ghi lại lời gọi để đo việc trả khung chat lúc rời trang.
+              JavisSessions: { _cur: null, _goi: [],
+                               current() { return this._cur; },
+                               new() { this._goi.push("new"); this._cur = null; },
+                               open(id) { this._goi.push("open:" + id); this._cur = id; } },
               addEventListener() {}, removeEventListener() {} },
   };
   vm.createContext(ctx); vm.runInContext(doan, ctx);
@@ -571,6 +579,70 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
     const r = q(true, 300, 700, false, true);
     return r.thuCotPhai === null && r.xepDoc === null;
   })());
+}
+
+// ============================================================
+// Roi trang Cong su: TRA khung chat ve bo nao chinh (0.59.15)
+// ============================================================
+// Khung chat la node MUON: trang Cong su, trang Tro chuyen va man Javis dung CHUNG mot khung.
+// Roi trang ma khong lam gi thi doan chat voi tro ly con nam nguyen o hai cho kia, va
+// savedSessionId van la phien agent:<slug> nen tin go tiep BAY VAO PHIEN CUA TRO LY. Chu du an
+// bao 16/09: "2 chuc nang chat khac nhau, nguoi dung se hoi kho hieu".
+{
+  const fs2 = require("fs");
+  const vm2 = require("node:vm");
+  const src2 = fs2.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  // `_phienTruoc` khai ở đầu module (cùng chỗ với `opening`, `ready`...), ngoài đoạn được
+  // bóc, nên phải khai lại ở đây - y như ctx phải cấp S, window cho đoạn.
+  const doan2 = "var _phienTruoc = null;\n"
+    + src2.slice(src2.indexOf("  // ---------- trả khung chat về bộ não chính"),
+                 src2.indexOf("  // ---------- phiên ----------"));
+  const lamCtx = (cur, sessionCuaPhien) => {
+    const kho = { _cur: cur, _goi: [],
+                  current() { return this._cur; },
+                  new() { this._goi.push("new"); this._cur = null; },
+                  open(id) { this._goi.push("open:" + id); this._cur = id; } };
+    const c = { S: { sessionCuaPhien: sessionCuaPhien }, window: { JavisSessions: kho }, kho };
+    vm2.createContext(c); vm2.runInContext(doan2, c);
+    return c;
+  };
+
+  // 1. Dang mo phien TRO LY + truoc do co cuoc cua bo nao chinh -> xoa trang roi mo lai cuoc do.
+  let c = lamCtx("chat-cu", {});
+  c.nhoPhienTruoc();                       // luc dung trang: khung con la cuoc cua bo nao chinh
+  c.S.sessionCuaPhien["phien-agent"] = "coach";
+  c.kho._cur = "phien-agent";              // moPhien da doi sang phien tro ly
+  c.traKhungChat();
+  check("roi trang: xoa trang TRUOC roi moi mo lai cuoc cu",
+    c.kho._goi.join(",") === "new,open:chat-cu");
+  check("roi trang: khung chat ve dung cuoc cua bo nao chinh", c.kho._cur === "chat-cu");
+
+  // 2. Khong co cuoc nao truoc do (vao thang trang Cong su) -> chi xoa trang.
+  c = lamCtx(null, {});
+  c.nhoPhienTruoc();
+  c.S.sessionCuaPhien["phien-agent"] = "coach";
+  c.kho._cur = "phien-agent";
+  c.traKhungChat();
+  check("roi trang: khong co cuoc cu thi mo khung TRONG", c.kho._goi.join(",") === "new");
+
+  // 3. Dang KHONG mo phien tro ly (vd chua chon cong su nao) -> khong dung gi vao khung chat.
+  c = lamCtx("chat-cu", {});
+  c.nhoPhienTruoc();
+  c.traKhungChat();
+  check("CANARY: khong mo phien tro ly thi KHONG dung vao khung chat", c.kho._goi.length === 0);
+
+  // 4. Cuoc "truoc do" lai chinh la mot phien tro ly (F5 ngay tren trang Cong su) -> chi xoa
+  //    trang, khong mo lai mot phien tro ly khac.
+  c = lamCtx("phien-agent-cu", { "phien-agent-cu": "coach" });
+  c.nhoPhienTruoc();
+  c.S.sessionCuaPhien["phien-agent"] = "coach2";
+  c.kho._cur = "phien-agent";
+  c.traKhungChat();
+  check("CANARY: khong mo lai mot phien tro ly khac", c.kho._goi.join(",") === "new");
+
+  const ws2 = src2;
+  check("roi() co goi traKhungChat", /function roi\(\)[\s\S]{0,200}traKhungChat\(\)/.test(ws2));
+  check("nho cuoc dang do NGAY LUC dung trang", /chonTabPhai\(S\.tabPhai\);\s*\n\s*nhoPhienTruoc\(\);/.test(ws2));
 }
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

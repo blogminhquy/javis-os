@@ -1154,7 +1154,10 @@ function lastUserText() {
 // (hoặc 0 nếu tin lưu từ trước bản này chưa có mốc giờ, khi đó phần giờ được ẩn).
 // Khối ngữ cảnh do CHÍNH dashboard chèn vào ĐẦU tin trước khi gửi: file đang ghim trong trình
 // sửa, đường dẫn file đính kèm. Chúng là chỉ dẫn cho model, không phải câu người dùng gõ.
-const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm", "[NGỮ CẢNH GIAO DIỆN:"];
+// "[SKILL: " là khối do chat-slash.js dựng khi người dùng gõ lệnh "/". Gỡ nó ra thì bong bóng
+// hiện ĐÚNG câu họ đã gõ, thay vì câu máy dựng quanh câu đó - khách báo đúng chuyện này 16/09.
+// Giữ MỘT DÒNG: test_dinh_kem_khong_roi.js bóc đúng dòng này ra để chạy docDinhKem bằng node.
+const _KHOI_NGU_CANH = ["[FILE ĐANG MỞ trong trình sửa của Javis:", "[File đính kèm", "[NGỮ CẢNH GIAO DIỆN:", "[SKILL: "];
 
 // Gỡ mấy khối đó ra để lấy lại ĐÚNG câu người dùng đã gõ.
 //

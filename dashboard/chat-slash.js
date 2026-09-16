@@ -52,19 +52,52 @@
     }
     if (!hit) return null;
     var start = hit.index + hit[1].length;
-    var rest = (text.slice(0, start) + " " + text.slice(start + 1 + hit[2].length)).trim();
-    return { cmd: hit[2].toLowerCase(), arg: rest.replace(/\s{2,}/g, " ") };
+    var sau = start + 1 + hit[2].length;
+    var don = function (x) { return x.trim().replace(/\s{2,}/g, " "); };
+    // HAI bản của phần chữ còn lại, vì hai đường dùng nó khác nhau:
+    //   arg       - BỎ HẲN token (đường cộng sự: "/agent-viet" là một ĐỊA CHỈ, gửi kèm tên
+    //               agent vào tin nhắn cho chính agent đó là chữ thừa);
+    //   argGiuTen - giữ tên, chỉ bỏ dấu "/" (đường SKILL).
+    // Vì sao đường skill phải giữ: tên skill hay là một THÀNH PHẦN của câu ("Skill
+    // /viet-bai-x sẽ là skill chính"). Xoá hẳn token rồi nối hai đầu lại thì câu thành "Skill
+    // sẽ là skill chính" - mất một từ, đọc ra vô nghĩa. Khách báo đúng chuyện này 16/09:
+    // "chữ nó bị dịch chạy đi linh tinh".
+    return { cmd: hit[2].toLowerCase(),
+             arg: don(text.slice(0, start) + " " + text.slice(sau)),
+             argGiuTen: don(text.slice(0, start) + hit[2] + text.slice(sau)),
+             giuaCau: true };
   }
 
   function classify(cmd) {
     return SESSION_COMMANDS.indexOf(cmd) !== -1 ? "session" : "skill";
   }
 
-  // Khop DUNG mau fallback cua Telegram (server/main.py) de 2 kenh nhat quan.
-  function buildSkillInvocation(cmd, arg) {
-    return "Hãy dùng skill `" + cmd + "`" +
-      (arg ? " với yêu cầu: " + arg : "") +
-      ". Nếu không có skill tên này thì cứ xử lý yêu cầu của tôi bình thường.";
+  // Lệnh skill đi thành một KHỐI NGỮ CẢNH đặt TRƯỚC câu người dùng, không viết lại câu đó.
+  //
+  // Vì sao đổi (khách báo 16/09): mẫu cũ nhồi câu của người dùng vào giữa một câu của máy -
+  // "Hãy dùng skill `X` với yêu cầu: <câu của họ>. Nếu không có skill tên này thì cứ xử lý
+  // yêu cầu của tôi bình thường." Server LƯU nguyên chuỗi đó làm tin của NGƯỜI DÙNG, nên mở
+  // lại hội thoại là họ đọc được một câu mình chưa từng gõ, kèm một câu cuối tự xuất hiện.
+  // Khách nói đúng: "nó tự sửa câu lệnh của em, tự thêm câu cuối này".
+  //
+  // Khối trong ngoặc vuông kết thúc bằng "]\n\n" là ĐÚNG hình dạng mà app.js (chuNguoiGo)
+  // đã biết gỡ ra trước khi vẽ bong bóng - cùng đường với khối FILE ĐANG MỞ và khối đính kèm.
+  // Nhờ vậy bong bóng, thanh mốc hội thoại, nút Gửi lại và nút Sửa câu hỏi đều thấy ĐÚNG câu
+  // người dùng gõ, không phải câu máy dựng.
+  //
+  // `giuaCau`: người dùng nhắc tên skill Ở GIỮA một câu (vd "Skill viet-bai-x sẽ là skill
+  // chính") thì đó là họ ĐANG NÓI VỀ skill, không hẳn là ra lệnh chạy nó - nên lời dặn nhẹ
+  // hơn và nhấn "làm đúng yêu cầu bên dưới". Gõ ở ĐẦU tin mới là ra lệnh rõ ràng.
+  function buildSkillInvocation(cmd, arg, giuaCau) {
+    var than = String(arg || "").trim() || "/" + cmd;
+    var dan = giuaCau
+      ? "Người dùng có nhắc tên skill này trong câu. Dùng nó nếu phù hợp, còn lại cứ làm đúng "
+        + "yêu cầu bên dưới."
+      : "Hãy dùng skill này để làm việc dưới đây.";
+    if (!isKnownSkill(cmd)) {
+      dan += " Brain không có skill tên này thì cứ xử lý yêu cầu bên dưới như bình thường.";
+    }
+    return "[SKILL: " + cmd + "\n" + dan + "]\n\n" + than;
   }
 
   function route(text) {
@@ -73,7 +106,8 @@
     if (classify(p.cmd) === "session") return { type: "session", cmd: p.cmd };
     var partner = knownPartners.find(function (x) { return x.cmd === p.cmd; });
     if (partner) return { type: partner.kind, slug: partner.slug, message: p.arg };
-    return { type: "skill", cmd: p.cmd, message: buildSkillInvocation(p.cmd, p.arg) };
+    return { type: "skill", cmd: p.cmd,
+             message: buildSkillInvocation(p.cmd, p.argGiuTen || p.arg, !!p.giuaCau) };
   }
 
   // Ham chu khong phai hang: nhan phai lay tu dien lai moi lan dung menu, vi nguoi dung
