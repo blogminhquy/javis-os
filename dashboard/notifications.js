@@ -133,6 +133,12 @@
       if (typeof d.unread === "number") state.thuChuaDoc = d.unread;
     } catch (e) {}
   }
+  // Kênh của hội thoại đích, dạng "agent:<slug>" / "workflow:<slug>" (server ghi vào mẩu thư).
+  // Thư CŨ không có trường này nên trả null và mọi thứ chạy y như trước.
+  function congSuCuaThu(item) {
+    var m = /^(agent|workflow):(.+)$/.exec(String((item && item.channel) || ""));
+    return m ? { loai: m[1], slug: m[2] } : null;
+  }
   // Bấm một mẩu thư = quay về ĐÚNG hội thoại đã hỏi. Mở hội thoại MỚI ở đây là sai: toàn bộ
   // ngữ cảnh nằm trong hội thoại cũ, hỏi tiếp ở chỗ khác là phải kể lại từ đầu.
   function moThu(item) {
@@ -140,6 +146,18 @@
     docThu({ id: item.id }).then(render);
     if (!item.session_id) { render(); return; }
     closePanel();
+    // Hội thoại của một TRỢ LÝ / QUY TRÌNH phải mở ở trang Cộng sự, không đổ vào khung chat
+    // của bộ não chính. Đổ nhầm thì hai chuyện xảy ra cùng lúc: người dùng nhìn một đoạn chat
+    // với trợ lý trên màn Javis mà không hiểu vì sao, và phiên đang mở trở thành phiên của
+    // trợ lý - tin gõ tiếp bay thẳng vào đó (đúng lỗi bản 0.59.15 đã chữa cho đường rời
+    // trang, hòm thư mở lại nó bằng một cửa khác).
+    var cs = congSuCuaThu(item);
+    if (cs && window.JavisWorkspace && window.JavisWorkspace.openCommand) {
+      try {
+        window.JavisWorkspace.openCommand(cs.loai, cs.slug, item.session_id);
+        return;
+      } catch (e) {}
+    }
     try {
       if (window.Alpine && Alpine.store("nav") && Alpine.store("nav").active !== "home"
           && Alpine.store("nav").active !== "chat") Alpine.store("nav").go("home");

@@ -122,6 +122,74 @@ check("push mang tham số mo_thu để về đúng mẩu thư", main.indexOf("m
 check("client đọc mo_thu rồi mở đúng thư đó", noti.indexOf('get("mo_thu")') !== -1);
 check("xoá tham số khỏi URL để F5 không mở lại", /history\.replaceState/.test(noti));
 
+// ---- 7b. Thư của TRỢ LÝ / QUY TRÌNH mở ở trang Cộng sự (0.59.22) ----
+// Đổ nó vào khung chat của bộ não chính thì hai chuyện xảy ra cùng lúc: người dùng nhìn một
+// đoạn chat với trợ lý trên màn Javis mà không hiểu vì sao, và phiên đang mở trở thành phiên
+// của trợ lý nên tin gõ tiếp bay thẳng vào đó - đúng lỗi bản 0.59.15 đã chữa cho đường rời
+// trang, hòm thư mở lại nó bằng một cửa khác.
+const ws = read("dashboard/workspace.js");
+check("server ghi KÊNH của hội thoại vào mẩu thư",
+  /kenh = str\(\(get_store\(\)\.get_session\(sid\) or \{\}\)\.get\("channel"\)/.test(main)
+  && /channel=kenh/.test(main));
+check("client nhận ra thư của cộng sự qua kênh",
+  /\^\(agent\|workflow\):\(\.\+\)\$/.test(noti));
+check("thư của cộng sự mở bằng trang Cộng sự, kèm ĐÚNG mã hội thoại",
+  /JavisWorkspace\.openCommand\(cs\.loai, cs\.slug, item\.session_id\)/.test(noti));
+check("CANARY: thư thường vẫn mở bằng JavisSessions.open như cũ",
+  /JavisSessions\.open\(item\.session_id\)/.test(noti));
+check("openCommand nhận mã hội thoại và chuyển tiếp xuống moPhien",
+  /function openCommand\(kind, slug, sid\)/.test(ws)
+  && /moPhien\(item, false, cmd\.sid\)/.test(ws));
+check("moPhien mở ĐÚNG hội thoại được chỉ định, không lấy cuộc gần nhất",
+  /async function moPhien\(item, moiHan, sidChiDinh\)/.test(ws)
+  && /id = sidChiDinh \|\| null;/.test(ws)
+  && /if \(!id && !moiHan\)/.test(ws));
+
+// Chạy THẬT hàm moThu với DOM giả: regex chỉ nói mã có mặt, không nói nó rẽ đúng nhánh.
+{
+  const vm = require("node:vm");
+  const doan = noti.slice(noti.indexOf("  function congSuCuaThu(item)"),
+                          noti.indexOf("  function theThu(item)"));
+  const goi = [];
+  const ctx = {
+    docThu: () => ({ then: () => {} }), render() {}, closePanel() {},
+    window: {
+      JavisWorkspace: { openCommand: (loai, slug, sid) => goi.push(["ws", loai, slug, sid]) },
+      JavisSessions: { open: (sid) => goi.push(["chat", sid]) },
+    },
+  };
+  ctx.Alpine = { store: () => ({ active: "kanban", go: (p) => goi.push(["nav", p]) }) };
+  ctx.window.Alpine = ctx.Alpine;
+  vm.createContext(ctx); vm.runInContext(doan, ctx);
+
+  ctx.moThu({ id: "1", session_id: "s-cs", channel: "workflow:gui-zalo" });
+  check("CHẠY THẬT: thư của quy trình đi thẳng sang trang Cộng sự",
+    JSON.stringify(goi) === JSON.stringify([["ws", "workflow", "gui-zalo", "s-cs"]]), goi);
+
+  goi.length = 0;
+  ctx.moThu({ id: "2", session_id: "s-thuong", channel: "web" });
+  check("CHẠY THẬT: thư thường vẫn về khung chat chính",
+    goi.some((x) => x[0] === "chat" && x[1] === "s-thuong"), goi);
+
+  goi.length = 0;
+  ctx.moThu({ id: "3", session_id: "s-cu" });
+  check("CANARY: thư CŨ (chưa có trường kênh) vẫn mở như trước, không rơi vào khoảng không",
+    goi.some((x) => x[0] === "chat" && x[1] === "s-cu"), goi);
+
+  goi.length = 0;
+  ctx.window.JavisWorkspace = null;
+  ctx.moThu({ id: "4", session_id: "s-cs2", channel: "agent:ke-toan" });
+  check("CANARY: chưa nạp module Cộng sự thì lui về khung chat chứ không nuốt cú bấm",
+    goi.some((x) => x[0] === "chat" && x[1] === "s-cs2"), goi);
+}
+
+// ---- 7c. Loop chạy trót lọt thì KHÔNG rung chuông (0.59.22) ----
+// Loop 15 phút một vòng mà vòng nào cũng đẩy một thông báo lên điện thoại thì người dùng tắt
+// hẳn thông báo, và cái đáng báo (loop hỏng, loop tự tạm dừng) mất theo.
+const si = read("server/self_improve.py");
+check("loop báo kèm cờ quiet cho vòng chạy sạch",
+  /quiet=not \(failed or paused_now\)/.test(si));
+
 // ---- 8. CSS + cache-bust ----
 check("có style cho tab và ô công tắc push",
   css.indexOf(".noti-tabs") !== -1 && css.indexOf(".noti-push") !== -1);

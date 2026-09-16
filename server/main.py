@@ -7213,7 +7213,10 @@ async def _kiem_ngan_sach(nhac: bool = True) -> dict:
                 tin = (f"Ngân sách API tháng này đã dùng {ns['ty_le'] * 100:.0f}%: "
                        f"${da:.2f} trên trần ${tran:.2f}. Còn ${ns['con']:.2f}.")
             try:
-                await _notify_owner("", tin)
+                # kind="system": Javis TỰ nói, không phải trả lời câu ai hỏi. Đúng nhãn mà
+                # inbox.py đặt tên sẵn cho ca này ("cảnh báo hết hạn mức"), và nhãn đó là thứ
+                # người dùng đọc trên thẻ thư để biết tin này từ đâu ra.
+                await _notify_owner("", tin, kind="system")
             except Exception:  # noqa: BLE001 - không gửi được thì thôi, đừng làm hỏng vòng lặp
                 pass
     return ns
@@ -8375,8 +8378,21 @@ async def _bo_vao_hom_thu(owner_chat, text, *, kind="answer", label="", source="
     try:
         cid = str(owner_chat or "").strip()
         sid = cid[len(WEB_CHAT_PREFIX):] if cid.startswith(WEB_CHAT_PREFIX) else ""
+        # KÊNH của hội thoại đích, đọc từ chính kho phiên. Dashboard cần nó để bấm vào mẩu thư
+        # là về ĐÚNG TRANG: hội thoại "agent:<slug>" / "workflow:<slug>" mở ở trang Cộng sự,
+        # còn lại mở ở khung chat thường. Thiếu nó thì mọi mẩu thư đều đổ vào khung chat của
+        # bộ não chính, và tin gõ tiếp bay vào phiên của trợ lý (đúng lỗi 0.59.15 đã chữa cho
+        # đường rời trang). Hỏng thì bỏ qua - kênh là thứ làm ĐẸP đường về, không phải điều
+        # kiện để lưu thư.
+        kenh = ""
+        if sid:
+            try:
+                kenh = str((get_store().get_session(sid) or {}).get("channel") or "")
+            except Exception as e:
+                print(f"[inbox] không đọc được kênh của phiên {sid[:8]}: "
+                      f"{type(e).__name__}: {e}", file=sys.stderr)
         item = inbox.add(text, kind=kind, session_id=sid, source=source, label=label,
-                         read=bool(quiet))
+                         read=bool(quiet), channel=kenh)
     except Exception as e:
         print(f"[inbox] bỏ thư lỗi: {type(e).__name__}: {e}", file=sys.stderr)
         return False

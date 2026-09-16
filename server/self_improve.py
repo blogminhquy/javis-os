@@ -151,7 +151,9 @@ class LoopDeps:
     safe_tools: List[str]
     readonly_tools: List[str]
     notify: Optional[Callable] = None        # async notify(text) - broadcast Telegram khi auto-pause (mọi admin)
-    report: Optional[Callable] = None        # async report(owner_chat, text) - báo NGƯỜI YÊU CẦU loop mỗi vòng
+    # async report(owner_chat, text, *, quiet=False) - báo NGƯỜI YÊU CẦU loop mỗi vòng.
+    # `quiet` bỏ chuông + thông báo đẩy (vòng chạy trót lọt), tin vẫn về kênh và hòm thư.
+    report: Optional[Callable] = None
     apply_mcp: Optional[Callable] = None      # apply_mcp(cli): gắn MCP Javis-quản-lý (config+strict+deny) - loop ĐỌC được dữ liệu thật
     mcp_allow_patterns: Optional[Callable] = None  # () -> ["mcp__<server>", ...] để thêm vào allowlist (MCP mới gọi được)
     # Đổi engine việc nền theo model phụ người dùng chọn (Claude / Codex / API rẻ).
@@ -872,9 +874,18 @@ class LoopFeature:
                     # Telegram là kênh chữ thuần: lọc khối JAVIS_METRICS/JAVIS_ASK trước khi báo,
                     # kẻo lộ nguyên cụm "<!-- JAVIS_...: ... -->" (system prompt loop dùng chung
                     # CLAUDE.md nên có thể sinh các khối này).
+                    #
+                    # `quiet` cho vòng chạy TRÓT LỌT: tin vẫn về đủ kênh (khung chat đã giao
+                    # việc, Telegram/Zalo) và vẫn vào hòm thư, chỉ không nổi chấm đỏ trên
+                    # chuông và không rung thông báo đẩy. Một loop chạy 15 phút một lần mà
+                    # vòng nào cũng đẩy một thông báo lên điện thoại thì người dùng tắt hẳn
+                    # thông báo - lúc đó cái đáng báo (loop hỏng, loop tự tạm dừng) cũng mất
+                    # theo. Đây đúng luật việc Kanban đã theo từ 01/09/2026: chỉ thứ CẦN
+                    # người dùng ra tay mới được kêu.
                     asyncio.create_task(self.deps.report(
                         loop.get("owner_chat", ""),
-                        channel_context.strip_control_blocks("\n\n".join(parts))))
+                        channel_context.strip_control_blocks("\n\n".join(parts)),
+                        quiet=not (failed or paused_now)))
                     report_sent = True
                 except Exception:
                     pass

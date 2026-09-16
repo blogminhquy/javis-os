@@ -46,6 +46,16 @@ check("đếm chưa đọc", inbox.so_chua_doc() == 1, inbox.so_chua_doc())
 
 inbox.add("# Xong việc rồi nhé", kind="answer", session_id="sid-2")
 check("thư mới nhất đứng đầu", inbox.danh_sach()[0]["title"] == "Xong việc rồi nhé")
+# Tiêu đề đi thẳng ra thông báo đẩy của hệ điều hành, nơi không ai dịch markdown. Cắt kiểu cũ
+# (chỉ lstrip) để lại cái đuôi "**" lơ lửng ngay giữa màn hình khoá.
+check("tiêu đề bỏ dấu nhấn markdown ở CẢ HAI ĐẦU",
+      inbox._tieu_de("**Nhắc bạn:** họp lúc 3h") == "Nhắc bạn: họp lúc 3h",
+      inbox._tieu_de("**Nhắc bạn:** họp lúc 3h"))
+check("CANARY: dấu câu trong tiêu đề giữ nguyên",
+      inbox._tieu_de("- **Kết quả:** 12 đơn (tăng 3)") == "Kết quả: 12 đơn (tăng 3)",
+      inbox._tieu_de("- **Kết quả:** 12 đơn (tăng 3)"))
+check("CANARY: tiêu đề không có markdown thì y nguyên",
+      inbox._tieu_de("✅ Loop 'sang' vừa chạy (cron).") == "✅ Loop 'sang' vừa chạy (cron).")
 check("tiêu đề bỏ dấu markdown mở đầu", inbox.danh_sach()[0]["title"][0] != "#")
 check("đếm chưa đọc = 2", inbox.so_chua_doc() == 2)
 
@@ -137,6 +147,65 @@ check("CANARY: có thư mới thì bắn sự kiện WebSocket cho chuông cập
       len(inbox_ev) == 1, [e.get("type") for e in su_kien])
 check("sự kiện mang mã phiên để khung chat đang mở tự đánh dấu đã đọc",
       inbox_ev and inbox_ev[0].get("session_id") == "phien-xyz")
+
+
+# ─────────── 4b. Mẩu thư mang theo KÊNH để bấm vào là về đúng trang (0.59.22) ───────────
+# Hội thoại của một trợ lý / quy trình phải mở ở trang Cộng sự. Thiếu trường `channel` thì
+# dashboard đổ nó vào khung chat của bộ não chính, và tin gõ tiếp bay vào phiên của trợ lý mà
+# người dùng không hay - đúng lỗi bản 0.59.15 đã chữa cho đường rời trang.
+_kenh_cua_phien = {"phien-cs": "workflow:gui-zalo", "phien-thuong": "web"}
+
+
+class _GiaStore:
+    def get_session(self, sid):
+        k = _kenh_cua_phien.get(sid)
+        return {"channel": k} if k else None
+
+
+_that_store = main.get_store
+main.get_store = lambda: _GiaStore()
+main._gui_qua_kenh = _gia_kenh
+try:
+    asyncio.get_event_loop().run_until_complete(
+        main._notify_owner("web:phien-cs", "Quy trình chạy xong", kind="answer"))
+    asyncio.get_event_loop().run_until_complete(
+        main._notify_owner("web:phien-thuong", "Việc thường chạy xong", kind="answer"))
+    asyncio.get_event_loop().run_until_complete(
+        main._notify_owner("12345678", "Tin đi Telegram", kind="report"))
+finally:
+    main.get_store = _that_store
+    main._gui_qua_kenh = that_kenh
+
+_thu = {x["title"]: x for x in inbox.danh_sach(50)}
+check("thư của hội thoại cộng sự mang đúng kênh",
+      _thu["Quy trình chạy xong"]["channel"] == "workflow:gui-zalo",
+      _thu["Quy trình chạy xong"].get("channel"))
+check("thư của hội thoại thường mang kênh web",
+      _thu["Việc thường chạy xong"]["channel"] == "web")
+check("CANARY: owner là Telegram (không có phiên web) thì kênh để trống, không đoán bừa",
+      _thu["Tin đi Telegram"]["channel"] == "" and _thu["Tin đi Telegram"]["session_id"] == "")
+
+
+# ─────────── 4c. Loop chạy TRÓT LỌT thì không rung chuông (0.59.22) ───────────
+# Một loop 15 phút một vòng mà vòng nào cũng đẩy thông báo lên điện thoại thì người dùng tắt
+# hẳn thông báo - lúc đó cái đáng báo (loop hỏng, loop tự tạm dừng) cũng mất theo. Đây đúng
+# luật việc Kanban đã theo từ 01/09/2026.
+_si = (ROOT / "server" / "self_improve.py").read_text(encoding="utf-8")
+_i = _si.index("if loop.get(\"notify\", True) and self.deps.report:")
+_khoi = _si[_i:_i + 1800]
+check("loop báo kèm cờ quiet", "quiet=not (failed or paused_now)" in _khoi)
+check("CANARY: vòng HỎNG và vòng tự tạm dừng vẫn kêu",
+      "failed or paused_now" in _khoi and "quiet=True" not in _khoi)
+
+# Cảnh báo ngân sách là Javis TỰ nói, không phải trả lời ai - inbox.py đặt sẵn nhãn "system"
+# cho đúng ca này, và nhãn đó là thứ người dùng đọc trên thẻ thư để biết tin từ đâu ra.
+_mp = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+check("cảnh báo ngân sách vào hòm với nhãn hệ thống",
+      '_notify_owner("", tin, kind="system")' in _mp)
+
+_tk = (ROOT / "server" / "tasks.py").read_text(encoding="utf-8")
+check("CANARY: việc Kanban vẫn giữ luật cũ (xong thì lặng, chặn/chờ duyệt thì kêu)",
+      'quiet=(status == "done")' in _tk)
 
 
 # ─────────── 5. Nhắc hẹn phải đi qua cùng một cửa ───────────
