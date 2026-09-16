@@ -1419,76 +1419,32 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
   padding: 14px 18px 16px; }
 .ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-/* Trình sửa file mở từ chat / từ tab Thư mục. Khung xếp thế nào thì xem khối @media bên dưới:
-   màn rộng XẾP NGANG (trình sửa trái, hội thoại phải), màn hẹp thì trình sửa chiếm hết chỗ.
+/* Trình sửa file mở từ chat / từ tab Thư mục. Mở ra là nó chiếm TRỌN khoang giữa ở mọi khổ
+   màn - khung chat ẩn đi (xem khối bên dưới).
+   `flex: 1 1 auto` để trình sửa cao hết cột: thiếu nó thì nó chỉ cao bằng nội dung, nằm lửng
+   giữa một cột trống.
    `order` chứ không đổi thứ tự DOM: #wsSlot phải đứng trước trong DOM vì console.js mượn node
    chat vào đó ngay lúc dựng khung, trước khi ai biết có mở file hay không. */
-/* `flex: 1 1 auto` cho khổ màn HẸP, nơi .ws-main còn là flex dọc và trình sửa là con duy nhất
-   còn hiện: thiếu nó thì trình sửa chỉ cao bằng nội dung, nằm lửng giữa một cột trống. Màn
-   rộng đi đường grid nên mấy giá trị flex này không có tác dụng gì. */
 .ws-edit { display: none; position: relative; flex: 1 1 auto; min-height: 0; min-width: 0;
   flex-direction: column; order: 1; }
 .ws-main.edit-on > .ws-edit { display: flex; }
-/* .transcript mang sẵn `min-height: clamp(280px, 46vh, 620px)` từ style.css (ở màn chính nó là
-   cả cột phải). Trong khung này con số đó LỚN HƠN chỗ nó được chia, nên khung hội thoại từ
-   chối co và ĐẨY Ô NHẬP RỚT KHỎI MÀN HÌNH - đo thật ở cửa sổ 950px: #hudVoice nằm ở y=1138.
-   Trang Trò chuyện đã gỡ đúng chốt này (.chatpage-slot .transcript), ở đây gỡ y hệt, và chỉ gỡ
-   lúc edit-on để layout thường không đổi. */
-.ws-main.edit-on > .ws-slot > .transcript { min-height: 0; max-height: none; }
 /* Trình sửa vốn là lớp nổi neo trong .hud-center; ở đây nó là một khối bình thường của cột
    giữa nên phải gỡ inset/z-index, TRỪ khi đang phóng to (.ne-full) - lúc đó nó cố ý phủ kín
    màn hình (cùng lý do với .chatpage-edit, xem _injectChatCss trong console.js). */
 .ws-edit > .note-editor:not(.ne-full) { position: static; inset: auto; z-index: auto;
   flex: 1 1 auto; min-height: 0; min-width: 0; border-radius: 12px; }
-/* Màn hẹp không đủ chỗ cho cả hai: trình sửa chiếm chỗ, đóng nó ra là khung chat về đủ
-   (ẩn bằng display:none nên đoạn chat đang dở còn nguyên). */
-@media (max-width: 860px) { .ws-main.edit-on > .ws-slot { display: none; } }
-/* Màn rộng: XẾP NGANG chứ không xếp chồng - trình sửa bên trái, hội thoại thành một cột hẹp
-   bên phải, còn cụm nhập (dải việc nền, file đính kèm, thanh model, ô nhập) trải hết bề ngang
-   dưới đáy. Đúng khuôn trang Trò chuyện đã chốt (.chatpage-main.edit-on trong console.js).
-
-   Vì sao đổi: kiểu xếp chồng 60/40 để lại một KHOẢNG TRỐNG lớn giữa trình sửa và ô nhập -
-   khung hội thoại rỗng cao gần nửa màn hình, giữa nó lơ lửng mỗi cái chip file đang ghim và
-   thanh model, trong khi trình sửa bị bóp lại chỉ còn vài dòng và cắt ngang câu (chủ dự án
-   chụp lại đúng cảnh đó). Nằm ngang thì trình sửa được cao hết màn, còn hội thoại rỗng chỉ
-   chiếm một cột hẹp.
-
-   Cột hội thoại co theo bề ngang: cột giữa trang Cộng sự đã bị hai cột hai bên ăn mất ~570px,
-   khoá cứng 340px như trang Trò chuyện là trên laptop 1280 trình sửa chỉ còn hơn 300px. */
-/* MỞ MỘT FILE trong khung chat cộng sự: trình sửa và khung chat xếp NGANG.
-   Bề rộng khả dụng ở đây KHÔNG phải bề rộng cửa sổ: nó là cửa sổ trừ thanh bên, trừ cột danh
-   sách (210-260px) và trừ cột phải (310-350px). Trên màn 1600px chỉ còn khoảng 760px, mà cột
-   chat cũ để `clamp(220px, 32%, 340px)` nên nó tụt xuống đúng sàn 220px: trừ padding và viền
-   bong bóng, chữ còn ba từ một dòng - chủ dự án chụp lại đúng cảnh đó (16/09).
-   Nay sàn là 300px, và khi khoang giữa không đủ cho cả hai thì JS (workspace.js: canhKhungSua)
-   thu cột phải lại hoặc xếp DỌC bằng lớp .edit-doc, thay vì bóp cả hai cùng hẹp. */
-@media (min-width: 861px) {
-  .ws-main.edit-on { display: grid; column-gap: 14px;
-    grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 420px);
-    grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
-  /* Xếp DỌC: trình sửa trên, hội thoại dưới. Dùng khi khoang giữa hẹp tới mức hai cột ngang
-     thì cả hai đều không đọc được. Hội thoại giữ một khoảng cao đọc được chứ không co về 0. */
-  .ws-main.edit-on.edit-doc { grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) minmax(180px, 38%) auto auto auto auto; }
-  .ws-main.edit-on.edit-doc > .ws-edit { grid-row: 2; grid-column: 1; }
-  .ws-main.edit-on.edit-doc > .ws-slot > .transcript { grid-row: 3; grid-column: 1;
-    border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: 10px; }
-  .ws-main.edit-on.edit-doc > .ws-slot > .bg-strip { grid-row: 4; }
-  .ws-main.edit-on.edit-doc > .ws-slot > .attach-bar { grid-row: 5; }
-  .ws-main.edit-on.edit-doc > .ws-slot > .model-bar { grid-row: 6; }
-  .ws-main.edit-on.edit-doc > .ws-slot > .hud-voice { grid-row: 7; }
-  .ws-main.edit-on > .ws-bar { grid-row: 1; grid-column: 1 / -1; }
-  .ws-main.edit-on > .ws-edit { grid-row: 2; grid-column: 1; min-width: 0; }
-  /* display:contents để TỪNG node chat mượn về tự nhận một ô trong lưới; bọc trong một item
-     thì cả cụm nhập bị nhốt trong cột hẹp bên phải. */
-  .ws-main.edit-on > .ws-slot { display: contents; }
-  .ws-main.edit-on > .ws-slot > .transcript { grid-row: 2; grid-column: 2; min-height: 0;
-    overflow-y: auto; border-left: 1px solid var(--border); padding-left: 12px; }
-  .ws-main.edit-on > .ws-slot > .bg-strip { grid-row: 3; grid-column: 1 / -1; }
-  .ws-main.edit-on > .ws-slot > .attach-bar { grid-row: 4; grid-column: 1 / -1; }
-  .ws-main.edit-on > .ws-slot > .model-bar { grid-row: 5; grid-column: 1 / -1; }
-  .ws-main.edit-on > .ws-slot > .hud-voice { grid-row: 6; grid-column: 1 / -1; }
-}
+/* MỞ MỘT FILE trong chat cộng sự: TẮT HẲN khung chat, trình sửa chiếm TRỌN khoang giữa.
+   Chủ dự án chốt 16/09 sau khi xem bản 0.59.14: "mở file trong hội thoại của agent vẫn hiện
+   khung chat, đáng nhẽ nó phải tắt hết khung chat đấy đi".
+   Bản trước để hai bên cạnh nhau rồi tự canh (JS đo khoang giữa, thu cột phải, hết chỗ thì
+   xếp dọc). Sai từ gốc: khoang giữa trang này là cửa sổ TRỪ thanh bên, TRỪ cột danh sách
+   (210-260px) và TRỪ cột phải (310-350px) - màn 1600px chỉ còn khoảng 760px, chia đôi thì
+   trình sửa hẹp mà hội thoại cũng hẹp. Đọc file thì đọc cho ra file; muốn nhắn tiếp thì đóng
+   file (nút X trên thanh trình sửa) là khung chat về nguyên.
+   Ẩn bằng display:none nên node chat còn nguyên trong DOM: đoạn hội thoại đang dở, chữ đang
+   gõ dở trong ô nhập và phiên đang mở đều không mất. Không còn @media nào ở đây - mọi khổ
+   màn cùng một luật, đúng luật mà màn hẹp vẫn chạy từ trước. */
+.ws-main.edit-on > .ws-slot { display: none; }
 .ws-right { width: 320px; flex: none; overflow: hidden; padding: 14px 12px;
   display: flex; flex-direction: column; gap: 8px;
   border-left: 1px solid var(--glass-brd); background: var(--surface-1); }
@@ -1576,7 +1532,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* MÀN KHỞI ĐẦU (workspace.js veKhoiDau): chưa có cộng sự nào thì khung chat chẳng để làm gì
    (ô nhập đã bị khoá), nên ẩn nó đi và đặt vào đúng chỗ ấy hai nút tạo.
    Ẩn khung chat bằng display:none trên .ws-slot - node chat là node MƯỢN của app, ẩn cha chứ
-   không đụng vào chính nó, y như cách .ws-main.edit-on làm ở khổ màn hẹp. */
+   không đụng vào chính nó, y như cách .ws-main.edit-on làm lúc mở file. */
 .ws-main.onboard-on > .ws-slot { display: none; }
 .ws-onboard { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 20px 16px; }
