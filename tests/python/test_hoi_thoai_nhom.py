@@ -18,7 +18,7 @@ Ba thứ này đi chung một bảng nên test chung một chỗ. Những gì fi
 
 KHÔNG mạng, DB nằm trong thư mục tạm.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path
+from _paths import ROOT, SERVER, moi_duong_dan  # noqa: E402,F401  - nạp server/ vào sys.path
 import sqlite3
 import sys
 import tempfile
@@ -167,7 +167,7 @@ check("hội thoại của DB cũ ghim được ngay", st2.list_sessions(brain="
 # ============================================================
 import main  # noqa: E402
 
-duong = {getattr(r, "path", "") for r in main.app.routes}
+duong = moi_duong_dan(main.app)
 for p in ("/projects", "/projects/{project_id}/update", "/projects/{project_id}/delete",
           "/sessions/{session_id}/pin", "/sessions/{session_id}/project"):
     check(f"có endpoint {p}", p in duong)

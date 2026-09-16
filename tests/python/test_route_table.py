@@ -4,9 +4,12 @@
     python tests/run.py route_table --update   # chụp lại sau khi CỐ Ý đổi route
 
 Vì sao cần: giai đoạn 4 của docs/superpowers/specs/2026-07-28-tai-cau-truc-server-design.md
-bóc ~20 nhóm route từ main.py ra các module APIRouter riêng. FastAPI gộp router con trở lại
-app.routes, nên nếu bóc đúng thì bảng route phải y hệt từng ký tự. Test này biến "chắc là
-không sai" thành "chứng minh được", và bắt luôn cả lỗi đổi thứ tự đăng ký.
+bóc ~20 nhóm route từ main.py ra các module APIRouter riêng. Bóc đúng thì bảng route phải y
+hệt từng ký tự. Test này biến "chắc là không sai" thành "chứng minh được", và bắt luôn cả
+lỗi đổi thứ tự đăng ký.
+
+Từ fastapi 0.141 (Javis 0.59.19), router con KHÔNG còn được gộp phẳng vào `app.routes` nữa
+mà nằm trong một đối tượng bọc, nên hàm snapshot() phải đi đệ quy - xem chú thích của nó.
 
 Khi test đỏ mà bạn KHÔNG cố ý đổi route thì đó là bug của lần bóc vừa rồi, đừng --update.
 Chỉ --update khi thật sự thêm/xoá/đổi tên một endpoint, và commit file .json chung với thay đổi đó.
@@ -37,16 +40,44 @@ def snapshot():
 
     Giữ cả thứ tự (khoá "order") vì Starlette khớp route theo thứ tự đăng ký - hai bảng
     cùng tập hợp nhưng khác thứ tự vẫn có thể định tuyến khác nhau khi có path chồng nhau.
+
+    PHẢI ĐI ĐỆ QUY (từ 0.59.19): fastapi 0.115 gộp route của router con thẳng vào
+    `app.routes`, nhưng fastapi 0.141 BỌC mỗi `include_router` thành một đối tượng
+    `_IncludedRouter` và giữ route con bên trong nó. Bản đầu của hàm này chỉ đi một tầng, nên
+    sau khi nâng thư viện nó thấy 245 mục thay vì 304 và báo MẤT 67 route (/kanban,
+    /reminders, /loops, /learn, /packs, /domain, /graph...). Đã kiểm bằng request thật: cả 67
+    route ĐỀU CÒN CHẠY, chỉ là nằm sâu hơn một tầng. Đi một tầng thì ảnh chụp này lặng lẽ
+    thôi canh đúng 67 route đó - hỏng đúng cái việc nó sinh ra để làm.
     """
     out = []
-    for i, r in enumerate(main.app.routes):
-        out.append({
-            "order": i,
-            "type": type(r).__name__,
-            "path": getattr(r, "path", None),
-            "name": getattr(r, "name", None),
-            "methods": sorted(getattr(r, "methods", None) or []),
-        })
+    da_di = set()
+
+    def di(routes, trong=None):
+        for r in routes:
+            out.append({
+                "order": len(out),
+                "type": type(r).__name__,
+                "path": getattr(r, "path", None),
+                "name": getattr(r, "name", None),
+                "methods": sorted(getattr(r, "methods", None) or []),
+                # "trong": order của route BỌC nó, để đọc ảnh chụp còn biết nhóm nào ở đâu.
+                # None = gắn thẳng lên app.
+                "trong": trong,
+            })
+            cha = out[-1]["order"]
+            # Route con nằm ở `.routes` (Mount, Router) hoặc ở `.original_router.routes`
+            # (_IncludedRouter của fastapi 0.141 - nó KHÔNG có .routes, đây là chỗ duy nhất
+            # còn giữ 67 route của tám nhóm include_router).
+            con = getattr(r, "routes", None)
+            if not con:
+                con = getattr(getattr(r, "original_router", None), "routes", None)
+            # id() chặn vòng lặp nếu có ngày router trỏ vòng vào nhau. Mount của StaticFiles
+            # có .routes nhưng rỗng, nên nhánh này không đụng gì tới nó.
+            if con and id(r) not in da_di:
+                da_di.add(id(r))
+                di(con, trong=cha)
+
+    di(main.app.routes)
     return out
 
 

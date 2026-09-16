@@ -18,7 +18,7 @@ Bốn thứ file này canh, theo đúng thứ tự rủi ro.
 4. **Luật Unix của CLI.** Câu trả lời ra stdout, mọi thứ khác ra stderr. Hỏng luật đó thì
    `javis "..." > ghi-chu.md` dính spinner vào giữa nội dung.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER, moi_duong_dan  # noqa: E402,F401
 import asyncio
 import json
 import os
@@ -47,7 +47,9 @@ _SRC = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 # ============================================================
 # 1. Chat qua HTTP dùng lại vỏ của Telegram
 # ============================================================
-_paths = [r.path for r in main.app.routes]
+# moi_duong_dan: đi đệ quy qua router con - đọc thẳng app.routes NỔ AttributeError từ
+# fastapi 0.141 (đối tượng bọc _IncludedRouter không có .path). Xem _paths.moi_route().
+_paths = moi_duong_dan(main.app)
 check("có endpoint chat một lượt", "/chat" in _paths)
 check("có endpoint chat dạng luồng", "/chat/stream" in _paths)
 

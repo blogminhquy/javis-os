@@ -12,7 +12,7 @@ Phần đông người dùng chạy Javis trong Docker/VPS, nơi `localhost` là
 Đó đúng là lý do provider ollama local bị chặn cố ý từ đầu (server/config.py), nên mọi thứ ở
 đây phải chứng minh là nó không lặp lại giả định cũ.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401
+from _paths import ROOT, SERVER, moi_duong_dan  # noqa: E402,F401
 import json
 import os
 import sys
@@ -217,7 +217,10 @@ check("đóng luồng bằng một mốc riêng, client biết dừng đọc",
 # Ollama không có endpoint huỷ, và pull sau tự tiếp tục từ chỗ dở theo digest. Một endpoint
 # /pull/cancel sẽ là API không làm gì cả - một lời hứa suông.
 check("KHÔNG bịa ra endpoint huỷ tải",
-      not any(getattr(r, "path", "") == "/ollama-local/pull/cancel" for r in main.app.routes))
+      # moi_duong_dan: đi đệ quy. Phép thử này đo sự VẮNG MẶT, nên đọc thẳng app.routes là
+      # nguy hiểm nhất: từ fastapi 0.141 nó không thấy route trong router con, và một endpoint
+      # huỷ có thật nằm trong đó sẽ khiến phép thử XANH OAN.
+      "/ollama-local/pull/cancel" not in moi_duong_dan(main.app))
 
 # ---- 4b. Trỏ nhầm vào WEB SERVER: phải nói đúng bệnh, không phải mã số trần ----
 # Vụ thật 02/09: gõ thiếu cổng -> trúng web server của chính VPS -> nó đá HTTPS bằng 301, và

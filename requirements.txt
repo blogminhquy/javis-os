@@ -5,39 +5,39 @@
 # tiếng Việt bên dưới làm `pip install -r requirements.txt` NỔ UnicodeDecodeError ngay bước
 # cài đặt (setup.bat [2/3]). chcp 65001 KHÔNG cứu được: nó đổi codepage của console, còn
 # locale.getpreferredencoding() đọc ANSI codepage của hệ thống.
-# QUAN TRỌNG: fastapi và starlette bị KHOÁ CẶP. fastapi 0.115.0 cần starlette<0.39;
-# fastapi 0.115.6 cần starlette>=0.40, nên đổi một cái là phải đổi cả cặp, kẻo pip resolve
-# gãy (CI đỏ ở bước cài deps). Bộ này khớp .venv đang chạy thật.
+# fastapi + starlette: TỪ 0.59.19 KHÔNG CÒN KHOÁ CẶP. fastapi 0.141.1 khai `starlette>=0.46.0`
+# KHÔNG có trần trên, khác hẳn fastapi 0.115.0 (cần starlette<0.39, nên đổi một cái là phải
+# đổi cả cặp kẻo pip resolve gãy). Vì không còn ai chặn trần, CHÍNH FILE NÀY phải ghim
+# starlette một con số cụ thể: để hở thì mỗi lần cài mới lại rơi vào một bản 1.x khác nhau,
+# và một ngày nào đó là bản có regression, không ai biết vì sao.
 #
-# ĐÍNH CHÍNH (0.59.13): dòng này trước đây ghi "Engine Agent SDK yêu cầu giữ starlette<0.39".
-# KHÔNG đúng, và cái sai đó khoá nhầm một cánh cửa: `claude-agent-sdk` 0.2.116 không ràng buộc
-# starlette một chữ nào (chỉ cần anyio, mcp, sniffio), còn `mcp` 1.30 chỉ cần starlette>=0.27.
-# Người giữ pin duy nhất là chính fastapi 0.115.0. Muốn lên starlette mới thì nâng fastapi,
-# không phải chờ Agent SDK.
+# claude-agent-sdk 0.2.116 KHÔNG ràng buộc starlette một chữ nào (chỉ cần anyio, mcp,
+# sniffio); mcp 1.30 chỉ cần starlette>=0.27. Đã kiểm lại bằng pip install --dry-run khi nâng:
+# cả hai đi cùng starlette 1.6.0 không xung đột.
 #
-# CÒN NỢ - lỗ hổng bảo mật: starlette 0.38.6 có 7 advisory (pip-audit, 16/09), bản vá trải từ
-# 0.40.0 tới 1.3.1. Dọn hết nghĩa là nhảy starlette 1.x, tức nâng fastapi một bậc lớn - phải
-# là một PR riêng có chạy thử cả app. Xem issue #267. Đã soi từng cái xem Javis có chạm tới
-# (16/09), để người sau khỏi soi lại:
-#   - PYSEC-2026-161 (vá 1.0.1) CHẠM THẬT, và nặng: url.path bị header Host bẻ được, mà
-#     _auth_guard từng quyết định quyền bằng url.path -> lách hẳn cổng đăng nhập. Đã tự vá
-#     trong code Javis ở 0.59.16 (duong_dan_router + host_hop_le), KHÔNG chờ starlette.
-#   - PYSEC-2026-1943 (vá 0.40.0) CHẠM: field form không phải file được đệm không giới hạn
-#     -> đẩy vài request song song là ăn hết RAM. Javis nhận Form(...) ở rất nhiều endpoint.
-#     Cái này code Javis KHÔNG tự vá được, phải nâng starlette. Là lý do chính nên nâng.
-#   - PYSEC-2026-1941 (vá 0.47.2) CHẠM nhẹ: upload lớn làm nghẽn event loop. Chậm, không hở.
-#   - PYSEC-2026-2281 (vá 1.1.0) CHỈ TRÊN WINDOWS: StaticFiles + đường UNC làm lộ NTLM. Javis
-#     có mount /static, nên máy Windows mở ra Internet là có ảnh hưởng thật.
-#   - PYSEC-2026-248 (vá 1.3.0) KHÔNG chạm qua uvicorn: request line không bắt đầu bằng "/"
-#     bị uvicorn trả 400 trước khi vào app (đã thử bằng socket thô).
-#   - PYSEC-2026-2280 (vá 1.1.0) KHÔNG chạm: Javis không dùng HTTPEndpoint lớp.
-#   - PYSEC-2026-249 (vá 1.3.1) KHÔNG chạm: Javis không đặt max_fields/max_part_size.
-fastapi==0.115.0
+# VÌ SAO NÂNG (issue #267): starlette 0.38.6 có 7 advisory. Đã soi từng cái xem Javis có chạm
+# tới, và hai cái chạm thật:
+#   - PYSEC-2026-1943 (vá 0.40.0): field form không phải file bị đệm KHÔNG giới hạn, đẩy vài
+#     request song song là ăn hết RAM. Javis nhận Form(...) ở rất nhiều endpoint, và code
+#     Javis KHÔNG tự vá được. Đây là lý do chính của lần nâng này.
+#   - PYSEC-2026-2281 (vá 1.1.0) CHỈ TRÊN WINDOWS: StaticFiles gặp đường UNC là lộ NTLM.
+#     Javis có mount /static nên máy Windows mở ra Internet bị ảnh hưởng thật.
+#   - PYSEC-2026-1941 (vá 0.47.2) chạm nhẹ: upload lớn nghẽn event loop. Chậm, không hở.
+#   - PYSEC-2026-161 (vá 1.0.1) chạm THẬT và nặng (url.path bị header Host bẻ được, lách hẳn
+#     cổng đăng nhập) nhưng Javis đã TỰ vá ở 0.59.16 (duong_dan_router + host_hop_le). Bản vá
+#     đó GIỮ NGUYÊN sau khi nâng: hàng rào đọc scope["path"] là đúng ở mọi phiên bản.
+#   - PYSEC-2026-248 / 2280 / 249: không chạm (248 bị uvicorn trả 400 trước khi vào app, đã
+#     thử bằng socket thô; không dùng HTTPEndpoint lớp; không đặt max_fields/max_part_size).
+#
+# CÒN NỢ SAU KHI NÂNG: 6 chỗ `@app.on_event("startup")` và 1 chỗ "shutdown" trong main.py là
+# API đã bỏ. Starlette 1.x xoá on_startup/on_shutdown, fastapi 0.141 còn đỡ giúp bằng danh
+# sách riêng nên vẫn CHẠY, chỉ kêu DeprecationWarning. Chuyển sang lifespan là việc riêng:
+# nó gộp 7 hàm vào một chỗ và thứ tự chạy giữa chúng là phần dễ làm sai nhất.
+fastapi==0.141.1
 uvicorn[standard]==0.51.0
 httpx==0.27.2
 claude-agent-sdk==0.2.116
-# mcp (dep của claude-agent-sdk) chấp nhận starlette>=0.27; giữ <0.39 cho khớp fastapi 0.115.0.
-starlette>=0.37.2,<0.39
+starlette==1.6.0
 sse-starlette>=1.6.1,<3
 # python-dotenv 1.0.1 có PYSEC-2026-2270, vá ở 1.2.2.
 python-dotenv==1.2.2

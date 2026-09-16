@@ -80,7 +80,15 @@ check("đường dẫn trèo ra ngoài trần bị chặn",
       c.post(API + "/files", data={"path": "../../etc/passwd"}).status_code == 400)
 # Đường dẫn rỗng giải ra chính thư mục trần, mà thư mục thì "có tồn tại" - không chặn thì gắn
 # được một hàng trỏ vào một cái thư mục, ghim vào thì đọc lỗi.
-check("đường dẫn rỗng bị từ chối", c.post(API + "/files", data={"path": ""}).status_code == 404)
+#
+# NHẬN 422 CŨNG LÀ ĐẠT (0.59.19): fastapi 0.141 coi ô form rỗng là KHÔNG GỬI, nên `path:
+# str = Form(...)` bị chặn ngay ở tầng kiểm tham số và không vào tới hàm nữa. fastapi 0.115
+# chỉ áp luật đó cho query/header, còn thân form thì `.get()` thẳng, nên chuỗi rỗng vào tới
+# hàm và hàm trả 404. Hai đường, cùng một kết cục: KHÔNG gắn được. Phép thử đo cái kết cục
+# đó chứ không đo con số. Rào `is_file()` trong hàm vẫn được đo bằng ca thư mục ngay dưới,
+# ca đó gửi đường dẫn THẬT nên vẫn vào tới hàm.
+check("đường dẫn rỗng bị từ chối",
+      c.post(API + "/files", data={"path": ""}).status_code in (404, 422))
 check("thư mục cũng bị từ chối",
       c.post(API + "/files", data={"path": "06 - Sources"}).status_code == 404)
 check("phiên không tồn tại trả 404",

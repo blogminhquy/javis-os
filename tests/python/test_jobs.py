@@ -14,7 +14,7 @@ Phủ:
 - Các endpoint THẬT mà trang Việc dựa vào vẫn còn sống.
 - /automations/sync đã xoá: nó ghi vào chính registry vừa xoá, và là engine call ít rào nhất.
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
+from _paths import ROOT, SERVER, moi_duong_dan  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 import os
 import sys
 import tempfile
@@ -34,7 +34,9 @@ def check(name, cond):
 
 
 src = (SERVER / "main.py").read_text(encoding="utf-8")
-paths = {getattr(r, "path", "") for r in main.app.routes}
+# moi_duong_dan: đi đệ quy qua router con. Đọc thẳng app.routes thì từ fastapi 0.141 nó
+# không thấy 67 endpoint nằm trong router con, và phép thử "đã xoá" bên dưới XANH OAN.
+paths = moi_duong_dan(main.app)
 
 # ---- 1. Route Lịch đã chết ----
 check("route: mọi /automations* đã xoá", not any(p.startswith("/automations") for p in paths))
