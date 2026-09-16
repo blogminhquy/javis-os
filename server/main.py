@@ -4599,7 +4599,7 @@ async def reflect(brain: str = Form("brain")):
     qua git (git-init khi bấm) + secret-scan trước commit. force_write=True vì đây là chủ đích
     của user (ghi bất kể mode dry-run), caps = memory+wiki (skill giữ off, dựng ở Phase 3)."""
     if not find_claude_cli():
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": claude_cli.cau_thieu_cli("claude", "Claude")}
     g = git_brain.ensure_git_repo(_brain_root(brain))   # consent thủ công → git-init để undo được
     res = await learn_feature.run_once(
         brain, reason="reflect", force_write=True,
@@ -9058,7 +9058,7 @@ async def lint(brain: str = Query("brain")):
         cli.mcp_config = _mcpf; cli.mcp_strict = True
     cli.disallowed_tools = ["Bash", "WebFetch", "WebSearch", "Task"]
     if not cli.is_available():
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": claude_cli.cau_thieu_cli("claude", "Claude")}
     prompt = (
         "LINT - quét folder Wiki của vault, tìm 8 loại vấn đề: mâu thuẫn, stale claim, orphan page, "
         "missing page, broken wikilink, trùng lặp, gap (vùng kiến thức mỏng), open-question chưa lấp.\n"

@@ -58,6 +58,10 @@ server/packs-store-cache.json
 # ghi ra để gỡ lỗi. Sinh ra lúc chạy nên không thuộc về repo lẫn image.
 server/conversation_state.db*
 server/memory_index.db*
+# Bản nhớ đường dẫn binary CLI (claude_cli.tim_binary). State chạy theo từng MÁY:
+# STATE_DIR mặc định là chính thư mục server/, nên không che thì mỗi lần chạy app là
+# cây git bẩn thêm một file, và `git add -A` commit đường dẫn máy người khác.
+server/bin_paths.json
 server/antigravity-duong-prompt.json
 server/usage-marks.jsonl*
 server/conversations.db

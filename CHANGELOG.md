@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.13] - 2026-09-16
+### Sửa lỗi
+- **Windows: một lệnh cài hết bốn bộ não.** `install.ps1` mới cài trọn gói Python, thư viện, rồi cả `claude`, `codex`, `agy`, `grok`, tạo `.env`, giải phóng port và bật server, cuối cùng in bảng cho biết bộ não nào đã sẵn sàng. `setup.bat` và `install.sh` cũng cài thêm `agy` + `grok` thay vì chỉ hai cái.
+- **Hết cảnh "CLI chưa cài" cho một CLI đang nằm trên máy.** Javis giờ nhớ chỗ đã từng thấy mỗi CLI, nên khi một trình cài khác làm hỏng PATH (cài Antigravity xong là mất Claude Code) thì nó vẫn tìm ra. Dò thêm cả thư mục npm, nvm, volta, scoop, bun trên Windows.
+- **Cài thiếu thư viện thì nói ngay lúc cài, không để tới màn đăng nhập.** Trước đây `setup.bat` chạy tiếp dù `pip install` hỏng, rồi Javis mới chết vì thiếu `claude-agent-sdk`.
+- **Câu báo thiếu CLI nói đủ việc cần làm**: lệnh cài, và nhắc phải khởi động lại Javis (tiến trình đang chạy giữ PATH của lúc nó bật nên không thấy CLI vừa cài).
+### Bảo mật
+- Nâng `python-multipart` lên 0.0.31 và `python-dotenv` lên 1.2.2 để dọn ba lỗ hổng đã công bố (issue #267).
+
 ## [0.59.12] - 2026-09-16
 ### Sửa lỗi
 - **Nhắn "sửa lại quy trình" không bị đem đi chạy nữa.** Ở khung chat của một quy trình, câu nói về CHÍNH quy trình (cập nhật, đánh giá lại, gộp bớt bước, tóm tắt) giờ được Javis trả lời và sửa thẳng vào file quy trình. Trước đây nó thành đề bài cho một lần chạy: mất cả 10 phút, tiêu hạn mức gói, rồi trả về một bài viết chẳng liên quan.

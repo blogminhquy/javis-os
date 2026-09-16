@@ -140,11 +140,32 @@ cai_them_cli() {   # <gói npm> <tên binary> <tên hiển thị>
   fi
 }
 # Engine Gemini CLI đã GỠ HẲN ở 0.50.0 (Google ngắt mọi tài khoản cá nhân từ 18/06/2026).
-# Hai engine CLI còn lại KHÔNG cài bằng npm nên không nằm ở đây: `grok` và `agy` đều là script
-# tải về chạy thẳng của nhà cung cấp, để người dùng tự chạy một dòng khi muốn (xem trang
-# Models). Đường Google cho tài khoản cá nhân hiện nay là Antigravity CLI (`agy`); đường xAI
-# là Grok Build (`grok`).
 cai_them_cli @openai/codex@latest codex "Codex CLI"
+
+# --- 4c. agy (Antigravity CLI, đường Google) + grok (Grok Build, đường xAI) ---
+#
+# Hai engine này KHÔNG cài bằng npm: mỗi nhà một script tải về chạy thẳng. Trước 0.59.13 cài
+# xong Javis là người dùng còn phải tự mở terminal gõ hai dòng của hai nhà khác nhau, và chủ
+# dự án báo đúng chỗ đó làm người không quen kỹ thuật tắc ở màn Models với hai thẻ "CLI chưa
+# cài" (16/09). Nay cài luôn một lượt.
+#
+# BEST-EFFORT tuyệt đối: chạy script của nhà thứ ba nên hỏng là chuyện bình thường (mạng, máy
+# lạ, nhà cung cấp đổi URL) - hỏng thì nói một dòng rồi đi tiếp, không được giết lần cài.
+# ĐĂNG NHẬP thì vẫn là việc của người dùng, làm ở trang Models sau khi Javis chạy.
+cai_cli_script() {   # <tên binary> <tên hiển thị> <URL script cài>
+  if command -v "$1" >/dev/null 2>&1; then ok "$2 da co san"; return 0; fi
+  log "Installing $2 (best-effort, script cua nha cung cap)..."
+  if curl -fsSL "$3" | bash >/dev/null 2>&1; then
+    export PATH="$HOME/.local/bin:$PATH"
+    if command -v "$1" >/dev/null 2>&1; then ok "$2"; else
+      warn "$2: script chay xong nhung chua thay binary '$1'. Mo terminal moi roi thu lai: curl -fsSL $3 | bash"
+    fi
+  else
+    warn "Chua cai duoc $2 - engine do se khong hien o trang Models. Cai tay: curl -fsSL $3 | bash"
+  fi
+}
+cai_cli_script agy "Antigravity CLI (Google)" https://antigravity.google/cli/install.sh
+cai_cli_script grok "Grok Build (xAI)" https://x.ai/cli/install.sh
 
 # --- 5. venv + python deps ---
 log "Creating virtualenv (.venv)..."
