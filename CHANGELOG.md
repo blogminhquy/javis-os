@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.19] - 2026-09-16
+### Bảo mật
+- **Nâng nền web của Javis lên bản đã vá.** Bản cũ có chỗ cho phép người ngoài gửi vài request nặng để ăn hết RAM rồi làm Javis treo, và trên Windows có chỗ làm lộ mật khẩu máy. Cập nhật bằng cách chạy lại lệnh cài là nó tự tải bản mới; cài thủ công thì chạy thêm `pip install -r requirements.txt`.
+
 ## [0.59.18] - 2026-09-16
 ### Cải thiện
 - **Javis khởi động nhanh hơn khoảng 75ms.** Một thư viện kiểm dữ liệu trước đây nạp ngay lúc mở app dù chỉ dùng cho một tính năng hiếm, giờ chỉ nạp khi cần. Trên VPS, khởi động nhanh hơn nghĩa là bản cập nhật ít bị báo lỗi sức khoẻ lúc vừa deploy.

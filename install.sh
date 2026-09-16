@@ -43,7 +43,7 @@ py_ok() { "$1" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 10) els
 PYTHON_BIN=""
 find_python() {
   local c d
-  # NOT newest-first. requirements.txt pins hard (fastapi 0.115.0, cryptography, uvloop,
+  # NOT newest-first. requirements.txt pins hard (fastapi 0.141.1, cryptography, uvloop,
   # watchfiles, pydantic-core - all need compiled wheels), so prefer the versions with the
   # widest wheel coverage and fall back to a bleeding-edge interpreter only if nothing else
   # exists: on a brand-new 3.x, pip finds no wheel and tries to BUILD from source, which
