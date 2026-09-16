@@ -328,9 +328,12 @@
     // Nút xem file/link của CUỘC TRÒ CHUYỆN. Luôn có mặt khi cuộc đã được lưu, không phụ
     // thuộc project: chat dài đẻ ra tài liệu là chuyện xảy ra ở mọi cuộc, kể cả cuộc chưa
     // xếp vào nhóm nào.
+    // Icon GHIM GIẤY, cùng icon với nút "File & link" của trang Cộng sự (workspace.js #wsFiles).
+    // Ba màn (Đồ thị, Trò chuyện, Cộng sự) mở ra CÙNG MỘT ngăn kéo, nên mang ba icon khác nhau
+    // thì người dùng phải học lại nút ấy ở mỗi trang (chủ dự án yêu cầu 16/09).
     var html = currentId()
       ? '<button class="cts-btn" type="button" title="' + esc(pdT("cts.open")) + '">' +
-          ic("files") + "</button>"
+          ic("paperclip") + "</button>"
       : "";
     if (p) {
       var meta = "";
@@ -693,6 +696,18 @@
     return "file";
   }
 
+  /** Nút CHÉP ĐƯỜNG DẪN của một hàng. Có ở MỌI hàng, kể cả hàng tự dò và hàng file đã mất:
+   *  chủ dự án hay cần đúng chuỗi đường dẫn để dán sang chỗ khác làm tiếp, và với file đã đổi
+   *  chỗ thì đường dẫn CŨ chính là thứ cần chép đi tra. Đường dẫn nằm sẵn ở dòng mô tả nhưng
+   *  dòng đó cắt đuôi bằng ba chấm, nên bôi đen bằng chuột là chép thiếu.
+   *  `o.sao` là chuỗi sẽ chép (đường dẫn file, hoặc URL với hàng link). */
+  function nutSao(o) {
+    if (!o.sao) return "";
+    var title = o.saoTitle || pdT("common.copy_path");
+    return '<button class="pd-row-act pd-sao" type="button" data-sao="' + esc(o.sao) + '" title="' +
+      esc(title + ": " + o.sao) + '">' + ic("copy") + "</button>";
+  }
+
   function hangMuc(o) {
     // Hàng TỰ DÒ (chỉ có ở chế độ cuộc): Javis suy ra từ tin nhắn chứ không phải một bản ghi,
     // nên không có id để gỡ hay ghim. Vẫn mở ra đọc được - đó mới là việc chính của nó.
@@ -706,6 +721,7 @@
           '<span class="pd-row-name">' + (o.tenHtml || esc(o.ten)) + "</span>" +
           '<span class="pd-row-sub">' + (o.subHtml || esc(o.sub || "")) + "</span>" +
         (o.moDuoc ? "</button>" : "</span>") +
+        nutSao(o) +
       "</div>";
     }
     return '<div class="pd-row' + (o.mat ? " mat" : "") + '" data-id="' + esc(o.id) + '">' +
@@ -721,6 +737,7 @@
           '<span class="pd-row-name">' + esc(o.ten) + "</span>" +
           '<span class="pd-row-sub">' + (o.subHtml || esc(o.sub || "")) + "</span>" +
         (o.moDuoc ? "</button>" : "</span>") +
+        nutSao(o) +
         '<button class="pd-row-act pd-ghim' + (o.pinned ? " on" : "") + '" type="button" title="' +
           esc(o.pinned ? pdT("proj.pin_off") : o.ghimTitle) + '">' + ic("pin") + "</button>" +
         '<button class="pd-row-act pd-go" type="button" title="' + esc(pdT("proj.remove")) + '">' +
@@ -763,12 +780,17 @@
       var con = !laCuoc || f.exists !== false;
       return hangMuc({ id: f.id, ten: f.label || f.name || f.path,
                        sub: con ? (laCuoc ? (f.brain_path || f.path) : f.path) : pdT("cts.file_gone"),
+                       // Chép đường dẫn TRONG BRAIN (brain_path), không phải đường dẫn tuyệt
+                       // đối trên máy chủ: đó mới là chuỗi mọi nơi khác của Javis nhận vào
+                       // (chat, wikilink, tool đọc file).
+                       sao: f.brain_path || f.path,
                        icon: f.image ? "image" : icoFile(f.name || f.path), pinned: !!f.pinned,
                        ghimTitle: pdT("proj.pin_on"), moDuoc: con, xoaDuoc: con, mat: !con });
     };
     var veTuDong = function (f) {
       return hangMuc({ tuDong: true, duong: f.path, ten: f.label || f.name,
                        sub: f.exists ? f.brain_path : pdT("cts.file_gone"),
+                       sao: f.brain_path || f.path,
                        icon: f.image ? "image" : icoFile(f.name),
                        moDuoc: !!f.exists, mat: !f.exists });
     };
@@ -838,6 +860,13 @@
   function noiHang(pane, laFile) {
     var p = pdDuLieu() || {};
     pane.querySelectorAll(".pd-row").forEach(function (row) {
+      // Nút chép nối TRƯỚC nhánh rẽ bên dưới: hàng tự dò cũng có nút này, mà nhánh đó thoát
+      // sớm nên nối sau là hàng tự dò có nút bấm không ăn.
+      var sao = row.querySelector(".pd-sao");
+      if (sao) sao.onclick = function (ev) {
+        ev.stopPropagation();
+        if (window.JavisCopy) window.JavisCopy(sao.dataset.sao, sao);
+      };
       // Hàng TỰ DÒ chỉ mang đường dẫn, không có bản ghi nào phía sau để gỡ hay ghim.
       if (!row.dataset.id) {
         var mo = row.querySelector(".pd-row-body.mo-duoc");
@@ -1063,11 +1092,13 @@
     };
     var ve = function (l) {
       return hangMuc({ id: l.id, ten: l.label || l.url, icon: "link", pinned: !!l.pinned,
-                       ghimTitle: pdT("proj.pin_link_on"), subHtml: aHtml(l) });
+                       ghimTitle: pdT("proj.pin_link_on"), subHtml: aHtml(l),
+                       sao: l.url, saoTitle: pdT("common.copy_link") });
     };
     var veTuDong = function (l) {
       return hangMuc({ tuDong: true, icon: "link", tenHtml: aHtml(l),
-                       sub: l.vai === "user" ? pdT("cts.from_you") : pdT("cts.from_javis") });
+                       sub: l.vai === "user" ? pdT("cts.from_you") : pdT("cts.from_javis"),
+                       sao: l.url, saoTitle: pdT("common.copy_link") });
     };
     if (!ls.length) return '<div class="pd-empty">' +
       esc(pdT(laCuoc ? "cts.links_empty" : "proj.links_empty")) + "</div>";

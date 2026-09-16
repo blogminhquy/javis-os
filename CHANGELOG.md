@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.26] - 2026-09-17
+### Sửa lỗi
+- **File đính kèm trong hội thoại của trợ lý và quy trình hết bị cắt cụt.** Dải đính kèm ngay trên ô nhập bị bóp lại khi khoang giữa thiếu chỗ, nên chip file chỉ lộ nửa trên và trông như nằm khuất sau dải model. Nay nó luôn cao đủ, đoạn hội thoại nhường chỗ thay vì ngược lại.
+### Thêm mới
+- **Nút chép đường dẫn ở mọi hàng trong khung File & link.** Bấm một cái là có đúng đường dẫn file (hoặc địa chỉ link) trong bảng nhớ tạm để dán đi chỗ khác, không phải bôi đen dòng chữ nhỏ vốn hay bị cắt đuôi bằng ba chấm. Có ở cả hàng bạn tự gắn lẫn hàng Javis tự nhặt ra.
+- **Thanh trình sửa file cũng có nút chép đường dẫn,** ngay cạnh nút Lưu.
+### Cải thiện
+- **Nút File & link mang cùng một icon ghim giấy ở cả ba màn** (Đồ thị, Trò chuyện, Cộng sự), thay vì mỗi trang một kiểu cho cùng một thứ.
+
 ## [0.59.25] - 2026-09-16
 ### Cải thiện
 - **Khung chat hiện câu bạn ĐỊNH NÓI, không phải chữ thô máy nghe.** Ở làn nhanh, bộ não giọng viết lại câu vừa nghe đúng ý bạn (sửa mọi từ tiếng Anh bị chép sai, không chỉ "Javis") rồi mới trả lời. Bong bóng của bạn đổi sang câu đó, bên dưới ghi nhỏ "Máy nghe: ..." để đối chiếu xem Javis hiểu đúng chưa. Tải lại trang vẫn thấy câu đã diễn giải.

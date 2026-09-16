@@ -1419,6 +1419,16 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0;
   padding: 14px 18px 16px; }
 .ws-slot { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+/* Các node chat MƯỢN của app là mục flex của cột này, và mặc định flex-shrink của một mục
+   flex là 1 - tức là ai cũng có thể bị bóp lại. Đoạn hội thoại (.transcript) thì KHÔNG bị,
+   vì nó mang min-height: clamp(280px, 46vh, 620px) trong style.css. Nên khi cột thiếu chỗ,
+   toàn bộ phần thiếu bị trừ vào mấy dải bên dưới, và dải đính kèm lãnh nặng nhất: nó dựa
+   hoàn toàn vào max-height nên bị bóp xuống còn vài pixel, chip file chỉ lộ nửa trên và
+   trông như nằm khuất sau dải model (chủ dự án báo 16/09 ở hội thoại của agent và quy trình).
+   Trang Trò chuyện đã có đúng bộ luật này từ lâu (xem _injectChatCss trong console.js) -
+   trang Cộng sự dùng chung node chat mà thiếu, nên lỗi chỉ hiện ra ở đây. */
+.ws-slot .transcript { flex: 1 1 auto; min-height: 0; max-height: none; }
+.ws-slot .bg-strip, .ws-slot .attach-bar, .ws-slot .model-bar, .ws-slot .hud-voice { flex: none; }
 /* Trình sửa file mở từ chat / từ tab Thư mục. Mở ra là nó chiếm TRỌN khoang giữa ở mọi khổ
    màn - khung chat ẩn đi (xem khối bên dưới).
    `flex: 1 1 auto` để trình sửa cao hết cột: thiếu nó thì nó chỉ cao bằng nội dung, nằm lửng

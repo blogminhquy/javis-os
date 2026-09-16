@@ -7250,6 +7250,13 @@
     // label là HTML (icon SVG), không phải chữ trơ - dùng innerHTML kẻo in ra mã.
     const mk = (label, title, fn) => { const b = document.createElement("button"); b.innerHTML = label; if (title) b.title = title; b.onclick = fn; return b; };
     const ed = document.getElementById("noteEditor");
+    // Chép đường dẫn file đang mở. Đứng đầu hàng nút vì nó nói về CHÍNH file này chứ không
+    // sửa gì nó, và vì đây là thứ hay cần nhất khi đang đọc một file rồi muốn nhắc tới nó ở
+    // chỗ khác. Chép đúng chuỗi `rel` (đường dẫn trong brain) - thứ JavisOpenNoteAt, wikilink
+    // và mọi tool đọc file của Javis nhận vào.
+    const bSao = mk(ic("copy"), window.t("common.copy_path") + ": " + rel,
+                    () => { if (window.JavisCopy) window.JavisCopy(rel, bSao); });
+    actions.appendChild(bSao);
     actions.appendChild(mk(ic("pencil"), window.t("cs.ne_rename_file"), () => _neRenameCur(rel, it)));
     actions.appendChild(mk(ic("trash-2"), window.t("cs.ne_del_file"), () => _neDeleteCur(rel, it)));
     actions.appendChild(mk("↗", window.t("cs.ne_open_tab"), () => window.open(_vtRaw(rel), "_blank")));
