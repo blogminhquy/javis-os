@@ -7308,6 +7308,7 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
     while True:
         gcli = mk(sysprompt, agent_model, agent_prov)
         out = ""
+        loi_engine = ""
         async for ev in gcli.query(cur_prompt):
             if ev["type"] == "text":
                 await sink({"type": "step_text", "i": index, "node": node.id,
@@ -7318,8 +7319,20 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
             elif ev["type"] == "final":
                 out = ev.get("content") or out
             elif ev["type"] == "error":
+                loi_engine = ev["content"] or loi_engine
                 await sink({"type": "step_error", "i": index, "node": node.id,
                             "content": ev["content"]})
+        # HẾT LƯỢT GÓI THUÊ BAO: nhà cung cấp không báo như một lỗi, nó in nguyên văn câu tiếng
+        # Anh ra đúng chỗ câu trả lời ("You've hit your session limit - resets 12pm (UTC)").
+        # Không soi ở đây thì bước coi như xong, câu tiếng Anh đó thành KẾT QUẢ của quy trình,
+        # và agent kiểm chứng còn bị gọi để đốt thêm một lượt của đúng cái gói vừa hết. Runner
+        # cũ đã chặn từ 0.59.2; đường graph dùng chung hàm chặn ấy để hai đường không lệch
+        # nhau - nguyên tắc ghi ở _workflow_agent_helpers.
+        loi_het_luot = _loi_het_luot_cua_buoc(out, loi_engine, agent_prov, agent_name)
+        if loi_het_luot:
+            await sink({"type": "step_error", "i": index, "node": node.id,
+                        "content": loi_het_luot})
+            return {"output": "", "error": loi_het_luot, "agent_name": agent_name}
         if not node.verify_agent:
             break
         v_name, v_body, v_model, v_prov = agent_sysprompt(node.verify_agent)
@@ -11015,6 +11028,29 @@ async def tts_voices(lang: str = Query("")):
 
 
 # ============================================
+# Khối ngữ cảnh "đang mở quy trình nào" cho lượt TRẢ LỜI (không chạy) ở phiên workflow
+# ============================================
+def _khoi_quy_trinh_mo(brain, slug):
+    """(tên quy trình, khối "[QUY TRÌNH ĐANG MỞ...]") cho lượt TRẢ LỜI ở phiên workflow.
+
+    Đọc file quy trình lấy tên + danh sách bước. Đọc trượt (file mất, frontmatter hỏng) thì
+    trả khối rút gọn chỉ có slug và đường dẫn: thiếu tên bước thì bộ não tự đọc file, còn
+    thiếu HẲN khối này thì nó không biết người dùng đang nói về quy trình nào.
+
+    Trả luôn cái TÊN vì câu "mình trả lời chứ không chạy" cũng cần nó: đọc file hai lần cho
+    hai chỗ dùng là hai chỗ có thể lệch nhau."""
+    wf = _workflows_dir(brain) / f"{slug}.md"
+    ten, buoc = slug, []
+    try:
+        meta, _ = _read_md(wf)
+        ten = str((meta or {}).get("name") or slug)
+        buoc = list((meta or {}).get("steps") or [])
+    except Exception as _e:
+        print(f"[khoi quy trinh] {type(_e).__name__}: {_e}", file=sys.stderr)
+    return ten, workflow_chat.khoi_quy_trinh_dang_mo(ten, slug, str(wf), len(buoc), buoc)
+
+
+# ============================================
 # Lượt ở phiên workflow:<slug> - LÕI module-level để test gọi thẳng được (xem run_workflow_turn)
 # ============================================
 async def _luot_quy_trinh(store, conv_sid, user_message, brain, slug, emit, resume=None) -> str:
@@ -12691,9 +12727,29 @@ async def websocket_endpoint(ws: WebSocket):
             if not _pers:
                 _goc = ""
             if _pers and _pers[0] == "workflow":
-                task = asyncio.create_task(run_workflow_turn(
-                    conv_sid, user_message, brain, turn_tag, runtime_trace, _pers[1],
-                    goc_chat=_goc))
+                # Tin nói VỀ chính quy trình ("cập nhật lại workflow...", "gộp bớt bước") đi
+                # BỘ NÃO CHÍNH để đọc/sửa file quy trình, không nhồi vào `{{input}}` của một
+                # lần chạy. Nhồi vào là chuyện đã xảy ra 16/09: câu "đánh giá lại quy trình 7
+                # bước, giảm số bước" thành đề bài, quy trình chạy 640 giây rồi trả về một bản
+                # kiểm duyệt bài viết chẳng liên quan, mà vẫn tiêu hạn mức gói thuê bao.
+                # Nút "Chạy" ở cột phải gửi cờ `wf_run` nên nó luôn chạy, không bị đoán lại.
+                _viec, _msg_wf = workflow_chat.quyet_dinh_luot(
+                    user_message, ep_chay=bool(payload.get("wf_run")))
+                if _viec == "tra_loi":
+                    _ten_wf, _khoi_wf = _khoi_quy_trinh_mo(brain, _pers[1])
+                    # Nói NGAY là lần chạy không khởi động: cột phải vẫn đứng ở tiến độ lần
+                    # chạy trước, nên im lặng thì người dùng ngồi đợi một lần chạy không có.
+                    await send_raw({"type": "system", "session_id": conv_sid,
+                                    "content": workflow_chat.tin_khong_chay(_ten_wf)})
+                    task = asyncio.create_task(run_turn(
+                        conv_sid, _khoi_wf + "\n\n" + _msg_wf,
+                        brain, turn_tag, runtime_trace,
+                        bool(payload.get("attachments") or payload.get("files")),
+                        goc_chat=_goc))
+                else:
+                    task = asyncio.create_task(run_workflow_turn(
+                        conv_sid, _msg_wf, brain, turn_tag, runtime_trace, _pers[1],
+                        goc_chat=_goc))
                 _CHAT_RUNTIME.register_job(
                     conv_sid, task, turn_tag,
                     runtime_task_id=runtime_trace.task_id if runtime_trace else "",

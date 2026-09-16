@@ -425,7 +425,9 @@
     var td = tienDoHienTai(item);
     if (td.trang_thai === "dang" || td.cho_duyet) return;
     var input = document.getElementById("chatInput");
-    window.JavisSend((input && input.value.trim()) || t("ws.run_default"));
+    // Cờ wfRun: bấm nút Chạy là ý định chạy đã nói rõ bằng một cú bấm, nên server
+    // không xét lại xem câu trong ô nhập có phải đang nói về chính quy trình không.
+    window.JavisSend((input && input.value.trim()) || t("ws.run_default"), { wfRun: true });
   }
   function veLoi(msg) { var el = S.el && S.el.querySelector("#wsIdentity"); if (el) {
     el.innerHTML += '<small class="ws-err">' + esc(msg) + '</small><button type="button" class="ws-btn" id="wsRetry">' + esc(t("ws.retry_session")) + '</button>';
