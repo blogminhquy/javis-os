@@ -17,8 +17,6 @@ import unicodedata
 from dataclasses import dataclass, replace
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
-from jsonschema import Draft202012Validator
-
 import capability_resolver
 import context_compiler
 import context_runtime
@@ -773,6 +771,10 @@ class ReadonlyOrchestrator:
 
     async def _planner_round(self, plan, state: dict, trace, api_key: str,
                              reasoning: str, emitter: Emitter | None) -> tuple[list[dict], str]:
+        # NGOÀI khối try bên dưới một cách CỐ Ý: chỗ gọi validate bắt `except Exception`, nên
+        # để import trong đó là một bản cài thiếu jsonschema biến thành "planner_schema_
+        # validation" - nhìn như model trả sai schema, trong khi thật ra chưa kiểm gì cả.
+        from jsonschema import Draft202012Validator     # nạp lười, xem capability_executor.py
         used = set(state["used_capability_ids"])
         candidates = [x for x in plan.candidates if x["capability_id"] not in used]
         remaining_slots = plan.policy.max_total_steps - len(state["steps"])
