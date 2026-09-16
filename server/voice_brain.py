@@ -31,6 +31,10 @@ MARKER = "JAVIS_ASK_MAIN:"
 # không phải đánh thức bộ não chính (xem parse_ui).
 UI_MARKER = "JAVIS_UI:"
 UI_ACTIONS = ("open_page", "open_group", "sidebar", "scroll")
+# Dòng ĐẦU của mọi câu trả lời: câu người dùng đã DIỄN GIẢI (máy nghe chép sai từ tiếng Anh,
+# bộ não giọng viết lại đúng ý). Server bóc dòng này ra: thay tin người dùng trong kho phiên
+# và trong khung chat, không bao giờ đọc ra loa (xem parse_nghe, split_speakable).
+NGHE_MARKER = "JAVIS_NGHE:"
 IDLE_S = 300.0
 TURN_TIMEOUT_S = 90.0
 HISTORY_N = 10
@@ -99,14 +103,48 @@ SYSTEM_PROMPT = (
     "dừng một việc khác là đẻ thêm đúng thứ họ đang muốn bỏ. Chỉ trả lời một câu ngắn xác nhận, "
     "không kèm dòng lệnh nào; hệ thống đã tự huỷ trước khi bạn kịp nói.\n"
     "Chuyện trò thường, hỏi ý kiến, giải thích khái niệm, tính nhẩm, chuyển ngữ: trả lời thẳng.\n"
-    "Câu của người dùng đến từ MÁY NGHE GIỌNG NÓI, và họ hay nói lẫn tiếng Việt với tiếng Anh, nên "
-    "từ tiếng Anh thường bị chép sai thành từ gần âm: tên bạn thành 'David', 'Jarvis', 'Gia vít'; "
-    "tên công cụ, tên dự án thành một từ nghe na ná. Hiểu theo NGỮ CẢNH và ý người nói, không bám "
-    "nghĩa đen của từ nghe sai, không hỏi lại 'David là ai', không đọc lại hay bình luận từ sai đó; "
-    "chỉ hỏi lại khi thật sự không đoán được ý."
+    "QUAN TRỌNG, làm ở MỌI lượt: câu của người dùng đến từ MÁY NGHE GIỌNG NÓI, và họ hay nói lẫn "
+    "tiếng Việt với tiếng Anh, nên từ tiếng Anh thường bị chép sai thành từ gần âm: tên bạn thành "
+    "'David', 'Jarvis', 'Gia vít'; từ tiếng Anh, tên công cụ, tên dự án thành một từ nghe na ná. "
+    "Vì thế DÒNG ĐẦU TIÊN của mọi câu trả lời LUÔN là " + NGHE_MARKER + " theo sau là câu người "
+    "dùng ĐÚNG NHƯ HỌ ĐỊNH NÓI trên một dòng: chép lại nguyên văn, chỉ thay từ nghe sai bằng từ đúng "
+    "(từ tiếng Anh viết đúng chính tả tiếng Anh), giữ nguyên tiếng Việt, cách xưng hô, thứ tự và "
+    "độ dài; không dịch, không tóm tắt, không thêm bớt ý; không có gì sai thì chép y nguyên. Người "
+    "dùng nhìn dòng này để biết bạn đã hiểu đúng chưa, nên không được bỏ. Từ dòng thứ hai trở đi "
+    "mới là câu trả lời (câu xác nhận và dòng " + MARKER + " hay " + UI_MARKER + " nếu cần cũng nằm "
+    "từ đây), và trả lời theo câu đã sửa đó: không bám nghĩa đen của từ nghe sai, không hỏi lại "
+    "'David là ai', không bình luận về từ nghe sai."
 )
 
 _MARK_RE = re.compile(r"^[ \t]*" + re.escape(MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
+_NGHE_RE = re.compile(r"^[ \t]*" + re.escape(NGHE_MARKER) + r"[ \t]*(.*?)[ \t]*(?:\n|$)", re.M)
+
+
+def parse_nghe(text: str):
+    """(phần còn lại, câu đã diễn giải | None) cho dòng `JAVIS_NGHE:` (dòng ĐẦU TIÊN chỉ được
+    tìm ở bất kỳ đâu vì model nhỏ có khi đặt nó sau câu xác nhận). Bóc cả dòng khỏi phần còn
+    lại, kể cả dấu xuống dòng của nó. Câu diễn giải rỗng thì coi như không có."""
+    t = str(text or "")
+    m = _NGHE_RE.search(t)
+    if not m:
+        return t, None
+    rest = t[:m.start()] + t[m.end():]
+    nghe = m.group(1).strip()
+    return rest, (nghe or None)
+
+
+def tach_nghe_dau(text: str):
+    """Như parse_nghe nhưng CHỈ xét dòng đầu tiên đã khép (có xuống dòng), dùng giữa lúc stream:
+    gọi khi text vừa có dấu xuống dòng đầu tiên. Dòng đầu không phải marker thì trả y nguyên."""
+    t = str(text or "")
+    nl = t.find("\n")
+    if nl < 0:
+        return t, None
+    dau = t[:nl]
+    if not dau.lstrip().startswith(NGHE_MARKER):
+        return t, None
+    nghe = dau.lstrip()[len(NGHE_MARKER):].strip()
+    return t[nl + 1:], (nghe or None)
 _UI_RE = re.compile(r"^[ \t]*" + re.escape(UI_MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
 
 
@@ -166,9 +204,9 @@ def split_speakable(text: str, start: int, final: bool = False):
         if nl < 0:
             line = text[line_start:]
             if not final and any(mk.startswith(line.lstrip()) or line.lstrip().startswith(mk)
-                                 for mk in (MARKER, UI_MARKER)):
+                                 for mk in (MARKER, UI_MARKER, NGHE_MARKER)):
                 break                          # chưa biết có phải marker: đợi thêm
-            if line.lstrip().startswith((MARKER, UI_MARKER)):
+            if line.lstrip().startswith((MARKER, UI_MARKER, NGHE_MARKER)):
                 start = len(text)              # final: dòng marker, bỏ
                 break
             partial = text[start:]
@@ -195,7 +233,7 @@ def split_speakable(text: str, start: int, final: bool = False):
         chunk = text[start:nl + 1]
         line = text[line_start:nl + 1]
         start = nl + 1
-        if line.lstrip().startswith((MARKER, UI_MARKER)):
+        if line.lstrip().startswith((MARKER, UI_MARKER, NGHE_MARKER)):
             continue
         if chunk.strip():
             out.append(chunk)

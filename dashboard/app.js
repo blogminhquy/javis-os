@@ -685,6 +685,12 @@ function handleMessage(data) {
     // Tiến độ từng bước của một lần chạy quy trình (trang Cộng sự vẽ ở cột phải). Khung chat
     // không vẽ gì: chip trạng thái đã đi bằng khung status riêng.
     try { if (window.JavisWorkspace) window.JavisWorkspace.onWfEvent(data); } catch (e) {}
+  } else if (data.type === "user_text") {
+    // Lượt nói: server đã DIỄN GIẢI câu máy nghe (lớp sửa theo ngữ cảnh, hoặc bộ não giọng
+    // viết lại dòng JAVIS_NGHE). Bong bóng người dùng đang hiện chữ thô của máy nghe, nên thay
+    // bằng câu đã diễn giải và ghi chữ thô nhỏ bên dưới để đối chiếu. Chủ dự án 16/09: nói
+    // "Javis" mà bong bóng vẫn "David" thì không biết Javis đã hiểu đúng chưa.
+    if (isActive) capNhatTinNguoiDung(data.text || "", data.raw || "");
   } else if (data.type === "system") {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {
@@ -1032,6 +1038,28 @@ function persistSession() {
       savedAt: Date.now(),
     }));
   } catch (e) {}
+}
+// Thay chữ của tin NGƯỜI DÙNG cuối cùng bằng câu đã diễn giải (sự kiện user_text), cả trên
+// bong bóng lẫn trong convo để F5 còn đúng. `raw` là chữ thô của máy nghe, hiện nhỏ bên dưới.
+function capNhatTinNguoiDung(text, raw) {
+  if (!text || !text.trim()) return;
+  const nodes = chatArea.querySelectorAll(".msg-user");
+  const div = nodes[nodes.length - 1];
+  if (div) {
+    div.dataset.text = text;
+    const u = div.querySelector(".utext");
+    if (u) u.textContent = text;
+    const bubble = div.querySelector(".bubble");
+    if (bubble && raw && raw.trim() !== text.trim()) {
+      let tho = bubble.querySelector(".nghe-tho");
+      if (!tho) { tho = document.createElement("div"); tho.className = "nghe-tho"; bubble.appendChild(tho); }
+      tho.textContent = window.t("app.nghe_tho", { raw });
+    }
+  }
+  for (let i = convo.length - 1; i >= 0; i--) {
+    if (convo[i].role === "user") { convo[i].text = text; break; }
+  }
+  persistSession();
 }
 function recordTurn(role, text, atts, ask) {
   convo.push({ role, text: text || "", atts: atts || [], ask: ask || null, ts: Date.now() });

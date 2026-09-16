@@ -392,6 +392,52 @@ check("prompt bộ não giọng có dạy khuôn JAVIS_UI", vb.UI_MARKER in vb.S
 check("prompt kèm nhãn tiếng Việt của trang", "plugins (công cụ)" in vb.SYSTEM_PROMPT
       and "skills (kỹ năng)" in vb.SYSTEM_PROMPT and "workspace (cộng sự, trợ lý, quy trình)" in vb.SYSTEM_PROMPT)
 
+# ---- 7. Dòng JAVIS_NGHE: câu người dùng đã diễn giải (0.59.25) ----
+# Vì sao: bong bóng người dùng hiện chữ thô của máy nghe ("David"), Javis lại trả lời như đã
+# hiểu "Javis"; chủ dự án không biết đã diễn giải hay chưa. Bộ não giọng viết dòng đầu
+# JAVIS_NGHE, server bóc ra thay tin người dùng, không bao giờ đọc ra loa.
+check("prompt bộ não giọng dạy dòng JAVIS_NGHE ở dòng đầu", vb.NGHE_MARKER in vb.SYSTEM_PROMPT)
+r, n = vb.parse_nghe("JAVIS_NGHE: Javis ơi mở lịch\nỪ, để xem ngay.\nJAVIS_ASK_MAIN: mở lịch")
+check("parse_nghe: bóc dòng đầu, giữ phần còn lại nguyên vẹn",
+      n == "Javis ơi mở lịch" and r == "Ừ, để xem ngay.\nJAVIS_ASK_MAIN: mở lịch")
+r, n = vb.parse_nghe("Ừ.\n  JAVIS_NGHE:   hey Javis  ")
+check("parse_nghe: marker không ở dòng đầu vẫn bắt, cắt khoảng trắng", n == "hey Javis" and r == "Ừ.\n")
+check("parse_nghe: không marker -> y nguyên, None", vb.parse_nghe("Hai cộng hai bằng bốn.") == ("Hai cộng hai bằng bốn.", None))
+check("parse_nghe: marker rỗng coi như không có", vb.parse_nghe("JAVIS_NGHE:\nỪ")[1] is None)
+check("tach_nghe_dau: chỉ xét dòng đầu đã khép",
+      vb.tach_nghe_dau("JAVIS_NGHE: Javis ơi\nỪ") == ("Ừ", "Javis ơi")
+      and vb.tach_nghe_dau("Ừ.\nJAVIS_NGHE: x") == ("Ừ.\nJAVIS_NGHE: x", None)
+      and vb.tach_nghe_dau("JAVIS_NGHE: chưa khép") == ("JAVIS_NGHE: chưa khép", None))
+check("split_speakable: dòng JAVIS_NGHE đang dở thì giữ lại, không đọc",
+      vb.split_speakable("JAVIS_NGHE: Javis ơi mở lịch.", 0, False) == ([], 0))
+check("split_speakable: final thì bỏ hẳn dòng JAVIS_NGHE",
+      vb.split_speakable("JAVIS_NGHE: Javis ơi mở lịch.", 0, True)[0] == [])
+check("split_speakable: dòng JAVIS_NGHE đã khép bị bỏ, câu sau vẫn đọc",
+      vb.split_speakable("JAVIS_NGHE: Javis ơi.\nỪ, để xem.\n", 0, False)[0] == ["Ừ, để xem.\n"])
+
+from pathlib import Path as _P  # noqa: E402
+from sessions import SessionStore  # noqa: E402
+_st = SessionStore(_P(os.environ["JAVIS_STATE_DIR"]) / "nghe.db")
+_sid = _st.create_session(brain="b", engine="e", model="m")
+_st.append_message(_sid, "user", "hey David mở lịch")
+check("replace_last_message: thay tin người dùng cuối",
+      _st.replace_last_message(_sid, "user", "hey Javis mở lịch") is True
+      and _st.get_messages(_sid)[-1]["content"] == "hey Javis mở lịch")
+_st.append_message(_sid, "assistant", "Rồi.")
+check("replace_last_message: tin cuối sai vai thì không đụng",
+      _st.replace_last_message(_sid, "user", "x") is False and _st.get_messages(_sid)[-1]["content"] == "Rồi.")
+
+_src_main = (SERVER / "main.py").read_text(encoding="utf-8", errors="replace")
+check("main: làn nhanh bóc JAVIS_NGHE giữa lúc stream và ở lưới sau",
+      "voice_brain.tach_nghe_dau(text)" in _src_main and "voice_brain.parse_nghe(text)" in _src_main)
+check("main: diễn giải thay tin trong kho phiên và bắn user_text cho khung chat",
+      'store.replace_last_message(conv_sid, "user", nghe)' in _src_main
+      and _src_main.count('"type": "user_text"') >= 2)
+_src_app = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8", errors="replace")
+check("app.js: nhận user_text, thay bong bóng người dùng cuối và convo",
+      'data.type === "user_text"' in _src_app and "function capNhatTinNguoiDung" in _src_app
+      and 'window.t("app.nghe_tho"' in _src_app)
+
 asyncio.run(main())
 if _fails:
     print("\nFAIL:", len(_fails), _fails)
