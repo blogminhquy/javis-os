@@ -375,6 +375,7 @@
   "settings.v2_need_brain": "Làn nhanh cần chọn một bộ não giọng nói.",
   "settings.v2_unavailable": "chưa sẵn",
   "settings.v2_need_key": "cần API key",
+  "settings.v2_last_error": "Lần nói gần nhất ({min} phút trước) làn nhanh không chạy được: bộ não giọng {brain} báo \"{error}\". Lượt đó đã đi bộ não chính. Kiểm tra bộ não này ở trang Models, hoặc chọn bộ não khác rồi Lưu.",
   "settings.v2_load_fail": "Không đọc được tuỳ chọn giọng nói (máy chủ cũ?).",
   "settings.saving": "Đang lưu...",
   "setm.or_model_ph": "Ví dụ: openai/gpt-4o-mini",

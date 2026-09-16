@@ -10879,6 +10879,8 @@ async def voice_options():
         "voice": {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
                                              "stt_model", "live_provider", "live_model", "live_voice")},
         "brain_providers": brain_list,
+        # Lỗi gần nhất khiến làn nhanh rơi về bộ não chính (rỗng khi chưa có hoặc đã chạy lại tốt).
+        "last_error": voice_brain.loi_lan_nhanh_gan_nhat(),
         "stt_providers": [{"id": pid, "label": p["label"], "available": _san(p["key_field"])}
                           for pid, p in voice_brain.STT_PROVIDERS.items()],
         "live_providers": [
@@ -11242,6 +11244,30 @@ def _persist_limit_notice(store, conv_sid, user_message, notice):
         store.auto_title(conv_sid, user_message)
     except Exception as _e:
         print(f"[limit notice] {type(_e).__name__}: {_e}", file=sys.stderr)
+
+
+# Tin từ MIC mà không đi làn nhanh: ghi log MỘT LẦN cho mỗi cấu hình (chế độ, bộ não giọng).
+# Không rẽ vào làn nhanh khi chế độ là "standard" là ĐÚNG THIẾT KẾ, nên không báo gì lên khung
+# chat; nhưng lúc người dùng than "mic đi thẳng vào bộ não chính" thì đọc log phải thấy ngay
+# server đang thấy cấu hình nào, thay vì phải đoán giữa "cài đặt trôi" và "bộ não giọng hỏng".
+_LAN_NHANH_DA_BAO: set = set()
+
+
+def _bao_lan_nhanh_bo_qua(vconf) -> bool:
+    """True nếu tin từ mic này KHÔNG đi làn nhanh (và đã ghi log lần đầu gặp cấu hình đó)."""
+    mode = str((vconf or {}).get("mode") or "")
+    prov = str((vconf or {}).get("provider") or "")
+    if vconf and mode == "fast" and prov:
+        return False
+    khoa = (mode, prov)
+    if khoa not in _LAN_NHANH_DA_BAO:
+        _LAN_NHANH_DA_BAO.add(khoa)
+        ly_do = ("không đọc được cài đặt giọng nói" if not vconf
+                 else f"chế độ giọng nói = {mode or 'standard'!r}" if mode != "fast"
+                 else "chế độ Làn nhanh nhưng chưa chọn bộ não giọng")
+        print(f"[voice lane] tin từ mic đi bộ não chính: {ly_do}. "
+              f"Chỉnh ở Cài đặt, mục Giọng nói.", file=sys.stderr)
+    return True
 
 
 # ============================================
@@ -12496,12 +12522,23 @@ async def websocket_endpoint(ws: WebSocket):
                 _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
                 return
             except Exception as e:
+                # Rơi về bộ não chính thì phải NÓI RA NGAY TRONG KHUNG CHAT, không chỉ stderr.
+                # Trước 0.59.23 chỗ này chỉ gửi một `status`, mà status bị dòng "Javis đang suy
+                # nghĩ..." của run_turn đè lên trong vài mili giây: người dùng bật mic, nói, rồi
+                # chờ hàng chục giây như thể chưa từng có làn nhanh, và không có gì trên màn hình
+                # cho biết vì sao. Bong bóng `system` thì ở lại (như "Đã dừng lượt này."), và lỗi
+                # được nhớ để thẻ Giọng nói ở trang Cài đặt hiện lại (xem /voice/options).
                 print(f"[voice lane] {conf.get('provider')}: {type(e).__name__}: {e} - rơi về bộ não chính",
                       file=sys.stderr)
+                voice_brain.ghi_loi_lan_nhanh(conf.get("provider"), e)
+                await send_raw({"type": "system", "session_id": conv_sid,
+                                "content": voice_brain.cau_roi_ve_bo_nao_chinh(conf.get("provider"), e)})
                 await send_raw({"type": "status", "content": f"Bộ não giọng nói lỗi ({e}), dùng bộ não chính...",
                                 "session_id": conv_sid})
                 await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)
                 return
+            # Bộ não giọng vừa trả lời trót lọt: lỗi cũ (nếu có) không còn đúng, thôi khoe ở Cài đặt.
+            voice_brain.xoa_loi_lan_nhanh()
             # ĐƯỜNG TẮT giao diện: mở tab, bung nhóm, cuộn. Không cần dữ liệu gì nên không đánh
             # thức bộ não chính (lượt đó mang cả ngữ cảnh hội thoại, có lúc hơn 200 nghìn token,
             # nên "mở trang Models" mất hàng chục giây). Gọi thẳng dashboard ngay tại đây.
@@ -12866,6 +12903,7 @@ async def websocket_endpoint(ws: WebSocket):
                     _vconf = voice_brain.config_from_settings(cfgmod.read_settings())
                 except Exception:
                     _vconf = None
+                _bao_lan_nhanh_bo_qua(_vconf)
             if _vconf and _vconf.get("mode") == "fast" and _vconf.get("provider"):
                 task = asyncio.create_task(run_voice_turn(
                     conv_sid, user_message, brain, turn_tag, runtime_trace, _vconf))

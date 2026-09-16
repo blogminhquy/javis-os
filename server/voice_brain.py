@@ -705,6 +705,60 @@ def pending_note(session_id: str, now: Optional[float] = None) -> str:
 
 
 # ============================================================
+# Lỗi gần nhất của làn nhanh - để NÓI RA, không chỉ in stderr
+# ============================================================
+# Vì sao có (0.59.23): khi bộ não giọng hỏng (chưa cài CLI, hết key, hết hạn mức, mất mạng),
+# run_voice_turn rơi về bộ não chính để lượt không câm. Đúng, nhưng trước đây cú rơi đó chỉ để
+# lại một dòng stderr và một status bị dòng "Javis đang suy nghĩ..." của bộ não chính đè lên
+# trong vài mili giây. Người dùng chỉ thấy: bật mic, nói, rồi chờ hàng chục giây như chưa từng
+# có làn nhanh - và không có cách nào biết vì sao (chủ dự án gặp 16/09 sau vài bản cập nhật).
+# Nên giữ lại lỗi gần nhất ở đây: khung chat nói ra ngay lượt đó, và thẻ Giọng nói ở trang
+# Cài đặt hiện lại cho tới khi một lượt làn nhanh chạy trót lọt.
+LOI_GAN_NHAT: Dict[str, object] = {}
+_LOI_MAX_CHU = 300
+
+
+def ten_bo_nao(provider: str) -> str:
+    """Nhãn người dùng nhìn thấy ở thẻ cài đặt, để câu báo lỗi gọi đúng tên họ đã chọn."""
+    p = BRAIN_PROVIDERS.get(str(provider or "").strip().lower())
+    return (p or {}).get("label") or str(provider or "bộ não giọng")
+
+
+def ghi_loi_lan_nhanh(provider: str, err, now: Optional[float] = None) -> dict:
+    """Nhớ cú rơi về bộ não chính vừa xảy ra. Trả về bản ghi (để test và để gửi đi)."""
+    LOI_GAN_NHAT.clear()
+    LOI_GAN_NHAT.update({
+        "provider": str(provider or ""),
+        "label": ten_bo_nao(provider),
+        "error": re.sub(r"\s+", " ", str(err or "").strip())[:_LOI_MAX_CHU],
+        "at": float(now or time.time()),
+    })
+    return dict(LOI_GAN_NHAT)
+
+
+def xoa_loi_lan_nhanh() -> None:
+    """Một lượt làn nhanh vừa chạy trót lọt: lỗi cũ không còn đúng nữa, thôi khoe."""
+    LOI_GAN_NHAT.clear()
+
+
+def loi_lan_nhanh_gan_nhat() -> dict:
+    return dict(LOI_GAN_NHAT)
+
+
+def cau_roi_ve_bo_nao_chinh(provider: str, err) -> str:
+    """Câu hiện TRONG KHUNG CHAT khi làn nhanh rơi về bộ não chính.
+
+    Nói đủ ba ý, không dài hơn: rơi vì cái gì (tên bộ não giọng và lời báo lỗi thật), hệ quả là
+    gì (lượt này chậm hơn vì đi bộ não chính), và sửa ở đâu (Cài đặt → Giọng nói). Không dùng
+    gạch dài (luật của chủ dự án) và không đổ lỗi cho người dùng.
+    """
+    loi = re.sub(r"\s+", " ", str(err or "").strip())[:_LOI_MAX_CHU] or "không rõ lỗi"
+    return (f"Làn nhanh không chạy được: bộ não giọng {ten_bo_nao(provider)} báo \"{loi}\". "
+            f"Lượt này đi bộ não chính nên chậm hơn bình thường. "
+            f"Kiểm tra bộ não giọng ở Cài đặt, mục Giọng nói, hoặc chọn bộ não khác ở đó.")
+
+
+# ============================================================
 # Sổ phiên
 # ============================================================
 _BRAINS: Dict[str, VoiceBrain] = {}
