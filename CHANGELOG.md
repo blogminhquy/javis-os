@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.24] - 2026-09-16
+### Cải thiện
+- **Nói lẫn tiếng Anh, Javis vẫn hiểu đúng tên.** Khi bạn gọi "Javis" mà máy nghe chép thành "David", "Jarvis" hay "Gia vít", Javis tự sửa lại theo âm và ngữ cảnh trước khi hiểu câu, nên hết cảnh trả lời "David là ai". Tên bạn của bạn ("nhắn cho David") thì để yên.
+- **Ô "Từ hay nghe nhầm" ở thẻ Giọng nói trong Cài đặt.** Gõ tên công cụ, tên dự án, tên người hay dùng, ngăn bằng dấu phẩy. Javis mồi những từ này cho máy nghe Groq để viết đúng chính tả, và sửa theo ngữ cảnh cho cả máy nghe của trình duyệt lẫn tin thoại Telegram, Zalo.
+- Bộ não giọng làn nhanh được dặn rằng câu đến từ máy nghe và phải hiểu theo ý người nói, không bám nghĩa đen của từ nghe sai.
+
 ## [0.59.23] - 2026-09-16
 ### Sửa lỗi
 - **Làn nhanh rơi về bộ não chính thì Javis nói rõ vì sao, ngay trong khung chat.** Trước đây khi bộ não giọng lỗi (chưa cài, chưa đăng nhập, hết hạn mức, mất mạng), Javis lặng lẽ chuyển câu bạn vừa nói sang bộ não chính: bật mic, nói, rồi chờ hàng chục giây như thể chưa từng có làn nhanh, không một dòng nào cho biết chuyện gì. Nay hiện một câu báo tên bộ não giọng và lỗi thật, kèm chỗ sửa.

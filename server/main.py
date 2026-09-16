@@ -79,6 +79,7 @@ import media_gc       # dọn vùng cache media (attachments/ + inbox/) theo h�
 import inbox         # hòm thư: mọi kết quả chạy nền để lại một mẩu thư bền ở server
 import webpush       # thông báo đẩy trình duyệt (Web Push, tự mã hoá - không thêm thư viện)
 import stt            # nghe tin thoại (Whisper qua Groq) -> chữ, cho kênh Telegram/Zalo
+import nghe_sua       # sửa chữ nghe nhầm theo ngữ cảnh (David -> Javis) + hotwords cho Whisper
 import zalo_login
 import oauth_mcp
 import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định) - update theo phiên bản app
@@ -4176,6 +4177,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
         for k in ("brain_model", "stt_model", "live_model", "live_voice"):
             if k in patch:
                 v[k] = str(patch[k] or "").strip()
+        # Từ hay nghe nhầm (hotwords): chuỗi tự do, chuẩn hoá qua nghe_sua để lưu gọn; rỗng là
+        # xoá hết từ người dùng khai (tên trợ lý vẫn luôn có, không cần lưu).
+        if "hotwords" in patch:
+            v["hotwords"] = ", ".join(nghe_sua.tach_tu_vung(patch.get("hotwords")))
     elif section == "password":
         # Đổi mật khẩu KHÔNG đi qua đây nữa - xem /auth/password. Đường này không đòi mật khẩu
         # hiện tại VÀ nhận cả token API scope `full`, nghĩa là một token rò ra là đổi được mật
@@ -10803,8 +10808,14 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form("")):
     v = cfg.get("voice", {}) or {}
     data = await file.read()
     ngon_ngu = (lang or "").split("-")[0].strip() or None
-    res = await stt.groq_nghe(data, file.filename or "voice.webm", key, v.get("stt_model") or "", ngon_ngu)
-    return {"ok": bool(res.get("ok")), "text": res.get("text", ""), "ly_do": res.get("ly_do", ""),
+    # Bộ từ vựng (tên trợ lý + từ người dùng khai) đi hai đường: mồi cho Whisper viết đúng, rồi
+    # lớp sửa theo ngữ cảnh quét lại chữ nghe được. WebSocket còn quét thêm lần nữa (cho cả chữ
+    # của Web Speech); nghe_sua.sua idempotent nên hai lần không hại gì.
+    _tv = nghe_sua.tu_vung(cfg)
+    res = await stt.groq_nghe(data, file.filename or "voice.webm", key, v.get("stt_model") or "", ngon_ngu,
+                              hotwords=nghe_sua.goi_y_whisper(_tv))
+    _text = nghe_sua.sua(res.get("text", ""), _tv) if res.get("ok") else res.get("text", "")
+    return {"ok": bool(res.get("ok")), "text": _text, "ly_do": res.get("ly_do", ""),
             "model": res.get("model", "")}
 
 
@@ -10877,7 +10888,10 @@ async def voice_options():
     return {
         "ok": True,
         "voice": {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
-                                             "stt_model", "live_provider", "live_model", "live_voice")},
+                                             "stt_model", "live_provider", "live_model", "live_voice",
+                                             "hotwords")},
+        # Từ luôn có sẵn trong bộ từ vựng nghe (không cần khai): trang Cài đặt hiện cho biết.
+        "hotwords_goc": list(nghe_sua.TU_VUNG_GOC),
         "brain_providers": brain_list,
         # Lỗi gần nhất khiến làn nhanh rơi về bộ não chính (rỗng khi chưa có hoặc đã chạy lại tốt).
         "last_error": voice_brain.loi_lan_nhanh_gan_nhat(),
@@ -12805,7 +12819,19 @@ async def websocket_endpoint(ws: WebSocket):
             if not user_message:
                 continue
             brain = payload.get("brain", "brain")
-            mcfg = cfgmod.read_settings().get("model", {})
+            _cfg_luot = cfgmod.read_settings()
+            mcfg = _cfg_luot.get("model", {})
+            # Tin từ MIC (`voice: true`): sửa chữ nghe nhầm theo ngữ cảnh TRƯỚC khi vào bộ não và
+            # trước khi lưu phiên - phủ cả chữ của Web Speech (không qua /stt) lẫn chữ Groq. Chỉ
+            # tin từ mic: chữ gõ tay là chữ người dùng chọn, không sửa.
+            if payload.get("voice"):
+                try:
+                    _sua = nghe_sua.sua(user_message, nghe_sua.tu_vung(_cfg_luot))
+                    if _sua != user_message:
+                        print(f"[voice nghe_sua] {user_message[:80]!r} -> {_sua[:80]!r}", file=sys.stderr)
+                        user_message = _sua
+                except Exception as e:
+                    print(f"[voice nghe_sua] lỗi, giữ nguyên câu: {e}", file=sys.stderr)
             # Phiên đã ghim model riêng thì engine_label phải suy từ provider HIỆU LỰC
             # của phiên, không phải từ mặc định chung - nhãn sai là clear_codex_thread_id
             # dọn nhầm/không dọn mạch native khi đổi engine.
@@ -16703,8 +16729,15 @@ async def _stt_nghe(data, ten=""):
     # này tồn tại từ đầu.
     _ma = (lang_registry.chuan_hoa(_lc2.get("reply_lang") or "")
            or lang_registry.chuan_hoa(_lc2.get("ui_lang") or ""))
-    return await stt.groq_nghe(data, ten, key,
-                               ngon_ngu=(lang_registry.get(_ma).stt if _ma else ""))
+    # Cùng bộ từ vựng và lớp sửa nghe nhầm như mic trên dashboard (nghe_sua): tin thoại Telegram
+    # hay Zalo nói "David" cũng phải ra "Javis" trước khi vào bộ não.
+    _tv = nghe_sua.tu_vung(_cfg)
+    res = await stt.groq_nghe(data, ten, key,
+                              ngon_ngu=(lang_registry.get(_ma).stt if _ma else ""),
+                              hotwords=nghe_sua.goi_y_whisper(_tv))
+    if res.get("ok") and res.get("text"):
+        res["text"] = nghe_sua.sua(res["text"], _tv)
+    return res
 
 
 # ============================================================

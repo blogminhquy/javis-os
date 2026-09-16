@@ -51,7 +51,7 @@ def doc() -> dict:
 # ---- 1. Vòng tròn thật: lưu rồi đọc lại ----
 V2 = {"mode": "fast", "brain_provider": "antigravity", "brain_model": "gemini-3.8-flash-low",
       "stt_provider": "groq", "live_provider": "openai", "live_model": "gpt-realtime",
-      "live_voice": "cedar"}
+      "live_voice": "cedar", "hotwords": "Pancake, OpenRouter"}
 r = luu(V2)
 check("POST /settings section=voice trả ok", r.status_code == 200 and r.json().get("ok") is True)
 v = doc()
@@ -75,6 +75,10 @@ check("đổi về chế độ chuẩn được", v.get("mode") == "standard")
 check("bỏ bộ não giọng được (rỗng là giá trị thật, không phải 'bỏ qua')",
       v.get("brain_provider") == "" and v.get("brain_model") == "")
 check("xoá tên model Live được", v.get("live_model") == "" and v.get("live_voice") == "")
+luu({"hotwords": " Zalo ;; pancake\nPancake, "})
+check("từ hay nghe nhầm được chuẩn hoá khi lưu (bỏ trùng, ngăn phẩy)", doc().get("hotwords") == "Zalo, pancake")
+luu({"hotwords": ""})
+check("xoá hết từ hay nghe nhầm được (rỗng là giá trị thật)", doc().get("hotwords") == "")
 
 # ---- 4. Thẻ TTS lưu riêng, không đụng cài đặt V2 (hai thẻ cùng ghi section 'voice') ----
 luu({"mode": "fast", "brain_provider": "groq", "brain_model": "m1"})
