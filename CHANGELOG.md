@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.23] - 2026-09-16
+### Sửa lỗi
+- **Làn nhanh rơi về bộ não chính thì Javis nói rõ vì sao, ngay trong khung chat.** Trước đây khi bộ não giọng lỗi (chưa cài, chưa đăng nhập, hết hạn mức, mất mạng), Javis lặng lẽ chuyển câu bạn vừa nói sang bộ não chính: bật mic, nói, rồi chờ hàng chục giây như thể chưa từng có làn nhanh, không một dòng nào cho biết chuyện gì. Nay hiện một câu báo tên bộ não giọng và lỗi thật, kèm chỗ sửa.
+- **Thẻ Giọng nói ở trang Cài đặt ghi lại lỗi gần nhất của làn nhanh** cho tới khi một lượt nói chạy trót lọt, nên mở Cài đặt là biết bộ não giọng đang hỏng hay cài đặt đã trôi về chế độ chuẩn.
+- Nhật ký máy chủ ghi một dòng khi tin từ mic đi bộ não chính vì chế độ giọng nói không phải Làn nhanh, để dò lỗi không phải đoán.
+
 ## [0.59.22] - 2026-09-16
 ### Sửa lỗi
 - **Bấm vào thông báo của một trợ lý hay quy trình giờ mở đúng trang Cộng sự.** Trước đây nó đổ đoạn chat đó vào khung chat của bộ não chính, và tin bạn gõ tiếp bay thẳng vào phiên của trợ lý mà không có gì báo. Mẩu thư nay nhớ cả hội thoại cụ thể nên mở ra là đúng cuộc đã báo kết quả, không phải cuộc gần nhất.

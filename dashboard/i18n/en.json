@@ -375,6 +375,7 @@
   "settings.v2_need_brain": "Fast lane needs a voice brain.",
   "settings.v2_unavailable": "not ready",
   "settings.v2_need_key": "needs API key",
+  "settings.v2_last_error": "The last voice turn ({min} min ago) the fast lane failed: voice brain {brain} reported \"{error}\". That turn went to the main brain. Check that brain on the Models page, or pick another one and save.",
   "settings.v2_load_fail": "Could not load voice options (old server?).",
   "settings.saving": "Saving...",
   "setm.or_model_ph": "e.g. openai/gpt-4o-mini",

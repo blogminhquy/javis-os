@@ -5913,6 +5913,7 @@
         </div>
         <div class="js-actions qs-foot"><button class="gcard-btn" id="v2Save">${esc(t("settings.v2_save"))}</button></div>
         <div class="gcard-meta" id="v2Status">${esc(t("settings.v2_note"))}</div>
+        <div class="gcard-meta" id="v2LastErr" style="display:none"></div>
       </div>`;
     const $ = (id) => document.getElementById(id);
     const byId = (arr, id) => (arr || []).find(p => p.id === id) || null;
@@ -5942,6 +5943,17 @@
     };
     $("v2Brain").onchange = syncBrain; $("v2Live").onchange = syncLive; $("v2Mode").onchange = syncMode;
     syncBrain(); syncLive(); syncMode();
+    // Lỗi gần nhất khiến làn nhanh rơi về bộ não chính (server nhớ tới khi một lượt chạy tốt).
+    // Không có dòng này thì người dùng chỉ thấy mic "đi thẳng vào bộ não chính" mà không biết
+    // là bộ não giọng đang hỏng hay cài đặt đã trôi về chế độ chuẩn.
+    const le = o.last_error || {};
+    if (le.error) {
+      const phut = Math.max(0, Math.round((Date.now() / 1000 - Number(le.at || 0)) / 60));
+      const elErr = $("v2LastErr");
+      elErr.style.display = "";
+      elErr.innerHTML = WARN_ICON + " " + esc(t("settings.v2_last_error",
+        { brain: le.label || le.provider || "?", error: le.error, min: phut }));
+    }
     $("v2Save").onclick = async () => {
       const st = $("v2Status");
       st.textContent = t("settings.saving");
