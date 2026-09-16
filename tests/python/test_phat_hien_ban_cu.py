@@ -76,9 +76,13 @@ check("index.html vẫn trả no-store (điểm tựa phải luôn mới)",
 # ============================================================
 # 2. Người gác cổng không được phép cũ theo
 # ============================================================
+# Canary bám vào PHÉP SO với tên file, không bám vào cách lấy đường dẫn: 0.59.16 đã đổi
+# `request.url.path` thành duong_dan_router() (scope["path"]) ở cả ba middleware vì header
+# Host bẻ được url.path - xem test_host_header_khong_lach_dang_nhap.py. Hành vi đóng dấu
+# no-cache không đổi, nên canary phải ghim cái Ý, đừng ghim tên biến.
+_MOC_FRESH = '== "/static/freshness.js"'
 check("CANARY: freshness.js được đóng dấu no-cache",
-      'request.url.path == "/static/freshness.js"' in MAIN
-      and MAIN.split('request.url.path == "/static/freshness.js"', 1)[1][:200].count("no-cache") >= 1)
+      _MOC_FRESH in MAIN and MAIN.split(_MOC_FRESH, 1)[1][:200].count("no-cache") >= 1)
 check("CANARY: index.html nạp freshness.js KHÔNG kèm ?v=",
       '<script src="/static/freshness.js"></script>' in INDEX)
 # Nạp sau các file khác thì một file phía trên hỏng vì chạy bản cũ là nó chết theo, đúng

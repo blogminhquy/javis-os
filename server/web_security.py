@@ -11,6 +11,9 @@ Lớp phòng thủ (tách khỏi main.py để test được mà không nạp c�
   - Request GHI (POST/PUT/DELETE/PATCH) có Origin CHÉO (khác Host, không thuộc allowlist) → chặn 403.
     Cùng-origin (Origin==Host) và client không-trình-duyệt (không gửi Origin, vd Claude CLI, curl)
     KHÔNG bị ảnh hưởng → 0 rủi ro khoá nhầm.
+  - Header Host méo (có "/", "@", "\\", dấu cách...) → chặn 400, LÚC NÀO CŨNG chặn. Host chỉ
+    được là host[:port]; thêm một dấu "/" là request.url.path mọc thêm tiền tố và mọi hàng rào
+    đọc url.path sẽ thấy sai đường (PYSEC-2026-161, xem host_hop_le).
   - Khi CHƯA có cổng đăng nhập (no-auth): Host phải là localhost / IP / tên miền cấu hình - tên
     miền lạ (dấu hiệu DNS-rebinding) bị chặn. Khi ĐÃ bật auth thì bỏ qua bước Host (tránh khoá nhầm
     deploy sau reverse-proxy tên miền chưa khai) - lúc đó cookie + Origin-check đã đủ.
@@ -151,8 +154,26 @@ def navigation_decision(path: str, sec_fetch_site):
     return 403, "lệnh có tác dụng phụ chỉ chạy được từ chính dashboard"
 
 
+# Ký tự KHÔNG bao giờ hợp lệ trong header Host (RFC 9110: chỉ host[:port]). Có mặt một cái
+# là request được dựng bằng tay để bẻ khoá, không phải trình duyệt hay proxy thật.
+_HOST_KY_TU_CAM = ("/", "\\", "@", " ", "\t", "?", "#")
+
+
+def host_hop_le(host_header) -> bool:
+    """Header Host có đúng hình dạng host[:port] không.
+
+    Vì sao cần: Starlette dựng request.url bằng cách nối header Host vào giữa scheme và
+    path, nên một dấu "/" trong Host làm url.path mọc thêm tiền tố (PYSEC-2026-161). Chỗ
+    quyết định quyền đã chuyển sang scope["path"] (xem duong_dan_router trong main.py) nên
+    lỗ đã bịt ở gốc; hàm này là LỚP HAI, chặn luôn cái Host méo để nó không lọt vào log,
+    vào redirect_uri của OAuth, hay vào một đoạn code nào viết sau này lại đọc url.path."""
+    return not any(c in (host_header or "") for c in _HOST_KY_TU_CAM)
+
+
 def csrf_decision(method: str, host_header: str, origin_header, gate_active: bool):
     """Trả None nếu CHO QUA, hoặc (status_code, message) nếu CHẶN. Hàm THUẦN - dễ test."""
+    if not host_hop_le(host_header):
+        return 400, "host header không hợp lệ"
     host = host_only(host_header)
     allowed = None
     # 1) CSRF: ghi + có Origin chéo (khác host, ngoài allowlist) → chặn.
