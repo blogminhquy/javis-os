@@ -1313,6 +1313,7 @@
   "app.orb_slow": "SLOW NETWORK",
   "app.orb_background": "{n} BACKGROUND",
   "app.voice_filler": "Let me check.|Looking into it, one moment.|Let me have a look.",
+  "app.nghe_tho": "Heard as: {raw}",
   "app.voice_bg_task": "Working in the background: {task}. The result will appear here, keep talking.",
   "app.voice_cho_viec": "Still looking, one moment.|Not done yet, hang on.|Still running, almost there.|Still working on it.",
   "app.voice_cho_viec_lau": "This is taking longer than I thought, still going.|Still not done, I have not forgotten.|Still working, I will tell you as soon as it lands.",

@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.25] - 2026-09-16
+### Cải thiện
+- **Khung chat hiện câu bạn ĐỊNH NÓI, không phải chữ thô máy nghe.** Ở làn nhanh, bộ não giọng viết lại câu vừa nghe đúng ý bạn (sửa mọi từ tiếng Anh bị chép sai, không chỉ "Javis") rồi mới trả lời. Bong bóng của bạn đổi sang câu đó, bên dưới ghi nhỏ "Máy nghe: ..." để đối chiếu xem Javis hiểu đúng chưa. Tải lại trang vẫn thấy câu đã diễn giải.
+- Ở chế độ chuẩn (bộ não chính), câu được sửa bằng bộ từ hay nghe nhầm cũng hiện lại trong bong bóng như vậy.
+
 ## [0.59.24] - 2026-09-16
 ### Cải thiện
 - **Nói lẫn tiếng Anh, Javis vẫn hiểu đúng tên.** Khi bạn gọi "Javis" mà máy nghe chép thành "David", "Jarvis" hay "Gia vít", Javis tự sửa lại theo âm và ngữ cảnh trước khi hiểu câu, nên hết cảnh trả lời "David là ai". Tên bạn của bạn ("nhắn cho David") thì để yên.

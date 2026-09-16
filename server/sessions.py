@@ -546,6 +546,23 @@ class SessionStore:
             return True
         return bool(self._write(_do))
 
+    def replace_last_message(self, session_id: str, role: str, content: str) -> bool:
+        """Thay NỘI DUNG tin cuối của phiên nếu nó đúng vai. Trả True khi có thay.
+
+        Dùng cho lượt nói: tin người dùng được lưu NGAY khi tới (chữ thô của máy nghe), rồi bộ
+        não giọng diễn giải lại câu đó (JAVIS_NGHE). Bản lưu phải là câu đã diễn giải, vì đó
+        là câu Javis thực sự trả lời, là câu người dùng thấy trong khung chat sau F5, và là câu
+        đi vào vòng tự học. Trigger messages_fts_upd cập nhật chỉ mục tìm kiếm theo."""
+        def _do(conn):
+            row = conn.execute(
+                "SELECT id, role FROM messages WHERE session_id = ? "
+                "ORDER BY ts DESC, id DESC LIMIT 1", (session_id,)).fetchone()
+            if not row or row[1] != role:
+                return False
+            conn.execute("UPDATE messages SET content = ? WHERE id = ?", (content, row[0]))
+            return True
+        return bool(self._write(_do))
+
     def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
         rows = self._read(
             "SELECT id, role, content, ts, tool_calls_json FROM messages "

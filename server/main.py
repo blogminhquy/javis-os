@@ -12511,6 +12511,23 @@ async def websocket_endpoint(ws: WebSocket):
             except Exception:
                 pass
             text, sent_upto, brain_obj = "", 0, None
+            _nghe_xong = False      # đã xét dòng đầu (JAVIS_NGHE) của lượt này chưa
+
+            async def _ap_dien_giai(nghe):
+                """Bộ não giọng vừa diễn giải câu nói: thay tin người dùng trong kho phiên và
+                báo khung chat đổi bong bóng. Trả câu sẽ dùng làm user_message từ đây."""
+                nonlocal user_message
+                nghe = (nghe or "").strip()
+                if not nghe or nghe == user_message.strip():
+                    return
+                print(f"[voice nghe] {user_message[:80]!r} -> {nghe[:80]!r}", file=sys.stderr)
+                try:
+                    store.replace_last_message(conv_sid, "user", nghe)
+                except Exception as e:
+                    print(f"[voice nghe] không thay được tin trong kho phiên: {e}", file=sys.stderr)
+                await send_raw({"type": "user_text", "session_id": conv_sid,
+                                "text": nghe, "raw": user_message})
+                user_message = nghe
 
             # Chỉ đẩy phần ĐỌC ĐƯỢC: câu đã khép hoặc dòng đã khép (voice_brain.split_speakable).
             # Trình duyệt đọc mỗi khung là một yêu cầu TTS riêng, nên đẩy từng delta vài từ là
@@ -12529,6 +12546,14 @@ async def websocket_endpoint(ws: WebSocket):
                 _hoi = user_message + ("\n\n" + _ghi_chu if _ghi_chu else "")
                 async for delta in brain_obj.stream(_hoi, hist):
                     text += delta
+                    # Dòng đầu là JAVIS_NGHE (câu đã diễn giải): bóc ra NGAY khi nó khép, trước
+                    # mọi lần flush, để bong bóng người dùng đổi trước khi loa bắt đầu đọc và
+                    # để mốc sent_upto không bao giờ tính qua dòng đó.
+                    if not _nghe_xong and "\n" in text:
+                        _nghe_xong = True
+                        text, _nghe = voice_brain.tach_nghe_dau(text)
+                        if _nghe:
+                            await _ap_dien_giai(_nghe)
                     await _flush()
             except asyncio.CancelledError:
                 await send_raw({"type": "system", "content": "Đã dừng lượt này.", "session_id": conv_sid})
@@ -12553,6 +12578,17 @@ async def websocket_endpoint(ws: WebSocket):
                 return
             # Bộ não giọng vừa trả lời trót lọt: lỗi cũ (nếu có) không còn đúng, thôi khoe ở Cài đặt.
             voice_brain.xoa_loi_lan_nhanh()
+            # Lưới sau: marker không ở dòng đầu, hoặc cả lượt chỉ có một dòng không xuống dòng
+            # (split_speakable đã giữ dòng đó lại, chưa đọc). Bóc nốt, kéo mốc đã đọc về theo nếu
+            # dòng nằm trước mốc để _flush(final) không đọc lặp.
+            if voice_brain.NGHE_MARKER in text:
+                _idx = text.find(voice_brain.NGHE_MARKER)
+                _rest, _nghe = voice_brain.parse_nghe(text)
+                if _idx < sent_upto:
+                    sent_upto = max(0, sent_upto - (len(text) - len(_rest)))
+                text = _rest
+                if _nghe:
+                    await _ap_dien_giai(_nghe)
             # ĐƯỜNG TẮT giao diện: mở tab, bung nhóm, cuộn. Không cần dữ liệu gì nên không đánh
             # thức bộ não chính (lượt đó mang cả ngữ cảnh hội thoại, có lúc hơn 200 nghìn token,
             # nên "mở trang Models" mất hàng chục giây). Gọi thẳng dashboard ngay tại đây.
@@ -12824,12 +12860,13 @@ async def websocket_endpoint(ws: WebSocket):
             # Tin từ MIC (`voice: true`): sửa chữ nghe nhầm theo ngữ cảnh TRƯỚC khi vào bộ não và
             # trước khi lưu phiên - phủ cả chữ của Web Speech (không qua /stt) lẫn chữ Groq. Chỉ
             # tin từ mic: chữ gõ tay là chữ người dùng chọn, không sửa.
+            _nghe_tho = ""      # chữ thô của máy nghe, khi lớp sửa có đổi (báo lại cho khung chat)
             if payload.get("voice"):
                 try:
                     _sua = nghe_sua.sua(user_message, nghe_sua.tu_vung(_cfg_luot))
                     if _sua != user_message:
                         print(f"[voice nghe_sua] {user_message[:80]!r} -> {_sua[:80]!r}", file=sys.stderr)
-                        user_message = _sua
+                        _nghe_tho, user_message = user_message, _sua
                 except Exception as e:
                     print(f"[voice nghe_sua] lỗi, giữ nguyên câu: {e}", file=sys.stderr)
             # Phiên đã ghim model riêng thì engine_label phải suy từ provider HIỆU LỰC
@@ -12878,6 +12915,12 @@ async def websocket_endpoint(ws: WebSocket):
             if limit_resume.REGISTRY.cancel(conv_sid):
                 await send_raw({"type": "resume", "session_id": conv_sid, "state": "cancelled"})
             store.append_message(conv_sid, "user", user_message)
+            # Khung chat đang hiện chữ THÔ của máy nghe (trình duyệt vẽ bong bóng trước khi gửi).
+            # Câu Javis thật sự đọc là câu đã sửa, nên báo lại để bong bóng đổi theo: người dùng
+            # phải nhìn thấy Javis hiểu câu nào, không phải đoán (chủ dự án 16/09).
+            if _nghe_tho:
+                await send_raw({"type": "user_text", "session_id": conv_sid,
+                                "text": user_message, "raw": _nghe_tho})
             turn_tag = f"chat:{conv_sid[:12]}:{uuid.uuid4().hex[:8]}"
             runtime_trace = _CONTEXT_RUNTIME.start_turn(conv_sid, brain, "dashboard")
             # Phiên workflow:<slug>: mỗi tin là một lần chạy quy trình, không phải một lượt

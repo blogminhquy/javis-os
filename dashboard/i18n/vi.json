@@ -1313,6 +1313,7 @@
   "app.orb_slow": "MẠNG CHẬM",
   "app.orb_background": "{n} VIỆC NỀN",
   "app.voice_filler": "Để xem nhé.|Đang tìm đây, chờ chút.|Để kiểm tra lại đã.",
+  "app.nghe_tho": "Máy nghe: {raw}",
   "app.voice_bg_task": "Đang làm nền: {task}. Kết quả sẽ tự hiện ở đây, bạn cứ nói tiếp.",
   "app.voice_cho_viec": "Em vẫn đang xem, chờ chút nhé.|Chưa xong đâu, đợi em tí.|Vẫn đang chạy, sắp có rồi.|Em còn đang làm, chờ em chút.",
   "app.voice_cho_viec_lau": "Việc này lâu hơn em tưởng, vẫn đang chạy.|Vẫn chưa xong, em không quên đâu.|Còn đang làm, có gì em báo ngay.",
