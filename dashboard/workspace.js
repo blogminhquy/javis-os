@@ -136,8 +136,14 @@
   // ngày là mở lại một hội thoại cũ và mở một file, còn cài đặt trợ lý thì sửa một lần rồi
   // thôi - để nó ở tab đầu là bắt người dùng bấm thêm một cú mỗi lần vào trang.
   var TAB_PHAI = ["lichsu", "files", "cai"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
+  // Danh sách trái chỉ vẽ TRANG mục đầu, bấm "Xem thêm" mở thêm TRANG nữa - đúng cỡ trang của
+  // cột lịch sử (sessions-ui.js: PAGE = 20) để cả app cùng một nhịp. Brain của chủ dự án có
+  // vài chục trợ lý, vẽ hết một lượt là một cột cuộn dài dằng dặc mà chín phần mười số hàng
+  // chẳng ai nhìn tới.
+  var TRANG = 20;
   var S = { loai: "agent", q: "", nhom: "", agents: [], workflows: [], chon: { agent: null, workflow: null },
             el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "lichsu",
+            hien: TRANG, lanChay: {},
             menu: null };   // tienDo[session_id] = tiến độ lần chạy đang xem
 
   function danhSach() { return S.loai === "agent" ? S.agents : S.workflows; }
@@ -224,7 +230,7 @@
         '</aside>' +
       '</div>';
     if (opts && opts.borrow) opts.borrow(el.querySelector("#wsSlot"));
-    el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; luuChon(); veTrai(); chonMacDinh(); }; });
+    el.querySelectorAll("[data-loai]").forEach(function (b) { b.onclick = function () { S.loai = b.dataset.loai; S.nhom = ""; S.hien = TRANG; luuChon(); veTrai(); chonMacDinh(); }; });
     noiODoTim(el);
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.onclick = function () { chonTabPhai(b.dataset.rtab); }; });
     el.querySelector(".ws-panel-close").onclick = function () { el.querySelector("#wsPage").classList.remove("right-open"); };
@@ -305,12 +311,12 @@
     var o = el.querySelector("#wsSearch"), nut = el.querySelector("#wsSearchBtn");
     if (!o || !nut) return;
     nut.onclick = function () { if (o.hidden) moODoTim(el, true); else if (!o.value.trim()) moODoTim(el, false); else o.focus(); };
-    o.oninput = function (e) { S.q = e.target.value; veDanhSach(); };
+    o.oninput = function (e) { S.q = e.target.value; S.hien = TRANG; veDanhSach(); };
     o.onblur = function () { if (!o.value.trim()) { o.hidden = true; nut.setAttribute("aria-expanded", "false"); } };
     o.onkeydown = function (e) {
       if (e.key !== "Escape" && e.key !== "Esc") return;
       e.preventDefault(); e.stopPropagation();
-      o.value = ""; S.q = ""; veDanhSach(); moODoTim(el, false);
+      o.value = ""; S.q = ""; S.hien = TRANG; veDanhSach(); moODoTim(el, false);
     };
   }
 
@@ -342,7 +348,7 @@
     var groups = [{name: "", label: t("ws.all_groups"), count: danhSach().length}].concat(Object.keys(nhoms).sort().map(function (g) { return {name:g, label:g, count:nhoms[g]}; }));
     sel.innerHTML = groups.map(function (g) { return '<option value="'+esc(g.name)+'">'+esc(g.label)+' ('+g.count+')</option>'; }).join('');
     sel.value = S.nhom;
-    sel.onchange = function () { S.nhom = sel.value; veTrai(); };
+    sel.onchange = function () { S.nhom = sel.value; S.hien = TRANG; veTrai(); };
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
     el.querySelector("#wsImport").textContent = t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow");
     veDanhSach();
@@ -356,32 +362,77 @@
       return S.sessionCuaPhien[sid] === slug && S.tienDo[sid] && S.tienDo[sid].trang_thai === "dang";
     });
   }
+  // Danh sách trái. Ba việc dễ sai gộp ở đây, nên nói rõ từng cái:
+  //
+  // 1. MỤC ĐÃ GHIM phải NHÌN RA ĐƯỢC. Bản 0.59.14 có ghim (sapXep đưa lên đầu) nhưng dấu ghim
+  //    lại nằm BÊN TRONG thẻ <strong> của cái tên, mà thẻ đó cắt chữ bằng ellipsis - tên dài
+  //    một chút là dấu ghim bị cắt mất, danh sách trông y như chưa ghim gì (chủ dự án báo
+  //    16/09 kèm ảnh). Nay dấu ghim là một ô RIÊNG, không nằm trong phần bị cắt, và phía trên
+  //    khối ghim có một dòng nhãn "Đã ghim" như cột lịch sử vẫn làm - liếc một cái là biết
+  //    đâu là mục mình kéo lên, đâu là phần xếp theo thời gian.
+  // 2. Chỉ vẽ TRANG đầu, còn lại nằm sau nút "Xem thêm".
+  // 3. Nhãn nhóm chỉ hiện khi CÓ mục ghim: danh sách không ghim gì mà vẫn đội hai dòng nhãn
+  //    thì chỉ tổ chật cột.
   function veDanhSach() {
     var el = S.el; if (!el) return;
     var ds = loc(danhSach(), S.q, S.nhom), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
-    host.innerHTML = ds.map(function (x) {
-      // "Đang chạy" phải đọc được BẰNG CHỮ, không chỉ bằng icon quay: người tắt hiệu ứng
-      // (prefers-reduced-motion, xem style.css) và trình đọc màn hình không thấy vòng quay
-      // nào cả, nên thêm một chữ vào dòng phụ và một <title> vào icon.
-      var chay = S.loai === "workflow" && dangChay(x.slug);
-      var phu = S.loai === "agent" ? (x.group || "Chung") + " · " + (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
-      if (chay) phu += " · " + t("ws.running");
-      // Nút "..." KHÔNG được lồng trong nút chọn mục: button trong button là HTML sai và
-      // trình duyệt tự tách thẻ ra, làm cú bấm rơi vào chỗ không ai ngờ. Nên bọc cả hai trong
-      // một khối và để chúng là hai nút ngang hàng.
-      return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + '">' +
-        '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
-        '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
-          : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
-        '<span class="ws-item-text"><strong>' + esc(x.name) +
-          (x.pinned ? '<span class="ws-item-pin" title="' + esc(t("ws.pinned")) + '">' + ic("pin") + '</span>' : "") +
-        '</strong><small>' + esc(phu) + '</small></span></button>' +
-        '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
-          esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
-        '</div>';
-    }).join("");
+    var tong = ds.length;
+    if (S.hien < TRANG) S.hien = TRANG;
+    var phan = ds.slice(0, S.hien);
+    var coGhim = phan.some(function (x) { return x.pinned; });
+    var nhanTruoc = null;
+    host.innerHTML = phan.map(function (x) {
+      var nhan = "";
+      if (coGhim) {
+        var g = x.pinned ? t("ws.grp_pinned") : t("ws.grp_rest");
+        if (g !== nhanTruoc) { nhan = '<div class="ws-glabel">' + esc(g) + '</div>'; nhanTruoc = g; }
+      }
+      return nhan + mucHtml(x, chon);
+    }).join("") +
+      (tong > S.hien
+        ? '<button type="button" class="ws-more" id="wsMore">' +
+            esc(t("sess.more", { so: Math.min(TRANG, tong - S.hien) })) + '</button>'
+        : "");
+    var nutThem = host.querySelector("#wsMore");
+    if (nutThem) nutThem.onclick = function () {
+      // Giữ chỗ cuộn: vẽ lại cả danh sách mà để nó nhảy về đầu thì bấm "Xem thêm" xong lại
+      // phải cuộn tay xuống đúng chỗ vừa đứng.
+      var cuon = host.scrollTop;
+      S.hien += TRANG; veDanhSach();
+      var lai = S.el && S.el.querySelector("#wsList"); if (lai) lai.scrollTop = cuon;
+    };
+    noiDanhSach(host);
+  }
+  // HTML của MỘT hàng. Tách khỏi veDanhSach để chỗ kia chỉ còn lo nhóm - phân trang, và để
+  // test dựng được một hàng mà không cần cả trang.
+  function mucHtml(x, chon) {
+    // "Đang chạy" phải đọc được BẰNG CHỮ, không chỉ bằng icon quay: người tắt hiệu ứng
+    // (prefers-reduced-motion, xem style.css) và trình đọc màn hình không thấy vòng quay
+    // nào cả, nên thêm một chữ vào dòng phụ và một <title> vào icon.
+    var chay = S.loai === "workflow" && dangChay(x.slug);
+    var phu = S.loai === "agent" ? (x.group || "Chung") + " · " + (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
+    if (chay) phu += " · " + t("ws.running");
+    // Nút "..." KHÔNG được lồng trong nút chọn mục: button trong button là HTML sai và
+    // trình duyệt tự tách thẻ ra, làm cú bấm rơi vào chỗ không ai ngờ. Nên bọc cả hai trong
+    // một khối và để chúng là hai nút ngang hàng.
+    return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + '">' +
+      '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
+      '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
+        : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
+      '<span class="ws-item-text"><strong>' + esc(x.name) + '</strong>' +
+      '<small>' + esc(phu) + '</small></span>' +
+      // Dấu ghim đứng NGOÀI khối chữ: trong đó nó bị ellipsis của cái tên cắt mất.
+      (x.pinned ? '<span class="ws-item-pin" title="' + esc(t("ws.pinned")) + '">' + ic("pin") + '</span>' : "") +
+      '</button>' +
+      '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
+        esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
+      '</div>';
+  }
+  // Nối dây cho các nút vừa vẽ. Gọi lại sau MỖI lần vẽ: innerHTML mới là node mới, handler cũ
+  // chết theo node cũ.
+  function noiDanhSach(host) {
     host.querySelectorAll("[data-slug]").forEach(function (b) {
       b.onclick = function () {
         S.chon[S.loai] = b.dataset.slug; luuChon(); veDanhSach(); moPhien(dangChon(), false);
@@ -618,7 +669,6 @@
       if (!still()) return false;
       if (!window.JavisSessions || window.JavisSessions.current() !== id) throw new Error(t("ws.err_session"));
       chatReady(true);
-      toMoiLichSu();   // phiên vừa đổi: tô lại hàng đang mở ở tab Lịch sử
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
       return true;
     } catch (e) {
@@ -805,15 +855,20 @@
   // qua hết form sửa trợ lý, qua ba nút Xuất/Xoá, qua danh sách bước. Chủ dự án nói thẳng là
   // không tiện. Nay nó là một TAB riêng, ngang hàng với Cài đặt và Thư mục, đúng kiểu cột lịch
   // sử của trang Trò chuyện: bấm một cái là ra, không phải cuộn tìm.
+  //
+  // MỘT danh sách, không phải hai (chủ dự án chốt 16/09). Trước đây tab này xếp chồng "LẦN
+  // CHẠY" lên trên "HỘI THOẠI", mà mỗi lần chạy quy trình ĐẺ RA đúng một hội thoại: cùng một
+  // việc hiện hai lần, hai mốc giờ, hai chỗ để bấm, và bấm vào đâu cũng mở đúng một phiên.
+  // Nay chỉ còn danh sách hội thoại - bản mượn của trang Trò chuyện, sẵn ô tìm, ghim, đổi
+  // tên, xoá và nút "Xem thêm" - còn thứ RIÊNG của lần chạy thì gắn thẳng vào hàng hội thoại
+  // của nó qua hàm trang trí: avatar những trợ lý đã phối hợp, và trạng thái (xong/lỗi/chờ).
+  // Nút "Hội thoại mới" cùng ô tìm nhờ vậy đứng ngay đầu tab, không bị một danh sách khác đẩy
+  // xuống giữa cột.
   function veLichSu(item) {
     var host = S.el && S.el.querySelector("#wsRightHistory"); if (!host) return;
+    S.lanChay = {};
     if (!item) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.pick_one")) + '</div>'; return; }
-    host.innerHTML =
-      (S.loai === "workflow"
-        ? '<div class="ws-rtitle">' + esc(t("ws.history_runs")) + '</div><div class="ws-runs" id="wsRuns"></div>'
-        : "") +
-      '<div class="ws-rtitle">' + esc(t("ws.history_chats")) + '</div><div class="ws-chatside" id="wsSess"></div>';
-    if (S.loai === "workflow") taiLichSu(item);
+    host.innerHTML = '<div class="ws-chatside" id="wsSess"></div>';
     // Danh sách hội thoại là CHÍNH cột lịch sử của trang Trò chuyện (sessions-ui.js), gắn vào
     // đây ở chế độ lọc theo kênh: cùng ô tìm, cùng nhóm theo ngày, cùng ghim / đổi tên / xoá,
     // cùng nút "Xem thêm". Chủ dự án yêu cầu đúng trải nghiệm ấy chứ không phải một danh sách
@@ -822,55 +877,38 @@
       window.JavisChatSide.mount(host.querySelector("#wsSess"), {
         kenh: kenh(item), chiHoiThoai: true,
         onNew: function () { var x = dangChon(); if (x) moPhien(x, true); },
+        trangTri: S.loai === "workflow" ? trangTriHang : null,
       });
     }
+    if (S.loai === "workflow") taiLichSu(item);
   }
-  // Tô lại hàng của phiên ĐANG MỞ trong danh sách LẦN CHẠY mà không tải lại gì cả: vẽ lại cả
-  // tab chỉ để đổi một cái viền là tốn một request và làm danh sách nháy một nhịp.
-  // (Danh sách hội thoại bên dưới là cột lịch sử mượn của trang Trò chuyện, nó tự tô hàng đang
-  // mở mỗi lần app.js gọi JavisChatSide.refresh - không đụng tay vào đây.)
-  function toMoiLichSu() {
-    var el = S.el; if (!el) return;
-    var cur = window.JavisSessions ? window.JavisSessions.current() : null;
-    el.querySelectorAll("#wsRuns [data-sid]").forEach(function (b) {
-      b.classList.toggle("on", !!cur && b.dataset.sid === cur);
-    });
+  // Trang trí một hàng hội thoại bằng dữ liệu LẦN CHẠY của đúng phiên đó. Tra sổ S.lanChay
+  // (taiLichSu nạp) chứ không đi hỏi mạng ở đây: hàm này chạy một lần cho MỖI hàng, mỗi lần
+  // danh sách vẽ lại.
+  function trangTriHang(s) {
+    var r = S.lanChay && S.lanChay[s && s.id]; if (!r) return null;
+    var slugs = Array.from(new Set((r.steps || []).map(function (b) { return b.agent; }).filter(Boolean))).slice(0, 3);
+    var nhan = r.nhan || r.status || "";
+    return {
+      dau: slugs.length ? '<span class="ws-run-avatars">' + slugs.map(function (sl) { return avatar(agentOf(sl), 18); }).join("") + '</span>' : "",
+      meta: nhan ? '<span class="ci-badge ws-run-badge ' + esc(r.status || "") + '">' + esc(nhan) + '</span>' : "",
+    };
   }
-  function moPhienCu(sid) {
-    if (!sid || !window.JavisSessions) return;
-    Promise.resolve(window.JavisSessions.open(sid)).then(toMoiLichSu).catch(function () {});
-  }
+  // Hàng của phiên ĐANG MỞ do chính cột lịch sử tự tô (lớp .active, mỗi lần
+  // JavisChatSide.refresh chạy) - từ 0.59.20 tab này không còn danh sách nào của riêng nó nữa
+  // nên ở đây không phải tô gì cả.
+  // Nạp SỔ lần chạy: session_id -> lần chạy. Không vẽ danh sách nào cả - dữ liệu này chỉ để
+  // trang trí hàng hội thoại tương ứng (xem trangTriHang), nên nạp xong thì bảo cột lịch sử
+  // vẽ lại là đủ. Lấy 40 cho khớp hai trang "Xem thêm" của cột đó (mỗi trang 20).
   async function taiLichSu(item) {
-    var host = S.el && S.el.querySelector("#wsRuns"); if (!host) return;
-    var r = await api("/workflows/runs?brain=" + encodeURIComponent(brain()) + "&slug=" + encodeURIComponent(item.slug) + "&limit=20");
-    // Vẽ trễ: người dùng có thể đã đổi sang mục khác trong lúc chờ mạng. Ghi vào khung của
-    // mục cũ là lịch sử của quy trình A nằm dưới tên quy trình B.
+    var r = await api("/workflows/runs?brain=" + encodeURIComponent(brain()) + "&slug=" + encodeURIComponent(item.slug) + "&limit=40");
+    // Về trễ: người dùng có thể đã đổi sang mục khác trong lúc chờ mạng. Ghi vào sổ lúc này là
+    // dán nhãn lần chạy của quy trình A lên hội thoại của quy trình B.
     if (!conDangXem(item)) return;
-    host = S.el && S.el.querySelector("#wsRuns"); if (!host) return;
-    var ds = r.runs || [];
-    if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.no_runs")) + '</div>'; return; }
-    var curSid = window.JavisSessions ? window.JavisSessions.current() : null;
-    host.innerHTML = ds.map(function (x) {
-      var d = new Date(Number(x.started_at || 0) * 1000);
-      return '<button type="button" class="ws-run ' + esc(x.status) + (x.session_id && x.session_id === curSid ? " on" : "") + '" data-sid="' + esc(x.session_id || "") + '">' +
-        '<span class="ws-run-avatars">' + Array.from(new Set((x.steps || []).map(function (b) { return b.agent; }).filter(Boolean))).slice(0, 3).map(function (slug) { return avatar(agentOf(slug), 22); }).join('') + '</span><span>' + esc(gioPhut(d)) + '</span>' +
-        '<span class="ws-run-st">' + esc(x.nhan || x.status || "") + '</span><small>' + esc(loiNguoiGo(x.input).slice(0, 60)) + '</small></button>';
-    }).join("");
-    host.querySelectorAll("[data-sid]").forEach(function (b) { b.onclick = function () { moPhienCu(b.dataset.sid); }; });
-  }
-  // Bỏ khối "[NGỮ CẢNH GIAO DIỆN: ...]" mà dashboard chèn trước câu hỏi: kho lần chạy lưu
-  // nguyên chuỗi đã gửi, nên dòng lịch sử mà in thô thì 60 ký tự đầu là khối đó chứ không phải
-  // câu người dùng gõ. Dùng lại chính hàm của app.js, đừng viết bản thứ hai để rồi lệch nhau.
-  function loiNguoiGo(s) {
-    try { return window.chuNguoiGo ? window.chuNguoiGo(s || "") : String(s || ""); }
-    catch (e) { return String(s || ""); }
-  }
-  // Ngày giờ theo NGÔN NGỮ giao diện, không khoá "vi-VN": đổi sang tiếng Anh mà ngày vẫn
-  // dd/mm là nửa màn hình nói một kiểu (cùng lý do với LOC() bên studio.js).
-  function gioPhut(d) {
-    var loc = (window.JavisI18n && window.JavisI18n.locale && window.JavisI18n.locale()) || "vi-VN";
-    try { return d.toLocaleString(loc, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }); }
-    catch (e) { return d.toLocaleString(); }
+    var so = {};
+    (r.runs || []).forEach(function (x) { if (x.session_id) so[x.session_id] = x; });
+    S.lanChay = so;
+    if (window.JavisChatSide && window.JavisChatSide.refresh) window.JavisChatSide.refresh();
   }
   // ---------- sự kiện quy trình từ WebSocket ----------
   // app.js chuyển MỌI khung wf_event vào đây, kể cả của phiên đang không mở: ghi theo

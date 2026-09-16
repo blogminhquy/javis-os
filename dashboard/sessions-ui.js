@@ -49,6 +49,12 @@
   // trang đều gọi mount() lúc dựng, nên chỗ gắn luôn là trang đang xem.
   var kenhLoc = "";        // "" = cột lịch sử thường; "agent:x"/"workflow:y" = lọc đúng kênh
   var hamTaoMoi = null;    // nút "Hội thoại mới" ở chế độ lọc: trang Cộng sự tự lo (đúng kênh)
+  // Hàm TRANG TRÍ một hàng hội thoại, do nơi gắn cột cấp (trang Cộng sự). Trả
+  // {dau, meta}: `dau` là HTML đứng trước tiêu đề (trang Cộng sự bày avatar những trợ lý đã
+  // phối hợp trong lần chạy đó), `meta` là một nhãn nhỏ trong hàng meta (xong / lỗi / chờ
+  // duyệt). Cột này KHÔNG tự đi hỏi dữ liệu ấy: nó không biết gì về quy trình, và nhét một
+  // request của trang khác vào đây là buộc hai thứ vào nhau mà chẳng bên nào cần.
+  var hamTrangTri = null;
   // Cột trái có HAI tab: hội thoại và cây thư mục brain. Nhớ tab đã chọn qua localStorage -
   // ai dùng cây làm chính thì mỗi lần mở chat lại phải bấm sang là phiền vô ích.
   var TAB_KEY = "javis.chatside.tab";
@@ -1272,6 +1278,7 @@
    *                    còn project là cách gom hội thoại của NGƯỜI DÙNG, không áp cho hội
    *                    thoại của một trợ lý.
    * `opts.onNew`     - thay hành vi nút "Hội thoại mới" (kênh cộng sự phải mở đúng kênh).
+   * `opts.trangTri`  - hàm (s) -> {dau, meta}: HTML chèn thêm vào một hàng (xem hamTrangTri).
    */
   function mount(container, opts) {
     if (!container) return;
@@ -1281,6 +1288,7 @@
     lastBrain = brain();
     kenhLoc = o.kenh || "";
     hamTaoMoi = typeof o.onNew === "function" ? o.onNew : null;
+    hamTrangTri = typeof o.trangTri === "function" ? o.trangTri : null;
     var gonNhe = !!o.chiHoiThoai;
     if (gonNhe) {
       side.classList.add("cside-gon");
@@ -1454,10 +1462,16 @@
       // KHÔNG có icon riêng cho từng hội thoại. Hàng nào cũng là một cuộc trò chuyện nên icon
       // ở đây không phân loại được gì, chỉ thêm một nút phải bấm và một hàng nút chật thêm.
       // Icon để PHÂN LOẠI thì nằm ở Project - xem openProjMenu.
+      // Trang trí do nơi gắn cột cấp (trang Cộng sự: avatar các trợ lý + trạng thái lần chạy).
+      // Bọc try: một hàm của bên ngoài ném lỗi thì chỉ mất phần trang trí, không được phép
+      // làm cụt cả danh sách hội thoại.
+      var tt = {};
+      if (hamTrangTri) { try { tt = hamTrangTri(s) || {}; } catch (e) { tt = {}; } }
       var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + '">' +
         '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="' + esc(window.t("sess.running")) + '">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
+        (tt.dau || "") +
         esc(s.title || s.preview || window.t("sess.untitled")) + '</div>' +
-        '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' +
+        '<div class="ci-meta"><span>' + fmtT(s.updated_at) + '</span>' + (tt.meta || "") +
         (chLabel ? '<span class="ci-badge">' + esc(chLabel) + '</span>' : '') +
         (eng ? '<span class="ci-badge">' + esc(eng) + '</span>' : '') +
         '<span>' + esc(window.t("sess.msgs", { count: s.msg_count || 0 })) + '</span>' +

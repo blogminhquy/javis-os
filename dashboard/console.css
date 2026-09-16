@@ -1588,20 +1588,12 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    chen nhau. */
 .cside-gon .ci-meta { gap: 6px; }
 
-/* Một lần chạy / một hội thoại cũ: nút trải hết bề ngang cột phải. */
-.ws-runs { display: flex; flex-direction: column; gap: 4px; }
-.ws-run { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-  padding: 6px 8px; border-radius: 8px; border: 1px solid var(--glass-brd); background: none;
-  color: var(--text2); cursor: pointer; font-family: var(--font); font-size: 12.5px; }
-.ws-run:hover { border-color: var(--accent); color: var(--text); }
-.ws-run strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-run small { color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-run-st { flex: none; font-size: 11px; color: var(--text3); }
-.ws-run.done .ws-run-st { color: #6fd08c; }
-.ws-run.error .ws-run-st { color: #ff8b8b; }
-/* Hàng của hội thoại ĐANG MỞ. Cột lịch sử mà không tô chỗ đang đứng thì mỗi lần liếc sang
-   lại phải đối chiếu tiêu đề để biết mình đang ở đâu (cột Lịch sử trang Trò chuyện tô từ lâu). */
-.ws-run.on { border-color: var(--accent-line); background: var(--accent-wash-2); color: var(--text); }
+/* LẦN CHẠY của quy trình không còn là một danh sách riêng: mỗi lần chạy đẻ ra đúng một hội
+   thoại, nên nó đi thẳng vào hàng hội thoại của mình (workspace.js: trangTriHang) - avatar
+   những trợ lý đã phối hợp đứng trước tiêu đề, trạng thái là một nhãn trong hàng meta. */
+.cside-gon .ci-title .ws-run-avatars { margin-right: 5px; vertical-align: -4px; }
+.ws-run-badge.done { color: #6fd08c; border-color: #3f6a4c; }
+.ws-run-badge.error { color: #ff8b8b; border-color: #7d3f3f; }
 
 /* Màn hẹp dần: hai cột bên lần lượt thành NGĂN KÉO trượt đè để khung chat giữ đủ bề ngang.
    Ba nấc vì một màn laptop 1024px trừ thanh bên còn ~900px, mà 260 + 320 cột hai bên ăn hết
@@ -1699,7 +1691,6 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-step.dang strong { color:var(--accent); }
 .ws-prog { margin-top:12px; }
 .ws-status { margin:10px 0 18px; }
-.ws-run { padding:10px 8px; border-radius:8px; }
 /* ---- Dòng danh sách: nút "..." quản lý + dấu ghim ---- */
 /* Nút "..." nằm NGOÀI nút chọn mục (button trong button là HTML sai), nên phải neo tuyệt đối
    vào khối bọc. Ẩn mờ lúc bình thường, hiện khi trỏ vào hay khi chính nó nhận tiêu điểm -
@@ -1714,8 +1705,23 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-item-more:hover { color: var(--accent); background: var(--surface-1); }
 /* Màn cảm ứng KHÔNG có trỏ vào: ẩn theo hover là nút vĩnh viễn không thấy trên điện thoại. */
 @media (hover: none) { .ws-item-more { opacity: .75; } }
-.ws-item-pin { display: inline-flex; margin-left: 6px; color: var(--accent); vertical-align: -2px; }
-.ws-item-pin svg { width: 13px; height: 13px; }
+/* Dấu ghim là một Ô RIÊNG ở mép phải hàng, KHÔNG nằm trong thẻ tên: tên cắt bằng ellipsis
+   nên dấu ghim để trong đó thì tên dài một chút là nó bị cắt mất, ghim rồi mà nhìn y như
+   chưa ghim (chủ dự án báo 16/09). Chừa chỗ cho nút "..." bằng margin-right. */
+.ws-item-pin { flex: none; display: inline-flex; margin-left: auto; margin-right: 22px;
+  color: var(--accent); }
+.ws-item-pin svg { width: 14px; height: 14px; }
+/* Cả hàng ghim mang một vạch màu bên trái - dấu ghim nhỏ, vạch mới là thứ đọc được khi liếc. */
+.ws-item-wrap.ghim > .ws-item { border-left: 3px solid var(--accent); border-radius: 9px; }
+/* Nhãn nhóm "Đã ghim" / "Còn lại", cùng bộ mặt với nhãn nhóm ngày của cột lịch sử. */
+.ws-glabel { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text3); padding: 8px 4px 2px; }
+.ws-glabel:first-child { padding-top: 2px; }
+/* "Xem thêm 20": một nút nhẹ cuối danh sách, không phải nút hành động chính. */
+.ws-more { width: 100%; margin-top: 6px; padding: 7px 8px; border-radius: 9px;
+  border: 1px dashed var(--glass-brd); background: none; color: var(--text3);
+  cursor: pointer; font-family: var(--font); font-size: 12.5px; }
+.ws-more:hover { border-color: var(--accent); color: var(--text); }
 
 /* Menu quản lý: position FIXED vì cột danh sách có overflow riêng - menu absolute trong đó bị
    cắt mất ở những mục gần đáy. */
