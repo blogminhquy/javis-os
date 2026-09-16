@@ -7,7 +7,7 @@ Phủ: hash mật khẩu, require_login fail-closed, session TTL, setup token, m
 secrets_store roundtrip, ma trận quyền MCP, chống path traversal, quyết định CSRF/DNS-rebinding,
 rào _AUTH_LOCAL_EXACT (endpoint chỉ-localhost miễn đăng nhập).
 """
-from _paths import ROOT, SERVER  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
+from _paths import ROOT, SERVER, moi_route  # noqa: E402,F401  - nạp server/ vào sys.path (xem tests/python/_paths.py)
 import os
 import sys
 import tempfile
@@ -204,7 +204,10 @@ check("header hoa/thường lẫn lộn vẫn chặn",
 
 # Rào chỉ có tác dụng nếu path trong SIDE_EFFECT_GET KHỚP route thật. Đổi tên route mà quên
 # sửa danh sách = mở cửa lại trong im lặng, nên khoá hai chiều ở đây.
-_get_routes = {r.path for r in main.app.routes
+# moi_route: đi đệ quy qua router con. Đọc thẳng app.routes thì từ fastapi 0.141 tập này
+# thiếu mọi route GET nằm trong router con, và khoá hai chiều dưới đây canh trên một tập
+# thiếu - một path trong SIDE_EFFECT_GET trỏ vào route con sẽ báo "không có thật" oan.
+_get_routes = {r.path for r in moi_route(main.app)
                if "GET" in (getattr(r, "methods", None) or set())}
 for _p in web_security.SIDE_EFFECT_GET:
     check(f"SIDE_EFFECT_GET '{_p}' trỏ đúng một route GET có thật", _p in _get_routes)
