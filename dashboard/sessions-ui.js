@@ -1467,7 +1467,11 @@
       // làm cụt cả danh sách hội thoại.
       var tt = {};
       if (hamTrangTri) { try { tt = hamTrangTri(s) || {}; } catch (e) { tt = {}; } }
-      var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + '">' +
+      // Lớp `ghim` cho hàng ĐÃ GHIM: nhóm "Đã ghim" trên đầu nói được thứ tự, nhưng cuộn
+      // xuống giữa danh sách thì không còn thấy cái nhãn ấy nữa. Vạch màu bên trái và dấu ghim
+      // luôn hiện đi theo từng hàng, đúng khuôn danh sách trợ lý / quy trình của trang Cộng sự
+      // (chủ dự án chốt 16/09 sau khi dùng bản 0.59.20).
+      var item = el('<div class="cside-item' + (s.id === cur ? " active" : "") + (isRun ? " running" : "") + (s.pinned ? " ghim" : "") + '">' +
         '<div class="ci-title">' + (isRun ? '<span class="ci-run" title="' + esc(window.t("sess.running")) + '">' + ic("loader", { cls: "ic-spin" }) + '</span> ' : '') +
         (tt.dau || "") +
         esc(s.title || s.preview || window.t("sess.untitled")) + '</div>' +

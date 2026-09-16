@@ -240,6 +240,47 @@ check("các engine còn lại vẫn bị cắt",
       all(_s2[k].session_id is None for k in ("cli", "codex", "antigravity")))
 
 
+# ============================================================
+# Lượt HỎNG cũng phải để lại dấu vết trong kho phiên (0.59.21)
+# ============================================================
+# Chủ dự án báo 16/09 kèm ảnh: "một loạt tin từ telegram chỉ có 1 tin". Đúng vậy, và đây là
+# chỗ hỏng: lõi trả CHUỖI khi lượt lỗi, vỏ `_tg_answer` chỉ lưu khi lõi trả DICT, nên câu lỗi
+# bay ra Telegram rồi biến mất. Ở Lịch sử còn lại một hội thoại đúng một tin, không tên,
+# không câu trả lời - mở ra chẳng hiểu chuyện gì đã xảy ra.
+_src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+_i = _src.index("if isinstance(out, str):")
+_khoi = _src[_i:_i + 1200]
+check("lượt lỗi được ghi vào kho phiên", "_persist_limit_notice(store, conv_sid, text" in _khoi)
+check("CANARY: câu lỗi KHÔNG đi qua _persist_turn (đừng nhồi rác vào Memory và vòng tự học)",
+      "await _persist_turn" not in _khoi)
+
+_sid = main._tg_conv_sid(store, main._tg_session("654321"), BRAIN, "antigravity-cli", "m")
+store.append_message(_sid, "user", "Mở tệp Markdown theo dõi lỗi giao diện")
+main._persist_limit_notice(store, _sid, "Mở tệp Markdown theo dõi lỗi giao diện",
+                           "⚠ Antigravity CLI không trả lời được.")
+_row = store.get_session(_sid) or {}
+_tin = store.get_messages(_sid)
+check("hội thoại của lượt hỏng có ĐỦ hai tin, không còn trơ một tin",
+      int(_row.get("msg_count") or 0) == 2, _row.get("msg_count"))
+check("tin thứ hai là câu lỗi đọc được",
+      len(_tin) == 2 and _tin[1]["role"] == "assistant" and "⚠" in _tin[1]["content"])
+check("phiên có TÊN chứ không để trống", (_row.get("title") or "").startswith("Mở tệp"),
+      _row.get("title"))
+
+# ============================================================
+# Mở phiên mới thì phải NÓI VÌ SAO (0.59.21)
+# ============================================================
+# Nhìn từ giao diện không tài nào biết một loạt hội thoại ngắn bị cắt ra bởi luật nghỉ 12
+# tiếng, bởi brain lệch, hay bởi liên kết bền không ghi được. Log nói thẳng lý do.
+_src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+_i = _src.index("def _tg_conv_sid(")
+_ham = _src[_i:_src.index("_TG_MOI_LAI_MAX")]
+check("in lý do mỗi lần mở phiên mới", "[telegram] mở phiên mới" in _ham)
+for _ten, _dau in (("phiên cũ đã bị xoá", "không còn trong kho"),
+                   ("brain lệch (kèm cả hai giá trị)", "brain của bản ghi"),
+                   ("nghỉ lâu / quá dài", "nghỉ {nghi / 3600:.1f} tiếng")):
+    check("lý do nêu được ca " + _ten, _dau in _ham)
+
 print()
 if _fails:
     print(f"ĐỎ {len(_fails)} mục: " + "; ".join(_fails))

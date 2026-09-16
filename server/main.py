@@ -11211,7 +11211,11 @@ async def _persist_turn(store, conv_sid, brain, user_message, final_text):
 
 
 def _persist_limit_notice(store, conv_sid, user_message, notice):
-    """Lưu câu "hết lượt gói thuê bao" của một lượt KHÔNG có câu trả lời.
+    """Lưu câu BÁO LỖI của một lượt KHÔNG có câu trả lời.
+
+    Hai chỗ dùng: lượt vấp hạn mức gói thuê bao (dashboard), và lượt Telegram/CLI mà lõi trả
+    về chuỗi lỗi (xem `_tg_answer`). Cùng một nhu cầu: mở lại hội thoại phải đọc được chuyện
+    gì đã xảy ra, thay vì thấy một phiên trơ mỗi câu mình hỏi.
 
     Cố ý KHÔNG đi qua _persist_turn: một câu báo lỗi không đáng vào nhật ký Memory hay hàng
     đợi tự học. Chỉ ghi vào kho phiên (để F5 còn thấy) và đặt tên phiên (phiên mới vẫn có
@@ -15101,9 +15105,11 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
     luật xoay. Đổi brain và /reset gọi `_tg_quen_sid` nên xoá luôn cả liên kết bền.
     """
     sid = sess.get("sid") or _TG_SID_MAP.get(str(sess.get("key") or ""))
+    ly_do = "chưa có phiên nào cho chat này"
     if sid:
         row = store.get_session(sid)
         if not row:
+            ly_do = f"bản ghi {sid[:8]} không còn trong kho (đã xoá trên dashboard?)"
             sid = None      # user đã xoá hội thoại đó trên dashboard → đừng hồi sinh id cũ
         elif (row.get("brain") or "") and row["brain"] not in _brain_keys(brain):
             # Brain đổi lúc server tắt (Settings, hoặc brain bị đổi tên). Nối tiếp thì
@@ -15115,12 +15121,16 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
             # có từ trước bản chuẩn hoá đều bị coi là "khác brain" và bị bỏ - MỖI LƯỢT một
             # phiên mới, đúng cái hỏng mà khối ngay dưới đang canh. Cột rỗng cũng tha, vì rỗng
             # là không biết chứ không phải là khác.
+            ly_do = (f"brain của bản ghi {sid[:8]} là {row.get('brain')!r}, "
+                     f"lượt này là {_brain_key(brain)!r}")
             sid = None
         else:
             # Chỉ xoay khi có BẰNG CHỨNG phiên đã cũ/đã dài. Thiếu số liệu thì giữ nguyên,
             # kẻo một cột rỗng bất ngờ làm mỗi lượt đẻ một phiên.
             nghi = time.time() - float(row.get("updated_at") or time.time())
-            if nghi >= _TG_CONV_IDLE_S or int(row.get("msg_count") or 0) >= _TG_CONV_MAX_MSGS:
+            so_tin = int(row.get("msg_count") or 0)
+            if nghi >= _TG_CONV_IDLE_S or so_tin >= _TG_CONV_MAX_MSGS:
+                ly_do = f"phiên cũ nghỉ {nghi / 3600:.1f} tiếng, dài {so_tin} tin"
                 sid = None      # nghỉ lâu / đã dài → sang khúc mới
     if sid:
         # Còn dùng tiếp: đồng bộ engine/model vì người dùng có thể vừa đổi bằng /model.
@@ -15133,6 +15143,11 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
     sess["sid"] = store.create_session(brain=_brain_key(brain), engine=engine_label, model=model,
                                        channel="telegram")
     _tg_nho_sid(sess, sess["sid"])
+    # VÌ SAO mở phiên mới - in ra mỗi lần, vì đây là thứ không tài nào đoán được từ giao diện:
+    # ở Lịch sử chỉ thấy một loạt hội thoại ngắn mà không biết chúng bị cắt ra bởi luật nghỉ
+    # 12 tiếng, bởi brain lệch, hay bởi liên kết bền không ghi được (chủ dự án báo 16/09).
+    print(f"[telegram] mở phiên mới {sess['sid'][:8]} cho chat {sess.get('key')}: {ly_do}",
+          file=__import__('sys').stderr)
     # Dọn theo nhịp XOAY (hiếm, cỡ vài ngày một lần) chứ không mỗi lượt - đủ để thanh bên
     # không ngập dần vì các khúc cũ.
     try:
@@ -15281,6 +15296,17 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             except Exception as e:
                 print(f"[telegram persist] {e}", file=__import__('sys').stderr)
         if isinstance(out, str):
+            # Lượt HỎNG: lõi trả chuỗi, và tới 0.59.20 vỏ này KHÔNG lưu gì cả - câu lỗi bay
+            # thẳng ra Telegram rồi biến mất. Hậu quả nhìn thấy ở Lịch sử: một hội thoại đúng
+            # MỘT TIN (câu người dùng), không tên, không câu trả lời, mở ra chẳng hiểu vì sao
+            # (chủ dự án báo 16/09: "một loạt tin từ telegram chỉ có 1 tin"). Nay ghi câu lỗi
+            # vào kho như một tin của trợ lý, y hệt cách `_persist_limit_notice` làm cho lượt
+            # vấp hạn mức: đủ để mở lại còn đọc được chuyện gì đã xảy ra.
+            #
+            # Cố ý KHÔNG đi qua `_persist_turn`: câu lỗi không đáng vào nhật ký Memory lẫn
+            # hàng đợi tự học.
+            if conv_sid:
+                _persist_limit_notice(store, conv_sid, text, str(out))
             _CONTEXT_RUNTIME.note_error(runtime_trace, f"{channel}_error_response")
         _record_quality_shadow(
             runtime_trace, text,
