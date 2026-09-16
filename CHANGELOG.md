@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.22] - 2026-09-16
+### Sửa lỗi
+- **Bấm vào thông báo của một trợ lý hay quy trình giờ mở đúng trang Cộng sự.** Trước đây nó đổ đoạn chat đó vào khung chat của bộ não chính, và tin bạn gõ tiếp bay thẳng vào phiên của trợ lý mà không có gì báo. Mẩu thư nay nhớ cả hội thoại cụ thể nên mở ra là đúng cuộc đã báo kết quả, không phải cuộc gần nhất.
+- **Tiêu đề thông báo đẩy hết dính dấu sao.** Câu trả lời kiểu "**Nhắc bạn:** họp lúc 3h" từng hiện nguyên cặp `**` giữa màn hình khoá điện thoại.
+- **Cảnh báo hết ngân sách API đeo đúng nhãn "Hệ thống"** trong hòm thư, thay vì nhãn "Trả lời" như thể bạn vừa hỏi gì đó.
+### Cải thiện
+- **Việc định kỳ chạy trót lọt không rung chuông nữa.** Một việc chạy 15 phút một vòng mà vòng nào cũng đẩy thông báo lên điện thoại thì cuối cùng bạn tắt hẳn thông báo, và lúc đó thứ đáng báo (việc hỏng, việc tự tạm dừng) cũng mất theo. Kết quả vẫn về đủ khung chat, Telegram và hòm thư như cũ; chỉ khi việc **hỏng** hoặc **tự tạm dừng** mới kêu. Cùng luật mà việc trên bảng Việc đã theo từ trước.
+
 ## [0.59.21] - 2026-09-16
 ### Cải thiện
 - **Hội thoại đã ghim nhìn là thấy, giống hệt trợ lý và quy trình.** Hàng đã ghim có vạch màu bên trái và dấu ghim luôn hiện, không phải rê chuột vào mới biết. Ba nút còn lại vẫn chỉ hiện khi rê chuột như cũ.

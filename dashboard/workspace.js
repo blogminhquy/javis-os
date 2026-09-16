@@ -266,11 +266,14 @@
     luuChon(); veTrai();
     var item = dangChon();
     if (!item) { cmd.resolve(false); return; }
-    cmd.resolve(await moPhien(item, false));
+    cmd.resolve(await moPhien(item, false, cmd.sid));
   }
-  function openCommand(kind, slug) {
+  // `sid` (tuỳ chọn): mở ĐÚNG hội thoại đó thay vì cuộc gần nhất của cộng sự này. Hòm thư
+  // truyền vào, vì mẩu thư trỏ tới một hội thoại CỤ THỂ - kết quả việc nền của tuần trước
+  // không nằm ở cuộc mới nhất.
+  function openCommand(kind, slug, sid) {
     return new Promise(function (resolve) {
-      var cmd = {kind: kind, slug: slug, resolve: resolve};
+      var cmd = {kind: kind, slug: slug, sid: sid || "", resolve: resolve};
       if (active) { selectCommand(cmd); return; }
       if (!window.JavisNav) { resolve(false); return; }
       if (pendingCommand) pendingCommand.resolve(false);
@@ -641,15 +644,17 @@
   // Mở phiên của cộng sự đang chọn: có phiên cũ thì mở tiếp (F5 hay quay lại vẫn còn hội
   // thoại), chưa có thì xin server một phiên TRỐNG đúng kênh. Phải xin trước tin đầu tiên,
   // vì kho phiên phải biết kênh thì lượt đầu mới đi đúng đường (server/main.py: /sessions/new).
-  async function moPhien(item, moiHan) {
+  // `sidChiDinh`: mở đúng hội thoại này (đường từ hòm thư). Bỏ trống thì giữ lối cũ - cuộc
+  // gần nhất của cộng sự, hoặc mở cuộc mới khi `moiHan`.
+  async function moPhien(item, moiHan, sidChiDinh) {
     var ticket = ++opening;
     chatReady(false); veGiua(item);
     if (!item) return false;
     var still = function () { return active && ticket === opening && conDangXem(item); };
     try {
       vePhai(item);
-      var b = encodeURIComponent(brain()), ch = kenh(item), id = null;
-      if (!moiHan) {
+      var b = encodeURIComponent(brain()), ch = kenh(item), id = sidChiDinh || null;
+      if (!id && !moiHan) {
         var r = await api("/sessions?brain=" + b + "&channel=" + encodeURIComponent(ch) + "&limit=1");
         if (!still()) return false;
         if (r.sessions && r.sessions[0]) id = r.sessions[0].id;

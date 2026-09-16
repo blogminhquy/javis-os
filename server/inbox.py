@@ -22,12 +22,15 @@ Vì thế trạng thái đã-đọc cũng nằm ở server. Chuông "Thông báo
 localStorage - hợp lý với changelog (ai đọc trên máy nấy), nhưng sai với thư riêng: điện
 thoại và máy tính sẽ đếm lệch nhau, xoá dữ liệu trình duyệt là mất sạch.
 
-Mỗi mẩu thư mang theo ĐỊA CHỈ của nội dung thật (`session_id`), nên bấm vào là quay về đúng
-hội thoại đã hỏi - chứ không mở một hội thoại mới rỗng không có ngữ cảnh gì.
+Mỗi mẩu thư mang theo ĐỊA CHỈ của nội dung thật (`session_id` + `channel`), nên bấm vào là
+quay về đúng hội thoại đã hỏi, ở ĐÚNG TRANG của nó - chứ không mở một hội thoại mới rỗng
+không có ngữ cảnh gì, và cũng không đổ hội thoại của một trợ lý vào khung chat của bộ não
+chính.
 """
 from __future__ import annotations
 
 import json
+import re
 import sys
 import threading
 import time
@@ -88,21 +91,30 @@ def _save(d: dict) -> None:
 
 
 def _tieu_de(text: str) -> str:
-    """Rút tiêu đề từ chính nội dung: dòng đầu CÓ CHỮ, bỏ dấu markdown mở đầu.
+    """Rút tiêu đề từ chính nội dung: dòng đầu CÓ CHỮ, bỏ dấu markdown.
 
     Người gọi (`_notify_owner`) chỉ có một khối văn bản, không có trường tiêu đề riêng.
     Lấy dòng đầu là đủ dùng và luôn đúng ngôn ngữ của nội dung, không phải bịa ra một
     nhãn chung chung kiểu "Việc nền đã xong" cho mọi thứ.
+
+    Bỏ dấu nhấn markdown ở CẢ HAI ĐẦU chứ không riêng đầu dòng: tiêu đề này đi thẳng ra
+    thông báo đẩy của hệ điều hành, nơi không ai dịch markdown cả. Câu trả lời của Javis hay
+    mở đầu bằng "**Nhắc bạn:** ..." nên cắt kiểu cũ (chỉ lstrip) để lại đúng cái đuôi "**"
+    lơ lửng giữa tiêu đề trên màn hình khoá điện thoại.
     """
     for dong in str(text or "").splitlines():
         s = dong.strip().lstrip("#*->•").strip()
+        # Chỉ gỡ KÝ HIỆU nhấn (đậm, nghiêng dạng __, mã inline), không đụng dấu câu: một
+        # tiêu đề mất dấu hai chấm hay dấu ngoặc thì đọc còn khó hơn là thừa hai ngôi sao.
+        s = re.sub(r"\*\*|__|`", "", s).strip()
         if s:
             return s[:MAX_TITLE]
     return "Javis vừa gửi một tin"
 
 
 def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "",
-        source: str = "", label: str = "", title: str = "", read: bool = False) -> dict:
+        source: str = "", label: str = "", title: str = "", read: bool = False,
+        channel: str = "") -> dict:
     """Bỏ MỘT mẩu thư vào hòm. Trả về thư vừa tạo.
 
     `text` là nguyên văn nội dung đã gửi cho người dùng; hòm thư chỉ giữ bản cắt ngắn để
@@ -126,6 +138,12 @@ def add(text: str, *, kind: str = "answer", session_id: str = "", brain: str = "
         "brain": str(brain or ""),
         "source": str(source or ""),
         "label": str(label or "")[:MAX_TITLE],
+        # KÊNH của hội thoại đích ("web", "telegram", "agent:<slug>", "workflow:<slug>"...).
+        # Có nó thì lúc bấm vào mẩu thư, dashboard mở ĐÚNG TRANG chứa hội thoại đó: hội thoại
+        # của một trợ lý phải mở ở trang Cộng sự, không phải đổ vào khung chat của bộ não
+        # chính - đổ nhầm thì tin gõ tiếp bay vào phiên của trợ lý mà người dùng không hay
+        # (đúng lỗi bản 0.59.15 đã chữa cho đường rời trang).
+        "channel": str(channel or ""),
     }
     with _LOCK:
         d = _load()
