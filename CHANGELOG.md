@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.21] - 2026-09-16
+### Cải thiện
+- **Hội thoại đã ghim nhìn là thấy, giống hệt trợ lý và quy trình.** Hàng đã ghim có vạch màu bên trái và dấu ghim luôn hiện, không phải rê chuột vào mới biết. Ba nút còn lại vẫn chỉ hiện khi rê chuột như cũ.
+### Sửa lỗi
+- **Hội thoại Telegram lỗi không còn trơ lại đúng một tin.** Trước đây lượt nào hỏng thì câu báo lỗi bay thẳng ra Telegram rồi biến mất, để lại trong Lịch sử một hội thoại chỉ có câu bạn hỏi, không tên, không câu trả lời, mở ra chẳng hiểu chuyện gì. Giờ câu lỗi được lưu lại như một tin của trợ lý nên mở ra là đọc được ngay lượt đó hỏng vì sao.
+- **Nhật ký nói rõ vì sao Telegram mở hội thoại mới**: nghỉ quá lâu, brain lệch, hay bản ghi cũ đã bị xoá. Trước đây chỉ thấy một loạt hội thoại ngắn mà không biết chúng bị cắt ra bởi lý do gì.
+
 ## [0.59.20] - 2026-09-16
 ### Cải thiện
 - **Trợ lý và quy trình đã ghim nhìn là thấy.** Mục ghim nằm dưới nhãn **Đã ghim**, có vạch màu bên trái và dấu ghim ở mép phải hàng. Trước đây dấu ghim nằm trong phần tên bị cắt ngắn nên tên dài một chút là mất tăm, ghim rồi mà trông y như chưa ghim.

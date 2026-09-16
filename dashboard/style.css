@@ -1869,8 +1869,6 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
    trong danh sách hội thoại cũng là một cuộc trò chuyện. */
 .cs-menu-ico, .cs-proj-name .ic { display: inline-flex; flex: none; color: var(--text2); }
 .cs-menu-row.on .cs-menu-ico, .cs-proj-name .ic { color: inherit; }
-/* Nút ghim đang BẬT thì tô màu, nhưng vẫn nằm trong .act nên chỉ hiện khi rê chuột - hàng đã
-   ghim đã có nhóm "Đã ghim" trên đầu làm dấu hiệu rồi, không cần thêm một chấm màu nữa. */
 .ci-meta .act .pin.on { color: var(--accent); }
 .cside-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 2px; }
 .cside-list::-webkit-scrollbar { width: 4px; }
@@ -1881,6 +1879,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   border: 1px solid transparent; margin-bottom: 2px; }
 .cside-item:hover { background: var(--info-wash); border-color: var(--info-line); }
 .cside-item.active { background: var(--accent-wash-2); border-color: var(--accent-line); }
+/* HÀNG ĐÃ GHIM. Nhóm "Đã ghim" trên đầu chỉ nói được thứ tự: cuộn xuống giữa danh sách là
+   không còn thấy cái nhãn ấy, và dấu ghim thì nằm trong .act nên chờ rê chuột mới hiện. Nay
+   mỗi hàng ghim tự mang vạch màu bên trái và một dấu ghim luôn thấy, đúng khuôn danh sách
+   trợ lý / quy trình của trang Cộng sự (chủ dự án chốt 16/09).
+   Không thể để .act trong suốt rồi tô riêng dấu ghim: con không bao giờ rõ hơn cha trong
+   opacity, nên mở .act ra và giấu HAI nút còn lại cho tới lúc rê chuột. */
+.cside-item.ghim { border-left: 3px solid var(--accent); }
+.cside-item.ghim .act { opacity: 1; }
+.cside-item.ghim .act > :not(.pin) { opacity: 0; transition: opacity .15s; }
+.cside-item.ghim:hover .act > :not(.pin) { opacity: 1; }
 .ci-title { color: var(--text); font-size: 14px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ci-meta { display: flex; gap: 8px; align-items: center; font-size: 12px;

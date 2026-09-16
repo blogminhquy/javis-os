@@ -114,6 +114,19 @@ check("CSS cho icon trong nút thôi nhận chuột",
 // ---- 7. Nút phải THẤY được: hover mới hiện là chủ ý, nhưng phải có rule đó ----
 check("hover vào hàng thì nút hiện ra", /\.cside-item:hover \.act \{[^}]*opacity:\s*1/.test(CSS));
 
+// ---- 8. HÀNG ĐÃ GHIM nhìn ra được, không chờ rê chuột (0.59.21) ----
+// Chủ dự án chốt 16/09: mang đúng bộ mặt của danh sách trợ lý / quy trình sang cột hội thoại.
+// Nhóm "Đã ghim" trên đầu chỉ nói được thứ tự - cuộn xuống giữa danh sách là mất dấu.
+check("hàng ghim mang lớp riêng", /\(s\.pinned \? " ghim" : ""\)/.test(SRC));
+check("hàng ghim có vạch màu bên trái",
+      /\.cside-item\.ghim \{[^}]*border-left:\s*3px solid var\(--accent\)/.test(CSS));
+check("dấu ghim của hàng ghim LUÔN hiện", /\.cside-item\.ghim \.act \{[^}]*opacity:\s*1/.test(CSS));
+// Con không bao giờ rõ hơn cha trong opacity, nên mở .act ra rồi giấu hai nút còn lại - chứ
+// không phải bày cả ba nút trên mọi hàng đã ghim.
+check("CANARY: hai nút kia vẫn chờ rê chuột mới hiện",
+      /\.cside-item\.ghim \.act > :not\(\.pin\) \{[^}]*opacity:\s*0/.test(CSS)
+      && /\.cside-item\.ghim:hover \.act > :not\(\.pin\) \{[^}]*opacity:\s*1/.test(CSS));
+
 if (fails.length) {
   console.log("\nFAIL - test_chat_side_actions: " + fails.length + " lỗi: " + fails.join(", "));
   process.exit(1);
