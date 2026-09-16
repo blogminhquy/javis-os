@@ -5417,6 +5417,7 @@ def agents_index(brain: str) -> list:
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
                     "model": meta.get("model", ""), "group": _nhom_cua(meta),
                     "model_provider": meta.get("model_provider", ""), "prompt": body,
+                    "pinned": bool(meta.get("pinned")),
                     "avatar": agent_avatar.for_agent(meta, f.stem)})
     # last_chat_at: mốc chat gần nhất với agent này. `moc_cap_nhat_theo_kenh` là hàm của
     # Task 3 (SessionStore), CHƯA tồn tại nếu Task 2 chạy trước - try/except rơi về {} để
@@ -5452,11 +5453,15 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
         avatar = agent_avatar.for_save(previous, slug, avatar_shape, avatar_palette)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
-    meta = {"type": "agent", "name": name, "slug": slug, "role": role,
-            "group": (group or "").strip() or NHOM_MAC_DINH,
-            "skills": skills_list, "model": model, "avatar": avatar,
-            "model_provider": mp if mp in AGENT_PROVIDERS else "",
-            "updated": _today()}  # "" = mặc định theo CLI
+    # GIỮ mọi khoá frontmatter KHÔNG nằm trong form. Trước đây meta được dựng lại từ đầu, nên
+    # mỗi lần bấm Lưu trong trình sửa là xoá sạch những khoá do chỗ khác ghi - `pinned` (ghim ở
+    # trang Cộng sự) mất ngay lần sửa kế tiếp, và mọi khoá tương lai cũng vậy.
+    meta = dict(previous or {})
+    meta.update({"type": "agent", "name": name, "slug": slug, "role": role,
+                 "group": (group or "").strip() or NHOM_MAC_DINH,
+                 "skills": skills_list, "model": model, "avatar": avatar,
+                 "model_provider": mp if mp in AGENT_PROVIDERS else "",
+                 "updated": _today()})  # "" = mặc định theo CLI
     _write_md(_agents_dir(brain) / f"{slug}.md", meta, (prompt.strip() or role))
     return {"ok": True, "slug": slug}
 
@@ -6573,6 +6578,7 @@ def workflows_index(brain: str) -> list:
                     "status": meta.get("status", "off"),
                     "description": meta.get("description", ""),
                     "group": _nhom_cua(meta),
+                    "pinned": bool(meta.get("pinned")),
                     "steps": meta.get("steps", []) or []})
     # Mốc chạy gần nhất để trang Cộng sự/Studio biết workflow nào còn "sống": đọc một lần
     # cho CẢ danh sách (moc_moi_nhat_theo_slug group theo brain) thay vì N lần lay() riêng lẻ.
@@ -6640,10 +6646,13 @@ async def save_workflow(name: str = Form(...), description: str = Form(""), step
         steps_list = json.loads(steps)
     except Exception:
         steps_list = []
-    meta = {"type": "workflow", "name": name, "slug": slug, "status": status,
-            "group": (group or "").strip() or NHOM_MAC_DINH,
-            "description": description, "steps": steps_list, "updated": _today()}
-    _write_md(_workflows_dir(brain) / f"{slug}.md", meta, description)
+    # Giữ khoá frontmatter lạ, cùng lý do với save_agent ở trên (vd `pinned`).
+    _wf_path = _workflows_dir(brain) / f"{slug}.md"
+    meta = dict(_read_md(_wf_path)[0] or {}) if _wf_path.is_file() else {}
+    meta.update({"type": "workflow", "name": name, "slug": slug, "status": status,
+                 "group": (group or "").strip() or NHOM_MAC_DINH,
+                 "description": description, "steps": steps_list, "updated": _today()})
+    _write_md(_wf_path, meta, description)
     return {"ok": True, "slug": slug}
 
 @app.post("/workflows/toggle")
@@ -6655,6 +6664,53 @@ async def toggle_workflow(slug: str = Form(...), brain: str = Form("brain")):
     meta["status"] = "off" if meta.get("status") == "active" else "active"
     _write_md(f, meta, body)
     return {"ok": True, "status": meta["status"]}
+
+# ---- Sửa MỘT PHẦN frontmatter của agent/workflow (ghim, đổi nhóm) ----
+# Vì sao có đường riêng thay vì dùng POST /agents và POST /workflows: hai endpoint đó nhận
+# TOÀN BỘ nội dung (prompt, skills, steps...) và ghi lại cả file. Muốn ghim một agent mà phải
+# gửi lại nguyên prompt của nó là mời gọi mất dữ liệu - client cũ, form thiếu một field, hay
+# một lỗi mạng giữa đường là agent bị ghi lại thiếu. Đường này ĐỌC file, sửa đúng khoá được
+# nêu, rồi ghi lại; khoá nào không gửi thì không đụng tới.
+_META_KIND = {"agent": _agents_dir, "workflow": _workflows_dir}
+
+
+@app.post("/capability/meta")
+async def capability_meta(kind: str = Form(...), slug: str = Form(...),
+                          brain: str = Form("brain"),
+                          pinned: str = Form(None), group: str = Form(None)):
+    """Ghim / bỏ ghim và chuyển nhóm cho một agent hoặc workflow.
+
+    `pinned`: "1"/"true" = ghim, "0"/"false" = bỏ ghim, không gửi = không đụng.
+    `group`: tên nhóm mới, rỗng = về nhóm mặc định. Không gửi = không đụng.
+    """
+    thu_muc = _META_KIND.get((kind or "").strip())
+    if not thu_muc:
+        return JSONResponse({"ok": False, "error": "kind phải là agent hoặc workflow"},
+                            status_code=400)
+    f = thu_muc(brain) / f"{slug}.md"
+    if not f.is_file():
+        return JSONResponse({"ok": False, "error": f"không thấy {kind} '{slug}'"},
+                            status_code=404)
+    # Gọi THẲNG hàm này từ Python (test, Telegram) thì tham số không truyền vẫn là object
+    # `Form(...)` chứ không phải None - truthy, nên nhánh "không gửi thì không đụng" bên dưới
+    # sẽ hiểu sai. Quy về None ngay: chỉ CHUỖI mới là giá trị người dùng gửi.
+    pinned = pinned if isinstance(pinned, str) else None
+    group = group if isinstance(group, str) else None
+    meta, body = _read_md(f)
+    meta = dict(meta or {})
+    if pinned is not None:
+        bat = str(pinned).strip().lower() in ("1", "true", "yes", "on")
+        if bat:
+            meta["pinned"] = True
+        else:
+            meta.pop("pinned", None)      # bỏ ghim thì XOÁ khoá, không để lại `pinned: false`
+    if group is not None:
+        meta["group"] = (group or "").strip() or NHOM_MAC_DINH
+    meta["updated"] = _today()
+    _write_md(f, meta, body)
+    return {"ok": True, "slug": slug, "pinned": bool(meta.get("pinned")),
+            "group": _nhom_cua(meta)}
+
 
 @app.post("/workflows/delete")
 async def delete_workflow(slug: str = Form(...), brain: str = Form("brain")):

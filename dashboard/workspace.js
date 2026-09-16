@@ -40,8 +40,13 @@
   // ---------- phần thuần ----------
   // Xếp theo MỐC GẦN NHẤT chứ không theo tên: cộng sự vừa dùng xong là cộng sự sắp dùng lại.
   // Mục chưa có mốc rơi xuống dưới và xếp theo tên cho ổn định (không nhảy lung tung mỗi lần vẽ).
+  // Mục GHIM luôn đứng trước, trong nhóm ghim vẫn xếp theo mốc gần nhất như cũ. Ghim là lời
+  // người dùng nói "cái này tôi dùng suốt", nên nó phải thắng mốc thời gian - không thì một
+  // cộng sự ghim mà hai tuần không gọi sẽ tụt xuống cuối và cái ghim thành vô nghĩa.
   function sapXep(ds, khoa) {
     return ds.slice().sort(function (a, b) {
+      var ga = a.pinned ? 1 : 0, gb = b.pinned ? 1 : 0;
+      if (ga !== gb) return gb - ga;
       var ma = Number(a[khoa] || 0), mb = Number(b[khoa] || 0);
       if (ma !== mb) return mb - ma;
       return String(a.name || "").localeCompare(String(b.name || ""), "vi");
@@ -121,11 +126,16 @@
   }
 
   // ---------- trạng thái trang ----------
-  // tabPhai = tab đang mở ở cột phải: "cai" (cài đặt trợ lý / tiến độ quy trình), "lichsu"
-  // (lần chạy + hội thoại cũ của cộng sự này) hay "files" (cây thư mục MƯỢN của màn chính).
-  var TAB_PHAI = ["cai", "lichsu", "files"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
+  // tabPhai = tab đang mở ở cột phải: "lichsu" (lần chạy + hội thoại cũ của cộng sự này),
+  // "files" (cây thư mục MƯỢN của màn chính) hay "cai" (cài đặt trợ lý / tiến độ quy trình).
+  //
+  // THỨ TỰ (chủ dự án chốt 16/09): Lịch sử trước, rồi Thư mục, Cài đặt sau cùng. Việc hằng
+  // ngày là mở lại một hội thoại cũ và mở một file, còn cài đặt trợ lý thì sửa một lần rồi
+  // thôi - để nó ở tab đầu là bắt người dùng bấm thêm một cú mỗi lần vào trang.
+  var TAB_PHAI = ["lichsu", "files", "cai"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
   var S = { loai: "agent", q: "", nhom: "", agents: [], workflows: [], chon: { agent: null, workflow: null },
-            el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "cai" };   // tienDo[session_id] = tiến độ lần chạy đang xem
+            el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "lichsu",
+            menu: null };   // tienDo[session_id] = tiến độ lần chạy đang xem
 
   function danhSach() { return S.loai === "agent" ? S.agents : S.workflows; }
   function kenh(item) { return (S.loai === "agent" ? "agent:" : "workflow:") + item.slug; }
@@ -201,9 +211,9 @@
           // Hai tab của cột phải: Cài đặt | Thư mục. Dùng lại đúng lớp .cside-tabs/.cside-pane
           // của cột trái trang Trò chuyện - cùng một kiểu tab, không đẻ bộ lớp thứ hai.
           '<div class="cside-tabs ws-rtabs">' +
-            '<button type="button" class="cside-tab" data-rtab="cai">' + ic("settings") + ' ' + esc(t("ws.tab_settings")) + '</button>' +
             '<button type="button" class="cside-tab" data-rtab="lichsu">' + ic("history") + ' ' + esc(t("ws.tab_history")) + '</button>' +
             '<button type="button" class="cside-tab" data-rtab="files">' + ic("folder-tree") + ' ' + esc(t("sess.tab_files")) + '</button>' +
+            '<button type="button" class="cside-tab" data-rtab="cai">' + ic("settings") + ' ' + esc(t("ws.tab_settings")) + '</button>' +
           '</div>' +
           '<div class="cside-pane ws-rpane" data-rpane="cai" id="wsRightSet"></div>' +
           '<div class="cside-pane ws-rpane" data-rpane="lichsu" id="wsRightHistory"></div>' +
@@ -237,8 +247,9 @@
     // Nhớ chỗ đang đứng: mở lại trang mà rơi về mục đầu danh sách thì mỗi lần ghé qua trang
     // khác rồi quay lại là mất chỗ, trong khi cộng sự đang dùng thường chỉ là một hai mục.
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
-    try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "cai"; } catch (e) { S.tabPhai = "cai"; }
+    try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "lichsu"; } catch (e) { S.tabPhai = "lichsu"; }
     chonTabPhai(S.tabPhai);
+    theoKhungSua();
     taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
   }
   async function selectCommand(cmd) {
@@ -354,10 +365,19 @@
       var chay = S.loai === "workflow" && dangChay(x.slug);
       var phu = S.loai === "agent" ? (x.group || "Chung") + " · " + (x.role || "") : (x.group || "Chung") + " · " + cacBuoc(x).length + " " + t("studio.steps");
       if (chay) phu += " · " + t("ws.running");
-      return '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
+      // Nút "..." KHÔNG được lồng trong nút chọn mục: button trong button là HTML sai và
+      // trình duyệt tự tách thẻ ra, làm cú bấm rơi vào chỗ không ai ngờ. Nên bọc cả hai trong
+      // một khối và để chúng là hai nút ngang hàng.
+      return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + '">' +
+        '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '">' +
         '<span class="ws-item-ic">' + (S.loai === "agent" ? avatar(x, 42)
           : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
-        '<span class="ws-item-text"><strong>' + esc(x.name) + '</strong><small>' + esc(phu) + '</small></span></button>';
+        '<span class="ws-item-text"><strong>' + esc(x.name) +
+          (x.pinned ? '<span class="ws-item-pin" title="' + esc(t("ws.pinned")) + '">' + ic("pin") + '</span>' : "") +
+        '</strong><small>' + esc(phu) + '</small></span></button>' +
+        '<button type="button" class="ws-item-more" data-more="' + esc(x.slug) + '" title="' +
+          esc(t("ws.manage")) + '" aria-label="' + esc(t("ws.manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
+        '</div>';
     }).join("");
     host.querySelectorAll("[data-slug]").forEach(function (b) {
       b.onclick = function () {
@@ -367,6 +387,219 @@
         if (heptLai()) S.el.querySelector("#wsPage").classList.remove("left-open");
       };
     });
+    host.querySelectorAll("[data-more]").forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();          // đừng để cú bấm chạy tiếp thành "chọn mục"
+        var x = danhSach().find(function (m) { return m.slug === b.dataset.more; });
+        if (x) moMenuMuc(x, b);
+      };
+    });
+  }
+
+  // ---------- mở FILE trong khung chat: canh lại khoang giữa ----------
+  // Chuyện thật 16/09: bấm một file .md trong chat cộng sự thì trình sửa mở ra, và khung chat
+  // bị bóp xuống đúng sàn 220px - chữ còn ba từ một dòng. Bề rộng khả dụng không phải bề rộng
+  // cửa sổ: màn 1600px trừ thanh bên, trừ cột danh sách và trừ cột phải thì khoang giữa chỉ
+  // còn khoảng 760px, chia hai là cả hai bên đều chật.
+  //
+  // Nên đo BỀ RỘNG THẬT của khoang giữa rồi xử theo hai bậc, thay vì đoán qua media query
+  // (media query không biết người dùng đang mở hay đã thu hai cột bên):
+  //   1. Còn hẹp thì THU CỘT PHẢI lại - chỗ đó là cài đặt/lịch sử, lúc đang đọc file thì
+  //      không cần, và mở lại chỉ một cú bấm.
+  //   2. Thu rồi vẫn hẹp thì XẾP DỌC (.edit-doc): trình sửa trên, hội thoại dưới. Cả hai đọc
+  //      được, thay vì hai cột cùng không đọc được.
+  // Đóng file thì trả cột phải về ĐÚNG trạng thái trước đó (chỉ mở lại nếu chính ta đã thu).
+  var SAN_HAI_COT = 720;      // px: trình sửa ~400 + khe 14 + khung chat 300
+  var COT_PHAI_THU_DUOC = 1061;   // dưới ngưỡng này cột phải đã là ngăn kéo nổi, thu không thêm chỗ
+  var _taThuCotPhai = false;
+  var _theoKhungSua = null;
+
+  // Phần QUYẾT ĐỊNH tách thuần để test bằng node: đây là chỗ dễ sai nhất (ba ngưỡng, hai
+  // trạng thái) mà lại không đo được nếu chôn trong một hàm đọc DOM.
+  //   giua = bề rộng thật của khoang giữa, rong = bề rộng cửa sổ,
+  //   dangThu = cột phải ĐANG bị thu, hep = khổ màn có ngăn kéo (đã ẩn hẳn khung chat).
+  // Trả { thuCotPhai: bool|null, xepDoc: bool|null } - null nghĩa là KHÔNG đụng tới.
+  function quyetDinhKhungSua(moFile, giua, rong, dangThu, hep) {
+    if (!moFile) return { thuCotPhai: false, xepDoc: false };   // đóng file: trả mọi thứ về
+    if (hep) return { thuCotPhai: null, xepDoc: null };          // màn hẹp: CSS lo hết
+    var chat = giua >= SAN_HAI_COT;
+    var thu = (!chat && !dangThu && rong >= COT_PHAI_THU_DUOC) ? true : null;
+    return { thuCotPhai: thu, xepDoc: !chat };
+  }
+
+  function canhKhungSua() {
+    var page = S.el && S.el.querySelector("#wsPage");
+    var main = S.el && S.el.querySelector(".ws-main");
+    if (!page || !main) return;
+    var qd = quyetDinhKhungSua(main.classList.contains("edit-on"), main.clientWidth,
+                               window.innerWidth || 0,
+                               page.classList.contains("right-open"), heptLai());
+    if (qd.thuCotPhai === true) { page.classList.add("right-open"); _taThuCotPhai = true; }
+    else if (qd.thuCotPhai === false && _taThuCotPhai) {
+      page.classList.remove("right-open"); _taThuCotPhai = false;
+    }
+    // Thu cột phải rồi thì khoang giữa đã rộng ra: ĐO LẠI trước khi quyết định xếp dọc, kẻo
+    // vừa thu xong vẫn xếp dọc theo số đo cũ.
+    if (qd.xepDoc !== null) {
+      var lai = quyetDinhKhungSua(true, main.clientWidth, window.innerWidth || 0, true, false);
+      main.classList.toggle("edit-doc", lai.xepDoc);
+    } else {
+      main.classList.remove("edit-doc");
+    }
+  }
+  // Rời trang thì gỡ hết: observer trỏ vào node của trang cũ, còn listener resize thì gọi vào
+  // một hàm đọc DOM đã biến mất.
+  function donTheoKhungSua() {
+    if (_theoKhungSua) { _theoKhungSua.disconnect(); _theoKhungSua = null; }
+    window.removeEventListener("resize", canhKhungSua);
+    _taThuCotPhai = false;
+  }
+  // Lớp `edit-on` do console.js gắn (_borrowNoteEditor) ở MỌI đường mở file - bấm file trong
+  // cây, bấm [[wikilink]], bấm chip file đang ghim. Theo dõi chính cái lớp đó thay vì gắn vào
+  // từng đường, vì gắn từng đường là chắc chắn sót một đường.
+  function theoKhungSua() {
+    var main = S.el && S.el.querySelector(".ws-main");
+    if (!main || !window.MutationObserver) return;
+    if (_theoKhungSua) _theoKhungSua.disconnect();
+    _theoKhungSua = new MutationObserver(canhKhungSua);
+    _theoKhungSua.observe(main, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("resize", canhKhungSua);
+    canhKhungSua();
+  }
+
+  // ---------- menu quản lý của một mục (ghim / chuyển nhóm / sửa / xoá) ----------
+  // Dùng CHUNG cho trợ lý và quy trình: hai loại cùng một bộ động tác, viết hai bản là hai
+  // bản trôi lệch nhau ngay lần thêm động tác thứ năm.
+  //
+  // Vị trí FIXED chứ không absolute trong cột trái: cột đó có `overflow` riêng để cuộn danh
+  // sách, nên một menu absolute nằm trong đó bị cắt mất ngay ở mục gần đáy.
+  function dongMenu() {
+    if (!S.menu) return;
+    try { S.menu.remove(); } catch (e) {}
+    S.menu = null;
+    document.removeEventListener("click", dongMenuNgoai, true);
+    document.removeEventListener("keydown", dongMenuEsc, true);
+    window.removeEventListener("resize", dongMenu);
+    window.removeEventListener("scroll", dongMenu, true);
+  }
+  function dongMenuNgoai(e) { if (S.menu && !S.menu.contains(e.target)) dongMenu(); }
+  function dongMenuEsc(e) { if (e.key === "Escape") { e.stopPropagation(); dongMenu(); } }
+
+  function moMenuMuc(item, neo) {
+    dongMenu();
+    var m = document.createElement("div");
+    m.className = "ws-menu";
+    m.setAttribute("role", "menu");
+    S.menu = m;
+    document.body.appendChild(m);
+    veMenuGoc(item, m);
+    datChoMenu(m, neo);
+    // Gắn listener SAU một nhịp: cú bấm mở menu vẫn đang nổi bọt lên document, gắn ngay là
+    // menu tự đóng đúng lúc vừa mở.
+    setTimeout(function () {
+      if (!S.menu) return;
+      document.addEventListener("click", dongMenuNgoai, true);
+      document.addEventListener("keydown", dongMenuEsc, true);
+      window.addEventListener("resize", dongMenu);
+      window.addEventListener("scroll", dongMenu, true);
+    }, 0);
+  }
+  function datChoMenu(m, neo) {
+    var r = neo.getBoundingClientRect();
+    var w = m.offsetWidth || 220, h = m.offsetHeight || 180;
+    var x = Math.min(r.right - w, window.innerWidth - w - 8);
+    var y = r.bottom + 4;
+    if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 4);   // hết chỗ dưới thì mở lên
+    m.style.left = Math.max(8, x) + "px";
+    m.style.top = y + "px";
+  }
+  function nutMenu(icon, chu, cls) {
+    return '<button type="button" role="menuitem" class="ws-menu-it' + (cls ? " " + cls : "") +
+      '" data-act="' + cls + '">' + ic(icon) + '<span>' + esc(chu) + '</span></button>';
+  }
+  function veMenuGoc(item, m) {
+    var ghim = !!item.pinned;
+    m.innerHTML =
+      '<div class="ws-menu-head">' + esc(item.name) + '</div>' +
+      nutMenu("pin", ghim ? t("ws.unpin") : t("ws.pin"), "ghim") +
+      nutMenu("folder", t("ws.move_group"), "nhom") +
+      nutMenu("pencil", t("ws.edit"), "sua") +
+      nutMenu("trash-2", t("common.delete"), "xoa");
+    m.querySelector('[data-act="ghim"]').onclick = function () {
+      dongMenu(); datMeta(item, { pinned: ghim ? "0" : "1" });
+    };
+    m.querySelector('[data-act="nhom"]').onclick = function () { veMenuNhom(item, m); };
+    m.querySelector('[data-act="sua"]').onclick = function () { dongMenu(); suaMuc(item); };
+    m.querySelector('[data-act="xoa"]').onclick = function () { dongMenu(); xoaMuc(item); };
+  }
+  // Chọn nhóm NGAY TRONG menu (hai tầng tại chỗ) thay vì menu con nổi ra cạnh: menu con phải
+  // tự tính chỗ lần nữa và rất dễ tràn khỏi màn hình hẹp.
+  function veMenuNhom(item, m) {
+    var nhom = [];
+    danhSach().forEach(function (x) {
+      var g = (x.group || "Chung").trim();
+      if (g && nhom.indexOf(g) < 0) nhom.push(g);
+    });
+    nhom.sort(function (a, b) { return a.localeCompare(b, "vi"); });
+    var hien = (item.group || "Chung").trim();
+    m.innerHTML =
+      '<button type="button" class="ws-menu-it quay" data-act="quay">' + ic("chevron-left") +
+        '<span>' + esc(t("ws.move_group")) + '</span></button>' +
+      nhom.map(function (g) {
+        return '<button type="button" role="menuitem" class="ws-menu-it' + (g === hien ? " on" : "") +
+          '" data-nhom="' + esc(g) + '">' + ic(g === hien ? "folder-open" : "folder") +
+          '<span>' + esc(g) + '</span></button>';
+      }).join("") +
+      '<button type="button" role="menuitem" class="ws-menu-it" data-act="moi">' + ic("folder-plus") +
+        '<span>' + esc(t("ws.group_new")) + '</span></button>';
+    m.querySelector('[data-act="quay"]').onclick = function () { veMenuGoc(item, m); };
+    m.querySelector('[data-act="moi"]').onclick = function () {
+      var ten = window.prompt(t("ws.group_ask"), hien);
+      dongMenu();
+      if (ten && ten.trim() && ten.trim() !== hien) datMeta(item, { group: ten.trim() });
+    };
+    m.querySelectorAll("[data-nhom]").forEach(function (b) {
+      b.onclick = function () {
+        dongMenu();
+        if (b.dataset.nhom !== hien) datMeta(item, { group: b.dataset.nhom });
+      };
+    });
+  }
+
+  // Sửa MỘT PHẦN frontmatter (ghim / nhóm) rồi tải lại danh sách. Đi đường /capability/meta
+  // chứ không POST /agents: endpoint đó nhận cả prompt/steps, gửi thiếu một field là ghi lại
+  // file thiếu nội dung.
+  async function datMeta(item, fields) {
+    var body = { kind: S.loai, slug: item.slug, brain: brain() };
+    Object.keys(fields).forEach(function (k) { body[k] = fields[k]; });
+    var r = await api("/capability/meta", { method: "POST", body: fd(body) });
+    if (!r || !r.ok) { veLoi((r && r.error) || t("ws.err_meta")); return; }
+    await taiDanhSach();
+    if (!active) return;
+    // Vẽ lại DANH SÁCH và thanh tiêu đề, KHÔNG vẽ lại cột phải - cùng lối với sauLuu(). Cột
+    // phải đang là trình sửa agent: dựng lại nó là xoá luôn những gì người dùng vừa gõ mà
+    // chưa bấm Lưu, chỉ để cập nhật một ô chọn nhóm.
+    veTrai(); veGiua(dangChon());
+  }
+  // Sửa = mở TRÌNH SỬA CỦA STUDIO dạng hộp thoại. Gọi không truyền `host` nên studio.js tự
+  // bung modal của nó (xem editAgent: chỉ khi CÓ host nó mới vẽ tại chỗ) - đúng thứ một động
+  // tác "Sửa" cần, và cùng đường với nút Sửa quy trình ở cột phải.
+  function suaMuc(item) {
+    if (!window.JavisStudio) return;
+    var xong = { onSaved: async function () { await sauLuu(item, S.loai); } };
+    if (S.loai === "agent") window.JavisStudio.editAgent(item, xong);
+    else window.JavisStudio.editWorkflow(item, xong);
+  }
+  async function xoaMuc(item) {
+    var hoi = S.loai === "agent" ? t("studio.del_ag", { ten: item.name })
+                                 : t("studio.del_wf", { ten: item.name });
+    if (!confirm(hoi)) return;
+    await api(S.loai === "agent" ? "/agents/delete" : "/workflows/delete",
+              { method: "POST", body: fd({ slug: item.slug, brain: brain() }) });
+    if (S.chon[S.loai] === item.slug) S.chon[S.loai] = null;
+    await taiDanhSach();
+    if (!active) return;
+    veTrai(); chonMacDinh();
   }
   function chonMacDinh() {
     var ds = danhSach();
@@ -741,7 +974,7 @@
   // Hàm trả kiểm _vaultSlot trước nên gọi hai lần vẫn vô hại.
   function roi() {
     active = false; opening++; chatReady(true);
-    traCayThuMuc();
+    dongMenu(); donTheoKhungSua(); traCayThuMuc();
     // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
     // là lần sau quay vào danh sách đã bị lọc mà ô tìm thì rỗng và đang thu: người dùng thấy
     // cộng sự của mình biến mất, không có gì trên màn hình nói vì sao.
@@ -750,5 +983,6 @@
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
-  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram, dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
+  window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
+    quyetDinhKhungSua: quyetDinhKhungSua, dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
 })();
