@@ -5902,6 +5902,11 @@
           <label class="qs-lbl" for="v2Stt">${esc(t("settings.v2_stt"))}</label>
           <select class="js-input" id="v2Stt">${sttOpts}</select>
         </div>
+        <div class="qs-field">
+          <label class="qs-lbl" for="v2Hotwords">${esc(t("settings.v2_hotwords"))}</label>
+          <input class="js-input" id="v2Hotwords" value="${esc(v.hotwords || "")}" placeholder="${esc(t("settings.v2_hotwords_ph"))}">
+          <div class="gcard-meta">${esc(t("settings.v2_hotwords_note", { goc: (o.hotwords_goc || ["Javis"]).join(", ") }))}</div>
+        </div>
         <div id="v2LiveBox">
           <label class="js-lbl">${esc(t("settings.v2_live"))}</label>
           <select class="js-input" id="v2Live">${liveOpts}</select>
@@ -5963,6 +5968,7 @@
         mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
         stt_provider: $("v2Stt").value, live_provider: $("v2Live").value,
         live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
+        hotwords: $("v2Hotwords").value.trim(),
       };
       if (data.mode === "fast" && !data.brain_provider) { st.textContent = t("settings.v2_need_brain"); return; }
       const r = await saveSetting("voice", data);

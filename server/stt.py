@@ -175,11 +175,15 @@ def loi_thanh_dong(ly_do, chi_tiet=""):
             ". Nhờ họ gõ chữ, và báo là chỗ nghe giọng đang trục trặc.]")
 
 
-async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None):
+async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None, hotwords=""):
     """Chuyển bytes âm thanh thành chữ. Trả dict:
 
         {"ok": True,  "text": "...", "model": "..."}
         {"ok": False, "ly_do": "thieu_key|rong|qua_lon|khong_nghe_ro|loi", "noi_voi_javis": "..."}
+
+    `hotwords` là tham số `prompt` của Whisper: một danh sách tên riêng (hotwords) để nó ưu tiên
+    chép đúng chính tả "Javis", tên công cụ, tên dự án thay vì từ gần âm ("David"). Chỗ gọi
+    lấy từ `nghe_sua.goi_y_whisper(nghe_sua.tu_vung(cfg))`; rỗng thì không gửi.
 
     `ngon_ngu` gợi ý cho Whisper. Ba giá trị có ý nghĩa KHÁC NHAU, đừng gộp:
       None  -> chưa ai chốt, lấy `STT_MAC_DINH` ("vi"). Giữ hành vi cũ cho mọi chỗ gọi chưa
@@ -202,6 +206,8 @@ async def groq_nghe(data, ten_file, api_key, model="", ngon_ngu=None):
     goi_y = STT_MAC_DINH if ngon_ngu is None else ngon_ngu
     if goi_y:
         form["language"] = goi_y
+    if hw := str(hotwords or "").strip():
+        form["prompt"] = hw[:600]     # Whisper chỉ giữ ~224 token cuối; dài hơn là vô ích
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(STT_TIMEOUT)) as c:
             r = await c.post(GROQ_STT_URL,
