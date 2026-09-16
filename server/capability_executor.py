@@ -9,12 +9,18 @@ import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from jsonschema import Draft202012Validator
-from jsonschema.exceptions import SchemaError
-
 import context_runtime
 from capability_registry import CapabilityRegistry
 from evidence_store import Evidence, EvidenceStore
+
+# jsonschema nạp LƯỜI (0.59.18): nó tốn ~50ms và nằm trên đường khởi động của main.py dù
+# chỉ hai hàm dưới đây dùng, mà cả hai chỉ chạy khi thật sự cấp/kiểm một capability lease.
+# Trên VPS, khởi động chậm ăn thẳng vào cửa sổ healthcheck lúc deploy.
+#
+# Lệnh import PHẢI nằm NGOÀI khối try của từng hàm. Cả hai chỗ đều bắt SchemaError rồi trả
+# "không hợp lệ", nên để import trong try là một bản cài thiếu jsonschema biến thành "schema
+# sai" - hàng rào coi như đã kiểm mà thực ra chưa kiểm gì. Ngoài try thì ImportError nổ
+# thẳng, đúng như hồi import ở đầu file.
 
 
 EXECUTOR_POLICY_VERSION = "readonly-executor-v1"
@@ -144,6 +150,9 @@ class CapabilityExecutor:
         Mặc định vẫn là read-only, nên không đường cũ nào vô tình cấp được lease write.
         Effect `dangerous` KHÔNG BAO GIỜ được cấp lease ở phase này.
         """
+        from jsonschema import Draft202012Validator     # nạp lười, xem đầu file
+        from jsonschema.exceptions import SchemaError
+
         effect = str(capability.get("side_effect") or "read")
         required_mode = str(capability.get("required_mode") or "readonly")
         if allow_write:
@@ -211,6 +220,9 @@ class CapabilityExecutor:
         )
 
     def _validate(self, lease: CapabilityLease, args: Any) -> tuple[bool, str]:
+        from jsonschema import Draft202012Validator     # nạp lười, xem đầu file
+        from jsonschema.exceptions import SchemaError
+
         if not isinstance(args, dict):
             return False, "arguments_not_object"
         try:
