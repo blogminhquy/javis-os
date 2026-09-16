@@ -25,6 +25,9 @@
   // nào" với "gọi /agents hỏng nên không biết có gì": cả hai đều để lại mảng rỗng, nhưng cái
   // sau mà bày màn khởi đầu "Chưa có cộng sự nào" là nói dối người dùng về một lỗi mạng.
   var opening = 0, ready = false, active = false, pendingCommand = null, daTai = false;
+  // Phiên chat của BỘ NÃO CHÍNH đang mở trước khi vào trang này, để lúc rời trang trả khung
+  // chat về đúng cuộc đang dở (xem traKhungChat).
+  var _phienTruoc = null;
   function chatReady(value) {
     ready = value;
     var input = document.getElementById("chatInput");
@@ -249,6 +252,7 @@
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
     try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "lichsu"; } catch (e) { S.tabPhai = "lichsu"; }
     chonTabPhai(S.tabPhai);
+    nhoPhienTruoc();
     theoKhungSua();
     taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
   }
@@ -610,6 +614,35 @@
     if (!ds.length) { chatReady(false); veGiua(null, t("ws.none_yet")); vePhai(null); return; }
     if (!ds.some(function (x) { return x.slug === S.chon[S.loai]; })) S.chon[S.loai] = ds[0].slug;
     veDanhSach(); return moPhien(dangChon(), false);
+  }
+
+  // ---------- trả khung chat về bộ não chính khi rời trang ----------
+  // Khung chat là node MƯỢN của app: trang Cộng sự, trang Trò chuyện và màn Javis dùng CHUNG
+  // một khung. Rời trang mà không làm gì thì đoạn chat với trợ lý còn nằm nguyên ở hai chỗ kia
+  // - và tệ hơn hiển thị: `savedSessionId` vẫn là phiên agent:<slug>, nên tin gõ tiếp ở trang
+  // Trò chuyện BAY VÀO ĐÚNG PHIÊN CỦA TRỢ LÝ. Đó là hai chức năng chat khác nhau, chủ dự án
+  // báo 16/09 là người dùng không hiểu được chuyện gì đang xảy ra.
+  //
+  // Thứ tự cố ý: XOÁ TRẮNG trước, mở lại cuộc cũ sau. openStoredSession chỉ dọn khung SAU KHI
+  // gọi mạng xong, nên nếu phiên cũ đã bị xoá thì nó lặng lẽ không làm gì và đoạn chat trợ lý
+  // sẽ còn nằm lại - xoá trắng trước thì trường hợp xấu nhất cũng chỉ là một khung trống.
+  function laPhienCongSu(id) { return !!(id && S.sessionCuaPhien[id]); }
+  function traKhungChat() {
+    if (!window.JavisSessions) return;
+    var cur = window.JavisSessions.current();
+    if (!laPhienCongSu(cur)) return;      // đang không mở phiên cộng sự thì không đụng gì
+    window.JavisSessions.new();
+    if (_phienTruoc && _phienTruoc !== cur && !laPhienCongSu(_phienTruoc)) {
+      try { window.JavisSessions.open(_phienTruoc); } catch (e) {}
+    }
+  }
+  // Nhớ cuộc đang dở của bộ não chính NGAY LÚC DỰNG TRANG: lúc này khung chat còn là của
+  // trang trước, chưa bị moPhien() đổi sang phiên trợ lý.
+  function nhoPhienTruoc() {
+    try {
+      var cur = window.JavisSessions && window.JavisSessions.current();
+      if (cur && !laPhienCongSu(cur)) _phienTruoc = cur;
+    } catch (e) {}
   }
 
   // ---------- phiên ----------
@@ -974,7 +1007,7 @@
   // Hàm trả kiểm _vaultSlot trước nên gọi hai lần vẫn vô hại.
   function roi() {
     active = false; opening++; chatReady(true);
-    dongMenu(); donTheoKhungSua(); traCayThuMuc();
+    dongMenu(); donTheoKhungSua(); traCayThuMuc(); traKhungChat();
     // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
     // là lần sau quay vào danh sách đã bị lọc mà ô tìm thì rỗng và đang thu: người dùng thấy
     // cộng sự của mình biến mất, không có gì trên màn hình nói vì sao.

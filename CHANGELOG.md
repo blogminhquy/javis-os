@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.15] - 2026-09-16
+### Sửa lỗi
+- **Gõ lệnh `/` không còn sửa câu của bạn.** Trước đây Javis nhồi câu bạn viết vào giữa một câu của máy ("Hãy dùng skill X với yêu cầu: …") rồi **lưu nguyên thế làm tin của bạn**, nên mở lại hội thoại là đọc được một câu mình chưa từng gõ, kèm một câu cuối tự xuất hiện. Giờ lời dặn cho skill đi riêng, bong bóng và lịch sử hiện đúng chữ bạn gõ.
+- **Nhắc tên skill giữa câu không làm mất chữ nữa.** "Skill `/viet-bai-x` sẽ là skill chính" từng bị cắt thành "Skill sẽ là skill chính". Giờ chỉ bỏ dấu `/`, câu giữ nguyên nghĩa; và Javis hiểu đó là bạn đang **nói về** skill chứ không hẳn ra lệnh chạy nó.
+- **Câu "nếu không có skill tên này…" chỉ còn xuất hiện khi tên skill không tồn tại.**
+- **Rời trang Cộng sự là khung chat trở về bộ não chính.** Trước đây đoạn chat với trợ lý còn nằm nguyên ở trang Trò chuyện, và tin gõ tiếp ở đó vẫn bay vào đúng phiên của trợ lý dù bạn tưởng đang nói với Javis.
+
 ## [0.59.14] - 2026-09-16
 ### Thêm mới
 - **Mỗi trợ lý và mỗi quy trình có menu quản lý riêng.** Trỏ vào một dòng trong danh sách là hiện nút ba chấm: **Ghim lên đầu**, **Chuyển vào thư mục**, **Sửa**, **Xoá**. Mục đã ghim luôn nằm trên cùng và có dấu ghim nhỏ cạnh tên.
