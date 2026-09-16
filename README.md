@@ -10,11 +10,26 @@
 
 ---
 
+## Cài nhanh bằng chính AI của bạn
+
+Đưa link repo này cho **Claude Code** hoặc **Codex** đang chạy trên máy bạn và nói "cài Javis OS giúp tôi". Nó chỉ cần chạy **một lệnh duy nhất**:
+
+| Máy | Một lệnh cài hết |
+|---|---|
+| **Windows** | `powershell -ExecutionPolicy Bypass -File install.ps1` |
+| **Linux / macOS** | `chmod +x install.sh && ./install.sh` |
+
+Lệnh đó cài trọn gói: Python + thư viện, **bốn bộ não CLI chạy bằng gói thuê bao bạn đang có** (`claude`, `codex`, `agy`, `grok`), `.env`, rồi bật server ở `http://localhost:7777`. Sau đó đăng nhập từng bộ não **ngay trong trang Models** của dashboard, không phải gõ lệnh nữa.
+
+> ⚠️ Cài thêm một CLI **sau khi** Javis đã chạy thì **khởi động lại Javis**. Tiến trình đang chạy giữ PATH của lúc nó bật, nên CLI vừa cài nó chưa thấy.
+
+---
+
 ## Javis là gì?
 
 Javis OS **không phải** một chatbot. Nó là một **AI agentic tự host** chạy trên máy/VPS của bạn: đọc/ghi file, gọi công cụ (MCP), chạy skill, giao việc chạy nền, tự đặt lịch - rồi gói tất cả vào một **dashboard đẹp, điều khiển bằng giọng nói**, kèm một **Second Brain** (bộ nhớ + wiki) tích luỹ tri thức theo thời gian.
 
-**Bộ não thì bạn chọn, và đổi lúc nào cũng được.** Mười đường dùng được ngay: **Claude Code**, **ChatGPT/Codex** và **Antigravity CLI** (dùng chính gói subscription bạn đang trả, không cần mua API riêng), **Gemini CLI · OpenRouter · OpenAI API · Google Gemini · Anthropic API · Groq · Ollama Cloud** (chỉ cần API key).
+**Bộ não thì bạn chọn, và đổi lúc nào cũng được.** Mười đường dùng được ngay: **Claude Code**, **ChatGPT/Codex**, **Grok Build** và **Antigravity CLI** (dùng chính gói subscription bạn đang trả, không cần mua API riêng), **OpenRouter · OpenAI API · Google Gemini · Anthropic API · Groq · Ollama Cloud** (chỉ cần API key).
 
 > ⚠️ **Đọc trước khi cho gói subscription chạy việc nền.** Anthropic chỉ tính gói Claude Pro/Max cho việc dùng **cá nhân, thông thường** của Claude Code. Chạy nền liên tục (loop, nhắc hẹn, việc Kanban, chatbot), chạy trên VPS, hoặc nhiều người dùng chung một tài khoản đều nằm ngoài phạm vi đó, và đã có người **bị khoá tài khoản** vì lý do này. Javis không tự đọc token đăng nhập của bạn (đường đó đã gỡ ở 0.26.17) - nó chạy qua đúng binary `claude`, nhưng như vậy vẫn không làm việc chạy nền 24/7 trở thành hợp lệ. Muốn yên tâm: ở trang **Models**, đặt Claude Code chạy bằng **API key**, hoặc trỏ **model việc nền** sang một provider khác. Xem `server/claude_auth.py`.
 
@@ -115,13 +130,25 @@ Script tự cài Python + Node + hai engine CLI (Claude Code, Codex), tạo venv
 
 ### Cách 4 - Windows (máy cá nhân)
 
+**Một lệnh, cài hết:**
+
+```powershell
+git clone https://github.com/blogminhquy/javis-os.git javis; cd javis
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
-1. Cài Python 3.12 (tick "Add to PATH") + Node.js LTS
-2. Double-click  setup.bat   (chạy hiện cửa sổ - tự cài Claude Code + Codex)
-   Lần sau muốn chạy ngầm: start-javis.vbs   (log ở server\javis.log)
-3. Mở http://localhost:7777 → trang Models, đăng nhập bộ não muốn dùng
-4. Dừng: stop-javis.bat
+
+`install.ps1` làm trọn một lượt: Python + venv + thư viện, rồi **cả bốn bộ não CLI chạy bằng gói thuê bao** (`claude`, `codex`, `agy`, `grok`), tạo `.env`, giải phóng port 7777 và bật server. Cuối cùng nó in một bảng cho biết bộ não nào đã sẵn sàng. Đăng nhập từng bộ não ngay trong **trang Models** của dashboard, không cần gõ lệnh.
+
+Không có `winget` để tự cài Python/Node thì cài tay trước: Python 3.12 (tick "Add python.exe to PATH") và Node.js LTS, rồi chạy lại.
+
 ```
+Chạy hiện cửa sổ (xem log trực tiếp):  setup.bat
+Chạy ngầm từ lần sau:                  start-javis.vbs   (log ở server\javis.log)
+Dừng:                                  stop-javis.bat
+Mở dashboard:                          http://localhost:7777
+```
+
+> ⚠️ **Cài thêm một CLI sau khi Javis đang chạy thì phải khởi động lại Javis** (`stop-javis.bat` rồi `start-javis.vbs`). Tiến trình đang chạy giữ PATH của lúc nó bật, nên CLI vừa cài nó không thấy - trang Models sẽ vẫn báo "CLI chưa cài" cho một CLI đã nằm sẵn trên ổ đĩa.
 
 > 🪟 **Windows - mở như một app:** sau khi `setup.bat` chạy xong lần đầu, từ đó về sau chỉ cần double-click **`JAVIS OS.bat`** - server tự chạy nền (không cửa sổ đen) rồi dashboard tự mở thành **cửa sổ riêng** không thanh địa chỉ, có ô riêng trên taskbar. Tự chạy khi đăng nhập máy: `javis-autostart.bat install` (gỡ: `uninstall`).
 

@@ -128,10 +128,73 @@ _THU_MUC_BIN_THEM = (
     "~/.yarn/bin",
 )
 
+# WINDOWS: y hệt câu chuyện trên nhưng đau hơn một bậc, vì PATH trên Windows nằm trong
+# REGISTRY và bị ghi bởi mọi installer. Ba đường hỏng thật, chủ dự án gặp đủ cả ba khi cài
+# mới trên Windows (16/09):
+#   1. Server chạy nền (start-javis.vbs / JAVIS OS.bat) giữ PATH của LÚC NÓ BẬT. Cài CLI sau
+#      đó thì tiến trình đang chạy không thấy, dù gõ trong terminal mới vẫn chạy ngon.
+#   2. `setx PATH ...` CẮT ở 1024 ký tự. Một installer dùng setx trên máy có PATH dài là
+#      PATH người dùng bị cắt cụt vĩnh viễn - đúng lúc cài Antigravity CLI xong thì
+#      `%APPDATA%\npm` bay khỏi PATH và Javis báo cau_thieu_cli("claude", "Claude") cho một CLI vẫn
+#      đang nằm nguyên trên ổ đĩa.
+#   3. npm global, nvm-windows, volta, scoop, bun, pnpm mỗi thứ một thư mục khác nhau.
+# Nên: soi thêm các thư mục dưới đây, VÀ ghi nhớ chỗ đã từng thấy (xem _nho_binary).
+_THU_MUC_BIN_WINDOWS = (
+    r"%APPDATA%\npm",                         # npm install -g (mặc định)
+    r"%LOCALAPPDATA%\npm",
+    r"%ProgramFiles%\nodejs",
+    r"%ProgramFiles(x86)%\nodejs",
+    r"%USERPROFILE%\.local\bin",              # installer chính chủ của claude / grok / agy
+    r"%LOCALAPPDATA%\Programs\antigravity",
+    r"%LOCALAPPDATA%\Programs\grok",
+    r"%LOCALAPPDATA%\Volta\bin",
+    r"%USERPROFILE%\.bun\bin",
+    r"%LOCALAPPDATA%\pnpm",
+    r"%USERPROFILE%\scoop\shims",
+    r"%ProgramData%\chocolatey\bin",
+    r"%NVM_SYMLINK%",                          # nvm-windows: thư mục nối tới bản Node đang dùng
+    r"%NVM_HOME%",
+)
+
+
+_RX_BIEN_WIN = re.compile(r"%([^%]+)%")
+
+
+def _thu_muc_bin_windows() -> list:
+    """Các thư mục cài binary trên Windows, đã bung biến môi trường. Bỏ cái nào không có.
+
+    Tự bung `%TEN%` thay vì gọi `os.path.expandvars`: hàm đó chỉ hiểu cú pháp `%TEN%` khi
+    CHẠY TRÊN Windows (ntpath), nên trên Linux/mac nó trả về nguyên chuỗi và cả danh sách này
+    thành vô dụng - tức là phần code chỉ Windows mới dùng lại là phần không test được ở CI.
+    Tự bung thì hành vi giống nhau ở mọi hệ, và test chạy được.
+    """
+    ra = []
+    for mau in _THU_MUC_BIN_WINDOWS:
+        try:
+            thieu = []
+
+            def _the(m):
+                v = os.environ.get(m.group(1), "")
+                if not v:
+                    thieu.append(m.group(1))
+                return v
+
+            d = _RX_BIEN_WIN.sub(_the, mau)
+            if thieu or not d:
+                continue
+            d = d.replace("\\", os.sep) if os.sep != "\\" else d
+            if os.path.isdir(d):
+                ra.append(d)
+        except Exception:
+            pass
+    return ra
+
 
 def _duong_dan_tim_binary() -> str:
     """PATH hiện tại CỘNG các thư mục cài quen thuộc. PATH thật đứng trước để không đổi ưu tiên."""
     parts = [os.environ.get("PATH", "")]
+    if os.name == "nt":
+        parts += _thu_muc_bin_windows()
     for d in _THU_MUC_BIN_THEM:
         try:
             parts.append(str(Path(d).expanduser()))
@@ -143,34 +206,154 @@ def _duong_dan_tim_binary() -> str:
         parts += [str(p) for p in nvm[:5]]
     except Exception:
         pass
+    if os.name == "nt":
+        try:
+            # nvm-windows: mỗi bản Node một thư mục riêng dưới %NVM_HOME%\vX.Y.Z.
+            nvm_home = os.path.expandvars(r"%NVM_HOME%")
+            if "%" not in nvm_home and os.path.isdir(nvm_home):
+                ban = sorted(Path(nvm_home).glob("v*"), reverse=True)
+                parts += [str(p) for p in ban[:5]]
+        except Exception:
+            pass
     return os.pathsep.join(p for p in parts if p)
 
 
+# ---- GHI NHỚ chỗ đã từng thấy binary ----
+# Đây là hàng rào cho ca số 2 ở trên: PATH bị cắt cụt hay bị một installer khác ghi đè thì
+# binary VẪN nằm nguyên trên ổ đĩa, chỉ là không ai chỉ đường tới nó nữa. Ghi nhớ đường dẫn
+# TUYỆT ĐỐI lúc tìm được, rồi lần sau PATH hỏng vẫn còn một chỗ để hỏi lại.
+#
+# Hai điều kiện cố ý: chỉ dùng bản nhớ khi PATH đã TRƯỢT (không bao giờ đè lên thứ PATH đang
+# chỉ tới), và luôn kiểm file còn tồn tại (gỡ CLI thật thì phải báo là chưa cài, không được
+# giữ một đường dẫn chết).
+_BIN_NHO_FILE = "bin_paths.json"
+_BIN_NHO = {"data": None}
+
+
+def _state_dir() -> Path:
+    """Thư mục state của Javis. Đọc env trực tiếp để claude_cli không phải import config."""
+    d = os.getenv("JAVIS_STATE_DIR", "").strip()
+    return Path(d) if d else Path(__file__).resolve().parent
+
+
+def _doc_bin_nho() -> dict:
+    if _BIN_NHO["data"] is None:
+        try:
+            f = _state_dir() / _BIN_NHO_FILE
+            _BIN_NHO["data"] = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+        except Exception:
+            _BIN_NHO["data"] = {}
+    return _BIN_NHO["data"] if isinstance(_BIN_NHO["data"], dict) else {}
+
+
+def _nho_binary(ten: str, duong_dan: str) -> None:
+    cu = _doc_bin_nho()
+    if cu.get(ten) == duong_dan:
+        return
+    cu[ten] = duong_dan
+    _BIN_NHO["data"] = cu
+    try:
+        d = _state_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        (d / _BIN_NHO_FILE).write_text(json.dumps(cu, ensure_ascii=False, indent=2),
+                                       encoding="utf-8")
+    except Exception:
+        pass          # không ghi được thì thôi, bản nhớ chỉ là tiện ích
+
+
+def _binary_da_nho(ten: str) -> Optional[str]:
+    p = str(_doc_bin_nho().get(ten) or "")
+    if not p:
+        return None
+    try:
+        if not os.path.isfile(p):
+            return None
+    except Exception:
+        return None
+    print(f"[tim_binary] PATH không còn '{ten}', dùng lại chỗ đã nhớ: {p}", file=sys.stderr)
+    return p
+
+
 def tim_binary(ten: str) -> Optional[str]:
-    """`shutil.which` nhưng soi thêm các thư mục cài quen thuộc nằm ngoài PATH."""
-    return shutil.which(ten) or shutil.which(ten, path=_duong_dan_tim_binary())
+    """`shutil.which` nhưng soi thêm thư mục cài quen thuộc, và nhớ chỗ đã từng thấy."""
+    p = shutil.which(ten) or shutil.which(ten, path=_duong_dan_tim_binary())
+    if p:
+        _nho_binary(ten, p)
+        return p
+    return _binary_da_nho(ten)
 
 
 def find_claude_cli() -> Optional[str]:
-    """Tìm claude CLI trên máy."""
+    """Tìm claude CLI trên máy. Cửa thoát JAVIS_CLAUDE_BIN cho máy cài chỗ lạ.
+
+    Có env override để ĐỒNG BỘ với `grok` (JAVIS_GROK_BIN), `agy` (JAVIS_AGY_BIN) và `codex`
+    (JAVIS_CODEX_BIN): trước đây đúng cái CLI quan trọng nhất lại là cái duy nhất không có
+    đường chỉ tay, nên máy cài vào chỗ lạ thì hết cách ngoài sửa PATH."""
+    envp = (os.environ.get("JAVIS_CLAUDE_BIN") or "").strip()
+    if envp:
+        try:
+            if Path(envp).exists():
+                return envp
+        except Exception:
+            pass
     cli = tim_binary("claude")
     if cli:
         return cli
     if os.name == "nt":
+        # npm global có thể nằm ở APPDATA hoặc LOCALAPPDATA tuỳ cách cài Node; nvm-windows
+        # thì mỗi bản Node một thư mục riêng. Liệt kê thẳng vì đây là ca hay gặp nhất khi
+        # cài mới trên Windows.
+        goc = [os.environ.get("APPDATA", ""), os.environ.get("LOCALAPPDATA", "")]
         candidates = [
-            Path(os.environ.get("USERPROFILE", "")) / ".local" / "bin" / "claude.EXE",
             Path(os.environ.get("USERPROFILE", "")) / ".local" / "bin" / "claude.exe",
-            Path(os.environ.get("APPDATA", "")) / "npm" / "claude.cmd",
-            Path(os.environ.get("APPDATA", "")) / "npm" / "claude.exe",
+            Path(os.environ.get("USERPROFILE", "")) / ".local" / "bin" / "claude.EXE",
         ]
+        for g in goc:
+            if g:
+                candidates += [Path(g) / "npm" / "claude.cmd", Path(g) / "npm" / "claude.exe"]
+        for d in _thu_muc_bin_windows():
+            candidates += [Path(d) / "claude.cmd", Path(d) / "claude.exe"]
         for p in candidates:
-            if p.exists():
-                return str(p)
+            try:
+                if p.exists():
+                    _nho_binary("claude", str(p))
+                    return str(p)
+            except Exception:
+                pass
     for p in ("/usr/local/bin/claude", "~/.local/bin/claude", "~/.npm-global/bin/claude"):
         path = Path(p).expanduser()
         if path.exists():
             return str(path)
-    return None
+    return _binary_da_nho("claude")
+
+
+# Câu nói khi KHÔNG tìm thấy một CLI. Phải nói ba thứ, vì thiếu thứ nào người dùng cũng tắc:
+# cài bằng lệnh nào, PHẢI KHỞI ĐỘNG LẠI JAVIS sau khi cài (tiến trình đang chạy giữ PATH cũ,
+# đây là chỗ mọi người mắc đúng một lần rồi tưởng cài hỏng), và cửa thoát khi máy cài chỗ lạ.
+_LENH_CAI_CLI = {
+    "claude": ("npm install -g @anthropic-ai/claude-code", "JAVIS_CLAUDE_BIN"),
+    "codex": ("npm install -g @openai/codex", "JAVIS_CODEX_BIN"),
+    "agy": ("irm https://antigravity.google/cli/install.ps1 | iex  (Windows) hoặc "
+            "curl -fsSL https://antigravity.google/cli/install.sh | bash", "JAVIS_AGY_BIN"),
+    "grok": ("irm https://x.ai/cli/install.ps1 | iex  (Windows) hoặc "
+             "curl -fsSL https://x.ai/cli/install.sh | bash", "JAVIS_GROK_BIN"),
+}
+
+
+def cau_thieu_cli(ten: str, nhan: str = "") -> str:
+    """Câu báo thiếu CLI, nói đủ để người dùng tự đi tiếp."""
+    lenh, env = _LENH_CAI_CLI.get(ten, ("", ""))
+    hien = nhan or ten
+    cau = f"{hien} CLI chưa cài"
+    if lenh:
+        cau += f". Cài: {lenh}"
+    cau += (". Cài rồi vẫn thấy dòng này thì KHỞI ĐỘNG LẠI JAVIS: tiến trình đang chạy giữ "
+            "PATH của lúc nó bật nên không thấy binary vừa cài")
+    if os.name == "nt":
+        cau += (". Windows: một số installer ghi PATH bằng `setx` và cắt PATH ở 1024 ký tự, "
+                "làm biến mất thư mục npm - lúc đó chỉ thẳng đường dẫn bằng biến môi trường "
+                f"{env}")
+    return cau + "."
 
 
 # ---- Danh sách model của gói Claude Code, đọc từ CHÍNH BINARY `claude` ----
@@ -431,7 +614,7 @@ def auth_status(bo_qua_cache: bool = False):
     """
     cli = find_claude_cli()
     if not cli:
-        return {"connected": False, "error": "Claude CLI chưa cài"}
+        return {"connected": False, "error": cau_thieu_cli("claude", "Claude")}
     now = time.time()
     if not bo_qua_cache and _AUTH_CACHE["val"] and now - _AUTH_CACHE["ts"] < _AUTH_TTL:
         return dict(_AUTH_CACHE["val"])
@@ -581,7 +764,7 @@ def giu_credentials() -> str:
 def auth_logout():
     cli = find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
     try:
         subprocess.run([cli, "auth", "logout"], capture_output=True, text=True, timeout=25, creationflags=_no_window())
         auth_quen_cache()   # ngắt xong thẻ phải đổi NGAY, không chờ hết 90 giây nhớ
@@ -601,7 +784,7 @@ def auth_login():
     Chạy được trên máy có trình duyệt (local). Frontend poll auth_status tới khi connected."""
     cli = find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
     try:
         subprocess.Popen([cli, "auth", "login", "--claudeai"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=_no_window())
@@ -621,7 +804,7 @@ _LOGIN_URL_RE = _re_login.compile(r"https?://\S+")
 def auth_login_ui_start():
     cli = find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
     try:
         if _LOGIN["proc"] and _LOGIN["proc"].poll() is None:
             _kill_tree(_LOGIN["proc"])
@@ -699,7 +882,7 @@ def auth_login_ui_code(code):
 def mcp_native_add(name, url, transport="http", header=None, client_id=None):
     cli = find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
     args = [cli, "mcp", "add", "--scope", "user", "--transport", transport]
     if header:
         args += ["--header", header]
@@ -718,7 +901,7 @@ def mcp_native_add(name, url, transport="http", header=None, client_id=None):
 def mcp_native_remove(name):
     cli = find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
     try:
         subprocess.run([cli, "mcp", "remove", "--scope", "user", name], capture_output=True,
                        text=True, timeout=30, creationflags=_no_window())
@@ -783,7 +966,7 @@ def mcp_open_auth_terminal():
     """Mở 1 cửa sổ terminal chạy `claude` để user gõ /mcp xác thực OAuth MCP (chỉ máy local có màn hình)."""
     cli = find_claude_cli()
     if not cli:
-        return {"ok": False, "error": "Claude CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("claude", "Claude")}
     try:
         if os.name == "nt":
             subprocess.Popen('start "Javis - Xac thuc MCP (go /mcp)" cmd /k claude', shell=True)
@@ -1013,7 +1196,7 @@ def codex_mcp_native_add(name, url=None, command=None, bearer_env=None):
     """Đăng ký 1 server vào kho MCP gốc của Codex (`codex mcp add`). Server OAuth: thêm bằng
     url rồi user chạy `codex mcp login <tên>` MỘT lần (như claude → /mcp bên Claude)."""
     if not find_codex_cli():
-        return {"ok": False, "error": "Codex CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("codex", "Codex")}
     if not (url or command):
         return {"ok": False, "error": "Thiếu url hoặc command"}
     try:
@@ -1026,7 +1209,7 @@ def codex_mcp_native_add(name, url=None, command=None, bearer_env=None):
 
 def codex_mcp_native_remove(name):
     if not find_codex_cli():
-        return {"ok": False, "error": "Codex CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("codex", "Codex")}
     try:
         _codex_run(["mcp", "remove", name], timeout=30)
         return {"ok": True}
@@ -1057,7 +1240,7 @@ def codex_mcp_open_login_terminal(name):
     của Codex (chỉ máy local có màn hình - như mcp_open_auth_terminal bên Claude)."""
     cli = find_codex_cli()
     if not cli:
-        return {"ok": False, "error": "Codex CLI chưa cài"}
+        return {"ok": False, "error": cau_thieu_cli("codex", "Codex")}
     # Tên đi vào chuỗi shell trên Windows → chỉ nhận chữ/số/_/- để khỏi tiêm lệnh.
     safe = "".join(ch for ch in str(name or "") if ch.isalnum() or ch in "_-")
     if not safe or safe != str(name):
