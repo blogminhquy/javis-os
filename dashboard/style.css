@@ -2772,6 +2772,11 @@ body.ne-full-on .cview { z-index: 250; }
 .pd-row-act:hover { color: var(--text-hi); background: var(--bg3); }
 .pd-ghim.on { color: var(--accent); }
 .pd-go:hover { color: var(--red); }
+.pd-sao:hover { color: var(--accent); }
+/* Nháy dấu tích sau khi chép xong (window.JavisCopy trong copy-path.js đặt lớp này). Màu
+   chứ không chỉ đổi icon: nút chỉ 26px, đổi icon không thôi thì liếc qua khó thấy. */
+.pd-row-act.da-chep, .ne-actions button.da-chep { color: var(--green); }
+.pd-row-act.chep-loi, .ne-actions button.chep-loi { color: var(--warn-ink); }
 .pd-xoa:hover { color: var(--red); background: var(--bg3); }
 /* Icon trên đầu mỗi tab: ba tab chỉ khác nhau bằng chữ thì liếc qua phải đọc mới biết đang
    ở đâu, y như hai tab Hội thoại/Thư mục ở cột trái đã có icon. */
