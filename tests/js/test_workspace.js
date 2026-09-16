@@ -7,7 +7,10 @@ const fs = require("fs");
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
 
-global.window = { t: (k) => k, ic: () => "", addEventListener() {}, matchMedia: () => ({ matches: false }) };
+// `removeEventListener` phải CÓ trong bộ giả: roi() gỡ listener resize của canhKhungSua, và
+// một trình duyệt thật luôn có hàm này - thiếu nó ở đây là bộ giả sai, không phải code sai.
+global.window = { t: (k) => k, ic: () => "", addEventListener() {}, removeEventListener() {},
+                  matchMedia: () => ({ matches: false }) };
 global.document = { getElementById: () => null, createElement: () => ({ classList: { add() {}, remove() {} }, appendChild() {} }), body: { classList: { add() {}, remove() {} } } };
 global.localStorage = { getItem: () => null, setItem() {} };
 require(path.join(root, "dashboard", "workspace.js"));
@@ -142,7 +145,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },
     window: { JavisVaultPanel: { borrow(h) { goi.push("borrow"); ctx._into = h; return true; },
-                                 giveBack() { goi.push("giveBack"); } } },
+                                 giveBack() { goi.push("giveBack"); } },
+              addEventListener() {}, removeEventListener() {} },
   };
   vm.createContext(ctx); vm.runInContext(doan, ctx);
 
@@ -256,7 +260,9 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     taoMoi: (loai) => tao.push(loai), dangChon: () => null, taiDanhSach: async () => {},
     veTrai() {}, chonMacDinh() {}, cacBuoc: () => [], avatar: () => "<i></i>",
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: (n) => '<svg data-ic="' + n + '"></svg>',
-    document: { getElementById: () => null }, window: {},
+    document: { getElementById: () => null },
+    // roi() gỡ listener resize của canhKhungSua - trình duyệt thật luôn có hai hàm này.
+    window: { addEventListener() {}, removeEventListener() {} },
   };
   vm.createContext(ctx); vm.runInContext(doan, ctx);
 
@@ -465,6 +471,106 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
   // duoc, khong thi cau loi bi cat giua chu va chu tren nut be lam hai dong.
   check("cau bao loi va nut Thu lai xuong dong rieng trong o ten",
     /\.ws-id \{[^}]*flex-wrap:\s*wrap/.test(khoi) && /\.ws-id \.ws-err \{[^}]*flex:\s*1 0 100%/.test(khoi));
+}
+
+// ============================================================
+// Ghim / chuyen thu muc / sua / xoa tren TUNG dong danh sach (0.59.14)
+// ============================================================
+{
+  const css = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  const vi = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "i18n", "vi.json"), "utf8"));
+  const en = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "i18n", "en.json"), "utf8"));
+
+  // Muc GHIM len dau, trong nhom ghim van xep theo moc gan nhat.
+  const ds = [{ slug: "a", name: "Aa", last_chat_at: 99 },
+              { slug: "b", name: "Bb", last_chat_at: 10, pinned: true },
+              { slug: "c", name: "Cc", last_chat_at: 50, pinned: true },
+              { slug: "d", name: "Dd", last_chat_at: 70 }];
+  check("ghim len dau, trong nhom ghim van theo moc gan nhat",
+    W.sapXep(ds, "last_chat_at").map(x => x.slug).join(",") === "c,b,a,d");
+  check("khong co muc ghim thi thu tu y NHU CU",
+    W.sapXep(ds.map(x => ({ ...x, pinned: false })), "last_chat_at")
+      .map(x => x.slug).join(",") === "a,d,c,b");
+
+  // Nut "..." KHONG duoc long trong nut chon muc (button trong button la HTML sai).
+  check("nut quan ly nam NGOAI nut chon muc, trong mot khoi boc",
+    /class="ws-item-wrap/.test(ws) && /class="ws-item-more"/.test(ws)
+    && ws.indexOf('class="ws-item-more"') > ws.indexOf("</button>"));
+  check("menu co du bon dong tac", /t\("ws.pin"\)/.test(ws) && /t\("ws.move_group"\)/.test(ws)
+    && /t\("ws.edit"\)/.test(ws) && /data-act="xoa"/.test(ws));
+  check("doi nhom/ghim di duong /capability/meta, KHONG POST /agents (endpoint do nhan ca prompt)",
+    /api\("\/capability\/meta"/.test(ws) && !/api\("\/agents",/.test(ws));
+  check("xoa co hoi lai truoc", /confirm\(hoi\)/.test(ws));
+  check("menu dung position FIXED (cot danh sach co overflow rieng)",
+    /\.ws-menu \{ position: fixed/.test(css));
+  check("roi trang thi dong menu (menu song o body)", /function roi\(\)[\s\S]{0,240}dongMenu\(\);/.test(ws));
+  check("man cam ung van thay nut quan ly (hover: none)",
+    /@media \(hover: none\) \{ \.ws-item-more/.test(css));
+  ["ws.manage", "ws.pin", "ws.unpin", "ws.pinned", "ws.move_group", "ws.group_new",
+   "ws.group_ask", "ws.edit", "ws.err_meta"].forEach(k => {
+    check("i18n co khoa " + k, !!vi[k] && !!en[k]);
+  });
+}
+
+// ============================================================
+// Thu tu tab cot phai: Lich su -> Thu muc -> Cai dat (0.59.14)
+// ============================================================
+// Chu du an chot 16/09: viec hang ngay la mo lai hoi thoai cu va mo file, con cai dat tro ly
+// thi sua mot lan roi thoi.
+{
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  check("TAB_PHAI xep lichsu truoc, cai dat sau cung",
+    /var TAB_PHAI = \["lichsu", "files", "cai"\]/.test(ws));
+  check("tab mac dinh la Lich su", /tabPhai: "lichsu"/.test(ws)
+    && /TAB_PHAI\.indexOf\(r\) >= 0 \? r : "lichsu"/.test(ws));
+  const iTabs = ws.indexOf('class="cside-tabs ws-rtabs"');
+  const khoi = ws.slice(iTabs, iTabs + 700);
+  check("thu tu NUT ve ra cung khop (lichsu, files, cai)",
+    khoi.indexOf('data-rtab="lichsu"') < khoi.indexOf('data-rtab="files"')
+    && khoi.indexOf('data-rtab="files"') < khoi.indexOf('data-rtab="cai"'));
+}
+
+// ============================================================
+// Mo file trong khung chat: khung chat khong bi bop con mot soi (0.59.14)
+// ============================================================
+// Loi that chu du an chup lai 16/09: mo mot file .md thi cot chat tut xuong san 220px, chu con
+// ba tu mot dong. Be rong kha dung KHONG phai be rong cua so - no la cua so tru thanh ben,
+// tru cot danh sach va tru cot phai.
+{
+  const css = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
+  check("san cot chat len 300px (cu la 220px)",
+    /grid-template-columns: minmax\(0, 1fr\) clamp\(300px, 34%, 420px\)/.test(css));
+  check("co bo cuc XEP DOC du phong khi khoang giua qua hep",
+    /\.ws-main\.edit-on\.edit-doc \{ grid-template-columns: minmax\(0, 1fr\)/.test(css)
+    && /\.edit-doc > \.ws-slot > \.transcript \{ grid-row: 3/.test(css));
+
+  // Quyet dinh bo cuc: hai cot khi con cho, thu cot phai truoc, xep doc khi da thu van hep.
+  const q = W.quyetDinhKhungSua;
+  check("khoang giua rong: hai cot, khong dung gi", (() => {
+    const r = q(true, 900, 1800, false, false);
+    return r.xepDoc === false && r.thuCotPhai === null;
+  })());
+  check("khoang giua hep + man du rong: THU cot phai truoc", (() => {
+    const r = q(true, 700, 1600, false, false);
+    return r.thuCotPhai === true;
+  })());
+  check("da thu cot phai ma van hep: xep doc", (() => {
+    const r = q(true, 640, 1600, true, false);
+    return r.thuCotPhai === null && r.xepDoc === true;
+  })());
+  check("man khong du rong thi KHONG thu (cot phai da la ngan keo noi)", (() => {
+    const r = q(true, 600, 1000, false, false);
+    return r.thuCotPhai === null && r.xepDoc === true;
+  })());
+  check("dong file: tra cot phai va bo xep doc", (() => {
+    const r = q(false, 300, 1600, true, false);
+    return r.thuCotPhai === false && r.xepDoc === false;
+  })());
+  check("man hep (co ngan keo): khong dung gi, CSS lo het", (() => {
+    const r = q(true, 300, 700, false, true);
+    return r.thuCotPhai === null && r.xepDoc === null;
+  })());
 }
 
 if (fails.length) { console.log("\nFAIL:", fails.length, fails); process.exit(1); }

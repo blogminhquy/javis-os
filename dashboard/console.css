@@ -1455,10 +1455,28 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
    Cột hội thoại co theo bề ngang: cột giữa trang Cộng sự đã bị hai cột hai bên ăn mất ~570px,
    khoá cứng 340px như trang Trò chuyện là trên laptop 1280 trình sửa chỉ còn hơn 300px. */
+/* MỞ MỘT FILE trong khung chat cộng sự: trình sửa và khung chat xếp NGANG.
+   Bề rộng khả dụng ở đây KHÔNG phải bề rộng cửa sổ: nó là cửa sổ trừ thanh bên, trừ cột danh
+   sách (210-260px) và trừ cột phải (310-350px). Trên màn 1600px chỉ còn khoảng 760px, mà cột
+   chat cũ để `clamp(220px, 32%, 340px)` nên nó tụt xuống đúng sàn 220px: trừ padding và viền
+   bong bóng, chữ còn ba từ một dòng - chủ dự án chụp lại đúng cảnh đó (16/09).
+   Nay sàn là 300px, và khi khoang giữa không đủ cho cả hai thì JS (workspace.js: canhKhungSua)
+   thu cột phải lại hoặc xếp DỌC bằng lớp .edit-doc, thay vì bóp cả hai cùng hẹp. */
 @media (min-width: 861px) {
   .ws-main.edit-on { display: grid; column-gap: 14px;
-    grid-template-columns: minmax(0, 1fr) clamp(220px, 32%, 340px);
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 420px);
     grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
+  /* Xếp DỌC: trình sửa trên, hội thoại dưới. Dùng khi khoang giữa hẹp tới mức hai cột ngang
+     thì cả hai đều không đọc được. Hội thoại giữ một khoảng cao đọc được chứ không co về 0. */
+  .ws-main.edit-on.edit-doc { grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) minmax(180px, 38%) auto auto auto auto; }
+  .ws-main.edit-on.edit-doc > .ws-edit { grid-row: 2; grid-column: 1; }
+  .ws-main.edit-on.edit-doc > .ws-slot > .transcript { grid-row: 3; grid-column: 1;
+    border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: 10px; }
+  .ws-main.edit-on.edit-doc > .ws-slot > .bg-strip { grid-row: 4; }
+  .ws-main.edit-on.edit-doc > .ws-slot > .attach-bar { grid-row: 5; }
+  .ws-main.edit-on.edit-doc > .ws-slot > .model-bar { grid-row: 6; }
+  .ws-main.edit-on.edit-doc > .ws-slot > .hud-voice { grid-row: 7; }
   .ws-main.edit-on > .ws-bar { grid-row: 1; grid-column: 1 / -1; }
   .ws-main.edit-on > .ws-edit { grid-row: 2; grid-column: 1; min-width: 0; }
   /* display:contents để TỪNG node chat mượn về tự nhận một ô trong lưới; bọc trong một item
@@ -1726,6 +1744,44 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-prog { margin-top:12px; }
 .ws-status { margin:10px 0 18px; }
 .ws-run { padding:10px 8px; border-radius:8px; }
+/* ---- Dòng danh sách: nút "..." quản lý + dấu ghim ---- */
+/* Nút "..." nằm NGOÀI nút chọn mục (button trong button là HTML sai), nên phải neo tuyệt đối
+   vào khối bọc. Ẩn mờ lúc bình thường, hiện khi trỏ vào hay khi chính nó nhận tiêu điểm -
+   ba chục cộng sự mà mỗi dòng một nút đậm thì cột trái thành một rừng icon. */
+.ws-item-wrap { position: relative; }
+.ws-item-wrap > .ws-item { width: 100%; padding-right: 30px; }
+.ws-item-more { position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center; width: 24px; height: 26px;
+  padding: 0; border: 0; border-radius: 7px; background: none; color: var(--text3);
+  cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, background .12s; }
+.ws-item-wrap:hover .ws-item-more, .ws-item-more:focus-visible { opacity: 1; }
+.ws-item-more:hover { color: var(--accent); background: var(--surface-1); }
+/* Màn cảm ứng KHÔNG có trỏ vào: ẩn theo hover là nút vĩnh viễn không thấy trên điện thoại. */
+@media (hover: none) { .ws-item-more { opacity: .75; } }
+.ws-item-pin { display: inline-flex; margin-left: 6px; color: var(--accent); vertical-align: -2px; }
+.ws-item-pin svg { width: 13px; height: 13px; }
+
+/* Menu quản lý: position FIXED vì cột danh sách có overflow riêng - menu absolute trong đó bị
+   cắt mất ở những mục gần đáy. */
+.ws-menu { position: fixed; z-index: 60; min-width: 208px; max-width: min(300px, 92vw);
+  max-height: min(420px, 70vh); overflow-y: auto; padding: 5px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 34px var(--shadow-veil); }
+.ws-menu-head { padding: 6px 9px 7px; font-size: 11.5px; color: var(--text3);
+  border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-menu-it { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px;
+  border: 0; border-radius: 8px; background: none; color: var(--text); cursor: pointer;
+  font-family: var(--font); font-size: 13px; text-align: left; }
+.ws-menu-it > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-menu-it svg { width: 15px; height: 15px; flex: none; opacity: .85; }
+.ws-menu-it:hover { background: var(--surface-1); color: var(--accent); }
+.ws-menu-it.on { color: var(--accent); }
+.ws-menu-it.xoa { color: #ff8b8b; }
+.ws-menu-it.xoa:hover { background: rgba(255, 139, 139, .12); color: #ff8b8b; }
+.ws-menu-it.quay { color: var(--text3); font-size: 11.5px; border-bottom: 1px solid var(--border);
+  border-radius: 8px 8px 0 0; margin-bottom: 4px; }
+
 .ws-id .agent-avatar { flex:none; }
 @media (max-width:1200px) { .ws-right { width:310px; } }
 /* MÀN ĐIỆN THOẠI: thanh đầu trang xếp HAI DÒNG. Dòng trên là nguyên khuôn mặt cộng sự cùng

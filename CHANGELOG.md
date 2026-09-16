@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.14] - 2026-09-16
+### Thêm mới
+- **Mỗi trợ lý và mỗi quy trình có menu quản lý riêng.** Trỏ vào một dòng trong danh sách là hiện nút ba chấm: **Ghim lên đầu**, **Chuyển vào thư mục**, **Sửa**, **Xoá**. Mục đã ghim luôn nằm trên cùng và có dấu ghim nhỏ cạnh tên.
+### Cải thiện
+- **Cột phải đổi thứ tự: Lịch sử trước, rồi Thư mục, Cài đặt sau cùng.** Việc hằng ngày là mở lại một hội thoại cũ hay một file, còn cài đặt trợ lý thì sửa một lần rồi thôi.
+- **Mở một file trong khung chat không còn bóp hội thoại thành một sợi.** Javis tự thu cột phải để nhường chỗ, và nếu vẫn hẹp thì xếp file lên trên, hội thoại xuống dưới, thay vì hai cột cùng không đọc được.
+### Sửa lỗi
+- **Sửa một trợ lý không còn làm mất cái ghim của nó.** Trình sửa trước đây ghi lại cả file nên mọi thứ không nằm trong form đều bị xoá.
+
 ## [0.59.13] - 2026-09-16
 ### Sửa lỗi
 - **Windows: một lệnh cài hết bốn bộ não.** `install.ps1` mới cài trọn gói Python, thư viện, rồi cả `claude`, `codex`, `agy`, `grok`, tạo `.env`, giải phóng port và bật server, cuối cùng in bảng cho biết bộ não nào đã sẵn sàng. `setup.bat` và `install.sh` cũng cài thêm `agy` + `grok` thay vì chỉ hai cái.
