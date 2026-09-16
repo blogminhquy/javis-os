@@ -160,6 +160,14 @@ check("setup.bat vẫn chỉ dùng ASCII", bat.isascii())
 check("install.sh cài agy và grok", "antigravity.google/cli/install.sh" in sh
       and "x.ai/cli/install.sh" in sh and "cai_cli_script" in sh)
 
+# STATE_DIR mặc định CHÍNH LÀ thư mục server/, nên bản nhớ phải được .gitignore che: không che
+# thì mỗi lần chạy app là cây git bẩn thêm một file và `git add -A` commit đường dẫn máy người
+# khác (test_ignore_files.py canh đúng loại rác này).
+import subprocess  # noqa: E402
+_che = subprocess.run(["git", "check-ignore", "server/bin_paths.json"], cwd=ROOT,
+                      capture_output=True, text=True)
+check("bản nhớ bị .gitignore che (STATE_DIR mặc định là server/)", _che.returncode == 0)
+
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 check("README nói một lệnh cài hết cho Windows", "install.ps1" in readme)
 check("README nhắc phải khởi động lại Javis khi cài thêm CLI",
