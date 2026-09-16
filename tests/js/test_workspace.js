@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const root = path.join(__dirname, "..", "..");
 
-// `removeEventListener` phải CÓ trong bộ giả: roi() gỡ listener resize của canhKhungSua, và
+// `removeEventListener` phải CÓ trong bộ giả: nhiều chỗ của trang gỡ listener lúc rời trang, và
 // một trình duyệt thật luôn có hàm này - thiếu nó ở đây là bộ giả sai, không phải code sai.
 global.window = { t: (k) => k, ic: () => "", addEventListener() {}, removeEventListener() {},
                   matchMedia: () => ({ matches: false }) };
@@ -269,7 +269,7 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     veTrai() {}, chonMacDinh() {}, cacBuoc: () => [], avatar: () => "<i></i>",
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: (n) => '<svg data-ic="' + n + '"></svg>',
     document: { getElementById: () => null },
-    // roi() gỡ listener resize của canhKhungSua - trình duyệt thật luôn có hai hàm này.
+    // Bộ giả phải có đủ cả hai hàm listener - trình duyệt thật luôn có.
     window: { addEventListener() {}, removeEventListener() {} },
   };
   vm.createContext(ctx); vm.runInContext(doan, ctx);
@@ -438,24 +438,6 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
 }
 
 // ============================================================
-// Mở một file trong lúc chat: XẾP NGANG, không để lại khoảng trống (0.59.4)
-// ============================================================
-// Lỗi thật chủ dự án chụp lại: trình sửa bị bóp còn vài dòng, dưới nó là một khoảng trống cao
-// gần nửa màn hình (khung hội thoại rỗng) với mỗi cái chip file ghim lơ lửng giữa.
-{
-  const css = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
-  const khoi = css.slice(css.indexOf("@media (min-width: 861px) {\n  .ws-main.edit-on"));
-  check("man rong: trinh sua va hoi thoai xep NGANG bang grid hai cot",
-    /\.ws-main\.edit-on \{ display: grid;/.test(khoi) && /grid-template-columns: minmax\(0, 1fr\)/.test(khoi));
-  check("cum nhap trai het be ngang duoi day",
-    ["bg-strip", "attach-bar", "model-bar", "hud-voice"].every(c =>
-      new RegExp("\\." + c + " \\{ grid-row: \\d; grid-column: 1 / -1; \\}").test(khoi)));
-  check("slot tan vao luoi de tung node nhan o rieng", /\.ws-slot \{ display: contents; \}/.test(khoi));
-  check("man hep van giu cach cu (an khung chat)",
-    /@media \(max-width: 860px\) \{ \.ws-main\.edit-on > \.ws-slot \{ display: none; \} \}/.test(css));
-}
-
-// ============================================================
 // Màn điện thoại: thanh đầu trang xếp HAI DÒNG (0.59.11)
 // ============================================================
 // Lỗi thật chủ dự án chụp lại trên iPhone: nút mở danh sách, "File & link", "Hội thoại mới" và
@@ -540,45 +522,29 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
 }
 
 // ============================================================
-// Mo file trong khung chat: khung chat khong bi bop con mot soi (0.59.14)
+// Mo file trong chat cong su: TAT HAN khung chat (0.59.16)
 // ============================================================
-// Loi that chu du an chup lai 16/09: mo mot file .md thi cot chat tut xuong san 220px, chu con
-// ba tu mot dong. Be rong kha dung KHONG phai be rong cua so - no la cua so tru thanh ben,
-// tru cot danh sach va tru cot phai.
+// Chu du an chot 16/09 sau khi xem ban 0.59.14: "mo file trong hoi thoai cua agent van hien
+// khung chat, dang nhe no phai tat het khung chat di". Ban truoc giu ca hai canh nhau roi tu
+// canh bang JS (do khoang giua, thu cot phai, xep doc) - khoang giua trang nay chi con ~760px
+// tren man 1600px nen chia doi thi ca hai ben deu hep.
+// Khoi nay THAY hai khoi cu da bo: "xep NGANG khong de lai khoang trong" (0.59.4) va "khung
+// chat khong bi bop con mot soi" (0.59.14). Ca hai deu la cach chia doi khoang giua.
 {
   const css = fs.readFileSync(path.join(root, "dashboard", "console.css"), "utf8");
-  check("san cot chat len 300px (cu la 220px)",
-    /grid-template-columns: minmax\(0, 1fr\) clamp\(300px, 34%, 420px\)/.test(css));
-  check("co bo cuc XEP DOC du phong khi khoang giua qua hep",
-    /\.ws-main\.edit-on\.edit-doc \{ grid-template-columns: minmax\(0, 1fr\)/.test(css)
-    && /\.edit-doc > \.ws-slot > \.transcript \{ grid-row: 3/.test(css));
+  check("mo file thi khung chat AN HAN (khong con @media rieng)",
+    /\.ws-main\.edit-on > \.ws-slot \{ display: none; \}/.test(css));
+  check("CANARY: khong con bo cuc hai cot khi sua file",
+    !/\.ws-main\.edit-on \{ display: grid/.test(css) && !/edit-doc/.test(css));
+  check("CANARY: khong con luat @media 860px cho .ws-slot luc edit-on",
+    !/@media \(max-width: 860px\) \{ \.ws-main\.edit-on > \.ws-slot/.test(css));
+  check("trinh sua van la con DUY NHAT hien ra cua khoang giua",
+    /\.ws-main\.edit-on > \.ws-edit \{ display: flex; \}/.test(css));
 
-  // Quyet dinh bo cuc: hai cot khi con cho, thu cot phai truoc, xep doc khi da thu van hep.
-  const q = W.quyetDinhKhungSua;
-  check("khoang giua rong: hai cot, khong dung gi", (() => {
-    const r = q(true, 900, 1800, false, false);
-    return r.xepDoc === false && r.thuCotPhai === null;
-  })());
-  check("khoang giua hep + man du rong: THU cot phai truoc", (() => {
-    const r = q(true, 700, 1600, false, false);
-    return r.thuCotPhai === true;
-  })());
-  check("da thu cot phai ma van hep: xep doc", (() => {
-    const r = q(true, 640, 1600, true, false);
-    return r.thuCotPhai === null && r.xepDoc === true;
-  })());
-  check("man khong du rong thi KHONG thu (cot phai da la ngan keo noi)", (() => {
-    const r = q(true, 600, 1000, false, false);
-    return r.thuCotPhai === null && r.xepDoc === true;
-  })());
-  check("dong file: tra cot phai va bo xep doc", (() => {
-    const r = q(false, 300, 1600, true, false);
-    return r.thuCotPhai === false && r.xepDoc === false;
-  })());
-  check("man hep (co ngan keo): khong dung gi, CSS lo het", (() => {
-    const r = q(true, 300, 700, false, true);
-    return r.thuCotPhai === null && r.xepDoc === null;
-  })());
+  const ws = fs.readFileSync(path.join(root, "dashboard", "workspace.js"), "utf8");
+  check("CANARY: JS khong con do khung / quan sat DOM de canh bo cuc sua file",
+    !/quyetDinhKhungSua|canhKhungSua|theoKhungSua/.test(ws));
+  check("workspace.js khong con phoi quyetDinhKhungSua", !W.quyetDinhKhungSua);
 }
 
 // ============================================================

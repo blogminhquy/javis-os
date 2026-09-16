@@ -89,21 +89,21 @@ const WS = D("workspace.js");
 check("trang Cộng sự có chỗ đứng riêng cho trình sửa", /id="wsEdit"/.test(WS));
 check("CANARY: khung mặc định của _borrowNoteEditor nhận CẢ hai trang",
   /into = into \|\| document\.getElementById\("chatPageEdit"\) \|\| document\.getElementById\("wsEdit"\)/.test(CON));
-// Xếp chồng chứ không đè: trình sửa ở trên, khung chat rút gọn ở dưới (cùng lối với
-// .chatpage-main.edit-on). Đè lên thì đang sửa file là mất hẳn chỗ nhắn cho trợ lý về file đó.
+// Ở trang Cộng sự, mở file là TẮT HẲN khung chat và trình sửa chiếm trọn khoang giữa (chủ dự
+// án chốt 16/09). Khác trang Trò chuyện, nơi hai bên vẫn đứng cạnh nhau: khoang giữa trang
+// Cộng sự đã bị cột danh sách và cột phải ăn mất ~570px, chia đôi thì bên nào cũng hẹp.
 const CCSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
 check("khung sửa của trang Cộng sự chỉ hiện khi có file mở",
   /\.ws-main\.edit-on > \.ws-edit \{ display: flex; \}/.test(CCSS));
 check("CANARY: không vô hiệu hoá nút phóng to trình sửa ở trang Cộng sự",
   /\.ws-edit > \.note-editor:not\(\.ne-full\)/.test(CCSS));
-check("màn hẹp thì trình sửa chiếm chỗ khung chat",
+check("mở file là trình sửa chiếm chỗ khung chat, ở MỌI khổ màn",
   /\.ws-main\.edit-on > \.ws-slot \{ display: none; \}/.test(CCSS));
-// .transcript mang sẵn `min-height: clamp(280px, 46vh, 620px)` từ style.css. Khi trình sửa lấy
-// 60% chiều cao thì con số đó lớn hơn chỗ còn lại, khung hội thoại TỪ CHỐI co và đẩy ô nhập
-// rớt khỏi màn hình - đo thật trong Chromium ở cửa sổ 950px: #hudVoice nằm ở y=1138. Trang Trò
-// chuyện đã gỡ đúng chốt này từ lâu; đây là bản cho trang Cộng sự.
-check("CANARY: gỡ min-height của khung hội thoại khi trình sửa chiếm chỗ",
-  /\.ws-main\.edit-on > \.ws-slot > \.transcript \{ min-height: 0;/.test(CCSS));
+// Khung chat ẩn bằng display:none nên node chat còn nguyên: đoạn hội thoại, chữ đang gõ dở và
+// phiên đang mở đều không mất, đóng file ra là thấy lại y như lúc rời đi.
+check("CANARY: ẩn bằng display:none chứ không gỡ node chat khỏi khung",
+  /\.ws-main\.edit-on > \.ws-slot \{ display: none; \}/.test(CCSS)
+  && /id="wsSlot"/.test(WS));
 check("trang Trò chuyện vẫn giữ chốt tương ứng",
   /\.chatpage-slot \.transcript\{ flex:1 1 auto; min-height:0;/.test(CON));
 // Cột phải của trang Cộng sự có tab Thư mục mượn CHÍNH cây đó - cùng một node với tab Thư mục

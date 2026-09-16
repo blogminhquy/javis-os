@@ -253,7 +253,6 @@
     try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "lichsu"; } catch (e) { S.tabPhai = "lichsu"; }
     chonTabPhai(S.tabPhai);
     nhoPhienTruoc();
-    theoKhungSua();
     taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
   }
   async function selectCommand(cmd) {
@@ -400,76 +399,18 @@
     });
   }
 
-  // ---------- mở FILE trong khung chat: canh lại khoang giữa ----------
-  // Chuyện thật 16/09: bấm một file .md trong chat cộng sự thì trình sửa mở ra, và khung chat
-  // bị bóp xuống đúng sàn 220px - chữ còn ba từ một dòng. Bề rộng khả dụng không phải bề rộng
-  // cửa sổ: màn 1600px trừ thanh bên, trừ cột danh sách và trừ cột phải thì khoang giữa chỉ
-  // còn khoảng 760px, chia hai là cả hai bên đều chật.
+  // ---------- mở FILE trong khung chat cộng sự: TẮT HẲN khung chat ----------
+  // Chủ dự án chốt 16/09: "khi mở file trong hội thoại của agent vẫn hiện khung chat, đáng
+  // nhẽ nó phải tắt hết khung chat đấy đi". Trước đó bản 0.59.14 cố giữ cả hai bên cạnh nhau
+  // và tự canh: đo khoang giữa, thu cột phải, hết chỗ thì xếp dọc. Cách đó sai từ gốc - cột
+  // giữa trang Cộng sự đã bị cột danh sách và cột phải ăn mất ~570px, nên chia đôi chỗ còn
+  // lại thì trình sửa hẹp mà hội thoại cũng hẹp, canh kiểu gì cũng chỉ là chọn xem bên nào
+  // khổ hơn. Nay mở file là trình sửa chiếm TRỌN khoang giữa ở MỌI khổ màn (console.css:
+  // `.ws-main.edit-on > .ws-slot { display: none }`), đóng file ra là khung chat về đủ -
+  // ẩn bằng display:none nên đoạn chat đang dở còn nguyên, không mất chữ đang gõ.
   //
-  // Nên đo BỀ RỘNG THẬT của khoang giữa rồi xử theo hai bậc, thay vì đoán qua media query
-  // (media query không biết người dùng đang mở hay đã thu hai cột bên):
-  //   1. Còn hẹp thì THU CỘT PHẢI lại - chỗ đó là cài đặt/lịch sử, lúc đang đọc file thì
-  //      không cần, và mở lại chỉ một cú bấm.
-  //   2. Thu rồi vẫn hẹp thì XẾP DỌC (.edit-doc): trình sửa trên, hội thoại dưới. Cả hai đọc
-  //      được, thay vì hai cột cùng không đọc được.
-  // Đóng file thì trả cột phải về ĐÚNG trạng thái trước đó (chỉ mở lại nếu chính ta đã thu).
-  var SAN_HAI_COT = 720;      // px: trình sửa ~400 + khe 14 + khung chat 300
-  var COT_PHAI_THU_DUOC = 1061;   // dưới ngưỡng này cột phải đã là ngăn kéo nổi, thu không thêm chỗ
-  var _taThuCotPhai = false;
-  var _theoKhungSua = null;
-
-  // Phần QUYẾT ĐỊNH tách thuần để test bằng node: đây là chỗ dễ sai nhất (ba ngưỡng, hai
-  // trạng thái) mà lại không đo được nếu chôn trong một hàm đọc DOM.
-  //   giua = bề rộng thật của khoang giữa, rong = bề rộng cửa sổ,
-  //   dangThu = cột phải ĐANG bị thu, hep = khổ màn có ngăn kéo (đã ẩn hẳn khung chat).
-  // Trả { thuCotPhai: bool|null, xepDoc: bool|null } - null nghĩa là KHÔNG đụng tới.
-  function quyetDinhKhungSua(moFile, giua, rong, dangThu, hep) {
-    if (!moFile) return { thuCotPhai: false, xepDoc: false };   // đóng file: trả mọi thứ về
-    if (hep) return { thuCotPhai: null, xepDoc: null };          // màn hẹp: CSS lo hết
-    var chat = giua >= SAN_HAI_COT;
-    var thu = (!chat && !dangThu && rong >= COT_PHAI_THU_DUOC) ? true : null;
-    return { thuCotPhai: thu, xepDoc: !chat };
-  }
-
-  function canhKhungSua() {
-    var page = S.el && S.el.querySelector("#wsPage");
-    var main = S.el && S.el.querySelector(".ws-main");
-    if (!page || !main) return;
-    var qd = quyetDinhKhungSua(main.classList.contains("edit-on"), main.clientWidth,
-                               window.innerWidth || 0,
-                               page.classList.contains("right-open"), heptLai());
-    if (qd.thuCotPhai === true) { page.classList.add("right-open"); _taThuCotPhai = true; }
-    else if (qd.thuCotPhai === false && _taThuCotPhai) {
-      page.classList.remove("right-open"); _taThuCotPhai = false;
-    }
-    // Thu cột phải rồi thì khoang giữa đã rộng ra: ĐO LẠI trước khi quyết định xếp dọc, kẻo
-    // vừa thu xong vẫn xếp dọc theo số đo cũ.
-    if (qd.xepDoc !== null) {
-      var lai = quyetDinhKhungSua(true, main.clientWidth, window.innerWidth || 0, true, false);
-      main.classList.toggle("edit-doc", lai.xepDoc);
-    } else {
-      main.classList.remove("edit-doc");
-    }
-  }
-  // Rời trang thì gỡ hết: observer trỏ vào node của trang cũ, còn listener resize thì gọi vào
-  // một hàm đọc DOM đã biến mất.
-  function donTheoKhungSua() {
-    if (_theoKhungSua) { _theoKhungSua.disconnect(); _theoKhungSua = null; }
-    window.removeEventListener("resize", canhKhungSua);
-    _taThuCotPhai = false;
-  }
-  // Lớp `edit-on` do console.js gắn (_borrowNoteEditor) ở MỌI đường mở file - bấm file trong
-  // cây, bấm [[wikilink]], bấm chip file đang ghim. Theo dõi chính cái lớp đó thay vì gắn vào
-  // từng đường, vì gắn từng đường là chắc chắn sót một đường.
-  function theoKhungSua() {
-    var main = S.el && S.el.querySelector(".ws-main");
-    if (!main || !window.MutationObserver) return;
-    if (_theoKhungSua) _theoKhungSua.disconnect();
-    _theoKhungSua = new MutationObserver(canhKhungSua);
-    _theoKhungSua.observe(main, { attributes: true, attributeFilter: ["class"] });
-    window.addEventListener("resize", canhKhungSua);
-    canhKhungSua();
-  }
+  // Vì thế ở đây KHÔNG còn hàm canh khung nào: CSS lo hết, không đo, không MutationObserver,
+  // không listener resize. Đúng khuôn màn hẹp vẫn chạy từ đầu.
 
   // ---------- menu quản lý của một mục (ghim / chuyển nhóm / sửa / xoá) ----------
   // Dùng CHUNG cho trợ lý và quy trình: hai loại cùng một bộ động tác, viết hai bản là hai
@@ -1007,7 +948,7 @@
   // Hàm trả kiểm _vaultSlot trước nên gọi hai lần vẫn vô hại.
   function roi() {
     active = false; opening++; chatReady(true);
-    dongMenu(); donTheoKhungSua(); traCayThuMuc(); traKhungChat();
+    dongMenu(); traCayThuMuc(); traKhungChat();
     // XOÁ câu đang tìm. S.q sống ở mức module còn ô nhập chết theo DOM của trang, nên giữ lại
     // là lần sau quay vào danh sách đã bị lọc mà ô tìm thì rỗng và đang thu: người dùng thấy
     // cộng sự của mình biến mất, không có gì trên màn hình nói vì sao.
@@ -1017,5 +958,5 @@
   }
 
   window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
-    quyetDinhKhungSua: quyetDinhKhungSua, dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
+    dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
 })();

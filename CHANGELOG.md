@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.17] - 2026-09-16
+### Cải thiện
+- **Mở một file trong hội thoại với trợ lý là tắt hẳn khung chat.** Trình sửa chiếm trọn khoang giữa, không còn cột hội thoại chen bên cạnh làm cả hai bên cùng hẹp. Đóng file (nút **X** trên thanh trình sửa) là khung chat trở lại nguyên vẹn: đoạn đang nói dở và chữ đang gõ dở đều còn.
+
 ## [0.59.16] - 2026-09-16
 ### Bảo mật
 - **Vá một lỗ cho phép vào Javis mà không cần đăng nhập.** Chỉ cần thêm một dấu `/` vào một dòng ẩn trong request là cổng đăng nhập bị lách, đọc và ghi được API như đã đăng nhập. Ai đang mở Javis ra Internet (VPS, Docker, hoặc máy nhà có mở cổng) nên cập nhật ngay; máy chỉ chạy nội bộ thì không ai với tới được.
