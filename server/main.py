@@ -185,16 +185,40 @@ _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth
 _AUTH_LOCAL_EXACT = ("/telegram/send-file", "/reminders", "/reminders/cancel", "/reminders/update")
 
 
+def duong_dan_router(request) -> str:
+    """Đường dẫn ĐÚNG NHƯ ROUTER dùng để chọn endpoint. Mọi hàng rào phải hỏi hàm này.
+
+    TUYỆT ĐỐI KHÔNG dùng `request.url.path` cho quyết định quyền. Starlette dựng lại URL
+    bằng cách nối "{scheme}://{header Host}{path}" rồi phân tích lại chuỗi đó, và nó KHÔNG
+    kiểm header Host một chữ nào (PYSEC-2026-161). Nên chỉ cần thêm một dấu "/" vào Host là
+    url.path bị nhét thêm tiền tố, trong khi router vẫn chọn endpoint theo scope["path"]:
+
+        GET /agents  +  Host: vps-cua-toi.com/static
+        -> request.url.path == "/static/agents"   (hàng rào thấy: đường công khai)
+        -> router vẫn chạy                /agents (endpoint thật, cần đăng nhập)
+
+    Đo thật trên chính app này ngày 16/09: request đó trả 200 kèm danh sách trợ lý thay vì
+    401, tức LÁCH HẲN cổng đăng nhập của mọi Javis mở ra Internet. scope["path"] là đường
+    dẫn router dùng, không dính header Host, nên hàng rào và endpoint đọc cùng một thứ.
+    """
+    return request.scope.get("path") or ""
+
+
 @app.middleware("http")
 async def _csrf_guard(request: Request, call_next):
-    """Chống CSRF-to-localhost + DNS-rebinding (xem web_security.py). Chạy TRƯỚC auth guard.
-    Không đụng client không-trình-duyệt (Claude CLI/Codex/curl không gửi Origin) và cùng-origin."""
+    """Chống CSRF-to-localhost + DNS-rebinding (xem web_security.py).
+    Không đụng client không-trình-duyệt (Claude CLI/Codex/curl không gửi Origin) và cùng-origin.
+
+    THỨ TỰ: middleware thêm SAU thì chạy TRƯỚC (Starlette bọc từ ngoài vào), nên thực tế
+    _auth_guard chạy TRƯỚC hàm này. Đừng đặt hàng rào chặn-mới ở đây rồi tưởng nó gác cho
+    auth: request bị auth trả 401 không bao giờ tới đây."""
     d = web_security.csrf_decision(request.method, request.headers.get("host", ""),
                                    request.headers.get("origin"), cfgmod.gate_active())
     if d:
         return JSONResponse({"error": d[1], "blocked": "web_security"}, status_code=d[0])
     # GET có tác dụng phụ (chạy workflow, duyệt node ghi): Origin không đủ, xem SIDE_EFFECT_GET.
-    n = web_security.navigation_decision(request.url.path, request.headers.get("sec-fetch-site"))
+    n = web_security.navigation_decision(duong_dan_router(request),
+                                         request.headers.get("sec-fetch-site"))
     if n:
         return JSONResponse({"error": n[1], "blocked": "web_security"}, status_code=n[0])
     return await call_next(request)
@@ -206,7 +230,7 @@ async def _auth_guard(request: Request, call_next):
     Khi chạy public (0.0.0.0) lần đầu chưa có mật khẩu → vẫn chặn để ÉP tạo tài khoản trước
     (setup_required), tránh hở dashboard điều khiển Claude full quyền ra Internet."""
     if cfgmod.gate_active():
-        path = request.url.path
+        path = duong_dan_router(request)   # KHÔNG phải request.url.path - xem duong_dan_router
         client_host = request.client.host if request.client else ""
         public = (path in _AUTH_PUBLIC_EXACT
                   or any(path.startswith(p) for p in _AUTH_PUBLIC_PREFIX)
@@ -297,16 +321,17 @@ async def _static_cache_headers(request: Request, call_next):
     Không có ?v= thì giữ nguyên (ETag/Last-Modified của StaticFiles vẫn lo revalidate).
     Thiếu header này trình duyệt phải hỏi lại ~27 file JS/CSS mỗi lần mở trang."""
     resp = await call_next(request)
-    if request.url.path == "/static/freshness.js":
+    duong = duong_dan_router(request)   # KHÔNG phải request.url.path - xem duong_dan_router
+    if duong == "/static/freshness.js":
         # Người gác cổng mà cũ theo thì nó gác cái gì. Nạp KHÔNG kèm `?v=` và luôn hỏi lại.
         resp.headers["Cache-Control"] = "no-cache"
-    elif request.url.path.startswith("/static/i18n/") and request.url.path.endswith(".json"):
+    elif duong.startswith("/static/i18n/") and duong.endswith(".json"):
         # Từ điển i18n được fetch KHÔNG có ?v= (i18n/index.js nạp trước khi biết phiên bản).
         # Không đóng dấu gì là trình duyệt cache theo heuristic và giữ từ điển CŨ qua cả bản
         # cập nhật - code mới gọi khoá mới, màn hình in nguyên mã khoá (khách báo 2026-08-30).
         # no-cache = được cache nhưng PHẢI hỏi lại mỗi lần (ETag/304 của StaticFiles lo phần rẻ).
         resp.headers["Cache-Control"] = "no-cache"
-    elif request.url.path.startswith("/static/") and request.query_params.get("v"):
+    elif duong.startswith("/static/") and request.query_params.get("v"):
         resp.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
     return resp
 
