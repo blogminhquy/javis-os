@@ -383,7 +383,7 @@ check("studio.js editAgent nhan host + onSaved", /function editAgent\(a, opts\)/
   const mainPy = fs.readFileSync(path.join(root, "server", "main.py"), "utf8");
   const render = fs.readFileSync(path.join(root, "dashboard", "chat-render.js"), "utf8");
   check("app.js nho khung Tro chuyen da goi cong su",
-    /_gocCongSu\[savedSessionId\] = goc;/.test(app) && /origin_chat: _goc \}\)\)/.test(app));
+    /_gocCongSu\[savedSessionId\] = goc;/.test(app) && /origin_chat: _goc,/.test(app));
   check("chi bao MOT lan: gui xong thi quen khung goc di",
     /delete _gocCongSu\[sid\];/.test(app));
   check("server nhan origin_chat va truyen xuong hai duong chay",

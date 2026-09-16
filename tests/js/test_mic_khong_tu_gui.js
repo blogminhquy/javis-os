@@ -82,7 +82,7 @@ check("chỉ có 8 chỗ gọi sendMessage (giọng nói, thử lại, Enter, n�
 check("chỗ thứ 7 là hàng đợi mất mạng, chỉ gửi sau khi socket nối lại",
   /function guiTinDutMang\(\)[\s\S]{0,400}setTimeout\(\(\) => sendMessage\(t\)/.test(app));
 check("chỗ thứ 5 nằm TRONG sendMessage và chỉ chạy sau Promise.all của file đang tải",
-  /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text\);/.test(app));
+  /Promise\.all\(dangTai\.map\(a => a\.xong[\s\S]{0,300}sendMessage\(text, opts\);/.test(app));
 check("chỗ thứ 6 là tin hoãn, chỉ gửi sau khi lượt cũ đã dừng",
   /function guiTinCho\(\) \{[\s\S]{0,300}if \(t\) sendMessage\(t\);/.test(app)
   && /if \(isActive && _tinChoLuot\) guiTinCho\(\);/.test(app));

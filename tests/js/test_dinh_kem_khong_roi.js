@@ -102,8 +102,11 @@ check("convo lưu lại cũng mang đính kèm (F5 lần sau còn)",
 const i1 = APP.indexOf("function sendMessage(");
 const thanSend = APP.slice(i1, APP.indexOf("\n}\n", i1));
 check("sendMessage nhìn thấy file còn đang tải (a.uploading)", /filter\(a => a\.uploading\)/.test(thanSend));
+// Lời gọi lại phải mang THEO cả `opts`: cú gửi bị hoãn là cùng một lượt của người dùng, nên
+// cờ `wfRun` (bấm nút Chạy ở trang Cộng sự) không được rơi mất dọc đường - rơi là câu lệnh
+// chạy quy trình bị server đem ra đoán lại như một tin gõ tay.
 check("còn đang tải thì ĐỢI (Promise.all trên a.xong) rồi tự gọi lại sendMessage",
-  /Promise\.all\(dangTai\.map\(a => a\.xong/.test(thanSend) && /sendMessage\(text\)/.test(thanSend));
+  /Promise\.all\(dangTai\.map\(a => a\.xong/.test(thanSend) && /sendMessage\(text, opts\)/.test(thanSend));
 check("chỉ giữ MỘT lượt chờ (Enter hai lần không thành hai tin)", /if \(!_choTaiLen\)/.test(thanSend));
 check("trong lúc chờ có báo cho người dùng biết vì sao tin chưa đi",
   /showActivity\(escapeHtml\(window\.t\("app\.att_wait_send"\)\)\)/.test(thanSend));

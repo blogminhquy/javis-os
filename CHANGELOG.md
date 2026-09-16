@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.12] - 2026-09-16
+### Sửa lỗi
+- **Nhắn "sửa lại quy trình" không bị đem đi chạy nữa.** Ở khung chat của một quy trình, câu nói về CHÍNH quy trình (cập nhật, đánh giá lại, gộp bớt bước, tóm tắt) giờ được Javis trả lời và sửa thẳng vào file quy trình. Trước đây nó thành đề bài cho một lần chạy: mất cả 10 phút, tiêu hạn mức gói, rồi trả về một bài viết chẳng liên quan.
+- **Muốn chạy thật thì vẫn chạy.** Bấm nút **Chạy** ở cột phải là chạy ngay, không bị đoán lại; hoặc gửi lại tin với `chạy:` ở đầu. Javis luôn nói một dòng cho biết nó đã trả lời chứ không chạy.
+- **Hết lượt gói thuê bao giữa lần chạy không còn lọt ra thành "kết quả".** Câu báo tiếng Anh của nhà cung cấp giờ thành lỗi tiếng Việt kèm giờ reset và tên trợ lý của bước đó, ở cả hai đường chạy quy trình.
+
 ## [0.59.11] - 2026-09-15
 ### Sửa lỗi
 - **Trên điện thoại, trang Cộng sự đã thấy được tên trợ lý đang mở.** Trước đây tên bị mấy cái nút chen cho co lại còn một chữ cái, giờ thanh đầu trang xếp hai dòng: dòng trên là khuôn mặt cùng tên và vai trò, dòng dưới mới là **File & link**, **Hội thoại mới** và hai nút mở cột.

@@ -828,7 +828,10 @@ function traTinDutMang() {
 // theo dõi cuộc gọi ấy nữa.
 const _gocCongSu = {};
 
-function sendMessage(text) {
+// `opts.wfRun`: tin này đến từ nút CHẠY của trang Cộng sự. Server dùng cờ đó để không
+// đoán lại ý người dùng (xem workflow_chat.quyet_dinh_luot): bấm đúng nút Chạy thì chạy,
+// dù câu trong ô nhập có nghe như đang nói về chính quy trình.
+function sendMessage(text, opts) {
   if (window.JavisWorkspace && !window.JavisWorkspace.canSend()) return;
   const msg = (text || chatInput.value).trim();
   // Lệnh / : session-command chạy tại chỗ; skill-command bung thành lời gọi skill.
@@ -869,7 +872,7 @@ function sendMessage(text) {
         _choTaiLen = null;
         const _t = savedSessionId && turns[savedSessionId];
         if (!(_t && _t.running)) hideActivity();
-        sendMessage(text);
+        sendMessage(text, opts);
       });
     }
     return;
@@ -989,7 +992,8 @@ function sendMessage(text) {
   const _goc = _gocCongSu[sid] || "";
   delete _gocCongSu[sid];
   ws.send(JSON.stringify({ message: outMsg, brain: currentBrainPath(), session_id: sid,
-                          voice: _tuGiong || handsFree, origin_chat: _goc }));
+                          voice: _tuGiong || handsFree, origin_chat: _goc,
+                          wf_run: !!(opts && opts.wfRun) }));
   _tuGiong = false;
 }
 // Trang đang mở và đoạn đang bôi đen, cho khối NGỮ CẢNH GIAO DIỆN. Chọn trong ô nhập chat thì
