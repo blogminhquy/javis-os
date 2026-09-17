@@ -3144,12 +3144,17 @@
       const btn = document.getElementById("ovAutoToggle");
       btn.style.display = "";
       btn.disabled = false;
-      btn.textContent = on ? window.t("cs.ov_auto_btn_off") : window.t("cs.ov_auto_btn_on");
+      // "Bật nhưng không chạy" (Windows chặn, đường dẫn cũ, thiếu file) thì nút phải là BẬT
+      // LẠI, không phải Tắt: câu lý do bảo "bấm bật lại" mà nút duy nhất trên thẻ ghi "Tắt"
+      // là người dùng phải tự đoán ra hai cú bấm Tắt rồi Bật. Máy chủ dự án đứng đúng cảnh
+      // này gần hai tháng (17/09): Run key còn, cờ StartupApproved bị lật, không ai nhận ra.
+      const hong = on && !!j.ly_do;
+      btn.textContent = window.t(hong ? "cs.ov_auto_btn_fix" : on ? "cs.ov_auto_btn_off" : "cs.ov_auto_btn_on");
       btn.onclick = async () => {
         btn.disabled = true;
         const st = document.getElementById("ovAutoStatus");
         st.textContent = window.t("settings.saving");
-        const fd = new FormData(); fd.append("enabled", on ? "0" : "1");
+        const fd = new FormData(); fd.append("enabled", (on && !hong) ? "0" : "1");
         let r = {};
         try { r = await (await fetch("/autostart", { method: "POST", body: fd })).json(); }
         catch (e) { r = { ok: false, error: e.message }; }
@@ -5871,12 +5876,41 @@
   async function renderVoiceV2Card() {
     const host = document.getElementById("vpV2Host");
     if (!host) return;
+    // Ba mục micro (ngôn ngữ nghe, im lặng rồi gửi, ngắt lời) là node TĨNH của index.html:
+    // app.js gắn tay bắt cho chúng đúng một lần lúc tải trang, nên không vẽ lại bằng chuỗi
+    // HTML được (vẽ lại là mất tay bắt). Chúng nằm cùng thẻ với chế độ nói chuyện (chủ dự án
+    // chốt 17/09) bằng cách DỜI node vào thẻ, và phải TRẢ về nhà (#qsMicHome) trước khi
+    // host.innerHTML ghi đè, không thì lần vẽ lại thứ hai xoá sạch chúng.
+    const micHome = document.getElementById("qsMicHome"), micFields = document.getElementById("qsMicFields");
+    const traMicVeNha = () => { if (micHome && micFields && micFields.parentNode !== micHome) micHome.appendChild(micFields); };
+    const gheMicVaoThe = (truoc) => {
+      const the = host.querySelector(".qs-block");
+      if (!micFields || !the) return;
+      if (truoc) the.insertBefore(micFields, truoc); else the.appendChild(micFields);
+      if (micHome) micHome.hidden = true;
+    };
+    traMicVeNha();
     let o = null;
     try { o = await (await fetch("/voice/options", { cache: "no-store" })).json(); } catch (e) { o = null; }
-    if (!o || !o.ok) { host.innerHTML = `<div class="gcard-meta">${esc(t("settings.v2_load_fail"))}</div>`; return; }
+    if (!o || !o.ok) {
+      // Máy chủ cũ: vẫn phải cho chỉnh micro, ba mục đó không cần máy chủ.
+      host.innerHTML = `<div class="qs-block"><div class="popover-label">${esc(t("settings.v2_title"))}</div><div class="gcard-meta">${esc(t("settings.v2_load_fail"))}</div></div>`;
+      gheMicVaoThe(null);
+      return;
+    }
     const v = o.voice || {};
+    // Mặc định là Làn nhanh (chủ dự án chốt 17/09). Làn nhanh cần một bộ não giọng, mà cài
+    // đặt mới chưa chọn bộ não nào: gợi sẵn bộ não ĐANG SẴN đầu tiên (thứ tự của máy chủ ưu
+    // tiên bộ não chạy trên gói đã đăng nhập) để bấm Lưu là dùng được ngay, thay vì chặn
+    // bằng câu "cần chọn bộ não". Chỉ gợi trên màn hình; chưa bấm Lưu thì chưa ghi gì.
+    const cheDo = v.mode || "fast";
+    let naoChon = v.brain_provider || "";
+    if (cheDo === "fast" && !naoChon) {
+      const san = (o.brain_providers || []).find(p => p.id && p.available);
+      if (san) naoChon = san.id;
+    }
     const optA = (id, label, cur, dis) => `<option value="${esc(id)}" ${id === (cur || "") ? "selected" : ""} ${dis ? "disabled" : ""}>${esc(label)}</option>`;
-    const brainOpts = o.brain_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), v.brain_provider, !p.available && p.id !== "")).join("");
+    const brainOpts = o.brain_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), naoChon, !p.available && p.id !== "")).join("");
     const sttOpts = o.stt_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_unavailable") + ")"), v.stt_provider || "browser", !p.available)).join("");
     const liveOpts = o.live_providers.map(p => optA(p.id, p.label + (p.available ? "" : " (" + t("settings.v2_need_key") + ")"), v.live_provider || "gemini", false)).join("");
     host.innerHTML = `
@@ -5885,9 +5919,9 @@
         <div class="qs-field">
           <label class="qs-lbl" for="v2Mode">${esc(t("settings.v2_mode"))}</label>
           <select class="js-input" id="v2Mode">
-            ${optA("standard", t("settings.v2_mode_standard"), v.mode || "standard")}
-            ${optA("fast", t("settings.v2_mode_fast"), v.mode)}
-            ${optA("live", t("settings.v2_mode_live"), v.mode)}
+            ${optA("standard", t("settings.v2_mode_standard"), cheDo)}
+            ${optA("fast", t("settings.v2_mode_fast"), cheDo)}
+            ${optA("live", t("settings.v2_mode_live"), cheDo)}
           </select>
         </div>
         <div id="v2FastBox">
@@ -5920,6 +5954,7 @@
         <div class="gcard-meta" id="v2Status">${esc(t("settings.v2_note"))}</div>
         <div class="gcard-meta" id="v2LastErr" style="display:none"></div>
       </div>`;
+    gheMicVaoThe(host.querySelector(".qs-foot"));   // ba mục micro đứng ngay trên nút Lưu chế độ
     const $ = (id) => document.getElementById(id);
     const byId = (arr, id) => (arr || []).find(p => p.id === id) || null;
     const syncBrain = () => {
@@ -6341,10 +6376,13 @@
         : esc(window.t("cs.st_auto_meta_off")))
         + (j.ly_do ? '<br><span class="dim">' + WARN_ICON + " " + esc(j.ly_do) + "</span>" : "");
       const button = document.getElementById("setAutoToggle");
-      button.style.display = ""; button.disabled = false; button.textContent = window.t(on ? "cs.ov_auto_btn_off" : "cs.ov_auto_btn_on");
+      // Cùng luật với thẻ ở trang Tổng quan (ovLoadAutostart): đang hỏng thì nút là Bật lại.
+      const hong = on && !!j.ly_do;
+      button.style.display = ""; button.disabled = false;
+      button.textContent = window.t(hong ? "cs.ov_auto_btn_fix" : on ? "cs.ov_auto_btn_off" : "cs.ov_auto_btn_on");
       button.onclick = async () => {
         button.disabled = true; document.getElementById("setAutoStatus").textContent = window.t("settings.saving");
-        const fd = new FormData(); fd.append("enabled", on ? "0" : "1");
+        const fd = new FormData(); fd.append("enabled", (on && !hong) ? "0" : "1");
         let r = {}; try { r = await (await fetch("/autostart", { method: "POST", body: fd })).json(); } catch (e) { r = { ok: false, error: e.message }; }
         if (r.ok) { document.getElementById("setAutoStatus").textContent = ""; loadAutostart(); }
         else { document.getElementById("setAutoStatus").innerHTML = WARN_ICON + " " + esc(r.error || window.t("app.err_cap")); button.disabled = false; }

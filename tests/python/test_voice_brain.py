@@ -346,7 +346,8 @@ async def main():
     check("main: có POST /stt và GET /voice/options", '@app.post("/stt")' in src and '@app.get("/voice/options")' in src)
     check("main: có WS /ws/voice-live", '@app.websocket("/ws/voice-live")' in src)
     cfg_src = (SERVER / "config.py").read_text(encoding="utf-8")
-    for k in ("brain_provider", "stt_provider", "live_provider", '"mode": "standard"'):
+    # Mặc định là Làn nhanh từ 0.59.27 (chủ dự án chốt 17/09).
+    for k in ("brain_provider", "stt_provider", "live_provider", '"mode": "fast"'):
         check(f"config mặc định có {k}", k in cfg_src)
 
 

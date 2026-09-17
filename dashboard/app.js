@@ -177,7 +177,7 @@ const voice = new JavisVoice({
 // voice-turn.js giữ toàn bộ luật (chờ bao lâu rồi gửi, "khoan" nghĩa là gì, chen ngang thật
 // hay giả); app.js chỉ THỰC HIỆN mảng hành động nó trả về và vẽ orb theo trạng thái thật.
 const turn = new window.JavisVoiceTurn.VoiceTurn({
-  minDelay: parseInt(localStorage.getItem("javis.endpoint") || "800", 10) || 800,
+  minDelay: parseInt(localStorage.getItem("javis.endpoint") || "1200", 10) || 1200,
 });
 let _bargeTimer = null;   // 2 giây sau khi tạm dừng mà không có chữ -> chen ngang giả
 let _waitTimer = null;    // "khoan" rồi im lâu -> thôi chờ
@@ -2671,18 +2671,18 @@ voiceBtn.addEventListener("click", () => {
 });
 
 // ---- Voice V1: hai nút trong Cài đặt nhanh (lưu localStorage, không đụng settings.json) ----
-// Im lặng bao lâu thì gửi (500 / 800 / 1200 ms) và có cho ngắt lời Javis bằng giọng không.
+// Im lặng bao lâu thì gửi (500 / 800 / 1200 ms, mặc định 1200 - chủ dự án chốt 17/09) và có cho ngắt lời Javis bằng giọng không.
 (function () {
   // 0.58.8: ba thẻ radio đổi thành một ô chọn (#endpointSel). Giá trị lưu KHÔNG đổi nên
   // người đang dùng không bị reset về mặc định.
-  const ep = localStorage.getItem("javis.endpoint") || "800";
+  const ep = localStorage.getItem("javis.endpoint") || "1200";
   const epSel = document.getElementById("endpointSel");
   if (epSel) {
     epSel.value = ep;
-    if (!epSel.value) epSel.value = "800";      // giá trị cũ không còn trong danh sách
-    turn.opts.minDelay = parseInt(epSel.value, 10) || 800;
+    if (!epSel.value) epSel.value = "1200";      // giá trị cũ không còn trong danh sách
+    turn.opts.minDelay = parseInt(epSel.value, 10) || 1200;
     epSel.addEventListener("change", () => {
-      turn.opts.minDelay = parseInt(epSel.value, 10) || 800;
+      turn.opts.minDelay = parseInt(epSel.value, 10) || 1200;
       localStorage.setItem("javis.endpoint", epSel.value);
     });
   }

@@ -135,6 +135,8 @@
   // THỨ TỰ (chủ dự án chốt 16/09): Lịch sử trước, rồi Thư mục, Cài đặt sau cùng. Việc hằng
   // ngày là mở lại một hội thoại cũ và mở một file, còn cài đặt trợ lý thì sửa một lần rồi
   // thôi - để nó ở tab đầu là bắt người dùng bấm thêm một cú mỗi lần vào trang.
+  // Thứ tự nút là chung, còn tab MỞ SẴN thì khác nhau theo loại: quy trình mở ở Cài đặt vì
+  // nút Chạy quy trình nằm ở đó (chủ dự án chốt 17/09) - xem S.tabCua.
   var TAB_PHAI = ["lichsu", "files", "cai"];   // ba tab cột phải, thứ tự đúng như lúc vẽ
   // Danh sách trái chỉ vẽ TRANG mục đầu, bấm "Xem thêm" mở thêm TRANG nữa - đúng cỡ trang của
   // cột lịch sử (sessions-ui.js: PAGE = 20) để cả app cùng một nhịp. Brain của chủ dự án có
@@ -143,6 +145,11 @@
   var TRANG = 20;
   var S = { loai: "agent", q: "", nhom: "", agents: [], workflows: [], chon: { agent: null, workflow: null },
             el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "lichsu",
+            // Tab cột phải NHỚ RIÊNG theo loại. Trợ lý mở ở Lịch sử (chốt 16/09, xem TAB_PHAI);
+            // quy trình mở ở Cài đặt vì nút Chạy nằm ở đó (chủ dự án chốt 17/09). Dùng chung
+            // một ô nhớ thì vừa xem xong hội thoại của một trợ lý, sang quy trình là Lịch sử
+            // đè lên và nút Chạy biến mất.
+            tabCua: { agent: "lichsu", workflow: "cai" },
             hien: TRANG, lanChay: {},
             menu: null };   // tienDo[session_id] = tiến độ lần chạy đang xem
 
@@ -257,6 +264,10 @@
     // khác rồi quay lại là mất chỗ, trong khi cộng sự đang dùng thường chỉ là một hai mục.
     try { var l = localStorage.getItem("javis_ws_loai"); if (l === "agent" || l === "workflow") S.loai = l; S.chon.agent = localStorage.getItem("javis_ws_agent"); S.chon.workflow = localStorage.getItem("javis_ws_workflow"); } catch (e) {}
     try { var r = localStorage.getItem("javis_ws_rtab"); S.tabPhai = TAB_PHAI.indexOf(r) >= 0 ? r : "lichsu"; } catch (e) { S.tabPhai = "lichsu"; }
+    // Chỉ tab của TRỢ LÝ được nhớ qua localStorage. Quy trình mở trang là về Cài đặt: "khởi
+    // đầu vào luôn cài đặt" là điều chủ dự án muốn, nhớ tab cũ qua F5 là làm ngược lại.
+    S.tabCua = { agent: S.tabPhai, workflow: "cai" };
+    S.tabPhai = S.tabCua[S.loai] || S.tabPhai;
     chonTabPhai(S.tabPhai);
     nhoPhienTruoc();
     taiDanhSach().then(function () { if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { veTrai(); chonMacDinh(); } }).catch(function () { if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
@@ -331,7 +342,9 @@
   function chonTabPhai(tab) {
     var el = S.el; if (!el) return;
     S.tabPhai = TAB_PHAI.indexOf(tab) >= 0 ? tab : "cai";
-    try { localStorage.setItem("javis_ws_rtab", S.tabPhai); } catch (e) {}
+    if (S.tabCua) S.tabCua[S.loai] = S.tabPhai;
+    // Tab của quy trình chỉ sống trong lần mở trang này (xem S.tabCua), không ghi xuống.
+    if (S.loai !== "workflow") { try { localStorage.setItem("javis_ws_rtab", S.tabPhai); } catch (e) {} }
     el.querySelectorAll("[data-rtab]").forEach(function (b) { b.classList.toggle("active", b.dataset.rtab === S.tabPhai); });
     el.querySelectorAll("[data-rpane]").forEach(function (p) { p.classList.toggle("on", p.dataset.rpane === S.tabPhai); });
     var host = el.querySelector("#wsRightFiles");
@@ -764,13 +777,15 @@
   }
 
   // ---------- cột phải ----------
+  /** Tab cột phải cho LOẠI đang xem: trợ lý và quy trình nhớ riêng (xem S.tabCua). */
+  function tabTheoLoai() { return (S.tabCua && S.tabCua[S.loai]) || S.tabPhai; }
   function vePhai(item) {
     var host = S.el && S.el.querySelector("#wsRightSet"); if (!host) return;
     // TRẢ cây thư mục về trước khi vẽ lại cột phải. Vẽ lại chỉ ghi vào khung Cài đặt, nhưng
     // cây là node mượn và chỉ có một bản: trả rồi mượn lại theo tab đang mở là luật gọn nhất,
     // khỏi phải nhớ chỗ nào được phép ghi đè chỗ nào không.
     traCayThuMuc();
-    if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(S.tabPhai); return; }
+    if (!item) { host.innerHTML = ""; veLichSu(null); chonTabPhai(tabTheoLoai()); return; }
     if (S.loai === "agent") {
       host.innerHTML = '<div class="ws-rtitle">' + esc(t("ws.agent_settings")) + '</div><div class="ws-form" id="wsAgentForm"></div>' +
         '<div class="ws-acts"><button type="button" class="ws-btn" id="wsExport">' + esc(t("studio.export")) + '</button>' +
@@ -808,7 +823,7 @@
       };
     }
     veLichSu(item);
-    chonTabPhai(S.tabPhai);
+    chonTabPhai(tabTheoLoai());
   }
   function tenAgent(slug) { var a = S.agents.find(function (x) { return x.slug === slug; }); return a ? a.name : (slug || ""); }
   // Tiến độ ĐANG XEM: lần chạy sống của phiên đang mở nếu có, không thì khung rỗng dựng từ

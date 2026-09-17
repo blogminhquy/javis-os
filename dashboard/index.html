@@ -393,32 +393,39 @@
                  nó - luật của trang này: một thẻ, một nút Lưu, luôn ở góc dưới phải. -->
             <div id="vpV2Host"></div>
 
-            <!-- MICRO (Voice V1): ba mục dưới đây ghi thẳng localStorage của máy đang dùng
-                 nên KHÔNG có nút Lưu, và câu cuối thẻ nói rõ điều đó - thiếu câu ấy thì người
-                 dùng đi tìm nút Lưu không có. -->
-            <div class="qs-block">
-              <div class="popover-label" data-i18n="qs.mic">MICRO</div>
-              <div class="qs-field">
-                <label class="qs-lbl" for="recLangSel" data-i18n="qs.rec_lang">Ngôn ngữ nghe</label>
-                <select class="js-input" id="recLangSel" name="recognitionLang">
-                  <option value="vi-VN" data-i18n="qs.rec_vi_opt">Tiếng Việt · vi-VN</option>
-                  <option value="en-US" data-i18n="qs.rec_en_opt">Tiếng Anh · en-US</option>
-                </select>
+            <!-- MICRO (Voice V1): ba mục ghi thẳng localStorage của máy đang dùng. Từ 0.59.27
+                 chúng nằm CÙNG THẺ với "Chế độ nói chuyện" (chủ dự án chốt 17/09): console.js
+                 renderVoiceV2Card() DỜI #qsMicFields vào thẻ đó, ngay trên nút Lưu chế độ, rồi
+                 ẩn cái nhà này. Là node tĩnh chứ không vẽ bằng JS vì app.js gắn tay bắt cho ba
+                 ô này đúng một lần lúc tải trang. Nhà mang lớp .qs-block để lỡ thẻ kia không
+                 vẽ được (máy chủ cũ) thì ba mục vẫn đứng trong một thẻ tử tế. -->
+            <div class="qs-block" id="qsMicHome">
+              <div id="qsMicFields">
+                <div class="qs-sub" data-i18n="qs.mic">MICRO</div>
+                <div class="qs-field">
+                  <label class="qs-lbl" for="recLangSel" data-i18n="qs.rec_lang">Ngôn ngữ nghe</label>
+                  <select class="js-input" id="recLangSel" name="recognitionLang">
+                    <option value="vi-VN" data-i18n="qs.rec_vi_opt">Tiếng Việt · vi-VN</option>
+                    <option value="en-US" data-i18n="qs.rec_en_opt">Tiếng Anh · en-US</option>
+                    <option value="auto" data-i18n="qs.rec_auto_opt">Đa ngôn ngữ · không cố định</option>
+                  </select>
+                </div>
+                <div class="qs-hint" data-i18n="qs.rec_auto_hint">Đa ngôn ngữ: máy nghe Groq Whisper tự nhận ra tiếng đang nói; máy nghe của trình duyệt chỉ theo được ngôn ngữ của trình duyệt.</div>
+                <div class="qs-field">
+                  <label class="qs-lbl" for="endpointSel" data-i18n="qs.endpoint">Im lặng rồi gửi</label>
+                  <select class="js-input" id="endpointSel" name="endpoint">
+                    <option value="500" data-i18n="qs.endpoint_fast_opt">Nhanh · 0,5 giây</option>
+                    <option value="800" data-i18n="qs.endpoint_mid_opt">Vừa · 0,8 giây</option>
+                    <option value="1200" data-i18n="qs.endpoint_slow_opt">Chậm · 1,2 giây (mặc định)</option>
+                  </select>
+                </div>
+                <div class="qs-hint" data-i18n="qs.endpoint_hint">Câu kết bằng "và", "nhưng", dấu phẩy thì Javis tự chờ lâu hơn. Nói "khoan" hay "đợi chút" là Javis im chờ bạn.</div>
+                <label class="qs-field">
+                  <span class="qs-lbl" data-i18n="qs.barge">Ngắt lời Javis bằng giọng</span>
+                  <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
+                </label>
+                <div class="gcard-meta" data-i18n="qs.mic_local">Ba mục micro áp dụng ngay trên máy đang dùng, không cần bấm Lưu; nút Lưu chế độ chỉ lưu phần chế độ và bộ não giọng.</div>
               </div>
-              <div class="qs-field">
-                <label class="qs-lbl" for="endpointSel" data-i18n="qs.endpoint">Im lặng rồi gửi</label>
-                <select class="js-input" id="endpointSel" name="endpoint">
-                  <option value="500" data-i18n="qs.endpoint_fast_opt">Nhanh · 0,5 giây</option>
-                  <option value="800" data-i18n="qs.endpoint_mid_opt">Vừa · 0,8 giây (mặc định)</option>
-                  <option value="1200" data-i18n="qs.endpoint_slow_opt">Chậm · 1,2 giây</option>
-                </select>
-              </div>
-              <div class="qs-hint" data-i18n="qs.endpoint_hint">Câu kết bằng "và", "nhưng", dấu phẩy thì Javis tự chờ lâu hơn. Nói "khoan" hay "đợi chút" là Javis im chờ bạn.</div>
-              <label class="qs-field">
-                <span class="qs-lbl" data-i18n="qs.barge">Ngắt lời Javis bằng giọng</span>
-                <span class="toggle"><input type="checkbox" id="qsBarge" checked><span></span></span>
-              </label>
-              <div class="gcard-meta" data-i18n="qs.mic_local">Ba mục này áp dụng ngay trên máy đang dùng, không cần bấm Lưu.</div>
             </div>
 
             <!-- THƯƠNG HIỆU. Hai nút trước đây là hai thanh tràn ngang (một tím đặc, một

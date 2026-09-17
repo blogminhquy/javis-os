@@ -1721,6 +1721,10 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .qs-field > select, .qs-field > input { flex: 0 1 400px; min-width: 0; margin: 0; }
 .qs-field > .toggle { flex: none; }
 .qs-hint { font-size: 12.5px; line-height: 1.5; color: var(--text3); margin: -2px 0 10px; }
+/* Tiêu đề phụ TRONG một thẻ (vd "MICRO" nằm trong thẻ Chế độ nói chuyện): cùng cỡ chữ với
+   nhãn thẻ, thêm gạch mảnh phía trên để mắt thấy đây là phần hai của cùng một thẻ. */
+.qs-sub { font-family: var(--font); font-size: 12px; letter-spacing: 2px; color: var(--text3);
+  margin: 14px 0 4px; padding-top: 12px; border-top: 1px solid var(--border); }
 .qs-block .opt-sub { font-size: 12.5px; line-height: 1.5; color: var(--text3); }
 /* Nút Lưu của MỌI thẻ: luôn ở góc dưới phải, luôn cùng một họ nút (.gcard-btn của trang Cài
    đặt). Trước đây mỗi thẻ một kiểu - nút tím tràn ngang, nút viền tràn ngang, nút thường canh

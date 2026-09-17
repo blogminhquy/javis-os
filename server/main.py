@@ -10807,7 +10807,10 @@ async def stt_route(file: UploadFile = File(...), lang: str = Form("")):
     key = (cfg.get("model", {}) or {}).get("groq_api_key", "")
     v = cfg.get("voice", {}) or {}
     data = await file.read()
-    ngon_ngu = (lang or "").split("-")[0].strip() or None
+    # "auto" = ô "Ngôn ngữ nghe" chọn Đa ngôn ngữ: truyền "" xuống để Whisper TỰ DÒ tiếng (xem
+    # chú thích ba giá trị trong stt.groq_nghe). Rỗng hay thiếu vẫn là None -> mặc định "vi".
+    lang = (lang or "").strip()
+    ngon_ngu = "" if lang.lower() == "auto" else (lang.split("-")[0].strip() or None)
     # Bộ từ vựng (tên trợ lý + từ người dùng khai) đi hai đường: mồi cho Whisper viết đúng, rồi
     # lớp sửa theo ngữ cảnh quét lại chữ nghe được. WebSocket còn quét thêm lần nữa (cho cả chữ
     # của Web Speech); nghe_sua.sua idempotent nên hai lần không hại gì.

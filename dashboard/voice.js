@@ -40,6 +40,9 @@ class JavisVoice {
 
   constructor(opts = {}) {
     this.lang = opts.lang || "vi-VN";
+    // Đa ngôn ngữ (ô "Ngôn ngữ nghe" = auto): không cố định tiếng nào. this.lang vẫn giữ mã
+    // cụ thể gần nhất cho phần ĐỌC; chỉ phần NGHE mới bỏ ghim (xem setRecognitionLang).
+    this.langAuto = false;
     this.onTranscript = opts.onTranscript || (() => {});
     this.onInterim = opts.onInterim || (() => {});
     this.onStart = opts.onStart || (() => {});
@@ -182,7 +185,8 @@ class JavisVoice {
     try {
       const fd = new FormData();
       fd.append("file", blob, "voice.webm");
-      fd.append("lang", this.lang || "");
+      // "auto" = bảo máy chủ ĐỪNG gợi ý tiếng cho Whisper, để nó tự dò (xem /stt trong main.py).
+      fd.append("lang", this.langAuto ? "auto" : (this.lang || ""));
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 8000);
       const r = await fetch(this.sttUrl, { method: "POST", body: fd, signal: ctl.signal });
@@ -221,7 +225,9 @@ class JavisVoice {
     }
 
     this.recognition = new SR();
-    this.recognition.lang = this.lang;
+    // Đa ngôn ngữ: để trống lang, Chrome lấy ngôn ngữ của trình duyệt. Web Speech không nghe
+    // được nhiều tiếng cùng lúc, nên đây là mức "không cố định" tốt nhất máy nghe này có.
+    this.recognition.lang = this.langAuto ? "" : this.lang;
     this.recognition.continuous = true;       // nghe liên tục, không dừng giữa câu
     // iPhone/iPad: WebKit KHÔNG nghe liên tục được. Đặt continuous=true thì nó vào một phiên
     // "ghi âm" không bao giờ tự kết thúc câu, và onend tự mở lại càng làm nó kéo dài - đúng
@@ -1046,8 +1052,13 @@ class JavisVoice {
   }
 
   setRecognitionLang(lang) {
-    this.lang = lang;
-    if (this.recognition) this.recognition.lang = lang;
+    // "auto" = ĐA NGÔN NGỮ, không cố định. Web Speech không nghe được nhiều tiếng cùng lúc,
+    // nên với máy nghe trình duyệt "auto" nghĩa là để trống lang (Chrome lấy ngôn ngữ của
+    // trình duyệt); còn máy nghe Groq Whisper nhận "auto" và tự dò tiếng (xem /stt). Giữ
+    // this.lang là mã cụ thể gần nhất để phần ĐỌC (utter.lang, chọn giọng Việt) không hỏng.
+    this.langAuto = lang === "auto";
+    if (!this.langAuto) this.lang = lang;
+    if (this.recognition) this.recognition.lang = this.langAuto ? "" : this.lang;
   }
 
   _splitIntoChunks(text, maxLen) {
