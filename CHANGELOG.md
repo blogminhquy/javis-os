@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.28] - 2026-09-17
+### Thêm mới
+- **Javis lọc tạp âm khỏi câu bạn nói.** Mic bật liên tục nên tiếng TV, người khác trong phòng hay tiếng bạn lẩm bẩm cũng bị chép thành chữ và đi thẳng vào khung chat. Nay Javis cắt phần không nói với nó ra khỏi câu rồi mới trả lời, còn lượt nào chỉ toàn tạp âm thì bỏ hẳn: không đọc, không để lại bong bóng, chỉ hiện một dòng báo rồi tự tắt sau vài giây.
+- **Ô "Lọc tạp âm" trong thẻ Chế độ nói chuyện,** mặc định bật. Thấy Javis bỏ nhầm câu của mình nhiều quá thì tắt đi, lúc đó mọi câu đều được trả lời nguyên văn như trước. Chỉ chạy ở chế độ Làn nhanh.
+### Sửa lỗi
+- **Nói liên tục quá 30 giây thì Javis chốt luôn, không chờ nữa.** Trước đây hễ còn tiếng là đồng hồ "im lặng rồi gửi" lại lùi, nên ở phòng có TV nó không bao giờ nổ: chữ dồn thành một lượt dài cả trang và suốt lúc ấy Javis trông như điếc.
+
 ## [0.59.27] - 2026-09-17
 ### Sửa lỗi
 - **Khởi động cùng Windows: khi Windows đang chặn mục khởi động, nút trên thẻ đổi thành "Bật lại để sửa".** Trước đây thẻ báo "bật nhưng không chạy" mà nút duy nhất lại là Tắt, nên phải tự đoán ra hai cú bấm Tắt rồi Bật; mục của Javis trên máy chủ dự án bị Task Manager tắt từ cuối tháng 7 mà không ai nhận ra.

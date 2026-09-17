@@ -35,6 +35,14 @@ UI_ACTIONS = ("open_page", "open_group", "sidebar", "scroll")
 # bộ não giọng viết lại đúng ý). Server bóc dòng này ra: thay tin người dùng trong kho phiên
 # và trong khung chat, không bao giờ đọc ra loa (xem parse_nghe, split_speakable).
 NGHE_MARKER = "JAVIS_NGHE:"
+# CỬA TẠP ÂM: mic bật liên tục nên tiếng TV, người khác trong phòng hay tiếng lẩm bẩm cũng
+# được chép thành chữ rồi chốt thành một lượt. Bộ não giọng đã đọc mọi lượt để viết dòng
+# JAVIS_NGHE, nên nó xét luôn: cắt phần tạp âm ngay trong dòng ấy, còn cả lượt không có gì
+# nói với Javis thì trả đúng một dòng này. Server bỏ lượt, không đọc loa, không để lại bong
+# bóng (xem run_voice_turn trong main.py).
+BO_QUA_MARKER = "JAVIS_BO_QUA:"
+# Mọi dòng lệnh: không bao giờ ra loa (split_speakable), luôn bị bóc khỏi câu trả lời.
+MARKERS = (MARKER, UI_MARKER, NGHE_MARKER, BO_QUA_MARKER)
 IDLE_S = 300.0
 TURN_TIMEOUT_S = 90.0
 HISTORY_N = 10
@@ -113,7 +121,29 @@ SYSTEM_PROMPT = (
     "dùng nhìn dòng này để biết bạn đã hiểu đúng chưa, nên không được bỏ. Từ dòng thứ hai trở đi "
     "mới là câu trả lời (câu xác nhận và dòng " + MARKER + " hay " + UI_MARKER + " nếu cần cũng nằm "
     "từ đây), và trả lời theo câu đã sửa đó: không bám nghĩa đen của từ nghe sai, không hỏi lại "
-    "'David là ai', không bình luận về từ nghe sai."
+    "'David là ai', không bình luận về từ nghe sai.\n"
+    "CŨNG Ở DÒNG " + NGHE_MARKER + " ĐÓ, lọc TẠP ÂM: mic bật liên tục nên chữ máy nghe chép về có "
+    "thể lẫn thứ KHÔNG nói với bạn, chẳng hạn tiếng TV hay video đang phát, người khác trong phòng "
+    "nói chuyện với nhau, người dùng lẩm bẩm một mình hay gọi ai đó. Dấu hiệu: câu đứt đoạn không "
+    "thành ý, đổi chủ đề liên tục, ngôn ngữ lạ chen vào giữa, nội dung chẳng liên quan gì tới cuộc "
+    "nói chuyện đang diễn ra. Gặp thế thì dòng " + NGHE_MARKER + " chỉ chép PHẦN THỰC SỰ NÓI VỚI "
+    "BẠN và bỏ phần còn lại, rồi trả lời đúng phần đó.\n"
+    "Cả lượt KHÔNG có câu nào nói với bạn thì trả đúng MỘT dòng duy nhất, không kèm gì khác, không "
+    "kèm cả dòng " + NGHE_MARKER + ":\n"
+    "  " + BO_QUA_MARKER + " <lý do thật ngắn, ví dụ: tiếng TV trong phòng>\n"
+    "DÈ DẶT khi dùng dòng này: bỏ nhầm thì người dùng nói mà không được trả lời, tệ hơn nhiều so "
+    "với trả lời một câu thừa. Chỉ bỏ khi CHẮC CHẮN không có gì gửi tới bạn. Nghi ngờ thì GIỮ và trả "
+    "lời bình thường. Câu cụt, câu trống không, câu chỉ vài từ, câu nói tiếp ý lượt trước, câu chỉ "
+    "đáp 'ừ' hay 'không' đều là nói với bạn, KHÔNG phải tạp âm."
+)
+
+# Câu dặn thêm cho lượt khi người dùng TẮT ô lọc tạp âm ở trang Cài đặt. Đi kèm câu nói (như
+# pending_note) thay vì đổi SYSTEM_PROMPT, vì prompt được nướng vào bộ não lúc dựng: đổi theo
+# cài đặt thì mỗi lần gạt ô lại phải giết và dựng lại tiến trình agy đang sống.
+GHI_CHU_TAT_LOC = (
+    "[GHI CHÚ HỆ THỐNG: người dùng đã TẮT lọc tạp âm cho lượt này. Chép NGUYÊN VĂN câu họ nói ở "
+    "dòng " + NGHE_MARKER + ", không cắt bỏ phần nào, và TUYỆT ĐỐI không dùng dòng "
+    + BO_QUA_MARKER + ".]"
 )
 
 _MARK_RE = re.compile(r"^[ \t]*" + re.escape(MARKER) + r"[ \t]*(.+?)[ \t]*$", re.M)
@@ -131,6 +161,22 @@ def parse_nghe(text: str):
     rest = t[:m.start()] + t[m.end():]
     nghe = m.group(1).strip()
     return rest, (nghe or None)
+
+
+_BO_QUA_RE = re.compile(r"^[ \t]*" + re.escape(BO_QUA_MARKER) + r"[ \t]*(.*?)[ \t]*$", re.M)
+
+
+def parse_bo_qua(text: str):
+    """Lý do bỏ lượt (chuỗi, có thể rỗng) nếu bộ não giọng ra dòng `JAVIS_BO_QUA:`, không thì None.
+
+    Tìm ở BẤT KỲ đâu chứ không chỉ dòng đầu: model nhỏ có khi viết dòng JAVIS_NGHE trước rồi mới
+    chốt bỏ. Lý do rỗng vẫn là bỏ - dòng lệnh có mặt đã là quyết định, lý do chỉ để ghi log.
+
+    Không trả phần còn lại như parse_nghe/parse_marker: lượt bị bỏ thì cả câu trả lời bị vứt,
+    không có gì để đọc ra loa hay lưu vào phiên.
+    """
+    m = _BO_QUA_RE.search(str(text or ""))
+    return None if not m else m.group(1).strip()
 
 
 def tach_nghe_dau(text: str):
@@ -204,9 +250,9 @@ def split_speakable(text: str, start: int, final: bool = False):
         if nl < 0:
             line = text[line_start:]
             if not final and any(mk.startswith(line.lstrip()) or line.lstrip().startswith(mk)
-                                 for mk in (MARKER, UI_MARKER, NGHE_MARKER)):
+                                 for mk in MARKERS):
                 break                          # chưa biết có phải marker: đợi thêm
-            if line.lstrip().startswith((MARKER, UI_MARKER, NGHE_MARKER)):
+            if line.lstrip().startswith(MARKERS):
                 start = len(text)              # final: dòng marker, bỏ
                 break
             partial = text[start:]
@@ -233,7 +279,7 @@ def split_speakable(text: str, start: int, final: bool = False):
         chunk = text[start:nl + 1]
         line = text[line_start:nl + 1]
         start = nl + 1
-        if line.lstrip().startswith((MARKER, UI_MARKER, NGHE_MARKER)):
+        if line.lstrip().startswith(MARKERS):
             continue
         if chunk.strip():
             out.append(chunk)
@@ -815,7 +861,10 @@ def config_from_settings(cfg: dict) -> dict:
     kf = (BRAIN_PROVIDERS.get(prov) or {}).get("key_field") or ""
     return {"mode": str(v.get("mode") or "standard"), "provider": prov,
             "model": str(v.get("brain_model") or "").strip(),
-            "api_key": str(m.get(kf, "")) if kf else ""}
+            "api_key": str(m.get(kf, "")) if kf else "",
+            # Lọc tạp âm MẶC ĐỊNH BẬT: brain cũ chưa có khoá này trong settings.json vẫn được lọc,
+            # nên phải hỏi `is False` chứ không phải `or True` (giá trị False hợp lệ).
+            "loc_tap_am": v.get("loc_tap_am") is not False}
 
 
 def _make(conf: dict) -> VoiceBrain:

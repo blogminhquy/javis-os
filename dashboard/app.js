@@ -690,7 +690,14 @@ function handleMessage(data) {
     // viết lại dòng JAVIS_NGHE). Bong bóng người dùng đang hiện chữ thô của máy nghe, nên thay
     // bằng câu đã diễn giải và ghi chữ thô nhỏ bên dưới để đối chiếu. Chủ dự án 16/09: nói
     // "Javis" mà bong bóng vẫn "David" thì không biết Javis đã hiểu đúng chưa.
-    if (isActive) capNhatTinNguoiDung(data.text || "", data.raw || "");
+    // CỬA TẠP ÂM: bộ não giọng xét ra cả lượt chỉ là tiếng TV hay người khác trong phòng,
+    // không có câu nào nói với Javis. Gỡ HẲN bong bóng (chủ dự án chốt 17/09: ẩn luôn để mắt
+    // chỉ còn nội dung đang bàn), server đã xoá tin khỏi kho phiên nên F5 cũng không thấy lại.
+    // Chỉ để lại một dòng ghi chú tự tắt: im hoàn toàn thì lúc cửa xét NHẦM, người dùng nói mà
+    // không có gì xảy ra, trông y hệt mic hỏng và không có đầu mối nào để đi tắt bớt lọc.
+    if (data.bo_qua) {
+      if (isActive) { goTinNguoiDungCuoi(); ghiChuThoang(window.t("app.tap_am_bo_qua")); }
+    } else if (isActive) capNhatTinNguoiDung(data.text || "", data.raw || "");
   } else if (data.type === "system") {
     if (isActive) appendJavisMessage(data.content);
   } else if (data.type === "turn_done") {
@@ -1060,6 +1067,31 @@ function capNhatTinNguoiDung(text, raw) {
     if (convo[i].role === "user") { convo[i].text = text; break; }
   }
   persistSession();
+}
+// Gỡ bong bóng NGƯỜI DÙNG cuối cùng khỏi khung chat và khỏi convo (cửa tạp âm). Server đã xoá
+// tin khỏi kho phiên, đây là bản sao phía trình duyệt: không gỡ thì phải F5 mới sạch, còn màn
+// hình đang mở vẫn trơ đoạn tạp âm ra đó.
+function goTinNguoiDungCuoi() {
+  const nodes = chatArea.querySelectorAll(".msg-user");
+  const div = nodes[nodes.length - 1];
+  if (div && div.parentNode) div.parentNode.removeChild(div);
+  for (let i = convo.length - 1; i >= 0; i--) {
+    if (convo[i].role === "user") { convo.splice(i, 1); break; }
+  }
+  persistSession();
+}
+// Dòng ghi chú THOÁNG QUA giữa khung chat: hiện rồi tự tắt, không vào convo, không lưu
+// localStorage, không đọc ra loa, không đi vào ngữ cảnh lượt sau. Dùng cho chuyện Javis vừa
+// quyết mà không đáng để lại một lượt trong hội thoại.
+const GHI_CHU_MS = 6000;
+function ghiChuThoang(text) {
+  if (!text) return;
+  const el = document.createElement("div");
+  el.className = "msg msg-ghichu";
+  el.textContent = text;
+  chatAppend(el);
+  scrollBottom();
+  setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, GHI_CHU_MS);
 }
 function recordTurn(role, text, atts, ask) {
   convo.push({ role, text: text || "", atts: atts || [], ask: ask || null, ts: Date.now() });

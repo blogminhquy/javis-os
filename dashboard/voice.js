@@ -9,6 +9,11 @@ class JavisVoice {
   //   service-not-allowed trình duyệt chặn dịch vụ nhận giọng
   //   audio-capture       máy không có mic (hay gặp trên phiên điều khiển từ xa)
   static LOI_CHET = ["not-allowed", "service-not-allowed", "audio-capture"];
+  // Trần cho MỘT lượt nói: nói liên tục quá chừng này ms mà chưa từng có khoảng im thì chốt
+  // luôn, không chờ im lặng nữa (xem chú thích dài ở onresult). Người thật ra lệnh gần như
+  // luôn ngắt hơi trước mốc này, nên nó chỉ cắt đúng thứ đáng cắt: một dòng tiếng liên tục
+  // của TV hay của người khác trong phòng.
+  static TRAN_LUOT_MS = 30000;
 
   // ---- Ngắt lời bằng giọng: mẹo NHÁ TIẾNG (0.57.14) ----
   // Đo mức âm mic KHÔNG phân biệt nổi giọng người với tiếng LOA NGOÀI vọng lại, nên bản cũ
@@ -240,6 +245,7 @@ class JavisVoice {
     this.accumulatedTranscript = "";
     this._committed = "";                     // chữ đã nghe ở các phiên trước trong CÙNG một lượt nói
     this._duoiTam = "";                       // đuôi chữ TẠM (chưa final) của sự kiện onresult cuối
+    this._batDauLuot = 0;                     // mốc ms chữ đầu tiên của lượt này (trần TRAN_LUOT_MS)
     this.userStopped = false;                 // user chủ động dừng?
     this.silenceMs = 1500;                    // im lặng bao lâu thì tự gửi
     this._silenceTimer = null;
@@ -296,9 +302,17 @@ class JavisVoice {
       const display = (this.accumulatedTranscript + " " + interim).trim();
       if (display) {
         this.onInterim(display);
+        if (!this._batDauLuot) this._batDauLuot = Date.now();
         // Reset đồng hồ im lặng - nói tiếp thì hoãn, im đủ lâu thì tự gửi. Có đạo diễn thì
         // độ trễ tính theo câu (kết bằng liên từ thì chờ lâu hơn), không thì số cố định.
         clearTimeout(this._silenceTimer);
+        // TRẦN CHO MỘT LƯỢT. Đồng hồ trên được hẹn lại ở MỌI mẩu chữ tạm, nên tiếng TV hay hai
+        // người nói chuyện trong phòng giữ nó không bao giờ nổ: chữ cứ dồn vào một lượt khổng
+        // lồ và Javis trông như điếc suốt cả đoạn đó (chủ dự án 17/09 gửi ảnh một lượt dài cả
+        // trang, lẫn tiếng TV, mà cuối mới có câu hỏi thật). Quá trần thì chốt NGAY thay vì hẹn
+        // tiếp: mỗi mẩu 30 giây đi qua cửa tạp âm ở bộ não giọng và bị bỏ nếu không nói với
+        // Javis, còn câu thật thì được trả lời trong vòng nửa phút chứ không phải hai phút.
+        if (Date.now() - this._batDauLuot >= JavisVoice.TRAN_LUOT_MS) { this.stopListening(); return; }
         let ms = this.silenceMs;
         try { if (this.endpointDelay) ms = this.endpointDelay(display) || ms; } catch (e) {}
         this._silenceTimer = setTimeout(() => this.stopListening(), ms);
@@ -351,6 +365,7 @@ class JavisVoice {
       const finalText = JavisVoice.ghepDuoiTam(this.accumulatedTranscript, this._duoiTam);
       this._committed = "";
       this._duoiTam = "";
+      this._batDauLuot = 0;            // lượt này khép lại: trần tính lại từ đầu ở lượt sau
       if (finalText) this.onTranscript(finalText);
       this.onEnd();
     };
@@ -445,6 +460,7 @@ class JavisVoice {
     if (!giuTieng) this._resumeAfterTTS = false;
     clearTimeout(this._resumeTimer);
     this._committed = "";                     // lượt nói MỚI, không kéo chữ của lượt trước sang
+    this._batDauLuot = 0;                     // đồng hồ trần tính lại từ chữ đầu của lượt mới
     // Stop TTS đang đọc nếu user bấm nói
     if (!giuTieng) { this.synth.cancel(); this.stopSpeaking(); }
     this._moKhoaAudioIOS(); // iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic
@@ -565,6 +581,7 @@ class JavisVoice {
     this.userStopped = true;             // chặn auto-restart trong onend
     clearTimeout(this._silenceTimer);
     this.accumulatedTranscript = "";     // bỏ những gì lỡ nghe - không gửi
+    this._batDauLuot = 0;                // bỏ luôn đồng hồ trần của lượt vừa vứt
     this._duoiTam = "";                  // cả đuôi chữ tạm, kẻo onend ghép nó thành tin
     this.onInterim("");                  // xoá chữ đang hiện dở trên màn hình
     this._stopRecorder().catch(() => {}); // Voice V2: bỏ đoạn ghi âm dở, không gửi Groq
