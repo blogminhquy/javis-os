@@ -1051,6 +1051,16 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 #newMsgBtn.show { display: inline-flex; }
 #newMsgBtn:hover { background: var(--accent-wash-2); color: var(--accent); border-color: var(--accent); }
 
+/* Mồi tải tin cũ ở ĐẦU khung chat (app.js). Cuộn tới đây là tự kéo khúc cũ hơn về; nút chỉ
+   là đường lui khi trình duyệt không có IntersectionObserver, nên để nhạt, đừng tranh mắt
+   với nội dung hội thoại. */
+.older-seed { flex: none; display: flex; justify-content: center; padding: 6px 0 12px; }
+.older-btn { background: none; border: 1px solid var(--hairline); color: var(--text3);
+  border-radius: 14px; padding: 4px 14px; font-size: 13px; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s; }
+.older-btn:hover { color: var(--text); border-color: var(--text3); }
+.older-btn:disabled { cursor: default; opacity: 0.7; }
+
 /* ===== THANH MỐC HỘI THOẠI (chat-marks.js) =====
    Mỗi vạch là một câu mình đã hỏi; rê vào hiện danh sách để nhảy về prompt cũ.
 

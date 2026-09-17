@@ -1042,6 +1042,10 @@ function persistSession() {
       // Brain của phiên đang mở. Ảnh trong tin nhắn là đường dẫn TƯƠNG ĐỐI nên phải biết
       // gốc là brain nào; thiếu nó thì F5 xong đổi brain là ảnh cũ tro sai chỗ rồi 404.
       brain: (typeof currentBrainPath === "function" ? currentBrainPath() : ""),
+      // Con trỏ tin cũ, để F5 xong vẫn cuộn lên đọc tiếp được. CHỈ lưu khi convo chưa bị
+      // slice(-200) ở trên cắt bớt: bị cắt thì con trỏ trỏ vào tin đã rụng khỏi khung, lượt
+      // tải sau sẽ chừa ra một lỗ hổng giữa cuộc mà không ai thấy.
+      tinCu: (_tinCu && convo.length <= 200) ? _tinCu : null,
       savedAt: Date.now(),
     }));
   } catch (e) {}
@@ -1114,11 +1118,145 @@ function restoreSession() {
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
   });
-  if (convo.length) scrollBottom(true);
+  if (convo.length) { scrollBottom(true); ghimDay(sessionOpenSeq); }
+  // Con trỏ tin cũ sống sót qua F5 → vẫn cuộn lên đọc tiếp được, không phải bấm lại vào
+  // hội thoại trong danh sách mới có.
+  _tinCu = (s.tinCu && savedSessionId) ? { ...s.tinCu, sid: savedSessionId, dangTai: false } : null;
+  datMoiTinCu();
   // hello thường tới SAU bước này; nếu tới trước (kết nối nhanh) thì thẻ "tự chạy lại" gắn ở đây.
   try { if (window.JavisResume && savedSessionId) window.JavisResume.renderFor(savedSessionId); } catch (e) {}
   notifySessions();   // panel Lịch sử tô đúng phiên đang xem thay vì không tô cái nào
   syncActiveUI();
+}
+
+// ---- Tải dần tin cũ ----------------------------------------------------------------
+// Hội thoại vài trăm lượt mà dựng hết bong bóng một lượt thì mở cuộc nào cũng khựng vài
+// giây, và màn hay đứng lưng chừng thay vì rơi xuống câu trả lời gần nhất (ảnh tải xong mới
+// đẩy chiều cao ra). Nên mở cuộc chỉ kéo TIN_MOI_LUOT tin cuối; cuộn lên chạm mồi thì kéo
+// tiếp khúc cũ hơn.
+const TIN_MOI_LUOT = 30;
+// {sid, brain, ts, id, con, dangTai} - ts/id là con trỏ tới tin GIÀ NHẤT đang hiện.
+let _tinCu = null;
+let _moiTinCu = null, _quanSatMoi = null;
+
+// Dựng lại MỘT tin đã lưu thành bong bóng, trả về mục tương ứng cho convo (null nếu bỏ qua).
+// Dùng chung cho lượt mở hội thoại và lượt chèn ngược, để hai đường không trôi lệch nhau.
+function veTinDaLuu(m, brainCua) {
+  const ts = m.ts ? Math.round(m.ts * 1000) : 0;   // server lưu epoch giây (sessions.py)
+  // convo là thứ được ghi xuống localStorage rồi dựng lại ở lần F5 sau. Nhét bản CÒN khối
+  // vào đây là lỗi sống dai qua mọi lần tải lại, dù bong bóng lượt này đã sạch.
+  if (m.role === "user") {
+    // Server chỉ lưu CHỮ đã gửi (kèm khối ngữ cảnh), không lưu riêng danh sách đính kèm.
+    // Đọc lại từ chính khối đó, không thì mở lại hội thoại là ảnh và file biến mất khỏi
+    // bong bóng, người dùng không xem lại được mình đã gửi gì (chủ repo báo 2026-09-10).
+    const _sach = chuNguoiGo(m.content || "");
+    const _atts = docDinhKem(m.content || "");
+    appendUserMessage(_sach, _atts, ts);
+    return { role: "user", text: _sach, atts: _atts, ts };
+  }
+  // brainCua: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
+  // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
+  // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
+  if (m.role === "assistant") {
+    appendJavisMessage(m.content || "", ts, brainCua);
+    return { role: "javis", text: m.content || "", atts: [], ts, brain: brainCua };
+  }
+  return null;
+}
+
+// Ghim khung ở ĐÁY trong một quãng ngắn sau lượt mở hội thoại.
+//
+// Đặt scrollTop đúng một lần là không đủ: khung còn cao thêm vài nhịp nữa sau đó. Thanh mốc
+// hội thoại tự chèn nó vào rồi bật lề phải làm bong bóng xuống dòng, ảnh trong tin
+// cũ tải xong mới đẩy chiều cao ra. Đo thật trên cuộc 120 tin: mở xong đứng cách đáy 174px,
+// tức câu trả lời gần nhất - đúng thứ người ta vào để đọc - bị cắt mất một đoạn.
+//
+// Nhả NGAY khi người dùng tự cuộn, để cái ghim này không giành tay lái với họ.
+function ghimDay(ticket, ms) {
+  const het = Date.now() + (ms || 700);
+  let thoi = false;
+  const nhaTay = () => { thoi = true; };
+  chatArea.addEventListener("wheel", nhaTay, { passive: true });
+  chatArea.addEventListener("touchmove", nhaTay, { passive: true });
+  const go = () => {
+    chatArea.removeEventListener("wheel", nhaTay);
+    chatArea.removeEventListener("touchmove", nhaTay);
+  };
+  const nhip = () => {
+    if (thoi || ticket !== sessionOpenSeq) { go(); return; }
+    scrollBottom(true);
+    if (Date.now() < het) requestAnimationFrame(nhip); else go();
+  };
+  requestAnimationFrame(nhip);
+}
+
+// Bong bóng ĐẦU TIÊN trong khung. Chèn ngược phải neo vào nó chứ không vào firstChild: đầu
+// khung còn có đồ nội thất dán sẵn (#chatMarks) tính là mình vẫn đứng đầu, chen lên trước là
+// đẩy nó ra khỏi chỗ. Chưa có tin nào thì trả null, chatAppend rơi về chèn trước #newMsgBtn.
+function dauKhungChat() {
+  return chatArea.querySelector(".msg");
+}
+
+function goMoiTinCu() {
+  if (_quanSatMoi) { try { _quanSatMoi.disconnect(); } catch (e) {} _quanSatMoi = null; }
+  if (_moiTinCu && _moiTinCu.parentNode) _moiTinCu.parentNode.removeChild(_moiTinCu);
+  _moiTinCu = null;
+}
+
+// Mồi đặt ở ĐẦU khung: vừa là điểm quan sát để tự tải, vừa là nút bấm tay. Chỉ chèn khi
+// CHẮC CHẮN còn tin cũ - `.transcript:empty::after` là câu mời "Nói hoặc gõ để bắt đầu", một
+// node con thường trực là câu đó biến mất im lặng (cùng cái bẫy đã ghi cho #newMsgBtn).
+function datMoiTinCu() {
+  goMoiTinCu();
+  if (!_tinCu || !_tinCu.con) return;
+  const d = document.createElement("div");
+  d.className = "older-seed";
+  d.innerHTML = `<button type="button" class="older-btn">${escapeHtml(window.t("app.older_load"))}</button>`;
+  d.querySelector(".older-btn").onclick = () => taiTinCu();
+  chatArea.insertBefore(d, dauKhungChat());
+  _moiTinCu = d;
+  if (typeof IntersectionObserver !== "function") return;   // không có thì còn nút bấm tay
+  _quanSatMoi = new IntersectionObserver((mucs) => {
+    if (mucs.some(m => m.isIntersecting)) taiTinCu();
+  }, { root: chatArea, rootMargin: "240px 0px 0px 0px" });
+  _quanSatMoi.observe(d);
+}
+
+async function taiTinCu() {
+  const st = _tinCu;
+  if (!st || !st.con || st.dangTai) return;
+  st.dangTai = true;
+  const nut = _moiTinCu && _moiTinCu.querySelector(".older-btn");
+  if (nut) { nut.disabled = true; nut.textContent = window.t("app.older_loading"); }
+  try {
+    const u = `/sessions/${encodeURIComponent(st.sid)}/messages?limit=${TIN_MOI_LUOT}` +
+      `&before_ts=${encodeURIComponent(st.ts)}&before_id=${encodeURIComponent(st.id)}`;
+    const d = await (await fetch(u)).json();
+    // Đổi phiên giữa chừng thì khúc vừa về là của cuộc khác - vứt đi, đừng chèn nhầm.
+    if (!_tinCu || _tinCu !== st || st.sid !== savedSessionId || !d || d.error) return;
+    const ds = d.messages || [];
+    if (!ds.length) { st.con = false; goMoiTinCu(); return; }
+    // Giữ chỗ cuộn: đo khoảng cách từ ĐÁY khung trước khi chèn rồi đặt lại sau, vì phần chèn
+    // nằm phía trên nên scrollHeight tăng đúng bằng phần đó. Đo theo scrollTop thì sai.
+    const cachDay = chatArea.scrollHeight - chatArea.scrollTop;
+    _dangChenCu = true;
+    _neoChenCu = _moiTinCu ? _moiTinCu.nextSibling : dauKhungChat();
+    const them = [];
+    ds.forEach(m => { const t = veTinDaLuu(m, st.brain); if (t) them.push(t); });
+    _neoChenCu = null; _dangChenCu = false;
+    convo = them.concat(convo);
+    st.ts = ds[0].ts; st.id = ds[0].id; st.con = !!d.has_more;
+    // Dựng LẠI cái mồi (hoặc gỡ hẳn khi hết tin) TRƯỚC khi đặt lại chỗ cuộn, để chiều cao
+    // chốt xong rồi mới đo - gỡ mồi sau là màn nhích lên đúng bằng chiều cao cái mồi.
+    // Dựng lại chứ không dùng tiếp cái cũ: IntersectionObserver KHÔNG bắn lần nữa khi node
+    // vẫn nằm trong tầm nhìn liên tục, nên khúc vừa chèn mà ngắn hơn khung chat là kẹt luôn,
+    // cuộn thêm cũng không tải tiếp. observe() mới thì luôn có một nhịp đầu.
+    datMoiTinCu();
+    chatArea.scrollTop = chatArea.scrollHeight - cachDay;
+    persistSession();
+  } catch (e) {
+    if (nut) { nut.disabled = false; nut.textContent = window.t("app.older_load"); }
+  } finally { st.dangTai = false; _dangChenCu = false; _neoChenCu = null; }
 }
 
 // ============================================
@@ -1128,29 +1266,18 @@ let sessionOpenSeq = 0;
 async function openStoredSession(id, stillCurrent) {
   const ticket = ++sessionOpenSeq;
   try {
-    const sess = await (await fetch(`/sessions/${encodeURIComponent(id)}`)).json();
+    const sess = await (await fetch(`/sessions/${encodeURIComponent(id)}?limit=${TIN_MOI_LUOT}`)).json();
     if (ticket !== sessionOpenSeq || (stillCurrent && !stillCurrent()) || !sess || sess.error) return;
     convo = [];
     hideActivity();
+    goMoiTinCu();
     chatArea.innerHTML = "";
-    (sess.messages || []).forEach(m => {
-      const ts = m.ts ? Math.round(m.ts * 1000) : 0;   // server lưu epoch giây (sessions.py)
-      // convo là thứ được ghi xuống localStorage rồi dựng lại ở lần F5 sau. Nhét bản CÒN khối
-      // vào đây là lỗi sống dai qua mọi lần tải lại, dù bong bóng lượt này đã sạch.
-      if (m.role === "user") {
-        // Server chỉ lưu CHỮ đã gửi (kèm khối ngữ cảnh), không lưu riêng danh sách đính kèm.
-        // Đọc lại từ chính khối đó, không thì mở lại hội thoại là ảnh và file biến mất khỏi
-        // bong bóng, người dùng không xem lại được mình đã gửi gì (chủ repo báo 2026-09-10).
-        const _sach = chuNguoiGo(m.content || "");
-        const _atts = docDinhKem(m.content || "");
-        appendUserMessage(_sach, _atts, ts);
-        convo.push({ role: "user", text: _sach, atts: _atts, ts });
-      }
-      // sess.brain: server LƯU SẴN brain của phiên (cột brain trong bảng sessions). Trước đây
-      // vứt đi nên ảnh trong hội thoại cũ luôn ghép với brain đang chọn - mở hội thoại của
-      // brain khác là ảnh hỏng hết. Giữ luôn vào convo để lần khôi phục sau còn dùng.
-      else if (m.role === "assistant") { appendJavisMessage(m.content || "", ts, sess.brain); convo.push({ role: "javis", text: m.content || "", atts: [], ts, brain: sess.brain }); }
-    });
+    const ds = sess.messages || [];
+    ds.forEach(m => { const t = veTinDaLuu(m, sess.brain); if (t) convo.push(t); });
+    _tinCu = ds.length
+      ? { sid: id, brain: sess.brain, ts: ds[0].ts, id: ds[0].id, con: !!sess.has_more, dangTai: false }
+      : null;
+    datMoiTinCu();
     savedSessionId = id;          // lượt gửi tiếp theo → server resume đúng phiên này
     try { if (window.JavisInbox) window.JavisInbox.docPhien(id); } catch (e) {}
     // Phiên này đang generate NỀN → gắn bong bóng SỐNG (kèm phần đã stream) để xem tiếp trực tiếp.
@@ -1167,6 +1294,7 @@ async function openStoredSession(id, stillCurrent) {
     try { if (window.JavisResume) window.JavisResume.renderFor(id); } catch (e) {}
     persistSession();
     scrollBottom(true);
+    ghimDay(ticket);
     notifySessions();
     syncActiveUI();
     // Dải việc nền đánh dấu "việc CỦA hội thoại này" theo chat_id, nên đổi phiên là nó sai
@@ -1179,6 +1307,7 @@ async function openStoredSession(id, stillCurrent) {
 function resetChatView() {
   convo = [];
   hideActivity();          // dọn chip + timer trước khi xoá trắng khung
+  _tinCu = null; goMoiTinCu();
   chatArea.innerHTML = "";
   savedSessionId = null;
   persistSession();
@@ -1493,9 +1622,14 @@ function veNutXuong(coTinMoi) {
 veNutXuong(false);
 window.addEventListener("javis:i18n", () => veNutXuong(newMsgBtn.classList.contains("has-new")));
 
+// _neoChenCu: lúc CHÈN NGƯỢC tin cũ (cuộn lên tải tiếp), mọi bong bóng dựng ra phải nằm
+// TRƯỚC tin cũ nhất đang hiện chứ không phải cuối khung. Đặt cái neo ở đây thay vì thêm
+// tham số cho appendUserMessage/appendJavisMessage: hai hàm đó được gọi từ cả chục chỗ, thêm
+// tham số là mười chỗ phải nhớ truyền đúng.
+let _neoChenCu = null, _dangChenCu = false;
 function chatAppend(el) {
   if (newMsgBtn.parentNode !== chatArea) chatArea.appendChild(newMsgBtn);
-  chatArea.insertBefore(el, newMsgBtn);
+  chatArea.insertBefore(el, _neoChenCu || newMsgBtn);
 }
 // Ngưỡng 90px: coi như "đang ở đáy" nên vẫn tự cuộn theo tin mới, và không hiện nút.
 function ganDay() {
@@ -1512,6 +1646,9 @@ chatArea.addEventListener("scroll", () => {
   capNhatNutXuong();
 });
 function scrollBottom(force) {
+  // Đang chèn ngược tin cũ: appendUserMessage/appendJavisMessage vẫn gọi vào đây theo thói
+  // quen, mà cuộn xuống đáy lúc này là quăng người đọc khỏi chỗ họ đang đứng.
+  if (_dangChenCu) return;
   if (force) stickBottom = true;
   if (stickBottom) {
     chatArea.scrollTop = chatArea.scrollHeight;

@@ -2500,6 +2500,16 @@
  {
   "order": 252,
   "type": "APIRoute",
+  "path": "/sessions/{session_id}/messages",
+  "name": "sessions_messages",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 253,
+  "type": "APIRoute",
   "path": "/sessions/{session_id}/assets",
   "name": "sessions_assets",
   "methods": [
@@ -2508,7 +2518,7 @@
   "trong": null
  },
  {
-  "order": 253,
+  "order": 254,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets/files",
   "name": "sessions_add_file",
@@ -2518,7 +2528,7 @@
   "trong": null
  },
  {
-  "order": 254,
+  "order": 255,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets/files/{file_id}/delete",
   "name": "sessions_del_file",
@@ -2528,7 +2538,7 @@
   "trong": null
  },
  {
-  "order": 255,
+  "order": 256,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets/files/{file_id}/pin",
   "name": "sessions_pin_file",
@@ -2538,7 +2548,7 @@
   "trong": null
  },
  {
-  "order": 256,
+  "order": 257,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets/links",
   "name": "sessions_add_link",
@@ -2548,7 +2558,7 @@
   "trong": null
  },
  {
-  "order": 257,
+  "order": 258,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets/links/{link_id}/delete",
   "name": "sessions_del_link",
@@ -2558,7 +2568,7 @@
   "trong": null
  },
  {
-  "order": 258,
+  "order": 259,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/assets/links/{link_id}/pin",
   "name": "sessions_pin_link",
@@ -2568,7 +2578,7 @@
   "trong": null
  },
  {
-  "order": 259,
+  "order": 260,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/rename",
   "name": "sessions_rename",
@@ -2578,7 +2588,7 @@
   "trong": null
  },
  {
-  "order": 260,
+  "order": 261,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/delete",
   "name": "sessions_delete",
@@ -2588,7 +2598,7 @@
   "trong": null
  },
  {
-  "order": 261,
+  "order": 262,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/pin",
   "name": "sessions_pin",
@@ -2598,7 +2608,7 @@
   "trong": null
  },
  {
-  "order": 262,
+  "order": 263,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/meta",
   "name": "sessions_meta",
@@ -2608,7 +2618,7 @@
   "trong": null
  },
  {
-  "order": 263,
+  "order": 264,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/model",
   "name": "sessions_set_model",
@@ -2618,7 +2628,7 @@
   "trong": null
  },
  {
-  "order": 264,
+  "order": 265,
   "type": "APIRoute",
   "path": "/sessions/{session_id}/project",
   "name": "sessions_set_project",
@@ -2628,7 +2638,7 @@
   "trong": null
  },
  {
-  "order": 265,
+  "order": 266,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_list",
@@ -2638,7 +2648,7 @@
   "trong": null
  },
  {
-  "order": 266,
+  "order": 267,
   "type": "APIRoute",
   "path": "/projects",
   "name": "projects_create",
@@ -2648,7 +2658,7 @@
   "trong": null
  },
  {
-  "order": 267,
+  "order": 268,
   "type": "APIRoute",
   "path": "/projects/{project_id}",
   "name": "projects_get",
@@ -2658,7 +2668,7 @@
   "trong": null
  },
  {
-  "order": 268,
+  "order": 269,
   "type": "APIRoute",
   "path": "/projects/{project_id}/update",
   "name": "projects_update",
@@ -2668,7 +2678,7 @@
   "trong": null
  },
  {
-  "order": 269,
+  "order": 270,
   "type": "APIRoute",
   "path": "/projects/{project_id}/files",
   "name": "projects_add_file",
@@ -2678,7 +2688,7 @@
   "trong": null
  },
  {
-  "order": 270,
+  "order": 271,
   "type": "APIRoute",
   "path": "/projects/{project_id}/files/{file_id}/delete",
   "name": "projects_del_file",
@@ -2688,7 +2698,7 @@
   "trong": null
  },
  {
-  "order": 271,
+  "order": 272,
   "type": "APIRoute",
   "path": "/projects/{project_id}/files/{file_id}/pin",
   "name": "projects_pin_file",
@@ -2698,7 +2708,7 @@
   "trong": null
  },
  {
-  "order": 272,
+  "order": 273,
   "type": "APIRoute",
   "path": "/projects/{project_id}/links",
   "name": "projects_add_link",
@@ -2708,7 +2718,7 @@
   "trong": null
  },
  {
-  "order": 273,
+  "order": 274,
   "type": "APIRoute",
   "path": "/projects/{project_id}/links/{link_id}/delete",
   "name": "projects_del_link",
@@ -2718,7 +2728,7 @@
   "trong": null
  },
  {
-  "order": 274,
+  "order": 275,
   "type": "APIRoute",
   "path": "/projects/{project_id}/links/{link_id}/pin",
   "name": "projects_pin_link",
@@ -2728,7 +2738,7 @@
   "trong": null
  },
  {
-  "order": 275,
+  "order": 276,
   "type": "APIRoute",
   "path": "/projects/{project_id}/pin",
   "name": "projects_pin",
@@ -2738,7 +2748,7 @@
   "trong": null
  },
  {
-  "order": 276,
+  "order": 277,
   "type": "APIRoute",
   "path": "/projects/{project_id}/delete",
   "name": "projects_delete",
@@ -2748,7 +2758,7 @@
   "trong": null
  },
  {
-  "order": 277,
+  "order": 278,
   "type": "APIRoute",
   "path": "/ollama-local/status",
   "name": "ollama_local_status",
@@ -2758,7 +2768,7 @@
   "trong": null
  },
  {
-  "order": 278,
+  "order": 279,
   "type": "APIRoute",
   "path": "/ollama-local/endpoint",
   "name": "ollama_local_set_endpoint",
@@ -2768,7 +2778,7 @@
   "trong": null
  },
  {
-  "order": 279,
+  "order": 280,
   "type": "APIRoute",
   "path": "/ollama-local/specs",
   "name": "ollama_local_get_specs",
@@ -2778,7 +2788,7 @@
   "trong": null
  },
  {
-  "order": 280,
+  "order": 281,
   "type": "APIRoute",
   "path": "/ollama-local/specs",
   "name": "ollama_local_set_specs",
@@ -2788,7 +2798,7 @@
   "trong": null
  },
  {
-  "order": 281,
+  "order": 282,
   "type": "APIRoute",
   "path": "/ollama-local/installed",
   "name": "ollama_local_installed",
@@ -2798,7 +2808,7 @@
   "trong": null
  },
  {
-  "order": 282,
+  "order": 283,
   "type": "APIRoute",
   "path": "/ollama-local/recommended",
   "name": "ollama_local_recommended",
@@ -2808,7 +2818,7 @@
   "trong": null
  },
  {
-  "order": 283,
+  "order": 284,
   "type": "APIRoute",
   "path": "/ollama-local/search",
   "name": "ollama_local_search",
@@ -2818,7 +2828,7 @@
   "trong": null
  },
  {
-  "order": 284,
+  "order": 285,
   "type": "APIRoute",
   "path": "/ollama-local/pull",
   "name": "ollama_local_pull",
@@ -2828,7 +2838,7 @@
   "trong": null
  },
  {
-  "order": 285,
+  "order": 286,
   "type": "APIRoute",
   "path": "/ollama-local/delete",
   "name": "ollama_local_delete",
@@ -2838,7 +2848,7 @@
   "trong": null
  },
  {
-  "order": 286,
+  "order": 287,
   "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
@@ -2848,7 +2858,7 @@
   "trong": null
  },
  {
-  "order": 287,
+  "order": 288,
   "type": "APIRoute",
   "path": "/runtime/muc",
   "name": "runtime_muc",
@@ -2858,7 +2868,7 @@
   "trong": null
  },
  {
-  "order": 288,
+  "order": 289,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -2868,7 +2878,7 @@
   "trong": null
  },
  {
-  "order": 289,
+  "order": 290,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -2878,7 +2888,7 @@
   "trong": null
  },
  {
-  "order": 290,
+  "order": 291,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -2888,7 +2898,7 @@
   "trong": null
  },
  {
-  "order": 291,
+  "order": 292,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -2898,7 +2908,7 @@
   "trong": null
  },
  {
-  "order": 292,
+  "order": 293,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -2908,7 +2918,7 @@
   "trong": null
  },
  {
-  "order": 293,
+  "order": 294,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -2918,7 +2928,7 @@
   "trong": null
  },
  {
-  "order": 294,
+  "order": 295,
   "type": "APIRoute",
   "path": "/zalo-bot/status",
   "name": "zalo_bot_status",
@@ -2928,7 +2938,7 @@
   "trong": null
  },
  {
-  "order": 295,
+  "order": 296,
   "type": "APIRoute",
   "path": "/zalo-bot/restart",
   "name": "zalo_bot_restart",
@@ -2938,7 +2948,7 @@
   "trong": null
  },
  {
-  "order": 296,
+  "order": 297,
   "type": "APIRoute",
   "path": "/zalo-bot/allow",
   "name": "zalo_bot_allow",
@@ -2948,7 +2958,7 @@
   "trong": null
  },
  {
-  "order": 297,
+  "order": 298,
   "type": "APIRoute",
   "path": "/zalo-bot/test",
   "name": "zalo_bot_test",
@@ -2958,7 +2968,7 @@
   "trong": null
  },
  {
-  "order": 298,
+  "order": 299,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -2968,7 +2978,7 @@
   "trong": null
  },
  {
-  "order": 299,
+  "order": 300,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -2978,7 +2988,7 @@
   "trong": null
  },
  {
-  "order": 300,
+  "order": 301,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_list",
@@ -2988,7 +2998,7 @@
   "trong": null
  },
  {
-  "order": 301,
+  "order": 302,
   "type": "APIRoute",
   "path": "/chatbots/verify-token",
   "name": "chatbots_verify_token",
@@ -2998,7 +3008,7 @@
   "trong": null
  },
  {
-  "order": 302,
+  "order": 303,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_create",
@@ -3008,7 +3018,7 @@
   "trong": null
  },
  {
-  "order": 303,
+  "order": 304,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/update",
   "name": "chatbots_update",
@@ -3018,7 +3028,7 @@
   "trong": null
  },
  {
-  "order": 304,
+  "order": 305,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/enable",
   "name": "chatbots_enable",
@@ -3028,7 +3038,7 @@
   "trong": null
  },
  {
-  "order": 305,
+  "order": 306,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/groups",
   "name": "chatbots_groups",
@@ -3038,7 +3048,7 @@
   "trong": null
  },
  {
-  "order": 306,
+  "order": 307,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/log",
   "name": "chatbots_log",
@@ -3048,7 +3058,7 @@
   "trong": null
  },
  {
-  "order": 307,
+  "order": 308,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/delete",
   "name": "chatbots_delete",
@@ -3058,7 +3068,7 @@
   "trong": null
  },
  {
-  "order": 308,
+  "order": 309,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3068,7 +3078,7 @@
   "trong": null
  },
  {
-  "order": 309,
+  "order": 310,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3078,7 +3088,7 @@
   "trong": null
  },
  {
-  "order": 310,
+  "order": 311,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3088,7 +3098,7 @@
   "trong": null
  },
  {
-  "order": 311,
+  "order": 312,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

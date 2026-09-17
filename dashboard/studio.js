@@ -822,6 +822,9 @@
     .sk2-act button{background:var(--surface-2);border:1px solid var(--hairline);color:var(--text2);border-radius:6px;cursor:pointer;font-size:13px;padding:3px 9px} .sk2-act button:hover{color:var(--text-hi);border-color:rgba(120,180,255,.5)}
     .sk2-act button.danger:hover{color:var(--red);border-color:rgba(255,120,120,.5)}
     .sysb{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--link-ink);background:var(--info-wash);border:1px solid var(--info-line);vertical-align:2px}
+    /* .sk2-list là flex cột, nên hàng phân trang phải tự căn giữa - để mặc định nó dính mép
+       trái, nhìn như rơi rớt lại chứ không ra một hàng điều khiển. */
+    .sk2-list .jv-pager{justify-content:center}
     .sk-usage{font-size:11px;color:var(--text3);margin-left:8px}
     .sk-stale{opacity:.75;font-style:italic;cursor:help}
     /* ===== Mobile (<=860px) ===== xep DOC: nhom thanh dai chip cuon ngang o tren, danh sach
@@ -886,38 +889,53 @@
     renderSkillList();
   }
 
+  const SK_MOI_TRANG = 20;   // brain dùng lâu có cả trăm skill: đổ hết ra là cuộn mãi không hết
+
   function renderSkillList() {
     const box = document.getElementById("skList"); if (!box) return;
     const list = _skFiltered();
     datSoLuong(document.getElementById("panel-skills"), list.length + " skill");
     if (!list.length) { box.innerHTML = `<div class="empty">${esc(t("studio.sk_no_match"))}</div>`; return; }
-    box.innerHTML = "";
-    list.forEach(s => {
-      const on = s.enabled !== false;
-      const div = document.createElement("div"); div.className = "sk2-card" + (on ? "" : " off");
-      const sysBadge = s.system ? ` <span class="sysb" title="${esc(t("studio.sys_title"))}">${esc(t("studio.sys"))}</span>` : "";
-      // Telemetry: use_count là tín hiệu DƯƠNG một chiều. Skill nạp native qua .claude/skills
-      // không đi qua bộ đếm, nên "chưa thấy dùng" là tham khảo, KHÔNG phải phán quyết.
-      let usageHtml = "";
-      if (s.use_count > 0) {
-        const when = s.last_used_at ? new Date(s.last_used_at * 1000).toLocaleDateString(LOC()) : "";
-        usageHtml = ` · <span class="sk-usage">${esc(t("studio.used", { n: s.use_count }))}${when ? ", " + esc(t("studio.last_used")) + " " + when : ""}</span>`;
-      } else if (s.stale) {
-        usageHtml = ` · <span class="sk-usage sk-stale" title="${esc(t("studio.unused_title"))}">${esc(t("studio.unused"))}</span>`;
-      }
-      div.innerHTML = `<input type="checkbox" class="sk2-tog" ${on ? "checked" : ""} title="${esc(on ? t("studio.tog_on") : t("studio.tog_off"))}">
-        <div class="sk2-info"><div class="nm">${ic("puzzle")} ${esc(s.name)}${sysBadge}</div><div class="ds">${esc(s.description || "")}</div><div class="gp">${ic("folder-open")} ${esc(s.group || "Chung")} · ${esc(s.slug)}${s.source === ".agents" ? " · .agents" : ""}${usageHtml}</div></div>
-        <div class="sk2-act">${s.system ? "" : `<label class="sk2-selwrap" title="${esc(t("studio.sel_one"))}"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"> ${esc(t("studio.pick"))}</label>`}<button class="edit">${esc(t("common.edit"))}</button>${s.system ? "" : `<button class="exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="del danger">${esc(t("common.delete"))}</button>`}</div>`;
-      div.querySelector(".sk2-tog").onchange = (e) => toggleSkill(s, e.target.checked);
-      const selBox = div.querySelector(".sk2-sel");
-      if (selBox) noiSel("skill", "skDl", selBox, s.slug);
-      div.querySelector(".edit").onclick = () => openSkillForm(s.slug);
-      const expBtn = div.querySelector(".exp");
-      if (expBtn) expBtn.onclick = () => exportItem("skill", s.slug);
-      const delBtn = div.querySelector(".del");
-      if (delBtn) delBtn.onclick = () => deleteSkill(s.slug, s.name);
-      box.appendChild(div);
-    });
+    // Phân trang bằng pager() dùng chung của console.js. Đổi nhóm hoặc gõ ô tìm thì hàm này
+    // chạy lại từ đầu nên tự về trang 1 - đúng cái người dùng mong, vì danh sách đã khác.
+    const veTrang = (phan) => {
+      const fr = document.createDocumentFragment();
+      phan.forEach(s => fr.appendChild(theSkill(s)));
+      return fr;
+    };
+    if (typeof window.JavisPager === "function") {
+      window.JavisPager(box, list, SK_MOI_TRANG, veTrang);
+    } else {
+      box.innerHTML = ""; box.appendChild(veTrang(list));
+    }
+  }
+
+  // Một thẻ skill. Tách khỏi renderSkillList để phân trang gọi lại được từng trang một.
+  function theSkill(s) {
+    const on = s.enabled !== false;
+    const div = document.createElement("div"); div.className = "sk2-card" + (on ? "" : " off");
+    const sysBadge = s.system ? ` <span class="sysb" title="${esc(t("studio.sys_title"))}">${esc(t("studio.sys"))}</span>` : "";
+    // Telemetry: use_count là tín hiệu DƯƠNG một chiều. Skill nạp native qua .claude/skills
+    // không đi qua bộ đếm, nên "chưa thấy dùng" là tham khảo, KHÔNG phải phán quyết.
+    let usageHtml = "";
+    if (s.use_count > 0) {
+      const when = s.last_used_at ? new Date(s.last_used_at * 1000).toLocaleDateString(LOC()) : "";
+      usageHtml = ` · <span class="sk-usage">${esc(t("studio.used", { n: s.use_count }))}${when ? ", " + esc(t("studio.last_used")) + " " + when : ""}</span>`;
+    } else if (s.stale) {
+      usageHtml = ` · <span class="sk-usage sk-stale" title="${esc(t("studio.unused_title"))}">${esc(t("studio.unused"))}</span>`;
+    }
+    div.innerHTML = `<input type="checkbox" class="sk2-tog" ${on ? "checked" : ""} title="${esc(on ? t("studio.tog_on") : t("studio.tog_off"))}">
+      <div class="sk2-info"><div class="nm">${ic("puzzle")} ${esc(s.name)}${sysBadge}</div><div class="ds">${esc(s.description || "")}</div><div class="gp">${ic("folder-open")} ${esc(s.group || "Chung")} · ${esc(s.slug)}${s.source === ".agents" ? " · .agents" : ""}${usageHtml}</div></div>
+      <div class="sk2-act">${s.system ? "" : `<label class="sk2-selwrap" title="${esc(t("studio.sel_one"))}"><input type="checkbox" class="sk2-sel" data-slug="${esc(s.slug)}"> ${esc(t("studio.pick"))}</label>`}<button class="edit">${esc(t("common.edit"))}</button>${s.system ? "" : `<button class="exp" title="${esc(t("studio.export_title"))}">${esc(t("studio.export"))}</button><button class="del danger">${esc(t("common.delete"))}</button>`}</div>`;
+    div.querySelector(".sk2-tog").onchange = (e) => toggleSkill(s, e.target.checked);
+    const selBox = div.querySelector(".sk2-sel");
+    if (selBox) noiSel("skill", "skDl", selBox, s.slug);
+    div.querySelector(".edit").onclick = () => openSkillForm(s.slug);
+    const expBtn = div.querySelector(".exp");
+    if (expBtn) expBtn.onclick = () => exportItem("skill", s.slug);
+    const delBtn = div.querySelector(".del");
+    if (delBtn) delBtn.onclick = () => deleteSkill(s.slug, s.name);
+    return div;
   }
 
   async function toggleSkill(s, enabled) {
