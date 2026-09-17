@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.30] - 2026-09-17
+### Thêm mới
+- **Linh vật hình ngôi sao.** Một ông sao năm cánh, béo và mũm mĩm, đứng chung hàng với Tròn, Vuông, Tam giác, Mây, Ngũ giác ở trang Linh vật. Trợ lý cũng chọn được hình này làm ảnh đại diện.
+- **Chọn cỡ mắt cho linh vật.** Hàng nút mới ngay dưới Màu mắt: Thường, To, Rất to. Áp cho mọi hình dáng chứ không riêng ngôi sao, và vì nhân vật này diễn cảm xúc hoàn toàn bằng đôi mắt nên kéo to lên là đổi hẳn tính cách.
+
 ## [0.59.29] - 2026-09-17
 ### Sửa lỗi
 - **Việc chạy nền lúc nói chuyện ở lại đúng khung chat đang nói.** Trước đây mỗi lần giao việc nền là Javis mở thêm một hội thoại riêng cho nó, nên nói chuyện một buổi là thanh Lịch sử đầy những cuộc chỉ có một hai tin. Nay kết quả về thẳng khung bạn đang nói, và việc nền còn đọc được mạch trò chuyện ở đó nên trả lời sát ý hơn.
