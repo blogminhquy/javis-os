@@ -1343,6 +1343,8 @@
   "app.act_processing": "Working...",
   "app.no_content": "_(nothing came back - try again or switch model)_",
   "app.show_more": "Show more",
+  "app.older_load": "Load older messages",
+  "app.older_loading": "Loading older messages…",
   "app.show_less": "Show less",
   "app.new_msg": "New message",
   "app.new_msg_title": "New message - jump to the end",

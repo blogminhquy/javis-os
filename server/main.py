@@ -13245,13 +13245,41 @@ async def sessions_search(q: str = Query(...), brain: str = Query(None), limit: 
 
 
 @app.get("/sessions/{session_id}")
-async def sessions_get(session_id: str):
+async def sessions_get(session_id: str, limit: int = Query(0)):
+    """`limit=0` (mặc định) trả CẢ hội thoại - khuôn cũ, mọi chỗ gọi cũ giữ nguyên hành vi.
+
+    `limit=N` trả N tin CUỐI kèm `has_more` + `total`: khung chat mở hội thoại dài thì chỉ
+    dựng phần đuôi rồi rơi thẳng xuống câu trả lời gần nhất, phần cũ để cuộn lên mới kéo về
+    qua `/sessions/{id}/messages`.
+    """
     store = get_store()
     sess = store.get_session(session_id)
     if not sess:
         return JSONResponse({"error": "not found"}, status_code=404)
-    sess["messages"] = store.get_messages(session_id)
+    if limit and limit > 0:
+        khuc = store.get_messages_page(session_id, limit=limit)
+        sess["messages"] = khuc["messages"]
+        sess["has_more"] = khuc["has_more"]
+        sess["total"] = store.count_messages(session_id)
+    else:
+        sess["messages"] = store.get_messages(session_id)
     return sess
+
+
+@app.get("/sessions/{session_id}/messages")
+async def sessions_messages(session_id: str, limit: int = Query(30),
+                            before_ts: float = Query(None), before_id: int = Query(None)):
+    """Khúc tin CŨ HƠN con trỏ (before_ts, before_id) - khung chat cuộn lên thì gọi đường này.
+
+    Thiếu con trỏ thì trả khúc cuối, y như `/sessions/{id}?limit=N`.
+    """
+    store = get_store()
+    if not store.get_session(session_id):
+        return JSONResponse({"error": "not found"}, status_code=404)
+    truoc = None
+    if before_ts is not None and before_id is not None:
+        truoc = (float(before_ts), int(before_id))
+    return store.get_messages_page(session_id, limit=max(1, min(int(limit), 200)), before=truoc)
 
 
 # ============================================================

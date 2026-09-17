@@ -86,8 +86,10 @@ check("CANARY: gỡ ngay đầu appendUserMessage - cửa duy nhất dựng bong
       _ham.index("chuNguoiGo(text)") < _ham.index("dataset.text"))
 check("CANARY: dataset.text cũng sạch - thanh mốc, gửi lại, sửa câu hỏi đều đọc ké nó",
       "div.dataset.text = text" in _ham)
+# veTinDaLuu dựng lại MỘT tin đã lưu và trả về mục cho convo; dùng chung cho lượt mở hội
+# thoại lẫn lượt cuộn lên tải tin cũ (0.59.32), nên soi nó là soi cả hai đường.
 check("lượt nạp hội thoại cũ ghi bản SẠCH vào convo (localStorage), không để lỗi sống qua F5",
-      'convo.push({ role: "user", text: _sach' in APP)
+      'return { role: "user", text: _sach' in APP)
 check("nhận cả hai loại khối",
       "[FILE ĐANG MỞ trong trình sửa của Javis:" in APP and '"[File đính kèm"' in APP)
 

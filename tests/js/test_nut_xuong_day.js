@@ -93,8 +93,11 @@ check("bóng đủ đậm để tách khỏi chữ bên dưới", /box-shadow:\s
 // chat-zoom.js dời NGUYÊN #chatArea vào lớp phóng to; nút là con của nó nên đi theo.
 check("nút được chèn vào chính #chatArea",
       /newMsgBtn\.parentNode !== chatArea/.test(APP) && /chatArea\.appendChild\(newMsgBtn\)/.test(APP));
+// `_neoChenCu` là cái neo của đường TẢI DẦN (cuộn lên lấy tin cũ): lúc đó bong bóng phải nằm
+// trước tin già nhất đang hiện. Neo rỗng - tức mọi lượt bình thường - thì vẫn là chèn trước
+// nút, nên nút giữ nguyên chỗ cuối cùng và sticky vẫn đúng.
 check("tin nhắn luôn chèn TRƯỚC nút, để nút nằm cuối mà sticky",
-      /chatArea\.insertBefore\(el, newMsgBtn\)/.test(APP));
+      /chatArea\.insertBefore\(el, _neoChenCu \|\| newMsgBtn\)/.test(APP));
 
 if (fails.length) {
   console.log("\nFAIL - test_nut_xuong_day: " + fails.length + " lỗi: " + fails.join(", "));

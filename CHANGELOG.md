@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.32] - 2026-09-17
+### Cải thiện
+- **Mở hội thoại dài không còn khựng.** Vào một cuộc chat cũ, Javis chỉ dựng đoạn cuối và tụt thẳng xuống câu trả lời gần nhất. Cuộn lên thì phần cũ tự về dần, từng khúc một, và chỗ bạn đang đọc giữ nguyên chứ không nhảy. Thanh mốc bên phải cũng dài thêm theo.
+- **Trang Kỹ năng có phân trang.** 20 kỹ năng mỗi trang, kèm nút Trước/Sau ở cuối danh sách. Ô tìm và cột nhóm vẫn lọc trên toàn bộ như cũ.
+
 ## [0.59.31] - 2026-09-17
 ### Sửa lỗi
 - **Linh vật trong ô chọn ở trang Cài đặt hết bị mất một con mắt.** Bản trước vẽ thiếu mắt phải ở mọi khuôn mặt đứng yên: ô chọn hình dáng, ô chọn cỡ mắt, hình nhỏ thay logo trên thanh bên và ảnh đại diện của trợ lý. Con pet ở mép màn hình thì vẫn đủ hai mắt, nên nhìn qua tưởng là cố ý.

@@ -28,7 +28,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # DB nằm cùng nơi settings.json/.sessions.json (JAVIS_STATE_DIR, mặc định server/).
 _STATE_DIR = Path(os.getenv("JAVIS_STATE_DIR", str(Path(__file__).parent)))
@@ -563,23 +563,57 @@ class SessionStore:
             return True
         return bool(self._write(_do))
 
+    @staticmethod
+    def _tin(r: sqlite3.Row) -> Dict[str, Any]:
+        """Một dòng bảng messages -> dict trả ra ngoài (mở gói tool_calls_json)."""
+        d = dict(r)
+        if d.get("tool_calls_json"):
+            try:
+                d["tool_calls"] = json.loads(d["tool_calls_json"])
+            except Exception:
+                d["tool_calls"] = None
+        d.pop("tool_calls_json", None)
+        return d
+
     def get_messages(self, session_id: str) -> List[Dict[str, Any]]:
         rows = self._read(
             "SELECT id, role, content, ts, tool_calls_json FROM messages "
             "WHERE session_id = ? ORDER BY ts, id",
             (session_id,),
         )
-        out = []
-        for r in rows:
-            d = dict(r)
-            if d.get("tool_calls_json"):
-                try:
-                    d["tool_calls"] = json.loads(d["tool_calls_json"])
-                except Exception:
-                    d["tool_calls"] = None
-            d.pop("tool_calls_json", None)
-            out.append(d)
-        return out
+        return [self._tin(r) for r in rows]
+
+    def count_messages(self, session_id: str) -> int:
+        rows = self._read("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?",
+                          (session_id,))
+        return int(rows[0]["n"]) if rows else 0
+
+    def get_messages_page(self, session_id: str, limit: int = 30,
+                          before: Optional[Tuple[float, int]] = None) -> Dict[str, Any]:
+        """Một KHÚC tin nhắn tính từ CUỐI lên, cho khung chat tải dần.
+
+        `before` là con trỏ (ts, id) của tin GIÀ NHẤT đang hiện trên màn: lượt sau lấy tiếp
+        những tin đứng trước nó. Con trỏ phải là CẶP chứ không chỉ mỗi id, vì thứ tự hiển thị
+        là `ORDER BY ts, id`: tin nhập vào lệch mốc giờ (bot, việc nền ghi bù) sẽ có id lớn mà
+        ts nhỏ, và một con trỏ chỉ có id sẽ lặng lẽ nhảy cóc qua vài tin hoặc trả lại tin cũ.
+
+        Trả về `messages` đã xếp XUÔI (cũ trước) để dựng bong bóng theo đúng thứ tự, kèm
+        `has_more` cho biết phía trên còn tin nữa không.
+        """
+        limit = max(1, int(limit))
+        sql = ("SELECT id, role, content, ts, tool_calls_json FROM messages "
+               "WHERE session_id = ?")
+        params: List[Any] = [session_id]
+        if before is not None:
+            sql += " AND (ts < ? OR (ts = ? AND id < ?))"
+            params += [float(before[0]), float(before[0]), int(before[1])]
+        # Lấy DƯ 1 mục để biết còn tin phía trên hay không, khỏi phải đếm cả bảng mỗi lượt.
+        sql += " ORDER BY ts DESC, id DESC LIMIT ?"
+        params.append(limit + 1)
+        rows = self._read(sql, tuple(params))
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        return {"messages": [self._tin(r) for r in reversed(rows)], "has_more": has_more}
 
     def list_sessions(self, limit: int = 50, brain: Any = None,
                       include_archived: bool = False,

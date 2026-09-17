@@ -1343,6 +1343,8 @@
   "app.act_processing": "Đang xử lý...",
   "app.no_content": "_(không có nội dung trả về - thử lại hoặc đổi model)_",
   "app.show_more": "Xem thêm",
+  "app.older_load": "Xem tin cũ hơn",
+  "app.older_loading": "Đang tải tin cũ…",
   "app.show_less": "Thu gọn",
   "app.new_msg": "Tin mới",
   "app.new_msg_title": "Có tin mới - xuống cuối",

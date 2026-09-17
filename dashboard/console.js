@@ -207,7 +207,9 @@
    * @param box       node chứa (bị ghi đè innerHTML)
    * @param items     mảng đã sắp sẵn, mới nhất trước
    * @param perPage   số mục mỗi trang
-   * @param renderPage  (mảng con) -> chuỗi HTML
+   * @param renderPage  (mảng con) -> chuỗi HTML, HOẶC một Node/DocumentFragment. Khung nhật
+   *   ký dựng bằng chuỗi; danh sách có nút bấm (trang Kỹ năng) phải dựng bằng node, vì gắn
+   *   handler qua chuỗi HTML thì mỗi lần lật trang lại phải đi dò lại từng nút mà nối.
    * @param emptyHtml HTML hiện khi không có mục nào
    */
   function pager(box, items, perPage, renderPage, emptyHtml) {
@@ -223,13 +225,23 @@
           <span class="jv-pager-n">${window.t("cs.pager_info", { trang: page + 1, tong: pages, so: all.length })}</span>
           <button class="s-btn-ghost" data-pg="next"${page >= pages - 1 ? " disabled" : ""}>${window.t("cs.pager_next")} →</button>
         </div>` : "";
-      box.innerHTML = renderPage(all.slice(page * perPage, page * perPage + perPage)) + nav;
+      const ruot = renderPage(all.slice(page * perPage, page * perPage + perPage));
+      if (ruot && ruot.nodeType) {
+        box.innerHTML = "";
+        box.appendChild(ruot);
+        if (nav) box.insertAdjacentHTML("beforeend", nav);
+      } else {
+        box.innerHTML = (ruot || "") + nav;
+      }
       const p = box.querySelector('[data-pg="prev"]'), n = box.querySelector('[data-pg="next"]');
       if (p) p.onclick = () => { page--; draw(); };
       if (n) n.onclick = () => { page++; draw(); };
     };
     draw();
   }
+  // Cho các module khác (studio.js - trang Kỹ năng) dùng chung, thay vì đẻ bản phân trang
+  // thứ hai rồi hai bản trôi lệch nhau ngay lần sửa đầu.
+  window.JavisPager = pager;
 
   // Pause SỚM (chạy ngay khi parse, không chờ Alpine tải): màn hẹp → graph app.js vừa dựng
   // dừng luôn, khỏi ngốn pin/GPU trong lúc Alpine đang tải. _animate có guard _paused nên
