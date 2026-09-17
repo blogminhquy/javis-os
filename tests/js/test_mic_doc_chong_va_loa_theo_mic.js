@@ -56,7 +56,10 @@ check("chưa chốt gì thì lấy nguyên final", ghep("", "Ok") === "Ok");
 check("onend tự mở lại thì gói phần đã nghe vào _committed trước",
   /this\._committed = JavisVoice\.ghepDuoiTam\(this\._ghepChuyenBien\(""\), this\._duoiTam\);\s*\n\s*this\._duoiTam = "";\s*\n\s*this\.recognition\.start\(\);/.test(voice));
 check("mở nghe CHỦ ĐỘNG là lượt mới: xoá _committed", /clearTimeout\(this\._resumeTimer\);\s*\n\s*this\._committed = "";/.test(voice));
-check("gửi xong dọn _committed", /this\._committed = "";\s*\n\s*this\._duoiTam = "";\s*\n\s*if \(finalText\) this\.onTranscript\(finalText\);/.test(voice));
+// Luật: hai ô nhớ của lượt phải dọn NGAY TRƯỚC khi gửi, không phải sau (gửi trước rồi dọn thì
+// onTranscript gọi lại startListening là đọc trúng chữ cũ). Khuôn cho phép chèn thêm dòng dọn ô
+// khác (0.59.28 thêm _batDauLuot cho trần một lượt), nhưng chỉ dòng gán field, không gì khác.
+check("gửi xong dọn _committed", /this\._committed = "";\s*\n\s*this\._duoiTam = "";\s*\n(?:\s*this\._\w+ = [^\n]*\n)*\s*if \(finalText\) this\.onTranscript\(finalText\);/.test(voice));
 // Các chốt cũ của test_mic_khong_tu_gui phải còn nguyên (không được phá lúc sửa onresult).
 check("onstart/onend/onerror vẫn hạ _starting ở dòng đầu",
   /onstart = \(\) => \{\s*\n\s*this\._starting = false;/.test(voice)

@@ -4174,6 +4174,10 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             v["stt_provider"] = patch["stt_provider"]
         if patch.get("live_provider") in voice_live.PROVIDERS:
             v["live_provider"] = patch["live_provider"]
+        # Lọc tạp âm (ô gạt, mặc định bật). Bật thì bộ não giọng cắt phần không nói với Javis
+        # khỏi câu, và bỏ hẳn lượt nào chỉ toàn tiếng TV hay người khác trong phòng.
+        if "loc_tap_am" in patch:
+            v["loc_tap_am"] = bool(patch["loc_tap_am"])
         for k in ("brain_model", "stt_model", "live_model", "live_voice"):
             if k in patch:
                 v[k] = str(patch[k] or "").strip()
@@ -10890,9 +10894,13 @@ async def voice_options():
         brain_list.append(item)
     return {
         "ok": True,
-        "voice": {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
-                                             "stt_model", "live_provider", "live_model", "live_voice",
-                                             "hotwords")},
+        "voice": dict(
+            {k: v.get(k, "") for k in ("mode", "brain_provider", "brain_model", "stt_provider",
+                                       "stt_model", "live_provider", "live_model", "live_voice",
+                                       "hotwords")},
+            # Ô gạt, không phải ô chữ: mặc định BẬT, nên brain cũ chưa có khoá vẫn trả về true.
+            loc_tap_am=v.get("loc_tap_am") is not False,
+        ),
         # Từ luôn có sẵn trong bộ từ vựng nghe (không cần khai): trang Cài đặt hiện cho biết.
         "hotwords_goc": list(nghe_sua.TU_VUNG_GOC),
         "brain_providers": brain_list,
@@ -12545,8 +12553,13 @@ async def websocket_endpoint(ws: WebSocket):
                 brain_obj = await voice_brain.get_brain(conv_sid, conf)
                 await send_raw({"type": "status", "content": "Javis đang trả lời nhanh...", "session_id": conv_sid})
                 # Đang có việc nền thì dặn bộ não giọng (V3): kết quả tự hiện, đừng bịa, đừng giao lại.
-                _ghi_chu = voice_brain.pending_note(conv_sid)
-                _hoi = user_message + ("\n\n" + _ghi_chu if _ghi_chu else "")
+                _dan = [x for x in (voice_brain.pending_note(conv_sid),
+                                    # Ô lọc tạp âm TẮT: dặn theo từng lượt thay vì đổi SYSTEM_PROMPT,
+                                    # vì prompt đã nướng vào bộ não lúc dựng (tiến trình agy sống
+                                    # suốt phiên), gạt ô mà phải giết rồi dựng lại là mất mấy giây.
+                                    "" if conf.get("loc_tap_am", True) else voice_brain.GHI_CHU_TAT_LOC)
+                        if x]
+                _hoi = "\n\n".join([user_message] + _dan)
                 async for delta in brain_obj.stream(_hoi, hist):
                     text += delta
                     # Dòng đầu là JAVIS_NGHE (câu đã diễn giải): bóc ra NGAY khi nó khép, trước
@@ -12581,6 +12594,27 @@ async def websocket_endpoint(ws: WebSocket):
                 return
             # Bộ não giọng vừa trả lời trót lọt: lỗi cũ (nếu có) không còn đúng, thôi khoe ở Cài đặt.
             voice_brain.xoa_loi_lan_nhanh()
+            # CỬA TẠP ÂM: cả lượt chỉ là tiếng TV, người khác trong phòng hay tiếng lẩm bẩm, không
+            # có câu nào nói với Javis. Không đọc loa (split_speakable đã giữ dòng marker lại),
+            # không trả lời, và XOÁ HẲN tin khỏi kho phiên - để lại thì đoạn tạp âm đi vào lịch sử
+            # của lượt sau, vào chỉ mục tìm kiếm và vào vòng tự học. Khung chat gỡ luôn bong bóng
+            # (chủ dự án chốt 17/09: ẩn hẳn để mắt chỉ còn nội dung đang bàn), chỉ để lại một dòng
+            # ghi chú thoáng qua rồi tự tắt, đủ để biết Javis có nghe và đã quyết bỏ.
+            _ly_do = voice_brain.parse_bo_qua(text) if conf.get("loc_tap_am", True) else None
+            if _ly_do is not None:
+                print(f"[voice tạp âm] bỏ lượt ({_ly_do or 'không nêu lý do'}): "
+                      f"{user_message[:160]!r}", file=sys.stderr)
+                try:
+                    # pop_last_message chứ không phải một hàm xoá riêng: nó trừ cả msg_count,
+                    # không thì danh sách Lịch sử khoe "1 tin" cho một cuộc rỗng không.
+                    store.pop_last_message(conv_sid, "user")
+                except Exception as e:
+                    print(f"[voice tạp âm] không xoá được tin khỏi kho phiên: {e}", file=sys.stderr)
+                await send_raw({"type": "user_text", "session_id": conv_sid,
+                                "bo_qua": True, "ly_do": _ly_do, "raw": user_message})
+                await send_raw({"type": "turn_done", "session_id": conv_sid})
+                _CHAT_RUNTIME.finish_job(conv_sid, asyncio.current_task())
+                return
             # Lưới sau: marker không ở dòng đầu, hoặc cả lượt chỉ có một dòng không xuống dòng
             # (split_speakable đã giữ dòng đó lại, chưa đọc). Bóc nốt, kéo mốc đã đọc về theo nếu
             # dòng nằm trước mốc để _flush(final) không đọc lặp.

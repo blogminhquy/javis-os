@@ -5937,6 +5937,11 @@
           <select class="js-input" id="v2Stt">${sttOpts}</select>
         </div>
         <div class="qs-field">
+          <label class="qs-lbl" for="v2LocTapAm">${esc(t("settings.v2_loc_tap_am"))}</label>
+          <label class="toggle"><input type="checkbox" id="v2LocTapAm" ${v.loc_tap_am === false ? "" : "checked"}><span></span></label>
+        </div>
+        <div class="qs-hint">${esc(t("settings.v2_loc_tap_am_note"))}</div>
+        <div class="qs-field">
           <label class="qs-lbl" for="v2Hotwords">${esc(t("settings.v2_hotwords"))}</label>
           <input class="js-input" id="v2Hotwords" value="${esc(v.hotwords || "")}" placeholder="${esc(t("settings.v2_hotwords_ph"))}">
           <div class="gcard-meta">${esc(t("settings.v2_hotwords_note", { goc: (o.hotwords_goc || ["Javis"]).join(", ") }))}</div>
@@ -6003,7 +6008,7 @@
         mode: $("v2Mode").value, brain_provider: $("v2Brain").value, brain_model: brainModel,
         stt_provider: $("v2Stt").value, live_provider: $("v2Live").value,
         live_model: $("v2LiveModel").value.trim(), live_voice: $("v2LiveVoice").value || "",
-        hotwords: $("v2Hotwords").value.trim(),
+        hotwords: $("v2Hotwords").value.trim(), loc_tap_am: $("v2LocTapAm").checked,
       };
       if (data.mode === "fast" && !data.brain_provider) { st.textContent = t("settings.v2_need_brain"); return; }
       const r = await saveSetting("voice", data);

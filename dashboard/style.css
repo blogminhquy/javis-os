@@ -1201,6 +1201,12 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 @keyframes actDot { 30% { opacity: 1; transform: translateY(-3px); } }
 @keyframes actGlow { 50% { border-color: var(--accent2); box-shadow: 0 0 14px var(--accent2-wash); } }
 .act-time { color: var(--text3); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* Dòng ghi chú thoáng qua (cửa tạp âm bỏ một lượt). Nhạt và căn giữa để mắt lướt qua chứ
+   không đọc như một lượt hội thoại - nó tự tắt sau vài giây. */
+.msg-ghichu {
+  text-align: center; color: var(--text3); font-size: 12px; font-family: var(--font);
+  padding: 2px 12px; opacity: 0.85;
+}
 @keyframes spin { to { transform: rotate(360deg); } }   /* vẫn dùng cho .rs-spin */
 
 .mem-count {
