@@ -275,7 +275,11 @@ check("phiên có TÊN chứ không để trống", (_row.get("title") or "").st
 _src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 _i = _src.index("def _tg_conv_sid(")
 _ham = _src[_i:_src.index("_TG_MOI_LAI_MAX")]
-check("in lý do mỗi lần mở phiên mới", "[telegram] mở phiên mới" in _ham)
+# Tiền tố là KÊNH THẬT, không đóng cứng "telegram": vỏ chung phục vụ cả Zalo, CLI và bot
+# chuyên trách, nên log phải nói đúng kênh nào vừa mở phiên (xem
+# test_viec_nen_giong_dung_khung_chat).
+check("in lý do mỗi lần mở phiên mới",
+      "mở phiên mới" in _ham and "{ly_do}" in _ham and "channel or 'telegram'" in _ham)
 for _ten, _dau in (("phiên cũ đã bị xoá", "không còn trong kho"),
                    ("brain lệch (kèm cả hai giá trị)", "brain của bản ghi"),
                    ("nghỉ lâu / quá dài", "nghỉ {nghi / 3600:.1f} tiếng")):

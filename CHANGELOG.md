@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.29] - 2026-09-17
+### Sửa lỗi
+- **Việc chạy nền lúc nói chuyện ở lại đúng khung chat đang nói.** Trước đây mỗi lần giao việc nền là Javis mở thêm một hội thoại riêng cho nó, nên nói chuyện một buổi là thanh Lịch sử đầy những cuộc chỉ có một hai tin. Nay kết quả về thẳng khung bạn đang nói, và việc nền còn đọc được mạch trò chuyện ở đó nên trả lời sát ý hơn.
+- **Hết nhãn "TG" dán nhầm.** Hội thoại sinh ra từ Zalo, từ terminal, từ bot riêng và từ việc nền đều bị đánh dấu là Telegram. Nay mỗi cuộc mang đúng nhãn kênh của nó, nên lọc theo kênh mới ra đúng thứ cần tìm.
+
 ## [0.59.28] - 2026-09-17
 ### Thêm mới
 - **Javis lọc tạp âm khỏi câu bạn nói.** Mic bật liên tục nên tiếng TV, người khác trong phòng hay tiếng bạn lẩm bẩm cũng bị chép thành chữ và đi thẳng vào khung chat. Nay Javis cắt phần không nói với nó ra khỏi câu rồi mới trả lời, còn lượt nào chỉ toàn tạp âm thì bỏ hẳn: không đọc, không để lại bong bóng, chỉ hiện một dòng báo rồi tự tắt sau vài giây.

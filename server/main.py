@@ -10921,10 +10921,18 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
     """Tool `ask_javis` của phiên Live, và việc nền của làn nhanh (V3): chạy MỘT lượt bộ não
     chính rồi trả chữ.
 
-    Đi qua `_tg_answer` (vỏ chung của Telegram/CLI) với khoá phiên `voice:<sid>` để lượt có ký
-    ức hội thoại, ghi kho phiên và vào vòng tự học như mọi kênh khác. `key` riêng (làn nhanh
-    truyền `voice:<sid>:<id>`) để nhiều việc chạy song song không xếp hàng chung một mạch. Lỗi
-    thì trả câu lỗi để model nói lại cho người dùng, không ném ra ngoài (ném là rớt cả phiên Live).
+    Đi qua `_tg_answer` (vỏ chung của Telegram/CLI) với khoá phiên `voice:<sid>`. `key` riêng
+    (làn nhanh truyền `voice:<sid>:<id>`) để nhiều việc chạy song song không xếp hàng chung
+    một mạch engine. Lỗi thì trả câu lỗi để model nói lại cho người dùng, không ném ra ngoài
+    (ném là rớt cả phiên Live).
+
+    Khoá ấy là khoá của MẠCH ENGINE, không phải của cuộc trò chuyện - và tới 0.59.28 vỏ chung
+    lẫn lộn hai thứ đó. Vì khoá dùng một lần nên vỏ tra ra "chưa có phiên nào cho chat này" và
+    mở một bản ghi hội thoại MỚI cho mỗi việc nền, dán nhãn telegram; nói chuyện một buổi là
+    thanh Lịch sử đầy hội thoại 1-2 tin đeo nhãn TG (chủ dự án báo 17/09). Nay `phien_kho`
+    ghim lượt vào ĐÚNG khung chat đang nói: bộ não chính đọc được mạch hội thoại thật, và
+    `ghi_kho=False` vì phần ghi kết quả đã có `push_to_chat` (làn nhanh) hoặc chính vòng
+    hội thoại Live lo - vỏ chen tin vào nữa là ghi đôi.
     """
     key = key or f"voice:{conv_sid}"
     sess = _tg_session(key)
@@ -10935,7 +10943,8 @@ async def _voice_ask_javis(request: str, conv_sid: str, brain: str, key: str = "
     except Exception:
         pass
     try:
-        out = await _tg_answer(request, meta={"chat_id": key}, channel="cli")
+        out = await _tg_answer(request, meta={"chat_id": key}, channel="cli",
+                               phien_kho=str(conv_sid or ""), ghi_kho=False)
     except Exception as e:
         return f"Bộ não chính lỗi: {type(e).__name__}: {e}"
     if isinstance(out, dict):
@@ -12767,10 +12776,14 @@ async def websocket_endpoint(ws: WebSocket):
                 except Exception as e:
                     print(f"[voice bg] không đóng được thẻ Việc: {type(e).__name__}: {e}", file=sys.stderr)
 
+            # Khoá MẠCH ENGINE của riêng việc này (dùng một lần, để hai việc chạy song song
+            # không xếp hàng chung một mạch). Nó KHÔNG phải khoá của cuộc trò chuyện - lượt
+            # vẫn ghim vào khung chat đang nói qua `conv_sid`.
+            khoa_mach = f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"
             out = ""
             try:
                 out = await asyncio.wait_for(
-                    _voice_ask_javis(request, conv_sid, brain, key=f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"),
+                    _voice_ask_javis(request, conv_sid, brain, key=khoa_mach),
                     timeout=VOICE_BG_TIMEOUT,
                 )
             except asyncio.TimeoutError:
@@ -12789,6 +12802,10 @@ async def websocket_endpoint(ws: WebSocket):
                 _dong_the(out or "(việc nền xong nhưng không có nội dung)")
             finally:
                 voice_brain.note_task_done(conv_sid, request)
+                # Khoá dùng một lần thì phiên RAM của nó cũng phải chết theo. `_TG_SESS` chỉ
+                # được dọn khi bot Telegram khởi động lại, nên nói chuyện cả buổi là cả trăm
+                # khoá chết nằm lại, mỗi khoá còn ôm một đối tượng engine CLI.
+                _TG_SESS.pop(khoa_mach, None)
             await push_to_chat(conv_sid, out or "(việc nền xong nhưng không có nội dung)")
 
         async def _start_resumed_turn(conv_sid, user_message, brain, attempt, notice):
@@ -15251,8 +15268,15 @@ _TG_CONV_MAX_MSGS = 200          # ~100 lượt hỏi-đáp/phiên → mở phi�
 _TG_CONV_ARCHIVE_DAYS = 30       # phiên Telegram nguội quá ngần này → tự cất vào kho lưu
 
 
-def _tg_conv_sid(store, sess, brain, engine_label, model):
-    """Phiên kho cho lượt Telegram này, tự xoay theo hai ngưỡng trên.
+def _tg_conv_sid(store, sess, brain, engine_label, model, channel="telegram"):
+    """Phiên kho cho lượt này, tự xoay theo hai ngưỡng trên.
+
+    `channel` là KÊNH THẬT của lượt, và phải được truyền vào: vỏ `_tg_answer` phục vụ bốn kênh
+    (Telegram, Zalo, CLI, bot chuyên trách), nhưng tới 0.59.28 hàm này đóng cứng
+    `channel="telegram"` cho MỌI bản ghi nó mở. Hậu quả nhìn thấy ở thanh Lịch sử: hội thoại
+    Zalo, hội thoại gõ từ terminal và việc nền của giọng nói đều đeo nhãn "TG" (chủ dự án báo
+    17/09: "chạy nền xong đang trả lời tag là TG thì không đúng"), còn bộ lọc theo kênh và
+    nhãn riêng `bot:<slug>` thì không bao giờ khớp được cái gì.
 
     sess['sid'] chỉ sống trong RAM, nên sau restart phải hỏi lại map BỀN `_TG_SID_MAP` (lý do
     đầy đủ ở chú thích `_TG_SID_PATH`) mới nối được vào đúng bản ghi cũ. Trước 0.50.1 chỗ này
@@ -15301,22 +15325,24 @@ def _tg_conv_sid(store, sess, brain, engine_label, model):
     # `_brain_key`: Telegram cầm ĐƯỜNG DẪN brain, dashboard gửi tên gọi tắt "brain" - ghi
     # nguyên văn thì hai bên lệch khoá và thanh bên không thấy hội thoại Telegram đâu.
     sess["sid"] = store.create_session(brain=_brain_key(brain), engine=engine_label, model=model,
-                                       channel="telegram")
+                                       channel=channel or "telegram")
     _tg_nho_sid(sess, sess["sid"])
     # VÌ SAO mở phiên mới - in ra mỗi lần, vì đây là thứ không tài nào đoán được từ giao diện:
     # ở Lịch sử chỉ thấy một loạt hội thoại ngắn mà không biết chúng bị cắt ra bởi luật nghỉ
     # 12 tiếng, bởi brain lệch, hay bởi liên kết bền không ghi được (chủ dự án báo 16/09).
-    print(f"[telegram] mở phiên mới {sess['sid'][:8]} cho chat {sess.get('key')}: {ly_do}",
-          file=__import__('sys').stderr)
+    print(f"[{channel or 'telegram'}] mở phiên mới {sess['sid'][:8]} cho chat "
+          f"{sess.get('key')}: {ly_do}", file=__import__('sys').stderr)
     # Dọn theo nhịp XOAY (hiếm, cỡ vài ngày một lần) chứ không mỗi lượt - đủ để thanh bên
-    # không ngập dần vì các khúc cũ.
+    # không ngập dần vì các khúc cũ. Dọn ĐÚNG kênh vừa xoay, không phải cứ thế quét Telegram.
     try:
-        n = store.archive_stale("telegram", time.time() - _TG_CONV_ARCHIVE_DAYS * 86400)
+        n = store.archive_stale(channel or "telegram",
+                                time.time() - _TG_CONV_ARCHIVE_DAYS * 86400)
         if n:
-            print(f"[telegram] cất {n} phiên nguội quá {_TG_CONV_ARCHIVE_DAYS} ngày vào kho lưu",
-                  file=__import__('sys').stderr)
+            print(f"[{channel or 'telegram'}] cất {n} phiên nguội quá {_TG_CONV_ARCHIVE_DAYS} "
+                  f"ngày vào kho lưu", file=__import__('sys').stderr)
     except Exception as e:
-        print(f"[telegram archive] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+        print(f"[{channel or 'telegram'} archive] {type(e).__name__}: {e}",
+              file=__import__('sys').stderr)
     return sess["sid"]
 
 
@@ -15361,7 +15387,8 @@ def _tg_lich_su_kho(store, conv_sid, text):
     return msgs, tom_tat
 
 
-async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None):
+async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=None,
+                     phien_kho="", ghi_kho=True):
     """Vỏ ngoài một lượt KHÔNG-WEBSOCKET: khớp phiên trong kho -> chạy engine -> LƯU lượt.
 
     `channel` mở hàm này cho kênh thứ ba là CLI (xem docs/dev/2026-08-cli-spec.md). Cố ý
@@ -15376,6 +15403,16 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
 
     Quy ước trả về của lõi: **dict = câu trả lời thật** (đáng lưu), **chuỗi = thông báo lỗi**
     (không lưu). Đó là lý do nhánh gateway lịch cũng trả dict chứ không trả chuỗi như trước.
+
+    `phien_kho` + `ghi_kho`: cho người gọi MƯỢN vỏ này mà không để nó tự khớp phiên. Mặc định
+    vỏ tra `chat_id` -> phiên kho và tự mở phiên mới khi chưa có, đúng cho Telegram/Zalo/CLI
+    nơi chat_id là một cuộc trò chuyện bền. Việc nền của giọng nói thì KHÔNG: mỗi việc mang
+    một `chat_id` dùng một lần (`voice:<sid>:<uuid>`, cố ý, để hai việc chạy song song không
+    xếp hàng chung một mạch engine), nên vỏ tưởng lượt nào cũng là một cuộc trò chuyện mới và
+    mở cho nó một bản ghi riêng - chủ dự án 17/09 thấy hàng loạt hội thoại chỉ 1-2 tin sinh ra
+    trong lúc nói chuyện. Truyền `phien_kho` = phiên chat đang nói để lượt chạy NGAY TRONG đó,
+    và `ghi_kho=False` khi người gọi tự lo phần ghi (việc nền ghi bằng `push_to_chat`), nên
+    lịch sử chỉ được ĐỌC làm ngữ cảnh chứ không bị chèn thêm tin nào.
     """
     # ĐA PHIÊN: định tuyến theo chat_id → ngữ cảnh của mỗi tài khoản tách biệt.
     chat_id = str((meta or {}).get("chat_id") or "default")
@@ -15414,11 +15451,16 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
     store = get_store()
     conv_sid = ""
     try:
-        conv_sid = _tg_conv_sid(store, sess, brain, engine_label,
-                                api_model or mcfg.get("claude_model"))
-        store.append_message(conv_sid, "user", text)
+        conv_sid = str(phien_kho or "")
+        if not conv_sid and ghi_kho:
+            # Chỉ TỰ MỞ phiên khi vỏ này còn là nơi ghi. Không ghi mà vẫn mở là để lại một bản
+            # ghi hội thoại rỗng tanh trong thanh Lịch sử - đúng thứ đang phải dọn.
+            conv_sid = _tg_conv_sid(store, sess, brain, engine_label,
+                                    api_model or mcfg.get("claude_model"), channel=channel)
+        if conv_sid and ghi_kho:
+            store.append_message(conv_sid, "user", text)
     except Exception as e:
-        print(f"[telegram session] {e}", file=__import__('sys').stderr)
+        print(f"[{channel} session] {e}", file=__import__('sys').stderr)
 
     runtime_trace = _CONTEXT_RUNTIME.start_turn(
         conv_sid or f"{channel}:{chat_id}", brain, channel)
@@ -15450,11 +15492,11 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
                     out["text"] = (out.get("text") or "") + "\n\n" + _cau_link_khong_thay(_thieu)
             except Exception as e:
                 print(f"[link file telegram] {type(e).__name__}: {e}", file=__import__('sys').stderr)
-        if conv_sid and isinstance(out, dict):
+        if conv_sid and ghi_kho and isinstance(out, dict):
             try:
                 await _persist_turn(store, conv_sid, brain, text, out.get("text") or "")
             except Exception as e:
-                print(f"[telegram persist] {e}", file=__import__('sys').stderr)
+                print(f"[{channel} persist] {e}", file=__import__('sys').stderr)
         if isinstance(out, str):
             # Lượt HỎNG: lõi trả chuỗi, và tới 0.59.20 vỏ này KHÔNG lưu gì cả - câu lỗi bay
             # thẳng ra Telegram rồi biến mất. Hậu quả nhìn thấy ở Lịch sử: một hội thoại đúng
@@ -15464,8 +15506,9 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
             # vấp hạn mức: đủ để mở lại còn đọc được chuyện gì đã xảy ra.
             #
             # Cố ý KHÔNG đi qua `_persist_turn`: câu lỗi không đáng vào nhật ký Memory lẫn
-            # hàng đợi tự học.
-            if conv_sid:
+            # hàng đợi tự học. `ghi_kho=False` thì cũng không ghi ở đây: người gọi đang tự lo
+            # phần ghi, và câu lỗi này được TRẢ VỀ cho họ nên không mất đi đâu cả.
+            if conv_sid and ghi_kho:
                 _persist_limit_notice(store, conv_sid, text, str(out))
             _CONTEXT_RUNTIME.note_error(runtime_trace, f"{channel}_error_response")
         _record_quality_shadow(
@@ -16132,13 +16175,18 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
                     _CONTEXT_RUNTIME.note_error(runtime_trace, "codex_error_event")
             return resume_hong
 
-        # Lịch sử để dựng lại thread khi cần. Bỏ lượt cuối vì đó chính là câu đang hỏi.
+        # Lịch sử để dựng lại thread khi cần. Bỏ lượt cuối NẾU nó đúng là câu đang hỏi, chứ
+        # không cắt cứng phần tử cuối: vỏ chung có chế độ không ghi câu hỏi vào kho
+        # (`ghi_kho=False`, việc nền của giọng), và khi đó cắt bừa là ăn mất một tin thật.
+        # Cùng cách so khớp với `_tg_lich_su_kho`.
         _raw = []
         if store is not None and conv_sid:
             try:
                 _raw = [{"role": m["role"], "content": m["content"]}
-                        for m in store.get_messages(conv_sid)[:-1]
+                        for m in store.get_messages(conv_sid)
                         if m.get("role") in ("user", "assistant") and m.get("content")]
+                if _raw and _raw[-1]["role"] == "user" and _raw[-1]["content"] == text:
+                    _raw.pop()
             except Exception:
                 _raw = []
         _hien_tai = _codex_do_sau(ccli, reasoning, text)

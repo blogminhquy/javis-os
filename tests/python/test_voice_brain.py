@@ -332,8 +332,13 @@ async def main():
           "asyncio.create_task(_voice_bg_task(ask, conv_sid, brain))" in src5
           and '"background": ask' in src5
           and "await run_turn(conv_sid, user_message, brain, turn_tag, runtime_trace)\n\n        async def _voice_bg_task" not in src5)
+    # Khoá dùng một lần là khoá của MẠCH ENGINE (để hai việc chạy song song không xếp hàng
+    # chung một mạch), KHÔNG phải khoá của cuộc trò chuyện - lượt vẫn ghim vào khung chat đang
+    # nói qua `phien_kho` (xem test_viec_nen_giong_dung_khung_chat).
     check("main: việc nền có khoá phiên riêng để chạy song song, xong thì push_to_chat",
-          'key=f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"' in src5 and "await push_to_chat(conv_sid, out" in src5
+          'f"voice:{conv_sid}:{uuid.uuid4().hex[:8]}"' in src5
+          and "_voice_ask_javis(request, conv_sid, brain, key=khoa_mach)" in src5
+          and "await push_to_chat(conv_sid, out" in src5
           and 'meta={"chat_id": key}' in src5)
     check("main: câu gửi bộ não giọng ghép pending_note", "voice_brain.pending_note(conv_sid)" in src5)
     check("main: /voice/options báo sẵn/chưa sẵn cho codex, claude, grok",
