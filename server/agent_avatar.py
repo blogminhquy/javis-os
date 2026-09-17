@@ -1,7 +1,7 @@
 """Nhân dạng trợ lý: chỉ nhận hình và bảng màu trong thư viện linh vật."""
 import secrets
 
-SHAPES = ("circle", "square", "triangle", "cloud", "pentagon")
+SHAPES = ("circle", "square", "triangle", "cloud", "pentagon", "star")
 PALETTES = ("amber", "pearl", "clay", "rose", "honey", "sage", "jade", "blue",
             "lavender", "pink", "slate", "cocoa")
 

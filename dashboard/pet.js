@@ -28,6 +28,12 @@
     triangle: { key: "pet.shape.triangle", d: "M147 85 Q160 64 173 85 L244 211 Q256 234 230 234 H90 Q64 234 76 211 Z" },
     cloud:    { key: "pet.shape.cloud",    d: "M105 224 C62 224 54 171 84 155 C71 119 102 92 131 106 C149 66 209 81 214 118 C255 110 273 160 246 182 C258 219 219 244 191 226 C167 249 127 246 105 224 Z" },
     pentagon: { key: "pet.shape.pentagon", d: "M150 80 Q160 73 170 80 L235 127 Q244 133 240 145 L216 222 Q213 232 201 232 H119 Q107 232 104 222 L80 145 Q76 133 85 127 Z" },
+    // NGÔI SAO MŨM MĨM. Sao tiêu chuẩn có bán kính trong bằng 0,38 bán kính ngoài, ra năm cái
+    // gai nhọn; ở đây là 52/86 tức 0,60, nên cánh ngắn và bè, thân phình ra như một cục bông.
+    // Cả mười góc đều bo bằng cung Q, đỉnh cánh bo mềm và chỗ hõm giữa hai cánh bo sâu hơn.
+    // Đừng đẩy bán kính trong lên nữa: dựng thử tới 0,65 thì cánh tan hết, nhìn ra ngũ giác
+    // mọc bướu chứ không còn là ngôi sao (đã dựng ảnh so từng bước trước khi chốt con số này).
+    star:     { key: "pet.shape.star",     d: "M147.2 92.5 Q160 74 172.8 92.5 L175.3 96 Q190.6 117.9 216.2 125.7 L220.3 126.9 Q241.8 133.4 228.2 151.3 L225.6 154.7 Q209.5 176.1 210 202.8 L210.1 207.1 Q210.5 229.6 189.3 222.2 L185.3 220.8 Q160 212 134.7 220.8 L130.7 222.2 Q109.5 229.6 109.9 207.1 L110 202.8 Q110.5 176.1 94.4 154.7 L91.8 151.3 Q78.2 133.4 99.7 126.9 L103.8 125.7 Q129.4 117.9 144.7 96 Z" },
   };
 
   // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
@@ -64,7 +70,18 @@
   // sáng thì mắt trắng nhìn cũng có nét riêng, và "tự động" thì không ai đoán được nó sẽ ra gì.
   // Avatar trợ lý KHÔNG theo lựa chọn này: chúng là nhân dạng khác, vẫn suy tự động.
   var MAU_MAT = { den: "#201e1e", trang: "#ffffff" };
-  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: "vua", eye: "den" };
+
+  // CỠ MẮT. Hệ số nhân vào bán kính con mắt, áp cho MỌI hình dáng chứ không riêng hình nào.
+  // Mắt là toàn bộ chỗ diễn cảm xúc của nhân vật này (không có miệng), nên cho người dùng
+  // kéo to lên là đổi hẳn tính cách: mắt thường thì điềm đạm, mắt rất to thì ngây thơ.
+  // Đừng vượt quá 1,5: bản dựng thử ở 1,7 thì hai con mắt chạm nhau ở giữa mặt, và lúc pet
+  // nép vào mép màn hình (hai mắt dồn sang nửa thân còn thấy) chúng chồng lên nhau hẳn.
+  var EYE_SIZES = {
+    thuong:  { key: "pet.eyesize.thuong", k: 1 },
+    to:      { key: "pet.eyesize.to",     k: 1.25 },
+    rat_to:  { key: "pet.eyesize.rat_to", k: 1.5 },
+  };
+  var MAC_DINH = { enabled: true, shape: "circle", palette: "amber", side: "right", pos: 0.62, size: "vua", eye: "den", eyeSize: "thuong" };
 
   // DÁNG LIẾC - chữ ký của nhân vật. Linh vật KHÔNG nhìn thẳng lúc nghỉ: nó liếc chéo lên
   // phía trên bên phải, đúng như hình logo tĩnh. Nhìn thẳng thì ra một cái mặt cười vô hồn;
@@ -175,6 +192,12 @@
   }
   // Màu mắt của CON PET: lựa chọn của người dùng, không suy từ thân nữa.
   function mauMatCfg() { return MAU_MAT[cfg.eye] || MAU_MAT.den; }
+  // Hệ số cỡ mắt đang chọn.
+  function heSoMat() { return (EYE_SIZES[cfg.eyeSize] || EYE_SIZES.thuong).k; }
+  // Khoảng cách từ tâm cặp mắt ra mỗi con. Mắt to thì NỚI RA, nhưng nới ít hơn mức mắt phình:
+  // nới đủ hệ số thì hai con mắt dạt hẳn ra hai bên thái dương, nhìn như một con vật khác.
+  // Dựng ảnh so ba cỡ rồi chốt: mũi tên 1 -> 1,5 thì khoảng cách chỉ đi 15 -> 18,5.
+  function cachMat(goc) { return goc * (1 + (heSoMat() - 1) * 0.47); }
 
   // ---- Lưu / nạp ----
   function docLocal() {
@@ -226,6 +249,7 @@
     if (c.side !== "left" && c.side !== "right") c.side = MAC_DINH.side;
     if (!SIZES[c.size]) c.size = MAC_DINH.size;
     if (!MAU_MAT[c.eye]) c.eye = MAC_DINH.eye;
+    if (!EYE_SIZES[c.eyeSize]) c.eyeSize = MAC_DINH.eyeSize;
     c.pos = kep(Number(c.pos) || MAC_DINH.pos, 0.05, 0.95);
     c.enabled = c.enabled !== false;
     return c;
@@ -344,13 +368,20 @@
     var a, b;
     if (el && el.dataset.out !== "1") {
       var tam = cfg.side === "right" ? -34 : 34;   // tâm của cặp mắt, lệch về phía còn thấy
-      a = [tam - 13, 0]; b = [tam + 13, 0];
+      var c = cachMat(13);
+      a = [tam - c, 0]; b = [tam + c, 0];
     } else {
-      a = [-15, 0]; b = [15, 0];
+      var c2 = cachMat(15);
+      a = [-c2, 0]; b = [c2, 0];
     }
+    // Cỡ mắt đi bằng scale trên chính nhóm đã dịch chuyển, chứ không sửa từng con số trong
+    // bảng EYES: mỗi biểu cảm ở đó là một hình riêng (ellipse, path cong, gạch ngang), nhân
+    // tay thì phải nhân đúng chín chỗ và cứ thêm một biểu cảm là thêm một chỗ để quên.
+    var k = heSoMat();
+    var co = k === 1 ? "" : " scale(" + k + ")";
     gEyes.innerHTML =
-      '<g transform="translate(' + (160 + a[0]) + " " + (160 + a[1]) + ')">' + trai + "</g>" +
-      '<g transform="translate(' + (160 + b[0]) + " " + (160 + b[1]) + ')">' + phai + "</g>";
+      '<g transform="translate(' + (160 + a[0]) + " " + (160 + a[1]) + ")" + co + '">' + trai + "</g>" +
+      '<g transform="translate(' + (160 + b[0]) + " " + (160 + b[1]) + ")" + co + '">' + phai + "</g>";
   }
 
   // ---- Vòng vẽ ----
@@ -630,6 +661,8 @@
   //           trong cài đặt trợ lý liếc sang trái và hơi xuống, theo yêu cầu của chủ dự án.
   //   mat   - khoá MÀU MẮT ("den" / "trang"). Chỗ nào vẽ CON PET thì truyền vào để chân dung
   //           khớp với con pet sống; bỏ trống (avatar trợ lý) thì suy tự động từ độ chói thân.
+  //   coMat - khoá CỠ MẮT ("thuong" / "to" / "rat_to"), cùng lý do như trên: ô xem thử và dấu
+  //           ấn thanh bên truyền vào, avatar trợ lý bỏ trống nên giữ cỡ thường.
   function chanDung(shape, palette, opts) {
     var o = opts || {};
     var d = (SHAPES[shape] || SHAPES.circle).d;
@@ -647,10 +680,15 @@
     // Khung NỚI RA khi có vành, giữ nguyên khi không: hình tam giác phóng 1,14 lần cộng nửa
     // nét vẽ chạm tới 274, tràn khỏi khung cũ (58..262). Nới cho mọi chân dung thì avatar trợ
     // lý và dấu ấn đang dùng tự nhiên bé lại, đổi diện mạo một chỗ không ai yêu cầu.
+    // Cỡ mắt: cùng hệ số và cùng luật nới khoảng cách với con pet sống, để ô xem thử không
+    // bao giờ nói khác cái đang đứng ở mép màn hình.
+    var k = (EYE_SIZES[o.coMat] || EYE_SIZES.thuong).k;
+    var cach = (15 * (1 + (k - 1) * 0.47)).toFixed(2);
+    var rx = (7.2 * k).toFixed(2), ry = (17.5 * k).toFixed(2);
     return '<svg viewBox="' + (o.vanh ? "42 42 236 236" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
       '<path d="' + d + '" fill="' + tone[0] + '"/>' +
-      '<ellipse cx="' + (ex - 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/>' +
-      '<ellipse cx="' + (ex + 15) + '" cy="' + ey + '" rx="7.2" ry="17.5" fill="' + mat + '"/></svg>';
+      '<ellipse cx="' + (ex - cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/>' +
+      '<ellipse cx="' + (ex + cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/></svg>';
   }
 
   // ---- DẤU ẤN trên thanh bên ----
@@ -668,7 +706,7 @@
       if (o.dataset.brandGoc === undefined) o.dataset.brandGoc = o.innerHTML;
       if (dung) {
         o.classList.add("brand-pet");
-        o.innerHTML = chanDung(cfg.shape, cfg.palette, { mat: cfg.eye });
+        o.innerHTML = chanDung(cfg.shape, cfg.palette, { mat: cfg.eye, coMat: cfg.eyeSize });
       } else if (o.classList.contains("brand-pet")) {
         o.classList.remove("brand-pet");
         o.innerHTML = o.dataset.brandGoc;
@@ -699,10 +737,12 @@
     // Ô xem thử trên trang Linh vật, và DẤU ẤN thay cho logo trên thanh bên: cùng một hàm,
     // vì hai chỗ đó phải là cùng một khuôn mặt.
     previewSvg: chanDung,
-    markSvg: function () { return chanDung(cfg.shape, cfg.palette, { mat: cfg.eye }); },
+    markSvg: function () { return chanDung(cfg.shape, cfg.palette, { mat: cfg.eye, coMat: cfg.eyeSize }); },
     // Danh sách màu mắt cho ô chọn ở trang Linh vật. Trả khoá + mã màu để chỗ vẽ khỏi phải
     // khai lại bảng màu lần thứ hai.
     eyeColors: function () { return Object.assign({}, MAU_MAT); },
+    // Danh sách CỠ MẮT cho ô chọn ở trang Linh vật.
+    eyeSizes: function () { return EYE_SIZES; },
     // Thanh bên có đang dùng khuôn mặt linh vật thay cho logo không.
     usingMark: function () { return dungDauAn(); },
     // Lưu NGAY lên máy chủ rồi đọc lại để chắc chắn đã vào (nút Lưu trang Linh vật).

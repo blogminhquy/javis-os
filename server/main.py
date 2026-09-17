@@ -4130,7 +4130,7 @@ async def settings_set(section: str = Form(...), data: str = Form("{}")):
             pet = dict(pet_cu)
             if "enabled" in pet_moi:
                 pet["enabled"] = bool(pet_moi["enabled"])
-            for k in ("shape", "palette", "side", "size", "eye"):
+            for k in ("shape", "palette", "side", "size", "eye", "eyeSize"):
                 v = pet_moi.get(k)
                 # Gạch dưới cũng là ký tự HỢP LỆ: khoá cỡ lớn nhất tên là "rat_lon", mà luật
                 # cũ chỉ tha dấu gạch ngang nên isalnum() trả False và cỡ đó bị loại LẶNG LẼ -
