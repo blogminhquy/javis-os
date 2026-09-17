@@ -67,6 +67,15 @@ global.fetch = () => new Promise(() => {});      // không bao giờ trả lời
 global.CustomEvent = function () {};
 global.FormData = function () { this.append = function () {}; };
 
+// Gieo Math.random CỐ ĐỊNH trước khi nạp pet.js. pet.js chọn đích liếc bằng
+// nghiX() + (Math.random() * 2 - 1) * 0,17, nên để ngẫu nhiên thì mỗi bước dưới đây kết thúc ở
+// một chỗ khác nhau, và phép đo "đổi mép thì lật ngay" ở bước 3 lúc thì kịp qua mốc, lúc thì
+// dừng cách mốc một hai phần mười: đo thật thì chập chờn 3 lượt đỏ trên 150 lượt chạy.
+// Chọn đúng 0,5 vì nó làm số hạng nhiễu bằng 0 tuyệt đối: đích liếc trùng khít dáng nghỉ, hai
+// mép thành ẢNH GƯƠNG của nhau, nhờ vậy quãng đường lật mép mới đo được chính xác. Biên nhiễu
+// đảo mắt không phải thứ phép kiểm này canh, bỏ nó đi không mất gì.
+Math.random = () => 0.5;
+
 require(path.join(root, "dashboard", "pet.js"));
 const P = window.JavisPet;
 check("pet.js nạp được với DOM giả", !!P && typeof P.setCfg === "function");
@@ -105,9 +114,21 @@ check("nép mép trái thì nhìn sang PHẢI, vào trong màn hình (x=" + trai
 // ---- 3. Đổi mép là đổi hướng NGAY, không chờ hết nhịp đảo mắt ----
 // Nhịp đảo mắt lúc nghỉ dài 3,6 đến 6,8 giây. Nếu đổi mép mà không chọn lại đích liếc thì vừa
 // thả tay con pet còn nhìn trổ ra ngoài suốt mấy giây, đúng cái cảm giác "nó bị kẹt".
+// Đo bằng QUÃNG ĐƯỜNG đã đi từ chỗ con mắt đang đứng (trai) về dáng liếc của mép bên kia, chứ
+// không bằng chốt trần "đã xuống dưới 0". Lý do: giá trị đọc được là kết quả nội suy GIỮA
+// CHỪNG, và 3 giây đồng hồ mới chỉ nuốt được 0,75 giây tích phân (pet.js chặn dt ở 0,05s), nên
+// mốc 0 nằm sát ngay chỗ con mắt vừa tới. Tính theo quãng thì con số nói rõ nó đã đi được bao
+// nhiêu phần, và mốc "quá nửa quãng" vẫn đúng bằng chốt cũ chứ không nhẹ hơn.
+const dichLat = -trai;            // dáng liếc hai mép là ảnh gương của nhau, xem nghiX()
 P.setCfg({ side: "right" });
-const ngay = await quay(15);      // 3 giây, ngắn hơn một nhịp đảo mắt
-check("đổi mép thì hướng liếc lật theo ngay (x=" + ngay + ")", ngay !== null && ngay < 0);
+const motNhip = await quay(1);    // đúng MỘT khung hình sau khi đổi mép
+const nhipDau = motNhip === null ? 0 : (trai - motNhip) / (trai - dichLat);
+check("đổi mép thì ngay khung hình đầu mắt đã xê dịch về mép kia (" +
+  (nhipDau * 100).toFixed(2) + "% quãng)", nhipDau > 0.02);
+const ngay = await quay(14);      // tổng 3 giây, ngắn hơn một nhịp đảo mắt
+const diDuoc = ngay === null ? 0 : (trai - ngay) / (trai - dichLat);
+check("trong 3 giây mắt đi được quá nửa quãng sang mép kia (x=" + ngay + ", " +
+  (diDuoc * 100).toFixed(1) + "% quãng)", diDuoc > 0.5);
 
 // ---- 4. Tắt hiệu ứng thì mắt đứng nguyên ----
 // prefers-reduced-motion là một trong ba cái chốt làm vòng vẽ thoát sớm, và cũng là ca mà dò
