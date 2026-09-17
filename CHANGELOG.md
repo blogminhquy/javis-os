@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.27] - 2026-09-17
+### Sửa lỗi
+- **Khởi động cùng Windows: khi Windows đang chặn mục khởi động, nút trên thẻ đổi thành "Bật lại để sửa".** Trước đây thẻ báo "bật nhưng không chạy" mà nút duy nhất lại là Tắt, nên phải tự đoán ra hai cú bấm Tắt rồi Bật; mục của Javis trên máy chủ dự án bị Task Manager tắt từ cuối tháng 7 mà không ai nhận ra.
+### Cải thiện
+- **Mở một quy trình là cột phải về ngay Cài đặt, nơi có nút Chạy quy trình.** Trợ lý vẫn mở ở Lịch sử như trước, hai loại nhớ tab riêng nên không còn đè lên nhau.
+- **Ba mục micro (ngôn ngữ nghe, im lặng rồi gửi, ngắt lời) nằm chung thẻ Chế độ nói chuyện,** nút Lưu chế độ ở cuối thẻ. Mặc định mới: chế độ Làn nhanh, im lặng rồi gửi 1,2 giây.
+- **Ngôn ngữ nghe có thêm "Đa ngôn ngữ · không cố định".** Máy nghe Groq Whisper tự nhận ra tiếng đang nói; máy nghe của trình duyệt chỉ theo được ngôn ngữ của trình duyệt, thẻ nói rõ điều đó.
+
 ## [0.59.26] - 2026-09-17
 ### Sửa lỗi
 - **File đính kèm trong hội thoại của trợ lý và quy trình hết bị cắt cụt.** Dải đính kèm ngay trên ô nhập bị bóp lại khi khoang giữa thiếu chỗ, nên chip file chỉ lộ nửa trên và trông như nằm khuất sau dải model. Nay nó luôn cao đủ, đoạn hội thoại nhường chỗ thay vì ngược lại.

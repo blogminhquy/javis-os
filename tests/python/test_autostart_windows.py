@@ -142,6 +142,16 @@ check("nhãn nói thật khi bật mà không chạy được",
 check("dashboard KHÔNG tự dựng lại câu lý do (server là nguồn duy nhất)",
       "Task Manager" not in _JS)
 
+# ============================================================
+# 6. Đang "bật nhưng không chạy" thì nút phải là BẬT LẠI, không phải Tắt
+# ============================================================
+# Câu lý do bảo "bấm bật lại để gỡ chặn" mà nút duy nhất trên thẻ ghi "Tắt tự khởi động" thì
+# người dùng phải tự đoán ra hai cú bấm Tắt rồi Bật. Máy chủ dự án đứng đúng cảnh này gần hai
+# tháng (cờ StartupApproved lật từ 24/07, phát hiện 17/09).
+check("cả hai thẻ dùng nhãn Bật lại khi hỏng", _JS.count('"cs.ov_auto_btn_fix"') >= 2)
+check("hỏng thì gửi enabled=1 chứ không phải tắt", _JS.count('(on && !hong) ? "0" : "1"') >= 2)
+check("nhãn Bật lại có trong từ điển", "cs.ov_auto_btn_fix" in _VI)
+
 if _fails:
     raise SystemExit(f"\nFAIL - test_autostart_windows: {len(_fails)} lỗi")
 print("\nOK - test_autostart_windows: tất cả pass")
