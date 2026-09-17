@@ -682,9 +682,14 @@
     // lý và dấu ấn đang dùng tự nhiên bé lại, đổi diện mạo một chỗ không ai yêu cầu.
     // Cỡ mắt: cùng hệ số và cùng luật nới khoảng cách với con pet sống, để ô xem thử không
     // bao giờ nói khác cái đang đứng ở mép màn hình.
+    // GIỮ NGUYÊN KIỂU SỐ tới lúc nối chuỗi. Bản 0.59.30 làm tròn ngay ở đây bằng toFixed() nên
+    // `cach` thành CHUỖI, và `ex + cach` không còn là phép cộng mà là phép nối: con mắt phải
+    // nhảy ra toạ độ 17615, tức ngoài khung, nên mọi chân dung tĩnh (ô chọn ở trang Linh vật,
+    // dấu ấn thanh bên, avatar trợ lý) chỉ còn MỘT con mắt. Mắt trái vẫn đúng vì phép trừ tự
+    // ép chuỗi về số, nên nhìn qua tưởng là cố ý.
     var k = (EYE_SIZES[o.coMat] || EYE_SIZES.thuong).k;
-    var cach = (15 * (1 + (k - 1) * 0.47)).toFixed(2);
-    var rx = (7.2 * k).toFixed(2), ry = (17.5 * k).toFixed(2);
+    var cach = 15 * (1 + (k - 1) * 0.47);
+    var rx = 7.2 * k, ry = 17.5 * k;
     return '<svg viewBox="' + (o.vanh ? "42 42 236 236" : "58 58 204 204") + '" aria-hidden="true">' + vanh +
       '<path d="' + d + '" fill="' + tone[0] + '"/>' +
       '<ellipse cx="' + (ex - cach) + '" cy="' + ey + '" rx="' + rx + '" ry="' + ry + '" fill="' + mat + '"/>' +
