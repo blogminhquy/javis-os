@@ -123,12 +123,28 @@ check("branding.js truyền đúng true khi tải lên, false khi khôi phục",
 check("css: chỗ logo mang mặt linh vật thì bỏ quầng sáng cam", /\.brand-pet \{ filter: none !important; \}/.test(css));
 
 // ---- 6. Trang "pet" khai đủ ở mọi sổ đăng ký ----
-check("console.js: pet trong RAIL_ITEMS", /"usage", "pet",\s*\n\s*\]\.map/.test(console_js));
-check("console.js: pet trong nhóm Hệ thống", /ids: \["usage", "settings", "pet", "logs", "account"\]/.test(console_js));
-check("console.js: pet có trong VIEW_META", /"usage", "pet"\]\.map\(id =>/.test(console_js));
+// Hỏi "pet CÓ trong danh sách không", KHÔNG hỏi "pet có đứng cuối danh sách không". Bản cũ
+// ghim cả hàng xóm của nó (/"usage", "pet",\n\]/), nên thêm BẤT KỲ trang mới nào vào sau là
+// ba phép thử này đỏ oan - đúng chuyện xảy ra khi thêm trang Chia sẻ (0.59.39). Một phép thử
+// canh sổ đăng ký mà vỡ mỗi lần sổ có thêm mục thì nó đang canh nhầm thứ.
+// Nhận cả danh sách JS (ngoac vuong) lẫn tuple Python (ngoac tron): ui_targets.py dùng tuple.
+function trongDanhSach(src, moc, ten) {
+  const i = src.indexOf(moc);
+  if (i < 0) return false;
+  const khoi = src.slice(i, i + 900);
+  const het = [khoi.indexOf("]"), khoi.indexOf(")")].filter(x => x >= 0);
+  if (!het.length) return false;
+  return new RegExp('"' + ten + '"').test(khoi.slice(0, Math.min.apply(null, het) + 1));
+}
+check("console.js: pet trong RAIL_ITEMS",
+  trongDanhSach(console_js, "const RAIL_ITEMS", "pet"));
+check("console.js: pet trong nhóm Hệ thống",
+  /ids: \[[^\]]*"pet"[^\]]*\], foot: true/.test(console_js));
+check("console.js: pet có trong VIEW_META",
+  trongDanhSach(console_js, "const VIEW_META", "pet"));
 check("console.js: renderPage định tuyến pet", /if \(id === "pet"\) return renderPetPage\(el\);/.test(console_js));
-check("ui-actions.js: pet trong PAGES", /"usage", "pet"\];/.test(uiActions));
-check("ui_targets.py: pet trong PAGES", /"usage", "pet",/.test(uiTargets));
+check("ui-actions.js: pet trong PAGES", trongDanhSach(uiActions, "PAGES", "pet"));
+check("ui_targets.py: pet trong PAGES", trongDanhSach(uiTargets, "PAGES", "pet"));
 check("ui_targets.py: bí danh 'linh vat' trỏ về pet", /"linh vat": "pet"/.test(uiTargets));
 check("ui_targets.py: nhóm tro_ly đã bỏ", !/"tro_ly", "bo_nao"/.test(uiTargets));
 check("ui_targets.py: bí danh 'tro ly' của NHÓM nay trỏ sang bo_nao", /"tro ly": "bo_nao"/.test(uiTargets));

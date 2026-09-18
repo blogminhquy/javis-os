@@ -14,6 +14,9 @@
   "page.pet.label": "Linh vật",
   "page.pet.title": "Linh vật Javis",
   "page.pet.sub": "Hình dáng · bảng màu · bật tắt con pet ở mép màn hình",
+  "page.share.label": "Chia sẻ",
+  "page.share.title": "Link đang chia sẻ",
+  "page.share.sub": "Mọi đường link công khai đang sống · thu hồi bất cứ lúc nào",
   "page.home.label": "Đồ thị",
   "page.home.sub": "Khoang não · đồ thị tri thức của brain",
   "page.chat.label": "Trò chuyện",
@@ -2788,5 +2791,13 @@
   "ws.previous_result": "kết quả trước",
   "ws.save_failed": "Không lưu được. Vui lòng thử lại.",
   "ws.err_avatar_shape": "Hình đại diện không hợp lệ. Chọn lại một hình trong thư viện.",
-  "ws.err_avatar_palette": "Màu đại diện không hợp lệ. Chọn lại một màu trong thư viện."
+  "ws.err_avatar_palette": "Màu đại diện không hợp lệ. Chọn lại một màu trong thư viện.",
+  "fedit.share_title": "Chia sẻ link công khai",
+  "fedit.share_open": "Mở thử",
+  "fedit.share_revoke": "Thu hồi",
+  "fedit.share_revoked": "Đã thu hồi link.",
+  "fedit.share_note": "Ai có link này đều xem được, không cần đăng nhập. Link trỏ tới file thật nên bạn sửa file là người xem thấy bản mới.",
+  "share.heading": "Link đang chia sẻ",
+  "share.warn": "Ai có link đều xem được, không cần đăng nhập và không có hạn dùng. Thu hồi là link chết ngay với tất cả mọi người.",
+  "share.empty": "Chưa chia sẻ file nào. Mở một file rồi bấm nút Chia sẻ trong khung sửa để tạo link."
 }

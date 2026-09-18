@@ -20,7 +20,7 @@ import unicodedata
 PAGES = (
     "home", "chat", "settings", "workspace", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "pet",
+    "packs", "logs", "account", "usage", "pet", "share",
 )
 
 # Bí danh người dùng hay nói, ánh xạ về id trang. Thường hoá không dấu trước khi tra, nên viết
@@ -37,6 +37,8 @@ ALIASES = {
     "tro chuyen": "chat", "hoi thoai": "chat", "trang chu": "home", "javis": "home",
     "do thi": "home", "graph": "home", "khoang nao": "home", "do thi tri thuc": "home",
     "linh vat": "pet", "mascot": "pet", "con pet": "pet", "pet": "pet", "thu cung": "pet",
+    "chia se": "share", "share": "share", "link chia se": "share", "duong link": "share",
+    "shared links": "share", "quan ly chia se": "share",
     "tu hoc": "selfimprove", "self improve": "selfimprove", "hoc": "learn",
     "viec dinh ky": "selfimprove", "nhac hen": "selfimprove",
     "code": "terminal", "ma": "terminal", "nhat ky": "logs", "log": "logs",

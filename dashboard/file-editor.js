@@ -109,6 +109,14 @@
       ".jvfe-btn.active{color:var(--accent);border-color:var(--accent)}" +
       ".jvfe-btn.icon{width:32px;height:32px;padding:0;font-size:14px}" +
       ".jvfe-btn.saved{color:var(--green);border-color:var(--green)}" +
+      // Thanh link chia se. Xuong dong duoc vi tren dien thoai mot hang bon mon khong du cho,
+      // va o nhap link chiem het be ngang con lai de nguoi ta nhin thay CA duong link.
+      ".jvfe-share{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3);" +
+      "font-size:13px;color:var(--text2)}" +
+      ".jvfe-share-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}" +
+      ".jvfe-share-url{flex:1 1 220px;min-width:0;padding:7px 10px;border-radius:8px;" +
+      "border:1px solid var(--border);background:var(--bg2);color:var(--text-hi);font-size:13px}" +
+      ".jvfe-share-note{margin-top:7px;line-height:1.5;opacity:.85}" +
       ".jvfe-body{flex:1;min-height:0;overflow:auto;background:var(--bg);display:flex;flex-direction:column}" +
       ".jvfe-text{flex:1;min-height:52vh;width:100%;box-sizing:border-box;border:0;outline:none;resize:none;" +
       "background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;" +
@@ -148,6 +156,7 @@
   // ---------------------------------------------------------------- modal (dung 1 lan, tai su dung)
   var modal = null, card = null, elTitle = null, elActions = null, elBody = null, curSave = null;
   var daDayLichSu = false;   // da chen mot buoc lich su cho nut Back chua
+  var elShare = null;        // thanh hien link chia se (an mac dinh)
 
   function build() {
     if (modal) return;
@@ -157,6 +166,7 @@
     modal.innerHTML =
       '<div class="jvfe-card" role="dialog" aria-modal="true">' +
         '<div class="jvfe-head"><span class="jvfe-title"></span><span class="jvfe-actions"></span></div>' +
+        '<div class="jvfe-share" hidden></div>' +
         '<div class="jvfe-body"></div>' +
       "</div>";
     document.body.appendChild(modal);
@@ -164,6 +174,7 @@
     elTitle = modal.querySelector(".jvfe-title");
     elActions = modal.querySelector(".jvfe-actions");
     elBody = modal.querySelector(".jvfe-body");
+    elShare = modal.querySelector(".jvfe-share");
     // Bam nen mo -> dong. Bat CA hai su kien: iOS khong phai luc nao cung sinh mousedown cho
     // mot the <div> tron, nen chi nghe mousedown la tren dien thoai bam nen khong an gi.
     modal.addEventListener("mousedown", function (e) { if (e.target === modal) close(); });
@@ -190,6 +201,7 @@
     if (!modal) return;
     modal.classList.remove("open");
     elBody.innerHTML = ""; elActions.innerHTML = ""; curSave = null;   // don iframe/textarea
+    if (elShare) { elShare.innerHTML = ""; elShare.hidden = true; }
     document.body.classList.remove("jvfe-open");
     // Dong bang nut X / Esc / bam nen: nha luon buoc lich su da chen, khong thi nguoi dung phai
     // bam Back mot cai "khong lam gi" truoc khi thuc su roi trang.
@@ -238,7 +250,7 @@
   }
 
   function renderImage(b, ceil, brainRel) {
-    elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
+    elActions.appendChild(shareBtn(b, ceil)); elActions.appendChild(openLink(b, ceil)); elActions.appendChild(dlLink(b, ceil)); elActions.appendChild(closeBtn());
     elBody.innerHTML = '<div class="jvfe-img"><img src="' + esc(rawUrl(b, ceil)) + '" alt="' + esc(baseOf(brainRel)) + '"></div>';
   }
   function renderPdf(b, ceil, brainRel) {
@@ -271,6 +283,99 @@
     return a;
   }
 
+  // ---- Nut CHIA SE: mot duong link ai cam cung xem duoc, KHONG can dang nhap ----
+  // Trang mo ra la BAN HOAN THIEN chu khong phai ma nguon: .html chay that, .md hien dam
+  // nghieng va anh. Phia may chu lo phan dung trang (server/share_render.py) va lo cach ly
+  // noi dung (header sandbox) - o day chi lo cai nut.
+  //
+  // Link tro toi FILE THAT chu khong phai ban chup: sua file thi nguoi xem tai lai la thay
+  // ban moi. Chu du an chon vay ngay 18/09.
+  function shareBtn(b, ceil) {
+    var btn = document.createElement("button");
+    btn.className = "jvfe-btn icon"; btn.type = "button";
+    // "link" chu khong phai "share-2": bo icon da vendor khong co share-2, va test_icons.py
+    // canh dung chuyen do - goi mot ten khong co that thi nut hien ra TRONG KHONG, khong loi.
+    // Khong de emoji lam duong lui: giao dien dashboard cam emoji (cung test_icons.py).
+    btn.innerHTML = ic("link");
+    btn.title = tw("fedit.share_title");
+    // Da co link san thi nut sang len ngay tu luc mo file, de nguoi dung biet file nay DANG
+    // duoc chia se ma khong phai bam thu.
+    fetch("/share/of?brain=" + encodeURIComponent(b) + "&path=" + encodeURIComponent(ceil))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.share) btn.classList.add("active"); })
+      .catch(function () {});
+    btn.onclick = function () {
+      btn.disabled = true;
+      fetch("/share/create", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brain: b, path: ceil }),
+      })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (d) {
+          btn.disabled = false;
+          if (!d || !d.ok) { veThanhShare(null, d && d.error); return; }
+          btn.classList.add("active");
+          veThanhShare(location.origin + d.path, "", d.token);
+        })
+        .catch(function () { btn.disabled = false; veThanhShare(null, tw("app.err_net")); });
+    };
+    return btn;
+
+    function veThanhShare(url, loi, token) {
+      elShare.innerHTML = "";
+      elShare.hidden = false;
+      if (!url) {
+        elShare.textContent = loi || tw("app.err_cap");
+        return;
+      }
+      var o = document.createElement("input");
+      o.type = "text"; o.readOnly = true; o.value = url; o.className = "jvfe-share-url";
+      o.onclick = function () { o.select(); };
+      var chep = document.createElement("button");
+      chep.className = "jvfe-btn"; chep.type = "button"; chep.textContent = tw("common.copy");
+      chep.onclick = function () {
+        // navigator.clipboard chi co tren HTTPS (hoac localhost). Tren HTTP trong mang LAN no
+        // KHONG ton tai, nen phai co duong lui bang execCommand - khong thi bam Chep im lang
+        // khong lam gi, dung canh nguoi dung thay "hong ma khong bao".
+        var xong = function () {
+          chep.textContent = tw("common.copied");
+          setTimeout(function () { chep.textContent = tw("common.copy"); }, 1400);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(url).then(xong).catch(function () { o.select(); });
+        } else {
+          o.select();
+          try { document.execCommand("copy"); xong(); } catch (e) {}
+        }
+      };
+      var mo = document.createElement("a");
+      mo.href = url; mo.target = "_blank"; mo.rel = "noopener";
+      mo.innerHTML = '<button class="jvfe-btn" type="button">' + esc(tw("fedit.share_open")) + "</button>";
+      var thu = document.createElement("button");
+      thu.className = "jvfe-btn"; thu.type = "button"; thu.textContent = tw("fedit.share_revoke");
+      thu.onclick = function () {
+        thu.disabled = true;
+        fetch("/share/revoke", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: token }),
+        }).then(function () {
+          btn.classList.remove("active");
+          elShare.innerHTML = "";
+          elShare.textContent = tw("fedit.share_revoked");
+          setTimeout(function () { elShare.hidden = true; elShare.textContent = ""; }, 1800);
+        }).catch(function () { thu.disabled = false; });
+      };
+      var nhac = document.createElement("div");
+      nhac.className = "jvfe-share-note";
+      nhac.textContent = tw("fedit.share_note");
+      var hang = document.createElement("div");
+      hang.className = "jvfe-share-row";
+      hang.appendChild(o); hang.appendChild(chep); hang.appendChild(mo); hang.appendChild(thu);
+      elShare.appendChild(hang);
+      elShare.appendChild(nhac);
+    }
+  }
+
   // Nut Luu (dung getContent de lay noi dung THAT theo che do dang mo) + Tai + Dong.
   function appendSaveAndClose(b, ceil, getContent) {
     var save = document.createElement("button");
@@ -292,6 +397,7 @@
     };
     save.onclick = curSave;
     elActions.appendChild(save);
+    elActions.appendChild(shareBtn(b, ceil));
     elActions.appendChild(openLink(b, ceil));
     elActions.appendChild(dlLink(b, ceil));
     elActions.appendChild(closeBtn());

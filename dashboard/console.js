@@ -46,6 +46,7 @@
     // mắt liếc), xem RIENG trong dashboard/icons.js. Cái tab dẫn tới con pet mà không giống
     // con pet thì nó là tab duy nhất trong app nói sai về nơi nó dẫn tới.
     pet: "javis-pet",
+    share: "link",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -83,7 +84,7 @@
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "skills", "chatbots", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
-    "packs", "logs", "account", "usage", "pet",
+    "packs", "logs", "account", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
   // ---- Gom rail thành nhóm theo chức năng (dễ tìm hơn danh sách phẳng 18 mục) ----
@@ -106,7 +107,7 @@
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "chatbots", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
-    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "logs", "account"], foot: true },
+    { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "share", "logs", "account"], foot: true },
   ];
   const RAIL_BY_ID = Object.fromEntries(RAIL_ITEMS.map(i => [i.id, i]));
 
@@ -149,7 +150,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -443,6 +444,7 @@
     if (STUDIO_PAGES.includes(id)) return renderStudioPage(el, id);
     if (id === "settings") return renderSettings(el);
     if (id === "pet") return renderPetPage(el);
+    if (id === "share") return renderSharePage(el);
     if (id === "models")   return renderModels(el);
     if (id === "mcp")      return renderConnect(el);
     if (id === "plugins")  return renderPlugins(el);
@@ -6036,6 +6038,92 @@
   // Trang LINH VẬT (nhóm Hệ thống). Tách khỏi trang Cài đặt vì nó không phải một công tắc
   // hệ thống: đây là chỗ người dùng ngồi chọn hình dáng và màu cho con pet của mình, và
   // nhét chung vào trang Cài đặt vốn đã dài thì không ai tìm ra.
+  // ---- Trang CHIA SẺ: mọi link công khai đang sống, và nút thu hồi từng cái ----
+  // Vì sao trang này bắt buộc phải có: link chia sẻ không hết hạn và không mật khẩu, ai cầm
+  // cũng xem được. Chỉ tạo được mà không có chỗ nhìn lại toàn bộ thì người dùng sẽ quên mình
+  // đã mở những gì, và một link lỡ gửi nhầm sẽ sống mãi. Chủ dự án nói đúng chỗ đó ngày 18/09.
+  async function renderSharePage(el) {
+    const gen = _renderGen;
+    el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
+    let ds = [];
+    try {
+      const r = await fetch("/share/list");
+      const d = await r.json();
+      ds = (d && d.items) || [];
+    } catch (e) {
+      el.innerHTML = `<div class="settings-page"><div class="settings-card compact"><p>${esc(t("app.err_net"))}</p></div></div>`;
+      return;
+    }
+    if (gen !== _renderGen) return;
+    ve();
+
+    function ve() {
+      if (!ds.length) {
+        el.innerHTML = `<div class="settings-page"><div class="settings-card compact">
+          <p>${esc(t("share.empty"))}</p></div></div>`;
+        return;
+      }
+      el.innerHTML = `<div class="settings-page"><div class="settings-card">
+        <div class="settings-card-head"><b>${esc(t("share.heading"))}</b><span class="gcard-tag">${ds.length}</span></div>
+        <p>${esc(t("share.warn"))}</p>
+        <div class="share-list">${ds.map(m => hang(m)).join("")}</div>
+      </div></div>`;
+      el.querySelectorAll("[data-share-revoke]").forEach(b => { b.onclick = () => thuHoi(b); });
+      el.querySelectorAll("[data-share-copy]").forEach(b => { b.onclick = () => chep(b); });
+    }
+
+    function hang(m) {
+      const url = location.origin + m.url;
+      // Tên file để NHẬN RA, đường dẫn đầy đủ để phân biệt hai file trùng tên ở hai thư mục.
+      const ten = String(m.path || "").split("/").pop() || m.path;
+      return `<div class="share-row" data-token="${esc(m.token)}">
+        <div class="share-info">
+          <div class="share-name">${esc(ten)}</div>
+          <div class="share-path">${esc(m.path || "")}${m.tao_luc ? " · " + esc(ngayGio(m.tao_luc)) : ""}</div>
+          <a class="share-url" href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>
+        </div>
+        <div class="share-acts">
+          <button class="gcard-btn" type="button" data-share-copy="${esc(url)}">${esc(t("common.copy"))}</button>
+          <button class="gcard-btn ghost" type="button" data-share-revoke="${esc(m.token)}">${esc(t("fedit.share_revoke"))}</button>
+        </div>
+      </div>`;
+    }
+
+    function ngayGio(giay) {
+      try { return new Date(giay * 1000).toLocaleString(); } catch (e) { return ""; }
+    }
+
+    function chep(b) {
+      const url = b.dataset.shareCopy;
+      const xong = () => {
+        b.textContent = t("common.copied");
+        setTimeout(() => { b.textContent = t("common.copy"); }, 1400);
+      };
+      // Đường lui execCommand: navigator.clipboard không tồn tại trên HTTP trong mạng LAN.
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(xong).catch(() => {});
+      } else {
+        const o = document.createElement("textarea");
+        o.value = url; document.body.appendChild(o); o.select();
+        try { document.execCommand("copy"); xong(); } catch (e) {}
+        o.remove();
+      }
+    }
+
+    async function thuHoi(b) {
+      const token = b.dataset.shareRevoke;
+      b.disabled = true;
+      try {
+        await fetch("/share/revoke", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        ds = ds.filter(x => x.token !== token);
+        ve();
+      } catch (e) { b.disabled = false; }
+    }
+  }
+
   async function renderPetPage(el) {
     const gen = _renderGen;
     parkQuickSet();
