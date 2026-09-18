@@ -87,14 +87,17 @@ check("null/undefined -> rỗng, không nổ", fn.docDinhKem(null).length === 0 
 check("khối không có chỗ kết thúc -> rỗng, không đoán",
   fn.docDinhKem("[File đính kèm để ĐỌC:\n- /x/y.png\nkhông có dấu đóng").length === 0);
 
-// Chỗ gọi thật: openStoredSession phải truyền kết quả này vào bong bóng lẫn convo lưu lại.
-const i0 = APP.indexOf("async function openStoredSession(");
+// Chỗ gọi thật: veTinDaLuu phải truyền kết quả này vào bong bóng lẫn convo lưu lại. Hàm đó
+// dựng lại MỘT tin đã lưu, dùng chung cho cả lượt mở hội thoại lẫn lượt cuộn lên tải tin cũ,
+// nên soi nó là soi đúng cả hai đường. (Trước 0.59.32 khối này nằm thẳng trong
+// openStoredSession; tách ra để đường tải dần khỏi phải chép lại lần thứ hai.)
+const i0 = APP.indexOf("function veTinDaLuu(");
 const thanOpen = APP.slice(i0, APP.indexOf("\n}\n", i0));
-check("openStoredSession đọc đính kèm bằng docDinhKem", /docDinhKem\(m\.content/.test(thanOpen));
+check("dựng lại tin cũ thì đọc đính kèm bằng docDinhKem", /docDinhKem\(m\.content/.test(thanOpen));
 check("và truyền vào appendUserMessage thay vì mảng rỗng",
   /appendUserMessage\(_sach, _atts, ts\)/.test(thanOpen) && !/appendUserMessage\(_sach, \[\], ts\)/.test(thanOpen));
 check("convo lưu lại cũng mang đính kèm (F5 lần sau còn)",
-  /convo\.push\(\{ role: "user", text: _sach, atts: _atts, ts \}\)/.test(thanOpen));
+  /return \{ role: "user", text: _sach, atts: _atts, ts \};/.test(thanOpen));
 
 // ============================================================
 // 2. Enter sớm: đợi upload xong, không gửi thiếu

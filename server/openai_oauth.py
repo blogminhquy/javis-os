@@ -21,13 +21,28 @@ B) Browser OAuth (Authorization Code + PKCE) - CHO WORKSPACE CHẶN device-code.
 
 ⚠️ Không chính thức cho app ngoài Codex - token chạy backend Codex (model gpt-5-codex),
 có thể vỡ khi OpenAI đổi. Token lưu trong settings.json (gitignored).
+
+LUẬT MỘT NGUỒN SỰ THẬT (0.59.34). `~/.codex/auth.json` do CHÍNH Codex CLI giữ, và Codex tự
+xoay refresh_token khi cần. OpenAI HUỶ refresh_token cũ ngay khi nó được dùng, nên hai bên
+cùng ôm một mã là bên xoay sau cầm mã đã chết. Bản trước để Javis ghi đè file đó vô điều
+kiện ở MỖI lượt chat và tự refresh bằng bản sao trong settings.json, nên phân kỳ là chuyện
+sớm muộn: Javis refresh hỏng, `valid_creds` trả lại token hết hạn, rồi cặp token chết đó
+được ghi đè lên bộ đang tốt của Codex - cả hai bên cùng phải đăng nhập lại. Đúng câu lỗi
+"your refresh token was already used" của vụ 30/07 (xem 0.9.x và test_connect_health).
+
+Nay: ĐỌC đĩa trước khi ghi. Mã trên đĩa mới hơn thì KÉO VỀ chứ không đè; đĩa là tài khoản
+khác (máy tự `codex login`) thì KHÔNG đụng vào; refresh hỏng thì KHÔNG ghi gì cả. Javis vẫn
+tự refresh khi nó là bên duy nhất giữ mã, vì tạo ảnh và giọng nói cũng ăn token này và
+không đi qua Codex CLI.
 """
+import os
 import time
 import json
 import base64
 import hashlib
 import secrets
 import httpx
+from pathlib import Path
 from urllib.parse import urlencode, urlparse, parse_qs
 
 import config as cfgmod
@@ -64,6 +79,89 @@ def _decode_jwt_claims(token):
         return json.loads(base64.urlsafe_b64decode(payload.encode("utf-8")))
     except Exception:
         return {}
+
+
+def _codex_auth_path():
+    """Nơi Codex CLI thật sự giữ phiên. Tôn trọng CODEX_HOME vì chính Codex đọc biến đó."""
+    home = os.getenv("CODEX_HOME")
+    return (Path(home) if home else Path.home() / ".codex") / "auth.json"
+
+
+def doc_codex_auth():
+    """Bộ token Codex CLI đang giữ trên đĩa. {} nếu chưa có, đọc không được, hoặc file hỏng."""
+    try:
+        d = json.loads(_codex_auth_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(d, dict):
+        return {}
+    t = d.get("tokens")
+    return t if isinstance(t, dict) else {}
+
+
+def _han_cua(access_token):
+    """Mốc hết hạn của một access token nhặt từ đĩa: đọc claim `exp` của chính JWT đó.
+
+    Không đọc được thì tin DÈ DẶT (5 phút). Đoán dài quá là lượt sau Javis gọi API bằng token
+    đã chết rồi tưởng mình bị mất phiên; đoán ngắn chỉ tốn thêm một lần refresh.
+    """
+    try:
+        exp = _decode_jwt_claims(access_token or "").get("exp")
+        if exp:
+            return float(exp) - 60
+    except Exception:
+        pass
+    return time.time() + 300
+
+
+def _cung_tai_khoan(dtok, o):
+    """Bộ token trên đĩa có cùng tài khoản với bộ Javis đang giữ không?
+
+    Máy có thể đã tự `codex login` bằng tài khoản KHÁC. Bộ đó không phải của Javis: không kéo
+    về, và tuyệt đối không ghi đè lên. Bên nào không khai tài khoản thì coi như khớp, giữ
+    nguyên hành vi cũ cho đường thường (file do chính Javis ghi luôn có account_id).
+    """
+    a = (dtok.get("account_id") or "").strip()
+    b = (o.get("account_id") or "").strip()
+    return not a or not b or a == b
+
+
+def _la_token_cua_javis(dtok, o):
+    """File trên đĩa có đúng là bộ token Javis đã bắc cầu sang không?
+
+    Phải khớp DƯƠNG ít nhất một trường. Chưa từng kết nối (o rỗng) thì không trường nào khớp
+    nên trả False - đó là điều ta muốn, vì lúc ấy file kia là phiên người dùng tự tạo.
+    """
+    for k in ("refresh_token", "access_token", "account_id"):
+        a = (dtok.get(k) or "").strip()
+        b = (o.get(k) or "").strip()
+        if a and b and a == b:
+            return True
+    return False
+
+
+def _nhan_token_tu_codex(dtok):
+    """Codex CLI vừa tự xoay refresh_token: kéo bộ MỚI của nó về settings.json.
+
+    Đây là nửa còn lại của luật một nguồn sự thật. Không kéo về thì bản sao trong settings
+    vĩnh viễn là mã đã chết, và mọi lượt sau đều đi lại đúng vòng hỏng của vụ 30/07.
+    """
+    cfg = cfgmod.read_settings()
+    cur = cfg["model"].get("openai_oauth") or {}
+    at = (dtok.get("access_token") or "").strip()
+    id_token = (dtok.get("id_token") or "").strip() or cur.get("id_token", "")
+    auth = _decode_jwt_claims(id_token).get("https://api.openai.com/auth") or {}
+    cfg["model"]["openai_oauth"] = {
+        "access_token": at,
+        "refresh_token": (dtok.get("refresh_token") or "").strip() or cur.get("refresh_token", ""),
+        "id_token": id_token,
+        "account_id": ((dtok.get("account_id") or "").strip()
+                       or auth.get("chatgpt_account_id", "") or cur.get("account_id", "")),
+        "plan": auth.get("chatgpt_plan_type", "") or cur.get("plan", ""),
+        "expires_at": _han_cua(at),
+    }
+    cfgmod.write_settings(cfg)
+    return cfg["model"]["openai_oauth"]
 
 
 def _save_tokens(tok):
@@ -239,12 +337,26 @@ def finish_browser(callback):
 
 
 def valid_creds():
-    """(access_token, account_id) hợp lệ - tự refresh nếu hết hạn. None nếu chưa kết nối."""
+    """(access_token, account_id) hợp lệ - tự refresh nếu hết hạn. None nếu chưa kết nối.
+
+    Kèm cờ ``stale=True`` khi refresh HỎNG và ta đành trả lại token cũ. Nơi gọi dùng cờ đó để
+    KHÔNG ghi bộ token đã chết đè lên ~/.codex/auth.json. Thiếu cờ này thì một lần refresh
+    trượt là Javis tự tay bẻ luôn phiên Codex CLI đang tốt trên máy.
+    """
     o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
     if not o.get("access_token") and not o.get("refresh_token"):
         return None
     if o.get("access_token") and time.time() < (o.get("expires_at") or 0):
         return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
+    # Hết hạn. TRƯỚC khi tự refresh, xem Codex CLI đã xoay giúp chưa: mã trên đĩa khác mã
+    # trong tay ta nghĩa là nó xoay rồi, và OpenAI đã huỷ mã của ta ngay lúc đó. Refresh bằng
+    # mã chết vừa chắc chắn hỏng, vừa đẩy ta vào nhánh `stale` một cách vô cớ.
+    dtok = doc_codex_auth()
+    drt = (dtok.get("refresh_token") or "").strip()
+    if drt and drt != (o.get("refresh_token") or "").strip() and _cung_tai_khoan(dtok, o):
+        o = _nhan_token_tu_codex(dtok)
+        if o.get("access_token") and time.time() < (o.get("expires_at") or 0):
+            return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
     rt = o.get("refresh_token")
     if rt:
         try:
@@ -258,22 +370,41 @@ def valid_creds():
         except Exception:
             pass
     if o.get("access_token"):
-        return {"access_token": o["access_token"], "account_id": o.get("account_id", "")}
+        return {"access_token": o["access_token"], "account_id": o.get("account_id", ""), "stale": True}
     return None
 
 
 def write_codex_auth():
-    """Bắc cầu token ChatGPT (device-code đã nối ở Models, lưu trong settings) → ~/.codex/auth.json
-    để CHÍNH Codex CLI dùng (chat ChatGPT qua `codex exec`). Device-code dùng CÙNG client_id với codex
-    → token tương thích → KHỎI phải chạy `codex login` riêng (login đó khó trên VPS headless).
-    Trả True nếu ghi được. Gọi mỗi lượt chat openai-oauth (tự refresh + cập nhật auth.json)."""
+    """Đồng bộ token ChatGPT giữa settings.json và ~/.codex/auth.json. Gọi mỗi lượt chat.
+
+    Device-code dùng CÙNG client_id với codex → token tương thích → KHỎI phải chạy `codex login`
+    riêng (login đó khó trên VPS headless). Nhưng bắc cầu KHÔNG còn nghĩa là ghi đè: bản trước
+    ghi đè vô điều kiện và chưa bao giờ đọc file đang có, nên nó giẫm lên cả phiên `codex login`
+    người dùng tự tạo lẫn bộ token Codex vừa xoay. Xem luật một nguồn sự thật ở đầu file.
+
+    Bốn nhánh, theo thứ tự:
+      - đĩa là tài khoản KHÁC          → không đụng, trả False
+      - đĩa có mã MỚI HƠN              → kéo về settings, không ghi, trả True
+      - token trong tay đã chết (stale)→ không ghi, trả False
+      - còn lại                        → ghi như cũ
+    """
+    o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
+    if not (o.get("access_token") or o.get("refresh_token")):
+        return False          # Javis chưa kết nối: phiên trên đĩa là của máy, không đụng vào
+    dtok = doc_codex_auth()
+    drt = (dtok.get("refresh_token") or "").strip()
+    if drt:
+        if not _cung_tai_khoan(dtok, o):
+            return False
+        if drt != (o.get("refresh_token") or "").strip():
+            _nhan_token_tu_codex(dtok)
+            return True
     creds = valid_creds()
-    if not creds or not creds.get("access_token"):
+    if not creds or not creds.get("access_token") or creds.get("stale"):
         return False
-    from pathlib import Path
     o = cfgmod.read_settings()["model"].get("openai_oauth") or {}
     try:
-        path = Path.home() / ".codex" / "auth.json"
+        path = _codex_auth_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({
             "OPENAI_API_KEY": None,
@@ -356,6 +487,17 @@ def list_models(creds):
 
 def disconnect():
     cfg = cfgmod.read_settings()
+    o = cfg["model"].get("openai_oauth") or {}
+    # Dọn luôn bộ token đã bắc cầu sang Codex, không thì "Ngắt kết nối" chỉ xoá nửa trong
+    # settings còn file trên đĩa vẫn đăng nhập - `codex exec` chạy tiếp bằng tài khoản người
+    # dùng tưởng đã ngắt. CHỈ xoá khi file đúng là của phiên này: máy có thể đã `codex login`
+    # riêng, và xoá nhầm là người dùng mất phiên họ tự tạo mà Javis không dựng lại được.
+    dtok = doc_codex_auth()
+    if dtok and _la_token_cua_javis(dtok, o):
+        try:
+            _codex_auth_path().unlink()
+        except Exception:
+            pass
     cfg["model"]["openai_oauth"] = _empty()
     cfgmod.write_settings(cfg)
     _pending.clear()

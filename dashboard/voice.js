@@ -142,9 +142,18 @@ class JavisVoice {
       const ctx = this._ensureCtx();
       if (!this.micStream) {
         // Bật khử vọng/khử ồn: giảm việc mic nghe lại chính giọng TTS (chống tự-kích-hoạt + lồng tiếng).
-        this.micStream = await navigator.mediaDevices.getUserMedia({
+        const st = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
+        // Chỗ này là ASYNC, và cái chờ có thể rất lâu (hộp xin quyền chờ người bấm Cho phép).
+        // Trong lúc chờ, trên ĐIỆN THOẠI ta có thể đã quay lại NGHE: nhận luồng này vào là hai
+        // đường lại tranh mic và nhận dạng câm, đúng lỗi _nhaMicStream sinh ra để chặn. Trả
+        // ngay, đừng gán - lần đọc sau sẽ tự xin lại.
+        if (this._laDiDong() && (this.isListening || this._starting)) {
+          try { (st.getTracks ? st.getTracks() : []).forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {}
+          return;
+        }
+        this.micStream = st;
       }
       const src = ctx.createMediaStreamSource(this.micStream);
       const an = ctx.createAnalyser();
@@ -285,11 +294,17 @@ class JavisVoice {
       // sự kiện: "Ok" + "Ok có" + "Ok có vẻ" + ... - đúng cái tin dài cả trang chủ repo gửi
       // ảnh ngày 02/09. results là bức ảnh đầy đủ của phiên nên đọc lại từ 0 luôn đúng, và
       // phần đã nghe ở phiên trước (Chrome tự đóng rồi ta mở lại) giữ ở _committed.
+      // Nối các mảnh bằng ghepManh chứ KHÔNG phải `+=`. Chrome Android giao nhiều mảnh cùng
+      // lúc trong một event, mà mảnh sau thường là BẢN DÀI HƠN của mảnh trước (cùng câu, thêm
+      // chữ) chứ không phải đoạn tiếp theo. Cộng thẳng là chép lại cả câu ở mỗi mảnh:
+      // "Em có" + "Em có nghe" + "Em có nghe thấy" ... - đúng tin dài dần chủ dự án gửi ảnh
+      // ngày 18/09 khi bật mic trên điện thoại. ghepManh thấy mảnh mới phủ đoạn đang có thì
+      // THAY, thấy đoạn mới thật thì mới nối thêm.
       let interim = "", final = "";
       for (let i = 0; i < event.results.length; i++) {
         const transcript = (event.results[i][0] || {}).transcript || "";
-        if (event.results[i].isFinal) final = JavisVoice.ghepKetQua(final, transcript);
-        else interim = JavisVoice.ghepKetQua(interim, transcript);
+        if (event.results[i].isFinal) final = JavisVoice.ghepManh(final, transcript);
+        else interim = JavisVoice.ghepManh(interim, transcript);
       }
       this.accumulatedTranscript = this._ghepChuyenBien(final.trim());
       // Nhớ ĐUÔI CHỮ TẠM của sự kiện cuối. WebKit trên iOS hay giao toàn chữ tạm rồi kết
@@ -384,19 +399,22 @@ class JavisVoice {
     return (cu + " " + moi).trim();
   }
 
-  // Android có thể đặt nhiều bản tích lũy của cùng câu vào các result khác nhau.
-  // Chỉ thay khi cả tiền tố (ít nhất 3 từ) trùng; giữ những từ lặp ngắn có chủ ý.
-  static ghepKetQua(previous, next) {
-    const a = String(previous || "").trim(), b = String(next || "").trim();
-    if (!a) return b;
-    if (!b) return a;
-    const words = s => s.toLocaleLowerCase().replace(/[.,!?;:…]/g, "").split(/\s+/);
-    const x = words(a), y = words(b);
-    if (Math.min(x.length, y.length) >= 3) {
-      if (x.every((w, i) => w === y[i])) return b;
-      if (y.every((w, i) => w === x[i])) return a;
-    }
-    return a + " " + b;
+  // Ghép MỘT MẢNH của event.results vào đoạn đang dựng trong CÙNG một sự kiện onresult.
+  // Thuần để test bằng node. Ba nước, so không phân biệt hoa thường và dấu câu cuối:
+  //   - mảnh mới mở đầu bằng cả đoạn đang có -> nó là bản dài hơn, THAY (gồm cả trùng khít);
+  //   - mảnh nhiều chữ đã nằm ở cuối đoạn -> đã chép rồi, BỎ;
+  //   - còn lại là đoạn mới thật -> nối thêm.
+  // Mảnh một chữ trùng đuôi thì vẫn nối, vì người ta có nói lặp thật ("không không").
+  static ghepManh(daCo, manh) {
+    const cu = String(daCo || "").trim();
+    const moi = String(manh || "").trim();
+    if (!moi) return cu;
+    if (!cu) return moi;
+    const chuan = (s) => s.toLowerCase().replace(/[.,!?;:…]+$/, "").trim();
+    const a = chuan(cu), b = chuan(moi);
+    if (b.startsWith(a)) return moi;
+    if (a.endsWith(b) && /\s/.test(b)) return cu;
+    return cu + " " + moi;
   }
 
   // Ghép đuôi chữ TẠM (chưa final) vào phần đã chốt, lúc phiên kết thúc. Thuần để test bằng
@@ -423,6 +441,50 @@ class JavisVoice {
         || (navigator.platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1);
     }
     return this._iosCache;
+  }
+
+  // Máy ĐIỆN THOẠI (Android hoặc iOS). Quan trọng vì điện thoại chỉ cho MỘT thứ thu mic một
+  // lúc, xem chú thích ở _nhaMicStream.
+  _laDiDong() {
+    if (this._diDongCache === undefined) {
+      const ua = navigator.userAgent || "";
+      this._diDongCache = this._laIOS() || /Android/i.test(ua);
+    }
+    return this._diDongCache;
+  }
+
+  // TRẢ mic về cho máy: tắt track, bỏ bộ đo, bỏ bộ ghi.
+  //
+  // VÌ SAO PHẢI CÓ (0.59.35). Trang này thu mic bằng HAI đường độc lập: luồng getUserMedia
+  // (đo mức âm cho hiệu ứng phát sáng, ngắt lời, ghi âm Groq) và SpeechRecognition, thứ tự
+  // thu bằng luồng RIÊNG của nó (xem 0.9.x, chính vì luồng riêng đó không được khử vọng nên
+  // mới có cả cơ chế tạm ngừng nhận dạng lúc TTS đọc). Máy tính chạy hai đường song song
+  // được. ĐIỆN THOẠI THÌ KHÔNG: đường nào chiếm mic trước thì đường kia câm.
+  //
+  // Bản cũ mở luồng getUserMedia rồi GIỮ SUỐT ĐỜI TRANG, không bao giờ tắt track, và mở nó
+  // ngay trước recognition.start(). Hệ quả đúng như người dùng tả 18/09:
+  //   - Lần đầu vào trang, quyền CHƯA cấp: getUserMedia treo lại chờ người bấm Cho phép, nên
+  //     nhận dạng kịp chiếm mic trước -> nghe được ĐÚNG MỘT LƯỢT.
+  //   - Xong lượt đó luồng mic đã nằm sẵn, lượt sau nhận dạng không còn mic -> câm.
+  //   - Tải lại trang: quyền đã cấp nên getUserMedia trả về gần như tức thì, chiếm mic trước
+  //     nhận dạng -> câm ngay từ lượt đầu. "Refresh là không nghe được."
+  //   - Reset quyền: hộp xin phép quay lại, lại có độ trễ, lại nghe được một lượt. "Phải
+  //     reset quyền mới nghe tiếp."
+  // Ba triệu chứng đó là một nguyên nhân, và nó là cuộc đua giữa hai đường thu mic.
+  //
+  // Chữa: trên điện thoại, lúc NGHE thì chỉ để SpeechRecognition giữ mic. Luồng getUserMedia
+  // chỉ sống trong lúc Javis ĐỌC, là lúc nhận dạng đã bị abort (xem _muteRecognition), nên
+  // ngắt lời vẫn nguyên vẹn. Thứ mất đi trên điện thoại chỉ là hiệu ứng phát sáng theo giọng
+  // lúc đang nghe, và bản ghi gửi Groq - hai thứ trang trí và tuỳ chọn, đổi lấy cái mic chạy.
+  _nhaMicStream() {
+    this._stopRecorder().catch(() => {});
+    const st = this.micStream;
+    this.micStream = null;
+    this.inAnalyser = null;
+    if (!st) return;
+    try {
+      (st.getTracks ? st.getTracks() : []).forEach((t) => { try { t.stop(); } catch (e) {} });
+    } catch (e) {}
   }
 
   // iOS chỉ cho phát âm thanh do CỬ CHỈ người dùng khởi động, và mỗi `new Audio()` là một
@@ -483,7 +545,11 @@ class JavisVoice {
     // Stop TTS đang đọc nếu user bấm nói
     if (!giuTieng) { this.synth.cancel(); this.stopSpeaking(); }
     if (!tuDong) this._moKhoaAudioIOS(); // iOS: chỉ mở khoá trong cử chỉ bấm mic
-    this._startMicMeter();  // bật đo âm mic cho hiệu ứng phát sáng (kèm ghi âm Groq nếu bật)
+    // Điện thoại: TRẢ mic lại trước khi mở nhận dạng, không thì hai đường thu tranh nhau và
+    // nhận dạng câm (xem chú thích dài ở _nhaMicStream). Máy tính chạy song song được nên giữ
+    // nguyên hiệu ứng phát sáng như cũ.
+    if (this._laDiDong()) this._nhaMicStream();
+    else this._startMicMeter();  // đo âm mic cho hiệu ứng phát sáng (kèm ghi âm Groq nếu bật)
     try {
       this._stopPending = false;
       this._starting = true;

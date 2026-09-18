@@ -200,11 +200,19 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   check("i18n vi+en có " + k, typeof vi[k] === "string" && typeof en[k] === "string");
 });
 
-// ---- 9b. MÀU MẮT do người dùng chọn (0.59.6) ----
-// Trước đây màu mắt suy tự động từ độ chói của thân. Chủ dự án muốn tự quyết: đen hay trắng,
-// mặc định đen. Đường tự động vẫn còn, nhưng chỉ cho AVATAR TRỢ LÝ - chúng là nhân dạng khác.
+// ---- 9b. MÀU MẮT do người dùng chọn (0.59.6, mở rộng 0.59.36) ----
+// Trước đây màu mắt suy tự động từ độ chói của thân. Chủ dự án muốn tự quyết, mặc định đen.
+// Đường tự động vẫn còn, nhưng chỉ cho AVATAR TRỢ LÝ - chúng là nhân dạng khác.
+//
+// Bản 0.59.6 chốt đúng hai màu và phép thử này khoá luôn nguyên văn dòng khai báo. Tới 0.59.36
+// người dùng xin thêm màu, và dòng đó thành chốt chặn chính tính năng nó đang canh. Nay chỉ
+// khoá HÌNH DẠNG của bảng (mỗi màu mang khoá i18n và mã màu riêng) chứ không khoá SỐ LƯỢNG;
+// việc bảng có đủ màu, đủ đậm và đủ nhãn do test_pet_bang_mau.js lo.
 {
-  check("có bảng hai màu mắt", /var MAU_MAT = \{ den: "#201e1e", trang: "#ffffff" \};/.test(pet));
+  check("bảng màu mắt: mỗi màu mang khoá i18n và mã màu",
+    /var MAU_MAT = \{\s*\n\s*den:\s*\{ key: "pet\.eye\.den",\s*mau: "#201e1e" \},/.test(pet));
+  check("đen và trắng vẫn còn nguyên",
+    /trang:\s*\{ key: "pet\.eye\.trang",\s*mau: "#ffffff" \}/.test(pet));
   check("mặc định là ĐEN", /size: "vua", eye: "den", eyeSize: "thuong" \}/.test(pet));
   check("khoá lạ rơi về mặc định", /if \(!MAU_MAT\[c\.eye\]\) c\.eye = MAC_DINH\.eye;/.test(pet));
   check("con pet đeo màu mắt ĐÃ CHỌN, không suy từ thân nữa",
@@ -214,7 +222,7 @@ check("ws.onclose gọi baoDutMang", /ws\.onclose = \(\) => \{[\s\S]{0,200}baoDu
   // Avatar trợ lý KHÔNG truyền `mat`, nên vẫn đi đường tự động. Mất chốt này là đổi màu mắt
   // pet kéo theo cả danh sách trợ lý đổi theo.
   check("avatar trợ lý vẫn suy tự động (không truyền mat)",
-    /var mat = MAU_MAT\[o\.mat\] \|\| mauMatTuDong\(tone\[0\]\);/.test(pet)
+    /var mat = \(MAU_MAT\[o\.mat\] \|\| \{\}\)\.mau \|\| mauMatTuDong\(tone\[0\]\);/.test(pet)
     && !/previewSvg\(a\.shape, a\.palette, [^)]*mat:/.test(read("dashboard/agent-avatar.js")));
   check("trang Linh vật có ô chọn màu mắt", /data-pet-eye="/.test(console_js)
     && /P\.setCfg\(\{ eye: b\.dataset\.petEye \}\)/.test(console_js));

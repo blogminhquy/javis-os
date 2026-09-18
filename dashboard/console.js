@@ -207,7 +207,9 @@
    * @param box       node chứa (bị ghi đè innerHTML)
    * @param items     mảng đã sắp sẵn, mới nhất trước
    * @param perPage   số mục mỗi trang
-   * @param renderPage  (mảng con) -> chuỗi HTML
+   * @param renderPage  (mảng con) -> chuỗi HTML, HOẶC một Node/DocumentFragment. Khung nhật
+   *   ký dựng bằng chuỗi; danh sách có nút bấm (trang Kỹ năng) phải dựng bằng node, vì gắn
+   *   handler qua chuỗi HTML thì mỗi lần lật trang lại phải đi dò lại từng nút mà nối.
    * @param emptyHtml HTML hiện khi không có mục nào
    */
   function pager(box, items, perPage, renderPage, emptyHtml) {
@@ -223,13 +225,23 @@
           <span class="jv-pager-n">${window.t("cs.pager_info", { trang: page + 1, tong: pages, so: all.length })}</span>
           <button class="s-btn-ghost" data-pg="next"${page >= pages - 1 ? " disabled" : ""}>${window.t("cs.pager_next")} →</button>
         </div>` : "";
-      box.innerHTML = renderPage(all.slice(page * perPage, page * perPage + perPage)) + nav;
+      const ruot = renderPage(all.slice(page * perPage, page * perPage + perPage));
+      if (ruot && ruot.nodeType) {
+        box.innerHTML = "";
+        box.appendChild(ruot);
+        if (nav) box.insertAdjacentHTML("beforeend", nav);
+      } else {
+        box.innerHTML = (ruot || "") + nav;
+      }
       const p = box.querySelector('[data-pg="prev"]'), n = box.querySelector('[data-pg="next"]');
       if (p) p.onclick = () => { page--; draw(); };
       if (n) n.onclick = () => { page++; draw(); };
     };
     draw();
   }
+  // Cho các module khác (studio.js - trang Kỹ năng) dùng chung, thay vì đẻ bản phân trang
+  // thứ hai rồi hai bản trôi lệch nhau ngay lần sửa đầu.
+  window.JavisPager = pager;
 
   // Pause SỚM (chạy ngay khi parse, không chờ Alpine tải): màn hẹp → graph app.js vừa dựng
   // dừng luôn, khỏi ngốn pin/GPU trong lúc Alpine đang tải. _animate có guard _paused nên
@@ -6045,14 +6057,20 @@
       return;
     }
     if (tuMayChu) P.hydrate(tuMayChu);
-    // Nhãn màu mắt. Hai khoá viết THẲNG ra, không ghép chuỗi vào trong lời gọi dịch: bộ quét
-    // khoá i18n (tests/js/test_i18n.mjs) đọc đúng cái chuỗi đứng ngay sau lời gọi, nên ghép
-    // kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
-    const nhanMat = (k) => (k === "trang" ? t("pet.eye.trang") : t("pet.eye.den"));
     const ve = () => {
       const cur = P.get();
       const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes(), mats = P.eyeColors();
       const coMat = P.eyeSizes();
+      // Nhãn màu mắt lấy từ chính khoá của màu đó, KHÔNG ghép chuỗi vào trong lời gọi dịch:
+      // bộ quét khoá i18n (tests/js/test_i18n.mjs) chỉ đọc chuỗi đứng ngay sau lời gọi, nên
+      // ghép kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
+      //
+      // PHẢI NẰM TRONG `ve`, dưới dòng khai `mats`. Bản 0.59.36 đặt nó ở scope ngoài mà vẫn
+      // đọc `mats`, biến chỉ tồn tại trong `ve`: mỗi lần vẽ là một ReferenceError, `innerHTML`
+      // không kịp được gán, và cả trang Cài đặt linh vật trắng trơn. Không lỗi nào lên màn
+      // hình, chỉ là trống. Phép thử hồi đó soi MÃ NGUỒN bằng regex nên vẫn xanh trong khi
+      // tính năng chết hẳn - nay test_pet_trang_cai_dat.js CHẠY THẬT hàm vẽ này.
+      const nhanMat = (k) => t((mats[k] || mats.den).key);
       // Thứ tự: HÌNH DÁNG trước (thứ người ta tới đây để đổi), rồi cỡ, màu, màu mắt, và CUỐI
       // CÙNG mới tới khối nút Lưu / Tắt / Đặt lại. Chủ dự án chốt 15/09.
       host.innerHTML = `<div class="settings-card">
@@ -6072,8 +6090,8 @@
           return `<button type="button" class="pet-swatch" data-pet-palette="${esc(k)}" aria-pressed="${k === cur.palette}" title="${esc(t(palettes[k].key))}" aria-label="${esc(t(palettes[k].key))}"><i style="background:${esc(tone[0])}"></i></button>`;
         }).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye"))}</b><span class="gcard-tag">${esc(nhanMat(cur.eye))}</span></div>
-        <div class="pet-picker" role="group">${Object.entries(mats).map(([k, mau]) =>
-          `<button type="button" class="pet-swatch" data-pet-eye="${esc(k)}" aria-pressed="${k === cur.eye}" title="${esc(nhanMat(k))}" aria-label="${esc(nhanMat(k))}"><i style="background:${esc(mau)}"></i></button>`).join("")}</div>
+        <div class="pet-picker" role="group">${Object.entries(mats).map(([k, m]) =>
+          `<button type="button" class="pet-swatch" data-pet-eye="${esc(k)}" aria-pressed="${k === cur.eye}" title="${esc(nhanMat(k))}" aria-label="${esc(nhanMat(k))}"><i style="background:${esc(m.mau)}"></i></button>`).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye_size"))}</b><span class="gcard-tag">${esc(t(coMat[cur.eyeSize].key))}</span></div>
         <div class="pet-picker" role="group">${Object.entries(coMat).map(([k, cm]) =>
           // Ô chọn cỡ mắt vẽ CHÍNH hình dáng và bảng màu đang dùng, chỉ đổi mỗi cỡ mắt: cỡ mắt
