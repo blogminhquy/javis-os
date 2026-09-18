@@ -293,7 +293,10 @@
   function shareBtn(b, ceil) {
     var btn = document.createElement("button");
     btn.className = "jvfe-btn icon"; btn.type = "button";
-    btn.innerHTML = ic("share-2") || "↗";
+    // "link" chu khong phai "share-2": bo icon da vendor khong co share-2, va test_icons.py
+    // canh dung chuyen do - goi mot ten khong co that thi nut hien ra TRONG KHONG, khong loi.
+    // Khong de emoji lam duong lui: giao dien dashboard cam emoji (cung test_icons.py).
+    btn.innerHTML = ic("link");
     btn.title = tw("fedit.share_title");
     // Da co link san thi nut sang len ngay tu luc mo file, de nguoi dung biet file nay DANG
     // duoc chia se ma khong phai bam thu.
