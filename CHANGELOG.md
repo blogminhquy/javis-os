@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.37] - 2026-09-18
+### Sửa lỗi
+- **Trang Cài đặt linh vật hết trống trơn.** Bản trước vừa thêm màu mới thì trang này chỉ còn cái tiêu đề, bên dưới không có gì, không báo lỗi gì. Lỗi nằm ở một dòng mã gọi nhầm biến nên cả trang dừng giữa chừng lúc đang vẽ. Nay vẽ đủ lại năm hàng chọn: hình dáng, cỡ, màu thân, màu mắt, cỡ mắt.
+- **Đổi logo thì icon trên tab trình duyệt đổi theo ngay.** Trước đây ảnh trong trang đổi liền còn cái icon nhỏ trên tab vẫn giữ hình cũ cho tới khi app lên bản mới. Giờ tải logo lên hoặc bấm khôi phục là nó đổi luôn, kể cả icon dùng khi bạn thêm Javis vào màn hình chính điện thoại.
+
 ## [0.59.36] - 2026-09-18
 ### Thêm mới
 - **Thêm 8 màu thân cho linh vật:** Cam, Nắng, Chanh, Bạc hà, Thanh thiên, Chàm, Tím, Ruby. Bảng màu giờ có 20 màu, trải khắp vòng màu thay vì dồn vào mấy tông nâu vàng.
