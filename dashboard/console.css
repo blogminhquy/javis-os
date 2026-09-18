@@ -479,6 +479,20 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   width: min(100%, 620px); }
 .settings-card { min-width: 0; padding: 14px; border: 1px solid var(--glass-brd); border-radius: 12px; background: var(--surface-1); }
 .settings-card.compact { max-width: 520px; margin-top: 16px; }
+
+/* Danh sách link chia sẻ. Mỗi hàng là một link đang SỐNG ngoài Internet, nên nút Thu hồi
+   phải luôn nhìn thấy chứ không nấp sau menu. Màn hẹp thì xuống dòng, hàng nút tụt xuống
+   dưới khối thông tin, không bao giờ bị đẩy khuất. */
+.share-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.share-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  justify-content: space-between; padding: 12px 14px; border: 1px solid var(--glass-brd);
+  border-radius: 10px; background: var(--surface-2); }
+.share-info { min-width: 0; flex: 1 1 260px; }
+.share-name { font-weight: 600; color: var(--text-hi); overflow-wrap: anywhere; }
+.share-path { font-size: 12px; color: var(--text2); margin-top: 2px; overflow-wrap: anywhere; }
+.share-url { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--accent);
+  overflow-wrap: anywhere; }
+.share-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .settings-card p { margin: 8px 0 0; color: var(--text2); font-size: 13px; line-height: 1.5; }
 .settings-card .gcard-btn { width: auto; }

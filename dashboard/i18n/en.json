@@ -14,6 +14,9 @@
   "page.pet.label": "Mascot",
   "page.pet.title": "Javis mascot",
   "page.pet.sub": "Shape · palette · turn the edge-of-screen pet on or off",
+  "page.share.label": "Sharing",
+  "page.share.title": "Active share links",
+  "page.share.sub": "Every public link still live · revoke any time",
   "page.home.label": "Graph",
   "page.home.sub": "Brain chamber · knowledge graph of your brain",
   "page.chat.label": "Chat",
@@ -2793,5 +2796,8 @@
   "fedit.share_open": "Preview",
   "fedit.share_revoke": "Revoke",
   "fedit.share_revoked": "Link revoked.",
-  "fedit.share_note": "Anyone with this link can view it, no sign-in needed. The link points at the real file, so edits show up for viewers."
+  "fedit.share_note": "Anyone with this link can view it, no sign-in needed. The link points at the real file, so edits show up for viewers.",
+  "share.heading": "Active share links",
+  "share.warn": "Anyone with a link can view it, no sign-in and no expiry. Revoking kills the link immediately for everyone.",
+  "share.empty": "Nothing shared yet. Open a file and press Share in the editor to create a link."
 }
