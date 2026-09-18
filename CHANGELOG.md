@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.38] - 2026-09-18
+### Sửa lỗi
+- **Chữ trả lời theo kịp giọng nói.** Bong bóng hiện trọn cụm đang phát, kể cả khi trình duyệt chưa biết thời lượng âm thanh.
+- **Cải thiện phát loa trên iPhone.** Sửa tệp âm thanh dùng để mở quyền phát loa, cho phép thử lại khi bị chặn và khởi tạo âm thanh Live ngay khi bấm mic.
+- **Giữ đủ câu khi mic tự mở lại phiên nghe.** Phần đã chốt được giữ lại, đồng thời gộp chữ tạm trùng với câu đã nhận để tránh lặp trong bong bóng.
+
 ## [0.59.37] - 2026-09-18
 ### Sửa lỗi
 - **Trang Cài đặt linh vật hết trống trơn.** Bản trước vừa thêm màu mới thì trang này chỉ còn cái tiêu đề, bên dưới không có gì, không báo lỗi gì. Lỗi nằm ở một dòng mã gọi nhầm biến nên cả trang dừng giữa chừng lúc đang vẽ. Nay vẽ đủ lại năm hàng chọn: hình dáng, cỡ, màu thân, màu mắt, cỡ mắt.
