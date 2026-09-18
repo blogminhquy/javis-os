@@ -54,7 +54,7 @@ check("chưa chốt gì thì lấy nguyên final", ghep("", "Ok") === "Ok");
 
 // ---- 2. Phiên tự mở lại không làm mất nửa câu đầu ----
 check("onend tự mở lại thì gói phần đã nghe vào _committed trước",
-  /this\._committed = JavisVoice\.ghepDuoiTam\(this\._ghepChuyenBien\(""\), this\._duoiTam\);\s*\n\s*this\._duoiTam = "";\s*\n\s*this\.recognition\.start\(\);/.test(voice));
+  /this\._committed = JavisVoice\.ghepDuoiTam\(this\.accumulatedTranscript \|\| this\._committed, this\._duoiTam\);\s*\n\s*this\._duoiTam = "";\s*\n\s*this\.recognition\.start\(\);/.test(voice));
 check("mở nghe CHỦ ĐỘNG là lượt mới: xoá _committed", /clearTimeout\(this\._resumeTimer\);\s*\n\s*this\._committed = "";/.test(voice));
 // Luật: hai ô nhớ của lượt phải dọn NGAY TRƯỚC khi gửi, không phải sau (gửi trước rồi dọn thì
 // onTranscript gọi lại startListening là đọc trúng chữ cũ). Khuôn cho phép chèn thêm dòng dọn ô
@@ -125,4 +125,3 @@ console.log();
 check("slash only sends after opening the selected session", /if \(\!opened\) return;[\s\S]{0,150}if \(_slash.message\) sendMessage\(_slash.message\)/.test(app));
 if (fails.length) { console.log("ĐỎ " + fails.length + " mục: " + fails.join(", ")); process.exit(1); }
 console.log("Tất cả xanh.");
-

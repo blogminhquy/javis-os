@@ -215,11 +215,11 @@ function noiTienDo() {
 }
 
 // ---- Voice V3: chữ hiện THEO LỜI ĐỌC (karaoke), như ChatGPT Voice ----
-// Đang nói chuyện bằng giọng thì bong bóng của Javis chỉ hiện phần loa ĐÃ đọc tới: đếm từ đã ra
-// tiếng (voice.spokenWords) rồi lấy đúng chừng ấy từ; ở Live thì theo tỉ lệ ms đã phát trên ms
+// Đang nói chuyện bằng giọng thì hiện trọn cụm đang đọc để chữ không chạy sau loa
+// (voice.visibleWords); ở Live thì theo tỉ lệ ms đã phát trên ms
 // đã xếp lịch (JavisVoiceLive.progress). Bị ngắt lời thì bong bóng dừng đúng chỗ đã nói kèm "…".
 // Đọc xong hết mới vẽ markdown đầy đủ (ảnh, link, bảng, chip hỏi lại). Chữ đã về từ model mà
-// chưa đọc tới thì chưa hiện, y như người nói: chữ ra đến đâu, nghe đến đó.
+// chưa tới lượt phát thì chưa hiện.
 let _theoLoi = null;   // { el, text, ask, live, shown, chuaXong }
 function dangTheoLoi() { return handsFree && voice.ttsEnabled; }
 function batTheoLoi(el, text, ask, live) {
@@ -239,7 +239,7 @@ function veTheoLoi() {
   if (s.live) {
     const p = window.JavisVoiceLive ? window.JavisVoiceLive.progress() : null;
     n = (p && p.total > 0) ? Math.round(tong * Math.min(1, p.played / p.total)) : Math.max(0, s.shown);
-  } else n = voice.spokenWords();
+  } else n = voice.visibleWords();
   n = Math.max(s.shown, Math.min(n, tong));
   if (n === s.shown) return;
   s.shown = n;

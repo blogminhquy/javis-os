@@ -288,8 +288,8 @@ class JavisVoice {
       let interim = "", final = "";
       for (let i = 0; i < event.results.length; i++) {
         const transcript = (event.results[i][0] || {}).transcript || "";
-        if (event.results[i].isFinal) final += transcript + " ";
-        else interim += transcript;
+        if (event.results[i].isFinal) final = JavisVoice.ghepKetQua(final, transcript);
+        else interim = JavisVoice.ghepKetQua(interim, transcript);
       }
       this.accumulatedTranscript = this._ghepChuyenBien(final.trim());
       // Nhớ ĐUÔI CHỮ TẠM của sự kiện cuối. WebKit trên iOS hay giao toàn chữ tạm rồi kết
@@ -299,7 +299,7 @@ class JavisVoice {
       // máy tính chốt final trước onend nên tới đó đuôi này rỗng, không đổi gì.
       this._duoiTam = interim.trim();
       // Show user toàn bộ tích lũy + đoạn đang nghe
-      const display = (this.accumulatedTranscript + " " + interim).trim();
+      const display = JavisVoice.ghepDuoiTam(this.accumulatedTranscript, interim);
       if (display) {
         this.onInterim(display);
         if (!this._batDauLuot) this._batDauLuot = Date.now();
@@ -350,7 +350,7 @@ class JavisVoice {
           // Phiên mới thì event.results bắt đầu lại từ trống. Gói phần đã nghe vào
           // _committed trước (kể cả đuôi tạm chưa kịp chốt), không thì onstart xoá trắng và
           // nửa câu đầu biến mất.
-          this._committed = JavisVoice.ghepDuoiTam(this._ghepChuyenBien(""), this._duoiTam);
+          this._committed = JavisVoice.ghepDuoiTam(this.accumulatedTranscript || this._committed, this._duoiTam);
           this._duoiTam = "";
           this.recognition.start();
           return;
@@ -382,6 +382,21 @@ class JavisVoice {
     if (moi.startsWith(cu)) return moi;
     if (cu.endsWith(moi)) return cu;
     return (cu + " " + moi).trim();
+  }
+
+  // Android có thể đặt nhiều bản tích lũy của cùng câu vào các result khác nhau.
+  // Chỉ thay khi cả tiền tố (ít nhất 3 từ) trùng; giữ những từ lặp ngắn có chủ ý.
+  static ghepKetQua(previous, next) {
+    const a = String(previous || "").trim(), b = String(next || "").trim();
+    if (!a) return b;
+    if (!b) return a;
+    const words = s => s.toLocaleLowerCase().replace(/[.,!?;:…]/g, "").split(/\s+/);
+    const x = words(a), y = words(b);
+    if (Math.min(x.length, y.length) >= 3) {
+      if (x.every((w, i) => w === y[i])) return b;
+      if (y.every((w, i) => w === x[i])) return a;
+    }
+    return a + " " + b;
   }
 
   // Ghép đuôi chữ TẠM (chưa final) vào phần đã chốt, lúc phiên kết thúc. Thuần để test bằng
@@ -416,12 +431,16 @@ class JavisVoice {
   // ngắt giữa chừng". Chữa: MỘT phần tử Audio dùng lại, mở khoá ngay trong cử chỉ bấm mic
   // bằng một file WAV im lặng, sau đó chỉ đổi src.
   _moKhoaAudioIOS() {
-    if (!this._laIOS() || this._iosAudio) return;
-    const a = new Audio();
+    if (!this._laIOS() || this._iosUnlocked || this._iosUnlocking) return;
+    const a = this._iosAudio || new Audio();
     a.setAttribute("playsinline", "");
-    a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
-    a.play().catch(() => {});
+    // WAV PCM có 80 mẫu im lặng (10 ms), không phải tệp có data dài 0.
+    a.src = "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0Ya" + "A".repeat(218);
     this._iosAudio = a;
+    this._iosUnlocking = true;
+    a.play().then(() => { this._iosUnlocked = true; }, () => {
+      this._iosUnlocked = false;
+    }).finally(() => { this._iosUnlocking = false; });
   }
 
   _loadVoices() {
@@ -463,7 +482,7 @@ class JavisVoice {
     this._batDauLuot = 0;                     // đồng hồ trần tính lại từ chữ đầu của lượt mới
     // Stop TTS đang đọc nếu user bấm nói
     if (!giuTieng) { this.synth.cancel(); this.stopSpeaking(); }
-    this._moKhoaAudioIOS(); // iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic
+    if (!tuDong) this._moKhoaAudioIOS(); // iOS: chỉ mở khoá trong cử chỉ bấm mic
     this._startMicMeter();  // bật đo âm mic cho hiệu ứng phát sáng (kèm ghi âm Groq nếu bật)
     try {
       this._stopPending = false;
@@ -820,6 +839,17 @@ class JavisVoice {
     return n;
   }
 
+  // Hiện cả cụm đang phát để chữ luôn sẵn để đọc, kể cả duration=Infinity
+  // của audio stream. Giữ spokenWords riêng cho ngữ cảnh khi bị ngắt lời.
+  visibleWords() {
+    const a = this.currentAudio, i = this._chunkIndex;
+    if (this._countThis && this.isPlaying && a && a.currentTime > 0 &&
+        this.ttsChunks && i != null && i < this.ttsChunks.length) {
+      return this._wordsDone + JavisVoice.demTu(this.ttsChunks[i]);
+    }
+    return this.spokenWords();
+  }
+
   lastSpokenPrefix() {
     const parts = (this._spokenChunks || []).slice();
     try {
@@ -892,7 +922,6 @@ class JavisVoice {
     if (this._laIOS()) {
       // Đường iOS: một phần tử Audio dùng lại, KHÔNG preload, KHÔNG nối qua AudioContext
       // (createMediaElementSource trên WebKit hay làm câm tiếng khi context chưa chạy).
-      this._moKhoaAudioIOS();
       const a = this._iosAudio || (this._iosAudio = new Audio());
       a.onended = null; a.onerror = null;
       a.src = this._chunkUrl(this.ttsChunks[i]) + (retry ? "&retry=1" : "");

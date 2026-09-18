@@ -104,12 +104,15 @@
   async function start(o) {
     if (on) return true;
     opts = o || {};
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    } catch (e) { emit("onError", "mic:" + (e && e.name || "error")); return false; }
+    // Mở context ngay trong thao tác bấm mic, trước await xin quyền microphone.
     var AC = window.AudioContext || window.webkitAudioContext;
     try { inCtx = new AC({ sampleRate: IN_RATE }); } catch (e) { inCtx = new AC(); }
     outCtx = new AC({ sampleRate: OUT_RATE });
+    inCtx.resume().catch(function () {});
+    outCtx.resume().catch(function () {});
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    } catch (e) { stop(); emit("onError", "mic:" + (e && e.name || "error")); return false; }
     try { await inCtx.resume(); await outCtx.resume(); } catch (e) {}
     var sid = "", brain = "brain";
     try { sid = (opts.sessionId && opts.sessionId()) || ""; brain = (opts.brain && opts.brain()) || "brain"; } catch (e) {}
