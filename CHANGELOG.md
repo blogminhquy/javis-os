@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.34] - 2026-09-18
+### Sửa lỗi
+- **Đăng nhập ChatGPT ở Javis không còn đá văng Codex trên máy.** Mỗi lượt chat Javis lại ghi đè file đăng nhập của Codex, kể cả khi mã trong tay đã hỏng, nên hai bên tranh nhau một mã và bên dùng sau thì mất phiên. Nay Javis đọc file đó trước: Codex vừa làm mới mã thì Javis dùng theo, mã của Javis hỏng thì để nguyên, không ghi gì cả.
+- **Máy đã tự đăng nhập Codex bằng tài khoản khác thì Javis để yên.** Trước đây phiên đó bị xoá lặng lẽ mỗi lần bạn nói chuyện với Javis.
+- **Nút Ngắt kết nối giờ ngắt thật.** Trước nó chỉ xoá phần bên trong Javis, file đăng nhập trên máy vẫn còn nên Codex chạy tiếp bằng tài khoản bạn tưởng đã ngắt. Phiên bạn tự tạo bằng lệnh đăng nhập Codex thì vẫn giữ nguyên.
+
 ## [0.59.33] - 2026-09-18
 ### Sửa lỗi
 - **Nói bằng mic trên điện thoại hết bị lặp câu.** Nói "Em có nghe thấy anh nói gì không" thì tin gửi đi thành một đoạn dài dằng dặc, câu cứ được chép lại và mỗi lần thêm một chữ. Chrome trên Android trả về cả câu nhiều lần trong một lượt nghe, và Javis nối hết lại thay vì thay thế. Nay chỉ giữ đúng một câu, cả ở bong bóng chữ đang hiện lẫn tin gửi đi.
