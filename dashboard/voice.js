@@ -285,11 +285,17 @@ class JavisVoice {
       // sự kiện: "Ok" + "Ok có" + "Ok có vẻ" + ... - đúng cái tin dài cả trang chủ repo gửi
       // ảnh ngày 02/09. results là bức ảnh đầy đủ của phiên nên đọc lại từ 0 luôn đúng, và
       // phần đã nghe ở phiên trước (Chrome tự đóng rồi ta mở lại) giữ ở _committed.
+      // Nối các mảnh bằng ghepManh chứ KHÔNG phải `+=`. Chrome Android giao nhiều mảnh cùng
+      // lúc trong một event, mà mảnh sau thường là BẢN DÀI HƠN của mảnh trước (cùng câu, thêm
+      // chữ) chứ không phải đoạn tiếp theo. Cộng thẳng là chép lại cả câu ở mỗi mảnh:
+      // "Em có" + "Em có nghe" + "Em có nghe thấy" ... - đúng tin dài dần chủ dự án gửi ảnh
+      // ngày 18/09 khi bật mic trên điện thoại. ghepManh thấy mảnh mới phủ đoạn đang có thì
+      // THAY, thấy đoạn mới thật thì mới nối thêm.
       let interim = "", final = "";
       for (let i = 0; i < event.results.length; i++) {
         const transcript = (event.results[i][0] || {}).transcript || "";
-        if (event.results[i].isFinal) final += transcript + " ";
-        else interim += transcript;
+        if (event.results[i].isFinal) final = JavisVoice.ghepManh(final, transcript);
+        else interim = JavisVoice.ghepManh(interim, transcript);
       }
       this.accumulatedTranscript = this._ghepChuyenBien(final.trim());
       // Nhớ ĐUÔI CHỮ TẠM của sự kiện cuối. WebKit trên iOS hay giao toàn chữ tạm rồi kết
@@ -382,6 +388,24 @@ class JavisVoice {
     if (moi.startsWith(cu)) return moi;
     if (cu.endsWith(moi)) return cu;
     return (cu + " " + moi).trim();
+  }
+
+  // Ghép MỘT MẢNH của event.results vào đoạn đang dựng trong CÙNG một sự kiện onresult.
+  // Thuần để test bằng node. Ba nước, so không phân biệt hoa thường và dấu câu cuối:
+  //   - mảnh mới mở đầu bằng cả đoạn đang có -> nó là bản dài hơn, THAY (gồm cả trùng khít);
+  //   - mảnh nhiều chữ đã nằm ở cuối đoạn -> đã chép rồi, BỎ;
+  //   - còn lại là đoạn mới thật -> nối thêm.
+  // Mảnh một chữ trùng đuôi thì vẫn nối, vì người ta có nói lặp thật ("không không").
+  static ghepManh(daCo, manh) {
+    const cu = String(daCo || "").trim();
+    const moi = String(manh || "").trim();
+    if (!moi) return cu;
+    if (!cu) return moi;
+    const chuan = (s) => s.toLowerCase().replace(/[.,!?;:…]+$/, "").trim();
+    const a = chuan(cu), b = chuan(moi);
+    if (b.startsWith(a)) return moi;
+    if (a.endsWith(b) && /\s/.test(b)) return cu;
+    return cu + " " + moi;
   }
 
   // Ghép đuôi chữ TẠM (chưa final) vào phần đã chốt, lúc phiên kết thúc. Thuần để test bằng

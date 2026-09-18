@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.33] - 2026-09-18
+### Sửa lỗi
+- **Nói bằng mic trên điện thoại hết bị lặp câu.** Nói "Em có nghe thấy anh nói gì không" thì tin gửi đi thành một đoạn dài dằng dặc, câu cứ được chép lại và mỗi lần thêm một chữ. Chrome trên Android trả về cả câu nhiều lần trong một lượt nghe, và Javis nối hết lại thay vì thay thế. Nay chỉ giữ đúng một câu, cả ở bong bóng chữ đang hiện lẫn tin gửi đi.
+
 ## [0.59.32] - 2026-09-17
 ### Cải thiện
 - **Mở hội thoại dài không còn khựng.** Vào một cuộc chat cũ, Javis chỉ dựng đoạn cuối và tụt thẳng xuống câu trả lời gần nhất. Cuộn lên thì phần cũ tự về dần, từng khúc một, và chỗ bạn đang đọc giữ nguyên chứ không nhảy. Thanh mốc bên phải cũng dài thêm theo.
