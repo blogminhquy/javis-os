@@ -6057,16 +6057,20 @@
       return;
     }
     if (tuMayChu) P.hydrate(tuMayChu);
-    // Nhãn màu mắt. Hai khoá viết THẲNG ra, không ghép chuỗi vào trong lời gọi dịch: bộ quét
-    // khoá i18n (tests/js/test_i18n.mjs) đọc đúng cái chuỗi đứng ngay sau lời gọi, nên ghép
-    // kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
-    // Nhãn màu mắt lấy từ chính khoá của màu đó. Bản cũ viết cứng "trang thì trắng, còn lại
-    // đen", nên từ lúc có bảy màu (0.59.36) mọi màu mới đều bị gọi nhầm thành "Đen".
-    const nhanMat = (k) => t((mats[k] || mats.den).key);
     const ve = () => {
       const cur = P.get();
       const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes(), mats = P.eyeColors();
       const coMat = P.eyeSizes();
+      // Nhãn màu mắt lấy từ chính khoá của màu đó, KHÔNG ghép chuỗi vào trong lời gọi dịch:
+      // bộ quét khoá i18n (tests/js/test_i18n.mjs) chỉ đọc chuỗi đứng ngay sau lời gọi, nên
+      // ghép kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
+      //
+      // PHẢI NẰM TRONG `ve`, dưới dòng khai `mats`. Bản 0.59.36 đặt nó ở scope ngoài mà vẫn
+      // đọc `mats`, biến chỉ tồn tại trong `ve`: mỗi lần vẽ là một ReferenceError, `innerHTML`
+      // không kịp được gán, và cả trang Cài đặt linh vật trắng trơn. Không lỗi nào lên màn
+      // hình, chỉ là trống. Phép thử hồi đó soi MÃ NGUỒN bằng regex nên vẫn xanh trong khi
+      // tính năng chết hẳn - nay test_pet_trang_cai_dat.js CHẠY THẬT hàm vẽ này.
+      const nhanMat = (k) => t((mats[k] || mats.den).key);
       // Thứ tự: HÌNH DÁNG trước (thứ người ta tới đây để đổi), rồi cỡ, màu, màu mắt, và CUỐI
       // CÙNG mới tới khối nút Lưu / Tắt / Đặt lại. Chủ dự án chốt 15/09.
       host.innerHTML = `<div class="settings-card">

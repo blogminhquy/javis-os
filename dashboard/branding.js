@@ -67,7 +67,35 @@
   function bustLogos(rieng) {
     var v = "/brand-logo?v=" + Date.now();
     document.querySelectorAll('img[src^="/brand-logo"]').forEach(function (img) { img.src = v; });
+    doiFavicon(v);
     try { if (window.JavisPet) window.JavisPet.setLogoRieng(rieng); } catch (e) {}
+  }
+
+  // ICON TRÊN TAB cũng phải đổi theo logo. Ảnh nằm trong trang thì đổi `src` là xong, nhưng
+  // favicon nằm ở thẻ <link rel="icon"> trong <head>, và nó có hai chỗ kẹt:
+  //
+  //   1. index.html trỏ sẵn `/brand-logo?v=<phiên bản app>`. Chuỗi `v` đó chỉ đổi khi app lên
+  //      bản mới, nên tải logo khác lên thì URL vẫn y nguyên và trình duyệt không có lý do gì
+  //      đi lấy lại. Chú thích cũ trong index.html ghi favicon "tự đổi theo ảnh user tải lên",
+  //      nhưng thực tế phải đợi tới lần app lên bản sau (chủ dự án báo 18/09).
+  //   2. Trình duyệt cache favicon lì hơn hẳn ảnh thường, và chỉ đổi mỗi `href` của thẻ cũ thì
+  //      nhiều bản Safari/Firefox làm ngơ. Cách ăn chắc là GỠ thẻ cũ ra rồi gắn thẻ mới vào.
+  //
+  // Gắn lại cả `apple-touch-icon` vì index.html khai cả hai, và đó là icon dùng khi người ta
+  // thêm Javis vào màn hình chính iPhone.
+  function doiFavicon(v) {
+    try {
+      var head = document.head;
+      if (!head) return;
+      var cu = head.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
+      Array.prototype.forEach.call(cu, function (l) { if (l.parentNode) l.parentNode.removeChild(l); });
+      ["icon", "apple-touch-icon"].forEach(function (rel) {
+        var l = document.createElement("link");
+        l.setAttribute("rel", rel);
+        l.setAttribute("href", v);
+        head.appendChild(l);
+      });
+    } catch (e) { /* favicon là phần trang trí: hỏng thì thôi, đừng làm gãy luồng tải logo */ }
   }
 
   // ---------- Logo / avatar ----------
