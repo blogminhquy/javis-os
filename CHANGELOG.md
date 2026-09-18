@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.36] - 2026-09-18
+### Thêm mới
+- **Thêm 8 màu thân cho linh vật:** Cam, Nắng, Chanh, Bạc hà, Thanh thiên, Chàm, Tím, Ruby. Bảng màu giờ có 20 màu, trải khắp vòng màu thay vì dồn vào mấy tông nâu vàng.
+- **Thêm 5 màu mắt:** Nâu, Xanh dương, Ngọc bích, Tím, Vàng, cạnh Đen và Trắng đã có. Linh vật diễn cảm xúc hoàn toàn bằng mắt nên đổi màu mắt là đổi hẳn tính cách.
+### Sửa lỗi
+- **Giao diện tối hết làm nhợt cả bảng màu.** Bạn chọn Hổ phách mà con pet ra màu vàng, chọn màu nào cũng thấy hao hao nhau một sắc pastel. Lý do: tông tối của mỗi màu được đặt tay và đã trôi khỏi màu gốc, riêng Hổ phách trôi hẳn từ cam sang vàng. Nay tông tối tính thẳng từ tông sáng nên giữ đúng màu, lại còn dịu hơn trước một chút. Giao diện sáng không đổi gì.
+
 ## [0.59.35] - 2026-09-18
 ### Sửa lỗi
 - **Mic trên điện thoại hết cảnh chỉ nghe được một lần.** Nói xong lượt đầu là Javis điếc, tải lại trang cũng không nghe, phải vào xoá quyền mic rồi cấp lại mới nghe thêm được một lượt nữa. Không phải lỗi quyền: Javis mở hai đường thu mic cùng lúc, mà điện thoại chỉ cho một đường thu. Nay lúc nghe chỉ còn một đường, nên nói bao nhiêu lượt cũng được và tải lại trang vẫn nghe bình thường.

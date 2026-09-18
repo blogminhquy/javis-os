@@ -38,19 +38,43 @@
 
   // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
   // (javisTheme), nên pet không bao giờ chói lên giữa nền tối.
+  // Mỗi bảng màu tự mang cả hai tông: [thân, vành quỹ đạo, dự phòng]. Tông theo giao diện đang bật
+  // (javisTheme), nên pet không bao giờ chói lên giữa nền tối.
+  //
+  // TÔNG TỐI SUY TỪ TÔNG SÁNG, GIỮ NGUYÊN SẮC (0.59.36). Bản cũ đặt tay từng cặp, và tay thì
+  // trôi: tông tối của `amber` rơi từ 30 độ (cam) sang 43 độ (vàng), nên chọn "Hổ phách" ở
+  // giao diện tối lại ra một con pet vàng. Tệ hơn, cả 12 tông tối đều bị đẩy lên dải sáng
+  // 63-83% và độ bão hoà bị gọt, thành ra màu nào cũng hoá pastel nhợt na ná nhau. Người dùng
+  // báo 18/09 đúng hai câu: "bảng màu hơi đơn điệu, các màu sắc không thay đổi rõ rệt" và
+  // "rất thích linh vật màu cam mà không có" - màu cam CÓ SẴN, chỉ là giao diện tối nuốt mất.
+  //
+  // Nay tông tối tính bằng công thức từ chính tông sáng: GIỮ NGUYÊN SẮC, hạ bão hoà 12%, đưa
+  // độ sáng về dải 58-78%. Nhờ giữ sắc mà cam ra cam; nhờ dải sáng THẤP HƠN bản cũ mà nó còn
+  // đỡ chói hơn trước, tức nỗi lo cũ không bị đánh đổi. Tông SÁNG giữ nguyên không đụng tới,
+  // nên ai đang dùng giao diện sáng không thấy gì đổi khác.
+  //
+  // Đổi một ô màu ở đây thì SỬA CẢ HAI TÔNG cho khớp công thức, đừng chỉ sửa một bên.
   var PALETTES = {
-    amber:    { key: "pet.color.amber",    sun: ["#F28C28", "#F7C98F", "#F7E3CF"], moon: ["#E8C97A", "#F3DEAA", "#2B241D"] },
-    pearl:    { key: "pet.color.pearl",    sun: ["#E3DCCF", "#B8AA95", "#EAE4D9"], moon: ["#DDD7CA", "#FFF0D4", "#292720"] },
-    clay:     { key: "pet.color.clay",     sun: ["#B76A4B", "#E5AA87", "#EEDDD2"], moon: ["#CEA58C", "#F1CFB5", "#30231E"] },
-    rose:     { key: "pet.color.rose",     sun: ["#CB6576", "#F2ABAE", "#F2DCE0"], moon: ["#DCA4B0", "#F4CBD2", "#30212A"] },
-    honey:    { key: "pet.color.honey",    sun: ["#D5A32D", "#F3D381", "#F2E7C8"], moon: ["#DCC888", "#F6E7B6", "#2D291C"] },
-    sage:     { key: "pet.color.sage",     sun: ["#639574", "#AAD2A9", "#DDE9DC"], moon: ["#A5C5A6", "#D3E6C5", "#202D25"] },
-    jade:     { key: "pet.color.jade",     sun: ["#379E90", "#8FD6C5", "#D7EBE4"], moon: ["#8BC6BA", "#C2E9D9", "#1D2C29"] },
-    blue:     { key: "pet.color.blue",     sun: ["#548EC5", "#A4CDEB", "#DCE7F0"], moon: ["#9DBBDB", "#CDDEF1", "#212A35"] },
-    lavender: { key: "pet.color.lavender", sun: ["#9272C2", "#C9B2E7", "#E8DFF1"], moon: ["#BBA9D7", "#E0CEF1", "#292333"] },
-    pink:     { key: "pet.color.pink",     sun: ["#C67FAB", "#EDB9D6", "#F0DFE9"], moon: ["#D3AEC7", "#F1D3E4", "#30232D"] },
-    slate:    { key: "pet.color.slate",    sun: ["#7B8794", "#B8C4CD", "#E0E4E8"], moon: ["#ADB7C2", "#D6E0E8", "#252A30"] },
-    cocoa:    { key: "pet.color.cocoa",    sun: ["#79604F", "#BFA38A", "#E8DFD5"], moon: ["#B9A38A", "#E3CDB0", "#2B2620"] },
+    amber:      { key: "pet.color.amber",      sun: ["#F28C28", "#F7C98F", "#F7E3CF"], moon: ["#EBA35D", "#EEC297", "#2D251D"] },
+    pearl:      { key: "pet.color.pearl",      sun: ["#E3DCCF", "#B8AA95", "#EAE4D9"], moon: ["#D4CBBA", "#E7E2DA", "#2D271D"] },
+    clay:       { key: "pet.color.clay",       sun: ["#B76A4B", "#E5AA87", "#EEDDD2"], moon: ["#BF8771", "#D0AC9D", "#2D221D"] },
+    rose:       { key: "pet.color.rose",       sun: ["#CB6576", "#F2ABAE", "#F2DCE0"], moon: ["#D28C98", "#E1BAC0", "#2D1D20"] },
+    honey:      { key: "pet.color.honey",      sun: ["#D5A32D", "#F3D381", "#F2E7C8"], moon: ["#D4B05B", "#DEC68F", "#2D281D"] },
+    sage:       { key: "pet.color.sage",       sun: ["#639574", "#AAD2A9", "#DDE9DC"], moon: ["#81A78E", "#A6BFAF", "#1E2C23"] },
+    jade:       { key: "pet.color.jade",       sun: ["#379E90", "#8FD6C5", "#D7EBE4"], moon: ["#66C1B5", "#95D0C8", "#1D2D2B"] },
+    blue:       { key: "pet.color.blue",       sun: ["#548EC5", "#A4CDEB", "#DCE7F0"], moon: ["#7CA5CB", "#AAC3DA", "#1D252D"] },
+    lavender:   { key: "pet.color.lavender",   sun: ["#9272C2", "#C9B2E7", "#E8DFF1"], moon: ["#AC96CC", "#CDC0DF", "#231D2D"] },
+    pink:       { key: "pet.color.pink",       sun: ["#C67FAB", "#EDB9D6", "#F0DFE9"], moon: ["#D1A2BF", "#E4CCDB", "#2D1D27"] },
+    slate:      { key: "pet.color.slate",      sun: ["#7B8794", "#B8C4CD", "#E0E4E8"], moon: ["#969EA7", "#B7BDC3", "#222528"] },
+    cocoa:      { key: "pet.color.cocoa",      sun: ["#79604F", "#BFA38A", "#E8DFD5"], moon: ["#A89080", "#C0B0A5", "#2C241E"] },
+    cam:        { key: "pet.color.cam",        sun: ["#FA4F05", "#F89A72", "#F6DBD0"], moon: ["#EF733E", "#EF9E7C", "#2D221D"] },
+    nang:       { key: "pet.color.nang",       sun: ["#F5D014", "#F6E27E", "#F6EFD0"], moon: ["#ECD14B", "#EDDC87", "#2D2A1D"] },
+    chanh:      { key: "pet.color.chanh",      sun: ["#93B12F", "#C0D775", "#E9EFD7"], moon: ["#B1CB5D", "#C6D68F", "#292D1D"] },
+    bacha:      { key: "pet.color.bacha",      sun: ["#38B286", "#81D4B6", "#D8EDE6"], moon: ["#63C5A2", "#92D3BB", "#1D2D27"] },
+    thanhthien: { key: "pet.color.thanhthien", sun: ["#1EA3C8", "#6BCBE5", "#D4EBF2"], moon: ["#4EBBDA", "#85CCE0", "#1D2A2D"] },
+    cham:       { key: "pet.color.cham",       sun: ["#4052C9", "#969FDF", "#D8DBEE"], moon: ["#6A77CC", "#9BA3D9", "#1D1F2D"] },
+    tim:        { key: "pet.color.tim",        sun: ["#AD55C3", "#D3A6DE", "#E9D9ED"], moon: ["#BA7CCA", "#D0AAD9", "#2A1D2D"] },
+    ruby:       { key: "pet.color.ruby",       sun: ["#D83137", "#E78E91", "#F1D5D6"], moon: ["#D76064", "#E09497", "#2D1D1D"] },
   };
 
   // Cỡ pet. Số là bề ngang tính bằng px trên MÀN RỘNG; màn hẹp nhân thêm hệ số ở dưới.
@@ -65,11 +89,27 @@
   // Màn hẹp KHÔNG thu nhỏ nữa. Ngược lại: ngón tay to hơn con trỏ chuột, và màn hình bé thì
   // một chấm 52px còn khó thấy hơn trên màn rộng. Giữ nguyên cỡ đã chọn.
 
-  // MÀU MẮT do người dùng chọn, hai lựa chọn thôi: đen hoặc trắng. Trước đây con số này suy
-  // tự động từ độ chói của thân (xem mauMatTuDong), nhưng chủ dự án muốn tự quyết - bảng màu
-  // sáng thì mắt trắng nhìn cũng có nét riêng, và "tự động" thì không ai đoán được nó sẽ ra gì.
+  // MÀU MẮT do người dùng chọn. Trước đây con số này suy tự động từ độ chói của thân (xem
+  // mauMatTuDong), nhưng chủ dự án muốn tự quyết - "tự động" thì không ai đoán được nó ra gì.
   // Avatar trợ lý KHÔNG theo lựa chọn này: chúng là nhân dạng khác, vẫn suy tự động.
-  var MAU_MAT = { den: "#201e1e", trang: "#ffffff" };
+  //
+  // Từ 0.59.36 có bảy màu thay vì hai. Mắt là TOÀN BỘ chỗ diễn cảm xúc của nhân vật này (không
+  // có miệng), nên màu mắt đổi tính cách mạnh hơn cả màu thân. Năm màu thêm đều ĐẬM và bão hoà
+  // cao: con ngươi phải đọc ra là con ngươi trên mọi thân, kể cả thân sẫm nhất (cocoa). Thêm
+  // màu nhạt vào đây thì trên thân sáng nó biến mất và khuôn mặt thành trống trơn.
+  // Mỗi màu mang theo KHOÁ i18n của nó, đúng cấu trúc của SHAPES/SIZES/PALETTES. Giao diện
+  // tra `mats[k].key` chứ KHÔNG ghép `"pet.eye." + k`: bộ quét i18n chỉ nhận ra khoá khi nó
+  // được viết nguyên văn ngay trong lời gọi dịch, nên khoá ghép chuỗi lọt lưới và một màu
+  // thiếu nhãn sẽ đi thẳng ra mắt người dùng mà không test nào kêu.
+  var MAU_MAT = {
+    den:   { key: "pet.eye.den",   mau: "#201e1e" },
+    trang: { key: "pet.eye.trang", mau: "#ffffff" },
+    nau:   { key: "pet.eye.nau",   mau: "#5A3A28" },
+    xanh:  { key: "pet.eye.xanh",  mau: "#2A62B0" },
+    ngoc:  { key: "pet.eye.ngoc",  mau: "#16806F" },
+    tim:   { key: "pet.eye.tim",   mau: "#6F45A8" },
+    vang:  { key: "pet.eye.vang",  mau: "#C2870F" },
+  };
 
   // CỠ MẮT. Hệ số nhân vào bán kính con mắt, áp cho MỌI hình dáng chứ không riêng hình nào.
   // Mắt là toàn bộ chỗ diễn cảm xúc của nhân vật này (không có miệng), nên cho người dùng
@@ -191,7 +231,7 @@
     return (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) > 0.179 ? "#201e1e" : "#ffffff";
   }
   // Màu mắt của CON PET: lựa chọn của người dùng, không suy từ thân nữa.
-  function mauMatCfg() { return MAU_MAT[cfg.eye] || MAU_MAT.den; }
+  function mauMatCfg() { return (MAU_MAT[cfg.eye] || MAU_MAT.den).mau; }
   // Hệ số cỡ mắt đang chọn.
   function heSoMat() { return (EYE_SIZES[cfg.eyeSize] || EYE_SIZES.thuong).k; }
   // Khoảng cách từ tâm cặp mắt ra mỗi con. Mắt to thì NỚI RA, nhưng nới ít hơn mức mắt phình:
@@ -667,7 +707,7 @@
     var o = opts || {};
     var d = (SHAPES[shape] || SHAPES.circle).d;
     var tone = (PALETTES[palette] || PALETTES.amber)[sang() ? "sun" : "moon"];
-    var mat = MAU_MAT[o.mat] || mauMatTuDong(tone[0]);
+    var mat = (MAU_MAT[o.mat] || {}).mau || mauMatTuDong(tone[0]);
     var lx = o.liecX === undefined ? LIEC_X : Number(o.liecX);
     var ly = o.liecY === undefined ? LIEC_Y : Number(o.liecY);
     var ex = 160 + lx, ey = 160 + ly;
@@ -745,7 +785,7 @@
     markSvg: function () { return chanDung(cfg.shape, cfg.palette, { mat: cfg.eye, coMat: cfg.eyeSize }); },
     // Danh sách màu mắt cho ô chọn ở trang Linh vật. Trả khoá + mã màu để chỗ vẽ khỏi phải
     // khai lại bảng màu lần thứ hai.
-    eyeColors: function () { return Object.assign({}, MAU_MAT); },
+    eyeColors: function () { return Object.assign({}, MAU_MAT); },   // {ten: {key, mau}}
     // Danh sách CỠ MẮT cho ô chọn ở trang Linh vật.
     eyeSizes: function () { return EYE_SIZES; },
     // Thanh bên có đang dùng khuôn mặt linh vật thay cho logo không.

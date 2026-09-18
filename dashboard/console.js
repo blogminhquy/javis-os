@@ -6060,7 +6060,9 @@
     // Nhãn màu mắt. Hai khoá viết THẲNG ra, không ghép chuỗi vào trong lời gọi dịch: bộ quét
     // khoá i18n (tests/js/test_i18n.mjs) đọc đúng cái chuỗi đứng ngay sau lời gọi, nên ghép
     // kiểu đó là nó bắt được một tiền tố cụt rồi báo thiếu một khoá không hề tồn tại.
-    const nhanMat = (k) => (k === "trang" ? t("pet.eye.trang") : t("pet.eye.den"));
+    // Nhãn màu mắt lấy từ chính khoá của màu đó. Bản cũ viết cứng "trang thì trắng, còn lại
+    // đen", nên từ lúc có bảy màu (0.59.36) mọi màu mới đều bị gọi nhầm thành "Đen".
+    const nhanMat = (k) => t((mats[k] || mats.den).key);
     const ve = () => {
       const cur = P.get();
       const shapes = P.shapes(), palettes = P.palettes(), sizes = P.sizes(), mats = P.eyeColors();
@@ -6084,8 +6086,8 @@
           return `<button type="button" class="pet-swatch" data-pet-palette="${esc(k)}" aria-pressed="${k === cur.palette}" title="${esc(t(palettes[k].key))}" aria-label="${esc(t(palettes[k].key))}"><i style="background:${esc(tone[0])}"></i></button>`;
         }).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye"))}</b><span class="gcard-tag">${esc(nhanMat(cur.eye))}</span></div>
-        <div class="pet-picker" role="group">${Object.entries(mats).map(([k, mau]) =>
-          `<button type="button" class="pet-swatch" data-pet-eye="${esc(k)}" aria-pressed="${k === cur.eye}" title="${esc(nhanMat(k))}" aria-label="${esc(nhanMat(k))}"><i style="background:${esc(mau)}"></i></button>`).join("")}</div>
+        <div class="pet-picker" role="group">${Object.entries(mats).map(([k, m]) =>
+          `<button type="button" class="pet-swatch" data-pet-eye="${esc(k)}" aria-pressed="${k === cur.eye}" title="${esc(nhanMat(k))}" aria-label="${esc(nhanMat(k))}"><i style="background:${esc(m.mau)}"></i></button>`).join("")}</div>
         <div class="settings-card-head" style="margin-top:14px"><b>${esc(t("settings.pet_eye_size"))}</b><span class="gcard-tag">${esc(t(coMat[cur.eyeSize].key))}</span></div>
         <div class="pet-picker" role="group">${Object.entries(coMat).map(([k, cm]) =>
           // Ô chọn cỡ mắt vẽ CHÍNH hình dáng và bảng màu đang dùng, chỉ đổi mỗi cỡ mắt: cỡ mắt
