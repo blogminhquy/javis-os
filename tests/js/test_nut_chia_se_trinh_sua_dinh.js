@@ -140,6 +140,31 @@ check("shareBtn nhận được hostEl (ô vẽ thanh link) và lop", !!thanShar
 
 check("file-editor.js xuất window.JavisShareBtn", /window\.JavisShareBtn\s*=\s*shareBtn/.test(feSrc));
 
+// Nút Chia sẻ KHÔNG được đeo cùng icon với nút "Chèn liên kết" của thanh định dạng markdown:
+// hai nút nằm cùng một trình sửa, cách nhau vài chục pixel. Chủ dự án báo 18/09: "icon đổi lại
+// thành icon share em ơi. trùng với icon thêm link mất rồi". Đây là lỗi chỉ thấy bằng mắt trên
+// máy thật, nên phải có test canh - dò icon THẬT mà mỗi bên gọi rồi so, không đọc chay.
+const mShare = /btn\.innerHTML = ic\("([^"]+)"\)/.exec(feSrc);
+const ecSrc = fs.readFileSync(path.join(ROOT, "dashboard", "editor-cmds.js"), "utf8");
+const mLink = /\{\s*id:\s*"link"[\s\S]{0,200}?btn:\s*\{\s*icon:\s*"([^"]+)"/.exec(ecSrc);
+check("đọc được icon của nút Chia sẻ", !!mShare, mShare && mShare[1]);
+check("đọc được icon của lệnh Chèn liên kết", !!mLink, mLink && mLink[1]);
+check("hai nút KHÔNG dùng chung một icon", !!mShare && !!mLink && mShare[1] !== mLink[1],
+  (mShare && mShare[1]) + " vs " + (mLink && mLink[1]));
+check("icon nút Chia sẻ mang nghĩa chia sẻ", !!mShare && /^share/.test(mShare[1]),
+  mShare && mShare[1]);
+// Gọi một tên icon không có trong bộ đã vendor thì nút hiện ra TRỐNG KHÔNG, không báo lỗi gì.
+const vendor = fs.readFileSync(path.join(ROOT, "dashboard", "vendor", "lucide-icons.js"), "utf8");
+check("icon đó có thật trong bộ đã vendor", !!mShare && vendor.indexOf('"' + mShare[1] + '"') >= 0,
+  mShare && mShare[1]);
+const manifest = fs.readFileSync(path.join(ROOT, "dashboard", "icons.manifest.json"), "utf8");
+check("icon đó có trong icons.manifest.json (để lần sinh lại sau không đánh rơi)",
+  !!mShare && manifest.indexOf('"' + mShare[1] + '"') >= 0);
+// Trang Chia sẻ trong rail cũng vậy: nhãn nhóm "Kết nối" đã đeo ic("link").
+const mTrang = /\n\s*share:\s*"([^"]+)",/.exec(consoleSrc);
+check("icon trang Chia sẻ khác icon nhóm Kết nối", !!mTrang && mTrang[1] !== "link",
+  mTrang && mTrang[1]);
+
 async function chayShareBtn() {
   // Chữ ký cũ (không có hostEl) thì bóc ra là null: báo FAIL ở trên rồi, đừng nổ thêm một
   // vệt stack che mất danh sách kết quả.
