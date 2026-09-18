@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.40] - 2026-09-18
+### Sửa lỗi
+- **Nút Chia sẻ giờ có ở mọi khung mở file.** Bản trước chỉ gắn nút vào khung sửa bung giữa màn hình, nên mở file từ cây thư mục bên trái, đường hay dùng nhất, lại không thấy nút đâu. Giờ mở file kiểu nào cũng có nút Chia sẻ trên thanh công cụ, dùng chung một đường link và một nút Thu hồi.
+
 ## [0.59.39] - 2026-09-18
 ### Thêm mới
 - **Nút Chia sẻ trong khung mở file.** Bấm một cái là có đường link gửi cho ai cũng xem được, không cần đăng nhập, không cần tài khoản Javis. Link mở ra **bản hoàn thiện** chứ không phải mã nguồn: file .html chạy đúng giao diện của nó, file .md hiện đậm nghiêng, danh sách, bảng và ảnh. Hợp để làm một ứng dụng nhỏ rồi gửi cho người khác xem ngay.
