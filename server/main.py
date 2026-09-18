@@ -86,6 +86,8 @@ import system_sync   # tầng năng lực HỆ THỐNG (skill/loop mặc định
 import skill_router   # nguồn chân lý khám phá skill (canonical <brain>/skills) dùng chung mọi engine
 import skill_usage     # telemetry: đếm skill nào THẬT SỰ được dùng qua javis_use_skill (tín hiệu DƯƠNG một chiều)
 import share_bundle   # xuất/nhập gói agent/skill/workflow (.zip) để chia sẻ giữa brain/người dùng
+import share_store    # link CHIA SẺ CÔNG KHAI của một file trong brain (/s/<token>)
+import share_render   # dựng trang xem cho link chia sẻ (markdown -> html, khung trang)
 import usage_store   # đếm token/chi phí Javis tự đo (đa nhà cung cấp)
 import usage_index   # dashboard token: index log thô Claude+Codex + query summary/insights
 import usage_parsers as up_parsers   # bảng giá + khớp model, dùng chung với indexer
@@ -167,7 +169,11 @@ app.add_middleware(CORSMiddleware,
 
 # Đường dẫn KHÔNG cần đăng nhập. CHỈ các auth endpoint công khai (status/login/setup) -
 # KHÔNG để cả prefix /auth public vì /auth/disable, /auth/logout phải yêu cầu đăng nhập.
-_AUTH_PUBLIC_PREFIX = ("/static", "/health")
+# "/s/" CÓ GẠCH CHÉO CUỐI, và đó không phải chuyện thẩm mỹ. Hàng rào dưới kia so bằng
+# `path.startswith(p)`, nên khai "/s" sẽ mở công khai LUÔN /settings, /skills, /sessions,
+# /stt và mọi đường bắt đầu bằng chữ s. Xem test_share_link.py, phép thử đó tồn tại chỉ để
+# canh đúng một ký tự này.
+_AUTH_PUBLIC_PREFIX = ("/static", "/health", "/s/")
 # /brand-logo: hiện trên màn đăng nhập (trước session). /tls-check: Caddy gọi (không đăng nhập được).
 _AUTH_PUBLIC_EXACT = ("/", "/favicon.ico", "/auth/status", "/auth/login", "/auth/setup",
                       "/brand-logo", "/tls-check",
@@ -6288,6 +6294,176 @@ async def files_raw(brain: str = Query("brain"), path: str = Query(...), dl: int
     tab, mọi file khác có URL tĩnh để mở/tải. Khác /files/download (luôn ép tải về): mặc định
     inline; truyền dl=1 để ép tải. Cùng rào chống traversal (_safe_serve_path)."""
     return raw_file_response(brain, path, dl=bool(dl))
+
+
+# ---- CHIA SẺ CÔNG KHAI một file (nút Chia sẻ trong trình sửa) ----
+# Người cầm link KHÔNG đăng nhập, nên đây là mặt tiền công khai duy nhất chạm vào file trong
+# brain. Ba điều giữ nó lành:
+#   1. token 144 bit, không đoán được (share_store);
+#   2. CHỈ ĐỌC, và chỉ đọc đúng file đã chia sẻ cộng tài nguyên quanh nó (_share_asset);
+#   3. mọi trang trả về đều mang header cách ly (share_render.CSP_*), nên nội dung không với
+#      được cookie đăng nhập của người mở.
+
+
+def _share_chan(ban) -> str:
+    """Dòng chân trang: nói rõ đây là file được chia sẻ, để người xem biết mình đang xem gì."""
+    ten = os.path.basename(str(ban.get("path") or "")) or "file"
+    return share_render.esc(ten) + " · được chia sẻ từ Javis OS"
+
+
+def _share_file(ban):
+    """File THẬT mà token trỏ tới. None nếu nó đã bị xoá hoặc đổi tên."""
+    try:
+        f = _safe_serve_path(ban.get("brain") or "brain", ban.get("path") or "")
+    except ValueError:
+        return None
+    return f if f.is_file() else None
+
+
+def _share_asset(ban, p: str):
+    """File TÀI NGUYÊN kèm theo (ảnh trong .md, css/js cạnh file .html).
+
+    HAI hàng rào cùng lúc, và cần cả hai:
+
+    1. VỊ TRÍ: trong thư mục chứa file được chia sẻ (kể cả thư mục con), hoặc trong
+       `attachments` của brain - nơi Javis cất ảnh theo quy ước.
+    2. LOẠI FILE: phải nằm trong `DUOI_TAI_NGUYEN`, tức chỉ ảnh, css, js, phông, âm thanh,
+       phim. Không tài liệu.
+
+    Thiếu hàng rào thứ hai thì có một lỗ thật, và test_share_link.py đã bắt được nó lúc vừa
+    viết xong: file .md chia sẻ nằm ngay GỐC BRAIN thì "thư mục chứa nó" chính là cả brain,
+    nên một token lẻ đọc được mọi ghi chú khác trong đó. Bó theo LOẠI FILE đóng cửa ấy lại mà
+    vẫn giữ nguyên hai nhu cầu thật: .md cần ảnh, trang .html cần css/js của nó.
+    """
+    goc = _share_file(ban)
+    if goc is None:
+        return None
+    try:
+        f = _safe_serve_path(ban.get("brain") or "brain", p or "")
+    except ValueError:
+        return None
+    if not f.is_file() or f.suffix.lower() not in share_render.DUOI_TAI_NGUYEN:
+        return None
+    thu_muc = goc.parent
+    dinh_kem = (Path(_brain_root(ban.get("brain") or "brain")).resolve() / "attachments")
+    if thu_muc in f.parents or f.parent == thu_muc:
+        return f
+    if dinh_kem.is_dir() and (dinh_kem == f.parent or dinh_kem in f.parents):
+        return f
+    return None
+
+
+@app.post("/share/create")
+async def share_create(body: dict = Body(...)):
+    """Bật chia sẻ cho một file. Gọi lại trên cùng file thì trả đúng link cũ, không đẻ link mới."""
+    try:
+        ban = share_store.tao(body.get("brain") or "brain", body.get("path") or "",
+                              body.get("nhan") or "")
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    # Trả ĐƯỜNG DẪN TƯƠNG ĐỐI, để trình duyệt tự ghép với location.origin. Dựng URL tuyệt đối ở
+    # đây nghĩa là tin vào header Host, thứ mà chính repo này đã ghi chú là không được tin.
+    return {"ok": True, "token": ban["token"], "path": "/s/" + ban["token"]}
+
+
+@app.post("/share/revoke")
+async def share_revoke(body: dict = Body(...)):
+    """Thu hồi. Sau lệnh này link cũ trả 404 cho tất cả mọi người."""
+    return {"ok": share_store.xoa(body.get("token") or "")}
+
+
+@app.get("/share/of")
+async def share_of(brain: str = Query("brain"), path: str = Query(...)):
+    """File này đã có link chưa? Nút Chia sẻ hỏi câu này để biết mình đang bật hay tắt."""
+    ban = share_store.cua_file(brain, path)
+    return {"ok": True, "share": ({"token": ban["token"], "path": "/s/" + ban["token"]}
+                                  if ban else None)}
+
+
+@app.get("/share/list")
+async def share_list(brain: str = Query("")):
+    ds = share_store.danh_sach(brain)
+    return {"ok": True, "items": [{"token": b["token"], "brain": b.get("brain"),
+                                   "path": b.get("path"), "tao_luc": b.get("tao_luc"),
+                                   "url": "/s/" + b["token"]} for b in ds]}
+
+
+@app.get("/s/{token}")
+async def share_xem(token: str):
+    """TRANG XEM công khai. Không cần đăng nhập - xem chú thích đầu khối."""
+    ban = share_store.doc(token)
+    if not ban:
+        return HTMLResponse(share_render.trang_loi("Link không tồn tại hoặc đã bị thu hồi."),
+                            status_code=404)
+    f = _share_file(ban)
+    if f is None:
+        return HTMLResponse(share_render.trang_loi("File đã bị xoá hoặc đổi tên."), status_code=404)
+    duoi = f.suffix.lower()
+    goc_asset = "/s/" + ban["token"] + "/asset"
+    chan = _share_chan(ban)
+    if duoi in share_render.DUOI_HTML:
+        # Nội dung của NGƯỜI DÙNG, có script: phục vụ nguyên văn nhưng trong hộp cách ly.
+        try:
+            noi = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
+        return HTMLResponse(noi, headers={"Content-Security-Policy": share_render.CSP_HTML,
+                                          "X-Content-Type-Options": "nosniff",
+                                          "Referrer-Policy": "no-referrer"})
+    if duoi in share_render.DUOI_XEM_THANG:
+        resp = FileResponse(str(f), media_type=mimetypes.guess_type(f.name)[0]
+                            or "application/octet-stream")
+        resp.headers["Content-Disposition"] = "inline"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["Content-Security-Policy"] = share_render.CSP_HTML
+        return resp
+    try:
+        noi = f.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
+    if duoi in share_render.DUOI_MD:
+        trang = share_render.trang_markdown(f.stem, noi, goc_asset, chan)
+    else:
+        trang = share_render.trang_van_ban(f.name, noi, chan)
+    # Trang này do CHÍNH server dựng và không có một dòng script nào, nên cách ly chặt hơn.
+    return HTMLResponse(trang, headers={"Content-Security-Policy": share_render.CSP_TINH,
+                                        "X-Content-Type-Options": "nosniff",
+                                        "Referrer-Policy": "no-referrer"})
+
+
+@app.get("/s/{token}/raw")
+async def share_raw(token: str, dl: int = Query(0)):
+    """File gốc, để tải về hoặc để trang .html nhúng thẳng."""
+    ban = share_store.doc(token)
+    if not ban:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    f = _share_file(ban)
+    if f is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    if dl:
+        return FileResponse(str(f), filename=f.name)
+    resp = FileResponse(str(f), media_type=mimetypes.guess_type(f.name)[0] or "text/plain")
+    resp.headers["Content-Disposition"] = "inline"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Content-Security-Policy"] = share_render.CSP_HTML
+    return resp
+
+
+@app.get("/s/{token}/asset")
+async def share_asset(token: str, p: str = Query(...)):
+    """Ảnh và tài nguyên kèm theo. Phạm vi bó hẹp, xem _share_asset."""
+    ban = share_store.doc(token)
+    if not ban:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    f = _share_asset(ban, p)
+    if f is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    resp = FileResponse(str(f), media_type=mimetypes.guess_type(f.name)[0]
+                        or "application/octet-stream")
+    resp.headers["Content-Disposition"] = "inline"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Content-Security-Policy"] = share_render.CSP_HTML
+    return resp
 
 
 @app.get("/brains/{brain_name}/{path:path}")

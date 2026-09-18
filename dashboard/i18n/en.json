@@ -2788,5 +2788,10 @@
   "ws.previous_result": "previous result",
   "ws.save_failed": "Could not save. Please try again.",
   "ws.err_avatar_shape": "That avatar shape is not valid. Pick one from the library.",
-  "ws.err_avatar_palette": "That avatar colour is not valid. Pick one from the library."
+  "ws.err_avatar_palette": "That avatar colour is not valid. Pick one from the library.",
+  "fedit.share_title": "Share a public link",
+  "fedit.share_open": "Preview",
+  "fedit.share_revoke": "Revoke",
+  "fedit.share_revoked": "Link revoked.",
+  "fedit.share_note": "Anyone with this link can view it, no sign-in needed. The link points at the real file, so edits show up for viewers."
 }

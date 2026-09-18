@@ -2788,5 +2788,10 @@
   "ws.previous_result": "kết quả trước",
   "ws.save_failed": "Không lưu được. Vui lòng thử lại.",
   "ws.err_avatar_shape": "Hình đại diện không hợp lệ. Chọn lại một hình trong thư viện.",
-  "ws.err_avatar_palette": "Màu đại diện không hợp lệ. Chọn lại một màu trong thư viện."
+  "ws.err_avatar_palette": "Màu đại diện không hợp lệ. Chọn lại một màu trong thư viện.",
+  "fedit.share_title": "Chia sẻ link công khai",
+  "fedit.share_open": "Mở thử",
+  "fedit.share_revoke": "Thu hồi",
+  "fedit.share_revoked": "Đã thu hồi link.",
+  "fedit.share_note": "Ai có link này đều xem được, không cần đăng nhập. Link trỏ tới file thật nên bạn sửa file là người xem thấy bản mới."
 }

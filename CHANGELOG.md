@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.39] - 2026-09-18
+### Thêm mới
+- **Nút Chia sẻ trong khung mở file.** Bấm một cái là có đường link gửi cho ai cũng xem được, không cần đăng nhập, không cần tài khoản Javis. Link mở ra **bản hoàn thiện** chứ không phải mã nguồn: file .html chạy đúng giao diện của nó, file .md hiện đậm nghiêng, danh sách, bảng và ảnh. Hợp để làm một ứng dụng nhỏ rồi gửi cho người khác xem ngay.
+- **Link trỏ tới file thật.** Bạn sửa file thì người xem tải lại trang là thấy bản mới, không phải chia sẻ lại. Bấm Chia sẻ lần nữa trên cùng file vẫn ra đúng link cũ, nên link đã gửi đi không bao giờ bị thay.
+- **Thu hồi bất cứ lúc nào** bằng nút ngay cạnh link. Thu hồi xong là link cũ chết hẳn với tất cả mọi người.
+### Bảo mật
+- Trang chia sẻ chạy trong hộp cách ly, nên nội dung file không đọc được phiên đăng nhập Javis của người mở, kể cả khi chính bạn bấm vào link của mình. Đổi lại, ứng dụng nhỏ trong file .html không dùng được bộ nhớ lưu trữ của trình duyệt.
+- Ảnh và tài nguyên kèm theo chỉ lấy được quanh đúng file được chia sẻ, và chỉ lấy được ảnh, css, js, phông, nhạc, phim. Ghi chú khác trong brain không đọc được qua link.
+
 ## [0.59.38] - 2026-09-18
 ### Sửa lỗi
 - **Chữ trả lời theo kịp giọng nói.** Bong bóng hiện trọn cụm đang phát, kể cả khi trình duyệt chưa biết thời lượng âm thanh.
