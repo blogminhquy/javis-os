@@ -156,7 +156,7 @@
   // ---------------------------------------------------------------- modal (dung 1 lan, tai su dung)
   var modal = null, card = null, elTitle = null, elActions = null, elBody = null, curSave = null;
   var daDayLichSu = false;   // da chen mot buoc lich su cho nut Back chua
-  var elShare = null;        // thanh hien link chia se (an mac dinh)
+  var elShareModal = null;   // thanh hien link chia se CUA MODAL nay (an mac dinh)
 
   function build() {
     if (modal) return;
@@ -174,7 +174,7 @@
     elTitle = modal.querySelector(".jvfe-title");
     elActions = modal.querySelector(".jvfe-actions");
     elBody = modal.querySelector(".jvfe-body");
-    elShare = modal.querySelector(".jvfe-share");
+    elShareModal = modal.querySelector(".jvfe-share");
     // Bam nen mo -> dong. Bat CA hai su kien: iOS khong phai luc nao cung sinh mousedown cho
     // mot the <div> tron, nen chi nghe mousedown la tren dien thoai bam nen khong an gi.
     modal.addEventListener("mousedown", function (e) { if (e.target === modal) close(); });
@@ -201,7 +201,7 @@
     if (!modal) return;
     modal.classList.remove("open");
     elBody.innerHTML = ""; elActions.innerHTML = ""; curSave = null;   // don iframe/textarea
-    if (elShare) { elShare.innerHTML = ""; elShare.hidden = true; }
+    if (elShareModal) { elShareModal.innerHTML = ""; elShareModal.hidden = true; }
     document.body.classList.remove("jvfe-open");
     // Dong bang nut X / Esc / bam nen: nha luon buoc lich su da chen, khong thi nguoi dung phai
     // bam Back mot cai "khong lam gi" truoc khi thuc su roi trang.
@@ -290,9 +290,15 @@
   //
   // Link tro toi FILE THAT chu khong phai ban chup: sua file thi nguoi xem tai lai la thay
   // ban moi. Chu du an chon vay ngay 18/09.
-  function shareBtn(b, ceil) {
+  //
+  // `hostEl` la cho VE THANH LINK ra. De trong thi dung thanh cua modal nay. Trinh sua dinh
+  // (noteEditor trong console.js) la MOT khung khac han, khong dung modal nay, nen no truyen
+  // o chua cua no vao - nguoi dung mo file o khung nao cung phai thay nut Chia se, chu khong
+  // phai doan xem minh dang o khung nao. `lop` doi ten lop nut cho hop thanh cong cu so tai.
+  function shareBtn(b, ceil, hostEl, lop) {
+    injectCss();   // goi tu khung khac: modal chua dung nen CSS .jvfe-share chua duoc chen
     var btn = document.createElement("button");
-    btn.className = "jvfe-btn icon"; btn.type = "button";
+    btn.className = (lop == null ? "jvfe-btn icon" : lop); btn.type = "button";
     // "link" chu khong phai "share-2": bo icon da vendor khong co share-2, va test_icons.py
     // canh dung chuyen do - goi mot ten khong co that thi nut hien ra TRONG KHONG, khong loi.
     // Khong de emoji lam duong lui: giao dien dashboard cam emoji (cung test_icons.py).
@@ -322,6 +328,8 @@
     return btn;
 
     function veThanhShare(url, loi, token) {
+      var elShare = hostEl || elShareModal;
+      if (!elShare) return;
       elShare.innerHTML = "";
       elShare.hidden = false;
       if (!url) {
@@ -481,6 +489,9 @@
   if (typeof window !== "undefined") {
     window.JavisEditFile = open;
     window.JavisFileEditor = { open: open, close: close };
+    // Trinh sua dinh (console.js) dung lai DUNG cai nut nay, khong chep lai logic:
+    // mot cho sua la ca hai khung cung doi.
+    window.JavisShareBtn = shareBtn;
   }
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { ceilPath: ceilPath };

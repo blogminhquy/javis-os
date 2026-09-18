@@ -2289,6 +2289,11 @@ body.ne-full-on .cview { z-index: 250; }
 .ne-seg button:first-child { border-radius: 6px 0 0 6px; }
 .ne-seg button:last-child { border-radius: 0 6px 6px 0; border-right: 1px solid var(--border); }
 .ne-seg button.active { background: var(--accent-wash-2); border-color: var(--accent-line); color: var(--accent); }
+/* Thanh link chia se cua trinh sua dinh. Lop .jvfe-share (file-editor.js tu chen) lo phan
+   nhin; o day chi chot MOT dieu ma flex column can biet: no khong duoc co gian, kelo no an
+   mat chieu cao cua than bai viet. */
+.ne-share { flex: none; }
+.ne-share[hidden] { display: none; }
 .ne-body { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .ne-body.ne-md { flex-direction: column; }                    /* .md: thanh công cụ trên, khung soạn/xem dưới */
 .ne-fmt { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--bg2); flex: none; }

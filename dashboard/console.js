@@ -7357,6 +7357,9 @@
     // vẫn bị ẩn và người dùng nhìn vào một trang trống, tưởng chat hỏng.
     _returnNoteEditor();
     document.getElementById("neBody").innerHTML = ""; document.getElementById("neActions").innerHTML = "";
+    // Thanh link chia se cua file VUA DONG khong duoc dinh sang file mo ke tiep.
+    const _neSh = document.getElementById("neShare");
+    if (_neSh) { _neSh.innerHTML = ""; _neSh.hidden = true; }
     _neSaveFn = null;
     _neOpenRel = "";
     _neLayNoiDung = null; _neGocText = null;
@@ -7416,6 +7419,14 @@
     actions.appendChild(bSao);
     actions.appendChild(mk(ic("pencil"), window.t("cs.ne_rename_file"), () => _neRenameCur(rel, it)));
     actions.appendChild(mk(ic("trash-2"), window.t("cs.ne_del_file"), () => _neDeleteCur(rel, it)));
+    // CHIA SE: cung cai nut cua trinh sua modal (window.JavisShareBtn), chi khac cho ve thanh
+    // link ra la #neShare cua khung nay. Truoc ban 0.59.40 nut chi co o modal, nen nguoi dung
+    // mo file tu cay vault - duong pho bien nhat - khong thay nut dau ca.
+    if (window.JavisShareBtn) {
+      const hop = document.getElementById("neShare");
+      if (hop) { hop.innerHTML = ""; hop.hidden = true; }
+      actions.appendChild(window.JavisShareBtn(fbrain(), rel, hop, ""));
+    }
     actions.appendChild(mk("↗", window.t("cs.ne_open_tab"), () => window.open(_vtRaw(rel), "_blank")));
     actions.appendChild(mk("⤓ " + esc(window.t("cs.fm_dl")), window.t("cs.fm_dl_title"), () => _dlFile(rel)));
     actions.appendChild(mk(ic("maximize"), window.t("cs.ne_zoom"), () => { ed.classList.toggle("ne-full"); _neSyncFull(); }));
