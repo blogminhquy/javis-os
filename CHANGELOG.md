@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.42] - 2026-09-18
+### Thêm mới
+- **Tìm kiếm và phân trang ở trang Chia sẻ.** Gõ tên file hoặc tên thư mục là lọc ngay, gõ không dấu vẫn ra file có dấu, gõ nhiều từ thì thu hẹp dần. Danh sách chia thành từng trang 20 link nên dù chia sẻ vài trăm file trang vẫn mở nhanh. Ô tìm chỉ xuất hiện khi danh sách đã đủ dài.
+
+## [0.59.41] - 2026-09-18
+### Sửa lỗi
+- **Nút Chia sẻ đổi sang icon chia sẻ riêng.** Trước đó nó đeo icon mắt xích y hệt nút Chèn liên kết ở thanh định dạng ngay bên dưới, nhìn vào không phân biệt được cái nào ra cái nào. Trang Chia sẻ ở thanh bên cũng đổi, vì nhóm Kết nối đã dùng icon mắt xích đó rồi.
+
 ## [0.59.40] - 2026-09-18
 ### Sửa lỗi
 - **Nút Chia sẻ giờ có ở mọi khung mở file.** Bản trước chỉ gắn nút vào khung sửa bung giữa màn hình, nên mở file từ cây thư mục bên trái, đường hay dùng nhất, lại không thấy nút đâu. Giờ mở file kiểu nào cũng có nút Chia sẻ trên thanh công cụ, dùng chung một đường link và một nút Thu hồi.

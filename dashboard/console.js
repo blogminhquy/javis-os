@@ -46,7 +46,9 @@
     // mắt liếc), xem RIENG trong dashboard/icons.js. Cái tab dẫn tới con pet mà không giống
     // con pet thì nó là tab duy nhất trong app nói sai về nơi nó dẫn tới.
     pet: "javis-pet",
-    share: "link",
+    // "share-2" chu khong phai "link": nhan nhom "Ket noi" ngay trong cung mot rail da dung
+    // ic("link"), nen de "link" o day la hai muc canh nhau deo y het nhau.
+    share: "share-2",
   };
   // Cỡ icon rail do CSS lo (.rail-ico svg { width: 19px }), độ ưu tiên chọn tử
   // cao hơn .ic nên không cần truyền cỡ ở đây.
@@ -6042,8 +6044,14 @@
   // Vì sao trang này bắt buộc phải có: link chia sẻ không hết hạn và không mật khẩu, ai cầm
   // cũng xem được. Chỉ tạo được mà không có chỗ nhìn lại toàn bộ thì người dùng sẽ quên mình
   // đã mở những gì, và một link lỡ gửi nhầm sẽ sống mãi. Chủ dự án nói đúng chỗ đó ngày 18/09.
+  // Số link mỗi trang, và ngưỡng bắt đầu hiện ô tìm. Cùng một con số cho cả hai thì lạ mắt:
+  // đúng 20 link là vừa một trang mà đã phải gõ để tìm, nên ngưỡng tìm đặt thấp hơn.
+  const SHARE_MOI_TRANG = 20;
+  const SHARE_NGUONG_TIM = 8;
+
   async function renderSharePage(el) {
     const gen = _renderGen;
+    let tuKhoa = "";
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     let ds = [];
     try {
@@ -6057,19 +6065,65 @@
     if (gen !== _renderGen) return;
     ve();
 
+    // Bỏ dấu để gõ "ghi chu" vẫn ra "ghi-chú". Khai TẠI ĐÂY chứ không mượn _vtNoAccent ở dưới
+    // file: hàm này phải đứng một mình được (test bóc nó ra chạy riêng), và một chỗ nữa cần
+    // sửa khi đổi cách bỏ dấu vẫn rẻ hơn một phụ thuộc vô hình.
+    function khongDau(x) {
+      return String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[đĐ]/g, "d").toLowerCase();
+    }
+    // Lọc theo TÊN FILE lẫn ĐƯỜNG DẪN: nhớ tên file thì gõ tên, nhớ nó nằm thư mục nào thì gõ
+    // thư mục. Gõ nhiều từ cách nhau bởi dấu cách thì phải khớp HẾT, để thu hẹp dần.
+    function loc(tu) {
+      const k = khongDau(tu).trim();
+      if (!k) return ds;
+      const tus = k.split(/\s+/);
+      return ds.filter(m => {
+        const d = khongDau(m.path || "");
+        return tus.every(x => d.indexOf(x) >= 0);
+      });
+    }
+
     function ve() {
       if (!ds.length) {
         el.innerHTML = `<div class="settings-page"><div class="settings-card compact">
           <p>${esc(t("share.empty"))}</p></div></div>`;
         return;
       }
+      // Ô tìm chỉ hiện khi danh sách đã đủ dài để phải tìm. Dưới ngưỡng đó nó là một ô trống
+      // chiếm chỗ, và mắt vẫn quét hết danh sách nhanh hơn là gõ.
+      const coTim = ds.length > SHARE_NGUONG_TIM;
       el.innerHTML = `<div class="settings-page"><div class="settings-card">
         <div class="settings-card-head"><b>${esc(t("share.heading"))}</b><span class="gcard-tag">${ds.length}</span></div>
         <p>${esc(t("share.warn"))}</p>
-        <div class="share-list">${ds.map(m => hang(m)).join("")}</div>
+        ${coTim ? `<input id="shareSearch" class="share-search" type="search" spellcheck="false"
+          autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(tuKhoa)}">` : ""}
+        <div class="share-list" id="shareList"></div>
       </div></div>`;
-      el.querySelectorAll("[data-share-revoke]").forEach(b => { b.onclick = () => thuHoi(b); });
-      el.querySelectorAll("[data-share-copy]").forEach(b => { b.onclick = () => chep(b); });
+      veDanhSach();
+      const o = el.querySelector("#shareSearch");
+      if (o) {
+        o.oninput = () => { tuKhoa = o.value; veDanhSach(); };
+        // Gõ xong mà con trỏ nhảy về đầu trang thì mỗi chữ là một lần mất chỗ. Vẽ lại CHỈ
+        // danh sách (veDanhSach), không đụng ô tìm, nên ô giữ nguyên tiêu điểm.
+      }
+    }
+
+    // Vẽ lại RIÊNG phần danh sách: lọc theo từ khoá rồi phân trang bằng pager() dùng chung
+    // (window.JavisPager - cùng bản với trang Kỹ năng và khung nhật ký, không đẻ bản thứ hai).
+    function veDanhSach() {
+      const box = el.querySelector("#shareList");
+      if (!box) return;
+      const hien = loc(tuKhoa);
+      const P = (typeof window !== "undefined" && window.JavisPager) || null;
+      const trong = `<div class="share-empty">${esc(t("share.no_match"))}</div>`;
+      if (P) {
+        P(box, hien, SHARE_MOI_TRANG, (rows) => rows.map(m => hang(m)).join(""), trong);
+      } else {
+        box.innerHTML = hien.length ? hien.map(m => hang(m)).join("") : trong;
+      }
+      box.querySelectorAll("[data-share-revoke]").forEach(b => { b.onclick = () => thuHoi(b); });
+      box.querySelectorAll("[data-share-copy]").forEach(b => { b.onclick = () => chep(b); });
     }
 
     function hang(m) {
@@ -6119,6 +6173,8 @@
           body: JSON.stringify({ token }),
         });
         ds = ds.filter(x => x.token !== token);
+        // Vẽ lại CẢ thẻ: con số tổng ở đầu thẻ vừa giảm đi một, mà ô tìm có thể vừa tụt xuống
+        // dưới ngưỡng hiện. Từ khoá đang gõ nằm ở `tuKhoa` nên nó sống qua lần vẽ này.
         ve();
       } catch (e) { b.disabled = false; }
     }

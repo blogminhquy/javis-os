@@ -299,10 +299,12 @@
     injectCss();   // goi tu khung khac: modal chua dung nen CSS .jvfe-share chua duoc chen
     var btn = document.createElement("button");
     btn.className = (lop == null ? "jvfe-btn icon" : lop); btn.type = "button";
-    // "link" chu khong phai "share-2": bo icon da vendor khong co share-2, va test_icons.py
-    // canh dung chuyen do - goi mot ten khong co that thi nut hien ra TRONG KHONG, khong loi.
-    // Khong de emoji lam duong lui: giao dien dashboard cam emoji (cung test_icons.py).
-    btn.innerHTML = ic("link");
+    // "share-2" (ba nut tron noi nhau) chu KHONG phai "link": trong trinh sua .md, thanh dinh
+    // dang markdown ngay ben duoi da co nut Chen lien ket dung dung ic("link"), nen hai cai
+    // giong het nhau - chu du an bao 18/09: "trung voi icon them link mat roi". Icon nay vua
+    // duoc them vao icons.manifest.json va sinh lai bo vendor.
+    // Khong de emoji lam duong lui: giao dien dashboard cam emoji (test_icons.py canh).
+    btn.innerHTML = ic("share-2");
     btn.title = tw("fedit.share_title");
     // Da co link san thi nut sang len ngay tu luc mo file, de nguoi dung biet file nay DANG
     // duoc chia se ma khong phai bam thu.

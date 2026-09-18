@@ -483,6 +483,13 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* Danh sách link chia sẻ. Mỗi hàng là một link đang SỐNG ngoài Internet, nên nút Thu hồi
    phải luôn nhìn thấy chứ không nấp sau menu. Màn hẹp thì xuống dòng, hàng nút tụt xuống
    dưới khối thông tin, không bao giờ bị đẩy khuất. */
+/* Ô tìm của trang Chia sẻ. Cỡ chữ 16px là cố ý: dưới 16px thì Safari trên iPhone TỰ PHÓNG TO
+   cả trang khi chạm vào ô nhập, và trang này hay được mở trên điện thoại. */
+.share-search { width: 100%; box-sizing: border-box; margin-top: 12px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--bg2);
+  color: var(--text-hi); font-size: 16px; }
+.share-search:focus { outline: none; border-color: var(--accent-line); }
+.share-empty { padding: 14px 2px; color: var(--text2); }
 .share-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .share-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
   justify-content: space-between; padding: 12px 14px; border: 1px solid var(--glass-brd);

@@ -2799,5 +2799,7 @@
   "fedit.share_note": "Ai có link này đều xem được, không cần đăng nhập. Link trỏ tới file thật nên bạn sửa file là người xem thấy bản mới.",
   "share.heading": "Link đang chia sẻ",
   "share.warn": "Ai có link đều xem được, không cần đăng nhập và không có hạn dùng. Thu hồi là link chết ngay với tất cả mọi người.",
+  "share.search_ph": "Tìm theo tên file hoặc thư mục…",
+  "share.no_match": "Không có link nào khớp từ khoá này.",
   "share.empty": "Chưa chia sẻ file nào. Mở một file rồi bấm nút Chia sẻ trong khung sửa để tạo link."
 }
