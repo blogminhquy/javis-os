@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.35] - 2026-09-18
+### Sửa lỗi
+- **Mic trên điện thoại hết cảnh chỉ nghe được một lần.** Nói xong lượt đầu là Javis điếc, tải lại trang cũng không nghe, phải vào xoá quyền mic rồi cấp lại mới nghe thêm được một lượt nữa. Không phải lỗi quyền: Javis mở hai đường thu mic cùng lúc, mà điện thoại chỉ cho một đường thu. Nay lúc nghe chỉ còn một đường, nên nói bao nhiêu lượt cũng được và tải lại trang vẫn nghe bình thường.
+- **Đổi lại, trên điện thoại quả cầu không còn sáng theo giọng lúc bạn đang nói.** Ngắt lời khi Javis đọc thì vẫn chạy y như cũ. Trên máy tính không có gì thay đổi.
+
 ## [0.59.34] - 2026-09-18
 ### Sửa lỗi
 - **Đăng nhập ChatGPT ở Javis không còn đá văng Codex trên máy.** Mỗi lượt chat Javis lại ghi đè file đăng nhập của Codex, kể cả khi mã trong tay đã hỏng, nên hai bên tranh nhau một mã và bên dùng sau thì mất phiên. Nay Javis đọc file đó trước: Codex vừa làm mới mã thì Javis dùng theo, mã của Javis hỏng thì để nguyên, không ghi gì cả.

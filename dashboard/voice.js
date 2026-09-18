@@ -142,9 +142,18 @@ class JavisVoice {
       const ctx = this._ensureCtx();
       if (!this.micStream) {
         // Bật khử vọng/khử ồn: giảm việc mic nghe lại chính giọng TTS (chống tự-kích-hoạt + lồng tiếng).
-        this.micStream = await navigator.mediaDevices.getUserMedia({
+        const st = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
+        // Chỗ này là ASYNC, và cái chờ có thể rất lâu (hộp xin quyền chờ người bấm Cho phép).
+        // Trong lúc chờ, trên ĐIỆN THOẠI ta có thể đã quay lại NGHE: nhận luồng này vào là hai
+        // đường lại tranh mic và nhận dạng câm, đúng lỗi _nhaMicStream sinh ra để chặn. Trả
+        // ngay, đừng gán - lần đọc sau sẽ tự xin lại.
+        if (this._laDiDong() && (this.isListening || this._starting)) {
+          try { (st.getTracks ? st.getTracks() : []).forEach((t) => { try { t.stop(); } catch (e) {} }); } catch (e) {}
+          return;
+        }
+        this.micStream = st;
       }
       const src = ctx.createMediaStreamSource(this.micStream);
       const an = ctx.createAnalyser();
@@ -434,6 +443,50 @@ class JavisVoice {
     return this._iosCache;
   }
 
+  // Máy ĐIỆN THOẠI (Android hoặc iOS). Quan trọng vì điện thoại chỉ cho MỘT thứ thu mic một
+  // lúc, xem chú thích ở _nhaMicStream.
+  _laDiDong() {
+    if (this._diDongCache === undefined) {
+      const ua = navigator.userAgent || "";
+      this._diDongCache = this._laIOS() || /Android/i.test(ua);
+    }
+    return this._diDongCache;
+  }
+
+  // TRẢ mic về cho máy: tắt track, bỏ bộ đo, bỏ bộ ghi.
+  //
+  // VÌ SAO PHẢI CÓ (0.59.35). Trang này thu mic bằng HAI đường độc lập: luồng getUserMedia
+  // (đo mức âm cho hiệu ứng phát sáng, ngắt lời, ghi âm Groq) và SpeechRecognition, thứ tự
+  // thu bằng luồng RIÊNG của nó (xem 0.9.x, chính vì luồng riêng đó không được khử vọng nên
+  // mới có cả cơ chế tạm ngừng nhận dạng lúc TTS đọc). Máy tính chạy hai đường song song
+  // được. ĐIỆN THOẠI THÌ KHÔNG: đường nào chiếm mic trước thì đường kia câm.
+  //
+  // Bản cũ mở luồng getUserMedia rồi GIỮ SUỐT ĐỜI TRANG, không bao giờ tắt track, và mở nó
+  // ngay trước recognition.start(). Hệ quả đúng như người dùng tả 18/09:
+  //   - Lần đầu vào trang, quyền CHƯA cấp: getUserMedia treo lại chờ người bấm Cho phép, nên
+  //     nhận dạng kịp chiếm mic trước -> nghe được ĐÚNG MỘT LƯỢT.
+  //   - Xong lượt đó luồng mic đã nằm sẵn, lượt sau nhận dạng không còn mic -> câm.
+  //   - Tải lại trang: quyền đã cấp nên getUserMedia trả về gần như tức thì, chiếm mic trước
+  //     nhận dạng -> câm ngay từ lượt đầu. "Refresh là không nghe được."
+  //   - Reset quyền: hộp xin phép quay lại, lại có độ trễ, lại nghe được một lượt. "Phải
+  //     reset quyền mới nghe tiếp."
+  // Ba triệu chứng đó là một nguyên nhân, và nó là cuộc đua giữa hai đường thu mic.
+  //
+  // Chữa: trên điện thoại, lúc NGHE thì chỉ để SpeechRecognition giữ mic. Luồng getUserMedia
+  // chỉ sống trong lúc Javis ĐỌC, là lúc nhận dạng đã bị abort (xem _muteRecognition), nên
+  // ngắt lời vẫn nguyên vẹn. Thứ mất đi trên điện thoại chỉ là hiệu ứng phát sáng theo giọng
+  // lúc đang nghe, và bản ghi gửi Groq - hai thứ trang trí và tuỳ chọn, đổi lấy cái mic chạy.
+  _nhaMicStream() {
+    this._stopRecorder().catch(() => {});
+    const st = this.micStream;
+    this.micStream = null;
+    this.inAnalyser = null;
+    if (!st) return;
+    try {
+      (st.getTracks ? st.getTracks() : []).forEach((t) => { try { t.stop(); } catch (e) {} });
+    } catch (e) {}
+  }
+
   // iOS chỉ cho phát âm thanh do CỬ CHỈ người dùng khởi động, và mỗi `new Audio()` là một
   // phần tử mới chưa được "mở khoá". Bản cũ tạo Audio mới cho từng đoạn + một Audio preload,
   // nên trên iPhone đoạn đầu phát được còn các đoạn sau bị chặn hoặc trễ - "đọc ngập ngừng,
@@ -488,7 +541,11 @@ class JavisVoice {
     // Stop TTS đang đọc nếu user bấm nói
     if (!giuTieng) { this.synth.cancel(); this.stopSpeaking(); }
     this._moKhoaAudioIOS(); // iOS: mở khoá phần tử phát tiếng NGAY trong cử chỉ bấm mic
-    this._startMicMeter();  // bật đo âm mic cho hiệu ứng phát sáng (kèm ghi âm Groq nếu bật)
+    // Điện thoại: TRẢ mic lại trước khi mở nhận dạng, không thì hai đường thu tranh nhau và
+    // nhận dạng câm (xem chú thích dài ở _nhaMicStream). Máy tính chạy song song được nên giữ
+    // nguyên hiệu ứng phát sáng như cũ.
+    if (this._laDiDong()) this._nhaMicStream();
+    else this._startMicMeter();  // đo âm mic cho hiệu ứng phát sáng (kèm ghi âm Groq nếu bật)
     try {
       this._stopPending = false;
       this._starting = true;
