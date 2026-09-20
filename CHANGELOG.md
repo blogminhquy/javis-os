@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.45] - 2026-09-20
+### Cải thiện
+- **Chat dài với Antigravity: câu hỏi chép lên dòng lệnh dài gấp 4 lần và giữ cả đầu lẫn cuối.** Khi bạn dán một bài dài rồi chốt yêu cầu ở câu cuối, bản trước chỉ chép 1500 ký tự đầu nên yêu cầu ở cuối bị rơi mất. Giờ chép tới 6000 ký tự, dài hơn thì giữ phần mở đầu và phần chốt, chỉ lược đoạn giữa (vẫn có đủ trong file ngữ cảnh).
+
 ## [0.59.44] - 2026-09-20
 ### Sửa lỗi
 - **Việc nền chạy bằng Antigravity CLI ở mức auto đã dùng được shell và ghi file thật.** Trước đó Javis truyền hai cờ đi cùng nhau khiến agy tự huỷ tool sau 5 giây, việc Kanban, Loop và bước Workflow chạy rồi báo "không khởi động được lớp công cụ" mà log không có lỗi nào. Giờ mức auto chỉ giữ cờ tự duyệt, rào hành động ra ngoài vẫn ở hub như cũ.
