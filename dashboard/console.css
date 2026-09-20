@@ -489,6 +489,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   border: 1px solid var(--border); border-radius: 9px; background: var(--bg2);
   color: var(--text-hi); font-size: 16px; }
 .share-search:focus { outline: none; border-color: var(--accent-line); }
+.share-count { margin-top: 6px; min-height: 1.2em; font-size: 13px; color: var(--text3); }
 .share-empty { padding: 14px 2px; color: var(--text2); }
 .share-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .share-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
@@ -500,6 +501,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .share-url { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--accent);
   overflow-wrap: anywhere; }
 .share-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Điện thoại: đường dẫn và link đọc được, không phải lác mắt; nút đủ to để chạm. */
+@media (max-width: 900px) {
+  .share-path, .share-url, .share-count { font-size: 14px; }
+  .share-acts .gcard-btn { font-size: 15px; padding: 8px 12px; }
+}
 .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .settings-card p { margin: 8px 0 0; color: var(--text2); font-size: 13px; line-height: 1.5; }
 .settings-card .gcard-btn { width: auto; }

@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.49] - 2026-09-20
+### Cải thiện
+- **Trang Chia sẻ: ô tìm hiện ngay từ khi có 2 link,** không đợi tới 9 link như trước, và khi gõ có dòng "Khớp x / y link" bên dưới. Danh sách vẫn chia trang 20 link. Trên điện thoại đường dẫn, link và nút Chép/Thu hồi to hơn để đọc và chạm dễ.
+
 ## [0.59.48] - 2026-09-20
 ### Sửa lỗi
 - **Việc nền dài không còn bị cắt ở phút 15 rồi chạy lại từ đầu.** Trần một lần chạy giờ theo đúng trần của engine (mặc định 1 giờ), và khi hết giờ Javis giết hẳn tiến trình cũ trước khi thử lại, không còn hai bản cùng chạy. Tắt hay cập nhật máy chủ giữa chừng cũng không huỷ câm việc đang chạy nữa: việc về hàng đợi và tự chạy lại sau khi lên.

@@ -247,6 +247,9 @@ async function chay(items, opts) {
     r.oTim.oninput();
     check("gõ KHÔNG DẤU vẫn tìm ra file CÓ DẤU", demHang(r.list._html) === 1, demHang(r.list._html));
     check("và đúng là file đó", r.list._html.includes("Báo cáo quý.md"));
+    // 0.59.49: ô tìm hiện từ link thứ hai (ngưỡng 1), và có dòng đếm "Khớp x / y link" khi gõ.
+    check("ngưỡng hiện ô tìm là 1 (có từ 2 link là thấy ô tìm)", NGUONG_TIM === 1, NGUONG_TIM);
+    check("gõ tìm thì có dòng đếm số link khớp", r.el.innerHTML.includes('id="shareCount"'));
 
     // Nhiều từ = thu hẹp dần, phải khớp HẾT.
     r.oTim.value = "ke-hoach bao cao";

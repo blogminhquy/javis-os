@@ -2814,6 +2814,7 @@
   "share.heading": "Link đang chia sẻ",
   "share.warn": "Ai có link đều xem được, không cần đăng nhập và không có hạn dùng. Thu hồi là link chết ngay với tất cả mọi người.",
   "share.search_ph": "Tìm theo tên file hoặc thư mục…",
+  "share.count": "Khớp {so} / {tong} link",
   "share.no_match": "Không có link nào khớp từ khoá này.",
   "share.empty": "Chưa chia sẻ file nào. Mở một file rồi bấm nút Chia sẻ trong khung sửa để tạo link."
 }
