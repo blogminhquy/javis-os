@@ -102,6 +102,7 @@ class TaskStore:
                     max_attempts INTEGER NOT NULL DEFAULT 3,
                     claimed_by TEXT NOT NULL DEFAULT '',
                     claim_expires_at REAL NOT NULL DEFAULT 0,
+                    not_before REAL NOT NULL DEFAULT 0,
                     last_heartbeat_at REAL NOT NULL DEFAULT 0,
                     current_run_id TEXT NOT NULL DEFAULT '',
                     result TEXT NOT NULL DEFAULT '',
@@ -162,6 +163,14 @@ class TaskStore:
                 );
                 """
             )
+            # Cột thêm sau khi kho đã có trên máy người dùng. `not_before` (0.59.44): việc vấp
+            # "gói thuê bao hết lượt" được hoãn tới mốc reset; dispatcher bỏ qua việc chưa tới
+            # giờ thay vì nhặt lại sau 5 giây rồi đốt hết lượt thử trước khi hạn mức mở lại.
+            cot = {r["name"] for r in self._db.execute("PRAGMA table_info(tasks)").fetchall()}
+            if "not_before" not in cot:
+                self._db.execute(
+                    "ALTER TABLE tasks ADD COLUMN not_before REAL NOT NULL DEFAULT 0"
+                )
             self._db.commit()
 
     def _tx(self) -> None:
@@ -639,13 +648,16 @@ class TaskStore:
 
     def next_candidate(self, brain_root: str) -> Optional[dict]:
         with self._lock:
+            # `not_before`: việc đang đợi gói thuê bao mở lại hạn mức chưa tới giờ thì
+            # không phải ứng viên, dù status vẫn là ready.
             row = self._db.execute(
                 """SELECT * FROM tasks
                    WHERE brain_root=? AND status IN ('triage','ready')
+                     AND not_before <= ?
                    ORDER BY CASE status WHEN 'triage' THEN 0 ELSE 1 END,
                             priority, created_at
                    LIMIT 1""",
-                (brain_root,),
+                (brain_root, now()),
             ).fetchone()
         return self._task_from_row(row) if row else None
 
@@ -690,7 +702,7 @@ class TaskStore:
                 changed = self._db.execute(
                     """UPDATE tasks
                        SET status='running', attempts=attempts+1, claimed_by=?,
-                           claim_expires_at=?, last_heartbeat_at=?,
+                           claim_expires_at=?, not_before=0, last_heartbeat_at=?,
                            current_run_id=?, block_kind='', block_reason='', updated_at=?
                        WHERE id=? AND status IN ('triage','ready')""",
                     (worker_id, ts + lease_seconds, ts, run_id, ts, task_id),
@@ -755,7 +767,12 @@ class TaskStore:
         metadata: Optional[dict] = None,
         artifacts: Optional[list] = None,
         event_type: str = "completed",
+        not_before: float = 0.0,
+        keep_attempt: bool = False,
     ) -> Optional[dict]:
+        """`not_before`: mốc epoch trước đó dispatcher không nhặt lại việc (hoãn vì hết hạn mức).
+        `keep_attempt`: trả lại lượt thử mà `claim` vừa cộng - lượt vấp hạn mức không phải lỗi
+        của việc, tính nó là ba lần vấp cùng một cửa sổ hết lượt là việc chết oan."""
         if status not in VALID_STATUS:
             raise ValueError("invalid task status")
         ts = now()
@@ -775,15 +792,22 @@ class TaskStore:
                     """UPDATE tasks
                        SET status=?, result=?, block_kind=?, block_reason=?,
                            metadata_json=?, artifacts_json=?, claimed_by='',
-                           claim_expires_at=0, last_heartbeat_at=?, current_run_id='',
-                           updated_at=?
+                           claim_expires_at=0, not_before=?, last_heartbeat_at=?,
+                           current_run_id='', updated_at=?
                        WHERE id=?""",
                     (
                         status, (result or "")[:20000], block_kind or "",
                         (block_reason or "")[:2000], _json(metadata or {}),
-                        _json(artifacts or []), ts, ts, task_id,
+                        _json(artifacts or []), float(not_before or 0.0), ts, ts, task_id,
                     ),
                 )
+                if keep_attempt:
+                    self._db.execute(
+                        """UPDATE tasks
+                           SET attempts=CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END
+                           WHERE id=?""",
+                        (task_id,),
+                    )
                 if run_id:
                     run_status = "completed" if status in ("done", "review", "ready") else status
                     self._db.execute(
@@ -877,15 +901,23 @@ class TaskStore:
         reason: str,
         result: str = "",
         transient: bool = False,
+        not_before: float = 0.0,
+        keep_attempt: bool = False,
     ) -> Optional[dict]:
+        """`transient=True` -> về ready để thử lại (còn lượt). `not_before` hoãn lần thử tới
+        mốc đó; `keep_attempt` không tính lần vấp này vào `attempts` (hết hạn mức gói thuê bao
+        đã biết giờ mở lại: đợi đúng giờ rồi thử là chắc ăn, không có lý do gì để đốt lượt)."""
         task = self.get_task(task_id)
         if not task:
             return None
-        retry = bool(transient and int(task["attempts"]) < int(task["max_attempts"]))
+        con_luot = keep_attempt or int(task["attempts"]) < int(task["max_attempts"])
+        retry = bool(transient and con_luot)
         return self._finish(
             task_id, worker_id, "ready" if retry else "blocked",
             result=result, error=reason, block_kind=kind,
             block_reason=reason, event_type="retry_scheduled" if retry else "blocked",
+            not_before=float(not_before or 0.0) if retry else 0.0,
+            keep_attempt=bool(keep_attempt and retry),
         )
 
     def move(self, task_id: str, status: str, reason: str = "operator") -> bool:
@@ -903,9 +935,12 @@ class TaskStore:
                 if row["status"] == "running":
                     self._db.rollback()
                     return False
+                # Người dùng tự kéo việc: bỏ luôn mốc hoãn (họ muốn chạy NGAY, kể cả khi
+                # Javis đang đợi gói thuê bao mở lại).
                 self._db.execute(
                     """UPDATE tasks SET status=?, block_kind='', block_reason='',
-                       claimed_by='', claim_expires_at=0, current_run_id='', updated_at=?
+                       claimed_by='', claim_expires_at=0, not_before=0, current_run_id='',
+                       updated_at=?
                        WHERE id=?""",
                     (status, now(), task_id),
                 )

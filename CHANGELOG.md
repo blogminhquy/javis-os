@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.44] - 2026-09-20
+### Sửa lỗi
+- **Việc nền chạy bằng Antigravity CLI ở mức auto đã dùng được shell và ghi file thật.** Trước đó Javis truyền hai cờ đi cùng nhau khiến agy tự huỷ tool sau 5 giây, việc Kanban, Loop và bước Workflow chạy rồi báo "không khởi động được lớp công cụ" mà log không có lỗi nào. Giờ mức auto chỉ giữ cờ tự duyệt, rào hành động ra ngoài vẫn ở hub như cũ.
+- **Chat dài với Antigravity không còn trả lời lạc đề sang câu hỏi cũ.** Khi hội thoại dài phải đi qua file ngữ cảnh, lời nhắc trên dòng lệnh lại dán nhầm đoạn đầu lịch sử làm "tin nhắn mới nhất", nên model đọc dở file là trả lời một câu từ chiều. Nay lời nhắc chỉ chép đúng câu vừa hỏi, và lịch sử gửi lại mỗi lượt được gọn hơn.
+- **Việc nền vấp "hết lượt gói" nay tự đợi đúng giờ gói mở lại rồi chạy tiếp,** không tính vào số lần thử, thay vì thử lại liên tục trong vài phút rồi nằm chặn vĩnh viễn. Thẻ việc ghi rõ gói nào hết lượt và mấy giờ chạy lại; kéo việc về Sẵn sàng là chạy ngay.
+### Cải thiện
+- **Cộng sự không còn từ chối việc "ngoài vai" hay bịa đã giao cho agent khác.** Prompt của mọi cộng sự nói rõ họ có toàn bộ công cụ của Javis (Drive, Composio, giao việc nền, nhắc hẹn...), chỉ được nói đã giao việc khi vừa gọi tool thật, và không hẹn "có kết quả em báo lại".
+
 ## [0.59.43] - 2026-09-20
 ### Sửa lỗi
 - **Ảnh trong file .md giờ hiện ra.** Trước đây Javis tìm mọi ảnh từ gốc brain, nên note nằm trong thư mục con mà chèn ảnh cạnh nó thì chỉ thấy một ô xám. Giờ Javis tìm cạnh chính file note trước, đúng như Obsidian và VS Code, rồi mới tìm ở gốc brain và trong attachments.

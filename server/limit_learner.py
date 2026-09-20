@@ -358,6 +358,51 @@ def subscription_span(text: str) -> tuple[int, int] | None:
     return m.span() if m else None
 
 
+# Nhà chạy agent (AGENT_PROVIDERS trong main.py) -> tên engine mà bộ nhận dạng ở đây hiểu. Nhà
+# không có trong bảng (API key thuần) thì để rỗng: gói thuê bao chỉ là chuyện của bốn nhà này,
+# gán bừa một cái tên là câu báo lỗi nói sai tên gói người dùng phải đi gia hạn. Đặt ở đây (chứ
+# không ở main.py) để hàng đợi Kanban (tasks.py, không import được main) dùng CÙNG một bảng.
+ENGINE_HINT_BY_PROVIDER = {
+    "anthropic-cli": "claude-code",
+    "openai-oauth": "codex",
+    "grok-cli": "grok-cli",
+    "antigravity-cli": "antigravity-cli",
+}
+
+# Trần chữ của một output được coi là "chỉ có câu báo hết lượt". Dài hơn thế thì bước đã LÀM
+# RA việc thật, câu tiếng Anh kia chỉ là một đoạn trích trong đó.
+DOMINATES_MAX_CHARS = 400
+# Câu báo được coi là mở đầu dòng nếu nằm trong ngần này ký tự đầu dòng (chừa chỗ cho "Error: ",
+# "⚠ ", dấu đầu dòng).
+DOMINATES_LINE_START = 12
+
+
+def subscription_dominates(raw: str) -> bool:
+    """Câu báo hết lượt có CHIẾM output này không, hay chỉ được trích trong một bài viết?
+
+    Đây là hàng rào chống chính cái loại hỏng mà bản vá hết lượt sinh ra để dập. Một agent viết
+    bài hoàn toàn có thể viết: Khi gặp thông báo "You have reached your session limit" thì nên
+    chờ. Nhận nhầm câu đó là bước bị vứt nguyên bài viết thật và người dùng bị báo là hết gói
+    trong khi gói vẫn còn - tệ hơn hẳn lỗi cũ.
+
+    Ba điều kiện, phải đúng cả: output ngắn (bài thật thì dài hơn nhiều), câu báo mở đầu dòng
+    của nó HOẶC chiếm quá nửa dòng đó. Câu nhà cung cấp in ra luôn thoả; câu trích giữa một câu
+    văn thì không. Dùng chung cho bước workflow (main.py) và việc Kanban (tasks.py).
+    """
+    raw = str(raw or "")
+    span = subscription_span(raw)
+    if not span:
+        return False
+    if len(raw.strip()) > DOMINATES_MAX_CHARS:
+        return False
+    dau_dong = raw.rfind("\n", 0, span[0]) + 1
+    het_dong = raw.find("\n", span[1])
+    dong = raw[dau_dong: het_dong if het_dong >= 0 else len(raw)].strip()
+    if not dong:
+        return False
+    return (span[0] - dau_dong) <= DOMINATES_LINE_START or (span[1] - span[0]) * 2 >= len(dong)
+
+
 def parse_subscription_limit(text: str, engine_hint: str = "",
                              now: float | None = None) -> SubscriptionLimit | None:
     """Nhận ra lỗi "gói thuê bao hết lượt". None nghĩa là không phải loại lỗi này.

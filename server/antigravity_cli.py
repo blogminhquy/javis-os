@@ -552,21 +552,48 @@ def _viet_file_ngu_canh(cwd: str, noi_dung: str) -> tuple[str, str]:
     return str(p), str(p)
 
 
+def cau_hoi_moi_nhat(prompt: str) -> str:
+    """Bóc ĐÚNG tin nhắn mới nhất của người dùng ra khỏi gói prompt Javis gửi cho `agy`.
+
+    Vì `agy` không nối lại mạch, mỗi lượt Javis gửi cả lịch sử hội thoại đã gói bằng
+    `compaction.bootstrap_prompt`: lịch sử cũ ở trên, rồi một dòng đánh dấu, rồi câu hỏi hiện
+    tại ở CUỐI. Chỗ nào cần "câu hỏi thật" (lời nhắc trên dòng lệnh khi đi đường file) phải lấy
+    phần SAU dấu đó. Bản trước lấy 1500 ký tự ĐẦU của cả gói, tức là tiêu đề khối lịch sử cộng
+    một câu hỏi CŨ, rồi dán lên dòng lệnh dưới nhãn "tin nhắn mới nhất của người dùng". Model
+    nào không đọc hết file ngữ cảnh (file dài hàng trăm nghìn ký tự, tool đọc file cắt cụt) là
+    trả lời đúng câu hỏi cũ đó - chính cảnh "chat dài thì trả lời không liên quan, mở chat mới
+    thì lại bình thường" mà người dùng báo 2026-09-18/19.
+    Không có dấu (phiên mới, chưa có lịch sử) thì cả prompt là câu hỏi.
+    """
+    raw = str(prompt or "")
+    try:
+        import compaction
+        dau = compaction.CURRENT_REQUEST_MARKER
+    except Exception:
+        dau = "[YÊU CẦU HIỆN TẠI]"
+    i = raw.rfind(dau)
+    if i < 0:
+        return raw.strip()
+    return raw[i + len(dau):].strip()
+
+
 def _loi_nhac_file(duong_dan: str, cau_hoi: str) -> str:
     """Prompt NGẮN thay cho cả gói: bảo model tự mở file ngữ cảnh ra đọc.
 
     Câu hỏi thật vẫn được nhắc lại ở đây (cắt ngắn) chứ không chỉ nằm trong file. Đó là lưới an
     toàn: bản CLI nào bướng không chịu đọc file thì ít ra vẫn trả lời đúng câu người dùng hỏi,
-    chỉ thiếu luật riêng của Javis, chứ không trả lời trống trơn.
+    chỉ thiếu luật riêng của Javis, chứ không trả lời trống trơn. Phải là câu hỏi MỚI NHẤT
+    (xem `cau_hoi_moi_nhat`), không phải đoạn đầu của gói lịch sử.
     """
-    hoi = (cau_hoi or "").strip()
+    hoi = cau_hoi_moi_nhat(cau_hoi)
     if len(hoi) > 1500:
         hoi = hoi[:1500] + " [...]"
     return (
         f"BẮT BUỘC LÀM TRƯỚC: mở và đọc HẾT file `{duong_dan}`.\n"
         "File đó chứa toàn bộ chỉ dẫn hệ thống, bộ nhớ và lịch sử hội thoại của bạn. Đọc xong "
-        "thì hành xử đúng theo nó và trả lời tin nhắn mới nhất của người dùng (nằm ở cuối file). "
-        "Không nhắc tới file này trong câu trả lời, không tóm tắt nó.\n"
+        "thì hành xử đúng theo nó và trả lời tin nhắn mới nhất của người dùng (nằm ở cuối file, "
+        "và được chép lại ở cuối lời nhắc này). Các câu hỏi cũ hơn trong file ĐÃ được trả lời "
+        "rồi, không trả lời lại. Không nhắc tới file này trong câu trả lời, không tóm tắt nó.\n"
         "Nếu KHÔNG mở được file (không có quyền, không tìm thấy), đừng im lặng và cũng đừng đoán: "
         "trả lời câu hỏi dưới đây rồi nói thẳng ở cuối là bạn không đọc được file ngữ cảnh.\n"
         "(Phải đi qua file vì hệ điều hành chặn độ dài dòng lệnh, không nhét thẳng vào đây được.)\n\n"
@@ -648,17 +675,26 @@ def co_quyen_cho_mode(mode: Optional[str]) -> list[str]:
     """
     m = str(mode or "").strip().lower()
     co: list[str] = []
-    if m == "full":
+    if m in ("full", "auto"):
+        # auto = được ghi file nháp trong brain. Headless mà dừng lại hỏi duyệt là treo tới hết
+        # giờ, nên vẫn phải tự duyệt; rào tiền/đơn/đăng bài nằm ở MCP Hub chứ không ở đây.
+        #
+        # auto KHÔNG còn kèm `--sandbox` (đo 2026-09-19 trên agy 1.2.7, task t_305e712a90f4):
+        # `agy --sandbox --dangerously-skip-permissions -p "ls"` in "root agent idle; waiting up
+        # to 5s for 1 background task(s)" rồi "terminating 1 background task(s) on exit" mà KHÔNG
+        # có kết quả nào. Hai cờ đi cùng nhau khiến tool shell của agy chạy như một việc nền, và
+        # chế độ in một lượt (-p) tự huỷ nó sau 5 giây trước khi tool kịp trả lời. Bỏ `--sandbox`
+        # là chạy đúng (đo 4 lần mỗi bên). Mọi việc Kanban/Loop/Workflow ở mức auto cần shell
+        # hay ghi file thật đều chết câm vì tổ hợp này, còn model vẫn trả lời trôi chảy nên log
+        # không có lấy một dòng lỗi. Rào hành động ra ngoài vốn nằm ở MCP Hub chứ không ở
+        # `--sandbox`, nên bỏ cờ không mất lớp phòng vệ thật nào.
         if co_co("--dangerously-skip-permissions"):
             co.append("--dangerously-skip-permissions")
         return co
-    # suggest + auto + mọi giá trị lạ: bật sandbox nếu bản CLI có.
+    # suggest + mọi giá trị lạ: bật sandbox nếu bản CLI có. suggest không tự duyệt tool nên
+    # không dính tổ hợp hỏng ở trên.
     if co_co("--sandbox"):
         co.append("--sandbox")
-    if m == "auto" and co_co("--dangerously-skip-permissions"):
-        # auto = được ghi file nháp trong brain. Headless mà dừng lại hỏi duyệt là treo tới hết
-        # giờ, nên vẫn phải tự duyệt; rào tiền/đơn/đăng bài nằm ở MCP Hub chứ không ở đây.
-        co.append("--dangerously-skip-permissions")
     return co
 
 

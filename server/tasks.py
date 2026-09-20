@@ -30,6 +30,8 @@ from fastapi import APIRouter, Form, Query
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine
 import channel_context
+import limit_learner      # nhận diện "gói thuê bao hết lượt" - CÙNG bộ mẫu với khung chat
+import limit_resume       # mượn hằng trừ hao / trần chờ của khung chat, không đẻ bộ số thứ hai
 from task_store import TaskStore, VALID_STATUS
 
 
@@ -41,6 +43,23 @@ SPECIFIER_TIMEOUT_SECONDS = 180
 WORKER_TIMEOUT_SECONDS = 900
 # Việc đã kết thúc (done/cancelled) quá số ngày này tự chuyển archived (rời bảng, còn tra được).
 ARCHIVE_TERMINAL_AFTER_DAYS = 3.0
+# Việc vấp "gói thuê bao hết lượt" (Claude Code / Codex / Grok Build / Antigravity). Khung chat
+# đã có limit_resume.py hẹn đúng mốc reset; hàng đợi này trước đây chỉ có `_is_transient` khớp
+# "429"/"rate limit" rồi trả việc về ready NGAY, dispatcher nhặt lại sau 5 giây, đốt hết 3 lượt
+# thử trong vài phút trong khi gói còn 47 phút nữa mới mở (task t_305e712a90f4, 2026-09-19).
+# Nay: biết mốc reset thì hoãn tới đúng mốc (+ trừ hao như chat) và KHÔNG tính lượt; không biết
+# thì hoãn một khoảng cố định và có tính lượt; xa quá thì chặn hẳn kèm lý do, chờ người bấm.
+LIMIT_GRACE_SECONDS = limit_resume.GRACE_SECONDS
+LIMIT_MAX_WAIT_SECONDS = limit_resume.MAX_WAIT_SECONDS
+LIMIT_UNKNOWN_WAIT_SECONDS = 30 * 60
+# Tên gói để câu báo trên thẻ việc nói đúng gói nào hết lượt.
+_TEN_GOI = {
+    "claude-code": "Claude (Pro/Max)",
+    "codex": "ChatGPT",
+    "grok-cli": "SuperGrok / X Premium",
+    "antigravity-cli": "Google Antigravity",
+    "gemini-cli": "Google",
+}
 CAPABILITIES = {"auto", "files", "research", "mcp-read", "code", "external-write"}
 EXECUTION_MODES = {"suggest", "auto", "full"}
 # Gom thông báo việc KẸT: chờ ngần này giây kể từ việc kẹt đầu tiên rồi mới bắn MỘT tin cho
@@ -391,7 +410,10 @@ class TasksFeature:
                 spec, error = await asyncio.wait_for(
                     self._specify(task), timeout=SPECIFIER_TIMEOUT_SECONDS
                 )
-                if error:
+                het_luot = self._het_luot(error, "") if error else None
+                if het_luot:
+                    final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
+                elif error:
                     final_task = self.store.block(
                         tid, worker_id, "transient", error, transient=True
                     )
@@ -423,7 +445,12 @@ class TasksFeature:
             result, error, needs_input, metadata = await asyncio.wait_for(
                 self._execute(task), timeout=WORKER_TIMEOUT_SECONDS
             )
-            if error:
+            # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
+            # báo lỗi, và bản trước coi đó là việc XONG với "kết quả" là một câu tiếng Anh.
+            het_luot = self._het_luot(error, "" if error else result)
+            if het_luot:
+                final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
+            elif error:
                 final_task = self.store.block(
                     tid,
                     worker_id,
@@ -454,13 +481,17 @@ class TasksFeature:
             self.store.cancel_running(tid, "worker cancelled")
             raise
         except Exception as exc:
-            final_task = self.store.block(
-                tid,
-                worker_id,
-                "transient",
-                f"{type(exc).__name__}: {exc}",
-                transient=True,
-            )
+            het_luot = self._het_luot(str(exc), "")
+            if het_luot:
+                final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
+            else:
+                final_task = self.store.block(
+                    tid,
+                    worker_id,
+                    "transient",
+                    f"{type(exc).__name__}: {exc}",
+                    transient=True,
+                )
         finally:
             heartbeat.cancel()
             await asyncio.gather(heartbeat, return_exceptions=True)
@@ -786,6 +817,58 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
                 "tool_calls": tool_calls[-100:],
                 "provider": aux_engine.read_spec().get("provider"),
             },
+        )
+
+    @staticmethod
+    def _het_luot(error: str, result: str):
+        """`SubscriptionLimit` nếu lượt vừa rồi vấp "gói thuê bao hết lượt", None nếu không.
+
+        Dùng lại bộ nhận dạng của khung chat (`limit_learner.parse_subscription_limit`) chứ
+        không viết bộ thứ hai. `error` được tin thẳng; `result` chỉ được tính khi câu báo CHIẾM
+        cả output (`subscription_dominates`), vì một bài viết thật có thể trích câu đó."""
+        provider = str(aux_engine.read_spec().get("provider") or "")
+        hint = limit_learner.ENGINE_HINT_BY_PROVIDER.get(provider, "")
+        for raw, phai_ap_dao in ((error, False), (result, True)):
+            raw = str(raw or "")
+            if not raw.strip():
+                continue
+            if phai_ap_dao and not limit_learner.subscription_dominates(raw):
+                continue
+            try:
+                hit = limit_learner.parse_subscription_limit(raw, engine_hint=hint)
+            except Exception:   # noqa: BLE001 - bộ nhận dạng không được làm việc chết thêm
+                hit = None
+            if hit:
+                return hit
+        return None
+
+    def _hoan_vi_het_luot(self, tid: str, worker_id: str, hit) -> Optional[dict]:
+        """Hoãn việc tới lúc gói mở lại. Trả task sau khi ghi kho (ready + not_before, hoặc
+        blocked nếu mốc quá xa). Việc về ready lặng lẽ: thẻ trên trang Việc hiện lý do và giờ
+        chạy lại, không bắn thông báo vì chưa có gì cần người dùng làm."""
+        ts = time.time()
+        moc_nha = float(getattr(hit, "reset_epoch", 0) or 0)
+        biet_moc = moc_nha > ts
+        moc = (moc_nha + LIMIT_GRACE_SECONDS) if biet_moc else (ts + LIMIT_UNKNOWN_WAIT_SECONDS)
+        ten = _TEN_GOI.get(str(getattr(hit, "engine", "") or ""), "") or "thuê bao đang dùng"
+        gio = time.strftime("%H:%M ngày %d/%m", time.localtime(moc))
+        nha_noi = str(getattr(hit, "reset_text", "") or "").strip()
+        if moc - ts > LIMIT_MAX_WAIT_SECONDS:
+            ly_do = (f"Gói {ten} hết lượt, mốc mở lại quá xa để tự đợi"
+                     f" ({nha_noi or gio}). Kéo việc về Sẵn sàng khi gói mở lại.")
+            print(f"[kanban] {tid}: {ly_do}", file=sys.stderr)
+            return self.store.block(tid, worker_id, "limit", ly_do)
+        if biet_moc:
+            ly_do = (f"Gói {ten} hết lượt"
+                     + (f" (nhà cung cấp báo: {nha_noi})" if nha_noi else "")
+                     + f". Tự chạy lại lúc {gio}, không tính vào số lần thử.")
+        else:
+            ly_do = (f"Gói {ten} hết lượt, nhà cung cấp không nói mở lại lúc nào."
+                     f" Thử lại lúc {gio}.")
+        print(f"[kanban] {tid}: {ly_do}", file=sys.stderr)
+        return self.store.block(
+            tid, worker_id, "limit", ly_do, transient=True,
+            not_before=moc, keep_attempt=biet_moc,
         )
 
     @staticmethod
