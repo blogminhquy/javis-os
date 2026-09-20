@@ -131,8 +131,29 @@
     return init(ma);
   }
 
+  // Nhãn hiển thị cho tên NHÓM / DANH MỤC do DỮ LIỆU mang tới (kho Kết nối, Javis Store).
+  // Giá trị gốc là tiếng Việt và đang làm KHOÁ lọc (`data-cat`, `data-kho-nhom`), nên không
+  // đổi ở nguồn - chỉ đổi lúc VẼ. Cách tra: tìm khoá `cat.*` nào có bản tiếng Việt đúng bằng
+  // tên gốc rồi lấy bản dịch của khoá đó, nên mã này không phải viết chuỗi Việt nào. Tên lạ
+  // (gói cộng đồng tự đặt) thì giữ nguyên. Mã máy `ban-hang` của kho là ngoại lệ ASCII.
+  var NHOM_MA_MAY = { "ban-hang": "cat.ban_hang" };
+  function catLabel(raw) {
+    var goc = String(raw == null ? "" : raw).trim();
+    if (!goc) return "";
+    var khoa = NHOM_MA_MAY[goc] || "";
+    if (!khoa) {
+      for (var k in _goc) {
+        if (k.indexOf("cat.") === 0 && _goc[k] === goc) { khoa = k; break; }
+      }
+    }
+    if (!khoa) return goc;
+    var v = t(khoa);
+    return v === khoa ? goc : v;
+  }
+
   window.JavisI18n = {
     t: t,
+    catLabel: catLabel,
     init: init,
     setLang: setLang,
     applyDom: applyDom,

@@ -14754,11 +14754,13 @@ def _engine_runtime_view(settings: dict) -> dict:
                           "nên thực tế chưa tiết kiệm được gì.")
         return {"provider": prov, "nhan": label, "kind": kind, "model": model or "",
                 "loai": "Gói thuê bao" if thue_bao else "API key",
+                # Cờ máy đọc: `loai` là nhãn tiếng Việt, giao diện không được so chuỗi với nó.
+                "thue_bao": bool(thue_bao),
                 "duong_hop": sorted(hop), "duong_khong_hop": sorted(khong),
                 "giai_thich": giai_thich}
     except Exception:   # noqa: BLE001 - xem docstring
         return {"provider": "", "nhan": "", "kind": "", "model": "", "loai": "",
-                "duong_hop": [], "duong_khong_hop": [],
+                "thue_bao": False, "duong_hop": [], "duong_khong_hop": [],
                 "giai_thich": "Chưa đọc được cấu hình bộ não."}
 
 

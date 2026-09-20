@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.50] - 2026-09-20
+### Cải thiện
+- **Giao diện tiếng Anh hết lọt chữ Việt:** chip lọc danh mục ở trang Kết nối (Văn phòng, Nhắn tin, Quảng cáo...), cột nhóm bên trái Javis Store và nhóm "Khác" trên thanh bên nay đổi theo ngôn ngữ đã chọn. Tên nhóm do gói cộng đồng tự đặt vẫn giữ nguyên.
+- Lời nhắc tải bản .dmg trong lệnh cài Ollama trên Mac cũng có bản tiếng Anh.
+
 ## [0.59.49] - 2026-09-20
 ### Cải thiện
 - **Trang Chia sẻ: ô tìm hiện ngay từ khi có 2 link,** không đợi tới 9 link như trước, và khi gõ có dòng "Khớp x / y link" bên dưới. Danh sách vẫn chia trang 20 link. Trên điện thoại đường dẫn, link và nút Chép/Thu hồi to hơn để đọc và chạm dễ.

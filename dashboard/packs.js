@@ -52,6 +52,12 @@
     return String(s).replace(/\{(\w+)\}/g, (m, ten) =>
       (bien && bien[ten] != null) ? String(bien[ten]) : m);
   }
+  // Tên nhóm của gói là tiếng Việt và là KHOÁ lọc (`data-kho-nhom`), nên chỉ dịch lúc vẽ; xem
+  // `JavisI18n.catLabel`. Tên lạ do gói cộng đồng tự đặt thì giữ nguyên.
+  function nhanNhom(ten) {
+    const i = (typeof window !== "undefined") && window.JavisI18n;
+    return i && typeof i.catLabel === "function" ? i.catLabel(ten) : (ten || "");
+  }
 
   // name/description là map đa ngôn ngữ. Lấy theo ngôn ngữ giao diện, rơi về en, rồi về giá
   // trị đầu tiên có được - thiếu bản dịch thì hiện tiếng khác, không bao giờ hiện trống.
@@ -523,7 +529,7 @@
     return '<div class="cat-card kho-the" data-loai="' + esc(g.kind || "bundle") + '"'
       + ' data-nhom="' + esc(g.nhom || "") + '" data-ng="' + (g.verified ? "1" : "0") + '">'
       + '<div class="kho-dau">' + veAvatar(g)
-      + '<span class="kho-nhom">' + esc(g.nhom || tw(lo.nhan)) + '</span></div>'
+      + '<span class="kho-nhom">' + esc(g.nhom ? nhanNhom(g.nhom) : tw(lo.nhan)) + '</span></div>'
       + '<div class="kho-ten">' + esc(nn(g.name, g.id))
       + ' <span class="prov-kind">' + esc(tw(lo.nhan)) + '</span>'
       + ' <span class="prov-kind" style="color:' + bac.mau + '">' + tw(bac.nhan) + '</span>'
@@ -709,7 +715,7 @@
           ? hangNhom("Có bản mới", capNhatLoai.length, laMoi, false, tw("cs.upd_have_new")) : "")
       + (congDong.length
           ? hangNhom("Cộng đồng", congDong.length, laCongDong, false, tw("store.community")) : "")
-      + tenNhom.map((t, i) => hangNhom(t, dem[t], _kho.nhom === t, i === 0)).join("")
+      + tenNhom.map((t, i) => hangNhom(t, dem[t], _kho.nhom === t, i === 0, nhanNhom(t))).join("")
       + '</div>'
       + '<div class="kho-chinh">'
       + '<div class="cat-tools">'

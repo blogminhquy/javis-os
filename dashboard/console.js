@@ -135,7 +135,7 @@
     const rest = RAIL_ITEMS.filter(i => !seen.has(i.id));
     if (rest.length) {
       const foot = groups.find(g => g.foot);
-      if (foot) foot.items.push(...rest); else groups.push({ label: "Khác", foot: false, items: rest });
+      if (foot) foot.items.push(...rest); else groups.push({ label: t("nav.group.khac"), foot: false, items: rest });
     }
     return groups;
   }
@@ -3236,9 +3236,15 @@
   // chỉ còn: CHƯA NỐI (hiện lệnh cài để người dùng tự chạy trong terminal máy thật) và ĐÃ NỐI.
   const OL_LENH = {
     linux: "curl -fsSL https://ollama.com/install.sh | sh",
-    mac: "brew install ollama   # hoặc tải bản .dmg ở ollama.com/download",
+    mac: "brew install ollama",
     windows: "winget install Ollama.Ollama",
   };
+  // Lệnh cài theo máy. Mac có thêm lời nhắc cách hai (tải .dmg) ở đuôi, viết dạng chú thích
+  // shell nên dán nguyên vào terminal vẫn chạy; câu nhắc đi theo ngôn ngữ giao diện.
+  function olLenhCai(st) {
+    const lenh = OL_LENH[st.host_platform] || OL_LENH.linux;
+    return st.host_platform === "mac" ? lenh + "   # " + t("ol.mac_hint") : lenh;
+  }
   // Bản Docker cần NHIỀU HƠN một lệnh cài. Bản 0.55.0 chỉ nói "cài trên máy thật rồi điền địa
   // chỉ", và chủ repo dán ngay lệnh đó vào terminal của Javis (02/09) - dễ hiểu, vì nút copy
   // nằm ngay cạnh mà app thì có sẵn một cái terminal. Nhưng kể cả cài đúng chỗ vẫn còn hai bức
@@ -3274,7 +3280,7 @@
   }
 
   function olVeChuaNoi(el, st) {
-    const lenh = OL_LENH[st.host_platform] || OL_LENH.linux;
+    const lenh = olLenhCai(st);
     // Docker/VPS: máy chạy Javis KHÔNG phải máy người dùng, nên câu hướng dẫn phải khác hẳn -
     // bảo họ chạy lệnh "trên máy này" là bảo họ cài Ollama vào trong container.
     const xa = st.deploy_mode === "docker";
@@ -4537,6 +4543,13 @@
       + '</div>';
   }
 
+  // Tên danh mục trong catalog là tiếng Việt và là KHOÁ lọc (`data-cat`), nên chỉ dịch lúc vẽ
+  // chip/nhãn; xem `JavisI18n.catLabel`. Không có bộ dịch (test chạy tách file) thì giữ nguyên.
+  function nhanDanhMuc(x) {
+    const i = window.JavisI18n;
+    return i && typeof i.catLabel === "function" ? i.catLabel(x) : (x || "");
+  }
+
   // ── Nhóm connector (khối B): mọi dịch vụ Google gom về MỘT card, bấm vào chọn dịch vụ ──
   const GROUP_META = {
     google: { name: "Google", icon: '<span class="gico">G</span>', category: "Văn phòng",
@@ -5179,7 +5192,7 @@
         + '<div class="prov-list" style="margin-top:12px">'
         + removed.map(r => '<div class="prov-row"><div class="prov-ico">' + iconInner(r) + '</div>'
             + '<div class="prov-main"><div class="prov-name">' + esc(r.name) + '</div>'
-            + '<div class="prov-meta">' + esc(r.category) + '</div></div>'
+            + '<div class="prov-meta">' + esc(nhanDanhMuc(r.category)) + '</div></div>'
             + '<button class="gcard-btn" data-coreon="' + esc(r.id) + '">' + esc(window.t("store.reinstall")) + '</button></div>').join("")
         + '</div></details>'
       : "";
@@ -5210,7 +5223,7 @@
       + '<div id="mcpTabSanCo"' + (_mcpTab === "sanco" ? "" : " hidden") + '>'
       + '<div class="cview-section"><h3>◆ ' + esc(window.t("cs.cn_tab_sanco")) + '</h3>'
       + '<div class="cat-tools"><input class="js-input" id="catQ" placeholder="' + esc(window.t("cs.cn_search_ph")) + '" style="max-width:220px">'
-      + '<span class="cat-filter"><button class="cat-chip on" data-catf="">' + esc(window.t("studio.all")) + '</button>' + cats.map(x => '<button class="cat-chip" data-catf="' + esc(x) + '">' + esc(x) + '</button>').join("") + '</span></div>'
+      + '<span class="cat-filter"><button class="cat-chip on" data-catf="">' + esc(window.t("studio.all")) + '</button>' + cats.map(x => '<button class="cat-chip" data-catf="' + esc(x) + '">' + esc(nhanDanhMuc(x)) + '</button>').join("") + '</span></div>'
       + '<div class="cat-grid" id="catGrid">' + catalogCard(byId.custom) + groupCards(cat, conns) + catSolo(cat).map(catalogCard).join("") + '</div></div>'
       // Hai khu kết nối sẵn của CLI: GẬP mặc định (dân thường không cần thấy) + LAZY:
       // chỉ gọi /mcp/ambient (chậm - phải health check) khi người dùng thật sự mở ra.
