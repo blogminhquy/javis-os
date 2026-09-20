@@ -8,7 +8,7 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Sửa lỗi
 - **Link chia sẻ của ứng dụng .html giờ đọc được file dữ liệu kèm theo.** Trước đây app đọc data.json hay .csv bên cạnh, chia sẻ xong mở ra trống trơn: đường dẫn tương đối trỏ sai chỗ, và trang chạy trong hộp cách ly nên bị trình duyệt chặn đọc. Nay cả hai đã sửa; app cần nằm trong một thư mục riêng (ví dụ apps/ten-app/) để chỉ file trong thư mục đó được mở, ghi chú ngoài thư mục vẫn kín.
 ### Thêm mới
-- **Trang Cộng sự gom cộng sự theo phòng ban.** Chọn "Tất cả phòng ban" là danh sách chia thành từng phòng ban, bấm tiêu đề để thu gọn hay mở, số người hiện bên phải. Nút "..." trên tiêu đề cho đổi tên cả phòng ban hoặc chỉ xem phòng ban đó. Chuyển một cộng sự sang phòng ban khác hay lập phòng ban mới vẫn ở menu "..." của từng cộng sự.
+- **Trang Cộng sự gom cộng sự theo nhóm.** Chọn "Tất cả nhóm" là danh sách chia thành từng nhóm, bấm tiêu đề để thu gọn hay mở, số người hiện bên phải. Nút "..." trên tiêu đề cho đổi tên cả nhóm hoặc chỉ xem nhóm đó. Nhóm là gì tuỳ bạn đặt (phòng ban, dự án, mục đích), chuyển cộng sự sang nhóm khác hay lập nhóm mới vẫn ở menu "..." của từng cộng sự.
 
 ## [0.59.45] - 2026-09-20
 ### Cải thiện

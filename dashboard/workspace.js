@@ -55,15 +55,15 @@
       return String(a.name || "").localeCompare(String(b.name || ""), "vi");
     });
   }
-  // ---------- PHÒNG BAN: gom cộng sự theo field `group`, giống thư mục dự án bên Trò chuyện ----------
+  // ---------- NHÓM: gom cộng sự theo field `group`, giống thư mục dự án bên Trò chuyện ----------
   // Chủ repo 20/09: "làm thêm phần gom nhóm giống bên trò chuyện để có thể gom nhiều agent
-  // thành phòng ban khác nhau". Trước đó cột trái chỉ có Ô LỌC theo nhóm; chọn "Tất cả" thì
-  // danh sách phẳng, hai chục cộng sự của năm phòng ban trộn vào nhau. Nay ở chế độ "Tất cả"
-  // danh sách chia thành từng phòng ban có tiêu đề bấm thu gọn/mở, số người bên phải, và nút
-  // "..." để đổi tên cả phòng ban. Dữ liệu vẫn là field `group` sẵn có trong frontmatter, nên
-  // Studio, ô lọc và menu "Chuyển sang phòng ban" đều nhìn thấy cùng một thứ.
+  // thành nhóm khác nhau". Trước đó cột trái chỉ có Ô LỌC theo nhóm; chọn "Tất cả" thì
+  // danh sách phẳng, hai chục cộng sự của năm nhóm trộn vào nhau. Nay ở chế độ "Tất cả"
+  // danh sách chia thành từng nhóm có tiêu đề bấm thu gọn/mở, số người bên phải, và nút
+  // "..." để đổi tên cả nhóm. Dữ liệu vẫn là field `group` sẵn có trong frontmatter, nên
+  // Studio, ô lọc và menu "Chuyển sang nhóm" đều nhìn thấy cùng một thứ.
   var NHOM_MD = "Chung";
-  var KHOA_THU = "javis_ws_thu";                 // localStorage: phòng ban đang THU GỌN, theo loại
+  var KHOA_THU = "javis_ws_thu";                 // localStorage: nhóm đang THU GỌN, theo loại
   function nhomCua(x) { return (String((x && x.group) || "").trim()) || NHOM_MD; }
   function docThu() {
     try { var o = JSON.parse(localStorage.getItem(KHOA_THU) || "{}") || {}; return { agent: o.agent || [], workflow: o.workflow || [] }; }
@@ -78,9 +78,9 @@
   }
   // Chia danh sách (đã lọc, đã sắp) thành các KHỐI theo thứ tự vẽ. Hàm thuần, test được:
   //   - khối "Đã ghim" đứng đầu nếu có mục ghim;
-  //   - đang lọc MỘT phòng ban thì phần còn lại là một khối duy nhất (nhãn "Còn lại" chỉ khi
+  //   - đang lọc MỘT nhóm thì phần còn lại là một khối duy nhất (nhãn "Còn lại" chỉ khi
   //     có khối ghim phía trên, như trước);
-  //   - "Tất cả" thì mỗi phòng ban một khối, xếp theo tên (tiếng Việt), "Chung" xuống cuối vì
+  //   - "Tất cả" thì mỗi nhóm một khối, xếp theo tên (tiếng Việt), "Chung" xuống cuối vì
   //     đó là chỗ của người chưa được xếp vào đâu, giống "Không thuộc dự án" bên Trò chuyện.
   function gomNhom(ds, nhomLoc) {
     var ghim = (ds || []).filter(function (x) { return x.pinned; });
@@ -88,7 +88,7 @@
     var ra = [];
     if (ghim.length) ra.push({ ghim: true, nhom: "", items: ghim });
     if (nhomLoc) {
-      if (thuong.length) ra.push({ ghim: false, nhom: nhomLoc, items: thuong, phongBan: false, tieuDe: !!ghim.length });
+      if (thuong.length) ra.push({ ghim: false, nhom: nhomLoc, items: thuong, theoNhom: false, tieuDe: !!ghim.length });
       return ra;
     }
     var theo = {};
@@ -96,7 +96,7 @@
     Object.keys(theo).sort(function (a, b) {
       if (a === NHOM_MD) return 1; if (b === NHOM_MD) return -1;
       return a.localeCompare(b, "vi");
-    }).forEach(function (g) { ra.push({ ghim: false, nhom: g, items: theo[g], phongBan: true, tieuDe: true }); });
+    }).forEach(function (g) { ra.push({ ghim: false, nhom: g, items: theo[g], theoNhom: true, tieuDe: true }); });
     return ra;
   }
 
@@ -440,13 +440,13 @@
     var host = el.querySelector("#wsList");
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
     if (S.hien < TRANG) S.hien = TRANG;
-    // Vẽ theo KHỐI (xem gomNhom). Phòng ban đang thu gọn chỉ còn hàng tiêu đề, không tính vào
+    // Vẽ theo KHỐI (xem gomNhom). Nhóm đang thu gọn chỉ còn hàng tiêu đề, không tính vào
     // trang; phân trang đếm MỤC đã vẽ chứ không đếm tiêu đề.
     var html = "", daVe = 0, tong = 0;
     gomNhom(ds, S.nhom).forEach(function (n) {
-      var thu = n.phongBan && daThu(n.nhom);
+      var thu = n.theoNhom && daThu(n.nhom);
       if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
-      else if (n.phongBan) html += phongBanHtml(n.nhom, n.items.length, thu);
+      else if (n.theoNhom) html += nhomHtml(n.nhom, n.items.length, thu);
       else if (n.tieuDe) html += '<div class="ws-glabel">' + esc(t("ws.grp_rest")) + '</div>';
       if (thu) return;
       tong += n.items.length;
@@ -467,15 +467,15 @@
     };
     noiDanhSach(host);
   }
-  // Hàng tiêu đề của MỘT phòng ban: nút thu gọn/mở (tên + số người) và nút "..." quản lý.
+  // Hàng tiêu đề của MỘT nhóm: nút thu gọn/mở (tên + số người) và nút "..." quản lý.
   // Hai nút ngang hàng trong một khối, không lồng nhau (button trong button là HTML sai).
-  function phongBanHtml(g, n, thu) {
-    return '<div class="ws-glabel ws-dept' + (thu ? " thu" : "") + '" data-dept="' + esc(g) + '">' +
-      '<button type="button" class="ws-dept-tog" aria-expanded="' + (thu ? "false" : "true") +
-        '" title="' + esc(t("ws.dept_toggle")) + '">' + ic("chevron-down") +
-        '<span class="ws-dept-name">' + esc(g) + '</span><span class="ws-dept-n">' + n + '</span></button>' +
-      '<button type="button" class="ws-dept-more" data-dmore="' + esc(g) + '" title="' + esc(t("ws.dept_manage")) +
-        '" aria-label="' + esc(t("ws.dept_manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
+  function nhomHtml(g, n, thu) {
+    return '<div class="ws-glabel ws-grp' + (thu ? " thu" : "") + '" data-nhom="' + esc(g) + '">' +
+      '<button type="button" class="ws-grp-tog" aria-expanded="' + (thu ? "false" : "true") +
+        '" title="' + esc(t("ws.group_toggle")) + '">' + ic("chevron-down") +
+        '<span class="ws-grp-name">' + esc(g) + '</span><span class="ws-grp-n">' + n + '</span></button>' +
+      '<button type="button" class="ws-grp-more" data-gmore="' + esc(g) + '" title="' + esc(t("ws.group_manage")) +
+        '" aria-label="' + esc(t("ws.group_manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
       '</div>';
   }
   // HTML của MỘT hàng. Tách khỏi veDanhSach để chỗ kia chỉ còn lo nhóm - phân trang, và để
@@ -521,15 +521,15 @@
         if (x) moMenuMuc(x, b);
       };
     });
-    host.querySelectorAll(".ws-dept-tog").forEach(function (b) {
+    host.querySelectorAll(".ws-grp-tog").forEach(function (b) {
       b.onclick = function () {
         var cuon = host.scrollTop;    // giữ chỗ cuộn như nút "Xem thêm"
-        latThu(b.parentNode.dataset.dept); veDanhSach();
+        latThu(b.parentNode.dataset.nhom); veDanhSach();
         var lai = S.el && S.el.querySelector("#wsList"); if (lai) lai.scrollTop = cuon;
       };
     });
-    host.querySelectorAll("[data-dmore]").forEach(function (b) {
-      b.onclick = function (e) { e.stopPropagation(); moMenuPhongBan(b.dataset.dmore, b); };
+    host.querySelectorAll("[data-gmore]").forEach(function (b) {
+      b.onclick = function (e) { e.stopPropagation(); moMenuCuaNhom(b.dataset.gmore, b); };
     });
   }
 
@@ -565,23 +565,23 @@
   function dongMenuEsc(e) { if (e.key === "Escape") { e.stopPropagation(); dongMenu(); } }
 
   function moMenuMuc(item, neo) { moMenuKhung(neo, function (m) { veMenuGoc(item, m); }); }
-  // Menu của MỘT phòng ban (nút "..." trên hàng tiêu đề): chỉ xem phòng ban này, đổi tên cả
-  // phòng ban. Tạo phòng ban mới vẫn đi qua menu của một cộng sự ("Phòng ban mới…"): phòng ban
-  // là tập hợp cộng sự có cùng `group`, không có phòng ban rỗng để mà tạo trước.
-  function moMenuPhongBan(g, neo) {
+  // Menu của MỘT nhóm (nút "..." trên hàng tiêu đề): chỉ xem nhóm này, đổi tên cả
+  // nhóm. Tạo nhóm mới vẫn đi qua menu của một cộng sự ("Nhóm mới…"): nhóm
+  // là tập hợp cộng sự có cùng `group`, không có nhóm rỗng để mà tạo trước.
+  function moMenuCuaNhom(g, neo) {
     moMenuKhung(neo, function (m) {
       var so = danhSach().filter(function (x) { return nhomCua(x) === g; }).length;
       m.innerHTML = '<div class="ws-menu-head">' + esc(g) + ' · ' + so + '</div>' +
-        nutMenu("folder-open", t("ws.dept_only"), "chi") +
-        nutMenu("pencil", t("ws.dept_rename"), "ten");
+        nutMenu("folder-open", t("ws.group_only"), "chi") +
+        nutMenu("pencil", t("ws.group_rename"), "ten");
       m.querySelector('[data-act="chi"]').onclick = function () { dongMenu(); S.nhom = g; S.hien = TRANG; veTrai(); };
-      m.querySelector('[data-act="ten"]').onclick = function () { dongMenu(); doiTenPhongBan(g); };
+      m.querySelector('[data-act="ten"]').onclick = function () { dongMenu(); doiTenNhom(g); };
     });
   }
-  // Đổi tên phòng ban = đổi `group` của TỪNG cộng sự trong đó qua /capability/meta (cùng đường
-  // với "Chuyển sang phòng ban"), rồi tải lại một lần. Trạng thái thu gọn và ô lọc đi theo tên mới.
-  async function doiTenPhongBan(g) {
-    var moi = window.prompt(t("ws.dept_rename_ask", { ten: g }), g);
+  // Đổi tên nhóm = đổi `group` của TỪNG cộng sự trong đó qua /capability/meta (cùng đường
+  // với "Chuyển sang nhóm"), rồi tải lại một lần. Trạng thái thu gọn và ô lọc đi theo tên mới.
+  async function doiTenNhom(g) {
+    var moi = window.prompt(t("ws.group_rename_ask", { ten: g }), g);
     if (moi == null) return;
     moi = String(moi).trim();
     if (!moi || moi === g) return;
@@ -1115,5 +1115,5 @@
   }
 
   window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
-    dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, phongBanHtml: phongBanHtml, state: function () { return S; } };
+    dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, state: function () { return S; } };
 })();

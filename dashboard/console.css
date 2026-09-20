@@ -1748,25 +1748,25 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-glabel { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
   color: var(--text3); padding: 8px 4px 2px; }
 .ws-glabel:first-child { padding-top: 2px; }
-/* Tiêu đề PHÒNG BAN (0.59.46): một hàng bấm được để thu gọn/mở, số cộng sự bên phải, nút "..."
+/* Tiêu đề NHÓM (0.59.46): một hàng bấm được để thu gọn/mở, số cộng sự bên phải, nút "..."
    quản lý. Cùng cỡ chữ viết hoa với nhãn "Đã ghim" để danh sách không thành hai kiểu chữ. */
-.ws-dept { display: flex; align-items: center; gap: 2px; padding: 8px 0 2px; }
-.ws-dept-tog { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 4px 4px;
+.ws-grp { display: flex; align-items: center; gap: 2px; padding: 8px 0 2px; }
+.ws-grp-tog { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 4px 4px;
   border: 0; background: none; color: var(--text2); font-family: var(--font); font-size: 11px;
   font-weight: 600; text-transform: uppercase; letter-spacing: .06em; cursor: pointer;
   border-radius: 7px; text-align: left; }
-.ws-dept-tog:hover { background: var(--surface-1); color: var(--text); }
-.ws-dept-tog svg { width: 14px; height: 14px; flex: none; transition: transform .15s; }
-.ws-dept.thu .ws-dept-tog svg { transform: rotate(-90deg); }
-.ws-dept-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-dept-n { flex: none; font-weight: 500; color: var(--text3); letter-spacing: 0; }
-.ws-dept-more { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center;
+.ws-grp-tog:hover { background: var(--surface-1); color: var(--text); }
+.ws-grp-tog svg { width: 14px; height: 14px; flex: none; transition: transform .15s; }
+.ws-grp.thu .ws-grp-tog svg { transform: rotate(-90deg); }
+.ws-grp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-grp-n { flex: none; font-weight: 500; color: var(--text3); letter-spacing: 0; }
+.ws-grp-more { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center;
   justify-content: center; border: 0; border-radius: 7px; background: none; color: var(--text3);
   cursor: pointer; opacity: 0; }
-.ws-dept:hover .ws-dept-more, .ws-dept-more:focus-visible { opacity: 1; }
-.ws-dept-more:hover { color: var(--accent); background: var(--surface-1); }
-.ws-dept-more svg { width: 14px; height: 14px; }
-@media (hover: none) { .ws-dept-more { opacity: .75; } }
+.ws-grp:hover .ws-grp-more, .ws-grp-more:focus-visible { opacity: 1; }
+.ws-grp-more:hover { color: var(--accent); background: var(--surface-1); }
+.ws-grp-more svg { width: 14px; height: 14px; }
+@media (hover: none) { .ws-grp-more { opacity: .75; } }
 /* "Xem thêm 20": một nút nhẹ cuối danh sách, không phải nút hành động chính. */
 .ws-more { width: 100%; margin-top: 6px; padding: 7px 8px; border-radius: 9px;
   border: 1px dashed var(--glass-brd); background: none; color: var(--text3);
