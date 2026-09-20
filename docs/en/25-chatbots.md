@@ -21,6 +21,7 @@ A dedicated bot **can do real work** if you raise its permission level: writing 
 - Two rails **do not change with the level**, and they are locked in code rather than in wording: **the bot only sees its own brain**, and **it cannot run machine commands**.
 - Questions beyond its knowledge are handed to the human on duty you nominate.
 - The Chatbot page is built for **many bots** from the start: a card grid, a search field, add/edit/delete, and enable/disable in place. Running one bot or ten uses the same interface.
+- Every chat a customer has with a bot is kept in the **conversation inbox** (the **Conversations** page): read it back, see where the bot got stuck, press Take over to answer yourself. See [Customer conversations](28-customer-conversations.md).
 
 ## Where to open it in Javis
 

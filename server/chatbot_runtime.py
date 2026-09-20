@@ -39,6 +39,7 @@ from typing import Any, Callable, Dict, Optional
 import chatbot_grounding
 import chatbot_log
 import chatbot_store
+import conversations
 from telegram_bot import TelegramBot
 from zalo_bot import ZaloBot
 
@@ -451,6 +452,17 @@ def _chan_doan_nhom(bot_id: str, chat: str, meta: dict) -> str:
 
 def _make_command_fn(bot_cfg: dict):
     async def _cmd(cmd, arg, chat, meta=None):
+        res = await _cmd_goc(cmd, arg, chat, meta)
+        # Lệnh cũng là một lượt khách nhìn thấy: ghi cả câu lệnh lẫn câu bot đáp vào Hộp thư.
+        # `bot_cfg` là bản ghi lúc bật bot; đủ dùng vì id, tên, kênh không đổi khi bot đang chạy.
+        m = dict(meta or {})
+        m.setdefault("chat_id", chat)
+        ghi_tin_khach(bot_cfg, m, ("/" + str(cmd or "").lstrip("/") + (" " + arg if arg else "")).strip())
+        if res and res.get("reply"):
+            ghi_tin_bot(bot_cfg, m, res["reply"])
+        return res
+
+    async def _cmd_goc(cmd, arg, chat, meta=None):
         c = (cmd or "").lstrip("/").lower()
         if c in ("start", "help"):
             # KHÔNG gắn "của cửa hàng" vào sau tên bot. Bot tên "Coach kỷ luật" mà Javis tự nối
@@ -522,6 +534,70 @@ def _co_bi(dap: str) -> bool:
     return any(x in d for x in _DAU_BI)
 
 
+# ============================================================
+# Kho hội thoại khách (Conversation DB) - adapter của bot chuyên trách
+# ============================================================
+# Mỗi lượt của bot đẩy HAI sự kiện chuẩn vào `conversations`: tin khách gửi tới và câu bot trả
+# lời. Đây là điểm nối duy nhất giữa bot chuyên trách và Hộp thư hội thoại: Telegram hay Zalo Bot
+# đều đi qua đây với cùng một `meta` (platform, chat_id, chat_type, user_name, message_id), nên
+# kho không cần biết tin đến từ kênh nào.
+#
+# Vì sao ghi ở ĐÂY chứ không ở lớp vận chuyển: lớp đó chưa biết bot nào đang cầm tin (chỉ có
+# token), còn ở đây có đủ bản ghi bot, và lượt bị chặn ở precheck (nhóm chưa cho phép) vốn
+# không phải hội thoại của bot. Ghi trước khi gọi engine để tin khách còn đó kể cả khi lượt gãy.
+def _kenh_kho(cfg: dict) -> str:
+    """Kênh của bot theo tên kho hiểu. `zalo` ở bot chuyên trách là Zalo Bot chính thức."""
+    return "zalo" if str(cfg.get("channel") or "") == "zalo" else "telegram"
+
+
+def _su_kien_bot(cfg: dict, meta: dict, **phan) -> dict:
+    meta = meta or {}
+    ev = {
+        "channel": _kenh_kho(cfg),
+        "account_id": cfg.get("id") or "",
+        "account_name": cfg.get("name") or "",
+        "bot_id": cfg.get("id") or "",
+        "external_chat_id": str(meta.get("chat_id") or ""),
+        "chat_type": meta.get("chat_type") or "private",
+        "chat_title": meta.get("chat_title") or "",
+    }
+    ev.update(phan)
+    return ev
+
+
+def ghi_tin_khach(cfg: dict, meta: dict, text: str) -> None:
+    """Tin KHÁCH gửi tới bot. Nuốt mọi lỗi: kho hỏng không được làm gãy câu trả lời."""
+    try:
+        meta = meta or {}
+        conversations.ghi_su_kien(_su_kien_bot(
+            cfg, meta, sender_type="customer",
+            sender_id=str(meta.get("user_id") or meta.get("username") or ""),
+            sender_name=meta.get("user_name") or meta.get("username") or "",
+            message_type=conversations.loai_tin_tu_chu(text), text=text,
+            external_message_id=str(meta.get("message_id") or ""),
+            metadata={"username": meta.get("username") or ""}))
+    except Exception as e:
+        print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def ghi_tin_bot(cfg: dict, meta: dict, text: str, loi: str = "", files=None) -> None:
+    """Câu BOT trả lời (hoặc câu xin lỗi khi lượt gãy - vẫn là thứ khách nhìn thấy)."""
+    try:
+        if not str(text or "").strip() and not files:
+            return
+        md = {}
+        if loi:
+            md["loi"] = str(loi)[:300]
+        if files:
+            md["files"] = [str((f.get("path") if isinstance(f, dict) else f) or "")[:300]
+                           for f in list(files)[:10]]
+        conversations.ghi_su_kien(_su_kien_bot(
+            cfg, meta, sender_type="ai", sender_name=cfg.get("name") or "",
+            message_type="text", text=text, metadata=md))
+    except Exception as e:
+        print(f"[chatbot conversations] {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def _make_answer_fn(bot_id: str):
     async def _answer(text, meta=None, progress=None):
         cfg = chatbot_store.get_bot(bot_id)
@@ -536,6 +612,13 @@ def _make_answer_fn(bot_id: str):
         if _qua_han_muc(bot_id, chat_id, cfg.get("rate_limit")):
             return {"text": "Anh chị nhắn hơi nhanh, em xin phép trả lời lại sau ít phút ạ.",
                     "files": []}
+        # Hộp thư hội thoại: ghi tin khách TRƯỚC khi gọi engine, để lượt gãy vẫn còn tin khách.
+        ghi_tin_khach(cfg, meta or {}, text)
+        # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
+        # kho (dòng trên), chỉ không gọi engine. Lượt đang chạy dở lúc bấm Tiếp quản vẫn trả
+        # lời nốt - chấp nhận ở V1, vì cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
+        if conversations.che_do(_kenh_kho(cfg), cfg.get("id") or "", chat_id) == "human":
+            return {"text": "", "files": [], "im_lang": True}
 
         # Tra tài liệu TRƯỚC rồi nhét vào prompt, thay vì trông vào việc model tự chịu mở file.
         # Quét đĩa + chấm điểm là việc CHẶN, đẩy sang thread để không chẹn event loop (poller
@@ -555,8 +638,9 @@ def _make_answer_fn(bot_id: str):
                                         channel=str(cfg.get("channel") or "telegram"), bot=cfg)
         except Exception as e:
             print(f"[chatbot {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
-            return {"text": "Em đang gặp trục trặc, anh chị nhắn lại giúp em sau ít phút ạ.",
-                    "files": []}
+            xin_loi = "Em đang gặp trục trặc, anh chị nhắn lại giúp em sau ít phút ạ."
+            ghi_tin_bot(cfg, meta or {}, xin_loi, loi=f"{type(e).__name__}: {e}")
+            return {"text": xin_loi, "files": []}
         run = _RUNNING.get(bot_id)
         if run:
             run["answered"] = run.get("answered", 0) + 1
@@ -616,6 +700,8 @@ def _make_answer_fn(bot_id: str):
             # cần biết, người đang hỏi thì không cần.
             "canh_bao": (out or {}).get("canh_bao") or "",
         })
+        # Câu bot nói (kể cả câu xin lỗi khi gãy) vào Hộp thư hội thoại, cạnh tin khách.
+        ghi_tin_bot(cfg, meta or {}, dap, loi=loi_ky_thuat, files=(out or {}).get("files"))
         if goi_nguoi:
             _BI_LIEN_TIEP[khoa] = 0     # đã gọi người rồi thì đếm lại, đừng gọi mỗi lượt sau đó
             # Lượt HỎNG thì báo nguyên văn lý do kỹ thuật, không báo "bí N câu": chủ cần biết

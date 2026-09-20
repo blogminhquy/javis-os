@@ -3159,6 +3159,94 @@
  },
  {
   "order": 318,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 319,
+  "type": "APIRoute",
+  "path": "/conversations",
+  "name": "conversations_list",
+  "methods": [
+   "GET"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 320,
+  "type": "APIRoute",
+  "path": "/conversations/stats",
+  "name": "conversations_stats",
+  "methods": [
+   "GET"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 321,
+  "type": "APIRoute",
+  "path": "/conversations/channels",
+  "name": "conversations_channels",
+  "methods": [
+   "GET"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 322,
+  "type": "APIRoute",
+  "path": "/conversations/zalo/{conn_id}/watch",
+  "name": "conversations_zalo_watch",
+  "methods": [
+   "POST"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 323,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}",
+  "name": "conversations_detail",
+  "methods": [
+   "GET"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 324,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/messages",
+  "name": "conversations_messages",
+  "methods": [
+   "GET"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 325,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/read",
+  "name": "conversations_read",
+  "methods": [
+   "POST"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 326,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/mode",
+  "name": "conversations_mode",
+  "methods": [
+   "POST"
+  ],
+  "trong": 318
+ },
+ {
+  "order": 327,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3168,7 +3256,7 @@
   "trong": null
  },
  {
-  "order": 319,
+  "order": 328,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3178,7 +3266,7 @@
   "trong": null
  },
  {
-  "order": 320,
+  "order": 329,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3188,7 +3276,7 @@
   "trong": null
  },
  {
-  "order": 321,
+  "order": 330,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

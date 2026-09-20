@@ -328,6 +328,7 @@ class ZaloBot(HangLuot):
             "chat_title": chat_obj.get("name") or chat_obj.get("title") or "",
             "user_name": frm.get("display_name") or "",
             "username": frm.get("display_name") or "",
+            "user_id": str(frm.get("id") or ""),
             "message_id": msg.get("message_id"),
             "bot_username": self.bot_username,
             "mentioned": self._co_nhac_ten(msg),
