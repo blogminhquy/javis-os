@@ -22,6 +22,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional
 
@@ -30,6 +31,7 @@ from fastapi import APIRouter, Form, Query
 from claude_cli import claude_engine, cancel_all, _empty_mcp_file
 import aux_engine
 import channel_context
+import localefmt          # giờ hiển thị theo múi giờ người dùng, không phải giờ máy chủ
 import limit_learner      # nhận diện "gói thuê bao hết lượt" - CÙNG bộ mẫu với khung chat
 import limit_resume       # mượn hằng trừ hao / trần chờ của khung chat, không đẻ bộ số thứ hai
 from task_store import TaskStore, VALID_STATUS
@@ -425,7 +427,7 @@ class TasksFeature:
                         spec["capability"],
                         # Kẹp ở ĐÂY, chỗ DUY NHẤT mức quyền của specifier đi vào kho - đặt trong
                         # `_specify` thì nhánh heuristic (trả thẳng "auto") đi vòng qua được.
-                        self._kep_quyen(task.get("execution_mode"), spec["execution_mode"]),
+                        self._muc_chay(task.get("execution_mode"), spec["execution_mode"]),
                         metadata={
                             "acceptance": spec.get("acceptance", []),
                             "specifier": spec.get("specifier", "ai"),
@@ -443,7 +445,7 @@ class TasksFeature:
                 return
 
             result, error, needs_input, metadata = await asyncio.wait_for(
-                self._execute(task), timeout=WORKER_TIMEOUT_SECONDS
+                self._execute(task), timeout=self._tran_giay_viec()
             )
             # Soi CẢ result: nhà cung cấp hay in câu hết lượt ngay chỗ câu trả lời chứ không
             # báo lỗi, và bản trước coi đó là việc XONG với "kết quả" là một câu tiếng Anh.
@@ -478,9 +480,23 @@ class TasksFeature:
                 )
                 self.store.promote_dependencies(root)
         except asyncio.CancelledError:
-            self.store.cancel_running(tid, "worker cancelled")
+            cancel_all(f"dispatch:{tid}")
+            if self._closing:
+                # Máy chủ tắt/cập nhật giữa chừng: KHÔNG huỷ việc. Trước đây nhánh này ghi
+                # `cancelled` câm cho việc đang chạy, nên mỗi lần bấm Cập nhật là việc nền dở
+                # dang biến mất, không thông báo, không chạy lại. Trả về ready (không tính lượt)
+                # để dispatcher nhặt lại sau khi khởi động.
+                self.store.block(tid, worker_id, "transient",
+                                 "Máy chủ khởi động lại giữa chừng, việc sẽ tự chạy lại.",
+                                 transient=True, keep_attempt=True)
+            else:
+                self.store.cancel_running(tid, "worker cancelled")
             raise
         except Exception as exc:
+            # Hết giờ (TimeoutError) hay lỗi lạ: GIẾT tiến trình engine của việc này trước khi
+            # ghi kho. Không giết thì engine CLI (Codex/Grok/Antigravity là Popen rời) vẫn chạy
+            # tiếp và gửi/ghi thật, trong khi dispatcher đã nhặt lại việc và chạy bản thứ hai.
+            cancel_all(f"dispatch:{tid}")
             het_luot = self._het_luot(str(exc), "")
             if het_luot:
                 final_task = self._hoan_vi_het_luot(tid, worker_id, het_luot)
@@ -820,6 +836,28 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         )
 
     @staticmethod
+    def _tran_giay_viec() -> float:
+        """Trần thời gian MỘT lần chạy việc. Phải KHÔNG nhỏ hơn trần của chính engine
+        (`aux_engine.bg_max_wall_s`, mặc định 1 giờ): bản trước cắt cứng ở 900 giây trong khi
+        engine được phép chạy 60 phút, nên việc thật dài 20-30 phút bị TimeoutError ở phút 15,
+        về ready, chạy lại từ đầu, và cháy hết 3 lượt cho một việc vốn đang làm tốt."""
+        try:
+            return float(max(WORKER_TIMEOUT_SECONDS, int(aux_engine.bg_max_wall_s()) + 60))
+        except Exception:
+            return float(WORKER_TIMEOUT_SECONDS)
+
+    @staticmethod
+    def _muc_chay(tran, xin) -> str:
+        """Mức quyền việc chạy thật. Người dùng đã đặt `full` lúc giao việc (qua javis_task
+        hay trang Việc) thì GIỮ full: specifier là một model, nó không bao giờ đề xuất full,
+        nên kẹp theo nó là việc "toàn quyền, tự gửi" lặng lẽ tụt xuống auto rồi dừng lại xin
+        phép ở bước ra ngoài - đúng ngược lời đã hứa với người dùng. Mọi mức khác vẫn kẹp
+        xuống không quá mức đã chốt (specifier không tự nâng quyền được)."""
+        if str(tran or "").strip().lower() == "full":
+            return "full"
+        return TasksFeature._kep_quyen(tran, xin)
+
+    @staticmethod
     def _het_luot(error: str, result: str):
         """`SubscriptionLimit` nếu lượt vừa rồi vấp "gói thuê bao hết lượt", None nếu không.
 
@@ -851,7 +889,12 @@ gì, dữ liệu/file/artifact nào được tạo và cách đã kiểm chứng
         biet_moc = moc_nha > ts
         moc = (moc_nha + LIMIT_GRACE_SECONDS) if biet_moc else (ts + LIMIT_UNKNOWN_WAIT_SECONDS)
         ten = _TEN_GOI.get(str(getattr(hit, "engine", "") or ""), "") or "thuê bao đang dùng"
-        gio = time.strftime("%H:%M ngày %d/%m", time.localtime(moc))
+        # Giờ theo múi giờ NGƯỜI DÙNG (localefmt), không phải giờ máy chủ: VPS/Docker thường
+        # chạy UTC, in "03:15" cho một mốc 10:15 ở Việt Nam là người dùng đợi sai giờ.
+        try:
+            gio = datetime.fromtimestamp(moc, localefmt.tz()).strftime("%H:%M ngày %d/%m")
+        except Exception:
+            gio = time.strftime("%H:%M ngày %d/%m", time.localtime(moc))
         nha_noi = str(getattr(hit, "reset_text", "") or "").strip()
         if moc - ts > LIMIT_MAX_WAIT_SECONDS:
             ly_do = (f"Gói {ten} hết lượt, mốc mở lại quá xa để tự đợi"

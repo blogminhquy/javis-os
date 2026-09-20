@@ -11995,6 +11995,7 @@ async def websocket_endpoint(ws: WebSocket):
                         [{"role": "system", "content": sysprompt},
                          {"role": "user", "content": _k_prompt}],
                         provider="grok-cli", model=actual_model or "")
+                    _k_loi = False
                     async for ev in kcli.query(_k_prompt):
                         et = ev.get("type")
                         if et == "tool_call":
@@ -12009,10 +12010,18 @@ async def websocket_endpoint(ws: WebSocket):
                             store.set_last_input_tokens(
                                 conv_sid, int(ev.get("input_tokens") or 0))
                         elif et == "error":
+                            _k_loi = True
                             await ws.send_text(_limit_frame(
                                 ev.get("content") or "", "grok-cli", actual_model or ""))
+                    if _k_mach and _k_loi and not final_text:
+                        # `--resume <id>` mà CLI trả lỗi và không một chữ: mạch đó đã mất trên
+                        # máy (sau cập nhật/dọn dẹp/đổi cwd). Bản trước ghi lại đúng id chết ấy
+                        # nên MỌI lượt sau đều đỏ cho tới khi đổi engine. Xoá đi để lượt sau
+                        # mồi lại từ lịch sử đã lưu, như nhánh Codex/Claude đã làm.
+                        store.clear_grok_session_id(conv_sid)
+                        kcli.session_id = None
                     # CLI phát id mạch trong dòng sự kiện; lưu lại để lượt sau `--resume`.
-                    if kcli.session_id:
+                    elif kcli.session_id:
                         store.set_grok_session_id(conv_sid, kcli.session_id)
                     final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
@@ -12086,6 +12095,10 @@ async def websocket_endpoint(ws: WebSocket):
                     # Tự chữa: model đã lưu không hợp lệ cho Codex → ghi lại model đúng (converge sau 1 lượt)
                     try:
                         _fix = cfgmod.read_settings(); _set_main_model(_fix, "openai-oauth", actual_model); cfgmod.write_settings(_fix)
+                        if (_row0.get("pinned_model") or "").strip():
+                            # Phiên ghim một model đã bị gỡ khỏi catalog: sửa luôn cái ghim, nếu
+                            # không lượt nào cũng đọc lại ghim cũ và nhắc câu này lần nữa.
+                            store.set_pinned_model(conv_sid, "openai-oauth", actual_model)
                         await ws.send_text(json.dumps({"type": "system", "content": f"⚠ Model '{api_model}' không chạy được qua Codex (tài khoản ChatGPT) - đã tự đổi sang '{actual_model}'. Đổi model khác ở trang Models nếu muốn."}))
                     except Exception as _e:
                         print(f"[codex model self-heal] {_e}", file=__import__('sys').stderr)
@@ -12189,6 +12202,12 @@ async def websocket_endpoint(ws: WebSocket):
                             _codex_raw, _codex_current,
                             summary=_row0.get("compact_summary") or "")
                         await _consume_codex(_fallback)
+                    # Cùng lưới với nhánh Claude ở dưới: Codex in câu hết lượt như một
+                    # agent_message thường chứ không phải turn.failed.
+                    if final_text and _het_luot_ap_dao(final_text) \
+                            and _subscription_limit_event(final_text, "codex")[0]:
+                        await ws.send_text(_limit_frame(final_text, "codex", actual_model or ""))
+                        final_text = ""
                     final_text = _chuan_hoa_link_file(_brain_root(brain), final_text)
                     await ws.send_text(json.dumps({
                         "type": "response", "content": final_text, "engine": "codex",
@@ -12645,6 +12664,18 @@ async def websocket_endpoint(ws: WebSocket):
                 # không nhận `response` nào cả và bong bóng chat treo mãi - trong khi phần chữ
                 # đã stream ra thì vẫn còn đó. Ba nhánh engine kia vốn đã gửi ngoài vòng lặp.
                 final_text = final_text or _streamed
+                # Claude Code hay in câu hết lượt ("Claude AI usage limit reached|<epoch>",
+                # "You've hit your session limit · resets 12pm") ngay ở CÂU TRẢ LỜI chứ không phải
+                # sự kiện error. Bản trước để nguyên: người dùng nhận một bong bóng tiếng Anh như
+                # thể đó là câu trả lời, không có thẻ hẹn chạy lại, và câu đó còn được lưu vào
+                # phiên/nhật ký như một lượt thường. Workflow và Kanban đã soi chỗ này từ 15/09,
+                # khung chat thì chưa. Soi bằng cùng bộ nhận dạng, đủ cả điều kiện "chiếm cả
+                # output" để không nhận nhầm một bài viết có trích câu đó.
+                if final_text and _het_luot_ap_dao(final_text) \
+                        and _subscription_limit_event(final_text, "claude-code")[0]:
+                    await ws.send_text(_limit_frame(final_text, "claude-code",
+                                                    cli.model or mcfg.get("claude_model") or ""))
+                    final_text = ""      # khối _limit_state bên dưới lưu câu báo + hẹn chạy lại
                 # Link file → dạng khung chat mở được, ưu tiên file vừa ghi trong lượt này.
                 try:
                     final_text = _chuan_hoa_link_file(
@@ -12655,7 +12686,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await ws.send_text(json.dumps({
                     "type": "response", "content": final_text, "session_id": conv_sid,
                     "cli_session_id": _cli_sid, "cost_usd": _cost, "engine": "cli",
-                    "model": (mcfg.get("claude_model") or "mặc định"),
+                    "model": (cli.model or mcfg.get("claude_model") or "mặc định"),
                     **_ctx_frame(runtime_trace, _ctx_in)}))
 
             # Token VÀO của lượt vừa xong. Với engine gói thuê bao đây là DẤU HIỆU DUY NHẤT

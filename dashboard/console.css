@@ -1519,6 +1519,14 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    chuyện (style.css), chỉ thêm co giãn cho vừa hàng lọc. */
 .ws-filters .ws-nhom-bar { flex: 1 1 auto; min-width: 0; }
 .ws-nhom-bar .cs-proj-name svg { width: 14px; height: 14px; vertical-align: -2px; }
+/* Điện thoại: chữ ở cột cộng sự và thanh nhóm lên sàn 16px (tên) / 14px (dòng phụ, nhãn nhóm),
+   theo chuẩn đọc trên màn nhỏ của chủ repo. Màn rộng giữ cỡ gọn như cũ. */
+@media (max-width: 900px) {
+  .ws-nhom-bar .cs-proj-cur { font-size: 16px; }
+  .ws-item-text strong { font-size: 16px; }
+  .ws-item-text small { font-size: 14px; }
+  .ws-glabel, .ws-grp-tog { font-size: 13px; }
+}
 .ws-filters .ws-search-btn { flex: none; }
 .ws-filters .ws-search { flex: 1 0 100%; }
 .ws-search[hidden] { display: none; }

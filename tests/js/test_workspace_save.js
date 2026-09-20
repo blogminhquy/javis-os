@@ -12,7 +12,9 @@ const code = src.slice(src.indexOf('  function thuGonCaiDat('), src.indexOf('  /
 (async () => {
  for (const narrow of [true, false]) {
   let collapsed, focused = 0, opens = 0, success = true;
-  const ctx = {active:true,ready:false,S:{loai:'agent',chon:{agent:'a'},el:{querySelector:()=>({classList:{toggle:(name,value)=>{collapsed=value;}}})}},
+  const ctx = {
+    dongBoNhomForm() {},   // đồng bộ ô nhóm của form cột phải (0.59.48), ngoài đoạn được bóc
+active:true,ready:false,S:{loai:'agent',chon:{agent:'a'},el:{querySelector:()=>({classList:{toggle:(name,value)=>{collapsed=value;}}})}},
    taiDanhSach:async()=>{}, veTrai(){}, veGiua(){}, dangChon:()=>({slug:'a'}),
    moPhien:async()=>{opens++;return success;},
    window:{matchMedia:()=>({matches:narrow})}, document:{getElementById:()=>({focus:()=>focused++})}};

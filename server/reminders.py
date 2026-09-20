@@ -242,6 +242,10 @@ class RemindersFeature:
         self.deps = deps
         self.lock = asyncio.Lock()   # serialize: 1 nhắc mode 'task' chạy engine/lần
         self._io = asyncio.Lock()    # serialize ghi file reminders.json
+        # Nhắc mode task/script đang chạy NỀN (id) + các task asyncio đang sống, để tick sau
+        # không bắn lại cùng một nhắc và để tắt máy chủ đợi được chúng.
+        self._dang_chay: set = set()
+        self._viec_nen: set = set()
         self.router = self._make_router()
 
     # ── store (JSON trong brain) ──
@@ -500,10 +504,38 @@ class RemindersFeature:
         for rem in due:
             if fired >= MAX_FIRE_PER_TICK:
                 break
-            if rem.get("mode") in ("task", "script") and self.lock.locked():
-                continue   # đang có 1 job chạy → để nhịp sau, không xếp hàng chờ trong tick
-            await self._fire(brain, rem)
+            if rem.get("mode") in ("task", "script"):
+                if self.lock.locked() or rem.get("id") in self._dang_chay:
+                    continue   # đang có 1 job chạy → để nhịp sau, không xếp hàng chờ trong tick
+                # Chạy NỀN chứ không await ngay trong tick: một nhắc mode task có thể chạy tới
+                # 1 giờ, await ở đây là mọi nhắc "notify" đến hạn sau nó (và cả loop, Kanban
+                # trong cùng vòng scheduler) bị dời theo. Khoá `self.lock` bên trong _fire vẫn
+                # giữ đúng một job engine một lúc.
+                self._chay_nen(brain, rem)
+            else:
+                await self._fire(brain, rem)
             fired += 1
+
+    def _chay_nen(self, brain: str, rem: dict) -> None:
+        rid = rem.get("id")
+        self._dang_chay.add(rid)
+
+        async def _run():
+            try:
+                await self._fire(brain, rem)
+            except Exception as e:
+                print(f"[reminders] nhắc {rid} chạy nền lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+            finally:
+                self._dang_chay.discard(rid)
+
+        t = asyncio.get_running_loop().create_task(_run())
+        self._viec_nen.add(t)
+        t.add_done_callback(self._viec_nen.discard)
+
+    async def cho_viec_nen(self) -> None:
+        """Đợi các nhắc đang chạy nền xong (test và lúc tắt máy chủ)."""
+        while self._viec_nen:
+            await asyncio.gather(*list(self._viec_nen), return_exceptions=True)
 
     async def _fire(self, brain: str, rem: dict) -> None:
         mode = rem.get("mode", "notify")
@@ -555,7 +587,14 @@ class RemindersFeature:
         async with self._io:
             data = self._load(brain)
             cur = next((r for r in data.get("reminders", []) if r.get("id") == rem.get("id")), None)
-            if cur is not None:
+            if cur is not None and cur.get("status") != "pending":
+                # Người dùng đã HUỶ/tạm dừng nhắc này trong lúc nó đang chạy (mode task chạy
+                # tới cả giờ): chỉ ghi kết quả, KHÔNG dựng lại lịch cron/repeat - bản trước ghi
+                # đè status về "pending" nên nhắc đã huỷ sống lại.
+                cur["fired_at"] = _now()
+                cur["result"] = (body or "")[:2000]
+                cur["error"] = (err or ("" if ok else send_err) or "")[:400]
+            elif cur is not None:
                 cur["fired_at"] = _now()
                 cur["result"] = (body or "")[:2000]
                 cur["error"] = (err or ("" if ok else send_err) or "")[:400]

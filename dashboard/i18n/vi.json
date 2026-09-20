@@ -2797,6 +2797,7 @@
   "ws.group_acts": "Chức năng của nhóm",
   "ws.group_delete": "Xoá nhóm",
   "ws.group_delete_ask": "Xoá nhóm \"{ten}\"? {n} cộng sự trong nhóm sẽ về Chưa xếp nhóm, không ai bị xoá.",
+  "ws.group_empty_hint": "Nhóm này chưa có ai. Về \"Tất cả nhóm\", bấm \"...\" ở một cộng sự rồi chọn \"Chuyển vào nhóm\" để đưa vào đây.",
   "ws.edit": "Sửa",
   "ws.err_meta": "Không lưu được thay đổi.",
   "ws.run_default": "Chạy quy trình theo cấu hình hiện tại.",

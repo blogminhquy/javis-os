@@ -2797,6 +2797,7 @@
   "ws.group_acts": "Group actions",
   "ws.group_delete": "Delete group",
   "ws.group_delete_ask": "Delete group \"{ten}\"? Its {n} members move to Ungrouped; nobody is deleted.",
+  "ws.group_empty_hint": "This group is empty. Go back to \"All groups\", open \"...\" on a member and pick \"Move to group\" to add them here.",
   "ws.edit": "Edit",
   "ws.err_meta": "Could not save the change.",
   "ws.run_default": "Run this workflow with its current configuration.",

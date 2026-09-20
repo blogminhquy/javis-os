@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.48] - 2026-09-20
+### Sửa lỗi
+- **Việc nền dài không còn bị cắt ở phút 15 rồi chạy lại từ đầu.** Trần một lần chạy giờ theo đúng trần của engine (mặc định 1 giờ), và khi hết giờ Javis giết hẳn tiến trình cũ trước khi thử lại, không còn hai bản cùng chạy. Tắt hay cập nhật máy chủ giữa chừng cũng không huỷ câm việc đang chạy nữa: việc về hàng đợi và tự chạy lại sau khi lên.
+- **Chat với Claude Code hay Codex khi hết lượt gói: hiện đúng thẻ hết lượt kèm giờ tự chạy lại,** thay vì một bong bóng tiếng Anh trông như câu trả lời. Grok Build mất mạch cũ sau khi cập nhật CLI thì tự mở mạch mới thay vì đỏ mãi.
+- **Nhắc hẹn và loop không còn chặn nhau.** Một loop chạy 25 phút từng làm nhắc 7 giờ sáng đến trễ; nay việc dài chạy nền, nhắc giờ nào bắn giờ đó. Nhắc lặp đã huỷ trong lúc đang chạy không sống lại; loop gặp lỗi engine không lặp vô hạn mà ghi lỗi và tự tạm dừng như thiết kế.
+- **Trang Cộng sự:** mở hội thoại cũ từ tab Lịch sử rồi sang Trò chuyện không còn gửi nhầm vào phiên trợ lý; bấm Lưu ở cột Cài đặt không còn kéo cộng sự về nhóm cũ sau khi vừa chuyển nhóm. Giao việc trùng tên với việc đang kẹt thì Javis nói thẳng thay vì báo "đã giao".
+### Cải thiện
+- **Trên điện thoại,** nút ghim/chuyển/đổi tên/xoá của hàng hội thoại và nút chép mã luôn hiện (trước chỉ hiện khi rê chuột). Chữ ở cột cộng sự và bảng nhóm lên cỡ 16px. Lỗi engine không kèm thêm bong bóng "(không có nội dung)". Giờ hẹn chạy lại của việc nền hiện theo múi giờ của bạn.
+
 ## [0.59.47] - 2026-09-20
 ### Cải thiện
 - **Bộ chọn nhóm ở trang Cộng sự giống bộ chọn project bên Trò chuyện.** Bấm vào thanh nhóm là mở bảng: Tất cả nhóm, Chưa xếp nhóm, rồi từng nhóm kèm số người và nút ba chấm để đổi tên hoặc xoá nhóm (xoá chỉ đưa người về Chưa xếp nhóm), cuối bảng là "+ Nhóm mới". Nút tạo nhóm cũng đứng ngay cạnh thanh. Nhóm vừa tạo chưa có ai vẫn hiện trong bảng và trong danh sách để bạn kéo cộng sự vào.
