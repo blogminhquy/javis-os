@@ -70,6 +70,45 @@
     s = String(s || "").trim();
     return /^(https?:|data:|blob:|\/)/i.test(s) ? s : fileUrl(s);
   }
+  // Ghep thu muc + duong dan tuong doi, thu gon "." va ".." NGAY TAI DAY. Khong thu gon thi
+  // chuoi ".." di thang toi server, va server dung tu choi no nhu mot cu vuot thu muc - anh
+  // hien ra o xam. Vuot len TREN goc brain thi tra null (bo ung vien do), khong tra mot duong
+  // dan nua voi.
+  function ghepDuong(thuMuc, rel) {
+    var manh = String(thuMuc || "").split("/").concat(String(rel || "").split("/"));
+    var ra = [];
+    for (var i = 0; i < manh.length; i++) {
+      var m = manh[i];
+      if (!m || m === ".") continue;
+      if (m === "..") { if (!ra.length) return null; ra.pop(); continue; }
+      ra.push(m);
+    }
+    return ra.length ? ra.join("/") : null;
+  }
+  // Cac cho CO THE chua tam anh, theo thu tu thu. Trinh duyet tai anh dau, hong thi jvImgGone
+  // thu cai ke tiep - khong phai hoi may chu truoc, va mot note tro dung duong van tai mot lan.
+  //
+  //   1. THEO THU MUC CUA CHINH FILE .md  - dung cach Obsidian, VS Code va GitHub hieu mot
+  //      duong dan tuong doi. Day la cai ma nguoi viet note mong doi, va la cai Javis thieu
+  //      truoc ban nay: no phan giai MOI duong dan theo GOC BRAIN, nen note nam trong thu muc
+  //      con ma viet ![](anh.jpg) thi di tim <brain>/anh.jpg, khong bao gio co.
+  //   2. THEO GOC BRAIN - dung hanh vi cu. Giu lai de note nao dang tro kieu do van chay.
+  //   3. attachments/<ten file> - cho Javis tu cat anh no sinh ra (quy uoc trong CLAUDE.md).
+  function ungVienAnh(src) {
+    var ra = [];
+    var raw = String(src || "").trim().replace(/^\.\//, "");
+    if (!raw) return ra;
+    function them(p) {
+      if (!p) return;
+      var u = fileUrl(p);
+      if (ra.indexOf(u) < 0) ra.push(u);
+    }
+    if (_thuMucForRender) them(ghepDuong(_thuMucForRender, raw));
+    them(ghepDuong("", raw));
+    var ten = raw.split("/").pop();
+    if (ten) them("attachments/" + ten);
+    return ra;
+  }
   // Path tro toi file/thu muc TRONG vault (khong phai URL ngoai / data / o dia)?
   function isVaultRel(p) {
     p = String(p == null ? "" : p).trim();
@@ -264,6 +303,7 @@
   // ---------------------------------------------------------------- artifact registry + phat hien
   var registry = {};   // id -> { type, lang, code }
   var _choTrinhSua = false;   // dang render cho trinh sua .md (xem mdToHtml)
+  var _thuMucForRender = "";  // thu muc chua file .md dang render (xem mdToHtml / ungVienAnh)
   function fenceType(lang, code) {
     lang = (lang || "").trim().toLowerCase();
     var head = code.slice(0, 400).replace(/^\s+/, "").toLowerCase();
@@ -335,6 +375,22 @@
   // cu trong khi dang chon brain khac). Cau cu do het cho "het han" nen nguoi dung tuong file
   // da bi xoa va di tim nham cho. Noi trung tinh + kem ten file de con lan ra.
   function imgGone(el) {
+    // Con cho khac de thu thi THU, dung bo cuoc ngay: mot duong dan tuong doi co the nam o thu
+    // muc cua note, o goc brain, hay trong attachments (xem ungVienAnh). Doi src la trinh duyet
+    // tai lai, va tai hong lan nua thi chinh ham nay chay tiep voi danh sach da ngan di.
+    try {
+      var con = String(el.getAttribute("data-jv-thu") || "").split("|").filter(Boolean);
+      if (con.length) {
+        var ke = con.shift();
+        if (con.length) el.setAttribute("data-jv-thu", con.join("|"));
+        else el.removeAttribute("data-jv-thu");
+        // The <a> boc ngoai phai di theo, khong thi bam vao anh lai mo dung cai URL vua hong.
+        var a = el.parentNode;
+        if (a && a.tagName === "A" && a.className === "jv-img-link") a.setAttribute("href", ke);
+        el.setAttribute("src", ke);
+        return;
+      }
+    } catch (e) {}
     var box = document.createElement("span");
     box.className = "chat-img-gone";
     var ten = "";
@@ -347,8 +403,11 @@
     box.title = tw("crender.img_gone_hint");
     el.replaceWith(box);
   }
-  function imgHtml(u, alt, rawpath) {
+  // duPhong (tuy chon): cac URL thu TIEP THEO neu URL dau tai hong. Xem ungVienAnh.
+  function imgHtml(u, alt, rawpath, duPhong) {
+    var con = (duPhong || []).filter(function (x) { return x && x !== u; });
     var img = '<img class="chat-img" src="' + esc(u) + '" alt="' + esc(alt || "") + '"' +
+      (con.length ? ' data-jv-thu="' + esc(con.join("|")) + '"' : "") +
       ' loading="lazy" onerror="jvImgGone(this)">';
     // Bam vao anh = XEM PHONG TO (lightbox), khong phai tai ve. Truoc day anh trong vault duoc
     // boc trong <a download> nen bam mot cai la file rot xuong may - muon xem cho ro thi phai
@@ -495,11 +554,14 @@
   // artifact (xem renderFence) - trong mot trinh sua thi noi dung phai NHIN THAY va sua
   // duoc, khong phai nam sau mot cai the.
   function mdToHtml(raw, brain, opts) {
-    var truoc = _brainForRender, truocTS = _choTrinhSua;
+    var truoc = _brainForRender, truocTS = _choTrinhSua, truocTM = _thuMucForRender;
     _brainForRender = (brain == null || brain === "") ? null : String(brain);
     _choTrinhSua = !!(opts && opts.trinhSua);
+    // opts.thuMuc: thu muc chua CHINH file .md nay, de duong dan tuong doi trong no phan giai
+    // dung nhu Obsidian/VS Code. Bo trong = giu hanh vi cu (phan giai theo goc brain).
+    _thuMucForRender = String((opts && opts.thuMuc) || "").replace(/^\.?\//, "").replace(/\/+$/, "");
     try { return _mdToHtmlThan(raw); }
-    finally { _brainForRender = truoc; _choTrinhSua = truocTS; }
+    finally { _brainForRender = truoc; _choTrinhSua = truocTS; _thuMucForRender = truocTM; }
   }
   function _mdToHtmlThan(raw) {
     raw = String(raw == null ? "" : raw);
@@ -531,7 +593,8 @@
     // 3) anh vault ![[..]] + anh markdown ![]() (giu URL qua placeholder de khong bi escape)
     raw = raw.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, function (_m, name) {
       name = name.trim();
-      return put(imgHtml(resolveSrc(name), name, name));
+      var uvW = ungVienAnh(name);
+      return put(imgHtml(uvW[0] || resolveSrc(name), name, name, uvW.slice(1)));
     });
     // 3b) wikilink [[target]] / [[target|alias]] (anh ![[..]] da an o tren) -> link dieu huong nhu Wikipedia
     raw = raw.replace(/\[\[([^\[\]\n|]+?)(?:\|([^\[\]\n]*))?\]\]/g, function (_m, target, alias) {
@@ -545,7 +608,11 @@
         var iref = appFileRef(src);
         if (iref) return put(imgHtml(fileUrl(iref.path, iref.brain), alt, iref.path));
       }
-      if (isVaultRel(src)) src = decodeVaultPath(src);   // %20 -> khoang trang; xem decodeVaultPath
+      if (isVaultRel(src)) {
+        src = decodeVaultPath(src);   // %20 -> khoang trang; xem decodeVaultPath
+        var uv = ungVienAnh(src);
+        if (uv.length) return put(imgHtml(uv[0], alt, src, uv.slice(1)));
+      }
       return put(imgHtml(resolveSrc(src), alt, src));
     });
     // 4) link []() : URL ngoai -> tab moi; file/thu muc vault -> mo dung vi tri trong Tep tin; con lai giu cu
@@ -1103,6 +1170,8 @@
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { mdToHtml: mdToHtml, highlight: highlight, wkResolve: wkResolve,
       appFilePath: appFilePath, appFileRef: appFileRef, fileUriPath: fileUriPath,
-      isDownloadFile: isDownloadFile };
+      isDownloadFile: isDownloadFile,
+      // Xuat them de test chay THAT chuoi du phong cua anh (xem ungVienAnh / imgGone).
+      ungVienAnh: ungVienAnh, ghepDuong: ghepDuong, imgGone: imgGone };
   }
 })();

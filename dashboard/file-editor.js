@@ -452,12 +452,15 @@
     var wys = neBody.querySelector(".ne-wys");
     var ta = neBody.querySelector(".ne-src textarea");
     ta.value = d.content || "";
-    wys.innerHTML = window.mdToHtml(ta.value);
+    // Duong dan tuong doi trong .md tinh theo thu muc chua chinh file do (xem ungVienAnh
+    // trong chat-render.js), khong phai theo goc brain.
+    var thuMuc = ceil.indexOf("/") >= 0 ? ceil.slice(0, ceil.lastIndexOf("/")) : "";
+    wys.innerHTML = window.mdToHtml(ta.value, b, { thuMuc: thuMuc });
     // Tick checkbox task trong ban render -> tu luu ngay (nhu Obsidian)
     wys.addEventListener("jv-task-toggle", function () { if (curSave) curSave(); });
 
     var curMode = "source";
-    function srcToWys() { wys.innerHTML = window.mdToHtml(ta.value); }
+    function srcToWys() { wys.innerHTML = window.mdToHtml(ta.value, b, { thuMuc: thuMuc }); }
     function wysToSrc() { var md = NE.mdFromHtml(wys.innerHTML); if (md != null) ta.value = md; }
     function mdGetter() {
       if (curMode === "wys") { var md = NE.mdFromHtml(wys.innerHTML); return md != null ? md : ta.value; }

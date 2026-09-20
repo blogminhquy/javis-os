@@ -67,9 +67,15 @@ check("bấm thẻ xong thì dừng hẳn (return), không rơi tiếp xuống c
 
 // ---- 5. console.js phải truyền cờ ở CẢ HAI chỗ render ----
 // Thiếu chỗ thứ hai (srcToWys) thì bấm Nguồn rồi quay lại Sửa là thẻ chết hiện về.
-check("cả hai lần render của trình sửa đều truyền {trinhSua:true}",
-  CONSOLE.split("mdToHtml(ta.value, null, { trinhSua: true })").length - 1 === 2,
-  CONSOLE.split("mdToHtml(ta.value, null, { trinhSua: true })").length - 1);
+// Dò từng lời gọi rồi soi CỜ trong đó, thay vì ghim nguyên văn cả chuỗi tham số: bản 0.59.43
+// thêm `thuMuc` vào cùng đối tượng đó (để ảnh trong note phân giải theo thư mục của note) và
+// phép thử ghim nguyên văn đỏ oan, dù `trinhSua: true` vẫn còn nguyên ở cả hai chỗ.
+{
+  const goi = CONSOLE.match(/mdToHtml\(ta\.value[^)]*\)/g) || [];
+  check("cả hai lần render của trình sửa đều truyền {trinhSua:true}",
+    goi.length === 2 && goi.every((g) => /trinhSua:\s*true/.test(g)),
+    goi.join("  ||  "));
+}
 check("không còn lời gọi mdToHtml(ta.value) trần trong trình sửa",
   CONSOLE.indexOf("mdToHtml(ta.value) ") === -1 && CONSOLE.indexOf("mdToHtml(ta.value);") === -1);
 

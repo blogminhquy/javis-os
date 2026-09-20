@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.43] - 2026-09-20
+### Sửa lỗi
+- **Ảnh trong file .md giờ hiện ra.** Trước đây Javis tìm mọi ảnh từ gốc brain, nên note nằm trong thư mục con mà chèn ảnh cạnh nó thì chỉ thấy một ô xám. Giờ Javis tìm cạnh chính file note trước, đúng như Obsidian và VS Code, rồi mới tìm ở gốc brain và trong attachments.
+- Áp dụng cho cả ảnh chèn kiểu `![tên](anh.jpg)` lẫn kiểu `![[anh.jpg]]`, ở cả hai khung mở file, và cả trên trang chia sẻ công khai.
+
 ## [0.59.42] - 2026-09-18
 ### Thêm mới
 - **Tìm kiếm và phân trang ở trang Chia sẻ.** Gõ tên file hoặc tên thư mục là lọc ngay, gõ không dấu vẫn ra file có dấu, gõ nhiều từ thì thu hẹp dần. Danh sách chia thành từng trang 20 link nên dù chia sẻ vài trăm file trang vẫn mở nhanh. Ô tìm chỉ xuất hiện khi danh sách đã đủ dài.

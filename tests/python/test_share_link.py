@@ -42,6 +42,19 @@ with open(os.path.join(BRAIN, "rieng", "kin.md"), "w", encoding="utf-8") as f:
     f.write("khong duoc lo")
 with open(os.path.join(BRAIN, "hang-xom.md"), "w", encoding="utf-8") as f:
     f.write("ghi chu khac, cung thu muc")
+# Ghi chú nằm trong THƯ MỤC CON, ảnh nằm ngay cạnh nó. Đây là cách người ta viết note thật
+# (và là chỗ Javis hỏng trước 0.59.43: mọi đường dẫn tương đối bị tính theo GỐC BRAIN).
+os.makedirs(os.path.join(BRAIN, "06 - Sources", "hinh"), exist_ok=True)
+with open(os.path.join(BRAIN, "06 - Sources", "bai-viet.md"), "w", encoding="utf-8") as f:
+    f.write("# Bài\n\n![cạnh note](anh-canh-note.png)\n\n![thư mục con](hinh/trong-hinh.png)\n")
+for _t in ("anh-canh-note.png",):
+    with open(os.path.join(BRAIN, "06 - Sources", _t), "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n" + b"0" * 20)
+with open(os.path.join(BRAIN, "06 - Sources", "hinh", "trong-hinh.png"), "wb") as f:
+    f.write(b"\x89PNG\r\n\x1a\n" + b"0" * 20)
+with open(os.path.join(BRAIN, "06 - Sources", "ghi-chu-khac.md"), "w", encoding="utf-8") as f:
+    f.write("khong duoc lo qua link chia se")
+
 os.makedirs(os.path.join(BRAIN, "assets"), exist_ok=True)
 with open(os.path.join(BRAIN, "assets", "style.css"), "w", encoding="utf-8") as f:
     f.write("body{color:red}")
@@ -167,6 +180,50 @@ check("bảng dựng ra thẻ table", "<table>" in md("| a | b |\n|---|---|\n| 1
 check("frontmatter bị giấu, không đổ ra trang",
       "type: source" not in md("---\ntype: source\n---\n\nNội dung", "/s/T/asset"))
 
+
+# ============ ẢNH TRONG .md: tìm theo THƯ MỤC CỦA NOTE trước ============
+# Chủ dự án 18/09: "ở file .md hiện tại đang không hiển thị ảnh, nếu có chèn link ảnh hoặc là
+# tham chiếu đến ảnh trong folder cũng nên hiển thị ảnh trong file .md nhé."
+#
+# Trước bản này `p` được phân giải thẳng từ GỐC BRAIN, nên note ở "06 - Sources/bai-viet.md"
+# viết ![](anh-canh-note.png) là server đi tìm <brain>/anh-canh-note.png, không có, trả 404, và
+# người xem thấy một ô trống. Giờ thử theo thứ tự: thư mục của note, rồi gốc brain, rồi
+# attachments - đúng thứ tự `ungVienAnh` bên dashboard/chat-render.js dùng.
+check("thứ tự ứng viên: thư mục note trước, rồi gốc brain, rồi attachments",
+      main._ung_vien_tai_nguyen("06 - Sources/bai-viet.md", "anh.png")
+      == ["06 - Sources/anh.png", "anh.png", "attachments/anh.png"],
+      main._ung_vien_tai_nguyen("06 - Sources/bai-viet.md", "anh.png"))
+check('"./" được bỏ, không đẻ ứng viên thừa',
+      main._ung_vien_tai_nguyen("a/note.md", "./x.png")[0] == "a/x.png",
+      main._ung_vien_tai_nguyen("a/note.md", "./x.png"))
+check('".." thu gọn tại chỗ chứ không gửi thẳng xuống đĩa',
+      main._ung_vien_tai_nguyen("a/b/note.md", "../anh.png")[0] == "a/anh.png",
+      main._ung_vien_tai_nguyen("a/b/note.md", "../anh.png"))
+check('".." vượt lên trên gốc brain thì BỎ hẳn ứng viên đó',
+      all(not u.startswith("..")
+          for u in main._ung_vien_tai_nguyen("a/note.md", "../../../etc/passwd")),
+      main._ung_vien_tai_nguyen("a/note.md", "../../../etc/passwd"))
+
+_r = cl.post("/share/create", json={"brain": BRAIN, "path": "06 - Sources/bai-viet.md"})
+_tok_sub = _r.json().get("token")
+check("chia sẻ được note nằm trong thư mục con", bool(_tok_sub), _r.text)
+if _tok_sub:
+    _a = cl.get(f"/s/{_tok_sub}/asset", params={"p": "anh-canh-note.png"})
+    check("ẢNH CẠNH NOTE hiện được (lỗi chủ dự án báo)", _a.status_code == 200, _a.status_code)
+    _b = cl.get(f"/s/{_tok_sub}/asset", params={"p": "hinh/trong-hinh.png"})
+    check("ảnh trong thư mục con cạnh note cũng hiện được", _b.status_code == 200, _b.status_code)
+    # Thêm ứng viên KHÔNG được nới phạm vi: hai hàng rào cũ vẫn phải chặn đúng như trước.
+    _c = cl.get(f"/s/{_tok_sub}/asset", params={"p": "ghi-chu-khac.md"})
+    check("ghi chú khác CÙNG thư mục vẫn KHÔNG đọc được (chặn theo loại file)",
+          _c.status_code == 404, _c.status_code)
+    _d = cl.get(f"/s/{_tok_sub}/asset", params={"p": "rieng/kin.md"})
+    check("ghi chú ở thư mục khác vẫn không đọc được", _d.status_code == 404, _d.status_code)
+    _e = cl.get(f"/s/{_tok_sub}/asset", params={"p": "../../../etc/passwd"})
+    check("không vượt được ra ngoài brain", _e.status_code == 404, _e.status_code)
+    # Đường lui về attachments vẫn còn: note ở thư mục con trỏ tới ảnh Javis tự cất.
+    _f = cl.get(f"/s/{_tok_sub}/asset", params={"p": "a.png"})
+    check("vẫn lui được về attachments/ khi ảnh không nằm cạnh note",
+          _f.status_code == 200, _f.status_code)
 
 print()
 if _fails:

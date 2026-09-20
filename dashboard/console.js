@@ -7782,14 +7782,17 @@
       let mdGetter = null;
       if (isMd) {
         const wys = document.getElementById("neWys");
+        // Thu muc chua CHINH file nay: de ![](anh.jpg) trong note nam o thu muc con tim anh
+        // canh no, dung nhu Obsidian, chu khong di tim <goc brain>/anh.jpg roi hien o xam.
+        const neThuMuc = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
         // {trinhSua:true}: khối code dài giữ nguyên hình khối code thay vì thu thành thẻ
         // artifact - trong trình sửa, nội dung phải nhìn thấy và sửa được tại chỗ.
-        wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true }) : esc(ta.value);
+        wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true, thuMuc: neThuMuc }) : esc(ta.value);
         let curMode = wysOk ? "wys" : "source";
         // Tick checkbox task trong bản render -> tự lưu ngay (như Obsidian), khỏi bấm nút Lưu
         wys.addEventListener("jv-task-toggle", () => { if (_neSaveFn) _neSaveFn(); });
         const wysToSrc = () => { const md = _mdFromHtml(wys.innerHTML); if (md != null) ta.value = md; };
-        const srcToWys = () => { wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true }) : esc(ta.value); };
+        const srcToWys = () => { wys.innerHTML = window.mdToHtml ? window.mdToHtml(ta.value, null, { trinhSua: true, thuMuc: neThuMuc }) : esc(ta.value); };
         _neBuildToolbar(body.querySelector(".ne-fmt"), { mode: () => curMode, ta, wys });   // thanh công cụ chạy cả 2 chế độ
         mdGetter = () => (curMode === "wys" ? (_mdFromHtml(wys.innerHTML) != null ? _mdFromHtml(wys.innerHTML) : ta.value) : ta.value);
         const seg = document.createElement("span"); seg.className = "ne-seg";
