@@ -32,7 +32,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, 
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse, Response
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse, Response, RedirectResponse
 # edge_tts CỐ TÌNH không import ở đây mà nạp lười trong _tts_edge và /tts/voices.
 # Nó chiếm 944ms trong 2.263ms nạp main (41%), và kéo theo cả chuỗi aiohttp 212ms vào
 # đường khởi động, trong khi TTS là tính năng TUỲ CHỌN mà đa số phiên không đụng tới.
@@ -6443,14 +6443,12 @@ async def share_xem(token: str):
     goc_asset = "/s/" + ban["token"] + "/asset"
     chan = _share_chan(ban)
     if duoi in share_render.DUOI_HTML:
-        # Nội dung của NGƯỜI DÙNG, có script: phục vụ nguyên văn nhưng trong hộp cách ly.
-        try:
-            noi = f.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
-        return HTMLResponse(noi, headers={"Content-Security-Policy": share_render.CSP_HTML,
-                                          "X-Content-Type-Options": "nosniff",
-                                          "Referrer-Policy": "no-referrer"})
+        # Trang .html sống ở `/s/<token>/` (CÓ dấu gạch cuối) chứ không phải `/s/<token>`.
+        # Lý do là cách trình duyệt phân giải đường dẫn tương đối: trang mở ở `/s/abc` mà
+        # gọi fetch("data.json") thì trình duyệt xin `/s/data.json`, không có gì ở đó; mở ở
+        # `/s/abc/` thì xin `/s/abc/data.json`, đúng route `_share_sibling` phục vụ file cạnh
+        # trang. Link đã gửi đi vẫn là `/s/<token>` nên chuyển hướng thay vì bắt gửi lại.
+        return RedirectResponse(url="/s/" + ban["token"] + "/", status_code=307)
     if duoi in share_render.DUOI_XEM_THANG:
         resp = FileResponse(str(f), media_type=mimetypes.guess_type(f.name)[0]
                             or "application/octet-stream")
@@ -6504,6 +6502,108 @@ async def share_asset(token: str, p: str = Query(...)):
     resp.headers["Content-Disposition"] = "inline"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Content-Security-Policy"] = share_render.CSP_HTML
+    return resp
+
+
+def _share_sibling(ban, p: str):
+    """File CẠNH trang .html được chia sẻ mà app đó xin bằng đường dẫn tương đối (data.json,
+    style.css, trang2.html, con/bang.csv...). None = không phục vụ.
+
+    Chỉ tồn tại cho file chia sẻ là .html: ghi chú .md lấy ảnh qua `/asset` với hai hàng rào
+    riêng, không đi đường này. Ba hàng rào ở đây:
+
+    1. VỊ TRÍ: đường dẫn tương đối tính từ THƯ MỤC CHỨA TRANG, thu gọn tại chỗ; leo lên trên
+       (`..` còn sót sau normpath) hay đi vào thư mục ẩn (`.git`, `.claude`) là bỏ. File thật
+       phải nằm trong thư mục đó hoặc thư mục con của nó.
+    2. LOẠI FILE: tài nguyên trình bày (DUOI_TAI_NGUYEN) luôn được; FILE DỮ LIỆU và trang phụ
+       (DUOI_DU_LIEU) chỉ được khi trang .html nằm trong MỘT THƯ MỤC RIÊNG, không phải gốc
+       brain. Trang ở gốc brain thì "thư mục chứa nó" là cả kho ghi chú, mở .md/.txt/.json ở
+       đó là một token lẻ đọc được mọi ghi chú - đúng lỗ mà DUOI_TAI_NGUYEN được viết ra để
+       đóng. App đọc dữ liệu thì cất vào một thư mục riêng (apps/ten-app/) là đủ.
+    3. Trang được chia sẻ phải còn tồn tại (token trỏ tới file đã xoá thì mọi thứ cạnh nó
+       cũng đóng theo).
+    """
+    goc = _share_file(ban)
+    if goc is None or goc.suffix.lower() not in share_render.DUOI_HTML:
+        return None
+    raw = (p or "").replace("\\", "/").strip().lstrip("/")
+    if not raw:
+        return None
+    thu_muc_rel = posixpath.dirname(str(ban.get("path") or "").replace("\\", "/"))
+    ung_vien = posixpath.normpath(posixpath.join(thu_muc_rel, raw) if thu_muc_rel else raw)
+    if ung_vien.startswith("..") or ung_vien.startswith("/"):
+        return None
+    if any(phan.startswith(".") for phan in ung_vien.split("/") if phan):
+        return None
+    brain = ban.get("brain") or "brain"
+    try:
+        f = _safe_serve_path(brain, ung_vien)
+    except ValueError:
+        return None
+    if not f.is_file():
+        return None
+    thu_muc = goc.parent
+    if not (f.parent == thu_muc or thu_muc in f.parents):
+        return None
+    duoi = f.suffix.lower()
+    if duoi in share_render.DUOI_TAI_NGUYEN:
+        return f
+    if duoi in share_render.DUOI_DU_LIEU:
+        goc_brain = Path(_brain_root(brain)).resolve()
+        if thu_muc == goc_brain:
+            return None
+        return f
+    return None
+
+
+@app.get("/s/{token}/")
+async def share_xem_html(token: str):
+    """Trang .html chia sẻ, ở địa chỉ có dấu gạch cuối (xem share_xem vì sao)."""
+    ban = share_store.doc(token)
+    if not ban:
+        return HTMLResponse(share_render.trang_loi("Link không tồn tại hoặc đã bị thu hồi."),
+                            status_code=404)
+    f = _share_file(ban)
+    if f is None:
+        return HTMLResponse(share_render.trang_loi("File đã bị xoá hoặc đổi tên."), status_code=404)
+    if f.suffix.lower() not in share_render.DUOI_HTML:
+        return RedirectResponse(url="/s/" + ban["token"], status_code=307)
+    # Nội dung của NGƯỜI DÙNG, có script: phục vụ nguyên văn nhưng trong hộp cách ly.
+    try:
+        noi = f.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
+    return HTMLResponse(noi, headers={"Content-Security-Policy": share_render.CSP_HTML,
+                                      "X-Content-Type-Options": "nosniff",
+                                      "Referrer-Policy": "no-referrer",
+                                      "Cache-Control": "no-cache"})
+
+
+@app.get("/s/{token}/{p:path}")
+async def share_sibling(token: str, p: str):
+    """File cạnh trang .html chia sẻ, theo đường dẫn tương đối app đó xin. Phạm vi: _share_sibling.
+
+    Header `Access-Control-Allow-Origin: *` là BẮT BUỘC chứ không phải cho rộng rãi: trang chạy
+    trong hộp cách ly `sandbox` không có `allow-same-origin`, nên với trình duyệt nó có origin
+    "null" và mọi fetch() của nó là yêu cầu chéo nguồn. Thiếu header này thì file vẫn tải về
+    nhưng trình duyệt chặn không cho script đọc, app hiện trống trơn mà Network tab lại xanh.
+    Không có gì để lộ thêm: cùng file đó ai có link cũng xin được bằng cách gõ thẳng URL.
+    """
+    ban = share_store.doc(token)
+    if not ban:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    f = _share_sibling(ban, p)
+    if f is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    duoi = f.suffix.lower()
+    kieu = share_render.KIEU_DU_LIEU.get(duoi) or mimetypes.guess_type(f.name)[0] \
+        or "application/octet-stream"
+    resp = FileResponse(str(f), media_type=kieu)
+    resp.headers["Content-Disposition"] = "inline"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Content-Security-Policy"] = share_render.CSP_HTML
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 

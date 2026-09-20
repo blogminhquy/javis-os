@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.46] - 2026-09-20
+### Sửa lỗi
+- **Link chia sẻ của ứng dụng .html giờ đọc được file dữ liệu kèm theo.** Trước đây app đọc data.json hay .csv bên cạnh, chia sẻ xong mở ra trống trơn: đường dẫn tương đối trỏ sai chỗ, và trang chạy trong hộp cách ly nên bị trình duyệt chặn đọc. Nay cả hai đã sửa; app cần nằm trong một thư mục riêng (ví dụ apps/ten-app/) để chỉ file trong thư mục đó được mở, ghi chú ngoài thư mục vẫn kín.
+### Thêm mới
+- **Trang Cộng sự gom cộng sự theo nhóm.** Chọn "Tất cả nhóm" là danh sách chia thành từng nhóm, bấm tiêu đề để thu gọn hay mở, số người hiện bên phải. Nút "..." trên tiêu đề cho đổi tên cả nhóm hoặc chỉ xem nhóm đó. Nhóm là gì tuỳ bạn đặt (phòng ban, dự án, mục đích), chuyển cộng sự sang nhóm khác hay lập nhóm mới vẫn ở menu "..." của từng cộng sự.
+
 ## [0.59.45] - 2026-09-20
 ### Cải thiện
 - **Chat dài với Antigravity: câu hỏi chép lên dòng lệnh dài gấp 4 lần và giữ cả đầu lẫn cuối.** Khi bạn dán một bài dài rồi chốt yêu cầu ở câu cuối, bản trước chỉ chép 1500 ký tự đầu nên yêu cầu ở cuối bị rơi mất. Giờ chép tới 6000 ký tự, dài hơn thì giữ phần mở đầu và phần chốt, chỉ lược đoạn giữa (vẫn có đủ trong file ngữ cảnh).

@@ -225,6 +225,81 @@ if _tok_sub:
     check("vẫn lui được về attachments/ khi ảnh không nằm cạnh note",
           _f.status_code == 200, _f.status_code)
 
+# ============ APP .html ĐỌC FILE DỮ LIỆU CẠNH NÓ (0.59.46) ============
+# Chủ dự án 20/09: "một số ứng dụng html đọc file dữ liệu mà share xong không thấy hiện các dữ
+# liệu". Hai lý do, phải sửa cả hai:
+#   1. Trang mở ở /s/<token> (không gạch cuối) nên fetch("data.json") xin /s/data.json - không
+#      có route nào ở đó. Nay .html chuyển hướng sang /s/<token>/ và có route /s/<token>/<p>.
+#   2. Trang chạy trong sandbox không allow-same-origin -> origin "null", fetch là chéo nguồn,
+#      thiếu Access-Control-Allow-Origin là trình duyệt chặn đọc dù file đã tải về.
+os.makedirs(os.path.join(BRAIN, "apps", "bang", "con"), exist_ok=True)
+with open(os.path.join(BRAIN, "apps", "bang", "index.html"), "w", encoding="utf-8") as f:
+    f.write("<!doctype html><h1>Bảng</h1><script>fetch('data.json')</script>")
+with open(os.path.join(BRAIN, "apps", "bang", "data.json"), "w", encoding="utf-8") as f:
+    f.write('{"doanh_thu": 12}')
+with open(os.path.join(BRAIN, "apps", "bang", "con", "so.csv"), "w", encoding="utf-8") as f:
+    f.write("a,b\n1,2\n")
+with open(os.path.join(BRAIN, "apps", "bang", "trang2.html"), "w", encoding="utf-8") as f:
+    f.write("<p>trang phụ</p>")
+with open(os.path.join(BRAIN, "apps", "bang", "ghi-chu.md"), "w", encoding="utf-8") as f:
+    f.write("ghi chú trong thư mục app")
+with open(os.path.join(BRAIN, "apps", "hang-xom.json"), "w", encoding="utf-8") as f:
+    f.write("{}")
+_ta = cl.post("/share/create", json={"brain": BRAIN, "path": "apps/bang/index.html"}).json()
+_tk = _ta.get("token")
+check("chia sẻ được app trong thư mục con", bool(_tk), _ta)
+if _tk:
+    _r0 = cl.get(f"/s/{_tk}", follow_redirects=False)
+    check("/s/<token> của trang .html CHUYỂN HƯỚNG sang địa chỉ có gạch cuối (để đường dẫn "
+          "tương đối trong app trỏ đúng)", _r0.status_code in (301, 302, 307, 308)
+          and (_r0.headers.get("location") or "").endswith(f"/s/{_tk}/"), (_r0.status_code, _r0.headers.get("location")))
+    _r1 = cl.get(f"/s/{_tk}/")
+    check("trang .html mở được ở /s/<token>/", _r1.status_code == 200 and "<h1>Bảng</h1>" in _r1.text)
+    check("vẫn trong hộp cách ly sandbox, không allow-same-origin",
+          "sandbox" in (_r1.headers.get("content-security-policy") or "")
+          and "allow-same-origin" not in (_r1.headers.get("content-security-policy") or ""))
+    _d = cl.get(f"/s/{_tk}/data.json")
+    check("data.json cạnh trang ĐỌC ĐƯỢC qua đường dẫn tương đối", _d.status_code == 200
+          and "doanh_thu" in _d.text, _d.status_code)
+    check("kiểu MIME là json", "application/json" in (_d.headers.get("content-type") or ""),
+          _d.headers.get("content-type"))
+    check("CANARY: có Access-Control-Allow-Origin: * (trang sandbox có origin null, thiếu là "
+          "fetch bị chặn đọc dù file đã tải)", _d.headers.get("access-control-allow-origin") == "*")
+    check("csv trong thư mục con của app cũng đọc được",
+          cl.get(f"/s/{_tk}/con/so.csv").status_code == 200)
+    check("trang phụ .html của app mở được", cl.get(f"/s/{_tk}/trang2.html").status_code == 200)
+    check("ghi chú .md trong thư mục RIÊNG của app đọc được (app ghi chú cần nó)",
+          cl.get(f"/s/{_tk}/ghi-chu.md").status_code == 200)
+    check("KHÔNG leo lên thư mục cha (apps/hang-xom.json)",
+          main._share_sibling({"brain": BRAIN, "path": "apps/bang/index.html", "token": _tk},
+                              "../hang-xom.json") is None)
+    check("KHÔNG leo ra gốc brain đọc ghi chú khác",
+          main._share_sibling({"brain": BRAIN, "path": "apps/bang/index.html", "token": _tk},
+                              "../../ghi-chu.md") is None
+          and cl.get(f"/s/{_tk}/..%2F..%2Fghi-chu.md").status_code == 404)
+    check("thư mục ẩn bị chặn",
+          main._share_sibling({"brain": BRAIN, "path": "apps/bang/index.html", "token": _tk},
+                              ".git/config") is None)
+    check("token bịa thì 404", cl.get("/s/khong-co/data.json").status_code == 404)
+# Trang .html nằm NGAY GỐC BRAIN: tài nguyên trình bày vẫn được, FILE DỮ LIỆU thì không - thư
+# mục chứa nó là cả kho ghi chú, mở ra là một token lẻ đọc được mọi ghi chú.
+_tg = cl.post("/share/create", json={"brain": BRAIN, "path": "app.html"}).json().get("token")
+if _tg:
+    check("app ở gốc brain: css trong thư mục con vẫn được",
+          cl.get(f"/s/{_tg}/assets/style.css").status_code == 200)
+    check("CANARY: app ở gốc brain KHÔNG đọc được ghi chú .md cạnh nó",
+          cl.get(f"/s/{_tg}/hang-xom.md").status_code == 404)
+    check("CANARY: app ở gốc brain KHÔNG đọc được .json/.txt ở gốc",
+          cl.get(f"/s/{_tg}/ghi.txt").status_code == 404)
+    check("và không đọc được thư mục riêng tư", cl.get(f"/s/{_tg}/rieng/kin.md").status_code == 404)
+# Link chia sẻ của .md KHÔNG mở đường này: ghi chú lấy ảnh qua /asset với luật riêng.
+_tm = cl.post("/share/create", json={"brain": BRAIN, "path": "06 - Sources/bai-viet.md"}).json().get("token")
+if _tm:
+    check("token của .md không phục vụ file cạnh nó qua /s/<token>/<p>",
+          cl.get(f"/s/{_tm}/ghi-chu-khac.md").status_code == 404
+          and cl.get(f"/s/{_tm}/anh-canh-note.png").status_code == 404)
+    check("/s/<token>/ của .md quay về /s/<token>", cl.get(f"/s/{_tm}/").status_code == 200)
+
 print()
 if _fails:
     print(f"THẤT BẠI {len(_fails)}: {_fails}")
