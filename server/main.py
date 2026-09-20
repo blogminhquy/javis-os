@@ -6,6 +6,7 @@ Javis KHÔNG gọi Anthropic API trực tiếp. Mọi reasoning + tool calling �
 `claude` CLI đã cài trên máy → tự kế thừa MCP, skills, auth.
 """
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
+import posixpath
 import os
 import json
 import math
@@ -6320,6 +6321,39 @@ def _share_file(ban):
     return f if f.is_file() else None
 
 
+def _ung_vien_tai_nguyen(duong_dan_file: str, p: str):
+    """Các chỗ CÓ THỂ chứa tấm ảnh `p` được nhắc trong file `duong_dan_file`, theo thứ tự thử.
+
+    Cùng một thứ tự với `ungVienAnh` trong dashboard/chat-render.js, và cùng một lý do:
+
+      1. THEO THƯ MỤC CỦA CHÍNH FILE .md - cách Obsidian, VS Code và GitHub hiểu một đường dẫn
+         tương đối, tức cái người viết note mong đợi. Trước bản này cả hai phía chỉ phân giải
+         theo GỐC BRAIN, nên note nằm trong thư mục con mà viết ![](anh.jpg) là ảnh không bao
+         giờ hiện (chủ dự án báo 18/09).
+      2. THEO GỐC BRAIN - hành vi cũ, giữ để note đang trỏ kiểu đó vẫn chạy.
+      3. attachments/<tên file> - nơi Javis tự cất ảnh nó sinh ra.
+
+    Hàng rào phạm vi KHÔNG đổi: mỗi ứng viên vẫn phải qua đủ hai cổng của _share_asset, nên
+    thêm ứng viên ở đây không mở rộng thêm thứ gì đọc được.
+    """
+    raw = (p or "").replace("\\", "/").strip().lstrip("/")
+    if raw.startswith("./"):
+        raw = raw[2:]
+    if not raw:
+        return []
+    thu_muc = posixpath.dirname((duong_dan_file or "").replace("\\", "/"))
+    ra = []
+    for ban_sao in (posixpath.normpath(posixpath.join(thu_muc, raw)) if thu_muc else None,
+                    posixpath.normpath(raw),
+                    "attachments/" + posixpath.basename(raw)):
+        # normpath để lại ".." khi đường dẫn vượt lên trên gốc; bỏ hẳn ứng viên đó thay vì
+        # đưa một đường dẫn nửa vời cho _safe_serve_path.
+        if not ban_sao or ban_sao.startswith("..") or ban_sao in ra:
+            continue
+        ra.append(ban_sao)
+    return ra
+
+
 def _share_asset(ban, p: str):
     """File TÀI NGUYÊN kèm theo (ảnh trong .md, css/js cạnh file .html).
 
@@ -6338,18 +6372,25 @@ def _share_asset(ban, p: str):
     goc = _share_file(ban)
     if goc is None:
         return None
-    try:
-        f = _safe_serve_path(ban.get("brain") or "brain", p or "")
-    except ValueError:
-        return None
-    if not f.is_file() or f.suffix.lower() not in share_render.DUOI_TAI_NGUYEN:
-        return None
+    brain = ban.get("brain") or "brain"
     thu_muc = goc.parent
-    dinh_kem = (Path(_brain_root(ban.get("brain") or "brain")).resolve() / "attachments")
-    if thu_muc in f.parents or f.parent == thu_muc:
-        return f
-    if dinh_kem.is_dir() and (dinh_kem == f.parent or dinh_kem in f.parents):
-        return f
+    dinh_kem = (Path(_brain_root(brain)).resolve() / "attachments")
+
+    def _qua_cong(f) -> bool:
+        """Đúng hai hàng rào ở trên, hỏi cho MỘT ứng viên."""
+        if not f.is_file() or f.suffix.lower() not in share_render.DUOI_TAI_NGUYEN:
+            return False
+        if thu_muc in f.parents or f.parent == thu_muc:
+            return True
+        return dinh_kem.is_dir() and (dinh_kem == f.parent or dinh_kem in f.parents)
+
+    for ung_vien in _ung_vien_tai_nguyen(str(ban.get("path") or ""), p or ""):
+        try:
+            f = _safe_serve_path(brain, ung_vien)
+        except ValueError:
+            continue
+        if _qua_cong(f):
+            return f
     return None
 
 
