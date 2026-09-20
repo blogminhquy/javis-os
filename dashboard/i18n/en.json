@@ -2814,6 +2814,7 @@
   "share.heading": "Active share links",
   "share.warn": "Anyone with a link can view it, no sign-in and no expiry. Revoking kills the link immediately for everyone.",
   "share.search_ph": "Search by file name or folder…",
+  "share.count": "{so} of {tong} links match",
   "share.no_match": "No link matches that search.",
   "share.empty": "Nothing shared yet. Open a file and press Share in the editor to create a link."
 }

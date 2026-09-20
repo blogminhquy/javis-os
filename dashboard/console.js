@@ -6047,7 +6047,9 @@
   // Số link mỗi trang, và ngưỡng bắt đầu hiện ô tìm. Cùng một con số cho cả hai thì lạ mắt:
   // đúng 20 link là vừa một trang mà đã phải gõ để tìm, nên ngưỡng tìm đặt thấp hơn.
   const SHARE_MOI_TRANG = 20;
-  const SHARE_NGUONG_TIM = 8;
+  // Ô tìm hiện từ link thứ HAI (chủ repo 20/09: "có thêm tìm kiếm và phân trang nữa nhé" - ngưỡng
+  // 8 cũ khiến người có 5-6 link không thấy ô tìm đâu, tưởng chưa có).
+  const SHARE_NGUONG_TIM = 1;
 
   async function renderSharePage(el) {
     const gen = _renderGen;
@@ -6097,7 +6099,8 @@
         <div class="settings-card-head"><b>${esc(t("share.heading"))}</b><span class="gcard-tag">${ds.length}</span></div>
         <p>${esc(t("share.warn"))}</p>
         ${coTim ? `<input id="shareSearch" class="share-search" type="search" spellcheck="false"
-          autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(tuKhoa)}">` : ""}
+          autocomplete="off" placeholder="${esc(t("share.search_ph"))}" value="${esc(tuKhoa)}">
+        <div class="share-count" id="shareCount"></div>` : ""}
         <div class="share-list" id="shareList"></div>
       </div></div>`;
       veDanhSach();
@@ -6115,6 +6118,10 @@
       const box = el.querySelector("#shareList");
       if (!box) return;
       const hien = loc(tuKhoa);
+      // Dòng đếm: đang gõ thì thấy ngay còn bao nhiêu link khớp, khỏi phải lật trang đếm tay.
+      const dem = el.querySelector("#shareCount");
+      if (dem) dem.textContent = (tuKhoa || "").trim()
+        ? t("share.count", { so: hien.length, tong: ds.length }) : "";
       const P = (typeof window !== "undefined" && window.JavisPager) || null;
       const trong = `<div class="share-empty">${esc(t("share.no_match"))}</div>`;
       if (P) {
