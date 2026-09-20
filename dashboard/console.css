@@ -1515,6 +1515,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
    còn vài chục pixel, hoặc phải ẩn đi và người dùng mất luôn bộ lọc đang bật. */
 .ws-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: none; }
 .ws-filters .ws-group { flex: 1 1 auto; min-width: 0; width: auto; }
+/* Thanh chọn nhóm (0.59.47): mượn nguyên lớp .cside-proj/.cs-proj-* của thanh project bên Trò
+   chuyện (style.css), chỉ thêm co giãn cho vừa hàng lọc. */
+.ws-filters .ws-nhom-bar { flex: 1 1 auto; min-width: 0; }
+.ws-nhom-bar .cs-proj-name svg { width: 14px; height: 14px; vertical-align: -2px; }
 .ws-filters .ws-search-btn { flex: none; }
 .ws-filters .ws-search { flex: 1 0 100%; }
 .ws-search[hidden] { display: none; }

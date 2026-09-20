@@ -82,7 +82,9 @@
   //     có khối ghim phía trên, như trước);
   //   - "Tất cả" thì mỗi nhóm một khối, xếp theo tên (tiếng Việt), "Chung" xuống cuối vì
   //     đó là chỗ của người chưa được xếp vào đâu, giống "Không thuộc dự án" bên Trò chuyện.
-  function gomNhom(ds, nhomLoc) {
+  // `nhomTrong`: nhóm vừa tạo bằng "+ Nhóm mới" mà chưa có ai (xem docNhomTrong) - vẫn vẽ
+  // tiêu đề với số 0 để người dùng thấy nhóm mình vừa lập rồi kéo cộng sự vào.
+  function gomNhom(ds, nhomLoc, nhomTrong) {
     var ghim = (ds || []).filter(function (x) { return x.pinned; });
     var thuong = (ds || []).filter(function (x) { return !x.pinned; });
     var ra = [];
@@ -93,6 +95,7 @@
     }
     var theo = {};
     thuong.forEach(function (x) { var g = nhomCua(x); (theo[g] = theo[g] || []).push(x); });
+    (nhomTrong || []).forEach(function (g) { g = String(g || "").trim(); if (g && g !== NHOM_MD && !theo[g]) theo[g] = []; });
     Object.keys(theo).sort(function (a, b) {
       if (a === NHOM_MD) return 1; if (b === NHOM_MD) return -1;
       return a.localeCompare(b, "vi");
@@ -230,7 +233,10 @@
           // nằm đó suốt ngày ăn mất một dòng mà chín trên mười lần người dùng không gõ gì.
           // Bấm nút kính lúp mới bung ra, gõ xong xoá hết rồi rời đi là nó tự thu lại.
           '<div class="ws-filters" id="wsFilters">' +
-            '<select class="ws-group" id="wsGroup" aria-label="' + esc(t("studio.groups")) + '"></select>' +
+            // Thanh chọn nhóm: ĐÚNG khuôn thanh project của cột trái trang Trò chuyện (nút mở
+            // bảng nổi + nút tạo nhóm), thay cho ô <select> cũ. Chủ repo 20/09: "xem phần
+            // project trong trò chuyện thì agent làm tương tự".
+            '<div class="cside-proj ws-nhom-bar" id="wsGroup"></div>' +
             // Ô nhập được GIEO LẠI từ S.q, và nút mang aria-controls trỏ vào nó: câu đang lọc
             // phải luôn NHÌN THẤY ĐƯỢC. Dựng khung với ô rỗng trong khi S.q còn chữ là danh
             // sách thiếu người mà không có gì trên màn hình giải thích vì sao.
@@ -397,19 +403,111 @@
     else traCayThuMuc();
   }
 
+  // ---------- bộ chọn NHÓM: thanh + bảng nổi, cùng khuôn với project bên Trò chuyện ----------
+  // Nhóm TRỐNG (tạo bằng "+ Nhóm mới" mà chưa kéo ai vào) không tồn tại ở đâu trên đĩa - nhóm
+  // là tập hợp cộng sự có cùng `group` - nên nhớ tạm trong localStorage theo brain và loại; hễ
+  // có cộng sự mang tên nhóm đó là xoá khỏi sổ vì nhóm đã "thật".
+  var KHOA_NHOM_TRONG = "javis_ws_nhom_trong";
+  function khoaTrong() { return brain() + "|" + S.loai; }
+  function docNhomTrong() {
+    try { var o = JSON.parse(localStorage.getItem(KHOA_NHOM_TRONG) || "{}") || {}; return (o[khoaTrong()] || []).slice(); }
+    catch (e) { return []; }
+  }
+  function luuNhomTrong(ds) {
+    try {
+      var o = JSON.parse(localStorage.getItem(KHOA_NHOM_TRONG) || "{}") || {};
+      o[khoaTrong()] = ds; localStorage.setItem(KHOA_NHOM_TRONG, JSON.stringify(o));
+    } catch (e) {}
+  }
+  function demNhom() { var m = {}; danhSach().forEach(function (x) { var g = nhomCua(x); m[g] = (m[g] || 0) + 1; }); return m; }
+  // Mọi nhóm đang có (trừ "Chung"), nhóm thật lẫn nhóm trống, xếp theo tên tiếng Việt.
+  function tenCacNhom() {
+    var dem = demNhom(), ds = Object.keys(dem).filter(function (g) { return g !== NHOM_MD; });
+    docNhomTrong().forEach(function (g) { if (g && g !== NHOM_MD && ds.indexOf(g) < 0) ds.push(g); });
+    return ds.sort(function (a, b) { return a.localeCompare(b, "vi"); });
+  }
+  function nhanNhom(g) { return !g ? t("ws.all_groups") : g === NHOM_MD ? t("ws.group_none") : g; }
+  function chonNhom(g) { S.nhom = g || ""; S.hien = TRANG; veTrai(); }
+  function taoNhomMoi() {
+    var ten = window.prompt(t("ws.group_ask"), "");
+    if (ten == null) return;
+    ten = String(ten).trim();
+    if (!ten) return;
+    if (ten !== NHOM_MD && !demNhom()[ten]) {
+      var ds = docNhomTrong(); if (ds.indexOf(ten) < 0) { ds.push(ten); luuNhomTrong(ds); }
+    }
+    chonNhom(ten);
+  }
+  // Xoá nhóm = đưa mọi cộng sự trong nhóm về "Chưa xếp nhóm" (group mặc định) và bỏ khỏi sổ
+  // nhóm trống. Không xoá cộng sự nào.
+  async function xoaNhom(g) {
+    var ds = danhSach().filter(function (x) { return nhomCua(x) === g; });
+    if (ds.length && !window.confirm(t("ws.group_delete_ask", { ten: g, n: ds.length }))) return;
+    for (var i = 0; i < ds.length; i++) {
+      var r = await api("/capability/meta", { method: "POST", body: fd({ kind: S.loai, slug: ds[i].slug, brain: brain(), group: "" }) });
+      if (!r || !r.ok) { veLoi((r && r.error) || t("ws.err_meta")); break; }
+    }
+    luuNhomTrong(docNhomTrong().filter(function (x) { return x !== g; }));
+    var th = S.thu[S.loai] || []; var j = th.indexOf(g); if (j >= 0) { th.splice(j, 1); luuThu(); }
+    if (S.nhom === g) S.nhom = "";
+    await taiDanhSach();
+    if (!active) return;
+    veTrai(); veGiua(dangChon());
+  }
+  function moBangNhom(neo) {
+    var cs = window.JavisChatSide; if (!cs || !cs.menu) return;
+    var dem = demNhom();
+    var rows = [
+      { label: t("ws.all_groups"), icon: "layers", on: !S.nhom, run: function () { chonNhom(""); } },
+      { label: t("ws.group_none"), icon: "circle", right: String(dem[NHOM_MD] || 0), on: S.nhom === NHOM_MD,
+        run: function () { chonNhom(NHOM_MD); } },
+    ];
+    var ds = tenCacNhom();
+    if (ds.length) rows.push({ sep: true });
+    ds.forEach(function (g) {
+      rows.push({ label: g, icon: "folder", right: String(dem[g] || 0), on: S.nhom === g,
+                  run: function () { chonNhom(g); },
+                  acts: [{ icon: "ellipsis-vertical", title: t("ws.group_acts"),
+                           run: function () { moChucNangNhom(neo, g); } }] });
+    });
+    rows.push({ sep: true });
+    rows.push({ label: t("ws.group_new_row"), run: function () { taoNhomMoi(); } });
+    cs.menu(neo, rows);
+  }
+  // Hộp chức năng của MỘT nhóm, đi sâu trong cùng bảng nổi (như project bên Trò chuyện).
+  function moChucNangNhom(neo, g) {
+    var cs = window.JavisChatSide; if (!cs || !cs.menu) return;
+    cs.menu(neo, [
+      { label: g, icon: "folder", wrap: true, run: function () { chonNhom(g); } },
+      { sep: true },
+      { label: t("ws.group_only"), icon: "folder-open", run: function () { chonNhom(g); } },
+      { label: t("ws.group_rename"), icon: "pencil", run: function () { doiTenNhom(g); } },
+      { label: t("ws.group_delete"), icon: "trash-2", run: function () { xoaNhom(g); } },
+    ]);
+  }
+  function veThanhNhom(el) {
+    var bar = el.querySelector("#wsGroup"); if (!bar) return;
+    var icNhom = !S.nhom ? "layers" : S.nhom === NHOM_MD ? "circle" : "folder";
+    bar.innerHTML =
+      '<button type="button" class="cs-proj-cur" title="' + esc(t("ws.group_pick_title")) + '">' +
+        '<span class="cs-proj-name">' + ic(icNhom) + ' ' + esc(nhanNhom(S.nhom)) + '</span>' +
+        '<span class="cs-proj-caret">' + ic("chevron-down") + '</span></button>' +
+      (S.nhom ? '<button type="button" class="cs-proj-x" title="' + esc(t("ws.group_clear_title")) + '">' + ic("x") + '</button>' : '') +
+      '<button type="button" class="cs-proj-add" title="' + esc(t("ws.group_add_title")) + '">' + ic("folder-plus") + '</button>';
+    var cur = bar.querySelector(".cs-proj-cur"); if (cur) cur.onclick = function (e) { moBangNhom(e.currentTarget); };
+    var x = bar.querySelector(".cs-proj-x"); if (x) x.onclick = function () { chonNhom(""); };
+    var add = bar.querySelector(".cs-proj-add"); if (add) add.onclick = function () { taoNhomMoi(); };
+  }
+
   function veTrai() {
     var el = S.el; if (!el) return;
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.classList.toggle("on", b.dataset.loai === S.loai); });
-    var nhoms = {}; danhSach().forEach(function (x) { var g = x.group || "Chung"; nhoms[g] = (nhoms[g] || 0) + 1; });
-    if (S.nhom && !nhoms[S.nhom]) S.nhom = "";
-    // Một Ô CHỌN chứ không phải hàng chip (chủ repo yêu cầu): brain thật có cả chục nhóm, mà
-    // chip thì xuống dòng thành một mảng chiếm gần nửa cột trái, đẩy danh sách cộng sự xuống
-    // dưới. Số đếm giữ lại trong nhãn từng dòng nên vẫn biết nhóm nào đông.
-    var sel = el.querySelector("#wsGroup");
-    var groups = [{name: "", label: t("ws.all_groups"), count: danhSach().length}].concat(Object.keys(nhoms).sort().map(function (g) { return {name:g, label:g, count:nhoms[g]}; }));
-    sel.innerHTML = groups.map(function (g) { return '<option value="'+esc(g.name)+'">'+esc(g.label)+' ('+g.count+')</option>'; }).join('');
-    sel.value = S.nhom;
-    sel.onchange = function () { S.nhom = sel.value; S.hien = TRANG; veTrai(); };
+    var nhoms = demNhom();
+    // Nhóm trống đã có người thì thành nhóm thật, bỏ khỏi sổ.
+    var trong = docNhomTrong(), conTrong = trong.filter(function (g) { return !nhoms[g]; });
+    if (conTrong.length !== trong.length) luuNhomTrong(conTrong);
+    if (S.nhom && !nhoms[S.nhom] && conTrong.indexOf(S.nhom) < 0) S.nhom = "";
+    veThanhNhom(el);
     el.querySelector("#wsNew").innerHTML = ic("plus") + " " + esc(S.loai === "agent" ? t("ws.new_agent") : t("ws.new_workflow"));
     el.querySelector("#wsImport").textContent = t(S.loai === "agent" ? "ws.upload_agent" : "ws.upload_workflow");
     veDanhSach();
@@ -438,12 +536,13 @@
     var el = S.el; if (!el) return;
     var ds = loc(danhSach(), S.q, S.nhom), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
-    if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
+    var trong = (S.q || S.nhom) ? [] : docNhomTrong();
+    if (!ds.length && !trong.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
     if (S.hien < TRANG) S.hien = TRANG;
     // Vẽ theo KHỐI (xem gomNhom). Nhóm đang thu gọn chỉ còn hàng tiêu đề, không tính vào
     // trang; phân trang đếm MỤC đã vẽ chứ không đếm tiêu đề.
     var html = "", daVe = 0, tong = 0;
-    gomNhom(ds, S.nhom).forEach(function (n) {
+    gomNhom(ds, S.nhom, trong).forEach(function (n) {
       var thu = n.theoNhom && daThu(n.nhom);
       if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
       else if (n.theoNhom) html += nhomHtml(n.nhom, n.items.length, thu);
@@ -573,9 +672,11 @@
       var so = danhSach().filter(function (x) { return nhomCua(x) === g; }).length;
       m.innerHTML = '<div class="ws-menu-head">' + esc(g) + ' · ' + so + '</div>' +
         nutMenu("folder-open", t("ws.group_only"), "chi") +
-        nutMenu("pencil", t("ws.group_rename"), "ten");
-      m.querySelector('[data-act="chi"]').onclick = function () { dongMenu(); S.nhom = g; S.hien = TRANG; veTrai(); };
+        nutMenu("pencil", t("ws.group_rename"), "ten") +
+        nutMenu("trash-2", t("ws.group_delete"), "xoa");
+      m.querySelector('[data-act="chi"]').onclick = function () { dongMenu(); chonNhom(g); };
       m.querySelector('[data-act="ten"]').onclick = function () { dongMenu(); doiTenNhom(g); };
+      m.querySelector('[data-act="xoa"]').onclick = function () { dongMenu(); xoaNhom(g); };
     });
   }
   // Đổi tên nhóm = đổi `group` của TỪNG cộng sự trong đó qua /capability/meta (cùng đường
@@ -591,6 +692,7 @@
       if (!r || !r.ok) { veLoi((r && r.error) || t("ws.err_meta")); break; }
     }
     var th = S.thu[S.loai] || []; var j = th.indexOf(g); if (j >= 0) { th[j] = moi; luuThu(); }
+    var tr = docNhomTrong(); var k = tr.indexOf(g); if (k >= 0) { tr[k] = moi; luuNhomTrong(tr); }
     if (S.nhom === g) S.nhom = moi;
     await taiDanhSach();
     if (!active) return;
@@ -651,6 +753,9 @@
       var g = (x.group || "Chung").trim();
       if (g && nhom.indexOf(g) < 0) nhom.push(g);
     });
+    // Nhóm vừa lập bằng "+ Nhóm mới" (chưa có ai) cũng phải chọn được, không thì không có
+    // cách nào đưa cộng sự đầu tiên vào đó.
+    docNhomTrong().forEach(function (g) { if (g && nhom.indexOf(g) < 0) nhom.push(g); });
     nhom.sort(function (a, b) { return a.localeCompare(b, "vi"); });
     var hien = (item.group || "Chung").trim();
     m.innerHTML =
@@ -1115,5 +1220,5 @@
   }
 
   window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
-    dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, state: function () { return S; } };
+    dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, nhomHtml: nhomHtml, chonNhom: chonNhom, state: function () { return S; } };
 })();

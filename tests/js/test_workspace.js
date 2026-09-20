@@ -55,6 +55,11 @@ check("loc theo nhom", W.loc(ds, "", "Finance").map(x => x.slug).join() === "b")
   check("loc mot nhom -> mot khoi, khong tieu de nhom",
     kl.length === 1 && kl[0].theoNhom === false && kl[0].tieuDe === false);
   check("khong co gi thi rong", W.gomNhom([], "").length === 0);
+  // Nhóm TRỐNG (vừa tạo bằng "+ Nhóm mới"): vẫn có khối riêng với 0 người, xếp đúng chỗ theo tên.
+  const kt = W.gomNhom(ds2, "", ["Bán hàng", "Marketing", "Chung"]);
+  check("nhom trong thanh mot khoi 0 nguoi, xep theo ten; trung nhom that hay 'Chung' thi bo qua",
+    kt.slice(1).map(k => k.nhom + ":" + k.items.length).join("|") === "Ăn uống:1|Bán hàng:0|Marketing:2|Chung:2",
+    kt.map(k => k.nhom + ":" + k.items.length).join("|"));
   const h = W.nhomHtml("Marketing", 2, true);
   check("tieu de nhom: co nut thu gon, ten, so nguoi, nut quan ly, va co thu khi dang thu",
     h.includes("ws-grp-tog") && h.includes("Marketing") && h.includes('ws-grp-n">2<')
@@ -190,6 +195,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     // Khối nhóm (0.59.46) khai ở đầu module, ngoài đoạn được bóc: mượn bản thật qua W,
     // riêng trạng thái thu gọn cho về "không thu" để danh sách vẽ đủ.
     gomNhom: W.gomNhom, nhomHtml: W.nhomHtml, daThu: () => false,
+    nhomCua: (x) => (String((x && x.group) || "").trim()) || "Chung", NHOM_MD: "Chung", brain: () => "brain",
+    nhomCua: (x) => (String((x && x.group) || "").trim()) || "Chung", NHOM_MD: "Chung", brain: () => "brain",
     TAB_PHAI: ["cai", "lichsu", "files"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
@@ -206,13 +213,14 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   };
   vm.createContext(ctx); vm.runInContext(doan, ctx);
 
-  // ---- Bộ lọc nhóm là Ô CHỌN, không phải hàng chip ----
+  // ---- Bộ chọn nhóm là THANH + bảng nổi cùng khuôn thanh project bên Trò chuyện (0.59.47) ----
   ctx.veTrai();
   const html = nodes["#wsGroup"].innerHTML;
-  check("bo loc nhom ve bang <option>, khong con chip", html.indexOf("<option") === 0 && !/ws-group-chip/.test(html));
-  check("co dong Tat ca nhom dung dau", html.indexOf('<option value="">ws.all_groups (3)') === 0);
-  check("moi nhom kem so dem", html.includes(">Marketing (2)<") && html.includes(">Finance (1)<"));
-  check("o chon dung dang o mac dinh Tat ca", nodes["#wsGroup"].value === "");
+  check("thanh chon nhom dung lop cs-proj-cur cua thanh project, khong con <select>/<option>",
+    html.includes("cs-proj-cur") && !html.includes("<option") && !/ws-group-chip/.test(html));
+  check("mac dinh hien Tat ca nhom, khong co nut bo loc", html.includes("ws.all_groups") && !html.includes("cs-proj-x"));
+  check("co nut tao nhom moi ben canh", html.includes("cs-proj-add"));
+  check("o chon dung dang o mac dinh Tat ca", ctx.S.nhom === "");
   // "Tất cả": danh sách chia theo NHÓM có tiêu đề (0.59.46), Finance đứng trước Marketing.
   const dsHtml = nodes["#wsList"].innerHTML;
   check("xem Tat ca thi co tieu de nhom Finance va Marketing",
@@ -220,9 +228,11 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     && dsHtml.indexOf('data-nhom="Finance"') < dsHtml.indexOf('data-nhom="Marketing"'));
   check("tieu de nhom dung truoc nguoi trong nhom do",
     dsHtml.indexOf('data-nhom="Marketing"') < dsHtml.indexOf("Người viết"));
-  nodes["#wsGroup"].value = "Finance"; nodes["#wsGroup"].onchange();
-  check("doi dong trong o chon thi loc theo nhom do", ctx.S.nhom === "Finance"
+  ctx.chonNhom("Finance");
+  check("chon mot nhom thi loc theo nhom do", ctx.S.nhom === "Finance"
     && nodes["#wsList"].innerHTML.includes("Kế toán") && !nodes["#wsList"].innerHTML.includes("Người viết"));
+  check("dang loc thi thanh hien ten nhom va nut bo loc",
+    nodes["#wsGroup"].innerHTML.includes("Finance") && nodes["#wsGroup"].innerHTML.includes("cs-proj-x"));
   ctx.S.nhom = ""; ctx.veTrai();
 
   // ---- Hàng quy trình ĐANG chạy đeo icon quay ----
