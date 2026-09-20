@@ -35,6 +35,14 @@ p = main._agent_chat_prompt("brain", "nguoi-viet")
 check("prompt la cua tro ly", "Bạn là agent **Người viết**" in p and "Viết súc tích." in p and "JAVIS_LESSON" in p)
 check("prompt noi ro dang chat truc tiep", "trò chuyện trực tiếp" in p)
 check("prompt KHONG keo CLAUDE.md cua Javis", "SWAPPABLE BRAIN" not in p and "# === LỚP AGENTIC" not in p)
+# 2026-09-18: agent "Biên tập viên" từ chối đẩy file lên Drive vì "ngoài phạm vi", rồi BỊA đã
+# "bàn giao cho agent dang_tai" và hẹn "có kết quả em báo lại". Prompt agent phải nói rõ: vai
+# là chuyên môn chứ không phải hàng rào tool, không bịa giao việc, không hẹn báo lại.
+check("prompt agent noi ro co TOAN BO tool qua hub (khong tu choi viec ngoai vai)",
+      "javis_run_tool" in p and "javis_task" in p and "javis_connections" in p
+      and "không phải hàng rào" in p)
+check("prompt agent cam bia 'da giao cho agent khac'", "không bịa tên agent" in p)
+check("prompt agent cam hen 'co ket qua em bao lai'", "báo lại" in p and "KẾT THÚC khi bạn nói xong" in p)
 try:
     main._agent_chat_prompt("brain", "khong-co")
     check("tro ly khong co -> FileNotFoundError", False)

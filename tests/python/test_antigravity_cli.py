@@ -161,9 +161,32 @@ check("mode rỗng -> siết như suggest",
       antigravity_cli.co_quyen_cho_mode("") == ["--sandbox"])
 check("CANARY: mode gõ sai KHÔNG được thành toàn quyền",
       "--dangerously-skip-permissions" not in antigravity_cli.co_quyen_cho_mode("FULLL"))
-check("mode auto: có sandbox VÀ tự duyệt (headless dừng hỏi là treo)",
-      set(antigravity_cli.co_quyen_cho_mode("auto"))
-      == {"--sandbox", "--dangerously-skip-permissions"})
+check("mode auto: tự duyệt (headless dừng hỏi là treo)",
+      antigravity_cli.co_quyen_cho_mode("auto") == ["--dangerously-skip-permissions"])
+# ĐO 2026-09-19 trên agy 1.2.7: `--sandbox` + `--dangerously-skip-permissions` cùng lúc làm tool
+# shell chạy như việc nền rồi bị agy tự huỷ sau 5 giây khi thoát -p, không bao giờ trả kết quả.
+# Mọi việc Kanban/Loop mức auto cần shell/ghi file chết câm vì tổ hợp này.
+check("CANARY: mode auto KHÔNG được kèm --sandbox (tổ hợp hai cờ làm tool shell chết câm)",
+      "--sandbox" not in antigravity_cli.co_quyen_cho_mode("auto"))
+check("mode suggest vẫn sandbox, không tự duyệt",
+      antigravity_cli.co_quyen_cho_mode("suggest") == ["--sandbox"])
+
+# ---- Lời nhắc đường file phải nhắc ĐÚNG câu hỏi mới nhất, không phải đầu gói lịch sử ----
+import compaction  # noqa: E402
+_goi = compaction.bootstrap_prompt(
+    [{"role": "user", "content": "gửi ảnh favicon cho tôi"},
+     {"role": "assistant", "content": "Bạn chỉ cần gửi trực tiếp file ảnh favicon."}],
+    "kiểm tra penlum xem đã tạo được sitemap.xml động chưa")
+check("cau_hoi_moi_nhat bóc đúng câu hỏi hiện tại khỏi gói lịch sử",
+      antigravity_cli.cau_hoi_moi_nhat(_goi)
+      == "kiểm tra penlum xem đã tạo được sitemap.xml động chưa")
+check("cau_hoi_moi_nhat: không có lịch sử thì trả nguyên prompt",
+      antigravity_cli.cau_hoi_moi_nhat("  xin chào ") == "xin chào")
+_nhac = antigravity_cli._loi_nhac_file("/tmp/ngu-canh.md", _goi)
+check("CANARY: lời nhắc đường file KHÔNG dán câu hỏi CŨ dưới nhãn 'tin nhắn mới nhất' "
+      "(bản trước cắt 1500 ký tự ĐẦU của gói -> model trả lời câu cũ khi chat dài)",
+      "favicon" not in _nhac and "sitemap.xml động" in _nhac, _nhac)
+check("lời nhắc dặn không trả lời lại câu cũ", "không trả lời lại" in _nhac)
 
 
 # ============================================================

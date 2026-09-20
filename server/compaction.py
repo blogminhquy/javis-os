@@ -28,6 +28,21 @@ _MSG_CLIP = 1500        # mỗi message đưa vào prompt tóm tắt cắt còn 
 # lúc xoay không rơi tự do. 300.000 ký tự ~ 100k token: đủ dày để mang theo cả một phiên làm
 # việc dài, mà vẫn nhỏ hơn nhiều so với một triệu token vừa bỏ đi.
 CODEX_BOOTSTRAP_MAX_CHARS = 300_000
+# Riêng Antigravity CLI (`agy`): KHÔNG nối lại mạch, nên gói lịch sử này được gửi lại NGUYÊN
+# mỗi lượt chứ không phải chỉ một lần lúc xoay mạch như Codex/Claude Code. 300.000 ký tự mỗi
+# lượt vừa tốn hạn mức gói Google, vừa là cái file ngữ cảnh mà model phải tự mở ra đọc trên
+# Windows (dòng lệnh chặn 32k), và file càng dài thì tool đọc file càng dễ cắt cụt trước khi tới
+# câu hỏi ở cuối - model đọc được nửa đầu rồi trả lời một câu hỏi cũ (báo 2026-09-18/19).
+# Ghi đè bằng env JAVIS_AGY_BOOTSTRAP_MAX_CHARS nếu máy nào cần khác.
+try:
+    AGY_BOOTSTRAP_MAX_CHARS = max(
+        20_000, int(__import__("os").environ.get("JAVIS_AGY_BOOTSTRAP_MAX_CHARS") or 100_000))
+except (TypeError, ValueError):
+    AGY_BOOTSTRAP_MAX_CHARS = 100_000
+# Dòng đánh dấu ranh giới giữa lịch sử đã gói và câu hỏi hiện tại trong bootstrap_prompt. Engine
+# nào cần bóc lại câu hỏi thật (antigravity_cli.cau_hoi_moi_nhat) tìm theo ĐÚNG chuỗi này, nên
+# đổi chữ ở đây là phải đổi ở đó - vì thế mới đặt thành hằng dùng chung.
+CURRENT_REQUEST_MARKER = "[YÊU CẦU HIỆN TẠI]"
 # Đuôi hội thoại CHƯA nén dài quá ngưỡng này → nén ĐỒNG BỘ ngay trong lượt trước khi gửi,
 # để phần cũ vào tóm tắt thay vì bị cắt câm. Hay xảy ra khi đổi từ engine Claude (CLI - không
 # tạo tóm tắt) sang engine API giữa chừng, hoặc nén nền chưa kịp bắt đầu.
@@ -136,11 +151,12 @@ def bootstrap_prompt(raw_msgs, current_prompt: str,
     header = (
         "[KHÔI PHỤC NGỮ CẢNH HỘI THOẠI]\n"
         "Các đoạn dưới đây là lịch sử thật của cùng cuộc trò chuyện Javis. "
-        "Hãy tiếp tục đúng mạch, không coi chúng là yêu cầu mới cần làm lại.\n"
+        "Hãy tiếp tục đúng mạch, không coi chúng là yêu cầu mới cần làm lại. Mọi câu hỏi trong "
+        "lịch sử ĐÃ được trả lời rồi; chỉ trả lời phần " + CURRENT_REQUEST_MARKER + " ở cuối.\n"
     )
     if tom_tat:
         header += SUMMARY_HEADER + tom_tat + "\n"
-    footer = "\n[HẾT LỊCH SỬ]\n\n[YÊU CẦU HIỆN TẠI]\n"
+    footer = "\n[HẾT LỊCH SỬ]\n\n" + CURRENT_REQUEST_MARKER + "\n"
     budget = max(1000, int(max_chars)) - len(header) - len(footer) - len(current_prompt)
     blocks = []
     truncated = False

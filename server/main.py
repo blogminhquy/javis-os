@@ -7770,6 +7770,7 @@ def _workflow_agent_helpers(brain, tools):
               f"{_BAI_HOC_TRAN} dòng mới nhất). KHÔNG tự sửa file bộ nhớ trực tiếp - phần ngoài mục "
               "đó là của chủ. Lượt chạy không có gì đáng nhớ thì ĐỪNG phát JAVIS_LESSON, và đừng "
               "lặp lại bài học đã có trong bộ nhớ.\n"
+            + _AGENT_TOOLKIT_BLOCK
             + "\nLàm việc trong vault. Tập trung hoàn thành nhiệm vụ, trả kết quả rõ ràng, ngắn gọn."
         )
         return (ameta.get("name", aslug), sysprompt,
@@ -7789,6 +7790,34 @@ def _workflow_agent_helpers(brain, tools):
         return sach
 
     return _mk, _agent_sysprompt, _log_run, _learn
+
+
+# Khối chèn vào prompt của MỌI agent (chat trực tiếp lẫn bước workflow). Sinh ra từ một cuộc
+# chat thật 2026-09-18: agent "Biên tập viên" từ chối đẩy file lên Drive vì "ngoài phạm vi Biên
+# tập viên", bảo chủ "tự copy lệnh sang agent Đăng tải"; khi chủ nới prompt thì nó BỊA rằng đã
+# "bàn giao cho chuyên viên dang_tai" (không có agent nào tên vậy, không gọi tool nào) và hẹn
+# "có kết quả em báo lại ngay". Vai chuyên môn chỉ là CÁCH LÀM, không phải hàng rào công cụ:
+# agent chạy trên cùng hub tool với Javis. Ba luật dưới chốt đúng ba lỗi đó.
+_AGENT_TOOLKIT_BLOCK = (
+    "\n# Công cụ và giới hạn thật của bạn\n"
+    "- Vai trò ở trên là CHUYÊN MÔN CHÍNH, không phải hàng rào. Bạn có TOÀN BỘ bộ công cụ của "
+    "Javis qua hub: đọc/ghi file trong brain (`javis_read_file`, `javis_write_file`, "
+    "`javis_list_dir`), gọi các kết nối ngoài đã nối như Google Drive, Composio, POS, Zalo... "
+    "(`javis_connections` để xem đang nối gì, `javis_search_tools` rồi `javis_run_tool` để gọi), "
+    "chạy skill (`javis_use_skill`), giao việc nền Kanban (`javis_task`), đặt nhắc hẹn "
+    "(`javis_schedule`). Việc ngoài chuyên môn mà công cụ làm được (đẩy file lên Drive, đăng "
+    "bài, gửi tin) thì LÀM LUÔN bằng tool, hoặc giao thành việc nền; KHÔNG từ chối vì \"không "
+    "phải việc của vai này\" và KHÔNG bảo chủ tự đi copy lệnh sang agent khác.\n"
+    "- KHÔNG có cơ chế \"gọi agent khác\" hay \"bàn giao cho đồng nghiệp\". Chỉ được nói đã giao "
+    "việc khi CHÍNH BẠN vừa gọi `javis_task` trong lượt này và đọc được kết quả tool trả về. "
+    "Tuyệt đối không bịa tên agent, không kể rằng một agent khác \"đang làm\" hay \"vừa phản "
+    "hồi\". Thiếu kết nối (ví dụ chưa nối Drive) thì kiểm tra bằng `javis_connections` trước, "
+    "rồi nói đúng cái đang thiếu.\n"
+    "- Lượt trả lời của bạn KẾT THÚC khi bạn nói xong, không ai đánh thức bạn làm nốt. Không hẹn "
+    "\"có kết quả em báo lại\", \"sếp chờ em chút\". Chỉ hai lối đúng: làm xong ngay trong lượt và "
+    "trả kết quả thật, hoặc giao việc nền / nhắc hẹn rồi nói rõ đã giao gì, kết quả về đâu. "
+    "Không làm được cả hai thì nói thẳng là chưa làm.\n"
+)
 
 
 def _agent_chat_prompt(brain, slug) -> str:
@@ -11919,8 +11948,12 @@ async def websocket_endpoint(ws: WebSocket):
                     _a_raw = [{"role": _m["role"], "content": _m["content"]}
                               for _m in store.get_messages(conv_sid)[:-1]
                               if _m["role"] in ("user", "assistant") and _m.get("content")]
+                    # Ngân sách RIÊNG cho agy (xem compaction.AGY_BOOTSTRAP_MAX_CHARS): gói này
+                    # gửi lại nguyên mỗi lượt, và trên Windows nó thành file ngữ cảnh mà model
+                    # phải tự đọc - dài quá là đọc cụt rồi trả lời câu hỏi cũ.
                     _a_prompt = compaction.bootstrap_prompt(
-                        _a_raw, _a_cur, summary=_row0.get("compact_summary") or "")
+                        _a_raw, _a_cur, max_chars=compaction.AGY_BOOTSTRAP_MAX_CHARS,
+                        summary=_row0.get("compact_summary") or "")
                     _CONTEXT_RUNTIME.observe_payload(
                         runtime_trace,
                         [{"role": "system", "content": sysprompt},
@@ -14732,20 +14765,14 @@ def _subscription_limit_event(raw: str, engine_hint: str):
 # Nhà chạy agent (AGENT_PROVIDERS) -> tên engine mà limit_learner hiểu. Nhà không có trong
 # bảng (API key thuần) thì để rỗng: gói thuê bao chỉ là chuyện của bốn nhà dưới đây, gán bừa
 # một cái tên là câu báo lỗi nói sai tên gói người dùng phải đi gia hạn.
-_NHA_SANG_ENGINE = {
-    "anthropic-cli": "claude-code",
-    "openai-oauth": "codex",
-    "grok-cli": "grok-cli",
-    "antigravity-cli": "antigravity-cli",
-}
+# Bảng thật nằm ở limit_learner.ENGINE_HINT_BY_PROVIDER để hàng đợi Kanban (tasks.py) dùng
+# chung; tên cũ giữ lại cho các chỗ gọi trong file này.
+_NHA_SANG_ENGINE = limit_learner.ENGINE_HINT_BY_PROVIDER
 
 
-# Trần chữ của một output được coi là "chỉ có câu báo hết lượt". Dài hơn thế thì bước đã LÀM
-# RA việc thật, câu tiếng Anh kia chỉ là một đoạn trích trong đó.
-_TRAN_OUT_HET_LUOT = 400
-# Câu báo được coi là mở đầu dòng nếu nằm trong ngần này ký tự đầu dòng (chừa chỗ cho "Error: ",
-# "⚠ ", dấu đầu dòng).
-_DAU_DONG_HET_LUOT = 12
+# Tên cũ, giữ cho test và chỗ gọi; giá trị thật ở limit_learner.
+_TRAN_OUT_HET_LUOT = limit_learner.DOMINATES_MAX_CHARS
+_DAU_DONG_HET_LUOT = limit_learner.DOMINATES_LINE_START
 
 
 def _het_luot_ap_dao(raw: str) -> bool:
@@ -14758,19 +14785,10 @@ def _het_luot_ap_dao(raw: str) -> bool:
 
     Ba điều kiện, phải đúng cả: output ngắn (bài thật thì dài hơn nhiều), câu báo mở đầu dòng
     của nó HOẶC chiếm quá nửa dòng đó. Câu nhà cung cấp in ra luôn thoả; câu trích giữa một câu
-    văn thì không.
+    văn thì không. Thân hàm nay ở `limit_learner.subscription_dominates` để việc Kanban dùng
+    chung một bộ nhận dạng (tasks.py không import được main).
     """
-    span = limit_learner.subscription_span(raw or "")
-    if not span:
-        return False
-    if len(str(raw or "").strip()) > _TRAN_OUT_HET_LUOT:
-        return False
-    dau_dong = raw.rfind("\n", 0, span[0]) + 1
-    het_dong = raw.find("\n", span[1])
-    dong = raw[dau_dong: het_dong if het_dong >= 0 else len(raw)].strip()
-    if not dong:
-        return False
-    return (span[0] - dau_dong) <= _DAU_DONG_HET_LUOT or (span[1] - span[0]) * 2 >= len(dong)
+    return limit_learner.subscription_dominates(raw or "")
 
 
 def _loi_het_luot_cua_buoc(out: str, loi: str, provider: str, agent_name: str) -> str:
