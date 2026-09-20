@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.59.47] - 2026-09-20
+### Cải thiện
+- **Bộ chọn nhóm ở trang Cộng sự giống bộ chọn project bên Trò chuyện.** Bấm vào thanh nhóm là mở bảng: Tất cả nhóm, Chưa xếp nhóm, rồi từng nhóm kèm số người và nút ba chấm để đổi tên hoặc xoá nhóm (xoá chỉ đưa người về Chưa xếp nhóm), cuối bảng là "+ Nhóm mới". Nút tạo nhóm cũng đứng ngay cạnh thanh. Nhóm vừa tạo chưa có ai vẫn hiện trong bảng và trong danh sách để bạn kéo cộng sự vào.
+
 ## [0.59.46] - 2026-09-20
 ### Sửa lỗi
 - **Link chia sẻ của ứng dụng .html giờ đọc được file dữ liệu kèm theo.** Trước đây app đọc data.json hay .csv bên cạnh, chia sẻ xong mở ra trống trơn: đường dẫn tương đối trỏ sai chỗ, và trang chạy trong hộp cách ly nên bị trình duyệt chặn đọc. Nay cả hai đã sửa; app cần nằm trong một thư mục riêng (ví dụ apps/ten-app/) để chỉ file trong thư mục đó được mở, ghi chú ngoài thư mục vẫn kín.

@@ -1624,7 +1624,10 @@
 
   window.JavisChatSide = { mount: mount, refresh: refresh, tab: chonTab,
                            chip: renderProjChip, moKhung: openProjDrawer,
-                           moKhungCuoc: openCuocDrawer };
+                           moKhungCuoc: openCuocDrawer,
+                           // Bảng nổi (menu project) cho trang khác mượn - trang Cộng sự dùng
+                           // đúng khuôn này cho bộ chọn nhóm, để hai chỗ nhìn và bấm y nhau.
+                           menu: openMenu, dongMenu: closeMenu };
   // Cầu nối cho app.js: hội thoại VỪA được mint id trong lúc đang mở một project thì tự rơi
   // vào project đó. Phải gắn nhãn ngay tại lúc bấm gửi vì id sinh ở phía client, còn hàng
   // trong DB thì tới lượt server xử lý mới có - endpoint tự tạo hàng khi nhận kèm brain.
