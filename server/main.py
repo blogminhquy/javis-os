@@ -123,6 +123,8 @@ import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một p
 import agent_avatar
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
+import conversations     # Hộp thư hội thoại khách: kho khách -> hội thoại -> tin (Chatbot V2)
+import zalo_personal_channel   # Hộp thư hội thoại: đọc tin Zalo cá nhân từ MCP theo cursor
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
 import ollama_catalog           # danh mục model để gợi ý + tìm kiếm
 import ollama_local             # dò/tải/gỡ model trên máy chạy Ollama
@@ -10080,6 +10082,12 @@ async def _start_scheduler():
             print(f"[chatbot] bật lỗi: {kq['errors']}", file=__import__('sys').stderr)
     except Exception as e:
         print(f"[chatbot start] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    try:
+        # Hộp thư hội thoại: vòng đọc Zalo cá nhân. Chạy nhẹ khi chưa bật tài khoản nào (chỉ
+        # đọc cấu hình mỗi nhịp), để bật từ trang Hội thoại là có tác dụng ngay.
+        zalo_personal_channel.start()
+    except Exception as e:
+        print(f"[zalo-personal start] {type(e).__name__}: {e}", file=__import__('sys').stderr)
 
 
 _BROWSE_MD_CAP = 500        # trần đếm .md cho mỗi thư mục con
@@ -17521,6 +17529,12 @@ async def chatbots_list(brain: str = ""):
         # không tự nhận việc trong nhóm lạ") trông hệt hành vi hỏng: gọi tên bot trong nhóm và
         # không có gì xảy ra, không chỗ nào nói vì sao.
         b["nhom_cho"] = chatbot_runtime.nhom_cho(b["id"])
+        # Hộp thư hội thoại: vài con số cho thẻ (tổng, hôm nay, chưa đọc). Kho hỏng thì thẻ
+        # chỉ thiếu dòng này chứ không được làm đỏ cả trang Chatbot.
+        try:
+            b["hoi_thoai"] = conversations.thong_ke(bot_id=b["id"])
+        except Exception:
+            b["hoi_thoai"] = {}
         out.append(b)
     # Nhãn + cảnh báo rủi ro của từng mức quyền đi kèm luôn: giao diện KHÔNG được giữ bản chép
     # riêng. Chép riêng thì một hôm server siết thêm một rào mà ô cảnh báo vẫn hứa như cũ, và
@@ -17743,6 +17757,16 @@ async def chatbots_delete(bot_id: str):
         return JSONResponse({"ok": False, "error": err}, status_code=404)
     chatbot_log.xoa(bot_id)   # nhật ký của một bot không còn tồn tại thì không ai đọc được nữa
     return {"ok": True}
+
+
+# Hộp thư hội thoại khách (Chatbot V2): kho `conversations` gom tin của bot chuyên trách
+# (Telegram, Zalo Bot) và tài khoản Zalo cá nhân về một chỗ. Đăng ký NGAY SAU khối Chatbot vì
+# cùng một họ: đây là mặt "đọc lại hội thoại" của chính những bot ở trên.
+import routes.conversations as conversations_routes   # noqa: E402
+
+conversations_routes.register(app, conversations_routes.ConversationsDeps(
+    bot_status=chatbot_runtime.status,
+))
 
 
 @app.post("/telegram/test")
@@ -18049,6 +18073,10 @@ async def _shutdown_mcp_pool():
         await tasks_feature.shutdown()
     except Exception as e:
         print(f"[kanban shutdown] {e}", file=__import__('sys').stderr)
+    try:
+        zalo_personal_channel.stop()
+    except Exception:
+        pass
     try:
         await mcp_client.pool.close_all()
     except Exception:

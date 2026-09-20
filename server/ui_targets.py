@@ -18,7 +18,7 @@ import unicodedata
 # Trang hợp lệ = RAIL_ITEMS trong dashboard/console.js và PAGES trong dashboard/ui-actions.js.
 # Thêm trang mới thì thêm ở cả ba chỗ.
 PAGES = (
-    "home", "chat", "settings", "workspace", "skills", "chatbots", "files",
+    "home", "chat", "settings", "workspace", "skills", "chatbots", "conversations", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet", "share",
 )
@@ -49,6 +49,11 @@ ALIASES = {
     "tro ly": "workspace", "tro ly rieng": "workspace", "vai": "workspace",
     "cong cu": "plugins", "plugin": "plugins", "tien ich": "plugins",
     "bot tra loi khach": "chatbots", "tra loi khach": "chatbots",
+    # Trang Hội thoại (hộp thư khách, Chatbot V2). "hoi thoai" trần vẫn là trang Trò chuyện
+    # (bí danh cũ, người dùng quen nói vậy); phải nói rõ "khách" hoặc "hộp thư" mới tới đây.
+    "hoi thoai khach": "conversations", "hop thu khach": "conversations",
+    "tin nhan khach": "conversations", "conversations": "conversations", "inbox khach": "conversations",
+    "hop thu hoi thoai": "conversations", "khach nhan": "conversations",
     # Trang Trợ lý và Quy trình gộp thành Cộng sự ở 0.59.0, bí danh cũ giữ để lệnh nói quen tay
     # không chết.
     "cong su": "workspace", "workspace": "workspace", "tro ly va quy trinh": "workspace",

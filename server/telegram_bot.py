@@ -418,6 +418,8 @@ class TelegramBot(HangLuot):
             "chat_title": chat_obj.get("title", ""),
             "user_name": name,
             "username": frm.get("username", ""),
+            # id NGƯỜI gửi (khác chat_id trong nhóm). Hộp thư hội thoại dùng nó làm khoá khách.
+            "user_id": str(frm.get("id") or ""),
             "message_id": msg.get("message_id"),
             "bot_username": self.bot_username,
             "mentioned": self._co_nhac_ten(msg),

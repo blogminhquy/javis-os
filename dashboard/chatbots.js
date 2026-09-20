@@ -314,6 +314,13 @@
           (b.handoff_to ? '<span>' + ic("user") + ' ' + esc(window.t("cb.co_chuyen_nguoi")) + '</span>'
                         : '<span class="cb-warn">' + esc(window.t("cb.chua_nguoi_nhan")) + '</span>') +
         '</div>' +
+        // Hộp thư hội thoại: số cuộc chat khách hôm nay và số chưa đọc, ngay trên thẻ. Bấm nút
+        // Hội thoại ở dưới là sang trang Hội thoại đã lọc sẵn theo bot này.
+        (b.hoi_thoai && (b.hoi_thoai.tong || 0) > 0
+          ? '<div class="cb-meta"><span>' + ic("messages-square") + ' ' +
+            esc(window.t("cb.hoi_thoai_tom", { hom_nay: b.hoi_thoai.hom_nay || 0,
+                                               chua_doc: b.hoi_thoai.chua_doc || 0 })) + '</span></div>'
+          : "") +
         cho + quyen + loiTen + riengTu + mat + lluot + cbao + loi +
         '<div class="cb-acts">' +
           '<button class="s-btn-ghost cb-toggle" type="button">' +
@@ -321,12 +328,17 @@
                        : ic("play") + " " + esc(window.t("cb.bat"))) + '</button>' +
           '<button class="s-btn-ghost cb-log" type="button">' + ic("history") + ' ' +
             esc(window.t("cb.nhat_ky")) + '</button>' +
+          '<button class="s-btn-ghost cb-hoi-thoai" type="button">' + ic("messages-square") + ' ' +
+            esc(window.t("cb.xem_hoi_thoai")) + '</button>' +
           '<button class="s-btn-ghost cb-edit" type="button">' + esc(window.t("common.edit")) + '</button>' +
           '<button class="s-btn-ghost cb-del" type="button">' + esc(window.t("common.delete")) + '</button>' +
         '</div>' +
       '</div>');
     c.querySelector(".cb-toggle").onclick = function () { bat(b, !b.enabled); };
     c.querySelector(".cb-log").onclick = function () { moNhatKy(b); };
+    c.querySelector(".cb-hoi-thoai").onclick = function () {
+      if (window.JavisConversations) window.JavisConversations.mo({ bot_id: b.id });
+    };
     c.querySelector(".cb-edit").onclick = function () { moForm(b); };
     c.querySelector(".cb-del").onclick = function () { xoa(b); };
     c.querySelectorAll(".cb-nhomcho").forEach(function (n) {

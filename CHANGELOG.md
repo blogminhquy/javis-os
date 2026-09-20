@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.60.0] - 2026-09-20
+### Thêm mới
+- **Trang Hội thoại (nhóm Năng lực): hộp thư khách.** Mọi tin khách nhắn cho bot Telegram hay Zalo Bot của bạn được lưu thành từng cuộc hội thoại, đọc lại được ngay trong Javis: ai nhắn, kênh nào, bot trả lời gì, cuộc nào chưa đọc. Trên điện thoại là một cột, bấm vào mở lịch sử.
+- **Tiếp quản một cuộc chat.** Bấm Tiếp quản là bot im ở đúng khách đó để bạn tự trả lời trong app, xong bấm Trả lại AI. Thẻ bot ở trang Chatbot có thêm số hội thoại hôm nay và nút mở thẳng hộp thư.
+- **Zalo cá nhân thành một kênh của hộp thư.** Tài khoản đã quét QR ở trang Kết nối có công tắc Ghi hội thoại; bật lên là tin khách nhắn vào Zalo của bạn cũng về hộp thư, chỉ lưu từ lúc bật. Mặc định tắt, bot chưa tự trả lời qua kênh này.
+- Nói "mở hộp thư khách" hoặc "xem tin nhắn khách" là Javis mở đúng trang. Hướng dẫn đầy đủ ở tài liệu số 28.
+
 ## [0.59.50] - 2026-09-20
 ### Cải thiện
 - **Giao diện tiếng Anh hết lọt chữ Việt:** chip lọc danh mục ở trang Kết nối (Văn phòng, Nhắn tin, Quảng cáo...), cột nhóm bên trái Javis Store và nhóm "Khác" trên thanh bên nay đổi theo ngôn ngữ đã chọn. Tên nhóm do gói cộng đồng tự đặt vẫn giữ nguyên.

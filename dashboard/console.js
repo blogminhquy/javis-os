@@ -28,6 +28,7 @@
     settings: "settings",
     workspace: "bot",
     chatbots: "headset",
+    conversations: "messages-square",
     skills: "puzzle",
     files: "folder-tree",
     selfimprove: "repeat",
@@ -84,7 +85,7 @@
   // Nhãn rail lấy từ TỪ ĐIỂN (thư mục dashboard/i18n) chứ không viết cứng. `t()` suy biến về
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
-    "home", "chat", "settings", "workspace", "skills", "chatbots", "files",
+    "home", "chat", "settings", "workspace", "skills", "chatbots", "conversations", "files",
     "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
@@ -106,7 +107,7 @@
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "chatbots", "skills", "plugins"] },
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "chatbots", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "share", "logs", "account"], foot: true },
@@ -152,7 +153,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "selfimprove", "chatbots", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -463,6 +464,7 @@
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "chatbots") return renderChatbots(el);
+    if (id === "conversations") return renderConversations(el);
     if (id === "learn")    return renderLearn(el);
     if (id === "kanban")   return renderKanban(el);
     if (id === "logs")     return renderLogs(el);
@@ -557,6 +559,13 @@
     const fn = window.JavisChatbots && window.JavisChatbots.render;
     if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("chatbots", window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder("chatbots", window.t("cs.mod_not_ready", { ten: "chatbots.js" }));
+  }
+
+  // Trang Hội thoại (hộp thư khách của Chatbot V2) do conversations.js dựng - cùng kiểu uỷ quyền.
+  function renderConversations(el) {
+    const fn = window.JavisConversations && window.JavisConversations.render;
+    if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("conversations", window.t("cs.err_load") + e.message); } }
+    else el.innerHTML = placeholder("conversations", window.t("cs.mod_not_ready", { ten: "conversations.js" }));
   }
 
   // Trang Cộng sự: dựng bởi workspace.js, mượn khung chat như trang Trò chuyện.
