@@ -308,7 +308,7 @@
     var t = dod.tien || {};
     if (!dod.token_tiet_kiem) return "";
     var eng = d.engine || {};
-    var thueBao = eng.loai === "Gói thuê bao";
+    var thueBao = eng.thue_bao === true || eng.loai === "Gói thuê bao";
     var usdThang = fCost(t.usd_thang || 0);
     var cachTinh = t.nguon_gia === "tay"
       ? window.t("usage.gia.tay")
@@ -497,7 +497,7 @@
     var t = state.tq; if (!t) return "";
     var c = t.cua_so || {};
     var eng = t.engine || {};
-    var thueBao = eng.loai === "Gói thuê bao";
+    var thueBao = eng.thue_bao === true || eng.loai === "Gói thuê bao";
     var body;
     if (c.tran_khai) {
       var tl = Math.min(1, c.ty_le || 0);
