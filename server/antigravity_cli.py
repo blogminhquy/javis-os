@@ -577,6 +577,15 @@ def cau_hoi_moi_nhat(prompt: str) -> str:
     return raw[i + len(dau):].strip()
 
 
+# Câu hỏi chép lại trên dòng lệnh khi đi đường file được dài tới đâu. Trần thật là dòng lệnh
+# Windows (~30.000 đơn vị, xem `_tran_argv`) trừ đi phần lời nhắc và các cờ, nên 6.000 còn xa
+# trần; 1.500 của bản trước quá ít, dán một bài viết là mất luôn câu chốt ở cuối (chủ repo
+# 2026-09-20). Dài hơn trần thì giữ đầu + đuôi, lược đoạn giữa.
+_TRAN_NHAC_CAU_HOI = 6000
+_DAU_NHAC_CAU_HOI = 4000
+_DUOI_NHAC_CAU_HOI = 2000
+
+
 def _loi_nhac_file(duong_dan: str, cau_hoi: str) -> str:
     """Prompt NGẮN thay cho cả gói: bảo model tự mở file ngữ cảnh ra đọc.
 
@@ -586,8 +595,14 @@ def _loi_nhac_file(duong_dan: str, cau_hoi: str) -> str:
     (xem `cau_hoi_moi_nhat`), không phải đoạn đầu của gói lịch sử.
     """
     hoi = cau_hoi_moi_nhat(cau_hoi)
-    if len(hoi) > 1500:
-        hoi = hoi[:1500] + " [...]"
+    if len(hoi) > _TRAN_NHAC_CAU_HOI:
+        # Giữ CẢ ĐẦU LẪN ĐUÔI chứ không chỉ đầu: người dùng dán một bài dài thì chỉ dẫn hay
+        # nằm ở câu mở ("viết lại đoạn sau") hoặc ở câu chốt cuối ("đoạn trên hãy tóm tắt").
+        # Cắt đầu là mất câu chốt, cắt đuôi là mất câu mở; đoạn giữa mới là phần ít quan
+        # trọng nhất và vẫn có đủ trong file ngữ cảnh.
+        hoi = (hoi[:_DAU_NHAC_CAU_HOI].rstrip()
+               + "\n[... đoạn giữa đã lược, bản đầy đủ nằm trong file ngữ cảnh ...]\n"
+               + hoi[-_DUOI_NHAC_CAU_HOI:].lstrip())
     return (
         f"BẮT BUỘC LÀM TRƯỚC: mở và đọc HẾT file `{duong_dan}`.\n"
         "File đó chứa toàn bộ chỉ dẫn hệ thống, bộ nhớ và lịch sử hội thoại của bạn. Đọc xong "

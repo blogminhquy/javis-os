@@ -187,6 +187,19 @@ check("CANARY: lời nhắc đường file KHÔNG dán câu hỏi CŨ dưới nh
       "(bản trước cắt 1500 ký tự ĐẦU của gói -> model trả lời câu cũ khi chat dài)",
       "favicon" not in _nhac and "sitemap.xml động" in _nhac, _nhac)
 check("lời nhắc dặn không trả lời lại câu cũ", "không trả lời lại" in _nhac)
+# Câu hỏi DÀI (dán cả bài rồi chốt yêu cầu ở cuối): lời nhắc phải giữ cả câu mở lẫn câu chốt,
+# và không bị cắt ở 1500 ký tự như bản trước.
+_bai = "Viết lại đoạn sau cho gọn:\n" + ("Nội dung bài viết dài. " * 400) + "\nGiữ nguyên các con số."
+_nhac_dai = antigravity_cli._loi_nhac_file("/tmp/ngu-canh.md", _bai)
+check("câu hỏi dài: giữ câu MỞ ĐẦU", "Viết lại đoạn sau cho gọn" in _nhac_dai)
+check("CANARY: câu hỏi dài: giữ câu CHỐT ở cuối (bản trước cắt 1500 ký tự đầu là mất)",
+      "Giữ nguyên các con số." in _nhac_dai)
+check("câu hỏi dài: có báo đã lược đoạn giữa", "đoạn giữa đã lược" in _nhac_dai)
+check("câu hỏi dài: chép hơn 1500 ký tự (trần mới 6000)",
+      len(_nhac_dai) > 1500 + 800 and len(_nhac_dai) < antigravity_cli._TRAN_NHAC_CAU_HOI + 1200)
+_vua = "x" * 5000
+check("câu hỏi dưới trần thì chép nguyên, không lược",
+      "đoạn giữa đã lược" not in antigravity_cli._loi_nhac_file("/tmp/n.md", _vua))
 
 
 # ============================================================
