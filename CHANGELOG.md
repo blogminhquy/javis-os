@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.60.1] - 2026-09-20
+### Thêm mới
+- **Gói Quản lý khách hàng (CRM) trong Kho cài đặt.** Đặt lên hộp thư Hội thoại: hỏi Javis khách nào chờ lâu chưa được trả lời, một khách đã hỏi gì, gắn tag VIP, ghi chú, thống kê khách mới theo tuần, xuất Excel. Kèm trợ lý chăm sóc khách và quy trình rà soát mỗi ngày. Cần bản này để cài.
+
 ## [0.60.0] - 2026-09-20
 ### Thêm mới
 - **Trang Hội thoại (nhóm Năng lực): hộp thư khách.** Mọi tin khách nhắn cho bot Telegram hay Zalo Bot của bạn được lưu thành từng cuộc hội thoại, đọc lại được ngay trong Javis: ai nhắn, kênh nào, bot trả lời gì, cuộc nào chưa đọc. Trên điện thoại là một cột, bấm vào mở lịch sử.

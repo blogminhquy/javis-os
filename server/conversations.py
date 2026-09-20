@@ -618,3 +618,191 @@ def loai_tin_tu_chu(text: str) -> str:
         if tu in dau:
             return loai
     return "other"
+
+
+# ============================================================
+# CRM: khách hàng xuyên kênh (0.60.1)
+#
+# Tầng đọc/ghi mà gói "Quản lý khách hàng" ở Kho cài đặt (javis.khach-hang-crm) cắm vào. Gói
+# gọi ĐÚNG các hàm này chứ không tự viết SQL: schema là của kho, kho đổi thì hàm đổi theo, còn
+# SQL chép trong gói sẽ gãy im lặng ở bản sau. Hai hàm ghi (tag, ghi chú) chỉ chạm bảng
+# customers; không hàm nào gửi tin hay gọi ra ngoài.
+# ============================================================
+MAX_TAG = 30
+MAX_TAG_CHU = 40
+MAX_GHI_CHU = 4_000
+
+# Đếm tin KHÁCH của một khách: tin có sender_id trùng id khách trên cùng tài khoản kênh, hoặc
+# tin riêng không ghi sender_id nhưng hội thoại đã gán khách đó (Telegram chat riêng).
+_SQL_SO_TIN_KHACH = (
+    "(SELECT COUNT(*) FROM messages m JOIN conversations c2 ON c2.id=m.conversation_id"
+    " WHERE m.sender_type='customer' AND c2.channel_account_id=k.channel_account_id"
+    " AND (m.sender_id=k.external_user_id OR (m.sender_id='' AND c2.customer_id=k.id)))"
+)
+_SQL_KHACH = (
+    "SELECT k.*, a.channel AS channel, a.display_name AS account_name,"
+    " a.external_account_id AS account_external_id, " + _SQL_SO_TIN_KHACH + " AS so_tin"
+    " FROM customers k JOIN channel_accounts a ON a.id=k.channel_account_id"
+)
+
+
+def _khach_public(r: dict) -> dict:
+    d = dict(r)
+    d["tags"] = _loads(d.pop("tags_json", "[]"), [])
+    d["metadata"] = _loads(d.pop("metadata_json", "{}"), {})
+    d["channel_label"] = KENH_NHAN.get(d.get("channel") or "", d.get("channel") or "")
+    d["first_seen_at"] = d.get("created_at")
+    d["last_seen_at"] = d.get("updated_at")
+    return d
+
+
+def danh_sach_khach(channel: str = "", tag: str = "", q: str = "", days: int = 0,
+                    limit: int = 100, offset: int = 0) -> List[dict]:
+    """Khách đã nhắn, MỚI HOẠT ĐỘNG TRƯỚC. Lọc theo kênh, tag (khớp nguyên từ), chữ (tên, id
+    trên kênh, ghi chú) và số ngày gần đây."""
+    n = max(1, min(int(limit or 100), 1000))
+    o = max(0, int(offset or 0))
+    where, args = [], []
+    if channel:
+        where.append("a.channel=?"); args.append(str(channel))
+    if tag:
+        # tags_json là mảng JSON: so cả dấu ngoặc kép để "vip" không khớp "vip2".
+        where.append("k.tags_json LIKE ?"); args.append('%"' + str(tag).replace('"', "") + '"%')
+    if q:
+        like = f"%{str(q).strip()}%"
+        where.append("(k.name LIKE ? OR k.external_user_id LIKE ? OR k.note LIKE ?)")
+        args += [like, like, like]
+    if days and int(days) > 0:
+        where.append("k.updated_at>=?"); args.append(_now() - int(days) * 86400)
+    sql = _SQL_KHACH + (" WHERE " + " AND ".join(where) if where else "") \
+        + " ORDER BY k.updated_at DESC, k.id DESC LIMIT ? OFFSET ?"
+    with _lock:
+        rows = _conn().execute(sql, args + [n, o]).fetchall()
+    return [_khach_public(_row(r)) for r in rows]
+
+
+def khach(customer_id: int) -> Optional[dict]:
+    with _lock:
+        r = _conn().execute(_SQL_KHACH + " WHERE k.id=?", (int(customer_id),)).fetchone()
+    return _khach_public(_row(r)) if r else None
+
+
+def hoi_thoai_cua_khach(customer_id: int) -> List[dict]:
+    """Mọi hội thoại có mặt khách này: chat riêng của họ và các nhóm họ đã nhắn."""
+    cid = int(customer_id)
+    with _lock:
+        rows = _conn().execute(
+            "SELECT c.*, a.channel AS channel, a.display_name AS account_name,"
+            " k.name AS customer_name, k.external_user_id AS customer_external_id"
+            " FROM conversations c JOIN channel_accounts a ON a.id=c.channel_account_id"
+            " LEFT JOIN customers k ON k.id=c.customer_id"
+            " WHERE c.customer_id=? OR c.id IN ("
+            "   SELECT m.conversation_id FROM messages m JOIN conversations c2 ON c2.id=m.conversation_id"
+            "   JOIN customers k2 ON k2.id=? WHERE m.sender_type='customer'"
+            "   AND c2.channel_account_id=k2.channel_account_id AND m.sender_id=k2.external_user_id)"
+            " ORDER BY COALESCE(c.last_message_at, c.updated_at) DESC", (cid, cid)).fetchall()
+    return [_conv_public(_row(r)) for r in rows]
+
+
+def chuan_hoa_tag(tags) -> List[str]:
+    """Bỏ trùng, cắt khoảng trắng, giới hạn số lượng và độ dài. Giữ nguyên hoa thường."""
+    out: List[str] = []
+    for t in (tags or []):
+        t = " ".join(str(t or "").split())[:MAX_TAG_CHU]
+        if t and t not in out:
+            out.append(t)
+    return out[:MAX_TAG]
+
+
+def dat_tag_khach(customer_id: int, tags) -> Optional[List[str]]:
+    """Thay cả danh sách tag của khách. Trả danh sách đã chuẩn hoá, None nếu không có khách."""
+    sach = chuan_hoa_tag(tags)
+    with _lock:
+        db = _conn()
+        cur = db.execute("UPDATE customers SET tags_json=?, updated_at=updated_at WHERE id=?",
+                         (_json(sach), int(customer_id)))
+        db.commit()
+    return sach if cur.rowcount > 0 else None
+
+
+def dat_ghi_chu_khach(customer_id: int, note: str) -> bool:
+    with _lock:
+        db = _conn()
+        cur = db.execute("UPDATE customers SET note=?, updated_at=updated_at WHERE id=?",
+                         (_s(note, MAX_GHI_CHU), int(customer_id)))
+        db.commit()
+    return cur.rowcount > 0
+
+
+def tim_tin(q: str, channel: str = "", limit: int = 50) -> List[dict]:
+    """Tìm chữ trong MỌI tin (khách lẫn bot), mới nhất trước, kèm hội thoại chứa tin."""
+    q = str(q or "").strip()
+    if not q:
+        return []
+    n = max(1, min(int(limit or 50), MAX_TIN_MOT_LAN))
+    args: list = [f"%{q}%"]
+    w = ""
+    if channel:
+        w = " AND a.channel=?"; args.append(str(channel))
+    with _lock:
+        rows = _conn().execute(
+            "SELECT m.id, m.conversation_id, m.sender_type, m.sender_name, m.message_type, m.text,"
+            " m.created_at, a.channel AS channel, c.title AS title, c.external_chat_id,"
+            " k.name AS customer_name, c.customer_id"
+            " FROM messages m JOIN conversations c ON c.id=m.conversation_id"
+            " JOIN channel_accounts a ON a.id=c.channel_account_id"
+            " LEFT JOIN customers k ON k.id=c.customer_id"
+            " WHERE m.text LIKE ?" + w + " ORDER BY m.created_at DESC, m.id DESC LIMIT ?",
+            args + [n]).fetchall()
+    return [_row(r) for r in rows]
+
+
+def cho_tra_loi(hours: float = 2.0, limit: int = 100) -> List[dict]:
+    """Hội thoại mà câu CUỐI là của khách và đã quá `hours` giờ chưa ai (bot hay người) trả
+    lời, cũ nhất trước. Bỏ hội thoại đã đóng."""
+    moc = _now() - max(0.0, float(hours or 0)) * 3600
+    n = max(1, min(int(limit or 100), MAX_DANH_SACH))
+    with _lock:
+        rows = _conn().execute(
+            "SELECT c.*, a.channel AS channel, a.display_name AS account_name,"
+            " k.name AS customer_name, k.external_user_id AS customer_external_id"
+            " FROM conversations c JOIN channel_accounts a ON a.id=c.channel_account_id"
+            " LEFT JOIN customers k ON k.id=c.customer_id"
+            " WHERE c.last_sender_type='customer' AND c.last_message_at<=? AND c.mode!='closed'"
+            " ORDER BY c.last_message_at ASC LIMIT ?", (moc, n)).fetchall()
+    return [_conv_public(_row(r)) for r in rows]
+
+
+def thong_ke_khach(days: int = 7, channel: str = "") -> dict:
+    """Số khách, khách mới theo ngày trong N ngày (theo múi giờ cấu hình), số khách mỗi tag,
+    và số hội thoại đang chờ khách được trả lời."""
+    n = max(1, min(int(days or 7), 365))
+    args: list = []
+    w = ""
+    if channel:
+        w = " WHERE a.channel=?"; args.append(str(channel))
+    with _lock:
+        db = _conn()
+        rows = db.execute("SELECT k.created_at, k.tags_json FROM customers k"
+                          " JOIN channel_accounts a ON a.id=k.channel_account_id" + w, args).fetchall()
+    try:
+        import localefmt
+        tz = localefmt.tz()
+    except Exception:
+        tz = None
+    moc = _now() - n * 86400
+    theo_ngay: Dict[str, int] = {}
+    theo_tag: Dict[str, int] = {}
+    for r in rows:
+        ts = float(r["created_at"] or 0)
+        if ts >= moc:
+            k = datetime.fromtimestamp(ts, tz).strftime("%Y-%m-%d")
+            theo_ngay[k] = theo_ngay.get(k, 0) + 1
+        for t in _loads(r["tags_json"], []):
+            theo_tag[str(t)] = theo_tag.get(str(t), 0) + 1
+    return {
+        "khach": len(rows), "so_ngay": n,
+        "khach_moi_theo_ngay": dict(sorted(theo_ngay.items())),
+        "theo_tag": dict(sorted(theo_tag.items(), key=lambda x: -x[1])),
+        "cho_tra_loi": len(cho_tra_loi(0, MAX_DANH_SACH)),
+    }

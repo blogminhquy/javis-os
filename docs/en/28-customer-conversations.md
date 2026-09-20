@@ -79,6 +79,10 @@ A new channel only has to normalize its messages into the common event (`channel
 - **Personal Zalo shows a red error under Channels**: usually an expired QR session or a machine without Node.js 20. Check the Zalo connection on the Connections page and rescan the QR if needed. The reader retries after 90 seconds.
 - **Pressed Take over but the bot still answered once**: that turn was already running before the click. From the next message on, the bot stays quiet.
 
+## Want more: the Customer management (CRM) pack
+
+The Store has a **Customer management (CRM)** pack (`javis.khach-hang-crm`, needs 0.60.1 or newer) that sits on this very inbox. Once installed, just ask Javis: "who has waited over 2 hours without a reply", "what did Lan ask", "tag Lan as VIP", "how many new customers this week", "export customers who asked for a price to Excel". It ships a customer-care agent and a daily review workflow. The pack only reads the inbox and writes tags and notes on customers; it never messages anyone.
+
 ## See also
 
 - [Chatbot (a dedicated bot)](25-chatbots.md)
