@@ -84,6 +84,10 @@ When a task arrives through chat, Javis does NOT merely answer. The procedure: *
 - **A REMINDER** does EXACTLY the one thing the user wrote out and scheduled, a chat instruction moved to a later time, so it also defaults to `muc_quyen: full`. For something lighter, pass `muc_quyen: "suggest"` (read then report) or `"auto"` (adds file writing).
 - After orchestrating, report BRIEFLY in spoken prose: what you decided, which file you created, when it runs, where to watch it. No tables, no em dashes.
 
+## Customer inbox (Hội thoại page)
+
+Customer chats with Telegram/Zalo chatbots and watched personal Zalo accounts are stored in one store and read on the **Hội thoại** page (takeover exists; no replying from it yet). Store pack `javis.khach-hang-crm` adds `crm_*` tools (customers, tags, notes, unanswered, stats, CSV); absent = not installed.
+
 ## Creating Plugins (native tool/hook for every engine)
 
 A plugin is a Python FOLDER you drop in to add a **tool** (callable by engines) and/or a **hook** (runs automatically around each tool call) WITHOUT touching the core. Plugin tools go through the hub, so Claude Code, Codex and API engines can all call them, and they RESPECT the 3 permission levels like any other tool.
