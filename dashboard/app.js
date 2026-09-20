@@ -624,7 +624,9 @@ function handleMessage(data) {
   } else if (data.type === "response") {
     // Lượt vấp hạn mức gói thuê bao: câu báo đã hiện ở bong bóng lỗi (kèm thẻ tự chạy lại) và
     // server không có câu trả lời nào, nên không vẽ thêm bong bóng "(không có nội dung)".
-    if (t && t.limit && !(data.content || "").trim()) {
+    // Cùng luật cho MỌI lỗi engine (sai key, model 404, CLI thoát 1): bong bóng đỏ đã nói rõ,
+    // vẽ thêm một bong bóng xám "(không có nội dung)" ngay dưới chỉ làm người dùng tưởng lỗi kép.
+    if (t && (t.limit || (t.errored && !(t.text || "").trim())) && !(data.content || "").trim()) {
       if (isActive) { hideActivity(); runActions(turn.turnDone()); }
       refreshUsage();
       return;
@@ -667,6 +669,7 @@ function handleMessage(data) {
     refreshUsage();     // cập nhật panel Mức dùng sau mỗi lượt
   } else if (data.type === "error") {
     if (t && data.limit) t.limit = data.limit;
+    if (t) t.errored = true;   // khung response rỗng theo sau không vẽ thêm "(không có nội dung)"
     if (isActive) {
       hideActivity();
       const errEl = appendJavisError(data.content);
@@ -3318,7 +3321,7 @@ if (document.getElementById("settingsBtn")) {
 
   document.getElementById("saveGeneral").addEventListener("click", (e) => {
     _saveSetting("general", { workspace_name: document.getElementById("setWsName").value.trim() }, e.target)
-      .then(() => { document.getElementById("workspaceName").textContent = document.getElementById("setWsName").value.trim() || "Javis OS"; });
+      .then(() => { const wn = document.getElementById("workspaceName"); if (wn) wn.textContent = document.getElementById("setWsName").value.trim() || "Javis OS"; });
   });
   document.getElementById("saveModel").addEventListener("click", (e) => {
     const sel = document.getElementById("setOrModelSel");

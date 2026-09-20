@@ -158,6 +158,38 @@ def test_worker_nhan_dien_het_luot_va_hoan_dung_moc(tmp_path, monkeypatch):
     feature.store.close()
 
 
+def test_block_giu_metadata_va_artifacts(tmp_path):
+    """Audit 20/09: `_finish` ghi đè metadata_json bằng thứ được truyền, block() không truyền
+    gì -> điều kiện hoàn thành do specifier viết mất sạch sau một lần thử lại."""
+    store = TaskStore(tmp_path / "q.sqlite3")
+    root = str(tmp_path / "brain"); Path(root).mkdir()
+    tid = store.enqueue(root, "Viec", "lam", capability="auto", status="ready")
+    assert store.claim(tid, "w0")
+    store.prepared(tid, "w0", "lam that", "files", "auto", metadata={"acceptance": ["co file"]})
+    assert store.claim(tid, "w1")
+    t = store.block(tid, "w1", "limit", "het luot", transient=True, not_before=time.time() + 60,
+                    keep_attempt=True)
+    assert t["status"] == "ready"
+    assert t["metadata"].get("acceptance") == ["co file"], t["metadata"]
+    store.close()
+
+
+def test_muc_chay_giu_full_va_van_kep_muc_khac(tmp_path):
+    assert TasksFeature._muc_chay("full", "auto") == "full"
+    assert TasksFeature._muc_chay("full", "suggest") == "full"
+    # specifier không tự nâng quyền được
+    assert TasksFeature._muc_chay("suggest", "auto") == "suggest"
+    assert TasksFeature._muc_chay("auto", "full") == "auto"
+    assert TasksFeature._muc_chay("auto", "auto") == "auto"
+
+
+def test_tran_giay_viec_khong_nho_hon_tran_engine(monkeypatch):
+    monkeypatch.setattr(aux_engine, "bg_max_wall_s", lambda: 3600)
+    assert TasksFeature._tran_giay_viec() >= 3600 + 60
+    monkeypatch.setattr(aux_engine, "bg_max_wall_s", lambda: 100)
+    assert TasksFeature._tran_giay_viec() == tasks_mod.WORKER_TIMEOUT_SECONDS
+
+
 def test_worker_moc_qua_xa_thi_chan_han_kem_ly_do(tmp_path, monkeypatch):
     brain = tmp_path / "brain"; brain.mkdir()
     feature = _feature(tmp_path, brain)

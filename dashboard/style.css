@@ -1841,6 +1841,7 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
   background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, .45); }
 .cs-menu-sep { height: 1px; background: var(--border); margin: 5px 3px; }
+@media (max-width: 900px) { .cs-menu-main { font-size: 16px; } .ci-meta { font-size: 13px; } }
 .cs-menu-row { display: flex; align-items: center; gap: 2px; border-radius: 7px; }
 .cs-menu-row:hover { background: var(--info-wash); }
 .cs-menu-row.on .cs-menu-lbl { color: var(--accent); font-weight: 600; }
@@ -1917,6 +1918,11 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 .ci-meta .act { margin-left: auto; display: flex; gap: 7px; opacity: 0; transition: opacity 0.15s; }
 .cside-item:hover .act { opacity: 1; }
 .ci-meta .act span { cursor: pointer; }
+/* Màn cảm ứng KHÔNG có rê chuột: ghim/chuyển/đổi tên/xoá của hàng hội thoại và nút chép mã
+   ẩn theo hover là vĩnh viễn không thấy trên điện thoại (vẫn nhận chạm, nên hay bấm nhầm). */
+@media (hover: none) {
+  .ci-meta .act, .cside-item.ghim .act > :not(.pin), .code-wrap .code-copy { opacity: .75; }
+}
 .ci-meta .act span:hover { color: var(--text-hi); }
 /* Lớp chắn thứ hai cho cùng lỗi bấm-trượt: icon không nhận chuột thì e.target luôn là cái
    span, kể cả khi ai đó lỡ viết lại handler theo kiểu so classList. */

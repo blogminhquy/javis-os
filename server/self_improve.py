@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import localefmt   # múi giờ theo cấu hình, thay UTC+7 nhúng cứng
 import asyncio
+import sys
 import json
 import re
 import time
@@ -173,6 +174,7 @@ class LoopFeature:
             "interval_min": 60, "last_run": 0.0, "last_summary": "", "last_status": "",
         }
         self.lock = asyncio.Lock()           # THỰC THI TUẦN TỰ: 1 vòng/lúc trên toàn hệ
+        self._viec_nen: set = set()   # vòng loop đang chạy nền (xem _chay_nen)
         self._running: Optional[Tuple[str, str]] = None   # (brain_root_resolved, slug) đang chạy
         self._migrated = False
         self.router = self._make_router()
@@ -601,7 +603,10 @@ class LoopFeature:
             return
         target = self._pick_due()
         if target:
-            await self.run_cycle(target[0], target[1]["slug"], "scheduled")
+            # Chạy NỀN: một vòng loop có thể mất 20-30 phút (chạy + kiểm chứng). Await ngay
+            # trong tick là cả vòng scheduler (nhắc hẹn 7h, Kanban) đứng chờ nó. `self.lock`
+            # trong run_cycle vẫn giữ đúng một vòng một lúc; tick sau thấy khoá bận thì bỏ qua.
+            self._chay_nen(target[0], target[1]["slug"], "scheduled")
 
     async def run_due(self, reason: str = "scheduled") -> dict:
         """Shim run_loop_cycle của main.py: chạy loop đến hạn nhất (nếu có)."""
@@ -810,6 +815,22 @@ class LoopFeature:
         cli = aux_engine.apply(self.deps, cli, mode=("suggest" if for_verify else mode), tag="loop")
         return cli
 
+    def _chay_nen(self, brain: str, slug: str, reason: str) -> None:
+        async def _run():
+            try:
+                await self.run_cycle(brain, slug, reason)
+            except Exception as e:
+                print(f"[loop] {slug} chạy nền lỗi: {type(e).__name__}: {e}", file=sys.stderr)
+
+        t = asyncio.get_running_loop().create_task(_run())
+        self._viec_nen.add(t)
+        t.add_done_callback(self._viec_nen.discard)
+
+    async def cho_viec_nen(self) -> None:
+        """Đợi vòng loop đang chạy nền xong (test và lúc tắt máy chủ)."""
+        while self._viec_nen:
+            await asyncio.gather(*list(self._viec_nen), return_exceptions=True)
+
     async def run_cycle(self, brain: str, slug: str, reason: str = "manual") -> dict:
         """1 vòng của 1 loop: dựng prompt theo goal → chạy CLI cô lập → (mode auto) kiểm chứng
         độc lập 'giả định SAI' → ghi log + cập nhật state. Giữ nguyên khung bản gốc."""
@@ -925,12 +946,24 @@ class LoopFeature:
             return _finish("Lỗi: không tạo được file MCP rỗng để cô lập (profile code từ chối chạy)", "", True)
         if not gcli.is_available():
             return {"ok": False, "error": "Claude CLI chưa cài"}
+        # Trần thời gian như mọi việc nền khác (Kanban, nhắc hẹn): không có thì một vòng treo
+        # là treo tới khi tắt máy chủ.
+        try:
+            gcli.max_wall_s = aux_engine.bg_max_wall_s()
+        except Exception:
+            pass
         summary = ""
-        async for ev in gcli.query(prompt):
-            if ev["type"] == "final":
-                summary = ev.get("content", "") or summary
-            elif ev["type"] == "error":
-                summary = "Lỗi: " + ev["content"][:200]
+        # Engine nổ giữa chừng (mất mạng, CLI chết) phải thành một vòng "Lỗi:" có ghi log và
+        # tính vào fail_streak. Bản trước để exception thoát ra khỏi run_cycle: state không được
+        # cập nhật, `_pick_due` chọn lại đúng loop này ở tick kế tiếp, lặp vô hạn, không báo ai.
+        try:
+            async for ev in gcli.query(prompt):
+                if ev["type"] == "final":
+                    summary = ev.get("content", "") or summary
+                elif ev["type"] == "error":
+                    summary = "Lỗi: " + ev["content"][:200]
+        except Exception as _e:
+            summary = f"Lỗi: {type(_e).__name__}: {_e}"[:200]
 
         verify_line, verify_failed = "", False
         if mode in ("auto", "full") and summary and not summary.startswith("Lỗi:") \

@@ -66,13 +66,16 @@
   var KHOA_THU = "javis_ws_thu";                 // localStorage: nhóm đang THU GỌN, theo loại
   function nhomCua(x) { return (String((x && x.group) || "").trim()) || NHOM_MD; }
   function docThu() {
-    try { var o = JSON.parse(localStorage.getItem(KHOA_THU) || "{}") || {}; return { agent: o.agent || [], workflow: o.workflow || [] }; }
-    catch (e) { return { agent: [], workflow: [] }; }
+    try { return JSON.parse(localStorage.getItem(KHOA_THU) || "{}") || {}; }
+    catch (e) { return {}; }
   }
   function luuThu() { try { localStorage.setItem(KHOA_THU, JSON.stringify(S.thu)); } catch (e) {} }
-  function daThu(g) { return (S.thu[S.loai] || []).indexOf(g) >= 0; }
+  // Khoá theo BRAIN + loại (như sổ nhóm trống): hai brain có nhóm trùng tên mà dùng chung sổ thu
+  // gọn thì thu ở brain này là bên kia cũng thu theo.
+  function khoaThu() { return brain() + "|" + S.loai; }
+  function daThu(g) { return (S.thu[khoaThu()] || []).indexOf(g) >= 0; }
   function latThu(g) {
-    var ds = S.thu[S.loai] || (S.thu[S.loai] = []);
+    var ds = S.thu[khoaThu()] || (S.thu[khoaThu()] = []);
     var i = ds.indexOf(g); if (i >= 0) ds.splice(i, 1); else ds.push(g);
     luuThu();
   }
@@ -403,6 +406,22 @@
     else traCayThuMuc();
   }
 
+  // Sau khi chuyển nhóm / đổi tên / xoá nhóm từ danh sách, form "Cài đặt trợ lý" ở cột phải
+  // (trình sửa của Studio, cố ý KHÔNG vẽ lại để không mất chữ đang gõ) vẫn giữ ô nhóm CŨ trong
+  // #agGroup; bấm Lưu là nó ghi đè nhóm vừa đổi về nhóm cũ - mất thao tác lặng lẽ. Đồng bộ đúng
+  // hai ô đó, không đụng phần còn lại của form.
+  function dongBoNhomForm() {
+    var x = dangChon(), o = S.el && S.el.querySelector("#wsAgentForm #agGroup");
+    if (!x || !o) return;
+    var g = nhomCua(x); o.value = g;
+    var sel = S.el.querySelector("#wsAgentForm #agGroupSel");
+    if (sel) {
+      var co = false;
+      for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === g) { co = true; break; }
+      if (!co) sel.add(new Option(g, g), Math.max(0, sel.options.length - 1));
+      sel.value = g;
+    }
+  }
   // ---------- bộ chọn NHÓM: thanh + bảng nổi, cùng khuôn với project bên Trò chuyện ----------
   // Nhóm TRỐNG (tạo bằng "+ Nhóm mới" mà chưa kéo ai vào) không tồn tại ở đâu trên đĩa - nhóm
   // là tập hợp cộng sự có cùng `group` - nên nhớ tạm trong localStorage theo brain và loại; hễ
@@ -448,11 +467,11 @@
       if (!r || !r.ok) { veLoi((r && r.error) || t("ws.err_meta")); break; }
     }
     luuNhomTrong(docNhomTrong().filter(function (x) { return x !== g; }));
-    var th = S.thu[S.loai] || []; var j = th.indexOf(g); if (j >= 0) { th.splice(j, 1); luuThu(); }
+    var th = S.thu[khoaThu()] || []; var j = th.indexOf(g); if (j >= 0) { th.splice(j, 1); luuThu(); }
     if (S.nhom === g) S.nhom = "";
     await taiDanhSach();
     if (!active) return;
-    veTrai(); veGiua(dangChon());
+    veTrai(); veGiua(dangChon()); dongBoNhomForm();
   }
   function moBangNhom(neo) {
     var cs = window.JavisChatSide; if (!cs || !cs.menu) return;
@@ -537,7 +556,11 @@
     var ds = loc(danhSach(), S.q, S.nhom), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     var trong = (S.q || S.nhom) ? [] : docNhomTrong();
-    if (!ds.length && !trong.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
+    if (!ds.length && !trong.length) {
+      var nhomTrong = !!(S.nhom && !S.q && docNhomTrong().indexOf(S.nhom) >= 0);
+      host.innerHTML = '<div class="ws-empty">' + esc(t(nhomTrong ? "ws.group_empty_hint" : "ws.empty")) + '</div>';
+      return;
+    }
     if (S.hien < TRANG) S.hien = TRANG;
     // Vẽ theo KHỐI (xem gomNhom). Nhóm đang thu gọn chỉ còn hàng tiêu đề, không tính vào
     // trang; phân trang đếm MỤC đã vẽ chứ không đếm tiêu đề.
@@ -691,12 +714,12 @@
       var r = await api("/capability/meta", { method: "POST", body: fd({ kind: S.loai, slug: ds[i].slug, brain: brain(), group: moi }) });
       if (!r || !r.ok) { veLoi((r && r.error) || t("ws.err_meta")); break; }
     }
-    var th = S.thu[S.loai] || []; var j = th.indexOf(g); if (j >= 0) { th[j] = moi; luuThu(); }
+    var th = S.thu[khoaThu()] || []; var j = th.indexOf(g); if (j >= 0) { th[j] = moi; luuThu(); }
     var tr = docNhomTrong(); var k = tr.indexOf(g); if (k >= 0) { tr[k] = moi; luuNhomTrong(tr); }
     if (S.nhom === g) S.nhom = moi;
     await taiDanhSach();
     if (!active) return;
-    veTrai(); veGiua(dangChon());
+    veTrai(); veGiua(dangChon()); dongBoNhomForm();
   }
   function moMenuKhung(neo, ve) {
     dongMenu();
@@ -795,7 +818,7 @@
     // Vẽ lại DANH SÁCH và thanh tiêu đề, KHÔNG vẽ lại cột phải - cùng lối với sauLuu(). Cột
     // phải đang là trình sửa agent: dựng lại nó là xoá luôn những gì người dùng vừa gõ mà
     // chưa bấm Lưu, chỉ để cập nhật một ô chọn nhóm.
-    veTrai(); veGiua(dangChon());
+    veTrai(); veGiua(dangChon()); dongBoNhomForm();
   }
   // Sửa = mở TRÌNH SỬA CỦA STUDIO dạng hộp thoại. Gọi không truyền `host` nên studio.js tự
   // bung modal của nó (xem editAgent: chỉ khi CÓ host nó mới vẽ tại chỗ) - đúng thứ một động
@@ -842,7 +865,11 @@
   function traKhungChat() {
     if (!window.JavisSessions) return;
     var cur = window.JavisSessions.current();
-    if (!laPhienCongSu(cur)) return;      // đang không mở phiên cộng sự thì không đụng gì
+    // Phiên mở từ tab Lịch sử (sessions-ui gọi thẳng JavisSessions.open) không đi qua moPhien
+    // nên không có trong S.sessionCuaPhien, mà nó VẪN là phiên cộng sự: rời trang mà không trả
+    // khung chat là tin kế tiếp ở trang Trò chuyện rơi vào phiên trợ lý. Chỉ đúng một trường
+    // hợp không đụng: khung chat vẫn đang ở đúng cuộc của bộ não chính lúc vào trang.
+    if (!cur || (!laPhienCongSu(cur) && cur === _phienTruoc)) return;
     window.JavisSessions.new();
     if (_phienTruoc && _phienTruoc !== cur && !laPhienCongSu(_phienTruoc)) {
       try { window.JavisSessions.open(_phienTruoc); } catch (e) {}
@@ -972,7 +999,7 @@
   async function sauLuu(item, loai) {
     await taiDanhSach();
     if (!active || S.loai !== loai || S.chon[loai] !== item.slug) return;
-    veTrai(); veGiua(dangChon());
+    veTrai(); veGiua(dangChon()); dongBoNhomForm();
     // Retry session setup after saving; never unlock a chat bound to the wrong agent.
     if (!ready && !await moPhien(dangChon(), false)) return;
     thuGonCaiDat();
@@ -997,7 +1024,9 @@
       // MƯỢN chính trình sửa agent của Studio (studio.js), không dựng bản thứ hai: chọn model,
       // chọn skill, nhóm... đã nằm ở đó, chép lại là hai bản trôi lệch nhau ngay lần sửa đầu.
       if (window.JavisStudio && window.JavisStudio.editAgent) {
-        window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"), dsNhom: S.agents,
+        window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"),
+          // Kèm nhóm TRỐNG vừa lập để ô chọn nhóm của form cũng chọn được nó.
+          dsNhom: S.agents.concat(docNhomTrong().map(function (g) { return { group: g }; })),
           onSaved: async function () { await sauLuu(item, "agent"); } });
       }
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
@@ -1018,7 +1047,7 @@
         '<button type="button" class="ws-btn danger" id="wsDel">' + esc(t("common.delete")) + '</button></div>';
       host.querySelector("#wsRun").onclick = chayQuyTrinh;
       veBuoc(item, td);
-      host.querySelector("#wsEditWf").onclick = function () { window.JavisStudio && window.JavisStudio.editWorkflow(item, { onSaved: async function () { await sauLuu(item, "workflow"); } }); };
+      host.querySelector("#wsEditWf").onclick = function () { var moi = dangChon() || item; window.JavisStudio && window.JavisStudio.editWorkflow(moi, { onSaved: async function () { await sauLuu(moi, "workflow"); } }); };
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("workflow", item.slug); };
       host.querySelector("#wsDel").onclick = async function () {
         if (!confirm(t("studio.del_wf", { ten: item.name }))) return;

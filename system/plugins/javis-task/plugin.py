@@ -43,6 +43,7 @@ Phạm vi v1: `add` và `list`. Chuyển cột, huỷ, duyệt việc chờ phê
 """
 from __future__ import annotations
 
+import time
 import tasks as tasks_mod
 
 # Trần ký tự cho phần liệt kê việc. Kết quả tool đi thẳng vào ngữ cảnh của lượt chat, và engine
@@ -121,6 +122,18 @@ def _them(args, ctx) -> str:
         )
     except Exception as e:
         return f"ERROR: không giao được việc ({type(e).__name__}: {e})."
+
+    # Kho việc TRẢ VỀ việc cũ khi trùng tên với một việc còn sống (kể cả đang kẹt hay chờ
+    # duyệt) chứ không tạo việc mới. Bản trước tool vẫn báo "Đã giao việc" với mã cũ, người
+    # dùng đợi một việc không bao giờ chạy. Nói thẳng để họ đổi tên hoặc xử lý việc cũ.
+    try:
+        _cu = f.store.get_task(tid) or {}
+    except Exception:
+        _cu = {}
+    if _cu and (time.time() - float(_cu.get("created_at") or time.time())) > 5:
+        return (f"CHƯA TẠO việc mới: đã có việc trùng tên \"{tieu_de}\" (mã {tid}) đang ở trạng thái "
+                f"{_cu.get('status')}. Hãy nói rõ với người dùng, rồi hoặc đặt tên việc khác đi, "
+                "hoặc xử lý việc cũ ở trang Việc (chạy lại / huỷ) trước khi giao lại.")
 
     ten_mode = {"suggest": "chỉ đọc và đề xuất", "auto": "được ghi file nháp trong brain",
                 "full": "toàn quyền, tự thao tác ra ngoài"}[mode]

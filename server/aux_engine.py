@@ -471,6 +471,7 @@ class _FallbackChain:
 
     async def query(self, prompt: str):
         fail = "chuỗi engine việc nền rỗng"
+        dau = ""      # lỗi của mắt xích ĐẦU TIÊN thật sự chạy - thường là lỗi có nghĩa nhất
         for e in self._all():
             try:
                 if not e.is_available():
@@ -507,7 +508,12 @@ class _FallbackChain:
                 fail = f"{self._name(e)}: {type(exc).__name__}: {exc}"
             print(f"[aux router] {self._name(e)} lỗi → thử mắt xích kế tiếp. Lý do: {str(fail)[:300]}",
                   file=sys.stderr)
-        yield {"type": "error", "content": str(fail)}            # hết chuỗi → trả lỗi thật
+            dau = dau or str(fail)
+        # Hết chuỗi: trả CẢ lỗi đầu lẫn lỗi cuối. Chỉ trả lỗi cuối ("openrouter không sẵn sàng")
+        # là câu "hết lượt gói Claude" của mắt đầu bị nuốt, và hàng đợi việc không nhận ra để hoãn
+        # tới giờ gói mở lại (tasks._het_luot đọc câu này).
+        noi = str(fail) if (not dau or dau == str(fail)) else f"{dau} | {fail}"
+        yield {"type": "error", "content": noi}
 
 
 def _build_api(spec, claude_cli_obj, mode, tag):

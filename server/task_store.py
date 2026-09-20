@@ -912,10 +912,14 @@ class TaskStore:
             return None
         con_luot = keep_attempt or int(task["attempts"]) < int(task["max_attempts"])
         retry = bool(transient and con_luot)
+        # GIỮ metadata (điều kiện hoàn thành do specifier viết) và artifacts: `_finish` ghi đè
+        # cột bằng thứ được truyền, bản trước không truyền gì nên mỗi lần chặn/thử lại là việc
+        # chạy lại với "ĐIỀU KIỆN HOÀN THÀNH: []".
         return self._finish(
             task_id, worker_id, "ready" if retry else "blocked",
             result=result, error=reason, block_kind=kind,
             block_reason=reason, event_type="retry_scheduled" if retry else "blocked",
+            metadata=task.get("metadata") or {}, artifacts=task.get("artifacts") or [],
             not_before=float(not_before or 0.0) if retry else 0.0,
             keep_attempt=bool(keep_attempt and retry),
         )

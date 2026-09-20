@@ -63,8 +63,18 @@ check("mức xin lạ cũng rơi về auto, không leo lên trần",
       _kep("full", "linh tinh") == "auto", _kep("full", "linh tinh"))
 
 _src = (SERVER / "tasks.py").read_text(encoding="utf-8")
+# 0.59.48: chỗ prepared gọi `_muc_chay` - vẫn kẹp qua `_kep_quyen`, CHỈ khác một điều: trần do
+# người dùng đặt là `full` thì giữ full (specifier là model, không bao giờ trả full, nên kẹp
+# theo nó là việc "toàn quyền" tụt xuống auto rồi dừng xin phép - ngược lời đã hứa).
 check("CANARY: kẹp trần nằm ĐÚNG chỗ specifier ghi vào kho (prepared)",
-      "self._kep_quyen(task.get(\"execution_mode\"), spec[\"execution_mode\"])" in _src)
+      "self._muc_chay(task.get(\"execution_mode\"), spec[\"execution_mode\"])" in _src
+      and "return TasksFeature._kep_quyen(tran, xin)" in _src)
+_muc = TasksFeature._muc_chay
+check("người dùng đặt full thì GIỮ full dù specifier đề xuất thấp hơn",
+      _muc("full", "auto") == "full" and _muc("full", "suggest") == "full")
+check("mức khác vẫn kẹp: suggest không leo lên auto, auto không leo lên full",
+      _muc("suggest", "auto") == "suggest" and _muc("auto", "full") == "auto")
+check("trần rỗng/lạ vẫn rơi về auto, không thành full", _muc("", "full") == "auto")
 
 
 # ============================================================
