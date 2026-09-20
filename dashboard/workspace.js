@@ -55,6 +55,51 @@
       return String(a.name || "").localeCompare(String(b.name || ""), "vi");
     });
   }
+  // ---------- PHÒNG BAN: gom cộng sự theo field `group`, giống thư mục dự án bên Trò chuyện ----------
+  // Chủ repo 20/09: "làm thêm phần gom nhóm giống bên trò chuyện để có thể gom nhiều agent
+  // thành phòng ban khác nhau". Trước đó cột trái chỉ có Ô LỌC theo nhóm; chọn "Tất cả" thì
+  // danh sách phẳng, hai chục cộng sự của năm phòng ban trộn vào nhau. Nay ở chế độ "Tất cả"
+  // danh sách chia thành từng phòng ban có tiêu đề bấm thu gọn/mở, số người bên phải, và nút
+  // "..." để đổi tên cả phòng ban. Dữ liệu vẫn là field `group` sẵn có trong frontmatter, nên
+  // Studio, ô lọc và menu "Chuyển sang phòng ban" đều nhìn thấy cùng một thứ.
+  var NHOM_MD = "Chung";
+  var KHOA_THU = "javis_ws_thu";                 // localStorage: phòng ban đang THU GỌN, theo loại
+  function nhomCua(x) { return (String((x && x.group) || "").trim()) || NHOM_MD; }
+  function docThu() {
+    try { var o = JSON.parse(localStorage.getItem(KHOA_THU) || "{}") || {}; return { agent: o.agent || [], workflow: o.workflow || [] }; }
+    catch (e) { return { agent: [], workflow: [] }; }
+  }
+  function luuThu() { try { localStorage.setItem(KHOA_THU, JSON.stringify(S.thu)); } catch (e) {} }
+  function daThu(g) { return (S.thu[S.loai] || []).indexOf(g) >= 0; }
+  function latThu(g) {
+    var ds = S.thu[S.loai] || (S.thu[S.loai] = []);
+    var i = ds.indexOf(g); if (i >= 0) ds.splice(i, 1); else ds.push(g);
+    luuThu();
+  }
+  // Chia danh sách (đã lọc, đã sắp) thành các KHỐI theo thứ tự vẽ. Hàm thuần, test được:
+  //   - khối "Đã ghim" đứng đầu nếu có mục ghim;
+  //   - đang lọc MỘT phòng ban thì phần còn lại là một khối duy nhất (nhãn "Còn lại" chỉ khi
+  //     có khối ghim phía trên, như trước);
+  //   - "Tất cả" thì mỗi phòng ban một khối, xếp theo tên (tiếng Việt), "Chung" xuống cuối vì
+  //     đó là chỗ của người chưa được xếp vào đâu, giống "Không thuộc dự án" bên Trò chuyện.
+  function gomNhom(ds, nhomLoc) {
+    var ghim = (ds || []).filter(function (x) { return x.pinned; });
+    var thuong = (ds || []).filter(function (x) { return !x.pinned; });
+    var ra = [];
+    if (ghim.length) ra.push({ ghim: true, nhom: "", items: ghim });
+    if (nhomLoc) {
+      if (thuong.length) ra.push({ ghim: false, nhom: nhomLoc, items: thuong, phongBan: false, tieuDe: !!ghim.length });
+      return ra;
+    }
+    var theo = {};
+    thuong.forEach(function (x) { var g = nhomCua(x); (theo[g] = theo[g] || []).push(x); });
+    Object.keys(theo).sort(function (a, b) {
+      if (a === NHOM_MD) return 1; if (b === NHOM_MD) return -1;
+      return a.localeCompare(b, "vi");
+    }).forEach(function (g) { ra.push({ ghim: false, nhom: g, items: theo[g], phongBan: true, tieuDe: true }); });
+    return ra;
+  }
+
   function loc(ds, q, nhom) {
     var nq = khongDau(q || "").trim();
     return ds.filter(function (x) {
@@ -143,7 +188,7 @@
   // vài chục trợ lý, vẽ hết một lượt là một cột cuộn dài dằng dặc mà chín phần mười số hàng
   // chẳng ai nhìn tới.
   var TRANG = 20;
-  var S = { loai: "agent", q: "", nhom: "", agents: [], workflows: [], chon: { agent: null, workflow: null },
+  var S = { loai: "agent", q: "", nhom: "", thu: docThu(), agents: [], workflows: [], chon: { agent: null, workflow: null },
             el: null, tienDo: {}, sessionCuaPhien: {}, tabPhai: "lichsu",
             // Tab cột phải NHỚ RIÊNG theo loại. Trợ lý mở ở Lịch sử (chốt 16/09, xem TAB_PHAI);
             // quy trình mở ở Cài đặt vì nút Chạy nằm ở đó (chủ dự án chốt 17/09). Dùng chung
@@ -394,19 +439,20 @@
     var ds = loc(danhSach(), S.q, S.nhom), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     if (!ds.length) { host.innerHTML = '<div class="ws-empty">' + esc(t("ws.empty")) + '</div>'; return; }
-    var tong = ds.length;
     if (S.hien < TRANG) S.hien = TRANG;
-    var phan = ds.slice(0, S.hien);
-    var coGhim = phan.some(function (x) { return x.pinned; });
-    var nhanTruoc = null;
-    host.innerHTML = phan.map(function (x) {
-      var nhan = "";
-      if (coGhim) {
-        var g = x.pinned ? t("ws.grp_pinned") : t("ws.grp_rest");
-        if (g !== nhanTruoc) { nhan = '<div class="ws-glabel">' + esc(g) + '</div>'; nhanTruoc = g; }
-      }
-      return nhan + mucHtml(x, chon);
-    }).join("") +
+    // Vẽ theo KHỐI (xem gomNhom). Phòng ban đang thu gọn chỉ còn hàng tiêu đề, không tính vào
+    // trang; phân trang đếm MỤC đã vẽ chứ không đếm tiêu đề.
+    var html = "", daVe = 0, tong = 0;
+    gomNhom(ds, S.nhom).forEach(function (n) {
+      var thu = n.phongBan && daThu(n.nhom);
+      if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
+      else if (n.phongBan) html += phongBanHtml(n.nhom, n.items.length, thu);
+      else if (n.tieuDe) html += '<div class="ws-glabel">' + esc(t("ws.grp_rest")) + '</div>';
+      if (thu) return;
+      tong += n.items.length;
+      n.items.forEach(function (x) { if (daVe < S.hien) { html += mucHtml(x, chon); daVe++; } });
+    });
+    host.innerHTML = html +
       (tong > S.hien
         ? '<button type="button" class="ws-more" id="wsMore">' +
             esc(t("sess.more", { so: Math.min(TRANG, tong - S.hien) })) + '</button>'
@@ -420,6 +466,17 @@
       var lai = S.el && S.el.querySelector("#wsList"); if (lai) lai.scrollTop = cuon;
     };
     noiDanhSach(host);
+  }
+  // Hàng tiêu đề của MỘT phòng ban: nút thu gọn/mở (tên + số người) và nút "..." quản lý.
+  // Hai nút ngang hàng trong một khối, không lồng nhau (button trong button là HTML sai).
+  function phongBanHtml(g, n, thu) {
+    return '<div class="ws-glabel ws-dept' + (thu ? " thu" : "") + '" data-dept="' + esc(g) + '">' +
+      '<button type="button" class="ws-dept-tog" aria-expanded="' + (thu ? "false" : "true") +
+        '" title="' + esc(t("ws.dept_toggle")) + '">' + ic("chevron-down") +
+        '<span class="ws-dept-name">' + esc(g) + '</span><span class="ws-dept-n">' + n + '</span></button>' +
+      '<button type="button" class="ws-dept-more" data-dmore="' + esc(g) + '" title="' + esc(t("ws.dept_manage")) +
+        '" aria-label="' + esc(t("ws.dept_manage")) + '">' + ic("ellipsis-vertical") + '</button>' +
+      '</div>';
   }
   // HTML của MỘT hàng. Tách khỏi veDanhSach để chỗ kia chỉ còn lo nhóm - phân trang, và để
   // test dựng được một hàng mà không cần cả trang.
@@ -464,6 +521,16 @@
         if (x) moMenuMuc(x, b);
       };
     });
+    host.querySelectorAll(".ws-dept-tog").forEach(function (b) {
+      b.onclick = function () {
+        var cuon = host.scrollTop;    // giữ chỗ cuộn như nút "Xem thêm"
+        latThu(b.parentNode.dataset.dept); veDanhSach();
+        var lai = S.el && S.el.querySelector("#wsList"); if (lai) lai.scrollTop = cuon;
+      };
+    });
+    host.querySelectorAll("[data-dmore]").forEach(function (b) {
+      b.onclick = function (e) { e.stopPropagation(); moMenuPhongBan(b.dataset.dmore, b); };
+    });
   }
 
   // ---------- mở FILE trong khung chat cộng sự: TẮT HẲN khung chat ----------
@@ -497,14 +564,46 @@
   function dongMenuNgoai(e) { if (S.menu && !S.menu.contains(e.target)) dongMenu(); }
   function dongMenuEsc(e) { if (e.key === "Escape") { e.stopPropagation(); dongMenu(); } }
 
-  function moMenuMuc(item, neo) {
+  function moMenuMuc(item, neo) { moMenuKhung(neo, function (m) { veMenuGoc(item, m); }); }
+  // Menu của MỘT phòng ban (nút "..." trên hàng tiêu đề): chỉ xem phòng ban này, đổi tên cả
+  // phòng ban. Tạo phòng ban mới vẫn đi qua menu của một cộng sự ("Phòng ban mới…"): phòng ban
+  // là tập hợp cộng sự có cùng `group`, không có phòng ban rỗng để mà tạo trước.
+  function moMenuPhongBan(g, neo) {
+    moMenuKhung(neo, function (m) {
+      var so = danhSach().filter(function (x) { return nhomCua(x) === g; }).length;
+      m.innerHTML = '<div class="ws-menu-head">' + esc(g) + ' · ' + so + '</div>' +
+        nutMenu("folder-open", t("ws.dept_only"), "chi") +
+        nutMenu("pencil", t("ws.dept_rename"), "ten");
+      m.querySelector('[data-act="chi"]').onclick = function () { dongMenu(); S.nhom = g; S.hien = TRANG; veTrai(); };
+      m.querySelector('[data-act="ten"]').onclick = function () { dongMenu(); doiTenPhongBan(g); };
+    });
+  }
+  // Đổi tên phòng ban = đổi `group` của TỪNG cộng sự trong đó qua /capability/meta (cùng đường
+  // với "Chuyển sang phòng ban"), rồi tải lại một lần. Trạng thái thu gọn và ô lọc đi theo tên mới.
+  async function doiTenPhongBan(g) {
+    var moi = window.prompt(t("ws.dept_rename_ask", { ten: g }), g);
+    if (moi == null) return;
+    moi = String(moi).trim();
+    if (!moi || moi === g) return;
+    var ds = danhSach().filter(function (x) { return nhomCua(x) === g; });
+    for (var i = 0; i < ds.length; i++) {
+      var r = await api("/capability/meta", { method: "POST", body: fd({ kind: S.loai, slug: ds[i].slug, brain: brain(), group: moi }) });
+      if (!r || !r.ok) { veLoi((r && r.error) || t("ws.err_meta")); break; }
+    }
+    var th = S.thu[S.loai] || []; var j = th.indexOf(g); if (j >= 0) { th[j] = moi; luuThu(); }
+    if (S.nhom === g) S.nhom = moi;
+    await taiDanhSach();
+    if (!active) return;
+    veTrai(); veGiua(dangChon());
+  }
+  function moMenuKhung(neo, ve) {
     dongMenu();
     var m = document.createElement("div");
     m.className = "ws-menu";
     m.setAttribute("role", "menu");
     S.menu = m;
     document.body.appendChild(m);
-    veMenuGoc(item, m);
+    ve(m);
     datChoMenu(m, neo);
     // Gắn listener SAU một nhịp: cú bấm mở menu vẫn đang nổi bọt lên document, gắn ngay là
     // menu tự đóng đúng lúc vừa mở.
@@ -1016,5 +1115,5 @@
   }
 
   window.JavisWorkspace = { render: render, roi: roi, openCommand: openCommand, openTab: openTab, onTurnDone: onTurnDone, canSend: function () { return !active || ready; }, onChatState: onChatState, chayQuyTrinh: chayQuyTrinh, onWfEvent: onWfEvent, sapXep: sapXep, loc: loc, tienDoMoi: tienDoMoi, apDung: apDung, phanTram: phanTram,
-    dangChay: dangChay, tabPhai: chonTabPhai, state: function () { return S; } };
+    dangChay: dangChay, tabPhai: chonTabPhai, gomNhom: gomNhom, phongBanHtml: phongBanHtml, state: function () { return S; } };
 })();

@@ -30,6 +30,37 @@ const ds = [{ slug: "a", name: "Người viết", role: "viết", group: "Market
 check("loc theo chu khong dau", W.loc(ds, "nguoi viet", "").map(x => x.slug).join() === "a");
 check("loc theo nhom", W.loc(ds, "", "Finance").map(x => x.slug).join() === "b");
 
+// ============================================================
+// PHÒNG BAN: gom cộng sự theo `group` khi xem "Tất cả" (0.59.46)
+// ============================================================
+// Chủ repo 20/09: gom nhiều agent thành phòng ban khác nhau, giống thư mục dự án bên Trò chuyện.
+{
+  const ds2 = [
+    { slug: "a", name: "A", group: "Marketing" },
+    { slug: "b", name: "B", group: "Chung" },
+    { slug: "c", name: "C", group: "Finance", pinned: true },
+    { slug: "d", name: "D" },                       // không khai group -> Chung
+    { slug: "e", name: "E", group: "Ăn uống" },
+    { slug: "f", name: "F", group: "Marketing" },
+  ];
+  const kh = W.gomNhom(ds2, "");
+  check("khoi Da ghim dung dau", kh[0].ghim === true && kh[0].items.map(x => x.slug).join() === "c");
+  check("moi phong ban mot khoi, xep theo ten tieng Viet, 'Chung' xuong cuoi",
+    kh.slice(1).map(k => k.nhom).join("|") === "Ăn uống|Marketing|Chung", kh.map(k => k.nhom).join("|"));
+  check("khoi phong ban co co phongBan (ve tieu de thu gon duoc)", kh.slice(1).every(k => k.phongBan === true));
+  check("nguoi khong khai group roi vao Chung", kh[3].items.map(x => x.slug).join() === "b,d");
+  check("giu thu tu trong phong ban", kh[2].items.map(x => x.slug).join() === "a,f");
+  // Đang lọc MỘT phòng ban: không chia phòng ban nữa, chỉ còn "Đã ghim" + phần còn lại.
+  const kl = W.gomNhom(ds2.filter(x => (x.group || "Chung") === "Marketing"), "Marketing");
+  check("loc mot phong ban -> mot khoi, khong tieu de phong ban",
+    kl.length === 1 && kl[0].phongBan === false && kl[0].tieuDe === false);
+  check("khong co gi thi rong", W.gomNhom([], "").length === 0);
+  const h = W.phongBanHtml("Marketing", 2, true);
+  check("tieu de phong ban: co nut thu gon, ten, so nguoi, nut quan ly, va co thu khi dang thu",
+    h.includes("ws-dept-tog") && h.includes("Marketing") && h.includes('ws-dept-n">2<')
+    && h.includes("data-dmore") && h.includes("ws-dept thu") && h.includes('aria-expanded="false"'));
+}
+
 // Tiến độ quy trình từ wf_event
 const st = W.tienDoMoi(3);
 W.apDung(st, { type: "step_start", i: 0, agent: "A" });
@@ -156,6 +187,9 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     S: { loai: "agent", q: "", nhom: "", chon: { agent: "a" }, el: el, tienDo: {}, sessionCuaPhien: {},
          tabPhai: "cai", hien: 20, lanChay: {} },
     danhSach: () => ds, loc: W.loc, cacBuoc: () => [], dangChon: () => ds[0],
+    // Khối phòng ban (0.59.46) khai ở đầu module, ngoài đoạn được bóc: mượn bản thật qua W,
+    // riêng trạng thái thu gọn cho về "không thu" để danh sách vẽ đủ.
+    gomNhom: W.gomNhom, phongBanHtml: W.phongBanHtml, daThu: () => false,
     TAB_PHAI: ["cai", "lichsu", "files"],
     luuChon() {}, moPhien() {}, heptLai: () => false, chatReady() {}, active: true, opening: 0,
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
@@ -179,6 +213,13 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
   check("co dong Tat ca nhom dung dau", html.indexOf('<option value="">ws.all_groups (3)') === 0);
   check("moi nhom kem so dem", html.includes(">Marketing (2)<") && html.includes(">Finance (1)<"));
   check("o chon dung dang o mac dinh Tat ca", nodes["#wsGroup"].value === "");
+  // "Tất cả": danh sách chia theo PHÒNG BAN có tiêu đề (0.59.46), Finance đứng trước Marketing.
+  const dsHtml = nodes["#wsList"].innerHTML;
+  check("xem Tat ca thi co tieu de phong ban Finance va Marketing",
+    dsHtml.includes('data-dept="Finance"') && dsHtml.includes('data-dept="Marketing"')
+    && dsHtml.indexOf('data-dept="Finance"') < dsHtml.indexOf('data-dept="Marketing"'));
+  check("tieu de phong ban dung truoc nguoi trong phong ban do",
+    dsHtml.indexOf('data-dept="Marketing"') < dsHtml.indexOf("Người viết"));
   nodes["#wsGroup"].value = "Finance"; nodes["#wsGroup"].onchange();
   check("doi dong trong o chon thi loc theo nhom do", ctx.S.nhom === "Finance"
     && nodes["#wsList"].innerHTML.includes("Kế toán") && !nodes["#wsList"].innerHTML.includes("Người viết"));
@@ -266,8 +307,16 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     /<\/strong>/.test(htmlGhim) && htmlGhim.indexOf("ws-item-pin") > htmlGhim.indexOf("</strong>"));
   check("CANARY: dau ghim khong con nam trong <strong>",
     !/<strong>[^<]*<span class="ws-item-pin"/.test(htmlGhim));
-  check("co nhan nhom Da ghim va Con lai",
-    htmlGhim.includes("ws.grp_pinned") && htmlGhim.includes("ws.grp_rest"));
+  // 0.59.46: ở "Tất cả", phần không ghim chia theo PHÒNG BAN chứ không gom thành "Còn lại"
+  // nữa; nhãn "Còn lại" chỉ còn khi đang lọc MỘT phòng ban mà có mục ghim phía trên.
+  check("co nhan Da ghim, phan con lai chia theo phong ban (khong con nhan Con lai)",
+    htmlGhim.includes("ws.grp_pinned") && !htmlGhim.includes("ws.grp_rest")
+    && htmlGhim.includes('data-dept="Marketing"'));
+  ctx.S.nhom = "Finance"; ctx.veDanhSach();
+  check("loc mot phong ban ma co ghim thi van co nhan Con lai, khong co tieu de phong ban",
+    nodes["#wsList"].innerHTML.includes("ws.grp_pinned") === (ds[1].group === "Finance")
+    && !nodes["#wsList"].innerHTML.includes("data-dept="));
+  ctx.S.nhom = ""; ctx.veDanhSach();
   ds[1].pinned = false;
   ctx.veDanhSach();
   check("khong ghim gi thi KHONG doi them nhan nhom",

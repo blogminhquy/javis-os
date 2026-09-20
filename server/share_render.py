@@ -31,6 +31,26 @@ CSP_HTML = "sandbox allow-scripts allow-forms allow-popups allow-modals allow-do
 CSP_TINH = "sandbox"
 
 DUOI_HTML = (".html", ".htm")
+# Đuôi FILE DỮ LIỆU một trang .html chia sẻ được đọc từ THƯ MỤC CỦA NÓ (qua `/s/<token>/<đường
+# dẫn>`, xem `_share_sibling` trong main.py). Chủ repo báo 2026-09-20: app .html đọc data.json
+# bên cạnh, chia sẻ xong mở ra trống trơn. Danh sách CHO PHÉP, chỉ gồm dữ liệu và trang phụ;
+# và chỉ mở khi trang .html nằm trong một thư mục riêng, KHÔNG phải gốc brain (gốc brain là cả
+# kho ghi chú, xem chú thích DUOI_TAI_NGUYEN).
+DUOI_DU_LIEU = (".json", ".geojson", ".jsonl", ".ndjson", ".csv", ".tsv", ".txt", ".xml",
+                ".yaml", ".yml", ".md", ".markdown", ".html", ".htm")
+# mimetypes của Python không biết vài đuôi dữ liệu (jsonl, geojson, yaml) hoặc trả kiểu không
+# charset; app đọc bằng fetch().json() không cần kiểu đúng, nhưng thư viện CSV/XML có kiểm.
+KIEU_DU_LIEU = {
+    ".json": "application/json; charset=utf-8", ".geojson": "application/geo+json; charset=utf-8",
+    ".jsonl": "application/x-ndjson; charset=utf-8", ".ndjson": "application/x-ndjson; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8", ".tsv": "text/tab-separated-values; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8",
+    ".yaml": "application/yaml; charset=utf-8", ".yml": "application/yaml; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8", ".markdown": "text/markdown; charset=utf-8",
+    ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+}
 DUOI_MD = (".md", ".markdown")
 DUOI_ANH = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif", ".bmp", ".ico")
 DUOI_XEM_THANG = DUOI_ANH + (".pdf", ".mp4", ".webm", ".mp3", ".wav", ".ogg", ".m4a")
