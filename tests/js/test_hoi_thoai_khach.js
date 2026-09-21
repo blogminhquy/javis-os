@@ -16,6 +16,7 @@ const SRC = fs.readFileSync(path.join(ROOT, "dashboard", "conversations.js"), "u
 const CSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
 const SCSS = fs.readFileSync(path.join(ROOT, "dashboard", "style.css"), "utf8");
 const CB = fs.readFileSync(path.join(ROOT, "dashboard", "chatbots.js"), "utf8");
+const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const fails = [];
 function check(name, cond) {
   console.log((cond ? "ok   " : "FAIL ") + name);
@@ -86,6 +87,47 @@ check("cau bot ve qua mdToHtml (co loc), tin khach chi escape",
       SRC.includes("window.mdToHtml(t.text") && SRC.includes("than = esc(t.text"));
 check("the bot o trang Chatbot co nut mo hop thu loc theo bot",
       CB.includes("JavisConversations.mo({ bot_id: b.id })"));
+// ------------------------------------------------------------------ the tai khoan kenh
+// Chu repo bao (2026-09-21) khi nhin tab Kenh: "dang bi loi tran ky tu, va dang khong co phan
+// xoa kenh nua". Ca hai deu la loi hong lang le.
+//
+// 1. Cau loi cua MCP la mot cuc JSON khong co lay mot dau cach. De lam text tran trong mot
+//    flex container thi no thanh mot flex item VO DANH - CSS khong voi toi duoc de cho phep
+//    ngat dong - nen chu tran ra de sang the ben canh.
+check("cau loi duoc boc trong <span> chu khong de lam text tran",
+      /class="ht-acc-loi" title="' \+ esc\(a\.loi\)/.test(SRC) &&
+      /'<span>' \+ esc\(String\(a\.loi\)\.slice\(0, 200\)\) \+ '<\/span>/.test(SRC));
+check("CSS cho phep ngat dong giua chu trong cau loi",
+      /\.ht-acc-loi span \{[^}]*min-width: 0/.test(CSS) &&
+      /\.ht-acc-loi span \{[^}]*overflow-wrap: anywhere/.test(CSS));
+check("the tai khoan cung chan tran (ten bot hay id nen tang dai)",
+      /\.ht-acc \{[^}]*overflow-wrap: anywhere/.test(CSS));
+
+// 2. Server tu choi xoa tai khoan dang co bot truc; ban truoc dich cau tu choi do thanh "an
+//    nut di", nen chu repo nhin the nao cung khong thay cho xoa va khong co gi noi vi sao.
+check("CANARY: nut Xoa KHONG con bi an theo xoa_duoc",
+      !/a\.xoa_duoc \? '<button[^']*ht-acc-xoa/.test(SRC) && SRC.includes("ht-acc-xoa"));
+check("moi the kenh bot deu co nut Xoa",
+      /a\.kind === "bot"\s*\n?\s*\? '<button type="button" class="s-btn-ghost ht-acc-xoa">/.test(SRC));
+check("bam Xoa khi con bot truc thi noi ro TEN BOT dang giu",
+      SRC.includes('window.t("ht.xoa_dang_truc", { ten: a.label, bot: a.bot_name })') &&
+      VI["ht.xoa_dang_truc"].includes("{bot}") && VI["ht.xoa_dang_truc"].includes("chưa xoá được"));
+check("va mo thang form Sua cua dung con bot do",
+      SRC.includes('"javis:chatbot-edit"') && /detail: \{ bot_id: a\.bot_id \}/.test(SRC) &&
+      CB.includes('document.addEventListener("javis:chatbot-edit"'));
+check("khong xoa duoc thi KHONG goi API xoa",
+      /if \(!a\.xoa_duoc\) \{[\s\S]{0,400}return;\s*\n\s*\}/.test(SRC));
+// Zalo ca nhan la mot KET NOI ben trang Ket noi, khong xoa o day duoc. The van phai chi duong
+// chu khong duoc cam.
+check("the kenh khong xoa duoc o day thi chi duong sang trang Ket noi",
+      SRC.includes("ht-acc-ket-noi") && SRC.includes('window.t("ht.mo_ket_noi")') &&
+      /kn\.onclick = function \(\) \{ try \{ window\.JavisNav\.go\("mcp"\)/.test(SRC));
+
+// 3. Nut cuoi hang kenh bi bop lai cho vua cho con thua, chu gay lam hai dong ("Mo / Ket noi").
+check("nut o hang kenh giu nguyen be ngang cua no",
+      /\.ht-src > button \{[^}]*flex: none/.test(CSS) &&
+      /\.ht-src > button \{[^}]*white-space: nowrap/.test(CSS));
+
 check("khong dung ky tu em dash", !SRC.includes("\u2014") && !CB.includes("\u2014"));
 
 if (fails.length) {

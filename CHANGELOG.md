@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.61.2] - 2026-09-21
+### Sửa lỗi
+- **Thẻ ở tab Kênh hết tràn chữ.** Câu lỗi dài (nhất là lỗi MCP, một cục chữ liền không có dấu cách) trước đây chạy ra ngoài thẻ và đè lên thẻ bên cạnh. Nay nó xuống dòng gọn trong thẻ, di chuột vào đọc được câu đầy đủ.
+- **Nút Xoá tài khoản kênh hiện trở lại.** Trước đây tài khoản nào đang có bot trực thì nút Xoá biến mất, không một lời giải thích. Nay nút luôn có: bấm vào là Javis nói rõ bot nào đang giữ và mở thẳng form sửa bot đó để bạn bỏ chọn.
+- Thẻ Zalo cá nhân có nút **Mở Kết nối** để sang đúng chỗ ngắt kết nối, thay vì không có lối nào.
+- Nút `Mở Kết nối` trong bảng Thêm tài khoản hết bị bóp méo thành hai dòng.
+
 ## [0.61.1] - 2026-09-21
 ### Cải thiện
 - **Tạo bot giờ đi hai bước.** Bước 1 chỉ hỏi bot trả lời ở tài khoản nào, bước 2 mới đặt tên và cài đặt. Sửa bot thì vào thẳng bước 2.

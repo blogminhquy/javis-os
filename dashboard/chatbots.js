@@ -906,12 +906,31 @@
   // trang nạp xong danh sách kênh (tai) rồi mới mở, để ô chọn có đủ dữ liệu.
   document.addEventListener("javis:chatbot-new", function (e) {
     var aid = (e.detail || {}).account_id;
+    doiNap(function () { moForm(null, { account_id: aid }); });
+  });
+
+  // Tab Kênh bấm Xoá trên một tài khoản đang có bot trực: mở thẳng form Sửa của con bot đó để
+  // gỡ tài khoản ra. Không có đường này thì người dùng đọc câu "gỡ khỏi bot trước" xong phải tự
+  // đoán bot nào nằm ở đâu.
+  document.addEventListener("javis:chatbot-edit", function (e) {
+    var bid = (e.detail || {}).bot_id;
+    doiNap(function () {
+      var b = null;
+      for (var i = 0; i < _bots.length; i++) if (_bots[i].id === bid) b = _bots[i];
+      if (b) moForm(b);
+      else alert(window.t("cb.khong_thay_bot"));
+    });
+  });
+
+  // Đợi trang nạp xong (kênh + danh sách bot) rồi mới mở form, để ô chọn có đủ dữ liệu. Bỏ cuộc
+  // sau 3 giây: mở một form thiếu dữ liệu vẫn hơn là không mở gì và không nói gì.
+  function doiNap(xong) {
     var cho = 0;
     (function thu() {
-      if (_kenhDS.length || cho++ > 20) return moForm(null, { account_id: aid });
+      if ((_kenhDS.length && _bots) || cho++ > 20) return xong();
       setTimeout(thu, 150);
     })();
-  });
+  }
 
   window.JavisChatbots = { render: render };
 })();
