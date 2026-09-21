@@ -318,7 +318,11 @@ check("CANARY: vẽ lại sau khi cài/gỡ KHÔNG đi qua render (đường v�
 # Kho có mặt trên thanh bên từ 0.55.37. Lý do ẩn nó trước đây - "đường vào đúng là cái tab
 # trên chính trang bạn đang đứng" - sai ngay khi kho thành chỗ chứa phần lớn kết nối của
 # Javis: người mới cài chưa đấu gì thì không có trang nào để mà bấm tab.
-check("kho hiện trên thanh bên", "const RAIL_AN = new Set();" in src_con)
+# 0.61.0: RAIL_AN không còn rỗng (id trang cũ "chatbots" ẩn đi vì đã gộp vào trang Hội thoại),
+# nên canh đúng ý: "packs" KHÔNG nằm trong tập ẩn.
+import re as _re
+_an = _re.search(r"const RAIL_AN = new Set\((.*?)\);", src_con)
+check("kho hiện trên thanh bên", _an is not None and '"packs"' not in _an.group(1))
 check("và nằm trong nhóm Kết nối", '"mcp", "packs", "channels", "models"' in src_con)
 check("vẫn giữ trong danh sách trang (nguồn icon và nhãn)",
       '"packs", "logs", "account", "usage",' in src_con)
