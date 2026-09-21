@@ -2905,5 +2905,18 @@
   "ht.ph_nhan_tk": "Ví dụ: Bot Telegram chính",
   "ht.khong_kenh_token": "Chưa có kênh nào nhận token bot.",
   "ht.sua_tk": "Sửa tài khoản",
-  "ht.tk_doi_token_bot": "Đổi token là bot \"{bot}\" khởi động lại với token mới."
+  "ht.tk_doi_token_bot": "Đổi token là bot \"{bot}\" khởi động lại với token mới.",
+  "studio.assets": "Tài liệu & link",
+  "studio.assets_open": "Mở khung tài liệu & link",
+  "studio.assets_hint": "File và link gắn ở đây đi theo trợ lý, mọi lượt làm việc của nó đều thấy.",
+  "studio.assets_new": "Lưu trợ lý xong mới gắn được tài liệu.",
+  "ags.note": "Tài liệu gắn ở đây thuộc về TRỢ LÝ: mọi cuộc trò chuyện với nó và mọi bước quy trình gọi tới nó đều thấy. Muốn gắn cho riêng một cuộc thì dùng nút File & link ở thanh trên.",
+  "ags.files_empty": "Chưa có tài liệu nào. Thêm file để trợ lý biết chỗ mà tra.",
+  "ags.links_empty": "Chưa có link nào.",
+  "ags.pin_note": "File ghim được nạp sẵn nội dung vào prompt của trợ lý (tối đa 2000 ký tự mỗi file, 6000 tổng). File còn lại trợ lý chỉ thấy tên và tự mở khi cần.",
+  "ags.err_load": "Không đọc được tài liệu của trợ lý này.",
+  "ags.remove": "Gỡ khỏi trợ lý",
+  "ags.confirm_remove_file": "Gỡ \"{ten}\" khỏi trợ lý này? File vẫn còn trong brain.",
+  "ags.confirm_remove_link": "Gỡ link \"{ten}\" khỏi trợ lý này?",
+  "cts.remove": "Gỡ khỏi cuộc trò chuyện này"
 }

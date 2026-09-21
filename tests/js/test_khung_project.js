@@ -215,8 +215,10 @@ check("chú thích nói rõ ghim là nạp sẵn NỘI DUNG, không phải đổ
   /nạp sẵn/.test(VI["proj.pin_on"] || "") && /2000/.test(VI["proj.pin_note"] || ""));
 check("hai trần trong chú thích khớp server", /PROJECT_GHIM_FILE_MAX = 2000/.test(
   fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8")));
+// pdK() chọn tiền tố khoá theo chế độ đang mở (proj. / cts. / ags.), nên câu hỏi luôn nói
+// đúng tên thứ mà file sắp bị gỡ khỏi.
 check("hỏi lại trước khi gỡ file, và nói rõ file vẫn còn trong brain",
-  /confirm\(pdT\(pdLaCuoc\(\) \? "cts\.confirm_remove_file" : "proj\.confirm_remove_file"/.test(SU)
+  /confirm\(pdT\(pdK\("confirm_remove_file"\)/.test(SU)
   && /vẫn còn trong brain/.test(VI["proj.confirm_remove_file"] || ""));
 check("link nói rõ chỉ mở được khi bộ não có công cụ duyệt web",
   /duyệt web/.test(VI["proj.link_note"] || ""));
@@ -312,8 +314,8 @@ check("gọi endpoint tài sản của phiên", /"\/sessions\/" \+ encodeURIComp
 // dữ liệu là nhân đôi số chỗ phải sửa về sau.
 check("dùng lại vỏ ngăn kéo của project chứ không dựng khung thứ hai",
   (SU.match(/class="pd-panel"/g) || []).length === 1 && /pdCheDo = "cuoc"/.test(SU));
-check("thanh tab dựng động: chế độ cuộc chỉ có File và Link",
-  /if \(pdLaCuoc\(\)\) return \[tabFile, tabLink\];/.test(SU));
+check("thanh tab dựng động: chế độ cuộc và trợ lý chỉ có File và Link",
+  /if \(pdLaCuoc\(\) \|\| pdLaAgent\(\)\) return \[tabFile, tabLink\];/.test(SU));
 check("mở khung project thì trả chế độ về project", /pdDung\(\);\s*\n\s*pdCheDo = "project";/.test(SU));
 check("file đã dời vẫn hiện, mờ đi và gạch ngang",
   /\.pd-row\.mat \{ opacity/.test(CSS) && /\.pd-row\.mat \.pd-row-name \{ text-decoration: line-through/.test(CSS));

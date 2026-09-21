@@ -48,7 +48,7 @@ Chọn tab cần dùng rồi bấm nút tạo trợ lý hoặc quy trình ở cu
 |---|---|---|
 | **Tên** | Tên agent, hiện trên thẻ. Bắt buộc. | VD: "Chuyên viên email" |
 | **Vai trò (mô tả ngắn)** | Một câu mô tả agent làm gì. | VD: "Viết email bán hàng, giọng thân mật" |
-| **Nhóm** | Tên nhóm để dashboard xếp agent vào cùng một cột bên trái. Gõ tên mới hoặc chọn từ nhóm đang có (ô có gợi ý). Để trống thì agent rơi vào nhóm "Chung". | VD: Marketing, Bán hàng, Nội dung |
+| **Tài liệu & link** | Nút mở khung gắn file trong brain và đường link cho riêng trợ lý này. Xem mục ngay dưới. | Bảng giá, brief thương hiệu, link tài liệu sản phẩm |
 | **System prompt (cách làm việc chi tiết)** | Hướng dẫn dài, chi tiết cách agent làm việc, nguyên tắc, đầu ra mong muốn. | VD: quy tắc viết, cấm dùng từ nào, format đầu ra |
 | **Skills** | Danh sách skill có sẵn trong vault, bấm tick để cho agent được dùng. | Chọn skill hợp với vai trò |
 | **Model** | Ô chọn có 8 lựa chọn, xem bảng ngay dưới. | Sonnet cho cân bằng, Opus khi cần suy luận sâu, Haiku khi cần nhanh và rẻ |
@@ -74,6 +74,23 @@ Ghi chú về ô Skills: danh sách skill lấy từ thư mục skill của vaul
 Dưới ô Model có dòng ghi chú: "Agent chạy qua CLI của nhà cung cấp: chọn Claude → Claude Code; chọn ChatGPT → Codex (cần đã đăng nhập ChatGPT ở máy/VPS). Cả hai đều đọc/ghi file vault + dùng MCP."
 
 **"Mặc định (theo CLI)" thật ra làm gì:** để trống thì Javis lấy **model phụ** bạn đặt ở trang **Models** trước (chỉ khi model phụ là một model Claude); không có model phụ Claude nào thì mới rơi về model mặc định của CLI. Nếu bạn muốn một agent luôn chạy đúng một model bất kể cấu hình chung, hãy chọn thẳng model cho nó thay vì để trống.
+
+### Tài liệu và link của một trợ lý
+
+Mỗi trợ lý có một tủ tài liệu riêng: mở **Cài đặt trợ lý** ở cột phải rồi bấm **Mở khung tài liệu & link**. Khung mở ra đúng là khung bạn đã dùng cho project và cho một cuộc trò chuyện, chỉ khác phạm vi.
+
+- **Tab File**: tìm một file có sẵn trong brain để gắn vào, hoặc tải file từ máy lên (file tải lên nằm ở thư mục `sources` của brain). Kéo thả file vào khung cũng được.
+- **Tab Link**: dán một địa chỉ `http://` hoặc `https://` kèm tên gợi nhớ.
+- **Nút ghim** trên mỗi file: ghim là Javis **nạp sẵn nội dung file** vào đầu mỗi lượt trợ lý làm việc (tối đa 2000 ký tự mỗi file, 6000 ký tự tổng), thay vì chỉ cho nó biết tên file rồi tự mở khi cần. Ghim bảng giá vào là trợ lý trả lời được ngay mà không phải đi đọc.
+- **Nút X** gỡ khỏi trợ lý nhưng **không** xoá file trong brain. Muốn xoá hẳn thì dùng nút thùng rác bên cạnh.
+
+Phạm vi: danh sách này thuộc về **trợ lý**, nên mọi cuộc trò chuyện với nó và mọi bước quy trình gọi tới nó đều thấy. Muốn gắn tài liệu cho riêng một cuộc trò chuyện thì dùng nút **File & link** ở thanh trên khung chat. Chỗ lưu là chính file `.md` của trợ lý (khoá `assets` trong frontmatter), nên xuất trợ lý ra hay copy brain sang máy khác thì danh sách đi theo.
+
+Trợ lý mới chưa bấm Lưu lần nào thì nút này còn mờ: phải có trợ lý trước rồi mới gắn tài liệu vào được.
+
+### Nhóm của một trợ lý
+
+Nhóm **không** nằm trong form cài đặt (từ bản 0.62.0). Bạn xếp nhóm ở cột trái: thanh nhóm phía trên danh sách để tạo, đổi tên, xoá nhóm; nút **...** trên từng trợ lý có mục **Chuyển sang nhóm**. Trước đây nhóm nằm ở cả hai chỗ, nên đổi nhóm ở cột trái rồi bấm Lưu trong form là nhóm nhảy về giá trị cũ mà không báo gì.
 
 ### Bộ nhớ riêng và nhật ký chạy của agent
 
@@ -169,7 +186,7 @@ Trong brain theo cấu trúc mới, mỗi agent là một file `agents/<slug>.md
 
 Vì là file văn bản, bạn có thể mở qua [Quản lý tệp tin](05-quan-ly-tep-tin.md) để xem hoặc sửa tay. Cấu trúc file:
 
-- Agent: phần đầu (frontmatter) chứa tên, vai trò, nhóm (`group`), danh sách skill, model; phần thân là system prompt chi tiết. Bộ nhớ riêng và nhật ký chạy nằm ngoài file này, ở `memory/agents/<slug>/`.
+- Agent: phần đầu (frontmatter) chứa tên, vai trò, nhóm (`group`), danh sách skill, model, và tài liệu đã gắn (`assets` gồm `files` và `links`); phần thân là system prompt chi tiết. Bộ nhớ riêng và nhật ký chạy nằm ngoài file này, ở `memory/agents/<slug>/`.
 - Workflow: phần đầu chứa tên, trạng thái (active hoặc off), nhóm (`group`), mô tả và danh sách các bước (mỗi bước có agent, task, và tuỳ chọn agent kiểm chứng cùng số lần sửa).
 
 Trường `group` dùng chung một cách viết cho cả agent, workflow và skill, nên sửa tay trong file cũng được: ghi `group: Marketing` là lần tải lại trang sẽ thấy nó nằm đúng nhóm. Thiếu trường này thì nó vào nhóm "Chung".

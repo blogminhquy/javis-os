@@ -121,6 +121,7 @@ import background_status  # việc nền còn sống của một khung chat + b�
 import chatbot_log       # nhật ký hội thoại khách + thống kê câu bot trả lời không nổi
 import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một poller Telegram)
 import agent_avatar
+import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
 import channel_accounts  # tài khoản kênh dạng token (0.61.0), bot chỉ trỏ tới
@@ -718,6 +719,36 @@ def _session_block(session_id: str) -> str:
     if da_nap:
         ra += ("\n\n# === NỘI DUNG FILE ĐÃ GHIM TRONG CUỘC NÀY (nạp sẵn, không cần mở lại) ==="
                + "".join(da_nap))
+    return ra
+
+
+def _agent_assets_block(brain: str, meta: dict) -> str:
+    """Tài liệu & link gắn vào MỘT trợ lý, ghép vào system prompt của chính trợ lý đó.
+
+    Em út của `_project_block` và `_session_block`, và cố ý cùng trần token (chúng dùng
+    chung `_liet_ke_tai_lieu`). Khác về PHẠM VI: project là "mọi cuộc trong nhóm này", cuộc
+    là "chỉ cuộc này", còn cái này là "mọi lần trợ lý này làm việc" - chat trực tiếp ở trang
+    Cộng sự lẫn mỗi bước quy trình gọi tới nó. Đó là lý do nó đứng ở đây chứ không nhồi vào
+    build_system_prompt: trợ lý có prompt riêng, KHÔNG đi qua CLAUDE.md của chủ.
+    """
+    try:
+        kho = agent_assets.doc(meta)
+    except Exception:
+        return ""
+    files, links = kho["files"], kho["links"]
+    if not files and not links:
+        return ""
+    dong, da_nap = _liet_ke_tai_lieu(brain, files, links)
+    ra = ""
+    if dong:
+        ra += ("\n# === TÀI LIỆU & LINK CỦA BẠN ===\n"
+               "Chủ gắn sẵn cho vai này, nên đây là thứ bạn được coi là ĐÃ BIẾT CHỖ. Vẫn là "
+               "DANH SÁCH chứ không phải nội dung: mở file bằng tool đọc file khi cần, đừng "
+               "đoán nội dung từ cái tên. Link chỉ mở được nếu lượt này có tool duyệt web.\n"
+               + "\n".join(dong) + "\n")
+    if da_nap:
+        ra += ("\n# === NỘI DUNG FILE ĐÃ GHIM (nạp sẵn, không cần mở lại) ===" + "".join(da_nap)
+               + "\n")
     return ra
 
 
@@ -5483,7 +5514,7 @@ async def list_agents(brain: str = Query("brain")):
 async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = Form(""),
                      model: str = Form(""), slug: str = Form(""), prompt: str = Form(""),
                      brain: str = Form("brain"), model_provider: str = Form(""),
-                     group: str = Form(NHOM_MAC_DINH), avatar_shape: str = Form(None),
+                     group: str = Form(None), avatar_shape: str = Form(None),
                      avatar_palette: str = Form(None)):
     slug = slug or _slugify(name)
     skills_list = [s.strip() for s in re.split(r"[,\n]", skills) if s.strip()]
@@ -5501,9 +5532,13 @@ async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = 
     # GIỮ mọi khoá frontmatter KHÔNG nằm trong form. Trước đây meta được dựng lại từ đầu, nên
     # mỗi lần bấm Lưu trong trình sửa là xoá sạch những khoá do chỗ khác ghi - `pinned` (ghim ở
     # trang Cộng sự) mất ngay lần sửa kế tiếp, và mọi khoá tương lai cũng vậy.
+    # NHÓM: form sửa trợ lý KHÔNG còn ô nhóm (0.62.0 - gom nhóm nay nằm ở thanh nhóm cột
+    # trái và menu "Chuyển sang nhóm"), nên `group` không gửi lên nghĩa là GIỮ NGUYÊN nhóm
+    # đang có. Mặc định cũ là "Chung", tức mỗi lần bấm Lưu là ném trợ lý về Chung, lặng lẽ.
+    # Client cũ vẫn gửi group thì vẫn theo nó.
     meta = dict(previous or {})
     meta.update({"type": "agent", "name": name, "slug": slug, "role": role,
-                 "group": (group or "").strip() or NHOM_MAC_DINH,
+                 "group": (group or "").strip() or _nhom_cua(previous),
                  "skills": skills_list, "model": model, "avatar": avatar,
                  "model_provider": mp if mp in AGENT_PROVIDERS else "",
                  "updated": _today()})  # "" = mặc định theo CLI
@@ -5516,6 +5551,118 @@ async def delete_agent(slug: str = Form(...), brain: str = Form("brain")):
     if f.exists():
         f.unlink()
     return {"ok": True}
+
+
+# ── Tài liệu & link của MỘT trợ lý ───────────────────────────────────────────
+#
+# Cùng hình dạng route với project (`/projects/{id}/files...`) và với cuộc trò chuyện
+# (`/sessions/{id}/assets/...`) - CỐ Ý: dashboard vẽ cả ba bằng MỘT ngăn kéo, nên ba bộ API
+# mà lệch nhau về hình dạng là chỗ nào trên client cũng phải rẽ nhánh.
+#
+# Khác một điểm: trợ lý là file trong brain, nên `brain` phải đi theo mọi lời gọi (project
+# và hội thoại nằm trong DB nên server tự tra ra brain của chúng). Đường dẫn file vẫn qua
+# `_safe_path` TRƯỚC khi ghi, y như bên project.
+
+def _agent_md_path(brain: str, slug: str):
+    """Path file trợ lý, hoặc None nếu slug không hợp lệ / chưa có file.
+
+    `valid_slug` là bắt buộc chứ không phải cho đẹp: slug ở đây đến từ URL, mà đường đi tiếp
+    là ghép thẳng vào tên file - một slug kiểu `../../x` là ghi đè file ngoài thư mục agents.
+    """
+    if not skill_router.valid_slug(slug):
+        return None
+    f = _agents_dir(brain) / f"{slug}.md"
+    return f if f.is_file() else None
+
+
+def _agent_assets_sua(brain: str, slug: str, doi):
+    """Đọc trợ lý, để `doi(meta)` sửa danh sách, ghi lại. Trả (ket_qua, loi_JSONResponse).
+
+    Gom một chỗ vì cả sáu route thêm/gỡ/ghim đều làm đúng ba bước này; chép sáu lần thì lần
+    thứ bảy sẽ quên bước ghi hoặc quên giữ phần thân file.
+    """
+    f = _agent_md_path(brain, slug)
+    if not f:
+        return None, JSONResponse({"error": "not found"}, status_code=404)
+    meta, body = _read_md(f)
+    try:
+        meta_moi, ket_qua = doi(meta)
+    except ValueError as e:
+        return None, JSONResponse({"error": str(e)}, status_code=400)
+    _write_md(f, meta_moi, body)
+    return ket_qua, None
+
+
+@app.get("/agents/{slug}/assets")
+async def agent_assets_list(slug: str, brain: str = Query("brain")):
+    f = _agent_md_path(brain, slug)
+    if not f:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    meta, _body = _read_md(f)
+    kho = agent_assets.doc(meta)
+    return {"ok": True, "slug": slug, "name": meta.get("name", slug),
+            "files": kho["files"], "links": kho["links"]}
+
+
+@app.post("/agents/{slug}/assets/files")
+async def agent_assets_add_file(slug: str, path: str = Form(...), name: str = Form(""),
+                                brain: str = Form("brain")):
+    try:
+        # Kiểm đường dẫn TRƯỚC khi ghi vào frontmatter: không có bước này thì lưu được một
+        # path trèo ra ngoài brain rồi mới vỡ lúc nạp nội dung vào prompt.
+        alo = _safe_path(brain, path)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    # `is_file` chứ không phải `exists`: một đường dẫn rỗng giải ra chính thư mục trần, mà
+    # thư mục thì "có tồn tại" - gắn được một hàng trỏ vào thư mục, ghim vào là đọc lỗi.
+    if not alo.is_file():
+        return JSONResponse({"error": "Không tìm thấy file trong brain này"}, status_code=404)
+    fid, loi = _agent_assets_sua(
+        brain, slug, lambda m: agent_assets.them_file(m, path, name or alo.name))
+    return loi or {"ok": True, "id": fid}
+
+
+@app.post("/agents/{slug}/assets/files/{file_id}/delete")
+async def agent_assets_del_file(slug: str, file_id: str, brain: str = Form("brain")):
+    """GỠ KHỎI TRỢ LÝ, KHÔNG xoá file trên đĩa (xem agent_assets.go_file)."""
+    ok, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.go_file(m, file_id))
+    return loi or {"ok": bool(ok)}
+
+
+@app.post("/agents/{slug}/assets/files/{file_id}/pin")
+async def agent_assets_pin_file(slug: str, file_id: str, pinned: str = Form("1"),
+                                brain: str = Form("brain")):
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    ok, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.ghim_file(m, file_id, on))
+    return loi or {"ok": bool(ok), "pinned": on}
+
+
+@app.post("/agents/{slug}/assets/links")
+async def agent_assets_add_link(slug: str, url: str = Form(...), label: str = Form(""),
+                                brain: str = Form("brain")):
+    u = (url or "").strip()
+    # Chỉ nhận http/https, cùng rào với link của project: `javascript:` hay `file:` lọt vào
+    # danh sách là thành một liên kết bấm được ngay trong giao diện.
+    if not re.match(r"^https?://", u, re.I):
+        return JSONResponse({"error": "URL phải bắt đầu bằng http:// hoặc https://"},
+                            status_code=400)
+    lid, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.them_link(m, u, label))
+    return loi or {"ok": True, "id": lid}
+
+
+@app.post("/agents/{slug}/assets/links/{link_id}/delete")
+async def agent_assets_del_link(slug: str, link_id: str, brain: str = Form("brain")):
+    ok, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.go_link(m, link_id))
+    return loi or {"ok": bool(ok)}
+
+
+@app.post("/agents/{slug}/assets/links/{link_id}/pin")
+async def agent_assets_pin_link(slug: str, link_id: str, pinned: str = Form("1"),
+                                brain: str = Form("brain")):
+    on = str(pinned).strip() in ("1", "true", "True", "on")
+    ok, loi = _agent_assets_sua(brain, slug, lambda m: agent_assets.ghim_link(m, link_id, on))
+    return loi or {"ok": bool(ok), "pinned": on}
+
 
 # ---- Skills ----
 
@@ -7866,6 +8013,7 @@ def _workflow_agent_helpers(brain, tools):
         sysprompt = (
             f"Bạn là agent **{ameta.get('name', aslug)}**.\nVai trò: {ameta.get('role','')}\n{abody}\n\n"
             f"Skills khả dụng: {', '.join(ameta.get('skills', []) or []) or '(không)'}. Dùng skill khi cần.\n"
+            + _agent_assets_block(brain, ameta)
             + f"\n# Bộ nhớ của bạn (file: {mem_path}):\n{amem or '(chưa có ký ức nào)'}\n"
             + "\n# Tự bồi đắp lúc dùng: nếu cuối nhiệm vụ rút ra được bài học TÁI DÙNG cho vai này "
               "(cách làm tốt hơn, lỗi cần tránh, ngữ cảnh riêng đã học được), KẾT THÚC câu trả lời "

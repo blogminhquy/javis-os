@@ -406,22 +406,10 @@
     else traCayThuMuc();
   }
 
-  // Sau khi chuyển nhóm / đổi tên / xoá nhóm từ danh sách, form "Cài đặt trợ lý" ở cột phải
-  // (trình sửa của Studio, cố ý KHÔNG vẽ lại để không mất chữ đang gõ) vẫn giữ ô nhóm CŨ trong
-  // #agGroup; bấm Lưu là nó ghi đè nhóm vừa đổi về nhóm cũ - mất thao tác lặng lẽ. Đồng bộ đúng
-  // hai ô đó, không đụng phần còn lại của form.
-  function dongBoNhomForm() {
-    var x = dangChon(), o = S.el && S.el.querySelector("#wsAgentForm #agGroup");
-    if (!x || !o) return;
-    var g = nhomCua(x); o.value = g;
-    var sel = S.el.querySelector("#wsAgentForm #agGroupSel");
-    if (sel) {
-      var co = false;
-      for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === g) { co = true; break; }
-      if (!co) sel.add(new Option(g, g), Math.max(0, sel.options.length - 1));
-      sel.value = g;
-    }
-  }
+  // (0.62.0 đã bỏ hàm dongBoNhomForm ở đây. Nó tồn tại chỉ để vá một xung đột tự gây ra:
+  // form "Cài đặt trợ lý" từng có ô nhóm RIÊNG, nên chuyển nhóm ở cột trái xong bấm Lưu là
+  // ô cũ ghi đè ngược. Nay form không còn ô nhóm và server giữ nguyên nhóm khi form không
+  // gửi `group`, nên không còn gì để đồng bộ.)
   // ---------- bộ chọn NHÓM: thanh + bảng nổi, cùng khuôn với project bên Trò chuyện ----------
   // Nhóm TRỐNG (tạo bằng "+ Nhóm mới" mà chưa kéo ai vào) không tồn tại ở đâu trên đĩa - nhóm
   // là tập hợp cộng sự có cùng `group` - nên nhớ tạm trong localStorage theo brain và loại; hễ
@@ -471,7 +459,7 @@
     if (S.nhom === g) S.nhom = "";
     await taiDanhSach();
     if (!active) return;
-    veTrai(); veGiua(dangChon()); dongBoNhomForm();
+    veTrai(); veGiua(dangChon());
   }
   function moBangNhom(neo) {
     var cs = window.JavisChatSide; if (!cs || !cs.menu) return;
@@ -719,7 +707,7 @@
     if (S.nhom === g) S.nhom = moi;
     await taiDanhSach();
     if (!active) return;
-    veTrai(); veGiua(dangChon()); dongBoNhomForm();
+    veTrai(); veGiua(dangChon());
   }
   function moMenuKhung(neo, ve) {
     dongMenu();
@@ -818,7 +806,7 @@
     // Vẽ lại DANH SÁCH và thanh tiêu đề, KHÔNG vẽ lại cột phải - cùng lối với sauLuu(). Cột
     // phải đang là trình sửa agent: dựng lại nó là xoá luôn những gì người dùng vừa gõ mà
     // chưa bấm Lưu, chỉ để cập nhật một ô chọn nhóm.
-    veTrai(); veGiua(dangChon()); dongBoNhomForm();
+    veTrai(); veGiua(dangChon());
   }
   // Sửa = mở TRÌNH SỬA CỦA STUDIO dạng hộp thoại. Gọi không truyền `host` nên studio.js tự
   // bung modal của nó (xem editAgent: chỉ khi CÓ host nó mới vẽ tại chỗ) - đúng thứ một động
@@ -999,7 +987,7 @@
   async function sauLuu(item, loai) {
     await taiDanhSach();
     if (!active || S.loai !== loai || S.chon[loai] !== item.slug) return;
-    veTrai(); veGiua(dangChon()); dongBoNhomForm();
+    veTrai(); veGiua(dangChon());
     // Retry session setup after saving; never unlock a chat bound to the wrong agent.
     if (!ready && !await moPhien(dangChon(), false)) return;
     thuGonCaiDat();
@@ -1025,8 +1013,6 @@
       // chọn skill, nhóm... đã nằm ở đó, chép lại là hai bản trôi lệch nhau ngay lần sửa đầu.
       if (window.JavisStudio && window.JavisStudio.editAgent) {
         window.JavisStudio.editAgent(item, { host: host.querySelector("#wsAgentForm"),
-          // Kèm nhóm TRỐNG vừa lập để ô chọn nhóm của form cũng chọn được nó.
-          dsNhom: S.agents.concat(docNhomTrong().map(function (g) { return { group: g }; })),
           onSaved: async function () { await sauLuu(item, "agent"); } });
       }
       host.querySelector("#wsExport").onclick = function () { window.JavisStudio && window.JavisStudio.exportItem("agent", item.slug); };
@@ -1226,7 +1212,7 @@
     };
     // Không truyền `host`: tạo mới vẫn mở modal của Studio (cột phải đang là form của mục
     // đang chọn, vẽ đè lên đó thì người dùng tưởng mình đang sửa mục cũ).
-    if (loai === "agent") window.JavisStudio.editAgent(null, { dsNhom: S.agents, onSaved: sau });
+    if (loai === "agent") window.JavisStudio.editAgent(null, { onSaved: sau });
     else window.JavisStudio.editWorkflow(null, { onSaved: sau });
   }
 
