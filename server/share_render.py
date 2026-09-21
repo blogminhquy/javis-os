@@ -328,5 +328,55 @@ def trang_loi(thong_diep: str) -> str:
     return trang("Không mở được", "<h1>Không mở được</h1><p>" + _esc(thong_diep) + "</p>")
 
 
+# ── Vá kho lưu trữ cho trang .html chia sẻ ───────────────────────────────────
+#
+# CSP_HTML cố ý KHÔNG có `allow-same-origin` (xem chú thích của nó: đó là chốt chặn chính).
+# Cái giá của chốt ấy: trang nhận gốc "null", và theo đúng chuẩn thì một tài liệu gốc null
+# KHÔNG có kho lưu trữ - chạm vào `window.localStorage` là trình duyệt ném thẳng
+# SecurityError: "Access is denied for this document".
+#
+# Vì sao phải vá chứ không bảo người ta đừng dùng localStorage: lỗi này ném ngay tại DÒNG
+# ĐẦU chạm vào kho, nên nó GIẾT CẢ SCRIPT chứ không chỉ hỏng cái tính năng nhớ tông màu.
+# Người dùng thấy trang trắng hoặc đơ, trong khi tab Network xanh hết (chủ repo báo 21/09:
+# app đọc data.json xong vẫn trắng trang). Mà lưu một bộ lọc hay một tông màu là thứ gần như
+# mọi trang dashboard do AI viết đều làm.
+#
+# Bản vá là một kho TRONG BỘ NHỚ: đủ để script chạy hết, mất khi đóng tab. Đúng ngữ nghĩa
+# người xem một link chia sẻ mong đợi, và KHÔNG nới một chút nào lớp cách ly - không cần
+# `allow-same-origin`, không chạm tới kho thật của tên miền.
+#
+# Chỉ vá khi kho THẬT SỰ không dùng được: thử ghi một khoá rồi xoá đi. Trang mở ở nơi có kho
+# thật (người ta tải file về mở bằng file://, hay mai này lớp cách ly đổi) thì giữ nguyên kho
+# thật, không thì dữ liệu họ đã lưu bỗng biến mất.
+POLYFILL_LUU_TRU = """<script>/* javis: kho lưu trữ tạm cho trang chia sẻ (gốc null) */
+(function(){function kho(){var m=Object.create(null);function ks(){return Object.keys(m);}
+return{getItem:function(k){k=String(k);return k in m?m[k]:null;},
+setItem:function(k,v){m[String(k)]=String(v);},removeItem:function(k){delete m[String(k)];},
+clear:function(){m=Object.create(null);},
+key:function(i){var a=ks();i=Number(i);return i>=0&&i<a.length?a[i]:null;},
+get length(){return ks().length;}};}
+["localStorage","sessionStorage"].forEach(function(ten){
+try{var s=window[ten];s.setItem("__javis_thu__","1");s.removeItem("__javis_thu__");return;}catch(e){}
+try{Object.defineProperty(window,ten,{value:kho(),configurable:true});}catch(e){}});})();
+</script>
+"""
+
+# Chèn NGAY SAU <head> nếu có, không thì sau <html>, không nữa thì sau khai báo doctype. Thứ tự
+# này quan trọng: bản vá phải chạy TRƯỚC mọi script của trang, mà nhét trước doctype thì trình
+# duyệt rơi vào chế độ quirks và bố cục của người ta vỡ.
+_RE_HEAD = re.compile(r"<head\b[^>]*>", re.I)
+_RE_HTML = re.compile(r"<html\b[^>]*>", re.I)
+_RE_DOCTYPE = re.compile(r"<!doctype[^>]*>", re.I)
+
+
+def chen_polyfill_luu_tru(html: str) -> str:
+    """Trả về HTML đã gắn bản vá kho lưu trữ. Xem POLYFILL_LUU_TRU vì sao cần."""
+    for re_moc in (_RE_HEAD, _RE_HTML, _RE_DOCTYPE):
+        m = re_moc.search(html)
+        if m:
+            return html[:m.end()] + "\n" + POLYFILL_LUU_TRU + html[m.end():]
+    return POLYFILL_LUU_TRU + html
+
+
 def json_an_toan(o) -> str:
     return json.dumps(o, ensure_ascii=False)

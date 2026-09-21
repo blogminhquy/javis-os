@@ -4478,15 +4478,34 @@
 
   function closeConnModal() {
     const m = document.getElementById("connectModal");
-    if (m) m.classList.remove("open");
+    // Gỡ luôn tay bắt "bấm ra ngoài": node này dùng lại cho mọi hộp của trang, để sót handler
+    // của lượt trước là hộp sau vừa mở đã tự đóng vì cú bấm còn đang nổi bọt lên.
+    if (m) { m.classList.remove("open"); m.onclick = null; }
     if (_connPoll) { clearInterval(_connPoll); _connPoll = null; }
   }
-  function connModal(html, maxw) {
+  // `pkm=true`: dùng vỏ hộp thoại MỘT CỘT đã dựng sẵn cho trang Kho (xem khối .pkm trong
+  // console.css). `.mp-box` mặc định là lưới hai cột của bộ chọn model; nhồi một màn hình đọc
+  // từ trên xuống vào cái lưới ấy chính là thứ làm hộp "Xoá kết nối" trông vụn (chủ repo báo
+  // 21/09: "margin padding không phù hợp, bản thiết kế trước không được áp dụng").
+  function connModal(html, maxw, pkm) {
     let m = document.getElementById("connectModal");
-    if (!m) { m = document.createElement("div"); m.id = "connectModal"; m.className = "mp-overlay"; document.body.appendChild(m); }
-    m.innerHTML = '<div class="mp-box" style="max-width:' + (maxw || 520) + 'px">' + html + '</div>';
-    m.classList.add("open");
+    if (!m) { m = document.createElement("div"); m.id = "connectModal"; document.body.appendChild(m); }
+    // Gán lại CẢ className: hộp thường mở sau một hộp pkm mà còn dính lớp cũ thì nó vẫn nằm
+    // sát đáy màn hình theo kiểu tờ trượt.
+    m.className = "mp-overlay open" + (pkm ? " pkm-lop" : "");
+    // Hộp pkm tự khai bề ngang trong CSS (kèm biến thể tờ trượt trên điện thoại), nên KHÔNG
+    // nhét max-width nội tuyến đè lên: style nội tuyến thắng cả media query, và hộp sẽ kẹt ở
+    // bề ngang máy tính ngay trên màn hình điện thoại.
+    m.innerHTML = '<div class="mp-box' + (pkm ? " pkm" : "")
+      + (pkm ? '"' : '" style="max-width:' + (maxw || 520) + 'px"') + '>'
+      + (pkm ? '<div class="pkm-nam"></div>' : "") + html + '</div>';
     m.querySelectorAll('[data-act="close"]').forEach(b => b.onclick = closeConnModal);
+    // Bấm ra NGOÀI hộp là đóng - nhưng CHỈ ở biến thể pkm. Đóng luôn an toàn về mặt hậu quả
+    // (không hộp nào ở đây coi "đóng" là đồng ý), cái mất là CHỮ ĐANG GÕ: mấy hộp thường của
+    // khối này là nơi dán khoá API và token, gõ dở rồi bấm trượt ra nền mà mất sạch thì tệ
+    // hơn hẳn việc phải với tay lên nút X. Hộp pkm không có ô nhập nào ngoài ô gõ lại tên để
+    // xác nhận xoá, gõ lại mất hai giây.
+    m.onclick = pkm ? (e) => { if (e.target === m) closeConnModal(); } : null;
     return m;
   }
   function mHead(title) {
@@ -5078,7 +5097,7 @@
       } else if (act === "toggle") {
         await postJson("/connect/toggle", { id: c.id }); closeConnModal(); renderConnect(el);
       } else if (act === "del") {
-        closeConnModal(); openPurgeModal(el, c);
+        closeConnModal(); openPurgeModal(el, c, con);
       }
     });
   }
@@ -5091,31 +5110,76 @@
     return (b / 1024 / 1024).toFixed(1) + " MB";
   }
 
-  async function openPurgeModal(el, c) {
+  // Đầu hộp thoại kiểu pkm: icon của dịch vụ, tiêu đề, dòng phụ, nút đóng. Cùng khuôn với
+  // hộp gỡ gói ở trang Kho (packs.js pkmDau) - hai màn hình "sắp xoá một thứ" nên trông như
+  // một, không phải hai thiết kế rời nhau.
+  function pgDau(tieuDe, phu, con) {
+    return '<div class="pkm-dau">'
+      + '<span class="pkm-ico">' + iconInner(con || { icon: "plug" }) + '</span>'
+      + '<div class="pkm-chu"><div class="pkm-ten">' + tieuDe + '</div>'
+      + (phu ? '<div class="pkm-phu">' + phu + '</div>' : "") + '</div>'
+      + '<button class="mp-x" data-act="close" title="' + esc(window.t("common.close")) + '">'
+      + X_ICON + '</button></div>';
+  }
+
+  /** Chân hộp thoại pkm: gắn THẲNG vào .mp-box chứ không nằm trong thân.
+   *  Nằm trong thân thì nó cuộn đi mất cùng nội dung, và với một hộp thoại xoá thì cái nút
+   *  phải luôn ở đáy, luôn nhìn thấy. Gọi lại nhiều lần cũng chỉ còn một chân. */
+  function pgChan(hop, html) {
+    if (!hop) return null;
+    const cu = hop.querySelector(".pkm-chan");
+    if (cu) cu.remove();
+    const el = document.createElement("div");
+    el.className = "pkm-chan";
+    el.innerHTML = html;
+    hop.appendChild(el);
+    el.querySelectorAll('[data-act="close"]').forEach(b => b.onclick = closeConnModal);
+    return el;
+  }
+
+  function pgPhu(ten, dichVu) {
+    return esc(ten || "")
+      + (dichVu ? ' <span class="pkm-nhe">· ' + esc(dichVu) + '</span>' : "");
+  }
+
+  async function openPurgeModal(el, c, con) {
     // Hộp này VẼ TỪ /connect/purge-plan chứ không tự liệt kê. Lý do: danh sách "sẽ mất những
     // gì" viết tay trong JS thì sau vài tháng nó lệch khỏi việc server thật sự làm, mà lệch
     // theo hướng nguy hiểm - người dùng đọc thấy ít hơn thực tế. Server đi một vòng quét thật
     // rồi trả về đúng cái nó sắp xoá.
+    //
+    // Vỏ hộp là .pkm (console.css) chứ KHÔNG phải .mp-body. `.mp-body` là lưới HAI CỘT dựng
+    // cho bộ chọn model, nên màn hình đọc-từ-trên-xuống này bị nó bẻ làm đôi: danh sách "sẽ
+    // mất" dạt sang cột phải, ô tích rơi ra khỏi mạch đọc, và mọi khoảng cách là của một bố
+    // cục khác. Đúng lỗi chủ repo báo 21/09 - bản .pkm đã được thiết kế sẵn từ trang Kho mà
+    // màn này chưa hề dùng tới.
     let d;
-    connModal(mHead(esc(window.t("cs.cn_pg_head"))) + '<div class="mp-body" id="pgBody">' + esc(window.t("cs.cn_pg_checking")) + '</div>');
+    connModal(pgDau(esc(window.t("cs.cn_pg_head")), pgPhu(c.label, con && con.name), con)
+      + '<div class="pkm-than" id="pgBody"><div class="pkm-danh"><div class="pkm-quay"></div>'
+      + '<div>' + esc(window.t("cs.cn_pg_checking")) + '</div></div></div>', 0, true);
     try { d = await (await fetch("/connect/purge-plan?id=" + encodeURIComponent(c.id))).json(); }
     catch (e) { d = { ok: false, error: String(e) }; }
     const body = document.getElementById("pgBody");
     if (!body) return;
-    if (!d || !d.ok) {
-      body.innerHTML = WARN_ICON + " " + esc((d && d.error) || window.t("cs.cn_pg_read_err"));
-      return;
+    const hop = body.parentNode;
+
+    // Hai lối cụt (đọc hỏng, kết nối đang bận): vẫn phải có nút đóng, không thì người dùng
+    // mắc lại trong một hộp chỉ có mỗi dòng chữ.
+    function cut(mau, chu) {
+      body.innerHTML = '<div class="pkm-canh ' + mau + '">'
+        + '<div class="pkm-canh-tieu">' + ic("triangle-alert")
+        + esc(window.t("cs.cn_pg_head")) + '</div><div>' + esc(chu) + '</div></div>';
+      pgChan(hop, '<button class="mp-btn" data-act="close">'
+                  + esc(window.t("common.close")) + '</button>');
     }
-    if (d.busy) {
-      body.innerHTML = WARN_ICON + ' ' + esc(window.t("cs.cn_pg_busy"));
-      return;
-    }
+    if (!d || !d.ok) { cut("do", (d && d.error) || window.t("cs.cn_pg_read_err")); return; }
+    if (d.busy) { cut("vang", window.t("cs.cn_pg_busy")); return; }
 
     const muc = (d.items || []).map(function (i) {
       const co = _dungLuong(i.bytes);
-      return '<li>' + esc(i.label) + (i.n > 1 ? ' <b>x' + i.n + '</b>' : "")
-        + (co ? ' <span style="opacity:.6">(' + co + ')</span>' : "")
-        + (i.note ? '<br><span style="opacity:.6;font-size:.9em">' + esc(i.note) + '</span>' : "")
+      return '<li>' + esc(i.label) + (i.n > 1 ? ' <b>&times;' + i.n + '</b>' : "")
+        + (co ? ' <span class="pkm-nhe">(' + co + ')</span>' : "")
+        + (i.note ? '<div class="pkm-o-phu">' + esc(i.note) + '</div>' : "")
         + '</li>';
     }).join("");
 
@@ -5123,28 +5187,40 @@
     // là tính chất của connector, nên nó phải đi cùng connector chứ không nằm trong giao diện.
     const nang = !!d.warning;
     body.innerHTML =
-      '<p>' + esc(window.t("cs.cn_pg_about")) + ' <b>' + esc(d.label) + '</b> (' + esc(d.connector_name || "") + ').</p>'
-      + (nang ? '<div class="conn-guide" style="border-left:3px solid var(--warn,#e0a33e);padding-left:10px">'
-                + WARN_ICON + ' ' + esc(d.warning) + '</div>' : "")
-      + '<p style="margin-top:10px">' + esc(window.t("cs.cn_pg_lost")) + '</p><ul style="margin:6px 0 0 18px">' + muc + '</ul>'
-      + '<label style="display:block;margin-top:12px"><input type="checkbox" id="pgAudit"> '
-      + esc(window.t("cs.cn_pg_audit")) + ' <span style="opacity:.6">' + esc(window.t("cs.cn_pg_audit_note")) + '</span></label>'
-      + (nang ? '<label style="display:block;margin-top:8px">' + esc(window.t("cs.cn_pg_type_a")) + ' <b>' + esc(d.label)
-                + '</b> ' + esc(window.t("cs.cn_pg_type_b")) + '<br>'
-                + '<input class="mp-input" id="pgName" placeholder="' + esc(window.t("cs.cn_pg_type_ph")) + '"></label>' : "")
-      + '<div class="mp-foot" style="margin-top:14px"><span class="mp-note" id="pgNote"></span>'
+      (nang ? '<div class="pkm-canh vang"><div class="pkm-canh-tieu">' + ic("triangle-alert")
+                + esc(window.t("cs.cn_pg_warn_head")) + '</div><div>' + esc(d.warning)
+                + '</div></div>' : "")
+      + '<div class="pkm-canh do"><div class="pkm-canh-tieu">' + ic("trash-2")
+      + esc(window.t("cs.cn_pg_lost")) + '</div><ul class="pkm-mat">' + muc + '</ul></div>'
+      // Hàng gạt thay cho ô tích 13px: bấm được cả dải, và câu phụ nói thẳng mặc định là GIỮ
+      // nhật ký. Một ô tích trần thì người ta phải đoán bật hay tắt mới là an toàn.
+      + '<button class="pkm-gat" id="pgAudit" type="button" aria-pressed="false">'
+      + '<span><span class="pkm-gat-t">' + esc(window.t("cs.cn_pg_audit")) + '</span>'
+      + '<span class="pkm-gat-s">' + esc(window.t("cs.cn_pg_audit_note")) + '</span></span>'
+      + '<span class="pkm-cong"><span></span></span></button>'
+      + (nang ? '<div class="pkm-canh do"><div class="pkm-canh-tieu">' + ic("pen-line")
+                + esc(window.t("cs.cn_pg_type_a")) + ' ' + esc(d.label) + ' '
+                + esc(window.t("cs.cn_pg_type_b")) + '</div>'
+                + '<input class="mp-input" id="pgName" placeholder="'
+                + esc(window.t("cs.cn_pg_type_ph")) + '"></div>' : "");
+
+    pgChan(hop, '<span class="mp-note" id="pgNote"></span>'
       + '<button class="mp-btn" data-act="close">' + esc(window.t("common.cancel")) + '</button>'
-      + '<button class="mp-btn primary" id="pgTrash">'
+      + '<button class="mp-btn danger" id="pgTrash">'
       + esc(window.t(nang ? "cs.cn_pg_trash" : "cs.cn_menu_del")) + '</button>'
-      + (nang ? '<button class="mp-btn danger" id="pgHard">' + esc(window.t("cs.cn_pg_hard")) + '</button>' : "")
-      + '</div>';
+      + (nang ? '<button class="mp-btn danger" id="pgHard">'
+                + esc(window.t("cs.cn_pg_hard")) + '</button>' : ""));
+
+    const gat = document.getElementById("pgAudit");
+    if (gat) gat.onclick = () => gat.setAttribute("aria-pressed",
+      gat.getAttribute("aria-pressed") === "true" ? "false" : "true");
 
     const note = document.getElementById("pgNote");
     async function chay(hard) {
       note.textContent = window.t("cs.cn_deleting");
       const r = await postJson("/connect/delete", {
         id: c.id, hard: !!hard,
-        purge_audit: !!(document.getElementById("pgAudit") || {}).checked
+        purge_audit: !!(gat && gat.getAttribute("aria-pressed") === "true")
       });
       if (!r || !r.ok) {
         note.innerHTML = WARN_ICON + " " + esc((r && r.error) || window.t("app.err_cap"));

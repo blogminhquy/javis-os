@@ -2520,7 +2520,6 @@
   "cs.cn_pg_checking": "Checking…",
   "cs.cn_pg_read_err": "Could not read the connection.",
   "cs.cn_pg_busy": "This connection is in the middle of a job. Wait for it to finish before deleting: stopping halfway can cut off a real action already on its way out.",
-  "cs.cn_pg_about": "About to delete",
   "cs.cn_pg_lost": "What you will lose:",
   "cs.cn_pg_audit": "Also delete the tool-call log",
   "cs.cn_pg_audit_note": "(kept by default, only the display name is dropped)",
@@ -2918,5 +2917,9 @@
   "ags.remove": "Remove from the assistant",
   "ags.confirm_remove_file": "Remove \"{ten}\" from this assistant? The file stays in the brain.",
   "ags.confirm_remove_link": "Remove the link \"{ten}\" from this assistant?",
-  "cts.remove": "Remove from this conversation"
+  "cts.remove": "Remove from this conversation",
+  "crender.art_lines_n": "{count} lines",
+  "crender.ap_wrap": "Wrap",
+  "crender.ap_wrap_hint": "Break long lines to fit the box. Turn it off to see full lines and scroll sideways.",
+  "cs.cn_pg_warn_head": "Read this first"
 }

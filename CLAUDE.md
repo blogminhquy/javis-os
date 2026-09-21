@@ -211,6 +211,8 @@ When the user sends a file (with a path in the message):
 - Other files (pdf, docx, xlsx...) → markdown link `[file name](path)`, e.g. `[Báo cáo tháng 6.pdf](exports/bao-cao-06.pdf)`. The dashboard can open/download it over a static URL.
 - Use a path RELATIVE to the vault root (not an absolute machine path). The dashboard serves files through `/files/raw`. Still say one short sentence describing it; do not just paste a bare image.
 
+**.html app to SHARE** (`/s/<token>/`): read data by a RELATIVE path (`./data.json`), never `/files/raw` (401 = blank app), and keep the app in its own folder.
+
 **CREATING / EDITING images:** Javis generates images on the signed-in ChatGPT PLAN (OAuth, no API key) - tool `javis_generate_image` or `POST /image/generate`. Parameters: `prompt`, `images` (paths of REFERENCE images in the brain, up to 4), `aspect_ratio` (square|landscape|portrait), `quality` (low|medium|high). **You can send REAL IMAGES for ChatGPT to look at**: for "build it like this image", pass the path in `images`; do not describe it in words and do not claim you only receive text (WRONG). Images save into `attachments/` automatically; then EMBED `![description](attachments/...)` right away. If ChatGPT is not connected the tool explains how to enable it. Safety level `safe`: does not self-run in suggest mode.
 
 ## Creating/editing Agents and Workflows from chat

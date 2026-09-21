@@ -6724,6 +6724,10 @@ async def share_xem_html(token: str):
         noi = f.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return HTMLResponse(share_render.trang_loi("Không đọc được file."), status_code=404)
+    # Thứ DUY NHẤT được thêm vào trang của người dùng: bản vá kho lưu trữ. Hộp cách ly cho
+    # trang gốc "null", mà gốc null thì localStorage ném SecurityError ngay dòng đầu chạm vào
+    # nó và giết cả script - trang trắng dù dữ liệu đã tải xong. Xem share_render.
+    noi = share_render.chen_polyfill_luu_tru(noi)
     return HTMLResponse(noi, headers={"Content-Security-Policy": share_render.CSP_HTML,
                                       "X-Content-Type-Options": "nosniff",
                                       "Referrer-Policy": "no-referrer",

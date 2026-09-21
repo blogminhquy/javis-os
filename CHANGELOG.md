@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.1] - 2026-09-21
+### Sửa lỗi
+- **App HTML chia sẻ ra ngoài hết trắng trang.** Trang mở qua link `/s/` chạy trong hộp cách ly nên mọi câu lệnh nhớ tông màu hay bộ lọc đều ném lỗi và giết cả trang, dù dữ liệu bên cạnh đã tải xong. Nay Javis tự vá chỗ đó khi phục vụ trang: app chạy mượt, mà lớp cách ly vẫn nguyên vẹn không nới một chút nào.
+- **Hộp Xoá kết nối được dựng lại** theo đúng mẫu hộp thoại của trang Kho: đọc một mạch từ trên xuống, nút bấm dính đáy, và trên điện thoại thì trượt lên từ mép dưới. Ô tích nhỏ xíu thành một hàng gạt bấm được cả dải.
+### Cải thiện
+- **Mở một khối mã trong ghi chú giờ hiện hộp giữa màn hình**, không còn dính mép phải. Chữ tự xuống dòng cho vừa khung nên không phải kéo ngang để đọc, bấm ra ngoài là đóng, và có nút `Xuống dòng` để tắt đi khi cần xem nguyên dòng.
+
 ## [0.62.0] - 2026-09-21
 ### Thêm mới
 - **Trợ lý có tủ tài liệu riêng.** Mở `Cài đặt trợ lý` ở trang Cộng sự, bấm `Mở khung tài liệu & link` để gắn file trong brain hoặc dán đường link cho riêng trợ lý đó. Trợ lý luôn thấy danh sách này, ở mọi cuộc trò chuyện với nó lẫn mọi bước quy trình gọi tới nó.

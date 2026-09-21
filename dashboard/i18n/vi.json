@@ -2520,7 +2520,6 @@
   "cs.cn_pg_checking": "Đang kiểm tra…",
   "cs.cn_pg_read_err": "Không đọc được kết nối.",
   "cs.cn_pg_busy": "Kết nối đang chạy dở một việc. Chờ nó xong rồi xoá, vì dừng giữa chừng có thể cắt ngang một việc thật đang gửi đi.",
-  "cs.cn_pg_about": "Sắp xoá",
   "cs.cn_pg_lost": "Những thứ sẽ mất:",
   "cs.cn_pg_audit": "Xoá luôn nhật ký gọi tool",
   "cs.cn_pg_audit_note": "(mặc định giữ lại, chỉ bỏ tên hiển thị)",
@@ -2918,5 +2917,9 @@
   "ags.remove": "Gỡ khỏi trợ lý",
   "ags.confirm_remove_file": "Gỡ \"{ten}\" khỏi trợ lý này? File vẫn còn trong brain.",
   "ags.confirm_remove_link": "Gỡ link \"{ten}\" khỏi trợ lý này?",
-  "cts.remove": "Gỡ khỏi cuộc trò chuyện này"
+  "cts.remove": "Gỡ khỏi cuộc trò chuyện này",
+  "crender.art_lines_n": "{count} dòng",
+  "crender.ap_wrap": "Xuống dòng",
+  "crender.ap_wrap_hint": "Ngắt dòng dài cho vừa khung. Tắt để xem nguyên dòng và cuộn ngang.",
+  "cs.cn_pg_warn_head": "Cần biết trước"
 }

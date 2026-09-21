@@ -1408,6 +1408,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 
 .pkm-nam { display: none; }
 
+/* Hộp XOÁ KẾT NỐI mượn nguyên vỏ .pkm này (console.js openPurgeModal). Chỉ cần thêm hai thứ
+   nó không có sẵn: ô icon của dịch vụ ở đầu hộp, và một kiểu chữ mờ dùng chung. */
+.pkm-ico { flex: none; width: 46px; height: 46px; border-radius: 13px; display: grid;
+  place-items: center; background: var(--surface-1); border: 1px solid var(--border);
+  color: var(--text2); font-size: 20px; overflow: hidden; }
+.pkm-ico svg { width: 22px; height: 22px; }
+.pkm-ico .ico-img { width: 30px; height: 30px; object-fit: contain; border-radius: 0; }
+.pkm-nhe { color: var(--text3); font-weight: 400; }
+/* Tiêu đề khối cảnh báo có icon đứng trước: `gap` của .pkm-canh-tieu lo khoảng cách, nên
+   KHÔNG chèn dấu cách trong chuỗi - dấu cách cộng gap là hai lần khoảng trống. */
+.pkm-canh-tieu > svg { flex: none; }
+
 /* ---------- Điện thoại: hộp thoại thành TỜ TRƯỢT TỪ ĐÁY ----------
    Không phải cho đẹp. Hộp thoại giữa màn hình trên điện thoại luôn thua ba thứ: bàn phím đẩy
    nó lệch, nút rơi vào giữa màn nơi ngón cái không với tới, và nội dung dài thì cuộn trong một
