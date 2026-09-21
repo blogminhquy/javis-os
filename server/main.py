@@ -17967,6 +17967,9 @@ channels_routes.register(app, channels_routes.ChannelsDeps(
     main_bot_token=lambda: str(cfgmod.read_settings().get("telegram", {}).get("token", "")).strip(),
 ))
 channels_routes._DEPS.restart_bot = chatbot_runtime.start_bot   # đổi token thì poller nạp lại
+# Gỡ tài khoản CUỐI CÙNG của một bot thì bot đó bị tắt: phải dừng poller thật, không thì nó
+# vẫn gọi nền tảng bằng một token vừa bị xoá cho tới lần khởi động lại server.
+channels_routes._DEPS.stop_bot = chatbot_runtime.stop_bot
 conversations_routes.register(app, conversations_routes.ConversationsDeps(
     bot_status=chatbot_runtime.status,
 ))

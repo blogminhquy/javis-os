@@ -2854,7 +2854,6 @@
   "cb.hint_tai_khoan": "Tick several: the same role answers on Telegram and Zalo Bot alike. Accounts served by another bot are not listed.",
   "cb.tk_chua_co": "No free channel account yet. Use Connect a new channel below.",
   "cb.chon_tai_khoan": "Tick at least one channel account, or connect a new channel.",
-  "cb.khong_thay_bot": "That bot is not in the brain you have open. Switch brain at the top of the page and try again.",
   "cb.noi_kenh_moi": "Connect a new channel",
   "cb.chua_mo_duoc_kenh": "Could not open the channel panel. Add the account on the Channels tab.",
   "cb.buoc_may": "Step {n}/2",
@@ -2921,5 +2920,9 @@
   "crender.art_lines_n": "{count} lines",
   "crender.ap_wrap": "Wrap",
   "crender.ap_wrap_hint": "Break long lines to fit the box. Turn it off to see full lines and scroll sideways.",
-  "cs.cn_pg_warn_head": "Read this first"
+  "cs.cn_pg_warn_head": "Read this first",
+  "ht.o_brain": "· brain {brain}",
+  "ht.xoa_go_bot": "The account \"{ten}\" is answered by the bot \"{bot}\" (brain {brain}).\n\nTake the account off that bot and delete it? The bot stays, and keeps answering its other accounts. Conversations already recorded stay in the inbox.",
+  "ht.xoa_go_bot_cuoi": "The account \"{ten}\" is answered by the bot \"{bot}\" (brain {brain}), and it is that bot's ONLY account.\n\nTake it off and delete it? The bot will have nothing left to answer on, so Javis turns it off; the bot itself stays, and attaching another account turns it back on. Conversations already recorded stay in the inbox.",
+  "ht.da_tat_bot": "Account deleted. The bot \"{bot}\" had no account left to answer on, so it was turned off."
 }

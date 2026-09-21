@@ -190,6 +190,47 @@ r = c.post(f"/channels/accounts/{aid}/watch", data={"on": "1"})
 check("tài khoản bot KHÔNG có công tắc ghi (400 nói rõ)", r.status_code == 400 and "đang bật" in r.json()["error"])
 r = c.post(f"/channels/accounts/{aid}/delete")
 check("xoá tài khoản còn bot trực -> từ chối", r.status_code == 400 and "đang do bot" in r.json()["error"])
+# Câu từ chối phải kèm ĐỦ dữ liệu để giao diện dựng câu hỏi: tên bot, BRAIN của bot, và đây có
+# phải tài khoản cuối cùng của nó không. Thiếu brain là quay lại đúng ngõ cụt cũ - tài khoản
+# kênh toàn cục còn bot thuộc một brain, nên con bot đang giữ nó rất hay nằm ở brain khác và
+# người dùng không có cách nào biết để mà đổi sang (chủ repo báo 21/09).
+_tc = r.json()
+check("từ chối kèm tên bot, brain của bot, và cờ tài khoản cuối cùng",
+      _tc.get("bot_id") == "bot_cu1" and _tc.get("bot_brain") == "b"
+      and _tc.get("bot_mot_tk") is False)
+
+# go_khoi_bot=1: gỡ khỏi bot rồi xoá LUÔN, trong một lượt. Dùng một tài khoản THÊM VÀO chứ
+# không xoá `aid`: phần reply ở cuối file còn gửi bằng token của nó.
+_a2, _ = channel_accounts.create_account({"channel": "telegram", "token": "8:phu", "external_id": "phubot"})
+chatbot_store.update_bot("bot_cu1", {"account_ids": ["bot_cu1", aid, _a2]})
+check("gắn thêm tài khoản thứ ba vào bot", _a2 in chatbot_store.account_ids_of(chatbot_store.get_bot("bot_cu1")))
+r = c.post(f"/channels/accounts/{_a2}/delete", data={"go_khoi_bot": "1"})
+check("gỡ khỏi bot rồi xoá -> ok", r.status_code == 200 and r.json().get("ok"))
+check("tài khoản biến mất thật", channel_accounts.get_account(_a2) is None)
+check("và nó được gỡ khỏi bot, không để lại id mồ côi",
+      _a2 not in chatbot_store.account_ids_of(chatbot_store.get_bot("bot_cu1")))
+check("các tài khoản còn lại của bot KHÔNG bị đụng tới",
+      chatbot_store.account_ids_of(chatbot_store.get_bot("bot_cu1")) == ["bot_cu1", aid])
+check("và không báo là đã tắt bot nào", not r.json().get("bot_tat"))
+
+# Tài khoản CUỐI CÙNG của một bot: gỡ ra là bot hết token, không bật lên được nữa. Phải TẮT
+# hẳn nó cho cấu hình nói thật, và phải nói ra để người dùng biết - con bot đó nằm ở trang
+# khác, có khi ở brain khác, nên họ không nhìn thấy hệ quả.
+_a1, _ = channel_accounts.create_account({"channel": "telegram", "token": "9:solo", "external_id": "solobot"})
+_bsolo, _e = chatbot_store.create_bot({"name": "Bot Solo", "agent_slug": "cskh", "brain": "b",
+                                       "account_ids": _a1})
+chatbot_store.set_enabled(_bsolo, True)
+check("dựng được bot chỉ có MỘT tài khoản, đang bật",
+      bool(_bsolo) and chatbot_store.get_bot(_bsolo).get("enabled") is True)
+_r0 = c.post(f"/channels/accounts/{_a1}/delete")
+check("cờ tài khoản cuối cùng được báo đúng", _r0.json().get("bot_mot_tk") is True)
+r = c.post(f"/channels/accounts/{_a1}/delete", data={"go_khoi_bot": "1"})
+check("gỡ tài khoản cuối cùng -> vẫn xoá được", r.status_code == 200 and r.json().get("ok"))
+check("và bot bị TẮT chứ không để nó khoe đang bật mà không trực gì",
+      chatbot_store.get_bot(_bsolo).get("enabled") is False)
+check("bản ghi bot vẫn còn (gắn tài khoản khác vào là bật lại được)",
+      chatbot_store.get_bot(_bsolo) is not None)
+check("và server nói rõ đã tắt bot nào", r.json().get("bot_tat") == "Bot Solo")
 
 
 async def _fake_verify(tok):

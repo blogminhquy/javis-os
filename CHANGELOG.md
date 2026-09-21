@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.2] - 2026-09-21
+### Sửa lỗi
+- **Xoá một tài khoản kênh hết vòng vo.** Trước đây tài khoản đang có bot trực thì Javis đá bạn sang tab Chatbot, mà bot ấy thường nằm ở brain khác nên chỉ nhận được câu "đổi brain rồi thử lại" và không biết đổi sang brain nào. Nay chỉ một câu hỏi: gỡ khỏi bot đó rồi xoá luôn? Đồng ý là xong.
+- **Thẻ ở tab Kênh nói rõ bot đang trực nằm ở brain nào**, ví dụ `Bot trực: Chốt đơn · brain Shop Giày`. Tab này luôn hiện tài khoản của mọi brain vì một token là tài khoản có thật ngoài đời, không thuộc brain nào; giờ thì nhìn là biết bot của nó sống ở đâu.
+- Gỡ tài khoản cuối cùng của một bot thì Javis nói trước, và tắt bot đó đi thay vì để nó khoe đang bật mà không còn chỗ nào để trực. Bản ghi bot vẫn còn, gắn tài khoản khác vào là bật lại được.
+
 ## [0.62.1] - 2026-09-21
 ### Sửa lỗi
 - **App HTML chia sẻ ra ngoài hết trắng trang.** Trang mở qua link `/s/` chạy trong hộp cách ly nên mọi câu lệnh nhớ tông màu hay bộ lọc đều ném lỗi và giết cả trang, dù dữ liệu bên cạnh đã tải xong. Nay Javis tự vá chỗ đó khi phục vụ trang: app chạy mượt, mà lớp cách ly vẫn nguyên vẹn không nới một chút nào.

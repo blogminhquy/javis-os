@@ -88,6 +88,16 @@ def _tai_khoan_thong_nhat() -> list:
                     # Bot trực + trạng thái sống của poller trên ĐÚNG tài khoản này.
                     "bot_id": (b or {}).get("id") or "", "bot_name": (b or {}).get("name") or "",
                     "bot_icon": (b or {}).get("icon") or "", "bot_enabled": bool((b or {}).get("enabled")),
+                    # BRAIN của con bot đang trực. Tài khoản kênh là TOÀN CỤC (một token là một
+                    # tài khoản có thật ngoài đời, không thuộc brain nào), còn bot thì thuộc
+                    # đúng một brain - nên danh sách này luôn trộn bot của mọi brain. Không nói
+                    # brain ra thì người dùng thấy một cái tên bot mà không biết tìm nó ở đâu,
+                    # và trang Chatbot chỉ hiện bot của brain đang mở (chủ repo báo 21/09).
+                    "bot_brain": (b or {}).get("brain") or "",
+                    # Tài khoản này có phải tài khoản DUY NHẤT của bot đó không. Gỡ nó ra là
+                    # bot hết token và không bật lên được nữa, nên câu hỏi trước khi xoá phải
+                    # nói khác đi.
+                    "bot_mot_tk": bool(b) and len(chatbot_store.account_ids_of(b)) <= 1,
                     "state": (st or {}).get("state") or ("off" if b else "chua_gan"),
                     "loi": (st or {}).get("last_error") or "",
                     "lan_cuoi": (st or {}).get("last_at") or 0,
@@ -201,13 +211,47 @@ def register(app, deps: ChannelsDeps):
         return _404("không có tài khoản kênh nào id đó (hoặc đang tắt ở trang Kết nối)")
 
     @router.post("/channels/accounts/{account_id}/delete")
-    async def channels_account_delete(account_id: str):
+    async def channels_account_delete(account_id: str, go_khoi_bot: str = Form("")):
+        """Xoá một tài khoản kênh. `go_khoi_bot=1` thì GỠ nó khỏi bot đang trực rồi xoá luôn.
+
+        Vì sao cần cờ đó thay vì bắt người dùng tự đi gỡ: tài khoản kênh là TOÀN CỤC còn bot
+        thuộc một brain, nên con bot đang giữ tài khoản này rất hay nằm ở brain KHÁC brain
+        đang mở. Đường cũ (từ chối, rồi giao diện nhảy sang tab Chatbot mở form bot đó) đi vào
+        ngõ cụt đúng trong trường hợp ấy: tab Chatbot chỉ nạp bot của brain đang mở, không
+        thấy nó, và người dùng nhận một câu bảo "đổi brain rồi thử lại" mà không biết đổi sang
+        brain nào. Cả hai bản ghi đều nằm ở kho toàn cục, nên server làm gọn trong một lượt là
+        đúng chỗ nhất (chủ repo báo 21/09).
+        """
         dang = chatbot_store.bots_using_account(account_id)
-        if dang:
-            return _400(f"Tài khoản đang do bot \"{dang[0].get('name')}\" trực. Gỡ khỏi bot trước "
-                        "(sửa bot, bỏ chọn tài khoản này) rồi mới xoá được.")
+        if dang and not _bat(go_khoi_bot):
+            b = dang[0]
+            # Trả kèm dữ liệu để giao diện dựng câu hỏi ĐÚNG (tên bot, brain của nó, có phải
+            # tài khoản cuối cùng của bot không) mà không phải hỏi thêm một vòng nữa.
+            return _400(f"Tài khoản đang do bot \"{b.get('name')}\" trực. Gỡ khỏi bot trước "
+                        "(sửa bot, bỏ chọn tài khoản này) rồi mới xoá được.",
+                        bot_id=b.get("id") or "", bot_name=b.get("name") or "",
+                        bot_brain=b.get("brain") or "",
+                        bot_mot_tk=len(chatbot_store.account_ids_of(b)) <= 1)
+        bot_tat = ""
+        for b in dang:
+            con = [x for x in chatbot_store.account_ids_of(b) if x != account_id]
+            ok, loi = chatbot_store.update_bot(b["id"], {"account_ids": con})
+            if not ok:
+                return _400(loi)
+            if con:
+                # Bot còn tài khoản khác: poller đang chạy phải nạp lại, không thì nó vẫn ôm
+                # cái tài khoản vừa bị gỡ cho tới lần khởi động sau.
+                if b.get("enabled") and _DEPS and getattr(_DEPS, "restart_bot", None):
+                    _DEPS.restart_bot(b["id"])
+                continue
+            # Hết sạch tài khoản: bot không có token thì không bật lên được nữa. TẮT HẲN nó cho
+            # cấu hình nói thật, thay vì để một con bot khoe "đang bật" mà không trực gì.
+            chatbot_store.set_enabled(b["id"], False)
+            if _DEPS and getattr(_DEPS, "stop_bot", None):
+                _DEPS.stop_bot(b["id"])
+            bot_tat = b.get("name") or ""
         ok, loi = channel_accounts.delete_account(account_id)
-        return {"ok": True} if ok else _404(loi)
+        return {"ok": True, "bot_tat": bot_tat} if ok else _404(loi)
 
     app.include_router(router)
 
