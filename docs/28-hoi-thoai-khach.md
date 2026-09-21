@@ -56,7 +56,15 @@ Mọi tài khoản khách nhắn tới hiện thành **cùng một kiểu thẻ*
 
 Có hai loại tài khoản, khác nhau ở cách có nó chứ không ở cách hiện ra:
 
-**Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm tài khoản**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot trực** mở sẵn form ở tab Chatbot. Xoá được khi không còn bot nào trực; hội thoại đã ghi vẫn còn.
+**Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm tài khoản**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot trực** mở sẵn form ở tab Chatbot.
+
+### Vì sao tab này hiện tài khoản của MỌI brain
+
+Một tài khoản kênh là một tài khoản có thật ngoài đời (một token Telegram, một bot Zalo), nên nó **không thuộc brain nào**. Bot thì ngược lại: mỗi bot sống trong đúng một brain, vì nó trả lời bằng tri thức của brain đó. Tab Kênh liệt kê tài khoản, nên nó luôn hiện đủ, còn tab Chatbot chỉ hiện bot của brain đang mở.
+
+Vì thế dòng **Bot trực** trên mỗi thẻ luôn ghi kèm brain của con bot ấy: `Bot trực: Chốt đơn · brain Shop Giày`. Nhìn là biết nó sống ở đâu, không phải đi dò từng brain.
+
+**Xoá một tài khoản:** bấm **Xoá**. Nếu đang có bot trực nó, Javis nói rõ bot nào, ở brain nào, rồi hỏi một câu duy nhất: gỡ khỏi bot đó rồi xoá luôn? Đồng ý là xong trong một lần, không phải đổi brain rồi đi tìm bot để tự gỡ. Bot vẫn còn và vẫn trực các tài khoản khác của nó. Nếu đó là tài khoản **duy nhất** của bot thì Javis nói trước, và sau khi xoá sẽ tắt bot đó đi (bản ghi bot vẫn còn, gắn tài khoản khác vào là bật lại được). Hội thoại đã ghi vẫn nằm nguyên trong hộp thư.
 
 **Tài khoản của chính bạn** (Zalo cá nhân) đến từ trang **Kết nối** (quét QR ở Zalo Agent MCP) và hiện ở đây với công tắc **Ghi hội thoại**. Bật lên là Javis đọc tin mới mỗi 20 giây qua MCP và đổ vào hộp thư. Ba điều về kênh này, nói thẳng:
 

@@ -509,9 +509,13 @@
     if (nl.gui_file) chips.push(ic("paperclip") + " " + esc(window.t("ht.nl_file")));
     if (nl.tra_loi_tu_javis) chips.push(ic("send") + " " + esc(window.t("ht.nl_tra_loi")));
     var ten = a.external_id ? (a.tien_to_ten || "") + a.external_id : "";
+    // Tên bot LUÔN đi kèm BRAIN của nó. Tài khoản kênh là toàn cục còn bot thuộc một brain,
+    // nên danh sách này trộn bot của mọi brain; chỉ hiện mỗi cái tên thì người dùng thấy một
+    // con bot mà không biết tìm nó ở đâu (chủ repo báo 21/09).
     var botDong = a.kind === "bot"
       ? (a.bot_id
           ? '<span>' + ic(a.bot_icon || "headset") + ' ' + esc(window.t("ht.tk_bot_truc")) + ' <b>' + esc(a.bot_name) + '</b>' +
+            (a.bot_brain ? ' <span class="ht-nhe">' + esc(window.t("ht.o_brain", { brain: a.bot_brain })) + '</span>' : "") +
             (a.bot_enabled ? "" : ' <span class="ht-warn">(' + esc(window.t("ht.bot_tat")) + ')</span>') + '</span>'
           : '<span class="ht-warn">' + ic("triangle-alert") + ' ' + esc(window.t("ht.tk_chua_bot")) + '</span>')
       : '<span>' + ic("user-round") + ' ' + esc(window.t("ht.tk_cua_ban")) + '</span>';
@@ -579,19 +583,25 @@
     if (kn) kn.onclick = function () { try { window.JavisNav.go("mcp"); } catch (e) {} };
     var xoa = c.querySelector(".ht-acc-xoa");
     if (xoa) xoa.onclick = async function () {
-      // Server chặn xoá khi còn bot trực. Nói đúng câu đó ở đây, và mở luôn form Sửa của con
-      // bot ấy để gỡ tài khoản ra - chứ không bắt người dùng tự đi tìm bot nào đang giữ nó.
-      if (!a.xoa_duoc) {
-        if (!a.bot_id) return alert(window.t("ht.xoa_khong_duoc"));
-        if (!confirm(window.t("ht.xoa_dang_truc", { ten: a.label, bot: a.bot_name }))) return;
-        chonTab("chatbot");
-        try { document.dispatchEvent(new CustomEvent("javis:chatbot-edit", { detail: { bot_id: a.bot_id } })); }
-        catch (e) {}
-        return;
-      }
-      if (!confirm(window.t("ht.xn_xoa_tk", { ten: a.label }))) return;
-      try { await api("/channels/accounts/" + encodeURIComponent(a.id) + "/delete", { method: "POST" }); }
-      catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
+      // Tài khoản đang có bot trực: GỠ KHỎI BOT RỒI XOÁ ngay tại đây, trong một lần hỏi.
+      //
+      // Bản cũ nhảy sang tab Chatbot mở form con bot ấy, và đó là ngõ cụt đúng trong trường
+      // hợp hay gặp nhất: bot thuộc một brain, tài khoản kênh thì toàn cục, nên con bot đang
+      // giữ tài khoản này thường nằm ở brain KHÁC brain đang mở. Tab Chatbot chỉ nạp bot của
+      // brain đang mở nên không thấy nó, và người dùng nhận một câu bảo "đổi brain rồi thử
+      // lại" mà không biết đổi sang brain nào (chủ repo báo 21/09).
+      var hoi = a.bot_id
+        ? window.t(a.bot_mot_tk ? "ht.xoa_go_bot_cuoi" : "ht.xoa_go_bot",
+                   { ten: a.label, bot: a.bot_name, brain: a.bot_brain || "?" })
+        : window.t("ht.xn_xoa_tk", { ten: a.label });
+      if (!confirm(hoi)) return;
+      try {
+        var r = await api("/channels/accounts/" + encodeURIComponent(a.id) + "/delete",
+                          { method: "POST", body: fd({ go_khoi_bot: a.bot_id ? "1" : "" }) });
+        // Bot mất tài khoản cuối cùng thì server tắt nó đi. Nói ra, vì đó là hệ quả người
+        // dùng không thấy trên màn hình này (con bot nằm ở trang khác, có khi ở brain khác).
+        if (r && r.bot_tat) alert(window.t("ht.da_tat_bot", { bot: r.bot_tat }));
+      } catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
       _dauVetTK = "";
       taiTK(true);
     };

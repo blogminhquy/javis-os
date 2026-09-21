@@ -909,18 +909,11 @@
     doiNap(function () { moForm(null, { account_id: aid }); });
   });
 
-  // Tab Kênh bấm Xoá trên một tài khoản đang có bot trực: mở thẳng form Sửa của con bot đó để
-  // gỡ tài khoản ra. Không có đường này thì người dùng đọc câu "gỡ khỏi bot trước" xong phải tự
-  // đoán bot nào nằm ở đâu.
-  document.addEventListener("javis:chatbot-edit", function (e) {
-    var bid = (e.detail || {}).bot_id;
-    doiNap(function () {
-      var b = null;
-      for (var i = 0; i < _bots.length; i++) if (_bots[i].id === bid) b = _bots[i];
-      if (b) moForm(b);
-      else alert(window.t("cb.khong_thay_bot"));
-    });
-  });
+  // (0.62.2 đã bỏ tay bắt "javis:chatbot-edit" ở đây. Tab Kênh từng bấm Xoá là nhảy sang đây
+  // mở form Sửa của con bot đang giữ tài khoản, nhưng trang này chỉ nạp bot của BRAIN ĐANG MỞ
+  // còn tài khoản kênh thì toàn cục - nên với con bot ở brain khác, đường đó luôn kết thúc
+  // bằng câu "đổi brain rồi thử lại" mà không nói đổi sang brain nào. Nay tab Kênh tự gỡ tài
+  // khoản khỏi bot rồi xoá trong một lần hỏi, không phải đi vòng qua trang này nữa.)
 
   // Đợi trang nạp xong (kênh + danh sách bot) rồi mới mở form, để ô chọn có đủ dữ liệu. Bỏ cuộc
   // sau 3 giây: mở một form thiếu dữ liệu vẫn hơn là không mở gì và không nói gì.

@@ -16,6 +16,9 @@ const SRC = fs.readFileSync(path.join(ROOT, "dashboard", "conversations.js"), "u
 const CSS = fs.readFileSync(path.join(ROOT, "dashboard", "console.css"), "utf8");
 const SCSS = fs.readFileSync(path.join(ROOT, "dashboard", "style.css"), "utf8");
 const CB = fs.readFileSync(path.join(ROOT, "dashboard", "chatbots.js"), "utf8");
+// Phia may chu: hai dau kia (ten brain cua bot, va viec go tai khoan khoi bot) phai co that o
+// day chu khong chi la mot chuoi trong giao dien.
+const SRV = fs.readFileSync(path.join(ROOT, "server", "routes", "channels.py"), "utf8");
 const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const fails = [];
 function check(name, cond) {
@@ -109,14 +112,35 @@ check("CANARY: nut Xoa KHONG con bi an theo xoa_duoc",
       !/a\.xoa_duoc \? '<button[^']*ht-acc-xoa/.test(SRC) && SRC.includes("ht-acc-xoa"));
 check("moi the kenh bot deu co nut Xoa",
       /a\.kind === "bot"\s*\n?\s*\? '<button type="button" class="s-btn-ghost ht-acc-xoa">/.test(SRC));
-check("bam Xoa khi con bot truc thi noi ro TEN BOT dang giu",
-      SRC.includes('window.t("ht.xoa_dang_truc", { ten: a.label, bot: a.bot_name })') &&
-      VI["ht.xoa_dang_truc"].includes("{bot}") && VI["ht.xoa_dang_truc"].includes("chưa xoá được"));
-check("va mo thang form Sua cua dung con bot do",
-      SRC.includes('"javis:chatbot-edit"') && /detail: \{ bot_id: a\.bot_id \}/.test(SRC) &&
-      CB.includes('document.addEventListener("javis:chatbot-edit"'));
-check("khong xoa duoc thi KHONG goi API xoa",
-      /if \(!a\.xoa_duoc\) \{[\s\S]{0,400}return;\s*\n\s*\}/.test(SRC));
+// Tai khoan kenh la TOAN CUC, bot thi thuoc MOT brain - nen the nay luon tron bot cua moi
+// brain. Hai he qua, ca hai deu phai duoc noi ra chu khong de nguoi dung doan:
+check("the noi ro bot dang truc nam o BRAIN nao",
+      SRC.includes('window.t("ht.o_brain", { brain: a.bot_brain })') &&
+      VI["ht.o_brain"].includes("{brain}") &&
+      SRV.includes('"bot_brain": (b or {}).get("brain") or ""'));
+check("bam Xoa thi go khoi bot roi xoa NGAY, trong mot lan hoi",
+      /window\.t\(a\.bot_mot_tk \? "ht\.xoa_go_bot_cuoi" : "ht\.xoa_go_bot"/.test(SRC) &&
+      /go_khoi_bot: a\.bot_id \? "1" : ""/.test(SRC));
+check("cau hoi noi du ten bot va brain cua no",
+      ["ht.xoa_go_bot", "ht.xoa_go_bot_cuoi"].every((k) =>
+        VI[k].includes("{bot}") && VI[k].includes("{brain}") && VI[k].includes("{ten}")));
+// Go tai khoan CUOI CUNG la bot het token va khong bat len duoc nua. Phai hoi khac di, va
+// phai noi ra khi server da tat con bot do.
+check("tai khoan cuoi cung cua bot thi hoi bang mot cau RIENG",
+      VI["ht.xoa_go_bot_cuoi"] !== VI["ht.xoa_go_bot"] &&
+      /DUY NH[ẤA]T/.test(VI["ht.xoa_go_bot_cuoi"]));
+check("server tat bot thi giao dien noi ra",
+      /if \(r && r\.bot_tat\) alert\(window\.t\("ht\.da_tat_bot"/.test(SRC) &&
+      SRV.includes('bot_tat = b.get("name") or ""'));
+// CANARY: duong cut cu. Tab Chatbot chi nap bot cua brain dang mo, nen nhay sang do de sua
+// mot con bot o brain khac luon ket thuc bang "doi brain roi thu lai" ma khong noi brain nao.
+// Soi DAY DISPATCH va DAY NGHE chu khong soi ten su kien tran: chu thich giai thich vi sao
+// bo duong nay co nhac lai chinh cai ten do, va soi ten tran thi canary do vi cau giai thich.
+check("CANARY: khong con nhay sang tab Chatbot de go tai khoan",
+      !/dispatchEvent\(new CustomEvent\("javis:chatbot-edit"/.test(SRC) &&
+      !/addEventListener\("javis:chatbot-edit"/.test(CB));
+check("CANARY: cau bao tac cua duong do cung duoc don khoi tu dien",
+      !("cb.khong_thay_bot" in VI));
 // Zalo ca nhan la mot KET NOI ben trang Ket noi, khong xoa o day duoc. The van phai chi duong
 // chu khong duoc cam.
 check("the kenh khong xoa duoc o day thi chi duong sang trang Ket noi",

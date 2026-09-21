@@ -2001,6 +2001,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-acc-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: var(--text3); }
 .ht-acc-meta span { display: inline-flex; align-items: center; gap: 4px; }
 .ht-acc-meta b { color: var(--text); }
+/* Tên brain đi sau tên bot: mờ hơn một bậc và KHÔNG tách thành một span riêng của flex (nó
+   nằm trong cùng span với tên bot), để "Coach kỷ luật · brain My Bullet Journal" đọc như một
+   cụm chứ không phải hai thông tin rời nhau. */
+.ht-acc-meta .ht-nhe { color: var(--text3); font-weight: 400; display: inline; }
 .ht-acc-nl { display: flex; flex-wrap: wrap; gap: 6px; }
 .ht-acc-nl span { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 2px 8px;
   border-radius: 999px; background: var(--bg3); color: var(--text2); border: 1px solid var(--hairline); }
