@@ -1933,6 +1933,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-src-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ht-src-text strong { font-size: 14px; color: var(--text); }
 .ht-src-text small { font-size: 12.5px; color: var(--text3); display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+/* Nút ở cuối hàng kênh giữ nguyên bề ngang của nó. Không có flex:none thì nó bị bóp cho vừa
+   chỗ còn thừa và chữ gãy làm hai dòng ("Mở / Kết nối"), trong khi cột chữ bên cạnh mới là
+   cái đáng co lại. */
+.ht-src > button { flex: none; white-space: nowrap; }
 .ht-warn { color: var(--warn-ink); }
 .ht-switch { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text2); cursor: pointer; }
 .ht-form-acts { display: flex; justify-content: flex-end; margin-top: 14px; }
@@ -1963,7 +1967,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-kenh-intro { flex: 1 1 300px; margin: 0; }
 .ht-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
 .ht-acc { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-1);
-  display: flex; flex-direction: column; gap: 8px; }
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
 .ht-acc-head { display: flex; align-items: center; gap: 10px; }
 .ht-acc-logo { width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center;
   justify-content: center; background: var(--surface-2); border: 1px solid var(--hairline); flex: none; }
@@ -1977,6 +1981,11 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-acc-nl span { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 2px 8px;
   border-radius: 999px; background: var(--bg3); color: var(--text2); border: 1px solid var(--hairline); }
 .ht-acc-loi { font-size: 12.5px; color: var(--warn-ink); display: flex; gap: 4px; align-items: flex-start; }
+/* Cục JSON trong câu lỗi MCP không có lấy một dấu cách, nên trình duyệt không tìm ra chỗ nào
+   để xuống dòng và chữ tràn ra đè sang thẻ bên cạnh (chủ repo gặp 2026-09-21). `min-width: 0`
+   cho phép flex item co dưới nội dung, `anywhere` cho ngắt giữa chữ khi cần. */
+.ht-acc-loi > svg { flex: none; margin-top: 2px; }
+.ht-acc-loi span { min-width: 0; overflow-wrap: anywhere; }
 .ht-acc-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: auto; padding-top: 4px; }
 .ht-acc-acts .ht-switch { margin-right: auto; }
 .ht-kenh-khac { margin-top: 8px; }

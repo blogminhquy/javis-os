@@ -518,7 +518,13 @@
     var so = '<span>' + ic("messages-square") + ' ' + esc(window.t("ht.n_hoi_thoai", { count: a.so_hoi_thoai || 0 })) +
              (a.chua_doc ? ' · <b>' + esc(window.t("ht.n_chua_doc", { count: a.chua_doc })) + '</b>' : "") + '</span>';
     var lanCuoi = a.lan_cuoi ? '<span>' + esc(window.t("ht.doc_luc", { luc: gio(a.lan_cuoi) })) + '</span>' : "";
-    var loi = a.loi ? '<div class="ht-acc-loi">' + ic("triangle-alert") + ' ' + esc(String(a.loi).slice(0, 200)) + '</div>' : "";
+    // Bọc câu lỗi trong <span> chứ không để làm text trần: text trần thành một flex item vô
+    // danh, CSS không với tới được để cho phép ngắt dòng. Chuỗi lỗi của MCP thường là một cục
+    // JSON không có dấu cách nào, nên không bọc là nó tràn ra đè sang thẻ bên cạnh.
+    // Giữ nguyên câu lỗi ĐẦY ĐỦ trong title: cắt còn 200 ký tự là vừa đủ để thấy có lỗi mà
+    // không đủ để biết lỗi gì.
+    var loi = a.loi ? '<div class="ht-acc-loi" title="' + esc(a.loi) + '">' + ic("triangle-alert") +
+              '<span>' + esc(String(a.loi).slice(0, 200)) + '</span></div>' : "";
     var congTac = a.kind === "account"
       ? '<label class="ht-switch"><input type="checkbox" class="ht-watch"' + (a.watch ? " checked" : "") + '>' +
         '<span>' + esc(window.t("ht.ghi_hoi_thoai")) + '</span></label>'
@@ -542,7 +548,12 @@
           (a.kind === "bot" && !a.bot_id
             ? '<button type="button" class="s-btn-ghost ht-acc-tao-bot">' + ic("headset") + ' ' + esc(window.t("ht.tk_tao_bot")) + '</button>' : "") +
           (a.sua_duoc ? '<button type="button" class="s-btn-ghost ht-acc-sua">' + esc(window.t("common.edit")) + '</button>' : "") +
-          (a.xoa_duoc ? '<button type="button" class="s-btn-ghost ht-acc-xoa">' + esc(window.t("common.delete")) + '</button>' : "") +
+          (a.kind === "bot"
+            ? '<button type="button" class="s-btn-ghost ht-acc-xoa">' + esc(window.t("common.delete")) + '</button>'
+            // Kênh kiểu "account" (Zalo cá nhân) không xoá ở đây được: nó là một kết nối bên
+            // trang Kết nối. Chỉ đường sang đó, đừng để thẻ câm.
+            : '<button type="button" class="s-btn-ghost ht-acc-ket-noi">' + ic("plug") + ' ' +
+              esc(window.t("ht.mo_ket_noi")) + '</button>') +
         '</div>' +
       '</div>');
     c.querySelector(".ht-acc-inbox").onclick = function () { _cho = { account_key: a.account_key }; chonTab("inbox"); };
@@ -564,8 +575,20 @@
     };
     var sua = c.querySelector(".ht-acc-sua");
     if (sua) sua.onclick = function () { moSuaTK(a); };
+    var kn = c.querySelector(".ht-acc-ket-noi");
+    if (kn) kn.onclick = function () { try { window.JavisNav.go("mcp"); } catch (e) {} };
     var xoa = c.querySelector(".ht-acc-xoa");
     if (xoa) xoa.onclick = async function () {
+      // Server chặn xoá khi còn bot trực. Nói đúng câu đó ở đây, và mở luôn form Sửa của con
+      // bot ấy để gỡ tài khoản ra - chứ không bắt người dùng tự đi tìm bot nào đang giữ nó.
+      if (!a.xoa_duoc) {
+        if (!a.bot_id) return alert(window.t("ht.xoa_khong_duoc"));
+        if (!confirm(window.t("ht.xoa_dang_truc", { ten: a.label, bot: a.bot_name }))) return;
+        chonTab("chatbot");
+        try { document.dispatchEvent(new CustomEvent("javis:chatbot-edit", { detail: { bot_id: a.bot_id } })); }
+        catch (e) {}
+        return;
+      }
       if (!confirm(window.t("ht.xn_xoa_tk", { ten: a.label }))) return;
       try { await api("/channels/accounts/" + encodeURIComponent(a.id) + "/delete", { method: "POST" }); }
       catch (e) { alert(window.t("ht.loi_doi") + " " + e.message); }
