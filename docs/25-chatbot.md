@@ -25,7 +25,7 @@ Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quy�
 
 ## Mở ở đâu trong Javis
 
-Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Hội thoại**, tab **Chatbot** (từ 0.61.0 Chatbot, Kênh và Hộp thư ở chung một trang). Nói "mở chatbot" là tới thẳng tab này.
+Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**, tab **Tạo chatbot** (từ 0.61.0 cả ba việc ở chung một trang: Hòm thư bot, Tài khoản bot, Tạo chatbot). Nói "mở chatbot" là tới thẳng tab này.
 
 ## Chuẩn bị trước khi tạo bot
 
