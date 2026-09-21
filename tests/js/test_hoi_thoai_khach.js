@@ -21,8 +21,8 @@ function check(name, cond) {
   if (!cond) fails.push(name);
 }
 
-check("xuat global JavisConversations voi render va mo",
-      /window\.JavisConversations\s*=\s*\{\s*render:\s*render,\s*mo:\s*moTu\s*\}/.test(SRC));
+check("xuat global JavisConversations voi render, mo va chonTab (0.61.0: ba tab)",
+      /window\.JavisConversations\s*=\s*\{\s*render:\s*render,\s*mo:\s*moTu,\s*chonTab:\s*chonTab\s*\}/.test(SRC));
 check("nhip tu lam moi tu dung khi node roi khoi DOM",
       SRC.includes("document.body.contains(_host)") && SRC.includes("clearInterval(_timer)"));
 check("nhip im khi tab an hoac dang mo hop thoai Kenh",
@@ -33,8 +33,16 @@ check("doc mot hoi thoai thi danh dau da doc",
       SRC.includes('"/read", { method: "POST" }'));
 check("tiep quan / tra lai AI goi dung duong mode",
       SRC.includes('"/mode", { method: "POST", body: fd({ mode: mode })'));
-check("bat/tat ghi Zalo ca nhan theo tung tai khoan",
-      SRC.includes("/conversations/zalo/") && SRC.includes('"/watch"'));
+// 0.61.0: cong tac ghi di qua API tai khoan kenh CHUNG (khong con duong rieng cho Zalo).
+check("bat/tat ghi theo tung tai khoan kenh qua API chung /channels/accounts",
+      SRC.includes("/channels/accounts/") && SRC.includes('"/watch"') && !SRC.includes("/conversations/zalo/"));
+check("khong doan gi theo id kenh: logo va nhan lay tu danh sach server (khong con nhanh zalo_personal)",
+      !SRC.includes('"zalo_personal"') && SRC.includes("k.logo"));
+check("tra loi khach tu Hop thu qua /reply, chi khi kenh co nang luc",
+      SRC.includes('"/reply", { method: "POST", body: fd({ text: txt })') &&
+      SRC.includes('nangLuc(c.channel, "tra_loi_tu_javis")'));
+check("ba tab Hop thu | Kenh | Chatbot, tab Chatbot uy quyen cho chatbots.js",
+      /TABS = \["inbox", "kenh", "chatbot"\]/.test(SRC) && SRC.includes("window.JavisChatbots.render"));
 check("dien thoai: mo hoi thoai la them lop thread-on, co nut quay lai",
       SRC.includes('classList.add("thread-on")') && SRC.includes(".ht-back") &&
       /\.ht-wrap\.thread-on \.ht-list \{ display: none; \}/.test(CSS) &&

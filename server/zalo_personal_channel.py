@@ -102,6 +102,14 @@ def _ket_noi() -> List[dict]:
         return []
 
 
+def ket_noi_theo_id(conn_id: str) -> Optional[dict]:
+    """Bản đầy đủ (có env) của một kết nối Zalo đang bật, để gọi MCP. None nếu không có."""
+    for c in _ket_noi():
+        if c.get("id") == str(conn_id or ""):
+            return c
+    return None
+
+
 def tai_khoan() -> List[dict]:
     """Cho trang Hộp thư: mỗi tài khoản Zalo kèm cờ theo dõi và trạng thái vòng đọc."""
     cfg = _cau_hinh()

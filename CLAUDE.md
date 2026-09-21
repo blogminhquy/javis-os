@@ -86,7 +86,7 @@ When a task arrives through chat, Javis does NOT merely answer. The procedure: *
 
 ## Customer inbox (Hội thoại page)
 
-Customer chats with Telegram/Zalo chatbots and watched personal Zalo accounts are stored in one store and read on the **Hội thoại** page (takeover exists; no replying from it yet). Store pack `javis.khach-hang-crm` adds `crm_*` tools (customers, tags, notes, unanswered, stats, CSV); absent = not installed.
+Customer chats from every channel account (Telegram/Zalo bots, watched personal Zalo) land in one store, read on the **Hội thoại** page: tabs Hộp thư (takeover, reply from Javis), Kênh (accounts, one card per channel), Chatbot. Store pack `javis.khach-hang-crm` adds `crm_*` tools; absent = not installed.
 
 ## Creating Plugins (native tool/hook for every engine)
 

@@ -50,18 +50,38 @@
   // Danh sách kênh do SERVER cấp (kèm chỗ lấy token và kênh đó KHÔNG làm được gì). Không chép
   // cứng ở đây: hôm nào Zalo mở API gửi tài liệu thì server đổi một chỗ, giao diện theo ngay.
   var _kenhDS = [], _kenhLoc = "";
+  // Tài khoản kênh chưa bot nào trực (server cấp kèm GET /chatbots). Form tạo bot cho CHỌN
+  // trong danh sách này thay vì bắt dán token; dán token mới cũng được, và token đó thành một
+  // tài khoản ở tab Kênh.
+  var _tkRanh = [];
 
+  // Kênh KHÔNG đoán theo id: mọi thứ (nhãn, logo, năng lực) lấy từ danh sách server cấp. Kênh
+  // lạ (server mới có kênh mà giao diện cũ) thì hiện tên trần, không vẽ nhầm logo kênh khác.
   function kenhCua(id) {
     for (var i = 0; i < _kenhDS.length; i++) if (_kenhDS[i].id === id) return _kenhDS[i];
-    return { id: id || "telegram", nhan: Icons.kenhNhan(id) || "Telegram",
-             lay_token: "", co_nhom: id !== "zalo", gui_tai_lieu: id !== "zalo" };
+    return { id: id || "", nhan: id || "", logo: "", lay_token: "", co_nhom: false, gui_tai_lieu: false,
+             tien_to_ten: "", tom_tat: "", nang_luc: {} };
+  }
+  function logoKenh(id, size) {
+    var k = kenhCua(id);
+    return k.logo ? Icons.kenh(k.logo, { size: size || "13px" }) : "";
   }
 
   // Nhãn kênh: LOGO + tên. Đây là thứ phân biệt hai con bot trong cùng một lưới thẻ, nên nó
   // phải bắt mắt trước khi người ta kịp đọc chữ - xem khối chú thích ở Icons.kenh.
   function chipKenh(id, cls) {
-    return '<span class="cb-kenh-chip ' + (cls || "") + '">' + Icons.kenh(id, { size: "13px" }) +
+    return '<span class="cb-kenh-chip ' + (cls || "") + '">' + logoKenh(id) +
            " " + esc(kenhCua(id).nhan) + "</span>";
+  }
+  // Chip MỘT tài khoản kênh trên thẻ bot: logo kênh + tên tài khoản phía nền tảng.
+  function chipTK(a) {
+    var k = kenhCua(a.channel);
+    return '<span class="cb-kenh-chip" title="' + esc(k.nhan) + '">' + logoKenh(a.channel) + " " +
+           esc(a.external_id ? (k.tien_to_ten || "") + a.external_id : (a.label || k.nhan)) + "</span>";
+  }
+  // Bot có tài khoản nào đứng được trong nhóm không (quyết định khối cấu hình nhóm).
+  function coNhom(b) {
+    return (b.accounts || []).some(function (a) { return kenhCua(a.channel).co_nhom; });
   }
 
   // Trạng thái bot là thứ ĐỔI MÀ KHÔNG AI BẤM: bấm Bật xong server trả về "đang khởi động"
@@ -101,7 +121,6 @@
         '<div class="cb-loc"></div>' +
         '<p class="cb-intro">' + esc(window.t("cb.intro_1")) + ' <b>' + esc(brain()) + '</b>' +
         esc(window.t("cb.intro_2")) + ' <b>Agent</b> ' + esc(window.t("cb.intro_3")) +
-        ' <b>Telegram</b> ' + esc(window.t("cb.intro_hoac")) + ' <b>Zalo</b>' +
         esc(window.t("cb.intro_4")) + ' <b>' + esc(window.t("cb.intro_chi_doc")) + '</b>' +
         esc(window.t("cb.intro_5")) + ' <b>' + esc(window.t("cb.intro_lam_that")) + '</b> ' +
         esc(window.t("cb.intro_6")) + '<br>' +
@@ -131,6 +150,7 @@
       _mucDS = d.muc_quyen || [];
       _langDS = d.lang_list || [];
       _kenhDS = d.kenh || [];
+      _tkRanh = d.tai_khoan || [];
       var vet = JSON.stringify(_bots);
       // Nhịp ngầm mà không có gì đổi thì ĐỪNG dựng lại DOM. Không phải để tiết kiệm: dựng lại
       // mỗi 5 giây nghĩa là cứ 5 giây một lần có một khoảnh khắc nút vừa bị thay khỏi cây, và
@@ -162,7 +182,7 @@
         esc(window.t("studio.all")) + ' <span class="cb-loc-n">' + _bots.length + '</span></button>' +
       ks.map(function (k) {
         return '<button class="cb-loc-o' + (_kenhLoc === k ? " on" : "") + '" data-k="' + esc(k) +
-          '" type="button">' + Icons.kenh(k, { size: "14px" }) + " " + esc(kenhCua(k).nhan) +
+          '" type="button">' + logoKenh(k, "14px") + " " + esc(kenhCua(k).nhan) +
           ' <span class="cb-loc-n">' + dem[k] + '</span></button>';
       }).join("");
     hop.querySelectorAll(".cb-loc-o").forEach(function (n) {
@@ -270,11 +290,12 @@
     // Hiện cho MỌI bot có dùng nhóm, không riêng bot đặt "trả lời mọi tin": nó là nguyên nhân
     // số một của "nhắn riêng thì được, trong nhóm tag tên thì im re", và người dùng không có
     // cách nào đoán ra vì mọi dấu hiệu trên trang này đều xanh.
-    var kenh = b.channel || "telegram";
+    var kenh = b.channel || "";
     var duNhom = (b.groups || []).length || (b.nhom_cho || []).length;
     // Cảnh báo chế độ riêng tư là chuyện RIÊNG của Telegram. Hiện nó trên một thẻ Zalo là dạy
     // người dùng đi mở @BotFather tìm một cài đặt không tồn tại cho con bot đó.
-    var riengTu = (kenh === "telegram" && duNhom && st.da_hoi_telegram && !st.doc_moi_tin_nhom)
+    var coTelegram = (b.accounts || []).some(function (a) { return a.channel === "telegram"; });
+    var riengTu = (coTelegram && duNhom && st.da_hoi_telegram && !st.doc_moi_tin_nhom)
       ? '<div class="cb-quyen ghi">' + ic("triangle-alert") + ' ' + esc(window.t("cb.rt_1")) +
         ' <b>' + esc(window.t("cb.rt_che_do")) + '</b> ' + esc(window.t("cb.rt_2")) +
         ' <b>' + esc(window.t("cb.rt_lenh")) + '</b> ' + esc(window.t("cb.rt_va")) +
@@ -288,23 +309,25 @@
       '<div class="cb-card">' +
         '<div class="cb-head">' +
           '<span class="cb-ico">' + ic(b.icon || "headset") +
-            '<span class="cb-ico-kenh" title="' + esc(kenhCua(kenh).nhan) + '">' +
-              Icons.kenh(kenh, { size: "14px" }) + '</span></span>' +
+            ((b.accounts || []).length === 1
+              ? '<span class="cb-ico-kenh" title="' + esc(kenhCua(kenh).nhan) + '">' + logoKenh(kenh, "14px") + '</span>'
+              : "") + '</span>' +
           '<span class="cb-name">' + esc(b.name) + '</span>' +
           '<span class="cb-dot ' + tt.mau + '" title="' + esc(st.last_error || window.t(tt.nhan)) + '"></span>' +
           '<span class="cb-state">' + esc(window.t(tt.nhan)) + '</span>' +
         '</div>' +
         // Không hiện brain trên thẻ nữa: mọi bot ở đây đều thuộc brain đang mở, nên nhắc lại
         // trên từng thẻ chỉ là nhiễu. Brain nói một lần ở đầu trang là đủ.
+        // Tài khoản kênh bot đang trực (0.61.0: một bot trực được nhiều tài khoản). Chưa có
+        // tài khoản nào thì nói thẳng, vì đó là lý do bot không bật được.
         '<div class="cb-meta">' +
-          chipKenh(kenh) +
-          (b.bot_username
-            ? '<span>' + (kenh === "telegram" ? "@" : "") + esc(b.bot_username) + '</span>'
-            : '<span class="cb-warn">' + esc(window.t("cb.chua_token")) + '</span>') +
+          ((b.accounts || []).length
+            ? (b.accounts || []).map(chipTK).join("")
+            : '<span class="cb-warn">' + ic("triangle-alert") + ' ' + esc(window.t("cb.chua_token")) + '</span>') +
           '<span>' + ic("bot") + ' ' + esc(b.agent_name || (b.agent || {}).slug || "?") + '</span>' +
         '</div>' +
         '<div class="cb-meta">' +
-          '<span>' + esc(!kenhCua(kenh).co_nhom ? window.t("cb.chi_rieng") : (b.groups || []).length
+          '<span>' + esc(!coNhom(b) ? window.t("cb.chi_rieng") : (b.groups || []).length
             ? (window.t("cb.n_nhom", { count: b.groups.length }) + ", " +
                (b.reply_when === "always" ? window.t("cb.tl_moi_tin") : window.t("cb.tl_goi_ten")))
             : window.t("cb.chi_rieng")) + '</span>' +
@@ -555,45 +578,72 @@
       esc(window.t("cb.ack")) + '</label></div>';
   }
 
-  // Một dòng nói ĐÚNG cái người ta cần cân nhắc khi chọn kênh: ai sẽ nhắn cho bot, và kênh
-  // đó KHÔNG làm được gì. Ưu nhược điểm phải nằm ngay trên nút bấm, không phải trong tài liệu.
-  var KENH_TOM = {
-    telegram: "cb.kenhtom_telegram",
-    zalo: "cb.kenhtom_zalo",
-  };
-
-  function veKenhChon(dangChon, khoa) {
-    var ds = _kenhDS.length ? _kenhDS : [{ id: "telegram", nhan: "Telegram" }, { id: "zalo", nhan: "Zalo" }];
-    if (khoa) {
-      // Đổi kênh của một bot đã tạo là đổi sang một CON BOT KHÁC (token khác, danh tính khác,
-      // khách khác). Khoá lại và nói thẳng, chứ đừng cho bấm rồi báo lỗi token ở bước sau.
-      return '<div class="cb-kenh-khoa">' + Icons.kenh(dangChon, { size: "18px" }) +
-        ' <b>' + esc(kenhCua(dangChon).nhan) + '</b>' +
-        '<span>' + esc(window.t("cb.kenh_khoa")) + '</span></div>';
-    }
+  // Ô chọn LOẠI kênh khi dán token mới. Mỗi ô có một dòng tóm tắt do SERVER cấp (ai nhắn
+  // được, kênh đó KHÔNG làm được gì): ưu nhược điểm phải nằm ngay trên nút bấm.
+  function veKenhChon(dangChon) {
+    var ds = _kenhDS;
+    if (!ds.length) return '<div class="cb-hint">' + esc(window.t("cb.khong_kenh")) + '</div>';
     return '<div class="cb-kenh">' + ds.map(function (k) {
       return '<button class="cb-kenh-o' + (k.id === dangChon ? " on" : "") + '" data-k="' +
         esc(k.id) + '" type="button">' +
-        '<span class="cb-kenh-logo">' + Icons.kenh(k.id, { size: "26px" }) + '</span>' +
+        '<span class="cb-kenh-logo">' + logoKenh(k.id, "26px") + '</span>' +
         '<b>' + esc(k.nhan) + '</b>' +
-        '<small>' + esc(KENH_TOM[k.id] ? window.t(KENH_TOM[k.id]) : "") + '</small></button>';
+        '<small>' + esc(k.tom_tat || "") + '</small></button>';
     }).join("") + '</div>';
   }
 
-  async function moForm(b) {
+  // Danh sách tài khoản kênh để TÍCH CHỌN: tài khoản bot này đang trực (khi sửa) + tài khoản
+  // chưa bot nào trực. Tài khoản đang do bot khác trực không hiện: mỗi token một poller.
+  function veChonTK(b, chonSan) {
+    var ds = [];
+    var da = {};
+    ((b && b.accounts) || []).forEach(function (a) { ds.push(a); da[a.id] = true; });
+    _tkRanh.forEach(function (a) { if (!da[a.id]) ds.push(a); });
+    if (!ds.length) return '<div class="cb-hint">' + esc(window.t("cb.tk_chua_co")) + '</div>';
+    var chon = {};
+    ((b && b.accounts) || []).forEach(function (a) { chon[a.id] = true; });
+    (chonSan || []).forEach(function (id) { chon[id] = true; });
+    return '<div class="cb-tk-list">' + ds.map(function (a) {
+      var k = kenhCua(a.channel);
+      return '<label class="cb-tk"><input type="checkbox" class="cb-tk-o" value="' + esc(a.id) + '"' +
+        (chon[a.id] ? " checked" : "") + ' data-k="' + esc(a.channel) + '">' +
+        '<span class="cb-tk-logo">' + logoKenh(a.channel, "18px") + '</span>' +
+        '<span class="cb-tk-text"><b>' + esc(a.label || k.nhan) + '</b><small>' + esc(k.nhan) +
+        (a.external_id ? ' · ' + esc((k.tien_to_ten || "") + a.external_id) : "") + '</small></span></label>';
+    }).join("") + '</div>';
+  }
+
+  // `truoc` (tuỳ chọn): { account_id } - tài khoản tích sẵn khi mở từ tab Kênh ("Tạo bot trực").
+  async function moForm(b, truoc) {
     var sua = !!b;
     var br = brain();                 // brain đang mở = brain của bot, không hỏi lại
     var agents = await nạpAgent(br);
-    var kenh = (b && b.channel) || "telegram";
+    var kenh = (_kenhDS[0] || {}).id || "";   // loại kênh cho ô DÁN TOKEN MỚI
+    var chonSan = (truoc && truoc.account_id) ? [truoc.account_id] : [];
     var box = el(
       '<div class="cb-modal"><div class="cb-form">' +
         '<h3>' + esc(sua ? window.t("cb.sua_bot") : window.t("cb.bot_moi")) + '</h3>' +
 
-        // Kênh đứng ĐẦU vì nó quyết định mọi thứ phía dưới: token lấy ở đâu, có dùng được
-        // nhóm không, có gửi được tài liệu không. Hỏi sau cùng thì người dùng đã điền xong cả
-        // form rồi mới biết mình chọn nhầm chỗ.
-        '<label>' + esc(window.t("cb.lb_kenh")) + '</label>' +
-        '<div id="cbKenhBox">' + veKenhChon(kenh, sua) + '</div>' +
+        // Tài khoản kênh đứng ĐẦU vì nó quyết định bot nói chuyện ở đâu, có nhóm không, gửi
+        // được file không. Từ 0.61.0 bot CHỌN tài khoản ở tab Kênh (tích được nhiều); dán token
+        // mới cũng được và token đó thành một tài khoản ở đó.
+        '<label>' + esc(window.t("cb.lb_tai_khoan")) + '</label>' +
+        '<div id="cbTkBox">' + veChonTK(b, chonSan) + '</div>' +
+        '<div class="cb-hint">' + esc(window.t("cb.hint_tai_khoan")) + '</div>' +
+        '<details class="cb-them-tk"' + (sua || (b && b.accounts && b.accounts.length) || _tkRanh.length || chonSan.length ? "" : " open") + '>' +
+          '<summary>' + ic("plus") + ' ' + esc(window.t("cb.them_token")) + '</summary>' +
+          '<label>' + esc(window.t("cb.lb_kenh")) + '</label>' +
+          '<div id="cbKenhBox">' + veKenhChon(kenh) + '</div>' +
+          '<label id="cbTokenLabel">Token ' + esc(kenhCua(kenh).nhan) +
+            (sua ? " " + esc(window.t("cb.token_de_trong")) : "") + '</label>' +
+          '<div class="cb-row">' +
+            '<input id="cbToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
+            '<button class="s-btn-ghost" id="cbCheck" type="button">' +
+              esc(window.t("cb.kiem_tra")) + '</button>' +
+          '</div>' +
+          '<div class="cb-hint" id="cbTokenNote">' + esc(kenhCua(kenh).lay_token) + " " +
+            esc(window.t("cb.token_rieng")) + '</div>' +
+        '</details>' +
 
         '<label>' + esc(window.t("cb.lb_ten")) + '</label>' +
         '<input id="cbName" value="' + esc(b ? b.name : "") + '" placeholder="' +
@@ -636,20 +686,6 @@
         '<select id="cbNgonNgu">' + htmlNgonNgu((b && b.ngon_ngu) || "auto") + '</select>' +
         '<div class="cb-muc-note">' + esc(window.t("cb.hint_ngon_ngu")) + '</div>' +
 
-        '<label id="cbTokenLabel">Token ' + esc(kenhCua(kenh).nhan) +
-          (sua ? " " + esc(window.t("cb.token_de_trong")) : "") + '</label>' +
-        '<div class="cb-row">' +
-          '<input id="cbToken" type="password" placeholder="' + esc(window.t("cb.ph_token")) + '">' +
-          '<button class="s-btn-ghost" id="cbCheck" type="button">' +
-            esc(window.t("cb.kiem_tra")) + '</button>' +
-        '</div>' +
-        '<div class="cb-hint" id="cbTokenNote">' +
-          (b && b.bot_username
-            ? esc(window.t("cb.dang_dung")) + " " + (kenh === "telegram" ? "@" : "") + esc(b.bot_username)
-            : esc(kenhCua(kenh).lay_token) + " " +
-              esc(window.t("cb.token_rieng"))) +
-        '</div>' +
-
         '<label>' + esc(window.t("cb.lb_handoff")) + '</label>' +
         '<input id="cbHandoff" value="' + esc(b ? (b.handoff_to || "") : "") + '" placeholder="' +
           esc(window.t("cb.ph_handoff")) + '">' +
@@ -686,8 +722,8 @@
           esc(window.t("cb.hint_rw_2")) + '</div>' +
         '</div>' +
         '<div class="cb-hint cb-khong-nhom" id="cbKhongNhom" style="display:none">' +
-          esc(window.t("cb.zalo_1")) + ' <b>' + esc(window.t("cb.hint_nhom_rieng")) + '</b>' +
-          esc(window.t("cb.zalo_2")) + '</div>' +
+          esc(window.t("cb.khong_nhom_1")) + ' <b>' + esc(window.t("cb.hint_nhom_rieng")) + '</b>' +
+          esc(window.t("cb.khong_nhom_2")) + '</div>' +
 
         '<div class="cb-form-acts">' +
           '<button class="s-btn-ghost" id="cbCancel" type="button">' +
@@ -718,37 +754,49 @@
     var oNote = box.querySelector(".cb-muc-note");
     oMuc.onchange = function () { oNote.innerHTML = veCanhBao(oMuc.value); };
 
-    var uname = (b && b.bot_username) || "";
+    var uname = "";
 
-    // Đổi kênh là đổi CẢ form theo: nhãn token, chỗ lấy token, và khối nhóm còn dùng được hay
-    // không. Token đã kiểm cũng phải bỏ đi - nó là danh tính ở nền tảng KIA, giữ lại thì lưu
-    // xong bản ghi mang tên một con bot không tồn tại trên kênh vừa chọn.
+    // Khối nhóm chỉ hiện khi CÓ tài khoản đứng được trong nhóm (đang tích, hoặc token mới của
+    // một kênh có nhóm). Hiện ra rồi để nó không có tác dụng là hứa suông: người dùng ngồi khai
+    // id nhóm xong chờ mãi một con bot không bao giờ vào được nhóm nào.
+    function tkDangChon() {
+      return Array.prototype.slice.call(box.querySelectorAll(".cb-tk-o:checked")).map(function (n) {
+        return { id: n.value, channel: n.dataset.k };
+      });
+    }
+    function coNhomForm() {
+      var tok = box.querySelector("#cbToken").value.trim();
+      return tkDangChon().some(function (a) { return kenhCua(a.channel).co_nhom; }) ||
+             (!!tok && kenhCua(kenh).co_nhom);
+    }
+    function apNhom() {
+      var co = coNhomForm();
+      var nhomBox = box.querySelector("#cbNhomBox");
+      var khong = box.querySelector("#cbKhongNhom");
+      if (nhomBox) nhomBox.style.display = co ? "" : "none";
+      if (khong) khong.style.display = co ? "none" : "";
+    }
+    // Đổi loại kênh của token mới là đổi nhãn token, chỗ lấy token, và bỏ token đã kiểm: nó là
+    // danh tính ở nền tảng KIA.
     function apKenh(k) {
-      // Chỉ bỏ token đã kiểm khi kênh THẬT SỰ đổi. Hàm này còn được gọi một lần lúc mở form
-      // để dựng đúng trạng thái ban đầu; bỏ vô điều kiện thì mở form Sửa rồi bấm Lưu là xoá
-      // trắng tên bot đang chạy, và thẻ quay ra báo "chưa có token" cho một con bot vẫn sống.
       if (k !== kenh) uname = "";
       kenh = k;
       var kc = kenhCua(k);
       var lb = box.querySelector("#cbTokenLabel");
       if (lb) lb.textContent = "Token " + kc.nhan + (sua ? " " + window.t("cb.token_de_trong") : "");
       var note = box.querySelector("#cbTokenNote");
-      // Giữ nguyên dòng "Đang dùng <tên bot>" khi mở form Sửa mà chưa đổi gì.
-      if (note && !(sua && k === ((b && b.channel) || "telegram") && uname)) {
-        note.textContent = kc.lay_token + " " + window.t("cb.token_rieng");
-      }
-      var nhomBox = box.querySelector("#cbNhomBox");
-      var khong = box.querySelector("#cbKhongNhom");
-      if (nhomBox) nhomBox.style.display = kc.co_nhom ? "" : "none";
-      if (khong) khong.style.display = kc.co_nhom ? "none" : "";
+      if (note) note.textContent = kc.lay_token + " " + window.t("cb.token_rieng");
       box.querySelectorAll(".cb-kenh-o").forEach(function (n) {
         n.classList.toggle("on", n.dataset.k === k);
       });
+      apNhom();
     }
     box.querySelectorAll(".cb-kenh-o").forEach(function (n) {
       n.onclick = function () { apKenh(n.dataset.k); };
     });
-    apKenh(kenh);
+    box.querySelectorAll(".cb-tk-o").forEach(function (n) { n.onchange = apNhom; });
+    box.querySelector("#cbToken").oninput = apNhom;
+    if (kenh) apKenh(kenh); else apNhom();
 
     box.querySelector("#cbCheck").onclick = async function () {
       var t = box.querySelector("#cbToken").value.trim();
@@ -763,7 +811,7 @@
         });
         uname = r.username || "";
         note.innerHTML = ic("check", { cls: "ic-ok" }) + " " + esc(window.t("cb.dung_bot")) + " <b>" +
-          (kenh === "telegram" ? "@" : "") + esc(uname) + "</b> (" + esc(r.bot_name || "") + ")" +
+          esc((kc.tien_to_ten || "") + uname) + "</b> (" + esc(r.bot_name || "") + ")" +
           // Gói bot Zalo cơ bản không vào được nhóm. Nói NGAY tại đây, lúc người dùng còn đang
           // nhìn vào token, chứ không để họ phát hiện ra sau vài ngày bot im trong nhóm.
           (r.vao_duoc_nhom === false
@@ -789,38 +837,44 @@
         return alert(window.t("cb.can_ack", { muc: mucCua(muc).nhan }));
       }
       if (muc === "full" && !confirm(window.t("cb.xn_full", { ten: ten }))) return;
-      // Kênh không dùng nhóm thì gửi rỗng, đừng gửi thứ người dùng gõ từ lúc còn chọn kênh
-      // khác: bản ghi mang một danh sách nhóm không bao giờ dùng tới là một lời hứa suông
-      // nằm lại trong dữ liệu.
-      var coNhom = kenhCua(kenh).co_nhom;
-      var gr = coNhom ? box.querySelector("#cbGroups").value : "";
-      var rw = coNhom ? box.querySelector("#cbReplyWhen").value : "mention";
+      // Không tài khoản nào đứng được trong nhóm thì gửi rỗng, đừng gửi thứ người dùng gõ
+      // lúc còn tích tài khoản khác: bản ghi mang một danh sách nhóm không bao giờ dùng tới
+      // là một lời hứa suông nằm lại trong dữ liệu.
+      var coNhomLuu = coNhomForm();
+      var gr = coNhomLuu ? box.querySelector("#cbGroups").value : "";
+      var rw = coNhomLuu ? box.querySelector("#cbReplyWhen").value : "mention";
+      var ids = tkDangChon().map(function (a) { return a.id; });
+      if (!ids.length && !tok) {
+        return alert(window.t("cb.chon_tai_khoan") + "\n\n" + (kenhCua(kenh).lay_token || ""));
+      }
+      var chung = { name: ten, agent_slug: ag, agent_brain: br, brain: br,
+                    handoff_to: ho, nguon_tra_loi: ngu, muc_quyen: muc, xac_nhan_rui_ro: "1",
+                    ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
+                    groups: gr, reply_when: rw, account_ids: ids.join(",") };
+      // Token mới (nếu dán): kèm loại kênh và tên đã kiểm; server tạo tài khoản rồi gắn vào bot.
+      if (tok) { chung.token = tok; chung.channel = kenh; chung.bot_username = uname; }
       try {
         if (sua) {
-          await api("/chatbots/" + encodeURIComponent(b.id) + "/update", {
-            method: "POST",
-            body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
-                       handoff_to: ho, token: tok, bot_username: uname, nguon_tra_loi: ngu,
-                       muc_quyen: muc, xac_nhan_rui_ro: "1",
-                       ngon_ngu: (document.getElementById("cbNgonNgu") || {}).value || "auto",
-                       groups: gr, reply_when: rw }),
-          });
+          await api("/chatbots/" + encodeURIComponent(b.id) + "/update", { method: "POST", body: fd(chung) });
         } else {
-          if (!tok) return alert(window.t("cb.dan_token_kenh", { kenh: kenhCua(kenh).nhan }) +
-                                 "\n\n" + kenhCua(kenh).lay_token);
-          await api("/chatbots", {
-            method: "POST",
-            body: fd({ name: ten, agent_slug: ag, agent_brain: br, brain: br,
-                       token: tok, bot_username: uname, handoff_to: ho, nguon_tra_loi: ngu,
-                       muc_quyen: muc, xac_nhan_rui_ro: "1", channel: kenh,
-                       groups: gr, reply_when: rw }),
-          });
+          await api("/chatbots", { method: "POST", body: fd(chung) });
         }
       } catch (e) { return alert(window.t("cb.loi_luu") + " " + e.message); }
       dong();
       tai();
     };
   }
+
+  // Tab Kênh bấm "Tạo bot trực" trên một tài khoản: mở form với tài khoản đó tích sẵn. Đợi
+  // trang nạp xong danh sách kênh (tai) rồi mới mở, để ô chọn có đủ dữ liệu.
+  document.addEventListener("javis:chatbot-new", function (e) {
+    var aid = (e.detail || {}).account_id;
+    var cho = 0;
+    (function thu() {
+      if (_kenhDS.length || cho++ > 20) return moForm(null, { account_id: aid });
+      setTimeout(thu, 150);
+    })();
+  });
 
   window.JavisChatbots = { render: render };
 })();

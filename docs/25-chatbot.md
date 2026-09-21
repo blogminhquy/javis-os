@@ -25,7 +25,7 @@ Bot chuyên trách **làm việc thật được** nếu bạn nâng mức quy�
 
 ## Mở ở đâu trong Javis
 
-Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**.
+Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Hội thoại**, tab **Chatbot** (từ 0.61.0 Chatbot, Kênh và Hộp thư ở chung một trang). Nói "mở chatbot" là tới thẳng tab này.
 
 ## Chuẩn bị trước khi tạo bot
 
@@ -49,7 +49,9 @@ Vào trang **Agents** tạo một Agent cho đúng việc bot sẽ làm. Viết 
 
 Bot **đọc Agent lúc chạy**, không chép lại. Sau này sửa Agent ở trang Agents là bot đổi theo ngay, không phải sửa hai chỗ. Chi tiết cách viết Agent ở [Agents & Workflows](07-agents-va-workflows.md).
 
-### 3. Một token riêng, lấy đúng chỗ theo kênh
+### 3. Một tài khoản kênh: token riêng, lấy đúng chỗ theo kênh
+
+Từ 0.61.0 token là một **tài khoản kênh** ở tab **Kênh**, bot chỉ **trỏ tới** nó. Bạn thêm tài khoản ở tab Kênh trước rồi tích chọn khi tạo bot, hoặc dán token ngay trong form tạo bot; hai đường cho cùng một kết quả. Một bot trực được **nhiều** tài khoản (một vai trả lời ở cả Telegram lẫn Zalo Bot), còn mỗi tài khoản chỉ **một** bot trực.
 
 Nếu bot chạy trên **Telegram**: vào **@BotFather** gõ `/newbot`, đặt tên và username, lấy chuỗi token dạng `123456789:ABCdef...`.
 
@@ -97,21 +99,20 @@ Bấm **Bot mới**, điền:
 
 | Ô | Điền gì |
 |---|---|
-| Bot này nói chuyện ở đâu | **Telegram** hay **Zalo**. Ô đầu tiên vì nó đổi cả phần còn lại của form. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
+| Bot trực tài khoản kênh nào | Tích một hay nhiều tài khoản ở tab Kênh (chỉ hiện tài khoản chưa bot nào trực). Chưa có thì mở **Thêm tài khoản mới bằng token**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
 | Tên bot | Tên bạn nhìn để phân biệt các bot với nhau |
 | Agent làm bộ não | Chọn Agent trong brain đang mở, hoặc bấm **Tạo Agent** |
 | Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |
 | Bot được làm gì | Mức quyền. Cứ để **Chỉ đọc** cho lần đầu; xem mục [Ba mức quyền](#ba-mức-quyền---bot-được-làm-gì) trước khi nâng |
-| Token | Dán token của đúng kênh vừa chọn rồi bấm **Kiểm tra** |
 | Chat ID người trực | Số Telegram của người nhận chuyển tiếp (xem bên dưới) |
-| Nhóm được phép | Chỉ hiện với bot Telegram. Để trống cũng được - thả bot vào nhóm rồi cho phép bằng một cú bấm sau (xem Bước 4) |
-| Khi nào bot lên tiếng trong nhóm | Chỉ hiện với bot Telegram. Mặc định chỉ khi được gọi tên hoặc reply vào nó |
+| Nhóm được phép | Chỉ hiện khi có tài khoản ở kênh vào được nhóm (Telegram). Để trống cũng được - thả bot vào nhóm rồi cho phép bằng một cú bấm sau (xem Bước 4) |
+| Khi nào bot lên tiếng trong nhóm | Cùng điều kiện. Mặc định chỉ khi được gọi tên hoặc reply vào nó |
 
-Chọn Zalo thì hai ô cuối **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên khai id nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
+Chỉ có tài khoản Zalo Bot thì hai ô cuối **biến mất** thay vì hiện ra rồi vô tác dụng: gói bot cơ bản của Zalo không cho bot vào nhóm, nên khai id nhóm ở đó chỉ là một lời hứa suông nằm lại trong dữ liệu.
 
 **Không có ô chọn brain**, và đó là cố ý: bot thuộc về brain bạn đang mở. Muốn bot ở brain khác thì đổi brain ở đầu trang rồi tạo lại - một chỗ để nhìn, không có hai lớp phải khớp nhau.
 
-Bấm **Kiểm tra** trước khi lưu: Javis hỏi thẳng nền tảng bạn vừa chọn xem token có thật không, trả về đúng tên bot, và báo ngay nếu token đó đã có bot khác trong Javis đang dùng. Với bot Zalo, nếu gói của bạn không cho bot vào nhóm thì nó nói luôn tại đây.
+Dán token mới thì bấm **Kiểm tra** trước khi lưu: Javis hỏi thẳng nền tảng bạn vừa chọn xem token có thật không, trả về đúng tên bot, và báo ngay nếu token đó đã là một tài khoản trong Javis (đang rảnh thì chỉ bạn tích tài khoản đó, đang có bot trực thì nói tên bot). Với Zalo Bot, nếu gói của bạn không cho bot vào nhóm thì nó nói luôn tại đây.
 
 **Bot tạo ra luôn ở trạng thái TẮT.** Đây là cố ý: bật lên là bot nói chuyện với người thật ngay lập tức, nên bật phải là một cú bấm có ý thức chứ không phải tác dụng phụ của việc tạo.
 

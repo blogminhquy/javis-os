@@ -1,8 +1,11 @@
 """Hộp thư hội thoại khách (Chatbot V2): đọc kho `conversations` cho trang Hội thoại.
 
-V1 là TRÌNH XEM: danh sách hội thoại, lịch sử tin, đánh dấu đã đọc, bật/tắt ghi cho từng tài
-khoản Zalo cá nhân. Thêm một đường `mode` để người thật TIẾP QUẢN một cuộc chat (bot im) và trả
-lại cho AI - phần chạy thật của tiếp quản nằm ở `chatbot_runtime` (xem `che_do` ở đó).
+Danh sách hội thoại, lịch sử tin, đánh dấu đã đọc, `mode` để người thật TIẾP QUẢN một cuộc
+chat (bot im) và trả lại cho AI (phần chạy thật nằm ở `chatbot_runtime`, xem `che_do`), và từ
+0.61.0 `reply`: chủ trả lời khách NGAY TỪ JAVIS qua năng lực gửi của kênh (sổ `channels`).
+
+Kênh và tài khoản kênh có API riêng ở `routes/channels.py`; hai đường cũ
+`/conversations/channels` và `/conversations/zalo/{id}/watch` giữ làm bí danh cho bookmark cũ.
 
 Xác thực: như mọi route khác, đi qua `_auth_guard` của main.py (cookie phiên hoặc API token).
 Không nhận `import main` - mọi thứ cần từ main đi qua `deps`.
@@ -15,9 +18,11 @@ from typing import Callable
 from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
 
+import channel_accounts
+import channels
 import chatbot_store
 import conversations
-import zalo_personal_channel
+import routes.channels as channels_routes
 
 router = APIRouter()
 
@@ -47,7 +52,7 @@ def register(app, deps: ConversationsDeps):
                                         q=q, mode=mode, limit=limit, offset=offset)
         return {"ok": True, "items": items,
                 "stats": conversations.thong_ke(bot_id=bot_id, channel=channel, account_id=account_id),
-                "channels": [{"id": k, "nhan": v} for k, v in conversations.KENH_NHAN.items()]}
+                "channels": channels.cho_giao_dien()}
 
     @router.get("/conversations/stats")
     async def conversations_stats(bot_id: str = "", channel: str = "", account_id: str = ""):
@@ -56,44 +61,17 @@ def register(app, deps: ConversationsDeps):
 
     @router.get("/conversations/channels")
     async def conversations_channels():
-        """Mục Kênh của trang Hội thoại: bot chuyên trách (tự ghi) và tài khoản Zalo cá nhân
-        (ghi khi chủ bật). Kèm số hội thoại đã có của từng tài khoản kênh."""
-        da_co = {a["id"]: a for a in conversations.tai_khoan()}
-        bots = []
-        for b in chatbot_store.list_bots():
-            kenh = "zalo" if str(b.get("channel") or "") == "zalo" else "telegram"
-            tk = da_co.get(f"{kenh}:{b['id']}") or {}
-            st = {}
-            try:
-                st = _DEPS.bot_status(b["id"]) if _DEPS else {}
-            except Exception:
-                st = {}
-            bots.append({
-                "id": b["id"], "name": b.get("name") or "", "icon": b.get("icon") or "headset",
-                "channel": kenh, "channel_label": conversations.KENH_NHAN.get(kenh, kenh),
-                "brain": b.get("brain") or "", "enabled": bool(b.get("enabled")),
-                "state": (st or {}).get("state") or "off",
-                "account_id": f"{kenh}:{b['id']}",
-                "so_hoi_thoai": int(tk.get("so_hoi_thoai") or 0),
-                "chua_doc": int(tk.get("chua_doc") or 0),
-            })
-        zalo = []
-        for z in zalo_personal_channel.tai_khoan():
-            tk = da_co.get(f"{zalo_personal_channel.KENH}:{z['id']}") or {}
-            z = dict(z)
-            z["channel_label"] = conversations.KENH_NHAN.get(zalo_personal_channel.KENH)
-            z["account_id"] = f"{zalo_personal_channel.KENH}:{z['id']}"
-            z["so_hoi_thoai"] = int(tk.get("so_hoi_thoai") or 0)
-            z["chua_doc"] = int(tk.get("chua_doc") or 0)
-            zalo.append(z)
-        return {"ok": True, "bots": bots, "zalo_personal": zalo,
-                "zalo_dang_doc": zalo_personal_channel.trang_thai().get("dang_chay", False),
-                "channels": [{"id": k, "nhan": v} for k, v in conversations.KENH_NHAN.items()]}
+        """Bí danh của GET /channels/accounts (0.61.0): mọi tài khoản kênh, một khuôn."""
+        return {"ok": True, "accounts": channels_routes._tai_khoan_thong_nhat(),
+                "channels": channels.cho_giao_dien()}
 
     @router.post("/conversations/zalo/{conn_id}/watch")
     async def conversations_zalo_watch(conn_id: str, on: str = Form("1")):
-        """Bật/tắt ghi hội thoại của một tài khoản Zalo cá nhân vào Hộp thư."""
-        r = zalo_personal_channel.bat(conn_id, str(on).strip().lower() in ("1", "true", "on", "yes"))
+        """Bí danh cũ của POST /channels/accounts/{id}/watch cho Zalo cá nhân."""
+        m = channels.module("zalo_personal")
+        if not m:
+            return JSONResponse({"ok": False, "error": "kênh Zalo cá nhân chưa có trong sổ"}, status_code=400)
+        r = m.bat(conn_id, str(on).strip().lower() in ("1", "true", "on", "yes"))
         return r if r.get("ok") else JSONResponse(r, status_code=400)
 
     @router.get("/conversations/{conv_id}")
@@ -112,6 +90,54 @@ def register(app, deps: ConversationsDeps):
     @router.post("/conversations/{conv_id}/read")
     async def conversations_read(conv_id: int):
         return {"ok": True} if conversations.danh_dau_da_doc(conv_id) else _404()
+
+    @router.post("/conversations/{conv_id}/reply")
+    async def conversations_reply(conv_id: int, text: str = Form(...)):
+        """Chủ trả lời khách ngay từ Hộp thư (Chatbot V2 bản V1.2).
+
+        Gửi qua năng lực `gui` của kênh trong sổ đăng ký: bot Telegram/Zalo gửi bằng token của
+        tài khoản, Zalo cá nhân gửi bằng MCP dưới danh tính chủ. Gửi được thì ghi vào kho như
+        tin `human`, và nếu cuộc này có bot đang trực ở chế độ AI thì TIẾP QUẢN luôn (chuyển
+        `human`): người vừa nhắn tay mà bot chen vào câu sau là khách đọc hai giọng một lúc.
+        Trả `tiep_quan: true` để giao diện nói ra điều đó.
+        """
+        c = conversations.chi_tiet(conv_id)
+        if not c:
+            return _404()
+        txt = str(text or "").strip()
+        if not txt:
+            return JSONResponse({"ok": False, "error": "tin rỗng"}, status_code=400)
+        if len(txt) > conversations.MAX_CHU:
+            return JSONResponse({"ok": False, "error": f"tin dài quá {conversations.MAX_CHU} ký tự"}, status_code=400)
+        kenh = str(c.get("channel") or "")
+        key = str(c.get("channel_account_id") or "")
+        raw = key.split(":", 1)[1] if ":" in key else key
+        s = channels.spec(kenh)
+        if not s:
+            return JSONResponse({"ok": False, "error": f"kênh '{kenh}' không có trong sổ đăng ký"}, status_code=400)
+        tk = {"id": raw, "channel": kenh}
+        if s.kind == "bot":
+            a = channel_accounts.get_account(raw) or {}
+            tk.update({k: a.get(k) for k in ("label", "external_id")})
+            tk["token"] = channel_accounts.get_token(raw)
+        ok, loi = await channels.gui(kenh, tk, str(c.get("external_chat_id") or ""), txt,
+                                     str(c.get("chat_type") or "private"))
+        if not ok:
+            return JSONResponse({"ok": False, "error": loi or "không gửi được"}, status_code=400)
+        r = conversations.ghi_su_kien({
+            "channel": kenh, "account_id": raw, "account_name": c.get("account_name") or "",
+            "bot_id": c.get("bot_id") or "",
+            "external_chat_id": c.get("external_chat_id"), "chat_type": c.get("chat_type"),
+            "chat_title": c.get("title") if c.get("chat_type") == "group" else "",
+            "sender_type": "human", "sender_name": "Bạn", "message_type": "text", "text": txt,
+            "metadata": {"tu_javis": True},
+        })
+        tiep_quan = False
+        if c.get("bot_id") and str(c.get("mode") or "ai") == "ai":
+            conversations.dat_che_do(conv_id, "human")
+            tiep_quan = True
+        return {"ok": True, "message_id": r.get("message_id"), "tiep_quan": tiep_quan,
+                "conversation": conversations.chi_tiet(conv_id)}
 
     @router.post("/conversations/{conv_id}/mode")
     async def conversations_mode(conv_id: int, mode: str = Form(...)):

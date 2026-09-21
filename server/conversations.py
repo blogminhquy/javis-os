@@ -42,11 +42,12 @@ from config import STATE_DIR
 DB_PATH = STATE_DIR / "customer_conversations.sqlite3"
 
 # Kênh mà kho hiểu. Adapter mới chỉ cần chuẩn hoá về sự kiện chung và dùng một giá trị ở đây.
-KENH = ("telegram", "zalo", "zalo_personal", "zalo_oa", "facebook", "web")
-KENH_NHAN = {
-    "telegram": "Telegram", "zalo": "Zalo Bot", "zalo_personal": "Zalo cá nhân",
-    "zalo_oa": "Zalo OA", "facebook": "Facebook Messenger", "web": "Web Chat",
-}
+# Kênh kho hiểu = SỔ ĐĂNG KÝ KÊNH (server/channels). Trước 0.61.0 danh sách này chép tay ở đây
+# (kèm vài kênh "chừa chỗ" chưa có adapter); nay thêm kênh là thêm một module ở sổ, kho tự nhận.
+import channels as _channels   # noqa: E402  (nhẹ: sổ không kéo httpx hay MCP lúc import)
+
+KENH = _channels.ids()
+KENH_NHAN = _channels.nhan_theo_id()
 NGUOI_GUI = ("customer", "ai", "human", "system")
 LOAI_TIN = ("text", "image", "file", "audio", "video", "sticker", "other")
 CHE_DO = ("ai", "human", "waiting", "closed")

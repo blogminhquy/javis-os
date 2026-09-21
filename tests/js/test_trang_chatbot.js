@@ -291,40 +291,43 @@ check("Zalo là chữ Z trắng trong bong bóng trò chuyện xanh",
   /zalo:[\s\S]{0,400}fill="#0068FF"[\s\S]{0,600}M8\.5 7\.9h7\.05/.test(ICONS));
 check("kênh lạ trả rỗng chứ không vẽ dấu hỏi", /if \(!k\) return "";/.test(ICONS));
 
-check("kênh hiện trên thẻ bot (huy hiệu ở icon + chip ở phần thông tin)",
-  /class="cb-ico-kenh"/.test(CB) && /function chipKenh\(/.test(CB) && /chipKenh\(kenh\)/.test(CB));
-check("form hỏi kênh NGAY Ở ĐẦU, trước cả tên bot",
-  tu("cb.lb_kenh", "Bot này nói chuyện ở đâu") && tu("cb.lb_ten", "Tên bot") &&
-  CB.indexOf('window.t("cb.lb_kenh")') > -1 &&
-  CB.indexOf('window.t("cb.lb_kenh")') < CB.indexOf('window.t("cb.lb_ten")'));
-check("chọn kênh bằng thẻ bấm có logo, không phải <select> trơn",
+// 0.61.0: bot TRỎ tới tài khoản kênh (một bot trực được nhiều tài khoản), kênh không còn là
+// một trường của bot. Thẻ hiện một chip cho MỖI tài khoản; huy hiệu ở icon chỉ khi có đúng một.
+check("kênh hiện trên thẻ bot (huy hiệu ở icon khi một tài khoản + chip cho từng tài khoản)",
+  /class="cb-ico-kenh"/.test(CB) && /function chipTK\(/.test(CB) && /\.map\(chipTK\)/.test(CB));
+check("form hỏi tài khoản kênh NGAY Ở ĐẦU, trước cả tên bot",
+  tu("cb.lb_tai_khoan", "tài khoản kênh") && tu("cb.lb_ten", "Tên bot") &&
+  CB.indexOf('window.t("cb.lb_tai_khoan")') > -1 &&
+  CB.indexOf('window.t("cb.lb_tai_khoan")') < CB.indexOf('window.t("cb.lb_ten")'));
+check("tích được NHIỀU tài khoản (cùng một vai trực Telegram lẫn Zalo)",
+  /class="cb-tk-o"/.test(CB) && /account_ids: ids\.join\(","\)/.test(CB) && tu("cb.hint_tai_khoan", "nhiều tài khoản"));
+check("chọn kênh cho token mới bằng thẻ bấm có logo, không phải <select> trơn",
   /class="cb-kenh"/.test(CB) && /class="cb-kenh-o/.test(CB) && /cb-kenh-logo/.test(CB));
-check("mỗi kênh nói rõ ưu và nhược ngay trên nút",
-  /KENH_TOM\s*=/.test(CB) && noi("cb.kenhtom_zalo", "chưa gửi được tài liệu"));
-// Đổi kênh của bot đã tạo = đổi sang một con bot khác (token khác, khách khác). Khoá lại và
-// nói thẳng, chứ đừng cho bấm rồi báo lỗi token ở bước sau.
-check("sửa bot thì kênh bị KHOÁ kèm lý do",
-  /veKenhChon\(kenh, sua\)/.test(CB) && /cb-kenh-khoa/.test(CB) &&
-  noi("cb.kenh_khoa", "Không đổi được kênh của bot đã tạo"));
-check("đổi kênh là đổi theo cả form (nhãn token, chỗ lấy token, khối nhóm)",
+// Ưu nhược của từng kênh do SERVER cấp (`tom_tat` trong sổ đăng ký kênh), giao diện không chép.
+check("mỗi kênh nói rõ ưu và nhược ngay trên nút, câu chữ lấy từ server",
+  /esc\(k\.tom_tat \|\| ""\)/.test(CB) && !/KENH_TOM\s*=/.test(CB));
+// CANARY: giao diện KHÔNG đoán gì theo id kênh. Logo, nhãn, năng lực đều từ danh sách server;
+// thêm kênh ở server là trang này vẽ được ngay, không sửa một dòng nào ở đây.
+check("CANARY: không rẽ nhánh theo id kênh (logo qua kenhCua().logo, không Icons.kenh(kenh) trực tiếp)",
+  /function logoKenh\(/.test(CB) && !/Icons\.kenh\(kenh/.test(CB) && !/Icons\.kenh\(k\.id/.test(CB)
+  && !/=== "zalo"/.test(CB));
+check("đổi kênh của token mới là đổi theo cả form (nhãn token, chỗ lấy token, khối nhóm)",
   /function apKenh\(k\)/.test(CB) && /cbTokenLabel/.test(CB) && /cbNhomBox/.test(CB));
 check("đổi kênh thì BỎ token đã kiểm (nó là danh tính ở nền tảng kia)",
   /function apKenh\(k\)[\s\S]{0,400}if \(k !== kenh\) uname = "";/.test(CB));
-// Hàm này còn chạy MỘT LẦN lúc mở form để dựng trạng thái ban đầu. Bỏ uname vô điều kiện thì
-// mở form Sửa rồi bấm Lưu là xoá trắng tên bot đang chạy, và thẻ báo "chưa có token" cho một
-// con bot vẫn sống - hỏng im lặng, chỉ lộ ra khi nhìn kỹ thẻ.
-check("mở form Sửa mà chưa đổi kênh thì KHÔNG xoá tên bot đang dùng",
-  /if \(k !== kenh\) uname = "";/.test(CB) &&
-  /sua && k === \(\(b && b\.channel\) \|\| "telegram"\) && uname/.test(CB));
 check("kiểm token gửi kèm kênh để hỏi đúng nền tảng",
   /channel: kenh/.test(CB) && /window\.t\("cb\.dang_hoi", \{ kenh: kc\.nhan \}\)/.test(CB)
   && tu("cb.dang_hoi", "Đang hỏi") && tu("cb.dang_hoi", "{kenh}"));
-check("tạo bot gửi kênh lên server", /channel: kenh,/.test(CB));
-check("kênh không vào được nhóm thì ẨN cả khối nhóm, không hiện ra rồi vô tác dụng",
-  /cbKhongNhom/.test(CB) && /kc\.co_nhom \? "" : "none"/.test(CB));
+check("dán token mới thì gửi kèm kênh lên server", /chung\.channel = kenh;/.test(CB));
+check("không tài khoản nào vào được nhóm thì ẨN cả khối nhóm, không hiện ra rồi vô tác dụng",
+  /cbKhongNhom/.test(CB) && /function coNhomForm\(/.test(CB) && /nhomBox\.style\.display = co \? "" : "none"/.test(CB));
 check("và KHÔNG gửi id nhóm thừa lên server",
-  /var coNhom = kenhCua\(kenh\)\.co_nhom/.test(CB) && /coNhom \? box\.querySelector\("#cbGroups"\)/.test(CB));
-check("cảnh báo riêng tư chỉ hiện cho bot Telegram", /kenh === "telegram" && duNhom/.test(CB));
+  /var coNhomLuu = coNhomForm\(\)/.test(CB) && /coNhomLuu \? box\.querySelector\("#cbGroups"\)/.test(CB));
+check("thẻ bot nói thẳng khi chưa có tài khoản kênh nào",
+  noi("cb.chua_token", "chưa có tài khoản kênh"));
+check("mở form từ tab Kênh với tài khoản tích sẵn", /javis:chatbot-new/.test(CB) && /chonSan/.test(CB));
+check("cảnh báo riêng tư chỉ hiện khi bot có tài khoản Telegram",
+  /a\.channel === "telegram"/.test(CB) && /coTelegram && duNhom/.test(CB));
 check("bộ lọc kênh chỉ hiện khi có từ hai kênh trở lên",
   /function veLoc\(/.test(CB) && /if \(ks\.length < 2\)/.test(CB));
 check("danh sách kênh lấy từ SERVER, không chép cứng ở giao diện",

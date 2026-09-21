@@ -470,7 +470,7 @@ check("im lặng có chủ ý khác câu trả lời rỗng",
       'im_lang = bool(reply.get("im_lang"))' in _TG and
       'if im_lang and not str(reply or "").strip() and not files:' in _TG)
 check("bộ giám sát nối chốt chặn vào poller của bot",
-      "precheck_fn=_make_precheck_fn(bot_id)" in
+      "precheck_fn=_gan_tai_khoan(_make_precheck_fn(bot_id)" in
       (SERVER / "chatbot_runtime.py").read_text(encoding="utf-8"))
 check("kênh nghe tin dịch vụ của nhóm (vào nhóm / bị đá / đổi id)",
       "async def _bao_su_kien" in _TG and '"migrate_to_chat_id"' in _TG)
