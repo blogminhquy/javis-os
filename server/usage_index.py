@@ -140,6 +140,12 @@ def _unchanged(conn, path, size, mtime) -> bool:
     return bool(row) and row[0] == size and abs((row[1] or 0) - mtime) < 1e-6
 
 
+def _da_quet(conn, path):
+    """(size, mtime, offset) da ghi cho file nay, hoac None neu chua tung quet."""
+    row = conn.execute("SELECT size, mtime, offset FROM files_seen WHERE path=?", (path,)).fetchone()
+    return (row[0] or 0, row[1] or 0, row[2] or 0) if row else None
+
+
 def _mark(conn, path, size, mtime, offset=0) -> None:
     conn.execute("INSERT INTO files_seen(path,size,mtime,offset) VALUES(?,?,?,?) "
                  "ON CONFLICT(path) DO UPDATE SET size=excluded.size, mtime=excluded.mtime, offset=excluded.offset",
@@ -193,20 +199,58 @@ def _insert_events(conn, path, events) -> None:
 
 
 def _scan_claude(conn, chat, brains) -> int:
+    """Quet transcript Claude Code, DOC TIEP tu cho lan truoc dung lai.
+
+    Vi sao phai doc tiep (do 2026-09-21 tren may chu du an): ~/.claude/projects co 651 file va
+    602 MB, file to nhat 25 MB. Ban cu thay size/mtime doi la `_clear_file` roi parse LAI CA
+    FILE tu dong dau - trong khi transcript phien chi duoc GHI THEM vao cuoi. Nen mot phien
+    Claude Code dang chay, moi lan no ghi them mot dong, la ca file bi parse lai. Do duoc:
+    quet day du 651 file mat 27 GIAY, va trang Muc dung thi CHO quet xong moi ve, nen no dung
+    hinh o chu "Dang dung chi so token..." lau den muc trong nhu treo.
+
+    Doc tiep bang OFFSET BYTE (cot files_seen.offset von da co san, truoc chi dung cho
+    usage-events.jsonl). Ba luat de khong dem sai:
+      - Chi doc tiep khi file DAI RA that su (size > size cu). Size teo lai (log bi don/xoay
+        vong) hay size y nguyen ma mtime doi (ghi de tai cho) -> quet lai tron file cho chac.
+      - Doc tiep thi KHONG `_clear_file`: dong cu cua file van dung, phan moi cong them vao.
+        `_insert_events` gom theo khoa roi INSERT, va moi cau truy van deu SUM nen cong don
+        nhieu dong cung khoa ra dung ket qua.
+      - DONG CUOI KHONG KET THUC BANG \\n van duoc TINH, nhung offset KHONG nhich qua no, va
+        lan sau file do phai quet lai TRON (dieu kien `offset == size cu`). Day la cho de sai
+        nhat, va `test_usage_index` da bat duoc: khong phai file nao cung ket thuc bang xuong
+        dong. Bo qua dong cut thi mot phien ket thuc khong co \\n bi mat luot cuoi VINH VIEN;
+        con tinh no roi van doc tiep thi khi no duoc ghi not, no bi dem HAI LAN. Tinh no, ghi
+        nho rang file chua dung tren ranh gioi dong, roi quet lai tron neu file con dai ra -
+        vua khong mat vua khong trung.
+    File chua tung co offset (moi cai truoc ban nay) van di duong quet tron mot lan, sau do tu
+    co offset - khong can migration, khong ton mot lan quet lai toan bo.
+    """
     n = 0
     for path in glob.glob(os.path.join(_claude_dir(), "**", "*.jsonl"), recursive=True):
         try:
             st = os.stat(path)
         except OSError:
             continue
-        if _unchanged(conn, path, st.st_size, st.st_mtime):
+        cu = _da_quet(conn, path)
+        if cu and cu[0] == st.st_size and abs(cu[1] - st.st_mtime) < 1e-6:
             continue
-        _clear_file(conn, path)
+        # `cu[2] == cu[0]`: lan truoc file dung DUNG tren ranh gioi dong. Khac di nghia la lan
+        # truoc co mot dong cut da duoc tinh roi, doc tiep se dem lai chinh no.
+        doc_tiep = bool(cu) and cu[2] > 0 and cu[2] == cu[0] and st.st_size > cu[0]
+        if not doc_tiep:
+            _clear_file(conn, path)
+        offset = cu[2] if doc_tiep else 0
         events = []
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    line = line.strip()
+            # Mo che do NHI PHAN: che do van ban khong cho `tell()` trong luc lap, con o day
+            # thi cong don len(raw) cho ra dung vi tri byte ma khong phai hoi file lan nao.
+            with open(path, "rb") as fh:
+                if offset:
+                    fh.seek(offset)
+                for raw in fh:
+                    if raw.endswith(b"\n"):
+                        offset += len(raw)
+                    line = raw.decode("utf-8", "replace").strip()
                     if not line:
                         continue
                     try:
@@ -219,7 +263,7 @@ def _scan_claude(conn, chat, brains) -> int:
         except OSError:
             continue
         _insert_events(conn, path, events)
-        _mark(conn, path, st.st_size, st.st_mtime)
+        _mark(conn, path, st.st_size, st.st_mtime, offset)
         n += 1
     return n
 
