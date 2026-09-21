@@ -1001,7 +1001,140 @@ def _rpc_error(mid, code, message):
     return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": message}}
 
 
-async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None):
+# ============================================================
+# Brain (vault) của một lượt gọi hub
+# ============================================================
+# Sự cố 2026-09-21: hub chỉ biết brain qua header `X-Javis-Vault`, mà chỗ DUY NHẤT ghi header
+# đó là khi CHÍNH Javis khởi động tiến trình engine (`codex_vault_override` nhét vào argv `-c`,
+# Claude/Antigravity/Grok ghi file cấu hình riêng từng lượt). Profile dùng chung
+# `~/.codex/<tên>.config.toml` thì CỐ Ý không mang header, vì nhét vào file dùng chung sẽ race
+# khi hai brain chạy đồng thời. Hệ quả không ai lường: mọi phiên Codex NGƯỜI DÙNG tự mở đều tới
+# hub với vault rỗng, và `javis_task`/`javis_schedule`/`javis_workflow` fail-closed với câu
+# "chưa biết đang làm việc trên brain nào" - đúng, nhưng vô phương chẩn đoán từ phía client.
+#
+# Luật fail-closed sinh ra để chặn một chuyện CỤ THỂ: chạy nhầm sang brain của người khác. Nó
+# không đòi phải câm. Nên chỗ này suy ra brain đang mở, và đổi lại thì NÓI RA: mọi kết quả tool
+# đi theo đường suy-ra đều kèm một dòng ghi rõ đang chạy brain nào. Chạy nhầm brain mà người
+# dùng nhìn thấy ngay ở câu trả lời thì không còn là chạy nhầm im lặng nữa.
+_BRAIN_CACHE = {"ts": 0.0, "root": "", "nguon": ""}
+_BRAIN_TTL = 10.0     # đủ ngắn để đổi brain ở dashboard có hiệu lực gần như tức thì
+
+
+def _brains_dir() -> Path:
+    """Thư mục CHA chứa mọi brain (mỗi folder con = 1 brain).
+
+    Suy y hệt `main.BRAINS_DIR` nhưng KHÔNG import main: main import mcp_hub, nên chiều ngược
+    lại là vòng tròn. Đọc env ở MỖI lần gọi (không cache vào hằng số module) để test đổi
+    BRAINS_DIR giữa chừng vẫn đúng.
+    """
+    return Path(os.getenv("BRAINS_DIR", str(Path(__file__).parent.parent / "brains")))
+
+
+def _brain_duy_nhat() -> str:
+    """Đường dẫn brain DUY NHẤT trên máy, hoặc "" nếu có 0 hay nhiều hơn 1.
+
+    Đây là ca không thể nhầm: không có brain nào khác để mà nhầm sang. Dùng cho máy vừa cài,
+    chưa chat lượt nào nên chưa suy được brain đang mở."""
+    try:
+        ds = [d for d in sorted(_brains_dir().iterdir())
+              if d.is_dir() and not d.name.startswith(".")]
+    except OSError:
+        return ""
+    if len(ds) != 1:
+        return ""
+    try:
+        return str(ds[0].resolve())
+    except OSError:
+        return str(ds[0])
+
+
+def quen_brain_dang_mo() -> None:
+    """Xoá cache brain đang mở. Gọi sau khi đổi brain nếu cần hiệu lực ngay (test dùng)."""
+    _BRAIN_CACHE.update({"ts": 0.0, "root": "", "nguon": ""})
+
+
+def _brain_dang_mo() -> tuple:
+    """(đường_dẫn, nguồn) brain suy ra được. ("", "") nghĩa là không suy được."""
+    now = time.time()
+    if now - _BRAIN_CACHE["ts"] < _BRAIN_TTL:
+        return _BRAIN_CACHE["root"], _BRAIN_CACHE["nguon"]
+    root, nguon = "", ""
+    try:
+        import sessions
+        ung = sessions.get_store().brain_gan_nhat()
+        if ung:
+            p = Path(ung).expanduser()
+            if p.is_dir():
+                root, nguon = str(p.resolve()), "phien"
+    except Exception as e:
+        print(f"[hub brain] {type(e).__name__}: {e}", file=sys.stderr)
+    if not root:
+        mot = _brain_duy_nhat()
+        if mot:
+            root, nguon = mot, "duy-nhat"
+    _BRAIN_CACHE.update({"ts": now, "root": root, "nguon": nguon})
+    return root, nguon
+
+
+def resolve_vault(raw_vault):
+    """(vault_root, nguồn, header_hỏng) cho một lượt gọi hub.
+
+    nguồn: "header" (client gửi đúng) | "phien" (brain đang mở) | "duy-nhat" (máy chỉ có một
+    brain) | "" (chịu, không suy được). `header_hỏng` khác rỗng nghĩa là client CÓ gửi header
+    nhưng nó không trỏ tới thư mục có thật - phải nói ra, vì im lặng bỏ qua một header sai
+    chính là kiểu hỏng khó truy nhất (client tin là mình đã gửi rồi).
+    """
+    raw = (raw_vault or "").strip()
+    header_hong = ""
+    if raw:
+        try:
+            p = Path(raw).expanduser().resolve()
+            if p.is_dir():
+                return str(p), "header", ""
+        except Exception:
+            pass
+        header_hong = raw
+    root, nguon = _brain_dang_mo()
+    return (root or None), (nguon if root else ""), header_hong
+
+
+_NGUON_CHU = {"phien": "brain đang mở (cuộc trò chuyện gần nhất)",
+              "duy-nhat": "brain duy nhất trên máy này"}
+
+
+def _ghi_chu_brain(nguon, vault_root, header_hong):
+    """Dòng gắn vào kết quả tool để người dùng luôn biết lượt đó chạy trên brain nào."""
+    if nguon not in _NGUON_CHU:
+        return ""
+    ra = (f"(Javis đang làm việc trên brain \"{Path(vault_root).name}\" - {vault_root}. "
+          f"Lượt gọi này tới hub không kèm header X-Javis-Vault nên hub lấy "
+          f"{_NGUON_CHU[nguon]}. Muốn brain khác thì đổi brain trên dashboard, hoặc thêm "
+          f"header X-Javis-Vault vào cấu hình MCP của client.)")
+    if header_hong:
+        ra = (f"(Header X-Javis-Vault có gửi nhưng trỏ vào \"{header_hong}\" - đường dẫn này "
+              f"không có thật trên máy chủ nên hub không dùng được.) ") + ra
+    return ra
+
+
+def _chan_doan_thieu_brain(header_hong):
+    """Phần đuôi gắn vào lỗi khi hub không suy ra nổi brain nào. Phải nêu ĐÍCH DANH thứ còn
+    thiếu và ai gây ra nó, vì đứng từ phía client thì lỗi gốc nói y như một lỗi cấu hình máy."""
+    dau = ""
+    if header_hong:
+        dau = (f"Header X-Javis-Vault có gửi nhưng trỏ vào \"{header_hong}\", đường dẫn này "
+               f"không có thật trên máy chủ. ")
+    return ("\n\n(CHẨN ĐOÁN: " + dau + "lượt gọi này tới hub không mang brain nào, và Javis "
+            "cũng chưa suy ra được brain đang mở (chưa có cuộc trò chuyện nào, mà thư mục "
+            f"{_brains_dir()} đang có nhiều hơn một brain nên hub không đoán bừa). Thiếu header "
+            "là chuyện của cấu hình MCP phía client: Javis chỉ tự gắn X-Javis-Vault khi CHÍNH "
+            "nó khởi động engine, còn phiên Codex do người dùng tự mở thì dùng profile chung "
+            "vốn không mang header. Cách chữa: chat một lượt ở dashboard để Javis biết brain "
+            "đang mở, hoặc thêm \"X-Javis-Vault\" = \"<đường dẫn brain>\" vào http_headers của "
+            "server javis trong cấu hình MCP.)")
+
+
+async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, vault_root=None,
+                      vault_nguon="", vault_header_hong=""):
     mid = msg.get("id")
     method = msg.get("method") or ""
     params = msg.get("params") or {}
@@ -1035,10 +1168,17 @@ async def _handle_one(msg, mode, include_plugins=True, include_ambient=False, va
         _, route = await discover_all(mode, vault_root=vault_root, include_plugins=include_plugins,
                                       include_ambient=include_ambient)
         name = params.get("name") or ""
-        result = await mcp_client.call_route(route, name, params.get("arguments") or {})
+        result = str(await mcp_client.call_route(route, name, params.get("arguments") or {}))
+        ghi_chu = _ghi_chu_brain(vault_nguon, vault_root, vault_header_hong)
+        if ghi_chu:
+            result += "\n\n" + ghi_chu
+        elif not vault_root and result.startswith("ERROR:"):
+            # Không suy ra nổi brain: chỉ gắn chẩn đoán vào LỖI, để tool không cần brain
+            # (POS, Gmail...) không phải gánh một đoạn văn không liên quan.
+            result += _chan_doan_thieu_brain(vault_header_hong)
         return {"jsonrpc": "2.0", "id": mid, "result": {
-            "content": [{"type": "text", "text": str(result)}],
-            "isError": str(result).startswith("ERROR:"),
+            "content": [{"type": "text", "text": result}],
+            "isError": result.startswith("ERROR:"),
         }}
     return _rpc_error(mid, -32601, f"method không hỗ trợ: {method}")
 
@@ -1058,28 +1198,25 @@ async def handle_http(request):
     include_ambient = (request.headers.get("x-javis-engine") or "").strip().lower() == "claude"
     # Codex chạy MCP qua HTTP hub (khác Claude SDK đấu plugin in-process), nên nếu không mang
     # brain hiện tại thì plugin javis_schedule có tool nhưng không biết phải đọc kho cron nào.
-    # Chỉ nhận đường dẫn thư mục có thật; Bearer hub_token vẫn là lớp auth bắt buộc phía trên.
-    vault_root = None
-    raw_vault = (request.headers.get("x-javis-vault") or "").strip()
-    if raw_vault:
-        try:
-            candidate = Path(raw_vault).expanduser().resolve()
-            if candidate.is_dir():
-                vault_root = str(candidate)
-        except Exception:
-            pass
+    # Header chỉ nhận đường dẫn thư mục có thật; thiếu header thì `resolve_vault` suy ra brain
+    # đang mở rồi NÓI RA ở kết quả tool (xem khối chú thích ở `_brain_dang_mo`). Bearer
+    # hub_token vẫn là lớp auth bắt buộc phía trên.
+    vault_root, vault_nguon, vault_header_hong = resolve_vault(
+        request.headers.get("x-javis-vault"))
     try:
         body = await request.json()
     except Exception:
         return JSONResponse(_rpc_error(None, -32700, "parse error"), status_code=400)
     try:
         if isinstance(body, list):
-            out = [r for r in [await _handle_one(m, mode, include_plugins, include_ambient, vault_root)
+            out = [r for r in [await _handle_one(m, mode, include_plugins, include_ambient,
+                                                 vault_root, vault_nguon, vault_header_hong)
                                for m in body] if r is not None]
             if not out:
                 return Response(status_code=202)
             return JSONResponse(out)
-        res = await _handle_one(body, mode, include_plugins, include_ambient, vault_root)
+        res = await _handle_one(body, mode, include_plugins, include_ambient, vault_root,
+                                vault_nguon, vault_header_hong)
         if res is None:
             return Response(status_code=202)
         return JSONResponse(res)

@@ -674,6 +674,23 @@ class SessionStore:
         )
         return [dict(r) for r in rows]
 
+    def brain_gan_nhat(self) -> str:
+        """Brain của cuộc trò chuyện được cập nhật GẦN NHẤT, tức "brain đang mở".
+
+        MCP Hub dùng hàm này khi một client gọi tool mà không mang header `X-Javis-Vault`
+        (mọi phiên Codex người dùng tự mở đều như vậy - xem `mcp_hub.resolve_vault`). Đọc từ
+        đây thay vì nuôi thêm một file trạng thái riêng: cột `brain` đã được MỌI kênh ghi sẵn
+        ở mỗi lượt chat, nên nó luôn đúng mà không ai phải nhớ cập nhật.
+
+        KHÔNG dùng `list_sessions(limit=1)` cho việc này: hàm kia xếp mục GHIM lên đầu, nên
+        phiên đầu danh sách có thể là một cuộc ghim từ tháng trước ở brain khác hẳn.
+        """
+        rows = self._read(
+            "SELECT brain FROM sessions "
+            "WHERE archived = 0 AND brain IS NOT NULL AND TRIM(brain) != '' "
+            "ORDER BY updated_at DESC LIMIT 1")
+        return (rows[0]["brain"] if rows else "") or ""
+
     def moc_cap_nhat_theo_kenh(self, brain: Any, tien_to: str) -> Dict[str, float]:
         """{kênh: updated_at mới nhất} cho các kênh bắt đầu bằng `tien_to` (vd "agent:").
         Trang Cộng sự dùng để xếp trợ lý vừa chat gần nhất lên đầu."""
