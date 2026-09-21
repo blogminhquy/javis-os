@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.61.1] - 2026-09-21
+### Cải thiện
+- **Tạo bot giờ đi hai bước.** Bước 1 chỉ hỏi bot trả lời ở tài khoản nào, bước 2 mới đặt tên và cài đặt. Sửa bot thì vào thẳng bước 2.
+- **Bớt chữ ở chỗ chọn kênh.** Hướng dẫn lấy token của từng kênh không còn nằm sẵn trong form tạo bot nữa, chỉ hiện khi bạn thật sự chọn kênh đó. Cần nối kênh mới thì bấm `Kết nối kênh mới` ngay trong form.
+- **Danh sách kênh xếp dọc**, mỗi kênh một hàng thay vì lưới hai cột chật. Thêm kênh về sau vẫn đọc được trên điện thoại.
+- **Ngôn ngữ, chuyển người thật và nhóm** gấp vào mục `Cài đặt thêm`. Mức quyền vẫn nằm ngoài, không giấu.
+
 ## [0.61.0] - 2026-09-21
 ### Thêm mới
 - **Chatbot và Hội thoại về chung một trang.** Mục Hội thoại trên thanh bên giờ có ba tab: Hộp thư (tin khách), Kênh (mọi tài khoản khách nhắn tới) và Chatbot (nhân viên AI). Nói "mở chatbot" vẫn tới đúng tab.

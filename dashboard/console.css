@@ -1917,7 +1917,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-empty.small { padding: 12px; font-size: 13px; }
 .ht-thread-empty { margin: auto; }
 .ht-empty svg { width: 34px; height: 34px; opacity: .5; }
-.ht-modal { position: fixed; inset: 0; z-index: 3200; display: flex; align-items: center; justify-content: center;
+/* 3210, cao hơn .cb-modal (3200) một bậc: từ 0.61.1 form tạo bot mở CHỒNG lên form này
+   khi người dùng bấm "Kết nối kênh mới". Bằng nhau thì thứ tự chỉ do cái nào gắn vào
+   body sau - đúng hôm nay, nhưng là thứ hỏng lặng lẽ khi ai đó đổi thứ tự dựng. */
+.ht-modal { position: fixed; inset: 0; z-index: 3210; display: flex; align-items: center; justify-content: center;
   background: var(--scrim, rgba(0, 0, 0, .55)); padding: 24px; }
 .ht-form { width: min(600px, 94vw); max-height: 88vh; overflow-y: auto; padding: 18px 20px; background: var(--bg2);
   border: 1px solid var(--border); border-radius: 14px; }
