@@ -138,7 +138,12 @@
         .filter(Boolean);
       return { label: g.label, icon: g.icon || "", foot: !!g.foot, items };
     }).filter(g => g.items.length);
-    const rest = RAIL_ITEMS.filter(i => !seen.has(i.id));
+    // Mục chưa xếp nhóm cũng phải đi qua RAIL_AN. Thiếu chỗ này là một lỗi thật, sống từ
+    // 0.61.0 tới 0.62.4: `chatbots` nằm trong RAIL_AN nhưng KHÔNG nằm trong `ids` của nhóm
+    // nào, nên `seen` không bao giờ chứa nó, nên nó rơi vào nhánh "dồn vào nhóm cuối" và
+    // hiện ra ở cuối nhóm Hệ thống - đúng chỗ chẳng ai ngờ (chủ repo thấy 21/09). Chú thích
+    // của RAIL_AN thì vẫn khẳng định nó đã bị ẩn.
+    const rest = RAIL_ITEMS.filter(i => !seen.has(i.id) && !RAIL_AN.has(i.id));
     if (rest.length) {
       const foot = groups.find(g => g.foot);
       if (foot) foot.items.push(...rest); else groups.push({ label: t("nav.group.khac"), foot: false, items: rest });

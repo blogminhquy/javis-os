@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.5] - 2026-09-21
+### Sửa lỗi
+- **Gỡ mục "Chatbot" lạc vào cuối nhóm Hệ thống** trên thanh bên, cạnh Tài khoản. Nó đáng lẽ đã bị ẩn từ 0.61.0 khi Chatbot gộp thành tab, nhưng bộ lọc bỏ sót đúng nhánh này nên nó vẫn hiện suốt.
+### Cải thiện
+- **Đổi tên cho gọi đúng việc.** Mục trên thanh bên: **Hội thoại** thành **Chatbot**. Ba tab bên trong: **Hòm thư bot**, **Tài khoản bot**, **Tạo chatbot**.
+- Nói "hòm thư bot", "tài khoản bot" hay "tạo chatbot" cũng mở đúng chỗ.
+
 ## [0.62.4] - 2026-09-21
 ### Cải thiện
 - **Tab "Kênh" đổi tên thành "Tài khoản bot".** Gọi đúng thứ nằm trong đó: các tài khoản bot Telegram, Zalo Bot và Zalo cá nhân mà khách nhắn tới.

@@ -1,20 +1,20 @@
-# Hội thoại khách (Hộp thư)
+# Chatbot (hòm thư bot, tài khoản bot, tạo chatbot)
 
 ***Tiếng Việt** · [English](en/28-customer-conversations.md)*
 
 Mọi tin khách nhắn cho **bot chuyên trách** (Telegram hoặc Zalo Bot) và cho **tài khoản Zalo cá nhân** đã nối đều được gom về một hộp thư trong Javis. Bạn đọc lại cuộc trò chuyện giữa khách và bot, thấy cuộc nào bot đang bí, và **tiếp quản** một cuộc chat khi cần người thật.
 
-Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, ba tab** (Hộp thư, Tài khoản bot, Chatbot), và bạn **trả lời khách ngay trong Hộp thư**.
+Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, ba tab** (Hòm thư bot, Tài khoản bot, Tạo chatbot), và bạn **trả lời khách ngay trong Hòm thư bot**.
 
 ## Mở ở đâu trong Javis
 
-Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Hội thoại**. Trong trang có ba tab:
+Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Chatbot**. Trong trang có ba tab:
 
-- **Hộp thư**: mọi tin khách, đọc lại, tiếp quản, trả lời.
+- **Hòm thư bot**: mọi tin khách, đọc lại, tiếp quản, trả lời.
 - **Tài khoản bot**: mọi tài khoản khách nhắn tới (bot Telegram, bot Zalo, Zalo cá nhân...) trong brain đang mở, thêm tài khoản, bật ghi.
-- **Chatbot**: nhân viên AI đứng trực các tài khoản đó. Xem [Chatbot](25-chatbot.md).
+- **Tạo chatbot**: nhân viên AI đứng trực các tài khoản đó. Xem [Chatbot](25-chatbot.md).
 
-Nói bằng lời cũng được: "mở hộp thư khách", "xem tin nhắn khách", và "mở chatbot" vẫn tới đúng tab Chatbot. Nói "hội thoại" trần vẫn ra trang Trò chuyện như trước.
+Nói bằng lời cũng được: "mở hộp thư khách", "hòm thư bot", "tài khoản bot", và "mở chatbot" vẫn tới đúng tab Tạo chatbot. Nói "hội thoại" trần vẫn ra trang Trò chuyện như trước.
 
 ## Mô hình
 
@@ -25,11 +25,11 @@ Bốn khái niệm, đọc một lần rồi khỏi đoán:
 | **Chatbot** | Một nhân viên AI: Agent, brain riêng, mức quyền, và những tài khoản kênh nó đứng trực (một bot trực được nhiều tài khoản). |
 | **Kênh** | Nơi khách nhắn tới. Mỗi kênh có nhiều **tài khoản**: một token bot Telegram, một token Zalo Bot, một tài khoản Zalo cá nhân đã quét QR. Sau này thêm Zalo OA, Facebook, Web Chat. |
 | **Hội thoại** | Một phiên trao đổi với một khách (hoặc một nhóm) trên một kênh. |
-| **Hộp thư** | Nơi AI và người thật cùng vận hành hội thoại: đọc, tiếp quản, trả lại AI. |
+| **Hòm thư bot** | Nơi AI và người thật cùng vận hành hội thoại: đọc, tiếp quản, trả lại AI. |
 
-Bên dưới, mọi kênh đều đưa tin về **một khuôn chung** rồi vào cùng một kho: tài khoản kênh, khách, hội thoại, tin. Hộp thư không cần biết tin đến từ Telegram hay Zalo.
+Bên dưới, mọi kênh đều đưa tin về **một khuôn chung** rồi vào cùng một kho: tài khoản kênh, khách, hội thoại, tin. Hòm thư bot không cần biết tin đến từ Telegram hay Zalo.
 
-## Tab Hộp thư
+## Tab Hòm thư bot
 
 Đầu tab là bốn con số: tổng hội thoại, hội thoại có tin hôm nay, chưa đọc, và cuộc đang do người thật xử lý.
 
@@ -56,7 +56,7 @@ Mọi tài khoản khách nhắn tới hiện thành **cùng một kiểu thẻ*
 
 Có hai loại tài khoản, khác nhau ở cách có nó chứ không ở cách hiện ra:
 
-**Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm tài khoản**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot trực** mở sẵn form ở tab Chatbot.
+**Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm tài khoản**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot trực** mở sẵn form ở tab Tạo chatbot.
 
 ### Tài khoản bot thuộc về một brain (0.62.4)
 
@@ -80,7 +80,7 @@ Zalo cá nhân (`kind: account`) không bị lọc: nó là một kết nối �
 
 - **Mặc định tắt.** Bật là giữ phiên Zalo của bạn sống liên tục qua API không chính thức, tức tài khoản đăng nhập 24/7 trên máy chạy Javis. Đó là lựa chọn của bạn, không phải của Javis. Nên dùng tài khoản phụ.
 - **Chỉ lưu từ lúc bật.** Không kéo lịch sử cũ. Tin do chính bạn gửi từ điện thoại hiện là tin "Bạn".
-- **Không có bot trực.** Trả lời từ Hộp thư là gửi dưới tên bạn; bot tự trả lời qua kênh này là chuyện phải cân nhắc riêng.
+- **Không có bot trực.** Trả lời từ Hòm thư bot là gửi dưới tên bạn; bot tự trả lời qua kênh này là chuyện phải cân nhắc riêng.
 
 ## Dữ liệu lưu ở đâu, giữ gì
 
@@ -103,9 +103,9 @@ Thêm một kênh = thêm một file ở sổ, một dòng đăng ký, một log
 
 ## Xử lý lỗi
 
-- **Bot đang bật mà không thấy hội thoại nào**: kho chỉ ghi từ lúc kênh được nối; nhắn thử cho bot một câu. Nếu vẫn trống, xem tab Nhật ký của bot ở tab Chatbot.
+- **Bot đang bật mà không thấy hội thoại nào**: kho chỉ ghi từ lúc kênh được nối; nhắn thử cho bot một câu. Nếu vẫn trống, xem tab Nhật ký của bot ở tab Tạo chatbot.
 - **Thẻ bot báo "chưa có tài khoản kênh nào"**: bot chưa trực token nào. Bấm Sửa, tích một tài khoản có sẵn hoặc dán token mới.
-- **Gửi từ Hộp thư báo lỗi**: câu lỗi là của chính nền tảng (token bị thu hồi, khách đã chặn bot, phiên Zalo hết hạn). Tin không đi thì không được ghi vào kho.
+- **Gửi từ Hòm thư bot báo lỗi**: câu lỗi là của chính nền tảng (token bị thu hồi, khách đã chặn bot, phiên Zalo hết hạn). Tin không đi thì không được ghi vào kho.
 - **Zalo cá nhân báo lỗi đỏ ở tab Tài khoản bot**: thường là phiên QR hết hạn hoặc máy thiếu Node.js 20. Vào trang Kết nối kiểm tra kết nối Zalo, quét QR lại nếu cần. Vòng đọc tự thử lại sau 90 giây.
 - **Bấm Tiếp quản mà bot vẫn trả lời một câu**: đó là lượt đã chạy dở từ trước khi bấm. Từ tin sau bot im.
 

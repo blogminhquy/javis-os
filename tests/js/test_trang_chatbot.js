@@ -33,6 +33,8 @@ const CB = D("chatbots.js");
 const CON = D("console.js");
 const HTML = D("index.html");
 const CSS = D("style.css");
+// Bảng bí danh lệnh nói ở server: nhãn đổi thì nói tên mới cũng phải mở được đúng trang.
+const SRV2 = fs.readFileSync(path.join(ROOT, "server", "ui_targets.py"), "utf8");
 // 0.55.14 đưa chữ tiếng Việt của dashboard vào từ điển i18n: chatbots.js gọi `window.t("khoa")`,
 // câu chữ nằm ở vi.json. Nên mọi khẳng định về LỜI trang nói phải soi ĐỦ HAI VẾ - giao diện gọi
 // đúng khoá, VÀ khoá đó mang đúng câu. Soi một vế thôi là test hở: chỉ kiểm khoá thì đổi nội
@@ -53,8 +55,17 @@ check("index.html có nạp module trang Chatbot", /chatbots\.js\?v=/.test(HTML)
 check("nạp TRƯỚC console.js (console gọi window.JavisChatbots)",
   HTML.indexOf('src="/static/chatbots.js') < HTML.indexOf('src="/static/console.js'));
 check("module phơi ra đúng một cửa vào", /window\.JavisChatbots\s*=\s*\{\s*render:\s*render\s*\}/.test(CB));
-// RAIL_ITEMS nay là danh sách ID phẳng (nhãn lấy từ từ điển i18n).
-check("console có mục Chatbot trên thanh bên", /"chatbots"/.test(CON));
+// RAIL_ITEMS nay là danh sách ID phẳng (nhãn lấy từ từ điển i18n). Id `chatbots` VẪN còn (nó
+// là nguồn icon + nhãn, và là bí danh cho lệnh nói / bookmark cũ) nhưng KHÔNG được hiện thành
+// một mục trên thanh bên: trang Chatbot là tab của trang Hội thoại từ 0.61.0.
+check("console vẫn biết id chatbots (nguồn icon, nhãn, bí danh)", /"chatbots"/.test(CON));
+// 0.62.5: `chatbots` nằm trong RAIL_AN nhưng KHÔNG nằm trong `ids` của nhóm nào, nên tới
+// 0.62.4 nó rơi qua nhánh "mục chưa xếp nhóm" và hiện ra ở CUỐI nhóm Hệ thống - cạnh Tài
+// khoản, đúng chỗ chẳng ai ngờ (chủ repo thấy 21/09). Lọc phải áp cho cả nhánh đó.
+check("CANARY: mục chưa xếp nhóm cũng phải đi qua RAIL_AN",
+  /RAIL_ITEMS\.filter\(i => !seen\.has\(i\.id\) && !RAIL_AN\.has\(i\.id\)\)/.test(CON));
+check("chatbots nằm trong danh sách ẩn khỏi thanh bên",
+  /RAIL_AN = new Set\(\["chatbots"\]\)/.test(CON));
 check("console định tuyến sang trang Chatbot",
   /if \(id === "chatbots"\) return renderChatbots\(el\)/.test(CON));
 check("console uỷ quyền cho module chứ không tự vẽ lại",
@@ -384,6 +395,19 @@ check("gợi sẵn tên bot từ tài khoản vừa chọn",
 check("thẻ bot hiện model đang chạy", /b\.agent_model \|\| window\.t\("cb\.model_chinh"\)/.test(CB));
 check("agent để Mặc định thì nói rõ là theo model chính, không để trống",
   CB.indexOf('window.t("cb.model_chinh")') !== -1);
+
+// ============================================================
+// 6c. Nhãn trang và ba tab (0.62.5)
+// ============================================================
+// Chủ repo chốt 21/09: thanh bên gọi trang này là "Chatbot", ba tab là Hòm thư bot /
+// Tài khoản bot / Tạo chatbot. Nhãn nằm trong từ điển, nên canary soi từ điển.
+check("thanh bên gọi trang này là Chatbot", VI["page.conversations.label"] === "Chatbot");
+check("ba tab đúng tên mới",
+  VI["ht.tab_inbox"] === "Hòm thư bot" && VI["ht.tab_kenh"] === "Tài khoản bot" &&
+  VI["ht.tab_chatbot"] === "Tạo chatbot");
+check("nói tên mới cũng mở đúng trang",
+  SRV2.includes('"hom thu bot": "conversations"') && SRV2.includes('"tai khoan bot": "conversations"') &&
+  SRV2.includes('"tao chatbot": "chatbots"'));
 
 // ============================================================
 // 7. Luật chung của dashboard
