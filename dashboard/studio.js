@@ -606,27 +606,30 @@
       api("/settings"),
     ]);
     const skills = sd.skills || [];
-    const uniq = (xs) => [...new Set((xs || []).filter(Boolean))];
     // CÙNG nguồn với trình chọn model chính (/settings → model.providers), nên thêm nhà mới
-    // ở trang Models là ô này có ngay. Lọc `agent_ok`: server chỉ dựng nổi engine agent cho
-    // một số nhà (xem AGENT_PROVIDERS), bày thêm là hứa suông. Lọc `configured`: chưa cắm
-    // key thì chọn vào cũng không chạy.
-    const provs = ((st.model || {}).providers || []).filter(p => p.agent_ok && p.configured);
-    // Danh sách LIVE cho nhà có catalog rỗng/đổi liên tục (Codex, Gemini CLI, Groq...).
-    // Hỏng một nhà thì chỉ nhà đó rơi về catalog, không kéo cả ô chọn chết theo.
-    const live = await Promise.all(provs.map(p =>
-      api(`/provider/models?provider=${encodeURIComponent(p.id)}` + (p.id === "openai-oauth" ? "&refresh=1" : ""))
-        .then(d => uniq(d.models)).catch(() => [])));
-    const nhom = provs.map((p, i) => ({ id: p.id, label: p.label, models: uniq(live[i].concat(p.models || [])) }))
-                      .filter(g => g.models.length);
+    // ở trang Models là ô này có ngay - và giờ là cùng cả THÂN BẢNG CHỌN (model-list.js).
+    // Lấy MỌI nhà chạy được agent, KỂ CẢ nhà chưa cắm key: chúng hiện ra kèm ổ khoá và một dòng
+    // chỉ chỗ mở khoá, đúng như bảng chọn model dưới khung chat. Bản cũ lọc thẳng `configured`
+    // nên nhà chưa cắm key BIẾN MẤT, người dùng không biết là có nhà đó (chủ repo báo 21/09).
+    // `agent_ok` thì vẫn lọc thật: server không dựng nổi engine agent cho nhà ngoài danh sách
+    // (AGENT_PROVIDERS), bày ra là hứa suông - agent sẽ lặng lẽ chạy Claude.
+    const provs = ((st.model || {}).providers || []).filter(p => p.agent_ok);
+    const coKetNoi = provs.some(p => p.configured);
     const val = (pid, m) => pid + MODEL_SEP + m;
-    // Agent đang lưu một model không còn trong danh sách nào (nhà đã ngắt key, model bị gỡ):
-    // vẫn bày ra để mở form lên KHÔNG âm thầm đổi model của agent thành "Mặc định".
-    const dangCo = a && a.model && !nhom.some(g => (!a.model_provider || g.id === a.model_provider) && g.models.includes(a.model));
-    const currentOnly = dangCo
-      ? `<optgroup label="${esc(t("studio.model_saved"))}"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} ${esc(t("studio.saved_suffix"))}</option></optgroup>` : "";
-    const modelOptions = (g) =>
-      `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
+    const provCua = (id) => provs.find(p => p.id === id) || {};
+    // Agent CŨ chỉ lưu tên model (chưa có trường `model_provider`): dò trong catalog tĩnh mà
+    // /settings đã trả về để mở form lên vẫn hiện đúng nhà, thay vì bỏ trống rồi bấm Lưu là
+    // server phải đi đoán. Không dò ra thì để rỗng - server có `_agent_model_provider` lo.
+    const doanNha = (m) => (provs.find(p => (p.models || []).includes(m)) || {}).id || "";
+    let mModel = (a && a.model) || "";
+    let mProv = mModel ? ((a && a.model_provider) || doanNha(mModel)) : "";
+    let mLoc = "", mMo = mProv || (provs.find(p => p.configured) || {}).id || "";
+    // Nhãn trên nút. Model đang lưu mà nhà đã ngắt key thì nói thẳng "(đang lưu)" chứ KHÔNG
+    // âm thầm tụt về Mặc định - đó là lựa chọn của người dùng, chỉ là tạm chưa chạy được.
+    const nhanModel = () => !mModel
+      ? t("studio.model_default")
+      : (provCua(mProv).label ? provCua(mProv).label + " · " + mModel : mModel)
+        + (mProv && !provCua(mProv).configured ? " " + t("studio.saved_suffix") : "");
     const box = opts.host || document.getElementById("editorBox");
     if (opts.host && !box.isConnected) return;
     let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
@@ -648,12 +651,15 @@
           <button type="button" class="s-btn-ghost sp-clear" id="spClear">${esc(t("studio.sp_clear"))}</button></div>
         <div class="sp-groups" id="skillPick"></div>
       </div>` : `<div class="skill-pick"><span class="dim">${esc(t("studio.sp_none"))}</span></div>`}
-      <label>Model</label><select id="agModel">
-        <option value="">${esc(t("studio.model_default"))}</option>
-        ${currentOnly}
-        ${nhom.map(modelOptions).join("")}
-      </select>
-      <div class="dim" style="font-size:12px;margin-top:4px">${esc(nhom.length
+      <label for="agModelBtn">Model</label>
+      <div class="ag-model-pick" id="agModelPick">
+        <button type="button" class="ag-model-btn" id="agModelBtn">
+          <span id="agModelTxt">${esc(nhanModel())}</span>${ic("chevron-down")}
+        </button>
+        <input type="hidden" id="agModel" value="${esc(mModel ? val(mProv, mModel) : "")}">
+        <div class="mb-pop ag-model-pop" id="agModelPop" hidden></div>
+      </div>
+      <div class="dim" style="font-size:12px;margin-top:4px">${esc(coKetNoi
         ? t("studio.model_hint")
         : t("studio.model_none"))}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
@@ -668,16 +674,70 @@
         window.JavisChatSide.moKhungAgent(a.slug, a.name || a.slug);
     };
     box.querySelectorAll("label").forEach(label => { const input = label.nextElementSibling; if (input && /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName)) label.htmlFor = input.id; });
-    if (a && a.model) {
-      const sel = box.querySelector("#agModel");
-      sel.value = val(a.model_provider || "", a.model);
-      // Agent CŨ lưu mỗi tên model (chưa có trường nhà): dò dòng đầu tiên trùng tên để form
-      // mở lên vẫn hiện đúng model đang chạy, thay vì nhảy về "Mặc định" rồi bấm Lưu là mất.
-      if (!sel.value) {
-        const hit = [...sel.options].find(o => o.value.split(MODEL_SEP).slice(1).join(MODEL_SEP) === a.model);
-        if (hit) sel.value = hit.value;
+    // ----- Bảng chọn model: CÙNG thân với bảng dưới khung chat (model-list.js) -----
+    // Danh sách model của một nhà chỉ nạp khi nhà đó được sổ ra, nên mở form sửa trợ lý không
+    // còn gọi /provider/models cho mọi nhà một lượt như bản cũ.
+    const mPop = box.querySelector("#agModelPop");
+    const mBtn = box.querySelector("#agModelBtn");
+    const dongPop = () => { if (mPop) mPop.hidden = true; };
+    async function veModelPop() {
+      if (!mPop) return;
+      const hangMacDinh = `<div class="mb-item ${mModel ? "" : "cur"}" data-prov="" data-model="">`
+        + `<span class="tick">${mModel ? "" : ic("check", { cls: "ic-ok" })}</span>`
+        + `<span>${esc(t("studio.model_default"))}</span></div>`;
+      mPop.innerHTML = await window.JavisModelList.render({
+        providers: provs, expanded: mMo, filter: mLoc,
+        selected: { provider: mProv, model: mModel },
+        searchId: "agModelSearch", extraTop: hangMacDinh,
+      });
+      const se = box.querySelector("#agModelSearch");
+      if (se) {
+        se.oninput = () => { mLoc = se.value; veModelPop(); };
+        se.focus(); se.selectionStart = se.selectionEnd = se.value.length;   // giữ con trỏ khi gõ
       }
     }
+    if (mBtn) mBtn.onclick = async () => {
+      if (!mPop.hidden) { dongPop(); return; }
+      mPop.hidden = false;
+      await veModelPop();
+      // Ô Model nằm giữa một form dài: mở ra ở gần đáy khung là bảng chọn thò ra ngoài màn.
+      // Kéo khung chứa lên vừa đủ để thấy hết bảng, không nhảy giật cả trang.
+      try { mPop.scrollIntoView({ block: "nearest" }); } catch (e) {}
+    };
+    if (mPop) mPop.onclick = (e) => {
+      const goto = e.target.closest("[data-goto]");
+      if (goto) {
+        dongPop();
+        try { if (window.Alpine) Alpine.store("nav").go(goto.dataset.goto); } catch (er) {}
+        return;
+      }
+      const it = e.target.closest(".mb-item");
+      if (it) {
+        mProv = it.dataset.prov || ""; mModel = it.dataset.model || "";
+        box.querySelector("#agModel").value = mModel ? val(mProv, mModel) : "";
+        box.querySelector("#agModelTxt").textContent = nhanModel();
+        dongPop();
+        return;
+      }
+      const pr = e.target.closest(".mb-prov");
+      if (pr && pr.dataset.prov) { mMo = pr.dataset.prov; veModelPop(); }
+    };
+    // Bấm ra ngoài / Escape thì đóng. Listener TỰ GỠ khi form bị thay (mở sửa trợ lý nhiều
+    // lần là dựng lại DOM), khỏi để lại một chồng closure chết bám vào document.
+    const mPick = box.querySelector("#agModelPick");
+    const ngoaiKhung = (e) => {
+      if (!mPop || !mPop.isConnected) { document.removeEventListener("click", ngoaiKhung); return; }
+      // So bằng CHÍNH phần tử, không phải closest("#agModelPick"): trang Cộng sự có thể đang
+      // mở form trong cột phải trong khi Studio bật thêm form trong modal, tức hai khung cùng
+      // id trên một trang - so theo id là bấm vào khung này lại không đóng khung kia.
+      if (!mPop.hidden && !(mPick && mPick.contains(e.target))) dongPop();
+    };
+    const escKhung = (e) => {
+      if (!mPop || !mPop.isConnected) { document.removeEventListener("keydown", escKhung); return; }
+      if (e.key === "Escape" && !mPop.hidden) { dongPop(); e.stopPropagation(); }
+    };
+    document.addEventListener("click", ngoaiKhung);
+    document.addEventListener("keydown", escKhung);
     // Trạng thái chọn giữ trong Set, DOM chỉ là HÌNH CHIẾU của nó. Đây là chỗ dễ hỏng nhất của
     // khung có bộ lọc: vẽ lại theo bộ lọc rồi lúc lưu mới đi đọc DOM thì mọi skill đang bị lọc
     // ra khỏi màn hình sẽ mất tick, im lặng, và người dùng chỉ phát hiện sau khi agent chạy sai.

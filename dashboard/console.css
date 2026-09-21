@@ -1738,6 +1738,20 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .agent-editor .ag-assets > button:disabled { opacity:.55; cursor:default; }
 .agent-editor .ag-assets-hint { font-size:12px; line-height:1.5; }
 .agent-editor :is(input,select,textarea):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Ô chọn Model của trợ lý (0.62.3): một nút mở bảng chọn, thân bảng dùng LẠI các lớp .mb-*
+   của bảng chọn model dưới khung chat (style.css) nên hai nơi luôn giống nhau. Chỉ cái vỏ là
+   riêng: bảng của khung chat bung LÊN từ đáy màn, bảng ở đây phải thả XUỐNG dưới nút và rộng
+   đúng bằng form, không phải 340px cố định. */
+.agent-editor .ag-model-pick { position:relative; }
+.agent-editor .ag-model-btn { display:flex; align-items:center; justify-content:space-between; gap:8px;
+  width:100%; box-sizing:border-box; min-height:38px; border:1px solid var(--border); border-radius:9px;
+  padding:10px 11px; background:var(--field-bg); color:var(--text); font:inherit; font-size:13px;
+  line-height:1.5; text-align:left; cursor:pointer; }
+.agent-editor .ag-model-btn:hover { border-color:var(--accent); }
+.agent-editor .ag-model-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.agent-editor .ag-model-btn > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.agent-editor .ag-model-pop { position:absolute; top:calc(100% + 6px); bottom:auto; left:0; right:0;
+  width:auto; max-height:min(52vh, 340px); }
 .agent-editor .sp-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; padding:10px; }
 .agent-editor .sp-bar input { grid-column:1/-1; width:100%; box-sizing:border-box; font-family:inherit; }
 .agent-editor .sp-count { min-width:0; }

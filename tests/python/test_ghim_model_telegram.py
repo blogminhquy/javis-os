@@ -110,7 +110,16 @@ check("chưa ghim thì /model <tên> vẫn đổi model chính như trước", m
 _src = (SERVER / "main.py").read_text(encoding="utf-8")
 _tg = _src.split("async def _tg_answer(", 1)[1].split("\ndef _tg_ket(", 1)[0]
 check("CANARY: lượt chủ trên Telegram đi qua _chat_provider_kenh", "_chat_provider_kenh(mcfg, channel)" in _tg)
-check("CANARY: bot chuyên trách KHÔNG ăn theo ghim của chủ", "_chat_provider(mcfg) if bot" in _tg)
+# Bot chuyên trách vẫn KHÔNG ăn theo ghim của chủ - đó mới là điều canary này canh. Từ
+# 0.62.3 nó đi qua `_chat_provider_bot` (model của Agent, rơi về model chính) thay vì
+# `_chat_provider` thẳng, nên canary bám tên hàm mới; điều kiện "không phải ghim kênh" thì
+# giữ nguyên.
+# Phép ba ngôi `A if bot else B`: nhánh bot là _chat_provider_bot (model của Agent, rơi về
+# model chính), nhánh chủ mới là _chat_provider_kenh. Chỉ cần thấy đúng dạng này là đã chắc
+# ghim kênh không chảy sang bot.
+check("CANARY: bot chuyên trách KHÔNG ăn theo ghim của chủ",
+      "_chat_provider_bot(mcfg, bot) if bot" in _tg
+      and "else _chat_provider_kenh(mcfg, channel)" in _tg)
 _cb = _src.split("async def _tg_callback(", 1)[1].split("\nasync def _tg_command(", 1)[0]
 check("nút chọn model trên Telegram cũng ghi qua _tg_dat_model", "_tg_dat_model(s, pid, mdl)" in _cb)
 _help = chay(main._tg_help_text("brain"))

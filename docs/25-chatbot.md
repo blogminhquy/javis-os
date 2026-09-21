@@ -306,7 +306,7 @@ Thấy dải vàng đó thì chọn một trong hai: đổi engine ở trang **M
 
 ### Đổi bộ não không đổi trải nghiệm
 
-Bot chạy giống hệt nhau trên **mọi bộ não**: Claude Code, ChatGPT, Grok Build, Antigravity, OpenRouter, OpenAI API, Anthropic API, Gemini, Groq, Ollama. Đổi model ở trang Models thì bot đổi theo, nhưng cách nó làm việc không đổi. Khi công cụ gọi được thì mọi engine cầm **đúng một bộ công cụ** - xem lưu ý ở mục trên về gói ChatGPT.
+Bot chạy giống hệt nhau trên **mọi bộ não**: Claude Code, ChatGPT, Grok Build, Antigravity, OpenRouter, OpenAI API, Anthropic API, Gemini, Groq, Ollama. Đổi model thì bot đổi theo, nhưng cách nó làm việc không đổi. Khi công cụ gọi được thì mọi engine cầm **đúng một bộ công cụ** - xem lưu ý ở mục trên về gói ChatGPT.
 
 Làm được vì lượt của bot đi một đường riêng, chung cho mọi engine: cùng đầu bài từ Agent, cùng tài liệu tra sẵn, cùng lịch sử hội thoại, và công cụ (nếu có) lấy từ cùng một chỗ. Khác biệt còn lại đúng bằng khác biệt giữa các model, không phải giữa các đường ống.
 
@@ -390,7 +390,9 @@ Bấm **Xoá** trên thẻ. Bot ngừng trả lời ngay.
 
 ## Câu hỏi thường gặp
 
-**Bot dùng model nào?** Chính model bạn chọn ở trang Models. Đổi model là bot đổi theo, và cách nó làm việc không đổi - mọi bộ não đi cùng một đường.
+**Bot dùng model nào?** Model trong ô **Model** của chính Agent mà bot trỏ tới (Studio → Trợ lý → Cài đặt trợ lý). Ô đó để **Mặc định** thì bot chạy model chính ở trang Models. Thẻ bot trên trang Chatbot ghi sẵn model đang chạy, nên nhìn là biết. Đổi model là bot đổi theo, và cách nó làm việc không đổi - mọi bộ não đi cùng một đường.
+
+Vì sao theo Agent chứ không theo model chính: bot vốn đã mượn nguyên đầu bài của Agent, nên model cũng phải là của Agent - không thì chọn một model rẻ cho trợ lý đối ngoại xong bot vẫn đốt model đắt, mà không có dấu hiệu nào. Nhà đã chọn bị gỡ key thì bot lui về model chính chứ không chết câm trước mặt khách.
 
 **Bot có gọi được các nguồn dữ liệu tôi đã đấu không?** Mặc định là không - mức Chỉ đọc chỉ có tài liệu trong brain của nó. Nâng lên **Được ghi** thì có, và **Toàn quyền** thì có cả nhóm thao tác ra ngoài. Cân nhắc rằng người điều khiển là người nhắn cho bot; việc chỉ mình bạn cần thì hỏi Javis ở dashboard hoặc kênh Telegram riêng vẫn an toàn hơn.
 
