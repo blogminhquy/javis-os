@@ -241,6 +241,15 @@ class DeterministicResolver:
             "cutoff_reason": cutoff_reason,
             "top_score_gap": round(float(top_gap), 6),
             "filtered": filtered,
+            # Điểm CAO NHẤT trong số thứ đã bị hard filter, theo từng lý do. `filtered` chỉ
+            # đếm số lượng, mà số lượng không nói được "có cái nào khớp đúng tên không".
+            #
+            # Chỗ này tồn tại vì kind `skill`/`workflow` bị lọc khỏi `ranked` (chúng không
+            # phải tool schema), nên người dùng gọi ĐÚNG TÊN một workflow của chính mình vẫn
+            # không tạo ra tín hiệu nào cho các cổng đọc `ranked`. Đường tắt tiết kiệm token
+            # đọc trường này để nhường lại đường đầy đủ - nơi skill router và workflow runner
+            # thực sự chạy được thứ vừa được gọi tên.
+            "blocked_best": {k: round(float(v), 6) for k, v in sorted(blocked_best.items())},
             "miss_class": miss_class,
             "embedding_candidate_count": len(embedding_ids),
             "embedding_lexical_overlap": len(set(embedding_ids) & lexical_ids),
