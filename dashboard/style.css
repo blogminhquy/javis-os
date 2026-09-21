@@ -791,6 +791,46 @@ body.vault-thu .hud-body > .hud-left > .vault-expand:hover { color: var(--accent
 .md-table { border-collapse: collapse; margin: 6px 0; font-size: 14px; width: 100%; }
 .md-table th, .md-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .md-table th { background: var(--bg3); color: var(--text); }
+
+/* ===== Bảng VUỐT NGANG được, thay vì bị bóp cho vừa khung =====
+   Chủ repo gửi ảnh 21/09: trên điện thoại một bảng 3 cột bị ép vào bề ngang màn hình thì mỗi
+   ô còn vài ký tự, chữ vỡ dọc thành từng chữ cái, đọc không nổi. App Claude không bóp: nó giữ
+   bề rộng tự nhiên của cột rồi cho vuốt sang phải để đọc tiếp. Đây là bản đó.
+
+   Ba mảnh, thiếu mảnh nào cũng hỏng:
+     1. khung bọc `overflow-x: auto` - chỗ cuộn thật sự;
+     2. `width: max-content` cho bảng - bỏ luật "co cho vừa"; `min-width: 100%` để một bảng
+        NGẮN vẫn trải hết bề ngang chứ không co rúm vào một góc;
+     3. trần `max-width` cho từng ô - không có nó thì một ô văn xuôi dài kéo bảng rộng ra hàng
+        nghìn pixel và phải vuốt cả chục lần. Có nó thì ô ngắn nằm một dòng, ô dài tự xuống
+        dòng ở một bề ngang còn đọc được. */
+.md-tablewrap, .jv-dataview .dv-tablewrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;   /* vuốt hết bảng thì DỪNG, không kéo cả trang trôi theo */
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  margin: 6px 0;
+}
+.md-tablewrap > .md-table, .jv-dataview .dv-tablewrap > .md-table {
+  margin: 0; width: max-content; min-width: 100%;
+}
+.md-tablewrap > .md-table :is(th, td), .jv-dataview .dv-tablewrap > .md-table :is(th, td) {
+  max-width: 34ch;
+}
+/* Thanh cuộn mảnh, theo tông của app. Ở đâu trình duyệt vẽ thanh cuộn CHIẾM CHỖ (Chrome/
+   Firefox trên Windows, Linux) thì nó là dấu hiệu thường trực "vuốt được"; ở đâu thanh cuộn
+   là lớp phủ tự ẩn (macOS, iOS, Android) thì nó chỉ hiện lúc vuốt - chỗ đó dựa vào việc bảng
+   bị cắt ngang giữa một cột. */
+.md-tablewrap, .jv-dataview .dv-tablewrap { scrollbar-width: thin; }
+.md-tablewrap::-webkit-scrollbar, .jv-dataview .dv-tablewrap::-webkit-scrollbar { height: 7px; }
+.md-tablewrap::-webkit-scrollbar-thumb, .jv-dataview .dv-tablewrap::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 99px;
+}
+/* ĐÃ THỬ và BỎ: vệt mờ ở mép bằng background-gradient (kiểu "scroll shadow" hay gặp). Nền của
+   khung cuộn nằm DƯỚI nội dung, mà ô bảng có nền và viền riêng nên chúng che kín vệt đó - đo
+   trên Chromium thật thì gradient có được áp nhưng không nhìn thấy gì. Muốn vẽ đè lên nội dung
+   thì phải có JS đo tràn rồi gắn lớp phủ; chưa đáng cho phần này. Bảng bị cắt giữa một cột,
+   cộng thanh cuộn, đã đủ nói là còn nữa bên phải. */
 .code-block {
   background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 12px; font-size: 14px; overflow-x: auto; white-space: pre; margin: 6px 0;

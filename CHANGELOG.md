@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.6] - 2026-09-21
+### Cải thiện
+- **Bảng trong chat vuốt ngang được thay vì bị bóp nhỏ.** Trên điện thoại, một bảng 3 cột trước đây bị ép cho vừa màn hình nên mỗi ô chỉ còn vài ký tự, chữ vỡ dọc thành từng chữ cái. Nay bảng giữ nguyên bề rộng cột và bạn vuốt sang phải để đọc tiếp, giống cách app Claude làm.
+- Bảng **ngắn vẫn trải hết bề ngang** như cũ, và trên màn rộng thì không có gì đổi: vừa khung thì không có thanh cuộn nào.
+- Ô chứa câu dài tự xuống dòng ở một bề ngang còn đọc được, để bảng không kéo dài hàng nghìn pixel phải vuốt cả chục lần.
+- Bảng trong khối Dataview của ghi chú cũng theo luật này.
+
 ## [0.62.5] - 2026-09-21
 ### Sửa lỗi
 - **Gỡ mục "Chatbot" lạc vào cuối nhóm Hệ thống** trên thanh bên, cạnh Tài khoản. Nó đáng lẽ đã bị ẩn từ 0.61.0 khi Chatbot gộp thành tab, nhưng bộ lọc bỏ sót đúng nhánh này nên nó vẫn hiện suốt.

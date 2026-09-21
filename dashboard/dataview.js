@@ -489,7 +489,7 @@
       return "<tr>" + tds + "</tr>";
     }).join("");
     return '<div class="dv-count">' + prows.length + ' note</div>' +
-      '<div class="dv-tablewrap"><table class="md-table dv-table"><thead><tr>' + th + "</tr></thead><tbody>" + trs + "</tbody></table></div>";
+      '<div class="dv-tablewrap md-tablewrap"><table class="md-table dv-table"><thead><tr>' + th + "</tr></thead><tbody>" + trs + "</tbody></table></div>";
   }
 
   // ---------------------------------------------------------------- ve khoi

@@ -450,7 +450,16 @@
     var trs = body.map(function (r) {
       return "<tr>" + r.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
     }).join("");
-    return '<table class="md-table"><thead><tr>' + th + "</tr></thead><tbody>" + trs + "</tbody></table>";
+    // BOC trong mot khung cuon ngang. Bang de nguyen thi trinh duyet bop cot cho vua khung:
+    // tren dien thoai mot bang 3 cot ep vao 360px con moi o vai ky tu, chu vo doc thanh tung
+    // chu cai (chu repo gui anh 21/09). Thay vao do giu be rong tu nhien cua cot roi cho VUOT
+    // NGANG de doc tiep, dung cach app Claude lam.
+    //
+    // Lop boc la mot <div> tron: turndown (ban WYSIWYG cua trinh sua .md) di xuyen qua no va
+    // van tra ve dung bang markdown cu - da thu that voi turndown 7.2 + plugin gfm, ket qua y
+    // het khi khong boc. Nen KHONG can them luat turndown nao.
+    return '<div class="md-tablewrap"><table class="md-table"><thead><tr>' + th +
+      "</tr></thead><tbody>" + trs + "</tbody></table></div>";
   }
 
   // ---------------------------------------------------------------- inline (dam/nghieng/gach/xuong dong)
