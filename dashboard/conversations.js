@@ -577,7 +577,18 @@
 
   // Thêm tài khoản: bước 1 chọn LOẠI kênh (mọi kênh trong sổ, kể cả kênh không nhận token,
   // để người dùng thấy đủ và biết kênh đó nối ở đâu), bước 2 dán token, kiểm, đặt tên.
-  function moThemTK() {
+  //
+  // Hàm này là chỗ DUY NHẤT trong dashboard biết cách nối một tài khoản kênh. Form tạo bot
+  // (chatbots.js) gọi lại chính nó qua `JavisConversations.themTaiKhoan` thay vì chép một bản
+  // thứ hai: trước 0.61.1 có hai form dán token song song, nên hướng dẫn riêng của từng kênh
+  // bị nhân đôi và thêm một kênh mới là phải sửa cả hai nơi.
+  //
+  // `opts.onXong(account)`: gọi khi tài khoản đã tạo xong, để nơi gọi tự làm tiếp (form bot
+  // tích sẵn tài khoản vừa nối). Không truyền thì chỉ nạp lại tab Kênh như cũ.
+  async function moThemTK(opts) {
+    opts = opts || {};
+    // Gọi từ tab Chatbot thì sổ kênh có thể chưa nạp: không có nó thì modal hiện ra trống trơn.
+    if (!_kenhDS.length) { try { await taiTK(); } catch (e) {} }
     var kenhBot = _kenhDS.filter(function (k) { return k.kind === "bot"; });
     var kenhKhac = _kenhDS.filter(function (k) { return k.kind !== "bot"; });
     var chon = kenhBot.length ? kenhBot[0].id : "";
@@ -648,13 +659,16 @@
       var k = kenhCua(chon);
       if (!chon) return alert(window.t("ht.khong_kenh_token"));
       if (!t) return alert(window.t("cb.dan_token_kenh", { kenh: k.nhan }) + "\n\n" + (k.lay_token || ""));
+      var moi = null;
       try {
-        await api("/channels/accounts", { method: "POST", body: fd({
+        var r = await api("/channels/accounts", { method: "POST", body: fd({
           channel: chon, token: t, label: box.querySelector("#htLabel").value.trim(), bot_username: uname }) });
+        moi = r.account || (r.id ? { id: r.id, channel: chon } : null);
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
       dong();
       _dauVetTK = "";
       taiTK(true);
+      if (opts.onXong) { try { opts.onXong(moi); } catch (e) {} }
     };
   }
 
@@ -710,5 +724,6 @@
     try { var s = window.Alpine && Alpine.store("nav"); if (s && s.go) s.go("conversations"); } catch (e) {}
   }
 
-  window.JavisConversations = { render: render, mo: moTu, chonTab: chonTab };
+  window.JavisConversations = { render: render, mo: moTu, chonTab: chonTab,
+                               themTaiKhoan: moThemTK };
 })();

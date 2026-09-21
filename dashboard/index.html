@@ -32,8 +32,8 @@
   <!-- Biến --ic-* cho icon dùng trong content: của CSS. Phải đứng TRƯỚC style.css
        vì style.css tham chiếu các biến này. -->
   <link rel="stylesheet" href="/static/vendor/lucide-icons.css?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=86">
-  <link rel="stylesheet" href="/static/console.css?v=56">
+  <link rel="stylesheet" href="/static/style.css?v=87">
+  <link rel="stylesheet" href="/static/console.css?v=57">
   <!-- Áp tông đã lưu TRƯỚC khi vẽ để không nháy tối rồi mới đổi sang sáng.
        Giá trị cũ "dim" (tông tối-nhạt, gỡ ở 0.9.250) quy về tối; theme.js sẽ ghi đè lại. -->
   <script>(function(){try{if(localStorage.getItem('javis.theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
@@ -883,9 +883,9 @@
        console.js (renderWorkspace ủy quyền cho window.JavisWorkspace). -->
   <script src="/static/workspace.js?v=9"></script>
   <script src="/static/packs.js?v=1"></script>
-  <script src="/static/chatbots.js?v=12"></script>
+  <script src="/static/chatbots.js?v=13"></script>
   <!-- Trang Hội thoại (hộp thư khách): nạp TRƯỚC console.js để renderConversations uỷ quyền được. -->
-  <script src="/static/conversations.js?v=2"></script>
+  <script src="/static/conversations.js?v=3"></script>
   <!-- Dashboard Token (trang Mức dùng nâng cấp): nạp TRƯỚC console.js để renderUsage ủy quyền được. -->
   <script src="/static/usage.js?v=1"></script>
   <!-- Trang Code (terminal): nạp TRƯỚC console.js để renderCode ủy quyền được. File này CHỈ có

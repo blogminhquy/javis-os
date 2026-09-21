@@ -2532,19 +2532,24 @@ body.ne-full-on .cview { z-index: 250; }
 .cb-loc-o.on { background: var(--surface-3); color: var(--text); border-color: var(--info-line); }
 .cb-loc-n { font-size: 11.5px; color: var(--text3); }
 
-/* Bộ chọn kênh trong form. Thẻ bấm to chứ không phải <select>: đây là quyết định ĐẦU TIÊN
-   và nó đổi cả phần còn lại của form (token lấy ở đâu, có nhóm không), nên nó phải nhìn ra
-   được là một ngã rẽ chứ không phải một tuỳ chọn nhỏ. */
-.cb-kenh { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
-.cb-kenh-o { display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
-  cursor: pointer; text-align: left; padding: 11px 12px; border-radius: 10px;
+/* Bộ chọn kênh khi nối một tài khoản mới. Thẻ bấm chứ không phải <select>: đây là quyết định
+   ĐẦU TIÊN và nó đổi cả phần còn lại của form (token lấy ở đâu, có nhóm không), nên nó phải
+   nhìn ra được là một ngã rẽ chứ không phải một tuỳ chọn nhỏ.
+   DANH SÁCH DỌC chứ không phải lưới hai cột (đổi 0.61.1): lưới hai cột bóp câu tóm tắt của
+   mỗi kênh thành năm sáu dòng chữ hẹp trên điện thoại, và nó không mở rộng được - kênh thứ
+   tư, thứ năm là màn hình dài thêm chừng ấy lần. Một hàng cho một kênh thì thêm bao nhiêu
+   kênh cũng vẫn đọc được, và tên kênh nằm thẳng hàng nên mắt lướt dọc là xong. */
+.cb-kenh { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.cb-kenh-o { display: grid; grid-template-columns: auto 1fr; align-items: center;
+  column-gap: 11px; row-gap: 2px;
+  cursor: pointer; text-align: left; padding: 10px 12px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--bg2); color: var(--text); }
 .cb-kenh-o:hover { border-color: var(--info-line); }
 .cb-kenh-o.on { border-color: var(--accent); background: var(--surface-3);
   box-shadow: inset 0 0 0 1px var(--accent); }
-.cb-kenh-o b { font-size: 14px; }
-.cb-kenh-o small { font-size: 12px; color: var(--text3); line-height: 1.45; }
-.cb-kenh-logo { display: inline-flex; margin-bottom: 2px; }
+.cb-kenh-o b { font-size: 15px; }
+.cb-kenh-o small { grid-column: 2; font-size: 13px; color: var(--text3); line-height: 1.45; }
+.cb-kenh-logo { display: inline-flex; grid-row: span 2; }
 .cb-kenh-khoa { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 9px 12px; border-radius: 10px; margin-top: 4px;
   border: 1px solid var(--border); background: var(--surface-3); color: var(--text); }
@@ -2636,6 +2641,34 @@ body.ne-full-on .cview { z-index: 250; }
   cursor: pointer; }
 .cb-ack input { width: auto; flex: none; margin-top: 2px; }
 .cb-form-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* ---- Form tạo bot hai bước (0.61.1) ----
+   Bước 1 hỏi bot trả lời ở đâu, bước 2 mới là cài đặt. Hai nút ở chân form ĐỨNG YÊN một chỗ
+   và chỉ đổi chữ theo bước: một cặp nút cố định đọc dễ hơn hai hàng nút hiện ra rồi biến đi,
+   và trên điện thoại ngón tay luôn tìm thấy chúng ở đúng chỗ cũ. */
+.cb-form-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.cb-form-h h3 { margin: 0; }
+.cb-buoc { font-size: 13px; color: var(--text3); font-weight: 600; white-space: nowrap; }
+.cb-wizard .cb-form-acts { justify-content: space-between; }
+/* Tóm tắt lựa chọn của bước 1, đặt ở đầu bước 2. Không có nó thì sang bước sau là mất dấu
+   thứ vừa chọn, và người dùng phải lùi lại chỉ để nhìn cho chắc. */
+.cb-tom { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px;
+  padding: 9px 11px; border-radius: 10px; background: var(--surface-3);
+  border: 1px solid var(--border); }
+.cb-tom-l { color: var(--text3); }
+.cb-doi-tk { margin-left: auto; background: none; border: 0; cursor: pointer; padding: 0 2px;
+  font: inherit; font-weight: 600; color: var(--accent); text-decoration: underline; }
+.cb-trong-tk { font-size: 13.5px; color: var(--text2); padding: 12px; border-radius: 10px;
+  border: 1px dashed var(--border); background: var(--surface-1); margin-top: 4px; }
+.cb-noi-kenh { margin-top: 10px; width: 100%; display: inline-flex; align-items: center;
+  justify-content: center; gap: 6px; }
+/* Ba ô có mặc định dùng được ngay (ngôn ngữ tự nhận, không chuyển người thật, chưa khai nhóm)
+   gấp vào đây. Ô mức quyền thì KHÔNG: đọc sót nó là mất tiền thật. */
+.cb-nangcao { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 4px; }
+.cb-nangcao summary { cursor: pointer; font-size: 13.5px; color: var(--text2); font-weight: 600;
+  display: flex; align-items: center; gap: 6px; list-style: none; padding: 8px 0; }
+.cb-nangcao summary::-webkit-details-marker { display: none; }
+.cb-nangcao[open] summary { color: var(--text); }
 
 /* ---- Nhật ký bot: hai tab "Bot bí" / "Hội thoại gần đây" ---- */
 .cb-log-form { width: min(760px, 96vw); }
