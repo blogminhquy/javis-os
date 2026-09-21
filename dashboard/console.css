@@ -2015,10 +2015,17 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ht-acc-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: var(--text3); }
 .ht-acc-meta span { display: inline-flex; align-items: center; gap: 4px; }
 .ht-acc-meta b { color: var(--text); }
-/* Tên brain đi sau tên bot: mờ hơn một bậc và KHÔNG tách thành một span riêng của flex (nó
-   nằm trong cùng span với tên bot), để "Coach kỷ luật · brain My Bullet Journal" đọc như một
-   cụm chứ không phải hai thông tin rời nhau. */
-.ht-acc-meta .ht-nhe { color: var(--text3); font-weight: 400; display: inline; }
+/* Nhãn brain trên thẻ (0.62.4): một mục riêng của hàng meta, mờ hơn một bậc. Từ bản này nó
+   chỉ hiện khi CÓ CHUYỆN để nói (đang xem mọi brain, tài khoản chưa gán chủ, hay bot trực nằm
+   ở brain khác), nên nó là một thông tin đứng riêng chứ không còn là đuôi của tên bot. */
+.ht-acc-meta .ht-nhe { color: var(--text3); font-weight: 400; font-style: italic; }
+/* Hàng cho biết đang lọc theo brain nào + nút đổi. Đứng ngay trên lưới thẻ, vì một danh sách
+   ngắn đi mà không nói vì sao thì trông hệt như mất dữ liệu. */
+.ht-tk-loc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px;
+  color: var(--text3); padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 10px;
+  background: var(--bg3); }
+.ht-tk-loc-txt { display: inline-flex; align-items: center; gap: 5px; flex: 1 1 auto; min-width: 0; }
+.ht-tk-loc .s-btn-ghost { flex: none; font-size: 12.5px; padding: 4px 10px; }
 .ht-acc-nl { display: flex; flex-wrap: wrap; gap: 6px; }
 .ht-acc-nl span { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 2px 8px;
   border-radius: 999px; background: var(--bg3); color: var(--text2); border: 1px solid var(--hairline); }

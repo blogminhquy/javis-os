@@ -52,9 +52,14 @@ def _bat(v) -> bool:
     return str(v or "").strip().lower() not in ("", "0", "false", "off", "no")
 
 
-def _tai_khoan_thong_nhat() -> list:
+def _tai_khoan_thong_nhat(brain: str = "") -> list:
     """Mọi tài khoản kênh về MỘT khuôn. Không nhánh theo tên kênh: mỗi loại kênh (kind) cho một
-    cách LIỆT KÊ, còn hình dạng bản ghi thì như nhau."""
+    cách LIỆT KÊ, còn hình dạng bản ghi thì như nhau.
+
+    `brain` rỗng = mọi brain. Có brain thì chỉ trả tài khoản BOT của brain đó (cộng tài khoản
+    chưa gán chủ). Tài khoản `kind == "account"` (Zalo cá nhân) KHÔNG lọc: chúng là kết nối ở
+    trang Kết nối, không thuộc brain nào, nên lọc chúng đi là làm mất một kênh có thật.
+    """
     da_co = {a["id"]: a for a in conversations.tai_khoan()}
     bots = chatbot_store.list_bots()
     bot_cua = {}
@@ -66,7 +71,7 @@ def _tai_khoan_thong_nhat() -> list:
         m = channels.module(s.id)
         nl = dict(s.nang_luc)
         if s.kind == "bot":
-            for a in channel_accounts.list_accounts(s.id):
+            for a in channel_accounts.list_accounts(s.id, brain=brain):
                 b = bot_cua.get(a["id"])
                 st = {}
                 if b:
@@ -94,6 +99,9 @@ def _tai_khoan_thong_nhat() -> list:
                     # brain ra thì người dùng thấy một cái tên bot mà không biết tìm nó ở đâu,
                     # và trang Chatbot chỉ hiện bot của brain đang mở (chủ repo báo 21/09).
                     "bot_brain": (b or {}).get("brain") or "",
+                    # BRAIN CHỦ của chính tài khoản (0.62.4). Khác `bot_brain`: bot có thể chưa
+                    # có. Rỗng = chưa gán, thẻ hiện ở mọi brain cho tới khi có bot nhận.
+                    "brain": a.get("brain") or "",
                     # Tài khoản này có phải tài khoản DUY NHẤT của bot đó không. Gỡ nó ra là
                     # bot hết token và không bật lên được nữa, nên câu hỏi trước khi xoá phải
                     # nói khác đi.
@@ -118,6 +126,7 @@ def _tai_khoan_thong_nhat() -> list:
                     "label": a.get("label") or s.nhan, "external_id": "", "tien_to_ten": "",
                     "token_set": True, "meta": {},
                     "bot_id": "", "bot_name": "", "bot_icon": "", "bot_enabled": False,
+                    "brain": "",   # kết nối ở trang Kết nối, không thuộc brain nào
                     "state": ("error" if a.get("loi") else "running" if theo_doi else "off"),
                     "loi": a.get("loi") or "", "lan_cuoi": a.get("lan_cuoi") or 0,
                     "watch": theo_doi, "ghi": theo_doi,
@@ -139,12 +148,18 @@ def register(app, deps: ChannelsDeps):
         return {"ok": True, "channels": channels.cho_giao_dien()}
 
     @router.get("/channels/accounts")
-    async def channels_accounts(channel: str = ""):
-        ds = _tai_khoan_thong_nhat()
+    async def channels_accounts(channel: str = "", brain: str = "", tat_ca: str = ""):
+        """`brain` = chỉ tài khoản bot của brain đó; `tat_ca=1` = bỏ lọc, xem của mọi brain.
+
+        Mặc định (không truyền gì) vẫn là MỌI brain: mã nội bộ và lời gọi cũ dựa vào đó.
+        """
+        br = "" if _bat(tat_ca) else str(brain or "").strip()
+        ds = _tai_khoan_thong_nhat(brain=br)
         k = str(channel or "").strip().lower()
         if k:
             ds = [a for a in ds if a["channel"] == k]
-        return {"ok": True, "accounts": ds, "channels": channels.cho_giao_dien()}
+        return {"ok": True, "accounts": ds, "channels": channels.cho_giao_dien(),
+                "brain": br, "tat_ca": bool(_bat(tat_ca))}
 
     @router.post("/channels/verify-token")
     async def channels_verify_token(channel: str = Form(...), token: str = Form(...),
@@ -154,7 +169,8 @@ def register(app, deps: ChannelsDeps):
 
     @router.post("/channels/accounts")
     async def channels_account_create(channel: str = Form(...), token: str = Form(...),
-                                      label: str = Form(""), bot_username: str = Form("")):
+                                      label: str = Form(""), bot_username: str = Form(""),
+                                      brain: str = Form("")):
         """Thêm tài khoản token. Chưa kiểm (không có bot_username) thì kiểm luôn ở đây."""
         ext = str(bot_username or "").strip()
         meta = {}
@@ -165,17 +181,24 @@ def register(app, deps: ChannelsDeps):
             ext = r.get("username") or ""
             meta = {k: r[k] for k in ("vao_duoc_nhom", "account_type", "bot_name") if k in r}
         aid, loi = channel_accounts.create_account({
-            "channel": channel, "token": token, "label": label, "external_id": ext, "meta": meta})
+            "channel": channel, "token": token, "label": label, "external_id": ext, "meta": meta,
+            # Thêm từ brain nào thì thuộc brain đó (0.62.4). Không truyền = chưa gán chủ, thẻ
+            # hiện ở mọi brain cho tới khi có bot nhận.
+            "brain": brain})
         if loi:
             return _400(loi)
         return {"ok": True, "id": aid, "account": channel_accounts.get_account(aid)}
 
     @router.post("/channels/accounts/{account_id}/update")
     async def channels_account_update(account_id: str, label: str = Form(""), token: str = Form(""),
-                                      bot_username: str = Form("")):
+                                      bot_username: str = Form(""), brain: str = Form(None)):
         patch = {}
         if label.strip():
             patch["label"] = label
+        # `brain` không gửi = KHÔNG đụng (client cũ giữ nguyên hành vi). Gửi chuỗi rỗng = gỡ
+        # chủ, tài khoản quay về trạng thái hiện ở mọi brain.
+        if isinstance(brain, str):
+            patch["brain"] = brain.strip()
         if token.strip():
             patch["token"] = token
             if bot_username.strip():

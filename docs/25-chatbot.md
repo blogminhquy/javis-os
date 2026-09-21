@@ -51,7 +51,7 @@ Bot **đọc Agent lúc chạy**, không chép lại. Sau này sửa Agent ở t
 
 ### 3. Một tài khoản kênh: token riêng, lấy đúng chỗ theo kênh
 
-Từ 0.61.0 token là một **tài khoản kênh** ở tab **Kênh**, bot chỉ **trỏ tới** nó. Bạn thêm tài khoản ở tab Kênh trước rồi tích chọn khi tạo bot, hoặc dán token ngay trong form tạo bot; hai đường cho cùng một kết quả. Một bot trực được **nhiều** tài khoản (một vai trả lời ở cả Telegram lẫn Zalo Bot), còn mỗi tài khoản chỉ **một** bot trực.
+Từ 0.61.0 token là một **tài khoản bot** ở tab **Tài khoản bot**, bot chỉ **trỏ tới** nó. Bạn thêm tài khoản ở tab Tài khoản bot trước rồi tích chọn khi tạo bot, hoặc dán token ngay trong form tạo bot; hai đường cho cùng một kết quả. Một bot trực được **nhiều** tài khoản (một vai trả lời ở cả Telegram lẫn Zalo Bot), còn mỗi tài khoản chỉ **một** bot trực.
 
 Nếu bot chạy trên **Telegram**: vào **@BotFather** gõ `/newbot`, đặt tên và username, lấy chuỗi token dạng `123456789:ABCdef...`.
 
@@ -99,7 +99,7 @@ Bấm **Bot mới**, điền:
 
 | Ô | Điền gì |
 |---|---|
-| Bot trực tài khoản kênh nào | Tích một hay nhiều tài khoản ở tab Kênh (chỉ hiện tài khoản chưa bot nào trực). Chưa có thì mở **Thêm tài khoản mới bằng token**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
+| Bot trực tài khoản kênh nào | Tích một hay nhiều tài khoản ở tab Tài khoản bot (chỉ hiện tài khoản của brain này mà chưa bot nào trực). Chưa có thì mở **Thêm tài khoản mới bằng token**: chọn loại kênh, dán token, Kiểm tra. Xem [Chọn Telegram hay Zalo](#chọn-telegram-hay-zalo) |
 | Tên bot | Tên bạn nhìn để phân biệt các bot với nhau |
 | Agent làm bộ não | Chọn Agent trong brain đang mở, hoặc bấm **Tạo Agent** |
 | Bot trả lời dựa trên gì | Xem mục hai chế độ ở dưới |

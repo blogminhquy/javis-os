@@ -285,7 +285,7 @@ def _public(b: dict) -> dict:
     """Bản trả ra giao diện. KHÔNG bao giờ kèm token, kể cả dạng đã mã hoá."""
     out = {k: v for k, v in b.items() if k not in ("token", "token_enc")}
     # Tài khoản kênh của bot (0.61.0): bản công khai, KHÔNG token. Bot trỏ tới tài khoản; tài
-    # khoản mất (xoá ở tab Kênh) thì bot còn nguyên nhưng không có gì để chạy - nói ra bằng
+    # khoản mất (xoá ở tab Tài khoản bot) thì bot còn nguyên nhưng không có gì để chạy - nói ra bằng
     # `token_set` = False, cùng cách thẻ bot vẫn báo "chưa có token".
     ds_tk = [channel_accounts.get_account(a) for a in (b.get("accounts") or [])]
     ds_tk = [a for a in ds_tk if a]
@@ -471,6 +471,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "channel": _clean_kenh(data.get("channel")), "token": tok,
             "label": data.get("account_label") or name,
             "external_id": data.get("bot_username"),
+            "brain": brain,
         })
         if loi:
             return None, loi
@@ -503,7 +504,25 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         }
         d["bots"].append(bot)
         _save(d)
-        return bot["id"], ""
+    _nhan_brain_cho_tk(bot)
+    return bot["id"], ""
+
+
+def _nhan_brain_cho_tk(bot: dict) -> None:
+    """Tài khoản bot này giữ mà CHƯA có brain chủ thì nhận brain của bot (0.62.4).
+
+    Tab Tài khoản bot lọc theo brain, nên một tài khoản không chủ là một thẻ lơ lửng hiện ở
+    mọi brain. Gắn bot vào chính là lúc biết được nó thuộc về đâu. `nhan_brain` không ghi đè
+    chủ cũ, nên gọi ở đây an toàn kể cả khi tài khoản đã có brain.
+    """
+    br = str((bot or {}).get("brain") or "").strip()
+    if not br:
+        return
+    for aid in account_ids_of(bot or {}):
+        try:
+            channel_accounts.nhan_brain(aid, br)
+        except Exception:      # noqa: BLE001 - kho tài khoản hỏng không được làm hỏng lưu bot
+            pass
 
 
 # Trường giao diện được phép sửa. Danh sách TRẮNG chứ không phải "nhận hết trừ vài cái":
@@ -614,8 +633,14 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                     b["enabled"] = bool(v) and _co_token(b)
             b["updated_at"] = _now()
             _save(d)
-            return True, ""
-    return False, LOI_KHONG_CO_BOT
+            _da_luu = dict(b)
+            break
+        else:
+            return False, LOI_KHONG_CO_BOT
+    # Ngoài khoá: `nhan_brain` tự lấy khoá của kho tài khoản, gọi trong `with _lock` ở đây là
+    # giữ hai khoá lồng nhau không cần thiết.
+    _nhan_brain_cho_tk(_da_luu)
+    return True, ""
 
 
 def set_enabled(bot_id: str, on: bool) -> tuple[bool, str]:

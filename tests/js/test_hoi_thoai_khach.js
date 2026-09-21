@@ -19,6 +19,7 @@ const CB = fs.readFileSync(path.join(ROOT, "dashboard", "chatbots.js"), "utf8");
 // Phia may chu: hai dau kia (ten brain cua bot, va viec go tai khoan khoi bot) phai co that o
 // day chu khong chi la mot chuoi trong giao dien.
 const SRV = fs.readFileSync(path.join(ROOT, "server", "routes", "channels.py"), "utf8");
+const ACC = fs.readFileSync(path.join(ROOT, "server", "channel_accounts.py"), "utf8");
 const VI = JSON.parse(fs.readFileSync(path.join(ROOT, "dashboard", "i18n", "vi.json"), "utf8"));
 const fails = [];
 function check(name, cond) {
@@ -112,12 +113,41 @@ check("CANARY: nut Xoa KHONG con bi an theo xoa_duoc",
       !/a\.xoa_duoc \? '<button[^']*ht-acc-xoa/.test(SRC) && SRC.includes("ht-acc-xoa"));
 check("moi the kenh bot deu co nut Xoa",
       /a\.kind === "bot"\s*\n?\s*\? '<button type="button" class="s-btn-ghost ht-acc-xoa">/.test(SRC));
-// Tai khoan kenh la TOAN CUC, bot thi thuoc MOT brain - nen the nay luon tron bot cua moi
-// brain. Hai he qua, ca hai deu phai duoc noi ra chu khong de nguoi dung doan:
-check("the noi ro bot dang truc nam o BRAIN nao",
-      SRC.includes('window.t("ht.o_brain", { brain: a.bot_brain })') &&
-      VI["ht.o_brain"].includes("{brain}") &&
+// 0.62.4: tai khoan bot THUOC MOT BRAIN (truong `brain` trong kho tai khoan), va tab nay loc
+// theo brain dang mo. Truoc do tai khoan la toan cuc nen tab tron het moi brain, nhin khong
+// biet cai nao cua minh (chu repo bao 21/09). Bon thu phai giu:
+check("kho tai khoan co truong brain rieng, khong suy tu bot",
+      SRV.includes('"brain": a.get("brain") or ""') &&
+      ACC.includes('def list_accounts(channel: str = "", brain: str = "")'));
+check("tai khoan CHUA gan brain hien o MOI brain (khong co token nao tang hinh)",
+      /_clean_brain\(a\.get\("brain"\)\) not in \(""/.test(ACC));
+check("tab goi API kem brain dang mo",
+      /api\("\/channels\/accounts\?brain=" \+ encodeURIComponent\(brain\(\)\)/.test(SRC));
+check("co cong tac xem MOI brain, de tim lai tai khoan gan nham cho",
+      /_tkMoiBrain \? "&tat_ca=1" : ""/.test(SRC) &&
+      SRC.includes('window.t("ht.tk_xem_moi_brain")') &&
+      SRC.includes('window.t("ht.tk_chi_brain_nay")'));
+check("hang loc noi ro dang xem brain nao (danh sach ngan di phai co ly do)",
+      SRC.includes('window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) })') &&
+      VI["ht.tk_loc_brain"].includes("{brain}"));
+// Khoa brain that la "brain" hoac mot duong dan tuyet doi. Dan nguyen no len giao dien thi ra
+// "brain brain" hoac mot dong path dai ngoang - da thay tan mat luc chup man hinh 21/09.
+check("nhan brain hien TEN doc duoc, khong phai khoa tho",
+      /function tenBrain\(v\)/.test(SRC) &&
+      /o\.dataset && o\.dataset\.brainName/.test(SRC) &&
+      /replace\(\/\\s\*·\\s\*\\d\+\\\+\?\$\//.test(SRC));
+// Nhan brain tren the chi hien khi CO CHUYEN de noi. Loc theo brain roi ma the nao cung dan
+// ten brain dang mo thi chi la tieng on.
+check("the noi brain khi: xem moi brain / chua gan chu / bot truc o brain khac",
+      SRC.includes('window.t("ht.tk_chua_brain")') &&
+      SRC.includes('window.t("ht.tk_bot_brain_khac", { brain: tenBrain(botBr) })') &&
+      /_tkMoiBrain \|\| brTK !== brNay/.test(SRC) &&
       SRV.includes('"bot_brain": (b or {}).get("brain") or ""'));
+check("CANARY: khong con dan brain vo dieu kien vao sau ten bot",
+      !SRC.includes('window.t("ht.o_brain", { brain: a.bot_brain })'));
+check("doi duoc brain cua tai khoan (loi thoat khi them nham cho)",
+      SRC.includes('window.t("ht.lb_brain_tk")') && /than\.brain = oBr\.value/.test(SRC) &&
+      ACC.includes('"brain"') && /"meta", "brain"\)/.test(ACC));
 check("bam Xoa thi go khoi bot roi xoa NGAY, trong mot lan hoi",
       /window\.t\(a\.bot_mot_tk \? "ht\.xoa_go_bot_cuoi" : "ht\.xoa_go_bot"/.test(SRC) &&
       /go_khoi_bot: a\.bot_id \? "1" : ""/.test(SRC));
