@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.61.4] - 2026-09-21
+### Sửa lỗi
+- **Trang Cập nhật hết ngồi chờ.** Trước đây mỗi lần mở trang phải tải gần 2 MB nhật ký về rồi mới vẽ được dòng nào, nên nó nằm im ở chữ "Đang tải nhật ký cập nhật..." đủ lâu để trông như hỏng. Nay trang chỉ lấy đúng 20 bản đang xem: mở xong gần như tức thì, bấm sang trang cũ hơn cũng vậy.
+- **Nút "Kiểm tra lại" lấy đúng bản mới nhất.** Nó ép máy chủ bỏ bản nhật ký đang giữ sẵn rồi hỏi lại GitHub, thay vì đọc lại bản cũ trong bộ nhớ.
+- **Javis hết nói "chưa biết đang làm việc trên brain nào"** khi bạn tự mở một phiên Codex rồi nhờ nó giao việc hay xem lịch. Nó tự lấy brain đang mở, và ghi rõ trong câu trả lời là đang chạy trên brain nào để bạn không bao giờ phải đoán.
+
 ## [0.61.3] - 2026-09-21
 ### Sửa lỗi
 - **Javis không còn nói "chưa có dữ liệu" ngay trên bộ não của bạn.** Câu nào nhắc tới dữ liệu, dự án, quy trình, skill hay trợ lý giờ luôn đi đường đầy đủ, có tool và có bộ não. Trước đây mức Siêu tiết kiệm nhận nhầm chúng là chat vặt rồi trả lời chay, thậm chí bảo bạn tự dán tài liệu vào.
