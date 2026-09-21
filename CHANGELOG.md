@@ -13,6 +13,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 ### Sửa lỗi
 - **Viền cam khi bấm vào ô nhập hết bị lẹm** ở cột cài đặt bên phải trang Cộng sự.
 
+## [0.61.5] - 2026-09-21
+### Sửa lỗi
+- **Trang Mức dùng mở ra là thấy số ngay.** Trước đây mỗi lần vào trang phải đợi Javis đọc lại toàn bộ nhật ký phiên rồi mới vẽ, mà trên máy dùng nhiều thì đó là 602 MB và hơn 26 giây ngồi nhìn chữ "Đang dựng chỉ số token...". Nay trang vẽ ngay bằng số đã có, phần quét chạy lặng lẽ ở nền và chỉ cập nhật lại khi thật sự có số mới.
+- **Việc quét nhật ký nhẹ hẳn.** Javis giờ đọc tiếp từ chỗ lần trước dừng thay vì đọc lại cả file từ đầu, nên một phiên đang chạy ghi thêm vài dòng không còn kéo theo cả chục megabyte đọc lại. Đo trên máy chủ dự án: 26,7 giây xuống còn chưa tới một phần mười giây.
+- Số liệu token vẫn đếm y như cũ, không sai lệch một con số nào: đã dựng lại chỉ số từ đầu bằng cả mã cũ lẫn mã mới trên cùng 651 file để đối chiếu.
+
 ## [0.61.4] - 2026-09-21
 ### Sửa lỗi
 - **Trang Cập nhật hết ngồi chờ.** Trước đây mỗi lần mở trang phải tải gần 2 MB nhật ký về rồi mới vẽ được dòng nào, nên nó nằm im ở chữ "Đang tải nhật ký cập nhật..." đủ lâu để trông như hỏng. Nay trang chỉ lấy đúng 20 bản đang xem: mở xong gần như tức thì, bấm sang trang cũ hơn cũng vậy.

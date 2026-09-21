@@ -202,11 +202,41 @@
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
   }
 
+  // Mở trang là VẼ NGAY bằng chỉ số đang có, rồi mới đi quét log ở nền và vẽ lại nếu có gì mới.
+  //
+  // Vì sao đổi (đo 2026-09-21, chủ repo báo "mỗi lần vào cũng rất lag"): bản cũ gọi load(true),
+  // tức `/usage/summary?refresh=1`, tức CHỜ quét xong cả `~/.claude/projects` mới vẽ dòng nào.
+  // Trên máy chủ dự án thư mục đó có 651 file và 602 MB, quét đầy đủ mất 27 GIÂY - suốt ngần ấy
+  // trang chỉ có chữ "Đang dựng chỉ số token...", nhìn y như treo. Mà số liệu cũ thì đã nằm sẵn
+  // trong chỉ số rồi, chẳng việc gì phải giấu nó đi trong lúc chờ.
+  //
+  // Quét vẫn chạy, chỉ là không đứng chắn trước mặt người dùng nữa: nó đi đường `/usage/refresh`
+  // ở nền, xong thì vẽ lại. Server chỉ vẽ lại khi lượt quét ĐỘNG tới thứ gì (`_co_thay_doi`),
+  // nên mở trang lúc không có log mới thì không có cú nháy nào.
   function render(el) {
     injectCss();
     state.el = el;
     el.innerHTML = '<div class="tk-wrap"><div class="cview-placeholder" style="min-height:220px"><div class="ph-ico">' + ic("loader", { cls: "ic-xl ic-spin" }) + '</div><div class="dim">' + window.t("usage.dang_dung") + "</div></div></div>";
-    load(true);
+    load(false);
+    quetNen(el);
+  }
+
+  function _co_thay_doi(r) {
+    if (!r || typeof r !== "object") return false;
+    return !!(r.claude_files || r.codex_files || r.api_events || r.quet_lai);
+  }
+
+  function quetNen(el) {
+    if (state.busy) return;
+    state.busy = true;
+    fetch("/usage/refresh", { method: "POST" }).then(function (r) { return r.json(); })
+      .then(function (r) {
+        state.busy = false;
+        // Người dùng đã rời trang trong lúc quét -> đừng vẽ đè lên trang họ đang xem.
+        if (!el.isConnected || state.el !== el) return;
+        if (_co_thay_doi(r)) load(false);
+      })
+      .catch(function () { state.busy = false; });
   }
 
   // Mức tiết kiệm không đổi theo kỳ hay theo provider, nên chỉ gọi lại khi thật sự cần
