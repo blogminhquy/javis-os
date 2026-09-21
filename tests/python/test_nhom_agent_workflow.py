@@ -135,6 +135,16 @@ idx1 = main._render_javis_index(mot_nhom)
 check("index: chỉ một nhóm thì không chèn tiêu đề nhóm thừa", "### Chung" not in idx1)
 
 # ============================================================
+# 3b. Lưu lại mà KHÔNG gửi `group` thì GIỮ nguyên nhóm đang có
+# ============================================================
+# Trình sửa trợ lý bỏ ô nhóm (0.62.0), nên mỗi lần bấm Lưu là form không gửi field này. Mặc
+# định cũ của server là "Chung", tức bấm Lưu một cái là trợ lý bị ném khỏi nhóm của nó, im
+# lặng - đúng kiểu hỏng không ai truy ra.
+_, meta, _ = luu("agents", name="Viet email", role="Soạn email chăm khách", slug=slug_ag)
+check("agent: lưu mà không gửi group thì giữ nguyên nhóm cũ",
+      meta.get("group") == "Marketing", meta)
+
+# ============================================================
 # 4. Dây nối UI: BA trang dùng CHUNG một khung nhóm
 # ============================================================
 # Chép khung ra ba bản là ba bản trôi lệch nhau ngay lần sửa đầu (bài học của khối chọn
@@ -143,7 +153,9 @@ sj = (ROOT / "dashboard" / "studio.js").read_text(encoding="utf-8")
 check("UI: có khung nhóm dùng chung", "function khungNhomHtml(" in sj and "function locTheoNhom(" in sj)
 for trang, oId in (("workflows", "wfSearch"), ("agents", "agSearch"), ("skills", "skSearch")):
     check(f"UI: trang {trang} dùng khung nhóm chung", f'searchId: "{oId}"' in sj)
-check("UI: form Agent gửi kèm nhóm", 'box.querySelector("#agGroup")' in sj)
+# Form Agent KHÔNG còn ô nhóm từ 0.62.0 (gom nhóm chỉ còn ở thanh nhóm cột trái trang Cộng
+# sự). Nó cũng không gửi `group` nữa, và server phải GIỮ nhóm đang có - xem mục 3b bên dưới.
+check("UI: form Agent không còn ô nhóm", '#agGroupSel' not in sj and '#agGroup"' not in sj)
 check("UI: form Workflow gửi kèm nhóm", 'box.querySelector("#wfGroup")' in sj)
 
 if _fails:

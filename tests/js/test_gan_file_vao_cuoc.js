@@ -42,8 +42,10 @@ check("bỏ hẳn hai pane riêng của chế độ cuộc",
 check("veDrawer dùng chung paneFile/paneLink cho cả hai chế độ",
   /projTab === "instr" \? paneHuongDan\(p\) : projTab === "files" \? paneFile\(p\) : paneLink\(p\)/.test(SU)
   && (SU.match(/function paneFile\(/g) || []).length === 1);
+// Ba chế độ (project / cuộc / trợ lý) dùng chung một ngăn kéo, nên "dữ liệu đang mở" phải
+// đọc ở MỘT chỗ. Rẽ nhánh lại ở từng hàm là thêm chế độ thứ tư sẽ sót đúng một chỗ.
 check("có hàm đọc dữ liệu đang mở, không rẽ nhánh ở từng chỗ",
-  /function pdDuLieu\(\) \{ return pdLaCuoc\(\) \? cuocTS : projChiTiet; \}/.test(SU));
+  /function pdDuLieu\(\) \{ return pdLaCuoc\(\) \? cuocTS : pdLaAgent\(\) \? agentTS : projChiTiet; \}/.test(SU));
 
 // ============================================================
 // 2. Gốc URL đổi ở MỘT chỗ
@@ -52,15 +54,16 @@ check("có hàm pdApi trả gốc theo chế độ",
   /function pdApi\(\)[\s\S]{0,240}\/sessions\/"[\s\S]{0,120}\/assets"[\s\S]{0,120}\/projects\/"/.test(SU));
 ["themFile", "goNhanhFile", "ghimFile", "goFile", "themLink", "ghimLink", "goLink"].forEach((fn) => {
   const than = (SU.match(new RegExp("async function " + fn + "\\([\\s\\S]*?\\n  \\}")) || [""])[0];
-  check(fn + " gọi qua pdApi(), không nhúng cứng /projects/",
-    /pdApi\(\)/.test(than) && !/"\/projects\//.test(than), than.slice(0, 90));
+  // pdPost() = pdApi() cộng các trường đi kèm của chế độ (chế độ trợ lý phải gửi `brain`).
+  check(fn + " gọi qua pdApi()/pdPost(), không nhúng cứng /projects/",
+    /pdApi\(\)|pdPost\(/.test(than) && !/"\/projects\//.test(than), than.slice(0, 90));
 });
 check("nạp lại chi tiết cũng theo chế độ",
   /async function napLaiChiTiet\(\)[\s\S]{0,200}napCuocTS\(\)[\s\S]{0,120}napProjChiTiet/.test(SU));
 // Chip chỉ hiện số của PROJECT. Gọi loadProjects() sau mỗi lần gắn file vào một cuộc là quét
 // lại toàn bộ project mỗi cú bấm, không đổi gì trên màn hình.
 check("chỉ project mới nạp lại danh sách cho chip",
-  /function napLaiChip\(\) \{ if \(!pdLaCuoc\(\)\) loadProjects\(\); \}/.test(SU));
+  /function napLaiChip\(\) \{ if \(pdCheDo === "project"\) loadProjects\(\); \}/.test(SU));
 
 // ============================================================
 // 3. Hàng TỰ DÒ: mở được, nhưng không có nút gỡ/ghim

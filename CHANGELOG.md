@@ -4,6 +4,15 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.0] - 2026-09-21
+### Thêm mới
+- **Trợ lý có tủ tài liệu riêng.** Mở `Cài đặt trợ lý` ở trang Cộng sự, bấm `Mở khung tài liệu & link` để gắn file trong brain hoặc dán đường link cho riêng trợ lý đó. Trợ lý luôn thấy danh sách này, ở mọi cuộc trò chuyện với nó lẫn mọi bước quy trình gọi tới nó.
+- **Ghim một file là trợ lý đọc sẵn.** Bấm ghim thì nội dung file được nạp thẳng vào đầu mỗi lượt, không phải chờ nó tự mở. Đúng luật ghim của khung project, và tài liệu đi theo file trợ lý nên xuất trợ lý ra hay copy brain sang máy khác vẫn còn nguyên.
+### Cải thiện
+- **Bỏ ô Nhóm trong Cài đặt trợ lý.** Gom nhóm giờ chỉ còn một chỗ là thanh nhóm ở cột trái. Trước đây hai chỗ cùng đặt một thứ, nên đổi nhóm ở cột trái rồi bấm Lưu trong form là nhóm nhảy về giá trị cũ mà không báo gì.
+### Sửa lỗi
+- **Viền cam khi bấm vào ô nhập hết bị lẹm** ở cột cài đặt bên phải trang Cộng sự.
+
 ## [0.61.4] - 2026-09-21
 ### Sửa lỗi
 - **Trang Cập nhật hết ngồi chờ.** Trước đây mỗi lần mở trang phải tải gần 2 MB nhật ký về rồi mới vẽ được dòng nào, nên nó nằm im ở chữ "Đang tải nhật ký cập nhật..." đủ lâu để trông như hỏng. Nay trang chỉ lấy đúng 20 bản đang xem: mở xong gần như tức thì, bấm sang trang cũ hơn cũng vậy.

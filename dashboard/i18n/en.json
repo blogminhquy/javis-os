@@ -2905,5 +2905,18 @@
   "ht.ph_nhan_tk": "e.g. Main Telegram bot",
   "ht.khong_kenh_token": "No channel accepts a bot token yet.",
   "ht.sua_tk": "Edit account",
-  "ht.tk_doi_token_bot": "Changing the token restarts bot \"{bot}\" with the new one."
+  "ht.tk_doi_token_bot": "Changing the token restarts bot \"{bot}\" with the new one.",
+  "studio.assets": "Files & links",
+  "studio.assets_open": "Open the files & links panel",
+  "studio.assets_hint": "Files and links added here travel with the assistant; it sees them every time it works.",
+  "studio.assets_new": "Save the assistant first, then you can attach documents.",
+  "ags.note": "Documents added here belong to the ASSISTANT: every conversation with it and every workflow step that calls it sees them. To attach something to one conversation only, use the Files & links button in the top bar.",
+  "ags.files_empty": "No documents yet. Add a file so the assistant knows where to look.",
+  "ags.links_empty": "No links yet.",
+  "ags.pin_note": "Pinned files have their content loaded into the assistant's prompt (up to 2000 characters each, 6000 total). For the rest the assistant only sees the name and opens them when it needs to.",
+  "ags.err_load": "Could not read this assistant's documents.",
+  "ags.remove": "Remove from the assistant",
+  "ags.confirm_remove_file": "Remove \"{ten}\" from this assistant? The file stays in the brain.",
+  "ags.confirm_remove_link": "Remove the link \"{ten}\" from this assistant?",
+  "cts.remove": "Remove from this conversation"
 }

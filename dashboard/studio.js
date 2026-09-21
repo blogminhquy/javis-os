@@ -100,16 +100,11 @@
   // xếp trên điện thoại. Chép tay thành ba bản là ba bản trôi lệch nhau ngay lần sửa đầu tiên.
   const NHOM_MD = "Chung";                     // nhóm mặc định khi file chưa khai `group`
   const nhomCua = (x) => (x && String(x.group || "").trim()) || NHOM_MD;
-  // Các dòng bày ra ô chọn nhóm: nhóm mặc định, nhóm ĐANG CÓ của mục đang sửa, rồi mọi nhóm
-  // đang dùng. Nhóm mà chỉ mình mục này dùng không nằm trong danh sách chung, thiếu dòng đó
-  // là ô chọn rơi về dòng đầu và bấm Lưu một cái là đổi nhóm im lặng.
-  const dsNhomChon = (nhomDangCo, ds) => [...new Set(
-    [NHOM_MD, nhomDangCo || NHOM_MD].concat((ds || []).map(nhomCua)).filter(Boolean))];
-  // Nhóm CHỐT khi bấm Lưu. Ô gõ tay rỗng KHÔNG có nghĩa là "Chung": chọn "Nhóm mới..." rồi đổi
-  // ý, không gõ gì, mà đẩy về Chung là mục đang ở Marketing bị ném sang Chung không một lời
-  // nào. Rỗng thì giữ nguyên nhóm cũ, chỉ mục thật sự chưa có nhóm mới rơi về Chung.
-  const nhomLuu = (oGoTay, nhomCu) =>
-    String(oGoTay == null ? "" : oGoTay).trim() || String(nhomCu == null ? "" : nhomCu).trim() || NHOM_MD;
+  // Ô CHỌN NHÓM trong trình sửa trợ lý đã BỎ ở 0.62.0 (chủ repo 21/09: "xoá nhóm ở đây vì đã
+  // có phần gom nhóm rồi"). Gom nhóm nay chỉ còn MỘT chỗ: thanh nhóm ở cột trái trang Cộng sự
+  // và menu "Chuyển sang nhóm" của từng mục. Hai chỗ cùng đặt một field là chỗ nào cũng có thể
+  // ghi đè chỗ kia - đúng lỗi phải vá bằng dongBoNhomForm() suốt từ 0.59.2. Server giữ nguyên
+  // nhóm cũ khi form không gửi `group` (xem main.save_agent), nên bỏ ô đi là hết hẳn lớp lỗi ấy.
 
   // Server trả về MÃ MÁY chứ không phải câu cho người đọc (server/agent_avatar.py ném
   // ValueError("avatar_shape"), main.py chuyển thẳng thành {"error": "avatar_shape"}). Đổ thẳng
@@ -596,14 +591,12 @@
   // đoán, mà đoán sai thì chạy nhầm nhà và nhầm cả hoá đơn.
   const MODEL_SEP = "::";
 
-  // `opts.dsNhom` = danh sách agent để gợi ý TÊN NHÓM đang có. Trang Cộng sự truyền vào vì
-  // `_agState.agents` chỉ được đổ khi trang Agents cũ chạy loadAgents(), mà trang đó đã bỏ -
-  // thiếu nó thì ô Nhóm mất sạch gợi ý và người dùng gõ tay đẻ ra "Marketing" lẫn "marketing".
   // `opts.host` = vẽ form thẳng vào một khung có sẵn (cột phải trang Cộng sự) thay vì bật
   // modal #studioEditor. Vì sao cần: trang Cộng sự muốn sửa trợ lý NGAY cạnh khung chat, mà
   // dựng bản form thứ hai ở đó là hai bản trôi lệch nhau ngay lần sửa đầu tiên (chọn model,
-  // chọn skill, nhóm... đều đã nằm ở đây). `opts.onSaved` thay cho loadAgents(): trang gọi
+  // chọn skill, avatar... đều đã nằm ở đây). `opts.onSaved` thay cho loadAgents(): trang gọi
   // tự quyết vẽ lại cái gì, vì panel Studio có thể đang không tồn tại trong DOM.
+  // (`opts.dsNhom` của bản cũ đã bỏ cùng ô chọn nhóm - xem khối NHÓM ở đầu file.)
   async function editAgent(a, opts) {
     opts = opts || {};
     // Có host thì KHÔNG đụng vào modal: mở/đóng nó sẽ che mất cả trang Cộng sự.
@@ -634,13 +627,6 @@
       ? `<optgroup label="${esc(t("studio.model_saved"))}"><option value="${esc(val(a.model_provider || "", a.model))}">${esc(a.model)} ${esc(t("studio.saved_suffix"))}</option></optgroup>` : "";
     const modelOptions = (g) =>
       `<optgroup label="${esc(g.label)}">${g.models.map(m => `<option value="${esc(val(g.id, m))}">${esc(m)}</option>`).join("")}</optgroup>`;
-    // NHÓM: một Ô CHỌN các nhóm đang dùng, cộng một dòng "Nhóm mới..." mới bung ô gõ tay ra
-    // (chủ repo yêu cầu 0.59.2 - trước đây là ô gõ tay cộng một hàng chip, và hàng chip dài
-    // cả chục nhóm thì đẩy phần Skills rớt khỏi màn hình). Vẫn LƯU đúng field cũ qua #agGroup,
-    // nên agent/workflow đang có không phải đụng tới.
-    const NHOM_MOI = "__javis_nhom_moi__";
-    const nhomDangCo = a ? nhomCua(a) : NHOM_MD;
-    const dsNhomCo = dsNhomChon(nhomDangCo, opts.dsNhom || _agState.agents);
     const box = opts.host || document.getElementById("editorBox");
     if (opts.host && !box.isConnected) return;
     let avatar = window.JavisAvatar ? (a ? window.JavisAvatar.of(a) : window.JavisAvatar.random()) : null;
@@ -649,9 +635,11 @@
       <div class="agent-avatar-picker" id="agAvatar"></div>
       <label>${esc(t("studio.name"))}</label><input id="agName" value="${esc(a ? a.name : "")}">
       <label>${esc(t("studio.role"))}</label><input id="agRole" value="${esc(a ? a.role : "")}">
-      <label>${esc(t("studio.groups"))}</label>
-      <select id="agGroupSel">${dsNhomCo.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join("")}<option value="${NHOM_MOI}">${esc(t("studio.group_new"))}</option></select>
-      <input id="agGroup" value="${esc(nhomDangCo)}" aria-label="${esc(t("studio.group_new"))}" placeholder="${esc(t("studio.group_ph"))}" hidden>
+      <label for="agAssets">${esc(t("studio.assets"))}</label>
+      <div class="ag-assets">
+        <button type="button" class="s-btn-ghost" id="agAssets"${a && a.slug ? "" : " disabled"}>${ic("paperclip")} ${esc(t("studio.assets_open"))}</button>
+        <div class="dim ag-assets-hint">${esc(a && a.slug ? t("studio.assets_hint") : t("studio.assets_new"))}</div>
+      </div>
       <label>${esc(t("studio.sys_prompt"))}</label><textarea id="agPrompt" rows="4">${esc(a ? (a.prompt || "") : "")}</textarea>
       <label>Skills</label>
       ${skills.length ? `<div class="sp-box">
@@ -670,14 +658,14 @@
         : t("studio.model_none"))}</div>
       <div class="editor-actions"><button class="s-btn-ghost" id="cancelEd"${opts.host ? ' style="display:none"' : ""}>${esc(t("common.cancel"))}</button><button class="s-btn" id="saveAg">${esc(t("common.save"))}</button></div>`;
     if (window.JavisAvatar) window.JavisAvatar.picker(box.querySelector("#agAvatar"), avatar, v => { avatar = v; });
-    // Ô gõ tay là HÌNH CHIẾU của ô chọn, và cũng là chỗ lưu đọc ra - nên mỗi lần đổi dòng
-    // phải chép giá trị sang, không thì chọn nhóm khác mà bấm Lưu vẫn ra nhóm cũ.
-    const selNhom = box.querySelector("#agGroupSel"), oNhom = box.querySelector("#agGroup");
-    selNhom.value = nhomDangCo;
-    selNhom.onchange = () => {
-      const moi = selNhom.value === NHOM_MOI;
-      oNhom.hidden = !moi;
-      if (moi) { oNhom.value = ""; oNhom.focus(); } else oNhom.value = selNhom.value;
+    // TÀI LIỆU & LINK của trợ lý: mở ĐÚNG ngăn kéo mà project và cuộc trò chuyện đang dùng
+    // (sessions-ui.js), không dựng bản thứ hai ở đây. Trợ lý chưa lưu thì chưa có slug để gắn
+    // vào, nên nút đứng im kèm một câu nói vì sao - ẩn nút đi thì người dùng tưởng không có.
+    const nutTaiLieu = box.querySelector("#agAssets");
+    if (nutTaiLieu) nutTaiLieu.onclick = () => {
+      if (!(a && a.slug)) return;
+      if (window.JavisChatSide && window.JavisChatSide.moKhungAgent)
+        window.JavisChatSide.moKhungAgent(a.slug, a.name || a.slug);
     };
     box.querySelectorAll("label").forEach(label => { const input = label.nextElementSibling; if (input && /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName)) label.htmlFor = input.id; });
     if (a && a.model) {
@@ -709,8 +697,9 @@
       const saveButton = box.querySelector("#saveAg");
       saveButton.disabled = true;
       try {
+        // KHÔNG gửi `group`: form không còn ô nhóm, mà gửi một giá trị đoán ra là ghi đè nhóm
+        // người dùng vừa đổi ở cột trái. Server thấy thiếu field là giữ nguyên nhóm đang có.
         const saved = await api("/agents", { method: "POST", body: fd({ name, role: box.querySelector("#agRole").value,
-          group: nhomLuu(box.querySelector("#agGroup").value, nhomDangCo),
           prompt: box.querySelector("#agPrompt").value, skills: sk, model: mName, model_provider: mProv,
           slug: a ? a.slug : "", brain: brain(), ...(avatar ? {avatar_shape: avatar.shape, avatar_palette: avatar.palette} : {}) }) });
         if (!saved.ok) { alert(loiLuu(saved.error)); return; }
