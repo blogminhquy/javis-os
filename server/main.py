@@ -123,6 +123,8 @@ import chatbot_runtime   # bộ giám sát Bot chuyên trách (mỗi bot một p
 import agent_avatar
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import chatbot_store     # kho bản ghi bot + token qua secrets_store
+import channel_accounts  # tài khoản kênh dạng token (0.61.0), bot chỉ trỏ tới
+import channels          # sổ đăng ký kênh của Hộp thư hội thoại (0.61.0)
 import conversations     # Hộp thư hội thoại khách: kho khách -> hội thoại -> tin (Chatbot V2)
 import zalo_personal_channel   # Hộp thư hội thoại: đọc tin Zalo cá nhân từ MCP theo cursor
 import deploy_info              # Javis đang đứng ở đâu (docker/native) - xem _deploy_mode
@@ -17545,13 +17547,13 @@ async def chatbots_list(brain: str = ""):
          "can_xac_nhan": m in chatbot_store.MUC_NANG}
         for m in chatbot_store.MUC_QUYEN
     ], "kenh": [
-        # Cùng lý do với mức quyền: giao diện KHÔNG giữ bản chép riêng. Chỗ lấy token và những
-        # thứ kênh đó KHÔNG làm được là kiến thức của server, và nó sẽ đổi khi Zalo mở thêm API.
-        {"id": k, "nhan": chatbot_store.KENH_NHAN.get(k, k),
-         "lay_token": chatbot_store.KENH_NGUON_TOKEN.get(k, ""),
-         "co_nhom": k == "telegram",
-         "gui_tai_lieu": k == "telegram"}
-        for k in chatbot_store.KENH
+        # Cùng lý do với mức quyền: giao diện KHÔNG giữ bản chép riêng. Từ 0.61.0 danh sách
+        # kênh gắn được bot và năng lực của chúng đọc từ SỔ ĐĂNG KÝ KÊNH (server/channels).
+        k for k in channels.cho_giao_dien() if k.get("kind") == "bot"
+    ], "tai_khoan": [
+        # Tài khoản kênh chưa bot nào trực (0.61.0): form tạo bot cho CHỌN thay vì bắt dán token.
+        a for a in channel_accounts.list_accounts()
+        if not chatbot_store.bots_using_account(a["id"])
     ]}
 
 
@@ -17560,53 +17562,10 @@ async def chatbots_verify_token(token: str = Form(...), bot_id: str = Form(""),
                                 channel: str = Form("")):
     """Hỏi nền tảng xem token này là con bot nào (getMe), và chặn trùng.
 
-    Chặn theo tên tài khoản chứ không so chuỗi token: cùng một token dán hai lần với khoảng
-    trắng khác nhau vẫn là hai chuỗi khác nhau. Một token chỉ được MỘT tiến trình long-polling;
-    hai poller cùng token thì máy chủ trả 409 và CẢ HAI cùng chết.
-
-    Hỏi ĐÚNG nền tảng theo `channel`. Dán token Zalo vào đường Telegram (hoặc ngược lại) chỉ
-    ra 401, và câu "token không hợp lệ" khi token hoàn toàn hợp lệ là chỗ người dùng mắc kẹt
-    lâu nhất - họ đi kiểm tra lại token thay vì kiểm tra lại kênh.
+    Từ 0.61.0 việc hỏi đúng nền tảng nằm ở module kênh trong sổ đăng ký (`channels`), và đường
+    này chỉ là bí danh của `POST /channels/verify-token` để giao diện cũ và bookmark cũ chạy.
     """
-    tok = (token or "").strip()
-    if not tok:
-        return JSONResponse({"ok": False, "error": "Thiếu token"}, status_code=400)
-    kenh = str(channel or "").strip().lower()
-    kenh = kenh if kenh in chatbot_store.KENH else chatbot_store.KENH_DEFAULT
-    nhan = chatbot_store.KENH_NHAN.get(kenh, kenh)
-    import httpx   # main.py không import httpx ở mức module (xem telegram_test làm y hệt)
-    url = (f"https://api.telegram.org/bot{tok}/getMe" if kenh == "telegram"
-           else f"https://bot-api.zaloplatforms.com/bot{tok}/getMe")
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = (await client.get(url)) if kenh == "telegram" else (await client.post(url, json={}))
-        d = r.json()
-    except Exception as e:
-        return {"ok": False, "error": f"Không nối được {nhan}: {e}"}
-    if not d.get("ok"):
-        return {"ok": False, "error": f"Token không hợp lệ ({nhan} từ chối). Kiểm lại xem token "
-                                      f"này có đúng là token {nhan} không."}
-    info = d.get("result") or {}
-    # Telegram gọi là `username`, Zalo gọi là `account_name`. Bản ghi bot chỉ có một trường nên
-    # quy về một tên ngay tại cửa vào.
-    username = info.get("username") or info.get("account_name") or ""
-    if kenh == "telegram":
-        chu = cfgmod.read_settings().get("telegram", {})
-        if chu.get("token", "").strip() == tok:
-            return {"ok": False, "error": "Đây là token bot chính của bạn. Bot chuyên trách phải "
-                                          "dùng một bot Telegram RIÊNG (tạo thêm ở BotFather)."}
-    trung = chatbot_store.token_owner(username, exclude_id=bot_id, channel=kenh)
-    if trung:
-        return {"ok": False, "error": f"Bot {nhan} \"{username}\" đã được bot \"{trung['name']}\" "
-                                      f"dùng rồi. Mỗi bot phải một token riêng."}
-    ra = {"ok": True, "username": username,
-          "bot_name": info.get("first_name") or info.get("account_name") or ""}
-    # Gói BASIC của Zalo không cho bot vào nhóm. Nói NGAY lúc kiểm token, để người dùng không
-    # ngồi khai id nhóm trong form rồi chờ mãi một con bot không bao giờ vào được nhóm nào.
-    if kenh == "zalo":
-        ra["vao_duoc_nhom"] = bool(info.get("can_join_groups"))
-        ra["account_type"] = info.get("account_type") or ""
-    return ra
+    return await channels_routes.verify_token(channel, token, bot_id=bot_id)
 
 
 def _chan_nang_quyen(muc, xac_nhan):
@@ -17633,7 +17592,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
                           nguon_tra_loi: str = Form(""), muc_quyen: str = Form(""),
                           groups: str = Form(""), reply_when: str = Form(""),
                           channel: str = Form(""), xac_nhan_rui_ro: str = Form(""),
-                          ngon_ngu: str = Form("")):
+                          ngon_ngu: str = Form(""), account_ids: str = Form(""),
+                          account_label: str = Form("")):
     # Bot sống TRONG một brain: Agent nó dùng và tài liệu nó đọc là cùng một chỗ. Nhận cả hai
     # tên tham số và tự bù cho nhau, nên người gọi chỉ cần gửi một cái.
     br = (brain or agent_brain or "").strip()
@@ -17646,6 +17606,8 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "icon": icon, "token": token, "bot_username": bot_username, "handoff_to": handoff_to,
         "nguon_tra_loi": nguon_tra_loi, "muc_quyen": muc_quyen, "xac_nhan_rui_ro": ack,
         "channel": channel,
+        # Tài khoản kênh (0.61.0): chọn tài khoản có sẵn ở tab Kênh, hoặc dán token mới (ở trên).
+        "account_ids": account_ids, "account_label": account_label,
         # Nhóm khai được NGAY LÚC TẠO. Bản trước chỉ cho khai ở form Sửa, nên đường đi tự nhiên
         # nhất ("tạo bot, thả vào nhóm, gọi tên") luôn kết thúc bằng một con bot im lặng.
         "groups": groups, "reply_when": reply_when,
@@ -17762,8 +17724,15 @@ async def chatbots_delete(bot_id: str):
 # Hộp thư hội thoại khách (Chatbot V2): kho `conversations` gom tin của bot chuyên trách
 # (Telegram, Zalo Bot) và tài khoản Zalo cá nhân về một chỗ. Đăng ký NGAY SAU khối Chatbot vì
 # cùng một họ: đây là mặt "đọc lại hội thoại" của chính những bot ở trên.
+import routes.channels as channels_routes   # noqa: E402
 import routes.conversations as conversations_routes   # noqa: E402
 
+# Kênh và tài khoản kênh (0.61.0): một API cho mọi kênh, đọc sổ đăng ký `channels`.
+channels_routes.register(app, channels_routes.ChannelsDeps(
+    bot_status=chatbot_runtime.status,
+    main_bot_token=lambda: str(cfgmod.read_settings().get("telegram", {}).get("token", "")).strip(),
+))
+channels_routes._DEPS.restart_bot = chatbot_runtime.start_bot   # đổi token thì poller nạp lại
 conversations_routes.register(app, conversations_routes.ConversationsDeps(
     bot_status=chatbot_runtime.status,
 ))

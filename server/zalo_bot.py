@@ -448,6 +448,29 @@ class ZaloBot(HangLuot):
             return _with_cap(f"[Người dùng gửi một ảnh qua Zalo nhưng tải về hỏng: "
                              f"{type(e).__name__}: {e}]")
 
+    async def send_text(self, chat, text):
+        """Gửi MỘT tin chữ và nói kết quả: (ok, lỗi). Cùng lý do với `TelegramBot.send_text`."""
+        text = str(text or "").strip()
+        if not text:
+            return False, "tin rỗng"
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            for chunk in [text[i:i + MAX_TIN] for i in range(0, len(text), MAX_TIN)]:
+                loi = ""
+                for co_md in (True, False):
+                    payload = {"chat_id": chat, "text": chunk}
+                    if co_md:
+                        payload["parse_mode"] = "markdown"
+                    d = await self._api(client, "sendMessage", **payload)
+                    if d.get("ok"):
+                        loi = ""
+                        break
+                    loi = str(d.get("description") or "Zalo từ chối")
+                    if d.get("loi_mang"):
+                        return False, loi
+                if loi:
+                    return False, loi
+        return True, ""
+
     async def send_file(self, path, caption="", chat=None):
         """Gửi một file ra Zalo. Trả (ok, error).
 

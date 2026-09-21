@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.61.0] - 2026-09-21
+### Thêm mới
+- **Chatbot và Hội thoại về chung một trang.** Mục Hội thoại trên thanh bên giờ có ba tab: Hộp thư (tin khách), Kênh (mọi tài khoản khách nhắn tới) và Chatbot (nhân viên AI). Nói "mở chatbot" vẫn tới đúng tab.
+- **Trả lời khách ngay trong Hộp thư.** Mở một cuộc chat, gõ câu trả lời ở ô dưới cùng rồi Enter. Gửi từ đây là bạn tiếp quản cuộc đó, bot im cho tới khi bạn bấm Trả lại AI. Zalo cá nhân gửi dưới tên chính bạn, ô soạn tin nói rõ.
+- **Tab Kênh đối xử mọi kênh như nhau.** Bot Telegram, bot Zalo, Zalo cá nhân đều là một thẻ cùng kiểu: trạng thái, bot đang trực, số hội thoại, năng lực (vào nhóm, gửi file, trả lời từ Javis). Thêm tài khoản bằng token ngay tại đây; kênh mới về sau chỉ việc xuất hiện thêm.
+### Cải thiện
+- **Một bot trực được nhiều tài khoản.** Token tách khỏi bot thành tài khoản kênh; form tạo bot tích chọn tài khoản có sẵn hoặc dán token mới. Bot cũ tự chuyển sang mô hình mới, hội thoại và token giữ nguyên.
+
 ## [0.60.1] - 2026-09-20
 ### Thêm mới
 - **Gói Quản lý khách hàng (CRM) trong Kho cài đặt.** Đặt lên hộp thư Hội thoại: hỏi Javis khách nào chờ lâu chưa được trả lời, một khách đã hỏi gì, gắn tag VIP, ghi chú, thống kê khách mới theo tuần, xuất Excel. Kèm trợ lý chăm sóc khách và quy trình rà soát mỗi ngày. Cần bản này để cài.

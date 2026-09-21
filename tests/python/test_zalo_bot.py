@@ -214,7 +214,8 @@ check("file không tồn tại thì báo đúng lý do", not ok and "không tồ
 
 # ---- 8. Kho bot: kênh là trường thật, nhưng KHÔNG đổi được sau khi tạo ----
 
-check("kho biết đúng hai kênh", chatbot_store.KENH == ("telegram", "zalo"))
+# 0.61.0: danh sách kênh gắn được bot đọc từ sổ đăng ký (server/channels), thứ tự là thứ tự sổ.
+check("kho biết đúng hai kênh gắn được bot", set(chatbot_store.KENH) == {"telegram", "zalo"})
 check("kênh lạ rơi về Telegram chứ không lưu nguyên",
       chatbot_store._clean_kenh("messenger") == "telegram")
 check("kênh zalo được nhận", chatbot_store._clean_kenh("Zalo") == "zalo")
@@ -232,13 +233,18 @@ check("id nhóm Telegram (số âm) vẫn nhận như cũ",
 # ---- 9. Bộ giám sát biết chọn lớp vận chuyển theo kênh ----
 
 _RT = (Path(SERVER) / "chatbot_runtime.py").read_text(encoding="utf-8")
-check("có bảng kênh -> lớp vận chuyển", '_LOP_KENH = {"telegram": TelegramBot, "zalo": ZaloBot}' in _RT)
-check("bật bot thì tra bảng đó chứ không ghim cứng TelegramBot", "Lop = _LOP_KENH.get(kenh)" in _RT)
+# 0.61.0: bảng kênh -> lớp vận chuyển nằm ở sổ đăng ký kênh, bộ giám sát chỉ tra sổ.
+import channels  # noqa: E402
+check("sổ đăng ký kênh cấp lớp vận chuyển cho từng kênh bot",
+      channels.module("telegram").Transport is not None and channels.module("zalo").Transport is not None)
+check("bật bot thì tra sổ chứ không ghim cứng TelegramBot",
+      "Lop = _lop_kenh(kenh)" in _RT and "channels.module(kenh)" in _RT)
 check("kênh không có lớp thì TỪ CHỐI kèm lý do", "chưa có lớp vận chuyển nào" in _RT)
 
 _MAIN = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
-check("kiểm token hỏi ĐÚNG nền tảng theo kênh",
-      "bot-api.zaloplatforms.com/bot{tok}/getMe" in _MAIN)
+_ZB = (Path(SERVER) / "channels" / "zalo_bot.py").read_text(encoding="utf-8")
+check("kiểm token hỏi ĐÚNG nền tảng theo kênh (module kênh Zalo Bot tự hỏi getMe của Zalo)",
+      "bot-api.zaloplatforms.com/bot{token}/{method}" in _ZB and "async def verify_token" in _ZB)
 check("chặn trùng token xét theo TỪNG kênh",
       "channel=kenh" in _MAIN and "def token_owner(username: str, exclude_id: str = \"\", channel"
       in (Path(SERVER) / "chatbot_store.py").read_text(encoding="utf-8"))

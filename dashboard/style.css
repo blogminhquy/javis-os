@@ -3050,3 +3050,18 @@ body.ne-full-on .cview { z-index: 250; }
   display: block; border-radius: 50%; background: var(--pet-face, var(--accent));
   margin-bottom: 4px; flex: none;
 }
+
+/* Form bot 0.61.0: tích chọn tài khoản kênh + khối "thêm tài khoản mới bằng token" gập được. */
+.cb-tk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.cb-tk { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 10px; cursor: pointer; background: var(--surface-1); margin: 0; font-weight: 400; }
+.cb-form .cb-tk input { width: auto; margin: 0; flex: none; }
+.cb-tk-logo { display: inline-flex; flex: none; }
+.cb-tk-text { display: flex; flex-direction: column; min-width: 0; }
+.cb-tk-text b { font-size: 14px; color: var(--text); }
+.cb-tk-text small { font-size: 12px; color: var(--text3); }
+.cb-them-tk { margin-top: 10px; border: 1px dashed var(--border); border-radius: 10px; padding: 6px 10px 10px; }
+.cb-them-tk summary { cursor: pointer; font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px;
+  list-style: none; }
+.cb-them-tk summary::-webkit-details-marker { display: none; }
+.cb-them-tk[open] summary { color: var(--text); margin-bottom: 4px; }

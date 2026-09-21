@@ -25,7 +25,7 @@ A dedicated bot **can do real work** if you raise its permission level: writing 
 
 ## Where to open it in Javis
 
-The left navigation rail, the **Capabilities** group, the **Chatbot** item.
+The left navigation rail, the **Capabilities** group, the **Conversations** item, **Chatbots** tab (since 0.61.0 Chatbots, Channels and the Inbox share one page). Saying "open chatbots" lands on this tab.
 
 ## Preparing before creating a bot
 
@@ -49,7 +49,9 @@ If you are on the Chatbot page and the brain has no Agent yet, click **Create Ag
 
 The bot **reads the Agent at run time** rather than copying it. Editing the Agent later on the Agents page changes the bot immediately, with nothing to fix twice. How to write an Agent: [Agents and Workflows](07-agents-and-workflows.md).
 
-### 3. A dedicated token, taken from the right place for the channel
+### 3. A channel account: a dedicated token, taken from the right place for the channel
+
+Since 0.61.0 a token is a **channel account** on the **Channels** tab, and a bot only **points** to it. Add the account on the Channels tab first and tick it when creating the bot, or paste the token right inside the bot form; both lead to the same result. One bot can serve **several** accounts (one role answering on Telegram and Zalo Bot alike), while each account has **one** bot on duty.
 
 If the bot runs on **Telegram**: go to **@BotFather**, type `/newbot`, set a name and username, and take the token string shaped `123456789:ABCdef...`.
 
@@ -97,21 +99,20 @@ Click **New bot** and fill in:
 
 | Field | What to enter |
 |---|---|
-| Where this bot talks | **Telegram** or **Zalo**. The first field because it changes the rest of the form. See [Choosing Telegram or Zalo](#choosing-telegram-or-zalo) |
+| Which channel accounts this bot serves | Tick one or more accounts from the Channels tab (only accounts with no bot on duty are listed). None yet: open **Add a new account with a token**, pick the channel type, paste the token, Check. See [Choosing Telegram or Zalo](#choosing-telegram-or-zalo) |
 | Bot name | The name you use to tell your bots apart |
 | The Agent as its brain | Pick an Agent in the open brain, or click **Create Agent** |
 | What the bot answers from | See the two modes below |
 | What the bot may do | The permission level. Leave it at **Read only** the first time; read [The three permission levels](#the-three-permission-levels-what-the-bot-may-do) before raising it |
-| Token | Paste the token for the channel you chose then click **Test** |
 | The on-duty Chat ID | The Telegram number of the person receiving handovers (see below) |
-| Allowed groups | Only shown for Telegram bots. Leaving it empty is fine, drop the bot into a group then allow it with one click later (see Step 4) |
-| When the bot speaks in a group | Only shown for Telegram bots. By default only when named or replied to |
+| Allowed groups | Shown only when an account is on a channel that supports groups (Telegram). Leaving it empty is fine, drop the bot into a group then allow it with one click later (see Step 4) |
+| When the bot speaks in a group | Same condition. By default only when named or replied to |
 
-Choosing Zalo makes the last two fields **disappear** rather than appear and do nothing: Zalo's basic bot tier does not let a bot join groups, so declaring group ids there would be an empty promise sitting in the data.
+With only a Zalo Bot account the last two fields **disappear** rather than appear and do nothing: Zalo's basic bot tier does not let a bot join groups, so declaring group ids there would be an empty promise sitting in the data.
 
 **There is no brain field**, and that is deliberate: the bot belongs to the brain you have open. For a bot in another brain, switch brains at the top of the page and create it there; one place to look, with no two layers to keep in sync.
 
-Click **Test** before saving: Javis asks the platform you selected whether the token is real, returns the actual bot name, and reports at once if another bot in Javis already uses that token. For a Zalo bot, if your tier does not allow groups it says so right here.
+When pasting a new token, click **Check** before saving: Javis asks the platform you selected whether the token is real, returns the actual bot name, and reports at once if that token is already an account in Javis (free: just tick that account; on duty: it names the bot). For Zalo Bot, if your tier does not allow groups it says so right here.
 
 **A newly created bot is always OFF.** That is deliberate: turning it on makes the bot talk to real people immediately, so turning it on has to be a conscious click rather than a side effect of creating it.
 

@@ -36,16 +36,18 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+import channel_accounts
+import channels
 import chatbot_grounding
 import chatbot_log
 import chatbot_store
 import conversations
-from telegram_bot import TelegramBot
-from zalo_bot import ZaloBot
 
-# Kênh -> lớp vận chuyển. Bảng này là NƠI DUY NHẤT biết kênh nào chạy bằng lớp nào; thêm kênh
-# thứ ba sau này chỉ phải thêm một dòng ở đây và một giá trị vào `chatbot_store.KENH`.
-_LOP_KENH = {"telegram": TelegramBot, "zalo": ZaloBot}
+# Kênh -> lớp vận chuyển: tra SỔ ĐĂNG KÝ KÊNH (server/channels). Trước 0.61.0 là một bảng chép
+# tay ở đây; nay thêm kênh là thêm một module ở sổ, bộ giám sát không đổi.
+def _lop_kenh(kenh: str):
+    m = channels.module(kenh)
+    return getattr(m, "Transport", None) if m else None
 
 # Menu lệnh Telegram của bot khách. ĐÚNG bằng danh sách trắng trong `_make_command_fn`, không
 # hơn. Menu là một mặt giao diện: liệt kê ở đó những lệnh bot từ chối chạy là dạy khách đi tìm
@@ -56,8 +58,17 @@ LENH_KHACH = [
     {"command": "id", "description": "Xem ID cuộc trò chuyện này"},
 ]
 
-# bot_id -> {"bot": TelegramBot, "cfg": dict, "started": float, "answered": int, "day": str}
+# bot_id -> {"pollers": {account_id: transport}, "cfg": dict, "started": float, "answered": int}
+# Từ 0.61.0 một bot trực NHIỀU tài khoản kênh (bot Telegram + bot Zalo cùng một vai), nên mỗi
+# bot có một poller cho mỗi tài khoản. `_poller_dau(bot_id)` cho chỗ chỉ cần "một cái để gửi".
 _RUNNING: Dict[str, dict] = {}
+
+
+def _poller_dau(bot_id: str):
+    run = _RUNNING.get(bot_id) or {}
+    for tb in (run.get("pollers") or {}).values():
+        return tb
+    return None
 # (bot_id, chat_id) -> deque[timestamp] cho giới hạn tần suất theo GIỜ
 _HITS: Dict[tuple, deque] = {}
 # (bot_id, chat_id) -> số lượt BÍ LIÊN TIẾP. Trả lời được một câu là về 0.
@@ -421,8 +432,7 @@ def _chan_doan_nhom(bot_id: str, chat: str, meta: dict) -> str:
     toàn. Lệnh `/...` thì LUÔN về tới bot bất kể chế độ riêng tư, nên `/id` là chỗ duy nhất
     chắc chắn nói được câu này ra.
     """
-    run = _RUNNING.get(bot_id or "")
-    tb = run and run.get("bot")
+    tb = _poller_dau(bot_id or "")
     cfg = chatbot_store.get_bot(bot_id) or {}
     dong = [f"ID cuộc trò chuyện này: `{chat}`"]
     if str((meta or {}).get("chat_type") or "private") == "private":
@@ -497,8 +507,7 @@ def _bao_nhan_vien(bot_cfg: dict, chat_id: str, ly_do: str) -> str:
 
 
 async def _gui_nhan_vien(bot_cfg: dict, dich: str, chat_id: str, ly_do: str) -> None:
-    run = _RUNNING.get(bot_cfg.get("id") or "")
-    tb = run and run.get("bot")
+    tb = _poller_dau(bot_cfg.get("id") or "")
     if not tb:
         return
     try:
@@ -545,16 +554,34 @@ def _co_bi(dap: str) -> bool:
 # Vì sao ghi ở ĐÂY chứ không ở lớp vận chuyển: lớp đó chưa biết bot nào đang cầm tin (chỉ có
 # token), còn ở đây có đủ bản ghi bot, và lượt bị chặn ở precheck (nhóm chưa cho phép) vốn
 # không phải hội thoại của bot. Ghi trước khi gọi engine để tin khách còn đó kể cả khi lượt gãy.
-def _kenh_kho(cfg: dict) -> str:
-    """Kênh của bot theo tên kho hiểu. `zalo` ở bot chuyên trách là Zalo Bot chính thức."""
-    return "zalo" if str(cfg.get("channel") or "") == "zalo" else "telegram"
+def _tai_khoan_cua(cfg: dict, meta: dict) -> tuple:
+    """(id tài khoản kênh, kênh) của lượt này. Poller gắn `account_id` vào meta (xem
+    `start_bot`); thiếu thì lấy tài khoản đầu của bot; bot chưa có tài khoản nào (test, bản
+    ghi cũ) thì khoá theo chính id bot như trước 0.61.0."""
+    aid = str((meta or {}).get("account_id") or "")
+    if not aid:
+        ds = cfg.get("accounts") or []
+        aid = str((ds[0] or {}).get("id") if ds and isinstance(ds[0], dict) else (ds[0] if ds else "")) or ""
+    kenh = ""
+    if aid:
+        a = channel_accounts.get_account(aid)
+        if a:
+            kenh = a.get("channel") or ""
+    if not kenh:
+        kenh = str(cfg.get("channel") or "") or chatbot_store.KENH_DEFAULT
+    return (aid or cfg.get("id") or ""), kenh
+
+
+def _kenh_kho(cfg: dict, meta: dict = None) -> str:
+    return _tai_khoan_cua(cfg, meta or {})[1]
 
 
 def _su_kien_bot(cfg: dict, meta: dict, **phan) -> dict:
     meta = meta or {}
+    aid, kenh = _tai_khoan_cua(cfg, meta)
     ev = {
-        "channel": _kenh_kho(cfg),
-        "account_id": cfg.get("id") or "",
+        "channel": kenh,
+        "account_id": aid,
         "account_name": cfg.get("name") or "",
         "bot_id": cfg.get("id") or "",
         "external_chat_id": str(meta.get("chat_id") or ""),
@@ -617,7 +644,8 @@ def _make_answer_fn(bot_id: str):
         # Người thật đã TIẾP QUẢN cuộc chat này ở trang Hội thoại thì bot im: tin khách vẫn vào
         # kho (dòng trên), chỉ không gọi engine. Lượt đang chạy dở lúc bấm Tiếp quản vẫn trả
         # lời nốt - chấp nhận ở V1, vì cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
-        if conversations.che_do(_kenh_kho(cfg), cfg.get("id") or "", chat_id) == "human":
+        aid_luot, kenh_luot = _tai_khoan_cua(cfg, meta or {})
+        if conversations.che_do(kenh_luot, aid_luot, chat_id) == "human":
             return {"text": "", "files": [], "im_lang": True}
 
         # Tra tài liệu TRƯỚC rồi nhét vào prompt, thay vì trông vào việc model tự chịu mở file.
@@ -634,8 +662,7 @@ def _make_answer_fn(bot_id: str):
         # Bản ghi truyền xuống lõi phải có brain và slug - lõi dựa vào đó để đổi brain, đổi
         # khoá phiên và đổi nhãn kênh.
         try:
-            out = await _deps["answer"](text, meta, progress,
-                                        channel=str(cfg.get("channel") or "telegram"), bot=cfg)
+            out = await _deps["answer"](text, meta, progress, channel=kenh_luot, bot=cfg)
         except Exception as e:
             print(f"[chatbot {bot_id}] {type(e).__name__}: {e}", file=sys.stderr)
             xin_loi = "Em đang gặp trục trặc, anh chị nhắn lại giúp em sau ít phút ạ."
@@ -724,57 +751,117 @@ def _inbox_dir(bot_cfg: dict):
 # ============================================================
 # Vòng đời
 # ============================================================
+def _gan_tai_khoan(fn, account_id: str, vi_tri_meta: int):
+    """Bọc một callback của poller để MỌI meta mang `account_id`: kho hội thoại khoá tài
+    khoản theo đó, và một bot trực hai tài khoản phải ghi tin về đúng tài khoản nhận."""
+    if fn is None:
+        return None
+    import inspect
+
+    def _them(args, kwargs):
+        args = list(args)
+        if "meta" in kwargs:
+            kwargs["meta"] = dict(kwargs.get("meta") or {}, account_id=account_id)
+        elif len(args) > vi_tri_meta:
+            args[vi_tri_meta] = dict(args[vi_tri_meta] or {}, account_id=account_id)
+        else:
+            kwargs["meta"] = {"account_id": account_id}
+        return args, kwargs
+
+    if inspect.iscoroutinefunction(fn):
+        async def _boc(*args, **kwargs):
+            args, kwargs = _them(args, kwargs)
+            return await fn(*args, **kwargs)
+    else:
+        def _boc(*args, **kwargs):
+            args, kwargs = _them(args, kwargs)
+            return fn(*args, **kwargs)
+    return _boc
+
+
 def start_bot(bot_id: str) -> tuple[bool, str]:
-    """Bật một bot. Đã chạy thì khởi động LẠI (dùng cho lúc đổi token)."""
+    """Bật một bot: MỖI tài khoản kênh của nó một poller. Đã chạy thì khởi động LẠI."""
     cfg = chatbot_store.get_bot(bot_id)
     if not cfg:
         return False, "Không có bot nào id đó"
-    kenh = str(cfg.get("channel") or "telegram")
-    nhan_kenh = chatbot_store.KENH_NHAN.get(kenh, kenh)
-    token = chatbot_store.get_token(bot_id)
-    if not token:
-        return False, f"Chưa có token {nhan_kenh} cho bot này"
     if not _deps.get("answer"):
         return False, "Bộ giám sát chưa được nối vào server"
+    ds = chatbot_store.tokens(bot_id)
+    nhan_kenh = chatbot_store.KENH_NHAN.get(str(cfg.get("channel") or ""), str(cfg.get("channel") or ""))
+    if not any(tok for _, tok in ds):
+        return False, f"Chưa có token {nhan_kenh} cho bot này"
     stop_bot(bot_id)      # huỷ TRƯỚC khi tạo: hai poller cùng token thì máy chủ trả 409 và cả hai chết
-    # Hai lớp vận chuyển giữ CHUNG một khế ước (xem đầu zalo_bot.py), nên chỗ này chỉ chọn
-    # lớp rồi dựng y hệt. Khác biệt duy nhất: Zalo không có nút bấm nên không nhận callback_fn,
-    # và cũng không đẩy được menu lệnh lên app.
-    Lop = _LOP_KENH.get(kenh)
-    if not Lop:
-        return False, f"Kênh '{kenh}' chưa có lớp vận chuyển nào"
-    chung = dict(
-        download_dir=_inbox_dir(cfg),
-        commands=LENH_KHACH,      # menu của khách, KHÔNG phải menu quản trị của chủ
-        precheck_fn=_make_precheck_fn(bot_id),   # nhóm chưa được bật: im, nhưng KHÔNG im lặng
-        event_fn=_make_event_fn(bot_id),         # vào nhóm / bị đá / nhóm đổi id khi nâng cấp
-        # Bot này nói chuyện với KHÁCH, nên không được để lộ một dòng trạng thái nào của Javis.
-        # Xem khối chú thích "nói như người thật" ở đầu telegram_bot.py.
-        giau_trang_thai=True,
-    )
-    if kenh == "telegram":
-        chung["callback_fn"] = None
-    tb = Lop(
-        token,
-        "",                       # KHÔNG whitelist: bot khách hàng vốn để người lạ nhắn.
-        _make_answer_fn(bot_id),  # rào nằm ở mức quyền và ở luật trả lời, không ở whitelist.
-        _make_command_fn(cfg),
-        **chung,
-    )
-    tb.start()
-    _RUNNING[bot_id] = {"bot": tb, "cfg": cfg, "started": time.time(), "answered": 0}
-    return True, ""
+    pollers = {}
+    loi = []
+    for tk, token in ds:
+        if not token:
+            continue
+        kenh = str(tk.get("channel") or "")
+        Lop = _lop_kenh(kenh)
+        if not Lop:
+            loi.append(f"Kênh '{kenh}' chưa có lớp vận chuyển nào")
+            continue
+        aid = tk["id"]
+        chung = dict(
+            download_dir=_inbox_dir(cfg),
+            commands=LENH_KHACH,      # menu của khách, KHÔNG phải menu quản trị của chủ
+            precheck_fn=_gan_tai_khoan(_make_precheck_fn(bot_id), aid, 1),
+            event_fn=_make_event_fn(bot_id),         # vào nhóm / bị đá / nhóm đổi id khi nâng cấp
+            # Bot này nói chuyện với KHÁCH, nên không được để lộ một dòng trạng thái nào của Javis.
+            giau_trang_thai=True,
+        )
+        if kenh == "telegram":
+            chung["callback_fn"] = None
+        tb = Lop(
+            token,
+            "",                       # KHÔNG whitelist: bot khách hàng vốn để người lạ nhắn.
+            _gan_tai_khoan(_make_answer_fn(bot_id), aid, 1),
+            _gan_tai_khoan(_make_command_fn(cfg), aid, 3),
+            **chung,
+        )
+        tb.account_id = aid
+        tb.start()
+        pollers[aid] = tb
+    if not pollers:
+        return False, "; ".join(loi) or f"Chưa có token {nhan_kenh} cho bot này"
+    _RUNNING[bot_id] = {"pollers": pollers, "cfg": cfg, "started": time.time(), "answered": 0}
+    return True, ("; ".join(loi) if loi else "")
 
 
 def stop_bot(bot_id: str) -> bool:
     run = _RUNNING.pop(bot_id, None)
     if not run:
         return False
-    try:
-        run["bot"].stop()
-    except Exception as e:
-        print(f"[chatbot stop {bot_id}] {e}", file=sys.stderr)
+    for tb in (run.get("pollers") or {}).values():
+        try:
+            tb.stop()
+        except Exception as e:
+            print(f"[chatbot stop {bot_id}] {e}", file=sys.stderr)
     return True
+
+
+def _trang_thai_poller(tb) -> dict:
+    song = bool(tb._task and not tb._task.done())
+    tt = getattr(tb, "status", "off")
+    state = ("error" if tt in ("error", "conflict") else
+             "running" if (song and tt == "polling") else
+             "starting" if song else "error")
+    return {
+        "account_id": getattr(tb, "account_id", ""),
+        "running": song, "state": state, "raw": tt,
+        "last_error": getattr(tb, "last_error", "") or "",
+        # Chế độ riêng tư của Telegram, hỏi getMe lúc khởi động. Chỉ có nghĩa khi bot đã biết
+        # danh tính của nó; trước đó nó là False vì CHƯA HỎI ĐƯỢC, không phải vì đã tắt riêng tư.
+        "doc_moi_tin_nhom": bool(getattr(tb, "doc_moi_tin_nhom", False)),
+        "da_hoi_telegram": bool(getattr(tb, "bot_id", 0)),
+        # getMe hỏng: bot vẫn trả lời tin nhắn riêng nhưng ĐIẾC trong mọi nhóm. Dòng riêng vì
+        # vòng lặp xoá `last_error` sau mỗi lượt poll thành công.
+        "loi_danh_tinh": getattr(tb, "loi_danh_tinh", "") or "",
+        "loi_menu_lenh": getattr(tb, "loi_menu_lenh", "") or "",
+    }
+
+
+_THU_TU_XAU = {"error": 3, "starting": 2, "running": 1, "off": 0}
 
 
 def status(bot_id: str) -> dict:
@@ -782,36 +869,30 @@ def status(bot_id: str) -> dict:
 
     Bốn trạng thái chứ không phải hai: bot chết âm thầm (token bị thu hồi, mạng rớt) là thứ
     chủ chỉ phát hiện khi khách phàn nàn, nên `lỗi` phải là một trạng thái hiện ra được.
+    Nhiều tài khoản thì trạng thái chung là trạng thái XẤU NHẤT (một tài khoản lỗi = thẻ đỏ),
+    và từng tài khoản nằm trong `accounts` để thẻ chỉ đúng cái nào hỏng.
     """
     run = _RUNNING.get(bot_id)
     if not run:
-        return {"running": False, "state": "off", "last_error": "", "answered": 0}
-    tb = run["bot"]
-    song = bool(tb._task and not tb._task.done())
-    tt = getattr(tb, "status", "off")
-    state = ("error" if tt in ("error", "conflict") else
-             "running" if (song and tt == "polling") else
-             "starting" if song else "error")
-    return {
-        "running": song,
-        "state": state,
-        "raw": tt,
-        "last_error": getattr(tb, "last_error", "") or "",
+        return {"running": False, "state": "off", "last_error": "", "answered": 0, "accounts": []}
+    ds = [_trang_thai_poller(tb) for tb in (run.get("pollers") or {}).values()]
+    if not ds:
+        return {"running": False, "state": "off", "last_error": "", "answered": 0, "accounts": []}
+    xau = max(ds, key=lambda x: _THU_TU_XAU.get(x["state"], 0))
+    out = dict(ds[0])
+    out.update({
+        "running": any(x["running"] for x in ds),
+        "state": xau["state"], "raw": xau["raw"],
+        "last_error": xau["last_error"] or next((x["last_error"] for x in ds if x["last_error"]), ""),
+        "loi_danh_tinh": next((x["loi_danh_tinh"] for x in ds if x["loi_danh_tinh"]), ""),
+        "loi_menu_lenh": next((x["loi_menu_lenh"] for x in ds if x["loi_menu_lenh"]), ""),
         "answered": run.get("answered", 0),
         "started_at": run.get("started"),
         "last_at": run.get("last_at"),
-        # Chế độ riêng tư của Telegram, hỏi getMe lúc khởi động. Chỉ có nghĩa khi bot đã biết
-        # danh tính của nó; trước đó nó là False vì CHƯA HỎI ĐƯỢC, không phải vì đã tắt riêng tư.
-        "doc_moi_tin_nhom": bool(getattr(tb, "doc_moi_tin_nhom", False)),
-        "da_hoi_telegram": bool(getattr(tb, "bot_id", 0)),
-        # getMe hỏng: bot vẫn trả lời tin nhắn riêng nhưng ĐIẾC trong mọi nhóm. Phải là một
-        # dòng riêng chứ không gộp vào `last_error` - vòng lặp xoá `last_error` sau mỗi lượt
-        # poll thành công, và lượt nào cũng thành công nên nó không bao giờ hiện ra.
-        "loi_danh_tinh": getattr(tb, "loi_danh_tinh", "") or "",
-        # Cùng loại với trên: menu lệnh "/" đặt hụt thì bot vẫn trả lời, chỉ là khách gõ "/"
-        # không thấy gì để bấm.
-        "loi_menu_lenh": getattr(tb, "loi_menu_lenh", "") or "",
-    }
+        "accounts": ds,
+    })
+    out.pop("account_id", None)
+    return out
 
 
 def sync_all() -> dict:
@@ -826,7 +907,8 @@ def sync_all() -> dict:
             stop_bot(bid)
     ok, loi = 0, {}
     for bid in muon:
-        if bid in _RUNNING and _RUNNING[bid]["bot"]._task and not _RUNNING[bid]["bot"]._task.done():
+        if bid in _RUNNING and any(tb._task and not tb._task.done()
+                                   for tb in _RUNNING[bid].get("pollers", {}).values()):
             ok += 1
             continue
         thanh, err = start_bot(bid)

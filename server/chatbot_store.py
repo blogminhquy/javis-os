@@ -24,9 +24,10 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
+import channel_accounts   # tài khoản kênh dạng token (0.61.0): bot chỉ TRỎ tới, không giữ token
+import channels          # sổ đăng ký kênh: nơi duy nhất biết kênh nào gắn được bot
 import lang_registry   # sổ đăng ký ngôn ngữ: hợp lệ hoá trường ngon_ngu của bot
 
-import secrets_store
 from config import STATE_DIR
 
 STORE_PATH = STATE_DIR / "chatbots.json"
@@ -52,19 +53,16 @@ _SLUG_CAM = re.compile(r"[/\\\x00-\x1f\x7f]")           # tách đường dẫn 
 _CHAT_ID_RE = re.compile(r"^(-?\d{1,20}|[0-9a-fA-F]{8,40})$")
 
 # Kênh nhắn tin của bot. Trường này có từ 0.20.0 nhưng ghim cứng "telegram"; 0.26.5 cho nó
-# thành lựa chọn thật. Giữ ĐÚNG hai giá trị: mỗi giá trị là một lớp vận chuyển có thật trong
-# `chatbot_runtime._LOP_KENH`, không phải một nhãn để hiển thị.
-KENH = ("telegram", "zalo")
-KENH_DEFAULT = "telegram"
-
-# Nhãn + cách lấy token, để server và giao diện nói cùng một câu. Người dùng lấy token ở hai
-# nơi hoàn toàn khác nhau, và dán nhầm chỗ thì bot chết lặng với lỗi 401.
-KENH_NHAN = {"telegram": "Telegram", "zalo": "Zalo"}
-KENH_NGUON_TOKEN = {
-    "telegram": "Nhắn @BotFather trên Telegram, gõ /newbot rồi làm theo hướng dẫn.",
-    "zalo": "Mở app Zalo, tìm Official Account \"Zalo Bot Manager\", chọn Tạo bot. "
-            "Tên bot bắt buộc mở đầu bằng chữ \"Bot\". Token được gửi về bằng tin nhắn Zalo.",
-}
+# thành lựa chọn thật; 0.61.0 đọc từ SỔ ĐĂNG KÝ KÊNH (`channels`) thay vì chép ở đây: kênh nào
+# có lớp vận chuyển (kind "bot") thì gắn được bot. Thêm kênh = thêm một module ở server/channels.
+#
+# Ba tên dưới giữ nguyên cho chỗ gọi cũ (main.py, test). Chúng là ẢNH của sổ lúc nạp module.
+KENH = channels.bot_ids()
+# Mặc định vẫn là Telegram: bản ghi bot trước 0.26.5 không có trường `channel` và đều là bot
+# Telegram, nên rơi về Telegram là đọc đúng dữ liệu cũ, không phải ưu ái kênh nào.
+KENH_DEFAULT = "telegram" if "telegram" in KENH else (KENH[0] if KENH else "telegram")
+KENH_NHAN = {k: channels.nhan(k) for k in KENH}
+KENH_NGUON_TOKEN = {k: (channels.spec(k).lay_token if channels.spec(k) else "") for k in KENH}
 
 REPLY_WHEN = ("mention", "always")
 RATE_MIN, RATE_MAX, RATE_DEFAULT = 1, 200, 20
@@ -165,7 +163,29 @@ def _load() -> dict:
         return {"version": 1, "bots": []}
     if not isinstance(d, dict) or not isinstance(d.get("bots"), list):
         return {"version": 1, "bots": []}
+    if _di_tru(d):
+        _save(d)
     return d
+
+
+def _di_tru(d: dict) -> bool:
+    """Bản ghi bot trước 0.61.0 giữ token TRONG bot. Chuyển token sang `channel_accounts` (id
+    tài khoản = id bot) và để bot chỉ TRỎ qua `accounts`. Chạy ngay lúc đọc, không cần script;
+    trả True nếu có đổi gì để `_load` ghi lại một lần."""
+    doi = False
+    for b in d.get("bots") or []:
+        if "accounts" in b and "token_enc" not in b:
+            continue
+        acc = []
+        if b.get("token_enc"):
+            aid = channel_accounts.ensure_from_bot(b)
+            if aid:
+                acc.append(aid)
+            b.pop("token_enc", None)
+        b.pop("token", None)
+        b["accounts"] = acc
+        doi = True
+    return doi
 
 
 def _save(d: dict) -> None:
@@ -255,10 +275,27 @@ def _clean_rate(v: Any) -> int:
     return max(RATE_MIN, min(n, RATE_MAX))
 
 
+def _co_token(b: dict) -> bool:
+    """Bot có ít nhất một tài khoản kênh còn token không (bản ghi thô)."""
+    return any((channel_accounts.get_account(a) or {}).get("token_set")
+               for a in (b.get("accounts") or []))
+
+
 def _public(b: dict) -> dict:
     """Bản trả ra giao diện. KHÔNG bao giờ kèm token, kể cả dạng đã mã hoá."""
     out = {k: v for k, v in b.items() if k not in ("token", "token_enc")}
-    out["token_set"] = bool(b.get("token_enc"))
+    # Tài khoản kênh của bot (0.61.0): bản công khai, KHÔNG token. Bot trỏ tới tài khoản; tài
+    # khoản mất (xoá ở tab Kênh) thì bot còn nguyên nhưng không có gì để chạy - nói ra bằng
+    # `token_set` = False, cùng cách thẻ bot vẫn báo "chưa có token".
+    ds_tk = [channel_accounts.get_account(a) for a in (b.get("accounts") or [])]
+    ds_tk = [a for a in ds_tk if a]
+    out["accounts"] = ds_tk
+    out["token_set"] = any(a.get("token_set") for a in ds_tk)
+    # `channel` và `bot_username` là ẢNH của tài khoản đầu tiên - giữ cho giao diện, log và
+    # test cũ đọc một chỗ; nguồn thật là `accounts`.
+    if ds_tk:
+        out["channel"] = ds_tk[0].get("channel") or out.get("channel")
+        out["bot_username"] = ds_tk[0].get("external_id") or out.get("bot_username") or ""
     # Bù trường mới cho bản ghi cũ ngay lúc ĐỌC, không viết script di trú. Bot tạo trước 0.20.1
     # không có khoá này; thiếu nó thì prompt rơi vào nhánh mặc định của Python chứ không phải
     # nhánh mình chọn, và bug đó chỉ hiện ra trên máy người đã dùng - đúng chỗ khó dò nhất.
@@ -292,11 +329,24 @@ def get_bot(bot_id: str) -> Optional[Dict[str, Any]]:
 
 def get_token(bot_id: str) -> str:
     """Token THẬT - chỉ cho mã nội bộ (bộ giám sát). TUYỆT ĐỐI không trả ra giao diện."""
+    for a, tok in tokens(bot_id):
+        if tok:
+            return tok
+    return ""
+
+
+def tokens(bot_id: str) -> List[tuple]:
+    """[(tài khoản công khai, token thật)] của mọi tài khoản bot đang trực. Chỉ cho mã nội bộ."""
     with _lock:
         for b in _load()["bots"]:
             if b.get("id") == bot_id:
-                return secrets_store.decrypt(b.get("token_enc", "")) or ""
-    return ""
+                out = []
+                for aid in b.get("accounts") or []:
+                    a = channel_accounts.get_account(aid)
+                    if a:
+                        out.append((a, channel_accounts.get_token(aid)))
+                return out
+    return []
 
 
 def enabled_bots() -> List[Dict[str, Any]]:
@@ -304,29 +354,66 @@ def enabled_bots() -> List[Dict[str, Any]]:
 
 
 def token_owner(username: str, exclude_id: str = "", channel: str = "") -> Optional[Dict[str, Any]]:
-    """Bot nào đang giữ đúng con bot này (so theo tên tài khoản lấy từ getMe, KHÔNG so chuỗi
-    token: cùng một token dán hai lần với khoảng trắng khác nhau vẫn là hai chuỗi khác nhau).
+    """Bot nào đang giữ đúng con bot này (so theo tên tài khoản lấy từ getMe, THEO KÊNH).
 
-    Vì sao phải chặn: một token chỉ được MỘT tiến trình long-polling. Hai poller cùng token
-    thì máy chủ trả 409 và CẢ HAI cùng chết - hỏng ở chỗ không ai ngờ, và không ai báo.
-
-    So THEO KÊNH từ 0.26.5: tên tài khoản là không gian tên riêng của từng nền tảng, nên một
-    bot Telegram tên "shopbot" và một bot Zalo cũng tên "shopbot" là hai con khác nhau. Gộp
-    hai không gian tên lại thì trang Chatbot từ chối một token hoàn toàn hợp lệ, và câu từ
-    chối đó nói về một con bot ở kênh khác nên đọc xong không ai hiểu.
+    Từ 0.61.0 tên tài khoản nằm ở `channel_accounts`; hàm này tra kho đó rồi tìm bot đang trỏ
+    tới tài khoản ấy. Không bot nào trỏ tới thì trả chính TÀI KHOẢN (có `la_tai_khoan=True`)
+    để chỗ gọi nói đúng: "token này đã là tài khoản X, chọn nó thay vì dán lại".
     """
-    u = str(username or "").strip().lower().lstrip("@")
-    if not u:
-        return None
     kenh = _clean_kenh(channel) if channel else ""
-    with _lock:
-        for b in _load()["bots"]:
-            if b.get("id") == exclude_id or str(b.get("bot_username", "")).lower() != u:
-                continue
-            if kenh and _clean_kenh(b.get("channel")) != kenh:
-                continue
-            return _public(b)
-    return None
+    tk = channel_accounts.owner_of(username, kenh)
+    if not tk:
+        return None
+    for b in list_bots():
+        if b.get("id") == exclude_id:
+            continue
+        if tk["id"] in account_ids_of(b):
+            return b
+    if exclude_id and tk["id"] in account_ids_of(get_bot(exclude_id) or {}):
+        return None
+    out = dict(tk)
+    out["la_tai_khoan"] = True
+    return out
+
+
+def account_ids_of(b: dict) -> List[str]:
+    """Id tài khoản của một bản ghi bot, dù bản ghi là thô (list id) hay công khai (list dict)."""
+    out = []
+    for a in (b or {}).get("accounts") or []:
+        aid = a.get("id") if isinstance(a, dict) else a
+        if aid:
+            out.append(str(aid))
+    return out
+
+
+def bots_using_account(account_id: str) -> List[Dict[str, Any]]:
+    """Bot nào đang trực tài khoản kênh này. Một tài khoản token chỉ MỘT bot (xem owner_of)."""
+    return [b for b in list_bots() if account_id in account_ids_of(b)]
+
+
+def _clean_account_ids(v: Any, exclude_bot: str = "") -> tuple[List[str], str]:
+    """Danh sách id tài khoản kênh cho một bot: phải tồn tại, phải là kênh gắn được bot, và
+    chưa bot nào khác trực. Trả (ids, lỗi)."""
+    if isinstance(v, str):
+        items = re.split(r"[,;\s]+", v)
+    elif isinstance(v, (list, tuple)):
+        items = list(v)
+    else:
+        items = []
+    out: List[str] = []
+    for x in items:
+        x = str((x.get("id") if isinstance(x, dict) else x) or "").strip()
+        if not x or x in out:
+            continue
+        a = channel_accounts.get_account(x)
+        if not a:
+            return [], f"Tài khoản kênh '{x}' không tồn tại"
+        for b in bots_using_account(x):
+            if b.get("id") != exclude_bot:
+                return [], (f"Tài khoản \"{a.get('label')}\" đang do bot \"{b.get('name')}\" trực. "
+                            "Mỗi tài khoản một bot.")
+        out.append(x)
+    return out[:20], ""
 
 
 # ============================================================
@@ -373,6 +460,21 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
         return None, "Thiếu brain riêng của bot"
     if can_xac_nhan(data.get("muc_quyen"), data.get("xac_nhan_rui_ro")):
         return None, LOI_CHUA_XAC_NHAN
+    # Tài khoản kênh: hoặc CHỌN tài khoản có sẵn (account_ids), hoặc dán token mới (token +
+    # channel) thì tạo tài khoản ngay tại đây. Cả hai cùng lúc cũng được.
+    acc, loi = _clean_account_ids(data.get("account_ids"))
+    if loi:
+        return None, loi
+    tok = str(data.get("token") or "").strip()
+    if tok:
+        aid, loi = channel_accounts.create_account({
+            "channel": _clean_kenh(data.get("channel")), "token": tok,
+            "label": data.get("account_label") or name,
+            "external_id": data.get("bot_username"),
+        })
+        if loi:
+            return None, loi
+        acc.append(aid)
 
     with _lock:
         d = _load()
@@ -386,6 +488,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
                       "slug": agent_slug},
             "brain": brain,
             "channel": _clean_kenh(data.get("channel")),
+            "accounts": acc,
             "bot_username": str(data.get("bot_username") or "").strip().lstrip("@"),
             "groups": _clean_groups(data.get("groups")),
             "reply_when": (data.get("reply_when") if data.get("reply_when") in REPLY_WHEN else "mention"),
@@ -398,9 +501,6 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "created_at": _now(),
             "updated_at": _now(),
         }
-        tok = str(data.get("token") or "").strip()
-        if tok:
-            bot["token_enc"] = secrets_store.encrypt(tok)
         d["bots"].append(bot)
         _save(d)
         return bot["id"], ""
@@ -410,7 +510,7 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
 # thêm trường mới vào bản ghi mà quên loại khỏi danh sách đen là mở một đường ghi không ai ngờ.
 _PATCHABLE = ("name", "icon", "groups", "reply_when", "handoff_to", "rate_limit",
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
-              "nguon_tra_loi", "muc_quyen", "ngon_ngu")
+              "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -431,11 +531,18 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
             return False, LOI_THIEU_AGENT
         if not _agent_slug_ok(s):
             return False, LOI_SLUG_AGENT
+    acc_moi = None
+    if "account_ids" in patch:
+        acc_moi, loi = _clean_account_ids(patch.get("account_ids"), exclude_bot=bot_id)
+        if loi:
+            return False, loi
     with _lock:
         d = _load()
         for b in d["bots"]:
             if b.get("id") != bot_id:
                 continue
+            if acc_moi is not None:
+                b["accounts"] = acc_moi
             for k in _PATCHABLE:
                 if k not in patch:
                     continue
@@ -477,12 +584,34 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                         b["brain"] = str(v).strip()
                 elif k == "bot_username":
                     b["bot_username"] = str(v or "").strip().lstrip("@")
+                    # Tên tài khoản là của TÀI KHOẢN; bot chỉ giữ một bản chép để hiện.
+                    if b.get("accounts") and b["bot_username"]:
+                        channel_accounts.update_account(b["accounts"][0],
+                                                        {"external_id": b["bot_username"]})
                 elif k == "token":
+                    # Dán token mới: thay token của tài khoản đầu tiên cùng kênh; bot chưa có
+                    # tài khoản nào thì tạo mới. Kênh lấy từ bản ghi (không đổi kênh tại chỗ).
                     tok = str(v or "").strip()
                     if tok:
-                        b["token_enc"] = secrets_store.encrypt(tok)
+                        kenh = _clean_kenh(b.get("channel"))
+                        dich = None
+                        for aid in b.get("accounts") or []:
+                            a = channel_accounts.get_account(aid)
+                            if a and a.get("channel") == kenh:
+                                dich = aid
+                                break
+                        if dich:
+                            channel_accounts.update_account(dich, {
+                                "token": tok, "external_id": patch.get("bot_username") or ""})
+                        else:
+                            aid, loi = channel_accounts.create_account({
+                                "channel": kenh, "token": tok, "label": b.get("name"),
+                                "external_id": patch.get("bot_username") or b.get("bot_username")})
+                            if loi:
+                                return False, loi
+                            b.setdefault("accounts", []).append(aid)
                 elif k == "enabled":
-                    b["enabled"] = bool(v) and bool(b.get("token_enc"))
+                    b["enabled"] = bool(v) and _co_token(b)
             b["updated_at"] = _now()
             _save(d)
             return True, ""
@@ -497,7 +626,7 @@ def set_enabled(bot_id: str, on: bool) -> tuple[bool, str]:
         for b in d["bots"]:
             if b.get("id") != bot_id:
                 continue
-            if on and not b.get("token_enc"):
+            if on and not _co_token(b):
                 return False, f"Chưa có token {KENH_NHAN.get(_clean_kenh(b.get('channel')), '')} cho bot này"
             b["enabled"] = bool(on)
             b["updated_at"] = _now()

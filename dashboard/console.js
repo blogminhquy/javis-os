@@ -107,7 +107,9 @@
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
     { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
-    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "chatbots", "conversations", "skills", "plugins"] },
+    // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
+    // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
+    { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "conversations", "skills", "plugins"] },
     { id: "viec", get label() { return t("nav.group.viec"); },        icon: GICON["Việc"],     ids: ["kanban", "selfimprove"] },
     { id: "ket_noi", get label() { return t("nav.group.ket_noi"); },     icon: GICON["Kết nối"],  ids: ["mcp", "packs", "channels", "models"] },
     { id: "he_thong", get label() { return t("nav.group.he_thong"); },    icon: GICON["Hệ thống"], ids: ["usage", "settings", "pet", "share", "logs", "account"], foot: true },
@@ -123,7 +125,10 @@
   // ngay khi kho thành chỗ chứa PHẦN LỚN kết nối của Javis (0.55.36 dọn 16 khuôn ra kho):
   // một người mới cài, chưa đấu gì, không có trang nào để mà bấm tab - họ cần thấy lối vào
   // ngay trên thanh bên. Chủ dự án yêu cầu đưa ra, và đặt cạnh Kết nối.
-  const RAIL_AN = new Set();
+  //
+  // "chatbots" (0.61.0): trang Chatbot gộp vào trang Hội thoại làm tab thứ ba. Id còn đó để
+  // lệnh nói / bookmark cũ đi tới đúng tab, nhưng không còn là một mục trên thanh bên.
+  const RAIL_AN = new Set(["chatbots"]);
   // Trả về [{label, foot, items:[...]}], bỏ id không tồn tại. Mục nào chưa xếp nhóm → dồn vào "Khác".
   function railGroups() {
     const seen = new Set();
@@ -273,6 +278,11 @@
   // bookmark vẫn tới nơi.
   const TRANG_GOP = { runtime: "usage", agents: "workspace", workflows: "workspace" };
   function navigateTo(id) {
+    // Trang Chatbot là TAB của trang Hội thoại từ 0.61.0: nhớ tab rồi đi tới trang đó.
+    if (id === "chatbots") {
+      if (window.JavisConversations && window.JavisConversations.chonTab) window.JavisConversations.chonTab("chatbot", true);
+      id = "conversations";
+    }
     id = TRANG_GOP[id] || id;
     const store = Alpine.store("nav");
     if (store.active === id) return;   // đang ở trang này → khỏi đổi (tránh nháy + mượn/trả node thừa)

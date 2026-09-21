@@ -3168,8 +3168,8 @@
  {
   "order": 319,
   "type": "APIRoute",
-  "path": "/conversations",
-  "name": "conversations_list",
+  "path": "/channels",
+  "name": "channels_list",
   "methods": [
    "GET"
   ],
@@ -3178,8 +3178,8 @@
  {
   "order": 320,
   "type": "APIRoute",
-  "path": "/conversations/stats",
-  "name": "conversations_stats",
+  "path": "/channels/accounts",
+  "name": "channels_accounts",
   "methods": [
    "GET"
   ],
@@ -3188,18 +3188,18 @@
  {
   "order": 321,
   "type": "APIRoute",
-  "path": "/conversations/channels",
-  "name": "conversations_channels",
+  "path": "/channels/verify-token",
+  "name": "channels_verify_token",
   "methods": [
-   "GET"
+   "POST"
   ],
   "trong": 318
  },
  {
   "order": 322,
   "type": "APIRoute",
-  "path": "/conversations/zalo/{conn_id}/watch",
-  "name": "conversations_zalo_watch",
+  "path": "/channels/accounts",
+  "name": "channels_account_create",
   "methods": [
    "POST"
   ],
@@ -3208,28 +3208,28 @@
  {
   "order": 323,
   "type": "APIRoute",
-  "path": "/conversations/{conv_id}",
-  "name": "conversations_detail",
+  "path": "/channels/accounts/{account_id}/update",
+  "name": "channels_account_update",
   "methods": [
-   "GET"
+   "POST"
   ],
   "trong": 318
  },
  {
   "order": 324,
   "type": "APIRoute",
-  "path": "/conversations/{conv_id}/messages",
-  "name": "conversations_messages",
+  "path": "/channels/accounts/{account_id}/watch",
+  "name": "channels_account_watch",
   "methods": [
-   "GET"
+   "POST"
   ],
   "trong": 318
  },
  {
   "order": 325,
   "type": "APIRoute",
-  "path": "/conversations/{conv_id}/read",
-  "name": "conversations_read",
+  "path": "/channels/accounts/{account_id}/delete",
+  "name": "channels_account_delete",
   "methods": [
    "POST"
   ],
@@ -3237,16 +3237,104 @@
  },
  {
   "order": 326,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 327,
+  "type": "APIRoute",
+  "path": "/conversations",
+  "name": "conversations_list",
+  "methods": [
+   "GET"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 328,
+  "type": "APIRoute",
+  "path": "/conversations/stats",
+  "name": "conversations_stats",
+  "methods": [
+   "GET"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 329,
+  "type": "APIRoute",
+  "path": "/conversations/channels",
+  "name": "conversations_channels",
+  "methods": [
+   "GET"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 330,
+  "type": "APIRoute",
+  "path": "/conversations/zalo/{conn_id}/watch",
+  "name": "conversations_zalo_watch",
+  "methods": [
+   "POST"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 331,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}",
+  "name": "conversations_detail",
+  "methods": [
+   "GET"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 332,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/messages",
+  "name": "conversations_messages",
+  "methods": [
+   "GET"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 333,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/read",
+  "name": "conversations_read",
+  "methods": [
+   "POST"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 334,
+  "type": "APIRoute",
+  "path": "/conversations/{conv_id}/reply",
+  "name": "conversations_reply",
+  "methods": [
+   "POST"
+  ],
+  "trong": 326
+ },
+ {
+  "order": 335,
   "type": "APIRoute",
   "path": "/conversations/{conv_id}/mode",
   "name": "conversations_mode",
   "methods": [
    "POST"
   ],
-  "trong": 318
+  "trong": 326
  },
  {
-  "order": 327,
+  "order": 336,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3256,7 +3344,7 @@
   "trong": null
  },
  {
-  "order": 328,
+  "order": 337,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3266,7 +3354,7 @@
   "trong": null
  },
  {
-  "order": 329,
+  "order": 338,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3276,7 +3364,7 @@
   "trong": null
  },
  {
-  "order": 330,
+  "order": 339,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

@@ -307,6 +307,38 @@ class TelegramBot(HangLuot):
                     print(f"[telegram send] {e}", file=sys.stderr)
                     break   # lỗi mạng: thử lại plain cũng sẽ lỗi
 
+    async def send_text(self, chat, text):
+        """Gửi MỘT tin chữ và NÓI KẾT QUẢ. Trả (ok, lỗi).
+
+        `_send` ở trên nuốt lỗi (nó phục vụ vòng trả lời, nơi không có ai để báo). Hộp thư
+        hội thoại thì cần biết tin có đi hay không, vì chủ đang nhìn vào ô soạn tin và một
+        câu "đã gửi" sai còn tệ hơn một câu lỗi. Không cần poller đang chạy: mở client riêng.
+        """
+        text = str(text or "").strip()
+        if not text:
+            return False, "tin rỗng"
+        loi = ""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            for chunk in [text[i:i + 3500] for i in range(0, len(text), 3500)]:
+                da_gui = False
+                for use_md in (True, False):
+                    payload = {"chat_id": chat, "text": chunk}
+                    if use_md:
+                        payload["text"] = md_to_mdv2(chunk)
+                        payload["parse_mode"] = "MarkdownV2"
+                    try:
+                        r = await client.post(self._url("sendMessage"), json=payload)
+                        d = r.json() if r.content else {}
+                    except Exception as e:
+                        return False, f"{type(e).__name__}: {e}"
+                    if d.get("ok"):
+                        da_gui = True
+                        break
+                    loi = str(d.get("description") or f"HTTP {r.status_code}")
+                if not da_gui:
+                    return False, loi or "Telegram từ chối"
+        return True, ""
+
     async def send_file(self, path, caption="", chat=None):
         """Gửi 1 file tới chat (mặc định ID ĐẦU TIÊN trong whitelist - chủ bot).
         Ảnh nhỏ → sendPhoto (có preview), còn lại / ảnh bị từ chối → sendDocument.

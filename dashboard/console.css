@@ -1945,3 +1945,55 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   .ht-item-sub small, .ht-stat span, .ht-head-text small, .ht-foot, .ht-intro, .ht-src-text small, .ht-switch { font-size: 14px; }
   .ht-msg { max-width: 88%; }
 }
+
+/* ---- Trang Hội thoại 0.61.0: ba tab (Hộp thư | Kênh | Chatbot) + thẻ tài khoản kênh + ô trả lời ---- */
+.ht-page { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+.ht-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ht-tab { background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; padding: 8px 12px;
+  font-size: 14px; color: var(--text3); display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; }
+.ht-tab:hover { color: var(--text); }
+.ht-tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.ht-tab .ht-badge { margin-left: 2px; }
+.ht-tab-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.ht-tab-body > .ht-wrap, .ht-tab-body > .ht-kenh { flex: 1 1 auto; min-height: 0; }
+.ht-kenh { display: flex; flex-direction: column; gap: 12px; }
+.ht-kenh-intro { flex: 1 1 300px; margin: 0; }
+.ht-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.ht-acc { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface-1);
+  display: flex; flex-direction: column; gap: 8px; }
+.ht-acc-head { display: flex; align-items: center; gap: 10px; }
+.ht-acc-logo { width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--surface-2); border: 1px solid var(--hairline); flex: none; }
+.ht-acc-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ht-acc-title strong { font-size: 15px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ht-acc-title small { font-size: 12.5px; color: var(--text3); }
+.ht-acc-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12.5px; color: var(--text3); }
+.ht-acc-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.ht-acc-meta b { color: var(--text); }
+.ht-acc-nl { display: flex; flex-wrap: wrap; gap: 6px; }
+.ht-acc-nl span { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 2px 8px;
+  border-radius: 999px; background: var(--bg3); color: var(--text2); border: 1px solid var(--hairline); }
+.ht-acc-loi { font-size: 12.5px; color: var(--warn-ink); display: flex; gap: 4px; align-items: flex-start; }
+.ht-acc-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: auto; padding-top: 4px; }
+.ht-acc-acts .ht-switch { margin-right: auto; }
+.ht-kenh-khac { margin-top: 8px; }
+.ht-form label { display: block; margin: 12px 0 4px; font-size: 13px; color: var(--text2); font-weight: 600; }
+.ht-form input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text); font-size: 14px; }
+.ht-form input:focus { border-color: var(--info-line); outline: none; }
+.ht-form .cb-kenh-o { background: var(--surface-1); }
+.ht-form-acts { gap: 8px; }
+/* Ô trả lời khách (0.61.0): chỉ hiện khi kênh gửi được từ Javis. */
+.ht-compose { border-top: 1px solid var(--hairline); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ht-compose-note { font-size: 12.5px; color: var(--text3); display: flex; gap: 5px; align-items: center; }
+.ht-compose-row { display: flex; gap: 8px; align-items: flex-end; }
+.ht-compose textarea { flex: 1 1 auto; min-width: 0; resize: vertical; padding: 8px 10px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 14px; font-family: inherit; line-height: 1.45; }
+.ht-compose textarea:focus { border-color: var(--info-line); outline: none; }
+.ht-send { flex: none; white-space: nowrap; }
+@media (max-width: 900px) {
+  .ht-tab { font-size: 16px; padding: 10px 12px; }
+  .ht-acc-title strong, .ht-compose textarea, .ht-form input { font-size: 16px; }
+  .ht-acc-meta, .ht-acc-title small, .ht-compose-note, .ht-form label { font-size: 14px; }
+  .ht-acc-grid { grid-template-columns: 1fr; }
+}
