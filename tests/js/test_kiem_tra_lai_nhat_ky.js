@@ -41,7 +41,13 @@ check("có hàm nạp riêng cho danh sách phiên bản", /async function napTi
 check("CANARY: hàm đó được truyền vào bộ máy nút bấm",
   /wireUpdateManager\(el, napTimeline\)/.test(CON));
 check("CANARY: bấm 'Kiểm tra lại' gọi CẢ loadVersion LẪN nạp danh sách",
-  /check\.onclick = async \(\) => \{[\s\S]{0,160}await loadVersion\(\);[\s\S]{0,160}await napLai\(\);/.test(CON));
+  /check\.onclick = async \(\) => \{[\s\S]{0,700}await loadVersion\(\);[\s\S]{0,200}await napLai\(\);/.test(CON));
+// Từ 0.61.4 server giữ bản GitHub 10 phút, nên nút phải dọn cache trang VÀ gửi refresh=1 -
+// thiếu một trong hai là bấm nút lại ra đúng dữ liệu cũ, tức lỗi 2026-08-12 quay lại y nguyên.
+check("CANARY: nút dọn cache trang trước khi nạp lại",
+  /check\.onclick = async \(\) => \{[\s\S]{0,400}_clReset\(\);/.test(CON));
+check("CANARY: nút ép server bỏ cache GitHub (refresh)",
+  /_clFetchPage\(0, true\)/.test(CON));
 // Bản cũ gán thẳng loadVersion vào onclick - đó chính là cả cái lỗi.
 check("CANARY: không còn gán thẳng loadVersion vào nút",
   !/check\.onclick = loadVersion;/.test(CON));
@@ -51,9 +57,18 @@ check("CANARY: không còn gán thẳng loadVersion vào nút",
 // ============================================================
 // Mọi lời gọi khác ở trang này đều đã no-store; sót một chỗ là chỗ đó thành nguồn dữ liệu cũ,
 // mà lại đúng chỗ hiển thị danh sách phiên bản.
+// Từ 0.61.4 danh sách đi qua _clFetchPage (gọi THEO TRANG, dùng chung một lời gọi cho cả
+// khung trên lẫn danh sách) - no-store phải nằm ở đó.
 check("CANARY: /changelog nạp với cache no-store",
-  /fetch\("\/changelog", \{ cache: "no-store" \}\)/.test(CON));
+  /fetch\(q, \{ cache: "no-store" \}\)/.test(CON)
+  || /fetch\("\/changelog", \{ cache: "no-store" \}\)/.test(CON));
 check("CANARY: không còn lời gọi /changelog trần", !/fetch\("\/changelog"\)/.test(CON));
+// Lấy cả 680 bản cho một trang vẽ 20 dòng là 923 KB mỗi lần - xem chú thích ở _clFetchPage.
+check("CANARY: danh sách lấy THEO TRANG, không lấy cả kho",
+  /\/changelog\?offset=\$\{offset\}&limit=\$\{CL_PAGE_SIZE\}/.test(CON));
+// Khung trên và danh sách cùng cần những bản mới nhất; gọi mạng hai lần là trả tiền hai lần.
+check("CANARY: khung 'có gì mới' dùng chung trang 0 với danh sách",
+  /const loadChanges = async \(\) => \{[\s\S]{0,500}_clFetchPage\(0\)/.test(CON));
 check("/version vẫn giữ no-store như cũ", /fetch\("\/version", \{ cache: "no-store" \}\)/.test(CON));
 
 // ============================================================

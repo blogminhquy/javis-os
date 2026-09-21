@@ -764,9 +764,44 @@
     if (t.includes("tài liệu") || t.includes("doc")) return "doc";
     return "other";
   }
-  // Phân trang nhật ký: giữ dữ liệu đã fetch, render 20 bản/trang - đỡ dài, đỡ nặng DOM.
-  let _clData = null;              // cache /changelog để đổi trang không phải gọi lại mạng
+  // Phân trang nhật ký: server trả ĐÚNG một trang, trang đã xem thì giữ lại trong bộ nhớ.
+  //
+  // Vì sao không tải một lần cả danh sách như bản cũ (sửa 2026-09-21, chủ repo báo trang
+  // "load khá chậm và có vẻ bị lỗi"): CHANGELOG.md đã lên 680 phiên bản, tức 923 KB JSON cho
+  // một trang chỉ vẽ 20 dòng. Tệ hơn, trang gọi /changelog HAI lần nối đuôi - khung trên gọi
+  // một lần để khoe "có gì mới", danh sách gọi một lần nữa - nên phải đợi 1,8 MB về mới thấy
+  // gì, và trong lúc đó ô danh sách chỉ nằm im ở chữ "Đang tải nhật ký cập nhật...".
+  let _clData = null;              // {current, latest, update_available, total}
+  const _clPages = new Map();      // offset -> releases[] đã tải
+  const _clInflight = new Map();   // offset -> Promise đang bay (gộp hai người gọi cùng lúc)
   const CL_PAGE_SIZE = 20;         // số phiên bản hiển thị mỗi trang
+
+  function _clReset() {
+    _clData = null; _clPages.clear(); _clInflight.clear();
+  }
+
+  // Một trang nhật ký. Hai chỗ cùng cần trang 0 (khung trên + danh sách) thì chia nhau ĐÚNG
+  // một lời gọi mạng, nhờ sổ _clInflight.
+  function _clFetchPage(offset, refresh) {
+    if (!refresh && _clPages.has(offset)) return Promise.resolve(_clPages.get(offset));
+    if (_clInflight.has(offset)) return _clInflight.get(offset);
+    const p = (async () => {
+      const q = `/changelog?offset=${offset}&limit=${CL_PAGE_SIZE}` + (refresh ? "&refresh=1" : "");
+      const r = await fetch(q, { cache: "no-store" });
+      const d = await r.json();
+      _clData = {
+        current: d.current, latest: d.latest, update_available: d.update_available,
+        // Server cũ chưa có `total` thì rơi về số bản nó trả (trang này vẫn vẽ được).
+        total: (d.total == null ? (d.releases || []).length : d.total),
+      };
+      const rels = d.releases || [];
+      _clPages.set(offset, rels);
+      return rels;
+    })();
+    _clInflight.set(offset, p);
+    p.catch(() => {}).then(() => _clInflight.delete(offset));
+    return p;
+  }
 
   // CHANGELOG.md là markdown, nhưng trang này in bằng esc() nên người dùng đọc thấy nguyên
   // `**Bấm vào link...**` kèm dấu sao và dấu huyền quanh mỗi tên file. Trên điện thoại thì
@@ -798,7 +833,21 @@
     </div>`;
   }
 
-  function _clRenderPage(el, page) {
+  async function _clRenderPage(el, page) {
+    const total0 = _clData ? _clData.total : 0;
+    const pages0 = Math.max(1, Math.ceil((total0 || 1) / CL_PAGE_SIZE));
+    const want = Math.min(Math.max(0, page | 0), pages0 - 1);
+    const offset = want * CL_PAGE_SIZE;
+    if (!_clPages.has(offset)) {
+      // Trang chưa tải: hiện chữ chờ rồi mới đi lấy, đừng để ô trống không nói gì.
+      el.innerHTML = `<div class="cl-note">${window.t("cs.cl_loading")}</div>`;
+      try { await _clFetchPage(offset); }
+      catch (e) { el.innerHTML = `<div class="cl-empty">${window.t("cs.cl_load_err")}</div>`; return; }
+    }
+    _clDrawPage(el, want);
+  }
+
+  function _clDrawPage(el, page) {
     const d = _clData; if (!d) return;
     const cur = d.current || "?";
     const upBadge = d.update_available
@@ -807,12 +856,10 @@
     const upNote = d.update_available
       ? `<div class="cl-note">${window.t("cs.cl_upnote_a")} <b>Redeploy</b> ${window.t("cs.cl_upnote_b")} <code>docker compose up -d --pull always</code>.</div>`
       : "";
-    const rels = d.releases || [];
-    const total = rels.length;
+    const total = d.total || 0;
     const pages = Math.max(1, Math.ceil(total / CL_PAGE_SIZE));
     page = Math.min(Math.max(0, page | 0), pages - 1);
-    const start = page * CL_PAGE_SIZE;
-    const slice = rels.slice(start, start + CL_PAGE_SIZE);
+    const slice = _clPages.get(page * CL_PAGE_SIZE) || [];
     const timeline = slice.length
       ? slice.map(_clRelHtml).join("")
       : `<div class="cl-empty">${window.t("cs.cl_empty_a")} <code>CHANGELOG.md</code> ${window.t("cs.cl_empty_b")}</div>`;
@@ -829,8 +876,8 @@
     </div>`;
     el.querySelectorAll(".cl-pg[data-clpage]").forEach(b => {
       if (b.disabled) return;
-      b.onclick = () => {
-        _clRenderPage(el, parseInt(b.dataset.clpage, 10) || 0);
+      b.onclick = async () => {
+        await _clRenderPage(el, parseInt(b.dataset.clpage, 10) || 0);
         let n = el; while (n && n.scrollHeight <= n.clientHeight + 1) n = n.parentElement;
         if (n) n.scrollTop = 0;   // đổi trang → cuộn lên đầu cho dễ đọc
       };
@@ -839,6 +886,9 @@
 
   async function renderLogs(el) {
     _injectChangelogCss();
+    // Mở lại trang là nạp lại: tab để mở qua đêm mà vẫn thấy danh sách của hôm qua thì vô
+    // duyên. Rẻ, vì server đã cache sẵn và mỗi trang chỉ còn ~30 KB.
+    _clReset();
     const myGen = _renderGen;
     el.innerHTML = `<div class="cl-wrap">
       <section class="upd-card" aria-label="${window.t("cs.upd_aria")}">
@@ -860,14 +910,12 @@
     await napTimeline();
 
     async function napTimeline() {
-    let d;
     try {
-      // cache: "no-store" - KHÔNG phải đề phòng suông. Mọi lời gọi khác ở trang này đều đã
-      // no-store; riêng dòng nạp danh sách phiên bản thì quên, nên nó là chỗ duy nhất có thể
-      // ăn bản cũ trong bộ nhớ đệm trình duyệt. Triệu chứng đúng như chủ repo báo (2026-08-12):
-      // khung trên báo có bản mới, mà danh sách bên dưới không thấy bản đó đâu.
-      const r = await fetch("/changelog", { cache: "no-store" });
-      d = await r.json();
+      // cache: "no-store" nằm trong _clFetchPage - KHÔNG phải đề phòng suông. Mọi lời gọi khác
+      // ở trang này đều đã no-store; riêng dòng nạp danh sách phiên bản thì quên, nên nó là chỗ
+      // duy nhất có thể ăn bản cũ trong bộ nhớ đệm trình duyệt. Triệu chứng đúng như chủ repo
+      // báo (2026-08-12): khung trên báo có bản mới, mà danh sách bên dưới không thấy bản đó đâu.
+      await _clFetchPage(0);
     } catch (e) {
       if (myGen !== _renderGen) return;
       const timeline = el.querySelector("#clTimeline");
@@ -875,9 +923,8 @@
       return;
     }
     if (myGen !== _renderGen) return;   // đã đổi trang trong lúc chờ
-    _clData = d;
     const timeline = el.querySelector("#clTimeline");
-    if (timeline) _clRenderPage(timeline, 0);
+    if (timeline) await _clRenderPage(timeline, 0);
     }
   }
 
@@ -938,8 +985,10 @@
     };
     const loadChanges = async () => {
       const box = q("updVerChangelog"); if (!box) return;
-      let d = {}; try { d = await (await fetch("/changelog", { cache: "no-store" })).json(); } catch (e) { return; }
-      const fresh = (d.releases || []).filter(r => !r.installed).slice(0, 2);
+      // Dùng CHUNG trang 0 với danh sách bên dưới: hai chỗ cùng cần đúng những bản mới nhất,
+      // nên gọi mạng hai lần là trả tiền hai lần cho một câu trả lời.
+      let rels = []; try { rels = await _clFetchPage(0); } catch (e) { return; }
+      const fresh = rels.filter(r => !r.installed).slice(0, 2);
       if (!fresh.length) { box.style.display = "none"; return; }
       box.style.display = "";
       box.innerHTML = "<b>" + window.t("cs.upd_whatsnew") + "</b>" + fresh.map(r => {
@@ -978,6 +1027,11 @@
     // đúng triệu chứng đó (2026-08-12): "trên bản update anh chưa thấy bản 28".
     const check = q("updVerCheck");
     if (check) check.onclick = async () => {
+      // Dọn cache trang RỒI mới lấy lại trang 0 kèm refresh=1 (ép server bỏ cả bản GitHub nó
+      // đang giữ 10 phút). Phải đi TRƯỚC loadVersion, không thì loadChanges kịp nạp lại bản cũ
+      // vào cache và nút bấm bao nhiêu lần cũng ra y như cũ.
+      _clReset();
+      try { await _clFetchPage(0, true); } catch (e) {}
       await loadVersion();
       if (typeof napLai === "function") await napLai();
     };
