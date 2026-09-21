@@ -4,14 +4,14 @@
 
 Mọi tin khách nhắn cho **bot chuyên trách** (Telegram hoặc Zalo Bot) và cho **tài khoản Zalo cá nhân** đã nối đều được gom về một hộp thư trong Javis. Bạn đọc lại cuộc trò chuyện giữa khách và bot, thấy cuộc nào bot đang bí, và **tiếp quản** một cuộc chat khi cần người thật.
 
-Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, ba tab** (Hộp thư, Kênh, Chatbot), và bạn **trả lời khách ngay trong Hộp thư**.
+Từ bản 0.61.0 trang này gộp luôn phần Chatbot: **một mục trên thanh bên, ba tab** (Hộp thư, Tài khoản bot, Chatbot), và bạn **trả lời khách ngay trong Hộp thư**.
 
 ## Mở ở đâu trong Javis
 
 Thanh điều hướng bên trái, nhóm **Năng lực**, mục **Hội thoại**. Trong trang có ba tab:
 
 - **Hộp thư**: mọi tin khách, đọc lại, tiếp quản, trả lời.
-- **Kênh**: mọi tài khoản khách nhắn tới (bot Telegram, bot Zalo, Zalo cá nhân...), thêm tài khoản, bật ghi.
+- **Tài khoản bot**: mọi tài khoản khách nhắn tới (bot Telegram, bot Zalo, Zalo cá nhân...) trong brain đang mở, thêm tài khoản, bật ghi.
 - **Chatbot**: nhân viên AI đứng trực các tài khoản đó. Xem [Chatbot](25-chatbot.md).
 
 Nói bằng lời cũng được: "mở hộp thư khách", "xem tin nhắn khách", và "mở chatbot" vẫn tới đúng tab Chatbot. Nói "hội thoại" trần vẫn ra trang Trò chuyện như trước.
@@ -50,7 +50,7 @@ Hai điều nên biết:
 - Lượt bot đang soạn dở đúng lúc bạn bấm Tiếp quản vẫn gửi nốt câu đó. Cắt ngang một câu đang gửi còn khó hiểu hơn với khách.
 - Tiếp quản là theo **từng cuộc chat**, không tắt bot. Các khách khác vẫn được bot trả lời.
 
-## Tab Kênh
+## Tab Tài khoản bot
 
 Mọi tài khoản khách nhắn tới hiện thành **cùng một kiểu thẻ**, bất kể kênh: logo và tên kênh, tên tài khoản, trạng thái (đang chạy, đang tắt, lỗi kèm lý do), bot đang trực, số hội thoại và số chưa đọc, và các năng lực của kênh đó (vào nhóm, gửi file, trả lời từ Javis). Không kênh nào có mục riêng, kể cả Zalo. Kênh thêm về sau chỉ việc xuất hiện thêm một thẻ.
 
@@ -58,11 +58,21 @@ Có hai loại tài khoản, khác nhau ở cách có nó chứ không ở cách
 
 **Tài khoản bot** (Telegram, Zalo Bot) là một token. Bấm **Thêm tài khoản**, chọn loại kênh, dán token, bấm **Kiểm tra** để Javis hỏi đúng nền tảng token đó là bot nào, đặt tên gợi nhớ rồi Lưu. Tài khoản bot ghi vào hộp thư khi bot trực nó đang bật; chưa có bot trực thì thẻ nói thẳng và có nút **Tạo bot trực** mở sẵn form ở tab Chatbot.
 
-### Vì sao tab này hiện tài khoản của MỌI brain
+### Tài khoản bot thuộc về một brain (0.62.4)
 
-Một tài khoản kênh là một tài khoản có thật ngoài đời (một token Telegram, một bot Zalo), nên nó **không thuộc brain nào**. Bot thì ngược lại: mỗi bot sống trong đúng một brain, vì nó trả lời bằng tri thức của brain đó. Tab Kênh liệt kê tài khoản, nên nó luôn hiện đủ, còn tab Chatbot chỉ hiện bot của brain đang mở.
+Trước 0.62.4 tab này hiện tài khoản của **mọi** brain, vì một token Telegram là tài khoản có thật ngoài đời nên nó không thuộc brain nào cả. Đúng về kỹ thuật nhưng khó dùng: đứng ở brain của mình mà nhìn một danh sách trộn lẫn thì không biết cái nào là của mình.
 
-Vì thế dòng **Bot trực** trên mỗi thẻ luôn ghi kèm brain của con bot ấy: `Bot trực: Chốt đơn · brain Shop Giày`. Nhìn là biết nó sống ở đâu, không phải đi dò từng brain.
+Từ 0.62.4 mỗi tài khoản có một **brain chủ**:
+
+- **Thêm ở brain nào thì thuộc brain đó.** Tab chỉ hiện tài khoản của brain đang mở.
+- **Form tạo bot cũng chỉ cho chọn tài khoản trong brain đó**, nên không còn tạo ra liên kết chéo brain.
+- **Nút "Xem mọi brain"** ở đầu danh sách để tìm lại một tài khoản lỡ thêm nhầm chỗ. Khi đó mỗi thẻ tự ghi brain của nó.
+- **Đổi chủ:** bấm **Sửa**, chọn lại ở mục **Brain của tài khoản**. Lịch sử hội thoại giữ nguyên, vì nó khoá theo id tài khoản chứ không theo brain.
+- **Tài khoản cũ không đoán ra được chủ** (lúc nâng cấp không có bot nào trực nó) thì để **chưa gán** và hiện ở **mọi** brain kèm ghi chú. Chủ ý: thà thấy thừa một thẻ còn hơn có một token tồn tại mà không màn hình nào hiện ra, không ai xoá hay gắn lại được. Gắn nó vào một bot là nó nhận brain của bot đó.
+
+Zalo cá nhân (`kind: account`) không bị lọc: nó là một kết nối ở trang **Kết nối**, không thuộc brain nào, nên luôn hiện.
+
+Đây là bước đầu của hướng dài hơn: chia quyền quản lý tài khoản cho brain, rồi tới agent, skill, workflow và chatbot, để sau này lên được bản nhiều người dùng.
 
 **Xoá một tài khoản:** bấm **Xoá**. Nếu đang có bot trực nó, Javis nói rõ bot nào, ở brain nào, rồi hỏi một câu duy nhất: gỡ khỏi bot đó rồi xoá luôn? Đồng ý là xong trong một lần, không phải đổi brain rồi đi tìm bot để tự gỡ. Bot vẫn còn và vẫn trực các tài khoản khác của nó. Nếu đó là tài khoản **duy nhất** của bot thì Javis nói trước, và sau khi xoá sẽ tắt bot đó đi (bản ghi bot vẫn còn, gắn tài khoản khác vào là bật lại được). Hội thoại đã ghi vẫn nằm nguyên trong hộp thư.
 
@@ -96,7 +106,7 @@ Thêm một kênh = thêm một file ở sổ, một dòng đăng ký, một log
 - **Bot đang bật mà không thấy hội thoại nào**: kho chỉ ghi từ lúc kênh được nối; nhắn thử cho bot một câu. Nếu vẫn trống, xem tab Nhật ký của bot ở tab Chatbot.
 - **Thẻ bot báo "chưa có tài khoản kênh nào"**: bot chưa trực token nào. Bấm Sửa, tích một tài khoản có sẵn hoặc dán token mới.
 - **Gửi từ Hộp thư báo lỗi**: câu lỗi là của chính nền tảng (token bị thu hồi, khách đã chặn bot, phiên Zalo hết hạn). Tin không đi thì không được ghi vào kho.
-- **Zalo cá nhân báo lỗi đỏ ở tab Kênh**: thường là phiên QR hết hạn hoặc máy thiếu Node.js 20. Vào trang Kết nối kiểm tra kết nối Zalo, quét QR lại nếu cần. Vòng đọc tự thử lại sau 90 giây.
+- **Zalo cá nhân báo lỗi đỏ ở tab Tài khoản bot**: thường là phiên QR hết hạn hoặc máy thiếu Node.js 20. Vào trang Kết nối kiểm tra kết nối Zalo, quét QR lại nếu cần. Vòng đọc tự thử lại sau 90 giây.
 - **Bấm Tiếp quản mà bot vẫn trả lời một câu**: đó là lượt đã chạy dở từ trước khi bấm. Từ tin sau bot im.
 
 ## Muốn hơn thế: gói Quản lý khách hàng (CRM)

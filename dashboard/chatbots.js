@@ -52,7 +52,7 @@
   var _kenhDS = [], _kenhLoc = "";
   // Tài khoản kênh chưa bot nào trực (server cấp kèm GET /chatbots). Form tạo bot cho CHỌN
   // trong danh sách này thay vì bắt dán token; dán token mới cũng được, và token đó thành một
-  // tài khoản ở tab Kênh.
+  // tài khoản ở tab Tài khoản bot.
   var _tkRanh = [];
 
   // Kênh KHÔNG đoán theo id: mọi thứ (nhãn, logo, năng lực) lấy từ danh sách server cấp. Kênh
@@ -607,7 +607,7 @@
     }).join("") + '</div>';
   }
 
-  // Mở modal "Thêm tài khoản" của tab Kênh (chatbots.js KHÔNG tự dựng lại form dán token: xem
+  // Mở modal "Thêm tài khoản" của tab Tài khoản bot (chatbots.js KHÔNG tự dựng lại form dán token: xem
   // chú thích ở `moThemTK` trong conversations.js). Xong thì nạp lại danh sách tài khoản rảnh
   // và tích sẵn con vừa nối - đường đi tự nhiên là nối kênh xong dùng luôn, không phải tự tìm
   // lại nó trong danh sách.
@@ -628,7 +628,7 @@
     } });
   }
 
-  // `truoc` (tuỳ chọn): { account_id } - tài khoản tích sẵn khi mở từ tab Kênh ("Tạo bot trực").
+  // `truoc` (tuỳ chọn): { account_id } - tài khoản tích sẵn khi mở từ tab Tài khoản bot ("Tạo bot trực").
   //
   // Form đi theo HAI BƯỚC, và đó là cả điểm của nó. Bước 1 hỏi đúng một câu - bot trả lời ở
   // đâu - bước 2 mới là cài đặt. Trước 0.61.1 cả hai nằm chung một màn, kèm luôn một form dán
@@ -636,7 +636,7 @@
   // trên điện thoại người dùng phải cuộn qua một trang chú thích trước khi thấy ô Tên bot. Nó
   // cũng không mở rộng được: mỗi kênh thêm vào là màn hình dài thêm một khối chú thích nữa.
   // Nay hướng dẫn của một kênh chỉ hiện khi người dùng thật sự chọn kênh đó, trong modal Thêm
-  // tài khoản của tab Kênh - một chỗ duy nhất cho mọi kênh.
+  // tài khoản của tab Tài khoản bot - một chỗ duy nhất cho mọi kênh.
   //
   // Sửa bot thì vào thẳng bước 2: tài khoản đã chọn rồi, bắt đi lại từ đầu chỉ để sửa một dòng
   // chữ là phiền. Dòng tóm tắt ở đầu bước 2 vẫn dẫn ngược về bước 1 khi cần đổi.
@@ -916,7 +916,7 @@
   // (0.62.2 đã bỏ tay bắt "javis:chatbot-edit" ở đây. Tab Kênh từng bấm Xoá là nhảy sang đây
   // mở form Sửa của con bot đang giữ tài khoản, nhưng trang này chỉ nạp bot của BRAIN ĐANG MỞ
   // còn tài khoản kênh thì toàn cục - nên với con bot ở brain khác, đường đó luôn kết thúc
-  // bằng câu "đổi brain rồi thử lại" mà không nói đổi sang brain nào. Nay tab Kênh tự gỡ tài
+  // bằng câu "đổi brain rồi thử lại" mà không nói đổi sang brain nào. Nay tab Tài khoản bot tự gỡ tài
   // khoản khỏi bot rồi xoá trong một lần hỏi, không phải đi vòng qua trang này nữa.)
 
   // Đợi trang nạp xong (kênh + danh sách bot) rồi mới mở form, để ô chọn có đủ dữ liệu. Bỏ cuộc

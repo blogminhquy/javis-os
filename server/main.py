@@ -10267,6 +10267,19 @@ async def _start_scheduler():
     except Exception as e:
         print(f"[zalo start] {e}", file=__import__('sys').stderr)
     try:
+        # DI TRÚ 0.62.4: tài khoản kênh có trước bản này chưa có trường `brain`. Suy từ con bot
+        # đang trực nó; không bot nào trực thì để rỗng (= hiện ở mọi brain) chứ không đoán đại.
+        # Làm ở đây vì chỉ main mới thấy được cả hai kho - `channel_accounts` không import ngược
+        # `chatbot_store` được (vòng import).
+        def _brain_cua_tk(aid):
+            ds = chatbot_store.bots_using_account(aid)
+            return (ds[0].get("brain") or "") if ds else ""
+        n = channel_accounts.dien_brain_con_thieu(_brain_cua_tk)
+        if n:
+            print(f"[channel_accounts] điền brain cho {n} tài khoản cũ")
+    except Exception as e:
+        print(f"[channel_accounts brain] {type(e).__name__}: {e}", file=__import__('sys').stderr)
+    try:
         # Bot chuyên trách: nối bộ giám sát rồi bật những con đang để BẬT. Nối ở đây chứ không
         # để module tự import main - vòng import là thứ byte-compile không thấy, chỉ chết lúc
         # khởi động (xem bước "Import thật main" trong CI).
@@ -17832,7 +17845,11 @@ async def chatbots_list(brain: str = ""):
         k for k in channels.cho_giao_dien() if k.get("kind") == "bot"
     ], "tai_khoan": [
         # Tài khoản kênh chưa bot nào trực (0.61.0): form tạo bot cho CHỌN thay vì bắt dán token.
-        a for a in channel_accounts.list_accounts()
+        # Lọc theo BRAIN đang mở (0.62.4) đúng như danh sách bot ngay trên: bot thuộc một brain,
+        # nên nó chỉ được chọn tài khoản của brain đó. Không lọc thì form vẫn bày tài khoản của
+        # brain khác, gắn vào là tạo ra một liên kết chéo brain mà tab Tài khoản bot không hiện.
+        # `loc` rỗng (lời gọi nội bộ) thì trả hết như cũ.
+        a for a in channel_accounts.list_accounts(brain=loc)
         if not chatbot_store.bots_using_account(a["id"])
     ]}
 
@@ -17886,7 +17903,7 @@ async def chatbots_create(name: str = Form(...), agent_slug: str = Form(...),
         "icon": icon, "token": token, "bot_username": bot_username, "handoff_to": handoff_to,
         "nguon_tra_loi": nguon_tra_loi, "muc_quyen": muc_quyen, "xac_nhan_rui_ro": ack,
         "channel": channel,
-        # Tài khoản kênh (0.61.0): chọn tài khoản có sẵn ở tab Kênh, hoặc dán token mới (ở trên).
+        # Tài khoản kênh (0.61.0): chọn tài khoản có sẵn ở tab Tài khoản bot, hoặc dán token mới (ở trên).
         "account_ids": account_ids, "account_label": account_label,
         # Nhóm khai được NGAY LÚC TẠO. Bản trước chỉ cho khai ở form Sửa, nên đường đi tự nhiên
         # nhất ("tạo bot, thả vào nhóm, gọi tên") luôn kết thúc bằng một con bot im lặng.

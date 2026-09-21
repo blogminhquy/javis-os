@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.4] - 2026-09-21
+### Cải thiện
+- **Tab "Kênh" đổi tên thành "Tài khoản bot".** Gọi đúng thứ nằm trong đó: các tài khoản bot Telegram, Zalo Bot và Zalo cá nhân mà khách nhắn tới.
+- **Mỗi brain chỉ thấy tài khoản bot của brain mình.** Trước đây tab này trộn tài khoản của mọi brain nên nhìn không biết cái nào là của mình. Thêm tài khoản ở brain nào thì nó thuộc brain đó; form tạo bot cũng chỉ cho chọn tài khoản trong brain đang mở.
+- Có nút **Xem mọi brain** để tìm lại một tài khoản lỡ thêm nhầm chỗ, và trong ô Sửa tài khoản có thêm mục **Brain của tài khoản** để chuyển nó sang brain khác mà không mất lịch sử hội thoại.
+- Tài khoản cũ không đoán ra được chủ thì hiện ở **mọi** brain kèm ghi chú, để không có token nào tồn tại mà không màn hình nào thấy.
+
 ## [0.62.3] - 2026-09-21
 ### Thêm mới
 - **Chatbot giờ chạy đúng model bạn chọn cho trợ lý.** Trước đây bot mượn lời dặn của trợ lý nhưng lại luôn chạy model chính, nên chọn model cho trợ lý xong bật bot lên là nó nói chuyện với khách bằng một model khác hẳn. Nay bot dùng đúng model trong ô Model của trợ lý đó, và thẻ ở trang Chatbot ghi luôn model ấy để bạn nhìn là biết.

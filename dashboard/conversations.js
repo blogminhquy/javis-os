@@ -3,8 +3,11 @@
  * Ba tab, cùng một chỗ trên thanh bên:
  *   - Hộp thư:  mọi tin khách từ mọi kênh (`/conversations`), đọc lại, tiếp quản, và từ 0.61.0
  *               TRẢ LỜI KHÁCH NGAY TỪ ĐÂY khi kênh có năng lực đó (`/conversations/{id}/reply`).
- *   - Kênh:     mọi tài khoản kênh, MỘT khuôn thẻ bất kể kênh (`/channels/accounts`): bot
+ *   - Tài khoản bot: mọi tài khoản kênh, MỘT khuôn thẻ bất kể kênh (`/channels/accounts`): bot
  *               Telegram, bot Zalo, Zalo cá nhân, và kênh thêm sau này. Không kênh nào có mục riêng.
+ *               Từ 0.62.4 tab này LỌC THEO BRAIN đang mở: tài khoản bot thuộc về một brain, nên
+ *               đứng ở brain nào chỉ thấy tài khoản của brain đó (cộng tài khoản chưa gán chủ).
+ *               Công tắc "mọi brain" để tìm lại một tài khoản đã gán nhầm chỗ.
  *   - Chatbot:  nhân viên AI (chatbots.js dựng, chạy trong tab này).
  *
  * Luật sống còn của file này: KHÔNG đoán gì theo id kênh. Logo, nhãn, năng lực đều do server
@@ -15,6 +18,37 @@
  * window.JavisConversations. Ghi chú: KHÔNG dùng ký tự em dash. */
 (function () {
   "use strict";
+
+  // Brain đang mở. Cùng cách chatbots.js lấy, để hai tab của cùng một trang không lệch nhau.
+  function brain() { try { return (window.currentBrainPath && window.currentBrainPath()) || "brain"; } catch (e) { return "brain"; } }
+
+  // Danh sách brain, đọc từ CHÍNH ô chọn brain của app (#graphSource). Không gọi /brains
+  // riêng: `currentBrainPath()` sinh khoá từ ô đó, nên lấy chỗ khác là hai không gian khoá
+  // khác nhau và tài khoản rơi vào một brain không ai mở được.
+  function dsBrain() {
+    var src = document.getElementById("graphSource");
+    var ds = [];
+    if (!src) return ds;
+    [].forEach.call(src.options, function (o) {
+      var v = o.value.indexOf("path:") === 0 ? o.value.slice(5) : "brain";
+      // `data-brain-name` là TÊN THƯ MỤC sạch (brains-ui.js gắn). Nhãn hiển thị của ô chọn có
+      // đuôi đếm note (" · 19"), lấy nguyên là ra "brain Shop Giay · 19" trên thẻ tài khoản.
+      var ten = (o.dataset && o.dataset.brainName) || (o.textContent || "").trim().replace(/\s*·\s*\d+\+?$/, "");
+      if (!ds.some(function (x) { return x.v === v; })) ds.push({ v: v, ten: ten || v });
+    });
+    return ds;
+  }
+
+  // Khoá brain -> TÊN đọc được. Khoá thật là "brain" (brain mặc định cũ) hoặc một đường dẫn
+  // tuyệt đối; dán nguyên nó lên thẻ thì ra "brain brain" hoặc một dòng path dài ngoẵng.
+  // Không tra được tên (brain đã xoá) thì lấy đoạn cuối đường dẫn, cùng lắm là khoá thô.
+  function tenBrain(v) {
+    if (!v) return "";
+    var hit = dsBrain().filter(function (x) { return x.v === v; })[0];
+    if (hit) return hit.ten;
+    var m = String(v).replace(/[\\/]+$/, "").split(/[\\/]/);
+    return m[m.length - 1] || String(v);
+  }
 
   var NHIP = 5000;          // nhịp tự làm mới, như trang Chatbot
   var TRANG = 60;           // số hội thoại một trang
@@ -27,6 +61,7 @@
   var _kenhDS = [];         // các LOẠI kênh (server: id, nhan, logo, kind, nang_luc...)
   var _tk = [];             // mọi tài khoản kênh, một khuôn
   var _dauVetTK = "";
+  var _tkMoiBrain = false;  // tab Tài khoản bot: đang xem của MỌI brain thay vì brain đang mở
   var _cho = null;          // bộ lọc / tab chờ áp khi trang mở từ nơi khác (nút trên thẻ bot)
   var _dangGui = false;
 
@@ -148,7 +183,8 @@
   // ---------------------------------------------------------------- tài khoản kênh (dùng chung)
   async function taiTK(im) {
     try {
-      var d = await api("/channels/accounts");
+      var d = await api("/channels/accounts?brain=" + encodeURIComponent(brain()) +
+                        (_tkMoiBrain ? "&tat_ca=1" : ""));
       _tk = d.accounts || [];
       if (d.channels) _kenhDS = d.channels;
       var vet = JSON.stringify(_tk);
@@ -260,7 +296,7 @@
       return '<button type="button" class="ht-loc-chip' + (c.id === _kenhLoc ? " on" : "") +
         '" data-k="' + esc(c.id) + '">' + (c.id ? logoKenh(c.id) + " " : "") + esc(c.nhan) + '</button>';
     }).join("") +
-    // Đang lọc theo MỘT tài khoản (mở từ tab Kênh): một chip có nút bỏ.
+    // Đang lọc theo MỘT tài khoản (mở từ tab Tài khoản bot): một chip có nút bỏ.
     (tkChip ? '<button type="button" class="ht-loc-chip on ht-loc-tk">' + logoKenh(tkChip.channel) + ' ' +
               esc(tkChip.label) + ' ' + ic("x") + '</button>' : "");
     b.querySelectorAll(".ht-loc-chip[data-k]").forEach(function (x) {
@@ -461,7 +497,7 @@
     tai(true);
   }
 
-  // ---------------------------------------------------------------- KÊNH
+  // ---------------------------------------------------------------- TÀI KHOẢN BOT
   function renderKenh(body) {
     body.innerHTML =
       '<div class="ht-kenh">' +
@@ -469,9 +505,22 @@
           '<p class="ht-intro ht-kenh-intro">' + esc(window.t("ht.kenh_intro2")) + '</p>' +
           '<button class="s-btn ht-them-tk" type="button">' + ic("plus") + ' ' + esc(window.t("ht.them_tk")) + '</button>' +
         '</div>' +
+        // Nói THẲNG đang lọc theo brain nào. Không nói thì một danh sách ngắn đi trông hệt
+        // như mất dữ liệu, và đó đúng là cái bẫy mà việc lọc này dễ tạo ra.
+        '<div class="ht-tk-loc">' +
+          '<span class="ht-tk-loc-txt">' + ic("brain") + ' ' +
+            esc(_tkMoiBrain ? window.t("ht.tk_loc_tat_ca") : window.t("ht.tk_loc_brain", { brain: tenBrain(brain()) })) +
+          '</span>' +
+          '<button class="s-btn-ghost ht-tk-doi-loc" type="button">' +
+            esc(_tkMoiBrain ? window.t("ht.tk_chi_brain_nay") : window.t("ht.tk_xem_moi_brain")) + '</button>' +
+        '</div>' +
         '<div class="ht-acc-grid"><div class="ht-empty">' + esc(window.t("common.loading")) + '</div></div>' +
       '</div>';
     body.querySelector(".ht-them-tk").onclick = function () { moThemTK(); };
+    body.querySelector(".ht-tk-doi-loc").onclick = function () {
+      _tkMoiBrain = !_tkMoiBrain;
+      renderKenh(body);
+    };
     _dauVetTK = "";
     taiTK(false).catch(function (e) {
       var g = body.querySelector(".ht-acc-grid");
@@ -498,6 +547,21 @@
     _tk.forEach(function (a) { g.appendChild(theTK(a)); });
   }
 
+  // Ô chọn brain cho tài khoản. Danh sách đổ từ CHÍNH ô chọn brain của app (#graphSource),
+  // không gọi /brains riêng: `currentBrainPath()` sinh giá trị từ ô đó, nên lấy chỗ khác là
+  // hai không gian khoá khác nhau và lưu xong tài khoản rơi vào một brain không ai mở được.
+  function veChonBrain(sel, cur) {
+    if (!sel) return;
+    var ds = dsBrain();
+    // Brain đang gán mà không còn trong danh sách (đã xoá, đã đổi tên): VẪN bày ra và chọn
+    // sẵn, để bấm Lưu không âm thầm chuyển tài khoản sang brain khác.
+    if (cur && !ds.some(function (x) { return x.v === cur; })) ds.push({ v: cur, ten: cur });
+    sel.innerHTML = '<option value="">' + esc(window.t("ht.brain_chua_gan")) + '</option>' +
+      ds.map(function (x) {
+        return '<option value="' + esc(x.v) + '"' + (x.v === cur ? " selected" : "") + '>' + esc(x.ten) + '</option>';
+      }).join("");
+  }
+
   // MỘT khuôn thẻ cho mọi kênh. Khác nhau duy nhất theo LOẠI (kind), không theo tên kênh:
   // kind "bot" có bot trực và không có công tắc; kind "account" có công tắc ghi và không có bot.
   function theTK(a) {
@@ -509,16 +573,27 @@
     if (nl.gui_file) chips.push(ic("paperclip") + " " + esc(window.t("ht.nl_file")));
     if (nl.tra_loi_tu_javis) chips.push(ic("send") + " " + esc(window.t("ht.nl_tra_loi")));
     var ten = a.external_id ? (a.tien_to_ten || "") + a.external_id : "";
-    // Tên bot LUÔN đi kèm BRAIN của nó. Tài khoản kênh là toàn cục còn bot thuộc một brain,
-    // nên danh sách này trộn bot của mọi brain; chỉ hiện mỗi cái tên thì người dùng thấy một
-    // con bot mà không biết tìm nó ở đâu (chủ repo báo 21/09).
+    // BRAIN hiện khi nó là thông tin MỚI, không phải lúc nào cũng hiện:
+    //   - đang xem "mọi brain": mỗi thẻ phải tự nói nó thuộc về đâu;
+    //   - tài khoản CHƯA gán chủ: nó hiện ở mọi brain, và đó là thứ người dùng cần biết để gắn;
+    //   - bot trực nằm ở brain KHÁC chủ tài khoản: dữ liệu cũ lệch nhau, nói ra để còn sửa.
+    // Lọc theo brain rồi mà thẻ nào cũng dán tên brain đang mở thì chỉ là tiếng ồn.
+    var brNay = brain();
+    var brTK = a.brain || "";
+    var botBr = a.bot_brain || "";
+    var nhanBrain = "";
+    if (a.kind === "bot") {
+      if (!brTK) nhanBrain = window.t("ht.tk_chua_brain");
+      else if (botBr && botBr !== brTK) nhanBrain = window.t("ht.tk_bot_brain_khac", { brain: tenBrain(botBr) });
+      else if (_tkMoiBrain || brTK !== brNay) nhanBrain = window.t("ht.o_brain", { brain: tenBrain(brTK) });
+    }
     var botDong = a.kind === "bot"
       ? (a.bot_id
           ? '<span>' + ic(a.bot_icon || "headset") + ' ' + esc(window.t("ht.tk_bot_truc")) + ' <b>' + esc(a.bot_name) + '</b>' +
-            (a.bot_brain ? ' <span class="ht-nhe">' + esc(window.t("ht.o_brain", { brain: a.bot_brain })) + '</span>' : "") +
             (a.bot_enabled ? "" : ' <span class="ht-warn">(' + esc(window.t("ht.bot_tat")) + ')</span>') + '</span>'
           : '<span class="ht-warn">' + ic("triangle-alert") + ' ' + esc(window.t("ht.tk_chua_bot")) + '</span>')
       : '<span>' + ic("user-round") + ' ' + esc(window.t("ht.tk_cua_ban")) + '</span>';
+    if (nhanBrain) botDong += '<span class="ht-nhe">' + ic("brain") + ' ' + esc(nhanBrain) + '</span>';
     var so = '<span>' + ic("messages-square") + ' ' + esc(window.t("ht.n_hoi_thoai", { count: a.so_hoi_thoai || 0 })) +
              (a.chua_doc ? ' · <b>' + esc(window.t("ht.n_chua_doc", { count: a.chua_doc })) + '</b>' : "") + '</span>';
     var lanCuoi = a.lan_cuoi ? '<span>' + esc(window.t("ht.doc_luc", { luc: gio(a.lan_cuoi) })) + '</span>' : "";
@@ -617,7 +692,7 @@
   // bị nhân đôi và thêm một kênh mới là phải sửa cả hai nơi.
   //
   // `opts.onXong(account)`: gọi khi tài khoản đã tạo xong, để nơi gọi tự làm tiếp (form bot
-  // tích sẵn tài khoản vừa nối). Không truyền thì chỉ nạp lại tab Kênh như cũ.
+  // tích sẵn tài khoản vừa nối). Không truyền thì chỉ nạp lại tab Tài khoản bot như cũ.
   async function moThemTK(opts) {
     opts = opts || {};
     // Gọi từ tab Chatbot thì sổ kênh có thể chưa nạp: không có nó thì modal hiện ra trống trơn.
@@ -695,7 +770,10 @@
       var moi = null;
       try {
         var r = await api("/channels/accounts", { method: "POST", body: fd({
-          channel: chon, token: t, label: box.querySelector("#htLabel").value.trim(), bot_username: uname }) });
+          channel: chon, token: t, label: box.querySelector("#htLabel").value.trim(), bot_username: uname,
+          // Thêm từ brain nào thì thuộc brain đó: tab này lọc theo brain, tài khoản vừa thêm
+          // mà không gắn chủ thì nó lơ lửng ở mọi brain.
+          brain: brain() }) });
         moi = r.account || (r.id ? { id: r.id, channel: chon } : null);
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
       dong();
@@ -717,6 +795,13 @@
         '<button class="s-btn-ghost" id="htCheck" type="button">' + esc(window.t("cb.kiem_tra")) + '</button></div>' +
       '<div class="cb-hint" id="htTokenNote">' + (a.external_id ? esc(window.t("cb.dang_dung")) + " " + esc((a.tien_to_ten || "") + a.external_id) : "") + '</div>' +
       (a.bot_id ? '<div class="cb-hint">' + esc(window.t("ht.tk_doi_token_bot", { bot: a.bot_name })) + '</div>' : "") +
+      // Đổi brain chủ (0.62.4). Đây là lối thoát khi lỡ thêm tài khoản ở brain khác: không có
+      // nó thì chỉ còn cách xoá rồi thêm lại, mà xoá là mất luôn lịch sử hội thoại của nó.
+      (a.kind === "bot"
+        ? '<label>' + esc(window.t("ht.lb_brain_tk")) + '</label>' +
+          '<select id="htBrain"></select>' +
+          '<div class="cb-hint">' + esc(window.t("ht.hint_brain_tk")) + '</div>'
+        : "") +
       '<div class="ht-form-acts">' +
         '<button class="s-btn-ghost ht-close" type="button">' + esc(window.t("common.cancel")) + '</button>' +
         '<button class="s-btn ht-save" type="button">' + esc(window.t("common.save")) + '</button>' +
@@ -725,6 +810,7 @@
     var dong = function () { if (box.parentNode) box.parentNode.removeChild(box); };
     box.onmousedown = function (e) { if (e.target === box) dong(); };
     box.querySelector(".ht-close").onclick = dong;
+    veChonBrain(box.querySelector("#htBrain"), a.brain || "");
     box.querySelector("#htCheck").onclick = async function () {
       var t = box.querySelector("#htToken").value.trim();
       var note = box.querySelector("#htTokenNote");
@@ -739,9 +825,11 @@
     };
     box.querySelector(".ht-save").onclick = async function () {
       try {
-        await api("/channels/accounts/" + encodeURIComponent(a.id) + "/update", { method: "POST", body: fd({
-          label: box.querySelector("#htLabel").value.trim(), token: box.querySelector("#htToken").value.trim(),
-          bot_username: uname }) });
+        var oBr = box.querySelector("#htBrain");
+        var than = { label: box.querySelector("#htLabel").value.trim(),
+                     token: box.querySelector("#htToken").value.trim(), bot_username: uname };
+        if (oBr) than.brain = oBr.value;   // không có ô (kind account) thì KHÔNG gửi = không đụng
+        await api("/channels/accounts/" + encodeURIComponent(a.id) + "/update", { method: "POST", body: fd(than) });
       } catch (e) { return alert(window.t("ht.loi_doi") + " " + e.message); }
       dong();
       _dauVetTK = "";

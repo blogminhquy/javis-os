@@ -303,8 +303,8 @@ check("kênh lạ trả rỗng chứ không vẽ dấu hỏi", /if \(!k\) return
 // một trường của bot. Thẻ hiện một chip cho MỖI tài khoản; huy hiệu ở icon chỉ khi có đúng một.
 check("kênh hiện trên thẻ bot (huy hiệu ở icon khi một tài khoản + chip cho từng tài khoản)",
   /class="cb-ico-kenh"/.test(CB) && /function chipTK\(/.test(CB) && /\.map\(chipTK\)/.test(CB));
-check("form hỏi tài khoản kênh NGAY Ở ĐẦU, trước cả tên bot",
-  tu("cb.lb_tai_khoan", "tài khoản kênh") && tu("cb.lb_ten", "Tên bot") &&
+check("form hỏi tài khoản NGAY Ở ĐẦU, trước cả tên bot",
+  tu("cb.lb_tai_khoan", "tài khoản") && tu("cb.lb_ten", "Tên bot") &&
   CB.indexOf('window.t("cb.lb_tai_khoan")') > -1 &&
   CB.indexOf('window.t("cb.lb_tai_khoan")') < CB.indexOf('window.t("cb.lb_ten")'));
 check("tích được NHIỀU tài khoản (cùng một vai trực Telegram lẫn Zalo)",
@@ -318,9 +318,9 @@ check("không tài khoản nào vào được nhóm thì ẨN cả khối nhóm,
   /cbKhongNhom/.test(CB) && /function coNhomForm\(/.test(CB) && /nhomBox\.style\.display = co \? "" : "none"/.test(CB));
 check("và KHÔNG gửi id nhóm thừa lên server",
   /var coNhomLuu = coNhomForm\(\)/.test(CB) && /coNhomLuu \? box\.querySelector\("#cbGroups"\)/.test(CB));
-check("thẻ bot nói thẳng khi chưa có tài khoản kênh nào",
-  noi("cb.chua_token", "chưa có tài khoản kênh"));
-check("mở form từ tab Kênh với tài khoản tích sẵn", /javis:chatbot-new/.test(CB) && /chonSan/.test(CB));
+check("thẻ bot nói thẳng khi chưa có tài khoản bot nào",
+  noi("cb.chua_token", "chưa có tài khoản bot"));
+check("mở form từ tab Tài khoản bot với tài khoản tích sẵn", /javis:chatbot-new/.test(CB) && /chonSan/.test(CB));
 check("cảnh báo riêng tư chỉ hiện khi bot có tài khoản Telegram",
   /a\.channel === "telegram"/.test(CB) && /coTelegram && duNhom/.test(CB));
 check("bộ lọc kênh chỉ hiện khi có từ hai kênh trở lên",

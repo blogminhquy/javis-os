@@ -3,7 +3,7 @@
 Trước 0.61.0, token nằm TRONG bản ghi bot (`chatbot_store`): một bot = một token = một kênh.
 Điều đó trộn hai thứ khác bản chất: TÀI KHOẢN (danh tính ở nền tảng, có token) và PHÂN CÔNG
 (Agent nào đứng trực, mức quyền nào). Tách ra thì một nhân viên AI trực được nhiều tài khoản
-(bot Telegram và bot Zalo cùng một vai), tài khoản đổi bot mà không mất lịch sử, và tab Kênh của
+(bot Telegram và bot Zalo cùng một vai), tài khoản đổi bot mà không mất lịch sử, và tab Tài khoản bot của
 trang Hội thoại liệt kê mọi tài khoản như nhau bất kể kênh.
 
 Hình dạng theo đúng khuôn `chatbot_store`: bản ghi ở JSON, token qua `secrets_store`, không bao
@@ -76,6 +76,10 @@ def _clean_external(v: Any) -> str:
     return str(v or "").strip().lstrip("@")[:120]
 
 
+def _clean_brain(v: Any) -> str:
+    return " ".join(str(v or "").split())[:200]
+
+
 def _public(a: dict) -> dict:
     out = {k: v for k, v in a.items() if k not in ("token", "token_enc")}
     out["token_set"] = bool(a.get("token_enc"))
@@ -90,10 +94,25 @@ def _public(a: dict) -> dict:
 # ============================================================
 # Đọc
 # ============================================================
-def list_accounts(channel: str = "") -> List[dict]:
+def list_accounts(channel: str = "", brain: str = "") -> List[dict]:
+    """`brain` rỗng = mọi brain (hành vi cũ, và là thứ mã nội bộ cần: poller phải thấy hết).
+
+    Có `brain` thì trả tài khoản của brain đó CỘNG tài khoản chưa gán brain nào. Tài khoản
+    chưa gán là bản ghi cũ mà lúc di trú không suy ra được chủ (không bot nào trực) - cho nó
+    hiện ở mọi brain, vì thà thấy thừa một thẻ còn hơn có một token tồn tại mà không màn hình
+    nào hiện ra, không ai xoá hay gắn lại được.
+    """
     k = str(channel or "").strip().lower()
+    br = _clean_brain(brain)
+    out = []
     with _lock:
-        return [_public(a) for a in _load()["accounts"] if not k or a.get("channel") == k]
+        for a in _load()["accounts"]:
+            if k and a.get("channel") != k:
+                continue
+            if br and _clean_brain(a.get("brain")) not in ("", br):
+                continue
+            out.append(_public(a))
+    return out
 
 
 def get_account(account_id: str) -> Optional[dict]:
@@ -163,6 +182,10 @@ def create_account(data: dict, account_id: str = "") -> tuple[Optional[str], str
         meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
         a = {
             "id": aid, "channel": kenh,
+            # BRAIN CHỦ của tài khoản. Thêm ở 0.62.4: trước đó tài khoản là toàn cục nên tab
+            # Tài khoản bot trộn của mọi brain, nhìn không biết cái nào của mình (chủ repo báo
+            # 21/09). Rỗng = chưa gán, hiện ở mọi brain cho tới khi có bot nhận.
+            "brain": _clean_brain(data.get("brain")),
             "label": _clean_label(data.get("label")) or ext or channels.nhan(kenh),
             "external_id": ext,
             "token_enc": secrets_store.encrypt(tok),
@@ -174,7 +197,7 @@ def create_account(data: dict, account_id: str = "") -> tuple[Optional[str], str
         return aid, ""
 
 
-_PATCHABLE = ("label", "token", "external_id", "meta")
+_PATCHABLE = ("label", "token", "external_id", "meta", "brain")
 
 
 def update_account(account_id: str, patch: dict) -> tuple[bool, str]:
@@ -192,6 +215,10 @@ def update_account(account_id: str, patch: dict) -> tuple[bool, str]:
                 lb = _clean_label(patch.get("label"))
                 if lb:
                     a["label"] = lb
+            if "brain" in patch:
+                # Chuyển tài khoản sang brain khác. Cho phép đặt về RỖNG (= chưa gán, hiện ở
+                # mọi brain): đó là lối thoát khi lỡ gán nhầm vào một brain rồi xoá brain đó.
+                a["brain"] = _clean_brain(patch.get("brain"))
             if "token" in patch:
                 tok = str(patch.get("token") or "").strip()
                 if tok:
@@ -238,8 +265,59 @@ def ensure_from_bot(bot: dict) -> Optional[str]:
             "label": _clean_label(bot.get("name")) or channels.nhan(kenh),
             "external_id": _clean_external(bot.get("bot_username")),
             "token_enc": bot["token_enc"],
+            "brain": _clean_brain(bot.get("brain")),
             "meta": {"di_tru_tu_bot": True},
             "created_at": float(bot.get("created_at") or _now()), "updated_at": _now(),
         })
         _save(d)
         return bid
+
+
+def nhan_brain(account_id: str, brain: str) -> bool:
+    """Tài khoản CHƯA gán brain thì nhận brain này. Đã có chủ rồi thì không đụng.
+
+    Gọi khi một bot nhận tài khoản: brain của bot chính là brain của tài khoản. Cố ý KHÔNG
+    ghi đè chủ cũ - đổi chủ là việc người dùng làm tay ở form sửa tài khoản, không phải thứ
+    xảy ra sau lưng chỉ vì gắn bot của brain khác vào.
+    """
+    br = _clean_brain(brain)
+    if not account_id or not br:
+        return False
+    with _lock:
+        d = _load()
+        for a in d["accounts"]:
+            if a.get("id") != account_id or _clean_brain(a.get("brain")):
+                continue
+            a["brain"] = br
+            a["updated_at"] = _now()
+            _save(d)
+            return True
+    return False
+
+
+def dien_brain_con_thieu(brain_cua) -> int:
+    """DI TRÚ một lần: điền `brain` cho tài khoản có trước 0.62.4. Trả số bản ghi đã điền.
+
+    `brain_cua(account_id)` do NGƯỜI GỌI cấp (main.py, chỗ nhìn thấy cả `chatbot_store`). Module
+    này không tự tra bot được: `chatbot_store` đã import nó, tra ngược là vòng import.
+
+    Không suy ra được (không bot nào trực) thì để RỖNG chứ không đoán đại vào brain mặc định:
+    tài khoản rỗng brain hiện ở mọi brain, nên người dùng vẫn thấy và gắn lại được; đoán sai
+    thì nó biến mất khỏi đúng cái brain mà người ta đang tìm.
+    """
+    n = 0
+    with _lock:
+        d = _load()
+        for a in d["accounts"]:
+            if "brain" in a:
+                continue
+            br = ""
+            try:
+                br = _clean_brain(brain_cua(a.get("id") or ""))
+            except Exception:      # noqa: BLE001 - tra hỏng thì để rỗng, đừng chặn khởi động
+                br = ""
+            a["brain"] = br
+            n += 1
+        if n:
+            _save(d)
+    return n
