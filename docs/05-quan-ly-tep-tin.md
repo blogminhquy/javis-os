@@ -241,6 +241,18 @@ Ký tự lạ trong tên sẽ được Javis thay bằng dấu gạch dưới ch
 
 Cảnh báo: thao tác xoá không có thùng rác, không hoàn tác được. Hãy chắc chắn trước khi xác nhận. Javis không cho phép xoá thư mục gốc của brain cũng như thư mục trần duyệt, báo "Không thể xoá thư mục gốc / brain".
 
+### Chia sẻ một file ra ngoài (link `/s/`)
+
+Trong khung mở file có nút **Chia sẻ**: nó cho ra một đường link gửi cho ai người đó cũng xem được, không cần đăng nhập Javis. File `.md` hiện thành trang đã dựng sẵn (đậm, nghiêng, ảnh), còn file `.html` thì **chạy thật** như một app nhỏ.
+
+Trang chia sẻ chạy trong một hộp cách ly: script trong đó không đọc được cookie đăng nhập của bạn và không gọi được API của Javis. Đó là điều kiện để dám mở một file `.html` do AI viết ra cho người lạ xem. Cái giá của nó là ba điều cần biết khi làm app để chia sẻ:
+
+- **Đọc dữ liệu bằng đường dẫn tương đối** (`./data.json`), đừng trỏ vào `/files/raw`. Link chia sẻ phục vụ được các file nằm **cạnh** trang; còn `/files/raw` đòi cookie đăng nhập nên người xem nhận lỗi 401 và app hiện trống trơn.
+- **Để app trong một thư mục riêng** (`apps/bang-gia/index.html` cùng dữ liệu của nó), đừng để ngay gốc brain. Chỉ trang nằm trong thư mục riêng mới được đọc file dữ liệu bên cạnh, vì "thư mục" của một trang ở gốc brain chính là cả kho ghi chú của bạn.
+- **Lưu tạm (localStorage) vẫn dùng được** nhưng chỉ sống tới khi đóng tab. Javis tự vá chỗ này khi phục vụ trang, nên app không bị chết giữa chừng như trước; đừng để trong đó thứ người xem không được phép mất.
+
+Thu hồi link: bấm lại nút Chia sẻ rồi chọn thu hồi. Link chết ngay, và mọi file kèm theo nó cũng ngừng phục vụ.
+
 ## Hai thư mục là vùng cache, đừng để dữ liệu quý ở đó
 
 `attachments/` và `inbox/` của mỗi brain được Javis coi là **vùng cache**, không phải kho lưu trữ:

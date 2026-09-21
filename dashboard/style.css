@@ -2166,33 +2166,82 @@ a.jv-fcode:hover code { color: var(--accent); text-decoration: underline; }
 .jv-art-sub { color: var(--text3); font-size: 12px; }
 .jv-art-open { color: var(--accent); font-size: 13px; font-weight: 600; flex: none; }
 
-/* Panel artifact (drawer ben phai, chay ca o chat thuong lan chat phong to) */
-.jv-artpanel { position: fixed; top: 0; right: 0; bottom: 0; width: min(52vw, 720px);
-  z-index: 390; display: none; flex-direction: column; background: var(--bg2);
-  border-left: 1px solid var(--border); box-shadow: -16px 0 50px var(--shadow-veil); }
-.jv-artpanel.open { display: flex; animation: artIn .18s ease; }
-@keyframes artIn { from { transform: translateX(24px); opacity: .4; } to { transform: translateX(0); opacity: 1; } }
-.jv-ap-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-  border-bottom: 1px solid var(--border); }
-.jv-ap-title { font-weight: 600; font-size: 14px; color: var(--text); flex: none; max-width: 30%;
+/* Khung xem artifact: HỘP THOẠI GIỮA MÀN HÌNH (0.62.1, trước đây là ngăn kéo ép sát lề phải).
+
+   Chủ repo báo 21/09: mở một khối mã trong file .md thì khung dính mép phải, chữ chạy thẳng
+   sang phải vô hạn và phải kéo ngang từng dòng để đọc. Ba thứ đổi cùng lúc, và cả ba đều là
+   cùng một lý do - khung này để ĐỌC:
+     - `.jv-artpanel` nay là LỚP PHỦ toàn màn, hộp thật là `.jv-ap-box` nằm giữa. Nội dung
+       rộng đều hai bên thì mắt quét được cả dòng, không phải dồn về một mép.
+     - Mã XUỐNG DÒNG theo bề ngang hộp. Ai cần đọc nguyên dòng (bảng log, cột canh nhau) thì
+       tắt ở nút "Xuống dòng" - lúc đó mới có cuộn ngang, và là do họ chọn.
+     - Bấm ra ngoài hộp là đóng, đúng thói quen của mọi hộp thoại khác trong app.
+
+   z-index 390 giữ nguyên: nó phải đứng TRÊN trình sửa phóng to (xem test_phong_to_md_che_het_rail). */
+.jv-artpanel { position: fixed; inset: 0; z-index: 390; display: none; align-items: center;
+  justify-content: center; padding: 28px; background: var(--scrim); backdrop-filter: blur(6px); }
+/* Khoá cuộn NỀN khi hộp đang mở: lăn chuột trong một hộp thoại giữa màn mà trang phía sau
+   trôi theo là cảm giác hỏng, và cuộn xong đóng hộp ra thì lạc mất chỗ đang đọc. */
+body.jv-artpanel-open { overflow: hidden; }
+.jv-artpanel.open { display: flex; animation: artIn .16s ease; }
+.jv-ap-box { display: flex; flex-direction: column; width: min(980px, 100%);
+  max-height: min(86vh, 100%); background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden; box-shadow: 0 24px 70px var(--shadow-veil); }
+/* Xem MÃ thì hộp ôm lấy nội dung (chỉ cao tới trần trên): một đoạn mã mười dòng nằm trong
+   một cái hộp cao 84% màn hình là chín phần mười hộp trống trơn. Tab XEM TRƯỚC thì ngược
+   lại - trong đó là một <iframe> cao 100%, mà iframe trong một hộp cao-theo-nội-dung thì
+   xẹp xuống còn 0. */
+.jv-artpanel:not(.jv-ap-oncode) .jv-ap-box { height: min(86vh, 100%); }
+@keyframes artIn { from { opacity: 0; } to { opacity: 1; } }
+.jv-ap-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border-bottom: 1px solid var(--border); background: var(--bg2); }
+.jv-ap-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.jv-ap-title { font-weight: 700; font-size: 15px; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jv-ap-tabs { display: flex; gap: 4px; flex: 1; }
+.jv-ap-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.jv-ap-tabs { display: flex; gap: 4px; flex: none; }
 .jv-ap-tab { background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  border-radius: 7px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+  border-radius: 8px; padding: 5px 13px; font-size: 13px; cursor: pointer; }
 .jv-ap-tab.active { color: var(--accent); border-color: var(--accent); }
 .jv-artpanel.no-preview .jv-ap-tabs { display: none; }
-.jv-ap-actions { display: flex; gap: 6px; flex: none; }
-.jv-ap-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  width: 30px; height: 30px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.jv-ap-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+/* Nút gạt "Xuống dòng": mang CHỮ chứ không icon (bộ icon đóng gói sẵn không có wrap-text),
+   và bật sáng khi đang bật để nhìn là biết mã đang ngắt dòng hay đang cuộn ngang. */
+.jv-ap-tog { background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  border-radius: 8px; padding: 5px 11px; font: inherit; font-size: 12.5px; cursor: pointer;
+  white-space: nowrap; }
+.jv-ap-tog[aria-pressed="true"] { color: var(--accent); border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent); }
+/* Nút này chỉ có nghĩa khi đang nhìn MÃ. Ở tab xem trước (trang HTML, sơ đồ) nó không đổi
+   được gì, mà một cái nút bấm vào không thấy gì xảy ra còn tệ hơn là không có nút. */
+.jv-artpanel:not(.jv-ap-oncode) .jv-ap-tog { display: none; }
+.jv-ap-btn { display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .jv-ap-btn:hover { color: var(--text-hi); border-color: var(--accent); }
+.jv-ap-btn svg { width: 16px; height: 16px; }
 .jv-ap-body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); }
 .jv-ap-frame { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
 .jv-ap-mermaid { min-height: 100%; display: flex; align-items: center; justify-content: center;
   padding: 16px; background: var(--bg); color: var(--text2); }
 .jv-ap-mermaid svg { max-width: 100%; height: auto; }
-.jv-ap-code { margin: 0; border: 0; border-radius: 0; min-height: 100%; box-sizing: border-box; }
+/* MẶC ĐỊNH XUỐNG DÒNG. `overflow-wrap: anywhere` để một chuỗi dài không có dấu cách (URL,
+   chuỗi base64, đường dẫn) cũng ngắt được - thiếu nó thì "xuống dòng" vẫn đẩy ngang một dòng
+   duy nhất ra ngoài hộp. Tắt nút thì quay về `pre` và có cuộn ngang như cũ. */
+.jv-ap-code { margin: 0; border: 0; border-radius: 0; min-height: 100%; box-sizing: border-box;
+  padding: 16px 18px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere;
+  tab-size: 2; }
+.jv-artpanel.jv-ap-nowrap .jv-ap-code { white-space: pre; overflow-wrap: normal; }
 .jv-ap-note { color: var(--text3); font-size: 13px; padding: 10px 12px; }
-@media (max-width: 900px) { .jv-artpanel { width: 100vw; } }
+/* Điện thoại: hộp chiếm gần trọn màn, bỏ bo góc dưới cho đỡ phí chỗ. Đầu khung xếp hai hàng
+   vì bốn nút cộng hai tab không đứng vừa một hàng ở bề ngang đó. */
+@media (max-width: 760px) {
+  .jv-artpanel { padding: 0; }
+  .jv-ap-box { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; }
+  .jv-ap-head { flex-wrap: wrap; gap: 8px; }
+  .jv-ap-meta { flex: 1 1 100%; order: -1; }
+  .jv-ap-code { padding: 13px 14px; font-size: 13px; }
+}
 
 /* ============================================================
    VAULT EXPLORER (cột trái) - cây thư mục kiểu Obsidian + tìm note
