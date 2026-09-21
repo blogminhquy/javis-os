@@ -51,6 +51,12 @@ DENY = (
         r"api|mcp|tool|tools|vault|obsidian|slack|notion|airtable|facebook|instagram|"
         r"tiktok|zalo|telegram|shopify|stripe|pos)\b"
     )),
+    # Đối xứng với `javis_asset` bản tiếng Việt: câu trỏ vào chính bộ não hoặc chính năng
+    # lực của Javis. Đi tắt là trả về một lời từ chối trên cái brain đang có đủ thứ đó.
+    ("javis_asset", re.compile(
+        r"\b(workflows?|skills?|agents?|plugins?|kanban|second brain|brain|wiki|"
+        r"my notes|the notes|project data|my project|my data|our data)\b"
+    )),
     ("side_effect", re.compile(
         r"\b(send|email him|email her|email them|message|text them|delete|remove|cancel|"
         r"create|add a|book|schedule|remind me|set a reminder|set up a|upload|publish|"
@@ -65,6 +71,14 @@ DENY = (
     ("agentic", re.compile(
         r"\b(execute|run|check my|check the|look up|search for|find my|find the|fetch|"
         r"open my|pull up|go through|review my|analyze my|analyse my)\b"
+    )),
+    # Câu nối: nghĩa nằm ở lượt trước. `conversation_state` ở trên đã có "continue|go on",
+    # nhóm này bắt nốt kiểu mở câu bằng hư từ rồi ra lệnh ngắn ("ok, write it then").
+    ("continuation", re.compile(
+        r"^(ok|okay|alright|right|sure|yes|yeah|yep|then|and|so)\s*[,.!:;]"
+        r"|^(ok|okay|alright|sure|then)\s+(write|do|make|draft|translate|summarize|"
+        r"summarise|continue)\b"
+        r"|\b(do it|write it|make it|go ahead|then write|then do)\b"
     )),
 )
 

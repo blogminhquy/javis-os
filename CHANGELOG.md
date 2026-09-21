@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.61.3] - 2026-09-21
+### Sửa lỗi
+- **Javis không còn nói "chưa có dữ liệu" ngay trên bộ não của bạn.** Câu nào nhắc tới dữ liệu, dự án, quy trình, skill hay trợ lý giờ luôn đi đường đầy đủ, có tool và có bộ não. Trước đây mức Siêu tiết kiệm nhận nhầm chúng là chat vặt rồi trả lời chay, thậm chí bảo bạn tự dán tài liệu vào.
+- **Câu nói tiếp không còn mất mạch.** Nhắn "ừ, vậy viết bài đi" sau khi đã bàn xong chủ đề thì Javis viết tiếp, thay vì hỏi lại "bạn muốn viết về chủ đề gì".
+- **Gọi đúng tên một quy trình của bạn thì Javis nhường về đường có chạy được quy trình đó**, thay vì trả lời chay vì quy trình vốn không nằm trong danh sách tool.
+- Chat thường (giải thích, dịch, đặt tiêu đề, nghĩ ý tưởng) vẫn đi đường tắt tiết kiệm như cũ.
+
 ## [0.61.2] - 2026-09-21
 ### Sửa lỗi
 - **Thẻ ở tab Kênh hết tràn chữ.** Câu lỗi dài (nhất là lỗi MCP, một cục chữ liền không có dấu cách) trước đây chạy ra ngoài thẻ và đè lên thẻ bên cạnh. Nay nó xuống dòng gọn trong thẻ, di chuột vào đọc được câu đầy đủ.

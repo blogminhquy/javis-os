@@ -4,6 +4,12 @@
 khỏi các cổng không đổi hành vi của người dùng hiện tại: `tests/python/test_lang_gates.py`
 chạy lại đúng bộ ca tiếng Việt và đòi kết quả trùng từng bit.
 
+Câu trên nói về LẦN RÚT, không phải một lệnh đóng băng vĩnh viễn: từ khi file này thành
+nguồn sự thật thì luật mới viết thẳng vào đây. Chỉ có một điều kiện, và nó cũng là điều kiện
+đã cứu lần rút: mỗi luật thêm vào phải kèm ca kiểm chứng cả HAI chiều - câu phải chặn và câu
+phải để lọt (ví dụ `tests/python/test_duong_tat_khong_nuot_viec.py`). Siết một chiều thôi là
+cách quen thuộc để bịt một lỗ rồi mở một lỗ khác ở ngay bên cạnh.
+
 Nguồn gốc từng tập (số dòng theo bản trước khi rút):
   DENY, ALLOW                 <- fast_path_runtime.FastIntentClassifier
   WRITE_INTENT, STATE_REF     <- readonly_path_runtime + readonly_orchestrator (bản
@@ -43,6 +49,20 @@ DENY = (
         r"\b(web|internet|google|drive|gmail|calendar|github|repository|repo|database|"
         r"api|mcp|tool|vault|obsidian|slack|notion|airtable|facebook|tiktok|zalo|telegram)\b"
     )),
+    # Trỏ vào CHÍNH BỘ NÃO hoặc CHÍNH NĂNG LỰC của Javis. Đường tắt không phát tool, không
+    # đọc vault, không chạy skill/workflow - nên mấy câu này đi tắt là ra một lời từ chối
+    # ("chưa có dữ liệu dự án đó", "chưa được cấp công cụ") ngay trên cái brain đang có đủ
+    # thứ nó vừa nói là không có. Chủ repo gặp đúng ca này với brain TN88 (21/09/2026).
+    #
+    # "ghi chu" phải đi kèm giới từ sở hữu/vị trí, không bắt trần: "brainstorm tên cho ứng
+    # dụng ghi chú" là câu tự chứa hoàn toàn, chặn nó là siết vào đúng loại câu đường tắt
+    # sinh ra để phục vụ.
+    ("javis_asset", re.compile(
+        r"\b(workflows?|quy trinh|skills?|agent|plugin|kanban|"
+        r"bo nao|second brain|brain|wiki|"
+        r"du an|du lieu|so lieu|co so du lieu)\b"
+        r"|\b(trong|tu|cua)\s+ghi chu\b|\bghi chu\s+(cua|trong)\b"
+    )),
     ("side_effect", re.compile(
         r"\b(gui email|gui tin|xoa|delete|remove|tao lich|dat lich|nhac toi|upload|"
         r"publish|dang bai|dang len|cap nhat file|sua file|luu vao|write to|send email|"
@@ -57,6 +77,19 @@ DENY = (
     ("agentic", re.compile(
         r"\b(hay lam giup|thuc hien|kiem tra giup|tim giup|doc giup|mo giup|"
         r"execute|run|check my|look up|search for|fetch|open my)\b"
+    )),
+    # CÂU NỐI: nghĩa của nó nằm ở lượt TRƯỚC, không nằm trong chính nó. "uh, vậy viết bài
+    # đi" khớp ALLOW `viet` rồi đi tắt, mà đường tắt không đọc lịch sử, nên Javis hỏi lại
+    # "bạn muốn viết về chủ đề gì?" ngay sau khi vừa bàn xong chủ đề đó.
+    #
+    # Hư từ mở câu phải đi kèm DẤU hoặc một ĐỘNG TỪ, không bắt trần: "vang" bỏ dấu là cả
+    # "vâng" lẫn "vàng", nên `^vang` trần sẽ chặn oan "vàng là kim loại gì".
+    ("continuation", re.compile(
+        r"^(u|uh|um|uhm|ukm|uk|ok|oke|okie|okay|vang|vay|the|roi|tiep)\s*[,.!:;]"
+        r"|^(u|uh|ok|oke|okay|vay|the|roi)\s+(thi\s+)?"
+        r"(viet|lam|tao|dich|tom tat|chay|sua|tiep|di)\b"
+        r"|\b(tiep tuc|lam tiep|viet tiep|lam luon|tiep di|lam di|viet di)\b"
+        r"|\b(viet|lam|tao|chay|dich|tom tat|sua|tiep)\b[^.!?]{0,20}\bdi\s*$"
     )),
 )
 

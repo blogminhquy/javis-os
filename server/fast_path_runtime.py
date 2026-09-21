@@ -310,12 +310,24 @@ class FastPathCanary:
             diem_cao = max(float(x.get("score") or 0.0) for x in _ranked) if _ranked else 0.0
         except (TypeError, ValueError):
             diem_cao = 0.0
+        # Điểm cao nhất của thứ khớp NHƯNG bị hard filter vì KIND. Skill và workflow không
+        # phải tool schema nên resolver loại chúng khỏi `ranked`; hệ quả là gọi đúng tên một
+        # workflow của chính mình ("dùng workflow viết bài chuyên sâu") không hề làm điểm
+        # trên nhúc nhích, và lượt đó đi tắt - nơi không có skill router lẫn workflow runner.
+        # Các lý do chặn khác (quyền, health, side_effect) cố ý KHÔNG xét: đường đầy đủ cũng
+        # không gọi được chúng, chặn đường tắt chẳng cứu được ai mà chỉ tốn token.
+        _blocked = resolution.get("blocked_best") or {}
+        try:
+            diem_chan_kind = float(_blocked.get("capability_kind") or 0.0)
+        except (TypeError, ValueError):
+            diem_chan_kind = 0.0
         self.runtime.record_runtime_event(trace, "resolver.canary", {
             "policy_version": resolution.get("policy_version") or "",
             "registry_revision": resolution.get("registry_revision") or "",
             "candidate_count": resolution.get("candidate_count", 0),
             "selected_count": resolution.get("selected_count", 0),
             "top_score": round(diem_cao, 6),
+            "blocked_kind_score": round(diem_chan_kind, 6),
             "min_resolver_score": policy.min_resolver_score,
             "miss_class": resolution.get("miss_class") or "",
             "intent_class": intent.intent_class,
@@ -339,6 +351,8 @@ class FastPathCanary:
         # chặn quyền thì đi đường thường cũng không gọi được, chặn đường tắt chẳng cứu ai.
         if diem_cao >= policy.min_resolver_score:
             return self._legacy(trace, policy, bucket, "capability_ambiguous")
+        if diem_chan_kind >= policy.min_resolver_score:
+            return self._legacy(trace, policy, bucket, "capability_kind_blocked")
 
         compile_resolution = dict(resolution)
         # Resolver miss "index_or_alias" nghĩa là không tìm thấy capability, không đồng nghĩa
