@@ -10727,30 +10727,88 @@ async def _load_community_announcements():
     return list(by_id.values()), err
 
 
-async def changelog_index():
-    """Lõi thuần của GET /changelog. Dùng chung với /notifications (gọi nội bộ)."""
-    """Nhật ký cập nhật: đọc CHANGELOG.md trong bản đang cài + đối chiếu bản trên GitHub để
-    nêu cả phiên bản mới chưa cài. Mất mạng vẫn trả được phần local (bản đã cài)."""
-    cur = _read_version()
+# ── Nhật ký cập nhật: ba lớp cache ───────────────────────────────────────────
+# Vì sao có chúng (đo ngày 2026-09-21, trang Cập nhật "load khá chậm và có vẻ bị lỗi"):
+# CHANGELOG.md đã phình lên 939 KB / 680 phiên bản. Bản cũ của hàm này, MỖI lời gọi, đọc cả
+# file rồi parse (39 ms), TẢI thêm 939 KB nữa từ raw.githubusercontent.com, parse tiếp (39 ms),
+# rồi trả về 923 KB JSON. Không có lấy một lớp cache nào. Mà trang Cập nhật gọi nó HAI lần nối
+# đuôi (khung trên gọi một lần để khoe bản mới, danh sách bên dưới gọi một lần nữa), nên riêng
+# trang đó ngốn ~2,2 giây và 1,8 MB ngay trên máy cục bộ - trên VPS đi xa GitHub thì đủ lâu để
+# người dùng tưởng trang hỏng, và nếu GitHub chậm thì còn ăn trọn hai lần timeout 8 giây.
+#
+# Ba lớp, mỗi lớp chặn một thứ đắt riêng:
+_CL_LOCAL = {"sig": None, "releases": []}      # parse file cục bộ, khoá theo mtime+size
+_CL_REMOTE = {"at": 0.0, "releases": [], "err": None}   # bản GitHub, TTL 10 phút
+_CL_MERGED = {"key": None, "data": None}       # bản đã gộp + xếp hạng + đánh dấu installed
+_CL_REMOTE_TTL = 600
+
+
+def _cl_local_releases():
+    """Nhật ký trong bản đang cài. Parse lại CHỈ KHI file đổi (mtime+size).
+
+    Chạy trong thread (xem `changelog_full`): 39 ms thuần CPU trên event loop là 39 ms mọi
+    lượt chat khác phải đứng chờ.
+    """
     p = PROJECT_ROOT / "CHANGELOG.md"
-    local_md = ""
     try:
-        if p.exists():
-            local_md = p.read_text(encoding="utf-8")
+        st = p.stat()
+        sig = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return []
+    if _CL_LOCAL["sig"] == sig:
+        return _CL_LOCAL["releases"]
+    try:
+        md = p.read_text(encoding="utf-8")
     except Exception:
-        local_md = ""
-    by_ver = {rel["version"]: rel for rel in _parse_changelog(local_md)}
+        return _CL_LOCAL["releases"]
+    rel = _parse_changelog(md)
+    _CL_LOCAL.update({"sig": sig, "releases": rel})
+    return rel
+
+
+async def _cl_remote_releases(refresh: bool = False):
+    """Nhật ký trên nhánh main của GitHub (để nêu cả bản CHƯA cài). Cache 10 phút.
+
+    Hỏng mạng thì GIỮ bản cũ đã tải được thay vì trả rỗng: mất mạng năm phút không phải lý do
+    để danh sách phiên bản mới biến mất khỏi trang.
+    """
+    now = time.monotonic()
+    if not refresh and _CL_REMOTE["releases"] and now - _CL_REMOTE["at"] < _CL_REMOTE_TTL:
+        return _CL_REMOTE["releases"], _CL_REMOTE["err"]
     err = None
     try:
         import httpx
         url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/CHANGELOG.md"
         async with httpx.AsyncClient(timeout=8) as client:
             r = await client.get(url)
-            if r.status_code == 200:
-                for rel in _parse_changelog(r.text):
-                    by_ver.setdefault(rel["version"], rel)   # bản GitHub chưa có local = bản mới
+        if r.status_code == 200:
+            rel = await asyncio.to_thread(_parse_changelog, r.text)
+            _CL_REMOTE.update({"at": now, "releases": rel, "err": None})
+            return rel, None
+        err = f"HTTP {r.status_code}"
     except Exception as e:
         err = type(e).__name__
+    # Thất bại: lùi mốc thời gian lại để lượt sau thử lại sớm, nhưng vẫn trả bản cũ.
+    _CL_REMOTE["err"] = err
+    _CL_REMOTE["at"] = now - _CL_REMOTE_TTL + 30
+    return _CL_REMOTE["releases"], err
+
+
+async def changelog_full(refresh: bool = False):
+    """Nhật ký cập nhật ĐẦY ĐỦ: bản đang cài gộp với bản trên GitHub, mới nhất lên đầu.
+
+    Mất mạng vẫn trả được phần local (bản đã cài).
+    """
+    cur = _read_version()
+    local = await asyncio.to_thread(_cl_local_releases)
+    remote, err = await _cl_remote_releases(refresh)
+    # Khoá gộp: đổi bản đang cài, đổi file cục bộ, hoặc vừa tải lại bản GitHub thì gộp lại.
+    key = (cur, _CL_LOCAL["sig"], len(local), _CL_REMOTE["at"], len(remote))
+    if not refresh and _CL_MERGED["key"] == key and _CL_MERGED["data"] is not None:
+        return _CL_MERGED["data"]
+    by_ver = {rel["version"]: rel for rel in local}
+    for rel in remote:
+        by_ver.setdefault(rel["version"], rel)   # bản GitHub chưa có local = bản mới
     merged = sorted(by_ver.values(), key=lambda r: _ver_tuple(r["version"]) or (0, 0, 0), reverse=True)
     ct = _ver_tuple(cur) or (0, 0, 0)
     for rel in merged:
@@ -10758,14 +10816,38 @@ async def changelog_index():
         rel["installed"] = vt <= ct
         rel["is_current"] = (vt == ct)
     latest = merged[0]["version"] if merged else None
-    return {"current": cur, "latest": latest,
+    data = {"current": cur, "latest": latest,
             "update_available": bool(_ver_newer(latest, cur)),
-            "releases": merged, "error": err}
+            "releases": merged, "total": len(merged), "error": err}
+    _CL_MERGED.update({"key": key, "data": data})
+    return data
+
+
+async def changelog_index(limit: int = 0, offset: int = 0, refresh: bool = False):
+    """Lõi thuần của GET /changelog. Dùng chung với /notifications (gọi nội bộ).
+
+    `limit` cắt bớt danh sách trả về (0 = tất cả). `latest`/`update_available`/`total` luôn
+    tính trên danh sách ĐẦY ĐỦ, nên cắt không làm sai phần đầu trang.
+    """
+    d = await changelog_full(refresh)
+    rels = d["releases"]
+    if limit and limit > 0:
+        offset = max(0, offset)
+        rels = rels[offset:offset + limit]
+    else:
+        offset = 0
+    return dict(d, releases=rels, offset=offset)
 
 
 @app.get("/changelog")
-async def changelog_info():
-    return await changelog_index()
+async def changelog_info(limit: int = 20, offset: int = 0, refresh: int = 0):
+    """Nhật ký cập nhật, TRẢ THEO TRANG.
+
+    Mặc định 20 bản (đúng một trang của giao diện) thay vì cả 680 bản: trả hết là 923 KB mỗi
+    lời gọi cho một trang chỉ vẽ 20 dòng. `limit=0` vẫn lấy được tất cả cho ai cần.
+    """
+    return await changelog_index(limit=max(0, min(int(limit or 0), 200)),
+                                 offset=int(offset or 0), refresh=bool(refresh))
 
 
 _NOTIFICATION_CACHE = {"at": 0.0, "data": None}
