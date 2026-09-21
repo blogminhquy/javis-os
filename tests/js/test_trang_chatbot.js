@@ -377,6 +377,15 @@ check("gợi sẵn tên bot từ tài khoản vừa chọn",
   /if \(!ten\.value\.trim\(\)\) ten\.value = \(tkDangChon\(\)\[0\] \|\| \{\}\)\.ten/.test(CB));
 
 // ============================================================
+// 6b. Thẻ phải nói bot chạy MODEL nào (0.62.3)
+// ============================================================
+// Từ 0.62.3 bot mượn model của Agent nó trỏ tới, không còn luôn chạy model chính. Không hiện
+// ra thì chọn model cho trợ lý xong vẫn không có cách nào biết bot đã theo hay chưa.
+check("thẻ bot hiện model đang chạy", /b\.agent_model \|\| window\.t\("cb\.model_chinh"\)/.test(CB));
+check("agent để Mặc định thì nói rõ là theo model chính, không để trống",
+  CB.indexOf('window.t("cb.model_chinh")') !== -1);
+
+// ============================================================
 // 7. Luật chung của dashboard
 // ============================================================
 check("HTML người dùng nhập đều qua esc()", !/innerHTML\s*=\s*[^;]*\+\s*(b|e)\.(name|message)\b(?![^;]*esc)/.test(CB));

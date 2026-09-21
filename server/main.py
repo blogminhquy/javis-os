@@ -1847,6 +1847,47 @@ def _tg_ghim(mcfg) -> dict:
     return {"provider": tg["provider"], "model": tg.get("model") or ""} if tg.get("provider") else {}
 
 
+def _model_cua_agent(brain: str, slug: str) -> dict:
+    """{'provider','model'} mà file Agent tự chọn, hoặc {} nếu nó để "Mặc định".
+
+    Agent CŨ chỉ lưu tên model (chưa có trường `model_provider`): suy nhà từ chính tên model
+    bằng `_agent_model_provider`, đúng cách mà bước workflow vẫn suy - chứ không bỏ qua, kẻo
+    agent cũ thành ra không có model trong khi người dùng đã chọn hẳn hoi.
+    """
+    slug = (slug or "").strip()
+    if not slug:
+        return {}
+    try:
+        meta, _ = _read_md(_agents_dir(brain or "brain") / f"{slug}.md")
+    except Exception:      # noqa: BLE001 - agent bị xoá/đổi slug: coi như không chọn model
+        return {}
+    mdl = (meta.get("model") or "").strip()
+    if not mdl:
+        return {}
+    return {"provider": _agent_model_provider(mdl, (meta.get("model_provider") or "").strip()),
+            "model": mdl}
+
+
+def _chat_provider_bot(mcfg, bot):
+    """Provider cho một lượt của BOT CHUYÊN TRÁCH (chatbot nói với khách ngoài).
+
+    Bot mượn prompt của một Agent, nên nó phải mượn luôn MODEL của Agent đó: chủ vào Cài đặt
+    trợ lý chọn model nào thì bot chạy đúng model ấy ra ngoài. Trước 0.62.3 bot luôn chạy model
+    CHÍNH, nên chọn model cho agent xong bật bot lên là chạy một model khác hẳn mà không có
+    dấu hiệu nào - chủ repo hỏi thẳng 21/09.
+
+    Agent để "Mặc định" thì về model chính, y như chat trên dashboard. Luật rơi-về vẫn là của
+    `_chat_provider_for_session`: nhà đã gỡ hay key đã bị xoá thì lui về model chính chứ không
+    để bot chết câm trước mặt khách.
+    """
+    a = (bot or {}).get("agent") or {}
+    g = _model_cua_agent(a.get("brain") or "brain", a.get("slug") or "")
+    if not g:
+        return _chat_provider(mcfg)
+    return _chat_provider_for_session(mcfg, {"pinned_provider": g["provider"],
+                                             "pinned_model": g["model"]})
+
+
 def _chat_provider_kenh(mcfg, channel):
     """Provider cho một lượt theo KÊNH: Telegram có ghim riêng thì theo ghim, còn lại theo
     model chính. Dùng lại đúng luật rơi-về của ghim phiên web (`_chat_provider_for_session`):
@@ -16067,9 +16108,9 @@ async def _tg_answer(text, meta=None, progress=None, channel="telegram", bot=Non
         sess = _tg_session(chat_id)
         brain = _tg_brain(chat_id)   # brain riêng của phiên (đổi bằng /brain), mặc định theo Settings
     mcfg = cfgmod.read_settings().get("model", {})
-    # Chủ chat trên Telegram thì theo ghim của kênh (nếu có). Bot chuyên trách KHÔNG: nó
-    # phục vụ khách, model của nó là chuyện cấu hình bot, không ăn theo ghim của chủ.
-    prov, kind, api_key, api_model = (_chat_provider(mcfg) if bot
+    # Chủ chat trên Telegram thì theo ghim của kênh (nếu có). Bot chuyên trách KHÔNG ăn theo
+    # ghim của chủ: nó phục vụ khách, và model của nó là model của chính Agent nó trỏ tới.
+    prov, kind, api_key, api_model = (_chat_provider_bot(mcfg, bot) if bot
                                       else _chat_provider_kenh(mcfg, channel))
     # Nhãn engine phải do VỎ quyết định rồi truyền xuống lõi: hai bên tự suy ra độc lập là
     # có ngày phiên bị dán nhãn 'cli' trong khi lượt thật chạy qua OpenRouter.
@@ -17755,6 +17796,11 @@ async def chatbots_list(brain: str = ""):
         meta, _ = _read_md(_agents_dir(a.get("brain") or "brain") / f"{a.get('slug')}.md")
         b["agent_name"] = meta.get("name") or ""
         b["agent_missing"] = not bool(meta)   # Agent bị xoá/đổi slug -> thẻ phải báo, đừng im
+        # Model bot CHẠY THẬT ra ngoài = model của Agent nó trỏ tới (rỗng = Agent để Mặc định,
+        # tức theo model chính). Thẻ phải nói ra: từ 0.62.3 bot mượn model của Agent, mà không
+        # hiện thì đổi model cho trợ lý xong không có cách nào biết bot đã đổi theo hay chưa.
+        b["agent_model"] = _model_cua_agent(a.get("brain") or "brain",
+                                            a.get("slug") or "").get("model") or ""
         # Poller sống KHÔNG có nghĩa là bot trả lời được: model gọi hỏng thì thẻ vẫn chấm xanh
         # trong khi khách nhận toàn câu xin lỗi. Lấy lỗi của lượt gần nhất lên thẻ luôn.
         b["loi_luot"] = chatbot_log.loi_gan_nhat(b["id"])

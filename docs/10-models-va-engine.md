@@ -229,6 +229,22 @@ Vài điều cần biết:
 - **Công cụ không giống nhau giữa các đường.** Claude Code và Codex đọc/ghi file trực tiếp trong brain. Các model API (OpenRouter, OpenAI, Gemini, Anthropic API) đọc/ghi qua công cụ vault của Javis và **không chạy được lệnh máy**, nên hợp với việc đọc - tổng hợp - ghi ghi chú; việc nền nào cần chạy lệnh thì cứ để Claude.
 - Với đường API, công cụ ghi file tự khoá lại khi loop đang ở mức `suggest`, đúng như khi chạy bằng Claude.
 
+### E1. Chỗ nào chạy model nào (bảng tra)
+
+Javis có ba chỗ đặt model, và câu hỏi hay gặp nhất là "cái nào thắng cái nào". Thứ tự: **model của Agent** (ô Model trong Cài đặt trợ lý) thắng **model chính**, còn **model việc nền** chỉ dùng cho các đường chạy nền.
+
+| Bạn đang ở đâu | Model chạy thật |
+|---|---|
+| Chat thường trên dashboard / Telegram | Model chính (hoặc ghim riêng của phiên, của kênh Telegram) |
+| Chat với một trợ lý ở trang Cộng sự | Model của trợ lý đó; để **Mặc định** thì model chính |
+| **Chatbot** trả lời khách ngoài | Model của trợ lý mà bot trỏ tới; để **Mặc định** thì model chính |
+| Một bước trong quy trình (workflow) | Model của trợ lý ở bước đó; để **Mặc định** thì **model việc nền** |
+| Loop, việc Kanban, nhắc hẹn, tự học, tiêu hoá nguồn | Model việc nền |
+
+Nhà cung cấp mà trợ lý đã chọn nếu bị gỡ key thì Javis lui về model chính, chứ không để trợ lý hay bot chết câm.
+
+Ô **Model** trong Cài đặt trợ lý dùng đúng bảng chọn của thanh model dưới khung chat: gõ để tìm, và nhà chưa cắm API key vẫn hiện ra kèm ổ khoá, bấm vào là sang trang Models để mở.
+
 ### F. Đặt mức Suy nghĩ (reasoning)
 
 Bật để model động não kỹ hơn trước khi trả lời: chính xác hơn, nhưng chậm hơn và tốn token hơn.

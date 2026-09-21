@@ -325,6 +325,10 @@
             ? (b.accounts || []).map(chipTK).join("")
             : '<span class="cb-warn">' + ic("triangle-alert") + ' ' + esc(window.t("cb.chua_token")) + '</span>') +
           '<span>' + ic("bot") + ' ' + esc(b.agent_name || (b.agent || {}).slug || "?") + '</span>' +
+          // Model bot chạy ra ngoài. Nó là model của trợ lý (0.62.3), nên phải hiện ở đây -
+          // nếu không thì chọn model cho trợ lý xong vẫn không biết bot đã theo hay chưa.
+          '<span title="' + esc(window.t("cb.model_title")) + '">' + ic("cpu") + ' ' +
+            esc(b.agent_model || window.t("cb.model_chinh")) + '</span>' +
         '</div>' +
         '<div class="cb-meta">' +
           '<span>' + esc(!coNhom(b) ? window.t("cb.chi_rieng") : (b.groups || []).length

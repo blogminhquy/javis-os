@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.3] - 2026-09-21
+### Thêm mới
+- **Chatbot giờ chạy đúng model bạn chọn cho trợ lý.** Trước đây bot mượn lời dặn của trợ lý nhưng lại luôn chạy model chính, nên chọn model cho trợ lý xong bật bot lên là nó nói chuyện với khách bằng một model khác hẳn. Nay bot dùng đúng model trong ô Model của trợ lý đó, và thẻ ở trang Chatbot ghi luôn model ấy để bạn nhìn là biết.
+### Cải thiện
+- **Ô chọn Model của trợ lý nay giống hệt ô chọn model dưới khung chat**: có ô tìm, và nhà cung cấp chưa cắm API key vẫn hiện ra kèm ổ khoá thay vì bị giấu đi, bấm vào là sang thẳng trang Models để mở khoá.
+- Dòng **Mặc định** nói thật hơn: để Mặc định thì trợ lý chạy model chính khi chat và khi làm chatbot, còn khi nằm trong một quy trình thì chạy model việc nền.
+
 ## [0.62.2] - 2026-09-21
 ### Sửa lỗi
 - **Xoá một tài khoản kênh hết vòng vo.** Trước đây tài khoản đang có bot trực thì Javis đá bạn sang tab Chatbot, mà bot ấy thường nằm ở brain khác nên chỉ nhận được câu "đổi brain rồi thử lại" và không biết đổi sang brain nào. Nay chỉ một câu hỏi: gỡ khỏi bot đó rồi xoá luôn? Đồng ý là xong.

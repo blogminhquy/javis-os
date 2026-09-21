@@ -12,8 +12,6 @@
   // chọn xong server lọc về "off" mà giao diện vẫn khoe đang bật.
   const EFFORT = [["off", "models.r_off"], ["low", "models.r_low"], ["medium", "models.r_med"],
                   ["high", "models.r_high"], ["xhigh", "models.r_xhigh"], ["ultra", "models.r_ultra"]];
-  const modelCache = {};   // provider id -> {models, ts}; không giữ catalog cũ suốt cả tab
-  const MODEL_CACHE_MS = 5 * 60 * 1000;
   let state = { providers: [], main: { provider: "", model: "" }, reasoning: "off" };
   let sessionPin = null;   // {provider, model} phiên đang mở đã ghim; null = theo mặc định chung
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
@@ -90,41 +88,21 @@
     if (et) et.textContent = "Effort: " + window.t((EFFORT.find((e) => e[0] === state.reasoning) || EFFORT[0])[1]);
   }
 
-  async function fetchModels(pid) {
-    const cached = modelCache[pid];
-    if (cached && Date.now() - cached.ts < MODEL_CACHE_MS) return cached.models;
-    try {
-      const force = pid === "openai-oauth" ? "&refresh=1" : "";
-      const d = await (await fetch("/provider/models?provider=" + encodeURIComponent(pid) + force)).json();
-      modelCache[pid] = { models: d.models || [], ts: Date.now() };
-    } catch (e) { modelCache[pid] = { models: [], ts: Date.now() }; }
-    return modelCache[pid].models;
-  }
-
   async function renderPop() {
     const pop = $("mbPop");
     if (!pop) return;
     if (!expanded) expanded = state.main.provider || "anthropic-cli";
-    let html = `<input class="mb-search" id="mbSearch" placeholder="${window.t("mpick.search_ph")}" value="${filter.replace(/"/g, "&quot;")}">`;
-    for (const p of state.providers) {
-      const on = !!p.configured;
-      html += `<div class="mb-prov ${on ? "" : "off"}" data-prov="${on ? p.id : ""}">
-                 <span>${p.label}${p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""}</span><span>${on ? ic(p.id === expanded ? "chevron-down" : "chevron-right") : ic("lock", { cls: "ic-dim" })}</span></div>`;
-      if (!on) { html += `<div class="mb-link" data-goto="models">+ ${window.t("mpick.add_key")}</div>`; continue; }
-      if (p.id === expanded) {
-        let ids = await fetchModels(p.id);
-        if (filter) ids = ids.filter((id) => id.toLowerCase().includes(filter.toLowerCase()));
-        if (!ids.length) {
-          html += `<div class="mb-empty">${filter ? window.t("mpick.no_match") : window.t("mpick.no_list")}</div>`;
-        }
-        for (const id of ids.slice(0, 60)) {
-          const _eff = effective();
-          const cur = p.id === _eff.provider && id === _eff.model;
-          html += `<div class="mb-item ${cur ? "cur" : ""}" data-prov="${p.id}" data-model="${id.replace(/"/g, "&quot;")}">
-                     <span class="tick">${cur ? ic("check", { cls: "ic-ok" }) : ""}</span><span>${short(id)}</span></div>`;
-        }
-      }
-    }
+    // Thân bảng (ô tìm + nhà + model + hàng khoá) dựng bởi model-list.js, dùng CHUNG với ô
+    // Model của trợ lý bên Studio. Ở đây chỉ nối thêm hàng Effort - thứ duy nhất riêng của
+    // thanh chat.
+    let html = await window.JavisModelList.render({
+      providers: state.providers,
+      expanded, filter,
+      selected: effective(),
+      searchId: "mbSearch",
+      short,
+      mark: (p) => (p.is_main ? " " + ic("check", { cls: "ic-ok" }) : ""),
+    });
     html += `<div class="mb-eff-row"><span class="lbl">Effort</span>` +
       EFFORT.map(([v, l]) => `<button class="mb-eff-btn ${state.reasoning === v ? "cur" : ""}" data-eff="${v}">${window.t(l)}</button>`).join("") +
       `</div>`;
