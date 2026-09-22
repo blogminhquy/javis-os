@@ -10397,15 +10397,30 @@ def _count_md(root: str, cap: int) -> int:
     return n
 
 
-def _browse_sync(path: str) -> dict:
-    """Phần chạm đĩa của /browse. Tách hẳn ra để chạy trong thread, KHÔNG trên event loop."""
+def _la_repo(path: str) -> bool:
+    """Thư mục này có phải repo git không. CHỈ 1 lần os.path.exists, không gọi `git`.
+
+    Dùng cho trang Coding: người ta chọn thư mục để làm việc, nên cái đáng biết khi lướt danh
+    sách là "cái nào là repo", chứ không phải nó có bao nhiêu file .md. `.git` là file (chứ
+    không phải thư mục) trong một worktree phụ, nên đừng dùng isdir."""
+    try:
+        return os.path.exists(os.path.join(path, ".git"))
+    except OSError:
+        return False
+
+
+def _browse_sync(path: str, dem_md: bool = True) -> dict:
+    """Phần chạm đĩa của /browse. Tách hẳn ra để chạy trong thread, KHÔNG trên event loop.
+
+    `dem_md=False` bỏ hẳn phần đếm .md. Người chọn thư mục CODE không quan tâm con số đó, mà
+    đếm nó lại là quét cả cây (node_modules, .venv) chỉ để in một nhãn vô nghĩa."""
     import string
 
     if not path:
         if os.name == "nt":
             drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
             return {"path": "", "parent": None,
-                    "dirs": [{"name": d, "path": d, "md": None} for d in drives]}
+                    "dirs": [{"name": d, "path": d, "md": None, "git": False} for d in drives]}
         path = os.path.expanduser("~")
 
     if not os.path.isdir(path):
@@ -10418,18 +10433,21 @@ def _browse_sync(path: str) -> dict:
                 continue
             full = os.path.join(path, name)
             if os.path.isdir(full):
-                try:
-                    md = _count_md(full, _BROWSE_MD_CAP)
-                except Exception:
-                    md = 0
-                dirs.append({"name": name, "path": full, "md": md})
+                md = None
+                if dem_md:
+                    try:
+                        md = _count_md(full, _BROWSE_MD_CAP)
+                    except Exception:
+                        md = 0
+                dirs.append({"name": name, "path": full, "md": md, "git": _la_repo(full)})
                 if len(dirs) >= 300:
                     break               # đủ hiển thị rồi, đừng đếm tiếp cho phần bị cắt
         parent = os.path.dirname(path.rstrip("\\/")) or None
         if os.name == "nt" and parent and len(parent) <= 2:
             parent = ""  # về danh sách ổ đĩa
-        here_md = _count_md(path, _BROWSE_HERE_CAP)
-        return {"path": path, "parent": parent, "here_md": here_md, "dirs": dirs}
+        here_md = _count_md(path, _BROWSE_HERE_CAP) if dem_md else None
+        return {"path": path, "parent": parent, "here_md": here_md,
+                "git": _la_repo(path), "dirs": dirs}
     except PermissionError:
         return {"error": "Không có quyền truy cập", "path": path, "parent": None, "dirs": []}
     except Exception as e:
@@ -10437,12 +10455,15 @@ def _browse_sync(path: str) -> dict:
 
 
 @app.get("/browse")
-async def browse(path: str = Query("", description="Thư mục cần liệt kê; rỗng = ổ đĩa/gốc")):
-    """Duyệt thư mục để chọn brain folder. Đếm số file .md trong mỗi folder con.
+async def browse(path: str = Query("", description="Thư mục cần liệt kê; rỗng = ổ đĩa/gốc"),
+                 md: int = Query(1, description="1 = đếm file .md (chọn brain); 0 = bỏ đếm (chọn thư mục code)")):
+    """Duyệt thư mục. Mặc định đếm số file .md trong mỗi folder con (để chọn brain).
+
+    `md=0` bỏ phần đếm và chỉ trả tên thư mục kèm cờ `git` - trang Coding dùng đường này.
 
     Quét đĩa đẩy sang thread: dù thư mục có to tới đâu, event loop vẫn phục vụ được
     healthcheck và các request khác. Xem _count_md để biết vì sao (sự cố 404 trên VPS)."""
-    return await asyncio.to_thread(_browse_sync, path)
+    return await asyncio.to_thread(_browse_sync, path, bool(md))
 
 
 @app.get("/path/exists")

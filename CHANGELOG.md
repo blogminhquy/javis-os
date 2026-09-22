@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.4] - 2026-09-22
+### Cải thiện
+- **Thêm thư mục ở mục Coding giờ là bấm chọn, không phải gõ đường dẫn.** Bấm "Thêm thư mục" là mở ra một hộp duyệt thư mục: bấm vào để đi vào, bấm `.. (lên trên)` để ra, thư mục nào là repo git thì có dấu riêng. Ai đã có sẵn đường dẫn trong tay thì dán vào ô trên cùng rồi Enter vẫn nhanh như trước.
+- Chọn sai thì hộp **giữ nguyên và báo lỗi tại chỗ**, không đóng lại bắt bạn mở và duyệt lại từ đầu.
+- **Icon mục Coding đổi thành ký hiệu `</>`** cho nhìn là biết ngay, thay cho icon một file mã dễ lẫn với mục Tệp tin.
+
 ## [0.63.3] - 2026-09-22
 ### Sửa lỗi
 - **Chat qua Antigravity bớt cảnh trả lời nhầm câu hỏi cũ.** Gói lịch sử hội thoại gửi kèm mỗi lượt đang dài quá mức, nên khi phải đi đường file thì model hay đọc được nửa đầu rồi trả lời một câu đã hỏi từ lâu. Nay gói này gọn lại, vẫn giữ phần hội thoại gần nhất.

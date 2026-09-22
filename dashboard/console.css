@@ -2099,21 +2099,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cd-menu button small { display: block; font-size: 13px; color: var(--text3); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Tấm thêm thư mục. KHÔNG dùng window.prompt: hộp hệ thống không đặt được placeholder, không
-   hiện lỗi tại chỗ, và trên điện thoại thì lạc quẻ hẳn với phần còn lại của app. */
-.cd-tam-nen { position: fixed; inset: 0; z-index: 70; background: var(--shadow-veil);
-  display: flex; align-items: center; justify-content: center; padding: 16px; }
-.cd-tam { width: min(520px, 100%); background: var(--surface-1); border-radius: 14px;
-  border: 1px solid var(--glass-brd); padding: 18px; box-shadow: 0 18px 50px var(--shadow-veil); }
-.cd-tam h3 { margin: 0 0 6px; font-size: 18px; }
-.cd-tam-note { margin: 0 0 12px; font-size: 15px; color: var(--text2); line-height: 1.5; }
-.cd-tam input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 9px;
-  border: 1px solid var(--border); background: var(--bg3); color: var(--text);
-  font-size: 16px; font-family: inherit; }
-.cd-tam input:focus { border-color: var(--info-line); outline: none; }
-.cd-tam-loi { margin-top: 8px; font-size: 15px; color: var(--danger); line-height: 1.45; }
-.cd-tam-loi[hidden] { display: none; }
-.cd-tam-nut { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+/* Không có kiểu dáng riêng cho hộp "thêm thư mục": nó là JavisFolderPicker, mặc bộ lớp
+   .folder-modal/.fm-* có sẵn trong style.css. */
 
 @media (max-width: 900px) {
   .cd-chip { font-size: 16px; padding: 7px 10px; }

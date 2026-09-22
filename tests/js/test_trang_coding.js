@@ -83,8 +83,14 @@ check("tên thư mục trên chip là TÊN, không phải cả đường dẫn",
   M.nhanHienThi({ ten: "du-an", duong_dan: "/home/u/du-an" }) === "du-an" && !chipGit.includes(">/x<"));
 
 // ---- 3. Icon ----
-check("icon mục Coding KHÔNG còn là git-branch", !/coding: "git-branch"/.test(CON));
-check("icon mục Coding nói về mã nguồn", /coding: "file-code"/.test(CON));
+check("icon mục Coding KHÔNG còn là git-branch hay file-code",
+  !/coding: "(git-branch|file-code)"/.test(CON));
+check("icon mục Coding là ký hiệu lập trình </>", /coding: "code-xml"/.test(CON));
+check("icon đó có thật trong bộ icon đã sinh sẵn", (() => {
+  const man = JSON.parse(D("icons.manifest.json"));
+  const co = Object.values(man.groups).some((g) => g.includes("code-xml"));
+  return co && D("vendor/lucide-icons.js").includes('"code-xml":');
+})());
 check("nhóm Code đổi icon để không trùng mục con", /"Code": ic\("wrench"\)/.test(CON));
 
 // ---- 4. Cột trái MƯỢN nguyên cột hội thoại của trang Trò chuyện ----
@@ -144,14 +150,42 @@ check("mức Toàn quyền nhìn ra được", chipGit.includes("cd-mq-auto")
   && M.chipHtml({ muc_quyen: "full" }, { id: "1", ten: "x", duong_dan: "/x", la_git: true }).includes("cd-mq-full")
   && /\.cd-mq-full\s*\{[^}]*var\(--warn\)/.test(CSS));
 
-// ---- 7. Thêm thư mục bằng khung trong app, không phải hộp hệ thống ----
+// ---- 7. Thêm thư mục là DUYỆT rồi bấm chọn, không phải gõ đường dẫn ----
+// Bản 0.63.2 chỉ có một ô chữ trống: trên điện thoại là gõ tay cả đường dẫn tuyệt đối, sai
+// một ký tự thì nhận câu "không phải thư mục" mà không biết sai ở đâu.
 // Bóc chú thích trước khi soi: file này NÓI về prompt() trong phần giải thích vì sao không
 // dùng nó, mà một khẳng định đỏ vì đúng câu giải thích của chính nó thì vô nghĩa.
 const CD_MA = CD.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const FP = D("folder-picker.js");
+const FP_MA = FP.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const STYLE = D("style.css");
 check("KHÔNG gọi window.prompt", !/\bprompt\s*\(/.test(CD_MA));
 check("KHÔNG gọi window.alert", !/\balert\s*\(/.test(CD_MA));
-check("có khung nhập đường dẫn riêng", /cd-tam-nen/.test(CD) && /\.cd-tam input/.test(CSS));
-check("lỗi thêm thư mục hiện tại chỗ", /cdTamLoi/.test(CD) && /\.cd-tam-loi/.test(CSS));
+check("thêm thư mục thì MỞ HỘP DUYỆT", /JavisFolderPicker\.open\(/.test(CD_MA));
+check("KHÔNG còn ô gõ đường dẫn làm đường chính",
+  !/cd-tam-nen|id="cdPath"/.test(CD) && !VI["coding.path_ph"] && !EN["coding.path_ph"]);
+check("hộp duyệt đứng trên chính endpoint /browse đã có, không đẻ endpoint mới",
+  /fetch\("\/browse\?/.test(FP_MA));
+check("và gọi đường md=0: chọn thư mục CODE thì đừng quét đếm .md",
+  /md=" \+ \(o\.demMd \? "1" : "0"\)/.test(FP_MA) && /demMd: false/.test(CD_MA));
+check("server có đường md=0 và báo thư mục nào là repo git", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return /def _browse_sync\(path: str, dem_md: bool = True\)/.test(MAIN)
+    && /def _la_repo\(/.test(MAIN) && /"git": _la_repo\(full\)/.test(MAIN);
+})());
+check("hộp duyệt MẶC lại bộ lớp .folder-modal/.fm-* có sẵn, không vẽ kiểu riêng",
+  /class="folder-modal"/.test(FP) && /class="fm-list"/.test(FP)
+  && /\.folder-modal \{/.test(STYLE) && !/\.fp-modal|\.fp-list|\.fp-row/.test(STYLE + CSS));
+check("bấm lên trên và bấm vào thư mục con đều duyệt tiếp",
+  /duyet\(d\.parent\)/.test(FP_MA) && /duyet\(x\.path\)/.test(FP_MA));
+check("vẫn dán được đường dẫn dài rồi Enter", /fp-go/.test(FP_MA) && /key !== "Enter"/.test(FP_MA));
+check("lỗi thêm thư mục hiện TẠI CHỖ và giữ hộp mở",
+  /return \(r && r\.error\) \|\| t\("coding\.add_err"\)/.test(CD_MA)
+  && /if \(loi\) \{ mach\(loi, true\); return; \}/.test(FP_MA));
+check("chữ của hộp duyệt có ở cả hai từ điển",
+  ["fp.title", "fp.use", "fp.up", "fp.pick", "fp.path_ph"].every((k) => !!VI[k] && !!EN[k]));
+check("index.html nạp folder-picker.js TRƯỚC coding.js",
+  HTML.indexOf("folder-picker.js") > 0 && HTML.indexOf("folder-picker.js") < HTML.indexOf("coding.js"));
 
 // ---- 8. Điện thoại ----
 // Ngăn kéo trên màn hẹp và nút thu gọn nay là của .chatpage (console.js _injectChatCss), nên
@@ -163,7 +197,7 @@ check("nút thu gọn cột dùng đúng lớp của trang Trò chuyện",
   /cp-side-toggle/.test(CD) && /classList\.toggle\("side-thu"\)/.test(CD));
 check("chữ trên điện thoại không nhỏ hơn 16px",
   /@media \(max-width: 900px\)[\s\S]{0,400}\.cd-chip \{ font-size: 16px/.test(CSS)
-  && /\.cd-tam input \{[^}]*font-size: 16px/.test(CSS));
+  && /\.fm-path \.fp-go \{[^}]*font-size: 16px/.test(STYLE));
 
 // ---- 9. Nối vào rail ----
 check("coding có trong RAIL_ITEMS", /"terminal", "coding"/.test(CON));

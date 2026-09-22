@@ -26,6 +26,14 @@
    5. **Chip mức quyền đọc là Plan / Tự động / Toàn quyền**, và Plan không chỉ là chặn ghi mà
       còn BẢO engine lập kế hoạch rồi dừng (xem `coding_store.KHOI_PLAN`).
 
+   0.63.4 sửa chỗ thứ sáu:
+
+   6. **Thêm thư mục là DUYỆT rồi bấm chọn**, qua `JavisFolderPicker` (hộp dùng chung, chạy
+      trên chính `GET /browse` mà hộp chọn brain vẫn dùng). Trước đó chỉ có một ô chữ trống:
+      trên điện thoại là gõ tay cả đường dẫn tuyệt đối, sai một ký tự thì nhận câu "không phải
+      thư mục" mà không biết sai ở đâu. Lại đúng cái lỗi "bắt người dùng khai dữ liệu cho vừa
+      mô hình bên trong".
+
    Hai vùng: trái = phiên, giữa = khung chat MƯỢN của app. Không có cột Work Tree cố định -
    cây thư mục, trình sửa file và terminal đã có chỗ riêng, dựng bản thứ hai ở đây là chép lại
    từng đó thứ rồi để hai bản trôi lệch nhau.
@@ -383,42 +391,48 @@
     await datRangBuoc({ thu_muc: "" });
   }
 
-  /** Khung thêm thư mục: một tấm nhỏ có ô nhập, KHÔNG dùng window.prompt.
+  /** Thêm thư mục: MỞ HỘP DUYỆT để bấm chọn, không bắt gõ đường dẫn.
    *
-   *  prompt() không đặt được placeholder, không hiện lỗi tại chỗ, trên điện thoại thì bung ra
-   *  một hộp hệ thống lạc quẻ, và không dán được đường dẫn dài mà nhìn thấy hết. */
+   *  Bản 0.63.2 chỉ có một ô chữ trống. Trên máy để bàn thì còn dán được, nhưng trên điện
+   *  thoại thì phải gõ tay một đường dẫn tuyệt đối không dấu gợi ý nào, gõ sai một ký tự là
+   *  nhận câu "không phải thư mục" mà không biết sai ở đâu. Chọn thư mục là việc DUYỆT, nên
+   *  phải bày ra cái cây để bấm.
+   *
+   *  Hộp duyệt là JavisFolderPicker, dùng chung với các trang khác, chạy trên chính endpoint
+   *  GET /browse mà hộp chọn brain của app vẫn dùng. Truyền demMd=false: người chọn thư mục
+   *  code không cần biết trong đó có bao nhiêu file .md, mà đếm nó là quét cả node_modules.
+   *  Ô đường dẫn trong hộp vẫn gõ và dán được, nên ai đã có sẵn đường dẫn không mất gì. */
   function moKhungThemThuMuc() {
     dongMenu();
-    var lop = document.createElement("div");
-    lop.className = "cd-tam-nen"; lop.id = "cdTam";
-    lop.innerHTML = '<div class="cd-tam" role="dialog">' +
-      "<h3>" + esc(t("coding.add_folder")) + "</h3>" +
-      '<p class="cd-tam-note">' + esc(t("coding.add_folder_note")) + "</p>" +
-      '<input type="text" id="cdPath" spellcheck="false" placeholder="' + esc(t("coding.path_ph")) + '">' +
-      '<div class="cd-tam-loi" id="cdTamLoi" hidden></div>' +
-      '<div class="cd-tam-nut">' +
-        '<button type="button" class="ws-btn" data-huy>' + esc(t("common.cancel")) + "</button>" +
-        '<button type="button" class="ws-btn primary" data-ok>' + esc(t("coding.add_folder")) + "</button>" +
-      "</div></div>";
-    document.body.appendChild(lop);
-    var inp = lop.querySelector("#cdPath");
-    var loi = lop.querySelector("#cdTamLoi");
-    var dong = function () { if (lop.parentNode) lop.parentNode.removeChild(lop); };
-    lop.onclick = function (e) { if (e.target === lop) dong(); };
-    lop.querySelector("[data-huy]").onclick = dong;
-    var gui = async function () {
-      var p = (inp.value || "").trim();
-      if (!p) { inp.focus(); return; }
-      loi.hidden = true;
-      var r = await api("/coding/folders", { method: "POST", body: fd({ duong_dan: p, brain: brain() }) });
-      if (!r || r.error) { loi.textContent = (r && r.error) || t("coding.add_err"); loi.hidden = false; return; }
-      dong();
-      await taiThuMuc();
-      await datRangBuoc({ thu_muc: r.thu_muc.id });
-    };
-    lop.querySelector("[data-ok]").onclick = gui;
-    inp.onkeydown = function (e) { if (e.key === "Enter") gui(); if (e.key === "Escape") dong(); };
-    setTimeout(function () { inp.focus(); }, 0);
+    if (!W.JavisFolderPicker) return;
+    W.JavisFolderPicker.open({
+      tieuDe: t("coding.add_folder"),
+      ghiChu: t("coding.add_folder_note"),
+      nhanDung: t("coding.add_folder"),
+      demMd: false,
+      // Mở sẵn ở thư mục cha của thư mục đang gắn: mấy dự án thường nằm cạnh nhau, nên đó là
+      // chỗ gần đích nhất mà Javis biết chắc.
+      batDau: chaCuaThuMucDangGan(),
+      chon: async function (duongDan) {
+        var r = await api("/coding/folders", { method: "POST", body: fd({ duong_dan: duongDan, brain: brain() }) });
+        // Trả về câu lỗi là hộp GIỮ NGUYÊN và in câu đó: người dùng đang đứng đúng chỗ vừa
+        // chọn, chỉ cần bấm sang thư mục khác. Đóng hộp rồi báo lỗi ở đâu đó là bắt họ mở lại
+        // và duyệt lại từ đầu.
+        if (!r || r.error) return (r && r.error) || t("coding.add_err");
+        await taiThuMuc();
+        await datRangBuoc({ thu_muc: r.thu_muc.id });
+        return "";
+      },
+    });
+  }
+
+  /** Thư mục mở sẵn khi bật hộp duyệt: cha của thư mục đang gắn, rỗng nếu chưa gắn gì. */
+  function chaCuaThuMucDangGan() {
+    var p = (S.tm && S.tm.duong_dan) || "";
+    if (!p) return "";
+    var cat = p.replace(/[\\/]+$/, "").split(/[\\/]/);
+    cat.pop();
+    return cat.length > 1 ? cat.join("/") : "";
   }
 
   function menuDiemHoi(node) {
