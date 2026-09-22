@@ -601,9 +601,15 @@ function handleMessage(data) {
     if (isActive) { runActions(turn.turnStart()); showActivity(escapeHtml(data.content || "")); syncActiveUI(); }
   } else if (data.type === "tool_call") {
     if (data.tool) trackMCP(data.tool);
-    if (isActive) { runActions(turn.toolCall(data.tool || "")); showActivity(escapeHtml(data.content || "")); }
+    if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
+    if (isActive) {
+      runActions(turn.toolCall(data.tool || ""));
+      veKhoiBuoc(t, true);
+      showActivity(escapeHtml(data.content || ""));   // chip = dong dang chay + dong ho, luon nam duoi khoi
+    }
   } else if (data.type === "tool_result") {
-    if (isActive) showActivity(Icons.msg("check", window.t("app.act_analyzing"), { cls: "ic-ok" }));
+    if (t && window.JavisSteps) t.buoc = window.JavisSteps.nhan(t.buoc, data);
+    if (isActive) { veKhoiBuoc(t, true); showActivity(Icons.msg("check", window.t("app.act_analyzing"), { cls: "ic-ok" })); }
   } else if (data.type === "stream") {
     if (!t) return;
     t.text += (data.content || "");
@@ -627,7 +633,7 @@ function handleMessage(data) {
     // Cùng luật cho MỌI lỗi engine (sai key, model 404, CLI thoát 1): bong bóng đỏ đã nói rõ,
     // vẽ thêm một bong bóng xám "(không có nội dung)" ngay dưới chỉ làm người dùng tưởng lỗi kép.
     if (t && (t.limit || (t.errored && !(t.text || "").trim())) && !(data.content || "").trim()) {
-      if (isActive) { hideActivity(); runActions(turn.turnDone()); }
+      if (isActive) { hideActivity(); veKhoiBuoc(t, false); runActions(turn.turnDone()); }
       refreshUsage();
       return;
     }
@@ -637,6 +643,7 @@ function handleMessage(data) {
     if (t) t.text = shownText;
     if (isActive) {
       hideActivity();
+      veKhoiBuoc(t, false);   // het luot: khoi tien trinh gap thanh mot dong "Da chay N buoc"
       let msgEl = t && t.bubble;
       if (!msgEl) msgEl = appendJavisMessage(shownText);
       if (dangTheoLoi() && t && finalText) {
@@ -654,7 +661,7 @@ function handleMessage(data) {
         nen.textContent = window.t("app.voice_bg_task", { task: String(data.background).slice(0, 160) });
         msgEl.appendChild(nen);
       }
-      if (finalText.trim()) recordTurn("javis", finalText, null, ask);
+      if (finalText.trim()) recordTurn("javis", finalText, null, ask, t && t.buoc);
       // data.tts === false: khung "response" này KHÔNG được đọc (vd bản sửa lại sau khi bóc
       // JAVIS_LESSON của phiên trợ lý) - giống hệt cách nhánh "stream" đã tôn trọng data.tts.
       if (voice.ttsEnabled && t && data.tts !== false) {
@@ -672,6 +679,7 @@ function handleMessage(data) {
     if (t) t.errored = true;   // khung response rỗng theo sau không vẽ thêm "(không có nội dung)"
     if (isActive) {
       hideActivity();
+      veKhoiBuoc(t, false);
       const errEl = appendJavisError(data.content);
       runActions(turn.turnDone());   // lỗi cũng là hết lượt; turn_done theo sau chỉ lặp lại
       if (data.limit) {
@@ -722,7 +730,7 @@ function handleMessage(data) {
     // của phiên quy trình (trang Cộng sự) kết thúc bằng `stream` + `turn_done`, không có
     // `response` nào, nên trước đây chip đứng lại đếm giờ mãi dù kết quả đã in xong. Gọi thêm
     // một lần ở đây vô hại với lượt thường - hideActivity() là thao tác không cộng dồn.
-    if (isActive) { hideActivity(); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
+    if (isActive) { hideActivity(); veKhoiBuoc(t, false); syncActiveUI(); runActions(turn.turnDone()); cum.reset(); }
     if (sid) delete turns[sid];
     if (isActive && _tinChoLuot) guiTinCho();   // câu người dùng chen ngang: lượt cũ dừng hẳn rồi thì gửi
     notifySessions();
@@ -1100,8 +1108,12 @@ function ghiChuThoang(text) {
   scrollBottom();
   setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, GHI_CHU_MS);
 }
-function recordTurn(role, text, atts, ask) {
-  convo.push({ role, text: text || "", atts: atts || [], ask: ask || null, ts: Date.now() });
+function recordTurn(role, text, atts, ask, buoc) {
+  convo.push({ role, text: text || "", atts: atts || [], ask: ask || null, ts: Date.now(),
+               // Mach buoc chi ghi khi luot that su co goi cong cu - luot tra loi thang
+               // khong co truong nay, nen tin cu luu truoc ban nay cung khong sao.
+               buoc: (buoc && window.JavisSteps && window.JavisSteps.tomTat(buoc).hien)
+                 ? buoc : undefined });
   if (convo.length > 200) convo = convo.slice(-200);
   persistSession();
 }
@@ -1117,6 +1129,8 @@ function restoreSession() {
     if (t.role === "user") { appendUserMessage(t.text, t.atts || [], t.ts || 0); return; }
     // t.brain vắng ở tin lưu từ trước bản này -> rơi về brain của cả phiên, rồi mới tới
     // brain đang chọn. Không có thì hành vi y như cũ, không hỏng thêm gì.
+    if (t.buoc && window.JavisSteps && window.JavisSteps.tomTat(t.buoc).hien)
+      chatAppend(window.JavisSteps.ve(null, t.buoc, false));
     const el = appendJavisMessage(t.text, t.ts || 0, t.brain || s.brain);
     // Chip chỉ sống lại ở tin CUỐI: có tin sau nó nghĩa là câu hỏi đã được trả lời rồi.
     if (t.ask) window.JavisAsk.render(el, t.ask, i === convo.length - 1);
@@ -1591,6 +1605,16 @@ function showActivity(html) {
   activityEl.querySelector(".act-text").innerHTML = html || window.t("app.act_processing");
   chatAppend(activityEl);   // re-append → luôn dưới cùng (kể cả dưới bubble đang stream)
   scrollBottom();
+}
+// Khoi tien trinh cua MOT luot: danh sach cong cu da goi, nam ngay tren bong bong tra loi.
+// Khac chip o tren: chip chi co mot dong (buoc moi ghi de buoc cu, het luot la xoa), con khoi
+// nay GIU lai du buoc va song qua F5. Luot khong goi cong cu nao thi khong dung khoi nao.
+function veKhoiBuoc(t, dangChay) {
+  if (!t || !window.JavisSteps || !window.JavisSteps.tomTat(t.buoc).hien) return null;
+  const moi = !t.buocEl;
+  t.buocEl = window.JavisSteps.ve(t.buocEl, t.buoc, dangChay);
+  if (moi) { chatAppend(t.buocEl); scrollBottom(); }
+  return t.buocEl;
 }
 function hideActivity() {
   if (activityTimer) { clearInterval(activityTimer); activityTimer = null; }
