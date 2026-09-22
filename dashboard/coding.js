@@ -519,9 +519,20 @@
         "</button>";
     }).join("");
     document.body.appendChild(m);
+    // Đặt menu vào chỗ trống THẬT quanh chip. Trước đây chỉ kẹp top >= 8: menu dài hơn
+    // khoảng trống phía trên thì tràn xuống đè cả chip lẫn thanh điều hướng (báo 22/09).
+    // Nay: ưu tiên mở lên trên, chật quá thì lật xuống dưới, và cắt chiều cao theo chỗ trống
+    // để menu tự cuộn thay vì tràn ra ngoài màn hình.
     var r = anchor.getBoundingClientRect();
-    m.style.left = Math.max(8, Math.min(r.left, (W.innerWidth || 1200) - 280)) + "px";
-    m.style.top = Math.max(8, r.top - m.offsetHeight - 6) + "px";
+    var vh = W.innerHeight || 800;
+    var tren = Math.max(0, r.top - 14);
+    var duoi = Math.max(0, vh - r.bottom - 14);
+    var len = m.offsetHeight <= tren || tren >= duoi;
+    m.style.maxHeight = Math.max(160, len ? tren : duoi) + "px";
+    var cao = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(r.left, (W.innerWidth || 1200) - m.offsetWidth - 8)) + "px";
+    m.style.top = (len ? Math.max(8, r.top - cao - 6)
+                       : Math.min(r.bottom + 6, Math.max(8, vh - cao - 8))) + "px";
     m.querySelectorAll("[data-i]").forEach(function (b) {
       b.onclick = async function (e) {
         var x = muc[Number(b.dataset.i)];

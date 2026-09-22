@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.2] - 2026-09-22
+### Sửa lỗi
+- **Menu chọn thư mục trong mục Coding gọn lại.** Tên thư mục và đường dẫn để chữ nhỏ, đọc lướt là đủ, nên menu không còn choán nửa màn hình như trước.
+- **Menu dài không tràn ra ngoài nữa.** Nhiều thư mục thì menu tự cuộn trong khung và tự lật lên hay xuống theo chỗ trống, thay vì đổ ra đè lên thanh điều hướng bên trái.
+- Trên điện thoại chữ trong menu vẫn giữ cỡ cũ cho dễ bấm.
+
 ## [0.64.1] - 2026-09-22
 ### Sửa lỗi
 - **Đổi bộ não khi đang ở trang Cộng sự không còn trắng màn.** Mỗi lần đổi não, Javis nạp lại cả quả cầu tri thức của màn chính dù bạn đang nhìn trang khác, và việc đó khoá màn hình vài giây. Nay nó chờ tới lúc bạn quay về màn chính mới nạp.
