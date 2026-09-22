@@ -4,11 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.63.1] - 2026-09-22
+## [0.63.2] - 2026-09-22
 ### Sửa lỗi
 - **Chat qua Antigravity bớt cảnh trả lời nhầm câu hỏi cũ.** Gói lịch sử hội thoại gửi kèm mỗi lượt đang dài quá mức, nên khi phải đi đường file thì model hay đọc được nửa đầu rồi trả lời một câu đã hỏi từ lâu. Nay gói này gọn lại, vẫn giữ phần hội thoại gần nhất.
 - **Skill thứ 21 trở đi không còn bị Javis bỏ quên.** Brain nào có nhiều skill thì trước đây Javis chỉ nhìn thấy 20 cái đầu theo bảng chữ cái, những cái tên vần sau coi như không tồn tại. Nay Javis nhìn thấy nhiều hơn, và ưu tiên đúng những skill bạn hay dùng.
 - **Plugin chặn được một hành động sai trước khi nó xảy ra.** Phần mở rộng của Javis vốn chỉ đứng nhìn rồi ghi sổ; nay nó dừng được một lời gọi sai và nói rõ lý do. Plugin viết hỏng thì Javis vẫn chạy bình thường chứ không đứng im.
+
+## [0.63.1] - 2026-09-22
+### Cải thiện
+- **Mục Coding: vào là nhắn được ngay.** Bản trước chặn bằng màn "Chưa có repo nào", phải khai một repo mới gõ được câu đầu tiên. Nay mở trang là có sẵn một việc, gắn thư mục lúc nào cũng được; chưa gắn thì Javis làm trong bộ não như mọi cuộc trò chuyện khác.
+- **Thêm THƯ MỤC, không bắt phải là repo git.** Thư mục script, thư mục tài liệu, dự án mới tinh đều dùng được. Có git thì Javis tự nhận ra và mở thêm nhánh, worktree, điểm hồi; không có thì ba thứ đó ẩn đi chứ không báo lỗi.
+- **Cột trái giờ liệt kê VIỆC đang làm** chứ không phải danh sách thư mục, kèm tên thư mục nhỏ ở dưới mỗi việc. Đổi thư mục giữa chừng cũng được.
+- Ô nhập đường dẫn nằm gọn trong app thay vì hộp thoại của trình duyệt, và icon của mục đổi cho đúng việc (bản trước là icon nhánh git).
 
 ## [0.63.0] - 2026-09-22
 ### Thêm mới
