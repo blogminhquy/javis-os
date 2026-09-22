@@ -33,7 +33,11 @@ check("biên độ lúc ĐỌC cũ (0.25) đã bỏ", !/1 \+ 0\.25 \* this\.leve
 // ---- 2. Làm trơn: chạy thật hàm lấy từ nguồn ----
 const m = src.match(/setLevel\(l\) \{[\s\S]*?\n  \}/);
 check("tìm được setLevel trong nguồn", !!m);
-const dungNao = () => new Function("return { level: 0, " + (m ? m[0] : "setLevel(){}") + " };")();
+// Vật thể giả phải có _nhipVe: từ 0.63.7 setLevel còn báo cho bộ điều nhịp vẽ biết là có
+// tiếng nói (quả cầu đóng băng khi rảnh, xem test_qua_cau_nghi_khi_ranh.js). Ở đây chỉ soi
+// CÔNG THỨC LÀM TRƠN nên cho nó một hàm rỗng, không phải nới lỏng điều kiện nào.
+const dungNao = () => new Function(
+  "return { level: 0, _nhipVe() {}, " + (m ? m[0] : "setLevel(){}") + " };")();
 
 // Mức âm thô của tiếng nói thật: nhảy loạn từng khung hình.
 const thoNoi = [];
