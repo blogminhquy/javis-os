@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.12] - 2026-09-22
+### Thay đổi
+- **Bỏ màn đăng nhập ChatGPT bằng chụp màn hình.** Nó chỉ hiện ra khi máy đã cài đủ trình duyệt, mà đúng lúc cần nhất thì lại không bấm được. Giờ chỉ còn một đường duy nhất: dán cookie.
+- **Ô dán cookie luôn hiện**, kể cả khi máy chưa tải trình duyệt, kèm câu nói rõ còn thiếu gì. Trước đây nó bị giấu cùng lúc với nút đăng nhập nên người dùng không thấy đường nào cả.
+- Ít đi một đường mở trình duyệt trên máy chủ, nên mật khẩu không còn cách nào đi qua máy chủ Javis nữa.
+
 ## [0.64.11] - 2026-09-22
 ### Thêm mới
 - **Đăng nhập ChatGPT Web bằng cách dán cookie.** Mở chatgpt.com trên máy bạn, copy một giá trị cookie, dán vào ô trong thẻ ChatGPT. Không phải gõ mật khẩu trong khung đăng nhập nữa, nên mật khẩu cũng không đi qua máy chủ Javis.
