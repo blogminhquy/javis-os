@@ -1,9 +1,9 @@
 # ChatGPT Web: một model của thẻ ChatGPT
 
-**Phiên bản:** v2.1. Thay v2.0 (thiếu mục 2.2 và mục 7) và v1.0 (ChatGPT Web là một tool
-`web_ask`, chọn bằng lệnh và chip).
-**Trạng thái:** chốt phạm vi, **chưa viết mã**, và chưa được phép viết mã cho tới khi qua
-Cổng 0 ở mục 12.
+**Phiên bản:** v3.0. Thay v2.1 (hiểu sai mục đích: tưởng đây là đường dự phòng khi Codex hết
+quota), v2.0 và v1.0.
+**Trạng thái:** chốt phạm vi và chốt mục đích. **Chưa viết mã**; cổng duy nhất là spike ở
+mục 13.
 **Phạm vi:** một model id mới trong thẻ ChatGPT sẵn có, một module transport, một bộ dịch
 tool qua chữ. Không thêm provider.
 Tài liệu cho người sửa lõi.
@@ -26,8 +26,29 @@ tin nhắn**. Trần riêng bị bỏ, quay về trần chung 30.
 Nhưng bỏ trần đó thì một ràng buộc khác lên thế chỗ, và ràng buộc mới cứng hơn: **thời gian**.
 Mục 5 viết lại theo ràng buộc đó.
 
+**Làm rõ thứ ba, và đây là chỗ hai bản trước hiểu SAI mục đích.** v1.0 tới v2.1 đều viết như
+thể `chatgpt-web` là đường dự phòng: Codex hết quota thì đổi sang. Chủ dự án nói thẳng **không
+phải vậy**:
+
+> Bản web là bản dùng để làm các task thông thường, vì nó unlimited quota. Chọn web hay Codex
+> là tuỳ cái nào tiện hơn, không phải tuỳ cái nào còn quota. Bản web có một số hạn chế thì
+> chấp nhận.
+
+Việc thường ngày mà chủ dự án kể: hỏi đáp, tạo ảnh, nhắc lịch, đọc, hiểu, lên kế hoạch, triển
+khai, lập trình.
+
+Ba hệ quả, và chúng đổi cả lộ trình:
+
+1. **Cổng 0 cũ chết.** Nó hỏi "pool Codex đã cạn chưa". Câu đó không còn liên quan. Cổng duy
+   nhất còn lại là spike ở mục 13: giao thức có chạy không.
+2. **Task Handoff Packet rời khỏi phạm vi dự án này.** Nó sinh ra cho cảnh "Codex chết giữa
+   chừng thì web tiếp quản". Vẫn là việc đáng làm cho Javis, nhưng không phải việc của tài
+   liệu này.
+3. **Phần lớn việc chủ dự án kể tốn 1 tới 3 vòng tool, không phải 15.** Mục 5 tính lại theo
+   đó, và lộ trình ở mục 14 xếp lại để thứ dùng nhiều nhất tới trước.
+
 Giữ lại từ v1.0: transport (mục 9), sổ trạng thái và phân loại lỗi (mục 10), ranh giới an
-toàn (mục 11), Cổng 0, spike và tiêu chí giết.
+toàn (mục 11), spike và tiêu chí giết.
 
 ---
 
@@ -118,8 +139,11 @@ vault_root = _brain_root(brain) if brain else None
 Hệ quả: **`chatgpt-web` ngồi trong một phiên Coding sẽ không đọc nổi một file nào của repo.**
 Nó đọc được brain. Repo thì không.
 
-Nghĩa là giao thức tool qua chữ có chạy hoàn hảo đi nữa, model vẫn không coding được. Cái này
-phải sửa **trước** Phase 2, không phải để lần sau. Cách sửa ở mục 7.
+Nghĩa là giao thức tool qua chữ có chạy hoàn hảo đi nữa, model vẫn không coding được. Cách sửa
+ở mục 7.
+
+Đây là chặn cứng **của riêng nhánh lập trình**, không chặn hỏi đáp, tạo ảnh, nhắc lịch, đọc
+vault hay skill. Vì thế lộ trình xếp nó ở Phase 4 chứ không phải đầu (mục 14 giải thích).
 
 Lưu ý ranh giới cũ có chủ ý, đừng phá nhầm: nhánh Codex ghi rõ "Hub vẫn trỏ BRAIN kể cả khi
 cwd là repo: MCP, cron và nhắc hẹn thuộc về bộ não của người dùng, không thuộc về cây mã
@@ -283,8 +307,28 @@ Nên phanh đổi từ đếm tin nhắn sang **đếm giây**:
   phanh, chỉ là thứ duy nhất Javis biết về mức tiêu thụ, vì model này không trả số token
   (xem mục 3.2).
 
-Hệ quả thiết kế, nói thẳng để sau khỏi ngạc nhiên: `chatgpt-web` hợp với **câu hỏi cần ít vòng
-tool**. Việc nhiều bước vẫn chạy được, chỉ là lâu.
+### Nhưng phần lớn việc thường ngày chỉ tốn 1 tới 3 vòng
+
+Con số 15 phút ở trên là trường hợp XẤU NHẤT, và nó chỉ xảy ra với việc lập trình nhiều bước.
+Đếm theo đúng danh sách việc mà chủ dự án kể:
+
+| Việc | Vòng tool | Thời gian ước |
+|---|---|---|
+| Hỏi đáp, lên kế hoạch, đọc hiểu một đoạn | 0 | một lượt web |
+| Tạo ảnh (`javis_generate_image`) | 1 | dưới 1 phút cộng thời gian dựng ảnh |
+| Nhắc lịch (`javis_schedule`) | 1 | dưới 1 phút |
+| Đọc file trong brain, dùng skill | 1-3 | 1-2 phút |
+| Lập trình nhiều bước | 10-30 | 5-15 phút |
+
+Nên **độ trễ không phải vấn đề cho phần lớn việc thường ngày**. Nó chỉ thành vấn đề ở nhánh
+lập trình, và đó cũng chính là nhánh mà Codex tiện hơn. Chọn cái nào tiện hơn là đúng cách
+dùng, không phải giải pháp tạm.
+
+Một điều chính xác về tạo ảnh, để sau khỏi tưởng nhầm: `javis_generate_image` gọi
+`image_gen.generate_chatgpt`, đi đường **OAuth Responses**, không đi qua phiên trình duyệt.
+Nghĩa là nó tiêu hạn mức ảnh của gói qua đường API, không tiêu lượt chat web. Chạy được, chỉ
+là đừng nhầm nó với quota web. Muốn ảnh sinh thẳng trong phiên web thì phải bóc ảnh từ trang
+và tải về, ghi ở mục 17.
 
 ## 6. Mạch hội thoại
 
@@ -491,15 +535,24 @@ chọn và nói rõ lý do, chứ không hiện ra rồi lỗi.
 **Dữ liệu.** Tool `javis_read_file` trả nội dung vault, và nội dung đó đi thẳng vào ô chat của
 chatgpt.com. Javis in ra đã gửi những gì trước mỗi vòng tool.
 
-## 12. Cổng 0: trả lời trước khi viết dòng mã nào
+## 12. Đổi qua lại giữa web và Codex
 
-**Pool Codex của chủ máy có thật sự đang cạn không?**
+Mục đích ở khối đầu tài liệu là "cái nào tiện hơn thì dùng", nên việc đổi phải nhẹ như đổi
+model, không phải như đổi cấu hình.
 
-Mở `usage_store` / `usage_index` ra xem. Javis **đã** tiêu được quota gói ChatGPT không cần
-API key (`engine.py:1005`, `engine.py:1022`), nên việc này chỉ thêm đúng một thứ: tiêu pool
-tin nhắn chat thay vì pool Codex. Chưa cạn thì dự án không có lợi ích gì.
+**Cơ chế đã có sẵn, không phải làm mới:** kho phiên giữ model GHIM THEO TỪNG PHIÊN
+(`sessions.set_pinned_model`, `sessions.py:740`; endpoint ở `main.py:14349`). Nên:
 
-Ghi câu trả lời vào chính tài liệu này trước khi đi tiếp.
+```
+Phiên "hỏi đáp hằng ngày"   ghim chatgpt-web
+Phiên "sửa repo javis-os"   ghim gpt-5-codex
+```
+
+Hai phiên sống song song, mỗi phiên nhớ model của nó, không ai đạp lên ai. Đổi trong một phiên
+thì chọn lại ở ô chọn model như mọi model khác.
+
+Đây cũng là lý do mục 2.1 quan trọng tới vậy: `_codex_safe_model` hiện **ghi đè cả model ghim
+của phiên**. Không chặn nó thì đúng cơ chế đang phục vụ mục đích này bị hỏng.
 
 ## 13. Spike một ngày, có tiêu chí giết
 
@@ -517,17 +570,24 @@ Tiêu chí cuối là tiêu chí mới của v2.0 và là tiêu chí dễ trư�
 
 ## 14. Lộ trình
 
-| Bước | Nội dung | Ước lượng |
-|---|---|---|
-| Cổng 0 | Xem pool Codex đã cạn chưa | 30 phút, không mã |
-| Spike | Tee fetch cộng một vòng tool đi trọn, chấm theo mục 13 | 1-2 ngày |
-| **Phase 0** | **Coding Tool Context (mục 7): `workspace_root` cho tool file, `javis_run_command`, allowlist mức `auto`.** Chặn cứng, phải xong trước Phase 2 | 3-4 ngày |
-| Phase 1 | `web_chat.py`: transport, sổ trạng thái, thẻ Models, nút đăng nhập. Chưa có tool, chat thuần | 2-3 ngày |
-| Phase 2 | Bộ dịch tool qua chữ, trần vòng riêng, bộ đếm lượt. Đây là phần khó nhất | 3-4 ngày |
-| Phase 3 | `web_thread_id`, nối tiếp luồng, `limit_resume` khi hết lượt giữa vòng tool | 1-2 ngày |
+Xếp theo **thứ tự việc chủ dự án dùng nhiều nhất**, không theo thứ tự kỹ thuật. Mỗi phase
+phải tự nó dùng được.
 
-Phase 1 tự nó đã dùng được (chat thuần, không tool), nên nếu Phase 2 sa lầy thì vẫn có thứ
-chạy được chứ không phải bỏ trắng.
+| Bước | Nội dung | Mở khoá việc gì | Ước lượng |
+|---|---|---|---|
+| Spike | Tee fetch cộng một vòng tool đi trọn, chấm theo mục 13 | (cổng duy nhất) | 1-2 ngày |
+| Phase 1 | `web_chat.py`: transport, sổ trạng thái, thẻ Models, nút đăng nhập, model vào ô chọn, chặn bẫy mục 2.1. Chat thuần | Hỏi đáp, lên kế hoạch, đọc hiểu | 2-3 ngày |
+| Phase 2 | Bộ dịch tool qua chữ, ngân sách giờ, bộ đếm | **Tạo ảnh, nhắc lịch, đọc vault, skill, MCP.** Phần lớn giá trị nằm ở đây | 3-4 ngày |
+| Phase 3 | `web_thread_id`, nối tiếp luồng, xoay mạch khi phình (mượn `compaction.nen_mach_thue_bao`) | Dùng hằng ngày không phải dựng lại ngữ cảnh mỗi lượt | 1-2 ngày |
+| Phase 4 | Coding Tool Context (mục 7): `workspace_root`, `javis_run_command`, allowlist mức `auto` | Lập trình | 3-4 ngày |
+
+**Vì sao Coding Tool Context xuống cuối, dù v2.1 xếp nó đầu:** v2.1 tưởng mục tiêu là "web thay
+Codex khi Codex chết", nên coding là bắt buộc. Mục tiêu thật là việc thường ngày, mà trong đó
+lập trình là một nhánh, và là đúng nhánh Codex tiện hơn. Nó vẫn là chặn cứng **cho nhánh lập
+trình**, nhưng không chặn bốn nhóm việc kia.
+
+Phase 3 lên trước Phase 4 cũng vì lý do đó: dùng hằng ngày mà mỗi lượt phải dựng lại ngữ cảnh
+từ đầu thì vừa chậm vừa tốn, và cái đó chạm vào mọi lượt chứ không riêng lượt coding.
 
 ## 15. Không làm
 
@@ -583,6 +643,9 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
   đường đúng cho spike. Cần kiểm trước: service worker MV3 bị kill khi rảnh, nên kết nối dài
   có thể phải qua offscreen document.
 - Máy trạng thái provider dùng chung cho mọi nhà, bê từ sổ mục 10 ra.
-- Task Handoff Packet (bản rà soát 2026-09-22).
+- Task Handoff Packet (bản rà soát 2026-09-22). Đáng làm cho Javis, nhưng KHÔNG thuộc dự án
+  này: nó sinh ra cho cảnh chuyển engine giữa chừng, mà mục đích ở đây là chọn tay theo tiện.
+- Sinh ảnh THẲNG trong phiên web (bóc ảnh từ trang rồi tải về) để tiêu quota web thay vì hạn
+  mức ảnh qua API. Xem mục 5.
 - Version guard cho Codex CLI: `install.sh:143` và `update.sh:50` đang cài
   `@openai/codex@latest` vô điều kiện, không có supported range, không có smoke test.
