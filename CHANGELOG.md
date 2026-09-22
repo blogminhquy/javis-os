@@ -4,12 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.64.3] - 2026-09-22
+## [0.64.4] - 2026-09-22
 ### Sửa lỗi
 - **Dựng máy mới không còn hàng chục biến môi trường đỏ.** File mẫu `env.example` trước đây có gần trăm dòng chú thích. Các nền tảng deploy tự quét file này rồi cắt mọi dòng có dấu `=` thành một biến, nên mỗi dòng chú thích hoá ra một biến tên `#` và bảng Environment đỏ rực, chặn luôn nút triển khai. Nay file mẫu chỉ còn bốn dòng `TÊN=giá trị`, không một dòng chú thích nào.
 - Phần giải thích từng biến **không mất đi**, nó nằm ở trang **Cấu hình .env** trong tài liệu, đầy đủ hơn khối chú thích cũ. Ai đã lỡ dính thì xoá hết các dòng có dấu `#` trong ô Environment một lần là sạch.
 ### Cải thiện
 - **Model ChatGPT Web tự hiện ra khi máy dùng được, khỏi khai báo gì.** Bản trước bắt đặt tay một biến môi trường mới thấy model, mà biến đó không tự tạo ra được trình duyệt, nên máy thiếu đồ vẫn bày model ra rồi hỏng lúc chọn. Nay Javis tự dò: đủ đồ thì model nằm sẵn trong ô chọn, thiếu thì thẻ ChatGPT ở trang Models nói rõ thiếu gì và bấm ở đâu.
+
+## [0.64.3] - 2026-09-22
+### Sửa lỗi
+- **Mở trang Cộng sự nhanh hơn nhiều lần.** Danh sách trợ lý đang kéo theo cả bài prompt hệ thống của từng người: đo trên một bộ não 14 trợ lý là **366 KB** cho một thứ chỉ hiện tên và vai trò. Nay còn **2,9 KB**. Đây là chỗ làm cột trái trống trơn mấy giây mỗi lần mở trang từ menu linh vật.
+- Bài prompt vẫn lấy đủ, nhưng chỉ cho đúng trợ lý bạn đang mở trong ô sửa. Nếu lần lấy đó hỏng, Javis báo lỗi kèm nút thử lại thay vì mở ô trống (mở trống rồi bấm Lưu là mất bài prompt thật).
+- Ô chọn trợ lý trong Chatbot, lưới thẻ trong Studio và ô chọn từng bước của quy trình cũng nhẹ theo.
 
 ## [0.64.2] - 2026-09-22
 ### Cải thiện

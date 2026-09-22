@@ -688,6 +688,7 @@
   "studio.model_hint": "Danh sách lấy từ chính các nhà cung cấp bạn đã kết nối ở trang Models, nên kết nối thêm là có thêm lựa chọn ở đây. Nhà chưa cắm key vẫn hiện ra kèm ổ khoá để bạn biết là có. Để Mặc định thì trợ lý chạy model chính khi chat và khi làm chatbot, còn khi nằm trong một quy trình thì chạy model việc nền. Model nào cũng đọc/ghi file vault và dùng MCP; riêng Claude Code và ChatGPT (Codex) có thêm lệnh máy và tự mở web. Nhà đã chọn trục trặc lúc chạy thì Javis tự lùi sang bộ não khác thay vì để agent chết lặng.",
   "studio.model_none": "Chưa kết nối nhà cung cấp nào chạy được agent - vào trang Models kết nối trước, rồi quay lại đây chọn model.",
   "studio.sk_load_err": "Lỗi tải skill.",
+  "studio.ag_load_err": "Không tải được trợ lý này. Chưa mở ô sửa vì mở ra trống là bấm Lưu một cái mất prompt thật.",
   "studio.all": "Tất cả",
   "studio.on_count": "bật",
   "studio.source": "nguồn",

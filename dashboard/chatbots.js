@@ -507,7 +507,8 @@
   // vi của trang chính là câu trả lời, và không còn gì để lệch.
   async function nạpAgent(br) {
     try {
-      var ad = await api("/agents?brain=" + encodeURIComponent(br || "brain"));
+      // Bản NHẸ: ô chọn chỉ hiện tên + vai trò, không đụng tới system prompt.
+      var ad = await api("/agents?brain=" + encodeURIComponent(br || "brain") + "&prompt=0");
       return ad.agents || [];
     } catch (e) { return []; }
   }

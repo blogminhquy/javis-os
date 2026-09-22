@@ -42,6 +42,21 @@
     return ds;
   }
   function quenForm() { _formCache = null; }
+
+  // ===== Trợ lý ĐẦY ĐỦ (kèm system prompt) cho trình sửa =====
+  // Các danh sách nay xin bản NHẸ (`/agents?prompt=0`): đo trên brain 14 trợ lý, kèm prompt
+  // là 366 KB còn bỏ ra là 2.9 KB, mà cột trái chưa bao giờ hiện prompt. Đổi lại, mục truyền
+  // vào trình sửa thiếu `prompt` nên phải đi lấy riêng đúng một trợ lý.
+  //
+  // Lấy HỎNG thì trả `false`, KHÔNG rơi về chuỗi rỗng: một ô sửa mở ra trống nhìn y hệt một
+  // trợ lý chưa có prompt, bấm Lưu một cái là prompt thật bị ghi đè mất, lặng lẽ.
+  async function layAgentDay(a) {
+    if (!a || !a.slug) return null;                  // tạo mới: chưa có gì để lấy
+    if (typeof a.prompt === "string") return a;      // người gọi đã cầm bản đầy đủ
+    const r = await api(`/agents/get?slug=${encodeURIComponent(a.slug)}&brain=${encodeURIComponent(brain())}`);
+    if (!r || typeof r.prompt !== "string") return false;
+    return Object.assign({}, a, r);
+  }
   // Đổi bộ não / lưu skill / cắm key model ở trang khác đều làm bộ nhớ tạm này sai.
   try {
     const _gs = document.getElementById("graphSource");
@@ -448,7 +463,8 @@
   // chọn agent.)
   async function editWorkflow(w, tuyChon) {
     tuyChon = tuyChon || {};
-    const ad = await api(`/agents?brain=${encodeURIComponent(brain())}`);
+    // Bản NHẸ: ô chọn agent của từng bước chỉ cần slug + tên (xem layAgentDay).
+    const ad = await api(`/agents?brain=${encodeURIComponent(brain())}&prompt=0`);
     agentsCache = ad.agents || [];
     if (!agentsCache.length) { alert(t("studio.no_agents")); return; }
     const box = document.getElementById("editorBox");
@@ -570,7 +586,8 @@
     const panel = document.getElementById("panel-agents");
     if (!panel) return;   // cùng lý do với loadWorkflows: trang Trợ lý riêng đã gộp vào Cộng sự
     panel.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
-    const d = await api(`/agents?brain=${encodeURIComponent(brain())}`);
+    // Bản NHẸ: lưới thẻ chỉ hiện tên/vai/nhóm; bấm Sửa thì layAgentDay() lấy prompt.
+    const d = await api(`/agents?brain=${encodeURIComponent(brain())}&prompt=0`);
     _agState.agents = d.agents || [];
     _sel.agent.clear();   // nạp lại trang là làm mới lựa chọn
     refreshStats();
@@ -631,7 +648,20 @@
     opts = opts || {};
     // Có host thì KHÔNG đụng vào modal: mở/đóng nó sẽ che mất cả trang Cộng sự.
     const moDong = (mo) => { if (!opts.host) editor.classList.toggle("open", mo); };
-    const [sd, st] = await duLieuForm();
+    // Song song, không nối đuôi: hai lượt của form và một lượt lấy prompt cùng đi một nhịp.
+    const [dsForm, day] = await Promise.all([duLieuForm(), layAgentDay(a)]);
+    const [sd, st] = dsForm;
+    if (day === false) {
+      const hong = opts.host || document.getElementById("editorBox");
+      if (hong && (!opts.host || hong.isConnected)) {
+        hong.innerHTML = `<div class="empty">${esc(t("studio.ag_load_err"))}</div>` +
+          `<div class="editor-actions"><button class="s-btn" id="agRetry">${esc(t("common.retry"))}</button></div>`;
+        hong.querySelector("#agRetry").onclick = () => editAgent(a, opts);
+        moDong(true);
+      }
+      return;
+    }
+    if (day) a = day;
     const skills = sd.skills || [];
     // CÙNG nguồn với trình chọn model chính (/settings → model.providers), nên thêm nhà mới
     // ở trang Models là ô này có ngay - và giờ là cùng cả THÂN BẢNG CHỌN (model-list.js).
