@@ -2113,7 +2113,19 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .cd-menu button { text-align: left; background: none; border: 0; color: var(--text); cursor: pointer;
   font-size: 16px; padding: 8px 10px; border-radius: 8px; font-family: inherit; }
 .cd-menu button:hover { background: var(--surface-2); }
-.cd-menu button.on { color: var(--info-line); }
+/* Mục đang chọn. Lại đúng cái bẫy đã sửa ở 0.63.6 cho chip mức quyền: --info-line là biến
+   VIỀN, alpha 0,35, nên đặt làm màu CHỮ thì chữ mờ đến khó đọc (chủ dự án báo 22/09). Dùng
+   biến -ink dành cho chữ, kèm in đậm để mắt bắt ngay mục đang chọn. */
+.cd-menu button.on { color: var(--info-ink); font-weight: 600; }
+/* Mục TÍCH CHỌN: ô vuông bên trái nói rõ bấm vào là THÊM/BỚT chứ không phải THAY. */
+.cd-menu button.tich { display: flex; align-items: flex-start; gap: 8px; }
+.cd-tich { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; border-radius: 4px;
+  border: 1px solid var(--glass-brd); display: inline-flex; align-items: center;
+  justify-content: center; color: var(--info-ink); }
+.cd-menu button.on .cd-tich { border-color: var(--info-line); background: var(--info-wash); }
+.cd-tich svg { width: 12px; height: 12px; }
+/* Đang gắn nhiều thư mục: chip mang tên thư mục chính kèm "+N". */
+.cd-chip-them { font-weight: 600; color: var(--info-ink); }
 .cd-menu button.moi { border-top: 1px solid var(--glass-brd); border-radius: 0 0 8px 8px; }
 .cd-menu button.nguy { color: var(--red); }   /* --danger không có trong bảng màu */
 .cd-menu button small { display: block; font-size: 13px; color: var(--text3); margin-top: 2px;

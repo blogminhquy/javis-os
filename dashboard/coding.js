@@ -76,7 +76,7 @@
   var KENH_MAC_DINH = "coding:phien";
 
   var S = {
-    el: null, thuMuc: [], rb: {}, cwd: "", tm: null,
+    el: null, thuMuc: [], rb: {}, cwd: "", tm: null, tmDs: [],
     diemHoi: [], kenh: KENH_MAC_DINH, sidCoding: {}, phienTruoc: null,
   };
   var active = false, opening = 0;
@@ -117,8 +117,12 @@
       return chip("thumuc", ic("folder-plus") + " " + esc(t("coding.chip_pick_folder")),
                   " cd-chip-mo") + chipQuyen();
     }
+    // Gắn nhiều thư mục thì chip mang tên thư mục CHÍNH kèm "+N": tên chính là thứ người
+    // dùng cần thấy (engine đứng đó, git chạy đó), còn con số chỉ để biết còn thư mục khác.
+    var them = Math.max(0, (Number(rb.so_thu_muc) || 1) - 1);
     var ra = '<button type="button" class="cd-chip cd-chip-tm" data-cd="thumuc" title="' +
-      esc(tm.duong_dan || "") + '">' + ic("folder-open") + " " + esc(nhanHienThi(tm)) + "</button>";
+      esc(tm.duong_dan || "") + '">' + ic("folder-open") + " " + esc(nhanHienThi(tm)) +
+      (them ? ' <span class="cd-chip-them">+' + them + "</span>" : "") + "</button>";
     if (tm.la_git) {
       var wt = !!(rb.worktree || "").trim();
       ra += chip("nhanh", ic("git-branch") + " " + esc(rb.nhanh || tm.nhanh || t("coding.branch_unknown")));
@@ -301,7 +305,8 @@
     var r = await api("/coding/session/" + encodeURIComponent(id));
     if (!active) return;
     S.rb = (r && r.rang_buoc) || {};
-    S.tm = (r && r.thu_muc) || null;
+    S.tm = (r && r.thu_muc) || null;            // thư mục CHÍNH: engine đứng đó, git chạy đó
+    S.tmDs = (r && r.thu_muc_ds) || (S.tm ? [S.tm] : []);
     S.cwd = (r && r.cwd) || "";
     S.diemHoi = (r && r.diem_hoi) || [];
     veChip();
@@ -326,7 +331,9 @@
       row.className = "cd-chips";
       bar.insertBefore(row, bar.firstChild);
     }
-    row.innerHTML = chipHtml(S.rb, S.tm);
+    var rb = S.rb || {};
+    row.innerHTML = chipHtml({ nhanh: rb.nhanh, worktree: rb.worktree, muc_quyen: rb.muc_quyen,
+                               so_thu_muc: (S.tmDs || []).length }, S.tm);
     row.querySelectorAll("[data-cd]").forEach(function (n) {
       n.onclick = function () { bamChip(n.dataset.cd, n); };
     });
@@ -376,21 +383,44 @@
    *
    *  Quản lý thư mục nằm TRONG menu này chứ không thành một cột riêng: cả trang chỉ có một
    *  chỗ nói về thư mục, và nó nằm đúng chỗ người dùng đang nhìn khi cần đổi. */
+  /** Menu thư mục: TÍCH CHỌN, gắn được nhiều thư mục vào một việc (0.63.8).
+   *
+   *  Một việc thật hay đụng nhiều thư mục cùng lúc (mã nguồn với tài liệu, app với thư viện
+   *  dùng chung), nên bắt chọn đúng một cái là bắt người dùng đổi qua đổi lại giữa chừng.
+   *
+   *  Thư mục ĐẦU danh sách là CHÍNH: engine đứng ở đó và mọi thao tác git chạy ở đó, vì một
+   *  tiến trình chỉ đứng được ở một chỗ. Các thư mục còn lại đi vào prompt bằng đường dẫn
+   *  tuyệt đối. Bỏ tích cái chính thì cái kế tiếp lên thay.
+   *
+   *  Menu KHÔNG đóng sau mỗi lần tích: chọn ba thư mục mà phải mở menu ba lần thì thà quay
+   *  lại kiểu cũ. */
+  function idDangGan() { return (S.tmDs || []).map(function (x) { return x.id; }); }
+
   function menuThuMuc(node) {
+    var dang = idDangGan();
     var muc = S.thuMuc.map(function (x) {
+      var co = dang.indexOf(x.id) >= 0;
+      var laChinh = co && dang[0] === x.id;
       return {
         nhan: x.ten + (x.co_that ? "" : "  (" + t("coding.folder_gone") + ")"),
-        phu: x.duong_dan,
-        chon: S.tm && S.tm.id === x.id,
-        bam: function () { datRangBuoc({ thu_muc: x.id }); },
+        phu: (laChinh ? t("coding.folder_main") + " · " : "") + x.duong_dan,
+        chon: co,
+        tich: true,
+        giuMo: true,
+        bam: async function () {
+          var ids = idDangGan();
+          var i = ids.indexOf(x.id);
+          if (i >= 0) ids.splice(i, 1); else ids.push(x.id);
+          await datRangBuoc({ thu_mucs: ids.join(",") });
+        },
       };
     });
     muc.push({ nhan: t("coding.add_folder"), nhanMoi: true, bam: function () { moKhungThemThuMuc(); } });
     if (S.tm) {
-      muc.push({ nhan: t("coding.detach_folder"), bam: function () { datRangBuoc({ thu_muc: "" }); } });
+      muc.push({ nhan: t("coding.detach_folder"), bam: function () { datRangBuoc({ thu_mucs: "" }); } });
       muc.push({ nhan: t("coding.forget_folder"), nguyHiem: true, bam: function () { boThuMuc(S.tm); } });
     }
-    menu(node, muc);
+    menu(node, muc, menuThuMuc);
   }
 
   async function boThuMuc(tm) {
@@ -416,7 +446,6 @@
     if (!W.JavisFolderPicker) return;
     W.JavisFolderPicker.open({
       tieuDe: t("coding.add_folder"),
-      ghiChu: t("coding.add_folder_note"),
       nhanDung: t("coding.add_folder"),
       demMd: false,
       brain: brain(),
@@ -474,25 +503,56 @@
   // ============================================================
   // Menu bật lên từ một chip
   // ============================================================
-  function menu(anchor, muc) {
+  /** `veLai` (tuỳ chọn) = hàm dựng lại chính menu này, cho những mục mang `giuMo`. */
+  function menu(anchor, muc, veLai) {
     dongMenu();
     var m = document.createElement("div");
     m.className = "cd-menu"; m.id = "cdMenu";
     m.innerHTML = muc.map(function (x, i) {
+      // Mục TÍCH CHỌN mang thêm một ô vuông: dấu tích nói "đang gắn", chữ đậm thôi thì
+      // người dùng không đoán ra là bấm vào sẽ THÊM hay THAY.
+      var o = x.tich ? '<span class="cd-tich">' + (x.chon ? ic("check") : "") + "</span>" : "";
       return '<button type="button" data-i="' + i + '" class="' +
-        (x.chon ? "on " : "") + (x.nguyHiem ? "nguy " : "") + (x.nhanMoi ? "moi" : "") + '">' +
-        esc(x.nhan) + (x.phu ? '<small>' + esc(x.phu) + "</small>" : "") + "</button>";
+        (x.chon ? "on " : "") + (x.nguyHiem ? "nguy " : "") + (x.tich ? "tich " : "") +
+        (x.nhanMoi ? "moi" : "") + '">' + o +
+        "<span>" + esc(x.nhan) + (x.phu ? '<small>' + esc(x.phu) + "</small>" : "") + "</span>" +
+        "</button>";
     }).join("");
     document.body.appendChild(m);
     var r = anchor.getBoundingClientRect();
     m.style.left = Math.max(8, Math.min(r.left, (W.innerWidth || 1200) - 280)) + "px";
     m.style.top = Math.max(8, r.top - m.offsetHeight - 6) + "px";
     m.querySelectorAll("[data-i]").forEach(function (b) {
-      b.onclick = function () { var x = muc[Number(b.dataset.i)]; dongMenu(); if (x && x.bam) x.bam(); };
+      b.onclick = async function (e) {
+        var x = muc[Number(b.dataset.i)];
+        if (x && x.giuMo && veLai) {
+          e.stopPropagation();          // đừng để cú bấm này rơi xuống bộ đóng menu ở dưới
+          if (x.bam) await x.bam();
+          if (document.getElementById("cdMenu") === m) veLai(anchor);   // vẽ lại cho đúng dấu tích
+          return;
+        }
+        dongMenu();
+        if (x && x.bam) x.bam();
+      };
     });
-    setTimeout(function () { document.addEventListener("click", dongMenu, { once: true }); }, 0);
+    // Bấm ra ngoài thì đóng. Phải NHỚ bộ nghe để gỡ: menu tích chọn vẽ lại sau mỗi lần tích,
+    // mỗi lần lại gắn thêm một bộ nghe, và chúng không tự rụng vì cú bấm trong menu đã bị
+    // chặn không cho lan ra document. Để đọng lại thì một menu mở sau đó bị đóng oan.
+    goBoDong();
+    _boDong = function () { dongMenu(); };
+    setTimeout(function () { if (_boDong) document.addEventListener("click", _boDong, { once: true }); }, 0);
   }
-  function dongMenu() { var m = document.getElementById("cdMenu"); if (m && m.parentNode) m.parentNode.removeChild(m); }
+  var _boDong = null;
+  function goBoDong() {
+    if (!_boDong) return;
+    document.removeEventListener("click", _boDong, { once: true });
+    _boDong = null;
+  }
+  function dongMenu() {
+    goBoDong();
+    var m = document.getElementById("cdMenu");
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+  }
 
   W.JavisCoding = {
     render: render, roi: roi,
