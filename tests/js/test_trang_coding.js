@@ -15,6 +15,15 @@
 
    3. **Icon nói đúng việc.** "git-branch" nói "git", mà trang này nhận mọi thư mục.
 
+   Và hai chỗ 0.63.2 sửa tiếp:
+
+   4. **Cột trái phải là CHÍNH cột hội thoại của trang Trò chuyện** (mượn qua JavisChatSide),
+      không phải một danh sách rút gọn tự vẽ. Đây là lần thứ hai cùng một lỗi "dựng bản thứ
+      hai" trong cùng một trang, nên canh hẳn bằng test.
+
+   5. **Ba chế độ đọc là Plan / Tự động / Toàn quyền**, và Plan phải thật sự BẢO engine lập
+      kế hoạch rồi dừng, chứ không chỉ là chặn ghi file.
+
    Cộng hai luật cũ vẫn phải giữ: mượn khung chat chứ không dựng bản thứ hai, và trả node lại
    khi rời trang.
 
@@ -44,7 +53,8 @@ const M = require(path.join(ROOT, "dashboard", "coding.js"));
 check("KHÔNG còn màn chặn 'chưa có repo/thư mục'",
   !/cdOnboard|onboard-on|ob_title/.test(CD) && !VI["coding.ob_title"] && !EN["coding.ob_title"]);
 check("mở trang thì mở phiên gần nhất, chưa có thì TẠO luôn một phiên",
-  /taiPhien\(true\)/.test(CD) && /S\.phien\.length\) await moPhien[\s\S]{0,60}else await moPhienMoi\(\)/.test(CD));
+  /await moPhienDau\(\)/.test(CD)
+  && /ds\.length\) await moPhien\(ds\[0\]\.id\);[\s\S]{0,40}else await moPhienMoi\(\)/.test(CD));
 check("tạo phiên KHÔNG kèm thư mục nào", /channel: S\.kenh/.test(CD) && !/thu_muc:[^}]*sessions\/new/.test(CD));
 check("server không đòi thư mục khi mở phiên coding", (() => {
   const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
@@ -77,13 +87,41 @@ check("icon mục Coding KHÔNG còn là git-branch", !/coding: "git-branch"/.te
 check("icon mục Coding nói về mã nguồn", /coding: "file-code"/.test(CON));
 check("nhóm Code đổi icon để không trùng mục con", /"Code": ic\("wrench"\)/.test(CON));
 
-// ---- 4. Cột trái là danh sách VIỆC ----
-check("cột trái liệt kê phiên, không phải thư mục", /#cdPhienDs/.test(CD) && !/data-repo=/.test(CD));
-check("mỗi việc hiện thư mục đang gắn (nếu có)",
-  M.tomTatPhien({ title: "Sửa login", thu_muc_ten: "javis-os" }).thuMuc === "javis-os");
-check("việc chưa có tin nào vẫn có tên để bấm",
-  M.tomTatPhien({}).ten === "coding.session_untitled" || !!M.tomTatPhien({}).ten);
-check("có nút mở việc mới", /cdNewChat/.test(CD) && !!VI["coding.new_session"] && !!EN["coding.new_session"]);
+// ---- 4. Cột trái MƯỢN nguyên cột hội thoại của trang Trò chuyện ----
+check("gắn module lịch sử thật, không tự vẽ danh sách",
+  /JavisChatSide\.mount\(/.test(CD) && !/cdPhienDs|cd-phien-ds/.test(CD));
+check("lọc theo kênh Coding và thay hành vi nút Hội thoại mới",
+  /\{ kenh: S\.kenh, onNew: moPhienMoi \}/.test(CD));
+check("KHÔNG bật chế độ gọn, để giữ đủ tab và thanh gom nhóm", !/chiHoiThoai/.test(CD));
+check("có chỗ cho chip gom nhóm đậu vào", /proj-chip-host/.test(CD) && /JavisChatSide\.chip\(\)/.test(CD));
+check("khung trang dùng lại bộ lớp .chatpage của trang Trò chuyện",
+  /class="chatpage"/.test(CD) && /class="chatpage-side"/.test(CD) && /class="chatpage-slot"/.test(CD));
+check("và KHÔNG đẻ bộ lớp bố cục thứ hai", !/\.cd-left|\.cd-main|\.cd-page/.test(CSS));
+check("bấm một hội thoại ở cột trái thì dải chip cập nhật theo",
+  /function bocMoPhien\(\)/.test(CD) && /JavisSessions\.open = function/.test(CD)
+  && /function traMoPhien\(\)/.test(CD) && /roi\(\)[\s\S]{0,200}traMoPhien\(\)/.test(CD));
+
+// ---- 4b. Ba chế độ, và Plan phải thật sự lập kế hoạch ----
+check("ba chế độ đọc là Plan / Tự động / Toàn quyền",
+  VI["coding.mode_suggest"] === "Plan" && VI["coding.mode_auto"] === "Tự động"
+  && EN["coding.mode_suggest"] === "Plan");
+check("mỗi chế độ có một dòng nói rõ nó cho làm gì",
+  ["suggest", "auto", "full"].every((m) => !!VI["coding.mode_" + m + "_note"] && !!EN["coding.mode_" + m + "_note"]));
+check("menu chế độ đánh dấu cái đang chọn", /chon: \(S\.rb\.muc_quyen \|\| "auto"\) === m/.test(CD));
+check("Plan nhìn khác hai mức kia", /\.cd-mq-suggest\s*\{/.test(CSS) && /\.cd-mq-full\s*\{/.test(CSS));
+check("server BẢO engine lập kế hoạch rồi dừng ở chế độ Plan", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /KHOI_PLAN/.test(ST) && /KHÔNG sửa file/.test(ST) && /def khoi_prompt/.test(ST);
+})());
+check("khối đó được nối vào prompt của lượt chat", (() => {
+  const MAIN = fs.readFileSync(path.join(ROOT, "server", "main.py"), "utf8");
+  return (MAIN.match(/\+ _khoi_coding\(_row0\)/g) || []).length >= 2
+    && /def _khoi_coding\(/.test(MAIN);
+})());
+check("và nói cho engine biết nó đang đứng ở thư mục nào", (() => {
+  const ST = fs.readFileSync(path.join(ROOT, "server", "coding_store.py"), "utf8");
+  return /Thư mục làm việc: \{cwd\}/.test(ST);
+})());
 
 // ---- 5. Luật mượn (giữ từ bản đầu) ----
 check("coding.js KHÔNG tự dựng khung chat", !/id="chatArea"|class="transcript"/.test(CD));
@@ -116,11 +154,15 @@ check("có khung nhập đường dẫn riêng", /cd-tam-nen/.test(CD) && /\.cd-
 check("lỗi thêm thư mục hiện tại chỗ", /cdTamLoi/.test(CD) && /\.cd-tam-loi/.test(CSS));
 
 // ---- 8. Điện thoại ----
-check("bề rộng hẹp thì cột trái thành ngăn kéo",
-  /@media \(max-width: 900px\)[\s\S]{0,600}\.cd-left \{[^}]*translateX\(-105%\)/.test(CSS));
-check("nút ẩn hiện cột trái hiểu hai bề rộng", /matchMedia[\s\S]{0,160}left-on/.test(CD));
+// Ngăn kéo trên màn hẹp và nút thu gọn nay là của .chatpage (console.js _injectChatCss), nên
+// canh ở đó chứ không canh một bộ lớp riêng đã bỏ.
+check("bề rộng hẹp thì cột hội thoại thành ngăn kéo (luật của .chatpage)",
+  /\.chatpage-side\{ position:absolute/.test(CON) || /chatpage\.side-mo/.test(CON)
+  || /\.chatpage\.side-thu \.chatpage-side/.test(CON));
+check("nút thu gọn cột dùng đúng lớp của trang Trò chuyện",
+  /cp-side-toggle/.test(CD) && /classList\.toggle\("side-thu"\)/.test(CD));
 check("chữ trên điện thoại không nhỏ hơn 16px",
-  /@media \(max-width: 900px\)[\s\S]{0,600}\.cd-chip \{ font-size: 16px/.test(CSS)
+  /@media \(max-width: 900px\)[\s\S]{0,400}\.cd-chip \{ font-size: 16px/.test(CSS)
   && /\.cd-tam input \{[^}]*font-size: 16px/.test(CSS));
 
 // ---- 9. Nối vào rail ----

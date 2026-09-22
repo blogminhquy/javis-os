@@ -67,6 +67,13 @@ KENH = "coding:phien"
 WORKTREE_DIR = STATE_DIR / "worktrees"
 
 MUC_QUYEN = ("suggest", "auto", "full")
+# Ba mức trên là TÊN TRONG MÁY, giữ nguyên từ 0.63.0 để không phải di trú sổ. Trên màn hình
+# chúng đọc là Plan / Tự động / Toàn quyền (0.63.2), theo đúng cách Claude Code gọi - chủ dự
+# án yêu cầu có Plan, và "chỉ đọc" thì nói được mức quyền nhưng không nói được VIỆC phải làm.
+#
+# `suggest` khác "read only" ở đúng chỗ đó: hub vẫn chặn ghi file, nhưng khối prompt dưới đây
+# bảo engine lập kế hoạch rồi dừng. Thiếu nó thì model đọc xong tự ý kể lể lan man, mà người
+# dùng bật Plan là muốn một kế hoạch để duyệt.
 # Mặc định `auto` chứ không `full`: phiên mới mở đọc được, sửa file được, chạy test được,
 # nhưng chưa tự đẩy ra ngoài. Ai cần toàn quyền thì bật một cú bấm ở chip, và lúc đó việc bật
 # là một hành động có chủ ý chứ không phải thứ họ được thừa kế mà không biết.
@@ -481,3 +488,45 @@ def rollback(sid: str, tag: str) -> Dict[str, Any]:
         raise LoiCoding("Điểm hồi đó không phải của phiên này.")
     _git(["reset", "--hard", tag], cwd)
     return {"ok": True, "tag": tag, "cwd": cwd}
+
+
+# ============================================================
+# Khối prompt gắn vào lượt chat
+# ============================================================
+KHOI_PLAN = (
+    "Chế độ PLAN đang bật. Đọc mã nguồn, tìm hiểu, rồi TRẢ VỀ MỘT KẾ HOẠCH: sửa file nào, "
+    "vì sao, rủi ro gì, thứ tự làm. KHÔNG sửa file, không chạy lệnh thay đổi trạng thái. "
+    "Chờ người dùng duyệt rồi họ sẽ đổi sang Tự động."
+)
+
+
+def khoi_prompt(sid: str) -> str:
+    """Khối nói cho engine biết nó đang đứng ở đâu và được làm tới đâu. "" nếu không phải
+    phiên coding đã gắn thư mục.
+
+    Vì sao cần nói bằng lời chứ không chỉ đặt `cwd`: `cwd` quyết định nơi lệnh chạy, nhưng
+    model vẫn hay đoán đường dẫn từ những gì nó nhớ. Một dòng ghi rõ thư mục làm việc rẻ hơn
+    nhiều so với một lượt sửa nhầm file ở brain.
+    """
+    rb = rang_buoc(sid)
+    cwd = cwd_cua_phien(sid)
+    if not cwd:
+        return ""
+    mq = rb.get("muc_quyen") or MUC_QUYEN_MAC_DINH
+    dong = [
+        "",
+        "# === PHIÊN CODING ===",
+        f"Thư mục làm việc: {cwd}",
+    ]
+    if la_git(cwd):
+        nh = nhanh_hien_tai(cwd)
+        if nh:
+            dong.append(f"Nhánh git: {nh}")
+    if mq == "suggest":
+        dong.append(KHOI_PLAN)
+    elif mq == "auto":
+        dong.append("Mức Tự động: sửa file và chạy test trong thư mục này được. "
+                    "KHÔNG commit, không push, không deploy.")
+    else:
+        dong.append("Mức Toàn quyền: được commit, push và deploy khi việc yêu cầu.")
+    return "\n".join(dong) + "\n"
