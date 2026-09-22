@@ -13947,12 +13947,11 @@ async def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
         return JSONResponse({"error": "channel phải là agent:<slug>, workflow:<slug> hoặc coding:<repo>"}, status_code=400)
     loai, slug = m.group(1), m.group(2)
     if loai == "coding":
-        # Phiên của trang Coding: `slug` là id repo trong sổ `coding_store`. Ràng buộc repo
-        # ngay lúc mở, để lượt đầu tiên đã chạy đúng thư mục chứ không phải lượt thứ hai.
-        if not coding_store.get_repo(slug):
-            return JSONResponse({"error": f"Repo '{slug}' không có trong sổ Coding"}, status_code=404)
+        # Phiên của trang Coding. KHÔNG đòi phải có thư mục nào: 0.63.0 bắt phải chọn repo
+        # trước khi mở phiên, mà trang này là trang CHAT - chủ dự án chỉ ra (2026-09-22) rằng
+        # vào là phải nhắn được ngay, thư mục gắn sau cũng được. Chưa gắn thì lượt chat chạy
+        # với cwd = brain, y như mọi phiên thường.
         sid = get_store().create_session(brain=_brain_key(brain), engine="cli", channel=ch)
-        coding_store.dat_rang_buoc(sid, repo=slug)
         return {"id": sid, "channel": ch}
     thu_muc = _agents_dir(brain) if loai == "agent" else _workflows_dir(brain)
     if not (thu_muc / f"{slug}.md").exists():
@@ -18097,7 +18096,7 @@ conversations_routes.register(app, conversations_routes.ConversationsDeps(
 # `coding_store` đứng một mình, không cần gì từ main. Chiều phụ thuộc ngược lại thì có:
 # đường chat gọi `coding_store.cwd_cua_phien` để biết engine phải chạy ở thư mục nào.
 import routes.coding as coding_routes   # noqa: E402
-coding_routes.register(app)
+coding_routes.register(app, coding_routes.CodingDeps(brain_keys=_brain_keys))
 
 
 @app.post("/telegram/test")

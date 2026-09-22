@@ -35,7 +35,7 @@
     learn: "brain",
     kanban: "square-kanban",
     terminal: "terminal",
-    coding: "git-branch",
+    coding: "file-code",
     models: "cpu",
     channels: "send",
     mcp: "plug",
@@ -61,7 +61,10 @@
   // Icon cho TẦNG 1 (nhãn nhóm) - chỉ dùng ở header nhóm rail.
   const GICON = {
     "Bộ não": ic("brain"),
-    "Code": ic("file-code"),
+    // 0.63.1: nhóm nhường "file-code" cho MỤC Coding (một file mã nguồn nói đúng việc hơn
+    // "git-branch" cũ, vì trang đó nhận mọi thư mục chứ không riêng repo git). Nhãn nhóm là
+    // một KHU VỰC công cụ nên "wrench" hợp hơn, và hai icon cạnh nhau không còn trùng.
+    "Code": ic("wrench"),
     "Năng lực": ic("lightbulb"),
     "Việc": ic("clipboard-check"),
     "Kết nối": ic("link"),

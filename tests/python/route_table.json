@@ -3414,8 +3414,8 @@
  {
   "order": 344,
   "type": "APIRoute",
-  "path": "/coding/repos",
-  "name": "coding_repos",
+  "path": "/coding/folders",
+  "name": "coding_thu_muc_ds",
   "methods": [
    "GET"
   ],
@@ -3424,8 +3424,8 @@
  {
   "order": 345,
   "type": "APIRoute",
-  "path": "/coding/repos",
-  "name": "coding_repo_them",
+  "path": "/coding/folders",
+  "name": "coding_thu_muc_them",
   "methods": [
    "POST"
   ],
@@ -3434,8 +3434,8 @@
  {
   "order": 346,
   "type": "APIRoute",
-  "path": "/coding/repos/{rid}/delete",
-  "name": "coding_repo_xoa",
+  "path": "/coding/folders/{tid}/delete",
+  "name": "coding_thu_muc_bo",
   "methods": [
    "POST"
   ],
@@ -3444,8 +3444,8 @@
  {
   "order": 347,
   "type": "APIRoute",
-  "path": "/coding/session/{sid}",
-  "name": "coding_phien",
+  "path": "/coding/sessions",
+  "name": "coding_phien_ds",
   "methods": [
    "GET"
   ],
@@ -3455,6 +3455,16 @@
   "order": 348,
   "type": "APIRoute",
   "path": "/coding/session/{sid}",
+  "name": "coding_phien",
+  "methods": [
+   "GET"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 349,
+  "type": "APIRoute",
+  "path": "/coding/session/{sid}",
   "name": "coding_phien_dat",
   "methods": [
    "POST"
@@ -3462,7 +3472,7 @@
   "trong": 343
  },
  {
-  "order": 349,
+  "order": 350,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/checkpoint",
   "name": "coding_diem_hoi",
@@ -3472,7 +3482,7 @@
   "trong": 343
  },
  {
-  "order": 350,
+  "order": 351,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/rollback",
   "name": "coding_rollback",
@@ -3482,7 +3492,7 @@
   "trong": 343
  },
  {
-  "order": 351,
+  "order": 352,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3492,7 +3502,7 @@
   "trong": null
  },
  {
-  "order": 352,
+  "order": 353,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3502,7 +3512,7 @@
   "trong": null
  },
  {
-  "order": 353,
+  "order": 354,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3512,7 +3522,7 @@
   "trong": null
  },
  {
-  "order": 354,
+  "order": 355,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",
