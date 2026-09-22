@@ -3572,9 +3572,24 @@ def oauth_openai_status():
 # chủ máy tự gõ, rồi đọc lại xem trang đã có phiên chưa. Phiên nằm trong profile đó, không
 # nằm trong Javis.
 
+def _web_chat_chan(request: Request):
+    """None nếu được phép, hoặc một câu từ chối 401.
+
+    Chặt hơn hàng rào chung của app một bậc, theo đúng tiền lệ của `routes/tools.py`: đường
+    này MỞ TRÌNH DUYỆT trên máy chủ, cho xem màn hình của nó và nhận phím gõ xuống. Hàng rào
+    chung cho qua cả API token (đường của CLI và cron); ở đây thì không, vì "một script có
+    token cũng đọc được màn đăng nhập ChatGPT của chủ máy" là thứ không nên có đường tồn tại.
+    """
+    if cfgmod.valid_session(request.cookies.get("javis_session", "")):
+        return None
+    return JSONResponse({"ok": False, "error": "cần đăng nhập bằng trình duyệt"}, status_code=401)
+
+
 @app.get("/web-chat/status")
-def web_chat_status():
+def web_chat_status(request: Request):
     """Trạng thái engine Web cho trang Models. KHÔNG bịa phần trăm quota (spec mục 8)."""
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
     ok, ly_do = web_transport.kha_dung()
     d = web_state.tom_tat()
     d.update({
@@ -3601,45 +3616,78 @@ def web_chat_status():
 
 
 @app.post("/web-chat/login")
-async def web_chat_login():
-    """Mở cửa sổ trình duyệt để chủ máy tự đăng nhập, rồi đọc lại trạng thái.
+async def web_chat_login(request: Request):
+    """Mở trang ChatGPT để chủ máy đăng nhập QUA DASHBOARD. Chạy ẩn, không cần màn hình.
 
-    Chạy ở worker: mở Chromium là việc ĐỒNG BỘ và mất vài giây, để trên event loop là cả
-    server đứng hình đúng lúc người dùng đang bấm nút.
+    Trước 0.64.8 đường này mở một cửa sổ Chromium THẬT để chủ máy gõ mật khẩu. Đúng về mặt
+    giữ bí mật, nhưng nó làm cả tính năng không dùng được trên VPS - nơi không có màn hình
+    nào để mở cửa sổ. Nay Javis chụp trang rồi chuyển ngược cú bấm và phím xuống, nên chủ máy
+    thao tác lên đúng trang ChatGPT thật mà không cần máy chủ có màn hình.
     """
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
     ok, ly_do = web_transport.kha_dung()
     if not ok:
         return {"ok": False, "error": ly_do}
-
-    def _mo():
-        tr = web_transport.chung()
-        tr.headless = False   # phải thấy cửa sổ thì mới gõ được mật khẩu
-        ok2, ly_do2 = tr.mo()
-        if not ok2:
-            return False, ly_do2, False
-        try:
-            tr.luong_moi()
-        except Exception:
-            pass
-        return True, "", tr.da_dang_nhap()
-
     try:
-        mo_duoc, loi, da_dn = await asyncio.to_thread(_mo)
+        mo_duoc, loi = await asyncio.to_thread(web_transport.chung().mo_dang_nhap)
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     if not mo_duoc:
         web_state.ghi_hong(loi, kind=web_state.NO_BROWSER)
         return {"ok": False, "error": loi}
+    da_dn = await asyncio.to_thread(web_transport.chung().da_dang_nhap)
     web_state.ghi_dang_nhap(da_dn)
-    return {"ok": True, "da_dang_nhap": da_dn,
-            "huong_dan": ("Cửa sổ Chromium đã mở trên MÁY CHẠY JAVIS. Đăng nhập ChatGPT trong "
-                          "cửa sổ đó một lần rồi bấm Kiểm tra lại. Máy chủ không có màn hình "
-                          "thì engine Web không dùng được - chọn model Codex thay.")}
+    return {"ok": True, "da_dang_nhap": da_dn, "khung": dict(web_transport.KHUNG),
+            "huong_dan": ("Đăng nhập ChatGPT ngay trong khung bên dưới, như đang dùng trình "
+                          "duyệt bình thường. Xong thì bấm Kiểm tra lại.")}
+
+
+@app.get("/web-chat/screen")
+async def web_chat_screen(request: Request):
+    """Một khung hình của trang, kèm trạng thái đăng nhập. Dashboard hỏi lại vài lần mỗi giây.
+
+    Trả base64 trong JSON chứ không trả ảnh thô: màn hình cần BA thứ cùng lúc (ảnh, đã đăng
+    nhập chưa, kích thước khung), và ba request cho một khung hình thì vừa rối vừa dễ lệch
+    nhau. Ảnh JPEG chất lượng 60 nên một khung chừng trăm KB, đủ nhẹ cho một việc chỉ kéo dài
+    một hai phút.
+    """
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
+    tr = web_transport.chung()
+    anh, loi = await asyncio.to_thread(tr.chup)
+    if not anh:
+        return {"ok": False, "error": loi, "khung": dict(web_transport.KHUNG)}
+    import base64
+    da_dn = await asyncio.to_thread(tr.da_dang_nhap)
+    if da_dn:
+        web_state.ghi_dang_nhap(True)
+    return {"ok": True, "anh": base64.b64encode(anh).decode("ascii"),
+            "da_dang_nhap": da_dn, "khung": dict(web_transport.KHUNG)}
+
+
+@app.post("/web-chat/input")
+async def web_chat_input(request: Request):
+    """Chuyển MỘT thao tác của chủ máy xuống trang: bấm, gõ chữ, nhấn phím, cuộn.
+
+    Javis KHÔNG ghi lại nội dung phím ở bất kỳ đâu, kể cả nhật ký lỗi: mật khẩu ChatGPT đi
+    qua đây. Câu trả về chỉ nói xong hay hỏng, không bao giờ vọng lại thứ vừa gõ.
+    """
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
+    d = await request.json()
+    loai = str(d.get("loai") or "")
+    loi = await asyncio.to_thread(
+        web_transport.chung().thao_tac, loai,
+        x=d.get("x"), y=d.get("y"), chu=d.get("chu"), ten=d.get("ten"), dy=d.get("dy"))
+    return {"ok": not loi, "error": loi}
 
 
 @app.post("/web-chat/check")
-async def web_chat_check():
+async def web_chat_check(request: Request):
     """Kiểm tra lại phiên đăng nhập, không mở thêm cửa sổ nào nếu trình duyệt đang mở."""
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
     # Người dùng bấm nút này ngay sau khi vừa cài playwright hoặc vừa tải trình duyệt, nên
     # phải dò lại từ đầu; dùng kết quả nhớ từ trước là nút "Kiểm tra lại" không kiểm gì cả.
     web_transport.dat_lai_do()
@@ -3663,8 +3711,10 @@ async def web_chat_check():
 
 
 @app.post("/web-chat/reset")
-def web_chat_reset():
+def web_chat_reset(request: Request):
     """Đóng trình duyệt và xoá sổ nghỉ. Dùng khi engine kẹt ở một trạng thái nghỉ quá dài."""
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
     web_transport.dong_chung()
     web_transport.dat_lai_do()
     web_state.dat_lai()

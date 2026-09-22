@@ -1701,6 +1701,104 @@
   // - người dùng đi tìm câu đó sẽ tới trang này trước. Thẻ Playwright ở trang Kết nối cũng
   // nhắc sang đây, vì chỗ người ta PHÁT HIỆN ra mình thiếu lại là lúc đang đấu kết nối.
   let _ctTimer = null;
+  // ---- Màn đăng nhập ChatGPT nhìn qua dashboard ----
+  //
+  // VPS không có màn hình nào để mở cửa sổ Chromium cho chủ máy gõ mật khẩu. Javis đã lái
+  // trang bằng Playwright rồi, nên nó chụp trang gửi lên đây, còn cú bấm và phím gõ đi ngược
+  // xuống. Chủ máy thao tác lên ĐÚNG trang ChatGPT thật, chỉ là qua một lớp ảnh.
+  //
+  // Chủ repo đã duyệt đánh đổi (22/09): phím gõ, gồm cả mật khẩu, đi qua máy chủ Javis. Đây
+  // là máy cá nhân của chính họ, nơi đã giữ token OAuth và khoá kết nối.
+  let _wlTimer = null;
+
+  function dongManDangNhap() {
+    clearTimeout(_wlTimer); _wlTimer = null;
+  }
+
+  function moManDangNhap(box) {
+    const o = box.querySelector("#webManHinh");
+    if (!o) return;
+    o.style.display = "";
+    o.innerHTML =
+      '<div style="color:var(--text3);font-size:12.5px;margin-bottom:6px">'
+      + 'Đăng nhập như đang dùng trình duyệt bình thường: bấm vào khung rồi gõ. '
+      + 'Xong thì khung tự đóng.</div>'
+      + '<canvas id="wlCanvas" style="width:100%;max-width:100%;border:1px solid var(--line);'
+      + 'border-radius:8px;cursor:text;display:block"></canvas>'
+      + '<div id="wlTrangThai" style="color:var(--text3);font-size:12.5px;margin-top:6px"></div>';
+
+    const cv = o.querySelector("#wlCanvas");
+    const tt = o.querySelector("#wlTrangThai");
+    const ctx = cv.getContext("2d");
+    let khung = { width: 1280, height: 860 };
+    let dung = false;
+
+    // Toạ độ trên ảnh hiển thị quy về toạ độ TRONG TRANG. Canvas bị CSS co lại cho vừa bề
+    // ngang, nên không quy đổi là bấm lệch chỗ - càng lệch khi màn hình càng hẹp.
+    const toaDo = (ev) => {
+      const r = cv.getBoundingClientRect();
+      return { x: (ev.clientX - r.left) * (khung.width / r.width),
+               y: (ev.clientY - r.top) * (khung.height / r.height) };
+    };
+    const guiThaoTac = async (body) => {
+      try {
+        await fetch("/web-chat/input", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      } catch (e) {}
+      ve();   // vẽ lại ngay để thấy phản hồi, khỏi chờ nhịp sau
+    };
+
+    cv.tabIndex = 0;
+    cv.onclick = (ev) => { cv.focus(); const p = toaDo(ev); guiThaoTac({ loai: "bam", x: p.x, y: p.y }); };
+    cv.onwheel = (ev) => { ev.preventDefault(); guiThaoTac({ loai: "cuon", dy: ev.deltaY }); };
+    // `keydown` cho phím điều khiển, `beforeinput` cho CHỮ. Tách vậy thì gõ tiếng Việt có
+    // dấu vẫn đúng: bộ gõ dựng xong chữ mới bắn beforeinput, còn keydown chỉ thấy phím thô.
+    cv.onkeydown = (ev) => {
+      const dac = { Enter: "Enter", Backspace: "Backspace", Tab: "Tab", Escape: "Escape",
+                    ArrowUp: "ArrowUp", ArrowDown: "ArrowDown", ArrowLeft: "ArrowLeft",
+                    ArrowRight: "ArrowRight", Delete: "Delete", Home: "Home", End: "End" }[ev.key];
+      if (dac) { ev.preventDefault(); guiThaoTac({ loai: "phim", ten: dac }); }
+    };
+    cv.addEventListener("beforeinput", (ev) => {
+      ev.preventDefault();
+      if (ev.data) guiThaoTac({ loai: "go", chu: ev.data });
+    });
+    cv.addEventListener("paste", (ev) => {
+      ev.preventDefault();
+      const t = (ev.clipboardData || window.clipboardData).getData("text");
+      if (t) guiThaoTac({ loai: "go", chu: t });
+    });
+
+    async function ve() {
+      if (dung) return;
+      let r = null;
+      try { r = await (await fetch("/web-chat/screen")).json(); } catch (e) { r = null; }
+      if (dung) return;
+      if (r && r.khung) khung = r.khung;
+      if (r && r.ok && r.anh) {
+        const img = new Image();
+        img.onload = () => {
+          cv.width = khung.width; cv.height = khung.height;
+          ctx.drawImage(img, 0, 0, khung.width, khung.height);
+        };
+        img.src = "data:image/jpeg;base64," + r.anh;
+        if (r.da_dang_nhap) {
+          dung = true; dongManDangNhap();
+          if (tt) tt.innerHTML = OK_ICON + " Đã đăng nhập. Khung này đóng lại được rồi.";
+          setTimeout(() => { o.style.display = "none"; veThreChatGPTWeb(document.getElementById("cloudTab") || o.closest(".cview") || document); }, 1200);
+          return;
+        }
+        if (tt) tt.textContent = "Chưa đăng nhập. Thao tác ngay trong khung.";
+      } else if (tt) {
+        tt.innerHTML = Icons.warn((r && r.error) || t("common.net_err"));
+      }
+      _wlTimer = setTimeout(ve, 700);
+    }
+    ve();
+  }
+
   async function veCongCuTuyChon(host) {
     clearTimeout(_ctTimer); _ctTimer = null;
     let d = { tools: [] };
@@ -3749,15 +3847,16 @@
           ${x.so_luot_trong_ngay ? " · " + x.so_luot_trong_ngay + " lượt hôm nay" : ""}</div>
         <div class="gcard-meta">${WARN_ICON} ${esc(x.canh_bao || "")}</div>
         <div class="prov-action" style="flex-wrap:wrap">
-          ${x.kha_dung ? `<button class="gcard-btn" data-weblogin="1">Mở cửa sổ đăng nhập</button>` : ""}
+          ${x.kha_dung ? `<button class="gcard-btn" data-weblogin="1">Đăng nhập ChatGPT</button>` : ""}
           <button class="gcard-btn ghost" data-webcheck="1">${esc(t("qs.recheck"))}</button>
           ${x.kha_dung ? `<button class="gcard-btn ghost" data-webreset="1">Đóng trình duyệt</button>` : ""}
           <span id="webMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
         </div>
+        <div id="webManHinh" style="display:none;margin-top:10px"></div>
         ${nghi}`;
 
       const msg = box.querySelector("#webMsg");
-      const goi = async (btn, url, dangChay) => {
+      const goi = async (btn, url, dangChay, xong) => {
         const b = box.querySelector(btn);
         if (!b) return;
         b.onclick = async () => {
@@ -3773,10 +3872,11 @@
           }
           if (msg) msg.innerHTML = r.huong_dan ? esc(r.huong_dan)
             : (r.da_dang_nhap ? OK_ICON + " Đã đăng nhập" : WARN_ICON + " Chưa đăng nhập");
+          if (xong) { xong(r); return; }   // màn đăng nhập tự lo phần vẽ, đừng vẽ đè lên nó
           try { ve(await (await fetch("/web-chat/status")).json()); } catch (e) {}
         };
       };
-      goi("[data-weblogin]", "/web-chat/login", "Đang mở trình duyệt…");
+      goi("[data-weblogin]", "/web-chat/login", "Đang mở trang ChatGPT…", () => moManDangNhap(box));
       goi("[data-webcheck]", "/web-chat/check", t("models.testing"));
       goi("[data-webreset]", "/web-chat/reset", "Đang đóng…");
     };
