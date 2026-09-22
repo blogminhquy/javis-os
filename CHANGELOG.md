@@ -4,6 +4,14 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.7] - 2026-09-22
+### Thêm mới
+- **Xem được mỗi lượt chat đang gánh bao nhiêu chữ, và chữ đó nằm ở đâu.** Trang chẩn đoán nay có bảng phân bổ: phần não chung, phần kênh hội thoại, phần skill, phần bộ nhớ, mỗi phần bao nhiêu ký tự và chiếm bao nhiêu phần trăm. Trước đây chỉ đoán được.
+- Con số đo ngay trên máy anh chứ không phải ước lượng, nên brain nào nặng bất thường là thấy ngay nặng ở chỗ nào.
+### Cải thiện
+- **Prompt lõi không thể phình thêm nữa.** Trần ký tự của nó đã đông cứng và được canh ở hai nơi, nên muốn nới phải sửa hai chỗ kèm lý do. Ba lần trước trần này bị nới cho xong việc, mỗi lần là mọi lượt chat của mọi model nặng thêm.
+- Thêm luật mới thì phải đẩy một mục cũ sang skill hoặc sang tài liệu, đổi chỗ đặt chứ không mất năng lực nào.
+
 ## [0.64.6] - 2026-09-22
 ### Sửa lỗi
 - **Dựng máy mới không còn hàng chục biến môi trường đỏ.** File mẫu `env.example` trước đây có gần trăm dòng chú thích. Các nền tảng deploy tự quét file này rồi cắt mọi dòng có dấu `=` thành một biến, nên mỗi dòng chú thích hoá ra một biến tên `#` và bảng Environment đỏ rực, chặn luôn nút triển khai. Nay file mẫu chỉ còn bốn dòng `TÊN=giá trị`, không một dòng chú thích nào.

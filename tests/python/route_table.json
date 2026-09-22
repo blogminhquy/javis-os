@@ -3070,6 +3070,16 @@
  {
   "order": 309,
   "type": "APIRoute",
+  "path": "/runtime/prompt-size",
+  "name": "runtime_prompt_size",
+  "methods": [
+   "GET"
+  ],
+  "trong": null
+ },
+ {
+  "order": 310,
+  "type": "APIRoute",
   "path": "/runtime/diagnostics",
   "name": "runtime_diagnostics",
   "methods": [
@@ -3078,7 +3088,7 @@
   "trong": null
  },
  {
-  "order": 310,
+  "order": 311,
   "type": "APIRoute",
   "path": "/runtime/muc",
   "name": "runtime_muc",
@@ -3088,7 +3098,7 @@
   "trong": null
  },
  {
-  "order": 311,
+  "order": 312,
   "type": "APIRoute",
   "path": "/runtime/preset",
   "name": "runtime_preset_set",
@@ -3098,7 +3108,7 @@
   "trong": null
  },
  {
-  "order": 312,
+  "order": 313,
   "type": "APIRoute",
   "path": "/runtime/mode",
   "name": "runtime_mode_set",
@@ -3108,7 +3118,7 @@
   "trong": null
  },
  {
-  "order": 313,
+  "order": 314,
   "type": "APIRoute",
   "path": "/runtime/quota",
   "name": "runtime_quota_apply",
@@ -3118,7 +3128,7 @@
   "trong": null
  },
  {
-  "order": 314,
+  "order": 315,
   "type": "APIRoute",
   "path": "/runtime/canary",
   "name": "runtime_canary_set",
@@ -3128,7 +3138,7 @@
   "trong": null
  },
  {
-  "order": 315,
+  "order": 316,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}",
   "name": "runtime_task_status",
@@ -3138,7 +3148,7 @@
   "trong": null
  },
  {
-  "order": 316,
+  "order": 317,
   "type": "APIRoute",
   "path": "/runtime/tasks/{task_id}/resume",
   "name": "runtime_task_resume",
@@ -3148,7 +3158,7 @@
   "trong": null
  },
  {
-  "order": 317,
+  "order": 318,
   "type": "APIRoute",
   "path": "/zalo-bot/status",
   "name": "zalo_bot_status",
@@ -3158,7 +3168,7 @@
   "trong": null
  },
  {
-  "order": 318,
+  "order": 319,
   "type": "APIRoute",
   "path": "/zalo-bot/restart",
   "name": "zalo_bot_restart",
@@ -3168,7 +3178,7 @@
   "trong": null
  },
  {
-  "order": 319,
+  "order": 320,
   "type": "APIRoute",
   "path": "/zalo-bot/allow",
   "name": "zalo_bot_allow",
@@ -3178,7 +3188,7 @@
   "trong": null
  },
  {
-  "order": 320,
+  "order": 321,
   "type": "APIRoute",
   "path": "/zalo-bot/test",
   "name": "zalo_bot_test",
@@ -3188,7 +3198,7 @@
   "trong": null
  },
  {
-  "order": 321,
+  "order": 322,
   "type": "APIRoute",
   "path": "/telegram/status",
   "name": "telegram_status",
@@ -3198,7 +3208,7 @@
   "trong": null
  },
  {
-  "order": 322,
+  "order": 323,
   "type": "APIRoute",
   "path": "/telegram/restart",
   "name": "telegram_restart",
@@ -3208,7 +3218,7 @@
   "trong": null
  },
  {
-  "order": 323,
+  "order": 324,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_list",
@@ -3218,7 +3228,7 @@
   "trong": null
  },
  {
-  "order": 324,
+  "order": 325,
   "type": "APIRoute",
   "path": "/chatbots/verify-token",
   "name": "chatbots_verify_token",
@@ -3228,7 +3238,7 @@
   "trong": null
  },
  {
-  "order": 325,
+  "order": 326,
   "type": "APIRoute",
   "path": "/chatbots",
   "name": "chatbots_create",
@@ -3238,7 +3248,7 @@
   "trong": null
  },
  {
-  "order": 326,
+  "order": 327,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/update",
   "name": "chatbots_update",
@@ -3248,7 +3258,7 @@
   "trong": null
  },
  {
-  "order": 327,
+  "order": 328,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/enable",
   "name": "chatbots_enable",
@@ -3258,7 +3268,7 @@
   "trong": null
  },
  {
-  "order": 328,
+  "order": 329,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/groups",
   "name": "chatbots_groups",
@@ -3268,7 +3278,7 @@
   "trong": null
  },
  {
-  "order": 329,
+  "order": 330,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/log",
   "name": "chatbots_log",
@@ -3278,7 +3288,7 @@
   "trong": null
  },
  {
-  "order": 330,
+  "order": 331,
   "type": "APIRoute",
   "path": "/chatbots/{bot_id}/delete",
   "name": "chatbots_delete",
@@ -3288,7 +3298,7 @@
   "trong": null
  },
  {
-  "order": 331,
+  "order": 332,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -3296,77 +3306,77 @@
   "trong": null
  },
  {
-  "order": 332,
+  "order": 333,
   "type": "APIRoute",
   "path": "/channels",
   "name": "channels_list",
   "methods": [
    "GET"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 333,
+  "order": 334,
   "type": "APIRoute",
   "path": "/channels/accounts",
   "name": "channels_accounts",
   "methods": [
    "GET"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 334,
+  "order": 335,
   "type": "APIRoute",
   "path": "/channels/verify-token",
   "name": "channels_verify_token",
   "methods": [
    "POST"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 335,
+  "order": 336,
   "type": "APIRoute",
   "path": "/channels/accounts",
   "name": "channels_account_create",
   "methods": [
    "POST"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 336,
+  "order": 337,
   "type": "APIRoute",
   "path": "/channels/accounts/{account_id}/update",
   "name": "channels_account_update",
   "methods": [
    "POST"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 337,
+  "order": 338,
   "type": "APIRoute",
   "path": "/channels/accounts/{account_id}/watch",
   "name": "channels_account_watch",
   "methods": [
    "POST"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 338,
+  "order": 339,
   "type": "APIRoute",
   "path": "/channels/accounts/{account_id}/delete",
   "name": "channels_account_delete",
   "methods": [
    "POST"
   ],
-  "trong": 331
+  "trong": 332
  },
  {
-  "order": 339,
+  "order": 340,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -3374,97 +3384,97 @@
   "trong": null
  },
  {
-  "order": 340,
+  "order": 341,
   "type": "APIRoute",
   "path": "/conversations",
   "name": "conversations_list",
   "methods": [
    "GET"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 341,
+  "order": 342,
   "type": "APIRoute",
   "path": "/conversations/stats",
   "name": "conversations_stats",
   "methods": [
    "GET"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 342,
+  "order": 343,
   "type": "APIRoute",
   "path": "/conversations/channels",
   "name": "conversations_channels",
   "methods": [
    "GET"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 343,
+  "order": 344,
   "type": "APIRoute",
   "path": "/conversations/zalo/{conn_id}/watch",
   "name": "conversations_zalo_watch",
   "methods": [
    "POST"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 344,
+  "order": 345,
   "type": "APIRoute",
   "path": "/conversations/{conv_id}",
   "name": "conversations_detail",
   "methods": [
    "GET"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 345,
+  "order": 346,
   "type": "APIRoute",
   "path": "/conversations/{conv_id}/messages",
   "name": "conversations_messages",
   "methods": [
    "GET"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 346,
+  "order": 347,
   "type": "APIRoute",
   "path": "/conversations/{conv_id}/read",
   "name": "conversations_read",
   "methods": [
    "POST"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 347,
+  "order": 348,
   "type": "APIRoute",
   "path": "/conversations/{conv_id}/reply",
   "name": "conversations_reply",
   "methods": [
    "POST"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 348,
+  "order": 349,
   "type": "APIRoute",
   "path": "/conversations/{conv_id}/mode",
   "name": "conversations_mode",
   "methods": [
    "POST"
   ],
-  "trong": 339
+  "trong": 340
  },
  {
-  "order": 349,
+  "order": 350,
   "type": "_IncludedRouter",
   "path": null,
   "name": null,
@@ -3472,87 +3482,87 @@
   "trong": null
  },
  {
-  "order": 350,
+  "order": 351,
   "type": "APIRoute",
   "path": "/coding/folders",
   "name": "coding_thu_muc_ds",
   "methods": [
    "GET"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 351,
+  "order": 352,
   "type": "APIRoute",
   "path": "/coding/folders",
   "name": "coding_thu_muc_them",
   "methods": [
    "POST"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 352,
+  "order": 353,
   "type": "APIRoute",
   "path": "/coding/folders/{tid}/delete",
   "name": "coding_thu_muc_bo",
   "methods": [
    "POST"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 353,
+  "order": 354,
   "type": "APIRoute",
   "path": "/coding/sessions",
   "name": "coding_phien_ds",
   "methods": [
    "GET"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 354,
+  "order": 355,
   "type": "APIRoute",
   "path": "/coding/session/{sid}",
   "name": "coding_phien",
   "methods": [
    "GET"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 355,
+  "order": 356,
   "type": "APIRoute",
   "path": "/coding/session/{sid}",
   "name": "coding_phien_dat",
   "methods": [
    "POST"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 356,
+  "order": 357,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/checkpoint",
   "name": "coding_diem_hoi",
   "methods": [
    "POST"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 357,
+  "order": 358,
   "type": "APIRoute",
   "path": "/coding/session/{sid}/rollback",
   "name": "coding_rollback",
   "methods": [
    "POST"
   ],
-  "trong": 349
+  "trong": 350
  },
  {
-  "order": 358,
+  "order": 359,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3562,7 +3572,7 @@
   "trong": null
  },
  {
-  "order": 359,
+  "order": 360,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3572,7 +3582,7 @@
   "trong": null
  },
  {
-  "order": 360,
+  "order": 361,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3582,7 +3592,7 @@
   "trong": null
  },
  {
-  "order": 361,
+  "order": 362,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",

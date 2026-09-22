@@ -40,19 +40,32 @@ def _tok(chars):
 # ============================================================
 # 1. CLAUDE.md - system prompt đường legacy
 # ============================================================
-# Nâng trần này KHÔNG bị cấm, nhưng phải là một quyết định CÓ Ý THỨC: mỗi 3.500 ký tự thêm
-# vào là khoảng 1.000 token nhân với mọi lượt chat của mọi model. Nếu thấy chạm trần, cân
-# nhắc chuyển phần đó thành skill (chỉ nạp khi cần) thay vì nhồi tiếp vào prompt lõi.
-# 33.600 (0.50.0): CLAUDE.md đổi sang TIẾNG ANH theo yêu cầu của chủ repo (system prompt bằng
-# tiếng Anh rõ nghĩa hơn cho model). Bản tiếng Việt 30.016 ký tự dịch ra 33.369 ký tự tiếng Anh
-# sau hai lượt gọt; cắt tiếp là phải bỏ luật thật, nên nâng trần thay vì cắt.
+# TRẦN NÀY ĐÃ ĐÔNG CỨNG (0.64.7). Trước đó nó là một con số "nâng được nếu có ý thức", và
+# đúng chỗ này từng có lời dặn "lần chạm trần TIẾP THEO thì cắt thật, đừng nâng số này nữa".
+# Lời dặn đó bị bỏ qua ba lần liên tiếp: 21.479 → 26.505 → 30.016 → 33.600. Không ai làm sai
+# cả, chỉ là sửa một dòng số cho test xanh lại thì dễ hơn đi cắt nội dung, nên ai cũng chọn
+# cách dễ. Một lời dặn trong chú thích không phải là cái chặn.
+#
+# Cái chặn thật nằm ở chỗ con số này phải KHỚP với `main.PROMPT_KERNEL_MAX_CHARS`, và phép
+# thử ngay dưới canh sự khớp đó. Muốn nâng trần thì phải sửa HAI file và viết ra lý do ở cả
+# hai chỗ - đủ ma sát để người sửa dừng lại nghĩ, thay vì gõ số mới cho xong việc.
+#
+# CHẠM TRẦN THÌ LÀM GÌ: đẩy một mục RA KHỎI prompt, đừng nâng số.
+#   - Mục chỉ dành cho phiên Claude Code sửa repo → `docs/` (mục "Dev conventions" đã đi
+#     đường này ngày 2026-09-22, để lại một dòng trỏ sang, tiết kiệm hơn 1.000 ký tự).
+#   - Know-how dùng khi cần chứ không phải mọi lượt → một skill trong `skills/` (router chỉ
+#     nạp nội dung skill lúc thật sự gọi tới).
+# Cả hai cách đều giữ nguyên năng lực, chỉ đổi chỗ đặt. Nâng trần thì không.
+#
+# Trần để ở 33.600 trong khi file đang 33.012: chừa chừng 590 ký tự để sửa lỗi chính tả hay
+# làm rõ một câu luật, cố tình KHÔNG đủ để nhét thêm một mục.
 #
 # ĐÃ ĐO THẬT (chủ repo chạy trên máy có mạng, 28/08/2026): 33.369 ký tự = **6.555 token** theo
 # `cl100k_base`, tức 5,09 ký tự/token. Ba điều rút ra:
 #
-#   1. Nhiều ký tự hơn nhưng ÍT TOKEN HƠN bản tiếng Việt cũ - đúng như dự đoán, và nay là số đo
-#      chứ không phải suy luận. Bản cũ ăn khoảng 8.576 token theo chính thước đo của file này
-#      (30.016 / 3.5), nên đổi ngôn ngữ TIẾT KIỆM chứ không tốn thêm.
+#   1. Bản tiếng Anh nhiều ký tự hơn nhưng ÍT TOKEN HƠN bản tiếng Việt cũ - đúng như dự đoán,
+#      và nay là số đo chứ không phải suy luận. Bản cũ ăn khoảng 8.576 token theo chính thước
+#      đo của file này (30.016 / 3.5), nên đổi ngôn ngữ TIẾT KIỆM chứ không tốn thêm.
 #   2. Tỉ lệ 3.5 ở `_tok()` được cân cho tiếng Việt nên nó ĐÁNH GIÁ CAO chi phí của văn bản
 #      tiếng Anh chừng 45%. Trần 33.600 ký tự vì vậy tương đương chỉ ~6.600 token thật, thoải
 #      mái hơn con số nhìn vào tưởng. KHÔNG sửa `_tok()` thành hai hệ số theo ngôn ngữ: nó còn
@@ -64,16 +77,14 @@ def _tok(chars):
 # Đo lại khi cần (chú ý `python -m pip` để chắc chắn cài vào đúng Python đang chạy):
 #     python -m pip install tiktoken
 #     python -c "import tiktoken; print(len(tiktoken.get_encoding('cl100k_base').encode(open('CLAUDE.md', encoding='utf-8').read())))"
-#
-# Lần chạm trần TIẾP THEO thì cắt thật hoặc đẩy một mục sang skill, đừng nâng số này nữa.
-CLAUDE_MD_MAX_CHARS = 33_600
+KERNEL_MAX_CHARS = 33_600
 
 _claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 check(
-    f"CLAUDE.md dưới trần {CLAUDE_MD_MAX_CHARS:,} ký tự",
-    len(_claude_md) <= CLAUDE_MD_MAX_CHARS,
+    f"CLAUDE.md dưới trần {KERNEL_MAX_CHARS:,} ký tự",
+    len(_claude_md) <= KERNEL_MAX_CHARS,
     f"[hiện {len(_claude_md):,} ký tự ~{_tok(len(_claude_md)):,} token, "
-    f"còn {CLAUDE_MD_MAX_CHARS - len(_claude_md):,} ký tự]",
+    f"còn {KERNEL_MAX_CHARS - len(_claude_md):,} ký tự]",
 )
 
 # Mục "Dev conventions" đã ĐẨY RA NGOÀI ngày 2026-09-22 (đúng cách file này dặn: chạm trần thì
@@ -90,6 +101,61 @@ check(
     "file quy ước dev có thật và còn luật đặt xí chỗ số phiên bản",
     _QUY_UOC.exists() and "xí chỗ" in _QUY_UOC.read_text(encoding="utf-8"),
 )
+
+# ------------------------------------------------------------
+# 1b. Trần phải ĐÔNG, và tổng thật phải đo được
+# ------------------------------------------------------------
+# Hai phép thử dưới đây là cái biến trần trên từ "lời dặn" thành "cái chặn".
+import main  # noqa: E402
+
+check(
+    "trần trong code và trần trong test vẫn khớp nhau",
+    main.PROMPT_KERNEL_MAX_CHARS == KERNEL_MAX_CHARS,
+    f"[main.PROMPT_KERNEL_MAX_CHARS={main.PROMPT_KERNEL_MAX_CHARS:,}, "
+    f"test KERNEL_MAX_CHARS={KERNEL_MAX_CHARS:,}]",
+)
+
+# Và phép thử QUAN TRỌNG hơn cả trần: TỔNG ký tự cố định đi kèm mỗi lượt chat.
+# Vì sao nó quan trọng hơn: nhân prompt chỉ là MỘT khối trong khoảng bảy khối được ghép vào
+# system prompt, mà trước 0.64.7 chỉ khối đó có người canh. Hệ quả là gọt CLAUDE.md xuống
+# từng trăm ký tự trong khi khối kênh hội thoại lặng lẽ chiếm hơn 7.000 - ai cũng đang nhìn
+# đúng một phần tư vấn đề. `do_phan_bo_prompt` đo BẢN THẬT (lắp prompt rồi đếm), nên số ở
+# đây là số thật chứ không phải cộng ước lượng.
+PROMPT_TONG_MAX_CHARS = 50_000
+
+_pb = main.do_phan_bo_prompt("brain")
+check("đo được bảng phân bổ prompt", "loi" not in _pb, str(_pb.get("loi", "")))
+
+if "loi" not in _pb:
+    _bang = "\n".join(f"      {k['ky_tu']:>7,}  {k['phan_tram']:>5}%  {k['ten'][:58]}"
+                      for k in _pb["khoi"])
+    print(f"      {_pb['nhan_ky_tu']:>7,}  "
+          f"{_pb['nhan_ky_tu'] * 100.0 / max(1, _pb['tong_ky_tu']):>5.1f}%  "
+          f"NHÂN PROMPT (CLAUDE.md)")
+    print(_bang)
+
+    check(
+        f"tổng prompt cố định dưới trần {PROMPT_TONG_MAX_CHARS:,} ký tự",
+        _pb["tong_ky_tu"] <= PROMPT_TONG_MAX_CHARS,
+        f"[hiện {_pb['tong_ky_tu']:,} ký tự ~{_pb['tong_token_uoc']:,} token, "
+        f"còn {PROMPT_TONG_MAX_CHARS - _pb['tong_ky_tu']:,} ký tự]",
+    )
+    # Bảng cộng lại phải ra đúng tổng. Đây là phép tự kiểm của chính phép đo: nếu ai đó thêm
+    # một khối bằng kiểu tiêu đề khác, khối đó sẽ bị cộng nhầm vào khối đứng trước và không
+    # ai biết - trừ khi con số bị lệch, mà phép này bắt đúng chỗ lệch đó.
+    _cong = _pb["nhan_ky_tu"] + sum(k["ky_tu"] for k in _pb["khoi"])
+    check(
+        "bảng phân bổ cộng lại đúng bằng tổng (không khối nào rơi mất)",
+        _cong == _pb["tong_ky_tu"],
+        f"[cộng {_cong:,} vs tổng {_pb['tong_ky_tu']:,}]",
+    )
+    # Nhân prompt trong bảng phải đúng là CLAUDE.md (lệch đúng 2 ký tự xuống dòng nối khối
+    # sau). Lệch nhiều hơn nghĩa là phép tách tiêu đề đã hiểu sai đâu là nhân.
+    check(
+        "phần 'nhân' trong bảng đúng là CLAUDE.md",
+        abs(_pb["nhan_ky_tu"] - len(_claude_md)) <= 4,
+        f"[bảng {_pb['nhan_ky_tu']:,} vs file {len(_claude_md):,}]",
+    )
 
 # ============================================================
 # 2. CORE_CONTRACT - prompt lõi đường biên dịch (thay CLAUDE.md khi canary bật)
