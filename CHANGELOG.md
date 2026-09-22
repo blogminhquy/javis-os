@@ -4,12 +4,18 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.64.2] - 2026-09-22
+## [0.64.3] - 2026-09-22
 ### Sửa lỗi
 - **Dựng máy mới không còn hàng chục biến môi trường đỏ.** File mẫu `env.example` trước đây có gần trăm dòng chú thích. Các nền tảng deploy tự quét file này rồi cắt mọi dòng có dấu `=` thành một biến, nên mỗi dòng chú thích hoá ra một biến tên `#` và bảng Environment đỏ rực, chặn luôn nút triển khai. Nay file mẫu chỉ còn bốn dòng `TÊN=giá trị`, không một dòng chú thích nào.
 - Phần giải thích từng biến **không mất đi**, nó nằm ở trang **Cấu hình .env** trong tài liệu, đầy đủ hơn khối chú thích cũ. Ai đã lỡ dính thì xoá hết các dòng có dấu `#` trong ô Environment một lần là sạch.
 ### Cải thiện
 - **Model ChatGPT Web tự hiện ra khi máy dùng được, khỏi khai báo gì.** Bản trước bắt đặt tay một biến môi trường mới thấy model, mà biến đó không tự tạo ra được trình duyệt, nên máy thiếu đồ vẫn bày model ra rồi hỏng lúc chọn. Nay Javis tự dò: đủ đồ thì model nằm sẵn trong ô chọn, thiếu thì thẻ ChatGPT ở trang Models nói rõ thiếu gì và bấm ở đâu.
+
+## [0.64.2] - 2026-09-22
+### Cải thiện
+- **Menu chọn thư mục trong mục Coding gọn lại.** Tên thư mục và đường dẫn để chữ nhỏ, đọc lướt là đủ, nên menu không còn choán nửa màn hình như trước.
+- **Menu dài không tràn ra ngoài nữa.** Nhiều thư mục thì menu tự cuộn trong khung và tự lật lên hay xuống theo chỗ trống, thay vì đổ ra đè lên thanh điều hướng bên trái.
+- Trên điện thoại chữ trong menu vẫn giữ cỡ cũ cho dễ bấm.
 
 ## [0.64.1] - 2026-09-22
 ### Sửa lỗi
