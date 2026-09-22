@@ -46,8 +46,17 @@ MAIN = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 # ============================================================
 # 1. Cả hai đường chat Claude Code chạy TRONG thư mục brain
 # ============================================================
-check("dashboard: engine Claude dựng với cwd = thư mục brain",
-      "claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_brain_root(brain), tag=turn_tag)" in MAIN)
+# 0.63.0 thêm trang Coding: phiên của trang đó chạy trong REPO chứ không trong brain, nên bốn
+# engine chat không còn nhận thẳng `_brain_root(brain)` mà đi qua `_cwd_luot_chat(row, brain)`.
+# Canary này KHÔNG được nới ra theo: thứ nó canh từ 0.55.58 là "mặc định phải là brain, và
+# không bao giờ là gốc project". Nên bây giờ canh ĐÚNG hai điều đó ở chính cái hàm ấy, cộng
+# việc cả bốn engine đều đi qua nó - chứ không đổi thành một phép so chuỗi lỏng hơn.
+check("dashboard: engine Claude dựng cwd qua _cwd_luot_chat",
+      "claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_cwd_luot_chat(_row0, brain), tag=turn_tag)" in MAIN)
+check("CANARY: _cwd_luot_chat MẶC ĐỊNH vẫn trả gốc brain",
+      re.search(r"def _cwd_luot_chat\(.*?\n    return _brain_root\(brain\)\n", MAIN, re.S) is not None)
+check("CANARY: chỉ phiên của trang Coding mới đổi cwd (suy từ kho, không từ tên kênh)",
+      "coding_store.cwd_cua_phien(sid)" in MAIN)
 check("CANARY: dashboard KHÔNG còn dựng engine chat với cwd=CLAUDE_CWD (gốc project)",
       "claude_engine(system_prompt=SYSTEM_PROMPT, cwd=CLAUDE_CWD, tag=turn_tag)" not in MAIN)
 check("telegram: engine Claude chạy trong brain, và dựng lại khi /brain đổi sang brain khác",
@@ -55,10 +64,19 @@ check("telegram: engine Claude chạy trong brain, và dựng lại khi /brain �
       and 'cwd=_goc, tag=f"telegram:{chat_id}"' in MAIN)
 check("telegram: file vừa ghi được thu theo thư mục brain, không theo gốc project",
       'cwd=_brain_root(brain), exclude=sess["sent"]' in MAIN)
-# Ba engine kia đã cwd=brain từ trước - canh để không ai kéo lùi một cái về gốc project.
-check("bốn engine chat cùng chạy cwd=brain",
-      "CodexCLI(cwd=_brain_root(brain)" in MAIN and "AntigravityCLI(cwd=_brain_root(brain)" in MAIN
-      and "GrokCLI(cwd=_brain_root(brain)" in MAIN)
+# Bốn engine chat phải đi CÙNG một đường tính cwd. Bản đầu của trang Coding chỉ đổi Claude và
+# Codex, bỏ quên Grok với Antigravity: chip trên màn hình nói đang làm ở repo mà engine vẫn
+# ngồi trong brain - đúng loại lệch mà chính canary này sinh ra để chặn.
+check("bốn engine chat cùng tính cwd qua _cwd_luot_chat",
+      "CodexCLI(cwd=_cwd_luot_chat(_row0, brain)" in MAIN
+      and "AntigravityCLI(cwd=_cwd_luot_chat(_row0, brain)" in MAIN
+      and "GrokCLI(cwd=_cwd_luot_chat(_row0, brain)" in MAIN)
+# Hub (MCP, cron, nhắc hẹn) thuộc BỘ NÃO, không thuộc cây mã nguồn đang mở: kể cả khi cwd là
+# repo thì ba hàm gắn hub vẫn phải nhận gốc brain.
+check("hub của ba engine CLI vẫn trỏ gốc brain kể cả khi cwd là repo",
+      "_apply_codex_hub(ccli, _brain_root(brain))" in MAIN
+      and "_apply_grok_hub(kcli, _brain_root(brain))" in MAIN
+      and "_apply_antigravity_hub(acli, _brain_root(brain))" in MAIN)
 
 # ============================================================
 # 2. Chuẩn hoá link: hành vi THẬT trên đĩa

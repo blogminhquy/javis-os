@@ -35,10 +35,13 @@ _STATE_DIR = Path(os.getenv("JAVIS_STATE_DIR", str(Path(__file__).parent)))
 _DEFAULT_DB = _STATE_DIR / "conversations.db"
 DB_PATH = Path(os.getenv("JAVIS_SESSIONS_DB", str(_DEFAULT_DB)))
 
-# Kênh của phiên "cộng sự": chat với MỘT trợ lý hoặc MỘT quy trình (trang Cộng sự, 0.59).
+# Kênh của phiên "cộng sự": chat với MỘT trợ lý hoặc MỘT quy trình (trang Cộng sự, 0.59), và
+# từ 0.63.0 thêm phiên của trang Coding (`coding:<id repo>`).
 # Thanh lịch sử của trang Trò chuyện không liệt kê các kênh này: chúng thuộc về cột phải của
-# trang Cộng sự, lẫn vào đây thì người dùng thấy hai bản ghi cho một việc.
-KENH_CONG_SU = ("agent:", "workflow:")
+# trang Cộng sự hoặc cột trái của trang Coding, lẫn vào đây thì người dùng thấy hai bản ghi
+# cho một việc - và tệ hơn, gõ tiếp ở trang Trò chuyện là tin bay vào một phiên đang chạy với
+# cwd của một repo chứ không phải của brain.
+KENH_CONG_SU = ("agent:", "workflow:", "coding:")
 
 
 def loc_brain(brain, cot: str = "s.brain"):
