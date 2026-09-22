@@ -99,7 +99,7 @@ check("tên đăng nhập mặc định là admin", _doc(_env1, "JAVIS_ADMIN_USE
 # liệu) không được làm script tưởng là đã đặt rồi bỏ qua; mà ghi đè vào chính dòng comment
 # cũng sai, vì .env có biến nhưng vẫn nằm sau dấu #, server không thấy gì và người dùng lại
 # phải về đọc log. Thử bằng một .env dựng riêng chứ không dựa vào nội dung env.example: từ
-# 0.64.4 file mẫu không còn dòng chú thích nào (xem test_env_example_may_doc_duoc), nên bám
+# 0.64.6 file mẫu không còn dòng chú thích nào (xem test_env_example_may_doc_duoc), nên bám
 # vào nó là phép thử xanh vì lý do sai.
 _co_thich = "# JAVIS_ADMIN_USER=admin\n# JAVIS_ADMIN_PASSWORD=doi-mat-khau-manh-o-day\n"
 _env_ct, _ = _chay_khoi(_co_thich)

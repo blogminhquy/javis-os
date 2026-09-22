@@ -206,7 +206,7 @@ _NHO_DO: dict = {}
 def _cong_moi_truong():
     """Biến `JAVIS_ENABLE_WEB_CHAT` có BA trạng thái, không phải hai.
 
-        chưa đặt  -> None  = TỰ DÒ (mặc định từ 0.64.4)
+        chưa đặt  -> None  = TỰ DÒ (mặc định từ 0.64.6)
         1/true/…  -> True  = cho phép, nhưng vẫn phải có trình duyệt thật
         0/false/… -> False = ép TẮT, kể cả máy có đủ đồ
 

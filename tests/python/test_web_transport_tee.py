@@ -167,7 +167,7 @@ check("trang gốc thì id rỗng, không bịa ra một id",
 #
 # Bản 0.64.0 bắt đặt `JAVIS_ENABLE_WEB_CHAT=true` mới thấy model. Đó là bắt người dùng khai
 # một thứ máy tự biết, và tệ hơn: biến đó KHÔNG tạo ra được playwright, nên máy thiếu thư
-# viện mà đặt biến thì model hiện trong ô chọn rồi hỏng đúng lúc được chọn. Từ 0.64.4 câu
+# viện mà đặt biến thì model hiện trong ô chọn rồi hỏng đúng lúc được chọn. Từ 0.64.6 câu
 # trả lời đến từ việc DÒ máy, còn biến chỉ còn vai trò ép tắt.
 
 os.environ.pop("JAVIS_ENABLE_WEB_CHAT", None)
