@@ -285,23 +285,18 @@ def kha_dung() -> tuple[bool, str]:
 
 
 def _tim_chromium() -> str:
-    """Đường dẫn Chromium, mượn đúng chỗ `optional_tools` đã tải về. "" = để Playwright tự lo."""
+    """Đường dẫn Chromium, hỏi THẲNG `optional_tools`. "" = để Playwright tự lo.
+
+    Từ 0.64.9 hàm này không tự dò nữa mà uỷ hết cho chỗ đã tải trình duyệt về. Bản cũ tự dò
+    một kiểu riêng và bỏ sót `chrome-linux/headless_shell`, nên trang Công cụ báo "Sẵn sàng"
+    còn thẻ ChatGPT vẫn nói chưa có trình duyệt (chủ repo báo 22/09). Hai chỗ trả lời cùng một
+    câu hỏi thì sớm muộn cũng lệch nhau; giờ chỉ còn một.
+    """
     try:
         import optional_tools
-        p = optional_tools._da_tai() or optional_tools._chrome_he_thong()
-        if not p:
-            return ""
-        q = Path(p)
-        if q.is_file():
-            return str(q)
-        for ten in ("chrome-linux/chrome", "chrome-win/chrome.exe",
-                    "chrome-mac/Chromium.app/Contents/MacOS/Chromium"):
-            ung = q / ten
-            if ung.is_file():
-                return str(ung)
+        return optional_tools.duong_dan_chrome()
     except Exception:
-        pass
-    return ""
+        return ""
 
 
 class ChatGPTWebTransport:

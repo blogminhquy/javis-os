@@ -1,0 +1,216 @@
+"""Tải Chromium xong thì MỌI chỗ trong Javis phải thấy nó.
+
+    python tests/run.py do_trinh_duyet
+
+Lỗi thật, chủ repo báo 22/09 kèm ảnh hai trang cãi nhau trên CÙNG một máy:
+
+    trang Công cụ  ->  "Trình duyệt (Chromium)  ● Sẵn sàng  · 260 MB"
+    trang Models   ->  "Chưa có trình duyệt nào Javis lái được. Mở trang Công cụ rồi bấm tải"
+
+Hệ quả không nhìn thấy ngay: nút "Đăng nhập ChatGPT" chỉ vẽ khi engine Web báo dùng được, nên
+chủ repo tải đủ 400 MB rồi vẫn không có chỗ nào bấm để kết nối.
+
+Nguyên nhân: MỘT lệnh `playwright install chromium` để lại HAI thư mục, và hai file chạy mang
+TÊN KHÁC NHAU (đã soi bản Playwright thật trong container này):
+
+    chromium-1194/chrome-linux/chrome
+    chromium_headless_shell-1194/chrome-linux/headless_shell
+
+Bản cũ lấy thư mục đầu tiên `iterdir()` đưa ra - thứ tự trên đĩa, không sắp xếp - rồi chỉ tìm
+mỗi tên `chrome`. Rơi vào thư mục headless_shell là không thấy gì. Trang Công cụ thì chỉ hỏi
+"có thư mục không" nên vẫn báo xong. Không bên nào sai theo logic của chính nó, và đó đúng là
+lý do phải gộp về một nguồn thay vì vá từng bên.
+
+Bất biến phải giữ, viết dưới dạng một câu:
+**trang Công cụ báo "Sẵn sàng" khi và chỉ khi engine Web lái được.**
+"""
+from _paths import ROOT, SERVER  # noqa: E402,F401
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+os.environ["JAVIS_STATE_DIR"] = tempfile.mkdtemp(prefix="javis-dotd-")
+
+import optional_tools as ot  # noqa: E402
+import web_transport as wt  # noqa: E402
+
+# Engine Web cần HAI thứ: thư viện `playwright` và một trình duyệt. File này nói về thứ THỨ
+# HAI. Máy CI cố ý không cài playwright (46 MB tải về cho một thứ phần lớn máy không dùng), nên
+# ở đó `co_trinh_duyet()` luôn False vì lý do KHÁC hẳn. Trộn hai thứ vào một phép so là phép
+# thử đỏ trên CI mà xanh ở máy dev - đúng cái bẫy đã sập ở lần đẩy đầu.
+try:
+    import playwright  # noqa: F401
+    CO_PW = True
+except ImportError:
+    CO_PW = False
+
+_fails = []
+
+
+def check(name, cond, them=""):
+    print(("ok   " if cond else "FAIL ") + name + ((f"  [{them}]") if them and not cond else ""))
+    if not cond:
+        _fails.append(name)
+
+
+def _dung(*cac_ban):
+    """Dựng lại BROWSERS_DIR với đúng các thư mục build được kê, trả về đường dẫn mong đợi."""
+    import shutil
+    shutil.rmtree(ot.BROWSERS_DIR, ignore_errors=True)
+    for ten, binary in cac_ban:
+        p = ot.BROWSERS_DIR / ten / binary
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x", encoding="utf-8")
+    wt.dat_lai_do()
+
+
+DAY_DU = ("chromium-1194", "chrome-linux/chrome")
+RUT_GON = ("chromium_headless_shell-1194", "chrome-linux/headless_shell")
+
+
+# ============================================================
+# 1) Cảnh của chủ repo: một lệnh cài, hai thư mục
+# ============================================================
+
+_dung(DAY_DU, RUT_GON)
+_mong = str(ot.BROWSERS_DIR / "chromium-1194" / "chrome-linux" / "chrome")
+
+check("tìm ra file chạy được", ot.duong_dan_chrome() == _mong, ot.duong_dan_chrome())
+check("ưu tiên bản ĐẦY ĐỦ, không phải bản headless rút gọn",
+      "headless_shell" not in ot.duong_dan_chrome())
+check("engine Web tìm ra ĐÚNG file đó", wt._tim_chromium() == _mong, wt._tim_chromium())
+check("trang Công cụ báo Sẵn sàng", ot.trang_thai("browser")["trang_thai"] == "san_sang")
+if CO_PW:
+    check("engine Web lái được", wt.co_trinh_duyet(dung_nho=False) == (True, ""))
+else:
+    # Máy không có thư viện: engine vẫn phải từ chối, nhưng vì ĐÚNG lý do. Báo nhầm là thiếu
+    # trình duyệt thì người dùng đi tải thêm 400 MB nữa mà vẫn không chạy được.
+    check("thiếu thư viện -> nói thiếu THƯ VIỆN, không đổ cho trình duyệt",
+          "thư viện" in wt.co_trinh_duyet(dung_nho=False)[1].lower())
+
+# CANARY: dựng lại ĐÚNG thuật toán cũ và chứng minh nó ra rỗng trên chính cảnh này. Không có
+# mục này thì phép thử trên chỉ nói "hiện tại chạy được", không nói nó từng hỏng ở đâu.
+def _ban_cu():
+    thu_muc = ""
+    for d in ot.BROWSERS_DIR.iterdir():          # KHÔNG sắp xếp, y như bản cũ
+        if d.is_dir() and d.name.startswith("chromium"):
+            thu_muc = str(d)
+            break
+    if not thu_muc:
+        return ""
+    for ten in ("chrome-linux/chrome", "chrome-win/chrome.exe",
+                "chrome-mac/Chromium.app/Contents/MacOS/Chromium"):
+        if (Path(thu_muc) / ten).is_file():
+            return str(Path(thu_muc) / ten)
+    return ""
+
+
+# Thứ tự iterdir phụ thuộc đĩa nên bản cũ hỏng KHÔNG CHẮC CHẮN. Ép nó vào đúng nhánh xấu bằng
+# cách bỏ hẳn bản đầy đủ đi: lúc đó bản cũ SAI CHẮC CHẮN, còn bản mới vẫn phải chạy.
+_dung(RUT_GON)
+check("CANARY: bản cũ mù trước thư mục headless_shell", _ban_cu() == "")
+check("chỉ có bản rút gọn -> bản mới VẪN tìm ra file chạy",
+      ot.duong_dan_chrome().endswith("headless_shell"), ot.duong_dan_chrome())
+check("chỉ có bản rút gọn -> engine Web vẫn tìm ra file chạy",
+      wt._tim_chromium().endswith("headless_shell"), wt._tim_chromium())
+check("chỉ có bản rút gọn -> trang Công cụ vẫn Sẵn sàng",
+      ot.trang_thai("browser")["trang_thai"] == "san_sang")
+
+
+# ============================================================
+# 2) Bất biến: hai trang KHÔNG BAO GIỜ nói ngược nhau
+# ============================================================
+#
+# Đây là mục đáng giá nhất của file. Ba mục trên khoá một lỗi đã biết; mục này khoá cái LỚP
+# lỗi đó - bất kỳ ai sau này vá một bên mà quên bên kia đều làm nó đỏ.
+
+for _ten, _cac_ban in (("đủ hai thư mục", (DAY_DU, RUT_GON)),
+                       ("chỉ bản đầy đủ", (DAY_DU,)),
+                       ("chỉ bản rút gọn", (RUT_GON,)),
+                       ("thư mục rỗng (tải hỏng dở)", (("chromium-1194", "README"),)),
+                       ("chưa tải gì", ())):
+    _dung(*_cac_ban)
+    _cong_cu = ot.trang_thai("browser")["trang_thai"] == "san_sang"
+    _engine = bool(wt._tim_chromium())
+    # So theo ĐÚNG câu hỏi chung của hai bên: "máy này có trình duyệt chạy được không". Không
+    # hỏi `co_trinh_duyet()` ở đây vì nó còn gánh thêm câu hỏi về thư viện playwright.
+    # Máy chạy test có thể có sẵn Chrome hệ thống; lúc đó CẢ HAI cùng đúng, và bất biến vẫn giữ.
+    check(f"{_ten}: trang Công cụ và engine Web nói CÙNG một câu",
+          _cong_cu == _engine, f"cong_cu={_cong_cu} engine={_engine}")
+
+# Tải hỏng dở: không được báo xong, nhưng phải GỠ ĐƯỢC. Báo "chưa cài" rồi khoá luôn nút Gỡ là
+# người dùng mắc kẹt với một thư mục rác mà giao diện coi như không tồn tại.
+_dung(("chromium-1194", "README"))
+_tt = ot.trang_thai("browser")
+if not ot._chrome_he_thong():
+    check("tải hỏng dở -> KHÔNG báo Sẵn sàng", _tt["trang_thai"] == "chua_cai", _tt["ly_do"])
+    check("tải hỏng dở -> nói rõ phải gỡ rồi tải lại", "tải lại" in _tt["ly_do"])
+else:
+    print("bỏ qua 2 phép: máy này có sẵn Chrome hệ thống nên nhánh 'hỏng dở' không tới được")
+check("tải hỏng dở -> VẪN gỡ được", _tt["go_duoc"])
+
+
+# ============================================================
+# 3) Kết quả dò phải CỐ ĐỊNH, không theo thứ tự đĩa
+# ============================================================
+
+_dung(DAY_DU, RUT_GON, ("chromium-1200", "chrome-linux/chrome"))
+check("nhiều bản -> chọn bản MỚI NHẤT", "1200" in ot.duong_dan_chrome(), ot.duong_dan_chrome())
+
+_lan = {ot.duong_dan_chrome() for _ in range(20)}
+check("gọi 20 lần ra CÙNG một kết quả", len(_lan) == 1, _lan)
+
+_src = (SERVER / "optional_tools.py").read_text(encoding="utf-8")
+check("có sắp xếp tường minh chứ không tin vào iterdir", "sorted(" in _src)
+check("có ghi lại vì sao (hai thư mục, hai tên binary)", "headless_shell" in _src)
+
+_wt = (SERVER / "web_transport.py").read_text(encoding="utf-8")
+check("web_transport KHÔNG còn tự dò một kiểu riêng",
+      "chrome-linux/chrome" not in _wt)
+check("web_transport hỏi thẳng optional_tools",
+      "optional_tools.duong_dan_chrome()" in _wt)
+
+
+# ============================================================
+# 4) Cài xong là thấy ngay, không phải khởi động lại
+# ============================================================
+#
+# `web_transport` nhớ kết quả dò để khỏi quét đĩa mỗi lần vẽ trang Models. Không xoá cái nhớ đó
+# sau khi tải xong thì người dùng thấy báo "Xong" rồi thẻ ChatGPT vẫn kêu thiếu - và lời khuyên
+# duy nhất còn lại là "khởi động lại", thứ không ai tự đoán ra.
+
+_dung()
+wt.co_trinh_duyet()                                  # nhớ lại câu trả lời "chưa có"
+check("đã nhớ kết quả dò", "kq" in wt._NHO_DO)
+
+wt._NHO_DO["kq"] = (False, "câu trả lời CŨ")
+ot._quen_ket_qua_do()
+check("cài xong -> optional_tools bảo engine quên kết quả cũ", "kq" not in wt._NHO_DO)
+
+_dung(DAY_DU)                                        # _dung() gọi dat_lai_do, nên dò lại từ đầu
+if CO_PW:
+    check("quên xong thì dò lại ra câu MỚI", wt.co_trinh_duyet() == (True, ""))
+    check("và nhớ lại, lần sau không quét đĩa nữa", wt._NHO_DO.get("kq") == (True, ""))
+else:
+    check("quên xong thì dò lại, và lý do không còn là thiếu trình duyệt",
+          "thư viện" in wt.co_trinh_duyet()[1].lower())
+
+check("đường cài gọi hàm quên đó", _src.count("_quen_ket_qua_do()") >= 3)
+check("hàm quên nuốt lỗi, không làm hỏng lượt cài", "except Exception:" in
+      _src[_src.index("def _quen_ket_qua_do"):_src.index("def bat_dau_cai")])
+
+
+# ============================================================
+# 5) Không đụng tới thứ có sẵn của máy
+# ============================================================
+
+check("gỡ chỉ xoá thư mục Javis tải", "goc = PYLIBS_DIR if cong_cu ==" in _src)
+check("vẫn dò Chrome/Edge có sẵn trên máy trước khi bắt tải",
+      "_chrome_he_thong()" in _src[_src.index("def duong_dan_chrome"):])
+
+print()
+if _fails:
+    print(f"THẤT BẠI {len(_fails)}: {_fails}")
+    sys.exit(1)
+print("OK - test_do_trinh_duyet: tất cả pass")
