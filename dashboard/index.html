@@ -864,6 +864,9 @@
   <script src="/static/chat-slash.js?v=3"></script>
   <script src="/static/chat-acts.js?v=2"></script>
   <script src="/static/chat-marks.js?v=3"></script>
+  <!-- Khối tiến trình từng bước trong khung chat: phải đứng TRƯỚC app.js vì app.js gọi
+       window.JavisSteps ngay khi khung tool_call đầu tiên về. -->
+  <script src="/static/chat-steps.js?v=1"></script>
   <!-- Voice V1: khối ngữ cảnh giao diện + bộ nhận lệnh ui_action, nạp TRƯỚC app.js. -->
   <script src="/static/ui-context.js?v=1"></script>
   <script src="/static/ui-actions.js?v=1"></script>
