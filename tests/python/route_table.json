@@ -3405,6 +3405,84 @@
  },
  {
   "order": 343,
+  "type": "_IncludedRouter",
+  "path": null,
+  "name": null,
+  "methods": [],
+  "trong": null
+ },
+ {
+  "order": 344,
+  "type": "APIRoute",
+  "path": "/coding/repos",
+  "name": "coding_repos",
+  "methods": [
+   "GET"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 345,
+  "type": "APIRoute",
+  "path": "/coding/repos",
+  "name": "coding_repo_them",
+  "methods": [
+   "POST"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 346,
+  "type": "APIRoute",
+  "path": "/coding/repos/{rid}/delete",
+  "name": "coding_repo_xoa",
+  "methods": [
+   "POST"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 347,
+  "type": "APIRoute",
+  "path": "/coding/session/{sid}",
+  "name": "coding_phien",
+  "methods": [
+   "GET"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 348,
+  "type": "APIRoute",
+  "path": "/coding/session/{sid}",
+  "name": "coding_phien_dat",
+  "methods": [
+   "POST"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 349,
+  "type": "APIRoute",
+  "path": "/coding/session/{sid}/checkpoint",
+  "name": "coding_diem_hoi",
+  "methods": [
+   "POST"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 350,
+  "type": "APIRoute",
+  "path": "/coding/session/{sid}/rollback",
+  "name": "coding_rollback",
+  "methods": [
+   "POST"
+  ],
+  "trong": 343
+ },
+ {
+  "order": 351,
   "type": "APIRoute",
   "path": "/telegram/test",
   "name": "telegram_test",
@@ -3414,7 +3492,7 @@
   "trong": null
  },
  {
-  "order": 344,
+  "order": 352,
   "type": "APIRoute",
   "path": "/chat",
   "name": "chat_once",
@@ -3424,7 +3502,7 @@
   "trong": null
  },
  {
-  "order": 345,
+  "order": 353,
   "type": "APIRoute",
   "path": "/chat/stream",
   "name": "chat_stream",
@@ -3434,7 +3512,7 @@
   "trong": null
  },
  {
-  "order": 346,
+  "order": 354,
   "type": "APIRoute",
   "path": "/telegram/send-file",
   "name": "telegram_send_file",
