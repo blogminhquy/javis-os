@@ -3601,6 +3601,9 @@ def web_chat_status(request: Request):
         "kha_dung": ok,
         "ly_do": "" if ok else ly_do,
         "model_id": MODEL_WEB,
+        # Tên cookie phiên, để màn hình chỉ đúng dòng phải copy trong DevTools thay vì gõ cứng
+        # một cái tên có thể lệch với thứ server đang nhận.
+        "ten_cookie": web_transport.TEN_COOKIE_PHIEN,
         "profile_dir": str(web_transport.PROFILE_DIR),
         "transport_version": web_transport.TRANSPORT_VERSION,
         "selector_version": web_transport.SELECTOR_VERSION,
@@ -3641,6 +3644,45 @@ async def web_chat_login(request: Request):
     return {"ok": True, "da_dang_nhap": da_dn, "khung": dict(web_transport.KHUNG),
             "huong_dan": ("Đăng nhập ChatGPT ngay trong khung bên dưới, như đang dùng trình "
                           "duyệt bình thường. Xong thì bấm Kiểm tra lại.")}
+
+
+@app.post("/web-chat/cookie")
+async def web_chat_cookie(request: Request):
+    """Đăng nhập ChatGPT Web bằng cookie dán từ trình duyệt đã đăng nhập sẵn của chủ máy.
+
+    Vì sao đường này tồn tại bên cạnh màn đăng nhập: chủ máy hỏi 22/09 "sao phải cồng kềnh
+    vậy". Đúng, và đây là phần cắt được. Trình duyệt thì KHÔNG cắt được (Cloudflare buộc
+    `cf_clearance` vào IP, còn chatgpt.com đòi token proof-of-work do JS trong trang tự tính -
+    xem khối chú thích ở đầu web_transport.py), nhưng cookie PHIÊN thì mang sang máy khác được.
+    Nên chủ máy dán một giá trị là xong, không phải gõ mật khẩu trong khung chụp màn hình.
+
+    Javis KHÔNG ghi giá trị cookie ở bất kỳ đâu - kể cả nhật ký lỗi - và không bao giờ vọng
+    lại nó trong câu trả về. Cookie này mạnh ngang mật khẩu: cầm nó là vào được cả tài khoản.
+    Nó chỉ đi thẳng vào hồ sơ trình duyệt, đúng chỗ một phiên đăng nhập vẫn nằm.
+    """
+    if (_chan := _web_chat_chan(request)) is not None:
+        return _chan
+    ok, ly_do = web_transport.kha_dung()
+    if not ok:
+        return {"ok": False, "error": ly_do}
+    d = await request.json()
+    cookies, loi = web_transport.doc_cookie(str(d.get("cookie") or ""))
+    if loi:
+        return {"ok": False, "error": loi}
+    try:
+        da_dn, loi2 = await asyncio.to_thread(web_transport.chung().nap_cookie, cookies)
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if loi2:
+        web_state.ghi_hong(loi2, kind=web_state.NO_BROWSER)
+        return {"ok": False, "error": loi2}
+    web_state.ghi_dang_nhap(da_dn)
+    if not da_dn:
+        return {"ok": False, "error": ("Đã nạp cookie nhưng trang vẫn báo chưa đăng nhập. "
+                                       "Cookie có thể đã hết hạn, hoặc copy thiếu. Lấy lại một "
+                                       "lần nữa từ trình duyệt đang đăng nhập rồi thử lại.")}
+    return {"ok": True, "da_dang_nhap": True,
+            "huong_dan": "Đã đăng nhập bằng cookie. Chọn model chatgpt-web ở ô chọn model là dùng được."}
 
 
 @app.get("/web-chat/screen")
