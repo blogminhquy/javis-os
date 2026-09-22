@@ -117,15 +117,88 @@ def _chrome_he_thong() -> str:
     return ""
 
 
-def _da_tai() -> str:
-    """Thư mục bản Chromium Javis đã tải, rỗng nếu chưa có."""
-    try:
-        for d in BROWSERS_DIR.iterdir():
-            if d.is_dir() and d.name.startswith(("chromium", "chromium_headless_shell")):
-                return str(d)
-    except OSError:
-        pass
+# Một lần `playwright install chromium` để lại HAI thư mục, không phải một, và hai file chạy
+# mang TÊN KHÁC NHAU:
+#
+#     browsers/chromium-1194/chrome-linux/chrome
+#     browsers/chromium_headless_shell-1194/chrome-linux/headless_shell
+#
+# Đây là gốc của lỗi chủ repo báo 22/09: `_da_tai()` cũ trả về thư mục ĐẦU TIÊN mà `iterdir()`
+# đưa ra (thứ tự trên đĩa, không đoán trước được), rồi chỗ dò file chạy chỉ tìm mỗi tên
+# `chrome`. Rơi vào thư mục headless_shell là không thấy gì, nên trang Công cụ báo "Sẵn sàng"
+# còn thẻ ChatGPT báo "Chưa có trình duyệt nào Javis lái được" - cùng một máy, hai câu trả lời
+# ngược nhau.
+# Tên file chạy bên trong một thư mục build, theo THỨ TỰ ƯU TIÊN: bản đầy đủ trước, bản
+# headless rút gọn sau, ba hệ điều hành trong cùng một danh sách (một thư mục chỉ chứa đúng
+# một trong số này nên không cần hỏi đang chạy hệ nào).
+_BINARY_TRONG_BUILD = (
+    "chrome-linux/chrome",
+    "chrome-win/chrome.exe",
+    "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+    "chrome-linux/headless_shell",
+    "chrome-win/headless_shell.exe",
+    "chrome-mac/headless_shell",
+)
+
+
+def _binary_trong(thu_muc: Path) -> str:
+    """File chạy được bên trong MỘT thư mục build của Playwright, rỗng nếu không có."""
+    for ten in _BINARY_TRONG_BUILD:
+        try:
+            p = thu_muc / ten
+            if p.is_file():
+                return str(p)
+        except OSError:
+            pass
     return ""
+
+
+def _so_ban(ten: str) -> int:
+    """Số bản dựng ở đuôi tên thư mục (`chromium-1194` -> 1194). 0 khi không có."""
+    duoi = ten.rsplit("-", 1)[-1]
+    return int(duoi) if duoi.isdigit() else 0
+
+
+def _cac_ban_da_tai() -> list:
+    """Mọi thư mục build Chromium trong BROWSERS_DIR, theo thứ tự ƯU TIÊN.
+
+    Bản ĐẦY ĐỦ đứng trước bản headless rút gọn (Cloudflare soi kỹ hơn một `headless_shell`, mà
+    engine Web thì phải qua được cửa đó), bản mới đứng trước bản cũ. Thứ tự phải CỐ ĐỊNH chứ
+    không phải thứ tự `iterdir()` trả về: cùng một máy mà mỗi lần gọi ra một kết quả khác là
+    kiểu lỗi không ai dựng lại được.
+    """
+    try:
+        ds = [d for d in BROWSERS_DIR.iterdir()
+              if d.is_dir() and d.name.startswith("chromium")]
+    except OSError:
+        return []
+    return sorted(ds, key=lambda d: (d.name.startswith("chromium_headless_shell"),
+                                     -_so_ban(d.name), d.name))
+
+
+def duong_dan_chrome() -> str:
+    """Đường dẫn FILE CHẠY ĐƯỢC của trình duyệt trên máy này, rỗng nếu máy không có.
+
+    MỘT nguồn sự thật cho cả trang Công cụ lẫn engine ChatGPT Web. Trước 0.64.9 mỗi bên tự dò
+    một kiểu, nên hai trang nói ngược nhau mà không bên nào sai theo logic của chính nó. Gộp
+    lại đây thì cảnh đó không dựng lại được nữa: thẻ báo "Sẵn sàng" đúng khi và chỉ khi có một
+    file chạy được thật.
+    """
+    for d in _cac_ban_da_tai():
+        if (duong := _binary_trong(d)):
+            return duong
+    return _chrome_he_thong()
+
+
+def _da_tai() -> str:
+    """Thư mục bản Chromium Javis đã tải, rỗng nếu chưa có.
+
+    CỐ Ý không đòi thư mục phải có file chạy: hàm này còn trả lời câu "có gì để gỡ không" và
+    "tính dung lượng ở đâu". Một lần tải hỏng dở dang vẫn phải gỡ được bằng nút, không thì
+    người dùng mắc kẹt với một thư mục rác mà giao diện coi như không tồn tại.
+    """
+    ds = _cac_ban_da_tai()
+    return str(ds[0]) if ds else ""
 
 
 def _da_cai_pylib() -> str:
@@ -187,20 +260,27 @@ def doc_mb(so_byte: int) -> str:
 def _trang_thai_browser(d: dict, viec: dict) -> dict:
     dang_chay = bool(viec.get("dang_chay"))
     tai_ve = _da_tai()
-    he_thong = "" if tai_ve else _chrome_he_thong()
+    # "Sẵn sàng" phải nghĩa là CÓ FILE CHẠY ĐƯỢC, không phải "có thư mục". Thẻ này nói đúng
+    # một điều người dùng quan tâm: bấm tiếp được chưa. Đọc thư mục rồi báo xong là đúng chữ
+    # mà sai việc, và chỗ dùng thật ở trang Models sẽ cãi lại ngay.
+    chay_duoc = duong_dan_chrome()
+    tu_tai = bool(tai_ve and chay_duoc and chay_duoc.startswith(str(BROWSERS_DIR)))
     if dang_chay:
         tt, ly_do = "dang_cai", "Đang tải trình duyệt về, việc này mất vài phút."
-    elif tai_ve:
+    elif tu_tai:
         tt, ly_do = "san_sang", "Javis đã tải sẵn một bản Chromium riêng."
-    elif he_thong:
-        tt, ly_do = "san_sang", f"Dùng trình duyệt có sẵn trên máy: {he_thong}"
+    elif chay_duoc:
+        tt, ly_do = "san_sang", f"Dùng trình duyệt có sẵn trên máy: {chay_duoc}"
+    elif tai_ve:
+        tt, ly_do = "chua_cai", ("Có thư mục trình duyệt nhưng thiếu file chạy, bản tải về "
+                                 "hỏng dở. Bấm Gỡ rồi tải lại.")
     else:
         tt, ly_do = "chua_cai", "Máy này chưa có trình duyệt nào Javis lái được."
     d.update({
         "trang_thai": tt, "ly_do": ly_do,
         "go_duoc": bool(tai_ve),           # chỉ gỡ được thứ CHÍNH JAVIS tải về
-        "duong_dan": tai_ve or he_thong,
-        "dung_luong": doc_mb(_dung_luong(Path(tai_ve))) if tai_ve else "",
+        "duong_dan": chay_duoc or tai_ve,
+        "dung_luong": doc_mb(_dung_luong(BROWSERS_DIR)) if tai_ve else "",
     })
     return d
 
@@ -336,17 +416,35 @@ async def _chay_tai(cong_cu: str) -> None:
         return
 
     v["dang_chay"] = False
-    xong = _da_cai_pylib() if cong_cu == "pylib-playwright" else _da_tai()
+    xong = _da_cai_pylib() if cong_cu == "pylib-playwright" else duong_dan_chrome()
     if ma != 0:
         v["loi"] = f"Lệnh cài trả mã lỗi {ma}. Xem log bên dưới."
     elif not xong:
         v["loi"] = "Lệnh chạy xong nhưng không thấy thứ vừa cài đâu."
     elif cong_cu == "pylib-playwright":
         nap_pylibs()
+        _quen_ket_qua_do()
         v["tien_do"] = "Xong. Khởi động lại Javis để model ChatGPT Web hiện ra."
     else:
+        _quen_ket_qua_do()
         v["tien_do"] = "Xong."
     print(f"[cong-cu] tải {cong_cu}: mã {ma}, lỗi={v.get('loi') or 'không'}", file=sys.stderr)
+
+
+def _quen_ket_qua_do() -> None:
+    """Bảo engine Web quên kết quả dò cũ sau khi vừa cài xong.
+
+    `web_transport` nhớ lại kết quả dò để khỏi quét đĩa mỗi lần vẽ trang Models. Không xoá thì
+    người dùng bấm tải, thấy báo xong, rồi thẻ ChatGPT vẫn nói thiếu trình duyệt cho tới khi
+    khởi động lại - và không ai đoán được là phải khởi động lại.
+
+    Import muộn để tránh vòng: `web_transport` import ngược module này.
+    """
+    try:
+        import web_transport
+        web_transport.dat_lai_do()
+    except Exception:
+        pass
 
 
 def bat_dau_cai(cong_cu: str = "browser") -> dict:
