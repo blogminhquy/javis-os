@@ -1,7 +1,7 @@
 # ChatGPT Web: một model của thẻ ChatGPT
 
-**Phiên bản:** v3.0. Thay v2.1 (hiểu sai mục đích: tưởng đây là đường dự phòng khi Codex hết
-quota), v2.0 và v1.0.
+**Phiên bản:** v4.0. Gộp bản rà soát chéo `JAVIS_OS_WEB_ENGINE_SPEC.md` (2026-09-22) vào v3.0:
+thêm mục 18-22, và ĐÍNH CHÍNH một chỗ v2.0/v3.0 nói quá (mục 3).
 **Trạng thái:** chốt phạm vi và chốt mục đích. **Chưa viết mã**; cổng duy nhất là spike ở
 mục 13.
 **Phạm vi:** một model id mới trong thẻ ChatGPT sẵn có, một module transport, một bộ dịch
@@ -160,12 +160,26 @@ main.py:12101   main.py:15091   main.py:15568   main.py:16729
 fast_path_runtime.py:282        adaptive_context_runtime.py:322
 ```
 
-Chúng chi phối đường tắt fast-path, ngân sách ngữ cảnh và nhãn thuê bao. `chatgpt-web` thuộc
-provider `kind: "oauth"`, nên nếu nó **không** có tool thì sáu chỗ này nói dối, và phải sửa cả
-sáu để hỏi theo model thay vì theo provider.
+**Đính chính của v4.0.** Bản v2.0 và v3.0 viết rằng sáu chỗ này "chi phối đường tắt fast-path,
+ngân sách ngữ cảnh và nhãn thuê bao", và nếu `chatgpt-web` không có tool thì "cả sáu nói dối".
+Đọc lại từng chỗ thì **nói quá**:
+
+| Chỗ | Thật ra làm gì |
+|---|---|
+| `main.py:12101`, `main.py:16729` | Chỉ hẹn `_schedule_registry_discovery_shadow`, tức chạy SHADOW |
+| `main.py:15091` | Nhãn `thue_bao` trên trang chẩn đoán |
+| `main.py:15568` | Nhánh theo `kind_hien_tai` |
+| `fast_path_runtime.py:282`, `adaptive_context_runtime.py:322` | Đổi hành vi thật, nhưng **canary allocation mặc định 0** |
+
+Nên hậu quả của việc sai bất biến này là **nhỏ**: shadow và nhãn, không phải lượt chat hỏng.
+Vẫn phải làm đúng, nhưng đừng lấy nó làm lý do chặn Phase 1.
 
 Cho nó tool thì bất biến giữ nguyên, không đụng chỗ nào trong sáu chỗ đó. Cộng thêm: đó chính
 là thứ chủ dự án muốn từ đầu, "vẫn dùng được tool như bản Codex".
+
+**Hệ quả cho Phase 1 (chat thuần, chưa tool):** trong cửa sổ đó `chatgpt-web` mang
+`kind: "oauth"` mà không có tool. Chấp nhận được vì hậu quả chỉ là shadow và nhãn, nhưng phải
+có một dòng trong nhật ký chạy nói rõ, kẻo trang chẩn đoán nói sai mà không ai biết vì sao.
 
 **Nhưng phải nói chính xác là tool NÀO.** `CLAUDE.md` đã chia sẵn hai hạng:
 
@@ -631,7 +645,106 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
   allowlist và từ chối `cwd` ngoài `workspace_root`; env truyền xuống **không** chứa biến của
   server; quá `timeout` thì bị giết và báo rõ.
 
-## 17. Để lần sau
+## 18. Nén kết quả tool trước khi gửi lại
+
+Một vòng web đắt về thời gian, và tin nhắn đầu đã gánh cả system prompt. Nên kết quả tool
+**không được đổ nguyên si** vào lượt sau.
+
+| Tool | Trả về gì |
+|---|---|
+| Đọc file | Khoảng liên quan, hoặc cắt ở trần. Không bao giờ nguyên file lớn |
+| Chạy test | Mã thoát, danh sách test hỏng, phần stderr/stdout cuối liên quan |
+| Tìm trong file | Danh sách khớp đã xếp hạng, không phải mọi dòng |
+| `git diff` | Cắt theo trần, quá thì tóm tắt số file và số dòng |
+
+Model thiếu thì gọi lại xin thêm. Một vòng xin thêm rẻ hơn một lượt bị đầy ngữ cảnh.
+
+## 19. Hợp đồng sự kiện chung giữa các engine
+
+Javis đã có hợp đồng ngầm: mọi engine sinh dict `{"type": ...}` mà `CodexCLI.query` và
+`claude_sdk_engine` cùng tuân theo (`type` nhận `session`, `text`, `tool_call`, `item`,
+`final`, `error`, `usage`).
+
+Web Engine **map vào đúng hợp đồng đó**, không đẻ hợp đồng thứ hai. Cụ thể:
+
+```
+transport nhận mảnh chữ      → {"type": "text"}
+mở luồng web mới             → {"type": "session"}
+bóc được khối javis_tool     → {"type": "tool_call"}
+xong lượt                    → {"type": "final"}
+lỗi transport / hết lượt     → {"type": "error"}
+```
+
+Không có `usage` vì web không trả số token (mục 3.2). Dashboard không phải sửa gì.
+
+## 20. Cờ năng lực của engine
+
+Để giao diện và bộ chọn tool khỏi đoán, mỗi engine khai năng lực thật. `chatgpt-web` theo
+từng phase:
+
+| Cờ | Phase 1 | Phase 2 | Phase 4 |
+|---|---|---|---|
+| `chat` | có | có | có |
+| `tools` | **không** | có | có |
+| `files` | không | có | có |
+| `mcp` | không | có | có |
+| `coding` | không | không | có |
+| `shell` | không | không | có |
+| `vision` | không | không | không |
+| `web_image_generation` | không | không | không |
+| `native_thread` | có (Phase 3) | có | có |
+| `reasoning_control` | không | không | không |
+| `usage_tokens` | không | không | không |
+| `background` | không | không | không |
+
+**Không khai một cờ chưa chạy được.** Khai thừa là hứa với chính bộ chọn tool của Javis, rồi
+nó gửi xuống một tool mà engine không dùng nổi.
+
+## 21. Sinh ảnh: hai đường, và phải nói rõ đường nào
+
+Mục 5 đã nêu: `javis_generate_image` đi OAuth Responses, **không** qua trình duyệt. Nên khi
+đang chọn `chatgpt-web` mà bảo tạo ảnh, ảnh vẫn ra, nhưng tiêu hạn mức ảnh qua API chứ không
+tiêu lượt chat web.
+
+Luật:
+
+- Engine là `chatgpt-web` thì đường mặc định **nên** là sinh ảnh trong chính phiên web, khi
+  năng lực đó có (cờ `web_image_generation`).
+- Chưa có thì **được phép** dùng `javis_generate_image`, nhưng **phải nói ra**: "ảnh này tạo
+  qua đường API của gói, không qua phiên web".
+- **Không bao giờ** lặng lẽ tiêu hạn mức của túi khác. Chủ máy chọn engine nào là chọn cả túi
+  quota của engine đó.
+
+Đường web (để lần sau, mục 23): gọi luồng tạo ảnh của trang, chờ xong, bóc ảnh ra, tải về
+`attachments/` rồi nhúng như mọi ảnh khác.
+
+## 22. Đo đạc và versioning transport
+
+**Đo được gì thì đo, đừng bịa cái không đo được.** Web không trả token, nên bỏ hẳn cột token
+cho model này và đo thứ khác:
+
+```
+web_turns          tool_rounds        tool_batch_size
+wall_time          repair_rounds      transport_errors
+challenge_count    session_expiry     task_completed
+```
+
+Hai chỉ số đáng nhìn nhất: **thời gian trung vị một lượt** và **tỷ lệ lượt xong không cần vòng
+sửa khuôn**. Cái thứ hai chính là thước đo sức khoẻ của giao thức tool qua chữ.
+
+**Versioning.** Transport web mong manh theo bản chất, nên ghi phiên bản của ba thứ và để test
+bắt được khi trang đổi:
+
+```
+transport_version        đoạn tee fetch
+selector_version         selector DOM (ô soạn, nút gửi, nút tải file)
+tool_protocol_version    khuôn khối javis_tool
+```
+
+Mọi selector DOM nằm **trong một chỗ duy nhất** của transport. Rải selector khắp nơi là lần
+sau OpenAI đổi giao diện thì phải đi tìm.
+
+## 23. Để lần sau
 
 - Lệnh phiên `/web` và chip "hỏi Web lượt tới" trong phiên Coding, để hỏi một câu mà vẫn ở
   trên Codex. Đã đặc tả trong v1.0 mục 7 (bản cũ); rẻ, nhưng chỉ làm sau khi đường chọn model chạy ngon.
@@ -642,6 +755,12 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
   hẳn Playwright, và chủ dự án vốn đã định làm extension. Playwright profile cố định vẫn là
   đường đúng cho spike. Cần kiểm trước: service worker MV3 bị kill khi rảnh, nên kết nối dài
   có thể phải qua offscreen document.
+- **Sinh ảnh THẲNG trong phiên web** (mục 21): gọi luồng tạo ảnh của trang, chờ xong, bóc ảnh,
+  tải về `attachments/`. Đây là điều kiện để cờ `web_image_generation` bật được.
+- **Nhận ảnh và file đính kèm qua widget tải lên của trang**, để bật cờ `vision`.
+- **Engine Registry**: gom việc dựng engine vào một chỗ thay cho 72 nhánh `provider ==` rải
+  trong `main.py`. Là refactor dần, và KHÔNG được chặn Phase 1: bản rà soát chéo xếp nó thành
+  bước 1, làm vậy thì nhiều tuần nữa mới có thứ chạy được.
 - Máy trạng thái provider dùng chung cho mọi nhà, bê từ sổ mục 10 ra.
 - Task Handoff Packet (bản rà soát 2026-09-22). Đáng làm cho Javis, nhưng KHÔNG thuộc dự án
   này: nó sinh ra cho cảnh chuyển engine giữa chừng, mà mục đích ở đây là chọn tay theo tiện.
