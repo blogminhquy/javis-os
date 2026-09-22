@@ -9,6 +9,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - **Trang Công cụ có thêm mục "Thư viện lái trình duyệt".** Đây là thứ model **ChatGPT Web** cần. Bấm một nút là Javis tự tải về, khỏi mở terminal gõ lệnh. Tải xong nhớ khởi động lại Javis thì model mới hiện trong ô chọn model.
 - Cài **theo yêu cầu** nên bản cài mặc định không nặng thêm một byte nào: gói này khoảng 143 MB mà phần lớn máy không dùng tới. Gỡ cũng bằng một nút, và chỉ gỡ đúng bản Javis tải, không đụng gì khác trên máy.
 - Cả hai mục ở trang Công cụ đều tải vào ổ dữ liệu nên **sống qua mỗi lần cập nhật**, không phải tải lại.
+- **Đăng nhập ChatGPT ngay trong Javis, không cần máy chủ có màn hình.** Bấm Đăng nhập ở thẻ ChatGPT là trang ChatGPT hiện ra ngay trong dashboard: bấm và gõ như đang dùng trình duyệt bình thường, xong khung tự đóng. Nhờ vậy model **ChatGPT Web** dùng được cả trên VPS.
+### Sửa lỗi
+- **Engine ChatGPT Web không còn hỏng khi hai việc chạy chồng nhau.** Trước đây mở trang và gửi tin cùng lúc có thể làm lượt chat chết giữa chừng. Nay mọi thao tác trình duyệt đi qua một hàng đợi duy nhất.
 
 ## [0.64.7] - 2026-09-22
 ### Thêm mới
