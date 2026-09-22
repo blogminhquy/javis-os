@@ -32,6 +32,7 @@ except Exception:
     pass
 
 import asyncio  # noqa: E402
+import ast
 import inspect  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -136,10 +137,13 @@ check("câu từ chối nói rõ đây là ranh giới brain, không phải lỗ
 loi_ngoai = _no(mo({"path": str(NGOAI)}))
 check("bật staging vẫn từ chối file khác trên ổ đĩa", loi_ngoai.startswith("ERROR:"))
 
-# `_write` để ValueError bay ra; `mcp_client.call_route` bọc nó thành "ERROR: …" trước khi
-# tới model. Ở đây gọi thẳng callable nên bắt đúng cái nó ném.
+# `_write` TRẢ VỀ câu "ERROR: …" thay vì ném ValueError (đổi ở 0.64, cùng lúc thêm gốc thứ
+# hai cho phiên Coding): engine Web chạy vòng tool bằng chữ, một exception bay ra giữa lô tool
+# là chết cả lượt, còn một câu lỗi thì model đọc rồi tự sửa đường dẫn ở vòng sau. Bất biến
+# "ghi ra staging bị chặn" KHÔNG đổi, chỉ đổi cách báo.
+_ghi_stage = _no(_route(True)["javis_write_file"]["call"]({"path": str(DAN), "content": "x"}))
 check("ghi file ra staging vẫn bị chặn (chỉ nới cho ĐỌC)",
-      _chan(_no, _route(True)["javis_write_file"]["call"]({"path": str(DAN), "content": "x"})))
+      isinstance(_ghi_stage, str) and _ghi_stage.startswith("ERROR:"))
 check("file vừa dán KHÔNG bị ghi đè",
       DAN.read_text(encoding="utf-8") == "đoạn văn dài user vừa dán")
 
@@ -154,13 +158,47 @@ check("discover_all mặc định staging=False",
 
 src = Path(SERVER, "mcp_hub.py").read_text(encoding="utf-8")
 check("staging nằm trong khoá cache của discover_all (hai lượt khác cờ không dùng chung cache)",
-      "bool(force_lazy), lang, bool(staging))" in src)
+      "bool(force_lazy), lang, bool(staging)" in src)
+check("workspace_root cũng nằm trong khoá cache (hai phiên coding khác repo không dùng chung)",
+      "bool(staging), _ten_goc(workspace_root)" in src)
 
-# Đúng HAI chỗ bật cờ, cả hai nằm trong `_api_stream_mcp` (discover_all + registry_inventory).
-# Mọc thêm chỗ thứ ba ở đâu đó - nhất là nhánh bot chuyên trách - là test này đỏ.
-main_src = [l for l in Path(SERVER, "main.py").read_text(encoding="utf-8").splitlines()
-            if "staging=True" in l and not l.lstrip().startswith("#")]
-check("chỉ đường chat của chủ bật staging", len(main_src) == 2)
+# Cờ staging chỉ được bật trên ĐƯỜNG CHAT CỦA CHỦ. Mọc thêm ở nhánh bot chuyên trách là
+# khách lạ đọc được vùng nhận file của khung chat - đúng lỗ mà 0.21.0 đã phải vá.
+#
+# Soi bằng AST chứ không đếm dòng (0.64.0): bản cũ khoá con số 2, nên engine Web thêm một
+# chỗ bật cờ Ở ĐÚNG đường chat dashboard cũng làm test đỏ, và cách sửa nhanh nhất lúc đó là
+# nâng con số lên - tức là khoá đúng thứ không cần khoá, rồi mất luôn thứ cần khoá. Cái phải
+# giữ là HÀM NÀO bật, không phải BAO NHIÊU chỗ bật.
+_HAM_DUOC_BAT = {
+    "_api_stream_mcp",                 # engine API, đường chat của chủ (discover + inventory)
+    "websocket_endpoint._do_turn",     # nhánh engine của dashboard, cũng là chủ
+}
+
+
+def _cho_bat_staging(duong_dan):
+    """(tên hàm lồng nhau, số dòng) của mọi chỗ truyền staging=True."""
+    ra = []
+
+    def di(node, chuoi):
+        for con in ast.iter_child_nodes(node):
+            ten = chuoi + [con.name] if isinstance(
+                con, (ast.FunctionDef, ast.AsyncFunctionDef)) else chuoi
+            if isinstance(con, ast.Call):
+                for kw in con.keywords:
+                    if (kw.arg == "staging" and isinstance(kw.value, ast.Constant)
+                            and kw.value.value is True):
+                        ra.append((".".join(ten), con.lineno))
+            di(con, ten)
+
+    di(ast.parse(Path(duong_dan).read_text(encoding="utf-8")), [])
+    return ra
+
+
+_bat = _cho_bat_staging(Path(SERVER, "main.py"))
+_ham_la = sorted({h for h, _ in _bat} - _HAM_DUOC_BAT)
+check(f"chỉ đường chat của chủ bật staging (lạ: {_ham_la})", not _ham_la)
+check("và nó vẫn thực sự được bật ở đó (đừng xanh vì không còn chỗ nào bật)",
+      {h for h, _ in _bat} == _HAM_DUOC_BAT)
 
 print()
 if _fails:

@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.0] - 2026-09-22
+### Thêm mới
+- **Thêm model `chatgpt-web` trong thẻ ChatGPT.** Chọn nó ở ô chọn model là Javis chạy bằng phiên ChatGPT trong trình duyệt của bạn, không tiêu lượt Codex. Vẫn gọi được tool, đọc ghi file trong bộ não, đặt lịch, chạy skill như mọi bộ não khác.
+- Cần bật một lần bằng biến môi trường `JAVIS_ENABLE_WEB_CHAT=true` rồi khởi động lại. Chưa bật thì model này không hiện ra, và mọi thứ khác chạy y như cũ.
+- Trang **Models**, trong thẻ ChatGPT, có thêm nút mở cửa sổ đăng nhập, nút kiểm tra lại và nút đóng trình duyệt. Javis không cầm mật khẩu của bạn: bạn tự đăng nhập một lần trong cửa sổ đó.
+- Lưu ý khi dùng: mỗi lượt là một cuộc chat thật trên chatgpt.com, nên **Memory** và **Custom instructions** của tài khoản sẽ ảnh hưởng câu trả lời. Muốn Javis trả lời thuần theo prompt của mình thì tắt hai thứ đó trong cài đặt ChatGPT. Mỗi vòng gọi tool cũng mất vài chục giây, nên việc nhiều bước vẫn nên để Codex.
 ## [0.63.10] - 2026-09-22
 ### Sửa lỗi
 - **Bộ não Antigravity giờ cũng hiện tiến trình.** Khối "Đã chạy N bước" thêm ở bản trước không bao giờ xuất hiện khi chạy Antigravity, kể cả lúc nó gọi công cụ thật. Lý do: `agy` báo việc nó làm theo một khuôn mà Javis đọc sót, nên mọi lần gọi công cụ rơi vào hư không.
