@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.3] - 2026-09-22
+### Sửa lỗi
+- **Mở trang Cộng sự nhanh hơn nhiều lần.** Danh sách trợ lý đang kéo theo cả bài prompt hệ thống của từng người: đo trên một bộ não 14 trợ lý là **366 KB** cho một thứ chỉ hiện tên và vai trò. Nay còn **2,9 KB**. Đây là chỗ làm cột trái trống trơn mấy giây mỗi lần mở trang từ menu linh vật.
+- Bài prompt vẫn lấy đủ, nhưng chỉ cho đúng trợ lý bạn đang mở trong ô sửa. Nếu lần lấy đó hỏng, Javis báo lỗi kèm nút thử lại thay vì mở ô trống (mở trống rồi bấm Lưu là mất bài prompt thật).
+- Ô chọn trợ lý trong Chatbot, lưới thẻ trong Studio và ô chọn từng bước của quy trình cũng nhẹ theo.
+
 ## [0.64.2] - 2026-09-22
 ### Sửa lỗi
 - **Menu chọn thư mục trong mục Coding gọn lại.** Tên thư mục và đường dẫn để chữ nhỏ, đọc lướt là đủ, nên menu không còn choán nửa màn hình như trước.
