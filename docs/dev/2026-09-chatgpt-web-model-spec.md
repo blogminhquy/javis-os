@@ -18,9 +18,12 @@ Chủ dự án đã nghe lập luận đó hai lần và **chốt khác**: ChatG
 chọn model, nằm trong thẻ ChatGPT**, như một model bình thường. Đó là quyết định, và tài liệu
 này làm theo.
 
-Nỗi lo về giá không bị bỏ đi, nó chuyển thành **tham số thiết kế**: mục 5 đặt trần vòng tool
-riêng cho model này cộng một bộ đếm lượt hiện ngay trên màn hình, để chủ máy nhìn thấy giá
-mình đang trả thay vì bị chặn.
+**Quyết định thứ hai, cùng ngày.** Bản v2.0 đầu tiên đặt trần vòng tool riêng là 6, sợ một
+lượt ăn 31 tin nhắn. Chủ dự án cho biết **dung lượng gói chat của họ rất lớn, không cần lo số
+tin nhắn**. Trần riêng bị bỏ, quay về trần chung 30.
+
+Nhưng bỏ trần đó thì một ràng buộc khác lên thế chỗ, và ràng buộc mới cứng hơn: **thời gian**.
+Mục 5 viết lại theo ràng buộc đó.
 
 Giữ lại từ v1.0: transport (mục 8), sổ trạng thái và phân loại lỗi (mục 9), ranh giới an toàn
 (mục 10), Cổng 0, spike và tiêu chí giết.
@@ -124,6 +127,51 @@ thì biết ngay vì sao không được, chứ không tưởng Javis hỏng.
 Muốn `chatgpt-web` có Bash là một quyết định khác hẳn: nó nghĩa là cấp tool shell qua hub, và
 cấp thế thì **cả sáu engine API cũng có**. Việc đó không thuộc tài liệu này.
 
+### 3.1. Kiểm đếm tool thật, để khỏi hứa mồm
+
+Đếm từ `mcp_hub.py` và `system/plugins/` ngày 2026-09-22:
+
+| Nhóm | Tool |
+|---|---|
+| Builtin vault | `javis_read_file`, `javis_list_dir`, `javis_write_file`, `javis_use_skill`, `javis_connections` |
+| Điều phối | `javis_task`, `javis_schedule`, `javis_workflow`, `javis_ui` |
+| Tiện ích | `javis_now`, `javis_date_add`, `javis_generate_image`, `javis_add_mcp`, `javis_tool_stats`, `javis_youtube_read` |
+| Máy | `javis_app_list`, `javis_app_open`, `javis_app_close` |
+| Meta, Zalo | `meta_ads_*` (4), `fb_pages_*` (6), `fb_monitor`, `zalo_send_image` |
+| MCP | Mọi connector đã nối |
+
+Khoảng **26 tool plugin bundled cộng 5 builtin**, cộng toàn bộ MCP.
+
+Hai điểm dễ tưởng là thiếu mà thật ra có:
+
+- **Đính kèm trong khung chat đọc được.** Hub cho `javis_read_file` đọc thêm vùng `.staging`
+  khi `staging=True` (`mcp_hub.py:447`), nên file người dùng vừa kéo vào vẫn tới được model.
+- **Tạo ảnh vẫn chạy.** `javis_generate_image` gọi Codex Responses bằng OAuth
+  (`system/plugins/image-chatgpt/`), không phụ thuộc phiên trình duyệt.
+
+### 3.2. Sáu thứ thiếu RIÊNG của bản web, ngoài bảng hạng
+
+Đây là phần không nằm trong bảng hạng nào và dễ bị bỏ sót nhất.
+
+1. **Không có function calling.** Không có gì ép model trả đúng khuôn ngoài lời dặn trong
+   prompt. Sáu engine API được nhà cung cấp bảo đảm khuôn tool call; model này thì không. Đây
+   là rủi ro kỹ thuật lớn nhất của cả dự án, và là tiêu chí giết thứ năm ở mục 12.
+2. **Không có system role.** Toàn bộ system prompt của Javis (CLAUDE.md, MEMORY, router skill,
+   danh sách tool) phải nhét vào **tin nhắn đầu tiên** như chữ thường. Codex có trường
+   `instructions` riêng (`engine._codex_input`), web không có gì cả.
+3. **Custom instructions và Memory của chính tài khoản sẽ trộn vào mọi lượt.** API không bao
+   giờ có thứ này. Một dòng custom instruction kiểu "luôn trả lời thật ngắn" sẽ bóp mọi câu
+   Javis hỏi, và triệu chứng sẽ trông như Javis hỏng. **Thẻ Models phải dặn tắt Memory và
+   custom instructions, hoặc dùng một tài khoản riêng.**
+4. **Không có số token.** `usage_store.record` sẽ ghi 0, nên trang Sử dụng và trang Tiết kiệm
+   **mù với model này**. Bộ đếm tin nhắn ở mục 9 là thứ thay thế duy nhất, và nó là đơn vị
+   khác, không so được với các model kia.
+5. **Không chỉnh được mức suy nghĩ.** Không có `reasoning effort`, cũng không có prompt
+   caching. Web tự quyết theo model chọn trong giao diện của nó.
+6. **Ảnh thì ngược đời.** Hạng API của Javis hiện không gửi ảnh cho model (không có
+   `image_url` hay `input_image` ở đâu trong `engine.py`), trong khi ChatGPT Web tự nó xem ảnh
+   rất tốt. Khai thác được phải lái widget tải file lên; không thuộc tài liệu này, ghi ở mục 16.
+
 ## 4. Giao thức tool qua chữ
 
 ChatGPT Web không có function calling. Nên vòng tool phải chạy bằng chữ, đúng kiểu ReAct.
@@ -149,7 +197,21 @@ Ba ranh giới của bộ dịch:
 - **Cưỡng chế `min_mode` ở hub như mọi engine khác.** Model gõ ra tên một tool mà mức quyền
   hiện tại không cho là hub chặn, không phải bộ dịch tự xét.
 
-## 5. Giá một lượt, và cái phanh
+### Chế độ lazy nhân đôi số vòng, phải biết trước
+
+Hub có tầng lazy (`mcp_hub.py:612-669`): mặc định `auto`, bật khi pool vượt **40 tool** hoặc
+**6000 ký tự schema**. Bật rồi thì tool MCP bị giấu sau hai meta-tool `javis_search_tools` và
+`javis_run_tool`, nên **mỗi lần dùng một tool MCP tốn hai vòng**: tìm, rồi mới gọi.
+
+Với engine API thì hai vòng đó là hai lời gọi HTTP, không ai để ý. Với `chatgpt-web` thì đó là
+**hai lượt gõ vào ô chat**, tức gấp đôi cả thời gian lẫn số tin nhắn. Máy nào đã nối vài
+connector là chạm ngưỡng ngay.
+
+Bộ dịch **không được tự tắt lazy** để đi tắt: tắt là đẩy nguyên hàng trăm schema vào tin nhắn
+đầu, mà tin nhắn đầu đã phải gánh cả system prompt (mục 3.2 điểm 2). Đây là đánh đổi có thật,
+ghi ra để mục 5 tính đúng thời gian, chứ không phải thứ sửa được trong tài liệu này.
+
+## 5. Giá một lượt: tin nhắn rẻ, thời gian mới đắt
 
 Với model này, **một vòng tool là một tin nhắn web**. Một lượt chat tốn:
 
@@ -157,18 +219,37 @@ Với model này, **một vòng tool là một tin nhắn web**. Một lượt c
 1 tin nhắn  +  số vòng tool
 ```
 
-Trần chung của Javis là 30 vòng (`JAVIS_MAX_TOOL_ROUNDS`). Để nguyên 30 cho model này nghĩa là
-một lượt có thể ăn 31 tin nhắn, tức cả cửa sổ quota chat.
+Chủ dự án đã chốt: gói chat rất lớn, **số tin nhắn không phải ràng buộc**. Nên giữ trần chung
+30 vòng (`JAVIS_MAX_TOOL_ROUNDS`), không đặt trần riêng. Biến `JAVIS_WEB_MAX_TOOL_ROUNDS` vẫn
+có, mặc định bằng trần chung, để ai dùng gói nhỏ hơn tự hạ.
 
-Nên:
+### Ràng buộc thật là THỜI GIAN, không phải tin nhắn
 
-- Trần riêng `JAVIS_WEB_MAX_TOOL_ROUNDS`, **mặc định 6**, kẹp trên bằng trần chung. Chạm trần
-  thì nói đúng như `_het_vong_msg` đang nói: còn dở, chia nhỏ yêu cầu, hoặc nâng trần.
-- **Bộ đếm hiện trên màn hình.** Chạy xong một lượt, Javis nói đã tiêu bao nhiêu tin nhắn web
-  trong lượt đó và tổng trong ngày (`so_luot_trong_ngay` ở mục 9).
+Bỏ trần tin nhắn thì lộ ra con số đáng sợ hơn. Một vòng web mất **20 tới 40 giây** (mục 12 lấy
+60 giây làm tiêu chí giết). Nhân lên:
 
-Đây là cách xử lý nỗi lo của v1.0: không chặn chủ máy, mà để chủ máy **nhìn thấy giá** rồi tự
-quyết. Trần 6 là con số mở đầu, chỉnh được bằng biến môi trường.
+```
+30 vòng × 30 giây  ≈  15 phút cho MỘT lượt chat
+```
+
+Và còn nhân hai nữa ở mục 4: chế độ lazy của hub biến mỗi lần dùng tool MCP thành **hai vòng**
+(tìm rồi mới gọi). Nên 30 vòng thực tế chỉ là **15 lần gọi tool MCP**, trong 15 phút.
+
+So sánh cho thấy vấn đề: Codex chạy cùng 30 vòng đó trong vài chục giây, vì mỗi vòng là một
+lời gọi API chứ không phải một lượt gõ vào ô chat rồi chờ người ta stream ra.
+
+Nên phanh đổi từ đếm tin nhắn sang **đếm giây**:
+
+- `JAVIS_WEB_TURN_BUDGET_S`, **mặc định 600** (10 phút cho một lượt). Hết ngân sách thì dừng
+  đúng như chạm trần vòng: trả phần đã có kèm lời giải thích, không cụt lặng lẽ.
+- **Hiện tiến độ trong lúc chạy.** Vòng thứ mấy, đã mất bao lâu. Mười lăm phút im lặng thì
+  người dùng sẽ tưởng treo và bấm Dừng, kể cả khi nó đang chạy đúng.
+- Bộ đếm lượt (`so_luot_trong_ngay`, mục 9) **giữ lại**, nhưng hạ vai trò: nó không còn là
+  phanh, chỉ là thứ duy nhất Javis biết về mức tiêu thụ, vì model này không trả số token
+  (xem mục 3.2).
+
+Hệ quả thiết kế, nói thẳng để sau khỏi ngạc nhiên: `chatgpt-web` hợp với **câu hỏi cần ít vòng
+tool**. Việc nhiều bước vẫn chạy được, chỉ là lâu.
 
 ## 6. Mạch hội thoại
 
@@ -191,7 +272,11 @@ Thẻ đã có, thêm vào đó:
 - Dòng trạng thái phiên web: `Đã đăng nhập` / `Chưa đăng nhập` / `Đang nghỉ tới HH:MM`.
 - Nút **Mở cửa sổ đăng nhập**. Không có ô nhập mật khẩu, không bao giờ.
 - Bộ đếm `đã hỏi N lượt hôm nay` cộng mốc chạm trần gần nhất.
-- Mô tả model `chatgpt-web` nói thẳng: tiêu quota chat, không có Bash, không chạy được test.
+- Mô tả model `chatgpt-web` nói thẳng: không có Bash, không chạy được test, mỗi vòng tool
+  mất 20 tới 40 giây.
+- **Lời dặn tắt Memory và Custom instructions** của chính tài khoản ChatGPT, hoặc dùng tài
+  khoản riêng. Mục 3.2 điểm 3 là lý do: không tắt thì cài đặt cá nhân bóp mọi câu Javis hỏi,
+  và triệu chứng trông như Javis hỏng.
 
 Thẻ sẵn sàng khi Codex CLI dùng được **hoặc** phiên web đã đăng nhập (mục 1).
 
@@ -345,8 +430,9 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
 - `test_web_chat_tool_protocol.py`: bóc đúng khối ```` ```javis_tool ````; JSON hỏng thì trả
   câu báo lỗi nói được chứ không ném exception và không đoán; tên tool không tồn tại thì báo rõ;
   `_LapGuard` vẫn cắt khi lặp y hệt.
-- `test_web_chat_tran_vong.py`: trần mặc định là 6, kẹp trên bằng `JAVIS_MAX_TOOL_ROUNDS`, và
-  chạm trần thì câu trả lời kèm lời giải thích chứ không cụt.
+- `test_web_chat_ngan_sach_gio.py`: hết `JAVIS_WEB_TURN_BUDGET_S` thì dừng và trả phần đã có
+  kèm lời giải thích, không cụt lặng lẽ; và trần vòng mặc định bằng `JAVIS_MAX_TOOL_ROUNDS`
+  chứ không phải một con số riêng.
 - `test_web_chat_state.py`: `HET_LUOT` đặt đúng `cooldown_until`; trong cooldown thì từ chối mà
   **không** mở trình duyệt; hết lượt giữa vòng tool thì giữ phần đã làm và vào `limit_resume`.
 - `test_web_chat_tee.js`: chạy đoạn JS tee trên một trang tĩnh phát SSE giả, ghép lại đúng
@@ -358,6 +444,8 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
 
 - Lệnh phiên `/web` và chip "hỏi Web lượt tới" trong phiên Coding, để hỏi một câu mà vẫn ở
   trên Codex. Đã đặc tả trong v1.0 mục 7; rẻ, nhưng chỉ làm sau khi đường chọn model chạy ngon.
+- Gửi ẢNH cho `chatgpt-web` bằng cách lái widget tải file của trang. Mục 3.2 điểm 6: hạng API
+  của Javis hiện không gửi ảnh, trong khi ChatGPT Web tự nó xem ảnh rất tốt.
 - Máy trạng thái provider dùng chung cho mọi nhà, bê từ sổ mục 9 ra.
 - Task Handoff Packet (bản rà soát 2026-09-22).
 - Version guard cho Codex CLI: `install.sh:143` và `update.sh:50` đang cài
