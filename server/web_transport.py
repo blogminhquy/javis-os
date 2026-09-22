@@ -42,8 +42,9 @@ from config import STATE_DIR
 
 # Phiên bản, để nhật ký nói được một lượt hỏng là do bản nào (spec mục 22).
 # Khung nhìn CỐ ĐỊNH. Phải cố định thì toạ độ cú bấm trên dashboard mới quy đổi được về toạ độ
-# trong trang: màn đăng nhập gửi xuống một cặp (x, y) tính theo ảnh chụp, và chỉ đúng khi ảnh
-# và trang cùng một kích thước.
+# Kích thước cửa sổ trình duyệt. Đặt cố định chứ không để Playwright tự chọn: trang ChatGPT
+# đổi bố cục theo bề ngang (dưới một ngưỡng thì cột trái thu lại và vài nút đổi chỗ), mà các
+# selector ở dưới viết theo bố cục rộng.
 KHUNG = {"width": 1280, "height": 860}
 
 TRANSPORT_VERSION = "chatgpt-web-tee-v1"
@@ -664,28 +665,6 @@ class ChatGPTWebTransport:
         except Exception:
             pass
 
-    # ---- màn đăng nhập nhìn qua dashboard ----
-    #
-    # VPS không có màn hình nào để mở cửa sổ Chromium cho chủ máy gõ mật khẩu. Nhưng Javis đã
-    # lái trang bằng Playwright rồi, nên nó chụp được trang và bấm hộ được. Ghép hai thứ đó
-    # lại là một màn đăng nhập nhìn qua dashboard: chủ máy thấy ĐÚNG trang ChatGPT thật và
-    # thao tác lên chính nó, chỉ là qua một lớp ảnh.
-    #
-    # Đánh đổi phải nói thẳng, và chủ repo đã biết khi duyệt (22/09): phím gõ, gồm cả mật
-    # khẩu, ĐI QUA máy chủ Javis. Nên ở đây KHÔNG ghi nhật ký nội dung phím, không giữ lại
-    # chuỗi đã gõ, và đường vào phải đòi phiên đăng nhập thật (xem routes ở main.py).
-
-    def _mo_dang_nhap_that(self) -> tuple[bool, str]:
-        ok, ly_do = self._mo_that()
-        if not ok:
-            return False, ly_do
-        try:
-            if not (self._page.url or "").startswith(self.url.rstrip("/")):
-                self._page.goto(self.url, wait_until="domcontentloaded", timeout=45_000)
-        except Exception as e:
-            return False, f"Không mở được trang: {type(e).__name__}: {e}"
-        return True, ""
-
     def _nap_cookie_that(self, cookies: list) -> tuple[bool, str]:
         """Nhét cookie vào hồ sơ trình duyệt rồi tải lại trang. (đã đăng nhập chưa, lý do lỗi).
 
@@ -704,23 +683,6 @@ class ChatGPTWebTransport:
             # lỗi của nó, nhưng không nhắc giá trị, nên để nguyên là an toàn.
             return False, f"Không nạp được cookie: {type(e).__name__}: {e}"
         return self._da_dang_nhap_that(), ""
-
-    def _chup_that(self) -> bytes:
-        return self._page.screenshot(type="jpeg", quality=60, full_page=False)
-
-    def _bam_that(self, x: float, y: float) -> None:
-        self._page.mouse.click(float(x), float(y))
-
-    def _go_that(self, chu: str) -> None:
-        # `insert_text` chứ không phải gõ từng phím: nhanh hơn hẳn và không sinh ra chuỗi phím
-        # trung gian nào để mà lỡ ghi lại.
-        self._page.keyboard.insert_text(str(chu))
-
-    def _phim_that(self, ten: str) -> None:
-        self._page.keyboard.press(str(ten))
-
-    def _cuon_that(self, dy: float) -> None:
-        self._page.mouse.wheel(0, float(dy))
 
     # ---- vỏ công khai: giữ nguyên tên cũ, nay đi qua thread riêng ----
 
@@ -767,14 +729,7 @@ class ChatGPTWebTransport:
         except Exception:
             pass
 
-    # ---- vỏ công khai của màn đăng nhập ----
-
-    def mo_dang_nhap(self) -> tuple[bool, str]:
-        """Mở trang ChatGPT để chủ máy đăng nhập qua dashboard. CHẠY ẨN, không cần màn hình."""
-        try:
-            return self._chay(self._mo_dang_nhap_that, tran_gio=120.0)
-        except Exception as e:
-            return False, f"{type(e).__name__}: {e}"
+    # ---- đăng nhập bằng cookie ----
 
     def nap_cookie(self, cookies: list) -> tuple[bool, str]:
         """Đăng nhập bằng cookie thay vì gõ tay. (đã đăng nhập chưa, lý do lỗi)."""
@@ -784,40 +739,6 @@ class ChatGPTWebTransport:
             return self._chay(self._nap_cookie_that, cookies, tran_gio=120.0)
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
-
-    def chup(self) -> tuple[bytes, str]:
-        """Ảnh JPEG của trang, hoặc (b"", lý do). Không chờ nếu đang có lượt chat chạy dở."""
-        if self._page is None:
-            return b"", "Chưa mở trình duyệt."
-        if self._ban():
-            return b"", "Đang có một lượt chat chạy dở, chờ nó xong đã."
-        try:
-            return self._chay(self._chup_that, tran_gio=20.0), ""
-        except Exception as e:
-            return b"", f"{type(e).__name__}: {e}"
-
-    def thao_tac(self, loai: str, **k) -> str:
-        """Chuyển một thao tác của chủ máy xuống trang. Trả "" nếu xong, hoặc lý do hỏng.
-
-        Gom một cửa thay vì bốn hàm công khai: chỗ gọi là MỘT endpoint nhận JSON, nên tách ra
-        chỉ thêm bốn chỗ phải nhớ kiểm `_ban()` và bắt lỗi y hệt nhau.
-        """
-        if self._page is None:
-            return "Chưa mở trình duyệt."
-        if self._ban():
-            return "Đang có một lượt chat chạy dở, chờ nó xong đã."
-        viec = {"bam": (self._bam_that, ("x", "y")),
-                "go": (self._go_that, ("chu",)),
-                "phim": (self._phim_that, ("ten",)),
-                "cuon": (self._cuon_that, ("dy",))}.get(str(loai or ""))
-        if not viec:
-            return f"Không có thao tác tên {loai!r}."
-        fn, ten_tham_so = viec
-        try:
-            return self._chay(fn, *[k.get(t) for t in ten_tham_so], tran_gio=30.0) or ""
-        except Exception as e:
-            return f"{type(e).__name__}: {e}"
-
 
 # ============================================================
 # Transport dùng chung cả tiến trình

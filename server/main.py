@@ -3567,16 +3567,22 @@ def oauth_openai_status():
 
 # ---- ChatGPT Web (model `chatgpt-web` trong thẻ ChatGPT) ----
 #
-# KHÔNG có endpoint "đăng nhập tự động", và đó là chủ ý: Javis không bao giờ cầm mật khẩu
-# ChatGPT của chủ máy. `/web-chat/login` chỉ MỞ một cửa sổ Chromium với profile cố định để
-# chủ máy tự gõ, rồi đọc lại xem trang đã có phiên chưa. Phiên nằm trong profile đó, không
-# nằm trong Javis.
+# Javis KHÔNG BAO GIỜ cầm mật khẩu ChatGPT của chủ máy, và từ 0.64.12 thì không còn đường nào
+# để nó cầm: cách đăng nhập duy nhất là chủ máy DÁN COOKIE PHIÊN lấy từ trình duyệt của chính
+# họ (`/web-chat/cookie`). Cookie đó đi thẳng vào profile trình duyệt, đúng chỗ một phiên đăng
+# nhập vẫn nằm, và không được ghi lại ở đâu khác.
+#
+# Bản 0.64.8 từng có một màn đăng nhập khác: Javis chụp trang ChatGPT gửi lên dashboard rồi
+# chuyển ngược cú bấm với phím gõ xuống. Nó chạy được, nhưng chỉ vẽ ra khi máy đã cài đủ
+# playwright và trình duyệt - tức KHÔNG có mặt đúng lúc người ta cần nó nhất. Chủ repo mắc kẹt
+# đúng chỗ đó (22/09) và yêu cầu bỏ hẳn. Bỏ luôn được thêm một điều: phím gõ, gồm cả mật khẩu,
+# không còn đường nào đi qua máy chủ Javis nữa.
 
 def _web_chat_chan(request: Request):
     """None nếu được phép, hoặc một câu từ chối 401.
 
     Chặt hơn hàng rào chung của app một bậc, theo đúng tiền lệ của `routes/tools.py`: đường
-    này MỞ TRÌNH DUYỆT trên máy chủ, cho xem màn hình của nó và nhận phím gõ xuống. Hàng rào
+    này MỞ TRÌNH DUYỆT trên máy chủ và nhận cookie phiên ChatGPT của chủ máy. Hàng rào
     chung cho qua cả API token (đường của CLI và cron); ở đây thì không, vì "một script có
     token cũng đọc được màn đăng nhập ChatGPT của chủ máy" là thứ không nên có đường tồn tại.
     """
@@ -3618,34 +3624,6 @@ def web_chat_status(request: Request):
     return d
 
 
-@app.post("/web-chat/login")
-async def web_chat_login(request: Request):
-    """Mở trang ChatGPT để chủ máy đăng nhập QUA DASHBOARD. Chạy ẩn, không cần màn hình.
-
-    Trước 0.64.8 đường này mở một cửa sổ Chromium THẬT để chủ máy gõ mật khẩu. Đúng về mặt
-    giữ bí mật, nhưng nó làm cả tính năng không dùng được trên VPS - nơi không có màn hình
-    nào để mở cửa sổ. Nay Javis chụp trang rồi chuyển ngược cú bấm và phím xuống, nên chủ máy
-    thao tác lên đúng trang ChatGPT thật mà không cần máy chủ có màn hình.
-    """
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    ok, ly_do = web_transport.kha_dung()
-    if not ok:
-        return {"ok": False, "error": ly_do}
-    try:
-        mo_duoc, loi = await asyncio.to_thread(web_transport.chung().mo_dang_nhap)
-    except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    if not mo_duoc:
-        web_state.ghi_hong(loi, kind=web_state.NO_BROWSER)
-        return {"ok": False, "error": loi}
-    da_dn = await asyncio.to_thread(web_transport.chung().da_dang_nhap)
-    web_state.ghi_dang_nhap(da_dn)
-    return {"ok": True, "da_dang_nhap": da_dn, "khung": dict(web_transport.KHUNG),
-            "huong_dan": ("Đăng nhập ChatGPT ngay trong khung bên dưới, như đang dùng trình "
-                          "duyệt bình thường. Xong thì bấm Kiểm tra lại.")}
-
-
 @app.post("/web-chat/cookie")
 async def web_chat_cookie(request: Request):
     """Đăng nhập ChatGPT Web bằng cookie dán từ trình duyệt đã đăng nhập sẵn của chủ máy.
@@ -3683,46 +3661,6 @@ async def web_chat_cookie(request: Request):
                                        "lần nữa từ trình duyệt đang đăng nhập rồi thử lại.")}
     return {"ok": True, "da_dang_nhap": True,
             "huong_dan": "Đã đăng nhập bằng cookie. Chọn model chatgpt-web ở ô chọn model là dùng được."}
-
-
-@app.get("/web-chat/screen")
-async def web_chat_screen(request: Request):
-    """Một khung hình của trang, kèm trạng thái đăng nhập. Dashboard hỏi lại vài lần mỗi giây.
-
-    Trả base64 trong JSON chứ không trả ảnh thô: màn hình cần BA thứ cùng lúc (ảnh, đã đăng
-    nhập chưa, kích thước khung), và ba request cho một khung hình thì vừa rối vừa dễ lệch
-    nhau. Ảnh JPEG chất lượng 60 nên một khung chừng trăm KB, đủ nhẹ cho một việc chỉ kéo dài
-    một hai phút.
-    """
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    tr = web_transport.chung()
-    anh, loi = await asyncio.to_thread(tr.chup)
-    if not anh:
-        return {"ok": False, "error": loi, "khung": dict(web_transport.KHUNG)}
-    import base64
-    da_dn = await asyncio.to_thread(tr.da_dang_nhap)
-    if da_dn:
-        web_state.ghi_dang_nhap(True)
-    return {"ok": True, "anh": base64.b64encode(anh).decode("ascii"),
-            "da_dang_nhap": da_dn, "khung": dict(web_transport.KHUNG)}
-
-
-@app.post("/web-chat/input")
-async def web_chat_input(request: Request):
-    """Chuyển MỘT thao tác của chủ máy xuống trang: bấm, gõ chữ, nhấn phím, cuộn.
-
-    Javis KHÔNG ghi lại nội dung phím ở bất kỳ đâu, kể cả nhật ký lỗi: mật khẩu ChatGPT đi
-    qua đây. Câu trả về chỉ nói xong hay hỏng, không bao giờ vọng lại thứ vừa gõ.
-    """
-    if (_chan := _web_chat_chan(request)) is not None:
-        return _chan
-    d = await request.json()
-    loai = str(d.get("loai") or "")
-    loi = await asyncio.to_thread(
-        web_transport.chung().thao_tac, loai,
-        x=d.get("x"), y=d.get("y"), chu=d.get("chu"), ten=d.get("ten"), dy=d.get("dy"))
-    return {"ok": not loi, "error": loi}
 
 
 @app.post("/web-chat/check")

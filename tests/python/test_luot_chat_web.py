@@ -346,13 +346,15 @@ def _soi_ma_nguon():
     check("chỉ cấp coding_ctx khi phiên THẬT SỰ là phiên coding",
           "coding_ctx=_web_ctx if _web_ctx.active else None" in src)
     check("có endpoint trạng thái cho trang Models", '@app.get("/web-chat/status")' in src)
-    for ep in ("/web-chat/login", "/web-chat/check", "/web-chat/reset"):
+    # 0.64.12 bỏ /web-chat/login (màn đăng nhập chụp màn hình): nó chỉ vẽ ra khi máy đã cài
+    # đủ đồ, tức vắng mặt đúng lúc cần nhất. Đăng nhập nay chỉ còn một đường là dán cookie.
+    for ep in ("/web-chat/cookie", "/web-chat/check", "/web-chat/reset"):
         check(f"có endpoint {ep}", f'"{ep}"' in src)
     # Không bịa quota: trang chat không nói ra con số nào, nên mọi phần trăm vẽ ra đều là
     # bịa. Soi CHÍNH câu trả lời của endpoint chứ không tìm chữ trong mã nguồn.
     # Từ 0.64.8 nhóm /web-chat đòi PHIÊN ĐĂNG NHẬP THẬT (không nhận API token), vì đường đó
-    # mở trình duyệt trên máy chủ và nhận phím gõ xuống. Nên gọi thẳng hàm thì phải đưa một
-    # request có phiên - xem test_web_dang_nhap_qua_dashboard cho phần khoá cái cổng đó.
+    # mở trình duyệt trên máy chủ và nhận cookie phiên ChatGPT của chủ máy. Nên gọi thẳng hàm
+    # thì phải đưa một request có phiên - xem test_web_mot_thread cho phần khoá cái cổng đó.
     _vs_that = main.cfgmod.valid_session
     main.cfgmod.valid_session = lambda *_a, **_k: True
     try:
