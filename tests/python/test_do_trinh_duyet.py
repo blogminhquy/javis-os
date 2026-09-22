@@ -119,6 +119,68 @@ check("chỉ có bản rút gọn -> trang Công cụ vẫn Sẵn sàng",
 
 
 # ============================================================
+# 1b) BỐ CỤC LẠ: quét tìm file chạy thay vì đoán đường dẫn
+# ============================================================
+#
+# 0.64.9 chữa phần chọn SAI thư mục, nhưng phần dò file chạy vẫn là một danh sách đường dẫn gõ
+# cứng. Chủ repo cập nhật xong vẫn thấy y nguyên câu "chưa có trình duyệt" (22/09), vì máy họ
+# để file chạy ở một bố cục không nằm trong danh sách. Playwright đã đổi bố cục vài lần và còn
+# tách thư mục theo kiến trúc máy - `chrome-linux64`, `chrome-linux-arm64` đều có thật, đọc
+# thẳng trong playwright-core mới thấy. Gõ cứng đường dẫn của thứ người khác sinh ra là cược
+# rằng họ không bao giờ đổi nữa.
+
+for _ten_bo_cuc, _duong in (
+        ("máy ARM64", "chrome-linux-arm64/headless_shell"),
+        ("tên thư mục có hậu tố 64", "chrome-linux64/chrome"),
+        ("bố cục chưa từng thấy", "build/v3/nested/deep/chrome"),
+):
+    _dung(("chromium_headless_shell-1243", _duong))
+    check(f"{_ten_bo_cuc}: vẫn tìm ra file chạy",
+          ot.duong_dan_chrome().endswith(_duong.rsplit("/", 1)[-1]), ot.duong_dan_chrome())
+    check(f"{_ten_bo_cuc}: trang Công cụ báo Sẵn sàng",
+          ot.trang_thai("browser")["trang_thai"] == "san_sang")
+
+# Quét KHÔNG được vơ bừa: một thư mục đầy file mà không có file chạy nào thì phải nói là không
+# có, chứ không phải trả về file đầu tiên nhìn thấy.
+_dung(("chromium-1243", "chrome-linux/libEGL.so"), ("chromium-1243", "chrome-linux/icudtl.dat"))
+if not ot._chrome_he_thong():
+    check("thư mục đầy file nhưng KHÔNG có file chạy -> nói không có",
+          ot.duong_dan_chrome() == "", ot.duong_dan_chrome())
+
+# Có cả hai thì vẫn ưu tiên bản đầy đủ, kể cả khi bản đầy đủ nằm ở bố cục lạ hơn.
+_dung(("chromium_headless_shell-1243", "chrome-linux/headless_shell"),
+      ("chromium-1243", "chrome-linux-arm64/chrome"))
+check("có cả hai ở bố cục lạ -> vẫn lấy bản đầy đủ",
+      ot.duong_dan_chrome().endswith("chrome"), ot.duong_dan_chrome())
+
+
+# ============================================================
+# 1c) Câu báo lỗi phải nói ĐÃ TÌM Ở ĐÂU, THẤY GÌ
+# ============================================================
+#
+# "Chưa có trình duyệt nào Javis lái được" là câu cụt: người đọc nó đã bấm tải và đã thấy báo
+# xong. Nó nói họ sai mà không nói sai ở đâu, nên mỗi vòng hỏi lại tốn một lần cập nhật.
+
+_dung()
+_cd = ot.chan_doan_trinh_duyet()
+check("chưa tải gì -> chẩn đoán nói rõ thư mục rỗng hoặc chưa có",
+      str(ot.BROWSERS_DIR) in _cd and ("rỗng" in _cd or "chưa có" in _cd), _cd)
+
+_dung(("chromium_headless_shell-1243", "chrome-linux/khong-phai-file-chay"))
+_cd = ot.chan_doan_trinh_duyet()
+check("có thư mục nhưng không có file chạy -> chẩn đoán GỌI TÊN thư mục đó",
+      "chromium_headless_shell-1243" in _cd, _cd)
+# Cần CẢ HAI điều kiện: có thư viện (không thì engine dừng ở câu thiếu thư viện, chưa tới
+# nhánh trình duyệt) và máy không có Chrome sẵn (không thì nó tìm thấy Chrome đó, chẳng còn
+# lỗi nào để báo).
+if CO_PW and not ot._chrome_he_thong():
+    check("và câu engine Web trả về có kèm chẩn đoán đó",
+          "chromium_headless_shell-1243" in wt.co_trinh_duyet(dung_nho=False)[1])
+    check("vẫn giữ câu bảo phải làm gì (mở trang Công cụ)",
+          "trang Công cụ" in wt.co_trinh_duyet(dung_nho=False)[1])
+
+
+# ============================================================
 # 2) Bất biến: hai trang KHÔNG BAO GIỜ nói ngược nhau
 # ============================================================
 #

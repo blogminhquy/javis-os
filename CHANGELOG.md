@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.10] - 2026-09-22
+### Sửa lỗi
+- **Vẫn không thấy nút Đăng nhập ChatGPT dù đã tải trình duyệt.** Javis tìm file chạy theo đường dẫn gõ cứng, mà bố cục thư mục của Chromium khác nhau tuỳ bản tải và tuỳ loại máy (máy ARM để ở chỗ khác). Nay Javis quét tìm file chạy thay vì đoán đường dẫn.
+- **Câu báo "chưa có trình duyệt" nay nói luôn nó đã tìm ở đâu và thấy gì.** Trước đây gặp câu đó thì không ai biết làm gì tiếp, kể cả người viết ra nó.
+
 ## [0.64.9] - 2026-09-22
 ### Sửa lỗi
 - **Trang Công cụ báo "Sẵn sàng" mà thẻ ChatGPT vẫn kêu thiếu trình duyệt.** Javis tải Chromium về thành hai thư mục, và nó chỉ biết tìm file chạy trong một thư mục. Rơi vào thư mục kia là tải xong vẫn báo chưa có gì, nên nút **Đăng nhập ChatGPT** không bao giờ hiện ra.
