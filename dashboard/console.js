@@ -35,6 +35,7 @@
     learn: "brain",
     kanban: "square-kanban",
     terminal: "terminal",
+    coding: "git-branch",
     models: "cpu",
     channels: "send",
     mcp: "plug",
@@ -86,7 +87,7 @@
   // tiếng Việt khi thiếu key, nên một bản dịch làm dở không bao giờ để lại key trần trên rail.
   const RAIL_ITEMS = [
     "home", "chat", "settings", "workspace", "skills", "chatbots", "conversations", "files",
-    "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
+    "terminal", "coding", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
     "packs", "logs", "account", "usage", "pet", "share",
   ].map(id => ({ id, icon: ICON[id], get label() { return t(`page.${id}.label`); } }));
 
@@ -106,7 +107,7 @@
     // chức năng của Second Brain - chủ repo nói rõ điều đó khi thấy bản đầu xếp nhầm.
     // Thêm chức năng Code mới = thêm 1 mục vào RAIL_ITEMS + 1 id vào đây + 1 dòng trong
     // CHUC_NANG của dashboard/code-term.js.
-    { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal"] },
+    { id: "code", get label() { return t("nav.group.code"); },        icon: GICON["Code"],     ids: ["terminal", "coding"] },
     // 0.61.0: Chatbot gộp vào trang Hội thoại (tab thứ ba); id "chatbots" giữ làm bí danh
     // (lệnh nói "mở chatbot", bookmark cũ) và được navigateTo đổi hướng sang tab đó.
     { id: "nang_luc", get label() { return t("nav.group.nang_luc"); },    icon: GICON["Năng lực"], ids: ["workspace", "conversations", "skills", "plugins"] },
@@ -163,7 +164,7 @@
   //
   // `page.<id>.title` cho phép tiêu đề trang KHÁC nhãn trên rail khi cần (rail chật nên
   // "Việc", trang rộng nên "Việc (Kanban)"); thiếu key đó thì tự rơi về `page.<id>.label`.
-  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
+  const VIEW_META = Object.fromEntries(["home", "chat", "settings", "workspace", "skills", "files", "terminal", "coding", "selfimprove", "chatbots", "conversations", "learn", "kanban", "models", "channels", "mcp", "plugins", "packs", "logs", "account", "usage", "pet", "share"].map(id => [id, {
     icon: VIEW_ICON[id],
     get label() {
       const rieng = t(`page.${id}.title`);
@@ -476,6 +477,7 @@
     if (id === "channels") return renderChannels(el);
     if (id === "account")  return renderAccount(el);
     if (id === "files")    return renderFiles(el);
+    if (id === "coding")   return renderCoding(el);
     if (CODE_PAGES.includes(id)) return renderCode(el, id);
     if (id === "selfimprove") return renderSelfImprove(el);
     if (id === "chatbots") return renderChatbots(el);
@@ -581,6 +583,26 @@
     const fn = window.JavisConversations && window.JavisConversations.render;
     if (fn) { try { fn(el); } catch (e) { el.innerHTML = placeholder("conversations", window.t("cs.err_load") + e.message); } }
     else el.innerHTML = placeholder("conversations", window.t("cs.mod_not_ready", { ten: "conversations.js" }));
+  }
+
+  // Trang Coding: nằm trong NHÓM Code trên rail, nhưng KHÔNG do code-term.js dựng.
+  //
+  // Nhóm trên rail là chuyện xếp chỗ; CODE_PAGES là "trang nào do code-term.js vẽ". Coding
+  // cần MƯỢN khung chat (nguyên #chatArea/#modelBar/#hudVoice kèm WebSocket và streaming),
+  // mà renderCode không truyền hàm mượn xuống - nên nó đi đúng lối của trang Cộng sự. Nhét nó
+  // vào code-term.js chỉ để "cùng nhóm" là phải chép cơ chế mượn sang file thứ hai.
+  function renderCoding(el) {
+    if (!window.JavisCoding) { el.innerHTML = placeholder("coding", window.t("cs.mod_not_ready", { ten: "coding.js" })); return; }
+    _injectChatCss();
+    if (_chatSlots.length) _returnChatNodes();
+    document.body.classList.add("on-chat");
+    window.JavisCoding.render(el, { borrow: _borrowChatNodes });
+    // Dải chip mà trang này nhét vào #modelBar phải được gỡ TRƯỚC khi node được trả về HUD,
+    // không thì trang Trò chuyện mọc thêm một hàng nói về một repo không còn liên quan.
+    _pageLeave = () => {
+      try { if (window.JavisCoding.roi) window.JavisCoding.roi(); } catch (e) {}
+      _returnChatNodes();
+    };
   }
 
   // Trang Cộng sự: dựng bởi workspace.js, mượn khung chat như trang Trò chuyện.

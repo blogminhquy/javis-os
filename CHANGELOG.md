@@ -4,6 +4,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.0] - 2026-09-22
+### Thêm mới
+- **Mục Coding mới** trong nhóm Code trên thanh bên. Khai báo repo của bạn một lần, rồi chat như bình thường: Javis làm việc NGAY TRONG repo đó thay vì trong bộ não, nên nó đọc đúng file, chạy đúng test, không còn đọc nhầm cây thư mục.
+- Ngay trên ô nhập có một hàng nút nhỏ cho biết và đổi được: repo nào, nhánh nào, có worktree riêng không, mức quyền tới đâu. Nút chọn model vẫn là nút cũ, không mọc thêm cái thứ hai.
+- **Worktree riêng cho từng phiên**: hai việc chạy song song trên cùng một repo không còn giẫm chân nhau. Còn sửa dở thì Javis từ chối gỡ và nói rõ đang giữ ở đâu.
+- **Điểm hồi**: đặt một mốc trước khi để Javis sửa, hỏng thì kéo repo về mốc đó. Bỏ repo khỏi Javis không xoá gì trên đĩa.
+
 ## [0.62.6] - 2026-09-22
 ### Sửa lỗi
 - **Cài Javis ra màn hình chính máy tính bảng thì xoay ngang được rồi.** Trước đây app tự khai với hệ điều hành là "chỉ chạy dọc", nên xoay ngang tablet là Android ép giao diện vào một cột hẹp giữa màn, hai bên mờ đi. Nay app xoay theo máy: dọc thì dọc, ngang thì bung hết chiều ngang.

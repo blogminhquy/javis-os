@@ -15,7 +15,7 @@
 
   // Cùng danh sách với RAIL_ITEMS trong console.js và PAGES trong plugin javis-ui.
   var PAGES = ["home", "chat", "settings", "workspace", "skills", "chatbots", "conversations", "files",
-               "terminal", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
+               "terminal", "coding", "selfimprove", "learn", "kanban", "models", "channels", "mcp", "plugins",
                "packs", "logs", "account", "usage", "pet", "share"];
   // Nhóm trên thanh bên (accordion). Cùng danh sách với RAIL_GROUPS trong console.js và GROUPS
   // trong plugin javis-ui. Mở một NHÓM khác với mở một TRANG: người dùng hay muốn bung phần

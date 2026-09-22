@@ -59,6 +59,7 @@ import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi b�
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
 import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
 import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
+import coding_store    # trang Coding: phiên gắn repo nào, nhánh nào, worktree nào, mức quyền nào
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
 import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói SuperGrok / X Premium+
 import totp            # xác thực 2 lớp (TOTP) cho cổng đăng nhập - thuần toán, không đụng cấu hình
@@ -4793,6 +4794,43 @@ def _brain_root(brain: str) -> str:
     if not brain or brain == "brain":
         return str(_default_brain_dir())
     return brain if os.path.isdir(brain) else str(_default_brain_dir())
+
+
+def _cwd_luot_chat(row, brain: str) -> str:
+    """Thư mục engine chạy trong đó cho MỘT lượt chat.
+
+    Mặc định vẫn là gốc brain, y như từ 0.55.58. Khác đúng một cảnh: phiên của trang Coding
+    (kênh `coding:<repo id>`) chạy trong repo hoặc worktree của nó, vì cả lý do tồn tại của
+    trang đó là model làm việc ĐÚNG trên cây mã nguồn chứ không phải trên brain.
+
+    Suy từ kho `coding_store` chứ không từ tên kênh: kênh chỉ nói "phiên này thuộc trang
+    Coding", còn repo đã bị gỡ khỏi sổ hay worktree đã bị xoá tay thì `cwd_cua_phien` trả ""
+    và lượt này về lại brain thay vì chết ở một đường dẫn không còn tồn tại.
+    """
+    try:
+        sid = (row or {}).get("id") or ""
+        if sid:
+            cwd = coding_store.cwd_cua_phien(sid)
+            if cwd:
+                return cwd
+    except Exception:
+        pass
+    return _brain_root(brain)
+
+
+def _muc_quyen_luot_chat(row) -> str:
+    """Mức quyền của lượt: phiên coding lấy theo chip trên trang, còn lại giữ `full` như cũ.
+
+    Khung chat thường xưa nay chạy `full` (mặc định của `_apply_mcp`); đổi mặc định đó ở đây
+    là âm thầm siết mọi cuộc trò chuyện đang có.
+    """
+    try:
+        sid = (row or {}).get("id") or ""
+        if sid and str((row or {}).get("channel") or "").startswith("coding:"):
+            return coding_store.muc_quyen_cua_phien(sid)
+    except Exception:
+        pass
+    return "full"
 
 
 def _brain_key(brain) -> str:
@@ -12079,7 +12117,10 @@ async def websocket_endpoint(ws: WebSocket):
             # Cái giá: transcript Claude Code nằm theo cwd, nên MỌI phiên cũ resume trượt đúng
             # một lần sau bản này. Nhánh bên dưới bắt cờ `resume_failed` rồi mồi lại từ kho phiên
             # (cùng cách Codex), người dùng thấy một dòng báo chứ không mất mạch.
-            cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_brain_root(brain), tag=turn_tag)
+            # cwd: brain như cũ, TRỪ phiên của trang Coding thì là repo/worktree của nó
+            # (xem _cwd_luot_chat). Phiên coding đổi cwd nên transcript `--resume` của Claude
+            # Code nằm theo thư mục đó, đúng ý: mỗi repo một mạch riêng.
+            cli = claude_engine(system_prompt=SYSTEM_PROMPT, cwd=_cwd_luot_chat(_row0, brain), tag=turn_tag)
             cli.session_id = _row0.get("cli_session_id") or None    # --resume đúng mạch phiên này
             final_text = ""
             used_fast_path = False
@@ -12404,7 +12445,9 @@ async def websocket_endpoint(ws: WebSocket):
                 # cwd=brain (để Codex đọc được Javis/skills + .claude/skills mirror bằng tool file
                 # native, như nhánh workflow) + instructions=sysprompt (kèm ROUTER SKILL) → Codex
                 # dùng được skill. Mỗi hội thoại dashboard giữ riêng codex_thread_id để resume.
-                ccli = CodexCLI(cwd=_brain_root(brain), model=actual_model, tag=turn_tag, instructions=sysprompt)
+                ccli = CodexCLI(cwd=_cwd_luot_chat(_row0, brain), model=actual_model, tag=turn_tag, instructions=sysprompt)
+                # Hub vẫn trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc về bộ
+                # não của người dùng, không thuộc về cây mã nguồn đang mở.
                 _apply_codex_hub(ccli, _brain_root(brain))   # MCP + đúng brain cho cron/nhắc hẹn
                 stored_codex_thread = (_row0.get("codex_thread_id") or "").strip()
                 # Mạch Codex đã phình quá ngưỡng thì THÔI resume: mở mạch mới rồi mồi lại
@@ -12862,7 +12905,9 @@ async def websocket_endpoint(ws: WebSocket):
                 sysprompt, _sub_plan = await _subscription_system_prompt(
                     "cli", cli.model or mcfg.get("claude_model") or "mặc định", kind)
                 cli.system_prompt = sysprompt
-                _apply_mcp(cli, brain=brain)   # gắn MCP do Javis quản lý (nhiều shop POSCake...)
+                # mode: `full` cho mọi phiên như xưa nay; riêng phiên coding lấy theo chip Mức
+                # quyền của trang đó, vì ở trang ấy người dùng CHỌN mức chứ không thừa kế.
+                _apply_mcp(cli, mode=_muc_quyen_luot_chat(_row0), brain=brain)   # gắn MCP do Javis quản lý (nhiều shop POSCake...)
                 _streamed = ""      # phần đã stream - phương án dự phòng khi luồng đứt trước 'final'
                 _cli_sid = None
                 _cost = None
@@ -13885,19 +13930,27 @@ async def sessions_list(brain: str = Query(None), limit: int = Query(50),
 # và trang Cộng sự bấm vào là ăn 400 - mở hội thoại không được mà không hiểu vì sao. Ở đây chỉ
 # cần chặn thứ có thể leo ra khỏi thư mục hay cắt nhầm kênh: dấu gạch chéo hai chiều, dấu hai
 # chấm (ngăn "agent:a:b") và khoảng trắng. Tồn tại file hay không thì kiểm ngay bên dưới.
-_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow):([^\s/\\:]+)$")
+_KENH_CONG_SU_RE = re.compile(r"^(agent|workflow|coding):([^\s/\\:]+)$")
 
 
 @app.post("/sessions/new")
 async def sessions_new(brain: str = Form("brain"), channel: str = Form("web")):
     """Mở một phiên TRỐNG với kênh định trước. Trang Cộng sự gọi trước tin đầu tiên: kho phiên
     phải biết phiên này là chat với trợ lý/quy trình nào thì lượt đầu mới đi đúng đường.
-    Phiên chat thường vẫn mint id ở client như cũ; route này chỉ cho kênh cộng sự."""
+    Phiên chat thường vẫn mint id ở client như cũ; route này chỉ cho kênh cộng sự và coding."""
     ch = (channel or "").strip()
     m = _KENH_CONG_SU_RE.match(ch)
     if not m:
-        return JSONResponse({"error": "channel phải là agent:<slug> hoặc workflow:<slug>"}, status_code=400)
+        return JSONResponse({"error": "channel phải là agent:<slug>, workflow:<slug> hoặc coding:<repo>"}, status_code=400)
     loai, slug = m.group(1), m.group(2)
+    if loai == "coding":
+        # Phiên của trang Coding: `slug` là id repo trong sổ `coding_store`. Ràng buộc repo
+        # ngay lúc mở, để lượt đầu tiên đã chạy đúng thư mục chứ không phải lượt thứ hai.
+        if not coding_store.get_repo(slug):
+            return JSONResponse({"error": f"Repo '{slug}' không có trong sổ Coding"}, status_code=404)
+        sid = get_store().create_session(brain=_brain_key(brain), engine="cli", channel=ch)
+        coding_store.dat_rang_buoc(sid, repo=slug)
+        return {"id": sid, "channel": ch}
     thu_muc = _agents_dir(brain) if loai == "agent" else _workflows_dir(brain)
     if not (thu_muc / f"{slug}.md").exists():
         return JSONResponse({"error": f"{loai} '{slug}' không có trong brain này"}, status_code=404)
@@ -18036,6 +18089,12 @@ channels_routes._DEPS.stop_bot = chatbot_runtime.stop_bot
 conversations_routes.register(app, conversations_routes.ConversationsDeps(
     bot_status=chatbot_runtime.status,
 ))
+
+# Trang Coding (0.63.0): sổ repo, ràng buộc phiên, worktree, điểm hồi. Không có deps - kho
+# `coding_store` đứng một mình, không cần gì từ main. Chiều phụ thuộc ngược lại thì có:
+# đường chat gọi `coding_store.cwd_cua_phien` để biết engine phải chạy ở thư mục nào.
+import routes.coding as coding_routes   # noqa: E402
+coding_routes.register(app)
 
 
 @app.post("/telegram/test")
