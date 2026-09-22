@@ -263,9 +263,19 @@ def co_trinh_duyet(dung_nho: bool = True) -> tuple[bool, str]:
             "Gói này không nằm sẵn trong bản cài vì nó nặng và phần lớn máy không cần."))
 
     if not _tim_chromium():
+        # Kèm câu CHẨN ĐOÁN: đã tìm ở đâu, thấy gì. Không có nó thì người đã bấm tải và thấy
+        # báo xong chỉ đọc được rằng mình sai, chứ không biết sai ở đâu - chủ repo mắc kẹt ở
+        # đúng câu này qua hai phiên bản (22/09), mỗi vòng hỏi lại tốn một lần cập nhật.
+        them = ""
+        try:
+            import optional_tools
+            them = optional_tools.chan_doan_trinh_duyet()
+        except Exception:
+            pass
         return _tra(False, (
             "Chưa có trình duyệt nào Javis lái được. Mở trang Công cụ rồi bấm tải Chromium "
-            "(Javis tải bản gọn về thư mục state, sống qua mỗi lần cập nhật)."))
+            "(Javis tải bản gọn về thư mục state, sống qua mỗi lần cập nhật)."
+            + (" " + them if them else "")))
 
     return _tra(True, "")
 

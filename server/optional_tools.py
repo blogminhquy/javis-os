@@ -128,9 +128,9 @@ def _chrome_he_thong() -> str:
 # `chrome`. Rơi vào thư mục headless_shell là không thấy gì, nên trang Công cụ báo "Sẵn sàng"
 # còn thẻ ChatGPT báo "Chưa có trình duyệt nào Javis lái được" - cùng một máy, hai câu trả lời
 # ngược nhau.
-# Tên file chạy bên trong một thư mục build, theo THỨ TỰ ƯU TIÊN: bản đầy đủ trước, bản
-# headless rút gọn sau, ba hệ điều hành trong cùng một danh sách (một thư mục chỉ chứa đúng
-# một trong số này nên không cần hỏi đang chạy hệ nào).
+# Đường dẫn QUEN, thử trước vì nó nhanh (vài lần `is_file`). Bản đầy đủ trước, bản headless
+# rút gọn sau, ba hệ điều hành trong cùng một danh sách - một thư mục build chỉ chứa đúng một
+# trong số này nên không cần hỏi đang chạy hệ nào.
 _BINARY_TRONG_BUILD = (
     "chrome-linux/chrome",
     "chrome-win/chrome.exe",
@@ -140,9 +140,29 @@ _BINARY_TRONG_BUILD = (
     "chrome-mac/headless_shell",
 )
 
+# TÊN file chạy. Đây mới là thứ bền: thư mục bọc ngoài đổi theo bản Playwright và theo kiến
+# trúc máy (`chrome-linux`, `chrome-linux64`, `chrome-linux-arm64`... - đọc thẳng trong
+# playwright-core mới thấy đủ), còn tên file thì không đổi.
+_TEN_FILE_CHAY = ("chrome", "chrome.exe", "headless_shell", "headless_shell.exe", "Chromium")
+
+# Trần độ sâu khi quét. Bố cục sâu nhất đang biết là bản macOS:
+# chrome-mac/Chromium.app/Contents/MacOS/Chromium = 5 cấp. Có trần để một thư mục rác khổng lồ
+# nằm nhầm chỗ không kéo cả trang Models đứng hình.
+_SAU_QUET = 6
+
 
 def _binary_trong(thu_muc: Path) -> str:
-    """File chạy được bên trong MỘT thư mục build của Playwright, rỗng nếu không có."""
+    """File chạy được bên trong MỘT thư mục build của Playwright, rỗng nếu không có.
+
+    HAI vòng, và vòng thứ hai là lý do 0.64.10 tồn tại. 0.64.9 chỉ có vòng một - một danh sách
+    đường dẫn gõ cứng - nên chủ repo cập nhật xong vẫn thấy y nguyên câu "chưa có trình duyệt":
+    máy họ để file chạy ở một bố cục không nằm trong danh sách đó. Gõ cứng đường dẫn của một
+    thứ người khác sinh ra là cược rằng họ không bao giờ đổi, mà Playwright thì đã đổi vài lần
+    (thêm bản headless_shell, tách thư mục theo kiến trúc máy).
+
+    Nên khi vòng một không thấy gì, quét thật thư mục tìm ĐÚNG TÊN file chạy. Chậm hơn, nhưng
+    chỉ chạy đúng lúc cách nhanh đã thất bại, và nó không phụ thuộc vào việc đoán đúng tương lai.
+    """
     for ten in _BINARY_TRONG_BUILD:
         try:
             p = thu_muc / ten
@@ -150,7 +170,48 @@ def _binary_trong(thu_muc: Path) -> str:
                 return str(p)
         except OSError:
             pass
-    return ""
+
+    goc = len(thu_muc.parts)
+    tim_thay = ""
+    try:
+        for p in thu_muc.rglob("*"):
+            if len(p.parts) - goc > _SAU_QUET:
+                continue
+            if p.name not in _TEN_FILE_CHAY:
+                continue
+            try:
+                if not p.is_file():
+                    continue
+            except OSError:
+                continue
+            # `chrome` được ưu tiên hơn `headless_shell` (Cloudflare soi bản rút gọn kỹ hơn),
+            # nên thấy bản đầy đủ thì lấy luôn, còn bản rút gọn thì giữ lại rồi tìm tiếp.
+            if p.name in ("chrome", "chrome.exe", "Chromium"):
+                return str(p)
+            tim_thay = tim_thay or str(p)
+    except OSError:
+        pass
+    return tim_thay
+
+
+def chan_doan_trinh_duyet() -> str:
+    """Một câu nói Javis đã tìm Ở ĐÂU và thấy GÌ. Rỗng khi không có gì đáng nói.
+
+    Vì sao đáng có: "Chưa có trình duyệt nào Javis lái được" là câu cụt - người đọc đã bấm tải
+    và thấy báo xong rồi, nên câu đó chỉ nói họ sai mà không nói sai ở đâu. Chủ repo mắc kẹt ở
+    đúng câu này qua hai phiên bản (22/09), và mỗi vòng hỏi lại tốn một lần cập nhật. Câu chẩn
+    đoán biến một ảnh chụp màn hình thành đủ dữ kiện để sửa.
+    """
+    try:
+        if not BROWSERS_DIR.exists():
+            return f"Javis đã tìm trong {BROWSERS_DIR} nhưng thư mục đó chưa có."
+        ten = sorted(d.name for d in BROWSERS_DIR.iterdir() if d.is_dir())
+        if not ten:
+            return f"Javis đã tìm trong {BROWSERS_DIR} nhưng thư mục đó rỗng."
+        return (f"Javis đã tìm trong {BROWSERS_DIR}, thấy {', '.join(ten[:6])} "
+                f"nhưng không có file chạy nào bên trong.")
+    except OSError as e:
+        return f"Javis không đọc được {BROWSERS_DIR}: {e}"
 
 
 def _so_ban(ten: str) -> int:
@@ -273,7 +334,7 @@ def _trang_thai_browser(d: dict, viec: dict) -> dict:
         tt, ly_do = "san_sang", f"Dùng trình duyệt có sẵn trên máy: {chay_duoc}"
     elif tai_ve:
         tt, ly_do = "chua_cai", ("Có thư mục trình duyệt nhưng thiếu file chạy, bản tải về "
-                                 "hỏng dở. Bấm Gỡ rồi tải lại.")
+                                 "hỏng dở. Bấm Gỡ rồi tải lại. " + chan_doan_trinh_duyet())
     else:
         tt, ly_do = "chua_cai", "Máy này chưa có trình duyệt nào Javis lái được."
     d.update({
