@@ -1552,6 +1552,30 @@ class AntigravityCLI:
             _gop.update({k: v for k, v in ev.items() if k != t})
             ev = _gop
 
+        # LOẠI bước thật nằm ở `step_type`, không phải ở tầng ngoài. Đo trên agy 1.2.8: mọi
+        # bước đều đi chung một tên sự kiện `step_update`, và bước gọi công cụ là
+        #   {"step_type":"tool","tool_name":"run_command","state":"ACTIVE"|"DONE",
+        #    "step_index":2,"tool_info":{"name":...,"parameters":{...}}}
+        # Nhánh `tool_use/tool_call/tool` bên dưới chỉ khớp khi loại nằm ở tầng ngoài, hình
+        # dạng CLI thật không dùng - nên trước bản này mọi lần agy gọi công cụ đều rơi vào hư
+        # không: khung chat không vẽ được tiến trình nào, và `co_tool` không bật lên nên Javis
+        # tưởng lượt đó chưa đụng gì bên ngoài và cho phép chạy lại.
+        if str(ev.get("step_type") or "").lower() == "tool":
+            # `state` đi ACTIVE rồi DONE cho CÙNG một `step_index`, nên phải đếm theo index
+            # chứ không theo số dòng - không thì một lần gọi hiện thành hai bước.
+            kho = chan if isinstance(chan, dict) else {}
+            da_bao = kho.setdefault("_buoc_tool", set())
+            idx = str(ev.get("step_index") or ev.get("tool_id") or ev.get("id") or "")
+            ten = str(ev.get("tool_name") or (ev.get("tool_info") or {}).get("name") or "")
+            ra = []
+            if idx not in da_bao:
+                da_bao.add(idx)
+                ra.append({"type": "tool_call", "name": ten, "id": idx,
+                           "input": (ev.get("tool_info") or {}).get("parameters") or {}})
+            if str(ev.get("state") or "").upper() == "DONE":
+                ra.append({"type": "tool_result", "id": idx, "status": "", "content": ""})
+            return ra
+
         # Mở mạch: nhặt id hội thoại để lượt sau nối lại được.
         if t in ("init", "session", "conversation", "start", "system"):
             for k in ("conversation_id", "session_id", "conversationId", "sessionId", "id"):

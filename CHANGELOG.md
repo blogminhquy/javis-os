@@ -10,6 +10,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Cần bật một lần bằng biến môi trường `JAVIS_ENABLE_WEB_CHAT=true` rồi khởi động lại. Chưa bật thì model này không hiện ra, và mọi thứ khác chạy y như cũ.
 - Trang **Models**, trong thẻ ChatGPT, có thêm nút mở cửa sổ đăng nhập, nút kiểm tra lại và nút đóng trình duyệt. Javis không cầm mật khẩu của bạn: bạn tự đăng nhập một lần trong cửa sổ đó.
 - Lưu ý khi dùng: mỗi lượt là một cuộc chat thật trên chatgpt.com, nên **Memory** và **Custom instructions** của tài khoản sẽ ảnh hưởng câu trả lời. Muốn Javis trả lời thuần theo prompt của mình thì tắt hai thứ đó trong cài đặt ChatGPT. Mỗi vòng gọi tool cũng mất vài chục giây, nên việc nhiều bước vẫn nên để Codex.
+## [0.63.10] - 2026-09-22
+### Sửa lỗi
+- **Bộ não Antigravity giờ cũng hiện tiến trình.** Khối "Đã chạy N bước" thêm ở bản trước không bao giờ xuất hiện khi chạy Antigravity, kể cả lúc nó gọi công cụ thật. Lý do: `agy` báo việc nó làm theo một khuôn mà Javis đọc sót, nên mọi lần gọi công cụ rơi vào hư không.
+- Kèm theo đó, Javis nay biết lượt Antigravity đã chạy lệnh ngoài hay chưa. Trước đây gặp lỗi mạng tạm thời nó có thể chạy lại cả lượt và làm lần hai những việc đã làm rồi.
+
 ## [0.63.9] - 2026-09-22
 ### Thêm mới
 - **Một việc trong mục Coding giờ gắn được NHIỀU thư mục.** Bấm chip thư mục rồi tích chọn bao nhiêu cái tuỳ ý, menu không đóng giữa chừng nên chọn liền mấy cái một lúc. Hợp với việc đụng cả mã nguồn lẫn tài liệu, hay app với thư viện dùng chung.
