@@ -76,6 +76,21 @@ check(
     f"còn {CLAUDE_MD_MAX_CHARS - len(_claude_md):,} ký tự]",
 )
 
+# Mục "Dev conventions" đã ĐẨY RA NGOÀI ngày 2026-09-22 (đúng cách file này dặn: chạm trần thì
+# cắt thật hoặc đẩy một mục ra, đừng nâng số). Nó chỉ dành cho phiên Claude Code sửa repo, còn
+# người dùng Javis không bao giờ cần, nên để trong prompt là đánh thuế mọi lượt chat. Trong
+# CLAUDE.md giờ chỉ còn một dòng trỏ sang. Hai canary dưới đây giữ cho dòng trỏ không rỗng:
+# xoá file mà quên dòng trỏ, hay đổi tên file mà quên sửa CLAUDE.md, đều đỏ ở đây.
+_QUY_UOC = ROOT / "docs" / "quy-uoc-dev.md"
+check(
+    "CLAUDE.md còn trỏ sang file quy ước dev",
+    "docs/quy-uoc-dev.md" in _claude_md,
+)
+check(
+    "file quy ước dev có thật và còn luật đặt xí chỗ số phiên bản",
+    _QUY_UOC.exists() and "xí chỗ" in _QUY_UOC.read_text(encoding="utf-8"),
+)
+
 # ============================================================
 # 2. CORE_CONTRACT - prompt lõi đường biên dịch (thay CLAUDE.md khi canary bật)
 # ============================================================

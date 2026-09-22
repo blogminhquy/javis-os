@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.5] - 2026-09-22
+### Cải thiện
+- **Chạy nhiều phiên sửa cùng lúc không còn giẫm số phiên bản của nhau.** Quy ước mới: phiên nào cũng đặt xí chỗ số phiên bản ngay từ đầu bằng một PR nháp, nên các phiên khác nhìn vào là biết số đó đã có người lấy. Anh sẽ ít gặp cảnh một thay đổi xong xuôi rồi phải làm lại chỉ vì trùng số.
+- Mỗi lượt chat nhẹ đi một chút: phần quy ước dành riêng cho lập trình đã tách khỏi prompt lõi, vì người dùng không bao giờ cần tới nó.
+
 ## [0.64.3] - 2026-09-22
 ### Sửa lỗi
 - **Mở trang Cộng sự nhanh hơn nhiều lần.** Danh sách trợ lý đang kéo theo cả bài prompt hệ thống của từng người: đo trên một bộ não 14 trợ lý là **366 KB** cho một thứ chỉ hiện tên và vai trò. Nay còn **2,9 KB**. Đây là chỗ làm cột trái trống trơn mấy giây mỗi lần mở trang từ menu linh vật.
