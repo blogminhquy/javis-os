@@ -227,6 +227,18 @@
   // ---------- dựng khung ----------
   function render(el, opts) {
     S.el = el; active = true; ready = false;
+    // DỰNG LẠI TỪ ĐẦU, không nối tiếp lần trước. Trang này còn được dựng lại NGAY TẠI CHỖ khi
+    // người dùng đổi bộ não (console.js gọi thẳng renderPage, không đi qua navigateTo nên roi()
+    // KHÔNG chạy), và lúc đó mọi thứ còn sót lại đều là của brain cũ:
+    //   - một moPhien đang chờ mạng sẽ mở phiên của brain cũ vào khung chat vừa dựng
+    //     (chủ dự án 22/09: "khung chat hiển thị dữ liệu của hội thoại cũ") -> opening++ cắt nó;
+    //   - _phienTruoc trỏ vào cuộc chính của brain cũ, rời trang là mở nhầm nó ra;
+    //   - danh sách cũ mà `daTai` vẫn true thì brain mới chưa tải xong đã bày nhầm màn khởi đầu.
+    opening++;
+    dongMenu();            // menu nổi của lần dựng trước neo vào <body>, không chết theo DOM cũ
+    _phienTruoc = null;
+    S.sessionCuaPhien = {}; S.tienDo = {}; S.lanChay = {};
+    S.agents = []; S.workflows = []; daTai = false;
     el.innerHTML =
       '<div class="wspage" id="wsPage">' +
         '<aside class="ws-left" id="wsLeft">' +

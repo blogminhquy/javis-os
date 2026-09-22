@@ -1960,6 +1960,47 @@ async function reloadGraph() {
     renderConceptLabels(data.categories || [], stats.total_notes || 0);
   } catch (e) { graphStats.textContent = window.t("models.err") + " " + e.message; }
 }
+// ---- Việc CHỈ THẤY ĐƯỢC ở màn chính: hoãn khi đang đứng ở trang quản lý ----
+// Đổi brain là đổi cả cockpit: đồ thị, số ký ức, số cộng sự, cờ cấu trúc vault. Nhưng bốn thứ
+// đó chỉ NHÌN THẤY ĐƯỢC ở màn chính. Chạy chúng trong lúc người dùng đang ở trang Cộng sự là
+// thiệt đôi đường: một lượt /graph nặng cộng /agents /skills /workflows lặp lại tranh chỗ với
+// chính trang đang mở (trình duyệt chỉ mở được 6 kết nối một lúc), rồi thư viện đồ thị quay
+// warmupTicks ĐỒNG BỘ trên toàn bộ node - màn hình đứng hình vài giây, trắng trơn. Chủ dự án
+// báo 22/09: đổi bộ não ở trang Cộng sự thì "bị đen màn hình luôn, nó bị trắng tinh".
+// Hoãn lại; quay về màn chính mới chạy, và chỉ chạy một lần cho lần đổi gần nhất.
+let _cockpitCho = false;
+function _oManChinh() {
+  // Không biết đang ở trang nào (console.js chưa dựng xong) thì cứ chạy như cũ: thà làm thừa
+  // một lượt còn hơn treo vĩnh viễn số liệu của màn chính.
+  try { return !(window.JavisNav && window.JavisNav.active) || window.JavisNav.active() === "home"; }
+  catch (e) { return true; }
+}
+function capNhatManChinh() {
+  if (!_oManChinh()) {
+    _cockpitCho = true;
+    // Ô đếm note nằm ngay cạnh ô chọn brain nên NHÌN THẤY ĐƯỢC cả ở trang quản lý: để nguyên
+    // con số của brain cũ là nói dối. Về gạch ngang cho tới lúc đếm thật (số note của từng
+    // brain vẫn có sẵn trong chính tên từng dòng của ô chọn).
+    graphStats.textContent = "-";
+    return;
+  }
+  _cockpitCho = false;
+  reloadGraph();
+  connectGraphWatch();   // theo dõi realtime trên nguồn mới
+  loadMemStats();   // bộ nhớ theo vault → đổi vault thì đổi số ký ức
+  loadBrainStats(); // agent/skill/workflow theo vault
+  checkVault();     // kiểm tra cấu trúc vault mới chọn
+}
+// console.js gọi mỗi lần đổi trang: về tới màn chính thì trả nợ lần đổi brain đang hoãn.
+window.JavisCockpit = { veManChinh() { if (_cockpitCho) capNhatManChinh(); },
+                        dangCho: () => _cockpitCho };
+
+// Trang đang mở có MƯỢN khung chat và tự mở phiên của nó không (Cộng sự: phiên agent:<slug>
+// hay workflow:<slug>; Coding: phiên của repo). Phiên đó KHÔNG phải cuộc chính của brain.
+function _trangGiuKhungChat() {
+  try { return !!(window.JavisNav && window.JavisNav.giuKhungChat && window.JavisNav.giuKhungChat()); }
+  catch (e) { return false; }
+}
 // Đổi brain → khung chat phải đổi theo brain (vụ Mac 0.9.230: transcript giữ nguyên phiên
 // brain cũ, tưởng mất hội thoại, phải reload mới thấy). Nhớ phiên đang xem của TỪNG brain
 // TRONG TRANG (cố ý không persist - giữ luật boot "mỗi lần tải trang là hội thoại mới"):
@@ -1970,16 +2011,18 @@ graphSource.addEventListener("change", () => {
   localStorage.setItem("javis.graphSource", graphSource.value);
   const nb = currentBrainPath();
   if (nb !== _lastBrain) {
-    if (savedSessionId) _viewByBrain[_lastBrain] = savedSessionId;
+    // Trang Cộng sự (và Coding) tự dựng lại theo brain mới rồi tự mở phiên của nó. Nhớ phiên
+    // của nó vào _viewByBrain là lần sau quay lại brain này, trang Trò chuyện mở thẳng vào
+    // hội thoại của một trợ lý; còn khôi phục cuộc chính vào đây là ĐÈ lên đúng phiên trang
+    // kia vừa mở - chủ dự án 22/09: "màn ở giữa khung chat hiển thị dữ liệu của hội thoại cũ".
+    // Ở đó chỉ xoá trắng, phần mở phiên để trang kia lo.
+    const muon = _trangGiuKhungChat();
+    if (savedSessionId && !muon) _viewByBrain[_lastBrain] = savedSessionId;
     _lastBrain = nb;
     resetChatView();                                       // xoá ngay khung của brain cũ
-    if (_viewByBrain[nb]) openStoredSession(_viewByBrain[nb]);   // brain quen → mở lại phiên đang dở
+    if (!muon && _viewByBrain[nb]) openStoredSession(_viewByBrain[nb]);   // brain quen → mở lại phiên đang dở
   }
-  reloadGraph();
-  connectGraphWatch();   // theo dõi realtime trên nguồn mới
-  loadMemStats();   // bộ nhớ theo vault → đổi vault thì đổi số ký ức
-  loadBrainStats(); // agent/skill/workflow theo vault
-  checkVault();     // kiểm tra cấu trúc vault mới chọn
+  capNhatManChinh();
 });
 
 // ============================================
@@ -2236,7 +2279,11 @@ document.getElementById("fmUse").addEventListener("click", () => {
   graphSource.value = "path:" + fmCurrent;
   localStorage.setItem("javis.graphSource", graphSource.value);
   folderModal.classList.remove("open");
-  reloadGraph();
+  // BÁO ĐỔI BRAIN như mọi đường khác, thay vì chỉ vẽ lại đồ thị. Gán thẳng `.value` không sinh
+  // sự kiện `change`, nên bản cũ đổi não mà khung chat vẫn giữ hội thoại của não trước, trang
+  // Cộng sự vẫn liệt kê trợ lý của não trước và cây thư mục vẫn là cây cũ - mọi thứ ăn theo
+  // brain đều nghe ô này.
+  graphSource.dispatchEvent(new Event("change"));
 });
 window.addEventListener("resize", () => { if (javisGraph) javisGraph.resize(); });
 
