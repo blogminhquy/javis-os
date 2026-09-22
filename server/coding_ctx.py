@@ -48,6 +48,12 @@ class CodingToolContext:
     """
     session_id: str = ""
     workspace_root: str = ""
+    # MỌI thư mục phiên đang gắn, thư mục chính đứng đầu. Một phiên gắn được nhiều thư mục từ
+    # 0.63.9. Engine CLI chỉ hưởng được thư mục CHÍNH vì tool file native của nó chạy theo
+    # `cwd`, một tiến trình chỉ đứng được một chỗ. Engine qua hub không "đứng" ở đâu cả nên
+    # không bị giới hạn đó - và không tận dụng thì nó đọc được ít hơn đúng những thư mục mà
+    # trang Coding vừa hứa là thuộc việc này.
+    workspace_roots: tuple = ()
     permission_mode: str = FULL
     repo_id: str = ""
     branch: str = ""
@@ -101,9 +107,24 @@ class CodingToolContext:
         except Exception:
             la_git = False
 
+        goc = []
+        try:
+            for r in (coding_store.thu_muc_cua_phien(sid) or []):
+                d = str((r or {}).get("duong_dan") or "")
+                if d and Path(d).is_dir():
+                    goc.append(str(Path(d).resolve()))
+        except Exception:
+            goc = []
+
+        chinh = str(Path(cwd).resolve()) if cwd else ""
+        # Thư mục CHÍNH luôn đứng đầu, kể cả khi `cwd` là worktree (một đường dẫn không nằm
+        # trong sổ thư mục), và không lặp lại nếu sổ cũng có nó.
+        moi_goc = ([chinh] if chinh else []) + [g for g in goc if g != chinh]
+
         return cls(
             session_id=sid,
-            workspace_root=str(Path(cwd).resolve()) if cwd else "",
+            workspace_root=chinh,
+            workspace_roots=tuple(moi_goc),
             permission_mode=str(quyen).strip().lower() or FULL,
             repo_id=str(rb.get("thu_muc") or ""),
             branch=str(rb.get("nhanh") or ""),
@@ -120,6 +141,9 @@ class CodingToolContext:
         if not self.active:
             return ""
         phan = [f"Thư mục làm việc: {self.workspace_root}"]
+        phu = [g for g in self.workspace_roots if g != self.workspace_root]
+        if phu:
+            phan.append("thư mục khác cũng thuộc việc này: " + ", ".join(phu))
         if self.branch:
             phan.append(f"nhánh {self.branch}")
         if self.worktree:
@@ -134,6 +158,15 @@ def for_session(session_id: str) -> CodingToolContext:
 
 
 def workspace_root_cua_phien(session_id: str) -> Optional[str]:
-    """Gốc thư mục làm việc của phiên, hoặc None. Dùng ở chỗ chỉ cần mỗi đường dẫn."""
+    """Gốc thư mục làm việc CHÍNH của phiên, hoặc None. Chỗ chỉ cần mỗi một đường dẫn."""
     ctx = CodingToolContext.from_session(session_id)
     return ctx.workspace_root or None
+
+
+def goc_file_cua_phien(session_id: str) -> tuple:
+    """MỌI gốc mà tool file của phiên được phép chạm tới. Rỗng = không phải phiên coding.
+
+    Đây là thứ hub cần, không phải `workspace_root_cua_phien`: hub không chạy tiến trình nào
+    nên nó phục vụ được cả danh sách.
+    """
+    return CodingToolContext.from_session(session_id).workspace_roots

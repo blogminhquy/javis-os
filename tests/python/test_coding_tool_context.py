@@ -79,6 +79,52 @@ coding_store.dat_rang_buoc(SID, muc_quyen="auto")
 check("mô tả cho prompt có nêu thư mục", str(REPO.resolve()) in ctx.mo_ta())
 check("mô tả cho prompt có nêu mức quyền", "auto" in ctx.mo_ta())
 
+check("một thư mục -> danh sách gốc có đúng nó", ctx.workspace_roots == (str(REPO.resolve()),))
+
+
+# ---- 1b. NHIỀU thư mục trong một phiên (0.63.9) ----
+#
+# Engine CLI chỉ hưởng thư mục CHÍNH vì tool file native của nó chạy theo `cwd`, mà một tiến
+# trình chỉ đứng được một chỗ. Engine qua hub KHÔNG chạy tiến trình nào, nên giới hạn đó
+# không áp cho nó - và không tận dụng thì nó đọc được ít hơn đúng những thư mục mà trang
+# Coding vừa hứa là thuộc việc này, im lặng.
+
+REPO2 = Path(_TMP) / "du-an-hai"
+(REPO2 / "lib").mkdir(parents=True, exist_ok=True)
+(REPO2 / "lib" / "util.py").write_text("X = 1\n", encoding="utf-8")
+repo2_row = coding_store.them_thu_muc(str(REPO2), brain="brain", ten="du-an-hai")
+coding_store.dat_rang_buoc(SID, thu_muc_ids=[repo_row["id"], repo2_row["id"]])
+
+ctx2 = coding_ctx.CodingToolContext.from_session(SID)
+check("gắn hai thư mục -> cả hai vào danh sách gốc",
+      set(ctx2.workspace_roots) == {str(REPO.resolve()), str(REPO2.resolve())})
+check("thư mục CHÍNH đứng đầu danh sách",
+      ctx2.workspace_roots[0] == str(REPO.resolve()))
+check("workspace_root (số ít) vẫn là thư mục chính",
+      ctx2.workspace_root == str(REPO.resolve()))
+check("mô tả cho prompt có nêu cả thư mục phụ", str(REPO2.resolve()) in ctx2.mo_ta())
+check("goc_file_cua_phien trả đúng danh sách đó",
+      coding_ctx.goc_file_cua_phien(SID) == ctx2.workspace_roots)
+check("phiên thường -> goc_file_cua_phien rỗng",
+      coding_ctx.goc_file_cua_phien("phien-chat-thuong") == ())
+
+# Hub phải đọc được file ở thư mục PHỤ, không chỉ thư mục chính.
+_p2 = mcp_hub._safe_path(str(BRAIN), "lib/util.py", workspace_root=list(ctx2.workspace_roots))
+check("hub đọc được file ở thư mục PHỤ", _p2 == (REPO2 / "lib" / "util.py").resolve())
+_p1 = mcp_hub._safe_path(str(BRAIN), "server/auth.py", workspace_root=list(ctx2.workspace_roots))
+check("hub vẫn đọc đúng file ở thư mục CHÍNH", _p1 == (REPO / "server" / "auth.py").resolve())
+_pb = mcp_hub._safe_path(str(BRAIN), "notes/ghi-chu.md", workspace_root=list(ctx2.workspace_roots))
+check("brain vẫn THẮNG khi file có thật trong brain",
+      _pb == (BRAIN / "notes" / "ghi-chu.md").resolve())
+check("truyền MỘT chuỗi vẫn chạy như cũ (mọi chỗ gọi cũ không phải sửa)",
+      mcp_hub._safe_path(str(BRAIN), "server/auth.py", workspace_root=str(REPO))
+      == (REPO / "server" / "auth.py").resolve())
+check("danh sách RỖNG = không có gốc làm việc nào, y hệt None",
+      mcp_hub._goc_lam_viec([]) == [] and mcp_hub._goc_lam_viec(None) == [])
+
+# Trả lại một thư mục cho các phần thử phía dưới.
+coding_store.dat_rang_buoc(SID, thu_muc_ids=[repo_row["id"]])
+
 
 # ---- 2. Phiên KHÔNG phải coding: rỗng, và rỗng là bình thường ----
 
@@ -116,7 +162,8 @@ check("CÓ workspace: vẫn đọc được file trong brain (không cướp g�
 
 r = doc("../../../etc/passwd", ws)
 check("CÓ workspace: thoát ra ngoài cả hai gốc vẫn bị chặn", r.startswith("ERROR:"))
-check("CÓ workspace: câu lỗi nói rõ CẢ HAI nơi (spec 7.1)", "CẢ HAI" in r)
+check("CÓ workspace: câu lỗi nói rõ MỌI nơi được phép đọc (spec 7.1)",
+      "bộ não" in r and "thư mục làm việc" in r)
 check("CÓ workspace: câu lỗi in ra thư mục làm việc để model biết mình đang ở đâu", ws in r)
 
 
@@ -152,7 +199,9 @@ check("CÓ workspace: file mới trong thư mục CHỈ brain có thì rơi vào
 r = ghi("../../../tmp/ngoai.py", "x", ws)
 check("ghi ra ngoài cả hai gốc -> câu lỗi NÓI ĐƯỢC, không ném exception",
       r.startswith("ERROR:"))
-check("câu lỗi khi ghi cũng nêu cả hai nơi", "CẢ HAI" in r)
+check("câu lỗi khi ghi cũng nêu đủ các nơi được phép ghi",
+      "bộ não" in r and "thư mục làm việc" in r)
+check("câu lỗi khi ghi in ra thư mục làm việc", ws in r)
 
 
 # ---- 6. Liệt kê thư mục cũng theo hai gốc ----
@@ -180,9 +229,16 @@ check("thêm workspace KHÔNG thêm bớt tool nào",
 
 # ---- 8. Khoá cache phải chứa workspace, kẻo hai repo dùng chung một route ----
 
+# Soi HÀNH VI chứ không tìm chuỗi trong khoá cache (0.64): bản cũ khẳng định đúng một biểu
+# thức `str(workspace_root or "")`, nên đổi gốc từ MỘT chuỗi sang DANH SÁCH là test đỏ dù
+# khoá vẫn phân biệt đúng. Cái phải giữ là hai bộ gốc khác nhau cho ra hai khoá khác nhau.
 _src = (SERVER / "mcp_hub.py").read_text(encoding="utf-8")
-check("workspace_root nằm trong khoá cache của discover_all",
-      'bool(staging), str(workspace_root or "")' in _src)
+check("hai bộ gốc khác nhau -> hai khoá cache khác nhau (không dùng chung route)",
+      mcp_hub._ten_goc([str(REPO)]) != mcp_hub._ten_goc([str(REPO), str(REPO2)]))
+check("không có gốc nào -> khoá rỗng, tức phiên chat thường không đổi khoá",
+      mcp_hub._ten_goc(None) == "" and mcp_hub._ten_goc([]) == "")
+check("khoá cache của discover_all có tính tới gốc làm việc",
+      "_ten_goc(workspace_root)" in _src)
 check("discover_all truyền workspace_root xuống _builtin_tools",
       "workspace_root=workspace_root)" in _src)
 

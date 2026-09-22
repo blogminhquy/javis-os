@@ -596,8 +596,17 @@ Năm lớp đã vào `main`, mỗi lớp một commit và một bộ test riêng
 | 4. Transport tee fetch | `web_transport.py` | `test_web_transport_tee` (có tầng chạy THẬT trong Chromium) |
 | 5. Vòng lặp tool + nối dây ba đường chat | `web_engine.py`, `main.py` | `test_web_engine_loop`, `test_luot_chat_web` |
 
-Tức Phase 1, 2 và 3 của bảng dưới đã xong, cộng phần hạ tầng của Phase 4 (lớp 2 và 3); còn
-lại của Phase 4 là mở `workspace_root` cho engine Web ở đường chat Coding.
+Tức Phase 1 tới Phase 4 của bảng dưới đã xong. Đường chat dashboard truyền `workspace_root`
+và `coding_ctx` của phiên vào hub, nên chọn `chatgpt-web` trong một phiên Coding là model đọc
+ghi được cây mã nguồn và gọi được `javis_run_command`.
+
+**Gốc file là một DANH SÁCH, không phải một đường dẫn.** 0.63.9 cho một phiên Coding gắn
+nhiều thư mục. Engine CLI chỉ hưởng thư mục CHÍNH, vì tool file native của nó chạy theo `cwd`
+và một tiến trình chỉ đứng được một chỗ; `coding_store.khoi_prompt` nói thẳng là engine chỉ
+có API thì không với tới các thư mục còn lại. Engine qua hub KHÔNG chạy tiến trình nào nên
+giới hạn đó không áp cho nó, và `mcp_hub._safe_path` nhận cả danh sách gốc. Không làm bước
+này thì engine Web đọc được ít hơn đúng những thư mục mà trang Coding vừa hứa là thuộc việc
+này, im lặng, không báo gì.
 
 **Ba quyết định đổi so với bản viết trước, và lý do:**
 

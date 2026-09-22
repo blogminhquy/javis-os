@@ -319,52 +319,76 @@ def _trong_goc(root, p):
     return t if (r == t or r in t.parents) else None
 
 
+def _goc_lam_viec(workspace_root):
+    """Chuẩn hoá `workspace_root` thành DANH SÁCH gốc, theo đúng thứ tự ưu tiên.
+
+    Nhận cả một chuỗi lẫn một danh sách, vì 0.63.9 cho MỘT phiên Coding gắn NHIỀU thư mục
+    (`coding_store.thu_muc_cua_phien`) trong khi mọi chỗ gọi cũ chỉ đưa một cái. Rỗng và None
+    đều thành danh sách rỗng, tức hành vi y hệt lúc chưa có tham số này.
+    """
+    if not workspace_root:
+        return []
+    if isinstance(workspace_root, (str, Path)):
+        return [workspace_root]
+    return [g for g in workspace_root if g]
+
+
+def _ten_goc(workspace_root):
+    """Danh sách gốc làm việc viết thành chữ cho câu báo lỗi. Rỗng nếu không có gốc nào."""
+    return ", ".join(str(g) for g in _goc_lam_viec(workspace_root))
+
+
 def _safe_path(vault_root, p, workspace_root=None):
-    """Đường dẫn hợp lệ trong vault, HOẶC trong thư mục làm việc của phiên Coding.
+    """Đường dẫn hợp lệ trong vault, HOẶC trong một thư mục làm việc của phiên Coding.
 
     `workspace_root` là gốc thứ hai, thêm ở 0.64 để engine KHÔNG có tool file native (sáu
     engine API và engine Web) đọc ghi được cây mã nguồn. Trước đó hub luôn nhận
     `vault_root = brain`, nên một phiên Coding chạy bằng engine API không chạm nổi vào repo:
     `_read` chặn mọi đường dẫn ngoài vault và trả "nằm ngoài bộ não đang làm việc".
 
-    None (mặc định) = hành vi y hệt trước, chỉ một gốc. Đây là điều kiện để thay đổi này
-    không đụng một lượt chat thường nào.
+    Nhận CẢ DANH SÁCH: một phiên Coding gắn được nhiều thư mục từ 0.63.9, và engine không có
+    tool native thì không "đứng" ở đâu cả, nên nó không bị giới hạn một gốc như engine CLI.
+    Thứ tự trong danh sách là thứ tự ưu tiên; cái đầu là thư mục chính.
 
-    CHỌN GỐC NÀO khi có hai gốc: xét theo thứ tự dưới đây. Không được chỉ xét "nằm trong gốc",
-    vì mọi đường dẫn tương đối đều nằm trong CẢ HAI về mặt chữ - `server/auth.py` ghép vào
-    brain vẫn ra một đường dẫn hợp lệ, chỉ là không có file ở đó. Xét thiếu bước này thì mọi
-    lời gọi đọc file repo đều rơi vào brain rồi trả "không có file", đúng cái chặn cứng mà
-    tham số này sinh ra để gỡ.
+    None hoặc rỗng (mặc định) = hành vi y hệt trước, chỉ một gốc là vault. Đây là điều kiện
+    để thay đổi này không đụng một lượt chat thường nào.
 
-      1. File CÓ THẬT trong vault            -> vault (vault thắng khi cả hai cùng có)
-      2. File CÓ THẬT trong thư mục làm việc -> thư mục làm việc
-      3. THƯ MỤC CHA có thật trong vault     -> vault   (cảnh GHI file mới)
-      4. THƯ MỤC CHA có thật ở thư mục làm việc -> thư mục làm việc
-      5. Không đâu có                        -> vault, để câu báo lỗi nói về brain như cũ
+    CHỌN GỐC NÀO khi có nhiều gốc: xét theo thứ tự dưới đây. Không được chỉ xét "nằm trong
+    gốc", vì mọi đường dẫn tương đối đều nằm trong MỌI gốc về mặt chữ - `server/auth.py` ghép
+    vào brain vẫn ra một đường dẫn hợp lệ, chỉ là không có file ở đó. Xét thiếu bước này thì
+    mọi lời gọi đọc file repo đều rơi vào brain rồi trả "không có file", đúng cái chặn cứng
+    mà tham số này sinh ra để gỡ.
 
-    Bước 3 và 4 là thứ làm `javis_write_file` ghi đúng chỗ: ghi `server/moi.py` trong một
-    phiên coding thì brain không có thư mục `server/` còn repo có, nên file rơi vào repo.
+      1. File CÓ THẬT ở gốc nào đó   -> gốc đó, xét theo thứ tự (vault trước, rồi từng thư
+                                        mục làm việc), nên vault thắng khi nhiều gốc cùng có
+      2. THƯ MỤC CHA có thật ở gốc nào đó -> gốc đó, cùng thứ tự (cảnh GHI file mới)
+      3. Không đâu có                -> vault, để câu báo lỗi nói về brain như cũ
+
+    Bước 2 là thứ làm `javis_write_file` ghi đúng chỗ: ghi `server/moi.py` trong một phiên
+    coding thì brain không có thư mục `server/` còn repo có, nên file rơi vào repo.
     """
     tv = _trong_goc(vault_root, p)
-    if not workspace_root:
+    goc_lv = _goc_lam_viec(workspace_root)
+    if not goc_lv:
         if tv is not None:
             return tv
         raise ValueError(f"đường dẫn '{p}' nằm ngoài vault")
 
-    tw = _trong_goc(workspace_root, p)
-    if tv is None and tw is None:
+    ung_vien = [tv] + [_trong_goc(g, p) for g in goc_lv]
+    co_that = [u for u in ung_vien if u is not None]
+    if not co_that:
         raise ValueError(f"đường dẫn '{p}' nằm ngoài cả bộ não lẫn thư mục làm việc")
 
-    for ung_vien in (tv, tw):
-        if ung_vien is not None and ung_vien.exists():
-            return ung_vien
-    for ung_vien in (tv, tw):
+    for u in co_that:
+        if u.exists():
+            return u
+    for u in co_that:
         try:
-            if ung_vien is not None and ung_vien.parent.is_dir():
-                return ung_vien
+            if u.parent.is_dir():
+                return u
         except OSError:
             continue
-    return tv if tv is not None else tw
+    return tv if tv is not None else co_that[0]
 
 
 def _vung_nhan_file():
@@ -539,10 +563,11 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             # nguyên văn "nằm ngoài vault", model đọc xong tự dựng một lời khuyên sai (bảo
             # người dùng tự chép file vào thư mục Brain rồi mới đọc được).
             if workspace_root:
-                return (f"ERROR: '{rel}' nằm ngoài CẢ HAI nơi tool này được phép đọc, nên "
-                        f"không đọc được. Hai nơi đó là: bộ não đang làm việc, và thư mục "
-                        f"làm việc của phiên này ({workspace_root}). Dùng đường dẫn tương "
-                        f"đối so với một trong hai, hoặc file vừa đính kèm vào khung chat.")
+                return (f"ERROR: '{rel}' nằm ngoài MỌI nơi tool này được phép đọc, nên "
+                        f"không đọc được. Những nơi đó là: bộ não đang làm việc, và thư mục "
+                        f"làm việc của phiên này ({_ten_goc(workspace_root)}). Dùng đường dẫn "
+                        f"tương đối so với một trong số đó, hoặc file vừa đính kèm vào khung "
+                        f"chat.")
             return (f"ERROR: '{rel}' nằm ngoài bộ não đang làm việc nên tool này không đọc "
                     f"được. Javis khoá tool file trong brain để một lượt chat không đọc lung "
                     f"tung trên máy. Đọc được: đường dẫn tương đối trong brain, và file người "
@@ -583,9 +608,10 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
             p = _safe_path(vault_root, (args or {}).get("path"), workspace_root=workspace_root)
         except ValueError:
             if workspace_root:
-                return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài CẢ HAI nơi được phép "
+                return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài MỌI nơi được phép "
                         f"ghi: bộ não đang làm việc, và thư mục làm việc của phiên này "
-                        f"({workspace_root}). Dùng đường dẫn tương đối so với một trong hai.")
+                        f"({_ten_goc(workspace_root)}). Dùng đường dẫn tương đối so với một "
+                        f"trong số đó.")
             return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài bộ não đang làm việc nên "
                     f"tool này không ghi được. Dùng đường dẫn tương đối trong brain.")
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -989,6 +1015,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     staging=True: cho `javis_read_file` đọc thêm vùng nhận file của khung chat - CHỈ đường chat
     của chủ truyền vào (xem `_safe_read_path`).
     workspace_root: thư mục làm việc của phiên Coding - tool FILE nhận thêm gốc đó (0.64).
+        Nhận cả DANH SÁCH: một phiên gắn được nhiều thư mục từ 0.63.9.
     Nằm TRONG khoá cache vì hai phiên coding khác repo phải thấy hai danh sách route khác nhau."""
     mode = (mode or "full").strip().lower()
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
@@ -1005,7 +1032,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     # `suggest` chạy được lệnh bằng quyền của phiên `full`.
     _quyen_ctx = getattr(coding_ctx_cua_phien, "permission_mode", "") or ""
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
-           bool(force_lazy), lang, bool(staging), str(workspace_root or ""), _quyen_ctx)
+           bool(force_lazy), lang, bool(staging), _ten_goc(workspace_root), _quyen_ctx)
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)

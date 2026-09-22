@@ -59,6 +59,7 @@ import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi b�
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
 import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
 import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
+import coding_ctx      # phiên Coding: gốc file và mức quyền cho engine qua hub
 import coding_store    # trang Coding: phiên gắn repo nào, nhánh nào, worktree nào, mức quyền nào
 import antigravity_cli   # bộ não thứ 10: Antigravity CLI (`agy`) - bản Google chỉ định thay Gemini CLI
 import grok_cli          # bộ não thứ 11: Grok Build CLI (`grok`) - gói SuperGrok / X Premium+
@@ -3362,7 +3363,9 @@ async def _dung_web_engine(brain, sysprompt, *, tag="chat", session_id="", mode=
 
     Hub trỏ BRAIN, đúng như mọi engine khác: MCP, cron và nhắc hẹn thuộc bộ não người dùng.
     `workspace_root` chỉ có giá trị ở phiên Coding, và chỉ khi ĐỒNG THỜI có `coding_ctx` thì
-    hub mới cấp `javis_run_command` (xem mcp_hub._builtin_tools)."""
+    hub mới cấp `javis_run_command` (xem mcp_hub._builtin_tools). Nó nhận CẢ DANH SÁCH gốc:
+    một phiên gắn được nhiều thư mục từ 0.63.9, và engine qua hub không chạy tiến trình nào
+    nên nó không bị giới hạn một `cwd` như engine CLI."""
     tools, route = [], {}
     try:
         if _hub_enabled():
@@ -12721,9 +12724,16 @@ async def websocket_endpoint(ws: WebSocket):
                     "chatgpt-web", actual_model, kind)
                 _web_sid = (_row0.get("web_thread_id") or "").strip()
 
+                # Phiên Coding: mở gốc file sang thư mục làm việc. Không có bước này thì
+                # chọn `chatgpt-web` rồi ngồi trong một phiên Coding là model KHÔNG đọc nổi
+                # một file nào của repo, vì hub luôn khoá tool file trong brain. Rỗng ở phiên
+                # chat thường, và lúc đó mọi thứ chạy y như trước.
+                _web_ctx = coding_ctx.CodingToolContext.from_session(conv_sid)
                 wcli = await _dung_web_engine(
                     brain, sysprompt, tag=turn_tag, session_id=_web_sid,
-                    mode=_muc_quyen_luot_chat(_row0), staging=True)
+                    mode=_muc_quyen_luot_chat(_row0), staging=True,
+                    workspace_root=list(_web_ctx.workspace_roots) or None,
+                    coding_ctx=_web_ctx if _web_ctx.active else None)
                 if not wcli.is_available():
                     _ok_web, _ly_do_web = web_transport.kha_dung()
                     final_text = ("⚠ Engine ChatGPT Web chưa dùng được trên máy này.\n\n"

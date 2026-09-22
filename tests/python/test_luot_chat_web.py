@@ -306,6 +306,10 @@ def _soi_ma_nguon():
           src.count("not la_model_web(api_model)") >= 2)
     check("stream không tool dùng model thay thế, không gửi id web cho Responses",
           "_model_codex_thay_the(model), messages, reasoning)" in src)
+    check("nhánh Web mở gốc file sang thư mục làm việc của phiên Coding",
+          "workspace_root=list(_web_ctx.workspace_roots)" in src)
+    check("chỉ cấp coding_ctx khi phiên THẬT SỰ là phiên coding",
+          "coding_ctx=_web_ctx if _web_ctx.active else None" in src)
     check("có endpoint trạng thái cho trang Models", '@app.get("/web-chat/status")' in src)
     for ep in ("/web-chat/login", "/web-chat/check", "/web-chat/reset"):
         check(f"có endpoint {ep}", f'"{ep}"' in src)

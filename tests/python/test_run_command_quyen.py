@@ -220,7 +220,7 @@ check("qua hub, mức suggest vẫn bị chặn (hai lớp quyền, không thay 
 
 _hub_src = (SERVER / "mcp_hub.py").read_text(encoding="utf-8")
 check("mức quyền của phiên nằm trong khoá cache (hai phiên cùng repo khác chip không lẫn nhau)",
-      '_quyen_ctx' in _hub_src and 'str(workspace_root or ""), _quyen_ctx' in _hub_src)
+      "_quyen_ctx" in _hub_src and "_ten_goc(workspace_root), _quyen_ctx" in _hub_src)
 
 
 # ---- 14. Ranh giới mã nguồn ----

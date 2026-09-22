@@ -160,7 +160,7 @@ src = Path(SERVER, "mcp_hub.py").read_text(encoding="utf-8")
 check("staging nằm trong khoá cache của discover_all (hai lượt khác cờ không dùng chung cache)",
       "bool(force_lazy), lang, bool(staging)" in src)
 check("workspace_root cũng nằm trong khoá cache (hai phiên coding khác repo không dùng chung)",
-      'bool(staging), str(workspace_root or "")' in src)
+      "bool(staging), _ten_goc(workspace_root)" in src)
 
 # Cờ staging chỉ được bật trên ĐƯỜNG CHAT CỦA CHỦ. Mọc thêm ở nhánh bot chuyên trách là
 # khách lạ đọc được vùng nhận file của khung chat - đúng lỗ mà 0.21.0 đã phải vá.
