@@ -38,6 +38,16 @@ check("không còn icon PNG khai sizes 'any' (Chrome coi là không hợp lệ)"
   !icons.some((i) => i.sizes === "any"));
 check("display standalone giữ nguyên", manifest.display === "standalone");
 
+// ---- 1b. KHÔNG khoá chiều dọc (chủ báo 22/09/2026) ----
+// manifest khai "orientation": "portrait" thì Android/One UI khoá app ở chiều dọc: xoay ngang
+// tablet thì hệ điều hành ép app vào một cột hẹp giữa màn và làm mờ hai bên. Javis là dashboard
+// nhiều cột, cần bung hết chiều ngang, nên orientation phải để thiết bị tự quyết.
+check("manifest KHÔNG khoá portrait", manifest.orientation !== "portrait");
+check("manifest KHÔNG khoá landscape", manifest.orientation !== "landscape");
+check("orientation để 'any' hoặc bỏ hẳn (theo cảm biến xoay)",
+  manifest.orientation === undefined || manifest.orientation === "any",
+  String(manifest.orientation));
+
 // ---- 2. File icon tồn tại thật (khai trong manifest mà thiếu file = cũng không cài được) ----
 check("dashboard/icon-192.png tồn tại", fs.existsSync(path.join(root, "dashboard", "icon-192.png")));
 check("dashboard/icon-512.png tồn tại", fs.existsSync(path.join(root, "dashboard", "icon-512.png")));
@@ -58,8 +68,8 @@ check("đã chạy dạng app thì không bày nút (display-mode: standalone)",
 check("cài xong thì giấu nút (appinstalled)", app.indexOf('addEventListener("appinstalled"') !== -1);
 
 // ---- cache-bust: đổi manifest phải đổi ?v= để trình duyệt đọc bản mới ----
-check("manifest.json đã bump ?v= (>= 2)",
-  Number((html.match(/manifest\.json\?v=(\d+)/) || [])[1] || 0) >= 2);
+check("manifest.json đã bump ?v= (>= 3)",
+  Number((html.match(/manifest\.json\?v=(\d+)/) || [])[1] || 0) >= 3);
 
 console.log();
 if (fails.length) {

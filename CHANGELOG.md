@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.62.6] - 2026-09-22
+### Sửa lỗi
+- **Cài Javis ra màn hình chính máy tính bảng thì xoay ngang được rồi.** Trước đây app tự khai với hệ điều hành là "chỉ chạy dọc", nên xoay ngang tablet là Android ép giao diện vào một cột hẹp giữa màn, hai bên mờ đi. Nay app xoay theo máy: dọc thì dọc, ngang thì bung hết chiều ngang.
+- Trên máy đã cài icon Javis từ trước, gỡ icon cũ rồi **Thêm vào màn hình chính** lại một lần để máy đọc bản khai mới.
+
 ## [0.62.5] - 2026-09-21
 ### Sửa lỗi
 - **Gỡ mục "Chatbot" lạc vào cuối nhóm Hệ thống** trên thanh bên, cạnh Tài khoản. Nó đáng lẽ đã bị ẩn từ 0.61.0 khi Chatbot gộp thành tab, nhưng bộ lọc bỏ sót đúng nhánh này nên nó vẫn hiện suốt.
