@@ -356,6 +356,24 @@ async def _static_cache_headers(request: Request, call_next):
 CLAUDE_MD_PATH = Path(__file__).parent.parent / "CLAUDE.md"
 SYSTEM_PROMPT = CLAUDE_MD_PATH.read_text(encoding="utf-8") if CLAUDE_MD_PATH.exists() else None
 
+# TRẦN ĐÔNG CỨNG của nhân prompt (CLAUDE.md), 0.64.7. Khác hẳn mọi trần khác trong repo ở
+# một điểm: nó KHÔNG được nâng nữa. Lịch sử của con số này là lý do phải đóng cứng - trần cũ
+# nằm trong test dưới dạng một hằng số kèm lời dặn "lần chạm trần tiếp theo thì cắt thật",
+# và lời dặn đó đã bị bỏ qua ba lần liên tiếp (21.479 → 26.505 → 30.016 → 33.600). Một lời
+# dặn trong chú thích không phải là cái chặn; sửa một dòng số để test xanh lại dễ hơn nhiều
+# so với việc đi cắt nội dung, nên người sửa luôn chọn cách dễ.
+#
+# Vì sao 33.600 chứ không phải con số hiện tại (33.210): chừa đúng 390 ký tự để sửa lỗi
+# chính tả hay làm rõ một câu luật, KHÔNG đủ để nhét thêm một mục. Thêm một mục thật thì
+# phải đẩy một mục khác ra - sang skill (chỉ nạp khi cần) hoặc sang docs/ (như mục quy ước
+# dev đã làm ngày 2026-09-22).
+#
+# Con số này phải KHỚP với `KERNEL_MAX_CHARS` trong tests/python/test_prompt_budget.py, và
+# chính test đó canh sự khớp: sửa một bên mà quên bên kia là đỏ. Đó là cái chặn thật - muốn
+# nâng trần thì phải sửa HAI chỗ và phải viết ra lý do ở cả hai, đủ ma sát để người sửa dừng
+# lại nghĩ thay vì gõ số mới cho xong.
+PROMPT_KERNEL_MAX_CHARS = 33_600
+
 # Bộ nhớ dài hạn - lưu TRONG vault đang chọn để đi theo vault
 MEMORY_SEED = (
     "# Bộ nhớ Javis - Index\n\n"
@@ -876,6 +894,66 @@ def build_system_prompt(brain: str = "brain", include_memory: bool = True,
     except Exception:
         pass
     return base
+
+
+# Tiêu đề khối trong system prompt: một dòng `# === TÊN KHỐI ===`. Tách theo CHÍNH tiêu đề
+# thay vì theo một danh sách khối biết trước, vì danh sách biết trước sẽ lạc hậu đúng vào lúc
+# cần nhất: ai đó thêm một khối mới, bảng phân bổ vẫn xanh và vẫn im lặng cộng khối mới vào
+# khối đứng ngay trước nó. Tách theo tiêu đề thì khối mới tự hiện ra với tên của nó.
+_RE_TIEU_DE_KHOI = re.compile(r"^# === (.+?) ===[ \t]*$", re.M)
+
+
+def do_phan_bo_prompt(brain: str = "brain") -> dict:
+    """Đếm xem mỗi lượt chat gánh bao nhiêu ký tự, và ký tự đó nằm ở khối nào.
+
+    Vì sao cần: system prompt là thứ đi kèm MỌI lượt chat của MỌI model, nhưng nó được lắp
+    từ khoảng mười chỗ khác nhau trong file này, nên không ai nhìn thấy tổng. Khi người dùng
+    kêu chậm hoặc bị nhà cung cấp chặn vì vượt token, câu hỏi đầu tiên là "cái gì to nhất" -
+    trước đây phải đọc code mới đoán được, và đoán thường sai: nhân prompt (CLAUDE.md) là thứ
+    ai cũng nghĩ tới, còn khối kênh hội thoại thì không ai nhớ, mà nó tốn cỡ một phần tư.
+
+    Đo BẢN THẬT: gọi đúng `build_system_prompt` rồi nối khối kênh dashboard, chứ không cộng
+    ước lượng từng phần. Ước lượng là thứ trôi khỏi sự thật mà không báo.
+
+    Trả về ký tự thôi, KHÔNG trả nội dung: prompt có đường dẫn máy, tên brain và chỉ mục bộ
+    nhớ của chủ máy, không phải thứ để phơi ra một endpoint.
+    """
+    try:
+        prompt = build_system_prompt(brain)
+    except Exception as exc:   # noqa: BLE001 - trang chẩn đoán không được phá vì một brain hỏng
+        return {"loi": type(exc).__name__}
+    try:
+        prompt += channel_context.build_channel_block("dashboard", brain_root=_brain_root(brain))
+    except Exception:
+        pass
+
+    moc = [(m.start(), m.group(1).strip()) for m in _RE_TIEU_DE_KHOI.finditer(prompt)]
+    khoi = []
+    # Phần đứng TRƯỚC tiêu đề đầu tiên chính là nhân prompt (CLAUDE.md), vì mọi khối ghép thêm
+    # đều mở đầu bằng một tiêu đề. Nó được tách riêng chứ không gộp vào bảng, vì chỉ nó có trần.
+    dai_nhan = moc[0][0] if moc else len(prompt)
+    for i, (vi_tri, ten) in enumerate(moc):
+        het = moc[i + 1][0] if i + 1 < len(moc) else len(prompt)
+        khoi.append({"ten": ten, "ky_tu": het - vi_tri})
+    khoi.sort(key=lambda k: -k["ky_tu"])
+
+    tong = len(prompt)
+    for k in khoi:
+        k["phan_tram"] = round(k["ky_tu"] * 100.0 / max(1, tong), 1)
+    return {
+        "tong_ky_tu": tong,
+        # ~3,5 ký tự/token cho tiếng Việt trộn Anh, cùng thước với tests/python/test_prompt_budget.py.
+        "tong_token_uoc": int(tong / 3.5),
+        "nhan_ky_tu": dai_nhan,
+        "tran_nhan": PROMPT_KERNEL_MAX_CHARS,
+        "nhan_con_lai": PROMPT_KERNEL_MAX_CHARS - dai_nhan,
+        "khoi": khoi,
+        # Nói thẳng phép đo này KHÔNG bao gồm gì, để không ai đọc tổng ở đây rồi tưởng đó là
+        # toàn bộ chi phí một lượt: schema tool, lịch sử hội thoại và bản thân câu hỏi đều
+        # nằm ngoài. Trên brain nhiều MCP, schema tool còn to hơn cả bảng này.
+        "chua_ke": ["schema tool (MCP Hub)", "lịch sử hội thoại", "câu hỏi của lượt này",
+                    "khối tài liệu project/session (chỉ có khi hội thoại nằm trong project)"],
+    }
 
 
 def build_adaptive_source_prompt(brain: str = "brain", include_memory: bool = False,
@@ -15147,6 +15225,17 @@ async def ollama_local_delete(model: str = Form(...)):
     return r if r.get("ok") else JSONResponse(r, status_code=502)
 
 
+@app.get("/runtime/prompt-size")
+async def runtime_prompt_size(brain: str = Query("brain")):
+    """Bảng phân bổ ký tự của system prompt cho brain này. Xem `do_phan_bo_prompt`.
+
+    Tách riêng khỏi `/runtime/diagnostics` để gọi được một mình: phép đo này lắp lại prompt
+    thật nên nó là phép nặng nhất trong trang chẩn đoán, còn người đang gọt prompt thì muốn
+    đo lại liên tục mà không phải kéo theo cả ảnh chụp runtime.
+    """
+    return do_phan_bo_prompt(brain)
+
+
 @app.get("/runtime/diagnostics")
 async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200),
                               brain: str = Query("brain")):
@@ -15174,7 +15263,14 @@ async def runtime_diagnostics(hours: float = Query(24.0), limit: int = Query(200
         registry = _CAPABILITY_REGISTRY.integrity_check()
     except Exception as exc:
         registry = {"error": type(exc).__name__}
+    try:
+        prompt_size = do_phan_bo_prompt(brain)
+    except Exception as exc:   # noqa: BLE001 - một khối hỏng không được làm mất cả trang
+        prompt_size = {"loi": type(exc).__name__}
     return {**snapshot, "canaries": canaries, "registry": registry,
+            # Ký tự cố định đi kèm MỌI lượt chat, tách theo khối. Trang này sinh ra để trả
+            # lời "token đi đâu", mà phần đi đều đặn nhất thì trước đây không có ở đây.
+            "prompt_size": prompt_size,
             # Provider đã tra được hạn mức gợi ý - để trang Chẩn đoán dựng ô chọn thay vì
             # bắt người vận hành nhớ tên provider nào có preset.
             "quota_presets": model_limits.known_providers(),
