@@ -4,6 +4,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.5] - 2026-09-22
+### Sửa lỗi
+- **Bấm một file trong mục Coding giờ mở ra được.** Trước đó bấm file trong cây thư mục, hay bấm chip file đang mở ở thanh đính kèm, đều không có gì xảy ra và cũng không báo lỗi gì. Nay mở đúng trình sửa như bên Trò chuyện.
+- **Thấy được mức quyền ngay khi chưa gắn thư mục.** Chip Plan / Tự động / Toàn quyền trước đây chỉ hiện sau khi gắn thư mục, trong khi mức quyền đã có hiệu lực ngay từ câu chat đầu tiên. Tức là bạn đang chạy ở một mức mà mình không nhìn thấy và không đổi được.
+- **Icon nhóm Code trở lại hình file mã** thay cho cái cờ lê, vì cờ lê nói về sửa chữa và cài đặt chứ không nói về mã nguồn.
+
 ## [0.63.4] - 2026-09-22
 ### Cải thiện
 - **Thêm thư mục ở mục Coding giờ là bấm chọn, không phải gõ đường dẫn.** Bấm "Thêm thư mục" là mở ra một hộp duyệt thư mục: bấm vào để đi vào, bấm `.. (lên trên)` để ra, thư mục nào là repo git thì có dấu riêng. Ai đã có sẵn đường dẫn trong tay thì dán vào ô trên cùng rồi Enter vẫn nhanh như trước.

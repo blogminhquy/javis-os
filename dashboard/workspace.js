@@ -274,7 +274,7 @@
           // Chỗ đứng cho TRÌNH SỬA khi mở một file .md từ chat hay từ cây thư mục, y như
           // #chatPageEdit của trang Trò chuyện. Thiếu nó thì _borrowNoteEditor() không tìm
           // được khung nào để mượn và cú bấm vào link file lặng lẽ không làm gì cả.
-          '<div class="ws-edit" id="wsEdit"></div>' +
+          '<div class="ws-edit" id="wsEdit" data-ne-host></div>' +
         '</div>' +
         '<aside class="ws-right" id="wsRight">' +
           '<button type="button" class="ws-ico ws-panel-close" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button>' +
