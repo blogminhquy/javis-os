@@ -1,8 +1,9 @@
 # ChatGPT Web: một model của thẻ ChatGPT
 
-**Phiên bản:** v2.0. Thay v1.0 (ChatGPT Web là một tool `web_ask`, chọn bằng lệnh và chip).
+**Phiên bản:** v2.1. Thay v2.0 (thiếu mục 2.2 và mục 7) và v1.0 (ChatGPT Web là một tool
+`web_ask`, chọn bằng lệnh và chip).
 **Trạng thái:** chốt phạm vi, **chưa viết mã**, và chưa được phép viết mã cho tới khi qua
-Cổng 0 ở mục 11.
+Cổng 0 ở mục 12.
 **Phạm vi:** một model id mới trong thẻ ChatGPT sẵn có, một module transport, một bộ dịch
 tool qua chữ. Không thêm provider.
 Tài liệu cho người sửa lõi.
@@ -25,8 +26,8 @@ tin nhắn**. Trần riêng bị bỏ, quay về trần chung 30.
 Nhưng bỏ trần đó thì một ràng buộc khác lên thế chỗ, và ràng buộc mới cứng hơn: **thời gian**.
 Mục 5 viết lại theo ràng buộc đó.
 
-Giữ lại từ v1.0: transport (mục 8), sổ trạng thái và phân loại lỗi (mục 9), ranh giới an toàn
-(mục 10), Cổng 0, spike và tiêu chí giết.
+Giữ lại từ v1.0: transport (mục 9), sổ trạng thái và phân loại lỗi (mục 10), ranh giới an
+toàn (mục 11), Cổng 0, spike và tiêu chí giết.
 
 ---
 
@@ -58,7 +59,9 @@ máy không có Codex CLI (`main.py:4643`). Sau thay đổi này, **ChatGPT Web 
 KHÔNG cài Codex CLI**, nên `_provider_ready_msg` phải coi thẻ là sẵn sàng khi **một trong hai**
 đúng: Codex CLI dùng được, **hoặc** phiên trình duyệt đã đăng nhập.
 
-## 2. Ba chỗ dispatch, và cái bẫy `_codex_safe_model`
+## 2. Hai cái bẫy phải xử lý trước mọi thứ khác
+
+### 2.1. Ba chỗ dispatch, và `_codex_safe_model`
 
 Ba chỗ chạy một lượt của `openai-oauth`, đều phải rẽ nhánh khi model là `chatgpt-web`:
 
@@ -92,6 +95,37 @@ Hai việc bắt buộc:
 `_is_codex_model` (`main.py:1749`) suy nhà từ tên model cho agent cũ. `chatgpt-web` nằm trong
 catalog `openai-oauth` nên hàm này trả `True`, đúng như mong muốn: nó vẫn thuộc nhà ChatGPT.
 
+### 2.2. Tool file của engine API KHOÁ TRONG BRAIN, không thấy repo
+
+Đây là chặn cứng, và nó lớn hơn mọi thứ còn lại trong tài liệu này. Phát hiện trong lượt rà
+soát chéo 2026-09-22; đã đối chiếu bằng ba dòng code.
+
+Trang Coding đổi `cwd` sang repo qua `_cwd_luot_chat` (`main.py:4800`), nhưng **chỉ engine CLI
+hưởng**, vì chúng có tool file native chạy theo `cwd`.
+
+Engine API thì không có tool file native. Chúng đọc ghi qua hub, và hub nhận vault_root từ
+`main.py:2190`:
+
+```python
+vault_root = _brain_root(brain) if brain else None
+```
+
+**Vô điều kiện. Không hỏi `coding_store.cwd_cua_phien(sid)` một lần nào.** Còn
+`_builtin_tools._read` (`mcp_hub.py:475`) chặn mọi đường dẫn ngoài vault và trả nguyên văn:
+
+> `ERROR: '<path>' nằm ngoài bộ não đang làm việc nên tool này không đọc được.`
+
+Hệ quả: **`chatgpt-web` ngồi trong một phiên Coding sẽ không đọc nổi một file nào của repo.**
+Nó đọc được brain. Repo thì không.
+
+Nghĩa là giao thức tool qua chữ có chạy hoàn hảo đi nữa, model vẫn không coding được. Cái này
+phải sửa **trước** Phase 2, không phải để lần sau. Cách sửa ở mục 7.
+
+Lưu ý ranh giới cũ có chủ ý, đừng phá nhầm: nhánh Codex ghi rõ "Hub vẫn trỏ BRAIN kể cả khi
+cwd là repo: MCP, cron và nhắc hẹn thuộc về bộ não của người dùng, không thuộc về cây mã
+nguồn đang mở" (`main.py` nhánh `openai-oauth`). Đúng cho MCP, cron, nhắc hẹn. Sai cho tool
+**file**. Nên mục 7 tách hai thứ đó ra chứ không đổi vault_root của cả hub.
+
 ## 3. Tool: model này PHẢI có tool, không phải để chiều ai
 
 Sáu chỗ trong mã hỏi "đây có phải bộ não gói thuê bao có tool thật không" bằng đúng một câu
@@ -116,16 +150,16 @@ là thứ chủ dự án muốn từ đầu, "vẫn dùng được tool như b�
 | CLI (Claude Code, Codex, Grok) | Tool file native, **Bash**, **WebFetch/WebSearch**, **Task**, resume phiên |
 | API (sáu engine) | Tool vault qua hub, MCP, skill, `javis_task`, `javis_schedule`, plugin. Không Bash, không WebFetch, không Task |
 
-`chatgpt-web` nằm ở **hạng API**, không phải hạng CLI. Nó sẽ có
+`chatgpt-web` nằm ở **hạng API**, không phải hạng CLI. Nó có
 `javis_read_file` / `javis_list_dir` / `javis_write_file` / `javis_use_skill`, mọi MCP đã nối,
-mọi plugin, `javis_task`, `javis_schedule`. Nó **không** có Bash, nên không chạy được test,
-không chạy được git.
+mọi plugin, `javis_task`, `javis_schedule`.
 
-Phải ghi câu đó vào mô tả model trên ô chọn, để lần sau chọn nó rồi giao việc cần chạy lệnh
-thì biết ngay vì sao không được, chứ không tưởng Javis hỏng.
+Hai thứ của hạng CLI nó vẫn **không** có, và mô tả model trên ô chọn phải nói thẳng:
+**WebFetch/WebSearch** và **Task** (sub-agent song song).
 
-Muốn `chatgpt-web` có Bash là một quyết định khác hẳn: nó nghĩa là cấp tool shell qua hub, và
-cấp thế thì **cả sáu engine API cũng có**. Việc đó không thuộc tài liệu này.
+Còn chạy lệnh thì **mục 7.2 gỡ**, bằng `javis_run_command` chứ không phải Bash native và
+không phải PTY. Nhưng đúng như bản rà soát chéo nêu: cấp thế thì **cả sáu engine API cũng
+có**, nên đó là quyết định của chủ dự án, không phải chi tiết thi công.
 
 ### 3.1. Kiểm đếm tool thật, để khỏi hứa mồm
 
@@ -155,7 +189,7 @@ Hai điểm dễ tưởng là thiếu mà thật ra có:
 
 1. **Không có function calling.** Không có gì ép model trả đúng khuôn ngoài lời dặn trong
    prompt. Sáu engine API được nhà cung cấp bảo đảm khuôn tool call; model này thì không. Đây
-   là rủi ro kỹ thuật lớn nhất của cả dự án, và là tiêu chí giết thứ năm ở mục 12.
+   là rủi ro kỹ thuật lớn nhất của cả dự án, và là tiêu chí giết thứ năm ở mục 13.
 2. **Không có system role.** Toàn bộ system prompt của Javis (CLAUDE.md, MEMORY, router skill,
    danh sách tool) phải nhét vào **tin nhắn đầu tiên** như chữ thường. Codex có trường
    `instructions` riêng (`engine._codex_input`), web không có gì cả.
@@ -164,13 +198,13 @@ Hai điểm dễ tưởng là thiếu mà thật ra có:
    Javis hỏi, và triệu chứng sẽ trông như Javis hỏng. **Thẻ Models phải dặn tắt Memory và
    custom instructions, hoặc dùng một tài khoản riêng.**
 4. **Không có số token.** `usage_store.record` sẽ ghi 0, nên trang Sử dụng và trang Tiết kiệm
-   **mù với model này**. Bộ đếm tin nhắn ở mục 9 là thứ thay thế duy nhất, và nó là đơn vị
+   **mù với model này**. Bộ đếm tin nhắn ở mục 10 là thứ thay thế duy nhất, và nó là đơn vị
    khác, không so được với các model kia.
 5. **Không chỉnh được mức suy nghĩ.** Không có `reasoning effort`, cũng không có prompt
    caching. Web tự quyết theo model chọn trong giao diện của nó.
 6. **Ảnh thì ngược đời.** Hạng API của Javis hiện không gửi ảnh cho model (không có
    `image_url` hay `input_image` ở đâu trong `engine.py`), trong khi ChatGPT Web tự nó xem ảnh
-   rất tốt. Khai thác được phải lái widget tải file lên; không thuộc tài liệu này, ghi ở mục 16.
+   rất tốt. Khai thác được phải lái widget tải file lên; không thuộc tài liệu này, ghi ở mục 17.
 
 ## 4. Giao thức tool qua chữ
 
@@ -225,8 +259,9 @@ có, mặc định bằng trần chung, để ai dùng gói nhỏ hơn tự hạ
 
 ### Ràng buộc thật là THỜI GIAN, không phải tin nhắn
 
-Bỏ trần tin nhắn thì lộ ra con số đáng sợ hơn. Một vòng web mất **20 tới 40 giây** (mục 12 lấy
-60 giây làm tiêu chí giết). Nhân lên:
+Bỏ trần tin nhắn thì lộ ra con số đáng sợ hơn. Một vòng web mất **20 tới 40 giây**. Con số này
+là **ƯỚC, chưa đo trên máy thật**; spike ở mục 13 mới cho số thật, và mọi phép nhân dưới đây
+phải tính lại theo số đó. Không lấy nó làm giả định kiến trúc.
 
 ```
 30 vòng × 30 giây  ≈  15 phút cho MỘT lượt chat
@@ -244,7 +279,7 @@ Nên phanh đổi từ đếm tin nhắn sang **đếm giây**:
   đúng như chạm trần vòng: trả phần đã có kèm lời giải thích, không cụt lặng lẽ.
 - **Hiện tiến độ trong lúc chạy.** Vòng thứ mấy, đã mất bao lâu. Mười lăm phút im lặng thì
   người dùng sẽ tưởng treo và bấm Dừng, kể cả khi nó đang chạy đúng.
-- Bộ đếm lượt (`so_luot_trong_ngay`, mục 9) **giữ lại**, nhưng hạ vai trò: nó không còn là
+- Bộ đếm lượt (`so_luot_trong_ngay`, mục 10) **giữ lại**, nhưng hạ vai trò: nó không còn là
   phanh, chỉ là thứ duy nhất Javis biết về mức tiêu thụ, vì model này không trả số token
   (xem mục 3.2).
 
@@ -265,22 +300,110 @@ Bất biến của `clear_native_threads` giữ nguyên và áp dụng cho cả 
 engine khác thì mạch web thành khuyết, nên bị vô hiệu. Đổi model giữa phiên là mở luồng web
 mới, không phải nối tiếp luồng cũ.
 
-## 7. Thẻ ChatGPT ở trang Models
+## 7. Coding Tool Context: thứ phải làm trước Phase 2
+
+Mục 2.2 chỉ ra chặn cứng: engine API đọc ghi qua hub, mà hub khoá trong brain. Mục này là
+cách gỡ.
+
+### 7.1. Tách vault_root của TOOL FILE khỏi vault_root của hub
+
+Ranh giới cũ đúng một nửa. MCP, cron và nhắc hẹn thuộc về brain, giữ nguyên. Tool **file** thì
+phải theo nơi đang làm việc.
+
+Nên `_builtin_tools` nhận thêm một gốc thứ hai, và `discover_all` truyền xuống:
+
+```
+vault_root      = brain          ← MCP, cron, nhắc hẹn, skill: KHÔNG ĐỔI
+workspace_root  = cwd của phiên  ← tool file: repo/worktree khi ở trang Coding
+```
+
+`workspace_root` lấy đúng từ nguồn mà engine CLI đang dùng, không suy từ tên kênh:
+
+```python
+workspace_root = coding_store.cwd_cua_phien(sid)   # "" = không phải phiên coding
+```
+
+Rỗng thì `workspace_root = vault_root` và mọi thứ chạy y như hôm nay. Đây là điều kiện để thay
+đổi này không đụng một lượt chat thường nào.
+
+`_safe_read_path` cho qua đường dẫn nằm trong **một trong hai** gốc, và câu báo lỗi phải nói
+rõ đang ở gốc nào, vì câu hiện tại ("nằm ngoài bộ não đang làm việc") sẽ sai nghĩa ngay khi có
+gốc thứ hai.
+
+### 7.2. `javis_run_command`, KHÔNG phải PTY của `terminal.py`
+
+Bản rà soát chéo 2026-09-22 bác đề xuất cho model lái thẳng PTY của `terminal.py`, và bác
+đúng. Chính docstring của file đó ghi:
+
+> Shell thừa kế env của server (trong đó có API key trong .env) - đúng như mọi terminal khác
+> của chủ máy, nhưng cần biết là nó ở đó. (`terminal.py:29`)
+
+PTY còn là shell **sống lâu**, có trạng thái, sinh ra cho con người ngồi gõ. Giao nó cho model
+là cấp cả env chứa khoá lẫn một phiên có trạng thái mà không ai kiểm được.
+
+Nên tool riêng, một lệnh một lần, không trạng thái:
+
+| Tham số | Ý nghĩa |
+|---|---|
+| `command` | Lệnh chạy |
+| `cwd` | **Bỏ qua nếu nằm ngoài `workspace_root`.** Mặc định là `workspace_root` |
+| `timeout` | Trần giây, có mặc định và có trần trên |
+
+Bắt buộc: env **lọc trắng**, không thừa kế env server; trần kích thước output; huỷ được; ghi
+audit; và mức quyền ánh xạ thẳng từ chip của phiên:
+
+| Mức của `coding_store` | `javis_run_command` |
+|---|---|
+| `suggest` | Không chạy. Trả về lệnh đề xuất dưới dạng chữ |
+| `auto` | Chỉ lệnh trong allowlist, và chỉ trong `workspace_root` |
+| `full` | Chạy đầy đủ |
+
+**Allowlist của mức `auto` phải viết ra thành danh sách**, không để mỗi lần đoán. Đây là lần
+đầu Javis cần một allowlist lệnh thật: Codex không có allowlist per-call, nó chỉ chặn ở tầng
+sandbox (`aux_engine.py:18-21`), còn Claude Code có allowlist nhưng của riêng CLI đó. Coi đây
+là một hạng mục thiết kế, không phải một dòng cấu hình.
+
+`min_mode` của tool này là `full` theo phân loại của hub, và mức quyền phiên siết thêm bên
+trên. Hai lớp, không thay nhau.
+
+### 7.3. Bộ tool coding tối thiểu
+
+Có `workspace_root` và `javis_run_command` rồi thì bộ còn lại gần như miễn phí, vì chúng chỉ
+là lệnh git gói lại:
+
+```
+đọc file, ghi file, liệt kê, tìm trong file   ← builtin, đổi gốc là xong
+git status, git diff                          ← javis_run_command
+chạy test                                     ← javis_run_command
+```
+
+Đây mới là thứ làm `chatgpt-web` coding được. Giao thức tool qua chữ chỉ là cách gọi; không có
+mục này thì gọi xong cũng không chạm được vào repo.
+
+### 7.4. Ranh giới
+
+Thay đổi này **chạm tới cả sáu engine API**, không riêng `chatgpt-web`. Đó là điều tốt (chúng
+cũng đang không coding được), nhưng phải nói ra: đây là nới năng lực cho một nhóm engine, nên
+là quyết định của chủ dự án chứ không phải chi tiết thi công.
+
+Ba thứ **không** đổi: vault_root của MCP, của cron, của nhắc hẹn.
+
+## 8. Thẻ ChatGPT ở trang Models
 
 Thẻ đã có, thêm vào đó:
 
 - Dòng trạng thái phiên web: `Đã đăng nhập` / `Chưa đăng nhập` / `Đang nghỉ tới HH:MM`.
 - Nút **Mở cửa sổ đăng nhập**. Không có ô nhập mật khẩu, không bao giờ.
 - Bộ đếm `đã hỏi N lượt hôm nay` cộng mốc chạm trần gần nhất.
-- Mô tả model `chatgpt-web` nói thẳng: không có Bash, không chạy được test, mỗi vòng tool
-  mất 20 tới 40 giây.
+- Mô tả model `chatgpt-web` nói thẳng: không có WebFetch/WebSearch, không có Task, mỗi vòng
+  tool mất 20 tới 40 giây (số ước, mục 5).
 - **Lời dặn tắt Memory và Custom instructions** của chính tài khoản ChatGPT, hoặc dùng tài
   khoản riêng. Mục 3.2 điểm 3 là lý do: không tắt thì cài đặt cá nhân bóp mọi câu Javis hỏi,
   và triệu chứng trông như Javis hỏng.
 
 Thẻ sẵn sàng khi Codex CLI dùng được **hoặc** phiên web đã đăng nhập (mục 1).
 
-## 8. Transport: để trang tự xác thực, Javis chỉ đọc dây
+## 9. Transport: để trang tự xác thực, Javis chỉ đọc dây
 
 Giữ nguyên từ v1.0. Ba đường khả dĩ, chọn đường thứ ba:
 
@@ -318,7 +441,7 @@ Mượn lại, không dựng lại:
 **Bề mặt mã:** `server/web_chat.py` (transport cộng bộ dịch tool), ba nhánh dispatch ở mục 2,
 một dòng ở `_fetch_provider_models`, một cột cộng một dòng ở `sessions.py`, phần thẻ Models.
 
-## 9. Trạng thái và phân loại lỗi
+## 10. Trạng thái và phân loại lỗi
 
 Sổ `STATE_DIR/web_chat.json`:
 
@@ -345,7 +468,7 @@ thứ mấy, và đưa vào `limit_resume.REGISTRY` để tự chạy lại khi 
 
 `failure_count` chạm `NGUONG_NGAT` thì vào cooldown dài. Không có vòng thử lại vô hạn.
 
-## 10. Ranh giới an toàn và rủi ro
+## 11. Ranh giới an toàn và rủi ro
 
 **Điều khoản dịch vụ.** OpenAI cấm truy cập tự động vào dịch vụ ngoài đường API. Đây là tài
 khoản của chính chủ máy, trên máy của chính họ, nhưng nếu bị phát hiện thì thứ mất là **gói
@@ -368,7 +491,7 @@ chọn và nói rõ lý do, chứ không hiện ra rồi lỗi.
 **Dữ liệu.** Tool `javis_read_file` trả nội dung vault, và nội dung đó đi thẳng vào ô chat của
 chatgpt.com. Javis in ra đã gửi những gì trước mỗi vòng tool.
 
-## 11. Cổng 0: trả lời trước khi viết dòng mã nào
+## 12. Cổng 0: trả lời trước khi viết dòng mã nào
 
 **Pool Codex của chủ máy có thật sự đang cạn không?**
 
@@ -378,7 +501,7 @@ tin nhắn chat thay vì pool Codex. Chưa cạn thì dự án không có lợi 
 
 Ghi câu trả lời vào chính tài liệu này trước khi đi tiếp.
 
-## 12. Spike một ngày, có tiêu chí giết
+## 13. Spike một ngày, có tiêu chí giết
 
 Đặt tiêu chí **trước** khi chạy:
 
@@ -392,12 +515,13 @@ Ghi câu trả lời vào chính tài liệu này trước khi đi tiếp.
 Tiêu chí cuối là tiêu chí mới của v2.0 và là tiêu chí dễ trượt nhất. Không đạt đủ năm thì
 **dừng dự án**, ghi kết quả vào đây, và tài liệu này thành bản ghi vì sao không làm.
 
-## 13. Lộ trình
+## 14. Lộ trình
 
 | Bước | Nội dung | Ước lượng |
 |---|---|---|
 | Cổng 0 | Xem pool Codex đã cạn chưa | 30 phút, không mã |
-| Spike | Tee fetch cộng một vòng tool đi trọn, chấm theo mục 12 | 1-2 ngày |
+| Spike | Tee fetch cộng một vòng tool đi trọn, chấm theo mục 13 | 1-2 ngày |
+| **Phase 0** | **Coding Tool Context (mục 7): `workspace_root` cho tool file, `javis_run_command`, allowlist mức `auto`.** Chặn cứng, phải xong trước Phase 2 | 3-4 ngày |
 | Phase 1 | `web_chat.py`: transport, sổ trạng thái, thẻ Models, nút đăng nhập. Chưa có tool, chat thuần | 2-3 ngày |
 | Phase 2 | Bộ dịch tool qua chữ, trần vòng riêng, bộ đếm lượt. Đây là phần khó nhất | 3-4 ngày |
 | Phase 3 | `web_thread_id`, nối tiếp luồng, `limit_resume` khi hết lượt giữa vòng tool | 1-2 ngày |
@@ -405,7 +529,7 @@ Tiêu chí cuối là tiêu chí mới của v2.0 và là tiêu chí dễ trư�
 Phase 1 tự nó đã dùng được (chat thuần, không tool), nên nếu Phase 2 sa lầy thì vẫn có thứ
 chạy được chứ không phải bỏ trắng.
 
-## 14. Không làm
+## 15. Không làm
 
 - Thêm provider mới. Mục 1 là lý do.
 - DeepSeek Web. API DeepSeek rẻ hơn công sức xây và vá bridge; muốn DeepSeek thì thêm provider
@@ -414,9 +538,10 @@ chạy được chứ không phải bỏ trắng.
 - Ô nhập mật khẩu ChatGPT trong Javis.
 - Chạy trên VPS.
 - Việc nền tự chọn `chatgpt-web`.
-- Cấp Bash cho model này. Mục 3 là lý do.
+- Cho model lái thẳng PTY của `terminal.py`. Mục 7.2 là lý do: PTY thừa kế env server chứa
+  khoá, và là shell sống lâu có trạng thái.
 
-## 15. Test
+## 16. Test
 
 Repo chạy test bằng cách gọi từng file như script, nên mỗi file phải có nhánh chạy thẳng.
 
@@ -439,14 +564,25 @@ Repo chạy test bằng cách gọi từng file như script, nên mỗi file ph�
   nguyên văn; luồng đứt giữa chừng thì `QUA_HAN` chứ không trả chuỗi cụt.
 - `test_web_chat_viec_nen.py`: `_FallbackChain` và hàng đợi việc nền không bao giờ chọn
   `chatgpt-web`.
+- `test_coding_tool_context.py`: phiên coding thì `javis_read_file` đọc được file trong repo;
+  phiên thường thì `workspace_root` bằng `vault_root` và hành vi **không đổi một chút nào**;
+  đường dẫn ngoài cả hai gốc vẫn bị chặn, và câu báo lỗi nói đúng gốc nào.
+- `test_run_command_quyen.py`: `suggest` không chạy lệnh nào; `auto` chỉ chạy lệnh trong
+  allowlist và từ chối `cwd` ngoài `workspace_root`; env truyền xuống **không** chứa biến của
+  server; quá `timeout` thì bị giết và báo rõ.
 
-## 16. Để lần sau
+## 17. Để lần sau
 
 - Lệnh phiên `/web` và chip "hỏi Web lượt tới" trong phiên Coding, để hỏi một câu mà vẫn ở
-  trên Codex. Đã đặc tả trong v1.0 mục 7; rẻ, nhưng chỉ làm sau khi đường chọn model chạy ngon.
+  trên Codex. Đã đặc tả trong v1.0 mục 7 (bản cũ); rẻ, nhưng chỉ làm sau khi đường chọn model chạy ngon.
 - Gửi ẢNH cho `chatgpt-web` bằng cách lái widget tải file của trang. Mục 3.2 điểm 6: hạng API
   của Javis hiện không gửi ảnh, trong khi ChatGPT Web tự nó xem ảnh rất tốt.
-- Máy trạng thái provider dùng chung cho mọi nhà, bê từ sổ mục 9 ra.
+- **Chrome Extension Relay** thay cho việc server Javis tự giữ profile Chrome mãi:
+  `Javis server ↕ relay có xác thực ↕ extension ↕ tab ChatGPT đã đăng nhập`. Hợp với VPS hơn
+  hẳn Playwright, và chủ dự án vốn đã định làm extension. Playwright profile cố định vẫn là
+  đường đúng cho spike. Cần kiểm trước: service worker MV3 bị kill khi rảnh, nên kết nối dài
+  có thể phải qua offscreen document.
+- Máy trạng thái provider dùng chung cho mọi nhà, bê từ sổ mục 10 ra.
 - Task Handoff Packet (bản rà soát 2026-09-22).
 - Version guard cho Codex CLI: `install.sh:143` và `update.sh:50` đang cài
   `@openai/codex@latest` vô điều kiện, không có supported range, không có smoke test.
