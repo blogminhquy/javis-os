@@ -46,7 +46,8 @@ const k = SRC.indexOf("async function duLieuForm(");
 const FORM = SRC.slice(k, SRC.indexOf("\n  function quenForm", k));
 
 // ---- 1. Nguồn danh sách ----
-check("editAgent lấy dữ liệu form qua duLieuForm()", k !== -1 && FN.indexOf("await duLieuForm()") !== -1);
+check("editAgent lấy dữ liệu form qua duLieuForm()",
+  k !== -1 && /Promise\.all\(\[duLieuForm\(\)/.test(FN));
 check("đọc /settings (cùng nguồn với trình chọn model chính)", FORM.indexOf('api("/settings")') !== -1);
 check("đọc /skills của đúng brain đang chọn", /api\(`\/skills\?brain=\$\{encodeURIComponent\(b\)\}`\)/.test(FORM));
 check("bộ nhớ tạm khoá theo brain và có hạn dùng", /_formCache\.brain === b/.test(FORM) && /FORM_TTL/.test(FORM));

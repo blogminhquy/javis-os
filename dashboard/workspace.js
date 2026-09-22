@@ -218,7 +218,11 @@
 
   async function taiDanhSach() {
     var b = encodeURIComponent(brain());
-    var r = await Promise.all([api("/agents?brain=" + b), api("/workflows?brain=" + b)]);
+    // `prompt=0` = danh sách NHẸ. Đo trên brain 14 trợ lý: kèm system prompt là 366 KB, bỏ ra
+    // còn 2.9 KB - 99% số byte là thứ cột trái không bao giờ hiện. Qua mạng nhà, 366 KB là cả
+    // giây cột trái trống trơn mỗi lần mở trang (chủ dự án 22/09: mở trang Cộng sự từ linh vật
+    // vẫn lag). Prompt của ĐÚNG trợ lý đang sửa do studio.js lấy riêng qua /agents/get.
+    var r = await Promise.all([api("/agents?brain=" + b + "&prompt=0"), api("/workflows?brain=" + b)]);
     S.agents = sapXep(r[0].agents || [], "last_chat_at");
     S.workflows = sapXep((r[1].workflows || []).filter(function (w) { return w.status === "active"; }), "last_run_at");
     daTai = true;

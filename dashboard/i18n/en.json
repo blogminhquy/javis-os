@@ -688,6 +688,7 @@
   "studio.model_hint": "The list comes from the providers you connected on the Models page, so connecting one more adds choices here. A provider with no API key still shows up, locked, so you know it exists. Left on Default, the assistant runs the main model when chatting and when serving as a chatbot, and the background model when it runs inside a workflow. Every model reads and writes vault files and uses MCP; Claude Code and ChatGPT (Codex) additionally get shell commands and can open the web. If the chosen provider fails at run time Javis falls back to another brain instead of letting the agent go silent.",
   "studio.model_none": "No agent-capable provider is connected - connect one on the Models page first, then come back and pick a model.",
   "studio.sk_load_err": "Could not load skills.",
+  "studio.ag_load_err": "Could not load this agent. The form stays closed: opening it empty would wipe the real prompt on the next save.",
   "studio.all": "All",
   "studio.on_count": "on",
   "studio.source": "source",

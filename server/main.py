@@ -5764,17 +5764,26 @@ def _log_agent_run(brain, slug, task, out):
 # nhận vào rồi `os.path.isdir(Query)` ném TypeError. Nay handler chỉ còn là lớp vỏ HTTP
 # mỏng bọc quanh hàm thuần bên dưới, và Telegram gọi thẳng hàm thuần đó.
 
-def agents_index(brain: str) -> list:
-    """Danh sách agent của một brain. Lõi thuần, dùng chung cho GET /agents và Telegram."""
+def agents_index(brain: str, *, kem_prompt: bool = True) -> list:
+    """Danh sách agent của một brain. Lõi thuần, dùng chung cho GET /agents và Telegram.
+
+    `kem_prompt=False` bỏ system prompt ra khỏi từng mục. Đo trên một brain 14 trợ lý:
+    366 KB có prompt, 2.9 KB không - tức 99% số byte là thứ DANH SÁCH không bao giờ hiện.
+    Cột trái trang Cộng sự chỉ cần tên/vai/nhóm/avatar, còn prompt thì chỉ MỘT trợ lý đang
+    mở trong trình sửa mới cần, và nó đi lấy riêng qua GET /agents/get. Trên máy dev chạy
+    localhost thì 366 KB không thấy gì, qua mạng nhà là cả giây trắng cột trái.
+    """
     out = []
     for f in sorted(_agents_dir(brain).glob("*.md")):
         meta, body = _read_md(f)
         out.append({"slug": f.stem, "name": meta.get("name", f.stem),
                     "role": meta.get("role", ""), "skills": meta.get("skills", []) or [],
                     "model": meta.get("model", ""), "group": _nhom_cua(meta),
-                    "model_provider": meta.get("model_provider", ""), "prompt": body,
+                    "model_provider": meta.get("model_provider", ""),
                     "pinned": bool(meta.get("pinned")),
                     "avatar": agent_avatar.for_agent(meta, f.stem)})
+        if kem_prompt:
+            out[-1]["prompt"] = body
     # last_chat_at: mốc chat gần nhất với agent này. `moc_cap_nhat_theo_kenh` là hàm của
     # Task 3 (SessionStore), CHƯA tồn tại nếu Task 2 chạy trước - try/except rơi về {} để
     # Task 2 tự đứng vững một mình; nhớ quay lại kiểm khi Task 3 xong.
@@ -5787,8 +5796,31 @@ def agents_index(brain: str) -> list:
     return out
 
 @app.get("/agents")
-async def list_agents(brain: str = Query("brain")):
-    return {"agents": agents_index(brain)}
+async def list_agents(brain: str = Query("brain"), prompt: int = Query(1)):
+    """`prompt=0` = danh sách NHẸ, không kèm system prompt của từng trợ lý.
+
+    Mặc định vẫn kèm: một dashboard cũ còn nằm trong cache trình duyệt vẫn đọc `prompt` từ
+    đây để đổ vào ô sửa, và trả về rỗng cho nó là bấm Lưu một cái mất trắng prompt.
+    """
+    return {"agents": agents_index(brain, kem_prompt=bool(prompt))}
+
+
+@app.get("/agents/get")
+async def agent_get(slug: str = Query(...), brain: str = Query("brain")):
+    """Một trợ lý KÈM system prompt. Trình sửa gọi cái này, vì danh sách nay xin bản nhẹ.
+
+    Qua `_agent_md_path` chứ không tự ghép tên file: slug đến từ URL, mà `../../x` ghép thẳng
+    vào đường dẫn là đọc được file ngoài thư mục agents.
+    """
+    path = _agent_md_path(brain, slug)
+    if not path:
+        return JSONResponse({"error": "Không tìm thấy trợ lý"}, status_code=404)
+    meta, body = _read_md(path)
+    return {"slug": slug, "name": meta.get("name", slug), "role": meta.get("role", ""),
+            "skills": meta.get("skills", []) or [], "model": meta.get("model", ""),
+            "group": _nhom_cua(meta), "model_provider": meta.get("model_provider", ""),
+            "prompt": body, "pinned": bool(meta.get("pinned")),
+            "avatar": agent_avatar.for_agent(meta, slug)}
 
 @app.post("/agents")
 async def save_agent(name: str = Form(...), role: str = Form(""), skills: str = Form(""),
@@ -9054,7 +9086,10 @@ TRAN_BAO_KHUNG_GOC = 2000
 def _ten_cong_su(brain, loai: str, slug: str) -> str:
     """Tên người-đọc-được của một trợ lý / quy trình. Không tra ra thì trả slug."""
     try:
-        ds = agents_index(brain) if loai == "agent" else workflows_index(brain)
+        # Chỉ cần cái TÊN, nên xin bản nhẹ: kéo theo prompt của mọi trợ lý để đọc một tên là
+        # đọc cả trăm KB rồi vứt đi.
+        ds = (agents_index(brain, kem_prompt=False) if loai == "agent"
+              else workflows_index(brain))
         for x in ds:
             if x.get("slug") == slug:
                 return str(x.get("name") or slug)
@@ -17926,7 +17961,7 @@ async def _tg_command(cmd, arg, chat=None, meta=None):
         # Không tham số → mở menu nút bấm (chọn provider → chọn model, phân trang)
         return {"reply": _model_header(), "reply_markup": await _model_provider_kb()}
     if cmd == "agents":
-        ags = agents_index(brain)
+        ags = agents_index(brain, kem_prompt=False)   # lệnh này chỉ in tên + vai trò
         busy = _tg_chat_busy(chat_key)
         if not ags:
             return {"reply": "Chưa có agent nào (tạo trong Studio trên dashboard)."}
