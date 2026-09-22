@@ -20,6 +20,34 @@
   };
   const fd = (obj) => { const f = new FormData(); Object.entries(obj).forEach(([k, v]) => f.append(k, v)); return f; };
 
+  // ===== Hai lượt mạng NỀN của trình sửa trợ lý: danh sách skill + /settings (dựng ô chọn model) =====
+  // Ở trang Cộng sự, form này dựng lại MỖI LẦN bấm sang một trợ lý khác, nên cứ một cú bấm là
+  // thêm hai lượt mạng chen vào cùng lúc với /sessions và /agents của chính trang đó - trình
+  // duyệt chỉ mở 6 kết nối một lúc, và /settings thì còn đi dò từng binary CLI trên đĩa. Chủ
+  // dự án 22/09: "load phần trợ lý và phần cài đặt rất chậm".
+  // Trong vài giây giữa hai cú bấm, hai thứ này không đổi, nên giữ lại một lát. Khoá theo
+  // BRAIN để đổi bộ não là hết hiệu lực ngay; đổi skill/model rồi thì gọi quenForm().
+  const FORM_TTL = 20000;
+  let _formCache = null;
+  async function duLieuForm() {
+    const b = brain();
+    if (_formCache && _formCache.brain === b && Date.now() - _formCache.luc < FORM_TTL) return _formCache.ds;
+    const ds = await Promise.all([
+      api(`/skills?brain=${encodeURIComponent(b)}`),
+      api("/settings"),
+    ]);
+    // Lượt hỏng (api() nuốt lỗi và trả {}) thì ĐỪNG nhớ: nhớ một câu trả lời rỗng 20 giây là
+    // form mở lên không có skill nào, không có model nào, mà không gì nói vì sao.
+    if ((ds[0] && ds[0].skills) || (ds[1] && ds[1].model)) _formCache = { brain: b, luc: Date.now(), ds: ds };
+    return ds;
+  }
+  function quenForm() { _formCache = null; }
+  // Đổi bộ não / lưu skill / cắm key model ở trang khác đều làm bộ nhớ tạm này sai.
+  try {
+    const _gs = document.getElementById("graphSource");
+    if (_gs) _gs.addEventListener("change", quenForm);
+  } catch (e) { /* không có ô chọn brain thì thôi */ }
+
   // ===== Xuất / Nhập năng lực (chia sẻ agent/skill/workflow qua file .zip) =====
   // slug nhận 1 chuỗi hoặc mảng (chọn nhiều) - server gói tất cả vào MỘT file .zip.
   const exportUrl = (kind, slug) => `/export?kind=${kind}&slug=${encodeURIComponent(Array.isArray(slug) ? slug.join(",") : slug)}&brain=${encodeURIComponent(brain())}&deps=1`;
@@ -87,6 +115,8 @@
     workflows: loadWorkflows, agents: loadAgents, skills: loadSkills,
     // Trang Cộng sự mượn chính hai trình sửa này (xem editAgent/editWorkflow) + nút Xuất.
     editAgent: editAgent, editWorkflow: editWorkflow, exportItem: exportItem, importItems: importItems,
+    // Trang Models gọi sau khi cắm/ngắt key: ô chọn model trong form trợ lý dựng từ /settings.
+    quenForm: quenForm,
   };
   const _studioBtn = document.getElementById("studioOpenBtn");
   if (_studioBtn) _studioBtn.addEventListener("click", () => window.openStudio("workspace"));
@@ -601,10 +631,7 @@
     opts = opts || {};
     // Có host thì KHÔNG đụng vào modal: mở/đóng nó sẽ che mất cả trang Cộng sự.
     const moDong = (mo) => { if (!opts.host) editor.classList.toggle("open", mo); };
-    const [sd, st] = await Promise.all([
-      api(`/skills?brain=${encodeURIComponent(brain())}`),
-      api("/settings"),
-    ]);
+    const [sd, st] = await duLieuForm();
     const skills = sd.skills || [];
     // CÙNG nguồn với trình chọn model chính (/settings → model.providers), nên thêm nhà mới
     // ở trang Models là ô này có ngay - và giờ là cùng cả THÂN BẢNG CHỌN (model-list.js).
@@ -989,6 +1016,7 @@
 
   async function toggleSkill(s, enabled) {
     const r = await api("/skills/toggle", { method: "POST", body: fd({ slug: s.slug, enabled: enabled ? "1" : "0", brain: brain() }) });
+    quenForm();   // danh sách skill của form trợ lý vừa đổi
     if (r && r.error) { alert(t("studio.toggle_err") + " " + r.error); }
     s.enabled = enabled;
     renderSkillUI(); refreshStats();
@@ -1017,6 +1045,7 @@
         name, group: panel.querySelector("#skGroup").value.trim() || "Chung",
         description: panel.querySelector("#skDesc").value, body: panel.querySelector("#skBody").value,
         slug: sk.slug || "", brain: brain() }) });
+      quenForm();
       loadSkills();
     };
   }
@@ -1024,6 +1053,7 @@
   async function deleteSkill(slug, name) {
     if (!confirm(t("studio.del_sk", { ten: name, slug }))) return;
     await api("/skills/delete", { method: "POST", body: fd({ slug, brain: brain() }) });
+    quenForm();
     loadSkills();
   }
 })();

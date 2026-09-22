@@ -270,10 +270,14 @@
 
   // ---- Điều khiển graph: chỉ chạy khi đang ở cockpit + không lite + không mở Studio ----
   function recomputeGraph() {
+    // Về tới màn chính = lúc trả nợ những việc app.js đã HOÃN khi đổi brain (đồ thị, số ký ức,
+    // số cộng sự, cờ vault). Gọi TRƯỚC khi hỏi `g` vì nợ vẫn phải trả kể cả khi không có đồ
+    // thị nào để đánh thức (máy yếu / chế độ lite), và nó tự kiểm "đang ở màn chính chưa".
+    const active = window.Alpine ? Alpine.store("nav").active : "home";
+    if (active === "home") { try { if (window.JavisCockpit) window.JavisCockpit.veManChinh(); } catch (e) {} }
     const g = window.__javisGraph;
     if (!g) return;
     const studioOpen = !!document.getElementById("studio")?.classList.contains("open");
-    const active = window.Alpine ? Alpine.store("nav").active : "home";
     const shouldRun = !liteMode() && active === "home" && !studioOpen;
     if (shouldRun) g.wake(); else g.pause();
   }
@@ -6099,6 +6103,9 @@
   // đầu hội thoại (badge trong trang chat soi gương từ badge HUD nên chỉ cần làm mới HUD).
   function refreshModelUi() {
     try { if (window.initModelBar) window.initModelBar(); } catch (e) {}
+    // Ô chọn model trong form sửa trợ lý dựng từ /settings, mà form đó giữ bản /settings gần
+    // nhất một lát cho đỡ nặng - vừa đổi model/cắm key xong thì bảo nó quên đi.
+    try { if (window.JavisStudio && window.JavisStudio.quenForm) window.JavisStudio.quenForm(); } catch (e) {}
   }
   if (typeof window !== "undefined") window.JavisRefreshModelUi = refreshModelUi;
 
@@ -7131,8 +7138,19 @@
         return true;
       },
       groupIds() { return RAIL_GROUPS.map(g => g.id).filter(Boolean); },
+      // Trang đang mở. app.js hỏi để biết có nên nạp lại cockpit ngay hay hoãn tới lúc về
+      // màn chính (xem capNhatManChinh bên app.js).
+      active() { const s = _navStore(); return (s && s.active) || "home"; },
+      // Trang đang mở có đang GIỮ khung chat và tự mở phiên của nó không. Cộng sự mở phiên
+      // agent:<slug>/workflow:<slug>, Coding mở phiên của repo - cả hai đều KHÔNG phải cuộc
+      // chính của brain, nên lúc đổi brain app.js không được nhớ hay khôi phục phiên vào đây.
+      giuKhungChat() { return _chatSlots.length > 0 && TRANG_GIU_CHAT.includes(this.active()); },
     };
   }
+
+  // Trang MƯỢN khung chat và tự mở phiên riêng của nó (không phải cuộc chính của brain).
+  // Trang "chat" cố ý KHÔNG nằm đây: nó chính là cuộc chính.
+  const TRANG_GIU_CHAT = ["workspace", "coding"];
 
   function _returnChatNodes() {
     // Rời trang Trò chuyện thì trả cây Vault về cột trái màn chính, nếu không màn chính mất

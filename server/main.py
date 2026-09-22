@@ -1756,7 +1756,7 @@ def _web_bat() -> bool:
     máy có đặt biến mà THIẾU playwright sẽ bày model ra ô chọn rồi hỏng đúng lúc được chọn.
     Hai câu trả lời cho cùng một câu hỏi thì sớm muộn cũng lệch nhau; giờ chỉ còn một.
 
-    Từ 0.64.1 mặc định là TỰ DÒ: có playwright và có trình duyệt thì model hiện ra, không
+    Từ 0.64.2 mặc định là TỰ DÒ: có playwright và có trình duyệt thì model hiện ra, không
     cần khai báo gì. Xem `web_transport._cong_moi_truong` cho ba trạng thái của biến."""
     try:
         ok, _ = web_transport.kha_dung()

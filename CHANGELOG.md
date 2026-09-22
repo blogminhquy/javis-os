@@ -4,12 +4,19 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
-## [0.64.1] - 2026-09-22
+## [0.64.2] - 2026-09-22
 ### Sửa lỗi
 - **Dựng máy mới không còn hàng chục biến môi trường đỏ.** File mẫu `env.example` trước đây có gần trăm dòng chú thích. Các nền tảng deploy tự quét file này rồi cắt mọi dòng có dấu `=` thành một biến, nên mỗi dòng chú thích hoá ra một biến tên `#` và bảng Environment đỏ rực, chặn luôn nút triển khai. Nay file mẫu chỉ còn bốn dòng `TÊN=giá trị`, không một dòng chú thích nào.
 - Phần giải thích từng biến **không mất đi**, nó nằm ở trang **Cấu hình .env** trong tài liệu, đầy đủ hơn khối chú thích cũ. Ai đã lỡ dính thì xoá hết các dòng có dấu `#` trong ô Environment một lần là sạch.
 ### Cải thiện
 - **Model ChatGPT Web tự hiện ra khi máy dùng được, khỏi khai báo gì.** Bản trước bắt đặt tay một biến môi trường mới thấy model, mà biến đó không tự tạo ra được trình duyệt, nên máy thiếu đồ vẫn bày model ra rồi hỏng lúc chọn. Nay Javis tự dò: đủ đồ thì model nằm sẵn trong ô chọn, thiếu thì thẻ ChatGPT ở trang Models nói rõ thiếu gì và bấm ở đâu.
+
+## [0.64.1] - 2026-09-22
+### Sửa lỗi
+- **Đổi bộ não khi đang ở trang Cộng sự không còn trắng màn.** Mỗi lần đổi não, Javis nạp lại cả quả cầu tri thức của màn chính dù bạn đang nhìn trang khác, và việc đó khoá màn hình vài giây. Nay nó chờ tới lúc bạn quay về màn chính mới nạp.
+- **Khung chat giữa trang Cộng sự không còn hiện hội thoại của não cũ.** Đổi não xong, khung chat mở đúng hội thoại của trợ lý đang chọn trong não mới.
+- **Chọn trợ lý khác nhanh hơn hẳn.** Bảng cài đặt bên phải không còn hỏi lại máy chủ danh sách kỹ năng và cấu hình model sau mỗi cú bấm.
+- Chọn một thư mục ngoài làm bộ não giờ cũng làm mới cả trang: trước đây chỉ quả cầu đổi, còn danh sách trợ lý và cây thư mục vẫn của não trước.
 
 ## [0.64.0] - 2026-09-22
 ### Thêm mới
