@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+import winproc         # cờ CREATE_NO_WINDOW: lệnh con không nháy cửa sổ đen trên Windows
 from coding_ctx import AUTO, FULL, SUGGEST, CodingToolContext
 
 # Trần thời gian một lệnh, giây. Mặc định vừa đủ cho một lượt test; trần trên chặn model tự
@@ -257,6 +258,10 @@ def chay(command: str, ctx: CodingToolContext, cwd: str = ".",
             argv, cwd=thu_muc, env=_env_sach(), timeout=tran,
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             shell=False,          # KHÔNG BAO GIỜ bật cờ này: xem docstring đầu file.
+            # Javis trên Windows chạy không có console (start-javis.vbs), nên mỗi lệnh con
+            # dạng console được hệ điều hành CẤP một cửa sổ đen nháy lên rồi tắt. Tool này
+            # chạy `pytest`, `git`, `npm`, tức đúng loại lệnh đó, và chạy nhiều lần một lượt.
+            creationflags=winproc.no_window(),
         )
     except FileNotFoundError:
         return KetQua(False, command=cmd, elapsed=time.time() - t0,

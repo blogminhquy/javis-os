@@ -1,6 +1,6 @@
 # ChatGPT Web: một model của thẻ ChatGPT
 
-**Phiên bản:** v4.0. Gộp bản rà soát chéo `JAVIS_OS_WEB_ENGINE_SPEC.md` (2026-09-22) vào v3.0:
+**Phiên bản:** v4.1 (mục 14 ghi lại những gì đã vào `main` ở 0.64.0). v4.0: Gộp bản rà soát chéo `JAVIS_OS_WEB_ENGINE_SPEC.md` (2026-09-22) vào v3.0:
 thêm mục 18-22, và ĐÍNH CHÍNH một chỗ v2.0/v3.0 nói quá (mục 3).
 **Trạng thái:** chốt phạm vi và chốt mục đích. **Chưa viết mã**; cổng duy nhất là spike ở
 mục 13.
@@ -583,6 +583,36 @@ Tiêu chí cuối là tiêu chí mới của v2.0 và là tiêu chí dễ trư�
 **dừng dự án**, ghi kết quả vào đây, và tài liệu này thành bản ghi vì sao không làm.
 
 ## 14. Lộ trình
+
+### Đã làm, bản 0.64.0 (cập nhật 2026-09-22)
+
+Năm lớp đã vào `main`, mỗi lớp một commit và một bộ test riêng:
+
+| Lớp | File | Phép thử |
+|---|---|---|
+| 1. Giao thức tool qua chữ, sổ trạng thái | `web_tool_protocol.py`, `web_state.py` | `test_web_tool_protocol`, `test_web_state` |
+| 2. Gỡ chặn cứng tool file khoá trong brain | `coding_ctx.py`, `mcp_hub._safe_path` | `test_coding_tool_context`, `test_doc_file_dinh_kem` |
+| 3. `javis_run_command` (KHÔNG phải PTY) | `run_command.py` | `test_run_command_quyen` |
+| 4. Transport tee fetch | `web_transport.py` | `test_web_transport_tee` (có tầng chạy THẬT trong Chromium) |
+| 5. Vòng lặp tool + nối dây ba đường chat | `web_engine.py`, `main.py` | `test_web_engine_loop`, `test_luot_chat_web` |
+
+Tức Phase 1, 2 và 3 của bảng dưới đã xong, cộng phần hạ tầng của Phase 4 (lớp 2 và 3); còn
+lại của Phase 4 là mở `workspace_root` cho engine Web ở đường chat Coding.
+
+**Ba quyết định đổi so với bản viết trước, và lý do:**
+
+1. **Không dùng `on_progress` dạng callback.** Callback chỉ được rút hàng khi vòng lặp ngoài
+   nhận sự kiện KẾ TIẾP, mà một vòng web mất hàng chục giây, nên dòng trạng thái tới nơi đúng
+   lúc nó hết ý nghĩa. Engine phát thẳng sự kiện `progress` trong dòng sự kiện chung.
+2. **Transport phải về ĐÚNG cuộc chat trước khi gõ** (`_ve_dung_luong`). Một trình duyệt dùng
+   chung cho mọi hội thoại Javis, nên thiếu bước này thì hội thoại B gõ tiếp vào cuộc chat mà
+   hội thoại A vừa mở: hai mạch trộn làm một, im lặng, không thông báo nào.
+3. **Ba đường KHÔNG chạy được engine Web phải đổi về model Codex thật** (`_model_codex_thay_the`):
+   stream không tool, vòng tool của bot chuyên trách, và việc nền. Chúng gọi thẳng API
+   Responses, nên `chatgpt-web` ở đó là một model id nhà cung cấp không biết. Mà chạy engine
+   Web ở đó cũng sai ngay cả khi làm được: MỘT trình duyệt, MỘT tài khoản, khoá một lượt tại
+   một thời điểm, trong khi bot chuyên trách phục vụ nhiều khách cùng lúc.
+
 
 Xếp theo **thứ tự việc chủ dự án dùng nhiều nhất**, không theo thứ tự kỹ thuật. Mỗi phase
 phải tự nó dùng được.

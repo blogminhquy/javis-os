@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -74,6 +75,10 @@ SELECTORS = {
 
 # Đường dẫn mà trang gọi khi gửi một tin nhắn. Tee chỉ quan tâm các request này.
 _DUONG_LUONG = ("/backend-api/conversation", "/backend-alt/conversation")
+
+# Id cuộc chat nằm trong chính URL: https://chatgpt.com/c/<uuid>. Đây là thứ DUY NHẤT cho
+# phép hai hội thoại Javis khác nhau gõ vào hai cuộc chat khác nhau trên cùng một tài khoản.
+_THREAD_RE = re.compile(r"/c/([0-9a-zA-Z-]{8,})")
 
 # Đoạn JS bọc `window.fetch`. Chạy TRƯỚC mọi script của trang (`add_init_script`), nên nó bọc
 # được cả lời gọi đầu tiên.
@@ -302,10 +307,48 @@ class ChatGPTWebTransport:
                 continue
         return self._tim("composer", timeout_ms=3000) is not None
 
+    # ---- luồng nào ----
+
+    def thread_hien_tai(self) -> str:
+        """Id cuộc chat trang đang mở. Rỗng = đang ở trang gốc (chưa có cuộc nào)."""
+        try:
+            m = _THREAD_RE.search(self._page.url or "")
+            return m.group(1) if m else ""
+        except Exception:
+            return ""
+
+    def _ve_dung_luong(self, thread_id: str) -> tuple[bool, str]:
+        """Đưa trang về ĐÚNG cuộc chat sắp gõ vào.
+
+        Bước này KHÔNG phải tiểu tiết. Transport là MỘT trình duyệt dùng chung cho mọi hội
+        thoại Javis, nên thiếu nó thì hội thoại B gõ tiếp vào cuộc chat mà hội thoại A vừa
+        mở: hai mạch trộn làm một, và người dùng thấy Javis "nhớ" những thứ họ nói ở chỗ khác.
+
+        `thread_id` rỗng nghĩa là hội thoại này CHƯA có cuộc chat nào, nên phải mở cuộc MỚI
+        chứ không được gõ tiếp vào cuộc đang hiện trên màn hình.
+        """
+        goc = (self.url or "").rstrip("/")
+        hien = self.thread_hien_tai()
+        try:
+            if thread_id and hien != thread_id:
+                dich = f"{goc}/c/{thread_id}"
+            elif not thread_id and hien:
+                dich = self.url
+            elif not (self._page.url or "").startswith(goc):
+                dich = self.url
+            else:
+                return True, ""
+            self._page.goto(dich, wait_until="domcontentloaded", timeout=45_000)
+            self._page.evaluate("window.__javisChunks = []")
+            return True, ""
+        except Exception as e:
+            return False, f"Không mở được trang: {type(e).__name__}: {e}"
+
     # ---- gửi một lượt ----
 
     def gui(self, prompt: str, timeout_s: float = 180.0,
-            on_chunk: Optional[Callable[[str], None]] = None) -> KetQuaGui:
+            on_chunk: Optional[Callable[[str], None]] = None,
+            thread_id: str = "") -> KetQuaGui:
         """Gửi một tin nhắn, chờ luồng trả lời xong, trả về chữ.
 
         KHÔNG ném. Mọi cảnh hỏng đều thành `KetQuaGui` có `kind` để lớp trên ghi sổ trạng thái.
@@ -319,12 +362,9 @@ class ChatGPTWebTransport:
             if not ok:
                 return KetQuaGui(False, kind="TRANSPORT_BROKEN", error=ly_do)
 
-            try:
-                if self.url and not (self._page.url or "").startswith(self.url.rstrip("/")):
-                    self._page.goto(self.url, wait_until="domcontentloaded", timeout=45_000)
-            except Exception as e:
-                return KetQuaGui(False, kind="TRANSPORT_BROKEN",
-                                 error=f"Không mở được trang: {type(e).__name__}: {e}")
+            ok_luong, loi_luong = self._ve_dung_luong(thread_id)
+            if not ok_luong:
+                return KetQuaGui(False, kind="TRANSPORT_BROKEN", error=loi_luong)
 
             if not self.da_dang_nhap():
                 return KetQuaGui(False, kind="AUTH_REQUIRED",
@@ -349,7 +389,12 @@ class ChatGPTWebTransport:
                 return KetQuaGui(False, kind="TRANSPORT_BROKEN",
                                  error=f"Không gửi được tin nhắn: {type(e).__name__}: {e}")
 
-            return self._cho_luong(t0, timeout_s, on_chunk)
+            kq = self._cho_luong(t0, timeout_s, on_chunk)
+            # Cuộc chat MỚI chỉ có id sau khi trang tự điều hướng sang /c/<id>, nên đọc id ở
+            # đây chứ không đọc trước khi gửi. Đọc không ra thì để rỗng: lượt sau mở cuộc mới
+            # và mồi lại transcript đã lưu, chậm hơn nhưng không mất ngữ cảnh.
+            kq.thread_id = self.thread_hien_tai()
+            return kq
         finally:
             self._khoa.release()
 
@@ -400,3 +445,37 @@ class ChatGPTWebTransport:
             self._page.evaluate("window.__javisChunks = []")
         except Exception:
             pass
+
+
+# ============================================================
+# Transport dùng chung cả tiến trình
+# ============================================================
+#
+# MỘT profile trình duyệt = MỘT tài khoản ChatGPT, và Chromium khoá độc quyền thư mục profile.
+# Nên dựng hai đối tượng transport là cái thứ hai không mở nổi trình duyệt, hỏng ngay ở lượt
+# chat thứ hai của người dùng chứ không phải trong một cảnh hiếm. Giữ đúng một cái ở đây, thay
+# vì để mỗi chỗ gọi tự nhớ luật đó.
+
+_CHUNG: Optional["ChatGPTWebTransport"] = None
+_KHOA_CHUNG = threading.Lock()
+
+
+def chung() -> "ChatGPTWebTransport":
+    """Transport dùng chung. Chưa mở trình duyệt - `gui()` tự mở ở lượt đầu."""
+    global _CHUNG
+    with _KHOA_CHUNG:
+        if _CHUNG is None:
+            _CHUNG = ChatGPTWebTransport()
+        return _CHUNG
+
+
+def dong_chung() -> None:
+    """Đóng trình duyệt dùng chung. Gọi khi tắt server, hoặc khi chủ máy bấm đăng xuất."""
+    global _CHUNG
+    with _KHOA_CHUNG:
+        if _CHUNG is not None:
+            try:
+                _CHUNG.dong()
+            except Exception:
+                pass
+            _CHUNG = None

@@ -104,6 +104,64 @@ for cam in ("import main", "from main", "fastapi"):
 
 
 # ============================================================
+# 2b) Về ĐÚNG cuộc chat trước khi gõ
+# ============================================================
+#
+# Transport là MỘT trình duyệt dùng chung cho mọi hội thoại Javis. Thiếu bước này thì hội
+# thoại B gõ tiếp vào cuộc chat mà hội thoại A vừa mở, hai mạch trộn làm một, và người dùng
+# thấy Javis "nhớ" những thứ họ nói ở chỗ khác. Đây là lỗi im lặng, không có thông báo nào.
+
+class _TrangGia:
+    """Chỉ đủ bề mặt mà `_ve_dung_luong` đụng tới."""
+
+    def __init__(self, url):
+        self.url = url
+        self.da_di = []
+
+    def goto(self, url, **kw):
+        self.da_di.append(url)
+        self.url = url
+
+    def evaluate(self, *a, **k):
+        return None
+
+
+def _di_den(url_dang_o, thread_id):
+    tr = wt.ChatGPTWebTransport(profile_dir=tempfile.mkdtemp(prefix="javis-luong-"))
+    tr._page = _TrangGia(url_dang_o)
+    ok2, loi2 = tr._ve_dung_luong(thread_id)
+    return ok2, loi2, tr._page.da_di
+
+
+_ok, _loi, _di = _di_den("https://chatgpt.com/c/68d1f0a2-4c3b-4f11-9c7e-aaaaaaaaaaaa", "68d1f0a2-4c3b-4f11-9c7e-bbbbbbbbbbbb")
+check("đang ở cuộc A mà cần cuộc B -> điều hướng sang B",
+      _ok and _di == ["https://chatgpt.com/c/68d1f0a2-4c3b-4f11-9c7e-bbbbbbbbbbbb"])
+
+_ok, _loi, _di = _di_den("https://chatgpt.com/c/68d1f0a2-4c3b-4f11-9c7e-aaaaaaaaaaaa", "68d1f0a2-4c3b-4f11-9c7e-aaaaaaaaaaaa")
+check("đã ở đúng cuộc -> KHÔNG tải lại trang (tải lại là mất vài giây mỗi vòng)",
+      _ok and _di == [])
+
+_ok, _loi, _di = _di_den("https://chatgpt.com/c/68d1f0a2-4c3b-4f11-9c7e-aaaaaaaaaaaa", "")
+check("hội thoại CHƯA có cuộc chat -> mở cuộc MỚI, không gõ tiếp vào cuộc đang hiện",
+      _ok and _di == [wt.URL_GOC])
+
+_ok, _loi, _di = _di_den(wt.URL_GOC, "")
+check("đang ở trang gốc và chưa có cuộc -> không đi đâu cả", _ok and _di == [])
+
+_ok, _loi, _di = _di_den("https://example.com/lac-duong", "")
+check("lạc sang trang khác -> về trang gốc", _ok and _di == [wt.URL_GOC])
+
+check("đọc được id cuộc chat từ URL",
+      (lambda t: (setattr(t, "_page", _TrangGia("https://chatgpt.com/c/68d1f0a2-4c3b-4f11-9c7e-cccccccccccc")),
+                  t.thread_hien_tai())[1])(
+          wt.ChatGPTWebTransport(profile_dir=tempfile.mkdtemp(prefix="javis-id-")))
+      == "68d1f0a2-4c3b-4f11-9c7e-cccccccccccc")
+check("trang gốc thì id rỗng, không bịa ra một id",
+      (lambda t: (setattr(t, "_page", _TrangGia(wt.URL_GOC)), t.thread_hien_tai())[1])(
+          wt.ChatGPTWebTransport(profile_dir=tempfile.mkdtemp(prefix="javis-id2-"))) == "")
+
+
+# ============================================================
 # 3) Cổng môi trường: tắt thì engine tự ẩn
 # ============================================================
 

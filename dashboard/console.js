@@ -3707,6 +3707,71 @@
     chay();
   }
 
+  // ---- ChatGPT Web: một khối phụ TRONG thẻ ChatGPT, không phải một thẻ provider riêng ----
+  //
+  // Đặt ở đây chứ không dựng thẻ riêng vì `chatgpt-web` là một MODEL của thẻ ChatGPT, chọn ở
+  // đúng ô chọn model như mọi model khác. Một thẻ riêng sẽ gợi ý sai rằng phải "kết nối" thêm
+  // một nhà cung cấp nữa.
+  //
+  // Khối này KHÔNG bao giờ hiện phần trăm quota, và đó là quyết định chứ không phải thiếu sót:
+  // trang chat không nói ra con số nào, nên mọi thanh tiến trình vẽ ở đây đều là bịa.
+  async function veThreChatGPTWeb(el) {
+    const box = el.querySelector("#webChatBox");
+    if (!box) return;
+    let d = null;
+    try { d = await (await fetch("/web-chat/status")).json(); }
+    catch (e) { return; }
+    if (!d || !d.bat) return;   // cổng môi trường chưa bật -> không nhắc tới, khỏi gây tò mò
+    box.style.display = "";
+
+    const ve = (x) => {
+      const dn = x.auth_state === "ok";
+      const nghi = x.dang_nghi
+        ? `<div class="gcard-meta">${WARN_ICON} Đang nghỉ thêm ~${Math.ceil((x.con_nghi_giay || 0) / 60)} phút: ${esc(x.last_error || "")}</div>`
+        : "";
+      box.innerHTML = `
+        <div><b>ChatGPT Web</b> <code>${esc(x.model_id || "chatgpt-web")}</code>
+          - chọn model này ở ô chọn model để Javis chạy bằng phiên trình duyệt thay vì Codex.</div>
+        <div class="gcard-meta">${x.kha_dung
+          ? (dn ? OK_ICON + " Đã đăng nhập" : WARN_ICON + " Chưa đăng nhập")
+          : Icons.warn(x.ly_do || "")}
+          ${x.so_luot_trong_ngay ? " · " + x.so_luot_trong_ngay + " lượt hôm nay" : ""}</div>
+        <div class="gcard-meta">${WARN_ICON} ${esc(x.canh_bao || "")}</div>
+        <div class="prov-action" style="flex-wrap:wrap">
+          <button class="gcard-btn" data-weblogin="1">Mở cửa sổ đăng nhập</button>
+          <button class="gcard-btn ghost" data-webcheck="1">${esc(t("qs.recheck"))}</button>
+          <button class="gcard-btn ghost" data-webreset="1">Đóng trình duyệt</button>
+          <span id="webMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
+        </div>
+        ${nghi}`;
+
+      const msg = box.querySelector("#webMsg");
+      const goi = async (btn, url, dangChay) => {
+        const b = box.querySelector(btn);
+        if (!b) return;
+        b.onclick = async () => {
+          b.disabled = true;
+          if (msg) msg.textContent = dangChay;
+          let r = null;
+          try { r = await (await fetch(url, { method: "POST" })).json(); }
+          catch (e) { r = { ok: false, error: t("common.net_err") }; }
+          b.disabled = false;
+          if (!r || !r.ok) {
+            if (msg) msg.innerHTML = Icons.warn((r && r.error) || t("common.net_err"));
+            return;
+          }
+          if (msg) msg.innerHTML = r.huong_dan ? esc(r.huong_dan)
+            : (r.da_dang_nhap ? OK_ICON + " Đã đăng nhập" : WARN_ICON + " Chưa đăng nhập");
+          try { ve(await (await fetch("/web-chat/status")).json()); } catch (e) {}
+        };
+      };
+      goi("[data-weblogin]", "/web-chat/login", "Đang mở trình duyệt…");
+      goi("[data-webcheck]", "/web-chat/check", t("models.testing"));
+      goi("[data-webreset]", "/web-chat/reset", "Đang đóng…");
+    };
+    ve(d);
+  }
+
   async function renderModelsCloudTab(el) {
     el.innerHTML = `<div class="cview-placeholder"><div class="ph-ico">${ic("loader", { cls: "ic-xl ic-spin" })}</div><div>${esc(t("common.loading"))}</div></div>`;
     const s = await freshSettings();
@@ -3807,6 +3872,7 @@
                  <button class="gcard-btn ghost" data-oauth-browser="1">${esc(t("models.via_browser"))}</button>`}
             <span id="oauthMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
           </div>
+          <div id="webChatBox" class="prov-steps" style="display:none"></div>
         </div>`;
       }
       if (p.id === "grok-cli") {
@@ -4021,6 +4087,7 @@
         renderModelsCloudTab(el);
       };
     });
+    veThreChatGPTWeb(el);
     const ol = el.querySelector("[data-oauth-login]");
     if (ol) ol.onclick = () => startOauthLogin(el);
     const ob = el.querySelector("[data-oauth-browser]");
