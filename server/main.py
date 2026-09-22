@@ -12291,9 +12291,11 @@ async def websocket_endpoint(ws: WebSocket):
                 actual_model = api_model or None
                 sysprompt, _sub_plan = await _subscription_system_prompt(
                     "grok-cli", actual_model or "", kind)
-                kcli = grok_cli.GrokCLI(cwd=_brain_root(brain), model=actual_model,
+                kcli = grok_cli.GrokCLI(cwd=_cwd_luot_chat(_row0, brain), model=actual_model,
                                         tag=turn_tag, instructions=sysprompt)
-                kcli.mode = "full"
+                kcli.mode = _muc_quyen_luot_chat(_row0)
+                # Hub trỏ BRAIN kể cả khi cwd là repo: MCP, cron và nhắc hẹn thuộc bộ não của
+                # người dùng, không thuộc cây mã nguồn đang mở.
                 _apply_grok_hub(kcli, _brain_root(brain))
                 if not kcli.is_available():
                     final_text = ("⚠ Chưa cài Grok Build CLI trên máy này. Cài một lần:\n\n"
@@ -12378,9 +12380,10 @@ async def websocket_endpoint(ws: WebSocket):
                 actual_model = api_model or None
                 sysprompt, _sub_plan = await _subscription_system_prompt(
                     "antigravity-cli", actual_model or "", kind)
-                acli = antigravity_cli.AntigravityCLI(cwd=_brain_root(brain), model=actual_model,
+                acli = antigravity_cli.AntigravityCLI(cwd=_cwd_luot_chat(_row0, brain), model=actual_model,
                                                       tag=turn_tag, instructions=sysprompt)
-                acli.mode = "full"
+                acli.mode = _muc_quyen_luot_chat(_row0)
+                # Hub trỏ BRAIN kể cả khi cwd là repo - xem chú thích ở nhánh Grok.
                 _apply_antigravity_hub(acli, _brain_root(brain))
                 if not acli.is_available():
                     final_text = ("⚠ Chưa cài Antigravity CLI trên máy này. Cài một lần:\n\n"
