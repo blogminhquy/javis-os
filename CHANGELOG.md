@@ -4,6 +4,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.63.10] - 2026-09-22
+### Sửa lỗi
+- **Bộ não Antigravity giờ cũng hiện tiến trình.** Khối "Đã chạy N bước" thêm ở bản trước không bao giờ xuất hiện khi chạy Antigravity, kể cả lúc nó gọi công cụ thật. Lý do: `agy` báo việc nó làm theo một khuôn mà Javis đọc sót, nên mọi lần gọi công cụ rơi vào hư không.
+- Kèm theo đó, Javis nay biết lượt Antigravity đã chạy lệnh ngoài hay chưa. Trước đây gặp lỗi mạng tạm thời nó có thể chạy lại cả lượt và làm lần hai những việc đã làm rồi.
+
 ## [0.63.9] - 2026-09-22
 ### Thêm mới
 - **Một việc trong mục Coding giờ gắn được NHIỀU thư mục.** Bấm chip thư mục rồi tích chọn bao nhiêu cái tuỳ ý, menu không đóng giữa chừng nên chọn liền mấy cái một lúc. Hợp với việc đụng cả mã nguồn lẫn tài liệu, hay app với thư viện dùng chung.
