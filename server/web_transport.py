@@ -240,12 +240,21 @@ def co_trinh_duyet(dung_nho: bool = True) -> tuple[bool, str]:
         _NHO_DO["kq"] = (ok, ly_do)
         return _NHO_DO["kq"]
 
+    # Nạp thư mục thư viện Javis tự cài TRƯỚC khi thử import. Không có bước này thì người dùng
+    # bấm cài ở trang Công cụ, thấy báo xong, rồi tính năng vẫn bảo thiếu thư viện.
+    try:
+        import optional_tools
+        optional_tools.nap_pylibs()
+    except Exception:
+        pass
+
     try:
         import playwright  # noqa: F401
     except ImportError:
         return _tra(False, (
-            "Chưa có thư viện playwright trong Python của Javis. Cài một lần bằng "
-            "`pip install playwright` rồi khởi động lại Javis."))
+            "Chưa có thư viện lái trình duyệt. Mở trang Công cụ rồi bấm cài mục "
+            "\"Thư viện lái trình duyệt (playwright)\", xong khởi động lại Javis. "
+            "Gói này không nằm sẵn trong bản cài vì nó nặng và phần lớn máy không cần."))
 
     if not _tim_chromium():
         return _tra(False, (

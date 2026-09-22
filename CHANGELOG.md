@@ -6,7 +6,9 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 ## [0.64.8] - 2026-09-22
 ### Thêm mới
-- (đang làm) Trang Công cụ có thêm mục cài thư viện trình duyệt cho engine ChatGPT Web, dành cho người dùng nâng cao. Cài theo yêu cầu nên bản cài mặc định không nặng thêm.
+- **Trang Công cụ có thêm mục "Thư viện lái trình duyệt".** Đây là thứ model **ChatGPT Web** cần. Bấm một nút là Javis tự tải về, khỏi mở terminal gõ lệnh. Tải xong nhớ khởi động lại Javis thì model mới hiện trong ô chọn model.
+- Cài **theo yêu cầu** nên bản cài mặc định không nặng thêm một byte nào: gói này khoảng 143 MB mà phần lớn máy không dùng tới. Gỡ cũng bằng một nút, và chỉ gỡ đúng bản Javis tải, không đụng gì khác trên máy.
+- Cả hai mục ở trang Công cụ đều tải vào ổ dữ liệu nên **sống qua mỗi lần cập nhật**, không phải tải lại.
 
 ## [0.64.7] - 2026-09-22
 ### Thêm mới

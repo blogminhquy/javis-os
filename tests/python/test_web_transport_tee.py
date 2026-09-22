@@ -205,7 +205,11 @@ try:
     wt.dat_lai_do()
     _ok_tv, _ly_do_tv = wt.co_trinh_duyet()
     check("thiếu playwright -> không khả dụng", not _ok_tv)
-    check("và nói đúng lệnh cần chạy", "pip install playwright" in _ly_do_tv)
+    # Từ 0.64.8 câu này KHÔNG bảo người dùng gõ `pip install` nữa: trong Docker, lệnh đó hỏng
+    # vì site-packages thuộc root và chỉ đọc. Đường đúng là bấm nút ở trang Công cụ, nơi Javis
+    # cài vào thư mục state ghi được (xem test_cong_cu_thu_vien).
+    check("và chỉ sang trang Công cụ, nơi bấm được", "Công cụ" in _ly_do_tv)
+    check("KHÔNG bảo gõ pip (trong Docker gõ cũng hỏng)", "pip install" not in _ly_do_tv)
 finally:
     __import__("builtins").__import__ = _that
     wt.dat_lai_do()

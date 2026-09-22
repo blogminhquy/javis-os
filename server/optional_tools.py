@@ -40,6 +40,16 @@ from config import STATE_DIR
 BROWSERS_DIR = STATE_DIR / "browsers"
 ENV_BROWSERS_PATH = "PLAYWRIGHT_BROWSERS_PATH"
 
+# Nơi cài thư viện Python tuỳ chọn. CÙNG lý do với BROWSERS_DIR, cộng một lý do nặng hơn: trong
+# Docker, `site-packages` thuộc root và chỉ đọc, còn Javis chạy bằng user `javis`. Nên `pip
+# install` kiểu thường KHÔNG ghi được, và không có nút nào cứu được điều đó. `pip install
+# --target` vào thư mục state thì ghi được, sống qua mỗi lần cập nhật (state nằm trên ổ gắn
+# ngoài), và gỡ chỉ là xoá một thư mục.
+PYLIBS_DIR = STATE_DIR / "pylibs"
+
+# Trần thời gian cài thư viện. Ngắn hơn tải trình duyệt vì đây chỉ là tải wheel từ PyPI.
+CAI_LIB_TIMEOUT = 600.0
+
 # Trần thời gian tải. Mạng VPS chậm vẫn phải xong trong chừng này, còn treo lâu hơn là hỏng
 # thật chứ không phải chậm - và treo im vô hạn là kiểu lỗi tệ nhất (không kết quả, không lỗi).
 TAI_TIMEOUT = 900.0
@@ -59,7 +69,17 @@ def _mo_ta_trinh_duyet() -> dict:
     }
 
 
-CONG_CU = {"browser": _mo_ta_trinh_duyet}
+def _mo_ta_pylib() -> dict:
+    return {
+        "id": "pylib-playwright",
+        "ten": "Thư viện lái trình duyệt (playwright)",
+        "mo_ta": "Cần cho model ChatGPT Web: Javis gõ vào một phiên ChatGPT thật trong trình "
+                 "duyệt thay vì gọi API. Chưa cài thì model đó không hiện trong ô chọn model.",
+        "dung_luong_uoc": "khoảng 140 MB",
+    }
+
+
+CONG_CU = {"browser": _mo_ta_trinh_duyet, "pylib-playwright": _mo_ta_pylib}
 
 
 # ─────────────────────────── dò xem đã có gì chưa ───────────────────────────
@@ -108,6 +128,44 @@ def _da_tai() -> str:
     return ""
 
 
+def _da_cai_pylib() -> str:
+    """Thư mục thư viện playwright Javis đã cài, rỗng nếu chưa có."""
+    try:
+        if (PYLIBS_DIR / "playwright").is_dir():
+            return str(PYLIBS_DIR)
+    except OSError:
+        pass
+    return ""
+
+
+def nap_pylibs() -> bool:
+    """Đưa thư mục thư viện tự cài vào `sys.path`. Gọi TRƯỚC khi `import playwright`.
+
+    Không có bước này thì cài xong vẫn không import được, và người dùng thấy nút bấm báo xong
+    mà tính năng vẫn bảo thiếu thư viện - kiểu hỏng khó chịu nhất vì không ai đoán ra.
+
+    Chèn vào CUỐI `sys.path` chứ không phải đầu: bản nào đã có sẵn trong Python của máy phải
+    thắng bản Javis tự tải, kẻo một ngày hai bản lệch phiên bản và cái Javis tải đè lên cái
+    người dùng chủ động cài.
+    """
+    d = _da_cai_pylib()
+    if not d:
+        return False
+    if d not in sys.path:
+        sys.path.append(d)
+    return True
+
+
+def co_playwright() -> bool:
+    """Máy này import được `playwright` không, sau khi đã nạp thư mục tự cài."""
+    nap_pylibs()
+    try:
+        import importlib.util
+        return importlib.util.find_spec("playwright") is not None
+    except Exception:
+        return False
+
+
 def _dung_luong(p: Path) -> int:
     tong = 0
     try:
@@ -126,12 +184,7 @@ def doc_mb(so_byte: int) -> str:
     return f"{so_byte / 1024 / 1024:.0f} MB" if so_byte else ""
 
 
-def trang_thai(cong_cu: str = "browser") -> dict:
-    """Trạng thái một công cụ tuỳ chọn, đủ để vẽ thẻ trên màn hình."""
-    if cong_cu not in CONG_CU:
-        return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
-    d = dict(CONG_CU[cong_cu]())
-    viec = _viec.get(cong_cu) or {}
+def _trang_thai_browser(d: dict, viec: dict) -> dict:
     dang_chay = bool(viec.get("dang_chay"))
     tai_ve = _da_tai()
     he_thong = "" if tai_ve else _chrome_he_thong()
@@ -144,12 +197,44 @@ def trang_thai(cong_cu: str = "browser") -> dict:
     else:
         tt, ly_do = "chua_cai", "Máy này chưa có trình duyệt nào Javis lái được."
     d.update({
-        "ok": True,
-        "trang_thai": tt,
-        "ly_do": ly_do,
+        "trang_thai": tt, "ly_do": ly_do,
         "go_duoc": bool(tai_ve),           # chỉ gỡ được thứ CHÍNH JAVIS tải về
         "duong_dan": tai_ve or he_thong,
         "dung_luong": doc_mb(_dung_luong(Path(tai_ve))) if tai_ve else "",
+    })
+    return d
+
+
+def _trang_thai_pylib(d: dict, viec: dict) -> dict:
+    dang_chay = bool(viec.get("dang_chay"))
+    tu_cai = _da_cai_pylib()
+    if dang_chay:
+        tt, ly_do = "dang_cai", "Đang tải thư viện từ PyPI, việc này mất một hai phút."
+    elif tu_cai:
+        tt, ly_do = "san_sang", "Javis đã cài vào thư mục state, sống qua mỗi lần cập nhật."
+    elif co_playwright():
+        tt, ly_do = "san_sang", "Python của máy này đã có sẵn thư viện."
+    else:
+        tt, ly_do = "chua_cai", ("Chưa có thư viện. Cài xong phải KHỞI ĐỘNG LẠI Javis thì "
+                                 "model ChatGPT Web mới hiện ra.")
+    d.update({
+        "trang_thai": tt, "ly_do": ly_do,
+        "go_duoc": bool(tu_cai),           # chỉ gỡ thứ CHÍNH JAVIS cài, không đụng Python của máy
+        "duong_dan": tu_cai,
+        "dung_luong": doc_mb(_dung_luong(PYLIBS_DIR)) if tu_cai else "",
+    })
+    return d
+
+
+def trang_thai(cong_cu: str = "browser") -> dict:
+    """Trạng thái một công cụ tuỳ chọn, đủ để vẽ thẻ trên màn hình."""
+    if cong_cu not in CONG_CU:
+        return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
+    d = dict(CONG_CU[cong_cu]())
+    viec = _viec.get(cong_cu) or {}
+    d["ok"] = True
+    d = (_trang_thai_pylib if cong_cu == "pylib-playwright" else _trang_thai_browser)(d, viec)
+    d.update({
         "tien_do": viec.get("tien_do", ""),
         "log": viec.get("log", ""),
         "loi": viec.get("loi", ""),
@@ -174,22 +259,48 @@ def _ghi_log(cong_cu: str, dong: str) -> None:
             break
 
 
-async def _chay_tai(cong_cu: str) -> None:
-    """Tải trình duyệt. Chạy nền, mọi đường ra đều ghi lại trạng thái."""
-    v = _viec.setdefault(cong_cu, {})
-    v.update({"dang_chay": True, "loi": "", "log": "", "tien_do": "Đang chuẩn bị...", "bat_dau": time.time()})
+def _lenh_cai(cong_cu: str) -> tuple:
+    """(lệnh, thư mục chạy, env, trần giờ, câu lỗi khi không tìm thấy chương trình).
+
+    Gom ở đây để `_chay_tai` chỉ còn phần CHẠY: đọc log, đếm giờ, ghi trạng thái. Thêm công cụ
+    thứ ba sau này chỉ phải viết thêm một nhánh ở đây.
+    """
+    if cong_cu == "pylib-playwright":
+        PYLIBS_DIR.mkdir(parents=True, exist_ok=True)
+        # `--target`: cài vào thư mục ghi được thay vì site-packages. Trong Docker,
+        # site-packages thuộc root và chỉ đọc còn Javis chạy user thường, nên đây KHÔNG phải
+        # lựa chọn phong cách mà là đường duy nhất chạy được.
+        # `--upgrade`: cài đè lên bản cũ trong cùng thư mục, nếu không pip bỏ qua và người
+        # dùng bấm "Cài lại" mà chẳng có gì đổi.
+        return (
+            [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade",
+             "--target", str(PYLIBS_DIR), "playwright"],
+            str(PYLIBS_DIR), dict(os.environ), CAI_LIB_TIMEOUT,
+            "Python của máy này không gọi được pip, nên không cài được thư viện.",
+        )
     BROWSERS_DIR.mkdir(parents=True, exist_ok=True)
     moi_truong = dict(os.environ)
     moi_truong[ENV_BROWSERS_PATH] = str(BROWSERS_DIR)
     # `--only-shell`: chỉ tải bản headless shell, nhỏ hơn hẳn bản đầy đủ. Javis chạy ẩn cửa sổ
     # nên không cần phần giao diện của trình duyệt.
-    lenh = ["npx", "-y", "playwright@latest", "install", "--only-shell", "chromium"]
+    return (
+        ["npx", "-y", "playwright@latest", "install", "--only-shell", "chromium"],
+        str(BROWSERS_DIR), moi_truong, TAI_TIMEOUT,
+        "Máy này không có Node (npx), không tải được trình duyệt.",
+    )
+
+
+async def _chay_tai(cong_cu: str) -> None:
+    """Cài một công cụ tuỳ chọn. Chạy nền, mọi đường ra đều ghi lại trạng thái."""
+    v = _viec.setdefault(cong_cu, {})
+    v.update({"dang_chay": True, "loi": "", "log": "", "tien_do": "Đang chuẩn bị...", "bat_dau": time.time()})
+    lenh, thu_muc, moi_truong, tran_gio, loi_thieu = _lenh_cai(cong_cu)
     try:
         tt = await asyncio.create_subprocess_exec(
             *lenh, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=moi_truong, cwd=str(BROWSERS_DIR), **winproc.kwargs_no_window())
+            env=moi_truong, cwd=thu_muc, **winproc.kwargs_no_window())
     except FileNotFoundError:
-        v.update({"dang_chay": False, "loi": "Máy này không có Node (npx), không tải được trình duyệt."})
+        v.update({"dang_chay": False, "loi": loi_thieu})
         return
     except Exception as e:
         v.update({"dang_chay": False, "loi": f"{type(e).__name__}: {e}"})
@@ -203,7 +314,7 @@ async def _chay_tai(cong_cu: str) -> None:
             _ghi_log(cong_cu, khuc.decode("utf-8", "replace"))
 
     try:
-        await asyncio.wait_for(asyncio.gather(_doc(), tt.wait()), timeout=TAI_TIMEOUT)
+        await asyncio.wait_for(asyncio.gather(_doc(), tt.wait()), timeout=tran_gio)
         ma = tt.returncode
     except asyncio.TimeoutError:
         try:
@@ -211,7 +322,7 @@ async def _chay_tai(cong_cu: str) -> None:
         except Exception:
             pass
         v.update({"dang_chay": False,
-                  "loi": f"Tải quá {int(TAI_TIMEOUT // 60)} phút chưa xong nên đã dừng. Thử lại khi mạng rảnh hơn."})
+                  "loi": f"Chạy quá {int(tran_gio // 60)} phút chưa xong nên đã dừng. Thử lại khi mạng rảnh hơn."})
         return
     except asyncio.CancelledError:
         try:
@@ -225,10 +336,14 @@ async def _chay_tai(cong_cu: str) -> None:
         return
 
     v["dang_chay"] = False
+    xong = _da_cai_pylib() if cong_cu == "pylib-playwright" else _da_tai()
     if ma != 0:
-        v["loi"] = f"Lệnh tải trả mã lỗi {ma}. Xem log bên dưới."
-    elif not _da_tai():
-        v["loi"] = "Lệnh chạy xong nhưng không thấy trình duyệt đâu."
+        v["loi"] = f"Lệnh cài trả mã lỗi {ma}. Xem log bên dưới."
+    elif not xong:
+        v["loi"] = "Lệnh chạy xong nhưng không thấy thứ vừa cài đâu."
+    elif cong_cu == "pylib-playwright":
+        nap_pylibs()
+        v["tien_do"] = "Xong. Khởi động lại Javis để model ChatGPT Web hiện ra."
     else:
         v["tien_do"] = "Xong."
     print(f"[cong-cu] tải {cong_cu}: mã {ma}, lỗi={v.get('loi') or 'không'}", file=sys.stderr)
@@ -250,11 +365,12 @@ def go(cong_cu: str = "browser") -> dict:
     """Xoá bản Javis tự tải. KHÔNG bao giờ đụng tới trình duyệt có sẵn của máy."""
     if cong_cu not in CONG_CU:
         return {"ok": False, "error": f"không có công cụ tên {cong_cu!r}"}
-    d = _da_tai()
+    goc = PYLIBS_DIR if cong_cu == "pylib-playwright" else BROWSERS_DIR
+    d = _da_cai_pylib() if cong_cu == "pylib-playwright" else _da_tai()
     if not d:
-        return {"ok": False, "error": "Không có bản nào do Javis tải để gỡ."}
+        return {"ok": False, "error": "Không có bản nào do Javis cài để gỡ."}
     try:
-        shutil.rmtree(BROWSERS_DIR, ignore_errors=True)
+        shutil.rmtree(goc, ignore_errors=True)
         _viec.pop(cong_cu, None)
         return {"ok": True}
     except Exception as e:
