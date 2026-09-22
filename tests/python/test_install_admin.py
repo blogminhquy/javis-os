@@ -95,10 +95,19 @@ check("mật khẩu sinh ra đủ dài", len(_pw1 or "") >= 16)
 check("mật khẩu sinh ra chỉ gồm chữ và số (an toàn cho .env của Docker Compose)",
       bool(_pw1) and _pw1.isalnum())
 check("tên đăng nhập mặc định là admin", _doc(_env1, "JAVIS_ADMIN_USER") == "admin")
-# env.example có sẵn hai dòng ĐÃ COMMENT cho hai biến này. Ghi đè nhầm vào dòng comment thì
-# .env có biến nhưng vẫn nằm sau dấu #, tức server không thấy gì và người dùng lại về đọc log.
-check("dòng mẫu đang comment trong env.example KHÔNG bị nhận nhầm là đã đặt",
-      "# JAVIS_ADMIN_PASSWORD=doi-mat-khau-manh-o-day" in _env1)
+# Một `.env` ĐÃ CÓ dòng comment cho hai biến này (file của người dùng cũ, hoặc chép từ tài
+# liệu) không được làm script tưởng là đã đặt rồi bỏ qua; mà ghi đè vào chính dòng comment
+# cũng sai, vì .env có biến nhưng vẫn nằm sau dấu #, server không thấy gì và người dùng lại
+# phải về đọc log. Thử bằng một .env dựng riêng chứ không dựa vào nội dung env.example: từ
+# 0.64.6 file mẫu không còn dòng chú thích nào (xem test_env_example_may_doc_duoc), nên bám
+# vào nó là phép thử xanh vì lý do sai.
+_co_thich = "# JAVIS_ADMIN_USER=admin\n# JAVIS_ADMIN_PASSWORD=doi-mat-khau-manh-o-day\n"
+_env_ct, _ = _chay_khoi(_co_thich)
+_pw_ct = _doc(_env_ct, "JAVIS_ADMIN_PASSWORD")
+check(".env có dòng comment sẵn -> vẫn sinh mật khẩu THẬT (không tưởng là đã đặt)",
+      bool(_pw_ct) and _pw_ct != "doi-mat-khau-manh-o-day")
+check("và KHÔNG ghi đè lên chính dòng comment đó",
+      "# JAVIS_ADMIN_PASSWORD=doi-mat-khau-manh-o-day" in _env_ct)
 
 # Chạy lại lần hai: cài lại / chạy lại script là chuyện thường, không được đổi mật khẩu đang dùng.
 _env2, _out2 = _chay_khoi(_env1)
