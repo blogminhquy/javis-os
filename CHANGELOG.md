@@ -4,6 +4,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.64.8] - 2026-09-22
+### Thêm mới
+- (đang làm) Trang Công cụ có thêm mục cài thư viện trình duyệt cho engine ChatGPT Web, dành cho người dùng nâng cao. Cài theo yêu cầu nên bản cài mặc định không nặng thêm.
+
 ## [0.64.7] - 2026-09-22
 ### Thêm mới
 - **Xem được mỗi lượt chat đang gánh bao nhiêu chữ, và chữ đó nằm ở đâu.** Trang chẩn đoán nay có bảng phân bổ: phần não chung, phần kênh hội thoại, phần skill, phần bộ nhớ, mỗi phần bao nhiêu ký tự và chiếm bao nhiêu phần trăm. Trước đây chỉ đoán được.
