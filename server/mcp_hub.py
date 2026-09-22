@@ -309,12 +309,62 @@ def _match_ambient(ambient, query):
 # ============================================================
 # Builtin tools (engine API): file trong vault + use_skill + meta connections
 # ============================================================
-def _safe_path(vault_root, p):
-    root = Path(vault_root).resolve()
-    target = (root / str(p or "")).resolve()
-    if root != target and root not in target.parents:
+def _trong_goc(root, p):
+    """Đường dẫn đã resolve nếu nằm trong `root`, None nếu ra ngoài. Không ném."""
+    try:
+        r = Path(root).resolve()
+        t = (r / str(p or "")).resolve()
+    except (OSError, ValueError):
+        return None
+    return t if (r == t or r in t.parents) else None
+
+
+def _safe_path(vault_root, p, workspace_root=None):
+    """Đường dẫn hợp lệ trong vault, HOẶC trong thư mục làm việc của phiên Coding.
+
+    `workspace_root` là gốc thứ hai, thêm ở 0.64 để engine KHÔNG có tool file native (sáu
+    engine API và engine Web) đọc ghi được cây mã nguồn. Trước đó hub luôn nhận
+    `vault_root = brain`, nên một phiên Coding chạy bằng engine API không chạm nổi vào repo:
+    `_read` chặn mọi đường dẫn ngoài vault và trả "nằm ngoài bộ não đang làm việc".
+
+    None (mặc định) = hành vi y hệt trước, chỉ một gốc. Đây là điều kiện để thay đổi này
+    không đụng một lượt chat thường nào.
+
+    CHỌN GỐC NÀO khi có hai gốc: xét theo thứ tự dưới đây. Không được chỉ xét "nằm trong gốc",
+    vì mọi đường dẫn tương đối đều nằm trong CẢ HAI về mặt chữ - `server/auth.py` ghép vào
+    brain vẫn ra một đường dẫn hợp lệ, chỉ là không có file ở đó. Xét thiếu bước này thì mọi
+    lời gọi đọc file repo đều rơi vào brain rồi trả "không có file", đúng cái chặn cứng mà
+    tham số này sinh ra để gỡ.
+
+      1. File CÓ THẬT trong vault            -> vault (vault thắng khi cả hai cùng có)
+      2. File CÓ THẬT trong thư mục làm việc -> thư mục làm việc
+      3. THƯ MỤC CHA có thật trong vault     -> vault   (cảnh GHI file mới)
+      4. THƯ MỤC CHA có thật ở thư mục làm việc -> thư mục làm việc
+      5. Không đâu có                        -> vault, để câu báo lỗi nói về brain như cũ
+
+    Bước 3 và 4 là thứ làm `javis_write_file` ghi đúng chỗ: ghi `server/moi.py` trong một
+    phiên coding thì brain không có thư mục `server/` còn repo có, nên file rơi vào repo.
+    """
+    tv = _trong_goc(vault_root, p)
+    if not workspace_root:
+        if tv is not None:
+            return tv
         raise ValueError(f"đường dẫn '{p}' nằm ngoài vault")
-    return target
+
+    tw = _trong_goc(workspace_root, p)
+    if tv is None and tw is None:
+        raise ValueError(f"đường dẫn '{p}' nằm ngoài cả bộ não lẫn thư mục làm việc")
+
+    for ung_vien in (tv, tw):
+        if ung_vien is not None and ung_vien.exists():
+            return ung_vien
+    for ung_vien in (tv, tw):
+        try:
+            if ung_vien is not None and ung_vien.parent.is_dir():
+                return ung_vien
+        except OSError:
+            continue
+    return tv if tv is not None else tw
 
 
 def _vung_nhan_file():
@@ -330,7 +380,7 @@ def _vung_nhan_file():
         return None
 
 
-def _safe_read_path(vault_root, p, cho_phep_staging=False):
+def _safe_read_path(vault_root, p, cho_phep_staging=False, workspace_root=None):
     """Như `_safe_path` nhưng cho ĐỌC, và biết thêm vùng nhận file của khung chat.
 
     Vì sao phải có: dashboard chèn vào câu hỏi khối "[File đính kèm để ĐỌC (đường dẫn): …]"
@@ -348,7 +398,7 @@ def _safe_read_path(vault_root, p, cho_phep_staging=False):
     """
     trong_vault, loi = None, None
     try:
-        trong_vault = _safe_path(vault_root, p)
+        trong_vault = _safe_path(vault_root, p, workspace_root=workspace_root)
         if trong_vault.exists():
             return trong_vault          # vault LUÔN thắng: không để staging che file thật
     except ValueError as e:
@@ -437,7 +487,7 @@ def _list_skills(vault_root):
 
 
 def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang="", staging=False,
-                   bo_qua=None):
+                   bo_qua=None, workspace_root=None):
     """(tools_spec, route) các tool nội bộ cho engine API. Claude/Codex có tool file native
     nên hub HTTP không trả nhóm này (chỉ meta javis_connections).
     include_ambient=True (đường engine Claude): javis_connections kèm cả connector tài khoản
@@ -445,7 +495,10 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
     hidden: {conn_id: {perm, tools}} tool bị mức quyền lọc khỏi danh sách - kể ra trong
     javis_connections để model biết mà nói đúng lý do thay vì tưởng nguồn thiếu năng lực.
     staging=True: `javis_read_file` đọc được thêm file trong vùng nhận file của khung chat
-    (xem `_safe_read_path`). CHỈ đường chat của CHỦ bật; bot chuyên trách để nguyên False."""
+    (xem `_safe_read_path`). CHỈ đường chat của CHỦ bật; bot chuyên trách để nguyên False.
+    workspace_root: thư mục làm việc của phiên Coding (0.64). Có giá trị thì tool FILE nhận
+    thêm gốc đó, để engine không có tool file native chạm được vào cây mã nguồn. MCP, cron và
+    nhắc hẹn KHÔNG đổi gốc - chúng thuộc về brain, xem `coding_ctx`."""
     tools, route = [], {}
 
     def add(name, description, props, required, call, effect="read"):
@@ -476,11 +529,17 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
     async def _read(args):
         rel = (args or {}).get("path")
         try:
-            p = _safe_read_path(vault_root, rel, cho_phep_staging=staging)
+            p = _safe_read_path(vault_root, rel, cho_phep_staging=staging,
+                                workspace_root=workspace_root)
         except ValueError:
             # Nói THẲNG đây là ranh giới brain, kèm việc-cần-làm. Bản cũ để ValueError rơi ra
             # nguyên văn "nằm ngoài vault", model đọc xong tự dựng một lời khuyên sai (bảo
             # người dùng tự chép file vào thư mục Brain rồi mới đọc được).
+            if workspace_root:
+                return (f"ERROR: '{rel}' nằm ngoài CẢ HAI nơi tool này được phép đọc, nên "
+                        f"không đọc được. Hai nơi đó là: bộ não đang làm việc, và thư mục "
+                        f"làm việc của phiên này ({workspace_root}). Dùng đường dẫn tương "
+                        f"đối so với một trong hai, hoặc file vừa đính kèm vào khung chat.")
             return (f"ERROR: '{rel}' nằm ngoài bộ não đang làm việc nên tool này không đọc "
                     f"được. Javis khoá tool file trong brain để một lượt chat không đọc lung "
                     f"tung trên máy. Đọc được: đường dẫn tương đối trong brain, và file người "
@@ -491,7 +550,8 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
         return text[:100_000] + (f"\n… [cắt, file dài {len(text):,} ký tự]" if len(text) > 100_000 else "")
 
     async def _ls(args):
-        p = _safe_path(vault_root, (args or {}).get("path") or ".")
+        p = _safe_path(vault_root, (args or {}).get("path") or ".",
+                       workspace_root=workspace_root)
         if not p.is_dir():
             return f"ERROR: không có thư mục '{(args or {}).get('path')}'"
         rows = []
@@ -513,7 +573,18 @@ def _builtin_tools(mode, vault_root, include_ambient=False, hidden=None, lang=""
                     "nhân. Muốn ghi thật: mở trang Việc, nâng mức của việc này lên 'Ghi nháp' "
                     "(auto) rồi chạy lại. Ngay bây giờ: ĐỪNG thử ghi lại, hãy đưa TRỌN nội dung "
                     "file vào câu trả lời để người dùng tự lưu.")
-        p = _safe_path(vault_root, (args or {}).get("path"))
+        # Trả câu NÓI ĐƯỢC thay vì để ValueError bay ra, y như `_read` đã làm. Engine Web
+        # chạy vòng tool bằng chữ: một exception bay ra giữa lô tool là chết cả lượt, còn một
+        # câu lỗi thì model đọc rồi tự sửa đường dẫn ở vòng sau.
+        try:
+            p = _safe_path(vault_root, (args or {}).get("path"), workspace_root=workspace_root)
+        except ValueError:
+            if workspace_root:
+                return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài CẢ HAI nơi được phép "
+                        f"ghi: bộ não đang làm việc, và thư mục làm việc của phiên này "
+                        f"({workspace_root}). Dùng đường dẫn tương đối so với một trong hai.")
+            return (f"ERROR: '{(args or {}).get('path')}' nằm ngoài bộ não đang làm việc nên "
+                    f"tool này không ghi được. Dùng đường dẫn tương đối trong brain.")
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(str((args or {}).get("content") or ""), encoding="utf-8")
         return f"Đã ghi {p.name} ({len(str((args or {}).get('content') or ''))} ký tự)"
@@ -867,7 +938,7 @@ def _store_mtime():
 
 
 async def discover_all(mode="full", vault_root=None, include_plugins=True, include_ambient=False,
-                       force_refresh=False, force_lazy=False, staging=False):
+                       force_refresh=False, force_lazy=False, staging=False, workspace_root=None):
     """(tools_spec, route) đầy đủ cho 1 mode. route entries ĐÃ bọc quyền + audit.
     include_plugins=False: bỏ nhóm tool plugin - dùng khi engine SDK đã đấu plugin
     IN-PROCESS (header X-Javis-No-Plugins) để model không thấy tool trùng chức năng.
@@ -876,7 +947,9 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     engine, KHÔNG qua hub, hub chỉ mách chỗ cho model. Engine API (in-process) để False (không có
     tool native để mà chỉ tới).
     staging=True: cho `javis_read_file` đọc thêm vùng nhận file của khung chat - CHỈ đường chat
-    của chủ truyền vào (xem `_safe_read_path`)."""
+    của chủ truyền vào (xem `_safe_read_path`).
+    workspace_root: thư mục làm việc của phiên Coding - tool FILE nhận thêm gốc đó (0.64).
+    Nằm TRONG khoá cache vì hai phiên coding khác repo phải thấy hai danh sách route khác nhau."""
     mode = (mode or "full").strip().lower()
     # Ngôn ngữ đọc từ CẤU HÌNH, không truyền từ lượt chat: danh sách tool được cache dùng chung
     # cho mọi lượt, nên nó không thể mang ngôn ngữ dò được của riêng một câu. Đổi lại, ngôn ngữ
@@ -888,7 +961,7 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
     except Exception:
         lang = ""
     key = (mode, str(vault_root or ""), bool(include_plugins), bool(include_ambient),
-           bool(force_lazy), lang, bool(staging))
+           bool(force_lazy), lang, bool(staging), str(workspace_root or ""))
     ent = _cache.get(key)
     mt = _store_mtime()
     if (not force_refresh and ent and time.time() - ent["ts"] < ent.get("ttl", _CACHE_TTL)
@@ -931,7 +1004,8 @@ async def discover_all(mode="full", vault_root=None, include_plugins=True, inclu
             "health": "healthy",
         }
 
-    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging, bo_qua)
+    b_tools, b_route = _builtin_tools(mode, vault_root, include_ambient, hidden, lang, staging,
+                                      bo_qua, workspace_root=workspace_root)
     tools_spec += b_tools
     route.update(b_route)
 

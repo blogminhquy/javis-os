@@ -136,10 +136,13 @@ check("câu từ chối nói rõ đây là ranh giới brain, không phải lỗ
 loi_ngoai = _no(mo({"path": str(NGOAI)}))
 check("bật staging vẫn từ chối file khác trên ổ đĩa", loi_ngoai.startswith("ERROR:"))
 
-# `_write` để ValueError bay ra; `mcp_client.call_route` bọc nó thành "ERROR: …" trước khi
-# tới model. Ở đây gọi thẳng callable nên bắt đúng cái nó ném.
+# `_write` TRẢ VỀ câu "ERROR: …" thay vì ném ValueError (đổi ở 0.64, cùng lúc thêm gốc thứ
+# hai cho phiên Coding): engine Web chạy vòng tool bằng chữ, một exception bay ra giữa lô tool
+# là chết cả lượt, còn một câu lỗi thì model đọc rồi tự sửa đường dẫn ở vòng sau. Bất biến
+# "ghi ra staging bị chặn" KHÔNG đổi, chỉ đổi cách báo.
+_ghi_stage = _no(_route(True)["javis_write_file"]["call"]({"path": str(DAN), "content": "x"}))
 check("ghi file ra staging vẫn bị chặn (chỉ nới cho ĐỌC)",
-      _chan(_no, _route(True)["javis_write_file"]["call"]({"path": str(DAN), "content": "x"})))
+      isinstance(_ghi_stage, str) and _ghi_stage.startswith("ERROR:"))
 check("file vừa dán KHÔNG bị ghi đè",
       DAN.read_text(encoding="utf-8") == "đoạn văn dài user vừa dán")
 
@@ -154,7 +157,9 @@ check("discover_all mặc định staging=False",
 
 src = Path(SERVER, "mcp_hub.py").read_text(encoding="utf-8")
 check("staging nằm trong khoá cache của discover_all (hai lượt khác cờ không dùng chung cache)",
-      "bool(force_lazy), lang, bool(staging))" in src)
+      "bool(force_lazy), lang, bool(staging)" in src)
+check("workspace_root cũng nằm trong khoá cache (hai phiên coding khác repo không dùng chung)",
+      'bool(staging), str(workspace_root or "")' in src)
 
 # Đúng HAI chỗ bật cờ, cả hai nằm trong `_api_stream_mcp` (discover_all + registry_inventory).
 # Mọc thêm chỗ thứ ba ở đâu đó - nhất là nhánh bot chuyên trách - là test này đỏ.
