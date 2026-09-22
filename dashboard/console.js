@@ -3726,7 +3726,9 @@
     let d = null;
     try { d = await (await fetch("/web-chat/status")).json(); }
     catch (e) { return; }
-    if (!d || !d.bat) return;   // cổng môi trường chưa bật -> không nhắc tới, khỏi gây tò mò
+    // Chỉ ẩn hẳn khi chủ máy ÉP TẮT bằng biến môi trường. Máy chỉ thiếu đồ thì vẫn hiện,
+    // kèm câu nói cần cài gì: ẩn đi là người dùng không bao giờ biết có tính năng này.
+    if (!d || d.an) return;
     box.style.display = "";
 
     const ve = (x) => {
@@ -3743,9 +3745,9 @@
           ${x.so_luot_trong_ngay ? " · " + x.so_luot_trong_ngay + " lượt hôm nay" : ""}</div>
         <div class="gcard-meta">${WARN_ICON} ${esc(x.canh_bao || "")}</div>
         <div class="prov-action" style="flex-wrap:wrap">
-          <button class="gcard-btn" data-weblogin="1">Mở cửa sổ đăng nhập</button>
+          ${x.kha_dung ? `<button class="gcard-btn" data-weblogin="1">Mở cửa sổ đăng nhập</button>` : ""}
           <button class="gcard-btn ghost" data-webcheck="1">${esc(t("qs.recheck"))}</button>
-          <button class="gcard-btn ghost" data-webreset="1">Đóng trình duyệt</button>
+          ${x.kha_dung ? `<button class="gcard-btn ghost" data-webreset="1">Đóng trình duyệt</button>` : ""}
           <span id="webMsg" class="gcard-meta" style="margin-left:10px;flex:1;min-width:220px"></span>
         </div>
         ${nghi}`;

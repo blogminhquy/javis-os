@@ -90,8 +90,13 @@ async def _cat(ds_codex):
     return await main._fetch_provider_models("openai-oauth", {})
 
 
+# Giả lập máy ĐỦ ĐỒ cho cả khối này: phép thử chạy trên CI không có trình duyệt, mà điều
+# đang soi là cách Javis nối danh mục, không phải máy CI có Chromium hay không.
+_kha_dung_goc = main.web_transport.kha_dung
+main.web_transport.kha_dung = lambda: (True, "")
+
 ds = asyncio.run(_cat(["gpt-5.6-luna"]))
-check("catalog có nối chatgpt-web khi cổng môi trường bật", main.MODEL_WEB in (ds or []))
+check("catalog có nối chatgpt-web khi máy dùng được engine Web", main.MODEL_WEB in (ds or []))
 check("chatgpt-web nằm CUỐI, không chen lên làm mặc định", ds and ds[-1] == main.MODEL_WEB)
 
 # Máy không cài Codex CLI -> list_models trả None. Đây ĐÚNG là máy mà engine Web phục vụ.
@@ -99,21 +104,51 @@ ds_none = asyncio.run(_cat(None))
 check("Codex không trả được gì (None) thì vẫn có chatgpt-web",
       ds_none == [main.MODEL_WEB])
 
-os.environ["JAVIS_ENABLE_WEB_CHAT"] = "0"
+main.web_transport.kha_dung = lambda: (False, "giả vờ tắt")
 ds_tat = asyncio.run(_cat(["gpt-5.6-luna"]))
-check("cổng môi trường TẮT thì catalog không có chatgpt-web",
+check("engine Web không dùng được thì catalog không có chatgpt-web",
       main.MODEL_WEB not in (ds_tat or []))
-check("tắt cổng thì danh sách Codex giữ nguyên, không bị bọc lại",
+check("và danh sách Codex giữ nguyên, không bị bọc lại",
       ds_tat == ["gpt-5.6-luna"])
-os.environ["JAVIS_ENABLE_WEB_CHAT"] = "true"
+main.web_transport.kha_dung = lambda: (True, "")
 
 main.find_codex_cli = lambda *a, **k: ""
-check("máy không có Codex CLI nhưng bật engine Web -> thẻ ChatGPT vẫn SẴN SÀNG",
+main.web_transport.kha_dung = lambda: (True, "")
+check("máy không có Codex CLI nhưng dùng được engine Web -> thẻ ChatGPT vẫn SẴN SÀNG",
       main._vi_sao_khong_co_model("openai-oauth", {}) == "")
+# Trả lại hàm THẬT trước khi soi nhánh ép tắt: đang soi chính `kha_dung`, giả lập nó ở đây
+# là phép thử tự trả lời câu hỏi của mình.
+main.web_transport.kha_dung = _kha_dung_goc
 os.environ["JAVIS_ENABLE_WEB_CHAT"] = "0"
-check("tắt engine Web thì vẫn báo thiếu Codex CLI như cũ",
+main.web_transport.dat_lai_do()
+check("ép tắt engine Web thì vẫn báo thiếu Codex CLI như cũ",
       "Codex CLI" in main._vi_sao_khong_co_model("openai-oauth", {}))
-os.environ["JAVIS_ENABLE_WEB_CHAT"] = "true"
+os.environ.pop("JAVIS_ENABLE_WEB_CHAT", None)
+main.web_transport.dat_lai_do()
+
+
+# ============================================================
+# 2b) Ô chọn model và engine phải trả lời GIỐNG NHAU
+# ============================================================
+#
+# Bẫy của 0.64.0: `_web_bat` đọc biến môi trường còn engine lại tự dò thư viện. Máy có đặt
+# biến mà THIẾU playwright thì model nằm trong ô chọn, người dùng chọn nó, rồi lượt chat
+# hỏng. Hai câu trả lời cho cùng một câu hỏi thì sớm muộn cũng lệch; giờ chỉ còn một nguồn.
+
+_kq_gia = {"v": (False, "giả vờ thiếu đồ")}
+_kha_dung_that = main.web_transport.kha_dung
+main.web_transport.kha_dung = lambda: _kq_gia["v"]
+try:
+    check("máy THIẾU đồ -> model KHÔNG vào ô chọn", not main._web_bat())
+    _ds_thieu = asyncio.run(_cat(["gpt-5.6-luna"]))
+    check("máy thiếu đồ -> catalog cũng không có chatgpt-web",
+          main.MODEL_WEB not in (_ds_thieu or []))
+    _kq_gia["v"] = (True, "")
+    check("máy ĐỦ đồ -> model vào ô chọn, không cần khai báo biến nào", main._web_bat())
+    _ds_du = asyncio.run(_cat(["gpt-5.6-luna"]))
+    check("máy đủ đồ -> catalog có chatgpt-web", main.MODEL_WEB in (_ds_du or []))
+finally:
+    main.web_transport.kha_dung = _kha_dung_that
 
 
 # ============================================================

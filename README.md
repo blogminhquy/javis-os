@@ -225,7 +225,9 @@ Thanh điều hướng bên trái gom **22 trang** thành **6 nhóm** (bấm tê
 
 ## ⚙️ Cấu hình (`.env`)
 
-Mọi dòng để trống vẫn chạy được. Sao chép `env.example` → `.env` (file mẫu cố ý KHÔNG có dấu chấm đầu để Docker Manager của Hostinger không tự nhập nó vào ô Environment).
+Mọi dòng để trống vẫn chạy được. Sao chép `env.example` → `.env` rồi thêm biến bạn cần.
+
+File mẫu cố ý **chỉ có dòng `TÊN=giá trị`, không một dòng chú thích nào**: các nền tảng deploy (Docker Manager của Hostinger chẳng hạn) tự quét file cấu hình trong repo rồi cắt mọi dòng có dấu `=` thành một biến, nên một dòng chú thích thành một biến tên `#` và cả bảng Environment đỏ lên. **Danh sách đầy đủ kèm giải thích từng biến: [docs/16-cau-hinh-env.md](docs/16-cau-hinh-env.md).**
 
 | Biến | Ý nghĩa | Mặc định |
 |---|---|---|

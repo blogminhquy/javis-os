@@ -197,7 +197,9 @@ The left navigation rail groups **22 pages** into **6 groups** (click a group na
 
 ## ⚙️ Configuration (`.env`)
 
-Every line can be left empty and it still runs. Copy `env.example` → `.env` (the sample file deliberately has no leading dot, so Hostinger's Docker Manager does not import it into the Environment box).
+Every line can be left empty and it still runs. Copy `env.example` → `.env` and add what you need.
+
+The template deliberately holds **only `NAME=value` lines, no comments at all**: deploy platforms (Hostinger's Docker Manager among them) scan config files in the repo and turn every line containing `=` into a variable, so one comment line becomes a variable named `#` and the whole Environment box turns red. **Full list with an explanation per variable: [docs/en/16-env-configuration.md](docs/en/16-env-configuration.md).**
 
 | Variable | Meaning | Default |
 |---|---|---|

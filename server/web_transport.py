@@ -197,17 +197,76 @@ class KetQuaGui:
     chunks: list = field(default_factory=list)
 
 
-def kha_dung() -> tuple[bool, str]:
-    """Máy này chạy được transport không. (True, "") hoặc (False, lý do nói được)."""
-    if os.environ.get("JAVIS_ENABLE_WEB_CHAT", "").strip().lower() not in ("1", "true", "yes"):
-        return False, ("Engine ChatGPT Web đang tắt. Bật biến môi trường "
-                       "JAVIS_ENABLE_WEB_CHAT=true rồi khởi động lại Javis.")
+# Kết quả dò trình duyệt, nhớ lại giữa các lần gọi. `kha_dung()` được gọi mỗi lần vẽ trang
+# Models và mỗi lần nạp danh mục model, mà việc dò thì `import playwright` cộng quét đĩa.
+# Xoá bằng `dat_lai_do()` sau khi người dùng vừa tải trình duyệt về.
+_NHO_DO: dict = {}
+
+
+def _cong_moi_truong():
+    """Biến `JAVIS_ENABLE_WEB_CHAT` có BA trạng thái, không phải hai.
+
+        chưa đặt  -> None  = TỰ DÒ (mặc định từ 0.64.1)
+        1/true/…  -> True  = cho phép, nhưng vẫn phải có trình duyệt thật
+        0/false/… -> False = ép TẮT, kể cả máy có đủ đồ
+
+    Vì sao mặc định là tự dò chứ không phải tắt: bản 0.64.0 bắt đặt biến này mới thấy model,
+    và đó là bắt người dùng tự khai một thứ máy tự biết. Còn vì sao không đơn giản bật sẵn:
+    engine này cần một trình duyệt thật, mà phần lớn máy chạy Javis là VPS không màn hình và
+    chưa tải trình duyệt. Bật sẵn ở đó là để một model nằm trong ô chọn rồi hỏng lúc được
+    chọn - tệ hơn hẳn việc nó không xuất hiện.
+
+    Trạng thái ÉP TẮT vẫn cần: máy có đủ đồ nhưng chủ máy không muốn ai lái phiên ChatGPT
+    của mình từ Javis.
+    """
+    raw = os.environ.get("JAVIS_ENABLE_WEB_CHAT", "").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return None
+
+
+def co_trinh_duyet(dung_nho: bool = True) -> tuple[bool, str]:
+    """Máy này có ĐỦ ĐỒ để lái một phiên ChatGPT không. (True, "") hoặc (False, lý do).
+
+    Lý do trả về phải NÓI ĐƯỢC VIỆC CẦN LÀM, không phải "không khả dụng": đây là chữ hiện
+    thẳng trên thẻ ChatGPT ở trang Models, và người đọc nó đang muốn biết bấm gì tiếp.
+    """
+    if dung_nho and "kq" in _NHO_DO:
+        return _NHO_DO["kq"]
+
+    def _tra(ok, ly_do):
+        _NHO_DO["kq"] = (ok, ly_do)
+        return _NHO_DO["kq"]
+
     try:
         import playwright  # noqa: F401
     except ImportError:
-        return False, ("Chưa có thư viện playwright. Cài bằng `pip install playwright` rồi "
-                       "khởi động lại Javis.")
-    return True, ""
+        return _tra(False, (
+            "Chưa có thư viện playwright trong Python của Javis. Cài một lần bằng "
+            "`pip install playwright` rồi khởi động lại Javis."))
+
+    if not _tim_chromium():
+        return _tra(False, (
+            "Chưa có trình duyệt nào Javis lái được. Mở trang Công cụ rồi bấm tải Chromium "
+            "(Javis tải bản gọn về thư mục state, sống qua mỗi lần cập nhật)."))
+
+    return _tra(True, "")
+
+
+def dat_lai_do() -> None:
+    """Quên kết quả dò. Gọi sau khi người dùng vừa tải trình duyệt hoặc cài playwright."""
+    _NHO_DO.clear()
+
+
+def kha_dung() -> tuple[bool, str]:
+    """Engine Web dùng được trên máy này không. (True, "") hoặc (False, lý do nói được)."""
+    cong = _cong_moi_truong()
+    if cong is False:
+        return False, ("Engine ChatGPT Web đang bị tắt bằng biến môi trường "
+                       "JAVIS_ENABLE_WEB_CHAT=0. Bỏ biến đó đi rồi khởi động lại nếu muốn dùng.")
+    return co_trinh_duyet()
 
 
 def _tim_chromium() -> str:

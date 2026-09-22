@@ -162,14 +162,80 @@ check("trang gốc thì id rỗng, không bịa ra một id",
 
 
 # ============================================================
-# 3) Cổng môi trường: tắt thì engine tự ẩn
+# 3) Bật engine: TỰ DÒ, biến môi trường chỉ để ép
 # ============================================================
+#
+# Bản 0.64.0 bắt đặt `JAVIS_ENABLE_WEB_CHAT=true` mới thấy model. Đó là bắt người dùng khai
+# một thứ máy tự biết, và tệ hơn: biến đó KHÔNG tạo ra được playwright, nên máy thiếu thư
+# viện mà đặt biến thì model hiện trong ô chọn rồi hỏng đúng lúc được chọn. Từ 0.64.1 câu
+# trả lời đến từ việc DÒ máy, còn biến chỉ còn vai trò ép tắt.
 
 os.environ.pop("JAVIS_ENABLE_WEB_CHAT", None)
-ok, ly_do = wt.kha_dung()
-check("chưa bật cổng môi trường -> không khả dụng", not ok)
-check("câu từ chối chỉ đúng biến cần bật", "JAVIS_ENABLE_WEB_CHAT" in ly_do)
+check("chưa đặt biến -> TỰ DÒ (không mặc định tắt nữa)", wt._cong_moi_truong() is None)
+for _v in ("1", "true", "YES", "on"):
+    os.environ["JAVIS_ENABLE_WEB_CHAT"] = _v
+    check(f"'{_v}' -> cho phép", wt._cong_moi_truong() is True)
+for _v in ("0", "false", "NO", "off"):
+    os.environ["JAVIS_ENABLE_WEB_CHAT"] = _v
+    check(f"'{_v}' -> ép tắt", wt._cong_moi_truong() is False)
+os.environ["JAVIS_ENABLE_WEB_CHAT"] = "hoi-ki-cuc"
+check("giá trị lạ -> vẫn tự dò, không coi là bật", wt._cong_moi_truong() is None)
+
+# Ép tắt phải thắng MỌI thứ, kể cả máy có đủ đồ.
+os.environ["JAVIS_ENABLE_WEB_CHAT"] = "0"
+wt.dat_lai_do()
+_ok_tat, _ly_do_tat = wt.kha_dung()
+check("ép tắt -> không khả dụng dù máy có đủ đồ", not _ok_tat)
+check("câu từ chối nói rõ là do biến môi trường", "JAVIS_ENABLE_WEB_CHAT" in _ly_do_tat)
+
+# Thiếu thư viện: câu từ chối phải NÓI ĐƯỢC VIỆC CẦN LÀM, vì nó hiện thẳng trên trang Models.
+os.environ.pop("JAVIS_ENABLE_WEB_CHAT", None)
+wt.dat_lai_do()
+_that = __import__("builtins").__import__
+
+
+def _chan_playwright(ten, *a, **k):
+    if ten == "playwright" or ten.startswith("playwright."):
+        raise ImportError("giả vờ chưa cài")
+    return _that(ten, *a, **k)
+
+
+__import__("builtins").__import__ = _chan_playwright
+try:
+    wt.dat_lai_do()
+    _ok_tv, _ly_do_tv = wt.co_trinh_duyet()
+    check("thiếu playwright -> không khả dụng", not _ok_tv)
+    check("và nói đúng lệnh cần chạy", "pip install playwright" in _ly_do_tv)
+finally:
+    __import__("builtins").__import__ = _that
+    wt.dat_lai_do()
+
+# Có thư viện nhưng KHÔNG có trình duyệt: cũng phải từ chối, và chỉ đúng chỗ bấm.
+_tim_that = wt._tim_chromium
+wt._tim_chromium = lambda: ""
+try:
+    wt.dat_lai_do()
+    _ok_kb, _ly_do_kb = wt.co_trinh_duyet()
+    check("có playwright nhưng chưa có trình duyệt -> không khả dụng", not _ok_kb)
+    check("và chỉ đúng chỗ tải trình duyệt", "Công cụ" in _ly_do_kb)
+finally:
+    wt._tim_chromium = _tim_that
+    wt.dat_lai_do()
+
+# Nhớ kết quả dò, và quên được khi người dùng vừa cài thêm đồ.
+wt.dat_lai_do()
+wt._NHO_DO["kq"] = (True, "")
+wt._tim_chromium = lambda: ""
+try:
+    check("có nhớ kết quả dò (không quét đĩa mỗi lần vẽ trang)", wt.co_trinh_duyet()[0])
+    wt.dat_lai_do()
+    check("dat_lai_do() quên kết quả cũ, dò lại từ đầu", not wt.co_trinh_duyet()[0])
+finally:
+    wt._tim_chromium = _tim_that
+    wt.dat_lai_do()
+
 os.environ["JAVIS_ENABLE_WEB_CHAT"] = "true"
+wt.dat_lai_do()
 
 
 # ============================================================

@@ -1749,12 +1749,20 @@ def la_model_web(model: str) -> bool:
 
 
 def _web_bat() -> bool:
-    """Engine Web có được bật không. TẮT là mặc định, và đó là chủ ý.
+    """`chatgpt-web` có xuất hiện trong ô chọn model không.
 
-    Đây là tính năng lái một phiên trình duyệt thật, nên phải là một hành động CÓ CHỦ Ý của
-    chủ máy chứ không phải thứ họ được thừa kế mà không biết. Tắt thì `chatgpt-web` không
-    xuất hiện trong ô chọn model, và phần còn lại của Javis chạy y như cũ."""
-    return os.environ.get("JAVIS_ENABLE_WEB_CHAT", "").strip().lower() in ("1", "true", "yes")
+    Hỏi THẲNG `web_transport.kha_dung()` chứ không tự đọc biến môi trường, và đây là chỗ sửa
+    một cái bẫy của 0.64.0: lúc đó hàm này đọc biến còn engine lại tự dò thư viện, nên một
+    máy có đặt biến mà THIẾU playwright sẽ bày model ra ô chọn rồi hỏng đúng lúc được chọn.
+    Hai câu trả lời cho cùng một câu hỏi thì sớm muộn cũng lệch nhau; giờ chỉ còn một.
+
+    Từ 0.64.1 mặc định là TỰ DÒ: có playwright và có trình duyệt thì model hiện ra, không
+    cần khai báo gì. Xem `web_transport._cong_moi_truong` cho ba trạng thái của biến."""
+    try:
+        ok, _ = web_transport.kha_dung()
+        return bool(ok)
+    except Exception:
+        return False
 
 
 def _codex_safe_model(model: str) -> str:
@@ -3492,7 +3500,11 @@ def web_chat_status():
     ok, ly_do = web_transport.kha_dung()
     d = web_state.tom_tat()
     d.update({
-        "bat": _web_bat(),
+        # `an`: CHỈ ẩn hẳn khối này khi chủ máy ép tắt bằng biến môi trường. Máy thiếu đồ thì
+        # vẫn hiện, kèm câu nói cần cài gì - ẩn đi là người dùng không bao giờ biết có tính
+        # năng này, và đó chính là cái giá của bản 0.64.0 bắt khai báo biến mới thấy.
+        "an": web_transport._cong_moi_truong() is False,
+        "bat": ok,
         "kha_dung": ok,
         "ly_do": "" if ok else ly_do,
         "model_id": MODEL_WEB,
@@ -3550,6 +3562,9 @@ async def web_chat_login():
 @app.post("/web-chat/check")
 async def web_chat_check():
     """Kiểm tra lại phiên đăng nhập, không mở thêm cửa sổ nào nếu trình duyệt đang mở."""
+    # Người dùng bấm nút này ngay sau khi vừa cài playwright hoặc vừa tải trình duyệt, nên
+    # phải dò lại từ đầu; dùng kết quả nhớ từ trước là nút "Kiểm tra lại" không kiểm gì cả.
+    web_transport.dat_lai_do()
     ok, ly_do = web_transport.kha_dung()
     if not ok:
         return {"ok": False, "error": ly_do}
@@ -3573,6 +3588,7 @@ async def web_chat_check():
 def web_chat_reset():
     """Đóng trình duyệt và xoá sổ nghỉ. Dùng khi engine kẹt ở một trạng thái nghỉ quá dài."""
     web_transport.dong_chung()
+    web_transport.dat_lai_do()
     web_state.dat_lai()
     return {"ok": True, **web_state.tom_tat()}
 
