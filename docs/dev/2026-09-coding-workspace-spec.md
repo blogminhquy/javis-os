@@ -1,363 +1,282 @@
-# Coding Workspace và Bàn giao phiên (dự kiến 0.63.x)
+# Coding Workspace (dự kiến 0.63.0)
 
-**Phiên bản:** v0.2 (thay cho v0.1 ngày 2026-09-21)
-**Trạng thái:** kiến trúc đang chốt, **chưa viết mã**.
-**Tài liệu kỹ thuật cho người sửa lõi.** Người dùng cuối sẽ đọc `docs/29-coding.md` khi có.
+**Phiên bản:** v0.3. Thay cho v0.2 (chia bốn giai đoạn) và v0.1 (viết ngoài repo 2026-09-21).
+**Trạng thái:** chốt phạm vi, **chưa viết mã**.
+**Phạm vi:** làm gọn trong MỘT phiên sửa. Chủ dự án chốt 2026-09-22.
+Tài liệu cho người sửa lõi.
 
-## Đổi gì so với v0.1
+## Ba quyết định chi phối tài liệu này
 
-Bản v0.1 vẽ ra một sản phẩm mới đứng cạnh Javis. Bản này vẽ **một mục trong nhóm Code** dựng
-gần như hoàn toàn từ những thứ Javis đã có. Bốn quyết định đổi hướng:
-
-1. **Bỏ hẳn auto switch model.** Chủ dự án chốt 2026-09-22: để router tự đổi engine giữa
-   chừng một tác vụ coding là làm hỏng code. Chỉ còn **đổi bằng tay**, và chỉ ở ranh giới an
-   toàn. Xoá luôn "Phase 3 Quota Router", bảng quota phần trăm và mọi nhánh failover tự động.
-2. **Mượn màn, không dựng lại.** Mọi thành phần giao diện của trang Coding đều là node mượn
-   từ trang khác. Không có khung chat thứ hai, không có cây thư mục thứ hai, không có trình
-   sửa file thứ hai.
-3. **Bỏ cột Work Tree cố định.** Chat chiếm toàn bộ phần giữa; cây thư mục là một tab bật khi
-   cần, mượn nguyên panel Vault.
-4. **Bỏ "Handoff Layer" như một tầng mới.** Javis đã có `server/conversation_state.py`. Việc
-   cần làm là mở rộng nó thêm vài trường coding, không phải xây tầng mới. Chữ "handoff" cũng
-   trả lại nghĩa cũ (bot bàn giao cho người ở trang Hội thoại); việc đổi engine gọi là
-   **bàn giao phiên**.
+1. **Một phiên sửa, không chia giai đoạn.** v0.2 chia bốn giai đoạn; thực tế bốn giai đoạn
+   nằm rải nhiều tuần thì giai đoạn 1 ra đời thiếu an toàn và không ai quay lại làm nốt. Bản
+   này cắt xuống còn thứ nhỏ nhất mà **tự nó đã dùng được và đã an toàn**, mọi thứ khác đẩy
+   xuống mục "Để lần sau".
+2. **Không có auto switch model.** Đổi engine giữa chừng một tác vụ coding làm hỏng mạch code.
+   Chỉ đổi bằng tay. Bỏ hẳn quota router, bảng quota phần trăm, failover tự động.
+3. **Mượn màn, không dựng lại.** Mọi thành phần giao diện là node mượn của trang khác.
 
 ---
 
 ## 1. Vì sao
 
-Javis đã chạy được Claude Code, Codex, Grok Build và Antigravity qua CLI thật, cộng sáu engine
-API qua `server/engine.py`. Cái thiếu không phải năng lực coding, mà là **một chỗ để làm việc
-coding**: hôm nay muốn sai Javis sửa một repo thì phải nói trong khung chat chung, không có
-chỗ nào ghi "đang làm ở repo nào, nhánh nào, quyền tới đâu", và mở hai việc song song trên
-cùng repo là giẫm chân nhau.
+Javis đã chạy được Claude Code, Codex, Grok Build, Antigravity qua CLI thật, cộng sáu engine
+API qua `server/engine.py`. Cái thiếu không phải năng lực coding mà là **một chỗ để làm việc
+coding**: hôm nay muốn sai Javis sửa một repo thì phải nói trong khung chat chung, không chỗ
+nào ghi đang làm ở repo nào nhánh nào quyền tới đâu, và mở hai việc song song trên cùng repo
+là giẫm chân nhau.
 
 Nhóm Code trên rail hiện chỉ có Terminal. `dashboard/code-term.js` đã viết sẵn cho việc này:
 
 > "Code" là một KHU VỰC trên rail chứ không phải một trang: mỗi chức năng là MỘT MỤC trong
 > nhóm đó. Hôm nay có Terminal; thêm chức năng sau = thêm một dòng vào CHUC_NANG.
 
-Tài liệu này mô tả mục thứ hai của khu vực đó: **Coding**.
+Đây là mục thứ hai của khu vực đó.
 
-## 2. Nguyên tắc
+## 2. Vì sao vừa MỘT phiên sửa
 
-### 2.1 Mượn chứ không dựng lại
+Vì phần lớn công việc đã có người làm rồi. Ba chỗ then chốt đều đã sẵn:
 
-Luật này không mới, nó đã nằm trong `dashboard/console.js` từ lần làm tab Thư mục:
+- **`cwd` đã là tham số của engine.** `claude_engine(..., cwd=...)` (`claude_cli.py:988`),
+  `CodexCLI(cwd=...)`. Đường chat đang gọi với `cwd=_brain_root(brain)` tại `main.py:2021`.
+  Cho một phiên coding chạy trong repo = truyền cwd khác. Không phải viết runtime mới.
+- **Kho phiên đã có cột `channel`.** `sessions.py:73`, cộng `moc_cap_nhat_theo_kenh(brain,
+  tien_to)` để lọc theo tiền tố. Trang Cộng sự đã dùng `agent:<slug>` và `workflow:<slug>`.
+  Phiên coding chỉ là kênh `coding:<repo-id>`.
+- **Khung chat đã cho mượn.** `_borrowChatNodes` (`console.js:6925`) di dời nguyên
+  `#chatArea #bgStrip #attachBar #modelBar #hudVoice` kèm mọi handler, WebSocket và streaming
+  đã gắn.
+
+Nên bề mặt mã THẬT SỰ mới chỉ còn ba thứ: **sổ repo**, **hàng chip ngữ cảnh**, **worktree kèm
+điểm hồi**.
+
+## 3. Luật mượn
+
+Luật này không mới, nó đã nằm trong `console.js` từ lần làm tab Thư mục:
 
 > Không dựng lại cây thứ hai. Bản đầu của tính năng này viết hẳn một module cây riêng, và chủ
 > repo chỉ ra ngay: "sao không bê nguyên cái cây y hệt bên Javis sang mà phải dựng lại". Đúng
 > [...] Dựng bản thứ hai là chép lại từng đó thứ rồi để hai bản trôi lệch nhau.
 
-Trang Coding tuân thủ nguyên tắc đó triệt để. Bảng dưới là **khế ước**: cột phải là thứ đã
-tồn tại, không được viết bản thứ hai của bất kỳ dòng nào.
+Bảng dưới là **khế ước**. Không viết bản thứ hai của bất kỳ dòng nào bên phải.
 
-| Trang Coding cần | Dùng lại cái gì đã có |
+| Trang Coding cần | Dùng lại |
 |---|---|
-| Khung chat (stream, tool call, đính kèm, giọng nói) | mượn node `#chatArea #bgStrip #attachBar #modelBar #hudVoice` qua `_borrowChatNodes` (`console.js`), đúng cách trang Trò chuyện và trang Cộng sự đang làm |
-| Danh sách phiên, ghim, đổi tên, tìm kiếm | `dashboard/sessions-ui.js` (sidebar lịch sử của trang Trò chuyện) |
-| Cây thư mục của repo | `window.JavisVaultPanel.borrow(host)` (`console.js:7005`), đã có tìm theo tên/nội dung, tạo file, tô sáng file đang mở |
-| Xem và sửa file, tô màu cú pháp | `dashboard/file-editor.js` + `dashboard/code-hl.js` (lớp nổi trên desktop, xếp chồng trên trang chat) |
-| Terminal trong phiên | `dashboard/code-term.js` (tab, xterm nạp lười) |
-| Chọn engine và model | `dashboard/model-picker.js` + `model-list.js` + trang Bộ não |
-| Việc chạy nền, hàng đợi, phụ thuộc | Kanban: `server/tasks.py`, `task_store.py`, `POST /kanban/task`, trang Việc |
-| Báo "phiên đang chờ anh trả lời" | `server/inbox.py` + `dashboard/notifications.js` + `push.js` + kênh Telegram |
-| Hết lượt gói thuê bao | `server/limit_resume.py` + `dashboard/limit-resume.js` (thẻ trong khung chat) |
-| Học hạn mức từ lỗi provider | `server/limit_learner.py` |
-| Chạy tiếp khi đóng tab | `server/chat_runtime.py` + `background_status.py` |
-| Trạng thái có cấu trúc của phiên | `server/conversation_state.py` (`StructuredState`) |
+| Khung chat (stream, tool call, đính kèm, giọng nói) | `_borrowChatNodes` (`console.js`) |
+| Danh sách phiên, ghim, đổi tên, tìm | `sessions-ui.js`, lọc theo kênh `coding:` |
+| Cây thư mục repo | `JavisVaultPanel.borrow(host)` (`console.js:7005`) |
+| Xem sửa file, tô màu cú pháp | `file-editor.js` + `code-hl.js` |
+| Terminal trong phiên | `code-term.js` |
+| Chọn engine và model | `model-picker.js` + `model-list.js` |
+| Chạy nền khi đóng tab, thông báo lượt xong | `chat_runtime.py` + `background_status.py` + `push.js` |
+| Hết lượt gói thuê bao | `limit_resume.py` + `limit-resume.js` |
+| Nhật ký | kho log đang có |
 | Thêm mục vào nhóm Code | `RAIL_ITEMS` + `RAIL_GROUPS` id `code` + `CODE_PAGES` (`console.js`) + `CHUC_NANG` (`code-term.js`) |
-
-Phần **thật sự mới** chỉ còn ba thứ: sổ repo, hàng chip ngữ cảnh, và điểm hồi (checkpoint).
-Đó là toàn bộ bề mặt mã mới của Giai đoạn 1.
-
-### 2.2 Native first
-
-Claude, Codex, Grok, Antigravity chạy bằng CLI thật của nhà cung cấp. Javis không viết lại
-agent loop. Javis giữ: repo, nhánh, quyền, điểm hồi, log, thông báo, giao diện.
-
-### 2.3 Model API dùng runtime Javis, không ép qua Codex
-
-v0.1 xếp "chạy DeepSeek/Kimi qua Codex CLI" là đường ưu tiên và runtime Javis là fallback.
-Đảo lại: `server/engine.py` đã có vòng gọi tool đầy đủ qua MCP Hub (tối đa 30 round) và đang
-chạy thật. Đó là **đường chính** cho model chỉ có API. Codex-as-harness hạ xuống một thử
-nghiệm một ngày, không phải một giai đoạn trong lộ trình.
-
-### 2.4 Repo là nguồn sự thật
-
-Bàn giao phiên chỉ giúp engine mới hiểu **ý định**. Trạng thái thật nằm ở `git status`,
-`git diff`, kết quả test. Engine mới luôn phải tự đọc lại; khi bản bàn giao nói khác repo thì
-tin repo.
 
 ---
 
-## 3. Đổi engine: chỉ bằng tay
+## 4. Phạm vi một phiên sửa
 
-Đây là thay đổi lớn nhất so với v0.1.
+Năm việc. Hết năm việc này là dùng được thật, không phải bản nháp chờ giai đoạn sau.
 
-### 3.1 Vì sao bỏ auto switch
+### 4.1 Mục Coding trong nhóm Code
+
+Bốn chỗ khai báo, mỗi chỗ một dòng, đúng như comment trong `code-term.js` đã dặn:
+`RAIL_ITEMS`, `RAIL_GROUPS` id `code`, `CODE_PAGES`, `CHUC_NANG`. Nhãn lấy từ từ điển
+`dashboard/i18n/`, không viết cứng.
+
+### 4.2 Sổ repo
+
+`server/coding_store.py`, một file JSON trong `JAVIS_STATE_DIR`, khoá theo brain:
+
+```json
+{
+  "repos": [
+    {"id": "javis-os", "ten": "javis-os", "duong_dan": "/home/user/javis-os", "nhanh_goc": "main"}
+  ],
+  "phien": {
+    "<session id>": {"repo": "javis-os", "nhanh": "main", "worktree": "/var/javis/wt/ab12",
+                     "muc_quyen": "full", "diem_hoi": "javis/ab12/3"}
+  }
+}
+```
+
+Thêm repo = nhập đường dẫn tuyệt đối. Kiểm `.git` tồn tại; không phải repo git thì từ chối kèm
+lý do, không im lặng nhận.
+
+### 4.3 Hàng chip ngữ cảnh
+
+Nằm ngay TRÊN ô nhập, không phải ở header. Đây là chỗ điều khiển chứ không phải chỗ hiển thị:
+
+```text
+[ javis-os ▾ ]  [ main ▾ ]  [ ☑ worktree ]  [ Bypass ▾ ]  [ Claude Code · Opus ▾ ]
+```
+
+Chip Engine mở thẳng `model-picker.js` đang có. Chip Mức quyền dùng lại ba mức của Javis
+(`suggest` / `auto` / `full`), không đặt tên mới. Đổi giữa chừng được, áp dụng từ lượt sau.
+
+### 4.4 Chạy engine trong repo
+
+Ở `main.py:2021` và chỗ tương ứng của Codex, khi phiên có kênh `coding:` thì `cwd` lấy từ sổ
+repo (worktree nếu có, không thì đường dẫn repo) thay vì `_brain_root(brain)`. Mức quyền
+truyền y như đường chat đang truyền.
+
+Một luật phải giữ: phiên coding **vẫn dùng MCP Hub và skill như mọi phiên khác**. Không dựng
+một đường engine riêng cho coding, vì đó là cách hai đường trôi lệch nhau.
+
+### 4.5 Worktree và điểm hồi
+
+Đây là phần khiến mode Bypass dùng được mà không phải cầu may, nên nó nằm trong phạm vi chứ
+không đẩy xuống sau.
+
+- **Worktree**: mode `full` thì mặc định bật, hai mức kia mặc định tắt. `git worktree add` đặt
+  ngoài cây repo chính, tên theo phiên. Đóng phiên mà worktree sạch thì dọn; còn sửa dở thì
+  giữ và nói trong chat là giữ ở đâu.
+- **Điểm hồi**: trước mỗi lượt ở mode `full`, tạo một tag `javis/<phiên>/<n>` trên HEAD hiện
+  tại. Rollback là `git reset --hard <tag>`, hiện thành một nút trong lượt đó.
+- **Không bao giờ** force push, và không bao giờ đụng nhánh không thuộc phiên.
+
+---
+
+## 5. Đổi engine: chỉ bằng tay
+
+### 5.1 Vì sao bỏ auto switch
 
 Đổi engine giữa chừng nghĩa là Claude đang sửa dở ba file theo một hướng, Codex vào tiếp với
 phong cách khác, có thể đạp lại chính sửa đổi trước. Nửa vời hai phong cách thường tệ hơn một
-phong cách xoàng. Chủ dự án chốt: rủi ro đó lớn hơn tiện lợi, và tiện lợi kia chỉ tiết kiệm
-được một cú bấm.
+phong cách xoàng. Tiện lợi đổi lại chỉ là tiết kiệm một cú bấm, không đáng.
 
-Vậy nên **không có** router tự chọn engine, **không có** failover tự động khi provider lỗi,
-**không có** ngưỡng quota kích hoạt chuyển engine, **không có** bảng quota phần trăm. Bỏ hẳn
-mục 17, 22, 23 và Phase 3 của v0.1.
+Nên **không có** router tự chọn engine, **không có** failover khi provider lỗi, **không có**
+ngưỡng quota kích hoạt chuyển engine, **không có** bảng quota phần trăm.
 
-### 3.2 Còn lại gì
+### 5.2 Còn lại
 
-- **Chip Engine** trên hàng ngữ cảnh. Bấm vào là `model-picker.js` đang có, không viết mới.
-- Đổi engine mở một tấm xác nhận nói đúng ba điều: engine cũ, engine mới, và trạng thái
-  working tree.
-- **Điều kiện ranh giới an toàn:** chỉ bàn giao khi working tree sạch, hoặc Javis tạo một
-  commit WIP trước. Không sạch và anh từ chối commit thì vẫn đổi được, nhưng tấm xác nhận nói
-  rõ là engine mới sẽ thấy một đống sửa dở không có mô tả.
-- Sau khi đổi, Javis tự chèn bản bàn giao gọn (mục 6) vào lượt đầu của engine mới, và nói một
-  câu trong chat: đang ở việc gì, vừa đổi từ đâu sang đâu.
+Bấm chip Engine, chọn, xong. Tấm xác nhận nói ba điều: engine cũ, engine mới, trạng thái
+working tree. Cây bẩn thì đề nghị tạo điểm hồi trước; từ chối cũng đổi được, nhưng tấm xác
+nhận nói rõ engine mới sẽ thấy một đống sửa dở không có mô tả.
 
-### 3.3 Hết lượt gói thuê bao thì sao
+Trong một phiên sửa này, engine mới **tự đọc lại repo** để hiểu trạng thái, đúng theo mục 6.
+Không có bản bàn giao sinh bằng model. Xem "Để lần sau".
 
-Giữ nguyên cơ chế đang chạy, không đụng vào: `limit_resume.py` ghi mục chờ và **tự chạy lại
-đúng lượt đó bằng đúng engine cũ** khi hạn mức mở. Đó là chạy lại, không phải đổi model, nên
-không vi phạm quyết định trên.
+### 5.3 Hết lượt gói thuê bao
 
-Thêm đúng **một nút** vào thẻ hết lượt của `dashboard/limit-resume.js`: "Đổi engine và chạy
-tiếp". Bấm là mở đúng cái picker ở 3.2, đi qua đúng cửa xác nhận đó. Người quyết định vẫn là
-anh.
+Giữ nguyên `limit_resume.py`, không đụng: nó chạy lại đúng lượt đó bằng **đúng engine cũ** khi
+hạn mức mở. Đó là chạy lại, không phải đổi model, nên không vi phạm quyết định trên.
+
+Thêm đúng một nút vào thẻ hết lượt của `limit-resume.js`: "Đổi engine và chạy tiếp", đi qua
+đúng cửa xác nhận 5.2. Người quyết định vẫn là người dùng.
 
 ---
 
-## 4. Giao diện
+## 6. Repo là nguồn sự thật
 
-### 4.1 Bố cục
+Trạng thái thật nằm ở `git status`, `git diff`, kết quả test. Engine mới vào phiên luôn phải
+tự đọc lại; khi ngữ cảnh trong chat nói khác repo thì tin repo.
+
+Đây cũng là lý do bản bàn giao sinh bằng model chưa cần ở bản đầu: repo cộng diff cộng kết quả
+test đã là phần lớn ngữ cảnh, phần thiếu chỉ là **ý định đang dở**, mà ý định đó vẫn nằm
+nguyên trong lịch sử chat của chính phiên.
+
+---
+
+## 7. Giao diện
 
 Hai vùng, không phải ba:
 
 ```text
 ┌──────────────┬────────────────────────────────────────────┐
-│ PHIÊN CODING │                                            │
-│              │                   CHAT                     │
+│ PHIÊN CODING │                   CHAT                     │
 │ trạng thái   │                                            │
 │ repo/nhánh   │  ── hàng chip ngữ cảnh ──                  │
 │              │  ── ô nhập ──                              │
 └──────────────┴────────────────────────────────────────────┘
 ```
 
-Cột phải của v0.1 bị bỏ. Cây thư mục, trình sửa file và terminal là **tab bật khi cần** trong
-cùng vùng phải của khung chat, dùng đúng cơ chế tab Thư mục đang có ở trang Trò chuyện.
+Không có cột Work Tree cố định. Cây thư mục, trình sửa file và terminal là **tab bật khi cần**
+ở vùng phải của khung chat, dùng đúng cơ chế tab Thư mục của trang Trò chuyện. Claude Code
+trên web, công cụ coding thuần tuý, cũng không có cột file tree; giữ một cột luôn hiện là mang
+tư duy IDE vào một sản phẩm tự nhận là chat-first.
 
-Lý do: Claude Code trên web, công cụ coding thuần tuý, cũng không có cột file tree. Giữ một
-cột luôn hiện là mang tư duy IDE vào một sản phẩm tự nhận là chat-first.
+**Điện thoại:** một cột chat, chip xuống một hàng cuộn ngang, danh sách phiên là tấm kéo lên.
+Bố cục hai vùng chỉ áp dụng từ bề rộng desktop.
 
-### 4.2 Hàng chip ngữ cảnh
+**Trạng thái phiên:** bốn mức `đang chạy`, `xong`, `lỗi`, `hết lượt`, suy từ
+`background_status.py` và `limit_resume.py` đang có. Lượt xong khi tab đóng thì thông báo đi
+theo đúng đường nền hiện tại, không viết đường thông báo mới.
 
-Nằm ngay trên ô nhập, không phải ở header. Đây là chỗ **điều khiển**, không phải chỗ hiển thị:
-
-```text
-[ Local ▾ ]  [ javis-os ▾ ]  [ main ▾ ]  [ ☑ worktree ]  [ Bypass ▾ ]  [ Claude Code · Opus ▾ ]
-```
-
-- **Nơi chạy**: máy này hoặc VPS. Suy từ cấu hình sẵn có, chưa cần thêm gì ở Giai đoạn 1.
-- **Repo**: thay cho khái niệm "Project" của v0.1. Một phiên gắn một repo, agent luôn biết
-  thư mục làm việc, anh không phải nhắc lại repo trong mỗi câu.
-- **Nhánh**: đọc từ git, đổi được.
-- **Worktree**: xem mục 5.
-- **Mức quyền**: Plan / Auto / Bypass (mục 7).
-- **Engine và model**: mượn `model-picker.js`.
-
-### 4.3 Trạng thái phiên là cột sống, không phải trang trí
-
-v0.1 viết "hiển thị trạng thái đang chạy/dừng/lỗi **nếu cần**". Sai. Chạy full-auto nhiều
-phiên thì câu hỏi duy nhất anh cần trả lời khi mở app là: **phiên nào đang chờ tôi**.
-
-Năm trạng thái: `đang chạy`, `cần trả lời`, `xong`, `lỗi`, `hết lượt`.
-
-Và điều quan trọng hơn cái badge: phiên chuyển sang `cần trả lời` thì **đẩy ra ngoài** qua
-`inbox.py` và kênh Telegram đang có. Agent chạy nền rồi dừng lại hỏi mà không ai biết là cách
-công việc chết âm thầm. Javis có kênh, các công cụ coding khác không có; đây là chỗ Javis hơn
-chúng nó, và nó gần như miễn phí vì hạ tầng thông báo đã dựng xong.
-
-### 4.4 Điện thoại
-
-Một cột chat. Chip xuống một hàng cuộn ngang. Danh sách phiên là một tấm kéo lên. Không có
-cột nào. Bố cục hai cột ở 4.1 chỉ áp dụng từ bề rộng desktop.
+Mức thứ năm `cần trả lời` (agent dừng lại hỏi) là thứ đáng giá nhất khi chạy nhiều phiên, vì
+agent chạy nền rồi dừng lại hỏi mà không ai biết là cách công việc chết âm thầm. Nhưng nhận ra
+nó cần đoán ý cuối lượt, mà đoán sai thì báo động giả hoặc bỏ sót. Để lần sau, làm cho đúng.
 
 ---
 
-## 5. Worktree
+## 8. Dữ liệu và API
 
-v0.1 không nhắc worktree lần nào. Đây là thứ giải quyết vấn đề thực tế nhất của mô hình nhiều
-phiên chạy song song: mỗi phiên một `git worktree`, không phiên nào thấy sửa đổi dở của phiên
-khác.
+Chốt sẵn để lúc làm không phải quyết định lại giữa chừng:
 
-**Luật:**
+- `GET /coding/repos` - danh sách repo của brain.
+- `POST /coding/repos` - thêm, body `duong_dan`. Kiểm `.git`.
+- `POST /coding/repos/{id}/delete` - chỉ xoá khỏi sổ, KHÔNG đụng đĩa.
+- `GET /coding/session/{sid}` - ràng buộc hiện tại của phiên.
+- `POST /coding/session/{sid}` - đặt repo, nhánh, worktree, mức quyền.
+- `POST /coding/session/{sid}/checkpoint` - tạo điểm hồi, trả tên tag.
+- `POST /coding/session/{sid}/rollback` - body `tag`.
 
-- Mode Bypass thì worktree **mặc định bật**.
-- Mode Plan và Auto thì mặc định tắt, bật được.
-- Worktree đặt ngoài cây repo chính, đặt tên theo phiên.
-- Phiên đóng mà worktree sạch thì dọn; còn sửa đổi thì giữ lại và nói trong chat là giữ ở đâu.
+Route mới đặt trong `server/routes/` theo đúng lối `channels.py` và `conversations.py`, không
+nhét thêm vào `main.py`.
 
-Với tham vọng Javis tự sửa chính Javis, đây là điều kiện bắt buộc chứ không phải tuỳ chọn:
-sửa thẳng trên thư mục đang chạy là tự khoá mình ra ngoài.
+## 9. Test
 
----
+Theo quy ước repo, CI chạy `python tests/run.py`:
 
-## 6. Trạng thái phiên và bản bàn giao
+- `tests/python/test_coding_store.py` - thêm repo không phải git thì từ chối; xoá repo không
+  đụng đĩa; sổ di trú được khi thiếu trường.
+- `tests/js/test_trang_coding.js` - hàng chip vẽ đúng ràng buộc; đổi mức quyền không mất phiên.
 
-### 6.1 Thứ đã có
-
-`server/conversation_state.py` đang duy trì `StructuredState` gồm `goals`, `decisions`,
-`open_questions`, `constraints`, `artifacts`, `entities`, `last_completed_step`, mỗi mục có
-`source_ref` trỏ về transcript, dựng lại được từ SQLite. So với sơ đồ "Working State" của v0.1
-thì trùng gần hết.
-
-### 6.2 Thứ cần thêm
-
-Một khối phụ cho phiên coding, ghi bằng sự kiện hệ thống chứ không gọi model:
-
-```json
-{
-  "repo": "javis-os",
-  "worktree": "/var/javis/wt/coding-7f3a",
-  "branch": "feature/coding-workspace",
-  "checkpoint": "javis/coding-7f3a/3",
-  "files_changed": ["dashboard/coding.js"],
-  "commands_run": ["npm test"],
-  "test_status": "128 passed, 1 failed"
-}
-```
-
-### 6.3 Nói cho đúng về token
-
-v0.1 ghi working state "≈ 0 token". Không đúng, và sai kiểu dễ dẫn tới tối ưu nhầm chỗ.
-**Ghi** thì đúng là 0 token vì là code ghi. **Đọc** thì không: khối trạng thái phải nằm trong
-prompt của mỗi lượt, đúng như `context_compiler` đang tính hôm nay. Chi phí thật nhỏ nhưng
-khác không, và nó tỉ lệ với số lượt chứ không phải số lần bàn giao.
-
-### 6.4 Bản bàn giao giữ ngắn
-
-Với coding, repo cộng `git diff` cộng kết quả test đã là phần lớn ngữ cảnh, và engine mới phải
-tự đọc chúng. Thứ duy nhất thật sự mất khi đổi engine là **ý định đang dở**. Nên bản bàn giao
-chỉ ba phần:
-
-- Đang làm gì và vì sao.
-- Đã thử gì, hỏng ra sao.
-- Bước tiếp theo.
-
-Viết dài hơn là tự tạo một bản mô tả có thể mâu thuẫn với repo, mà theo mục 2.4 thì lúc mâu
-thuẫn nó bị bỏ đi. Dài thêm là tốn token để làm tăng xác suất sai.
+Thêm một canary cho luật mượn: trang Coding không được tự dựng khung chat hay cây thư mục thứ
+hai.
 
 ---
 
-## 7. Ba mức quyền
+## 10. Để lần sau
 
-Giữ nguyên khung ba mức của Javis, không đặt tên mới:
+Cắt khỏi bản đầu, có chủ ý, kèm lý do:
 
-- **Plan**: đọc code, lập kế hoạch, chỉ ra file cần sửa. Không sửa.
-- **Auto**: sửa file, chạy test, build. Không đẩy ra ngoài (không push, không deploy).
-- **Bypass**: làm hết, gồm commit, push, deploy.
+- **Bản bàn giao khi đổi engine.** `conversation_state.py` đã có `StructuredState` (goals,
+  decisions, open_questions, constraints, artifacts, last_completed_step), việc cần làm chỉ là
+  thêm một khối coding (repo, nhánh, điểm hồi, files_changed, test_status). Nhưng theo mục 6,
+  engine mới đọc repo là đủ cho bản đầu. Nói cho đúng một con số của v0.1: working state không
+  phải "≈ 0 token"; ghi thì 0 vì code ghi, nhưng đọc thì phải nằm trong prompt MỖI lượt.
+- **Trạng thái `cần trả lời`** và đẩy nó ra inbox cộng Telegram. Xem mục 7.
+- **Preflight trước deploy** (test pass và build pass và có điểm hồi và nhánh được phép), cộng
+  **quét secret trước khi commit**. Chưa cần vì bản đầu chưa đấu deploy; đến lúc đấu thì hai
+  thứ này vào cùng, không để sau.
+- **Git và PR trong giao diện**, adapter deploy Cloudflare / Supabase / VPS, rollback
+  deployment.
+- **Model chỉ có API chạy trong phiên coding.** Đường đã có (`engine.py`, vòng tool qua MCP Hub,
+  tối đa 30 round) nên đây là mở rộng chứ không phải xây mới, chỉ là chưa cần ở bản đầu.
 
-Đổi mức bằng chip, giữa chừng cũng được, áp dụng từ lượt sau.
-
----
-
-## 8. Điểm hồi và rollback
-
-v0.1 chỉ nói rollback deployment. Nhưng ở mode Bypass, thiệt hại lớn hơn nằm ở **file và git**:
-xoá nhầm file chưa commit, sửa thẳng lên `main`, force push đè việc người khác.
-
-**Luật, làm được bằng git thuần, không cần hạ tầng snapshot:**
-
-- Trước mỗi lượt Bypass, Javis tạo một điểm hồi: commit WIP hoặc tag `javis/<phiên>/<n>`.
-- Phiên chạy trong worktree riêng.
-- Rollback = `git reset --hard <điểm hồi>`. Hiện thành một nút trong log của lượt đó.
-- Không bao giờ force push lên nhánh không phải của phiên.
-
-Rollback deployment (Cloudflare, Supabase) để Giai đoạn 4, khi đã đấu deploy.
-
----
-
-## 9. Preflight thay cho hỏi xin phép
-
-Bypass nghĩa là không hỏi, không có nghĩa là không kiểm. Preflight là điều kiện **máy tự
-kiểm**, không làm phiền người:
-
-> test pass **và** build pass **và** có điểm hồi **và** nhánh nằm trong danh sách được deploy.
-
-Thiếu điều kiện nào thì vẫn chạy (anh đã bật Bypass), nhưng Javis **nói rõ đã bỏ qua cái gì**
-trước khi đi tiếp. Giữ được tinh thần một lệnh chạy tới cùng mà không mù.
-
-Thêm một bước v0.1 quên: **quét secret trước khi commit**. Agent chạy Bypass đọc `.env` rồi
-commit nhầm khoá là tai nạn kinh điển, và nó không hồi được bằng `git reset` vì khoá đã lên
-remote.
-
----
-
-## 10. Nhật ký
-
-Giao diện gọn nhưng log phải đủ. Mỗi phiên có một dòng thời gian: lệnh đã chạy, file đã sửa,
-test, commit, deploy, kết quả kiểm tra. Mở khi cần audit, không hiện mặc định.
-
-Dùng lại kho log đang có, không viết kho thứ hai.
-
----
-
-## 11. Giai đoạn
-
-### Giai đoạn 1: đứng được
-
-- Thêm mục `coding` vào `RAIL_ITEMS`, vào `RAIL_GROUPS` id `code`, vào `CODE_PAGES`
-  (`console.js`) và `CHUC_NANG` (`code-term.js`).
-- Sổ repo: thêm, chọn, nhớ repo của từng phiên.
-- Hàng chip ngữ cảnh, dùng lại `model-picker.js` cho chip Engine.
-- Worktree, mặc định bật ở Bypass.
-- Chạy Claude Code và Codex trên repo đã chọn.
-- Trạng thái phiên năm mức, đẩy `cần trả lời` ra inbox và Telegram.
-
-**Không có trong Giai đoạn 1:** bàn giao phiên, cột file, quota, git nâng cao, deploy.
-
-### Giai đoạn 2: an toàn khi bật Bypass
-
-- Điểm hồi trước mỗi lượt, nút rollback.
-- Preflight và quét secret.
-- Nhật ký phiên.
-
-### Giai đoạn 3: bàn giao phiên bằng tay
-
-- Mở rộng `conversation_state.py` thêm khối coding (6.2).
-- Tấm xác nhận đổi engine, điều kiện ranh giới an toàn.
-- Nút "Đổi engine và chạy tiếp" trên thẻ hết lượt.
-
-### Giai đoạn 4: git và deploy
-
-- Commit, push, mở PR từ trong phiên.
-- Adapter deploy: Cloudflare trước, rồi Supabase và VPS.
-- Rollback deployment.
-
-**Không có Giai đoạn 5 và 6 của v0.1.** Quota Router bỏ hẳn theo mục 3. Self-improve / ASA
-tách khỏi tài liệu này: Javis đã có trang `selfimprove` riêng, và trộn vào đây làm phình phạm
-vi. Nếu làm, ràng buộc cứng là chỉ chạy trong worktree riêng, chỉ mở PR, không tự merge,
-không tự deploy `javis-os`.
-
----
-
-## 12. Những thứ quyết định KHÔNG làm
+## 11. Quyết định KHÔNG làm
 
 Giữ lại vì lý do từ chối bền hơn thứ bị từ chối:
 
-- **Auto switch model.** Đổi engine giữa chừng làm hỏng mạch code. Chốt 2026-09-22.
-- **Bảng quota phần trăm.** Các CLI thuê bao không phơi ra con số đáng tin để đọc trước; chỉ
-  biết khi đã vấp. Vẽ một bảng như vậy là hứa một thứ hạ tầng không cấp.
-- **Cột Work Tree cố định.** Xem 4.1.
-- **Một tầng Handoff Layer riêng.** Xem 6.1: đã có `conversation_state.py`.
-- **Ép model API qua Codex CLI.** Xem 2.3.
-- **IDE, editor phức tạp, terminal UI nặng.** Javis có `file-editor.js` và Terminal rồi.
-- **Sao chép toàn bộ transcript làm bản bàn giao.** Xem 6.4.
+- **Auto switch model.** Xem 5.1. Chốt 2026-09-22.
+- **Bảng quota phần trăm.** Các CLI thuê bao không phơi ra con số đáng tin để đọc trước, chỉ
+  biết khi đã vấp. Vẽ bảng đó là hứa một thứ hạ tầng không cấp.
+- **Cột Work Tree cố định.** Xem mục 7.
+- **Một tầng Handoff Layer riêng.** `conversation_state.py` đã là Working State. Chữ "handoff"
+  cũng giữ nghĩa cũ (bot bàn giao cho người, `chatbot_store` / `chatbot_runtime`); việc đổi
+  engine gọi là bàn giao phiên.
+- **Ép model chỉ có API qua Codex CLI.** v0.1 xếp đây là đường ưu tiên và runtime Javis là
+  fallback. Đảo lại: runtime Javis đang chạy thật, Codex-as-harness là giả định chưa kiểm
+  chứng, hạ xuống một thử nghiệm một ngày.
+- **IDE, editor phức tạp, terminal UI nặng.** Đã có `file-editor.js` và Terminal.
+- **Sao chép toàn bộ transcript làm bản bàn giao.**
+- **Self-improve / ASA trong tài liệu này.** Javis đã có trang `selfimprove` riêng. Nếu làm,
+  ràng buộc cứng: chỉ chạy trong worktree riêng, chỉ mở PR, không tự merge, không tự deploy
+  `javis-os`.
 
 ---
 
-## 13. North Star
+## 12. North Star
 
-> Một Javis. Nhiều engine. Ngữ cảnh liền mạch. Anh chọn engine, Javis làm phần còn lại.
+> Một Javis. Nhiều engine. Người dùng chọn engine, Javis lo phần còn lại.
