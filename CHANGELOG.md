@@ -10,6 +10,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 - Cần bật một lần bằng biến môi trường `JAVIS_ENABLE_WEB_CHAT=true` rồi khởi động lại. Chưa bật thì model này không hiện ra, và mọi thứ khác chạy y như cũ.
 - Trang **Models**, trong thẻ ChatGPT, có thêm nút mở cửa sổ đăng nhập, nút kiểm tra lại và nút đóng trình duyệt. Javis không cầm mật khẩu của bạn: bạn tự đăng nhập một lần trong cửa sổ đó.
 - Lưu ý khi dùng: mỗi lượt là một cuộc chat thật trên chatgpt.com, nên **Memory** và **Custom instructions** của tài khoản sẽ ảnh hưởng câu trả lời. Muốn Javis trả lời thuần theo prompt của mình thì tắt hai thứ đó trong cài đặt ChatGPT. Mỗi vòng gọi tool cũng mất vài chục giây, nên việc nhiều bước vẫn nên để Codex.
+## [0.63.8] - 2026-09-22
+### Thêm mới
+- **Đợi lâu không còn mù tịt.** Khi Javis phải gọi nhiều công cụ để trả lời, khung chat giờ liệt kê từng bước ngay trên câu trả lời thay vì chỉ một dòng nhấp nháy rồi mất. Trả lời xong, danh sách tự gấp thành một dòng `Đã chạy 6 bước`, bấm vào là bung ra xem lại.
+- Danh sách bước sống qua F5, nên tải lại trang vẫn đối chiếu được Javis đã làm những gì. Lượt trả lời thẳng, không gọi công cụ nào thì không mọc thêm dòng nào cả.
+
 ## [0.63.7] - 2026-09-22
 ### Cải thiện
 - **Máy yếu bớt đơ hẳn khi mở màn chính.** Quả cầu não trước đây vẽ lại liên tục cả khi không có gì chuyển động, đốt CPU suốt ngày dù bạn chỉ ngồi nhìn. Nay nó đứng yên lúc rảnh và sống lại ngay khi bạn nói, khi Javis đang nghĩ, hoặc khi bạn rê chuột vào nó.

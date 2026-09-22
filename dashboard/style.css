@@ -1222,6 +1222,31 @@ li.task-done > .dv-ttext { text-decoration: line-through; text-decoration-color:
 @keyframes actDot { 30% { opacity: 1; transform: translateY(-3px); } }
 @keyframes actGlow { 50% { border-color: var(--accent2); box-shadow: 0 0 14px var(--accent2-wash); } }
 .act-time { color: var(--text3); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* Khối tiến trình từng bước của một lượt (chat-steps.js). Nằm ngay trên bong bóng trả lời.
+   Tông xám, chữ nhỏ: đây là phần phụ để liếc, không được tranh chỗ với câu trả lời. */
+.msg-steps {
+  font-family: var(--font); font-size: 12.5px; color: var(--text3);
+  margin: 2px 0 4px; max-width: 100%;
+}
+.steps-sum {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 3px 2px; cursor: pointer;
+  color: var(--text3); font: inherit; text-align: left;
+}
+.steps-sum:hover { color: var(--text2); }
+.steps-sum svg { width: 13px; height: 13px; transition: transform 0.15s ease; }
+.msg-steps.steps-fold .steps-sum svg { transform: rotate(-90deg); }
+.msg-steps.steps-fold .steps-list { display: none; }
+.steps-list {
+  border-left: 2px solid var(--line); margin-left: 7px; padding: 2px 0 2px 11px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.steps-list .step {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Bước cuối đang chạy: đậm hơn một chút để mắt biết đang đứng ở đâu trong danh sách. */
+.steps-list .step-live { color: var(--text2); }
+
 /* Dòng ghi chú thoáng qua (cửa tạp âm bỏ một lượt). Nhạt và căn giữa để mắt lướt qua chứ
    không đọc như một lượt hội thoại - nó tự tắt sau vài giây. */
 .msg-ghichu {
